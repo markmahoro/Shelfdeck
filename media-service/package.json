@@ -24,6 +24,8 @@
     "test:helix-libra-front-half": "node scripts/helix-p8-libra-front-half-verify.js",
     "test:helix-libra-front-half-exit": "node scripts/helix-p8-exit-audit.js --require-clean",
     "test:helix-routing-real": "node scripts/helix-real-routing-e2e.js",
+    "test:helix-libra-handoff-b-real": "node scripts/helix-real-libra-handoff-b-e2e.js",
+    "test:helix-libra-dv-fallback-real": "node scripts/helix-real-libra-dv-fallback-e2e.js",
     "build:web": "cd web && npm run build",
     "helix:clean-init": "node scripts/helix-clean-init.js",
     "test:helix-p14-docker-entrypoint": "node scripts/p14-beta-impl-02-docker-retest.js",

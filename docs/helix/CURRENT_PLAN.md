@@ -1,8 +1,32 @@
 # ShelfDeck Clean Helix Master Plan
 
-Status: Movie Procurement保持`CLOSED FOR MOVIE`；Arca Shelf配置保持`READY FOR LIBRA`；Libra达到`ACCEPTANCE SPEC READY / AWAITING LIBRA RUN`，当前Acceptance Spec Implementation Gate已关闭。
+Status: Movie Procurement保持`CLOSED FOR MOVIE`；Movie Libra正式封口为`MOVIE LIBRA CLOSED AT HANDOFF B READY`；下一业务边界为Arca Acceptance。Handoff B Offer仍为open且未消费，Arca On-deck尚未开始。
 
-Last updated: 2026-08-12
+Last updated: 2026-08-14
+
+## 0. Closed target — Movie Libra at Handoff B Ready
+
+2026-08-14，用户在审阅38场景、真实DV、源级GPU→CPU fallback及真实MoviePilot L07终态证据后接受Movie Libra封口。封口范围从Handoff A Accepted后的Intake开始，覆盖Routing、User Perception、Acceptance Spec、Libra Run、Workspace Production、Product Conformance、Package Publication，终止于自包含On-deck Product Package及open Handoff B Offer。封口不包括Handoff B Accepted、Arca Acceptance、On-deck、Shelf Entry、Deck Fact或Workspace Off-load回收。
+
+后续Arca接入只能消费正式Handoff B合同；若要求改变Libra Owner、Run/Work/Event执行边界、Production Planner、Package、External Landing或Promotion语义，必须返回Design，不得以Arca实现补丁反向修改已封口的Movie Libra。
+
+Libra Run、Workspace、Product Fact、媒体生产、Promotion和open Handoff B Offer均已通过隔离P14真实字节及故障注入验证。原35个逻辑场景继续由
+`test/helix-libra-handoff-b-scenario-e2e.test.js`的产品级test case覆盖；MoviePilot External Landing接线后该文件复跑为13/13 PASS、约450秒。D09与R09另由真实DV字节产品Composition Root E2E覆盖。当前默认服务测试245 pass、14个显式环境skip、0 fail；Architecture gate为159个test file PASS。合同计数保持112/98/180/43/115，当前P2 aggregate为
+`f75a5a714d2bb06af61cb31986832ed07ff9106e51ef12f3988fca87a4bf8327`，SSOT source-map aggregate为`9d7e809b178976d1b742819f87622a44f9757c0ec173b32e494be4e3fbd65ac3`。Execution Foundation状态机没有修改。
+
+DV专项已封口：真实Profile 8样本经实际Device Probe选择`local-nvidia-nvenc-0`，Assessment 24/24通过后只产生一份GPU Transcode Effect；真实Profile 7样本在受控Platform Adapter中保持GPU `ready`但缺少当前source pipeline，GPU Assessment以`required_pipeline_profile_unavailable`收口且GPU Transcode Effect为0，随后由新的CPU Work/Plan/Event/Intent执行two-pass及显式strict-ABR重规划。两条最终输出均为HEVC、SDR BT.709 limited、`yuv420p`、无DOVI，5%/50%/95%均可解码；重启不重复Assessment或媒体Effect。Profile 5/无兼容Base Layer的D10会耗尽本地策略并在外部无结果时Frozen，0 Package/0 Offer。
+
+MoviePilot External Landing产品合同已经接通：MoviePilot的请求/整理目录与Libra Workspace保持独立；最终输出只允许按整理历史的
+`download_hash → dest`解析，不读取下载历史旧`path`。`dest`经当前`MoviePilotLandingBinding@1`转换为Endpoint-relative location，
+随后由Stability、Identity/Package Verify和Workspace Import复用同一Binding revision。Import以流式普通拷贝形成独立Workspace
+Physical Material，前后核验stat、digest与containment，不硬链接、不删除Landing原件。Admin Web通过现有Integration路由配置和测试
+Endpoint、API Key、请求根、整理根与ShelfDeck只读可见根；产品路径不再接受进程启动参数中的旧下载映射。
+
+真实L07最终复用MoviePilot中已经完成的`The Wild Robot (2024)`精确任务和`download_hash`，测试脚本硬性禁止调用`/api/v1/download/add`，因此没有重新下载或创建第二个任务。产品链只通过Transfer History定位最终整理`dest`，随后完成planned restart、Resolve、Stability、Identity/Package Verify、Workspace Import、真实Probe、Package及open Offer。
+
+最终fresh-clean证据位于`C:\Users\markm\AppData\Local\Temp\helix-real-libra-handoff-b-HmA51h`：总耗时607.681秒；Search 12.057秒、Request/既有任务采用14.085秒、Acquisition Observation 268.735秒、Stability 289.589秒、Workspace Import 341.676秒。`moviePilotDownloadAddCount=0`；Request、Acquisition Observation、Stability与Import的成功事实均各1份，planned restart后无重复外部请求、Import、Package或Offer。Landing原件与Workspace副本均为21,756,642,178 bytes、SHA-256 `fd725e36bc8f5fb5503cddba241d146353aba5a8b06e2b50c7f0c35dbe347468`，inode不同，证明是独立物理副本而非硬链接。真实输出为HEVC 4K + TrueHD，低于50 GiB Acceptance上限；`failedWorks=0`、`failedEvents=0`、Offer未消费、Arca Entry为0，数据库`integrity_check=ok`，Landing、Material Field与Shelf Reality不变。
+
+该轮同时闭合了大文件External Landing观察的执行合同：External package完整SHA-256属于外部包完整性Evidence，不是Physical Material Identity的有界指纹；Acquire Observation和Stability必须同时取得Integration及Landing `volume_read` Permit，并使用有界长超时。原30秒timeout会在约4分钟checksum尚未完成时制造重试和重叠读取，现已修为30分钟硬上限并通过真实21.76 GB文件验证。
 
 ## Local media test boundary
 

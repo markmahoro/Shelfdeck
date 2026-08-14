@@ -19,6 +19,9 @@ const {
 const {
   createThePornDbRestClient,
 } = require('./theporndb-rest-client');
+const {
+  resolve: resolveLandingLocation,
+} = require('./moviepilot-landing-access-adapter');
 
 const JSON_LIMIT = 64 * 1024;
 const TEXT_LIMIT = 128 * 1024;
@@ -28,6 +31,23 @@ const EXTERNAL_VIDEO_EXTENSIONS = new Set([
   '.mts', '.ts', '.webm', '.wmv',
 ]);
 const PROVIDER_ERROR = 'P5_PROVIDER_TRANSPORT_FAILED';
+
+function endpointRelativeLocation(binding, providerLocation) {
+  if (typeof providerLocation !== 'string' || providerLocation.length < 1 ||
+      providerLocation.length > 4096) {
+    fail(PROVIDER_ERROR, 'MoviePilot organized output path is invalid.');
+  }
+  const location = providerLocation.replaceAll('\\', '/')
+    .replace(/\/+$/, '') || '/';
+  const root = binding.providerOrganizedRoot;
+  if (!location.startsWith('/') ||
+      location.split('/').some((part) => part === '..' || part === '.') ||
+      (location !== root && !location.startsWith(root + '/'))) {
+    fail(PROVIDER_ERROR,
+      'MoviePilot organized output is outside the configured provider root.');
+  }
+  return location.slice(root.length).replace(/^\/+/, '');
+}
 
 class H1ProviderAdapterError extends Error {
   constructor(code, message, details = {}) {
@@ -296,6 +316,24 @@ function createTestAdapter(profile, options) {
   }
 
   async function moviepilot(value) {
+    const searchUrl = endpointUrl(value.endpoint, 'api/v1/search/title');
+    searchUrl.searchParams.set('token', value.secretBytes.toString('utf8'));
+    searchUrl.searchParams.set('keyword', 'ShelfDeck connection test');
+    searchUrl.searchParams.set('mtype', 'movie');
+    const searched = await fetchJson(fetchImpl, searchUrl, {
+      headers: { accept:'application/json' },
+      signal: AbortSignal.timeout(value.timeoutMs),
+    }, EXTERNAL_JSON_LIMIT);
+    const searchRows = Array.isArray(searched)
+      ? searched
+      : Array.isArray(searched?.data)
+        ? searched.data
+        : searched?.success === false
+          ? []
+          : null;
+    if (!searchRows) {
+      fail(PROVIDER_ERROR, 'MoviePilot search capability is unavailable.');
+    }
     const url = endpointUrl(value.endpoint, 'api/v1/download/');
     url.searchParams.set('token', value.secretBytes.toString('utf8'));
     const found = await fetchJson(fetchImpl, url, {
@@ -310,12 +348,29 @@ function createTestAdapter(profile, options) {
     if (!list) {
       fail(PROVIDER_ERROR, 'MoviePilot test response is invalid.');
     }
+    const transferUrl = endpointUrl(value.endpoint, 'api/v1/history/transfer');
+    transferUrl.searchParams.set('token', value.secretBytes.toString('utf8'));
+    transferUrl.searchParams.set('page', '1');
+    transferUrl.searchParams.set('count', '1');
+    const transfer = await fetchJson(fetchImpl, transferUrl, {
+      headers: { accept:'application/json' },
+      signal: AbortSignal.timeout(value.timeoutMs),
+    }, EXTERNAL_JSON_LIMIT);
+    const transferRows = Array.isArray(transfer)
+      ? transfer
+      : Array.isArray(transfer?.data?.list)
+        ? transfer.data.list
+        : null;
+    if (!transferRows) {
+      fail(PROVIDER_ERROR, 'MoviePilot transfer history capability is unavailable.');
+    }
     return summary(
       profile,
       value.endpoint,
       'moviepilot_instance',
       new URL(value.endpoint).host,
-      { downloads: list.length },
+      { downloads: list.length, searchResults:searchRows.length,
+        transferHistoryResults:transferRows.length },
       now,
     );
   }
@@ -429,60 +484,21 @@ function createProtocolTransport(profile, options) {
   const now = options.now || Date.now;
   const observationPayloads = new Map();
   const MAX_PENDING_OBSERVATIONS = 200;
-  const moviePilotSavePath = typeof options.moviePilotSavePath === 'string' &&
-      options.moviePilotSavePath.trim()
-    ? options.moviePilotSavePath.trim() : null;
-  const moviePilotMappings = Object.freeze([
-    ...(options.moviePilotDownloadMappings || []),
-    ...(options.moviePilotDownloadRoots || []).map((root) => ({
-      providerRoot: root,
-      localRoot: root,
-    })),
-  ].map((item) => {
-    if (!item || typeof item.providerRoot !== 'string' ||
-        typeof item.localRoot !== 'string' || !item.providerRoot.trim() ||
-        !item.localRoot.trim()) {
-      fail(PROVIDER_ERROR, 'MoviePilot download path mapping is invalid.');
-    }
-    return Object.freeze({
-      providerRoot: item.providerRoot.replaceAll('\\', '/').replace(/\/+$/, ''),
-      localRoot: path.resolve(item.localRoot),
-    });
-  }));
-
-  function moviePilotLocalPath(providerLocation) {
-    if (typeof providerLocation !== 'string' || !providerLocation.trim()) {
-      fail(PROVIDER_ERROR, 'MoviePilot output location is absent.');
-    }
-    const normalized = providerLocation.replaceAll('\\', '/').replace(/\/+$/, '');
-    const match = moviePilotMappings.find((item) =>
-      normalized === item.providerRoot ||
-      normalized.startsWith(item.providerRoot + '/'));
-    if (!match) {
-      fail(PROVIDER_ERROR,
-        'MoviePilot output is outside the configured isolated download roots.');
-    }
-    const relativeParts = normalized.slice(match.providerRoot.length)
-      .replace(/^\/+/, '').split('/').filter(Boolean);
-    if (relativeParts.some((part) => part === '.' || part === '..')) {
-      fail(PROVIDER_ERROR, 'MoviePilot output path escapes its mapped root.');
-    }
-    const resolved = path.resolve(match.localRoot, ...relativeParts);
-    if (resolved !== match.localRoot &&
-        !resolved.startsWith(match.localRoot + path.sep)) {
-      fail(PROVIDER_ERROR, 'MoviePilot output path escapes its mapped root.');
-    }
-    return resolved;
-  }
 
   async function fileSha256(filePath) {
-    const hash = createHash('sha256');
-    const stream = fs.createReadStream(filePath);
-    for await (const chunk of stream) hash.update(chunk);
-    return hash.digest('hex');
+    try {
+      const hash = createHash('sha256');
+      const stream = fs.createReadStream(filePath);
+      for await (const chunk of stream) hash.update(chunk);
+      return hash.digest('hex');
+    } catch (_error) {
+      fail(PROVIDER_ERROR, 'MoviePilot organized output checksum failed.', {
+        causeCode: 'MOVIEPILOT_OUTPUT_CHECKSUM_FAILED',
+      });
+    }
   }
 
-  function moviePilotMediaFiles(location) {
+  function moviePilotMediaFiles(location, options = {}) {
     const found = [];
     const pending = [location];
     let visited = 0;
@@ -510,12 +526,11 @@ function createProtocolTransport(profile, options) {
         pending.push(path.join(currentPath, entries[index].name));
       }
     }
-    if (!found.length || found.length > 256) {
+    if ((!found.length && options.allowEmpty !== true) || found.length > 256) {
       fail(PROVIDER_ERROR,
         'MoviePilot output does not contain a bounded media file set.');
     }
     return found.sort((left, right) =>
-      Number(right.stat.size) - Number(left.stat.size) ||
       Buffer.compare(Buffer.from(left.location, 'utf8'),
         Buffer.from(right.location, 'utf8')));
   }
@@ -546,18 +561,31 @@ function createProtocolTransport(profile, options) {
   }
 
   async function moviePilotOutputSnapshot(value) {
-    const local = moviePilotLocalPath(value.providerLocation);
+    const binding = value.landingBinding;
+    const local = resolveLandingLocation(binding, value.location);
     if (!fs.existsSync(local)) {
-      fail(PROVIDER_ERROR, 'MoviePilot output is not visible at its mapped root.');
+      fail(PROVIDER_ERROR, 'MoviePilot organized output is not visible in External Landing.', {
+        causeCode: 'MOVIEPILOT_OUTPUT_NOT_VISIBLE',
+      });
     }
-    const selected = moviePilotMediaFiles(local)[0];
+    const found = moviePilotMediaFiles(local);
+    if (found.length !== 1) {
+      fail(PROVIDER_ERROR,
+        'MoviePilot movie output must resolve to exactly one primary video.', {
+          causeCode: 'MOVIEPILOT_OUTPUT_PRIMARY_CARDINALITY',
+        });
+    }
+    const selected = found[0];
     const checksumHex = await fileSha256(selected.location);
+    const memberLocation = path.relative(
+      binding.shelfDeckVisibleRoot, selected.location,
+    ).split(path.sep).join('/');
     const memberBasis = {
       ordinal: 0,
       externalMemberId: digest(canonicalJson({
         schema: 'moviepilot.external-member-id@1',
         externalObjectRef: value.externalObjectRef,
-        location: selected.location,
+        location: memberLocation,
         sizeBytes: Number(selected.stat.size),
         checksumHex,
       })),
@@ -578,10 +606,9 @@ function createProtocolTransport(profile, options) {
       integrationId: value.integrationId,
       configRevision: value.configRevision,
       externalObjectRef: value.externalObjectRef,
-      endpointId: 'moviepilot-download-' + digest(canonicalJson({
-        location: selected.location,
-      })).slice(0, 40),
-      location: selected.location,
+      landingBinding: Object.freeze({ ...binding }),
+      endpointId: binding.endpointId,
+      location: value.location,
       structureKind: value.structureKind,
       members,
       identityAnchors,
@@ -682,7 +709,19 @@ function createProtocolTransport(profile, options) {
                 state.snapshot.integration.config.lastTestSummary
                   .identityProviderKey,
             }
-          : {},
+          : profile.kind === 'moviepilot'
+            ? {
+                providerRequestSaveRoot:
+                  state.snapshot.integration.config.landingBinding
+                    .providerRequestSaveRoot,
+                providerOrganizedRoot:
+                  state.snapshot.integration.config.landingBinding
+                    .providerOrganizedRoot,
+                shelfDeckVisibleRoot:
+                  state.snapshot.integration.config.landingBinding
+                    .shelfDeckVisibleRoot,
+              }
+            : {},
         timeoutMs: request.timeoutMs,
       });
       value = tested.summary || tested;
@@ -933,11 +972,18 @@ function createProtocolTransport(profile, options) {
   }
 
   async function moviepilotSearchRows(request, state) {
-    const term = request.input.acquisitionQuery.queryTerms[0].value;
+    const query = request.input.acquisitionQuery;
+    const searchTerm = query.queryTerms.find((item) =>
+      item.termKind === 'title') || query.queryTerms.find((item) =>
+      item.termKind === 'provider_key');
+    if (!searchTerm) {
+      fail(PROVIDER_ERROR,
+        'MoviePilot search requires a frozen title or Provider key term.');
+    }
     const url = endpointUrl(state.endpoint, 'api/v1/search/title');
     url.searchParams.set('token', request.secretBytes.toString('utf8'));
-    url.searchParams.set('keyword', term);
-    url.searchParams.set('mtype', request.input.acquisitionQuery.contentProfile ===
+    url.searchParams.set('keyword', searchTerm.value);
+    url.searchParams.set('mtype', query.contentProfile ===
       'series' ? 'tv' : 'movie');
     const found = await fetchJson(fetchImpl, url, {
       headers: { accept: 'application/json' },
@@ -954,7 +1000,43 @@ function createProtocolTransport(profile, options) {
     return Object.freeze(rows);
   }
 
+  function moviepilotCandidateIdentityAnchors(row, query) {
+    const media = row?.media_info && typeof row.media_info === 'object'
+      ? row.media_info : {};
+    const providerKey = media.tmdb_id ?? media.tmdbid ??
+      media.tmdbId ?? null;
+    if (providerKey === null || providerKey === undefined ||
+        !String(providerKey).trim()) return Object.freeze([]);
+    const expected = query.providerIdentityAnchors.find((item) =>
+      item.provider === 'tmdb' &&
+      item.namespace === (query.contentProfile === 'series'
+        ? 'tmdb_series' : 'tmdb_movie')) || null;
+    const basis = {
+      provider: 'tmdb',
+      namespace: query.contentProfile === 'series'
+        ? 'tmdb_series' : 'tmdb_movie',
+      providerKey: String(providerKey),
+      seasonNumber: query.contentProfile === 'series'
+        ? expected?.seasonNumber || null : null,
+    };
+    return Object.freeze([Object.freeze({
+      ...basis,
+      identityAnchorDigest: digest(canonicalJson(basis)),
+    })]);
+  }
+
+  function moviepilotCandidateAvailable(identityAnchors, query) {
+    if (identityAnchors.length === 0) return true;
+    return query.providerIdentityAnchors.some((expected) =>
+      identityAnchors.some((actual) =>
+        actual.provider === expected.provider &&
+        actual.namespace === expected.namespace &&
+        actual.providerKey === expected.providerKey &&
+        actual.seasonNumber === expected.seasonNumber));
+  }
+
   async function moviepilotSearch(request, state) {
+    const query = request.input.acquisitionQuery;
     const rows = await moviepilotSearchRows(request, state);
     const candidates = rows.slice(0, request.input.limit)
       .map((row, index) => {
@@ -965,18 +1047,20 @@ function createProtocolTransport(profile, options) {
           1,
           row,
         );
+        const identityAnchors =
+          moviepilotCandidateIdentityAnchors(row, query);
         const basis = {
           integrationId: request.integrationId,
           configRevision: request.configRevision,
           providerCandidateRef: providerRef,
           providerRank: index,
-          identityAnchors:
-            request.input.acquisitionQuery.providerIdentityAnchors,
+          identityAnchors,
           structureKind:
-            request.input.acquisitionQuery.structureKind,
+            query.structureKind,
           episodeKeys:
-            request.input.acquisitionQuery.requestedEpisodeKeys,
-          availability: 'available',
+            query.requestedEpisodeKeys,
+          availability: moviepilotCandidateAvailable(identityAnchors, query)
+            ? 'available' : 'unavailable',
         };
         const candidateId = digest(canonicalJson({
           schema: 'provider-acquisition-candidate-id@1',
@@ -990,8 +1074,7 @@ function createProtocolTransport(profile, options) {
           candidateDigest: digest(canonicalJson(ordered)),
         });
       });
-    const queryDigest =
-      request.input.acquisitionQuery.queryDigest;
+    const queryDigest = query.queryDigest;
     return protocolResponse({
       queryDigest,
       candidates,
@@ -1002,6 +1085,134 @@ function createProtocolTransport(profile, options) {
         configRevision: request.configRevision,
         items: candidates,
       })),
+    });
+  }
+
+  function moviepilotJobId(value) {
+    const jobId = String(
+      value?.hash || value?.download_hash || value?.downloadHash || '',
+    ).trim();
+    return jobId && Buffer.byteLength(jobId, 'utf8') <= 256
+      ? jobId : null;
+  }
+
+  function moviepilotJobIdentity(value) {
+    const media = value?.media && typeof value.media === 'object'
+      ? value.media
+      : value?.media_info && typeof value.media_info === 'object'
+        ? value.media_info
+        : {};
+    const providerKey = media.tmdbid ?? media.tmdb_id ?? media.tmdbId ??
+      value?.tmdbid ?? value?.tmdb_id ?? value?.tmdbId ?? null;
+    return providerKey === null || providerKey === undefined ||
+        !String(providerKey).trim()
+      ? null : String(providerKey).trim();
+  }
+
+  function moviepilotJobContentProfile(value) {
+    const observed = String(
+      value?.media?.type || value?.media_info?.type || value?.type || '',
+    ).normalize('NFKC').trim().toLowerCase();
+    if (!observed) return null;
+    if (new Set(['movie', '电影']).has(observed)) return 'movie';
+    if (new Set(['tv', 'series', 'tvshow', '电视剧', '电视节目']).has(observed)) {
+      return 'series';
+    }
+    return 'unknown';
+  }
+
+  function moviepilotJobMatches(value, selectedRow, query, options = {}) {
+    const jobId = moviepilotJobId(value);
+    const expectedTitle = String(selectedRow?.torrent_info?.title || '')
+      .normalize('NFKC').trim();
+    const actualTitle = String(
+      value?.torrent_name || value?.title || value?.name || '',
+    ).normalize('NFKC').trim();
+    const expectedSize = Number(selectedRow?.torrent_info?.size);
+    const actualSize = Number(value?.size ?? value?.total_size);
+    if (!jobId || !expectedTitle || actualTitle !== expectedTitle ||
+        !Number.isSafeInteger(expectedSize) || expectedSize < 0 ||
+        ((!Number.isSafeInteger(actualSize) || actualSize !== expectedSize) &&
+          !(options.allowMissingSize === true &&
+            (value?.size ?? value?.total_size) == null))) {
+      return false;
+    }
+    const expectedIdentity = query.providerIdentityAnchors.find((item) =>
+      item.provider === 'tmdb' &&
+      item.namespace === (query.contentProfile === 'series'
+        ? 'tmdb_series' : 'tmdb_movie')) || null;
+    if (expectedIdentity &&
+        moviepilotJobIdentity(value) !== expectedIdentity.providerKey) {
+      return false;
+    }
+    const observedProfile = moviepilotJobContentProfile(value);
+    return observedProfile === null || observedProfile === query.contentProfile;
+  }
+
+  async function moviepilotHistoryRows(request, state) {
+    const collected = [];
+    for (let page = 1; page <= 10; page += 1) {
+      const url = endpointUrl(state.endpoint, 'api/v1/history/download');
+      url.searchParams.set('token', request.secretBytes.toString('utf8'));
+      url.searchParams.set('page', String(page));
+      url.searchParams.set('count', '100');
+      const rows = await fetchJson(fetchImpl, url, {
+        headers: { accept:'application/json' },
+        signal: AbortSignal.timeout(request.timeoutMs),
+      }, EXTERNAL_JSON_LIMIT);
+      if (!Array.isArray(rows)) {
+        fail(PROVIDER_ERROR, 'MoviePilot download history response is invalid.');
+      }
+      collected.push(...rows);
+      if (rows.length < 100) break;
+    }
+    return Object.freeze(collected);
+  }
+
+  async function moviepilotRecoverJob(request, state, selectedRow, options = {}) {
+    const tasks = await moviepilotTasks(request, state);
+    let matches = tasks.filter((item) => moviepilotJobMatches(
+      item,
+      selectedRow,
+      request.input.acquisitionQuery,
+    ));
+    if (matches.length === 0 && options.includeHistory === true) {
+      const history = await moviepilotHistoryRows(request, state);
+      matches = history.filter((item) => moviepilotJobMatches(
+        item,
+        selectedRow,
+        request.input.acquisitionQuery,
+        { allowMissingSize: true },
+      ));
+    }
+    const jobIds = [...new Set(matches.map(moviepilotJobId).filter(Boolean))];
+    if (jobIds.length > 1) {
+      fail(PROVIDER_ERROR,
+        'MoviePilot request recovery found multiple exact external jobs.');
+    }
+    return jobIds[0] || null;
+  }
+
+  function moviepilotJobReceipt(request, externalJobId) {
+    return protocolResponse({
+      externalJobReceipt: {
+        schemaRef:
+          'helix://contracts/types/ExternalJobReceipt/v1',
+        schemaVersion: 1,
+        receiptId: digest(canonicalJson({
+          schema: 'moviepilot.external-job-receipt-id@1',
+          integrationId: request.integrationId,
+          externalJobId,
+          requestDigest: request.requestDigest,
+        })),
+        integrationId: request.integrationId,
+        externalJobId,
+        operationKind: request.operationId,
+        idempotencyKey: request.idempotencyKey,
+        requestDigest: request.requestDigest,
+        configRevision: request.configRevision,
+        createdAtMs: now(),
+      },
     });
   }
 
@@ -1025,6 +1236,15 @@ function createProtocolTransport(profile, options) {
       fail(PROVIDER_ERROR,
         'Selected MoviePilot candidate is no longer exactly resolvable.');
     }
+    const recoveredBeforeSubmit = await moviepilotRecoverJob(
+      request,
+      state,
+      selectedRow,
+      { includeHistory: true },
+    );
+    if (recoveredBeforeSubmit) {
+      return moviepilotJobReceipt(request, recoveredBeforeSubmit);
+    }
     const url = endpointUrl(state.endpoint, 'api/v1/download/add');
     url.searchParams.set('token', request.secretBytes.toString('utf8'));
     const identity = request.input.acquisitionQuery.providerIdentityAnchors
@@ -1037,47 +1257,45 @@ function createProtocolTransport(profile, options) {
         media_source: 'themoviedb',
         media_id: identity.providerKey,
       } : {}),
-      ...(moviePilotSavePath ? { save_path:moviePilotSavePath } : {}),
+      save_path:
+        state.snapshot.integration.config.landingBinding.providerRequestSaveRoot,
     };
-    const found = await fetchJson(fetchImpl, url, {
-      method: 'POST',
-      headers: {
-        accept: 'application/json',
-        'content-type': 'application/json',
-      },
-      body: canonicalJson(body),
-      signal: AbortSignal.timeout(request.timeoutMs),
-    }, EXTERNAL_JSON_LIMIT);
-    if (found?.success !== true) {
-      fail(PROVIDER_ERROR, 'MoviePilot rejected the selected download request.');
+    let found = null;
+    let submitError = null;
+    try {
+      found = await fetchJson(fetchImpl, url, {
+        method: 'POST',
+        headers: {
+          accept: 'application/json',
+          'content-type': 'application/json',
+        },
+        body: canonicalJson(body),
+        signal: AbortSignal.timeout(request.timeoutMs),
+      }, EXTERNAL_JSON_LIMIT);
+    } catch (error) {
+      submitError = error;
     }
     const externalJobId = String(
       found?.data?.download_id || found?.data?.id || found?.id ||
       found?.task_id || '',
-    );
-    if (!externalJobId) {
-      fail(PROVIDER_ERROR, 'MoviePilot request receipt is invalid.');
+    ).trim();
+    if (externalJobId) {
+      return moviepilotJobReceipt(request, externalJobId);
     }
-    return protocolResponse({
-      externalJobReceipt: {
-        schemaRef:
-          'helix://contracts/types/ExternalJobReceipt/v1',
-        schemaVersion: 1,
-        receiptId: digest(canonicalJson({
-          schema: 'moviepilot.external-job-receipt-id@1',
-          integrationId: request.integrationId,
-          externalJobId,
-          requestDigest: request.requestDigest,
-        })),
-        integrationId: request.integrationId,
-        externalJobId,
-        operationKind: request.operationId,
-        idempotencyKey: request.idempotencyKey,
-        requestDigest: request.requestDigest,
-        configRevision: request.configRevision,
-        createdAtMs: now(),
-      },
-    });
+    const recoveredAfterSubmit = await moviepilotRecoverJob(
+      request,
+      state,
+      selectedRow,
+      { includeHistory: true },
+    );
+    if (recoveredAfterSubmit) {
+      return moviepilotJobReceipt(request, recoveredAfterSubmit);
+    }
+    if (submitError) throw submitError;
+    if (found?.success !== true) {
+      fail(PROVIDER_ERROR, 'MoviePilot rejected the selected download request.');
+    }
+    fail(PROVIDER_ERROR, 'MoviePilot request receipt is invalid.');
   }
 
   async function moviepilotTasks(request, state) {
@@ -1094,33 +1312,99 @@ function createProtocolTransport(profile, options) {
   }
 
   async function moviepilotHistory(request, state, externalJobId) {
+    const rows = await moviepilotHistoryRows(request, state);
+    return rows.find((item) => moviepilotJobId(item) === externalJobId) || null;
+  }
+
+  async function moviepilotTransferRows(request, state) {
+    const collected = [];
     for (let page = 1; page <= 10; page += 1) {
-      const url = endpointUrl(state.endpoint, 'api/v1/history/download');
+      const url = endpointUrl(state.endpoint, 'api/v1/history/transfer');
       url.searchParams.set('token', request.secretBytes.toString('utf8'));
       url.searchParams.set('page', String(page));
       url.searchParams.set('count', '100');
-      const rows = await fetchJson(fetchImpl, url, {
+      const value = await fetchJson(fetchImpl, url, {
         headers: { accept:'application/json' },
         signal: AbortSignal.timeout(request.timeoutMs),
       }, EXTERNAL_JSON_LIMIT);
-      if (!Array.isArray(rows)) {
-        fail(PROVIDER_ERROR, 'MoviePilot download history response is invalid.');
+      const rows = Array.isArray(value)
+        ? value
+        : Array.isArray(value?.data?.list)
+          ? value.data.list
+          : null;
+      if (!rows) {
+        fail(PROVIDER_ERROR, 'MoviePilot transfer history response is invalid.');
       }
-      const found = rows.find((item) =>
-        String(item?.download_hash || '') === externalJobId);
-      if (found) return found;
+      collected.push(...rows);
       if (rows.length < 100) break;
     }
-    return null;
+    return Object.freeze(collected);
+  }
+
+  function moviepilotTransferState(value) {
+    const raw = value?.status ?? value?.success ?? value?.state;
+    if (raw === true || raw === 1 ||
+        ['success', 'completed', 'complete'].includes(String(raw).toLowerCase())) {
+      return 'succeeded';
+    }
+    if (raw === false || raw === 0 ||
+        ['failed', 'failure', 'error'].includes(String(raw).toLowerCase())) {
+      return 'failed';
+    }
+    return 'unknown';
+  }
+
+  function exactTransferRows(receipt, observed, rows) {
+    const expectedIdentity = moviepilotJobIdentity(observed);
+    const observedProfile = moviepilotJobContentProfile(observed);
+    const expectedProfile = new Set(['movie', 'series']).has(observedProfile)
+      ? observedProfile : null;
+    return rows.filter((row) => {
+      if (moviepilotJobId(row) !== receipt.externalJobId) return false;
+      const identity = moviepilotJobIdentity(row);
+      const profile = moviepilotJobContentProfile(row);
+      return (!expectedIdentity || identity === expectedIdentity) &&
+        (!expectedProfile || profile === expectedProfile);
+    });
+  }
+
+  function transferOutputLocation(binding, rows) {
+    const media = new Map();
+    for (const row of rows) {
+      const dest = String(row?.dest || '').trim();
+      if (!dest) {
+        fail(PROVIDER_ERROR, 'MoviePilot transfer history is missing final dest.', {
+          causeCode: 'MOVIEPILOT_TRANSFER_DEST_MISSING',
+        });
+      }
+      const relative = endpointRelativeLocation(binding, dest);
+      const local = resolveLandingLocation(binding, relative);
+      for (const item of moviePilotMediaFiles(local, { allowEmpty:true })) {
+        const itemRelative = path.relative(
+          binding.shelfDeckVisibleRoot, item.location,
+        ).split(path.sep).join('/');
+        media.set(itemRelative, itemRelative);
+      }
+    }
+    if (media.size !== 1) {
+      fail(PROVIDER_ERROR,
+        'MoviePilot transfer history does not resolve one unique movie primary.', {
+          causeCode: 'MOVIEPILOT_TRANSFER_PRIMARY_CARDINALITY',
+        });
+    }
+    return [...media.keys()][0];
   }
 
   async function moviepilotObserve(request, state) {
-    const receipt = request.input.externalJobReceipt;
-    const tasks = await moviepilotTasks(request, state);
-    const task = tasks.find((item) => String(item?.hash || '') ===
-      receipt.externalJobId) || null;
-    const history = await moviepilotHistory(request, state,
-      receipt.externalJobId);
+    let diagnosticStage = 'TASKS';
+    try {
+      const receipt = request.input.externalJobReceipt;
+      const tasks = await moviepilotTasks(request, state);
+      const task = tasks.find((item) => String(item?.hash || '') ===
+        receipt.externalJobId) || null;
+      diagnosticStage = 'DOWNLOAD_HISTORY';
+      const history = await moviepilotHistory(request, state,
+        receipt.externalJobId);
     const revision = Math.max(1, Math.floor(now()));
     const pending = () => {
       const basis = {
@@ -1154,11 +1438,38 @@ function createProtocolTransport(profile, options) {
         snapshotDigest: digest(canonicalJson(basis)),
       }));
     }
-    const observed = history || task?.media || {};
-    const providerLocation = String(task?.content_path || task?.path ||
-      history?.path || '');
-    const outputSnapshot = await moviePilotOutputSnapshot({
-      providerLocation,
+      const observed = history || task?.media || task || {};
+      diagnosticStage = 'TRANSFER_HISTORY';
+      const transferRows = exactTransferRows(
+        receipt,
+        observed,
+        await moviepilotTransferRows(request, state),
+      );
+    const successful = transferRows.filter((row) =>
+      moviepilotTransferState(row) === 'succeeded');
+    if (successful.length === 0) {
+      if (transferRows.some((row) => moviepilotTransferState(row) === 'failed')) {
+        const basis = {
+          externalJobReceiptId: receipt.receiptId,
+          requestDigest: receipt.requestDigest,
+          providerObservationRevision: revision,
+          state: 'failed',
+          reasonCode: 'job_failed',
+        };
+        return protocolResponse(Object.freeze({
+          ...basis,
+          snapshotDigest: digest(canonicalJson(basis)),
+        }));
+      }
+      return protocolResponse(pending());
+    }
+      const binding = state.snapshot.integration.config.landingBinding;
+      diagnosticStage = 'TRANSFER_OUTPUT_RESOLUTION';
+      const location = transferOutputLocation(binding, successful);
+      diagnosticStage = 'OUTPUT_SNAPSHOT';
+      const outputSnapshot = await moviePilotOutputSnapshot({
+      landingBinding: binding,
+      location,
       externalObjectRef: receipt.externalJobId,
       integrationId: request.integrationId,
       configRevision: request.configRevision,
@@ -1167,23 +1478,35 @@ function createProtocolTransport(profile, options) {
         ? 'season' : 'single',
       observed,
     });
-    const basis = {
-      externalJobReceiptId: receipt.receiptId,
-      requestDigest: receipt.requestDigest,
-      providerObservationRevision: revision,
-      state: 'ready',
-      outputSnapshot,
-    };
-    return protocolResponse(Object.freeze({
-      ...basis,
-      snapshotDigest: digest(canonicalJson(basis)),
-    }));
+      const basis = {
+        externalJobReceiptId: receipt.receiptId,
+        requestDigest: receipt.requestDigest,
+        providerObservationRevision: revision,
+        state: 'ready',
+        outputSnapshot,
+      };
+      return protocolResponse(Object.freeze({
+        ...basis,
+        snapshotDigest: digest(canonicalJson(basis)),
+      }));
+    } catch (error) {
+      if (typeof error?.details?.causeCode === 'string') throw error;
+      fail(PROVIDER_ERROR, 'MoviePilot acquisition observation failed.', {
+        causeCode: 'MOVIEPILOT_OBSERVE_' + diagnosticStage + '_FAILED',
+      });
+    }
   }
 
-  async function moviepilotStability(request) {
+  async function moviepilotStability(request, state) {
     const handle = request.input.externalMaterialHandle;
+    const binding = state.snapshot.integration.config.landingBinding;
+    if (!handle.landingBinding ||
+        handle.landingBinding.bindingDigest !== binding.bindingDigest) {
+      fail(PROVIDER_ERROR, 'MoviePilot External Landing binding is stale.');
+    }
     const outputSnapshot = await moviePilotOutputSnapshot({
-      providerLocation: handle.location,
+      landingBinding: binding,
+      location: handle.location,
       externalObjectRef: handle.externalObjectRef,
       integrationId: handle.integrationId,
       configRevision: handle.configRevision,

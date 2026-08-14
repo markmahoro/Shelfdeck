@@ -1,0 +1,86 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/types/MoviePilotLandingBinding/v1",
+  "title": "MoviePilotLandingBinding@1",
+  "x-helix-ssotRefs": [
+    "8.6.18"
+  ],
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaRef": {
+      "const": "helix://contracts/types/MoviePilotLandingBinding/v1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "bindingId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "bindingRevision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "integrationId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "configRevision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "providerRequestSaveRoot": {
+      "type": "string",
+      "minLength": 1
+    },
+    "providerOrganizedRoot": {
+      "type": "string",
+      "minLength": 1
+    },
+    "shelfDeckVisibleRoot": {
+      "type": "string",
+      "minLength": 1
+    },
+    "endpointId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "mountScopeId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "mountScopeRevision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "accessMode": {
+      "const": "provider_rw_shelfdeck_ro"
+    },
+    "bindingDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "schemaRef",
+    "schemaVersion",
+    "bindingId",
+    "bindingRevision",
+    "integrationId",
+    "configRevision",
+    "providerRequestSaveRoot",
+    "providerOrganizedRoot",
+    "shelfDeckVisibleRoot",
+    "endpointId",
+    "mountScopeId",
+    "mountScopeRevision",
+    "accessMode",
+    "bindingDigest"
+  ]
+}

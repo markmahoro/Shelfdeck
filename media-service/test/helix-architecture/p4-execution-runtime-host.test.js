@@ -186,6 +186,124 @@ test('startup invokes the independent durable Domain fallback runner', async () 
   assert.ok(scans>=1);
 });
 
+test('startup applies classified recovery actions before enabling ordinary Work supply', async () => {
+  const calls = [];
+  let pass = 0;
+  const host = createExecutionRuntimeHost({
+    tickIntervalMs:60000,maxActionsPerTick:1,
+    startupRecovery:{async recover(){calls.push('classify');return pass++===0
+      ? {state:'recovering',normalSupplyAllowed:false,findings:[],actions:[{eventId:'event-recovery',effectId:'effect-recovery',decision:'safe_retry'}]}
+      : {state:'ready',normalSupplyAllowed:true,findings:[],actions:[]};}},
+    scheduler:{acquire(){calls.push('ordinary-supply');return {kind:'idle'};},release(){}},
+    plannerRegistry:{resolve(){}},planPublisher:{publish(){}},
+    workLifecycle:{ensurePlanningAttempt(){},startPlanned(){},aggregateEvent(eventId){calls.push('aggregate:'+eventId);
+      return {attemptTerminal:false,workTerminal:false,replayed:false};},settleWork(){}},
+    eventRuntime:{async recover(action){calls.push('recover:'+action.eventId);return {kind:'succeeded'};},async run(){}},
+    domainReconciler:{reconcile(){}},fallbackReconciler:{async start(){calls.push('fallback-start');},async stop(){}},
+  });
+  await host.start();
+  assert.deepEqual(calls.slice(0,5),['classify','recover:event-recovery','aggregate:event-recovery','classify','fallback-start']);
+  const firstSupply = calls.indexOf('ordinary-supply');
+  assert.ok(firstSupply === -1 || firstSupply > calls.indexOf('fallback-start'),
+    'ordinary supply must remain closed until recovery converges');
+  await host.stop();
+});
+
+test('planner throw stays Work-local and does not fault the Runtime Host', async () => {
+  const errors = [];
+  let workAvailable = true;
+  let eventAvailable = true;
+  let succeeded = 0;
+  const host = createExecutionRuntimeHost({
+    tickIntervalMs: 60000, maxActionsPerTick: 8,
+    startupRecovery: { recover: async () => ({ state: 'ready', normalSupplyAllowed: true }) },
+    scheduler: {
+      acquire({ targetType }) {
+        if (targetType === 'work' && workAvailable) {
+          workAvailable = false;
+          return { kind: 'leased', lease: { targetType: 'work', targetId: 'work-boom', leaseId: 'lease-work-boom' } };
+        }
+        if (targetType === 'event' && eventAvailable) {
+          eventAvailable = false;
+          return { kind: 'leased', lease: { targetType: 'event', targetId: 'event-ok', leaseId: 'lease-event-ok' } };
+        }
+        return { kind: 'idle' };
+      },
+      release() {},
+    },
+    plannerRegistry: { resolve() { return { plannerContractRef: 'planner@1', plannerVersion: 1, planner: {
+      async plan() { throw new Error('planner boom'); },
+    } }; } },
+    planPublisher: { publish() {} },
+    workLifecycle: {
+      ensurePlanningAttempt() {
+        return { work: { work_id: 'work-boom', owner_domain: 'libra', process_type: 'libra_run',
+          process_id: 'run-boom', work_kind: 'artifact_production', basis_digest: 'a'.repeat(64),
+          priority_class: 'normal_foreground' }, attempt: { attempt_id: 'attempt-boom' } };
+      },
+      startPlanned() {},
+      aggregateEvent() { return { attemptTerminal: false, workTerminal: false, replayed: false }; },
+      settleWork() {},
+    },
+    eventRuntime: { async run() { succeeded += 1; return { kind: 'succeeded' }; } },
+    domainReconciler: { reconcile() {} },
+    fallbackReconciler: { async start() {}, async stop() {} },
+    onError(error) { errors.push(error); },
+  });
+  await host.start();
+  await new Promise((resolve) => setImmediate(resolve));
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(host.readiness().state, 'ready');
+  assert.equal(host.activity().faulted, false);
+  assert.equal(succeeded, 1);
+  assert.equal(errors.length, 1);
+  assert.match(String(errors[0].message), /planner boom/);
+  assert.equal((await host.stop()).state, 'stopped');
+});
+
+test('executor crash stays Event-local and does not fault the Runtime Host', async () => {
+  const errors = [];
+  let next = 0;
+  let succeeded = 0;
+  const host = createExecutionRuntimeHost({
+    tickIntervalMs: 60000, maxActionsPerTick: 8, maxInFlightEvents: 16,
+    startupRecovery: { recover: async () => ({ state: 'ready', normalSupplyAllowed: true }) },
+    scheduler: {
+      acquire({ targetType }) {
+        if (targetType === 'work' || next >= 2) return { kind: 'idle' };
+        const targetId = 'event-' + next++;
+        return { kind: 'leased', lease: { targetType: 'event', targetId, leaseId: 'lease-' + targetId } };
+      },
+      release() {},
+    },
+    plannerRegistry: { resolve() {} }, planPublisher: { publish() {} },
+    workLifecycle: {
+      ensurePlanningAttempt() {}, startPlanned() {},
+      aggregateEvent() { return { attemptTerminal: false, workTerminal: false, replayed: false }; },
+      settleWork() {},
+    },
+    eventRuntime: {
+      async run({ schedulerLease }) {
+        if (schedulerLease.targetId === 'event-0') throw new Error('executor crash');
+        succeeded += 1;
+        return { kind: 'succeeded' };
+      },
+    },
+    domainReconciler: { reconcile() {} },
+    fallbackReconciler: { async start() {}, async stop() {} },
+    onError(error) { errors.push(error); },
+  });
+  await host.start();
+  await new Promise((resolve) => setImmediate(resolve));
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(host.readiness().state, 'ready');
+  assert.equal(host.activity().faulted, false);
+  assert.equal(succeeded, 1);
+  assert.equal(errors.length, 1);
+  assert.match(String(errors[0].message), /executor crash/);
+  assert.equal((await host.stop()).state, 'stopped');
+});
+
 test('Runtime Host launches up to sixteen Events concurrently and stop leases no additional Event', async () => {
   const gates = [];
   const leased = [];

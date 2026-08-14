@@ -121,8 +121,11 @@ function createWorkScheduler(options) {
         }
         return {
           works,
-          candidates: events.filter((event) => event.state === 'ready' &&
-            (event.retry_at_ms === null || event.retry_at_ms <= nowMs) && dependenciesSatisfied(event, eventsByPlanNode, inboundByPlanNode))
+          candidates: events.filter((event) =>
+            (event.state === 'ready' ||
+              event.state === 'waiting_for_resource' ||
+              event.state === 'waiting_for_external') &&
+            dependenciesSatisfied(event, eventsByPlanNode, inboundByPlanNode))
         };
       }
     }]).work_scheduler_snapshot;
@@ -158,8 +161,22 @@ function createWorkScheduler(options) {
     }
     candidates.sort((left, right) => PRIORITY_CLASSES.indexOf(left.projection.priorityClass) - PRIORITY_CLASSES.indexOf(right.projection.priorityClass) ||
       right.effectiveLocalPriority - left.effectiveLocalPriority || left.queuedAtMs - right.queuedAtMs || left.targetId.localeCompare(right.targetId));
-    if (candidates.length === 0) return Object.freeze({ kind: 'idle', reasonCode: 'NO_ELIGIBLE_TARGET' });
-    const selected = candidates[0];
+    let selected = candidates[0] || null;
+    if (request.targetType === 'event') {
+      const retryElapsed = (item) => item.target.retry_at_ms === null || item.target.retry_at_ms <= nowMs;
+      const ordering = candidates.filter((item) => item.target.state === 'waiting_for_resource' || retryElapsed(item));
+      const runnable = candidates.filter((item) =>
+        (item.target.state === 'ready' ||
+          item.target.state === 'waiting_for_resource' ||
+          item.target.state === 'waiting_for_external') && retryElapsed(item));
+      const head = ordering[0];
+      selected = !head ? null : retryElapsed(head)
+        ? head
+        : runnable.find((item) =>
+          PRIORITY_CLASSES.indexOf(item.projection.priorityClass) <= PRIORITY_CLASSES.indexOf(head.projection.priorityClass) &&
+          item.projection.localPriority >= head.projection.localPriority) || null;
+    }
+    if (!selected) return Object.freeze({ kind: 'idle', reasonCode: 'NO_ELIGIBLE_TARGET' });
     const supply = options.supplyController.evaluate({
       supplyKind: request.targetType === 'work' ? 'work_attempt' : 'event_dispatch', targetId: selected.targetId
     });

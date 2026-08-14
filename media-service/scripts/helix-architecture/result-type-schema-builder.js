@@ -131,10 +131,22 @@ const perceptionResolvedProvenance = object({
   }), 16)
 });
 
-const stream = object({
-  streamIndex: nonNegativeInteger(), dispositionDefault: bool(), codec: text(), codedWidth: positiveInteger(), codedHeight: positiveInteger(),
+const dolbyVisionStream = object({ profile: nonNegativeInteger(), level: nonNegativeInteger(), rpuPresent: bool(),
+  elPresent: bool(), blPresent: bool(), compatibilityId: nonNegativeInteger(),
+  baseLayerKind: enumText('pq_bt2020_compatible', 'non_compatible', 'unknown') });
+const videoStreamFields = {
+  streamIndex: nonNegativeInteger(), dispositionDefault: bool(), codec: text(), codecProfile: text(),
+  pixelFormat: text(), bitDepth: positiveInteger(), chroma: text(), colorRange: text(), colorPrimaries: text(),
+  colorTransfer: text(), colorMatrix: text(), dynamicRangeKind: enumText('sdr', 'hdr10_compatible', 'hlg', 'dolby_vision', 'unknown'),
+  dolbyVision: dolbyVisionStream, codedWidth: positiveInteger(), codedHeight: positiveInteger(),
   sampleAspectRatio: text(), rotation: { type: 'integer', minimum: -359, maximum: 359 }, displayWidth: positiveInteger(),
   displayHeight: positiveInteger(), longEdge: positiveInteger(), shortEdge: positiveInteger()
+};
+const stream = object(videoStreamFields, Object.keys(videoStreamFields).filter((field) => field !== 'dolbyVision'), {
+  allOf:[
+    { if:{ properties:{ dynamicRangeKind:{ const:'dolby_vision' } }, required:['dynamicRangeKind'] }, then:{ required:['dolbyVision'] } },
+    { if:{ properties:{ dynamicRangeKind:{ not:{ const:'dolby_vision' } } }, required:['dynamicRangeKind'] }, then:{ not:{ required:['dolbyVision'] } } }
+  ]
 });
 const audioStream = object({ streamIndex: nonNegativeInteger(), dispositionDefault: bool(), codec: text(), profile: text(),
   channels: positiveInteger(), channelLayout: text(), formatTags: arrayOf(text(), 64),
@@ -374,9 +386,19 @@ const special = {
     personId: nullable(id()), displayName: text(), role: text(), source: text(), confidenceClass: text()
   }, ['displayName', 'role', 'source', 'confidenceClass']), 4096),
   'TranscodeInputVerification.selectedDeviceClass': enumText('software_cpu', 'intel_qsv', 'nvidia_nvenc', 'amd_vaapi', 'remote_worker'),
+  'TranscodeInputVerification.disposition': enumText('compatible', 'strategy_rejected', 'integrity_rejected'),
+  'TranscodeInputVerification.rejectionScope': nullable(enumText('device_pipeline', 'rate_control_strategy')),
+  'TranscodeInputVerification.coveredStrategyKeys': arrayOf(text(), 16),
+  'TranscodeInputVerification.sampleCount': nonNegativeInteger(),
+  'TranscodeInputVerification.passedSampleCount': nonNegativeInteger(),
+  'TranscodeInputVerification.preflightDigest': digest(),
   'WorkspaceMediaHandle.workspaceMaterialHandle': ref('WorkspaceMaterialHandle'),
   'WorkspaceMediaHandle.executionDeviceRef': nullable(object({ deviceId: id(),
     deviceClass: enumText('software_cpu', 'intel_qsv', 'nvidia_nvenc', 'amd_vaapi', 'remote_worker'), deviceSnapshotDigest: digest() })),
+  'WorkspaceMediaHandle.productionVideoProfile': nullable(object({ dynamicRangeOperation: enumText('preserve', 'tone_map_to_sdr_bt709'),
+    pipelineProfileId: text(), outputDynamicRangeKind: enumText('sdr', 'hdr10_compatible', 'hlg', 'dolby_vision', 'unknown'),
+    outputPixelFormat: text(), outputColorProfile: object({ range:text(), primaries:text(), transfer:text(), matrix:text() }),
+    profileDigest:digest() })),
   'WorkspaceMediaHandle.effectReceiptRef': object({ effectId: id(), effectReceiptId: id(), effectReceiptDigest: digest() }),
   'ProductMediaVerification.candidateKind': enumText('direct_input', 'workspace_output'),
   'ProductMediaVerification.producingEventId': nullable(id()),
@@ -385,6 +407,14 @@ const special = {
     displayRasterClass: text(), primaryAudioClasses: arrayOf(text(), 128), sourceDisplayRasterClass: text(), systemUpscaleDetected: bool() }),
   'ProductMediaVerification.spaceSummary': object({ unit: enumText('product', 'episode'), actualSizeBytes: nonNegativeInteger(),
     maxSizeBytes: nullable(positiveInteger()), withinLimit: bool() }),
+  'ProductMediaVerification.dynamicRangeSummary': object({
+    sourceDynamicRangeKind: enumText('sdr', 'hdr10_compatible', 'hlg', 'dolby_vision', 'unknown'),
+    outputDynamicRangeKind: enumText('sdr', 'hdr10_compatible', 'hlg', 'dolby_vision', 'unknown'),
+    conversionOperation: enumText('none', 'preserve', 'tone_map_to_sdr_bt709'), outputPixelFormat:text(),
+    outputColorProfile:object({ range:text(), primaries:text(), transfer:text(), matrix:text() }),
+    dolbyVisionMetadataPresent:bool() }),
+  'ProductMediaVerification.decodeSummary': object({ samplePointsPercent:{ type:'array', items:{enum:[5,50,95]}, maxItems:3, uniqueItems:true },
+    passedSamplePointsPercent:{ type:'array', items:{enum:[5,50,95]}, maxItems:3, uniqueItems:true }, decodeDigest:digest() }),
   'SelectedProductOutput.result': enumText('selected', 'not_selected'),
   'SelectedProductOutput.selectedCandidateKind': nullable(enumText('direct_input', 'workspace_output')),
   'SelectedProductOutput.selectedHandleId': nullable(id()),
@@ -397,9 +427,14 @@ const special = {
     'media_form_unmet', 'video_codec_unmet', 'container_unmet', 'file_extension_unmet', 'minimum_raster_unmet',
     'system_upscale_forbidden', 'primary_audio_unmet', 'max_size_exceeded', 'domain_binding_unmet', 'checksum_unmet',
     'artifact_materialization_unmet', 'layout_unmet'), 20),
+  'TranscodeInputVerification.reasonCodes': arrayOf(enumText('source_handle_mismatch', 'source_not_media', 'probe_integrity_failure',
+    'device_class_mismatch', 'input_fence_mismatch', 'source_dynamic_range_unsupported', 'dolby_vision_base_layer_unsupported',
+    'required_pipeline_profile_unavailable', 'source_pixel_format_unsupported', 'output_profile_unsupported',
+    'encoder_rejected_source_pipeline', 'rate_control_unsupported'), 13),
   'ProductMediaVerification.reasonCodes': arrayOf(enumText('output_handle_mismatch', 'output_not_media', 'media_form_unmet',
     'video_codec_unmet', 'container_unmet', 'file_extension_unmet', 'minimum_raster_unmet', 'system_upscale_forbidden',
-    'primary_audio_unmet', 'max_size_exceeded', 'requirement_integrity_failure'), 11),
+    'primary_audio_unmet', 'max_size_exceeded', 'requirement_integrity_failure', 'dynamic_range_conversion_unmet',
+    'output_color_profile_unmet', 'dolby_vision_metadata_not_removed', 'playback_decode_failed'), 15),
   'OnDeckProductPackage.productMaterialManifest': snapshot('product-material-manifest'),
   'OnDeckProductPackage.acceptanceSpecRef': object({ id: id(), recordDigest: digest() }),
   'OnDeckProductPackage.resolvedIdentitySnapshot': snapshot('resolved-identity-product-fact'),
@@ -574,9 +609,9 @@ const contracts = {
   MediaCastDraft: ['DraftEnvelope', 'subjectId,metadataObservationDigest,relations'],
   MediaCastFact: ['DomainFactEnvelope', 'subjectId,relationsDigest,relationCount'],
   ProductMetadataFact: ['DomainFactEnvelope', 'subjectId,productMetadataDigest,verifiedArtifactManifestDigest'],
-  TranscodeInputVerification: ['VerificationEnvelope', 'sourceHandleDigest,encodeIntentDigest,probeEvidenceId,probeEvidenceDigest,deviceId,deviceSnapshotDigest,selectedDeviceClass,reasonCodes'],
-  WorkspaceMediaHandle: [null, 'workspaceMediaHandleId,sourceMaterialHandleDigest,workspaceMaterialHandle,workspaceMaterialHandleDigest,outputTargetId,outputTargetDigest,producingEventId,productionIntentKind,productionIntentDigest,executionDeviceRef,effectReceiptRef,resultDigest'],
-  ProductMediaVerification: ['VerificationEnvelope', 'candidateId,candidateNodeId,candidateBasisDigest,candidateKind,libraRunId,producingEventId,productMaterialHandleId,productMaterialHandleDigest,productMaterialFenceDigest,workspaceMediaHandleId,mediaRequirementId,mediaRequirementDigest,sourceProbeEvidenceId,sourceProbeEvidenceDigest,outputProbeEvidenceId,outputProbeEvidenceDigest,qualitySummary,spaceSummary,reasonCodes'],
+  TranscodeInputVerification: ['VerificationEnvelope', 'sourceHandleDigest,encodeIntentDigest,probeEvidenceId,probeEvidenceDigest,deviceId,deviceSnapshotDigest,selectedDeviceClass,disposition,rejectionScope,coveredStrategyKeys,sampleCount,passedSampleCount,preflightDigest,reasonCodes'],
+  WorkspaceMediaHandle: [null, 'workspaceMediaHandleId,sourceMaterialHandleDigest,workspaceMaterialHandle,workspaceMaterialHandleDigest,outputTargetId,outputTargetDigest,producingEventId,productionIntentKind,productionIntentDigest,executionDeviceRef,productionVideoProfile,effectReceiptRef,resultDigest'],
+  ProductMediaVerification: ['VerificationEnvelope', 'candidateId,candidateNodeId,candidateBasisDigest,candidateKind,libraRunId,producingEventId,productMaterialHandleId,productMaterialHandleDigest,productMaterialFenceDigest,workspaceMediaHandleId,mediaRequirementId,mediaRequirementDigest,sourceProbeEvidenceId,sourceProbeEvidenceDigest,outputProbeEvidenceId,outputProbeEvidenceDigest,qualitySummary,spaceSummary,dynamicRangeSummary,decodeSummary,reasonCodes'],
   SelectedProductOutput: ['DraftEnvelope', 'libraRunId,acceptanceSpecId,mediaRequirementDigest,criteriaId,criteriaDigest,candidateSetDigest,result,selectedCandidateKind,selectedHandleId,selectedWorkspaceMediaHandleId,selectedVerificationId,selectedVerificationDigest,selectionReasonCode'],
   ProductConformanceEvidence: ['VerificationEnvelope', 'libraRunId,acceptanceSpecId,acceptanceSpecRecordDigest,runExecutionBasisDigest,productSnapshotDigest,productFactSetDigest,evaluatedRequirementSetDigest,unmetRequirementCodes,reasonCodes'],
   OnDeckProductPackage: ['ManifestEnvelope', 'onDeckPackageId,packageRevision,libraRunId,runStateRevision,runStateDigest,runExecutionBasisDigest,subjectId,shelfId,acceptanceSpecRef,resolvedIdentitySnapshot,productStructureSnapshot,runMaterialManifestRef,productMaterialManifest,productFactManifest,artifactManifest,mediaCastSnapshot,offloadContextManifest,productionProvenance,productionAttestation,packageDigest'],

@@ -96,6 +96,12 @@ test('crash before non-pure intent is distinct from unknown effect point', async
 test('waiting external requires one Effect while resource wait requires one durable defer', async () => {
   await fixture(async (recovery) => {
     const result = await recovery.recover();
+    assert.equal(result.state, 'ready');
+    assert.equal(result.normalSupplyAllowed, true);
+    assert.deepEqual(result.actions, []);
+  }, { eventState: 'waiting_for_external', effectClass: 'pure_observation' });
+  await fixture(async (recovery) => {
+    const result = await recovery.recover();
     assert.equal(result.state, 'recovering');
     assert.equal(result.actions[0].decision, 'continue_forward');
   }, { eventState: 'waiting_for_external', effectClass: 'external_request', journal: true });

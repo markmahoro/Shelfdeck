@@ -1,6 +1,6 @@
 # ShelfDeck / Helix Documentation Index
 
-Status: Movie Procurement保持`CLOSED FOR MOVIE`。Arca Shelf配置保持`READY FOR LIBRA`；Libra达到`ACCEPTANCE SPEC READY / AWAITING LIBRA RUN`。Docker/NAS、Libra Run、Handoff B、On-deck和生产均未开始。
+Status: Movie Procurement保持`CLOSED FOR MOVIE`；Movie Libra已正式封口为`MOVIE LIBRA CLOSED AT HANDOFF B READY`。下一节点为Arca Acceptance；Handoff B尚未消费，Arca On-deck、Shelf Entry、Docker/NAS和生产部署均未开始。
 
 后续本地真实媒体测试的可重复构建主库由用户于2026-08-11固定为
 `C:\Users\markm\AppData\Local\Temp\ShelfDeck-P14-20260723\material-fields`。destructive Formation只允许作用于该库或
@@ -35,7 +35,12 @@ immutable Record；评分日志在“系统设置”中作为只读Tab分页展�
 始终不可见。两部匿名隔离媒体的不同真实星级分别形成不同Requirements digest；No-rating和本地1–5星矩阵由自动化补齐。改分追加
 Correction及新Spec revision，不覆盖旧事实；重启和相同idempotency key重放不重复Record、Resolution或Spec。当前机器合同为
 112 Capability、98 Result family、180 table、43 Canonical Transaction、114 Admin route加public health共115 route。Libra Run、
-Workspace、Product Package、Handoff B与Arca媒体事实仍为0；下一节点精确为Libra Run Admission。
+Acceptance Spec之后的Libra Run至Handoff B Offer链已经接通。隔离P14真实字节、20 Subject并行、评分/Spec replacement、加急继承、暂停恢复、
+空间不足以及R02/R04–R06崩溃窗口均通过正式Composition Root；加入D10后的P14完整回归为13/13 PASS、451.569秒，默认服务测试为
+245 pass、14个显式环境skip、0 fail，合同计数保持112/98/180/43/115。D09/R09进一步以真实Profile 8/7 DV字节证明：GPU完整pipeline合法时仅走NVENC；GPU保持ready但当前source pipeline被Evidence拒绝时，零GPU媒体Effect并建立独立CPU Work/Plan/Event/Intent，最终形成SDR BT.709 limited、yuv420p、无DOVI且三点可解码的HEVC输出。成功场景形成自包含Package和open未消费Offer，
+等待/frozen场景不伪造Offer，Arca事实保持0。MoviePilot External Landing现通过正式Integration Binding配置；Observe只按整理历史
+`download_hash → dest`解析最终文件，Stability和Workspace Import复用同一endpoint/mount fence。Import把只读Landing源流式拷贝为
+独立Workspace Physical Material，不硬链接、不删除Landing原件。真实L07复用MoviePilot中已完成的`The Wild Robot (2024)`精确任务，测试硬阻止download add，最终`moviePilotDownloadAddCount=0`。21.76 GB的HEVC 4K + TrueHD成品完成Transfer History、planned restart、完整checksum、Stability、Verify、Import、Package与open Offer；Landing与Workspace digest一致而inode不同，Offer未消费、Arca事实为0。External Landing完整checksum采用Integration + `volume_read` Permit及30分钟有界超时，不再被旧30秒timeout打断。
 
 Physical Material不再计算全文件Hash。当前唯一合同读取文件正中间最多262,144 bytes并执行前后stat fence；NAS负责bit rot和底层
 完整性。Artifact、Canonical JSON与事务Evidence digest仍使用SHA-256，这些digest不得作为Physical Material Identity。
@@ -84,6 +89,8 @@ Candidate Assembly只查询当前Scope；Execution Foundation的16 in-flight Eve
 | `KAIROX_CAPABILITY_CATALOG.md` | 62项历史Capability目录快照；不定义clean Owner或调用方向 |
 | `acceptance/FLOWPLAN_BUSINESS_PARITY.md` | 旧Kairox FlowPlan复刻验收Evidence；不定义clean业务流程 |
 | `acceptance/MOVIE_OPTIMIZE_POLICY_CALIBRATION.md` | Movie空间策略的历史校准证据；Level 5已将其结论收录为推荐Rule Template初始值 |
+| `acceptance/LIBRA_HANDOFF_B_READY_SCENARIOS.md` | Libra Run至Handoff B Ready的38场景唯一验收矩阵 |
+| `acceptance/LIBRA_HANDOFF_B_TEST_AGENT_HANDOFF.md` | 面向独立测试Agent的项目背景、安全边界、执行顺序与证据交接 |
 
 ## Reading order
 

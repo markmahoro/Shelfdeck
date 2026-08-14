@@ -4,6 +4,7 @@ const { canonicalDigest } = require('../../../contracts/canonical-json');
 
 const PROBE_RESULT = 'helix://contracts/capabilities/shared.material.media.probe/v1/result';
 const SELECTED_OUTPUT_RESULT = 'helix://contracts/capabilities/libra.product_output.select/v1/result';
+const TRANSCODE_INPUT_VERIFICATION_RESULT='helix://contracts/capabilities/libra.transcode.input.verify/v1/result';
 
 function stable(prefix, value) {
   return prefix + canonicalDigest(value).slice(0, 40);
@@ -73,18 +74,30 @@ function transcodeMediaSelectionWork(snapshot, strategyOrdinal) {
   }
   const prior = snapshot.materialInputForm === 'stream_file'
     ? directMediaSelectionWork(snapshot) : remuxMediaSelectionWork(snapshot);
-  const dependencies = [sourceMediaObservationWork(snapshot), prior];
-  for (let ordinal = 1; ordinal < strategyOrdinal; ordinal += 1) {
-    dependencies.push(definition(snapshot, 'transcode_' + ordinal + '_selection', SELECTED_OUTPUT_RESULT));
+  const assessment=transcodeStrategyAssessmentWork(snapshot,strategyOrdinal);
+  return definition(snapshot, 'transcode_' + strategyOrdinal + '_selection', SELECTED_OUTPUT_RESULT,
+    [sourceMediaObservationWork(snapshot),prior,assessment]);
+}
+
+function transcodeStrategyAssessmentWork(snapshot,strategyOrdinal){
+  if (!Number.isSafeInteger(strategyOrdinal) || strategyOrdinal < 1 || strategyOrdinal > 64) {
+    throw new TypeError('Transcode strategy ordinal must be 1..64.');
   }
-  return definition(snapshot, 'transcode_' + strategyOrdinal + '_selection', SELECTED_OUTPUT_RESULT, dependencies);
+  const prior = snapshot.materialInputForm === 'stream_file'
+    ? directMediaSelectionWork(snapshot) : remuxMediaSelectionWork(snapshot);
+  const dependencies=[sourceMediaObservationWork(snapshot),prior];
+  if(strategyOrdinal>1)dependencies.push(definition(snapshot,'transcode_'+(strategyOrdinal-1)+'_assessment',
+    TRANSCODE_INPUT_VERIFICATION_RESULT));
+  return definition(snapshot,'transcode_'+strategyOrdinal+'_assessment',TRANSCODE_INPUT_VERIFICATION_RESULT,dependencies);
 }
 
 module.exports = Object.freeze({
   PROBE_RESULT,
   SELECTED_OUTPUT_RESULT,
+  TRANSCODE_INPUT_VERIFICATION_RESULT,
   directMediaSelectionWork,
   remuxMediaSelectionWork,
   sourceMediaObservationWork,
   transcodeMediaSelectionWork,
+  transcodeStrategyAssessmentWork,
 });

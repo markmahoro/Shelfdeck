@@ -3,6 +3,7 @@
 const { canonicalDigest } = require('../../../contracts/canonical-json');
 const { createRepositoryDefinition } = require('../../../foundation/persistence/owner-repository');
 const { buildDecisionInputSet, decisionHeadDigest } = require('../model/decision-front-half-contracts');
+const { deriveTitleYear } = require('../model/decision-identity-evidence-contracts');
 const { createFieldRoutingPolicyStore } = require('../persistence/field-routing-policy-store');
 
 function stable(prefix, value) { return prefix + canonicalDigest(value).slice(0, 40); }
@@ -180,8 +181,13 @@ function createRoutingContextReader(options) {
         expectedPhysicalIdentityDigest: canonicalDigest(reference.identity) };
     } else {
       const observedYear = observations.flatMap((item) => item.facts || []).find((item) => item.factKind === 'release_year')?.year ?? null;
+      const derivedIdentity = deriveTitleYear(
+        identityClaim.claimedTitle,
+        identityClaim.claimedYear || null,
+      );
       source = { integrationId: options.routingProvider?.integrationId || 'tmdb-main', configRevision: options.routingProvider?.configRevision || 1,
-        providerKind: 'tmdb', candidateDisplayTitle: identityClaim.claimedTitle, yearHint: observedYear,
+        providerKind: 'tmdb', candidateDisplayTitle: derivedIdentity.title,
+        yearHint: observedYear ?? derivedIdentity.year,
         strongProviderAnchor: null };
     }
     const intentBody = { ...common, ...source };

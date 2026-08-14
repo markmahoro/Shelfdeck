@@ -29,7 +29,7 @@ function codes(result) {
 test('validates all SSOT shared handles, envelopes, context, and Outcome', () => {
   const result = validateSharedTypeSchemas({ contractsRoot: actualContractsRoot });
   assert.equal(result.ok, true);
-  assert.equal(result.typeCount, 29);
+  assert.equal(result.typeCount, 30);
   assert.match(result.registryDigest, /^[a-f0-9]{64}$/);
 });
 
@@ -56,10 +56,10 @@ test('freezes the complete read-only Workspace Material Handle', () => {
 
 test('freezes the complete external material Handle and normalized provider snapshot', () => {
   const schema = JSON.parse(fs.readFileSync(path.join(actualContractsRoot, 'types/ExternalMaterialHandle/v1/schema.json'), 'utf8'));
-  for (const field of ['configRevision', 'externalObjectRef', 'endpointId', 'location', 'structureKind', 'outputSnapshot',
+  for (const field of ['configRevision', 'externalObjectRef', 'endpointId', 'landingBinding', 'location', 'structureKind', 'outputSnapshot',
     'manifestDigest', 'observationRevision', 'accessFenceDigest']) assert.ok(schema.required.includes(field), field);
   const snapshot = schema.properties.outputSnapshot;
-  for (const field of ['integrationId', 'configRevision', 'externalObjectRef', 'endpointId', 'location', 'structureKind',
+  for (const field of ['integrationId', 'configRevision', 'externalObjectRef', 'endpointId', 'landingBinding', 'location', 'structureKind',
     'members', 'identityAnchors', 'observedAtMs', 'newestMutationAtMs', 'memberSetDigest', 'manifestDigest',
     'snapshotDigest']) assert.ok(snapshot.required.includes(field), field);
   const member = snapshot.properties.members.items;

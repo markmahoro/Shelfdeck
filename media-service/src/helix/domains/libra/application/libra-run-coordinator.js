@@ -6,7 +6,7 @@ const { createWorkspaceAdmissionStore } = require('../persistence/workspace-admi
 const { buildSpaceAdmissionRequest, buildWorkspaceAdmissionDecision, requiredFreeBytes, workspaceId } =
   require('../model/workspace-admission-contracts');
 const { directMediaSelectionWork, remuxMediaSelectionWork, sourceMediaObservationWork,
-  transcodeMediaSelectionWork } = require('../planning/media-production-work');
+  transcodeMediaSelectionWork,transcodeStrategyAssessmentWork } = require('../planning/media-production-work');
 const { createProductStagingService } = require('./product-staging-service');
 const { productConformanceWork, deliverablePromotionWork } =
   require('../planning/product-delivery-work');
@@ -99,14 +99,34 @@ function createLibraRunCoordinator(options){
       reasonCode: status?.latestAttempt?.failure_code || 'work_cancelled',
     });
   }
-  function externalResult(work, capabilityRef) {
+  function externalResultRecord(work, capabilityRef) {
     const values = options.workResultReader.read(work.workId).filter((item) =>
       item.outcomeKind === 'succeeded' && item.capabilityRef === capabilityRef);
     if (values.length !== 1) {
       throw new Error('Terminal External Material Work lacks one durable ' +
         capabilityRef + ' Result.');
     }
-    return values[0].result;
+    return values[0];
+  }
+  function externalResult(work, capabilityRef) {
+    return externalResultRecord(work, capabilityRef).result;
+  }
+  function freezeBusinessTerminal(snapshot, work, resultRecord, failureCode) {
+    if (options.libraRunLifecycleService?.freezeTerminalResult) {
+      return options.libraRunLifecycleService.freezeTerminalResult(
+        snapshot.run.libraRunId,
+        work.workId,
+        'product_unachievable',
+        Object.freeze({
+          eventId: resultRecord.eventId,
+          failureClass: 'business_unachievable',
+          failureCode,
+          resultDigest: resultRecord.resultDigest,
+        }),
+      );
+    }
+    return Object.freeze({ kind:'product_unachievable', libraRunId:snapshot.run.libraRunId,
+      workId:work.workId, reasonCode:failureCode });
   }
   function mediaVerification(work) {
     const values = options.workResultReader.read(work.workId).filter((item) =>
@@ -147,16 +167,10 @@ function createLibraRunCoordinator(options){
         libraRunId:snapshot.run.libraRunId, workId:search.workId,
         replayed:searchSubmitted.replayed, workspaceId:workspace.workspaceId });
     }
-    const selectedCandidate = externalResult(search,
-      'libra.external_material.candidate.select@1');
-    if (selectedCandidate.result !== 'selected') return Object.freeze({
-      kind: 'external_material_unavailable',
-      phase: 'external_search_selection',
-      reasonCode: selectedCandidate.selectionReasonCode,
-      libraRunId: snapshot.run.libraRunId,
-      workId: search.workId,
-      workspaceId: workspace.workspaceId,
-    });
+    const selectedCandidateRecord = externalResultRecord(search,
+      'libra.external_material.candidate.select@1'), selectedCandidate=selectedCandidateRecord.result;
+    if (selectedCandidate.result !== 'selected') return freezeBusinessTerminal(snapshot,search,
+      selectedCandidateRecord,selectedCandidate.selectionReasonCode);
 
     const acquire = externalAcquireVerificationWork(snapshot);
     const acquireSubmitted = submit(acquire);
@@ -168,16 +182,10 @@ function createLibraRunCoordinator(options){
         libraRunId:snapshot.run.libraRunId, workId:acquire.workId,
         replayed:acquireSubmitted.replayed, workspaceId:workspace.workspaceId });
     }
-    const verified = externalResult(acquire,
-      'libra.external_material.package.verify@1');
-    if (verified.result !== 'passed') return Object.freeze({
-      kind: 'external_material_rejected',
-      phase: 'external_acquire_verification',
-      reasonCodes: verified.reasonCodes,
-      libraRunId: snapshot.run.libraRunId,
-      workId: acquire.workId,
-      workspaceId: workspace.workspaceId,
-    });
+    const verifiedRecord=externalResultRecord(acquire,
+      'libra.external_material.package.verify@1'),verified=verifiedRecord.result;
+    if (verified.result !== 'passed') return freezeBusinessTerminal(snapshot,acquire,verifiedRecord,
+      verified.reasonCodes?.[0]||'external_package_rejected');
 
     const imported = externalImportSelectionWork(snapshot);
     const importSubmitted = submit(imported);
@@ -189,19 +197,37 @@ function createLibraRunCoordinator(options){
         libraRunId:snapshot.run.libraRunId, workId:imported.workId,
         replayed:importSubmitted.replayed, workspaceId:workspace.workspaceId });
     }
-    const selection = selectedOutput(imported);
-    if (selection.result !== 'selected') return Object.freeze({
-      kind: 'external_material_rejected',
-      phase: 'external_import_selection',
-      reasonCodes: selection.reasonCodes,
-      libraRunId: snapshot.run.libraRunId,
-      workId: imported.workId,
-      workspaceId: workspace.workspaceId,
-    });
+    const selectionRecord=options.workResultReader.read(imported.workId).find((item)=>item.outcomeKind==='succeeded'&&
+      item.capabilityRef==='libra.product_output.select@1'),selection=selectedOutput(imported);
+    if (selection.result !== 'selected') return freezeBusinessTerminal(snapshot,imported,selectionRecord,
+      selection.reasonCodes?.[0]||selection.selectionReasonCode||'external_output_rejected');
     return ensureDelivery(snapshot, workspace, imported);
   }
   function ensureTranscodeSelection(snapshot,workspace,context) {
     for(let ordinal=1;ordinal<=64;ordinal+=1){
+      const assessment=transcodeStrategyAssessmentWork(snapshot,ordinal),assessmentSubmitted=submit(assessment),
+        assessmentStatus=options.workResultReader.status(assessment.workId);
+      if(!workSucceeded(assessmentStatus)){
+        if(workFailed(assessmentStatus)){
+          const reasonCode=assessmentStatus?.latestAttempt?.failure_code||'transcode_assessment_failed';
+          if(['media_device_strategies_exhausted','media_size_budget_infeasible'].includes(reasonCode))
+            return ensureExternalSelection(snapshot,workspace);
+          return terminalWork(snapshot,assessment,assessmentStatus);
+        }
+        return Object.freeze({kind:'pending',phase:'transcode_strategy_assessment',libraRunId:snapshot.run.libraRunId,
+          workId:assessment.workId,replayed:assessmentSubmitted.replayed,transcodeStrategyOrdinal:ordinal,
+          workspaceId:workspace.workspaceId,workspaceRevision:workspace.currentRevision});
+      }
+      const assessmentResults=options.workResultReader.read(assessment.workId).filter((item)=>item.outcomeKind==='succeeded'&&
+        item.capabilityRef==='libra.transcode.input.verify@1');
+      if(assessmentResults.length!==1)throw new Error('Terminal Transcode Assessment lacks one Compatibility Result.');
+      const compatibility=assessmentResults[0].result;
+      if(compatibility.disposition==='integrity_rejected')return options.libraRunLifecycleService
+        ?options.libraRunLifecycleService.freezeFailedWork(snapshot.run.libraRunId,assessment.workId,'source_integrity_rejected')
+        :Object.freeze({kind:'integrity_rejected',libraRunId:snapshot.run.libraRunId,workId:assessment.workId,
+          reasonCodes:compatibility.reasonCodes});
+      if(compatibility.disposition==='strategy_rejected')continue;
+      if(compatibility.disposition!=='compatible')throw new Error('Transcode Assessment disposition is invalid.');
       const work=transcodeMediaSelectionWork(snapshot,ordinal),submitted=submit(work),status=options.workResultReader.status(work.workId);
       if(workSucceeded(status)){
         const selection=selectedOutput(work);
@@ -225,12 +251,21 @@ function createLibraRunCoordinator(options){
     const id=workspaceId(snapshot.run.libraRunId),existing=options.movieProductionReader.readWorkspace(id);
     if(existing)return existing;
     const root=options.workspaceProductPort.rootSnapshot();
-    const inputPrimaryTotalBytes=snapshot.members.reduce((total,item)=>total+item.sizeBytes,0);
+    const inputPrimaryTotalBytes=snapshot.members.filter((item)=>item.role==='primary_payload')
+      .reduce((total,item)=>total+item.sizeBytes,0);
     const request=buildSpaceAdmissionRequest({workspaceId:id,libraRunId:snapshot.run.libraRunId,
       executionBasisDigest:snapshot.run.executionBasisDigest,rootId:root.rootId,rootSnapshotDigest:root.snapshotDigest,
       inputPrimaryTotalBytes,requiredFreeBytes:requiredFreeBytes(inputPrimaryTotalBytes)});
-    const observedAtMs=(options.now||Date.now)(),evidence=options.workspaceProductPort.observeSpace({...request,
-      requiredBytes:request.requiredFreeBytes,observedAtMs});
+    const observedAtMs=(options.now||Date.now)();
+    let evidence;
+    try {
+      evidence=options.workspaceProductPort.observeSpace({...request,
+        requiredBytes:request.requiredFreeBytes,observedAtMs});
+    } catch (error) {
+      if (error?.code !== 'CLEAN_WORKSPACE_SPACE_UNAVAILABLE') throw error;
+      return Object.freeze({kind:'workspace_admission_deferred',workspaceId:id,
+        reasonCode:'insufficient_space',requiredFreeBytes:request.requiredFreeBytes});
+    }
     const decision=buildWorkspaceAdmissionDecision({libraRunRef:{libraRunId:snapshot.run.libraRunId,
       stateRevision:snapshot.run.stateRevision,stateDigest:snapshot.run.stateDigest,
       executionBasisDigest:snapshot.run.executionBasisDigest},workspaceId:id,platformWorkspaceRootSnapshot:root,
@@ -277,6 +312,12 @@ function createLibraRunCoordinator(options){
       workspaceId:workspace.workspaceId});
   }
   function reconcile(libraRunId){
+    let snapshot;
+    try { snapshot=typeof options.movieProductionReader.readRunSnapshot==='function'
+      ?options.movieProductionReader.readRunSnapshot(libraRunId):options.movieProductionReader.readRun(libraRunId); }
+    catch(error){if(error?.code==='P14_MOVIE_PRODUCTION_RUN_UNAVAILABLE')return Object.freeze({kind:'not_found',libraRunId});throw error;}
+    if(snapshot.run.state!=='active' && snapshot.run.state!=='suspended')
+      return Object.freeze({kind:'terminal',libraRunId,state:snapshot.run.state});
     const lifecycle = options.libraRunLifecycleService?.reconcile(libraRunId);
     if (lifecycle && lifecycle.kind !== 'ready') {
       if (['freshness_confirmed', 'resume'].includes(lifecycle.kind)) {
@@ -288,10 +329,6 @@ function createLibraRunCoordinator(options){
           ? 'replacement_required' : 'run_lifecycle',
       });
     }
-    let snapshot;
-    try { snapshot=typeof options.movieProductionReader.readRunSnapshot==='function'
-      ?options.movieProductionReader.readRunSnapshot(libraRunId):options.movieProductionReader.readRun(libraRunId); }
-    catch(error){if(error?.code==='P14_MOVIE_PRODUCTION_RUN_UNAVAILABLE')return Object.freeze({kind:'not_found',libraRunId});throw error;}
     if(snapshot.run.state!=='active')return Object.freeze({kind:'terminal',libraRunId,state:snapshot.run.state});
     const identity=options.movieProductionReader.readFact(libraRunId,'resolved_identity',1);
     let committed=identity;
@@ -347,6 +384,9 @@ function createLibraRunCoordinator(options){
     }
     if(metadataStage.kind!=='ready')throw new Error('Product Metadata stage is invalid.');
     const workspace=ensureWorkspace(snapshot);
+    if(workspace.kind==='workspace_admission_deferred')return Object.freeze({kind:'waiting_for_resource',
+      phase:'workspace_admission',libraRunId,workspaceId:workspace.workspaceId,
+      reasonCode:workspace.reasonCode,requiredFreeBytes:workspace.requiredFreeBytes});
     const artifact=artifactWork(snapshot,workspace),artifactSubmitted=submit(artifact),artifactStatus=options.workResultReader.status(artifact.workId);
     if(!workSucceeded(artifactStatus)){
       if(workFailed(artifactStatus))return terminalWork(snapshot,artifact,artifactStatus);
@@ -416,4 +456,5 @@ function createLibraRunCoordinator(options){
 
 module.exports=Object.freeze({createLibraRunCoordinator,identityObservationWork,identityCommitWork,metadataObservationWork,artifactWork,productFactWork,
   sourceMediaObservationWork,directMediaSelectionWork,remuxMediaSelectionWork,transcodeMediaSelectionWork,
+  transcodeStrategyAssessmentWork,
   externalSearchSelectionWork,externalAcquireVerificationWork,externalImportSelectionWork});

@@ -65,8 +65,13 @@ function outputSnapshot() {
     checksumAlgorithm: 'sha256', checksumHex: digest('movie'), episodeClaims: [] };
   const members = [Object.freeze({ ...memberBasis, memberDigest: digest(canonicalJson(memberBasis)) })];
   const memberSetDigest = digest(canonicalJson({ schema: 'provider-external-material-members@1', items: members }));
+  const landingBasis={schemaRef:'helix://contracts/types/MoviePilotLandingBinding/v1',schemaVersion:1,bindingId:'binding-1',bindingRevision:3,
+    integrationId:'integration-1',configRevision:3,providerRequestSaveRoot:'/provider/downloads',providerOrganizedRoot:'/provider/organized',
+    shelfDeckVisibleRoot:'C:/landing',endpointId:'endpoint-1',mountScopeId:'landing-mount-1',mountScopeRevision:1,
+    accessMode:'provider_rw_shelfdeck_ro'};
+  const landingBinding=Object.freeze({...landingBasis,bindingDigest:digest(canonicalJson(landingBasis))});
   const value = { integrationId: 'integration-1', configRevision: 3, externalObjectRef: 'external-1', endpointId: 'endpoint-1',
-    location: '/provider/external-1', structureKind: 'single', members, identityAnchors: [identity], observedTitle: 'Movie',
+    landingBinding,location: 'external-1/movie.mkv', structureKind: 'single', members, identityAnchors: [identity], observedTitle: 'Movie',
     releaseYear: 1999, observedAtMs: NOW, newestMutationAtMs: NOW - 60_000, memberSetDigest,
     manifestDigest: digest(canonicalJson({ schema: 'provider-external-material-manifest@1', structureKind: 'single', memberSetDigest })) };
   return Object.freeze({ ...value, snapshotDigest: digest(canonicalJson(value)) });
@@ -80,9 +85,11 @@ function externalMaterialHandle() {
   return Object.freeze({ schemaRef: 'helix://contracts/types/ExternalMaterialHandle/v1', schemaVersion: 1,
     handleId, integrationId: snapshot.integrationId, configRevision: snapshot.configRevision,
     externalObjectRef: snapshot.externalObjectRef, endpointId: snapshot.endpointId, location: snapshot.location,
-    structureKind: snapshot.structureKind, outputSnapshot: snapshot, manifestDigest: snapshot.manifestDigest,
+    landingBinding:snapshot.landingBinding,structureKind: snapshot.structureKind, outputSnapshot: snapshot, manifestDigest: snapshot.manifestDigest,
     observationRevision: 1, accessFenceDigest: digest(canonicalJson({ schema: 'libra.external-material-access-fence@1',
-      handleId, endpointId: snapshot.endpointId, location: snapshot.location, outputSnapshotDigest: snapshot.snapshotDigest })) });
+      handleId, endpointId: snapshot.endpointId, location: snapshot.location,landingBindingDigest:snapshot.landingBinding.bindingDigest,
+      mountScopeId:snapshot.landingBinding.mountScopeId,mountScopeRevision:snapshot.landingBinding.mountScopeRevision,
+      outputSnapshotDigest: snapshot.snapshotDigest })) });
 }
 
 function jobReceipt(operationId = 'libra.external_material.acquire.request@1', requestDigest = digest('acquire-request')) {

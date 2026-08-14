@@ -64,6 +64,9 @@ function definitions(schemaManifest) {
       find: { kind: 'select-one', tableId: 'fx_commit_markers', columns: [
         'commit_marker', 'effect_id', 'owner_domain', 'scope_type', 'scope_id', 'commit_digest', 'committed_at_ms'
       ], keyColumns: ['commit_marker'] },
+      list: { kind: 'select-all', tableId: 'fx_commit_markers', columns: [
+        'commit_marker', 'effect_id', 'owner_domain', 'scope_type', 'scope_id', 'commit_digest', 'committed_at_ms'
+      ], keyColumns: [] },
       insert: { kind: 'insert', tableId: 'fx_commit_markers', columns: [
         'commit_marker', 'effect_id', 'owner_domain', 'scope_type', 'scope_id', 'commit_digest', 'committed_at_ms'
       ] }
@@ -95,6 +98,19 @@ function createEffectJournal(options) {
       repositories: [repositories.effects], execute(context) {
         return context.repository('effect_journal').invoke('find', { effect_id: effectId });
       } }]).effect_journal_read;
+  }
+
+  function observeRecovery(effectId) {
+    const id = text(effectId, 'effectId');
+    return options.unitOfWork.execute([{ participantId: 'effect_journal_recovery_observation', owner: 'execution-foundation',
+      repositories: [repositories.effects, repositories.markers], execute(context) {
+        const effect = context.repository('effect_journal').invoke('find', { effect_id: id });
+        if (!effect) fail('P4_EFFECT_NOT_FOUND', 'Effect intent does not exist.');
+        const markers = context.repository('effect_commit_markers').invoke('list')
+          .filter((marker) => marker.effect_id === id)
+          .sort((left, right) => left.commit_marker.localeCompare(right.commit_marker));
+        return Object.freeze({ effect: Object.freeze(effect), markers: Object.freeze(markers.map((marker) => Object.freeze(marker))) });
+      } }]).effect_journal_recovery_observation;
   }
 
   function transition(effect, state, values = {}) {
@@ -280,7 +296,7 @@ function createEffectJournal(options) {
     return Object.freeze({ effect: Object.freeze(current), recovery: result });
   }
 
-  return Object.freeze({ intend, noteExternalPending, read, reconcile, requireReconcile, settle });
+  return Object.freeze({ intend, noteExternalPending, observeRecovery, read, reconcile, requireReconcile, settle });
 }
 
 module.exports = Object.freeze({ EffectJournalError, createEffectJournal, effectIdentity });

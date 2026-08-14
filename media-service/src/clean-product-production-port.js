@@ -224,7 +224,16 @@ function createCleanProductProductionPort(options = {}) {
       entries.push({ key: 'episode_title', value: tagValue('title') });
     }
     entries.sort((left, right) => Buffer.compare(Buffer.from(left.key), Buffer.from(right.key)));
-    return Object.freeze({ bytes, entries: Object.freeze(entries) });
+    const peopleHints = [];
+    for (const match of xml.matchAll(/<actor(?:\s[^>]*)?>[\s\S]*?<name(?:\s[^>]*)?>([^<]+)<\/name>/gi)) {
+      const displayName = match[1].trim();
+      if (displayName) {
+        peopleHints.push(Object.freeze({
+          displayName, role: 'actor', providerIdentities: Object.freeze([]),
+        }));
+      }
+    }
+    return Object.freeze({ bytes, entries: Object.freeze(entries), peopleHints: Object.freeze(peopleHints) });
   }
 
   async function fetchProvider(intent, integrationHandle) {
@@ -435,6 +444,94 @@ function createCleanProductProductionPort(options = {}) {
     });
   }
 
+  function imageMediaType(bytes) {
+    if (bytes.length >= 8 && bytes[0] === 0x89 && bytes[1] === 0x50 &&
+        bytes[2] === 0x4e && bytes[3] === 0x47) {
+      return 'image/png';
+    }
+    if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) {
+      return 'image/jpeg';
+    }
+    if (bytes.length >= 6 && bytes.slice(0, 6).toString('ascii') === 'GIF87a') return 'image/gif';
+    if (bytes.length >= 6 && bytes.slice(0, 6).toString('ascii') === 'GIF89a') return 'image/gif';
+    if (bytes.length >= 12 && bytes.slice(8, 12).toString('ascii') === 'WEBP') return 'image/webp';
+    fail('CLEAN_PRODUCT_RELATED_ARTIFACT_MEDIA',
+      'Related Product Artifact is not a decodable image.');
+  }
+
+  function materializeRelatedArtifact(request) {
+    const kind = request?.artifactKind;
+    const reference = request?.reference;
+    const draft = request?.productMetadataDraft;
+    const requirement = draft?.artifactRequirements?.find((item) => item.artifactKind === kind);
+    if (!draft || !['poster', 'fanart'].includes(kind) || !requirement ||
+        !reference || reference.role !== kind) {
+      fail('CLEAN_PRODUCT_RELATED_ARTIFACT_INPUT',
+        'Related Product Artifact input is incomplete.');
+    }
+    const location = normalizedLocation(reference.location);
+    const identity = reference.identity;
+    const bounded = computeBoundedMaterialFingerprintSync(location);
+    if (!identity || bounded.contentFingerprint !== identity.contentFingerprint ||
+        bounded.fingerprintAlgorithm !== identity.fingerprintAlgorithm ||
+        bounded.fingerprintVersion !== identity.fingerprintVersion ||
+        Number(bounded.stat.size) !== identity.sizeBytes ||
+        String(bounded.stat.ino) !== identity.inode) {
+      fail('CLEAN_PRODUCT_RELATED_ARTIFACT_REALITY_MISMATCH',
+        'Related Product Artifact no longer matches the immutable Run input.');
+    }
+    const before = fs.statSync(location, { bigint:true });
+    const bytes = fs.readFileSync(location);
+    const after = fs.statSync(location, { bigint:true });
+    if (before.ino !== after.ino || before.size !== after.size ||
+        before.mtimeNs !== after.mtimeNs || before.ctimeNs !== after.ctimeNs) {
+      fail('CLEAN_PRODUCT_RELATED_ARTIFACT_STAT_FENCE',
+        'Related Product Artifact changed during its bounded read.');
+    }
+    const mediaType = imageMediaType(bytes);
+    const basisDigest = canonicalDigest({
+      schema: 'libra.related-artifact-materialize@1',
+      referenceId: reference.referenceId,
+      referenceDigest: reference.referenceDigest,
+      artifactKind: kind,
+    });
+    const materialized = options.workspaceProductPort.materializeArtifact({
+      libraRunId: request.libraRunId,
+      workspaceId: request.workspaceId,
+      relativePath: request.relativePath,
+      artifactKind: kind,
+      mediaType,
+      bytes,
+      provenanceRef: {
+        objectType: 'related_material_reference',
+        objectId: reference.referenceId,
+        revision: 1,
+        digest: reference.referenceDigest,
+      },
+      runtimeEffectAuthority: request.runtimeEffectAuthority,
+    });
+    const payload = {
+      artifactKind: kind,
+      artifactHandleId: materialized.artifactHandle.artifactHandleId,
+      artifactDigest: materialized.artifactHandle.digestHex,
+      requirementDigest: requirement.requirementDigest,
+    };
+    return Object.freeze({
+      schemaRef: 'helix://contracts/types/ArtifactAcquisitionResult/v1',
+      schemaVersion: 1,
+      resultKind: 'acquired',
+      artifactHandle: materialized.artifactHandle,
+      reasonCode: null,
+      evidence: evidenceEnvelope(
+        'product_artifact_acquired',
+        'libra.product_artifact.acquire@1',
+        basisDigest,
+        payload,
+        now(),
+      ),
+    });
+  }
+
   function renderProductSidecar(request) {
     const draft = request?.productMetadataDraft;
     const profile = request?.sidecarProfile;
@@ -537,6 +634,7 @@ function createCleanProductProductionPort(options = {}) {
     acquireProviderArtifact,
     fetchProvider,
     issuePhysicalReadHandle,
+    materializeRelatedArtifact,
     probe,
     readRelatedNfo,
     renderProductSidecar,

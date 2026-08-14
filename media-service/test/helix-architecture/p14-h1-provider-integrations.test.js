@@ -123,6 +123,8 @@ function providerFetch(state) {
       path: url.pathname,
       method: init.method || 'GET',
       redirect: init.redirect || null,
+      searchKeyword: url.pathname === '/api/v1/search/title'
+        ? url.searchParams.get('keyword') : null,
       hasSecret: Boolean(
         headers.cookie ||
         headers.apikey ||
@@ -237,12 +239,23 @@ function providerFetch(state) {
         return response(401, { detail: 'denied' });
       }
       if (url.pathname === '/api/v1/download/') {
-        return response(200, []);
+        return response(200, state.moviepilotTasks || []);
+      }
+      if (url.pathname === '/api/v1/history/download') {
+        return response(200, state.moviepilotHistory || []);
+      }
+      if (url.pathname === '/api/v1/history/transfer') {
+        return response(200, { success:true, data:{
+          list:state.moviepilotTransferHistory || [],
+          total:(state.moviepilotTransferHistory || []).length,
+        } });
       }
       if (url.pathname === '/api/v1/search/title') {
         return response(200, { success:true, data:[{
           meta_info: { name:'Movie', year:'2024' },
-          media_info: { title:'Movie', year:'2024', tmdb_id:100 },
+          media_info: { title:'Movie', year:'2024',
+            tmdb_id:Object.hasOwn(state, 'moviepilotTmdbId')
+              ? state.moviepilotTmdbId : 100 },
           torrent_info: {
             title: 'Movie.2024.1080p',
             enclosure: 'https://tracker.test/download/torrent-1',
@@ -251,7 +264,24 @@ function providerFetch(state) {
         }] });
       }
       if (url.pathname === '/api/v1/download/add') {
-        return response(200, { success:true, data:{ download_id:'job-1' } });
+        state.moviepilotDownloadAdds =
+          (state.moviepilotDownloadAdds || 0) + 1;
+        if (state.moviepilotAddTaskOnPost) {
+          const body = JSON.parse(init.body);
+          state.moviepilotTasks = [{
+            hash: state.moviepilotAddedJobId || 'job-after-submit',
+            title: body.torrent_in.title,
+            size: body.torrent_in.size,
+            media: {
+              tmdbid: body.tmdbid,
+              type: 'movie',
+            },
+          }];
+        }
+        return response(200, state.moviepilotAddResponse || {
+          success:true,
+          data:{ download_id:'job-1' },
+        });
       }
     }
     if (url.host === 'emby.test') {
@@ -355,6 +385,16 @@ const commands = Object.freeze({
 
 async function configure(host, cookie, kind, suffix = '') {
   const command = commands[kind];
+  let settings = command.settings;
+  if (kind === 'moviepilot') {
+    const landing = fs.mkdtempSync(path.join(os.tmpdir(), 'helix-h1-moviepilot-landing-'));
+    roots.push(landing);
+    settings = {
+      providerRequestSaveRoot:'/provider/downloads',
+      providerOrganizedRoot:'/provider/organized',
+      shelfDeckVisibleRoot:landing,
+    };
+  }
   const tested = await host.inject({
     method: 'POST',
     url: '/v1/admin/settings/integrations/' +
@@ -365,8 +405,8 @@ async function configure(host, cookie, kind, suffix = '') {
       idempotencyKey: kind + '-test' + suffix,
       endpoint: command.endpoint,
       credential: command.credential,
-      ...(command.settings
-        ? { settings: command.settings }
+      ...(settings
+        ? { settings }
         : {}),
       timeoutMs: 5_000,
     },
@@ -445,9 +485,9 @@ function acquisitionQuery() {
   const identity = Object.freeze({
     provider: 'tmdb',
     namespace: 'tmdb_movie',
-    providerKey: '550',
+    providerKey: '100',
     seasonNumber: null,
-    identityAnchorDigest: canonicalDigest({ identity: '550' }),
+    identityAnchorDigest: canonicalDigest({ identity: '100' }),
   });
   const term = {
     ordinal: 0,
@@ -495,6 +535,41 @@ function acquisitionQuery() {
   });
   query.draftDigest = canonicalDigest(query);
   return Object.freeze(query);
+}
+
+function selectedCandidateFromSearch(result) {
+  const selectionCriteriaDigest = canonicalDigest({
+    schema: 'test.moviepilot-selection-criteria@1',
+    strategy: 'available_provider_rank_then_candidate_id',
+  });
+  const common = {
+    queryDigest: result.queryDigest,
+    candidateSetDigest: result.candidateSetDigest,
+    selectionCriteriaDigest,
+  };
+  const value = {
+    schemaRef: 'helix://contracts/types/SelectedCandidate/v1',
+    schemaVersion: 1,
+    draftId: canonicalDigest({
+      schema: 'libra.external-selected-candidate-id@1',
+      ...common,
+    }),
+    draftKind: 'external-selected-candidate',
+    basisDigest: canonicalDigest({
+      schema: 'libra.external-candidate-selection-basis@1',
+      ...common,
+    }),
+    producedAtMs: 1_900_000_000_000,
+    ...common,
+    result: 'selected',
+    selectedCandidate: result.candidates[0],
+    selectedCandidateId: result.candidates[0].candidateId,
+    selectionReasonCode: 'selected_by_provider_rank',
+  };
+  return Object.freeze({
+    ...value,
+    draftDigest: canonicalDigest(value),
+  });
 }
 
 test.after(() => {
@@ -704,6 +779,160 @@ test('H1.2 provider operations execute through exact P5 ports and revision-fence
       moviepilot.result.candidates[0].providerRank,
       0,
     );
+    assert.equal(moviepilot.result.candidates[0].availability, 'available');
+    assert.equal(moviepilot.result.candidates[0].identityAnchors[0].providerKey,
+      '100');
+    assert.ok(state.calls.some((call) =>
+      call.path === '/api/v1/search/title' && call.searchKeyword === 'Movie'),
+    'MoviePilot must search by the frozen title term rather than the numeric Provider key.');
+
+    state.moviepilotTmdbId = 999;
+    const mismatchedMoviepilot = await opened.services.executeProvider(
+      'moviepilot',
+      {
+        operationId: 'libra.external_material.search@1',
+        effectClass: 'pure_observation',
+        idempotencyKey: 'moviepilot-search-identity-mismatch',
+        timeoutMs: 5_000,
+        input: {
+          acquisitionQuery: acquisitionQuery(),
+          limit: 25,
+        },
+      },
+    );
+    assert.equal(mismatchedMoviepilot.result.candidates.length, 1);
+    assert.equal(mismatchedMoviepilot.result.candidates[0].availability,
+      'unavailable');
+    assert.equal(
+      mismatchedMoviepilot.result.candidates[0].identityAnchors[0].providerKey,
+      '999',
+    );
+
+    state.moviepilotTmdbId = null;
+    const unanchoredMoviepilot = await opened.services.executeProvider(
+      'moviepilot',
+      {
+        operationId: 'libra.external_material.search@1',
+        effectClass: 'pure_observation',
+        idempotencyKey: 'moviepilot-search-identity-unavailable',
+        timeoutMs: 5_000,
+        input: {
+          acquisitionQuery: acquisitionQuery(),
+          limit: 25,
+        },
+      },
+    );
+    assert.equal(unanchoredMoviepilot.result.candidates[0].availability,
+      'available');
+    assert.deepEqual(
+      unanchoredMoviepilot.result.candidates[0].identityAnchors,
+      [],
+    );
+  } finally {
+    opened.kernel.close();
+  }
+});
+
+test('H1.2 MoviePilot external request recovers one exact durable job without duplicate submission', async () => {
+  const value = fixture();
+  const state = { calls: [] };
+  const fetchImpl = providerFetch(state);
+  const host = await createCleanServiceHost({
+    dataDir: value.dataDir,
+    adminDistDir: value.adminDistDir,
+    secretRoot,
+    integrationFetch: fetchImpl,
+    now: () => 1_900_000_000_000,
+  });
+  const cookie = await session(host, value.initialized.adminApiKey);
+  await configure(host, cookie, 'moviepilot', '-receipt-recovery');
+  await host.close();
+
+  const opened = openServices(value, fetchImpl);
+  const query = acquisitionQuery();
+  try {
+    const search = await opened.services.executeProvider('moviepilot', {
+      operationId: 'libra.external_material.search@1',
+      effectClass: 'pure_observation',
+      idempotencyKey: 'moviepilot-recovery-search',
+      timeoutMs: 5_000,
+      input: { acquisitionQuery: query, limit: 25 },
+    });
+    const selectedCandidate = selectedCandidateFromSearch(search.result);
+    const acquire = (idempotencyKey) =>
+      opened.services.executeProvider('moviepilot', {
+        operationId: 'libra.external_material.acquire.request@1',
+        effectClass: 'external_request',
+        idempotencyKey,
+        timeoutMs: 5_000,
+        input: { acquisitionQuery: query, selectedCandidate },
+      });
+
+    const submitted = await acquire('moviepilot-submit-with-receipt');
+    assert.equal(submitted.result.externalJobReceipt.externalJobId, 'job-1');
+    assert.equal(state.moviepilotDownloadAdds, 1);
+
+    state.moviepilotTasks = [{
+      hash: 'job-existing',
+      title: 'Movie.2024.1080p',
+      size: 1024,
+      media: { tmdbid: 100, type: '电影' },
+    }];
+    const addCountBeforeRecovery = state.moviepilotDownloadAdds || 0;
+    const recovered = await acquire('moviepilot-recover-existing');
+    assert.equal(recovered.result.externalJobReceipt.externalJobId,
+      'job-existing');
+    assert.equal(state.moviepilotDownloadAdds || 0, addCountBeforeRecovery,
+      'an exact localized MoviePilot task must be adopted before POST');
+
+    state.moviepilotTasks = [];
+    state.moviepilotHistory = [{
+      download_hash: 'job-history',
+      torrent_name: 'Movie.2024.1080p',
+      tmdbid: 100,
+      type: '电影',
+    }];
+    const recoveredHistory = await acquire('moviepilot-recover-history');
+    assert.equal(recoveredHistory.result.externalJobReceipt.externalJobId,
+      'job-history');
+    assert.equal(state.moviepilotDownloadAdds || 0, addCountBeforeRecovery,
+      'an exact localized history row without size must be adopted before POST');
+
+    state.moviepilotTasks = [];
+    state.moviepilotHistory = [];
+    state.moviepilotAddResponse = { success:true, data:{} };
+    state.moviepilotAddTaskOnPost = true;
+    state.moviepilotAddedJobId = 'job-after-submit';
+    const recoveredAfterSubmit = await acquire(
+      'moviepilot-recover-missing-response-id',
+    );
+    assert.equal(recoveredAfterSubmit.result.externalJobReceipt.externalJobId,
+      'job-after-submit');
+    assert.equal(state.moviepilotDownloadAdds, addCountBeforeRecovery + 1,
+      'accepted POST without an ID must be reconciled without a second POST');
+
+    state.moviepilotAddTaskOnPost = false;
+    state.moviepilotTasks = [
+      {
+        hash: 'job-ambiguous-a',
+        title: 'Movie.2024.1080p',
+        size: 1024,
+        media: { tmdbid: 100, type: 'movie' },
+      },
+      {
+        hash: 'job-ambiguous-b',
+        title: 'Movie.2024.1080p',
+        size: 1024,
+        media: { tmdbid: 100, type: 'movie' },
+      },
+    ];
+    const addCountBeforeAmbiguous = state.moviepilotDownloadAdds;
+    await assert.rejects(
+      () => acquire('moviepilot-recover-ambiguous'),
+      (error) => error.code === 'P5_PROVIDER_TRANSPORT_FAILED',
+    );
+    assert.equal(state.moviepilotDownloadAdds, addCountBeforeAmbiguous,
+      'ambiguous external reality must fail closed before POST');
   } finally {
     opened.kernel.close();
   }
@@ -1202,6 +1431,11 @@ test('H1.2 target, credential, endpoint, and provider boundaries fail closed wit
       idempotencyKey: 'insecure-endpoint',
       endpoint: 'http://example.com',
       credential: commands.moviepilot.credential,
+      settings: {
+        providerRequestSaveRoot:'/provider/downloads',
+        providerOrganizedRoot:'/provider/organized',
+        shelfDeckVisibleRoot:value.root,
+      },
     },
   });
   assert.equal(publicEndpoint.statusCode, 400);

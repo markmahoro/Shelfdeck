@@ -42,6 +42,9 @@
       "type": "string",
       "minLength": 1
     },
+    "landingBinding": {
+      "$ref": "helix://contracts/types/MoviePilotLandingBinding/v1"
+    },
     "structureKind": {
       "type": "string",
       "enum": [
@@ -71,6 +74,9 @@
           "type": "string",
           "minLength": 1,
           "maxLength": 256
+        },
+        "landingBinding": {
+          "$ref": "helix://contracts/types/MoviePilotLandingBinding/v1"
         },
         "location": {
           "type": "string",
@@ -201,6 +207,7 @@
         "configRevision",
         "externalObjectRef",
         "endpointId",
+        "landingBinding",
         "location",
         "structureKind",
         "members",
@@ -236,6 +243,7 @@
     "externalObjectRef",
     "endpointId",
     "location",
+    "landingBinding",
     "structureKind",
     "outputSnapshot",
     "manifestDigest",

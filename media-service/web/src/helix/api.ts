@@ -199,6 +199,17 @@ export type IntegrationState = {
   configDigest: string | null;
   capabilityCodes: string[];
   lastTestSummary: { identityProviderKey?: string; checkedAtMs?: number } | null;
+  landingBinding: {
+    bindingId: string;
+    bindingRevision: number;
+    providerRequestSaveRoot: string;
+    providerOrganizedRoot: string;
+    shelfDeckVisibleRoot: string;
+    endpointId: string;
+    mountScopeId: string;
+    mountScopeRevision: number;
+    bindingDigest: string;
+  } | null;
 };
 
 export type FormationSummary = {

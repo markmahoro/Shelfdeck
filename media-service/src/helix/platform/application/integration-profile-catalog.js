@@ -2,6 +2,8 @@
 
 const OPERATION_CATALOG =
   require('../../contracts/ports/p5-provider-operation-contracts.json');
+const { settings: moviePilotLandingSettings } =
+  require('./moviepilot-landing-binding');
 
 const SHA256 = /^[0-9a-f]{64}$/;
 const TOKEN = /^[a-zA-Z0-9][a-zA-Z0-9._:@/-]*$/;
@@ -170,6 +172,25 @@ function tokenCredential(value, settings, definition) {
   );
 }
 
+function moviePilotCredential(value, valueSettings) {
+  exact(value, ['kind', 'value']);
+  if (value.kind !== 'api_key') {
+    fail(
+      'PLATFORM_INTEGRATION_CREDENTIAL_INVALID',
+      'MoviePilot requires one API key credential.',
+    );
+  }
+  const prepared = secret(
+    boundedString(value.value, 'credential.value', 8, 8192),
+    'moviepilot_api_key',
+    'api_key',
+  );
+  return Object.freeze({
+    ...prepared,
+    settings: moviePilotLandingSettings(valueSettings),
+  });
+}
+
 function embyCredential(value, settings) {
   if (settings !== undefined) exact(settings, []);
   exact(value, ['kind', 'username', 'password']);
@@ -282,11 +303,7 @@ const PROFILES = Object.freeze([
     capabilityCodes: Object.freeze(['acquisition']),
     normalizeEndpoint: (value) =>
       normalizedUrl(value, { allowPrivateHttp: true }),
-    prepareCredential: (value, settings) =>
-      tokenCredential(value, settings, {
-        credentialKind: 'api_key',
-        secretKind: 'moviepilot_api_key',
-      }),
+    prepareCredential: moviePilotCredential,
     acceptedSecretKinds: Object.freeze(['moviepilot_api_key']),
     credentialKindsBySecret: Object.freeze({
       moviepilot_api_key: 'api_key',

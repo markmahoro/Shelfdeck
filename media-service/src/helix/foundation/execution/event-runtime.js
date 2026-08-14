@@ -19,6 +19,11 @@ function canonical(value) {
 
 function json(value) { return JSON.stringify(canonical(value)); }
 function valueDigest(value) { return digest(json(value)); }
+const DISPATCHABLE_EVENT_STATES = new Set([
+  'ready',
+  'waiting_for_resource',
+  'waiting_for_external',
+]);
 
 function definitions(schemaManifest) {
   return Object.freeze({
@@ -60,7 +65,8 @@ function definitions(schemaManifest) {
     } }),
     eventAttempts: createRepositoryDefinition({ repositoryId: 'runtime_event_attempts', owner: 'execution-foundation', schemaManifest, statements: {
       list: { kind: 'select-all', tableId: 'fx_event_attempts', columns: [
-        'event_attempt_id', 'event_id', 'ordinal', 'state', 'outcome_kind', 'failure_class', 'started_at_ms'
+        'event_attempt_id', 'event_id', 'ordinal', 'executor_ref', 'executor_version', 'input_snapshot_schema_ref',
+        'input_snapshot_digest', 'fence_snapshot_digest', 'state', 'outcome_kind', 'failure_class', 'started_at_ms'
       ], keyColumns: [] },
       insert: { kind: 'insert', tableId: 'fx_event_attempts', columns: [
         'event_attempt_id', 'event_id', 'ordinal', 'executor_ref', 'executor_version', 'input_snapshot_schema_ref', 'input_snapshot_digest',
@@ -171,7 +177,8 @@ function createEventRuntime(options) {
     return options.unitOfWork.execute([{
       participantId: 'event_runtime_snapshot', owner: 'execution-foundation', repositories: Object.values(repositories), execute(context) {
         const event = context.repository('runtime_events').invoke('find', { event_id: eventId });
-        if (!event || event.state !== 'ready') fail('P4_EVENT_NOT_READY', 'Event Runtime advances only a ready Event.', { eventId });
+        if (!event || !DISPATCHABLE_EVENT_STATES.has(event.state))
+          fail('P4_EVENT_NOT_READY', 'Event Runtime advances only a ready, resource-waiting, or due external-waiting Event.', { eventId });
         const node = context.repository('runtime_nodes').invoke('find', { plan_id: event.plan_id, node_id: event.node_id });
         const work = context.repository('runtime_works').invoke('find', { work_id: event.work_id });
         const workAttempt = context.repository('runtime_work_attempts').invoke('find', { attempt_id: event.attempt_id });
@@ -185,6 +192,31 @@ function createEventRuntime(options) {
         return Object.freeze({ event, node, work, workAttempt, plan, attempts: Object.freeze(attempts), nextOrdinal: attempts.length + 1 });
       }
     }]).event_runtime_snapshot;
+  }
+
+  function readRecoverySnapshot(eventId) {
+    return options.unitOfWork.execute([{
+      participantId: 'event_runtime_recovery_snapshot', owner: 'execution-foundation', repositories: Object.values(repositories), execute(context) {
+        const event = context.repository('runtime_events').invoke('find', { event_id: eventId });
+        if (!event || event.state !== 'executing') fail(
+          'P4_EVENT_RECOVERY_STATE_INVALID', 'Effect recovery requires one durable executing Event.', { eventId }
+        );
+        const node = context.repository('runtime_nodes').invoke('find', { plan_id: event.plan_id, node_id: event.node_id });
+        const work = context.repository('runtime_works').invoke('find', { work_id: event.work_id });
+        const workAttempt = context.repository('runtime_work_attempts').invoke('find', { attempt_id: event.attempt_id });
+        const plan = context.repository('runtime_plans').invoke('find', { plan_id: event.plan_id });
+        const attempts = context.repository('runtime_event_attempts').invoke('list').filter((attempt) => attempt.event_id === eventId);
+        const active = attempts.filter((attempt) => attempt.state === 'executing');
+        if (!node || !work || !workAttempt || !plan || active.length !== 1 ||
+            node.capability_ref !== event.capability_ref || node.contract_version !== event.contract_version ||
+            work.owner_domain !== event.owner_domain || workAttempt.work_id !== work.work_id ||
+            plan.attempt_id !== workAttempt.attempt_id || plan.state !== 'planned' ||
+            !['ready', 'running'].includes(workAttempt.state) || !['ready', 'running'].includes(work.state)) fail(
+          'P4_EVENT_RECOVERY_FACT_MISMATCH', 'Recovery Event, Attempt, Plan, Work, and Capability facts are not mutually consistent.'
+        );
+        return Object.freeze({ event, node, work, workAttempt, plan, attempts: Object.freeze(attempts), activeAttempt: active[0] });
+      }
+    }]).event_runtime_recovery_snapshot;
   }
 
   function clock() {
@@ -203,7 +235,10 @@ function createEventRuntime(options) {
     options.unitOfWork.execute([{
       participantId: 'event_runtime_fence_rejected', owner: 'execution-foundation', repositories: Object.values(repositories), execute(context) {
         const event = context.repository('runtime_events').invoke('find', { event_id: snapshot.event.event_id });
-        if (!event || event.state !== 'ready') fail('P4_EVENT_FENCE_STATE_CHANGED', 'Event changed before Fence rejection could be recorded.');
+        if (!event || !DISPATCHABLE_EVENT_STATES.has(event.state)) fail(
+          'P4_EVENT_FENCE_STATE_CHANGED',
+          'Event changed before Fence rejection could be recorded.',
+        );
         context.repository('runtime_event_attempts').invoke('insert', {
           event_attempt_id: attemptId, event_id: event.event_id, ordinal: snapshot.nextOrdinal, executor_ref: entry.manifest.capabilityRef,
           executor_version: entry.executor.version, input_snapshot_schema_ref: snapshot.node.input_binding_schema_ref,
@@ -224,7 +259,8 @@ function createEventRuntime(options) {
     options.unitOfWork.execute([{
       participantId: 'event_runtime_begin', owner: 'execution-foundation', repositories: Object.values(repositories), execute(context) {
         const event = context.repository('runtime_events').invoke('find', { event_id: snapshot.event.event_id });
-        if (!event || event.state !== 'ready') fail('P4_EVENT_BEGIN_STATE_CHANGED', 'Event changed before Attempt creation.');
+        if (!event || !DISPATCHABLE_EVENT_STATES.has(event.state))
+          fail('P4_EVENT_BEGIN_STATE_CHANGED', 'Event changed before Attempt creation.');
         const attempts = context.repository('runtime_event_attempts').invoke('list').filter((attempt) => attempt.event_id === event.event_id);
         if (attempts.some((attempt) => attempt.state === 'executing') || attempts.length + 1 !== snapshot.nextOrdinal) fail(
           'P4_EVENT_ATTEMPT_RACE', 'Event Attempt ordinal or active uniqueness changed before creation.'
@@ -305,7 +341,94 @@ function createEventRuntime(options) {
     }]).event_runtime_complete;
   }
 
+  async function recover(request) {
+    const allowed = new Set(['safe_retry', 'safe_retry_before_intent', 'continue_forward', 'already_committed']);
+    if (!request || typeof request !== 'object' || Array.isArray(request) ||
+        typeof request.eventId !== 'string' || !allowed.has(request.decision)) fail(
+      'P4_EVENT_RECOVERY_REQUEST_INVALID', 'Event recovery requires one classified recoverable action.'
+    );
+    const snapshot = readRecoverySnapshot(request.eventId);
+    const attempt = snapshot.activeAttempt;
+    const entry = options.registry.resolve(snapshot.event.capability_ref, snapshot.event.owner_domain);
+    const policyBinding = options.attemptPolicy.bindingFor(snapshot.event.capability_ref, snapshot.node.effect_class);
+    if (snapshot.node.effect_class !== entry.manifest.effectClass || !policyBinding ||
+        attempt.executor_ref !== entry.manifest.capabilityRef || attempt.executor_version !== entry.executor.version) fail(
+      'P4_EVENT_RECOVERY_CONTRACT_MISMATCH', 'Recovery cannot change the frozen Capability or Executor contract.'
+    );
+    const inputs = options.executionInputProvider.prepare(Object.freeze({ snapshot }));
+    if (valueDigest(inputs.namedInputs) !== attempt.input_snapshot_digest) fail(
+      'P4_EVENT_RECOVERY_INPUT_DRIFT', 'Recovery inputs differ from the durable Event Attempt snapshot.'
+    );
+    const fence = options.fenceValidator.validate(Object.freeze({ phase: 'protected_effect', snapshot, inputs }));
+    if (!fence || fence.valid !== true || fence.digest !== attempt.fence_snapshot_digest) fail(
+      'P4_EVENT_RECOVERY_FENCE_DRIFT', 'Recovery Fence no longer matches the durable Event Attempt.'
+    );
+    const demand = options.resourceDemandResolver.resolve(Object.freeze({ snapshot, inputs }));
+    if (!demand || demand.eventId !== request.eventId) fail(
+      'P4_EVENT_RECOVERY_RESOURCE_BINDING_MISMATCH', 'Recovery Resource Demand must bind the exact Event.'
+    );
+    const acquired = options.governor.acquire(demand);
+    if (acquired.kind !== 'permitted') return Object.freeze({ kind: 'recovery_deferred', eventId: request.eventId, demand: acquired });
+    const permit = acquired.permit;
+    try {
+      let effect = null;
+      if (entry.manifest.effectClass !== 'pure_observation') {
+        const intentDigest = valueDigest({ eventId: request.eventId, capabilityRef: snapshot.event.capability_ref,
+          contractVersion: snapshot.event.contract_version, inputSnapshotDigest: valueDigest(inputs.namedInputs),
+          fenceSnapshotDigest: fence.digest });
+        if (request.decision === 'safe_retry_before_intent') effect = options.effectJournal.intend(Object.freeze({
+          eventAttemptId: attempt.event_attempt_id, effectClass: entry.manifest.effectClass,
+          idempotencyKey: inputs.idempotencyKey, intentDigest
+        }));
+        else {
+          if (typeof request.effectId !== 'string') fail('P4_EVENT_RECOVERY_EFFECT_REQUIRED', 'Classified non-pure recovery requires its durable Effect identity.');
+          effect = options.effectJournal.read(request.effectId);
+        }
+        if (!effect || effect.event_attempt_id !== attempt.event_attempt_id || effect.effect_class !== entry.manifest.effectClass ||
+            effect.idempotency_key !== inputs.idempotencyKey || effect.intent_digest !== intentDigest || effect.state === 'failed') fail(
+          'P4_EVENT_RECOVERY_EFFECT_DRIFT', 'Recovery Effect does not match the exact durable intent and Event Attempt.'
+        );
+      }
+      const startedAtMs = clock();
+      const attemptContract = options.attemptPolicy.prepare(Object.freeze({ capabilityRef: snapshot.event.capability_ref,
+        effectClass: snapshot.node.effect_class, retryPolicyRef: policyBinding.retryPolicyRef,
+        timeoutPolicyRef: policyBinding.timeoutPolicyRef, startedAtMs }));
+      const context = {
+        executionId: assertId(options.nextExecutionId(), 'recovery-execution'), workId: snapshot.work.work_id,
+        workAttemptId: snapshot.workAttempt.attempt_id, planId: snapshot.plan.plan_id, eventId: request.eventId,
+        eventAttemptId: attempt.event_attempt_id, capabilityRef: snapshot.event.capability_ref,
+        contractVersion: snapshot.event.contract_version, executorVersion: entry.executor.version,
+        ownerScope: inputs.ownerScope, basisRefs: inputs.basisRefs, namedInputs: inputs.namedInputs,
+        parameters: JSON.parse(snapshot.node.parameters_json), fenceSnapshot: fence.snapshot,
+        resourceLease: { leaseId: permit.permitId, resourceKeys: permit.resources.map((resource) => resource.resourceKey), issuedAtMs: permit.issuedAtMs },
+        idempotencyKey: inputs.idempotencyKey, traceContext: inputs.traceContext, deadlineAtMs: attemptContract.deadlineAtMs
+      };
+      if (inputs.approvalHandle !== undefined) context.approvalHandle = inputs.approvalHandle;
+      if (inputs.authorizationHandle !== undefined) context.authorizationHandle = inputs.authorizationHandle;
+      const outcome = await options.timeoutController.execute(Object.freeze({ executionHandleId: attempt.event_attempt_id,
+        deadlineAtMs: attemptContract.deadlineAtMs, operation: () => options.dispatcher.dispatch({
+          capabilityRef: snapshot.event.capability_ref, context: Object.freeze(context), ownerDomain: snapshot.event.owner_domain
+        }) }));
+      if (!outcome || outcome.kind !== 'succeeded') {
+        if (effect) {
+          if (outcome?.kind === 'deferred' && outcome.externalReceipt !== undefined)
+            options.effectJournal.noteExternalPending(effect.effect_id, outcome.externalReceipt);
+          options.effectJournal.requireReconcile(effect.effect_id);
+        }
+        fail('P4_EVENT_RECOVERY_NOT_CONVERGED', 'Recovery replay did not produce a terminal successful Outcome.', {
+          eventId: request.eventId, outcomeKind: outcome && outcome.kind
+        });
+      }
+      if (effect) await options.effectJournal.settle(Object.freeze({ effectId: effect.effect_id, receipt: outcome.effectReceipt,
+        scope: Object.freeze({ ownerDomain: inputs.ownerScope.domain, scopeType: inputs.ownerScope.processType, scopeId: inputs.ownerScope.processId }) }));
+      return complete(snapshot, attempt.event_attempt_id, outcome, null);
+    } finally {
+      options.governor.release(permit);
+    }
+  }
+
   return Object.freeze({
+    recover,
     async run(request) {
       if (!request || typeof request !== 'object' || Array.isArray(request) ||
           JSON.stringify(Object.keys(request)) !== JSON.stringify(['schedulerLease'])) fail(

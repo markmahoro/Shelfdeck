@@ -175,6 +175,11 @@ function createProcurementAdminApplication(options) {
     throw new TypeError('Procurement Admin application requires clean persistence dependencies.');
   }
   const store = options.materialFieldStore || createMaterialFieldStore(options);
+  const assertLocationAvailable = (rootLocation) => {
+    if (typeof options.assertLocationAvailable === 'function') {
+      options.assertLocationAvailable({ requestedRoot:rootLocation });
+    }
+  };
   const fieldStatus = createProcurementFieldStatusQuery(options);
   const observation = createFieldObservationAdminService({
     ...options,
@@ -186,10 +191,14 @@ function createProcurementAdminApplication(options) {
     ? createFailedPreparationRetryAdminService({ ...options, triageRegistry })
     : null;
   const commands = procurementPublic.ProcurementCommandFacade({
-    registerMaterialField: (envelope) => store.commitAdminCommand({ operation: 'register', ...envelope }),
+    registerMaterialField: (envelope) => {
+      assertLocationAvailable(envelope?.input?.access?.rootLocation);
+      return store.commitAdminCommand({ operation: 'register', ...envelope });
+    },
     updateMaterialField: (envelope) => {
       if (envelope?.input?.operation === 'revise_access') {
         const { operation, ...revision } = envelope.input;
+        assertLocationAvailable(revision?.access?.rootLocation);
         return store.commitAdminCommand({ operation: 'revise_access', idempotencyKey: envelope.idempotencyKey, input: revision, actorId: envelope.actorId });
       }
       if (envelope?.input?.operation === 'revise_profile_hint') {

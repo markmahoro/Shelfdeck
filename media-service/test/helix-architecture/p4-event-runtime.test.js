@@ -38,6 +38,12 @@ function fixture(run, settings = {}) {
       'event_id', 'plan_id', 'node_id', 'work_id', 'attempt_id', 'owner_domain', 'capability_ref', 'contract_version',
       'priority_class', 'state', 'ready_at_ms', 'retry_at_ms', 'result_id'
     ] },
+    event_attempt: { kind: 'insert', tableId: 'fx_event_attempts', columns: [
+      'event_attempt_id', 'event_id', 'ordinal', 'executor_ref', 'executor_version',
+      'input_snapshot_schema_ref', 'input_snapshot_digest', 'fence_snapshot_digest',
+      'state', 'outcome_kind', 'retry_after_ms', 'failure_class', 'failure_code',
+      'evidence_digest', 'started_at_ms', 'finished_at_ms'
+    ] },
     edge: { kind: 'insert', tableId: 'fx_plan_edges', columns: ['plan_id', 'from_node_id', 'to_node_id', 'dependency_kind'] }
   } });
   unitOfWork.execute([{ participantId: 'event_runtime_seed', owner: 'execution-foundation', repositories: [seed], execute(context) {
@@ -53,7 +59,20 @@ function fixture(run, settings = {}) {
       resource_demand_schema_ref: 'helix://test/resources', resource_demand_json: '{}' });
     repository.invoke('event', { event_id: 'event', plan_id: 'plan', node_id: 'node', work_id: 'work', attempt_id: 'work-attempt',
       owner_domain: 'libra', capability_ref: 'libra.test.observe@1', contract_version: 1, priority_class: 'normal_foreground',
-      state: 'ready', ready_at_ms: 1, retry_at_ms: null, result_id: null });
+      state: settings.initialEventState || 'ready', ready_at_ms: 1,
+      retry_at_ms: settings.initialEventState === 'waiting_for_external' ? 999 : null,
+      result_id: null });
+    if (settings.seedDeferredAttempt) {
+      repository.invoke('event_attempt', {
+        event_attempt_id: 'event-attempt-1', event_id: 'event', ordinal: 1,
+        executor_ref: 'libra.test.observe@1', executor_version: 1,
+        input_snapshot_schema_ref: 'helix://test/inputs',
+        input_snapshot_digest: HASH_A, fence_snapshot_digest: HASH_A,
+        state: 'completed', outcome_kind: 'deferred', retry_after_ms: 30_000,
+        failure_class: null, failure_code: null, evidence_digest: HASH_B,
+        started_at_ms: 1, finished_at_ms: 2,
+      });
+    }
     if (settings.addDependent) {
       repository.invoke('node', { plan_id: 'plan', node_id: 'node-dependent', capability_ref: 'libra.test.observe@1', contract_version: 1,
         input_binding_schema_ref: 'helix://test/inputs', input_bindings_json: '{}', parameter_schema_ref: 'helix://test/parameters',
@@ -127,7 +146,9 @@ function fixture(run, settings = {}) {
     whenEvaluator: { evaluate: () => settings.whenDecision || 'run' },
     resourceDemandResolver: { resolve: () => ({ eventId: settings.demandEventId || 'event', queueClass: 'normal_foreground',
       localPriority: 0, priorityRevision: 1, resources: [{ resourceKey: 'cpu_heavy', units: 1 }] }) },
-    nextEventAttemptId: () => 'event-attempt', nextExecutionId: () => 'execution', nextResultId: () => 'result', now: () => 1000 });
+    nextEventAttemptId: () => settings.seedDeferredAttempt
+      ? 'event-attempt-2' : 'event-attempt',
+    nextExecutionId: () => 'execution', nextResultId: () => 'result', now: () => 1000 });
   const cleanup = () => { kernel.close(); fs.rmSync(root, { recursive: true, force: true }); };
   try {
     const result = run({ runtime, lease, databasePath, state: () => ({ schedulerReleased, governorReleased, dispatchContext, journalCalls }) });
@@ -141,7 +162,8 @@ function databaseFacts(databasePath) {
   try {
     return {
       event: database.prepare('SELECT state,retry_at_ms,result_id FROM fx_workflow_events WHERE event_id=?').get('event'),
-      attempt: database.prepare('SELECT state,outcome_kind,retry_after_ms,failure_class,failure_code FROM fx_event_attempts WHERE event_id=?').get('event'),
+      attempt: database.prepare('SELECT state,outcome_kind,retry_after_ms,failure_class,failure_code FROM fx_event_attempts WHERE event_id=? ORDER BY ordinal DESC LIMIT 1').get('event'),
+      attempts: database.prepare('SELECT COUNT(*) count FROM fx_event_attempts WHERE event_id=?').get('event').count,
       results: database.prepare('SELECT COUNT(*) count FROM fx_event_result_bindings').get().count
     };
   } finally { database.close(); }
@@ -152,7 +174,8 @@ test('succeeded Outcome binds one immutable Result and least-authority Context',
     const completed = await runtime.run({ schedulerLease: lease });
     assert.deepEqual(completed, { kind: 'succeeded', eventId: 'event', eventAttemptId: 'event-attempt', eventState: 'succeeded', resultId: 'result', retryAtMs: null });
     assert.deepEqual(databaseFacts(databasePath), { event: { state: 'succeeded', retry_at_ms: null, result_id: 'result' },
-      attempt: { state: 'completed', outcome_kind: 'succeeded', retry_after_ms: null, failure_class: null, failure_code: null }, results: 1 });
+      attempt: { state: 'completed', outcome_kind: 'succeeded', retry_after_ms: null, failure_class: null, failure_code: null },
+      attempts: 1, results: 1 });
     assert.deepEqual(state().dispatchContext.resourceLease, { leaseId: 'permit', resourceKeys: ['cpu_heavy'], issuedAtMs: 1000 });
     for (const forbidden of ['task', 'config', 'repository', 'store', 'facade', 'planner', 'runtime', 'governor']) {
       assert.equal(Object.keys(state().dispatchContext).some((key) => key.toLowerCase() === forbidden), false, forbidden);
@@ -184,11 +207,27 @@ test('deferred Outcome completes Attempt without Result and persists external re
   }, { outcome: { kind: 'deferred', reasonCode: 'NOT_READY', retryAfterMs: 30000, evidence: { observed: true } } });
 });
 
+test('due external observation wait creates the next Attempt and can become terminal', async () => {
+  await fixture(async ({ runtime, lease, databasePath }) => {
+    const completed = await runtime.run({ schedulerLease: lease });
+    assert.equal(completed.kind, 'succeeded');
+    assert.equal(completed.eventAttemptId, 'event-attempt-2');
+    const facts = databaseFacts(databasePath);
+    assert.equal(facts.event.state, 'succeeded');
+    assert.equal(facts.attempts, 2);
+    assert.equal(facts.attempt.outcome_kind, 'succeeded');
+  }, {
+    initialEventState: 'waiting_for_external',
+    seedDeferredAttempt: true,
+  });
+});
+
 test('failed Outcome is technical failure only and never creates Result', async () => {
   await fixture(async ({ runtime, lease, databasePath }) => {
     await runtime.run({ schedulerLease: lease });
     assert.deepEqual(databaseFacts(databasePath), { event: { state: 'failed', retry_at_ms: null, result_id: null },
-      attempt: { state: 'completed', outcome_kind: 'failed', retry_after_ms: null, failure_class: 'integration', failure_code: 'DOWN' }, results: 0 });
+      attempt: { state: 'completed', outcome_kind: 'failed', retry_after_ms: null, failure_class: 'integration', failure_code: 'DOWN' },
+      attempts: 1, results: 0 });
   }, { outcome: { kind: 'failed', failureClass: 'integration', code: 'DOWN', message: 'down', retryDirective: 'never', evidence: {} } });
 });
 

@@ -15,6 +15,18 @@ function fail(code, message, details) {
   throw new SecretLeaseError(code, message, details);
 }
 
+function invocationFailureDetails(error) {
+  const nestedCode = typeof error?.details?.causeCode === 'string' &&
+    /^[A-Z0-9_]{1,128}$/.test(error.details.causeCode)
+    ? error.details.causeCode
+    : null;
+  const code = nestedCode || (typeof error?.code === 'string' &&
+    /^[A-Z0-9_]{1,128}$/.test(error.code)
+    ? error.code
+    : 'UNCLASSIFIED_INVOCATION_FAILURE');
+  return Object.freeze({ causeCode:code });
+}
+
 function createSecretLeaseBroker(options) {
   if (!options || !options.repository || typeof options.repository.find !== 'function' ||
       !options.secretSource || typeof options.secretSource.read !== 'function' ||
@@ -96,7 +108,8 @@ function createSecretLeaseBroker(options) {
       return result;
     } catch (error) {
       if (error instanceof SecretLeaseError) throw error;
-      fail('P5_SECRET_LEASE_INVOCATION_FAILED', 'Secret-backed invocation failed.');
+      fail('P5_SECRET_LEASE_INVOCATION_FAILED', 'Secret-backed invocation failed.',
+        invocationFailureDetails(error));
     } finally {
       bytes.fill(0);
     }
@@ -129,7 +142,8 @@ function createSecretLeaseBroker(options) {
       return await consumer(bytes);
     } catch (error) {
       if (error instanceof SecretLeaseError) throw error;
-      fail('P5_SECRET_LEASE_INVOCATION_FAILED', 'Secret-backed invocation failed.');
+      fail('P5_SECRET_LEASE_INVOCATION_FAILED', 'Secret-backed invocation failed.',
+        invocationFailureDetails(error));
     } finally {
       bytes.fill(0);
     }

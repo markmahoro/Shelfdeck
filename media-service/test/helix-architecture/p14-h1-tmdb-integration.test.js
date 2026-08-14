@@ -131,8 +131,26 @@ function tmdbFetch(state = {}) {
     }
     if (url.pathname === '/3/movie/550/images') {
       return response(200, {
-        posters: [{ file_path: '/poster.jpg' }],
-        backdrops: [{ file_path: '/fanart.jpg' }],
+        posters: [{
+          aspect_ratio: 0.667,
+          file_path: '/poster.jpg',
+          height: 3000,
+          iso_3166_1: 'US',
+          iso_639_1: 'en',
+          vote_average: 5.2,
+          vote_count: 12,
+          width: 2000,
+        }],
+        backdrops: [{
+          aspect_ratio: 1.778,
+          file_path: '/fanart.jpg',
+          height: 1080,
+          iso_3166_1: null,
+          iso_639_1: null,
+          vote_average: 5.1,
+          vote_count: 8,
+          width: 1920,
+        }],
       });
     }
     if (url.pathname === '/3/movie/550') {
@@ -790,6 +808,24 @@ test('H1.1 Platform ports fence real TMDB identity and metadata reads across res
     assert.ok(metadata.peopleHints.some(
       (item) => item.displayName === 'Edward Norton',
     ));
+    const artifactHandle = runtime.integrationHandleResolverPort.resolve({
+      integrationId: 'tmdb-main',
+      integrationType: 'tmdb',
+      configRevision: 1,
+      allowedOperation: 'libra.product_artifact.acquire@1',
+      artifactKind: 'poster',
+    });
+    const artifact = await runtime.fetchProviderArtifact({
+      artifactKind: 'poster',
+      resolvedProviderIdentity,
+      integrationHandle: artifactHandle,
+    });
+    assert.equal(artifact.resultKind, 'acquired');
+    assert.equal(artifact.artifactKind, 'poster');
+    assert.equal(artifact.mediaType, 'image/jpeg');
+    assert.ok(Buffer.isBuffer(artifact.bytes));
+    assert.ok(state.calls.some((call) =>
+      call.pathname === '/3/movie/550/images'));
     assert.throws(
       () => runtime.integrationHandleResolverPort.resolve({
         integrationId: 'tmdb-main',

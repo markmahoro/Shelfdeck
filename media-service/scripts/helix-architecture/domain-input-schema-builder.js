@@ -1171,7 +1171,12 @@ function mediaRequirementSchema() {
 }
 
 function encodeIntentSchema() {
-  const videoBase = { codec: { const: 'hevc' }, preserveRaster: { const: true }, forbidUpscale: { const: true } };
+  const outputColorProfile = object({ range:text(), primaries:text(), transfer:text(), matrix:text() });
+  const sdrBt709ColorProfile = object({ range:{ const:'limited' }, primaries:{ const:'bt709' }, transfer:{ const:'bt709' }, matrix:{ const:'bt709' } });
+  const videoBase = { codec: { const: 'hevc' }, preserveRaster: { const: true }, forbidUpscale: { const: true },
+    dynamicRangeOperation: enumText('preserve', 'tone_map_to_sdr_bt709'), pipelineProfileId:text(),
+    outputDynamicRangeKind: enumText('sdr', 'hdr10_compatible', 'hlg', 'dolby_vision', 'unknown'),
+    outputPixelFormat:text(), outputColorProfile };
   const video = { oneOf: [
     object({ ...videoBase, rateControlMode: { const: 'target_size' }, targetVideoBitrateBps: positiveInteger(), qualityBound: { type: 'null' } }),
     object({ ...videoBase, rateControlMode: { const: 'two_pass_abr' }, targetVideoBitrateBps: positiveInteger(), qualityBound: { type: 'null' } }),
@@ -1189,7 +1194,10 @@ function encodeIntentSchema() {
   const required = Object.keys(properties).filter((field) => field !== 'previousIntentDigest');
   return { ...exactDomainSchema('EncodeIntent', properties, required, { 'x-helix-role': 'bounded-contract', allOf:[
     { if:{properties:{strategyOrdinal:{const:1}},required:['strategyOrdinal']},then:{not:{required:['previousIntentDigest']}} },
-    { if:{properties:{strategyOrdinal:{minimum:2}},required:['strategyOrdinal']},then:{required:['previousIntentDigest'],properties:{previousIntentDigest:digest()}} }
+    { if:{properties:{strategyOrdinal:{minimum:2}},required:['strategyOrdinal']},then:{required:['previousIntentDigest'],properties:{previousIntentDigest:digest()}} },
+    { if:{properties:{video:{properties:{dynamicRangeOperation:{const:'tone_map_to_sdr_bt709'}},required:['dynamicRangeOperation']}},required:['video']},
+      then:{properties:{video:{properties:{pipelineProfileId:{const:'pq_bt2020_base_to_sdr_bt709_hevc@1'},outputDynamicRangeKind:{const:'sdr'},
+        outputPixelFormat:{const:'yuv420p'},outputColorProfile:sdrBt709ColorProfile},required:['pipelineProfileId','outputDynamicRangeKind','outputPixelFormat','outputColorProfile']}}} }
   ] }), 'x-helix-maxCanonicalBytes': 16 * 1024 };
 }
 
@@ -1367,9 +1375,15 @@ function productionSourceScopeReferenceSchema() {
 
 function mediaExecutionDeviceSnapshotSchema() {
   const workerRef = object({ workerId: id(), workerRevision: positiveInteger(), capabilityDigest: digest() });
+  const pipeline = object({ pipelineProfileId:text(),
+    inputDynamicRangeKinds:{ ...arrayOf(enumText('sdr','hdr10_compatible','hlg','dolby_vision','unknown'), 5), minItems:1, uniqueItems:true },
+    inputPixelFormats:{ ...arrayOf(text(), 32), minItems:1, uniqueItems:true }, outputCodec:{ const:'hevc' },
+    outputDynamicRangeKind:enumText('sdr','hdr10_compatible','hlg','dolby_vision','unknown'), outputPixelFormat:text(),
+    outputColorProfile:object({ range:text(),primaries:text(),transfer:text(),matrix:text() }), selfTestDigest:digest() });
   const capabilityPayload = object({ supportedVideoCodecs: { ...arrayOf(text(), 64), minItems: 1 },
     supportedRateControlModes: { ...arrayOf(enumText('target_size', 'quality_bound', 'two_pass_abr', 'strict_abr'), 4), minItems: 1 },
-    validatedConcurrentSlots: { type: 'integer', minimum: 1, maximum: 1024 } });
+    validatedConcurrentSlots: { type: 'integer', minimum: 1, maximum: 1024 },
+    validatedVideoPipelines:{ ...arrayOf(pipeline, 32), minItems:1 } });
   return { ...exactDomainSchema('MediaExecutionDeviceSnapshot', { deviceId: id(), deviceClass: deviceClass(),
     probeRevision: positiveInteger(), capabilitySchemaRef: text(), capabilityPayload, capabilityDigest: digest(),
     enabled: { const: true }, state: { const: 'ready' }, workerRef: nullable(workerRef), snapshotDigest: digest() }),
@@ -1377,11 +1391,9 @@ function mediaExecutionDeviceSnapshotSchema() {
 }
 
 function workspaceMediaOutputTargetSchema() {
-  const rootSnapshot = object({ workspaceRootId: id(), rootRevision: positiveInteger(), endpointId: id(), mountScopeId: id(),
-    rootLocation: text(), containmentDigest: digest(), capacitySnapshotDigest: digest(), snapshotDigest: digest() });
   return { ...exactDomainSchema('WorkspaceMediaOutputTarget', { targetId: id(), libraRunId: id(), executionBasisDigest: digest(),
     workspaceId: id(), expectedWorkspaceRevision: positiveInteger(), expectedWorkspaceStateDigest: digest(),
-    rootSnapshot, workspaceScopeDigest: digest(), targetRelativePath: text(),
+    rootSnapshot: applicationRef('PlatformWorkspaceRootSnapshot'), workspaceScopeDigest: digest(), targetRelativePath: text(),
     outputRole: { const: 'product_media' }, productionIntentDigest: digest(), effectScopeDigest: digest(), targetDigest: digest() }),
     'x-helix-maxCanonicalBytes': 16 * 1024 };
 }
@@ -1458,12 +1470,11 @@ function analysisSpecSchema() {
 }
 
 function workspaceArtifactOutputTargetSchema() {
-  const rootSnapshot = object({ workspaceRootId: id(), rootRevision: positiveInteger(), endpointId: id(), mountScopeId: id(),
-    rootLocation: text(), containmentDigest: digest(), capacitySnapshotDigest: digest(), snapshotDigest: digest() });
   return {
     ...exactDomainSchema('WorkspaceArtifactOutputTarget', {
       targetId: id(), libraRunId: id(), executionBasisDigest: digest(), workspaceId: id(),
-      expectedWorkspaceRevision: positiveInteger(), expectedWorkspaceStateDigest: digest(), rootSnapshot,
+      expectedWorkspaceRevision: positiveInteger(), expectedWorkspaceStateDigest: digest(),
+      rootSnapshot: applicationRef('PlatformWorkspaceRootSnapshot'),
       workspaceScopeDigest: digest(), targetRelativePath: text(), outputKind: enumText('frame_set', 'western_analysis'),
       sourceInputDigest: digest(), effectScopeDigest: digest(), targetDigest: digest()
     }),

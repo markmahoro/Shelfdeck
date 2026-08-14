@@ -66,8 +66,34 @@ function createArtifactProductionCapabilityPorts(options) {
         const draft = context.namedInputs.productMetadataDraft;
         const handle = context.namedInputs.integrationHandle;
         const artifactKind = context.parameters?.artifactKind;
+        const snapshot = typeof options.movieProductionReader.readRunSnapshot === 'function'
+          ? options.movieProductionReader.readRunSnapshot(context.ownerScope.processId)
+          : options.movieProductionReader.readRun(context.ownerScope.processId);
+        const related = snapshot?.relatedReferences?.find((item) => item.role === artifactKind);
+        const runtimeEffectAuthority = Object.freeze({
+          effectClass:'workspace_write',
+          eventAttemptId:context.eventAttemptId,
+          idempotencyKey:context.idempotencyKey,
+        });
+        if (related) {
+          const result = options.productProductionPort.materializeRelatedArtifact({
+            libraRunId: context.ownerScope.processId,
+            workspaceId: workspaceId(context.ownerScope.processId),
+            relativePath: 'product/' + artifactKind + '.jpg',
+            artifactKind,
+            reference: related,
+            productMetadataDraft: draft,
+            runtimeEffectAuthority,
+          });
+          return succeeded(ACQUIRE, result, now, effectReceipt(context, result, now));
+        }
         const metadata = draft.fieldProvenance.find((item) => item.sourceKind === 'provider');
-        if (!metadata) throw new TypeError('Provider Metadata provenance is absent for Artifact acquisition.');
+        const provenance = metadata
+          ? Object.freeze({ objectId: metadata.sourceRef, digest: metadata.evidenceDigest })
+          : Object.freeze({ objectId: draft.draftId, digest: draft.draftDigest });
+        if (!provenance.objectId || !provenance.digest) {
+          throw new TypeError('Provider Artifact acquisition lacks a frozen identity or Draft provenance.');
+        }
         const result = await options.productProductionPort.acquireProviderArtifact({
           libraRunId: context.ownerScope.processId,
           workspaceId: workspaceId(context.ownerScope.processId),
@@ -77,13 +103,9 @@ function createArtifactProductionCapabilityPorts(options) {
           configRevision: handle.configRevision,
           integrationHandle: handle,
           productMetadataDraft: draft,
-          metadataObservationId: metadata.sourceRef,
-          metadataObservationDigest: metadata.evidenceDigest,
-          runtimeEffectAuthority: Object.freeze({
-            effectClass:'workspace_write',
-            eventAttemptId:context.eventAttemptId,
-            idempotencyKey:context.idempotencyKey,
-          }),
+          metadataObservationId: provenance.objectId,
+          metadataObservationDigest: provenance.digest,
+          runtimeEffectAuthority,
         });
         return succeeded(ACQUIRE, result, now, effectReceipt(context, result, now));
       },

@@ -8,6 +8,9 @@ const {
   requireIntegrationProfile,
   validateSummary,
 } = require('./integration-profile-catalog');
+const {
+  assertBinding: assertMoviePilotLandingBinding,
+} = require('./moviepilot-landing-binding');
 
 const TMDB_PROFILE = requireIntegrationProfile('tmdb');
 const TMDB_INTEGRATION_ID = TMDB_PROFILE.integrationId;
@@ -89,6 +92,7 @@ function validateConfig(snapshot, selectedProfile = TMDB_PROFILE) {
       'capabilityCodes',
       'lastTestSummary',
       'lastCommand',
+      'landingBinding',
     ],
     'PLATFORM_INTEGRATION_CONFIG_CORRUPT',
   );
@@ -125,6 +129,9 @@ function validateConfig(snapshot, selectedProfile = TMDB_PROFILE) {
         profile.credentialKindsBySecret[secret?.secretKind] ||
       JSON.stringify(config.capabilityCodes) !==
         JSON.stringify(profile.capabilityCodes) ||
+      (profile.kind === 'moviepilot'
+        ? !config.landingBinding
+        : config.landingBinding !== null) ||
       !secret ||
       secret.secretRef !== profile.secretRef ||
       secret.ownerScopeType !== 'integration' ||
@@ -139,6 +146,9 @@ function validateConfig(snapshot, selectedProfile = TMDB_PROFILE) {
     );
   }
   validateSummary(profile, config.lastTestSummary);
+  if (profile.kind === 'moviepilot') {
+    assertMoviePilotLandingBinding(config.landingBinding);
+  }
   if (config.lastTestSummary.endpointDigest !==
       canonicalDigest({ endpoint })) {
     fail(
@@ -179,6 +189,15 @@ function createIntegrationRuntime(options) {
     );
   }
   const profile = options.profile || TMDB_PROFILE;
+  const landingAccessAdapter = options.landingAccessAdapter;
+  if (profile.kind === 'moviepilot' &&
+      (!landingAccessAdapter ||
+       typeof landingAccessAdapter.resolve !== 'function' ||
+       typeof landingAccessAdapter.assertRootDoesNotOverlap !== 'function')) {
+    throw new TypeError(
+      'MoviePilot Integration runtime requires an External Landing access adapter.',
+    );
+  }
   const operationSet = new Set(profile.allowedOperations);
   const now = options.now || Date.now;
   const broker = createSecretLeaseBroker({
@@ -327,6 +346,68 @@ function createIntegrationRuntime(options) {
     return snapshot?.integration.state === 'active';
   }
 
+  function resolveExternalLandingLocation(input) {
+    exact(
+      input,
+      [
+        'integrationId',
+        'configRevision',
+        'bindingId',
+        'bindingRevision',
+        'bindingDigest',
+        'endpointId',
+        'mountScopeId',
+        'mountScopeRevision',
+        'location',
+      ],
+      'PLATFORM_EXTERNAL_LANDING_RESOLVE_SHAPE',
+    );
+    if (profile.kind !== 'moviepilot') {
+      fail('PLATFORM_EXTERNAL_LANDING_UNSUPPORTED',
+        'This Integration does not publish an External Landing binding.');
+    }
+    const snapshot = readCurrent();
+    const binding = snapshot.integration.config.landingBinding;
+    if (snapshot.integration.state !== 'active' ||
+        input.integrationId !== snapshot.integration.integrationId ||
+        input.configRevision !== snapshot.integration.configRevision ||
+        input.bindingId !== binding.bindingId ||
+        input.bindingRevision !== binding.bindingRevision ||
+        input.bindingDigest !== binding.bindingDigest ||
+        input.endpointId !== binding.endpointId ||
+        input.mountScopeId !== binding.mountScopeId ||
+        input.mountScopeRevision !== binding.mountScopeRevision) {
+      fail('PLATFORM_EXTERNAL_LANDING_FENCE_STALE',
+        'External Landing binding is stale.');
+    }
+    return Object.freeze({
+      absolutePath: landingAccessAdapter.resolve(binding, input.location),
+      endpointId: binding.endpointId,
+      mountScopeId: binding.mountScopeId,
+      mountScopeRevision: binding.mountScopeRevision,
+      bindingDigest: binding.bindingDigest,
+      accessMode: binding.accessMode,
+    });
+  }
+
+  function assertExternalLandingRootAvailable(request) {
+    exact(
+      request,
+      ['requestedRoot'],
+      'PLATFORM_EXTERNAL_LANDING_RESERVATION_SHAPE',
+    );
+    if (profile.kind !== 'moviepilot') return Object.freeze({ available:true });
+    const snapshot = readCurrent();
+    if (!snapshot || snapshot.integration.state !== 'active') {
+      return Object.freeze({ available:true });
+    }
+    landingAccessAdapter.assertRootDoesNotOverlap(
+      snapshot.integration.config.landingBinding,
+      request.requestedRoot,
+    );
+    return Object.freeze({ available:true });
+  }
+
   return Object.freeze({
     broker,
     integrationHandleResolverPort,
@@ -338,6 +419,8 @@ function createIntegrationRuntime(options) {
     },
     profile,
     readCurrent,
+    assertExternalLandingRootAvailable,
+    resolveExternalLandingLocation,
     secretLeaseResolverPort,
   });
 }

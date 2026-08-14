@@ -1,6 +1,8 @@
 'use strict';
 
 const { canonicalDigest, canonicalJson } = require('../../../contracts/canonical-json');
+const { collectFormatTags, normalizeAudioClass } =
+  require('../../../contracts/normalized-audio-class');
 const { createWorkAdmission } = require('../../../foundation/execution/work-admission');
 const {
   createCanonicalTransactionRegistry,
@@ -188,25 +190,6 @@ function scalarContract(value, digestField = 'digest') {
 }
 
 function workspaceArtifactTarget(run, workspace, rootSnapshot, value) {
-  const formalRootBasis = {
-    workspaceRootId: rootSnapshot.rootId,
-    rootRevision: rootSnapshot.configRevision,
-    endpointId: rootSnapshot.endpointId,
-    mountScopeId: rootSnapshot.mountScopeId,
-    rootLocation: 'workspace-root://' + rootSnapshot.rootId,
-    containmentDigest: canonicalDigest({
-      schema: 'platform.workspace-root-containment@1',
-      rootId: rootSnapshot.rootId,
-      endpointId: rootSnapshot.endpointId,
-      mountScopeId: rootSnapshot.mountScopeId,
-      rootHandleRef: rootSnapshot.rootHandleRef,
-    }),
-    capacitySnapshotDigest: rootSnapshot.capabilityDigest,
-  };
-  const formalRootSnapshot = Object.freeze({
-    ...formalRootBasis,
-    snapshotDigest: canonicalDigest(formalRootBasis),
-  });
   const targetId = canonicalDigest({
     schema: 'libra.workspace-artifact-output-target-id@1',
     workspaceId: workspace.workspaceId,
@@ -222,7 +205,7 @@ function workspaceArtifactTarget(run, workspace, rootSnapshot, value) {
     workspaceId: workspace.workspaceId,
     expectedWorkspaceRevision: workspace.currentRevision,
     expectedWorkspaceStateDigest: workspace.stateDigest,
-    rootSnapshotDigest: formalRootSnapshot.snapshotDigest,
+    rootSnapshotDigest: rootSnapshot.snapshotDigest,
     workspaceScopeDigest: workspace.workspaceScopeDigest,
     outputKind: value.outputKind,
     sourceInputDigest: value.sourceInputDigest,
@@ -234,7 +217,7 @@ function workspaceArtifactTarget(run, workspace, rootSnapshot, value) {
     workspaceId: workspace.workspaceId,
     expectedWorkspaceRevision: workspace.currentRevision,
     expectedWorkspaceStateDigest: workspace.stateDigest,
-    rootSnapshot: formalRootSnapshot,
+    rootSnapshot,
     workspaceScopeDigest: workspace.workspaceScopeDigest,
     targetRelativePath: value.targetRelativePath,
     outputKind: value.outputKind,
@@ -515,6 +498,10 @@ function mediaProbeEvidence(raw, handle, observedAtMs) {
       streamIndex: item.streamIndex,
       dispositionDefault: item.dispositionDefault === true,
       codec: item.codec,
+      codecProfile:item.codecProfile||item.profile||'unknown',pixelFormat:item.pixelFormat||'unknown',bitDepth:Number(item.bitDepth||8),
+      chroma:item.chroma||'unknown',colorRange:item.colorRange||'unknown',colorPrimaries:item.colorPrimaries||'unknown',
+      colorTransfer:item.colorTransfer||'unknown',colorMatrix:item.colorMatrix||'unknown',dynamicRangeKind:item.dynamicRangeKind||'unknown',
+      ...(item.dolbyVision?{dolbyVision:item.dolbyVision}:{}),
       codedWidth,
       codedHeight,
       sampleAspectRatio: item.sampleAspectRatio || '1:1',
@@ -525,16 +512,23 @@ function mediaProbeEvidence(raw, handle, observedAtMs) {
       shortEdge: Math.min(displayWidth, displayHeight),
     });
   }).sort((left, right) => left.streamIndex - right.streamIndex);
-  const audioStreams = [...(raw.audioStreams || [])].map((item) => Object.freeze({
-    streamIndex: item.streamIndex,
-    dispositionDefault: item.dispositionDefault === true,
-    codec: item.codec,
-    profile: item.profile || null,
-    channels: item.channels || 0,
-    channelLayout: item.channelLayout || null,
-    formatTags: Object.freeze([...(item.formatTags || [])]),
-    normalizedAudioClass: item.normalizedAudioClass || 'other',
-  })).sort((left, right) => left.streamIndex - right.streamIndex);
+  const audioStreams = [...(raw.audioStreams || [])].map((item) => {
+    const formatTags = collectFormatTags(item);
+    return Object.freeze({
+      streamIndex: item.streamIndex,
+      dispositionDefault: item.dispositionDefault === true,
+      codec: item.codec,
+      profile: item.profile || null,
+      channels: item.channels || 0,
+      channelLayout: item.channelLayout || null,
+      formatTags,
+      normalizedAudioClass: normalizeAudioClass({
+        codec: item.codec,
+        profile: item.profile,
+        formatTags,
+      }),
+    });
+  }).sort((left, right) => left.streamIndex - right.streamIndex);
   const subtitleStreams = [...(raw.subtitleStreams || [])].map((item) =>
     Object.freeze({ streamIndex:item.streamIndex, codec:item.codec }))
     .sort((left, right) => left.streamIndex - right.streamIndex);

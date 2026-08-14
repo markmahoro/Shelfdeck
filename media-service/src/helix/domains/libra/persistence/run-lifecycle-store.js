@@ -600,6 +600,18 @@ function foundationDefinition(schemaManifest) {
         ],
         keyColumns: ["event_id"],
       },
+      find_event_result: {
+        kind: "select-one",
+        tableId: "fx_event_result_bindings",
+        columns: [
+          "event_id",
+          "outcome_kind",
+          "result_schema_ref",
+          "result_json",
+          "result_digest",
+        ],
+        keyColumns: ["event_id"],
+      },
     },
   });
 }
@@ -771,7 +783,26 @@ function comparable(value) {
         controlProjectionDigest: item.controlProjectionDigest,
         outputRequirementDigest: item.outputRequirementDigest,
       };
-      member.memberComparisonDigest = canonicalDigest(member);
+      member.memberComparisonDigest = canonicalDigest({
+        schema: "libra.run-comparable-member-semantic@1",
+        materialKey: member.materialKey,
+        role: member.role,
+        physicalIdentity: member.physicalIdentity,
+        sizeBytes: member.sizeBytes,
+        bindingRevision: member.bindingRevision,
+        bindingEvidenceDigest: member.bindingEvidenceDigest,
+        episodeClaimSetDigest: member.episodeClaimSetDigest,
+        controlRevision: member.controlRevision,
+        controlProjectionDigest: member.controlProjectionDigest,
+        outputRequirementSemanticDigest: canonicalDigest({
+          schema: "libra.output-requirement-semantic@1",
+          acceptanceSpecDigest: value.acceptanceSpecRef.specDigest,
+          productScopeDigest: value.productScopeDigest,
+          materialKey: member.materialKey,
+          materialRole: member.role,
+          episodeClaimSetDigest: member.episodeClaimSetDigest,
+        }),
+      });
       return member;
     });
   const result = {
@@ -783,10 +814,21 @@ function comparable(value) {
     members,
     memberSetDigest: canonicalDigest({
       schema: "libra.run-comparable-member-set@1",
-      items: members,
+      items: members.map((item) => ({
+        materialKey: item.materialKey,
+        memberComparisonDigest: item.memberComparisonDigest,
+      })),
     }),
   };
-  result.comparableBasisDigest = canonicalDigest(result);
+  result.comparableBasisDigest = canonicalDigest({
+    schema: "libra.run-comparable-basis-semantic@1",
+    subjectId: result.subjectId,
+    structureKind: result.structureKind,
+    contentProfile: result.contentProfile,
+    acceptanceSpecDigest: result.acceptanceSpecRef.specDigest,
+    productScopeDigest: result.productScopeDigest,
+    memberSetDigest: result.memberSetDigest,
+  });
   return result;
 }
 
@@ -1101,7 +1143,9 @@ function recoveryPolicy() {
 
 function dimensionProjection(value, dimension) {
   if (!value) return null;
-  if (dimension === "acceptance_spec") return value.acceptanceSpecRef;
+  if (dimension === "acceptance_spec") return {
+    specDigest: value.acceptanceSpecRef.specDigest,
+  };
   if (dimension === "product_scope") return value.productScopeDigest;
   if (dimension === "material_binding") return value.members.map((item) => ({
     materialKey: item.materialKey,
@@ -1119,7 +1163,14 @@ function dimensionProjection(value, dimension) {
   }));
   return value.members.map((item) => ({
     materialKey: item.materialKey,
-    outputRequirementDigest: item.outputRequirementDigest,
+    outputRequirementSemanticDigest: canonicalDigest({
+      schema: "libra.output-requirement-semantic@1",
+      acceptanceSpecDigest: value.acceptanceSpecRef.specDigest,
+      productScopeDigest: value.productScopeDigest,
+      materialKey: item.materialKey,
+      materialRole: item.role,
+      episodeClaimSetDigest: item.episodeClaimSetDigest,
+    }),
   }));
 }
 
@@ -1365,18 +1416,38 @@ function assertTerminalEvidence(repo, decision, run, resolveRetryPolicyDigest) {
         .invoke("list_attempts", { event_id: member.terminalEventId })
         .sort((a, b) => number(a.ordinal) - number(b.ordinal)),
       attempt = attempts.at(-1),
+      businessUnachievable = member.failureClass === "business_unachievable",
+      boundResult = businessUnachievable
+        ? repo.invoke("find_event_result", { event_id: member.terminalEventId })
+        : null,
       attemptsClosed =
         attempts.length === member.attemptCount &&
         attempts.every(
           (item, index) =>
-            number(item.ordinal) === index && item.state === "completed",
+            number(item.ordinal) === index + 1 && item.state === "completed",
         );
+    let businessResultValid = !businessUnachievable;
+    if (businessUnachievable && boundResult) {
+      try {
+        const payload = JSON.parse(boundResult.result_json), reasons = [
+          payload.selectionReasonCode,
+          payload.reasonCode,
+          ...(Array.isArray(payload.reasonCodes) ? payload.reasonCodes : []),
+        ].filter(Boolean);
+        businessResultValid = boundResult.outcome_kind === "succeeded" &&
+          canonicalDigest(payload) === boundResult.result_digest &&
+          boundResult.result_digest === member.terminalEvidenceDigest &&
+          reasons.includes(member.failureCode);
+      } catch {
+        businessResultValid = false;
+      }
+    }
     if (
       !work ||
       work.owner_domain !== "libra" ||
       work.process_id !== run.libra_run_id ||
       work.basis_digest !== member.workBasisDigest ||
-      work.state !== "failed" ||
+      work.state !== (businessUnachievable ? "succeeded" : "failed") ||
       !plan ||
       plan.plan_id !== member.planId ||
       plan.basis_digest !== member.workBasisDigest ||
@@ -1386,13 +1457,14 @@ function assertTerminalEvidence(repo, decision, run, resolveRetryPolicyDigest) {
       event.work_id !== member.workId ||
       event.owner_domain !== "libra" ||
       event.capability_ref !== member.capabilityRef ||
-      event.state !== "failed" ||
+      event.state !== (businessUnachievable ? "succeeded" : "failed") ||
       !attempt ||
       !attemptsClosed ||
-      attempt.outcome_kind !== "failed" ||
-      attempt.failure_class !== member.failureClass ||
-      attempt.failure_code !== member.failureCode ||
-      attempt.evidence_digest !== member.terminalEvidenceDigest ||
+      attempt.outcome_kind !== (businessUnachievable ? "succeeded" : "failed") ||
+      (!businessUnachievable && (attempt.failure_class !== member.failureClass ||
+        attempt.failure_code !== member.failureCode ||
+        attempt.evidence_digest !== member.terminalEvidenceDigest)) ||
+      !businessResultValid ||
       resolveRetryPolicyDigest(member.capabilityRef) !==
         member.retryPolicyDigest
     )
@@ -1510,7 +1582,8 @@ function createRunLifecycleStore(options) {
       const libraRunId = request?.libraRunId,
         workId = request?.workId,
         blockerKind = request?.blockerKind,
-        assessedAtMs = request?.assessedAtMs;
+        assessedAtMs = request?.assessedAtMs,
+        terminalResult = request?.terminalResult || null;
       if (typeof libraRunId !== "string" || !libraRunId ||
           typeof workId !== "string" || !workId ||
           !["capability_exhausted", "integration_exhausted",
@@ -1519,6 +1592,15 @@ function createRunLifecycleStore(options) {
         fail(
           "P9_RUN_TERMINAL_EVIDENCE_INPUT",
           "Terminal Evidence requires exact Run, Work, blocker, and time.",
+        );
+      if (terminalResult &&
+          (typeof terminalResult.eventId !== "string" || !terminalResult.eventId ||
+           typeof terminalResult.failureCode !== "string" || !terminalResult.failureCode ||
+           terminalResult.failureClass !== "business_unachievable" ||
+           typeof terminalResult.resultDigest !== "string" || !/^[a-f0-9]{64}$/.test(terminalResult.resultDigest)))
+        fail(
+          "P9_RUN_TERMINAL_EVIDENCE_INPUT",
+          "Business terminal Evidence requires an exact terminal Result binding.",
         );
       if (typeof options.resolveRetryPolicyDigest !== "function")
         fail(
@@ -1553,38 +1635,55 @@ function createRunLifecycleStore(options) {
           if (!run) return;
           const repo = context.repository(foundation.repositoryId),
             work = repo.invoke("find_work", { work_id: workId });
+          const expectedWorkState = terminalResult ? "succeeded" : "failed";
           if (!work || work.owner_domain !== "libra" ||
               work.process_type !== "libra_run" ||
-              work.process_id !== libraRunId || work.state !== "failed")
+              work.process_id !== libraRunId || work.state !== expectedWorkState)
             fail(
               "P9_RUN_LIFECYCLE_TERMINAL",
-              "Terminal blocker is not a failed Work owned by the Run.",
+              "Terminal blocker Work is not in the required terminal state for the Run.",
             );
           const plans = new Map(repo.invoke("list_plans", {})
             .map((item) => [item.plan_id, item]));
-          const events = repo.invoke("list_events", {}).filter((item) =>
-            item.work_id === workId && item.owner_domain === "libra" &&
-            item.state === "failed");
+          const events = terminalResult
+            ? [repo.invoke("find_event", { event_id: terminalResult.eventId })].filter((item) =>
+              item && item.work_id === workId && item.owner_domain === "libra" && item.state === "succeeded")
+            : repo.invoke("list_events", {}).filter((item) =>
+              item.work_id === workId && item.owner_domain === "libra" && item.state === "failed");
           if (!events.length)
             fail(
               "P9_RUN_LIFECYCLE_TERMINAL",
-              "Failed Work has no terminal failed Event.",
+              "Terminal Work has no matching terminal Event.",
             );
           blockedWorks = events.map((event) => {
             const plan = plans.get(event.plan_id),
               attempts = repo.invoke("list_attempts", { event_id: event.event_id })
                 .sort((a, b) => number(a.ordinal) - number(b.ordinal)),
-              attempt = attempts.at(-1);
+              attempt = attempts.at(-1),
+              boundResult = terminalResult
+                ? repo.invoke("find_event_result", { event_id: event.event_id })
+                : null;
+            let boundResultDigestValid = !terminalResult;
+            if (terminalResult && boundResult) {
+              try {
+                boundResultDigestValid = canonicalDigest(JSON.parse(boundResult.result_json)) ===
+                  boundResult.result_digest;
+              } catch {
+                boundResultDigestValid = false;
+              }
+            }
             if (!plan || plan.state !== "planned" ||
                 plan.basis_digest !== work.basis_digest || !attempt ||
                 attempts.some((item, ordinal) =>
-                  number(item.ordinal) !== ordinal || item.state !== "completed") ||
-                attempt.outcome_kind !== "failed" ||
-                !attempt.failure_class || !attempt.failure_code ||
-                !attempt.evidence_digest)
+                  number(item.ordinal) !== ordinal + 1 || item.state !== "completed") ||
+                (!terminalResult && (attempt.outcome_kind !== "failed" ||
+                  !attempt.failure_class || !attempt.failure_code || !attempt.evidence_digest)) ||
+                (terminalResult && (attempt.outcome_kind !== "succeeded" || !boundResult ||
+                  boundResult.outcome_kind !== "succeeded" ||
+                  boundResult.result_digest !== terminalResult.resultDigest || !boundResultDigestValid)))
               fail(
                 "P9_RUN_LIFECYCLE_TERMINAL",
-                "Failed Work execution history is incomplete.",
+                "Terminal Work execution history is incomplete.",
                 { eventId: event.event_id },
               );
             const member = {
@@ -1593,13 +1692,13 @@ function createRunLifecycleStore(options) {
               workBasisDigest: work.basis_digest,
               terminalEventId: event.event_id,
               capabilityRef: event.capability_ref,
-              failureClass: attempt.failure_class,
-              failureCode: attempt.failure_code,
+              failureClass: terminalResult ? terminalResult.failureClass : attempt.failure_class,
+              failureCode: terminalResult ? terminalResult.failureCode : attempt.failure_code,
               attemptCount: attempts.length,
               retryPolicyDigest: options.resolveRetryPolicyDigest(
                 event.capability_ref,
               ),
-              terminalEvidenceDigest: attempt.evidence_digest,
+              terminalEvidenceDigest: terminalResult ? boundResult.result_digest : attempt.evidence_digest,
             };
             member.memberDigest = canonicalDigest({
               schema: "libra.run-terminal-blocker-member@1",

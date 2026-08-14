@@ -8,6 +8,9 @@ const {
   validateSummary,
 } = require('./integration-profile-catalog');
 const { validateConfig } = require('./integration-runtime');
+const {
+  buildMoviePilotLandingBinding,
+} = require('./moviepilot-landing-binding');
 
 const RECEIPT_KIND_CONFIGURE = 'configure';
 const RECEIPT_KIND_DISCONNECT = 'disconnect';
@@ -82,7 +85,7 @@ function assertSupported(profile, value) {
 
 function publicSnapshot(profile, snapshot) {
   if (!snapshot?.integration) {
-    return Object.freeze({
+    const result = {
       kind: profile.kind,
       supported: true,
       configured: false,
@@ -92,11 +95,13 @@ function publicSnapshot(profile, snapshot) {
       configDigest: null,
       capabilityCodes: Object.freeze([...profile.capabilityCodes]),
       lastTestSummary: null,
-    });
+    };
+    if (profile.kind === 'moviepilot') result.landingBinding = null;
+    return Object.freeze(result);
   }
   const validated = validateConfig(snapshot, profile);
   const value = validated.integration;
-  return Object.freeze({
+  const result = {
     kind: profile.kind,
     supported: true,
     configured: value.state === 'active',
@@ -110,23 +115,24 @@ function publicSnapshot(profile, snapshot) {
     lastTestSummary: Object.freeze({
       ...value.config.lastTestSummary,
     }),
-  });
+  };
+  if (profile.kind === 'moviepilot') {
+    result.landingBinding = value.config.landingBinding
+      ? Object.freeze({ ...value.config.landingBinding })
+      : null;
+  }
+  return Object.freeze(result);
 }
 
 function validateStoredPublicResult(profile, value) {
+  const resultFields = [
+    'kind', 'supported', 'configured', 'state', 'configRevision',
+    'endpoint', 'configDigest', 'capabilityCodes', 'lastTestSummary',
+  ];
+  if (profile.kind === 'moviepilot') resultFields.push('landingBinding');
   exact(
     value,
-    [
-      'kind',
-      'supported',
-      'configured',
-      'state',
-      'configRevision',
-      'endpoint',
-      'configDigest',
-      'capabilityCodes',
-      'lastTestSummary',
-    ],
+    resultFields,
     [],
     'PLATFORM_INTEGRATION_COMMAND_RECEIPT_CORRUPT',
   );
@@ -155,6 +161,8 @@ function validateStoredPublicResult(profile, value) {
       (value.configRevision === 0
         ? value.lastTestSummary !== null
         : !value.lastTestSummary) ||
+      (profile.kind === 'moviepilot' &&
+        value.configRevision > 0 && !value.landingBinding) ||
       JSON.stringify(value.capabilityCodes) !==
         JSON.stringify(profile.capabilityCodes)) {
     fail(
@@ -179,13 +187,19 @@ function validateStoredPublicResult(profile, value) {
       );
     }
   }
-  return Object.freeze({
+  const result = {
     ...value,
     capabilityCodes: Object.freeze([...value.capabilityCodes]),
     lastTestSummary: value.lastTestSummary
       ? Object.freeze({ ...value.lastTestSummary })
       : null,
-  });
+  };
+  if (profile.kind === 'moviepilot') {
+    result.landingBinding = value.landingBinding
+      ? Object.freeze({ ...value.landingBinding })
+      : null;
+  }
+  return Object.freeze(result);
 }
 
 function createIntegrationAdminApplication(options) {
@@ -211,6 +225,17 @@ function createIntegrationAdminApplication(options) {
     );
   }
   const now = options.now || Date.now;
+  const landingAccessAdapter = options.landingAccessAdapter;
+  if (profile.kind === 'moviepilot' &&
+      (!landingAccessAdapter ||
+       typeof landingAccessAdapter.probe !== 'function')) {
+    throw new TypeError(
+      'MoviePilot Integration Admin requires an External Landing access adapter.',
+    );
+  }
+  const reservedRoots = () => typeof options.reservedRoots === 'function'
+    ? options.reservedRoots()
+    : options.reservedRoots || [];
   const tests = new Map();
   const proofs = new Map();
 
@@ -301,6 +326,16 @@ function createIntegrationAdminApplication(options) {
       body.credential,
       body.settings,
     );
+    const landingProbe = profile.kind === 'moviepilot'
+      ? landingAccessAdapter.probe({
+          settings: prepared.settings,
+          reservedRoots: reservedRoots(),
+          now,
+        })
+      : null;
+    const preparedSettings = landingProbe
+      ? landingProbe.settings
+      : prepared.settings;
     const endpoint = adapter.normalizedEndpoint(body.endpoint);
     const timeoutMs = body.timeoutMs ?? 10_000;
     if (!Number.isSafeInteger(timeoutMs) ||
@@ -321,7 +356,7 @@ function createIntegrationAdminApplication(options) {
       credentialBytesDigest: requestDigest(
         prepared.secretBytes.toString('base64'),
       ),
-      settings: prepared.settings,
+      settings: preparedSettings,
       timeoutMs,
     });
     const prior = tests.get(testKey);
@@ -352,7 +387,7 @@ function createIntegrationAdminApplication(options) {
         timeoutMs,
       };
       if (profile.kind !== 'tmdb') {
-        candidateInput.settings = prepared.settings;
+        candidateInput.settings = preparedSettings;
       }
       const tested = await adapter.testCandidate(candidateInput);
       const summary = tested.summary || tested;
@@ -446,6 +481,14 @@ function createIntegrationAdminApplication(options) {
         }),
         issuedAtMs,
         expiresAtMs,
+        settings: Object.freeze({ ...preparedSettings }),
+        landingProbe: landingProbe
+          ? Object.freeze({
+              settings: Object.freeze({ ...landingProbe.settings }),
+              deviceId: landingProbe.deviceId,
+              checkedAtMs: landingProbe.checkedAtMs,
+            })
+          : null,
       });
       proofs.set(connectionProofId, proof);
       tests.set(testKey, Object.freeze({
@@ -618,6 +661,22 @@ function createIntegrationAdminApplication(options) {
       try {
         const revision = expected + 1;
         const committedAtMs = now();
+        const currentLandingProbe = profile.kind === 'moviepilot'
+          ? landingAccessAdapter.probe({
+              settings: proof.settings,
+              reservedRoots: reservedRoots(),
+              now,
+            })
+          : null;
+        if (currentLandingProbe &&
+            (currentLandingProbe.deviceId !== proof.landingProbe.deviceId ||
+             JSON.stringify(currentLandingProbe.settings) !==
+               JSON.stringify(proof.landingProbe.settings))) {
+          fail(
+            'PLATFORM_INTEGRATION_CONNECTION_PROOF_STALE',
+            'MoviePilot Landing reality changed after connection test.',
+          );
+        }
         createdEnvelope = options.secretStore.write({
           integrationId: profile.integrationId,
           secretRef: profile.secretRef,
@@ -637,6 +696,13 @@ function createIntegrationAdminApplication(options) {
           credentialKind: proof.credentialKind,
           capabilityCodes: [...profile.capabilityCodes],
           lastTestSummary: { ...proof.summary },
+          landingBinding: profile.kind === 'moviepilot'
+            ? buildMoviePilotLandingBinding({
+                integrationId: profile.integrationId,
+                configRevision: revision,
+                probe: currentLandingProbe,
+              })
+            : null,
           lastCommand: {
             commandKind: RECEIPT_KIND_CONFIGURE,
             idempotencyKey: key,

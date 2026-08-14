@@ -89,6 +89,92 @@
             "type": "string",
             "minLength": 1
           },
+          "codecProfile": {
+            "type": "string",
+            "minLength": 1
+          },
+          "pixelFormat": {
+            "type": "string",
+            "minLength": 1
+          },
+          "bitDepth": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "chroma": {
+            "type": "string",
+            "minLength": 1
+          },
+          "colorRange": {
+            "type": "string",
+            "minLength": 1
+          },
+          "colorPrimaries": {
+            "type": "string",
+            "minLength": 1
+          },
+          "colorTransfer": {
+            "type": "string",
+            "minLength": 1
+          },
+          "colorMatrix": {
+            "type": "string",
+            "minLength": 1
+          },
+          "dynamicRangeKind": {
+            "type": "string",
+            "enum": [
+              "sdr",
+              "hdr10_compatible",
+              "hlg",
+              "dolby_vision",
+              "unknown"
+            ]
+          },
+          "dolbyVision": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "profile": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "level": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "rpuPresent": {
+                "type": "boolean"
+              },
+              "elPresent": {
+                "type": "boolean"
+              },
+              "blPresent": {
+                "type": "boolean"
+              },
+              "compatibilityId": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "baseLayerKind": {
+                "type": "string",
+                "enum": [
+                  "pq_bt2020_compatible",
+                  "non_compatible",
+                  "unknown"
+                ]
+              }
+            },
+            "required": [
+              "profile",
+              "level",
+              "rpuPresent",
+              "elPresent",
+              "blPresent",
+              "compatibilityId",
+              "baseLayerKind"
+            ]
+          },
           "codedWidth": {
             "type": "integer",
             "minimum": 1
@@ -127,6 +213,15 @@
           "streamIndex",
           "dispositionDefault",
           "codec",
+          "codecProfile",
+          "pixelFormat",
+          "bitDepth",
+          "chroma",
+          "colorRange",
+          "colorPrimaries",
+          "colorTransfer",
+          "colorMatrix",
+          "dynamicRangeKind",
           "codedWidth",
           "codedHeight",
           "sampleAspectRatio",
@@ -135,6 +230,46 @@
           "displayHeight",
           "longEdge",
           "shortEdge"
+        ],
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "dynamicRangeKind": {
+                  "const": "dolby_vision"
+                }
+              },
+              "required": [
+                "dynamicRangeKind"
+              ]
+            },
+            "then": {
+              "required": [
+                "dolbyVision"
+              ]
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "dynamicRangeKind": {
+                  "not": {
+                    "const": "dolby_vision"
+                  }
+                }
+              },
+              "required": [
+                "dynamicRangeKind"
+              ]
+            },
+            "then": {
+              "not": {
+                "required": [
+                  "dolbyVision"
+                ]
+              }
+            }
+          }
         ]
       },
       "maxItems": 64

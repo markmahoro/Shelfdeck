@@ -27,10 +27,11 @@ const limited = (value, maximum, code) => {
 };
 
 const LIBRA_MEDIA_PLANNING_POLICY = freeze({
-  schemaRef:'LibraMediaPlanningPolicy@1', revision:1,
+  schemaRef:'LibraMediaPlanningPolicy@1', revision:2,
   ordinaryDeviceOrder:Object.freeze(['nvidia_nvenc','intel_qsv','amd_vaapi','remote_worker']),
   cpuPolicy:'backup_only', sizeBudgetRevision:1,
-  strategyLadder:Object.freeze(['controlled_vbr','device_cbr','cpu_two_pass_abr','cpu_strict_abr'])
+  strategyLadder:Object.freeze(['controlled_vbr','device_cbr','cpu_two_pass_abr','cpu_strict_abr']),
+  dolbyVisionTranscodePolicy:'compatible_bl_to_sdr_bt709_8bit_hevc'
 });
 const LIBRA_MEDIA_PLANNING_POLICY_DIGEST = canonicalDigest(LIBRA_MEDIA_PLANNING_POLICY);
 
@@ -75,6 +76,17 @@ function assertProbeEvidence(value) {
   if(value.videoStreams.some((item)=>typeof item.dispositionDefault!=='boolean')||value.audioStreams.some((item)=>
     typeof item.dispositionDefault!=='boolean'||!['eac3_atmos','truehd','truehd_atmos','dts_hd_ma','dts_x','other'].includes(item.normalizedAudioClass)))
     fail('P9_MEDIA_PROBE_INTEGRITY','Media Probe primary stream facts are incomplete.');
+  for(const stream of value.videoStreams){
+    if(!['sdr','hdr10_compatible','hlg','dolby_vision','unknown'].includes(stream.dynamicRangeKind)||
+        !Number.isSafeInteger(stream.bitDepth)||stream.bitDepth<1||typeof stream.pixelFormat!=='string'||!stream.pixelFormat)
+      fail('P9_MEDIA_PROBE_INTEGRITY','Media Probe video technical facts are incomplete.');
+    if(stream.dynamicRangeKind==='dolby_vision'){
+      const dv=stream.dolbyVision;
+      if(!dv||!Number.isSafeInteger(dv.profile)||!Number.isSafeInteger(dv.level)||typeof dv.blPresent!=='boolean'||
+          !['pq_bt2020_compatible','non_compatible','unknown'].includes(dv.baseLayerKind))
+        fail('P9_MEDIA_PROBE_INTEGRITY','Dolby Vision evidence is incomplete.');
+    }else if(stream.dolbyVision!==undefined)fail('P9_MEDIA_PROBE_INTEGRITY','Non-Dolby stream cannot carry Dolby Vision evidence.');
+  }
   if(value.resultKind==='probed'){
     if(!value.container||!Number.isSafeInteger(value.durationMs)||value.durationMs<0||value.reasonCode!==undefined)
       fail('P9_MEDIA_PROBE_INTEGRITY','Probed Evidence branch is invalid.');
@@ -138,12 +150,24 @@ function buildEncodeIntent(value) {
   const strategyOrdinal=integer(value.strategyOrdinal,'strategyOrdinal',1);
   if(strategyOrdinal===1&&value.previousIntentDigest!==undefined)fail('P9_MEDIA_PREVIOUS_INTENT','The first Encode Intent cannot reference a previous Intent.');
   if(strategyOrdinal>1)digest(value.previousIntentDigest,'previousIntentDigest');
+  const operation=value.dynamicRangeOperation||'preserve';
+  if(!['preserve','tone_map_to_sdr_bt709'].includes(operation))fail('P9_MEDIA_DYNAMIC_RANGE','Dynamic-range operation is invalid.');
+  const pipelineProfileId=text(value.pipelineProfileId,'pipelineProfileId');
+  const outputDynamicRangeKind=value.outputDynamicRangeKind||'unknown',outputPixelFormat=text(value.outputPixelFormat||'encoder_selected','outputPixelFormat');
+  if(!['sdr','hdr10_compatible','hlg','dolby_vision','unknown'].includes(outputDynamicRangeKind))fail('P9_MEDIA_DYNAMIC_RANGE','Output dynamic range is invalid.');
+  const outputColorProfile=operation==='tone_map_to_sdr_bt709'
+    ?freeze({range:'limited',primaries:'bt709',transfer:'bt709',matrix:'bt709'})
+    :freeze(value.outputColorProfile||{range:'source',primaries:'source',transfer:'source',matrix:'source'});
+  if(operation==='tone_map_to_sdr_bt709'&&(pipelineProfileId!=='pq_bt2020_base_to_sdr_bt709_hevc@1'||
+      outputDynamicRangeKind!=='sdr'||outputPixelFormat!=='yuv420p'||canonicalJson(outputColorProfile)!==canonicalJson({range:'limited',primaries:'bt709',transfer:'bt709',matrix:'bt709'})))
+    fail('P9_MEDIA_DYNAMIC_RANGE','DV normalization Intent is not the closed SDR BT.709 profile.');
   const result={ intentId:'', revision:integer(value.revision, 'revision', 1), schemaRef:'EncodeIntent@1',
     libraRunId:text(value.libraRunId, 'libraRunId'), sourceHandleDigest:digest(value.sourceHandleDigest, 'sourceHandleDigest'),
     mediaRequirementDigest:digest(value.mediaRequirementDigest, 'mediaRequirementDigest'),planningPolicyRef:'LibraMediaPlanningPolicy@1',
-    planningPolicyRevision:1,planningPolicyDigest:LIBRA_MEDIA_PLANNING_POLICY_DIGEST,strategyOrdinal,sizeBudgetRevision:1,
+    planningPolicyRevision:2,planningPolicyDigest:LIBRA_MEDIA_PLANNING_POLICY_DIGEST,strategyOrdinal,sizeBudgetRevision:1,
     outputContainer:'matroska', outputExtension:'mkv',
-    video:{codec:'hevc',rateControlMode:mode,targetVideoBitrateBps,qualityBound,preserveRaster:true,forbidUpscale:true},
+    video:{codec:'hevc',rateControlMode:mode,targetVideoBitrateBps,qualityBound,preserveRaster:true,forbidUpscale:true,
+      dynamicRangeOperation:operation,pipelineProfileId,outputDynamicRangeKind,outputPixelFormat,outputColorProfile},
     audio:{mode:'copy'},subtitle:{mode:'copy'},deviceClass:text(value.deviceClass, 'deviceClass') };
   if(strategyOrdinal>1)result.previousIntentDigest=value.previousIntentDigest;
   return finalizeProductionIntent(result);
@@ -163,6 +187,8 @@ function validateDeviceSnapshot(value) {
   digest(value.snapshotDigest, 'deviceSnapshotDigest');
   if (canonicalDigest(Object.fromEntries(Object.entries(value).filter(([key]) => key !== 'snapshotDigest'))) !== value.snapshotDigest)
     fail('P9_MEDIA_DEVICE', 'Device Snapshot digest is invalid.');
+  if(!Array.isArray(value.capabilityPayload?.validatedVideoPipelines)||!value.capabilityPayload.validatedVideoPipelines.length)
+    fail('P9_MEDIA_DEVICE','Device Snapshot has no validated video pipeline.');
   return value;
 }
 
@@ -173,18 +199,43 @@ function buildTranscodeInputVerification(value) {
   if (probe?.resultKind !== 'probed') reasons.push(probe?.resultKind === 'not_media' ? 'source_not_media' : 'probe_integrity_failure');
   if (intent?.sourceHandleDigest !== sourceHandleDigest) reasons.push('input_fence_mismatch');
   if (intent?.deviceClass !== device.deviceClass) reasons.push('device_class_mismatch');
-  const codecs = device.capabilityPayload?.supportedVideoCodecs || [], modes = device.capabilityPayload?.supportedRateControlModes || [];
-  if (!codecs.includes(intent?.video?.codec) || !modes.includes(intent?.video?.rateControlMode)) reasons.push('encode_intent_unsupported');
+  const codecs = device.capabilityPayload?.supportedVideoCodecs || [], modes = device.capabilityPayload?.supportedRateControlModes || [],
+    pipelines=device.capabilityPayload?.validatedVideoPipelines||[],pipeline=pipelines.find((item)=>item.pipelineProfileId===intent?.video?.pipelineProfileId);
+  if (!codecs.includes(intent?.video?.codec)) reasons.push('output_profile_unsupported');
+  if (!modes.includes(intent?.video?.rateControlMode)) reasons.push('rate_control_unsupported');
+  if(!pipeline)reasons.push('required_pipeline_profile_unavailable');
+  const primary=primaryStreams(probe.videoStreams);
+  if(!primary.length)reasons.push('source_not_media');
+  if(intent?.video?.dynamicRangeOperation==='tone_map_to_sdr_bt709'){
+    if(primary.some((stream)=>stream.dynamicRangeKind!=='dolby_vision'))reasons.push('source_dynamic_range_unsupported');
+    if(primary.some((stream)=>!stream.dolbyVision?.blPresent||stream.dolbyVision?.baseLayerKind!=='pq_bt2020_compatible'))
+      reasons.push('dolby_vision_base_layer_unsupported');
+  }
+  if(pipeline&&primary.some((stream)=>!(pipeline.inputPixelFormats||[]).includes(stream.pixelFormat)))reasons.push('source_pixel_format_unsupported');
+  const preflight=value.preflight||{sampleCount:0,passedSampleCount:0,reasonCode:null,preflightDigest:canonicalDigest({schema:'libra.empty-preflight@1'})};
+  if(preflight.reasonCode==='encoder_rejected_source_pipeline')reasons.push('encoder_rejected_source_pipeline');
+  const integrityReasons=new Set(['source_handle_mismatch','probe_integrity_failure','device_class_mismatch','input_fence_mismatch']);
+  const disposition=reasons.some((item)=>integrityReasons.has(item))?'integrity_rejected':reasons.length?'strategy_rejected':'compatible';
+  const rejectionScope=disposition==='compatible'?null:(reasons.some((item)=>['required_pipeline_profile_unavailable','source_dynamic_range_unsupported',
+    'dolby_vision_base_layer_unsupported','source_pixel_format_unsupported','output_profile_unsupported','encoder_rejected_source_pipeline'].includes(item))
+    ?'device_pipeline':'rate_control_strategy');
+  const strategyKey=device.deviceId+'\0'+device.probeRevision+'\0'+intent.video.pipelineProfileId+'\0'+intent.video.rateControlMode;
+  const coveredStrategyKeys=rejectionScope==='device_pipeline'?(device.capabilityPayload.supportedRateControlModes||[]).map((mode)=>
+    device.deviceId+'\0'+device.probeRevision+'\0'+intent.video.pipelineProfileId+'\0'+mode).sort((a,b)=>Buffer.from(a).compare(Buffer.from(b))):[strategyKey];
   const reasonCodes = Object.freeze([...new Set(reasons)]), probeEvidenceDigest = canonicalDigest(probe),
     encodeIntentDigest = digest(intent?.intentDigest, 'encodeIntentDigest'), deviceSnapshotDigest = device.snapshotDigest;
   const basisDigest = canonicalDigest({ schema:'libra.transcode-input-verification-basis@1', sourceHandleDigest,
     encodeIntentDigest, probeEvidenceDigest, deviceSnapshotDigest });
   const result = { schemaRef:'helix://contracts/types/TranscodeInputVerification/v1', schemaVersion:1,
     verificationId:canonicalDigest({ schema:'libra.transcode-input-verification-id@1', basisDigest }),
-    verificationKind:'libra_transcode_input', basisDigest, result:reasonCodes.length ? 'failed' : 'passed', reasonCodes,
+    verificationKind:'libra_transcode_input', basisDigest, result:disposition==='compatible' ? 'passed' : 'failed', reasonCodes,
     evidenceRefs:Object.freeze([text(probe.evidenceId, 'probeEvidenceId')]), verifiedAtMs:integer(value.verifiedAtMs, 'verifiedAtMs'),
     sourceHandleDigest, encodeIntentDigest, probeEvidenceId:probe.evidenceId, probeEvidenceDigest,
-    deviceId:text(device.deviceId, 'deviceId'), deviceSnapshotDigest, selectedDeviceClass:device.deviceClass };
+    deviceId:text(device.deviceId, 'deviceId'), deviceSnapshotDigest, selectedDeviceClass:device.deviceClass,disposition,rejectionScope,
+    coveredStrategyKeys:Object.freeze(coveredStrategyKeys),sampleCount:integer(preflight.sampleCount,'sampleCount'),
+    passedSampleCount:integer(preflight.passedSampleCount,'passedSampleCount'),preflightDigest:digest(preflight.preflightDigest,'preflightDigest') };
+  if(result.disposition==='compatible'&&(result.sampleCount!==24||result.passedSampleCount!==24))
+    fail('P9_MEDIA_PREFLIGHT','Compatible verification requires all 24 bounded sample frames.');
   return limited(result, 16 * 1024, 'P9_TRANSCODE_VERIFICATION_SIZE');
 }
 
@@ -218,10 +269,16 @@ function buildWorkspaceMediaHandle(value) {
   if (!['remux','encode'].includes(kind) || (kind === 'encode') !== Boolean(value.deviceSnapshot)) fail('P9_MEDIA_OUTPUT_KIND', 'Production intent kind is invalid.');
   const executionDeviceRef = kind === 'encode' ? { deviceId:value.deviceSnapshot.deviceId, deviceClass:value.deviceSnapshot.deviceClass,
     deviceSnapshotDigest:value.deviceSnapshot.snapshotDigest } : null;
+  const productionVideoProfile=kind==='encode'?freeze({dynamicRangeOperation:intent.video.dynamicRangeOperation,
+    pipelineProfileId:intent.video.pipelineProfileId,outputDynamicRangeKind:intent.video.outputDynamicRangeKind,
+    outputPixelFormat:intent.video.outputPixelFormat,outputColorProfile:intent.video.outputColorProfile,
+    profileDigest:canonicalDigest({dynamicRangeOperation:intent.video.dynamicRangeOperation,pipelineProfileId:intent.video.pipelineProfileId,
+      outputDynamicRangeKind:intent.video.outputDynamicRangeKind,outputPixelFormat:intent.video.outputPixelFormat,
+      outputColorProfile:intent.video.outputColorProfile})}):null;
   const result = { schemaRef:'helix://contracts/types/WorkspaceMediaHandle/v1', schemaVersion:1, workspaceMediaHandleId:'',
     sourceMaterialHandleDigest, workspaceMaterialHandle:handle, workspaceMaterialHandleDigest:canonicalDigest(handle),
     outputTargetId:target.targetId, outputTargetDigest:target.targetDigest, producingEventId:text(value.producingEventId, 'producingEventId'),
-    productionIntentKind:kind, productionIntentDigest:intent.intentDigest, executionDeviceRef,
+    productionIntentKind:kind, productionIntentDigest:intent.intentDigest, executionDeviceRef,productionVideoProfile,
     effectReceiptRef:{ effectId:text(value.effectReceipt.effectId, 'effectId'), effectReceiptId:text(value.effectReceipt.effectReceiptId, 'effectReceiptId'),
       effectReceiptDigest:digest(value.effectReceipt.effectReceiptDigest, 'effectReceiptDigest') } };
   result.workspaceMediaHandleId = canonicalDigest({ schema:'libra.workspace-media-handle-id@1', sourceMaterialHandleDigest,
@@ -254,6 +311,52 @@ function buildProductMediaCandidateInput(value) {
   return limited(result, 64 * 1024, 'P9_MEDIA_CANDIDATE_SIZE');
 }
 
+function buildPlannedProductCandidateReference(value) {
+  const candidateKind = value?.candidateKind;
+  const candidateNodeId = text(value?.candidateNodeId, 'candidateNodeId');
+  const mediaRequirementDigest = digest(
+    value?.mediaRequirementDigest,
+    'mediaRequirementDigest',
+  );
+  let candidateBasisDigest;
+  if (candidateKind === 'direct_input') {
+    if (!value.sourceMaterialHandle) {
+      fail('P9_MEDIA_CANDIDATE_PLAN',
+        'Direct Product Candidate planning requires its frozen source Handle.');
+    }
+    candidateBasisDigest = canonicalDigest(value.sourceMaterialHandle);
+  } else if (candidateKind === 'workspace_output') {
+    candidateBasisDigest = canonicalDigest({
+      schema: 'libra.workspace-product-candidate-basis@1',
+      outputTargetId: text(value?.outputTargetId, 'outputTargetId'),
+      outputTargetDigest: digest(value?.outputTargetDigest, 'outputTargetDigest'),
+      productionIntentDigest: digest(
+        value?.productionIntentDigest,
+        'productionIntentDigest',
+      ),
+    });
+  } else {
+    fail('P9_MEDIA_CANDIDATE_PLAN',
+      'Planned Product Candidate kind is invalid.');
+  }
+  const rank = integer(value?.rank, 'rank', 1);
+  if (rank > 32) {
+    fail('P9_MEDIA_CANDIDATE_PLAN',
+      'Planned Product Candidate rank exceeds the closed selection bound.');
+  }
+  return Object.freeze({
+    rank,
+    candidateId: canonicalDigest({
+      schema: 'libra.product-media-candidate-id@1',
+      candidateNodeId,
+      candidateKind,
+      candidateBasisDigest,
+      mediaRequirementDigest,
+    }),
+    candidateNodeId,
+  });
+}
+
 function primaryStreams(streams) {
   const defaults=(streams||[]).filter((item)=>item.dispositionDefault===true);
   if(defaults.length)return defaults;
@@ -261,9 +364,11 @@ function primaryStreams(streams) {
 }
 function rasterClass(probe) {
   const streams=primaryStreams(probe?.videoStreams);
-  return streams.length&&streams.every((item)=>item.longEdge>=3840)?'4k':streams.length?'below_4k':'none';
+  return streams.length&&streams.every((item)=>item.longEdge>=3800&&item.shortEdge>=1600)?'4k':streams.length?'below_4k':'none';
 }
 function primaryVideoCodec(probe){const codecs=[...new Set(primaryStreams(probe?.videoStreams).map((item)=>item.codec))];return codecs.length===1?codecs[0]:codecs.length?'mixed':'none';}
+function primaryDynamicRangeKind(probe){const kinds=[...new Set(primaryStreams(probe?.videoStreams).map((item)=>item.dynamicRangeKind||'unknown'))];
+  return kinds.length===1?kinds[0]:kinds.length?'unknown':'unknown';}
 function primaryAudioClasses(probe) { return sortedUnique([...new Set(primaryStreams(probe?.audioStreams).map((item) => item.normalizedAudioClass))]
   .sort((a,b)=>Buffer.from(a).compare(Buffer.from(b))), 'primaryAudioClasses'); }
 
@@ -298,6 +403,21 @@ function buildProductMediaVerification(value) {
   const actualSizeBytes=handle.sizeBytes??handle.expectedSizeBytes,maxSizeBytes = requirement.space.maxSizeBytes,
     withinLimit = maxSizeBytes === null || maxSizeBytes === undefined || actualSizeBytes <= maxSizeBytes;
   if (!withinLimit) reasons.push('max_size_exceeded');
+  const sourceDynamicRangeKind=primaryDynamicRangeKind(input.sourceProbeEvidence),outputDynamicRangeKind=primaryDynamicRangeKind(outputProbe),
+    outputVideo=primaryStreams(outputProbe?.videoStreams)[0]||{},profile=input.candidateKind==='workspace_output'
+      ?input.workspaceMediaHandle.productionVideoProfile:null,conversionOperation=profile?.dynamicRangeOperation||'none',
+    outputColorProfile={range:outputVideo.colorRange||'unknown',primaries:outputVideo.colorPrimaries||'unknown',
+      transfer:outputVideo.colorTransfer||'unknown',matrix:outputVideo.colorMatrix||'unknown'},
+    dolbyVisionMetadataPresent=primaryStreams(outputProbe?.videoStreams).some((stream)=>stream.dynamicRangeKind==='dolby_vision'||stream.dolbyVision),
+    playback=value.playbackVerification||{samplePointsPercent:[],passedSamplePointsPercent:[],decodeDigest:canonicalDigest({schema:'libra.playback-not-required@1'})};
+  if(profile?.dynamicRangeOperation==='tone_map_to_sdr_bt709'){
+    if(outputDynamicRangeKind!=='sdr')reasons.push('dynamic_range_conversion_unmet');
+    if(outputVideo.pixelFormat!=='yuv420p'||canonicalJson(outputColorProfile)!==canonicalJson({range:'limited',primaries:'bt709',transfer:'bt709',matrix:'bt709'}))
+      reasons.push('output_color_profile_unmet');
+    if(dolbyVisionMetadataPresent)reasons.push('dolby_vision_metadata_not_removed');
+    if(canonicalJson(playback.samplePointsPercent)!==canonicalJson([5,50,95])||
+        canonicalJson(playback.passedSamplePointsPercent)!==canonicalJson([5,50,95]))reasons.push('playback_decode_failed');
+  }
   const reasonCodes = Object.freeze([...new Set(reasons)]), productMaterialHandleDigest = canonicalDigest(handle),
     productMaterialFenceDigest = digest(handle.fenceDigest, 'productMaterialFenceDigest'), sourceProbeEvidenceDigest = canonicalDigest(input.sourceProbeEvidence),
     outputProbeEvidenceDigest = canonicalDigest(outputProbe);
@@ -313,7 +433,10 @@ function buildProductMediaVerification(value) {
     outputProbeEvidenceId:outputProbe.evidenceId,outputProbeEvidenceDigest,
     qualitySummary:{videoCodec,container,fileExtension:extension,displayRasterClass:outputRaster,primaryAudioClasses:audio,
       sourceDisplayRasterClass:sourceRaster,systemUpscaleDetected:outputRaster==='4k'&&sourceRaster!=='4k'},
-    spaceSummary:{unit:requirement.space.unit,actualSizeBytes,maxSizeBytes:maxSizeBytes??null,withinLimit} };
+    spaceSummary:{unit:requirement.space.unit,actualSizeBytes,maxSizeBytes:maxSizeBytes??null,withinLimit},
+    dynamicRangeSummary:{sourceDynamicRangeKind,outputDynamicRangeKind,conversionOperation,outputPixelFormat:outputVideo.pixelFormat||'unknown',
+      outputColorProfile,dolbyVisionMetadataPresent},decodeSummary:{samplePointsPercent:Object.freeze([...(playback.samplePointsPercent||[])]),
+      passedSamplePointsPercent:Object.freeze([...(playback.passedSamplePointsPercent||[])]),decodeDigest:digest(playback.decodeDigest,'decodeDigest')} };
   result.verificationId=canonicalDigest({schema:'libra.product-media-verification-id@1',candidateId:result.candidateId,candidateNodeId:result.candidateNodeId,
     candidateBasisDigest:result.candidateBasisDigest,candidateKind:result.candidateKind,libraRunId:result.libraRunId,
     productMaterialHandleId:result.productMaterialHandleId,productMaterialFenceDigest,mediaRequirementDigest:result.mediaRequirementDigest,
@@ -357,5 +480,6 @@ function selectProductOutput(value) {
 module.exports=Object.freeze({MediaProductionContractError,LIBRA_MEDIA_PLANNING_POLICY,LIBRA_MEDIA_PLANNING_POLICY_DIGEST,
   buildMediaRequirement,buildProductionSourceScopeReference,deriveTargetSizeBudget,deriveRetryTargetVideoBitrate,
   buildEncodeIntent,buildRemuxIntent,buildTranscodeInputVerification,
-  buildWorkspaceMediaOutputTarget,buildWorkspaceMediaHandle,buildProductMediaCandidateInput,buildProductMediaVerification,
+  buildWorkspaceMediaOutputTarget,buildWorkspaceMediaHandle,buildProductMediaCandidateInput,
+  buildPlannedProductCandidateReference,buildProductMediaVerification,
   buildProductOutputSelectionInput,selectProductOutput,assertExactMediaRequirement,assertProbeEvidence});

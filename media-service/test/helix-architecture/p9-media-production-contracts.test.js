@@ -8,6 +8,11 @@ const {canonicalDigest}=require('../../src/helix/contracts/canonical-json');
 const {createCapabilityContractValidator}=require('../../src/helix/foundation/capability/contract-validator');
 const media=require('../../src/helix/domains/libra/model/media-production-contracts');
 const {createMediaProductionCoordinator}=require('../../src/helix/domains/libra/application/media-production-coordinator');
+const {createMediaProductionCapabilityPorts}=require('../../src/helix/domains/libra/capabilities/media-production-capability-ports');
+const {OUTPUT_SELECTION,createWorkspaceMediaProductionProjections}=
+  require('../../src/helix/domains/libra/planning/media-production-planner');
+const {transcodeStrategyAssessmentWork,transcodeMediaSelectionWork}=
+  require('../../src/helix/domains/libra/planning/media-production-work');
 
 const D=(value)=>canonicalDigest({value});
 const contractRoot=path.resolve(__dirname,'../../src/helix/contracts');
@@ -29,17 +34,49 @@ function source(){return valid('helix://contracts/types/PhysicalMaterialReadHand
 function probe(handle,id='probe-1',overrides={}){const value={schemaRef:'helix://contracts/types/MediaProbeEvidence/v1',schemaVersion:1,evidenceId:id,
   evidenceKind:'media_probe',producerRef:'fake-media-port',basisDigest:D(id+'-basis'),payloadDigest:'',observedAtMs:1,
   sourceHandleDigest:canonicalDigest(handle),resultKind:'probed',container:'matroska',durationMs:1000,sizeBytes:handle.sizeBytes??handle.expectedSizeBytes,
-  videoStreams:[{streamIndex:0,dispositionDefault:true,codec:'hevc',codedWidth:3840,codedHeight:2160,sampleAspectRatio:'1:1',rotation:0,displayWidth:3840,displayHeight:2160,longEdge:3840,shortEdge:2160}],
+  videoStreams:[{streamIndex:0,dispositionDefault:true,codec:'hevc',codecProfile:'main',pixelFormat:'yuv420p',bitDepth:8,chroma:'4:2:0',
+    colorRange:'limited',colorPrimaries:'bt709',colorTransfer:'bt709',colorMatrix:'bt709',dynamicRangeKind:'sdr',
+    codedWidth:3840,codedHeight:2160,sampleAspectRatio:'1:1',rotation:0,displayWidth:3840,displayHeight:2160,longEdge:3840,shortEdge:2160}],
   audioStreams:[{streamIndex:1,dispositionDefault:true,codec:'truehd',profile:'truehd',channels:8,channelLayout:'7.1',formatTags:[],normalizedAudioClass:'truehd',language:'eng'}],subtitleStreams:[],...overrides};
   value.payloadDigest=canonicalDigest(Object.fromEntries(Object.entries(value).filter(([key])=>key!=='payloadDigest')));
   return valid('helix://contracts/types/MediaProbeEvidence/v1',value);}
-function rootSnapshot(label='root'){return {workspaceRootId:'workspace-root-1',rootRevision:1,endpointId:'endpoint-1',mountScopeId:'mount-1',
-  rootLocation:'workspace',containmentDigest:D(label+'-containment'),capacitySnapshotDigest:D(label+'-capacity'),snapshotDigest:D(label)};}
+function rootSnapshot(label='root'){return {rootId:'workspace-root-1',ownerScope:'libra',rootKind:'production-workspace',
+  endpointId:'endpoint-1',mountScopeId:'mount-1',mountScopeRevision:1,configRevision:1,capabilityDigest:D(label+'-capability'),
+  state:'active',rootHandleRef:D(label+'-handle'),snapshotDigest:D(label)};}
 function device(){const value={deviceId:'device-1',deviceClass:'nvidia_nvenc',probeRevision:3,capabilitySchemaRef:'platform.compute-device-capability@1',
-  capabilityPayload:{supportedVideoCodecs:['hevc'],supportedRateControlModes:['quality_bound']},capabilityDigest:'',enabled:true,state:'ready'};
+  capabilityPayload:{supportedVideoCodecs:['hevc'],supportedRateControlModes:['quality_bound'],validatedConcurrentSlots:1,
+    validatedVideoPipelines:[{pipelineProfileId:'ordinary_to_hevc@1',inputDynamicRangeKinds:['sdr'],inputPixelFormats:['yuv420p'],
+      outputCodec:'hevc',outputDynamicRangeKind:'unknown',outputPixelFormat:'encoder_selected',
+      outputColorProfile:{range:'source',primaries:'source',transfer:'source',matrix:'source'},selfTestDigest:D('device-self-test')}]},
+  capabilityDigest:'',enabled:true,state:'ready'};
   value.capabilityDigest=canonicalDigest(value.capabilityPayload);value.snapshotDigest=canonicalDigest(value);return value;}
+function dvPipeline(){return {pipelineProfileId:'pq_bt2020_base_to_sdr_bt709_hevc@1',inputDynamicRangeKinds:['dolby_vision'],
+  inputPixelFormats:['yuv420p10le'],outputCodec:'hevc',outputDynamicRangeKind:'sdr',outputPixelFormat:'yuv420p',
+  outputColorProfile:{range:'limited',primaries:'bt709',transfer:'bt709',matrix:'bt709'},selfTestDigest:D('dv-self-test')};}
+function withDevice(value,overrides={}){const result={...value,...overrides,
+  capabilityPayload:{...value.capabilityPayload,...(overrides.capabilityPayload||{})}};
+  result.capabilityDigest=canonicalDigest(result.capabilityPayload);delete result.snapshotDigest;
+  result.snapshotDigest=canonicalDigest(result);return result;}
+function dvProbe(handle,id='dv-probe',baseLayerKind='pq_bt2020_compatible',profile=8){return probe(handle,id,{
+  videoStreams:[{streamIndex:0,dispositionDefault:true,codec:'hevc',codecProfile:'main 10',pixelFormat:'yuv420p10le',bitDepth:10,
+    chroma:'4:2:0',colorRange:'limited',colorPrimaries:'bt2020',colorTransfer:'pq',colorMatrix:'bt2020nc',
+    dynamicRangeKind:'dolby_vision',dolbyVision:{profile,level:6,rpuPresent:true,elPresent:profile===7,blPresent:true,
+      compatibilityId:profile===8?1:6,baseLayerKind},codedWidth:3840,codedHeight:2160,sampleAspectRatio:'1:1',rotation:0,
+    displayWidth:3840,displayHeight:2160,longEdge:3840,shortEdge:2160}],
+  audioStreams:[{streamIndex:1,dispositionDefault:true,codec:'truehd',profile:'truehd',channels:8,channelLayout:'7.1',
+    formatTags:[],normalizedAudioClass:'truehd',language:'eng'}]});}
+function dvIntent(handle,requirement,deviceClass='nvidia_nvenc',strategyOrdinal=1,previousIntentDigest=undefined){return media.buildEncodeIntent({
+  revision:1,libraRunId:'run-1',sourceHandleDigest:canonicalDigest(handle),mediaRequirementDigest:requirement.requirementDigest,
+  rateControlMode:deviceClass==='software_cpu'?'two_pass_abr':'target_size',targetVideoBitrateBps:4_000_000,deviceClass,strategyOrdinal,
+  dynamicRangeOperation:'tone_map_to_sdr_bt709',pipelineProfileId:'pq_bt2020_base_to_sdr_bt709_hevc@1',
+  outputDynamicRangeKind:'sdr',outputPixelFormat:'yuv420p',
+  outputColorProfile:{range:'limited',primaries:'bt709',transfer:'bt709',matrix:'bt709'},
+  ...(previousIntentDigest?{previousIntentDigest}:{})});}
 function encodeIntent(handle,requirement){return media.buildEncodeIntent({revision:1,libraRunId:'run-1',sourceHandleDigest:canonicalDigest(handle),
-  mediaRequirementDigest:requirement.requirementDigest,rateControlMode:'quality_bound',qualityBound:20,deviceClass:'nvidia_nvenc',strategyOrdinal:1});}
+  mediaRequirementDigest:requirement.requirementDigest,rateControlMode:'quality_bound',qualityBound:20,deviceClass:'nvidia_nvenc',strategyOrdinal:1,
+  dynamicRangeOperation:'preserve',pipelineProfileId:'ordinary_to_hevc@1',outputDynamicRangeKind:'sdr',outputPixelFormat:'yuv420p',
+  outputColorProfile:{range:'source',primaries:'source',transfer:'source',matrix:'source'}});}
+const preflight=()=>({sampleCount:24,passedSampleCount:24,reasonCode:null,preflightDigest:D('preflight')});
 
 test('compiles exact media requirements and mutually exclusive production intents',()=>{
   const handle=source(),requirement=media.buildMediaRequirement(spec()),encoded=encodeIntent(handle,requirement),remuxed=media.buildRemuxIntent({revision:1,
@@ -64,23 +101,92 @@ test('derives a conservative size budget and freezes retry attempts as new inten
   assert.equal(budget.feasible,true);assert.ok(budget.targetVideoBitrateBps>=100000);
   const first=media.buildEncodeIntent({revision:1,libraRunId:'run-1',sourceHandleDigest:canonicalDigest(handle),
     mediaRequirementDigest:requirement.requirementDigest,rateControlMode:'target_size',targetVideoBitrateBps:budget.targetVideoBitrateBps,
-    deviceClass:'nvidia_nvenc',strategyOrdinal:1});
+    deviceClass:'nvidia_nvenc',strategyOrdinal:1,dynamicRangeOperation:'preserve',pipelineProfileId:'ordinary_to_hevc@1',
+    outputDynamicRangeKind:'sdr',outputPixelFormat:'yuv420p',outputColorProfile:{range:'source',primaries:'source',transfer:'source',matrix:'source'}});
   const retryBitrate=media.deriveRetryTargetVideoBitrate({previousTargetVideoBitrateBps:budget.targetVideoBitrateBps,
     maxSizeBytes:requirement.space.maxSizeBytes,actualSizeBytes:requirement.space.maxSizeBytes*2});
   const retry=media.buildEncodeIntent({revision:2,libraRunId:'run-1',sourceHandleDigest:canonicalDigest(handle),
     mediaRequirementDigest:requirement.requirementDigest,rateControlMode:'target_size',targetVideoBitrateBps:retryBitrate,
-    deviceClass:'nvidia_nvenc',strategyOrdinal:2,previousIntentDigest:first.intentDigest});
+    deviceClass:'nvidia_nvenc',strategyOrdinal:2,previousIntentDigest:first.intentDigest,dynamicRangeOperation:'preserve',
+    pipelineProfileId:'ordinary_to_hevc@1',outputDynamicRangeKind:'sdr',outputPixelFormat:'yuv420p',
+    outputColorProfile:{range:'source',primaries:'source',transfer:'source',matrix:'source'}});
   valid('helix://contracts/domain-types/EncodeIntent/v1',first);valid('helix://contracts/domain-types/EncodeIntent/v1',retry);
   assert.notEqual(first.intentDigest,retry.intentDigest);assert.equal(retry.previousIntentDigest,first.intentDigest);
 });
 
 test('freezes transcode verification from the exact probe, intent, and device snapshot',()=>{
   const handle=source(),requirement=media.buildMediaRequirement(spec()),intent=encodeIntent(handle,requirement),snapshot=device();
-  const result=media.buildTranscodeInputVerification({sourceHandle:handle,probeEvidence:probe(handle),encodeIntent:intent,deviceSnapshot:snapshot,verifiedAtMs:5});
+  const result=media.buildTranscodeInputVerification({sourceHandle:handle,probeEvidence:probe(handle),encodeIntent:intent,deviceSnapshot:snapshot,preflight:preflight(),verifiedAtMs:5});
   valid('helix://contracts/types/TranscodeInputVerification/v1',result);
   assert.equal(result.result,'passed');assert.equal(result.selectedDeviceClass,'nvidia_nvenc');
-  const failed=media.buildTranscodeInputVerification({sourceHandle:handle,probeEvidence:probe(handle),encodeIntent:{...intent,deviceClass:'intel_qsv'},deviceSnapshot:snapshot,verifiedAtMs:5});
+  const failed=media.buildTranscodeInputVerification({sourceHandle:handle,probeEvidence:probe(handle),encodeIntent:{...intent,deviceClass:'intel_qsv'},deviceSnapshot:snapshot,preflight:preflight(),verifiedAtMs:5});
   assert.equal(failed.result,'failed');assert.deepEqual(failed.reasonCodes,['device_class_mismatch']);
+});
+
+test('D09-D10 accepts only a DV-compatible PQ base layer for the closed SDR normalization pipeline',()=>{
+  const handle=source(),requirement=media.buildMediaRequirement(spec()),intent=dvIntent(handle,requirement),
+    gpu=withDevice(device(),{capabilityPayload:{supportedRateControlModes:['target_size','strict_abr','quality_bound'],
+      validatedVideoPipelines:[device().capabilityPayload.validatedVideoPipelines[0],dvPipeline()]}});
+  const compatible=media.buildTranscodeInputVerification({sourceHandle:handle,probeEvidence:dvProbe(handle,'dv-p8'),
+    encodeIntent:intent,deviceSnapshot:gpu,preflight:preflight(),verifiedAtMs:5});
+  valid('helix://contracts/types/TranscodeInputVerification/v1',compatible);
+  assert.equal(compatible.disposition,'compatible');assert.equal(compatible.result,'passed');
+  const profile5=media.buildTranscodeInputVerification({sourceHandle:handle,
+    probeEvidence:dvProbe(handle,'dv-p5','non_compatible',5),encodeIntent:intent,deviceSnapshot:gpu,
+    preflight:{sampleCount:0,passedSampleCount:0,reasonCode:null,preflightDigest:D('not-run')},verifiedAtMs:6});
+  valid('helix://contracts/types/TranscodeInputVerification/v1',profile5);
+  assert.equal(profile5.disposition,'strategy_rejected');
+  assert.ok(profile5.reasonCodes.includes('dolby_vision_base_layer_unsupported'));
+  assert.equal(profile5.rejectionScope,'device_pipeline');
+  assert.equal(profile5.coveredStrategyKeys.length,gpu.capabilityPayload.supportedRateControlModes.length);
+});
+
+test('R09 keeps GPU source rejection and CPU replacement as separate immutable Works and Intents',()=>{
+  const snapshot={run:{libraRunId:'run-1',executionBasisDigest:D('basis'),acceptanceSpecId:'spec-1',priorityClass:'normal_foreground'},
+    materialInputForm:'stream_file'},assessment=transcodeStrategyAssessmentWork(snapshot,1),selection=transcodeMediaSelectionWork(snapshot,1),
+    handle=source(),requirement=media.buildMediaRequirement(spec()),gpuIntent=dvIntent(handle,requirement),
+    cpuIntent=dvIntent(handle,requirement,'software_cpu',2,gpuIntent.intentDigest),gpu=withDevice(device(),{
+      capabilityPayload:{supportedRateControlModes:['target_size','strict_abr','quality_bound']}}),
+    rejection=media.buildTranscodeInputVerification({sourceHandle:handle,probeEvidence:dvProbe(handle),encodeIntent:gpuIntent,
+      deviceSnapshot:gpu,preflight:{sampleCount:0,passedSampleCount:0,reasonCode:null,preflightDigest:D('not-run')},verifiedAtMs:7});
+  assert.notEqual(assessment.workId,selection.workId);
+  assert.ok(selection.dependencyRefs.some((item)=>item.objectId===assessment.workId));
+  assert.equal(rejection.disposition,'strategy_rejected');
+  assert.ok(rejection.reasonCodes.includes('required_pipeline_profile_unavailable'));
+  assert.equal(cpuIntent.previousIntentDigest,gpuIntent.intentDigest);
+  assert.notEqual(cpuIntent.intentDigest,gpuIntent.intentDigest);
+  assert.equal(cpuIntent.deviceClass,'software_cpu');
+});
+
+test('DV normalized output passes only with SDR BT.709 yuv420p, no DOVI, and three decodable points',()=>{
+  const handle=source(),requirement=media.buildMediaRequirement(spec()),intent=dvIntent(handle,requirement),
+    gpu=withDevice(device(),{capabilityPayload:{supportedRateControlModes:['target_size','strict_abr','quality_bound'],
+      validatedVideoPipelines:[device().capabilityPayload.validatedVideoPipelines[0],dvPipeline()]}}),
+    workspaceId=D('dv-workspace'),target=media.buildWorkspaceMediaOutputTarget({libraRunId:'run-1',executionBasisDigest:D('basis'),workspaceId,
+      expectedWorkspaceRevision:2,expectedWorkspaceStateDigest:D('workspace-state'),rootSnapshot:rootSnapshot(),workspaceScopeDigest:D('scope'),
+      targetRelativePath:'products/dv-sdr.mkv',productionIntentDigest:intent.intentDigest}),
+    output={schemaRef:'helix://contracts/types/WorkspaceMaterialHandle/v1',schemaVersion:1,handleId:D('dv-output'),workspaceId,
+      ownerDomain:'libra',processId:'run-1',endpointId:'endpoint-1',materialKey:D('dv-output-material'),
+      physicalIdentity:{mountScopeId:'mount-1',inode:'9',sizeBytes:100,fingerprintAlgorithm:'middle-256k-sha256',fingerprintVersion:1,
+        contentFingerprint:D('dv-output-bytes')},rootHandleRef:'root-handle',relativePath:'products/dv-sdr.mkv',digestAlgorithm:'sha256',
+      digestHex:D('dv-output-bytes'),sizeBytes:100,referenceRevision:1,accessScope:'workspace_material_read',fenceDigest:D('dv-output-fence')},
+    mediaHandle=media.buildWorkspaceMediaHandle({sourceHandle:handle,outputTarget:target,workspaceMaterialHandle:output,
+      productionIntentKind:'encode',productionIntent:intent,deviceSnapshot:gpu,producingEventId:'dv-event',
+      effectReceipt:{effectId:'dv-effect',effectReceiptId:'dv-receipt',effectReceiptDigest:D('dv-receipt'),effectScopeDigest:target.effectScopeDigest}}),
+    outputProbe=probe(output,'dv-output-probe'),input=media.buildProductMediaCandidateInput({candidateKind:'workspace_output',
+      candidateNodeId:'dv-output',libraRunId:'run-1',mediaRequirement:requirement,workspaceMediaHandle:mediaHandle,
+      sourceProbeEvidence:dvProbe(handle),outputProbeEvidence:outputProbe}),playback={samplePointsPercent:[5,50,95],
+      passedSamplePointsPercent:[5,50,95],decodeDigest:D('dv-decode')};
+  const passed=media.buildProductMediaVerification({input,playbackVerification:playback,verifiedAtMs:9});
+  valid('helix://contracts/types/ProductMediaVerification/v1',passed);
+  assert.equal(passed.result,'passed');assert.equal(passed.dynamicRangeSummary.outputDynamicRangeKind,'sdr');
+  const badProbe=probe(output,'dv-bad-output',{videoStreams:[{...outputProbe.videoStreams[0],colorTransfer:'pq',
+    colorPrimaries:'bt2020',colorMatrix:'bt2020nc',pixelFormat:'yuv420p10le',dynamicRangeKind:'hdr10_compatible'}]});
+  const badInput=media.buildProductMediaCandidateInput({candidateKind:'workspace_output',candidateNodeId:'dv-bad-output',libraRunId:'run-1',
+    mediaRequirement:requirement,workspaceMediaHandle:mediaHandle,sourceProbeEvidence:dvProbe(handle),outputProbeEvidence:badProbe});
+  const rejected=media.buildProductMediaVerification({input:badInput,playbackVerification:playback,verifiedAtMs:10});
+  assert.ok(rejected.reasonCodes.includes('dynamic_range_conversion_unmet'));
+  assert.ok(rejected.reasonCodes.includes('output_color_profile_unmet'));
 });
 
 test('builds one target-bound workspace result and verifies it without hidden path or device selection',()=>{
@@ -120,12 +226,82 @@ test('selects by declared rank and never by caller order or size',()=>{
   assert.equal(selected.selectedVerificationId,b.verificationId);assert.equal(selected.selectionReasonCode,'selected_by_declared_rank');
 });
 
+test('D08 freezes multi-output rank before the Selection Event and executes the real Capability port',async()=>{
+  const specValue=spec(),requirement=media.buildMediaRequirement(specValue),handle=source();
+  const inputA=media.buildProductMediaCandidateInput({candidateKind:'direct_input',candidateNodeId:'plan-node-a',
+    libraRunId:'run-1',mediaRequirement:requirement,sourceMaterialHandle:handle,sourceProbeEvidence:probe(handle,'plan-probe-a')});
+  const inputB=media.buildProductMediaCandidateInput({candidateKind:'direct_input',candidateNodeId:'plan-node-b',
+    libraRunId:'run-1',mediaRequirement:requirement,sourceMaterialHandle:handle,sourceProbeEvidence:probe(handle,'plan-probe-b')});
+  const verificationA=media.buildProductMediaVerification({input:inputA,verifiedAtMs:2});
+  const verificationB=media.buildProductMediaVerification({input:inputB,verifiedAtMs:2});
+  const rankedCandidates=[
+    media.buildPlannedProductCandidateReference({rank:1,candidateKind:'direct_input',candidateNodeId:'plan-node-b',
+      mediaRequirementDigest:requirement.requirementDigest,sourceMaterialHandle:handle}),
+    media.buildPlannedProductCandidateReference({rank:2,candidateKind:'direct_input',candidateNodeId:'plan-node-a',
+      mediaRequirementDigest:requirement.requirementDigest,sourceMaterialHandle:handle}),
+  ];
+  assert.equal(rankedCandidates[0].candidateId,verificationB.candidateId);
+  assert.equal(rankedCandidates[1].candidateId,verificationA.candidateId);
+  const projections=createWorkspaceMediaProductionProjections({
+    movieProductionReader:{readRun:()=>null,readRunSnapshot:()=>({run:{libraRunId:'run-1'},spec:specValue})},
+    productProductionPort:{issuePhysicalReadHandle:()=>null},workResultReader:{},workspaceProductPort:{},
+  });
+  const projection=projections.find((item)=>item.projectionRef===OUTPUT_SELECTION).projection;
+  const selectionInput=projection.project({
+    sourceResults:Object.freeze([{result:verificationA},{result:verificationB}]),
+    parameters:Object.freeze({rankedCandidates:Object.freeze(rankedCandidates)}),targetEventId:'selection-event',
+  });
+  valid('helix://contracts/domain-types/ProductOutputSelectionInput/v1',selectionInput);
+  const ports=createMediaProductionCapabilityPorts({now:()=>3,
+    mediaEffectPort:{executeRemux:async()=>{},executeTranscode:async()=>{},verifyTranscodeInput:async()=>preflight(),
+      verifyPlayback:async()=>({samplePointsPercent:[5,50,95],passedSamplePointsPercent:[5,50,95],decodeDigest:D('decode')})},
+    resolveProductionSourceScope:()=>{}});
+  const context=Object.freeze({eventId:'selection-event',idempotencyKey:'selection-execution',
+    namedInputs:Object.freeze({productOutputSelectionInput:selectionInput})});
+  ports['libra.product_output.select@1'].validateInputs(context);
+  const outcome=await ports['libra.product_output.select@1'].execute(context);
+  ports['libra.product_output.select@1'].validateResult(context,outcome);
+  valid('helix://contracts/types/SelectedProductOutput/v1',outcome.result);
+  assert.equal(outcome.result.selectedVerificationId,verificationB.verificationId);
+  assert.equal(outcome.result.selectionReasonCode,'selected_by_declared_rank');
+});
+
+test('accepts SSOT 4K-class raster and DTS-HD MA primary audio',()=>{
+  const specValue=spec();
+  specValue.requirements.mandatoryMedia.minimumRasterClass='4k';
+  specValue.requirements.mandatoryMedia.acceptedPrimaryAudioClasses=['dts_hd_ma'];
+  const requirement=media.buildMediaRequirement(specValue),handle=source();
+  const cinema=probe(handle,'cinema-4k',{
+    videoStreams:[{streamIndex:0,dispositionDefault:true,codec:'hevc',codedWidth:3800,codedHeight:1600,
+      codecProfile:'main',pixelFormat:'yuv420p',bitDepth:8,chroma:'4:2:0',colorRange:'limited',colorPrimaries:'bt709',
+      colorTransfer:'bt709',colorMatrix:'bt709',dynamicRangeKind:'sdr',sampleAspectRatio:'1:1',rotation:0,displayWidth:3800,displayHeight:1600,longEdge:3800,shortEdge:1600}],
+    audioStreams:[{streamIndex:1,dispositionDefault:true,codec:'dts',profile:'DTS-HD MA',channels:6,
+      channelLayout:'5.1(side)',formatTags:[],normalizedAudioClass:'dts_hd_ma',language:'eng'}]});
+  const passed=media.buildProductMediaVerification({input:media.buildProductMediaCandidateInput({
+    candidateKind:'direct_input',candidateNodeId:'cinema-4k',libraRunId:'run-1',mediaRequirement:requirement,
+    sourceMaterialHandle:handle,sourceProbeEvidence:cinema}),verifiedAtMs:4});
+  assert.equal(passed.result,'passed');
+  assert.deepEqual(passed.qualitySummary.displayRasterClass,'4k');
+  assert.deepEqual(passed.qualitySummary.primaryAudioClasses,['dts_hd_ma']);
+  const crop=probe(handle,'below-4k',{
+    videoStreams:[{streamIndex:0,dispositionDefault:true,codec:'hevc',codedWidth:3799,codedHeight:1600,
+      codecProfile:'main',pixelFormat:'yuv420p',bitDepth:8,chroma:'4:2:0',colorRange:'limited',colorPrimaries:'bt709',
+      colorTransfer:'bt709',colorMatrix:'bt709',dynamicRangeKind:'sdr',sampleAspectRatio:'1:1',rotation:0,displayWidth:3799,displayHeight:1600,longEdge:3799,shortEdge:1600}],
+    audioStreams:[{streamIndex:1,dispositionDefault:true,codec:'dts',profile:'DTS-HD MA',channels:6,
+      channelLayout:'5.1(side)',formatTags:[],normalizedAudioClass:'dts_hd_ma',language:'eng'}]});
+  const failed=media.buildProductMediaVerification({input:media.buildProductMediaCandidateInput({
+    candidateKind:'direct_input',candidateNodeId:'below-4k',libraRunId:'run-1',mediaRequirement:requirement,
+    sourceMaterialHandle:handle,sourceProbeEvidence:crop}),verifiedAtMs:4});
+  assert.equal(failed.result,'failed');
+  assert.deepEqual(failed.reasonCodes,['minimum_raster_unmet']);
+});
+
 test('evaluates only Primary streams and rejects legacy normalizedClass fixtures',()=>{
   const specValue=spec();specValue.requirements.mandatoryMedia.minimumRasterClass='4k';
   const requirement=media.buildMediaRequirement(specValue),handle=source(),mixedProbe=probe(handle,'mixed-probe',{
     videoStreams:[
-      {streamIndex:0,dispositionDefault:true,codec:'h264',codedWidth:1920,codedHeight:1080,sampleAspectRatio:'1:1',rotation:0,displayWidth:1920,displayHeight:1080,longEdge:1920,shortEdge:1080},
-      {streamIndex:1,dispositionDefault:false,codec:'hevc',codedWidth:3840,codedHeight:2160,sampleAspectRatio:'1:1',rotation:0,displayWidth:3840,displayHeight:2160,longEdge:3840,shortEdge:2160}],
+      {streamIndex:0,dispositionDefault:true,codec:'h264',codecProfile:'high',pixelFormat:'yuv420p',bitDepth:8,chroma:'4:2:0',colorRange:'limited',colorPrimaries:'bt709',colorTransfer:'bt709',colorMatrix:'bt709',dynamicRangeKind:'sdr',codedWidth:1920,codedHeight:1080,sampleAspectRatio:'1:1',rotation:0,displayWidth:1920,displayHeight:1080,longEdge:1920,shortEdge:1080},
+      {streamIndex:1,dispositionDefault:false,codec:'hevc',codecProfile:'main',pixelFormat:'yuv420p',bitDepth:8,chroma:'4:2:0',colorRange:'limited',colorPrimaries:'bt709',colorTransfer:'bt709',colorMatrix:'bt709',dynamicRangeKind:'sdr',codedWidth:3840,codedHeight:2160,sampleAspectRatio:'1:1',rotation:0,displayWidth:3840,displayHeight:2160,longEdge:3840,shortEdge:2160}],
     audioStreams:[
       {streamIndex:2,dispositionDefault:true,codec:'aac',profile:'lc',channels:2,channelLayout:'stereo',formatTags:[],normalizedAudioClass:'other',language:'eng'},
       {streamIndex:3,dispositionDefault:false,codec:'truehd',profile:'truehd',channels:8,channelLayout:'7.1',formatTags:[],normalizedAudioClass:'truehd',language:'eng'}]});
@@ -159,7 +335,7 @@ test('coordinator accepts only a receipt bound to the frozen target and a passed
   const receipt={effectId:'effect-1',effectReceiptId:'receipt-1',effectReceiptDigest:D('receipt-1'),effectScopeDigest:target.effectScopeDigest,
     outputTargetId:target.targetId,outputTargetDigest:target.targetDigest,workspaceMaterialHandle};
   const coordinator=createMediaProductionCoordinator({mediaEffectPort:{executeRemux:async()=>receipt,executeTranscode:async()=>receipt}}),
-    transcodeInputVerification=media.buildTranscodeInputVerification({sourceHandle:handle,probeEvidence:probe(handle),encodeIntent:intent,deviceSnapshot:snapshot,verifiedAtMs:5});
+    transcodeInputVerification=media.buildTranscodeInputVerification({sourceHandle:handle,probeEvidence:probe(handle),encodeIntent:intent,deviceSnapshot:snapshot,preflight:preflight(),verifiedAtMs:5});
   const result=await coordinator.executeTranscode({sourceHandle:handle,productionIntent:intent,deviceSnapshot:snapshot,transcodeInputVerification,
     outputTarget:target,producingEventId:'event-1'});
   assert.equal(result.outputTargetId,target.targetId);

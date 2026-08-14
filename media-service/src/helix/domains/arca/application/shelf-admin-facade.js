@@ -13,6 +13,11 @@ function createArcaShelfAdminApplication(options) {
   }
   const store = createShelfQueryStore(options);
   const targetFolderProbe = options.targetFolderProbe;
+  const assertLocationAvailable = (rootLocation) => {
+    if (typeof options.assertLocationAvailable === 'function') {
+      options.assertLocationAvailable({ requestedRoot:rootLocation });
+    }
+  };
   function invoke(operation) {
     try { return operation(); } catch (error) {
       if (error instanceof ArcaShelfAdminApplicationError) throw error;
@@ -56,6 +61,7 @@ function createArcaShelfAdminApplication(options) {
   }
   function placementRequest(envelope, shelfId) {
     const input = envelope.input;
+    assertLocationAvailable(input?.target?.rootLocation);
     const observation = targetFolderProbe.inspect({
       shelfId,
       target: input.target,
@@ -106,6 +112,7 @@ function createArcaShelfAdminApplication(options) {
         });
         const replay = store.preflightCreateCommand({ idempotencyKey, requestInput });
         if (replay) return replay;
+        assertLocationAvailable(body.targetRootLocation);
         const targetObservation = targetFolderProbe.inspectRoot({
           shelfId: body.shelfId,
           rootLocation: body.targetRootLocation,

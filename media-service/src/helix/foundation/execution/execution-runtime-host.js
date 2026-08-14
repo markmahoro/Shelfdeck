@@ -123,6 +123,10 @@ function createExecutionRuntimeHost(options) {
         return Object.freeze({ kind: 'work_planned', workId: activation.work.work_id, attemptId: activation.attempt.attempt_id,
           planId: published.planId, resolution: published.resolution });
       });
+    } catch (error) {
+      // Planner or Work reconcile failure stays Work-local. Runtime Host fault is reserved for global invariants.
+      if (typeof options.onError === 'function') options.onError(error);
+      return Object.freeze({ kind: 'work_faulted', workId: scheduled.lease.targetId, error });
     } finally {
       options.scheduler.release(scheduled.lease);
     }
@@ -142,8 +146,7 @@ function createExecutionRuntimeHost(options) {
       return Object.freeze({kind:'event_advanced',eventId,outcome,
         attemptTerminal:aggregation.attemptTerminal,workTerminal:aggregation.workTerminal});
     })().catch((error)=>{
-      firstFault=firstFault||error;
-      state='faulted';
+      // Executor crash stays Event-local; effect-specific recovery owns the executing Attempt.
       if(typeof options.onError==='function')options.onError(error);
       return Object.freeze({kind:'event_faulted',eventId,error});
     }).finally(()=>{
@@ -158,9 +161,14 @@ function createExecutionRuntimeHost(options) {
     if (typeof options.workLifecycle.pendingOwnerReconciliations === 'function') {
       const pending = options.workLifecycle.pendingOwnerReconciliations(1)[0];
       if (pending) {
-        await reconcileTerminal({ attemptTerminal:true, replayed:false,
-          attemptId:pending.attempt.attempt_id, attemptState:pending.attempt.state, work:pending.work });
-        return Object.freeze({ kind:'owner_reconciled', workId:pending.work.work_id });
+        try {
+          await reconcileTerminal({ attemptTerminal:true, replayed:false,
+            attemptId:pending.attempt.attempt_id, attemptState:pending.attempt.state, work:pending.work });
+          return Object.freeze({ kind:'owner_reconciled', workId:pending.work.work_id });
+        } catch (error) {
+          if (typeof options.onError === 'function') options.onError(error);
+          return Object.freeze({ kind:'owner_faulted', workId:pending.work.work_id, error });
+        }
       }
     }
     return Object.freeze({ kind:'idle' });
@@ -168,9 +176,22 @@ function createExecutionRuntimeHost(options) {
 
   async function drainOnce() {
     if (!['ready', 'draining'].includes(state)) return Object.freeze({ kind: 'inactive', state });
-    const work = await drainOneWork();
-    const event = drainOneEvent();
-    const owner = await drainOneOwnerReconciliation();
+    let work; let event; let owner;
+    try { work = await drainOneWork(); }
+    catch (error) {
+      if (typeof options.onError === 'function') options.onError(error);
+      work = Object.freeze({ kind: 'work_faulted', error });
+    }
+    try { event = drainOneEvent(); }
+    catch (error) {
+      if (typeof options.onError === 'function') options.onError(error);
+      event = Object.freeze({ kind: 'event_faulted', error });
+    }
+    try { owner = await drainOneOwnerReconciliation(); }
+    catch (error) {
+      if (typeof options.onError === 'function') options.onError(error);
+      owner = Object.freeze({ kind: 'owner_faulted', error });
+    }
     const advanced=work.kind==='work_planned'||event.kind==='event_launched'||owner.kind==='owner_reconciled';
     return Object.freeze({ kind:advanced?'advanced':'idle',
       work, event, owner });
@@ -215,6 +236,23 @@ function createExecutionRuntimeHost(options) {
       if (state !== 'created') fail('P4_EXECUTION_HOST_LIFECYCLE_CONFLICT', 'Execution Runtime Host can start exactly once.');
       state = 'recovering';
       lastRecovery = await options.startupRecovery.recover();
+      let recoveryPass = 0;
+      while (lastRecovery && lastRecovery.findings?.length === 0 && lastRecovery.actions?.length > 0) {
+        if (typeof options.eventRuntime.recover !== 'function' || recoveryPass++ >= 100) fail(
+          'P4_EXECUTION_HOST_RECOVERY_ACTION_BLOCKED', 'Startup recovery actions did not converge within the bounded recovery sweep.',
+          { recovery: lastRecovery, recoveryPass }
+        );
+        for (const action of lastRecovery.actions) {
+          const recovered = await options.eventRuntime.recover(action);
+          if (!recovered || recovered.kind === 'recovery_deferred') fail(
+            'P4_EXECUTION_HOST_RECOVERY_RESOURCE_BLOCKED', 'Startup recovery could not acquire its complete Resource Permit bundle.',
+            { action, recovered }
+          );
+          const aggregation = options.workLifecycle.aggregateEvent(action.eventId);
+          await reconcileTerminal(aggregation);
+        }
+        lastRecovery = await options.startupRecovery.recover();
+      }
       if (!lastRecovery || lastRecovery.normalSupplyAllowed !== true) {
         state = 'faulted';
         fail('P4_EXECUTION_HOST_RECOVERY_BLOCKED', 'Startup Recovery did not permit normal Work supply.', { recovery: lastRecovery });

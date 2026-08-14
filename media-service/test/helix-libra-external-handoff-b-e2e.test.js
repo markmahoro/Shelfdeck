@@ -65,6 +65,7 @@ function moviePilotFetch(downloadFile, calls) {
     if (url.pathname === '/api/v1/download/add') {
       const body = JSON.parse(String(init.body || '{}'));
       assert.equal(body.tmdbid, 990001);
+      assert.equal(body.save_path, '/provider/downloads');
       requested = true;
       return response(200, { success:true, data:{ download_id:'external-job-1' } });
     }
@@ -75,6 +76,16 @@ function moviePilotFetch(downloadFile, calls) {
       }] : []);
     }
     if (url.pathname === '/api/v1/history/download') return response(200, []);
+    if (url.pathname === '/api/v1/history/transfer') return response(200, {
+      success:true,
+      data:{ list:requested ? [{ download_hash:'external-job-1', status:true,
+        dest:'/provider/organized/External.Upgrade.Movie.2024.2160p.mkv',
+        type:'电影', tmdbid:990001, title:'External Upgrade Movie' },
+      { download_hash:'external-job-1', status:true,
+        dest:'/provider/organized/External.Upgrade.Movie.2024.2160p.nfo',
+        type:'电影', tmdbid:990001, title:'External Upgrade Movie' }] : [],
+      total:requested ? 2 : 0 },
+    });
     return response(404, { detail:'not found' });
   };
 }
@@ -120,11 +131,15 @@ function productHandle(intent, operationId, artifactKind = null) {
 function productOptions() {
   return {
     routingIntegrationHandleResolver: () => routingHandle(),
-    routingProviderObservation: async ({ intent }) => Object.freeze([Object.freeze({
+    routingProviderObservation: async ({ intent }) => {
+      assert.equal(intent.candidateDisplayTitle, 'external upgrade movie');
+      assert.equal(intent.yearHint, 2024);
+      return Object.freeze([Object.freeze({
       providerKey:'990001', title:intent.candidateDisplayTitle,
       originalTitle:intent.candidateDisplayTitle, releaseYear:2024,
       regionCodes:Object.freeze(['US']), genreCodes:Object.freeze(['18']),
-    })]),
+      })]);
+    },
     productIntegrationHandleResolver: ({ intent, operationId, artifactKind }) =>
       productHandle(intent, operationId, artifactKind || null),
     productProviderMetadataFetch: async ({ metadataFetchIntent:intent }) => Object.freeze({
@@ -154,11 +169,15 @@ async function session(host, apiKey) {
   return result.headers['set-cookie'];
 }
 
-async function configureMoviePilot(host, cookie) {
+async function configureMoviePilot(host, cookie, landingRoot) {
   const tested = await host.inject({ method:'POST',
     url:'/v1/admin/settings/integrations/moviepilot/actions/test', headers:{ cookie }, payload:{
       kind:'moviepilot', idempotencyKey:'moviepilot-test', endpoint:'https://moviepilot.test',
-      credential:{ kind:'api_key', value:MOVIEPILOT_KEY }, timeoutMs:5_000,
+      credential:{ kind:'api_key', value:MOVIEPILOT_KEY }, settings:{
+        providerRequestSaveRoot:'/provider/downloads',
+        providerOrganizedRoot:'/provider/organized',
+        shelfDeckVisibleRoot:landingRoot,
+      }, timeoutMs:5_000,
     } });
   assert.equal(tested.statusCode, 200, tested.body);
   const saved = await host.inject({ method:'PATCH', url:'/v1/admin/settings/integrations/moviepilot',
@@ -205,9 +224,10 @@ test('5-star 4K gap uses formal External Acquisition Works and publishes an unco
   const downloads = path.join(root, 'moviepilot-downloads');
   [admin, field, shelf, downloads].forEach((directory) => fs.mkdirSync(directory, { recursive:true }));
   fs.writeFileSync(path.join(admin, 'index.html'), '<div id="root"></div>');
-  fs.writeFileSync(path.join(field, 'External Upgrade Movie.mkv'), 'source movie');
+  fs.writeFileSync(path.join(field, 'External Upgrade Movie (2024).mkv'), 'source movie');
   const downloaded = path.join(downloads, 'External.Upgrade.Movie.2024.2160p.mkv');
   fs.writeFileSync(downloaded, 'verified isolated moviepilot output');
+  fs.writeFileSync(path.join(downloads, 'External.Upgrade.Movie.2024.2160p.nfo'), '<movie/>');
   const old = new Date(Date.now() - 120_000);
   fs.utimesSync(downloaded, old, old);
   const initialized = initializeCleanData({ dataDir, confirmation:'INITIALIZE_HELIX_CLEAN_V1', secretRoot:SECRET });
@@ -215,7 +235,7 @@ test('5-star 4K gap uses formal External Acquisition Works and publishes an unco
   let runtimeError = null;
   const host = await createCleanServiceHost({ dataDir, adminDistDir:admin, secretRoot:SECRET,
     mediaProbe:mediaProbe(), integrationFetch:moviePilotFetch(downloaded, calls),
-    moviePilotSavePath:downloads, moviePilotDownloadRoots:[downloads], ...productOptions(),
+    ...productOptions(),
     onExecutionRuntimeError(error) {
       runtimeError = error;
       if (process.env.HELIX_TEST_LOG_RUNTIME_ERROR === '1') console.error('runtime error', error, new Error('runtime callback').stack);
@@ -223,8 +243,15 @@ test('5-star 4K gap uses formal External Acquisition Works and publishes an unco
   try {
     const cookie = await session(host, initialized.adminApiKey);
     const headers = { cookie };
-    await configureMoviePilot(host, cookie);
+    await configureMoviePilot(host, cookie, downloads);
     let result = await host.inject({ method:'POST', url:'/v1/admin/shelves', headers, payload:{
+      idempotencyKey:'external-overlap-shelf-create', shelfId:'external-overlap-shelf',
+      name:'invalid overlapping shelf', targetRootLocation:downloads,
+      ruleTemplateId:'system-beta-recommended', expectedTemplateRevision:1,
+      placementPolicy:{ folderTemplate:'{title} ({year})', collisionPolicy:'reject' },
+    } });
+    assert.notEqual(result.statusCode, 201, result.body);
+    result = await host.inject({ method:'POST', url:'/v1/admin/shelves', headers, payload:{
       idempotencyKey:'external-shelf-create', shelfId:'external-shelf', name:'外部获取测试收藏架',
       targetRootLocation:shelf, ruleTemplateId:'system-beta-recommended', expectedTemplateRevision:1,
       placementPolicy:{ folderTemplate:'{title} ({year})', collisionPolicy:'reject' },
@@ -235,6 +262,18 @@ test('5-star 4K gap uses formal External Acquisition Works and publishes an unco
     const access = { fieldId:'external-field', revision:1, endpointId:'external-endpoint',
       rootLocation:field, mountScopeId:'external-mount', mountScopeRevision:1,
       accessSchemaRef:'helix://fixtures/external-field-access/v1' };
+    const overlapAccess = { ...access, fieldId:'external-overlap-field',
+      rootLocation:downloads };
+    result = await host.inject({ method:'POST', url:'/v1/admin/material-fields', headers, payload:{
+      idempotencyKey:'external-overlap-field-create', fieldId:'external-overlap-field',
+      name:'invalid overlapping field', contentProfileHint:'movie',
+      policy:{ extractionPolicyId:'external-overlap-policy', revision:1,
+        policySchemaRef:'helix://contracts/domain-types/ExtractionPolicy/v1', policy:policyValue,
+        policyDigest:canonicalDigest({ extractionPolicyId:'external-overlap-policy', revision:1,
+          ...policyValue }) },
+      access:{ ...overlapAccess, accessDigest:canonicalDigest(overlapAccess) },
+    } });
+    assert.notEqual(result.statusCode, 201, result.body);
     result = await host.inject({ method:'POST', url:'/v1/admin/material-fields', headers, payload:{
       idempotencyKey:'external-field-create', fieldId:'external-field', name:'external field', contentProfileHint:'movie',
       policy:{ extractionPolicyId:'external-policy', revision:1,
@@ -278,6 +317,23 @@ test('5-star 4K gap uses formal External Acquisition Works and publishes an unco
       assert.equal(database.prepare('SELECT count(1) count FROM arca_shelf_entries').get().count, 0);
       assert.equal(database.prepare('SELECT count(1) count FROM libra_delivery_receipts').get().count, 0);
       assert.equal(database.prepare("SELECT count(1) count FROM fx_workflow_events WHERE capability_ref='libra.media.transcode@1'").get().count, 0);
+      const importedRow = database.prepare(`
+        SELECT r.result_json
+          FROM fx_event_result_bindings r
+          JOIN fx_workflow_events e ON e.event_id=r.event_id
+         WHERE e.capability_ref='libra.workspace.material.import@1'
+         ORDER BY r.committed_at_ms DESC LIMIT 1`).get();
+      const imported = JSON.parse(importedRow.result_json);
+      const importedPath = path.join(dataDir, 'workspaces', 'libra',
+        imported.workspaceId,
+        ...imported.relativePath.split('/'));
+      assert.deepEqual(fs.readFileSync(importedPath), fs.readFileSync(downloaded));
+      const sourceStat = fs.statSync(downloaded, { bigint:true });
+      const importedStat = fs.statSync(importedPath, { bigint:true });
+      assert.equal(sourceStat.dev === importedStat.dev &&
+        sourceStat.ino === importedStat.ino, false);
+      assert.equal(fs.readFileSync(downloaded, 'utf8'),
+        'verified isolated moviepilot output');
     } finally { database.close(); }
     assert.ok(calls.some((item) => item.path === '/api/v1/download/add' && item.method === 'POST'));
   } finally { await host.close(); }

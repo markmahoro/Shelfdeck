@@ -84,6 +84,25 @@ function sourceReality(roots) {
   return canonicalDigest({ schema: 'helix.routing-e2e-source-reality@1', entries });
 }
 
+async function waitForDurableAcceptance(databasePath, expectedSpecs, expectedRuns) {
+  const database = new Database(databasePath, { readonly: true });
+  let observed = null;
+  try {
+    const deadline = Date.now() + 45_000;
+    while (Date.now() < deadline) {
+      observed = Object.freeze({
+        specs: database.prepare('SELECT count(*) count FROM libra_acceptance_specs').get().count,
+        runs: database.prepare('SELECT count(*) count FROM libra_runs').get().count,
+      });
+      if (observed.specs === expectedSpecs && observed.runs === expectedRuns) return observed;
+      await new Promise((resolve) => setTimeout(resolve, 25));
+    }
+  } finally {
+    database.close();
+  }
+  assert.fail(`Acceptance did not reach the durable expected state: ${JSON.stringify(observed)}`);
+}
+
 test('direct and sorting Routing Decisions continue through Acceptance Spec and admit resource-free Libra Runs', async (t) => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'helix-routing-decision-'));
   t.after(() => {
@@ -115,7 +134,7 @@ test('direct and sorting Routing Decisions continue through Acceptance Spec and 
       assert.equal(integrationHandle.allowedOperation, 'libra.routing.fact.observe@1');
       providerCalls.push(Object.freeze({ title:intent.candidateDisplayTitle,
         requestedFactKinds:Object.freeze([...(intent.requestedFactKinds || [])]) }));
-      if (intent.candidateDisplayTitle === '0.5毫米 Provider') return Object.freeze([Object.freeze({
+      if (intent.candidateDisplayTitle === '0.5毫米 provider') return Object.freeze([Object.freeze({
         providerKey: '100500', title: intent.candidateDisplayTitle, originalTitle: intent.candidateDisplayTitle,
         releaseYear: 2014, regionCodes: Object.freeze(['JP']), genreCodes: Object.freeze(['18']) })]);
       return Object.freeze([]);
@@ -157,7 +176,7 @@ test('direct and sorting Routing Decisions continue through Acceptance Spec and 
     assert.equal(unresolved.displayIdentity, '无NFO且无法解析的测试标题');
     assert.equal(unresolved.unresolvedReasonCode, 'higher_priority_rule_unknown');
     assert.deepEqual(providerCalls.filter((item)=>item.requestedFactKinds.includes('release_year'))
-      .map((item)=>item.title).sort(), ['0.5毫米 Provider', '无NFO且无法解析的测试标题'].sort());
+      .map((item)=>item.title).sort(), ['0.5毫米 provider', '无nfo且无法解析的测试标题'].sort());
 
     const manual = await host.inject({ method: 'POST', url: `/v1/admin/formation/subjects/${unresolved.subjectId}/actions/choose-shelf`,
       headers: { cookie }, payload: { targetShelfId: 'general',
@@ -173,12 +192,12 @@ test('direct and sorting Routing Decisions continue through Acceptance Spec and 
     await host.close();
     host = await createCleanServiceHost(hostOptions);
     cookie = await session(host, initialized.adminApiKey);
-    await new Promise((resolve) => setTimeout(resolve, 250));
+    await waitForDurableAcceptance(path.join(dataDir, 'shelfdeck.db'), 25, 24);
     const recovered = await host.inject({ method: 'GET', url: '/v1/admin/formation', headers: { cookie } });
     assert.equal(recovered.statusCode, 200, recovered.body);
     assert.deepEqual(recovered.json().summary, { subjectCount: 24, preparingCount: 0, unresolvedCount: 0, resolvedCount: 24 });
     assert.deepEqual(providerCalls.filter((item)=>item.requestedFactKinds.includes('release_year'))
-      .map((item)=>item.title).sort(), ['0.5毫米 Provider', '无NFO且无法解析的测试标题'].sort());
+      .map((item)=>item.title).sort(), ['0.5毫米 provider', '无nfo且无法解析的测试标题'].sort());
     assert.equal(sourceReality([directRoot, sortingRoot]), sourceBefore);
 
     const database = new Database(path.join(dataDir, 'shelfdeck.db'), { readonly: true });

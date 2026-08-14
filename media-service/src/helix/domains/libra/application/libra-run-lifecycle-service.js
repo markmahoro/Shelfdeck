@@ -85,13 +85,7 @@ function createLibraRunLifecycleService(options) {
     );
   }
 
-  function freezeFailedWork(libraRunId, workId, blockerKind) {
-    const built = store.buildTerminalEvidence({
-      libraRunId,
-      workId,
-      blockerKind,
-      assessedAtMs: now(),
-    });
+  function commitTerminalFreeze(libraRunId, blockerKind, built) {
     if (built.kind !== 'terminal_evidence') return built;
     const decision = buildRunLifecycleDecision({
       libraRunId,
@@ -125,7 +119,26 @@ function createLibraRunLifecycleService(options) {
     });
   }
 
-  return Object.freeze({ reconcile, freezeFailedWork });
+  function freezeFailedWork(libraRunId, workId, blockerKind) {
+    return commitTerminalFreeze(libraRunId, blockerKind, store.buildTerminalEvidence({
+      libraRunId,
+      workId,
+      blockerKind,
+      assessedAtMs: now(),
+    }));
+  }
+
+  function freezeTerminalResult(libraRunId, workId, blockerKind, terminalResult) {
+    return commitTerminalFreeze(libraRunId, blockerKind, store.buildTerminalEvidence({
+      libraRunId,
+      workId,
+      blockerKind,
+      assessedAtMs: now(),
+      terminalResult,
+    }));
+  }
+
+  return Object.freeze({ reconcile, freezeFailedWork, freezeTerminalResult });
 }
 
 module.exports = Object.freeze({

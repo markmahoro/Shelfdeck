@@ -77,11 +77,11 @@ function externalOutputSnapshotSchema() {
     sizeBytes: nonNegativeInteger(), checksumAlgorithm: { const: 'sha256' }, checksumHex: digestHex(),
     episodeClaims: arrayOf(episodeClaim, 32), memberDigest: digestHex() });
   return object({ integrationId: opaqueId(), configRevision: positiveInteger(), externalObjectRef: opaqueId(), endpointId: opaqueId(),
-    location: text(), structureKind: enumText('single', 'season'), members: { ...arrayOf(member, 256), minItems: 1 },
+    landingBinding: ref('MoviePilotLandingBinding'), location: text(), structureKind: enumText('single', 'season'), members: { ...arrayOf(member, 256), minItems: 1 },
     identityAnchors: arrayOf(domainRef('ResolvedProviderIdentity'), 16), observedTitle: text(), releaseYear: positiveInteger(),
     observedAtMs: nonNegativeInteger(), newestMutationAtMs: nonNegativeInteger(), memberSetDigest: digestHex(),
     manifestDigest: digestHex(), snapshotDigest: digestHex()
-  }, ['integrationId', 'configRevision', 'externalObjectRef', 'endpointId', 'location', 'structureKind', 'members',
+  }, ['integrationId', 'configRevision', 'externalObjectRef', 'endpointId', 'landingBinding', 'location', 'structureKind', 'members',
     'identityAnchors', 'observedAtMs', 'newestMutationAtMs', 'memberSetDigest', 'manifestDigest', 'snapshotDigest']);
 }
 
@@ -183,6 +183,12 @@ const definitions = {
     receiptId: opaqueId(), integrationId: opaqueId(), externalJobId: opaqueId(), operationKind: text(), idempotencyKey: opaqueId(),
     requestDigest: digestHex(), configRevision: positiveInteger(), createdAtMs: nonNegativeInteger()
   }),
+  MoviePilotLandingBinding: () => nominal('MoviePilotLandingBinding', {
+    bindingId: opaqueId(), bindingRevision: positiveInteger(), integrationId: opaqueId(), configRevision: positiveInteger(),
+    providerRequestSaveRoot: text(), providerOrganizedRoot: text(), shelfDeckVisibleRoot: text(), endpointId: opaqueId(),
+    mountScopeId: opaqueId(), mountScopeRevision: positiveInteger(), accessMode: { const:'provider_rw_shelfdeck_ro' },
+    bindingDigest: digestHex()
+  }),
   EffectReceipt: () => nominal('EffectReceipt', {
     effectReceiptId: opaqueId(), effectId: opaqueId(), effectClass: enumText('workspace_write', 'external_request', 'domain_fact_commit', 'responsibility_control_commit', 'material_commit', 'destructive_commit'),
     idempotencyKey: opaqueId(), commitMarker: opaqueId(), externalReceiptRef: nullable(opaqueId()), outputDigest: digestHex(),
@@ -194,7 +200,7 @@ const definitions = {
   }),
   ExternalMaterialHandle: () => nominal('ExternalMaterialHandle', {
     handleId: opaqueId(), integrationId: opaqueId(), configRevision: positiveInteger(), externalObjectRef: opaqueId(), endpointId: opaqueId(), location: text(),
-    structureKind: enumText('single', 'season'), outputSnapshot: externalOutputSnapshotSchema(), manifestDigest: digestHex(),
+    landingBinding: ref('MoviePilotLandingBinding'), structureKind: enumText('single', 'season'), outputSnapshot: externalOutputSnapshotSchema(), manifestDigest: digestHex(),
     observationRevision: positiveInteger(), accessFenceDigest: digestHex()
   }),
   WorkerAssetReceipt: () => nominal('WorkerAssetReceipt', {

@@ -41,58 +41,7 @@
       "pattern": "^[a-f0-9]{64}$"
     },
     "rootSnapshot": {
-      "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "workspaceRootId": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 256
-        },
-        "rootRevision": {
-          "type": "integer",
-          "minimum": 1
-        },
-        "endpointId": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 256
-        },
-        "mountScopeId": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 256
-        },
-        "rootLocation": {
-          "type": "string",
-          "minLength": 1
-        },
-        "containmentDigest": {
-          "type": "string",
-          "minLength": 1,
-          "pattern": "^[a-f0-9]{64}$"
-        },
-        "capacitySnapshotDigest": {
-          "type": "string",
-          "minLength": 1,
-          "pattern": "^[a-f0-9]{64}$"
-        },
-        "snapshotDigest": {
-          "type": "string",
-          "minLength": 1,
-          "pattern": "^[a-f0-9]{64}$"
-        }
-      },
-      "required": [
-        "workspaceRootId",
-        "rootRevision",
-        "endpointId",
-        "mountScopeId",
-        "rootLocation",
-        "containmentDigest",
-        "capacitySnapshotDigest",
-        "snapshotDigest"
-      ]
+      "$ref": "helix://contracts/application-types/PlatformWorkspaceRootSnapshot/v1"
     },
     "workspaceScopeDigest": {
       "type": "string",

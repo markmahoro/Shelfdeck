@@ -1,5 +1,7 @@
 'use strict';
 
+const EXTERNAL_LANDING_OBSERVATION_TIMEOUT_MS = 30 * 60 * 1000;
+
 const { canonicalDigest } = require('../../../contracts/canonical-json');
 const contracts = require('../model/external-material-contracts');
 
@@ -217,7 +219,8 @@ function createExternalMaterialCapabilityPorts(options) {
           'pure_observation', input.integrationHandle, {
             externalJobReceipt: input.externalJobReceipt,
             phase: 'download',
-          }, context.idempotencyKey);
+          }, context.idempotencyKey,
+          EXTERNAL_LANDING_OBSERVATION_TIMEOUT_MS);
         if (response.result.state === 'pending') {
           return Object.freeze({
             kind: 'deferred',
@@ -282,7 +285,8 @@ function createExternalMaterialCapabilityPorts(options) {
           'pure_observation', input.integrationHandle, {
             externalMaterialHandle: input.externalMaterialHandle,
             quietWindowMs: 60_000,
-          }, context.idempotencyKey);
+          }, context.idempotencyKey,
+          EXTERNAL_LANDING_OBSERVATION_TIMEOUT_MS);
         let result;
         try {
           result = contracts.buildStableEvidence({
@@ -359,6 +363,11 @@ function createExternalMaterialCapabilityPorts(options) {
         }
         const result = await importExternalMaterial({
           idempotencyKey: context.idempotencyKey,
+          runtimeEffectAuthority:Object.freeze({
+            effectClass:'workspace_write',
+            eventAttemptId:context.eventAttemptId,
+            idempotencyKey:context.idempotencyKey,
+          }),
           stableEvidence: input.stableEvidence,
           verifiedExternalPackage: input.verifiedExternalPackage,
           workspaceDeliveryContract: contract,

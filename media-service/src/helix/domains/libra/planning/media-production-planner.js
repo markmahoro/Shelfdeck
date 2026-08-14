@@ -6,6 +6,7 @@ const {
   buildMediaRequirement,
   buildEncodeIntent,
   buildProductMediaCandidateInput,
+  buildPlannedProductCandidateReference,
   buildProductOutputSelectionInput,
   buildProductionSourceScopeReference,
   buildRemuxIntent,
@@ -18,6 +19,7 @@ const {
   directMediaSelectionWork,
   remuxMediaSelectionWork,
   sourceMediaObservationWork,
+  transcodeStrategyAssessmentWork,
   transcodeMediaSelectionWork,
 } = require('./media-production-work');
 const { createProductionSourceScopeResolver } = require('./production-source-scope-resolver');
@@ -54,6 +56,13 @@ function eventResult(portName,eventId,resultSchemaRef) { return Object.freeze({p
 function projectedResults(portName,eventResults,projectionRef,parameters={}) { return Object.freeze({portName,
   bindingKind:'projected_event_results',eventResults:Object.freeze(eventResults),projectionRef,parameters:Object.freeze(parameters)}); }
 
+function selectionBinding(options, verificationEvents, rankedCandidates) {
+  return projectedResults('productOutputSelectionInput', verificationEvents.map((eventId) => Object.freeze({
+    eventId,
+    resultSchemaRef: options.registry.resolve(VERIFY, 'libra').manifest.resultSchemaRef,
+  })), OUTPUT_SELECTION, { rankedCandidates:Object.freeze(rankedCandidates) });
+}
+
 function planNode(options) {
   const manifest=options.registry.resolve(options.capabilityRef,'libra').manifest;
   const policy=options.policyRegistry.bindingFor(options.capabilityRef,manifest.effectClass);
@@ -79,29 +88,30 @@ function planEnvelope(options, request, work, nodes, resolution='planned', diagn
     diagnosticClassification,nodes:Object.freeze(nodes)});
 }
 
-function transcodeOrdinal(workId) {
-  const match=/^libra-workspace-media-transcode_(\d+)_selection-work-/.exec(workId);
-  return match ? Number(match[1]) : null;
+function transcodeWorkIdentity(workId) {
+  const match=/^libra-workspace-media-transcode_(\d+)_(assessment|selection)-work-/.exec(workId);
+  return match ? Object.freeze({ordinal:Number(match[1]),kind:match[2]}) : null;
 }
 
 function literalInput(item, portName) {
   return item?.inputBindings?.bindings?.find((binding)=>binding.portName===portName&&binding.bindingKind==='literal')?.value||null;
 }
 
-function priorTranscodeExecutions(options,snapshot,ordinal) {
+function priorTranscodeAssessments(options,snapshot,ordinal) {
   const items=[];
   for(let current=1;current<ordinal;current+=1){
-    const work=transcodeMediaSelectionWork(snapshot,current),results=options.workResultReader.read(work.workId);
-    const execution=results.find((item)=>item.capabilityRef===TRANSCODE);
-    if(!execution)throw new Error('Prior Transcode Work has no immutable execution Plan.');
+    const work=transcodeStrategyAssessmentWork(snapshot,current),results=options.workResultReader.read(work.workId);
+    const execution=results.find((item)=>item.capabilityRef===TRANSCODE_INPUT_VERIFY);
+    if(!execution)throw new Error('Prior Transcode Assessment has no immutable Compatibility Result.');
     const intent=literalInput(execution,'encodeIntent'),device=literalInput(execution,'mediaExecutionDeviceSnapshot');
-    if(!intent||!device)throw new Error('Prior Transcode Plan does not freeze its Intent and Device Snapshot.');
-    items.push(Object.freeze({work,results,intent,device,key:device.deviceId+'\0'+device.probeRevision+'\0'+intent.video.rateControlMode}));
+    if(!intent||!device||!execution.result)throw new Error('Prior Assessment does not freeze its Intent, Device, and Result.');
+    items.push(Object.freeze({work,results,intent,device,verification:execution.result,
+      key:device.deviceId+'\0'+device.probeRevision+'\0'+intent.video.pipelineProfileId+'\0'+intent.video.rateControlMode}));
   }
   return Object.freeze(items);
 }
 
-function readyDeviceStrategies(options,requirement,attempted) {
+function readyDeviceStrategies(options,requirement,attempted,pipelineProfileId) {
   if(!options.platformComputeRuntime||typeof options.platformComputeRuntime.listReadyDeviceRefs!=='function'||
       typeof options.platformComputeRuntime.readDeviceSnapshot!=='function')return Object.freeze([]);
   const listQuery={queryContract:'platform.compute-ready-device-refs@1',limit:64};listQuery.queryDigest=canonicalDigest(listQuery);
@@ -124,8 +134,8 @@ function readyDeviceStrategies(options,requirement,attempted) {
     const modes=device.deviceClass==='software_cpu'
       ?(hasSizeLimit?['two_pass_abr','strict_abr']:['quality_bound'])
       :(hasSizeLimit?['target_size','strict_abr']:['quality_bound']);
-    for(const mode of modes){const key=device.deviceId+'\0'+device.probeRevision+'\0'+mode;
-      if(supported.includes(mode)&&!attempted.has(key))strategies.push(Object.freeze({device,mode,key}));}
+    for(const mode of modes){const key=device.deviceId+'\0'+device.probeRevision+'\0'+pipelineProfileId+'\0'+mode;
+      if(supported.includes(mode)&&!attempted.has(key))strategies.push(Object.freeze({device,mode,key,pipelineProfileId}));}
   }
   return Object.freeze(strategies);
 }
@@ -146,15 +156,20 @@ function transcodeSource(options,snapshot) {
 }
 
 function transcodePlanning(options,snapshot,ordinal) {
-  const source=transcodeSource(options,snapshot),requirement=buildMediaRequirement(snapshot.spec),prior=priorTranscodeExecutions(options,snapshot,ordinal);
-  const attempted=new Set(prior.map((item)=>item.key)),strategy=readyDeviceStrategies(options,requirement,attempted)[0]||null;
+  const source=transcodeSource(options,snapshot),requirement=buildMediaRequirement(snapshot.spec),prior=priorTranscodeAssessments(options,snapshot,ordinal),
+    primary=(source.inputProbe.videoStreams||[]).filter((item)=>item.dispositionDefault===true),streams=primary.length?primary:(source.inputProbe.videoStreams||[]).slice(0,1),
+    hasDolbyVision=streams.some((item)=>item.dynamicRangeKind==='dolby_vision'),pipelineProfileId=hasDolbyVision
+      ?'pq_bt2020_base_to_sdr_bt709_hevc@1':'ordinary_to_hevc@1';
+  const attempted=new Set(prior.flatMap((item)=>item.verification.coveredStrategyKeys||[item.key])),
+    strategy=readyDeviceStrategies(options,requirement,attempted,pipelineProfileId)[0]||null;
   if(!strategy)return prior.length
     ?Object.freeze({kind:'contract_unplannable',diagnosticClassification:'media_device_strategies_exhausted'})
     :Object.freeze({kind:'temporarily_unplannable',diagnosticClassification:'media_device_strategies_unavailable'});
   const budget=requirement.space.maxSizeBytes===null?null:deriveTargetSizeBudget({maxSizeBytes:requirement.space.maxSizeBytes,
     durationMs:source.inputProbe.durationMs,audioStreams:source.inputProbe.audioStreams,subtitleStreams:source.inputProbe.subtitleStreams});
   if(budget&&!budget.feasible)return Object.freeze({kind:'contract_unplannable',diagnosticClassification:'media_size_budget_infeasible'});
-  const previous=prior.at(-1)||null,previousVerification=previous?.results.find((item)=>item.capabilityRef===VERIFY)?.result||null;
+  const previous=prior.at(-1)||null,previousSelection=previous?options.workResultReader.read(
+    transcodeMediaSelectionWork(snapshot,ordinal-1).workId):[],previousVerification=previousSelection.find((item)=>item.capabilityRef===VERIFY)?.result||null;
   let targetVideoBitrateBps=budget?.targetVideoBitrateBps||null;
   if(previous&&previousVerification?.reasonCodes?.includes('max_size_exceeded')&&previous.intent.video.targetVideoBitrateBps){
     targetVideoBitrateBps=deriveRetryTargetVideoBitrate({previousTargetVideoBitrateBps:previous.intent.video.targetVideoBitrateBps,
@@ -163,6 +178,11 @@ function transcodePlanning(options,snapshot,ordinal) {
   const intent=buildEncodeIntent({revision:1,libraRunId:snapshot.run.libraRunId,sourceHandleDigest:canonicalDigest(source.handle),
     mediaRequirementDigest:requirement.requirementDigest,strategyOrdinal:ordinal,rateControlMode:strategy.mode,
     ...(strategy.mode==='quality_bound'?{qualityBound:23}:{targetVideoBitrateBps}),deviceClass:strategy.device.deviceClass,
+    dynamicRangeOperation:hasDolbyVision?'tone_map_to_sdr_bt709':'preserve',pipelineProfileId,
+    outputDynamicRangeKind:hasDolbyVision?'sdr':(streams[0]?.dynamicRangeKind||'unknown'),
+    outputPixelFormat:hasDolbyVision?'yuv420p':(streams[0]?.pixelFormat||'encoder_selected'),
+    outputColorProfile:hasDolbyVision?{range:'limited',primaries:'bt709',transfer:'bt709',matrix:'bt709'}:
+      {range:'source',primaries:'source',transfer:'source',matrix:'source'},
     ...(previous?{previousIntentDigest:previous.intent.intentDigest}:{})});
   const workspace=options.movieProductionReader.readWorkspace(workspaceId(snapshot.run.libraRunId));
   if(!workspace||workspace.state!=='active')throw new Error('Active Libra Workspace is unavailable for Transcode planning.');
@@ -172,6 +192,23 @@ function transcodePlanning(options,snapshot,ordinal) {
     workspaceScopeDigest:workspace.workspaceScopeDigest,targetRelativePath:'media/transcode-'+ordinal+'-'+intent.intentId.slice(0,16)+'.mkv',
     productionIntentDigest:intent.intentDigest});
   return Object.freeze({kind:'ready',source,requirement,intent,device:strategy.device,target});
+}
+
+function assessedTranscodePlanning(options,snapshot,ordinal){
+  const work=transcodeStrategyAssessmentWork(snapshot,ordinal),results=options.workResultReader.read(work.workId),
+    execution=results.find((item)=>item.outcomeKind==='succeeded'&&item.capabilityRef===TRANSCODE_INPUT_VERIFY);
+  if(!execution)throw new Error('Transcode Selection requires one terminal Assessment Result.');
+  const intent=literalInput(execution,'encodeIntent'),device=literalInput(execution,'mediaExecutionDeviceSnapshot'),verification=execution.result,
+    source=transcodeSource(options,snapshot),requirement=buildMediaRequirement(snapshot.spec);
+  if(!intent||!device||verification?.disposition!=='compatible'||verification.encodeIntentDigest!==intent.intentDigest||
+      verification.deviceSnapshotDigest!==device.snapshotDigest)throw new Error('Transcode Selection cannot reuse an incompatible or stale Assessment.');
+  const workspace=options.movieProductionReader.readWorkspace(workspaceId(snapshot.run.libraRunId));
+  if(!workspace||workspace.state!=='active')throw new Error('Active Libra Workspace is unavailable for Transcode planning.');
+  const root=options.workspaceProductPort.rootSnapshot(),target=buildWorkspaceMediaOutputTarget({libraRunId:snapshot.run.libraRunId,
+    executionBasisDigest:snapshot.run.executionBasisDigest,workspaceId:workspace.workspaceId,expectedWorkspaceRevision:workspace.currentRevision,
+    expectedWorkspaceStateDigest:workspace.stateDigest,rootSnapshot:root,workspaceScopeDigest:workspace.workspaceScopeDigest,
+    targetRelativePath:'media/transcode-'+ordinal+'-'+intent.intentId.slice(0,16)+'.mkv',productionIntentDigest:intent.intentDigest});
+  return Object.freeze({kind:'ready',source,requirement,intent,device,target,verification});
 }
 
 function createWorkspaceMediaProductionPlanner(options) {
@@ -190,25 +227,49 @@ function createWorkspaceMediaProductionPlanner(options) {
     }
     if(request.workId===directWork.workId){
       if(snapshot.materialInputForm!=='stream_file')throw new Error('Direct media selection only accepts stream-file input.');
+      const sourceScopeResolver=createProductionSourceScopeResolver({movieProductionReader:options.movieProductionReader,
+        productionPort:options.productProductionPort});
+      const sourceHandle=sourceScopeResolver.resolve(sourceScopeResolver.referenceFor(snapshot)).primaryReadHandle;
+      const requirement=buildMediaRequirement(snapshot.spec);
+      const candidateRef=buildPlannedProductCandidateReference({rank:1,candidateKind:'direct_input',
+        candidateNodeId:'direct_input',mediaRequirementDigest:requirement.requirementDigest,
+        sourceMaterialHandle:sourceHandle});
       const verifyEventId=stable('libra-direct-media-verify-event-',{attempt:request.workAttemptId});
       const selectEventId=stable('libra-direct-media-select-event-',{attempt:request.workAttemptId});
       const verify=planNode({...options,request,nodeId:'direct_media_verification',eventId:verifyEventId,capabilityRef:VERIFY,
         inputBindings:[owner('productMediaCandidateInput',request,DIRECT_CANDIDATE,{sourceWorkId:sourceWork.workId})],
         resourceKinds:['cpu','disk_io']});
       const select=planNode({...options,request,nodeId:'direct_output_selection',eventId:selectEventId,capabilityRef:SELECT,
-        inputBindings:[projected('productOutputSelectionInput',verifyEventId,
-          options.registry.resolve(VERIFY,'libra').manifest.resultSchemaRef,OUTPUT_SELECTION)],
+        inputBindings:[selectionBinding(options,[verifyEventId],[candidateRef])],
         dependsOn:[{eventId:verifyEventId,satisfaction:'success'}],resourceKinds:['cpu']});
       return planEnvelope({plannerContractRef,catalogDigest},request,directWork,[verify,select]);
     }
     if(request.workId===remuxWork.workId){
+      const sourceScopeResolver=createProductionSourceScopeResolver({movieProductionReader:options.movieProductionReader,
+        productionPort:options.productProductionPort});
+      const reference=buildProductionSourceScopeReference(sourceScopeResolver.referenceFor(snapshot));
+      const requirement=buildMediaRequirement(snapshot.spec);
+      const intent=buildRemuxIntent({revision:1,libraRunId:snapshot.run.libraRunId,
+        sourceHandleDigest:reference.sourceReferenceDigest,mediaRequirementDigest:requirement.requirementDigest});
+      const workspace=options.movieProductionReader.readWorkspace(workspaceId(snapshot.run.libraRunId));
+      if(!workspace||workspace.state!=='active')throw new Error('Active Libra Workspace is unavailable for Remux planning.');
+      const root=options.workspaceProductPort.rootSnapshot();
+      const target=buildWorkspaceMediaOutputTarget({libraRunId:snapshot.run.libraRunId,
+        executionBasisDigest:snapshot.run.executionBasisDigest,workspaceId:workspace.workspaceId,
+        expectedWorkspaceRevision:workspace.currentRevision,expectedWorkspaceStateDigest:workspace.stateDigest,
+        rootSnapshot:root,workspaceScopeDigest:workspace.workspaceScopeDigest,
+        targetRelativePath:'media/remux-'+snapshot.run.libraRunId+'.mkv',productionIntentDigest:intent.intentDigest});
+      const candidateRef=buildPlannedProductCandidateReference({rank:1,candidateKind:'workspace_output',
+        candidateNodeId:'remux_output',mediaRequirementDigest:requirement.requirementDigest,
+        outputTargetId:target.targetId,outputTargetDigest:target.targetDigest,
+        productionIntentDigest:intent.intentDigest});
       const remuxEventId=stable('libra-remux-media-event-',{attempt:request.workAttemptId});
       const probeEventId=stable('libra-remux-output-probe-event-',{attempt:request.workAttemptId});
       const verifyEventId=stable('libra-remux-output-verify-event-',{attempt:request.workAttemptId});
       const selectEventId=stable('libra-remux-output-select-event-',{attempt:request.workAttemptId});
       const remux=planNode({...options,request,nodeId:'remux_media',eventId:remuxEventId,capabilityRef:REMUX,
-        inputBindings:[owner('productionSourceScopeReference',request,SOURCE_SCOPE),owner('remuxIntent',request,REMUX_INTENT),
-          owner('workspaceMediaOutputTarget',request,REMUX_OUTPUT_TARGET)],resourceKinds:['compute_device','cpu','disk_io']});
+        inputBindings:[literal('productionSourceScopeReference',reference),literal('remuxIntent',intent),
+          literal('workspaceMediaOutputTarget',target)],resourceKinds:['compute_device','cpu','disk_io']});
       const outputProbe=planNode({...options,request,nodeId:'remux_output_probe',eventId:probeEventId,capabilityRef:PROBE,
         inputBindings:[projected('physicalMaterialReadHandleOrWorkspaceMaterialHandle',remuxEventId,
           options.registry.resolve(REMUX,'libra').manifest.resultSchemaRef,WORKSPACE_HANDLE)],
@@ -221,33 +282,42 @@ function createWorkspaceMediaProductionPlanner(options) {
         dependsOn:[{eventId:remuxEventId,satisfaction:'success'},{eventId:probeEventId,satisfaction:'success'}],
         resourceKinds:['cpu','disk_io']});
       const select=planNode({...options,request,nodeId:'remux_output_selection',eventId:selectEventId,capabilityRef:SELECT,
-        inputBindings:[projected('productOutputSelectionInput',verifyEventId,
-          options.registry.resolve(VERIFY,'libra').manifest.resultSchemaRef,OUTPUT_SELECTION)],
+        inputBindings:[selectionBinding(options,[verifyEventId],[candidateRef])],
         dependsOn:[{eventId:verifyEventId,satisfaction:'success'}],resourceKinds:['cpu']});
       return planEnvelope({plannerContractRef,catalogDigest},request,remuxWork,[remux,outputProbe,verification,select]);
     }
-    const ordinal=transcodeOrdinal(request.workId);
-    if(ordinal!==null){
+    const transcodeIdentity=transcodeWorkIdentity(request.workId);
+    if(transcodeIdentity!==null){
+      const {ordinal,kind}=transcodeIdentity;
+      if(kind==='assessment'){
+        const assessmentWork=transcodeStrategyAssessmentWork(snapshot,ordinal);
+        if(request.workId!==assessmentWork.workId)throw new Error('Transcode Assessment Work identity does not match its strategy ordinal.');
+        const planning=transcodePlanning(options,snapshot,ordinal);
+        if(planning.kind!=='ready')return planEnvelope({plannerContractRef,catalogDigest},request,assessmentWork,[],planning.kind,
+          planning.diagnosticClassification);
+        const inputVerifyEventId=stable('libra-transcode-input-verify-event-',{attempt:request.workAttemptId});
+        const inputVerify=planNode({...options,request,nodeId:'transcode_strategy_assessment',eventId:inputVerifyEventId,
+          capabilityRef:TRANSCODE_INPUT_VERIFY,inputBindings:[literal('physicalMaterialReadHandleOrWorkspaceMaterialHandle',planning.source.handle),
+            literal('mediaProbeEvidence',planning.source.inputProbe),literal('encodeIntent',planning.intent),
+            literal('mediaExecutionDeviceSnapshot',planning.device)],resourceKinds:['compute_device','cpu','disk_io']});
+        return planEnvelope({plannerContractRef,catalogDigest},request,assessmentWork,[inputVerify]);
+      }
       const transcodeWork=transcodeMediaSelectionWork(snapshot,ordinal);
-      if(request.workId!==transcodeWork.workId)throw new Error('Transcode Work identity does not match its strategy ordinal.');
-      const planning=transcodePlanning(options,snapshot,ordinal);
-      if(planning.kind!=='ready')return planEnvelope({plannerContractRef,catalogDigest},request,transcodeWork,[],planning.kind,
-        planning.diagnosticClassification);
-      const inputVerifyEventId=stable('libra-transcode-input-verify-event-',{attempt:request.workAttemptId});
+      if(request.workId!==transcodeWork.workId)throw new Error('Transcode Selection Work identity does not match its strategy ordinal.');
+      const planning=assessedTranscodePlanning(options,snapshot,ordinal);
       const transcodeEventId=stable('libra-transcode-media-event-',{attempt:request.workAttemptId});
       const probeEventId=stable('libra-transcode-output-probe-event-',{attempt:request.workAttemptId});
       const verifyEventId=stable('libra-transcode-output-verify-event-',{attempt:request.workAttemptId});
       const selectEventId=stable('libra-transcode-output-select-event-',{attempt:request.workAttemptId});
-      const inputVerify=planNode({...options,request,nodeId:'transcode_input_verification',eventId:inputVerifyEventId,
-        capabilityRef:TRANSCODE_INPUT_VERIFY,inputBindings:[literal('physicalMaterialReadHandleOrWorkspaceMaterialHandle',planning.source.handle),
-          literal('mediaProbeEvidence',planning.source.inputProbe),literal('encodeIntent',planning.intent),
-          literal('mediaExecutionDeviceSnapshot',planning.device)],resourceKinds:['compute_device','cpu','disk_io']});
+      const candidateRef=buildPlannedProductCandidateReference({rank:1,candidateKind:'workspace_output',
+        candidateNodeId:'transcode_output_'+ordinal,mediaRequirementDigest:planning.requirement.requirementDigest,
+        outputTargetId:planning.target.targetId,outputTargetDigest:planning.target.targetDigest,
+        productionIntentDigest:planning.intent.intentDigest});
       const transcode=planNode({...options,request,nodeId:'transcode_media',eventId:transcodeEventId,capabilityRef:TRANSCODE,
         inputBindings:[literal('materialHandle',planning.source.handle),literal('encodeIntent',planning.intent),
-          literal('mediaExecutionDeviceSnapshot',planning.device),eventResult('transcodeInputVerification',inputVerifyEventId,
-            options.registry.resolve(TRANSCODE_INPUT_VERIFY,'libra').manifest.resultSchemaRef),
+          literal('mediaExecutionDeviceSnapshot',planning.device),literal('transcodeInputVerification',planning.verification),
           literal('workspaceMediaOutputTarget',planning.target)],
-        dependsOn:[{eventId:inputVerifyEventId,satisfaction:'success'}],resourceKinds:['compute_device','cpu','disk_io']});
+        resourceKinds:['compute_device','cpu','disk_io']});
       const outputProbe=planNode({...options,request,nodeId:'transcode_output_probe',eventId:probeEventId,capabilityRef:PROBE,
         inputBindings:[projected('physicalMaterialReadHandleOrWorkspaceMaterialHandle',transcodeEventId,
           options.registry.resolve(TRANSCODE,'libra').manifest.resultSchemaRef,WORKSPACE_HANDLE)],
@@ -260,10 +330,9 @@ function createWorkspaceMediaProductionPlanner(options) {
         dependsOn:[{eventId:transcodeEventId,satisfaction:'success'},{eventId:probeEventId,satisfaction:'success'}],
         resourceKinds:['cpu','disk_io']});
       const select=planNode({...options,request,nodeId:'transcode_output_selection',eventId:selectEventId,capabilityRef:SELECT,
-        inputBindings:[projected('productOutputSelectionInput',verifyEventId,
-          options.registry.resolve(VERIFY,'libra').manifest.resultSchemaRef,OUTPUT_SELECTION)],
+        inputBindings:[selectionBinding(options,[verifyEventId],[candidateRef])],
         dependsOn:[{eventId:verifyEventId,satisfaction:'success'}],resourceKinds:['cpu']});
-      return planEnvelope({plannerContractRef,catalogDigest},request,transcodeWork,[inputVerify,transcode,outputProbe,verification,select]);
+      return planEnvelope({plannerContractRef,catalogDigest},request,transcodeWork,[transcode,outputProbe,verification,select]);
     }
     throw new Error('Workspace Media Work stage is not recognized by its exact immutable definition.');
   }});
@@ -318,13 +387,18 @@ function createWorkspaceMediaProductionProjections(options) {
         candidateKind:'workspace_output',mediaRequirement:buildMediaRequirement(value.spec),workspaceMediaHandle:media,
         sourceProbeEvidence:probe,outputProbeEvidence:outputProbe});
     }})}),
-    Object.freeze({projectionRef:OUTPUT_SELECTION,projection:Object.freeze({project:({sourceResult,parameters,sourceEventId,targetEventId})=>{
-      void parameters;void sourceEventId;void targetEventId;
-      const value=options.movieProductionReader.readRunSnapshot(sourceResult.libraRunId);
-      const candidate={rank:1,candidateId:sourceResult.candidateId,candidateNodeId:sourceResult.candidateNodeId};
+    Object.freeze({projectionRef:OUTPUT_SELECTION,projection:Object.freeze({project:({sourceResults,parameters,targetEventId})=>{
+      void targetEventId;
+      const candidates=(sourceResults||[]).map((item)=>item.result)
+        .sort((left,right)=>Buffer.from(left.verificationId).compare(Buffer.from(right.verificationId)));
+      if(!candidates.length)throw new Error('Product Output Selection requires durable Verification Results.');
+      const value=options.movieProductionReader.readRunSnapshot(candidates[0].libraRunId);
+      if(candidates.some((item)=>item.libraRunId!==value.run.libraRunId||
+        item.mediaRequirementDigest!==candidates[0].mediaRequirementDigest))
+        throw new Error('Product Output Selection candidates cross one frozen Run or Requirement.');
       return buildProductOutputSelectionInput({libraRunId:value.run.libraRunId,acceptanceSpecId:value.spec.acceptanceSpecId,
-        acceptanceSpecRecordDigest:value.spec.recordDigest,mediaRequirementDigest:sourceResult.mediaRequirementDigest,
-        rankedCandidates:[candidate],candidates:[sourceResult]});
+        acceptanceSpecRecordDigest:value.spec.recordDigest,mediaRequirementDigest:candidates[0].mediaRequirementDigest,
+        rankedCandidates:parameters.rankedCandidates,candidates});
     }})}),
   ]);
 }

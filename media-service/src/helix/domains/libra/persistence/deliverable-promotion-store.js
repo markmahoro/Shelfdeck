@@ -678,7 +678,9 @@ function createDeliverablePromotionStore(options) {
       },
     };
     const subjectId = decision.resolvedIdentitySnapshot.factValue.subjectId;
-    const controlChanges = decision.productMaterialManifest.members.map((member) => {
+    const controlChanges = decision.productMaterialManifest.members
+      .filter((member) => member.controlOperation !== 'assert_related_input')
+      .map((member) => {
       if (member.controlOperation === 'assert_existing_input') {
         return Object.freeze({
           identity: member.physicalIdentity,
@@ -752,6 +754,14 @@ function createDeliverablePromotionStore(options) {
         const repo = context.repository(foundation.repositoryId);
         const receiptJson = canonicalJson(commit.receipt);
         const receiptDigest = canonicalDigest(commit.receipt);
+        const evidence = {
+          evidenceId: 'libra-promotion-evidence-' + decision.decisionDigest.slice(0, 40),
+          evidenceKind: 'libra_deliverable_promotion',
+          producerRef: 'libra.product_package.publish@1',
+          basisDigest: decision.decisionDigest,
+          payloadDigest: canonicalDigest(decision),
+          observedAtMs: context.commitTimeMs,
+        };
         repo.invoke('insert_result', {
           result_id: request.resultId,
           event_id: request.eventId || null,
@@ -759,9 +769,9 @@ function createDeliverablePromotionStore(options) {
           result_schema_ref: RESULT_SCHEMA,
           result_json: receiptJson,
           result_digest: receiptDigest,
-          evidence_schema_ref: 'helix://contracts/domain-types/LibraDeliverablePromotionDecision/v1',
-          evidence_json: canonicalJson(decision),
-          evidence_digest: canonicalDigest(decision),
+          evidence_schema_ref: 'helix://contracts/capabilities/libra.product_package.publish/v1/evidence',
+          evidence_json: canonicalJson(evidence),
+          evidence_digest: canonicalDigest(evidence),
           effect_receipt_id: request.effectReceiptId || null,
           committed_at_ms: context.commitTimeMs,
         });

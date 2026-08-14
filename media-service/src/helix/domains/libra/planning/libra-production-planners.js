@@ -526,6 +526,32 @@ function createProductFactAssemblyProjections(options) {
   ]);
 }
 
+function artifactProviderIntent(options, context) {
+  const provider = context.sources.find((item) => item.kind === 'provider');
+  if (provider) return provider.intent;
+  const providerIdentity = context.identity.factValue.providerIdentities[0];
+  if (!providerIdentity) throw new Error('Provider identity is absent for Artifact acquisition.');
+  const seed = {
+    libraRunId: context.snapshot.run.libraRunId,
+    runExecutionBasisDigest: context.snapshot.run.executionBasisDigest,
+    sourceKind: 'provider',
+    sourcePriority: context.sources.length,
+    contentProfile: context.snapshot.spec.contentProfile,
+    resolvedIdentityDigest: context.identity.factValue.identityDigest,
+    resolvedProviderIdentity: providerIdentity,
+    requestedFields: requiredMetadataFields(context.snapshot),
+    providerKind: providerIdentity.provider,
+    integrationId: providerIdentity.provider + '-main',
+    configRevision: 1,
+  };
+  const resolved = options.productProductionPort.resolveIntegrationHandle({
+    intent: buildMetadataFetchIntent(seed), operationId: ARTIFACT_ACQUIRE,
+  });
+  return buildMetadataFetchIntent({
+    ...seed, integrationId: resolved.integrationId, configRevision: resolved.configRevision,
+  });
+}
+
 function sidecarProfile(context) {
   const contentProfile=context.snapshot.spec.contentProfile;
   const relativePath=contentProfile==='series'?'product/season.nfo':'product/movie.nfo';
@@ -579,9 +605,9 @@ function createArtifactProductionProjections(options) {
     Object.freeze({projectionRef:SIDECAR_PROFILE,projection:Object.freeze({project:({ownerScope})=>sidecarProfile(context(ownerScope))})}),
     Object.freeze({projectionRef:ARTIFACT_REQUIREMENT,projection:Object.freeze({project:({ownerScope,parameters})=>requirement(ownerScope,parameters)})}),
     Object.freeze({projectionRef:ARTIFACT_INTEGRATION,projection:Object.freeze({project:({ownerScope,parameters})=>{
-      const value=context(ownerScope),provider=value.sources.find((item)=>item.kind==='provider');
-      if(!provider)throw new Error('Provider source is absent for Artifact acquisition.');
-      return options.productProductionPort.resolveIntegrationHandle({intent:provider.intent,operationId:ARTIFACT_ACQUIRE,
+      const value=context(ownerScope);
+      return options.productProductionPort.resolveIntegrationHandle({
+        intent:artifactProviderIntent(options,value),operationId:ARTIFACT_ACQUIRE,
         artifactKind:parameters.artifactKind});
     }})}),
     Object.freeze({projectionRef:ARTIFACT_HANDLE_LIST,projection:Object.freeze({project:({sourceResult,parameters})=>{

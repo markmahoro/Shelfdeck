@@ -6,6 +6,7 @@ const external = require('../model/external-material-contracts');
 const {
   buildMediaRequirement,
   buildProductMediaCandidateInput,
+  buildPlannedProductCandidateReference,
   buildProductOutputSelectionInput,
 } = require('../model/media-production-contracts');
 const {
@@ -354,7 +355,7 @@ function createExternalMaterialPlanner(options) {
             inputBindings:[eventResult('externalJobReceipt', requestEvent,
               options.registry.resolve(REQUEST, 'libra').manifest.resultSchemaRef),
             literal('integrationHandle', integration(options, OBSERVE))],
-            parameters:{ phase:'download' },
+            parameters:{ phase:'transfer' },
             dependsOn:[{eventId:requestEvent,satisfaction:'success'}],
             resourceKinds:['disk_io','network'] }),
           node({ ...options, request, nodeId:'external_output_resolution',
@@ -439,6 +440,15 @@ function createExternalMaterialPlanner(options) {
       });
       const mediaRequirement = buildMediaRequirement(snapshot.spec);
       const candidateNodeId = 'external_import_output';
+      const candidateRef = buildPlannedProductCandidateReference({
+        rank:1,
+        candidateKind:'workspace_output',
+        candidateNodeId,
+        mediaRequirementDigest:mediaRequirement.requirementDigest,
+        outputTargetId:contract.contractId,
+        outputTargetDigest:contract.digest,
+        productionIntentDigest:contract.digest,
+      });
       const nodes = [
         node({ ...options, request, nodeId:'external_workspace_import',
           eventId:importEvent, capabilityRef:IMPORT,
@@ -474,7 +484,8 @@ function createExternalMaterialPlanner(options) {
               libraRunId:snapshot.run.libraRunId,
               acceptanceSpecId:snapshot.spec.acceptanceSpecId,
               acceptanceSpecRecordDigest:snapshot.spec.recordDigest,
-              mediaRequirementDigest:mediaRequirement.requirementDigest })],
+              mediaRequirementDigest:mediaRequirement.requirementDigest,
+              rankedCandidates:Object.freeze([candidateRef]) })],
           dependsOn:[{eventId:verifyEvent,satisfaction:'success'}],
           resourceKinds:['cpu'] }),
       ];
@@ -520,17 +531,21 @@ function createExternalMaterialProjections() {
       projectionRef: EXTERNAL_SELECTION,
       projection: Object.freeze({
         project({ sourceResult: result, parameters }) {
+          if (!Array.isArray(parameters.rankedCandidates) ||
+              parameters.rankedCandidates.length !== 1 ||
+              parameters.rankedCandidates[0].candidateNodeId !==
+                parameters.candidateNodeId) {
+            throw new Error(
+              'External Product Output rank is absent from the immutable Plan.',
+            );
+          }
           return buildProductOutputSelectionInput({
             libraRunId: parameters.libraRunId,
             acceptanceSpecId: parameters.acceptanceSpecId,
             acceptanceSpecRecordDigest:
               parameters.acceptanceSpecRecordDigest,
             mediaRequirementDigest: parameters.mediaRequirementDigest,
-            rankedCandidates: [{
-              rank: 1,
-              candidateId: result.candidateId,
-              candidateNodeId: parameters.candidateNodeId,
-            }],
+            rankedCandidates: parameters.rankedCandidates,
             candidates: [result],
           });
         },

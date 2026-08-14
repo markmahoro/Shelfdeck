@@ -97,10 +97,30 @@ function createResourceGovernor(options) {
     return resources.every((resource) => (inUse.get(resource.resourceKey) || 0) + resource.units <= currentMapper.capacityFor(resource.resourceKey));
   }
 
+  function persistReleaseDefers(eventId) {
+    return options.unitOfWork.execute([{
+      participantId: 'resource_governor_release_defer', owner: 'execution-foundation',
+      repositories: Object.values(repositories),
+      execute(context) {
+        const waiting = context.repository('governor_defers').invoke('list')
+          .filter((row) => row.event_id === eventId && row.state === 'waiting');
+        for (const row of waiting) {
+          context.repository('governor_defers').invoke('update', {
+            event_id: eventId, resource_key: row.resource_key, queue_class: row.queue_class,
+            local_priority: row.local_priority, enqueued_at_ms: row.enqueued_at_ms,
+            retry_at_ms: row.retry_at_ms, state: 'released',
+          });
+        }
+        return Object.freeze({ released: waiting.length });
+      },
+    }]).resource_governor_release_defer;
+  }
+
   function issue(request, currentMapper, issuedAtMs) {
     if (eventPermits.has(request.eventId)) fail('P4_RESOURCE_EVENT_ALREADY_PERMITTED', 'Event already owns an active Permit bundle.');
     const permitId = options.nextPermitId();
     if (typeof permitId !== 'string' || !permitId || permits.has(permitId)) fail('P4_RESOURCE_PERMIT_ID_INVALID', 'Permit identity must be unique non-empty text.');
+    persistReleaseDefers(request.eventId);
     for (const resource of request.resources) inUse.set(resource.resourceKey, (inUse.get(resource.resourceKey) || 0) + resource.units);
     const permit = Object.freeze({ permitId, eventId: request.eventId, resources: request.resources,
       profileRevision: currentMapper.profileRevision, issuedAtMs });
@@ -145,6 +165,46 @@ function createResourceGovernor(options) {
     }]).resource_governor_defer;
   }
 
+  function persistSoftWait(request, deferredAtMs) {
+    const delayMs = 100;
+    return options.unitOfWork.execute([{
+      participantId: 'resource_governor_soft_wait', owner: 'execution-foundation', repositories: Object.values(repositories),
+      execute(context) {
+        const event = context.repository('governor_events').invoke('find', { event_id: request.eventId });
+        if (!event || !['ready', 'waiting_for_resource'].includes(event.state)) fail(
+          'P4_RESOURCE_DEFER_EVENT_INELIGIBLE', 'Resource defer requires a ready or resource-waiting Event.', { eventId: request.eventId }
+        );
+        const all = context.repository('governor_defers').invoke('list');
+        const existing = all.filter((row) => row.event_id === request.eventId);
+        const requestedKeys = request.resources.map((item) => item.resourceKey).sort();
+        if (existing.length > 0) {
+          const existingKeys = existing.map((item) => item.resource_key).sort();
+          if (JSON.stringify(existingKeys) !== JSON.stringify(requestedKeys)) fail(
+            'P4_RESOURCE_DEFER_DEMAND_DRIFT', 'Durable Resource Demand cannot change for the same Event.'
+          );
+          const retryAt = Math.max(...existing.map((row) => row.retry_at_ms));
+          if (retryAt > deferredAtMs) return Object.freeze({ retryAtMs: retryAt, replayed: true });
+        }
+        const retryAtMs = deferredAtMs + delayMs;
+        const byKey = new Map(existing.map((row) => [row.resource_key, row]));
+        for (const resource of request.resources) {
+          const values = { event_id: request.eventId, resource_key: resource.resourceKey, queue_class: request.queueClass,
+            local_priority: request.localPriority, enqueued_at_ms: deferredAtMs, retry_at_ms: retryAtMs, state: 'waiting' };
+          context.repository('governor_defers').invoke(byKey.has(resource.resourceKey) ? 'update' : 'insert', values);
+        }
+        context.repository('governor_events').invoke('defer', {
+          event_id: request.eventId, state: 'waiting_for_resource', retry_at_ms: retryAtMs
+        });
+        return Object.freeze({ retryAtMs, replayed: false });
+      }
+    }]).resource_governor_soft_wait;
+  }
+
+  function waiting(request, replayed, atMs) {
+    const deferred = persistSoftWait(request, atMs);
+    return Object.freeze({ kind: 'waiting', eventId: request.eventId, replayed, retryAtMs: deferred.retryAtMs });
+  }
+
   function waiterPerKey(resourceKey) {
     let count = 0;
     for (const waiter of waiters.values()) if (waiter.request.resources.some((resource) => resource.resourceKey === resourceKey)) count += 1;
@@ -183,7 +243,7 @@ function createResourceGovernor(options) {
         waiters.delete(request.eventId);
         return Object.freeze({ kind: 'permitted', permit: issue(currentWaiter.request, currentMapper, requestedAtMs) });
       }
-      return Object.freeze({ kind: 'waiting', eventId: request.eventId, replayed: true });
+      return waiting(currentWaiter.request, true, requestedAtMs);
     }
     const impossible = request.resources.find((resource) => resource.units > currentMapper.capacityFor(resource.resourceKey));
     if (impossible) return Object.freeze({ kind: 'unavailable', reasonCode: 'RESOURCE_MAP_UNSATISFIABLE', resourceKey: impossible.resourceKey });
@@ -197,7 +257,7 @@ function createResourceGovernor(options) {
       return Object.freeze({ kind: 'deferred', reasonCode: 'RESOURCE_QUEUE_HARD_CAP', retryAtMs: deferred.retryAtMs, replayed: deferred.replayed });
     }
     waiters.set(request.eventId, Object.freeze({ request, enqueuedAtMs: requestedAtMs }));
-    return Object.freeze({ kind: 'waiting', eventId: request.eventId, replayed: false });
+    return waiting(request, false, requestedAtMs);
   }
 
   function compareWaiters(left, right, atMs) {

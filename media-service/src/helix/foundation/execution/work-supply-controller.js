@@ -82,7 +82,12 @@ function createWorkSupplyController(options) {
           const target = request.supplyKind === 'work_attempt'
             ? worksRepo.invoke('find', { work_id: request.targetId })
             : eventsRepo.invoke('find', { event_id: request.targetId });
-          if (!target || (request.supplyKind === 'work_attempt' ? !['admitted', 'ready'].includes(target.state) : target.state !== 'ready')) {
+          const eventDispatchable = target && [
+            'ready',
+            'waiting_for_resource',
+            'waiting_for_external',
+          ].includes(target.state);
+          if (!target || (request.supplyKind === 'work_attempt' ? !['admitted', 'ready'].includes(target.state) : !eventDispatchable)) {
             return Object.freeze({ kind: 'ineligible', reasonCode: 'TARGET_NOT_SUPPLY_ELIGIBLE' });
           }
           const work=request.supplyKind==='work_attempt'?target:worksRepo.invoke('find',{work_id:target.work_id});

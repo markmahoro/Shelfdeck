@@ -1,6 +1,8 @@
 'use strict';
 
 const { canonicalDigest } = require('../../../contracts/canonical-json');
+const { collectFormatTags, normalizeAudioClass } =
+  require('../../../contracts/normalized-audio-class');
 const { inspectPlayability, inspectStructure, resolveIdentity,
   buildPrimaryManifestDraft } = require('../model/triage-contracts');
 const { createCandidatePublicationStore } = require('../persistence/candidate-publication-store');
@@ -41,16 +43,28 @@ function mediaEvidence(raw, handle, nowMs) {
       const displayWidth = Number(stream.displayWidth || (rotated ? height : width));
       const displayHeight = Number(stream.displayHeight || (rotated ? width : height));
       return Object.freeze({ streamIndex:Number(stream.streamIndex), dispositionDefault:Boolean(stream.dispositionDefault),
-        codec:stream.codec || 'unknown', codedWidth:width, codedHeight:height,
+        codec:stream.codec || 'unknown',codecProfile:stream.codecProfile||stream.profile||'unknown',
+        pixelFormat:stream.pixelFormat||'unknown',bitDepth:Number(stream.bitDepth||8),chroma:stream.chroma||'unknown',
+        colorRange:stream.colorRange||'unknown',colorPrimaries:stream.colorPrimaries||'unknown',
+        colorTransfer:stream.colorTransfer||'unknown',colorMatrix:stream.colorMatrix||'unknown',
+        dynamicRangeKind:stream.dynamicRangeKind||'unknown',...(stream.dolbyVision?{dolbyVision:stream.dolbyVision}:{}),
+        codedWidth:width, codedHeight:height,
         sampleAspectRatio:stream.sampleAspectRatio || '1:1', rotation, displayWidth, displayHeight,
         longEdge:Math.max(displayWidth, displayHeight), shortEdge:Math.min(displayWidth, displayHeight) });
     })),
-    audioStreams:Object.freeze((raw.audioStreams || []).map((stream) => Object.freeze({
-      streamIndex:Number(stream.streamIndex), dispositionDefault:Boolean(stream.dispositionDefault), codec:stream.codec || 'unknown',
-      profile:stream.profile || 'unknown', channels:Math.max(1, Number(stream.channels || 1)),
-      channelLayout:stream.channelLayout || 'unknown', formatTags:Object.freeze(stream.formatTags || []),
-      normalizedAudioClass:stream.normalizedAudioClass || 'other', ...(stream.language ? { language:stream.language } : {}),
-    }))),
+    audioStreams:Object.freeze((raw.audioStreams || []).map((stream) => {
+      const formatTags = collectFormatTags(stream);
+      return Object.freeze({
+        streamIndex:Number(stream.streamIndex), dispositionDefault:Boolean(stream.dispositionDefault),
+        codec:stream.codec || 'unknown', profile:stream.profile || 'unknown',
+        channels:Math.max(1, Number(stream.channels || 1)),
+        channelLayout:stream.channelLayout || 'unknown', formatTags,
+        normalizedAudioClass:normalizeAudioClass({
+          codec:stream.codec, profile:stream.profile, formatTags,
+        }),
+        ...(stream.language ? { language:stream.language } : {}),
+      });
+    })),
     subtitleStreams:Object.freeze((raw.subtitleStreams || []).map((stream) => Object.freeze({
       streamIndex:Number(stream.streamIndex), codec:stream.codec || 'unknown', ...(stream.language ? { language:stream.language } : {}),
       ...(stream.title ? { title:stream.title } : {}),

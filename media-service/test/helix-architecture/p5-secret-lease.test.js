@@ -123,7 +123,9 @@ test('does not leak invocation failures and rejects asynchronous secret retentio
     const first = broker.issue(exactRequest);
     assert.throws(
       () => broker.consume(first, (bytes) => { throw new Error(bytes.toString('utf8')); }),
-      (error) => error.code === 'P5_SECRET_LEASE_INVOCATION_FAILED' && !error.message.includes('synthetic-secret')
+      (error) => error.code === 'P5_SECRET_LEASE_INVOCATION_FAILED' &&
+        error.details.causeCode === 'UNCLASSIFIED_INVOCATION_FAILURE' &&
+        !error.message.includes('synthetic-secret')
     );
     const second = broker.issue(exactRequest);
     assert.throws(() => broker.consume(second, async () => null), (error) => error.code === 'P5_SECRET_LEASE_ASYNC_CONSUMER');
@@ -155,7 +157,9 @@ test('bounded asynchronous invocation redacts failure and wipes bytes', async ()
     await assert.rejects(() => broker.consumeAsync(handle, async (bytes) => {
       retained = bytes;
       throw new Error(bytes.toString('utf8'));
-    }), (error) => error.code === 'P5_SECRET_LEASE_INVOCATION_FAILED' && !error.message.includes('synthetic-secret'));
+    }), (error) => error.code === 'P5_SECRET_LEASE_INVOCATION_FAILED' &&
+      error.details.causeCode === 'UNCLASSIFIED_INVOCATION_FAILURE' &&
+      !error.message.includes('synthetic-secret'));
     assert.ok(retained.every((value) => value === 0));
   });
 });

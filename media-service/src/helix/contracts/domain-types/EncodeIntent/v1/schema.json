@@ -76,6 +76,59 @@
             "forbidUpscale": {
               "const": true
             },
+            "dynamicRangeOperation": {
+              "type": "string",
+              "enum": [
+                "preserve",
+                "tone_map_to_sdr_bt709"
+              ]
+            },
+            "pipelineProfileId": {
+              "type": "string",
+              "minLength": 1
+            },
+            "outputDynamicRangeKind": {
+              "type": "string",
+              "enum": [
+                "sdr",
+                "hdr10_compatible",
+                "hlg",
+                "dolby_vision",
+                "unknown"
+              ]
+            },
+            "outputPixelFormat": {
+              "type": "string",
+              "minLength": 1
+            },
+            "outputColorProfile": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "range": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "primaries": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "transfer": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "matrix": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "range",
+                "primaries",
+                "transfer",
+                "matrix"
+              ]
+            },
             "rateControlMode": {
               "const": "target_size"
             },
@@ -91,6 +144,11 @@
             "codec",
             "preserveRaster",
             "forbidUpscale",
+            "dynamicRangeOperation",
+            "pipelineProfileId",
+            "outputDynamicRangeKind",
+            "outputPixelFormat",
+            "outputColorProfile",
             "rateControlMode",
             "targetVideoBitrateBps",
             "qualityBound"
@@ -108,6 +166,59 @@
             },
             "forbidUpscale": {
               "const": true
+            },
+            "dynamicRangeOperation": {
+              "type": "string",
+              "enum": [
+                "preserve",
+                "tone_map_to_sdr_bt709"
+              ]
+            },
+            "pipelineProfileId": {
+              "type": "string",
+              "minLength": 1
+            },
+            "outputDynamicRangeKind": {
+              "type": "string",
+              "enum": [
+                "sdr",
+                "hdr10_compatible",
+                "hlg",
+                "dolby_vision",
+                "unknown"
+              ]
+            },
+            "outputPixelFormat": {
+              "type": "string",
+              "minLength": 1
+            },
+            "outputColorProfile": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "range": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "primaries": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "transfer": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "matrix": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "range",
+                "primaries",
+                "transfer",
+                "matrix"
+              ]
             },
             "rateControlMode": {
               "const": "two_pass_abr"
@@ -124,6 +235,11 @@
             "codec",
             "preserveRaster",
             "forbidUpscale",
+            "dynamicRangeOperation",
+            "pipelineProfileId",
+            "outputDynamicRangeKind",
+            "outputPixelFormat",
+            "outputColorProfile",
             "rateControlMode",
             "targetVideoBitrateBps",
             "qualityBound"
@@ -141,6 +257,59 @@
             },
             "forbidUpscale": {
               "const": true
+            },
+            "dynamicRangeOperation": {
+              "type": "string",
+              "enum": [
+                "preserve",
+                "tone_map_to_sdr_bt709"
+              ]
+            },
+            "pipelineProfileId": {
+              "type": "string",
+              "minLength": 1
+            },
+            "outputDynamicRangeKind": {
+              "type": "string",
+              "enum": [
+                "sdr",
+                "hdr10_compatible",
+                "hlg",
+                "dolby_vision",
+                "unknown"
+              ]
+            },
+            "outputPixelFormat": {
+              "type": "string",
+              "minLength": 1
+            },
+            "outputColorProfile": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "range": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "primaries": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "transfer": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "matrix": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "range",
+                "primaries",
+                "transfer",
+                "matrix"
+              ]
             },
             "rateControlMode": {
               "const": "strict_abr"
@@ -157,6 +326,11 @@
             "codec",
             "preserveRaster",
             "forbidUpscale",
+            "dynamicRangeOperation",
+            "pipelineProfileId",
+            "outputDynamicRangeKind",
+            "outputPixelFormat",
+            "outputColorProfile",
             "rateControlMode",
             "targetVideoBitrateBps",
             "qualityBound"
@@ -174,6 +348,59 @@
             },
             "forbidUpscale": {
               "const": true
+            },
+            "dynamicRangeOperation": {
+              "type": "string",
+              "enum": [
+                "preserve",
+                "tone_map_to_sdr_bt709"
+              ]
+            },
+            "pipelineProfileId": {
+              "type": "string",
+              "minLength": 1
+            },
+            "outputDynamicRangeKind": {
+              "type": "string",
+              "enum": [
+                "sdr",
+                "hdr10_compatible",
+                "hlg",
+                "dolby_vision",
+                "unknown"
+              ]
+            },
+            "outputPixelFormat": {
+              "type": "string",
+              "minLength": 1
+            },
+            "outputColorProfile": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "range": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "primaries": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "transfer": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "matrix": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "range",
+                "primaries",
+                "transfer",
+                "matrix"
+              ]
             },
             "rateControlMode": {
               "const": "quality_bound"
@@ -191,6 +418,11 @@
             "codec",
             "preserveRaster",
             "forbidUpscale",
+            "dynamicRangeOperation",
+            "pipelineProfileId",
+            "outputDynamicRangeKind",
+            "outputPixelFormat",
+            "outputColorProfile",
             "rateControlMode",
             "targetVideoBitrateBps",
             "qualityBound"
@@ -313,6 +545,72 @@
             "type": "string",
             "minLength": 1,
             "pattern": "^[a-f0-9]{64}$"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "video": {
+            "properties": {
+              "dynamicRangeOperation": {
+                "const": "tone_map_to_sdr_bt709"
+              }
+            },
+            "required": [
+              "dynamicRangeOperation"
+            ]
+          }
+        },
+        "required": [
+          "video"
+        ]
+      },
+      "then": {
+        "properties": {
+          "video": {
+            "properties": {
+              "pipelineProfileId": {
+                "const": "pq_bt2020_base_to_sdr_bt709_hevc@1"
+              },
+              "outputDynamicRangeKind": {
+                "const": "sdr"
+              },
+              "outputPixelFormat": {
+                "const": "yuv420p"
+              },
+              "outputColorProfile": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "range": {
+                    "const": "limited"
+                  },
+                  "primaries": {
+                    "const": "bt709"
+                  },
+                  "transfer": {
+                    "const": "bt709"
+                  },
+                  "matrix": {
+                    "const": "bt709"
+                  }
+                },
+                "required": [
+                  "range",
+                  "primaries",
+                  "transfer",
+                  "matrix"
+                ]
+              }
+            },
+            "required": [
+              "pipelineProfileId",
+              "outputDynamicRangeKind",
+              "outputPixelFormat",
+              "outputColorProfile"
+            ]
           }
         }
       }

@@ -23,6 +23,9 @@ const {
 const {
   createProviderAdapter,
 } = require('./helix/integrations/h1-provider-adapters');
+const moviePilotLandingAccessAdapter = require(
+  './helix/integrations/moviepilot-landing-access-adapter'
+);
 const {
   createJavProductProviderAdapter,
 } = require('./helix/integrations/jav-product-provider-adapter');
@@ -448,6 +451,9 @@ function createPlatformIntegrationServices(options) {
       digest: (value) => crypto.createHash('sha256')
         .update(value, 'utf8')
         .digest('hex'),
+      landingAccessAdapter: profile.kind === 'moviepilot'
+        ? moviePilotLandingAccessAdapter
+        : undefined,
     });
     const adapter = profile.kind === 'tmdb'
       ? createTmdbProviderAdapter({
@@ -464,9 +470,6 @@ function createPlatformIntegrationServices(options) {
           runtime,
           fetchImpl: options.fetchImpl,
           now: options.now,
-          moviePilotSavePath: options.moviePilotSavePath,
-          moviePilotDownloadRoots: options.moviePilotDownloadRoots,
-          moviePilotDownloadMappings: options.moviePilotDownloadMappings,
         });
     const admin = createIntegrationAdminApplication({
       profile,
@@ -480,6 +483,10 @@ function createPlatformIntegrationServices(options) {
         options.beforeIntegrationPlatformCommit,
       afterPlatformCommit:
         options.afterIntegrationPlatformCommit,
+      reservedRoots: options.reservedRoots,
+      landingAccessAdapter: profile.kind === 'moviepilot'
+        ? moviePilotLandingAccessAdapter
+        : undefined,
     });
     runtimes.set(profile.kind, runtime);
     adapters.set(profile.kind, adapter);
@@ -600,6 +607,35 @@ function createPlatformIntegrationServices(options) {
         return undefined;
       }
       return handleFor('moviepilot', request.operationId);
+    },
+    resolveExternalLandingLocation(request) {
+      const runtime = runtimeFor('moviepilot');
+      if (!runtime) {
+        throw new CleanServiceHostError(
+          'PLATFORM_EXTERNAL_LANDING_UNAVAILABLE',
+          'MoviePilot External Landing is unavailable.',
+        );
+      }
+      return runtime.resolveExternalLandingLocation(request);
+    },
+    readExternalLandingBinding(request) {
+      const runtime = runtimeFor('moviepilot');
+      const snapshot = runtime?.readCurrent();
+      if (!snapshot || snapshot.integration.state !== 'active' ||
+          request?.integrationId !== snapshot.integration.integrationId ||
+          request?.configRevision !== snapshot.integration.configRevision) {
+        throw new CleanServiceHostError(
+          'PLATFORM_EXTERNAL_LANDING_FENCE_STALE',
+          'MoviePilot External Landing binding is unavailable or stale.',
+        );
+      }
+      return snapshot.integration.config.landingBinding;
+    },
+    assertExternalLandingRootAvailable(request) {
+      const runtime = runtimeFor('moviepilot');
+      return runtime
+        ? runtime.assertExternalLandingRootAvailable(request)
+        : Object.freeze({ available:true });
     },
     async observeRoutingProvider({ intent, integrationHandle }) {
       return tmdbAdapter.observationPort.execute({ operationId: 'libra.routing.fact.observe@1', integrationHandle,
@@ -850,6 +886,8 @@ function errorResponse(error, correlationId) {
     typeof error.code === 'string' &&
     (
       error.code.startsWith('PLATFORM_INTEGRATION_') ||
+      error.code.startsWith('PLATFORM_MOVIEPILOT_') ||
+      error.code.startsWith('PLATFORM_EXTERNAL_LANDING_') ||
       error.code.startsWith('PLATFORM_TMDB_')
     )
   ) {
@@ -921,7 +959,13 @@ function createRuntime(options) {
       schemaManifest,
       now: options.now,
     });
-    const unitOfWork = createSqliteUnitOfWork({ kernel });
+    const baseUnitOfWork = createSqliteUnitOfWork({ kernel });
+    const unitOfWork = typeof options.unitOfWorkDecorator === 'function'
+      ? options.unitOfWorkDecorator(baseUnitOfWork)
+      : baseUnitOfWork;
+    if (!unitOfWork || typeof unitOfWork.execute !== 'function') {
+      throw new TypeError('Unit of Work decorator must preserve execute(participants).');
+    }
     const expected = Object.freeze({
       schemaName: SCHEMA_NAME,
       generation: GENERATION,
@@ -1003,23 +1047,37 @@ async function createCleanServiceHost(options) {
   const sessionTokens = createSessionTokenService({
     readActiveCredential: runtime.readActiveCredential,
   });
-  const platformIntegrations = createPlatformIntegrationServices({
+  const materialFieldStore = createMaterialFieldStore(
+    constructed.applicationDependencies,
+  );
+  let platformIntegrations = null;
+  const arcaShelfAdmin = createArcaShelfAdminApplication({
+    ...constructed.applicationDependencies,
+    targetFolderProbe: createCleanShelfTargetFolderProbe(),
+    assertLocationAvailable: (request) =>
+      platformIntegrations?.assertExternalLandingRootAvailable(request),
+  });
+  platformIntegrations = createPlatformIntegrationServices({
     ...constructed.applicationDependencies,
     dataDir: options.dataDir,
     secretRoot: options.secretRoot,
     now: options.now || Date.now,
     fetchImpl: options.integrationFetch,
-    moviePilotSavePath: options.moviePilotSavePath,
-    moviePilotDownloadRoots: options.moviePilotDownloadRoots,
-    moviePilotDownloadMappings: options.moviePilotDownloadMappings,
+    reservedRoots: () => [
+      options.libraWorkspaceRoot ||
+        path.join(options.dataDir, 'workspaces', 'libra'),
+      ...(options.integrationReservedRoots || []),
+      ...materialFieldStore.listMaterialFields()
+        .filter((field) => field.status === 'active')
+        .map((field) => field.access.rootLocation),
+      ...arcaShelfAdmin.listShelves().items
+        .filter((shelf) => shelf.status === 'active')
+        .map((shelf) => shelf.target.rootLocation),
+    ],
     beforeIntegrationPlatformCommit:
       options.beforeIntegrationPlatformCommit,
     afterIntegrationPlatformCommit:
       options.afterIntegrationPlatformCommit,
-  });
-  const arcaShelfAdmin = createArcaShelfAdminApplication({
-    ...constructed.applicationDependencies,
-    targetFolderProbe: createCleanShelfTargetFolderProbe(),
   });
   const arcaRuleTemplateAdmin = createArcaRuleTemplateAdminApplication(
     constructed.applicationDependencies,
@@ -1044,9 +1102,14 @@ async function createCleanServiceHost(options) {
       ...constructed.applicationDependencies,
       rootPath: options.libraWorkspaceRoot ||
         path.join(options.dataDir, 'workspaces', 'libra'),
-      externalMaterialRoots: options.externalMaterialRoots ||
-        options.moviePilotDownloadRoots || [],
+      externalLandingResolver: (request) =>
+        platformIntegrations.resolveExternalLandingLocation(request),
       now: options.now || Date.now,
+      statfsSync: options.workspaceStatfsSync,
+      afterPhysicalEffect: options.workspaceAfterPhysicalEffect,
+      afterMediaPhysicalEffect: options.workspaceAfterMediaPhysicalEffect,
+      afterMediaEffectCommit: options.workspaceAfterMediaEffectCommit,
+      afterCleanupPhysicalEffect: options.workspaceAfterCleanupPhysicalEffect,
     });
   const mediaProbe = options.mediaProbe || createCleanMediaProbe({
     workspaceMaterialLocationResolver: (handle) => workspaceProductPort.resolveMaterialLocation(handle),
@@ -1084,9 +1147,6 @@ async function createCleanServiceHost(options) {
     onPolicyPublished(policy) { routingExecution?.routingCoordinator.reconcileField(policy.fieldId, 100); routingExecution?.host.wake(); },
   });
   const formationQuery = createFormationQuery(constructed.applicationDependencies);
-  const materialFieldStore = createMaterialFieldStore(
-    constructed.applicationDependencies,
-  );
   const fieldEnumerator = options.fieldObservationEnumerator || createCleanFieldObservationEnumerator({
     onFingerprintRead: options.onPhysicalMaterialFingerprintRead,
   });
@@ -1104,6 +1164,8 @@ async function createCleanServiceHost(options) {
     resolveRoutingIntegrationHandle: options.routingIntegrationHandleResolver || platformIntegrations.resolveRoutingHandle,
     resolveExternalMaterialIntegrationHandle: options.externalMaterialIntegrationHandleResolver ||
       platformIntegrations.resolveExternalMaterialHandle,
+    readExternalMaterialLandingBinding: options.externalMaterialLandingBindingReader ||
+      platformIntegrations.readExternalLandingBinding,
     executeExternalProvider: options.externalMaterialProviderExecution ||
       ((request) => platformIntegrations.executeProvider('moviepilot', request)),
     resolvePerceptionIntegrationHandle: options.perceptionIntegrationHandleResolver || platformIntegrations.resolvePerceptionHandle,
@@ -1180,6 +1242,8 @@ async function createCleanServiceHost(options) {
       ...constructed.applicationDependencies,
       materialFieldStore,
       executionRuntimeHost,
+      assertLocationAvailable: (request) =>
+        platformIntegrations.assertExternalLandingRootAvailable(request),
     }),
     arcaShelfAdmin,
     arcaRuleTemplateAdmin,

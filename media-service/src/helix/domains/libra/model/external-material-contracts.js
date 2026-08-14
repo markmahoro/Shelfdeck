@@ -147,15 +147,18 @@ function buildExternalMaterialHandle(value) {
     observationRevision:observation.providerObservationRevision,manifestDigest:snapshot.manifestDigest});
   return bounded({schemaRef:'helix://contracts/types/ExternalMaterialHandle/v1',schemaVersion:1,handleId,integrationId:snapshot.integrationId,
     configRevision:snapshot.configRevision,externalObjectRef:snapshot.externalObjectRef,endpointId:snapshot.endpointId,location:snapshot.location,
-    structureKind:snapshot.structureKind,outputSnapshot:snapshot,manifestDigest:snapshot.manifestDigest,
+    landingBinding:clone(snapshot.landingBinding),structureKind:snapshot.structureKind,outputSnapshot:snapshot,manifestDigest:snapshot.manifestDigest,
     observationRevision:observation.providerObservationRevision,accessFenceDigest:canonicalDigest({schema:'libra.external-material-access-fence@1',
-      handleId,endpointId:snapshot.endpointId,location:snapshot.location,outputSnapshotDigest:snapshot.snapshotDigest})},64*1024,'P9_EXTERNAL_HANDLE_SIZE');
+      handleId,endpointId:snapshot.endpointId,location:snapshot.location,landingBindingDigest:snapshot.landingBinding.bindingDigest,
+      mountScopeId:snapshot.landingBinding.mountScopeId,mountScopeRevision:snapshot.landingBinding.mountScopeRevision,
+      outputSnapshotDigest:snapshot.snapshotDigest})},64*1024,'P9_EXTERNAL_HANDLE_SIZE');
 }
 
 function buildStableEvidence(value) {
   const source=value?.externalMaterialHandle,current=value?.providerSnapshot?.outputSnapshot,revision=value?.providerSnapshot?.providerObservationRevision;
   if(!source||!current||current.integrationId!==source.integrationId||current.configRevision!==source.configRevision||
-      current.externalObjectRef!==source.externalObjectRef||current.endpointId!==source.endpointId||current.location!==source.location)
+      current.externalObjectRef!==source.externalObjectRef||current.endpointId!==source.endpointId||current.location!==source.location||
+      current.landingBinding?.bindingDigest!==source.landingBinding?.bindingDigest)
     fail('P9_EXTERNAL_STABILITY_FENCE','Stability observation escaped the frozen external Handle.');
   const quietWindowMs=integer(value.quietWindowMs,'quietWindowMs',1);
   if(quietWindowMs>86400000||current.observedAtMs-current.newestMutationAtMs<quietWindowMs)fail('P9_EXTERNAL_STABILITY_DEFERRED','External Material is not stable yet.');
@@ -256,6 +259,7 @@ function buildImportedWorkspaceMediaHandle(value) {
     sourceMaterialHandleDigest,workspaceMaterialHandle:handle,workspaceMaterialHandleDigest:canonicalDigest(handle),
     outputTargetId:contract.contractId,outputTargetDigest:contract.digest,producingEventId:eventId,
     productionIntentKind:'external_import',productionIntentDigest:contract.digest,executionDeviceRef:null,
+    productionVideoProfile:null,
     effectReceiptRef:{effectId,effectReceiptId:canonicalDigest({schema:'libra.external-import-effect-receipt-id@1',effectId}),
       effectReceiptDigest}};
   result.workspaceMediaHandleId=canonicalDigest({schema:'libra.workspace-media-handle-id@1',sourceMaterialHandleDigest,

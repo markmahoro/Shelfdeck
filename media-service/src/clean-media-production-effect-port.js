@@ -4,6 +4,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { spawn } = require('node:child_process');
 const { canonicalDigest } = require('./helix/contracts/canonical-json');
+const { DV_SDR_FILTER } = require('./clean-compute-device-runtime');
 
 class CleanMediaProductionEffectPortError extends Error {
   constructor(code, message, details = {}) {
@@ -87,16 +88,64 @@ function createCleanMediaProductionEffectPort(options) {
     return ['-c:v', encoder, '-b:v', bitrate];
   }
 
+  function productStreamMap() {
+    // A Libra Movie product contains the selected video plus media streams.
+    // Container attachments and unknown data streams are not Primary media and
+    // must not silently survive a normalization encode (notably test padding,
+    // stale cover attachments, or a carried DOVI configuration side channel).
+    return ['-map', '0:v:0', '-map', '0:a?', '-map', '0:s?'];
+  }
+
+  function videoProfileArguments(intent){
+    if(intent.video.dynamicRangeOperation!=='tone_map_to_sdr_bt709')return [];
+    if(intent.video.pipelineProfileId!=='pq_bt2020_base_to_sdr_bt709_hevc@1')
+      fail('LIBRA_MEDIA_PIPELINE_PROFILE','DV normalization requires the closed PQ/BT.2020 to SDR pipeline.');
+    return ['-vf',DV_SDR_FILTER,'-pix_fmt','yuv420p','-color_range','tv','-color_primaries','bt709',
+      '-color_trc','bt709','-colorspace','bt709','-map_metadata','-1'];
+  }
+
+  async function verifyTranscodeInput(request){
+    const source=sourceLocation(request.sourceHandle),intent=request.productionIntent,device=request.deviceSnapshot,
+      durationMs=Math.max(1,Number(request.sourceProbeEvidence.durationMs||1)),points=[5,50,95],encoding=encoderArguments(intent,device),
+      profile=videoProfileArguments(intent),passed=[];
+    for(const point of points){const seconds=Math.max(0,durationMs/1000*point/100);
+      try{await runProcess(ffmpegPath,['-hide_banner','-nostdin','-loglevel','error','-ss',seconds.toFixed(3),'-i',source,
+        '-map','0:v:0','-frames:v','8',...profile,...encoding,'-an','-sn','-f','null',process.platform==='win32'?'NUL':'/dev/null'],30_000);
+        passed.push(point);
+      }catch(error){if(error?.code==='LIBRA_MEDIA_FFMPEG_TIMEOUT'||error?.code==='ENOENT'||error?.code==='EACCES')throw error;
+        return Object.freeze({sampleCount:24,passedSampleCount:passed.length*8,reasonCode:'encoder_rejected_source_pipeline',
+          samplePointsPercent:Object.freeze(points),passedSamplePointsPercent:Object.freeze(passed),
+          preflightDigest:canonicalDigest({schema:'libra.transcode-preflight@1',sourceHandleDigest:canonicalDigest(request.sourceHandle),
+            intentDigest:intent.intentDigest,deviceSnapshotDigest:device.snapshotDigest,points,passed,errorCode:error?.code||'unknown'})});}
+    }
+    return Object.freeze({sampleCount:24,passedSampleCount:24,reasonCode:null,samplePointsPercent:Object.freeze(points),
+      passedSamplePointsPercent:Object.freeze(passed),preflightDigest:canonicalDigest({schema:'libra.transcode-preflight@1',
+        sourceHandleDigest:canonicalDigest(request.sourceHandle),intentDigest:intent.intentDigest,deviceSnapshotDigest:device.snapshotDigest,points,passed})});
+  }
+
+  async function verifyPlayback(request){
+    const handle=request.workspaceMediaHandle?.workspaceMaterialHandle||request.workspaceMaterialHandle||request,
+      source=sourceLocation(handle),durationMs=Math.max(1,Number(request.outputProbeEvidence?.durationMs||1)),points=[5,50,95],passed=[];
+    for(const point of points){const seconds=Math.max(0,durationMs/1000*point/100);
+      try{await runProcess(ffmpegPath,['-hide_banner','-nostdin','-loglevel','error','-ss',seconds.toFixed(3),'-i',source,
+        '-map','0:v:0','-frames:v','1','-f','null',process.platform==='win32'?'NUL':'/dev/null'],30_000);passed.push(point);}
+      catch(error){if(error?.code==='LIBRA_MEDIA_FFMPEG_TIMEOUT'||error?.code==='ENOENT'||error?.code==='EACCES')throw error;}
+    }
+    return Object.freeze({samplePointsPercent:Object.freeze(points),passedSamplePointsPercent:Object.freeze(passed),
+      decodeDigest:canonicalDigest({schema:'libra.product-playback-decode@1',handleDigest:canonicalDigest(handle),points,passed})});
+  }
+
   async function executeRemux(request) {
     const target = request.outputTarget;
     return options.workspaceProductPort.materializeMedia({ libraRunId:target.libraRunId, workspaceId:target.workspaceId,
       relativePath:target.targetRelativePath, intentDigest:request.productionIntent.intentDigest,
       idempotencyKey:request.idempotencyKey, effectScopeDigest:target.effectScopeDigest,
       outputTargetId:target.targetId, outputTargetDigest:target.targetDigest,
+      runtimeEffectAuthority:request.runtimeEffectAuthority,
       async produce(temporaryTarget) {
         const input = inputArguments(request.source, temporaryTarget);
         try {
-          await runProcess(ffmpegPath, ['-hide_banner', '-nostdin', '-y', ...input.argv, '-map', '0', '-c', 'copy', '-f', 'matroska', temporaryTarget], timeoutMs);
+          await runProcess(ffmpegPath, ['-hide_banner', '-nostdin', '-y', '-fflags', '+genpts', ...input.argv, '-map', '0', '-c', 'copy', '-f', 'matroska', temporaryTarget], timeoutMs);
         } finally { input.cleanup?.(); }
       } });
   }
@@ -107,28 +156,58 @@ function createCleanMediaProductionEffectPort(options) {
       relativePath:target.targetRelativePath, intentDigest:request.productionIntent.intentDigest,
       idempotencyKey:request.idempotencyKey, effectScopeDigest:target.effectScopeDigest,
       outputTargetId:target.targetId, outputTargetDigest:target.targetDigest,
+      runtimeEffectAuthority:request.runtimeEffectAuthority,
       async produce(temporaryTarget) {
-        const source=sourceLocation(request.sourceHandle),encoding=encoderArguments(request.productionIntent, request.deviceSnapshot);
+        const source=sourceLocation(request.sourceHandle),encoding=encoderArguments(request.productionIntent, request.deviceSnapshot),
+          profile=videoProfileArguments(request.productionIntent),
+          normalizeDolbyVision=request.productionIntent.video.dynamicRangeOperation==='tone_map_to_sdr_bt709',
+          normalizedVideoTarget=temporaryTarget+'.normalized-video.ts';
+        async function muxNormalizedVideo() {
+          await runProcess(ffmpegPath,['-hide_banner','-nostdin','-y','-i',normalizedVideoTarget,'-i',source,
+            '-map','0:v:0','-map','1:a?','-map','1:s?','-c:v','copy','-c:a','copy','-c:s','copy',
+            '-map_metadata','-1','-f','matroska',temporaryTarget],timeoutMs);
+        }
         if(request.productionIntent.video.rateControlMode==='two_pass_abr'){
           const passlog=temporaryTarget+'.passlog',nullTarget=process.platform==='win32'?'NUL':'/dev/null';
           try {
-            await runProcess(ffmpegPath,['-hide_banner','-nostdin','-y','-i',source,'-map','0:v:0',...encoding,
+            await runProcess(ffmpegPath,['-hide_banner','-nostdin','-y','-i',source,'-map','0:v:0',...profile,...encoding,
               '-pass','1','-passlogfile',passlog,'-an','-sn','-f','null',nullTarget],timeoutMs);
-            await runProcess(ffmpegPath,['-hide_banner','-nostdin','-y','-i',source,'-map','0',...encoding,
-              '-pass','2','-passlogfile',passlog,'-c:a','copy','-c:s','copy','-f','matroska',temporaryTarget],timeoutMs);
+            if(normalizeDolbyVision){
+              // FFmpeg 6.x Matroska propagation can copy the source DOVI
+              // configuration side-data even after a full pixel encode. A
+              // video-only MPEG-TS boundary preserves timestamps and the new
+              // HEVC bytes while deliberately severing that source metadata.
+              // The final mux then carries audio/subtitles from the source,
+              // never the source video stream or its DOVI configuration.
+              await runProcess(ffmpegPath,['-hide_banner','-nostdin','-y','-i',source,'-map','0:v:0',...profile,...encoding,
+                '-pass','2','-passlogfile',passlog,'-an','-sn','-f','mpegts',normalizedVideoTarget],timeoutMs);
+              await muxNormalizedVideo();
+            }else{
+              await runProcess(ffmpegPath,['-hide_banner','-nostdin','-y','-i',source,...productStreamMap(),...profile,...encoding,
+                '-pass','2','-passlogfile',passlog,'-c:a','copy','-c:s','copy','-f','matroska',temporaryTarget],timeoutMs);
+            }
           } finally {
             for(const suffix of ['', '.log', '.log.mbtree', '-0.log', '-0.log.mbtree']){
               const candidate=passlog+suffix;if(fs.existsSync(candidate))fs.rmSync(candidate,{force:true});
             }
+            if(fs.existsSync(normalizedVideoTarget))fs.rmSync(normalizedVideoTarget,{force:true});
           }
           return;
         }
-        await runProcess(ffmpegPath, ['-hide_banner', '-nostdin', '-y', '-i', source,
-          '-map', '0', ...encoding, '-c:a', 'copy', '-c:s', 'copy', '-f', 'matroska', temporaryTarget], timeoutMs);
+        if(normalizeDolbyVision){
+          try{
+            await runProcess(ffmpegPath,['-hide_banner','-nostdin','-y','-i',source,'-map','0:v:0',...profile,...encoding,
+              '-an','-sn','-f','mpegts',normalizedVideoTarget],timeoutMs);
+            await muxNormalizedVideo();
+          }finally{if(fs.existsSync(normalizedVideoTarget))fs.rmSync(normalizedVideoTarget,{force:true});}
+        }else{
+          await runProcess(ffmpegPath, ['-hide_banner', '-nostdin', '-y', '-i', source,
+            ...productStreamMap(), ...profile,...encoding, '-c:a', 'copy', '-c:s', 'copy', '-f', 'matroska', temporaryTarget], timeoutMs);
+        }
       } });
   }
 
-  return Object.freeze({ executeRemux, executeTranscode });
+  return Object.freeze({ executeRemux, executeTranscode,verifyTranscodeInput,verifyPlayback });
 }
 
 module.exports = Object.freeze({ CleanMediaProductionEffectPortError, createCleanMediaProductionEffectPort });

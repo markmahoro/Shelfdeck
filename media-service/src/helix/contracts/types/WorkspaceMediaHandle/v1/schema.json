@@ -94,6 +94,85 @@
         }
       ]
     },
+    "productionVideoProfile": {
+      "anyOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "dynamicRangeOperation": {
+              "type": "string",
+              "enum": [
+                "preserve",
+                "tone_map_to_sdr_bt709"
+              ]
+            },
+            "pipelineProfileId": {
+              "type": "string",
+              "minLength": 1
+            },
+            "outputDynamicRangeKind": {
+              "type": "string",
+              "enum": [
+                "sdr",
+                "hdr10_compatible",
+                "hlg",
+                "dolby_vision",
+                "unknown"
+              ]
+            },
+            "outputPixelFormat": {
+              "type": "string",
+              "minLength": 1
+            },
+            "outputColorProfile": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "range": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "primaries": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "transfer": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "matrix": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "range",
+                "primaries",
+                "transfer",
+                "matrix"
+              ]
+            },
+            "profileDigest": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^[a-f0-9]{64}$"
+            }
+          },
+          "required": [
+            "dynamicRangeOperation",
+            "pipelineProfileId",
+            "outputDynamicRangeKind",
+            "outputPixelFormat",
+            "outputColorProfile",
+            "profileDigest"
+          ]
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "effectReceiptRef": {
       "type": "object",
       "additionalProperties": false,
@@ -139,6 +218,7 @@
     "productionIntentKind",
     "productionIntentDigest",
     "executionDeviceRef",
+    "productionVideoProfile",
     "effectReceiptRef",
     "resultDigest"
   ]

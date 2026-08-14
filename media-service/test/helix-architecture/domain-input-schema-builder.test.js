@@ -15,7 +15,8 @@ test('builds exactly the 113 formal domain input contracts', () => {
 test('materializes the exact service-local Western analysis construction inputs', () => {
   const target = schemas.WorkspaceArtifactOutputTarget;
   assert.deepEqual(target.properties.outputKind.enum, ['frame_set', 'western_analysis']);
-  assert.equal(target.properties.rootSnapshot.additionalProperties, false);
+  assert.deepEqual(target.properties.rootSnapshot,
+    { $ref: 'helix://contracts/application-types/PlatformWorkspaceRootSnapshot/v1' });
   assert.equal(target['x-helix-maxCanonicalBytes'], 16 * 1024);
 
   const sampling = schemas.SamplingPlan;

@@ -41,9 +41,22 @@
       "type": "array",
       "items": {
         "type": "string",
-        "minLength": 1
+        "enum": [
+          "source_handle_mismatch",
+          "source_not_media",
+          "probe_integrity_failure",
+          "device_class_mismatch",
+          "input_fence_mismatch",
+          "source_dynamic_range_unsupported",
+          "dolby_vision_base_layer_unsupported",
+          "required_pipeline_profile_unavailable",
+          "source_pixel_format_unsupported",
+          "output_profile_unsupported",
+          "encoder_rejected_source_pipeline",
+          "rate_control_unsupported"
+        ]
       },
-      "maxItems": 1024
+      "maxItems": 13
     },
     "evidenceRefs": {
       "type": "array",
@@ -97,6 +110,49 @@
         "amd_vaapi",
         "remote_worker"
       ]
+    },
+    "disposition": {
+      "type": "string",
+      "enum": [
+        "compatible",
+        "strategy_rejected",
+        "integrity_rejected"
+      ]
+    },
+    "rejectionScope": {
+      "anyOf": [
+        {
+          "type": "string",
+          "enum": [
+            "device_pipeline",
+            "rate_control_strategy"
+          ]
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "coveredStrategyKeys": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "maxItems": 16
+    },
+    "sampleCount": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "passedSampleCount": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "preflightDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
     }
   },
   "required": [
@@ -115,6 +171,12 @@
     "probeEvidenceDigest",
     "deviceId",
     "deviceSnapshotDigest",
-    "selectedDeviceClass"
+    "selectedDeviceClass",
+    "disposition",
+    "rejectionScope",
+    "coveredStrategyKeys",
+    "sampleCount",
+    "passedSampleCount",
+    "preflightDigest"
   ]
 }

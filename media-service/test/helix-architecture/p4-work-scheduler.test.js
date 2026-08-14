@@ -113,6 +113,35 @@ test('Event requires ready state, elapsed retryAt, and exact success or terminal
   });
 });
 
+test('resource wait does not invert below the waiting Event while same-priority work can proceed', () => {
+  fixture(({ scheduler, seedRows, projections }) => {
+    seedRows((repository) => {
+      addEventGraph(repository, projections, 'waiting', { localPriority: 100, eventState: 'waiting_for_resource', retryAtMs: 180001 });
+      addEventGraph(repository, projections, 'peer', { localPriority: 100, readyAtMs: 130000 });
+      addEventGraph(repository, projections, 'lower', { localPriority: 0, readyAtMs: 100000 });
+    });
+    assert.equal(scheduler.acquire({ targetType: 'event' }).lease.targetId, 'event-peer');
+  });
+});
+
+test('external observation wait becomes dispatchable only after its durable retry time', () => {
+  fixture(({ scheduler, seedRows, projections, setNow }) => {
+    seedRows((repository) => {
+      addEventGraph(repository, projections, 'external', {
+        localPriority: 100,
+        eventState: 'waiting_for_external',
+        retryAtMs: 180001,
+      });
+    });
+    assert.equal(scheduler.acquire({ targetType: 'event' }).kind, 'idle');
+    setNow(180001);
+    assert.equal(
+      scheduler.acquire({ targetType: 'event' }).lease.targetId,
+      'event-external',
+    );
+  });
+});
+
 test('technical lease is unique, expiring, releasable, and never durable', () => {
   fixture(({ scheduler, seedRows, projections, databasePath, setNow }) => {
     seedRows((repository) => addWork(repository, projections, 'one'));

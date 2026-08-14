@@ -155,7 +155,7 @@ function createStartupRecovery(options) {
           continue;
         }
         if (event.state === 'waiting_for_resource') {
-          if ((defersByEvent.get(event.event_id) || []).length !== 1) findings.push('RESOURCE_DEFER_CARDINALITY:' + event.event_id);
+          if ((defersByEvent.get(event.event_id) || []).length < 1) findings.push('RESOURCE_DEFER_CARDINALITY:' + event.event_id);
           continue;
         }
 
@@ -176,7 +176,10 @@ function createStartupRecovery(options) {
         if (node.effect_class === 'pure_observation') {
           if (effect) findings.push('PURE_EFFECT_JOURNAL_FORBIDDEN:' + event.event_id);
           else if (event.state === 'executing') actions.push(Object.freeze({ eventId: event.event_id, decision: 'safe_retry' }));
-          else findings.push('PURE_EVENT_EXTERNAL_WAIT_INVALID:' + event.event_id);
+          else if (event.state !== 'waiting_for_external' ||
+              attempt.state !== 'completed' || attempt.outcome_kind !== 'deferred') {
+            findings.push('PURE_EVENT_EXTERNAL_WAIT_INVALID:' + event.event_id);
+          }
           continue;
         }
         if (!effect) {
@@ -198,7 +201,7 @@ function createStartupRecovery(options) {
         }
         try {
           const recovery = await options.effectReconciler.reconcile(node.effect_class, { effect: Object.freeze(effect) });
-          actions.push(Object.freeze({ eventId: event.event_id, ...recovery }));
+          actions.push(Object.freeze({ eventId: event.event_id, effectId: effect.effect_id, ...recovery }));
         } catch (error) {
           findings.push('RECONCILER_UNAVAILABLE:' + event.event_id);
         }

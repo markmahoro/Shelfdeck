@@ -81,6 +81,9 @@
           "minLength": 1,
           "maxLength": 256
         },
+        "landingBinding": {
+          "$ref": "helix://contracts/types/MoviePilotLandingBinding/v1"
+        },
         "location": {
           "type": "string",
           "minLength": 1
@@ -210,6 +213,7 @@
         "configRevision",
         "externalObjectRef",
         "endpointId",
+        "landingBinding",
         "location",
         "structureKind",
         "members",

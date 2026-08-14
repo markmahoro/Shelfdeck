@@ -11,6 +11,7 @@ const { createCapabilityRegistry } = require('../foundation/capability/capabilit
 const { createExecutorDispatcher } = require('../foundation/capability/executor-dispatcher');
 const { createCircuitBreaker } = require('../foundation/diagnostics/pressure-guard');
 const { createEffectJournal } = require('../foundation/effects/effect-journal');
+const { createEffectReconcilerRegistry } = require('../foundation/effects/effect-reconcilers');
 const { createEventExecutionInputProvider } = require('../foundation/execution/event-execution-input-provider');
 const { createEventRuntime } = require('../foundation/execution/event-runtime');
 const { createExecutionPolicyRegistry, createAttemptPolicyController } = require('../foundation/execution/execution-policy');
@@ -87,6 +88,14 @@ function findIntegrationId(value,seen=new Set()){
   for(const child of Array.isArray(value)?value:Object.values(value)){const found=findIntegrationId(child,seen);if(found)return found;}
   return null;
 }
+function findIntegrationHandle(value,seen=new Set()){
+  if(!value||typeof value!=='object'||seen.has(value))return null;seen.add(value);
+  if(typeof value.integrationId==='string'&&value.integrationId&&
+      Number.isSafeInteger(value.configRevision)&&value.configRevision>0&&
+      typeof value.allowedOperation==='string')return value;
+  for(const child of Array.isArray(value)?value:Object.values(value)){const found=findIntegrationHandle(child,seen);if(found)return found;}
+  return null;
+}
 
 function createProcurementExecutionRuntime(options) {
   const contractsRoot = options.contractsRoot || path.resolve(__dirname, '../contracts');
@@ -109,6 +118,7 @@ function createProcurementExecutionRuntime(options) {
     observeRoutingProvider: options.observeRoutingProvider || (async () => { throw new Error('Routing Provider adapter is unavailable.'); }),
     resolveRoutingIntegrationHandle: options.resolveRoutingIntegrationHandle || (() => undefined),
     resolveExternalMaterialIntegrationHandle: options.resolveExternalMaterialIntegrationHandle || (() => undefined),
+    readExternalMaterialLandingBinding: options.readExternalMaterialLandingBinding || (() => undefined),
     executeExternalProvider: options.executeExternalProvider ||
       (async () => { throw new Error('External Material Provider adapter is unavailable.'); }),
     productProductionPort: options.productProductionPort,
@@ -143,8 +153,20 @@ function createProcurementExecutionRuntime(options) {
     { ref: 'helix://foundation/retry/external-request/v1', effectClass: 'external_request', maxFailureAttempts: 1,
       backoffMs: [], retryableFailureClasses: [] },
   ];
-  const timeoutPolicies = [{ ref: 'helix://foundation/timeout/field-observation/v1', timeoutMs: 3_600_000,
-    minObservationCadenceMs: null, maxObservationElapsedMs: null, maxObservationCount: null }];
+  const timeoutPolicies = [
+    { ref: 'helix://foundation/timeout/field-observation/v1', timeoutMs: 3_600_000,
+      minObservationCadenceMs: null, maxObservationElapsedMs: null, maxObservationCount: null },
+    { ref: 'helix://foundation/timeout/short-deferred-observation/v1', timeoutMs: 1_800_000,
+      minObservationCadenceMs: 5_000, maxObservationElapsedMs: 300_000, maxObservationCount: 16 },
+    { ref: 'helix://foundation/timeout/external-job-observation/v1', timeoutMs: 1_800_000,
+      minObservationCadenceMs: 15_000, maxObservationElapsedMs: 86_400_000, maxObservationCount: 1_024 },
+  ];
+  const timeoutPolicyFor = (capabilityRef) => capabilityRef ===
+    'libra.external_material.acquire.observe@1'
+    ? timeoutPolicies[2].ref
+    : capabilityRef === 'libra.external_material.stability.observe@1'
+      ? timeoutPolicies[1].ref
+      : timeoutPolicies[0].ref;
   const policyRegistry = createExecutionPolicyRegistry({ expectedCapabilityRefs: ENABLED, retryPolicies, timeoutPolicies,
     compensationContracts: [], capabilityBindings: ENABLED.map((capabilityRef) => ({ capabilityRef,
       effectClass: manifests[capabilityRef].effectClass,
@@ -152,7 +174,7 @@ function createProcurementExecutionRuntime(options) {
           manifests[capabilityRef].effectClass === 'responsibility_control_commit' ? retryPolicies[2].ref :
           manifests[capabilityRef].effectClass === 'workspace_write' ? retryPolicies[3].ref :
             manifests[capabilityRef].effectClass === 'external_request' ? retryPolicies[4].ref : retryPolicies[1].ref,
-      timeoutPolicyRef: timeoutPolicies[0].ref, compensationContractRefs: [] })) });
+      timeoutPolicyRef: timeoutPolicyFor(capabilityRef), compensationContractRefs: [] })) });
   let libraProcessServices;
   const executionProjectionProvider=Object.freeze({read:({processType,processId,workKind})=>{
     if(processType==='libra_run'){
@@ -196,6 +218,36 @@ function createProcurementExecutionRuntime(options) {
     { verify: async ({ receipt }) => ({ verified: true, evidenceDigest: receipt.verificationEvidenceDigest }) }]));
   const effectJournal = createEffectJournal({ schemaManifest: options.schemaManifest, unitOfWork: options.unitOfWork,
     now, realityVerifiers });
+  function recoveryReality(effectClass) {
+    const observed = (context) => effectJournal.observeRecovery(context.effect.effect_id);
+    if (effectClass === 'workspace_write') return { async observe(context) {
+      const value = observed(context), committed = value.markers.length === 1;
+      return { status: committed ? 'matching' : 'absent', evidenceDigest: canonicalDigest(value), cleanupDeclared: false };
+    } };
+    if (effectClass === 'external_request') return { async observe(context) {
+      const value = observed(context), committed = value.markers.length === 1;
+      return { status: committed ? 'committed' : (value.effect.external_receipt_ref ? 'pending' : 'absent'), evidenceDigest: canonicalDigest(value) };
+    } };
+    if (effectClass === 'domain_fact_commit') return { async observe(context) {
+      const value = observed(context), committed = value.markers.length === 1;
+      return { status: committed ? 'committed' : 'absent', revisionMatches: committed, fenceValid: true, evidenceDigest: canonicalDigest(value) };
+    } };
+    if (effectClass === 'responsibility_control_commit') return { async observe(context) {
+      const value = observed(context), committed = value.markers.length === 1;
+      return { status: committed ? 'whole_established' : 'whole_absent', fenceValid: true, evidenceDigest: canonicalDigest(value) };
+    } };
+    if (effectClass === 'material_commit') return { async observe(context) {
+      const value = observed(context), committed = value.markers.length === 1;
+      return { status: committed ? 'committed' : 'forward_required', rollbackDeclared: false, evidenceDigest: canonicalDigest(value) };
+    } };
+    return { async observe(context) {
+      const value = observed(context), committed = value.markers.length === 1;
+      return { status: committed ? 'complete' : 'remaining', evidenceDigest: canonicalDigest(value) };
+    } };
+  }
+  const effectReconciler = createEffectReconcilerRegistry({ observers: Object.freeze(Object.fromEntries([
+    'workspace_write', 'external_request', 'domain_fact_commit', 'responsibility_control_commit', 'material_commit', 'destructive_commit'
+  ].map((effectClass) => [effectClass, recoveryReality(effectClass)]))) });
   const processServices = procurementConstruction.createProcessServices({ ...options, now, workResultReader });
   const { triageReader, triageRuleRegistry: triageRegistry, progressReader, procurementAutomation, runCoordinator,
     evidenceIndex, candidateContextReader } = processServices;
@@ -278,7 +330,7 @@ function createProcurementExecutionRuntime(options) {
         validatedVolumeKeys.add(mountScopeId);resources.push({resourceKey:'volume_read:'+mountScopeId,units:1});
       }
       if(capability==='libra.media.remux@1'){
-        const sourceRef=inputs.productionSourceScopeReference,workspaceRoot=libraOptions.workspaceProductPort.rootSnapshot();
+        const sourceRef=inputs.namedInputs?.productionSourceScopeReference,workspaceRoot=libraOptions.workspaceProductPort.rootSnapshot();
         const sourceSnapshot=sourceRef?.libraRunId?libraProcessServices.movieProductionReader.readRunSnapshot(sourceRef.libraRunId):null;
         const sourceMounts=[...new Set((sourceSnapshot?.members||[]).map((item)=>item.physicalIdentity?.mountScopeId).filter(Boolean))].sort();
         if(!sourceMounts.length)throw new Error('P4_TYPED_REMUX_SOURCE_UNRESOLVED');
@@ -287,8 +339,9 @@ function createProcurementExecutionRuntime(options) {
           {resourceKey:'volume_write:'+workspaceRoot.mountScopeId,units:1});
       }
       if(capability==='libra.media.transcode@1'){
-        const sourceMount=findMountScopeId(inputs),workspaceRoot=libraOptions.workspaceProductPort.rootSnapshot();
-        const device=inputs.mediaExecutionDeviceSnapshot;
+        const named=inputs.namedInputs||{};
+        const sourceMount=findMountScopeId(named.materialHandle),workspaceRoot=libraOptions.workspaceProductPort.rootSnapshot();
+        const device=named.mediaExecutionDeviceSnapshot;
         const slots=device?.capabilityPayload?.validatedConcurrentSlots;
         if(!sourceMount||!device?.deviceId||!Number.isSafeInteger(slots)||slots<1)
           throw new Error('P4_TYPED_TRANSCODE_RESOURCE_UNRESOLVED');
@@ -306,15 +359,24 @@ function createProcurementExecutionRuntime(options) {
         'libra.external_material.acquire.observe@1','libra.external_material.stability.observe@1'].includes(capability)){
         const integrationId=findIntegrationId(inputs);if(!integrationId)throw new Error('P4_TYPED_EXTERNAL_INTEGRATION_UNRESOLVED');
         validatedIntegrationKeys.add(integrationId);resources.push({resourceKey:'integration:'+integrationId,units:1});
+        if(['libra.external_material.acquire.observe@1','libra.external_material.stability.observe@1'].includes(capability)){
+          const handle=findIntegrationHandle(inputs),binding=handle&&libraOptions.readExternalMaterialLandingBinding({
+            integrationId:handle.integrationId,configRevision:handle.configRevision,
+          });
+          if(!binding?.mountScopeId)throw new Error('P4_TYPED_EXTERNAL_LANDING_VOLUME_UNRESOLVED');
+          validatedVolumeKeys.add(binding.mountScopeId);
+          resources.push({resourceKey:'volume_read:'+binding.mountScopeId,units:1});
+        }
       }
       if(capability==='libra.workspace.material.import@1'){
-        const integrationId=inputs.namedInputs?.stableEvidence
-            ?.stableExternalMaterialHandle?.integrationId,
+        const landingMount=inputs.namedInputs?.stableEvidence
+            ?.stableExternalMaterialHandle?.landingBinding?.mountScopeId,
           workspaceRoot=libraOptions.workspaceProductPort.rootSnapshot();
-        if(!integrationId)throw new Error('P4_TYPED_EXTERNAL_IMPORT_SOURCE_UNRESOLVED');
-        validatedIntegrationKeys.add(integrationId);validatedVolumeKeys.add(workspaceRoot.mountScopeId);
-        resources.push({resourceKey:'integration:'+integrationId,units:1},
-          {resourceKey:'volume_write:'+workspaceRoot.mountScopeId,units:1});
+        if(!landingMount)throw new Error('P4_TYPED_EXTERNAL_IMPORT_SOURCE_UNRESOLVED');
+        validatedVolumeKeys.add(landingMount);validatedVolumeKeys.add(workspaceRoot.mountScopeId);
+        resources.push({resourceKey:'volume_read:'+landingMount,units:1},
+          {resourceKey:'volume_write:'+workspaceRoot.mountScopeId,units:1},
+          {resourceKey:'sqlite_write',units:1});
       }
       if(capability === 'procurement.triage.bdmv.assess@1') resources.push({resourceKey:'cpu_heavy',units:1});
       if(['procurement.field.observation.page.commit@1','procurement.candidate.publish@1','libra.intake.accept.commit@1',
@@ -345,7 +407,7 @@ function createProcurementExecutionRuntime(options) {
   const startupRecovery = createStartupRecovery({ schemaManifest: options.schemaManifest, unitOfWork: options.unitOfWork,
     registry, policyRegistry, integrityVerifier: { verify: () => ({ ok: true }) },
     catalogVerifier: { verify: (plan) => plan.catalog_digest === catalogDigest },
-    effectReconciler: { reconcile: async () => ({ decision: 'terminal_failure' }) } });
+    effectReconciler });
   let host;
   function reconcileLibraRun(libraRunId) {
     const result = libraProcessServices.libraRunCoordinator.reconcile(libraRunId);

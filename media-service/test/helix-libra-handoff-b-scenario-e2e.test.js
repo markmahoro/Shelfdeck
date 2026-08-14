@@ -5,13 +5,18 @@ const crypto = require('node:crypto');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { spawnSync } = require('node:child_process');
+const { spawn, spawnSync } = require('node:child_process');
 const test = require('node:test');
 const Database = require('better-sqlite3');
 const ffmpeg = require('ffmpeg-static');
 const { initializeCleanData } = require('../scripts/helix-operational-safety');
 const { createCleanServiceHost } = require('../src/clean-service-host');
+const { createCleanMediaProbe } = require('../src/clean-media-probe');
 const { canonicalDigest } = require('../src/helix/contracts/canonical-json');
+const { RULES_SCHEMA_REF, SYSTEM_TEMPLATE_ID } =
+  require('../src/helix/domains/arca/model/rule-template-contracts');
+const { createOutboxDispatcherHost } =
+  require('../src/helix/foundation/execution/outbox-dispatcher-host');
 
 const SOURCE_ROOT = process.env.HELIX_LIBRA_HANDOFF_B_E2E_ROOT
   ? path.resolve(process.env.HELIX_LIBRA_HANDOFF_B_E2E_ROOT)
@@ -78,6 +83,12 @@ function moviePilotFetch(downloadFile, calls) {
       }] : []);
     }
     if (url.pathname === '/api/v1/history/download') return response(200, []);
+    if (url.pathname === '/api/v1/history/transfer') return response(200, {
+      success:true,
+      data:{ list:requested ? [{ download_hash:'scenario-external-job-1', status:true,
+        dest:'/provider/organized/' + path.basename(downloadFile), type:'电影',
+        tmdbid:990001, title:'SDT-M05-External-Upgrade' }] : [], total:requested ? 1 : 0 },
+    });
     return response(404, { detail:'not found' });
   };
 }
@@ -98,40 +109,174 @@ function productHandle(intent, operationId, artifactKind = null) {
   return Object.freeze({ ...body, fenceDigest:canonicalDigest(body) });
 }
 
-function productOptions() {
+function productOptions(metadataCalls = null, metadataGate = null) {
   return Object.freeze({
     routingIntegrationHandleResolver: () => routingHandle(),
     routingProviderObservation: async ({ intent }) => Object.freeze([Object.freeze({
       providerKey:'990001', title:intent.candidateDisplayTitle,
-      originalTitle:intent.candidateDisplayTitle, releaseYear:intent.candidateYear || 2008,
+      originalTitle:intent.candidateDisplayTitle, releaseYear:intent.yearHint ?? 2008,
       regionCodes:Object.freeze(['US']), genreCodes:Object.freeze(['18']),
     })]),
     productIntegrationHandleResolver: ({ intent, operationId, artifactKind }) =>
       productHandle(intent, operationId, artifactKind || null),
-    productProviderMetadataFetch: async ({ metadataFetchIntent:intent }) => Object.freeze({
-      providerKind:'tmdb', integrationId:intent.integrationId, configRevision:intent.configRevision,
-      descriptiveEntries:Object.freeze([
-        { key:'director', value:'Scenario Director' },
-        { key:'genre', value:'Drama' },
-        { key:'plot', value:'Libra Handoff B scenario evidence' },
-        { key:'title', value:'Scenario Movie' },
-        { key:'tmdb_movie_id', value:intent.resolvedProviderIdentity.providerKey },
-        { key:'year_or_release_date', value:2008 },
-      ]),
-      providerIdentities:Object.freeze([intent.resolvedProviderIdentity]),
-      peopleHints:Object.freeze([Object.freeze({
-        displayName:'Scenario Actor', role:'actor',
-        providerIdentities:Object.freeze([Object.freeze({
-          provider:'tmdb', namespace:'tmdb_person', providerKey:'990101',
+    productProviderMetadataFetch: async ({ metadataFetchIntent:intent }) => {
+      metadataCalls?.push(Object.freeze({
+        libraRunId:intent.libraRunId,
+        requestedFields:Object.freeze([...(intent.requestedFields || [])]),
+      }));
+      if (metadataGate) await metadataGate(intent);
+      return Object.freeze({
+        providerKind:'tmdb', integrationId:intent.integrationId, configRevision:intent.configRevision,
+        descriptiveEntries:Object.freeze([
+          { key:'director', value:'Scenario Director' },
+          { key:'genre', value:'Drama' },
+          { key:'plot', value:'Libra Handoff B scenario evidence' },
+          { key:'title', value:'Scenario Movie' },
+          { key:'tmdb_movie_id', value:intent.resolvedProviderIdentity.providerKey },
+          { key:'year_or_release_date', value:2008 },
+        ]),
+        providerIdentities:Object.freeze([intent.resolvedProviderIdentity]),
+        peopleHints:Object.freeze([Object.freeze({
+          displayName:'Scenario Actor', role:'actor',
+          providerIdentities:Object.freeze([Object.freeze({
+            provider:'tmdb', namespace:'tmdb_person', providerKey:'990101',
+          })]),
         })]),
-      })]),
-    }),
+      });
+    },
     productProviderArtifactFetch: async ({ artifactKind, resolvedProviderIdentity, integrationHandle }) =>
       Object.freeze({ resultKind:'acquired',
         bytes:Buffer.from('ffd8ffe000104a46494600010100000100010000ffd9', 'hex'), artifactKind,
         integrationId:integrationHandle.integrationId, configRevision:integrationHandle.configRevision,
         mediaType:'image/jpeg', resolvedProviderIdentity }),
   });
+}
+
+function dvPipeline(profileId, inputKinds, inputFormats, outputKind, outputFormat, label) {
+  return Object.freeze({ pipelineProfileId:profileId, inputDynamicRangeKinds:Object.freeze(inputKinds),
+    inputPixelFormats:Object.freeze(inputFormats), outputCodec:'hevc', outputDynamicRangeKind:outputKind,
+    outputPixelFormat:outputFormat, outputColorProfile:outputKind==='sdr'
+      ? Object.freeze({range:'limited',primaries:'bt709',transfer:'bt709',matrix:'bt709'})
+      : Object.freeze({range:'source',primaries:'source',transfer:'source',matrix:'source'}),
+    selfTestDigest:canonicalDigest({ label }) });
+}
+
+function d10DeviceSnapshot(deviceId, deviceClass, rateControlModes) {
+  const capabilityPayload=Object.freeze({ supportedVideoCodecs:Object.freeze(['hevc']),
+    supportedRateControlModes:Object.freeze(rateControlModes), validatedConcurrentSlots:1,
+    validatedVideoPipelines:Object.freeze([
+      dvPipeline('ordinary_to_hevc@1',['sdr','hdr10_compatible','hlg','unknown'],['yuv420p','yuv420p10le'],
+        'unknown','encoder_selected',deviceId+'-ordinary'),
+      dvPipeline('pq_bt2020_base_to_sdr_bt709_hevc@1',['dolby_vision'],['yuv420p10le'],
+        'sdr','yuv420p',deviceId+'-dv'),
+    ]) }),capabilityDigest=canonicalDigest(capabilityPayload),body={deviceId,deviceClass,probeRevision:1,
+      capabilitySchemaRef:'platform.compute-device-capability@1',capabilityPayload,capabilityDigest,enabled:true,state:'ready',workerRef:null};
+  return Object.freeze({...body,snapshotDigest:canonicalDigest(body)});
+}
+
+function d10PlatformRuntime() {
+  const gpu=d10DeviceSnapshot('d10-ready-gpu','nvidia_nvenc',['target_size','strict_abr']),
+    cpu=d10DeviceSnapshot('d10-ready-cpu','software_cpu',['two_pass_abr','strict_abr']),items=[gpu,cpu],
+    refs=items.map((snapshot)=>{const body={deviceId:snapshot.deviceId,deviceClass:snapshot.deviceClass,
+      probeRevision:snapshot.probeRevision,capabilityDigest:snapshot.capabilityDigest};return Object.freeze({...body,refDigest:canonicalDigest(body)});});
+  return Object.freeze({
+    listReadyDeviceRefs(query){const body={queryDigest:query.queryDigest,resultKind:'available',items:Object.freeze(refs)};
+      return Object.freeze({...body,resultDigest:canonicalDigest(body)});},
+    readDeviceSnapshot(query){const snapshot=items.find((item)=>item.deviceId===query.deviceId),body=snapshot&&
+      snapshot.probeRevision===query.expectedProbeRevision&&snapshot.capabilityDigest===query.expectedCapabilityDigest
+      ?{queryDigest:query.queryDigest,resultKind:'found',snapshot}:{queryDigest:query.queryDigest,resultKind:'not_found'};
+      return Object.freeze({...body,resultDigest:canonicalDigest(body)});},
+  });
+}
+
+function d10Profile5Probe() {
+  const base=createCleanMediaProbe();
+  return Object.freeze({ async probe(handle) {
+    const observed=await base.probe(handle);
+    if(!String(handle.location||'').includes('SDT-D10')||observed.resultKind!=='probed')return observed;
+    const value=structuredClone(observed),video=value.videoStreams[0];
+    Object.assign(video,{codec:'hevc',codecProfile:'main 10',pixelFormat:'yuv420p10le',bitDepth:10,chroma:'4:2:0',
+      colorRange:'limited',colorPrimaries:'unknown',colorTransfer:'unknown',colorMatrix:'unknown',dynamicRangeKind:'dolby_vision',
+      dolbyVision:{profile:5,level:6,rpuPresent:true,elPresent:false,blPresent:true,compatibilityId:0,
+        baseLayerKind:'non_compatible'}});
+    value.payloadDigest=canonicalDigest(Object.fromEntries(Object.entries(value).filter(([key])=>key!=='payloadDigest')));
+    return Object.freeze(value);
+  } });
+}
+
+function noCandidateMoviePilotFetch(calls) {
+  return async (input,init={})=>{const url=new URL(String(input));calls.push(Object.freeze({path:url.pathname,method:init.method||'GET'}));
+    if(url.host!=='moviepilot.test'||url.searchParams.get('token')!==MOVIEPILOT_KEY)return response(401,{detail:'denied'});
+    if(url.pathname==='/api/v1/search/title')return response(200,{success:true,data:[]});
+    if(url.pathname==='/api/v1/download/'||url.pathname==='/api/v1/history/download')return response(200,[]);
+    if(url.pathname==='/api/v1/history/transfer')return response(200,{success:true,data:{list:[],total:0}});
+    return response(404,{detail:'not found'});};
+}
+
+function temporarySpecProjectionFault(controller) {
+  const participantIds = new Set(['run_freshness_read', 'run_lifecycle_read']);
+  return (baseUnitOfWork) => Object.freeze({
+    execute(participants) {
+      return baseUnitOfWork.execute(participants.map((participant) => {
+        if (!participantIds.has(participant.participantId)) return participant;
+        return Object.freeze({ ...participant, execute(context) {
+          let targetsRun = false;
+          const wrappedContext = Object.freeze({
+            owner:context.owner,
+            commitTimeMs:context.commitTimeMs,
+            repository(repositoryId) {
+              const repository = context.repository(repositoryId);
+              return Object.freeze({ invoke(statementId, parameters) {
+                if (statementId === 'find_run' && parameters?.libra_run_id) {
+                  if (controller.libraRunId === null) {
+                    controller.libraRunId = parameters.libra_run_id;
+                  }
+                  targetsRun = parameters.libra_run_id === controller.libraRunId;
+                }
+                if (controller.enabled && targetsRun && statementId === 'find_spec') {
+                  return null;
+                }
+                return repository.invoke(statementId, parameters);
+              } });
+            },
+          });
+          return participant.execute(wrappedContext);
+        } });
+      }));
+    },
+  });
+}
+
+function failAfterUnitOfWorkParticipant(controller) {
+  return (baseUnitOfWork) => Object.freeze({
+    execute(participants) {
+      return baseUnitOfWork.execute(participants.map((participant) => {
+        const repositoryIds = new Set(participant.repositories.map((item) => item.repositoryId));
+        const selected = participant.participantId === controller.participantId &&
+          (!controller.repositoryId || repositoryIds.has(controller.repositoryId));
+        if (!selected) return participant;
+        return Object.freeze({ ...participant, execute(context) {
+          const result = participant.execute(context);
+          if (controller.enabled) {
+            controller.hitCount += 1;
+            controller.enabled = false;
+            const error = new Error('Injected product Composition Root crash window.');
+            error.code = 'HELIX_TEST_CRASH_WINDOW';
+            throw error;
+          }
+          return result;
+        } });
+      }));
+    },
+  });
+}
+
+function copyLifecycleSample(field, scenarioName) {
+  const directory = path.join(field, scenarioName + ' (2008)');
+  fs.mkdirSync(directory, { recursive:true });
+  fs.copyFileSync(path.join(SOURCE_ROOT, 'SDT-M03-Multi-Movie-Directory',
+    'SDT-M03A-H264-Needs-Transcode (2008).mkv'),
+  path.join(directory, scenarioName + ' (2008).mkv'));
 }
 
 function reality(root) {
@@ -174,11 +319,14 @@ async function session(host, apiKey) {
   return result.headers['set-cookie'];
 }
 
-async function configureMoviePilot(host, cookie) {
+async function configureMoviePilot(host, cookie, landingRoot) {
   const tested = await host.inject({ method:'POST',
     url:'/v1/admin/settings/integrations/moviepilot/actions/test', headers:{ cookie }, payload:{
       kind:'moviepilot', idempotencyKey:'scenario-moviepilot-test', endpoint:'https://moviepilot.test',
-      credential:{ kind:'api_key', value:MOVIEPILOT_KEY }, timeoutMs:5_000,
+      credential:{ kind:'api_key', value:MOVIEPILOT_KEY }, settings:{
+        providerRequestSaveRoot:'/provider/downloads',providerOrganizedRoot:'/provider/organized',
+        shelfDeckVisibleRoot:landingRoot,
+      }, timeoutMs:5_000,
     } });
   assert.equal(tested.statusCode, 200, tested.body);
   const saved = await host.inject({ method:'PATCH', url:'/v1/admin/settings/integrations/moviepilot',
@@ -187,13 +335,36 @@ async function configureMoviePilot(host, cookie) {
   assert.equal(saved.statusCode, 200, saved.body);
 }
 
-async function createShelf(host, cookie, shelfRoot) {
+async function createShelf(host, cookie, shelfRoot, template = { templateId:SYSTEM_TEMPLATE_ID, revision:1 }) {
   const result = await host.inject({ method:'POST', url:'/v1/admin/shelves', headers:{ cookie }, payload:{
     idempotencyKey:'scenario-shelf-create', shelfId:'scenario-shelf', name:'Libra scenario shelf',
-    targetRootLocation:shelfRoot, ruleTemplateId:'system-beta-recommended', expectedTemplateRevision:1,
+    targetRootLocation:shelfRoot, ruleTemplateId:template.templateId, expectedTemplateRevision:template.revision,
     placementPolicy:{ folderTemplate:'{title} ({year})', collisionPolicy:'reject' },
   } });
   assert.equal(result.statusCode, 201, result.body);
+}
+
+async function createD10Template(host,cookie) {
+  const templateId='d10-bounded-template',headers={cookie};
+  let result=await host.inject({method:'POST',url:`/v1/admin/rule-templates/${SYSTEM_TEMPLATE_ID}/actions/copy`,headers,payload:{
+    idempotencyKey:'d10-copy-template',sourceTemplateId:SYSTEM_TEMPLATE_ID,newTemplateId:templateId,
+    name:'D10 one GiB test template',expectedSourceRevision:1}});assert.equal(result.statusCode,201,result.body);
+  result=await host.inject({method:'GET',url:`/v1/admin/rule-templates/${templateId}/draft`,headers});assert.equal(result.statusCode,200,result.body);
+  const rules=structuredClone(result.json().draft.rules),movie=rules.profileRuleSets.find((item)=>item.contentProfile==='movie'),
+    branch=movie.decisionBranches.find((item)=>item.conditionKind==='rating_equals'&&item.rating===1);
+  branch.requirements.space.maxSizeGiB=1;branch.requirements.space.maxSizeBytes=1024*1024*1024;
+  movie.profileRuleSetDigest=canonicalDigest(Object.fromEntries(Object.entries(movie).filter(([key])=>key!=='profileRuleSetDigest')));
+  const rulesDigest=canonicalDigest(rules);
+  result=await host.inject({method:'PATCH',url:`/v1/admin/rule-templates/${templateId}/draft`,headers,payload:{
+    idempotencyKey:'d10-patch-template',templateId,expectedDraftRevision:1,basePublishedRevision:1,
+    rulesSchemaRef:RULES_SCHEMA_REF,rules,rulesDigest}});assert.equal(result.statusCode,200,result.body);
+  const preview=await host.inject({method:'POST',url:`/v1/admin/rule-templates/${templateId}/actions/preview`,headers,payload:{
+    idempotencyKey:'d10-preview-template',templateId,expectedCurrentRevision:1,expectedDraftRevision:2,expectedDraftDigest:rulesDigest}});
+  assert.equal(preview.statusCode,200,preview.body);
+  result=await host.inject({method:'POST',url:`/v1/admin/rule-templates/${templateId}/actions/publish`,headers,payload:{
+    idempotencyKey:'d10-publish-template',templateId,expectedCurrentRevision:1,expectedDraftRevision:2,expectedDraftDigest:rulesDigest,
+    previewId:preview.json().previewId,previewDigest:preview.json().previewDigest}});assert.equal(result.statusCode,200,result.body);
+  return Object.freeze({templateId,revision:2});
 }
 
 async function createField(host, cookie, fieldId, fieldRoot) {
@@ -227,6 +398,21 @@ async function formation(host, cookie) {
   return response.json().items;
 }
 
+async function waitRating(host, cookie, subjectId, predicate, timeoutMs = 120_000) {
+  const deadline = Date.now() + timeoutMs;
+  let current = null;
+  while (Date.now() < deadline) {
+    const result = await host.inject({ method:'GET',
+      url:'/v1/admin/perception/records?targetType=subject&targetId=' + encodeURIComponent(subjectId),
+      headers:{ cookie } });
+    assert.equal(result.statusCode, 200, result.body);
+    current = result.json().currentRating;
+    if (current && predicate(current)) return current;
+    await pause(100);
+  }
+  assert.fail('Rating did not reach the expected state: ' + JSON.stringify(current));
+}
+
 async function waitFor(host, cookie, predicate, timeoutMs = 240_000) {
   const deadline = Date.now() + timeoutMs;
   let items = [];
@@ -238,16 +424,50 @@ async function waitFor(host, cookie, predicate, timeoutMs = 240_000) {
   assert.fail('Formation did not reach the expected scenario state: ' + JSON.stringify(items));
 }
 
+async function waitDatabase(databasePath, predicate, timeoutMs = 120_000) {
+  const deadline = Date.now() + timeoutMs;
+  let observed = null;
+  while (Date.now() < deadline) {
+    const database = new Database(databasePath, { readonly:true });
+    try {
+      observed = predicate(database);
+      if (observed) return observed;
+    } finally { database.close(); }
+    await pause(100);
+  }
+  assert.fail('Database did not reach the expected durable state: ' + JSON.stringify(observed));
+}
+
+async function waitForFile(location, child, errorPath, timeoutMs = 120_000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (fs.existsSync(location)) return JSON.parse(fs.readFileSync(location, 'utf8'));
+    if (fs.existsSync(errorPath)) assert.fail('Crash worker failed: ' + fs.readFileSync(errorPath, 'utf8'));
+    if (child.exitCode !== null) assert.fail('Crash worker exited before reaching its boundary: ' + child.exitCode);
+    await pause(50);
+  }
+  assert.fail('Crash worker did not reach its physical Effect boundary.');
+}
+
+async function terminateProcess(child) {
+  if (!child || child.exitCode !== null) return;
+  const exited = new Promise((resolve) => child.once('exit', (code, signal) => resolve({ code, signal })));
+  child.kill('SIGKILL');
+  const result = await exited;
+  assert.ok(result.signal === 'SIGKILL' || result.code !== 0,
+    'Recovery fixture must simulate ungraceful process loss.');
+}
+
 function byScenario(items, scenarioId) {
   const matches = items.filter((item) => String(item.displayIdentity || '').includes(scenarioId));
   assert.equal(matches.length, 1, scenarioId + ' must resolve to exactly one Subject.');
   return matches[0];
 }
 
-async function rate(host, cookie, subject, rating) {
+async function rate(host, cookie, subject, rating, expectedRevision = 0, idempotencyKey = null) {
   const result = await host.inject({ method:'POST', url:'/v1/admin/perception/records', headers:{ cookie }, payload:{
-    targetType:'subject', targetId:subject.subjectId, expectedRevision:0, rating,
-    idempotencyKey:'scenario-rating-' + rating + '-' + subject.subjectId,
+    targetType:'subject', targetId:subject.subjectId, expectedRevision, rating,
+    idempotencyKey:idempotencyKey || 'scenario-rating-' + rating + '-' + subject.subjectId,
   } });
   assert.equal(result.statusCode, 202,
     result.body + (lastRequestError ? '\n' + lastRequestError.stack : ''));
@@ -261,17 +481,89 @@ async function route(host, cookie, fieldId) {
   assert.equal(result.statusCode, 200, result.body);
 }
 
+async function expedite(host, cookie, run, idempotencyKey) {
+  const result = await host.inject({ method:'POST',
+    url:'/v1/admin/formation/runs/' + run.libraRunId + '/actions/expedite',
+    headers:{ cookie }, payload:{ idempotencyKey,
+      expectedRunStateRevision:run.stateRevision,
+      expectedRunStateDigest:run.stateDigest } });
+  assert.equal(result.statusCode, 200, result.body);
+  return result.json();
+}
+
+const REQUIRED_SCENARIOS = Object.freeze([
+  'SDT-M01','SDT-M02','SDT-M03A','SDT-M03B','SDT-M05','SDT-M06','SDT-M07','SDT-G08','SDT-G09','SDT-L06',
+]);
+const CONTENT_AUDIT_SCENARIOS = Object.freeze([
+  ...REQUIRED_SCENARIOS,
+  'SDT-D02',
+  'SDT-M08',
+  'SDT-G01',
+  'SDT-G06',
+]);
+
+function itemByScenario(items, scenarioId) {
+  return items.find((item) => String(item.displayIdentity || '').includes(scenarioId)) || null;
+}
+
+function isOfferReady(item) {
+  return item?.productionStage === 'handoff_b_ready' && item?.handoffB?.state === 'published' && item?.handoffB?.offerId;
+}
+
+async function waitForOrTimeout(host, cookie, predicate, timeoutMs = 240_000) {
+  const deadline = Date.now() + timeoutMs;
+  let items = [];
+  while (Date.now() < deadline) {
+    items = await formation(host, cookie);
+    if (predicate(items)) return Object.freeze({ hit:true, items });
+    await pause(50);
+  }
+  return Object.freeze({ hit:false, items });
+}
+
+function runtimeSnapshot(databasePath) {
+  const database = new Database(databasePath, { readonly:true });
+  try {
+    return Object.freeze({
+      fieldObservations:Number(database.prepare(
+        "SELECT count(*) count FROM fx_supporting_works WHERE process_type='material_field' AND work_kind='field_observation'").get().count),
+      executingMediaEffects:Number(database.prepare(`
+        SELECT count(*) count FROM fx_workflow_events
+         WHERE state='executing'
+           AND capability_ref IN ('libra.media.remux@1','libra.media.transcode@1','libra.workspace.material.import@1')`).get().count),
+      nonterminalWorks:Number(database.prepare(`
+        SELECT count(*) count FROM fx_supporting_works
+         WHERE owner_domain='libra' AND state NOT IN ('succeeded','failed','cancelled','superseded')`).get().count),
+      nonterminalEvents:Number(database.prepare(`
+        SELECT count(*) count FROM fx_workflow_events
+         WHERE owner_domain='libra' AND state NOT IN ('succeeded','failed','cancelled','superseded')`).get().count),
+    });
+  } finally { database.close(); }
+}
+
+function offerMap(evidence) {
+  return Object.freeze(Object.fromEntries(REQUIRED_SCENARIOS.map((id) => {
+    const row = evidence.rows.find((item) => String(item.display_identity || '').includes(id));
+    return [id, row?.offer_id || null];
+  })));
+}
+
 function productEvidence(databasePath) {
   const database = new Database(databasePath, { readonly:true });
   try {
     const rows = database.prepare(`
-      SELECT s.subject_id,s.display_identity,r.libra_run_id,r.state,r.priority_class,
+      SELECT s.subject_id,i.display_identity,r.libra_run_id,r.state,r.priority_class,
              p.on_deck_package_id,p.offer_id,p.package_digest
         FROM libra_subjects s
         JOIN libra_runs r ON r.subject_id=s.subject_id
+        LEFT JOIN libra_product_identity_revisions i
+          ON i.subject_id=s.subject_id
+         AND i.revision=(
+           SELECT MAX(revision) FROM libra_product_identity_revisions
+            WHERE subject_id=s.subject_id)
         LEFT JOIN libra_product_packages p ON p.libra_run_id=r.libra_run_id
        WHERE r.state='active'
-       ORDER BY s.display_identity`).all();
+       ORDER BY i.display_identity`).all();
     const capabilityCounts = Object.fromEntries(database.prepare(`
       SELECT capability_ref,count(*) count FROM fx_workflow_events
        WHERE owner_domain='libra' GROUP BY capability_ref ORDER BY capability_ref`).all()
@@ -289,7 +581,7 @@ function productEvidence(databasePath) {
 
 test('P14 real bytes cover the Libra main production paths through open Handoff B Offers', {
   skip:SOURCE_ROOT === null ? 'Set HELIX_LIBRA_HANDOFF_B_E2E_ROOT to the isolated P14 Material Field.' : false,
-  timeout:360_000,
+  timeout:420_000,
 }, async (t) => {
   assert.equal(fs.statSync(SOURCE_ROOT).isDirectory(), true);
   const sourceBefore = reality(SOURCE_ROOT);
@@ -312,8 +604,11 @@ test('P14 real bytes cover the Libra main production paths through open Handoff 
   lastRequestError = null;
   const host = await createCleanServiceHost({ dataDir, adminDistDir:admin, secretRoot:SECRET,
     libraWorkspaceRoot:path.join(root, 'libra-workspaces'), integrationFetch:moviePilotFetch(external, calls),
-    moviePilotSavePath:downloads, moviePilotDownloadRoots:[downloads], ...productOptions(),
-    onExecutionRuntimeError(error) { runtimeError = error; },
+    ...productOptions(),
+    onExecutionRuntimeError(error) {
+      runtimeError = error;
+      if (process.env.HELIX_TEST_LOG_RUNTIME_ERROR === '1') console.error(error);
+    },
     onRequestError(error) { lastRequestError = error; },
   });
   t.after(async () => {
@@ -321,7 +616,7 @@ test('P14 real bytes cover the Libra main production paths through open Handoff 
     if (process.env.HELIX_KEEP_TEST_ASSETS !== '1') fs.rmSync(root, { recursive:true, force:true, maxRetries:5, retryDelay:100 });
   });
   const cookie = await session(host, initialized.adminApiKey);
-  await configureMoviePilot(host, cookie);
+  await configureMoviePilot(host, cookie, downloads);
   await createShelf(host, cookie, shelf);
   await createField(host, cookie, 'p14-main-field', SOURCE_ROOT);
   await createField(host, cookie, 'p14-premium-field', supplemental);
@@ -329,7 +624,7 @@ test('P14 real bytes cover the Libra main production paths through open Handoff 
   await observe(host, cookie, 'p14-premium-field');
 
   const subjects = await waitFor(host, cookie, (items) =>
-    ['SDT-M01','SDT-M02','SDT-M03A','SDT-M03B','SDT-M05','SDT-M06','SDT-M07','SDT-G08','SDT-G09','SDT-L06']
+    ['SDT-M01','SDT-M02','SDT-M03A','SDT-M03B','SDT-M05','SDT-M06','SDT-M07','SDT-G02','SDT-G08','SDT-G09','SDT-L06']
       .every((id) => items.some((item) => String(item.displayIdentity || '').includes(id))));
   await rate(host, cookie, byScenario(subjects, 'SDT-M03A'), 1);
   await rate(host, cookie, byScenario(subjects, 'SDT-M03B'), 2);
@@ -340,11 +635,8 @@ test('P14 real bytes cover the Libra main production paths through open Handoff 
   await route(host, cookie, 'p14-main-field');
   await route(host, cookie, 'p14-premium-field');
 
-  const required = ['SDT-M01','SDT-M02','SDT-M03A','SDT-M03B','SDT-M05','SDT-M06','SDT-M07','SDT-G08','SDT-G09','SDT-L06'];
-  await waitFor(host, cookie, (items) => required.every((id) => {
-    const item = items.find((entry) => String(entry.displayIdentity || '').includes(id));
-    return item?.offerStage === 'handoff_b_offer_open';
-  }), 330_000);
+  const required = REQUIRED_SCENARIOS;
+  await waitFor(host, cookie, (items) => required.every((id) => isOfferReady(itemByScenario(items, id))), 330_000);
   assert.ifError(runtimeError);
 
   const evidence = productEvidence(path.join(dataDir, 'shelfdeck.db'));
@@ -363,4 +655,1250 @@ test('P14 real bytes cover the Libra main production paths through open Handoff 
   assert.ok(calls.some((item) => item.path === '/api/v1/download/add' && item.method === 'POST'));
   assert.deepEqual(reality(SOURCE_ROOT), sourceBefore);
   t.diagnostic('Libra main-path evidence: ' + JSON.stringify(evidence));
+});
+
+test('P14 restart and lost wake continue legal Libra Runs to open Handoff B Offers', {
+  skip:SOURCE_ROOT === null ? 'Set HELIX_LIBRA_HANDOFF_B_E2E_ROOT to the isolated P14 Material Field.' : false,
+  timeout:420_000,
+}, async (t) => {
+  assert.equal(fs.statSync(SOURCE_ROOT).isDirectory(), true);
+  const sourceBefore = reality(SOURCE_ROOT);
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'helix-libra-restart-'));
+  const dataDir = path.join(root, 'data');
+  const admin = path.join(root, 'admin');
+  const shelf = path.join(root, 'shelf');
+  const supplemental = path.join(root, 'supplemental-field');
+  const downloads = path.join(root, 'moviepilot-downloads');
+  [admin, shelf, supplemental, downloads].forEach((directory) => fs.mkdirSync(directory, { recursive:true }));
+  fs.writeFileSync(path.join(admin, 'index.html'), '<div id="root"></div>');
+  const premium = buildPremiumSample(supplemental);
+  const external = path.join(downloads, 'SDT-M05-External-Upgrade.2025.2160p.mkv');
+  fs.copyFileSync(premium, external);
+  const old = new Date(Date.now() - 120_000);
+  fs.utimesSync(external, old, old);
+  const initialized = initializeCleanData({ dataDir, confirmation:'INITIALIZE_HELIX_CLEAN_V1', secretRoot:SECRET });
+  const calls = [];
+  const integrationFetch = moviePilotFetch(external, calls);
+  let runtimeError = null;
+  lastRequestError = null;
+  const hostOptions = () => Object.freeze({
+    dataDir, adminDistDir:admin, secretRoot:SECRET,
+    libraWorkspaceRoot:path.join(root, 'libra-workspaces'), integrationFetch,
+    ...productOptions(),
+    onExecutionRuntimeError(error) {
+      runtimeError = error;
+      if (process.env.HELIX_TEST_LOG_RUNTIME_ERROR === '1') console.error(error);
+    },
+    onRequestError(error) { lastRequestError = error; },
+  });
+  let host = await createCleanServiceHost(hostOptions());
+  t.after(async () => {
+    await host.close();
+    if (process.env.HELIX_KEEP_TEST_ASSETS !== '1') fs.rmSync(root, { recursive:true, force:true, maxRetries:5, retryDelay:100 });
+  });
+  const cookie = await session(host, initialized.adminApiKey);
+  await configureMoviePilot(host, cookie, downloads);
+  await createShelf(host, cookie, shelf);
+  await createField(host, cookie, 'p14-restart-main', SOURCE_ROOT);
+  await createField(host, cookie, 'p14-restart-premium', supplemental);
+  await observe(host, cookie, 'p14-restart-main');
+  await observe(host, cookie, 'p14-restart-premium');
+
+  const subjects = await waitFor(host, cookie, (items) =>
+    ['SDT-M01','SDT-M02','SDT-M03A','SDT-M03B','SDT-M05','SDT-M06','SDT-M07','SDT-G02','SDT-G08','SDT-G09','SDT-L06']
+      .every((id) => items.some((item) => String(item.displayIdentity || '').includes(id))));
+  await rate(host, cookie, byScenario(subjects, 'SDT-M03A'), 1);
+  await rate(host, cookie, byScenario(subjects, 'SDT-M03B'), 2);
+  await rate(host, cookie, byScenario(subjects, 'SDT-G02'), 3);
+  await rate(host, cookie, byScenario(subjects, 'SDT-M02'), 4);
+  await rate(host, cookie, byScenario(subjects, 'SDT-L06'), 5);
+  await rate(host, cookie, byScenario(subjects, 'SDT-M05'), 5);
+  await route(host, cookie, 'p14-restart-main');
+  await route(host, cookie, 'p14-restart-premium');
+
+  const interrupt = await waitForOrTimeout(host, cookie, (items) => {
+    const producing = REQUIRED_SCENARIOS.filter((id) => itemByScenario(items, id)?.productionStage === 'production');
+    const ready = REQUIRED_SCENARIOS.filter((id) => isOfferReady(itemByScenario(items, id)));
+    if (producing.length < 1 || ready.length === REQUIRED_SCENARIOS.length) return false;
+    return runtimeSnapshot(path.join(dataDir, 'shelfdeck.db')).executingMediaEffects === 0;
+  }, 90_000);
+  assert.ifError(runtimeError);
+  assert.equal(interrupt.hit, true, 'Restart fixture must interrupt at least one required Run still in production.');
+
+  const databasePath = path.join(dataDir, 'shelfdeck.db');
+  const before = productEvidence(databasePath);
+  const beforeOffers = offerMap(before);
+  const beforeRuntime = runtimeSnapshot(databasePath);
+  const downloadAddsBefore = calls.filter((item) => item.path === '/api/v1/download/add').length;
+  assert.ok(beforeRuntime.nonterminalWorks + beforeRuntime.nonterminalEvents > 0
+    || REQUIRED_SCENARIOS.some((id) => !beforeOffers[id]),
+  'Lost-wake fixture must leave unfinished Libra Work or unpublished required Offers.');
+
+  await host.close();
+  host = await createCleanServiceHost(hostOptions());
+  const restartedCookie = await session(host, initialized.adminApiKey);
+  const recovered = await waitFor(host, restartedCookie, (items) =>
+    REQUIRED_SCENARIOS.every((id) => isOfferReady(itemByScenario(items, id))), 330_000);
+  assert.ifError(runtimeError);
+
+  const after = productEvidence(databasePath);
+  const afterOffers = offerMap(after);
+  const afterRuntime = runtimeSnapshot(databasePath);
+  for (const id of REQUIRED_SCENARIOS) {
+    const rows = after.rows.filter((row) => String(row.display_identity || '').includes(id));
+    assert.equal(rows.length, 1, id + ' must have exactly one active Run after restart.');
+    assert.ok(rows[0].offer_id, id + ' must have one open Handoff B Offer after restart.');
+    if (beforeOffers[id]) assert.equal(afterOffers[id], beforeOffers[id], id + ' must keep the same Offer across restart.');
+  }
+  assert.equal(afterRuntime.fieldObservations, beforeRuntime.fieldObservations);
+  assert.equal(afterRuntime.fieldObservations, 2);
+  assert.equal(after.failedWorks, 0);
+  assert.equal(after.failedEvents, 0);
+  assert.equal(after.consumedOffers, 0);
+  assert.equal(after.arcaEntries, 0);
+  assert.ok((after.capabilityCounts['libra.media.transcode@1'] || 0) >= 2);
+  assert.ok((after.capabilityCounts['libra.media.remux@1'] || 0) >= 4);
+  assert.ok((after.capabilityCounts['libra.external_material.package.verify@1'] || 0) >= 1);
+  const downloadAddsAfter = calls.filter((item) => item.path === '/api/v1/download/add').length;
+  assert.ok(downloadAddsAfter >= 1);
+  assert.ok(downloadAddsAfter <= Math.max(1, downloadAddsBefore),
+    'Restart must not issue a second MoviePilot download after a lost wake.');
+  assert.deepEqual(reality(SOURCE_ROOT), sourceBefore);
+  t.diagnostic('Libra restart/lost-wake evidence: ' + JSON.stringify({
+    interruptedReady: REQUIRED_SCENARIOS.filter((id) => beforeOffers[id]).length,
+    beforeRuntime, afterRuntime, downloadAddsBefore, downloadAddsAfter,
+    recovered: recovered.length, packages: after.packages,
+  }));
+});
+
+function runCaps(database, libraRunId) {
+  return Object.fromEntries(database.prepare(`
+    SELECT e.capability_ref, count(*) count
+      FROM fx_workflow_events e
+      JOIN fx_supporting_works w ON w.work_id=e.work_id
+     WHERE w.process_id=?
+     GROUP BY e.capability_ref`).all(libraRunId).map((row) => [row.capability_ref, Number(row.count)]));
+}
+
+function selectedMediaVerification(database, libraRunId) {
+  const resultRows = database.prepare(`
+    SELECT e.capability_ref, r.result_json, r.committed_at_ms
+      FROM fx_event_result_bindings r
+      JOIN fx_workflow_events e ON e.event_id=r.event_id
+      JOIN fx_supporting_works w ON w.work_id=e.work_id
+     WHERE w.process_id=?
+       AND e.capability_ref IN ('libra.product_media.verify@1','libra.product_output.select@1')
+     ORDER BY r.committed_at_ms, r.result_id`).all(libraRunId);
+  const selections = resultRows
+    .filter((row) => row.capability_ref === 'libra.product_output.select@1')
+    .map((row) => JSON.parse(row.result_json))
+    .filter((result) => result.result === 'selected');
+  assert.equal(selections.length, 1,
+    libraRunId + ' must have exactly one selected Product Output across all attempts.');
+  const verifications = resultRows
+    .filter((row) => row.capability_ref === 'libra.product_media.verify@1')
+    .map((row) => JSON.parse(row.result_json));
+  const selected = verifications.find((result) =>
+    result.verificationId === selections[0].selectedVerificationId);
+  assert.ok(selected,
+    libraRunId + ' selected Product Verification must be durable and reconstructable.');
+  assert.equal(selected.result, 'passed');
+  assert.equal(selected.spaceSummary.withinLimit, true);
+  return selected;
+}
+
+function auditRequiredPackages(databasePath) {
+  const database = new Database(databasePath, { readonly:true });
+  try {
+    const rows = database.prepare(`
+      SELECT r.libra_run_id, r.subject_id, r.state, r.priority_class, p.on_deck_package_id, p.offer_id,
+             p.product_structure_json, p.offload_context_digest, p.related_disposition_set_digest,
+             p.attestation_digest, p.package_digest, i.display_identity
+        FROM libra_runs r
+        JOIN libra_product_packages p ON p.libra_run_id=r.libra_run_id
+        LEFT JOIN libra_product_identity_revisions i
+          ON i.subject_id=r.subject_id
+         AND i.revision=(SELECT MAX(revision) FROM libra_product_identity_revisions x WHERE x.subject_id=r.subject_id)
+       WHERE r.state='active'`).all();
+    const audited = {};
+    for (const id of REQUIRED_SCENARIOS) {
+      const row = rows.find((item) => String(item.display_identity || '').includes(id));
+      assert.ok(row, id + ' must have an active published Package.');
+      const structure = JSON.parse(row.product_structure_json);
+      assert.equal(structure.structureKind, 'single', id);
+      assert.ok(row.offer_id, id);
+      assert.ok(row.offload_context_digest, id + ' must carry Off-load Context.');
+      assert.ok(row.related_disposition_set_digest, id + ' must carry Related disposition mapping.');
+      assert.ok(row.attestation_digest, id + ' must carry Delivery Attestation.');
+      const facts = database.prepare(`
+        SELECT fact_kind FROM libra_product_fact_revisions WHERE libra_run_id=?`).all(row.libra_run_id)
+        .map((item) => item.fact_kind);
+      for (const kind of ['resolved_identity', 'product_metadata', 'media_cast']) {
+        assert.ok(facts.includes(kind), id + ' missing ' + kind);
+      }
+      const metadata = JSON.parse(database.prepare(`
+        SELECT fact_json FROM libra_product_fact_revisions
+         WHERE libra_run_id=? AND fact_kind='product_metadata'`).get(row.libra_run_id).fact_json);
+      const keys = new Set((metadata.descriptiveFacts?.entries || []).map((item) => item.key));
+      for (const key of ['title', 'year_or_release_date', 'plot', 'genre', 'director']) {
+        assert.ok(keys.has(key), id + ' metadata missing ' + key);
+      }
+      const mediaCast = JSON.parse(database.prepare(`
+        SELECT fact_json FROM libra_product_fact_revisions
+         WHERE libra_run_id=? AND fact_kind='media_cast'`).get(row.libra_run_id).fact_json);
+      const hasActor = keys.has('actor') ||
+        (mediaCast.relations || []).some((item) => item.role === 'actor' && item.displayName);
+      assert.ok(hasActor, id + ' must keep an actor in Metadata or Media-Cast.');
+      const artifacts = database.prepare(`
+        SELECT artifact_kind, materialization_state FROM libra_product_package_artifact_refs
+         WHERE on_deck_package_id=?`).all(row.on_deck_package_id);
+      assert.ok(artifacts.some((item) => item.artifact_kind === 'nfo' && item.materialization_state === 'included_product'), id + ' nfo');
+      assert.ok(artifacts.some((item) => item.artifact_kind === 'poster' && item.materialization_state === 'included_product'), id + ' poster');
+      const caps = runCaps(database, row.libra_run_id);
+      const mediaVerification = selectedMediaVerification(database, row.libra_run_id);
+      const selectionPlans = database.prepare(`
+        SELECT n.input_bindings_json
+          FROM fx_plan_nodes n
+          JOIN fx_workflow_events e
+            ON e.plan_id=n.plan_id AND e.node_id=n.node_id
+          JOIN fx_supporting_works w ON w.work_id=e.work_id
+         WHERE w.process_id=?
+           AND n.capability_ref='libra.product_output.select@1'`).all(row.libra_run_id);
+      assert.ok(selectionPlans.length >= 1,
+        id + ' must execute at least one Plan-frozen Product Output Selection.');
+      for (const selectionPlan of selectionPlans) {
+        const bindingSet = JSON.parse(selectionPlan.input_bindings_json);
+        const binding = bindingSet.bindings.find((item) =>
+          item.portName === 'productOutputSelectionInput');
+        assert.ok(binding, id + ' Selection Plan lacks its typed input binding.');
+        assert.ok(['projected_event_result', 'projected_event_results']
+          .includes(binding.bindingKind), id + ' Selection Plan uses an invalid binding kind.');
+        const ranked = binding.parameters?.rankedCandidates;
+        assert.ok(Array.isArray(ranked) && ranked.length >= 1 && ranked.length <= 32,
+          id + ' Selection rank must be frozen in the immutable Plan.');
+        assert.deepEqual(ranked.map((item) => item.rank),
+          ranked.map((_item, index) => index + 1),
+          id + ' Selection rank must be a closed sequence.');
+        assert.equal(new Set(ranked.map((item) => item.candidateId)).size, ranked.length,
+          id + ' Selection Plan cannot repeat a Candidate identity.');
+      }
+      const primary = database.prepare(`
+        SELECT location_kind, role FROM libra_product_package_materials
+         WHERE on_deck_package_id=? AND role='primary_payload'`).all(row.on_deck_package_id);
+      assert.equal(primary.length, 1, id + ' must have exactly one Primary.');
+      audited[id] = Object.freeze({
+        libraRunId: row.libra_run_id, offerId: row.offer_id, caps,
+        primaryKind: primary[0].location_kind, mediaVerification,
+      });
+    }
+    const m01 = audited['SDT-M01'];
+    assert.equal(m01.caps['libra.media.transcode@1'] || 0, 0);
+    assert.equal(m01.caps['libra.media.remux@1'] || 0, 0);
+    assert.equal(m01.primaryKind, 'domain_binding');
+    assert.equal(m01.mediaVerification.qualitySummary.videoCodec, 'h264');
+    assert.equal(m01.mediaVerification.spaceSummary.maxSizeBytes, null);
+    const m01Roles = database.prepare(`
+      SELECT DISTINCT role FROM libra_product_package_materials
+       WHERE on_deck_package_id=(SELECT on_deck_package_id FROM libra_product_packages WHERE libra_run_id=?)`)
+      .all(m01.libraRunId).map((item) => item.role);
+    for (const role of ['primary_payload', 'poster', 'metadata_sidecar', 'subtitle', 'fanart']) {
+      assert.ok(m01Roles.includes(role), 'D05 M01 missing ' + role);
+    }
+    assert.ok((audited['SDT-M03A'].caps['libra.media.transcode@1'] || 0) >= 1);
+    assert.equal(audited['SDT-M03B'].caps['libra.media.transcode@1'] || 0, 0);
+    const g02 = rows.find((item) => String(item.display_identity || '').includes('SDT-G02'));
+    assert.ok(g02, 'L04 G02 must publish a 3-star Package.');
+    assert.ok((runCaps(database, g02.libra_run_id)['libra.media.transcode@1'] || 0) >= 1);
+    const g02Verification = selectedMediaVerification(database, g02.libra_run_id);
+    assert.equal(audited['SDT-M02'].caps['libra.media.transcode@1'] || 0, 0);
+    assert.equal(audited['SDT-L06'].caps['libra.media.transcode@1'] || 0, 0);
+    assert.equal(audited['SDT-L06'].caps['libra.media.remux@1'] || 0, 0);
+    assert.equal(audited['SDT-L06'].caps['libra.workspace.material.import@1'] || 0, 0);
+    assert.ok((audited['SDT-M05'].caps['libra.workspace.material.import@1'] || 0) >= 1);
+    assert.equal(audited['SDT-M05'].caps['libra.media.transcode@1'] || 0, 0);
+    assert.ok((audited['SDT-M06'].caps['libra.media.remux@1'] || 0) >= 1);
+    assert.ok((audited['SDT-M07'].caps['libra.media.remux@1'] || 0) >= 1);
+    assert.ok((audited['SDT-G08'].caps['libra.media.remux@1'] || 0) >= 1);
+    assert.ok((audited['SDT-G09'].caps['libra.media.remux@1'] || 0) >= 1);
+    const ratedProducts = Object.freeze([
+      Object.freeze({ id:'SDT-M03A', maxSizeBytes:2 * 1024 ** 3 }),
+      Object.freeze({ id:'SDT-M03B', maxSizeBytes:4 * 1024 ** 3 }),
+      Object.freeze({ id:'SDT-M02', maxSizeBytes:14 * 1024 ** 3 }),
+      Object.freeze({ id:'SDT-L06', maxSizeBytes:50 * 1024 ** 3 }),
+      Object.freeze({ id:'SDT-M05', maxSizeBytes:50 * 1024 ** 3 }),
+    ]);
+    for (const expected of ratedProducts) {
+      const verification = audited[expected.id].mediaVerification;
+      assert.equal(verification.qualitySummary.videoCodec, 'hevc', expected.id);
+      assert.equal(verification.spaceSummary.maxSizeBytes, expected.maxSizeBytes, expected.id);
+      assert.ok(verification.spaceSummary.actualSizeBytes <= expected.maxSizeBytes, expected.id);
+    }
+    assert.equal(g02Verification.qualitySummary.videoCodec, 'hevc');
+    assert.equal(g02Verification.spaceSummary.maxSizeBytes, 8 * 1024 ** 3);
+    assert.ok(g02Verification.spaceSummary.actualSizeBytes <= 8 * 1024 ** 3);
+    for (const id of ['SDT-L06', 'SDT-M05']) {
+      const quality = audited[id].mediaVerification.qualitySummary;
+      assert.equal(quality.displayRasterClass, '4k', id);
+      assert.equal(quality.systemUpscaleDetected, false, id);
+      assert.ok(quality.primaryAudioClasses.some((audioClass) =>
+        ['truehd', 'truehd_atmos', 'dts_hd_ma', 'dts_x', 'eac3_atmos'].includes(audioClass)),
+      id + ' must preserve an accepted premium primary audio class.');
+    }
+    for (const id of ['SDT-M06', 'SDT-M07', 'SDT-G08', 'SDT-G09']) {
+      const verification = audited[id].mediaVerification;
+      assert.equal(verification.qualitySummary.container, 'matroska', id);
+      assert.equal(verification.qualitySummary.fileExtension, 'mkv', id);
+    }
+    const m08 = rows.find((item) => String(item.display_identity || '').includes('SDT-M08'));
+    assert.ok(m08, 'D03 M08 must publish with generated NFO.');
+    const m08Artifacts = database.prepare(`
+      SELECT artifact_kind, materialization_state FROM libra_product_package_artifact_refs
+       WHERE on_deck_package_id=?`).all(m08.on_deck_package_id);
+    assert.ok(m08Artifacts.some((item) => item.artifact_kind === 'nfo' &&
+      item.materialization_state === 'included_product'), 'D03 M08 must include generated NFO.');
+    assert.ok(m08Artifacts.some((item) => item.artifact_kind === 'poster' &&
+      item.materialization_state === 'included_product'), 'D03 M08 must include acquired poster.');
+    const d02 = rows.find((item) => String(item.display_identity || '').includes('SDT-D02'));
+    assert.ok(d02, 'D02 incomplete NFO must publish a Product Package.');
+    const d02Metadata = JSON.parse(database.prepare(`
+      SELECT fact_json FROM libra_product_fact_revisions
+       WHERE libra_run_id=? AND fact_kind='product_metadata'`).get(d02.libra_run_id).fact_json);
+    const d02Fields = new Map(d02Metadata.descriptiveFacts.entries.map((item) => [item.key, item.value]));
+    const d02Provenance = new Map(d02Metadata.fieldProvenance.map((item) => [item.fieldPath, item.sourceKind]));
+    assert.equal(d02Fields.get('title'), 'SDT-D02 User Preserved Title');
+    assert.equal(d02Provenance.get('title'), 'related_nfo');
+    assert.equal(d02Fields.get('plot'), 'Libra Handoff B scenario evidence');
+    assert.equal(d02Provenance.get('plot'), 'provider');
+    const d02Primary = database.prepare(`
+      SELECT location_kind FROM libra_product_package_materials
+       WHERE on_deck_package_id=? AND role='primary_payload'`).get(d02.on_deck_package_id);
+    audited['SDT-D02'] = Object.freeze({
+      libraRunId:d02.libra_run_id,
+      offerId:d02.offer_id,
+      caps:runCaps(database, d02.libra_run_id),
+      primaryKind:d02Primary.location_kind,
+    });
+    const g01 = rows.find((item) => String(item.display_identity || '').includes('SDT-G01'));
+    assert.ok(g01, 'D04 G01 must publish after replacing stale Related.');
+    const g06 = rows.find((item) => String(item.display_identity || '').includes('SDT-G06'));
+    assert.ok(g06, 'D07 G06 must publish with a current Related disposition.');
+    return Object.freeze(audited);
+  } finally { database.close(); }
+}
+
+test('P14 matrix audits packages then supersedes a Run after rating change', {
+  skip:SOURCE_ROOT === null ? 'Set HELIX_LIBRA_HANDOFF_B_E2E_ROOT to the isolated P14 Material Field.' : false,
+  timeout:420_000,
+}, async (t) => {
+  assert.equal(fs.statSync(SOURCE_ROOT).isDirectory(), true);
+  const sourceBefore = reality(SOURCE_ROOT);
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'helix-libra-matrix-'));
+  const dataDir = path.join(root, 'data');
+  const admin = path.join(root, 'admin');
+  const shelf = path.join(root, 'shelf');
+  const supplemental = path.join(root, 'supplemental-field');
+  const downloads = path.join(root, 'moviepilot-downloads');
+  [admin, shelf, supplemental, downloads].forEach((directory) => fs.mkdirSync(directory, { recursive:true }));
+  fs.writeFileSync(path.join(admin, 'index.html'), '<div id="root"></div>');
+  const premium = buildPremiumSample(supplemental);
+  const d02Directory = path.join(supplemental, 'SDT-D02-Incomplete-NFO (2008)');
+  fs.mkdirSync(d02Directory, { recursive:true });
+  fs.copyFileSync(path.join(SOURCE_ROOT, 'SDT-M08-Missing-NFO (2008)',
+    'SDT-M08-Missing-NFO (2008).mkv'), path.join(d02Directory, 'SDT-D02-Incomplete-NFO (2008).mkv'));
+  fs.writeFileSync(path.join(d02Directory, 'movie.nfo'),
+    '<movie><title>SDT-D02 User Preserved Title</title></movie>');
+  fs.copyFileSync(path.join(SOURCE_ROOT, 'SDT-M08-Missing-NFO (2008)', 'poster.jpg'),
+    path.join(d02Directory, 'poster.jpg'));
+  const external = path.join(downloads, 'SDT-M05-External-Upgrade.2025.2160p.mkv');
+  fs.copyFileSync(premium, external);
+  fs.utimesSync(external, new Date(Date.now() - 120_000), new Date(Date.now() - 120_000));
+  const initialized = initializeCleanData({ dataDir, confirmation:'INITIALIZE_HELIX_CLEAN_V1', secretRoot:SECRET });
+  const calls = [];
+  const metadataCalls = [];
+  let runtimeError = null;
+  lastRequestError = null;
+  const host = await createCleanServiceHost({ dataDir, adminDistDir:admin, secretRoot:SECRET,
+    libraWorkspaceRoot:path.join(root, 'libra-workspaces'), integrationFetch:moviePilotFetch(external, calls),
+    ...productOptions(metadataCalls),
+    onExecutionRuntimeError(error) {
+      runtimeError = error;
+      if (process.env.HELIX_TEST_LOG_RUNTIME_ERROR === '1') console.error(error);
+    },
+    onRequestError(error) { lastRequestError = error; },
+  });
+  t.after(async () => {
+    await host.close();
+    if (process.env.HELIX_KEEP_TEST_ASSETS !== '1') fs.rmSync(root, { recursive:true, force:true, maxRetries:5, retryDelay:100 });
+  });
+  const cookie = await session(host, initialized.adminApiKey);
+  await configureMoviePilot(host, cookie, downloads);
+  await createShelf(host, cookie, shelf);
+  await createField(host, cookie, 'p14-matrix-main', SOURCE_ROOT);
+  await createField(host, cookie, 'p14-matrix-premium', supplemental);
+  await observe(host, cookie, 'p14-matrix-main');
+  await observe(host, cookie, 'p14-matrix-premium');
+  const subjects = await waitFor(host, cookie, (items) =>
+    ['SDT-M01','SDT-M02','SDT-M03A','SDT-M03B','SDT-M05','SDT-M06','SDT-M07','SDT-G02','SDT-G08','SDT-G09','SDT-L06']
+      .every((id) => items.some((item) => String(item.displayIdentity || '').includes(id))));
+  await rate(host, cookie, byScenario(subjects, 'SDT-M03A'), 1);
+  await rate(host, cookie, byScenario(subjects, 'SDT-M03B'), 2);
+  await rate(host, cookie, byScenario(subjects, 'SDT-G02'), 3);
+  await rate(host, cookie, byScenario(subjects, 'SDT-M02'), 4);
+  await rate(host, cookie, byScenario(subjects, 'SDT-L06'), 5);
+  await rate(host, cookie, byScenario(subjects, 'SDT-M05'), 5);
+  await route(host, cookie, 'p14-matrix-main');
+  await route(host, cookie, 'p14-matrix-premium');
+  await waitFor(host, cookie, (items) => CONTENT_AUDIT_SCENARIOS
+    .every((id) => isOfferReady(itemByScenario(items, id))), 330_000);
+  assert.ifError(runtimeError);
+
+  const databasePath = path.join(dataDir, 'shelfdeck.db');
+  const audited = auditRequiredPackages(databasePath);
+  const d02Call = metadataCalls.find((item) =>
+    item.libraRunId === audited['SDT-D02'].libraRunId);
+  assert.ok(d02Call, 'D02 must use Provider only after the incomplete NFO.');
+  assert.equal(d02Call.requestedFields.includes('title'), false,
+    'D02 Provider Gap fill must not request the NFO title again.');
+  assert.ok(d02Call.requestedFields.includes('plot'));
+  const l06RunId = audited['SDT-L06'].libraRunId;
+  const m01Before = itemByScenario(await formation(host, cookie), 'SDT-M01');
+  assert.ok(m01Before.currentRun);
+
+  await rate(host, cookie, m01Before, 1);
+  await waitFor(host, cookie, (items) => {
+    const item = itemByScenario(items, 'SDT-M01');
+    return item?.currentRun?.libraRunId
+      && item.currentRun.libraRunId !== m01Before.currentRun.libraRunId
+      && isOfferReady(item);
+  }, 180_000);
+  assert.ifError(runtimeError);
+
+  const after = productEvidence(databasePath);
+  const m01Rows = after.rows.filter((row) => String(row.display_identity || '').includes('SDT-M01'));
+  assert.equal(m01Rows.length, 1);
+  assert.notEqual(m01Rows[0].libra_run_id, m01Before.currentRun.libraRunId);
+  assert.ok(m01Rows[0].offer_id);
+  assert.notEqual(m01Rows[0].offer_id, audited['SDT-M01'].offerId);
+  const semanticRunId = m01Rows[0].libra_run_id;
+  await rate(host, cookie, itemByScenario(await formation(host, cookie), 'SDT-M01'), 1, 1,
+    'scenario-rating-semantic-replay-' + semanticRunId);
+  await waitRating(host, cookie, m01Rows[0].subject_id,
+    (current) => current.state === 'ready' && current.rating === 1 && current.expectedRevision === 2);
+  await waitFor(host, cookie, (items) =>
+    itemByScenario(items, 'SDT-M01')?.currentRun?.libraRunId === semanticRunId, 120_000);
+  assert.ifError(runtimeError);
+  const superseded = new Database(databasePath, { readonly:true });
+  try {
+    const old = superseded.prepare('SELECT state FROM libra_runs WHERE libra_run_id=?')
+      .get(m01Before.currentRun.libraRunId);
+    assert.equal(old.state, 'superseded');
+    const l06 = superseded.prepare('SELECT libra_run_id FROM libra_runs WHERE libra_run_id=? AND state=\'active\'')
+      .get(l06RunId);
+    assert.ok(l06, 'S01: unchanged L06 must keep its original active Run.');
+    assert.ok((runCaps(superseded, m01Rows[0].libra_run_id)['libra.media.transcode@1'] || 0) >= 1);
+    const semanticRuns = superseded.prepare(
+      'SELECT count(*) n FROM libra_runs WHERE subject_id=(SELECT subject_id FROM libra_runs WHERE libra_run_id=?)')
+      .get(semanticRunId);
+    assert.equal(semanticRuns.n, 2,
+      'S02: a same-value rating revision must not create a third Libra Run.');
+    const semanticHead = superseded.prepare(
+      'SELECT state,state_revision,latest_freshness_assessment_id FROM libra_runs WHERE libra_run_id=?')
+      .get(semanticRunId);
+    assert.equal(semanticHead.state, 'active');
+    assert.ok(semanticHead.state_revision >= 2);
+    assert.ok(semanticHead.latest_freshness_assessment_id,
+      'S02: semantic replay must append durable freshness Evidence.');
+    const semanticRevision = superseded.prepare(
+      "SELECT transition_kind FROM libra_run_revisions WHERE libra_run_id=? ORDER BY state_revision DESC LIMIT 1")
+      .get(semanticRunId);
+    assert.equal(semanticRevision.transition_kind, 'freshness_confirmed');
+    assert.equal(superseded.prepare('SELECT count(*) n FROM arca_shelf_entries').get().n, 0);
+    assert.equal(superseded.prepare('SELECT count(*) n FROM libra_delivery_receipts').get().n, 0);
+    const activeCount = superseded.prepare("SELECT count(*) n FROM libra_runs WHERE state='active'").get().n;
+    assert.ok(activeCount >= 20, 'Parallel Runs must remain isolated after one Subject replacement.');
+  } finally { superseded.close(); }
+  assert.deepEqual(reality(SOURCE_ROOT), sourceBefore);
+  t.diagnostic('Libra matrix evidence: ' + JSON.stringify({
+    audited: Object.fromEntries(Object.entries(audited).map(([id, value]) => [id, {
+      primaryKind: value.primaryKind,
+      remux: value.caps['libra.media.remux@1'] || 0,
+      transcode: value.caps['libra.media.transcode@1'] || 0,
+      imported: value.caps['libra.workspace.material.import@1'] || 0,
+    }])),
+    m01Replacement: { oldRun: m01Before.currentRun.libraRunId, newRun: m01Rows[0].libra_run_id },
+  }));
+});
+
+test('P14 S08 expedites before Offer and carries the intent into a legal replacement Run', {
+  skip:SOURCE_ROOT === null ? 'Set HELIX_LIBRA_HANDOFF_B_E2E_ROOT to the isolated P14 Material Field.' : false,
+  timeout:240_000,
+}, async (t) => {
+  const sourceBefore = reality(SOURCE_ROOT);
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'helix-libra-expedited-replacement-'));
+  const dataDir = path.join(root, 'data');
+  const admin = path.join(root, 'admin');
+  const shelf = path.join(root, 'shelf');
+  const field = path.join(root, 'field');
+  [admin, shelf, field].forEach((directory) => fs.mkdirSync(directory, { recursive:true }));
+  fs.writeFileSync(path.join(admin, 'index.html'), '<div id="root"></div>');
+  const scenarioDirectory = path.join(field, 'SDT-S08-Expedited-Replacement (2008)');
+  fs.mkdirSync(scenarioDirectory, { recursive:true });
+  fs.copyFileSync(path.join(SOURCE_ROOT, 'SDT-M03-Multi-Movie-Directory',
+    'SDT-M03A-H264-Needs-Transcode (2008).mkv'),
+  path.join(scenarioDirectory, 'SDT-S08-Expedited-Replacement (2008).mkv'));
+
+  let enterGate;
+  let releaseGate;
+  let gatedRunId = null;
+  const entered = new Promise((resolve) => { enterGate = resolve; });
+  const released = new Promise((resolve) => { releaseGate = resolve; });
+  const metadataGate = async (intent) => {
+    if (gatedRunId !== null) return;
+    gatedRunId = intent.libraRunId;
+    enterGate();
+    await released;
+  };
+  const initialized = initializeCleanData({ dataDir,
+    confirmation:'INITIALIZE_HELIX_CLEAN_V1', secretRoot:SECRET });
+  let runtimeError = null;
+  const host = await createCleanServiceHost({ dataDir, adminDistDir:admin, secretRoot:SECRET,
+    libraWorkspaceRoot:path.join(root, 'libra-workspaces'),
+    ...productOptions(null, metadataGate),
+    onExecutionRuntimeError(error) { runtimeError = error; },
+    onRequestError(error) { lastRequestError = error; },
+  });
+  t.after(async () => {
+    releaseGate?.();
+    await host.close();
+    if (process.env.HELIX_KEEP_TEST_ASSETS !== '1')
+      fs.rmSync(root, { recursive:true, force:true, maxRetries:5, retryDelay:100 });
+  });
+  const cookie = await session(host, initialized.adminApiKey);
+  await createShelf(host, cookie, shelf);
+  await createField(host, cookie, 'p14-s08-field', field);
+  await observe(host, cookie, 'p14-s08-field');
+  const subjects = await waitFor(host, cookie, (items) =>
+    items.some((item) => String(item.displayIdentity || '').includes('SDT-S08')));
+  const subject = byScenario(subjects, 'SDT-S08');
+  await route(host, cookie, 'p14-s08-field');
+  let gateTimeout;
+  try {
+    await Promise.race([entered, new Promise((_, reject) => {
+      gateTimeout = setTimeout(() => reject(
+        new Error('S08 Metadata gate was never reached.')), 120_000);
+    })]);
+  } finally { clearTimeout(gateTimeout); }
+  let item = byScenario(await formation(host, cookie), 'SDT-S08');
+  assert.ok(item.currentRun);
+  assert.equal(item.handoffB, null);
+  const oldRun = Object.freeze({ ...item.currentRun });
+  assert.equal(gatedRunId, oldRun.libraRunId);
+  const prioritized = await expedite(host, cookie, oldRun, 'scenario-s08-expedite');
+  assert.equal(prioritized.priorityClass, 'expedited');
+  await waitFor(host, cookie, (items) =>
+    byScenario(items, 'SDT-S08')?.currentRun?.priorityClass === 'expedited');
+
+  await rate(host, cookie, subject, 1, 0, 'scenario-s08-rating-change');
+  const replacementItems = await waitFor(host, cookie, (items) => {
+    const current = byScenario(items, 'SDT-S08')?.currentRun;
+    return current?.libraRunId !== oldRun.libraRunId && current?.priorityClass === 'expedited';
+  });
+  item = byScenario(replacementItems, 'SDT-S08');
+  const replacementRunId = item.currentRun.libraRunId;
+  releaseGate();
+  await waitFor(host, cookie, (items) => isOfferReady(itemByScenario(items, 'SDT-S08')));
+  assert.ifError(runtimeError);
+
+  const database = new Database(path.join(dataDir, 'shelfdeck.db'), { readonly:true });
+  try {
+    const old = database.prepare(
+      'SELECT state,priority_class,priority_intent_digest FROM libra_runs WHERE libra_run_id=?')
+      .get(oldRun.libraRunId);
+    const replacement = database.prepare(
+      'SELECT state,priority_class,priority_intent_digest FROM libra_runs WHERE libra_run_id=?')
+      .get(replacementRunId);
+    assert.equal(old.state, 'superseded');
+    assert.equal(old.priority_class, 'expedited');
+    assert.equal(replacement.state, 'active');
+    assert.equal(replacement.priority_class, 'expedited');
+    assert.equal(replacement.priority_intent_digest, old.priority_intent_digest,
+      'S08 replacement must inherit the exact expedited Intent.');
+    assert.equal(database.prepare(
+      'SELECT count(*) n FROM libra_product_packages WHERE libra_run_id=?').get(oldRun.libraRunId).n, 0,
+    'S08 old Run must not publish after replacement.');
+    assert.equal(database.prepare(
+      'SELECT count(*) n FROM libra_product_packages WHERE libra_run_id=?').get(replacementRunId).n, 1);
+    assert.equal(database.prepare('SELECT count(*) n FROM libra_delivery_receipts').get().n, 0);
+    assert.equal(database.prepare('SELECT count(*) n FROM arca_shelf_entries').get().n, 0);
+  } finally { database.close(); }
+  assert.deepEqual(reality(SOURCE_ROOT), sourceBefore);
+});
+
+test('P14 S04-S05 suspend on a temporarily unavailable Spec projection and resume the same Run', {
+  skip:SOURCE_ROOT === null ? 'Set HELIX_LIBRA_HANDOFF_B_E2E_ROOT to the isolated P14 Material Field.' : false,
+  timeout:240_000,
+}, async (t) => {
+  const sourceBefore = reality(SOURCE_ROOT);
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'helix-libra-s04-s05-'));
+  const dataDir = path.join(root, 'data');
+  const admin = path.join(root, 'admin');
+  const shelf = path.join(root, 'shelf');
+  const field = path.join(root, 'field');
+  [admin, shelf, field].forEach((directory) => fs.mkdirSync(directory, { recursive:true }));
+  fs.writeFileSync(path.join(admin, 'index.html'), '<div id="root"></div>');
+  copyLifecycleSample(field, 'SDT-S05-Same-Basis-Recovery');
+  const initialized = initializeCleanData({ dataDir,
+    confirmation:'INITIALIZE_HELIX_CLEAN_V1', secretRoot:SECRET });
+  const controller = { enabled:true, libraRunId:null };
+  let clockOffsetMs = 0;
+  let runtimeError = null;
+  let host = await createCleanServiceHost({
+    dataDir,
+    adminDistDir:admin,
+    secretRoot:SECRET,
+    libraWorkspaceRoot:path.join(root, 'libra-workspaces'),
+    now:() => Date.now() + clockOffsetMs,
+    unitOfWorkDecorator:temporarySpecProjectionFault(controller),
+    ...productOptions(),
+    onExecutionRuntimeError(error) { runtimeError = error; },
+    onRequestError(error) { lastRequestError = error; },
+  });
+  t.after(async () => {
+    await host?.close();
+    if (process.env.HELIX_KEEP_TEST_ASSETS !== '1') {
+      fs.rmSync(root, { recursive:true, force:true, maxRetries:5, retryDelay:100 });
+    }
+  });
+  let cookie = await session(host, initialized.adminApiKey);
+  await createShelf(host, cookie, shelf);
+  await createField(host, cookie, 'p14-s05-field', field);
+  await observe(host, cookie, 'p14-s05-field');
+  await waitFor(host, cookie, (items) => items.some((item) =>
+    String(item.displayIdentity || '').includes('SDT-S05')));
+  await route(host, cookie, 'p14-s05-field');
+  let item = itemByScenario(await waitFor(host, cookie, (items) =>
+    itemByScenario(items, 'SDT-S05')?.currentRun?.state === 'suspended'), 'SDT-S05');
+  const suspendedRunId = item.currentRun.libraRunId;
+  assert.equal(suspendedRunId, controller.libraRunId);
+  assert.equal(item.handoffB, null);
+  let database = new Database(path.join(dataDir, 'shelfdeck.db'), { readonly:true });
+  try {
+    assert.equal(database.prepare("SELECT count(*) n FROM libra_run_revisions WHERE libra_run_id=? AND transition_kind='suspended'")
+      .get(suspendedRunId).n, 1);
+    assert.equal(database.prepare("SELECT count(*) n FROM fx_workflow_events WHERE capability_ref IN ('libra.media.remux@1','libra.media.transcode@1','libra.external_material.request@1')")
+      .get().n, 0);
+    assert.equal(database.prepare('SELECT count(*) n FROM libra_workspaces WHERE libra_run_id=?')
+      .get(suspendedRunId).n, 0, 'S04 must suspend before Workspace or heavy effects are issued.');
+  } finally { database.close(); }
+
+  await host.close();
+  host = null;
+  controller.enabled = false;
+  clockOffsetMs = 61_000;
+  host = await createCleanServiceHost({
+    dataDir,
+    adminDistDir:admin,
+    secretRoot:SECRET,
+    libraWorkspaceRoot:path.join(root, 'libra-workspaces'),
+    now:() => Date.now() + clockOffsetMs,
+    ...productOptions(),
+    onExecutionRuntimeError(error) { runtimeError = error; },
+    onRequestError(error) { lastRequestError = error; },
+  });
+  cookie = await session(host, initialized.adminApiKey);
+  item = itemByScenario(await waitFor(host, cookie, (items) =>
+    isOfferReady(itemByScenario(items, 'SDT-S05'))), 'SDT-S05');
+  assert.equal(item.currentRun.libraRunId, suspendedRunId,
+    'S05 must resume the same Run when the original comparable Basis is unchanged.');
+  assert.ifError(runtimeError);
+  database = new Database(path.join(dataDir, 'shelfdeck.db'), { readonly:true });
+  try {
+    const run = database.prepare('SELECT state,state_revision FROM libra_runs WHERE libra_run_id=?')
+      .get(suspendedRunId);
+    assert.equal(run.state, 'active');
+    assert.ok(run.state_revision >= 3);
+    assert.equal(database.prepare("SELECT count(*) n FROM libra_run_revisions WHERE libra_run_id=? AND transition_kind='resumed'")
+      .get(suspendedRunId).n, 1);
+    assert.equal(database.prepare('SELECT count(*) n FROM libra_runs').get().n, 1);
+    assert.equal(database.prepare('SELECT count(*) n FROM libra_product_packages WHERE libra_run_id=?')
+      .get(suspendedRunId).n, 1);
+    assert.equal(database.prepare('SELECT count(*) n FROM libra_delivery_receipts').get().n, 0);
+    assert.equal(database.prepare('SELECT count(*) n FROM arca_shelf_entries').get().n, 0);
+  } finally { database.close(); }
+  assert.deepEqual(reality(SOURCE_ROOT), sourceBefore);
+});
+
+test('P14 S04-S06 replace a suspended Run when a new rating changes its comparable Basis', {
+  skip:SOURCE_ROOT === null ? 'Set HELIX_LIBRA_HANDOFF_B_E2E_ROOT to the isolated P14 Material Field.' : false,
+  timeout:240_000,
+}, async (t) => {
+  const sourceBefore = reality(SOURCE_ROOT);
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'helix-libra-s04-s06-'));
+  const dataDir = path.join(root, 'data');
+  const admin = path.join(root, 'admin');
+  const shelf = path.join(root, 'shelf');
+  const field = path.join(root, 'field');
+  [admin, shelf, field].forEach((directory) => fs.mkdirSync(directory, { recursive:true }));
+  fs.writeFileSync(path.join(admin, 'index.html'), '<div id="root"></div>');
+  copyLifecycleSample(field, 'SDT-S06-Changed-Basis-Replacement');
+  const initialized = initializeCleanData({ dataDir,
+    confirmation:'INITIALIZE_HELIX_CLEAN_V1', secretRoot:SECRET });
+  const controller = { enabled:true, libraRunId:null };
+  let runtimeError = null;
+  const host = await createCleanServiceHost({
+    dataDir,
+    adminDistDir:admin,
+    secretRoot:SECRET,
+    libraWorkspaceRoot:path.join(root, 'libra-workspaces'),
+    unitOfWorkDecorator:temporarySpecProjectionFault(controller),
+    ...productOptions(),
+    onExecutionRuntimeError(error) { runtimeError = error; },
+    onRequestError(error) { lastRequestError = error; },
+  });
+  t.after(async () => {
+    await host.close();
+    if (process.env.HELIX_KEEP_TEST_ASSETS !== '1') {
+      fs.rmSync(root, { recursive:true, force:true, maxRetries:5, retryDelay:100 });
+    }
+  });
+  const cookie = await session(host, initialized.adminApiKey);
+  await createShelf(host, cookie, shelf);
+  await createField(host, cookie, 'p14-s06-field', field);
+  await observe(host, cookie, 'p14-s06-field');
+  const subjects = await waitFor(host, cookie, (items) => items.some((item) =>
+    String(item.displayIdentity || '').includes('SDT-S06')));
+  const subject = byScenario(subjects, 'SDT-S06');
+  await route(host, cookie, 'p14-s06-field');
+  const suspended = itemByScenario(await waitFor(host, cookie, (items) =>
+    itemByScenario(items, 'SDT-S06')?.currentRun?.state === 'suspended'), 'SDT-S06');
+  const oldRunId = suspended.currentRun.libraRunId;
+  assert.equal(oldRunId, controller.libraRunId);
+  controller.enabled = false;
+  await rate(host, cookie, subject, 1, 0, 'scenario-s06-rating-change');
+  const replaced = itemByScenario(await waitFor(host, cookie, (items) => {
+    const value = itemByScenario(items, 'SDT-S06');
+    return value?.currentRun?.libraRunId !== oldRunId && isOfferReady(value);
+  }), 'SDT-S06');
+  const replacementRunId = replaced.currentRun.libraRunId;
+  assert.ifError(runtimeError);
+  const database = new Database(path.join(dataDir, 'shelfdeck.db'), { readonly:true });
+  try {
+    const old = database.prepare('SELECT state,superseded_by_run_id FROM libra_runs WHERE libra_run_id=?')
+      .get(oldRunId);
+    const replacement = database.prepare('SELECT state,supersedes_run_id FROM libra_runs WHERE libra_run_id=?')
+      .get(replacementRunId);
+    assert.equal(old.state, 'superseded');
+    assert.equal(old.superseded_by_run_id, replacementRunId);
+    assert.equal(replacement.state, 'active');
+    assert.equal(replacement.supersedes_run_id, oldRunId);
+    const transitions = database.prepare(
+      'SELECT transition_kind FROM libra_run_revisions WHERE libra_run_id=? ORDER BY state_revision')
+      .all(oldRunId).map((row) => row.transition_kind);
+    assert.deepEqual(transitions.slice(-2), ['suspended', 'superseded']);
+    assert.equal(database.prepare('SELECT count(*) n FROM libra_product_packages WHERE libra_run_id=?')
+      .get(oldRunId).n, 0);
+    assert.equal(database.prepare('SELECT count(*) n FROM libra_product_packages WHERE libra_run_id=?')
+      .get(replacementRunId).n, 1);
+    assert.equal(database.prepare('SELECT count(*) n FROM libra_delivery_receipts').get().n, 0);
+    assert.equal(database.prepare('SELECT count(*) n FROM arca_shelf_entries').get().n, 0);
+  } finally { database.close(); }
+  assert.deepEqual(reality(SOURCE_ROOT), sourceBefore);
+});
+
+test('P14 R01 insufficient Workspace space leaves no partial Workspace and recovers on restart', {
+  skip:SOURCE_ROOT === null ? 'Set HELIX_LIBRA_HANDOFF_B_E2E_ROOT to the isolated P14 Material Field.' : false,
+  timeout:240_000,
+}, async (t) => {
+  const sourceBefore = reality(SOURCE_ROOT);
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'helix-libra-r01-'));
+  const dataDir = path.join(root, 'data');
+  const admin = path.join(root, 'admin');
+  const shelf = path.join(root, 'shelf');
+  const field = path.join(root, 'field');
+  const workspaceRoot = path.join(root, 'libra-workspaces');
+  [admin, shelf, field].forEach((directory) => fs.mkdirSync(directory, { recursive:true }));
+  fs.writeFileSync(path.join(admin, 'index.html'), '<div id="root"></div>');
+  copyLifecycleSample(field, 'SDT-R01-Workspace-Space');
+  const initialized = initializeCleanData({ dataDir,
+    confirmation:'INITIALIZE_HELIX_CLEAN_V1', secretRoot:SECRET });
+  let runtimeError = null;
+  let spaceChecks = 0;
+  let host = await createCleanServiceHost({
+    dataDir,
+    adminDistDir:admin,
+    secretRoot:SECRET,
+    libraWorkspaceRoot:workspaceRoot,
+    workspaceStatfsSync:() => {
+      spaceChecks += 1;
+      return Object.freeze({ bavail:0n, bsize:4096n });
+    },
+    ...productOptions(),
+    onExecutionRuntimeError(error) { runtimeError = error; },
+    onRequestError(error) { lastRequestError = error; },
+  });
+  t.after(async () => {
+    await host?.close();
+    if (process.env.HELIX_KEEP_TEST_ASSETS !== '1') {
+      fs.rmSync(root, { recursive:true, force:true, maxRetries:5, retryDelay:100 });
+    }
+  });
+  let cookie = await session(host, initialized.adminApiKey);
+  await createShelf(host, cookie, shelf);
+  await createField(host, cookie, 'p14-r01-field', field);
+  await observe(host, cookie, 'p14-r01-field');
+  const subjects = await waitFor(host, cookie, (items) => items.some((item) =>
+    String(item.displayIdentity || '').includes('SDT-R01')));
+  const subject = byScenario(subjects, 'SDT-R01');
+  await rate(host, cookie, subject, 1, 0, 'scenario-r01-stable-rating');
+  await waitRating(host, cookie, subject.subjectId, (current) => current.rating === 1);
+  await route(host, cookie, 'p14-r01-field');
+  const databasePath = path.join(dataDir, 'shelfdeck.db');
+  const spaceDeadline = Date.now() + 120_000;
+  while (spaceChecks === 0 && Date.now() < spaceDeadline) await pause(100);
+  assert.ok(spaceChecks > 0, 'R01 did not reach the formal Workspace space probe.');
+  assert.ifError(runtimeError);
+  const stableRun = await waitDatabase(databasePath, (value) => value.prepare(`
+    SELECT r.libra_run_id
+      FROM libra_runs r
+      JOIN libra_subject_decision_heads h ON h.subject_id=r.subject_id
+      JOIN libra_acceptance_specs s ON s.acceptance_spec_id=h.current_acceptance_spec_id
+     WHERE r.subject_id=? AND r.state='active'
+       AND r.acceptance_spec_id=h.current_acceptance_spec_id
+       AND json_extract(s.spec_json,'$.requirements.space.maxSizeGiB')=2`).get(subject.subjectId) || null);
+  const blocked = itemByScenario(await waitFor(host, cookie, (items) =>
+    itemByScenario(items, 'SDT-R01')?.currentRun?.libraRunId === stableRun.libra_run_id), 'SDT-R01');
+  const runId = blocked.currentRun.libraRunId;
+  let database = new Database(databasePath, { readonly:true });
+  try {
+    assert.equal(database.prepare("SELECT count(*) n FROM libra_runs WHERE state='active'").get().n, 1);
+    assert.equal(database.prepare('SELECT state FROM libra_runs WHERE libra_run_id=?').get(runId).state, 'active');
+    assert.equal(database.prepare('SELECT count(*) n FROM libra_workspaces').get().n, 0);
+    assert.equal(database.prepare('SELECT count(*) n FROM libra_workspace_revisions').get().n, 0);
+    assert.equal(database.prepare('SELECT count(*) n FROM fx_workspace_materials').get().n, 0);
+    assert.equal(database.prepare('SELECT count(*) n FROM fx_artifact_registry').get().n, 0);
+    assert.equal(database.prepare('SELECT count(*) n FROM libra_product_packages').get().n, 0);
+    assert.equal(database.prepare("SELECT count(*) n FROM fx_workflow_events WHERE capability_ref IN ('shared.artifact.nfo.render@1','shared.artifact.poster.acquire@1','libra.media.remux@1','libra.media.transcode@1')")
+      .get().n, 0);
+  } finally { database.close(); }
+  assert.equal(reality(workspaceRoot).count, 0,
+    'R01 must not write any Workspace file while admission space is insufficient.');
+
+  await host.close();
+  host = null;
+  runtimeError = null;
+  host = await createCleanServiceHost({
+    dataDir,
+    adminDistDir:admin,
+    secretRoot:SECRET,
+    libraWorkspaceRoot:workspaceRoot,
+    ...productOptions(),
+    onExecutionRuntimeError(error) { runtimeError = error; },
+    onRequestError(error) { lastRequestError = error; },
+  });
+  cookie = await session(host, initialized.adminApiKey);
+  const ready = itemByScenario(await waitFor(host, cookie, (items) =>
+    isOfferReady(itemByScenario(items, 'SDT-R01'))), 'SDT-R01');
+  assert.equal(ready.currentRun.libraRunId, runId);
+  assert.ifError(runtimeError);
+  database = new Database(databasePath, { readonly:true });
+  try {
+    assert.equal(database.prepare("SELECT count(*) n FROM libra_runs WHERE subject_id=? AND state='active'")
+      .get(subject.subjectId).n, 1);
+    assert.equal(database.prepare('SELECT count(*) n FROM libra_workspaces WHERE libra_run_id=?').get(runId).n, 1);
+    assert.equal(database.prepare('SELECT count(*) n FROM libra_product_packages WHERE libra_run_id=?').get(runId).n, 1);
+    assert.equal(database.prepare('SELECT count(*) n FROM libra_product_packages').get().n, 1);
+    assert.equal(database.prepare('SELECT count(*) n FROM libra_delivery_receipts').get().n, 0);
+    assert.equal(database.prepare('SELECT count(*) n FROM arca_shelf_entries').get().n, 0);
+  } finally { database.close(); }
+  assert.deepEqual(reality(SOURCE_ROOT), sourceBefore);
+});
+
+async function verifyWorkspaceCrashRecovery(t, options) {
+  const sourceBefore = reality(SOURCE_ROOT);
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'helix-libra-' + options.scenarioId.toLowerCase() + '-'));
+  const dataDir = path.join(root, 'data');
+  const admin = path.join(root, 'admin');
+  const shelf = path.join(root, 'shelf');
+  const field = path.join(root, 'field');
+  const workspaceRoot = path.join(root, 'libra-workspaces');
+  const signalPath = path.join(root, 'crash-boundary.json');
+  const errorPath = path.join(root, 'crash-worker-error.json');
+  [admin, shelf, field].forEach((directory) => fs.mkdirSync(directory, { recursive:true }));
+  fs.writeFileSync(path.join(admin, 'index.html'), '<div id="root"></div>');
+  copyLifecycleSample(field, options.displayName);
+  const initialized = initializeCleanData({ dataDir, confirmation:'INITIALIZE_HELIX_CLEAN_V1', secretRoot:SECRET });
+  let host = null;
+  let child = null;
+  let runtimeError = null;
+  t.after(async () => {
+    if (child?.exitCode === null) await terminateProcess(child);
+    await host?.close();
+    if (process.env.HELIX_KEEP_TEST_ASSETS !== '1')
+      fs.rmSync(root, { recursive:true, force:true, maxRetries:5, retryDelay:100 });
+  });
+
+  let spaceChecks = 0;
+  host = await createCleanServiceHost({ dataDir, adminDistDir:admin, secretRoot:SECRET,
+    libraWorkspaceRoot:workspaceRoot, workspaceStatfsSync:() => {
+      spaceChecks += 1;
+      return Object.freeze({ bavail:0n, bsize:4096n });
+    }, ...productOptions(), onExecutionRuntimeError(error) { runtimeError = error; },
+    onRequestError(error) { lastRequestError = error; } });
+  let cookie = await session(host, initialized.adminApiKey);
+  await createShelf(host, cookie, shelf);
+  await createField(host, cookie, options.fieldId, field);
+  await observe(host, cookie, options.fieldId);
+  const subjects = await waitFor(host, cookie, (items) => itemByScenario(items, options.scenarioId) !== null);
+  const subject = byScenario(subjects, options.scenarioId);
+  await rate(host, cookie, subject, 1, 0, options.scenarioId.toLowerCase() + '-rating');
+  await waitRating(host, cookie, subject.subjectId, (current) => current.rating === 1);
+  await route(host, cookie, options.fieldId);
+  const databasePath = path.join(dataDir, 'shelfdeck.db');
+  const blocked = await waitDatabase(databasePath, (database) => database.prepare(`
+    SELECT r.libra_run_id
+      FROM libra_runs r
+      JOIN libra_subject_decision_heads h ON h.subject_id=r.subject_id
+      JOIN libra_acceptance_specs s ON s.acceptance_spec_id=h.current_acceptance_spec_id
+     WHERE r.subject_id=? AND r.state='active' AND r.acceptance_spec_id=h.current_acceptance_spec_id
+       AND json_extract(s.spec_json,'$.requirements.space.maxSizeGiB')=2`).get(subject.subjectId) || null);
+  assert.ok(spaceChecks > 0);
+  assert.ifError(runtimeError);
+  await host.close();
+  host = null;
+
+  const configPath = path.join(root, 'crash-worker-config.json');
+  fs.writeFileSync(configPath, JSON.stringify({ mode:options.mode, dataDir, adminDistDir:admin, secretRoot:SECRET,
+    libraWorkspaceRoot:workspaceRoot, signalPath, errorPath }), 'utf8');
+  child = spawn(process.execPath, [path.join(__dirname, 'fixtures', 'helix-libra-workspace-crash-worker.js'), configPath], {
+    cwd:path.resolve(__dirname, '..'), stdio:'ignore', windowsHide:true,
+  });
+  const boundary = await waitForFile(signalPath, child, errorPath);
+  assert.equal(boundary.boundary, options.mode);
+  assert.equal(fs.existsSync(boundary.payload.target), true);
+  const physicalBytes = fs.readFileSync(boundary.payload.target);
+  const physicalDigest = crypto.createHash('sha256').update(physicalBytes).digest('hex');
+  const physicalTarget = path.resolve(boundary.payload.target);
+  await terminateProcess(child);
+  child = null;
+
+  let database = new Database(databasePath, { readonly:true });
+  try {
+    const event = database.prepare(`SELECT e.event_id,e.state,a.event_attempt_id,a.state attempt_state,j.state effect_state
+      FROM fx_workflow_events e JOIN fx_event_attempts a ON a.event_id=e.event_id
+      JOIN fx_effect_journal j ON j.event_attempt_id=a.event_attempt_id
+     WHERE e.capability_ref='libra.media.transcode@1' AND e.state='executing'`).get();
+    assert.ok(event, options.scenarioId + ' must leave one recoverable Transcode Event.');
+    assert.equal(event.attempt_state, 'executing');
+    assert.equal(event.effect_state, 'intended');
+    const lower = database.prepare("SELECT state,count(*) n FROM fx_effect_journal WHERE effect_class='libra_workspace_media_materialize' GROUP BY state").all();
+    assert.deepEqual(lower, [], 'Media Adapter must not create a second private Effect Journal.');
+    assert.equal(database.prepare("SELECT count(*) n FROM fx_workspace_materials WHERE lower(relative_path) LIKE '%.mkv'").get().n,
+      options.mode === 'after_physical' ? 0 : 1);
+    assert.equal(database.prepare('SELECT count(*) n FROM libra_product_packages').get().n, 0);
+  } finally { database.close(); }
+
+  runtimeError = null;
+  host = await createCleanServiceHost({ dataDir, adminDistDir:admin, secretRoot:SECRET,
+    libraWorkspaceRoot:workspaceRoot, ...productOptions(),
+    onExecutionRuntimeError(error) { runtimeError = error; },
+    onRequestError(error) { lastRequestError = error; } });
+  cookie = await session(host, initialized.adminApiKey);
+  const ready = itemByScenario(await waitFor(host, cookie, (items) =>
+    isOfferReady(itemByScenario(items, options.scenarioId))), options.scenarioId);
+  assert.equal(ready.currentRun.libraRunId, blocked.libra_run_id);
+  assert.ifError(runtimeError);
+  assert.equal(path.resolve(physicalTarget), physicalTarget);
+  assert.equal(crypto.createHash('sha256').update(fs.readFileSync(physicalTarget)).digest('hex'), physicalDigest);
+  database = new Database(databasePath, { readonly:true });
+  try {
+    assert.equal(database.prepare("SELECT count(*) n FROM fx_effect_journal WHERE effect_class='libra_workspace_media_materialize'").get().n, 0);
+    assert.equal(database.prepare(`SELECT count(*) n FROM fx_effect_journal j JOIN fx_event_attempts a ON a.event_attempt_id=j.event_attempt_id
+      JOIN fx_workflow_events e ON e.event_id=a.event_id
+      WHERE e.capability_ref='libra.media.transcode@1' AND j.effect_class='workspace_write' AND j.state='committed'`).get().n, 1);
+    assert.equal(database.prepare("SELECT count(*) n FROM fx_workspace_materials WHERE lower(relative_path) LIKE '%.mkv'").get().n, 1);
+    assert.equal(database.prepare('SELECT count(*) n FROM libra_product_packages WHERE libra_run_id=?').get(blocked.libra_run_id).n, 1);
+    assert.equal(database.prepare("SELECT count(*) n FROM fx_supporting_works WHERE owner_domain='libra' AND state='failed'").get().n, 0);
+    assert.equal(database.prepare("SELECT count(*) n FROM fx_workflow_events WHERE owner_domain='libra' AND state='failed'").get().n, 0);
+  } finally { database.close(); }
+  assert.deepEqual(reality(SOURCE_ROOT), sourceBefore);
+}
+
+test('P14 R02 process loss after media bytes uses the same Workspace target and Effect', {
+  skip:SOURCE_ROOT === null ? 'Set HELIX_LIBRA_HANDOFF_B_E2E_ROOT to the isolated P14 Material Field.' : false,
+  timeout:240_000,
+}, async (t) => verifyWorkspaceCrashRecovery(t, {
+  scenarioId:'SDT-R02', displayName:'SDT-R02-Workspace-Effect-Crash', fieldId:'p14-r02-field', mode:'after_physical',
+}));
+
+test('P14 R04 process loss after Workspace commit reuses bytes before Product Verification', {
+  skip:SOURCE_ROOT === null ? 'Set HELIX_LIBRA_HANDOFF_B_E2E_ROOT to the isolated P14 Material Field.' : false,
+  timeout:240_000,
+}, async (t) => verifyWorkspaceCrashRecovery(t, {
+  scenarioId:'SDT-R04', displayName:'SDT-R04-Workspace-Commit-Crash', fieldId:'p14-r04-field', mode:'after_media_commit',
+}));
+
+test('P14 R05 Product Fact commit crash rolls back all Fact rows and recovers exactly once', {
+  skip:SOURCE_ROOT === null ? 'Set HELIX_LIBRA_HANDOFF_B_E2E_ROOT to the isolated P14 Material Field.' : false,
+  timeout:240_000,
+}, async (t) => {
+  const sourceBefore = reality(SOURCE_ROOT);
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'helix-libra-r05-'));
+  const dataDir = path.join(root, 'data');
+  const admin = path.join(root, 'admin');
+  const shelf = path.join(root, 'shelf');
+  const field = path.join(root, 'field');
+  [admin, shelf, field].forEach((directory) => fs.mkdirSync(directory, { recursive:true }));
+  fs.writeFileSync(path.join(admin, 'index.html'), '<div id="root"></div>');
+  copyLifecycleSample(field, 'SDT-R05-Fact-Commit-Crash');
+  const initialized = initializeCleanData({ dataDir,
+    confirmation:'INITIALIZE_HELIX_CLEAN_V1', secretRoot:SECRET });
+  const controller = { enabled:true, hitCount:0,
+    participantId:'libra_product_fact_owner_write',
+    repositoryId:'libra_product_fact_product_metadata_writes' };
+  let runtimeError = null;
+  let host = await createCleanServiceHost({
+    dataDir, adminDistDir:admin, secretRoot:SECRET,
+    libraWorkspaceRoot:path.join(root, 'libra-workspaces'),
+    unitOfWorkDecorator:failAfterUnitOfWorkParticipant(controller),
+    ...productOptions(),
+    onExecutionRuntimeError(error) { runtimeError = error; },
+    onRequestError(error) { lastRequestError = error; },
+  });
+  t.after(async () => {
+    await host?.close();
+    if (process.env.HELIX_KEEP_TEST_ASSETS !== '1') {
+      fs.rmSync(root, { recursive:true, force:true, maxRetries:5, retryDelay:100 });
+    }
+  });
+  let cookie = await session(host, initialized.adminApiKey);
+  await createShelf(host, cookie, shelf);
+  await createField(host, cookie, 'p14-r05-field', field);
+  await observe(host, cookie, 'p14-r05-field');
+  await waitFor(host, cookie, (items) => itemByScenario(items, 'SDT-R05') !== null);
+  await route(host, cookie, 'p14-r05-field');
+  const hitDeadline = Date.now() + 120_000;
+  while (controller.hitCount === 0 && Date.now() < hitDeadline) await pause(100);
+  assert.equal(controller.hitCount, 1, 'R05 did not reach the Product Metadata Fact commit crash window.');
+  await pause(200);
+  assert.equal(runtimeError?.code, 'HELIX_TEST_CRASH_WINDOW');
+  await host.close();
+  host = null;
+  const databasePath = path.join(dataDir, 'shelfdeck.db');
+  let database = new Database(databasePath, { readonly:true });
+  try {
+    assert.equal(database.prepare("SELECT count(*) n FROM libra_product_fact_revisions WHERE fact_kind='product_metadata'").get().n, 0);
+    assert.equal(database.prepare("SELECT count(*) n FROM libra_product_fact_source_refs s LEFT JOIN libra_product_fact_revisions f ON f.product_fact_id=s.product_fact_id WHERE f.product_fact_id IS NULL").get().n, 0);
+    assert.equal(database.prepare('SELECT count(*) n FROM libra_product_packages').get().n, 0);
+  } finally { database.close(); }
+
+  runtimeError = null;
+  host = await createCleanServiceHost({
+    dataDir, adminDistDir:admin, secretRoot:SECRET,
+    libraWorkspaceRoot:path.join(root, 'libra-workspaces'),
+    ...productOptions(),
+    onExecutionRuntimeError(error) { runtimeError = error; },
+    onRequestError(error) { lastRequestError = error; },
+  });
+  cookie = await session(host, initialized.adminApiKey);
+  await waitFor(host, cookie, (items) => isOfferReady(itemByScenario(items, 'SDT-R05')));
+  assert.ifError(runtimeError);
+  database = new Database(databasePath, { readonly:true });
+  try {
+    assert.equal(database.prepare("SELECT count(*) n FROM libra_product_fact_revisions WHERE fact_kind='product_metadata'").get().n, 1);
+    assert.ok(database.prepare("SELECT count(*) n FROM libra_product_fact_source_refs s JOIN libra_product_fact_revisions f ON f.product_fact_id=s.product_fact_id WHERE f.fact_kind='product_metadata'").get().n > 0);
+    assert.equal(database.prepare('SELECT count(*) n FROM libra_product_packages').get().n, 1);
+    assert.equal(database.prepare("SELECT count(*) n FROM fx_supporting_works WHERE owner_domain='libra' AND state='failed'").get().n, 0);
+    assert.equal(database.prepare("SELECT count(*) n FROM fx_workflow_events WHERE owner_domain='libra' AND state='failed'").get().n, 0);
+  } finally { database.close(); }
+  assert.deepEqual(reality(SOURCE_ROOT), sourceBefore);
+});
+
+test('P14 R06 Promotion crash rolls back Package, Control, Result, and Outbox then replays once', {
+  skip:SOURCE_ROOT === null ? 'Set HELIX_LIBRA_HANDOFF_B_E2E_ROOT to the isolated P14 Material Field.' : false,
+  timeout:240_000,
+}, async (t) => {
+  const sourceBefore = reality(SOURCE_ROOT);
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'helix-libra-r06-'));
+  const dataDir = path.join(root, 'data');
+  const admin = path.join(root, 'admin');
+  const shelf = path.join(root, 'shelf');
+  const field = path.join(root, 'field');
+  [admin, shelf, field].forEach((directory) => fs.mkdirSync(directory, { recursive:true }));
+  fs.writeFileSync(path.join(admin, 'index.html'), '<div id="root"></div>');
+  copyLifecycleSample(field, 'SDT-R06-Promotion-Crash');
+  const initialized = initializeCleanData({ dataDir,
+    confirmation:'INITIALIZE_HELIX_CLEAN_V1', secretRoot:SECRET });
+  const controller = { enabled:true, hitCount:0,
+    participantId:'libra_deliverable_promotion_foundation',
+    repositoryId:'libra_deliverable_promotion_foundation' };
+  let runtimeError = null;
+  let host = await createCleanServiceHost({
+    dataDir, adminDistDir:admin, secretRoot:SECRET,
+    libraWorkspaceRoot:path.join(root, 'libra-workspaces'),
+    unitOfWorkDecorator:failAfterUnitOfWorkParticipant(controller),
+    ...productOptions(),
+    onExecutionRuntimeError(error) { runtimeError = error; },
+    onRequestError(error) { lastRequestError = error; },
+  });
+  t.after(async () => {
+    await host?.close();
+    if (process.env.HELIX_KEEP_TEST_ASSETS !== '1') {
+      fs.rmSync(root, { recursive:true, force:true, maxRetries:5, retryDelay:100 });
+    }
+  });
+  let cookie = await session(host, initialized.adminApiKey);
+  await createShelf(host, cookie, shelf);
+  await createField(host, cookie, 'p14-r06-field', field);
+  await observe(host, cookie, 'p14-r06-field');
+  await waitFor(host, cookie, (items) => itemByScenario(items, 'SDT-R06') !== null);
+  await route(host, cookie, 'p14-r06-field');
+  const hitDeadline = Date.now() + 120_000;
+  while (controller.hitCount === 0 && Date.now() < hitDeadline) await pause(100);
+  assert.equal(controller.hitCount, 1, 'R06 did not reach the Promotion commit crash window.');
+  await pause(200);
+  assert.equal(runtimeError?.code, 'HELIX_TEST_CRASH_WINDOW');
+  await host.close();
+  host = null;
+  const databasePath = path.join(dataDir, 'shelfdeck.db');
+  let database = new Database(databasePath, { readonly:true });
+  try {
+    assert.equal(database.prepare('SELECT count(*) n FROM libra_product_packages').get().n, 0);
+    assert.equal(database.prepare('SELECT count(*) n FROM libra_product_package_materials').get().n, 0);
+    assert.equal(database.prepare("SELECT count(*) n FROM fx_outbox WHERE producer_domain='libra' AND aggregate_type='on_deck_package'").get().n, 0);
+    assert.equal(database.prepare("SELECT count(*) n FROM fx_commit_markers WHERE owner_domain='libra' AND scope_type='on_deck_package'").get().n, 0);
+    assert.equal(database.prepare('SELECT max(package_revision_head) n FROM libra_runs').get().n, 0);
+  } finally { database.close(); }
+
+  runtimeError = null;
+  host = await createCleanServiceHost({
+    dataDir, adminDistDir:admin, secretRoot:SECRET,
+    libraWorkspaceRoot:path.join(root, 'libra-workspaces'),
+    ...productOptions(),
+    onExecutionRuntimeError(error) { runtimeError = error; },
+    onRequestError(error) { lastRequestError = error; },
+  });
+  cookie = await session(host, initialized.adminApiKey);
+  await waitFor(host, cookie, (items) => isOfferReady(itemByScenario(items, 'SDT-R06')));
+  assert.ifError(runtimeError);
+  database = new Database(databasePath, { readonly:true });
+  try {
+    assert.equal(database.prepare('SELECT count(*) n FROM libra_product_packages').get().n, 1);
+    assert.ok(database.prepare('SELECT count(*) n FROM libra_product_package_materials').get().n >= 1);
+    assert.equal(database.prepare("SELECT count(*) n FROM fx_outbox WHERE producer_domain='libra' AND aggregate_type='on_deck_package'").get().n, 1);
+    assert.equal(database.prepare("SELECT count(*) n FROM fx_commit_markers WHERE owner_domain='libra' AND scope_type='on_deck_package'").get().n, 1);
+    assert.equal(database.prepare('SELECT max(package_revision_head) n FROM libra_runs').get().n, 1);
+    assert.equal(database.prepare("SELECT count(*) n FROM fx_supporting_works WHERE owner_domain='libra' AND state='failed'").get().n, 0);
+    assert.equal(database.prepare("SELECT count(*) n FROM fx_workflow_events WHERE owner_domain='libra' AND state='failed'").get().n, 0);
+  } finally { database.close(); }
+  assert.deepEqual(reality(SOURCE_ROOT), sourceBefore);
+});
+
+test('P14 5-star without MoviePilot does not invent an Offer', {
+  skip:SOURCE_ROOT === null ? 'Set HELIX_LIBRA_HANDOFF_B_E2E_ROOT to the isolated P14 Material Field.' : false,
+  timeout:120_000,
+}, async (t) => {
+  const source = path.join(SOURCE_ROOT, 'SDT-M05-External-Upgrade (2008)');
+  assert.equal(fs.statSync(source).isDirectory(), true);
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'helix-libra-s07-'));
+  const dataDir = path.join(root, 'data');
+  const admin = path.join(root, 'admin');
+  const shelf = path.join(root, 'shelf');
+  const field = path.join(root, 'field');
+  [admin, shelf, field].forEach((directory) => fs.mkdirSync(directory, { recursive:true }));
+  fs.writeFileSync(path.join(admin, 'index.html'), '<div id="root"></div>');
+  fs.cpSync(source, path.join(field, 'SDT-M05-External-Upgrade (2008)'), { recursive:true });
+  const initialized = initializeCleanData({ dataDir, confirmation:'INITIALIZE_HELIX_CLEAN_V1', secretRoot:SECRET });
+  let runtimeError = null;
+  lastRequestError = null;
+  const host = await createCleanServiceHost({ dataDir, adminDistDir:admin, secretRoot:SECRET,
+    libraWorkspaceRoot:path.join(root, 'libra-workspaces'), ...productOptions(),
+    onExecutionRuntimeError(error) {
+      runtimeError = error;
+      if (process.env.HELIX_TEST_LOG_RUNTIME_ERROR === '1') console.error(error);
+    },
+    onRequestError(error) { lastRequestError = error; },
+  });
+  t.after(async () => {
+    await host.close();
+    if (process.env.HELIX_KEEP_TEST_ASSETS !== '1') fs.rmSync(root, { recursive:true, force:true, maxRetries:5, retryDelay:100 });
+  });
+  const cookie = await session(host, initialized.adminApiKey);
+  await createShelf(host, cookie, shelf);
+  await createField(host, cookie, 'p14-s07-field', field);
+  await observe(host, cookie, 'p14-s07-field');
+  const subjects = await waitFor(host, cookie, (items) => items.some((item) =>
+    String(item.displayIdentity || '').includes('SDT-M05')), 60_000);
+  await rate(host, cookie, byScenario(subjects, 'SDT-M05'), 5);
+  await route(host, cookie, 'p14-s07-field');
+  await pause(8_000);
+  assert.ifError(runtimeError);
+  const items = await formation(host, cookie);
+  const item = itemByScenario(items, 'SDT-M05');
+  assert.ok(item);
+  assert.notEqual(item.productionStage, 'handoff_b_ready');
+  assert.equal(item.handoffB, null);
+  const evidence = productEvidence(path.join(dataDir, 'shelfdeck.db'));
+  assert.equal(evidence.packages, 0);
+  assert.equal(evidence.consumedOffers, 0);
+  assert.equal(evidence.arcaEntries, 0);
+  t.diagnostic('S07 waiting without MoviePilot: ' + JSON.stringify({
+    productionStage: item.productionStage, runState: item.currentRun?.state, packages: evidence.packages,
+  }));
+});
+
+test('D10 DV without a compatible base layer exhausts local strategies then freezes on terminal external not-found Evidence', {
+  skip:SOURCE_ROOT === null ? 'Set HELIX_LIBRA_HANDOFF_B_E2E_ROOT to the isolated P14 Material Field.' : false,
+  timeout:180_000,
+}, async (t) => {
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'helix-libra-d10-')),dataDir=path.join(root,'data'),
+    admin=path.join(root,'admin'),shelf=path.join(root,'shelf'),field=path.join(root,'field'),downloads=path.join(root,'downloads');
+  [admin,shelf,field,downloads].forEach((directory)=>fs.mkdirSync(directory,{recursive:true}));
+  fs.writeFileSync(path.join(admin,'index.html'),'<div id="root"></div>');
+  copyLifecycleSample(field,'SDT-D10-DV-P5-No-Compatible-BL');
+  fs.truncateSync(path.join(field,'SDT-D10-DV-P5-No-Compatible-BL (2008)',
+    'SDT-D10-DV-P5-No-Compatible-BL (2008).mkv'),(1024*1024*1024)+(64*1024*1024));
+  const fieldBefore=reality(field),initialized=initializeCleanData({dataDir,confirmation:'INITIALIZE_HELIX_CLEAN_V1',secretRoot:SECRET}),
+    calls=[];let runtimeError=null;lastRequestError=null;
+  const host=await createCleanServiceHost({dataDir,adminDistDir:admin,secretRoot:SECRET,
+    libraWorkspaceRoot:path.join(root,'libra-workspaces'),mediaProbe:d10Profile5Probe(),platformComputeRuntime:d10PlatformRuntime(),
+    integrationFetch:noCandidateMoviePilotFetch(calls),...productOptions(),
+    outboxDispatcherFactory:(options)=>createOutboxDispatcherHost({...options,
+      deferredDeliveryKeys:[...(options.deferredDeliveryKeys||[]),'rule_template_published->read-model']}),
+    onExecutionRuntimeError(error){runtimeError=error;},onRequestError(error){lastRequestError=error;}});
+  t.after(async()=>{await host.close();if(process.env.HELIX_KEEP_TEST_ASSETS!=='1')fs.rmSync(root,{recursive:true,force:true,maxRetries:5,retryDelay:100});});
+  const cookie=await session(host,initialized.adminApiKey),template=await createD10Template(host,cookie);
+  await createShelf(host,cookie,shelf,template);await configureMoviePilot(host,cookie,downloads);
+  await createField(host,cookie,'p14-d10-field',field);await observe(host,cookie,'p14-d10-field');
+  const subjects=await waitFor(host,cookie,(items)=>items.some((item)=>String(item.displayIdentity||'').includes('SDT-D10')),60_000),
+    subject=byScenario(subjects,'SDT-D10');
+  await rate(host,cookie,subject,1);await route(host,cookie,'p14-d10-field');
+  const frozenItems=await waitFor(host,cookie,(items)=>itemByScenario(items,'SDT-D10')?.currentRun?.state==='frozen',120_000),
+    frozen=itemByScenario(frozenItems,'SDT-D10');assert.ifError(runtimeError);assert.equal(frozen.handoffB,null);
+  const databasePath=path.join(dataDir,'shelfdeck.db'),database=new Database(databasePath,{readonly:true});
+  try {
+    const assessments=database.prepare(`SELECT n.input_bindings_json,b.result_json FROM fx_workflow_events e
+      JOIN fx_plan_nodes n ON n.plan_id=e.plan_id AND n.node_id=e.node_id
+      JOIN fx_event_result_bindings b ON b.event_id=e.event_id
+      WHERE e.capability_ref='libra.transcode.input.verify@1' ORDER BY e.event_id`).all().map((row)=>{
+        const bindings=JSON.parse(row.input_bindings_json).bindings,result=JSON.parse(row.result_json),
+          device=bindings.find((item)=>item.portName==='mediaExecutionDeviceSnapshot').value;
+        return {deviceClass:device.deviceClass,deviceState:device.state,disposition:result.disposition,reasonCodes:result.reasonCodes};});
+    assert.deepEqual(new Set(assessments.map((item)=>item.deviceClass)),new Set(['nvidia_nvenc','software_cpu']));
+    assert.ok(assessments.every((item)=>item.deviceState==='ready'&&item.disposition==='strategy_rejected'&&
+      item.reasonCodes.includes('dolby_vision_base_layer_unsupported')));
+    assert.equal(database.prepare("SELECT count(*) n FROM fx_workflow_events WHERE capability_ref='libra.media.transcode@1'").get().n,0);
+    assert.equal(database.prepare('SELECT count(*) n FROM libra_product_packages').get().n,0);
+    assert.equal(database.prepare('SELECT count(*) n FROM libra_delivery_receipts').get().n,0);
+    const revision=database.prepare("SELECT transition_evidence_json FROM libra_run_revisions WHERE state='frozen' ORDER BY state_revision DESC LIMIT 1").get(),
+      evidence=JSON.parse(revision.transition_evidence_json),blocker=evidence.blockedWorks[0];
+    assert.equal(evidence.blockerKind,'product_unachievable');assert.equal(blocker.failureClass,'business_unachievable');
+    assert.equal(blocker.failureCode,'no_available_candidate');
+    const failedWorks=database.prepare(`SELECT w.work_id,a.failure_code FROM fx_supporting_works w
+      JOIN fx_work_attempts a ON a.work_id=w.work_id
+      WHERE w.owner_domain='libra' AND w.state='failed' ORDER BY a.ordinal DESC`).all();
+    assert.equal(failedWorks.length,1);assert.equal(failedWorks[0].failure_code,'media_device_strategies_exhausted');
+    assert.equal(database.prepare("SELECT count(*) n FROM fx_workflow_events WHERE owner_domain='libra' AND state='failed'").get().n,0);
+    t.diagnostic('D10 fail-closed evidence: '+JSON.stringify({root,assessments,blocker,failedWorks,calls}));
+  } finally {database.close();}
+  assert.deepEqual(reality(field),fieldBefore);
 });

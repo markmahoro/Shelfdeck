@@ -166,6 +166,21 @@ test('existing Events keep draining across Work backlog caps and background mini
   }, 120000);
 });
 
+test('due external observation Event remains supply eligible after its durable wait', () => {
+  fixture(({ controller, seedRows }) => {
+    seedRows((repository) => {
+      addEventGraph(repository, 'external-observation',
+        'normal_foreground', 'waiting_for_external');
+    });
+    const decision = controller.evaluate({
+      supplyKind: 'event_dispatch',
+      targetId: 'event-external-observation',
+    });
+    assert.equal(decision.kind, 'permitted');
+    assert.equal(decision.lane, 'normal');
+  });
+});
+
 test('Circuit and target state defer or reject supply without Planner/Capability decisions', () => {
   fixture(({ controller, seedRows }) => {
     seedRows((repository) => {

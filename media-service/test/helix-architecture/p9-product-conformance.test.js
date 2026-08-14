@@ -141,7 +141,10 @@ function snapshot() {
     workspaceMediaHandleId:null,mediaRequirementId:requirement.requirementId,mediaRequirementDigest:requirement.requirementDigest,sourceProbeEvidenceId:'probe-1',
     sourceProbeEvidenceDigest:D('source-probe'),outputProbeEvidenceId:'probe-1',outputProbeEvidenceDigest:D('source-probe'),
     qualitySummary:{videoCodec:'hevc',container:'matroska',fileExtension:'mkv',displayRasterClass:'4k',primaryAudioClasses:[],
-      sourceDisplayRasterClass:'4k',systemUpscaleDetected:false},spaceSummary:{unit:'product',actualSizeBytes:100,maxSizeBytes:null,withinLimit:true}};
+      sourceDisplayRasterClass:'4k',systemUpscaleDetected:false},spaceSummary:{unit:'product',actualSizeBytes:100,maxSizeBytes:null,withinLimit:true},
+    dynamicRangeSummary:{sourceDynamicRangeKind:'sdr',outputDynamicRangeKind:'sdr',conversionOperation:'none',outputPixelFormat:'yuv420p',
+      outputColorProfile:{range:'limited',primaries:'bt709',transfer:'bt709',matrix:'bt709'},dolbyVisionMetadataPresent:false},
+    decodeSummary:{samplePointsPercent:[5,50,95],passedSamplePointsPercent:[5,50,95],decodeDigest:D('decode')}};
   verification.verificationId=canonicalDigest({schema:'libra.product-media-verification-id@1',candidateId:verification.candidateId,
     candidateNodeId:verification.candidateNodeId,candidateBasisDigest:verification.candidateBasisDigest,candidateKind:verification.candidateKind,
     libraRunId:verification.libraRunId,productMaterialHandleId:verification.productMaterialHandleId,

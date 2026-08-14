@@ -65,12 +65,114 @@
           "type": "integer",
           "minimum": 1,
           "maximum": 1024
+        },
+        "validatedVideoPipelines": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "pipelineProfileId": {
+                "type": "string",
+                "minLength": 1
+              },
+              "inputDynamicRangeKinds": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "sdr",
+                    "hdr10_compatible",
+                    "hlg",
+                    "dolby_vision",
+                    "unknown"
+                  ]
+                },
+                "maxItems": 5,
+                "minItems": 1,
+                "uniqueItems": true
+              },
+              "inputPixelFormats": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "maxItems": 32,
+                "minItems": 1,
+                "uniqueItems": true
+              },
+              "outputCodec": {
+                "const": "hevc"
+              },
+              "outputDynamicRangeKind": {
+                "type": "string",
+                "enum": [
+                  "sdr",
+                  "hdr10_compatible",
+                  "hlg",
+                  "dolby_vision",
+                  "unknown"
+                ]
+              },
+              "outputPixelFormat": {
+                "type": "string",
+                "minLength": 1
+              },
+              "outputColorProfile": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "range": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "primaries": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "transfer": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "matrix": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "range",
+                  "primaries",
+                  "transfer",
+                  "matrix"
+                ]
+              },
+              "selfTestDigest": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-f0-9]{64}$"
+              }
+            },
+            "required": [
+              "pipelineProfileId",
+              "inputDynamicRangeKinds",
+              "inputPixelFormats",
+              "outputCodec",
+              "outputDynamicRangeKind",
+              "outputPixelFormat",
+              "outputColorProfile",
+              "selfTestDigest"
+            ]
+          },
+          "maxItems": 32,
+          "minItems": 1
         }
       },
       "required": [
         "supportedVideoCodecs",
         "supportedRateControlModes",
-        "validatedConcurrentSlots"
+        "validatedConcurrentSlots",
+        "validatedVideoPipelines"
       ]
     },
     "capabilityDigest": {

@@ -411,6 +411,7 @@ function validateImagesResponse(value) {
         [
           'aspect_ratio',
           'height',
+          'iso_3166_1',
           'iso_639_1',
           'vote_average',
           'vote_count',

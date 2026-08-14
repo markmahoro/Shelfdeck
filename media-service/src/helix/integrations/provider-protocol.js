@@ -162,21 +162,42 @@ function validateJobReceiptInput(value) {
 
 function validateExternalMaterialHandleInput(value, digest) {
   exact(value, ['schemaRef', 'schemaVersion', 'handleId', 'integrationId', 'configRevision', 'externalObjectRef', 'endpointId',
-    'location', 'structureKind', 'outputSnapshot', 'manifestDigest', 'observationRevision', 'accessFenceDigest'], 'P5_PROVIDER_EXTERNAL_HANDLE_SHAPE');
+    'landingBinding', 'location', 'structureKind', 'outputSnapshot', 'manifestDigest', 'observationRevision', 'accessFenceDigest'], 'P5_PROVIDER_EXTERNAL_HANDLE_SHAPE');
   if (value.schemaRef !== 'helix://contracts/types/ExternalMaterialHandle/v1' || value.schemaVersion !== 1) fail('P5_PROVIDER_EXTERNAL_HANDLE_KIND', 'External Material Handle is invalid.');
   [value.handleId, value.integrationId, value.externalObjectRef, value.endpointId].forEach((item) => token(item, 'externalMaterialHandle'));
   positive(value.configRevision, 'configRevision'); positive(value.observationRevision, 'observationRevision'); sha(value.manifestDigest, 'manifestDigest'); sha(value.accessFenceDigest, 'accessFenceDigest');
   validateOutputSnapshot(value.outputSnapshot, value.integrationId, value.configRevision, digest);
+  validateLandingBinding(value.landingBinding, value.integrationId, value.configRevision, digest);
   if (value.externalObjectRef !== value.outputSnapshot.externalObjectRef || value.endpointId !== value.outputSnapshot.endpointId ||
+      value.landingBinding.bindingDigest !== value.outputSnapshot.landingBinding.bindingDigest ||
       value.location !== value.outputSnapshot.location || value.structureKind !== value.outputSnapshot.structureKind ||
       value.manifestDigest !== value.outputSnapshot.manifestDigest) fail('P5_PROVIDER_EXTERNAL_HANDLE_CONTINUITY', 'External Material Handle does not conserve its output snapshot.');
   const expectedHandleId = digest(canonicalJson({ schema: 'libra.external-material-handle-id@1', integrationId: value.integrationId,
     configRevision: value.configRevision, externalObjectRef: value.externalObjectRef, observationRevision: value.observationRevision,
     manifestDigest: value.manifestDigest }));
   const expectedFence = digest(canonicalJson({ schema: 'libra.external-material-access-fence@1', handleId: value.handleId,
-    endpointId: value.endpointId, location: value.location, outputSnapshotDigest: value.outputSnapshot.snapshotDigest }));
+    endpointId: value.endpointId, location: value.location, landingBindingDigest:value.landingBinding.bindingDigest,
+    mountScopeId:value.landingBinding.mountScopeId,mountScopeRevision:value.landingBinding.mountScopeRevision,
+    outputSnapshotDigest: value.outputSnapshot.snapshotDigest }));
   if (value.handleId !== expectedHandleId || value.accessFenceDigest !== expectedFence) fail('P5_PROVIDER_EXTERNAL_HANDLE_FENCE', 'External Material Handle identity or access fence is invalid.');
   return freezeClone(value);
+}
+
+function validateLandingBinding(value, integrationId, configRevision, digest) {
+  exact(value, ['schemaRef','schemaVersion','bindingId','bindingRevision','integrationId','configRevision',
+    'providerRequestSaveRoot','providerOrganizedRoot','shelfDeckVisibleRoot','endpointId','mountScopeId','mountScopeRevision',
+    'accessMode','bindingDigest'], 'P5_PROVIDER_LANDING_BINDING_SHAPE');
+  if (value.schemaRef !== 'helix://contracts/types/MoviePilotLandingBinding/v1' || value.schemaVersion !== 1 ||
+      value.integrationId !== integrationId || value.configRevision !== configRevision || value.bindingRevision !== configRevision ||
+      value.accessMode !== 'provider_rw_shelfdeck_ro') fail('P5_PROVIDER_LANDING_BINDING_FENCE','MoviePilot Landing binding is stale.');
+  [value.bindingId,value.integrationId,value.endpointId,value.mountScopeId].forEach((item)=>token(item,'landingBinding'));
+  positive(value.bindingRevision,'bindingRevision'); positive(value.mountScopeRevision,'mountScopeRevision');
+  [value.providerRequestSaveRoot,value.providerOrganizedRoot,value.shelfDeckVisibleRoot].forEach((item)=>{
+    if(typeof item!=='string'||!item)fail('P5_PROVIDER_LANDING_BINDING_PATH','MoviePilot Landing path is invalid.');
+  });
+  const {bindingDigest,...basis}=value;
+  if(bindingDigest!==digest(canonicalJson(basis)))fail('P5_PROVIDER_LANDING_BINDING_DIGEST','MoviePilot Landing binding digest is invalid.');
+  return value;
 }
 
 function validateInput(kind, input, digest) {
@@ -282,14 +303,18 @@ function validateJob(value, request) {
 }
 
 function validateOutputSnapshot(value, integrationId, configRevision, digest) {
-  const fields = ['integrationId', 'configRevision', 'externalObjectRef', 'endpointId', 'location', 'structureKind', 'members',
+  const fields = ['integrationId', 'configRevision', 'externalObjectRef', 'endpointId', 'landingBinding', 'location', 'structureKind', 'members',
     'identityAnchors', 'observedAtMs', 'newestMutationAtMs', 'memberSetDigest', 'manifestDigest', 'snapshotDigest'];
   if (Object.prototype.hasOwnProperty.call(value || {}, 'observedTitle')) fields.push('observedTitle');
   if (Object.prototype.hasOwnProperty.call(value || {}, 'releaseYear')) fields.push('releaseYear');
   exact(value, fields, 'P5_PROVIDER_OUTPUT_SNAPSHOT_SHAPE');
   if (value.integrationId !== integrationId || value.configRevision !== configRevision || !['single', 'season'].includes(value.structureKind)) fail('P5_PROVIDER_OUTPUT_SNAPSHOT_FENCE', 'External output snapshot fence is invalid.');
+  validateLandingBinding(value.landingBinding, integrationId, configRevision, digest);
+  if(value.endpointId!==value.landingBinding.endpointId)fail('P5_PROVIDER_OUTPUT_SNAPSHOT_FENCE','External output endpoint does not match Landing binding.');
   [value.externalObjectRef, value.endpointId].forEach((item) => token(item, 'outputSnapshot'));
-  if (typeof value.location !== 'string' || !value.location) fail('P5_PROVIDER_OUTPUT_LOCATION', 'External output location is invalid.');
+  if (typeof value.location !== 'string' || !value.location || value.location.includes('\\') ||
+      value.location.startsWith('/') || /^[A-Za-z]:/.test(value.location) ||
+      value.location.split('/').some((part)=>part==='.'||part==='..')) fail('P5_PROVIDER_OUTPUT_LOCATION', 'External output location is invalid.');
   if (!Array.isArray(value.members) || value.members.length < 1 || value.members.length > 256) fail('P5_PROVIDER_OUTPUT_MEMBERS', 'External output members are invalid.');
   const memberIds = new Set(), memberPaths = new Set();
   value.members.forEach((member, index) => {
@@ -473,7 +498,19 @@ function createAdapter(effectClass, options) {
           })), request.timeoutMs));
       } catch (error) {
         if (error instanceof ProviderProtocolError) throw error;
-        fail('P5_PROVIDER_TRANSPORT_FAILED', 'External Provider invocation failed.');
+        fail('P5_PROVIDER_TRANSPORT_FAILED',
+          'External Provider invocation failed.', {
+            causeCode: typeof error?.details?.causeCode === 'string' &&
+                error.details.causeCode
+              ? error.details.causeCode
+              : typeof error?.code === 'string' && error.code
+              ? error.code
+              : error?.name === 'AbortError'
+                ? 'PROVIDER_REQUEST_ABORTED'
+                : error?.message === 'provider timeout'
+                  ? 'PROVIDER_REQUEST_TIMEOUT'
+                  : 'PROVIDER_TRANSPORT_UNCLASSIFIED',
+          });
       }
       exact(response, ['transportRequestId', 'statusCode', 'responseBytes', 'responseDigest', 'result'], 'P5_PROVIDER_RESPONSE_SHAPE');
       token(response.transportRequestId, 'transportRequestId');

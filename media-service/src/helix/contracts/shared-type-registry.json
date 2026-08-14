@@ -9,7 +9,7 @@
     "8.6.17",
     "8.6.18"
   ],
-  "targetCount": 29,
+  "targetCount": 30,
   "entries": [
     {
       "id": "PhysicalMaterialIdentity",
@@ -238,6 +238,20 @@
       ]
     },
     {
+      "id": "MoviePilotLandingBinding",
+      "version": 1,
+      "role": "shared-nominal-handle",
+      "schemaId": "helix://contracts/types/MoviePilotLandingBinding/v1",
+      "relativePath": "types/MoviePilotLandingBinding/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "23c18af7d0ef2fc656e962a776513dcd23570a83a7a73ad889de762a3272d661"
+      },
+      "ssotRefs": [
+        "8.6.8"
+      ]
+    },
+    {
       "id": "ExternalMaterialHandle",
       "version": 1,
       "role": "shared-nominal-handle",
@@ -245,7 +259,7 @@
       "relativePath": "types/ExternalMaterialHandle/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "5a3b5e365bac1bd571390c2ade0c7808fbdf48fb63ec815f63ecb525aebf11e4"
+        "value": "8c553199062184db828748960d654d1682aa2ed2af5141d5f652ec98cf107fc7"
       },
       "ssotRefs": [
         "8.6.18"

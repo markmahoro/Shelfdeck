@@ -1,6 +1,6 @@
 # Libra Run → Handoff B Ready 验收场景基线
 
-Status: `CONFIRMED SCENARIO BASELINE / IMPLEMENTATION NOT STARTED`
+Status: `CONFIRMED SCENARIO BASELINE / IMPLEMENTATION CHECKPOINT COMMITTED / QUALIFICATION PENDING`
 
 Authority: 本文档是对唯一Architecture SSOT的验收展开，不是新的架构来源，不修改SSOT中的Domain、Owner、Handoff或Execution Foundation语义。冲突时以`docs/helix/TOP_DOWN_ARCHITECTURE_CONFIRMATION.md`为准。
 
@@ -69,6 +69,8 @@ Libra Run active
 | `D06` | Metadata包含演员和导演 | 形成Product Metadata Fact和Media-Cast Fact；未注册Person也保留显示名、角色和Provider hint |
 | `D07` | Related在Handoff A Accepted后Reality变化 | 旧Reference/Disposition Basis失效；当前Run不得用旧Basis发布Package |
 | `D08` | 同一Run存在多个已验证合规输出 | 仅按Plan冻结rank及verification ID tie-break选择，不按输入数组顺序“选第一个” |
+| `D09` | DV Profile 7/8且存在PQ/BT.2020兼容Base Layer，本来就需要转码 | 通过经过self-test的GPU或CPU closed pipeline归一化为SDR BT.709 yuv420p HEVC；无DOVI残留且三点可解码 |
+| `D10` | DV Profile 5、无兼容Base Layer或色彩Evidence未知 | 本地GPU/CPU均fail closed；不得盲目tone-map或产生错误媒体，只有External Acquisition可继续闭合 |
 
 ### 3.1 每份成功Package的内容审计
 
@@ -110,6 +112,7 @@ Libra Run active
 | `R06` | Deliverable Promotion的Control、Manifest、Package、Offer、Outbox任意中间点 | 全有或全无；重放返回同一Package/Offer |
 | `R07` | Owner wake signal丢失后重启 | durable reconcile发现并继续合法Run，不依赖旧HTTP调用栈 |
 | `R08` | 17个Subject并行建立Run和生产 | Run/Workspace/Fact/Result不串线；一个慢Run不阻止其他Run先产生Offer |
+| `R09` | GPU全局ready但当前Source × Pipeline不兼容 | GPU Assessment产生terminal `strategy_rejected`且零GPU Transcode Effect；Planner建立独立CPU Work/Plan/Event/Intent后才允许真实CPU转换 |
 
 `R02`–`R06`必须使用故障注入、产品Composition Root和可恢复的隔离Workspace；不允许用直接写Store或手工拼装Result代替产品路径。
 
@@ -182,17 +185,38 @@ C:\Users\markm\AppData\Local\Temp\ShelfDeck-P14-20260723\material-fields
 
 ~~~text
 11条真实主生产路径
-+ 8条Metadata/Artifact/Media-Cast/Related断言
++ 10条Metadata/Artifact/Media-Cast/Related与DV断言
 + 8条Run生命周期场景
-+ 8条Workspace/Effect/恢复场景
-= 35个逻辑场景
++ 9条Workspace/Effect/恢复场景
+= 38个逻辑场景
 ~~~
 
 通过复用Primary样本、变更Rating/Policy和使用故障注入，预计只需12–15份物理电影样本。
 
+## 9. 2026-08-14资格证据状态
+
+原35个逻辑场景继续由产品Composition Root逐项覆盖；2026-08-13新增的`D09`、`D10`、`R09`也已完成实现和验证。承载这些场景的是产品级test case与两条真实DV字节E2E，不代表test case数量等于业务场景数：
+
+- 主路径和Package审计覆盖`L01–L11`、`D01–D08`；
+- rating/same-semantics/suspend/resume/replacement/expedite/fail-closed覆盖`S01–S08`；
+- 空间、媒体Effect、外部Receipt、Fact、Promotion、lost wake和20 Subject并行覆盖`R01–R08`；
+- 加入D10后的P14场景文件复跑结果为`13/13 PASS`、`451.569 s`；默认服务测试为245 pass、14个显式环境skip、0 fail；完整Helix Architecture gate为158个test file PASS，合同计数保持112/98/180/43/115；
+- D09真实Profile 8样本经实际NVENC pipeline Assessment 24/24后完成唯一GPU Effect；R09真实Profile 7样本在GPU仍ready但source pipeline缺失时先形成`strategy_rejected`且零GPU Effect，再由独立CPU two-pass/strict-ABR链完成；两条输出均为SDR BT.709 limited、`yuv420p`、无DOVI且三点可解码；
+- D10的Profile 5/无兼容Base Layer fixture使GPU与CPU均产生`dolby_vision_base_layer_unsupported`，随后External无可用结果，Run Frozen且0 Package/0 Offer；
+- 所有成功Package均核验single Structure、Identity、Metadata、Media-Cast、NFO/poster、Off-load Context、Related disposition和Delivery Attestation；
+- 所有验证保持Handoff B Offer未消费、Arca Entry/Fact为0、隔离源Reality不变。
+
+DV与源级Compatibility矩阵已经达到`LIBRA SOURCE-COMPATIBILITY FALLBACK AND DV NORMALIZATION VERIFIED`。MoviePilot External Landing也已完成产品接线：最终文件只通过Transfer History的`download_hash → dest`解析，旧下载历史`path`不参与；Landing与Workspace必须独立，Import流式复制并保留源文件。确定性External E2E、planned restart/lost wake及P14完整场景回归均通过。
+
+真实L07 External Integration资格已经闭合。最终测试采用MoviePilot中已经完成的`The Wild Robot (2024)`精确任务与`download_hash`，脚本硬阻止`/api/v1/download/add`，因此`moviePilotDownloadAddCount=0`，没有重复下载。产品链通过Transfer History得到最终`dest`，planned restart后完成Resolve、Stability、Verify、Workspace Import、Package和open Offer。
+
+证据根为`C:\Users\markm\AppData\Local\Temp\helix-real-libra-handoff-b-HmA51h`：总耗时607.681秒；Landing与Workspace副本均为21,756,642,178 bytes，SHA-256均为`fd725e36bc8f5fb5503cddba241d146353aba5a8b06e2b50c7f0c35dbe347468`且inode不同；真实Probe为HEVC 4K + TrueHD并满足50 GiB Acceptance上限。Request、Acquisition Observation、Stability、Import、Package及Offer均无重复，`failedWorks=0`、`failedEvents=0`、Offer未消费、Arca Entry为0、数据库`integrity_check=ok`。据此当前状态为`LIBRA HANDOFF B READY / AWAITING ARCA ACCEPTANCE`。
+
+## 10. 封口条件
+
 封口需同时满足：
 
-1. 35个逻辑场景均有可重现证据；
+1. 38个逻辑场景均有可重现证据；
 2. 所有成功场景都产生自包含的Package与open Handoff B Offer；
 3. 所有失败/等待/frozen场景都不伪造Package或Offer；
 4. Planner、Coordinator、Event Runtime与Resource Governor职责边界符合SSOT；
@@ -200,3 +224,13 @@ C:\Users\markm\AppData\Local\Temp\ShelfDeck-P14-20260723\material-fields
 6. 重启、重放和崩溃注入不生成重复外部请求、输出、Fact、Package或Offer；
 7. Material Field和Shelf Target的Reality在Handoff B Ready前后逐项一致；
 8. Handoff B Offer未被消费，Libra/Arca责任边界没有被测试捷径跨越。
+
+## 11. 封口决定
+
+上述八项条件均已满足。2026-08-14用户接受本节点封口，正式状态为：
+
+```text
+MOVIE LIBRA CLOSED AT HANDOFF B READY
+```
+
+封口出口是自包含On-deck Product Package与open、未消费的Handoff B Offer。Handoff B Accepted、Arca Acceptance、Arca On-deck、Shelf Entry、Deck Fact及Libra Workspace Off-load回收属于后续节点，不得被本封口状态提前宣称完成。

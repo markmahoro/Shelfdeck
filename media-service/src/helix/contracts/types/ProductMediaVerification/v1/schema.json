@@ -52,10 +52,14 @@
           "system_upscale_forbidden",
           "primary_audio_unmet",
           "max_size_exceeded",
-          "requirement_integrity_failure"
+          "requirement_integrity_failure",
+          "dynamic_range_conversion_unmet",
+          "output_color_profile_unmet",
+          "dolby_vision_metadata_not_removed",
+          "playback_decode_failed"
         ]
       },
-      "maxItems": 11
+      "maxItems": 15
     },
     "evidenceRefs": {
       "type": "array",
@@ -248,6 +252,123 @@
         "maxSizeBytes",
         "withinLimit"
       ]
+    },
+    "dynamicRangeSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "sourceDynamicRangeKind": {
+          "type": "string",
+          "enum": [
+            "sdr",
+            "hdr10_compatible",
+            "hlg",
+            "dolby_vision",
+            "unknown"
+          ]
+        },
+        "outputDynamicRangeKind": {
+          "type": "string",
+          "enum": [
+            "sdr",
+            "hdr10_compatible",
+            "hlg",
+            "dolby_vision",
+            "unknown"
+          ]
+        },
+        "conversionOperation": {
+          "type": "string",
+          "enum": [
+            "none",
+            "preserve",
+            "tone_map_to_sdr_bt709"
+          ]
+        },
+        "outputPixelFormat": {
+          "type": "string",
+          "minLength": 1
+        },
+        "outputColorProfile": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "range": {
+              "type": "string",
+              "minLength": 1
+            },
+            "primaries": {
+              "type": "string",
+              "minLength": 1
+            },
+            "transfer": {
+              "type": "string",
+              "minLength": 1
+            },
+            "matrix": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "range",
+            "primaries",
+            "transfer",
+            "matrix"
+          ]
+        },
+        "dolbyVisionMetadataPresent": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "sourceDynamicRangeKind",
+        "outputDynamicRangeKind",
+        "conversionOperation",
+        "outputPixelFormat",
+        "outputColorProfile",
+        "dolbyVisionMetadataPresent"
+      ]
+    },
+    "decodeSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "samplePointsPercent": {
+          "type": "array",
+          "items": {
+            "enum": [
+              5,
+              50,
+              95
+            ]
+          },
+          "maxItems": 3,
+          "uniqueItems": true
+        },
+        "passedSamplePointsPercent": {
+          "type": "array",
+          "items": {
+            "enum": [
+              5,
+              50,
+              95
+            ]
+          },
+          "maxItems": 3,
+          "uniqueItems": true
+        },
+        "decodeDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "samplePointsPercent",
+        "passedSamplePointsPercent",
+        "decodeDigest"
+      ]
     }
   },
   "required": [
@@ -277,6 +398,8 @@
     "outputProbeEvidenceId",
     "outputProbeEvidenceDigest",
     "qualitySummary",
-    "spaceSummary"
+    "spaceSummary",
+    "dynamicRangeSummary",
+    "decodeSummary"
   ]
 }

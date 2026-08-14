@@ -1,10 +1,34 @@
 'use strict';
 
+const { canonicalDigest } = require('../../../contracts/canonical-json');
 const { buildMetadataObservation } = require('../model/product-fact-contracts');
 
 const CAPABILITY = 'libra.product_metadata.fetch@1';
 const RESULT_SCHEMA = 'helix://contracts/capabilities/libra.product_metadata.fetch/v1/result';
 const EVIDENCE_SCHEMA = 'helix://contracts/capabilities/libra.product_metadata.fetch/v1/evidence';
+
+function physicalMaterialIdentityKey(identity) {
+  if (!identity || identity.fingerprintAlgorithm !== 'middle-256k-sha256' ||
+      identity.fingerprintVersion !== 1 || !Number.isSafeInteger(identity.sizeBytes) || identity.sizeBytes < 0) {
+    return null;
+  }
+  return canonicalDigest({
+    schema: 'physical-material-identity@2',
+    mountScopeId: identity.mountScopeId,
+    inode: identity.inode,
+    sizeBytes: identity.sizeBytes,
+    fingerprintAlgorithm: identity.fingerprintAlgorithm,
+    fingerprintVersion: identity.fingerprintVersion,
+    contentFingerprint: identity.contentFingerprint,
+  });
+}
+
+function samePhysicalMaterialIdentity(left, right) {
+  const leftKey = physicalMaterialIdentityKey(left);
+  const rightKey = physicalMaterialIdentityKey(right);
+  return Boolean(leftKey && left.materialKey === leftKey &&
+    rightKey && right.materialKey === rightKey && leftKey === rightKey);
+}
 
 function requireNamed(context, names) {
   for (const name of names) {
@@ -53,7 +77,7 @@ function createProductMetadataCapabilityPorts(options) {
         const reference = snapshot?.relatedReferences?.find((item) => item.referenceId === intent.relatedReferenceId);
         if (!reference || reference.referenceDigest !== intent.relatedReferenceDigest ||
             reference.identity?.contentFingerprint !== intent.expectedChecksum ||
-            canonicalDigest(handle.identity) !== canonicalDigest(reference.identity)) {
+            !samePhysicalMaterialIdentity(handle.identity, reference.identity)) {
           throw new TypeError('Related NFO projection no longer matches the immutable Run input.');
         }
         const nfo = options.productProductionPort.readRelatedNfo({
@@ -63,7 +87,7 @@ function createProductMetadataCapabilityPorts(options) {
         source = Object.freeze({
           descriptiveEntries: nfo.entries,
           providerIdentities: Object.freeze([]),
-          peopleHints: Object.freeze([]),
+          peopleHints: Object.freeze(nfo.peopleHints || []),
           artifactHints: Object.freeze([]),
         });
       } else if (intent.sourceKind === 'provider') {

@@ -2,6 +2,7 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
+const { pipeline } = require('node:stream/promises');
 const crypto = require('node:crypto');
 const { canonicalDigest, canonicalJson } = require('./helix/contracts/canonical-json');
 const { createRepositoryDefinition } = require('./helix/foundation/persistence/owner-repository');
@@ -260,8 +261,7 @@ function createCleanWorkspaceProductPort(options) {
   }
   const repositories = definitions(options.schemaManifest);
   const absoluteRoot = path.resolve(options.rootPath);
-  const externalMaterialRoots = Object.freeze([...(options.externalMaterialRoots || [])]
-    .map((item) => path.resolve(item)));
+  const externalLandingResolver = options.externalLandingResolver;
   const rootId = 'service-libra-production-workspace';
   const endpointId = 'service-local-workspace';
   const mountScopeId = canonicalDigest({
@@ -335,7 +335,10 @@ function createCleanWorkspaceProductPort(options) {
       fail('CLEAN_WORKSPACE_SPACE_INPUT',
         'Workspace space observation must bind the exact Platform root and request.');
     }
-    const statistics = fs.statfsSync(absoluteRoot, { bigint: true });
+    const statistics = (options.statfsSync || fs.statfsSync)(
+      absoluteRoot,
+      { bigint: true },
+    );
     const available = statistics.bavail * statistics.bsize;
     const availableBytes = available > BigInt(Number.MAX_SAFE_INTEGER)
       ? Number.MAX_SAFE_INTEGER
@@ -1413,6 +1416,9 @@ function createCleanWorkspaceProductPort(options) {
 
   async function materializeMedia(request) {
     const root = ensureRoot();
+    const runtimeAuthority = runtimeEffectAuthority(request);
+    if (!runtimeAuthority) fail('CLEAN_WORKSPACE_MEDIA_RUNTIME_AUTHORITY_REQUIRED',
+      'Workspace media materialization requires the Event Runtime workspace_write authority.');
     const relativePath = relative(request?.relativePath);
     if (typeof request?.libraRunId !== 'string' || !request.libraRunId ||
         typeof request.workspaceId !== 'string' || !request.workspaceId ||
@@ -1421,9 +1427,7 @@ function createCleanWorkspaceProductPort(options) {
         typeof request.produce !== 'function') {
       fail('CLEAN_WORKSPACE_MEDIA_INPUT', 'Workspace media Effect input is incomplete.');
     }
-    const effectClass = 'libra_workspace_media_materialize';
-    const effectId = canonicalDigest({ schema:'foundation.effect-id@1', effectClass,
-      idempotencyKey:request.idempotencyKey });
+    const effectId = runtimeAuthority.effect.effect_id;
     const intent = { schema:'libra.workspace-media-materialize-intent@1', libraRunId:request.libraRunId,
       workspaceId:request.workspaceId, rootSnapshotDigest:root.snapshotDigest, relativePath,
       productionIntentDigest:request.intentDigest };
@@ -1433,9 +1437,12 @@ function createCleanWorkspaceProductPort(options) {
     if (target !== workspaceRoot && !target.startsWith(workspaceRoot + path.sep)) {
       fail('CLEAN_WORKSPACE_PATH_ESCAPE', 'Workspace media output escaped its controlled root.');
     }
-    const prior = recordIntent(effectClass, effectId, request.idempotencyKey, journalIntentDigest);
+    const existingBefore = execute('clean_workspace_media_effect_read', 'execution-foundation', repositories.foundation, (context) =>
+      mapMaterial(context.repository(repositories.foundation.repositoryId).invoke('find_material_by_path', {
+        workspace_id:request.workspaceId, relative_path:relativePath,
+      })));
     fs.mkdirSync(path.dirname(target), { recursive:true });
-    if (prior.state !== 'committed' && !fs.existsSync(target)) {
+    if (!existingBefore && !fs.existsSync(target)) {
       const temporary = target + '.partial-' + effectId.slice(0, 16);
       await request.produce(temporary);
       if (!fs.existsSync(temporary) || !fs.statSync(temporary).isFile()) {
@@ -1443,6 +1450,9 @@ function createCleanWorkspaceProductPort(options) {
       }
       fs.renameSync(temporary, target);
       if (typeof options.afterPhysicalEffect === 'function') options.afterPhysicalEffect(Object.freeze({
+        effectId, target, intentDigest:journalIntentDigest,
+      }));
+      if (typeof options.afterMediaPhysicalEffect === 'function') options.afterMediaPhysicalEffect(Object.freeze({
         effectId, target, intentDigest:journalIntentDigest,
       }));
     }
@@ -1453,7 +1463,7 @@ function createCleanWorkspaceProductPort(options) {
     const sizeBytes = Number(stat.size);
     if (!Number.isSafeInteger(sizeBytes)) fail('CLEAN_WORKSPACE_MEDIA_SIZE', 'Workspace media output is too large.');
     const digestHex = await digestFile(target);
-    if (prior.state === 'committed' && prior.outputDigest !== digestHex) {
+    if (existingBefore && existingBefore.digestHex !== digestHex) {
       fail('CLEAN_WORKSPACE_MEDIA_REALITY_DRIFT', 'Committed Workspace media bytes drifted.');
     }
     const bounded = require('./helix/integrations/bounded-material-fingerprint')
@@ -1481,20 +1491,21 @@ function createCleanWorkspaceProductPort(options) {
         accessScope:'workspace_material_read' }) });
     const committed = execute('clean_workspace_media_effect_commit', 'execution-foundation', repositories.foundation, (context) => {
       const repo = context.repository(repositories.foundation.repositoryId);
-      const effect = repo.invoke('find_effect', { effect_class:effectClass, idempotency_key:request.idempotencyKey });
-      if (!effect || effect.effect_id !== effectId || effect.intent_digest !== journalIntentDigest) {
+      const effect = repo.invoke('find_effect', { effect_class:'workspace_write', idempotency_key:request.idempotencyKey });
+      if (!effect || effect.effect_id !== effectId || effect.event_attempt_id !== runtimeAuthority.authority.eventAttemptId ||
+          effect.state !== 'intended') {
         fail('CLEAN_WORKSPACE_MEDIA_JOURNAL', 'Workspace media Effect journal is absent.');
       }
       const existing = repo.invoke('find_material', { workspace_id:request.workspaceId, material_handle_id:handleId });
-      if (effect.state === 'committed') {
+      const byPath = repo.invoke('find_material_by_path', { workspace_id:request.workspaceId, relative_path:relativePath });
+      if (existing || byPath) {
+        if (!existing || byPath.material_handle_id !== handleId) fail(
+          'CLEAN_WORKSPACE_MEDIA_REPLAY_CORRUPT', 'Workspace media path is bound to another immutable Material Handle.');
         const stored = mapMaterial(existing);
         if (canonicalJson(stored) !== canonicalJson(workspaceMaterialHandle)) {
           fail('CLEAN_WORKSPACE_MEDIA_REPLAY_CORRUPT', 'Committed media Handle cannot be reconstructed.');
         }
         return Object.freeze({ replayed:true, workspaceMaterialHandle:stored });
-      }
-      if (effect.state !== 'intended' || existing) {
-        fail('CLEAN_WORKSPACE_MEDIA_STATE_CONFLICT', 'Workspace media Effect state conflicts.');
       }
       repo.invoke('insert_material', { workspace_id:request.workspaceId, material_handle_id:handleId,
         material_key:materialKey, endpoint_id:endpointId, mount_scope_id:mountScopeId, inode:physicalIdentity.inode,
@@ -1505,13 +1516,16 @@ function createCleanWorkspaceProductPort(options) {
         handle_schema_ref:workspaceMaterialHandle.schemaRef, handle_json:canonicalJson(workspaceMaterialHandle),
         handle_digest:canonicalDigest(workspaceMaterialHandle), fence_digest:workspaceMaterialHandle.fenceDigest,
         state:'active' });
-      if (repo.invoke('commit_effect', { state:'committed', external_receipt_ref:'workspace://'+request.workspaceId+'/'+relativePath,
-        output_digest:digestHex, verified_at_ms:context.commitTimeMs, updated_at_ms:context.commitTimeMs,
-        effect_id:effectId, expected_state:'intended', expected_intent_digest:journalIntentDigest }).changes !== 1) {
-        fail('CLEAN_WORKSPACE_MEDIA_CAS', 'Workspace media Effect journal CAS failed.');
-      }
       return Object.freeze({ replayed:false, workspaceMaterialHandle });
     });
+    if (!committed.replayed && typeof options.afterMediaEffectCommit === 'function') {
+      options.afterMediaEffectCommit(Object.freeze({
+        effectId,
+        target,
+        intentDigest:journalIntentDigest,
+        workspaceMaterialHandle:committed.workspaceMaterialHandle,
+      }));
+    }
     const receipt = { effectId, effectReceiptId:stableMediaReceipt(effectId),
       effectScopeDigest:request.effectScopeDigest, outputTargetId:request.outputTargetId,
       outputTargetDigest:request.outputTargetDigest, workspaceMaterialHandle:committed.workspaceMaterialHandle,
@@ -1539,19 +1553,34 @@ function createCleanWorkspaceProductPort(options) {
       fail('CLEAN_WORKSPACE_EXTERNAL_IMPORT_MEMBER',
         'External Workspace import member is absent or not canonical.');
     }
-    const location = path.resolve(externalHandle.location);
+    if (typeof externalLandingResolver !== 'function' ||
+        !externalHandle.landingBinding) {
+      fail('CLEAN_WORKSPACE_EXTERNAL_LANDING_RESOLVER',
+        'External Workspace import requires the frozen Platform Landing resolver.');
+    }
+    const landing = externalLandingResolver({
+      integrationId: externalHandle.integrationId,
+      configRevision: externalHandle.configRevision,
+      bindingId: externalHandle.landingBinding.bindingId,
+      bindingRevision: externalHandle.landingBinding.bindingRevision,
+      bindingDigest: externalHandle.landingBinding.bindingDigest,
+      endpointId: externalHandle.endpointId,
+      mountScopeId: externalHandle.landingBinding.mountScopeId,
+      mountScopeRevision: externalHandle.landingBinding.mountScopeRevision,
+      location: externalHandle.location,
+    });
+    const location = path.resolve(landing.absolutePath);
     let source = location;
     if (!fs.existsSync(source) || !fs.statSync(source).isFile()) {
       source = path.resolve(location, ...relative(member.relativePath).split('/'));
     }
-    const allowed = externalMaterialRoots.some((root) =>
-      source === root || source.startsWith(root + path.sep));
-    if (!allowed || !fs.existsSync(source) || !fs.statSync(source).isFile()) {
+    if (!fs.existsSync(source) || !fs.statSync(source).isFile()) {
       fail('CLEAN_WORKSPACE_EXTERNAL_IMPORT_CONTAINMENT',
-        'External Workspace import source is outside the configured isolation roots.');
+        'External Workspace import source is outside the frozen Landing handle.');
     }
-    const sourceStat = fs.statSync(source);
-    if (sourceStat.size !== member.sizeBytes || await digestFile(source) !== member.checksumHex) {
+    const sourceStat = fs.statSync(source, { bigint:true });
+    const sourceDigest = await digestFile(source);
+    if (Number(sourceStat.size) !== member.sizeBytes || sourceDigest !== member.checksumHex) {
       fail('CLEAN_WORKSPACE_EXTERNAL_IMPORT_IDENTITY',
         'External Workspace import source differs from its verified Provider snapshot.');
     }
@@ -1571,12 +1600,32 @@ function createCleanWorkspaceProductPort(options) {
       effectScopeDigest,
       outputTargetId: contract.contractId,
       outputTargetDigest: contract.digest,
-      produce: (temporary) => fs.promises.copyFile(source, temporary),
+      runtimeEffectAuthority: request.runtimeEffectAuthority,
+      produce: async (temporary) => {
+        await pipeline(
+          fs.createReadStream(source),
+          fs.createWriteStream(temporary, { flags:'wx' }),
+        );
+        const after = fs.statSync(source, { bigint:true });
+        const afterDigest = await digestFile(source);
+        if (after.dev !== sourceStat.dev || after.ino !== sourceStat.ino ||
+            after.size !== sourceStat.size || after.mtimeNs !== sourceStat.mtimeNs ||
+            after.ctimeNs !== sourceStat.ctimeNs || afterDigest !== sourceDigest) {
+          fail('CLEAN_WORKSPACE_EXTERNAL_IMPORT_SOURCE_CHANGED',
+            'External Landing source changed during Workspace import.');
+        }
+      },
     });
     if (receipt.workspaceMaterialHandle.sizeBytes !== member.sizeBytes ||
         receipt.workspaceMaterialHandle.digestHex !== member.checksumHex) {
       fail('CLEAN_WORKSPACE_EXTERNAL_IMPORT_RESULT',
         'Imported Workspace material does not preserve the verified external member.');
+    }
+    const importedPath = resolveMaterialLocation(receipt.workspaceMaterialHandle);
+    const importedStat = fs.statSync(importedPath, { bigint:true });
+    if (importedStat.dev === sourceStat.dev && importedStat.ino === sourceStat.ino) {
+      fail('CLEAN_WORKSPACE_EXTERNAL_IMPORT_NOT_INDEPENDENT',
+        'Workspace import must create an independent Physical Material.');
     }
     return receipt.workspaceMaterialHandle;
   }

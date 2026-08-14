@@ -76,6 +76,31 @@ test('multi-resource Permit is acquired atomically and a later pull promotes one
   });
 });
 
+test('capacity wait publishes waiting_for_resource with a short Scheduler retry timestamp', () => {
+  fixture(({ governor, databasePath, seedEvents, setNow }) => {
+    seedEvents('holder', 'waiter');
+    const holder = governor.acquire(request('holder', [['cpu_heavy']]));
+    const first = governor.acquire(request('waiter', [['cpu_heavy']]));
+    assert.equal(first.kind, 'waiting');
+    assert.equal(first.retryAtMs, 180100);
+    assert.equal(governor.acquire(request('waiter', [['cpu_heavy']])).retryAtMs, 180100);
+    const database = new Database(databasePath, { readonly: true });
+    try {
+      assert.deepEqual(database.prepare('SELECT state,retry_at_ms FROM fx_workflow_events WHERE event_id=?').get('waiter'),
+        { state: 'waiting_for_resource', retry_at_ms: 180100 });
+    } finally { database.close(); }
+    setNow(180100);
+    assert.equal(governor.acquire(request('waiter', [['cpu_heavy']])).retryAtMs, 180200);
+    governor.release(holder.permit);
+    assert.equal(governor.acquire(request('waiter', [['cpu_heavy']])).kind, 'permitted');
+    const released = new Database(databasePath, { readonly: true });
+    try {
+      assert.deepEqual(released.prepare('SELECT state FROM fx_resource_defer WHERE event_id=?').all('waiter'),
+        [{ state: 'released' }]);
+    } finally { released.close(); }
+  });
+});
+
 test('one Event has one waiter and newer Owner projection can reprioritize it', () => {
   fixture(({ governor, seedEvents }) => {
     seedEvents('holder', 'waiter');
