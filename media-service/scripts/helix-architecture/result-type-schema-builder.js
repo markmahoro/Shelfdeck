@@ -455,6 +455,7 @@ const special = {
   'StagedInventoryManifest.stagedMembers': arrayOf(object({
     sourceMaterialKey: id(),
     materialKey: id(),
+    physicalIdentity: ref('PhysicalMaterialIdentity'),
     role: enumText(
       'primary_payload', 'metadata_sidecar', 'poster', 'fanart',
       'structural_dependency', 'subtitle', 'external_audio', 'chapter', 'sidecar',
@@ -471,6 +472,10 @@ const special = {
   'CustodyAssessmentEvidence.assessmentState': text(),
   'PresentationAssessmentEvidence.assessmentState': text(),
   'ConformanceAssessmentEvidence.assessmentState': text(),
+  'CustodyAssessmentEvidence.incidentKey': nullable(text()),
+  'PresentationAssessmentEvidence.incidentKey': nullable(text()),
+  'ConformanceAssessmentEvidence.incidentKey': nullable(text()),
+  'ConformanceAssessmentEvidence.mediaRepairStrategy': nullable(domainRef('AftercareMediaRepairStrategy')),
   'CustodyAssessmentEvidence.findingDrafts': arrayOf(snapshot('finding-draft'), 1024),
   'PresentationAssessmentEvidence.findingDrafts': arrayOf(snapshot('finding-draft'), 1024),
   'ConformanceAssessmentEvidence.findingDrafts': arrayOf(snapshot('finding-draft'), 1024),
@@ -638,11 +643,11 @@ const contracts = {
   OnDeckCommitResult: [null, 'onDeckCommitReceipt,offloadCompletionFact'],
   OnDeckCommitReceipt: ['ReceiptEnvelope', 'shelfEntryId,inventoryRevision,deckFactRevision,controlRevisionSetDigest'],
   OffloadCompletionFact: ['DomainFactEnvelope', 'onDeckRunId,shelfEntryId,inventoryRevision,packageId,completionDigest'],
-  CustodyAssessmentEvidence: ['EvidenceEnvelope', 'shelfEntryId,inventoryRevision,standardRevision,placementRevision,decisionFactSetDigest,careBasisDigest,assessmentState,findingDrafts'],
-  PresentationAssessmentEvidence: ['EvidenceEnvelope', 'shelfEntryId,inventoryRevision,standardRevision,placementRevision,decisionFactSetDigest,careBasisDigest,assessmentState,findingDrafts'],
-  ConformanceAssessmentEvidence: ['EvidenceEnvelope', 'shelfEntryId,inventoryRevision,standardRevision,placementRevision,decisionFactSetDigest,careBasisDigest,assessmentState,findingDrafts'],
+  CustodyAssessmentEvidence: ['EvidenceEnvelope', 'shelfEntryId,inventoryRevision,standardRevision,placementRevision,decisionFactSetDigest,careBasisDigest,assessmentState,findingDrafts,incidentKey'],
+  PresentationAssessmentEvidence: ['EvidenceEnvelope', 'shelfEntryId,inventoryRevision,standardRevision,placementRevision,decisionFactSetDigest,careBasisDigest,assessmentState,findingDrafts,incidentKey'],
+  ConformanceAssessmentEvidence: ['EvidenceEnvelope', 'shelfEntryId,inventoryRevision,standardRevision,placementRevision,decisionFactSetDigest,careBasisDigest,assessmentState,findingDrafts,incidentKey,mediaRepairStrategy'],
   AssessmentRevision: ['DomainFactEnvelope', 'shelfEntryId,careBasisDigest,professionalAssessmentSetDigest'],
-  MaterialEffectReceipt: ['ReceiptEnvelope', 'targetBindingDigest,materialEffectKind,effectReceiptId,finalRealityDigest'],
+  MaterialEffectReceipt: ['ReceiptEnvelope', 'targetBindingDigest,materialEffectKind,effectReceiptId,finalRealityDigest,finalMaterialIdentity,targetEndpointId,targetLocation,retiredMaterials,supersededLocation?,supersededMaterialIdentity?'],
   CareProductVerification: ['VerificationEnvelope', 'aftercareCaseId,careRequirementDigest,workspaceMediaHandleId'],
   AftercareInventoryCommitReceipt: ['ReceiptEnvelope', 'aftercareCaseId,shelfEntryId,previousInventoryRevision,newInventoryRevision,controlChangeDigest'],
   AftercareCaseResult: ['DomainFactEnvelope', 'aftercareCaseId,resultState,reassessmentDigest,inventoryEffectRefs'],
@@ -671,6 +676,16 @@ const contracts = {
 
 special['OnDeckCommitResult.onDeckCommitReceipt'] = ref('OnDeckCommitReceipt');
 special['OnDeckCommitResult.offloadCompletionFact'] = ref('OffloadCompletionFact');
+special['MaterialEffectReceipt.finalMaterialIdentity'] = ref('PhysicalMaterialIdentity');
+special['MaterialEffectReceipt.targetEndpointId'] = id();
+special['MaterialEffectReceipt.targetLocation'] = text();
+special['MaterialEffectReceipt.supersededLocation'] = text();
+special['MaterialEffectReceipt.supersededMaterialIdentity'] = ref('PhysicalMaterialIdentity');
+special['MaterialEffectReceipt.retiredMaterials'] = arrayOf(object({
+  identity: ref('PhysicalMaterialIdentity'),
+  location: text(),
+  requiresSettlement: bool(),
+}), 1024);
 
 function buildResultTypeSchema(name, [base, fieldList]) {
   if (name === 'ArtifactManifestVerification') return artifactManifestVerificationSchema();

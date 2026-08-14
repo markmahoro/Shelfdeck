@@ -122,7 +122,7 @@ function normalizedTypeName(value) {
     'Structure Evidence': 'TriageStructureEvidence',
     'Inventory media evidence': 'ProductMediaVerification',
     'Product media evidence': 'ProductMediaVerification',
-    'Workspace media evidence': 'ProductMediaVerification'
+    'Workspace media evidence': 'WorkspaceMediaHandle'
   };
   return aliases[direct] || pascal(direct);
 }

@@ -35,6 +35,10 @@
       "allow": ["node:path"]
     },
     {
+      "source": "domains.arca.capabilities",
+      "allow": ["node:fs", "node:os", "node:path", "node:crypto", "node:child_process"]
+    },
+    {
       "source": "integrations",
       "allow": ["node:crypto", "node:fs", "node:path", "cheerio"]
     }

@@ -1,6 +1,12 @@
 # ShelfDeck / Helix Documentation Index
 
-Status: Movie Procurement与Movie Libra封口保持有效；Movie Arca已完成Handoff B Acceptance、On-deck、Shelf Entry与Deck Fact接线。“我的收藏”已由Arca Shelf Entry海报墙呈现。下一节点为Arca Post-deck Aftercare；Off-deck、Docker/NAS与生产部署均未开始。
+Status: Movie Procurement与Movie Libra封口保持有效；Movie Arca已完成Handoff B Acceptance、On-deck、Shelf Entry、Deck Fact与Beta Aftercare闭环。“我的收藏”已同时承载海报墙与收藏健康。当前状态为`ARCA AFTERCARE READY / AWAITING OFF-DECK`；Off-deck、Docker/NAS与生产部署均未开始。
+
+Aftercare不新增一级页面。每个Shelf Entry通过正式Work/Plan/Event链形成Custody、Presentation和Conformance三维Evidence；当前健康、
+Finding、Case与修复历史投影到“我的收藏”的检验章、筛选和详情。每日Custody只核验已知Inventory成员，每周深检Presentation与
+Conformance；自动修复仅使用Arca已拥有且位置明确的材料，可闭合NFO、Poster、现有Primary媒体加工和Placement迁移。需要重新搜索、
+下载或采购媒体时保持`attention_required`，不回流Procurement/Libra。修复只有在新Inventory revision、旧输入settlement、Workspace
+reclaim及三维fresh复验全部完成后才resolved。正式UI inventory现为8 pages + 9 journeys = 17。
 
 后续本地真实媒体测试的可重复构建主库由用户于2026-08-11固定为
 `C:\Users\markm\AppData\Local\Temp\ShelfDeck-P14-20260723\material-fields`。destructive Formation只允许作用于该库或

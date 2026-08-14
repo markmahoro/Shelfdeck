@@ -76,6 +76,50 @@
       "type": "string",
       "minLength": 1,
       "pattern": "^[a-f0-9]{64}$"
+    },
+    "finalMaterialIdentity": {
+      "$ref": "helix://contracts/types/PhysicalMaterialIdentity/v2"
+    },
+    "targetEndpointId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "targetLocation": {
+      "type": "string",
+      "minLength": 1
+    },
+    "retiredMaterials": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "identity": {
+            "$ref": "helix://contracts/types/PhysicalMaterialIdentity/v2"
+          },
+          "location": {
+            "type": "string",
+            "minLength": 1
+          },
+          "requiresSettlement": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "identity",
+          "location",
+          "requiresSettlement"
+        ]
+      },
+      "maxItems": 1024
+    },
+    "supersededLocation": {
+      "type": "string",
+      "minLength": 1
+    },
+    "supersededMaterialIdentity": {
+      "$ref": "helix://contracts/types/PhysicalMaterialIdentity/v2"
     }
   },
   "required": [
@@ -91,6 +135,10 @@
     "targetBindingDigest",
     "materialEffectKind",
     "effectReceiptId",
-    "finalRealityDigest"
+    "finalRealityDigest",
+    "finalMaterialIdentity",
+    "targetEndpointId",
+    "targetLocation",
+    "retiredMaterials"
   ]
 }

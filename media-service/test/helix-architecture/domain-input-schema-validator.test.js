@@ -27,9 +27,9 @@ const codes = (result) => new Set(result.findings.map((item) => item.code));
 test('validates all Catalog domain inputs and their exact usage traceability', () => {
   const result = validateDomainInputSchemas({ contractsRoot, repositoryRoot });
   assert.equal(result.ok, true);
-  assert.equal(result.typeCount, 113);
+  assert.equal(result.typeCount, 114);
   assert.equal(result.boundedContractCount, 24);
-  assert.equal(result.acceptedDtoCount, 89);
+  assert.equal(result.acceptedDtoCount, 90);
 });
 
 test('rejects contract drift, open objects, raw paths, and unresolved refs', () => {

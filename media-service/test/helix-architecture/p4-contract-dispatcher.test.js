@@ -125,6 +125,7 @@ test('Capability runtime sources contain no fallback, historical flow routing, S
     { source: 'composition', allow: ['node:fs', 'node:os', 'node:path', 'node:crypto'] },
     { source: 'domains.*.model', allow: ['node:path'] },
     { source: 'domains.*.planning', allow: ['node:path'] },
+    { source: 'domains.arca.capabilities', allow: ['node:fs', 'node:os', 'node:path', 'node:crypto', 'node:child_process'] },
     { source: 'integrations', allow: ['node:crypto', 'node:fs', 'node:path', 'cheerio'] }
   ]);
 });

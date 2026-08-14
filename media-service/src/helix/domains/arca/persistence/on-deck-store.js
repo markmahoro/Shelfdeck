@@ -146,7 +146,9 @@ function arcaDefinition(schemaManifest) {
           'shelf_entry_id', 'inventory_revision', 'ordinal', 'material_key',
           'role', 'episode_claims_schema_ref', 'episode_claims_json',
           'episode_claim_set_digest', 'endpoint_id', 'location',
-          'binding_revision', 'digest_hex', 'size_bytes', 'active_guard',
+          'binding_revision', 'mount_scope_id', 'inode',
+          'fingerprint_algorithm', 'fingerprint_version',
+          'content_fingerprint', 'digest_hex', 'size_bytes', 'active_guard',
         ],
       },
       list_materials: {
@@ -156,7 +158,9 @@ function arcaDefinition(schemaManifest) {
           'shelf_entry_id', 'inventory_revision', 'ordinal', 'material_key',
           'role', 'episode_claims_schema_ref', 'episode_claims_json',
           'episode_claim_set_digest', 'endpoint_id', 'location',
-          'binding_revision', 'digest_hex', 'size_bytes', 'active_guard',
+          'binding_revision', 'mount_scope_id', 'inode',
+          'fingerprint_algorithm', 'fingerprint_version',
+          'content_fingerprint', 'digest_hex', 'size_bytes', 'active_guard',
         ],
         keyColumns: ['shelf_entry_id', 'inventory_revision'],
         safeIntegers: true,
@@ -365,6 +369,29 @@ function createOnDeckStore(options) {
         fail('P14_ONDECK_INVENTORY_HISTORY',
           'Inventory Material ordinals are not contiguous.');
       }
+      const physicalIdentity = Object.freeze({
+        schemaRef: 'helix://contracts/types/PhysicalMaterialIdentity/v2',
+        schemaVersion: 2,
+        materialKey: row.material_key,
+        mountScopeId: row.mount_scope_id,
+        inode: row.inode,
+        sizeBytes: Number(row.size_bytes),
+        fingerprintAlgorithm: row.fingerprint_algorithm,
+        fingerprintVersion: Number(row.fingerprint_version),
+        contentFingerprint: row.content_fingerprint,
+      });
+      if (canonicalDigest({
+        schema: 'physical-material-identity@2',
+        mountScopeId: physicalIdentity.mountScopeId,
+        inode: physicalIdentity.inode,
+        sizeBytes: physicalIdentity.sizeBytes,
+        fingerprintAlgorithm: physicalIdentity.fingerprintAlgorithm,
+        fingerprintVersion: physicalIdentity.fingerprintVersion,
+        contentFingerprint: physicalIdentity.contentFingerprint,
+      }) !== physicalIdentity.materialKey) {
+        fail('P14_ONDECK_INVENTORY_HISTORY',
+          'Inventory Material Physical Identity cannot be reconstructed.');
+      }
       return Object.freeze({
         ordinal,
         materialKey: row.material_key,
@@ -373,6 +400,7 @@ function createOnDeckStore(options) {
         endpointId: row.endpoint_id,
         location: row.location,
         bindingRevision: Number(row.binding_revision),
+        physicalIdentity,
         digestHex: row.digest_hex,
         sizeBytes: Number(row.size_bytes),
       });
@@ -573,6 +601,7 @@ function createOnDeckStore(options) {
     const expectedStagedMembers = stagedMembers.map((item) => ({
       sourceMaterialKey: item.sourceMaterialKey,
       materialKey: item.materialKey,
+      physicalIdentity: item.physicalIdentity,
       role: item.role,
       endpointId: item.endpointId,
       location: item.location,
@@ -595,6 +624,7 @@ function createOnDeckStore(options) {
         endpointId: item.endpointId,
         location: item.location,
         bindingRevision: 1,
+        physicalIdentity: item.physicalIdentity,
         digestHex: item.digestHex,
         sizeBytes: item.sizeBytes,
       }),
@@ -876,6 +906,11 @@ function createOnDeckStore(options) {
             endpoint_id: item.endpointId,
             location: item.location,
             binding_revision: 1,
+            mount_scope_id: item.physicalIdentity.mountScopeId,
+            inode: item.physicalIdentity.inode,
+            fingerprint_algorithm: item.physicalIdentity.fingerprintAlgorithm,
+            fingerprint_version: String(item.physicalIdentity.fingerprintVersion),
+            content_fingerprint: item.physicalIdentity.contentFingerprint,
             digest_hex: item.digestHex,
             size_bytes: item.sizeBytes,
             active_guard: item.role === 'primary_payload' ? 1 : 0,

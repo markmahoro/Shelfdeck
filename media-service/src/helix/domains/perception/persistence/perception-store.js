@@ -121,9 +121,8 @@ function createPerceptionStore(options) {
     listRecords(query = {}) { return execute([records,resolutions], (context) => {
       const repo=context.repository(records.repositoryId),resolutionRepo=context.repository(resolutions.repositoryId);
       const anchors=repo.invoke('list_anchors'),relations=repo.invoke('list_relations');
-      const currentResolutionIds=new Set(resolutionRepo.invoke('list_heads').map((row)=>row.current_resolution_id));
-      const winning=new Set(resolutionRepo.invoke('list_resolutions').filter((row)=>currentResolutionIds.has(row.resolution_id)&&row.result_kind==='found'&&row.winning_perception_id)
-        .map((row)=>row.winning_perception_id));
+      const currentResolutionIds=new Set(resolutionRepo.invoke('list_heads').map((row)=>row.current_resolution_id)),currentResolutions=resolutionRepo.invoke('list_resolutions').filter((row)=>currentResolutionIds.has(row.resolution_id)),winningResolutionByPerceptionId=new Map(currentResolutions.filter((row)=>row.result_kind==='found'&&row.winning_perception_id).map((row)=>[row.winning_perception_id,mapResolution(row)]));
+      const winning=new Set(winningResolutionByPerceptionId.keys());
       const superseded=new Set(relations.filter((row)=>['supersedes','retracts'].includes(row.relation_kind)).map((row)=>row.target_perception_id));
       const currentRows=repo.invoke('list_records').filter((row)=>!superseded.has(row.perception_id));
       const anchorRank=new Map([['provider_identity',1],['subject_id',2],['shelf_entry_id',2],['title_year',3]]),groups=new Map();
@@ -141,7 +140,7 @@ function createPerceptionStore(options) {
         return Object.freeze({perceptionId:record.perceptionId,sourceKind:record.sourceKind,recordKind:record.recordKind,
           rating:record.rating,watchedState:record.watchedState,observedTitle:record.observedTitle,observedAtMs:record.observedAtMs,
           committedAtMs:record.committedAtMs,targetType:target?.anchor_kind==='subject_id'?'subject':target?.anchor_kind==='shelf_entry_id'?'shelf_entry':null,
-          targetId:target?.anchor_value||null,resolutionStatus:status,current:status!=='superseded',sourceRecordKey:record.sourceRecordKey,
+          targetId:target?.anchor_value||null,resolutionStatus:status,current:status!=='superseded',resolutionDigest:winningResolutionByPerceptionId.get(record.perceptionId)?.factDigest||null,resolutionRevision:winningResolutionByPerceptionId.get(record.perceptionId)?.revision||null,sourceRecordKey:record.sourceRecordKey,
           sourceRecordRevision:record.sourceRecordRevision,provenanceDigest:record.provenanceDigest,recordDigest:record.recordDigest});
       }).filter((item)=>!query.sourceKind||item.sourceKind===query.sourceKind)
         .filter((item)=>query.rating===undefined||query.rating===null||item.rating===Number(query.rating))

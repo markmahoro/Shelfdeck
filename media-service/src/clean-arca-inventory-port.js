@@ -745,6 +745,7 @@ function createCleanArcaInventoryPort(options) {
       stagedMembers.push(Object.freeze({
         sourceMaterialKey: plan.member.materialKey,
         materialKey,
+        physicalIdentity: Object.freeze({ ...identityBase, materialKey }),
         role: plan.member.role,
         endpointId: request.shelf.target.endpointId,
         location: plan.target,
@@ -863,8 +864,8 @@ function createCleanArcaInventoryPort(options) {
       }),
       receiptKind: 'placement_switched',
       ownerDomain: 'arca',
-      scopeType: 'on_deck_run',
-      scopeId: request.onDeckRunId,
+      scopeType: request.aftercareCaseId ? 'aftercare_case' : 'on_deck_run',
+      scopeId: request.aftercareCaseId || request.onDeckRunId,
       scopeDigest: canonicalDigest({ handle, verification }),
       effectReceiptRef: null,
       committedAtMs: Number.isSafeInteger(request.observedAtMs)
@@ -913,7 +914,8 @@ function createCleanArcaInventoryPort(options) {
       });
     });
     members.sort((left,right)=>Buffer.compare(Buffer.from(left.sourceMaterialKey),Buffer.from(right.sourceMaterialKey)));
-    const stagedMembers=members.map((item)=>Object.freeze({sourceMaterialKey:item.sourceMaterialKey,materialKey:item.materialKey,role:item.role,
+    const stagedMembers=members.map((item)=>Object.freeze({sourceMaterialKey:item.sourceMaterialKey,materialKey:item.materialKey,
+      physicalIdentity:item.physicalIdentity,role:item.role,
       endpointId:item.endpointId,location:item.location,bindingRevision:1,digestHex:item.digestHex,sizeBytes:item.sizeBytes,episodeClaims:item.episodeClaims}));
     const membersDigest=canonicalDigest({schema:'arca.staged-inventory-members@1',items:stagedMembers}),manifestBase={
       schemaRef:'helix://contracts/types/StagedInventoryManifest/v1',schemaVersion:1,

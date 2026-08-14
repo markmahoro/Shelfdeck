@@ -1,8 +1,33 @@
 # ShelfDeck Clean Helix Current Status
 
-Status: Movie Procurement与Movie Libra封口保持有效；Movie Arca已完成Handoff B Acceptance、On-deck、Shelf Entry及Deck Fact产品接线。下一业务节点是Arca Post-deck Aftercare；Off-deck、Shelf Deregistration与生产部署尚未开始。
+Status: Movie Procurement与Movie Libra封口保持有效；Movie Arca已完成Handoff B Acceptance、On-deck、Shelf Entry、Deck Fact及Beta Aftercare完整闭环。当前精确状态为`ARCA AFTERCARE READY / AWAITING OFF-DECK`；Off-deck、Shelf Deregistration与生产部署尚未开始。
 
 Last updated: 2026-08-14
+
+## 0. Completed implementation — Arca Aftercare
+
+- 每个Shelf Entry现在是独立Aftercare Process scope。正式产品链由Health Assessment、Repair Preparation、Repair Commit与Case
+  Closure Supporting Work组成；14项现有Arca Aftercare Capability全部通过immutable Plan、Event Runtime、Permit、Attempt和
+  typed Result执行。Coordinator静态门禁确认不导入Capability、Dispatcher、Event Runtime、Governor、Procurement/Libra
+  Repository或未知目录扫描器。
+- 健康Projection完全由最新三维Assessment、Finding、Case和当前Care Basis重建，状态固定为`never_assessed|healthy|observing|
+  repairing|attention_required`。旧Basis的Assessment/Case仍在历史中，但不再影响当前灯色。Custody失败时另外两项只形成
+  `not_assessable`；Endpoint outage按共享incident聚合并保持observe，不创建成批Case。
+- 周期运行采用Custody 24小时、Presentation/Conformance 7天及最多2小时确定性jitter；fallback sweep使用持久cursor、100项/页、
+  5秒/轮。Custody读取严格限于已知Inventory成员和每文件256 KiB有界指纹，不扫描Shelf目录。
+- 自动修复覆盖NFO重新渲染、Poster按稳定Provider Identity重取、现有Primary的remux/transcode及Placement迁移。Case只有在文件效果、
+  Product/Artifact验证、Placement switch、Material Control、Inventory新revision、旧输入settlement、Workspace reclaim和新Basis三维
+  复验全部收口后才resolved。Case Closure已固定为先回收Workspace、后提交resolved Result，避免terminal Case反向阻断回收。
+- P14隔离E2E把同一Shelf Entry从Inventory revision 1推进到4，分别闭合NFO、Poster和Placement三类Case；迁移后旧Target为空、
+  新Target的Primary与sidecar完整，重启没有重复Assessment、Case、文件效果或Inventory revision。Primary缺失与NFO缺失并存时只形成
+  attention_required，证明不会先做昂贵局部修复。产品场景15/15通过，未访问`Z:\Film`，未使用Docker/NAS。
+- “我的收藏”海报墙已增加带文字标签的五色健康检验章和六类筛选；详情展示三维结论、Basis freshness、Finding、Case进度、
+  Inventory修复历史及“立即检查健康”。`GET /collection`携带compact Health Summary，详情继续使用原有Care API；`/care`一级入口已删除。
+- 完整Architecture Gate为160个test file、1039 pass、7 skip、0 fail；完整服务回归245 pass、16个显式环境skip、0 fail；Admin Web
+  production build通过。机器合同保持112/98/180/43/115，UI Surface为8 pages + 9 journeys = 17；P2 aggregate为
+  `38f7ec09909ec35a75907d3ba7dadc8fa2e9bf715c2775076906039b39d9704d`，manifest aggregate为
+  `06bf1058b224ebca269d21279cdc575d64013b0479bb7fc955832422752b3374`，DDL digest为
+  `9354662132460c7e8df18f513802ae2ba82c9a8a612467e3515957dde8128506`。
 
 ## 0. Completed implementation — Arca Acceptance, On-deck and Collection
 

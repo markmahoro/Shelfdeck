@@ -81,8 +81,9 @@ function createPerceptionProcessServices(options){
     const winner=resolution.resultKind==='found'?store.getRecord(resolution.winningPerceptionId):null;
     return freeze({state:'ready',rating:resolution.resultKind==='found'?resolution.resolvedValue.value:null,sourceKind:winner?.sourceKind||null,
       expectedRevision:direct?.sourceRecordRevision||0,resolutionStatus:resolution.resultKind,resolutionRevision:resolution.revision,resolutionDigest:resolution.factDigest});}
+  function readCurrentRatings(targetType,targetIds){const wanted=new Set(targetIds),items=store.listRecords({targetType,limit:200}).items,values=new Map();for(const item of items){if(!wanted.has(item.targetId)||item.resolutionStatus!=='matched'||item.rating===null||values.has(item.targetId))continue;values.set(item.targetId,freeze({state:'ready',rating:item.rating,sourceKind:item.sourceKind,expectedRevision:item.sourceRecordRevision,resolutionStatus:'found',resolutionRevision:item.resolutionRevision,resolutionDigest:item.resolutionDigest}));}for(const targetId of wanted)if(!values.has(targetId))values.set(targetId,freeze({state:'ready',rating:null,sourceKind:null,expectedRevision:0,resolutionStatus:'not_found',resolutionRevision:null,resolutionDigest:null}));return values;}
   return Object.freeze({store,ruleSnapshot,acquisitionContext,resolutionContext,reconcileAcquisition,reconcileResolution,createRecord,requestAcquisition,ensureResolution,resolveDecisionFact,
-    readCurrentRating,listRecords:(query)=>store.listRecords(query),listAcquisitions:()=>store.listAcquisitions()});
+    readCurrentRating,readCurrentRatings,listRecords:(query)=>store.listRecords(query),listAcquisitions:()=>store.listAcquisitions()});
 }
 
 module.exports=Object.freeze({createPerceptionProcessServices,queryFor,queryHandle,directSourceId});

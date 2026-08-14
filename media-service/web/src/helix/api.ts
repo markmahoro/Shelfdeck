@@ -188,11 +188,21 @@ export type CollectionEntry = {
   genres: string[];
   people: { personId: string; displayName: string; role: string }[];
   hasPoster: boolean;
+  health: HealthSummary;
   currentInventoryRevision: number;
   currentDeckFactRevision: number;
   createdAtMs: number;
   terminalAtMs: number | null;
 };
+export type HealthState = 'never_assessed'|'healthy'|'observing'|'repairing'|'attention_required';
+export type HealthSummary = { shelfEntryId?:string; state:HealthState; careBasisDigest?:string; basisCurrent?:boolean;
+  dimensions?:Record<'custody'|'presentation'|'conformance',{state:string;assessedAtMs:number|null;evidenceDigest:string|null;findings:CareFinding[]}>;
+  activeCase?:CareCase|null; nextCustodyDueAtMs?:number; nextDeepDueAtMs?:number; updatedAtMs?:number };
+export type CareFinding = { findingId:string; findingKind:string; severity:string; repairability:string; state:string; createdAtMs:number };
+export type CareCase = { aftercareCaseId:string; state:string; createdAtMs:number; terminalAtMs:number|null; careBasisDigest:string };
+export type CareDetail = { shelfEntryId:string; health:HealthSummary; basis:{inventoryRevision:number;standardRevision:number;placementRevision:number;careBasisDigest:string};
+  activeCaseProgress:{aftercareCaseId:string;stage:string;progressPercent:number;goals:string[]}|null;
+  history:{assessments:Array<{assessmentId:string;assessmentKind:string;result:string;assessedAtMs:number}>;findings:CareFinding[];cases:CareCase[];commits:Array<{inventoryCommitId:string;previousInventoryRevision:number;newInventoryRevision:number;committedAtMs:number}>} };
 
 export type IntegrationState = {
   kind: string;
@@ -298,6 +308,8 @@ export const helixAdminApi = {
   collectionPosterUrl(shelfEntryId: string) {
     return `/v1/admin/collection/${encodeURIComponent(shelfEntryId)}/poster`;
   },
+  getCare(shelfEntryId:string){return request<CareDetail>(`/v1/admin/care/${encodeURIComponent(shelfEntryId)}`);},
+  checkCare(shelfEntryId:string){return request<{operationRef:string;state:string;shelfEntryId:string}>(`/v1/admin/care/${encodeURIComponent(shelfEntryId)}/actions/check`,{method:'POST',body:JSON.stringify({idempotencyKey:`care-check:${shelfEntryId}:${crypto.randomUUID()}`})});},
   listPerceptionRecords(filters: { cursor?: string; limit?: number; sourceKind?: string; rating?: number; resolutionStatus?: string; targetType?: string; targetId?: string } = {}) {
     const query = new URLSearchParams();
     Object.entries(filters).forEach(([key, value]) => { if (value !== undefined && value !== '') query.set(key, String(value)); });

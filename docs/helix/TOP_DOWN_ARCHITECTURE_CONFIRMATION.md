@@ -5788,6 +5788,16 @@ Beta中发现Canonical Content Identity与新Evidence矛盾，只能发布unsupp
 Identity-dependent评估成为`not_assessable`。Aftercare不得建立Identity Case、自动或人工修正Canonical
 Identity、静默换绑Material，或把矛盾纳入Custody/Presentation/Conformance三类Case伪装为可修复Gap。
 
+Beta的周期合同固定为分层巡检：Custody在最后一次fresh评估后`24 h`到期，Presentation与
+Conformance在最后一次fresh评估后`7 d`到期。系统以`shelfEntryId`派生最多`2 h`的确定性jitter，
+避免同时集中访问Shelf Target。用户显式检查、Basis变化与Shelf Entry创建必须立即触发精确Entry
+scope重评，不等待周期。周期sweep每页最多`100`个Shelf Entry、每轮最多`5 s`，并使用
+Foundation持久cursor恢复。
+
+Custody周期检查只对当前Inventory的已知location执行存在、可读、stat fence和Physical Material Identity
+合同规定的最多`262,144 bytes`有界指纹验证，不遍历Shelf目录。Presentation与Conformance只在
+Custody可证明时执行有界Artifact解析或Primary Media Probe。
+
 ##### 6.6.2.1 On-deck NFO人物观察与Media-Cast确定性修正
 
 Arca已经拥有Shelf Entry当前Inventory与Presentation观察责任，因此只有Arca可以周期读取On-deck Inventory
@@ -9274,16 +9284,16 @@ Plan node input/parameter/Fence/Resource Demand的具体JSON不直接重复存�
 | `arca_shelf_entries` | `shelf_entry_id PK, shelf_id FK, structure_kind, status, canonical_identity_revision, canonical_identity_key, current_inventory_revision, current_deck_fact_revision, created_at_ms, terminal_at_ms` | 三个current pointer均显式FK；`INDEX(shelf_id,status,shelf_entry_id)`；Movie/JAV/Western可以重复，Season对active `(shelf_id,canonical_identity_key)`建立partial unique，保证后续Episode Run扩充同一Entry |
 | `arca_canonical_identity_revisions` | `shelf_entry_id FK, revision, structure_kind, identity_kind, provider, provider_key, identity_digest, committed_at_ms` | `PK(shelf_entry_id,revision)`；`INDEX(provider,provider_key,structure_kind)`仅供Duplicate Detection，禁止全局unique |
 | `arca_inventory_representations` | `shelf_entry_id FK, revision, representation_digest, source_package_id, committed_at_ms` | `PK(shelf_entry_id,revision)`；Shelf Entry current pointer显式FK |
-| `arca_inventory_materials` | `shelf_entry_id FK, inventory_revision, ordinal, material_key, role(primary_payload|structural_dependency|metadata_sidecar|poster|fanart|subtitle|external_audio|chapter|sidecar), episode_claims_schema_ref, episode_claims_json, episode_claim_set_digest, endpoint_id, location, binding_revision, digest_hex, size_bytes` | `PK(shelf_entry_id,inventory_revision,ordinal)`；每个物理Material在一版Inventory中只有一row，active representation中Primary Material全局exclusive partial unique；最终物化的Related/Artifact与Primary一样必须作为Target-contained Inventory Material row，不能只保留外部Reference。Episode JSON固定`helix://contracts/application-types/ArcaMaterialEpisodeClaims/v1`、canonical JCS≤`16 KiB`且三列均非NULL，由同一On-deck Run verified `StagedInventoryManifest@1` member逐字节复制；Inventory Representation与Deck Fact digest覆盖完整typed Set，历史revision从本row独立重建，不得复制多条Material row表达多个Episode |
+| `arca_inventory_materials` | `shelf_entry_id FK, inventory_revision, ordinal, material_key, role(primary_payload|structural_dependency|metadata_sidecar|poster|fanart|subtitle|external_audio|chapter|sidecar), episode_claims_schema_ref, episode_claims_json, episode_claim_set_digest, endpoint_id, location, binding_revision, mount_scope_id, inode, fingerprint_algorithm, fingerprint_version, content_fingerprint, digest_hex, size_bytes` | `PK(shelf_entry_id,inventory_revision,ordinal)`；每个物理Material在一版Inventory中只有一row，active representation中Primary Material全局exclusive partial unique；每row必须逐字保存完整`PhysicalMaterialIdentity@2` tuple，且`material_key`必须等于该tuple的canonical digest，使文件已经missing时Aftercare仍能签发精确Control release。最终物化的Related/Artifact与Primary一样必须作为Target-contained Inventory Material row，不能只保留外部Reference。Episode JSON固定`helix://contracts/application-types/ArcaMaterialEpisodeClaims/v1`、canonical JCS≤`16 KiB`且三列均非NULL，由同一On-deck Run verified `StagedInventoryManifest@1` member逐字节复制；Inventory Representation与Deck Fact digest覆盖完整typed Set，历史revision从本row独立重建，不得复制多条Material row表达多个Episode |
 | `arca_inventory_related_references` | `shelf_entry_id FK, inventory_revision, reference_id, primary_ordinal, role, reference_kind(shared_external|historical_provenance), material_identity_hint, endpoint_id, location, checksum_hex` | `PK(shelf_entry_id,inventory_revision,reference_id)`；只允许无法被单一Candidate独占的shared external reference或已完成处置后的historical provenance；Movie首次On-deck后的active Inventory不得用本表承载仍位于Material Field的exclusive Related。last-reference计算只使用active Inventory revisions及真正shared reference，不得把本表当作跳过Input Settlement的兼容路径 |
 | `arca_inventory_product_facts` | `shelf_entry_id FK, inventory_revision, fact_kind, fact_revision, fact_schema_ref, fact_json, fact_digest, source_package_id, provenance_digest, committed_at_ms` | Fact JSON上限`64 KiB`；`PK(shelf_entry_id,inventory_revision,fact_kind,fact_revision)`；Arca保存Accepted Product Fact snapshot，不运行时回读Libra Store |
 | `arca_inventory_person_relations` | `relation_id, shelf_entry_id FK, inventory_revision, person_id NULL, display_name, display_name_normalized, role, relation_source, provider_identity_schema_ref NULL, provider_identity_json NULL, provider_identity_digest NULL, origin_evidence_digest, confidence_class, relation_digest` | `PK(shelf_entry_id,inventory_revision,relation_id)`；同一relation lineage可在新Inventory revision保留relationId；`person_id IS NULL`是合法未注册关系；Provider JSON上限`4 KiB`且digest匹配；`UNIQUE(shelf_entry_id,inventory_revision,relation_digest)`；`INDEX(person_id,role,shelf_entry_id)`供People/Off-deck只读Projection；Aftercare只能按`6.6.2.1`确定性Evidence发布新Inventory revision，不原地PATCH历史row |
 | `arca_deck_fact_revisions` | `shelf_entry_id FK, revision, state, inventory_revision, standard_revision, fact_digest, committed_at_ms` | `PK(shelf_entry_id,revision)`；只有On-deck Commit可写active Deck Fact |
 | `arca_ondeck_commit_receipts` | `receipt_id PK, on_deck_run_id FK, shelf_entry_id FK, inventory_revision, deck_fact_revision, control_revision_set_digest, related_disposition_completion_digest, commit_digest, committed_at_ms` | `UNIQUE(on_deck_run_id)`；只有全部Candidate Material Disposition成员均已`carried_forward|replaced_and_settled`且最终承载位于Shelf Target时才可建立；与On-deck Canonical Fact set同事务成立 |
 | `arca_offload_completions` | `offload_completion_id PK, on_deck_run_id FK, shelf_entry_id FK, inventory_revision, package_id, completion_digest, committed_at_ms` | `UNIQUE(on_deck_run_id)`；immutable Outbox source |
-| `arca_aftercare_assessments` | `assessment_id PK, shelf_entry_id FK, inventory_revision, standard_revision, placement_revision, decision_fact_set_digest, care_basis_digest, assessment_kind, result, evidence_digest, assessed_at_ms` | `UNIQUE(shelf_entry_id,care_basis_digest,assessment_kind)`；`INDEX(result,assessed_at_ms)`；同Inventory/Standard下Decision Fact或Placement变化仍可形成新Assessment |
+| `arca_aftercare_assessments` | `assessment_id PK, shelf_entry_id FK, inventory_revision, standard_revision, placement_revision, decision_fact_set_digest, care_basis_digest, assessment_kind, result, incident_key NULL, evidence_digest, assessed_at_ms` | `INDEX(shelf_entry_id,care_basis_digest,assessment_kind,assessed_at_ms)`；`INDEX(result,assessed_at_ms)`；同一Care Basis允许每日/每周或用户触发形成多次immutable Assessment history，`assessment_id`必须覆盖确定性cycle identity并承担重放幂等；同Inventory/Standard下Decision Fact或Placement变化仍可形成新Assessment；同一Endpoint或Provider故障以稳定`incident_key`聚合，不复制为大量独立损坏Case |
 | `arca_aftercare_findings` | `finding_id PK, assessment_id FK, finding_kind, severity, repairability, finding_digest, state, created_at_ms` | `INDEX(state,repairability,severity,created_at_ms)` |
-| `arca_aftercare_cases` | `aftercare_case_id PK, shelf_entry_id FK, finding_set_digest, care_basis_schema_ref, care_basis_json, care_basis_digest, care_requirement_schema_ref, care_requirement_json, care_requirement_digest, state, created_at_ms, terminal_at_ms` | 两个JSON各上限`64 KiB`；相同`care_basis+finding_set+requirement`至多一个non-terminal Case；Supporting Work通过Foundation反向关联；`INDEX(state,created_at_ms)` |
+| `arca_aftercare_cases` | `aftercare_case_id PK, shelf_entry_id FK, finding_set_digest, care_basis_schema_ref, care_basis_json, care_basis_digest, care_requirement_schema_ref, care_requirement_json, care_requirement_digest, state, created_at_ms, terminal_at_ms` | 两个JSON各上限`64 KiB`；相同`care_basis+finding_set+requirement`至多一个non-terminal Case；同一`shelf_entry_id`至多一个`terminal_at_ms IS NULL`的active Case；Supporting Work通过Foundation反向关联；`INDEX(state,created_at_ms)` |
 | `arca_aftercare_case_basis_inputs` | `aftercare_case_id FK, input_kind, owner_domain, aggregate_type, aggregate_id, revision, input_digest` | `PK(aftercare_case_id,input_kind,owner_domain,aggregate_type,aggregate_id)`；关系化保存Standard/Placement/Identity/Inventory/Decision Fact/Package provenance；Case创建后immutable |
 | `arca_aftercare_settlement_approvals` | `approval_id PK, aftercare_case_id FK, settlement_scope_digest, service_catalog_revision, shelf_standard_revision, care_basis_digest, derived_at_ms, state` | `UNIQUE(aftercare_case_id,settlement_scope_digest)`；只为`auto_repair`且确定性安全的精确替代Scope派生，不新增用户Authorization |
 | `arca_aftercare_inventory_commits` | `inventory_commit_id PK, aftercare_case_id FK, shelf_entry_id FK, previous_inventory_revision, new_inventory_revision, control_change_digest, commit_digest, committed_at_ms` | `UNIQUE(aftercare_case_id,new_inventory_revision)`；与Inventory revision及Control acquire/release同事务成立 |
@@ -10046,24 +10056,39 @@ Aftercare Plan复用；二者仍使用独立Planner和Process Basis。Input Sett
 | --- | --- | --- |
 | `arca.aftercare.custody.observe@1` | `Care Basis + Inventory revision + known bindings → CustodyAssessmentEvidence` | `pure_observation` |
 | `arca.aftercare.presentation.observe@1` | `Care Basis + Inventory/Metadata/Artifact refs + Standard → PresentationAssessmentEvidence` | `pure_observation` |
-| `arca.aftercare.conformance.observe@1` | `Care Basis + Inventory media evidence + Standard + Placement → ConformanceAssessmentEvidence` | `pure_observation` |
+| `arca.aftercare.conformance.observe@1` | `Care Basis + Inventory revision + Known bindings + Standard + Placement → ConformanceAssessmentEvidence` | `pure_observation` |
 | `arca.aftercare.assessment.commit@1` | `Professional assessments sharing one Care Basis + DomainFactCommitHandle → AssessmentRevision` | `domain_fact_commit` |
 | `arca.aftercare.text_artifact.render@1` | `Accepted Product Facts + Artifact profile → ArtifactHandle` | `workspace_write` |
 | `arca.aftercare.binary_artifact.acquire@1` | `Stable Provider Identity + artifact kind + IntegrationHandle → ArtifactAcquisitionResult` | `workspace_write` |
-| `arca.aftercare.artifact.materialize@1` | `Verified Artifact + Inventory target handle → MaterialEffectReceipt` | `material_commit` |
-| `arca.aftercare.media.remux@1` | `Inventory Material handle + Care Requirement → WorkspaceMediaHandle` | `workspace_write` |
-| `arca.aftercare.media.transcode@1` | `Inventory Material handle + Care Requirement → WorkspaceMediaHandle` | `workspace_write` |
-| `arca.aftercare.media.verify@1` | `Workspace media evidence + Care Requirement → CareProductVerification` | `pure_observation` |
+| `arca.aftercare.artifact.materialize@1` | `(Verified Artifact | WorkspaceMediaHandle) + Inventory target handle → MaterialEffectReceipt` | `material_commit` |
+| `arca.aftercare.media.remux@1` | `Known bindings + Care Requirement → WorkspaceMediaHandle` | `workspace_write` |
+| `arca.aftercare.media.transcode@1` | `Known bindings + Care Requirement + Aftercare Media Repair Strategy → WorkspaceMediaHandle` | `workspace_write` |
+| `arca.aftercare.media.verify@1` | `WorkspaceMediaHandle + Care Requirement → CareProductVerification` | `pure_observation` |
 | `arca.aftercare.input_settlement.delete@1` | `Superseded Inventory handles + Aftercare Settlement Approval → SettlementDeletionEvidence` | `destructive_commit` |
 | `arca.aftercare.inventory.commit@1` | `Verified care inventory change + ResponsibilityControlCommitHandle → AftercareInventoryCommitReceipt` | `responsibility_control_commit` |
 | `arca.aftercare.case.commit@1` | `Reassessed result + DomainFactCommitHandle → AftercareCaseResult` | `domain_fact_commit` |
 | `arca.aftercare.workspace.reclaim@1` | `Aftercare Workspace handles + ReferenceEvidence → ReclamationReceipt` | `workspace_write` |
+
+`MaterialEffectReceipt`必须冻结最终`PhysicalMaterialIdentity`、目标Endpoint/location、由本次效果退出
+当前Inventory的`retiredMaterials[{identity,location}]`，以及Primary替换时的精确superseded暂存位置。
+一个标准Artifact替代多条已missing的旧Artifact row时，全部旧Identity必须进入同一retired Set。
+Inventory Commit只能根据这份durable Receipt重建变化；Planner与Input
+Projection不得重新读取filesystem来猜测已经发生的效果。
 
 Beta不定义unknown-location全盘搜索、Identity correction或外部重新采购Capability。Aftercare在安全切换
 Inventory时复用`arca.inventory.*`，但不能调用Libra Production Planner或Libra Workspace Capability。
 Shelf Placement revision变化产生的有界迁移同样由Aftercare Planner使用当前Care Basis规划
 `arca.inventory.stage/verify/placement.switch`及`arca.aftercare.inventory.commit`；它不需要新的“move flow”
 或跨域Capability，无法解析唯一目标或当前Material不健康时只能形成Finding。
+
+Aftercare媒体修复复用Level 5.8的设备安全原则，但形成自己的`AftercareMediaRepairStrategy@1`，不得读取或
+复用Libra Run、Acceptance Spec或Libra Workspace。Conformance Assessment先冻结Primary Probe、当前
+Care Basis和ready Device Snapshot，并对源视频与每条候选pipeline执行有界preflight；普通GPU策略优先，
+只有所有当前可用普通设备策略已有明确`strategy_rejected` Evidence后才允许选择`software_cpu`。最终Strategy
+完整记录被拒绝的Device/pipeline、选中Device Snapshot、rate-control、输出色彩目标与preflight digest。
+Transcode Event只执行这份单一Strategy；Executor不得换encoder、换filter或隐藏fallback。Permit等待、设备忙、
+进程启动/权限/临时I/O等技术错误只能等待或重试当前Assessment，不能作为CPU选择依据。GPU与CPU都无法由
+已知Inventory安全闭合时形成`attention_required`，禁止调用External Acquisition。
 
 Aftercare替换Primary Material时，`arca.aftercare.input_settlement.delete`只接受Aftercare自己的精确Settlement
 Approval；该Approval是Service Catalogue已经判定`auto_repair`、当前Shelf Standard与Care Basis共同派生的
@@ -10314,6 +10339,7 @@ Executor只能返回以下discriminated union，且每个variant都`additionalPr
 | `PhysicalMaterialReadHandle` | `handleId, identity, ownerDomain, ownerScope, bindingRevision, endpointId, location, mountScopeRevision, expectedSizeBytes, expectedMtimeNs, expectedCtimeNs, fingerprintVerifiedAtMs, readScope, expiresAtMs, fenceDigest`；只读且解析后按同一中段256 KiB合同重验stat/fingerprint Identity |
 | `WorkspaceMaterialHandle` | `handleId, workspaceId, ownerDomain, processId, endpointId, materialKey,physicalIdentity{mountScopeId,inode,sizeBytes,fingerprintAlgorithm(middle-256k-sha256),fingerprintVersion(1),contentFingerprint},rootHandleRef,relativePath,digestAlgorithm(sha256),digestHex,sizeBytes,referenceRevision,accessScope(workspace_material_read),fenceDigest`；`materialKey/physicalIdentity`必须满足`PhysicalMaterialIdentity@2`公式，outer `sizeBytes`必须等于identity size；`digestHex`是系统生成Workspace产物在写入流中形成的独立完整Artifact digest，不参与Physical Material Identity。endpoint/mount/root handle逐字节等于Workspace Registry/root snapshot；`accessScope`固定只授权后续Capability读取，写新产物使用新的event-scoped output，删除必须另有Cleanup Effect Intent。`handleId=SHA-256(JCS({schema:"foundation.workspace-material-handle-id@1",workspaceId,materialKey,relativePath,referenceRevision}))`；`fenceDigest=SHA-256(JCS({schema:"foundation.workspace-material-handle-fence@1",handleId,workspaceId,ownerDomain,processId,endpointId,materialKey,physicalIdentity,rootHandleRef,relativePath,digestAlgorithm,digestHex,sizeBytes,referenceRevision,accessScope}))`。这里的`referenceRevision`是Foundation Workspace Handle registry revision，不是Libra Workspace Material Reference的业务revision，后者只能由`libra_workspace_material_refs.reference_revision`推进；路径必须在Workspace root内。Workspace write effect只有在bytes关闭、完整Artifact digest与bounded Physical Material fingerprint、stat及containment验证完成并把完整`WorkspaceMaterialHandle@1`及其JCS digest与Effect receipt原子登记到`fx_workspace_materials`后才能返回Handle；任何consumer均从该Owner row重建并验证完整Handle，不能自行重造fence或信任caller缺失字段 |
 | `PlatformComputeDeviceListQuery` / `PlatformComputeDeviceRefSet` / `PlatformComputeDeviceQuery` / `PlatformComputeDeviceReadResult` / `MediaExecutionDeviceSnapshot` | List Query固定为`{queryContract:"platform.compute-ready-device-refs@1",limit(1..64),queryDigest}`；Ref Set固定为`{queryDigest,resultKind(available|unavailable|integrity_error),items[]{deviceId,deviceClass,probeRevision,capabilityDigest,refDigest},reasonCode?,resultDigest}`，items按`deviceClass,deviceId` UTF-8 bytes稳定排序且tuple唯一，只收录enabled/ready/passed且capability digest可重算的current device；Port不应用Planner顺序或CPU backup策略。精确Query固定为`{deviceId,expectedProbeRevision?,expectedCapabilityDigest?,queryDigest}`，`queryDigest=SHA-256(JCS(完整Query excluding queryDigest))`。Snapshot固定为`{deviceId,deviceClass(software_cpu|intel_qsv|nvidia_nvenc|amd_vaapi|remote_worker),probeRevision,capabilitySchemaRef,capabilityPayload{supportedVideoCodecs[],supportedRateControlModes[],validatedConcurrentSlots,validatedVideoPipelines[]{pipelineProfileId,inputDynamicRangeKinds[],inputPixelFormats[],outputCodec,outputDynamicRangeKind,outputPixelFormat,outputColorProfile,selfTestDigest}},capabilityDigest,enabled(true),state(ready),workerRef?,snapshotDigest}`；首版pipeline至少区分`ordinary_to_hevc@1`与`pq_bt2020_base_to_sdr_bt709_hevc@1`；profile只有在完整生成式self-test闭合后才存在。`deviceClass`逐字节复制Owner row的closed `device_kind`，capability JCS digest必须等于capabilityDigest；`workerRef`只允许remote_worker且冻结Worker ID/revision/capability digest，不含secret；`snapshotDigest=SHA-256(JCS(完整Snapshot excluding snapshotDigest))`。Read Result为`{queryDigest,resultKind(found|not_found|stale|unavailable|integrity_error),snapshot?,reasonCode?,resultDigest}`，found恰含Snapshot；reason依次只允许`device_not_found|device_probe_changed|device_disabled|device_not_ready|device_probe_integrity_failure`；`resultDigest=SHA-256(JCS(完整Result excluding resultDigest))`。Port从Platform Owner rows形成Result，List/Read完整值各≤`16 KiB`；它不发Permit、不决定Device、不暴露driver/config/secret |
+| `AftercareMediaRepairStrategy` | exact machine type固定为`{strategyId,revision=1,careBasisDigest,sourceHandleDigest,sourceProbeEvidenceId,sourceProbeEvidenceDigest,sourceVideoProfileDigest,selectedDeviceSnapshot,selectedDeviceSnapshotDigest,selectedDeviceClass,video{codec=hevc,rateControlMode,targetVideoBitrateBps?,qualityBound?,dynamicRangeOperation,pipelineProfileId,outputDynamicRangeKind,outputPixelFormat,outputColorProfile},priorStrategyAssessments[]{deviceId,deviceClass,deviceSnapshotDigest,disposition=strategy_rejected,rejectionScope,reasonCodes[],preflightDigest},selectedPreflightDigest,strategyDigest}`；Strategy只携带Probe引用、完整Evidence digest及紧凑Video Profile digest，不再内联`MediaProbeEvidence`；Device digest与Strategy digest均须按完整JCS重算；prior Set必须按实际Planner尝试顺序完整冻结，CPU被选择时它必须覆盖所有当时ready普通Device的合法候选策略；完整value≤`64 KiB`。它是Arca Care Basis下的施工选择，不是Libra `EncodeIntent`，不得含Libra Run/Workspace或隐式fallback |
 | `EncodeIntent` | exact machine type固定为`{intentId,revision,schemaRef:"EncodeIntent@1",libraRunId,sourceHandleDigest,mediaRequirementDigest,planningPolicyRef:"LibraMediaPlanningPolicy@1",planningPolicyRevision:2,planningPolicyDigest,strategyOrdinal,sizeBudgetRevision,outputContainer:"matroska",outputExtension:"mkv",video{codec:"hevc",rateControlMode(target_size|quality_bound|two_pass_abr|strict_abr),targetVideoBitrateBps?,qualityBound?,preserveRaster:true,forbidUpscale:true,dynamicRangeOperation(preserve|tone_map_to_sdr_bt709),pipelineProfileId,outputDynamicRangeKind(sdr|hdr10_compatible|hlg|dolby_vision|unknown),outputPixelFormat,outputColorProfile{range,primaries,transfer,matrix}},audio{mode:"copy"},subtitle{mode:"copy"},deviceClass(software_cpu|intel_qsv|nvidia_nvenc|amd_vaapi|remote_worker),previousIntentDigest?,intentDigest}`；`tone_map_to_sdr_bt709`恰要求pipeline `pq_bt2020_base_to_sdr_bt709_hevc@1`、output dynamic range `sdr`、pixel format `yuv420p`和limited/BT.709四元组；`preserve`不得伪造该转换。`target_size|two_pass_abr|strict_abr`恰含positive bitrate且qualityBound为NULL，quality-bound反之；strategy ordinal严格递增，上一Intent digest逐次闭合；ID/digest按既有JCS公式且完整值≤`16 KiB`。Planner只能从Acceptance Spec、Probe Evidence、正式Device Snapshot与binary-versioned Policy编译；Executor不得改写Intent、选择Device、切换策略或补第二种生产动作 |
 | `RemuxIntent` | exact machine type固定为`{intentId,revision,schemaRef:"RemuxIntent@1",libraRunId,sourceHandleDigest,mediaRequirementDigest,outputContainer:"matroska",outputExtension:"mkv",streamPolicy:"copy_all_supported",intentDigest}`；禁止`video|audio|subtitle|deviceClass|rateControlMode|typedParameters`；ID/digest公式与`EncodeIntent@1`相同且完整值≤`16 KiB`。Planner只在Probe证明stream copy可以形成目标container/extension时生成，Executor不得暗自转码或fallback |
 | `ProductionSourceScopeReference` | exact machine type固定为`{schemaRef:"ProductionSourceScopeReference@1",schemaVersion:1,libraRunId,scopeKind(stream_file|bdmv|dvd|iso),scopeId,scopeDigest,memberSetDigest,memberCount(1..1024),selectedPayloadSetDigest,sourceReferenceDigest}`；`stream_file|iso`必须memberCount=1；BDMV/DVD成员与顺序从Run Basis和正式Binding重建，完整集合及selected payload集合必须分别命中digest；`sourceReferenceDigest=SHA-256(JCS(完整value excluding sourceReferenceDigest))`且完整值≤`16 KiB`。它只授权同一Remux Event读取冻结范围，不是新Business Object、Material Manifest或Control scope |
@@ -10813,7 +10839,7 @@ Accepted variant的`rejection_schema_ref`及全部rejection列必须为NULL。SQ
 | `OffloadCompletionFact` | `DomainFactEnvelope + onDeckRunId + shelfEntryId + inventoryRevision + packageId + completionDigest` |
 | `CustodyAssessmentEvidence` / `PresentationAssessmentEvidence` / `ConformanceAssessmentEvidence` | `EvidenceEnvelope + shelfEntryId + inventoryRevision + standardRevision + placementRevision + decisionFactSetDigest + careBasisDigest + assessmentState + findingDrafts[]` |
 | `AssessmentRevision` | `DomainFactEnvelope + shelfEntryId + careBasisDigest + professionalAssessmentSetDigest` |
-| `MaterialEffectReceipt` | `ReceiptEnvelope + targetBindingDigest + materialEffectKind + effectReceiptId + finalRealityDigest` |
+| `MaterialEffectReceipt` | `ReceiptEnvelope + targetBindingDigest + materialEffectKind + effectReceiptId + finalRealityDigest + finalMaterialIdentity + targetEndpointId + targetLocation + retiredMaterials[{identity,location}] + supersededLocation? + supersededMaterialIdentity?` |
 | `CareProductVerification` | `VerificationEnvelope + aftercareCaseId + careRequirementDigest + workspaceMediaHandleId` |
 | `AftercareInventoryCommitReceipt` | `ReceiptEnvelope + aftercareCaseId + shelfEntryId + previousInventoryRevision + newInventoryRevision + controlChangeDigest` |
 | `AftercareCaseResult` | `DomainFactEnvelope + aftercareCaseId + resultState + reassessmentDigest + inventoryEffectRefs[]` |
@@ -12562,7 +12588,7 @@ Projection，`概览`可以聚合五域成果，但页面和Read-model都没有C
 
 #### 9.4.1 一级导航
 
-Beta Admin Web采用九个一级入口：
+Beta Admin Web采用八个一级入口：
 
 ~~~text
 概览
@@ -12570,7 +12596,6 @@ Beta Admin Web采用九个一级入口：
 收藏架
 我的收藏
 上架进度
-收藏健康
 退出收藏
 人物
 系统设置
@@ -12659,6 +12684,11 @@ deregistered记录，但不计入当前Own和概览指标。列表支持按Shelf
 - 上架、Aftercare和Off-deck历史履历；
 - “立即检查健康”“加入退出收藏审阅”“直接退出收藏”等符合当前状态的动作。
 
+“我的收藏”同时承载健康日常运营，不再建立独立“收藏健康”一级页面。海报卡片显示
+`never_assessed|healthy|observing|repairing|attention_required`紧凑健康摘要，列表支持按该状态筛选。
+详情展示Custody、Presentation与Conformance三维Assessment、Evidence freshness、Finding、当前Case进度、
+修复前后Inventory revision和历史结果。健康颜色必须同时具有文字和可访问名称。
+
 active Shelf Entry详情提供User Perception拥有的1–5星评分控件；提交时只发送`shelf_entry`目标、
 expected Perception revision、星级与idempotency key，Identity Anchor由服务端通过Arca公开Projection冻结。
 
@@ -12694,19 +12724,19 @@ expected Perception revision、星级与idempotency key，不能显示或回传C
 该页没有创建Task、选择Gate、手工执行Event、Pause或通用Retry。`加快上架`不影响尚未建立Libra Run的
 Candidate/Subject，也不传给Arca Off-load。
 
-#### 9.4.7 收藏健康
+#### 9.4.7 收藏健康体验并入“我的收藏”
 
-收藏健康按Arca Aftercare三维框架组织：
+收藏健康不再是一级页面，而是“我的收藏”海报墙筛选和Shelf Entry详情内的Arca Aftercare三维体验：
 
 - `实物承载`：已知Material存在、可访问且Identity一致；
 - `资料呈现`：Metadata、NFO、图片与Sidecar满足当前标准；
 - `收藏要求`：编码、容器、空间、分辨率与音频满足当前Standard，同时存放位置、布局和命名满足当前Placement。
 
-默认视图按`健康|正在自动修复|观察中|需要处理|暂不可判断`展示Shelf和Shelf Entry摘要。Endpoint或Provider
+默认视图按`健康|正在自动修复|观察中|需要处理|尚未检查`筛选Shelf Entry。Endpoint或Provider
 系统Incident必须先聚合，不能制造成百上千条相同收藏故障。详情展示Finding、Evidence freshness、当前修复
 Activity和复验结果。
 
-用户可以显式`立即检查`，但不能手工创建Aftercare Case或指定修复手段。`attention_required`只提供查看依据、
+用户可以在Shelf Entry详情显式`立即检查健康`，但不能手工创建Aftercare Case或指定修复手段。`attention_required`只提供查看依据、
 修复配置/Integration以及`加入退出收藏审阅`等真实可行动作；没有可行修复时不能显示虚假“重试”。
 
 #### 9.4.8 退出收藏
@@ -14030,8 +14060,9 @@ cursor。Runtime不得在每个Event结束后调用全体`reconcilePending`，Ow
 依靠Owner命令幂等性收敛。
 
 Owner Automation的Beta fallback cadence固定为：active Material Field在启动后2分钟内进入首次cursor sweep，
-随后每30分钟执行轻量变化观察；只有新增或变化成员进入Triage Evidence工作。Aftercare Health每24小时全量
-cursor评估一次，Off-deck Condition每日评估一次，Duplicate Detection每7天一次；它们都保留Fact signal和
+随后每30分钟执行轻量变化观察；只有新增或变化成员进入Triage Evidence工作。Aftercare Custody每24小时到期，
+Presentation与Conformance每7天到期；周期cursor每页最多100个Shelf Entry、每轮最多5秒，并按`shelfEntryId`
+加入最多2小时确定性jitter。Off-deck Condition每日评估一次，Duplicate Detection每7天一次；它们都保留Fact signal和
 用户Intent的即时唤醒。People Candidate每日补偿扫描一次。Perception Integration使用用户选择的低频周期，
 Beta下限6小时、推荐初始值24小时。上述周期是内部Operational Baseline，不成为可随意调小的普通设置。
 

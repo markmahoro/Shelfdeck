@@ -10,9 +10,9 @@
     "9.4",
     "9.9.3"
   ],
-  "targetCount": 18,
+  "targetCount": 17,
   "targetSegments": {
-    "pages": 9,
+    "pages": 8,
     "journeys": 9
   },
   "entries": [
@@ -157,34 +157,6 @@
       }
     },
     {
-      "id": "page:care",
-      "version": 1,
-      "owner": "application-composition",
-      "status": "verified",
-      "ssotRefs": [
-        "9.4"
-      ],
-      "sourceLocator": {
-        "section": "9.4",
-        "line": 11495,
-        "lineDigest": "811c941f68be9632ee7acf68c43526cfcde9f66f28b4945cfc5e30a262c93c63"
-      },
-      "targetLocator": {
-        "path": "web/src/helix/surface-model.ts"
-      },
-      "contract": {
-        "surfaceKind": "page",
-        "slug": "care",
-        "ordinal": 6,
-        "readModelOnly": true,
-        "commandAuthority": "application_facade_only"
-      },
-      "contractDigest": {
-        "algorithm": "sha256",
-        "value": "1ac9d7fb65ed694edf52eb8e2031e99a5409062d924c7a3eabcd92fd68efaf51"
-      }
-    },
-    {
       "id": "page:offdeck",
       "version": 1,
       "owner": "application-composition",
@@ -194,7 +166,7 @@
       ],
       "sourceLocator": {
         "section": "9.4",
-        "line": 11496,
+        "line": 11495,
         "lineDigest": "e19f2a65e20f63c54dd652d214cde83661f97cfa44308794d5d70519bac6337d"
       },
       "targetLocator": {
@@ -203,13 +175,13 @@
       "contract": {
         "surfaceKind": "page",
         "slug": "offdeck",
-        "ordinal": 7,
+        "ordinal": 6,
         "readModelOnly": true,
         "commandAuthority": "application_facade_only"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "f198b807bb5237bf9a4a78365f31b753bc9c1ab0099ce945e487b4e37f4e1147"
+        "value": "1db37517ab9b474f605d2949d4e981066c615b414ca0607750e8f871716ba93e"
       }
     },
     {
@@ -222,7 +194,7 @@
       ],
       "sourceLocator": {
         "section": "9.4",
-        "line": 11497,
+        "line": 11496,
         "lineDigest": "33345dae0d397e1f6056d3b8a1bd29b709df68325ea9ec131612608eacfb2419"
       },
       "targetLocator": {
@@ -231,13 +203,13 @@
       "contract": {
         "surfaceKind": "page",
         "slug": "people",
-        "ordinal": 8,
+        "ordinal": 7,
         "readModelOnly": true,
         "commandAuthority": "application_facade_only"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "1d54c31d01424e3cc59c3c01d315dbaa5ce68f50900b97d55e52eb4936d92773"
+        "value": "036f9395dafa9f59bda68f009a2a6b9bcaa2f069f86e9e07d47737c8c827d26b"
       }
     },
     {
@@ -250,7 +222,7 @@
       ],
       "sourceLocator": {
         "section": "9.4",
-        "line": 11498,
+        "line": 11497,
         "lineDigest": "9997f7848203499c410fc3d885a9bd50096a0be33b79a60ba1ce768f869fccb3"
       },
       "targetLocator": {
@@ -259,13 +231,13 @@
       "contract": {
         "surfaceKind": "page",
         "slug": "settings",
-        "ordinal": 9,
+        "ordinal": 8,
         "readModelOnly": true,
         "commandAuthority": "application_facade_only"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "0f5a885fbaca0596d1285d87f29844ab268d9b612fb3dc2e3bf9822a950f8b8f"
+        "value": "7df6da91a73c354a5b365900b71f92eba60923328592e67fae574ced87cf39df"
       }
     },
     {

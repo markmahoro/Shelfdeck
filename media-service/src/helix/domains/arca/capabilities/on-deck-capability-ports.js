@@ -7,6 +7,7 @@ const { createHandoffBAcceptanceStore } = require('../persistence/handoff-b-acce
 const { createOnDeckStore } = require('../persistence/on-deck-store');
 const { emptyArcaMaterialEpisodeClaims, fromProductMember } = require('../model/material-episode-claims');
 const { CAPABILITY_REFS:C } = require('../model/on-deck-contract');
+const { buildAftercareInventoryRequest } = require('../model/aftercare-placement');
 
 const BASE='helix://contracts/capabilities/';
 function stable(prefix,value){return prefix+canonicalDigest(value).slice(0,40);}
@@ -27,9 +28,13 @@ function check(ref,kind,input,passed,reason,at){const basisDigest=canonicalDiges
   verificationKind:'shelf_acceptance',basisDigest,result:passed?'passed':'failed',reasonCodes:Object.freeze(passed?[]:[reason]),
   evidenceRefs:Object.freeze([basisDigest]),verifiedAtMs:at,acceptanceAttemptId:input.acceptanceAttemptId,checkKind:kind,
   standardRevision:input.standardRevision,packageDigest:input.packageDigest});return result;}
-function context(options,execution,refs){return execution.ownerScope.processType==='arca_ondeck_run'
-  ? options.contextReader.readAccepted(execution.ownerScope.processId,refs)
-  : options.contextReader.readOffer(refs);}
+function context(options,execution,refs){
+  if(execution.ownerScope.processType==='arca_shelf_entry')
+    return options.aftercareContextReader.read(execution.ownerScope.processId);
+  return execution.ownerScope.processType==='arca_ondeck_run'
+    ? options.contextReader.readAccepted(execution.ownerScope.processId,refs)
+    : options.contextReader.readOffer(refs);
+}
 function dependencyRefs(options,execution){const bindings=options.workResultReader.readBindings(execution.workId);
   const binding=bindings.flatMap((item)=>item.inputBindings?.bindings||[]).find((b)=>b.bindingKind==='projected_owner_facts'&&
     Array.isArray(b.parameters?.dependencyRefs));return binding?.parameters?.dependencyRefs||[];}
@@ -44,6 +49,12 @@ function acceptanceAttemptId(c){return canonicalDigest({schema:'arca.acceptance-
 function createOnDeckCapabilityPorts(options){const now=options.now||Date.now,acceptance=createHandoffBAcceptanceStore(options),onDeck=createOnDeckStore(options),
   controls=createMaterialControlProjectionPort(options),inbox=createInboxCoordinator(options);
   function ctx(execution){return context(options,execution,dependencyRefs(options,execution));}
+  function aftercareRequest(execution,c){
+    if(execution.ownerScope.processType!=='arca_shelf_entry')return null;
+    const care=options.aftercareContextReader.store.history(c.shelfEntryId).cases.find((item)=>item.state==='active');
+    if(!care||care.careBasisDigest!==c.basis.digest)throw new Error('Aftercare Placement Case is absent or stale.');
+    return buildAftercareInventoryRequest(c,options.inventoryPort,now(),care.aftercareCaseId);
+  }
   function pure(ref,names,build){return Object.freeze({validateInputs(c){requireNamed(c,names);},execute(c){return outcome(ref,build(c.namedInputs,ctx(c),now()),now());},
     validateResult(_c,o){if(!o?.result)throw new TypeError(ref+' Result is absent.');}});}
   const ports={};
@@ -115,26 +126,43 @@ function createOnDeckCapabilityPorts(options){const now=options.now||Date.now,ac
         offerId:c.offer.offerId,receiptDigest:rejected.receipt.receiptDigest})});inbox.acknowledge({messageId:c.offer.messageId,consumerDomain:'arca'});
     return committedOutcome(execution,C.reject,rejected.receipt,now(),'domain_fact_commit');},validateResult(_c,o){if(o?.result?.receiptKind!=='handoff_b_rejected')throw new TypeError('Arca Rejection Receipt is invalid.');}});
   ports[C.slot]=Object.freeze({validateInputs(c){requireNamed(c,['finalInventoryDecision','targetHandle']);},execute(execution){const c=ctx(execution),n=execution.namedInputs;
+    const aftercare=aftercareRequest(execution,c);if(aftercare){
+      if(n.finalInventoryDecision.decisionDigest!==aftercare.finalInventoryDecision.decisionDigest)
+        throw new Error('Aftercare Final Inventory Decision is stale.');
+      const result=options.inventoryPort.prepareSlot({...aftercare,targetCommitSlotHandle:n.targetHandle});
+      return committedOutcome(execution,C.slot,result,now(),'material_commit');
+    }
     onDeck.verifyAcceptedResponsibility({onDeckRunId:c.responsibility.onDeckRunId,custodyId:c.responsibility.custodyId,shelf:c.shelf,package:c.packageValue,
       finalInventoryDecision:c.finalInventoryDecision,targetLocation:c.targetLocation});onDeck.setOffloading(c.responsibility.onDeckRunId,c.finalInventoryDecision.decisionDigest);
     const result=options.inventoryPort.prepareSlot({onDeckRunId:c.responsibility.onDeckRunId,custodyId:c.responsibility.custodyId,shelf:c.shelf,
       onDeckProductPackage:c.packageValue,finalInventoryDecision:c.finalInventoryDecision,targetCommitSlotHandle:n.targetHandle,observedAtMs:now(),replayCommitted:false});
     return committedOutcome(execution,C.slot,result,now(),'material_commit');},validateResult(_c,o){if(!o?.result?.slotId)throw new TypeError('Target Commit Slot Handle is invalid.');}});
   ports[C.stage]=Object.freeze({validateInputs(c){requireNamed(c,['productMaterialHandleList','targetCommitSlotHandle']);},execute(execution){const c=ctx(execution),staged=options.inventoryPort.stage({
+    ...(aftercareRequest(execution,c)||{
     onDeckRunId:c.responsibility.onDeckRunId,custodyId:c.responsibility.custodyId,shelf:c.shelf,onDeckProductPackage:c.packageValue,
-    finalInventoryDecision:c.finalInventoryDecision,targetCommitSlotHandle:execution.namedInputs.targetCommitSlotHandle,observedAtMs:now(),replayCommitted:false});
+    finalInventoryDecision:c.finalInventoryDecision,observedAtMs:now(),replayCommitted:false}),targetCommitSlotHandle:execution.namedInputs.targetCommitSlotHandle});
     return committedOutcome(execution,C.stage,staged,now(),'material_commit');},
     validateResult(_c,o){if(!o?.result?.manifestDigest)throw new TypeError('Staged Inventory Manifest is invalid.');}});
-  ports[C.stagedVerify]=pure(C.stagedVerify,['stagedManifest','finalInventoryDecision'],(n,c,at)=>options.inventoryPort.verifyStaged({
-    onDeckRunId:c.responsibility.onDeckRunId,custodyId:c.responsibility.custodyId,shelf:c.shelf,onDeckProductPackage:c.packageValue,
-    finalInventoryDecision:c.finalInventoryDecision,stagedInventoryManifest:n.stagedManifest,observedAtMs:at,replayCommitted:false}));
-  ports[C.finalVerify]=pure(C.finalVerify,['finalBindings','productDispositionManifest'],(n,c,at)=>{const basisDigest=canonicalDigest(n),keys=c.packageValue.productMaterialManifest.members.map(m=>m.materialKey).sort();
-    return Object.freeze({schemaRef:'helix://contracts/types/FinalProductVerification/v1',schemaVersion:1,verificationId:stable('arca-final-verification-',{run:c.responsibility.onDeckRunId,basisDigest}),
-      verificationKind:'final_product',basisDigest,result:'passed',reasonCodes:Object.freeze([]),evidenceRefs:Object.freeze([c.packageValue.onDeckPackageId]),verifiedAtMs:at,
-      finalBindingSetDigest:n.finalBindings.bindingSetDigest,productManifestDigest:c.packageValue.productMaterialManifest.manifestDigest,
-      relatedDispositionSetDigest:n.productDispositionManifest.relatedDispositionSetDigest,verifiedMaterialKeys:Object.freeze(keys),targetContainmentDigest:canonicalDigest(c.shelf.target)});});
+  ports[C.stagedVerify]=Object.freeze({validateInputs(c){requireNamed(c,['stagedManifest','finalInventoryDecision']);},execute(execution){
+    const c=ctx(execution),n=execution.namedInputs,request=aftercareRequest(execution,c)||{onDeckRunId:c.responsibility.onDeckRunId,
+      custodyId:c.responsibility.custodyId,shelf:c.shelf,onDeckProductPackage:c.packageValue,finalInventoryDecision:c.finalInventoryDecision,
+      observedAtMs:now(),replayCommitted:false};
+    return outcome(C.stagedVerify,options.inventoryPort.verifyStaged({...request,finalInventoryDecision:n.finalInventoryDecision,
+      stagedInventoryManifest:n.stagedManifest}),now());},validateResult(_c,o){if(o?.result?.result!=='passed')throw new TypeError('Staged Inventory Verification is invalid.');}});
+  ports[C.finalVerify]=pure(C.finalVerify,['finalBindings','productDispositionManifest'],(n,c,at)=>{const basisDigest=canonicalDigest(n),aftercare=Boolean(c.shelfEntryId),
+    keys=(aftercare?c.raw.materials.map((item)=>item.material_key):c.packageValue.productMaterialManifest.members.map(m=>m.materialKey)).sort(),
+    processId=aftercare?c.shelfEntryId:c.responsibility.onDeckRunId,productManifestDigest=aftercare?canonicalDigest(keys):c.packageValue.productMaterialManifest.manifestDigest,
+    containment=aftercare?canonicalDigest({targetRoot:c.raw.shelf.target_root_location,placementRevision:c.basis.placementRevision}):canonicalDigest(c.shelf.target);
+    return Object.freeze({schemaRef:'helix://contracts/types/FinalProductVerification/v1',schemaVersion:1,verificationId:stable('arca-final-verification-',{run:processId,basisDigest}),
+      verificationKind:'final_product',basisDigest,result:'passed',reasonCodes:Object.freeze([]),evidenceRefs:Object.freeze([aftercare?c.basis.digest:c.packageValue.onDeckPackageId]),verifiedAtMs:at,
+      finalBindingSetDigest:n.finalBindings.bindingSetDigest,productManifestDigest,
+      relatedDispositionSetDigest:n.productDispositionManifest.relatedDispositionSetDigest,verifiedMaterialKeys:Object.freeze(keys),targetContainmentDigest:containment});});
   ports[C.placement]=Object.freeze({validateInputs(c){requireNamed(c,['verifiedStagedManifest','targetBindings']);},execute(execution){const c=ctx(execution),n=execution.namedInputs,
-    body=options.inventoryPort.switchPlacement({onDeckRunId:c.responsibility.onDeckRunId,custodyId:c.responsibility.custodyId,shelf:c.shelf,
+    aftercare=aftercareRequest(execution,c);if(aftercare){const body=options.inventoryPort.switchPlacement({...aftercare,
+      stagedInventoryVerification:n.verifiedStagedManifest,targetBindings:n.targetBindings,
+      replacedInputSetDigest:canonicalDigest(c.raw.materials.map((item)=>item.material_key).sort())});
+      return committedOutcome(execution,C.placement,body,now(),'material_commit');}
+    const body=options.inventoryPort.switchPlacement({onDeckRunId:c.responsibility.onDeckRunId,custodyId:c.responsibility.custodyId,shelf:c.shelf,
       onDeckProductPackage:c.packageValue,finalInventoryDecision:c.finalInventoryDecision,stagedInventoryVerification:n.verifiedStagedManifest,
       targetBindings:n.targetBindings,replacedInputSetDigest:canonicalDigest(c.packageValue.offloadContextManifest.members),observedAtMs:now(),replayCommitted:false});
     return committedOutcome(execution,C.placement,body,now(),'material_commit');},

@@ -8,11 +8,13 @@ const test = require('node:test');
 const root = path.resolve(__dirname, '..');
 const read = (file) => fs.readFileSync(path.join(root, file), 'utf8');
 
-test('Admin Web exposes exactly the nine Helix journey pages', () => {
+test('Admin Web exposes eight Helix pages and keeps health in Collection', () => {
   const app = read('web/src/App.tsx');
   const model = read('web/src/helix/surface-model.ts');
   assert.match(app, /pages\.map/);
-  for (const slug of ['overview', 'material-fields', 'shelves', 'collection', 'formation', 'care', 'offdeck', 'people', 'settings']) assert.match(model, new RegExp(`slug:'${slug}'`));
+  for (const slug of ['overview', 'material-fields', 'shelves', 'collection', 'formation', 'offdeck', 'people', 'settings']) assert.match(model, new RegExp(`slug:'${slug}'`));
+  assert.doesNotMatch(model, /slug:'care'/);
+  assert.match(read('web/src/helix/CollectionPage.tsx'), /收藏健康/);
   assert.doesNotMatch(app, /TasksPage|LibrariesPage|CleanupPage|PoliciesPage/);
 });
 
@@ -59,7 +61,7 @@ test('Shelves configures a probed Template-derived Movie Standard without exposi
 
 test('Formation progress begins after Procurement handoff', () => {
   const model = read('web/src/helix/surface-model.ts');
-  const formation = model.split("slug:'formation'")[1].split("slug:'care'")[0];
+  const formation = model.split("slug:'formation'")[1].split("slug:'offdeck'")[0];
   assert.match(formation, /从生产到正式入架/);
   assert.match(formation, /文件发现与采购准备留在文件来源/);
   assert.doesNotMatch(formation, /判断开采资格|准备候选包/);

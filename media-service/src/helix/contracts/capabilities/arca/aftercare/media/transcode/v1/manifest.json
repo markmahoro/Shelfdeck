@@ -5,13 +5,18 @@
   "ownerScope": "arca",
   "effectClass": "workspace_write",
   "inputPorts": {
-    "inventoryMaterialHandle": {
-      "schemaRef": "helix://contracts/capabilities/arca.aftercare.media.transcode/v1/inputs#/$defs/inventoryMaterialHandle",
+    "knownBindings": {
+      "schemaRef": "helix://contracts/capabilities/arca.aftercare.media.transcode/v1/inputs#/$defs/knownBindings",
       "required": true,
       "cardinality": "one"
     },
     "careRequirement": {
       "schemaRef": "helix://contracts/capabilities/arca.aftercare.media.transcode/v1/inputs#/$defs/careRequirement",
+      "required": true,
+      "cardinality": "one"
+    },
+    "aftercareMediaRepairStrategy": {
+      "schemaRef": "helix://contracts/capabilities/arca.aftercare.media.transcode/v1/inputs#/$defs/aftercareMediaRepairStrategy",
       "required": true,
       "cardinality": "one"
     }
@@ -29,7 +34,7 @@
   },
   "sourceLocator": {
     "section": "8.6.11",
-    "line": 10055,
-    "lineDigest": "ded794686ed04fb831dfcd51ef6e541d53c0955145f7df68306728354ea9b308"
+    "line": 10065,
+    "lineDigest": "2dc8060b348a8f062146e5824069231cca560c7bfb2035847cf5d8bc75f61f21"
   }
 }

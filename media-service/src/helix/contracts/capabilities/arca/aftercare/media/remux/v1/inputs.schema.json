@@ -5,21 +5,21 @@
   "type": "object",
   "additionalProperties": false,
   "properties": {
-    "inventoryMaterialHandle": {
-      "$ref": "#/$defs/inventoryMaterialHandle"
+    "knownBindings": {
+      "$ref": "#/$defs/knownBindings"
     },
     "careRequirement": {
       "$ref": "#/$defs/careRequirement"
     }
   },
   "required": [
-    "inventoryMaterialHandle",
+    "knownBindings",
     "careRequirement"
   ],
   "$defs": {
-    "inventoryMaterialHandle": {
-      "$ref": "helix://contracts/types/PhysicalMaterialReadHandle/v1",
-      "x-helix-typeExpression": "Inventory Material handle"
+    "knownBindings": {
+      "$ref": "helix://contracts/domain-types/KnownBindings/v1",
+      "x-helix-typeExpression": "Known bindings"
     },
     "careRequirement": {
       "$ref": "helix://contracts/domain-types/CareRequirement/v1",

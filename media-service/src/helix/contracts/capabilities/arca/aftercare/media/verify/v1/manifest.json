@@ -5,8 +5,8 @@
   "ownerScope": "arca",
   "effectClass": "pure_observation",
   "inputPorts": {
-    "workspaceMediaEvidence": {
-      "schemaRef": "helix://contracts/capabilities/arca.aftercare.media.verify/v1/inputs#/$defs/workspaceMediaEvidence",
+    "workspaceMediaHandle": {
+      "schemaRef": "helix://contracts/capabilities/arca.aftercare.media.verify/v1/inputs#/$defs/workspaceMediaHandle",
       "required": true,
       "cardinality": "one"
     },
@@ -29,7 +29,7 @@
   },
   "sourceLocator": {
     "section": "8.6.11",
-    "line": 10056,
-    "lineDigest": "dad3fc5fe91c3b6f3f82b8e52c750373787c61ff30abe0f055393fefc9dde34c"
+    "line": 10066,
+    "lineDigest": "05397ba736c7b67faca837b9cd744a1ec17b966d08ee61f7fa33d0e37308f577"
   }
 }

@@ -46,6 +46,21 @@
       "type": "integer",
       "minimum": 0
     },
+    "canonicalIdentityDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "sourcePackageId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "acceptedProductFactSetDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
     "decisionFactSetDigest": {
       "type": "string",
       "minLength": 1,
@@ -100,6 +115,9 @@
     "inventoryRevision",
     "standardRevision",
     "placementRevision",
+    "canonicalIdentityDigest",
+    "sourcePackageId",
+    "acceptedProductFactSetDigest",
     "decisionFactSetDigest",
     "assessments"
   ]

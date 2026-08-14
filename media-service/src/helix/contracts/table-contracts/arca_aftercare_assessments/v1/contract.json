@@ -99,6 +99,16 @@
       },
       {
         "ordinal": 10,
+        "name": "incident_key",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 11,
         "name": "evidence_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -108,7 +118,7 @@
         "nullable": false
       },
       {
-        "ordinal": 11,
+        "ordinal": 12,
         "name": "assessed_at_ms",
         "logicalType": "INTEGER",
         "enumValues": [],
@@ -124,14 +134,14 @@
     "declaredForeignKeyColumns": [
       "shelf_entry_id"
     ],
-    "uniqueConstraints": [
+    "uniqueConstraints": [],
+    "hotIndexes": [
       [
         "shelf_entry_id",
         "care_basis_digest",
-        "assessment_kind"
-      ]
-    ],
-    "hotIndexes": [
+        "assessment_kind",
+        "assessed_at_ms"
+      ],
       [
         "result",
         "assessed_at_ms"
@@ -151,26 +161,30 @@
     },
     "jsonContracts": [],
     "immutability": {
-      "immutable": false,
-      "rules": []
+      "immutable": true,
+      "rules": [
+        "同一Care Basis允许每日/每周或用户触发形成多次immutable Assessment history，`assessment_id`必须覆盖确定性cycle identity并承担重放幂等"
+      ]
     },
     "deletion": {
       "foreignKeyPolicy": "ON DELETE RESTRICT",
       "rules": []
     },
     "semanticRules": [
-      "`UNIQUE(shelf_entry_id,care_basis_digest,assessment_kind)`",
+      "`INDEX(shelf_entry_id,care_basis_digest,assessment_kind,assessed_at_ms)`",
       "`INDEX(result,assessed_at_ms)`",
-      "同Inventory/Standard下Decision Fact或Placement变化仍可形成新Assessment"
+      "同一Care Basis允许每日/每周或用户触发形成多次immutable Assessment history，`assessment_id`必须覆盖确定性cycle identity并承担重放幂等",
+      "同Inventory/Standard下Decision Fact或Placement变化仍可形成新Assessment",
+      "同一Endpoint或Provider故障以稳定`incident_key`聚合，不复制为大量独立损坏Case"
     ],
     "rawContract": {
-      "columns": "`assessment_id PK, shelf_entry_id FK, inventory_revision, standard_revision, placement_revision, decision_fact_set_digest, care_basis_digest, assessment_kind, result, evidence_digest, assessed_at_ms`",
-      "constraints": "`UNIQUE(shelf_entry_id,care_basis_digest,assessment_kind)`；`INDEX(result,assessed_at_ms)`；同Inventory/Standard下Decision Fact或Placement变化仍可形成新Assessment"
+      "columns": "`assessment_id PK, shelf_entry_id FK, inventory_revision, standard_revision, placement_revision, decision_fact_set_digest, care_basis_digest, assessment_kind, result, incident_key NULL, evidence_digest, assessed_at_ms`",
+      "constraints": "`INDEX(shelf_entry_id,care_basis_digest,assessment_kind,assessed_at_ms)`；`INDEX(result,assessed_at_ms)`；同一Care Basis允许每日/每周或用户触发形成多次immutable Assessment history，`assessment_id`必须覆盖确定性cycle identity并承担重放幂等；同Inventory/Standard下Decision Fact或Placement变化仍可形成新Assessment；同一Endpoint或Provider故障以稳定`incident_key`聚合，不复制为大量独立损坏Case"
     },
     "source": {
       "section": "8.5.12",
-      "line": 9284,
-      "lineDigest": "dd5acb9f151e6c9596b56d003cbfe36bcbf4c464a6daec044a78747eef6703e7"
+      "line": 9294,
+      "lineDigest": "4a1b31bb5c44ed0d86443ffbbb1c90c5648b6f6708d0e8675d5a4cdd55598816"
     },
     "foreignKeys": [
       {

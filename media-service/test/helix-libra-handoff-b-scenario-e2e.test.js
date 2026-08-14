@@ -105,7 +105,8 @@ function routingHandle() {
 function productHandle(intent, operationId, artifactKind = null) {
   const body = { schemaRef:'helix://contracts/types/IntegrationHandle/v1', schemaVersion:1,
     handleId:canonicalDigest({ schema:'scenario-product-handle@1', operationId, artifactKind }),
-    integrationId:intent.integrationId, integrationType:'tmdb', configRevision:intent.configRevision,
+    integrationId:intent.integrationId || 'scenario-tmdb', integrationType:'tmdb',
+    configRevision:Number.isSafeInteger(intent.configRevision) ? intent.configRevision : 1,
     secretRef:'scenario-tmdb-secret', allowedOperation:operationId, expiresAtMs:4_102_444_800_000 };
   return Object.freeze({ ...body, fenceDigest:canonicalDigest(body) });
 }
@@ -685,7 +686,10 @@ test('P14 one-movie product path accepts Handoff B and atomically establishes an
   const hostOptions = Object.freeze({ dataDir, adminDistDir:admin, secretRoot:SECRET,
     libraWorkspaceRoot:path.join(root, 'libra-workspaces'), ...productOptions(),
     deferredDeliveryKeys:Object.freeze([]),
-    onExecutionRuntimeError(error) { runtimeError = error; if (process.env.HELIX_TEST_LOG_RUNTIME_ERROR === '1') console.error(error); },
+    onExecutionRuntimeError(error) {
+      if (!runtimeError && process.env.HELIX_TEST_LOG_RUNTIME_ERROR === '1') console.error(error);
+      runtimeError = error;
+    },
   });
   let host = await createCleanServiceHost(hostOptions);
   t.after(async () => {
@@ -755,20 +759,332 @@ test('P14 one-movie product path accepts Handoff B and atomically establishes an
   const poster = await host.inject({ method:'GET', url:'/v1/admin/collection/' + entryId + '/poster', headers:{ cookie } });
   assert.equal(poster.statusCode, 200, poster.body);
   assert.match(String(poster.headers['content-type'] || ''), /^image\//);
+  await waitDatabase(databasePath, (database) => {
+    const rows = database.prepare(
+      'SELECT assessment_kind,result FROM arca_aftercare_assessments WHERE shelf_entry_id=?',
+    ).all(entryId);
+    return rows.length >= 3 &&
+      ['custody','presentation','conformance'].every((kind) =>
+        rows.some((row) => row.assessment_kind === kind && row.result === 'healthy'));
+  });
+  const nfoLocations = (() => {
+    const found = [];
+    const pending = [shelf];
+    while (pending.length) {
+      const directory = pending.pop();
+      for (const item of fs.readdirSync(directory, { withFileTypes:true })) {
+        const location = path.join(directory, item.name);
+        if (item.isDirectory()) pending.push(location);
+        else if (item.isFile() && item.name.toLowerCase().endsWith('.nfo')) found.push(location);
+      }
+    }
+    return found;
+  })();
+  assert.ok(nfoLocations.length > 0, 'The established Inventory must contain an NFO before the repair scenario.');
+  const beforeRepair = new Database(databasePath, { readonly:true });
+  let oldNfoMaterialKeys;
+  try {
+    oldNfoMaterialKeys = beforeRepair.prepare(
+      "SELECT material_key FROM arca_inventory_materials WHERE shelf_entry_id=? AND inventory_revision=1 AND role='metadata_sidecar' AND lower(location) LIKE '%.nfo' ORDER BY material_key",
+    ).all(entryId).map((row) => row.material_key);
+  } finally { beforeRepair.close(); }
+  assert.equal(oldNfoMaterialKeys.length, nfoLocations.length,
+    'Every pre-repair NFO must be represented by an exact Inventory Material.');
+  for (const nfoLocation of nfoLocations) fs.unlinkSync(nfoLocation);
+  const check = await host.inject({ method:'POST',
+    url:'/v1/admin/care/' + entryId + '/actions/check', headers:{ cookie },
+    payload:{ idempotencyKey:'repair-missing-nfo' } });
+  assert.equal(check.statusCode, 202, check.body);
+  const repaired = await waitDatabase(databasePath, (database) => {
+    const entry = database.prepare(
+      'SELECT current_inventory_revision FROM arca_shelf_entries WHERE shelf_entry_id=?',
+    ).get(entryId);
+    const one = database.prepare(
+      "SELECT count(*) count FROM arca_aftercare_cases WHERE shelf_entry_id=? AND state='resolved'",
+    ).get(entryId);
+    const failedWorks = database.prepare(
+      "SELECT count(*) count FROM fx_supporting_works WHERE owner_domain='arca' AND state='failed'",
+    ).get().count;
+    const failedEvents = database.prepare(
+      "SELECT count(*) count FROM fx_workflow_events WHERE owner_domain='arca' AND state='failed'",
+    ).get().count;
+    return failedWorks || failedEvents ||
+      (Number(entry?.current_inventory_revision) === 2 && Number(one.count) === 1)
+      ? { inventoryRevision:Number(entry?.current_inventory_revision || 0),
+        resolvedCases:Number(one.count), failedWorks:Number(failedWorks),
+        failedEvents:Number(failedEvents) }
+      : null;
+  }, 180_000);
+  assert.deepEqual(repaired, {
+    inventoryRevision:2,
+    resolvedCases:1,
+    failedWorks:0,
+    failedEvents:0,
+  });
+  const repairedNfoLocations = [];
+  for (const directory of fs.readdirSync(shelf, { withFileTypes:true })) {
+    if (!directory.isDirectory()) continue;
+    for (const item of fs.readdirSync(path.join(shelf, directory.name), { withFileTypes:true })) {
+      if (item.isFile() && item.name.toLowerCase().endsWith('.nfo'))
+        repairedNfoLocations.push(path.join(shelf, directory.name, item.name));
+    }
+  }
+  assert.equal(repairedNfoLocations.length, 1, 'Aftercare must rematerialize one canonical NFO.');
+  const care = await host.inject({ method:'GET', url:'/v1/admin/care/' + entryId, headers:{ cookie } });
+  assert.equal(care.statusCode, 200, care.body);
+  assert.equal(care.json().health.state, 'healthy');
+  assert.equal(care.json().history.commits.length, 1);
+  const afterRepair = new Database(databasePath, { readonly:true });
+  try {
+    for (const oldNfoMaterialKey of oldNfoMaterialKeys) {
+      const oldControl = afterRepair.prepare(
+        'SELECT state,owner_domain,owner_scope_id FROM fx_material_controls WHERE material_key=?',
+      ).get(oldNfoMaterialKey);
+      assert.equal(oldControl.state, 'released');
+      assert.equal(oldControl.owner_domain, null);
+    }
+    const currentNfo = afterRepair.prepare(
+      "SELECT material_key FROM arca_inventory_materials WHERE shelf_entry_id=? AND inventory_revision=2 AND role='metadata_sidecar'",
+    ).get(entryId);
+    assert.ok(currentNfo?.material_key);
+    assert.equal(oldNfoMaterialKeys.includes(currentNfo.material_key), false);
+    const newControl = afterRepair.prepare(
+      'SELECT state,owner_domain,owner_scope_type,owner_scope_id FROM fx_material_controls WHERE material_key=?',
+    ).get(currentNfo.material_key);
+    assert.deepEqual(newControl, {
+      state:'controlled', owner_domain:'arca',
+      owner_scope_type:'shelf_entry', owner_scope_id:entryId,
+    });
+  } finally { afterRepair.close(); }
+  const posterLocations = [];
+  const posterPending = [shelf];
+  while (posterPending.length) {
+    const directory = posterPending.pop();
+    for (const item of fs.readdirSync(directory, { withFileTypes:true })) {
+      const location = path.join(directory, item.name);
+      if (item.isDirectory()) posterPending.push(location);
+      else if (item.isFile() && /(^|[-_. ])poster\.(jpg|jpeg|png|webp)$/i.test(item.name))
+        posterLocations.push(location);
+    }
+  }
+  assert.ok(posterLocations.length > 0,
+    'The established Inventory must contain a Poster before the repair scenario.');
+  const beforePosterRepair = new Database(databasePath, { readonly:true });
+  let oldPosterMaterialKeys;
+  try {
+    oldPosterMaterialKeys = beforePosterRepair.prepare(
+      "SELECT material_key FROM arca_inventory_materials WHERE shelf_entry_id=? AND inventory_revision=2 AND role='poster' ORDER BY material_key",
+    ).all(entryId).map((row) => row.material_key);
+  } finally { beforePosterRepair.close(); }
+  assert.equal(oldPosterMaterialKeys.length, posterLocations.length,
+    'Every pre-repair Poster must be represented by an exact Inventory Material.');
+  for (const posterLocation of posterLocations) fs.unlinkSync(posterLocation);
+  const posterCheck = await host.inject({ method:'POST',
+    url:'/v1/admin/care/' + entryId + '/actions/check', headers:{ cookie },
+    payload:{ idempotencyKey:'repair-missing-poster' } });
+  assert.equal(posterCheck.statusCode, 202, posterCheck.body);
+  const posterRepaired = await waitDatabase(databasePath, (database) => {
+    const entry = database.prepare(
+      'SELECT current_inventory_revision FROM arca_shelf_entries WHERE shelf_entry_id=?',
+    ).get(entryId);
+    const resolved = database.prepare(
+      "SELECT count(*) count FROM arca_aftercare_cases WHERE shelf_entry_id=? AND state='resolved'",
+    ).get(entryId);
+    const failedWorks = database.prepare(
+      "SELECT count(*) count FROM fx_supporting_works WHERE owner_domain='arca' AND state='failed'",
+    ).get().count;
+    const failedEvents = database.prepare(
+      "SELECT count(*) count FROM fx_workflow_events WHERE owner_domain='arca' AND state='failed'",
+    ).get().count;
+    return failedWorks || failedEvents ||
+      (Number(entry?.current_inventory_revision) === 3 && Number(resolved.count) === 2)
+      ? { inventoryRevision:Number(entry?.current_inventory_revision || 0),
+        resolvedCases:Number(resolved.count), failedWorks:Number(failedWorks),
+        failedEvents:Number(failedEvents) }
+      : null;
+  }, 180_000);
+  assert.deepEqual(posterRepaired, {
+    inventoryRevision:3,
+    resolvedCases:2,
+    failedWorks:0,
+    failedEvents:0,
+  });
+  const afterPosterRepair = new Database(databasePath, { readonly:true });
+  try {
+    for (const oldPosterMaterialKey of oldPosterMaterialKeys) {
+      const oldControl = afterPosterRepair.prepare(
+        'SELECT state,owner_domain,owner_scope_id FROM fx_material_controls WHERE material_key=?',
+      ).get(oldPosterMaterialKey);
+      assert.equal(oldControl.state, 'released');
+      assert.equal(oldControl.owner_domain, null);
+    }
+    const currentPosters = afterPosterRepair.prepare(
+      "SELECT material_key,location FROM arca_inventory_materials WHERE shelf_entry_id=? AND inventory_revision=3 AND role='poster'",
+    ).all(entryId);
+    assert.equal(currentPosters.length, 1);
+    assert.equal(oldPosterMaterialKeys.includes(currentPosters[0].material_key), false);
+    assert.equal(fs.existsSync(currentPosters[0].location), true);
+    const newControl = afterPosterRepair.prepare(
+      'SELECT state,owner_domain,owner_scope_type,owner_scope_id FROM fx_material_controls WHERE material_key=?',
+    ).get(currentPosters[0].material_key);
+    assert.deepEqual(newControl, {
+      state:'controlled', owner_domain:'arca',
+      owner_scope_type:'shelf_entry', owner_scope_id:entryId,
+    });
+  } finally { afterPosterRepair.close(); }
+  const finalCare = await host.inject({ method:'GET', url:'/v1/admin/care/' + entryId,
+    headers:{ cookie } });
+  assert.equal(finalCare.statusCode, 200, finalCare.body);
+  assert.equal(finalCare.json().health.state, 'healthy');
+  assert.equal(finalCare.json().history.commits.length, 2);
   assert.deepEqual(reality(source), sourceBefore);
   assert.equal(fs.readdirSync(shelf).some((item) => item.startsWith('.shelfdeck-stage-')), false);
+
+  // A published Shelf Placement revision is an exact Aftercare Basis change.
+  // Existing Inventory must migrate through the Care chain instead of being
+  // rewritten by the Shelf administration command itself.
+  const migratedShelf = path.join(root, 'migrated-shelf');
+  fs.mkdirSync(migratedShelf, { recursive:true });
+  const placementValue = Object.freeze({
+    folderTemplate:'{title} ({year})', collisionPolicy:'reject',
+  });
+  const placementDraft = Object.freeze({
+    shelfId:'scenario-shelf', expectedPlacementRevision:1,
+    target:Object.freeze({
+      endpointId:'scenario-shelf-migrated-endpoint',
+      rootLocation:migratedShelf,
+      mountScopeId:'scenario-shelf-migrated-mount',
+      mountScopeRevision:2,
+    }),
+    placement:Object.freeze({
+      schemaRef:'helix://contracts/policies/ArcaShelfPlacementPolicy/v1',
+      value:placementValue,
+      digest:canonicalDigest(placementValue),
+    }),
+  });
+  const placementPreview = await host.inject({
+    method:'POST',
+    url:'/v1/admin/shelves/scenario-shelf/placement/actions/preview',
+    headers:{ cookie },
+    payload:{ idempotencyKey:'aftercare-placement-preview', ...placementDraft },
+  });
+  assert.equal(placementPreview.statusCode, 200, placementPreview.body);
+  const placementRevision = await host.inject({
+    method:'PATCH', url:'/v1/admin/shelves/scenario-shelf/placement', headers:{ cookie },
+    payload:{
+      idempotencyKey:'aftercare-placement-publish', ...placementDraft,
+      expectedCurrentTargetDigest:placementPreview.json().currentTargetDigest,
+      previewId:placementPreview.json().previewId,
+      previewDigest:placementPreview.json().previewDigest,
+    },
+  });
+  assert.equal(placementRevision.statusCode, 200, placementRevision.body);
+  assert.equal(placementRevision.json().shelf.currentPlacementRevision, 2);
+  const migrated = await waitDatabase(databasePath, (database) => {
+    const entry = database.prepare(
+      'SELECT current_inventory_revision FROM arca_shelf_entries WHERE shelf_entry_id=?',
+    ).get(entryId);
+    const resolved = database.prepare(
+      "SELECT count(*) count FROM arca_aftercare_cases WHERE shelf_entry_id=? AND state='resolved'",
+    ).get(entryId);
+    const failedWorks = Number(database.prepare(
+      "SELECT count(*) count FROM fx_supporting_works WHERE owner_domain='arca' AND state='failed'",
+    ).get().count);
+    const failedEvents = Number(database.prepare(
+      "SELECT count(*) count FROM fx_workflow_events WHERE owner_domain='arca' AND state='failed'",
+    ).get().count);
+    return failedWorks || failedEvents ||
+      (Number(entry?.current_inventory_revision) === 4 && Number(resolved.count) === 3)
+      ? Object.freeze({ inventoryRevision:Number(entry?.current_inventory_revision || 0),
+        resolvedCases:Number(resolved.count), failedWorks, failedEvents })
+      : null;
+  }, 180_000);
+  assert.deepEqual(migrated, {
+    inventoryRevision:4, resolvedCases:3, failedWorks:0, failedEvents:0,
+  });
+  const migrationEvidence = new Database(databasePath, { readonly:true });
+  try {
+    const locations = migrationEvidence.prepare(
+      'SELECT endpoint_id,location FROM arca_inventory_materials WHERE shelf_entry_id=? AND inventory_revision=4 ORDER BY ordinal',
+    ).all(entryId);
+    assert.ok(locations.length >= 3);
+    for (const item of locations) {
+      assert.equal(item.endpoint_id, 'scenario-shelf-migrated-endpoint');
+      assert.equal(path.resolve(item.location).startsWith(path.resolve(migratedShelf) + path.sep), true);
+      assert.equal(fs.existsSync(item.location), true);
+    }
+  } finally { migrationEvidence.close(); }
+  assert.equal(reality(shelf).count, 0,
+    'Superseded Placement material must be settled only after verified migration.');
+  assert.ok(reality(migratedShelf).count >= 3);
+  const migratedCare = await host.inject({ method:'GET', url:'/v1/admin/care/' + entryId,
+    headers:{ cookie } });
+  assert.equal(migratedCare.statusCode, 200, migratedCare.body);
+  assert.equal(migratedCare.json().health.state, 'healthy');
+  assert.equal(migratedCare.json().basis.placementRevision, 2);
+  assert.equal(migratedCare.json().history.commits.length, 3);
 
   await host.close();
   host = await createCleanServiceHost(hostOptions);
   await pause(1_500);
   assert.ifError(runtimeError);
   const restarted = new Database(databasePath, { readonly:true });
+  let currentPrimaryLocation;
+  let currentNfoLocation;
+  let renderCountBeforeBlockedRepair;
   try {
     assert.equal(restarted.prepare('SELECT count(*) count FROM arca_shelf_entries').get().count, 1);
     assert.equal(restarted.prepare('SELECT count(*) count FROM arca_ondeck_runs').get().count, 1);
     assert.equal(restarted.prepare('SELECT count(*) count FROM arca_ondeck_commit_receipts').get().count, 1);
     assert.equal(restarted.prepare('SELECT count(*) count FROM arca_offload_completions').get().count, 1);
+    assert.equal(restarted.prepare("SELECT count(*) count FROM arca_aftercare_cases WHERE state='resolved'").get().count, 3);
+    assert.equal(restarted.prepare('SELECT current_inventory_revision FROM arca_shelf_entries').get().current_inventory_revision, 4);
+    currentPrimaryLocation = restarted.prepare(
+      "SELECT location FROM arca_inventory_materials WHERE shelf_entry_id=? AND inventory_revision=4 AND role='primary_payload'",
+    ).get(entryId).location;
+    currentNfoLocation = restarted.prepare(
+      "SELECT location FROM arca_inventory_materials WHERE shelf_entry_id=? AND inventory_revision=4 AND role='metadata_sidecar' AND lower(location) LIKE '%.nfo'",
+    ).get(entryId).location;
+    renderCountBeforeBlockedRepair = Number(restarted.prepare(
+      "SELECT count(*) count FROM fx_workflow_events WHERE capability_ref='arca.aftercare.text_artifact.render@1' AND state='succeeded'",
+    ).get().count);
   } finally { restarted.close(); }
+
+  // One unrepairable Primary gap fences the whole Care action.  A repairable
+  // NFO gap in the same fresh Basis must not be partially fixed first.
+  fs.unlinkSync(currentPrimaryLocation);
+  fs.unlinkSync(currentNfoLocation);
+  const blockedCheck = await host.inject({ method:'POST',
+    url:'/v1/admin/care/' + entryId + '/actions/check', headers:{ cookie },
+    payload:{ idempotencyKey:'primary-missing-blocks-partial-repair' } });
+  assert.equal(blockedCheck.statusCode, 202, blockedCheck.body);
+  await waitDatabase(databasePath, (database) => {
+    const findings = database.prepare(`SELECT finding_kind FROM arca_aftercare_findings
+      WHERE state='open' ORDER BY created_at_ms DESC`).all().map((row) => row.finding_kind);
+    return findings.includes('custody:primary_missing') && findings.includes('custody:artifact_missing')
+      ? true : null;
+  }, 60_000);
+  const attention = await host.inject({ method:'GET', url:'/v1/admin/care/' + entryId,
+    headers:{ cookie } });
+  assert.equal(attention.statusCode, 200, attention.body);
+  assert.equal(attention.json().health.state, 'attention_required');
+  const blockedEvidence = new Database(databasePath, { readonly:true });
+  try {
+    assert.equal(blockedEvidence.prepare(
+      'SELECT current_inventory_revision FROM arca_shelf_entries WHERE shelf_entry_id=?',
+    ).get(entryId).current_inventory_revision, 4);
+    assert.equal(blockedEvidence.prepare(
+      "SELECT count(*) count FROM arca_aftercare_cases WHERE shelf_entry_id=? AND state='resolved'",
+    ).get(entryId).count, 3);
+    assert.equal(blockedEvidence.prepare(
+      "SELECT count(*) count FROM arca_aftercare_cases WHERE shelf_entry_id=? AND state='active'",
+    ).get(entryId).count, 0);
+    assert.equal(Number(blockedEvidence.prepare(
+      "SELECT count(*) count FROM fx_workflow_events WHERE capability_ref='arca.aftercare.text_artifact.render@1' AND state='succeeded'",
+    ).get().count), renderCountBeforeBlockedRepair,
+    'An unrepairable Primary gap must block the otherwise repairable NFO effect.');
+  } finally { blockedEvidence.close(); }
+  assert.equal(fs.existsSync(currentNfoLocation), false);
 });
 
 test('P14 insufficient Shelf space rejects Handoff B without Arca custody, Control, or Shelf Entry', {

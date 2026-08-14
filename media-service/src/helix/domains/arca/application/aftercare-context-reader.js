@@ -1,0 +1,29 @@
+'use strict';
+
+const { canonicalDigest } = require('../../../contracts/canonical-json');
+const { createAftercareStore } = require('../persistence/aftercare-store');
+
+function sealed(schemaRef, objectId, revision, body) {
+  const base={schemaRef,schemaVersion:1,objectId,revision,...body};return Object.freeze({...base,digest:canonicalDigest(base)});
+}
+function usesRatingDecision(standardValue,structureKind){const profile=(standardValue?.profileRuleSets||[]).find((item)=>
+  item.contentProfile===(structureKind==='season'?'series':'movie'));
+  return Boolean(profile?.decisionInputKinds?.includes('rating'));
+}
+function createAftercareContextReader(options){const store=options.aftercareStore||createAftercareStore(options);
+  function careBasis(shelfEntryId,inventoryRevision,standardRevision,placementRevision,canonicalIdentityDigest,sourcePackageId,factDigests,decisionFactDigests){const decisionFactSetDigest=canonicalDigest({schema:'arca.aftercare-decision-facts@1',shelfEntryId,facts:[...decisionFactDigests].sort()}),acceptedProductFactSetDigest=canonicalDigest({schema:'arca.aftercare-accepted-product-facts@1',shelfEntryId,facts:[...factDigests].sort()});return sealed('helix://contracts/domain-types/CareBasis/v1',shelfEntryId+':care-basis',1,{shelfEntryId,inventoryRevision,standardRevision,placementRevision,canonicalIdentityDigest,sourcePackageId,acceptedProductFactSetDigest,decisionFactSetDigest,assessments:Object.freeze([])});}
+  function read(shelfEntryId){const raw=store.currentContext(shelfEntryId);if(!raw||raw.entry.status!=='active')return null;
+    const ratingRelevant=usesRatingDecision(raw.standard.value,raw.entry.structure_kind),perceptionRating=ratingRelevant&&typeof options.readPerceptionRating==='function'?options.readPerceptionRating(shelfEntryId):null,decisionDigests=ratingRelevant?[...raw.facts.filter((x)=>x.fact_kind==='decision_fact').map((x)=>x.fact_digest),...(perceptionRating?.state==='ready'&&perceptionRating.resolutionDigest?[perceptionRating.resolutionDigest]:[])]:[],basis=careBasis(shelfEntryId,raw.entry.current_inventory_revision,raw.shelf.current_standard_revision,raw.shelf.current_placement_revision,raw.identity.identity_digest,raw.inventory.source_package_id,raw.facts.filter((x)=>x.fact_kind!=='decision_fact').map((x)=>x.fact_digest),decisionDigests);
+    const bindings=raw.materials.map((item)=>Object.freeze({objectId:shelfEntryId+':binding:'+item.ordinal,revision:Number(item.binding_revision),schemaRef:'helix://arca/types/MaterialBindingSnapshot/v1',digest:canonicalDigest({materialKey:item.material_key,endpointId:item.endpoint_id,location:item.location,sizeBytes:Number(item.size_bytes),digestHex:item.digest_hex}),objectKind:'arca-material-binding'}));
+    const knownBindings=sealed('helix://contracts/domain-types/KnownBindings/v1',shelfEntryId+':known-bindings',raw.entry.current_inventory_revision,{shelfEntryId,bindings:Object.freeze(bindings),bindingSetDigest:canonicalDigest(bindings)});
+    const inventoryRevision=sealed('helix://contracts/domain-types/InventoryRevision/v1',shelfEntryId+':inventory',raw.entry.current_inventory_revision,{shelfEntryId,inventoryRevision:raw.entry.current_inventory_revision,inventoryDigest:raw.inventory.representation_digest});
+    const metadataRefs=sealed('helix://contracts/domain-types/InventoryMetadataArtifactRefs/v1',shelfEntryId+':presentation-input',raw.entry.current_inventory_revision,{shelfEntryId,inventoryRevision:raw.entry.current_inventory_revision,metadataFactRefs:Object.freeze(raw.facts.filter((x)=>x.fact_kind==='product_metadata').map((x)=>x.fact_digest)),artifactHandles:Object.freeze([])});
+    const standard=sealed('helix://contracts/domain-types/Standard/v1',raw.shelf.shelf_id+':standard',raw.shelf.current_standard_revision,{standardId:raw.shelf.shelf_id,standardRevision:raw.shelf.current_standard_revision,standardDigest:raw.standard.standard_digest});
+    const placement=sealed('helix://contracts/domain-types/Placement/v1',shelfEntryId+':placement',raw.shelf.current_placement_revision,{shelfEntryId,placementRevision:raw.shelf.current_placement_revision,targetEndpointId:raw.shelf.target_endpoint_id,placementDigest:raw.placement.policy_digest});
+    return Object.freeze({shelfEntryId,raw:Object.freeze({...raw,perceptionRating}),basis,knownBindings,inventoryRevision,metadataRefs,standard,placement});}
+  function healthProjectionInputs(shelfEntryIds){const items=store.healthProjectionInputs(shelfEntryIds),ratingIds=items.filter((item)=>usesRatingDecision(item.standardValue,item.structureKind)).map((item)=>item.shelfEntryId),ratings=ratingIds.length&&typeof options.readPerceptionRatings==='function'?options.readPerceptionRatings(ratingIds):new Map();return items.map((item)=>{const relevant=usesRatingDecision(item.standardValue,item.structureKind),rating=ratings.get(item.shelfEntryId),digests=relevant?[...item.decisionFactDigests,...(rating?.resolutionDigest?[rating.resolutionDigest]:[])]:[];return Object.freeze({shelfEntryId:item.shelfEntryId,basis:careBasis(item.shelfEntryId,item.inventoryRevision,item.standardRevision,item.placementRevision,item.canonicalIdentityDigest,item.sourcePackageId,item.factDigests,digests),history:item.history});});}
+  return Object.freeze({store,read,
+    inventoryMaterials:(shelfEntryId,inventoryRevision)=>store.inventoryMaterials(shelfEntryId,inventoryRevision),
+    healthProjectionInputs,listPage:(cursor,limit)=>store.listEntryPage(cursor,limit)});
+}
+module.exports=Object.freeze({createAftercareContextReader,usesRatingDecision});

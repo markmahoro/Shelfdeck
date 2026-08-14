@@ -1,8 +1,36 @@
 # ShelfDeck Clean Helix Master Plan
 
-Status: Movie Procurement保持`CLOSED FOR MOVIE`；Movie Libra保持`MOVIE LIBRA CLOSED AT HANDOFF B READY`；Movie Arca已经接通Handoff B Acceptance、On-deck、Shelf Entry与Deck Fact。下一独立节点为Arca Post-deck Aftercare；本轮不含Off-deck或生产部署。
+Status: Movie Procurement保持`CLOSED FOR MOVIE`；Movie Libra保持`MOVIE LIBRA CLOSED AT HANDOFF B READY`；Movie Arca已经接通Handoff B Acceptance、On-deck、Shelf Entry、Deck Fact与完整Beta Aftercare。当前状态为`ARCA AFTERCARE READY / AWAITING OFF-DECK`；下一独立节点为Off-deck Design，本轮不含Off-deck或生产部署。
 
 Last updated: 2026-08-14
+
+## 0. Completed target — Arca Aftercare Ready
+
+Aftercare现以每个Shelf Entry作为Owner Process scope，经`Health Assessment Work → immutable Plan → Custody / Presentation /
+Conformance Event → Assessment Commit → Care Disposition`推进。Coordinator只签发Work、读取terminal Result、创建Case或收口Case；
+Planner不执行Capability，所有Capability均经过Event Runtime、Resource Governor、Attempt及Result Binding。三项Assessment共享同一
+Care Basis；Basis过期后旧结论只保留为历史，不得继续给当前Shelf Entry着色。
+
+周期合同已经封闭：Custody每24小时到期，Presentation与Conformance每7天到期；每个Shelf Entry加入最多2小时确定性jitter；
+启动恢复和丢失signal通过`fx_reconcile_cursors`按100项/页、5秒/轮有界发现。每日Custody只核验当前Inventory成员的存在、可读性、
+stat fence及最多256 KiB有界指纹，不遍历Shelf目录。Endpoint级故障以共享`incidentKey`聚合为`observe/not_assessable`，不会批量创建
+损坏Case。
+
+Beta自动修复已闭环NFO再生、Poster有界重取、现有Primary的remux/transcode与Placement迁移。效果完成后必须建立新verified
+Inventory revision、精确settlement旧输入、回收Aftercare Workspace并重新执行三维Assessment，最后才能把Case标记为resolved。
+Primary缺失、Identity改变、不可解码，或需要重新搜索/下载媒体时固定为`attention_required`，不调用Procurement、Libra或
+MoviePilot。每个Shelf Entry由数据库partial unique约束保证最多一个非terminal Case；Basis变化会使旧Case invalidated。
+
+“我的收藏”已承载全部健康产品表面：海报卡提供灰/绿/黄/蓝/红且带可访问文本的检验章，支持全部、健康、观察中、修复中、
+需要处理、尚未检查筛选；详情展示Custody、Presentation、Conformance、Basis freshness、Finding、active Case进度及Inventory
+revision修复历史，并提供只签发评估Work的“立即检查健康”。独立`/care`一级页面已经移除；正式UI inventory为8 pages + 9
+journeys = 17 surfaces。
+
+产品E2E覆盖健康Entry、NFO修复、Poster修复、Placement安全迁移、Inventory revision 1→4、三次Case闭环、Workspace先回收后
+Case closure、重启无重复，以及Primary缺失同时NFO缺失时禁止昂贵局部修复。P14隔离产品场景15/15通过；完整服务回归245 pass、
+16个显式环境skip、0 fail；完整Architecture Gate为160个test file、1039 pass、7 skip、0 fail；Admin Web production build通过。
+机器合同保持112 Capability、98 Result family、180 table、43 Canonical Transaction、115 Admin route加public health；P2 aggregate为
+`38f7ec09909ec35a75907d3ba7dadc8fa2e9bf715c2775076906039b39d9704d`。本节点未访问`Z:\Film`，未使用Docker/NAS。
 
 ## 0. Completed target — Movie Arca at Shelf Entry and Deck Fact
 
@@ -22,8 +50,8 @@ authenticated GET；缺海报只显示fallback，不触发Provider、Aftercare�
 
 fresh-clean正向与空间不足拒绝E2E都已通过，并分别在完成后重启验证无重复Acceptance、On-deck、文件效果、
 Shelf Entry、Deck Fact或Outbox消费。当前机器合同为112 Capability、98 Result family、180 table、43 Canonical
-Transaction、115 Admin route加1条public health（总计116 route）。本节点不实现Aftercare、Off-deck、Shelf
-Deregistration或NAS部署；这些仍是后续独立边界。完整服务回归为245 pass、16个显式环境skip、0 fail，
+Transaction、115 Admin route加1条public health（总计116 route）。该历史节点当时不实现Aftercare；Aftercare现已由上节独立闭环。
+Off-deck、Shelf Deregistration或NAS部署仍是后续独立边界。完整服务回归为245 pass、16个显式环境skip、0 fail，
 Helix Architecture gate与Admin Web production build均通过。
 
 ## 0. Closed target — Movie Libra at Handoff B Ready
@@ -93,7 +121,7 @@ Sorting专用Field还必须增加两条无NFO边界：一部无NFO但能够通�
 Arca Shelf Entry为目标；Candidate仍是内部对象。用户评分与真实Douban同步统一经过`Acquisition Work → Normalize/Commit Event →
 Resolution Work → Resolution Commit Event`，HTTP只签发Work并返回`202`。改分追加Correction/Supersedes Record，不修改旧Record。
 
-Admin Web保持九个一级页面：“上架进度”按Subject提供1–5星控件，“我的收藏”按Shelf Entry提供同一控件；“系统设置”内部增加
+Admin Web当前保持八个一级页面：“上架进度”按Subject提供1–5星控件，“我的收藏”按Shelf Entry提供同一控件；“系统设置”内部增加
 `连接与集成|评分日志`Tab。评分日志是可分页、可筛选的只读Projection，不提供评分、修改或同步动作，也不展示Candidate。
 
 Acceptance Spec链路固定为`Routing resolved → Perception Resolution terminal → Spec Preparation Work → Decision Basis Commit Event →

@@ -110,6 +110,27 @@
         ]
       },
       "maxItems": 1024
+    },
+    "incidentKey": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "mediaRepairStrategy": {
+      "anyOf": [
+        {
+          "$ref": "helix://contracts/domain-types/AftercareMediaRepairStrategy/v1"
+        },
+        {
+          "type": "null"
+        }
+      ]
     }
   },
   "required": [
@@ -128,6 +149,8 @@
     "decisionFactSetDigest",
     "careBasisDigest",
     "assessmentState",
-    "findingDrafts"
+    "findingDrafts",
+    "incidentKey",
+    "mediaRepairStrategy"
   ]
 }

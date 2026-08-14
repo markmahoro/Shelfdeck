@@ -35,8 +35,11 @@ function createArcaCollectionQuery(options) {
       hasPoster:repo.invoke('list_materials',{shelf_entry_id:row.shelf_entry_id,inventory_revision:revision}).some((item)=>item.role==='poster'),
       currentInventoryRevision:revision,currentDeckFactRevision:Number(row.current_deck_fact_revision),
       createdAtMs:Number(row.created_at_ms),terminalAtMs:row.terminal_at_ms===null?null:Number(row.terminal_at_ms)});}
-  function get(shelfEntryId){return execute('arca_collection_entry_read',(context)=>map(context.repository(repository.repositoryId),context.repository(repository.repositoryId).invoke('find_entry',{shelf_entry_id:shelfEntryId})));}
-  return Object.freeze({list(){const items=execute('arca_collection_list',(context)=>{const repo=context.repository(repository.repositoryId);return repo.invoke('list_entries',{}).map((row)=>map(repo,row));})
+  const emptyHealth=Object.freeze({state:'never_assessed'});
+  function withHealth(item,health){return item?Object.freeze({...item,health:health||options.healthReader?.(item.shelfEntryId)||emptyHealth}):null;}
+  function getBase(shelfEntryId){return execute('arca_collection_entry_read',(context)=>map(context.repository(repository.repositoryId),context.repository(repository.repositoryId).invoke('find_entry',{shelf_entry_id:shelfEntryId})));}
+  function get(shelfEntryId){return withHealth(getBase(shelfEntryId));}
+  return Object.freeze({list(){const rows=execute('arca_collection_list',(context)=>{const repo=context.repository(repository.repositoryId);return repo.invoke('list_entries',{}).map((row)=>map(repo,row));}),health=options.healthReaderMany?.(rows.map((row)=>row.shelfEntryId))||new Map(),items=rows.map((row)=>withHealth(row,health.get(row.shelfEntryId)))
       .sort((a,b)=>a.displayIdentity.localeCompare(b.displayIdentity,'zh-CN')||a.shelfEntryId.localeCompare(b.shelfEntryId));return Object.freeze({items:Object.freeze(items)});},
     get,
     getPoster(shelfEntryId){const reference=execute('arca_collection_poster_reference_read',(context)=>{const repo=context.repository(repository.repositoryId),row=repo.invoke('find_entry',{shelf_entry_id:shelfEntryId});
@@ -45,7 +48,7 @@ function createArcaCollectionQuery(options) {
       if(!poster)return null;return Object.freeze({shelfEntryId,inventoryRevision:Number(row.current_inventory_revision),
         shelfTargetRoot:shelf.target_root_location,location:poster.location,materialKey:poster.material_key,sizeBytes:Number(poster.size_bytes)});});
       return reference?options.posterReader(reference):null;},
-    targetProjection(shelfEntryId){const item=get(shelfEntryId);if(!item)return null;const body={targetType:'shelf_entry',targetId:item.shelfEntryId,targetRevision:item.canonicalIdentityRevision,
+    targetProjection(shelfEntryId){const item=getBase(shelfEntryId);if(!item)return null;const body={targetType:'shelf_entry',targetId:item.shelfEntryId,targetRevision:item.canonicalIdentityRevision,
         title:item.displayIdentity,year:item.year,providerIdentity:item.provider+':'+item.providerKey,canonicalIdentityDigest:item.identityDigest};return Object.freeze({...body,targetDigest:canonicalDigest(body)});},
   });
 }

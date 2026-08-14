@@ -42,13 +42,13 @@ test('keeps checked-in DDL and trace manifest reproducible from frozen inputs', 
 test('maps every P2 partial-unique rule and only cross-table predicates use support guards', () => {
   const expected = contracts.reduce((count, contract) => count + contract.partialUniqueRules.length, 0);
   const actual = Object.values(PARTIAL_UNIQUE).reduce((count, rules) => count + rules.length, 0);
-  assert.equal(expected, 21);
+  assert.equal(expected, 22);
   assert.equal(actual, expected);
   assert.deepEqual(Object.keys(SUPPORT_COLUMNS).sort(), [
     'arca_inventory_materials', 'libra_intake_decisions', 'people_provider_identities'
   ]);
   const compiled = compileSchema(contracts);
-  assert.equal(compiled.manifest.tables.flatMap((table) => table.indexes).filter((index) => index.kind === 'partial-unique').length, 21);
+  assert.equal(compiled.manifest.tables.flatMap((table) => table.indexes).filter((index) => index.kind === 'partial-unique').length, 22);
   assert.equal(compiled.manifest.tables.flatMap((table) => table.supportColumns).length, 7);
   assert.deepEqual(compiled.manifest.tables.find((table) => table.tableId === 'libra_intake_decisions').supportColumns
     .map((column) => column.name), [

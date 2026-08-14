@@ -66,6 +66,8 @@ const special = {
   'AcceptedPayload.onDeckProductPackage': typeRef('OnDeckProductPackage'),
   'ActiveShelfEntryIdentityProjection.entries': arrayOf(snapshot('active-shelf-entry-identity'), 4096),
   'CareBasis.assessments': arrayOf(snapshot('professional-assessment'), 1024),
+  'CareBasis.canonicalIdentityDigest': digest(),
+  'CareBasis.acceptedProductFactSetDigest': digest(),
   'CurrentInventoryControl.materials': arrayOf(object({ materialKey: digest(), inventoryRevision: positiveInteger(), controlRevision: positiveInteger() }), 4096),
   'DecisionEvidence.queryResults': arrayOf(typeRef('VersionedQueryResult'), 256),
   'DecisionInputSet.inputs': arrayOf(snapshot('decision-input'), 256),
@@ -135,6 +137,7 @@ const boundedContracts = {
 
 const dtoContracts = {
   AcceptedIntakePayload: '',
+  AftercareMediaRepairStrategy: '',
   AcceptedPayload: 'onDeckProductPackage,acceptanceDecisionId,custodyDigest',
   AcceptedProductFacts: 'shelfEntryId,inventoryRevision,productFactSetDigest',
   ActiveShelfEntryIdentityProjection: 'entries,projectionRevision',
@@ -143,7 +146,7 @@ const dtoContracts = {
   CandidateDeliveryReadResult: '',
   CandidateDeliverySnapshot: '',
   SubjectContinuityResolutionDecision: '',
-  CareBasis: 'shelfEntryId,inventoryRevision,standardRevision,placementRevision,decisionFactSetDigest,assessments',
+  CareBasis: 'shelfEntryId,inventoryRevision,standardRevision,placementRevision,canonicalIdentityDigest,sourcePackageId,acceptedProductFactSetDigest,decisionFactSetDigest,assessments',
   CurrentInventoryControl: 'shelfId,materials',
   DecisionEvidence: 'subjectId,queryResults,routingInputDigest,specInputDigest',
   DecisionInputSet: 'subjectId,inputs,inputSetDigest',
@@ -255,6 +258,7 @@ function buildSchema(name, role, fields) {
   if (name === 'CandidateDeliverySnapshot') return candidateDeliverySnapshotSchema();
   if (name === 'SubjectContinuityResolutionDecision') return subjectContinuityResolutionDecisionSchema();
   if (name === 'AcceptedIntakePayload') return acceptedIntakePayloadSchema();
+  if (name === 'AftercareMediaRepairStrategy') return aftercareMediaRepairStrategySchema();
   if (name === 'IntakeRejectionDecision') return intakeRejectionDecisionSchema();
   if (name === 'ArcaAcceptanceRejectionDecision') return arcaAcceptanceRejectionDecisionSchema();
   if (name === 'StructuredRejection') return structuredRejectionSchema();
@@ -1388,6 +1392,48 @@ function mediaExecutionDeviceSnapshotSchema() {
     probeRevision: positiveInteger(), capabilitySchemaRef: text(), capabilityPayload, capabilityDigest: digest(),
     enabled: { const: true }, state: { const: 'ready' }, workerRef: nullable(workerRef), snapshotDigest: digest() }),
     'x-helix-maxCanonicalBytes': 16 * 1024 };
+}
+
+function aftercareMediaRepairStrategySchema() {
+  const priorAssessment = object({
+    deviceId: id(),
+    deviceClass: deviceClass(),
+    deviceSnapshotDigest: digest(),
+    disposition: enumText('strategy_rejected'),
+    rejectionScope: enumText('device_pipeline', 'rate_control_strategy'),
+    reasonCodes: arrayOf(text(), 16),
+    preflightDigest: digest(),
+  });
+  const video = object({
+    codec: { const: 'hevc' },
+    rateControlMode: enumText('target_size', 'quality_bound', 'two_pass_abr', 'strict_abr'),
+    targetVideoBitrateBps: nullable(positiveInteger()),
+    qualityBound: nullable({ type: 'integer', minimum: 0, maximum: 63 }),
+    dynamicRangeOperation: enumText('preserve', 'tone_map_to_sdr_bt709'),
+    pipelineProfileId: text(),
+    outputDynamicRangeKind: enumText('sdr', 'hdr10_compatible', 'hlg', 'dolby_vision', 'unknown'),
+    outputPixelFormat: text(),
+    outputColorProfile: object({ range:text(), primaries:text(), transfer:text(), matrix:text() }),
+  });
+  return { ...exactDomainSchema('AftercareMediaRepairStrategy', {
+    schemaRef: { const: domainTypeId('AftercareMediaRepairStrategy') },
+    schemaVersion: { const: 1 },
+    strategyId: id(),
+    revision: { const: 1 },
+    careBasisDigest: digest(),
+    sourceHandleDigest: digest(),
+    sourceProbeEvidenceId: id(),
+    sourceProbeEvidenceDigest: digest(),
+    sourceVideoProfileDigest: digest(),
+    selectedDeviceSnapshot: domainRef('MediaExecutionDeviceSnapshot'),
+    selectedDeviceSnapshotDigest: digest(),
+    selectedDeviceClass: deviceClass(),
+    video,
+    priorStrategyAssessments: arrayOf(priorAssessment, 64),
+    selectedPreflightDigest: digest(),
+    strategyDigest: digest(),
+    digest: digest(),
+  }), 'x-helix-maxCanonicalBytes': 64 * 1024 };
 }
 
 function workspaceMediaOutputTargetSchema() {

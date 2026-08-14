@@ -5,8 +5,8 @@
   "ownerScope": "arca",
   "effectClass": "material_commit",
   "inputPorts": {
-    "verifiedArtifact": {
-      "schemaRef": "helix://contracts/capabilities/arca.aftercare.artifact.materialize/v1/inputs#/$defs/verifiedArtifact",
+    "verifiedArtifactOrWorkspaceMediaHandle": {
+      "schemaRef": "helix://contracts/capabilities/arca.aftercare.artifact.materialize/v1/inputs#/$defs/verifiedArtifactOrWorkspaceMediaHandle",
       "required": true,
       "cardinality": "one"
     },
@@ -29,7 +29,7 @@
   },
   "sourceLocator": {
     "section": "8.6.11",
-    "line": 10053,
-    "lineDigest": "62bcf25133fe0cd2a254756208fccb68c5c625157274c0cdbd2d509855db1c58"
+    "line": 10063,
+    "lineDigest": "9b46bc9dfdb05885759a66ebd419a019d990b49891bee30ca788c458f15e00eb"
   }
 }

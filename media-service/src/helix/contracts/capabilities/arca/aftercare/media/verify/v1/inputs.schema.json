@@ -5,21 +5,21 @@
   "type": "object",
   "additionalProperties": false,
   "properties": {
-    "workspaceMediaEvidence": {
-      "$ref": "#/$defs/workspaceMediaEvidence"
+    "workspaceMediaHandle": {
+      "$ref": "#/$defs/workspaceMediaHandle"
     },
     "careRequirement": {
       "$ref": "#/$defs/careRequirement"
     }
   },
   "required": [
-    "workspaceMediaEvidence",
+    "workspaceMediaHandle",
     "careRequirement"
   ],
   "$defs": {
-    "workspaceMediaEvidence": {
-      "$ref": "helix://contracts/types/ProductMediaVerification/v1",
-      "x-helix-typeExpression": "Workspace media evidence"
+    "workspaceMediaHandle": {
+      "$ref": "helix://contracts/types/WorkspaceMediaHandle/v1",
+      "x-helix-typeExpression": "WorkspaceMediaHandle"
     },
     "careRequirement": {
       "$ref": "helix://contracts/domain-types/CareRequirement/v1",

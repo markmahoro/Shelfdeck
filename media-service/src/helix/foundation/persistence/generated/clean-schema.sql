@@ -61,12 +61,13 @@ CREATE TABLE "arca_aftercare_assessments" (
   "care_basis_digest" TEXT CHECK (length("care_basis_digest") = 64 AND "care_basis_digest" NOT GLOB '*[^0-9a-f]*'),
   "assessment_kind" TEXT,
   "result" TEXT,
+  "incident_key" TEXT,
   "evidence_digest" TEXT CHECK (length("evidence_digest") = 64 AND "evidence_digest" NOT GLOB '*[^0-9a-f]*'),
   "assessed_at_ms" INTEGER CHECK ("assessed_at_ms" >= 0),
-  UNIQUE ("shelf_entry_id", "care_basis_digest", "assessment_kind"),
   FOREIGN KEY ("shelf_entry_id") REFERENCES "arca_shelf_entries" ("shelf_entry_id") ON DELETE RESTRICT
 );
-CREATE INDEX "idx_arca_aftercare_assessments_hot_01" ON "arca_aftercare_assessments" ("result", "assessed_at_ms");
+CREATE INDEX "idx_arca_aftercare_assessments_hot_01" ON "arca_aftercare_assessments" ("shelf_entry_id", "care_basis_digest", "assessment_kind", "assessed_at_ms");
+CREATE INDEX "idx_arca_aftercare_assessments_hot_02" ON "arca_aftercare_assessments" ("result", "assessed_at_ms");
 
 CREATE TABLE "arca_aftercare_case_basis_inputs" (
   "aftercare_case_id" TEXT,
@@ -101,6 +102,7 @@ CREATE TABLE "arca_aftercare_cases" (
 );
 CREATE INDEX "idx_arca_aftercare_cases_hot_01" ON "arca_aftercare_cases" ("state", "created_at_ms");
 CREATE UNIQUE INDEX "uidx_arca_aftercare_cases_partial_01" ON "arca_aftercare_cases" ("care_basis_digest", "finding_set_digest", "care_requirement_digest") WHERE "terminal_at_ms" IS NULL;
+CREATE UNIQUE INDEX "uidx_arca_aftercare_cases_partial_02" ON "arca_aftercare_cases" ("shelf_entry_id") WHERE "terminal_at_ms" IS NULL;
 
 CREATE TABLE "arca_aftercare_findings" (
   "finding_id" TEXT PRIMARY KEY,
@@ -274,6 +276,11 @@ CREATE TABLE "arca_inventory_materials" (
   "endpoint_id" TEXT,
   "location" TEXT,
   "binding_revision" INTEGER CHECK ("binding_revision" >= 1),
+  "mount_scope_id" TEXT,
+  "inode" TEXT,
+  "fingerprint_algorithm" TEXT,
+  "fingerprint_version" TEXT,
+  "content_fingerprint" TEXT,
   "digest_hex" TEXT CHECK (length("digest_hex") = 64 AND "digest_hex" NOT GLOB '*[^0-9a-f]*'),
   "size_bytes" INTEGER CHECK ("size_bytes" >= 0),
   "active_guard" INTEGER NOT NULL DEFAULT 0 CHECK ("active_guard" IN (0, 1)),

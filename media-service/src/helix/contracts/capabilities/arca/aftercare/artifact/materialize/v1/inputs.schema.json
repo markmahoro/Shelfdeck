@@ -5,21 +5,28 @@
   "type": "object",
   "additionalProperties": false,
   "properties": {
-    "verifiedArtifact": {
-      "$ref": "#/$defs/verifiedArtifact"
+    "verifiedArtifactOrWorkspaceMediaHandle": {
+      "$ref": "#/$defs/verifiedArtifactOrWorkspaceMediaHandle"
     },
     "inventoryTargetHandle": {
       "$ref": "#/$defs/inventoryTargetHandle"
     }
   },
   "required": [
-    "verifiedArtifact",
+    "verifiedArtifactOrWorkspaceMediaHandle",
     "inventoryTargetHandle"
   ],
   "$defs": {
-    "verifiedArtifact": {
-      "$ref": "helix://contracts/types/ArtifactHandle/v1",
-      "x-helix-typeExpression": "Verified Artifact"
+    "verifiedArtifactOrWorkspaceMediaHandle": {
+      "oneOf": [
+        {
+          "$ref": "helix://contracts/types/ArtifactHandle/v1"
+        },
+        {
+          "$ref": "helix://contracts/types/WorkspaceMediaHandle/v1"
+        }
+      ],
+      "x-helix-typeExpression": "(Verified Artifact | WorkspaceMediaHandle)"
     },
     "inventoryTargetHandle": {
       "$ref": "helix://contracts/types/TargetCommitSlotHandle/v1",

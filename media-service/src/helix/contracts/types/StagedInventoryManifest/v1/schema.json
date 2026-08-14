@@ -67,6 +67,9 @@
             "minLength": 1,
             "maxLength": 256
           },
+          "physicalIdentity": {
+            "$ref": "helix://contracts/types/PhysicalMaterialIdentity/v2"
+          },
           "role": {
             "type": "string",
             "enum": [
@@ -111,6 +114,7 @@
         "required": [
           "sourceMaterialKey",
           "materialKey",
+          "physicalIdentity",
           "role",
           "endpointId",
           "location",

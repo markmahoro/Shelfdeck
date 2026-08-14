@@ -67,7 +67,10 @@ const SUPPORT_COLUMNS = Object.freeze({
 
 const PARTIAL_UNIQUE = Object.freeze({
   arca_acceptance_attempts: [{ columns: ['package_digest', 'standard_revision', 'placement_revision'], where: '"finished_at_ms" IS NULL' }],
-  arca_aftercare_cases: [{ columns: ['care_basis_digest', 'finding_set_digest', 'care_requirement_digest'], where: '"terminal_at_ms" IS NULL' }],
+  arca_aftercare_cases: [
+    { columns: ['care_basis_digest', 'finding_set_digest', 'care_requirement_digest'], where: '"terminal_at_ms" IS NULL' },
+    { columns: ['shelf_entry_id'], where: '"terminal_at_ms" IS NULL' },
+  ],
   arca_inventory_materials: [{ columns: ['material_key'], where: '"role" = \'primary_payload\' AND "active_guard" = 1' }],
   arca_offdeck_reservations: [{ columns: ['shelf_entry_id'], where: '"state" = \'active\'' }],
   arca_offdeck_review_candidates: [{ columns: ['shelf_entry_id', 'policy_id', 'policy_revision', 'reason_digest'], where: '"state" = \'open\'' }],

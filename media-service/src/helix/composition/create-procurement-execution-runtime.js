@@ -4,7 +4,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { randomUUID } = require('node:crypto');
-const { computeBoundedMaterialFingerprint } = require('../integrations/bounded-material-fingerprint');
+const { computeBoundedMaterialFingerprint, computeBoundedMaterialFingerprintSync } = require('../integrations/bounded-material-fingerprint');
 const { canonicalDigest } = require('../contracts/canonical-json');
 const { createCapabilityContractValidator } = require('../foundation/capability/contract-validator');
 const { createCapabilityRegistry } = require('../foundation/capability/capability-registry');
@@ -27,6 +27,7 @@ const { createWorkScheduler } = require('../foundation/execution/work-scheduler'
 const { createWorkSupplyController } = require('../foundation/execution/work-supply-controller');
 const { createWorkResultReader } = require('../foundation/execution/work-result-reader');
 const { createReconcileCursorStore } = require('../foundation/execution/reconcile-cursor-store');
+const { createMaterialControlProjectionPort, controlScopeDigest } = require('../foundation/persistence/material-control');
 const { createDomainReconcileRunner } = require('../foundation/execution/domain-reconcile-runner');
 const { createWorkflowPlanPublisher, executionCatalogDigest } = require('../foundation/execution/workflow-plan');
 const { ProcurementExecutionRegistration } = require('../domains/procurement/public');
@@ -58,7 +59,14 @@ const ARCA_ENABLED = Object.freeze(['arca.acceptance.identity.verify@1','arca.ac
   'arca.acceptance.inventory_feasibility.observe@1','arca.acceptance.accept.commit@1','arca.acceptance.rejection.commit@1',
   'arca.inventory.target_slot.prepare@1','arca.inventory.product.stage@1','arca.inventory.staged.verify@1',
   'arca.inventory.final_product.verify@1','arca.inventory.placement.switch@1','arca.ondeck.input_settlement.delete@1',
-  'arca.ondeck.fulfillment.verify@1','arca.ondeck.commit@1']);
+  'arca.ondeck.fulfillment.verify@1','arca.ondeck.commit@1',
+  'arca.aftercare.custody.observe@1','arca.aftercare.presentation.observe@1',
+  'arca.aftercare.conformance.observe@1','arca.aftercare.assessment.commit@1',
+  'arca.aftercare.text_artifact.render@1','arca.aftercare.binary_artifact.acquire@1',
+  'arca.aftercare.artifact.materialize@1','arca.aftercare.media.remux@1',
+  'arca.aftercare.media.transcode@1','arca.aftercare.media.verify@1',
+  'arca.aftercare.input_settlement.delete@1','arca.aftercare.inventory.commit@1',
+  'arca.aftercare.case.commit@1','arca.aftercare.workspace.reclaim@1']);
 const ENABLED = Object.freeze([...PROCUREMENT_ENABLED, ...SHARED_ENABLED, ...LIBRA_ENABLED, ...PERCEPTION_ENABLED,...ARCA_ENABLED]);
 
 function collectSchemas(root) {
@@ -107,6 +115,7 @@ function findIntegrationHandle(value,seen=new Set()){
 function createProcurementExecutionRuntime(options) {
   const contractsRoot = options.contractsRoot || path.resolve(__dirname, '../contracts');
   const now = options.now || Date.now;
+  const materialControlProjectionPort = createMaterialControlProjectionPort(options);
   const workResultReader = createWorkResultReader(options);
   const contractValidator = createCapabilityContractValidator({ schemas: collectSchemas(contractsRoot) });
   const manifests = Object.fromEntries(ENABLED.map((ref) => [ref, manifest(contractsRoot, ref)]));
@@ -147,7 +156,8 @@ function createProcurementExecutionRuntime(options) {
     manifests:Object.fromEntries(LIBRA_ENABLED.map((ref)=>[ref,manifests[ref]]))});
   const perceptionCapabilityRegistration=perceptionConstruction.createCapabilityRegistration({...perceptionOptions,now});
   const perceptionRegistrations=perceptionCapabilityRegistration.createRegistrations({manifests:Object.fromEntries(PERCEPTION_ENABLED.map((ref)=>[ref,manifests[ref]]))});
-  const arcaCapabilityRegistration=arcaConstruction.createCapabilityRegistration({...options,now,workResultReader});
+  const arcaCapabilityRegistration=arcaConstruction.createCapabilityRegistration({...options,now,workResultReader,
+    computeBoundedMaterialFingerprintSync});
   const arcaRegistrations=arcaCapabilityRegistration.createRegistrations({enabledCapabilityRefs:ARCA_ENABLED,
     manifests:Object.fromEntries(ARCA_ENABLED.map((ref)=>[ref,manifests[ref]]))});
   const registrations = Object.freeze([...procurementRegistrations,...sharedRegistrations,...libraRegistrations,...perceptionRegistrations,...arcaRegistrations]);
@@ -295,9 +305,11 @@ function createProcurementExecutionRuntime(options) {
   const perceptionPlanningRegistration=perceptionConstruction.createPlanningRegistration({registry,policyRegistry,contractValidator,
     workResultReader,processServices:perceptionProcessServices,resolvePerceptionIntegrationHandle:options.resolvePerceptionIntegrationHandle,now});
   const arcaProcessServices=arcaConstruction.createProcessServices({...options,now,workResultReader,
-    contextReader:arcaCapabilityRegistration.contextReader});
+    contextReader:arcaCapabilityRegistration.contextReader,
+    readPerceptionRating:(shelfEntryId)=>perceptionProcessServices.readCurrentRating('shelf_entry',shelfEntryId),
+    readPerceptionRatings:(shelfEntryIds)=>perceptionProcessServices.readCurrentRatings('shelf_entry',shelfEntryIds)});
   const arcaPlanningRegistration=arcaConstruction.createPlanningRegistration({...options,registry,policyRegistry,contractValidator,workResultReader,
-    contextReader:arcaProcessServices.contextReader,now});
+    contextReader:arcaProcessServices.contextReader,materialControlProjectionPort,controlScopeDigest,now});
   const bindingProjectionRegistry = createInputBindingProjectionRegistry({ registrations:[...planningRegistration.bindingProjections,
     ...libraPlanningRegistration.bindingProjections,...perceptionPlanningRegistration.bindingProjections,
     ...arcaPlanningRegistration.bindingProjections] });
@@ -405,10 +417,13 @@ function createProcurementExecutionRuntime(options) {
       if(capability.startsWith('arca.')){
         const refs=workResultReader.readBindings(snapshot.work.work_id).flatMap((item)=>item.inputBindings?.bindings||[])
           .find((item)=>Array.isArray(item.parameters?.dependencyRefs))?.parameters.dependencyRefs||[];
-        const arcaContext=snapshot.work.process_type==='arca_ondeck_run'
-          ?arcaProcessServices.contextReader.readAccepted(snapshot.work.process_id,refs)
-          :arcaProcessServices.contextReader.readOffer(refs);
-        const targetMount=arcaContext.shelf.target.mountScopeId;
+        const isAftercare=snapshot.work.process_type==='arca_shelf_entry';
+        const arcaContext=isAftercare
+          ?arcaProcessServices.aftercareContextReader.read(snapshot.work.process_id)
+          :snapshot.work.process_type==='arca_ondeck_run'
+            ?arcaProcessServices.contextReader.readAccepted(snapshot.work.process_id,refs)
+            :arcaProcessServices.contextReader.readOffer(refs);
+        const targetMount=isAftercare?arcaContext.raw.shelf.target_mount_scope_id:arcaContext.shelf.target.mountScopeId;
         validatedVolumeKeys.add(targetMount);
         if(['arca.acceptance.inventory_feasibility.observe@1','arca.inventory.target_slot.prepare@1',
           'arca.inventory.product.stage@1'].includes(capability))resources.push({resourceKey:'volume_write:'+targetMount,units:1});
@@ -421,6 +436,30 @@ function createProcurementExecutionRuntime(options) {
           sourceMounts.forEach((item)=>{validatedVolumeKeys.add(item);resources.push({resourceKey:'volume_mutation:'+item,units:1});});
         }
         if(['arca.acceptance.accept.commit@1','arca.acceptance.rejection.commit@1','arca.ondeck.commit@1'].includes(capability))
+          resources.push({resourceKey:'sqlite_write',units:1});
+        if(['arca.aftercare.custody.observe@1','arca.aftercare.presentation.observe@1',
+          'arca.aftercare.conformance.observe@1'].includes(capability))resources.push({resourceKey:'volume_read:'+targetMount,units:1});
+        if(capability==='arca.aftercare.conformance.observe@1')resources.push({resourceKey:'cpu_heavy',units:1});
+        if(['arca.aftercare.text_artifact.render@1','arca.aftercare.media.remux@1',
+          'arca.aftercare.media.transcode@1'].includes(capability)){
+          validatedVolumeKeys.add('aftercare_workspace_local');resources.push({resourceKey:'volume_write:aftercare_workspace_local',units:1});
+          if(capability!=='arca.aftercare.text_artifact.render@1')resources.push({resourceKey:'volume_read:'+targetMount,units:1});
+          if(capability==='arca.aftercare.media.transcode@1'){
+            const device=inputs.namedInputs?.aftercareMediaRepairStrategy?.selectedDeviceSnapshot,slots=device?.capabilityPayload?.validatedConcurrentSlots;
+            if(!device?.deviceId||!Number.isSafeInteger(slots)||slots<1)throw new Error('P4_TYPED_AFTERCARE_TRANSCODE_DEVICE_UNRESOLVED');
+            validatedEncoderSlots.set(device.deviceId,slots);resources.push({resourceKey:'encoder:'+device.deviceId,units:1});
+            if(device.deviceClass==='software_cpu')resources.push({resourceKey:'cpu_heavy',units:1});
+          }
+        }
+        if(capability==='arca.aftercare.binary_artifact.acquire@1'){
+          const integrationId=findIntegrationId(inputs);if(!integrationId)throw new Error('P4_TYPED_AFTERCARE_INTEGRATION_UNRESOLVED');
+          validatedIntegrationKeys.add(integrationId);resources.push({resourceKey:'integration:'+integrationId,units:1},{resourceKey:'volume_write:aftercare_workspace_local',units:1});validatedVolumeKeys.add('aftercare_workspace_local');
+        }
+        if(capability==='arca.aftercare.artifact.materialize@1')resources.push({resourceKey:'volume_mutation:'+targetMount,units:1});
+        if(capability==='arca.aftercare.media.verify@1')resources.push({resourceKey:'volume_read:aftercare_workspace_local',units:1});
+        if(capability==='arca.aftercare.input_settlement.delete@1')resources.push({resourceKey:'volume_mutation:'+targetMount,units:1});
+        if(capability==='arca.aftercare.workspace.reclaim@1')resources.push({resourceKey:'volume_mutation:aftercare_workspace_local',units:1});
+        if(['arca.aftercare.assessment.commit@1','arca.aftercare.inventory.commit@1','arca.aftercare.case.commit@1'].includes(capability))
           resources.push({resourceKey:'sqlite_write',units:1});
       }
       if(capability === 'procurement.triage.bdmv.assess@1') resources.push({resourceKey:'cpu_heavy',units:1});
@@ -440,7 +479,7 @@ function createProcurementExecutionRuntime(options) {
     'product_identity','product_metadata_observation','artifact_production','product_fact_assembly','workspace_media_production',
     'product_conformance','deliverable_promotion'];
   const perceptionPlannerKinds=['acquisition_page','resolution'];
-  const arcaPlannerKinds=['acceptance_assessment','acceptance_commit','acceptance_rejection','on_deck_execution'];
+  const arcaPlannerKinds=['acceptance_assessment','acceptance_commit','acceptance_rejection','on_deck_execution','health_assessment','custody_assessment','care_repair_prepare','care_repair_commit','care_case_closure'];
   const plannerRegistry = createPlannerRegistry({ registrations: [...planningRegistration.planners.map((planner, index) => ({
     ownerDomain: 'procurement', workKind: plannerKinds[index], plannerContractRef: planner.plannerContractRef,
     plannerVersion: planner.plannerVersion, planner
@@ -523,7 +562,16 @@ function createProcurementExecutionRuntime(options) {
       return {workId:request.workId,disposition:request.workAttemptState};
     }
     if(request.ownerDomain==='arca'&&request.processType==='arca_ondeck_run'){
-      if(request.workAttemptState==='succeeded')arcaProcessServices.coordinator.reconcileOnDeck(request.processId);
+      if(request.workAttemptState==='succeeded'){
+        const terminal=arcaProcessServices.coordinator.reconcileOnDeck(request.processId);
+        const shelfEntryId=terminal?.result?.onDeckCommitReceipt?.shelfEntryId;
+        if(terminal?.kind==='terminal'&&shelfEntryId)
+          arcaProcessServices.aftercareCoordinator.reconcile(shelfEntryId);
+      }
+      return {workId:request.workId,disposition:request.workAttemptState};
+    }
+    if(request.ownerDomain==='arca'&&request.processType==='arca_shelf_entry'){
+      if(request.workAttemptState==='succeeded')arcaProcessServices.aftercareCoordinator.reconcile(request.processId);
       return {workId:request.workId,disposition:request.workAttemptState};
     }
     if(request.ownerDomain==='perception'&&request.processType==='perception_acquisition'){
@@ -549,6 +597,10 @@ function createProcurementExecutionRuntime(options) {
           // asking Libra to evaluate its Acceptance Spec.
           perceptionProcessServices.ensureResolution('subject',subjectId);
           libraProcessServices.acceptanceSpecCoordinator.reconcile(subjectId);
+        }
+        if(request.processId.startsWith('shelf_entry:')){
+          const shelfEntryId=request.processId.slice('shelf_entry:'.length);
+          arcaProcessServices.aftercareCoordinator.reconcile(shelfEntryId);
         }
       }
       return {workId:request.workId,disposition:request.workAttemptState};
@@ -586,6 +638,7 @@ function createProcurementExecutionRuntime(options) {
     return { workId: request.workId, disposition: 'succeeded' };
   } };
   const cursorStore=createReconcileCursorStore({schemaManifest:options.schemaManifest,unitOfWork:options.unitOfWork,now});
+  let aftercareSweepNotBeforeMs=0;
   const fallbackReconciler=createDomainReconcileRunner({cursorStore,now,onError:options.onError,registrations:[Object.freeze({
     ownerDomain:'procurement',reconcilerKey:'active-procurement-runs',
     listPage:({cursor,limit})=>triageReader.listActiveRunPage(cursor,limit),
@@ -614,6 +667,13 @@ function createProcurementExecutionRuntime(options) {
         .map((item)=>Object.freeze({cursor:item.subjectId,scope:item})),
       reconcile:({subjectId})=>{const run=libraProcessServices.libraRunCreator.reconcile(subjectId);
         return run.libraRunId?reconcileLibraRun(run.libraRunId):run;},
+    }),Object.freeze({
+      ownerDomain:'arca',reconcilerKey:'due-aftercare-shelf-entries',
+      listPage:({cursor,limit})=>{if(cursor===null&&now()<aftercareSweepNotBeforeMs)return [];const page=arcaProcessServices.aftercareContextReader.listPage(cursor,limit);if(page.length<limit)aftercareSweepNotBeforeMs=now()+24*60*60*1000;return page;},
+      reconcile:({shelfEntryId})=>{const projection=arcaProcessServices.aftercareCoordinator.project(shelfEntryId);
+        return !projection||Math.min(projection.nextCustodyDueAtMs,projection.nextDeepDueAtMs)>now()
+          ?Object.freeze({kind:'not_due',shelfEntryId})
+          :arcaProcessServices.aftercareCoordinator.reconcile(shelfEntryId);},
     })]});
   host = createExecutionRuntimeHost({ startupRecovery, scheduler, plannerRegistry, planPublisher, workLifecycle,
     eventRuntime, domainReconciler, fallbackReconciler, onError: options.onError,maxInFlightEvents:16 });
@@ -625,6 +685,8 @@ function createProcurementExecutionRuntime(options) {
     libraRunCoordinator:libraProcessServices.libraRunCoordinator,movieProductionReader:libraProcessServices.movieProductionReader,
     libraRunExecutionProjection:libraProcessServices.libraRunExecutionProjection,
     arcaCoordinator:arcaProcessServices.coordinator,arcaContextReader:arcaProcessServices.contextReader,
+    arcaAftercareCoordinator:arcaProcessServices.aftercareCoordinator,
+    arcaAftercareContextReader:arcaProcessServices.aftercareContextReader,
     perception:perceptionProcessServices });
 }
 

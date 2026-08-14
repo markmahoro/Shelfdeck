@@ -110,6 +110,17 @@
         ]
       },
       "maxItems": 1024
+    },
+    "incidentKey": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1
+        },
+        {
+          "type": "null"
+        }
+      ]
     }
   },
   "required": [
@@ -128,6 +139,7 @@
     "decisionFactSetDigest",
     "careBasisDigest",
     "assessmentState",
-    "findingDrafts"
+    "findingDrafts",
+    "incidentKey"
   ]
 }

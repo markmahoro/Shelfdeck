@@ -10,8 +10,13 @@
       "required": true,
       "cardinality": "one"
     },
-    "inventoryMediaEvidence": {
-      "schemaRef": "helix://contracts/capabilities/arca.aftercare.conformance.observe/v1/inputs#/$defs/inventoryMediaEvidence",
+    "inventoryRevision": {
+      "schemaRef": "helix://contracts/capabilities/arca.aftercare.conformance.observe/v1/inputs#/$defs/inventoryRevision",
+      "required": true,
+      "cardinality": "one"
+    },
+    "knownBindings": {
+      "schemaRef": "helix://contracts/capabilities/arca.aftercare.conformance.observe/v1/inputs#/$defs/knownBindings",
       "required": true,
       "cardinality": "one"
     },
@@ -39,7 +44,7 @@
   },
   "sourceLocator": {
     "section": "8.6.11",
-    "line": 10049,
-    "lineDigest": "418d9652136aa90165fb8648faba7327012d40b25049086a9dee701cfa4f6c5e"
+    "line": 10059,
+    "lineDigest": "115ab737def41387e21b0025fbd23878bf120ee2e1ed651d324d2bf15f603527"
   }
 }

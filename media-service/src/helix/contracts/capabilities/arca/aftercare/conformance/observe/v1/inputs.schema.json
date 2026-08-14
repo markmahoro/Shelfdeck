@@ -8,8 +8,11 @@
     "careBasis": {
       "$ref": "#/$defs/careBasis"
     },
-    "inventoryMediaEvidence": {
-      "$ref": "#/$defs/inventoryMediaEvidence"
+    "inventoryRevision": {
+      "$ref": "#/$defs/inventoryRevision"
+    },
+    "knownBindings": {
+      "$ref": "#/$defs/knownBindings"
     },
     "standard": {
       "$ref": "#/$defs/standard"
@@ -20,7 +23,8 @@
   },
   "required": [
     "careBasis",
-    "inventoryMediaEvidence",
+    "inventoryRevision",
+    "knownBindings",
     "standard",
     "placement"
   ],
@@ -29,9 +33,13 @@
       "$ref": "helix://contracts/domain-types/CareBasis/v1",
       "x-helix-typeExpression": "Care Basis"
     },
-    "inventoryMediaEvidence": {
-      "$ref": "helix://contracts/types/ProductMediaVerification/v1",
-      "x-helix-typeExpression": "Inventory media evidence"
+    "inventoryRevision": {
+      "$ref": "helix://contracts/domain-types/InventoryRevision/v1",
+      "x-helix-typeExpression": "Inventory revision"
+    },
+    "knownBindings": {
+      "$ref": "helix://contracts/domain-types/KnownBindings/v1",
+      "x-helix-typeExpression": "Known bindings"
     },
     "standard": {
       "$ref": "helix://contracts/domain-types/Standard/v1",

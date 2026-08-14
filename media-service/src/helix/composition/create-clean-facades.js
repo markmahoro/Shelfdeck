@@ -144,14 +144,12 @@ function createCleanFacades(options) {
     facades.ArcaShelfAdminFacade.patch_shelves_shelfid = async (input) => ({ body: options.arcaShelfAdmin.renameShelf(input.params.shelfId, input.body) });
     facades.ArcaShelfAdminFacade.get_shelves_shelfid_standard = async (input) => ({ body: options.arcaShelfAdmin.getStandard(input.params.shelfId) });
     facades.ArcaShelfAdminFacade.get_shelves_shelfid_placement = async (input) => ({ body: options.arcaShelfAdmin.getPlacement(input.params.shelfId) });
-    facades.ArcaShelfAdminFacade.patch_shelves_shelfid_placement = async (input) => ({ body: options.arcaShelfAdmin.revisePlacement(input.params.shelfId, input.body) });
+    facades.ArcaShelfAdminFacade.patch_shelves_shelfid_placement = async (input) => {const body=options.arcaShelfAdmin.revisePlacement(input.params.shelfId, input.body);options.arcaCare?.shelfBasisChanged(input.params.shelfId);return {body};};
     facades.ArcaShelfAdminFacade.post_shelves_shelfid_placement_actions_preview = async (input) => ({ body: options.arcaShelfAdmin.previewPlacement(input.params.shelfId, input.body) });
     facades.ArcaShelfAdminFacade.post_shelves_shelfid_actions_deregister = async (input) => ({ body: options.arcaShelfAdmin.deregisterShelf(input.params.shelfId, input.body) });
   }
   if (options.arcaRuleTemplateAdmin) {
-    facades.ArcaShelfAdminFacade.post_shelves_shelfid_actions_bind_template = async (input) => ({
-      body: options.arcaRuleTemplateAdmin.bindShelf(input.params.shelfId, input.body),
-    });
+    facades.ArcaShelfAdminFacade.post_shelves_shelfid_actions_bind_template = async (input) => {const body=options.arcaRuleTemplateAdmin.bindShelf(input.params.shelfId, input.body);options.arcaCare?.shelfBasisChanged(input.params.shelfId);return {body};};
     facades.ArcaShelfAdminFacade.get_rule_templates = async () => ({
       body: options.arcaRuleTemplateAdmin.listTemplates(),
     });
@@ -227,6 +225,15 @@ function createCleanFacades(options) {
       const value=options.arcaCollectionQuery.getPoster(input.params.shelfEntryId);
       if(!value){const error=new Error('Shelf Entry poster was not found.');error.code='ARCA_SHELF_ENTRY_POSTER_NOT_FOUND';throw error;}
       return {body:value.bytes,contentType:value.contentType};
+    };
+  }
+  if (options.arcaCare) {
+    facades.ArcaCareFacade.get_care = async (input) => ({ body:options.arcaCare.list(input.query || {}) });
+    facades.ArcaCareFacade.get_care_shelfentryid = async (input) => {
+      const value=options.arcaCare.detail(input.params.shelfEntryId);if(!value){const error=new Error('Shelf Entry was not found.');error.code='ARCA_SHELF_ENTRY_NOT_FOUND';throw error;}return {body:value};
+    };
+    facades.ArcaCareFacade.post_care_shelfentryid_actions_check = async (input) => {
+      const value=options.arcaCare.check(input.params.shelfEntryId,input.body?.idempotencyKey);if(!value){const error=new Error('Shelf Entry was not found.');error.code='ARCA_SHELF_ENTRY_NOT_FOUND';throw error;}return {status:202,body:value};
     };
   }
 

@@ -67,6 +67,7 @@ const {
 } = require('./helix/domains/arca/public/admin-application');
 const { createShelfRoutingTargetProjection } = require('./helix/domains/arca/public/routing-target-projection');
 const { createArcaCollectionQuery } = require('./helix/domains/arca/application/collection-query');
+const { createArcaCareApplication } = require('./helix/domains/arca/application/care-query');
 const { ProductDeliveryPort } = require('./helix/domains/libra/public');
 const { createProductDeliveryReader } = require('./helix/domains/libra/persistence/product-delivery-reader');
 const { createCleanArcaInventoryPort } = require('./clean-arca-inventory-port');
@@ -723,6 +724,9 @@ function createPlatformIntegrationServices(options) {
         }
         return undefined;
       }
+      if (!intent.integrationId || !Number.isSafeInteger(intent.configRevision)) {
+        return handleFor('tmdb', value.operationId, value.artifactKind || null);
+      }
       return tmdbRuntime.integrationHandleResolverPort.resolve({
         integrationId: intent.integrationId,
         integrationType: intent.providerKind,
@@ -946,7 +950,7 @@ function createRuntime(options) {
   if (routeManifest.status !== 'active' || routeManifest.entries.length !== 116) {
     findings.push('ROUTE_INVENTORY_INCOMPLETE');
   }
-  if (uiManifest.status !== 'active' || uiManifest.entries.length !== 18) {
+  if (uiManifest.status !== 'active' || uiManifest.entries.length !== 17) {
     findings.push('UI_SURFACE_INVENTORY_INCOMPLETE');
   }
   if (findings.length) {
@@ -1102,6 +1106,7 @@ async function createCleanServiceHost(options) {
   }));
   const candidateAcceptance = createCandidateAcceptanceConsumer(constructed.applicationDependencies);
   const arcaRoutingTargets = createShelfRoutingTargetProjection(constructed.applicationDependencies);
+  let arcaCare = null;
   const arcaCollectionQuery = createArcaCollectionQuery({
     ...constructed.applicationDependencies,
     posterReader: options.arcaPosterReader || ((reference) => {
@@ -1123,6 +1128,8 @@ async function createCleanServiceHost(options) {
       const contentType = extension === '.png' ? 'image/png' : extension === '.webp' ? 'image/webp' : 'image/jpeg';
       return Object.freeze({ contentType, bytes });
     }),
+    healthReader:(shelfEntryId)=>arcaCare?.detail(shelfEntryId)?.health||Object.freeze({state:'never_assessed'}),
+    healthReaderMany:(shelfEntryIds)=>arcaCare?.summaries(shelfEntryIds)||new Map(),
   });
   const workspaceProductPort = options.workspaceProductPort ||
     createCleanWorkspaceProductPort({
@@ -1231,6 +1238,12 @@ async function createCleanServiceHost(options) {
     platformComputeRuntime,
     productDeliveryPort,
     inventoryPort: arcaInventoryPort,
+    fetchAftercareArtifact: options.aftercareArtifactFetch || options.productProviderArtifactFetch ||
+      platformIntegrations.fetchProviderArtifact,
+    resolveAftercareIntegrationHandle: options.aftercareIntegrationHandleResolver ||
+      options.productIntegrationHandleResolver || platformIntegrations.resolveProductHandle,
+    aftercareWorkspaceRoot: options.aftercareWorkspaceRoot,
+    ffmpegPath: options.ffmpegPath,
     now: options.now || Date.now,
     onError: options.onExecutionRuntimeError,
   });
@@ -1265,6 +1278,8 @@ async function createCleanServiceHost(options) {
     wake() { const execution=procurementExecution.host.wake(); outboxDispatcher.wake(); return execution; },
     async stop() { await outboxDispatcher.stop(); return procurementExecution.host.stop(); },
   });
+  arcaCare=createArcaCareApplication({contextReader:procurementExecution.arcaAftercareContextReader,
+    coordinator:procurementExecution.arcaAftercareCoordinator,wake:()=>executionRuntimeHost.wake()});
   const libraRunAdmin = createLibraRunAdminService({
     ...constructed.applicationDependencies,
     libraRunExecutionProjection: procurementExecution.libraRunExecutionProjection,
@@ -1296,6 +1311,7 @@ async function createCleanServiceHost(options) {
     libraRoutingAdmin,
     formationQuery,
     arcaCollectionQuery,
+    arcaCare,
     routingManualSelection,
     libraRunAdmin,
     platformIntegrationAdmin: platformIntegrations.admin,

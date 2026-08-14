@@ -142,6 +142,7 @@ function createEventExecutionInputProvider(options) {
       const namedInputs = frozen?.schemaRef === 'helix://foundation/types/EventInputBindingSet/v1'
         ? resolveBindings(snapshot, frozen) : frozen;
       options.contractValidator.validate(snapshot.node.input_binding_schema_ref, namedInputs);
+      const values=Object.values(namedInputs),approvalHandle=values.find((value)=>value?.schemaRef==='helix://contracts/types/ApprovalHandle/v1'),authorizationHandle=values.find((value)=>value?.schemaRef==='helix://contracts/types/AuthorizationHandle/v1');
       return Object.freeze({
         ownerScope: Object.freeze({ domain: snapshot.work.owner_domain, processType: snapshot.work.process_type,
           processId: snapshot.work.process_id, objectRefs: Object.freeze([]) }),
@@ -151,6 +152,8 @@ function createEventExecutionInputProvider(options) {
         idempotencyKey: canonicalDigest({ schema: 'helix.event-execution-key@1', eventId: snapshot.event.event_id,
           workAttemptId: snapshot.workAttempt.attempt_id, planId: snapshot.plan.plan_id }),
         traceContext: Object.freeze({ traceId: snapshot.work.work_id, spanId: snapshot.event.event_id }),
+        ...(approvalHandle?{approvalHandle}:{}),
+        ...(authorizationHandle?{authorizationHandle}:{}),
       });
     },
   });

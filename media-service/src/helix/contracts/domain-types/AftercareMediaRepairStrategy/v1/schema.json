@@ -1,0 +1,277 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/domain-types/AftercareMediaRepairStrategy/v1",
+  "title": "AftercareMediaRepairStrategy@1",
+  "x-helix-ssotRefs": [
+    "8.6.13",
+    "8.6.18",
+    "8.6.20"
+  ],
+  "x-helix-role": "accepted-business-dto",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaRef": {
+      "const": "helix://contracts/domain-types/AftercareMediaRepairStrategy/v1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "strategyId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "revision": {
+      "const": 1
+    },
+    "careBasisDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "sourceHandleDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "sourceProbeEvidenceId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "sourceProbeEvidenceDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "sourceVideoProfileDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "selectedDeviceSnapshot": {
+      "$ref": "helix://contracts/domain-types/MediaExecutionDeviceSnapshot/v1"
+    },
+    "selectedDeviceSnapshotDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "selectedDeviceClass": {
+      "type": "string",
+      "enum": [
+        "software_cpu",
+        "intel_qsv",
+        "nvidia_nvenc",
+        "amd_vaapi",
+        "remote_worker"
+      ]
+    },
+    "video": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "codec": {
+          "const": "hevc"
+        },
+        "rateControlMode": {
+          "type": "string",
+          "enum": [
+            "target_size",
+            "quality_bound",
+            "two_pass_abr",
+            "strict_abr"
+          ]
+        },
+        "targetVideoBitrateBps": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "qualityBound": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 63
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "dynamicRangeOperation": {
+          "type": "string",
+          "enum": [
+            "preserve",
+            "tone_map_to_sdr_bt709"
+          ]
+        },
+        "pipelineProfileId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "outputDynamicRangeKind": {
+          "type": "string",
+          "enum": [
+            "sdr",
+            "hdr10_compatible",
+            "hlg",
+            "dolby_vision",
+            "unknown"
+          ]
+        },
+        "outputPixelFormat": {
+          "type": "string",
+          "minLength": 1
+        },
+        "outputColorProfile": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "range": {
+              "type": "string",
+              "minLength": 1
+            },
+            "primaries": {
+              "type": "string",
+              "minLength": 1
+            },
+            "transfer": {
+              "type": "string",
+              "minLength": 1
+            },
+            "matrix": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "range",
+            "primaries",
+            "transfer",
+            "matrix"
+          ]
+        }
+      },
+      "required": [
+        "codec",
+        "rateControlMode",
+        "targetVideoBitrateBps",
+        "qualityBound",
+        "dynamicRangeOperation",
+        "pipelineProfileId",
+        "outputDynamicRangeKind",
+        "outputPixelFormat",
+        "outputColorProfile"
+      ]
+    },
+    "priorStrategyAssessments": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "deviceId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "deviceClass": {
+            "type": "string",
+            "enum": [
+              "software_cpu",
+              "intel_qsv",
+              "nvidia_nvenc",
+              "amd_vaapi",
+              "remote_worker"
+            ]
+          },
+          "deviceSnapshotDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "disposition": {
+            "type": "string",
+            "enum": [
+              "strategy_rejected"
+            ]
+          },
+          "rejectionScope": {
+            "type": "string",
+            "enum": [
+              "device_pipeline",
+              "rate_control_strategy"
+            ]
+          },
+          "reasonCodes": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "maxItems": 16
+          },
+          "preflightDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          }
+        },
+        "required": [
+          "deviceId",
+          "deviceClass",
+          "deviceSnapshotDigest",
+          "disposition",
+          "rejectionScope",
+          "reasonCodes",
+          "preflightDigest"
+        ]
+      },
+      "maxItems": 64
+    },
+    "selectedPreflightDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "strategyDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "digest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "schemaRef",
+    "schemaVersion",
+    "strategyId",
+    "revision",
+    "careBasisDigest",
+    "sourceHandleDigest",
+    "sourceProbeEvidenceId",
+    "sourceProbeEvidenceDigest",
+    "sourceVideoProfileDigest",
+    "selectedDeviceSnapshot",
+    "selectedDeviceSnapshotDigest",
+    "selectedDeviceClass",
+    "video",
+    "priorStrategyAssessments",
+    "selectedPreflightDigest",
+    "strategyDigest",
+    "digest"
+  ],
+  "x-helix-maxCanonicalBytes": 65536
+}
