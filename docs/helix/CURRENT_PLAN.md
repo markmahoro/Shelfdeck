@@ -1,8 +1,39 @@
 # ShelfDeck Clean Helix Master Plan
 
-Status: Movie Procurement保持`CLOSED FOR MOVIE`；Movie Libra保持`MOVIE LIBRA CLOSED AT HANDOFF B READY`；Movie Arca已经接通Handoff B Acceptance、On-deck、Shelf Entry、Deck Fact与完整Beta Aftercare。当前状态为`ARCA AFTERCARE READY / AWAITING OFF-DECK`；下一独立节点为Off-deck Design，本轮不含Off-deck或生产部署。
+Status: Movie Procurement保持`CLOSED FOR MOVIE`；Movie Libra保持`MOVIE LIBRA CLOSED AT HANDOFF B READY`；Movie Arca已经接通Handoff B Acceptance、On-deck、Shelf Entry、Deck Fact、Beta Aftercare与完整Off-deck。当前状态为`MOVIE COLLECTION LIFECYCLE READY THROUGH OFF-DECK / AWAITING SHELF DEREGISTRATION`；下一独立节点仅为非破坏性的Shelf Deregistration，本轮不含生产部署。
 
-Last updated: 2026-08-14
+Last updated: 2026-08-15
+
+## 0. Completed target — Arca Off-deck and Movie lifecycle closure
+
+Off-deck现在以Arca-owned Policy、Candidate/Duplicate Evidence、Review、逐Entry Reservation、immutable Destruction Scope、
+Selection/High-volume Receipt、Authorization、Case及Deletion Evidence形成完整链。推荐退出、Duplicate审阅、Aftercare
+`attention_required`加入审阅和用户直接退出复用同一安全路径；用户直接退出不会伪造Review Candidate。默认Policy为disabled，
+任何Condition Fact为unknown时不产生Candidate。
+
+Authorization前可以取消Review并释放Reservation；Authorization后不可撤销。服务端以Entry、Primary、总空间、Shelf覆盖率和
+全Deck覆盖率五项阈值重算High-volume，必须有独立第二次升级确认，客户端无法声明`highVolume=false`绕过。Batch只是一份授权
+Envelope，每个Entry仍拥有独立Authorization与Case；单项stale不会回滚其他已经成立的退出Intent。
+
+每个Case固定经过`Scope Verification Work → Material Destruction Work → Terminal Commit Work`。每个Primary删除、Related引用释放、
+Related最后引用删除和最终核验均为独立Event，并通过Event Runtime、Resource Governor、Authorization Handle、Effect Journal及
+`volume_mutation` Permit执行。共享Primary在任何删除前即被Scope Verification拒绝；共享Related先释放本Entry引用，最后引用消失后
+才删除。授权Identity已经不存在时只形成精确absence Evidence，绝不触碰同路径替代Identity。全部成员合法收口后，terminal事务才
+原子终结Deck Fact、把Shelf Entry置为`offdecked`并释放精确Material Control；历史Entry、Inventory、Authorization、Case和Evidence保留。
+
+Aftercare与Off-deck之间的异步安全边界已闭合：Reservation原子阻止新Case；已有Care Work先通过精确Process cancellation排空，Review在
+安全停点前保持`preparing`，不得提前授权。执行中的Off-deck Case若遇到Endpoint outage进入blocked；Scope变化进入同一Case的
+`awaiting_reauthorization`，不会创建第二个Case。Coordinator不直接访问filesystem、Capability实现、Dispatcher、Event Runtime或
+Resource Governor。
+
+Admin Web的Off-deck页面已接通退出建议、Duplicate Group、审阅授权、High-volume第二屏、逐Entry退出进度和Policy编辑；“我的收藏”
+详情可直接发起退出，“收藏健康”详情可加入审阅。没有新增一级页面或Admin route，UI Surface继续为8 pages + 9 journeys = 17。
+
+自动化覆盖Policy tri-state、五项High-volume阈值、1024成员Scope、Duplicate分页、删除重放、删除后崩溃恢复、共享Related、共享Primary、
+替代Identity、Endpoint outage和Coordinator静态边界。产品Composition Root在P14只读源的全新Temp副本上验证了普通单Entry及10 Entry
+High-volume破坏性链：取消Review零副作用，正式批次形成10份独立Authorization/Case并全部offdecked；Scope外sentinel与原P14主库不变，
+`failedWorks=0`、`failedEvents=0`且无非终态Work/Event。机器合同保持112/98/180/43/115；Execution Foundation、Procurement、
+Libra与Aftercare状态机均未修改。最终Helix Architecture Gate为161个test file、1051 pass、7个显式skip、0 fail。
 
 ## 0. Completed target — Arca Aftercare Ready
 

@@ -399,7 +399,7 @@ CREATE TABLE "arca_offdeck_authorizations" (
   "actor_id" TEXT,
   "batch_id" TEXT,
   "authorized_at_ms" INTEGER CHECK ("authorized_at_ms" >= 0),
-  "state" TEXT CHECK ("state" IN ('active', 'consumed', 'revoked', 'stale')),
+  "state" TEXT CHECK ("state" IN ('active', 'stale', 'consumed')),
   UNIQUE ("destruction_scope_id", "scope_digest"),
   FOREIGN KEY ("destruction_scope_id") REFERENCES "arca_offdeck_scopes" ("destruction_scope_id") ON DELETE RESTRICT,
   FOREIGN KEY ("batch_id") REFERENCES "arca_offdeck_authorization_batches" ("batch_id") ON DELETE RESTRICT
@@ -407,15 +407,20 @@ CREATE TABLE "arca_offdeck_authorizations" (
 
 CREATE TABLE "arca_offdeck_cases" (
   "offdeck_case_id" TEXT PRIMARY KEY,
-  "authorization_id" TEXT,
+  "initial_authorization_id" TEXT,
+  "current_authorization_id" TEXT,
   "shelf_entry_id" TEXT,
   "origin_kind" TEXT,
   "origin_ref" TEXT,
-  "state" TEXT CHECK ("state" IN ('ready', 'destroying', 'verifying', 'blocked', 'completed')),
+  "state" TEXT CHECK ("state" IN ('executing', 'blocked', 'awaiting_reauthorization', 'completed')),
+  "recovery_revision" INTEGER CHECK ("recovery_revision" >= 1),
+  "retry_at_ms" INTEGER CHECK ("retry_at_ms" >= 0),
+  "blocked_reason" TEXT,
   "created_at_ms" INTEGER CHECK ("created_at_ms" >= 0),
   "terminal_at_ms" INTEGER CHECK ("terminal_at_ms" >= 0),
-  UNIQUE ("authorization_id"),
-  FOREIGN KEY ("authorization_id") REFERENCES "arca_offdeck_authorizations" ("authorization_id") ON DELETE RESTRICT,
+  UNIQUE ("initial_authorization_id"),
+  FOREIGN KEY ("initial_authorization_id") REFERENCES "arca_offdeck_authorizations" ("authorization_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("current_authorization_id") REFERENCES "arca_offdeck_authorizations" ("authorization_id") ON DELETE RESTRICT,
   FOREIGN KEY ("shelf_entry_id") REFERENCES "arca_shelf_entries" ("shelf_entry_id") ON DELETE RESTRICT
 );
 
@@ -423,8 +428,9 @@ CREATE TABLE "arca_offdeck_deletion_evidence" (
   "destruction_scope_id" TEXT,
   "material_key" TEXT,
   "effect_id" TEXT,
-  "result" TEXT,
+  "result" TEXT CHECK ("result" IN ('deleted', 'authorized_identity_already_absent', 'retained_due_to_active_reference')),
   "reality_digest" TEXT CHECK (length("reality_digest") = 64 AND "reality_digest" NOT GLOB '*[^0-9a-f]*'),
+  "reference_release_result_digest" TEXT CHECK (length("reference_release_result_digest") = 64 AND "reference_release_result_digest" NOT GLOB '*[^0-9a-f]*'),
   "completed_at_ms" INTEGER CHECK ("completed_at_ms" >= 0),
   PRIMARY KEY ("destruction_scope_id", "material_key"),
   FOREIGN KEY ("destruction_scope_id") REFERENCES "arca_offdeck_scopes" ("destruction_scope_id") ON DELETE RESTRICT
@@ -508,22 +514,31 @@ CREATE UNIQUE INDEX "uidx_arca_offdeck_reservations_partial_01" ON "arca_offdeck
 
 CREATE TABLE "arca_offdeck_review_candidates" (
   "candidate_id" TEXT PRIMARY KEY,
+  "candidate_kind" TEXT CHECK ("candidate_kind" IN ('entry', 'duplicate_group')),
   "shelf_entry_id" TEXT,
+  "duplicate_group_id" TEXT,
+  "target_digest" TEXT CHECK (length("target_digest") = 64 AND "target_digest" NOT GLOB '*[^0-9a-f]*'),
   "policy_id" TEXT,
   "policy_revision" INTEGER CHECK ("policy_revision" >= 1),
+  "condition_evidence_schema_ref" TEXT,
+  "condition_evidence_json" TEXT,
+  "condition_evidence_digest" TEXT CHECK (length("condition_evidence_digest") = 64 AND "condition_evidence_digest" NOT GLOB '*[^0-9a-f]*'),
   "reason_digest" TEXT CHECK (length("reason_digest") = 64 AND "reason_digest" NOT GLOB '*[^0-9a-f]*'),
   "state" TEXT CHECK ("state" IN ('open', 'selected', 'dismissed', 'stale')),
   "created_at_ms" INTEGER CHECK ("created_at_ms" >= 0),
-  FOREIGN KEY ("shelf_entry_id") REFERENCES "arca_shelf_entries" ("shelf_entry_id") ON DELETE RESTRICT
+  CHECK (json_valid("condition_evidence_json")),
+  CHECK (length(CAST("condition_evidence_json" AS BLOB)) <= 16384),
+  FOREIGN KEY ("shelf_entry_id") REFERENCES "arca_shelf_entries" ("shelf_entry_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("duplicate_group_id") REFERENCES "arca_offdeck_duplicate_groups" ("duplicate_group_id") ON DELETE RESTRICT
 );
 CREATE INDEX "idx_arca_offdeck_review_candidates_hot_01" ON "arca_offdeck_review_candidates" ("state", "created_at_ms");
 CREATE UNIQUE INDEX "uidx_arca_offdeck_review_candidates_partial_01" ON "arca_offdeck_review_candidates" ("shelf_entry_id", "policy_id", "policy_revision", "reason_digest") WHERE "state" = 'open';
 
 CREATE TABLE "arca_offdeck_reviews" (
   "review_id" TEXT PRIMARY KEY,
-  "origin_kind" TEXT CHECK ("origin_kind" IN ('candidate', 'duplicate_group', 'direct_intent', 'batch')),
+  "origin_kind" TEXT CHECK ("origin_kind" IN ('candidate', 'duplicate_group', 'direct_intent', 'batch', 'reauthorization')),
   "origin_ref" TEXT,
-  "state" TEXT CHECK ("state" IN ('open', 'selection_confirmed', 'cancelled', 'authorized')),
+  "state" TEXT CHECK ("state" IN ('preparing', 'open', 'selection_confirmed', 'awaiting_escalation', 'authorized', 'cancelled', 'stale')),
   "actor_id" TEXT,
   "created_at_ms" INTEGER CHECK ("created_at_ms" >= 0),
   "terminal_at_ms" INTEGER CHECK ("terminal_at_ms" >= 0)
@@ -535,10 +550,22 @@ CREATE TABLE "arca_offdeck_scope_materials" (
   "ordinal" INTEGER CHECK ("ordinal" >= 0),
   "material_key" TEXT,
   "material_role" TEXT,
-  "delete_condition" TEXT,
+  "physical_identity_schema_ref" TEXT,
+  "physical_identity_json" TEXT,
+  "physical_identity_digest" TEXT CHECK (length("physical_identity_digest") = 64 AND "physical_identity_digest" NOT GLOB '*[^0-9a-f]*'),
+  "endpoint_id" TEXT,
+  "endpoint_relative_location" TEXT,
+  "size_bytes" INTEGER CHECK ("size_bytes" >= 0),
+  "related_reference_id" TEXT,
   "binding_revision" INTEGER CHECK ("binding_revision" >= 1),
+  "control_revision" INTEGER CHECK ("control_revision" >= 1),
+  "control_projection_digest" TEXT CHECK (length("control_projection_digest") = 64 AND "control_projection_digest" NOT GLOB '*[^0-9a-f]*'),
+  "delete_condition" TEXT,
+  "member_digest" TEXT CHECK (length("member_digest") = 64 AND "member_digest" NOT GLOB '*[^0-9a-f]*'),
   PRIMARY KEY ("destruction_scope_id", "ordinal"),
   UNIQUE ("destruction_scope_id", "material_key", "material_role"),
+  CHECK (json_valid("physical_identity_json")),
+  CHECK (length(CAST("physical_identity_json" AS BLOB)) <= 4096),
   FOREIGN KEY ("destruction_scope_id") REFERENCES "arca_offdeck_scopes" ("destruction_scope_id") ON DELETE RESTRICT
 );
 
@@ -547,6 +574,7 @@ CREATE TABLE "arca_offdeck_scopes" (
   "reservation_id" TEXT,
   "shelf_entry_id" TEXT,
   "inventory_revision" INTEGER CHECK ("inventory_revision" >= 1),
+  "member_count" INTEGER CHECK ("member_count" >= 0),
   "scope_digest" TEXT CHECK (length("scope_digest") = 64 AND "scope_digest" NOT GLOB '*[^0-9a-f]*'),
   "state" TEXT CHECK ("state" IN ('draft', 'confirmed', 'authorized', 'stale', 'completed')),
   "created_at_ms" INTEGER CHECK ("created_at_ms" >= 0),
@@ -575,7 +603,9 @@ CREATE TABLE "arca_offdeck_suppressions" (
   "suppression_id" TEXT PRIMARY KEY,
   "shelf_entry_id" TEXT,
   "candidate_kind" TEXT,
-  "reason" TEXT,
+  "policy_id" TEXT,
+  "policy_revision" INTEGER CHECK ("policy_revision" >= 1),
+  "reason_digest" TEXT CHECK (length("reason_digest") = 64 AND "reason_digest" NOT GLOB '*[^0-9a-f]*'),
   "state" TEXT CHECK ("state" IN ('active', 'revoked', 'expired')),
   "effective_at_ms" INTEGER CHECK ("effective_at_ms" >= 0),
   "expires_at_ms" INTEGER CHECK ("expires_at_ms" >= 0),

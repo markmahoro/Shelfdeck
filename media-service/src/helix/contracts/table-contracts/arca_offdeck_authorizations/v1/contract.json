@@ -73,9 +73,8 @@
         "logicalType": "TEXT",
         "enumValues": [
           "active",
-          "consumed",
-          "revoked",
-          "stale"
+          "stale",
+          "consumed"
         ],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
@@ -103,9 +102,8 @@
         "column": "state",
         "enumValues": [
           "active",
-          "consumed",
-          "revoked",
-          "stale"
+          "stale",
+          "consumed"
         ]
       }
     ],
@@ -126,16 +124,17 @@
     },
     "semanticRules": [
       "`UNIQUE(destruction_scope_id,scope_digest)`",
-      "授权后不可取消或改Scope"
+      "授权后不可取消或改Scope",
+      "Scope变化只允许旧Authorization进入stale，不存在revoked语义"
     ],
     "rawContract": {
-      "columns": "`authorization_id PK, destruction_scope_id FK, scope_digest, actor_id, batch_id FK, authorized_at_ms, state`",
-      "constraints": "`UNIQUE(destruction_scope_id,scope_digest)`；授权后不可取消或改Scope"
+      "columns": "`authorization_id PK, destruction_scope_id FK, scope_digest, actor_id, batch_id FK, authorized_at_ms, state(active|stale|consumed)`",
+      "constraints": "`UNIQUE(destruction_scope_id,scope_digest)`；授权后不可取消或改Scope；Scope变化只允许旧Authorization进入stale，不存在revoked语义"
     },
     "source": {
       "section": "8.5.12",
-      "line": 9314,
-      "lineDigest": "db1e1f835efe4418958fd09657084cb2209614e665a8eb30a5b17da8f8dd27c8"
+      "line": 9317,
+      "lineDigest": "991c684bc36dc8767aea825c39abdcf1fe80fe1bddc315c0053eff7f48122d68"
     },
     "foreignKeys": [
       {

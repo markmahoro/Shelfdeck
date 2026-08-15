@@ -34,20 +34,138 @@
       "minLength": 1,
       "maxLength": 256
     },
+    "shelfEntryId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
     "inventoryRevision": {
       "type": "integer",
       "minimum": 0
     },
-    "materialKeys": {
+    "memberCount": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "materials": {
       "type": "array",
       "items": {
-        "type": "string",
-        "minLength": 1,
-        "pattern": "^[a-f0-9]{64}$"
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "ordinal": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "materialKey": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "materialRole": {
+            "type": "string",
+            "enum": [
+              "primary_payload",
+              "structural_dependency",
+              "metadata_sidecar",
+              "poster",
+              "fanart",
+              "subtitle",
+              "external_audio",
+              "chapter",
+              "sidecar"
+            ]
+          },
+          "physicalIdentity": {
+            "$ref": "helix://contracts/types/PhysicalMaterialIdentity/v2"
+          },
+          "physicalIdentityDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "endpointId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "endpointRelativeLocation": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "sizeBytes": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "relatedReferenceId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "bindingRevision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "controlRevision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "controlProjectionDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "deleteCondition": {
+            "type": "string",
+            "enum": [
+              "exclusive_primary",
+              "release_related_then_delete_if_unreferenced"
+            ]
+          },
+          "memberDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          }
+        },
+        "required": [
+          "ordinal",
+          "materialKey",
+          "materialRole",
+          "physicalIdentity",
+          "physicalIdentityDigest",
+          "endpointId",
+          "endpointRelativeLocation",
+          "sizeBytes",
+          "relatedReferenceId",
+          "bindingRevision",
+          "controlRevision",
+          "controlProjectionDigest",
+          "deleteCondition",
+          "memberDigest"
+        ]
       },
-      "maxItems": 4096
+      "maxItems": 1024
+    },
+    "memberSetDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
     },
     "controlRevisionSetDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "scopeDigest": {
       "type": "string",
       "minLength": 1,
       "pattern": "^[a-f0-9]{64}$"
@@ -60,8 +178,12 @@
     "revision",
     "digest",
     "destructionScopeId",
+    "shelfEntryId",
     "inventoryRevision",
-    "materialKeys",
-    "controlRevisionSetDigest"
+    "memberCount",
+    "materials",
+    "memberSetDigest",
+    "controlRevisionSetDigest",
+    "scopeDigest"
   ]
 }

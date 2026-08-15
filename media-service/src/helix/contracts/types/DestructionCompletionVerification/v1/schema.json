@@ -72,6 +72,16 @@
       "type": "string",
       "minLength": 1,
       "pattern": "^[a-f0-9]{64}$"
+    },
+    "referenceReleaseResultSetDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "finalDispositionSetDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
     }
   },
   "required": [
@@ -86,6 +96,8 @@
     "verifiedAtMs",
     "destructionScopeId",
     "authorizationId",
-    "deletionEvidenceSetDigest"
+    "deletionEvidenceSetDigest",
+    "referenceReleaseResultSetDigest",
+    "finalDispositionSetDigest"
   ]
 }

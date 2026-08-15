@@ -121,7 +121,7 @@ function assertGuardConsistency(database) {
   const checks = [
     {
       name: 'arca-active-inventory-material',
-      sql: "SELECT COUNT(*) count FROM arca_inventory_materials m LEFT JOIN arca_shelf_entries e ON e.shelf_entry_id=m.shelf_entry_id WHERE m.active_guard <> CASE WHEN m.role='primary_payload' AND e.status='active' AND e.current_inventory_revision=m.inventory_revision THEN 1 ELSE 0 END"
+      sql: "SELECT COUNT(*) count FROM arca_inventory_materials m LEFT JOIN arca_shelf_entries e ON e.shelf_entry_id=m.shelf_entry_id WHERE m.active_guard <> CASE WHEN m.role='primary_payload' AND e.status IN ('active','offdeck_in_progress') AND e.current_inventory_revision=m.inventory_revision THEN 1 ELSE 0 END"
     },
     {
       name: 'people-active-provider-identity',

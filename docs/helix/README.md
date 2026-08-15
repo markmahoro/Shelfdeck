@@ -1,6 +1,16 @@
 # ShelfDeck / Helix Documentation Index
 
-Status: Movie Procurement与Movie Libra封口保持有效；Movie Arca已完成Handoff B Acceptance、On-deck、Shelf Entry、Deck Fact与Beta Aftercare闭环。“我的收藏”已同时承载海报墙与收藏健康。当前状态为`ARCA AFTERCARE READY / AWAITING OFF-DECK`；Off-deck、Docker/NAS与生产部署均未开始。
+Status: Movie Procurement与Movie Libra封口保持有效；Movie Arca已完成Handoff B Acceptance、On-deck、Shelf Entry、Deck Fact、Beta Aftercare与Off-deck闭环。“我的收藏”承载海报墙、收藏健康和直接退出入口。当前状态为`MOVIE COLLECTION LIFECYCLE READY THROUGH OFF-DECK / AWAITING SHELF DEREGISTRATION`；Docker/NAS与生产部署均未开始。
+
+Off-deck现在把推荐退出、Duplicate审阅、Aftercare加入审阅和用户直接退出收敛到同一安全链：Review先原子取得逐Entry
+Reservation，冻结immutable Destruction Scope，再经过Selection及必要的High-volume二次确认形成Batch Envelope和逐Entry
+Authorization/Case。实际Primary删除、Related引用释放、last-reference删除及Destruction Verification全部经过
+Work/Plan/Event Runtime/Resource Governor；共享Primary在删除前拒绝，共享Related保留到最后引用，授权Identity已不存在时只形成
+精确absence Evidence。全部成员收口后才原子终结Deck Fact、释放Control并把Entry置为offdecked，历史事实完整保留。
+
+Admin Web的Off-deck页面提供建议、Duplicate Group、审阅授权、High-volume第二屏、进度与Policy；Collection详情可直接退出，
+Aftercare详情可加入审阅。默认Policy关闭，任何unknown Fact都不会产生退出建议；无用户授权不会发生物理销毁。机器合同继续为
+112 Capability、98 Result family、180 table、43 Canonical Transaction、115 Admin route加public health，UI Surface仍为17。
 
 Aftercare不新增一级页面。每个Shelf Entry通过正式Work/Plan/Event链形成Custody、Presentation和Conformance三维Evidence；当前健康、
 Finding、Case与修复历史投影到“我的收藏”的检验章、筛选和详情。每日Custody只核验已知Inventory成员，每周深检Presentation与

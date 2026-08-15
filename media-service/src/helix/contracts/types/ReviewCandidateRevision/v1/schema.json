@@ -60,14 +60,33 @@
       "minLength": 1,
       "maxLength": 256
     },
+    "candidateKind": {
+      "type": "string",
+      "minLength": 1
+    },
     "shelfEntryId": {
       "type": "string",
       "minLength": 1,
       "maxLength": 256
     },
+    "duplicateGroupId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "targetDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
     "policyRevision": {
       "type": "integer",
       "minimum": 0
+    },
+    "conditionEvidenceDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
     },
     "reasonDigest": {
       "type": "string",
@@ -144,8 +163,10 @@
     "commitMarker",
     "committedAtMs",
     "candidateId",
-    "shelfEntryId",
+    "candidateKind",
+    "targetDigest",
     "policyRevision",
+    "conditionEvidenceDigest",
     "reasonDigest",
     "state"
   ]

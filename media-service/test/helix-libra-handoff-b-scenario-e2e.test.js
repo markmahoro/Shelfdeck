@@ -341,11 +341,11 @@ async function configureMoviePilot(host, cookie, landingRoot) {
   assert.equal(saved.statusCode, 200, saved.body);
 }
 
-async function createShelf(host, cookie, shelfRoot, template = { templateId:SYSTEM_TEMPLATE_ID, revision:1 }) {
+async function createShelf(host, cookie, shelfRoot, template = { templateId:SYSTEM_TEMPLATE_ID, revision:1 }, collisionPolicy = 'reject') {
   const result = await host.inject({ method:'POST', url:'/v1/admin/shelves', headers:{ cookie }, payload:{
     idempotencyKey:'scenario-shelf-create', shelfId:'scenario-shelf', name:'Libra scenario shelf',
     targetRootLocation:shelfRoot, ruleTemplateId:template.templateId, expectedTemplateRevision:template.revision,
-    placementPolicy:{ folderTemplate:'{title} ({year})', collisionPolicy:'reject' },
+    placementPolicy:{ folderTemplate:'{title} ({year})', collisionPolicy },
   } });
   assert.equal(result.statusCode, 201, result.body);
 }
@@ -1085,6 +1085,264 @@ test('P14 one-movie product path accepts Handoff B and atomically establishes an
     'An unrepairable Primary gap must block the otherwise repairable NFO effect.');
   } finally { blockedEvidence.close(); }
   assert.equal(fs.existsSync(currentNfoLocation), false);
+
+  // The clean default Policy is disabled. Enabling a deterministic retention
+  // rule must create a Review Candidate through Automation Work, while the
+  // later direct exit still starts from Review and does not fabricate another
+  // Candidate.
+  const defaultOffdeckPolicy = await host.inject({ method:'GET',
+    url:'/v1/admin/offdeck/policies', headers:{ cookie } });
+  assert.equal(defaultOffdeckPolicy.statusCode, 200, defaultOffdeckPolicy.body);
+  assert.equal(defaultOffdeckPolicy.json().status, 'disabled');
+  const disabledEvaluation = await host.inject({ method:'POST',
+    url:'/v1/admin/offdeck/actions/evaluate', headers:{ cookie },
+    payload:{ idempotencyKey:'evaluate-disabled-offdeck-policy' } });
+  assert.equal(disabledEvaluation.statusCode, 202, disabledEvaluation.body);
+  assert.equal(disabledEvaluation.json().matchedCount, 0);
+  const publishedOffdeckPolicy = await host.inject({ method:'PATCH',
+    url:'/v1/admin/offdeck/policies', headers:{ cookie }, payload:{
+      expectedRevision:1, idempotencyKey:'enable-offdeck-policy', status:'active',
+      duplicateScheduleEnabled:false, entryRules:[{ ruleId:'retention-now',
+        shelfScope:'all', condition:{ kind:'retention_age', parameters:{ minimumAgeDays:0 } } }],
+    } });
+  assert.equal(publishedOffdeckPolicy.statusCode, 200, publishedOffdeckPolicy.body);
+  assert.equal(publishedOffdeckPolicy.json().revision, 2);
+  const enabledEvaluation = await host.inject({ method:'POST',
+    url:'/v1/admin/offdeck/actions/evaluate', headers:{ cookie },
+    payload:{ idempotencyKey:'evaluate-active-offdeck-policy' } });
+  assert.equal(enabledEvaluation.statusCode, 202, enabledEvaluation.body);
+  assert.equal(enabledEvaluation.json().matchedCount, 1);
+  const policyCandidate = await waitDatabase(databasePath, (database) =>
+    database.prepare("SELECT candidate_id,candidate_kind,state FROM arca_offdeck_review_candidates WHERE shelf_entry_id=? AND state='open'").get(entryId) || null,
+  60_000);
+  assert.equal(policyCandidate.candidate_kind, 'entry');
+
+  // A direct user Off-deck intent must reuse the formal Review and
+  // Authorization chain. The current Primary and NFO are already absent, so
+  // this also proves exact authorized-identity absence is a valid terminal
+  // outcome while the remaining Inventory members are physically deleted.
+  const sentinelLocation = path.join(migratedShelf, 'not-in-offdeck-scope.keep');
+  fs.writeFileSync(sentinelLocation, 'must remain outside the immutable destruction scope', 'utf8');
+  const scopeBefore = new Database(databasePath, { readonly:true });
+  let currentInventoryLocations;
+  try {
+    currentInventoryLocations = scopeBefore.prepare(
+      'SELECT material_key,location FROM arca_inventory_materials WHERE shelf_entry_id=? AND inventory_revision=4 ORDER BY ordinal',
+    ).all(entryId);
+  } finally { scopeBefore.close(); }
+  assert.ok(currentInventoryLocations.length >= 3);
+  const reviewResponse = await host.inject({ method:'POST', url:'/v1/admin/offdeck/reviews',
+    headers:{ cookie }, payload:{ shelfEntryId:entryId, originKind:'direct_intent',
+      actorId:'admin-e2e', idempotencyKey:'direct-offdeck-after-aftercare' } });
+  assert.equal(reviewResponse.statusCode, 201, reviewResponse.body);
+  assert.equal(reviewResponse.json().state, 'open');
+  assert.equal(reviewResponse.json().originKind, 'direct_intent');
+  assert.equal(reviewResponse.json().scopes.length, 1);
+  const reviewId = reviewResponse.json().reviewId;
+  const confirmResponse = await host.inject({ method:'POST',
+    url:'/v1/admin/offdeck/reviews/' + reviewId + '/actions/confirm-selection',
+    headers:{ cookie }, payload:{ actorId:'admin-e2e', idempotencyKey:'confirm-direct-offdeck' } });
+  assert.equal(confirmResponse.statusCode, 200, confirmResponse.body);
+  assert.equal(confirmResponse.json().state, 'selection_confirmed');
+  assert.equal(confirmResponse.json().selection.highVolume, false);
+  const authorizationResponse = await host.inject({ method:'POST',
+    url:'/v1/admin/offdeck/authorizations', headers:{ cookie },
+    payload:{ reviewId, actorId:'admin-e2e', idempotencyKey:'authorize-direct-offdeck' } });
+  assert.equal(authorizationResponse.statusCode, 202, authorizationResponse.body);
+  assert.equal(authorizationResponse.json().cases.length, 1);
+  const offdeckCaseId = authorizationResponse.json().cases[0];
+  const offdeckTerminal = await waitDatabase(databasePath, (database) => {
+    const entry = database.prepare(
+      'SELECT status,current_deck_fact_revision FROM arca_shelf_entries WHERE shelf_entry_id=?',
+    ).get(entryId);
+    const currentCase = database.prepare(
+      'SELECT state FROM arca_offdeck_cases WHERE offdeck_case_id=?',
+    ).get(offdeckCaseId);
+    const failedWorks = Number(database.prepare(
+      "SELECT count(*) count FROM fx_supporting_works WHERE owner_domain='arca' AND state='failed'",
+    ).get().count);
+    const failedEvents = Number(database.prepare(
+      "SELECT count(*) count FROM fx_workflow_events WHERE owner_domain='arca' AND state='failed'",
+    ).get().count);
+    return failedWorks || failedEvents || currentCase?.state === 'blocked' ||
+      (entry?.status === 'offdecked' && currentCase?.state === 'completed')
+      ? { entryStatus:entry?.status, deckRevision:Number(entry?.current_deck_fact_revision || 0),
+        caseState:currentCase?.state, failedWorks, failedEvents }
+      : null;
+  }, 120_000);
+  assert.deepEqual(offdeckTerminal, { entryStatus:'offdecked', deckRevision:2,
+    caseState:'completed', failedWorks:0, failedEvents:0 });
+  for (const item of currentInventoryLocations) assert.equal(fs.existsSync(item.location), false,
+    'Authorized Inventory member must reach an exact terminal destruction outcome: ' + item.material_key);
+  assert.equal(fs.readFileSync(sentinelLocation, 'utf8'),
+    'must remain outside the immutable destruction scope');
+  const offdeckEvidence = new Database(databasePath, { readonly:true });
+  try {
+    assert.equal(Number(offdeckEvidence.prepare(
+      'SELECT count(*) count FROM arca_offdeck_deletion_evidence WHERE destruction_scope_id=(SELECT destruction_scope_id FROM arca_offdeck_authorizations WHERE authorization_id=(SELECT current_authorization_id FROM arca_offdeck_cases WHERE offdeck_case_id=?))',
+    ).get(offdeckCaseId).count), currentInventoryLocations.length);
+    assert.equal(Number(offdeckEvidence.prepare(
+      "SELECT count(*) count FROM fx_material_controls WHERE owner_scope_id=? AND state='controlled'",
+    ).get(entryId).count), 0);
+    const primaryCount = Number(offdeckEvidence.prepare(
+      "SELECT count(*) count FROM arca_offdeck_scope_materials WHERE destruction_scope_id=(SELECT destruction_scope_id FROM arca_offdeck_authorizations WHERE authorization_id=(SELECT current_authorization_id FROM arca_offdeck_cases WHERE offdeck_case_id=?)) AND delete_condition='exclusive_primary'",
+    ).get(offdeckCaseId).count);
+    const relatedCount = currentInventoryLocations.length - primaryCount;
+    assert.equal(Number(offdeckEvidence.prepare(
+      "SELECT count(*) count FROM fx_workflow_events e JOIN fx_supporting_works w ON w.work_id=e.work_id WHERE e.owner_domain='arca' AND w.process_type='arca_offdeck_case' AND e.state='succeeded'",
+    ).get().count), primaryCount + relatedCount * 2 + 3);
+  } finally { offdeckEvidence.close(); }
+});
+
+test('P14 Off-deck high-volume review requires a separate escalation and closes ten Entries independently', {
+  skip:SOURCE_ROOT === null ? 'Set HELIX_LIBRA_HANDOFF_B_E2E_ROOT to the isolated P14 Material Field.' : false,
+  timeout:360_000,
+}, async (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'helix-arca-offdeck-volume-'));
+  const dataDir = path.join(root, 'data'), admin = path.join(root, 'admin');
+  const source = path.join(root, 'material-field'), shelf = path.join(root, 'shelf');
+  [admin, source, shelf].forEach((directory) => fs.mkdirSync(directory, { recursive:true }));
+  fs.writeFileSync(path.join(admin, 'index.html'), '<div id="root"></div>');
+  const seedVideo = path.join(SOURCE_ROOT, 'SDT-M01-Standalone-H264 (2008).mkv');
+  assert.equal(fs.existsSync(seedVideo), true);
+  for (let ordinal = 1; ordinal <= 10; ordinal += 1) {
+    fs.copyFileSync(seedVideo, path.join(source,
+      `SDT-OFFDECK-${String(ordinal).padStart(2, '0')} (2008).mkv`));
+  }
+  const sourceBefore = reality(source);
+  const initialized = initializeCleanData({ dataDir,
+    confirmation:'INITIALIZE_HELIX_CLEAN_V1', secretRoot:SECRET });
+  let runtimeError = null;
+  const baseProductOptions = productOptions();
+  const uniqueProductOptions = Object.freeze({ ...baseProductOptions,
+    async productProviderMetadataFetch(request) {
+      const value = await baseProductOptions.productProviderMetadataFetch(request);
+      const title = 'Scenario ' + request.metadataFetchIntent.libraRunId.slice(-12);
+      return Object.freeze({ ...value, descriptiveEntries:Object.freeze(
+        value.descriptiveEntries.map((entry) => entry.key === 'title'
+          ? Object.freeze({ ...entry, value:title }) : entry)),
+      });
+    },
+  });
+  const host = await createCleanServiceHost({ dataDir, adminDistDir:admin,
+    secretRoot:SECRET, libraWorkspaceRoot:path.join(root, 'libra-workspaces'),
+    ...uniqueProductOptions, deferredDeliveryKeys:Object.freeze([]),
+    onExecutionRuntimeError(error) {
+      if (!runtimeError && process.env.HELIX_TEST_LOG_RUNTIME_ERROR === '1') console.error(error);
+      runtimeError ||= error;
+    },
+  });
+  t.after(async () => {
+    await host.close();
+    if (process.env.HELIX_KEEP_TEST_ASSETS !== '1') fs.rmSync(root,
+      { recursive:true, force:true, maxRetries:5, retryDelay:100 });
+  });
+  const cookie = await session(host, initialized.adminApiKey);
+  await createShelf(host, cookie, shelf);
+  await createField(host, cookie, 'offdeck-volume-field', source);
+  await observe(host, cookie, 'offdeck-volume-field');
+  await waitFor(host, cookie, (items) => items.length >= 10, 180_000);
+  await route(host, cookie, 'offdeck-volume-field');
+  const databasePath = path.join(dataDir, 'shelfdeck.db');
+  const entryIds = await waitDatabase(databasePath, (database) => {
+    const rows = database.prepare("SELECT shelf_entry_id FROM arca_shelf_entries WHERE status='active' ORDER BY shelf_entry_id").all();
+    return rows.length === 10 ? rows.map((row) => row.shelf_entry_id) : null;
+  }, 240_000);
+  assert.ifError(runtimeError);
+  assert.equal(entryIds.length, 10);
+  const sentinel = path.join(shelf, 'not-in-any-offdeck-scope.keep');
+  fs.writeFileSync(sentinel, 'outside every immutable destruction scope', 'utf8');
+
+  const cancellableReview = await host.inject({ method:'POST', url:'/v1/admin/offdeck/reviews',
+    headers:{ cookie }, payload:{ shelfEntryId:entryIds[0], originKind:'direct_intent', actorId:'admin-e2e',
+      idempotencyKey:'offdeck-cancel-before-authorization' } });
+  assert.equal(cancellableReview.statusCode, 201, cancellableReview.body);
+  const cancelledReview = await host.inject({ method:'DELETE',
+    url:'/v1/admin/offdeck/reviews/' + cancellableReview.json().reviewId, headers:{ cookie },
+    payload:{ idempotencyKey:'cancel-offdeck-before-authorization' } });
+  assert.equal(cancelledReview.statusCode, 200, cancelledReview.body);
+  assert.equal(cancelledReview.json().state, 'cancelled');
+  const afterCancellation = new Database(databasePath, { readonly:true });
+  try {
+    assert.equal(Number(afterCancellation.prepare(
+      "SELECT count(*) n FROM arca_offdeck_reservations WHERE shelf_entry_id=? AND state='active'",
+    ).get(entryIds[0]).n), 0);
+    assert.equal(afterCancellation.prepare(
+      'SELECT status FROM arca_shelf_entries WHERE shelf_entry_id=?',
+    ).get(entryIds[0]).status, 'active');
+  } finally { afterCancellation.close(); }
+
+  const review = await host.inject({ method:'POST', url:'/v1/admin/offdeck/reviews',
+    headers:{ cookie }, payload:{ shelfEntryIds:entryIds, originKind:'batch', actorId:'admin-e2e',
+      idempotencyKey:'offdeck-high-volume-ten-entries' } });
+  assert.equal(review.statusCode, 201, review.body);
+  const reviewId = review.json().reviewId;
+  let preparedReview = review.json();
+  for (let attempt = 0; preparedReview.state === 'preparing' && attempt < 120; attempt += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    const refreshed = await host.inject({ method:'GET',
+      url:'/v1/admin/offdeck/reviews/' + reviewId, headers:{ cookie } });
+    assert.equal(refreshed.statusCode, 200, refreshed.body);
+    preparedReview = refreshed.json();
+  }
+  assert.equal(preparedReview.state, 'open');
+  const confirmation = await host.inject({ method:'POST',
+    url:'/v1/admin/offdeck/reviews/' + reviewId + '/actions/confirm-selection',
+    headers:{ cookie }, payload:{ actorId:'admin-e2e', idempotencyKey:'offdeck-volume-selection' } });
+  assert.equal(confirmation.statusCode, 200, confirmation.body);
+  assert.equal(confirmation.json().state, 'awaiting_escalation');
+  assert.equal(confirmation.json().selection.entryCount, 10);
+  assert.equal(confirmation.json().selection.highVolume, true);
+
+  const premature = await host.inject({ method:'POST', url:'/v1/admin/offdeck/authorizations',
+    headers:{ cookie }, payload:{ reviewId, actorId:'admin-e2e',
+      idempotencyKey:'offdeck-volume-authorization-too-early' } });
+  assert.notEqual(premature.statusCode, 202, premature.body);
+  assert.equal(premature.json().error.code, 'ARCA_OFFDECK_AUTHORIZATION_NOT_READY');
+
+  const escalation = await host.inject({ method:'POST',
+    url:'/v1/admin/offdeck/reviews/' + reviewId + '/actions/confirm-high-volume',
+    headers:{ cookie }, payload:{ actorId:'admin-e2e', idempotencyKey:'offdeck-volume-escalation' } });
+  assert.equal(escalation.statusCode, 200, escalation.body);
+  assert.equal(escalation.json().state, 'selection_confirmed');
+  assert.ok(escalation.json().escalation?.escalationReceiptId);
+  const authorizationResponse = await host.inject({ method:'POST',
+    url:'/v1/admin/offdeck/authorizations', headers:{ cookie },
+    payload:{ reviewId, actorId:'admin-e2e', idempotencyKey:'offdeck-volume-authorization' } });
+  assert.equal(authorizationResponse.statusCode, 202, authorizationResponse.body);
+  assert.equal(authorizationResponse.json().cases.length, 10);
+  assert.deepEqual(authorizationResponse.json().blocked, []);
+
+  const terminal = await waitDatabase(databasePath, (database) => {
+    const completed = Number(database.prepare("SELECT count(*) n FROM arca_offdeck_cases WHERE state='completed'").get().n);
+    const offdecked = Number(database.prepare("SELECT count(*) n FROM arca_shelf_entries WHERE status='offdecked'").get().n);
+    const failedWorks = Number(database.prepare("SELECT count(*) n FROM fx_supporting_works WHERE owner_domain='arca' AND state='failed'").get().n);
+    const failedEvents = Number(database.prepare("SELECT count(*) n FROM fx_workflow_events WHERE owner_domain='arca' AND state='failed'").get().n);
+    const nonterminalWorks = Number(database.prepare("SELECT count(*) n FROM fx_supporting_works WHERE owner_domain='arca' AND state NOT IN ('succeeded','failed','cancelled','superseded')").get().n);
+    const nonterminalEvents = Number(database.prepare("SELECT count(*) n FROM fx_workflow_events WHERE owner_domain='arca' AND state NOT IN ('succeeded','failed','cancelled','superseded')").get().n);
+    return failedWorks || failedEvents || (completed === 10 && offdecked === 10 && nonterminalWorks === 0 && nonterminalEvents === 0)
+      ? { completed, offdecked, failedWorks, failedEvents, nonterminalWorks, nonterminalEvents } : null;
+  }, 180_000);
+  assert.deepEqual(terminal, { completed:10, offdecked:10, failedWorks:0, failedEvents:0,
+    nonterminalWorks:0, nonterminalEvents:0 });
+  assert.ifError(runtimeError);
+  assert.equal(fs.readFileSync(sentinel, 'utf8'), 'outside every immutable destruction scope');
+  assert.deepEqual(reality(source), sourceBefore);
+  const finalDatabase = new Database(databasePath, { readonly:true });
+  try {
+    assert.equal(Number(finalDatabase.prepare(
+      "SELECT count(*) n FROM fx_material_controls WHERE owner_domain='arca' AND state='controlled'",
+    ).get().n), 0);
+    assert.equal(Number(finalDatabase.prepare(
+      "SELECT count(*) n FROM arca_offdeck_authorization_batches",
+    ).get().n), 1);
+    assert.equal(Number(finalDatabase.prepare(
+      "SELECT count(*) n FROM arca_offdeck_escalation_receipts",
+    ).get().n), 1);
+    assert.equal(Number(finalDatabase.prepare(
+      "SELECT count(*) n FROM arca_offdeck_authorizations",
+    ).get().n), 10);
+  } finally { finalDatabase.close(); }
 });
 
 test('P14 insufficient Shelf space rejects Handoff B without Arca custody, Control, or Shelf Entry', {

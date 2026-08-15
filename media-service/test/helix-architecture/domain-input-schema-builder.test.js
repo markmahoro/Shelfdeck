@@ -242,7 +242,9 @@ test('accepted DTOs freeze semantic members instead of exposing arbitrary payloa
   assert.equal(schemas.CandidateDeliverySnapshot.properties.primaryMaterialDeliveries.minItems, 1);
   assert.equal(schemas.CandidateDeliverySnapshot.properties.primaryMaterialDeliveries.maxItems, 1024);
   assert.equal(schemas.AcceptedIntakePayload.properties.controlTransferScope.properties.items.maxItems, 1024);
-  assert.equal(schemas.DestructionScope.properties.materialKeys.items.pattern, '^[a-f0-9]{64}$');
+  assert.equal(schemas.DestructionScope.properties.materials.maxItems, 1024);
+  assert.equal(schemas.DestructionScope.properties.materials.items.properties.materialKey.pattern,
+    '^[a-f0-9]{64}$');
   for (const schema of Object.values(schemas)) {
     const objectSchemas = schema.oneOf || [schema];
     for (const objectSchema of objectSchemas) {

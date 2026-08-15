@@ -19,37 +19,40 @@
       },
       {
         "ordinal": 2,
+        "name": "candidate_kind",
+        "logicalType": "TEXT",
+        "enumValues": [
+          "entry",
+          "duplicate_group"
+        ],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 3,
         "name": "shelf_entry_id",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": true,
         "inlineUnique": false,
-        "nullable": false
-      },
-      {
-        "ordinal": 3,
-        "name": "policy_id",
-        "logicalType": "TEXT",
-        "enumValues": [],
-        "primaryKeyPart": false,
-        "foreignKeyMarker": false,
-        "inlineUnique": false,
-        "nullable": false
+        "nullable": true
       },
       {
         "ordinal": 4,
-        "name": "policy_revision",
-        "logicalType": "INTEGER",
+        "name": "duplicate_group_id",
+        "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": false,
+        "foreignKeyMarker": true,
         "inlineUnique": false,
-        "nullable": false
+        "nullable": true
       },
       {
         "ordinal": 5,
-        "name": "reason_digest",
+        "name": "target_digest",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
@@ -59,6 +62,66 @@
       },
       {
         "ordinal": 6,
+        "name": "policy_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 7,
+        "name": "policy_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 8,
+        "name": "condition_evidence_schema_ref",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 9,
+        "name": "condition_evidence_json",
+        "logicalType": "TEXT_JSON",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 10,
+        "name": "condition_evidence_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 11,
+        "name": "reason_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 12,
         "name": "state",
         "logicalType": "TEXT",
         "enumValues": [
@@ -73,7 +136,7 @@
         "nullable": false
       },
       {
-        "ordinal": 7,
+        "ordinal": 13,
         "name": "created_at_ms",
         "logicalType": "INTEGER",
         "enumValues": [],
@@ -87,7 +150,8 @@
       "candidate_id"
     ],
     "declaredForeignKeyColumns": [
-      "shelf_entry_id"
+      "shelf_entry_id",
+      "duplicate_group_id"
     ],
     "uniqueConstraints": [],
     "hotIndexes": [
@@ -97,9 +161,16 @@
       ]
     ],
     "partialUniqueRules": [
-      "相同`entry+policy revision+reason`至多一个open Candidate"
+      "相同`target+policy revision+reason`至多一个open Candidate"
     ],
     "checkRules": [
+      {
+        "column": "candidate_kind",
+        "enumValues": [
+          "entry",
+          "duplicate_group"
+        ]
+      },
       {
         "column": "state",
         "enumValues": [
@@ -118,7 +189,15 @@
       "pointerTargets": [],
       "pointerRules": []
     },
-    "jsonContracts": [],
+    "jsonContracts": [
+      {
+        "column": "condition_evidence_json",
+        "schemaRefColumn": "condition_evidence_schema_ref",
+        "maxBytes": 16384,
+        "source": "table-row",
+        "requiresJsonValidCheck": true
+      }
+    ],
     "immutability": {
       "immutable": false,
       "rules": []
@@ -128,17 +207,19 @@
       "rules": []
     },
     "semanticRules": [
-      "相同`entry+policy revision+reason`至多一个open Candidate",
+      "target是closed union：entry恰有`shelf_entry_id`，duplicate group恰有`duplicate_group_id`，另一列必须NULL",
+      "Condition Evidence JSON上限`16 KiB`",
+      "相同`target+policy revision+reason`至多一个open Candidate",
       "`INDEX(state,created_at_ms)`"
     ],
     "rawContract": {
-      "columns": "`candidate_id PK, shelf_entry_id FK, policy_id, policy_revision, reason_digest, state, created_at_ms`",
-      "constraints": "相同`entry+policy revision+reason`至多一个open Candidate；`INDEX(state,created_at_ms)`"
+      "columns": "`candidate_id PK, candidate_kind(entry|duplicate_group), shelf_entry_id FK NULL, duplicate_group_id FK NULL, target_digest, policy_id, policy_revision, condition_evidence_schema_ref, condition_evidence_json, condition_evidence_digest, reason_digest, state, created_at_ms`",
+      "constraints": "target是closed union：entry恰有`shelf_entry_id`，duplicate group恰有`duplicate_group_id`，另一列必须NULL；Condition Evidence JSON上限`16 KiB`；相同`target+policy revision+reason`至多一个open Candidate；`INDEX(state,created_at_ms)`"
     },
     "source": {
       "section": "8.5.12",
-      "line": 9302,
-      "lineDigest": "12cc9ff353068ec82c2ccc25358d21e0ad708b49f1ae43222352b2c9143b0387"
+      "line": 9305,
+      "lineDigest": "374b650105d8da6b200797bada923eef2075d3c2d8b1dc3d2c73934d59b31ba1"
     },
     "foreignKeys": [
       {
@@ -148,6 +229,17 @@
         "targetTable": "arca_shelf_entries",
         "targetColumns": [
           "shelf_entry_id"
+        ],
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
+      },
+      {
+        "columns": [
+          "duplicate_group_id"
+        ],
+        "targetTable": "arca_offdeck_duplicate_groups",
+        "targetColumns": [
+          "duplicate_group_id"
         ],
         "deletePolicy": "RESTRICT",
         "deferrable": false

@@ -72,14 +72,14 @@
       "minLength": 1,
       "pattern": "^[a-f0-9]{64}$"
     },
-    "materialKeys": {
-      "type": "array",
-      "items": {
-        "type": "string",
-        "minLength": 1,
-        "maxLength": 256
-      },
-      "maxItems": 1024
+    "memberSetDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "memberCount": {
+      "type": "integer",
+      "minimum": 0
     }
   },
   "required": [
@@ -95,6 +95,7 @@
     "destructionScopeId",
     "inventoryRevision",
     "controlRevisionSetDigest",
-    "materialKeys"
+    "memberSetDigest",
+    "memberCount"
   ]
 }

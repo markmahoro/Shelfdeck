@@ -8,18 +8,26 @@
     "unreferencedRelatedHandle": {
       "$ref": "#/$defs/unreferencedRelatedHandle"
     },
+    "referenceReleaseResult": {
+      "$ref": "#/$defs/referenceReleaseResult"
+    },
     "destructiveAuthorization": {
       "$ref": "#/$defs/destructiveAuthorization"
     }
   },
   "required": [
     "unreferencedRelatedHandle",
+    "referenceReleaseResult",
     "destructiveAuthorization"
   ],
   "$defs": {
     "unreferencedRelatedHandle": {
       "$ref": "helix://contracts/types/PhysicalMaterialReadHandle/v1",
       "x-helix-typeExpression": "Unreferenced Related handle"
+    },
+    "referenceReleaseResult": {
+      "$ref": "helix://contracts/types/ReferenceReleaseResult/v1",
+      "x-helix-typeExpression": "ReferenceReleaseResult"
     },
     "destructiveAuthorization": {
       "$ref": "helix://contracts/types/AuthorizationHandle/v1",

@@ -41,7 +41,11 @@
         "ordinal": 4,
         "name": "result",
         "logicalType": "TEXT",
-        "enumValues": [],
+        "enumValues": [
+          "deleted",
+          "authorized_identity_already_absent",
+          "retained_due_to_active_reference"
+        ],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
         "inlineUnique": false,
@@ -59,6 +63,16 @@
       },
       {
         "ordinal": 6,
+        "name": "reference_release_result_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 7,
         "name": "completed_at_ms",
         "logicalType": "INTEGER",
         "enumValues": [],
@@ -78,7 +92,16 @@
     "uniqueConstraints": [],
     "hotIndexes": [],
     "partialUniqueRules": [],
-    "checkRules": [],
+    "checkRules": [
+      {
+        "column": "result",
+        "enumValues": [
+          "deleted",
+          "authorized_identity_already_absent",
+          "retained_due_to_active_reference"
+        ]
+      }
+    ],
     "revisionContract": {
       "revisionColumns": [],
       "currentPointerColumns": [],
@@ -98,16 +121,17 @@
     },
     "semanticRules": [
       "`PK(destruction_scope_id,material_key)`",
-      "append-only completion evidence"
+      "append-only completion evidence",
+      "Primary只允许deleted或精确absence，Related可在仍有active reference时保留"
     ],
     "rawContract": {
-      "columns": "`destruction_scope_id FK, material_key, effect_id, result, reality_digest, completed_at_ms`",
-      "constraints": "`PK(destruction_scope_id,material_key)`；append-only completion evidence"
+      "columns": "`destruction_scope_id FK, material_key, effect_id, result(deleted|authorized_identity_already_absent|retained_due_to_active_reference), reality_digest, reference_release_result_digest NULL, completed_at_ms`",
+      "constraints": "`PK(destruction_scope_id,material_key)`；append-only completion evidence；Primary只允许deleted或精确absence，Related可在仍有active reference时保留"
     },
     "source": {
       "section": "8.5.12",
-      "line": 9316,
-      "lineDigest": "80df836f66b917346071463131df10c28384e576064fc715c70637d03826e7bf"
+      "line": 9319,
+      "lineDigest": "4cef5c0f93965fc6b765103fdca9cb0a6821da01e81fcac2f04384a6fd88bc65"
     },
     "foreignKeys": [
       {

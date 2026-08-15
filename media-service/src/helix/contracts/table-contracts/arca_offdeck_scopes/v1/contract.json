@@ -49,6 +49,16 @@
       },
       {
         "ordinal": 5,
+        "name": "member_count",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 6,
         "name": "scope_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -58,7 +68,7 @@
         "nullable": false
       },
       {
-        "ordinal": 6,
+        "ordinal": 7,
         "name": "state",
         "logicalType": "TEXT",
         "enumValues": [
@@ -74,7 +84,7 @@
         "nullable": false
       },
       {
-        "ordinal": 7,
+        "ordinal": 8,
         "name": "created_at_ms",
         "logicalType": "INTEGER",
         "enumValues": [],
@@ -121,9 +131,9 @@
     },
     "jsonContracts": [],
     "immutability": {
-      "immutable": true,
+      "immutable": false,
       "rules": [
-        "pre-authorization immutable Scope由Reservation拥有，不依赖Case"
+        "pre-authorization immutable Scope由Reservation拥有，不依赖Case，准备Scope期间不占Resource Permit"
       ]
     },
     "deletion": {
@@ -131,17 +141,18 @@
       "rules": []
     },
     "semanticRules": [
+      "`member_count=1..1024`且逐字节等于material rows",
       "`UNIQUE(reservation_id,scope_digest)`",
-      "pre-authorization immutable Scope由Reservation拥有，不依赖Case"
+      "pre-authorization immutable Scope由Reservation拥有，不依赖Case，准备Scope期间不占Resource Permit"
     ],
     "rawContract": {
-      "columns": "`destruction_scope_id PK, reservation_id FK, shelf_entry_id FK, inventory_revision, scope_digest, state(draft|confirmed|authorized|stale|completed), created_at_ms`",
-      "constraints": "`UNIQUE(reservation_id,scope_digest)`；pre-authorization immutable Scope由Reservation拥有，不依赖Case"
+      "columns": "`destruction_scope_id PK, reservation_id FK, shelf_entry_id FK, inventory_revision, member_count, scope_digest, state(draft|confirmed|authorized|stale|completed), created_at_ms`",
+      "constraints": "`member_count=1..1024`且逐字节等于material rows；`UNIQUE(reservation_id,scope_digest)`；pre-authorization immutable Scope由Reservation拥有，不依赖Case，准备Scope期间不占Resource Permit"
     },
     "source": {
       "section": "8.5.12",
-      "line": 9309,
-      "lineDigest": "33e0776f40c6d93014fb3291623746e94cc939bee6f75b325dbffdb5d3306d3a"
+      "line": 9312,
+      "lineDigest": "38bfcadff57970b766e542947b984c55415df931c7d580ae736d8265d7de9f28"
     },
     "foreignKeys": [
       {

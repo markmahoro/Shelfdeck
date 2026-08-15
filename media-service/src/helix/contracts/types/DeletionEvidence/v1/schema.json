@@ -57,6 +57,14 @@
       "minLength": 1,
       "pattern": "^[a-f0-9]{64}$"
     },
+    "disposition": {
+      "type": "string",
+      "enum": [
+        "deleted",
+        "authorized_identity_already_absent",
+        "retained_due_to_active_reference"
+      ]
+    },
     "postDeleteReality": {
       "type": "object",
       "additionalProperties": false,
@@ -113,6 +121,18 @@
         "entries"
       ]
     },
+    "referenceReleaseResultDigest": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "effectReceiptId": {
       "type": "string",
       "minLength": 1,
@@ -131,7 +151,9 @@
     "authorizationOrApprovalRef",
     "materialKey",
     "preDeleteIdentityDigest",
+    "disposition",
     "postDeleteReality",
+    "referenceReleaseResultDigest",
     "effectReceiptId"
   ]
 }

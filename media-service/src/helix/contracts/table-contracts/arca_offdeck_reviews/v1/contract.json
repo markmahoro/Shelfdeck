@@ -25,7 +25,8 @@
           "candidate",
           "duplicate_group",
           "direct_intent",
-          "batch"
+          "batch",
+          "reauthorization"
         ],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
@@ -47,10 +48,13 @@
         "name": "state",
         "logicalType": "TEXT",
         "enumValues": [
+          "preparing",
           "open",
           "selection_confirmed",
+          "awaiting_escalation",
+          "authorized",
           "cancelled",
-          "authorized"
+          "stale"
         ],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
@@ -107,16 +111,20 @@
           "candidate",
           "duplicate_group",
           "direct_intent",
-          "batch"
+          "batch",
+          "reauthorization"
         ]
       },
       {
         "column": "state",
         "enumValues": [
+          "preparing",
           "open",
           "selection_confirmed",
+          "awaiting_escalation",
+          "authorized",
           "cancelled",
-          "authorized"
+          "stale"
         ]
       }
     ],
@@ -136,17 +144,19 @@
       "rules": []
     },
     "semanticRules": [
-      "`INDEX(state,created_at_ms)`",
-      "Authorization前取消只终结Review并释放Reservation"
+      "创建时先原子建立Review与每Entry Reservation",
+      "只有已有Aftercare Case在安全边界停下后才进入open并冻结Scope",
+      "Authorization前取消只终结Review并释放Reservation",
+      "`INDEX(state,created_at_ms)`"
     ],
     "rawContract": {
-      "columns": "`review_id PK, origin_kind(candidate|duplicate_group|direct_intent|batch), origin_ref, state(open|selection_confirmed|cancelled|authorized), actor_id, created_at_ms, terminal_at_ms`",
-      "constraints": "`INDEX(state,created_at_ms)`；Authorization前取消只终结Review并释放Reservation"
+      "columns": "`review_id PK, origin_kind(candidate|duplicate_group|direct_intent|batch|reauthorization), origin_ref, state(preparing|open|selection_confirmed|awaiting_escalation|authorized|cancelled|stale), actor_id, created_at_ms, terminal_at_ms`",
+      "constraints": "创建时先原子建立Review与每Entry Reservation；只有已有Aftercare Case在安全边界停下后才进入open并冻结Scope；Authorization前取消只终结Review并释放Reservation；`INDEX(state,created_at_ms)`"
     },
     "source": {
       "section": "8.5.12",
-      "line": 9307,
-      "lineDigest": "599fabeb0091d1dcda2441457cfd875c749581ac6ade12be29f9add4d54c5040"
+      "line": 9310,
+      "lineDigest": "31bbedcaa13d47f99b41dd816871d4ae3953bfa797abda46c8cbbb4a063c0ee4"
     },
     "foreignKeys": []
   }

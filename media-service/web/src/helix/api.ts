@@ -203,6 +203,11 @@ export type CareCase = { aftercareCaseId:string; state:string; createdAtMs:numbe
 export type CareDetail = { shelfEntryId:string; health:HealthSummary; basis:{inventoryRevision:number;standardRevision:number;placementRevision:number;careBasisDigest:string};
   activeCaseProgress:{aftercareCaseId:string;stage:string;progressPercent:number;goals:string[]}|null;
   history:{assessments:Array<{assessmentId:string;assessmentKind:string;result:string;assessedAtMs:number}>;findings:CareFinding[];cases:CareCase[];commits:Array<{inventoryCommitId:string;previousInventoryRevision:number;newInventoryRevision:number;committedAtMs:number}>} };
+export type OffdeckPolicy={policyId:string;revision:number;status:'active'|'disabled';duplicateScheduleEnabled:boolean;entryRules:Array<{ruleId:string;ordinal:number;shelfScope:'all'|'selected';shelfIds:string[];condition:JsonValue}>;policyDigest:string};
+export type OffdeckCandidate={candidate_id:string;candidate_kind:'entry'|'duplicate_group';shelf_entry_id:string|null;duplicate_group_id:string|null;state:string;created_at_ms:number};
+export type OffdeckDuplicateGroup={duplicate_group_id:string;canonical_identity_digest:string;member_set_digest:string;state:string;members:Array<{shelf_entry_id:string;inventory_revision:number;member_digest:string}>};
+export type OffdeckReview={reviewId:string;originKind:string;originRef:string;state:string;createdAtMs:number;reservations:Array<{reservationId:string;shelfEntryId:string;inventoryRevision:number;state:string}>;scopes:Array<{destructionScopeId:string;shelfEntryId:string;memberCount:number;totalBytes:number;scopeDigest:string;state:string;materials:Array<{ordinal:number;materialKey:string;role:string;location:string;sizeBytes:number;deleteCondition:string}>}>;selection:{selectionReceiptId:string;scopeSetDigest:string;entryCount:number;primaryCount:number;totalBytes:number;deckCoverageRatio:number;highVolume:boolean}|null;escalation:{escalationReceiptId:string}|null};
+export type OffdeckCase={offdeckCaseId:string;shelfEntryId:string;state:'executing'|'blocked'|'awaiting_reauthorization'|'completed';recoveryRevision:number;retryAtMs:number|null;blockedReason:string|null;createdAtMs:number;terminalAtMs:number|null};
 
 export type IntegrationState = {
   kind: string;
@@ -310,6 +315,21 @@ export const helixAdminApi = {
   },
   getCare(shelfEntryId:string){return request<CareDetail>(`/v1/admin/care/${encodeURIComponent(shelfEntryId)}`);},
   checkCare(shelfEntryId:string){return request<{operationRef:string;state:string;shelfEntryId:string}>(`/v1/admin/care/${encodeURIComponent(shelfEntryId)}/actions/check`,{method:'POST',body:JSON.stringify({idempotencyKey:`care-check:${shelfEntryId}:${crypto.randomUUID()}`})});},
+  getOffdeckPolicy(){return request<OffdeckPolicy>('/v1/admin/offdeck/policies');},
+  publishOffdeckPolicy(body:JsonValue){return request<OffdeckPolicy>('/v1/admin/offdeck/policies',{method:'PATCH',body:JSON.stringify(body)});},
+  listOffdeckCandidates(){return request<{candidates:OffdeckCandidate[];duplicateGroups:OffdeckDuplicateGroup[];suppressions:JsonValue[];whitelists:JsonValue[]}>('/v1/admin/offdeck/candidates');},
+  evaluateOffdeck(){return request<{operations:JsonValue[];matchedCount:number}>('/v1/admin/offdeck/actions/evaluate',{method:'POST',body:JSON.stringify({idempotencyKey:`offdeck-evaluate:${crypto.randomUUID()}`})});},
+  detectOffdeckDuplicates(){return request<JsonValue>('/v1/admin/offdeck/actions/detect-duplicates',{method:'POST',body:JSON.stringify({idempotencyKey:`offdeck-duplicates:${crypto.randomUUID()}`})});},
+  suppressOffdeckCandidate(candidateId:string){return request<JsonValue>(`/v1/admin/offdeck/candidates/${encodeURIComponent(candidateId)}/actions/suppress`,{method:'POST',body:JSON.stringify({actorId:'admin',idempotencyKey:`offdeck-suppress:${candidateId}:${crypto.randomUUID()}`})});},
+  whitelistOffdeckDuplicate(groupId:string){return request<JsonValue>(`/v1/admin/offdeck/duplicate-groups/${encodeURIComponent(groupId)}/actions/whitelist`,{method:'POST',body:JSON.stringify({actorId:'admin',idempotencyKey:`offdeck-whitelist:${groupId}:${crypto.randomUUID()}`})});},
+  createOffdeckReview(body:JsonValue){return request<OffdeckReview>('/v1/admin/offdeck/reviews',{method:'POST',body:JSON.stringify(body)});},
+  getOffdeckReview(reviewId:string){return request<OffdeckReview>(`/v1/admin/offdeck/reviews/${encodeURIComponent(reviewId)}`);},
+  cancelOffdeckReview(reviewId:string){return request<OffdeckReview>(`/v1/admin/offdeck/reviews/${encodeURIComponent(reviewId)}`,{method:'DELETE',body:JSON.stringify({idempotencyKey:`offdeck-cancel:${reviewId}:${crypto.randomUUID()}`})});},
+  confirmOffdeckSelection(reviewId:string,body:JsonValue){return request<OffdeckReview>(`/v1/admin/offdeck/reviews/${encodeURIComponent(reviewId)}/actions/confirm-selection`,{method:'POST',body:JSON.stringify({...body as Record<string,JsonValue>,idempotencyKey:`offdeck-selection:${reviewId}:${crypto.randomUUID()}`})});},
+  confirmOffdeckHighVolume(reviewId:string,body:JsonValue){return request<OffdeckReview>(`/v1/admin/offdeck/reviews/${encodeURIComponent(reviewId)}/actions/confirm-high-volume`,{method:'POST',body:JSON.stringify({...body as Record<string,JsonValue>,idempotencyKey:`offdeck-escalation:${reviewId}:${crypto.randomUUID()}`})});},
+  authorizeOffdeck(reviewId:string){return request<{batchId:string;cases:string[]}>('/v1/admin/offdeck/authorizations',{method:'POST',body:JSON.stringify({reviewId,actorId:'admin',idempotencyKey:`offdeck-authorize:${reviewId}:${crypto.randomUUID()}`})});},
+  listOffdeckCases(){return request<{items:OffdeckCase[]}>('/v1/admin/offdeck/cases');},
+  getOffdeckCase(caseId:string){return request<JsonValue>(`/v1/admin/offdeck/cases/${encodeURIComponent(caseId)}`);},
   listPerceptionRecords(filters: { cursor?: string; limit?: number; sourceKind?: string; rating?: number; resolutionStatus?: string; targetType?: string; targetId?: string } = {}) {
     const query = new URLSearchParams();
     Object.entries(filters).forEach(([key, value]) => { if (value !== undefined && value !== '') query.set(key, String(value)); });

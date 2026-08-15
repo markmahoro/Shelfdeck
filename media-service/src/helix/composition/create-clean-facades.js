@@ -236,6 +236,26 @@ function createCleanFacades(options) {
       const value=options.arcaCare.check(input.params.shelfEntryId,input.body?.idempotencyKey);if(!value){const error=new Error('Shelf Entry was not found.');error.code='ARCA_SHELF_ENTRY_NOT_FOUND';throw error;}return {status:202,body:value};
     };
   }
+  if(options.arcaOffdeck){
+    const app=options.arcaOffdeck;
+    facades.ArcaOffdeckFacade.get_offdeck_policies=async()=>({body:app.policy()});
+    facades.ArcaOffdeckFacade.patch_offdeck_policies=async(input)=>({body:app.publishPolicy(input.body)});
+    facades.ArcaOffdeckFacade.get_offdeck_candidates=async()=>({body:app.candidates()});
+    facades.ArcaOffdeckFacade.post_offdeck_actions_evaluate=async()=>({status:202,body:app.evaluate()});
+    facades.ArcaOffdeckFacade.post_offdeck_actions_detect_duplicates=async()=>({status:202,body:app.detectDuplicates()});
+    facades.ArcaOffdeckFacade.post_offdeck_candidates_candidateid_actions_suppress=async(input)=>({body:app.suppress(input.params.candidateId,input.body)});
+    facades.ArcaOffdeckFacade.post_offdeck_duplicate_groups_groupid_actions_whitelist=async(input)=>({body:app.whitelist(input.params.groupId,input.body)});
+    facades.ArcaOffdeckFacade.delete_offdeck_suppressions_suppressionid=async(input)=>({body:app.revokeSuppression(input.params.suppressionId)});
+    facades.ArcaOffdeckFacade.delete_offdeck_duplicate_whitelists_whitelistid=async(input)=>({body:app.revokeWhitelist(input.params.whitelistId)});
+    facades.ArcaOffdeckFacade.post_offdeck_reviews=async(input)=>({status:201,body:app.createReview(input.body)});
+    facades.ArcaOffdeckFacade.get_offdeck_reviews_reviewid=async(input)=>({body:app.review(input.params.reviewId)});
+    facades.ArcaOffdeckFacade.delete_offdeck_reviews_reviewid=async(input)=>({body:app.cancelReview(input.params.reviewId)});
+    facades.ArcaOffdeckFacade.post_offdeck_reviews_reviewid_actions_confirm_selection=async(input)=>({body:app.confirmSelection(input.params.reviewId,input.body)});
+    facades.ArcaOffdeckFacade.post_offdeck_reviews_reviewid_actions_confirm_high_volume=async(input)=>({body:app.confirmHighVolume(input.params.reviewId,input.body)});
+    facades.ArcaOffdeckFacade.post_offdeck_authorizations=async(input)=>({status:202,body:app.authorize(input.body)});
+    facades.ArcaOffdeckFacade.get_offdeck_cases=async()=>({body:app.cases()});
+    facades.ArcaOffdeckFacade.get_offdeck_cases_caseid=async(input)=>({body:app.caseDetail(input.params.caseId)});
+  }
 
   return Object.freeze(Object.fromEntries(
     Object.entries(facades).map(([name, methods]) => [name, Object.freeze(methods)]),

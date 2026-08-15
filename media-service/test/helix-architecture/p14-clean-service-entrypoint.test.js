@@ -159,6 +159,7 @@ test('formal server dependency graph reaches only the clean Helix root', () => {
         relative === 'src/clean-workspace-product-port.js' ||
         relative === 'src/clean-western-analysis-port.js' ||
         relative === 'src/clean-arca-inventory-port.js' ||
+        relative === 'src/clean-offdeck-deletion-port.js' ||
         relative === 'src/admin-credential-secret-store.js' ||
         relative.startsWith('src/helix/'),
       `unexpected runtime dependency: ${relative}`,

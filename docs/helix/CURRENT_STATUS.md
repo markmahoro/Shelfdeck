@@ -1,8 +1,38 @@
 # ShelfDeck Clean Helix Current Status
 
-Status: Movie Procurement与Movie Libra封口保持有效；Movie Arca已完成Handoff B Acceptance、On-deck、Shelf Entry、Deck Fact及Beta Aftercare完整闭环。当前精确状态为`ARCA AFTERCARE READY / AWAITING OFF-DECK`；Off-deck、Shelf Deregistration与生产部署尚未开始。
+Status: Movie Procurement与Movie Libra封口保持有效；Movie Arca已完成Handoff B Acceptance、On-deck、Shelf Entry、Deck Fact、Beta Aftercare及Off-deck完整闭环。当前精确状态为`MOVIE COLLECTION LIFECYCLE READY THROUGH OFF-DECK / AWAITING SHELF DEREGISTRATION`；Shelf Deregistration与生产部署尚未开始。
 
-Last updated: 2026-08-14
+Last updated: 2026-08-15
+
+## 0. Completed implementation — Arca Off-deck
+
+- Off-deck正式Store、Context Reader、pure Policy Resolver、Automation Coordinator、Process Coordinator、Planner、九项既有Capability
+  executor、Input Projection、Resource Demand、Startup Recovery及Admin Application已经装入唯一Composition Root。产品路径不存在
+  同步删除捷径；Coordinator静态禁止导入filesystem、Capability实现、Dispatcher、Event Runtime、Governor或跨Owner Repository。
+- 默认`OffdeckPolicySet@1`为disabled。Entry条件与Duplicate Detection分别支持每日/每周有界Automation、用户即时触发、持久cursor及
+  Fact signal；任何unknown不生成Candidate。Review Candidate是`entry|duplicate_group` closed union，Duplicate Group不替用户决定保留项。
+- Review创建与逐Entry Reservation原子成立。Reservation同时fence Aftercare、相交On-deck/Handoff B与未来Shelf Deregistration；已有Care
+  Work先在Foundation精确Process scope停止，排空前Review保持preparing。Authorization前取消会释放Reservation且零文件副作用。
+- High-volume由服务端按5项阈值重算，必须有独立Selection Receipt和Escalation Receipt。Batch Authorization只形成Envelope；每个Entry
+  使用独立Authorization和Case。Case状态固定为`executing|blocked|awaiting_reauthorization|completed`，Authorization固定为
+  `active|stale|consumed`；Scope变化恢复同一个Case而不是新建Case。
+- Scope Verification会在任何删除前拒绝共享Primary。Material Destruction按一个Physical Material一个Event执行：Primary精确删除；Related
+  先释放目标Entry引用，有其他active引用则保留，最后引用才删除；授权Identity已不存在形成exact absence Evidence；替代Identity稳定拒绝。
+  terminal commit只有在全部成员具备合法Evidence后才原子把Entry置为offdecked、终结Deck Fact并释放精确Control。历史事实不删除，本轮
+  不删除空目录。
+- Admin Web已用真实OffdeckPage替换Stub，提供建议/重复组、统一Review、High-volume二次确认、逐Entry进度、Policy及即时评估；Collection
+  详情增加直接退出，Aftercare详情增加加入审阅。普通页面不暴露Event重试、Capability选择或队列控制。
+- `p16-offdeck-closure.test.js` 12/12通过，覆盖Policy、五种High-volume、1024 Scope、Duplicate分页、Effect重放/崩溃、共享Related、
+  共享Primary、替代Identity及Endpoint outage。P14 fresh-Temp产品E2E 2/2通过：单Entry完整退出；10 Entry批次先验证取消Review零副作用，
+  再验证不可绕过的High-volume确认、10份独立Authorization/Case、实际文件删除、Scope外sentinel不变、全部Entry offdecked、Control归零、
+  `failedWorks=0`、`failedEvents=0`及无残留非终态Work/Event。原P14主库保持只读；未访问`Z:\Film`，未使用Docker/NAS。
+- 完整服务回归为245 pass、17个显式环境skip、0 fail；完整Helix Architecture Gate为161个test file、1051 pass、7个显式skip、
+  0 fail；Admin Web production build通过。机器合同保持112 Capability、98 Result family、
+  180 table、43 Canonical Transaction、115 Admin route加public health；P2 aggregate为
+  `6576f3ac124d988661fce2107e63fe5c8250f9da43a4868e39a1b1799f2581fe`，SSOT source-map aggregate为
+  `7bfa7f6b97c28152043e5cc0589a4de8e6855b9bc98b77fc8aee0a0f55c50839`，manifest aggregate为
+  `621ae0acfbdf23b7f9dcc4a6bfe47ab6c6fcfcef1549057815f860c9974b5a67`，DDL digest为
+  `8145f4481c1fb53f74230acdc268a8a7b5df5baf0cb270b1ae3b3936212eae59`。
 
 ## 0. Completed implementation — Arca Aftercare
 

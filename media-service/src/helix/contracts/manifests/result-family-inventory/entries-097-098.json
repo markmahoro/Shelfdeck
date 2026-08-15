@@ -12,7 +12,7 @@
       ],
       "sourceLocator": {
         "section": "8.6.18",
-        "line": 10340,
+        "line": 10343,
         "lineDigest": "e96824ae7225dd5742c762c5ab7a0e1dcba8f492b2536c61b7de03408e3965ff"
       },
       "targetLocator": {
@@ -42,7 +42,7 @@
       ],
       "sourceLocator": {
         "section": "8.6.19",
-        "line": 10812,
+        "line": 10815,
         "lineDigest": "efd51b87c2affc62af97dc45afbd717b80554a39461e8d051d5afb347c25e388"
       },
       "targetLocator": {

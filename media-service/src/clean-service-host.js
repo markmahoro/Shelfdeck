@@ -68,9 +68,11 @@ const {
 const { createShelfRoutingTargetProjection } = require('./helix/domains/arca/public/routing-target-projection');
 const { createArcaCollectionQuery } = require('./helix/domains/arca/application/collection-query');
 const { createArcaCareApplication } = require('./helix/domains/arca/application/care-query');
+const { createOffdeckAdminApplication } = require('./helix/domains/arca/application/offdeck-admin-application');
 const { ProductDeliveryPort } = require('./helix/domains/libra/public');
 const { createProductDeliveryReader } = require('./helix/domains/libra/persistence/product-delivery-reader');
 const { createCleanArcaInventoryPort } = require('./clean-arca-inventory-port');
+const { createCleanOffdeckDeletionPort } = require('./clean-offdeck-deletion-port');
 const { createLibraRoutingAdminApplication } = require('./helix/domains/libra/public/admin-application');
 const { createFormationQuery } = require('./helix/domains/libra/application/formation-query');
 const { createRoutingManualSelectionService } = require('./helix/domains/libra/application/routing-manual-selection-service');
@@ -883,6 +885,11 @@ function errorResponse(error, correlationId) {
     error.code === 'ADMIN_MEDIA_PROFILE_UNSUPPORTED') status = 400;
   else if (error.code === 'ADMIN_FIELD_IDEMPOTENCY_CONFLICT') status = 409;
   else if (error.code === 'ADMIN_FIELD_CONFLICT') status = 409;
+  else if (typeof error.code === 'string' && error.code.startsWith('ARCA_OFFDECK_')) {
+    if (error.code.endsWith('_NOT_FOUND')) status = 404;
+    else if (/(?:_STALE|_CONFLICT|_NOT_OPEN|_NOT_ACTIVE|_NOT_READY|_NOT_CANCELLABLE)$/.test(error.code)) status = 409;
+    else status = 400;
+  }
   else if (
     error.code === 'PLATFORM_INTEGRATION_KIND_UNSUPPORTED' ||
     error.code === 'PLATFORM_INTEGRATION_NOT_CONFIGURED'
@@ -1238,6 +1245,9 @@ async function createCleanServiceHost(options) {
     platformComputeRuntime,
     productDeliveryPort,
     inventoryPort: arcaInventoryPort,
+    offdeckDeletionPort: options.offdeckDeletionPort || createCleanOffdeckDeletionPort({
+      afterPhysicalEffect: options.afterOffdeckPhysicalEffect,
+    }),
     fetchAftercareArtifact: options.aftercareArtifactFetch || options.productProviderArtifactFetch ||
       platformIntegrations.fetchProviderArtifact,
     resolveAftercareIntegrationHandle: options.aftercareIntegrationHandleResolver ||
@@ -1280,6 +1290,14 @@ async function createCleanServiceHost(options) {
   });
   arcaCare=createArcaCareApplication({contextReader:procurementExecution.arcaAftercareContextReader,
     coordinator:procurementExecution.arcaAftercareCoordinator,wake:()=>executionRuntimeHost.wake()});
+  const arcaOffdeck=createOffdeckAdminApplication({...constructed.applicationDependencies,
+    contextReader:procurementExecution.arcaOffdeckContextReader,
+    automationCoordinator:procurementExecution.arcaOffdeckAutomationCoordinator,
+    caseCoordinator:procurementExecution.arcaOffdeckCoordinator,
+    aftercareCoordinator:procurementExecution.arcaAftercareCoordinator,
+    cancelProcessWorks:procurementExecution.cancelProcessWorks,
+    onError:options.onExecutionRuntimeError,
+    wake:()=>executionRuntimeHost.wake(),now:options.now||Date.now});
   const libraRunAdmin = createLibraRunAdminService({
     ...constructed.applicationDependencies,
     libraRunExecutionProjection: procurementExecution.libraRunExecutionProjection,
@@ -1312,6 +1330,7 @@ async function createCleanServiceHost(options) {
     formationQuery,
     arcaCollectionQuery,
     arcaCare,
+    arcaOffdeck,
     routingManualSelection,
     libraRunAdmin,
     platformIntegrationAdmin: platformIntegrations.admin,

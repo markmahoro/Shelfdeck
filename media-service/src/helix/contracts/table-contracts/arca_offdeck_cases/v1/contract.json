@@ -19,7 +19,7 @@
       },
       {
         "ordinal": 2,
-        "name": "authorization_id",
+        "name": "initial_authorization_id",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
@@ -29,7 +29,7 @@
       },
       {
         "ordinal": 3,
-        "name": "shelf_entry_id",
+        "name": "current_authorization_id",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
@@ -39,6 +39,16 @@
       },
       {
         "ordinal": 4,
+        "name": "shelf_entry_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 5,
         "name": "origin_kind",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -48,7 +58,7 @@
         "nullable": false
       },
       {
-        "ordinal": 5,
+        "ordinal": 6,
         "name": "origin_ref",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -58,14 +68,13 @@
         "nullable": false
       },
       {
-        "ordinal": 6,
+        "ordinal": 7,
         "name": "state",
         "logicalType": "TEXT",
         "enumValues": [
-          "ready",
-          "destroying",
-          "verifying",
+          "executing",
           "blocked",
+          "awaiting_reauthorization",
           "completed"
         ],
         "primaryKeyPart": false,
@@ -74,7 +83,37 @@
         "nullable": false
       },
       {
-        "ordinal": 7,
+        "ordinal": 8,
+        "name": "recovery_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 9,
+        "name": "retry_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 10,
+        "name": "blocked_reason",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 11,
         "name": "created_at_ms",
         "logicalType": "INTEGER",
         "enumValues": [],
@@ -84,7 +123,7 @@
         "nullable": false
       },
       {
-        "ordinal": 8,
+        "ordinal": 12,
         "name": "terminal_at_ms",
         "logicalType": "INTEGER",
         "enumValues": [],
@@ -98,12 +137,13 @@
       "offdeck_case_id"
     ],
     "declaredForeignKeyColumns": [
-      "authorization_id",
+      "initial_authorization_id",
+      "current_authorization_id",
       "shelf_entry_id"
     ],
     "uniqueConstraints": [
       [
-        "authorization_id"
+        "initial_authorization_id"
       ]
     ],
     "hotIndexes": [],
@@ -112,47 +152,78 @@
       {
         "column": "state",
         "enumValues": [
-          "ready",
-          "destroying",
-          "verifying",
+          "executing",
           "blocked",
+          "awaiting_reauthorization",
           "completed"
         ]
       }
     ],
     "revisionContract": {
-      "revisionColumns": [],
-      "currentPointerColumns": [],
-      "pointerTargets": [],
+      "revisionColumns": [
+        "recovery_revision"
+      ],
+      "currentPointerColumns": [
+        "current_authorization_id"
+      ],
+      "pointerTargets": [
+        {
+          "sourceColumns": [
+            "current_authorization_id"
+          ],
+          "targetTable": "arca_offdeck_authorizations",
+          "targetColumns": [
+            "authorization_id"
+          ],
+          "consistencyColumns": [],
+          "deletePolicy": "RESTRICT",
+          "deferrable": false
+        }
+      ],
       "pointerRules": []
     },
     "jsonContracts": [],
     "immutability": {
       "immutable": false,
-      "rules": []
+      "rules": [
+        "环境暂不可达时以CAS写入blocked原因、下一次有界恢复时间并增加`recovery_revision`，恢复时使用同一Case和Authorization签发新的immutable Work"
+      ]
     },
     "deletion": {
       "foreignKeyPolicy": "ON DELETE RESTRICT",
       "rules": []
     },
     "semanticRules": [
-      "`UNIQUE(authorization_id)`",
-      "只在Authorization事务中创建",
+      "`UNIQUE(initial_authorization_id)`",
+      "只在首次Authorization事务中创建",
+      "环境暂不可达时以CAS写入blocked原因、下一次有界恢复时间并增加`recovery_revision`，恢复时使用同一Case和Authorization签发新的immutable Work",
+      "Scope失效后同一Case通过新的current Authorization恢复，不创建第二个Case",
       "Direct Intent不要求Candidate"
     ],
     "rawContract": {
-      "columns": "`offdeck_case_id PK, authorization_id FK, shelf_entry_id FK, origin_kind, origin_ref, state, created_at_ms, terminal_at_ms`",
-      "constraints": "`UNIQUE(authorization_id)`；只在Authorization事务中创建；Direct Intent不要求Candidate"
+      "columns": "`offdeck_case_id PK, initial_authorization_id FK, current_authorization_id FK, shelf_entry_id FK, origin_kind, origin_ref, state(executing|blocked|awaiting_reauthorization|completed), recovery_revision, retry_at_ms NULL, blocked_reason NULL, created_at_ms, terminal_at_ms`",
+      "constraints": "`UNIQUE(initial_authorization_id)`；只在首次Authorization事务中创建；环境暂不可达时以CAS写入blocked原因、下一次有界恢复时间并增加`recovery_revision`，恢复时使用同一Case和Authorization签发新的immutable Work；Scope失效后同一Case通过新的current Authorization恢复，不创建第二个Case；Direct Intent不要求Candidate"
     },
     "source": {
       "section": "8.5.12",
-      "line": 9315,
-      "lineDigest": "39431939efb319de4ee6902e53bddf22cf1b589501c695d34392663403c93f3d"
+      "line": 9318,
+      "lineDigest": "f438d928961903bd4d0dbf14ab3631cd931b883b70d1d7a4dd8f161a45b160ed"
     },
     "foreignKeys": [
       {
         "columns": [
+          "initial_authorization_id"
+        ],
+        "targetTable": "arca_offdeck_authorizations",
+        "targetColumns": [
           "authorization_id"
+        ],
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
+      },
+      {
+        "columns": [
+          "current_authorization_id"
         ],
         "targetTable": "arca_offdeck_authorizations",
         "targetColumns": [

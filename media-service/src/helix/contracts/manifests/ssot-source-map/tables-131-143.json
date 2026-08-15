@@ -8,23 +8,23 @@
     {
       "id": "arca_offdeck_scopes",
       "owner": "arca",
-      "columnsContract": "`destruction_scope_id PK, reservation_id FK, shelf_entry_id FK, inventory_revision, scope_digest, state(draft|confirmed|authorized|stale|completed), created_at_ms`",
-      "constraintsContract": "`UNIQUE(reservation_id,scope_digest)`；pre-authorization immutable Scope由Reservation拥有，不依赖Case",
+      "columnsContract": "`destruction_scope_id PK, reservation_id FK, shelf_entry_id FK, inventory_revision, member_count, scope_digest, state(draft|confirmed|authorized|stale|completed), created_at_ms`",
+      "constraintsContract": "`member_count=1..1024`且逐字节等于material rows；`UNIQUE(reservation_id,scope_digest)`；pre-authorization immutable Scope由Reservation拥有，不依赖Case，准备Scope期间不占Resource Permit",
       "source": {
         "section": "8.5.12",
-        "line": 9309,
-        "lineDigest": "33e0776f40c6d93014fb3291623746e94cc939bee6f75b325dbffdb5d3306d3a"
+        "line": 9312,
+        "lineDigest": "38bfcadff57970b766e542947b984c55415df931c7d580ae736d8265d7de9f28"
       }
     },
     {
       "id": "arca_offdeck_scope_materials",
       "owner": "arca",
-      "columnsContract": "`destruction_scope_id FK, ordinal, material_key, material_role, delete_condition, binding_revision`",
-      "constraintsContract": "`PK(destruction_scope_id,ordinal)`及`UNIQUE(destruction_scope_id,material_key,material_role)`",
+      "columnsContract": "`destruction_scope_id FK, ordinal, material_key, material_role, physical_identity_schema_ref, physical_identity_json, physical_identity_digest, endpoint_id, endpoint_relative_location, size_bytes, related_reference_id NULL, binding_revision, control_revision, control_projection_digest, delete_condition, member_digest`",
+      "constraintsContract": "`PK(destruction_scope_id,ordinal)`及`UNIQUE(destruction_scope_id,material_key,material_role)`；逐项冻结完整`PhysicalMaterialIdentity@2`、Endpoint-relative location、Binding/Control fence及Related reference；JSON上限`4 KiB`；只允许删除该授权Identity，路径出现替代Identity时必须保留",
       "source": {
         "section": "8.5.12",
-        "line": 9310,
-        "lineDigest": "84ca6df6a4203cd2f55d9007ef260daa01b437afeb3408bc8a5b7819fbd07e75"
+        "line": 9313,
+        "lineDigest": "d19eef8428db6bd39e5189af5d617a98bd282494c9f7b0db6b419fdf938280f8"
       }
     },
     {
@@ -34,7 +34,7 @@
       "constraintsContract": "`UNIQUE(review_id,scope_set_digest)`；服务端按当前Scope集合计算，不信任客户端阈值",
       "source": {
         "section": "8.5.12",
-        "line": 9311,
+        "line": 9314,
         "lineDigest": "77ff625978aa23c853bd9e91791693fea79fba47a6af914ec93848082a37c464"
       }
     },
@@ -45,7 +45,7 @@
       "constraintsContract": "`UNIQUE(selection_receipt_id)`；只在high-volume时生成且必须来自独立第二次操作",
       "source": {
         "section": "8.5.12",
-        "line": 9312,
+        "line": 9315,
         "lineDigest": "63661ab1e465cec55b486f8361793d31c5f38bf14b10b4f541dd19f3fae16945"
       }
     },
@@ -56,41 +56,41 @@
       "constraintsContract": "`UNIQUE(review_id,scope_set_digest)`；high-volume时escalation receipt必填；Batch只是一份Envelope",
       "source": {
         "section": "8.5.12",
-        "line": 9313,
+        "line": 9316,
         "lineDigest": "6f6a4f74e1e04cf563db3b897b459abc2d5c4cf59729dc0719c36067a4db059a"
       }
     },
     {
       "id": "arca_offdeck_authorizations",
       "owner": "arca",
-      "columnsContract": "`authorization_id PK, destruction_scope_id FK, scope_digest, actor_id, batch_id FK, authorized_at_ms, state`",
-      "constraintsContract": "`UNIQUE(destruction_scope_id,scope_digest)`；授权后不可取消或改Scope",
+      "columnsContract": "`authorization_id PK, destruction_scope_id FK, scope_digest, actor_id, batch_id FK, authorized_at_ms, state(active|stale|consumed)`",
+      "constraintsContract": "`UNIQUE(destruction_scope_id,scope_digest)`；授权后不可取消或改Scope；Scope变化只允许旧Authorization进入stale，不存在revoked语义",
       "source": {
         "section": "8.5.12",
-        "line": 9314,
-        "lineDigest": "db1e1f835efe4418958fd09657084cb2209614e665a8eb30a5b17da8f8dd27c8"
+        "line": 9317,
+        "lineDigest": "991c684bc36dc8767aea825c39abdcf1fe80fe1bddc315c0053eff7f48122d68"
       }
     },
     {
       "id": "arca_offdeck_cases",
       "owner": "arca",
-      "columnsContract": "`offdeck_case_id PK, authorization_id FK, shelf_entry_id FK, origin_kind, origin_ref, state, created_at_ms, terminal_at_ms`",
-      "constraintsContract": "`UNIQUE(authorization_id)`；只在Authorization事务中创建；Direct Intent不要求Candidate",
+      "columnsContract": "`offdeck_case_id PK, initial_authorization_id FK, current_authorization_id FK, shelf_entry_id FK, origin_kind, origin_ref, state(executing|blocked|awaiting_reauthorization|completed), recovery_revision, retry_at_ms NULL, blocked_reason NULL, created_at_ms, terminal_at_ms`",
+      "constraintsContract": "`UNIQUE(initial_authorization_id)`；只在首次Authorization事务中创建；环境暂不可达时以CAS写入blocked原因、下一次有界恢复时间并增加`recovery_revision`，恢复时使用同一Case和Authorization签发新的immutable Work；Scope失效后同一Case通过新的current Authorization恢复，不创建第二个Case；Direct Intent不要求Candidate",
       "source": {
         "section": "8.5.12",
-        "line": 9315,
-        "lineDigest": "39431939efb319de4ee6902e53bddf22cf1b589501c695d34392663403c93f3d"
+        "line": 9318,
+        "lineDigest": "f438d928961903bd4d0dbf14ab3631cd931b883b70d1d7a4dd8f161a45b160ed"
       }
     },
     {
       "id": "arca_offdeck_deletion_evidence",
       "owner": "arca",
-      "columnsContract": "`destruction_scope_id FK, material_key, effect_id, result, reality_digest, completed_at_ms`",
-      "constraintsContract": "`PK(destruction_scope_id,material_key)`；append-only completion evidence",
+      "columnsContract": "`destruction_scope_id FK, material_key, effect_id, result(deleted|authorized_identity_already_absent|retained_due_to_active_reference), reality_digest, reference_release_result_digest NULL, completed_at_ms`",
+      "constraintsContract": "`PK(destruction_scope_id,material_key)`；append-only completion evidence；Primary只允许deleted或精确absence，Related可在仍有active reference时保留",
       "source": {
         "section": "8.5.12",
-        "line": 9316,
-        "lineDigest": "80df836f66b917346071463131df10c28384e576064fc715c70637d03826e7bf"
+        "line": 9319,
+        "lineDigest": "4cef5c0f93965fc6b765103fdca9cb0a6821da01e81fcac2f04384a6fd88bc65"
       }
     },
     {
@@ -100,7 +100,7 @@
       "constraintsContract": "`UNIQUE(offdeck_case_id)`；与Deck Fact terminal和Control release同事务成立",
       "source": {
         "section": "8.5.12",
-        "line": 9317,
+        "line": 9320,
         "lineDigest": "c9422a9dd022288f5e55118613cabb0d1961f91f3e93cd97d92a17f367ce1dca"
       }
     },
@@ -111,7 +111,7 @@
       "constraintsContract": "每个Shelf一个non-terminal Deregistration；Supporting Work通过Foundation反向关联；不得引用Deletion Capability",
       "source": {
         "section": "8.5.12",
-        "line": 9318,
+        "line": 9321,
         "lineDigest": "b15fbdfb86e44ba54914a3af9704aceba5cd4a3366acbeb8b66d4f1df1bf23b1"
       }
     },
@@ -122,7 +122,7 @@
       "constraintsContract": "`PK(deregistration_id,material_key)`",
       "source": {
         "section": "8.5.12",
-        "line": 9319,
+        "line": 9322,
         "lineDigest": "a6975864f9858713c71fd2a87965c46dd8132bd8172b85011d5ac6df8d671698"
       }
     },
@@ -133,7 +133,7 @@
       "constraintsContract": "`UNIQUE(deregistration_id)`；与Shelf administrative terminal commit同事务成立",
       "source": {
         "section": "8.5.12",
-        "line": 9320,
+        "line": 9323,
         "lineDigest": "ece31b95a4de939548e814885196b887f9a0f38c6507ec76e9eb2165896b7d33"
       }
     },
@@ -144,7 +144,7 @@
       "constraintsContract": "`current_cursor_revision IS NULL`表示尚无cursor row；`FOREIGN KEY(perception_source_id,current_cursor_revision) REFERENCES perception_source_cursors(perception_source_id,revision)`，SQLite以NULL跳过尚不存在的optional pointer校验；`INDEX(status,source_kind,perception_source_id)`；Integration ID为opaque platform reference",
       "source": {
         "section": "8.5.13",
-        "line": 9326,
+        "line": 9329,
         "lineDigest": "34bdf0c016622b6e972c4799b9a649b5fc923d7277a94298de102e9ece3182a5"
       }
     }

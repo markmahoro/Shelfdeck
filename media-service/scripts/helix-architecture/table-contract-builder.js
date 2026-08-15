@@ -36,6 +36,9 @@ const MUTABLE_LIFECYCLE_TABLES = new Set([
   'libra_workspace_cleanup_scopes',
   'libra_workspace_cleanup_members',
   'arca_ondeck_runs'
+  ,'arca_offdeck_review_candidates','arca_offdeck_duplicate_groups','arca_offdeck_suppressions',
+  'arca_offdeck_duplicate_whitelists','arca_offdeck_reviews','arca_offdeck_reservations',
+  'arca_offdeck_scopes','arca_offdeck_authorizations','arca_offdeck_cases'
 ]);
 // SSOT 8.5.9 requires every state/status column to be closed. Values named by
 // Level 6/7 lifecycles are preserved verbatim; unnamed technical projections
@@ -90,10 +93,14 @@ const ENUM_OVERRIDES = Object.freeze({
   'arca_aftercare_cases.state': ['active', 'resolved', 'invalidated', 'unresolved'],
   'arca_aftercare_settlement_approvals.state': ['active', 'consumed', 'stale'],
   'arca_offdeck_policy_heads.status': ['active', 'disabled'],
+  'arca_offdeck_review_candidates.candidate_kind': ['entry', 'duplicate_group'],
   'arca_offdeck_review_candidates.state': ['open', 'selected', 'dismissed', 'stale'],
   'arca_offdeck_duplicate_groups.state': ['open', 'resolved', 'whitelisted', 'stale'],
-  'arca_offdeck_authorizations.state': ['active', 'consumed', 'revoked', 'stale'],
-  'arca_offdeck_cases.state': ['ready', 'destroying', 'verifying', 'blocked', 'completed'],
+  'arca_offdeck_reviews.origin_kind': ['candidate', 'duplicate_group', 'direct_intent', 'batch', 'reauthorization'],
+  'arca_offdeck_reviews.state': ['preparing', 'open', 'selection_confirmed', 'awaiting_escalation', 'authorized', 'cancelled', 'stale'],
+  'arca_offdeck_authorizations.state': ['active', 'stale', 'consumed'],
+  'arca_offdeck_cases.state': ['executing', 'blocked', 'awaiting_reauthorization', 'completed'],
+  'arca_offdeck_deletion_evidence.result': ['deleted', 'authorized_identity_already_absent', 'retained_due_to_active_reference'],
   'arca_deregistrations.state': ['active', 'committed'],
   'perception_sources.status': ['active', 'disabled'],
   'perception_resolution_revisions.fact_kind': ['rating', 'watched'],
@@ -140,6 +147,8 @@ const FOREIGN_KEY_OVERRIDES = Object.freeze({
   'libra_material_bindings.origin_intake_decision_id': ['libra_intake_decisions', 'intake_decision_id'],
   'libra_runs.supersedes_run_id': ['libra_runs', 'libra_run_id'],
   'libra_runs.superseded_by_run_id': ['libra_runs', 'libra_run_id'],
+  'arca_offdeck_cases.initial_authorization_id': ['arca_offdeck_authorizations', 'authorization_id'],
+  'arca_offdeck_cases.current_authorization_id': ['arca_offdeck_authorizations', 'authorization_id'],
   'libra_run_discard_decisions.workspace_cleanup_scope_id': ['libra_workspace_cleanup_scopes', 'cleanup_scope_id'],
   'libra_run_material_members.origin_intake_decision_id': ['libra_intake_decisions', 'intake_decision_id'],
   'libra_product_package_materials.origin_intake_decision_id': ['libra_intake_decisions', 'intake_decision_id'],
@@ -314,6 +323,7 @@ const CURRENT_POINTER_TARGETS = Object.freeze({
     [['shelf_entry_id', 'current_deck_fact_revision'], 'arca_deck_fact_revisions', ['shelf_entry_id', 'revision']]
   ],
   arca_offdeck_policy_heads: [[['policy_id', 'current_revision'], 'arca_offdeck_policy_revisions', ['policy_id', 'revision']]],
+  arca_offdeck_cases: [[['current_authorization_id'], 'arca_offdeck_authorizations', ['authorization_id']]],
   perception_sources: [[['perception_source_id', 'current_cursor_revision'], 'perception_source_cursors', ['perception_source_id', 'revision']]],
   perception_resolution_heads: [[
     ['query_contract', 'query_input_digest', 'current_revision', 'current_resolution_id'],
