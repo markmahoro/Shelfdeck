@@ -37,6 +37,8 @@
 - [ ] 复用已经存在的 External Provider / Integration 连接，不重新录入或改写连接配置。
 - [ ] 服务启动参数、隔离 data directory、端口等运行环境参数可以由技术侧准备，但不能替代产品内应由用户配置的业务选项。
 - [ ] 测试开始前服务保持下线；只有在所有 Preflight 项确认后才允许启动。
+- [ ] 本轮经用户明确授权，可在 UAT 正式开始前生成新的 clean data directory，并一次性 copy-forward 现有 External Integration 配置/Secret和已抓取的 immutable Douban Perception Source、Acquisition、Record、Identity Anchor；不得带入旧 Field、Shelf、Subject、Run、Entry、Task/Event或其他测试事实。
+- [ ] Copy-forward 完成后必须通过 SQLite integrity/FK 检查和只读计数验证；原现场数据库保持原样作为回滚证据。此例外只属于 Preflight，服务启动后恢复“不直接写数据库业务状态”的普通边界。
 
 ### 2.3 观察频率
 
@@ -140,6 +142,7 @@ Preflight 以复制完成后的现实为准。当前基线预期为 21 个电影
 - [ ] 使用本地隔离 UAT data directory，未连接 NAS/生产数据目录。
 - [ ] UAT 中不存在指向 `Z:\Film` 或其他真实媒体库的 active Material Field / Shelf。
 - [ ] 已有外部连接可被当前服务读取，但未因隔离环境而复制、覆盖或重新配置凭据。
+- [ ] clean UAT 库只保留三类既有用户资产：External Integration 配置、对应 Secret、Douban immutable Perception历史；旧 Collection Formation/Libra/Arca/Foundation运行事实均为0。
 - [ ] 服务启动后公共 Health 正常，Admin Web 可登录。
 - [ ] 在执行任何 Observation 前，再次从页面确认 Field/Shelf 精确路径。
 
