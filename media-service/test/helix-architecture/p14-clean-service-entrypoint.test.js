@@ -333,6 +333,14 @@ test('clean host serves public health and Admin UI, then requires API key or Htt
     const admin = await host.inject({ method: 'GET', url: '/admin' });
     assert.equal(admin.statusCode, 200);
     assert.match(admin.body, /id="root"/);
+    for (const pagePath of ['/material-fields', '/shelves', '/collection', '/formation', '/offdeck', '/people', '/settings']) {
+      const page = await host.inject({ method: 'GET', url: pagePath });
+      assert.equal(page.statusCode, 200, pagePath);
+      assert.match(page.body, /id="root"/);
+      assert.equal(page.headers['cache-control'], 'no-store');
+    }
+    const unknownPage = await host.inject({ method: 'GET', url: '/not-a-shelfdeck-page' });
+    assert.equal(unknownPage.statusCode, 404);
 
     const unauthorized = await host.inject({ method: 'GET', url: '/v1/admin/overview' });
     assert.equal(unauthorized.statusCode, 401);

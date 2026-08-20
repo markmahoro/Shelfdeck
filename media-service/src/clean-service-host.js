@@ -1426,9 +1426,20 @@ async function createCleanServiceHost(options) {
     root: path.resolve(options.adminDistDir),
     prefix: '/',
     wildcard: false,
+    cacheControl: false,
+    setHeaders(response, filePath) {
+      if (path.basename(filePath) === 'index.html') {
+        response.setHeader('Cache-Control', 'no-store');
+      }
+    },
   });
-  server.get('/admin', (_request, reply) => reply.sendFile('index.html'));
-  server.get('/admin/*', (_request, reply) => reply.sendFile('index.html'));
+  const sendAdminIndex = (_request, reply) =>
+    reply.header('Cache-Control', 'no-store').sendFile('index.html');
+  for (const pagePath of ['/material-fields', '/shelves', '/collection', '/formation', '/offdeck', '/people', '/settings']) {
+    server.get(pagePath, sendAdminIndex);
+  }
+  server.get('/admin', sendAdminIndex);
+  server.get('/admin/*', sendAdminIndex);
 
   for (const route of routeRegistry.entries) {
     server.route({
