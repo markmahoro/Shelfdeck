@@ -7,6 +7,10 @@ const path = require('node:path');
 const test = require('node:test');
 const Database = require('better-sqlite3');
 const { createStartupRecovery } = require('../../src/helix/foundation/execution/startup-recovery');
+const {
+  UAT_SOURCE_EXECUTION_CATALOG_DIGEST,
+  verifyStartupPlanCatalog,
+} = require('../../src/helix/composition/create-procurement-execution-runtime');
 const { openSqliteKernel } = require('../../src/helix/foundation/persistence/sqlite-kernel');
 const { createSqliteUnitOfWork } = require('../../src/helix/foundation/persistence/sqlite-unit-of-work');
 
@@ -50,7 +54,10 @@ function fixture(run, settings = {}) {
     registry: { resolve() { if (settings.unknownContract) throw new Error('unknown'); return {}; } },
     policyRegistry: { bindingFor() { return { retryPolicyRef: 'retry', timeoutPolicyRef: 'timeout' }; } },
     integrityVerifier: { verify: () => ({ ok: settings.integrity !== false }) },
-    catalogVerifier: { verify: () => settings.catalog !== false },
+    catalogVerifier: { verify: (snapshot) => {
+      if (typeof settings.onCatalogSnapshot === 'function') settings.onCatalogSnapshot(snapshot);
+      return settings.catalog !== false;
+    } },
     effectReconciler: { async reconcile() {
       if (settings.reconcilerUnavailable) throw new Error('unavailable');
       return { decision: 'continue_forward', evidenceDigest: 'c'.repeat(64) };
@@ -68,6 +75,37 @@ test('empty durable runtime becomes ready while bootstrapping never supplies nor
     recoveredInMemoryLeases: 0, recoveredInMemoryPermits: 0, recoveredInMemoryWaiters: 0
   });
 }, { seedEvent: false }));
+
+test('catalog verification receives the immutable Plan execution context', async () => {
+  let observed;
+  await fixture(async (recovery) => { await recovery.recover(); }, {
+    onCatalogSnapshot: (snapshot) => { observed = snapshot; },
+  });
+  assert.equal(observed.plan.plan_id, 'plan');
+  assert.equal(observed.workAttempt.attempt_id, 'work-attempt');
+  assert.equal(observed.work.work_id, 'work');
+  assert.equal(observed.nodes[0].capability_ref, null);
+  assert.equal(observed.events[0].capability_ref, 'libra.fixture@1');
+});
+
+test('the exact UAT source Catalog continues only when every immutable node still resolves exactly', () => {
+  const current = 'c'.repeat(64);
+  const node = Object.freeze({ plan_id: 'plan', node_id: 'node', capability_ref: 'libra.fixture@1',
+    contract_version: 1, effect_class: 'pure_observation' });
+  const event = Object.freeze({ plan_id: 'plan', node_id: 'node', owner_domain: 'libra', capability_ref: 'libra.fixture@1' });
+  const base = Object.freeze({ plan: Object.freeze({ catalog_digest: UAT_SOURCE_EXECUTION_CATALOG_DIGEST }),
+    work: Object.freeze({ owner_domain: 'libra' }), nodes: Object.freeze([node]), events: Object.freeze([event]) });
+  const registry = { resolve(ref, owner) {
+    assert.equal(ref, 'libra.fixture@1'); assert.equal(owner, 'libra');
+    return { manifest: { contractVersion: 1, effectClass: 'pure_observation' } };
+  } };
+  const policyRegistry = { bindingFor: () => ({ retryPolicyRef: 'retry', timeoutPolicyRef: 'timeout' }) };
+  assert.equal(verifyStartupPlanCatalog(base, current, registry, policyRegistry), true);
+  assert.equal(verifyStartupPlanCatalog({ ...base, plan: { catalog_digest: current } }, current, registry, policyRegistry), true);
+  assert.equal(verifyStartupPlanCatalog({ ...base, nodes: [{ ...node, effect_class: 'workspace_write' }] },
+    current, registry, policyRegistry), false);
+  assert.equal(verifyStartupPlanCatalog({ ...base, events: [] }, current, registry, policyRegistry), false);
+});
 
 test('pure crash is classified safe_retry but readiness remains recovering until action converges', async () => fixture(async (recovery) => {
   const result = await recovery.recover();

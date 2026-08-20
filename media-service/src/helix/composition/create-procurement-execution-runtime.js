@@ -77,6 +77,35 @@ const ARCA_DEREGISTRATION_ENABLED=Object.freeze([
 ]);
 const ARCA_ALL_ENABLED=Object.freeze([...ARCA_ENABLED,...ARCA_OFFDECK_ENABLED,...ARCA_DEREGISTRATION_ENABLED]);
 const ENABLED = Object.freeze([...PROCUREMENT_ENABLED, ...SHARED_ENABLED, ...LIBRA_ENABLED, ...PERCEPTION_ENABLED,...ARCA_ALL_ENABLED]);
+const UAT_SOURCE_EXECUTION_CATALOG_DIGEST = 'b0371a6d2793c1e381a4c2e7fc421d312a1a1e90d2de5e47f61a45022f09793b';
+
+function verifyStartupPlanCatalog(snapshot, currentCatalogDigest, registry, policyRegistry) {
+  if (!snapshot || !snapshot.plan) return false;
+  if (snapshot.plan.catalog_digest === currentCatalogDigest) return true;
+  if (snapshot.plan.catalog_digest !== UAT_SOURCE_EXECUTION_CATALOG_DIGEST ||
+      !snapshot.work || !Array.isArray(snapshot.nodes) || !Array.isArray(snapshot.events) ||
+      snapshot.nodes.length === 0 || snapshot.nodes.length !== snapshot.events.length) return false;
+  const events = new Map();
+  for (const event of snapshot.events) {
+    const key = event.plan_id + '\0' + event.node_id;
+    if (events.has(key)) return false;
+    events.set(key, event);
+  }
+  try {
+    for (const node of snapshot.nodes) {
+      const event = events.get(node.plan_id + '\0' + node.node_id);
+      if (!event || event.owner_domain !== snapshot.work.owner_domain ||
+          event.capability_ref !== node.capability_ref) return false;
+      const entry = registry.resolve(node.capability_ref, snapshot.work.owner_domain);
+      if (entry.manifest.contractVersion !== node.contract_version ||
+          entry.manifest.effectClass !== node.effect_class) return false;
+      policyRegistry.bindingFor(node.capability_ref, node.effect_class);
+    }
+    return true;
+  } catch (error) {
+    return false;
+  }
+}
 
 function collectSchemas(root) {
   const schemas = [];
@@ -522,7 +551,7 @@ function createProcurementExecutionRuntime(options) {
   const catalogDigest = executionCatalogDigest(registry, policyRegistry);
   const startupRecovery = createStartupRecovery({ schemaManifest: options.schemaManifest, unitOfWork: options.unitOfWork,
     registry, policyRegistry, integrityVerifier: { verify: () => ({ ok: true }) },
-    catalogVerifier: { verify: (plan) => plan.catalog_digest === catalogDigest },
+    catalogVerifier: { verify: (snapshot) => verifyStartupPlanCatalog(snapshot, catalogDigest, registry, policyRegistry) },
     effectReconciler });
   let host;
   function reconcileLibraRun(libraRunId) {
@@ -762,4 +791,9 @@ function createProcurementExecutionRuntime(options) {
     perception:perceptionProcessServices });
 }
 
-module.exports = Object.freeze({ createProcurementExecutionRuntime,createHelixExecutionRuntime:createProcurementExecutionRuntime });
+module.exports = Object.freeze({
+  UAT_SOURCE_EXECUTION_CATALOG_DIGEST,
+  createProcurementExecutionRuntime,
+  createHelixExecutionRuntime:createProcurementExecutionRuntime,
+  verifyStartupPlanCatalog,
+});

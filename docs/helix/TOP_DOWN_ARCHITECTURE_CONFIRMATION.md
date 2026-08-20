@@ -15024,3 +15024,12 @@ following rules replace the affected active contracts and are part of the sole A
 This correction adds one Capability, one Result family, one Libra-owned Selection Intent table, one Canonical
 Transaction and one Admin route. The active clean counts become `113 Capability / 99 Result family / 181 Table /
 44 Canonical Transaction / 116 Admin routes`, while the UI Surface count remains 17.
+
+The approved one-time `helix-clean-v1 → helix-clean-v2` live upgrade never rewrites an immutable Workflow Plan or its
+Catalog digest. Startup Recovery may continue a Plan carrying the exact frozen pre-UAT execution Catalog digest
+`b0371a6d2793c1e381a4c2e7fc421d312a1a1e90d2de5e47f61a45022f09793b` only when every Plan node still resolves to the
+same active Capability ref, contract version, Owner visibility and Effect Class, and the current Execution Policy
+Registry still provides its exact typed binding. A missing node/Event, changed contract, changed Effect Class,
+invisible Capability or absent policy binding remains `PLAN_CATALOG_DRIFT` and blocks supply. Newly published Plans
+must always bind the current full Catalog digest; this narrow startup continuity is not a second active Catalog,
+dual-read contract or authority to translate old Plans.

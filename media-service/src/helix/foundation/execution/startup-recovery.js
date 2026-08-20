@@ -31,14 +31,14 @@ function listRepository(schemaManifest, repositoryId, tableId, columns) {
 
 function definitions(schemaManifest) {
   return Object.freeze({
-    works: listRepository(schemaManifest, 'startup_works', 'fx_supporting_works', ['work_id', 'state']),
+    works: listRepository(schemaManifest, 'startup_works', 'fx_supporting_works', ['work_id', 'owner_domain', 'state']),
     workAttempts: listRepository(schemaManifest, 'startup_work_attempts', 'fx_work_attempts', ['attempt_id', 'work_id', 'state']),
     plans: listRepository(schemaManifest, 'startup_plans', 'fx_workflow_plans', ['plan_id', 'attempt_id', 'catalog_digest', 'state']),
     events: listRepository(schemaManifest, 'startup_events', 'fx_workflow_events', [
       'event_id', 'plan_id', 'node_id', 'work_id', 'attempt_id', 'owner_domain', 'capability_ref', 'state'
     ]),
     nodes: listRepository(schemaManifest, 'startup_nodes', 'fx_plan_nodes', [
-      'plan_id', 'node_id', 'effect_class'
+      'plan_id', 'node_id', 'capability_ref', 'contract_version', 'effect_class'
     ]),
     attempts: listRepository(schemaManifest, 'startup_attempts', 'fx_event_attempts', [
       'event_attempt_id', 'event_id', 'ordinal', 'state', 'outcome_kind', 'failure_class', 'failure_code', 'started_at_ms'
@@ -100,10 +100,13 @@ function createStartupRecovery(options) {
       const findings = [];
       const actions = [];
       const workIds = new Set(facts.works.map((row) => row.work_id));
+      const works = new Map(facts.works.map((row) => [row.work_id, row]));
       const workAttempts = new Map(facts.workAttempts.map((row) => [row.attempt_id, row]));
       const plans = new Map(facts.plans.map((row) => [row.plan_id, row]));
       const events = new Map(facts.events.map((row) => [row.event_id, row]));
       const nodes = new Map(facts.nodes.map((row) => [row.plan_id + '\0' + row.node_id, row]));
+      const nodesByPlan = groupBy(facts.nodes, 'plan_id');
+      const eventsByPlan = groupBy(facts.events, 'plan_id');
       const attemptsByEvent = groupBy(facts.attempts, 'event_id');
       const effectsByAttempt = groupBy(facts.effects, 'event_attempt_id');
       const defersByEvent = groupBy(facts.defers.filter((row) => row.state === 'waiting'), 'event_id');
@@ -113,8 +116,16 @@ function createStartupRecovery(options) {
         if (!workIds.has(attempt.work_id)) findings.push('ORPHAN_WORK_ATTEMPT:' + attempt.attempt_id);
       }
       for (const plan of facts.plans) {
-        if (!workAttempts.has(plan.attempt_id)) findings.push('ORPHAN_PLAN:' + plan.plan_id);
-        else if (!options.catalogVerifier.verify(Object.freeze(plan))) findings.push('PLAN_CATALOG_DRIFT:' + plan.plan_id);
+        const workAttempt = workAttempts.get(plan.attempt_id);
+        const work = workAttempt && works.get(workAttempt.work_id);
+        if (!workAttempt || !work) findings.push('ORPHAN_PLAN:' + plan.plan_id);
+        else if (!options.catalogVerifier.verify(Object.freeze({
+          plan: Object.freeze(plan),
+          workAttempt: Object.freeze(workAttempt),
+          work: Object.freeze(work),
+          nodes: Object.freeze(nodesByPlan.get(plan.plan_id) || []),
+          events: Object.freeze(eventsByPlan.get(plan.plan_id) || []),
+        }))) findings.push('PLAN_CATALOG_DRIFT:' + plan.plan_id);
       }
       for (const effect of facts.effects) {
         if (!facts.attempts.some((attempt) => attempt.event_attempt_id === effect.event_attempt_id)) findings.push('ORPHAN_EFFECT:' + effect.effect_id);
