@@ -118,6 +118,7 @@ Candidate Assembly只查询当前Scope；Execution Foundation的16 in-flight Eve
 | `acceptance/MOVIE_OPTIMIZE_POLICY_CALIBRATION.md` | Movie空间策略的历史校准证据；Level 5已将其结论收录为推荐Rule Template初始值 |
 | `acceptance/LIBRA_HANDOFF_B_READY_SCENARIOS.md` | Libra Run至Handoff B Ready的38场景唯一验收矩阵 |
 | `acceptance/LIBRA_HANDOFF_B_TEST_AGENT_HANDOFF.md` | 面向独立测试Agent的项目背景、安全边界、执行顺序与证据交接 |
+| `acceptance/MOVIE_CANARY_USER_UAT_CHECKLIST.md` | 真实用户视角、同根Material Field/Shelf的Movie Canary全流程UAT执行清单；非脚本、非架构SSOT |
 
 ## Reading order
 
