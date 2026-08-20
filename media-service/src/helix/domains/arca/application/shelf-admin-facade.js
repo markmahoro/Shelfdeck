@@ -1,6 +1,7 @@
 'use strict';
 
 const { createShelfQueryStore } = require('../persistence/shelf-query-store');
+const { createShelfDeregistrationStore } = require('../persistence/shelf-deregistration-store');
 const { createShelfPlacementPolicy } = require('../model/shelf-placement-policy-contracts');
 
 class ArcaShelfAdminApplicationError extends Error { constructor(code, message, details = {}) { super(message); this.name = 'ArcaShelfAdminApplicationError'; this.code = code; this.details = details; } }
@@ -12,6 +13,8 @@ function createArcaShelfAdminApplication(options) {
     throw new TypeError('Arca Shelf application requires the Target Folder probe port.');
   }
   const store = createShelfQueryStore(options);
+  const deregistrations = options.shelfDeregistrationStore || createShelfDeregistrationStore(options);
+  const withSummary=(shelf)=>Object.freeze({...shelf,deregistrationSummary:deregistrations.summary(shelf.shelfId)});
   const targetFolderProbe = options.targetFolderProbe;
   const assertLocationAvailable = (rootLocation) => {
     if (typeof options.assertLocationAvailable === 'function') {
@@ -38,7 +41,7 @@ function createArcaShelfAdminApplication(options) {
           { reasonCode: error.code },
         );
       }
-      throw new ArcaShelfAdminApplicationError('ADMIN_SHELF_COMMAND_REJECTED', 'Shelf请求未通过Arca Owner-local合同校验。', { reasonCode: error.code || 'ARCA_SHELF_CONTRACT_REJECTED' });
+      throw new ArcaShelfAdminApplicationError('ADMIN_SHELF_COMMAND_REJECTED', 'Shelf请求未通过Arca Owner-local合同校验。', { reasonCode: error.code || 'ARCA_SHELF_CONTRACT_REJECTED',...(error.details||{}) });
     }
   }
   function placementEnvelope(shelfId, body) {
@@ -76,8 +79,8 @@ function createArcaShelfAdminApplication(options) {
     };
   }
   return Object.freeze({
-    listShelves() { return Object.freeze({ items: store.listShelves() }); },
-    getShelf(shelfId) { const shelf = store.getShelf(shelfId); if (!shelf) throw new ArcaShelfAdminApplicationError('ADMIN_SHELF_NOT_FOUND', 'Shelf不存在。', { shelfId }); return Object.freeze({ shelf }); },
+    listShelves() { return Object.freeze({ items: store.listShelves().map(withSummary) }); },
+    getShelf(shelfId) { const shelf = store.getShelf(shelfId); if (!shelf) throw new ArcaShelfAdminApplicationError('ADMIN_SHELF_NOT_FOUND', 'Shelf不存在。', { shelfId }); return Object.freeze({ shelf:withSummary(shelf) }); },
     getStandard(shelfId) { return Object.freeze({ standard: this.getShelf(shelfId).shelf.standard }); },
     getPlacement(shelfId) {
       const shelf = this.getShelf(shelfId).shelf;
@@ -111,13 +114,13 @@ function createArcaShelfAdminApplication(options) {
           placementPolicy: placement.value,
         });
         const replay = store.preflightCreateCommand({ idempotencyKey, requestInput });
-        if (replay) return replay;
+        if (replay) return Object.freeze({...replay,shelf:withSummary(replay.shelf)});
         assertLocationAvailable(body.targetRootLocation);
         const targetObservation = targetFolderProbe.inspectRoot({
           shelfId: body.shelfId,
           rootLocation: body.targetRootLocation,
         });
-        return store.createShelf({
+        const created=store.createShelf({
           idempotencyKey,
           requestInput,
           input: {
@@ -130,6 +133,7 @@ function createArcaShelfAdminApplication(options) {
             placement,
           },
         });
+        return Object.freeze({...created,shelf:withSummary(created.shelf)});
       });
     },
     renameShelf(shelfId, body) {
@@ -161,7 +165,11 @@ function createArcaShelfAdminApplication(options) {
     deregisterShelf(shelfId, body) {
       if (!body || typeof body !== 'object' || Array.isArray(body) || body.shelfId !== shelfId) throw new ArcaShelfAdminApplicationError('ADMIN_SHELF_TARGET_MISMATCH', 'URL中的Shelf与请求体目标必须一致。', { pathShelfId: shelfId, bodyShelfId: body?.shelfId });
       const { idempotencyKey, ...input } = body;
-      return invoke(() => store.deregisterShelf({ idempotencyKey, input }));
+      return invoke(() => {
+        const result=deregistrations.admit({ idempotencyKey, input });
+        options.onDeregistrationIntent?.(result);
+        return result;
+      });
     },
   });
 }

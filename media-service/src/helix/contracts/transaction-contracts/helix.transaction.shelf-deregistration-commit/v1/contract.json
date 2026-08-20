@@ -19,6 +19,7 @@
           "arca_deregistration_receipts",
           "arca_shelves",
           "arca_shelf_entries",
+          "arca_inventory_materials",
           "arca_deck_fact_revisions"
         ]
       },
@@ -37,7 +38,9 @@
         "access": "write",
         "tables": [
           "fx_event_result_bindings",
-          "fx_commit_markers"
+          "fx_commit_markers",
+          "fx_outbox",
+          "fx_outbox_deliveries"
         ]
       }
     ],
@@ -47,11 +50,14 @@
       "arca_deregistration_receipts",
       "arca_shelves",
       "arca_shelf_entries",
+      "arca_inventory_materials",
       "arca_deck_fact_revisions",
       "fx_material_controls",
       "fx_material_control_revisions",
       "fx_event_result_bindings",
-      "fx_commit_markers"
+      "fx_commit_markers",
+      "fx_outbox",
+      "fx_outbox_deliveries"
     ],
     "readTables": [
       "arca_inventory_materials"
@@ -70,7 +76,7 @@
       "domainRevisionFenceRequired": true,
       "materialControlCasRequired": true,
       "commitMarkerRequired": true,
-      "outboxRequired": false
+      "outboxRequired": true
     },
     "rollbackInvariant": "Any participant, revision fence, digest, or CAS failure leaves zero transaction writes visible; no commit marker, receipt, or outbox may survive alone.",
     "crashFixtures": [
@@ -86,7 +92,7 @@
     ],
     "source": {
       "section": "8.5.4",
-      "line": 8563,
+      "line": 8574,
       "lineDigest": "1ac2e4b2302ce105295e044d2aa5a8d64d18c823254c007fe20ecf8916b39073"
     }
   }

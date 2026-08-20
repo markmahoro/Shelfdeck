@@ -1,6 +1,5 @@
 'use strict';
 
-const path = require('node:path');
 const { canonicalDigest, canonicalJson } = require('../../../contracts/canonical-json');
 const { createRepositoryDefinition } = require('../../../foundation/persistence/owner-repository');
 const { POLICY_ID, defaultPolicy, normalizePolicy, highVolumeDecision, stable } = require('../model/offdeck-contract');
@@ -10,6 +9,17 @@ class OffdeckStoreError extends Error {
 }
 const fail = (code, message) => { throw new OffdeckStoreError(code, message); };
 const number = (value) => value === null || value === undefined ? null : Number(value);
+function normalizedAbsoluteLocation(value) {
+  const raw=String(value||'').replace(/\\/g,'/').replace(/\/+/g,'/');
+  const drive=/^[A-Za-z]:\//.test(raw)?raw.slice(0,3):null;
+  const absoluteRoot=drive||(raw.startsWith('/')?'/':null);
+  if(!absoluteRoot)fail('ARCA_OFFDECK_SCOPE_CONTAINMENT_INVALID','Off-deck material location must be absolute.');
+  const body=drive?raw.slice(3):raw.slice(1),parts=[];
+  for(const part of body.split('/')){if(!part||part==='.')continue;if(part==='..'){if(parts.length===0)fail('ARCA_OFFDECK_SCOPE_CONTAINMENT_INVALID','Off-deck material escaped its Shelf Target.');parts.pop();}else parts.push(part);}
+  return (drive||'/')+parts.join('/');
+}
+function locationComparisonKey(value){const normalized=normalizedAbsoluteLocation(value);return /^[A-Za-z]:\//.test(normalized)?normalized.toLowerCase():normalized;}
+function relativeToShelfRoot(rootValue,locationValue){const root=normalizedAbsoluteLocation(rootValue).replace(/\/$/,'');const location=normalizedAbsoluteLocation(locationValue),rootKey=locationComparisonKey(root),locationKey=locationComparisonKey(location);if(locationKey===rootKey)return '';if(!locationKey.startsWith(rootKey+'/'))fail('ARCA_OFFDECK_SCOPE_CONTAINMENT_INVALID','Off-deck material escaped its Shelf Target.');return location.slice(root.length+1);}
 
 function createOffdeckStore(options) {
   if (!options?.schemaManifest || !options.unitOfWork) throw new TypeError('Off-deck Store requires clean persistence dependencies.');
@@ -231,7 +241,7 @@ function createOffdeckStore(options) {
     const match = allMaterials.find((row) =>
       row.material_key === reference.material_identity_hint ||
       (row.endpoint_id === reference.endpoint_id &&
-        path.normalize(row.location) === path.normalize(reference.location) &&
+        locationComparisonKey(row.location) === locationComparisonKey(reference.location) &&
         row.digest_hex === reference.checksum_hex));
     if (!match) fail('ARCA_OFFDECK_RELATED_IDENTITY_UNRESOLVED',
       'Off-deck cannot freeze a Related Reference without an exact Physical Material Identity.');
@@ -242,18 +252,17 @@ function createOffdeckStore(options) {
     if (!snapshot.shelf || snapshot.shelf.status !== 'active' || snapshot.materials.length < 1) {
       fail('ARCA_OFFDECK_SCOPE_INVALID', 'Off-deck Scope is unavailable or exceeds 1024 materials.');
     }
-    const relatedByLocation = new Map(snapshot.related.map((item) => [path.normalize(item.location), item]));
-    const root = path.resolve(snapshot.shelf.target_root_location);
+    const relatedByLocation = new Map(snapshot.related.map((item) => [locationComparisonKey(item.location), item]));
+    const root = normalizedAbsoluteLocation(snapshot.shelf.target_root_location);
     const allMaterials = read((ctx) => ctx.repository(repo.repositoryId).invoke('list_all_materials', {}));
     const inventoryMaterials = snapshot.materials.slice().sort((a,b) => Number(a.ordinal) - Number(b.ordinal)).map((item) => {
-      const location = path.resolve(item.location), relative = path.relative(root, location);
-      if (relative.startsWith('..') || path.isAbsolute(relative)) fail('ARCA_OFFDECK_SCOPE_CONTAINMENT_INVALID', 'Off-deck material escaped its Shelf Target.');
+      const relative = relativeToShelfRoot(root,item.location);
       const identity = physicalIdentityFromMaterial(item);
-      const related = relatedByLocation.get(path.normalize(item.location)) || null;
+      const related = relatedByLocation.get(locationComparisonKey(item.location)) || null;
       const control = controlFor(item, controlByKey);
       if(control.ownerScopeId!==snapshot.entry.shelf_entry_id)fail('ARCA_OFFDECK_CONTROL_SCOPE_INVALID','Off-deck material Control belongs to another Shelf Entry.');
       return Object.freeze({ materialKey:item.material_key, materialRole:item.role, physicalIdentity:identity,
-        endpointId:item.endpoint_id, endpointRelativeLocation:relative.split(path.sep).join('/'), sizeBytes:Number(item.size_bytes),
+        endpointId:item.endpoint_id, endpointRelativeLocation:relative, sizeBytes:Number(item.size_bytes),
         relatedReferenceId:related?.reference_id || null, bindingRevision:Number(item.binding_revision), controlRevision:Number(control.controlRevision),
         controlProjectionDigest:control.projectionDigest, deleteCondition:related
           ? 'release_related_then_delete_if_unreferenced' : 'exclusive_primary' });
@@ -262,14 +271,12 @@ function createOffdeckStore(options) {
     const referencedOnly = snapshot.related.map((reference) => {
       const identity = parseRelatedIdentity(reference, allMaterials);
       if (materialKeys.has(identity.materialKey)) return null;
-      const location = path.resolve(reference.location), relative = path.relative(root, location);
-      if (relative.startsWith('..') || path.isAbsolute(relative)) fail('ARCA_OFFDECK_SCOPE_CONTAINMENT_INVALID',
-        'Off-deck Related material escaped its Shelf Target.');
+      const relative = relativeToShelfRoot(root,reference.location);
       const control = controlByKey.get(identity.materialKey);
       if (!control || control.resultKind !== 'available') fail('ARCA_OFFDECK_RELATED_CONTROL_PROJECTION_MISSING',
         'Off-deck Related material lacks a frozen Material Control projection.');
       return Object.freeze({ materialKey:identity.materialKey, materialRole:reference.role, physicalIdentity:identity,
-        endpointId:reference.endpoint_id, endpointRelativeLocation:relative.split(path.sep).join('/'), sizeBytes:Number(identity.sizeBytes),
+        endpointId:reference.endpoint_id, endpointRelativeLocation:relative, sizeBytes:Number(identity.sizeBytes),
         relatedReferenceId:reference.reference_id, bindingRevision:1, controlRevision:Number(control.controlRevision),
         controlProjectionDigest:control.projectionDigest, deleteCondition:'release_related_then_delete_if_unreferenced' });
     }).filter(Boolean);

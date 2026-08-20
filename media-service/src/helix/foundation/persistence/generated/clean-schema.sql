@@ -184,21 +184,46 @@ CREATE TABLE "arca_deregistration_receipts" (
 
 CREATE TABLE "arca_deregistration_releases" (
   "deregistration_id" TEXT,
+  "manifest_revision" INTEGER CHECK ("manifest_revision" >= 1),
+  "member_ordinal" INTEGER CHECK ("member_ordinal" >= 0),
+  "page_ordinal" INTEGER CHECK ("page_ordinal" >= 0),
+  "page_member_ordinal" INTEGER CHECK ("page_member_ordinal" >= 0),
+  "shelf_entry_id" TEXT,
+  "inventory_revision" INTEGER CHECK ("inventory_revision" >= 1),
+  "inventory_member_ordinal" INTEGER CHECK ("inventory_member_ordinal" >= 0),
+  "member_kind" TEXT CHECK ("member_kind" IN ('controlled_material', 'reference_evidence')),
   "material_key" TEXT,
+  "physical_identity_schema_ref" TEXT,
+  "physical_identity_json" TEXT,
+  "physical_identity_digest" TEXT CHECK (length("physical_identity_digest") = 64 AND "physical_identity_digest" NOT GLOB '*[^0-9a-f]*'),
+  "reference_evidence_digest" TEXT CHECK (length("reference_evidence_digest") = 64 AND "reference_evidence_digest" NOT GLOB '*[^0-9a-f]*'),
   "control_revision" INTEGER CHECK ("control_revision" >= 1),
+  "control_projection_digest" TEXT CHECK (length("control_projection_digest") = 64 AND "control_projection_digest" NOT GLOB '*[^0-9a-f]*'),
+  "member_digest" TEXT CHECK (length("member_digest") = 64 AND "member_digest" NOT GLOB '*[^0-9a-f]*'),
   "release_result" TEXT,
   "committed_at_ms" INTEGER CHECK ("committed_at_ms" >= 0),
-  PRIMARY KEY ("deregistration_id", "material_key"),
-  FOREIGN KEY ("deregistration_id") REFERENCES "arca_deregistrations" ("deregistration_id") ON DELETE RESTRICT
+  PRIMARY KEY ("deregistration_id", "manifest_revision", "member_ordinal"),
+  CHECK (json_valid("physical_identity_json")),
+  CHECK (length(CAST("physical_identity_json" AS BLOB)) <= 4096),
+  FOREIGN KEY ("deregistration_id") REFERENCES "arca_deregistrations" ("deregistration_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("shelf_entry_id") REFERENCES "arca_shelf_entries" ("shelf_entry_id") ON DELETE RESTRICT
 );
 
 CREATE TABLE "arca_deregistrations" (
   "deregistration_id" TEXT PRIMARY KEY,
   "shelf_id" TEXT,
-  "release_manifest_digest" TEXT CHECK (length("release_manifest_digest") = 64 AND "release_manifest_digest" NOT GLOB '*[^0-9a-f]*'),
   "state" TEXT CHECK ("state" IN ('active', 'committed')),
+  "phase" TEXT CHECK ("phase" IN ('waiting_responsibility', 'freezing_manifest', 'verifying', 'ready_to_commit', 'attention_required', 'completed')),
+  "manifest_revision" INTEGER CHECK ("manifest_revision" >= 1),
+  "release_manifest_digest" TEXT CHECK (length("release_manifest_digest") = 64 AND "release_manifest_digest" NOT GLOB '*[^0-9a-f]*'),
+  "control_revision_set_digest" TEXT CHECK (length("control_revision_set_digest") = 64 AND "control_revision_set_digest" NOT GLOB '*[^0-9a-f]*'),
+  "entry_count" INTEGER CHECK ("entry_count" >= 0),
+  "member_count" INTEGER CHECK ("member_count" >= 0),
+  "page_count" INTEGER CHECK ("page_count" >= 0),
+  "blocking_reason" TEXT,
   "created_at_ms" INTEGER CHECK ("created_at_ms" >= 0),
   "committed_at_ms" INTEGER CHECK ("committed_at_ms" >= 0),
+  UNIQUE ("shelf_id"),
   FOREIGN KEY ("shelf_id") REFERENCES "arca_shelves" ("shelf_id") ON DELETE RESTRICT
 );
 

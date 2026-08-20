@@ -29,11 +29,11 @@ test('closes the exact current 112/98/180/43 baseline with a stable aggregate di
   assert.equal(first.ok, true);
   assert.deepEqual(first.counts, {
     capabilities: 112, resultFamilies: 98, tables: 180, transactions: 43,
-    sharedTypes: 30, domainInputs: 114, referencedTypeRefs: 211,
+    sharedTypes: 30, domainInputs: 115, referencedTypeRefs: 212,
     unresolvedTypeRefs: 0
   });
   assert.equal(first.aggregateDigest,
-    '6576f3ac124d988661fce2107e63fe5c8250f9da43a4868e39a1b1799f2581fe');
+    '21942ef67403a4658f101966e6ea232ee9872e3add684e7842e7e1ef59dc308a');
   assert.equal(first.aggregateDigest, second.aggregateDigest);
   assert.deepEqual(first.prohibitedActionsRun, []);
 });

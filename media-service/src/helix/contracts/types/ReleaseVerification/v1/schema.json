@@ -68,6 +68,23 @@
       "minLength": 1,
       "maxLength": 256
     },
+    "manifestRevision": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "pageOrdinal": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "memberCount": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "pageDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
     "releaseManifestDigest": {
       "type": "string",
       "minLength": 1,
@@ -91,6 +108,10 @@
     "verifiedAtMs",
     "deregistrationId",
     "shelfId",
+    "manifestRevision",
+    "pageOrdinal",
+    "memberCount",
+    "pageDigest",
     "releaseManifestDigest",
     "controlRevisionSetDigest"
   ]

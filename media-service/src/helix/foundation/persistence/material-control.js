@@ -210,10 +210,10 @@ function assertScope(scope, field) {
   text(scope.scopeId, field + '.scopeId');
 }
 
-function assertHandle(handle, changes, authorizedScopeDigest) {
+function assertHandle(handle, changes, authorizedScopeDigest, maxChanges = 1024) {
   if (!handle || handle.schemaRef !== 'helix://contracts/types/ResponsibilityControlCommitHandle/v1' || handle.schemaVersion !== 1 ||
       !OPERATIONS.has(handle.operationKind) || !Array.isArray(handle.expectedControlRevisions) || !Array.isArray(changes) ||
-      changes.length === 0 || changes.length > 1024) {
+      changes.length === 0 || changes.length > maxChanges) {
     fail('P3_CONTROL_INVALID_HANDLE', 'Responsibility Control Commit Handle is invalid.');
   }
   for (const field of ['handleId', 'ownerDomain', 'processType', 'processId', 'eventFenceDigest']) text(handle[field], field);
@@ -262,7 +262,8 @@ function assertHandle(handle, changes, authorizedScopeDigest) {
 
 function createMaterialControlParticipant(options) {
   if (!options || !options.schemaManifest) fail('P3_CONTROL_INVALID_PARTICIPANT', 'Schema manifest is required.');
-  assertHandle(options.handle, options.changes, options.authorizedScopeDigest);
+  assertHandle(options.handle, options.changes, options.authorizedScopeDigest,
+    options.maxChanges === undefined ? 1024 : options.maxChanges);
   const handle = options.handle;
   const changes = options.changes;
   const definition = repository(options.schemaManifest);

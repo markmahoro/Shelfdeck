@@ -458,8 +458,8 @@ const definitions = Object.freeze({
   },
   'Shelf Deregistration Commit': {
     commitClass: 'responsibility_control_commit',
-    writeTables: ['arca_deregistrations', 'arca_deregistration_releases', 'arca_deregistration_receipts', 'arca_shelves', 'arca_shelf_entries', 'arca_deck_fact_revisions', 'fx_material_controls', 'fx_material_control_revisions', 'fx_commit_markers'],
-    readTables: ['arca_inventory_materials'], fixtureRefs: ['shelf-deregistration'], hasOutbox: false,
+    writeTables: ['arca_deregistrations', 'arca_deregistration_releases', 'arca_deregistration_receipts', 'arca_shelves', 'arca_shelf_entries', 'arca_inventory_materials', 'arca_deck_fact_revisions', 'fx_material_controls', 'fx_material_control_revisions', 'fx_commit_markers', 'fx_outbox', 'fx_outbox_deliveries'],
+    readTables: ['arca_inventory_materials'], fixtureRefs: ['shelf-deregistration'], hasOutbox: true,
     forbiddenWriteTables: ['arca_offdeck_deletion_evidence'],
     forbiddenCapabilities: ['arca.offdeck.primary_material.delete@1', 'arca.offdeck.unreferenced_related.delete@1']
   }

@@ -8,22 +8,22 @@
     "verifiedRelease": {
       "$ref": "#/$defs/verifiedRelease"
     },
-    "responsibilityControlCommitHandle": {
-      "$ref": "#/$defs/responsibilityControlCommitHandle"
+    "shelfDeregistrationControlCommitHandle": {
+      "$ref": "#/$defs/shelfDeregistrationControlCommitHandle"
     }
   },
   "required": [
     "verifiedRelease",
-    "responsibilityControlCommitHandle"
+    "shelfDeregistrationControlCommitHandle"
   ],
   "$defs": {
     "verifiedRelease": {
       "$ref": "helix://contracts/types/ReleaseVerification/v1",
       "x-helix-typeExpression": "Verified release"
     },
-    "responsibilityControlCommitHandle": {
-      "$ref": "helix://contracts/types/ResponsibilityControlCommitHandle/v1",
-      "x-helix-typeExpression": "ResponsibilityControlCommitHandle"
+    "shelfDeregistrationControlCommitHandle": {
+      "$ref": "helix://contracts/domain-types/ShelfDeregistrationControlCommitHandle/v1",
+      "x-helix-typeExpression": "ShelfDeregistrationControlCommitHandle"
     }
   }
 }

@@ -77,7 +77,7 @@ function normalizeCondition(value, depth = 0) {
   const finite = (name, minimum, maximum = Number.MAX_SAFE_INTEGER) => {
     const number = Number(parameters[name]);
     if (!Number.isFinite(number) || number < minimum || number > maximum) {
-      fail('ARCA_OFFDECK_POLICY_CONDITION_INVALID', `Off-deck condition ${name} is invalid.`);
+      fail('ARCA_OFFDECK_POLICY_CONDITION_INVALID', 'Off-deck condition '+name+' is invalid.');
     }
     return number;
   };

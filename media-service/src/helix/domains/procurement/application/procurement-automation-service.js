@@ -176,6 +176,12 @@ function repositoryDefinition(schemaManifest) {
         keyColumns: ['field_id'],
         safeIntegers: true,
       },
+      list_material_fields: {
+        kind: 'select-all',
+        tableId: 'proc_field_materials',
+        columns: ['field_id', 'material_key'],
+        keyColumns: ['material_key'],
+      },
       list_runs: {
         kind: 'select-all',
         tableId: 'proc_procurement_runs',
@@ -886,7 +892,53 @@ function createProcurementAutomationService(options) {
       runs:Object.freeze(admittedRuns), closedGroups:sliced.closedGroups });
   }
 
-  return Object.freeze({ reconcileFromObservation });
+  function reconcileMaterialControlChanges(materialKeys) {
+    if (!Array.isArray(materialKeys) || materialKeys.length === 0 || materialKeys.length > 100 ||
+        new Set(materialKeys).size !== materialKeys.length ||
+        materialKeys.some((materialKey) => typeof materialKey !== 'string' || !materialKey)) {
+      fail('PROCUREMENT_AUTOMATION_CONTROL_CHANGE_SET_INVALID',
+        'Material Control Change Set must contain 1..100 unique Material Keys.');
+    }
+    const affected = options.unitOfWork.execute([{
+      participantId: 'procurement_automation_control_change_fields',
+      owner: 'procurement',
+      repositories: [repository],
+      execute(context) {
+        const repo = context.repository(repository.repositoryId);
+        const fields = new Map();
+        for (const materialKey of materialKeys) {
+          for (const row of repo.invoke('list_material_fields', { material_key: materialKey })) {
+            if (!fields.has(row.field_id)) fields.set(row.field_id, []);
+            fields.get(row.field_id).push(materialKey);
+          }
+        }
+        return [...fields.entries()].map(([fieldId, keys]) => {
+          const field = repo.invoke('find_field', { field_id: fieldId });
+          const observation = field?.current_observation_revision === null || field?.current_observation_revision === undefined
+            ? null
+            : repo.invoke('find_observation', { field_id: fieldId, revision: field.current_observation_revision });
+          return Object.freeze({ field, observation, materialKeys: Object.freeze([...new Set(keys)].sort()) });
+        });
+      },
+    }]).procurement_automation_control_change_fields;
+    const reconciled = [];
+    for (const item of affected) {
+      if (!item.field || item.field.status !== 'active' || !item.observation || Number(item.observation.completed) !== 1) continue;
+      reconciled.push(Object.freeze({
+        fieldId: item.field.field_id,
+        result: reconcileFromObservation(Object.freeze({
+          state: 'succeeded',
+          fieldId: item.field.field_id,
+          accessRevision: Number(item.field.current_access_revision),
+          terminalObservationRevision: Number(item.field.current_observation_revision),
+          observationWorkId: item.observation.field_observation_work_id,
+        }), item.materialKeys),
+      }));
+    }
+    return Object.freeze(reconciled);
+  }
+
+  return Object.freeze({ reconcileFromObservation, reconcileMaterialControlChanges });
 }
 
 module.exports = Object.freeze({

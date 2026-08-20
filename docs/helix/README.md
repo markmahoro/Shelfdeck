@@ -1,6 +1,12 @@
 # ShelfDeck / Helix Documentation Index
 
-Status: Movie Procurement与Movie Libra封口保持有效；Movie Arca已完成Handoff B Acceptance、On-deck、Shelf Entry、Deck Fact、Beta Aftercare与Off-deck闭环。“我的收藏”承载海报墙、收藏健康和直接退出入口。当前状态为`MOVIE COLLECTION LIFECYCLE READY THROUGH OFF-DECK / AWAITING SHELF DEREGISTRATION`；Docker/NAS与生产部署均未开始。
+Status: Movie Procurement与Movie Libra封口保持有效；Movie Arca已完成Handoff B Acceptance、On-deck、Shelf Entry、Deck Fact、Beta Aftercare、Off-deck与Shelf Deregistration闭环。“我的收藏”承载海报墙、收藏健康、直接退出及历史Entry。当前状态为`MOVIE COLLECTION LIFECYCLE READY THROUGH SHELF DEREGISTRATION`；Docker/NAS与生产部署均未开始。
+
+Shelf Deregistration现为非破坏性的正式异步链：Admin Intent立即让Shelf退出Routing与Acceptance目标，后台经Responsibility Drain、
+持久化Manifest、每100项分页Verification及唯一Atomic Commit终结Shelf Entry/Deck Fact并释放精确Material Control。非空Shelf与超过
+10,000项Manifest均已验证；文件、Related、Artifact和Target Folder完全不变，全链不申请Volume Permit。已Accepted On-deck、已授权
+Off-deck及Aftercare Workspace settlement在安全边界收口；Control release通过durable exact-key Signal触发Procurement增量Eligibility。
+完整Architecture Gate、服务回归和Admin Web build均通过，Movie本地生命周期至Shelf行政终结已经封口。
 
 Off-deck现在把推荐退出、Duplicate审阅、Aftercare加入审阅和用户直接退出收敛到同一安全链：Review先原子取得逐Entry
 Reservation，冻结immutable Destruction Scope，再经过Selection及必要的High-volume二次确认形成Batch Envelope和逐Entry

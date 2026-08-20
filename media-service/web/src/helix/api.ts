@@ -95,7 +95,7 @@ export type RuleTemplate = {
 export type Shelf = {
   shelfId: string;
   name: string;
-  status: 'active' | 'deregistered';
+  status: 'active' | 'deregistering' | 'deregistered';
   target: {
     endpointId: string;
     rootLocation: string;
@@ -118,6 +118,27 @@ export type Shelf = {
   };
   createdAtMs: number;
   updatedAtMs: number;
+  deregistrationSummary: {
+    entryCount: number;
+    primaryCount: number;
+    controlledMaterialCount: number;
+    responsibilityCounts: {
+      onDeck: number;
+      offdeck: number;
+      aftercare: number;
+      reservations: number;
+    };
+    process: null | {
+      deregistrationId: string;
+      phase: 'waiting_responsibility' | 'freezing_manifest' | 'verifying' | 'ready_to_commit' | 'attention_required' | 'completed';
+      manifestRevision: number | null;
+      memberCount: number;
+      pageCount: number;
+      blockingReason: string | null;
+      createdAtMs: number;
+      committedAtMs: number | null;
+    };
+  };
 };
 
 export type FormationSubject = {
@@ -400,6 +421,7 @@ export const helixAdminApi = {
       body: JSON.stringify(body),
     });
   },
+  deregisterShelf(shelf:Shelf,enteredShelfName:string,preservePhysicalFilesAcknowledged:boolean,releaseControlAcknowledged:boolean){return request<{operationRef:string;deregistrationId:string;replayed:boolean}>(`/v1/admin/shelves/${encodeURIComponent(shelf.shelfId)}/actions/deregister`,{method:'POST',body:JSON.stringify({idempotencyKey:`shelf-deregister:${shelf.shelfId}:${shelf.updatedAtMs}:${shelf.routingProjection.revision}`,shelfId:shelf.shelfId,expectedStatus:'active',expectedUpdatedAtMs:shelf.updatedAtMs,expectedRoutingProjectionRevision:shelf.routingProjection.revision,confirmation:{decision:'deregister_shelf',enteredShelfName,preservePhysicalFilesAcknowledged,releaseControlAcknowledged}})});},
   registerMaterialField(body: JsonValue) {
     return request<{ materialField: MaterialField }>('/v1/admin/material-fields', {
       method: 'POST',

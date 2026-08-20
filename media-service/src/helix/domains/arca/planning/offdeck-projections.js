@@ -1,11 +1,11 @@
 'use strict';
 
 const { canonicalDigest }=require('../../../contracts/canonical-json');
-const { controlScopeDigest }=require('../../../foundation/persistence/material-control');
 const { stable }=require('../model/offdeck-contract');
 const { P }=require('./offdeck-planners');
 
-function createOffdeckProjections(options){const reader=options.contextReader;
+function createOffdeckProjections(options){const reader=options.contextReader,controlScopeDigest=options.controlScopeDigest;
+  if(typeof controlScopeDigest!=='function')throw new TypeError('Off-deck projections require the public Material Control digest function.');
   function context(ownerScope){const value=reader.read(ownerScope.processId);if(!value)throw new Error('Off-deck projection cannot resolve current Case.');return value;}
   function material(c,parameters){const value=c.materials.find((item)=>item.ordinal===Number(parameters.ordinal));if(!value)throw new Error('Off-deck material ordinal is outside Scope.');return value;}
   function scope(c){const items=c.materials.map((item)=>{const r=item.scopeRow,identity=item.materialHandle.identity,basis={ordinal:item.ordinal,materialKey:item.materialKey,materialRole:item.role,physicalIdentity:identity,endpointId:r.endpoint_id,endpointRelativeLocation:r.endpoint_relative_location,sizeBytes:Number(r.size_bytes),relatedReferenceId:r.related_reference_id||null,bindingRevision:Number(r.binding_revision),controlRevision:Number(r.control_revision),controlProjectionDigest:r.control_projection_digest,deleteCondition:r.delete_condition};return Object.freeze({...basis,physicalIdentityDigest:r.physical_identity_digest,memberDigest:r.member_digest});}),memberSetDigest=canonicalDigest({schema:'arca.offdeck-scope-members@1',items}),controlRevisionSetDigest=canonicalDigest(items.map((item)=>({materialKey:item.materialKey,controlRevision:item.controlRevision,controlProjectionDigest:item.controlProjectionDigest}))),base={schemaRef:'helix://contracts/domain-types/DestructionScope/v1',schemaVersion:1,objectId:c.scope.destruction_scope_id,revision:1,destructionScopeId:c.scope.destruction_scope_id,shelfEntryId:c.case.shelf_entry_id,inventoryRevision:Number(c.scope.inventory_revision),memberCount:items.length,materials:Object.freeze(items),memberSetDigest,controlRevisionSetDigest,scopeDigest:c.scope.scope_digest};return Object.freeze({...base,digest:canonicalDigest(base)});}

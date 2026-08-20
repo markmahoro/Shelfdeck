@@ -54,7 +54,7 @@ function createOnDeckContextReader(options) {
   const acceptance = createHandoffBAcceptanceStore(options);
   const onDeck = createOnDeckStore(options);
 
-  function readOffer(dependencyRefs) {
+  function readOffer(dependencyRefs, { allowDeregistering = false } = {}) {
     const offer = messageFromRefs(dependencyRefs);
     const delivery = options.productDeliveryPort.readPackage({
       queryContract: 'libra.product-delivery@1',
@@ -71,7 +71,7 @@ function createOnDeckContextReader(options) {
     }
     const packageValue = delivery.onDeckProductPackage;
     const shelf = shelves.getShelf(offer.shelfId);
-    if (!shelf || shelf.status !== 'active') {
+    if (!shelf || (shelf.status !== 'active' && !(allowDeregistering && shelf.status === 'deregistering'))) {
       const error = new Error('Handoff B target Shelf is unavailable.');
       error.code = 'ARCA_TARGET_SHELF_UNAVAILABLE';
       throw error;
@@ -80,7 +80,10 @@ function createOnDeckContextReader(options) {
   }
 
   function readAccepted(onDeckRunId, dependencyRefs) {
-    const context = readOffer(dependencyRefs);
+    // A new Acceptance may only target an active Shelf.  An already Accepted
+    // On-deck Run, however, owns an immutable responsibility fence and must be
+    // allowed to finish while Shelf Deregistration drains that responsibility.
+    const context = readOffer(dependencyRefs, { allowDeregistering: true });
     const assessmentId = stable('arca.acceptance-attempt-id@1', {
       offerId: context.offer.offerId,
       onDeckPackageId: context.offer.onDeckPackageId,

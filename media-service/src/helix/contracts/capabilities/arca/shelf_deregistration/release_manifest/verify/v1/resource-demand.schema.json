@@ -9,14 +9,11 @@
       "type": "array",
       "prefixItems": [
         {
-          "const": "cpu"
-        },
-        {
-          "const": "disk_io"
+          "const": "control_plane"
         }
       ],
-      "minItems": 2,
-      "maxItems": 2
+      "minItems": 1,
+      "maxItems": 1
     },
     "demandDigest": {
       "type": "string",

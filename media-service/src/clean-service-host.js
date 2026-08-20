@@ -1068,11 +1068,22 @@ async function createCleanServiceHost(options) {
     constructed.applicationDependencies,
   );
   let platformIntegrations = null;
+  let shelfDeregistrationExecution = null;
   const arcaShelfAdmin = createArcaShelfAdminApplication({
     ...constructed.applicationDependencies,
     targetFolderProbe: createCleanShelfTargetFolderProbe(),
     assertLocationAvailable: (request) =>
       platformIntegrations?.assertExternalLandingRootAvailable(request),
+    onDeregistrationIntent: (intent) => {
+      queueMicrotask(() => {
+        try {
+          shelfDeregistrationExecution?.arcaShelfDeregistrationCoordinator.reconcile(intent.deregistrationId);
+          shelfDeregistrationExecution?.host.wake();
+        } catch (error) {
+          options.onExecutionRuntimeError?.(error);
+        }
+      });
+    },
   });
   platformIntegrations = createPlatformIntegrationServices({
     ...constructed.applicationDependencies,
@@ -1258,6 +1269,7 @@ async function createCleanServiceHost(options) {
     onError: options.onExecutionRuntimeError,
   });
   routingExecution = procurementExecution;
+  shelfDeregistrationExecution = procurementExecution;
   const routingManualSelection = createRoutingManualSelectionService({
     ...constructed.applicationDependencies,
     contextReader: procurementExecution.routingContextReader,
@@ -1275,6 +1287,7 @@ async function createCleanServiceHost(options) {
     intakeCoordinator: procurementExecution.intakeCoordinator,
     acceptanceConsumer: candidateAcceptance,
     rejectionConsumer: candidateRejection,
+    procurementAutomation: procurementExecution.procurementAutomation,
     routingCoordinator: procurementExecution.routingCoordinator,
     perceptionCoordinator: procurementExecution.perception,
     arcaCoordinator: procurementExecution.arcaCoordinator,

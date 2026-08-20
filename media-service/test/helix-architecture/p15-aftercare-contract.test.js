@@ -85,6 +85,22 @@ test('Aftercare Case closure reclaims Workspace before publishing resolved Case 
   assert.match(closure, /C\.caseCommit[\s\S]*eventId:reclaim,satisfaction:'success'/);
 });
 
+test('Shelf Deregistration settles Aftercare Workspace through a dedicated Capability Work before invalidation', () => {
+  const planner = fs.readFileSync(path.join(__dirname,
+    '../../src/helix/domains/arca/planning/aftercare-planners.js'), 'utf8');
+  const settlement = planner.slice(planner.indexOf('function createCareDeregistrationSettlementPlanner'));
+  assert.match(settlement, /C\.workspaceReclaim,'workspace_reclaim'/);
+  assert.doesNotMatch(settlement.slice(0, settlement.indexOf('module.exports')), /C\.caseCommit/);
+  const aftercare = fs.readFileSync(path.join(__dirname,
+    '../../src/helix/domains/arca/application/aftercare-process-coordinator.js'), 'utf8');
+  assert.ok(aftercare.indexOf("caseWork(c,'care_deregistration_settlement',care)") <
+    aftercare.indexOf("store.terminateCase(care.aftercareCaseId,'invalidated')"));
+  const deregistration = fs.readFileSync(path.join(__dirname,
+    '../../src/helix/domains/arca/application/shelf-deregistration-coordinator.js'), 'utf8');
+  assert.match(deregistration, /aftercareCoordinator\.stopForShelfDeregistration/);
+  assert.doesNotMatch(deregistration, /terminateCase/);
+});
+
 test('Aftercare Coordinator stays above Planner, Runtime, Governor, Capability and cross-owner repositories', () => {
   const source = fs.readFileSync(path.join(__dirname,
     '../../src/helix/domains/arca/application/aftercare-process-coordinator.js'), 'utf8');
@@ -100,4 +116,3 @@ test('clean schema enforces one non-terminal Aftercare Case per Shelf Entry', ()
   assert.match(ddl,
     /CREATE UNIQUE INDEX "uidx_arca_aftercare_cases_partial_02" ON "arca_aftercare_cases" \("shelf_entry_id"\) WHERE "terminal_at_ms" IS NULL/);
 });
-

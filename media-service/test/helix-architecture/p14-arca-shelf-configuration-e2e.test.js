@@ -242,3 +242,21 @@ test('Admin creates one probed Template-derived Shelf and Libra rebuilds its pub
   }
   assert.deepEqual(fs.readFileSync(path.join(movedTargetRoot, 'sentinel.txt')), sentinelBefore);
 });
+
+test('Shelf deregistration is asynchronous, non-destructive, idempotent, and Foundation-executed', async (t) => {
+  const value=fixture();t.after(()=>fs.rmSync(value.root,{recursive:true,force:true}));
+  const before=fs.readFileSync(path.join(value.targetRoot,'sentinel.txt'));
+  const executionErrors=[];
+  const host=await createCleanServiceHost({dataDir:value.dataDir,adminDistDir:value.adminDistDir,secretRoot,onExecutionRuntimeError:(error)=>executionErrors.push(error)});
+  try{
+    const cookie=await session(host,value.initialized.adminApiKey),created=await host.inject({method:'POST',url:'/v1/admin/shelves',headers:{cookie},payload:creation(value.targetRoot)});
+    assert.equal(created.statusCode,201,created.body);const shelf=created.json().shelf,payload={idempotencyKey:'deregister-movie-shelf-e2e',shelfId:shelf.shelfId,expectedStatus:'active',expectedUpdatedAtMs:shelf.updatedAtMs,expectedRoutingProjectionRevision:shelf.routingProjection.revision,confirmation:{decision:'deregister_shelf',enteredShelfName:shelf.name,preservePhysicalFilesAcknowledged:true,releaseControlAcknowledged:true}};
+    const wrong=await host.inject({method:'POST',url:`/v1/admin/shelves/${shelf.shelfId}/actions/deregister`,headers:{cookie},payload:{...payload,idempotencyKey:'wrong-name',confirmation:{...payload.confirmation,enteredShelfName:'wrong'}}});assert.equal(wrong.statusCode,400,wrong.body);
+    const missingAcknowledgement=await host.inject({method:'POST',url:`/v1/admin/shelves/${shelf.shelfId}/actions/deregister`,headers:{cookie},payload:{...payload,idempotencyKey:'missing-acknowledgement',confirmation:{...payload.confirmation,preservePhysicalFilesAcknowledged:false}}});assert.equal(missingAcknowledgement.statusCode,400,missingAcknowledgement.body);
+    const admitted=await host.inject({method:'POST',url:`/v1/admin/shelves/${shelf.shelfId}/actions/deregister`,headers:{cookie},payload});assert.equal(admitted.statusCode,202,admitted.body);assert.match(admitted.json().operationRef,/arca-shelf-deregistration:/);
+    const replay=await host.inject({method:'POST',url:`/v1/admin/shelves/${shelf.shelfId}/actions/deregister`,headers:{cookie},payload});assert.equal(replay.statusCode,202,replay.body);assert.equal(replay.json().deregistrationId,admitted.json().deregistrationId);assert.equal(replay.json().replayed,true);
+    let current;for(let attempt=0;attempt<200;attempt++){const response=await host.inject({method:'GET',url:`/v1/admin/shelves/${shelf.shelfId}`,headers:{cookie}});assert.equal(response.statusCode,200,response.body);current=response.json().shelf;if(current.status==='deregistered')break;await new Promise(resolve=>setTimeout(resolve,20));}
+    assert.equal(current.status,'deregistered',executionErrors.map(error=>`${error.code || error.name}: ${error.message} ${JSON.stringify(error.details || {})}\n${error.stack || ''}`).join('\n'));assert.equal(current.deregistrationSummary.process.phase,'completed');assert.deepEqual(fs.readFileSync(path.join(value.targetRoot,'sentinel.txt')),before);assert.ok(fs.existsSync(value.targetRoot));
+    const db=new Database(value.databasePath,{readonly:true});assert.equal(db.prepare('SELECT COUNT(*) count FROM arca_deregistrations').get().count,1);assert.equal(db.prepare('SELECT COUNT(*) count FROM arca_deregistration_receipts').get().count,1);assert.equal(db.prepare("SELECT COUNT(*) count FROM fx_supporting_works WHERE process_type='arca_shelf_deregistration'").get().count,1);assert.equal(db.prepare("SELECT COUNT(*) count FROM fx_workflow_events WHERE capability_ref='arca.shelf_deregistration.commit@1'").get().count,1);assert.equal(db.prepare("SELECT COUNT(*) count FROM fx_event_resource_timings WHERE resource_key LIKE 'volume_%'").get().count,0);db.close();
+  }finally{await host.close();}
+});

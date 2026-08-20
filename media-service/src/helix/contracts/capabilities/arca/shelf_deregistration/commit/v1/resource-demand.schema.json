@@ -9,11 +9,14 @@
       "type": "array",
       "prefixItems": [
         {
-          "const": "cpu"
+          "const": "sqlite_write"
+        },
+        {
+          "const": "control_commit"
         }
       ],
-      "minItems": 1,
-      "maxItems": 1
+      "minItems": 2,
+      "maxItems": 2
     },
     "demandDigest": {
       "type": "string",

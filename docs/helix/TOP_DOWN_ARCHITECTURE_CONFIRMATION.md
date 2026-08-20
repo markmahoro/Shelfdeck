@@ -1763,6 +1763,13 @@ Deregistration Release Manifest包含精确Primary Identity及Related/Artifact�
 也不得按目录范围释放未知材料。被释放Identity只有仍属于有效Material Field observation set时才进入
 Procurement Region，否则成为ShelfDeck不再管理的External Material Reality；这不是反向Handoff。
 
+Deregistration Release Manifest不以内联Material数组表达整座Shelf。正式Manifest只保存revision、Entry/
+member/page count、control revision set digest与按稳定顺序形成的page digest set；成员逐行持久化，并按
+`shelfEntryId → inventoryRevision → inventory ordinal → member kind`排序，每100项形成一页。Manifest总成员数
+不设业务上限，Verification Work一次只验证一页。`controlled_material`成员冻结完整Physical Material Identity与
+Control fence；`reference_evidence`只证明Related/Artifact引用，不因此获得或释放Control。任何Inventory、责任或
+Control变化都会使当前Manifest revision失效，必须冻结新revision并重新验证；旧revision永久保留为历史Evidence。
+
 ### 3.6 User Perception Domain Model
 
 #### 3.6.1 领域结构
@@ -5732,10 +5739,14 @@ Shelf、反向Handoff或物理目录操作。用户提交注销Intent后执行�
    尚未授权的工作释放Reservation并停止；已有Aftercare Case在下一个安全点失去修改资格；
 4. 从当前全部active Shelf Entry中每个当前有效Inventory Representation的最新committed revision冻结唯一
    immutable Deregistration Release Manifest；历史Inventory revision、Product Material Manifest和不属于
-   当前Shelf Control的Material不得进入释放Scope；
+   当前Shelf Control的Material不得进入释放Scope；Manifest成员逐行持久化、每100项一页，不以内联数组或
+   整架单Plan表达，也不设置整架Material总数上限；
 5. Deregistration Commit在一个业务原子边界内把Shelf置为`deregistered`、终结相应active Shelf Entry与
    Deck Fact、释放Manifest精确列出的Material Control并从Finished Goods Region移除；
-6. 保留Shelf tombstone、历史Shelf Entry、Deck Fact、Inventory、Decision、Evidence和Commit记录。
+6. 同一事务按Manifest page发布携带最多100个精确Material Key的durable Neutral Signal；Procurement仅将
+   仍有有效Field Observation覆盖的成员加入Material-local Eligibility Reconcile。Signal可重复或丢失，
+   `fx_reconcile_cursors`驱动的周期检查仍是正确性兜底；
+7. 保留Shelf tombstone、历史Shelf Entry、Deck Fact、Inventory、Decision、Evidence和Commit记录。
 
 注销不得删除、移动、重命名任何Physical Material，不得删除Shelf Physical Target Folder，也不得改变Emby或
 任何External Provider。释放后的Identity只有在仍被某个有效Material Field Observation覆盖时才重新进入
@@ -9318,8 +9329,8 @@ Plan node input/parameter/Fence/Resource Demand的具体JSON不直接重复存�
 | `arca_offdeck_cases` | `offdeck_case_id PK, initial_authorization_id FK, current_authorization_id FK, shelf_entry_id FK, origin_kind, origin_ref, state(executing|blocked|awaiting_reauthorization|completed), recovery_revision, retry_at_ms NULL, blocked_reason NULL, created_at_ms, terminal_at_ms` | `UNIQUE(initial_authorization_id)`；只在首次Authorization事务中创建；环境暂不可达时以CAS写入blocked原因、下一次有界恢复时间并增加`recovery_revision`，恢复时使用同一Case和Authorization签发新的immutable Work；Scope失效后同一Case通过新的current Authorization恢复，不创建第二个Case；Direct Intent不要求Candidate |
 | `arca_offdeck_deletion_evidence` | `destruction_scope_id FK, material_key, effect_id, result(deleted|authorized_identity_already_absent|retained_due_to_active_reference), reality_digest, reference_release_result_digest NULL, completed_at_ms` | `PK(destruction_scope_id,material_key)`；append-only completion evidence；Primary只允许deleted或精确absence，Related可在仍有active reference时保留 |
 | `arca_offdeck_terminal_receipts` | `receipt_id PK, offdeck_case_id FK, shelf_entry_id FK, terminal_deck_fact_revision, released_control_set_digest, committed_at_ms` | `UNIQUE(offdeck_case_id)`；与Deck Fact terminal和Control release同事务成立 |
-| `arca_deregistrations` | `deregistration_id PK, shelf_id FK, release_manifest_digest, state, created_at_ms, committed_at_ms` | 每个Shelf一个non-terminal Deregistration；Supporting Work通过Foundation反向关联；不得引用Deletion Capability |
-| `arca_deregistration_releases` | `deregistration_id FK, material_key, control_revision, release_result, committed_at_ms` | `PK(deregistration_id,material_key)` |
+| `arca_deregistrations` | `deregistration_id PK, shelf_id FK, state(active|committed), phase(waiting_responsibility|freezing_manifest|verifying|ready_to_commit|attention_required|completed), manifest_revision NULL, release_manifest_digest NULL, control_revision_set_digest NULL, entry_count, member_count, page_count, blocking_reason NULL, created_at_ms, committed_at_ms NULL` | `UNIQUE(shelf_id)`；Manifest列在Intent Admission时为NULL/0，freeze后以CAS整体更新；每个Shelf最多一个Deregistration；Supporting Work通过Foundation反向关联；不得引用Deletion Capability |
+| `arca_deregistration_releases` | `deregistration_id FK, manifest_revision, member_ordinal, page_ordinal, page_member_ordinal, shelf_entry_id FK, inventory_revision, inventory_member_ordinal, member_kind(controlled_material|reference_evidence), material_key, physical_identity_schema_ref, physical_identity_json, physical_identity_digest, reference_evidence_digest NULL, control_revision NULL, control_projection_digest NULL, member_digest, release_result NULL, committed_at_ms NULL` | `PK(deregistration_id,manifest_revision,member_ordinal)`；每页最多100项；identity JSON上限`4 KiB`；terminal commit只写controlled_material的release_result/committed_at_ms，旧revision仍作为历史成员清单保留；reference_evidence的Control列和release_result必须为NULL |
 | `arca_deregistration_receipts` | `receipt_id PK, deregistration_id FK, shelf_id FK, released_control_set_digest, terminal_fact_digest, committed_at_ms` | `UNIQUE(deregistration_id)`；与Shelf administrative terminal commit同事务成立 |
 
 #### 8.5.13 User Perception、People、Platform与Read-model逐表合同
@@ -10117,11 +10128,13 @@ Aftercare Case而遗漏Inventory/Control；无法确定安全替代Scope时只�
 | `arca.offdeck.deletion.verify@1` | `Scope + Deletion Evidence[] → DestructionCompletionVerification` | `pure_observation` |
 | `arca.offdeck.terminal.commit@1` | `Verified destruction + ResponsibilityControlCommitHandle → OffdeckTerminalReceipt` | `responsibility_control_commit` |
 | `arca.shelf_deregistration.release_manifest.verify@1` | `Release Manifest + current Inventory/Control → ReleaseVerification` | `pure_observation` |
-| `arca.shelf_deregistration.commit@1` | `Verified release + ResponsibilityControlCommitHandle → DeregistrationReceipt` | `responsibility_control_commit` |
+| `arca.shelf_deregistration.commit@1` | `Verified release + ShelfDeregistrationControlCommitHandle → DeregistrationReceipt` | `responsibility_control_commit` |
 
 Off-deck删除与Input Settlement删除不能合并：前者终结Shelf Entry并依赖不可撤销Destructive Authorization，
 后者只处置On-deck Scope内已被最终产品替代的旧Input并依赖standing Authorization派生的Approval。
 Shelf Deregistration Catalog中不存在任何文件写入或删除Capability。
+Shelf Deregistration的Release Manifest Verification一次只验证100项page并固定申请`control_plane`；terminal
+Commit原子申请`sqlite_write + control_commit`，全过程不得申请任何volume资源。
 
 #### 8.6.13 User Perception Capability
 
@@ -14229,12 +14242,12 @@ Receipt收口及已经不可逆的Forward Recovery。
 #### 10.4.7 Fan-out原子提交必须有Beta支持规模
 
 不能用“Recovery Sweep再试一次”解决每次都超过物理容量的无界事务。Beta固定验证上限：一份Rule Template
-最多绑定`256`座active Shelf；一座Shelf最多拥有`10,000`项active Shelf Entry且Deregistration Release
-Manifest最多包含`50,000`项受控Primary Identity。发布Template、绑定第257座Shelf或开始Shelf Deregistration
-前必须做关系化preflight；超过上限在任何Intent/terminal状态写入前稳定拒绝`OPERATIONAL_SCALE_LIMIT`，不
-部分生效。
+最多绑定`256`座active Shelf；一座Shelf最多拥有`10,000`项active Shelf Entry。发布Template或绑定第257座
+Shelf前必须做关系化preflight；超过上限在任何Intent写入前稳定拒绝`OPERATIONAL_SCALE_LIMIT`，不部分生效。
+Shelf Deregistration Release Manifest不设置Material成员总数上限：成员必须关系化持久化并按每页最多100项
+验证，Plan与Result只能携带page reference/count/digest，不能内联整架成员或以4096/50000项旧限制拒绝注销。
 
-上限内的Rule Template Publish和Shelf Deregistration Commit继续是Level 6/8要求的单一原子结果，使用
+Rule Template Publish和Shelf Deregistration Commit继续是Level 6/8要求的单一原子结果，使用
 set-based SQL、预计算Manifest和短事务内CAS；不得拆成用户可见的半跟随/半注销状态。受限Profile Release
 Gate必须证明最大支持Scope的writer busy不超过`5s`、事务wall-clock不超过`30s`。超过wall-clock属于
 实现/容量不达标并打开Pressure Breaker，不允许无限Recovery Sweep或静默降低原子性。

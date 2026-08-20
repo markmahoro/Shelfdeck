@@ -44,6 +44,10 @@ export default function ShelvesPage() {
   const [templateId, setTemplateId] = useState('system-beta-recommended');
   const [folderTemplate, setFolderTemplate] = useState('{title} ({year})');
   const [collisionPolicy, setCollisionPolicy] = useState('reject');
+  const [confirmShelf,setConfirmShelf]=useState<Shelf|null>(null);
+  const [enteredShelfName,setEnteredShelfName]=useState('');
+  const [preserveFilesAcknowledged,setPreserveFilesAcknowledged]=useState(false);
+  const [releaseControlAcknowledged,setReleaseControlAcknowledged]=useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -127,6 +131,8 @@ export default function ShelvesPage() {
     }
   }
 
+  async function deregisterShelf(){if(!confirmShelf||enteredShelfName!==confirmShelf.name||!preserveFilesAcknowledged||!releaseControlAcknowledged)return;setLoading(true);setError('');try{await helixAdminApi.deregisterShelf(confirmShelf,enteredShelfName,preserveFilesAcknowledged,releaseControlAcknowledged);setConfirmShelf(null);setEnteredShelfName('');setPreserveFilesAcknowledged(false);setReleaseControlAcknowledged(false);await load();}catch(cause){setError(cause instanceof Error?cause.message:'收藏架注销请求失败。');setLoading(false);}}
+
   if (session === 'checking') {
     return <section className="source-page source-page-loading" aria-live="polite">正在读取收藏架…</section>;
   }
@@ -179,7 +185,7 @@ export default function ShelvesPage() {
       <div className="source-registry-heading"><div><p className="eyebrow">收藏架登记簿</p><h2>当前收藏架</h2></div><button type="button" onClick={() => void load()} disabled={loading}>刷新</button></div>
       {shelves.length === 0 ? <div className="source-empty"><strong>还没有收藏架</strong><p>先选择一个空的或既有目标目录，并绑定系统推荐规则模板。</p></div> : shelves.map((shelf) => <article className="source-record shelf-record" key={shelf.shelfId}>
         <div className="source-record-main">
-          <div className="source-record-title"><span className={`status-dot ${shelf.status}`} /><div><h3>{shelf.name}</h3><p>{shelf.target.rootLocation}</p><span className="source-state">{shelf.status === 'active' ? '可供Routing读取' : '已注销'}</span></div></div>
+          <div className="source-record-title"><span className={`status-dot ${shelf.status}`} /><div><h3>{shelf.name}</h3><p>{shelf.target.rootLocation}</p><span className="source-state">{shelf.status === 'active' ? '可供Routing读取' : shelf.status==='deregistering'?'正在安全注销':'已注销'}</span></div></div>
           <dl>
             <div><dt>规则模板</dt><dd>{shelf.standard.ruleTemplateId}</dd></div>
             <div><dt>收藏标准</dt><dd>revision {shelf.currentStandardRevision}</dd></div>
@@ -192,7 +198,11 @@ export default function ShelvesPage() {
           <div className="movie-rule-grid">{movieRules(shelf.standard.value).map((branch) => <div key={`${branch.conditionKind}-${branch.rating || 0}`}><b>{branchLabel(branch)}</b><span>{mediaLabel(branch)}</span><small>{spaceLabel(branch)}</small></div>)}</div>
         </div>
         <details><summary>技术标识</summary><code>{shelf.shelfId}</code><code>{shelf.target.endpointId}</code><code>{shelf.target.mountScopeId}</code><code>{shelf.routingProjection.digest}</code></details>
+        {shelf.status==='active'&&<button className="source-danger" type="button" onClick={()=>{setConfirmShelf(shelf);setEnteredShelfName('');setPreserveFilesAcknowledged(false);setReleaseControlAcknowledged(false);}}>注销收藏架</button>}
+        {shelf.status==='deregistering'&&<div className="template-preview" aria-live="polite"><strong>注销阶段：{shelf.deregistrationSummary.process?.phase||'waiting_responsibility'}</strong><span>Manifest {shelf.deregistrationSummary.process?.manifestRevision||'尚未冻结'} · {shelf.deregistrationSummary.process?.pageCount||0} 页 · {shelf.deregistrationSummary.process?.memberCount||0} 项</span><small>{shelf.deregistrationSummary.process?.blockingReason||'文件与Target Folder不会被修改。'}</small></div>}
+        {shelf.status==='deregistered'&&<small>此收藏架只读保留；历史Shelf Entry、Inventory与Deck Fact仍可查询，Target Folder及文件保持原样。</small>}
       </article>)}
     </div>
+    {confirmShelf&&<div className="source-confirm" role="dialog" aria-modal="true" aria-labelledby="shelf-deregister-title"><div><h2 id="shelf-deregister-title">永久注销“{confirmShelf.name}”</h2><p>当前包含 {confirmShelf.deregistrationSummary.entryCount} 个收藏条目、{confirmShelf.deregistrationSummary.primaryCount} 个Primary、{confirmShelf.deregistrationSummary.controlledMaterialCount} 个受控材料。</p><p>在途责任：On-deck {confirmShelf.deregistrationSummary.responsibilityCounts.onDeck}、Off-deck {confirmShelf.deregistrationSummary.responsibilityCounts.offdeck}、Aftercare {confirmShelf.deregistrationSummary.responsibilityCounts.aftercare}、未授权Reservation {confirmShelf.deregistrationSummary.responsibilityCounts.reservations}。不可逆责任会先安全收口。</p><p>所有文件和Target Folder都会原样保留；系统将终结收藏事实并释放精确Material Control，收藏架不可恢复。</p><label><span>输入完整收藏架名称确认</span><input autoFocus value={enteredShelfName} onChange={event=>setEnteredShelfName(event.target.value)}/></label><label><input type="checkbox" checked={preserveFilesAcknowledged} onChange={event=>setPreserveFilesAcknowledged(event.target.checked)}/><span>我理解 Target Folder 和其中全部文件将原样保留。</span></label><label><input type="checkbox" checked={releaseControlAcknowledged} onChange={event=>setReleaseControlAcknowledged(event.target.checked)}/><span>我确认释放此 Shelf 当前拥有的精确 Material Control。</span></label><div><button type="button" onClick={()=>setConfirmShelf(null)}>返回</button><button className="source-danger" type="button" disabled={loading||enteredShelfName!==confirmShelf.name||!preserveFilesAcknowledged||!releaseControlAcknowledged} onClick={()=>void deregisterShelf()}>永久注销收藏架</button></div></div></div>}
   </section>;
 }

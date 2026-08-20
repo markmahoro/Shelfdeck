@@ -660,7 +660,7 @@ const contracts = {
   ReferenceReleaseResult: ['DomainFactEnvelope', 'shelfEntryId,referenceId,remainingReferenceCount,released'],
   DestructionCompletionVerification: ['VerificationEnvelope', 'destructionScopeId,authorizationId,deletionEvidenceSetDigest,referenceReleaseResultSetDigest,finalDispositionSetDigest'],
   OffdeckTerminalReceipt: ['ReceiptEnvelope', 'offdeckCaseId,shelfEntryId,terminalDeckFactRevision,releasedControlSetDigest'],
-  ReleaseVerification: ['VerificationEnvelope', 'deregistrationId,shelfId,releaseManifestDigest,controlRevisionSetDigest'],
+  ReleaseVerification: ['VerificationEnvelope', 'deregistrationId,shelfId,manifestRevision,pageOrdinal,memberCount,pageDigest,releaseManifestDigest,controlRevisionSetDigest'],
   DeregistrationReceipt: ['ReceiptEnvelope', 'deregistrationId,shelfId,releasedControlSetDigest,terminalFactDigest'],
   PerceptionObservationPage: ['EvidenceEnvelope', 'perceptionAcquisitionId,pageOrdinal,source,cursor,observations,observationPageDigest,hasMore'],
   PerceptionAcquisitionCommitDraft: ['DraftEnvelope', 'perceptionAcquisitionId,source,normalizationRuleRef,cursorTransition,records,sourceLineageRelations'],

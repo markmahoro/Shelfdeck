@@ -19,6 +19,8 @@ function createOutboxDispatcherHost(options){const repo=repository(options.schem
     statements:{find_head:{kind:'select-one',tableId:'libra_field_routing_heads',columns:['field_id','current_routing_policy_id','current_policy_revision'],keyColumns:['field_id']}}});
   const perceptionWakeRepository=createRepositoryDefinition({repositoryId:'perception_wake_signal',owner:'perception',readOnly:true,schemaManifest:options.schemaManifest,
     statements:{find_source:{kind:'select-one',tableId:'perception_sources',columns:['perception_source_id','config_revision'],keyColumns:['perception_source_id']}}});
+  const procurementControlSignalRepository=createRepositoryDefinition({repositoryId:'procurement_control_release_signal',owner:'procurement',readOnly:true,schemaManifest:options.schemaManifest,
+    statements:{find_material:{kind:'select-one',tableId:'proc_field_materials',columns:['field_id','material_key'],keyColumns:['field_id','material_key']}}});
   let state='created',timer=null,running=null;
   function due(){return options.unitOfWork.execute([{participantId:'outbox_dispatcher_due',owner:'execution-foundation',repositories:[repo],execute(context){
     const r=context.repository(repo.repositoryId);return r.invoke('list_due',{}).filter((item)=>['pending','failed'].includes(item.state)&&Number(item.next_attempt_at_ms)<=now())
@@ -69,6 +71,19 @@ function createOutboxDispatcherHost(options){const repo=repository(options.schem
     }
     if(item.message.message_kind==='libra_candidate_rejected'&&item.delivery.consumer_domain==='procurement'){
       options.rejectionConsumer.consume(envelope(item,payload));inbox.acknowledge({messageId:item.message.message_id,consumerDomain:'procurement'});return;
+    }
+    if(item.message.message_kind==='arca.shelf_deregistration.control_released@1'&&item.delivery.consumer_domain==='procurement'){
+      if(!Array.isArray(payload.materialIds)||payload.materialIds.length<1||payload.materialIds.length>100||
+          new Set(payload.materialIds).size!==payload.materialIds.length||canonicalDigest([...payload.materialIds].sort())!==payload.materialKeySetDigest)
+        throw new Error('Shelf Deregistration Control release signal is invalid.');
+      const reconciled=options.procurementAutomation.reconcileMaterialControlChanges(Object.freeze([...payload.materialIds].sort()));
+      const resultDigest=canonicalDigest({schema:'procurement.shelf-deregistration-control-release-consumption@1',
+        signalId:payload.signalId,materialKeySetDigest:payload.materialKeySetDigest,
+        affectedFieldIds:reconciled.map((item)=>item.fieldId).sort()});
+      inbox.consume({message:{messageId:item.message.message_id,dedupKey:item.message.dedup_key,consumerDomain:'procurement'},resultDigest,
+        domainParticipant:{participantId:'procurement_control_release_signal_receipt',owner:'procurement',repositories:[procurementControlSignalRepository],execute:()=>({
+          signalId:payload.signalId,materialKeySetDigest:payload.materialKeySetDigest,affectedFieldCount:reconciled.length})}});
+      inbox.acknowledge({messageId:item.message.message_id,consumerDomain:'procurement'});options.executionRuntimeHost.wake();return;
     }
     if(item.message.message_kind==='field_routing_policy_published'&&item.delivery.consumer_domain==='libra'){
       const resultDigest=canonicalDigest({schema:'libra.routing-policy-signal-consumption@1',fieldId:payload.fieldId,

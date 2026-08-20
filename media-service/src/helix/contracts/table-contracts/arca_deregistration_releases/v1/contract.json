@@ -19,8 +19,8 @@
       },
       {
         "ordinal": 2,
-        "name": "material_key",
-        "logicalType": "TEXT",
+        "name": "manifest_revision",
+        "logicalType": "INTEGER",
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
@@ -29,7 +29,7 @@
       },
       {
         "ordinal": 3,
-        "name": "control_revision",
+        "name": "member_ordinal",
         "logicalType": "INTEGER",
         "enumValues": [],
         "primaryKeyPart": false,
@@ -39,8 +39,8 @@
       },
       {
         "ordinal": 4,
-        "name": "release_result",
-        "logicalType": "TEXT",
+        "name": "page_ordinal",
+        "logicalType": "INTEGER",
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
@@ -49,35 +49,198 @@
       },
       {
         "ordinal": 5,
-        "name": "committed_at_ms",
+        "name": "page_member_ordinal",
         "logicalType": "INTEGER",
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
         "inlineUnique": false,
         "nullable": false
+      },
+      {
+        "ordinal": 6,
+        "name": "shelf_entry_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 7,
+        "name": "inventory_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 8,
+        "name": "inventory_member_ordinal",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 9,
+        "name": "member_kind",
+        "logicalType": "TEXT",
+        "enumValues": [
+          "controlled_material",
+          "reference_evidence"
+        ],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 10,
+        "name": "material_key",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 11,
+        "name": "physical_identity_schema_ref",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 12,
+        "name": "physical_identity_json",
+        "logicalType": "TEXT_JSON",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 13,
+        "name": "physical_identity_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 14,
+        "name": "reference_evidence_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 15,
+        "name": "control_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 16,
+        "name": "control_projection_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 17,
+        "name": "member_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 18,
+        "name": "release_result",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 19,
+        "name": "committed_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
       }
     ],
     "primaryKey": [
       "deregistration_id",
-      "material_key"
+      "manifest_revision",
+      "member_ordinal"
     ],
     "declaredForeignKeyColumns": [
-      "deregistration_id"
+      "deregistration_id",
+      "shelf_entry_id"
     ],
     "uniqueConstraints": [],
     "hotIndexes": [],
     "partialUniqueRules": [],
-    "checkRules": [],
+    "checkRules": [
+      {
+        "column": "member_kind",
+        "enumValues": [
+          "controlled_material",
+          "reference_evidence"
+        ]
+      }
+    ],
     "revisionContract": {
       "revisionColumns": [
+        "manifest_revision",
+        "inventory_revision",
         "control_revision"
       ],
       "currentPointerColumns": [],
       "pointerTargets": [],
       "pointerRules": []
     },
-    "jsonContracts": [],
+    "jsonContracts": [
+      {
+        "column": "physical_identity_json",
+        "schemaRefColumn": "physical_identity_schema_ref",
+        "maxBytes": 4096,
+        "source": "table-row",
+        "requiresJsonValidCheck": true
+      }
+    ],
     "immutability": {
       "immutable": false,
       "rules": []
@@ -87,16 +250,20 @@
       "rules": []
     },
     "semanticRules": [
-      "`PK(deregistration_id,material_key)`"
+      "`PK(deregistration_id,manifest_revision,member_ordinal)`",
+      "每页最多100项",
+      "identity JSON上限`4 KiB`",
+      "terminal commit只写controlled_material的release_result/committed_at_ms，旧revision仍作为历史成员清单保留",
+      "reference_evidence的Control列和release_result必须为NULL"
     ],
     "rawContract": {
-      "columns": "`deregistration_id FK, material_key, control_revision, release_result, committed_at_ms`",
-      "constraints": "`PK(deregistration_id,material_key)`"
+      "columns": "`deregistration_id FK, manifest_revision, member_ordinal, page_ordinal, page_member_ordinal, shelf_entry_id FK, inventory_revision, inventory_member_ordinal, member_kind(controlled_material|reference_evidence), material_key, physical_identity_schema_ref, physical_identity_json, physical_identity_digest, reference_evidence_digest NULL, control_revision NULL, control_projection_digest NULL, member_digest, release_result NULL, committed_at_ms NULL`",
+      "constraints": "`PK(deregistration_id,manifest_revision,member_ordinal)`；每页最多100项；identity JSON上限`4 KiB`；terminal commit只写controlled_material的release_result/committed_at_ms，旧revision仍作为历史成员清单保留；reference_evidence的Control列和release_result必须为NULL"
     },
     "source": {
       "section": "8.5.12",
-      "line": 9322,
-      "lineDigest": "a6975864f9858713c71fd2a87965c46dd8132bd8172b85011d5ac6df8d671698"
+      "line": 9333,
+      "lineDigest": "0ca623598c6d9ce1d89c37865e9c8dd53d8265d433f194e10c28b90f3c16fef1"
     },
     "foreignKeys": [
       {
@@ -106,6 +273,17 @@
         "targetTable": "arca_deregistrations",
         "targetColumns": [
           "deregistration_id"
+        ],
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
+      },
+      {
+        "columns": [
+          "shelf_entry_id"
+        ],
+        "targetTable": "arca_shelf_entries",
+        "targetColumns": [
+          "shelf_entry_id"
         ],
         "deletePolicy": "RESTRICT",
         "deferrable": false

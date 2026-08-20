@@ -14,7 +14,7 @@
       "effectClass": "pure_observation",
       "source": {
         "section": "8.6.8",
-        "line": 9817,
+        "line": 9828,
         "lineDigest": "02f086b257a4871f2c7bc3044bc846fe725c7248854c251bb8ae51f681554496"
       }
     },
@@ -27,7 +27,7 @@
       "effectClass": "workspace_write",
       "source": {
         "section": "8.6.8",
-        "line": 9818,
+        "line": 9829,
         "lineDigest": "0b5bfed764beb4278cbc3bdd2b2f5b8a7247e34563c604bfbcc6b02718cceb5d"
       }
     },
@@ -40,7 +40,7 @@
       "effectClass": "pure_observation",
       "source": {
         "section": "8.6.9",
-        "line": 10027,
+        "line": 10038,
         "lineDigest": "e1692014887797cd5aa80890c62a849dc352f89fc6d123a576e7bb7b28db378b"
       }
     },
@@ -53,7 +53,7 @@
       "effectClass": "pure_observation",
       "source": {
         "section": "8.6.9",
-        "line": 10028,
+        "line": 10039,
         "lineDigest": "073eb9aab7d8793b6da8af1cfb9431bf3a12e2d1221ae2b49762e7da5bd85e91"
       }
     },
@@ -66,7 +66,7 @@
       "effectClass": "pure_observation",
       "source": {
         "section": "8.6.9",
-        "line": 10029,
+        "line": 10040,
         "lineDigest": "44843729ee69816916da2361d5b6583c8d4fadcd4c5e3d3c3a9a0fd8ed6d8e9f"
       }
     },
@@ -79,7 +79,7 @@
       "effectClass": "pure_observation",
       "source": {
         "section": "8.6.9",
-        "line": 10030,
+        "line": 10041,
         "lineDigest": "fb5c84316fa8c22ca69a5ffc0a99d06237a0f3f480d0950585dac5c77512afd0"
       }
     },
@@ -92,7 +92,7 @@
       "effectClass": "pure_observation",
       "source": {
         "section": "8.6.9",
-        "line": 10031,
+        "line": 10042,
         "lineDigest": "40d5e97c13f59851e29f7b5f7580bd58be75cc031049119cbd947b4223beec8e"
       }
     },
@@ -105,7 +105,7 @@
       "effectClass": "pure_observation",
       "source": {
         "section": "8.6.9",
-        "line": 10032,
+        "line": 10043,
         "lineDigest": "59e9bc8d69579a1ac34f04d67a15ad18c4545b324606a4e3356382e5d4a12d43"
       }
     },
@@ -118,7 +118,7 @@
       "effectClass": "domain_fact_commit",
       "source": {
         "section": "8.6.9",
-        "line": 10033,
+        "line": 10044,
         "lineDigest": "3cb1b32e9f6b048446e75a97524c24cc764a8bceeb00dcefcd2dacc9febb20d7"
       }
     },
@@ -131,7 +131,7 @@
       "effectClass": "responsibility_control_commit",
       "source": {
         "section": "8.6.9",
-        "line": 10034,
+        "line": 10045,
         "lineDigest": "562a725ccfbc786fb39da48525654c6135ecd8dc07820d248fd4c23e62fa75f7"
       }
     },
@@ -144,7 +144,7 @@
       "effectClass": "material_commit",
       "source": {
         "section": "8.6.10",
-        "line": 10043,
+        "line": 10054,
         "lineDigest": "207a053dd6f2debeb0cef4e02fa29d65077c37dfe54f674e265ba68aa63cc30f"
       }
     },
@@ -157,7 +157,7 @@
       "effectClass": "material_commit",
       "source": {
         "section": "8.6.10",
-        "line": 10044,
+        "line": 10055,
         "lineDigest": "21da6ad16d7ba31a4deb064e88d84d3bef5348b2a2cd10a388fcd51805ad05c8"
       }
     },
@@ -170,7 +170,7 @@
       "effectClass": "pure_observation",
       "source": {
         "section": "8.6.10",
-        "line": 10045,
+        "line": 10056,
         "lineDigest": "843e35b1e399dd3d9497144b48d1ef93a0d99c9deddfffb682aa12e401ffffa3"
       }
     },
@@ -183,7 +183,7 @@
       "effectClass": "material_commit",
       "source": {
         "section": "8.6.10",
-        "line": 10046,
+        "line": 10057,
         "lineDigest": "2995f4709dc5a11cbe6cda9a44f16727c2e5249e314b81983e270b512def1d4c"
       }
     },
@@ -196,7 +196,7 @@
       "effectClass": "pure_observation",
       "source": {
         "section": "8.6.10",
-        "line": 10047,
+        "line": 10058,
         "lineDigest": "cb85df51affc96eab7387fab044d0db5663c9af8a10d7b71b2ed53b5d8dbe951"
       }
     },
@@ -209,7 +209,7 @@
       "effectClass": "destructive_commit",
       "source": {
         "section": "8.6.10",
-        "line": 10048,
+        "line": 10059,
         "lineDigest": "4998e31c811e3d31369e2291dc02b372c5e1ec47c8b31f1beed3eadddcf4fcac"
       }
     },
@@ -222,7 +222,7 @@
       "effectClass": "pure_observation",
       "source": {
         "section": "8.6.10",
-        "line": 10049,
+        "line": 10060,
         "lineDigest": "0fd32ca70f4341b73c50e6e249f0566cf972b467e0fa93e85f5be2948ad73cd4"
       }
     },
@@ -235,7 +235,7 @@
       "effectClass": "responsibility_control_commit",
       "source": {
         "section": "8.6.10",
-        "line": 10050,
+        "line": 10061,
         "lineDigest": "a7d6792bf16ac7a3eb34f89587c4f7b4dced573833b33d7e3d04b364194f8ef1"
       }
     },
@@ -248,7 +248,7 @@
       "effectClass": "pure_observation",
       "source": {
         "section": "8.6.11",
-        "line": 10060,
+        "line": 10071,
         "lineDigest": "db6a70b06391c9b8f35128f7bfa001ebf9a189caaecb353a5cdfd7d40166ed7b"
       }
     },
@@ -261,7 +261,7 @@
       "effectClass": "pure_observation",
       "source": {
         "section": "8.6.11",
-        "line": 10061,
+        "line": 10072,
         "lineDigest": "ef14d58689a9a1e3ad3b5658b3d3e59a100382e903323cc54cacd9374861f6cd"
       }
     },
@@ -274,7 +274,7 @@
       "effectClass": "pure_observation",
       "source": {
         "section": "8.6.11",
-        "line": 10062,
+        "line": 10073,
         "lineDigest": "115ab737def41387e21b0025fbd23878bf120ee2e1ed651d324d2bf15f603527"
       }
     },
@@ -287,7 +287,7 @@
       "effectClass": "domain_fact_commit",
       "source": {
         "section": "8.6.11",
-        "line": 10063,
+        "line": 10074,
         "lineDigest": "c42e638ea7f6d032304bb5ee32fbc102e3f1cc3f8fd42d63de59534b6c6fbc22"
       }
     },
@@ -300,7 +300,7 @@
       "effectClass": "workspace_write",
       "source": {
         "section": "8.6.11",
-        "line": 10064,
+        "line": 10075,
         "lineDigest": "6fd2daa223392e9088cebcf0aebaf24bd0ccaf71f14102c7825130e8c698dfe4"
       }
     },
@@ -313,7 +313,7 @@
       "effectClass": "workspace_write",
       "source": {
         "section": "8.6.11",
-        "line": 10065,
+        "line": 10076,
         "lineDigest": "3849e59ec0117c8f4704e1fd561bc8c603978e137d7a393600b19477145d4478"
       }
     },
@@ -326,7 +326,7 @@
       "effectClass": "material_commit",
       "source": {
         "section": "8.6.11",
-        "line": 10066,
+        "line": 10077,
         "lineDigest": "9b46bc9dfdb05885759a66ebd419a019d990b49891bee30ca788c458f15e00eb"
       }
     },
@@ -339,7 +339,7 @@
       "effectClass": "workspace_write",
       "source": {
         "section": "8.6.11",
-        "line": 10067,
+        "line": 10078,
         "lineDigest": "190dc4b86f3cb753359b6c852eaf8f3be3c535a3f59893416939157308202885"
       }
     },
@@ -352,7 +352,7 @@
       "effectClass": "workspace_write",
       "source": {
         "section": "8.6.11",
-        "line": 10068,
+        "line": 10079,
         "lineDigest": "2dc8060b348a8f062146e5824069231cca560c7bfb2035847cf5d8bc75f61f21"
       }
     },
@@ -365,7 +365,7 @@
       "effectClass": "pure_observation",
       "source": {
         "section": "8.6.11",
-        "line": 10069,
+        "line": 10080,
         "lineDigest": "05397ba736c7b67faca837b9cd744a1ec17b966d08ee61f7fa33d0e37308f577"
       }
     },
@@ -378,7 +378,7 @@
       "effectClass": "destructive_commit",
       "source": {
         "section": "8.6.11",
-        "line": 10070,
+        "line": 10081,
         "lineDigest": "ca1b3365a91306a2c13443be2aa70169fd148a4c500915b7f26ef05027c8a888"
       }
     },
@@ -391,7 +391,7 @@
       "effectClass": "responsibility_control_commit",
       "source": {
         "section": "8.6.11",
-        "line": 10071,
+        "line": 10082,
         "lineDigest": "ecfd4f6f21ec0471b7ba14511cd98fe93adebc50cfbaafa269451e60c5b7b05c"
       }
     },
@@ -404,7 +404,7 @@
       "effectClass": "domain_fact_commit",
       "source": {
         "section": "8.6.11",
-        "line": 10072,
+        "line": 10083,
         "lineDigest": "1e7370361ed619740cc94e80a3b7d79f2a2a177126498eba7cc46d238de884bb"
       }
     },
@@ -417,7 +417,7 @@
       "effectClass": "workspace_write",
       "source": {
         "section": "8.6.11",
-        "line": 10073,
+        "line": 10084,
         "lineDigest": "3c4893964425cbf3fc4fc42b5fd975ddc72b436dcfc619ce9c2818a264e73c42"
       }
     },
@@ -430,7 +430,7 @@
       "effectClass": "pure_observation",
       "source": {
         "section": "8.6.12",
-        "line": 10110,
+        "line": 10121,
         "lineDigest": "33fe97fdb742d737d0e0a0d741431293676a7eea82de795636ea4f8a818d6131"
       }
     },
@@ -443,7 +443,7 @@
       "effectClass": "domain_fact_commit",
       "source": {
         "section": "8.6.12",
-        "line": 10111,
+        "line": 10122,
         "lineDigest": "559a208f769e2519dfee71d43d41db96ad39f3f3b8a8229f64fc061c449aea11"
       }
     },
@@ -456,7 +456,7 @@
       "effectClass": "domain_fact_commit",
       "source": {
         "section": "8.6.12",
-        "line": 10112,
+        "line": 10123,
         "lineDigest": "b8305dff13defc656f24822f21e1559c6374caa39f1d066bead227ec67fbaae6"
       }
     },
@@ -469,7 +469,7 @@
       "effectClass": "pure_observation",
       "source": {
         "section": "8.6.12",
-        "line": 10113,
+        "line": 10124,
         "lineDigest": "5f1aba6f365de4e1b6b78c9151fd81b7c47c80410c917f93ac0493fbebb9507d"
       }
     },
@@ -482,7 +482,7 @@
       "effectClass": "destructive_commit",
       "source": {
         "section": "8.6.12",
-        "line": 10114,
+        "line": 10125,
         "lineDigest": "be9f81655da84bd5289a21e8bb09a6dc5aab08401128db57cfafef0d1941c169"
       }
     },
@@ -495,7 +495,7 @@
       "effectClass": "domain_fact_commit",
       "source": {
         "section": "8.6.12",
-        "line": 10115,
+        "line": 10126,
         "lineDigest": "40a6ec979c4677dec5e91765de272e25ad86d1543d417eaefa1c9c13365d6bc6"
       }
     },
@@ -508,7 +508,7 @@
       "effectClass": "destructive_commit",
       "source": {
         "section": "8.6.12",
-        "line": 10116,
+        "line": 10127,
         "lineDigest": "259ecabd7e68ad332ee3833cc96cbda41dc6f89e6f85c64a76c6c4f0bdf0cf1d"
       }
     },
@@ -521,7 +521,7 @@
       "effectClass": "pure_observation",
       "source": {
         "section": "8.6.12",
-        "line": 10117,
+        "line": 10128,
         "lineDigest": "de79a37a739e145a8e12e793ebf68b5fe6c08bb496a7bf67d011f3cf727f0ac0"
       }
     },
@@ -534,7 +534,7 @@
       "effectClass": "responsibility_control_commit",
       "source": {
         "section": "8.6.12",
-        "line": 10118,
+        "line": 10129,
         "lineDigest": "3afab25b8905eba49d060b38b1472e150705b9e1554dea24cf1ddadbaf9e4e0c"
       }
     },
@@ -547,7 +547,7 @@
       "effectClass": "pure_observation",
       "source": {
         "section": "8.6.12",
-        "line": 10119,
+        "line": 10130,
         "lineDigest": "28fc5bb6077c6e4f46d115156a5891718f27888dbb1f6438b6d6e3e6369bd2f2"
       }
     },
@@ -555,13 +555,13 @@
       "id": "arca.shelf_deregistration.commit@1",
       "contractVersion": 1,
       "owner": "arca",
-      "inputSummary": "Verified release + ResponsibilityControlCommitHandle",
+      "inputSummary": "Verified release + ShelfDeregistrationControlCommitHandle",
       "outputFamily": "DeregistrationReceipt",
       "effectClass": "responsibility_control_commit",
       "source": {
         "section": "8.6.12",
-        "line": 10120,
-        "lineDigest": "4f32f0b831684068ec70087974a9f5db8f2938b69c7b766a4bbd96dec4e4b979"
+        "line": 10131,
+        "lineDigest": "9c301d5222bd9c93668549c59405df7a5b23f7860077b775c48b55eeca9d4a03"
       }
     },
     {
@@ -573,7 +573,7 @@
       "effectClass": "pure_observation",
       "source": {
         "section": "8.6.13",
-        "line": 10144,
+        "line": 10157,
         "lineDigest": "b5aa853f6a29eb3fd38bf0e74583a7b0427b368d9d53d38ff982faa92e1e134b"
       }
     },
@@ -586,7 +586,7 @@
       "effectClass": "pure_observation",
       "source": {
         "section": "8.6.13",
-        "line": 10145,
+        "line": 10158,
         "lineDigest": "2206f66ff49af564eb60aa0c359f124ff84f7dcce9a60df89ec053576f9e5a60"
       }
     },
@@ -599,7 +599,7 @@
       "effectClass": "domain_fact_commit",
       "source": {
         "section": "8.6.13",
-        "line": 10146,
+        "line": 10159,
         "lineDigest": "bc448a188fb69e96f1288e2a5c24dfc40438b5d4de4551268fbdfef7da1b102c"
       }
     },
@@ -612,7 +612,7 @@
       "effectClass": "pure_observation",
       "source": {
         "section": "8.6.13",
-        "line": 10147,
+        "line": 10160,
         "lineDigest": "c6978b0ba2609a2f6567244097c26ef09b61ca9e75aa5e798cf81dc1cd449938"
       }
     },
@@ -625,7 +625,7 @@
       "effectClass": "domain_fact_commit",
       "source": {
         "section": "8.6.13",
-        "line": 10148,
+        "line": 10161,
         "lineDigest": "a5f366f08e4b9b6012657fa5f8b69ddf661f6be0c05135b837c5be2e693b6153"
       }
     },
@@ -638,7 +638,7 @@
       "effectClass": "pure_observation",
       "source": {
         "section": "8.6.14",
-        "line": 10165,
+        "line": 10178,
         "lineDigest": "c676c7178e8b473e53bde4b2ef443161e1a6b892a01f53427e2cf24afd5ea0cc"
       }
     },
@@ -651,7 +651,7 @@
       "effectClass": "workspace_write",
       "source": {
         "section": "8.6.14",
-        "line": 10166,
+        "line": 10179,
         "lineDigest": "be70fa3c68c7af336e86e27c9059ce4f7589c26c543a8906f79d178e74a95d04"
       }
     },
@@ -664,7 +664,7 @@
       "effectClass": "domain_fact_commit",
       "source": {
         "section": "8.6.14",
-        "line": 10167,
+        "line": 10180,
         "lineDigest": "685bdb0074fce95a1b9cc4ee9b06b7383b3561bb57c249b4f206016357f636f5"
       }
     },
@@ -677,7 +677,7 @@
       "effectClass": "pure_observation",
       "source": {
         "section": "8.6.14",
-        "line": 10168,
+        "line": 10181,
         "lineDigest": "c2c72913fb62f7a4f34313e68b475a5ae63b37aae17bec54b0fa5cdd543576a3"
       }
     },
@@ -690,7 +690,7 @@
       "effectClass": "domain_fact_commit",
       "source": {
         "section": "8.6.14",
-        "line": 10169,
+        "line": 10182,
         "lineDigest": "5b802677e93c5bf5f0716d5c3f0949d0940337b1c0b04be2e598dec0a2270a44"
       }
     },
@@ -703,7 +703,7 @@
       "effectClass": "domain_fact_commit",
       "source": {
         "section": "8.6.14",
-        "line": 10170,
+        "line": 10183,
         "lineDigest": "0f57cc3035a38feb0a59cf729c6f3dd4eea9738ad70fb6ae128de208499621e8"
       }
     },
@@ -716,7 +716,7 @@
       "effectClass": "domain_fact_commit",
       "source": {
         "section": "8.6.14",
-        "line": 10171,
+        "line": 10184,
         "lineDigest": "4ae0cbd3463df67c1ae83084d30ae44a5dd54aa9fedd41c732561a07ffe2343b"
       }
     },
@@ -729,7 +729,7 @@
       "effectClass": "workspace_write",
       "source": {
         "section": "8.6.14",
-        "line": 10172,
+        "line": 10185,
         "lineDigest": "beced2784c1e277b20c4d5547149519e4cba307751d901ee3df5f29d59061d8c"
       }
     }

@@ -1,8 +1,45 @@
 # ShelfDeck Clean Helix Master Plan
 
-Status: Movie Procurement保持`CLOSED FOR MOVIE`；Movie Libra保持`MOVIE LIBRA CLOSED AT HANDOFF B READY`；Movie Arca已经接通Handoff B Acceptance、On-deck、Shelf Entry、Deck Fact、Beta Aftercare与完整Off-deck。当前状态为`MOVIE COLLECTION LIFECYCLE READY THROUGH OFF-DECK / AWAITING SHELF DEREGISTRATION`；下一独立节点仅为非破坏性的Shelf Deregistration，本轮不含生产部署。
+Status: Movie Procurement保持`CLOSED FOR MOVIE`；Movie Libra保持`MOVIE LIBRA CLOSED AT HANDOFF B READY`；Movie Arca已经接通Handoff B Acceptance、On-deck、Shelf Entry、Deck Fact、Beta Aftercare、完整Off-deck及非破坏性Shelf Deregistration。当前状态为`MOVIE COLLECTION LIFECYCLE READY THROUGH SHELF DEREGISTRATION`；Movie从发现、生产、收藏、养护、退出到整架行政终结的本地产品链已经闭合，Docker/NAS与生产部署仍是独立后续工作。
 
-Last updated: 2026-08-15
+Last updated: 2026-08-20
+
+## 0. Completed target — Arca Shelf Deregistration and Movie lifecycle closure
+
+Shelf Deregistration已经删除“仅空Shelf、同步改状态”的捷径。用户通过现有Admin route提交带Shelf revision fence、精确Shelf名称、
+保留文件与释放Control确认的Intent后，Shelf立即进入`deregistering`并退出Routing/Handoff B Acceptance目标；HTTP返回`202`，后续固定经过
+`Responsibility Drain → Manifest Freeze → Paged Verification → Atomic Commit`。Coordinator只处理责任收敛、Work签发和terminal Result，
+Capability统一经过immutable Plan、Event Runtime、Resource Governor、Attempt与Result Binding。
+
+非空Shelf可以注销。Release Manifest只保存header/digest；成员按Shelf Entry、Inventory revision、member ordinal稳定排序并持久化，
+每100项形成一个Verification Work，整座Shelf没有Material总数上限。`controlled_material`冻结精确Physical Material Identity与Control fence；
+Related/Artifact只作为`reference_evidence`，不会伪造Control release。所有Page通过后，唯一terminal commit在同一事务中再次校验Manifest，
+释放精确Arca Material Control、终结active Shelf Entry与Deck Fact、更新Finished Goods Region、写Receipt/Result/Outbox并把Shelf置为
+`deregistered`。任何CAS漂移都会整笔回滚并形成新Manifest revision，绝不部分释放。
+
+竞争责任已经接线：未授权Off-deck Reservation会释放；已授权Off-deck与已Accepted On-deck在不可逆边界后继续安全收口；Aftercare先通过
+专用`care_deregistration_settlement` Work回收其Workspace，再使旧Case invalidated。terminal Control release按每页最多100个Material Key
+发送durable Neutral Signal给Procurement，Signal丢失仍由既有cursor fallback发现；只对精确Material-local Eligibility做增量重算。
+
+Admin Web“收藏架”提供强确认Dialog、责任数量、phase/Page进度和只读历史状态；`deregistering|deregistered` Shelf不再允许Standard、
+Placement或Target变更。“我的收藏”支持当前/历史筛选，因Shelf注销终结的Entry只进入历史。注销全过程不申请任何Volume Permit，不读取、
+移动、改名或删除Shelf Target内文件，也不删除Target Folder。
+
+验证结果：Shelf/Aftercare/Off-deck/Deregistration聚焦回归24/24；超过10,000成员的非空Shelf形成10,003项Manifest、101个Page并完成注销；
+进程中断后同一数据库恢复为唯一Process、Receipt、Control release与terminal Event。完整Architecture Gate为162个test file、1056 pass、
+7个显式环境skip、0 fail；完整服务回归245 pass、17 skip、0 fail；Admin Web production build通过。机器合同保持112 Capability、
+98 Result family、180 table、43 Canonical Transaction、115 Admin route加public health，UI Surface保持17。P2 aggregate为
+`21942ef67403a4658f101966e6ea232ee9872e3add684e7842e7e1ef59dc308a`，SSOT source-map aggregate为
+`3fde8cbfa5779c48ec15d1441b7cf2ea21779151c3da02d2f4d345ed6cc4f927`，manifest aggregate为
+`64e0eefa999513a01804776951b11137c64913c9f1cb5ba1a20020f0fcdd6846`，DDL digest为
+`78075366b3409916b8f8c6fcd3c0786daa5e45bab82f59ba83d91a2663689119`。
+
+保留证据位于`C:\Users\markm\AppData\Local\Temp\helix-shelf-deregistration-aC8Nd7`，其中包含SQLite数据库与
+`shelf-deregistration-report.json`；重启恢复证据数据库位于
+`C:\Users\markm\AppData\Local\Temp\helix-shelf-deregistration-8hH1Vk\data\shelfdeck.db`。隔离Target内普通Primary、NFO、Poster、
+字幕及BDMV/CERTIFICATE代表文件共9项，注销前后Reality digest均为
+`31ddfb4ec9ceb37f7cba6e55267f55ddd262bf59bbba7ac7c44b949af7a2651d`。测试仅使用系统Temp及隔离Target，
+未访问`Z:\Film`、Docker、NAS或生产数据。
 
 ## 0. Completed target — Arca Off-deck and Movie lifecycle closure
 
@@ -81,8 +118,8 @@ authenticated GET；缺海报只显示fallback，不触发Provider、Aftercare�
 
 fresh-clean正向与空间不足拒绝E2E都已通过，并分别在完成后重启验证无重复Acceptance、On-deck、文件效果、
 Shelf Entry、Deck Fact或Outbox消费。当前机器合同为112 Capability、98 Result family、180 table、43 Canonical
-Transaction、115 Admin route加1条public health（总计116 route）。该历史节点当时不实现Aftercare；Aftercare现已由上节独立闭环。
-Off-deck、Shelf Deregistration或NAS部署仍是后续独立边界。完整服务回归为245 pass、16个显式环境skip、0 fail，
+Transaction、115 Admin route加1条public health（总计116 route）。该历史节点当时不实现Aftercare、Off-deck或Shelf Deregistration；
+三者现已由前文独立闭环，只有NAS部署仍在当前范围之外。完整服务回归为245 pass、16个显式环境skip、0 fail，
 Helix Architecture gate与Admin Web production build均通过。
 
 ## 0. Closed target — Movie Libra at Handoff B Ready

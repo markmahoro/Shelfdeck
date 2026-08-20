@@ -39,14 +39,17 @@
       "minLength": 1,
       "maxLength": 256
     },
-    "materialKeys": {
-      "type": "array",
-      "items": {
-        "type": "string",
-        "minLength": 1,
-        "pattern": "^[a-f0-9]{64}$"
-      },
-      "maxItems": 4096
+    "entryCount": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "memberCount": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "pageCount": {
+      "type": "integer",
+      "minimum": 0
     },
     "controlRevisionSetDigest": {
       "type": "string",
@@ -67,7 +70,9 @@
     "digest",
     "deregistrationId",
     "shelfId",
-    "materialKeys",
+    "entryCount",
+    "memberCount",
+    "pageCount",
     "controlRevisionSetDigest",
     "manifestDigest"
   ]

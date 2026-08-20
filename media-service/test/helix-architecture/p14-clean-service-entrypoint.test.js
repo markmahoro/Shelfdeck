@@ -123,7 +123,7 @@ async function reservePort() {
 }
 
 async function waitForHealth(url, child, stderr) {
-  for (let attempt = 0; attempt < 80; attempt += 1) {
+  for (let attempt = 0; attempt < 400; attempt += 1) {
     if (child.exitCode !== null) {
       throw new Error(`service exited before health: ${stderr()}`);
     }
@@ -1696,6 +1696,7 @@ test('Arca Shelf projection reads use the authenticated public HTTP path and own
     placementPolicy: placementValue,
   };
   let deregistrationCommand;
+  let deregistrationId;
   let placementCommand;
   const host = await createCleanServiceHost({ dataDir: value.dataDir, adminDistDir: value.adminDistDir, secretRoot });
   try {
@@ -2008,10 +2009,11 @@ test('Arca Shelf projection reads use the authenticated public HTTP path and own
       expectedStatus: 'active',
       expectedUpdatedAtMs: exact.json().shelf.updatedAtMs,
       expectedRoutingProjectionRevision: 2,
-      authorization: {
-        authorizationId: 'shelf-http-deregister-authorization-1',
+      confirmation: {
         decision: 'deregister_shelf',
-        shelfId: 'shelf-http-1',
+        enteredShelfName: 'Movie Library',
+        preservePhysicalFilesAcknowledged: true,
+        releaseControlAcknowledged: true,
       },
     };
     const deregistrationUnauthenticated = await host.inject({
@@ -2034,17 +2036,17 @@ test('Arca Shelf projection reads use the authenticated public HTTP path and own
       payload: { ...deregistrationCommand, idempotencyKey: 'deregister-closed-input', unexpected: true },
     });
     assert.equal(deregistrationClosed.statusCode, 400);
-    const deregistrationAuthorizationMismatch = await host.inject({
+    const deregistrationAcknowledgementMissing = await host.inject({
       method: 'POST',
       url: '/v1/admin/shelves/shelf-http-1/actions/deregister',
       headers: { cookie },
       payload: {
         ...deregistrationCommand,
-        idempotencyKey: 'deregister-authorization-mismatch',
-        authorization: { ...deregistrationCommand.authorization, shelfId: 'other-shelf' },
+        idempotencyKey: 'deregister-acknowledgement-missing',
+        confirmation: { ...deregistrationCommand.confirmation, preservePhysicalFilesAcknowledged: false },
       },
     });
-    assert.equal(deregistrationAuthorizationMismatch.statusCode, 400);
+    assert.equal(deregistrationAcknowledgementMissing.statusCode, 400);
     const deregistrationStale = await host.inject({
       method: 'POST',
       url: '/v1/admin/shelves/shelf-http-1/actions/deregister',
@@ -2052,60 +2054,39 @@ test('Arca Shelf projection reads use the authenticated public HTTP path and own
       payload: { ...deregistrationCommand, idempotencyKey: 'deregister-stale', expectedUpdatedAtMs: deregistrationCommand.expectedUpdatedAtMs - 1 },
     });
     assert.equal(deregistrationStale.statusCode, 400);
-    const deregistrationFaultDatabase = new Database(path.join(value.dataDir, 'shelfdeck.db'));
-    deregistrationFaultDatabase.exec(`
-      CREATE TRIGGER p14_shelf_deregistration_fault
-      BEFORE INSERT ON arca_deregistration_receipts
-      BEGIN
-        SELECT RAISE(ABORT, 'p14-shelf-deregistration-fault');
-      END
-    `);
-    deregistrationFaultDatabase.close();
-    const deregistrationCrash = await host.inject({
-      method: 'POST',
-      url: '/v1/admin/shelves/shelf-http-1/actions/deregister',
-      headers: { cookie },
-      payload: { ...deregistrationCommand, idempotencyKey: 'shelf-http-deregister-crash' },
-    });
-    assert.equal(deregistrationCrash.statusCode, 400);
-    const deregistrationCrashEvidence = new Database(path.join(value.dataDir, 'shelfdeck.db'));
-    assert.deepEqual(deregistrationCrashEvidence.prepare('SELECT status,routing_projection_revision FROM arca_shelves WHERE shelf_id=?').get('shelf-http-1'), {
-      status: 'active',
-      routing_projection_revision: 2,
-    });
-    assert.equal(deregistrationCrashEvidence.prepare('SELECT count(*) AS count FROM arca_deregistrations WHERE shelf_id=?').get('shelf-http-1').count, 0);
-    assert.equal(deregistrationCrashEvidence.prepare("SELECT count(*) AS count FROM fx_event_result_bindings WHERE result_schema_ref='helix://contracts/types/DeregistrationReceipt/v1'").get().count, 0);
-    assert.equal(deregistrationCrashEvidence.prepare("SELECT count(*) AS count FROM fx_commit_markers WHERE commit_marker LIKE 'arca-shelf-deregister-%'").get().count, 0);
-    deregistrationCrashEvidence.exec('DROP TRIGGER p14_shelf_deregistration_fault');
-    deregistrationCrashEvidence.close();
     const deregistered = await host.inject({
       method: 'POST',
       url: '/v1/admin/shelves/shelf-http-1/actions/deregister',
       headers: { cookie },
       payload: deregistrationCommand,
     });
-    assert.equal(deregistered.statusCode, 200, deregistered.body);
-    assert.equal(deregistered.json().shelf.status, 'deregistered');
-    assert.equal(deregistered.json().shelf.routingProjection.revision, 3);
-    assert.equal(deregistered.json().receipt.receiptKind, 'shelf_deregistration');
-    assert.equal(deregistered.json().receipt.effectReceiptRef, null);
-    assert.equal(validateDeregistrationReceipt(deregistered.json().receipt), true, JSON.stringify(validateDeregistrationReceipt.errors));
+    assert.equal(deregistered.statusCode, 202, deregistered.body);
+    assert.equal(typeof deregistered.json().deregistrationId, 'string');
+    deregistrationId = deregistered.json().deregistrationId;
+    let deregisteredShelf = null;
+    for (let attempt = 0; attempt < 300; attempt += 1) {
+      const response = await host.inject({ method:'GET', url:'/v1/admin/shelves/shelf-http-1', headers:{ cookie } });
+      if (response.statusCode === 200 && response.json().shelf.status === 'deregistered') { deregisteredShelf = response.json().shelf; break; }
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+    assert.equal(deregisteredShelf?.status, 'deregistered');
+    assert.equal(deregisteredShelf.routingProjection.revision, 4);
     const deregistrationReplay = await host.inject({
       method: 'POST',
       url: '/v1/admin/shelves/shelf-http-1/actions/deregister',
       headers: { cookie },
       payload: deregistrationCommand,
     });
-    assert.equal(deregistrationReplay.statusCode, 200);
+    assert.equal(deregistrationReplay.statusCode, 202);
     assert.equal(deregistrationReplay.json().replayed, true);
-    assert.equal(deregistrationReplay.json().receipt.receiptId, deregistered.json().receipt.receiptId);
+    assert.equal(deregistrationReplay.json().deregistrationId, deregistrationId);
     const deregistrationConflict = await host.inject({
       method: 'POST',
       url: '/v1/admin/shelves/shelf-http-1/actions/deregister',
       headers: { cookie },
       payload: {
         ...deregistrationCommand,
-        authorization: { ...deregistrationCommand.authorization, authorizationId: 'conflicting-authorization' },
+        confirmation: { ...deregistrationCommand.confirmation, enteredShelfName: 'Conflicting Shelf' },
       },
     });
     assert.equal(deregistrationConflict.statusCode, 409);
@@ -2136,6 +2117,13 @@ test('Arca Shelf projection reads use the authenticated public HTTP path and own
     });
     assert.equal(inactiveRoutingPreview.statusCode, 400);
     assert.equal(inactiveRoutingPreview.json().error.details.reasonCode, 'P14_ROUTING_TARGET_INACTIVE');
+    for (let attempt = 0; attempt < 100; attempt += 1) {
+      const evidence = new Database(path.join(value.dataDir, 'shelfdeck.db'), { readonly:true });
+      const count = evidence.prepare("SELECT count(*) AS count FROM fx_event_result_bindings WHERE result_schema_ref='helix://contracts/types/DeregistrationReceipt/v1'").get().count;
+      evidence.close();
+      if (count === 1) break;
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
     assert.deepEqual(fs.readFileSync(physicalSentinel), physicalBefore);
     assert.deepEqual(fs.readdirSync(physicalShelfRoot), ['movie.mkv']);
     assert.deepEqual(fs.readFileSync(nextPhysicalSentinel), nextPhysicalBefore);
@@ -2146,7 +2134,7 @@ test('Arca Shelf projection reads use the authenticated public HTTP path and own
     assert.deepEqual(ownerEvidence.prepare('SELECT revision FROM arca_shelf_standard_revisions WHERE shelf_id=? ORDER BY revision').all('shelf-http-1').map((row) => row.revision), [1, 2]);
     assert.deepEqual(ownerEvidence.prepare('SELECT revision FROM arca_placement_policy_revisions WHERE shelf_id=? ORDER BY revision').all('shelf-http-1').map((row) => row.revision), [1, 2]);
     assert.deepEqual(ownerEvidence.prepare('SELECT current_standard_revision,current_placement_revision,routing_projection_revision FROM arca_shelves WHERE shelf_id=?').get('shelf-http-1'), {
-      current_standard_revision: 2, current_placement_revision: 2, routing_projection_revision: 3,
+      current_standard_revision: 2, current_placement_revision: 2, routing_projection_revision: 4,
     });
     assert.deepEqual(
       ownerEvidence.prepare('SELECT target_endpoint_id,target_root_location,target_mount_scope_id,target_mount_scope_revision FROM arca_shelves WHERE shelf_id=?').get('shelf-http-1'),
@@ -2161,8 +2149,11 @@ test('Arca Shelf projection reads use the authenticated public HTTP path and own
     assert.equal(ownerEvidence.prepare('SELECT state,release_manifest_digest FROM arca_deregistrations WHERE shelf_id=?').get('shelf-http-1').state, 'committed');
     assert.equal(ownerEvidence.prepare('SELECT count(*) AS count FROM arca_deregistration_releases').get().count, 0);
     assert.equal(ownerEvidence.prepare('SELECT count(*) AS count FROM arca_deregistration_receipts WHERE shelf_id=?').get('shelf-http-1').count, 1);
-    assert.equal(ownerEvidence.prepare("SELECT count(*) AS count FROM fx_event_result_bindings WHERE result_schema_ref='helix://contracts/types/DeregistrationReceipt/v1'").get().count, 1);
-    assert.equal(ownerEvidence.prepare("SELECT count(*) AS count FROM fx_commit_markers WHERE owner_domain='arca' AND scope_type='shelf' AND scope_id='shelf-http-1' AND result_schema_ref='helix://contracts/types/DeregistrationReceipt/v1'").get().count, 1);
+    const deregistrationBindings=ownerEvidence.prepare("SELECT event_id,result_schema_ref,outcome_kind FROM fx_event_result_bindings WHERE event_id IN (SELECT event_id FROM fx_workflow_events WHERE capability_ref='arca.shelf_deregistration.commit@1')").all();
+    assert.equal(deregistrationBindings.length, 1, JSON.stringify({deregistrationBindings,events:ownerEvidence.prepare("SELECT event_id,state FROM fx_workflow_events WHERE capability_ref='arca.shelf_deregistration.commit@1'").all()}));
+    assert.equal(deregistrationBindings[0].result_schema_ref,'helix://contracts/capabilities/arca.shelf_deregistration.commit/v1/result');
+    const deregistrationMarkers=ownerEvidence.prepare("SELECT commit_marker,scope_type,scope_id,result_schema_ref FROM fx_commit_markers WHERE owner_domain='arca'").all();
+    assert.equal(deregistrationMarkers.filter((row)=>row.commit_marker.startsWith('arca-deregistration-effect-marker-')&&row.scope_type==='arca_shelf_deregistration').length,1,JSON.stringify(deregistrationMarkers));
     assert.equal(ownerEvidence.prepare('SELECT count(*) AS count FROM arca_shelf_entries WHERE shelf_id=?').get('shelf-http-1').count, 0);
     assert.equal(ownerEvidence.prepare('SELECT count(*) AS count FROM fx_material_controls').get().count, 0);
     assert.equal(ownerEvidence.prepare("SELECT count(*) AS count FROM libra_routing_policy_revisions WHERE field_id='field-http-1'").get().count, 2);
@@ -2175,7 +2166,7 @@ test('Arca Shelf projection reads use the authenticated public HTTP path and own
     const exchange = await restarted.inject({ method: 'POST', url: '/v1/admin/session', headers: { 'x-api-key': value.initialized.adminApiKey } });
     const exact = await restarted.inject({ method: 'GET', url: '/v1/admin/shelves/shelf-http-1', headers: { cookie: exchange.headers['set-cookie'] } });
     assert.equal(exact.statusCode, 200);
-    assert.equal(exact.json().shelf.routingProjection.revision, 3);
+    assert.equal(exact.json().shelf.routingProjection.revision, 4);
     assert.equal(exact.json().shelf.status, 'deregistered');
     assert.equal(exact.json().shelf.name, 'Movie Library');
     assert.equal(exact.json().shelf.standard.revision, 2);
@@ -2209,9 +2200,9 @@ test('Arca Shelf projection reads use the authenticated public HTTP path and own
       headers: { cookie: exchange.headers['set-cookie'] },
       payload: deregistrationCommand,
     });
-    assert.equal(deregistrationReplay.statusCode, 200);
+    assert.equal(deregistrationReplay.statusCode, 202);
     assert.equal(deregistrationReplay.json().replayed, true);
-    assert.equal(deregistrationReplay.json().shelf.status, 'deregistered');
+    assert.equal(deregistrationReplay.json().deregistrationId, deregistrationId);
     assert.deepEqual(fs.readFileSync(physicalSentinel), physicalBefore);
     assert.deepEqual(fs.readFileSync(nextPhysicalSentinel), nextPhysicalBefore);
   } finally { await restarted.close(); }

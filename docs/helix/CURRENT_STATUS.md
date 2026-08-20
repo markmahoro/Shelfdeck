@@ -1,8 +1,32 @@
 # ShelfDeck Clean Helix Current Status
 
-Status: Movie Procurement与Movie Libra封口保持有效；Movie Arca已完成Handoff B Acceptance、On-deck、Shelf Entry、Deck Fact、Beta Aftercare及Off-deck完整闭环。当前精确状态为`MOVIE COLLECTION LIFECYCLE READY THROUGH OFF-DECK / AWAITING SHELF DEREGISTRATION`；Shelf Deregistration与生产部署尚未开始。
+Status: Movie Procurement与Movie Libra封口保持有效；Movie Arca已完成Handoff B Acceptance、On-deck、Shelf Entry、Deck Fact、Beta Aftercare、Off-deck及Shelf Deregistration完整闭环。当前精确状态为`MOVIE COLLECTION LIFECYCLE READY THROUGH SHELF DEREGISTRATION`；本地Movie生命周期已经最终封口，生产部署尚未开始。
 
-Last updated: 2026-08-15
+Last updated: 2026-08-20
+
+## 0. Completed implementation — Arca Shelf Deregistration
+
+- 现有Admin Shelf注销route已改为正式异步Intent：精确确认和revision fence成立后立即把Shelf置为`deregistering`并返回`202`；
+  后台由薄Coordinator推进责任排空、Manifest Freeze、每100项一页的Verification Work和唯一Terminal Commit Work。
+- Release Manifest不再内联4096/50000项Material数组。`arca_deregistration_releases`持久保存全部Manifest revision成员；10,003项
+  非空Shelf实测形成101页，Plan/Result保持紧凑，整座Shelf无Material总数上限。Related/Artifact reference-only成员不触发虚假Control release。
+- Terminal Capability只申请`sqlite_write + control_commit`，Page Verification只申请`control_plane`；全链Volume Permit为0。最终事务原子释放
+  精确Control、终结Shelf Entry和Deck Fact、更新Shelf与Receipt/Outbox。Target Folder与所有文件保持原样。
+- 已Accepted On-deck、已授权Off-deck和Aftercare安全边界已接通；未授权Reservation自动释放。Aftercare必须先由独立Workspace reclaim Work
+  完成settlement，Case才可invalidated。Control release通过分页durable Signal触发Procurement精确Material-local Eligibility reconcile。
+- Startup Recovery实测在Manifest/Work执行中关闭进程后，使用同一clean数据库恢复且不重复Page Result、terminal Event、Receipt或Control release。
+  `deregistering|deregistered` Shelf在Routing、Acceptance、Standard/Placement和Collection当前Projection中均不再被视为active。
+- Admin Web“收藏架”已接入强确认、责任数量、phase/Page进度及只读历史；“我的收藏”增加当前/历史筛选。没有新增页面或Admin route。
+- 聚焦回归24/24；完整服务回归245 pass、17个显式环境skip、0 fail；完整Architecture Gate为162个test file、1056 pass、7 skip、
+  0 fail；Admin Web production build通过。机器合同为112/98/180/43/115，UI Surface 17；P2 aggregate为
+  `21942ef67403a4658f101966e6ea232ee9872e3add684e7842e7e1ef59dc308a`，SSOT source-map aggregate为
+  `3fde8cbfa5779c48ec15d1441b7cf2ea21779151c3da02d2f4d345ed6cc4f927`，manifest aggregate为
+  `64e0eefa999513a01804776951b11137c64913c9f1cb5ba1a20020f0fcdd6846`，DDL digest为
+  `78075366b3409916b8f8c6fcd3c0786daa5e45bab82f59ba83d91a2663689119`。
+- 保留E2E资产：`C:\Users\markm\AppData\Local\Temp\helix-shelf-deregistration-aC8Nd7`；重启恢复数据库：
+  `C:\Users\markm\AppData\Local\Temp\helix-shelf-deregistration-8hH1Vk\data\shelfdeck.db`。普通Primary/NFO/Poster/字幕与
+  BDMV/CERTIFICATE共9项代表文件的注销前后Reality digest均为
+  `31ddfb4ec9ceb37f7cba6e55267f55ddd262bf59bbba7ac7c44b949af7a2651d`。未访问`Z:\Film`，未使用Docker/NAS。
 
 ## 0. Completed implementation — Arca Off-deck
 
