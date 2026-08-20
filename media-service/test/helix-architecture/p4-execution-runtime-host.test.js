@@ -219,6 +219,34 @@ test('startup applies classified recovery actions before enabling ordinary Work 
   await host.stop();
 });
 
+test('a transient recovery invocation failure stays in the safety lane without denying ordinary service supply', async () => {
+  const errors=[];
+  let recoveryCalls=0;
+  const host=createExecutionRuntimeHost({
+    tickIntervalMs:60000,maxActionsPerTick:1,recoveryRetryMs:10,
+    startupRecovery:{async recover(){return {state:'recovering',normalSupplyAllowed:false,findings:[],
+      actions:[{eventId:'event-recovery',effectId:'effect-recovery',decision:'safe_retry'}]};}},
+    scheduler:{acquire(){return {kind:'idle'};},release(){}},
+    plannerRegistry:{resolve(){}},planPublisher:{publish(){}},
+    workLifecycle:{ensurePlanningAttempt(){},startPlanned(){},aggregateEvent(){return {
+      attemptTerminal:false,workTerminal:false,replayed:false,
+    };},settleWork(){}},
+    eventRuntime:{async recover(){recoveryCalls+=1;if(recoveryCalls===1)throw new Error('provider temporarily unavailable');
+      return {kind:'succeeded'};},async run(){}},
+    domainReconciler:{reconcile(){}},fallbackReconciler:{async start(){},async stop(){}},
+    onError(error){errors.push(error);},
+  });
+  const started=await host.start();
+  assert.equal(started.state,'ready');
+  assert.equal(host.activity().deferredRecoveryActions,1);
+  assert.equal(errors.length,1);
+  await new Promise((resolve)=>setTimeout(resolve,15));
+  await host.drainOnce();
+  assert.equal(recoveryCalls,2);
+  assert.equal(host.activity().deferredRecoveryActions,0);
+  await host.stop();
+});
+
 test('planner throw stays Work-local and does not fault the Runtime Host', async () => {
   const errors = [];
   let workAvailable = true;

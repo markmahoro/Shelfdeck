@@ -35,6 +35,14 @@ set. Repeated fact changes may lawfully replace multiple pre-effect Works, but m
 loop once the inputs become stable. This is Owner-local replacement using the existing Foundation state machine; it
 does not authorize a second identity, dual-read contract or global Runtime fallback.
 
+Startup Recovery keeps unresolved non-pure Effects in a dedicated safety-first recovery lane. A transient Provider,
+network or Resource failure while replaying one exact classified recovery action must retain that action and its
+Effect/Attempt identity for bounded retry; it must not discard the Effect, create a second Attempt, or hold a Permit
+between retries. Such a Process-local deferred recovery does not deny the Admin surface or unrelated ordinary supply.
+The recovery lane is checked before new Work/Event supply on every eligible Runtime tick, and a restart reconstructs
+the same action from durable facts. Integrity, catalog, fence, cardinality or unknown-contract findings remain global
+startup blockers and cannot be downgraded to deferred recovery.
+
 ### User Perception and Acceptance Spec product amendment (2026-08-12)
 
 The first user-visible rating target is a Libra Subject after Handoff A Accepted; after On-deck Commit, an active

@@ -30,10 +30,12 @@ function createExecutionRuntimeHost(options) {
   const maxActionsPerTick = options.maxActionsPerTick === undefined ? 16 : options.maxActionsPerTick;
   const maxInFlightEvents = options.maxInFlightEvents === undefined ? 16 : options.maxInFlightEvents;
   const leaseHeartbeatMs = options.leaseHeartbeatMs === undefined ? 1000 : options.leaseHeartbeatMs;
+  const recoveryRetryMs = options.recoveryRetryMs === undefined ? 30000 : options.recoveryRetryMs;
   if (!Number.isSafeInteger(tickIntervalMs) || tickIntervalMs < 10 || tickIntervalMs > 60000 ||
       !Number.isSafeInteger(maxActionsPerTick) || maxActionsPerTick < 1 || maxActionsPerTick > 256 ||
       !Number.isSafeInteger(maxInFlightEvents) || maxInFlightEvents < 1 || maxInFlightEvents > 256 ||
-      !Number.isSafeInteger(leaseHeartbeatMs) || leaseHeartbeatMs < 10 || leaseHeartbeatMs > 30000) {
+      !Number.isSafeInteger(leaseHeartbeatMs) || leaseHeartbeatMs < 10 || leaseHeartbeatMs > 30000 ||
+      !Number.isSafeInteger(recoveryRetryMs) || recoveryRetryMs < 10 || recoveryRetryMs > 300000) {
     fail('P4_EXECUTION_HOST_LIMITS_INVALID', 'Execution Runtime Host tick limits are invalid.');
   }
   let state = 'created';
@@ -43,6 +45,7 @@ function createExecutionRuntimeHost(options) {
   let lastRecovery = null;
   let firstFault = null;
   const inFlightEvents = new Map();
+  const deferredRecoveries = new Map();
 
   async function reconcileTerminal(aggregation) {
     if (!aggregation?.attemptTerminal || aggregation.replayed) return;
@@ -197,9 +200,36 @@ function createExecutionRuntimeHost(options) {
     return Object.freeze({ kind:'idle' });
   }
 
+  async function drainOneDeferredRecovery() {
+    const current = Date.now();
+    const pending = [...deferredRecoveries.values()]
+      .sort((left, right) => left.retryAtMs - right.retryAtMs || left.action.eventId.localeCompare(right.action.eventId))
+      .find((item) => item.retryAtMs <= current);
+    if (!pending) return Object.freeze({ kind:'idle' });
+    pending.retryAtMs = current + recoveryRetryMs;
+    try {
+      const recovered = await options.eventRuntime.recover(pending.action);
+      if (!recovered || recovered.kind === 'recovery_deferred') return Object.freeze({
+        kind:'recovery_deferred', eventId:pending.action.eventId,
+      });
+      deferredRecoveries.delete(pending.action.eventId);
+      const aggregation = options.workLifecycle.aggregateEvent(pending.action.eventId);
+      await reconcileTerminal(aggregation);
+      return Object.freeze({ kind:'recovery_advanced', eventId:pending.action.eventId });
+    } catch (error) {
+      if (typeof options.onError === 'function') options.onError(error);
+      return Object.freeze({ kind:'recovery_deferred', eventId:pending.action.eventId, error });
+    }
+  }
+
   async function drainOnce() {
     if (!['ready', 'draining'].includes(state)) return Object.freeze({ kind: 'inactive', state });
-    let work; let event; let owner;
+    let recovery; let work; let event; let owner;
+    try { recovery = await drainOneDeferredRecovery(); }
+    catch (error) {
+      if (typeof options.onError === 'function') options.onError(error);
+      recovery = Object.freeze({ kind:'recovery_deferred', error });
+    }
     try { work = await drainOneWork(); }
     catch (error) {
       if (typeof options.onError === 'function') options.onError(error);
@@ -215,9 +245,9 @@ function createExecutionRuntimeHost(options) {
       if (typeof options.onError === 'function') options.onError(error);
       owner = Object.freeze({ kind: 'owner_faulted', error });
     }
-    const advanced=work.kind==='work_planned'||event.kind==='event_launched'||owner.kind==='owner_reconciled';
+    const advanced=recovery.kind==='recovery_advanced'||work.kind==='work_planned'||event.kind==='event_launched'||owner.kind==='owner_reconciled';
     return Object.freeze({ kind:advanced?'advanced':'idle',
-      work, event, owner });
+      recovery, work, event, owner });
   }
 
   async function tick() {
@@ -265,14 +295,27 @@ function createExecutionRuntimeHost(options) {
           'P4_EXECUTION_HOST_RECOVERY_ACTION_BLOCKED', 'Startup recovery actions did not converge within the bounded recovery sweep.',
           { recovery: lastRecovery, recoveryPass }
         );
+        let deferred = false;
         for (const action of lastRecovery.actions) {
-          const recovered = await options.eventRuntime.recover(action);
-          if (!recovered || recovered.kind === 'recovery_deferred') fail(
-            'P4_EXECUTION_HOST_RECOVERY_RESOURCE_BLOCKED', 'Startup recovery could not acquire its complete Resource Permit bundle.',
-            { action, recovered }
-          );
-          const aggregation = options.workLifecycle.aggregateEvent(action.eventId);
-          await reconcileTerminal(aggregation);
+          try {
+            const recovered = await options.eventRuntime.recover(action);
+            if (!recovered || recovered.kind === 'recovery_deferred') {
+              deferredRecoveries.set(action.eventId, { action, retryAtMs:Date.now() + recoveryRetryMs });
+              deferred = true;
+              continue;
+            }
+            const aggregation = options.workLifecycle.aggregateEvent(action.eventId);
+            await reconcileTerminal(aggregation);
+          } catch (error) {
+            deferredRecoveries.set(action.eventId, { action, retryAtMs:Date.now() + recoveryRetryMs });
+            deferred = true;
+            if (typeof options.onError === 'function') options.onError(error);
+          }
+        }
+        if (deferred) {
+          lastRecovery = Object.freeze({ ...lastRecovery, normalSupplyAllowed:true,
+            deferredRecoveryActions:deferredRecoveries.size });
+          break;
         }
         lastRecovery = await options.startupRecovery.recover();
       }
@@ -302,7 +345,8 @@ function createExecutionRuntimeHost(options) {
       state = 'stopped';
       return Object.freeze({ state, fault:firstFault });
     },
-    activity(){return Object.freeze({state,inFlightEvents:inFlightEvents.size,maxInFlightEvents,faulted:firstFault!==null});},
+    activity(){return Object.freeze({state,inFlightEvents:inFlightEvents.size,maxInFlightEvents,
+      deferredRecoveryActions:deferredRecoveries.size,faulted:firstFault!==null});},
   });
 }
 
