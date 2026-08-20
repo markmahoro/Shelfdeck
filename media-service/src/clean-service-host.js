@@ -1376,7 +1376,6 @@ async function createCleanServiceHost(options) {
     sessionTokens,
     executionRuntimeHost,
   });
-  await application.start();
 
   const server = Fastify({ logger: false, trustProxy: false });
   await server.register(fastifyStatic, {
@@ -1424,7 +1423,17 @@ async function createCleanServiceHost(options) {
   try {
     await server.ready();
   } catch (error) {
+    constructed.close();
+    throw error;
+  }
+  try {
+    // Build the complete HTTP surface before normal Work supply starts. A
+    // recovered live backlog may keep the event loop busy, but it must not
+    // consume Fastify's bounded plugin-registration window.
+    await application.start();
+  } catch (error) {
     await application.stop();
+    await server.close();
     constructed.close();
     throw error;
   }
