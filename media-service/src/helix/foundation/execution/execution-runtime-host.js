@@ -132,6 +132,7 @@ function createExecutionRuntimeHost(options) {
           plan.diagnosticClassification);
         await reconcileTerminal({ attemptTerminal: ['succeeded', 'failed', 'cancelled'].includes(started.attemptState),
           replayed: started.replayed, attemptId: activation.attempt.attempt_id, attemptState: started.attemptState,
+          attemptFailureCode: started.attemptFailureCode || null,
           work: Object.freeze({ ...activation.work, state: started.state }) });
         return Object.freeze({ kind: 'work_planned', workId: activation.work.work_id, attemptId: activation.attempt.attempt_id,
           planId: published.planId, resolution: published.resolution });

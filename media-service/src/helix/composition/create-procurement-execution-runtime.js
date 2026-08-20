@@ -613,6 +613,10 @@ function createProcurementExecutionRuntime(options) {
       return {workId:request.workId,disposition:request.workAttemptState};
     }
     if(request.ownerDomain==='libra'&&request.processType==='libra_acceptance_spec'){
+      if(request.workAttemptState==='failed'&&request.workAttemptFailureCode==='P8_ACCEPTANCE_SPEC_PLANNING_BASIS_STALE'){
+        libraProcessServices.acceptanceSpecCoordinator.reconcile(request.processId);
+        return {workId:request.workId,disposition:'failed'};
+      }
       if(request.workAttemptState==='succeeded'){
         const spec=libraProcessServices.acceptanceSpecCoordinator.reconcile(request.processId);
         if(spec.kind==='terminal'){

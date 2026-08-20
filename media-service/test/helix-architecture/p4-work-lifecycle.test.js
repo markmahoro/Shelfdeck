@@ -121,6 +121,7 @@ test('contract-unplannable Work persists its stable Planner diagnostic on the te
   const started = lifecycle.startPlanned('work-1', activation.attempt.attempt_id,
     'candidate_disposition_scope_unrepresentable');
   assert.equal(started.attemptState, 'failed');
+  assert.equal(started.attemptFailureCode, 'candidate_disposition_scope_unrepresentable');
   assert.deepEqual(read(databasePath, 'SELECT state,failure_code FROM fx_work_attempts WHERE attempt_id=?', activation.attempt.attempt_id),
     { state:'failed', failure_code:'candidate_disposition_scope_unrepresentable' });
 }));

@@ -184,7 +184,8 @@ function createWorkLifecycle(options) {
       }).changes !== 1 || works.invoke('transition', {
         work_id: workId, state: workState, updated_at_ms: context.commitTimeMs, expected_state: 'ready',
       }).changes !== 1) fail('P4_WORK_START_CAS', 'Work start fence changed.');
-      return Object.freeze({ workId, attemptId, state: workState, attemptState, resolution: plan.state, replayed: false });
+      return Object.freeze({ workId, attemptId, state: workState, attemptState,
+        attemptFailureCode: failureCode, resolution: plan.state, replayed: false });
     });
   }
 

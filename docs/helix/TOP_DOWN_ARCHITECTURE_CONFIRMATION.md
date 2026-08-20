@@ -20,6 +20,21 @@ Mirex、Kairox Classic、历代Helix文档、现有实现和此前对话只作�
 被取代的旧Helix合同保存在`docs/helix/archive/`，只作为历史证据，不再
 与本文竞争架构优先级。本文当前仍处于Design阶段，不授权代码实施、数据迁移、E2E或生产部署。
 
+### Live-data planning-basis replacement amendment (2026-08-21)
+
+An admitted Supporting Work freezes one exact execution Basis. If the owning Domain's current facts change before its
+immutable Plan is published, that old Work is not allowed to throw outside the durable planning contract or remain in
+an unbounded planning retry loop. Its Planner must publish a zero-node `contract_unplannable` Plan carrying a stable
+Domain diagnostic. Foundation persists the terminal Attempt and Work, including that diagnostic, before invoking the
+exact Owner Process reconcile. The Owner may then issue a new deterministic Work for the current Basis. The old Work,
+Plan and Attempt remain immutable history; no Capability, media effect or Permit may be created from the stale Basis.
+
+For Libra Acceptance Spec the diagnostic is `P8_ACCEPTANCE_SPEC_PLANNING_BASIS_STALE`. Reconciliation creates a new
+Acceptance Spec Basis Work only when current Routing, Perception Resolution and Shelf Standard facts form a ready input
+set. Repeated fact changes may lawfully replace multiple pre-effect Works, but must always converge without Runtime hot
+loop once the inputs become stable. This is Owner-local replacement using the existing Foundation state machine; it
+does not authorize a second identity, dual-read contract or global Runtime fallback.
+
 ### User Perception and Acceptance Spec product amendment (2026-08-12)
 
 The first user-visible rating target is a Libra Subject after Handoff A Accepted; after On-deck Commit, an active
