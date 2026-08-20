@@ -365,13 +365,17 @@ test('clean host serves public health and Admin UI, then requires API key or Htt
     assert.equal(apiClient.statusCode, 200);
     assert.equal(apiClient.json().credentialConfigured, true);
 
-    const failClosed = await host.inject({
+    const overview = await host.inject({
       method: 'GET',
       url: '/v1/admin/overview',
       headers: { cookie },
     });
-    assert.equal(failClosed.statusCode, 503);
-    assert.equal(failClosed.json().error.code, 'CLEAN_FACADE_NOT_IMPLEMENTED');
+    assert.equal(overview.statusCode, 200);
+    assert.deepEqual(overview.json().metrics.map((item) => item.value), [0, 0, 0, 0]);
+    assert.deepEqual(overview.json().setup, {
+      activeMaterialFieldCount: 0,
+      activeShelfCount: 0,
+    });
 
     const legacy = await host.inject({ method: 'GET', url: '/v1/admin/tasks', headers: { cookie } });
     assert.equal(legacy.statusCode, 404);

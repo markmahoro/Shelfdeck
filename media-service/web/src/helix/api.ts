@@ -258,6 +258,13 @@ export type IntegrationState = {
   } | null;
 };
 
+export type OverviewProjection = {
+  generatedAt: string;
+  metrics: Array<{ key:string; label:string; value:number; note:string }>;
+  setup: { activeMaterialFieldCount:number; activeShelfCount:number };
+  ledger: Array<{ key:string; label:string; value:number }>;
+};
+
 export type FormationSummary = {
   totalCount: number;
   waitingCount: number;
@@ -320,6 +327,9 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
 export const helixAdminApi = {
   createSession(apiKey: string) {
     return request<void>('/v1/admin/session', { method: 'POST', headers: { 'x-api-key': apiKey } });
+  },
+  getOverview() {
+    return request<OverviewProjection>('/v1/admin/overview');
   },
   listMaterialFields() {
     return request<{ items: MaterialField[] }>('/v1/admin/material-fields');

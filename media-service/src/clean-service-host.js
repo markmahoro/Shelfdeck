@@ -10,6 +10,7 @@ const routeRegistry = require('./helix/composition/admin-route-registry');
 const { canonicalDigest } = require('./helix/contracts/canonical-json');
 const { createHelixApplication } = require('./helix/composition/createHelixApplication');
 const { createCleanFacades } = require('./helix/composition/create-clean-facades');
+const { createOverviewQuery } = require('./helix/projections/overview-query');
 const {
   createIntegrationAdminApplication,
   createPlatformIntegrationRuntime,
@@ -1373,17 +1374,27 @@ async function createCleanServiceHost(options) {
     requestAcquisition(body) { const result=procurementExecution.perception.requestAcquisition(body); executionRuntimeHost.wake(); return result; },
     syncState() { const items=procurementExecution.perception.listAcquisitions();return Object.freeze({latest:items[0]||null,activeCount:items.filter((item)=>item.state==='active').length}); },
   });
+  const procurementAdmin = createProcurementAdminApplication({
+    ...constructed.applicationDependencies,
+    materialFieldStore,
+    executionRuntimeHost,
+    assertLocationAvailable: (request) =>
+      platformIntegrations.assertExternalLandingRootAvailable(request),
+  });
+  const overviewQuery = createOverviewQuery({
+    readMaterialFields: () => procurementAdmin.listMaterialFields(),
+    readShelves: () => arcaShelfAdmin.listShelves(),
+    readFormation: () => formationQuery.list({ section:'active', limit:25 }),
+    readCollection: () => arcaCollectionQuery.list(),
+    readOffdeck: () => arcaOffdeck.candidates(),
+    now: options.now || Date.now,
+  });
   const facades = createCleanFacades({
     sessionTokens,
     readiness,
     credentialMetadata: runtime.readActiveCredential,
-    procurementAdmin: createProcurementAdminApplication({
-      ...constructed.applicationDependencies,
-      materialFieldStore,
-      executionRuntimeHost,
-      assertLocationAvailable: (request) =>
-        platformIntegrations.assertExternalLandingRootAvailable(request),
-    }),
+    overviewQuery,
+    procurementAdmin,
     arcaShelfAdmin,
     arcaRuleTemplateAdmin,
     libraRoutingAdmin,

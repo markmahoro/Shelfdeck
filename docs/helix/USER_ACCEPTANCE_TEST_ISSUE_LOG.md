@@ -1,6 +1,6 @@
 # Helix用户侧测试待修复问题台账
 
-状态：`USER-SIDE TESTING IN PROGRESS / ISSUES DEFERRED FOR CONSOLIDATED REVIEW`
+状态：`MOVIE CANARY USER UAT IN PROGRESS / DIRECT FIX AND COMMIT AUTHORIZED`
 
 建立日期：2026-08-20
 
@@ -34,7 +34,7 @@ Helix主体开发已经完成，Movie从Procurement、Libra到Arca及Shelf Dereg
 
 本文统一记录这一阶段发现的待修复问题，作为后续集中复盘、Design Return、修复排序和回归验收的工作基线。
 
-本文不是Architecture SSOT，不替代`CURRENT_PLAN.md`，也不表示记录后立即修改运行中的系统。测试期间发现的问题先保留现场证据、影响和初步诊断；待本轮用户侧测试结束后统一确认修复范围。
+本文不是Architecture SSOT，不替代`CURRENT_PLAN.md`。历史UAT问题仍保留原有处理状态；2026-08-21 Movie Canary真实用户UAT期间，用户已授权在不改变已确认架构边界的前提下直接修复、页面复测并为每项修复建立独立Git回滚点。
 
 记录原则：
 
@@ -71,6 +71,25 @@ Helix主体开发已经完成，Movie从Procurement、Libra到Arca及Shelf Dereg
 | UAT-003 | Libra Run在Product Identity阶段大量等待 | `BUSINESS_CONTRACT` | `EXTERNAL_INTEGRATION`、`DOMAIN_ORCHESTRATION` | Libra Product Identity + TMDB Evidence | 正确性、活性 | Critical | 已诊断，1条继续推进，其余等待统一复盘修复 |
 | UAT-004 | 大型Workspace媒体完整SHA-256导致无必要的全文件读取 | `BUSINESS_CONTRACT` | `PERFORMANCE`、`USER_EXPERIENCE` | Libra Workspace Material + Handoff B/Arca Inventory媒体完整性合同 | I/O、CPU、交付延迟 | High | 已诊断并确认方向，待SSOT统一修订 |
 | UAT-005 | Libra Admin Web使用内部对象语言且不能直观表达媒体整理过程 | `USER_EXPERIENCE` | `PROJECTION_FRESHNESS` | Admin Web Formation Projection + Libra公开状态翻译 | 可理解性、可观察性 | High | 已讨论并确认页面重构方向 |
+| UAT-006 | clean库概览仍展示固定演示数字并绕过管理会话 | `USER_EXPERIENCE` | `PROJECTION_FRESHNESS` | Overview Query Projection + Admin Web | 正确性、可信度、安全会话 | Critical | 已修复并完成真实页面复测 |
+
+## 2.1 UAT-006：概览展示固定演示数字
+
+发现于2026-08-21 Movie Canary真实用户UAT Preflight。全新clean库经只读验证为0 Field、0 Shelf、0 Subject、0 Entry，
+但浏览器首次打开“概览”仍显示正式收藏2,430、本月新上架86、健康收藏2,105、需要处理7；直接刷新后结果不变，Console无报错。
+
+精确根因有两部分：
+
+1. `GET /v1/admin/overview`虽已进入正式Route Inventory，但`OverviewQueryFacade.get_overview`仍落到
+   `CLEAN_FACADE_NOT_IMPLEMENTED`；
+2. Admin Web的概览继续使用`surface-model.ts`固定演示数字，因此完全绕过Admin Session和真实Read Model。
+
+修复保持Read-model Owner边界：新增Overview只读Projection，只聚合Procurement、Libra与Arca的正式Application Query；
+HTTP adapter和前端均不读取Repository/SQLite。概览页面改为先建立本机Admin Session，再读取正式Overview API，并提供用户显式刷新。
+
+修复验证：相关服务合同22 pass、3个既有显式skip、0 fail；Admin Web production build通过；同一clean UAT库重启服务后，
+真实浏览器登录、首次读取与直接刷新均显示4项指标为0、0个活动文件来源、0个活动收藏架，与数据库现实一致且无Console error。
+修复与本条Evidence由同一Git commit固化。
 
 ## 3. UAT-001：豆瓣评分匹配率偏低
 

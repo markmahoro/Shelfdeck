@@ -71,6 +71,11 @@ function createCleanFacades(options) {
       },
     };
   };
+  if (options.overviewQuery) {
+    facades.OverviewQueryFacade.get_overview = async () => ({
+      body: options.overviewQuery.get(),
+    });
+  }
   if (options.platformIntegrationAdmin) {
     facades.PlatformAdminFacade.get_settings_integrations_kind =
       async (input) => ({
