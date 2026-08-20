@@ -85,7 +85,7 @@ function buildLibraBindingDraft(snapshot,decision,producedAtMs){
     candidateDeliverySnapshotDigest:snapshot.deliverySnapshotDigest,items:bindings});
   const value={schemaRef:BINDING_SCHEMA,schemaVersion:1,draftId:canonicalDigest({schema:'libra.binding-draft-id@1',
     intakeDecisionId:decision.decisionId}),draftKind:'libra_material_binding',basisDigest:decision.decisionDigest,draftDigest:bindingSetDigest,
-    producedAtMs,subjectRef,candidateDeliverySnapshotDigest:snapshot.deliverySnapshotDigest,bindings,bindingSetDigest};
+    producedAtMs,subjectRef,resolutionDecision:decision,candidateDeliverySnapshotDigest:snapshot.deliverySnapshotDigest,bindings,bindingSetDigest};
   bounded(value,8*1024*1024,'P8_BINDING_DRAFT_TOO_LARGE');return freeze(value);
 }
 
@@ -104,6 +104,7 @@ function buildAcceptedIntakePayload({snapshot,decision,bindingDraft,candidateVer
   validateDecision(snapshot,decision);assertVerification(candidateVerification,snapshot,'candidate');assertVerification(materialVerification,snapshot,'material');
   const target=subjectId(decision);
   if(!bindingDraft||bindingDraft.bindingSetDigest!==bindingDraft.draftDigest||bindingDraft.basisDigest!==decision.decisionDigest||
+      bindingDraft.resolutionDecision?.decisionDigest!==decision.decisionDigest||
       bindingDraft.subjectRef.subjectId!==target||bindingDraft.subjectRef.resolutionKind!==decision.result||
       bindingDraft.candidateDeliverySnapshotDigest!==snapshot.deliverySnapshotDigest){
     fail('P8_ACCEPTANCE_BINDING_LINK','Binding Draft must be derived from the exact Resolution and Delivery.');

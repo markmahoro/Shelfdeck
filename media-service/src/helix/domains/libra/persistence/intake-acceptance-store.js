@@ -419,13 +419,16 @@ function createIntakeAcceptanceStore(options) {
             throw new Replay(receiptFromRow(row, payload));
           }
           const head = s.invoke("find_head", { head_id: CONTINUITY_HEAD_ID });
+          const claimFreeNewSubject = decision.result === "new_subject" &&
+            decision.candidateContinuityClaims.length === 0 &&
+            decision.candidateEpisodeScope.episodeKeys.length === 0;
           if (
             !head ||
-            number(head.current_revision) !==
+            (!claimFreeNewSubject && (number(head.current_revision) !==
               decision.expectedContinuityHead.revision ||
             head.head_digest !== decision.expectedContinuityHead.digest ||
-            head.head_digest !==
-              continuityHeadDigest(number(head.current_revision))
+            head.head_digest !== continuityHeadDigest(number(head.current_revision)))) ||
+            (claimFreeNewSubject && head.head_digest !== continuityHeadDigest(number(head.current_revision)))
           )
             fail(
               "P8_ACCEPTANCE_GLOBAL_HEAD_CAS",
@@ -696,8 +699,8 @@ function createIntakeAcceptanceStore(options) {
               head_digest: continuityHeadDigest(headRevision),
               updated_at_ms: at,
               head_id: CONTINUITY_HEAD_ID,
-              expected_revision: decision.expectedContinuityHead.revision,
-              expected_digest: decision.expectedContinuityHead.digest,
+              expected_revision: number(head.current_revision),
+              expected_digest: head.head_digest,
             }).changes !== 1
           )
             fail(

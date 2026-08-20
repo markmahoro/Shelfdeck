@@ -6,7 +6,8 @@ const path = require('node:path');
 const RAW_SQL_FILES = new Set([
   'foundation/persistence/ddl-compiler.js',
   'foundation/persistence/owner-repository.js',
-  'foundation/persistence/sqlite-kernel.js'
+  'foundation/persistence/sqlite-kernel.js',
+  'foundation/persistence/uat-identity-selection-migration.js'
 ]);
 
 function files(rootPath) {

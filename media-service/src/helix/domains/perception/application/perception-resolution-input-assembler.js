@@ -1,6 +1,7 @@
 'use strict';
 
 const { canonicalDigest, canonicalJson } = require('../../../contracts/canonical-json');
+const { deriveTitleYearEvidence } = require('../model/perception-aliases');
 
 class PerceptionResolutionInputError extends Error {
   constructor(code, message, details = {}) { super(message); this.name = 'PerceptionResolutionInputError'; this.code = code; this.details = details; }
@@ -26,9 +27,16 @@ function createPerceptionResolutionInputAssembler(options) {
       const snapshot=options.store.readResolutionCandidates(query,ruleSnapshot);
       const records=snapshot.records.map((record)=>{
         const facts={}; if(record.rating!==null)facts.rating=record.rating; if(record.watchedState!==null)facts.watchedState=record.watchedState;
+        const identityAnchors=[...record.anchors];
+        for(const anchor of record.anchors.filter((item)=>item.anchorKind==='title_year')){
+          for(const alias of deriveTitleYearEvidence(anchor.anchorValue,{providerDelimited:record.sourceKind==='douban'})){
+            if(!identityAnchors.some((item)=>item.anchorKind==='title_year'&&item.anchorValue===alias.anchorValue))identityAnchors.push(alias);
+          }
+        }
+        identityAnchors.sort((left,right)=>left.anchorKind.localeCompare(right.anchorKind)||left.anchorValue.localeCompare(right.anchorValue));
         return { perceptionId:record.perceptionId, recordKind:record.recordKind, sourceKind:record.sourceKind,
           sourceRecordKey:record.sourceRecordKey, sourceRecordRevision:record.sourceRecordRevision, recordDigest:record.recordDigest,
-          facts, observedTitle:record.observedTitle, observedAtMs:record.observedAtMs, identityAnchors:record.anchors,
+          facts, observedTitle:record.observedTitle, observedAtMs:record.observedAtMs, identityAnchors,
           provenanceRef:record.provenanceRef, provenanceDigest:record.provenanceDigest };
       }).sort((left,right)=>left.perceptionId.localeCompare(right.perceptionId));
       const relations=[...snapshot.relations].sort((left,right)=>left.relationId.localeCompare(right.relationId));

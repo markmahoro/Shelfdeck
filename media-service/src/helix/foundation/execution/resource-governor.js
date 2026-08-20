@@ -293,6 +293,14 @@ function createResourceGovernor(options) {
     return Object.freeze({ updated: true, eventId: request.eventId });
   }
 
+  function abandon(eventId) {
+    if(typeof eventId!=='string'||!eventId)fail('P4_RESOURCE_ABANDON_EVENT_INVALID','Resource waiter abandonment requires an Event identity.');
+    if(eventPermits.has(eventId))fail('P4_RESOURCE_ABANDON_PERMITTED','A permitted Event must release its Permit instead of abandoning its waiter.');
+    waiters.delete(eventId);
+    const released=persistReleaseDefers(eventId);
+    return Object.freeze({eventId,released:released.released});
+  }
+
   async function withPermit(request, operation) {
     if (typeof operation !== 'function') fail('P4_RESOURCE_OPERATION_REQUIRED', 'Permit operation must be callable.');
     const acquired = acquire(request);
@@ -307,7 +315,7 @@ function createResourceGovernor(options) {
       queueSoftExceeded: waiters.size >= queueLimits.globalSoft });
   }
 
-  return Object.freeze({ acquire, release, snapshot, updateWaiterPriority, withPermit });
+  return Object.freeze({ abandon, acquire, release, snapshot, updateWaiterPriority, withPermit });
 }
 
 module.exports = Object.freeze({ BACKOFF_MS, DEFAULT_QUEUE_LIMITS, QUEUE_CLASSES, ResourceGovernorError, createResourceGovernor });

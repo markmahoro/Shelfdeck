@@ -44,7 +44,7 @@ function freeze(value) {
 function buildRuleSnapshot() {
   const body = {
     ruleContract: 'perception-resolution-beta',
-    ruleVersion: 1,
+    ruleVersion: 2,
     supportedFactKinds: ['rating', 'watched'],
     candidateRetrievalClauses: [
       { anchorKind: 'provider_identity', lookupMode: 'exact', maxCandidates: 256 },

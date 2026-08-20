@@ -9,6 +9,7 @@ const {
 const SUPPORTED_OPERATIONS = new Set([
   'shared.integration.search@1',
   'libra.routing.fact.observe@1',
+  'libra.product_identity.evidence.observe@1',
   'libra.product_metadata.fetch@1',
   'libra.product_artifact.acquire@1',
 ]);
@@ -708,18 +709,28 @@ function createTmdbProviderAdapter(options) {
         });
       }
 
-      if (request.operationId === 'libra.routing.fact.observe@1') {
-        exact(request.input, ['contentProfile', 'title', 'yearHint'], 'PLATFORM_TMDB_ROUTING_SHAPE');
+      if (request.operationId === 'libra.routing.fact.observe@1' ||
+          request.operationId === 'libra.product_identity.evidence.observe@1') {
+        exact(request.input, ['contentProfile', 'title', 'yearHint', 'strongProviderKey'], 'PLATFORM_TMDB_ROUTING_SHAPE');
         if (request.input.contentProfile !== 'movie' || typeof request.input.title !== 'string' ||
             !request.input.title.trim() || request.input.title.length > 512 ||
-            (request.input.yearHint !== null && (!Number.isSafeInteger(request.input.yearHint) || request.input.yearHint < 1800 || request.input.yearHint > 9999))) {
+            (request.input.yearHint !== null && (!Number.isSafeInteger(request.input.yearHint) || request.input.yearHint < 1800 || request.input.yearHint > 9999)) ||
+            (request.input.strongProviderKey !== null && !/^\d+$/.test(request.input.strongProviderKey))) {
           fail('PLATFORM_TMDB_ROUTING_INVALID', 'TMDB Routing observation input is invalid.');
         }
-        const result = await fetchJson(snapshot.endpoint, snapshot.secretKind, secretBytes, '/search/movie', {
-          timeoutMs: timeout(request.timeoutMs), query: { query: request.input.title.trim(), include_adult: 'false',
-            language: 'en-US', page: 1, ...(request.input.yearHint === null ? {} : { year: request.input.yearHint }) },
-        });
-        validateSearchResponse(result, true);
+        let result;
+        if (request.input.strongProviderKey !== null) {
+          const item = await fetchJson(snapshot.endpoint, snapshot.secretKind, secretBytes, '/movie/' + request.input.strongProviderKey, {
+            timeoutMs: timeout(request.timeoutMs), query: { language:'en-US' },
+          });
+          validateMetadataResponse(item); result = { results:[item] };
+        } else {
+          result = await fetchJson(snapshot.endpoint, snapshot.secretKind, secretBytes, '/search/movie', {
+            timeoutMs: timeout(request.timeoutMs), query: { query: request.input.title.trim(), include_adult: 'false',
+              language: 'en-US', page: 1, ...(request.input.yearHint === null ? {} : { year: request.input.yearHint }) },
+          });
+          validateSearchResponse(result, true);
+        }
         return Object.freeze(result.results.map((item) => Object.freeze({
           providerKey: String(item.id), title: item.title || '', originalTitle: item.original_title || '',
           releaseYear: typeof item.release_date === 'string' && /^\d{4}/.test(item.release_date) ? Number(item.release_date.slice(0, 4)) : null,

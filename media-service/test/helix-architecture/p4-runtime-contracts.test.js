@@ -43,7 +43,7 @@ test('runtime nominal states exactly match the frozen P2 table enums', () => {
   assert.deepEqual([...PLAN_RESOLUTIONS].sort(), tableStates('fx_workflow_plans', 'state').sort());
 });
 
-test('seven Effect Classes exactly match all 112 frozen Capability contracts', () => {
+test('seven Effect Classes exactly match all 113 frozen Capability contracts', () => {
   assert.deepEqual([...EFFECT_CLASSES].sort(), effectClassesFromCapabilityContracts());
   assert.equal(assertEffectClass('material_commit'), 'material_commit');
   assert.throws(() => assertEffectClass('generic_write'), (error) => error.code === 'P4_RUNTIME_UNKNOWN_EFFECT_CLASS');

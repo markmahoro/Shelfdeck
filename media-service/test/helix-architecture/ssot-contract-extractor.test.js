@@ -29,7 +29,7 @@ test('extracts the accepted P2 SSOT cardinalities with stable digests', () => {
 test('derives the Capability output families plus the canonical Outcome and Observation receipt families', () => {
   const result = extractSsotContracts(source);
   const outputs = new Set(result.capabilities.map((item) => item.outputFamily));
-  assert.equal(outputs.size, 96);
+  assert.equal(outputs.size, 97);
   assert.ok(result.resultFamilies.some((item) => item.id === 'CapabilityOutcome' && item.kind === 'outcome-envelope'));
   assert.ok(result.resultFamilies.some((item) => item.id === 'ObservationPageCommitReceipt'));
   for (const output of outputs) assert.ok(result.resultFamilies.some((item) => item.id === output), output);

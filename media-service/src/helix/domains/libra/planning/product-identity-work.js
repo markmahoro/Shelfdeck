@@ -2,8 +2,8 @@
 
 const { canonicalDigest } = require('../../../contracts/canonical-json');
 
-const ROUTING_FACT_RESULT =
-  'helix://contracts/capabilities/libra.routing.fact.observe/v1/result';
+const IDENTITY_EVIDENCE_RESULT =
+  'helix://contracts/capabilities/libra.product_identity.evidence.observe/v1/result';
 const IDENTITY_RESULT =
   'helix://contracts/capabilities/libra.product_identity.resolve/v1/result';
 
@@ -45,8 +45,11 @@ function definition(snapshot, stage, outputContractRef, dependencyRefs = [], sou
   });
 }
 
-function identityObservationWork(snapshot) {
-  return definition(snapshot, 'observation', ROUTING_FACT_RESULT);
+function identityObservationWork(snapshot, sourceKind = 'provider_search', source = null) {
+  if (!['related_nfo', 'provider_exact', 'provider_search'].includes(sourceKind)) {
+    throw new TypeError('Product Identity observation source kind is invalid.');
+  }
+  return definition(snapshot, 'observation_' + sourceKind, IDENTITY_EVIDENCE_RESULT, [], source);
 }
 
 function identityCommitWork(snapshot, source) {
@@ -54,7 +57,7 @@ function identityCommitWork(snapshot, source) {
       typeof source.resultDigest !== 'string') {
     throw new TypeError('Product Identity commit Work requires its exact observation Result.');
   }
-  const observation = identityObservationWork(snapshot);
+  const observation = Object.freeze({ workId:source.workId, executionBasisDigest:snapshot.run.executionBasisDigest });
   const dependency = Object.freeze({
     ownerDomain: 'libra',
     objectType: 'supporting_work',
@@ -67,7 +70,7 @@ function identityCommitWork(snapshot, source) {
 
 module.exports = Object.freeze({
   IDENTITY_RESULT,
-  ROUTING_FACT_RESULT,
+  IDENTITY_EVIDENCE_RESULT,
   identityCommitWork,
   identityObservationWork,
 });

@@ -353,14 +353,14 @@ function buildProductFactSourceRefs(value) {
         basis.sourceBasisDigest!==value.resolvedProductIdentity?.basisDigest)
       fail('P9_PRODUCT_FACT_SOURCE_BASIS','Resolved Identity Decision Evidence basis is invalid.');
     const {result}=exactResultChain(chain,ref,{libraRunId:basis.libraRunId,
-      capabilityRef:'libra.routing.fact.observe@1',
-      resultContractRef:capabilityResultRef('libra.routing.fact.observe@1'),
-      typedResultSchemaRef:'helix://contracts/types/RoutingFactObservation/v1'});
-    const providerFacts=(result.facts||[]).filter((item)=>item.factKind==='resolved_provider_identity');
+      capabilityRef:'libra.product_identity.evidence.observe@1',
+      resultContractRef:capabilityResultRef('libra.product_identity.evidence.observe@1'),
+      typedResultSchemaRef:'helix://contracts/types/ProductIdentityEvidenceObservation/v1'});
+    const providerIdentity=result.verifiedIdentity;
     const identities=value.resolvedProductIdentity?.providerIdentities||[];
-    if(result.subjectId!==value.resolvedProductIdentity.subjectId||result.result!=='observed'||providerFacts.length!==1||
-        identities.length!==1||identities[0].provider!==providerFacts[0].provider||
-        identities[0].namespace!==providerFacts[0].namespace||identities[0].providerKey!==providerFacts[0].providerKey||
+    if(result.subjectId!==value.resolvedProductIdentity.subjectId||result.result!=='resolved'||!providerIdentity||
+        identities.length!==1||identities[0].provider!==providerIdentity.provider||
+        identities[0].namespace!==providerIdentity.namespace||identities[0].providerKey!==providerIdentity.providerKey||
         result.observationId!==ref.observationId||chain.evidence?.evidenceId!==ref.evidenceId||
         chain.evidence?.payloadDigest!==ref.evidenceDigest||ref.decisionEvidenceId!==basis.decisionEvidenceId||
         ref.decisionEvidenceDigest!==basis.decisionEvidenceDigest)

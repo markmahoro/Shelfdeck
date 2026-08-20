@@ -92,7 +92,11 @@
       "minLength": 1
     },
     "digestAlgorithm": {
-      "const": "sha256"
+      "type": "string",
+      "enum": [
+        "sha256",
+        "middle-256k-sha256"
+      ]
     },
     "digestHex": {
       "type": "string",

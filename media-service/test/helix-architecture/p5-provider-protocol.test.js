@@ -121,6 +121,7 @@ const inputs = Object.freeze({
   'perception.source.acquire@1': Object.freeze({ sourceRef: ref('perception-source'), cursor: null, limit: 20 }),
   'people.registration_evidence.observe@1': Object.freeze({ personHintRef: ref('person-hint'), limit: 10 }),
   'libra.routing.fact.observe@1': Object.freeze({ contentProfile: 'movie', title: 'Chungking Express', yearHint: 1994 }),
+  'libra.product_identity.evidence.observe@1': Object.freeze({ contentProfile: 'movie', title: 'Chungking Express', yearHint: 1994 }),
   'libra.product_metadata.fetch@1': Object.freeze({ productIdentityRef: ref('product-identity'), locale: 'zh-CN' }),
   'libra.external_material.search@1': Object.freeze({ acquisitionQuery: acquisitionQuery(), limit: 25 }),
   'libra.external_material.acquire.observe@1': Object.freeze({ externalJobReceipt: jobReceipt(), phase: 'download' }),
@@ -217,7 +218,7 @@ function fixture(operation, overrides = {}) {
   };
 }
 
-test('operation catalog exactly traces all eleven IntegrationHandle Capability contracts and their Effect Classes', () => {
+test('operation catalog exactly traces all twelve IntegrationHandle Capability contracts and their Effect Classes', () => {
   const manifestRoot = path.resolve(__dirname, '../../src/helix/contracts/capabilities');
   const manifests = [];
   (function walk(root) {

@@ -7,7 +7,7 @@
     "displayName": "Handoff A Accepted",
     "ownerScope": "libra",
     "commitClass": "responsibility_control_commit",
-    "atomicFactSet": "complete `CandidateDeliverySnapshot@1` + Libra-owned `SubjectContinuityResolutionDecision@1` + `LibraBindingDraft@1` + `AcceptedIntakePayload@1` + global Subject Continuity head CAS + unique extension target Intake head CAS（new Subject只用global CAS）+ immutable Intake Decision/match witness/overlap Evidence + Subject create/extension + accepted continuity/Episode scope + Primary `primary_control` Binding、exclusive Related `related_derived` Binding及N:M Episode relation + precise Primary Control transfer + `SubjectAndTransferReceipt@1`/commit marker/accepted Outbox；Related Disposition Scope与两类Binding必须和Primary Control transfer在同一事务全有或全无，但Related不得进入Control revision set；全部Physical Identity/size/endpoint/location逐项复制Snapshot，不能旁读current Field/Provider补值",
+    "atomicFactSet": "complete `CandidateDeliverySnapshot@1` + Libra-owned `SubjectContinuityResolutionDecision@1` + `LibraBindingDraft@1` + `AcceptedIntakePayload@1` + Subject Continuity head CAS + unique extension target Intake head CAS（带Continuity/Episode Claim的Decision必须精确匹配冻结head；无Claim的新Movie Subject可在同一原子事务验证当前head完整性后从current head推进，不因无关Subject提交而全局串行）+ immutable Intake Decision/match witness/overlap Evidence + Subject create/extension + accepted continuity/Episode scope + Primary `primary_control` Binding、exclusive Related `related_derived` Binding及N:M Episode relation + precise Primary Control transfer + `SubjectAndTransferReceipt@1`/commit marker/accepted Outbox；Related Disposition Scope与两类Binding必须和Primary Control transfer在同一事务全有或全无，但Related不得进入Control revision set；全部Physical Identity/size/endpoint/location逐项复制Snapshot，不能旁读current Field/Provider补值",
     "participants": [
       {
         "participantKind": "domain",
@@ -107,8 +107,8 @@
     ],
     "source": {
       "section": "8.5.4",
-      "line": 8555,
-      "lineDigest": "14a9b8ffb1fb46d822e7033449c5142dbbb1ab9ff56392c31bd57cb6fae745c2"
+      "line": 8556,
+      "lineDigest": "e929af258b4f19ccdfa9bf21a7e4c6c61ada0352d0cb44c78bd8c969b0a9ea37"
     }
   }
 }

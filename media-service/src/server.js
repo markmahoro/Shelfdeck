@@ -10,6 +10,12 @@ function runtimeOptions(env = process.env) {
     dataDir: path.resolve(env.MEDIA_SERVICE_DATA_DIR || path.join(__dirname, '..', 'data')),
     adminDistDir: path.resolve(env.MEDIA_SERVICE_ADMIN_DIST_DIR || path.join(__dirname, '..', 'dist', 'admin')),
     secretRoot: env.SHELFDECK_SECRET_ROOT,
+    onExecutionRuntimeError(error) {
+      console.error('[shelfdeck] execution runtime error', {
+        code: error?.code || 'EXECUTION_RUNTIME_ERROR',
+        message: error?.message || 'Execution Runtime failed.',
+      });
+    },
   });
 }
 

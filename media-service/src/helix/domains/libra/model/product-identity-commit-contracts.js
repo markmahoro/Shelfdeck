@@ -8,16 +8,16 @@ function fail(message) { throw new TypeError(message); }
 function providerFact(decisionEvidence,sourceResultItem) {
   const query=decisionEvidence?.queryResults?.[0],observation=sourceResultItem?.result;
   if(!query||decisionEvidence.queryResults.length!==1||!sourceResultItem||
-      sourceResultItem.capabilityRef!=='libra.routing.fact.observe@1'||
-      sourceResultItem.resultSchemaRef!=='helix://contracts/capabilities/libra.routing.fact.observe/v1/result'||
+      sourceResultItem.capabilityRef!=='libra.product_identity.evidence.observe@1'||
+      sourceResultItem.resultSchemaRef!=='helix://contracts/capabilities/libra.product_identity.evidence.observe/v1/result'||
       query.queryContract!==sourceResultItem.capabilityRef||query.resultDigest!==sourceResultItem.resultDigest||
-      query.evidenceId!==observation?.observationId||query.inputDigest!==observation?.intentId||
-      query.payloadDigest!==observation?.observationDigest||observation.result!=='observed'||
+      query.evidenceId!==observation?.observationId||query.inputDigest!==canonicalDigest(observation?.intentId)||
+      query.payloadDigest!==observation?.observationDigest||observation.result!=='resolved'||
       observation.subjectId!==decisionEvidence.subjectId)fail('Product Identity Decision Evidence does not resolve to its exact provider Observation.');
-  const facts=observation.facts.filter((item)=>item.factKind==='resolved_provider_identity');
-  if(facts.length!==1||facts[0].provider!=='tmdb'||facts[0].namespace!=='tmdb_movie')
+  const identity=observation.verifiedIdentity;
+  if(!identity||identity.provider!=='tmdb'||identity.namespace!=='tmdb_movie')
     fail('Movie Product Identity requires one exact TMDB movie identity.');
-  return facts[0];
+  return identity;
 }
 
 function buildProductIdentityCommitBundle(value) {
@@ -71,7 +71,7 @@ function findProductIdentitySourceResult(workResultReader,workId,decisionEvidenc
   if(processScope&&typeof workResultReader.listWorks==='function')for(const work of workResultReader.listWorks({
     ownerDomain:'libra',processType:'libra_run',processId:processScope.processId,workKind:'product_identity'}))workIds.add(work.work_id);
   const matches=[...workIds].flatMap((candidateWorkId)=>workResultReader.read(candidateWorkId)).filter((item)=>item.outcomeKind==='succeeded'&&
-    item.capabilityRef==='libra.routing.fact.observe@1'&&item.resultDigest===query?.resultDigest&&
+    item.capabilityRef==='libra.product_identity.evidence.observe@1'&&item.resultDigest===query?.resultDigest&&
     item.result?.observationId===query?.evidenceId);
   if(matches.length!==1)fail('Product Identity provider Observation cannot be dereferenced uniquely.');
   return matches[0];

@@ -47,7 +47,7 @@
       "relativePath": "types/WorkspaceMaterialHandle/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "0460306f3c63fe3020c2101976e3dcbaf2b8a3d3e58a1c4852df203277ee4936"
+        "value": "379fd10c89a2fc99fc30b2cd2075472cc14a04e26720db70db00af6f091d3091"
       },
       "ssotRefs": [
         "8.6.18"

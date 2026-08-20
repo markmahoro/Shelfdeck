@@ -3,131 +3,35 @@ import { AdminApiError, helixAdminApi, type FormationSubject, type FormationSumm
 import RatingControl from './RatingControl';
 
 type SessionState = 'checking' | 'required' | 'ready';
+const emptySummary:FormationSummary={totalCount:0,waitingCount:0,inProgressCount:0,completedCount:0};
+function formatTime(value:number){return value>0?new Intl.DateTimeFormat('zh-CN',{dateStyle:'medium',timeStyle:'short'}).format(new Date(value)):'—';}
+function progress(item:FormationSubject){const value=item.nextAction.progress;if(!value||value.mode!=='determinate'||!value.totalValue)return null;return Math.min(100,Math.round(((value.currentValue||0)/value.totalValue)*100));}
 
-function formatAcceptedAt(value: number) {
-  if (!Number.isFinite(value) || value <= 0) return '—';
-  return new Intl.DateTimeFormat('zh-CN', {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-  }).format(new Date(value));
+function MediaTable({items,shelves,loading,onChoose,onExpedite,onChooseIdentity}:{items:FormationSubject[]; shelves:Shelf[]; loading:boolean; onChoose:(item:FormationSubject,shelfId:string)=>void; onExpedite:(item:FormationSubject,value:boolean)=>void; onChooseIdentity:(item:FormationSubject,tmdbMovieId:string)=>void}){
+  const [targets,setTargets]=useState<Record<string,string>>({}),[identityIds,setIdentityIds]=useState<Record<string,string>>({});
+  return <div className="formation-table-wrap"><table className="formation-table"><thead><tr><th>媒体名称</th><th>我的评分</th><th>目标收藏夹</th><th>媒体数</th><th>整理要求</th><th>整理动作</th><th>添加时间</th><th>下一步动作</th></tr></thead><tbody>{items.map((item)=>{const percent=progress(item);return <tr key={item.subjectId}>
+    <td><strong>{item.displayIdentity}</strong></td>
+    <td><RatingControl targetType="subject" targetId={item.subjectId} label={item.displayIdentity}/></td>
+    <td>{item.targetShelfId?(shelves.find((s)=>s.shelfId===item.targetShelfId)?.name||'已选收藏夹'):<div className="manual-shelf"><select aria-label={`${item.displayIdentity}的目标收藏夹`} value={targets[item.subjectId]||shelves[0]?.shelfId||''} onChange={(e)=>setTargets((current)=>({...current,[item.subjectId]:e.target.value}))}>{shelves.map((s)=><option key={s.shelfId} value={s.shelfId}>{s.name}</option>)}</select><button type="button" disabled={loading||!shelves.length} onClick={()=>onChoose(item,targets[item.subjectId]||shelves[0]?.shelfId)}>选择</button></div>}</td>
+    <td>{item.primaryMaterialCount}</td><td>{item.organizingRequirement}</td><td>{item.organizingAction}</td><td>{formatTime(item.addedAtMs)}</td>
+    <td><strong>{item.nextAction.label}</strong>{percent===null?<>{item.nextAction.progress?.mode==='indeterminate'&&<progress aria-label={`${item.displayIdentity}正在整理`}/>}<small>{item.nextAction.state}</small></>:<><progress max={100} value={percent} aria-label={`${item.displayIdentity}整理进度 ${percent}%`}/><small>{percent}%</small></>}{item.productIdentityIssue&&item.currentRun&&<div className="manual-shelf"><label><span className="sr-only">TMDB Movie ID</span><input aria-label={`${item.displayIdentity}的 TMDB Movie ID`} inputMode="numeric" placeholder="TMDB Movie ID" value={identityIds[item.subjectId]||''} onChange={(event)=>setIdentityIds((current)=>({...current,[item.subjectId]:event.target.value.replace(/\D/g,'')}))}/></label><button type="button" disabled={loading||!/^\d+$/.test(identityIds[item.subjectId]||'')} onClick={()=>onChooseIdentity(item,identityIds[item.subjectId])}>验证此身份</button>{item.productIdentityIssue.candidates.map((candidate)=><button type="button" key={candidate.providerKey} disabled={loading} onClick={()=>onChooseIdentity(item,candidate.providerKey)}>{candidate.displayTitle}{candidate.releaseYear?` (${candidate.releaseYear})`:''}</button>)}</div>}{item.currentRun?.state==='active'&&!item.handoffB&&<button className="surface-action" type="button" disabled={loading} onClick={()=>onExpedite(item,item.currentRun?.priorityClass!=='expedited')}>{item.currentRun.priorityClass==='expedited'?'取消加快':'加快整理'}</button>}</td>
+  </tr>;})}</tbody></table></div>;
 }
 
-export default function FormationPage() {
-  const [session, setSession] = useState<SessionState>('checking');
-  const [apiKey, setApiKey] = useState('');
-  const [items, setItems] = useState<FormationSubject[]>([]);
-  const [summary, setSummary] = useState<FormationSummary>({ subjectCount: 0, preparingCount: 0, unresolvedCount: 0, resolvedCount: 0 });
-  const [shelves, setShelves] = useState<Shelf[]>([]);
-  const [manualTargets, setManualTargets] = useState<Record<string, string>>({});
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError('');
-    try {
-      const [result, shelfResult] = await Promise.all([helixAdminApi.listFormation(), helixAdminApi.listShelves()]);
-      setItems(result.items);
-      setSummary(result.summary);
-      setShelves(shelfResult.items.filter((item) => item.status === 'active'));
-      setSession('ready');
-    } catch (cause) {
-      if (cause instanceof AdminApiError && cause.status === 401) setSession('required');
-      else setError(cause instanceof Error ? cause.message : '上架进度读取失败。');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => { void load(); }, [load]);
-
-  async function signIn(event: FormEvent) {
-    event.preventDefault();
-    setLoading(true);
-    setError('');
-    try {
-      await helixAdminApi.createSession(apiKey.trim());
-      setApiKey('');
-      await load();
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : '管理凭据验证失败。');
-      setLoading(false);
-    }
-  }
-
-  async function chooseShelf(item: FormationSubject) {
-    const target = manualTargets[item.subjectId] || shelves[0]?.shelfId;
-    if (!target) { setError('没有可用的活动收藏架。'); return; }
-    setLoading(true); setError('');
-    try { await helixAdminApi.chooseShelf(item, target); await load(); }
-    catch (cause) { setError(cause instanceof Error ? cause.message : '一次性收藏架选择失败。'); setLoading(false); }
-  }
-
-  async function setExpedited(item: FormationSubject, expedited: boolean) {
-    setLoading(true); setError('');
-    try { await helixAdminApi.setRunExpedited(item, expedited); await load(); }
-    catch (cause) { setError(cause instanceof Error ? cause.message : '上架优先级修改失败。'); setLoading(false); }
-  }
-
-  if (session === 'checking') {
-    return <section className="source-page source-page-loading" aria-live="polite">正在读取上架进度…</section>;
-  }
-
-  if (session === 'required') {
-    return <section className="source-page auth-stage"><div className="auth-card">
-      <p className="eyebrow">本机管理会话</p>
-      <h1>查看上架进度</h1>
-      <p>输入 clean initialization 生成的管理凭据。凭据只用于换取本机 HttpOnly 会话。</p>
-      <form onSubmit={signIn} className="auth-form">
-        <label><span>管理凭据</span><input type="password" value={apiKey} onChange={(event) => setApiKey(event.target.value)} autoComplete="current-password" required /></label>
-        <button type="submit" disabled={loading || !apiKey.trim()}>{loading ? '正在验证…' : '进入管理台'}</button>
-      </form>
-      {error && <p className="form-error" role="alert">{error}</p>}
-    </div></section>;
-  }
-
-  return <section className="source-page formation-page">
-    <header className="source-hero"><div>
-      <p className="eyebrow">上架进度 · Libra</p>
-      <h1>每一行，都是已经接收的一份收藏主体</h1>
-      <p>这里从 Libra Intake Accepted 开始记录。Candidate 仍属于 Procurement；只有通过完整性、现实一致性与责任交接验证后，才会成为这里的一行 Subject。</p>
-    </div><button className="surface-action" type="button" onClick={() => void load()} disabled={loading}>{loading ? '刷新中…' : '刷新'}</button></header>
-
-    <div className="source-facts" aria-label="上架进度摘要">
-      <div><span>已接收 Subject</span><strong>{summary.subjectCount}</strong><small>一 Subject 一行</small></div>
-      <div><span>已确定目的地</span><strong>{summary.resolvedCount}</strong><small>immutable Routing Decision</small></div>
-      <div><span>待处理 / 未解决</span><strong>{summary.preparingCount} / {summary.unresolvedCount}</strong><small>不会误入 catch-all</small></div>
-    </div>
-
-    {error && <p className="form-error" role="alert">{error}</p>}
-
-    <section className="formation-ledger" aria-labelledby="formation-title">
-      <div className="source-registry-heading"><div><p className="eyebrow">Activity Ledger</p><h2 id="formation-title">收藏主体</h2></div><span>{items.length} 条</span></div>
-      {items.length === 0 ? <div className="source-empty"><strong>还没有被 Libra 接收的 Candidate</strong><p>Procurement Offer 会由后台 Intake Work 验证；正式接收后才会出现在这里。</p></div> :
-        <div className="formation-table-wrap"><table className="formation-table">
-          <thead><tr><th scope="col">Subject</th><th scope="col">Routing</th><th scope="col">我的评分</th><th scope="col">输入</th><th scope="col">Decision / Spec</th><th scope="col">最近接收</th></tr></thead>
-          <tbody>{items.map((item) => <tr key={item.subjectId}>
-            <td><strong>{item.displayIdentity}</strong><code>{item.subjectId}</code><small>{item.contentProfile} · {item.structureKind}</small></td>
-            <td><span className={`formation-stage ${item.routingState}`}>{item.stageLabel}</span>
-              {item.targetShelfId && <small>{shelves.find((shelf) => shelf.shelfId === item.targetShelfId)?.name || item.targetShelfId}</small>}
-              {item.unresolvedReasonCode && <small>{item.unresolvedReasonCode}</small>}
-              {item.routingState === 'unresolved' && <div className="manual-shelf"><select aria-label={`${item.displayIdentity}的一次性收藏架`} value={manualTargets[item.subjectId] || shelves[0]?.shelfId || ''}
-                onChange={(event) => setManualTargets((current) => ({ ...current, [item.subjectId]: event.target.value }))}>{shelves.map((shelf) => <option key={shelf.shelfId} value={shelf.shelfId}>{shelf.name}</option>)}</select>
-                <button type="button" onClick={() => void chooseShelf(item)} disabled={loading}>选择收藏架</button></div>}
-            </td>
-            <td><RatingControl targetType="subject" targetId={item.subjectId} label={item.displayIdentity}/></td>
-            <td><b>{item.primaryMaterialCount}</b> Primary<small>{item.relatedMaterialCount} Related</small></td>
-            <td>{item.routingDecisionRevision ? `Routing r${item.routingDecisionRevision}` : '准备中'}<small>{item.routingPolicyMode || '—'} {item.routingPolicyRevision ? `· policy r${item.routingPolicyRevision}` : ''}</small>
-              <small>{item.acceptanceSpecRevision ? `Acceptance Spec r${item.acceptanceSpecRevision}` : item.routingState==='resolved'?'正在准备 Acceptance Spec':'—'}</small>
-              {item.currentRun && <small>Libra Run · {item.productionStage} · {item.currentRun.priorityClass === 'expedited' ? '加急' : '普通'}</small>}
-              {item.handoffB && <small>Handoff B Offer · open</small>}
-              {item.currentRun?.state === 'active' && !item.handoffB && <button className="surface-action" type="button"
-                onClick={() => void setExpedited(item, item.currentRun?.priorityClass !== 'expedited')} disabled={loading}>
-                {item.currentRun.priorityClass === 'expedited' ? '取消加快' : '加快上架'}
-              </button>}</td>
-            <td>{formatAcceptedAt(item.lastAcceptedAtMs)}</td>
-          </tr>)}</tbody>
-        </table></div>}
-    </section>
+export default function FormationPage(){const [session,setSession]=useState<SessionState>('checking'),[apiKey,setApiKey]=useState(''),[items,setItems]=useState<FormationSubject[]>([]),[completed,setCompleted]=useState<FormationSubject[]>([]),[summary,setSummary]=useState<FormationSummary>(emptySummary),[shelves,setShelves]=useState<Shelf[]>([]),[expanded,setExpanded]=useState(()=>localStorage.getItem('formation-completed-expanded')==='true'),[nextCursor,setNextCursor]=useState<string|null>(null),[loading,setLoading]=useState(false),[error,setError]=useState('');
+  const load=useCallback(async()=>{setLoading(true);setError('');try{const [active,shelfResult]=await Promise.all([helixAdminApi.listFormation('active'),helixAdminApi.listShelves()]);setItems(active.items);setSummary(active.summary);setShelves(shelfResult.items.filter((x)=>x.status==='active'));if(expanded){const done=await helixAdminApi.listFormation('completed');setCompleted(done.items);setNextCursor(done.nextCursor);}setSession('ready');}catch(cause){if(cause instanceof AdminApiError&&cause.status===401)setSession('required');else setError(cause instanceof Error?cause.message:'媒体整理工作区读取失败。');}finally{setLoading(false);}},[expanded]);
+  useEffect(()=>{void load();},[load]);
+  async function signIn(event:FormEvent){event.preventDefault();setLoading(true);setError('');try{await helixAdminApi.createSession(apiKey.trim());setApiKey('');await load();}catch(cause){setError(cause instanceof Error?cause.message:'管理凭据验证失败。');setLoading(false);}}
+  async function choose(item:FormationSubject,shelfId:string){if(!shelfId)return;setLoading(true);try{await helixAdminApi.chooseShelf(item,shelfId);await load();}catch(cause){setError(cause instanceof Error?cause.message:'收藏夹选择失败。');setLoading(false);}}
+  async function expedite(item:FormationSubject,value:boolean){setLoading(true);try{await helixAdminApi.setRunExpedited(item,value);await load();}catch(cause){setError(cause instanceof Error?cause.message:'整理优先级修改失败。');setLoading(false);}}
+  async function chooseIdentity(item:FormationSubject,tmdbMovieId:string){setLoading(true);try{await helixAdminApi.chooseProductIdentity(item,tmdbMovieId);await load();}catch(cause){setError(cause instanceof Error?cause.message:'媒体身份确认失败。');setLoading(false);}}
+  async function toggleCompleted(){const value=!expanded;setExpanded(value);localStorage.setItem('formation-completed-expanded',String(value));if(value){setLoading(true);try{const result=await helixAdminApi.listFormation('completed');setCompleted(result.items);setNextCursor(result.nextCursor);}finally{setLoading(false);}}}
+  async function loadMore(){if(!nextCursor)return;setLoading(true);try{const result=await helixAdminApi.listFormation('completed',nextCursor);setCompleted((current)=>[...current,...result.items]);setNextCursor(result.nextCursor);}finally{setLoading(false);}}
+  if(session==='checking')return <section className="source-page source-page-loading" aria-live="polite">正在读取媒体整理工作区…</section>;
+  if(session==='required')return <section className="source-page auth-stage"><div className="auth-card"><p className="eyebrow">本机管理会话</p><h1>媒体整理工作区</h1><form onSubmit={signIn} className="auth-form"><label><span>管理凭据</span><input type="password" value={apiKey} onChange={(e)=>setApiKey(e.target.value)} required/></label><button type="submit" disabled={loading||!apiKey.trim()}>进入管理台</button></form>{error&&<p className="form-error" role="alert">{error}</p>}</div></section>;
+  return <section className="source-page formation-page"><header className="source-hero"><div><p className="eyebrow">媒体整理</p><h1>媒体整理工作区</h1></div><button className="surface-action" type="button" onClick={()=>void load()} disabled={loading}>{loading?'刷新中…':'刷新'}</button></header>
+    <div className="source-facts" aria-label="整理状态摘要"><div><span>待整理</span><strong>{summary.waitingCount}</strong></div><div><span>整理中</span><strong>{summary.inProgressCount}</strong></div><div><span>已完成整理</span><strong>{summary.completedCount}</strong></div></div>{error&&<p className="form-error" role="alert">{error}</p>}
+    <section className="formation-ledger"><div className="source-registry-heading"><div><p className="eyebrow">当前工作</p><h2>待整理媒体</h2></div><span>{items.length} 条</span></div>{items.length?<MediaTable items={items} shelves={shelves} loading={loading} onChoose={choose} onExpedite={expedite} onChooseIdentity={chooseIdentity}/>:<div className="source-empty"><strong>当前没有待整理媒体</strong></div>}</section>
+    <section className="formation-ledger"><div className="source-registry-heading"><div><p className="eyebrow">历史结果</p><h2>已完成整理</h2></div><button className="surface-action" type="button" aria-expanded={expanded} onClick={()=>void toggleCompleted()}>{expanded?'收起':'展开'}（{summary.completedCount}）</button></div>{expanded&&<>{completed.length?<MediaTable items={completed} shelves={shelves} loading={loading} onChoose={choose} onExpedite={expedite} onChooseIdentity={chooseIdentity}/>:<div className="source-empty"><strong>尚无完成条目</strong></div>}{nextCursor&&<button className="surface-action" type="button" onClick={()=>void loadMore()} disabled={loading}>加载更多</button>}</>}</section>
   </section>;
 }

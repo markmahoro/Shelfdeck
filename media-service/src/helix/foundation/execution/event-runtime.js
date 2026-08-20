@@ -2,6 +2,10 @@
 
 const { digest } = require('../persistence/ddl-compiler');
 const { createRepositoryDefinition } = require('../persistence/owner-repository');
+const {
+  isExecutionInputUnavailable,
+} = require('./execution-input-readiness');
+const { createProgressReporter } = require('./progress-reporter');
 
 class EventRuntimeError extends Error {
   constructor(code, message, details = {}) { super(message); this.name = 'EventRuntimeError'; this.code = code; this.details = details; }
@@ -255,6 +259,76 @@ function createEventRuntime(options) {
     return Object.freeze({ kind: 'fence_rejected', eventId: snapshot.event.event_id, eventAttemptId: attemptId });
   }
 
+  function recordInputPreparationOutcome(snapshot, error) {
+    const unavailable = isExecutionInputUnavailable(error);
+    const nowMs = clock();
+    const retryAtMs = unavailable && Number.isSafeInteger(error.retryAtMs) &&
+      error.retryAtMs > nowMs
+      ? error.retryAtMs
+      : unavailable
+        ? nowMs + 30_000
+        : null;
+    const failureCode = typeof error?.code === 'string' && error.code
+      ? error.code
+      : 'P4_EVENT_INPUT_PREPARATION_FAILED';
+    const failedAttemptId = unavailable ? null : options.nextEventAttemptId(snapshot.event.event_id, snapshot.nextOrdinal);
+    options.unitOfWork.execute([{
+      participantId: 'event_runtime_input_preparation',
+      owner: 'execution-foundation',
+      repositories: Object.values(repositories),
+      execute(context) {
+        const event = context.repository('runtime_events').invoke('find', {
+          event_id: snapshot.event.event_id,
+        });
+        if (!event || !DISPATCHABLE_EVENT_STATES.has(event.state)) {
+          fail(
+            'P4_EVENT_INPUT_PREPARATION_STATE_CHANGED',
+            'Event changed before its input preparation outcome could be recorded.',
+          );
+        }
+        if (!unavailable) {
+          const entry = options.registry.resolve(event.capability_ref, event.owner_domain);
+          const attempts = context.repository('runtime_event_attempts').invoke('list')
+            .filter((attempt) => attempt.event_id === event.event_id);
+          if (attempts.some((attempt) => attempt.state === 'executing') || attempts.length + 1 !== snapshot.nextOrdinal) {
+            fail('P4_EVENT_INPUT_FAILURE_ATTEMPT_RACE', 'Input failure Attempt ordinal or active uniqueness changed.');
+          }
+          const inputFailureEvidence = { failureCode, failureMessage:String(error?.message || 'Event input preparation failed.') };
+          context.repository('runtime_event_attempts').invoke('insert', {
+            event_attempt_id: failedAttemptId, event_id:event.event_id, ordinal:snapshot.nextOrdinal,
+            executor_ref:entry.manifest.capabilityRef, executor_version:entry.executor.version,
+            input_snapshot_schema_ref:snapshot.node.input_binding_schema_ref,
+            input_snapshot_digest:valueDigest({ eventId:event.event_id, inputPreparationFailed:true }),
+            fence_snapshot_digest:valueDigest(JSON.parse(snapshot.node.fence_basis_json)), state:'completed',
+            outcome_kind:'failed', retry_after_ms:null, failure_class:'input_projection', failure_code:failureCode,
+            evidence_digest:valueDigest(inputFailureEvidence), started_at_ms:nowMs, finished_at_ms:nowMs
+          });
+        }
+        context.repository('runtime_events').invoke('update', {
+          event_id: event.event_id,
+          state: unavailable ? 'waiting_for_external' : 'failed',
+          ready_at_ms: event.ready_at_ms,
+          retry_at_ms: retryAtMs,
+          result_id: null,
+        });
+        if (!unavailable) advancePlan(context, event.plan_id);
+      },
+    }]);
+    if(!unavailable&&typeof options.governor.abandon==='function')options.governor.abandon(snapshot.event.event_id);
+    return Object.freeze({
+      kind: unavailable ? 'input_waiting' : 'input_failed',
+      eventId: snapshot.event.event_id,
+      eventState: unavailable ? 'waiting_for_external' : 'failed',
+      eventAttemptId: failedAttemptId,
+      retryAtMs,
+      failureCode,
+      failureMessage: unavailable ? null : String(error?.message || 'Event input preparation failed.'),
+      dependencyKind: unavailable
+        ? error.details?.dependencyKind || 'external_dependency'
+        : null,
+    });
+  }
+
   function beginAttempt(snapshot, entry, attemptId, startedAtMs, inputs, fence) {
     options.unitOfWork.execute([{
       participantId: 'event_runtime_begin', owner: 'execution-foundation', repositories: Object.values(repositories), execute(context) {
@@ -403,6 +477,12 @@ function createEventRuntime(options) {
         resourceLease: { leaseId: permit.permitId, resourceKeys: permit.resources.map((resource) => resource.resourceKey), issuedAtMs: permit.issuedAtMs },
         idempotencyKey: inputs.idempotencyKey, traceContext: inputs.traceContext, deadlineAtMs: attemptContract.deadlineAtMs
       };
+      const progressReporter = createProgressReporter({ schemaManifest: options.schemaManifest, unitOfWork: options.unitOfWork,
+        eventId: request.eventId, eventAttemptId: attempt.event_attempt_id, now: clock });
+      Object.defineProperty(context, 'reportProgress', {
+        configurable: false, enumerable: false, writable: false,
+        value: (sample) => progressReporter.report(sample)
+      });
       if (inputs.approvalHandle !== undefined) context.approvalHandle = inputs.approvalHandle;
       if (inputs.authorizationHandle !== undefined) context.authorizationHandle = inputs.authorizationHandle;
       const outcome = await options.timeoutController.execute(Object.freeze({ executionHandleId: attempt.event_attempt_id,
@@ -452,7 +532,14 @@ function createEventRuntime(options) {
             typeof options.effectJournal.noteExternalPending !== 'function')) fail(
           'P4_EVENT_EFFECT_JOURNAL_REQUIRED', 'Every non-pure Event requires the Effect Journal before dispatch.'
         );
-        const inputs = options.executionInputProvider.prepare(Object.freeze({ snapshot }));
+        let inputs;
+        try {
+          inputs = options.executionInputProvider.prepare(Object.freeze({ snapshot }));
+        } catch (error) {
+          options.scheduler.release(request.schedulerLease);
+          schedulerReleased = true;
+          return recordInputPreparationOutcome(snapshot, error);
+        }
         if (((entry.manifest.approvalRequirementRef || null) !== null) !== (inputs.approvalHandle !== undefined) ||
             ((entry.manifest.authorizationRequirementRef || null) !== null) !== (inputs.authorizationHandle !== undefined)) fail(
           'P4_EVENT_REQUIRED_HANDLE_MISMATCH', 'Execution inputs must carry exactly the approval and authorization required by the durable Plan.'
@@ -527,6 +614,14 @@ function createEventRuntime(options) {
           resourceLease: { leaseId: permit.permitId, resourceKeys: permit.resources.map((resource) => resource.resourceKey), issuedAtMs: permit.issuedAtMs },
           idempotencyKey: inputs.idempotencyKey, traceContext: inputs.traceContext
         };
+        const progressReporter = createProgressReporter({ schemaManifest: options.schemaManifest, unitOfWork: options.unitOfWork,
+          eventId, eventAttemptId: attemptId, now: clock });
+        // Runtime-only ports remain non-enumerable so the exact serializable
+        // CapabilityExecutionContext contract stays unchanged.
+        Object.defineProperty(context, 'reportProgress', {
+          configurable: false, enumerable: false, writable: false,
+          value: (sample) => progressReporter.report(sample)
+        });
         if (inputs.approvalHandle !== undefined) context.approvalHandle = inputs.approvalHandle;
         if (inputs.authorizationHandle !== undefined) context.authorizationHandle = inputs.authorizationHandle;
         context.deadlineAtMs = attemptContract.deadlineAtMs;

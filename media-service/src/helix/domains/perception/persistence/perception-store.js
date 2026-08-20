@@ -1,5 +1,7 @@
 'use strict';
 
+const { deriveTitleYearEvidence, normalizeAlias } = require('../model/perception-aliases');
+
 const { createRepositoryDefinition } = require('../../../foundation/persistence/owner-repository');
 const { canonicalDigest, canonicalJson } = require('../../../contracts/canonical-json');
 const { createAcquisition, createCursor, createRecord, createRelation, createResolution, createSource } = require('../model/perception-store-contracts');
@@ -161,13 +163,27 @@ function createPerceptionStore(options) {
         .sort((left,right)=>right.committedAtMs-left.committedAtMs||left.perceptionId.localeCompare(right.perceptionId));
       return candidates[0]||null;
     }); },
+    readCurrentResolvedRatings(queryInputDigests) { return execute([records,resolutions], (context) => {
+      const wanted=new Set(queryInputDigests),recordRepo=context.repository(records.repositoryId),resolutionRepo=context.repository(resolutions.repositoryId);
+      if(!wanted.size)return Object.freeze([]);
+      const heads=resolutionRepo.invoke('list_heads').filter((row)=>row.query_contract==='perception.rating.resolve@1'&&wanted.has(row.query_input_digest));
+      const currentIds=new Set(heads.map((row)=>row.current_resolution_id));
+      const current=resolutionRepo.invoke('list_resolutions').filter((row)=>currentIds.has(row.resolution_id));
+      return Object.freeze(current.map((row)=>{
+        const resolution=mapResolution(row),winner=resolution.resultKind==='found'?mapRecord(recordRepo,resolution.winningPerceptionId):null;
+        return Object.freeze({queryInputDigest:resolution.queryInputDigest,resolution,winner});
+      }));
+    }); },
     readResolutionCandidates(query, ruleSnapshot) { return execute([records], (context) => {
       const repo=context.repository(records.repositoryId); const ids=new Set();
       for(const clause of ruleSnapshot.candidateRetrievalClauses){
         const evidence=query.identityEvidence.filter((item)=>item.anchorKind===clause.anchorKind);
         if(evidence.length===0) continue;
-        const matches=repo.invoke('find_anchors_by_kind',{anchor_kind:clause.anchorKind}).filter((anchor)=>
-          evidence.some((item)=>anchorValuesMatch(item.anchorValue,anchor.anchor_value,clause.lookupMode,clause.normalizationProfileRef,clause.threshold)));
+        const matches=repo.invoke('find_anchors_by_kind',{anchor_kind:clause.anchorKind}).filter((anchor)=>{
+          if(clause.anchorKind!=='title_year')return evidence.some((item)=>anchorValuesMatch(item.anchorValue,anchor.anchor_value,clause.lookupMode,clause.normalizationProfileRef,clause.threshold));
+          const aliases=deriveTitleYearEvidence(anchor.anchor_value,{providerDelimited:true});
+          return evidence.some((item)=>aliases.some((alias)=>normalizeAlias(item.anchorValue)===normalizeAlias(alias.anchorValue)));
+        });
         const clauseIds=[...new Set(matches.map((item)=>item.perception_id))].sort();
         if(clauseIds.length>clause.maxCandidates) fail('P6_PERCEPTION_CANDIDATE_CLAUSE_OVERFLOW','Candidate retrieval clause exceeded its declared bound.');
         clauseIds.forEach((id)=>ids.add(id));

@@ -1,0 +1,657 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/types/ProductIdentityEvidenceObservation/v1",
+  "title": "ProductIdentityEvidenceObservation@1",
+  "x-helix-ssotRefs": [
+    "5.1.3",
+    "5.4.3",
+    "8.6.5",
+    "8.6.19"
+  ],
+  "x-helix-maxCanonicalBytes": 65536,
+  "oneOf": [
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "schemaRef": {
+          "const": "helix://contracts/types/ProductIdentityEvidenceObservation/v1"
+        },
+        "schemaVersion": {
+          "const": 1
+        },
+        "observationId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "intentId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "libraRunId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "subjectId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "sourceKind": {
+          "type": "string",
+          "enum": [
+            "related_nfo",
+            "provider_exact",
+            "provider_search"
+          ]
+        },
+        "candidateMatchCount": {
+          "const": 1
+        },
+        "sourceAssociationDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "evidenceDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "observationDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "result": {
+          "const": "resolved"
+        },
+        "reasonCode": {
+          "type": "null"
+        },
+        "candidates": {
+          "type": "array",
+          "maxItems": 0
+        },
+        "verifiedIdentity": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "provider": {
+              "const": "tmdb"
+            },
+            "namespace": {
+              "const": "tmdb_movie"
+            },
+            "providerKey": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "displayTitle": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 1024
+            },
+            "originalTitle": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 1024
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "releaseYear": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 1870,
+                  "maximum": 3000
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "aliases": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "value": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 1024
+                  },
+                  "sourceKind": {
+                    "type": "string",
+                    "enum": [
+                      "candidate",
+                      "related_nfo",
+                      "provider"
+                    ]
+                  },
+                  "aliasDigest": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[a-f0-9]{64}$"
+                  }
+                },
+                "required": [
+                  "value",
+                  "sourceKind",
+                  "aliasDigest"
+                ]
+              },
+              "maxItems": 32
+            },
+            "identityDigest": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^[a-f0-9]{64}$"
+            }
+          },
+          "required": [
+            "provider",
+            "namespace",
+            "providerKey",
+            "displayTitle",
+            "originalTitle",
+            "releaseYear",
+            "aliases",
+            "identityDigest"
+          ]
+        }
+      },
+      "required": [
+        "schemaRef",
+        "schemaVersion",
+        "observationId",
+        "intentId",
+        "libraRunId",
+        "subjectId",
+        "sourceKind",
+        "candidateMatchCount",
+        "sourceAssociationDigest",
+        "evidenceDigest",
+        "observationDigest",
+        "result",
+        "reasonCode",
+        "candidates",
+        "verifiedIdentity"
+      ]
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "schemaRef": {
+          "const": "helix://contracts/types/ProductIdentityEvidenceObservation/v1"
+        },
+        "schemaVersion": {
+          "const": 1
+        },
+        "observationId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "intentId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "libraRunId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "subjectId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "sourceKind": {
+          "type": "string",
+          "enum": [
+            "related_nfo",
+            "provider_exact",
+            "provider_search"
+          ]
+        },
+        "candidateMatchCount": {
+          "const": 0
+        },
+        "sourceAssociationDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "evidenceDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "observationDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "result": {
+          "const": "not_found"
+        },
+        "reasonCode": {
+          "type": "string",
+          "enum": [
+            "nfo_identity_absent",
+            "provider_no_match"
+          ]
+        },
+        "candidates": {
+          "type": "array",
+          "maxItems": 0
+        },
+        "verifiedIdentity": {
+          "type": "null"
+        }
+      },
+      "required": [
+        "schemaRef",
+        "schemaVersion",
+        "observationId",
+        "intentId",
+        "libraRunId",
+        "subjectId",
+        "sourceKind",
+        "candidateMatchCount",
+        "sourceAssociationDigest",
+        "evidenceDigest",
+        "observationDigest",
+        "result",
+        "reasonCode",
+        "candidates",
+        "verifiedIdentity"
+      ]
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "schemaRef": {
+          "const": "helix://contracts/types/ProductIdentityEvidenceObservation/v1"
+        },
+        "schemaVersion": {
+          "const": 1
+        },
+        "observationId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "intentId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "libraRunId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "subjectId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "sourceKind": {
+          "type": "string",
+          "enum": [
+            "related_nfo",
+            "provider_exact",
+            "provider_search"
+          ]
+        },
+        "candidateMatchCount": {
+          "type": "integer",
+          "minimum": 2,
+          "maximum": 16
+        },
+        "sourceAssociationDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "evidenceDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "observationDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "result": {
+          "const": "ambiguous"
+        },
+        "reasonCode": {
+          "const": "provider_identity_ambiguous"
+        },
+        "candidates": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "provider": {
+                "const": "tmdb"
+              },
+              "namespace": {
+                "const": "tmdb_movie"
+              },
+              "providerKey": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "displayTitle": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 1024
+              },
+              "originalTitle": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 1024
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "releaseYear": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 1870,
+                    "maximum": 3000
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "aliases": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "value": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 1024
+                    },
+                    "sourceKind": {
+                      "type": "string",
+                      "enum": [
+                        "candidate",
+                        "related_nfo",
+                        "provider"
+                      ]
+                    },
+                    "aliasDigest": {
+                      "type": "string",
+                      "minLength": 1,
+                      "pattern": "^[a-f0-9]{64}$"
+                    }
+                  },
+                  "required": [
+                    "value",
+                    "sourceKind",
+                    "aliasDigest"
+                  ]
+                },
+                "maxItems": 32
+              },
+              "candidateDigest": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-f0-9]{64}$"
+              }
+            },
+            "required": [
+              "provider",
+              "namespace",
+              "providerKey",
+              "displayTitle",
+              "originalTitle",
+              "releaseYear",
+              "aliases",
+              "candidateDigest"
+            ]
+          },
+          "maxItems": 16,
+          "minItems": 2
+        },
+        "verifiedIdentity": {
+          "type": "null"
+        }
+      },
+      "required": [
+        "schemaRef",
+        "schemaVersion",
+        "observationId",
+        "intentId",
+        "libraRunId",
+        "subjectId",
+        "sourceKind",
+        "candidateMatchCount",
+        "sourceAssociationDigest",
+        "evidenceDigest",
+        "observationDigest",
+        "result",
+        "reasonCode",
+        "candidates",
+        "verifiedIdentity"
+      ]
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "schemaRef": {
+          "const": "helix://contracts/types/ProductIdentityEvidenceObservation/v1"
+        },
+        "schemaVersion": {
+          "const": 1
+        },
+        "observationId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "intentId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "libraRunId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "subjectId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "sourceKind": {
+          "type": "string",
+          "enum": [
+            "related_nfo",
+            "provider_exact",
+            "provider_search"
+          ]
+        },
+        "candidateMatchCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "sourceAssociationDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "evidenceDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "observationDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "result": {
+          "const": "conflicting"
+        },
+        "reasonCode": {
+          "type": "string",
+          "enum": [
+            "nfo_association_conflicting",
+            "provider_identity_conflicting"
+          ]
+        },
+        "candidates": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "provider": {
+                "const": "tmdb"
+              },
+              "namespace": {
+                "const": "tmdb_movie"
+              },
+              "providerKey": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "displayTitle": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 1024
+              },
+              "originalTitle": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 1024
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "releaseYear": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 1870,
+                    "maximum": 3000
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "aliases": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "value": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 1024
+                    },
+                    "sourceKind": {
+                      "type": "string",
+                      "enum": [
+                        "candidate",
+                        "related_nfo",
+                        "provider"
+                      ]
+                    },
+                    "aliasDigest": {
+                      "type": "string",
+                      "minLength": 1,
+                      "pattern": "^[a-f0-9]{64}$"
+                    }
+                  },
+                  "required": [
+                    "value",
+                    "sourceKind",
+                    "aliasDigest"
+                  ]
+                },
+                "maxItems": 32
+              },
+              "candidateDigest": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-f0-9]{64}$"
+              }
+            },
+            "required": [
+              "provider",
+              "namespace",
+              "providerKey",
+              "displayTitle",
+              "originalTitle",
+              "releaseYear",
+              "aliases",
+              "candidateDigest"
+            ]
+          },
+          "maxItems": 16
+        },
+        "verifiedIdentity": {
+          "type": "null"
+        }
+      },
+      "required": [
+        "schemaRef",
+        "schemaVersion",
+        "observationId",
+        "intentId",
+        "libraRunId",
+        "subjectId",
+        "sourceKind",
+        "candidateMatchCount",
+        "sourceAssociationDigest",
+        "evidenceDigest",
+        "observationDigest",
+        "result",
+        "reasonCode",
+        "candidates",
+        "verifiedIdentity"
+      ]
+    }
+  ]
+}

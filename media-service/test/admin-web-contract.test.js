@@ -59,12 +59,13 @@ test('Shelves configures a probed Template-derived Movie Standard without exposi
   assert.match(page, /expectedTemplateRevision/);
 });
 
-test('Formation progress begins after Procurement handoff', () => {
+test('Media organization workspace uses user-facing stages after Procurement handoff', () => {
   const model = read('web/src/helix/surface-model.ts');
   const formation = model.split("slug:'formation'")[1].split("slug:'offdeck'")[0];
-  assert.match(formation, /从生产到正式入架/);
-  assert.match(formation, /文件发现与采购准备留在文件来源/);
-  assert.doesNotMatch(formation, /判断开采资格|准备候选包/);
+  assert.match(formation, /媒体整理工作区/);
+  assert.match(formation, /待整理/);
+  assert.match(formation, /已完成整理/);
+  assert.doesNotMatch(formation, /Subject|Routing|Spec|Run|Work|Event|判断开采资格|准备候选包/);
 });
 
 test('legacy Admin routes, pages and style layers are absent', () => {

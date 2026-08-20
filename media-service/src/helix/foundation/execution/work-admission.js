@@ -8,6 +8,7 @@ const COMMAND_CONTRACT = 'helix.foundation.work.submit@1';
 const RESULT_SCHEMA = 'helix://foundation/results/WorkAdmissionResult/v1';
 const OPEN_WORK_STATES = new Set(['admitted', 'ready', 'running', 'blocked']);
 const OPEN_EVENT_STATES = new Set(['pending', 'ready', 'waiting_for_resource', 'waiting_for_external', 'waiting_for_approval', 'executing']);
+const RESERVED_PRIORITY_CLASSES = new Set(['handoff_acceptance', 'safety_liveness']);
 
 class WorkAdmissionError extends Error {
   constructor(code, message, details = {}) {
@@ -54,8 +55,8 @@ function repositories(schemaManifest) {
       repositoryId: 'work_admission_works', owner: 'execution-foundation', schemaManifest,
       statements: {
         find: { kind: 'select-one', tableId: 'fx_supporting_works', columns: ['work_id', 'state'], keyColumns: ['work_id'] },
-        list_all: { kind: 'select-all', tableId: 'fx_supporting_works', columns: ['work_id', 'owner_domain', 'state'], keyColumns: [] },
-        list_owner: { kind: 'select-all', tableId: 'fx_supporting_works', columns: ['work_id', 'state'], keyColumns: ['owner_domain'] },
+        list_all: { kind: 'select-all', tableId: 'fx_supporting_works', columns: ['work_id', 'owner_domain', 'priority_class', 'state'], keyColumns: [] },
+        list_owner: { kind: 'select-all', tableId: 'fx_supporting_works', columns: ['work_id', 'priority_class', 'state'], keyColumns: ['owner_domain'] },
         insert: { kind: 'insert', tableId: 'fx_supporting_works', columns: [
           'work_id', 'owner_domain', 'process_type', 'process_id', 'work_kind', 'basis_digest', 'priority_class', 'state',
           'definition_schema_ref', 'definition_json', 'definition_digest', 'idempotency_key', 'created_at_ms', 'updated_at_ms'
@@ -98,7 +99,10 @@ function createWorkAdmission(options) {
   if (!options || !options.schemaManifest || !options.unitOfWork || typeof options.unitOfWork.execute !== 'function' ||
       !options.eligibilityProvider || typeof options.eligibilityProvider.check !== 'function' ||
       !options.limits || !Number.isSafeInteger(options.limits.globalOpenWorks) || !Number.isSafeInteger(options.limits.ownerOpenWorks) ||
-      !Number.isSafeInteger(options.limits.openEvents) || Math.min(...Object.values(options.limits)) < 1) {
+      !Number.isSafeInteger(options.limits.openEvents) ||
+      (options.limits.reservedOpenWorks !== undefined && (!Number.isSafeInteger(options.limits.reservedOpenWorks) ||
+        options.limits.reservedOpenWorks < 1 || options.limits.reservedOpenWorks >= options.limits.globalOpenWorks)) ||
+      Math.min(options.limits.globalOpenWorks, options.limits.ownerOpenWorks, options.limits.openEvents) < 1) {
     fail('P4_WORK_ADMISSION_DEPENDENCIES_REQUIRED', 'Scoped UoW, eligibility provider, and positive hard limits are required.');
   }
   const definitions = repositories(options.schemaManifest);
@@ -169,10 +173,19 @@ function createWorkAdmission(options) {
               if (circuit && circuit.state !== 'closed') throw new WorkAdmissionDeferred('CIRCUIT_' + circuit.state.toUpperCase());
             }
             const ownerWorks = works.invoke('list_owner', { owner_domain: definition.ownerDomain });
-            const globalOpen = works.invoke('list_all').filter((work) => OPEN_WORK_STATES.has(work.state)).length;
+            const allOpenWorks = works.invoke('list_all').filter((work) => OPEN_WORK_STATES.has(work.state));
+            const globalOpen = allOpenWorks.length;
             const ownerOpen = ownerWorks.filter((work) => OPEN_WORK_STATES.has(work.state)).length;
             if (globalOpen >= options.limits.globalOpenWorks || ownerOpen >= options.limits.ownerOpenWorks) {
               throw new WorkAdmissionDeferred('WORK_HARD_CAP');
+            }
+            const reservedOpenWorks = options.limits.reservedOpenWorks || 0;
+            if (!RESERVED_PRIORITY_CLASSES.has(definition.priorityClass) && reservedOpenWorks > 0) {
+              const normalGlobalCap = options.limits.globalOpenWorks - reservedOpenWorks;
+              const normalOwnerCap = options.limits.ownerOpenWorks - Math.min(reservedOpenWorks, options.limits.ownerOpenWorks - 1);
+              if (globalOpen >= normalGlobalCap || ownerOpen >= normalOwnerCap) {
+                throw new WorkAdmissionDeferred('WORK_RESERVED_CAPACITY');
+              }
             }
             const openEvents = context.repository('work_admission_events').invoke('list').filter((event) => OPEN_EVENT_STATES.has(event.state)).length;
             if (openEvents >= options.limits.openEvents) throw new WorkAdmissionDeferred('EVENT_HARD_CAP');

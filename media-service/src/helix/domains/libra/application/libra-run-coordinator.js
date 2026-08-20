@@ -333,19 +333,23 @@ function createLibraRunCoordinator(options){
     const identity=options.movieProductionReader.readFact(libraRunId,'resolved_identity',1);
     let committed=identity;
     if(!committed){
-      const observationWork=identityObservationWork(snapshot),observationSubmitted=submit(observationWork),
-        observationStatus=options.workResultReader.status(observationWork.workId);
+      const nfoReferences=snapshot.relatedReferences.filter((item)=>item.role==='nfo').sort((a,b)=>a.referenceId.localeCompare(b.referenceId));
+      const manualSelection=options.productIdentitySelection?.readCurrent(libraRunId)||null;
+      const nfoWork=!manualSelection&&nfoReferences.length===1?identityObservationWork(snapshot,'related_nfo'):null;
+      let nfoResult=null;
+      if(nfoWork){const submitted=submit(nfoWork),status=options.workResultReader.status(nfoWork.workId);if(!workSucceeded(status)){if(workFailed(status))return terminalWork(snapshot,nfoWork,status,'product_unachievable');return Object.freeze({kind:'pending',phase:'product_identity_nfo',libraRunId,workId:nfoWork.workId,replayed:submitted.replayed});}nfoResult=options.workResultReader.read(nfoWork.workId).find((item)=>item.outcomeKind==='succeeded'&&item.capabilityRef==='libra.product_identity.evidence.observe@1');}
+      const strongFact=nfoResult?.result?.result==='resolved'?nfoResult.result.verifiedIdentity:null;
+      const observationWork=manualSelection?identityObservationWork(snapshot,'provider_exact',{workId:manualSelection.selection_intent_id,resultDigest:manualSelection.intent_digest}):
+        strongFact?identityObservationWork(snapshot,'provider_exact',{workId:nfoWork.workId,resultDigest:nfoResult.resultDigest}):identityObservationWork(snapshot,'provider_search'),observationSubmitted=submit(observationWork),observationStatus=options.workResultReader.status(observationWork.workId);
       if(!workSucceeded(observationStatus)){
         if(workFailed(observationStatus))return terminalWork(snapshot,observationWork,observationStatus,'integration_exhausted');
-        return Object.freeze({kind:'pending',phase:'product_identity_observation',libraRunId,
+        return Object.freeze({kind:'pending',phase:strongFact?'product_identity_exact_verification':'product_identity_search',libraRunId,
           workId:observationWork.workId,replayed:observationSubmitted.replayed});
       }
       const observationResult=options.workResultReader.read(observationWork.workId).find((item)=>item.outcomeKind==='succeeded'&&
-        item.capabilityRef==='libra.routing.fact.observe@1');
+        item.capabilityRef==='libra.product_identity.evidence.observe@1');
       if(!observationResult)throw new Error('Terminal Product Identity Observation Work lacks its durable Result.');
-      const providerFacts=observationResult.result?.result==='observed'
-        ?observationResult.result.facts.filter((item)=>item.factKind==='resolved_provider_identity'):[];
-      if(providerFacts.length!==1)return Object.freeze({kind:'waiting_product_identity',phase:'product_identity_observation',
+      if(observationResult.result?.result!=='resolved'||!observationResult.result.verifiedIdentity)return Object.freeze({kind:'waiting_product_identity',phase:'product_identity_observation',
         libraRunId,workId:observationWork.workId,observationId:observationResult.result?.observationId||null,
         reasonCode:observationResult.result?.reasonCode||'provider_identity_ambiguous',
         observationResult:observationResult.result?.result||'ambiguous'});

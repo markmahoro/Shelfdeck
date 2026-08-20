@@ -1,0 +1,72 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/transactions/helix.transaction.libra-product-identity-selection-intent-commit/v1",
+  "contractVersion": 1,
+  "contract": {
+    "transactionId": "helix.transaction.libra-product-identity-selection-intent-commit",
+    "displayName": "Libra Product Identity Selection Intent Commit",
+    "ownerScope": "libra",
+    "commitClass": "domain_fact_commit",
+    "atomicFactSet": "authenticated manual choice + current Libra Run/Subject/Identity head fence + immutable `libra_product_identity_selection_intents` row + Command Receipt；该Admin command不伪造Event Result或commit marker；选择只允许后端给出的candidate或typed TMDB movie ID，不能直接发布Identity；`hasOutbox=false`",
+    "participants": [
+      {
+        "participantKind": "domain",
+        "owner": "libra",
+        "access": "write",
+        "tables": [
+          "libra_product_identity_selection_intents"
+        ]
+      },
+      {
+        "participantKind": "foundation",
+        "owner": "execution-foundation",
+        "access": "write",
+        "tables": [
+          "fx_command_receipts"
+        ]
+      }
+    ],
+    "writeTables": [
+      "libra_product_identity_selection_intents",
+      "fx_command_receipts"
+    ],
+    "readTables": [
+      "libra_runs",
+      "libra_subjects",
+      "libra_product_identity_revisions",
+      "libra_product_identity_selection_intents",
+      "fx_command_receipts"
+    ],
+    "variants": [],
+    "dynamicTableRequirements": [],
+    "forbiddenWriteTables": [],
+    "forbiddenWritePrefixes": [
+      "proc_",
+      "arca_"
+    ],
+    "forbiddenCapabilities": [],
+    "fenceContract": {
+      "domainRevisionFenceRequired": true,
+      "materialControlCasRequired": false,
+      "commitMarkerRequired": false,
+      "outboxRequired": false
+    },
+    "rollbackInvariant": "Any participant, revision fence, digest, or CAS failure leaves zero transaction writes visible; no commit marker, receipt, or outbox may survive alone.",
+    "crashFixtures": [
+      {
+        "fixtureId": "command-idempotency",
+        "faultInjectionPoints": "Owner业务修改后响应前崩溃、相同key同payload重试、相同key不同payload重试",
+        "requiredInvariant": "Receipt与Owner修改同事务；同payload返回原result ref；不同payload稳定拒绝；不重复创建对象或推进revision",
+        "source": {
+          "section": "8.9.7",
+          "line": 8428
+        }
+      }
+    ],
+    "source": {
+      "section": "8.5.4",
+      "line": 8551,
+      "lineDigest": "5f036d990fdb2236dd5d82e6f02db12036774aed35958175dcf4479b17bd159b"
+    }
+  }
+}

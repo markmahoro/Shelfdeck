@@ -324,7 +324,7 @@ test('clean host serves public health and Admin UI, then requires API key or Htt
     secretRoot,
   });
   try {
-    assert.equal(host.routeCount, 116);
+    assert.equal(host.routeCount, 117);
     const health = await host.inject({ method: 'GET', url: '/v1/health' });
     assert.equal(health.statusCode, 200);
     assert.deepEqual(Object.keys(health.json()).sort(), ['generation', 'normalSupplyAllowed', 'status']);
@@ -2231,7 +2231,7 @@ test('formal node entrypoint starts, authenticates and shuts down through public
   try {
     const base = `http://127.0.0.1:${port}`;
     const health = await waitForHealth(`${base}/v1/health`, child, () => stderr);
-    assert.equal((await health.json()).generation, 'helix-clean-v1');
+    assert.equal((await health.json()).generation, 'helix-clean-v2');
     const admin = await fetch(`${base}/admin`);
     assert.equal(admin.status, 200);
     assert.match(await admin.text(), /id="root"/);

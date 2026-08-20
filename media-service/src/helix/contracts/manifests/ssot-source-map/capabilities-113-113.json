@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "mapId": "helix.ssot-contract-source-map",
+  "category": "capabilities",
+  "startOrdinal": 113,
+  "endOrdinal": 113,
+  "entries": [
+    {
+      "id": "people.workspace.reclaim@1",
+      "contractVersion": 1,
+      "owner": "people",
+      "inputSummary": "People Workspace handles + ReferenceEvidence",
+      "outputFamily": "ReclamationReceipt",
+      "effectClass": "workspace_write",
+      "source": {
+        "section": "8.6.14",
+        "line": 10188,
+        "lineDigest": "beced2784c1e277b20c4d5547149519e4cba307751d901ee3df5f29d59061d8c"
+      }
+    }
+  ]
+}

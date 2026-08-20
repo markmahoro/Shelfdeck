@@ -6,6 +6,8 @@ const { createDecisionBasisStore, RESULT_SCHEMA: DECISION_BASIS_SCHEMA } = requi
 const BASE = 'helix://contracts/capabilities/';
 const FACT_RESULT = 'helix://contracts/types/RoutingFactObservation/v1';
 const FACT_REF = 'libra.routing.fact.observe@1';
+const IDENTITY_EVIDENCE_RESULT = 'helix://contracts/types/ProductIdentityEvidenceObservation/v1';
+const IDENTITY_EVIDENCE_REF = 'libra.product_identity.evidence.observe@1';
 const BASIS_REF = 'libra.decision_basis.commit@1';
 
 function stable(prefix, value) { return prefix + canonicalDigest(value).slice(0, 40); }
@@ -134,6 +136,79 @@ function parseProvider(intent, candidates, handle) {
     result(intent, handle.integrationId, 'not_found', 'requested_fact_absent', [], 1);
 }
 
+function identityAlias(value, sourceKind) {
+  const item = { value:String(value || '').normalize('NFKC').trim(), sourceKind };
+  return Object.freeze({ ...item, aliasDigest:canonicalDigest(item) });
+}
+
+function identityCandidate(candidate) {
+  const aliases = unique([candidate.title, candidate.originalTitle]).map((value) => identityAlias(value, 'provider'));
+  const value = { provider:'tmdb', namespace:'tmdb_movie', providerKey:String(candidate.providerKey),
+    displayTitle:String(candidate.title || candidate.originalTitle), originalTitle:candidate.originalTitle ? String(candidate.originalTitle) : null,
+    releaseYear:Number.isSafeInteger(candidate.releaseYear) ? candidate.releaseYear : null, aliases:Object.freeze(aliases) };
+  return Object.freeze({ ...value, candidateDigest:canonicalDigest(value) });
+}
+
+function normalizedIdentityAssociationTitle(value) {
+  return normalize(value)
+    .replace(/\s*[（(](?:18|19|20|21)\d{2}[)）]\s*$/u, '')
+    .replace(/(?:\b(?:2160p|1080p|720p|4k|uhd|blu-?ray|remux|web-?dl|h\.?26[45]|hevc|avc)\b[ ._-]*)+$/giu, '')
+    .trim();
+}
+
+function exactProviderAssociationMatches(intent, candidate) {
+  if (intent.associationKind === 'manual_selection') return true;
+  if (intent.associationKind !== 'nfo_claim') return false;
+  const expectedTitles = new Set((intent.aliases || []).map((item) => normalizedIdentityAssociationTitle(item.value)).filter(Boolean));
+  const providerTitles = [candidate.title, candidate.originalTitle]
+    .map(normalizedIdentityAssociationTitle).filter(Boolean);
+  return providerTitles.some((title) => expectedTitles.has(title)) &&
+    (intent.yearHint === null || candidate.releaseYear === intent.yearHint);
+}
+
+function identityObservation(intent, resultKind, reasonCode, candidates, verifiedCandidate = null) {
+  const verifiedIdentity = verifiedCandidate ? Object.freeze({
+    ...Object.fromEntries(Object.entries(verifiedCandidate).filter(([key]) => key !== 'candidateDigest')),
+    identityDigest:canonicalDigest(Object.fromEntries(Object.entries(verifiedCandidate).filter(([key]) => key !== 'candidateDigest'))),
+  }) : null;
+  const body = { schemaRef:IDENTITY_EVIDENCE_RESULT, schemaVersion:1,
+    observationId:stable('libra-product-identity-evidence-', { intentId:intent.intentId, resultKind, candidates }),
+    intentId:intent.intentId, libraRunId:intent.libraRunId, subjectId:intent.subjectId, sourceKind:intent.sourceKind,
+    result:resultKind, reasonCode, candidates:Object.freeze(candidates), candidateMatchCount:verifiedIdentity ? 1 : candidates.length,
+    verifiedIdentity, sourceAssociationDigest:canonicalDigest({ sourceKind:intent.sourceKind, intentDigest:intent.intentDigest }),
+    evidenceDigest:canonicalDigest({ schema:'libra.product-identity-source-evidence@1', intentDigest:intent.intentDigest,
+      resultKind, reasonCode, candidateDigests:candidates.map((item) => item.candidateDigest), verifiedIdentity }) };
+  return Object.freeze({ ...body, observationDigest:canonicalDigest(body) });
+}
+
+async function observeProductIdentity(options, intent, handle) {
+  const providerSearchTitle = normalize(intent.aliases[0].value)
+    .replace(/\s*[（(](?:18|19|20|21)\d{2}[)）]\s*$/u, '').trim();
+  const legacy = { intentId:intent.intentId, subjectId:intent.subjectId, contentProfile:intent.contentProfile,
+    requestedFactKinds:['resolved_provider_identity'], sourceKind:intent.sourceKind === 'related_nfo' ? 'related_nfo' : 'provider',
+    relatedReferenceId:intent.relatedReferenceId, candidateDisplayTitle:providerSearchTitle, yearHint:intent.yearHint,
+    strongProviderAnchor:intent.sourceKind === 'provider_exact' ? { provider:'tmdb', namespace:'tmdb_movie', providerKey:intent.providerKey } : null,
+    intentDigest:intent.intentDigest };
+  if (intent.sourceKind === 'related_nfo') {
+    const parsed = parseNfo(legacy, await options.readRelatedNfo(handle), handle);
+    if (parsed.result === 'not_found') return identityObservation(intent, 'not_found', 'nfo_identity_absent', []);
+    if (parsed.result === 'ambiguous') return identityObservation(intent, 'conflicting', 'nfo_association_conflicting', []);
+    const fact = parsed.facts.find((item) => item.factKind === 'resolved_provider_identity');
+    if (!fact) return identityObservation(intent, 'not_found', 'nfo_identity_absent', []);
+    const candidate = identityCandidate({ providerKey:fact.providerKey, title:intent.aliases[0].value,
+      originalTitle:intent.aliases[1]?.value || null, releaseYear:intent.yearHint });
+    return identityObservation(intent, 'resolved', null, [], candidate);
+  }
+  const raw = await options.observeRoutingProvider({ intent:legacy, integrationHandle:handle, operationId:IDENTITY_EVIDENCE_REF });
+  const matches = providerCandidateSelection(legacy, raw).map(identityCandidate);
+  if (matches.length === 0) return identityObservation(intent, 'not_found', 'provider_no_match', []);
+  if (matches.length > 1) return identityObservation(intent, 'ambiguous', 'provider_identity_ambiguous', matches.slice(0, 16));
+  if (intent.sourceKind === 'provider_exact' && !exactProviderAssociationMatches(intent, raw.find((item) => item.providerKey === intent.providerKey))) {
+    return identityObservation(intent, 'conflicting', 'provider_identity_conflicting', matches);
+  }
+  return identityObservation(intent, 'resolved', null, [], matches[0]);
+}
+
 function effectReceipt(context, resultValue, marker, verificationEvidenceDigest, committedAtMs) {
   const effectId = canonicalDigest(['domain_fact_commit', context.idempotencyKey]);
   return Object.freeze({ schemaRef: 'helix://contracts/types/EffectReceipt/v1', schemaVersion: 1,
@@ -149,6 +224,18 @@ function createRoutingCapabilityPorts(options) {
   }
   const now = options.now || Date.now, basisStore = createDecisionBasisStore(options);
   return Object.freeze({
+    [IDENTITY_EVIDENCE_REF]: Object.freeze({
+      validateInputs(context) { if (!context?.namedInputs?.productIdentityEvidenceIntent ||
+          !context.namedInputs.physicalMaterialReadHandleOrIntegrationHandle) throw new TypeError('Product Identity Evidence inputs are required.'); },
+      async execute(context) {
+        const intent=context.namedInputs.productIdentityEvidenceIntent,
+          handle=context.namedInputs.physicalMaterialReadHandleOrIntegrationHandle,
+          observed=await observeProductIdentity(options,intent,handle),observedAtMs=now();
+        return succeeded(IDENTITY_EVIDENCE_REF,observed,observedAtMs,null,
+          evidence(IDENTITY_EVIDENCE_REF,intent.intentDigest,observed,observedAtMs));
+      },
+      validateResult(_context,value) { if(!value?.result?.observationDigest)throw new TypeError('Product Identity Evidence Observation is absent.'); },
+    }),
     [FACT_REF]: Object.freeze({
       validateInputs(context) { if (!context?.namedInputs?.routingFactObservationIntent || !context.namedInputs.physicalMaterialReadHandleOrIntegrationHandle) throw new TypeError('Routing Fact inputs are required.'); },
       async execute(context) {
@@ -180,4 +267,4 @@ function createRoutingCapabilityPorts(options) {
   });
 }
 
-module.exports = Object.freeze({ createRoutingCapabilityPorts, parseNfo, parseProvider, providerCandidateSelection });
+module.exports = Object.freeze({ createRoutingCapabilityPorts, observeProductIdentity, parseNfo, parseProvider, providerCandidateSelection });

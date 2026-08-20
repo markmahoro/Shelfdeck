@@ -15,7 +15,8 @@ const EXPECTED_MODULES = Object.freeze([
   'owner-repository.js',
   'sqlite-kernel.js',
   'sqlite-unit-of-work.js',
-  'supporting-result-store.js'
+  'supporting-result-store.js',
+  'uat-identity-selection-migration.js'
 ]);
 
 class P3PersistenceVerificationError extends Error {

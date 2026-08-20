@@ -164,11 +164,15 @@ test('direct and sorting Routing Decisions continue through Acceptance Spec and 
       const response = await host.inject({ method: 'GET', url: '/v1/admin/formation', headers: { cookie } });
       assert.equal(response.statusCode, 200, response.body); formation = response.json();
       if (runtimeError) break;
-      if (formation.summary.subjectCount === 24 && formation.summary.resolvedCount === 23 && formation.summary.unresolvedCount === 1) break;
+      const resolvedCount=formation.items.filter((item)=>item.routingState==='resolved').length;
+      const unresolvedCount=formation.items.filter((item)=>item.routingState==='unresolved').length;
+      if (formation.summary.totalCount === 24 && resolvedCount === 23 && unresolvedCount === 1) break;
       await new Promise((resolve) => setTimeout(resolve, 25));
     }
     assert.ifError(runtimeError);
-    assert.deepEqual(formation.summary, { subjectCount: 24, preparingCount: 0, unresolvedCount: 1, resolvedCount: 23 });
+    assert.deepEqual(formation.summary, { totalCount:24, waitingCount:24, inProgressCount:0, completedCount:0 });
+    assert.equal(formation.items.filter((item)=>item.routingState==='resolved').length,23);
+    assert.equal(formation.items.filter((item)=>item.routingState==='unresolved').length,1);
     assert.equal(formation.items.filter((item) => item.targetShelfId === 'movie-test').length, 19);
     const expected = new Map([['顽主', 'classics'], ['爆弹', 'new-releases'], ['0.5毫米', 'general'], ['0.5毫米 Provider', 'general']]);
     for (const [title, shelfId] of expected) assert.equal(formation.items.find((item) => item.displayIdentity === title)?.targetShelfId, shelfId, title);
@@ -195,7 +199,8 @@ test('direct and sorting Routing Decisions continue through Acceptance Spec and 
     await waitForDurableAcceptance(path.join(dataDir, 'shelfdeck.db'), 25, 24);
     const recovered = await host.inject({ method: 'GET', url: '/v1/admin/formation', headers: { cookie } });
     assert.equal(recovered.statusCode, 200, recovered.body);
-    assert.deepEqual(recovered.json().summary, { subjectCount: 24, preparingCount: 0, unresolvedCount: 0, resolvedCount: 24 });
+    assert.deepEqual(recovered.json().summary, { totalCount:24, waitingCount:24, inProgressCount:0, completedCount:0 });
+    assert.equal(recovered.json().items.filter((item)=>item.routingState==='resolved').length,24);
     assert.deepEqual(providerCalls.filter((item)=>item.requestedFactKinds.includes('release_year'))
       .map((item)=>item.title).sort(), ['0.5毫米 provider', '无nfo且无法解析的测试标题'].sort());
     assert.equal(sourceReality([directRoot, sortingRoot]), sourceBefore);

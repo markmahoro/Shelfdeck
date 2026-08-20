@@ -13,9 +13,9 @@ const extracted = extractSsotContracts(ssot);
 
 test('builds exactly one immutable eight-file package for each Catalog ref', () => {
   const packages = buildCapabilityPackages(extracted.capabilities);
-  assert.equal(packages.length, 112);
-  assert.equal(new Set(packages.map((item) => item.capabilityRef)).size, 112);
-  assert.equal(new Set(packages.map((item) => item.relativePath)).size, 112);
+  assert.equal(packages.length, 113);
+  assert.equal(new Set(packages.map((item) => item.capabilityRef)).size, 113);
+  assert.equal(new Set(packages.map((item) => item.relativePath)).size, 113);
   for (const item of packages) {
     assert.deepEqual(Object.keys(item.files).sort(), [
       'evidence.schema.json', 'failure.schema.json', 'fence.schema.json', 'inputs.schema.json',

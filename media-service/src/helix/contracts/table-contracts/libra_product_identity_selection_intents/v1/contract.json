@@ -1,0 +1,221 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/libra_product_identity_selection_intents/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "libra_product_identity_selection_intents",
+    "owner": "libra",
+    "prefix": "libra_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "selection_intent_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": true,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 2,
+        "name": "libra_run_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 3,
+        "name": "intent_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 4,
+        "name": "selection_kind",
+        "logicalType": "TEXT",
+        "enumValues": [
+          "candidate",
+          "provider_id"
+        ],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 5,
+        "name": "provider",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 6,
+        "name": "namespace",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 7,
+        "name": "provider_key",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 8,
+        "name": "candidate_set_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 9,
+        "name": "expected_run_state_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 10,
+        "name": "expected_identity_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 11,
+        "name": "idempotency_key",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 12,
+        "name": "intent_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 13,
+        "name": "created_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      }
+    ],
+    "primaryKey": [
+      "selection_intent_id"
+    ],
+    "declaredForeignKeyColumns": [
+      "libra_run_id"
+    ],
+    "uniqueConstraints": [
+      [
+        "libra_run_id",
+        "intent_revision"
+      ],
+      [
+        "libra_run_id",
+        "idempotency_key"
+      ]
+    ],
+    "hotIndexes": [],
+    "partialUniqueRules": [],
+    "checkRules": [
+      {
+        "column": "selection_kind",
+        "enumValues": [
+          "candidate",
+          "provider_id"
+        ]
+      }
+    ],
+    "revisionContract": {
+      "revisionColumns": [
+        "intent_revision",
+        "expected_run_state_revision",
+        "expected_identity_revision"
+      ],
+      "currentPointerColumns": [],
+      "pointerTargets": [],
+      "pointerRules": []
+    },
+    "jsonContracts": [],
+    "immutability": {
+      "immutable": true,
+      "rules": [
+        "append-only",
+        "用户选择只形成Libra-owned immutable Intent，后续仍须由`provider_exact` Evidence Work验证，不能直接发布Resolved Identity"
+      ]
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "append-only",
+      "`UNIQUE(libra_run_id,intent_revision)`、`UNIQUE(libra_run_id,idempotency_key)`",
+      "用户选择只形成Libra-owned immutable Intent，后续仍须由`provider_exact` Evidence Work验证，不能直接发布Resolved Identity"
+    ],
+    "rawContract": {
+      "columns": "`selection_intent_id PK, libra_run_id FK, intent_revision, selection_kind(candidate|provider_id), provider, namespace, provider_key, candidate_set_digest NULL, expected_run_state_revision, expected_identity_revision NULL, idempotency_key, intent_digest, created_at_ms`",
+      "constraints": "append-only；`UNIQUE(libra_run_id,intent_revision)`、`UNIQUE(libra_run_id,idempotency_key)`；用户选择只形成Libra-owned immutable Intent，后续仍须由`provider_exact` Evidence Work验证，不能直接发布Resolved Identity"
+    },
+    "source": {
+      "section": "8.5.11",
+      "line": 9246,
+      "lineDigest": "6104e8adb8500a15f9f91830a143abbb2a70ce40a9cf59fde78b8a3e313d5c20"
+    },
+    "foreignKeys": [
+      {
+        "columns": [
+          "libra_run_id"
+        ],
+        "targetTable": "libra_runs",
+        "targetColumns": [
+          "libra_run_id"
+        ],
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
+      }
+    ]
+  }
+}

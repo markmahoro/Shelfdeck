@@ -1,6 +1,7 @@
 'use strict';
 
 const EFFECTS = Object.freeze({
+  'libra.product_identity.evidence.observe@1': 'pure_observation',
   'libra.routing.fact.observe@1': 'pure_observation',
   'libra.decision_basis.commit@1': 'domain_fact_commit',
 });

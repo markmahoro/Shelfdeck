@@ -10,11 +10,11 @@
     "packageBoundaries": 47
   },
   "manifests": [
-    { "manifestId": "helix.inventory.capabilities", "kind": "capability-inventory", "relativePath": "capability-inventory.json", "targetCount": 112 },
-    { "manifestId": "helix.inventory.result-families", "kind": "result-family-inventory", "relativePath": "result-family-inventory.json", "targetCount": 98 },
-    { "manifestId": "helix.inventory.tables", "kind": "table-inventory", "relativePath": "table-inventory.json", "targetCount": 180 },
-    { "manifestId": "helix.inventory.routes", "kind": "route-inventory", "relativePath": "route-inventory.json", "targetCount": 116, "targetSegments": { "admin": 115, "publicHealth": 1 } },
-    { "manifestId": "helix.inventory.canonical-transactions", "kind": "transaction-inventory", "relativePath": "transaction-inventory.json", "targetCount": 43 },
+    { "manifestId": "helix.inventory.capabilities", "kind": "capability-inventory", "relativePath": "capability-inventory.json", "targetCount": 113 },
+    { "manifestId": "helix.inventory.result-families", "kind": "result-family-inventory", "relativePath": "result-family-inventory.json", "targetCount": 99 },
+    { "manifestId": "helix.inventory.tables", "kind": "table-inventory", "relativePath": "table-inventory.json", "targetCount": 181 },
+    { "manifestId": "helix.inventory.routes", "kind": "route-inventory", "relativePath": "route-inventory.json", "targetCount": 117, "targetSegments": { "admin": 116, "publicHealth": 1 } },
+    { "manifestId": "helix.inventory.canonical-transactions", "kind": "transaction-inventory", "relativePath": "transaction-inventory.json", "targetCount": 44 },
     { "manifestId": "helix.inventory.ui-surfaces", "kind": "ui-surface-inventory", "relativePath": "ui-surface-inventory.json", "targetCount": 17, "targetSegments": { "pages": 8, "journeys": 9 } },
     { "manifestId": "helix.legacy-reuse-ledger", "kind": "legacy-reuse-ledger", "relativePath": "legacy-reuse-ledger.json", "targetCount": 62 }
   ]

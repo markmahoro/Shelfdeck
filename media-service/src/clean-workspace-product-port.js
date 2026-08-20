@@ -34,12 +34,6 @@ function digestBytes(bytes) {
   return crypto.createHash('sha256').update(bytes).digest('hex');
 }
 
-async function digestFile(location) {
-  const hash = crypto.createHash('sha256');
-  for await (const chunk of fs.createReadStream(location)) hash.update(chunk);
-  return hash.digest('hex');
-}
-
 const ARTIFACT_KINDS = Object.freeze([
   'nfo',
   'poster',
@@ -1282,9 +1276,16 @@ function createCleanWorkspaceProductPort(options) {
         'Other-owned Workspace material may only be verified absent.');
     }
     if (prior.state !== 'committed' && existed) {
-      const bytes = fs.readFileSync(target);
-      if (bytes.length !== handle.sizeBytes ||
-          digestBytes(bytes) !== handle.digestHex) {
+      const stat=fs.statSync(target);
+      let realityMatches=stat.isFile()&&Number(stat.size)===handle.sizeBytes;
+      if(realityMatches&&handle.digestAlgorithm==='middle-256k-sha256'){
+        const bounded=require('./helix/integrations/bounded-material-fingerprint').computeBoundedMaterialFingerprintSync(target);
+        realityMatches=bounded.contentFingerprint===handle.digestHex;
+      }else if(realityMatches&&handle.digestAlgorithm==='sha256'){
+        const bytes=fs.readFileSync(target);
+        realityMatches=digestBytes(bytes)===handle.digestHex;
+      }else realityMatches=false;
+      if (!realityMatches) {
         fail('CLEAN_WORKSPACE_RECLAIM_IDENTITY',
           'Workspace cleanup target bytes differ from the frozen Handle.');
       }
@@ -1459,15 +1460,15 @@ function createCleanWorkspaceProductPort(options) {
     if (!fs.existsSync(target) || !fs.statSync(target).isFile()) {
       fail('CLEAN_WORKSPACE_MEDIA_REALITY_DRIFT', 'Workspace media output is absent.');
     }
-    const stat = fs.statSync(target, { bigint:true });
-    const sizeBytes = Number(stat.size);
-    if (!Number.isSafeInteger(sizeBytes)) fail('CLEAN_WORKSPACE_MEDIA_SIZE', 'Workspace media output is too large.');
-    const digestHex = await digestFile(target);
-    if (existingBefore && existingBefore.digestHex !== digestHex) {
-      fail('CLEAN_WORKSPACE_MEDIA_REALITY_DRIFT', 'Committed Workspace media bytes drifted.');
-    }
     const bounded = require('./helix/integrations/bounded-material-fingerprint')
       .computeBoundedMaterialFingerprintSync(target);
+    const stat = bounded.stat;
+    const sizeBytes = Number(stat.size);
+    if (!Number.isSafeInteger(sizeBytes)) fail('CLEAN_WORKSPACE_MEDIA_SIZE', 'Workspace media output is too large.');
+    const digestHex = bounded.contentFingerprint;
+    if (existingBefore && (existingBefore.digestAlgorithm !== 'middle-256k-sha256' || existingBefore.digestHex !== digestHex)) {
+      fail('CLEAN_WORKSPACE_MEDIA_REALITY_DRIFT', 'Committed Workspace media bytes drifted.');
+    }
     const physicalIdentity = Object.freeze({
       mountScopeId, inode:String(stat.ino), sizeBytes,
       fingerprintAlgorithm:bounded.fingerprintAlgorithm, fingerprintVersion:bounded.fingerprintVersion,
@@ -1481,13 +1482,13 @@ function createCleanWorkspaceProductPort(options) {
     const handleBasis = { schemaRef:'helix://contracts/types/WorkspaceMaterialHandle/v1', schemaVersion:1,
       handleId, workspaceId:request.workspaceId, ownerDomain:'libra', processId:request.libraRunId,
       endpointId, materialKey, physicalIdentity, rootHandleRef, relativePath,
-      digestAlgorithm:'sha256', digestHex, sizeBytes, referenceRevision:1,
+      digestAlgorithm:'middle-256k-sha256', digestHex, sizeBytes, referenceRevision:1,
       accessScope:'workspace_material_read' };
     const workspaceMaterialHandle = Object.freeze({ ...handleBasis,
       fenceDigest:canonicalDigest({ schema:'foundation.workspace-material-handle-fence@1',
         handleId, workspaceId:request.workspaceId, ownerDomain:'libra', processId:request.libraRunId,
         endpointId, materialKey, physicalIdentity, rootHandleRef, relativePath,
-        digestAlgorithm:'sha256', digestHex, sizeBytes, referenceRevision:1,
+        digestAlgorithm:'middle-256k-sha256', digestHex, sizeBytes, referenceRevision:1,
         accessScope:'workspace_material_read' }) });
     const committed = execute('clean_workspace_media_effect_commit', 'execution-foundation', repositories.foundation, (context) => {
       const repo = context.repository(repositories.foundation.repositoryId);
@@ -1510,7 +1511,7 @@ function createCleanWorkspaceProductPort(options) {
       repo.invoke('insert_material', { workspace_id:request.workspaceId, material_handle_id:handleId,
         material_key:materialKey, endpoint_id:endpointId, mount_scope_id:mountScopeId, inode:physicalIdentity.inode,
         fingerprint_algorithm:bounded.fingerprintAlgorithm, fingerprint_version:bounded.fingerprintVersion,
-        content_fingerprint:bounded.contentFingerprint, relative_path:relativePath, digest_algorithm:'sha256',
+        content_fingerprint:bounded.contentFingerprint, relative_path:relativePath, digest_algorithm:'middle-256k-sha256',
         digest_hex:digestHex, size_bytes:sizeBytes, reference_revision:1, owner_domain:'libra',
         process_id:request.libraRunId, root_handle_ref:rootHandleRef, access_scope:'workspace_material_read',
         handle_schema_ref:workspaceMaterialHandle.schemaRef, handle_json:canonicalJson(workspaceMaterialHandle),
@@ -1578,9 +1579,10 @@ function createCleanWorkspaceProductPort(options) {
       fail('CLEAN_WORKSPACE_EXTERNAL_IMPORT_CONTAINMENT',
         'External Workspace import source is outside the frozen Landing handle.');
     }
-    const sourceStat = fs.statSync(source, { bigint:true });
-    const sourceDigest = await digestFile(source);
-    if (Number(sourceStat.size) !== member.sizeBytes || sourceDigest !== member.checksumHex) {
+    const sourceFingerprint = require('./helix/integrations/bounded-material-fingerprint')
+      .computeBoundedMaterialFingerprintSync(source);
+    const sourceStat = sourceFingerprint.stat;
+    if (Number(sourceStat.size) !== member.sizeBytes) {
       fail('CLEAN_WORKSPACE_EXTERNAL_IMPORT_IDENTITY',
         'External Workspace import source differs from its verified Provider snapshot.');
     }
@@ -1606,18 +1608,19 @@ function createCleanWorkspaceProductPort(options) {
           fs.createReadStream(source),
           fs.createWriteStream(temporary, { flags:'wx' }),
         );
-        const after = fs.statSync(source, { bigint:true });
-        const afterDigest = await digestFile(source);
+        const afterFingerprint = require('./helix/integrations/bounded-material-fingerprint')
+          .computeBoundedMaterialFingerprintSync(source);
+        const after = afterFingerprint.stat;
         if (after.dev !== sourceStat.dev || after.ino !== sourceStat.ino ||
             after.size !== sourceStat.size || after.mtimeNs !== sourceStat.mtimeNs ||
-            after.ctimeNs !== sourceStat.ctimeNs || afterDigest !== sourceDigest) {
+            after.ctimeNs !== sourceStat.ctimeNs || afterFingerprint.contentFingerprint !== sourceFingerprint.contentFingerprint) {
           fail('CLEAN_WORKSPACE_EXTERNAL_IMPORT_SOURCE_CHANGED',
             'External Landing source changed during Workspace import.');
         }
       },
     });
     if (receipt.workspaceMaterialHandle.sizeBytes !== member.sizeBytes ||
-        receipt.workspaceMaterialHandle.digestHex !== member.checksumHex) {
+        receipt.workspaceMaterialHandle.digestAlgorithm !== 'middle-256k-sha256') {
       fail('CLEAN_WORKSPACE_EXTERNAL_IMPORT_RESULT',
         'Imported Workspace material does not preserve the verified external member.');
     }

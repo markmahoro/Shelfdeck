@@ -90,10 +90,13 @@ function definitions(schemaManifest) {
       find: { kind: 'select-one', tableId: 'fx_workflow_plans', columns: ['plan_id', 'attempt_id', 'state'], keyColumns: ['attempt_id'] }
     } }),
     events: createRepositoryDefinition({ repositoryId: 'work_lifecycle_events', owner: 'execution-foundation', schemaManifest, statements: {
-      list_work: { kind: 'select-all', tableId: 'fx_workflow_events', columns: ['event_id', 'work_id', 'state', 'result_id'], keyColumns: ['work_id'] },
+      list_work: { kind: 'select-all', tableId: 'fx_workflow_events', columns: ['event_id', 'work_id', 'attempt_id', 'state', 'result_id'], keyColumns: ['work_id'] },
       find: { kind: 'select-one', tableId: 'fx_workflow_events', columns: ['event_id', 'work_id', 'state', 'result_id'], keyColumns: ['event_id'] },
       transition: { kind: 'update', tableId: 'fx_workflow_events', setColumns: ['state'], keyColumns: ['event_id'],
         compareColumns: [{ column: 'state', parameter: 'expected_state' }] }
+    } }),
+    eventAttempts: createRepositoryDefinition({ repositoryId:'work_lifecycle_event_attempts', owner:'execution-foundation', schemaManifest, statements:{
+      list:{kind:'select-all',tableId:'fx_event_attempts',columns:['event_attempt_id','event_id','ordinal','state','outcome_kind','failure_code'],keyColumns:['event_id'],safeIntegers:true}
     } }),
   });
 }
@@ -198,32 +201,44 @@ function createWorkLifecycle(options) {
         work: Object.freeze(work), replayed: true });
       const active = attempts.invoke('list', { work_id: workId }).filter((attempt) => attempt.state === 'running');
       if (active.length !== 1) fail('P4_WORK_RUNNING_ATTEMPT_CARDINALITY', 'Running Work must own exactly one running Attempt.', { workId });
-      const events = context.repository('work_lifecycle_events').invoke('list_work', { work_id: workId });
+      const events = context.repository('work_lifecycle_events').invoke('list_work', { work_id: workId })
+        .filter((event)=>event.attempt_id===active[0].attempt_id);
       if (events.length < 1 || events.some((event) => !TERMINAL_EVENTS.has(event.state))) {
         return Object.freeze({ attemptTerminal: false, workTerminal: false, work: Object.freeze(work),
           eventCount: events.length, replayed: false });
       }
       const state = events.some((event) => event.state === 'failed') ? 'failed'
         : events.some((event) => event.state === 'cancelled') ? 'cancelled' : 'succeeded';
-      const failureCode = state === 'failed' ? 'EVENT_TERMINAL_FAILURE' : null;
+      const failedCodes=state==='failed'?[...new Set(events.filter((event)=>event.state==='failed').flatMap((event)=>
+        context.repository('work_lifecycle_event_attempts').invoke('list',{event_id:event.event_id})
+          .filter((attempt)=>attempt.state==='completed'&&attempt.outcome_kind==='failed')
+          .sort((left,right)=>Number(right.ordinal)-Number(left.ordinal)).slice(0,1).map((attempt)=>attempt.failure_code)).filter(Boolean))]:[];
+      const failureCode = state === 'failed' ? failedCodes.length===1?failedCodes[0]:'EVENT_TERMINAL_FAILURE' : null;
       if (attempts.invoke('transition', {
         attempt_id: active[0].attempt_id, state, started_at_ms: active[0].started_at_ms,
         finished_at_ms: context.commitTimeMs, failure_code: failureCode, expected_state: 'running',
       }).changes !== 1) fail('P4_WORK_ATTEMPT_TERMINAL_CAS', 'Work Attempt terminal aggregation fence changed.');
       return Object.freeze({ attemptTerminal: true, workTerminal: false, work: Object.freeze(work),
-        attemptId: active[0].attempt_id, attemptState: state, eventCount: events.length, replayed: false });
+        attemptId: active[0].attempt_id, attemptState: state, attemptFailureCode:failureCode, eventCount: events.length, replayed: false });
     });
   }
 
   function settleWork(request) {
     if (!request || typeof request.workId !== 'string' || !request.workId ||
+        (request.workAttemptId!==undefined&&(typeof request.workAttemptId !== 'string' || !request.workAttemptId)) ||
         !['succeeded', 'failed', 'cancelled', 'blocked', 'replan'].includes(request.disposition)) {
       fail('P4_WORK_DISPOSITION_INVALID', 'Domain Owner returned an invalid Work disposition.');
     }
     return execute('work_lifecycle_settle', (context) => {
       const works = context.repository('work_lifecycle_works');
+      const attempts = context.repository('work_lifecycle_attempts');
       const work = works.invoke('find', { work_id: request.workId });
       if (!work) fail('P4_WORK_FACT_MISSING', 'Supporting Work does not exist.', { workId: request.workId });
+      const latestAttempt=attempts.invoke('list',{work_id:request.workId})
+        .sort((left,right)=>Number(right.ordinal)-Number(left.ordinal))[0]||null;
+      if(request.workAttemptId!==undefined&&(!latestAttempt||latestAttempt.attempt_id!==request.workAttemptId)){
+        return Object.freeze({workId:request.workId,state:work.state,replayed:true,staleAttempt:true});
+      }
       const desired = request.disposition === 'replan' ? 'ready' : request.disposition;
       if (work.state === desired) return Object.freeze({ workId: request.workId, state: desired, replayed: true });
       if (work.state !== 'running') fail('P4_WORK_DISPOSITION_FENCE', 'Only a running Work can accept an Owner disposition.', {

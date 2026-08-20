@@ -60,6 +60,9 @@
         "resolutionKind"
       ]
     },
+    "resolutionDecision": {
+      "$ref": "helix://contracts/domain-types/SubjectContinuityResolutionDecision/v1"
+    },
     "candidateDeliverySnapshotDigest": {
       "type": "string",
       "minLength": 1,
@@ -239,6 +242,7 @@
     "draftDigest",
     "producedAtMs",
     "subjectRef",
+    "resolutionDecision",
     "candidateDeliverySnapshotDigest",
     "bindings",
     "bindingSetDigest"

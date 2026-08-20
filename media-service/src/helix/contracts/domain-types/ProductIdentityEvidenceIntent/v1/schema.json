@@ -1,0 +1,373 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/domain-types/ProductIdentityEvidenceIntent/v1",
+  "title": "ProductIdentityEvidenceIntent@1",
+  "x-helix-ssotRefs": [
+    "5.1.3",
+    "5.4.3",
+    "8.6.5",
+    "8.6.19"
+  ],
+  "x-helix-role": "accepted-business-dto",
+  "x-helix-maxCanonicalBytes": 16384,
+  "oneOf": [
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "intentId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "libraRunId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "subjectId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "runExecutionBasisDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "contentProfile": {
+          "const": "movie"
+        },
+        "sourceKind": {
+          "const": "related_nfo"
+        },
+        "aliases": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "value": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 1024
+              },
+              "sourceKind": {
+                "type": "string",
+                "enum": [
+                  "candidate",
+                  "related_nfo",
+                  "manual_selection"
+                ]
+              },
+              "aliasDigest": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-f0-9]{64}$"
+              }
+            },
+            "required": [
+              "value",
+              "sourceKind",
+              "aliasDigest"
+            ]
+          },
+          "maxItems": 32,
+          "minItems": 1
+        },
+        "yearHint": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1870,
+              "maximum": 3000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "intentDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "relatedReferenceId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "relatedReferenceDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "expectedPhysicalIdentityDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "intentId",
+        "libraRunId",
+        "subjectId",
+        "runExecutionBasisDigest",
+        "contentProfile",
+        "sourceKind",
+        "aliases",
+        "yearHint",
+        "intentDigest",
+        "relatedReferenceId",
+        "relatedReferenceDigest",
+        "expectedPhysicalIdentityDigest"
+      ]
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "intentId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "libraRunId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "subjectId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "runExecutionBasisDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "contentProfile": {
+          "const": "movie"
+        },
+        "sourceKind": {
+          "const": "provider_exact"
+        },
+        "aliases": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "value": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 1024
+              },
+              "sourceKind": {
+                "type": "string",
+                "enum": [
+                  "candidate",
+                  "related_nfo",
+                  "manual_selection"
+                ]
+              },
+              "aliasDigest": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-f0-9]{64}$"
+              }
+            },
+            "required": [
+              "value",
+              "sourceKind",
+              "aliasDigest"
+            ]
+          },
+          "maxItems": 32,
+          "minItems": 1
+        },
+        "yearHint": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1870,
+              "maximum": 3000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "intentDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "integrationId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "configRevision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "provider": {
+          "const": "tmdb"
+        },
+        "namespace": {
+          "const": "tmdb_movie"
+        },
+        "providerKey": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "associationKind": {
+          "type": "string",
+          "enum": [
+            "nfo_claim",
+            "manual_selection"
+          ]
+        },
+        "associationEvidenceDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "intentId",
+        "libraRunId",
+        "subjectId",
+        "runExecutionBasisDigest",
+        "contentProfile",
+        "sourceKind",
+        "aliases",
+        "yearHint",
+        "intentDigest",
+        "integrationId",
+        "configRevision",
+        "provider",
+        "namespace",
+        "providerKey",
+        "associationKind",
+        "associationEvidenceDigest"
+      ]
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "intentId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "libraRunId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "subjectId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "runExecutionBasisDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "contentProfile": {
+          "const": "movie"
+        },
+        "sourceKind": {
+          "const": "provider_search"
+        },
+        "aliases": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "value": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 1024
+              },
+              "sourceKind": {
+                "type": "string",
+                "enum": [
+                  "candidate",
+                  "related_nfo",
+                  "manual_selection"
+                ]
+              },
+              "aliasDigest": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-f0-9]{64}$"
+              }
+            },
+            "required": [
+              "value",
+              "sourceKind",
+              "aliasDigest"
+            ]
+          },
+          "maxItems": 32,
+          "minItems": 1
+        },
+        "yearHint": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1870,
+              "maximum": 3000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "intentDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "integrationId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "configRevision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "provider": {
+          "const": "tmdb"
+        },
+        "namespace": {
+          "const": "tmdb_movie"
+        }
+      },
+      "required": [
+        "intentId",
+        "libraRunId",
+        "subjectId",
+        "runExecutionBasisDigest",
+        "contentProfile",
+        "sourceKind",
+        "aliases",
+        "yearHint",
+        "intentDigest",
+        "integrationId",
+        "configRevision",
+        "provider",
+        "namespace"
+      ]
+    }
+  ]
+}

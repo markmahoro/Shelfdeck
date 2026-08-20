@@ -7,6 +7,9 @@ const path = require('node:path');
 const test = require('node:test');
 const Database = require('better-sqlite3');
 const { createEventRuntime } = require('../../src/helix/foundation/execution/event-runtime');
+const {
+  executionInputUnavailable,
+} = require('../../src/helix/foundation/execution/execution-input-readiness');
 const { createRepositoryDefinition } = require('../../src/helix/foundation/persistence/owner-repository');
 const { openSqliteKernel } = require('../../src/helix/foundation/persistence/sqlite-kernel');
 const { createSqliteUnitOfWork } = require('../../src/helix/foundation/persistence/sqlite-unit-of-work');
@@ -137,11 +140,14 @@ function fixture(run, settings = {}) {
       return request.operation();
     } },
     circuitBreaker: { allows: () => settings.circuitDecision || ({ allowed: true, reason: 'closed' }) },
-    executionInputProvider: { prepare: () => ({ ownerScope: { domain: 'libra', processType: 'libra_run', processId: 'run', objectRefs: [] },
+    executionInputProvider: { prepare: () => {
+      if (settings.inputError) throw settings.inputError;
+      return ({ ownerScope: { domain: 'libra', processType: 'libra_run', processId: 'run', objectRefs: [] },
       basisRefs: [{ basisType: 'execution_basis', basisId: 'basis', revision: 1, digest: HASH_A }], namedInputs: {},
       idempotencyKey: 'event-attempt', traceContext: { traceId: 'trace', spanId: 'span' },
       ...(settings.inputDeadline !== undefined ? { deadlineAtMs: settings.inputDeadline } : {}),
-      ...(settings.includeApprovalHandle ? { approvalHandle: { approvalId: 'approval' } } : {}) }) },
+      ...(settings.includeApprovalHandle ? { approvalHandle: { approvalId: 'approval' } } : {}) });
+    } },
     fenceValidator: { validate: () => fences[fenceIndex++] },
     whenEvaluator: { evaluate: () => settings.whenDecision || 'run' },
     resourceDemandResolver: { resolve: () => ({ eventId: settings.demandEventId || 'event', queueClass: 'normal_foreground',
@@ -205,6 +211,50 @@ test('deferred Outcome completes Attempt without Result and persists external re
     assert.equal(facts.event.state, 'waiting_for_external'); assert.equal(facts.results, 0);
     assert.equal(facts.attempt.retry_after_ms, 30000); assert.equal(facts.event.retry_at_ms, 1700000031700);
   }, { outcome: { kind: 'deferred', reasonCode: 'NOT_READY', retryAfterMs: 30000, evidence: { observed: true } } });
+});
+
+test('temporarily unavailable execution input waits durably without Attempt, Permit, or queue hot loop', async () => {
+  await fixture(async ({ runtime, lease, databasePath, state }) => {
+    const completed = await runtime.run({ schedulerLease: lease });
+    assert.deepEqual(completed, {
+      kind: 'input_waiting', eventId: 'event',
+      eventAttemptId: null,
+      eventState: 'waiting_for_external', retryAtMs: 31_000,
+      failureCode: 'P4_EXECUTION_INPUT_TEMPORARILY_UNAVAILABLE',
+      failureMessage: null,
+      dependencyKind: 'integration',
+    });
+    assert.deepEqual(databaseFacts(databasePath), {
+      event: { state: 'waiting_for_external', retry_at_ms: 31_000, result_id: null },
+      attempt: undefined, attempts: 0, results: 0,
+    });
+    assert.deepEqual({ schedulerReleased:state().schedulerReleased, governorReleased:state().governorReleased },
+      { schedulerReleased:1, governorReleased:0 });
+  }, { inputError:executionInputUnavailable('Integration unavailable.', {
+    dependencyKind:'integration', dependencyRef:'tmdb-main', retryAtMs:31_000,
+  }) });
+});
+
+test('deterministic input projection failure terminates Event with one auditable failed Attempt', async () => {
+  await fixture(async ({ runtime, lease, databasePath, state }) => {
+    const completed = await runtime.run({ schedulerLease: lease });
+    assert.equal(completed.kind, 'input_failed');
+    assert.equal(completed.failureCode, 'P4_EVENT_INPUT_PREPARATION_FAILED');
+    assert.deepEqual(databaseFacts(databasePath), {
+      event: { state: 'failed', retry_at_ms: null, result_id: null },
+      attempt: {
+        state: 'completed', outcome_kind: 'failed', retry_after_ms: null,
+        failure_class: 'input_projection', failure_code: 'P4_EVENT_INPUT_PREPARATION_FAILED',
+      },
+      attempts: 1, results: 0,
+    });
+    const database = new Database(databasePath, { readonly:true });
+    try {
+      assert.equal(database.prepare('SELECT state FROM fx_workflow_events WHERE event_id=?').get('event-dependent').state, 'cancelled');
+    } finally { database.close(); }
+    assert.deepEqual({ schedulerReleased:state().schedulerReleased, governorReleased:state().governorReleased },
+      { schedulerReleased:1, governorReleased:0 });
+  }, { inputError:new Error('projection bug'), addDependent:true });
 });
 
 test('due external observation wait creates the next Attempt and can become terminal', async () => {

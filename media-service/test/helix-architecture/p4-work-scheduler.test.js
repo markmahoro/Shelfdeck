@@ -132,8 +132,14 @@ test('external observation wait becomes dispatchable only after its durable retr
         eventState: 'waiting_for_external',
         retryAtMs: 180001,
       });
+      addEventGraph(repository, projections, 'later-ready', {
+        localPriority: 0,
+        readyAtMs: 130000,
+      });
     });
-    assert.equal(scheduler.acquire({ targetType: 'event' }).kind, 'idle');
+    const later=scheduler.acquire({ targetType: 'event' });
+    assert.equal(later.lease.targetId,'event-later-ready');
+    scheduler.release(later.lease);
     setNow(180001);
     assert.equal(
       scheduler.acquire({ targetType: 'event' }).lease.targetId,

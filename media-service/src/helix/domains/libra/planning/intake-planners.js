@@ -66,7 +66,10 @@ function createIntakeProjections(options){
   function verifications(ownerScope,workId){const values=verificationResults(ownerScope,workId),candidate=values.find((item)=>item.schemaRef==='helix://contracts/types/CandidateContractVerification/v1'),
     material=values.find((item)=>item.schemaRef==='helix://contracts/types/IntakeMaterialVerification/v1');if(!candidate||!material)throw new Error('Intake Evidence Results are incomplete.');
     return {candidate,material};}
-  function payload(ownerScope,bindingDraft,requestedWorkId){const snapshot=read(ownerScope).snapshot,decision=options.decisionResolver.resolve(snapshot),v=verifications(ownerScope,requestedWorkId);
+  function payload(ownerScope,bindingDraft,requestedWorkId){const snapshot=read(ownerScope).snapshot,decision=bindingDraft?.resolutionDecision,
+    current=options.decisionResolver.resolve(snapshot),v=verifications(ownerScope,requestedWorkId);
+    if(!decision||decision.decisionDigest!==current.decisionDigest){const error=new Error('Subject continuity basis changed after Binding resolution.');
+      error.code='P8_ACCEPTANCE_CONTINUITY_BASIS_STALE';throw error;}
     return buildAcceptedIntakePayload({snapshot,decision,bindingDraft,candidateVerification:v.candidate,materialVerification:v.material});}
   function controlHandle(value,eventId){const p=value,decision=p.resolutionDecision;return Object.freeze({schemaRef:'helix://contracts/types/ResponsibilityControlCommitHandle/v1',schemaVersion:1,
     handleId:stable('libra-handoff-a-control-',{intakeDecisionId:decision.decisionId,payloadDigest:p.payloadDigest}),operationKind:'transfer',ownerDomain:'libra',

@@ -260,6 +260,14 @@ const definitions = Object.freeze({
     fixtureRefs: ['libra-acceptance-spec'], hasOutbox: false,
     forbiddenWritePrefixes: ['proc_', 'arca_']
   },
+  'Libra Product Identity Selection Intent Commit': {
+    commitClass: 'domain_fact_commit',
+    writeTables: ['libra_product_identity_selection_intents', 'fx_command_receipts'],
+    readTables: ['libra_runs', 'libra_subjects', 'libra_product_identity_revisions',
+      'libra_product_identity_selection_intents', 'fx_command_receipts'],
+    fixtureRefs: ['command-idempotency'], hasOutbox: false, commitMarkerRequired: false,
+    forbiddenWritePrefixes: ['proc_', 'arca_']
+  },
   'Libra Run Admission': {
     commitClass: 'domain_fact_commit',
     writeTables: ['libra_run_admission_heads', 'libra_runs', 'libra_run_revisions',

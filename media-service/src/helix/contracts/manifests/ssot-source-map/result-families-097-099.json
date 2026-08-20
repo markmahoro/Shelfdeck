@@ -3,8 +3,20 @@
   "mapId": "helix.ssot-contract-source-map",
   "category": "resultFamilies",
   "startOrdinal": 97,
-  "endOrdinal": 98,
+  "endOrdinal": 99,
   "entries": [
+    {
+      "id": "WorkspaceCleanupCommitReceipt",
+      "kind": "nominal-result",
+      "producedBy": [
+        "libra.workspace.cleanup.commit@1"
+      ],
+      "source": {
+        "section": "8.6.19",
+        "line": 10839,
+        "lineDigest": "31510d503c44c367af2e6ccaa5ec40fa7dc08979c131cc4a4daf1d550e0312c6"
+      }
+    },
     {
       "id": "WorkspaceMaterialHandle",
       "kind": "direct-handle-result",
@@ -13,7 +25,7 @@
       ],
       "source": {
         "section": "8.6.18",
-        "line": 10356,
+        "line": 10359,
         "lineDigest": "e96824ae7225dd5742c762c5ab7a0e1dcba8f492b2536c61b7de03408e3965ff"
       }
     },
@@ -28,7 +40,7 @@
       ],
       "source": {
         "section": "8.6.19",
-        "line": 10828,
+        "line": 10832,
         "lineDigest": "efd51b87c2affc62af97dc45afbd717b80554a39461e8d051d5afb347c25e388"
       }
     }

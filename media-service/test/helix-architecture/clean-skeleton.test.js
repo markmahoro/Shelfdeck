@@ -96,9 +96,9 @@ test('composition root import is side-effect free and factory requires exact cle
     facades,
     sessionTokens:{ authenticate:() => ({}), verifyApiKey:() => ({}) },
   });
-  assert.equal(app.routeCount, 116);
+  assert.equal(app.routeCount, 117);
   assert.deepEqual(await app.start(), { state:'ready', normalSupplyAllowed:true });
-  assert.equal(app.readiness().generation, 'helix-clean-v1');
+  assert.equal(app.readiness().generation, 'helix-clean-v2');
   await assert.rejects(app.start(), (error) => error.code === 'HELIX_LIFECYCLE_CONFLICT');
   await app.stop();
 });

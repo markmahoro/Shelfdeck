@@ -143,6 +143,7 @@ function createMediaProductionCapabilityPorts(options) {
           productionIntent: input.remuxIntent,
           outputTarget: input.workspaceMediaOutputTarget,
           producingEventId: context.eventId,
+          reportProgress: context.reportProgress,
           idempotencyKey: context.idempotencyKey,
           runtimeEffectAuthority:Object.freeze({ effectClass:'workspace_write',
             eventAttemptId:context.eventAttemptId, idempotencyKey:context.idempotencyKey }),
@@ -160,6 +161,7 @@ function createMediaProductionCapabilityPorts(options) {
           productionIntent: input.remuxIntent,
           deviceSnapshot: null,
           producingEventId: context.eventId,
+          reportProgress: context.reportProgress,
           effectReceipt: receipt,
         });
         return succeeded('libra.media.remux@1', result, now(),

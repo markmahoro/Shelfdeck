@@ -34,10 +34,10 @@ function codes(result) {
   return new Set(result.findings.map((item) => item.code));
 }
 
-test('validates 112 unique immutable Capability packages', () => {
+test('validates 113 unique immutable Capability packages', () => {
   const result = validateCapabilityContracts({ repositoryRoot, contractsRoot: actualContractsRoot });
   assert.equal(result.ok, true);
-  assert.equal(result.packageCount, 112);
+  assert.equal(result.packageCount, 113);
   assert.match(result.packageAggregateDigest, /^[a-f0-9]{64}$/);
   assert.ok(result.referencedTypeRefCount > 0);
   assert.equal(result.unresolvedTypeRefCount, 0);

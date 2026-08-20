@@ -314,6 +314,34 @@ test('executor crash stays Event-local and does not fault the Runtime Host', asy
   assert.equal((await host.stop()).state, 'stopped');
 });
 
+test('pre-dispatch input failure is reported without faulting the Runtime Host', async () => {
+  const errors=[];
+  let available=true;
+  let aggregated=0;
+  const host=createExecutionRuntimeHost({
+    tickIntervalMs:60000,maxActionsPerTick:4,
+    startupRecovery:{recover:async()=>({state:'ready',normalSupplyAllowed:true})},
+    scheduler:{acquire({targetType}){
+      if(targetType==='work'||!available)return {kind:'idle'};
+      available=false;
+      return {kind:'leased',lease:{targetType:'event',targetId:'event-input-failed',leaseId:'lease-input-failed'}};
+    },release(){}},
+    plannerRegistry:{resolve(){}},planPublisher:{publish(){}},
+    workLifecycle:{ensurePlanningAttempt(){},startPlanned(){},aggregateEvent(){aggregated+=1;
+      return {attemptTerminal:false,workTerminal:false,replayed:false};},settleWork(){}},
+    eventRuntime:{async run(){return {kind:'input_failed',failureCode:'P4_EVENT_INPUT_PREPARATION_FAILED'};}},
+    domainReconciler:{reconcile(){}},fallbackReconciler:{async start(){},async stop(){}},
+    onError(error){errors.push(error);},
+  });
+  await host.start();
+  await new Promise((resolve)=>setImmediate(resolve));
+  await host.stop();
+  assert.equal(aggregated,1);
+  assert.equal(errors.length,1);
+  assert.equal(errors[0].code,'P4_EVENT_INPUT_PREPARATION_FAILED');
+  assert.equal(host.activity().faulted,false);
+});
+
 test('Runtime Host launches up to sixteen Events concurrently and stop leases no additional Event', async () => {
   const gates = [];
   const leased = [];

@@ -138,6 +138,8 @@ function validateDomainInputSchemas(options) {
       DecisionInputSet: ['decisionInputSetId', 'basisKind', 'subjectSnapshot', 'expectedDecisionHead', 'readiness',
         'routingAuthoritySnapshot', 'shelfRoutingTargets', 'routingDecision', 'shelfStandardProjection', 'productScope',
         'decisionFacts', 'queryResults', 'queryResultSetDigest', 'routingInputDigest', 'specInputDigest', 'inputSetDigest'],
+      ProductIdentityEvidenceIntent: ['intentId', 'libraRunId', 'subjectId', 'runExecutionBasisDigest',
+        'contentProfile', 'sourceKind', 'aliases', 'yearHint', 'intentDigest'],
       RoutingFactObservationIntent: ['intentId', 'subjectId', 'routingAnchorIntakeDecisionId', 'routingAnchorDigest',
         'contentProfile', 'identityClaim', 'requestedFactKinds', 'sourceKind', 'intentDigest'],
       ArtifactConformanceVerificationSnapshot: ['ordinal', 'verificationResultRef', 'verificationValue', 'snapshotDigest'],

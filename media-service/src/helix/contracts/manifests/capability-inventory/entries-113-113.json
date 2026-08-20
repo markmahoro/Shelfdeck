@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 1,
+  "manifestId": "helix.inventory.capabilities",
+  "entries": [
+    {
+      "id": "people.workspace.reclaim@1",
+      "version": 1,
+      "owner": "people",
+      "status": "contracted",
+      "ssotRefs": [
+        "8.6.14"
+      ],
+      "sourceLocator": {
+        "section": "8.6.14",
+        "line": 10188,
+        "lineDigest": "beced2784c1e277b20c4d5547149519e4cba307751d901ee3df5f29d59061d8c"
+      },
+      "targetLocator": {
+        "path": "capabilities/people/workspace/reclaim/v1/manifest.json"
+      },
+      "contract": {
+        "packagePath": "capabilities/people/workspace/reclaim/v1",
+        "packageDigest": "370e819206fe69ade81bb148ac204ce3dbdf91035d5c3685b21a6bb758e10878",
+        "effectClass": "workspace_write",
+        "inputSummary": "People Workspace handles + ReferenceEvidence",
+        "outputFamily": "ReclamationReceipt"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "ef225846ed865dc42c7b755cb594cf765528937eab664393e336f45bcbec286d"
+      }
+    }
+  ]
+}

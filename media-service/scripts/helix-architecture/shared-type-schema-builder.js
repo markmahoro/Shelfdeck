@@ -112,7 +112,7 @@ const definitions = {
       inode: text({ pattern: '^(0|[1-9][0-9]*)$' }), sizeBytes: nonNegativeInteger(),
       fingerprintAlgorithm: { const: 'middle-256k-sha256' }, fingerprintVersion: { const: 1 }, contentFingerprint: digestHex() }),
     rootHandleRef: opaqueId(), relativePath: text(),
-    digestAlgorithm: digestAlgorithm(), digestHex: digestHex(), sizeBytes: nonNegativeInteger(), referenceRevision: positiveInteger(),
+    digestAlgorithm: enumText('sha256', 'middle-256k-sha256'), digestHex: digestHex(), sizeBytes: nonNegativeInteger(), referenceRevision: positiveInteger(),
     accessScope: { const: 'workspace_material_read' }, fenceDigest: digestHex()
   }),
   ArtifactHandle: () => nominal('ArtifactHandle', {

@@ -40,12 +40,15 @@ function validateWorkspaceMaterialHandle(value) {
     digestAlgorithm:value?.digestAlgorithm, digestHex:digest(value?.digestHex, 'digestHex'), sizeBytes:value?.sizeBytes,
     referenceRevision:value?.referenceRevision, accessScope:value?.accessScope, fenceDigest:digest(value?.fenceDigest, 'fenceDigest') };
   if (handle.schemaRef !== 'helix://contracts/types/WorkspaceMaterialHandle/v1' || handle.schemaVersion !== 1 ||
-      handle.ownerDomain !== 'libra' || handle.physicalIdentity.fingerprintAlgorithm !== 'middle-256k-sha256' || handle.digestAlgorithm !== 'sha256' ||
+      handle.ownerDomain !== 'libra' || handle.physicalIdentity.fingerprintAlgorithm !== 'middle-256k-sha256' ||
+      !['sha256','middle-256k-sha256'].includes(handle.digestAlgorithm) ||
       handle.physicalIdentity.fingerprintVersion !== 1 || handle.physicalIdentity.sizeBytes !== handle.sizeBytes ||
       handle.accessScope !== 'workspace_material_read' || !/^(0|[1-9][0-9]*)$/.test(handle.physicalIdentity.inode) ||
       !Number.isSafeInteger(handle.sizeBytes) || handle.sizeBytes < 0 || !Number.isSafeInteger(handle.referenceRevision) ||
       handle.referenceRevision < 1)
     fail('P9_REFERENCE_HANDLE', 'Workspace Material Handle violates its nominal contract.');
+  if(handle.digestAlgorithm==='middle-256k-sha256'&&handle.digestHex!==handle.physicalIdentity.contentFingerprint)
+    fail('P9_REFERENCE_HANDLE','Workspace media digest must equal its bounded Physical Material fingerprint.');
   const materialKey = canonicalDigest({ schema:'physical-material-identity@2', mountScopeId:handle.physicalIdentity.mountScopeId,
     inode:handle.physicalIdentity.inode,sizeBytes:handle.physicalIdentity.sizeBytes,fingerprintAlgorithm:'middle-256k-sha256',
     fingerprintVersion:1,contentFingerprint:handle.physicalIdentity.contentFingerprint });

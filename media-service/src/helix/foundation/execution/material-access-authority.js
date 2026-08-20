@@ -99,7 +99,7 @@ function assertWorkspaceSnapshot(snapshot, scopeOnly = false) {
   if (typeof snapshot.rootPath !== 'string' || snapshot.rootPath.length < 1) fail('P5_MATERIAL_ACCESS_PATH', 'Workspace root is invalid.');
   if (!scopeOnly) {
     text(snapshot.materialHandleId, 'materialHandleId'); revision(snapshot.referenceRevision, 'referenceRevision');
-    if (snapshot.digestAlgorithm !== 'sha256') fail('P5_MATERIAL_ACCESS_WORKSPACE_DIGEST', 'Workspace material requires SHA-256.');
+    if (!['sha256','middle-256k-sha256'].includes(snapshot.digestAlgorithm)) fail('P5_MATERIAL_ACCESS_WORKSPACE_DIGEST', 'Workspace material requires an approved role-aware digest algorithm.');
     digest(snapshot.digestHex, 'digestHex'); count(snapshot.sizeBytes, 'sizeBytes');
     if (typeof snapshot.relativePath !== 'string' || snapshot.relativePath.length < 1) fail('P5_MATERIAL_ACCESS_PATH', 'Workspace relative path is invalid.');
   }

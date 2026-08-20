@@ -148,12 +148,15 @@ export type FormationSubject = {
   contentProfile: string;
   structureKind: string;
   status: string;
-  stage: 'routing_preparing' | 'routing_unresolved' | 'routing_resolved';
-  stageLabel: string;
-  intakeCount: number;
+  classification: 'waiting' | 'in_progress' | 'completed';
+  myRating: number | null;
+  myRatingSource: string | null;
+  productIdentityIssue: null | { result:'not_found'|'ambiguous'|'conflicting'; reasonCode:string; candidateSetDigest:string; candidates:Array<{ providerKey:string; displayTitle:string; originalTitle:string|null; releaseYear:number|null }> };
   primaryMaterialCount: number;
-  relatedMaterialCount: number;
-  lastAcceptedAtMs: number;
+  addedAtMs: number;
+  organizingRequirement: string;
+  organizingAction: string;
+  nextAction: { label:string; state:string; progress:null | { mode:'determinate'|'indeterminate'; currentValue:number|null; totalValue:number|null; unit:string|null; rate:number|null; etaMs:number|null; bucket:string } };
   routingState: 'preparing' | 'unresolved' | 'resolved';
   routingPolicyMode: 'direct' | 'sorting' | null;
   routingPolicyRevision: number | null;
@@ -168,7 +171,7 @@ export type FormationSubject = {
   acceptanceSpecDigest: string | null;
   acceptanceSpecPublishedAtMs: number | null;
   productionStage: 'awaiting_libra_run' | 'production' | 'suspended' | 'frozen' | 'handoff_b_ready' | null;
-  currentRun: { libraRunId:string; state:string; stateRevision:number; stateDigest:string; priorityClass:'normal'|'expedited'; packageRevisionHead:number } | null;
+  currentRun: { libraRunId:string; state:string; stateRevision:number; stateDigest:string; priorityClass:'normal'|'expedited'; packageRevisionHead:number; currentIdentityRevision:number|null } | null;
   handoffB: { onDeckPackageId:string; offerId:string; packageRevision:number; packageDigest:string; state:string } | null;
 };
 
@@ -254,10 +257,10 @@ export type IntegrationState = {
 };
 
 export type FormationSummary = {
-  subjectCount: number;
-  preparingCount: number;
-  unresolvedCount: number;
-  resolvedCount: number;
+  totalCount: number;
+  waitingCount: number;
+  inProgressCount: number;
+  completedCount: number;
 };
 
 export type RoutingExpression =
@@ -325,8 +328,9 @@ export const helixAdminApi = {
   listRuleTemplates() {
     return request<{ items: RuleTemplate[] }>('/v1/admin/rule-templates');
   },
-  listFormation() {
-    return request<{ items: FormationSubject[]; summary: FormationSummary }>('/v1/admin/formation');
+  listFormation(section:'active'|'completed'='active', cursor?:string) {
+    const query=new URLSearchParams({section,limit:'25'});if(cursor)query.set('cursor',cursor);
+    return request<{ items: FormationSubject[]; summary: FormationSummary; nextCursor:string|null }>(`/v1/admin/formation?${query}`);
   },
   listCollection() {
     return request<{ items: CollectionEntry[] }>('/v1/admin/collection');
@@ -415,6 +419,7 @@ export const helixAdminApi = {
         }),
       });
   },
+  chooseProductIdentity(subject:FormationSubject,tmdbMovieId:string){if(!subject.currentRun)throw new Error('当前媒体没有可恢复的整理任务。');const run=subject.currentRun;return request<{selectionIntentId:string;libraRunId:string;providerKey:string;intentRevision:number;replayed:boolean}>(`/v1/admin/formation/runs/${encodeURIComponent(run.libraRunId)}/actions/choose-product-identity`,{method:'POST',body:JSON.stringify({tmdbMovieId,expectedRunStateRevision:run.stateRevision,expectedIdentityRevision:run.currentIdentityRevision,candidateSetDigest:subject.productIdentityIssue?.candidateSetDigest||null,idempotencyKey:`choose-product-identity:${run.libraRunId}:${run.stateRevision}:${tmdbMovieId}:${crypto.randomUUID()}`})});},
   createShelf(body: JsonValue) {
     return request<{ shelf: Shelf; replayed: boolean }>('/v1/admin/shelves', {
       method: 'POST',

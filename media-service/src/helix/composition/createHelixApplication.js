@@ -53,7 +53,7 @@ function createHelixApplication(options = {}) {
   let state = 'created';
 
   return Object.freeze({
-    generation: 'helix-clean-v1',
+    generation: 'helix-clean-v2',
     routeCount: routeRegistry.entries.length,
     async start() {
       if (state !== 'created') {
@@ -76,7 +76,7 @@ function createHelixApplication(options = {}) {
       return Object.freeze({
         state,
         normalSupplyAllowed: state === 'ready',
-        generation: 'helix-clean-v1',
+        generation: 'helix-clean-v2',
       });
     },
     dispatch(request) {

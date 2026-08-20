@@ -5,6 +5,7 @@ const { createWorkAdmission } = require('../../../foundation/execution/work-admi
 const { createPerceptionStore } = require('../persistence/perception-store');
 const { createPerceptionResolutionInputAssembler } = require('./perception-resolution-input-assembler');
 const { buildRuleSnapshot, versionedQueryResult } = require('./perception-resolution-application');
+const { deriveTitleYearEvidence } = require('../model/perception-aliases');
 
 const LIMITS = Object.freeze({ globalOpenWorks:256, ownerOpenWorks:256, openEvents:256 });
 const ACQUISITION_RESULT = 'helix://contracts/types/PerceptionRecordCommitResult/v1';
@@ -22,7 +23,9 @@ function definition(kind,processType,processId,basisDigest,outputContractRef){re
 function queryFor(target){const evidence=[];const add=(anchorKind,anchorValue,confidenceClass)=>{if(!anchorValue)return;evidence.push({anchorKind,anchorValue:String(anchorValue),confidenceClass,
   evidenceDigest:canonicalDigest({targetType:target.targetType,targetId:target.targetId,targetRevision:target.targetRevision,anchorKind,anchorValue:String(anchorValue)})});};
   add(target.targetType==='shelf_entry'?'shelf_entry_id':'subject_id',target.targetId,'exact');
-  add('provider_identity',target.providerIdentity,'strong');if(target.title&&target.year)add('title_year',target.title+'\0'+target.year,'medium');
+  add('provider_identity',target.providerIdentity,'strong');if(target.title&&target.year){
+    for(const alias of deriveTitleYearEvidence(target.title+'\0'+target.year,{stripTechnical:true}))add('title_year',alias.anchorValue,'medium');
+  }
   evidence.sort((a,b)=>a.anchorKind.localeCompare(b.anchorKind)||a.anchorValue.localeCompare(b.anchorValue));
   const body={queryContract:'perception.rating.resolve@1',queryVersion:1,querySchemaRef:'helix://contracts/domain-types/PerceptionResolutionQuery/v1',factKind:'rating',identityEvidence:evidence};
   return freeze({...body,queryInputDigest:canonicalDigest(body)});}
@@ -81,7 +84,10 @@ function createPerceptionProcessServices(options){
     const winner=resolution.resultKind==='found'?store.getRecord(resolution.winningPerceptionId):null;
     return freeze({state:'ready',rating:resolution.resultKind==='found'?resolution.resolvedValue.value:null,sourceKind:winner?.sourceKind||null,
       expectedRevision:direct?.sourceRecordRevision||0,resolutionStatus:resolution.resultKind,resolutionRevision:resolution.revision,resolutionDigest:resolution.factDigest});}
-  function readCurrentRatings(targetType,targetIds){const wanted=new Set(targetIds),items=store.listRecords({targetType,limit:200}).items,values=new Map();for(const item of items){if(!wanted.has(item.targetId)||item.resolutionStatus!=='matched'||item.rating===null||values.has(item.targetId))continue;values.set(item.targetId,freeze({state:'ready',rating:item.rating,sourceKind:item.sourceKind,expectedRevision:item.sourceRecordRevision,resolutionStatus:'found',resolutionRevision:item.resolutionRevision,resolutionDigest:item.resolutionDigest}));}for(const targetId of wanted)if(!values.has(targetId))values.set(targetId,freeze({state:'ready',rating:null,sourceKind:null,expectedRevision:0,resolutionStatus:'not_found',resolutionRevision:null,resolutionDigest:null}));return values;}
+  function readCurrentRatings(targetType,targetInputs){const targets=targetInputs.map((item)=>typeof item==='string'?target(targetType,item):freeze({...item,targetType,targetId:item.targetId})),queries=targets.map((item)=>({targetId:item.targetId,query:queryFor(item)})),rows=store.readCurrentResolvedRatings(queries.map((item)=>item.query.queryInputDigest)),byDigest=new Map(rows.map((item)=>[item.queryInputDigest,item])),values=new Map();
+    for(const item of queries){const row=byDigest.get(item.query.queryInputDigest),resolution=row?.resolution;if(!resolution||resolution.ruleDigest!==ruleSnapshot.ruleDigest){values.set(item.targetId,freeze({state:'pending',rating:null,sourceKind:null,expectedRevision:0,resolutionStatus:null,resolutionRevision:null,resolutionDigest:null}));continue;}
+      values.set(item.targetId,freeze({state:'ready',rating:resolution.resultKind==='found'?resolution.resolvedValue.value:null,sourceKind:row.winner?.sourceKind||null,expectedRevision:0,resolutionStatus:resolution.resultKind,resolutionRevision:resolution.revision,resolutionDigest:resolution.factDigest}));}
+    return values;}
   return Object.freeze({store,ruleSnapshot,acquisitionContext,resolutionContext,reconcileAcquisition,reconcileResolution,createRecord,requestAcquisition,ensureResolution,resolveDecisionFact,
     readCurrentRating,readCurrentRatings,listRecords:(query)=>store.listRecords(query),listAcquisitions:()=>store.listAcquisitions()});
 }

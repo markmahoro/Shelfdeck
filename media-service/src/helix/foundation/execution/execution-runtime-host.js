@@ -56,9 +56,10 @@ function createExecutionRuntimeHost(options) {
       workState: aggregation.work.state,
       workAttemptId: aggregation.attemptId,
       workAttemptState: aggregation.attemptState,
+      workAttemptFailureCode: aggregation.attemptFailureCode || null,
     }));
     if (!disposition) return;
-    const settled = options.workLifecycle.settleWork(disposition);
+    const settled = options.workLifecycle.settleWork({...disposition,workAttemptId:aggregation.attemptId});
     if (!['succeeded', 'failed', 'cancelled'].includes(settled.state)) return;
     await options.domainReconciler.reconcile(Object.freeze({
       reconcilePhase: 'work_terminal',
@@ -70,6 +71,7 @@ function createExecutionRuntimeHost(options) {
       workState: settled.state,
       workAttemptId: aggregation.attemptId,
       workAttemptState: aggregation.attemptState,
+      workAttemptFailureCode: aggregation.attemptFailureCode || null,
     }));
   }
 
@@ -151,6 +153,14 @@ function createExecutionRuntimeHost(options) {
     let wakeAfterCompletion=false;
     const operation=(async()=>{
       const outcome=await options.eventRuntime.run({schedulerLease:scheduled.lease});
+      if(outcome?.kind==='input_failed'&&outcome.failureCode!=='P8_ACCEPTANCE_CONTINUITY_BASIS_STALE'&&typeof options.onError==='function'){
+        options.onError(new ExecutionRuntimeHostError(
+          outcome.failureCode||'P4_EVENT_INPUT_PREPARATION_FAILED',
+          'Event input preparation failed before Capability dispatch: ' +
+            (outcome.failureMessage || outcome.failureCode || 'unknown input failure') + '.',
+          {eventId, failureMessage:outcome.failureMessage || null}
+        ));
+      }
       const aggregation=options.workLifecycle.aggregateEvent(eventId);
       await reconcileTerminal(aggregation);
       wakeAfterCompletion=aggregation.attemptTerminal===true||aggregation.workTerminal===true;
@@ -174,7 +184,8 @@ function createExecutionRuntimeHost(options) {
       if (pending) {
         try {
           await reconcileTerminal({ attemptTerminal:true, replayed:false,
-            attemptId:pending.attempt.attempt_id, attemptState:pending.attempt.state, work:pending.work });
+            attemptId:pending.attempt.attempt_id, attemptState:pending.attempt.state,
+            attemptFailureCode:pending.attempt.failure_code||null, work:pending.work });
           return Object.freeze({ kind:'owner_reconciled', workId:pending.work.work_id });
         } catch (error) {
           if (typeof options.onError === 'function') options.onError(error);

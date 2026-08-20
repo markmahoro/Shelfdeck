@@ -84,6 +84,35 @@ test('open concurrency scope and authoritative Work hard caps defer without crea
   }, { limits: { globalOpenWorks: 1, ownerOpenWorks: 5, openEvents: 20 } });
 });
 
+test('sixteen reserved slots remain available to Handoff Acceptance after 240 ordinary Works', () => {
+  fixture(({ admission, databasePath }) => {
+    for (let index = 0; index < 240; index += 1) {
+      assert.equal(admission.submit(definition({
+        workId: 'ordinary-' + index,
+        idempotencyKey: 'ordinary-key-' + index,
+        concurrencyScope: 'ordinary/' + index,
+      })).kind, 'admitted');
+    }
+    assert.deepEqual(admission.submit(definition({
+      workId: 'ordinary-over-reserve', idempotencyKey: 'ordinary-over-reserve-key',
+      concurrencyScope: 'ordinary/over-reserve',
+    })), { kind: 'deferred', reasonCode: 'WORK_RESERVED_CAPACITY' });
+    for (let index = 0; index < 16; index += 1) {
+      assert.equal(admission.submit(definition({
+        workId: 'acceptance-' + index,
+        idempotencyKey: 'acceptance-key-' + index,
+        concurrencyScope: 'acceptance/' + index,
+        priorityClass: 'handoff_acceptance',
+      })).kind, 'admitted');
+    }
+    assert.deepEqual(admission.submit(definition({
+      workId: 'acceptance-over-hard-cap', idempotencyKey: 'acceptance-over-hard-cap-key',
+      concurrencyScope: 'acceptance/over-hard-cap', priorityClass: 'handoff_acceptance',
+    })), { kind: 'deferred', reasonCode: 'WORK_HARD_CAP' });
+    assert.equal(rows(databasePath, 'fx_supporting_works').length, 256);
+  }, { limits: { globalOpenWorks: 256, ownerOpenWorks: 256, openEvents: 256, reservedOpenWorks: 16 } });
+});
+
 test('open Circuit defers before Work/Receipt insertion', () => {
   fixture(({ admission, databasePath, unitOfWork }) => {
     const circuit = createRepositoryDefinition({

@@ -2,6 +2,9 @@
 
 const { canonicalDigest } = require('../../../contracts/canonical-json');
 const { executionCatalogDigest } = require('../../../foundation/execution/workflow-plan');
+const {
+  executionInputUnavailable,
+} = require('../../../foundation/execution/execution-input-readiness');
 const { buildProductIdentityCommitBundle } = require('../model/product-identity-commit-contracts');
 const { buildMetadataFetchIntent, buildMetadataObservationBasis, buildProductMetadataDraft } =
   require('../model/product-fact-contracts');
@@ -15,10 +18,10 @@ const {
   requiredMetadataFields,
 } = require('./product-metadata-work');
 
-const ROUTING_FACT = 'libra.routing.fact.observe@1';
+const IDENTITY_EVIDENCE = 'libra.product_identity.evidence.observe@1';
 const IDENTITY = 'libra.product_identity.resolve@1';
-const ROUTING_INTENT = 'helix://libra/input-projections/ProductionIdentityRoutingFactIntent/v1';
-const ROUTING_SOURCE = 'helix://libra/input-projections/ProductionIdentityRoutingSource/v1';
+const IDENTITY_EVIDENCE_INTENT = 'helix://libra/input-projections/ProductIdentityEvidenceIntent/v1';
+const IDENTITY_EVIDENCE_SOURCE = 'helix://libra/input-projections/ProductIdentityEvidenceSource/v1';
 const IDENTITY_CLAIM = 'helix://libra/input-projections/ProductionIdentityClaim/v1';
 const PRODUCT_STRUCTURE = 'helix://libra/input-projections/ProductionProductStructure/v1';
 const DECISION_EVIDENCE = 'helix://libra/input-projections/ProductionIdentityDecisionEvidence/v1';
@@ -86,17 +89,15 @@ function productStructure(snapshot) {
 }
 
 function decisionEvidence(sourceResult, snapshot) {
-  if(!sourceResult||sourceResult.schemaRef!=='helix://contracts/types/RoutingFactObservation/v1'||
-      sourceResult.subjectId!==snapshot.run.subjectId||sourceResult.result!=='observed') {
+  if(!sourceResult||sourceResult.schemaRef!=='helix://contracts/types/ProductIdentityEvidenceObservation/v1'||
+      sourceResult.subjectId!==snapshot.run.subjectId||sourceResult.result!=='resolved'||!sourceResult.verifiedIdentity) {
     throw new Error('Product Identity requires one uniquely observed provider identity.');
   }
-  const providerFacts=sourceResult.facts.filter((item)=>item.factKind==='resolved_provider_identity');
-  if(providerFacts.length!==1)throw new Error('Product Identity provider identity is absent or conflicting.');
   const queryResultBody={schemaRef:'helix://contracts/types/VersionedQueryResult/v1',schemaVersion:1,
-    evidenceId:sourceResult.observationId,evidenceKind:'routing_fact_query_result',producerRef:ROUTING_FACT,
+    evidenceId:sourceResult.observationId,evidenceKind:'product_identity_evidence_query_result',producerRef:IDENTITY_EVIDENCE,
     basisDigest:sourceResult.evidenceDigest,payloadDigest:sourceResult.observationDigest,observedAtMs:0,
-    providerDomain:'tmdb',queryContract:ROUTING_FACT,queryVersion:1,inputDigest:sourceResult.intentId,
-    resultKind:'found',resultRevision:providerFacts[0].sourceRevision,resultDigest:canonicalDigest(sourceResult),
+    providerDomain:'tmdb',queryContract:IDENTITY_EVIDENCE,queryVersion:1,inputDigest:canonicalDigest(sourceResult.intentId),
+    resultKind:'found',resultRevision:1,resultDigest:canonicalDigest(sourceResult),
     expiresAtMs:Number.MAX_SAFE_INTEGER};
   const queryResult=Object.freeze(queryResultBody);
   const body={schemaRef:'helix://contracts/domain-types/DecisionEvidence/v1',schemaVersion:1,
@@ -112,21 +113,27 @@ function createProductIdentityPlanner(options) {
   return Object.freeze({plannerContractRef:'helix://libra/planners/ProductIdentity/v1',plannerVersion:1,plan(request) {
     const snapshot=readRunSnapshot(options.movieProductionReader,request.processId);
     if(!snapshot||snapshot.run.executionBasisDigest!==request.executionBasisDigest)throw new Error('Product Identity planning basis changed.');
-    const observationWork=identityObservationWork(snapshot);
+    const nfo=snapshot.relatedReferences.filter((item)=>item.role==='nfo').sort((a,b)=>a.referenceId.localeCompare(b.referenceId));
+    const manualSelection=options.productIdentitySelection?.readCurrent(snapshot.run.libraRunId)||null;
+    const nfoWork=!manualSelection&&nfo.length===1?identityObservationWork(snapshot,'related_nfo'):null;
+    const nfoResult=nfoWork?options.workResultReader.read(nfoWork.workId).find((item)=>item.outcomeKind==='succeeded'&&item.capabilityRef===IDENTITY_EVIDENCE):null;
+    const strongFact=nfoResult?.result?.result==='resolved'?nfoResult.result.verifiedIdentity:null;
+    const observationWork=manualSelection?identityObservationWork(snapshot,'provider_exact',{workId:manualSelection.selection_intent_id,resultDigest:manualSelection.intent_digest}):
+      strongFact?identityObservationWork(snapshot,'provider_exact',{workId:nfoWork.workId,resultDigest:nfoResult.resultDigest}):
+      nfoWork&&!nfoResult?nfoWork:identityObservationWork(snapshot,'provider_search');
     let work,nodes;
     if(request.workId===observationWork.workId){
       const factEventId=stable('libra-product-identity-fact-event-',{attempt:request.workAttemptId});
       work=observationWork;
       nodes=[planNode({...options,request,nodeId:'provider_identity_observation',eventId:factEventId,
-        capabilityRef:ROUTING_FACT,inputBindings:[
-          owner('routingFactObservationIntent',request,ROUTING_INTENT),
-          owner('physicalMaterialReadHandleOrIntegrationHandle',request,ROUTING_SOURCE),
+        capabilityRef:IDENTITY_EVIDENCE,inputBindings:[
+          owner('productIdentityEvidenceIntent',request,IDENTITY_EVIDENCE_INTENT,{sourceKind:observationWork===nfoWork?'related_nfo':manualSelection||strongFact?'provider_exact':'provider_search',sourceWorkId:nfoWork?.workId||null,selectionIntentId:manualSelection?.selection_intent_id||null}),
+          owner('physicalMaterialReadHandleOrIntegrationHandle',request,IDENTITY_EVIDENCE_SOURCE,{sourceKind:observationWork===nfoWork?'related_nfo':manualSelection||strongFact?'provider_exact':'provider_search',sourceWorkId:nfoWork?.workId||null,selectionIntentId:manualSelection?.selection_intent_id||null}),
         ],resourceKinds:['disk_io','network']})];
     }else{
       const source=options.workResultReader.read(observationWork.workId).find((item)=>
-        item.outcomeKind==='succeeded'&&item.capabilityRef===ROUTING_FACT);
-      if(!source||source.result?.result!=='observed'||
-          source.result.facts.filter((item)=>item.factKind==='resolved_provider_identity').length!==1)
+        item.outcomeKind==='succeeded'&&item.capabilityRef===IDENTITY_EVIDENCE);
+      if(!source||source.result?.result!=='resolved'||!source.result.verifiedIdentity)
         throw new Error('Product Identity commit Work requires one terminal provider identity Observation.');
       work=identityCommitWork(snapshot,{workId:observationWork.workId,resultDigest:source.resultDigest});
       if(request.workId!==work.workId)throw new Error('Product Identity Work identity changed.');
@@ -151,36 +158,79 @@ function createProductIdentityPlanner(options) {
 }
 
 function createProductIdentityProjections(options) {
+  const now=typeof options.now==='function'?options.now:Date.now;
   function snapshot(ownerScope) {
     const value=readRunSnapshot(options.movieProductionReader,ownerScope.processId);
     if(!value)throw new Error('Libra Run is unavailable for Product Identity projection.');
     return value;
   }
-  function routingIntent(value) {
-    const routing=options.routingContextReader.read(value.run.subjectId);
-    if(!routing)throw new Error('Routing context is unavailable for Product Identity.');
-    return options.routingContextReader.factObservationIntent(routing,'provider',['resolved_provider_identity'],[]);
+  function identityIntent(value,parameters={}) {
+    const claim=value.candidateIdentityClaim,aliases=[claim.displayIdentity,claim.claimedTitle]
+      .filter(Boolean).filter((item,index,values)=>values.indexOf(item)===index).map((item)=>{
+        const alias={value:String(item).normalize('NFKC').trim(),sourceKind:'candidate'};
+        return Object.freeze({...alias,aliasDigest:canonicalDigest(alias)});
+      });
+    const aliasYears=[...new Set(aliases.map((item)=>String(item.value).match(/(?:18|19|20|21)\d{2}/)?.[0])
+      .filter(Boolean).map(Number))];
+    const common={libraRunId:value.run.libraRunId,subjectId:value.run.subjectId,
+      runExecutionBasisDigest:value.run.executionBasisDigest,contentProfile:'movie',sourceKind:parameters.sourceKind,
+      aliases:Object.freeze(aliases),yearHint:Number.isSafeInteger(claim.claimedYear)?claim.claimedYear:
+        aliasYears.length===1?aliasYears[0]:null};
+    let source={};
+    if(parameters.sourceKind==='related_nfo'){
+      const reference=value.relatedReferences.filter((item)=>item.role==='nfo').sort((a,b)=>a.referenceId.localeCompare(b.referenceId))[0];
+      if(!reference)throw new Error('Product Identity NFO reference is unavailable.');
+      source={relatedReferenceId:reference.referenceId,relatedReferenceDigest:reference.referenceDigest,
+        expectedPhysicalIdentityDigest:canonicalDigest(reference.identity)};
+    }else{
+      const handle=options.resolveRoutingIntegrationHandle({integrationId:'tmdb-main'});
+      if(!handle)throw executionInputUnavailable('Configured Provider input is not currently available for Product Identity.',{
+        dependencyKind:'integration',dependencyRef:'tmdb-main',retryAtMs:now()+30_000});
+      source={integrationId:handle.integrationId,configRevision:handle.configRevision,provider:'tmdb',namespace:'tmdb_movie'};
+      if(parameters.sourceKind==='provider_exact'){
+        const manual=parameters.selectionIntentId&&options.productIdentitySelection?.readCurrent(value.run.libraRunId);
+        if(manual&&manual.selection_intent_id===parameters.selectionIntentId){source={...source,providerKey:manual.provider_key,
+          associationKind:'manual_selection',associationEvidenceDigest:manual.intent_digest};}
+        else {
+        const observed=options.workResultReader.read(parameters.sourceWorkId).find((item)=>item.outcomeKind==='succeeded'&&item.capabilityRef===IDENTITY_EVIDENCE),
+          identity=observed?.result?.verifiedIdentity;
+        if(!identity)throw new Error('Exact Product Identity verification requires one NFO provider identity.');
+        source={...source,providerKey:identity.providerKey,associationKind:'nfo_claim',
+          associationEvidenceDigest:observed.result.observationDigest};
+        }
+      }
+    }
+    const body={...common,...source},intentDigest=canonicalDigest(body),intentId=stable('libra-product-identity-intent-',{body,intentDigest});
+    return Object.freeze({intentId,...body,intentDigest});
+  }
+  function identitySource(intent) {
+    const handle=options.resolveRoutingIntegrationHandle(intent);
+    if(!handle)throw executionInputUnavailable(
+      'Configured Provider input is not currently available for Product Identity.', {
+        dependencyKind:'integration',dependencyRef:intent.integrationId||'tmdb-main',
+        retryAtMs:now()+30_000,
+      });
+    return handle;
   }
   return Object.freeze([
-    {projectionRef:ROUTING_INTENT,projection:{project:({ownerScope})=>{
-      const intent=routingIntent(snapshot(ownerScope)),handle=options.resolveRoutingIntegrationHandle(intent);
-      if(!handle)throw new Error('TMDB Integration is unavailable for Product Identity.');
-      const body={...Object.fromEntries(Object.entries(intent).filter(([key])=>!['intentId','intentDigest'].includes(key))),
-        integrationId:handle.integrationId,configRevision:handle.configRevision};
-      const intentDigest=canonicalDigest(body),intentId=canonicalDigest({schema:'libra.routing-fact-observation-intent-id@1',
-        subjectId:body.subjectId,sourceKind:body.sourceKind,intentDigest});
-      return Object.freeze({intentId,...body,intentDigest});
-    }}},
-    {projectionRef:ROUTING_SOURCE,projection:{project:({ownerScope})=>{
-      const intent=routingIntent(snapshot(ownerScope)),handle=options.resolveRoutingIntegrationHandle(intent);
-      if(!handle)throw new Error('TMDB Integration is unavailable for Product Identity.');
-      return handle;
+    {projectionRef:IDENTITY_EVIDENCE_INTENT,projection:{project:({ownerScope,parameters})=>identityIntent(snapshot(ownerScope),parameters)}},
+    {projectionRef:IDENTITY_EVIDENCE_SOURCE,projection:{project:({ownerScope,parameters})=>{
+      const value=snapshot(ownerScope),intent=identityIntent(value,parameters);
+      if(intent.sourceKind==='related_nfo'){
+        const reference=value.relatedReferences.find((item)=>item.referenceId===intent.relatedReferenceId),binding=reference&&value.relatedBindings.find((item)=>item.materialKey===reference.identity.materialKey&&item.role===reference.role);
+        if(!reference||!binding)throw new Error('Product Identity NFO reference is unavailable.');
+        return options.productProductionPort.issuePhysicalReadHandle({libraRunId:value.run.libraRunId,
+          runExecutionBasisDigest:value.run.executionBasisDigest,runCreatedAtMs:value.run.createdAtMs,
+          physicalIdentity:reference.identity,sizeBytes:reference.identity.sizeBytes,endpointId:reference.endpointId,
+          location:reference.location,bindingRevision:binding.bindingRevision||1,mountScopeRevision:1});
+      }
+      return identitySource(intent);
     }}},
     {projectionRef:IDENTITY_CLAIM,projection:{project:({ownerScope})=>snapshot(ownerScope).candidateIdentityClaim}},
     {projectionRef:PRODUCT_STRUCTURE,projection:{project:({ownerScope})=>productStructure(snapshot(ownerScope))}},
     {projectionRef:IDENTITY_HANDLE,projection:{project:({ownerScope,parameters})=>{
       const value=snapshot(ownerScope),results=options.workResultReader.read(parameters.sourceWorkId),source=results.find((item)=>
-        item.outcomeKind==='succeeded'&&item.capabilityRef===ROUTING_FACT);
+        item.outcomeKind==='succeeded'&&item.capabilityRef===IDENTITY_EVIDENCE);
       if(!source)throw new Error('Provider identity Observation is unavailable for Product Fact Handle.');
       const evidence=decisionEvidence(source.result,value),prior=options.movieProductionReader.readFact(value.run.libraRunId,'resolved_identity',1);
       return buildProductIdentityCommitBundle({libraRunId:value.run.libraRunId,snapshot:value,
@@ -190,7 +240,7 @@ function createProductIdentityProjections(options) {
     }}},
     {projectionRef:DECISION_EVIDENCE,projection:{project:({parameters})=>{
       const source=options.workResultReader.read(parameters.sourceWorkId).find((item)=>
-        item.outcomeKind==='succeeded'&&item.capabilityRef===ROUTING_FACT);
+        item.outcomeKind==='succeeded'&&item.capabilityRef===IDENTITY_EVIDENCE);
       if(!source)throw new Error('Provider identity Observation is unavailable for Decision Evidence.');
       return decisionEvidence(source.result,readRunSnapshot(options.movieProductionReader,parameters.libraRunId));
     }}},
@@ -619,7 +669,7 @@ function createArtifactProductionProjections(options) {
   ]);
 }
 
-module.exports=Object.freeze({DECISION_EVIDENCE,IDENTITY_CLAIM,IDENTITY_HANDLE,PRODUCT_STRUCTURE,ROUTING_INTENT,ROUTING_SOURCE,
+module.exports=Object.freeze({DECISION_EVIDENCE,IDENTITY_CLAIM,IDENTITY_HANDLE,PRODUCT_STRUCTURE,IDENTITY_EVIDENCE_INTENT,IDENTITY_EVIDENCE_SOURCE,
   METADATA_INTENT,METADATA_SOURCE,METADATA_DRAFT,ARTIFACT_INTEGRATION,SIDECAR_PROFILE,ARTIFACT_REQUIREMENT,ARTIFACT_HANDLE_LIST,
   createProductIdentityPlanner,createProductIdentityProjections,
   createProductMetadataObservationPlanner,createProductMetadataObservationProjections,decisionEvidence,identityCommitFence,

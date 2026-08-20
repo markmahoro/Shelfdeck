@@ -75,6 +75,7 @@ const { createCleanArcaInventoryPort } = require('./clean-arca-inventory-port');
 const { createCleanOffdeckDeletionPort } = require('./clean-offdeck-deletion-port');
 const { createLibraRoutingAdminApplication } = require('./helix/domains/libra/public/admin-application');
 const { createFormationQuery } = require('./helix/domains/libra/application/formation-query');
+const { createExecutionProgressProjectionReader } = require('./helix/foundation/execution/progress-projection-reader');
 const { createRoutingManualSelectionService } = require('./helix/domains/libra/application/routing-manual-selection-service');
 const { createLibraRunAdminService } = require('./helix/domains/libra/application/libra-run-admin-service');
 const {
@@ -123,6 +124,9 @@ const {
 const {
   createSqliteUnitOfWork,
 } = require('./helix/foundation/persistence/sqlite-unit-of-work');
+const {
+  migrateUatIdentitySelectionSchema,
+} = require('./helix/foundation/persistence/uat-identity-selection-migration');
 const {
   createAdminCredentialSecretStore,
 } = require('./admin-credential-secret-store');
@@ -646,9 +650,10 @@ function createPlatformIntegrationServices(options) {
         ? runtime.assertExternalLandingRootAvailable(request)
         : Object.freeze({ available:true });
     },
-    async observeRoutingProvider({ intent, integrationHandle }) {
-      return tmdbAdapter.observationPort.execute({ operationId: 'libra.routing.fact.observe@1', integrationHandle,
-        input: { contentProfile: intent.contentProfile, title: intent.candidateDisplayTitle, yearHint: intent.yearHint }, timeoutMs: 10_000 });
+    async observeRoutingProvider({ intent, integrationHandle, operationId = 'libra.routing.fact.observe@1' }) {
+      return tmdbAdapter.observationPort.execute({ operationId, integrationHandle,
+        input: { contentProfile: intent.contentProfile, title: intent.candidateDisplayTitle, yearHint: intent.yearHint,
+          strongProviderKey: intent.strongProviderAnchor?.providerKey || null }, timeoutMs: 10_000 });
     },
     async searchProviderIdentity(request) {
       const handle = handleFor(
@@ -954,7 +959,7 @@ function createRuntime(options) {
   if (!fs.existsSync(path.join(options.adminDistDir, 'index.html'))) {
     findings.push('ADMIN_WEB_BUILD_MISSING');
   }
-  if (routeManifest.status !== 'active' || routeManifest.entries.length !== 116) {
+  if (routeManifest.status !== 'active' || routeManifest.entries.length !== 117) {
     findings.push('ROUTE_INVENTORY_INCOMPLETE');
   }
   if (uiManifest.status !== 'active' || uiManifest.entries.length !== 17) {
@@ -969,6 +974,7 @@ function createRuntime(options) {
 
   let kernel;
   try {
+    migrateUatIdentitySelectionSchema({ Database, databasePath, schemaManifest, now: options.now });
     kernel = openSqliteKernel({
       Database,
       databasePath,
@@ -1208,7 +1214,12 @@ async function createCleanServiceHost(options) {
     readArcaShelfStandard: arcaRoutingTargets.getStandard,
     onPolicyPublished(policy) { routingExecution?.routingCoordinator.reconcileField(policy.fieldId, 100); routingExecution?.host.wake(); },
   });
-  const formationQuery = createFormationQuery(constructed.applicationDependencies);
+  let formationRatingReader = () => new Map();
+  const formationQuery = createFormationQuery({
+    ...constructed.applicationDependencies,
+    progressProjectionReader: createExecutionProgressProjectionReader(constructed.applicationDependencies),
+    readPerceptionRatings: (targets) => formationRatingReader(targets),
+  });
   const fieldEnumerator = options.fieldObservationEnumerator || createCleanFieldObservationEnumerator({
     onFingerprintRead: options.onPhysicalMaterialFingerprintRead,
   });
@@ -1270,6 +1281,7 @@ async function createCleanServiceHost(options) {
   });
   routingExecution = procurementExecution;
   shelfDeregistrationExecution = procurementExecution;
+  formationRatingReader = (targets) => procurementExecution.perception.readCurrentRatings('subject', targets);
   const routingManualSelection = createRoutingManualSelectionService({
     ...constructed.applicationDependencies,
     contextReader: procurementExecution.routingContextReader,
@@ -1317,6 +1329,14 @@ async function createCleanServiceHost(options) {
     wake: () => executionRuntimeHost.wake(),
     now: options.now || Date.now,
   });
+  const productIdentitySelection = Object.freeze({
+    choose(libraRunId, body) {
+      const result = procurementExecution.productIdentitySelection.choose(libraRunId, body);
+      procurementExecution.libraRunCoordinator.reconcile(libraRunId);
+      executionRuntimeHost.wake();
+      return result;
+    },
+  });
   const perceptionAdmin = Object.freeze({
     createRecord(body) { const result=procurementExecution.perception.createRecord(body); executionRuntimeHost.wake(); return result; },
     listRecords(query) { const result=procurementExecution.perception.listRecords(query);
@@ -1346,6 +1366,7 @@ async function createCleanServiceHost(options) {
     arcaOffdeck,
     routingManualSelection,
     libraRunAdmin,
+    productIdentitySelection,
     platformIntegrationAdmin: platformIntegrations.admin,
     perceptionAdmin,
     nonce: crypto.randomUUID,

@@ -30,6 +30,9 @@ function createIntakeOfferReader(options) {
     fail('P14_INTAKE_OFFER_READER_DEPENDENCIES','Intake Offer reader requires Foundation persistence and Candidate Delivery Port.');
   }
   const repository=definition(options.schemaManifest);
+  const sourceByProcessId=new Map();
+  let orderedProcessIds=null;
+  let durableIndexLoaded=false;
   function list(){return options.unitOfWork.execute([{participantId:'libra_intake_offer_read',owner:'execution-foundation',repositories:[repository],
     execute:(context)=>context.repository(repository.repositoryId).invoke('list_offer_messages',{
       producer_domain:'procurement',message_kind:'procurement_candidate_offer_available'})}]).libra_intake_offer_read;}
@@ -41,22 +44,34 @@ function createIntakeOfferReader(options) {
     }
     return Object.freeze({row,offer:Object.freeze(offer)});
   }
-  function read(processId){const matches=list().map(envelope).filter((item)=>decisionId(item.offer.offerId)===processId);
-    if(matches.length>1)fail('P14_INTAKE_PROCESS_OFFER_CONFLICT','One Intake technical process resolves multiple Offers.',{processId});
-    if(matches.length===0)return null;const item=matches[0];const delivery=options.candidateDeliveryPort.readSnapshot(query(item.offer));
+  function source(item){const processId=decisionId(item.offer.offerId),delivery=options.candidateDeliveryPort.readSnapshot(query(item.offer));
     if(!delivery||delivery.resultKind!=='found'||!delivery.snapshot)fail('P14_INTAKE_DELIVERY_UNAVAILABLE','Candidate Delivery Snapshot is unavailable.',{processId});
     if(delivery.snapshot.offer.offerId!==item.offer.offerId||delivery.snapshot.deliverySnapshotDigest!==
         canonicalDigest(without(delivery.snapshot,'deliverySnapshotDigest'))){
       fail('P14_INTAKE_DELIVERY_MISMATCH','Candidate Delivery Snapshot does not match the offered immutable identity.',{processId});
     }
-    return Object.freeze({processId,offer:item.offer,messageId:item.row.message_id,dedupKey:item.row.dedup_key,snapshot:delivery.snapshot});
+    return Object.freeze({processId,offer:item.offer,messageId:item.row?.message_id||null,dedupKey:item.row?.dedup_key||null,snapshot:delivery.snapshot});
   }
-  function listProcessPage(cursor,limit=100){const ids=list().map(envelope).map((item)=>decisionId(item.offer.offerId)).sort();
+  function rebuild(){const next=new Map();for(const item of list().map(envelope)){const processId=decisionId(item.offer.offerId);
+      if(next.has(processId))fail('P14_INTAKE_PROCESS_OFFER_CONFLICT','One Intake technical process resolves multiple Offers.',{processId});
+      next.set(processId,source(item));}
+    sourceByProcessId.clear();for(const [processId,value] of next)sourceByProcessId.set(processId,value);
+    orderedProcessIds=Object.freeze([...sourceByProcessId.keys()].sort());durableIndexLoaded=true;
+  }
+  function remember(offer){const processId=decisionId(offer.offerId);const current=sourceByProcessId.get(processId);
+    if(current){if(current.offer.offerId!==offer.offerId||canonicalDigest(current.offer)!==canonicalDigest(offer))
+        fail('P14_INTAKE_PROCESS_OFFER_CONFLICT','One Intake technical process resolves conflicting Offers.',{processId});return current;}
+    const value=source(Object.freeze({row:null,offer:Object.freeze(offer)}));sourceByProcessId.set(processId,value);
+    orderedProcessIds=null;return value;
+  }
+  function read(processId){if(!sourceByProcessId.has(processId))rebuild();return sourceByProcessId.get(processId)||null;}
+  function listProcessPage(cursor,limit=100){if(!durableIndexLoaded)rebuild();
+    if(orderedProcessIds===null)orderedProcessIds=Object.freeze([...sourceByProcessId.keys()].sort());const ids=orderedProcessIds;
     const start=cursor?ids.findIndex((item)=>item>cursor):0;const offset=start<0?ids.length:start;
     const items=ids.slice(offset,offset+limit).map((processId)=>Object.freeze({processId}));
     return Object.freeze({items,nextCursor:offset+items.length<ids.length?items.at(-1).processId:null});
   }
-  return Object.freeze({read,decisionId,query,listProcessPage});
+  return Object.freeze({read,remember,decisionId,query,listProcessPage});
 }
 
 module.exports=Object.freeze({IntakeOfferReaderError,createIntakeOfferReader,decisionId});

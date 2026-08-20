@@ -1649,6 +1649,25 @@ CREATE TABLE "libra_product_identity_revisions" (
   FOREIGN KEY ("subject_id") REFERENCES "libra_subjects" ("subject_id") ON DELETE RESTRICT
 );
 
+CREATE TABLE "libra_product_identity_selection_intents" (
+  "selection_intent_id" TEXT PRIMARY KEY,
+  "libra_run_id" TEXT,
+  "intent_revision" INTEGER CHECK ("intent_revision" >= 1),
+  "selection_kind" TEXT CHECK ("selection_kind" IN ('candidate', 'provider_id')),
+  "provider" TEXT,
+  "namespace" TEXT,
+  "provider_key" TEXT,
+  "candidate_set_digest" TEXT CHECK (length("candidate_set_digest") = 64 AND "candidate_set_digest" NOT GLOB '*[^0-9a-f]*'),
+  "expected_run_state_revision" INTEGER CHECK ("expected_run_state_revision" >= 1),
+  "expected_identity_revision" INTEGER CHECK ("expected_identity_revision" >= 1),
+  "idempotency_key" TEXT,
+  "intent_digest" TEXT CHECK (length("intent_digest") = 64 AND "intent_digest" NOT GLOB '*[^0-9a-f]*'),
+  "created_at_ms" INTEGER CHECK ("created_at_ms" >= 0),
+  UNIQUE ("libra_run_id", "intent_revision"),
+  UNIQUE ("libra_run_id", "idempotency_key"),
+  FOREIGN KEY ("libra_run_id") REFERENCES "libra_runs" ("libra_run_id") ON DELETE RESTRICT
+);
+
 CREATE TABLE "libra_product_package_artifact_refs" (
   "on_deck_package_id" TEXT,
   "ordinal" INTEGER CHECK ("ordinal" >= 0),

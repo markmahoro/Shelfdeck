@@ -41,7 +41,7 @@ const PROCUREMENT_ENABLED = Object.freeze(['procurement.field.observation.page.c
 const SHARED_ENABLED = Object.freeze(['shared.material.media.probe@1']);
 const LIBRA_ENABLED = Object.freeze(['libra.intake.candidate.verify@1','libra.intake.material.verify@1',
   'libra.intake.binding.resolve@1','libra.intake.accept.commit@1','libra.intake.rejection.commit@1',
-  'libra.routing.fact.observe@1','libra.decision_basis.commit@1','libra.product_identity.resolve@1',
+  'libra.routing.fact.observe@1','libra.product_identity.evidence.observe@1','libra.decision_basis.commit@1','libra.product_identity.resolve@1',
   'libra.product_metadata.fetch@1','libra.product_artifact.acquire@1','libra.product_sidecar.render@1',
   'shared.artifact.manifest.verify@1','libra.media_cast.resolve@1','libra.media_cast.commit@1',
   'libra.product_metadata.commit@1','libra.transcode.input.verify@1','libra.media.remux@1',
@@ -311,6 +311,7 @@ function createProcurementExecutionRuntime(options) {
     resolveRoutingIntegrationHandle:libraOptions.resolveRoutingIntegrationHandle,
     resolveExternalMaterialIntegrationHandle:libraOptions.resolveExternalMaterialIntegrationHandle,
     movieProductionReader:libraProcessServices.movieProductionReader,routingContextReader:libraProcessServices.routingContextReader,
+    productIdentitySelection:libraProcessServices.productIdentitySelection,
     productProductionPort:libraOptions.productProductionPort,workspaceProductPort:libraOptions.workspaceProductPort,
     platformComputeRuntime:libraOptions.platformComputeRuntime,now});
   perceptionProcessServices=perceptionConstruction.createProcessServices({...perceptionOptions,now,workResultReader});
@@ -351,7 +352,7 @@ function createProcurementExecutionRuntime(options) {
         const mountScopeId=findMountScopeId(inputs);if(!mountScopeId)throw new Error('P4_TYPED_VOLUME_RESOURCE_UNRESOLVED:'+capability);
         validatedVolumeKeys.add(mountScopeId);resources.push({resourceKey:'volume_read:'+mountScopeId,units:1});
       }
-      if(capability==='libra.routing.fact.observe@1'){
+      if(capability==='libra.routing.fact.observe@1'||capability==='libra.product_identity.evidence.observe@1'){
         const mountScopeId=findMountScopeId(inputs),integrationId=findIntegrationId(inputs);
         if(mountScopeId){validatedVolumeKeys.add(mountScopeId);resources.push({resourceKey:'volume_read:'+mountScopeId,units:1});}
         else if(integrationId){validatedIntegrationKeys.add(integrationId);resources.push({resourceKey:'integration:'+integrationId,units:1});}
@@ -539,6 +540,10 @@ function createProcurementExecutionRuntime(options) {
   }
   const domainReconciler = { async reconcile(request) {
     if(request.reconcilePhase==='attempt_terminal'){
+      if(request.ownerDomain==='libra'&&request.processType==='libra_intake'&&request.workKind==='acceptance'&&
+          request.workAttemptState==='failed'&&request.workAttemptFailureCode==='P8_ACCEPTANCE_CONTINUITY_BASIS_STALE'){
+        return {workId:request.workId,disposition:'replan'};
+      }
       if(request.ownerDomain==='procurement'&&request.processType==='procurement_run'&&
           request.workKind==='evidence_assessment'&&request.workAttemptState==='succeeded'){
         const structures=workResultReader.read(request.workId).filter((item)=>item.outcomeKind==='succeeded'&&
@@ -745,6 +750,7 @@ function createProcurementExecutionRuntime(options) {
     libraRunCreator:libraProcessServices.libraRunCreator,libraRunContextReader:libraProcessServices.libraRunContextReader,
     libraRunCoordinator:libraProcessServices.libraRunCoordinator,movieProductionReader:libraProcessServices.movieProductionReader,
     libraRunExecutionProjection:libraProcessServices.libraRunExecutionProjection,
+    productIdentitySelection:libraProcessServices.productIdentitySelection,
     arcaCoordinator:arcaProcessServices.coordinator,arcaContextReader:arcaProcessServices.contextReader,
     arcaAftercareCoordinator:arcaProcessServices.aftercareCoordinator,
     arcaAftercareContextReader:arcaProcessServices.aftercareContextReader,

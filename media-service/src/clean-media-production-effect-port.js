@@ -22,15 +22,20 @@ function resolveFfmpegPath(explicit){
   return 'ffmpeg';
 }
 
-function runProcess(executable, argv, timeoutMs) {
+function runProcess(executable, argv, timeoutMs, progress = null) {
   return new Promise((resolve, reject) => {
-    const child = spawn(executable, argv, { windowsHide:true, stdio:['ignore', 'ignore', 'pipe'] });
+    const progressArgv=progress?[...argv.slice(0,-1),'-progress','pipe:1','-nostats',argv.at(-1)]:argv;
+    const child = spawn(executable, progressArgv, { windowsHide:true, stdio:['ignore', progress?'pipe':'ignore', 'pipe'] });
     const chunks = []; let total = 0; let timedOut = false;
+    let progressBuffer='',lastReportedAt=0,lastOutTime='0';
     const timer = setTimeout(() => { timedOut = true; child.kill('SIGKILL'); }, timeoutMs);
     child.stderr.on('data', (chunk) => {
       total += chunk.length;
       if (total <= 256 * 1024) chunks.push(Buffer.from(chunk));
     });
+    if(progress)child.stdout.on('data',(chunk)=>{progressBuffer+=chunk.toString('utf8');const lines=progressBuffer.split(/\r?\n/u);progressBuffer=lines.pop()||'';let speed=null,terminal=false;
+      for(const line of lines){const at=line.indexOf('=');if(at<1)continue;const key=line.slice(0,at),value=line.slice(at+1);if(key==='out_time_us')lastOutTime=value;if(key==='speed')speed=Number.parseFloat(value)||null;if(key==='progress'&&value==='end')terminal=true;}
+      const observedAt=Date.now();if(terminal||observedAt-lastReportedAt>=5000){lastReportedAt=observedAt;progress.report(Object.freeze({mode:'indeterminate',currentValue:null,totalValue:null,unit:'media_time',rate:speed,etaMs:null,sourceSequence:progress.prefix+':'+lastOutTime+(terminal?':end':''),progressBucket:terminal?'complete':'media_time_'+Math.floor((Number(lastOutTime)||0)/30_000_000),terminal}));}});
     child.once('error', (error) => { clearTimeout(timer); reject(error); });
     child.once('close', (code) => {
       clearTimeout(timer);
@@ -145,7 +150,8 @@ function createCleanMediaProductionEffectPort(options) {
       async produce(temporaryTarget) {
         const input = inputArguments(request.source, temporaryTarget);
         try {
-          await runProcess(ffmpegPath, ['-hide_banner', '-nostdin', '-y', '-fflags', '+genpts', ...input.argv, '-map', '0', '-c', 'copy', '-f', 'matroska', temporaryTarget], timeoutMs);
+          await runProcess(ffmpegPath, ['-hide_banner', '-nostdin', '-y', '-fflags', '+genpts', ...input.argv, '-map', '0', '-c', 'copy', '-f', 'matroska', temporaryTarget], timeoutMs,
+            request.reportProgress?{report:request.reportProgress,prefix:'remux'}:null);
         } finally { input.cleanup?.(); }
       } });
   }
@@ -171,7 +177,7 @@ function createCleanMediaProductionEffectPort(options) {
           const passlog=temporaryTarget+'.passlog',nullTarget=process.platform==='win32'?'NUL':'/dev/null';
           try {
             await runProcess(ffmpegPath,['-hide_banner','-nostdin','-y','-i',source,'-map','0:v:0',...profile,...encoding,
-              '-pass','1','-passlogfile',passlog,'-an','-sn','-f','null',nullTarget],timeoutMs);
+              '-pass','1','-passlogfile',passlog,'-an','-sn','-f','null',nullTarget],timeoutMs,request.reportProgress?{report:request.reportProgress,prefix:'transcode-pass1'}:null);
             if(normalizeDolbyVision){
               // FFmpeg 6.x Matroska propagation can copy the source DOVI
               // configuration side-data even after a full pixel encode. A
@@ -180,11 +186,11 @@ function createCleanMediaProductionEffectPort(options) {
               // The final mux then carries audio/subtitles from the source,
               // never the source video stream or its DOVI configuration.
               await runProcess(ffmpegPath,['-hide_banner','-nostdin','-y','-i',source,'-map','0:v:0',...profile,...encoding,
-                '-pass','2','-passlogfile',passlog,'-an','-sn','-f','mpegts',normalizedVideoTarget],timeoutMs);
+                '-pass','2','-passlogfile',passlog,'-an','-sn','-f','mpegts',normalizedVideoTarget],timeoutMs,request.reportProgress?{report:request.reportProgress,prefix:'transcode-pass2'}:null);
               await muxNormalizedVideo();
             }else{
               await runProcess(ffmpegPath,['-hide_banner','-nostdin','-y','-i',source,...productStreamMap(),...profile,...encoding,
-                '-pass','2','-passlogfile',passlog,'-c:a','copy','-c:s','copy','-f','matroska',temporaryTarget],timeoutMs);
+                '-pass','2','-passlogfile',passlog,'-c:a','copy','-c:s','copy','-f','matroska',temporaryTarget],timeoutMs,request.reportProgress?{report:request.reportProgress,prefix:'transcode-pass2'}:null);
             }
           } finally {
             for(const suffix of ['', '.log', '.log.mbtree', '-0.log', '-0.log.mbtree']){
@@ -196,13 +202,14 @@ function createCleanMediaProductionEffectPort(options) {
         }
         if(normalizeDolbyVision){
           try{
-            await runProcess(ffmpegPath,['-hide_banner','-nostdin','-y','-i',source,'-map','0:v:0',...profile,...encoding,
-              '-an','-sn','-f','mpegts',normalizedVideoTarget],timeoutMs);
+          await runProcess(ffmpegPath,['-hide_banner','-nostdin','-y','-i',source,'-map','0:v:0',...profile,...encoding,
+              '-an','-sn','-f','mpegts',normalizedVideoTarget],timeoutMs,request.reportProgress?{report:request.reportProgress,prefix:'transcode'}:null);
             await muxNormalizedVideo();
           }finally{if(fs.existsSync(normalizedVideoTarget))fs.rmSync(normalizedVideoTarget,{force:true});}
         }else{
           await runProcess(ffmpegPath, ['-hide_banner', '-nostdin', '-y', '-i', source,
-            ...productStreamMap(), ...profile,...encoding, '-c:a', 'copy', '-c:s', 'copy', '-f', 'matroska', temporaryTarget], timeoutMs);
+            ...productStreamMap(), ...profile,...encoding, '-c:a', 'copy', '-c:s', 'copy', '-f', 'matroska', temporaryTarget], timeoutMs,
+            request.reportProgress?{report:request.reportProgress,prefix:'transcode'}:null);
         }
       } });
   }

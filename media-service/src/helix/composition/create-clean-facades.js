@@ -186,7 +186,7 @@ function createCleanFacades(options) {
     facades.LibraFormationFacade.get_routing_material_fields_fieldid_revisions = async (input) => ({ body: options.libraRoutingAdmin.history(input.params.fieldId) });
   }
   if (options.formationQuery) {
-    facades.PlatformAdminFacade.get_formation = async () => ({ body: options.formationQuery.list() });
+    facades.PlatformAdminFacade.get_formation = async (input) => ({ body: options.formationQuery.list(input.query || {}) });
     facades.LibraFormationFacade.get_formation_formationviewid = async (input) => ({
       body: options.formationQuery.get(input.params.formationViewId),
     });
@@ -205,6 +205,12 @@ function createCleanFacades(options) {
     });
     facades.LibraFormationFacade.post_formation_runs_librarunid_actions_discard = async (input) => ({
       body: options.libraRunAdmin.discard(input.params.libraRunId, input.body),
+    });
+  }
+  if (options.productIdentitySelection) {
+    facades.LibraFormationFacade.post_formation_runs_librarunid_actions_choose_product_identity = async (input) => ({
+      status: 202,
+      body: options.productIdentitySelection.choose(input.params.libraRunId, input.body),
     });
   }
   if (options.perceptionAdmin) {

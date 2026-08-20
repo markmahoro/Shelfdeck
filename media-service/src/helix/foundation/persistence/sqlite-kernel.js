@@ -5,7 +5,7 @@ const { canonicalJson } = require('../../contracts/canonical-json');
 
 const IDENTIFIER = /^[a-z][a-z0-9_]*$/;
 const SCHEMA_NAME = 'shelfdeck';
-const GENERATION = 'helix-clean-v1';
+const GENERATION = 'helix-clean-v2';
 
 class SqliteKernelError extends Error {
   constructor(code, message, details = {}) {
@@ -45,7 +45,7 @@ function expectedCatalog(manifest) {
 
 function assertManifest(manifest, ddl) {
   if (!manifest || manifest.schemaVersion !== 1 || manifest.compilerContract !== 'helix-p3-deterministic-sqlite-ddl/v1' ||
-      manifest.tableCount !== 180 || !Array.isArray(manifest.tables) || manifest.tables.length !== 180) {
+      manifest.tableCount !== 181 || !Array.isArray(manifest.tables) || manifest.tables.length !== 181) {
     fail('P3_SQLITE_INVALID_SCHEMA_MANIFEST', 'The clean schema manifest is incomplete or unsupported.');
   }
   if (manifest.digestAlgorithm !== 'sha256' || digest(normalizedDdl(ddl)) !== manifest.ddlDigest) {

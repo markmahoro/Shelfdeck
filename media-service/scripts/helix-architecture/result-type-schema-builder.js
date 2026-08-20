@@ -350,6 +350,7 @@ const special = {
   'IntakeMaterialVerification.verifiedMaterials': arrayOf(object({ materialKey: digest(), bindingRevision: positiveInteger(),
     locationEvidenceDigest: digest(), readHandleDigest: digest(), verificationDigest: digest() }), 1024),
   'LibraBindingDraft.subjectRef': object({ subjectId: id(), resolutionKind: enumText('new_subject', 'season_extension') }),
+  'LibraBindingDraft.resolutionDecision': domainRef('SubjectContinuityResolutionDecision'),
   'LibraBindingDraft.bindings': arrayOf(object({
     materialKey: digest(),
     role: enumText('primary_payload', 'structural_dependency', 'nfo', 'poster', 'fanart', 'subtitle', 'external_audio', 'chapter', 'sidecar'),
@@ -600,13 +601,14 @@ const contracts = {
   ProcurementCandidateRejectionClosureResult: [null, 'offerId,candidatePackageId,packageRevision,packageDigest,acceptanceBasisDigest,terminalDeliveryState,releasedMaterialCount,releasedMaterialSetDigest,rejectionReceiptDigest,closureDigest'],
   CandidateContractVerification: ['VerificationEnvelope', 'offerId,candidatePackageId,packageRevision,packageDigest,acceptanceBasisDigest,primaryInputManifestDigest,candidateDeliverySnapshotDigest'],
   IntakeMaterialVerification: ['VerificationEnvelope', 'candidatePackageId,packageDigest,candidateDeliverySnapshotDigest,verifiedMaterials,verifiedMaterialSetDigest'],
-  LibraBindingDraft: ['DraftEnvelope', 'subjectRef,candidateDeliverySnapshotDigest,bindings,bindingSetDigest'],
+  LibraBindingDraft: ['DraftEnvelope', 'subjectRef,resolutionDecision,candidateDeliverySnapshotDigest,bindings,bindingSetDigest'],
   IntakeRejectionReceipt: ['ReceiptEnvelope', 'intakeDecisionId,handoffKind,offerId,deliverableId,deliverableRevision,deliverableDigest,rejectionId,primaryRejectionCode,rejectionReasonSetDigest,rejectionDigest,receiptDigest'],
   RejectionReceipt: ['ReceiptEnvelope', 'acceptanceDecisionId,handoffKind,offerId,deliverableId,rejectionCode,acceptanceEvidenceSetDigest,rejectionDigest,receiptDigest'],
   SubjectAndTransferReceipt: ['ReceiptEnvelope', 'intakeDecisionId,offerId,candidatePackageId,packageRevision,packageDigest,candidateDeliverySnapshotDigest,relatedDispositionScopeDigest,subjectId,subjectIntakeRevision,subjectContinuityHeadRevision,subjectContinuitySetDigest,subjectEpisodeScopeDigest,libraBindingSetDigest,controlRevisionSetDigest,receiptDigest'],
   VersionedQueryResult: ['EvidenceEnvelope', 'providerDomain,queryContract,queryVersion,inputDigest,resultKind,resultRevision,resultDigest,expiresAtMs'],
   ResolvedProductIdentity: ['EvidenceEnvelope', 'subjectId,structureKind,contentProfile,identityKind,providerIdentities,providerIdentitySetDigest,exactSeasonContinuityClaims,exactSeasonContinuitySetDigest,displayIdentity,identityDigest'],
   MetadataObservation: ['EvidenceEnvelope', 'identityDigest,contentProfile,descriptiveFacts,providerIdentitySet,peopleHints,artifactHints'],
+  ProductIdentityEvidenceObservation: [null, 'observationId,intentId,libraRunId,subjectId,sourceKind,result,reasonCode,candidates,candidateMatchCount,verifiedIdentity,sourceAssociationDigest,evidenceDigest,observationDigest'],
   RoutingFactObservation: [null, 'observationId,intentId,subjectId,sourceKind,sourceRef,result,reasonCode?,facts,candidateMatchCount,evidenceDigest,observationDigest'],
   DecisionBasisRevision: ['DomainFactEnvelope', 'subjectId,queryResultSetDigest,routingInputDigest,specInputDigest'],
   FrameArtifactSet: ['ManifestEnvelope', 'libraRunId,workspaceId,sourceMaterialDigest,samplingPlanDigest,outputTargetDigest,frameCount,frameMemberSetDigest,frameSetArtifactHandle'],
@@ -692,6 +694,7 @@ special['MaterialEffectReceipt.retiredMaterials'] = arrayOf(object({
 function buildResultTypeSchema(name, [base, fieldList]) {
   if (name === 'ArtifactManifestVerification') return artifactManifestVerificationSchema();
   if (name === 'MetadataObservation') return metadataObservationSchema();
+  if (name === 'ProductIdentityEvidenceObservation') return productIdentityEvidenceObservationSchema();
   if (name === 'RoutingFactObservation') return routingFactObservationSchema();
   if (name === 'DecisionBasisRevision') return decisionBasisRevisionSchema();
   if (name === 'FrameArtifactSet') return frameArtifactSetSchema();
@@ -830,6 +833,42 @@ function metadataObservationSchema() {
     descriptiveFacts: boundedRecord('descriptive-facts'), providerIdentitySet: providerIdentitySetRecord(),
     peopleHints: metadataPeopleHints(), artifactHints: emptyArtifactHints()
   }, { 'x-helix-maxCanonicalBytes': 64 * 1024 });
+}
+
+function productIdentityEvidenceObservationSchema() {
+  const alias = object({ value: text({ maxLength: 1024 }), sourceKind: enumText('candidate', 'related_nfo', 'provider'), aliasDigest: digest() });
+  const candidate = object({
+    provider: { const: 'tmdb' }, namespace: { const: 'tmdb_movie' }, providerKey: text({ maxLength: 128 }),
+    displayTitle: text({ maxLength: 1024 }), originalTitle: nullable(text({ maxLength: 1024 })),
+    releaseYear: nullable({ type: 'integer', minimum: 1870, maximum: 3000 }), aliases: arrayOf(alias, 32),
+    candidateDigest: digest(),
+  });
+  const verifiedIdentity = object({
+    provider: { const: 'tmdb' }, namespace: { const: 'tmdb_movie' }, providerKey: text({ maxLength: 128 }),
+    displayTitle: text({ maxLength: 1024 }), originalTitle: nullable(text({ maxLength: 1024 })),
+    releaseYear: nullable({ type: 'integer', minimum: 1870, maximum: 3000 }), aliases: arrayOf(alias, 32),
+    identityDigest: digest(),
+  });
+  const common = {
+    schemaRef: { const: typeId('ProductIdentityEvidenceObservation') }, schemaVersion: { const: 1 },
+    observationId: id(), intentId: id(), libraRunId: id(), subjectId: id(),
+    sourceKind: enumText('related_nfo', 'provider_exact', 'provider_search'),
+    candidateMatchCount: nonNegativeInteger(), sourceAssociationDigest: digest(), evidenceDigest: digest(), observationDigest: digest(),
+  };
+  return {
+    $schema: DRAFT, $id: typeId('ProductIdentityEvidenceObservation'), title: 'ProductIdentityEvidenceObservation@1',
+    'x-helix-ssotRefs': ['5.1.3', '5.4.3', '8.6.5', '8.6.19'], 'x-helix-maxCanonicalBytes': 64 * 1024,
+    oneOf: [
+      object({ ...common, result: { const: 'resolved' }, reasonCode: { type: 'null' }, candidates: { type: 'array', maxItems: 0 },
+        verifiedIdentity, candidateMatchCount: { const: 1 } }),
+      object({ ...common, result: { const: 'not_found' }, reasonCode: enumText('nfo_identity_absent', 'provider_no_match'),
+        candidates: { type: 'array', maxItems: 0 }, verifiedIdentity: { type: 'null' }, candidateMatchCount: { const: 0 } }),
+      object({ ...common, result: { const: 'ambiguous' }, reasonCode: { const: 'provider_identity_ambiguous' },
+        candidates: { ...arrayOf(candidate, 16), minItems: 2 }, verifiedIdentity: { type: 'null' }, candidateMatchCount: { type: 'integer', minimum: 2, maximum: 16 } }),
+      object({ ...common, result: { const: 'conflicting' }, reasonCode: enumText('nfo_association_conflicting', 'provider_identity_conflicting'),
+        candidates: arrayOf(candidate, 16), verifiedIdentity: { type: 'null' } }),
+    ],
+  };
 }
 
 function routingFactObservationSchema() {

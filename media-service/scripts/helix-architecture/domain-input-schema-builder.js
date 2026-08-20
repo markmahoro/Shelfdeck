@@ -176,6 +176,7 @@ const dtoContracts = {
   InventoryRevision: 'shelfEntryId,inventoryRevision,inventoryDigest',
   KnownBindings: 'shelfEntryId,bindings,bindingSetDigest',
   LibraDeliverablePromotionDecision: '',
+  ProductIdentityEvidenceIntent: '',
   RoutingFactObservationIntent: '',
   MetadataFetchIntent: '',
   WesternAnalysisVariant: '',
@@ -290,6 +291,7 @@ function buildSchema(name, role, fields) {
   if (name === 'PeopleReferenceMaintenanceDecision') return peopleReferenceMaintenanceDecisionSchema();
   if (name === 'PersonReferenceProjection') return personReferenceProjectionSchema();
   if (name === 'DecisionInputSet') return decisionInputSetSchema();
+  if (name === 'ProductIdentityEvidenceIntent') return productIdentityEvidenceIntentSchema();
   if (name === 'RoutingFactObservationIntent') return routingFactObservationIntentSchema();
   if (name === 'MetadataFetchIntent') return metadataFetchIntentSchema();
   if (name === 'LibraMediaCastSourceBasisMetadataObservationWesternMatch') return libraMediaCastSourceBasisSchema(name);
@@ -901,6 +903,41 @@ function metadataFetchIntentSchema() {
         resolvedProviderIdentity: domainRef('ResolvedProviderIdentity'), integrationId: id(), configRevision: positiveInteger() },
         [...Object.keys(common), 'providerKind', 'resolvedProviderIdentity', 'integrationId', 'configRevision'])
     ] };
+}
+
+function productIdentityEvidenceIntentSchema() {
+  const alias = object({
+    value: text({ maxLength: 1024 }),
+    sourceKind: enumText('candidate', 'related_nfo', 'manual_selection'),
+    aliasDigest: digest(),
+  });
+  const common = {
+    intentId: id(), libraRunId: id(), subjectId: id(), runExecutionBasisDigest: digest(),
+    contentProfile: { const: 'movie' }, sourceKind: enumText('related_nfo', 'provider_exact', 'provider_search'),
+    aliases: { ...arrayOf(alias, 32), minItems: 1 },
+    yearHint: nullable({ type: 'integer', minimum: 1870, maximum: 3000 }), intentDigest: digest(),
+  };
+  return {
+    $schema: DRAFT,
+    $id: domainTypeId('ProductIdentityEvidenceIntent'),
+    title: 'ProductIdentityEvidenceIntent@1',
+    'x-helix-ssotRefs': ['5.1.3', '5.4.3', '8.6.5', '8.6.19'],
+    'x-helix-role': 'accepted-business-dto',
+    'x-helix-maxCanonicalBytes': 16 * 1024,
+    oneOf: [
+      object({ ...common, sourceKind: { const: 'related_nfo' }, relatedReferenceId: id(),
+        relatedReferenceDigest: digest(), expectedPhysicalIdentityDigest: digest() },
+      [...Object.keys(common), 'relatedReferenceId', 'relatedReferenceDigest', 'expectedPhysicalIdentityDigest']),
+      object({ ...common, sourceKind: { const: 'provider_exact' }, integrationId: id(), configRevision: positiveInteger(),
+        provider: { const: 'tmdb' }, namespace: { const: 'tmdb_movie' }, providerKey: text({ maxLength: 128 }),
+        associationKind: enumText('nfo_claim', 'manual_selection'), associationEvidenceDigest: digest() },
+      [...Object.keys(common), 'integrationId', 'configRevision', 'provider', 'namespace', 'providerKey', 'associationKind',
+        'associationEvidenceDigest']),
+      object({ ...common, sourceKind: { const: 'provider_search' }, integrationId: id(), configRevision: positiveInteger(),
+        provider: { const: 'tmdb' }, namespace: { const: 'tmdb_movie' } },
+      [...Object.keys(common), 'integrationId', 'configRevision', 'provider', 'namespace']),
+    ],
+  };
 }
 
 function routingFactObservationIntentSchema() {

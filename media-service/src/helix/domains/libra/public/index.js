@@ -22,6 +22,7 @@ const { createLibraRunCreator } = require('../application/libra-run-creator');
 const { createLibraRunCoordinator } = require('../application/libra-run-coordinator');
 const { createLibraRunExecutionProjection } = require('../application/libra-run-execution-projection');
 const { createLibraRunLifecycleService } = require('../application/libra-run-lifecycle-service');
+const { createProductIdentitySelectionService } = require('../application/product-identity-selection-service');
 const { createMovieProductionReader } = require('../persistence/movie-production-reader');
 const { createProductFactCapabilityPorts } = require('../capabilities/product-fact-capability-ports');
 const { createProductFactCapabilityRegistrations } = require('../capabilities/product-fact-capability-registrations');
@@ -189,7 +190,7 @@ function createExecutionRegistration() {
     createProcessServices(options) {
       const offerReader=options.offerReader || createIntakeOfferReader(options);
       const decisionResolver=createIntakeDecisionResolver(options);
-      const coordinator=createIntakeProcessCoordinator({...options,offerReader});
+      const coordinator=createIntakeProcessCoordinator({...options,offerReader,decisionResolver});
       const routingContextReader=createRoutingContextReader(options);
       const routingCoordinator=createRoutingProcessCoordinator({...options,contextReader:routingContextReader});
       const acceptanceSpecContextReader=createAcceptanceSpecContextReader({...options,routingContextReader});
@@ -197,12 +198,13 @@ function createExecutionRegistration() {
       const libraRunContextReader=createLibraRunContextReader(options);
       const libraRunCreator=createLibraRunCreator({...options,contextReader:libraRunContextReader});
       const libraRunExecutionProjection=createLibraRunExecutionProjection(options);
+      const productIdentitySelection=createProductIdentitySelectionService(options);
       const libraRunLifecycleService=createLibraRunLifecycleService({...options,libraRunExecutionProjection});
       const movieProductionReader=options.movieProductionReader||createMovieProductionReader(options);
-      const libraRunCoordinator=createLibraRunCoordinator({...options,movieProductionReader,libraRunLifecycleService});
+      const libraRunCoordinator=createLibraRunCoordinator({...options,movieProductionReader,libraRunLifecycleService,productIdentitySelection});
       return Object.freeze({offerReader,decisionResolver,coordinator,routingContextReader,routingCoordinator,acceptanceSpecContextReader,
         acceptanceSpecCoordinator,libraRunContextReader,libraRunCreator,movieProductionReader,libraRunCoordinator,
-        libraRunExecutionProjection,libraRunLifecycleService});
+        libraRunExecutionProjection,libraRunLifecycleService,productIdentitySelection});
     },
     createPlanningRegistration(options) {
       const productDeliveryAssembler=options.productDeliveryAssembler||createProductDeliveryAssembler(options);
