@@ -163,6 +163,17 @@ function createPerceptionStore(options) {
         .sort((left,right)=>right.committedAtMs-left.committedAtMs||left.perceptionId.localeCompare(right.perceptionId));
       return candidates[0]||null;
     }); },
+    findCurrentTargetRatings(targetType,targetIds) { return execute([records], (context) => {
+      const repo=context.repository(records.repositoryId),anchorKind=targetType==='subject'?'subject_id':targetType==='shelf_entry'?'shelf_entry_id':null;
+      const wanted=new Set(targetIds||[]),result=new Map();if(!anchorKind||!wanted.size)return result;
+      const anchors=repo.invoke('find_anchors_by_kind',{anchor_kind:anchorKind}).filter((row)=>wanted.has(row.anchor_value));
+      const terminal=new Set(repo.invoke('list_relations').filter((row)=>['supersedes','retracts'].includes(row.relation_kind)).map((row)=>row.target_perception_id));
+      for(const targetId of wanted){const ids=anchors.filter((row)=>row.anchor_value===targetId&&!terminal.has(row.perception_id)).map((row)=>row.perception_id);
+        const current=ids.map((id)=>mapRecord(repo,id)).filter((item)=>item.rating!==null)
+          .sort((left,right)=>right.committedAtMs-left.committedAtMs||left.perceptionId.localeCompare(right.perceptionId))[0]||null;
+        result.set(targetId,current);}
+      return result;
+    }); },
     readCurrentResolvedRatings(queryInputDigests) { return execute([records,resolutions], (context) => {
       const wanted=new Set(queryInputDigests),recordRepo=context.repository(records.repositoryId),resolutionRepo=context.repository(resolutions.repositoryId);
       if(!wanted.size)return Object.freeze([]);

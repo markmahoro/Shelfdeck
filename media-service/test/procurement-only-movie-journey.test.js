@@ -207,13 +207,23 @@ test('one bad Material is released while a bounded Movie Candidate set crosses H
     const fields = await host.inject({ method:'GET',url:'/v1/admin/material-fields',headers:{cookie} });
     assert.equal(fields.statusCode,200,fields.body);
     assert.equal(fields.json().items.find((item)=>item.fieldId===accessBasis.fieldId).currentObservationRevision,1);
-    const formation = await host.inject({ method:'GET',url:'/v1/admin/formation',headers:{cookie} });
-    assert.equal(formation.statusCode,200,formation.body);
+    const formationItems = [];
+    let formationCursor = null;
+    let formation = null;
+    do {
+      const query = new URLSearchParams({ limit: '25' });
+      if (formationCursor) query.set('cursor', formationCursor);
+      const page = await host.inject({ method:'GET',url:`/v1/admin/formation?${query.toString()}`,headers:{cookie} });
+      assert.equal(page.statusCode,200,page.body);
+      formation ??= page;
+      formationItems.push(...page.json().items);
+      formationCursor = page.json().nextCursor;
+    } while (formationCursor);
     assert.equal(formation.json().summary.totalCount,movieCount);
     assert.equal(formation.json().summary.waitingCount,movieCount);
-    assert.equal(formation.json().items.length,movieCount);
-    assert.equal(new Set(formation.json().items.map((item)=>item.subjectId)).size,movieCount);
-    const invalidFormationItem=formation.json().items.find((item)=>item.classification!=='waiting'||item.primaryMaterialCount!==1);
+    assert.equal(formationItems.length,movieCount);
+    assert.equal(new Set(formationItems.map((item)=>item.subjectId)).size,movieCount);
+    const invalidFormationItem=formationItems.find((item)=>item.classification!=='waiting'||item.primaryMaterialCount!==1);
     assert.equal(invalidFormationItem,undefined,JSON.stringify(invalidFormationItem));
     const deregistered=await host.inject({method:'POST',url:`/v1/admin/material-fields/${accessBasis.fieldId}/actions/deregister`,headers:{cookie},payload:{
       idempotencyKey:'procurement-only-deregister',fieldId:accessBasis.fieldId,expectedAccessRevision:1,expectedPolicyRevision:1}});

@@ -2,6 +2,11 @@
 
 Status: Movie Procurement与Movie Libra封口保持有效；Movie Arca已完成Handoff B Acceptance、On-deck、Shelf Entry、Deck Fact、Beta Aftercare、Off-deck与Shelf Deregistration闭环。“我的收藏”承载海报墙、收藏健康、直接退出及历史Entry。当前状态为`MOVIE COLLECTION LIFECYCLE READY THROUGH SHELF DEREGISTRATION`；Docker/NAS与生产部署均未开始。
 
+2026-08-21本地现场切换已完成：媒体整理工作区改由后端持久化`libra_formation_projections`提供展示，现场数据库已迁移到
+`helix-clean-v3`并恢复服务。当前现场数据库为182 tables、659 Subjects/659 Projection rows，Formation active首屏25条，
+健康接口和Admin Web均可访问；切换前回滚备份及残余UAT问题见`CURRENT_STATUS.md`与`USER_ACCEPTANCE_TEST_ISSUE_LOG.md`。
+本轮没有清空现场数据、重扫`Z:\Film`、重同步外部Provider或触碰Docker/NAS/生产数据。
+
 Shelf Deregistration现为非破坏性的正式异步链：Admin Intent立即让Shelf退出Routing与Acceptance目标，后台经Responsibility Drain、
 持久化Manifest、每100项分页Verification及唯一Atomic Commit终结Shelf Entry/Deck Fact并释放精确Material Control。非空Shelf与超过
 10,000项Manifest均已验证；文件、Related、Artifact和Target Folder完全不变，全链不申请Volume Permit。已Accepted On-deck、已授权

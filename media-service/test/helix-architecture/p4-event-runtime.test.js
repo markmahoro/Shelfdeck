@@ -92,7 +92,14 @@ function fixture(run, settings = {}) {
   const lease = Object.freeze({ leaseId: 'lease', targetType: 'event', targetId: 'event', issuedAtMs: 1, expiresAtMs: 999999, fenceDigest: HASH_A });
   const scheduler = { assertCurrent(value) { assert.equal(value, lease); }, release(value) { assert.equal(value, lease); schedulerReleased += 1; } };
   const permit = Object.freeze({ permitId: 'permit', eventId: 'event', resources: Object.freeze([{ resourceKey: 'cpu_heavy', units: 1 }]), profileRevision: 1, issuedAtMs: 1000 });
-  const governor = { acquire: () => settings.governorDecision || ({ kind: 'permitted', permit }), release(value) { assert.equal(value, permit); governorReleased += 1; return { grants: [] }; } };
+  const governor = { acquire: () => {
+    if (settings.assertReadyBeforeAcquire) {
+      const database = new Database(databasePath, { readonly: true });
+      try { assert.equal(database.prepare('SELECT state FROM fx_workflow_events WHERE event_id=?').get('event').state, 'ready'); }
+      finally { database.close(); }
+    }
+    return settings.governorDecision || ({ kind: 'permitted', permit });
+  }, release(value) { assert.equal(value, permit); governorReleased += 1; return { grants: [] }; } };
   const fences = settings.fences || [{ valid: true, digest: HASH_A, snapshot: {} }, { valid: true, digest: HASH_A, snapshot: {} }];
   let fenceIndex = 0;
   const dispatcher = { async dispatch(request) {
@@ -269,6 +276,7 @@ test('due external observation wait creates the next Attempt and can become term
   }, {
     initialEventState: 'waiting_for_external',
     seedDeferredAttempt: true,
+    assertReadyBeforeAcquire: true,
   });
 });
 

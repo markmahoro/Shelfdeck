@@ -30,6 +30,7 @@ const { createReconcileCursorStore } = require('../foundation/execution/reconcil
 const { createMaterialControlProjectionPort, controlScopeDigest } = require('../foundation/persistence/material-control');
 const { createDomainReconcileRunner } = require('../foundation/execution/domain-reconcile-runner');
 const { createWorkflowPlanPublisher, executionCatalogDigest } = require('../foundation/execution/workflow-plan');
+const { PRE_PROJECTION_PLAN_REPLAN_CODE } = require('../foundation/persistence/uat-identity-selection-migration');
 const { ProcurementExecutionRegistration } = require('../domains/procurement/public');
 const { LibraExecutionRegistration } = require('../domains/libra/public');
 const { PerceptionExecutionRegistration } = require('../domains/perception/public');
@@ -78,10 +79,15 @@ const ARCA_DEREGISTRATION_ENABLED=Object.freeze([
 const ARCA_ALL_ENABLED=Object.freeze([...ARCA_ENABLED,...ARCA_OFFDECK_ENABLED,...ARCA_DEREGISTRATION_ENABLED]);
 const ENABLED = Object.freeze([...PROCUREMENT_ENABLED, ...SHARED_ENABLED, ...LIBRA_ENABLED, ...PERCEPTION_ENABLED,...ARCA_ALL_ENABLED]);
 const UAT_SOURCE_EXECUTION_CATALOG_DIGEST = 'b0371a6d2793c1e381a4c2e7fc421d312a1a1e90d2de5e47f61a45022f09793b';
+const PRE_PROJECTION_EXECUTION_CATALOG_DIGEST = '13315cdbdf6ab5cbe30b32075f89bd76ae1a873d84034dc572824f4fbc3886e6';
+const TERMINAL_EVENT_STATES = new Set(['succeeded', 'skipped', 'failed', 'cancelled']);
 
 function verifyStartupPlanCatalog(snapshot, currentCatalogDigest, registry, policyRegistry, bindingProjectionRegistry) {
   if (!snapshot || !snapshot.plan) return false;
   if (snapshot.plan.catalog_digest === currentCatalogDigest) return true;
+  if (snapshot.plan.catalog_digest === PRE_PROJECTION_EXECUTION_CATALOG_DIGEST &&
+      ['succeeded', 'failed', 'cancelled'].includes(snapshot.workAttempt?.state) &&
+      Array.isArray(snapshot.events) && snapshot.events.every((event) => TERMINAL_EVENT_STATES.has(event.state))) return true;
   if (snapshot.plan.catalog_digest !== UAT_SOURCE_EXECUTION_CATALOG_DIGEST ||
       !snapshot.work || !Array.isArray(snapshot.nodes) || !Array.isArray(snapshot.events) ||
       snapshot.nodes.length === 0 || snapshot.nodes.length !== snapshot.events.length) return false;
@@ -373,6 +379,7 @@ function createProcurementExecutionRuntime(options) {
   const dispatcher = createExecutorDispatcher({ registry, contractValidator });
   const eventRuntime = createEventRuntime({ schemaManifest: options.schemaManifest, unitOfWork: options.unitOfWork,
     scheduler, governor, registry, dispatcher, effectJournal, attemptPolicy, timeoutController, circuitBreaker: breaker,
+    onProgress: (sample) => { if(sample.ownerDomain==='libra'&&sample.processType==='libra_run')options.onFormationRunChanged?.(sample.processId); },
     executionInputProvider, whenEvaluator: { evaluate: () => 'run' },
     fenceValidator: { validate: ({ snapshot }) => {
       const fence = JSON.parse(snapshot.node.fence_basis_json); return { valid: true, digest: canonicalDigest(fence), snapshot: fence };
@@ -577,7 +584,11 @@ function createProcurementExecutionRuntime(options) {
     if(request.reconcilePhase==='attempt_terminal'){
       if(request.ownerDomain==='libra'&&request.processType==='libra_intake'&&request.workKind==='acceptance'&&
           request.workAttemptState==='failed'&&['P8_ACCEPTANCE_CONTINUITY_BASIS_STALE',
-            'P4_UAT_INTAKE_BINDING_RESULT_REPLAN_REQUIRED'].includes(request.workAttemptFailureCode)){
+            'P4_UAT_INTAKE_BINDING_RESULT_REPLAN_REQUIRED',PRE_PROJECTION_PLAN_REPLAN_CODE].includes(request.workAttemptFailureCode)){
+        return {workId:request.workId,disposition:'replan'};
+      }
+      if(request.ownerDomain==='perception'&&request.processType==='perception_resolution'&&
+          request.workAttemptState==='failed'&&request.workAttemptFailureCode===PRE_PROJECTION_PLAN_REPLAN_CODE){
         return {workId:request.workId,disposition:'replan'};
       }
       if(request.ownerDomain==='procurement'&&request.processType==='procurement_run'&&
@@ -601,7 +612,7 @@ function createProcurementExecutionRuntime(options) {
       }
       if(request.workKind==='acceptance'&&request.workAttemptState==='succeeded'){
         const receipt=workResultReader.read(request.workId).find((item)=>item.outcomeKind==='succeeded'&&item.result?.subjectId)?.result;
-        if(receipt?.subjectId)libraProcessServices.routingCoordinator.reconcile(receipt.subjectId);
+        if(receipt?.subjectId){libraProcessServices.routingCoordinator.reconcile(receipt.subjectId);options.onFormationSubjectChanged?.(receipt.subjectId);}
       }
       return {workId:request.workId,disposition:request.workAttemptState};
     }
@@ -610,6 +621,7 @@ function createProcurementExecutionRuntime(options) {
         const routing=libraProcessServices.routingCoordinator.reconcile(request.processId);
         if(routing.kind==='terminal'&&routing.decision?.result==='resolved')libraProcessServices.acceptanceSpecCoordinator.reconcile(request.processId);
       }
+      options.onFormationSubjectChanged?.(request.processId);
       return {workId:request.workId,disposition:request.workAttemptState};
     }
     if(request.ownerDomain==='libra'&&request.processType==='libra_acceptance_spec'){
@@ -617,6 +629,7 @@ function createProcurementExecutionRuntime(options) {
         libraProcessServices.acceptanceSpecCoordinator.reconcile(request.processId);
         return {workId:request.workId,disposition:'failed'};
       }
+      options.onFormationSubjectChanged?.(request.processId);
       if(request.workAttemptState==='succeeded'){
         const spec=libraProcessServices.acceptanceSpecCoordinator.reconcile(request.processId);
         if(spec.kind==='terminal'){
@@ -629,6 +642,8 @@ function createProcurementExecutionRuntime(options) {
     if(request.ownerDomain==='libra'&&request.processType==='libra_run'){
       if(['succeeded','failed','cancelled'].includes(request.workAttemptState))
         reconcileLibraRun(request.processId);
+      try { const runContext=libraProcessServices.movieProductionReader.readRun(request.processId);
+        if(runContext?.run?.subjectId)options.onFormationSubjectChanged?.(runContext.run.subjectId); } catch {}
       return {workId:request.workId,disposition:request.workAttemptState};
     }
     if(request.ownerDomain==='arca'&&request.processType==='arca_acceptance'){
@@ -679,6 +694,7 @@ function createProcurementExecutionRuntime(options) {
           // asking Libra to evaluate its Acceptance Spec.
           perceptionProcessServices.ensureResolution('subject',subjectId);
           libraProcessServices.acceptanceSpecCoordinator.reconcile(subjectId);
+          options.onFormationSubjectChanged?.(subjectId);
         }
         if(request.processId.startsWith('shelf_entry:')){
           const shelfEntryId=request.processId.slice('shelf_entry:'.length);
@@ -804,6 +820,7 @@ function createProcurementExecutionRuntime(options) {
 
 module.exports = Object.freeze({
   UAT_SOURCE_EXECUTION_CATALOG_DIGEST,
+  PRE_PROJECTION_EXECUTION_CATALOG_DIGEST,
   createProcurementExecutionRuntime,
   createHelixExecutionRuntime:createProcurementExecutionRuntime,
   verifyStartupPlanCatalog,

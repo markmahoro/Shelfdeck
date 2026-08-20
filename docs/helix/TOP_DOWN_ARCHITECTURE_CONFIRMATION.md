@@ -9267,6 +9267,7 @@ Plan node input/parameter/Fence/Resource Demand的具体JSON不直接重复存�
 | `libra_material_binding_episode_claims` | `subject_id FK, material_key, binding_revision, episode_key, season_claim_digest, claim_digest` | `PK(subject_id,material_key,binding_revision,episode_key)`并以复合FK指向`libra_material_bindings`；逐项无损复制同一Manifest member的Episode Claim；single与无Episode structural dependency为0 row；Binding set digest包含这些relation，不允许只取第一项 |
 | `libra_product_identity_revisions` | `subject_id FK, revision, structure_kind, content_profile, identity_kind, provider_identity_set_digest, exact_season_continuity_set_digest, display_identity, identity_digest, evidence_digest, committed_at_ms` | `PK(subject_id,revision)`；immutable；`libra_subjects.current_identity_revision`正整数时显式指向本表；Series的exact Season Claim完整值保存在`libra_subject_season_continuity_claims`并与本revision同事务成立，digest只用于一致性校验而不是可枚举事实替代品 |
 | `libra_product_identity_selection_intents` | `selection_intent_id PK, libra_run_id FK, intent_revision, selection_kind(candidate|provider_id), provider, namespace, provider_key, candidate_set_digest NULL, expected_run_state_revision, expected_identity_revision NULL, idempotency_key, intent_digest, created_at_ms` | append-only；`UNIQUE(libra_run_id,intent_revision)`、`UNIQUE(libra_run_id,idempotency_key)`；用户选择只形成Libra-owned immutable Intent，后续仍须由`provider_exact` Evidence Work验证，不能直接发布Resolved Identity |
+| `libra_formation_projections` | `subject_id PK FK, projection_revision, classification(waiting|in_progress|completed), attention_state(none|attention_required|blocked|suspended|frozen), attention_priority, display_identity, content_profile, structure_kind, subject_status, my_rating NULL, my_rating_source NULL, my_rating_revision NULL, target_shelf_id NULL, target_shelf_name NULL, routing_state, unresolved_reason_code NULL, routing_policy_mode NULL, routing_policy_revision NULL, routing_decision_revision NULL, routing_decision_digest NULL, routing_decision_head_revision NULL, routing_decision_head_digest NULL, primary_material_count, organizing_requirement, organizing_action, added_at_ms, next_action_label, next_action_state, progress_mode NULL, progress_current_value NULL, progress_total_value NULL, progress_unit NULL, progress_rate NULL, progress_eta_ms NULL, progress_bucket NULL, identity_issue_schema_ref NULL, identity_issue_json NULL, identity_issue_digest NULL, current_acceptance_spec_id NULL, current_acceptance_spec_revision NULL, current_acceptance_spec_digest NULL, current_libra_run_id NULL, current_libra_run_state NULL, current_libra_run_state_revision NULL, current_libra_run_state_digest NULL, current_priority_class NULL, current_identity_revision NULL, current_package_id NULL, current_package_revision NULL, current_package_digest NULL, current_offer_id NULL, completed_at_ms NULL, basis_digest, projection_digest, updated_at_ms` | current technical Read Projection；每个Subject恰好至多一行且可由Libra正式事实、User Perception/Arca公开Projection及Foundation Progress Projection重建；`projection_revision>=1`且相同`basis_digest`必须no-op，不递增revision、不执行UPDATE；nullable rating、identity issue、Spec、Run、Package/Offer及progress字段各自按closed bundle同时成立；`identity_issue_json`为JCS且≤`16 KiB`并由digest保护；`projection_digest=SHA-256(JCS(完整用户行 excluding projectionDigest))`；`INDEX(attention_priority,classification,updated_at_ms,subject_id)`供active排序，`INDEX(classification,completed_at_ms,subject_id)`供completed cursor，`INDEX(classification,subject_id)`供统计；本表不授权任何命令，损坏或缺失时必须重建，不能回填或改写Owner业务事实 |
 | `libra_field_routing_heads` | `field_id PK, current_routing_policy_id, current_policy_revision, updated_at_ms` | Field ID是Procurement公开opaque ref、不建跨Domain FK；current pair显式FK到Policy revision；一片Field恰好至多一份current去向方案 |
 | `libra_routing_policy_revisions` | `routing_policy_id, revision, field_id, mode(direct|sorting), policy_schema_ref, policy_json, policy_digest, effective_at_ms` | Policy JSON上限`64 KiB`；`PK(routing_policy_id,revision)`；immutable；`INDEX(field_id,effective_at_ms)`；同一revision只属于一片Field |
 | `libra_routing_policy_targets` | `routing_policy_id, policy_revision, shelf_id, rank, match_rule_schema_ref, match_rule_json, match_rule_digest` | `PK(routing_policy_id,policy_revision,shelf_id)`及`UNIQUE(routing_policy_id,policy_revision,rank)`；Rule固定`RoutingMatchExpression@1`，JSON≤`16 KiB`、AST深度≤4、节点≤64；Shelf ID为Arca公开Projection中的opaque ref |
@@ -15044,10 +15045,29 @@ following rules replace the affected active contracts and are part of the sole A
 - The active query is bounded. Completed rows are cursor-paged and fetched only when the default-collapsed history is
   opened. Every row shows media name, user rating, target Shelf, primary media count, translated requirement, selected
   production action, accepted time and the next durable action/progress.
+- `libra_formation_projections` is the durable, rebuildable Admin Read Projection and contains exactly one current row
+  per projected Subject. It is not a Business Fact, authorization source, command fence, Work, Event or Capability
+  Result. The Admin API reads only this relation for rows and indexed summary counts; it must not rebuild Subject,
+  Rating, Routing, Spec, Run, Work, Event and Package history during an HTTP request.
+- Relevant Owner commits and Foundation progress samples enqueue an exact Subject refresh after their own transaction
+  commits. The queue is a lossy wake only. Startup recovery and a 30-second `fx_reconcile_cursors` sweep process at
+  most 100 Subjects or five seconds per page and compare the complete Projection Basis digest before an idempotent
+  upsert. Projection failure or staleness is visible to Admin but cannot block Libra execution.
+- The active page is limited to 25 rows and ordered by attention-required first, then active production, then waiting,
+  with the most recently updated rows first inside each class. Completed history is newest-first and cursor-paged.
+  The browser performs manual refresh only, preserves the previous rows while refreshing, and never issues one Rating
+  query per row. User commands always re-read canonical Owner facts and their revision fences.
 
-This correction adds one Capability, one Result family, one Libra-owned Selection Intent table, one Canonical
-Transaction and one Admin route. The active clean counts become `113 Capability / 99 Result family / 181 Table /
+The UAT correction adds one Capability, one Result family, one Libra-owned Selection Intent table, one Canonical
+Transaction and one Admin route. The Formation correction adds one rebuildable technical Projection table only. The
+active clean counts become `113 Capability / 99 Result family / 182 Table /
 44 Canonical Transaction / 116 Admin routes`, while the UI Surface count remains 17.
+
+The approved one-time `helix-clean-v2 → helix-clean-v3` upgrade accepts only the exact v2 schema and catalog marker,
+creates `libra_formation_projections` plus its indexes in one transaction, and advances the marker without changing
+Business Facts, Workflow history, configuration or Workspace bytes. Projection rows are rebuilt after startup in
+bounded pages; they are never fabricated inside the migration transaction. Failure rolls the entire schema upgrade
+back and prevents startup.
 
 The approved one-time `helix-clean-v1 → helix-clean-v2` live upgrade never rewrites an immutable Workflow Plan or its
 Catalog digest. Startup Recovery may continue a Plan carrying the exact frozen pre-UAT execution Catalog digest
@@ -15083,3 +15103,15 @@ once as `P4_UAT_INTAKE_BINDING_RESULT_REPLAN_REQUIRED`; all still-pending depend
 Plan are cancelled, and Domain Owner reconcile replans the same Supporting Work against the current compact Result
 contract. No completed Result, accepted Intake, Subject, Binding, Control or Candidate fact may be rewritten. This is
 an exact live-upgrade responsibility settlement, not a generic Plan translation or dual contract.
+
+For the one-time `helix-clean-v2 → helix-clean-v3` cutover, the exact pre-Projection execution Catalog digest
+`13315cdbdf6ab5cbe30b32075f89bd76ae1a873d84034dc572824f4fbc3886e6` may be retired only for a running Work whose
+currently running Attempt references that exact Catalog. The migration must first prove that the active Plan owns no
+Effect Journal row. An executing Event is terminally classified only when it has exactly one executing Event Attempt;
+that Event Attempt becomes a failed `contract_upgrade` with `P4_UAT_PRE_PROJECTION_PLAN_REPLAN_REQUIRED` evidence,
+all other pending/ready Events in that exact Plan are cancelled, and the Work Attempt becomes failed. The Work,
+Attempt, Plan and Event rows are never deleted or rewritten; the Work remains available for Owner-local replan.
+Startup Recovery may accept this historical Catalog only when its Attempt is terminal and every Event in the Plan is
+terminal. Any active Event, Effect, cardinality mismatch or other Catalog is still a global `PLAN_CATALOG_DRIFT`
+blocker. Newly published Plans always use the current full Catalog digest, and this is a bounded cutover retirement,
+not a generic old-Plan compatibility path.

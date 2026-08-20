@@ -35,6 +35,14 @@ test('Movie Product Identity projects the exact active TMDB handle when configur
   assert.equal(projection(()=>handle).project({ownerScope:{processId:'run-1'},parameters:{sourceKind:'provider_search'}}),handle);
 });
 
+test('Movie Product Identity requests the identity-scoped TMDB handle',()=>{
+  const handle=Object.freeze({integrationId:'tmdb-main',configRevision:2}),requests=[];
+  assert.equal(projection((request)=>{requests.push(request);return handle;})
+    .project({ownerScope:{processId:'run-1'},parameters:{sourceKind:'provider_search'}}),handle);
+  assert.equal(requests.at(-1).providerKind,'tmdb');
+  assert.equal(requests.at(-1).operationId,'libra.product_identity.evidence.observe@1');
+});
+
 test('pre-UAT Product Identity projections exist only to close already-frozen Work inputs',()=>{
   const handle=Object.freeze({integrationId:'tmdb-main',configRevision:2});
   const registrations=createProductIdentityProjections({

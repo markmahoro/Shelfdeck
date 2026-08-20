@@ -10,6 +10,12 @@ ShelfDeck 用于管理 Emby 电影媒体库：同步媒体元数据、观看状�
 - 转码 node 是被 service 调用的被动计算节点，只负责接收源文件、执行 FFmpeg、返回输出文件。
 - Windows 托盘已经内嵌到 `media-service`，不再有独立托盘进程。
 
+## 2026-08-21 本地Helix现场状态
+
+本地媒体整理工作区已切换为后端持久化 `libra_formation_projections` 展示表；现场数据库已迁移到 `helix-clean-v3`，
+服务已恢复。现场切换不代表生产NAS部署：没有清空现场数据、重扫 `Z:\Film` 或重新同步外部Provider。详细回滚点、验收结果和
+残余UAT问题见 `docs/helix/CURRENT_STATUS.md` 与 `docs/helix/USER_ACCEPTANCE_TEST_ISSUE_LOG.md`。
+
 ## 主要目录
 
 | 路径 | 说明 |

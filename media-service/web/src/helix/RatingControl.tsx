@@ -1,14 +1,15 @@
 import { useEffect, useState } from 'react';
 import { helixAdminApi } from './api';
 
-type Props = { targetType:'subject'|'shelf_entry'; targetId:string; label:string };
+type Props = { targetType:'subject'|'shelf_entry'; targetId:string; label:string; initialRating?:number|null; initialSource?:string|null; initialRevision?:number|null };
 
-export default function RatingControl({targetType,targetId,label}:Props){
-  const [rating,setRating]=useState<number|null>(null),[source,setSource]=useState<string|null>(null),[revision,setRevision]=useState(0);
+export default function RatingControl({targetType,targetId,label,initialRating,initialSource,initialRevision}:Props){
+  const hasProjectionRating=initialRating!==undefined;
+  const [rating,setRating]=useState<number|null>(initialRating??null),[source,setSource]=useState<string|null>(initialSource??null),[revision,setRevision]=useState(initialRevision??0);
   const [pending,setPending]=useState(false),[error,setError]=useState('');
   async function load(){const result=await helixAdminApi.listPerceptionRecords({targetType,targetId,limit:1});const current=result.currentRating;
     setRating(current?.rating??null);setSource(current?.sourceKind??null);setRevision(current?.expectedRevision??0);}
-  useEffect(()=>{void load().catch((cause)=>setError(cause instanceof Error?cause.message:'评分读取失败。'));},[targetType,targetId]);
+  useEffect(()=>{if(!hasProjectionRating)void load().catch((cause)=>setError(cause instanceof Error?cause.message:'评分读取失败。'));},[targetType,targetId,hasProjectionRating]);
   async function choose(value:number){setPending(true);setError('');try{const accepted=await helixAdminApi.rate(targetType,targetId,revision,value);setRating(value);setSource('pending');
       const deadline=Date.now()+30_000;while(Date.now()<deadline){const result=await helixAdminApi.listPerceptionRecords({targetType,targetId,limit:1});const current=result.currentRating;
         if(current?.state==='ready'&&current.expectedRevision>=accepted.expectedResultRevision){setRating(current.rating);setSource(current.sourceKind);setRevision(current.expectedRevision);return;}

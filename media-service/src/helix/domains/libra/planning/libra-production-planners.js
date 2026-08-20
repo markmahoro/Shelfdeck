@@ -185,7 +185,8 @@ function createProductIdentityProjections(options) {
       source={relatedReferenceId:reference.referenceId,relatedReferenceDigest:reference.referenceDigest,
         expectedPhysicalIdentityDigest:canonicalDigest(reference.identity)};
     }else{
-      const handle=options.resolveRoutingIntegrationHandle({integrationId:'tmdb-main'});
+      const handle=options.resolveRoutingIntegrationHandle({providerKind:'tmdb',integrationId:'tmdb-main',
+        operationId:IDENTITY_EVIDENCE});
       if(!handle)throw executionInputUnavailable('Configured Provider input is not currently available for Product Identity.',{
         dependencyKind:'integration',dependencyRef:'tmdb-main',retryAtMs:now()+30_000});
       source={integrationId:handle.integrationId,configRevision:handle.configRevision,provider:'tmdb',namespace:'tmdb_movie'};
@@ -206,7 +207,8 @@ function createProductIdentityProjections(options) {
     return Object.freeze({intentId,...body,intentDigest});
   }
   function identitySource(intent) {
-    const handle=options.resolveRoutingIntegrationHandle(intent);
+    const handle=options.resolveRoutingIntegrationHandle({...intent,providerKind:intent.provider,
+      operationId:IDENTITY_EVIDENCE});
     if(!handle)throw executionInputUnavailable(
       'Configured Provider input is not currently available for Product Identity.', {
         dependencyKind:'integration',dependencyRef:intent.integrationId||'tmdb-main',

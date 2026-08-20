@@ -74,7 +74,9 @@ const { createProductDeliveryReader } = require('./helix/domains/libra/persisten
 const { createCleanArcaInventoryPort } = require('./clean-arca-inventory-port');
 const { createCleanOffdeckDeletionPort } = require('./clean-offdeck-deletion-port');
 const { createLibraRoutingAdminApplication } = require('./helix/domains/libra/public/admin-application');
-const { createFormationQuery } = require('./helix/domains/libra/application/formation-query');
+const { createFormationProjectionSource, createFormationQuery } = require('./helix/domains/libra/application/formation-query');
+const { createFormationProjectionHost } = require('./helix/domains/libra/application/formation-projection-host');
+const { createFormationProjectionStore } = require('./helix/domains/libra/persistence/formation-projection-store');
 const { createExecutionProgressProjectionReader } = require('./helix/foundation/execution/progress-projection-reader');
 const { createRoutingManualSelectionService } = require('./helix/domains/libra/application/routing-manual-selection-service');
 const { createLibraRunAdminService } = require('./helix/domains/libra/application/libra-run-admin-service');
@@ -612,7 +614,10 @@ function createPlatformIntegrationServices(options) {
     providerRuntimes: runtimes,
     resolveRoutingHandle(intent) {
       if (!intent || intent.providerKind !== 'tmdb') return undefined;
-      return handleFor('tmdb', 'libra.routing.fact.observe@1');
+      return handleFor(
+        'tmdb',
+        intent.operationId || 'libra.routing.fact.observe@1',
+      );
     },
     resolveExternalMaterialHandle(request) {
       if (!request || typeof request.operationId !== 'string' ||
@@ -1214,12 +1219,16 @@ async function createCleanServiceHost(options) {
     readArcaShelfStandard: arcaRoutingTargets.getStandard,
     onPolicyPublished(policy) { routingExecution?.routingCoordinator.reconcileField(policy.fieldId, 100); routingExecution?.host.wake(); },
   });
-  let formationRatingReader = () => new Map();
-  const formationQuery = createFormationQuery({
+  let formationRatingReader = () => new Map(), formationProjectionHost = null;
+  const formationProjectionStore = createFormationProjectionStore(constructed.applicationDependencies);
+  const formationProjectionSource = createFormationProjectionSource({
     ...constructed.applicationDependencies,
     progressProjectionReader: createExecutionProgressProjectionReader(constructed.applicationDependencies),
     readPerceptionRatings: (targets) => formationRatingReader(targets),
+    readShelfTargets: arcaRoutingTargets.list,
   });
+  const formationQuery = createFormationQuery({ store: formationProjectionStore, now: options.now || Date.now,
+    state: () => formationProjectionHost?.state() || Object.freeze({ status: 'rebuilding', asOfMs: (options.now || Date.now)() }) });
   const fieldEnumerator = options.fieldObservationEnumerator || createCleanFieldObservationEnumerator({
     onFingerprintRead: options.onPhysicalMaterialFingerprintRead,
   });
@@ -1277,15 +1286,27 @@ async function createCleanServiceHost(options) {
     aftercareWorkspaceRoot: options.aftercareWorkspaceRoot,
     ffmpegPath: options.ffmpegPath,
     now: options.now || Date.now,
+    onFormationSubjectChanged: (subjectId) => formationProjectionHost?.enqueue(subjectId),
+    onFormationRunChanged: (libraRunId) => formationProjectionHost?.enqueue(formationProjectionSource.findSubjectByRun(libraRunId)),
     onError: options.onExecutionRuntimeError,
   });
   routingExecution = procurementExecution;
   shelfDeregistrationExecution = procurementExecution;
   formationRatingReader = (targets) => procurementExecution.perception.readCurrentRatings('subject', targets);
-  const routingManualSelection = createRoutingManualSelectionService({
+  formationProjectionHost = createFormationProjectionHost({
+    ...constructed.applicationDependencies,
+    source: formationProjectionSource,
+    store: formationProjectionStore,
+    now: options.now || Date.now,
+    onError: options.onExecutionRuntimeError,
+  });
+  const routingManualSelectionService = createRoutingManualSelectionService({
     ...constructed.applicationDependencies,
     contextReader: procurementExecution.routingContextReader,
   });
+  const routingManualSelection = Object.freeze({ choose(subjectId, body) {
+    const result = routingManualSelectionService.choose(subjectId, body); formationProjectionHost.enqueue(subjectId); return result;
+  } });
   const candidateRejection = createCandidateRejectionConsumer(constructed.applicationDependencies);
   const handoffBOutcomeConsumer = createHandoffBOutcomeConsumer({
     ...constructed.applicationDependencies,
@@ -1309,9 +1330,9 @@ async function createCleanServiceHost(options) {
     onError: options.onExecutionRuntimeError,
   });
   const executionRuntimeHost = Object.freeze({
-    async start() { const execution=await procurementExecution.host.start(); await outboxDispatcher.start(); return execution; },
-    wake() { const execution=procurementExecution.host.wake(); outboxDispatcher.wake(); return execution; },
-    async stop() { await outboxDispatcher.stop(); return procurementExecution.host.stop(); },
+    async start() { const execution=await procurementExecution.host.start(); await outboxDispatcher.start(); await formationProjectionHost.start(); return execution; },
+    wake() { const execution=procurementExecution.host.wake(); outboxDispatcher.wake(); formationProjectionHost.wake(); return execution; },
+    async stop() { await formationProjectionHost.stop(); await outboxDispatcher.stop(); return procurementExecution.host.stop(); },
   });
   arcaCare=createArcaCareApplication({contextReader:procurementExecution.arcaAftercareContextReader,
     coordinator:procurementExecution.arcaAftercareCoordinator,wake:()=>executionRuntimeHost.wake()});
@@ -1323,22 +1344,28 @@ async function createCleanServiceHost(options) {
     cancelProcessWorks:procurementExecution.cancelProcessWorks,
     onError:options.onExecutionRuntimeError,
     wake:()=>executionRuntimeHost.wake(),now:options.now||Date.now});
-  const libraRunAdmin = createLibraRunAdminService({
+  const libraRunAdminService = createLibraRunAdminService({
     ...constructed.applicationDependencies,
     libraRunExecutionProjection: procurementExecution.libraRunExecutionProjection,
     wake: () => executionRuntimeHost.wake(),
     now: options.now || Date.now,
   });
+  const libraRunAdmin = Object.freeze({
+    expedite(libraRunId, body) { const result=libraRunAdminService.expedite(libraRunId,body); formationProjectionHost.enqueue(formationProjectionSource.findSubjectByRun(libraRunId)); return result; },
+    cancelExpedite(libraRunId, body) { const result=libraRunAdminService.cancelExpedite(libraRunId,body); formationProjectionHost.enqueue(formationProjectionSource.findSubjectByRun(libraRunId)); return result; },
+    discard(libraRunId, body) { const result=libraRunAdminService.discard(libraRunId,body); formationProjectionHost.enqueue(formationProjectionSource.findSubjectByRun(libraRunId)); return result; },
+  });
   const productIdentitySelection = Object.freeze({
     choose(libraRunId, body) {
       const result = procurementExecution.productIdentitySelection.choose(libraRunId, body);
+      formationProjectionHost.enqueue(formationProjectionSource.findSubjectByRun(libraRunId));
       procurementExecution.libraRunCoordinator.reconcile(libraRunId);
       executionRuntimeHost.wake();
       return result;
     },
   });
   const perceptionAdmin = Object.freeze({
-    createRecord(body) { const result=procurementExecution.perception.createRecord(body); executionRuntimeHost.wake(); return result; },
+    createRecord(body) { const result=procurementExecution.perception.createRecord(body); if(body?.targetType==='subject')formationProjectionHost.enqueue(body.targetId); executionRuntimeHost.wake(); return result; },
     listRecords(query) { const result=procurementExecution.perception.listRecords(query);
       if(!query?.targetType||!query?.targetId)return result;
       return Object.freeze({...result,currentRating:procurementExecution.perception.readCurrentRating(query.targetType,query.targetId)}); },

@@ -13,6 +13,7 @@ const { createSqliteUnitOfWork } = require('../../src/helix/foundation/persisten
 const { canonicalDigest } = require('../../src/helix/contracts/canonical-json');
 const { createPerceptionResolutionQuery } = require('../../src/helix/domains/perception/application/perception-resolution-query');
 const { createPerceptionResolutionInputAssembler } = require('../../src/helix/domains/perception/application/perception-resolution-input-assembler');
+const { createPerceptionProcessServices } = require('../../src/helix/domains/perception/application/perception-process-services');
 const { createPerceptionResolutionCommitRegistration } = require('../../src/helix/domains/perception/capabilities/perception-resolution-lifecycle');
 const { resolvePerception } = require('../../src/helix/domains/perception/capabilities/perception-resolution-resolver');
 const { createPerceptionStore } = require('../../src/helix/domains/perception/persistence/perception-store');
@@ -275,6 +276,39 @@ test('assembles, resolves and commits a complete typed Resolution without Facade
     assert.deepEqual(projection.value, { factKind:'rating', value:5 });
     assert.equal(projection.evidence[0].winningPerceptionId, 'perception-a');
     assert.equal(Object.hasOwn(projection, 'records'), false);
+  });
+});
+
+test('projects internal title aliases into the exact Resolution Record Set contract', () => {
+  fixture(({ store }) => {
+    register(store); start(store);
+    const commonAnchor={anchorKind:'provider_id',anchorValue:'douban:alias',confidenceClass:'strong',evidenceDigest:hash('alias-anchor')};
+    const titleYearSuffix=String.fromCharCode(0)+'1994';
+    const titleAnchor={anchorKind:'title_year',anchorValue:'肖申克的救赎 / The Shawshank Redemption'+titleYearSuffix,confidenceClass:'strong',evidenceDigest:hash('alias-title')};
+    page(store, { records:[record('perception-alias',{observedTitle:'肖申克的救赎',anchors:[commonAnchor,titleAnchor]})] });
+    const { queryHandle, ruleSnapshot }=resolutionBasis(commonAnchor);
+    const inputs=createPerceptionResolutionInputAssembler({store}).assemble({queryHandle,ruleSnapshot});
+    const anchors=inputs.recordSet.records[0].identityAnchors;
+    assert.ok(anchors.some((item)=>item.anchorValue==='肖申克的救赎'+titleYearSuffix));
+    assert.ok(anchors.some((item)=>item.anchorValue==='The Shawshank Redemption'+titleYearSuffix));
+    assert.ok(anchors.every((item)=>Object.keys(item).sort().join(',')==='anchorKind,anchorValue,confidenceClass,evidenceDigest'));
+  });
+});
+
+test('replans a failed Resolution input-contract attempt once under a new basis', () => {
+  fixture(({ databasePath, store, unitOfWork }) => {
+    const statuses=new Map();
+    const services=createPerceptionProcessServices({schemaManifest,unitOfWork,perceptionStore:store,
+      workResultReader:{status:(workId)=>statuses.get(workId)||null},
+      targetProjectionReader:()=>({title:'Example',year:1994,providerIdentity:null,targetRevision:1,targetDigest:hash('target')})});
+    const first=services.ensureResolution('subject','subject-1');
+    const database=new Database(databasePath);
+    database.prepare("UPDATE fx_supporting_works SET state='failed' WHERE work_id=?").run(first.workId);
+    database.close();
+    statuses.set(first.workId,{state:'failed',latestAttempt:{failure_code:'P4_CAPABILITY_SCHEMA_REJECTED'}});
+    const retry=services.ensureResolution('subject','subject-1');
+    assert.notEqual(retry.workId,first.workId);
+    assert.equal(count(databasePath,'fx_supporting_works'),2);
   });
 });
 

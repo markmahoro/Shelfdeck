@@ -2,7 +2,29 @@
 
 Status: Movie Procurement与Movie Libra封口保持有效；Movie Arca已完成Handoff B Acceptance、On-deck、Shelf Entry、Deck Fact、Beta Aftercare、Off-deck及Shelf Deregistration完整闭环。当前精确状态为`MOVIE COLLECTION LIFECYCLE READY THROUGH SHELF DEREGISTRATION`；本地Movie生命周期已经最终封口，生产部署尚未开始。
 
-Last updated: 2026-08-20
+Last updated: 2026-08-21
+
+## 0. Current operational status — Formation projection cutover recovered
+
+本轮现场切换已经完成，当前本机服务保持运行。媒体整理工作区现在读取后端持久化Projection，前端不再逐请求扫描Subject、Rating、
+Routing、Spec、Run、Work、Event和Package全账本。
+
+| 项目 | 当前状态 |
+| --- | --- |
+| 数据库 | `helix-clean-v3`；182 tables；`integrity_check=ok` |
+| 现场数据 | 659 Subjects；659 `libra_formation_projections` rows；旧Plans 2863；旧Catalog无非终态Attempt/Event |
+| API | `GET /v1/health` = 200；`normalSupplyAllowed=true`；Formation active首屏25条 |
+| Projection | `ready`；active与completed分区独立分页；现场检查completed 2条 |
+| Admin Web | `GET /admin` = 200；生产构建通过 |
+| 服务 | 已恢复`127.0.0.1:18080`；现有队列继续推进 |
+| 回滚点 | `shelfdeck.pre-retirement-20260821.db`，SHA-256 `A734FE822896D88F597F66825853EA984E6919D8E58E23099CAC6D022A27F154` |
+
+退役采用可审计的Owner replan：旧执行历史没有删除，旧活动Work的Attempt/Event转为合同升级失败/取消状态，后续由Owner按新Catalog
+重新规划。克隆验证通过后才对现场执行迁移；没有clean start、没有清空现场数据库、没有重扫`Z:\Film`、没有重复豆瓣/TMDB/MoviePilot
+同步，也没有删除或回退Workspace/Remux输出。
+
+验证结果：启动恢复12/12、事件运行时24/24、Runtime Host12/12；Node全量276项为259 pass、17 skip、0 fail；Admin Web build通过。
+现场服务恢复期间记录到1条既有`CLEAN_ARCA_TARGET_COLLISION`，未使服务进入faulted，也未改写该业务事实；后续按UAT台账单独复盘。
 
 ## 0. Completed implementation — Arca Shelf Deregistration
 
@@ -389,13 +411,13 @@ Scope、Run、Triage、Candidate或Handoff A合同来绕过自身设计问题；
 | Open business decisions | none |
 | Implementation program | clean-cut Master Plan accepted as direction |
 | Completed phases | P0 — implementation gap audit；P1 — Clean Skeleton and Architecture Guards；P2 — Contract and Schema Baseline；P3 — Persistence and Atomic Foundation；P4 — Execution and Recovery Foundation；P5 — Platform and Integrations；P6 — Horizontal Domains；P7 — Procurement；P8 — Handoff A and Libra front half；P9 — Libra production and delivery；P10 — Handoff B and On-deck；P11 — Arca post-deck；P12 — Product surface；P13 — Operational cutover and E2E-ready package |
-| Current phase | Libra Routing Assessment and Decision |
-| Current phase status | direct/sorting/manual均通过正式Foundation链；24个测试Subject current Decision resolved；`DECISION READY / AWAITING ACCEPTANCE SPEC` |
+| Current phase | Formation durable Projection local cutover and service recovery |
+| Current phase status | Projection已迁移到现场并重建659行；服务已恢复，active首屏25条，队列继续推进 |
 | Implementation Gate | standing Local Implementation open for P2–P13；external actions excluded |
-| Current allowed work | 当前节点已完成；保持隔离本地Node.js边界。Acceptance Spec/Production、Docker及NAS尚未开放 |
+| Current allowed work | 只做现场恢复后的只读验收和UAT台账收口；Production/NAS、Z:\Film全量Observation及外部重同步仍不在范围 |
 | Integration baseline | P13 implementation closure `bd75e7e4`；P12 closure `23e3b930` |
 | Phase worktree | `E:\my_project\emby_third_party-helix-retake` on `codex/helix-first-implementation-retake` |
-| Next action | 单独打开Libra Acceptance Spec节点；不得恢复大型Coordinator、创建Production Run或越过Foundation执行 |
+| Next action | 保留现场服务和回滚备份；将Arca目标冲突作为独立UAT问题复盘，不把它与Projection切换混合修复 |
 
 P9-01已完成：反向实现审计证明的六段连续性缺口已由Architecture Agent在`PBF-13/PBF-13-R1`中闭合，并经实现侧
 只读复审后原样纳入。Run、Material/Episode scope、Workspace、完整Package、Discard/Cleanup及Off-load Reclaimer均具备

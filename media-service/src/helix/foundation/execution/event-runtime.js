@@ -329,6 +329,36 @@ function createEventRuntime(options) {
     });
   }
 
+  function promoteExternalWaitToReady(snapshot) {
+    if (snapshot.event.state !== 'waiting_for_external') return;
+    options.unitOfWork.execute([{
+      participantId: 'event_runtime_external_wait_ready',
+      owner: 'execution-foundation',
+      repositories: [repositories.events],
+      execute(context) {
+        const event = context.repository('runtime_events').invoke('find', {
+          event_id: snapshot.event.event_id,
+        });
+        if (!event || !DISPATCHABLE_EVENT_STATES.has(event.state)) {
+          fail(
+            'P4_EVENT_EXTERNAL_WAIT_STATE_CHANGED',
+            'Event changed before its external wait could be resumed.',
+          );
+        }
+        if (event.state === 'waiting_for_external') {
+          context.repository('runtime_events').invoke('update', {
+            event_id: event.event_id,
+            state: 'ready',
+            ready_at_ms: event.ready_at_ms === null
+              ? context.commitTimeMs : event.ready_at_ms,
+            retry_at_ms: null,
+            result_id: null,
+          });
+        }
+      },
+    }]);
+  }
+
   function beginAttempt(snapshot, entry, attemptId, startedAtMs, inputs, fence) {
     options.unitOfWork.execute([{
       participantId: 'event_runtime_begin', owner: 'execution-foundation', repositories: Object.values(repositories), execute(context) {
@@ -481,7 +511,9 @@ function createEventRuntime(options) {
         eventId: request.eventId, eventAttemptId: attempt.event_attempt_id, now: clock });
       Object.defineProperty(context, 'reportProgress', {
         configurable: false, enumerable: false, writable: false,
-        value: (sample) => progressReporter.report(sample)
+        value: (sample) => { const result=progressReporter.report(sample); options.onProgress?.(Object.freeze({
+          ownerDomain:snapshot.work.owner_domain,processType:snapshot.work.process_type,processId:snapshot.work.process_id,
+          workId:snapshot.work.work_id,eventId:request.eventId })); return result; }
       });
       if (inputs.approvalHandle !== undefined) context.approvalHandle = inputs.approvalHandle;
       if (inputs.authorizationHandle !== undefined) context.authorizationHandle = inputs.authorizationHandle;
@@ -570,6 +602,7 @@ function createEventRuntime(options) {
         }
         demand = options.resourceDemandResolver.resolve(Object.freeze({ snapshot, inputs }));
         if (!demand || demand.eventId !== eventId) fail('P4_EVENT_RESOURCE_DEMAND_BINDING_MISMATCH', 'Resolved Resource Demand must bind the current Event.');
+        promoteExternalWaitToReady(snapshot);
         resourceRequestedAtMs = clock();
         const acquired = options.governor.acquire(demand);
         if (acquired.kind !== 'permitted') {
@@ -620,7 +653,9 @@ function createEventRuntime(options) {
         // CapabilityExecutionContext contract stays unchanged.
         Object.defineProperty(context, 'reportProgress', {
           configurable: false, enumerable: false, writable: false,
-          value: (sample) => progressReporter.report(sample)
+          value: (sample) => { const result=progressReporter.report(sample); options.onProgress?.(Object.freeze({
+            ownerDomain:snapshot.work.owner_domain,processType:snapshot.work.process_type,processId:snapshot.work.process_id,
+            workId:snapshot.work.work_id,eventId })); return result; }
         });
         if (inputs.approvalHandle !== undefined) context.approvalHandle = inputs.approvalHandle;
         if (inputs.authorizationHandle !== undefined) context.authorizationHandle = inputs.authorizationHandle;

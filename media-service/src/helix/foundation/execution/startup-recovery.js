@@ -35,7 +35,7 @@ function definitions(schemaManifest) {
     workAttempts: listRepository(schemaManifest, 'startup_work_attempts', 'fx_work_attempts', ['attempt_id', 'work_id', 'state']),
     plans: listRepository(schemaManifest, 'startup_plans', 'fx_workflow_plans', ['plan_id', 'attempt_id', 'catalog_digest', 'state']),
     events: listRepository(schemaManifest, 'startup_events', 'fx_workflow_events', [
-      'event_id', 'plan_id', 'node_id', 'work_id', 'attempt_id', 'owner_domain', 'capability_ref', 'state'
+      'event_id', 'plan_id', 'node_id', 'work_id', 'attempt_id', 'owner_domain', 'capability_ref', 'state', 'retry_at_ms'
     ]),
     nodes: listRepository(schemaManifest, 'startup_nodes', 'fx_plan_nodes', [
       'plan_id', 'node_id', 'capability_ref', 'contract_version', 'effect_class', 'input_bindings_json'
@@ -174,6 +174,12 @@ function createStartupRecovery(options) {
           ? active[0]
           : [...attempts].sort((left, right) => right.ordinal - left.ordinal)[0];
         if (!attempt) {
+          // Input preparation can stop before an Event Attempt exists when an
+          // external dependency is temporarily unavailable. The Event itself
+          // is the durable retry record; do not manufacture a historical
+          // Attempt during startup recovery.
+          if (event.state === 'waiting_for_external' && attempts.length === 0 &&
+              Number.isSafeInteger(event.retry_at_ms) && event.retry_at_ms >= 0) continue;
           findings.push('RECOVERY_ATTEMPT_MISSING:' + event.event_id);
           continue;
         }

@@ -116,6 +116,40 @@ function compileStatement(statementId, statement, table) {
         quote(statement.keyColumn)+'>=@rangeStart AND '+quote(statement.keyColumn)+'<@rangeEnd AND '+
         '(@cursor IS NULL OR '+quote(statement.keyColumn)+'>@cursor) ORDER BY '+quote(statement.keyColumn)+' LIMIT @limit'};
   }
+  if (statement.kind === 'select-filtered-page') {
+    requireColumns(table, statement.columns, statementId);
+    const fixedKeyColumns = statement.fixedKeyColumns || [];
+    const excludedKeyColumns = statement.excludedKeyColumns || [];
+    const orderBy = statement.orderBy || [];
+    if (fixedKeyColumns.length > 0) requireColumns(table, fixedKeyColumns, statementId);
+    if (excludedKeyColumns.length > 0) requireColumns(table, excludedKeyColumns, statementId);
+    if (!Array.isArray(orderBy) || orderBy.length < 1 || orderBy.length > 6) {
+      fail('P3_REPOSITORY_INVALID_COLUMNS', 'select-filtered-page requires a bounded ordering.', { statementId });
+    }
+    for (const ordering of orderBy) {
+      requireColumns(table, [ordering.column], statementId);
+      if (!['asc', 'desc'].includes(ordering.direction)) fail('P3_REPOSITORY_INVALID_COLUMNS', 'select-filtered-page order direction is invalid.', { statementId });
+    }
+    if (!Number.isSafeInteger(statement.maxItems) || statement.maxItems < 1 || statement.maxItems > 500) {
+      fail('P3_REPOSITORY_INVALID_COLUMNS', 'select-filtered-page requires a bounded maxItems.', { statementId });
+    }
+    return { statementId, kind: statement.kind, tableId: table.tableId,
+      parameters: [...fixedKeyColumns, ...excludedKeyColumns.map((column) => 'excluded_' + column), 'offset', 'limit'], safeIntegers: statement.safeIntegers === true,
+      maxItems: statement.maxItems,
+      sql: 'SELECT ' + statement.columns.map(quote).join(', ') + ' FROM ' + tableName +
+        (fixedKeyColumns.length || excludedKeyColumns.length ? ' WHERE ' + [
+          ...fixedKeyColumns.map((column) => quote(column) + '=@' + column),
+          ...excludedKeyColumns.map((column) => quote(column) + '<>@excluded_' + column)
+        ].join(' AND ') : '') +
+        ' ORDER BY ' + orderBy.map((ordering) => quote(ordering.column) + ' ' + ordering.direction.toUpperCase()).join(', ') +
+        ' LIMIT @limit OFFSET @offset' };
+  }
+  if (statement.kind === 'count-grouped') {
+    requireColumns(table, [statement.groupColumn], statementId);
+    return { statementId, kind: statement.kind, tableId: table.tableId, parameters: [], safeIntegers: true,
+      sql: 'SELECT ' + quote(statement.groupColumn) + ' AS "group_value", COUNT(*) AS "row_count" FROM ' + tableName +
+        ' GROUP BY ' + quote(statement.groupColumn) };
+  }
   fail('P3_REPOSITORY_UNSUPPORTED_STATEMENT', 'Repository statement kind is unsupported.', { statementId, kind: statement && statement.kind });
 }
 
@@ -142,7 +176,7 @@ function createRepositoryDefinition(options) {
     repositoryId: options.repositoryId,
     owner: options.owner,
     readOnly: [...compiled.values()].every((statement) =>
-      statement.kind === 'select-one' || statement.kind === 'select-all' || statement.kind === 'select-in'||statement.kind==='select-page-after'||statement.kind==='select-range'),
+      statement.kind === 'select-one' || statement.kind === 'select-all' || statement.kind === 'select-in'||statement.kind==='select-page-after'||statement.kind==='select-range'||statement.kind==='select-filtered-page'||statement.kind==='count-grouped'),
     statementIds: Object.freeze([...compiled.keys()].sort()),
     tableIds: Object.freeze([...tableIds].sort())
   });
@@ -185,11 +219,15 @@ function bindRepository(definition, transaction, isActive) {
       if(statement.kind==='select-range'&&(!Number.isSafeInteger(parameters.limit)||parameters.limit<1||parameters.limit>statement.maxItems)){
         fail('P3_REPOSITORY_INVALID_PAGE_LIMIT','select-range limit exceeds its declared bound.',{statementId});
       }
+      if(statement.kind==='select-filtered-page'&&(!Number.isSafeInteger(parameters.limit)||parameters.limit<1||parameters.limit>statement.maxItems||
+        !Number.isSafeInteger(parameters.offset)||parameters.offset<0)){
+        fail('P3_REPOSITORY_INVALID_PAGE_LIMIT','select-filtered-page bounds are invalid.',{statementId});
+      }
       if (!prepared.has(statementId)) prepared.set(statementId, transaction.prepare(statement.sql));
       const executable = prepared.get(statementId);
       if (statement.safeIntegers) executable.safeIntegers(true);
       if (statement.kind === 'select-one') return executable.get(values);
-      if (statement.kind === 'select-all'||statement.kind==='select-page-after'||statement.kind==='select-range') return executable.all(values);
+      if (statement.kind === 'select-all'||statement.kind==='select-page-after'||statement.kind==='select-range'||statement.kind==='select-filtered-page'||statement.kind==='count-grouped') return executable.all(values);
       return executable.run(values);
     }
   });

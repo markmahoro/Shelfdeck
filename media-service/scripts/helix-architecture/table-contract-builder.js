@@ -32,6 +32,7 @@ const MUTABLE_LIFECYCLE_TABLES = new Set([
   'proc_candidate_deliveries',
   'libra_run_admission_heads',
   'libra_runs',
+  'libra_formation_projections',
   'libra_workspaces',
   'libra_workspace_cleanup_scopes',
   'libra_workspace_cleanup_members',
@@ -74,6 +75,13 @@ const ENUM_OVERRIDES = Object.freeze({
   'libra_material_bindings.health_state': ['active', 'stale', 'released'],
   'libra_decision_basis_revisions.status': ['ready', 'unresolved', 'superseded'],
   'libra_runs.state': ['active', 'suspended', 'superseded', 'frozen', 'discarded', 'completed'],
+  'libra_formation_projections.classification': ['waiting', 'in_progress', 'completed'],
+  'libra_formation_projections.attention_state': ['none', 'attention_required', 'blocked', 'suspended', 'frozen'],
+  'libra_formation_projections.progress_mode': ['determinate', 'indeterminate'],
+  'libra_formation_projections.next_action_state': ['admitted', 'pending', 'ready', 'running', 'waiting_for_resource', 'waiting_for_external', 'waiting_for_approval', 'executing', 'succeeded', 'skipped', 'failed', 'cancelled', 'completed', 'attention_required', 'blocked', 'suspended', 'frozen'],
+  'libra_formation_projections.subject_status': ['active', 'abandoned', 'completed'],
+  'libra_formation_projections.routing_state': ['preparing', 'unresolved', 'resolved'],
+  'libra_formation_projections.current_libra_run_state': ['active', 'suspended', 'superseded', 'frozen', 'discarded', 'completed'],
   'libra_run_revisions.state': ['active', 'suspended', 'superseded', 'frozen', 'discarded', 'completed'],
   'libra_episode_delivery_members.state': ['pending', 'delivered', 'superseded'],
   'libra_workspaces.state': ['active', 'reclaiming', 'reclaimed'],
@@ -130,6 +138,8 @@ const INTEGER_COLUMN_OVERRIDES = new Set([
   'libra_runs.package_revision_head',
   'perception_source_cursors.has_more',
   'perception_records.rating'
+  ,'libra_formation_projections.attention_priority'
+  ,'libra_formation_projections.my_rating'
 ]);
 const INTEGER_BOOLEAN_COLUMN_OVERRIDES = new Set(['perception_records.watched_state']);
 const NULLABLE_COLUMN_OVERRIDES = new Set([
@@ -411,8 +421,8 @@ function logicalType(name, tableId = null) {
   if (INTEGER_COLUMN_OVERRIDES.has(tableId + '.' + name)) return 'INTEGER';
   if (/(?:_at_ms|_ms|_ns|_revision|_count|_bytes|_ordinal|_slots)$/.test(name) || ['revision', 'ordinal', 'rank'].includes(name)) return 'INTEGER';
   if (['enabled', 'current', 'completed', 'high_volume'].includes(name)) return 'INTEGER_BOOLEAN';
-  if (['rate', 'deck_coverage_ratio', 'rating'].includes(name)) return 'REAL';
-  if (['current_value', 'total_value', 'preference_level'].includes(name)) return 'INTEGER_OR_REAL';
+  if (['rate', 'deck_coverage_ratio', 'rating', 'progress_rate'].includes(name)) return 'REAL';
+  if (['current_value', 'total_value', 'preference_level', 'progress_current_value', 'progress_total_value'].includes(name)) return 'INTEGER_OR_REAL';
   return 'TEXT';
 }
 
@@ -424,10 +434,13 @@ function parseColumns(columnsContract, tableId = null) {
     const qualifiers = match[3] ? match[3].split(/\s+/) : [];
     const declaredLogicalType = qualifiers.find((value) => value === 'INTEGER') || null;
     const fixedPrimaryKey = qualifiers.find((value) => /^PK\([a-z][a-z0-9_]*\)$/.test(value)) || null;
-    const marker = fixedPrimaryKey ? 'PK' : (qualifiers.find((value) => ['PK/FK', 'PK', 'FK'].includes(value)) || null);
+    const splitPrimaryForeignKey = qualifiers.includes('PK') && qualifiers.includes('FK');
+    const marker = fixedPrimaryKey ? 'PK' : (splitPrimaryForeignKey ? 'PK/FK' :
+      (qualifiers.find((value) => ['PK/FK', 'PK', 'FK'].includes(value)) || null));
     const inlineUnique = qualifiers.includes('UNIQUE');
     const nullableSpec = qualifiers.find((value) => /^NULL(?:\|[a-z][a-z0-9_]*)*$/.test(value)) || null;
-    if (qualifiers.some((value) => value !== marker && value !== fixedPrimaryKey && value !== nullableSpec
+    if (qualifiers.some((value) => value !== marker && !(splitPrimaryForeignKey && (value === 'PK' || value === 'FK')) &&
+      value !== fixedPrimaryKey && value !== nullableSpec
       && value !== declaredLogicalType && value !== 'UNIQUE')) {
       throw new Error(`Unsupported column token: ${token}`);
     }
@@ -485,7 +498,7 @@ function parseTableRows(entries) {
     const partialUniqueClauses = PARTIAL_UNIQUE_EXCLUDED_TABLES.has(entry.id) ? [] : clauses.filter((clause) =>
       /UNIQUE\([^)]*\)\s+WHERE\b/i.test(clause) || /partial unique|至多一个|最多一份|unique while open|active unique|全局exclusive/.test(clause));
     const partialUniqueKeys = new Set(partialUniqueClauses.flatMap((clause) => parseFunctionCalls(clause, 'UNIQUE')).map((columns) => JSON.stringify(columns)));
-    const currentPointerColumns = columns.filter((column) =>
+    const currentPointerColumns = columns.filter((column) => entry.id !== 'libra_formation_projections' &&
       (/^current_(?:.*_)?(?:id|revision)$/.test(column.name) || column.name === 'canonical_identity_revision') &&
       column.name !== 'current_reference_projection_revision' &&
       !(entry.id === 'libra_subject_continuity_heads' && column.name === 'current_revision'))

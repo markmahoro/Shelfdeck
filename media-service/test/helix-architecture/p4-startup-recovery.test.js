@@ -9,6 +9,7 @@ const Database = require('better-sqlite3');
 const { createStartupRecovery } = require('../../src/helix/foundation/execution/startup-recovery');
 const {
   UAT_SOURCE_EXECUTION_CATALOG_DIGEST,
+  PRE_PROJECTION_EXECUTION_CATALOG_DIGEST,
   verifyStartupPlanCatalog,
 } = require('../../src/helix/composition/create-procurement-execution-runtime');
 const { openSqliteKernel } = require('../../src/helix/foundation/persistence/sqlite-kernel');
@@ -31,10 +32,10 @@ function fixture(run, settings = {}) {
     transaction.prepare("INSERT INTO fx_workflow_plans(plan_id,attempt_id,state) VALUES('plan','work-attempt','planned')").run();
     transaction.prepare("INSERT INTO fx_plan_nodes(plan_id,node_id,effect_class) VALUES('plan','node',?)")
       .run(effectClass);
-    transaction.prepare("INSERT INTO fx_workflow_events(event_id,plan_id,node_id,work_id,attempt_id,owner_domain,capability_ref,state) VALUES('event','plan','node','work','work-attempt','libra','libra.fixture@1',?)")
-      .run(eventState);
+    transaction.prepare("INSERT INTO fx_workflow_events(event_id,plan_id,node_id,work_id,attempt_id,owner_domain,capability_ref,state,retry_at_ms) VALUES('event','plan','node','work','work-attempt','libra','libra.fixture@1',?,?)")
+      .run(eventState, eventState === 'waiting_for_external' ? (settings.retryAtMs || 999) : null);
     const attemptState = eventState === 'executing' ? 'executing' : 'completed';
-    transaction.prepare("INSERT INTO fx_event_attempts(event_attempt_id,event_id,ordinal,state,outcome_kind,started_at_ms) VALUES('event-attempt','event',1,?,?,1)")
+    if (!settings.missingAttempt) transaction.prepare("INSERT INTO fx_event_attempts(event_attempt_id,event_id,ordinal,state,outcome_kind,started_at_ms) VALUES('event-attempt','event',1,?,?,1)")
       .run(attemptState, attemptState === 'completed' ? 'deferred' : null);
     if (settings.journal) transaction.prepare("INSERT INTO fx_effect_journal(effect_id,event_attempt_id,effect_class,idempotency_key,intent_digest,state,updated_at_ms) VALUES('effect','event-attempt',?,'key',?, ?,1)")
       .run(effectClass, HASH, settings.effectState || 'intended');
@@ -112,6 +113,19 @@ test('the exact UAT source Catalog continues only when every immutable node stil
     projectionRef:'helix://libra/input-projections/Missing/v1'}]})}]},current,registry,policyRegistry,projections),false);
 });
 
+test('a retired pre-projection Catalog is accepted only for terminal immutable Attempts', () => {
+  const current = 'c'.repeat(64);
+  const terminalEvent = Object.freeze({ plan_id:'old-plan',node_id:'node',state:'failed' });
+  const base = Object.freeze({
+    plan:Object.freeze({catalog_digest:PRE_PROJECTION_EXECUTION_CATALOG_DIGEST}),
+    workAttempt:Object.freeze({state:'failed'}),
+    events:Object.freeze([terminalEvent]),
+  });
+  assert.equal(verifyStartupPlanCatalog(base,current,{},{}),true);
+  assert.equal(verifyStartupPlanCatalog({...base,workAttempt:{state:'running'}},current,{},{}),false);
+  assert.equal(verifyStartupPlanCatalog({...base,events:[{...terminalEvent,state:'ready'}]},current,{},{}),false);
+});
+
 test('pure crash is classified safe_retry but readiness remains recovering until action converges', async () => fixture(async (recovery) => {
   const result = await recovery.recover();
   assert.equal(result.state, 'recovering');
@@ -162,6 +176,13 @@ test('waiting external requires one Effect while resource wait requires one dura
     assert.equal((await recovery.recover()).findings.includes('RESOURCE_DEFER_CARDINALITY:event'), true);
   }, { eventState: 'waiting_for_resource' });
 });
+
+test('input wait without an Event Attempt remains recoverable through its durable retry time', async () => fixture(async (recovery) => {
+  assert.deepEqual(await recovery.recover(), {
+    state: 'ready', normalSupplyAllowed: true, findings: [], actions: [], durableDefers: 0, nonterminalWorks: 1, nonterminalEvents: 1,
+    recoveredInMemoryLeases: 0, recoveredInMemoryPermits: 0, recoveredInMemoryWaiters: 0
+  });
+}, { eventState: 'waiting_for_external', missingAttempt: true, retryAtMs: 999 }));
 
 test('multiple effects, unavailable reconciler, unknown contract, global Circuit, and integrity drift fail closed', async () => {
   for (const [settings, finding] of [

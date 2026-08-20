@@ -151,6 +151,7 @@ export type FormationSubject = {
   classification: 'waiting' | 'in_progress' | 'completed';
   myRating: number | null;
   myRatingSource: string | null;
+  myRatingRevision: number | null;
   productIdentityIssue: null | { result:'not_found'|'ambiguous'|'conflicting'; reasonCode:string; candidateSetDigest:string; candidates:Array<{ providerKey:string; displayTitle:string; originalTitle:string|null; releaseYear:number|null }> };
   primaryMaterialCount: number;
   addedAtMs: number;
@@ -161,6 +162,7 @@ export type FormationSubject = {
   routingPolicyMode: 'direct' | 'sorting' | null;
   routingPolicyRevision: number | null;
   targetShelfId: string | null;
+  targetShelfName: string | null;
   unresolvedReasonCode: string | null;
   routingDecisionRevision: number | null;
   routingDecisionDigest: string | null;
@@ -330,7 +332,7 @@ export const helixAdminApi = {
   },
   listFormation(section:'active'|'completed'='active', cursor?:string) {
     const query=new URLSearchParams({section,limit:'25'});if(cursor)query.set('cursor',cursor);
-    return request<{ items: FormationSubject[]; summary: FormationSummary; nextCursor:string|null }>(`/v1/admin/formation?${query}`);
+    return request<{ items: FormationSubject[]; summary: FormationSummary; nextCursor:string|null; projection:{status:'ready'|'rebuilding'|'stale';asOfMs:number} }>(`/v1/admin/formation?${query}`);
   },
   listCollection() {
     return request<{ items: CollectionEntry[] }>('/v1/admin/collection');

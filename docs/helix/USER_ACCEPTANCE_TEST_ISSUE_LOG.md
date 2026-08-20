@@ -4,6 +4,30 @@
 
 建立日期：2026-08-20
 
+## 0. 2026-08-21 Formation Projection切换与现场恢复记录
+
+本轮已完成“媒体整理工作区”从前端临时拼账到后端持久化技术Projection的现场切换。`libra_formation_projections`每个Subject一行，
+active首屏25条，completed独立分页；它只服务展示和可重建查询，不作为业务授权依据。
+
+现场动作按克隆验证后再切换执行：`helix-clean-v2 → helix-clean-v3`迁移通过，旧Catalog的62个活动Work和106个活动Event按合同升级退役，
+历史行保留，旧Catalog无非终态Attempt/Event；现场数据库`integrity_check=ok`，当前659 Subjects与659 Projection rows一致。
+服务已经恢复在`127.0.0.1:18080`运行，健康接口、Formation API和Admin Web均通过；active分页25条，第二页无重复，completed可独立读取。
+
+本轮回滚点：
+
+`C:\Users\markm\AppData\Local\Temp\ShelfDeck-Local-Rerun-20260820\formation-projection-cutover-20260821-015122\shelfdeck.pre-retirement-20260821.db`
+
+SHA-256：`A734FE822896D88F597F66825853EA984E6919D8E58E23099CAC6D022A27F154`
+
+安全边界：没有clean start、没有清空数据库、没有重新Observation `Z:\Film`、没有重复豆瓣/TMDB/MoviePilot同步，未删除或回退
+Workspace/Remux输出；Docker、NAS和生产数据未触碰。
+
+验证：启动恢复12/12、事件运行时24/24、Runtime Host12/12；Node全量276项为259 pass、17 skip、0 fail；Admin Web production build通过。
+现场恢复期间另记录到1条`CLEAN_ARCA_TARGET_COLLISION`，服务仍保持ready；它属于既有Arca业务问题，不作为本次Projection切换缺陷，
+也没有直接在现场数据库上修改该事实。
+
+本条记录只关闭本轮Projection切换/恢复工作，不关闭下方仍需产品复盘的豆瓣匹配、队列吞吐、Product Identity等待等历史UAT问题。
+
 ## 1. 文档定位
 
 Helix主体开发已经完成，Movie从Procurement、Libra到Arca及Shelf Deregistration的主生命周期已经接通。当前阶段是用户使用真实配置、真实媒体库和真实Integration进行用户侧测试。

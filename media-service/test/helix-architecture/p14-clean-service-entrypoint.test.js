@@ -2231,7 +2231,7 @@ test('formal node entrypoint starts, authenticates and shuts down through public
   try {
     const base = `http://127.0.0.1:${port}`;
     const health = await waitForHealth(`${base}/v1/health`, child, () => stderr);
-    assert.equal((await health.json()).generation, 'helix-clean-v2');
+    assert.equal((await health.json()).generation, 'helix-clean-v3');
     const admin = await fetch(`${base}/admin`);
     assert.equal(admin.status, 200);
     assert.match(await admin.text(), /id="root"/);

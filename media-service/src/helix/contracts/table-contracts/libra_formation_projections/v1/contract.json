@@ -1,0 +1,774 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/libra_formation_projections/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "libra_formation_projections",
+    "owner": "libra",
+    "prefix": "libra_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "subject_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": true,
+        "foreignKeyMarker": true,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 2,
+        "name": "projection_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 3,
+        "name": "classification",
+        "logicalType": "TEXT",
+        "enumValues": [
+          "waiting",
+          "in_progress",
+          "completed"
+        ],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 4,
+        "name": "attention_state",
+        "logicalType": "TEXT",
+        "enumValues": [
+          "none",
+          "attention_required",
+          "blocked",
+          "suspended",
+          "frozen"
+        ],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 5,
+        "name": "attention_priority",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 6,
+        "name": "display_identity",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 7,
+        "name": "content_profile",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 8,
+        "name": "structure_kind",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 9,
+        "name": "subject_status",
+        "logicalType": "TEXT",
+        "enumValues": [
+          "active",
+          "abandoned",
+          "completed"
+        ],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 10,
+        "name": "my_rating",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 11,
+        "name": "my_rating_source",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 12,
+        "name": "my_rating_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 13,
+        "name": "target_shelf_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 14,
+        "name": "target_shelf_name",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 15,
+        "name": "routing_state",
+        "logicalType": "TEXT",
+        "enumValues": [
+          "preparing",
+          "unresolved",
+          "resolved"
+        ],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 16,
+        "name": "unresolved_reason_code",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 17,
+        "name": "routing_policy_mode",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 18,
+        "name": "routing_policy_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 19,
+        "name": "routing_decision_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 20,
+        "name": "routing_decision_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 21,
+        "name": "routing_decision_head_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 22,
+        "name": "routing_decision_head_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 23,
+        "name": "primary_material_count",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 24,
+        "name": "organizing_requirement",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 25,
+        "name": "organizing_action",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 26,
+        "name": "added_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 27,
+        "name": "next_action_label",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 28,
+        "name": "next_action_state",
+        "logicalType": "TEXT",
+        "enumValues": [
+          "admitted",
+          "pending",
+          "ready",
+          "running",
+          "waiting_for_resource",
+          "waiting_for_external",
+          "waiting_for_approval",
+          "executing",
+          "succeeded",
+          "skipped",
+          "failed",
+          "cancelled",
+          "completed",
+          "attention_required",
+          "blocked",
+          "suspended",
+          "frozen"
+        ],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 29,
+        "name": "progress_mode",
+        "logicalType": "TEXT",
+        "enumValues": [
+          "determinate",
+          "indeterminate"
+        ],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 30,
+        "name": "progress_current_value",
+        "logicalType": "INTEGER_OR_REAL",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 31,
+        "name": "progress_total_value",
+        "logicalType": "INTEGER_OR_REAL",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 32,
+        "name": "progress_unit",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 33,
+        "name": "progress_rate",
+        "logicalType": "REAL",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 34,
+        "name": "progress_eta_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 35,
+        "name": "progress_bucket",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 36,
+        "name": "identity_issue_schema_ref",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 37,
+        "name": "identity_issue_json",
+        "logicalType": "TEXT_JSON",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 38,
+        "name": "identity_issue_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 39,
+        "name": "current_acceptance_spec_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 40,
+        "name": "current_acceptance_spec_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 41,
+        "name": "current_acceptance_spec_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 42,
+        "name": "current_libra_run_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 43,
+        "name": "current_libra_run_state",
+        "logicalType": "TEXT",
+        "enumValues": [
+          "active",
+          "suspended",
+          "superseded",
+          "frozen",
+          "discarded",
+          "completed"
+        ],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 44,
+        "name": "current_libra_run_state_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 45,
+        "name": "current_libra_run_state_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 46,
+        "name": "current_priority_class",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 47,
+        "name": "current_identity_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 48,
+        "name": "current_package_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 49,
+        "name": "current_package_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 50,
+        "name": "current_package_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 51,
+        "name": "current_offer_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 52,
+        "name": "completed_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 53,
+        "name": "basis_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 54,
+        "name": "projection_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 55,
+        "name": "updated_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      }
+    ],
+    "primaryKey": [
+      "subject_id"
+    ],
+    "declaredForeignKeyColumns": [
+      "subject_id"
+    ],
+    "uniqueConstraints": [],
+    "hotIndexes": [
+      [
+        "attention_priority",
+        "classification",
+        "updated_at_ms",
+        "subject_id"
+      ],
+      [
+        "classification",
+        "completed_at_ms",
+        "subject_id"
+      ],
+      [
+        "classification",
+        "subject_id"
+      ]
+    ],
+    "partialUniqueRules": [],
+    "checkRules": [
+      {
+        "column": "classification",
+        "enumValues": [
+          "waiting",
+          "in_progress",
+          "completed"
+        ]
+      },
+      {
+        "column": "attention_state",
+        "enumValues": [
+          "none",
+          "attention_required",
+          "blocked",
+          "suspended",
+          "frozen"
+        ]
+      },
+      {
+        "column": "subject_status",
+        "enumValues": [
+          "active",
+          "abandoned",
+          "completed"
+        ]
+      },
+      {
+        "column": "routing_state",
+        "enumValues": [
+          "preparing",
+          "unresolved",
+          "resolved"
+        ]
+      },
+      {
+        "column": "next_action_state",
+        "enumValues": [
+          "admitted",
+          "pending",
+          "ready",
+          "running",
+          "waiting_for_resource",
+          "waiting_for_external",
+          "waiting_for_approval",
+          "executing",
+          "succeeded",
+          "skipped",
+          "failed",
+          "cancelled",
+          "completed",
+          "attention_required",
+          "blocked",
+          "suspended",
+          "frozen"
+        ]
+      },
+      {
+        "column": "progress_mode",
+        "enumValues": [
+          "determinate",
+          "indeterminate"
+        ]
+      },
+      {
+        "column": "current_libra_run_state",
+        "enumValues": [
+          "active",
+          "suspended",
+          "superseded",
+          "frozen",
+          "discarded",
+          "completed"
+        ]
+      }
+    ],
+    "revisionContract": {
+      "revisionColumns": [
+        "projection_revision",
+        "my_rating_revision",
+        "routing_policy_revision",
+        "routing_decision_revision",
+        "routing_decision_head_revision",
+        "current_acceptance_spec_revision",
+        "current_libra_run_state_revision",
+        "current_identity_revision",
+        "current_package_revision"
+      ],
+      "currentPointerColumns": [],
+      "pointerTargets": [],
+      "pointerRules": []
+    },
+    "jsonContracts": [
+      {
+        "column": "identity_issue_json",
+        "schemaRefColumn": "identity_issue_schema_ref",
+        "maxBytes": 16384,
+        "source": "table-row",
+        "requiresJsonValidCheck": true
+      }
+    ],
+    "immutability": {
+      "immutable": false,
+      "rules": []
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "current technical Read Projection",
+      "每个Subject恰好至多一行且可由Libra正式事实、User Perception/Arca公开Projection及Foundation Progress Projection重建",
+      "`projection_revision>=1`且相同`basis_digest`必须no-op，不递增revision、不执行UPDATE",
+      "nullable rating、identity issue、Spec、Run、Package/Offer及progress字段各自按closed bundle同时成立",
+      "`identity_issue_json`为JCS且≤`16 KiB`并由digest保护",
+      "`projection_digest=SHA-256(JCS(完整用户行 excluding projectionDigest))`",
+      "`INDEX(attention_priority,classification,updated_at_ms,subject_id)`供active排序，`INDEX(classification,completed_at_ms,subject_id)`供completed cursor，`INDEX(classification,subject_id)`供统计",
+      "本表不授权任何命令，损坏或缺失时必须重建，不能回填或改写Owner业务事实"
+    ],
+    "rawContract": {
+      "columns": "`subject_id PK FK, projection_revision, classification(waiting|in_progress|completed), attention_state(none|attention_required|blocked|suspended|frozen), attention_priority, display_identity, content_profile, structure_kind, subject_status, my_rating NULL, my_rating_source NULL, my_rating_revision NULL, target_shelf_id NULL, target_shelf_name NULL, routing_state, unresolved_reason_code NULL, routing_policy_mode NULL, routing_policy_revision NULL, routing_decision_revision NULL, routing_decision_digest NULL, routing_decision_head_revision NULL, routing_decision_head_digest NULL, primary_material_count, organizing_requirement, organizing_action, added_at_ms, next_action_label, next_action_state, progress_mode NULL, progress_current_value NULL, progress_total_value NULL, progress_unit NULL, progress_rate NULL, progress_eta_ms NULL, progress_bucket NULL, identity_issue_schema_ref NULL, identity_issue_json NULL, identity_issue_digest NULL, current_acceptance_spec_id NULL, current_acceptance_spec_revision NULL, current_acceptance_spec_digest NULL, current_libra_run_id NULL, current_libra_run_state NULL, current_libra_run_state_revision NULL, current_libra_run_state_digest NULL, current_priority_class NULL, current_identity_revision NULL, current_package_id NULL, current_package_revision NULL, current_package_digest NULL, current_offer_id NULL, completed_at_ms NULL, basis_digest, projection_digest, updated_at_ms`",
+      "constraints": "current technical Read Projection；每个Subject恰好至多一行且可由Libra正式事实、User Perception/Arca公开Projection及Foundation Progress Projection重建；`projection_revision>=1`且相同`basis_digest`必须no-op，不递增revision、不执行UPDATE；nullable rating、identity issue、Spec、Run、Package/Offer及progress字段各自按closed bundle同时成立；`identity_issue_json`为JCS且≤`16 KiB`并由digest保护；`projection_digest=SHA-256(JCS(完整用户行 excluding projectionDigest))`；`INDEX(attention_priority,classification,updated_at_ms,subject_id)`供active排序，`INDEX(classification,completed_at_ms,subject_id)`供completed cursor，`INDEX(classification,subject_id)`供统计；本表不授权任何命令，损坏或缺失时必须重建，不能回填或改写Owner业务事实"
+    },
+    "source": {
+      "section": "8.5.11",
+      "line": 9270,
+      "lineDigest": "fd169b8df9e8ffe6eb8bf77e27280c4ff24ba4e3871f0283881f5f3212b6f4cb"
+    },
+    "foreignKeys": [
+      {
+        "columns": [
+          "subject_id"
+        ],
+        "targetTable": "libra_subjects",
+        "targetColumns": [
+          "subject_id"
+        ],
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
+      }
+    ]
+  }
+}

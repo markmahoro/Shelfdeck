@@ -2,7 +2,31 @@
 
 Status: Movie Procurement保持`CLOSED FOR MOVIE`；Movie Libra保持`MOVIE LIBRA CLOSED AT HANDOFF B READY`；Movie Arca已经接通Handoff B Acceptance、On-deck、Shelf Entry、Deck Fact、Beta Aftercare、完整Off-deck及非破坏性Shelf Deregistration。当前状态为`MOVIE COLLECTION LIFECYCLE READY THROUGH SHELF DEREGISTRATION`；Movie从发现、生产、收藏、养护、退出到整架行政终结的本地产品链已经闭合，Docker/NAS与生产部署仍是独立后续工作。
 
-Last updated: 2026-08-20
+Last updated: 2026-08-21
+
+## 0. Current amendment — Formation durable projection local cutover
+
+2026-08-21，本轮“媒体整理工作区”已从请求内临时拼账切换为后端维护的
+`libra_formation_projections`技术Projection。它是一张可重建的展示Projection，不是业务授权依据；每个Subject一行，
+active默认25条分页，completed独立分页，Projection Host负责精确唤醒、启动重建、30秒fallback和100项有界游标。
+
+本轮按“先克隆、后现场”的顺序完成安全退役和恢复：
+
+- 现场数据库已由`helix-clean-v2`迁移至`helix-clean-v3`，表数量182；迁移只退役旧Catalog下的62个活动Work、106个活动Event，
+  保留全部不可变执行历史，并把Owner后续replan留在原Work scope内；没有清空数据库或删除业务事实。
+- 已在独立数据库克隆上验证迁移、启动恢复、541个既有Subject生成Projection、active分页25条、页面读取和队列幂等，
+  随后才迁移现场数据库。现场切换前备份为
+  `C:\Users\markm\AppData\Local\Temp\ShelfDeck-Local-Rerun-20260820\formation-projection-cutover-20260821-015122\shelfdeck.pre-retirement-20260821.db`，
+  SHA-256为`A734FE822896D88F597F66825853EA984E6919D8E58E23099CAC6D022A27F154`。
+- 现场迁移后`integrity_check=ok`；当前数据库有659个Subject和659行Projection，旧Catalog无非终态Attempt/Event，旧Plans仍保留2863条。
+- 本机服务已恢复监听`127.0.0.1:18080`；健康接口返回`normalSupplyAllowed=true`，Formation active接口返回25条，
+  completed可独立分页，Projection状态为`ready`，Admin Web返回200。
+- 现场服务恢复期间继续处理原有队列，未主动新建媒体任务；启动阶段收口的是原队列中既有的Workspace transcode中间产物。
+  没有重新Observation `Z:\Film`，没有清空当前队列，也没有主动重新同步豆瓣、TMDB或MoviePilot；Docker、NAS和生产数据均未触碰。
+
+最终证据：启动恢复/事件运行时/Runtime Host聚焦回归分别为12/12、24/24、12/12；Node全量回归276项为259 pass、17 skip、0 fail；
+Admin Web production build通过。现场日志另有1条既有Arca `CLEAN_ARCA_TARGET_COLLISION`业务错误，服务未降级；该问题不属于Projection切换，
+已登记到UAT台账，未在现场数据库上直接修事实。
 
 ## 0. Completed target — Arca Shelf Deregistration and Movie lifecycle closure
 

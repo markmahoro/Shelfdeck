@@ -30,7 +30,9 @@ function createPerceptionResolutionInputAssembler(options) {
         const identityAnchors=[...record.anchors];
         for(const anchor of record.anchors.filter((item)=>item.anchorKind==='title_year')){
           for(const alias of deriveTitleYearEvidence(anchor.anchorValue,{providerDelimited:record.sourceKind==='douban'})){
-            if(!identityAnchors.some((item)=>item.anchorKind==='title_year'&&item.anchorValue===alias.anchorValue))identityAnchors.push(alias);
+            const dtoAlias={anchorKind:alias.anchorKind,anchorValue:alias.anchorValue,
+              confidenceClass:alias.confidenceClass,evidenceDigest:alias.evidenceDigest};
+            if(!identityAnchors.some((item)=>item.anchorKind==='title_year'&&item.anchorValue===dtoAlias.anchorValue))identityAnchors.push(dtoAlias);
           }
         }
         identityAnchors.sort((left,right)=>left.anchorKind.localeCompare(right.anchorKind)||left.anchorValue.localeCompare(right.anchorValue));
