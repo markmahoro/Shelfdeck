@@ -166,6 +166,10 @@ function candidateDefinition(schemaManifest) {
         'registration_candidate_id', 'current_revision', 'current_state', 'proposed_name', 'evidence_digest', 'candidate_schema_ref',
         'candidate_json', 'candidate_payload_digest', 'created_at_ms', 'terminal_at_ms'
       ], keyColumns: ['registration_candidate_id'] },
+      list_registration_candidates: { kind: 'select-all', tableId: 'people_registration_candidates', columns: [
+        'registration_candidate_id', 'current_revision', 'current_state', 'proposed_name', 'evidence_digest', 'candidate_schema_ref',
+        'candidate_json', 'candidate_payload_digest', 'created_at_ms', 'terminal_at_ms'
+      ], keyColumns: [] },
       advance_registration_candidate: { kind: 'update', tableId: 'people_registration_candidates',
         setColumns: ['current_revision', 'current_state', 'terminal_at_ms'], keyColumns: ['registration_candidate_id'], compareColumns: [
           { column: 'current_revision', parameter: 'expected_current_revision' }, { column: 'current_state', parameter: 'expected_current_state' }
@@ -184,6 +188,10 @@ function candidateDefinition(schemaManifest) {
         'merge_candidate_id', 'current_revision', 'current_state', 'left_person_id', 'left_person_revision', 'right_person_id',
         'right_person_revision', 'evidence_digest', 'candidate_schema_ref', 'candidate_json', 'candidate_payload_digest', 'created_at_ms', 'terminal_at_ms'
       ], keyColumns: ['merge_candidate_id'] },
+      list_merge_candidates: { kind: 'select-all', tableId: 'people_merge_candidates', columns: [
+        'merge_candidate_id', 'current_revision', 'current_state', 'left_person_id', 'left_person_revision', 'right_person_id',
+        'right_person_revision', 'evidence_digest', 'candidate_schema_ref', 'candidate_json', 'candidate_payload_digest', 'created_at_ms', 'terminal_at_ms'
+      ], keyColumns: [] },
       advance_merge_candidate: { kind: 'update', tableId: 'people_merge_candidates',
         setColumns: ['current_revision', 'current_state', 'terminal_at_ms'], keyColumns: ['merge_candidate_id'], compareColumns: [
           { column: 'current_revision', parameter: 'expected_current_revision' }, { column: 'current_state', parameter: 'expected_current_state' }
@@ -380,6 +388,12 @@ function createPeopleStore(options) {
     getPerson(personId) {
       return execute([registry], (context) => mapPerson(context.repository(registry.repositoryId),
         context.repository(registry.repositoryId).invoke('find_person', { person_id: personId })));
+    },
+    listPeople() {
+      return execute([registry], (context) => {
+        const repository = context.repository(registry.repositoryId);
+        return Object.freeze(repository.invoke('list_people').map((row) => mapPerson(repository, row)));
+      });
     },
     appendPreference(input) {
       exactInput(input, ['personId', 'revision', 'preferenceLevel', 'reason', 'originKind', 'originRef'], 'P6_PEOPLE_PREFERENCE_INPUT');
@@ -734,9 +748,23 @@ function createPeopleStore(options) {
       return execute([candidates], (context) => mapRegistrationCandidate(context.repository(candidates.repositoryId),
         context.repository(candidates.repositoryId).invoke('find_registration_candidate', { registration_candidate_id: candidateId })), 'people_candidate_store');
     },
+    listRegistrationCandidates() {
+      return execute([candidates], (context) => {
+        const repository = context.repository(candidates.repositoryId);
+        return Object.freeze(repository.invoke('list_registration_candidates')
+          .map((row) => mapRegistrationCandidate(repository, row)));
+      }, 'people_candidate_store');
+    },
     getMergeCandidate(candidateId) {
       return execute([candidates], (context) => mapMergeCandidate(context.repository(candidates.repositoryId),
         context.repository(candidates.repositoryId).invoke('find_merge_candidate', { merge_candidate_id: candidateId })), 'people_candidate_store');
+    },
+    listMergeCandidates() {
+      return execute([candidates], (context) => {
+        const repository = context.repository(candidates.repositoryId);
+        return Object.freeze(repository.invoke('list_merge_candidates')
+          .map((row) => mapMergeCandidate(repository, row)));
+      }, 'people_candidate_store');
     },
     dismissCandidate(input) {
       exactInput(input, ['candidateKind', 'candidateId', 'expectedRevision', 'decisionId', 'actorId', 'decisionDigest'],

@@ -72,6 +72,8 @@ Helix主体开发已经完成，Movie从Procurement、Libra到Arca及Shelf Dereg
 | UAT-004 | 大型Workspace媒体完整SHA-256导致无必要的全文件读取 | `BUSINESS_CONTRACT` | `PERFORMANCE`、`USER_EXPERIENCE` | Libra Workspace Material + Handoff B/Arca Inventory媒体完整性合同 | I/O、CPU、交付延迟 | High | 已诊断并确认方向，待SSOT统一修订 |
 | UAT-005 | Libra Admin Web使用内部对象语言且不能直观表达媒体整理过程 | `USER_EXPERIENCE` | `PROJECTION_FRESHNESS` | Admin Web Formation Projection + Libra公开状态翻译 | 可理解性、可观察性 | High | 已讨论并确认页面重构方向 |
 | UAT-006 | clean库概览仍展示固定演示数字并绕过管理会话 | `USER_EXPERIENCE` | `PROJECTION_FRESHNESS` | Overview Query Projection + Admin Web | 正确性、可信度、安全会话 | Critical | 已修复并完成真实页面复测 |
+| UAT-007 | clean库人物页展示固定人数且无正式Query接线 | `USER_EXPERIENCE` | `PROJECTION_FRESHNESS` | People Admin Query + Admin Web | 正确性、可信度、安全会话 | Critical | 已修复并完成真实页面首次打开复测 |
+| UAT-008 | Admin Web非根路径直接刷新返回404 | `USER_EXPERIENCE` | `PROJECTION_FRESHNESS` | Clean Service static adapter + Admin Web routing | 可用性、刷新恢复 | Critical | 已确认，待直接修复 |
 
 ## 2.1 UAT-006：概览展示固定演示数字
 
@@ -90,6 +92,23 @@ HTTP adapter和前端均不读取Repository/SQLite。概览页面改为先建立
 修复验证：相关服务合同22 pass、3个既有显式skip、0 fail；Admin Web production build通过；同一clean UAT库重启服务后，
 真实浏览器登录、首次读取与直接刷新均显示4项指标为0、0个活动文件来源、0个活动收藏架，与数据库现实一致且无Console error。
 修复与本条Evidence由同一Git commit固化。
+
+## 2.2 UAT-007：人物页展示固定演示数字
+
+发现于同一clean UAT库的全页面首次打开/直接刷新验收。数据库没有People事实，但“人物”页面持续显示已注册人物416、
+注册候选3、合并候选1；“注册人物”按钮也没有正式命令接线。
+
+精确根因：People Domain已有Owner-local Store和正式Admin route inventory，但Clean Service未组合People Admin Query，
+前端继续由通用`HelixPage`渲染`surface-model.ts`固定数字。
+
+修复范围保持在People Owner与Application Composition：为People Store补充Owner-local只读列表，新增带有界分页的People Admin Query，
+接通正式GET routes；Admin Web改为通过Admin Session读取真实Person与Candidate计数，并移除无效的注册按钮。写命令仍保持fail closed，
+本修复不伪造尚未完成的People命令旅程。
+
+修复验证：相关服务、People Store/Registration及Admin Web合同43 pass、3个既有显式skip、0 fail；Admin Web production build通过。
+同一clean UAT库重启服务并加载新bundle后，真实浏览器显示Person、Registration Candidate、Merge Candidate均为0，空状态正确且
+Console无warning/error。直接刷新另发现独立的SPA deep-link 404问题，登记为`UAT-008`，不把该缺陷混入People事实修复。
+
 
 ## 3. UAT-001：豆瓣评分匹配率偏低
 

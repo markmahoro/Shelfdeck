@@ -377,6 +377,20 @@ test('clean host serves public health and Admin UI, then requires API key or Htt
       activeShelfCount: 0,
     });
 
+    const people = await host.inject({
+      method: 'GET',
+      url: '/v1/admin/people',
+      headers: { cookie },
+    });
+    assert.equal(people.statusCode, 200);
+    assert.deepEqual(people.json().items, []);
+    assert.deepEqual(people.json().summary, {
+      activePersonCount: 0,
+      mergedPersonCount: 0,
+      openRegistrationCandidateCount: 0,
+      openMergeCandidateCount: 0,
+    });
+
     const legacy = await host.inject({ method: 'GET', url: '/v1/admin/tasks', headers: { cookie } });
     assert.equal(legacy.statusCode, 404);
     const worker = await host.inject({

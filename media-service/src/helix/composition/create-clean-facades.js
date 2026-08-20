@@ -76,6 +76,20 @@ function createCleanFacades(options) {
       body: options.overviewQuery.get(),
     });
   }
+  if (options.peopleAdminQuery) {
+    facades.PeopleAdminFacade.get_people = async (input) => ({
+      body: options.peopleAdminQuery.list(input.query || {}),
+    });
+    facades.PeopleAdminFacade.get_people_personid = async (input) => ({
+      body: options.peopleAdminQuery.get(input.params.personId),
+    });
+    facades.PeopleAdminFacade.get_people_registration_candidates = async () => ({
+      body: options.peopleAdminQuery.registrationCandidates(),
+    });
+    facades.PeopleAdminFacade.get_people_merge_candidates = async () => ({
+      body: options.peopleAdminQuery.mergeCandidates(),
+    });
+  }
   if (options.platformIntegrationAdmin) {
     facades.PlatformAdminFacade.get_settings_integrations_kind =
       async (input) => ({

@@ -11,6 +11,8 @@ const { canonicalDigest } = require('./helix/contracts/canonical-json');
 const { createHelixApplication } = require('./helix/composition/createHelixApplication');
 const { createCleanFacades } = require('./helix/composition/create-clean-facades');
 const { createOverviewQuery } = require('./helix/projections/overview-query');
+const { createPeopleStore } = require('./helix/domains/people/persistence/people-store');
+const { createPeopleAdminQuery } = require('./helix/domains/people/application/admin-query');
 const {
   createIntegrationAdminApplication,
   createPlatformIntegrationRuntime,
@@ -1389,11 +1391,15 @@ async function createCleanServiceHost(options) {
     readOffdeck: () => arcaOffdeck.candidates(),
     now: options.now || Date.now,
   });
+  const peopleAdminQuery = createPeopleAdminQuery({
+    store: createPeopleStore(constructed.applicationDependencies),
+  });
   const facades = createCleanFacades({
     sessionTokens,
     readiness,
     credentialMetadata: runtime.readActiveCredential,
     overviewQuery,
+    peopleAdminQuery,
     procurementAdmin,
     arcaShelfAdmin,
     arcaRuleTemplateAdmin,

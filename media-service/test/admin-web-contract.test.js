@@ -15,6 +15,9 @@ test('Admin Web exposes eight Helix pages and keeps health in Collection', () =>
   assert.match(app, /OverviewPage/);
   assert.match(read('web/src/helix/OverviewPage.tsx'), /getOverview/);
   assert.doesNotMatch(read('web/src/helix/OverviewPage.tsx'), /2,430|2,105/);
+  assert.match(app, /PeoplePage/);
+  assert.match(read('web/src/helix/PeoplePage.tsx'), /listPeople/);
+  assert.doesNotMatch(read('web/src/helix/PeoplePage.tsx'), />416<|>3<|>1</);
   for (const slug of ['overview', 'material-fields', 'shelves', 'collection', 'formation', 'offdeck', 'people', 'settings']) assert.match(model, new RegExp(`slug:'${slug}'`));
   assert.doesNotMatch(model, /slug:'care'/);
   assert.match(read('web/src/helix/CollectionPage.tsx'), /收藏健康/);

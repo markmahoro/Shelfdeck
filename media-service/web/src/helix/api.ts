@@ -265,6 +265,16 @@ export type OverviewProjection = {
   ledger: Array<{ key:string; label:string; value:number }>;
 };
 
+export type PeopleProjection = {
+  items: Array<{
+    personId:string; status:'active'|'merged'; currentRevision:number; canonicalName:string;
+    aliases:string[]; providerIdentities:Array<{provider:string;namespace:string;providerKey:string}>;
+    currentPreferenceRevision:number|null; currentReferenceRevision:number|null; createdAtMs:number;
+  }>;
+  nextCursor:string|null;
+  summary:{activePersonCount:number;mergedPersonCount:number;openRegistrationCandidateCount:number;openMergeCandidateCount:number};
+};
+
 export type FormationSummary = {
   totalCount: number;
   waitingCount: number;
@@ -330,6 +340,10 @@ export const helixAdminApi = {
   },
   getOverview() {
     return request<OverviewProjection>('/v1/admin/overview');
+  },
+  listPeople(params:{cursor?:string;limit?:number;search?:string;status?:'active'|'merged'}={}) {
+    const query=new URLSearchParams();Object.entries(params).forEach(([key,value])=>{if(value!==undefined&&value!=='')query.set(key,String(value));});
+    return request<PeopleProjection>(`/v1/admin/people${query.size?`?${query}`:''}`);
   },
   listMaterialFields() {
     return request<{ items: MaterialField[] }>('/v1/admin/material-fields');
