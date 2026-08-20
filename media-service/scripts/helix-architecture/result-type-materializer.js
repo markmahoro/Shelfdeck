@@ -48,8 +48,8 @@ function buildResultTypeRegistry(contractsRoot) {
     kind: 'result-type-registry',
     owner: 'contracts',
     status: 'active',
-    targetCatalogResultCount: 88,
-    helperCount: 14,
+    targetCatalogResultCount: 99,
+    helperCount: 15,
     entries
   };
 }

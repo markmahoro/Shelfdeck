@@ -3,7 +3,7 @@
 const assert=require('node:assert/strict');
 const test=require('node:test');
 const {canonicalDigest}=require('../../src/helix/contracts/canonical-json');
-const {buildAcceptedIntakePayload,buildLibraBindingDraft,buildLibraCandidateAcceptedMessage,
+const {buildAcceptedIntakePayload,buildLibraBindingDraft,buildLibraBindingDraftReceipt,rebuildLibraBindingDraftFromReceipt,buildLibraCandidateAcceptedMessage,
   buildSubjectAndTransferReceipt}=require('../../src/helix/domains/libra/model/intake-acceptance-contracts');
 
 const D=(value)=>canonicalDigest({value});
@@ -57,4 +57,38 @@ test('rejects a Binding or Verification that does not identify the exact Deliver
   const value=basis(),bindingDraft=buildLibraBindingDraft(value.snapshot,value.decision,10);
   assert.throws(()=>buildAcceptedIntakePayload({...value,bindingDraft,materialVerification:{...value.materialVerification,
     candidateDeliverySnapshotDigest:D('wrong')}}),(error)=>error.code==='P8_ACCEPTANCE_VERIFICATION');
+});
+
+test('persists a compact Binding receipt and reconstructs a large immutable Binding Draft',()=>{
+  const value=basis(),primaryMaterialKey=value.snapshot.primaryMaterialDeliveries[0].materialKey;
+  const relatedReferences=Array.from({length:61},(_,index)=>{
+    const identity={schemaRef:'helix://contracts/types/PhysicalMaterialIdentity/v2',schemaVersion:2,mountScopeId:'mount-1',
+      inode:String(1000+index),sizeBytes:100+index,fingerprintAlgorithm:'middle-256k-sha256',fingerprintVersion:1,
+      contentFingerprint:D('related-content-'+index)};
+    identity.materialKey=canonicalDigest({schema:'physical-material-identity@2',mountScopeId:identity.mountScopeId,
+      inode:identity.inode,sizeBytes:identity.sizeBytes,fingerprintAlgorithm:identity.fingerprintAlgorithm,
+      fingerprintVersion:identity.fingerprintVersion,contentFingerprint:identity.contentFingerprint});
+    const referenceId='related-'+index,role='subtitle',associationEvidenceDigest=D('association-'+index);
+    const dispositionBasisDigest=canonicalDigest({schema:'procurement.related-disposition-basis@1',referenceId,
+      primaryMaterialKey,role,identity,associationEvidenceDigest});
+    return {referenceId,primaryMaterialKey,role,identity,endpointId:'endpoint-1',location:'/field/subtitle-'+index+'.srt',
+      associationKind:'exclusive',dispositionRequired:true,associationEvidenceDigest,dispositionBasisDigest,
+      referenceDigest:D('reference-'+index)};
+  });
+  const relatedDispositionScopeDigest=canonicalDigest({schema:'procurement.related-disposition-scope@1',items:relatedReferences
+    .sort((a,b)=>a.referenceId.localeCompare(b.referenceId))
+    .map((item)=>({referenceId:item.referenceId,primaryMaterialKey:item.primaryMaterialKey,role:item.role,
+      materialKey:item.identity.materialKey,dispositionBasisDigest:item.dispositionBasisDigest}))});
+  value.snapshot.candidatePackage={...value.snapshot.candidatePackage,relatedReferences,
+    relatedReferenceSetDigest:D('related-set'),relatedDispositionScopeDigest};
+  value.snapshot.deliverySnapshotDigest=canonicalDigest(without(value.snapshot,'deliverySnapshotDigest'));
+  value.decision.candidateDeliverySnapshotDigest=value.snapshot.deliverySnapshotDigest;
+  value.decision.decisionDigest=canonicalDigest(without(value.decision,'decisionDigest'));
+  const receipt=buildLibraBindingDraftReceipt(value.snapshot,value.decision,10);
+  assert.equal(receipt.bindingCount,62);
+  assert.equal(receipt.relatedBindingCount,61);
+  assert.ok(Buffer.byteLength(JSON.stringify(receipt),'utf8')<16*1024);
+  const rebuilt=rebuildLibraBindingDraftFromReceipt(value.snapshot,value.decision,receipt);
+  assert.equal(rebuilt.bindings.length,62);
+  assert.equal(rebuilt.bindingSetDigest,receipt.bindingSetDigest);
 });

@@ -1,0 +1,105 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/types/LibraBindingDraftReceipt/v1",
+  "title": "LibraBindingDraftReceipt@1",
+  "x-helix-ssotRefs": [
+    "8.6.19"
+  ],
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaRef": {
+      "const": "helix://contracts/types/LibraBindingDraftReceipt/v1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "receiptId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "receiptKind": {
+      "const": "libra_binding_draft_resolved"
+    },
+    "basisDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "subjectRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "subjectId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "resolutionKind": {
+          "type": "string",
+          "enum": [
+            "new_subject",
+            "season_extension"
+          ]
+        }
+      },
+      "required": [
+        "subjectId",
+        "resolutionKind"
+      ]
+    },
+    "resolutionDecisionDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "candidateDeliverySnapshotDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "bindingCount": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "primaryBindingCount": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "relatedBindingCount": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "bindingSetDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "producedAtMs": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "receiptDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "schemaRef",
+    "schemaVersion",
+    "receiptId",
+    "receiptKind",
+    "basisDigest",
+    "subjectRef",
+    "resolutionDecisionDigest",
+    "candidateDeliverySnapshotDigest",
+    "bindingCount",
+    "primaryBindingCount",
+    "relatedBindingCount",
+    "bindingSetDigest",
+    "producedAtMs",
+    "receiptDigest"
+  ]
+}

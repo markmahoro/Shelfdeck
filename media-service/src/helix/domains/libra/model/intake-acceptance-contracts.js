@@ -4,6 +4,7 @@ const {canonicalDigest,canonicalJson}=require('../../../contracts/canonical-json
 const {utf8Compare}=require('./libra-intake-contracts');
 
 const BINDING_SCHEMA='helix://contracts/types/LibraBindingDraft/v1';
+const BINDING_RECEIPT_SCHEMA='helix://contracts/types/LibraBindingDraftReceipt/v1';
 const PAYLOAD_SCHEMA='helix://contracts/domain-types/AcceptedIntakePayload/v1';
 const RECEIPT_SCHEMA='helix://contracts/types/SubjectAndTransferReceipt/v1';
 const MESSAGE_SCHEMA='helix://contracts/types/LibraCandidateAcceptedMessage/v1';
@@ -87,6 +88,43 @@ function buildLibraBindingDraft(snapshot,decision,producedAtMs){
     intakeDecisionId:decision.decisionId}),draftKind:'libra_material_binding',basisDigest:decision.decisionDigest,draftDigest:bindingSetDigest,
     producedAtMs,subjectRef,resolutionDecision:decision,candidateDeliverySnapshotDigest:snapshot.deliverySnapshotDigest,bindings,bindingSetDigest};
   bounded(value,8*1024*1024,'P8_BINDING_DRAFT_TOO_LARGE');return freeze(value);
+}
+
+function buildLibraBindingDraftReceipt(snapshot,decision,producedAtMs){
+  const draft=buildLibraBindingDraft(snapshot,decision,producedAtMs);
+  const primaryBindingCount=draft.bindings.filter((item)=>item.authorityKind==='primary_control').length;
+  const relatedBindingCount=draft.bindings.filter((item)=>item.authorityKind==='related_derived').length;
+  const value={schemaRef:BINDING_RECEIPT_SCHEMA,schemaVersion:1,
+    receiptId:canonicalDigest({schema:'libra.binding-draft-receipt-id@1',draftId:draft.draftId,bindingSetDigest:draft.bindingSetDigest}),
+    receiptKind:'libra_binding_draft_resolved',basisDigest:draft.basisDigest,subjectRef:draft.subjectRef,
+    resolutionDecisionDigest:draft.resolutionDecision.decisionDigest,
+    candidateDeliverySnapshotDigest:draft.candidateDeliverySnapshotDigest,bindingCount:draft.bindings.length,
+    primaryBindingCount,relatedBindingCount,bindingSetDigest:draft.bindingSetDigest,producedAtMs:draft.producedAtMs};
+  const result={...value,receiptDigest:canonicalDigest(value)};
+  bounded(result,16*1024,'P8_BINDING_DRAFT_RECEIPT_TOO_LARGE');return freeze(result);
+}
+
+function rebuildLibraBindingDraftFromReceipt(snapshot,decision,receipt){
+  validateDecision(snapshot,decision);
+  if(!receipt||receipt.schemaRef!==BINDING_RECEIPT_SCHEMA||receipt.schemaVersion!==1||
+      receipt.receiptKind!=='libra_binding_draft_resolved'||receipt.receiptDigest!==canonicalDigest(without(receipt,'receiptDigest'))||
+      receipt.basisDigest!==decision.decisionDigest||receipt.resolutionDecisionDigest!==decision.decisionDigest||
+      receipt.candidateDeliverySnapshotDigest!==snapshot.deliverySnapshotDigest||
+      receipt.subjectRef?.subjectId!==subjectId(decision)||receipt.subjectRef?.resolutionKind!==decision.result||
+      !Number.isSafeInteger(receipt.bindingCount)||receipt.bindingCount<1||
+      !Number.isSafeInteger(receipt.primaryBindingCount)||receipt.primaryBindingCount<1||
+      !Number.isSafeInteger(receipt.relatedBindingCount)||receipt.relatedBindingCount<0||
+      receipt.bindingCount!==receipt.primaryBindingCount+receipt.relatedBindingCount){
+    fail('P8_BINDING_DRAFT_RECEIPT_INVALID','Binding Draft Receipt does not bind the exact Resolution and Delivery Snapshot.');
+  }
+  const draft=buildLibraBindingDraft(snapshot,decision,receipt.producedAtMs);
+  const primaryBindingCount=draft.bindings.filter((item)=>item.authorityKind==='primary_control').length;
+  const relatedBindingCount=draft.bindings.filter((item)=>item.authorityKind==='related_derived').length;
+  if(receipt.bindingSetDigest!==draft.bindingSetDigest||receipt.bindingCount!==draft.bindings.length||
+      receipt.primaryBindingCount!==primaryBindingCount||receipt.relatedBindingCount!==relatedBindingCount){
+    fail('P8_BINDING_DRAFT_RECEIPT_MISMATCH','Rebuilt Binding Draft does not match its compact Receipt.');
+  }
+  return draft;
 }
 
 function assertVerification(verification,snapshot,kind){
@@ -173,5 +211,6 @@ function buildLibraCandidateAcceptedMessage(receipt){
     receiptId:receipt.receiptId,receiptDigest:receipt.receiptDigest};bounded(value,16*1024,'P8_ACCEPTANCE_MESSAGE_TOO_LARGE');return freeze(value);
 }
 
-module.exports=Object.freeze({BINDING_SCHEMA,MESSAGE_SCHEMA,PAYLOAD_SCHEMA,RECEIPT_SCHEMA,IntakeAcceptanceContractError,
-  buildAcceptedIntakePayload,buildLibraBindingDraft,buildLibraCandidateAcceptedMessage,buildSubjectAndTransferReceipt});
+module.exports=Object.freeze({BINDING_SCHEMA,BINDING_RECEIPT_SCHEMA,MESSAGE_SCHEMA,PAYLOAD_SCHEMA,RECEIPT_SCHEMA,IntakeAcceptanceContractError,
+  buildAcceptedIntakePayload,buildLibraBindingDraft,buildLibraBindingDraftReceipt,rebuildLibraBindingDraftFromReceipt,
+  buildLibraCandidateAcceptedMessage,buildSubjectAndTransferReceipt});

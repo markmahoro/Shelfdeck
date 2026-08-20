@@ -7,11 +7,13 @@ const { buildResultTypeSchemas } = require('../../scripts/helix-architecture/res
 const schemas = buildResultTypeSchemas();
 
 test('builds the complete Catalog Result graph and bounded Candidate publication receipt', () => {
-  assert.equal(Object.keys(schemas).length, 103);
+  assert.equal(Object.keys(schemas).length, 104);
   assert.equal(schemas.CandidatePackage.properties.relatedReferences.items.$ref,
     'helix://contracts/types/RelatedMaterialReference/v1');
   assert.ok(schemas.CandidatePublicationReceipt.required.includes('candidateDraftDigest'));
   assert.equal(schemas.CandidatePublicationReceipt.properties.packageRevision.minimum, 1);
+  assert.equal(schemas.LibraBindingDraftReceipt.properties.receiptKind.const, 'libra_binding_draft_resolved');
+  assert.equal(schemas.LibraBindingDraftReceipt.properties.bindingCount.minimum, 1);
   for (const helper of ['CandidatePackage', 'OnDeckCommitReceipt', 'OffloadCompletionFact', 'PeopleCandidateDraft', 'PrimaryInputManifest',
     'SeasonContinuityClaim', 'CandidateIntakeAcceptanceBasis', 'ProcurementCandidateOfferAvailableMessage',
     'LibraCandidateAcceptedMessage', 'LibraCandidateRejectedMessage', 'ProcurementCandidateAcceptanceClosureResult',

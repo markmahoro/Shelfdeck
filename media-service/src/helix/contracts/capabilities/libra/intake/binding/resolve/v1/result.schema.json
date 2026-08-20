@@ -2,5 +2,5 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "helix://contracts/capabilities/libra.intake.binding.resolve/v1/result",
   "title": "libra.intake.binding.resolve@1 succeeded result",
-  "$ref": "helix://contracts/types/LibraBindingDraft/v1"
+  "$ref": "helix://contracts/types/LibraBindingDraftReceipt/v1"
 }

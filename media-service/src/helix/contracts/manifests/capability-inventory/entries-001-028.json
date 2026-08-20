@@ -601,21 +601,21 @@
       "sourceLocator": {
         "section": "8.6.5",
         "line": 9656,
-        "lineDigest": "33d349a4987b4e7f9ccc1be43180c9e3bc7a6c5d1e335d03e68a3d02c5c4825c"
+        "lineDigest": "4654699d6000334fddaa7ca4fcbdc4a5e8e06d2c5b55a5fbf11fcba1b02e9f8a"
       },
       "targetLocator": {
         "path": "capabilities/libra/intake/binding/resolve/v1/manifest.json"
       },
       "contract": {
         "packagePath": "capabilities/libra/intake/binding/resolve/v1",
-        "packageDigest": "134239f6af17362eb2cc2ec1ad71a574f0628463ac36adf1dd6aacf86b1c2c1d",
+        "packageDigest": "27e0a9db688a74f6a0589c74fbebb2b02889aaa73e1ca391b5a00d42f0e7c466",
         "effectClass": "pure_observation",
         "inputSummary": "CandidateDeliverySnapshot + SubjectContinuityResolutionDecision",
-        "outputFamily": "LibraBindingDraft"
+        "outputFamily": "LibraBindingDraftReceipt"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "e2baa7936a2f2829233355b669c6cfc9ec4d0c06382fa57c6fa0a2ae320aa23c"
+        "value": "b6900dd9c4db4faf17292b120e652a7f50e60f66caca58ab8599f383dd92dfc5"
       }
     },
     {

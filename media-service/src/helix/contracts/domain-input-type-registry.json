@@ -347,7 +347,7 @@
           "source": {
             "section": "8.6.5",
             "line": 9656,
-            "lineDigest": "33d349a4987b4e7f9ccc1be43180c9e3bc7a6c5d1e335d03e68a3d02c5c4825c"
+            "lineDigest": "4654699d6000334fddaa7ca4fcbdc4a5e8e06d2c5b55a5fbf11fcba1b02e9f8a"
           },
           "typeExpression": "CandidateDeliverySnapshot"
         },
@@ -2486,7 +2486,7 @@
           "source": {
             "section": "8.6.5",
             "line": 9656,
-            "lineDigest": "33d349a4987b4e7f9ccc1be43180c9e3bc7a6c5d1e335d03e68a3d02c5c4825c"
+            "lineDigest": "4654699d6000334fddaa7ca4fcbdc4a5e8e06d2c5b55a5fbf11fcba1b02e9f8a"
           },
           "typeExpression": "SubjectContinuityResolutionDecision"
         }

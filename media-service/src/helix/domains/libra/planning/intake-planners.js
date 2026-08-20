@@ -2,7 +2,7 @@
 
 const { canonicalDigest } = require('../../../contracts/canonical-json');
 const { executionCatalogDigest } = require('../../../foundation/execution/workflow-plan');
-const { buildAcceptedIntakePayload } = require('../model/intake-acceptance-contracts');
+const { buildAcceptedIntakePayload, rebuildLibraBindingDraftFromReceipt } = require('../model/intake-acceptance-contracts');
 const { buildIntakeRejectionDecision } = require('../model/intake-rejection-contracts');
 
 const CANDIDATE='libra.intake.candidate.verify@1', MATERIAL='libra.intake.material.verify@1',
@@ -66,10 +66,12 @@ function createIntakeProjections(options){
   function verifications(ownerScope,workId){const values=verificationResults(ownerScope,workId),candidate=values.find((item)=>item.schemaRef==='helix://contracts/types/CandidateContractVerification/v1'),
     material=values.find((item)=>item.schemaRef==='helix://contracts/types/IntakeMaterialVerification/v1');if(!candidate||!material)throw new Error('Intake Evidence Results are incomplete.');
     return {candidate,material};}
-  function payload(ownerScope,bindingDraft,requestedWorkId){const snapshot=read(ownerScope).snapshot,decision=bindingDraft?.resolutionDecision,
+  function payload(ownerScope,bindingReceipt,requestedWorkId){const snapshot=read(ownerScope).snapshot,
     current=options.decisionResolver.resolve(snapshot),v=verifications(ownerScope,requestedWorkId);
-    if(!decision||decision.decisionDigest!==current.decisionDigest){const error=new Error('Subject continuity basis changed after Binding resolution.');
+    if(!bindingReceipt||bindingReceipt.resolutionDecisionDigest!==current.decisionDigest){const error=new Error('Subject continuity basis changed after Binding resolution.');
       error.code='P8_ACCEPTANCE_CONTINUITY_BASIS_STALE';throw error;}
+    const bindingDraft=rebuildLibraBindingDraftFromReceipt(snapshot,current,bindingReceipt);
+    const decision=current;
     return buildAcceptedIntakePayload({snapshot,decision,bindingDraft,candidateVerification:v.candidate,materialVerification:v.material});}
   function controlHandle(value,eventId){const p=value,decision=p.resolutionDecision;return Object.freeze({schemaRef:'helix://contracts/types/ResponsibilityControlCommitHandle/v1',schemaVersion:1,
     handleId:stable('libra-handoff-a-control-',{intakeDecisionId:decision.decisionId,payloadDigest:p.payloadDigest}),operationKind:'transfer',ownerDomain:'libra',

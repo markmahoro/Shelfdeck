@@ -576,7 +576,8 @@ function createProcurementExecutionRuntime(options) {
   const domainReconciler = { async reconcile(request) {
     if(request.reconcilePhase==='attempt_terminal'){
       if(request.ownerDomain==='libra'&&request.processType==='libra_intake'&&request.workKind==='acceptance'&&
-          request.workAttemptState==='failed'&&request.workAttemptFailureCode==='P8_ACCEPTANCE_CONTINUITY_BASIS_STALE'){
+          request.workAttemptState==='failed'&&['P8_ACCEPTANCE_CONTINUITY_BASIS_STALE',
+            'P4_UAT_INTAKE_BINDING_RESULT_REPLAN_REQUIRED'].includes(request.workAttemptFailureCode)){
         return {workId:request.workId,disposition:'replan'};
       }
       if(request.ownerDomain==='procurement'&&request.processType==='procurement_run'&&

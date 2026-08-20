@@ -1,7 +1,7 @@
 'use strict';
 
 const { canonicalDigest } = require('../../../contracts/canonical-json');
-const { buildAcceptedIntakePayload, buildLibraBindingDraft } = require('../model/intake-acceptance-contracts');
+const { buildLibraBindingDraftReceipt } = require('../model/intake-acceptance-contracts');
 const { createIntakeAcceptanceStore } = require('../persistence/intake-acceptance-store');
 const { createIntakeRejectionStore } = require('../persistence/intake-rejection-store');
 
@@ -85,7 +85,7 @@ function createIntakeCapabilityPorts(options) {
     'libra.intake.material.verify@1':pure('libra.intake.material.verify@1',({candidateDeliverySnapshot,physicalMaterialReadHandleList})=>
       materialResult(candidateDeliverySnapshot,physicalMaterialReadHandleList,now(),options.computeFingerprint)),
     'libra.intake.binding.resolve@1':pure('libra.intake.binding.resolve@1',({candidateDeliverySnapshot,subjectContinuityResolutionDecision})=>
-      buildLibraBindingDraft(candidateDeliverySnapshot,subjectContinuityResolutionDecision,0)),
+      buildLibraBindingDraftReceipt(candidateDeliverySnapshot,subjectContinuityResolutionDecision,0)),
     'libra.intake.accept.commit@1':Object.freeze({validateInputs(c){if(!c?.namedInputs?.acceptedIntakePayload)throw new TypeError('Acceptance inputs are required.');},
       execute(context){const payload=context.namedInputs.acceptedIntakePayload;
         const marker='libra-intake-accepted-marker-'+canonicalDigest({decisionId:payload.intakeDecisionId,payloadDigest:payload.payloadDigest}).slice(0,40);
