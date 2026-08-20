@@ -38,7 +38,7 @@ function definitions(schemaManifest) {
       'event_id', 'plan_id', 'node_id', 'work_id', 'attempt_id', 'owner_domain', 'capability_ref', 'state'
     ]),
     nodes: listRepository(schemaManifest, 'startup_nodes', 'fx_plan_nodes', [
-      'plan_id', 'node_id', 'capability_ref', 'contract_version', 'effect_class'
+      'plan_id', 'node_id', 'capability_ref', 'contract_version', 'effect_class', 'input_bindings_json'
     ]),
     attempts: listRepository(schemaManifest, 'startup_attempts', 'fx_event_attempts', [
       'event_attempt_id', 'event_id', 'ordinal', 'state', 'outcome_kind', 'failure_class', 'failure_code', 'started_at_ms'

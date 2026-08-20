@@ -79,7 +79,7 @@ const ARCA_ALL_ENABLED=Object.freeze([...ARCA_ENABLED,...ARCA_OFFDECK_ENABLED,..
 const ENABLED = Object.freeze([...PROCUREMENT_ENABLED, ...SHARED_ENABLED, ...LIBRA_ENABLED, ...PERCEPTION_ENABLED,...ARCA_ALL_ENABLED]);
 const UAT_SOURCE_EXECUTION_CATALOG_DIGEST = 'b0371a6d2793c1e381a4c2e7fc421d312a1a1e90d2de5e47f61a45022f09793b';
 
-function verifyStartupPlanCatalog(snapshot, currentCatalogDigest, registry, policyRegistry) {
+function verifyStartupPlanCatalog(snapshot, currentCatalogDigest, registry, policyRegistry, bindingProjectionRegistry) {
   if (!snapshot || !snapshot.plan) return false;
   if (snapshot.plan.catalog_digest === currentCatalogDigest) return true;
   if (snapshot.plan.catalog_digest !== UAT_SOURCE_EXECUTION_CATALOG_DIGEST ||
@@ -100,6 +100,10 @@ function verifyStartupPlanCatalog(snapshot, currentCatalogDigest, registry, poli
       if (entry.manifest.contractVersion !== node.contract_version ||
           entry.manifest.effectClass !== node.effect_class) return false;
       policyRegistry.bindingFor(node.capability_ref, node.effect_class);
+      const bindingSet=JSON.parse(node.input_bindings_json);
+      for(const binding of bindingSet.bindings||[]){
+        if(binding.projectionRef)bindingProjectionRegistry.resolve(binding.projectionRef);
+      }
     }
     return true;
   } catch (error) {
@@ -551,7 +555,9 @@ function createProcurementExecutionRuntime(options) {
   const catalogDigest = executionCatalogDigest(registry, policyRegistry);
   const startupRecovery = createStartupRecovery({ schemaManifest: options.schemaManifest, unitOfWork: options.unitOfWork,
     registry, policyRegistry, integrityVerifier: { verify: () => ({ ok: true }) },
-    catalogVerifier: { verify: (snapshot) => verifyStartupPlanCatalog(snapshot, catalogDigest, registry, policyRegistry) },
+    catalogVerifier: { verify: (snapshot) => verifyStartupPlanCatalog(
+      snapshot, catalogDigest, registry, policyRegistry, bindingProjectionRegistry,
+    ) },
     effectReconciler });
   let host;
   function reconcileLibraRun(libraRunId) {

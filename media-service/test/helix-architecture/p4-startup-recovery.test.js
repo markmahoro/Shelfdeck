@@ -91,7 +91,9 @@ test('catalog verification receives the immutable Plan execution context', async
 test('the exact UAT source Catalog continues only when every immutable node still resolves exactly', () => {
   const current = 'c'.repeat(64);
   const node = Object.freeze({ plan_id: 'plan', node_id: 'node', capability_ref: 'libra.fixture@1',
-    contract_version: 1, effect_class: 'pure_observation' });
+    contract_version: 1, effect_class: 'pure_observation', input_bindings_json: JSON.stringify({bindings:[{
+      projectionRef:'helix://libra/input-projections/Fixture/v1',
+    }]}) });
   const event = Object.freeze({ plan_id: 'plan', node_id: 'node', owner_domain: 'libra', capability_ref: 'libra.fixture@1' });
   const base = Object.freeze({ plan: Object.freeze({ catalog_digest: UAT_SOURCE_EXECUTION_CATALOG_DIGEST }),
     work: Object.freeze({ owner_domain: 'libra' }), nodes: Object.freeze([node]), events: Object.freeze([event]) });
@@ -100,11 +102,14 @@ test('the exact UAT source Catalog continues only when every immutable node stil
     return { manifest: { contractVersion: 1, effectClass: 'pure_observation' } };
   } };
   const policyRegistry = { bindingFor: () => ({ retryPolicyRef: 'retry', timeoutPolicyRef: 'timeout' }) };
-  assert.equal(verifyStartupPlanCatalog(base, current, registry, policyRegistry), true);
-  assert.equal(verifyStartupPlanCatalog({ ...base, plan: { catalog_digest: current } }, current, registry, policyRegistry), true);
+  const projections = { resolve: (ref) => ref === 'helix://libra/input-projections/Fixture/v1' ? {} : (()=>{throw new Error('unknown');})() };
+  assert.equal(verifyStartupPlanCatalog(base, current, registry, policyRegistry,projections), true);
+  assert.equal(verifyStartupPlanCatalog({ ...base, plan: { catalog_digest: current } }, current, registry, policyRegistry,projections), true);
   assert.equal(verifyStartupPlanCatalog({ ...base, nodes: [{ ...node, effect_class: 'workspace_write' }] },
-    current, registry, policyRegistry), false);
-  assert.equal(verifyStartupPlanCatalog({ ...base, events: [] }, current, registry, policyRegistry), false);
+    current, registry, policyRegistry,projections), false);
+  assert.equal(verifyStartupPlanCatalog({ ...base, events: [] }, current, registry, policyRegistry,projections), false);
+  assert.equal(verifyStartupPlanCatalog({ ...base, nodes:[{...node,input_bindings_json:JSON.stringify({bindings:[{
+    projectionRef:'helix://libra/input-projections/Missing/v1'}]})}]},current,registry,policyRegistry,projections),false);
 });
 
 test('pure crash is classified safe_retry but readiness remains recovering until action converges', async () => fixture(async (recovery) => {

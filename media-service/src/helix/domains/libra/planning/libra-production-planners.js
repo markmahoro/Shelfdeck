@@ -22,6 +22,8 @@ const IDENTITY_EVIDENCE = 'libra.product_identity.evidence.observe@1';
 const IDENTITY = 'libra.product_identity.resolve@1';
 const IDENTITY_EVIDENCE_INTENT = 'helix://libra/input-projections/ProductIdentityEvidenceIntent/v1';
 const IDENTITY_EVIDENCE_SOURCE = 'helix://libra/input-projections/ProductIdentityEvidenceSource/v1';
+const UAT_SOURCE_ROUTING_INTENT = 'helix://libra/input-projections/ProductionIdentityRoutingFactIntent/v1';
+const UAT_SOURCE_ROUTING_SOURCE = 'helix://libra/input-projections/ProductionIdentityRoutingSource/v1';
 const IDENTITY_CLAIM = 'helix://libra/input-projections/ProductionIdentityClaim/v1';
 const PRODUCT_STRUCTURE = 'helix://libra/input-projections/ProductionProductStructure/v1';
 const DECISION_EVIDENCE = 'helix://libra/input-projections/ProductionIdentityDecisionEvidence/v1';
@@ -212,7 +214,26 @@ function createProductIdentityProjections(options) {
       });
     return handle;
   }
+  function sourceRoutingIntent(value) {
+    const routing=options.routingContextReader.read(value.run.subjectId);
+    if(!routing)throw new Error('Routing context is unavailable for Product Identity.');
+    return options.routingContextReader.factObservationIntent(routing,'provider',['resolved_provider_identity'],[]);
+  }
+  function sourceRoutingIntentWithHandle(value) {
+    const intent=sourceRoutingIntent(value),handle=options.resolveRoutingIntegrationHandle(intent);
+    if(!handle)throw executionInputUnavailable(
+      'Configured Provider input is not currently available for Product Identity.', {
+        dependencyKind:'integration',dependencyRef:'tmdb-main',retryAtMs:now()+30_000,
+      });
+    const body={...Object.fromEntries(Object.entries(intent).filter(([key])=>!['intentId','intentDigest'].includes(key))),
+      integrationId:handle.integrationId,configRevision:handle.configRevision};
+    const intentDigest=canonicalDigest(body),intentId=canonicalDigest({schema:'libra.routing-fact-observation-intent-id@1',
+      subjectId:body.subjectId,sourceKind:body.sourceKind,intentDigest});
+    return Object.freeze({intent:Object.freeze({intentId,...body,intentDigest}),handle});
+  }
   return Object.freeze([
+    {projectionRef:UAT_SOURCE_ROUTING_INTENT,projection:{project:({ownerScope})=>sourceRoutingIntentWithHandle(snapshot(ownerScope)).intent}},
+    {projectionRef:UAT_SOURCE_ROUTING_SOURCE,projection:{project:({ownerScope})=>sourceRoutingIntentWithHandle(snapshot(ownerScope)).handle}},
     {projectionRef:IDENTITY_EVIDENCE_INTENT,projection:{project:({ownerScope,parameters})=>identityIntent(snapshot(ownerScope),parameters)}},
     {projectionRef:IDENTITY_EVIDENCE_SOURCE,projection:{project:({ownerScope,parameters})=>{
       const value=snapshot(ownerScope),intent=identityIntent(value,parameters);
@@ -670,6 +691,7 @@ function createArtifactProductionProjections(options) {
 }
 
 module.exports=Object.freeze({DECISION_EVIDENCE,IDENTITY_CLAIM,IDENTITY_HANDLE,PRODUCT_STRUCTURE,IDENTITY_EVIDENCE_INTENT,IDENTITY_EVIDENCE_SOURCE,
+  UAT_SOURCE_ROUTING_INTENT,UAT_SOURCE_ROUTING_SOURCE,
   METADATA_INTENT,METADATA_SOURCE,METADATA_DRAFT,ARTIFACT_INTEGRATION,SIDECAR_PROFILE,ARTIFACT_REQUIREMENT,ARTIFACT_HANDLE_LIST,
   createProductIdentityPlanner,createProductIdentityProjections,
   createProductMetadataObservationPlanner,createProductMetadataObservationProjections,decisionEvidence,identityCommitFence,

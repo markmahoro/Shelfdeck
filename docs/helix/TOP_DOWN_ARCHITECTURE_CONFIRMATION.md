@@ -15033,3 +15033,10 @@ Registry still provides its exact typed binding. A missing node/Event, changed c
 invisible Capability or absent policy binding remains `PLAN_CATALOG_DRIFT` and blocks supply. Newly published Plans
 must always bind the current full Catalog digest; this narrow startup continuity is not a second active Catalog,
 dual-read contract or authority to translate old Plans.
+
+The exact pre-UAT Product Identity Observation Plans that were already `executing` may resolve their two frozen
+`ProductionIdentityRouting*` input Projection refs solely to finish those existing Work Attempts. No current Planner
+may publish either ref. Their old `RoutingFactObservation` Results remain immutable historical Evidence and cannot
+publish or satisfy a revision-2 Product Identity. Owner reconcile must subsequently issue the current source-specific
+`related_nfo | provider_exact | provider_search` Evidence Work, and only `ProductIdentityEvidenceObservation@1` may
+feed the new Identity commit. This closes the old technical responsibility without preserving the old business path.
