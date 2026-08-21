@@ -179,7 +179,7 @@ async function main(){const root=path.resolve(process.argv[2]||'');if(!root||!fs
       // Admission: Playlist, ClipInfo, index/MovieObject and Stream payload.
       // The canary policy therefore admits those structural extensions and
       // does not apply the movie-sized minimum to metadata members.
-      allowedExtensions:['.avi','.bdmv','.clpi','.m2ts','.mkv','.mov','.mp4','.mpls','.ts'],minimumSizeBytes:0,excludedMaterialKeys:[]};
+      allowedExtensions:['.avi','.bdmv','.clpi','.iso','.m2ts','.mkv','.mov','.mp4','.mpls','.ts'],minimumSizeBytes:0,excludedMaterialKeys:[]};
     const policyBasis={extractionPolicyId:'full-movie-canary-policy',revision:1,...policyValue};const accessBasis={fieldId,revision:1,
       endpointId:'local-readonly-'+canonicalDigest(root).slice(0,16),rootLocation:root,mountScopeId:'local-canary-mount-'+canonicalDigest(root).slice(0,16),
       mountScopeRevision:1,accessSchemaRef:'helix://canary/local-readonly-field/v1'};

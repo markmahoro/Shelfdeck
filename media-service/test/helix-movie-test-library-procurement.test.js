@@ -15,6 +15,14 @@ const sourceRoot = process.env.HELIX_MOVIE_TEST_LIBRARY_ROOT
   ? path.resolve(process.env.HELIX_MOVIE_TEST_LIBRARY_ROOT)
   : null;
 
+test('Admin Web Movie Field default policy admits ISO disc images', () => {
+  const source = fs.readFileSync(path.join(__dirname, '../web/src/helix/api.ts'), 'utf8');
+  const block = source.slice(source.indexOf('export async function materialFieldRegistration'));
+  const match = block.match(/allowedExtensions:\s*\[([^\]]+)\]/);
+  assert.ok(match, 'Movie Field registration must declare allowedExtensions');
+  assert.match(match[1], /'\.iso'/);
+});
+
 async function authenticate(host, apiKey) {
   const response = await host.inject({ method:'POST', url:'/v1/admin/session', headers:{ 'x-api-key':apiKey } });
   assert.equal(response.statusCode, 204, response.body);
@@ -76,7 +84,7 @@ test('generated Movie test library reaches Handoff A Ready without a Process-loc
   const policyValue = Object.freeze({
     includedDirectories:[],
     excludedDirectories:[],
-    allowedExtensions:['.avi','.bdmv','.clpi','.m2ts','.m4v','.mkv','.mov','.mp4','.mpls','.ts','.wmv'],
+    allowedExtensions:['.avi','.bdmv','.clpi','.iso','.m2ts','.m4v','.mkv','.mov','.mp4','.mpls','.ts','.wmv'],
     minimumSizeBytes:0,
     excludedMaterialKeys:[],
   });

@@ -1498,7 +1498,33 @@ Related disposition obligation，保持原始文件名，不新增业务Owner、
 
 当前处理决定：用户已确认必须修复，先入台账，与其余 OPEN 项统一修。状态 `OPEN / FIX REQUIRED`。
 
-## 28. 后续问题模板
+## 28. UAT-031：Movie Field 默认扩展名遗漏 ISO，倩女幽魂2未进入观察
+
+问题分类：`PROCUREMENT_EXTRACTION_POLICY / DISC_INPUT / USER_VISIBLE_RECOVERY`
+
+用户侧现象：2026-08-22 干净 Movie Canary 真实 Admin Web UAT 中，基线顶层单元
+`倩女幽魂2：人间道 (1990)` 是 ISO 原盘，却没有出现在 Formation 的 22 个 Subject 里。
+成功标准要求它作为一部 Movie 被识别。
+
+现场证据：页面登记 Field 时 Admin Web 默认 `allowedExtensions` 为
+`.avi .bdmv .clpi .m2ts .m4v .mkv .mov .mp4 .mpls .ts .wmv`，不含 `.iso`。
+Observation revision 2 形成 22 个 Candidate，恰好等于「22 个顶层单元 − 1 个 ISO + 1 个养蜂人 BDMV」。
+
+精确根因：Movie Field 默认 Extraction Policy 只覆盖常见流文件和 BDMV 结构扩展名，
+没有把 ISO 盘镜像作为一部 Movie 的合法输入。ISO 被判定 `policy_extension_not_allowed`，
+不进入 Triage。
+
+业务影响：ISO 原盘从发现阶段就消失，无法整理或上架。
+
+修复边界：Admin Web 默认 Movie Field 政策纳入 `.iso`；本地 Canary 脚本与 Movie 测试库政策对齐。
+仍把单个 ISO 视为一部 Movie，不展开内部文件。不改 Field Owner 或 Observation 合同。
+
+验收证据：Admin Web `materialFieldRegistration` 默认列表含 `.iso` 的专项回归通过。旧 Field 政策不可变；
+干净 Canary 重建后从页面新建 Field 才能观察到 `倩女幽魂2：人间道`。
+
+修复状态（2026-08-22）：`REGRESSION PASSED / CLEAN CANARY UAT PENDING`。
+
+## 29. 后续问题模板
 
 后续发现的问题按以下结构追加：
 

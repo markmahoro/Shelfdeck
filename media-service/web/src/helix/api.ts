@@ -529,7 +529,8 @@ export async function materialFieldRegistration(input: {
     // ClipInfo and BDMV control files must therefore pass the same Extraction
     // Policy as the selected M2TS payload; otherwise Run Admission freezes an
     // incomplete container that can never produce topology evidence.
-    allowedExtensions: ['.avi', '.bdmv', '.clpi', '.m2ts', '.m4v', '.mkv', '.mov', '.mp4', '.mpls', '.ts', '.wmv'],
+    // ISO disc images are likewise one Movie unit and must be admitted by default.
+    allowedExtensions: ['.avi', '.bdmv', '.clpi', '.iso', '.m2ts', '.m4v', '.mkv', '.mov', '.mp4', '.mpls', '.ts', '.wmv'],
     minimumSizeBytes: 0,
     excludedMaterialKeys: [],
   };
