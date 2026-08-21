@@ -13,6 +13,21 @@ const ISO_SECTOR_BYTES = 2048;
 // Inherit the previous video timestamp; do not invent wall-clock time.
 const VIDEO_TIMESTAMP_FILL_BSF =
   "setts=pts='if(eq(PTS\\,NOPTS)\\,PREV_OUTPTS\\,PTS)':dts='if(eq(DTS\\,NOPTS)\\,PREV_OUTDTS\\,DTS)'";
+const MATROSKA_UNCOPYABLE_AUDIO = new Set(['pcm_bluray', 'pcm_dvd']);
+
+function matroskaCopyMapsFromProbe(stderr) {
+  const maps = [];
+  const pattern = /^\s*Stream #0:(\d+)(?:\[[^\]]*\])?(?:\([^)]*\))?: (Video|Audio|Subtitle): ([A-Za-z0-9_]+)/gm;
+  let match;
+  while ((match = pattern.exec(String(stderr || '')))) {
+    const index = match[1];
+    const kind = match[2].toLowerCase();
+    const codec = match[3].toLowerCase();
+    if (kind === 'audio' && MATROSKA_UNCOPYABLE_AUDIO.has(codec)) continue;
+    if (kind === 'video' || kind === 'audio' || kind === 'subtitle') maps.push('-map', '0:' + index);
+  }
+  return maps.length ? maps : ['-map', '0:v:0', '-map', '0:a?', '-map', '0:s?'];
+}
 
 class CleanMediaProductionEffectPortError extends Error {
   constructor(code, message, details = {}) {
@@ -265,9 +280,16 @@ function createCleanMediaProductionEffectPort(options) {
       async produce(temporaryTarget) {
         const input = inputArguments(request.source, temporaryTarget);
         try {
+          let identify = '';
+          try {
+            await runProcess(ffmpegPath, ['-hide_banner', '-nostdin', ...input.argv], 60_000);
+          } catch (error) {
+            identify = String(error?.details?.stderr || '');
+          }
+          const maps = matroskaCopyMapsFromProbe(identify);
           await runProcess(ffmpegPath, [
             '-hide_banner', '-nostdin', '-y', '-fflags', '+genpts', ...input.argv,
-            '-map', '0', '-c', 'copy', '-bsf:v', VIDEO_TIMESTAMP_FILL_BSF, '-f', 'matroska', temporaryTarget,
+            ...maps, '-c', 'copy', '-bsf:v', VIDEO_TIMESTAMP_FILL_BSF, '-f', 'matroska', temporaryTarget,
           ], timeoutMs, request.reportProgress?{report:request.reportProgress,prefix:'remux'}:null);
         } finally { input.cleanup?.(); }
       } });
@@ -334,4 +356,9 @@ function createCleanMediaProductionEffectPort(options) {
   return Object.freeze({ executeRemux, executeTranscode,verifyTranscodeInput,verifyPlayback });
 }
 
-module.exports = Object.freeze({ CleanMediaProductionEffectPortError, createCleanMediaProductionEffectPort, runProcess });
+module.exports = Object.freeze({
+  CleanMediaProductionEffectPortError,
+  createCleanMediaProductionEffectPort,
+  runProcess,
+  matroskaCopyMapsFromProbe,
+});

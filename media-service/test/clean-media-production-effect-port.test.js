@@ -11,6 +11,7 @@ const { createUdfBluRay, writeMpls } = require('../scripts/build-helix-movie-tes
 const {
   runProcess,
   createCleanMediaProductionEffectPort,
+  matroskaCopyMapsFromProbe,
 } = require('../src/clean-media-production-effect-port');
 
 function writeTinyMpegTs(target) {
@@ -109,6 +110,20 @@ function remuxRequest(sourceLocation) {
     idempotencyKey: 'key-1',
   };
 }
+
+test('remux maps skip Matroska-uncopyable Blu-ray LPCM under copy_all_supported', () => {
+  const stderr = [
+    'Input #0, mpegts, from \'clip.m2ts\':',
+    '  Stream #0:0[0x1011]: Video: h264 (High) (HDMV / 0x564D4448), yuv420p',
+    '  Stream #0:1[0x1100]: Audio: dts (DTS-HD MA) ([134][0][0][0] / 0x0086), 48000 Hz',
+    '  Stream #0:2[0x1101]: Audio: ac3 (AC-3 / 0x332D4341), 48000 Hz',
+    '  Stream #0:3[0x1102]: Audio: pcm_bluray (HDMV / 0x564D4448), 48000 Hz, stereo',
+    '  Stream #0:4[0x1200]: Subtitle: hdmv_pgs_subtitle ([144][0][0][0] / 0x0090)',
+  ].join('\n');
+  assert.deepEqual(matroskaCopyMapsFromProbe(stderr), [
+    '-map', '0:0', '-map', '0:1', '-map', '0:2', '-map', '0:4',
+  ]);
+});
 
 test('contains progress persistence failures inside the media effect promise', async () => {
   const failure = Object.assign(new Error('progress conflict'), {

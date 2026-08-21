@@ -1835,7 +1835,23 @@ stderr 为 `CLEAN_ARCA_TARGET_OCCUPIED` 与 `CLEAN_ARCA_SETTLEMENT_UNKNOWN_MEMBE
 
 当前处理决定：按根因修复并提交。现场 Attempt 4 已在抽 ISO clip（工作区 `.iso-clip-00000.m2ts` 在增长）。状态 `REGRESSION PASSED / LIVE EXTRACT IN PROGRESS`。
 
-## 43. 后续问题模板
+## 43. UAT-046：ISO Remux 抽出 m2ts 后因 pcm_bluray 无法 copy 进 Matroska 立即失败并整盘重抽
+
+问题分类：`MEDIA_PRODUCTION / BUSINESS_CONTRACT`
+
+用户侧现象：`倩女幽魂2` ISO 拓扑已证明，主片 `BDMV/STREAM/00005.m2ts`（约 21.6 GiB）能抽出，但 FFmpeg 写 Matroska 头就失败，留下 293 字节 partial，然后立刻再抽一遍。现场 Attempt 3–11 连续 `LIBRA_MEDIA_FFMPEG_FAILED`。
+
+现场证据：抽出样本头为 BDAV `04 14 … 47`。FFmpeg 识别到 Video h264、Audio dts/ac3/**pcm_bluray**、PGS。报错 `No wav codec tag found for codec pcm_bluray` / `Could not write header`。RemuxIntent 是 `copy_all_supported`，执行却 `-map 0` 全拷。
+
+精确根因：蓝光 LPCM（`pcm_bluray`）不能作为 copy 进入 Matroska。这不是体积预算，也不是拓扑失败。
+
+修复边界：Remux 先识别输入流，跳过 Matroska 不能 copy 的 `pcm_bluray`/`pcm_dvd`，其余视频/DTS/AC3/PGS 仍 copy。不得把 `.iso` 当流，不得把 LPCM 暗转成有损。
+
+验收证据：探测 stderr 含 pcm_bluray 时 map 不含 `0:3`；现有 ISO/BDAV remux 回归仍通过。
+
+当前处理决定：按 `copy_all_supported` 跳过不支持的轨。状态 `REGRESSION PASSED / SERVICE RESTART REQUIRED`。
+
+## 44. 后续问题模板
 
 后续发现的问题按以下结构追加：
 
