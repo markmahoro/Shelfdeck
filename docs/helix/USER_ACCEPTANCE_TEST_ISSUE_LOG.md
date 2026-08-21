@@ -1524,7 +1524,31 @@ Observation revision 2 形成 22 个 Candidate，恰好等于「22 个顶层单�
 
 修复状态（2026-08-22）：`REGRESSION PASSED / CLEAN CANARY UAT PENDING`。
 
-## 29. 后续问题模板
+## 29. UAT-032：Aftercare 旧 Custody 绑定 objectKind 与合同不一致，健康评估无法执行
+
+问题分类：`AFTERCARE_CONTRACT / SCHEMA_REJECTION / COLLECTION_HEALTH`
+
+用户侧现象：2026-08-22 干净 Movie Canary 中已进入收藏的 6 部健康状态全是 `never_assessed`，
+概览「健康收藏」为 0。UAT-026 专项里 Aftercare 也因 `care-custody` 输入被 schema 拒绝。
+
+现场证据：服务日志 `arca.aftercare.custody.observe@1` 报 `P4_CAPABILITY_SCHEMA_REJECTED`：
+`knownBindings.bindings[n].objectKind must be equal to constant`。合同 `KnownBindings.bindings`
+只允许 `arca-material-binding`。Context reader 把当前成员写成该值，却把旧 custody 写成
+`arca-known-old-binding`。
+
+精确根因：Aftercare Known Bindings 把「仍在最终位置的成员」和「已被替换、待对照的旧 Binding」
+混用了两个 objectKind；后者不是 Domain Input 合同允许的常量，Event 在 Capability 派发前失败。
+
+业务影响：上架成功的电影无法做 Custody/健康证明，Aftercare 从第一步就停住。
+
+修复边界：当前成员与旧 custody 行一律使用 `objectKind: arca-material-binding`。仍用 objectId
+前缀区分 old-binding。不放宽 schema，不改 Aftercare Owner。
+
+验收证据：合同测试断言 Aftercare context reader 不再写出 `arca-known-old-binding`。
+
+修复状态（2026-08-22）：`REGRESSION PASSED / CLEAN CANARY UAT PENDING`。
+
+## 30. 后续问题模板
 
 后续发现的问题按以下结构追加：
 

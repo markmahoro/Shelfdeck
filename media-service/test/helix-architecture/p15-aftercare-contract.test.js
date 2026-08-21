@@ -80,6 +80,13 @@ test('Care Disposition permits repair only when every blocking Finding is repair
   ] }]), 'observe');
 });
 
+test('Aftercare Known Bindings keep a single schema objectKind for current and old custody rows', () => {
+  const source = fs.readFileSync(path.join(__dirname,
+    '../../src/helix/domains/arca/application/aftercare-context-reader.js'), 'utf8');
+  assert.match(source, /objectKind:'arca-material-binding'/);
+  assert.doesNotMatch(source, /arca-known-old-binding/);
+});
+
 test('Aftercare Case closure reclaims Workspace before publishing resolved Case Result', () => {
   const source = fs.readFileSync(path.join(__dirname,
     '../../src/helix/domains/arca/planning/aftercare-planners.js'), 'utf8');
