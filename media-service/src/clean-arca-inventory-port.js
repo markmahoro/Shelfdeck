@@ -669,9 +669,10 @@ function createCleanArcaInventoryPort(options) {
 
   function prepareSlot(request) {
     const handle = slotHandle(request);
-    if (fs.existsSync(handle.targetDirectory)) {
+    if (fs.existsSync(handle.targetDirectory) &&
+        !fs.statSync(handle.targetDirectory).isDirectory()) {
       fail('CLEAN_ARCA_TARGET_OCCUPIED',
-        'Final Inventory target already exists before placement switch.');
+        'Final Inventory target is not a directory.');
     }
     if (fs.existsSync(handle.slotDirectory) &&
         !fs.statSync(handle.slotDirectory).isDirectory()) {
@@ -698,6 +699,16 @@ function createCleanArcaInventoryPort(options) {
         fail('CLEAN_ARCA_TARGET_ESCAPE',
           'Staged Inventory member escaped the Target Commit Slot.');
       }
+      const finalExisting = fs.existsSync(plan.target)
+        ? computeBoundedMaterialFingerprintSync(plan.target)
+        : null;
+      const finalExact = finalExisting &&
+        Number(finalExisting.stat.size) === plan.sizeBytes &&
+        finalExisting.contentFingerprint === plan.contentFingerprint;
+      if (finalExisting && !finalExact) {
+        fail('CLEAN_ARCA_TARGET_OCCUPIED',
+          'Final Inventory target contains conflicting bytes.');
+      }
       const existing = fs.existsSync(target)
         ? computeBoundedMaterialFingerprintSync(target)
         : null;
@@ -707,7 +718,7 @@ function createCleanArcaInventoryPort(options) {
         fail('CLEAN_ARCA_STAGE_CONFLICT',
           'Target Commit Slot contains conflicting staged bytes.');
       }
-      if (!exact) {
+      if (!finalExact && !exact) {
         const temporary = target + '.tmp-' +
           canonicalDigest({ run:request.onDeckRunId, key:plan.member.materialKey })
             .slice(0, 16);
@@ -722,7 +733,8 @@ function createCleanArcaInventoryPort(options) {
         }
         fs.renameSync(temporary, target);
       }
-      const observed = computeBoundedMaterialFingerprintSync(target);
+      const observed = finalExact
+        ? finalExisting : computeBoundedMaterialFingerprintSync(target);
       const identityBase = {
         schemaRef: 'helix://contracts/types/PhysicalMaterialIdentity/v2',
         schemaVersion: 2,
@@ -798,8 +810,10 @@ function createCleanArcaInventoryPort(options) {
         fail('CLEAN_ARCA_STAGE_SLOT_ESCAPE',
           'Staged member final binding escaped the frozen target.');
       }
-      const location = path.resolve(handle.slotDirectory,
+      const stagedLocation = path.resolve(handle.slotDirectory,
         path.basename(finalLocation));
+      const location = fs.existsSync(stagedLocation)
+        ? stagedLocation : finalLocation;
       const fingerprint = computeBoundedMaterialFingerprintSync(location);
       if (Number(fingerprint.stat.size) !== member.sizeBytes ||
           fingerprint.contentFingerprint !==
@@ -834,6 +848,7 @@ function createCleanArcaInventoryPort(options) {
   }
 
   function switchPlacement(request) {
+    const built = buildPlan(request);
     const handle = slotHandle(request);
     const verification = request?.stagedInventoryVerification;
     if (!verification || verification.result !== 'passed' ||
@@ -842,18 +857,46 @@ function createCleanArcaInventoryPort(options) {
       fail('CLEAN_ARCA_PLACEMENT_UNVERIFIED',
         'Placement switch requires exact passed staging verification.');
     }
-    if (fs.existsSync(handle.targetDirectory)) {
-      if (fs.existsSync(handle.slotDirectory)) {
+    if (fs.existsSync(handle.targetDirectory) &&
+        !fs.statSync(handle.targetDirectory).isDirectory()) {
+      fail('CLEAN_ARCA_TARGET_OCCUPIED',
+        'Final Inventory target is not a directory.');
+    }
+    if (!fs.existsSync(handle.targetDirectory)) {
+      fs.mkdirSync(handle.targetDirectory, { recursive:true });
+    }
+    for (const plan of built.plans) {
+      const stagedLocation = path.resolve(handle.slotDirectory, plan.name);
+      const final = fs.existsSync(plan.target)
+        ? computeBoundedMaterialFingerprintSync(plan.target) : null;
+      const finalExact = final && Number(final.stat.size) === plan.sizeBytes &&
+        final.contentFingerprint === plan.contentFingerprint;
+      if (final && !finalExact) {
         fail('CLEAN_ARCA_TARGET_OCCUPIED',
-          'Final target and staging slot both exist during replay.');
+          'Final Inventory target contains conflicting bytes.');
       }
-    } else {
-      if (!fs.existsSync(handle.slotDirectory) ||
-          !fs.statSync(handle.slotDirectory).isDirectory()) {
+      if (finalExact) {
+        if (fs.existsSync(stagedLocation)) fs.rmSync(stagedLocation, { force:true });
+        continue;
+      }
+      if (!fs.existsSync(stagedLocation)) {
         fail('CLEAN_ARCA_STAGE_SLOT_MISSING',
-          'Verified staging slot disappeared before placement.');
+          'Verified staged member disappeared before placement.');
       }
-      fs.renameSync(handle.slotDirectory, handle.targetDirectory);
+      const staged = computeBoundedMaterialFingerprintSync(stagedLocation);
+      if (Number(staged.stat.size) !== plan.sizeBytes ||
+          staged.contentFingerprint !== plan.contentFingerprint) {
+        fail('CLEAN_ARCA_STAGED_REALITY_DRIFT',
+          'Verified staged member drifted before placement.');
+      }
+      fs.renameSync(stagedLocation, plan.target);
+    }
+    if (fs.existsSync(handle.slotDirectory)) {
+      if (fs.readdirSync(handle.slotDirectory).length !== 0) {
+        fail('CLEAN_ARCA_STAGE_CONFLICT',
+          'Target Commit Slot contains an unplanned member.');
+      }
+      fs.rmdirSync(handle.slotDirectory);
     }
     const base = {
       schemaRef: 'helix://contracts/types/PlacementSwitchReceipt/v1',
@@ -955,13 +998,25 @@ function createCleanArcaInventoryPort(options) {
       fail('CLEAN_ARCA_SETTLEMENT_REALITY_DRIFT',
         'Settlement source drifted from the approved Material identity.');
     }
+    const finalRequest = request?.finalInventoryRequest;
+    if (finalRequest) {
+      const finalPlan = buildPlan({ ...finalRequest, replayCommitted:true }).plans
+        .find((item) => path.resolve(item.target) === source);
+      if (finalPlan && finalPlan.sizeBytes === Number(observed.stat.size) &&
+          finalPlan.contentFingerprint === observed.contentFingerprint) {
+        return Object.freeze({ materialKey:handle.identity.materialKey,
+          preDeleteIdentityDigest:canonicalDigest(handle.identity), absent:false,
+          disposition:'retained_as_final' });
+      }
+    }
     fs.rmSync(source, { force:false });
     if (fs.existsSync(source)) {
       fail('CLEAN_ARCA_SETTLEMENT_DELETE_FAILED',
         'Approved settlement source still exists after deletion.');
     }
     return Object.freeze({ materialKey:handle.identity.materialKey,
-      preDeleteIdentityDigest:canonicalDigest(handle.identity), absent:true });
+      preDeleteIdentityDigest:canonicalDigest(handle.identity), absent:true,
+      disposition:'deleted' });
   }
 
   return Object.freeze({ assess, resolveTargetLocation, prepare, materialize, slotHandle, prepareSlot,
