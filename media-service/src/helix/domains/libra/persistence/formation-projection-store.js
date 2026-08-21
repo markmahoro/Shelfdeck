@@ -32,6 +32,7 @@ function createFormationProjectionStore(options) {
     repositoryId: 'libra_formation_projection_store', owner: 'libra', schemaManifest: options.schemaManifest,
     statements: {
       find: { kind: 'select-one', tableId: TABLE_ID, keyColumns: ['subject_id'], columns: COLUMNS, safeIntegers: true },
+      find_by_offer: { kind:'select-one', tableId:TABLE_ID, keyColumns:['current_offer_id'], columns:COLUMNS, safeIntegers:true },
       insert: { kind: 'insert', tableId: TABLE_ID, columns: COLUMNS },
       update: { kind: 'update', tableId: TABLE_ID, setColumns: SET_COLUMNS, keyColumns: ['subject_id'],
         compareColumns: [{ column: 'projection_revision', parameter: 'expected_projection_revision' }] },
@@ -51,6 +52,7 @@ function createFormationProjectionStore(options) {
     } }]).libra_formation_projection_read;
   }
   function find(subjectId) { return read('find', { subject_id: subjectId }) || null; }
+  function findByOffer(offerId) { return read('find_by_offer', { current_offer_id:offerId }) || null; }
   function upsert(row) {
     return options.unitOfWork.execute([{ participantId: 'libra_formation_projection_write', owner: 'libra', repositories: [repository], execute(context) {
       const repo = context.repository(repository.repositoryId), current = repo.invoke('find', { subject_id: row.subject_id });
@@ -76,7 +78,7 @@ function createFormationProjectionStore(options) {
   function listActive(offset, limit) { return read('active_page', { excluded_classification: 'completed', offset, limit }); }
   function listCompleted(offset, limit) { return read('completed_page', { classification: 'completed', offset, limit }); }
   function counts() { return read('counts', {}); }
-  return Object.freeze({ find, upsert, listActive, listCompleted, counts });
+  return Object.freeze({ find, findByOffer, upsert, listActive, listCompleted, counts });
 }
 
 module.exports = Object.freeze({ COLUMNS, createFormationProjectionStore });

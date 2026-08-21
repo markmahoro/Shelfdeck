@@ -7,7 +7,8 @@ const INTERMEDIATE_GENERATION = 'helix-clean-v2';
 const TARGET_GENERATION = 'helix-clean-v3';
 const SOURCE_SCHEMA_DIGEST = '78075366b3409916b8f8c6fcd3c0786daa5e45bab82f59ba83d91a2663689119';
 const INTERMEDIATE_SCHEMA_DIGEST = 'fee80cf21719481a83274c3b9021918571ed8e5a510239b1d82995758a4cbcd4';
-const TARGET_SCHEMA_DIGEST = '998b673af4d2f0a6ed4f96bcb7f34c56b8dad3ffc562f40a69a335b948a7cab0';
+const PRE_EXECUTOR_CLOSURE_SCHEMA_DIGEST = '998b673af4d2f0a6ed4f96bcb7f34c56b8dad3ffc562f40a69a335b948a7cab0';
+const TARGET_SCHEMA_DIGEST = 'ad9e8ed02ff4ef7286f22d883cf40d774187c4978944a69d7c5dcea1741c6d35';
 const PRE_UAT_EXECUTION_CATALOG_DIGEST = 'b0371a6d2793c1e381a4c2e7fc421d312a1a1e90d2de5e47f61a45022f09793b';
 const PRE_PROJECTION_EXECUTION_CATALOG_DIGEST = '13315cdbdf6ab5cbe30b32075f89bd76ae1a873d84034dc572824f4fbc3886e6';
 const INTAKE_BINDING_REPLAN_CODE = 'P4_UAT_INTAKE_BINDING_RESULT_REPLAN_REQUIRED';
@@ -75,6 +76,30 @@ const FORMATION_PROJECTION_DDL = `CREATE TABLE "libra_formation_projections" (
 CREATE INDEX "idx_libra_formation_projections_hot_01" ON "libra_formation_projections" ("attention_priority", "classification", "updated_at_ms", "subject_id");
 CREATE INDEX "idx_libra_formation_projections_hot_02" ON "libra_formation_projections" ("classification", "completed_at_ms", "subject_id");
 CREATE INDEX "idx_libra_formation_projections_hot_03" ON "libra_formation_projections" ("classification", "subject_id");`;
+
+const EXECUTOR_CLOSURE_DDL = `CREATE TABLE "arca_acceptance_recovery_cases" (
+  "offer_id" TEXT PRIMARY KEY, "on_deck_package_id" TEXT,
+  "package_digest" TEXT CHECK (length("package_digest") = 64 AND "package_digest" NOT GLOB '*[^0-9a-f]*'),
+  "acceptance_attempt_id" TEXT, "active_work_id" TEXT, "work_kind" TEXT, "failure_phase" TEXT, "error_code" TEXT,
+  "terminal_attempt_count" INTEGER CHECK ("terminal_attempt_count" >= 0), "owner_domain" TEXT,
+  "recovery_state" TEXT CHECK ("recovery_state" IN ('active', 'attention_required', 'automatic_recovering', 'user_retrying', 'resolved')),
+  "recovery_generation" TEXT, "automatic_recovery_used" TEXT,
+  "recovery_trigger_digest" TEXT CHECK (length("recovery_trigger_digest") = 64 AND "recovery_trigger_digest" NOT GLOB '*[^0-9a-f]*'),
+  "failed_trigger_digest" TEXT CHECK (length("failed_trigger_digest") = 64 AND "failed_trigger_digest" NOT GLOB '*[^0-9a-f]*'),
+  "incident_key" TEXT, "updated_at_ms" INTEGER CHECK ("updated_at_ms" >= 0),
+  "resolved_at_ms" INTEGER CHECK ("resolved_at_ms" >= 0)
+);
+CREATE INDEX "idx_arca_acceptance_recovery_cases_hot_01" ON "arca_acceptance_recovery_cases" ("recovery_state", "updated_at_ms");
+CREATE TABLE "fx_executor_incidents" (
+  "incident_key" TEXT PRIMARY KEY, "owner_domain" TEXT, "process_type" TEXT, "work_kind" TEXT, "error_code" TEXT,
+  "occurrence_count" INTEGER CHECK ("occurrence_count" >= 0), "circuit_key" TEXT,
+  "incident_state" TEXT CHECK ("incident_state" IN ('open', 'recovering', 'resolved')),
+  "evidence_digest" TEXT CHECK (length("evidence_digest") = 64 AND "evidence_digest" NOT GLOB '*[^0-9a-f]*'),
+  "first_seen_at_ms" INTEGER CHECK ("first_seen_at_ms" >= 0),
+  "last_seen_at_ms" INTEGER CHECK ("last_seen_at_ms" >= 0),
+  "resolved_at_ms" INTEGER CHECK ("resolved_at_ms" >= 0)
+);
+CREATE INDEX "idx_fx_executor_incidents_hot_01" ON "fx_executor_incidents" ("incident_state", "last_seen_at_ms");`;
 
 class UatIdentitySelectionMigrationError extends Error {
   constructor(code, message, details = {}) {
@@ -250,7 +275,7 @@ function migrateUatIdentitySelectionSchema(options) {
   if (!options || typeof options.Database !== 'function' || typeof options.databasePath !== 'string' || !options.schemaManifest) {
     throw new TypeError('The UAT identity-selection migration requires a database driver, path, and target manifest.');
   }
-  if (options.schemaManifest.ddlDigest !== TARGET_SCHEMA_DIGEST || options.schemaManifest.tableCount !== 182) {
+  if (options.schemaManifest.ddlDigest !== TARGET_SCHEMA_DIGEST || options.schemaManifest.tableCount !== 184) {
     throw new UatIdentitySelectionMigrationError('UAT_MIGRATION_TARGET_SCHEMA_UNSUPPORTED',
       'The runtime schema is not the single approved UAT migration target.');
   }
@@ -268,9 +293,11 @@ function migrateUatIdentitySelectionSchema(options) {
         'The source database does not contain the expected ShelfDeck schema marker.');
     }
     const alreadyCurrent = marker.generation === TARGET_GENERATION && marker.schema_digest === TARGET_SCHEMA_DIGEST;
+    const executorClosureSource = marker.generation === TARGET_GENERATION &&
+      marker.schema_digest === PRE_EXECUTOR_CLOSURE_SCHEMA_DIGEST;
     const legacySource = marker.generation === SOURCE_GENERATION && marker.schema_digest === SOURCE_SCHEMA_DIGEST;
     const v2Source = marker.generation === INTERMEDIATE_GENERATION && marker.schema_digest === INTERMEDIATE_SCHEMA_DIGEST;
-    if (!alreadyCurrent && !legacySource && !v2Source) {
+    if (!alreadyCurrent && !executorClosureSource && !legacySource && !v2Source) {
       throw new UatIdentitySelectionMigrationError('UAT_MIGRATION_SOURCE_SCHEMA_UNSUPPORTED',
         'Only the exact pre-UAT live schema can be upgraded in place.', {
           generation: marker.generation, schemaDigest: marker.schema_digest,
@@ -302,7 +329,8 @@ function migrateUatIdentitySelectionSchema(options) {
         UNIQUE ("libra_run_id", "idempotency_key"),
         FOREIGN KEY ("libra_run_id") REFERENCES "libra_runs" ("libra_run_id") ON DELETE RESTRICT
       )`);
-      if (!alreadyCurrent) database.exec(FORMATION_PROJECTION_DDL);
+      if (legacySource || v2Source) database.exec(FORMATION_PROJECTION_DDL);
+      if (!alreadyCurrent) database.exec(EXECUTOR_CLOSURE_DDL);
       const appliedAtMs = now();
       if (!Number.isSafeInteger(appliedAtMs) || appliedAtMs < 0) {
         throw new UatIdentitySelectionMigrationError('UAT_MIGRATION_INVALID_TIME', 'Migration time must be a non-negative safe integer.');

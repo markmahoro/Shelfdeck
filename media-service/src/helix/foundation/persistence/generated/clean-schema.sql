@@ -51,6 +51,28 @@ CREATE TABLE "arca_acceptance_decisions" (
   FOREIGN KEY ("shelf_id") REFERENCES "arca_shelves" ("shelf_id") ON DELETE RESTRICT
 );
 
+CREATE TABLE "arca_acceptance_recovery_cases" (
+  "offer_id" TEXT PRIMARY KEY,
+  "on_deck_package_id" TEXT,
+  "package_digest" TEXT CHECK (length("package_digest") = 64 AND "package_digest" NOT GLOB '*[^0-9a-f]*'),
+  "acceptance_attempt_id" TEXT,
+  "active_work_id" TEXT,
+  "work_kind" TEXT,
+  "failure_phase" TEXT,
+  "error_code" TEXT,
+  "terminal_attempt_count" INTEGER CHECK ("terminal_attempt_count" >= 0),
+  "owner_domain" TEXT,
+  "recovery_state" TEXT CHECK ("recovery_state" IN ('active', 'attention_required', 'automatic_recovering', 'user_retrying', 'resolved')),
+  "recovery_generation" TEXT,
+  "automatic_recovery_used" TEXT,
+  "recovery_trigger_digest" TEXT CHECK (length("recovery_trigger_digest") = 64 AND "recovery_trigger_digest" NOT GLOB '*[^0-9a-f]*'),
+  "failed_trigger_digest" TEXT CHECK (length("failed_trigger_digest") = 64 AND "failed_trigger_digest" NOT GLOB '*[^0-9a-f]*'),
+  "incident_key" TEXT,
+  "updated_at_ms" INTEGER CHECK ("updated_at_ms" >= 0),
+  "resolved_at_ms" INTEGER CHECK ("resolved_at_ms" >= 0)
+);
+CREATE INDEX "idx_arca_acceptance_recovery_cases_hot_01" ON "arca_acceptance_recovery_cases" ("recovery_state", "updated_at_ms");
+
 CREATE TABLE "arca_aftercare_assessments" (
   "assessment_id" TEXT PRIMARY KEY,
   "shelf_entry_id" TEXT,
@@ -1006,6 +1028,22 @@ CREATE TABLE "fx_event_result_bindings" (
   FOREIGN KEY ("event_id") REFERENCES "fx_workflow_events" ("event_id") ON DELETE RESTRICT
 );
 CREATE UNIQUE INDEX "uidx_fx_event_result_bindings_partial_01" ON "fx_event_result_bindings" ("event_id") WHERE 1 = 1;
+
+CREATE TABLE "fx_executor_incidents" (
+  "incident_key" TEXT PRIMARY KEY,
+  "owner_domain" TEXT,
+  "process_type" TEXT,
+  "work_kind" TEXT,
+  "error_code" TEXT,
+  "occurrence_count" INTEGER CHECK ("occurrence_count" >= 0),
+  "circuit_key" TEXT,
+  "incident_state" TEXT CHECK ("incident_state" IN ('open', 'recovering', 'resolved')),
+  "evidence_digest" TEXT CHECK (length("evidence_digest") = 64 AND "evidence_digest" NOT GLOB '*[^0-9a-f]*'),
+  "first_seen_at_ms" INTEGER CHECK ("first_seen_at_ms" >= 0),
+  "last_seen_at_ms" INTEGER CHECK ("last_seen_at_ms" >= 0),
+  "resolved_at_ms" INTEGER CHECK ("resolved_at_ms" >= 0)
+);
+CREATE INDEX "idx_fx_executor_incidents_hot_01" ON "fx_executor_incidents" ("incident_state", "last_seen_at_ms");
 
 CREATE TABLE "fx_inbox" (
   "consumer_domain" TEXT,

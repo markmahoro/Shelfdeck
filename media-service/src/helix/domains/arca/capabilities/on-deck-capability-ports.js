@@ -81,7 +81,8 @@ function createOnDeckCapabilityPorts(options){const now=options.now||Date.now,ac
     onDeckRunId:stable('arca-ondeck-preview-',{offer:c.offer.offerId}),custodyId:stable('arca-custody-preview-',{offer:c.offer.offerId}),shelf:c.shelf,
     onDeckProductPackage:c.packageValue,observedAtMs:at,replayCommitted:false}));
   ports[C.accept]=Object.freeze({validateInputs(c){requireNamed(c,['acceptedPayload','responsibilityControlCommitHandle']);},execute(execution){const c=ctx(execution),
-    assessmentWork=options.workResultReader.listWorks({ownerDomain:'arca',processType:'arca_acceptance',processId:c.offer.offerId,workKind:'acceptance_assessment'})[0];
+    assessmentWork=options.workResultReader.listWorks({ownerDomain:'arca',processType:'arca_acceptance',processId:c.offer.offerId,workKind:'acceptance_assessment'})
+      .find((item)=>options.workResultReader.status(item.work_id)?.state==='succeeded');
     if(!assessmentWork)throw new Error('Arca Acceptance assessment Work is absent.');const values=options.workResultReader.read(assessmentWork.work_id)
       .filter(i=>i.outcomeKind==='succeeded').map(i=>i.result),checks=values.map(v=>v.schemaRef==='helix://contracts/types/AcceptanceCheck/v1'
         ?{kind:v.checkKind,outcome:v.result,evidenceDigest:canonicalDigest(v)}:{kind:'inventory_feasibility',outcome:v.availableBytes>=v.requiredBytes?'passed':'failed',evidenceDigest:v.payloadDigest})
@@ -109,21 +110,19 @@ function createOnDeckCapabilityPorts(options){const now=options.now||Date.now,ac
         ...c.packageValue.productMaterialManifest.members.map(m=>bindingFromProduct(m,contentProfile)),...c.packageValue.offloadContextManifest.members.map(bindingFromContext)]
         .sort((a,b)=>a.materialKey.localeCompare(b.materialKey)||a.role.localeCompare(b.role)),controlTransfers:projections.map(p=>({materialKey:p.materialKey,
           expectedRevision:p.controlRevision,expectedProjectionDigest:p.projectionDigest,fromScope:{ownerDomain:p.ownerDomain,scopeType:p.ownerScopeType,scopeId:p.ownerScopeId}}))});
-    const consumed=inbox.consume({message:{messageId:c.offer.messageId,dedupKey:c.offer.dedupKey,consumerDomain:'arca'},resultDigest:accepted.receipt.receiptDigest,
-      domainParticipant:acceptance.offerDeliveryParticipant({acceptanceDecisionId:accepted.decision.acceptanceDecisionId,offerId:c.offer.offerId,receiptDigest:accepted.receipt.receiptDigest})});
     inbox.acknowledge({messageId:c.offer.messageId,consumerDomain:'arca'});return committedOutcome(execution,C.accept,accepted.receipt,now(),'responsibility_control_commit');},
     validateResult(_c,o){if(o?.result?.receiptKind!=='handoff_b_accepted')throw new TypeError('Arca Acceptance Receipt is invalid.');}});
   ports[C.reject]=Object.freeze({validateInputs(c){requireNamed(c,['arcaAcceptanceRejectionDecision','domainFactCommitHandle']);},execute(execution){const c=ctx(execution),d=execution.namedInputs.arcaAcceptanceRejectionDecision,
-    assessmentWork=options.workResultReader.listWorks({ownerDomain:'arca',processType:'arca_acceptance',processId:c.offer.offerId,workKind:'acceptance_assessment'})[0];
+    assessmentWork=options.workResultReader.listWorks({ownerDomain:'arca',processType:'arca_acceptance',processId:c.offer.offerId,workKind:'acceptance_assessment'})
+      .find((item)=>options.workResultReader.status(item.work_id)?.state==='succeeded');
     if(!assessmentWork)throw new Error('Arca Acceptance assessment Work is absent.');const values=options.workResultReader.read(assessmentWork.work_id)
       .filter(i=>i.outcomeKind==='succeeded').map(i=>i.result),checks=values.map(v=>v.schemaRef==='helix://contracts/types/AcceptanceCheck/v1'
         ?{kind:v.checkKind,outcome:v.result,evidenceDigest:canonicalDigest(v)}:{kind:'inventory_feasibility',outcome:v.availableBytes>=v.requiredBytes?'passed':'failed',evidenceDigest:v.payloadDigest})
       .sort((a,b)=>a.kind.localeCompare(b.kind)),assessment=acceptance.readAssessment(acceptanceAttemptId(c))||acceptance.recordAssessment({acceptanceAttemptId:acceptanceAttemptId(c),
         offerId:c.offer.offerId,onDeckPackageId:c.offer.onDeckPackageId,packageDigest:c.offer.packageDigest,shelfId:c.shelf.shelfId,
         standardRevision:c.shelf.currentStandardRevision,placementRevision:c.shelf.currentPlacementRevision,checks});
-    const rejected=acceptance.reject({assessment,decision:d,offerMessage:c.offer}),consumed=inbox.consume({message:{messageId:c.offer.messageId,dedupKey:c.offer.dedupKey,consumerDomain:'arca'},
-      resultDigest:rejected.receipt.receiptDigest,domainParticipant:acceptance.offerDeliveryParticipant({acceptanceDecisionId:d.acceptanceDecisionId,
-        offerId:c.offer.offerId,receiptDigest:rejected.receipt.receiptDigest})});inbox.acknowledge({messageId:c.offer.messageId,consumerDomain:'arca'});
+    const rejected=acceptance.reject({assessment,decision:d,offerMessage:c.offer});
+    inbox.acknowledge({messageId:c.offer.messageId,consumerDomain:'arca'});
     return committedOutcome(execution,C.reject,rejected.receipt,now(),'domain_fact_commit');},validateResult(_c,o){if(o?.result?.receiptKind!=='handoff_b_rejected')throw new TypeError('Arca Rejection Receipt is invalid.');}});
   ports[C.slot]=Object.freeze({validateInputs(c){requireNamed(c,['finalInventoryDecision','targetHandle']);},execute(execution){const c=ctx(execution),n=execution.namedInputs;
     const aftercare=aftercareRequest(execution,c);if(aftercare){

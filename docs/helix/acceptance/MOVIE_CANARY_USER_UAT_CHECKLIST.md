@@ -239,6 +239,9 @@ Preflight 结论：`[ ] PASS  [ ] FAILED  [ ] BLOCKED`
 - [ ] 每部电影只有一个有效的当前 Libra Run / Package 结果，不出现并行重复收藏。
 - [ ] Handoff B 只有在包完整、自包含且验证通过后才 Accepted。
 - [ ] 失败、暂停、重试、空间不足或外部等待在页面中如实呈现，不静默 fallback。
+- [ ] Acceptance技术失败显示为“需要处理”，并展示失败阶段、稳定错误码、尝试次数、责任Owner和恢复代际；不得显示业务Rejected或已完成。
+- [ ] 配置或执行合同revision变化最多自动建立一次新恢复代际；再次失败后停止自动循环，并提供用户重试入口。
+- [ ] 用户点击重试后保留旧Work/Event/Attempt，刷新与服务重启不会重复Acceptance Decision、Inbox、Ack或物理副作用。
 - [ ] Handoff B Accepted 后，Libra 按 Arca durable Off-load Completion Projection 回收应回收的 Workspace 材料。
 - [ ] 21 部电影全部到达 Handoff B Accepted / Arca 接管；否则整体不通过。
 

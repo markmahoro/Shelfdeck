@@ -38,6 +38,8 @@ function sourceFixture(run) {
   const kernel = openSqliteKernel({ Database, databasePath, schemaDdl, schemaManifest, now: () => 100 });
   kernel.close();
   const database = new Database(databasePath);
+  database.exec('DROP TABLE arca_acceptance_recovery_cases');
+  database.exec('DROP TABLE fx_executor_incidents');
   database.exec('DROP TABLE libra_product_identity_selection_intents');
   database.exec('DROP TABLE libra_formation_projections');
   database.prepare('INSERT INTO fx_audit_records(audit_id,occurred_at_ms) VALUES(?,?)').run('preserved-audit', 101);
@@ -73,12 +75,14 @@ test('the exact live v1 catalog upgrades once to v3 without changing durable bus
   );
 }));
 
-test('the exact live v2 catalog adds only the empty formation projection and advances to v3', () => {
+test('the exact live v2 catalog adds the empty formation projection and executor closure stores before advancing to v3', () => {
   const root=fs.mkdtempSync(path.join(os.tmpdir(),'helix-formation-schema-migration-'));
   const databasePath=path.join(root,'shelfdeck.db');
   const kernel=openSqliteKernel({Database,databasePath,schemaDdl,schemaManifest,now:()=>100});kernel.close();
   try{
     const database=new Database(databasePath);
+    database.exec('DROP TABLE arca_acceptance_recovery_cases');
+    database.exec('DROP TABLE fx_executor_incidents');
     database.exec('DROP TABLE libra_formation_projections');
     const sourceCatalogDigest=digest(catalogRows(database));
     database.prepare('UPDATE platform_schema_marker SET generation=?,schema_digest=?,catalog_digest=?,applied_at_ms=? WHERE schema_name=?')

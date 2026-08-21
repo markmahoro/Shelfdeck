@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "mapId": "helix.ssot-contract-source-map",
+  "category": "tables",
+  "startOrdinal": 183,
+  "endOrdinal": 184,
+  "entries": [
+    {
+      "id": "platform_worker_devices",
+      "owner": "platform-settings",
+      "columnsContract": "`worker_id FK, worker_revision, device_key, capability_digest, enabled, max_slots`",
+      "constraintsContract": "`PK(worker_id,worker_revision,device_key)`；只有probe确认的device可enabled",
+      "source": {
+        "section": "8.5.13",
+        "line": 9458,
+        "lineDigest": "bc0f5d106f86d806a95451a30ad664d4367fd2ef42c0cb6003514196417e2417"
+      }
+    },
+    {
+      "id": "platform_admin_credentials",
+      "owner": "platform-settings",
+      "columnsContract": "`credential_id, revision, secret_ref, state(active|rotated|revoked), created_at_ms, last_used_at_ms, terminal_at_ms`",
+      "constraintsContract": "`PK(credential_id,revision)`；只有一个active Admin credential revision；Secret明文不入库",
+      "source": {
+        "section": "8.5.13",
+        "line": 9459,
+        "lineDigest": "c508f77944715e61d0cb76cb13c4bb9a67ecc6e96b21fe744d802ae44636b0b3"
+      }
+    }
+  ]
+}

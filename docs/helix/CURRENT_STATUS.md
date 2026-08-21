@@ -4,6 +4,18 @@ Status: Movie Procurement与Movie Libra封口保持有效；Movie Arca已完成H
 
 Last updated: 2026-08-21
 
+## 0. UAT repair status — UAT-019 implemented, fresh Canary qualification pending
+
+Arca Acceptance现在为每个已admit Offer持久化Recovery Case，并在同一消费事务写入Foundation Inbox；Delivery可保持
+`delivered`，但业务Accepted/Rejected前不得Ack。Assessment Executor终态技术失败会交还Arca，形成用户可见
+`attention_required`，不再伪造Rejection或“已完成整理”。配置或执行合同revision变化只触发一次自动恢复代际，之后由用户
+通过Formation重试入口显式恢复；旧Work/Event/Attempt保持不可变。确定性同类故障按第三次阈值聚合Incident并打开Circuit。
+
+专项9/9、相关Foundation/产品回归56项和完整Architecture Gate均通过；完整门禁为166个test file、1089 pass、7个显式
+skip、0 fail，依赖/语义finding均为空。当前机器合同为113 Capability、99 Result family、117 Domain Input、184 table、
+44 Canonical Transaction、118 route，P2 aggregate为
+`c4f08ec964a1c81c4284ee08d9a10d41c5b03ea40611d813a348e29366a2758d`。当前失败Canary事实未改写，真实恢复与页面结论留待第二轮UAT。
+
 ## 0. UAT repair status — UAT-017 implemented, fresh Canary qualification pending
 
 MoviePilot Search Candidate现在冻结当前`MediaRequirement`并公开有来源的typed媒体声明；明确合规候选优先，只有不存在

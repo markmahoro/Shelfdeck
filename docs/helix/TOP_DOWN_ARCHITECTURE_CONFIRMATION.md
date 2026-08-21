@@ -58,6 +58,27 @@ An unverified choice is visible to the user and is not called compliant. Downloa
 real-media Probe requirement. When advertised eligibility proves false after download, Libra advances to the next
 bounded candidate; only exhaustion forms the business `product_unachievable` result.
 
+### Executor terminal-outcome closure amendment (2026-08-21)
+
+Foundation must persistently and idempotently reconcile every terminal Supporting Work Outcome back to its Domain
+Owner; this applies to `failed|blocked|cancelled` as well as `succeeded`. Handoff Delivery writes a durable Inbox
+admission receipt when the consumer admits the message. Business acknowledgement remains separate and is written only
+after the consumer's Accepted/Rejected terminal fact. A `delivered` Outbox row without the matching Inbox admission
+or business Ack must be recoverable by replay and cannot become a terminal delivery black hole.
+
+An Arca Acceptance executor failure is technical state, not product evidence. It creates neither an Accepted nor a
+Rejected Decision. Arca retains an owner-local Recovery Case exposing phase, stable error code, terminal Work attempt
+count, responsible Owner, recovery generation, trigger digest and automatic-recovery state. Old Work, Event and Work
+Attempt rows remain immutable. After the Work retry policy is exhausted, a changed connection revision or
+execution-contract revision may create exactly one automatic replacement Supporting Work generation. If that
+generation also fails, the Case waits for an explicit user Retry; one Retry command creates one bounded generation.
+
+Foundation aggregates equal deterministic executor failures by Owner, process type, work kind and stable error code.
+At the bounded threshold the matching process-local Circuit opens and blocks only new executions in that scope; it
+does not classify any media as noncompliant. An explicit or revision-triggered recovery moves that Circuit through
+`recovering`, and only successful invariant evidence closes it. Admin projections must show the recovery facts and a
+Retry action while the Case requires attention.
+
 Startup Recovery keeps unresolved non-pure Effects in a dedicated safety-first recovery lane. A transient Provider,
 network or Resource failure while replaying one exact classified recovery action must retain that action and its
 Effect/Attempt identity for bounded retry; it must not discard the Effect, create a second Attempt, or hold a Permit
@@ -99,7 +120,7 @@ one immutable Acceptance Spec. A formal `not_found` selects the No-rating rule. 
 published Spec or interrupts downstream work; it is eligible only for a later lawful Spec evaluation. This amendment
 adds no Capability, Result family, table, Canonical Transaction, Domain, Store, Business Object or Handoff. It adds one
 Admin method+path. The later Arca Collection poster projection adds one additional authenticated read route, making
-the current active inventory 112 Capability, 98 Result family, 180 tables, 43 Canonical Transactions, 115 Admin
+the then-active inventory 112 Capability, 98 Result family, 180 tables, 43 Canonical Transactions, 115 Admin
 routes and one public health route.
 
 ### Libra Routing fact observation amendment (2026-08-11)
@@ -418,9 +439,11 @@ the exact current Inventory poster, protected by Inventory revision, digest and 
 poster produces a presentation fallback, not a mutation or Aftercare action.
 
 The authenticated poster read adds one Admin method+path and does not add a Capability, Result family, table,
-Canonical Transaction, Domain, Store, Business Object or Handoff. The active product inventory is therefore 112
-Capability contracts, 98 Catalog Result families, 180 tables, 43 Canonical Transactions, 115 Admin routes and one
-public health route.
+Canonical Transaction, Domain, Store, Business Object or Handoff. That bounded amendment's inventory was therefore
+112 Capability contracts, 98 Catalog Result families, 180 tables, 43 Canonical Transactions, 115 Admin routes and
+one public health route. The current active inventory, including later implementation amendments, is 113 Capability
+contracts, 99 Catalog Result families, 184 tables, 44 Canonical Transactions, 117 Admin routes and one public health
+route.
 
 ## SSOT authority boundary
 
@@ -9252,6 +9275,7 @@ Run/Retry引用核对；任一失败即拒绝可写启动。
 | `fx_resource_defer` | `event_id FK, resource_key, queue_class, local_priority, enqueued_at_ms, retry_at_ms, state` | `PK(event_id,resource_key)`；一个Event/resource最多一个有效waiter；`INDEX(resource_key,state,queue_class,local_priority,enqueued_at_ms)` |
 | `fx_event_resource_timings` | `event_attempt_id FK, resource_key, queue_class, enqueued_at_ms, acquired_at_ms, released_at_ms, wait_duration_ms, hold_duration_ms, outcome` | `PK(event_attempt_id,resource_key)`；只记录Evidence，不恢复内存Permit；`INDEX(resource_key,acquired_at_ms)`供p50/p95/p99 |
 | `fx_circuit_states` | `circuit_key PK, state, reason_code, evidence_digest, opened_at_ms, reviewed_at_ms` | `INDEX(state,opened_at_ms)`；只允许Control Plane写入 |
+| `fx_executor_incidents` | `incident_key PK, owner_domain, process_type, work_kind, error_code, occurrence_count, circuit_key, incident_state(open|recovering|resolved), evidence_digest, first_seen_at_ms, last_seen_at_ms, resolved_at_ms NULL` | `incident_key=SHA-256(JCS({owner_domain,process_type,work_kind,error_code}))`且相同确定性错误只聚合到一行；occurrence以CAS单调增加，达到3次时打开对应process-local Circuit；恢复开始只允许`open → recovering`，成功Work invariant evidence才允许`recovering → resolved`并关闭Circuit；`INDEX(incident_state,last_seen_at_ms)` |
 | `fx_material_controls` | `material_key PK, mount_scope_id, inode, size_bytes, fingerprint_algorithm, fingerprint_version, content_fingerprint, owner_domain NULL, owner_scope_type NULL, owner_scope_id NULL, control_revision, state(controlled|released), updated_at_ms` | `UNIQUE(mount_scope_id,inode,size_bytes,fingerprint_algorithm,fingerprint_version,content_fingerprint)`；一项Identity只有一行current Control且Identity列write-once，Control row不得物理删除；controlled必须有完整owner，released必须三个owner列均NULL；首次acquire revision=1，transfer/release必须CAS并递增`control_revision`；从未存在row与released row都可投影uncontrolled，但revision分别为0和当前正整数 |
 | `fx_material_control_revisions` | `material_key FK, revision, operation_kind, from_owner_domain, from_scope_type, from_scope_id, to_owner_domain, to_scope_type, to_scope_id, basis_digest, commit_marker, committed_at_ms` | `PK(material_key,revision)`；append-only；current row每次变化必须与对应revision同事务成立。任一正整数historical revision的post-state `MaterialControlProjectionSnapshot@1`必须仅由该revision row重建：`resultKind=available,controlRevision=revision`；to-owner完整则`controlState=controlled`并使用to scope，`regionProjection`按`procurement|libra|arca → procurement|production|finished_goods`映射；to-owner全NULL则`controlState=uncontrolled,regionProjection=uncontrolled`且无owner；`evidenceDigest/projectionDigest`严格使用8.6.18公式。不得读取后来current owner冒充historical post-state，也不新增projection JSON/digest列 |
 | `fx_workspace_registry` | `workspace_id PK, owner_domain, process_type, process_id, root_handle_ref, state(active|reclaimed), created_at_ms, reclaim_after_ms NULL, reclaimed_at_ms NULL` | `UNIQUE(owner_domain,process_type,process_id,workspace_id)`；`rowMutability=cas_lifecycle`且只允许Workspace Admission插入active，随后由Owner Cleanup全部member completed事务以expected active CAS一次为reclaimed；active时reclaimed time为NULL，terminal时非NULL且不得恢复active；`INDEX(owner_domain,state,reclaim_after_ms)` |
@@ -9342,6 +9366,7 @@ Plan node input/parameter/Fence/Resource Demand的具体JSON不直接重复存�
 | `arca_shelf_standard_revisions` | `shelf_id FK, revision, rule_template_id, rule_template_revision, standard_schema_ref, standard_json, standard_digest, effective_at_ms` | Standard JSON上限`64 KiB`；`PK(shelf_id,revision)`；Shelf current pointer显式FK；当前row中的template pair同时是Shelf current Template binding权威来源；`INDEX(rule_template_id,rule_template_revision)` |
 | `arca_placement_policy_revisions` | `shelf_id FK, revision, policy_schema_ref, policy_json, policy_digest, effective_at_ms` | Policy JSON上限`16 KiB`；`PK(shelf_id,revision)`；Shelf current pointer显式FK |
 | `arca_acceptance_attempts` | `acceptance_attempt_id PK, offer_id, on_deck_package_id, package_digest, related_disposition_set_digest, shelf_id FK, standard_revision, placement_revision, state(active|accepted|rejected), created_at_ms, finished_at_ms NULL` | 同一Offer至多一个Attempt且相同`package_digest+standard+placement`至多一个active attempt；Related disposition set必须逐字节等于Package；accepted/rejected只允许从active以Decision事务CAS一次；Supporting Work通过Foundation反向关联；`INDEX(state,created_at_ms)` |
+| `arca_acceptance_recovery_cases` | `offer_id PK, on_deck_package_id, package_digest, acceptance_attempt_id NULL, active_work_id, work_kind, failure_phase NULL, error_code NULL, terminal_attempt_count, owner_domain, recovery_state(active|attention_required|automatic_recovering|user_retrying|resolved), recovery_generation, automatic_recovery_used, recovery_trigger_digest, failed_trigger_digest NULL, incident_key NULL, updated_at_ms, resolved_at_ms NULL` | 一份Offer恰有一个current Recovery Case；`recovery_generation`从1单调递增且每个generation派生不同Supporting Work ID，历史Work/Event/Attempt不修改；技术失败只允许`active|automatic_recovering|user_retrying → attention_required`，不得建立Acceptance Decision；trigger变化最多一次`attention_required → automatic_recovering`，用户Retry一次只创建一个`user_retrying` generation；Accepted/Rejected后才`resolved`；`INDEX(recovery_state,updated_at_ms)` |
 | `arca_acceptance_checks` | `acceptance_attempt_id FK, check_kind, check_revision, result, evidence_digest, completed_at_ms` | `PK(acceptance_attempt_id,check_kind,check_revision)` |
 | `arca_acceptance_decisions` | `acceptance_decision_id PK, acceptance_attempt_id FK, result(accepted|rejected), offer_id, on_deck_package_id, package_digest, related_disposition_set_digest, shelf_id FK, standard_revision, placement_revision, acceptance_evidence_set_digest, rejection_schema_ref NULL, rejection_code NULL, rejection_digest NULL, decision_digest, decided_at_ms` | `acceptance_decision_id=SHA-256(JCS({schema:"arca.acceptance-decision-id@1",acceptanceAttemptId}))`且`UNIQUE(acceptance_attempt_id)`；Offer/Package/Related disposition set逐字节等于Attempt；accepted要求rejection列全NULL且证明完整处置义务可履行；rejected固定`rejection_schema_ref=StructuredRejection@1`且code/digest非NULL，并逐项重建`ArcaAcceptanceRejectionDecision@1`；immutable |
 | `arca_ondeck_custodies` | `custody_id PK, acceptance_decision_id FK, on_deck_package_id, package_digest, control_scope_digest, related_disposition_set_digest, state, accepted_at_ms` | `UNIQUE(on_deck_package_id,package_digest)`；只有Accepted Decision可建立；`control_scope_digest`只覆盖正式Product Control transfer，`related_disposition_set_digest`逐字节冻结Package中全部exclusive Related的source-to-final义务，两者不得合并为一个Control Scope |
@@ -13311,6 +13336,7 @@ POST /v1/admin/formation/runs/:libraRunId/actions/expedite
 POST /v1/admin/formation/runs/:libraRunId/actions/cancel-expedite
 POST /v1/admin/formation/runs/:libraRunId/actions/discard
 POST /v1/admin/formation/runs/:libraRunId/actions/choose-product-identity
+POST /v1/admin/formation/acceptance/:offerId/actions/retry
 POST /v1/admin/formation/on-deck-runs/:onDeckRunId/actions/approve-input-settlement
 ~~~
 

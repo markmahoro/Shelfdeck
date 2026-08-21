@@ -10,6 +10,7 @@ const { createCapabilityContractValidator } = require('../foundation/capability/
 const { createCapabilityRegistry } = require('../foundation/capability/capability-registry');
 const { createExecutorDispatcher } = require('../foundation/capability/executor-dispatcher');
 const { createCircuitBreaker } = require('../foundation/diagnostics/pressure-guard');
+const { createExecutorIncidentRegistry } = require('../foundation/execution/executor-incident-registry');
 const { createEffectJournal } = require('../foundation/effects/effect-journal');
 const { createEffectReconcilerRegistry } = require('../foundation/effects/effect-reconcilers');
 const { createEventExecutionInputProvider } = require('../foundation/execution/event-execution-input-provider');
@@ -294,6 +295,8 @@ function createProcurementExecutionRuntime(options) {
   const governor = createResourceGovernor({ schemaManifest: options.schemaManifest, unitOfWork: options.unitOfWork,
     profileProvider: { current: () => activeMapper }, now, nextPermitId: () => 'permit-' + (++sequence) });
   const breaker = createCircuitBreaker({ schemaManifest: options.schemaManifest, unitOfWork: options.unitOfWork });
+  const executorIncidents = createExecutorIncidentRegistry({ schemaManifest:options.schemaManifest,
+    unitOfWork:options.unitOfWork, circuitBreaker:breaker, now });
   const realityVerifiers = Object.fromEntries(['workspace_write', 'external_request', 'domain_fact_commit',
     'responsibility_control_commit', 'material_commit', 'destructive_commit'].map((effectClass) => [effectClass,
     { verify: async ({ receipt }) => ({ verified: true, evidenceDigest: receipt.verificationEvidenceDigest }) }]));
@@ -358,7 +361,7 @@ function createProcurementExecutionRuntime(options) {
   perceptionProcessServices=perceptionConstruction.createProcessServices({...perceptionOptions,now,workResultReader});
   const perceptionPlanningRegistration=perceptionConstruction.createPlanningRegistration({registry,policyRegistry,contractValidator,
     workResultReader,processServices:perceptionProcessServices,resolvePerceptionIntegrationHandle:options.resolvePerceptionIntegrationHandle,now});
-  const arcaProcessServices=arcaConstruction.createProcessServices({...options,now,workResultReader,
+  const arcaProcessServices=arcaConstruction.createProcessServices({...options,now,workResultReader,executorIncidents,
     cancelProcessWorks:(scope)=>workLifecycle.cancelProcess(scope),
     contextReader:arcaCapabilityRegistration.contextReader,
     offdeckContextReader:arcaCapabilityRegistration.offdeckContextReader,
@@ -650,6 +653,9 @@ function createProcurementExecutionRuntime(options) {
     }
     if(request.ownerDomain==='arca'&&request.processType==='arca_acceptance'){
       if(request.workAttemptState==='succeeded')arcaProcessServices.coordinator.reconcileAcceptance(request.processId);
+      else if(request.reconcilePhase==='attempt_terminal'&&['failed','blocked','cancelled'].includes(request.workAttemptState))
+        arcaProcessServices.coordinator.recordTerminalFailure({processId:request.processId,workId:request.workId,
+          workKind:request.workKind,errorCode:request.workAttemptFailureCode});
       return {workId:request.workId,disposition:request.workAttemptState};
     }
     if(request.ownerDomain==='arca'&&request.processType==='arca_ondeck_run'){
@@ -761,6 +767,11 @@ function createProcurementExecutionRuntime(options) {
         .map((item)=>Object.freeze({cursor:item.subjectId,scope:item})),
       reconcile:({subjectId})=>perceptionProcessServices.ensureResolution('subject',subjectId),
     }),Object.freeze({
+      ownerDomain:'arca',reconcilerKey:'acceptance-technical-recovery',
+      listPage:({cursor,limit})=>arcaProcessServices.coordinator.listAcceptanceAttention(limit,cursor)
+        .map((item)=>Object.freeze({cursor:item.offerId,scope:item})),
+      reconcile:()=>arcaProcessServices.coordinator.recoverAttentionCases(1),
+    }),Object.freeze({
       ownerDomain:'libra',reconcilerKey:'active-acceptance-spec-subjects',
       listPage:({cursor,limit})=>libraProcessServices.routingContextReader.listActiveSubjectPage(cursor,limit).items
         .map((item)=>Object.freeze({cursor:item.subjectId,scope:item})),
@@ -814,6 +825,7 @@ function createProcurementExecutionRuntime(options) {
     libraRunExecutionProjection:libraProcessServices.libraRunExecutionProjection,
     productIdentitySelection:libraProcessServices.productIdentitySelection,
     arcaCoordinator:arcaProcessServices.coordinator,arcaContextReader:arcaProcessServices.contextReader,
+    arcaAcceptanceRecovery:arcaProcessServices.coordinator,
     arcaAftercareCoordinator:arcaProcessServices.aftercareCoordinator,
     arcaAftercareContextReader:arcaProcessServices.aftercareContextReader,
     arcaOffdeckCoordinator:arcaProcessServices.offdeckCoordinator,arcaOffdeckContextReader:arcaProcessServices.offdeckContextReader,

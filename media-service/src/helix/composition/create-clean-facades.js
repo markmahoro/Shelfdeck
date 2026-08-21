@@ -232,6 +232,11 @@ function createCleanFacades(options) {
       body: options.productIdentitySelection.choose(input.params.libraRunId, input.body),
     });
   }
+  if (options.arcaAcceptanceRecovery) {
+    facades.ArcaShelfAdminFacade.post_formation_acceptance_offerid_actions_retry = async (input) => ({
+      status:202, body:options.arcaAcceptanceRecovery.retry(input.params.offerId),
+    });
+  }
   if (options.perceptionAdmin) {
     facades.PerceptionAdminFacade.post_perception_records = async (input) => ({ status:202, body:options.perceptionAdmin.createRecord(input.body) });
     facades.PerceptionAdminFacade.get_perception_records = async (input) => ({ body:options.perceptionAdmin.listRecords(input.query || {}) });

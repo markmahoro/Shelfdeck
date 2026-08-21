@@ -1,0 +1,255 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/arca_acceptance_recovery_cases/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "arca_acceptance_recovery_cases",
+    "owner": "arca",
+    "prefix": "arca_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "offer_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": true,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 2,
+        "name": "on_deck_package_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 3,
+        "name": "package_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 4,
+        "name": "acceptance_attempt_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 5,
+        "name": "active_work_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 6,
+        "name": "work_kind",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 7,
+        "name": "failure_phase",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 8,
+        "name": "error_code",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 9,
+        "name": "terminal_attempt_count",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 10,
+        "name": "owner_domain",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 11,
+        "name": "recovery_state",
+        "logicalType": "TEXT",
+        "enumValues": [
+          "active",
+          "attention_required",
+          "automatic_recovering",
+          "user_retrying",
+          "resolved"
+        ],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 12,
+        "name": "recovery_generation",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 13,
+        "name": "automatic_recovery_used",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 14,
+        "name": "recovery_trigger_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 15,
+        "name": "failed_trigger_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 16,
+        "name": "incident_key",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 17,
+        "name": "updated_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 18,
+        "name": "resolved_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      }
+    ],
+    "primaryKey": [
+      "offer_id"
+    ],
+    "declaredForeignKeyColumns": [],
+    "uniqueConstraints": [],
+    "hotIndexes": [
+      [
+        "recovery_state",
+        "updated_at_ms"
+      ]
+    ],
+    "partialUniqueRules": [],
+    "checkRules": [
+      {
+        "column": "recovery_state",
+        "enumValues": [
+          "active",
+          "attention_required",
+          "automatic_recovering",
+          "user_retrying",
+          "resolved"
+        ]
+      }
+    ],
+    "revisionContract": {
+      "revisionColumns": [],
+      "currentPointerColumns": [],
+      "pointerTargets": [],
+      "pointerRules": []
+    },
+    "jsonContracts": [],
+    "immutability": {
+      "immutable": false,
+      "rules": []
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "一份Offer恰有一个current Recovery Case",
+      "`recovery_generation`从1单调递增且每个generation派生不同Supporting Work ID，历史Work/Event/Attempt不修改",
+      "技术失败只允许`active|automatic_recovering|user_retrying → attention_required`，不得建立Acceptance Decision",
+      "trigger变化最多一次`attention_required → automatic_recovering`，用户Retry一次只创建一个`user_retrying` generation",
+      "Accepted/Rejected后才`resolved`",
+      "`INDEX(recovery_state,updated_at_ms)`"
+    ],
+    "rawContract": {
+      "columns": "`offer_id PK, on_deck_package_id, package_digest, acceptance_attempt_id NULL, active_work_id, work_kind, failure_phase NULL, error_code NULL, terminal_attempt_count, owner_domain, recovery_state(active|attention_required|automatic_recovering|user_retrying|resolved), recovery_generation, automatic_recovery_used, recovery_trigger_digest, failed_trigger_digest NULL, incident_key NULL, updated_at_ms, resolved_at_ms NULL`",
+      "constraints": "一份Offer恰有一个current Recovery Case；`recovery_generation`从1单调递增且每个generation派生不同Supporting Work ID，历史Work/Event/Attempt不修改；技术失败只允许`active|automatic_recovering|user_retrying → attention_required`，不得建立Acceptance Decision；trigger变化最多一次`attention_required → automatic_recovering`，用户Retry一次只创建一个`user_retrying` generation；Accepted/Rejected后才`resolved`；`INDEX(recovery_state,updated_at_ms)`"
+    },
+    "source": {
+      "section": "8.5.12",
+      "line": 9369,
+      "lineDigest": "e799b560fb844b702d580f8a2e01d86817e1155cdd3b1342e4eb4f092d9e461a"
+    },
+    "foreignKeys": []
+  }
+}

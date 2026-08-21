@@ -6,13 +6,35 @@
   "endOrdinal": 156,
   "entries": [
     {
+      "id": "arca_deregistrations",
+      "owner": "arca",
+      "columnsContract": "`deregistration_id PK, shelf_id FK, state(active|committed), phase(waiting_responsibility|freezing_manifest|verifying|ready_to_commit|attention_required|completed), manifest_revision NULL, release_manifest_digest NULL, control_revision_set_digest NULL, entry_count, member_count, page_count, blocking_reason NULL, created_at_ms, committed_at_ms NULL`",
+      "constraintsContract": "`UNIQUE(shelf_id)`；Manifest列在Intent Admission时为NULL/0，freeze后以CAS整体更新；每个Shelf最多一个Deregistration；Supporting Work通过Foundation反向关联；不得引用Deletion Capability",
+      "source": {
+        "section": "8.5.12",
+        "line": 9414,
+        "lineDigest": "d1c5463c67a3e3c16f9d5b6f6869099360b31cee6452cecc5839a22183056119"
+      }
+    },
+    {
+      "id": "arca_deregistration_releases",
+      "owner": "arca",
+      "columnsContract": "`deregistration_id FK, manifest_revision, member_ordinal, page_ordinal, page_member_ordinal, shelf_entry_id FK, inventory_revision, inventory_member_ordinal, member_kind(controlled_material|reference_evidence), material_key, physical_identity_schema_ref, physical_identity_json, physical_identity_digest, reference_evidence_digest NULL, control_revision NULL, control_projection_digest NULL, member_digest, release_result NULL, committed_at_ms NULL`",
+      "constraintsContract": "`PK(deregistration_id,manifest_revision,member_ordinal)`；每页最多100项；identity JSON上限`4 KiB`；terminal commit只写controlled_material的release_result/committed_at_ms，旧revision仍作为历史成员清单保留；reference_evidence的Control列和release_result必须为NULL",
+      "source": {
+        "section": "8.5.12",
+        "line": 9415,
+        "lineDigest": "0ca623598c6d9ce1d89c37865e9c8dd53d8265d433f194e10c28b90f3c16fef1"
+      }
+    },
+    {
       "id": "arca_deregistration_receipts",
       "owner": "arca",
       "columnsContract": "`receipt_id PK, deregistration_id FK, shelf_id FK, released_control_set_digest, terminal_fact_digest, committed_at_ms`",
       "constraintsContract": "`UNIQUE(deregistration_id)`；与Shelf administrative terminal commit同事务成立",
       "source": {
         "section": "8.5.12",
-        "line": 9391,
+        "line": 9416,
         "lineDigest": "ece31b95a4de939548e814885196b887f9a0f38c6507ec76e9eb2165896b7d33"
       }
     },
@@ -23,7 +45,7 @@
       "constraintsContract": "`current_cursor_revision IS NULL`表示尚无cursor row；`FOREIGN KEY(perception_source_id,current_cursor_revision) REFERENCES perception_source_cursors(perception_source_id,revision)`，SQLite以NULL跳过尚不存在的optional pointer校验；`INDEX(status,source_kind,perception_source_id)`；Integration ID为opaque platform reference",
       "source": {
         "section": "8.5.13",
-        "line": 9397,
+        "line": 9422,
         "lineDigest": "34bdf0c016622b6e972c4799b9a649b5fc923d7277a94298de102e9ece3182a5"
       }
     },
@@ -34,7 +56,7 @@
       "constraintsContract": "一次Acquisition只属于一个Source/config revision；Scope JSON上限`16 KiB`；`UNIQUE(perception_source_id) WHERE state='active'`；`initial_cursor_revision=0`只是“创建时不存在cursor row”的逻辑CAS sentinel，不是FK pointer；Process历史不覆盖",
       "source": {
         "section": "8.5.13",
-        "line": 9398,
+        "line": 9423,
         "lineDigest": "d4bfdbe0156ddb39ce060728f319fffe67e356241e77aed250f6fbb046790f3b"
       }
     },
@@ -45,7 +67,7 @@
       "constraintsContract": "`PK(perception_source_id,revision)`；revision从1递增且不重置；Source current pointer显式复合FK引用；仅Source从未同步时expected revision为0，配置/scope不兼容的后续Acquisition可令`cursor_in=null`但仍CAS当前非零revision；不覆盖历史",
       "source": {
         "section": "8.5.13",
-        "line": 9399,
+        "line": 9424,
         "lineDigest": "d904ca3d03d48f36f837049824d373257b78c8abafb50cbbd529238ab700d8bb"
       }
     },
@@ -56,7 +78,7 @@
       "constraintsContract": "`UNIQUE(perception_acquisition_id,page_ordinal)`、`UNIQUE(commit_marker)`；Result JSON上限`64 KiB`且保存不含自digest字段的原始`perceptionIds/insertedCount/duplicateCount` typed result，`result_digest=SHA-256(JCS(result_json))`并与Event Result相同；与Record、Relation、cursor head、marker、Event Result和Outbox同事务",
       "source": {
         "section": "8.5.13",
-        "line": 9400,
+        "line": 9425,
         "lineDigest": "fcfc7197ff64ee5d93a4cc71259da5b8142c3c10d80f1432849322ae26b9d9da"
       }
     },
@@ -67,7 +89,7 @@
       "constraintsContract": "immutable；`record_digest`覆盖Record标量与按键排序的Identity Anchor set；`UNIQUE(perception_source_id,source_record_key,source_record_revision,source_record_digest)`；Canonical rating非空时`CHECK integer 1..5`且`0`禁止，`watched_state`只允许`NULL|0|1`；CommitParticipant要求correction/retraction在同页各有匹配的outgoing `supersedes/retracts` relation；`INDEX(source_kind,source_record_key,committed_at_ms)`",
       "source": {
         "section": "8.5.13",
-        "line": 9401,
+        "line": 9426,
         "lineDigest": "8e303ca99674a3ca75bf36adb6174757f17d8bca03407b94cbe84c5014dbfcbb"
       }
     },
@@ -78,7 +100,7 @@
       "constraintsContract": "`PK(perception_id,anchor_kind,anchor_value)`；结构化Anchor不可退化为字符串数组；`INDEX(anchor_kind,anchor_value)`",
       "source": {
         "section": "8.5.13",
-        "line": 9402,
+        "line": 9427,
         "lineDigest": "5ba8fa35d17ba37da2917305f2d5a594609c85a4fc1975275b094524c6aa8352"
       }
     },
@@ -89,7 +111,7 @@
       "constraintsContract": "immutable；source不得等于target；`UNIQUE(relation_kind,source_perception_id,target_perception_id)`；`duplicate_of`使用规范化pair，`supersedes|retracts`保持方向性",
       "source": {
         "section": "8.5.13",
-        "line": 9403,
+        "line": 9428,
         "lineDigest": "0ad399b268cd03ae3b531454bc9ae2b22e060b9e7987c882e71c99f580ce6481"
       }
     },
@@ -100,7 +122,7 @@
       "constraintsContract": "`UNIQUE(query_contract,query_input_digest,revision,resolution_id)`供head精确复合FK；`winning_perception_id`显式FK；found必须有winner且reason为NULL，not_found必须无winner并具有`no_matching_record|requested_fact_absent|strongest_value_conflict`之一；`result_json`保存完整typed `PerceptionResolutionRevision`且≤`16 KiB`，digest使用统一JCS basis；current pointer/index按query digest",
       "source": {
         "section": "8.5.13",
-        "line": 9404,
+        "line": 9429,
         "lineDigest": "f98a2d972824490f42e6689ac062318b46d0ef72ac2d5a24d9c4f8ab16096adf"
       }
     },
@@ -111,7 +133,7 @@
       "constraintsContract": "`PK(query_contract,query_input_digest)`；四列显式复合FK引用同一`perception_resolution_revisions(query_contract,query_input_digest,revision,resolution_id)`；head CAS与新revision/typed result在同一Resolution Commit事务；Resolution Facade只读head，不在热路径计算`MAX(revision)`",
       "source": {
         "section": "8.5.13",
-        "line": 9405,
+        "line": 9430,
         "lineDigest": "370fe0fe0d9cc2ac7afc1ee52ccfbbd77aae3f429732328708c53ed707821c38"
       }
     },
@@ -122,30 +144,8 @@
       "constraintsContract": "`current_revision`显式复合FK引用`people_person_revisions`；nullable Preference/Reference pointer分别显式复合FK引用对应revision表；`current_reference_revision IS NULL`表示尚无Reference revision，Commit逻辑expected `0`映射为“期望不存在”而不是存储revision 0；两个Projection checkpoint字段均`NOT NULL`，`CHECK(current_reference_projection_revision>=1)`且digest为64位lowercase hex；Person成立时以revision `1`和无Reference语义payload的digest初始化；与child表的循环FK均`DEFERRABLE INITIALLY DEFERRED`；`INDEX(status,person_id)`",
       "source": {
         "section": "8.5.13",
-        "line": 9406,
+        "line": 9431,
         "lineDigest": "298821032aa54b23e61d203ae67007da4ef42079464bcde370ceccf897f6e2b3"
-      }
-    },
-    {
-      "id": "people_person_revisions",
-      "owner": "people",
-      "columnsContract": "`person_id FK, revision, person_status(active|merged), canonical_name, merged_into_person_id NULL, origin_kind(direct|candidate), origin_decision_id, origin_decision_digest, origin_candidate_kind NULL, origin_candidate_id NULL, origin_candidate_revision NULL, origin_candidate_payload_digest NULL, fact_digest, committed_at_ms`",
-      "constraintsContract": "`PK(person_id,revision)`；immutable；direct Registration保存完整Direct Decision ID/digest且Candidate列全NULL；Candidate acceptance保存Acceptance Decision ID/digest及精确Candidate revision/payload；CHECK禁止两种来源混合；Person是全局Registry，不持久化媒体`content_scope`",
-      "source": {
-        "section": "8.5.13",
-        "line": 9407,
-        "lineDigest": "ed43b3ad2a8d964927a2e3cc2f2bb006969c4a222f556470c21d7ef8dd576b33"
-      }
-    },
-    {
-      "id": "people_aliases",
-      "owner": "people",
-      "columnsContract": "`person_id FK, revision, alias_normalized, alias_display, provenance_digest`",
-      "constraintsContract": "`PK(person_id,revision,alias_normalized)`；`FOREIGN KEY(person_id,revision)`引用精确Person revision；`INDEX(alias_normalized)`",
-      "source": {
-        "section": "8.5.13",
-        "line": 9408,
-        "lineDigest": "bd43e6bd7b8f61d3edeb1afd1af2b94acccb8ba986a1cb2a3493948cf2997a51"
       }
     }
   ]

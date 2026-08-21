@@ -265,6 +265,16 @@ function projectionItem(row) {
 function createFormationQuery(options) {
   if (!options?.store) throw new TypeError('Formation query requires the durable projection store.');
   const now = options.now || Date.now;
+  function technicalIssue(item) {
+    const value = item.handoffB?.offerId ? options.readAcceptanceRecovery?.(item.handoffB.offerId) : null;
+    if (!value || value.recoveryState !== 'attention_required') return Object.freeze({ ...item, executorIssue:null });
+    return Object.freeze({ ...item, classification:'in_progress',
+      nextAction:Object.freeze({ label:'需要处理', state:'attention_required', progress:null }),
+      executorIssue:Object.freeze({ phase:value.failurePhase, errorCode:value.errorCode,
+        attemptCount:value.terminalAttemptCount, owner:value.ownerDomain,
+        recoveryState:value.recoveryState, recoveryGeneration:value.recoveryGeneration,
+        automaticRecoveryUsed:value.automaticRecoveryUsed, canRetry:true, offerId:value.offerId }) });
+  }
   function summary() {
     const result = { totalCount: 0, waitingCount: 0, inProgressCount: 0, completedCount: 0 };
     for (const row of options.store.counts()) {
@@ -278,16 +288,20 @@ function createFormationQuery(options) {
   function list(query = {}) {
     const section = query.section === 'completed' ? 'completed' : 'active', offset = parseCursor(query.cursor);
     const limit = Math.min(section === 'active' ? 25 : 100, Math.max(1, Number(query.limit) || 25));
-    const rows = section === 'completed' ? options.store.listCompleted(offset, limit + 1) : options.store.listActive(offset, limit + 1);
+    let rows = section === 'completed' ? options.store.listCompleted(offset, limit + 1) : options.store.listActive(offset, limit + 1);
+    const attention = (options.listAcceptanceAttention?.(100) || []).map((item)=>options.store.findByOffer?.(item.offerId)).filter(Boolean);
+    const attentionOffers = new Set(attention.map((item)=>item.current_offer_id));
+    if (section === 'completed') rows = rows.filter((item)=>!attentionOffers.has(item.current_offer_id));
+    else if (offset === 0) rows = [...attention, ...rows.filter((item)=>!attentionOffers.has(item.current_offer_id))];
     const hasMore = rows.length > limit, selected = hasMore ? rows.slice(0, limit) : rows;
     const state = options.state?.() || Object.freeze({ status: 'ready', asOfMs: now() });
-    return Object.freeze({ items: Object.freeze(selected.map(projectionItem)), summary: summary(),
+    return Object.freeze({ items: Object.freeze(selected.map(projectionItem).map(technicalIssue)), summary: summary(),
       nextCursor: hasMore ? cursorFor(offset + limit) : null, projection: Object.freeze({ status: state.status, asOfMs: state.asOfMs }) });
   }
   function get(subjectId) {
     const row = options.store.find(subjectId);
     if (!row) throw Object.assign(new Error('Media organization item was not found.'), { code: 'FORMATION_SUBJECT_NOT_FOUND' });
-    return projectionItem(row);
+    return technicalIssue(projectionItem(row));
   }
   return Object.freeze({ list, get });
 }

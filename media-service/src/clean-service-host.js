@@ -823,6 +823,13 @@ function createPlatformIntegrationServices(options) {
       return Object.freeze({ sourceId, integrationId:snapshot.integration.integrationId,
         configRevision:snapshot.integration.configRevision });
     },
+    readAcceptanceConnectionRevision() {
+      return canonicalDigest(PROFILES.map((profile) => {
+        const snapshot = runtimeFor(profile.kind)?.readCurrent();
+        return Object.freeze({ kind:profile.kind, state:snapshot?.integration?.state || 'absent',
+          configRevision:snapshot?.integration?.configRevision || 0 });
+      }));
+    },
     async acquirePerceptionProvider(request) {
       return this.executeProvider('douban', { operationId:'perception.source.acquire@1', effectClass:'pure_observation',
         idempotencyKey:request.idempotencyKey, timeoutMs:request.timeoutMs, input:request.input });
@@ -981,7 +988,7 @@ function createRuntime(options) {
   if (!fs.existsSync(path.join(options.adminDistDir, 'index.html'))) {
     findings.push('ADMIN_WEB_BUILD_MISSING');
   }
-  if (routeManifest.status !== 'active' || routeManifest.entries.length !== 117) {
+  if (routeManifest.status !== 'active' || routeManifest.entries.length !== 118) {
     findings.push('ROUTE_INVENTORY_INCOMPLETE');
   }
   if (uiManifest.status !== 'active' || uiManifest.entries.length !== 17) {
@@ -1236,7 +1243,8 @@ async function createCleanServiceHost(options) {
     readArcaShelfStandard: arcaRoutingTargets.getStandard,
     onPolicyPublished(policy) { routingExecution?.routingCoordinator.reconcileField(policy.fieldId, 100); routingExecution?.host.wake(); },
   });
-  let formationRatingReader = () => new Map(), formationProjectionHost = null;
+  let formationRatingReader = () => new Map(), formationAcceptanceReader = () => null,
+    formationAcceptanceAttention = () => [], formationProjectionHost = null;
   const formationProjectionStore = createFormationProjectionStore(constructed.applicationDependencies);
   const formationProjectionSource = createFormationProjectionSource({
     ...constructed.applicationDependencies,
@@ -1245,6 +1253,8 @@ async function createCleanServiceHost(options) {
     readShelfTargets: arcaRoutingTargets.list,
   });
   const formationQuery = createFormationQuery({ store: formationProjectionStore, now: options.now || Date.now,
+    readAcceptanceRecovery:(offerId)=>formationAcceptanceReader(offerId),
+    listAcceptanceAttention:(limit)=>formationAcceptanceAttention(limit),
     state: () => formationProjectionHost?.state() || Object.freeze({ status: 'rebuilding', asOfMs: (options.now || Date.now)() }) });
   const fieldEnumerator = options.fieldObservationEnumerator || createCleanFieldObservationEnumerator({
     onFingerprintRead: options.onPhysicalMaterialFingerprintRead,
@@ -1273,6 +1283,7 @@ async function createCleanServiceHost(options) {
     acquirePerceptionProvider: options.perceptionProviderAcquisition || ((request) => platformIntegrations.acquirePerceptionProvider(request)),
     readPerceptionObservation: options.perceptionObservationReader || ((reference) => platformIntegrations.readPerceptionObservation(reference)),
     readDoubanSourceConfiguration: options.readDoubanSourceConfiguration || platformIntegrations.readDoubanSourceConfiguration,
+    readAcceptanceConnectionRevision: options.readAcceptanceConnectionRevision || platformIntegrations.readAcceptanceConnectionRevision,
     targetProjectionReader: options.perceptionTargetProjectionReader || ((targetType, targetId) => {
       if (targetType === 'shelf_entry') return arcaCollectionQuery.targetProjection(targetId);
       if (targetType !== 'subject') return null;
@@ -1312,6 +1323,8 @@ async function createCleanServiceHost(options) {
   routingExecution = procurementExecution;
   shelfDeregistrationExecution = procurementExecution;
   formationRatingReader = (targets) => procurementExecution.perception.readCurrentRatings('subject', targets);
+  formationAcceptanceReader = (offerId) => procurementExecution.arcaCoordinator.readAcceptanceRecovery(offerId);
+  formationAcceptanceAttention = (limit) => procurementExecution.arcaCoordinator.listAcceptanceAttention(limit);
   formationProjectionHost = createFormationProjectionHost({
     ...constructed.applicationDependencies,
     source: formationProjectionSource,
@@ -1383,6 +1396,10 @@ async function createCleanServiceHost(options) {
       return result;
     },
   });
+  const arcaAcceptanceRecovery = Object.freeze({
+    retry(offerId) { const result=procurementExecution.arcaCoordinator.retryAcceptance(offerId);
+      executionRuntimeHost.wake(); return result; },
+  });
   const perceptionAdmin = Object.freeze({
     createRecord(body) { const result=procurementExecution.perception.createRecord(body); if(body?.targetType==='subject')formationProjectionHost.enqueue(body.targetId); executionRuntimeHost.wake(); return result; },
     listRecords(query) { const result=procurementExecution.perception.listRecords(query);
@@ -1427,6 +1444,7 @@ async function createCleanServiceHost(options) {
     routingManualSelection,
     libraRunAdmin,
     productIdentitySelection,
+    arcaAcceptanceRecovery,
     platformIntegrationAdmin: platformIntegrations.admin,
     perceptionAdmin,
     nonce: crypto.randomUUID,

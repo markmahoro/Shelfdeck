@@ -39,7 +39,11 @@ function createOutboxDispatcherHost(options){const repo=repository(options.schem
       inbox.acknowledge({messageId:item.message.message_id,consumerDomain:'libra'});options.executionRuntimeHost.wake();return;
     }
     if(item.message.message_kind==='libra.product-offer.available@1'&&item.delivery.consumer_domain==='arca'){
-      const admitted=options.arcaCoordinator.admitOffer(payload);
+      const admitted=options.arcaCoordinator.admitOffer(payload),resultDigest=canonicalDigest({
+        schema:'arca.handoff-b-offer-admission@1',offerId:admitted.processId,workId:admitted.work.workId,
+        basisDigest:admitted.work.executionBasisDigest,recoveryGeneration:admitted.recovery.recoveryGeneration});
+      inbox.consume({message:{messageId:item.message.message_id,dedupKey:item.message.dedup_key,consumerDomain:'arca'},
+        resultDigest,domainParticipant:admitted.admissionParticipant});
       inbox.recordDeliveryAttempt({messageId:item.message.message_id,consumerDomain:'arca',delivered:true,nextAttemptAtMs:now()});
       options.executionRuntimeHost.wake();return;
     }

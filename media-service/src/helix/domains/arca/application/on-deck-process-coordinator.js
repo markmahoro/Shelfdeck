@@ -2,6 +2,7 @@
 
 const { canonicalDigest } = require('../../../contracts/canonical-json');
 const { createWorkAdmission } = require('../../../foundation/execution/work-admission');
+const { createAcceptanceRecoveryStore } = require('../persistence/acceptance-recovery-store');
 
 const LIMITS = Object.freeze({ globalOpenWorks:256, ownerOpenWorks:256, openEvents:256 });
 
@@ -67,6 +68,12 @@ function exactOffer(message) {
 }
 
 function createOnDeckProcessCoordinator(options) {
+  const recovery = createAcceptanceRecoveryStore(options);
+  const executionContractRevision = options.acceptanceExecutionContractRevision || 'arca.acceptance.executor@2';
+  function recoveryTriggerDigest() {
+    return canonicalDigest({ schema:'arca.acceptance-recovery-trigger@1', executionContractRevision,
+      connectionRevision:options.readAcceptanceConnectionRevision?.() || 'none' });
+  }
   const admission = createWorkAdmission({
     schemaManifest:options.schemaManifest, unitOfWork:options.unitOfWork,
     limits:LIMITS,
@@ -86,8 +93,9 @@ function createOnDeckProcessCoordinator(options) {
     }
     return result;
   }
-  function assessmentWork(processId, dependencyRefs) {
-    const basisDigest = canonicalDigest({ schema:'arca.acceptance-assessment-basis@1', dependencyRefs });
+  function assessmentWork(processId, dependencyRefs, generation = 1, triggerDigest = recoveryTriggerDigest()) {
+    const basisDigest = canonicalDigest({ schema:'arca.acceptance-assessment-basis@2', dependencyRefs,
+      recoveryGeneration:generation, recoveryTriggerDigest:triggerDigest });
     return workDefinition({ processType:'arca_acceptance', processId,
       workKind:'acceptance_assessment', basisDigest, dependencyRefs,
       priorityClass:'handoff_acceptance' });
@@ -141,16 +149,22 @@ function createOnDeckProcessCoordinator(options) {
   }
   function reconcileAcceptance(processId, dependencyRefs = null) {
     let refs = dependencyRefs;
-    let assessment = refs ? assessmentWork(processId, refs) : null;
+    const recoveryCase = recovery.read(processId);
+    let assessment = refs ? assessmentWork(processId, refs, recoveryCase?.recoveryGeneration || 1,
+      recoveryCase?.recoveryTriggerDigest || recoveryTriggerDigest()) : null;
     if (!assessment) {
-      const rows = options.workResultReader.listWorks({ ownerDomain:'arca', processType:'arca_acceptance',
-        processId, workKind:'acceptance_assessment' });
-      if (rows.length !== 1) return Object.freeze({ kind:'not_found', processId });
-      refs = refsFromWorkResult(rows[0].work_id);
-      assessment = assessmentWork(processId, refs);
+      const activeWorkId = recoveryCase?.activeWorkId;
+      if (!activeWorkId) return Object.freeze({ kind:'not_found', processId });
+      refs = refsFromWorkResult(activeWorkId);
+      assessment = assessmentWork(processId, refs, recoveryCase.recoveryGeneration, recoveryCase.recoveryTriggerDigest);
     }
     submit(assessment);
-    if (!succeeded(options.workResultReader.status(assessment.workId))) {
+    const assessmentStatus = options.workResultReader.status(assessment.workId);
+    if (assessmentStatus?.state === 'failed' || assessmentStatus?.latestAttempt?.state === 'failed') {
+      return Object.freeze({ kind:'attention_required', processId, workId:assessment.workId,
+        recovery:recovery.read(processId) });
+    }
+    if (!succeeded(assessmentStatus)) {
       return Object.freeze({ kind:'assessment_pending', processId, workId:assessment.workId });
     }
     const disposition=assessmentDisposition(assessment);
@@ -159,15 +173,18 @@ function createOnDeckProcessCoordinator(options) {
     if (!succeeded(options.workResultReader.status(commit.workId))) {
       return Object.freeze({ kind:'commit_pending', processId, workId:commit.workId });
     }
+    const offerContext = options.contextReader.readOffer(refs);
+    const attemptId = canonicalDigest({schema:'arca.acceptance-attempt-id@1',offerId:offerContext.offer.offerId,
+      onDeckPackageId:offerContext.offer.onDeckPackageId,packageDigest:offerContext.offer.packageDigest,
+      standardRevision:offerContext.shelf.currentStandardRevision,placementRevision:offerContext.shelf.currentPlacementRevision});
+    const resolved = recovery.resolve(processId, attemptId, canonicalDigest({ assessmentWorkId:assessment.workId, commitWorkId:commit.workId }));
+    options.executorIncidents?.resolve(resolved?.incidentKey, canonicalDigest({ schema:'arca.acceptance-recovered@1',
+      offerId:processId, assessmentWorkId:assessment.workId, commitWorkId:commit.workId }));
     if(disposition==='rejected')return Object.freeze({kind:'rejected',processId,workId:commit.workId,
       result:options.workResultReader.read(commit.workId).find((item)=>item.outcomeKind==='succeeded')?.result||null});
     const accepted = options.workResultReader.read(commit.workId).find((item)=>
       item.outcomeKind === 'succeeded' && item.result?.receiptKind === 'handoff_b_accepted');
     if (!accepted) return Object.freeze({ kind:'rejected', processId, workId:commit.workId });
-    const offerContext = options.contextReader.readOffer(refs);
-    const attemptId = canonicalDigest({schema:'arca.acceptance-attempt-id@1',offerId:offerContext.offer.offerId,
-      onDeckPackageId:offerContext.offer.onDeckPackageId,packageDigest:offerContext.offer.packageDigest,
-      standardRevision:offerContext.shelf.currentStandardRevision,placementRevision:offerContext.shelf.currentPlacementRevision});
     const assessmentFact = options.contextReader.acceptance.readAssessment(attemptId);
     const responsibility = options.contextReader.acceptance.deriveAcceptedResponsibility(assessmentFact);
     const onDeck = onDeckWork(responsibility.onDeckRunId, refs, commit);
@@ -178,9 +195,51 @@ function createOnDeckProcessCoordinator(options) {
   return Object.freeze({
     admitOffer(message) {
       const offer = exactOffer(message), refs = refsFromOffer(offer);
-      const work = assessmentWork(offer.offerId, refs);
-      return Object.freeze({ processId:offer.offerId, dependencyRefs:refs, work, result:submit(work) });
+      const triggerDigest = recoveryTriggerDigest();
+      const provisional = assessmentWork(offer.offerId, refs, 1, triggerDigest);
+      const recoveryCase = recovery.admit({ offerId:offer.offerId, onDeckPackageId:offer.onDeckPackageId,
+        packageDigest:offer.packageDigest, workId:provisional.workId, workKind:'acceptance_assessment', recoveryTriggerDigest:triggerDigest });
+      const work = assessmentWork(offer.offerId, refs, recoveryCase.recoveryGeneration, recoveryCase.recoveryTriggerDigest);
+      const circuit = options.executorIncidents?.scopeStatus({ ownerDomain:'arca', processType:'arca_acceptance',
+        workKind:'acceptance_assessment' });
+      const current = circuit?.blocked ? recovery.recordFailure(offer.offerId, { workId:work.workId,
+        failurePhase:'acceptance_assessment', errorCode:circuit.incident.error_code, terminalAttemptCount:0,
+        incidentKey:circuit.incident.incident_key }) : recoveryCase;
+      return Object.freeze({ processId:offer.offerId, dependencyRefs:refs, work, recovery:current,
+        result:circuit?.blocked ? Object.freeze({kind:'deferred',reasonCode:'EXECUTOR_CIRCUIT_OPEN'}) : submit(work),
+        admissionParticipant:recovery.admissionParticipant({ offerId:offer.offerId, workId:work.workId, packageDigest:offer.packageDigest }) });
     },
+    recordTerminalFailure(request) {
+      const status = options.workResultReader.status(request.workId);
+      const errorCode = request.errorCode || status?.latestAttempt?.failure_code || 'ARCA_ACCEPTANCE_EXECUTOR_FAILED';
+      const incident = options.executorIncidents?.recordFailure({ ownerDomain:'arca', processType:'arca_acceptance',
+        workKind:request.workKind, errorCode }) || Object.freeze({ incidentKey:canonicalDigest({ processId:request.processId, errorCode }) });
+      return recovery.recordFailure(request.processId, { workId:request.workId, failurePhase:request.workKind,
+        errorCode, terminalAttemptCount:Number(status?.latestAttempt?.ordinal || 1), incidentKey:incident.incidentKey });
+    },
+    recoverAttentionCases(limit = 100) {
+      const triggerDigest = recoveryTriggerDigest(), results = [];
+      for (const item of recovery.listAttention(limit)) {
+        if (item.automaticRecoveryUsed || item.failedTriggerDigest === triggerDigest) continue;
+        const refs = refsFromWorkResult(item.activeWorkId);
+        const nextWork = assessmentWork(item.offerId, refs, item.recoveryGeneration + 1, triggerDigest);
+        options.executorIncidents?.beginRecovery(item.incidentKey);
+        const next = recovery.startGeneration(item.offerId, { mode:'automatic', workId:nextWork.workId, recoveryTriggerDigest:triggerDigest });
+        if (next.activeWorkId === nextWork.workId) results.push(Object.freeze({ offerId:item.offerId, work:nextWork, result:submit(nextWork) }));
+      }
+      return Object.freeze(results);
+    },
+    retryAcceptance(offerId) {
+      const item = recovery.read(offerId);
+      if (!item) throw Object.assign(new Error('Acceptance Recovery Case was not found.'), { code:'ARCA_ACCEPTANCE_RECOVERY_NOT_FOUND' });
+      const refs = refsFromWorkResult(item.activeWorkId), triggerDigest = recoveryTriggerDigest();
+      const nextWork = assessmentWork(offerId, refs, item.recoveryGeneration + 1, triggerDigest);
+      options.executorIncidents?.beginRecovery(item.incidentKey);
+      const next = recovery.startGeneration(offerId, { mode:'user', workId:nextWork.workId, recoveryTriggerDigest:triggerDigest });
+      return Object.freeze({ recovery:next, work:nextWork, result:submit(nextWork) });
+    },
+    readAcceptanceRecovery: recovery.read,
+    listAcceptanceAttention: recovery.listAttention,
     reconcileAcceptance,
     reconcileOnDeck(onDeckRunId) {
       const rows = options.workResultReader.listWorks({ ownerDomain:'arca', processType:'arca_ondeck_run',

@@ -1105,9 +1105,15 @@ Accepted/Rejected决定、执行重试已耗尽”这一状态的Owner对账与�
 - 服务重启、重复对账和页面刷新不重复创建Inbox、Acceptance Decision、On-deck Run、Shelf Entry或物理文件；
 - 脚本/回归测试只证明故障合同和幂等性，最终仍须从真实Admin Web验证状态、恢复动作和Collection结果。
 
-当前处理决定：用户已确认记录统一处理方案。问题保持OPEN；本次仅登记Executor Failure Closure合同缺口和验收边界，
-不修改SSOT、代码、旧Work/Event、运行时数据库或Canary文件。后续若需改变Domain状态或新增Owner事实，必须先完成Design确认；
-实现、回归及真实浏览器验收完成后单独git commit。
+修复状态（2026-08-21）：`IMPLEMENTED / FRESH CANARY VERIFICATION PENDING`。
+
+- SSOT已补齐“终态Work Outcome → Domain Owner durable closure”、Handoff B admission Inbox、业务终态Ack和技术失败恢复合同；
+- 新增Arca Acceptance Recovery Case与Foundation Executor Incident持久事实；旧Work/Event/Attempt及失败Evidence不改写；
+- Assessment技术失败进入Formation可见的`attention_required`，展示阶段、错误码、尝试次数、Owner、恢复代际及用户重试；
+- connection/execution-contract revision变化只自动创建一次恢复代际，相同确定性故障有界聚合并熔断；
+- 专项、旧schema迁移、Foundation、Admin route与完整Architecture Gate通过，未操作旧Canary数据库或媒体文件。
+
+本条代码修复已完成；问题在第二轮真实Admin Web UAT验证旧失败类型能经新代际到达唯一Accepted/Rejected终态后关闭。
 
 ## 17. UAT-020：Final Inventory成员命名与carried-forward输入Settlement不完整
 

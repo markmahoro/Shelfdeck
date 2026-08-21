@@ -4,6 +4,17 @@ Status: Movie Procurement保持`CLOSED FOR MOVIE`；Movie Libra保持`MOVIE LIBR
 
 Last updated: 2026-08-21
 
+## 0. Implemented repair — UAT-019 terminal executor outcome closure
+
+Foundation继续把每个终态Work Outcome持久化后交还精确Domain Process scope，不再把成功作为Owner reconcile的前提。
+Handoff B在Arca admission时原子写入Domain Recovery Case与Foundation Inbox；`delivered`只表示技术送达，只有正式
+Accepted/Rejected业务事实成立后才能Ack。Assessment技术失败不产生业务拒绝，而进入持久`attention_required`，页面展示
+失败阶段、稳定错误码、尝试次数、Owner、恢复代际和人工重试入口。
+
+配置连接revision或服务执行合同revision变化时，只自动建立一次新的immutable Work代际；再次失败后等待用户重试。
+相同确定性故障按Owner/Process/Work Kind/Error Code聚合Incident，第三次打开process-local Circuit，恢复证据成立后再关闭。
+旧Work/Event/Attempt和失败Evidence不改写。专项闭环、迁移回归与完整Architecture Gate通过；新Canary仍需真实Admin Web验证。
+
 ## 0. Implemented repair — UAT-017 MoviePilot requirement preflight
 
 External Acquisition Query现在同时冻结当前`MediaRequirement`和`AcquisitionPolicy`；MoviePilot Candidate以typed

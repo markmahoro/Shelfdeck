@@ -1,0 +1,189 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/fx_executor_incidents/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "fx_executor_incidents",
+    "owner": "execution-foundation",
+    "prefix": "fx_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "incident_key",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": true,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 2,
+        "name": "owner_domain",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 3,
+        "name": "process_type",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 4,
+        "name": "work_kind",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 5,
+        "name": "error_code",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 6,
+        "name": "occurrence_count",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 7,
+        "name": "circuit_key",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 8,
+        "name": "incident_state",
+        "logicalType": "TEXT",
+        "enumValues": [
+          "open",
+          "recovering",
+          "resolved"
+        ],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 9,
+        "name": "evidence_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 10,
+        "name": "first_seen_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 11,
+        "name": "last_seen_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 12,
+        "name": "resolved_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      }
+    ],
+    "primaryKey": [
+      "incident_key"
+    ],
+    "declaredForeignKeyColumns": [],
+    "uniqueConstraints": [],
+    "hotIndexes": [
+      [
+        "incident_state",
+        "last_seen_at_ms"
+      ]
+    ],
+    "partialUniqueRules": [],
+    "checkRules": [
+      {
+        "column": "incident_state",
+        "enumValues": [
+          "open",
+          "recovering",
+          "resolved"
+        ]
+      }
+    ],
+    "revisionContract": {
+      "revisionColumns": [],
+      "currentPointerColumns": [],
+      "pointerTargets": [],
+      "pointerRules": []
+    },
+    "jsonContracts": [],
+    "immutability": {
+      "immutable": false,
+      "rules": []
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "`incident_key=SHA-256(JCS({owner_domain,process_type,work_kind,error_code}))`且相同确定性错误只聚合到一行",
+      "occurrence以CAS单调增加，达到3次时打开对应process-local Circuit",
+      "恢复开始只允许`open → recovering`，成功Work invariant evidence才允许`recovering → resolved`并关闭Circuit",
+      "`INDEX(incident_state,last_seen_at_ms)`"
+    ],
+    "rawContract": {
+      "columns": "`incident_key PK, owner_domain, process_type, work_kind, error_code, occurrence_count, circuit_key, incident_state(open|recovering|resolved), evidence_digest, first_seen_at_ms, last_seen_at_ms, resolved_at_ms NULL`",
+      "constraints": "`incident_key=SHA-256(JCS({owner_domain,process_type,work_kind,error_code}))`且相同确定性错误只聚合到一行；occurrence以CAS单调增加，达到3次时打开对应process-local Circuit；恢复开始只允许`open → recovering`，成功Work invariant evidence才允许`recovering → resolved`并关闭Circuit；`INDEX(incident_state,last_seen_at_ms)`"
+    },
+    "source": {
+      "section": "8.5.10",
+      "line": 9278,
+      "lineDigest": "660072c0a314c46de9b7617c20c7b0c5456e3cee49dba4df953d1730b8c43e12"
+    },
+    "foreignKeys": []
+  }
+}
