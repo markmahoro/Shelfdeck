@@ -1789,7 +1789,23 @@ stderr 为 `CLEAN_ARCA_TARGET_OCCUPIED` 与 `CLEAN_ARCA_SETTLEMENT_UNKNOWN_MEMBE
 
 修复状态（2026-08-22）：`REGRESSION PASSED / SERVICE RETRY MAY UNBLOCK`。当前 On-deck Settlement Attempt 若已终态失败，需服务重试或新 Run。
 
-## 40. 后续问题模板
+## 40. UAT-043：007 身份已过，TMDB metadata fetch 被 closed-shape / lease 一次打成冻结
+
+问题分类：`EXTERNAL_INTEGRATION / PRODUCT_METADATA`
+
+用户侧现象：干净 Canary 里 `007：大破天幕杀机` 身份观察已成功，随后冻成通用「本次整理已冻结」。监测看到 `P5_SECRET_LEASE_INVOCATION_FAILED`。
+
+现场证据：`related_nfo` / `provider_exact` / `product_identity.resolve` 均 succeeded。失败在第二次 `libra.product_metadata.fetch@1`（provider，约 456ms，不是 10s 超时）。Skyfall 带 `credits,alternative_titles,translations`，closed-shape `allowed()` 拒绝未知字段，credits 上限 256。lease 把 adapter 抛错包成 `executor`，pure_observation 不重试。
+
+精确根因：TMDB 详情是外部演进 JSON。根对象/演职员/译名多一个字段或 Bond 级 crew 超 256，整部电影 metadata 失败并冻 Run。NFO metadata 第一次已经成功，provider 第二次失败仍终态冻结。
+
+修复边界：metadata 响应改为必填字段校验、忽略未知 provider 字段；credits 1024、alternative titles 256、translations 128。lease 包装的 timeout/network/HTTP 收成 `timeout|integration` 可重试。缺失 `id` 仍 fail closed。不得跳过 metadata。
+
+验收证据：Skyfall 形态（未知根字段、300 crew、80 alt titles）`validateMetadataResponse` 通过；缺 `id` 仍拒绝。metadata lease timeout 为 `timeout` Outcome。p14 TMDB 13/13 通过。
+
+修复状态（2026-08-22）：`REGRESSION PASSED / NEW LIBRA RUN REQUIRED`。当前冻结的 007 Run 不可变。
+
+## 41. 后续问题模板
 
 后续发现的问题按以下结构追加：
 

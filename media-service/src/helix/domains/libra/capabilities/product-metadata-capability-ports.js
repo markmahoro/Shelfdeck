@@ -55,6 +55,27 @@ function outcome(result) {
   });
 }
 
+function metadataFetchFailed(error) {
+  const cause = (error?.details && typeof error.details.causeCode === 'string' && error.details.causeCode)
+    || (typeof error?.code === 'string' ? error.code : '');
+  const failureClass = cause === 'PLATFORM_INTEGRATION_TIMEOUT'
+    ? 'timeout'
+    : (cause === 'PLATFORM_INTEGRATION_NETWORK_FAILED' || cause === 'PLATFORM_INTEGRATION_HTTP_FAILED'
+      ? 'integration' : null);
+  if (!failureClass) throw error;
+  return Object.freeze({
+    kind: 'failed',
+    failureClass,
+    code: cause,
+    message: String(error.message || 'Product metadata provider failed.'),
+    retryDirective: 'contract_policy',
+    evidence: Object.freeze({
+      errorName: String(error.name || 'Error'),
+      errorCode: cause,
+    }),
+  });
+}
+
 function createProductMetadataCapabilityPorts(options) {
   if (!options?.productProductionPort ||
       typeof options.productProductionPort.readRelatedNfo !== 'function' ||
@@ -70,6 +91,7 @@ function createProductMetadataCapabilityPorts(options) {
       const intent = context.namedInputs.metadataFetchIntent;
       const handle = context.namedInputs.physicalMaterialReadHandleOrIntegrationHandle;
       let source;
+      try {
       if (intent.sourceKind === 'related_nfo') {
         const snapshot = typeof options.movieProductionReader.readRunSnapshot === 'function'
           ? options.movieProductionReader.readRunSnapshot(context.ownerScope.processId)
@@ -109,6 +131,9 @@ function createProductMetadataCapabilityPorts(options) {
         artifactHints: source.artifactHints,
         observedAtMs: now(),
       }));
+      } catch (error) {
+        return metadataFetchFailed(error);
+      }
     },
     validateResult(_context, value) {
       if (!value?.result?.evidenceId || value.result.producerRef !== CAPABILITY) {
@@ -119,4 +144,4 @@ function createProductMetadataCapabilityPorts(options) {
   return Object.freeze({ [CAPABILITY]: port });
 }
 
-module.exports = Object.freeze({ CAPABILITY, createProductMetadataCapabilityPorts });
+module.exports = Object.freeze({ CAPABILITY, createProductMetadataCapabilityPorts, metadataFetchFailed });

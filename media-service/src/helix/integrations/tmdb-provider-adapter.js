@@ -59,6 +59,15 @@ function allowed(value, required, optional, code) {
   }
 }
 
+function requireFields(value, required, code) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    fail(code, 'TMDB response must be one bounded object.');
+  }
+  if (required.some((key) => !Object.hasOwn(value, key))) {
+    fail(code, 'TMDB response is missing a required field.');
+  }
+}
+
 function boundedString(value, maxBytes, code, optional = false) {
   if (optional && (value === null || value === undefined)) return;
   const minimum = optional ? 0 : 1;
@@ -282,10 +291,9 @@ const PERSON_FIELDS = Object.freeze([
 ]);
 
 function validateMetadataResponse(value) {
-  allowed(
+  requireFields(
     value,
     ['id'],
-    METADATA_FIELDS.filter((field) => field !== 'id'),
     'PLATFORM_INTEGRATION_RESPONSE_SCHEMA_INVALID',
   );
   if (!Number.isSafeInteger(value.id) || value.id < 1) {
@@ -341,17 +349,16 @@ function validateMetadataResponse(value) {
     }
   }
   if (value.credits !== undefined) {
-    allowed(
+    requireFields(
       value.credits,
       [],
-      ['cast', 'crew'],
       'PLATFORM_INTEGRATION_RESPONSE_SCHEMA_INVALID',
     );
     for (const [collectionKind, collection] of [
       ['cast', value.credits.cast || []],
       ['crew', value.credits.crew || []],
     ]) {
-      if (!Array.isArray(collection) || collection.length > 256) {
+      if (!Array.isArray(collection) || collection.length > 1024) {
         fail(
           'PLATFORM_INTEGRATION_RESPONSE_SCHEMA_INVALID',
           'TMDB people set exceeds its bound.',
@@ -359,11 +366,9 @@ function validateMetadataResponse(value) {
       }
       const identities = new Set();
       for (const item of collection) {
-        allowed(
+        requireFields(
           item,
           ['id', 'name'],
-          PERSON_FIELDS.filter((field) =>
-            !['id', 'name'].includes(field)),
           'PLATFORM_INTEGRATION_RESPONSE_SCHEMA_INVALID',
         );
         const identityKey = collectionKind === 'cast'
@@ -388,25 +393,27 @@ function validateMetadataResponse(value) {
     }
   }
   if (value.alternative_titles !== undefined) {
-    allowed(value.alternative_titles, ['titles'], [], 'PLATFORM_INTEGRATION_RESPONSE_SCHEMA_INVALID');
-    if (!Array.isArray(value.alternative_titles.titles) || value.alternative_titles.titles.length > 64) {
+    requireFields(value.alternative_titles, ['titles'], 'PLATFORM_INTEGRATION_RESPONSE_SCHEMA_INVALID');
+    if (!Array.isArray(value.alternative_titles.titles) || value.alternative_titles.titles.length > 256) {
       fail('PLATFORM_INTEGRATION_RESPONSE_SCHEMA_INVALID', 'TMDB alternative title set exceeds its bound.');
     }
     for (const item of value.alternative_titles.titles) {
-      allowed(item, ['title'], ['iso_3166_1', 'type'], 'PLATFORM_INTEGRATION_RESPONSE_SCHEMA_INVALID');
+      requireFields(item, ['title'], 'PLATFORM_INTEGRATION_RESPONSE_SCHEMA_INVALID');
       boundedString(item.title, 1024, 'PLATFORM_INTEGRATION_RESPONSE_SCHEMA_INVALID');
       boundedString(item.iso_3166_1, 16, 'PLATFORM_INTEGRATION_RESPONSE_SCHEMA_INVALID', true);
       boundedString(item.type, 128, 'PLATFORM_INTEGRATION_RESPONSE_SCHEMA_INVALID', true);
     }
   }
   if (value.translations !== undefined) {
-    allowed(value.translations, ['translations'], [], 'PLATFORM_INTEGRATION_RESPONSE_SCHEMA_INVALID');
-    if (!Array.isArray(value.translations.translations) || value.translations.translations.length > 64) {
+    requireFields(value.translations, ['translations'], 'PLATFORM_INTEGRATION_RESPONSE_SCHEMA_INVALID');
+    if (!Array.isArray(value.translations.translations) || value.translations.translations.length > 128) {
       fail('PLATFORM_INTEGRATION_RESPONSE_SCHEMA_INVALID', 'TMDB translation set exceeds its bound.');
     }
     for (const item of value.translations.translations) {
-      allowed(item, ['data'], ['iso_3166_1', 'iso_639_1', 'name', 'english_name'], 'PLATFORM_INTEGRATION_RESPONSE_SCHEMA_INVALID');
-      allowed(item.data, [], ['title', 'name', 'overview', 'homepage', 'runtime', 'tagline'], 'PLATFORM_INTEGRATION_RESPONSE_SCHEMA_INVALID');
+      requireFields(item, ['data'], 'PLATFORM_INTEGRATION_RESPONSE_SCHEMA_INVALID');
+      if (!item.data || typeof item.data !== 'object' || Array.isArray(item.data)) {
+        fail('PLATFORM_INTEGRATION_RESPONSE_SCHEMA_INVALID', 'TMDB translation data is invalid.');
+      }
       boundedString(item.data.title, 1024, 'PLATFORM_INTEGRATION_RESPONSE_SCHEMA_INVALID', true);
       boundedString(item.data.name, 1024, 'PLATFORM_INTEGRATION_RESPONSE_SCHEMA_INVALID', true);
       boundedString(item.iso_3166_1, 16, 'PLATFORM_INTEGRATION_RESPONSE_SCHEMA_INVALID', true);
@@ -1109,4 +1116,5 @@ module.exports = Object.freeze({
   TmdbProviderAdapterError,
   createTmdbProviderAdapter,
   normalizedEndpoint,
+  validateMetadataResponse,
 });
