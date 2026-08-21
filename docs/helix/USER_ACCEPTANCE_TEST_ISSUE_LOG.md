@@ -1029,7 +1029,77 @@ Package、Receipt、Canonical JSON等结构化事实的SHA-256与媒体字节Ide
 
 当前处理决定：用户已确认上述四类当前状态及Discard历史方案。问题保持OPEN；本次只记录产品合同，不点击现有Frozen Run的Discard按钮，不修改代码、运行时事实或Canary文件。后续实现并验证后单独git commit。
 
-## 16. 后续问题模板
+## 16. UAT-019：Executor终态异常缺少统一Owner收口，Arca Acceptance Offer悬空
+
+问题分类：`EXECUTION_RECOVERY / BUSINESS_CONTRACT / USER_VISIBLE_PROJECTION`
+
+用户侧现象：Formation显示5部电影“已完成整理”，但“我的收藏”只有`老笠 (2016)`1个Shelf Entry。其余
+`光荣的愤怒`、`有话好好说`、`立春`和`香火`既没有进入Arca，也没有在页面显示为失败或需要处理；用户无法判断
+这些影片是验收不合格、系统仍在运行，还是执行器已经异常终止。
+
+现场证据：
+
+- 4部影片的Libra Run均为`active`，Package均为`published`，但没有Handoff B Receipt、Acceptance Decision、
+  On-deck Run或Shelf Entry；
+- 对应`arca.acceptance_assessment` Supporting Work均已终态`failed`；Mandatory Media、Metadata、Space和Structure
+  等5项检查均成功，只有`arca.acceptance.inventory_feasibility.observe@1`抛出
+  `CLEAN_ARCA_TARGET_COLLISION`；
+- 因执行器抛出技术异常，本次Assessment没有形成业务`passed/failed`结论，也不能据此认定影片不符合Shelf
+  Acceptance Standard；
+- 4份`libra.product-offer.available@1` Delivery均被记录为`delivered`，但Arca Inbox没有对应记录或Ack；当前
+  Dispatcher只重取`pending/failed` Delivery，Acceptance Work终态失败后也没有Domain Owner恢复回调，因此不会自行重建验收；
+- 同根Inventory逻辑已在UAT-011中修复，新Package能够成功验收并使`老笠`进入Arca，但4份旧失败Work和Event
+  按不可变合同保留失败，当前实现没有从修复后的Execution Basis启动新恢复执行的桥梁。
+
+初步诊断：Foundation已经定义统一Capability Outcome：`succeeded`、`deferred`、`failed`和`fence_rejected`，并要求
+按Contract进行有界重试及Effect-specific recovery；但当前接线只收口单次Executor/Event/Work，没有保证终态技术失败
+必然交还业务Owner并形成持久、用户可见、可恢复的流程状态。Arca Acceptance路径尤其缺少“Offer已送达、Assessment未形成
+Accepted/Rejected决定、执行重试已耗尽”这一状态的Owner对账与恢复合同。因此这是统一Executor Failure Closure缺口，不是
+把`CLEAN_ARCA_TARGET_COLLISION`改掉即可永久解决的单点异常。
+
+必须遵守的统一语义：
+
+1. 预期的业务否定，例如真实字节冲突、空间不足或产品不满足Acceptance Standard，必须返回
+   `succeeded + typed negative result`并形成正式Arca Rejection，不能伪装成技术`failed`；
+2. 临时网络、I/O或进程异常返回可重试`failed`，由Runtime依据冻结的Retry Policy创建同一Event的新Attempt；Executor
+   不得自行决定次数、创建Work或改变Plan；
+3. Schema、Invariant、程序缺陷等确定性技术异常不得无限重试，应形成聚合Incident/熔断及明确的Owner接管状态；
+4. Execution Basis过期返回`fence_rejected`，停止旧执行并由Owner重新计算，不在旧Basis上盲目重放；
+5. 非纯观察Effect必须通过Effect Journal、Idempotency Key、Receipt或Commit Marker先查询已有结果，再决定复用、补偿或重做，
+   禁止因恢复而重复下载、重复写文件、重复提交Domain Fact或重复转移控制权；
+6. 重试耗尽只终结本次Execution责任，不能让业务对象保持“active/delivered/已完成”假象。失败必须由所属Domain Owner
+   投影为`需要处理/技术阻塞`，并明确下一步恢复动作；Handoff B Accepted前Custody仍属于Libra，Accepted后的恢复责任属于Arca。
+
+拟定修复边界：
+
+- 先回到Design，在唯一SSOT补齐“Executor终态技术失败 → Domain Owner durable closure”的通用合同，以及Arca Acceptance
+  在Decision形成前失败时的精确状态、Ack/Delivery语义、恢复触发、重试代际和用户动作；不由Adapter或Reconciler私自发明Domain Fact；
+- 为已送达但没有Inbox/Ack或终态Acceptance Decision的Offer增加幂等对账，禁止`delivered`成为不可恢复黑洞；
+- 修复代码或环境后，以原immutable Package/Offer和重新验证的当前Basis创建新的恢复Attempt/Work代际；旧失败Work、Attempt和
+  Evidence保持不变，不直接改库、不把旧失败改写成成功；
+- Arca Acceptance最终必须形成且只能形成正式`Accepted`或`Rejected`结果。技术执行异常不得冒充Rejection，也不得推进
+  Handoff B、Custody、On-deck或Shelf Entry；
+- Formation和Arca管理页面必须显示失败阶段、稳定错误码、已尝试次数、当前Owner、是否会自动重试及用户下一步；在Arca尚无
+  Acceptance终态时，Formation不得显示“已完成整理”；
+- 相同确定性错误影响多个影片时聚合为系统Incident并有界熔断，避免每部影片各自高速失败；恢复后再按幂等合同逐项对账。
+
+预期验收：
+
+- 用纯观察、Workspace写入、外部请求、Domain Fact提交和责任/控制提交各一类Executor故障验证统一Outcome、Retry和
+  Effect Recovery，没有重复副作用；
+- 可重试异常在预算内建立新Attempt并恢复，预算耗尽或不可重试异常进入正确Owner的持久`需要处理/技术阻塞`状态；
+- 真正的Acceptance业务不合格形成typed Rejection Receipt；执行器异常不产生Accepted或Rejected假结论；
+- 模拟Arca Assessment在Offer送达后崩溃，页面不得显示整理完成，Offer不会永久停在`delivered`，修复Basis后可通过正式恢复
+  执行到达唯一Accepted或Rejected终态；
+- 当前4部受影响影片不修改旧事实，通过正式恢复路径重新Assessment，并在Admin Web逐部得到可解释终态；
+- 服务重启、重复对账和页面刷新不重复创建Inbox、Acceptance Decision、On-deck Run、Shelf Entry或物理文件；
+- 脚本/回归测试只证明故障合同和幂等性，最终仍须从真实Admin Web验证状态、恢复动作和Collection结果。
+
+当前处理决定：用户已确认记录统一处理方案。问题保持OPEN；本次仅登记Executor Failure Closure合同缺口和验收边界，
+不修改SSOT、代码、旧Work/Event、运行时数据库或Canary文件。后续若需改变Domain状态或新增Owner事实，必须先完成Design确认；
+实现、回归及真实浏览器验收完成后单独git commit。
+
+## 17. 后续问题模板
 
 后续发现的问题按以下结构追加：
 
