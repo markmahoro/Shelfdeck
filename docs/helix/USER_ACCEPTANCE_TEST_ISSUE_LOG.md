@@ -982,7 +982,54 @@ Package、Receipt、Canonical JSON等结构化事实的SHA-256与媒体字节Ide
 
 当前处理决定：用户明确要求修复并先记录。问题保持OPEN；本次只登记架构缺口和预期结果，不修改当前SSOT、代码、MoviePilot配置、不可变Run事实或Canary文件。后续修复必须先取得返回Design并修改SSOT合同的明确授权，完成并验证后单独git commit。
 
-## 15. 后续问题模板
+## 15. UAT-018：Formation 顶部状态缺少“需要处理”，Discard 历史与媒体当前状态混淆
+
+问题分类：`USER_VISIBLE_PROJECTION / RUN_LIFECYCLE / CURRENT_VS_HISTORY`
+
+用户侧现象：媒体整理页顶部显示“待整理16、整理中1、已完成整理5”，但唯一被计入“整理中”的`一场很（没）有必要的春晚 (2022)`已经明确显示`frozen`和“放弃本次整理”按钮。用户无法从顶部统计区分系统仍在执行、等待用户处理和已经终止的整理历史。
+
+现场证据：
+
+- 该电影当前Libra Run为`frozen`、state revision 3；
+- 对应12份Supporting Work全部为`succeeded`，28个Workflow Event全部为`succeeded`，不存在开放中的Work或Event；
+- Formation `productionStarted(works)`只要发现历史上有Production阶段Work成功或Event执行过就永久返回true；Classification没有让当前`frozen/suspended`状态优先，因而旧的External Acquisition历史仍把Frozen Run标为`in_progress`；
+- 行级`attention_state=frozen`和“本次整理已冻结”正确，错误只发生在Classification、顶部汇总语义及历史去向不完整。
+
+用户确认的状态合同：顶部当前状态采用四个互斥桶，按以下优先级归类：
+
+1. `已完成整理`：Libra整理产品已完成；
+2. `需要处理`：`attention_required / blocked / suspended / frozen`，需要用户决定或明确恢复动作；
+3. `整理中`：当前确有开放且可推进的Run/Work/Event；
+4. `待整理`：没有Attention、尚未开始或等待系统继续形成整理动作。
+
+`需要处理`不是“异常”标签；媒体身份确认、合法冻结和暂停都属于可解释的用户工作。四类必须对每个当前媒体恰好命中一个，不允许Frozen同时计入“整理中”。按本次现场事实，顶部预期为“待整理0、整理中0、需要处理17、已完成整理5”。
+
+用户确认的Discard合同：
+
+- 当前按钮语义保持为“放弃本次整理”，只终结当前Libra Run，不代表永久排除这部电影；
+- 被Discard的旧Run进入历史结果，标记“已结束 · 用户放弃”，不计入顶部“整理中”“需要处理”或“已完成整理”；
+- 同一电影若按当前Eligibility仍可采购，则其当前媒体状态回到“待整理”并允许形成新的Run；旧Run历史与当前媒体不得重复计数；
+- Discard不删除原始媒体文件；永久“不再整理”必须是未来独立、显式的排除业务动作，不能复用Run Discard。
+
+拟定修复边界：
+
+- Formation Classification让终态Package及当前Run/Attention状态优先于历史`productionStarted`；`in_progress`必须由当前开放且可推进的执行事实证明；
+- Formation Summary增加后端全量Projection计数`需要处理`，不得由Admin Web对当前分页临时统计；
+- Admin Web顶部显示“待整理、整理中、需要处理、已完成整理”四项，并保持与列表使用同一分类函数；
+- 历史结果区区分“整理完成”和“已放弃”的Run结果；顶部仍是当前媒体统计，不把历史Run作为第二份媒体计数；
+- 实现前确认现有公开Projection/API及唯一SSOT是否需要扩展字段或历史Run Query，不以纯前端重分类掩盖缺失的后端事实。
+
+预期验收：
+
+- 当前两项Frozen Run均进入“需要处理”，顶部“整理中”为0；
+- 真实存在开放Production Work时才增加“整理中”，进入Frozen/Suspended后立即移出；
+- 通过Admin Web确认Discard后，旧Run出现在“已放弃”历史，原始文件保持存在；若媒体仍eligible，则当前媒体只在“待整理”出现一次；
+- 页面刷新和服务重启后四项计数、列表和历史结果保持一致；
+- 分页不影响顶部全量计数，脚本测试仅作为Projection修复回归，不能替代真实浏览器验收。
+
+当前处理决定：用户已确认上述四类当前状态及Discard历史方案。问题保持OPEN；本次只记录产品合同，不点击现有Frozen Run的Discard按钮，不修改代码、运行时事实或Canary文件。后续实现并验证后单独git commit。
+
+## 16. 后续问题模板
 
 后续发现的问题按以下结构追加：
 
