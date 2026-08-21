@@ -62,6 +62,27 @@ Helix主体开发已经完成，Movie从Procurement、Libra到Arca及Shelf Dereg
 
 分类描述的是首要根因，不以用户最先看到的页面现象分类。例如“页面上的Subject增长很慢”如果根因是Coordinator全局串行，应归入`DOMAIN_ORCHESTRATION`，而不是简单归为UI或硬件性能问题。
 
+### 1.2 本轮 Movie Canary UAT 作业方法
+
+2026-08-22 纠正。空等「23 部全部 completed」不是测试作业；五星无合格 4K 源的产品不可达是已确认合同终态，不能当作 DONE 条件，也不能把监测做成挂机。
+
+闭环：
+
+1. 看账：每个 Subject 只能落在「还在干活 / 合法冻结 / 产品阻塞」之一。
+2. 还在干活：必须有可核验的执行证据（FFmpeg 进程、工作区文件在增长、On-deck 状态在推进）。页面仍显示整理中但证据消失，按阻塞处理。
+3. 合法冻结：仅限五星整理要求下 MoviePilot `no_available_candidate` / `no_requirement_eligible_candidate` 的可读冻结。计入「需要处理」，不阻断本轮可关闭的形成/上架账。
+4. 产品阻塞：形成失败、ISO triage_failed、Remux/Transcode 停死、Off-load 停死、身份观察 schema/Secret 失败、通用冻结句、Aftercare 合同缺口等。钉根因、写入台账、逐条修、逐条提交。涉及用户意图或业务合同时停下来问。不准 workaround。
+5. 旧 Observation / 冻结 Run / 已发布 Candidate 不可变。修复若必须新 Observation，再开干净 Canary；否则在当前隔离库继续核验。
+
+本轮可关闭的形成/上架账（不是「23 部都 On-deck」）：
+
+- 形成 23/23（两部`养蜂人` + ISO `倩女幽魂2`）；
+- 凡合同允许上架的都已 On-deck；
+- 其余只允许是上面第 3 条的合法五星冻结；
+- 第 4 条阻塞必须清零。Aftercare 健康等独立 OPEN 项单独收口，不能用五星冻结吞掉。
+
+密集监测只在**新阻塞出现**或**本轮账可关闭**时叫醒，并落盘快照。不得把进度变化或合法冻结当成完成，也不得在无执行证据时继续挂着。
+
 ## 2. 问题总览
 
 | ID | 问题 | 主分类 | 次分类 | 主要责任边界 | 影响维度 | 严重度 | 当前状态 |

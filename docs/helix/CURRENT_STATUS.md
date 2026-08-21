@@ -19,12 +19,12 @@ Last updated: 2026-08-22
 | 服务 | PID 37740；`127.0.0.1:18080`；`helix-clean-v3`；`normalSupplyAllowed=true` |
 | Admin Web | 8 个正式页面首次打开与直接刷新均成功；Field/Shelf 均为 Movie Canary → `F:\canary` |
 | Routing | Direct → Movie Canary Policy revision 1 已从页面发布 |
-| Observation | 已从页面触发；Observation revision 2，Procurement Run 正在准备 |
-| Formation | 干净重建后等待 Candidate / Subject；目标仍是 23/23（两部`养蜂人` + ISO `倩女幽魂2`） |
+| Observation | 已从页面触发；Observation revision 2；ISO 已 Handoff A Accepted |
+| Formation | 23 Candidate / 23 Subject。作业方法已纠正：不再空等 23 部 completed |
 
-2026-08-22 用户确认：成功标准旧稿把 `养蜂人` 顶层目录写成一部 Movie 是错误的。现成 MKV 与嵌套 BDMV 是两部独立电影，必须都形成 Subject 并都能 On-deck；内容去重属于 Arca Duplicate/Off-deck，不是 Formation 或 Placement 的拦截理由。基线仍是 22 个顶层单元，形成与上架口径改为 23/23。
+2026-08-22 用户确认：成功标准旧稿把 `养蜂人` 顶层目录写成一部 Movie 是错误的。现成 MKV 与嵌套 BDMV 是两部独立电影，必须都形成 Subject 并都能 On-deck；内容去重属于 Arca Duplicate/Off-deck，不是 Formation 或 Placement 的拦截理由。基线仍是 22 个顶层单元，形成口径 23/23。五星无合格 4K 源的产品不可达是合法冻结，不能当作监测 DONE，也不能把监测做成挂机。本轮可关闭的上架账是：合同允许上架的都已 On-deck，其余只允许是该合法冻结，产品阻塞必须清零。详见台账 §1.2。
 
-完整 23/23 Arca 闭环尚未判定。
+当前隔离库尚未按纠正后的方法收口。独立 OPEN 项仍见台账 UAT-035/037/038。
 
 ## 0. UAT repair status — UAT-005 / UAT-018 implemented, fresh Canary qualification pending
 
