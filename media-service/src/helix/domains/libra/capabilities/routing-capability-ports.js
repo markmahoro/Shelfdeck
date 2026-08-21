@@ -168,13 +168,38 @@ function identityAlias(value, sourceKind) {
   return Object.freeze({ ...item, aliasDigest:canonicalDigest(item) });
 }
 
+function identityObservationFailed(error) {
+  const cause = (error?.details && typeof error.details.causeCode === 'string' && error.details.causeCode)
+    || (typeof error?.code === 'string' ? error.code : '');
+  if (cause === 'PLATFORM_INTEGRATION_TIMEOUT') {
+    return Object.freeze({
+      kind: 'failed', failureClass: 'timeout', code: cause,
+      message: String(error.message || 'Product identity provider timed out.'),
+      retryDirective: 'contract_policy',
+      evidence: Object.freeze({ errorName: String(error.name || 'Error'), errorCode: cause }),
+    });
+  }
+  if (cause === 'PLATFORM_INTEGRATION_NETWORK_FAILED') {
+    return Object.freeze({
+      kind: 'failed', failureClass: 'integration', code: cause,
+      message: String(error.message || 'Product identity provider request failed.'),
+      retryDirective: 'contract_policy',
+      evidence: Object.freeze({ errorName: String(error.name || 'Error'), errorCode: cause }),
+    });
+  }
+  throw error;
+}
+
 function identityCandidate(candidate) {
   const providerAliases = Array.isArray(candidate.aliases) ? candidate.aliases : [];
-  const aliases = unique([candidate.title, candidate.originalTitle, ...providerAliases.map((item) => item.value)])
+  const aliases = unique([candidate.title, candidate.originalTitle, ...providerAliases.map((item) => item.value)]
+    .map((value) => String(value || '').normalize('NFKC').trim()))
     // Provider adapters may retain their own provenance vocabulary (for example
     // TMDB's localized/original/translation labels).  ProductIdentityEvidence
     // intentionally exposes only its bounded cross-domain vocabulary, so do not
-    // leak adapter-local labels into the typed result.
+    // leak adapter-local labels into the typed result.  NFKC before unique so
+    // CJK fullwidth punctuation cannot inflate the 32-alias contract bound.
+    .slice(0, 32)
     .map((value) => identityAlias(value, 'provider'));
   const value = { provider:'tmdb', namespace:'tmdb_movie', providerKey:String(candidate.providerKey),
     displayTitle:String(candidate.title || candidate.originalTitle), originalTitle:candidate.originalTitle ? String(candidate.originalTitle) : null,
@@ -285,8 +310,14 @@ function createRoutingCapabilityPorts(options) {
           !context.namedInputs.physicalMaterialReadHandleOrIntegrationHandle) throw new TypeError('Product Identity Evidence inputs are required.'); },
       async execute(context) {
         const intent=context.namedInputs.productIdentityEvidenceIntent,
-          handle=context.namedInputs.physicalMaterialReadHandleOrIntegrationHandle,
-          observed=await observeProductIdentity(options,intent,handle),observedAtMs=now();
+          handle=context.namedInputs.physicalMaterialReadHandleOrIntegrationHandle;
+        let observed;
+        try {
+          observed=await observeProductIdentity(options,intent,handle);
+        } catch (error) {
+          return identityObservationFailed(error);
+        }
+        const observedAtMs=now();
         return succeeded(IDENTITY_EVIDENCE_REF,observed,observedAtMs,null,
           evidence(IDENTITY_EVIDENCE_REF,intent.intentDigest,observed,observedAtMs));
       },
@@ -296,8 +327,13 @@ function createRoutingCapabilityPorts(options) {
       validateInputs(context) { if (!context?.namedInputs?.routingFactObservationIntent || !context.namedInputs.physicalMaterialReadHandleOrIntegrationHandle) throw new TypeError('Routing Fact inputs are required.'); },
       async execute(context) {
         const intent = context.namedInputs.routingFactObservationIntent, handle = context.namedInputs.physicalMaterialReadHandleOrIntegrationHandle;
-        const observed = intent.sourceKind === 'related_nfo' ? parseNfo(intent, await options.readRelatedNfo(handle), handle) :
-          parseProvider(intent, await options.observeRoutingProvider({ intent, integrationHandle: handle }), handle);
+        let observed;
+        try {
+          observed = intent.sourceKind === 'related_nfo' ? parseNfo(intent, await options.readRelatedNfo(handle), handle) :
+            parseProvider(intent, await options.observeRoutingProvider({ intent, integrationHandle: handle }), handle);
+        } catch (error) {
+          return identityObservationFailed(error);
+        }
         const observedAtMs = now();
         return succeeded(FACT_REF, observed, observedAtMs, null, evidence(FACT_REF, intent.intentDigest, observed, observedAtMs));
       },
@@ -323,4 +359,4 @@ function createRoutingCapabilityPorts(options) {
   });
 }
 
-module.exports = Object.freeze({ createRoutingCapabilityPorts, observeProductIdentity, parseNfo, parseProvider, providerCandidateSelection });
+module.exports = Object.freeze({ createRoutingCapabilityPorts, observeProductIdentity, parseNfo, parseProvider, providerCandidateSelection, identityObservationFailed });

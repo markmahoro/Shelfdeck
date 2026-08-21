@@ -8,7 +8,11 @@ const test = require('node:test');
 const Database = require('better-sqlite3');
 const { canonicalDigest } = require('../src/helix/contracts/canonical-json');
 const { createProductIdentitySelectionService } = require('../src/helix/domains/libra/application/product-identity-selection-service');
-const { observeProductIdentity } = require('../src/helix/domains/libra/capabilities/routing-capability-ports');
+const { createCapabilityContractValidator } = require('../src/helix/foundation/capability/contract-validator');
+const {
+  identityObservationFailed,
+  observeProductIdentity,
+} = require('../src/helix/domains/libra/capabilities/routing-capability-ports');
 const { openSqliteKernel } = require('../src/helix/foundation/persistence/sqlite-kernel');
 const { createSqliteUnitOfWork } = require('../src/helix/foundation/persistence/sqlite-unit-of-work');
 
@@ -16,6 +20,9 @@ const generatedRoot = path.resolve(__dirname, '../src/helix/foundation/persisten
 const schemaDdl = fs.readFileSync(path.join(generatedRoot, 'clean-schema.sql'), 'utf8');
 const schemaManifest = JSON.parse(fs.readFileSync(path.join(generatedRoot, 'clean-schema.manifest.json'), 'utf8'));
 const hex = (value) => canonicalDigest({ value });
+const observationSchema = JSON.parse(fs.readFileSync(path.resolve(__dirname,
+  '../src/helix/contracts/types/ProductIdentityEvidenceObservation/v1/schema.json'), 'utf8'));
+const observationValidator = createCapabilityContractValidator({ schemas: [observationSchema] });
 
 function fixture(run) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'helix-product-identity-selection-'));
@@ -96,6 +103,51 @@ test('manual Selection Intent still performs exact TMDB observation before resol
   assert.equal(calls, 1);
   assert.equal(result.result, 'resolved');
   assert.equal(result.verifiedIdentity.providerKey, '278');
+});
+
+test('NFKC-collapsing CJK titles cannot overflow the 32-alias Product Identity contract', async () => {
+  const titleFullwidth = '007：大破天幕杀机';
+  const titleAscii = titleFullwidth.normalize('NFKC');
+  assert.notEqual(titleFullwidth, titleAscii);
+  const extra = Array.from({ length: 32 }, (_item, index) => ({
+    value: 'Skyfall alias ' + String(index).padStart(2, '0'), sourceKind: 'alternative_title',
+  }));
+  const intent = {
+    ...evidenceIntent('nfo_claim'),
+    providerKey: '37724',
+    yearHint: 2012,
+    aliases: [{ value: titleFullwidth, sourceKind: 'candidate',
+      aliasDigest: canonicalDigest({ value: titleFullwidth, sourceKind: 'candidate' }) }],
+  };
+  const observation = await observeProductIdentity({ observeRoutingProvider: async () => [{
+    providerKey: '37724', title: titleFullwidth, originalTitle: 'Skyfall', releaseYear: 2012,
+    aliases: [{ value: titleAscii, sourceKind: 'localized' }, ...extra],
+  }] }, intent, { integrationId: 'tmdb-main', configRevision: 1 });
+  assert.equal(observation.result, 'resolved');
+  assert.ok(observation.verifiedIdentity.aliases.length <= 32);
+  assert.equal(new Set(observation.verifiedIdentity.aliases.map((item) => item.value)).size,
+    observation.verifiedIdentity.aliases.length);
+  observationValidator.validate('helix://contracts/types/ProductIdentityEvidenceObservation/v1', observation);
+});
+
+test('TMDB timeout wrapped by a Secret lease is a retryable timeout Outcome', () => {
+  const error = Object.assign(new Error('Secret-backed invocation failed.'), {
+    code: 'P5_SECRET_LEASE_INVOCATION_FAILED',
+    details: { causeCode: 'PLATFORM_INTEGRATION_TIMEOUT' },
+  });
+  const outcome = identityObservationFailed(error);
+  assert.equal(outcome.kind, 'failed');
+  assert.equal(outcome.failureClass, 'timeout');
+  assert.equal(outcome.code, 'PLATFORM_INTEGRATION_TIMEOUT');
+  assert.equal(outcome.retryDirective, 'contract_policy');
+  const network = Object.assign(new Error('Secret-backed invocation failed.'), {
+    code: 'P5_SECRET_LEASE_INVOCATION_FAILED',
+    details: { causeCode: 'PLATFORM_INTEGRATION_NETWORK_FAILED' },
+  });
+  assert.equal(identityObservationFailed(network).failureClass, 'integration');
+  assert.throws(() => identityObservationFailed(Object.assign(new Error('schema'), {
+    code: 'P4_CAPABILITY_SCHEMA_REJECTED',
+  })), (thrown) => thrown.code === 'P4_CAPABILITY_SCHEMA_REJECTED');
 });
 
 test('provider-local alias provenance is normalized before Product Identity evidence leaves Libra', async () => {

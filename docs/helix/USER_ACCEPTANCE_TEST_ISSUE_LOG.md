@@ -1687,15 +1687,16 @@ AVDP 在扇区 256，随后是 UDF 2.50 元数据分区；没有 `CD001`，topol
   `libra.product_identity.evidence.observe@1` Attempt 以 `P4_CAPABILITY_SCHEMA_REJECTED` 失败；
 - Run 因此按 `product_unachievable` 冻结，从未进入 MoviePilot 选择，所以 UAT-030 的外部获取冻结文案套不上。
 
-精确根因（2026-08-22 本轮隔离库钉死，尚未修）：
+精确根因（2026-08-22）：
 
-- `007：大破天幕杀机` Run `37f9641d…`：NFO `related_nfo` 已成功，随后 `provider_identity_observation` / `libra.product_identity.evidence.observe@1` Attempt 以 `P4_CAPABILITY_SCHEMA_REJECTED` 失败（约 2s，已从 TMDB 拿到响应）。失败 Outcome 只存 `evidence_digest`，没有 `evidence_json`，schema 路径本身还不在库里。
-- `锡尔弗顿之围` Run `3ff3187b…`：同一节点以 `P5_SECRET_LEASE_INVOCATION_FAILED` 失败（约 11s）。TMDB `fetchJson` 默认超时 10s，超时码是 `PLATFORM_INTEGRATION_TIMEOUT`，Secret lease consumer 把它包成 lease 失败。两者都让 Run 按 `product_unachievable` 冻成通用句，从未进入 MoviePilot。
+- `007：大破天幕杀机`：NFO 已解析 TMDB `37724`，`provider_exact` 观察从 TMDB 拿到详情后，把未 NFKC 的片名和已经 NFKC 的 alternative titles 一起 unique，全角 `：` 变成两条 alias，冲破 `verifiedIdentity.aliases` 的 32 上限，dispatcher 报 `P4_CAPABILITY_SCHEMA_REJECTED`。
+- `锡尔弗顿之围`：TMDB 10s 超时码是 `PLATFORM_INTEGRATION_TIMEOUT`，Secret lease 包成 `P5_SECRET_LEASE_INVOCATION_FAILED`。pure_observation 只重试 `timeout`/`integration`，`executor` 一次即冻成 `product_unachievable`。
 
-不得把通用冻结句改成五星文案来掩盖身份观察失败。
+修复边界：identity candidate 先 NFKC 再 unique，并截到 32。lease 包装的 TMDB timeout/network 在 Identity/Routing observe 收成 `failureClass=timeout|integration`，按合同重试。不改冻结文案，不把身份失败伪装成五星外部获取。
 
-当前处理决定：不编 workaround。下一步分别修 schema 拒绝的具体字段，以及 timeout 被 lease 改写后无法按 Integration timeout 重试。
-状态 `OPEN / PINNED / FIX REQUIRED`。
+验收证据：全角 `007：大破天幕杀机` 加 32 条 TMDB alias 的观察通过 `ProductIdentityEvidenceObservation` schema；lease 包装的 timeout 是 `timeout` Outcome。产品身份选择测试 8/8 通过。
+
+修复状态（2026-08-22）：`REGRESSION PASSED / NEW LIBRA RUN REQUIRED`。当前冻结的 Identity Run 不可变。
 
 ## 35. UAT-038：上架成功后 Aftercare 健康仍是 conformance/presentation 降级
 
