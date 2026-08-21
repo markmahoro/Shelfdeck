@@ -81,6 +81,16 @@ function movieLevelTmdbIds(xml) {
     .filter((value) => /^\d+$/.test(value)));
 }
 
+function movieLevelTitle(xml) {
+  return tagValues(movieLevelXml(xml), 'title')[0] || null;
+}
+
+function movieLevelYear(xml) {
+  const values = unique(['year', 'premiered', 'releasedate'].flatMap((tag) => tagValues(movieLevelXml(xml), tag))
+    .map((value) => String(value).match(/(?:18|19|20|21)\d{2}/)?.[0] || null));
+  return values.length === 1 ? Number(values[0]) : null;
+}
+
 function parseNfo(intent, xml, handle) {
   if (typeof xml !== 'string' || Buffer.byteLength(xml, 'utf8') > 256 * 1024) {
     const error = new Error('Routing NFO exceeds its bounded transport.'); error.code = 'LIBRA_ROUTING_NFO_BOUND'; throw error;
@@ -237,8 +247,12 @@ async function observeProductIdentity(options, intent, handle) {
     }
     const fact = parsed.facts.find((item) => item.factKind === 'resolved_provider_identity');
     if (!fact) return identityObservation(intent, 'not_found', 'nfo_identity_absent', []);
-    const candidate = identityCandidate({ providerKey:fact.providerKey, title:intent.aliases[0].value,
-      originalTitle:intent.aliases[1]?.value || null, releaseYear:intent.yearHint });
+    const candidate = identityCandidate({
+      providerKey:fact.providerKey,
+      title:movieLevelTitle(xml) || normalizedIdentityAssociationTitle(intent.aliases[0].value),
+      originalTitle:intent.aliases[1]?.value || null,
+      releaseYear:movieLevelYear(xml) ?? intent.yearHint,
+    });
     return identityObservation(intent, 'resolved', null, [], candidate);
   }
   const raw = await options.observeRoutingProvider({ intent:legacy, integrationHandle:handle, operationId:IDENTITY_EVIDENCE_REF });

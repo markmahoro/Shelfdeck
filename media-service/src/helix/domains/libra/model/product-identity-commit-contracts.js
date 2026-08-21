@@ -28,9 +28,12 @@ function buildProductIdentityCommitBundle(value) {
       decisionEvidence.digest!==canonicalDigest(Object.fromEntries(Object.entries(decisionEvidence).filter(([key])=>key!=='digest'))))
     fail('Product Identity immutable input scope is invalid.');
   const fact=providerFact(decisionEvidence,sourceResultItem);
-  const displayEntries=[{key:'title',value:identityClaim.displayIdentity||identityClaim.claimedTitle},
+  const displayTitle=String(fact.displayTitle||'').trim();
+  if(!displayTitle)fail('Resolved Product Identity does not carry a provider display title.');
+  const displayEntries=[{key:'title',value:displayTitle},
     {key:'tmdb_movie_id',value:fact.providerKey}];
-  if(identityClaim.claimedYear)displayEntries.push({key:'year',value:identityClaim.claimedYear});
+  if(Number.isSafeInteger(fact.releaseYear))displayEntries.push({key:'year',value:String(fact.releaseYear)});
+  else if(identityClaim.claimedYear)displayEntries.push({key:'year',value:identityClaim.claimedYear});
   const resolvedProductIdentity=buildResolvedProductIdentity({producerRef:'libra.product_identity.resolve@1',
     basisDigest:decisionEvidence.digest,observedAtMs:0,subjectId:snapshot.run.subjectId,structureKind:'single',contentProfile:'movie',
     identityKind:'tmdb_movie',providerIdentities:[{provider:'tmdb',namespace:'tmdb_movie',providerKey:fact.providerKey,seasonNumber:null}],

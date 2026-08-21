@@ -1492,11 +1492,12 @@ Related disposition obligation，保持原始文件名，不新增业务Owner、
 - 不放宽五星 4K / HEVC / 高质量主音轨合同，不选择明确不合规种子，不改 Domain Owner。
   旧冻结 Run 保持不可变。
 
-验收计划：用 `看不见的朋友 (2023) - 1080p H.264 CHDWEB` 专项回归，断言 MoviePilot keyword 不含
-`1080p`/`H.264`/`CHDWEB`，并使用 TMDB `993092` 或干净片名。Formation 对无合格候选的冻结给出原因文案。
-修复后从真实 Admin Web 复测上述五部。无 4K 合格源时仍允许冻成产品不可达。
+验收证据：NFO resolve 使用电影级 `<title>`，不再把文件夹质量后缀写入 display title。MoviePilot 在同时存在
+`provider_key` 与 title 时按 TMDB ID 搜索。Formation 对 `no_requirement_eligible_candidate` /
+`no_available_candidate` 给出可读冻结文案。P8、Formation Projection、P14 H1 Provider 专项回归通过。
 
-当前处理决定：用户已确认必须修复，先入台账，与其余 OPEN 项统一修。状态 `OPEN / FIX REQUIRED`。
+修复状态（2026-08-22）：`REGRESSION PASSED / CLEAN CANARY UAT PENDING`。无 4K 合格源时仍允许冻成产品不可达。
+旧冻结 Run 保持不可变。
 
 ## 28. UAT-031：Movie Field 默认扩展名遗漏 ISO，倩女幽魂2未进入观察
 

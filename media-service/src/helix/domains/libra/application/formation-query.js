@@ -64,9 +64,26 @@ function extractAcquisitionSelection(works) {
     selectionReasonCode: selected.selectionReasonCode,
   });
 }
+function extractAcquisitionTerminal(works) {
+  const selected = works.flatMap((work) => work.events)
+    .filter((event) => event.capabilityRef === 'libra.external_material.candidate.select@1'
+      && event.result?.result?.schemaRef === 'helix://contracts/types/SelectedCandidate/v1')
+    .sort((a, b) => (b.result?.committedAtMs || 0) - (a.result?.committedAtMs || 0))[0]?.result?.result;
+  return selected || null;
+}
+function frozenRunLabel(works) {
+  const terminal = extractAcquisitionTerminal(works);
+  if (terminal?.result === 'not_selected' && terminal.selectionReasonCode === 'no_requirement_eligible_candidate') {
+    return '没有符合整理要求的外部候选，本次整理已冻结';
+  }
+  if (terminal?.result === 'not_selected' && terminal.selectionReasonCode === 'no_available_candidate') {
+    return '没有找到可获取的外部候选，本次整理已冻结';
+  }
+  return '本次整理已冻结，需要放弃后重新采购';
+}
 function nextAction(works, classification, issue, runState, recovery, arcaStatus, productPackage) {
   if (classification === 'completed') return Object.freeze({ label: '已进入收藏架', state: 'completed', progress: null });
-  if (runState === 'frozen') return Object.freeze({ label: '本次整理已冻结，需要放弃后重新采购', state: 'frozen', progress: null });
+  if (runState === 'frozen') return Object.freeze({ label: frozenRunLabel(works), state: 'frozen', progress: null });
   if (runState === 'suspended') return Object.freeze({ label: '整理已暂停，等待恢复评估', state: 'suspended', progress: null });
   if (recovery?.recoveryState === 'attention_required') return Object.freeze({ label: '接纳执行异常，需要处理', state: 'attention_required', progress: null });
   if (arcaStatus?.stage === 'attention_required') return Object.freeze({ label: '收藏架接纳或上架需要处理', state: 'attention_required', progress: null });
@@ -362,7 +379,9 @@ module.exports = Object.freeze({
   createFormationQuery,
   extractAcquisitionSelection,
   extractProductIdentityIssue,
+  frozenRunLabel,
   hasBlockingExecution,
   hasOpenExecution,
+  nextAction,
   projectionItem,
 });

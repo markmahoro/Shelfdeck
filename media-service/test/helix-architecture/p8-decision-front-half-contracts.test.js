@@ -164,9 +164,11 @@ test('NFO actor TMDB person IDs do not conflict with the unique movie identity',
   const observation = await observeProductIdentity({
     readRelatedNfo: async () => xml,
     observeRoutingProvider: async () => { throw new Error('must not search TMDB when NFO already has a unique movie ID'); },
-  }, nfoIdentityIntent('007：大破天幕杀机', 2012), { location:'C:/fixture/skyfall.nfo', bindingRevision:1 });
+  }, nfoIdentityIntent('007：大破天幕杀机 (2012) - 1080p H.264', 2012), { location:'C:/fixture/skyfall.nfo', bindingRevision:1 });
   assert.equal(observation.result, 'resolved');
   assert.equal(observation.verifiedIdentity.providerKey, '37724');
+  assert.equal(observation.verifiedIdentity.displayTitle, '007：大破天幕杀机');
+  assert.equal(observation.verifiedIdentity.releaseYear, 2012);
   assert.equal(observation.candidates.length, 0);
 });
 

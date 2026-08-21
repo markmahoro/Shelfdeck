@@ -495,15 +495,21 @@ function acquisitionQuery() {
     seasonNumber: null,
     identityAnchorDigest: canonicalDigest({ identity: '100' }),
   });
-  const term = {
+  const terms = [{
     ordinal: 0,
+    termKind: 'provider_key',
+    value: '100',
+  }, {
+    ordinal: 1,
     termKind: 'title',
     value: 'Movie',
-  };
-  term.termDigest = canonicalDigest({
-    schema: 'libra.external-acquisition-query-term@1',
-    termKind: term.termKind,
-    value: term.value,
+  }].map((term) => {
+    term.termDigest = canonicalDigest({
+      schema: 'libra.external-acquisition-query-term@1',
+      termKind: term.termKind,
+      value: term.value,
+    });
+    return term;
   });
   const mediaRequirement={requirementId:'requirement-1',revision:1,schemaRef:'MediaRequirement@1',
     acceptanceSpecId:'spec-1',acceptanceSpecRecordDigest:canonicalDigest({spec:1}),contentProfile:'movie',structureKind:'single',
@@ -529,7 +535,7 @@ function acquisitionQuery() {
     mediaRequirementDigest:mediaRequirement.requirementDigest,
     acquisitionPolicyDigest:canonicalDigest({ policy: 'moviepilot', revision: 1 }),
     maxDownloadAttempts:3,
-    queryTerms: [term],
+    queryTerms: terms,
     hardConstraints: {
       requiredStructureKind: 'single',
       requiredEpisodeKeys: [],
@@ -833,8 +839,8 @@ test('H1.2 provider operations execute through exact P5 ports and revision-fence
     assert.equal(moviepilot.result.candidates[0].identityAnchors[0].providerKey,
       '100');
     assert.ok(state.calls.some((call) =>
-      call.path === '/api/v1/search/title' && call.searchKeyword === 'Movie'),
-    'MoviePilot must search by the frozen title term rather than the numeric Provider key.');
+      call.path === '/api/v1/search/title' && call.searchKeyword === '100'),
+    'MoviePilot must search by the frozen TMDB Provider key when that identity term is present.');
 
     state.moviepilotTmdbId = 999;
     const mismatchedMoviepilot = await opened.services.executeProvider(

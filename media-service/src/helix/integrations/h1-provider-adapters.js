@@ -1009,8 +1009,8 @@ function createProtocolTransport(profile, options) {
   async function moviepilotSearchRows(request, state) {
     const query = request.input.acquisitionQuery;
     const searchTerm = query.queryTerms.find((item) =>
-      item.termKind === 'title') || query.queryTerms.find((item) =>
-      item.termKind === 'provider_key');
+      item.termKind === 'provider_key') || query.queryTerms.find((item) =>
+      item.termKind === 'title');
     if (!searchTerm) {
       fail(PROVIDER_ERROR,
         'MoviePilot search requires a frozen title or Provider key term.');

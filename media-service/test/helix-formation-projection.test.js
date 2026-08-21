@@ -14,6 +14,8 @@ const {
   createFormationQuery,
   extractAcquisitionSelection,
   extractProductIdentityIssue,
+  frozenRunLabel,
+  nextAction,
 } = require('../src/helix/domains/libra/application/formation-query');
 const { createFormationProjectionStore } = require('../src/helix/domains/libra/persistence/formation-projection-store');
 const { createFormationProjectionHost } = require('../src/helix/domains/libra/application/formation-projection-host');
@@ -57,6 +59,28 @@ test('Formation extracts Product Identity issues from the business result contra
     capabilityRef:'libra.product_identity.evidence.observe@1',
     result:{committedAtMs:300,result:{schemaRef:'helix://contracts/types/ProductIdentityEvidenceObservation/v1',result:'resolved'}},
   }]}]),null);
+});
+
+test('Formation explains a frozen external search that found no requirement-eligible candidate',()=>{
+  const works=[{events:[{
+    capabilityRef:'libra.external_material.candidate.select@1',
+    result:{committedAtMs:200,result:{
+      schemaRef:'helix://contracts/types/SelectedCandidate/v1',
+      result:'not_selected',
+      selectionReasonCode:'no_requirement_eligible_candidate',
+    }},
+  }]}];
+  assert.equal(frozenRunLabel(works),'没有符合整理要求的外部候选，本次整理已冻结');
+  assert.equal(nextAction(works,'attention_required',null,'frozen',null,null,null).label,
+    '没有符合整理要求的外部候选，本次整理已冻结');
+  assert.equal(frozenRunLabel([{events:[{
+    capabilityRef:'libra.external_material.candidate.select@1',
+    result:{committedAtMs:200,result:{
+      schemaRef:'helix://contracts/types/SelectedCandidate/v1',
+      result:'not_selected',
+      selectionReasonCode:'no_available_candidate',
+    }},
+  }]}]),'没有找到可获取的外部候选，本次整理已冻结');
 });
 
 test('Formation exposes an unverified MoviePilot selection instead of presenting it as compliant',()=>{
