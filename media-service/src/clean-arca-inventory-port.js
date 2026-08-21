@@ -30,6 +30,16 @@ function fail(code, message, details) {
   throw new CleanArcaInventoryPortError(code, message, details);
 }
 
+function managedSourceLocations(request) {
+  return new Set((request?.onDeckProductPackage?.offloadContextManifest?.members || [])
+    .map((item) => path.resolve(String(item.location || '')))
+    .filter(Boolean));
+}
+
+function isManagedSourceLocation(request, location) {
+  return managedSourceLocations(request).has(path.resolve(location));
+}
+
 function safeSegment(value) {
   const segment = String(value || '').trim()
     .replace(/[<>:"/\\|?*\u0000-\u001f]/g, '_')
@@ -811,7 +821,7 @@ function createCleanArcaInventoryPort(options) {
       const finalExact = finalExisting &&
         Number(finalExisting.stat.size) === plan.sizeBytes &&
         finalExisting.contentFingerprint === plan.contentFingerprint;
-      if (finalExisting && !finalExact) {
+      if (finalExisting && !finalExact && !isManagedSourceLocation(request, plan.target)) {
         fail('CLEAN_ARCA_TARGET_OCCUPIED',
           'Final Inventory target contains conflicting bytes.');
       }
@@ -977,13 +987,16 @@ function createCleanArcaInventoryPort(options) {
         ? computeBoundedMaterialFingerprintSync(plan.target) : null;
       const finalExact = final && Number(final.stat.size) === plan.sizeBytes &&
         final.contentFingerprint === plan.contentFingerprint;
-      if (final && !finalExact) {
+      if (final && !finalExact && !isManagedSourceLocation(request, plan.target)) {
         fail('CLEAN_ARCA_TARGET_OCCUPIED',
           'Final Inventory target contains conflicting bytes.');
       }
       if (finalExact) {
         if (fs.existsSync(stagedLocation)) fs.rmSync(stagedLocation, { force:true });
         continue;
+      }
+      if (final && !finalExact && isManagedSourceLocation(request, plan.target)) {
+        fs.rmSync(plan.target, { force:false });
       }
       if (!fs.existsSync(stagedLocation)) {
         fail('CLEAN_ARCA_STAGE_SLOT_MISSING',
@@ -1130,7 +1143,16 @@ function createCleanArcaInventoryPort(options) {
     if (!sameLocation && fs.existsSync(sourceDirectory)) {
       const unknown = fs.readdirSync(sourceDirectory, { withFileTypes:true })
         .map((item) => path.resolve(sourceDirectory, item.name))
-        .filter((item) => !allowed.has(item));
+        .filter((item) => {
+          if (allowed.has(item)) return false;
+          try {
+            if (!fs.statSync(item).isDirectory()) return true;
+          } catch {
+            return true;
+          }
+          return [...allowed].some((location) =>
+            location === item || location.startsWith(item + path.sep));
+        });
       if (unknown.length > 0) {
         fail('CLEAN_ARCA_SETTLEMENT_UNKNOWN_MEMBER',
           'Old Material directory contains an unplanned member.', {

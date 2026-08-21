@@ -1711,7 +1711,39 @@ Presentation 全是 `degraded`（`presentation:nfo_corrupt`，warning，`auto_re
 当前处理决定：不编 workaround。干净 Canary 重建后若 23/23 On-deck 仍出现同样 Finding，再按精确 Binding/NFO 字节取证后单独修。
 状态 `OPEN / MONITOR IN CLEAN UAT`。
 
-## 36. 后续问题模板
+## 36. UAT-039：同根上架把源文件和兄弟电影目录当成占用/未知成员
+
+问题分类：`SAME_ROOT_INVENTORY / SETTLEMENT_SCOPE`
+
+用户侧现象：干净 Canary 中 `光荣的愤怒`、MKV `养蜂人`、`香火` 产品已交付，停在「正在完成收藏架上架」。
+stderr 为 `CLEAN_ARCA_TARGET_OCCUPIED` 与 `CLEAN_ARCA_SETTLEMENT_UNKNOWN_MEMBER`。
+
+现场证据：
+
+- 同根 Field=Shelf。`光荣的愤怒` / `香火` 目录里已有 `poster.jpg`、`.nfo`，与 Workspace 产品字节不同，Stage 把最终名上的源文件当成外来占用；
+- `养蜂人 (2024)` 目录同时有 MKV 电影和嵌套 BDMV 子目录（另一部 Subject）。Settlement 把该子目录当成当前电影的未知成员。
+
+精确根因：Stage/Switch 对最终路径上「不同字节」一律 `TARGET_OCCUPIED`，没有把本包 Off-load 源位置视为将被替换的 Input。Settlement 对源目录做全量 listing，没有排除不属于本包 Control scope 的兄弟电影目录。`notes.txt` 这类真正未纳入计划的文件仍应 fail closed。
+
+修复边界：最终名上的已有文件若是本包 `offloadContextManifest` 源位置，允许 Stage 到 slot 再 Switch 替换。Settlement 忽略源目录中、且没有任何本包 managed 路径落在其下的兄弟目录；普通未知文件仍 `UNKNOWN_MEMBER`。不放宽 collision=reject，不合并两部养蜂人。
+
+验收证据：同根不同海报字节 Stage/Switch 后最终 `poster.jpg` 为产品字节。源目录旁有 BDMV 兄弟目录时 Settlement 成功且兄弟目录仍在；同时有 `notes.txt` 仍 fail closed。Inventory port 9/9 通过。
+
+修复状态（2026-08-22）：`REGRESSION PASSED / SERVICE RESTART REQUIRED`。当前卡住的 On-deck Run 需随服务重启恢复。
+
+## 37. UAT-040：ISO 原盘 Remux 把映像文件当成普通流输入
+
+问题分类：`DISC_INPUT / MEDIA_EFFECT`
+
+用户侧现象：UAT-035 收口后，`倩女幽魂2：人间道` Remux 不再挂死，但 Run 冻成「本次整理已冻结」。Attempt 现有 `LIBRA_MEDIA_FFMPEG_FAILED`。
+
+现场证据：`materialInputForm=iso`。`executeRemux` 对单一 primary 使用 `-i <iso路径> -c copy`。UDF 蓝光不是可 copy 的容器流；topology 已选出 playlist/clip，Remux 没有用这些成员。
+
+精确根因：Triage 证明 ISO topology 后，Production Remux 仍把 ISO 文件当 `stream_file` 喂给 FFmpeg。
+
+修复边界：ISO 的 Remux 必须按已证明 topology 的 selected playlist/clips 取流，不能把 `.iso` 当普通输入。不得用「跳过 Remux、直接上架 ISO」交差。本条 `OPEN / FIX REQUIRED`。
+
+## 38. 后续问题模板
 
 后续发现的问题按以下结构追加：
 

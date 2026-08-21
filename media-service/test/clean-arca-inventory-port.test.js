@@ -306,7 +306,96 @@ test('same-root Stage/Switch preserves exact final members, merges new members, 
   }
 });
 
-function settlementFixture({ unknownMember = false } = {}) {
+test('same-root Stage/Switch replaces managed source bytes occupying the final name', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'clean-arca-same-root-replace-'));
+  try {
+    const targetDirectory = path.join(root, 'Example Movie');
+    const workspaceRoot = path.join(root, '.workspace');
+    const workspaceId = 'run-workspace';
+    fs.mkdirSync(path.join(workspaceRoot, workspaceId, 'product'), { recursive:true });
+    fs.mkdirSync(targetDirectory, { recursive:true });
+    const primary = path.join(targetDirectory, 'Example Movie.mkv');
+    const oldPoster = path.join(targetDirectory, 'poster.jpg');
+    const productPoster = path.join(workspaceRoot, workspaceId, 'product', 'poster.jpg');
+    fs.writeFileSync(primary, Buffer.from('movie-bytes'));
+    fs.writeFileSync(oldPoster, Buffer.from('old-poster-bytes'));
+    fs.writeFileSync(productPoster, Buffer.from('new-poster-bytes'));
+    const mountScopeId = 'canary-mount';
+    const productMembers = [
+      member(primary, 'primary_payload', mountScopeId),
+      member(productPoster, 'poster', mountScopeId,
+        { workspaceId, relativePath:'product/poster.jpg' }),
+    ];
+    const packageValue = Object.freeze({
+      onDeckPackageId:'package-1', shelfId:'shelf-1',
+      resolvedIdentitySnapshot:{ factValue:{ title:'Example Movie' } },
+      productStructureSnapshot:{ structureKind:'single' },
+      productMaterialManifest:{ members:Object.freeze(productMembers), manifestDigest:'manifest-1' },
+      offloadContextManifest:{ manifestDigest:'offload-1', members:Object.freeze([
+        Object.freeze({ materialKey:identity(oldPoster, mountScopeId).materialKey, location:oldPoster }),
+      ]) },
+    });
+    const shelf = Object.freeze({
+      shelfId:'shelf-1', status:'active', currentPlacementRevision:1,
+      target:{ endpointId:'canary', rootLocation:root, mountScopeId, mountScopeRevision:1 },
+      placement:{ value:{ folderTemplate:'{title}' } },
+    });
+    const port = createCleanArcaInventoryPort({ schemaManifest, unitOfWork:{}, workspaceRoot });
+    const request = {
+      onDeckRunId:'on-deck-1', custodyId:'custody-1', shelf,
+      onDeckProductPackage:packageValue, observedAtMs:1, replayCommitted:false,
+    };
+    const finalInventoryDecision = port.prepare(request);
+    const targetCommitSlotHandle = port.prepareSlot({ ...request, finalInventoryDecision });
+    const stagedManifest = port.stage({ ...request, finalInventoryDecision, targetCommitSlotHandle });
+    const stagedInventoryVerification = port.verifyStaged({
+      ...request, finalInventoryDecision, stagedInventoryManifest:stagedManifest,
+    });
+    port.switchPlacement({
+      ...request, finalInventoryDecision, stagedInventoryVerification,
+      targetBindings:{ bindingSetDigest:'bindings-1' }, replacedInputSetDigest:'inputs-1',
+    });
+    assert.equal(fs.readFileSync(oldPoster, 'utf8'), 'new-poster-bytes');
+  } finally {
+    fs.rmSync(root, { recursive:true, force:true });
+  }
+});
+
+test('settlement ignores a sibling movie directory and still rejects unknown files', () => {
+  const sibling = settlementFixture({ siblingDirectory:true });
+  try {
+    const result = sibling.port.settleInput({
+      materialHandle:sibling.materialHandle,
+      approval:{ approvalId:'approval' },
+      finalInventoryRequest:sibling.finalInventoryRequest,
+      finalMaterialKey:sibling.finalMember.sourceMaterialKey,
+      finalTargetLocation:sibling.finalMember.targetLocation,
+      settlementExpectation:'replace_or_move',
+      sourceToFinalMappingDigest:sibling.mappingDigest,
+    });
+    assert.equal(result.disposition, 'settled_to_final');
+    assert.equal(fs.existsSync(path.join(sibling.sourceDirectory, '养蜂人 (2024) - 2160p HEVC Atmos TrueHD5.1')), true);
+  } finally {
+    fs.rmSync(sibling.root, { recursive:true, force:true });
+  }
+
+  const unknown = settlementFixture({ siblingDirectory:true, unknownMember:true });
+  try {
+    assert.throws(() => unknown.port.settleInput({
+      materialHandle:unknown.materialHandle,
+      approval:{ approvalId:'approval' },
+      finalInventoryRequest:unknown.finalInventoryRequest,
+      finalMaterialKey:unknown.finalMember.sourceMaterialKey,
+      finalTargetLocation:unknown.finalMember.targetLocation,
+      settlementExpectation:'replace_or_move',
+      sourceToFinalMappingDigest:unknown.mappingDigest,
+    }), (error) => error.code === 'CLEAN_ARCA_SETTLEMENT_UNKNOWN_MEMBER');
+  } finally {
+    fs.rmSync(unknown.root, { recursive:true, force:true });
+  }
+});
+
+function settlementFixture({ unknownMember = false, siblingDirectory = false } = {}) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'clean-arca-settlement-'));
   const sourceDirectory = path.join(root, 'opaque-source');
   const targetRoot = path.join(root, 'shelf');
@@ -315,6 +404,11 @@ function settlementFixture({ unknownMember = false } = {}) {
   const source = path.join(sourceDirectory, 'opaque-hash.mkv');
   fs.writeFileSync(source, Buffer.from('exact-movie-bytes'));
   if (unknownMember) fs.writeFileSync(path.join(sourceDirectory, 'notes.txt'), Buffer.from('unknown'));
+  if (siblingDirectory) {
+    const sibling = path.join(sourceDirectory, '养蜂人 (2024) - 2160p HEVC Atmos TrueHD5.1');
+    fs.mkdirSync(path.join(sibling, 'BDMV', 'STREAM'), { recursive:true });
+    fs.writeFileSync(path.join(sibling, 'BDMV', 'STREAM', '00000.m2ts'), Buffer.from('other-movie'));
+  }
   const mountScopeId = 'canary-mount';
   const productMember = member(source, 'primary_payload', mountScopeId);
   const mappingDigest = canonicalDigest({ source:productMember.materialKey, target:'final' });
