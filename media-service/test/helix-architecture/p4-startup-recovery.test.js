@@ -144,6 +144,14 @@ test('non-pure recovery uses exact Effect reconciler and committed Effect is nev
   }, { effectClass: 'domain_fact_commit', journal: true, effectState: 'committed' });
 });
 
+test('waiting Event after an abandoned Effect remains recoverable ordinary supply', async () => fixture(async (recovery) => {
+  const result = await recovery.recover();
+  assert.equal(result.state, 'ready');
+  assert.equal(result.normalSupplyAllowed, true);
+  assert.deepEqual(result.findings, []);
+  assert.deepEqual(result.actions, []);
+}, { effectClass: 'workspace_write', journal: true, effectState: 'failed', eventState: 'waiting_for_external' }));
+
 test('executing Attempt with an abandoned Effect is completed, not a host fault', async () => fixture(async (recovery) => {
   const result = await recovery.recover();
   assert.equal(result.state, 'recovering');

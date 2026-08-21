@@ -213,6 +213,8 @@ function createStartupRecovery(options) {
             actions.push(Object.freeze({
               eventId: event.event_id, effectId: effect.effect_id, decision: 'already_failed',
             }));
+          } else if (event.state === 'waiting_for_external' && attempt.state === 'completed') {
+            continue;
           } else findings.push('EFFECT_CLASS_OR_STATE_DRIFT:' + event.event_id);
           continue;
         }
