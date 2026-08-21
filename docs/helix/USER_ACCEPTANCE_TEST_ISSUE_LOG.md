@@ -1243,7 +1243,31 @@ TMDB集成架构门禁11/11通过，Admin Web production build通过；此前启
 本修复的新失败。旧冻结Run保持不可变，下一步将在独立提交后重启本地UAT服务，并从真实Admin Web执行正式恢复路径验证。
 未直接改写任何既有Run、Attempt、Event或Canary媒体文件。
 
-## 19. 后续问题模板
+## 19. UAT-022：年份后的技术发布标签污染TMDB身份搜索词
+
+问题分类：`IDENTITY_NORMALIZATION / PROVIDER_QUERY / USER_VISIBLE_RECOVERY`
+
+用户侧现象：干净Movie Canary真实Admin Web UAT中，`看不见的朋友 (2023) - 1080p H.264 CHDWEB`
+进入“需要处理”，页面显示“暂未找到匹配的媒体身份”，整理动作无法形成；同批普通标题可以继续进入生产。
+
+现场证据：Product Identity Attempt形成`provider_no_match`。Libra向TMDB发送的搜索词仍包含
+`(2023) - 1080p H.264 CHDWEB`；现有规范化先尝试删除字符串末尾年份，再删除技术标签，因此年份位于技术标签之前时
+不会被删除。以相同标题和TMDB返回的`看不见的朋友`、年份2023建立专项回归，可稳定复现未匹配。
+
+初步诊断：技术发布后缀识别本身存在，但处理顺序没有闭包。删除技术后缀后新暴露出的尾部年份没有再次规范化，导致
+Provider查询词和精确候选比较词都保留年份标签。
+
+修复边界：仅在Libra Product Identity边界先识别并移除含技术Token的发布后缀，再移除尾部年份；同一规范化同时用于
+TMDB搜索词和精确关联比较。不引入模糊匹配，不改变年份约束，不修改TMDB适配器或跨Domain身份所有权。
+
+验收证据：新增`看不见的朋友 (2023) - 1080p H.264 CHDWEB`专项回归，断言TMDB搜索词为
+`看不见的朋友`且唯一同年候选可形成resolved Identity；Product Identity专项测试6/6、TMDB集成架构门禁11/11和
+Admin Web production build均通过。
+
+修复状态（2026-08-21）：`IMPLEMENTED / CLEAN CANARY UAT PENDING`。当前污染现场和失败数据库保持不变；完成独立提交后，
+须随其他已取证问题修复一起重建Canary，再通过真实Admin Web确认该条目不再进入身份待处理。
+
+## 20. 后续问题模板
 
 后续发现的问题按以下结构追加：
 

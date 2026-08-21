@@ -9,6 +9,7 @@ const FACT_REF = 'libra.routing.fact.observe@1';
 const IDENTITY_EVIDENCE_RESULT = 'helix://contracts/types/ProductIdentityEvidenceObservation/v1';
 const IDENTITY_EVIDENCE_REF = 'libra.product_identity.evidence.observe@1';
 const BASIS_REF = 'libra.decision_basis.commit@1';
+const TECHNICAL_RELEASE_TOKEN = /(?:^|[\s._-])(?:2160p|1080p|720p|480p|4k|uhd|bluray|blu-ray|remux|web[- .]?dl|webrip|hdtv|x26[45]|h\.?26[45]|hevc|avc|hdr10\+?|dolby[ .]?vision|dv|atmos|truehd|dts(?:-hd)?|aac|flac)(?:$|[\s._-])/iu;
 
 function stable(prefix, value) { return prefix + canonicalDigest(value).slice(0, 40); }
 function normalize(value) { return String(value || '').normalize('NFKC').toLowerCase().trim().replace(/\s+/g, ' '); }
@@ -156,10 +157,17 @@ function identityCandidate(candidate) {
 }
 
 function normalizedIdentityAssociationTitle(value) {
-  return normalize(value)
-    .replace(/\s*[（(](?:18|19|20|21)\d{2}[)）]\s*$/u, '')
+  let title = normalize(value);
+  for (const separator of [' - ', ' – ', ' — ']) {
+    const index = title.lastIndexOf(separator);
+    if (index > 0 && TECHNICAL_RELEASE_TOKEN.test(title.slice(index + separator.length))) {
+      title = title.slice(0, index).trim();
+    }
+  }
+  title = title
     .replace(/(?:\b(?:2160p|1080p|720p|4k|uhd|blu-?ray|remux|web-?dl|h\.?26[45]|hevc|avc)\b[ ._-]*)+$/giu, '')
     .trim();
+  return title.replace(/\s*[（(](?:18|19|20|21)\d{2}[)）]\s*$/u, '').trim();
 }
 
 function exactProviderAssociationMatches(intent, candidate) {
@@ -188,8 +196,7 @@ function identityObservation(intent, resultKind, reasonCode, candidates, verifie
 }
 
 async function observeProductIdentity(options, intent, handle) {
-  const providerSearchTitle = normalize(intent.aliases[0].value)
-    .replace(/\s*[（(](?:18|19|20|21)\d{2}[)）]\s*$/u, '').trim();
+  const providerSearchTitle = normalizedIdentityAssociationTitle(intent.aliases[0].value);
   const legacy = { intentId:intent.intentId, subjectId:intent.subjectId, contentProfile:intent.contentProfile,
     requestedFactKinds:['resolved_provider_identity'], sourceKind:intent.sourceKind === 'related_nfo' ? 'related_nfo' : 'provider',
     relatedReferenceId:intent.relatedReferenceId, candidateDisplayTitle:providerSearchTitle, yearHint:intent.yearHint,

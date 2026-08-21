@@ -111,3 +111,21 @@ test('provider-local alias provenance is normalized before Product Identity evid
   assert.equal(result.result, 'resolved');
   assert.deepEqual(result.verifiedIdentity.aliases.map((item) => item.sourceKind), ['provider', 'provider']);
 });
+
+test('technical release suffix after a year is removed before TMDB identity search', async () => {
+  let searchedTitle;
+  const base = evidenceIntent('manual_selection');
+  const alias = { value:'看不见的朋友 (2023) - 1080p H.264 CHDWEB', sourceKind:'candidate' };
+  const intent = {
+    ...base,
+    sourceKind:'candidate',
+    aliases:[{ ...alias, aliasDigest:canonicalDigest(alias) }],
+    yearHint:2023,
+  };
+  const result = await observeProductIdentity({ observeRoutingProvider:async ({ intent:providerIntent }) => {
+    searchedTitle = providerIntent.candidateDisplayTitle;
+    return [{ providerKey:'1140983', title:'看不见的朋友', originalTitle:'Hello Ghost!', releaseYear:2023 }];
+  } }, intent, { integrationId:'tmdb-main', configRevision:1 });
+  assert.equal(searchedTitle, '看不见的朋友');
+  assert.equal(result.result, 'resolved');
+});
