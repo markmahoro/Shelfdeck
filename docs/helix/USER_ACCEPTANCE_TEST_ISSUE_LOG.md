@@ -861,7 +861,30 @@ Package、Receipt、Canonical JSON等结构化事实的SHA-256与媒体字节Ide
 
 当前处理决定：代码根因已修复并提交；现有错误`老笠`Shelf Entry不通过直接文件操作纠正。下一小时观察点从Admin Web确认新样本的生产与上架结果，并再次只读核对物理目录。
 
-## 11. 后续问题模板
+## 11. UAT-014：Formation 隐藏 Product Identity 冲突
+
+问题分类：`USER_VISIBLE_PROJECTION / PRODUCT_IDENTITY / CONTRACT_LAYER`
+
+用户侧现象：`坠楼死亡的剖析 (2023)`已经完成NFO与TMDB身份观察，但媒体整理页持续显示通用的“正在确认目标、评分、要求或身份”，没有呈现需要用户确认的媒体身份冲突，也没有候选身份入口。
+
+现场证据：当前Run已有两份成功的`libra.product_identity.evidence.observe@1`结果：NFO观察解析到TMDB Movie `915935`，Provider exact观察返回`provider_identity_conflicting`及候选`Anatomy of a Fall (2023)`；按SSOT，中文标题与Provider别名未经Alias关联时不能自动建立Product Identity，因此等待用户选择是正确业务结果。
+
+根因：Formation Projection用Capability Result Binding外层的`resultSchemaRef`匹配业务Result内部的`ProductIdentityEvidenceObservation` schema，比较了两个不同合同层；条件永远不成立，所有`ambiguous`、`conflicting`和`unresolved`身份观察都被页面静默隐藏。
+
+业务影响：用户无法知道媒体为什么停止整理，也无法从页面完成正式的Product Identity Selection；多个实际处于`attention_required`的电影被错误呈现为普通等待。
+
+修复边界：Projection只接受精确Capability Ref `libra.product_identity.evidence.observe@1`，并从`event.result.result.schemaRef`验证业务Observation合同；不放宽Alias、年份、NFO Association或Provider exact验证规则，不跨越Libra事实边界。
+
+验收证据：
+
+- `helix-formation-projection.test.js`与`helix-product-identity-selection.test.js`合计7/7 PASS，新增用例区分Capability Result Binding与业务Result schema；
+- 修复提交：`8239ce99a`；
+- 真实Admin Web刷新后，`坠楼死亡的剖析 (2023)`显示“媒体身份信息冲突”、`attention_required`及候选`Anatomy of a Fall (2023)`；其他既有冲突和未解析项也恢复为可操作的用户状态；
+- 通过候选按钮已写入TMDB Movie `915935`的不可变Selection Intent，证明真实页面入口可提交用户选择；后续Product Identity exact验证及新Package仍按每小时观察点继续，不以即时等待替代E2E结论。
+
+当前处理决定：Projection根因已修复、回归、提交并完成浏览器用户验收。未修改SSOT身份匹配规则、Canary媒体文件或旧的不可变Work；完整媒体整理与上架结果仍未宣告通过。
+
+## 12. 后续问题模板
 
 后续发现的问题按以下结构追加：
 
