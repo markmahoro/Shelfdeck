@@ -348,13 +348,25 @@ test('Fence rejection before or after Permit records completed Attempt and never
   }, { fences: [{ valid: true, digest: HASH_A, snapshot: {} }, { valid: true, digest: HASH_B, snapshot: {} }] });
 });
 
-test('Executor crash leaves durable executing Attempt for effect-specific recovery while releasing in-memory guards', async () => {
+test('pure observation executor error completes its Attempt under failure policy', async () => {
+  await fixture(async ({ runtime, lease, databasePath, state }) => {
+    const result = await runtime.run({ schedulerLease: lease });
+    assert.equal(result.kind, 'failed');
+    const facts = databaseFacts(databasePath);
+    assert.equal(facts.event.state, 'failed'); assert.equal(facts.attempt.state, 'completed');
+    assert.equal(facts.attempt.outcome_kind, 'failed'); assert.equal(facts.attempt.failure_code, 'EXECUTOR_ERROR');
+    assert.equal(facts.results, 0);
+    assert.deepEqual({ schedulerReleased: state().schedulerReleased, governorReleased: state().governorReleased }, { schedulerReleased: 1, governorReleased: 1 });
+  }, { dispatchError: new Error('executor crash') });
+});
+
+test('non-pure Executor crash leaves durable executing Attempt for effect-specific recovery while releasing in-memory guards', async () => {
   await fixture(async ({ runtime, lease, databasePath, state }) => {
     await assert.rejects(runtime.run({ schedulerLease: lease }), /executor crash/);
     const facts = databaseFacts(databasePath);
     assert.equal(facts.event.state, 'executing'); assert.equal(facts.attempt.state, 'executing'); assert.equal(facts.results, 0);
     assert.deepEqual({ schedulerReleased: state().schedulerReleased, governorReleased: state().governorReleased }, { schedulerReleased: 1, governorReleased: 1 });
-  }, { dispatchError: new Error('executor crash') });
+  }, { effectClass:'external_request', dispatchError: new Error('executor crash') });
 });
 
 test('non-pure Event persists intent before dispatch and settles verified receipt before Result commit', async () => {

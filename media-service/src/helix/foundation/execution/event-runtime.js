@@ -668,10 +668,23 @@ function createEventRuntime(options) {
               context: Object.freeze(context), ownerDomain: snapshot.event.owner_domain })
           }));
         } catch (error) {
-          if (!error || error.code !== 'P4_EXECUTION_TIMEOUT') throw error;
-          outcome = Object.freeze({ kind: 'failed', failureClass: 'timeout', code: 'EXECUTION_TIMEOUT',
-            message: 'Capability execution exceeded its frozen timeout.', retryDirective: 'contract_policy',
-            evidence: Object.freeze({ deadlineAtMs: attemptContract.deadlineAtMs }) });
+          if (error?.code === 'P4_EXECUTION_TIMEOUT') {
+            outcome = Object.freeze({ kind: 'failed', failureClass: 'timeout', code: 'EXECUTION_TIMEOUT',
+              message: 'Capability execution exceeded its frozen timeout.', retryDirective: 'contract_policy',
+              evidence: Object.freeze({ deadlineAtMs: attemptContract.deadlineAtMs }) });
+          } else if (!requiresJournal) {
+            // A pure observation has no external effect to reconcile.  Leaving
+            // its durable Attempt in `executing` would manufacture an
+            // unrecoverable crash window, so preserve the failure as an
+            // ordinary policy-controlled Capability outcome.
+            outcome = Object.freeze({ kind:'failed', failureClass:'executor',
+              code:typeof error?.code === 'string' && error.code ? error.code : 'EXECUTOR_ERROR',
+              message:String(error?.message || 'Pure observation executor failed.'),
+              retryDirective:'contract_policy', evidence:Object.freeze({
+                errorName:String(error?.name || 'Error'),
+                errorCode:typeof error?.code === 'string' && error.code ? error.code : 'EXECUTOR_ERROR',
+              }) });
+          } else throw error;
         }
         if (effect) {
           if (outcome.kind === 'succeeded') await options.effectJournal.settle(Object.freeze({
