@@ -218,7 +218,8 @@ function arcaDefinition(schemaManifest) {
         columns: [
           'receipt_id', 'on_deck_run_id', 'shelf_entry_id',
           'inventory_revision', 'deck_fact_revision',
-          'control_revision_set_digest', 'commit_digest', 'committed_at_ms',
+          'control_revision_set_digest', 'related_disposition_completion_digest',
+          'commit_digest', 'committed_at_ms',
         ],
         keyColumns: ['on_deck_run_id'],
         safeIntegers: true,
@@ -229,7 +230,8 @@ function arcaDefinition(schemaManifest) {
         columns: [
           'receipt_id', 'on_deck_run_id', 'shelf_entry_id',
           'inventory_revision', 'deck_fact_revision',
-          'control_revision_set_digest', 'commit_digest', 'committed_at_ms',
+          'control_revision_set_digest', 'related_disposition_completion_digest',
+          'commit_digest', 'committed_at_ms',
         ],
       },
       find_completion: {
@@ -521,6 +523,11 @@ function createOnDeckStore(options) {
       fail('P14_ONDECK_FULFILLMENT_DIGEST',
         'Fulfillment Verification digest does not match its exact typed value.');
     }
+    if (typeof request.relatedDispositionCompletionDigest !== 'string' ||
+        !/^[a-f0-9]{64}$/.test(request.relatedDispositionCompletionDigest)) {
+      fail('P14_ONDECK_DISPOSITION_COMPLETION_REQUIRED',
+        'On-deck Commit requires the complete source-to-final settlement digest.');
+    }
     const identityValue =
       packageValue.resolvedIdentitySnapshot?.factValue
         ?.resolvedProductIdentity ||
@@ -728,6 +735,8 @@ function createOnDeckStore(options) {
       deckFactDigest,
       representationDigest,
       controlScopeDigest: authorizedControlScopeDigest,
+      relatedDispositionCompletionDigest:
+        request.relatedDispositionCompletionDigest,
     };
     const commitDigest = canonicalDigest(commitBasis);
     const markerId = stable('arca.on-deck-commit-marker@1', {
@@ -798,6 +807,8 @@ function createOnDeckStore(options) {
         });
         if (!storedCompletion || storedReceipt.commit_digest !== commitDigest ||
             storedReceipt.shelf_entry_id !== shelfEntryId ||
+            storedReceipt.related_disposition_completion_digest !==
+              request.relatedDispositionCompletionDigest ||
             storedCompletion.package_id !== packageValue.onDeckPackageId) {
           fail('P14_ONDECK_REPLAY_CORRUPT',
             'On-deck Commit replay conflicts with immutable Owner facts.');
@@ -982,6 +993,8 @@ function createOnDeckStore(options) {
           inventoryRevision,
           deckFactRevision,
           controlRevisionSetDigest,
+          relatedDispositionCompletionDigest:
+            request.relatedDispositionCompletionDigest,
         };
         receipt = Object.freeze(receiptValue);
         const completionCore = {
@@ -1022,6 +1035,8 @@ function createOnDeckStore(options) {
           inventory_revision: inventoryRevision,
           deck_fact_revision: deckFactRevision,
           control_revision_set_digest: controlRevisionSetDigest,
+          related_disposition_completion_digest:
+            request.relatedDispositionCompletionDigest,
           commit_digest: commitDigest,
           committed_at_ms: context.commitTimeMs,
         });
@@ -1308,6 +1323,8 @@ function resultFromRows(receipt, completion, commitDigest) {
     inventoryRevision: Number(receipt.inventory_revision),
     deckFactRevision: Number(receipt.deck_fact_revision),
     controlRevisionSetDigest: receipt.control_revision_set_digest,
+    relatedDispositionCompletionDigest:
+      receipt.related_disposition_completion_digest,
   });
   const completionCore = {
     onDeckRunId: completion.on_deck_run_id,

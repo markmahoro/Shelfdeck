@@ -12,7 +12,7 @@
       "constraintsContract": "`UNIQUE(on_deck_run_id)`；只有全部Candidate Material Disposition成员均已`carried_forward|replaced_and_settled`且最终承载位于Shelf Target时才可建立；与On-deck Canonical Fact set同事务成立",
       "source": {
         "section": "8.5.12",
-        "line": 9395,
+        "line": 9412,
         "lineDigest": "5217419226d3ef0b359a62ecc5f2f1fd5c0a7b15dc644494cf54759febf8fe29"
       }
     },
@@ -23,7 +23,7 @@
       "constraintsContract": "`UNIQUE(on_deck_run_id)`；immutable Outbox source",
       "source": {
         "section": "8.5.12",
-        "line": 9396,
+        "line": 9413,
         "lineDigest": "a2d89572372aab45d8ef9f52b7386f3a46b333393352549fdcd3de1efbe66846"
       }
     },
@@ -34,7 +34,7 @@
       "constraintsContract": "`INDEX(shelf_entry_id,care_basis_digest,assessment_kind,assessed_at_ms)`；`INDEX(result,assessed_at_ms)`；同一Care Basis允许每日/每周或用户触发形成多次immutable Assessment history，`assessment_id`必须覆盖确定性cycle identity并承担重放幂等；同Inventory/Standard下Decision Fact或Placement变化仍可形成新Assessment；同一Endpoint或Provider故障以稳定`incident_key`聚合，不复制为大量独立损坏Case",
       "source": {
         "section": "8.5.12",
-        "line": 9397,
+        "line": 9414,
         "lineDigest": "4a1b31bb5c44ed0d86443ffbbb1c90c5648b6f6708d0e8675d5a4cdd55598816"
       }
     },
@@ -45,7 +45,7 @@
       "constraintsContract": "`INDEX(state,repairability,severity,created_at_ms)`",
       "source": {
         "section": "8.5.12",
-        "line": 9398,
+        "line": 9415,
         "lineDigest": "2d8dd47bea6e2d8bb59708cdf5e919dd788c4a77c0c09dc14b036a62f3def09f"
       }
     },
@@ -56,7 +56,7 @@
       "constraintsContract": "两个JSON各上限`64 KiB`；相同`care_basis+finding_set+requirement`至多一个non-terminal Case；同一`shelf_entry_id`至多一个`terminal_at_ms IS NULL`的active Case；Supporting Work通过Foundation反向关联；`INDEX(state,created_at_ms)`",
       "source": {
         "section": "8.5.12",
-        "line": 9399,
+        "line": 9416,
         "lineDigest": "0440b403cd1e6f4126cc1bb680684bf8aa208392cecc4df500fc202e6bd713ae"
       }
     },
@@ -67,7 +67,7 @@
       "constraintsContract": "`PK(aftercare_case_id,input_kind,owner_domain,aggregate_type,aggregate_id)`；关系化保存Standard/Placement/Identity/Inventory/Decision Fact/Package provenance；Case创建后immutable",
       "source": {
         "section": "8.5.12",
-        "line": 9400,
+        "line": 9417,
         "lineDigest": "9a6e19b4a4dba41dc09a9e4e01a3e8e57e4dc24cd867cfeda812fc6fd56ae111"
       }
     },
@@ -78,7 +78,7 @@
       "constraintsContract": "`UNIQUE(aftercare_case_id,settlement_scope_digest)`；只为`auto_repair`且确定性安全的精确替代Scope派生，不新增用户Authorization",
       "source": {
         "section": "8.5.12",
-        "line": 9401,
+        "line": 9418,
         "lineDigest": "63f9a9b819ac2f8124994b0037d4976ead18d94ec13813c50a0733ba454ef2fa"
       }
     },
@@ -89,7 +89,7 @@
       "constraintsContract": "`UNIQUE(aftercare_case_id,new_inventory_revision)`；与Inventory revision及Control acquire/release同事务成立",
       "source": {
         "section": "8.5.12",
-        "line": 9402,
+        "line": 9419,
         "lineDigest": "39a54eb54b9c4193ca09a82b33d12a9d6a6d92a1248b5e8cb4ed534c74700a46"
       }
     },
@@ -100,7 +100,7 @@
       "constraintsContract": "current revision显式FK；Automation只读head，不使用`MAX(revision)`",
       "source": {
         "section": "8.5.12",
-        "line": 9403,
+        "line": 9420,
         "lineDigest": "535fe763445393a3f6da2bb862caf3f6fd6ba0558dc091cce994de67691f040b"
       }
     },
@@ -111,7 +111,7 @@
       "constraintsContract": "Policy JSON上限`64 KiB`；`PK(policy_id,revision)`；immutable",
       "source": {
         "section": "8.5.12",
-        "line": 9404,
+        "line": 9421,
         "lineDigest": "bb4435c564a9cbcf01820993a914b28644e31f066e085d2e56bfdd4563b63a25"
       }
     },
@@ -122,7 +122,7 @@
       "constraintsContract": "target是closed union：entry恰有`shelf_entry_id`，duplicate group恰有`duplicate_group_id`，另一列必须NULL；Condition Evidence JSON上限`16 KiB`；相同`target+policy revision+reason`至多一个open Candidate；`INDEX(state,created_at_ms)`",
       "source": {
         "section": "8.5.12",
-        "line": 9405,
+        "line": 9422,
         "lineDigest": "374b650105d8da6b200797bada923eef2075d3c2d8b1dc3d2c73934d59b31ba1"
       }
     },
@@ -133,7 +133,7 @@
       "constraintsContract": "Suppression精确绑定Entry、Policy revision与reason digest；Policy或reason变化后旧Suppression不遮蔽新Candidate；`INDEX(shelf_entry_id,candidate_kind,state,expires_at_ms)`",
       "source": {
         "section": "8.5.12",
-        "line": 9406,
+        "line": 9423,
         "lineDigest": "06f2b7d8f0f1b8e1c2d52e791ed6e38b3da1583c5f9f5f4eaff008b578343620"
       }
     },
@@ -144,7 +144,7 @@
       "constraintsContract": "`UNIQUE(canonical_identity_digest,member_set_digest)`；Group是Off-deck Evidence aggregate，不选择保留成员",
       "source": {
         "section": "8.5.12",
-        "line": 9407,
+        "line": 9424,
         "lineDigest": "2ea29ec1242d920e488cfa644865edf2eadbfd2c9a47f89520e5b3c52995081d"
       }
     }

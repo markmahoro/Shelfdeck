@@ -142,6 +142,66 @@
       },
       {
         "ordinal": 14,
+        "name": "mount_scope_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 15,
+        "name": "inode",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 16,
+        "name": "size_bytes",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 17,
+        "name": "fingerprint_algorithm",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 18,
+        "name": "fingerprint_version",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 19,
+        "name": "content_fingerprint",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 20,
         "name": "binding_revision",
         "logicalType": "INTEGER",
         "enumValues": [],
@@ -151,7 +211,7 @@
         "nullable": false
       },
       {
-        "ordinal": 15,
+        "ordinal": 21,
         "name": "health_state",
         "logicalType": "TEXT",
         "enumValues": [
@@ -165,7 +225,7 @@
         "nullable": false
       },
       {
-        "ordinal": 16,
+        "ordinal": 22,
         "name": "evidence_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -175,7 +235,7 @@
         "nullable": false
       },
       {
-        "ordinal": 17,
+        "ordinal": 23,
         "name": "current",
         "logicalType": "INTEGER_BOOLEAN",
         "enumValues": [],
@@ -240,19 +300,19 @@
     },
     "semanticRules": [
       "`PK(owner_object_type,owner_object_id,material_key,role,binding_revision)`",
-      "每个物理Material/role/revision只有一row且每个关系只有一个current row。`product_control`逐项命中Handoff B Product member及Control transfer，三个Related authority列全NULL",
+      "每个物理Material/role/revision只有一row且每个关系只有一个current row。每行冻结可重建`material_key`的完整Physical Material Identity tuple，Aftercare或历史重放不得用当前Shelf mount scope猜测旧Identity。`product_control`逐项命中Handoff B Product member及Control transfer，三个Related authority列全NULL",
       "`related_derived`只用于Off-load Context中仍为原Physical Identity的exclusive Related，必须命中同Package source reference、Primary及derived authority且不声明独立Control。两种variant严格互斥。Episode JSON固定`helix://contracts/application-types/ArcaMaterialEpisodeClaims/v1`、canonical JCS≤`16 KiB`，schema/json/digest均非NULL并逐字节满足8.6.19公式",
       "Series Primary为`1..32`项，single Primary及非Primary/Off-load Context-only Binding为空Set",
-      "`evidence_digest`与`arcaBindingSetDigest`覆盖完整typed Set和authority variant，禁止只取第一项、复制member row或旁读Libra补值"
+      "`evidence_digest`与`arcaBindingSetDigest`覆盖完整typed Set、Physical Identity和authority variant，禁止只取第一项、复制member row或旁读Libra补值"
     ],
     "rawContract": {
-      "columns": "`owner_object_type, owner_object_id, material_key, role, authority_kind(product_control|related_derived), primary_material_key NULL, source_related_reference_id NULL, derived_authority_digest NULL, episode_claims_schema_ref, episode_claims_json, episode_claim_set_digest, endpoint_id, location, binding_revision, health_state, evidence_digest, current`",
-      "constraints": "`PK(owner_object_type,owner_object_id,material_key,role,binding_revision)`；每个物理Material/role/revision只有一row且每个关系只有一个current row。`product_control`逐项命中Handoff B Product member及Control transfer，三个Related authority列全NULL；`related_derived`只用于Off-load Context中仍为原Physical Identity的exclusive Related，必须命中同Package source reference、Primary及derived authority且不声明独立Control。两种variant严格互斥。Episode JSON固定`helix://contracts/application-types/ArcaMaterialEpisodeClaims/v1`、canonical JCS≤`16 KiB`，schema/json/digest均非NULL并逐字节满足8.6.19公式；Series Primary为`1..32`项，single Primary及非Primary/Off-load Context-only Binding为空Set；`evidence_digest`与`arcaBindingSetDigest`覆盖完整typed Set和authority variant，禁止只取第一项、复制member row或旁读Libra补值"
+      "columns": "`owner_object_type, owner_object_id, material_key, role, authority_kind(product_control|related_derived), primary_material_key NULL, source_related_reference_id NULL, derived_authority_digest NULL, episode_claims_schema_ref, episode_claims_json, episode_claim_set_digest, endpoint_id, location, mount_scope_id, inode, size_bytes, fingerprint_algorithm, fingerprint_version, content_fingerprint, binding_revision, health_state, evidence_digest, current`",
+      "constraints": "`PK(owner_object_type,owner_object_id,material_key,role,binding_revision)`；每个物理Material/role/revision只有一row且每个关系只有一个current row。每行冻结可重建`material_key`的完整Physical Material Identity tuple，Aftercare或历史重放不得用当前Shelf mount scope猜测旧Identity。`product_control`逐项命中Handoff B Product member及Control transfer，三个Related authority列全NULL；`related_derived`只用于Off-load Context中仍为原Physical Identity的exclusive Related，必须命中同Package source reference、Primary及derived authority且不声明独立Control。两种variant严格互斥。Episode JSON固定`helix://contracts/application-types/ArcaMaterialEpisodeClaims/v1`、canonical JCS≤`16 KiB`，schema/json/digest均非NULL并逐字节满足8.6.19公式；Series Primary为`1..32`项，single Primary及非Primary/Off-load Context-only Binding为空Set；`evidence_digest`与`arcaBindingSetDigest`覆盖完整typed Set、Physical Identity和authority variant，禁止只取第一项、复制member row或旁读Libra补值"
     },
     "source": {
       "section": "8.5.12",
-      "line": 9381,
-      "lineDigest": "b15ef1fdcf6fbf7e7baad1b659cd136bf6485092d5b039c8c1e3cdd950d937b4"
+      "line": 9398,
+      "lineDigest": "92a18c56c2be19b7aab9cd211b20c90c300c2e4557388a7d382359450620bd8e"
     },
     "foreignKeys": []
   }

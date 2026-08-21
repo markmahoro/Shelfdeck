@@ -3816,6 +3816,18 @@ Final Inventory Decision必须为每个成员冻结`sourceMaterialKey`、role、
 这些字段共同进入成员及Decision digest。Workspace中的`transcode-*`、Event/Package ID、digest或其他内部技术名
 不是Placement Evidence，不得直接成为永久Shelf名称；只有显式用户Placement模板的渲染结果可以改变上述默认名。
 
+Final Inventory完成合同必须同时消费Off-load Context中每个成员冻结的`settlementExpectation`与
+`source-to-final mapping`。`carried_forward + replace_or_move`与`replaced_and_settled + remove_after_place`
+都要求逐成员Completion Evidence；前者只说明产品成员连续，不授权原location留下第二份现实。同路径且Identity、字节与
+Final Decision完全一致时形成有Evidence的no-op；不同路径时必须先完成可恢复的move或copy-verify，再精确Settlement旧成员。
+On-deck Commit只有在全部Disposition成员已有terminal completion且
+`related_disposition_completion_digest`非空并绑定Final Reality时才可建立Shelf Entry与Deck Fact。
+
+旧目录收口不是递归删除权。Arca必须先冻结全部已知受管成员，在任何删除前验证Final成员、旧Identity与目录closed-world；
+目录中出现未计划成员时立即形成`attention_required`并停止，只有旧目录精确为空且不是Shelf Target根目录时才可删除该空目录。
+Aftercare Conformance除当前Inventory与Placement Decision外，还必须读取已知历史Custody Binding；旧Binding仍存在但能唯一证明为
+当前Final成员的同字节副本时，才可在Placement Case中按同一证据边界结算，否则保持用户可见“需要处理”。
+
 Shelf已有有效Shelf Entry后发布新的Placement Policy revision，不重新执行Routing、Collection Formation或
 首次Shelf Acceptance。Arca把每个当前Inventory与新Placement结果的差异交给Aftercare Conformance评估；
 只有已知Inventory、目标可解析、成本与安全边界有界且结果可复验时才能自动迁移。迁移只形成新的Inventory
@@ -4080,7 +4092,7 @@ Process Root或Run。Aftercare内部健康评估至少读取：
 - 有效Shelf Entry及Canonical Content Identity；
 - 当前Shelf Standard revision；
 - 当前Shelf Placement Policy revision及Inventory是否符合其Final Inventory结果；
-- Inventory Representation、Binding Health与现实承载Evidence；
+- Inventory Representation、Binding Health、On-deck留下的已知历史Custody Binding与现实承载Evidence；
 - Product Metadata和其他Standard明确要求的当前事实；
 - 相关Aftercare Assessment/Case结果。
 
@@ -5776,6 +5788,11 @@ On-deck Run的最小业务语义为：
 `committed`还要求全部Candidate disposition member已经取得terminal evidence；等待Related Settlement
 Authorization、Final Product验证或source-to-final mapping收敛时只能保持`offloading|blocked`，不能先建立
 Shelf Entry再把Material Field残留留给后台慢慢处理。
+
+Fulfillment必须逐项重建`source-to-final mapping`完成集合：要求Settlement的成员引用精确Settlement Evidence，
+保留成员引用Final Reality Evidence；该集合、Disposition member set与Final Reality共同形成非空
+`related_disposition_completion_digest`并进入On-deck Commit Receipt。缺少成员、映射digest漂移、Final成员未验证或
+Settlement只证明“已删除”却未证明replacement存在时，Commit必须fail closed。
 
 Accepted不能被On-deck失败改写成Rejected。On-deck Run需要依据同一Acceptance Basis完成交付；Accepted后
 发生的新Shelf Standard变化不撤销该次接货，Shelf Entry建立后由Aftercare按当前Standard评估。
@@ -9378,7 +9395,7 @@ Plan node input/parameter/Fence/Resource Demand的具体JSON不直接重复存�
 | `arca_acceptance_decisions` | `acceptance_decision_id PK, acceptance_attempt_id FK, result(accepted|rejected), offer_id, on_deck_package_id, package_digest, related_disposition_set_digest, shelf_id FK, standard_revision, placement_revision, acceptance_evidence_set_digest, rejection_schema_ref NULL, rejection_code NULL, rejection_digest NULL, decision_digest, decided_at_ms` | `acceptance_decision_id=SHA-256(JCS({schema:"arca.acceptance-decision-id@1",acceptanceAttemptId}))`且`UNIQUE(acceptance_attempt_id)`；Offer/Package/Related disposition set逐字节等于Attempt；accepted要求rejection列全NULL且证明完整处置义务可履行；rejected固定`rejection_schema_ref=StructuredRejection@1`且code/digest非NULL，并逐项重建`ArcaAcceptanceRejectionDecision@1`；immutable |
 | `arca_ondeck_custodies` | `custody_id PK, acceptance_decision_id FK, on_deck_package_id, package_digest, control_scope_digest, related_disposition_set_digest, state, accepted_at_ms` | `UNIQUE(on_deck_package_id,package_digest)`；只有Accepted Decision可建立；`control_scope_digest`只覆盖正式Product Control transfer，`related_disposition_set_digest`逐字节冻结Package中全部exclusive Related的source-to-final义务，两者不得合并为一个Control Scope |
 | `arca_handoff_b_receipts` | `receipt_id PK, acceptance_decision_id FK, outcome(accepted|rejected), offer_id, custody_id NULL, on_deck_package_id, package_digest, arca_binding_set_digest NULL, control_revision_set_digest NULL, related_disposition_set_digest, rejection_code NULL, acceptance_evidence_set_digest, rejection_digest NULL, receipt_digest, committed_at_ms` | `UNIQUE(acceptance_decision_id)`及`UNIQUE(offer_id)`；Offer/Package/Related disposition set逐字节等于Decision；accepted要求Custody/Binding/Control列非NULL、全部rejection列为NULL，receipt digest按`CustodyAndTransferReceipt@1`公式重建，其中Related set不进入Control digest；rejected要求Custody/Binding/Control列NULL且rejection列非NULL，receipt digest按`RejectionReceipt@1`公式重建；两种终态都必须有receipt digest并作为各自typed Outbox的durable source，相同marker不新增Receipt或相反终态 |
-| `arca_material_bindings` | `owner_object_type, owner_object_id, material_key, role, authority_kind(product_control|related_derived), primary_material_key NULL, source_related_reference_id NULL, derived_authority_digest NULL, episode_claims_schema_ref, episode_claims_json, episode_claim_set_digest, endpoint_id, location, binding_revision, health_state, evidence_digest, current` | `PK(owner_object_type,owner_object_id,material_key,role,binding_revision)`；每个物理Material/role/revision只有一row且每个关系只有一个current row。`product_control`逐项命中Handoff B Product member及Control transfer，三个Related authority列全NULL；`related_derived`只用于Off-load Context中仍为原Physical Identity的exclusive Related，必须命中同Package source reference、Primary及derived authority且不声明独立Control。两种variant严格互斥。Episode JSON固定`helix://contracts/application-types/ArcaMaterialEpisodeClaims/v1`、canonical JCS≤`16 KiB`，schema/json/digest均非NULL并逐字节满足8.6.19公式；Series Primary为`1..32`项，single Primary及非Primary/Off-load Context-only Binding为空Set；`evidence_digest`与`arcaBindingSetDigest`覆盖完整typed Set和authority variant，禁止只取第一项、复制member row或旁读Libra补值 |
+| `arca_material_bindings` | `owner_object_type, owner_object_id, material_key, role, authority_kind(product_control|related_derived), primary_material_key NULL, source_related_reference_id NULL, derived_authority_digest NULL, episode_claims_schema_ref, episode_claims_json, episode_claim_set_digest, endpoint_id, location, mount_scope_id, inode, size_bytes, fingerprint_algorithm, fingerprint_version, content_fingerprint, binding_revision, health_state, evidence_digest, current` | `PK(owner_object_type,owner_object_id,material_key,role,binding_revision)`；每个物理Material/role/revision只有一row且每个关系只有一个current row。每行冻结可重建`material_key`的完整Physical Material Identity tuple，Aftercare或历史重放不得用当前Shelf mount scope猜测旧Identity。`product_control`逐项命中Handoff B Product member及Control transfer，三个Related authority列全NULL；`related_derived`只用于Off-load Context中仍为原Physical Identity的exclusive Related，必须命中同Package source reference、Primary及derived authority且不声明独立Control。两种variant严格互斥。Episode JSON固定`helix://contracts/application-types/ArcaMaterialEpisodeClaims/v1`、canonical JCS≤`16 KiB`，schema/json/digest均非NULL并逐字节满足8.6.19公式；Series Primary为`1..32`项，single Primary及非Primary/Off-load Context-only Binding为空Set；`evidence_digest`与`arcaBindingSetDigest`覆盖完整typed Set、Physical Identity和authority variant，禁止只取第一项、复制member row或旁读Libra补值 |
 | `arca_ondeck_runs` | `on_deck_run_id PK, custody_id FK, final_inventory_decision_digest, state, created_at_ms, terminal_at_ms` | 只允许Handoff B Accepted transaction与immutable Final Inventory Decision同事务首次建立；同一Custody一个non-terminal Run；Supporting Work通过Foundation反向关联；`INDEX(state,created_at_ms)` |
 | `arca_final_inventory_decisions` | `final_inventory_decision_id PK, on_deck_run_id FK, shelf_id FK, placement_revision, target_endpoint_id, target_location, product_manifest_digest, offload_context_digest, related_disposition_set_digest, decision_schema_ref, decision_json, decision_digest, decided_at_ms` | Decision JSON上限`64 KiB`；`UNIQUE(on_deck_run_id)`；immutable；必须逐项覆盖Package Product member及全部Related source-to-final mapping，不允许active Shelf Entry依赖Field中的exclusive Related；不保存adopt/replace/relocate动作类型 |
 | `arca_input_settlement_authorizations` | `authorization_id, revision, state(enabled|revoked), authorization_scope_kind(old_primary_input|exclusive_related_input|old_primary_and_exclusive_related), actor_id, authorization_digest, effective_at_ms, revoked_at_ms` | `PK(authorization_id,revision)`；immutable；只授权为精确On-deck Scope派生Approval，不授权目录范围。Authorization revision必须显式覆盖`exclusive_related_input`才可派生该类Approval；合同修订前或scope-kind不含该值的旧revision不得静默扩大 |

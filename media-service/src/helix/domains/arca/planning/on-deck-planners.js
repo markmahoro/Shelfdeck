@@ -3,6 +3,7 @@
 const { canonicalDigest } = require('../../../contracts/canonical-json');
 const { executionCatalogDigest } = require('../../../foundation/execution/workflow-plan');
 const { CAPABILITY_REFS:C } = require('../model/on-deck-contract');
+const { requiresInputSettlement } = require('../model/offload-settlement');
 // Resource demand is part of each exact Capability contract. A Planner may
 // choose when to issue a Capability, but it may not weaken or improvise the
 // resources declared by that Capability's manifest.
@@ -94,8 +95,7 @@ function createAcceptanceRejectionPlanner(options){const catalogDigest=execution
 function createOnDeckExecutionPlanner(options){const catalogDigest=executionCatalogDigest(options.registry,options.policyRegistry),
   plannerContractRef='helix://arca/planners/OnDeckExecution/v1';return Object.freeze({plannerContractRef,plannerVersion:1,plan(request){
     const context=options.contextReader.readAccepted(request.processId,request.dependencyRefs||[]);
-    const settlementMembers=(context.packageValue.offloadContextManifest?.members||[]).filter((member)=>
-      member.dispositionKind==='replaced_and_settled'&&member.settlementExpectation==='remove_after_place')
+    const settlementMembers=(context.packageValue.offloadContextManifest?.members||[]).filter(requiresInputSettlement)
       .sort((left,right)=>Buffer.compare(Buffer.from(left.materialKey),Buffer.from(right.materialKey)));
     const s=canonicalDigest(request.workAttemptId).slice(0,18),o={...options,request},ids={slot:'ondeck-slot-'+s,stage:'ondeck-stage-'+s,
       staged:'ondeck-staged-verify-'+s,final:'ondeck-final-verify-'+s,placement:'ondeck-placement-'+s,

@@ -94,6 +94,7 @@ function bindingFromProduct(member, contentProfile) {
   return Object.freeze({
     materialKey: member.materialKey,
     role: 'product:' + member.role,
+    physicalIdentity: member.physicalIdentity,
     episodeClaims: fromProductMember(member, contentProfile),
     endpointId: member.location.endpointId,
     location: member.workspaceMaterialHandle
@@ -107,6 +108,7 @@ function bindingFromContext(member) {
   return Object.freeze({
     materialKey: member.materialKey,
     role: 'offload:' + member.contextRole,
+    physicalIdentity: member.physicalIdentity,
     episodeClaims: emptyArcaMaterialEpisodeClaims(),
     endpointId: member.endpointId,
     location: member.location,

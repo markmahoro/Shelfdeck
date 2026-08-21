@@ -2,8 +2,12 @@
 
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
+const os = require('node:os');
 const path = require('node:path');
 const test = require('node:test');
+const { canonicalDigest } = require('../../src/helix/contracts/canonical-json');
+const { computeBoundedMaterialFingerprintSync } = require('../../src/helix/integrations/bounded-material-fingerprint');
+const { observedIdentity, observeKnownOldBindings } = require('../../src/helix/domains/arca/model/known-old-binding');
 const {
   PERIODS,
   stableJitterMs,
@@ -83,6 +87,81 @@ test('Aftercare Case closure reclaims Workspace before publishing resolved Case 
   assert.ok(closure.indexOf("C.workspaceReclaim,'workspace_reclaim'") <
     closure.indexOf("C.caseCommit,'case_commit'"));
   assert.match(closure, /C\.caseCommit[\s\S]*eventId:reclaim,satisfaction:'success'/);
+});
+
+test('Aftercare recognizes an exact legacy custody Binding only when a current final member has the same bounded bytes', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'arca-known-old-binding-'));
+  try {
+    const oldLocation = path.join(root, 'opaque-source', 'old.mkv');
+    const finalLocation = path.join(root, 'shelf', 'Movie (2026)', 'Movie (2026).mkv');
+    fs.mkdirSync(path.dirname(oldLocation), { recursive:true });
+    fs.mkdirSync(path.dirname(finalLocation), { recursive:true });
+    fs.writeFileSync(oldLocation, Buffer.from('same-bounded-media'));
+    fs.copyFileSync(oldLocation, finalLocation);
+    const mountScopeId = 'canary-mount';
+    const oldIdentity = observedIdentity(oldLocation, mountScopeId,
+      computeBoundedMaterialFingerprintSync);
+    const finalIdentity = observedIdentity(finalLocation, mountScopeId,
+      computeBoundedMaterialFingerprintSync);
+    const raw = {
+      shelf:{ target_mount_scope_id:mountScopeId },
+      oldBindings:[{
+        material_key:oldIdentity.materialKey, role:'offload:original_input',
+        mount_scope_id:mountScopeId,
+        endpoint_id:'canary', location:oldLocation, binding_revision:1,
+        evidence_digest:canonicalDigest({ oldLocation }),
+      }],
+      materials:[{
+        material_key:finalIdentity.materialKey, role:'primary_payload',
+        location:finalLocation, size_bytes:finalIdentity.sizeBytes,
+        fingerprint_algorithm:finalIdentity.fingerprintAlgorithm,
+        fingerprint_version:finalIdentity.fingerprintVersion,
+        content_fingerprint:finalIdentity.contentFingerprint,
+      }],
+    };
+    const observed = observeKnownOldBindings(raw,
+      computeBoundedMaterialFingerprintSync);
+    assert.equal(observed.length, 1);
+    assert.equal(observed[0].kind, 'duplicate_of_final');
+    assert.equal(observed[0].final.material_key, finalIdentity.materialKey);
+    fs.writeFileSync(oldLocation, Buffer.from('changed-media'));
+    assert.equal(observeKnownOldBindings(raw,
+      computeBoundedMaterialFingerprintSync)[0].kind, 'identity_changed');
+  } finally {
+    fs.rmSync(root, { recursive:true, force:true });
+  }
+});
+
+test('Aftercare legacy settlement remains evidence-gated and refuses unknown directory members', () => {
+  const projection = fs.readFileSync(path.join(__dirname,
+    '../../src/helix/domains/arca/planning/aftercare-projections.js'), 'utf8');
+  const capability = fs.readFileSync(path.join(__dirname,
+    '../../src/helix/domains/arca/capabilities/aftercare-capability-ports.js'), 'utf8');
+  assert.match(projection, /observeKnownOldBindings/);
+  assert.match(projection, /finalMaterialKey:observed\.final\.material_key/);
+  assert.match(capability, /ARCA_AFTERCARE_SETTLEMENT_FINAL_MISMATCH/);
+  assert.match(capability, /ARCA_AFTERCARE_SETTLEMENT_UNKNOWN_MEMBER/);
+  assert.doesNotMatch(capability, /fs\.rmSync\(handle\.location[^\n]*recursive\s*:\s*true/);
+});
+
+test('Aftercare receives the bounded fingerprint port and durable old physical identity tuple', () => {
+  const composition = fs.readFileSync(path.join(__dirname,
+    '../../src/helix/composition/create-procurement-execution-runtime.js'), 'utf8');
+  const handoffStore = fs.readFileSync(path.join(__dirname,
+    '../../src/helix/domains/arca/persistence/handoff-b-acceptance-store.js'), 'utf8');
+  const aftercareStore = fs.readFileSync(path.join(__dirname,
+    '../../src/helix/domains/arca/persistence/aftercare-store.js'), 'utf8');
+  assert.match(composition,
+    /arcaConstruction\.createPlanningRegistration\([\s\S]*?computeBoundedMaterialFingerprintSync,now/);
+  for (const column of [
+    'mount_scope_id', 'inode', 'size_bytes', 'fingerprint_algorithm',
+    'fingerprint_version', 'content_fingerprint',
+  ]) {
+    assert.ok(handoffStore.includes(`'${column}'`), column);
+    assert.ok(aftercareStore.includes(`'${column}'`), column);
+  }
+  assert.match(handoffStore, /physicalIdentity:item\.physicalIdentity/);
+  assert.match(handoffStore, /mount_scope_id:item\.physicalIdentity\.mountScopeId/);
 });
 
 test('Shelf Deregistration settles Aftercare Workspace through a dedicated Capability Work before invalidation', () => {

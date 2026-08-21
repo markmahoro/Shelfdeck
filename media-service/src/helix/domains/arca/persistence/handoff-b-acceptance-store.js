@@ -190,6 +190,8 @@ function arcaDefinition(schemaManifest) {
           'owner_object_type', 'owner_object_id', 'material_key', 'role',
           'episode_claims_schema_ref', 'episode_claims_json',
           'episode_claim_set_digest', 'endpoint_id', 'location',
+          'mount_scope_id', 'inode', 'size_bytes', 'fingerprint_algorithm',
+          'fingerprint_version', 'content_fingerprint',
           'binding_revision',
           'health_state', 'evidence_digest', 'current',
         ],
@@ -203,6 +205,8 @@ function arcaDefinition(schemaManifest) {
           'owner_object_type', 'owner_object_id', 'material_key', 'role',
           'episode_claims_schema_ref', 'episode_claims_json',
           'episode_claim_set_digest', 'endpoint_id', 'location',
+          'mount_scope_id', 'inode', 'size_bytes', 'fingerprint_algorithm',
+          'fingerprint_version', 'content_fingerprint',
           'binding_revision',
           'health_state', 'evidence_digest', 'current',
         ],
@@ -427,6 +431,12 @@ function createHandoffBAcceptanceStore(options) {
       const item = {
         materialKey: row.material_key,
         role: row.role,
+        physicalIdentity:Object.freeze({
+          schemaRef:'helix://contracts/types/PhysicalMaterialIdentity/v2', schemaVersion:2,
+          materialKey:row.material_key, mountScopeId:row.mount_scope_id, inode:row.inode,
+          sizeBytes:Number(row.size_bytes), fingerprintAlgorithm:row.fingerprint_algorithm,
+          fingerprintVersion:Number(row.fingerprint_version), contentFingerprint:row.content_fingerprint,
+        }),
         episodeClaims,
         endpointId: row.endpoint_id,
         location: row.location,
@@ -438,6 +448,7 @@ function createHandoffBAcceptanceStore(options) {
         custodyId,
         materialKey: item.materialKey,
         role: item.role,
+        physicalIdentity:item.physicalIdentity,
         episodeClaims,
         endpointId: item.endpointId,
         location: item.location,
@@ -604,6 +615,14 @@ function createHandoffBAcceptanceStore(options) {
     const series =
       request.package?.productStructureSnapshot?.structureKind === 'season';
     const bindings = request.bindings.map((item) => {
+      const physicalIdentity=item.physicalIdentity;
+      if(!physicalIdentity||physicalIdentity.schemaRef!=='helix://contracts/types/PhysicalMaterialIdentity/v2'||
+          physicalIdentity.schemaVersion!==2||physicalIdentity.materialKey!==item.materialKey||
+          canonicalDigest({schema:'physical-material-identity@2',mountScopeId:physicalIdentity.mountScopeId,
+            inode:physicalIdentity.inode,sizeBytes:physicalIdentity.sizeBytes,
+            fingerprintAlgorithm:physicalIdentity.fingerprintAlgorithm,fingerprintVersion:physicalIdentity.fingerprintVersion,
+            contentFingerprint:physicalIdentity.contentFingerprint})!==item.materialKey)
+        fail('P14_HANDOFF_B_BINDING_IDENTITY','Handoff B Binding lost its exact Physical Material Identity.');
       const episodeClaims = buildArcaMaterialEpisodeClaims(
         item.episodeClaims,
         {
@@ -633,6 +652,7 @@ function createHandoffBAcceptanceStore(options) {
           custodyId,
           materialKey: binding.materialKey,
           role: binding.role,
+          physicalIdentity:binding.physicalIdentity,
           episodeClaims,
           endpointId: binding.endpointId,
           location: binding.location,
@@ -923,6 +943,12 @@ function createHandoffBAcceptanceStore(options) {
               item.episodeClaims.episodeClaimSetDigest,
             endpoint_id: item.endpointId,
             location: item.location,
+            mount_scope_id:item.physicalIdentity.mountScopeId,
+            inode:item.physicalIdentity.inode,
+            size_bytes:item.physicalIdentity.sizeBytes,
+            fingerprint_algorithm:item.physicalIdentity.fingerprintAlgorithm,
+            fingerprint_version:item.physicalIdentity.fingerprintVersion,
+            content_fingerprint:item.physicalIdentity.contentFingerprint,
             binding_revision: item.bindingRevision,
             health_state: 'active',
             evidence_digest: item.evidenceDigest,

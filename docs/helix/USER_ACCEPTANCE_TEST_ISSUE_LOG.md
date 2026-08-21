@@ -1186,7 +1186,17 @@ carried-forward Settlement、Commit Gate和既有Entry的Arca Aftercare恢复需
 2026-08-21修复进展：成员命名子包已完成。Shelf Placement Policy现关闭定义目录、Primary、NFO、Subtitle、Poster、Fanart
 模板及冲突策略，Admin Web创建时全部可配且保存前可预览；Final Inventory Decision逐成员冻结`finalName`与最终location。
 隔离`老笠`同型回归确认内部hash、`(0)`、`transcode-*`和artifact ID不会进入Shelf名称。未读取或改写旧现场；Settlement、
-Commit Gate、旧目录收口与Aftercare旧Binding检查尚未完成，所以UAT-020整体继续保持OPEN。
+Commit Gate、旧目录收口与Aftercare旧Binding检查由下一独立提交完成。
+
+2026-08-21修复进展：Settlement/Aftercare子包已完成代码修复。On-deck Planner不再按`dispositionKind`漏掉
+`carried_forward + replace_or_move`；每个需要Settlement的成员先验证冻结Final target和字节，再形成同路径no-op或不同路径
+精确Settlement Evidence。Fulfillment逐项核对全部Off-load mapping，On-deck Commit持久化非空
+`related_disposition_completion_digest`，缺少或漂移时fail closed。旧目录仅在精确为空时删除，发现未知成员会在任何删除前停止。
+Aftercare读取当前Inventory、Placement Decision和原Handoff B Custody Binding，旧Binding只有身份未漂移且唯一匹配当前Final
+字节时才能纳入Placement修复的Settlement，其余为`attention_required`。隔离回归未触碰旧`老笠`现场。
+
+UAT-020代码修复已完成，但问题继续保持OPEN：按用户指示不立即重建Canary、不启动服务、不执行第二轮真实Admin Web UAT；
+只有后续新Canary证明22/22均形成唯一物理现实后才关闭。
 
 ## 18. 后续问题模板
 

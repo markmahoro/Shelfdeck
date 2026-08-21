@@ -163,7 +163,10 @@ test('same-root Stage/Switch preserves exact final members, merges new members, 
       resolvedIdentitySnapshot:{ factValue:{ title:'Example Movie' } },
       productStructureSnapshot:{ structureKind:'single' },
       productMaterialManifest:{ members:Object.freeze(productMembers), manifestDigest:'manifest-1' },
-      offloadContextManifest:{ manifestDigest:'offload-1', members:Object.freeze([]) },
+      offloadContextManifest:{ manifestDigest:'offload-1', members:Object.freeze([
+        Object.freeze({ materialKey:identity(oldPoster, mountScopeId).materialKey, location:oldPoster }),
+        Object.freeze({ materialKey:identity(oldNfo, mountScopeId).materialKey, location:oldNfo }),
+      ]) },
     });
     const shelf = Object.freeze({
       shelfId:'shelf-1', status:'active', currentPlacementRevision:1,
@@ -195,11 +198,15 @@ test('same-root Stage/Switch preserves exact final members, merges new members, 
     assert.equal(port.readFinal({ ...request, finalInventoryDecision, replayCommitted:true }).members.length, 3);
 
     const finalInventoryRequest = { ...request, finalInventoryDecision };
+    const posterFinal = finalInventoryDecision.members.find((item) => item.role === 'poster');
+    const nfoFinal = finalInventoryDecision.members.find((item) => item.role === 'metadata_sidecar');
     const retained = port.settleInput({
       materialHandle:{ schemaRef:'helix://contracts/types/PhysicalMaterialReadHandle/v1', ownerDomain:'arca',
         ownerScope:{ scopeType:'on_deck_custody', scopeId:'custody-1' }, location:oldPoster,
         identity:identity(oldPoster, mountScopeId), expectedSizeBytes:fs.statSync(oldPoster).size },
       approval:{ approvalId:'approval-poster' }, finalInventoryRequest,
+      finalMaterialKey:productMembers[1].materialKey, finalTargetLocation:posterFinal.targetLocation,
+      settlementExpectation:'replace_or_move', sourceToFinalMappingDigest:canonicalDigest('poster-mapping'),
     });
     assert.deepEqual({ absent:retained.absent, disposition:retained.disposition },
       { absent:false, disposition:'retained_as_final' });
@@ -210,11 +217,109 @@ test('same-root Stage/Switch preserves exact final members, merges new members, 
         ownerScope:{ scopeType:'on_deck_custody', scopeId:'custody-1' }, location:oldNfo,
         identity:identity(oldNfo, mountScopeId), expectedSizeBytes:fs.statSync(oldNfo).size },
       approval:{ approvalId:'approval-nfo' }, finalInventoryRequest,
+      finalMaterialKey:productMembers[2].materialKey, finalTargetLocation:nfoFinal.targetLocation,
+      settlementExpectation:'remove_after_place', sourceToFinalMappingDigest:canonicalDigest('nfo-mapping'),
     });
     assert.deepEqual({ absent:deleted.absent, disposition:deleted.disposition },
-      { absent:true, disposition:'deleted' });
+      { absent:true, disposition:'settled_to_final' });
     assert.equal(fs.existsSync(oldNfo), false);
   } finally {
     fs.rmSync(root, { recursive:true, force:true });
+  }
+});
+
+function settlementFixture({ unknownMember = false } = {}) {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'clean-arca-settlement-'));
+  const sourceDirectory = path.join(root, 'opaque-source');
+  const targetRoot = path.join(root, 'shelf');
+  fs.mkdirSync(sourceDirectory, { recursive:true });
+  fs.mkdirSync(targetRoot, { recursive:true });
+  const source = path.join(sourceDirectory, 'opaque-hash.mkv');
+  fs.writeFileSync(source, Buffer.from('exact-movie-bytes'));
+  if (unknownMember) fs.writeFileSync(path.join(sourceDirectory, 'notes.txt'), Buffer.from('unknown'));
+  const mountScopeId = 'canary-mount';
+  const productMember = member(source, 'primary_payload', mountScopeId);
+  const mappingDigest = canonicalDigest({ source:productMember.materialKey, target:'final' });
+  const packageValue = Object.freeze({
+    onDeckPackageId:'package-settlement', shelfId:'shelf-settlement',
+    resolvedIdentitySnapshot:{ factValue:{ title:'Settled Movie', year:2026 } },
+    productStructureSnapshot:{ structureKind:'single' },
+    productMaterialManifest:{ members:Object.freeze([productMember]), manifestDigest:'manifest-settlement' },
+    offloadContextManifest:{ manifestDigest:'offload-settlement', members:Object.freeze([
+      Object.freeze({
+        materialKey:productMember.materialKey,
+        finalProductMaterialKey:productMember.materialKey,
+        location:source,
+        settlementExpectation:'replace_or_move',
+        sourceToFinalMappingDigest:mappingDigest,
+      }),
+    ]) },
+  });
+  const shelf = Object.freeze({
+    shelfId:'shelf-settlement', status:'active', currentPlacementRevision:1,
+    target:{ endpointId:'canary', rootLocation:targetRoot, mountScopeId, mountScopeRevision:1 },
+    placement:{ value:{ folderTemplate:'{title} ({year})' } },
+  });
+  const port = createCleanArcaInventoryPort({
+    schemaManifest, unitOfWork:{}, workspaceRoot:path.join(root, '.workspace'),
+  });
+  const finalInventoryRequest = {
+    onDeckRunId:'on-deck-settlement', custodyId:'custody-settlement', shelf,
+    onDeckProductPackage:packageValue, observedAtMs:1, replayCommitted:true,
+  };
+  const finalInventoryDecision = port.prepare(finalInventoryRequest);
+  finalInventoryRequest.finalInventoryDecision = finalInventoryDecision;
+  const finalMember = finalInventoryDecision.members[0];
+  fs.mkdirSync(path.dirname(finalMember.targetLocation), { recursive:true });
+  fs.copyFileSync(source, finalMember.targetLocation);
+  const materialHandle = {
+    schemaRef:'helix://contracts/types/PhysicalMaterialReadHandle/v1', ownerDomain:'arca',
+    ownerScope:{ scopeType:'on_deck_custody', scopeId:'custody-settlement' },
+    location:source, identity:productMember.physicalIdentity,
+    expectedSizeBytes:productMember.physicalIdentity.sizeBytes,
+  };
+  return { root, sourceDirectory, source, port, finalInventoryRequest,
+    finalMember, materialHandle, mappingDigest };
+}
+
+test('different-path settlement verifies the final copy before removing only the managed source and empty directory', () => {
+  const fixture = settlementFixture();
+  try {
+    const result = fixture.port.settleInput({
+      materialHandle:fixture.materialHandle,
+      approval:{ approvalId:'approval' },
+      finalInventoryRequest:fixture.finalInventoryRequest,
+      finalMaterialKey:fixture.finalMember.sourceMaterialKey,
+      finalTargetLocation:fixture.finalMember.targetLocation,
+      settlementExpectation:'replace_or_move',
+      sourceToFinalMappingDigest:fixture.mappingDigest,
+    });
+    assert.equal(result.finalVerified, true);
+    assert.equal(result.disposition, 'settled_to_final');
+    assert.equal(result.oldDirectoryDisposition, 'removed_empty');
+    assert.equal(fs.existsSync(fixture.source), false);
+    assert.equal(fs.existsSync(fixture.sourceDirectory), false);
+    assert.equal(fs.readFileSync(fixture.finalMember.targetLocation, 'utf8'), 'exact-movie-bytes');
+  } finally {
+    fs.rmSync(fixture.root, { recursive:true, force:true });
+  }
+});
+
+test('unknown old-directory members stop settlement before any managed source is removed', () => {
+  const fixture = settlementFixture({ unknownMember:true });
+  try {
+    assert.throws(() => fixture.port.settleInput({
+      materialHandle:fixture.materialHandle,
+      approval:{ approvalId:'approval' },
+      finalInventoryRequest:fixture.finalInventoryRequest,
+      finalMaterialKey:fixture.finalMember.sourceMaterialKey,
+      finalTargetLocation:fixture.finalMember.targetLocation,
+      settlementExpectation:'replace_or_move',
+      sourceToFinalMappingDigest:fixture.mappingDigest,
+    }), (error) => error.code === 'CLEAN_ARCA_SETTLEMENT_UNKNOWN_MEMBER');
+    assert.equal(fs.existsSync(fixture.source), true);
+    assert.equal(fs.existsSync(path.join(fixture.sourceDirectory, 'notes.txt')), true);
+  } finally {
+    fs.rmSync(fixture.root, { recursive:true, force:true });
   }
 });

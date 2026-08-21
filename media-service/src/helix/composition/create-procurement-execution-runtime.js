@@ -371,7 +371,7 @@ function createProcurementExecutionRuntime(options) {
   const arcaPlanningRegistration=arcaConstruction.createPlanningRegistration({...options,registry,policyRegistry,contractValidator,workResultReader,
     contextReader:arcaProcessServices.contextReader,offdeckContextReader:arcaProcessServices.offdeckContextReader,
     shelfDeregistrationContextReader:arcaProcessServices.shelfDeregistrationContextReader,
-    materialControlProjectionPort,controlScopeDigest,now});
+    materialControlProjectionPort,controlScopeDigest,computeBoundedMaterialFingerprintSync,now});
   const bindingProjectionRegistry = createInputBindingProjectionRegistry({ registrations:[...planningRegistration.bindingProjections,
     ...libraPlanningRegistration.bindingProjections,...perceptionPlanningRegistration.bindingProjections,
     ...arcaPlanningRegistration.bindingProjections] });

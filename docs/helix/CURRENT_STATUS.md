@@ -4,17 +4,25 @@ Status: Movie Procurement与Movie Libra封口保持有效；Movie Arca已完成H
 
 Last updated: 2026-08-21
 
-## 0. UAT repair status — UAT-020 naming implemented, Settlement pending
+## 0. UAT repair status — UAT-020 implementation complete, fresh Canary qualification pending
 
 Placement revision现冻结目录及五类Movie成员命名模板；Admin Web允许用户在创建Shelf时配置全部规则并在保存前预览。
 Arca Final Inventory Decision不再只保存opaque member ref，而是逐项冻结来源Material、role、最终文件名、endpoint与location。
 隔离`老笠 (2016)`同型回归已证明hash、`(0)`、`transcode-*`、artifact internal ID不会进入目录、视频、NFO、字幕或Artwork名称。
 当前机器合同仍为113 Capability、99 Result family、117 Domain Input、184 table、44 Canonical Transaction、118 route；
-P2 aggregate更新为`80cd8699ae5b968e6cb6cd3ed0c053a52e3c03787836ae02dbe9a64bf8dda53a`。专项文件效果回归通过；
-完整Architecture Gate为166个test file、1091 pass、7个显式skip、0 fail，Admin Web production build通过。
+P2 aggregate更新为`118a009d1d5e6d9597d0111b5546c2141e5ecde9859d7eb98c5ec07439e320ae`。专项文件效果回归通过；
+完整Architecture Gate为166个test file、1094 pass、7个显式skip、0 fail，Admin Web production build通过。
 
-本条只完成UAT-020的命名子问题；没有访问或修改旧Canary现场。`carried_forward + replace_or_move` Settlement、非空
-completion digest、空旧目录收口及Aftercare旧Binding检查仍须下一独立修复包完成，因此UAT-020整体保持OPEN。
+第二独立修复包已覆盖`carried_forward + replace_or_move`及`replaced_and_settled + remove_after_place`，Final验证先于旧Input
+Settlement；同路径生成no-op Evidence，不同路径只删除精确受管文件。On-deck Commit逐项重建Disposition completion并要求非空
+`related_disposition_completion_digest`；未知目录成员在任何删除前转为失败，旧目录只在精确为空且不是Shelf Target根目录时删除。
+Aftercare现把初始Custody Binding纳入Known Bindings与Conformance，只有旧Identity可验证且唯一对应当前Final字节时才允许随
+Placement Case结算；其余状态为`attention_required`。Handoff B Binding现持久化完整Physical Identity tuple，Aftercare不再用
+当前Shelf mount scope猜测旧Identity。隔离回归覆盖不同路径、空目录、未知成员及旧Binding身份漂移。P3 persistence gate通过，
+DDL digest为`c5d9640055e8a7805791bf4a54539fc2b4325403c8ba797b7368245dc5a75d9b`。
+
+本批次没有访问或修改旧Canary现场，也没有启动服务。UAT-020代码修复完成但整体仍保持OPEN，等待用户明确授权后由新Canary和
+真实Admin Web验证唯一物理现实。
 
 ## 0. UAT repair status — UAT-019 implemented, fresh Canary qualification pending
 

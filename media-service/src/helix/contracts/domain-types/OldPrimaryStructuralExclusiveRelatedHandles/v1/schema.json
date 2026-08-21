@@ -79,6 +79,23 @@
           "materialHandle": {
             "$ref": "helix://contracts/types/PhysicalMaterialReadHandle/v1"
           },
+          "finalMaterialKey": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "finalTargetLocation": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "settlementExpectation": {
+            "type": "string",
+            "enum": [
+              "replace_or_move",
+              "remove_after_place"
+            ]
+          },
           "dispositionMemberRef": {
             "type": "string",
             "minLength": 1,
@@ -106,6 +123,9 @@
           "role",
           "sourceRelatedReferenceId",
           "materialHandle",
+          "finalMaterialKey",
+          "finalTargetLocation",
+          "settlementExpectation",
           "dispositionMemberRef",
           "sourceToFinalMappingDigest",
           "finalProductVerificationDigest",

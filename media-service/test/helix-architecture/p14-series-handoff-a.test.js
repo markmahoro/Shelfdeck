@@ -1556,7 +1556,9 @@ test.skip('Series Handoff A is intentionally unsupported in the Movie milestone'
   ).get();
   const bindingHistory = historyDb.prepare(
     `SELECT owner_object_type,owner_object_id,material_key,role,
-            episode_claims_json,episode_claim_set_digest
+            episode_claims_json,episode_claim_set_digest,
+            mount_scope_id,inode,size_bytes,fingerprint_algorithm,
+            fingerprint_version,content_fingerprint
        FROM arca_material_bindings
       WHERE role='product:primary_payload'
       ORDER BY material_key`
@@ -1574,6 +1576,15 @@ test.skip('Series Handoff A is intentionally unsupported in the Movie milestone'
   assert.ok(acceptedAttempt);
   assert.ok(bindingHistory);
   assert.ok(inventoryHistory);
+  assert.equal(bindingHistory.material_key, canonicalDigest({
+    schema: 'physical-material-identity@2',
+    mountScopeId: bindingHistory.mount_scope_id,
+    inode: bindingHistory.inode,
+    sizeBytes: Number(bindingHistory.size_bytes),
+    fingerprintAlgorithm: bindingHistory.fingerprint_algorithm,
+    fingerprintVersion: Number(bindingHistory.fingerprint_version),
+    contentFingerprint: bindingHistory.content_fingerprint,
+  }));
 
   function malformedHistoryCases(row) {
     const original = JSON.parse(row.episode_claims_json);

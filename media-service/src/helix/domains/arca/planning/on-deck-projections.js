@@ -4,6 +4,7 @@ const { canonicalDigest } = require('../../../contracts/canonical-json');
 const { P } = require('./on-deck-planners');
 const { deriveAcceptedResponsibility } = require('../model/acceptance-responsibility');
 const { DEFAULT_SHELF_PLACEMENT_POLICY } = require('../model/shelf-placement-policy-contracts');
+const { requiresInputSettlement } = require('../model/offload-settlement');
 
 const stable = (prefix, value) => prefix + canonicalDigest(value).slice(0, 40);
 function typed(parameter, value) { return Object.freeze({ parameter,
@@ -144,7 +145,7 @@ function disposition(c) { const product=new Map(c.packageValue.productMaterialMa
       canonicalDigest({schema:'libra.related-disposition-set@1',items:[]}),members:Object.freeze(members),memberSetDigest:canonicalDigest({schema:'arca.disposition-members@1',items:members})};
   const manifestDigest=canonicalDigest(body);return withDigest({...body,manifestDigest}); }
 function settlementHandles(c,materialKey) { const source=(c.packageValue.offloadContextManifest?.members||[]).find((item)=>item.materialKey===materialKey&&
-  item.dispositionKind==='replaced_and_settled'&&item.settlementExpectation==='remove_after_place');
+  requiresInputSettlement(item));
   if(!source)throw new Error('Settlement Material is outside the approved Off-load Context.');
   const handle=Object.freeze({schemaRef:'helix://contracts/types/PhysicalMaterialReadHandle/v1',schemaVersion:1,
     handleId:stable('arca-settlement-read-',{run:c.responsibility.onDeckRunId,key:source.materialKey}),identity:source.physicalIdentity,ownerDomain:'arca',
@@ -152,7 +153,10 @@ function settlementHandles(c,materialKey) { const source=(c.packageValue.offload
     location:source.location,mountScopeRevision:1,expectedSizeBytes:source.physicalIdentity.sizeBytes,expectedMtimeNs:0,expectedCtimeNs:0,fingerprintVerifiedAtMs:0,
     readScope:'exact_input_settlement',expiresAtMs:Number.MAX_SAFE_INTEGER,fenceDigest:canonicalDigest({run:c.responsibility.onDeckRunId,memberDigest:source.memberDigest})});
   const role=source.contextRole==='original_input'?'primary_payload':source.contextRole==='structural_dependency'?'structural_dependency':'exclusive_related';
+  const finalMember=c.finalInventoryDecision.members.find((item)=>item.sourceMaterialKey===source.finalProductMaterialKey);
+  if(!finalMember)throw new Error('Settlement source-to-final mapping is absent from the Final Inventory Decision.');
   const memberBody={ordinal:0,materialKey:source.materialKey,role,sourceRelatedReferenceId:source.sourceRelatedReferenceId,materialHandle:handle,
+    finalMaterialKey:source.finalProductMaterialKey,finalTargetLocation:finalMember.targetLocation,settlementExpectation:source.settlementExpectation,
     dispositionMemberRef:source.memberDigest,sourceToFinalMappingDigest:source.derivedAuthorityDigest||canonicalDigest(source),
     finalProductVerificationDigest:c.packageValue.productionAttestation.productConformanceEvidenceDigest};
   const member=Object.freeze({...memberBody,memberDigest:canonicalDigest(memberBody)}),members=Object.freeze([member]),memberSetDigest=canonicalDigest({schema:'arca.settlement-members@1',items:members});

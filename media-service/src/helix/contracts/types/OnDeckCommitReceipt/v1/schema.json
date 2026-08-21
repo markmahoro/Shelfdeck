@@ -75,6 +75,11 @@
       "type": "string",
       "minLength": 1,
       "pattern": "^[a-f0-9]{64}$"
+    },
+    "relatedDispositionCompletionDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
     }
   },
   "required": [
@@ -90,6 +95,7 @@
     "shelfEntryId",
     "inventoryRevision",
     "deckFactRevision",
-    "controlRevisionSetDigest"
+    "controlRevisionSetDigest",
+    "relatedDispositionCompletionDigest"
   ]
 }

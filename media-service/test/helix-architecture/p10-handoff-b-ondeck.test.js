@@ -19,11 +19,22 @@ test('On-deck Planner preserves the settlement Capability approval contract',()=
   const registry={snapshot:Object.freeze([{capabilityRef:'arca-test@1'}]),resolve:(ref)=>({manifest:manifests.get(ref)})};
   const policyRegistry={digest:hex('a'),bindingFor:()=>({retryPolicyRef:'retry@1',timeoutPolicyRef:'timeout@1'})};
   const planner=createOnDeckExecutionPlanner({registry,policyRegistry,contextReader:{readAccepted:()=>({packageValue:{
-    offloadContextManifest:{members:[{materialKey:'old-primary',dispositionKind:'replaced_and_settled',settlementExpectation:'remove_after_place'}]}}})}});
+    offloadContextManifest:{members:[
+      {materialKey:'carried-related',dispositionKind:'carried_forward',settlementExpectation:'replace_or_move'},
+      {materialKey:'old-primary',dispositionKind:'replaced_and_settled',settlementExpectation:'remove_after_place'},
+      {materialKey:'retained-primary',dispositionKind:'carried_forward',settlementExpectation:'retain'},
+    ]}}})}});
   const result=planner.plan({workAttemptId:'attempt-1',workId:'work-1',ownerDomain:'arca',processType:'arca_ondeck_run',
     processId:'run-1',executionBasisDigest:hex('b'),dependencyRefs:[]});
-  const settlement=result.nodes.find((node)=>node.capabilityRef===C.settlement);
-  assert.equal(settlement.approvalRequirementRef,manifests.get(C.settlement).approvalRequirementRef);
-  assert.equal(settlement.authorizationRequirementRef,manifests.get(C.settlement).authorizationRequirementRef||null);
+  const settlements=result.nodes.filter((node)=>node.capabilityRef===C.settlement);
+  assert.equal(settlements.length,2);
+  for(const settlement of settlements){
+    assert.equal(settlement.approvalRequirementRef,manifests.get(C.settlement).approvalRequirementRef);
+    assert.equal(settlement.authorizationRequirementRef,manifests.get(C.settlement).authorizationRequirementRef||null);
+  }
+  const fulfillment=result.nodes.find((node)=>node.capabilityRef===C.fulfillment);
+  assert.deepEqual(fulfillment.dependsOn.map((item)=>item.eventId).sort(),settlements.map((item)=>item.eventId).sort());
+  const commit=result.nodes.find((node)=>node.capabilityRef===C.commit);
+  assert.deepEqual(commit.dependsOn,[{eventId:fulfillment.eventId,satisfaction:'success'}]);
 });
 test('Arca runtime has no Libra Store import, compatibility or direct effect',()=>{const root=path.join(__dirname,'../../src/helix/domains/arca');for(const file of ['model/on-deck-contracts.js','persistence/on-deck-ledger.js','capabilities/on-deck-capability-registrations.js']){const source=fs.readFileSync(path.join(root,file),'utf8');assert.doesNotMatch(source,/domains\/libra|legacy runtime fallback|dual[-_ ]?(read|write|run)|node:child_process|https?:\/\//i);}});

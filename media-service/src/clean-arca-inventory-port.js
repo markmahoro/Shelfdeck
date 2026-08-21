@@ -1086,35 +1086,94 @@ function createCleanArcaInventoryPort(options) {
         'Input settlement requires the exact Arca custody read handle.');
     }
     const source = path.resolve(handle.location);
-    if (!fs.existsSync(source)) {
-      return Object.freeze({ materialKey:handle.identity.materialKey,
-        preDeleteIdentityDigest:canonicalDigest(handle.identity), absent:true });
-    }
-    const observed = computeBoundedMaterialFingerprintSync(source);
-    if (Number(observed.stat.size) !== handle.expectedSizeBytes ||
-        observed.contentFingerprint !== handle.identity.contentFingerprint) {
-      fail('CLEAN_ARCA_SETTLEMENT_REALITY_DRIFT',
-        'Settlement source drifted from the approved Material identity.');
-    }
     const finalRequest = request?.finalInventoryRequest;
-    if (finalRequest) {
-      const finalPlan = buildPlan({ ...finalRequest, replayCommitted:true }).plans
-        .find((item) => path.resolve(item.target) === source);
-      if (finalPlan && finalPlan.sizeBytes === Number(observed.stat.size) &&
-          finalPlan.contentFingerprint === observed.contentFingerprint) {
-        return Object.freeze({ materialKey:handle.identity.materialKey,
-          preDeleteIdentityDigest:canonicalDigest(handle.identity), absent:false,
-          disposition:'retained_as_final' });
+    if (!finalRequest || !request.finalMaterialKey || !request.finalTargetLocation ||
+        !request.sourceToFinalMappingDigest ||
+        !['replace_or_move', 'remove_after_place'].includes(request.settlementExpectation)) {
+      fail('CLEAN_ARCA_SETTLEMENT_MAPPING_INVALID',
+        'Input settlement requires its frozen source-to-final mapping.');
+    }
+    const built = buildPlan({ ...finalRequest, replayCommitted:true });
+    const finalPlan = built.plans.find((item) =>
+      item.member.materialKey === request.finalMaterialKey);
+    const finalTarget = path.resolve(request.finalTargetLocation);
+    if (!finalPlan || path.resolve(finalPlan.target) !== finalTarget) {
+      fail('CLEAN_ARCA_SETTLEMENT_MAPPING_DRIFT',
+        'Settlement mapping drifted from the Final Inventory Decision.');
+    }
+    const finalObserved = observe(finalTarget, finalPlan.member);
+    const sameLocation = source === finalTarget;
+    const sourceDirectory = path.dirname(source);
+    const managedLocations = [
+      ...(finalRequest.onDeckProductPackage.offloadContextManifest?.members || [])
+        .map((item) => path.resolve(item.location)),
+      ...built.plans.map((item) => path.resolve(item.target)),
+    ];
+    const allowed = new Set(managedLocations);
+    for (const location of managedLocations) {
+      let ancestor = path.dirname(location);
+      while (ancestor !== sourceDirectory && ancestor.startsWith(sourceDirectory + path.sep)) {
+        allowed.add(ancestor);
+        const parent = path.dirname(ancestor);
+        if (parent === ancestor) break;
+        ancestor = parent;
       }
     }
-    fs.rmSync(source, { force:false });
-    if (fs.existsSync(source)) {
-      fail('CLEAN_ARCA_SETTLEMENT_DELETE_FAILED',
-        'Approved settlement source still exists after deletion.');
+    if (!sameLocation && fs.existsSync(sourceDirectory)) {
+      const unknown = fs.readdirSync(sourceDirectory, { withFileTypes:true })
+        .map((item) => path.resolve(sourceDirectory, item.name))
+        .filter((item) => !allowed.has(item));
+      if (unknown.length > 0) {
+        fail('CLEAN_ARCA_SETTLEMENT_UNKNOWN_MEMBER',
+          'Old Material directory contains an unplanned member.', {
+            sourceDirectory,
+            unknownNames:unknown.map((item) => path.basename(item)).sort(),
+          });
+      }
+    }
+    let sourceAbsent = !fs.existsSync(source);
+    if (!sourceAbsent) {
+      const observed = computeBoundedMaterialFingerprintSync(source);
+      if (Number(observed.stat.size) !== handle.expectedSizeBytes ||
+          observed.contentFingerprint !== handle.identity.contentFingerprint) {
+        fail('CLEAN_ARCA_SETTLEMENT_REALITY_DRIFT',
+          'Settlement source drifted from the approved Material identity.');
+      }
+      if (!sameLocation) {
+        fs.rmSync(source, { force:false });
+        sourceAbsent = !fs.existsSync(source);
+        if (!sourceAbsent) {
+          fail('CLEAN_ARCA_SETTLEMENT_DELETE_FAILED',
+            'Approved settlement source still exists after deletion.');
+        }
+      }
+    }
+    let oldDirectoryDisposition = sameLocation
+      ? 'retained_as_final'
+      : 'not_present';
+    if (!sameLocation && fs.existsSync(sourceDirectory)) {
+      const children = fs.readdirSync(sourceDirectory, { withFileTypes:true })
+        .map((item) => path.resolve(sourceDirectory, item.name));
+      if (children.length === 0 && sourceDirectory !== built.targetRoot) {
+        fs.rmdirSync(sourceDirectory);
+        oldDirectoryDisposition = 'removed_empty';
+      } else {
+        oldDirectoryDisposition = children.some((item) =>
+          built.plans.some((plan) => path.resolve(plan.target) === item))
+          ? 'retained_with_final_inventory'
+          : 'awaiting_managed_settlement';
+      }
     }
     return Object.freeze({ materialKey:handle.identity.materialKey,
-      preDeleteIdentityDigest:canonicalDigest(handle.identity), absent:true,
-      disposition:'deleted' });
+      preDeleteIdentityDigest:canonicalDigest(handle.identity),
+      absent:sourceAbsent,
+      disposition:sameLocation ? 'retained_as_final' : 'settled_to_final',
+      sourceToFinalMappingDigest:request.sourceToFinalMappingDigest,
+      finalMaterialKey:request.finalMaterialKey,
+      finalTargetLocation:finalTarget,
+      finalRealityDigest:finalObserved.digestHex,
+      finalVerified:true,
+      oldDirectoryDisposition });
   }
 
   return Object.freeze({ assess, resolveTargetLocation, prepare, materialize, slotHandle, prepareSlot,

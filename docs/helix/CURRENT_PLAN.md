@@ -10,7 +10,7 @@ Last updated: 2026-08-21
 “可重建Canary / 可开始第二轮UAT”的干净检查点；在获得新的明确授权前，不重命名或复制`G:\canary_film`，
 不新建UAT data directory，不启动本地服务，也不执行第二轮真实Admin Web UAT。
 
-## 0. Implemented repair — UAT-020 Final Inventory naming
+## 0. Implemented repair — UAT-020 Final Inventory naming and Settlement
 
 Shelf Placement Policy的关闭合同现同时包含目录、Primary、NFO、Subtitle、Poster、Fanart命名规则与collision policy；
 Admin Web创建Shelf时全部可配置，并在保存前展示标准Movie样例预览。默认目录、视频和NFO stem为`片名 (年份)`，
@@ -18,7 +18,14 @@ Poster/Fanart使用稳定固定名，字幕只追加可证明的language、force
 
 Arca在Final Inventory Decision中逐成员冻结`sourceMaterialKey`、role、`finalName`、endpoint和最终location；Workspace
 `transcode-*`、hash、内部ID或Package/Event名称不再泄漏到Shelf。旧Shelf两字段Placement只在读取历史失败Evidence时采用
-版本化标准默认值，不改写旧Decision或Entry。UAT-020的Settlement、Commit Gate与Aftercare部分仍作为下一独立修复包开放。
+版本化标准默认值，不改写旧Decision或Entry。
+
+On-deck现按`settlementExpectation + source-to-final mapping`覆盖`carried_forward + replace_or_move`和
+`replaced_and_settled + remove_after_place`；同路径形成Evidence no-op，不同路径先验证Final再精确清理旧成员。Commit前逐项证明
+全部Disposition完成并持久化非空`related_disposition_completion_digest`。旧目录只在精确为空时删除，未知成员使流程fail closed。
+Aftercare同时检查当前Inventory、Placement Decision与已知旧Custody Binding；只有旧Identity未漂移且能唯一对应当前Final字节时，
+才纳入Placement Case的有界Settlement。Custody Binding持久化完整Physical Identity tuple，禁止用当前Shelf mount scope猜测历史
+Identity。代码门禁完成后UAT-020仍保持OPEN，等待用户另行授权的新Canary真实验证。
 
 ## 0. Implemented repair — UAT-019 terminal executor outcome closure
 

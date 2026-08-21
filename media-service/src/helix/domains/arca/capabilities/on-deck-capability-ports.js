@@ -8,6 +8,7 @@ const { createOnDeckStore } = require('../persistence/on-deck-store');
 const { emptyArcaMaterialEpisodeClaims, fromProductMember } = require('../model/material-episode-claims');
 const { CAPABILITY_REFS:C } = require('../model/on-deck-contract');
 const { buildAftercareInventoryRequest } = require('../model/aftercare-placement');
+const { requiresInputSettlement } = require('../model/offload-settlement');
 
 const BASE='helix://contracts/capabilities/';
 function stable(prefix,value){return prefix+canonicalDigest(value).slice(0,40);}
@@ -39,9 +40,11 @@ function dependencyRefs(options,execution){const bindings=options.workResultRead
   const binding=bindings.flatMap((item)=>item.inputBindings?.bindings||[]).find((b)=>b.bindingKind==='projected_owner_facts'&&
     Array.isArray(b.parameters?.dependencyRefs));return binding?.parameters?.dependencyRefs||[];}
 function bindingFromProduct(member,contentProfile){return Object.freeze({materialKey:member.materialKey,role:'product:'+member.role,
+  physicalIdentity:member.physicalIdentity,
   episodeClaims:fromProductMember(member,contentProfile),endpointId:member.location.endpointId,location:member.workspaceMaterialHandle
     ?'workspace://'+member.workspaceMaterialHandle.workspaceId+'/'+member.workspaceMaterialHandle.relativePath:member.location.location});}
 function bindingFromContext(member){return Object.freeze({materialKey:member.materialKey,role:'offload:'+member.contextRole,
+  physicalIdentity:member.physicalIdentity,
   episodeClaims:emptyArcaMaterialEpisodeClaims(),endpointId:member.endpointId,location:member.location});}
 function acceptanceAttemptId(c){return canonicalDigest({schema:'arca.acceptance-attempt-id@1',offerId:c.offer.offerId,onDeckPackageId:c.offer.onDeckPackageId,
   packageDigest:c.offer.packageDigest,standardRevision:c.shelf.currentStandardRevision,placementRevision:c.shelf.currentPlacementRevision});}
@@ -168,6 +171,8 @@ function createOnDeckCapabilityPorts(options){const now=options.now||Date.now,ac
     validateResult(_c,o){if(o?.result?.receiptKind!=='placement_switched')throw new TypeError('Placement Switch Receipt is invalid.');}});
   ports[C.settlement]=Object.freeze({validateInputs(c){requireNamed(c,['oldPrimaryStructuralExclusiveRelatedHandleList','inputSettlementApproval']);},execute(execution){const n=execution.namedInputs,m=n.oldPrimaryStructuralExclusiveRelatedHandleList.members[0],at=now(),c=ctx(execution),
     settled=options.inventoryPort.settleInput({materialHandle:m.materialHandle,approval:n.inputSettlementApproval,
+      finalMaterialKey:m.finalMaterialKey,finalTargetLocation:m.finalTargetLocation,
+      settlementExpectation:m.settlementExpectation,sourceToFinalMappingDigest:m.sourceToFinalMappingDigest,
       finalInventoryRequest:{onDeckRunId:c.responsibility.onDeckRunId,custodyId:c.responsibility.custodyId,shelf:c.shelf,
         onDeckProductPackage:c.packageValue,finalInventoryDecision:c.finalInventoryDecision,observedAtMs:at}}),
     base={schemaRef:'helix://contracts/types/SettlementDeletionEvidence/v1',schemaVersion:1,evidenceId:stable('arca-settlement-evidence-',{eventId:execution.eventId}),
@@ -175,8 +180,11 @@ function createOnDeckCapabilityPorts(options){const now=options.now||Date.now,ac
       authorizationOrApprovalRef:n.inputSettlementApproval.approvalId,materialKey:m.materialKey,preDeleteIdentityDigest:settled.preDeleteIdentityDigest,
       postDeleteReality:null,
       effectReceiptId:stable('arca-effect-receipt-',{eventId:execution.eventId})};const result=Object.freeze({...base,payloadDigest:canonicalDigest(base)});
-    const entries=Object.freeze([{key:'absent',value:settled.absent},{key:'disposition',value:settled.disposition||
-      (settled.absent?'deleted':'retained_as_final')}]),postBase={schemaRef:'arca://types/PostDeleteReality/v1',schemaVersion:1,
+    const entries=Object.freeze([{key:'absent',value:settled.absent},{key:'disposition',value:settled.disposition},
+      {key:'source_to_final_mapping_digest',value:settled.sourceToFinalMappingDigest},
+      {key:'final_material_key',value:settled.finalMaterialKey},{key:'final_target_location',value:settled.finalTargetLocation},
+      {key:'final_reality_digest',value:settled.finalRealityDigest},{key:'final_verified',value:settled.finalVerified},
+      {key:'old_directory_disposition',value:settled.oldDirectoryDisposition}]),postBase={schemaRef:'arca://types/PostDeleteReality/v1',schemaVersion:1,
       recordKind:'post-delete-reality',entries},postDeleteReality=Object.freeze({...postBase,recordDigest:canonicalDigest(postBase)}),
       completed=Object.freeze({...result,postDeleteReality,payloadDigest:canonicalDigest({...base,postDeleteReality})});
     return committedOutcome(execution,C.settlement,completed,at,'destructive_commit');},validateResult(_c,o){if(!o?.result?.materialKey)throw new TypeError('Settlement Evidence is invalid.');}});
@@ -187,14 +195,28 @@ function createOnDeckCapabilityPorts(options){const now=options.now||Date.now,ac
       finalInventoryDecisionDigest:n.finalInventoryDecision.decisionDigest,shelfStandardRevision:c.shelf.currentStandardRevision,finalRealityDigest});});
   ports[C.commit]=Object.freeze({validateInputs(c){requireNamed(c,['fulfillmentResult','responsibilityControlCommitHandle']);},execute(execution){const c=ctx(execution),fulfillment=execution.namedInputs.fulfillmentResult,
     staged=options.inventoryPort.readFinal({onDeckRunId:c.responsibility.onDeckRunId,custodyId:c.responsibility.custodyId,shelf:c.shelf,onDeckProductPackage:c.packageValue,
-      finalInventoryDecision:c.finalInventoryDecision,observedAtMs:0,replayCommitted:true}),all=[...c.packageValue.productMaterialManifest.members,...c.packageValue.offloadContextManifest.members],keys=[...new Set(all.map(m=>m.materialKey))].sort(),
+      finalInventoryDecision:c.finalInventoryDecision,observedAtMs:0,replayCommitted:true}),settlementOutcomes=options.workResultReader.read(execution.workId)
+        .filter((item)=>item.capabilityRef===C.settlement&&item.outcomeKind==='succeeded').map((item)=>item.result),
+    dispositionCompletions=c.packageValue.offloadContextManifest.members.map((member)=>{const mappingDigest=member.derivedAuthorityDigest||canonicalDigest(member),
+      finalPresent=staged.members.some((item)=>item.sourceMaterialKey===member.finalProductMaterialKey);if(!finalPresent)throw Object.assign(new Error('Final Inventory is missing an Off-load mapping target.'),{code:'ARCA_ONDECK_DISPOSITION_FINAL_MISSING'});
+      if(!requiresInputSettlement(member))return Object.freeze({materialKey:member.materialKey,finalMaterialKey:member.finalProductMaterialKey,
+        sourceToFinalMappingDigest:mappingDigest,completionKind:'retained_in_final_reality',evidenceDigest:staged.realityDigest});
+      const evidence=settlementOutcomes.find((item)=>item.materialKey===member.materialKey),entries=new Map(evidence?.postDeleteReality?.entries?.map((item)=>[item.key,item.value])||[]);
+      if(!evidence||entries.get('source_to_final_mapping_digest')!==mappingDigest||entries.get('final_material_key')!==member.finalProductMaterialKey||
+        entries.get('final_verified')!==true||!['retained_as_final','settled_to_final'].includes(entries.get('disposition')))
+        throw Object.assign(new Error('Off-load input settlement completion is missing or stale.'),{code:'ARCA_ONDECK_SETTLEMENT_INCOMPLETE'});
+      return Object.freeze({materialKey:member.materialKey,finalMaterialKey:member.finalProductMaterialKey,sourceToFinalMappingDigest:mappingDigest,
+        completionKind:entries.get('disposition'),evidenceDigest:evidence.payloadDigest});}),
+    relatedDispositionCompletionDigest=canonicalDigest({schema:'arca.related-disposition-completion@1',onDeckRunId:c.responsibility.onDeckRunId,
+      dispositionMemberSetDigest:c.packageValue.offloadContextManifest.memberSetDigest,finalRealityDigest:staged.realityDigest,
+      completions:dispositionCompletions}),all=[...c.packageValue.productMaterialManifest.members,...c.packageValue.offloadContextManifest.members],keys=[...new Set(all.map(m=>m.materialKey))].sort(),
     custodyControls=controls.getMaterialControlProjections(keys),targetControls=controls.getMaterialControlProjections(staged.members.map(m=>m.materialKey).sort()),
     committed=onDeck.readCommitted({onDeckRunId:c.responsibility.onDeckRunId,custodyId:c.responsibility.custodyId,finalInventoryDecisionDigest:c.finalInventoryDecision.decisionDigest,
       onDeckPackageId:c.packageValue.onDeckPackageId,packageDigest:c.packageValue.packageDigest,shelfId:c.shelf.shelfId})||onDeck.commit({onDeckRunId:c.responsibility.onDeckRunId,
       custodyId:c.responsibility.custodyId,shelf:c.shelf,package:c.packageValue,finalInventoryDecision:c.finalInventoryDecision,staged,
       stagedVerification:options.workResultReader.read(execution.workId).find((item)=>item.capabilityRef===C.stagedVerify)?.result,
       fulfillmentVerification:fulfillment,
-      fulfillmentVerificationDigest:canonicalDigest(fulfillment),custodyControls,targetControls});return committedOutcome(execution,C.commit,committed.result,now(),'responsibility_control_commit');},
+      fulfillmentVerificationDigest:canonicalDigest(fulfillment),relatedDispositionCompletionDigest,custodyControls,targetControls});return committedOutcome(execution,C.commit,committed.result,now(),'responsibility_control_commit');},
     validateResult(_c,o){if(o?.result?.onDeckCommitReceipt?.receiptKind!=='on_deck_committed')throw new TypeError('On-deck Commit Result is invalid.');}});
   return Object.freeze(ports);
 }
