@@ -70,11 +70,13 @@ function inventoryDisplayIdentity(packageValue) {
   const numericYear = year === null || year === undefined || year === ''
     ? null
     : Number(year);
+  const edition = displayIdentityEntry(identityFact, 'edition');
   return Object.freeze({
     title,
     year:Number.isSafeInteger(numericYear) && numericYear >= 1000 && numericYear <= 9999
       ? numericYear
       : null,
+    edition: edition || null,
   });
 }
 
@@ -274,7 +276,9 @@ function createCleanArcaInventoryPort(options) {
       title:identity.title,
       year:identity.year === null ? '' : String(identity.year),
     }).replace(/\s+\(\s*\)$/, '');
-    const folder = safeSegment(renderedFolder);
+    const folder = safeSegment(identity.edition
+      ? renderedFolder + ' - ' + identity.edition
+      : renderedFolder);
     const targetDirectory = path.resolve(targetRoot, folder);
     if (!contained(targetRoot, targetDirectory)) {
       fail('CLEAN_ARCA_TARGET_ESCAPE',

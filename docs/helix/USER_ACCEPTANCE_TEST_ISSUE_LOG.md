@@ -1574,7 +1574,29 @@ Observation revision 2 形成 22 个 Candidate，恰好等于「22 个顶层单�
 
 修复状态（2026-08-22）：`REGRESSION PASSED / CLEAN CANARY UAT PENDING`。
 
-## 31. 后续问题模板
+## 31. UAT-034：同名片名+年份的两部养蜂人最终目录必须可区分
+
+问题分类：`PLACEMENT_NAMING / EDITION_CONTINUITY / USER_VISIBLE_COLLECTION`
+
+用户侧现象：用户确认 `养蜂人` 现成 MKV 与嵌套 BDMV 是两部电影，都必须上架。Placement 模板是
+`{title} ({year)}` 且 collision 为 `reject`。身份 resolve 到同一 TMDB 片名和年份后，两部会争同一目录。
+
+现场证据：当前展示名分别为 `养蜂人 (2024)` 与 `养蜂人 (2024) - 2160p HEVC Atmos TrueHD5.1`。
+来源侧 BDMV 子目录已带版本标签。成功标准禁止 hash 或 `养蜂人 (0)`。
+
+精确根因：Resolved display identity 只保留 title/year/TMDB ID。UAT-030 去掉文件夹质量后缀是对的，
+但没有把「来源版本标签」作为独立 edition 留下来给 Placement。
+
+修复边界：从 Candidate 原展示名中，在正式片名和年份之后切出版本标签（含 2160p/HEVC/Atmos 等），
+写入 display identity 的 `edition` 条目，不进入搜索 title。Inventory 目录在有 edition 时为
+`片名 (年份) - edition`。MKV 若来源目录恰好是 `片名 (年份)` 则不加 edition。不去重、不合并 Subject。
+
+验收证据：`editionFromSourceDisplay` 对 BDMV 展示名得到 `2160p HEVC Atmos TrueHD5.1`，对纯
+`养蜂人 (2024)` 为 null；两个最终目录可区分。
+
+修复状态（2026-08-22）：`REGRESSION PASSED / CLEAN CANARY UAT PENDING`。
+
+## 32. 后续问题模板
 
 后续发现的问题按以下结构追加：
 

@@ -16,11 +16,11 @@
 
 1. `F:\test_film` 在开始和结束时完全相同；
 2. `F:\canary` 从基线的精确副本开始，只通过真实 Admin Web 业务流程发生变化；
-3. 22 个顶层媒体单元形成且只形成 22 个 Movie Subject；
-4. 22/22 Movie 全部到达 Arca On-deck Commit；
-5. Arca 中存在 22 个唯一 active Shelf Entry、22 个唯一 active Deck Fact，并且每个 Entry 的
+3. 22 个顶层媒体单元形成 23 个 Movie Subject：`养蜂人 (2024)` 顶层目录内的现成 MKV 与嵌套 BDMV 是两部独立电影，其余顶层单元各一部；
+4. 23/23 Movie 全部到达 Arca On-deck Commit；
+5. Arca 中存在 23 个唯一 active Shelf Entry、23 个唯一 active Deck Fact，并且每个 Entry 的
    Inventory 能逐文件解释 `F:\canary` 中的最终现实；
-6. `F:\canary` 最终只有 22 个用户可读的电影目录，每部电影只有一个最终 Primary 现实；
+6. `F:\canary` 最终有 23 个用户可读的电影目录，每部电影只有一个最终 Primary 现实；`养蜂人` 的 MKV 部与 BDMV 部都必须上架，各占一个可区分目录；
 7. 页面刷新、服务重启和重复 reconcile 不产生重复事实、重复文件或状态倒退；
 8. 没有未闭环技术失败、无 Ack Delivery、悬空 Acceptance、无限恢复循环或用户不可见的未知候选行为；
 9. 全程未访问 `Z:\Film`、G 盘旧 Canary、NAS、SSH、Docker、生产环境或 Canary 以外媒体目录。
@@ -29,7 +29,7 @@
 
 ## 2. 本轮成功检查点与破坏性后续阶段
 
-本文定义的主成功检查点是：**22/22 已稳定进入 Arca，且 `F:\canary` 已整理完成并保留现场**。
+本文定义的主成功检查点是：**23/23 已稳定进入 Arca，且 `F:\canary` 已整理完成并保留现场**。
 
 在该检查点完成截图、逐文件清单和签字以前：
 
@@ -105,23 +105,25 @@ G 盘旧目录只作为历史现场，不属于下一轮测试范围，不读取
 
 当前运行仅支持 `default` Resource Profile。下一轮不得声称已经验收“火力全开”；该能力不属于本轮通过条件。
 
-## 5. 22 部电影的身份与形成结果
+## 5. 23 部电影的身份与形成结果
+
+2026-08-22 用户确认：旧稿把 `养蜂人 (2024)` 顶层目录内的现成 MKV 与嵌套 BDMV 写成“一部 Movie”是错误的。它们是两份独立片源，必须形成两个 Subject、两个 Shelf Entry，并且**两部都要能上架**。内容去重是 Arca Off-deck / Duplicate 审阅的职责，不得用 Placement 冲突、Identity 合并或“只能留一部”挡住其中一部完成 On-deck。基线仍是 22 个顶层媒体单元；形成与上架结果是 23 部电影。
 
 ### 5.1 唯一性
 
 必须同时证明：
 
-- 22 个 Candidate Package；
-- 22 个且只有 22 个 Subject；
-- 每个基线顶层单元恰好对应一个 Subject；
-- BDMV 内部 M2TS 不得拆成多个 Movie；
+- 23 个 Candidate Package；
+- 23 个且只有 23 个 Subject；
+- 除 `养蜂人 (2024)` 外，每个基线顶层单元恰好对应一个 Subject；
+- `养蜂人 (2024)` 顶层目录对应恰好两个 Subject：现成 MKV 一部，嵌套 BDMV 一部；
+- BDMV 内部 M2TS、playlist、certificate 不得再拆成更多 Movie；
 - ISO 不得展开成多个 Movie；
-- `养蜂人`目录内的 BDMV、现有 MKV 和 Related Material 只能形成一部 Movie；
 - 再次 Observation 后新增 Candidate 为 0，不重开已 On-deck 的 Inventory。
 
 ### 5.2 评分与身份专项门禁
 
-- `养蜂人`显示 `4 星 · 豆瓣`；
+- 两部 `养蜂人` 均显示 `4 星 · 豆瓣`；
 - `看不见的朋友`显示 `5 星 · 豆瓣`；
 - `香火`显示 `4 星 · 豆瓣`；
 - 至少对一部电影通过页面设置直接评分，刷新后仍为“我的评分”；
@@ -131,7 +133,7 @@ G 盘旧目录只作为历史现场，不属于下一轮测试范围，不读取
 
 ### 5.3 Formation 四桶
 
-“待整理、整理中、需要处理、已完成整理”必须互斥，行级状态与四桶计数一致，合计始终为 22：
+“待整理、整理中、需要处理、已完成整理”必须互斥，行级状态与四桶计数一致，合计始终为 23：
 
 - 只有 Arca On-deck Commit、Shelf Entry 和 Deck Fact 全部成立才是“已完成整理”；
 - Package published、Handoff B Accepted 仍是“整理中”；
@@ -140,7 +142,7 @@ G 盘旧目录只作为历史现场，不属于下一轮测试范围，不读取
 
 ## 6. `F:\canary` 的最终目录合同
 
-### 6.1 顶层必须恰好是以下 22 个目录
+### 6.1 顶层必须恰好是以下 23 个目录
 
 | # | 最终目录 | 最终 Primary 模式 | 样本专项 |
 | ---: | --- | --- | --- |
@@ -161,11 +163,12 @@ G 盘旧目录只作为历史现场，不属于下一轮测试范围，不读取
 | 15 | `威尼斯惊魂夜 (2023)` | `威尼斯惊魂夜 (2023)<final-ext>` | Direct |
 | 16 | `锡尔弗顿之围 (2022)` | `锡尔弗顿之围 (2022)<final-ext>` | Transcode |
 | 17 | `香火 (2003)` | `香火 (2003)<final-ext>` | 豆瓣评分/Transcode |
-| 18 | `养蜂人 (2024)` | `养蜂人 (2024)<final-ext>` | BDMV 单 Movie/现有 MKV |
-| 19 | `一场很（没）有必要的春晚 (2022)` | `一场很（没）有必要的春晚 (2022)<final-ext>` | External 候选/真实 Probe |
-| 20 | `有话好好说 (1997)` | `有话好好说 (1997)<final-ext>` | Direct/逐成员 Settlement |
-| 21 | `战栗空间 (2002)` | `战栗空间 (2002)<final-ext>` | Direct/多字幕 |
-| 22 | `坠楼死亡的剖析 (2023)` | `坠楼死亡的剖析 (2023)<final-ext>` | 身份确认/Transcode |
+| 18 | `养蜂人 (2024)` | `养蜂人 (2024)<final-ext>` | 现成 MKV 这一部 |
+| 19 | 可与第 18 行区分的 BDMV 版本目录，不得再写成同一个 `养蜂人 (2024)` | `<distinguishable-stem><final-ext>` | 嵌套 BDMV 这一部；来源子目录已带版本标签 |
+| 20 | `一场很（没）有必要的春晚 (2022)` | `一场很（没）有必要的春晚 (2022)<final-ext>` | External 候选/真实 Probe |
+| 21 | `有话好好说 (1997)` | `有话好好说 (1997)<final-ext>` | Direct/逐成员 Settlement |
+| 22 | `战栗空间 (2002)` | `战栗空间 (2002)<final-ext>` | Direct/多字幕 |
+| 23 | `坠楼死亡的剖析 (2023)` | `坠楼死亡的剖析 (2023)<final-ext>` | 身份确认/Transcode |
 
 `<final-ext>` 不能在测试前凭文件名猜测。它必须来自当前 Acceptance Spec、实际 Production 路径和最终真实 Probe；
 Direct 可以保留经验证的扩展名，Remux/Transcode 通常形成 `.mkv`，External 必须以下载完成后的真实 Probe 为准。
@@ -196,9 +199,10 @@ Direct 可以保留经验证的扩展名，Remux/Transcode 通常形成 `.mkv`�
 
 ### 6.4 BDMV、ISO 与双表示
 
-- `养蜂人`最终只是一部 Movie、一个 Shelf Entry 和一个 Primary；
-- BDMV 内部 `.m2ts`、playlist、certificate 等不能各自成为 Inventory Primary；
-- `养蜂人`的 BDMV 和现有 MKV 都必须有明确 disposition，不能在最终目录中形成两个等价 Primary；
+- `养蜂人 (2024)` 顶层目录内的现成 MKV 与嵌套 BDMV 是两部独立电影：两个 Subject、两个 Shelf Entry、两个最终目录、各一个 Primary，**两部都必须完成 On-deck**；
+- 它们可以有相同的规范片名和年份。这不构成“只能上架一部”。是否视为重复、是否退出其中一部，只由用户在 Arca Off-deck Duplicate 审阅中授权；Formation / Placement 不得提前替用户去重；
+- 两部的最终目录必须可区分，不得写入同一路径，也不得生成 hash 或 `(0)`；来源侧 BDMV 子目录已带版本标签，可作为可区分命名的依据；
+- BDMV 内部 `.m2ts`、playlist、certificate 等不能各自成为 Inventory Primary，也不能再拆成第三部 Movie；
 - `倩女幽魂2：人间道`的 ISO 只形成一部 Movie；若 Acceptance Spec 要求 stream file，ISO 是输入而不是永久第二 Primary；
 - Disc 输入完成 Remux/Transcode 后，旧 Disc 表示只有在冻结授权、Final 验证和 Settlement 完成后才可移除。
 
@@ -211,7 +215,7 @@ Direct 可以保留经验证的扩展名，Remux/Transcode 通常形成 `.mkv`�
 - `片名 (0)`、`片名 (年份) (1)` 或其他碰撞逃逸目录；
 - 永久文件名包含 `transcode-*`、`.partial-*`、`.staged-*`、`.tmp`；
 - 同一主媒体字节在旧位置和最终位置同时保留且没有共享材料解释；
-- BDMV/ISO 被拆成多部电影；
+- 单个 BDMV 容器的内部文件或单个 ISO 被拆成多部电影；
 - Final Inventory 未列出的遗留 Related Material；
 - Inventory 指向不存在、越界或与记录大小/指纹不一致的文件。
 
@@ -221,7 +225,7 @@ Direct 可以保留经验证的扩展名，Remux/Transcode 通常形成 `.mkv`�
 
 “我的收藏 · Arca”必须显示：
 
-- 当前收藏 `22` 部；
+- 当前收藏 `23` 部；
 - 每部恰好一张卡片，无重复身份；
 - 规范化片名、年份、Shelf 名称和 Poster；
 - active 状态；
@@ -298,8 +302,8 @@ Direct 可以保留经验证的扩展名，Remux/Transcode 通常形成 `.mkv`�
 3. Clean copy 后 `test_film`/`canary` 四项零差异报告；
 4. On-deck 完成后的 `F:\canary` 完整相对路径/类型/大小/mtime Manifest；
 5. Admin Web 九页首次打开、刷新、返回和服务重启恢复证据；
-6. 22 行 Formation 终态及四桶计数；
-7. 22 张 Arca Entry 详情证据和逐文件 Inventory 导出/截图；
+6. 23 行 Formation 终态及四桶计数；
+7. 23 张 Arca Entry 详情证据和逐文件 Inventory 导出/截图；
 8. 每部电影的 Inventory/Decision/FS 三方比较结果；
 9. MoviePilot 候选预筛、unknown 可见性、下载和真实 Probe 证据；
 10. 所有失败、根因、修复 commit、专项回归、架构门禁、Admin Web build 和真实页面复测记录。
@@ -310,13 +314,13 @@ Direct 可以保留经验证的扩展名，Remux/Transcode 通常形成 `.mkv`�
 | --- | --- | --- |
 | Baseline | `F:\test_film` 前后四项零差异 | |
 | Clean start | 初始 Canary 与基线四项零差异 | |
-| Identity | 22 Candidate → 22 unique Subject | |
-| Ratings | 三部指定豆瓣评分正确；直接评分/清除恢复通过 | |
-| Formation | 四桶互斥、合计22、失败不冒充完成 | |
+| Identity | 23 Candidate → 23 unique Subject；养蜂人 MKV 与 BDMV 分属两部 | |
+| Ratings | 两部养蜂人及指定豆瓣评分正确；直接评分/清除恢复通过 | |
+| Formation | 四桶互斥、合计23、失败不冒充完成 | |
 | Libra | Direct/Transcode/External/Disc/缺NFO全部真实执行与验证 | |
-| Handoff B | 22/22 Accepted，无悬空/无Ack/无限恢复 | |
-| Arca | 22 Entry + 22 Deck Fact + 22 current Inventory | |
-| Files | 22标准目录、每部唯一Primary、Related全部有Disposition | |
+| Handoff B | 23/23 Accepted，无悬空/无Ack/无限恢复 | |
+| Arca | 23 Entry + 23 Deck Fact + 23 current Inventory | |
+| Files | 23标准目录、养蜂人两部各一目录、每部唯一Primary、Related全部有Disposition | |
 | File UI | Arca逐文件展示与磁盘现实一致 | |
 | Recovery | 刷新、重启、reconcile不重复 | |
 | Safety | 未越过任何路径/环境边界 | |

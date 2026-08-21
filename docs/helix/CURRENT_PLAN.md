@@ -2,13 +2,22 @@
 
 Status: Movie Procurement保持`CLOSED FOR MOVIE`；Movie Libra保持`MOVIE LIBRA CLOSED AT HANDOFF B READY`；Movie Arca已经接通Handoff B Acceptance、On-deck、Shelf Entry、Deck Fact、Beta Aftercare、完整Off-deck及非破坏性Shelf Deregistration。当前状态为`MOVIE COLLECTION LIFECYCLE READY THROUGH SHELF DEREGISTRATION`；Movie从发现、生产、收藏、养护、退出到整架行政终结的本地产品链已经闭合，Docker/NAS与生产部署仍是独立后续工作。
 
-Last updated: 2026-08-21
+Last updated: 2026-08-22
 
-## 0. Execution hold — Canary rebuild and second Admin Web UAT
+## 0. Current execution — clean Movie Canary Admin Web UAT authorized
 
-按用户2026-08-21最新指示，当前只完成全部缺陷修复、回归、架构门禁和逐包Git提交。修复全部完成后停在
-“可重建Canary / 可开始第二轮UAT”的干净检查点；在获得新的明确授权前，不重命名或复制`G:\canary_film`，
-不新建UAT data directory，不启动本地服务，也不执行第二轮真实Admin Web UAT。
+用户已于2026-08-22明确授权在工作区`E:\my_project\emby_third_party-helix-retake`、分支
+`codex/helix-first-implementation-retake`重新开始一次干净的 Movie Canary 真实 Admin Web E2E/UAT。
+文档基线 commit 为`f7037310a51dd6873776c0ae57b317b0263c7fc2`；UAT-028 sidecar 修复 commit 为
+`2ed7baad2dd663d302264cbb4747d41471a2eb96`。本轮使用`F:\test_film`只读基线和全新`F:\canary`，
+不读取、不复用、不修改`G:\canary_film`、`Z:\Film`、NAS生产部署或旧污染Formation事实。
+
+授权范围内允许：新建隔离UAT data directory、一次性copy-forward既有External Integration/Secret与
+immutable Douban Perception历史、从基线复制Canary、Preflight通过后启动本地服务，以及按
+`docs/helix/acceptance/MOVIE_CANARY_USER_UAT_CHECKLIST.md`执行真实Admin Web验收。
+旧2026-08-21“修复完成后暂停、等待再授权”的hold已被本轮明确授权取代。
+
+2026-08-22 成功标准修正：`养蜂人 (2024)` 内现成 MKV 与嵌套 BDMV 按两部独立电影验收，两部都必须能上架；Arca Duplicate/Off-deck 才负责去重。形成口径 23 Subject / 23 Entry，不再使用“顶层 22 单元 = 22 Subject”或“养蜂人只能一部 Movie”。
 
 ## 0. Implemented repair — UAT-005 / UAT-018 Formation current state and ended history
 

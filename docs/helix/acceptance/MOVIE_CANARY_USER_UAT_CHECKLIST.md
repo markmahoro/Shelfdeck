@@ -10,13 +10,13 @@
 > 本文是面向真实用户操作的验收清单，不是测试脚本、自动化测试设计、架构
 > SSOT 或活动实施计划。架构语义以
 > `docs/helix/TOP_DOWN_ARCHITECTURE_CONFIRMATION.md` 为准。
-> 下一轮成功判定、22部逐片终态、Arca逐文件展示和证据包要求见
+> 下一轮成功判定、23部逐片终态、Arca逐文件展示和证据包要求见
 > `docs/helix/acceptance/MOVIE_CANARY_E2E_SUCCESS_EVALUATION.md`。
 
 ## 1. 一句话成功定义
 
 只有当真实用户能够在 Admin Web 中完成同根 Material Field / Shelf 的配置、媒体整理与评分、
-22 部电影的完整收藏形成、Arca 维护、全量退出收藏和 Shelf 注销，并且全过程的**页面呈现、
+23 部电影的完整收藏形成、Arca 维护、全量退出收藏和 Shelf 注销，并且全过程的**页面呈现、
 领域状态与物理文件现实始终一致**，本次 UAT 才能判定为成功。
 
 本次验收不接受“部分成功”。任一 Hard Gate 未通过，整体不得标记为 `PASS`。
@@ -108,8 +108,8 @@
 
 ### HG-05 全量闭环
 
-- [ ] Canary 中全部 22 部电影均完成收藏形成；任何一部显式失败都使整体不能通过。
-- [ ] 全部 22 个 Canary Shelf Entry 最终均由用户通过正式 Off-deck UI 完成退出收藏。
+- [ ] Canary 中全部 23 部电影均完成收藏形成；任何一部显式失败都使整体不能通过。
+- [ ] 全部 23 个 Canary Shelf Entry 最终均由用户通过正式 Off-deck UI 完成退出收藏。
 - [ ] 全量退出后，Canary 不再存在 active Shelf Entry / Deck Fact。
 - [ ] Shelf Deregistration 独立完成，且该动作本身不修改物理文件。
 
@@ -120,7 +120,7 @@ Preflight 以复制完成后的现实为准。当前基线精确预期为 22 个
 
 | 场景 | 固定样本 / 预期 |
 | --- | --- |
-| BDMV | `养蜂人 (2024)`；作为一个 Movie 单元，不得把内部 M2TS 拆成多部电影 |
+| BDMV | `养蜂人 (2024)` 内嵌盘与同目录现成 MKV 各成一部 Movie，两部都必须能上架；不得把 BDMV 内部 M2TS 再拆成更多部。内容去重是 Arca Duplicate/Off-deck 的职责 |
 | ISO | `倩女幽魂2：人间道 (1990)`；作为一个 Movie 单元 |
 | 缺少 NFO | `金的音像店 (2023)`；允许通过现有 Provider 能力补足，不得静默失败 |
 | 普通本地 Transcode 候选 | `光荣的愤怒`、`老笠`、`短暂和平`、`立春`、`锡尔弗顿之围`、`香火`、`坠楼死亡的剖析` |
@@ -203,8 +203,8 @@ Preflight 结论：`[ ] PASS  [ ] FAILED  [ ] BLOCKED`
 ## 9. Procurement / 媒体整理验收
 
 - [ ] 用户从页面触发或启用对 Canary Field 的正式 Observation。
-- [ ] 页面最终呈现 22 个 Movie 整理对象，不多、不少、不重复。
-- [ ] BDMV 被识别为一个 Movie 单元，ISO 被识别为一个 Movie 单元。
+- [ ] 页面最终呈现 23 个 Movie 整理对象，不多、不少、不重复。
+- [ ] `养蜂人` 的现成 MKV 与嵌套 BDMV 是两个整理对象；BDMV 内部 M2TS 不得再拆；ISO 被识别为一个 Movie 单元。
 - [ ] 普通文件、普通目录、BDMV 和 ISO 的可见标题与材料归属正确。
 - [ ] 缺少 NFO 的 `金的音像店 (2023)` 进入正常识别/补充路径。
 - [ ] Provider ambiguous、not found 或连接失败时保持真实的待处理/失败状态，不自动选第一个结果。
@@ -241,7 +241,7 @@ Preflight 结论：`[ ] PASS  [ ] FAILED  [ ] BLOCKED`
 - [ ] 缺 NFO 样本生成或取得满足要求的 NFO/Metadata。
 - [ ] Workspace 输入、产物与 Related Material 的来源和 settlement 均可追溯。
 - [ ] 每部电影只有一个有效的当前 Libra Run / Package 结果，不出现并行重复收藏。
-- [ ] 顶部“待整理、整理中、需要处理、已完成整理”四项与行级状态互斥且合计恰为当前22部媒体；分页不改变全量计数。
+- [ ] 顶部“待整理、整理中、需要处理、已完成整理”四项与行级状态互斥且合计恰为当前23部媒体；分页不改变全量计数。
 - [ ] Package published及Handoff B Accepted仍显示“整理中”；只有Arca On-deck Commit、Shelf Entry和Deck Fact全部成立才显示“已完成整理”。
 - [ ] Frozen、Suspended、blocked、Product Identity确认及Executor技术失败均显示“需要处理”，不得同时计入“整理中”。
 - [ ] 用户放弃的旧Run只在历史显示“已结束 · 用户放弃”；仍eligible的当前媒体只回到“待整理”一次，不重复计数。
@@ -251,7 +251,7 @@ Preflight 结论：`[ ] PASS  [ ] FAILED  [ ] BLOCKED`
 - [ ] 配置或执行合同revision变化最多自动建立一次新恢复代际；再次失败后停止自动循环，并提供用户重试入口。
 - [ ] 用户点击重试后保留旧Work/Event/Attempt，刷新与服务重启不会重复Acceptance Decision、Inbox、Ack或物理副作用。
 - [ ] Handoff B Accepted 后，Libra 按 Arca durable Off-load Completion Projection 回收应回收的 Workspace 材料。
-- [ ] 22 部电影全部到达 Handoff B Accepted / Arca 接管；否则整体不通过。
+- [ ] 23 部电影全部到达 Handoff B Accepted / Arca 接管；`养蜂人` 两部都不得因“疑似重复”被挡在上架之外；否则整体不通过。
 
 本阶段结论：`[ ] PASS  [ ] FAILED  [ ] BLOCKED`
 
@@ -259,7 +259,7 @@ Preflight 结论：`[ ] PASS  [ ] FAILED  [ ] BLOCKED`
 
 ### 12.1 收藏事实
 
-- [ ] “我的收藏”最终显示 22 个 active Canary Shelf Entry。
+- [ ] “我的收藏”最终显示 23 个 active Canary Shelf Entry，含 `养蜂人` 的 MKV 部与 BDMV 部。
 - [ ] 每个 Entry 都有对应的 active Deck Fact 和可追溯的 Inventory revision。
 - [ ] 海报、标题、年份、评分、版本和健康状态与实际条目一致。
 - [ ] 刷新页面后条目数、详情和状态保持一致。
@@ -271,20 +271,20 @@ Preflight 结论：`[ ] PASS  [ ] FAILED  [ ] BLOCKED`
 - `carried_forward`：最终 Inventory 继续引用同一 Physical Material，且只存在一份物理现实；或
 - `replaced`：successor 已进入 Inventory，旧材料完成精确 settlement，旧位置不再存在。
 
-- [ ] 22 部电影均有明确、可验证的 disposition。
+- [ ] 23 部电影均有明确、可验证的 disposition。
 - [ ] 所有 Primary、Related、Artifact 均位于预期 placement。
 - [ ] `F:\canary` 中不存在 hash 命名收藏目录。
 - [ ] 不存在类似 `标题 (0)` 的异常年份/冲突目录。
 - [ ] 不存在原始位置一份、收藏位置又一份的未解释重复媒体。
 - [ ] 文件指针、来源引用或历史 Binding 没有被误当作当前 Inventory 成员。
 - [ ] 再次从页面触发/等待一次 Field Observation 后，新增 Candidate 数为 0。
-- [ ] 再次 Observation 不改变 22 个 Shelf Entry，也不启动重复 Libra Run。
+- [ ] 再次 Observation 不改变 23 个 Shelf Entry，也不启动重复 Libra Run。
 
 本阶段结论：`[ ] PASS  [ ] FAILED  [ ] BLOCKED`
 
 ## 13. Arca Aftercare 验收
 
-故障注入不是业务配置。只有在 22 个 Entry 稳定 On-deck 后，才允许在
+故障注入不是业务配置。只有在 23 个 Entry 稳定 On-deck 后，才允许在
 `F:\canary` 内对一个已记录的非 Primary Artifact/Related 文件制造一次可恢复缺失；
 动作前必须记录精确 Entry、路径和预期修复方式。不得触碰基线或删除主媒体。
 
@@ -297,7 +297,7 @@ Preflight 结论：`[ ] PASS  [ ] FAILED  [ ] BLOCKED`
 - [ ] Repair 使用 Arca 已拥有且位置明确的材料，不越权回流 Procurement/Libra。
 - [ ] 修复后生成新的 Inventory revision，缺失 Artifact/Related 被恢复并验证。
 - [ ] Custody、Presentation、Conformance 的新鲜 Evidence 收口后，Case 才变为 resolved。
-- [ ] 非故障对象和其他 20 部电影的物理内容未被改变。
+- [ ] 非故障对象和其他 22 部电影的物理内容未被改变。
 - [ ] Aftercare 不自动创建 Off-deck 授权，不继承或猜测用户的删除意图。
 - [ ] 页面刷新后 Finding、Case、历史和当前健康状态一致。
 
@@ -305,7 +305,7 @@ Preflight 结论：`[ ] PASS  [ ] FAILED  [ ] BLOCKED`
 
 ## 14. 全量 Off-deck 验收
 
-本阶段具有破坏性，但授权严格限于 `F:\canary` 中 22 个 Canary Shelf Entry 的
+本阶段具有破坏性，但授权严格限于 `F:\canary` 中 23 个 Canary Shelf Entry 的
 冻结 Destruction Scope。开始本阶段前必须再次确认基线与范围。
 
 - [ ] 用户在“退出收藏”页面选择全部 active Canary Entry。
@@ -389,8 +389,8 @@ Shelf Deregistration 与 Off-deck 是两个不同动作。它只能在全量 Off
 - [ ] 再次完成第 7 节全部页面刷新检查。
 - [ ] 开始/结束基线清单比较通过。
 - [ ] Canary 外路径无变化。
-- [ ] 22 部电影收藏形成数量：`____ / 22`。
-- [ ] 22 个 Entry 完成 Off-deck 数量：`____ / 22`。
+- [ ] 23 部电影收藏形成数量：`____ / 23`。
+- [ ] 23 个 Entry 完成 Off-deck 数量：`____ / 23`。
 - [ ] 未关闭 `FAILED` 数量：`____`。
 - [ ] 未关闭 `BLOCKED` 数量：`____`。
 - [ ] 所有偏差已记录到 `docs/helix/USER_ACCEPTANCE_TEST_ISSUE_LOG.md`，没有在现场静默修库。

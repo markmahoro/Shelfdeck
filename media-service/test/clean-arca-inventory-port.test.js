@@ -7,6 +7,7 @@ const path = require('node:path');
 const test = require('node:test');
 const { createCleanArcaInventoryPort } = require('../src/clean-arca-inventory-port');
 const { canonicalDigest } = require('../src/helix/contracts/canonical-json');
+const { editionFromSourceDisplay } = require('../src/helix/domains/libra/model/product-identity-commit-contracts');
 const { computeBoundedMaterialFingerprintSync } = require('../src/helix/integrations/bounded-material-fingerprint');
 const schemaManifest = require('../src/helix/foundation/persistence/generated/clean-schema.manifest.json');
 
@@ -74,6 +75,39 @@ test('target folder uses the resolved display title and derives its year without
     assert.throws(() => port.resolveTargetLocation({ shelf, onDeckProductPackage:{
       ...packageValue, resolvedIdentitySnapshot:{ factValue:{} },
     } }), (error) => error.code === 'CLEAN_ARCA_TARGET_IDENTITY_TITLE_REQUIRED');
+  } finally {
+    fs.rmSync(root, { recursive:true, force:true });
+  }
+});
+
+test('source edition tags distinguish same title-year inventory folders without hash or numeric suffixes', () => {
+  assert.equal(editionFromSourceDisplay('养蜂人 (2024) - 2160p HEVC Atmos TrueHD5.1', '养蜂人', 2024),
+    '2160p HEVC Atmos TrueHD5.1');
+  assert.equal(editionFromSourceDisplay('养蜂人 (2024)', '养蜂人', 2024), null);
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'clean-arca-edition-folder-'));
+  try {
+    const port = createCleanArcaInventoryPort({
+      schemaManifest, unitOfWork:{}, workspaceRoot:path.join(root, '.workspace'),
+    });
+    const shelf = Object.freeze({
+      shelfId:'shelf-1', status:'active',
+      target:{ endpointId:'canary', rootLocation:root },
+      placement:{ value:{ folderTemplate:'{title} ({year})' } },
+    });
+    const packageFor = (edition) => Object.freeze({
+      onDeckPackageId:'opaque-package-digest', shelfId:'shelf-1',
+      resolvedIdentitySnapshot:{ factValue:{ displayIdentity:{ entries:Object.freeze([
+        Object.freeze({ key:'title', value:'养蜂人' }),
+        Object.freeze({ key:'year', value:'2024' }),
+        ...(edition ? [Object.freeze({ key:'edition', value:edition })] : []),
+      ]) } } },
+      productMaterialManifest:{ members:Object.freeze([{}]) },
+    });
+    assert.equal(port.resolveTargetLocation({ shelf, onDeckProductPackage:packageFor(null) }).targetDirectory,
+      path.join(root, '养蜂人 (2024)'));
+    assert.equal(port.resolveTargetLocation({
+      shelf, onDeckProductPackage:packageFor('2160p HEVC Atmos TrueHD5.1'),
+    }).targetDirectory, path.join(root, '养蜂人 (2024) - 2160p HEVC Atmos TrueHD5.1'));
   } finally {
     fs.rmSync(root, { recursive:true, force:true });
   }

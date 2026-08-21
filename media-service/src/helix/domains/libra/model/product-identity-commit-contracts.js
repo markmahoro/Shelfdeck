@@ -5,6 +5,23 @@ const { buildProductFactHandle, buildResolvedProductIdentity } = require('./prod
 
 function fail(message) { throw new TypeError(message); }
 
+const SOURCE_EDITION_TOKEN = /(?:2160p|1080p|720p|480p|4k|uhd|hevc|h\.?265|h\.?264|x265|x264|atmos|truehd|ddp|bluray|blu-ray|bdmv|remux|web-?dl)/i;
+
+function editionFromSourceDisplay(sourceDisplay, title, year) {
+  const raw = String(sourceDisplay || '').trim();
+  const cleanedTitle = String(title || '').trim();
+  if (!raw || !cleanedTitle) return null;
+  const yearText = year === null || year === undefined || year === '' ? '' : String(year);
+  const titleYear = yearText ? cleanedTitle + ' (' + yearText + ')' : cleanedTitle;
+  let rest = raw;
+  if (rest.startsWith(titleYear)) rest = rest.slice(titleYear.length);
+  else if (rest.startsWith(cleanedTitle)) rest = rest.slice(cleanedTitle.length);
+  else return null;
+  rest = rest.replace(/^\s*[\(\uff08]\d{4}[\)\uff09]/, '').replace(/^\s*[-–—]\s*/, '').trim();
+  if (!rest || rest === raw || !SOURCE_EDITION_TOKEN.test(rest)) return null;
+  return rest;
+}
+
 function providerFact(decisionEvidence,sourceResultItem) {
   const query=decisionEvidence?.queryResults?.[0],observation=sourceResultItem?.result;
   if(!query||decisionEvidence.queryResults.length!==1||!sourceResultItem||
@@ -34,6 +51,9 @@ function buildProductIdentityCommitBundle(value) {
     {key:'tmdb_movie_id',value:fact.providerKey}];
   if(Number.isSafeInteger(fact.releaseYear))displayEntries.push({key:'year',value:String(fact.releaseYear)});
   else if(identityClaim.claimedYear)displayEntries.push({key:'year',value:identityClaim.claimedYear});
+  const editionYear=Number.isSafeInteger(fact.releaseYear)?fact.releaseYear:identityClaim.claimedYear;
+  const edition=editionFromSourceDisplay(identityClaim.displayIdentity||identityClaim.claimedTitle,displayTitle,editionYear);
+  if(edition)displayEntries.push({key:'edition',value:edition});
   const resolvedProductIdentity=buildResolvedProductIdentity({producerRef:'libra.product_identity.resolve@1',
     basisDigest:decisionEvidence.digest,observedAtMs:0,subjectId:snapshot.run.subjectId,structureKind:'single',contentProfile:'movie',
     identityKind:'tmdb_movie',providerIdentities:[{provider:'tmdb',namespace:'tmdb_movie',providerKey:fact.providerKey,seasonNumber:null}],
@@ -80,4 +100,4 @@ function findProductIdentitySourceResult(workResultReader,workId,decisionEvidenc
   return matches[0];
 }
 
-module.exports=Object.freeze({buildProductIdentityCommitBundle,findProductIdentitySourceResult,providerFact});
+module.exports=Object.freeze({buildProductIdentityCommitBundle,editionFromSourceDisplay,findProductIdentitySourceResult,providerFact});
