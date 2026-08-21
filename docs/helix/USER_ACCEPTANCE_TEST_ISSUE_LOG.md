@@ -1366,8 +1366,8 @@ Resolution RecordSet schema和Admin Web没有闭合该能力。直接删除旧Re
 完整`helix-perception-acceptance-spec-e2e`中的2个相关测试通过；另一个既有On-deck/Aftercare测试在评分步骤之后因
 `care-custody`输入`objectKind`的`P4_CAPABILITY_SCHEMA_REJECTED`失败，与本修复路径和改动文件无关，留待其独立UAT问题处理。
 
-修复状态（2026-08-22）：`IMPLEMENTED / REAL ADMIN WEB RECOVERY PENDING`。提交后需重启本地服务，从Formation点击
-“清除我的评分”，确认`第八个嫌疑人`恢复`3 星 · 豆瓣`并刷新保持。
+修复状态（2026-08-22）：`REAL ADMIN WEB VERIFIED`。本地服务重启后从Formation指定电影行点击“清除我的评分”，
+`第八个嫌疑人`由`2 星 · 我的评分`恢复为`3 星 · 豆瓣`；再次点击页面“刷新”后来源与评分保持。
 
 ## 24. UAT-027：恢复中的FFmpeg progress冲突导致整个服务退出
 
@@ -1391,7 +1391,8 @@ Owner边界保持不变；不吞掉错误、不把失败标记成功。
 uncaught process failure；与Progress Reporter门禁合计6/6通过。后续继续执行完整Runtime Gate、Admin Web build和同一UAT
 data directory真实服务重启。
 
-修复状态（2026-08-22）：`IMPLEMENTED / REAL SERVICE RESTART PENDING`。
+修复状态（2026-08-22）：`REAL SERVICE RESTART VERIFIED`。同一隔离UAT data directory重启后，恢复批次虽暴露后续
+业务失败，服务仍持续监听；真实Formation页面成功打开、刷新并完成UAT-026评分撤回，随后由测试方优雅停止以隔离后续诊断。
 
 ## 25. 后续问题模板
 
