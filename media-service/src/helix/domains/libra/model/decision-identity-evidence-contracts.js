@@ -5,9 +5,11 @@ const { canonicalDigest, canonicalJson } = require('../../../contracts/canonical
 const SNAPSHOT_SCHEMA = 'helix://implementation/libra/DecisionIdentityEvidenceSnapshot/v1';
 const QUERY_SCHEMA = 'helix://contracts/domain-types/PerceptionResolutionQuery/v1';
 const QUERY_HANDLE_SCHEMA = 'helix://contracts/types/CanonicalQueryHandle/v1';
-const MAPPING_REF = 'libra.candidate-claim-title-anchor@1';
+const LEGACY_MAPPING_REF = 'libra.candidate-claim-title-anchor@1';
+const MAPPING_REF = 'libra.candidate-claim-title-anchor@2';
 const NORMALIZATION_REF = 'unicode_nfkc_casefold';
 const MAX_SNAPSHOT_BYTES = 16 * 1024;
+const TECHNICAL_RELEASE_TOKEN = /(?:^|[\s._-])(?:2160p|1080p|720p|480p|4k|uhd|bluray|blu-ray|remux|web[- .]?dl|webrip|hdtv|x26[45]|h\.?26[45]|hevc|avc|hdr10\+?|dolby[ .]?vision|dv|atmos|truehd|dts(?:-hd)?|aac|flac)(?:$|[\s._-])/iu;
 
 class DecisionIdentityEvidenceError extends Error {
   constructor(code, message, details = {}) {
@@ -46,7 +48,20 @@ function normalizeTitle(value) {
   return value.normalize('NFKC').toLowerCase().trim().replace(/\s+/g, ' ');
 }
 
-function deriveTitleYear(claimedTitle, claimedYear = null) {
+function stripTechnicalReleaseSuffix(value) {
+  let title = normalizeTitle(value);
+  for (const separator of [' - ', ' – ', ' — ']) {
+    const index = title.lastIndexOf(separator);
+    if (index > 0 && TECHNICAL_RELEASE_TOKEN.test(
+      title.slice(index + separator.length),
+    )) {
+      title = title.slice(0, index).trim();
+    }
+  }
+  return title;
+}
+
+function deriveTitleYearV1(claimedTitle, claimedYear = null) {
   const normalized = normalizeTitle(claimedTitle);
   const explicitYear = Number(claimedYear);
   if (Number.isSafeInteger(explicitYear) && explicitYear >= 1800 &&
@@ -60,6 +75,11 @@ function deriveTitleYear(claimedTitle, claimedYear = null) {
     return freeze({ title: normalized, year: null });
   }
   return freeze({ title: match[1].trim(), year: Number(match[2]) });
+}
+
+function deriveTitleYear(claimedTitle, claimedYear = null) {
+  const normalized = stripTechnicalReleaseSuffix(claimedTitle);
+  return deriveTitleYearV1(normalized, claimedYear);
 }
 
 function validateDigest(value, field) {
@@ -135,7 +155,7 @@ function buildDecisionIdentityEvidenceSnapshot(deliverySnapshot, intakeDecision)
     schemaRef: SNAPSHOT_SCHEMA,
     schemaVersion: 1,
     mappingRef: MAPPING_REF,
-    evidenceRevision: 1,
+    evidenceRevision: 2,
     intakeDecisionId: intakeDecision.intakeDecisionId,
     candidatePackageId: candidatePackage.candidatePackageId,
     packageRevision: candidatePackage.packageRevision,
@@ -171,11 +191,54 @@ function parseDecisionIdentityEvidenceSnapshot(row) {
     fail('LIBRA_DECISION_IDENTITY_SNAPSHOT_CORRUPT',
       'Decision Identity Evidence Snapshot is not valid JSON.');
   }
+  const legacyMapping = value.mappingRef === LEGACY_MAPPING_REF &&
+    value.evidenceRevision === 1;
+  const currentMapping = value.mappingRef === MAPPING_REF &&
+    value.evidenceRevision === 2;
+  const currentYearEvidence = currentMapping
+    ? value.identityEvidence?.find((item) => item.anchorKind === 'title_year')
+    : null;
+  const currentYear = currentYearEvidence
+    ? Number(String(currentYearEvidence.sourceValue).split('\0')[1])
+    : null;
+  const currentEvidenceInvalid = currentMapping &&
+    value.identityEvidence.some((item) => {
+      const sourceTitle = String(item.sourceValue).split('\0')[0];
+      const candidates = [
+        deriveTitleYear(sourceTitle),
+        deriveTitleYear(sourceTitle, currentYear),
+      ];
+      return !candidates.some((derived) => item.anchorValue ===
+        (item.anchorKind === 'title'
+          ? derived.title
+          : derived.year
+            ? derived.title + '\0' + derived.year
+            : null));
+    });
+  const legacyYearEvidence = legacyMapping
+    ? value.identityEvidence?.find((item) => item.anchorKind === 'title_year')
+    : null;
+  const legacyYear = legacyYearEvidence
+    ? Number(String(legacyYearEvidence.sourceValue).split('\0')[1])
+    : null;
+  const legacyEvidenceInvalid = legacyMapping &&
+    value.identityEvidence.some((item) => {
+      const sourceTitle = String(item.sourceValue).split('\0')[0];
+      const candidates = [
+        deriveTitleYearV1(sourceTitle),
+        deriveTitleYearV1(sourceTitle, legacyYear),
+      ];
+      return !candidates.some((derived) => item.anchorValue ===
+        (item.anchorKind === 'title'
+          ? derived.title
+          : derived.year
+            ? derived.title + '\0' + derived.year
+            : null));
+    });
   if (row.decision_identity_evidence_schema_ref !== SNAPSHOT_SCHEMA ||
       value.schemaRef !== SNAPSHOT_SCHEMA ||
       value.schemaVersion !== 1 ||
-      value.mappingRef !== MAPPING_REF ||
-      value.evidenceRevision !== 1 ||
+      !legacyMapping && !currentMapping ||
       value.intakeDecisionId !== row.intake_decision_id ||
       value.candidatePackageId !== row.candidate_package_id ||
       value.packageRevision !== Number(row.package_revision) ||
@@ -188,13 +251,11 @@ function parseDecisionIdentityEvidenceSnapshot(row) {
       value.identityEvidence.length > 16 ||
       value.identityEvidence.some((item) =>
         !['title', 'title_year'].includes(item.anchorKind) ||
-        item.mappingRef !== MAPPING_REF ||
+        item.mappingRef !== value.mappingRef ||
         item.normalizationProfileRef !== NORMALIZATION_REF ||
-        item.anchorValue !== (item.anchorKind === 'title'
-          ? normalizeTitle(item.sourceValue)
-          : normalizeTitle(item.sourceValue.split('\0')[0]) + '\0' +
-            item.sourceValue.split('\0')[1]) ||
         item.evidenceDigest !== canonicalDigest(without(item, 'evidenceDigest'))) ||
+      currentEvidenceInvalid ||
+      legacyEvidenceInvalid ||
       value.snapshotDigest !== canonicalDigest(without(value, 'snapshotDigest')) ||
       row.decision_identity_evidence_digest !== value.snapshotDigest ||
       canonicalJson(value) !== row.decision_identity_evidence_json) {
@@ -272,5 +333,6 @@ module.exports = Object.freeze({
   buildPerceptionResolutionQuery,
   deriveTitleYear,
   normalizeTitle,
+  stripTechnicalReleaseSuffix,
   parseDecisionIdentityEvidenceSnapshot,
 });

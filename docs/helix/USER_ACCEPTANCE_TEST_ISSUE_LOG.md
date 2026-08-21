@@ -1313,7 +1313,37 @@ Final目标不存在或字节不符仍fail closed，不跳过Settlement Approval
 
 修复状态（2026-08-21）：`IMPLEMENTED / CLEAN CANARY UAT PENDING`。
 
-## 22. 后续问题模板
+## 22. UAT-025：Handoff A身份快照未在技术发布标签前冻结年份锚
+
+问题分类：`LIBRA_DECISION_IDENTITY / PERCEPTION_CONTINUITY / USER_VISIBLE_RATING`
+
+用户侧现象：切换到全新`F:\canary`并完成真实Admin Web Observation与Direct Routing后，Formation页面中
+`看不见的朋友 (2023) - 1080p H.264 CHDWEB`和带发布标签的`养蜂人`仍显示“暂无评分”；同一页面的
+`香火 (2003)`与普通`养蜂人 (2024)`已经显示豆瓣评分。
+
+现场证据：隔离数据库只读检查显示，受影响Subject在Handoff A Accepted时冻结的
+`DecisionIdentityEvidenceSnapshot`只有完整发布名的`title` Anchor，没有`title_year` Anchor；对应
+`IdentityClaim.claimedYear`为空。UAT-023的Perception alias revision 2只有在调用方提供标题和年份时才能派生精确别名，
+不能从缺失年份的Libra快照补造该事实。
+
+精确根因：UAT-022修复了Product Identity阶段的TMDB搜索词，UAT-023修复了Perception自己的别名规则，但两者都没有更新
+Handoff A接收时由Libra拥有的versioned Decision Identity Mapping。旧`@1`映射只识别原字符串末尾的括号年份；年份后存在
+明确技术发布后缀时，快照在进入后续Resolution前已经丢失`title_year`。
+
+修复边界：新增`libra.candidate-claim-title-anchor@2`，只移除包含明确技术Token的尾部发布段，再按既有严格规则分离新暴露的
+括号年份；不引入模糊或跨年匹配，不回写Procurement Claim，也不改变Perception或Libra的事实Owner。解析器继续接受并验证
+既有`@1`不可变快照，新快照固定`evidenceRevision 2`。
+
+验收证据：新增真实标题专项回归，断言Handoff A快照形成`看不见的朋友`与
+`看不见的朋友\0 2023`两个精确Anchor并可完成持久化回读；Perception/Decision Mapping专项回归10/10、相关Product Identity
+与Movie Perception门禁13/13、Admin Web production build均通过。
+
+修复状态（2026-08-22）：`IMPLEMENTED / REAL ADMIN WEB VERIFIED`。旧现场已原子保留为
+`F:\canary.failed-20260822-004651-31e92bde4`，新Canary与只读基线四项严格比对为0差异，并从全新隔离事实库重新执行
+Field、Shelf、Routing和Observation。Formation真实页面显示`看不见的朋友`5星、普通与发布标签版`养蜂人`4星、`香火`4星，
+来源均为豆瓣；22个Candidate/Subject保持唯一，随后正常形成Production动作。完整22部Arca闭环仍由本轮UAT继续验收。
+
+## 23. 后续问题模板
 
 后续发现的问题按以下结构追加：
 

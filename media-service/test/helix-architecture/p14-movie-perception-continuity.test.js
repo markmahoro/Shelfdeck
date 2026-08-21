@@ -212,7 +212,7 @@ test('freezes the accepted claim title as a versioned Libra evidence anchor', ()
     accepted.deliverySnapshot,
     accepted.intakeDecision,
   );
-  assert.equal(snapshot.mappingRef, 'libra.candidate-claim-title-anchor@1');
+  assert.equal(snapshot.mappingRef, 'libra.candidate-claim-title-anchor@2');
   assert.equal(snapshot.identityEvidence[0].anchorValue, 'example movie');
   assert.equal(snapshot.identityEvidence[0].confidenceClass, 'medium');
   assert.notEqual(
@@ -244,6 +244,41 @@ test('derives an explicit terminal folder year without changing Procurement fact
     deriveTitleYear('Example 2000 Cut'),
     { title: 'example 2000 cut', year: null },
   );
+  assert.deepEqual(
+    deriveTitleYear('看不见的朋友 (2023) - 1080p H.264 CHDWEB'),
+    { title: '看不见的朋友', year: 2023 },
+  );
+});
+
+test('freezes a versioned exact title-year anchor before technical release labels', () => {
+  const accepted = acceptedIdentity(
+    '看不见的朋友 (2023) - 1080p H.264 CHDWEB',
+    null,
+  );
+  const snapshot = buildDecisionIdentityEvidenceSnapshot(
+    accepted.deliverySnapshot,
+    accepted.intakeDecision,
+  );
+  assert.equal(snapshot.mappingRef, 'libra.candidate-claim-title-anchor@2');
+  assert.equal(snapshot.evidenceRevision, 2);
+  assert.deepEqual(snapshot.identityEvidence.map((item) => item.anchorValue), [
+    '看不见的朋友',
+    '看不见的朋友\0' + '2023',
+  ]);
+  const row = {
+    intake_decision_id: accepted.intakeDecision.intakeDecisionId,
+    candidate_package_id: accepted.intakeDecision.candidatePackageId,
+    package_revision: accepted.intakeDecision.packageRevision,
+    package_digest: accepted.intakeDecision.packageDigest,
+    candidate_delivery_snapshot_digest:
+      accepted.intakeDecision.candidateDeliverySnapshotDigest,
+    candidate_identity_claim_digest:
+      accepted.intakeDecision.candidateIdentityClaimDigest,
+    decision_identity_evidence_schema_ref: snapshot.schemaRef,
+    decision_identity_evidence_json: canonicalJson(snapshot),
+    decision_identity_evidence_digest: snapshot.snapshotDigest,
+  };
+  assert.deepEqual(parseDecisionIdentityEvidenceSnapshot(row), snapshot);
 });
 
 test('commits and reuses one real not_found Resolution when no record exists', () => {
