@@ -38,6 +38,43 @@ function safeSegment(value) {
   return segment.slice(0, 180);
 }
 
+function displayIdentityEntry(identityFact, key) {
+  const entries = identityFact?.displayIdentity?.entries;
+  if (!Array.isArray(entries)) return null;
+  const entry = entries.find((item) => item?.key === key);
+  return typeof entry?.value === 'string' && entry.value.trim()
+    ? entry.value.trim()
+    : null;
+}
+
+function inventoryDisplayIdentity(packageValue) {
+  const snapshot = packageValue?.resolvedIdentitySnapshot?.factValue || {};
+  const identityFact = snapshot.resolvedProductIdentity || snapshot;
+  let title = identityFact.title || identityFact.displayTitle ||
+    identityFact.canonicalTitle || displayIdentityEntry(identityFact, 'title');
+  let year = identityFact.year || identityFact.releaseYear ||
+    identityFact.release_year || displayIdentityEntry(identityFact, 'year');
+  if (typeof title !== 'string' || !title.trim()) {
+    fail('CLEAN_ARCA_TARGET_IDENTITY_TITLE_REQUIRED',
+      'Final Inventory requires a human-readable resolved title.');
+  }
+  title = title.trim();
+  const suffix = title.match(/^(.*?)\s*\((\d{4})\)$/);
+  if (suffix) {
+    title = suffix[1].trim();
+    if (year === null || year === undefined || year === '') year = suffix[2];
+  }
+  const numericYear = year === null || year === undefined || year === ''
+    ? null
+    : Number(year);
+  return Object.freeze({
+    title,
+    year:Number.isSafeInteger(numericYear) && numericYear >= 1000 && numericYear <= 9999
+      ? numericYear
+      : null,
+  });
+}
+
 function contained(root, target) {
   return target === root || target.startsWith(root + path.sep);
 }
@@ -178,21 +215,16 @@ function createCleanArcaInventoryPort(options) {
       fail('CLEAN_ARCA_TARGET_ROOT_UNAVAILABLE',
         'Shelf Target root is unavailable.');
     }
-    const identityFact = packageValue.resolvedIdentitySnapshot?.factValue || {};
-    const title = identityFact.title || identityFact.displayTitle ||
-      identityFact.canonicalTitle || packageValue.onDeckPackageId;
+    const identity = inventoryDisplayIdentity(packageValue);
     const placement = shelf.placement?.value || {};
     const folderTemplate = placement.folderTemplate || '{title}';
     if (!['{title}', '{title} ({year})'].includes(folderTemplate)) {
       fail('CLEAN_ARCA_PLACEMENT_TEMPLATE_UNSUPPORTED',
         'Beta Movie Inventory received an unsupported frozen folder template.');
     }
-    const year = identityFact.year || identityFact.releaseYear ||
-      identityFact.release_year || null;
-    const renderedFolder = folderTemplate === '{title} ({year})' &&
-      Number.isSafeInteger(Number(year))
-      ? `${title} (${Number(year)})`
-      : title;
+    const renderedFolder = folderTemplate === '{title} ({year})' && identity.year !== null
+      ? `${identity.title} (${identity.year})`
+      : identity.title;
     const folder = safeSegment(renderedFolder);
     const targetDirectory = path.resolve(targetRoot, folder);
     if (!contained(targetRoot, targetDirectory)) {

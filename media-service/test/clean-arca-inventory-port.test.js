@@ -51,6 +51,34 @@ function member(location, role, mountScopeId, workspace = null) {
   });
 }
 
+test('target folder uses the resolved display title and derives its year without opaque or zero fallbacks', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'clean-arca-display-identity-'));
+  try {
+    const port = createCleanArcaInventoryPort({
+      schemaManifest, unitOfWork:{}, workspaceRoot:path.join(root, '.workspace'),
+    });
+    const shelf = Object.freeze({
+      shelfId:'shelf-1', status:'active',
+      target:{ endpointId:'canary', rootLocation:root },
+      placement:{ value:{ folderTemplate:'{title} ({year})' } },
+    });
+    const packageValue = Object.freeze({
+      onDeckPackageId:'opaque-package-digest', shelfId:'shelf-1',
+      resolvedIdentitySnapshot:{ factValue:{ displayIdentity:{ entries:Object.freeze([
+        Object.freeze({ key:'title', value:'老笠 (2016)' }),
+      ]) } } },
+      productMaterialManifest:{ members:Object.freeze([{}]) },
+    });
+    assert.equal(port.resolveTargetLocation({ shelf, onDeckProductPackage:packageValue }).targetDirectory,
+      path.join(root, '老笠 (2016)'));
+    assert.throws(() => port.resolveTargetLocation({ shelf, onDeckProductPackage:{
+      ...packageValue, resolvedIdentitySnapshot:{ factValue:{} },
+    } }), (error) => error.code === 'CLEAN_ARCA_TARGET_IDENTITY_TITLE_REQUIRED');
+  } finally {
+    fs.rmSync(root, { recursive:true, force:true });
+  }
+});
+
 test('same-root Stage/Switch preserves exact final members, merges new members, and settles final-location input as a no-op', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'clean-arca-same-root-'));
   try {
