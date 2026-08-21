@@ -8,7 +8,7 @@ const TARGET_GENERATION = 'helix-clean-v3';
 const SOURCE_SCHEMA_DIGEST = '78075366b3409916b8f8c6fcd3c0786daa5e45bab82f59ba83d91a2663689119';
 const INTERMEDIATE_SCHEMA_DIGEST = 'fee80cf21719481a83274c3b9021918571ed8e5a510239b1d82995758a4cbcd4';
 const PRE_EXECUTOR_CLOSURE_SCHEMA_DIGEST = '998b673af4d2f0a6ed4f96bcb7f34c56b8dad3ffc562f40a69a335b948a7cab0';
-const TARGET_SCHEMA_DIGEST = 'c5d9640055e8a7805791bf4a54539fc2b4325403c8ba797b7368245dc5a75d9b';
+const TARGET_SCHEMA_DIGEST = '2347c196743124bbb2e768c7b829012049310484b7cd4e49a00182c9d45f09d5';
 const PRE_UAT_EXECUTION_CATALOG_DIGEST = 'b0371a6d2793c1e381a4c2e7fc421d312a1a1e90d2de5e47f61a45022f09793b';
 const PRE_PROJECTION_EXECUTION_CATALOG_DIGEST = '13315cdbdf6ab5cbe30b32075f89bd76ae1a873d84034dc572824f4fbc3886e6';
 const INTAKE_BINDING_REPLAN_CODE = 'P4_UAT_INTAKE_BINDING_RESULT_REPLAN_REQUIRED';
@@ -16,7 +16,7 @@ const PRE_PROJECTION_PLAN_REPLAN_CODE = 'P4_UAT_PRE_PROJECTION_PLAN_REPLAN_REQUI
 const FORMATION_PROJECTION_DDL = `CREATE TABLE "libra_formation_projections" (
   "subject_id" TEXT PRIMARY KEY,
   "projection_revision" INTEGER CHECK ("projection_revision" >= 1),
-  "classification" TEXT CHECK ("classification" IN ('waiting', 'in_progress', 'completed')),
+  "classification" TEXT CHECK ("classification" IN ('pending', 'in_progress', 'attention_required', 'completed')),
   "attention_state" TEXT CHECK ("attention_state" IN ('none', 'attention_required', 'blocked', 'suspended', 'frozen')),
   "attention_priority" INTEGER,
   "display_identity" TEXT,

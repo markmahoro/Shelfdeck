@@ -216,7 +216,10 @@ function createOnDeckCapabilityPorts(options){const now=options.now||Date.now,ac
       custodyId:c.responsibility.custodyId,shelf:c.shelf,package:c.packageValue,finalInventoryDecision:c.finalInventoryDecision,staged,
       stagedVerification:options.workResultReader.read(execution.workId).find((item)=>item.capabilityRef===C.stagedVerify)?.result,
       fulfillmentVerification:fulfillment,
-      fulfillmentVerificationDigest:canonicalDigest(fulfillment),relatedDispositionCompletionDigest,custodyControls,targetControls});return committedOutcome(execution,C.commit,committed.result,now(),'responsibility_control_commit');},
+      fulfillmentVerificationDigest:canonicalDigest(fulfillment),relatedDispositionCompletionDigest,custodyControls,targetControls});
+    options.afterOnDeckCommit?.(Object.freeze({offerId:c.offer.offerId,subjectId:c.offer.subjectId,
+      onDeckRunId:c.responsibility.onDeckRunId,shelfEntryId:committed.result.onDeckCommitReceipt.shelfEntryId}));
+    return committedOutcome(execution,C.commit,committed.result,now(),'responsibility_control_commit');},
     validateResult(_c,o){if(o?.result?.onDeckCommitReceipt?.receiptKind!=='on_deck_committed')throw new TypeError('On-deck Commit Result is invalid.');}});
   return Object.freeze(ports);
 }

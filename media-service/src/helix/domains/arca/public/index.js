@@ -3,6 +3,7 @@
 const { packageId } = require('./package.boundary.json');
 const { createOnDeckContextReader } = require('../application/on-deck-context-reader');
 const { createOnDeckProcessCoordinator } = require('../application/on-deck-process-coordinator');
+const { createFormationStatusProjection } = require('../application/formation-status-projection');
 const { createOnDeckCapabilityPorts } = require('../capabilities/on-deck-capability-ports');
 const { createOnDeckCapabilityRegistrations } = require('../capabilities/on-deck-execution-registrations');
 const { createAcceptanceAssessmentPlanner, createAcceptanceCommitPlanner,
@@ -76,12 +77,13 @@ function createArcaExecutionRegistration() {
     },
     createProcessServices(options) {
       const contextReader=options.contextReader||createOnDeckContextReader(options);
+      const formationStatusProjection=createFormationStatusProjection(options);
       const aftercareContextReader=options.aftercareContextReader||createAftercareContextReader(options);
       const aftercareCoordinator=createAftercareProcessCoordinator({...options,contextReader:aftercareContextReader});
       const offdeckContextReader=options.offdeckContextReader||createOffdeckContextReader({...options,
         readAftercareHealth:options.readAftercareHealth||((shelfEntryId)=>{const value=aftercareCoordinator.project(shelfEntryId);return value?Object.freeze({...value,ageDays:Math.max(0,((options.now||Date.now)()-value.updatedAtMs)/86_400_000)}):undefined;})});
       const shelfDeregistrationContextReader=options.shelfDeregistrationContextReader||createShelfDeregistrationContextReader(options);
-      return Object.freeze({contextReader,aftercareContextReader,coordinator:createOnDeckProcessCoordinator({...options,contextReader}),
+      return Object.freeze({contextReader,formationStatusProjection,aftercareContextReader,coordinator:createOnDeckProcessCoordinator({...options,contextReader}),
         aftercareCoordinator,offdeckContextReader,
         offdeckCoordinator:createOffdeckProcessCoordinator({...options,contextReader:offdeckContextReader}),
         offdeckAutomationCoordinator:createOffdeckAutomationCoordinator({...options,contextReader:offdeckContextReader}),shelfDeregistrationContextReader,

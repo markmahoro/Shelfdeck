@@ -70,6 +70,7 @@ test('Media organization workspace uses user-facing stages after Procurement han
   const formation = model.split("slug:'formation'")[1].split("slug:'offdeck'")[0];
   assert.match(formation, /媒体整理工作区/);
   assert.match(formation, /待整理/);
+  assert.match(formation, /需要处理/);
   assert.match(formation, /已完成整理/);
   assert.doesNotMatch(formation, /Subject|Routing|Spec|Run|Work|Event|判断开采资格|准备候选包/);
 });

@@ -80,6 +80,7 @@ const { createLibraRoutingAdminApplication } = require('./helix/domains/libra/pu
 const { createFormationProjectionSource, createFormationQuery } = require('./helix/domains/libra/application/formation-query');
 const { createFormationProjectionHost } = require('./helix/domains/libra/application/formation-projection-host');
 const { createFormationProjectionStore } = require('./helix/domains/libra/persistence/formation-projection-store');
+const { createFormationRunHistoryStore } = require('./helix/domains/libra/persistence/formation-run-history-store');
 const { createExecutionProgressProjectionReader } = require('./helix/foundation/execution/progress-projection-reader');
 const { createRoutingManualSelectionService } = require('./helix/domains/libra/application/routing-manual-selection-service');
 const { createLibraRunAdminService } = require('./helix/domains/libra/application/libra-run-admin-service');
@@ -1244,15 +1245,19 @@ async function createCleanServiceHost(options) {
     onPolicyPublished(policy) { routingExecution?.routingCoordinator.reconcileField(policy.fieldId, 100); routingExecution?.host.wake(); },
   });
   let formationRatingReader = () => new Map(), formationAcceptanceReader = () => null,
-    formationAcceptanceAttention = () => [], formationProjectionHost = null;
+    formationAcceptanceAttention = () => [], formationArcaStatusReader = () => new Map(), formationProjectionHost = null;
   const formationProjectionStore = createFormationProjectionStore(constructed.applicationDependencies);
+  const formationRunHistoryStore = createFormationRunHistoryStore(constructed.applicationDependencies);
   const formationProjectionSource = createFormationProjectionSource({
     ...constructed.applicationDependencies,
     progressProjectionReader: createExecutionProgressProjectionReader(constructed.applicationDependencies),
     readPerceptionRatings: (targets) => formationRatingReader(targets),
     readShelfTargets: arcaRoutingTargets.list,
+    readAcceptanceRecoveries: (offerIds) => new Map(offerIds.map((offerId) => [offerId, formationAcceptanceReader(offerId)])),
+    readArcaFormationStatuses: (offerIds) => formationArcaStatusReader(offerIds),
   });
-  const formationQuery = createFormationQuery({ store: formationProjectionStore, now: options.now || Date.now,
+  const formationQuery = createFormationQuery({ store: formationProjectionStore, historyStore: formationRunHistoryStore,
+    now: options.now || Date.now,
     readAcceptanceRecovery:(offerId)=>formationAcceptanceReader(offerId),
     listAcceptanceAttention:(limit)=>formationAcceptanceAttention(limit),
     state: () => formationProjectionHost?.state() || Object.freeze({ status: 'rebuilding', asOfMs: (options.now || Date.now)() }) });
@@ -1318,6 +1323,7 @@ async function createCleanServiceHost(options) {
     now: options.now || Date.now,
     onFormationSubjectChanged: (subjectId) => formationProjectionHost?.enqueue(subjectId),
     onFormationRunChanged: (libraRunId) => formationProjectionHost?.enqueue(formationProjectionSource.findSubjectByRun(libraRunId)),
+    afterOnDeckCommit: (value) => { formationProjectionHost?.enqueue(value.subjectId); options.afterOnDeckCommit?.(value); },
     onError: options.onExecutionRuntimeError,
   });
   routingExecution = procurementExecution;
@@ -1325,6 +1331,7 @@ async function createCleanServiceHost(options) {
   formationRatingReader = (targets) => procurementExecution.perception.readCurrentRatings('subject', targets);
   formationAcceptanceReader = (offerId) => procurementExecution.arcaCoordinator.readAcceptanceRecovery(offerId);
   formationAcceptanceAttention = (limit) => procurementExecution.arcaCoordinator.listAcceptanceAttention(limit);
+  formationArcaStatusReader = (offerIds) => procurementExecution.arcaFormationStatusProjection.read(offerIds);
   formationProjectionHost = createFormationProjectionHost({
     ...constructed.applicationDependencies,
     source: formationProjectionSource,

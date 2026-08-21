@@ -4,6 +4,24 @@ Status: Movie Procurement与Movie Libra封口保持有效；Movie Arca已完成H
 
 Last updated: 2026-08-21
 
+## 0. UAT repair status — UAT-005 / UAT-018 implemented, fresh Canary qualification pending
+
+Formation不再把Product Package published当成“已完成整理”，也不再从历史Production成功推导永久`in_progress`。
+新的四桶Classification为`pending | in_progress | attention_required | completed`：完成必须同时重建Arca On-deck Commit、
+Shelf Entry、对应active Deck Fact及非空Related Disposition completion；技术失败、blocked、suspended、frozen和合法身份确认
+进入“需要处理”；整理中只表示当前仍有可推进责任。Arca Commit后会精确唤醒对应Subject Projection，30秒有界Sweep仍作为
+丢失wake的恢复路径。
+
+Admin Web顶部增加“需要处理”，列表增加“当前状态”列；Discard Receipt通过独立有界历史查询显示“已结束 · 用户放弃”，
+不进入当前四桶，也不复制Subject行。专项Formation、Arca completion、Admin Web和clean schema migration回归22/22通过，
+包含真实Routing链路的最终相关回归19/19通过；完整Architecture Gate（166个test file）、P3 Persistence Gate及
+Admin Web production build均通过。当前P2 aggregate为`077a5aae97b5d7f73a9e0e92019161a6c1a2bde91e8be18b2591dadfd565f0b7`；
+P3 DDL digest为`2347c196743124bbb2e768c7b829012049310484b7cd4e49a00182c9d45f09d5`，table contract aggregate为
+`9aa8c8710b1bdc99e4d16a88c4e354526b1a7846fb4d85d528ccaa75192e6f7f`。
+
+本批次没有启动服务、没有读取或修改任何Canary目录。UAT-005/UAT-018代码修复完成但继续保持OPEN，等待明确授权后的
+真实Admin Web与新Canary验证。
+
 ## 0. UAT repair status — UAT-020 implementation complete, fresh Canary qualification pending
 
 Placement revision现冻结目录及五类Movie成员命名模板；Admin Web允许用户在创建Shelf时配置全部规则并在保存前预览。

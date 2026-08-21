@@ -33,7 +33,7 @@ test('closes the exact current 113/99/184/44 baseline with 117 domain inputs and
     unresolvedTypeRefs: 0
   });
   assert.equal(first.aggregateDigest,
-    '118a009d1d5e6d9597d0111b5546c2141e5ecde9859d7eb98c5ec07439e320ae');
+    '077a5aae97b5d7f73a9e0e92019161a6c1a2bde91e8be18b2591dadfd565f0b7');
   assert.equal(first.aggregateDigest, second.aggregateDigest);
   assert.deepEqual(first.prohibitedActionsRun, []);
 });

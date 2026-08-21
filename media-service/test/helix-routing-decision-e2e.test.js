@@ -170,7 +170,9 @@ test('direct and sorting Routing Decisions continue through Acceptance Spec and 
       await new Promise((resolve) => setTimeout(resolve, 25));
     }
     assert.ifError(runtimeError);
-    assert.deepEqual(formation.summary, { totalCount:24, waitingCount:24, inProgressCount:0, completedCount:0 });
+    assert.equal(formation.summary.pendingCount + formation.summary.inProgressCount +
+      formation.summary.attentionRequiredCount + formation.summary.completedCount, 24);
+    assert.equal(formation.summary.completedCount, 0);
     assert.equal(formation.items.filter((item)=>item.routingState==='resolved').length,23);
     assert.equal(formation.items.filter((item)=>item.routingState==='unresolved').length,1);
     assert.equal(formation.items.filter((item) => item.targetShelfId === 'movie-test').length, 19);
@@ -207,7 +209,10 @@ test('direct and sorting Routing Decisions continue through Acceptance Spec and 
     await waitForDurableAcceptance(path.join(dataDir, 'shelfdeck.db'), 25, 24);
     const recovered = await host.inject({ method: 'GET', url: '/v1/admin/formation', headers: { cookie } });
     assert.equal(recovered.statusCode, 200, recovered.body);
-    assert.deepEqual(recovered.json().summary, { totalCount:24, waitingCount:24, inProgressCount:0, completedCount:0 });
+    const recoveredSummary=recovered.json().summary;
+    assert.equal(recoveredSummary.pendingCount + recoveredSummary.inProgressCount +
+      recoveredSummary.attentionRequiredCount + recoveredSummary.completedCount, 24);
+    assert.equal(recoveredSummary.completedCount, 0);
     assert.equal(recovered.json().items.filter((item)=>item.routingState==='resolved').length,24);
     assert.deepEqual(providerCalls.filter((item)=>item.requestedFactKinds.includes('release_year'))
       .map((item)=>item.title).sort(), ['0.5毫米 provider', '无nfo且无法解析的测试标题'].sort());

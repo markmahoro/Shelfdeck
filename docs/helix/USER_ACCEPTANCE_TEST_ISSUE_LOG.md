@@ -683,17 +683,18 @@ Package、Receipt、Canonical JSON等结构化事实的SHA-256与媒体字节Ide
 - 内部业务对象继续存在，但必须投影为用户可理解的媒体整理状态；
 - 页面工作重心是尚未完成的媒体，已完成记录放在下方折叠区域。
 
-### 7.2 顶部三项统计
+### 7.2 顶部四项统计
 
-顶部Dashboard固定展示三个互斥节点：
+顶部Dashboard固定展示四个互斥节点（本节原三项合同已由UAT-018的用户确认修正）：
 
 | 节点 | 建议业务定义 |
 | --- | --- |
-| 待整理 | 已经完成Handoff A Acceptance，但尚未建立可执行的当前Libra Run；包括正在确认媒体身份、目标收藏夹、评分或整理要求，以及等待用户提供必要信息 |
-| 整理中 | 已建立当前有效Libra Run，但尚未发布当前有效Handoff B Offer；包括资料补齐、Remux、Transcode、外部获取、结果验证、等待资源、suspended或frozen |
-| 已完成整理 | 当前有效Product Package已经发布且Handoff B Offer已经形成；这是Libra责任完成，不要求Arca已经接受或建立Shelf Entry |
+| 待整理 | 已经完成Handoff A Acceptance，但没有Attention且尚无当前开放可推进的Libra/Arca责任；包括正在形成目标、评分、要求或下一Run |
+| 整理中 | 当前存在开放可推进的Libra生产、Arca Acceptance或On-deck责任；Package published及Handoff B Accepted仍属于此类 |
+| 需要处理 | Product Identity确认、technical failure、blocked、suspended或frozen；需要用户决定或明确恢复动作 |
+| 已完成整理 | Arca On-deck Commit已同时建立Shelf Entry与Deck Fact；Package或Acceptance单独不足以完成 |
 
-若Handoff B被拒绝并形成replacement Run，该媒体重新进入`整理中`，不得继续计入`已完成整理`。三个统计值必须由同一Formation Projection计算，不能由前端分别拼接可能不一致的API数量。
+若Handoff B被拒绝并形成replacement Run，该媒体按当前事实进入`需要处理`或`整理中`，不得继续计入`已完成整理`。四个统计值必须由同一Formation Projection计算，不能由前端分别拼接可能不一致的API数量。
 
 ### 7.3 页面上下分区
 
@@ -702,7 +703,7 @@ Package、Receipt、Canonical JSON等结构化事实的SHA-256与媒体字节Ide
 ```text
 媒体整理工作区
 
-[待整理 N] [整理中 N] [已完成整理 N]
+[待整理 N] [整理中 N] [需要处理 N] [已完成整理 N]
 
 等待整理
   尚未建立可执行整理Run的媒体
@@ -1038,6 +1039,16 @@ production build通过；真实Provider重取及Canary结果留在新UAT记录�
 - 分页不影响顶部全量计数，脚本测试仅作为Projection修复回归，不能替代真实浏览器验收。
 
 当前处理决定：用户已确认上述四类当前状态及Discard历史方案。问题保持OPEN；本次只记录产品合同，不点击现有Frozen Run的Discard按钮，不修改代码、运行时事实或Canary文件。后续实现并验证后单独git commit。
+
+2026-08-21修复进展：代码修复已完成。Formation current Projection现使用四个互斥Classification；只有Arca公开
+Projection能够同时证明On-deck Commit Receipt、Shelf Entry与对应active Deck Fact时才进入`completed`。Package published、
+Handoff B Accepted或历史Succeeded Work均不足以形成完成/整理中。Frozen、Suspended、blocked、Product Identity确认和Executor
+技术失败进入`attention_required`；当前没有开放可推进责任时回到`pending`。顶部四项统计和行级“当前状态”来自同一后端分类。
+
+Discard Receipt由Libra-owned有界History Query投影为“已结束 · 用户放弃”，旧Run不进入当前四桶；eligible Subject只保留
+一个当前待整理行。专项Projection、Arca completion、Admin Web和schema migration回归通过，包含真实Routing链路的最终
+相关回归19/19、完整Architecture Gate、P3 Persistence Gate及Admin Web production build均通过。未点击旧Canary的
+Discard按钮，未启动服务或修改现场。UAT-005/UAT-018继续保持OPEN，等待用户授权后的新Canary真实浏览器验证。
 
 ## 16. UAT-019：Executor终态异常缺少统一Owner收口，Arca Acceptance Offer悬空
 

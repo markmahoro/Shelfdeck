@@ -220,10 +220,10 @@ test('one bad Material is released while a bounded Movie Candidate set crosses H
       formationCursor = page.json().nextCursor;
     } while (formationCursor);
     assert.equal(formation.json().summary.totalCount,movieCount);
-    assert.equal(formation.json().summary.waitingCount,movieCount);
+    assert.equal(formation.json().summary.pendingCount,movieCount);
     assert.equal(formationItems.length,movieCount);
     assert.equal(new Set(formationItems.map((item)=>item.subjectId)).size,movieCount);
-    const invalidFormationItem=formationItems.find((item)=>item.classification!=='waiting'||item.primaryMaterialCount!==1);
+    const invalidFormationItem=formationItems.find((item)=>item.classification!=='pending'||item.primaryMaterialCount!==1);
     assert.equal(invalidFormationItem,undefined,JSON.stringify(invalidFormationItem));
     const deregistered=await host.inject({method:'POST',url:`/v1/admin/material-fields/${accessBasis.fieldId}/actions/deregister`,headers:{cookie},payload:{
       idempotencyKey:'procurement-only-deregister',fieldId:accessBasis.fieldId,expectedAccessRevision:1,expectedPolicyRevision:1}});

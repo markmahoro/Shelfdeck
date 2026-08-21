@@ -10,6 +10,19 @@ Last updated: 2026-08-21
 “可重建Canary / 可开始第二轮UAT”的干净检查点；在获得新的明确授权前，不重命名或复制`G:\canary_film`，
 不新建UAT data directory，不启动本地服务，也不执行第二轮真实Admin Web UAT。
 
+## 0. Implemented repair — UAT-005 / UAT-018 Formation current state and ended history
+
+Formation durable Projection现把每个当前Subject严格归入`pending | in_progress | attention_required | completed`
+四个互斥桶。`completed`只接受Arca公开Projection对On-deck Commit Receipt、Shelf Entry及对应active Deck Fact的
+完整证明；Package published或Handoff B Accepted不再提前显示完成。Frozen、Suspended、blocked、Product Identity
+确认及Executor技术失败统一进入用户可见“需要处理”；`in_progress`必须由当前开放可推进的Libra/Arca责任证明，
+历史Succeeded Work不能永久污染当前状态。
+
+Discarded Run继续作为immutable业务历史，通过有界History Query展示“已结束 · 用户放弃”；同一eligible Subject只以
+一个当前`pending`行回到待整理，不把旧Run重复计入顶部统计。Admin Web顶部与行级状态使用同一后端分类，增加“需要处理”
+统计和“当前状态”列。专项回归、完整Architecture Gate、P3 Persistence Gate及Admin Web production build均已通过；
+UAT-005/UAT-018仍保持OPEN，等待用户另行授权的新Canary真实验证。
+
 ## 0. Implemented repair — UAT-020 Final Inventory naming and Settlement
 
 Shelf Placement Policy的关闭合同现同时包含目录、Primary、NFO、Subtitle、Poster、Fanart命名规则与collision policy；

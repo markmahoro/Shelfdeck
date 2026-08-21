@@ -237,6 +237,10 @@ Preflight 结论：`[ ] PASS  [ ] FAILED  [ ] BLOCKED`
 - [ ] 缺 NFO 样本生成或取得满足要求的 NFO/Metadata。
 - [ ] Workspace 输入、产物与 Related Material 的来源和 settlement 均可追溯。
 - [ ] 每部电影只有一个有效的当前 Libra Run / Package 结果，不出现并行重复收藏。
+- [ ] 顶部“待整理、整理中、需要处理、已完成整理”四项与行级状态互斥且合计恰为当前22部媒体；分页不改变全量计数。
+- [ ] Package published及Handoff B Accepted仍显示“整理中”；只有Arca On-deck Commit、Shelf Entry和Deck Fact全部成立才显示“已完成整理”。
+- [ ] Frozen、Suspended、blocked、Product Identity确认及Executor技术失败均显示“需要处理”，不得同时计入“整理中”。
+- [ ] 用户放弃的旧Run只在历史显示“已结束 · 用户放弃”；仍eligible的当前媒体只回到“待整理”一次，不重复计数。
 - [ ] Handoff B 只有在包完整、自包含且验证通过后才 Accepted。
 - [ ] 失败、暂停、重试、空间不足或外部等待在页面中如实呈现，不静默 fallback。
 - [ ] Acceptance技术失败显示为“需要处理”，并展示失败阶段、稳定错误码、尝试次数、责任Owner和恢复代际；不得显示业务Rejected或已完成。

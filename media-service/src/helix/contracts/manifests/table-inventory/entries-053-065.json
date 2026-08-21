@@ -210,7 +210,7 @@
       "sourceLocator": {
         "section": "8.5.11",
         "line": 9349,
-        "lineDigest": "fd169b8df9e8ffe6eb8bf77e27280c4ff24ba4e3871f0283881f5f3212b6f4cb"
+        "lineDigest": "59d627e267e37c410cdb667103c6a94e9280f6dba44caee10046947cb8cdad80"
       },
       "targetLocator": {
         "path": "table-contracts/libra_formation_projections/v1/contract.json"
@@ -219,11 +219,11 @@
         "tableId": "libra_formation_projections",
         "owner": "libra",
         "contractRef": "helix://contracts/tables/libra_formation_projections/v1",
-        "contractDigest": "d2173a6a5c0025d904941b37cb73104944c219aa5de069fc5d3ff16fe9d67d6b"
+        "contractDigest": "e04b358254ef70392986791b018e085efeb48e17a037c08490fc6b7e1650af50"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "2d9549e2f213f869389a9829fc0845423df00fe659f99f77267d23a654f7f493"
+        "value": "4104ce0bd7234323e9925217504809a878247e091f2b78754fdd216568f84a4b"
       }
     },
     {

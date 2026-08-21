@@ -37,9 +37,21 @@ function extractProductIdentityIssue(works) {
   if (!result || result.result === 'resolved') return null;
   return Object.freeze({ result: result.result, reasonCode: result.reasonCode, candidateSetDigest: result.evidenceDigest, candidates: Object.freeze(result.candidates || []) });
 }
-function productionStarted(works) {
-  const kinds = new Set(['product_metadata_observation', 'product_fact_assembly', 'workspace_media_production', 'artifact_production', 'product_conformance', 'deliverable_promotion']);
-  return works.some((work) => kinds.has(work.workKind) && (work.state === 'succeeded' || work.events.some((event) => ['executing', 'succeeded'].includes(event.state))));
+function hasOpenExecution(works) {
+  return works.some((work) => !['succeeded', 'failed', 'cancelled'].includes(work.state));
+}
+function hasBlockingExecution(works) {
+  return works.some((work) => ['failed', 'blocked'].includes(work.state));
+}
+function classifyFormation({ run, works, issue, recovery, arcaStatus, productPackage }) {
+  if (arcaStatus?.stage === 'completed') return 'completed';
+  if ((run && ['frozen', 'suspended'].includes(run.state)) || issue ||
+      recovery?.recoveryState === 'attention_required' ||
+      arcaStatus?.stage === 'attention_required' || hasBlockingExecution(works)) {
+    return 'attention_required';
+  }
+  if (productPackage || arcaStatus?.stage === 'in_progress' || hasOpenExecution(works)) return 'in_progress';
+  return 'pending';
 }
 function extractAcquisitionSelection(works) {
   const selected = works.flatMap((work) => work.events)
@@ -52,13 +64,17 @@ function extractAcquisitionSelection(works) {
     selectionReasonCode: selected.selectionReasonCode,
   });
 }
-function nextAction(works, classification, issue, runState) {
+function nextAction(works, classification, issue, runState, recovery, arcaStatus, productPackage) {
+  if (classification === 'completed') return Object.freeze({ label: '已进入收藏架', state: 'completed', progress: null });
   if (runState === 'frozen') return Object.freeze({ label: '本次整理已冻结，需要放弃后重新采购', state: 'frozen', progress: null });
   if (runState === 'suspended') return Object.freeze({ label: '整理已暂停，等待恢复评估', state: 'suspended', progress: null });
-  if (classification === 'completed') return Object.freeze({ label: '等待收藏架接收', state: 'completed', progress: null });
+  if (recovery?.recoveryState === 'attention_required') return Object.freeze({ label: '接纳执行异常，需要处理', state: 'attention_required', progress: null });
+  if (arcaStatus?.stage === 'attention_required') return Object.freeze({ label: '收藏架接纳或上架需要处理', state: 'attention_required', progress: null });
   if (issue) return Object.freeze({ label: issue.result === 'ambiguous' ? '需要确认媒体身份' : issue.result === 'conflicting' ? '媒体身份信息冲突' : '暂未找到匹配的媒体身份', state: 'attention_required', progress: null });
+  if (hasBlockingExecution(works)) return Object.freeze({ label: '整理执行受阻，需要处理', state: 'blocked', progress: null });
   const open = works.filter((work) => !['succeeded', 'failed', 'cancelled'].includes(work.state)).sort((a, b) => a.createdAtMs - b.createdAtMs)[0];
-  if (!open) return Object.freeze({ label: classification === 'waiting' ? '正在确认目标、评分、要求或身份' : '准备下一项整理工作', state: 'pending', progress: null });
+  if (!open && productPackage) return Object.freeze({ label: arcaStatus ? '正在完成收藏架上架' : '等待收藏架验收', state: 'running', progress: null });
+  if (!open) return Object.freeze({ label: classification === 'pending' ? '正在确认目标、评分、要求或身份' : '准备下一项整理工作', state: 'pending', progress: null });
   const event = open.events.find((item) => ['executing', 'ready', 'waiting_resource', 'waiting_external'].includes(item.state)) || open.events[0];
   const acquisitionSelection = extractAcquisitionSelection(works);
   const labels = { product_identity: '确认媒体身份', product_metadata_observation: '补齐媒体资料', artifact_production: '生成或获取海报与 NFO', workspace_media_production: '处理视频文件', product_conformance: '验证整理结果', deliverable_promotion: '发布整理结果' };
@@ -123,6 +139,11 @@ function createFormationProjectionSource(options) {
     const value = readBatch(subjects), runIds = unique(value.runs.map((row) => row.libra_run_id));
     const progress = runIds.length ? chunks(runIds).flatMap((ids) => options.progressProjectionReader?.read(ids) || []) : [];
     const progressByRun = new Map(runIds.map((id) => [id, progress.filter((item) => item.processId === id)]));
+    const offerIds = unique(value.packages.map((row) => row.offer_id));
+    const arcaStatuses = new Map(offerIds.length ? chunks(offerIds, 100).flatMap((ids) =>
+      [...(options.readArcaFormationStatuses?.(ids) || new Map()).entries()]) : []);
+    const recoveries = new Map(offerIds.length ? chunks(offerIds, 100).flatMap((ids) =>
+      [...(options.readAcceptanceRecoveries?.(ids) || new Map()).entries()]) : []);
     const prepared = subjects.map((subject) => {
       const decisions = value.decisions.filter((item) => item.target_subject_id === subject.subject_id).sort((a, b) => Number(a.decided_at_ms) - Number(b.decided_at_ms));
       const anchor = decisions.find((item) => item.intake_decision_id === subject.routing_anchor_intake_decision_id) || decisions[0];
@@ -139,12 +160,17 @@ function createFormationProjectionSource(options) {
       const head = value.decisionHeads.find((item) => item.subject_id === subject.subject_id) || null;
       const spec = head?.current_acceptance_spec_id ? value.acceptanceSpecs.find((item) => item.acceptance_spec_id === head.current_acceptance_spec_id) : null;
       const runs = value.runs.filter((item) => item.subject_id === subject.subject_id).sort((a, b) => Number(b.created_at_ms) - Number(a.created_at_ms));
-      const run = runs.find((item) => ['active', 'suspended', 'frozen'].includes(item.state)) || runs[0] || null;
-      const pkg = run ? latest(value.packages.filter((item) => item.libra_run_id === run.libra_run_id), 'package_revision') : null;
-      const works = run ? progressByRun.get(run.libra_run_id) || [] : [], issue = extractProductIdentityIssue(works);
-      const classification = pkg && pkg.state === 'published' ? 'completed' : productionStarted(works) ? 'in_progress' : 'waiting';
+      const run = runs.find((item) => ['active', 'suspended', 'frozen'].includes(item.state)) || null;
+      const latestRun = runs[0] || null;
+      const packageRun = run || (latestRun?.state === 'completed' ? latestRun : null);
+      const pkg = packageRun ? latest(value.packages.filter((item) => item.libra_run_id === packageRun.libra_run_id), 'package_revision') : null;
+      const works = run ? progressByRun.get(run.libra_run_id) || [] : [];
+      const issue = extractProductIdentityIssue(works);
+      const recovery = pkg ? recoveries.get(pkg.offer_id) || null : null;
+      const arcaStatus = pkg ? arcaStatuses.get(pkg.offer_id) || null : null;
+      const classification = classifyFormation({ run, works, issue, recovery, arcaStatus, productPackage: pkg });
       const rating = ratings.get(subject.subject_id) || null;
-      return Object.freeze({ formationViewId: subject.subject_id, subjectId: subject.subject_id, displayIdentity, contentProfile: subject.content_profile, structureKind: subject.structure_kind, status: subject.status, classification, myRating: rating?.rating ?? null, myRatingSource: rating?.sourceKind || null, myRatingRevision: (rating?.expectedRevision || 0) > 0 ? rating.expectedRevision : null, productIdentityIssue: issue, targetShelfId: routing?.shelf_id || null, targetShelfName: shelfNames.get(routing?.shelf_id) || null, routingState: routing?.decision || 'preparing', unresolvedReasonCode: routing?.unresolved_reason_code || null, routingPolicyMode: policy?.mode || null, routingPolicyRevision: routing?.routing_policy_revision == null ? null : Number(routing.routing_policy_revision), routingDecisionRevision: routing ? Number(routing.decision_revision) : null, routingDecisionDigest: routing?.decision_digest || null, routingDecisionHeadRevision: head ? Number(head.head_revision) : null, routingDecisionHeadDigest: head?.head_digest || null, acceptanceSpecId: spec?.acceptance_spec_id || null, acceptanceSpecRevision: spec ? Number(spec.spec_revision) : null, acceptanceSpecDigest: spec?.spec_digest || null, acceptanceSpecPublishedAtMs: spec ? Number(spec.published_at_ms) : null, primaryMaterialCount: bindings.filter((item) => item.authority_kind === 'primary_control').length, addedAtMs: decisions.length ? Number(decisions.at(-1).decided_at_ms) : Number(subject.updated_at_ms), organizingRequirement: requirementLabel(spec), organizingAction: actionLabel(works), nextAction: nextAction(works, classification, issue, run?.state), currentRun: run ? Object.freeze({ libraRunId: run.libra_run_id, state: run.state, stateRevision: Number(run.state_revision), stateDigest: run.state_digest, priorityClass: run.priority_class, packageRevisionHead: Number(run.package_revision_head), currentIdentityRevision: subject.current_identity_revision === null ? null : Number(subject.current_identity_revision) }) : null, handoffB: pkg ? Object.freeze({ onDeckPackageId: pkg.on_deck_package_id, offerId: pkg.offer_id, packageRevision: Number(pkg.package_revision), packageDigest: pkg.package_digest, state: pkg.state, publishedAtMs: Number(pkg.published_at_ms) }) : null });
+      return Object.freeze({ formationViewId: subject.subject_id, subjectId: subject.subject_id, displayIdentity, contentProfile: subject.content_profile, structureKind: subject.structure_kind, status: subject.status, classification, myRating: rating?.rating ?? null, myRatingSource: rating?.sourceKind || null, myRatingRevision: (rating?.expectedRevision || 0) > 0 ? rating.expectedRevision : null, productIdentityIssue: issue, acceptanceRecovery: recovery, arcaStatus, targetShelfId: routing?.shelf_id || null, targetShelfName: shelfNames.get(routing?.shelf_id) || null, routingState: routing?.decision || 'preparing', unresolvedReasonCode: routing?.unresolved_reason_code || null, routingPolicyMode: policy?.mode || null, routingPolicyRevision: routing?.routing_policy_revision == null ? null : Number(routing.routing_policy_revision), routingDecisionRevision: routing ? Number(routing.decision_revision) : null, routingDecisionDigest: routing?.decision_digest || null, routingDecisionHeadRevision: head ? Number(head.head_revision) : null, routingDecisionHeadDigest: head?.head_digest || null, acceptanceSpecId: spec?.acceptance_spec_id || null, acceptanceSpecRevision: spec ? Number(spec.spec_revision) : null, acceptanceSpecDigest: spec?.spec_digest || null, acceptanceSpecPublishedAtMs: spec ? Number(spec.published_at_ms) : null, primaryMaterialCount: bindings.filter((item) => item.authority_kind === 'primary_control').length, addedAtMs: decisions.length ? Number(decisions.at(-1).decided_at_ms) : Number(subject.updated_at_ms), organizingRequirement: requirementLabel(spec), organizingAction: actionLabel(works), nextAction: nextAction(works, classification, issue, run?.state, recovery, arcaStatus, pkg), currentRun: run ? Object.freeze({ libraRunId: run.libra_run_id, state: run.state, stateRevision: Number(run.state_revision), stateDigest: run.state_digest, priorityClass: run.priority_class, packageRevisionHead: Number(run.package_revision_head), currentIdentityRevision: subject.current_identity_revision === null ? null : Number(subject.current_identity_revision) }) : null, handoffB: pkg ? Object.freeze({ onDeckPackageId: pkg.on_deck_package_id, offerId: pkg.offer_id, packageRevision: Number(pkg.package_revision), packageDigest: pkg.package_digest, state: pkg.state, publishedAtMs: Number(pkg.published_at_ms) }) : null, completedAtMs: arcaStatus?.stage === 'completed' ? arcaStatus.completedAtMs : null });
     });
   }
   function scan(visitor) {
@@ -166,6 +192,10 @@ function createFormationProjectionSource(options) {
 }
 
 function attentionFor(item) {
+  if (item.classification === 'attention_required') {
+    if (['frozen', 'suspended', 'blocked'].includes(item.nextAction?.state)) return item.nextAction.state;
+    return 'attention_required';
+  }
   if (item.currentRun?.state === 'frozen') return 'frozen';
   if (item.currentRun?.state === 'suspended') return 'suspended';
   if (item.productIdentityIssue) return 'attention_required';
@@ -177,7 +207,7 @@ function buildFormationProjectionRow(item, nowMs) {
   const attentionState = attentionFor(item), progress = item.nextAction?.progress || null;
   const identityJson = item.productIdentityIssue ? canonicalJson(item.productIdentityIssue) : null;
   const identityDigest = item.productIdentityIssue ? canonicalDigest(item.productIdentityIssue) : null;
-  const attentionPriority = attentionState !== 'none' ? 0 : item.classification === 'in_progress' ? 1 : item.classification === 'waiting' ? 2 : 3;
+  const attentionPriority = item.classification === 'attention_required' ? 0 : item.classification === 'in_progress' ? 1 : item.classification === 'pending' ? 2 : 3;
   const basis = {
     subjectId: item.subjectId, displayIdentity: item.displayIdentity, contentProfile: item.contentProfile,
     structureKind: item.structureKind, subjectStatus: item.status, classification: item.classification,
@@ -187,7 +217,8 @@ function buildFormationProjectionRow(item, nowMs) {
     primaryMaterialCount: item.primaryMaterialCount, requirement: item.organizingRequirement, action: item.organizingAction,
     addedAtMs: item.addedAtMs, nextAction: item.nextAction, identityIssueDigest: identityDigest,
     acceptanceSpec: [item.acceptanceSpecId, item.acceptanceSpecRevision, item.acceptanceSpecDigest],
-    run: item.currentRun, package: item.handoffB
+    run: item.currentRun, package: item.handoffB, acceptanceRecovery:item.acceptanceRecovery,
+    arcaStatus:item.arcaStatus, completedAtMs:item.completedAtMs,
   };
   const row = {
     subject_id: item.subjectId, projection_revision: 1, classification: item.classification,
@@ -213,7 +244,7 @@ function buildFormationProjectionRow(item, nowMs) {
     current_libra_run_state_digest: item.currentRun?.stateDigest || null, current_priority_class: item.currentRun?.priorityClass || null,
     current_identity_revision: item.currentRun?.currentIdentityRevision ?? null, current_package_id: item.handoffB?.onDeckPackageId || null,
     current_package_revision: item.handoffB?.packageRevision ?? null, current_package_digest: item.handoffB?.packageDigest || null,
-    current_offer_id: item.handoffB?.offerId || null, completed_at_ms: item.classification === 'completed' ? item.handoffB?.publishedAtMs || nowMs : null,
+    current_offer_id: item.handoffB?.offerId || null, completed_at_ms: item.classification === 'completed' ? item.completedAtMs : null,
     basis_digest: canonicalDigest(basis), projection_digest: '', updated_at_ms: nowMs
   };
   row.projection_digest = canonicalDigest(Object.fromEntries(Object.entries(row).filter(([key]) => !['projection_revision','projection_digest'].includes(key))));
@@ -258,6 +289,7 @@ function projectionItem(row) {
       currentIdentityRevision: row.current_identity_revision === null ? null : Number(row.current_identity_revision) }) : null,
     handoffB: row.current_package_id ? Object.freeze({ onDeckPackageId: row.current_package_id, offerId: row.current_offer_id,
       packageRevision: Number(row.current_package_revision), packageDigest: row.current_package_digest, state: 'published' }) : null,
+    completedAtMs: row.completed_at_ms === null ? null : Number(row.completed_at_ms),
     projectionRevision: Number(row.projection_revision), projectionDigest: row.projection_digest, projectionUpdatedAtMs: Number(row.updated_at_ms)
   });
 }
@@ -268,34 +300,51 @@ function createFormationQuery(options) {
   function technicalIssue(item) {
     const value = item.handoffB?.offerId ? options.readAcceptanceRecovery?.(item.handoffB.offerId) : null;
     if (!value || value.recoveryState !== 'attention_required') return Object.freeze({ ...item, executorIssue:null });
-    return Object.freeze({ ...item, classification:'in_progress',
+    return Object.freeze({ ...item, classification:'attention_required',
       nextAction:Object.freeze({ label:'需要处理', state:'attention_required', progress:null }),
       executorIssue:Object.freeze({ phase:value.failurePhase, errorCode:value.errorCode,
         attemptCount:value.terminalAttemptCount, owner:value.ownerDomain,
         recoveryState:value.recoveryState, recoveryGeneration:value.recoveryGeneration,
         automaticRecoveryUsed:value.automaticRecoveryUsed, canRetry:true, offerId:value.offerId }) });
   }
-  function summary() {
-    const result = { totalCount: 0, waitingCount: 0, inProgressCount: 0, completedCount: 0 };
+  function summary(attentionRows = []) {
+    const result = { totalCount: 0, pendingCount: 0, inProgressCount: 0, attentionRequiredCount: 0, completedCount: 0 };
     for (const row of options.store.counts()) {
       const count = Number(row.row_count); result.totalCount += count;
-      if (row.group_value === 'waiting') result.waitingCount = count;
+      if (row.group_value === 'pending') result.pendingCount = count;
       else if (row.group_value === 'in_progress') result.inProgressCount = count;
+      else if (row.group_value === 'attention_required') result.attentionRequiredCount = count;
       else if (row.group_value === 'completed') result.completedCount = count;
+    }
+    for (const row of attentionRows) {
+      if (row.classification === 'attention_required') continue;
+      if (row.classification === 'pending') result.pendingCount -= 1;
+      else if (row.classification === 'in_progress') result.inProgressCount -= 1;
+      else if (row.classification === 'completed') result.completedCount -= 1;
+      result.attentionRequiredCount += 1;
     }
     return Object.freeze(result);
   }
   function list(query = {}) {
-    const section = query.section === 'completed' ? 'completed' : 'active', offset = parseCursor(query.cursor);
+    const section = ['completed', 'ended'].includes(query.section) ? query.section : 'active', offset = parseCursor(query.cursor);
     const limit = Math.min(section === 'active' ? 25 : 100, Math.max(1, Number(query.limit) || 25));
+    const state = options.state?.() || Object.freeze({ status: 'ready', asOfMs: now() });
+    if (section === 'ended') {
+      const history = options.historyStore?.listDiscarded(offset, limit + 1) || [];
+      const hasMore = history.length > limit, selected = hasMore ? history.slice(0, limit) : history;
+      return Object.freeze({ items:Object.freeze(selected.map((item) => {
+        const subject = options.store.find(item.subjectId);
+        return Object.freeze({ ...item, displayIdentity:subject?.display_identity || item.subjectId });
+      })), summary:summary(), nextCursor:hasMore ? cursorFor(offset + limit) : null,
+      projection:Object.freeze({ status:state.status, asOfMs:state.asOfMs }) });
+    }
     let rows = section === 'completed' ? options.store.listCompleted(offset, limit + 1) : options.store.listActive(offset, limit + 1);
     const attention = (options.listAcceptanceAttention?.(100) || []).map((item)=>options.store.findByOffer?.(item.offerId)).filter(Boolean);
     const attentionOffers = new Set(attention.map((item)=>item.current_offer_id));
     if (section === 'completed') rows = rows.filter((item)=>!attentionOffers.has(item.current_offer_id));
     else if (offset === 0) rows = [...attention, ...rows.filter((item)=>!attentionOffers.has(item.current_offer_id))];
     const hasMore = rows.length > limit, selected = hasMore ? rows.slice(0, limit) : rows;
-    const state = options.state?.() || Object.freeze({ status: 'ready', asOfMs: now() });
-    return Object.freeze({ items: Object.freeze(selected.map(projectionItem).map(technicalIssue)), summary: summary(),
+    return Object.freeze({ items: Object.freeze(selected.map(projectionItem).map(technicalIssue)), summary: summary(attention),
       nextCursor: hasMore ? cursorFor(offset + limit) : null, projection: Object.freeze({ status: state.status, asOfMs: state.asOfMs }) });
   }
   function get(subjectId) {
@@ -308,9 +357,12 @@ function createFormationQuery(options) {
 
 module.exports = Object.freeze({
   buildFormationProjectionRow,
+  classifyFormation,
   createFormationProjectionSource,
   createFormationQuery,
   extractAcquisitionSelection,
   extractProductIdentityIssue,
+  hasBlockingExecution,
+  hasOpenExecution,
   projectionItem,
 });

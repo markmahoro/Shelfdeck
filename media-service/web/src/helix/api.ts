@@ -158,7 +158,7 @@ export type FormationSubject = {
   contentProfile: string;
   structureKind: string;
   status: string;
-  classification: 'waiting' | 'in_progress' | 'completed';
+  classification: 'pending' | 'in_progress' | 'attention_required' | 'completed';
   myRating: number | null;
   myRatingSource: string | null;
   myRatingRevision: number | null;
@@ -187,7 +187,11 @@ export type FormationSubject = {
   productionStage: 'awaiting_libra_run' | 'production' | 'suspended' | 'frozen' | 'handoff_b_ready' | null;
   currentRun: { libraRunId:string; state:string; stateRevision:number; stateDigest:string; priorityClass:'normal'|'expedited'; packageRevisionHead:number; currentIdentityRevision:number|null } | null;
   handoffB: { onDeckPackageId:string; offerId:string; packageRevision:number; packageDigest:string; state:string } | null;
+  completedAtMs: number | null;
 };
+
+export type FormationRunHistory = { historyId:string; libraRunId:string; subjectId:string; displayIdentity:string;
+  outcome:'user_abandoned'; label:'已结束 · 用户放弃'; endedAtMs:number; stateRevision:number; stateDigest:string; evidenceDigest:string };
 
 export type PerceptionRecord = {
   perceptionId: string;
@@ -290,8 +294,9 @@ export type PeopleProjection = {
 
 export type FormationSummary = {
   totalCount: number;
-  waitingCount: number;
+  pendingCount: number;
   inProgressCount: number;
+  attentionRequiredCount: number;
   completedCount: number;
 };
 
@@ -370,6 +375,10 @@ export const helixAdminApi = {
   listFormation(section:'active'|'completed'='active', cursor?:string) {
     const query=new URLSearchParams({section,limit:'25'});if(cursor)query.set('cursor',cursor);
     return request<{ items: FormationSubject[]; summary: FormationSummary; nextCursor:string|null; projection:{status:'ready'|'rebuilding'|'stale';asOfMs:number} }>(`/v1/admin/formation?${query}`);
+  },
+  listFormationHistory(cursor?:string) {
+    const query=new URLSearchParams({section:'ended',limit:'25'});if(cursor)query.set('cursor',cursor);
+    return request<{ items: FormationRunHistory[]; summary: FormationSummary; nextCursor:string|null; projection:{status:'ready'|'rebuilding'|'stale';asOfMs:number} }>(`/v1/admin/formation?${query}`);
   },
   listCollection() {
     return request<{ items: CollectionEntry[] }>('/v1/admin/collection');

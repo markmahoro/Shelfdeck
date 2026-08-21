@@ -32,8 +32,9 @@
         "name": "classification",
         "logicalType": "TEXT",
         "enumValues": [
-          "waiting",
+          "pending",
           "in_progress",
+          "attention_required",
           "completed"
         ],
         "primaryKeyPart": false,
@@ -633,8 +634,9 @@
       {
         "column": "classification",
         "enumValues": [
-          "waiting",
+          "pending",
           "in_progress",
+          "attention_required",
           "completed"
         ]
       },
@@ -732,7 +734,9 @@
     ],
     "immutability": {
       "immutable": false,
-      "rules": []
+      "rules": [
+        "Discarded Run只进入immutable历史且当前eligible Subject回到`pending`，不得重复计数"
+      ]
     },
     "deletion": {
       "foreignKeyPolicy": "ON DELETE RESTRICT",
@@ -741,6 +745,10 @@
     "semanticRules": [
       "current technical Read Projection",
       "每个Subject恰好至多一行且可由Libra正式事实、User Perception/Arca公开Projection及Foundation Progress Projection重建",
+      "四类current状态互斥，`completed`必须由Arca公开Projection逐项证明On-deck Commit Receipt、Shelf Entry与对应active Deck Fact均成立，Product Package published或Handoff B Accepted单独都不构成完成",
+      "`attention_required`优先覆盖technical failure、blocked、suspended、frozen及需要用户确认的合法状态",
+      "`in_progress`必须有当前开放可推进的Libra/Arca执行责任",
+      "Discarded Run只进入immutable历史且当前eligible Subject回到`pending`，不得重复计数",
       "`projection_revision>=1`且相同`basis_digest`必须no-op，不递增revision、不执行UPDATE",
       "nullable rating、identity issue、Spec、Run、Package/Offer及progress字段各自按closed bundle同时成立",
       "`identity_issue_json`为JCS且≤`16 KiB`并由digest保护",
@@ -749,13 +757,13 @@
       "本表不授权任何命令，损坏或缺失时必须重建，不能回填或改写Owner业务事实"
     ],
     "rawContract": {
-      "columns": "`subject_id PK FK, projection_revision, classification(waiting|in_progress|completed), attention_state(none|attention_required|blocked|suspended|frozen), attention_priority, display_identity, content_profile, structure_kind, subject_status, my_rating NULL, my_rating_source NULL, my_rating_revision NULL, target_shelf_id NULL, target_shelf_name NULL, routing_state, unresolved_reason_code NULL, routing_policy_mode NULL, routing_policy_revision NULL, routing_decision_revision NULL, routing_decision_digest NULL, routing_decision_head_revision NULL, routing_decision_head_digest NULL, primary_material_count, organizing_requirement, organizing_action, added_at_ms, next_action_label, next_action_state, progress_mode NULL, progress_current_value NULL, progress_total_value NULL, progress_unit NULL, progress_rate NULL, progress_eta_ms NULL, progress_bucket NULL, identity_issue_schema_ref NULL, identity_issue_json NULL, identity_issue_digest NULL, current_acceptance_spec_id NULL, current_acceptance_spec_revision NULL, current_acceptance_spec_digest NULL, current_libra_run_id NULL, current_libra_run_state NULL, current_libra_run_state_revision NULL, current_libra_run_state_digest NULL, current_priority_class NULL, current_identity_revision NULL, current_package_id NULL, current_package_revision NULL, current_package_digest NULL, current_offer_id NULL, completed_at_ms NULL, basis_digest, projection_digest, updated_at_ms`",
-      "constraints": "current technical Read Projection；每个Subject恰好至多一行且可由Libra正式事实、User Perception/Arca公开Projection及Foundation Progress Projection重建；`projection_revision>=1`且相同`basis_digest`必须no-op，不递增revision、不执行UPDATE；nullable rating、identity issue、Spec、Run、Package/Offer及progress字段各自按closed bundle同时成立；`identity_issue_json`为JCS且≤`16 KiB`并由digest保护；`projection_digest=SHA-256(JCS(完整用户行 excluding projectionDigest))`；`INDEX(attention_priority,classification,updated_at_ms,subject_id)`供active排序，`INDEX(classification,completed_at_ms,subject_id)`供completed cursor，`INDEX(classification,subject_id)`供统计；本表不授权任何命令，损坏或缺失时必须重建，不能回填或改写Owner业务事实"
+      "columns": "`subject_id PK FK, projection_revision, classification(pending|in_progress|attention_required|completed), attention_state(none|attention_required|blocked|suspended|frozen), attention_priority, display_identity, content_profile, structure_kind, subject_status, my_rating NULL, my_rating_source NULL, my_rating_revision NULL, target_shelf_id NULL, target_shelf_name NULL, routing_state, unresolved_reason_code NULL, routing_policy_mode NULL, routing_policy_revision NULL, routing_decision_revision NULL, routing_decision_digest NULL, routing_decision_head_revision NULL, routing_decision_head_digest NULL, primary_material_count, organizing_requirement, organizing_action, added_at_ms, next_action_label, next_action_state, progress_mode NULL, progress_current_value NULL, progress_total_value NULL, progress_unit NULL, progress_rate NULL, progress_eta_ms NULL, progress_bucket NULL, identity_issue_schema_ref NULL, identity_issue_json NULL, identity_issue_digest NULL, current_acceptance_spec_id NULL, current_acceptance_spec_revision NULL, current_acceptance_spec_digest NULL, current_libra_run_id NULL, current_libra_run_state NULL, current_libra_run_state_revision NULL, current_libra_run_state_digest NULL, current_priority_class NULL, current_identity_revision NULL, current_package_id NULL, current_package_revision NULL, current_package_digest NULL, current_offer_id NULL, completed_at_ms NULL, basis_digest, projection_digest, updated_at_ms`",
+      "constraints": "current technical Read Projection；每个Subject恰好至多一行且可由Libra正式事实、User Perception/Arca公开Projection及Foundation Progress Projection重建；四类current状态互斥，`completed`必须由Arca公开Projection逐项证明On-deck Commit Receipt、Shelf Entry与对应active Deck Fact均成立，Product Package published或Handoff B Accepted单独都不构成完成；`attention_required`优先覆盖technical failure、blocked、suspended、frozen及需要用户确认的合法状态；`in_progress`必须有当前开放可推进的Libra/Arca执行责任；Discarded Run只进入immutable历史且当前eligible Subject回到`pending`，不得重复计数；`projection_revision>=1`且相同`basis_digest`必须no-op，不递增revision、不执行UPDATE；nullable rating、identity issue、Spec、Run、Package/Offer及progress字段各自按closed bundle同时成立；`identity_issue_json`为JCS且≤`16 KiB`并由digest保护；`projection_digest=SHA-256(JCS(完整用户行 excluding projectionDigest))`；`INDEX(attention_priority,classification,updated_at_ms,subject_id)`供active排序，`INDEX(classification,completed_at_ms,subject_id)`供completed cursor，`INDEX(classification,subject_id)`供统计；本表不授权任何命令，损坏或缺失时必须重建，不能回填或改写Owner业务事实"
     },
     "source": {
       "section": "8.5.11",
       "line": 9349,
-      "lineDigest": "fd169b8df9e8ffe6eb8bf77e27280c4ff24ba4e3871f0283881f5f3212b6f4cb"
+      "lineDigest": "59d627e267e37c410cdb667103c6a94e9280f6dba44caee10046947cb8cdad80"
     },
     "foreignKeys": [
       {

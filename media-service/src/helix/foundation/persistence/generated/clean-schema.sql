@@ -1417,7 +1417,7 @@ CREATE TABLE "libra_field_routing_heads" (
 CREATE TABLE "libra_formation_projections" (
   "subject_id" TEXT PRIMARY KEY,
   "projection_revision" INTEGER CHECK ("projection_revision" >= 1),
-  "classification" TEXT CHECK ("classification" IN ('waiting', 'in_progress', 'completed')),
+  "classification" TEXT CHECK ("classification" IN ('pending', 'in_progress', 'attention_required', 'completed')),
   "attention_state" TEXT CHECK ("attention_state" IN ('none', 'attention_required', 'blocked', 'suspended', 'frozen')),
   "attention_priority" INTEGER,
   "display_identity" TEXT,
