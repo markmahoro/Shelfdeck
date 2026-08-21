@@ -4,6 +4,13 @@ Status: Movie Procurement与Movie Libra封口保持有效；Movie Arca已完成H
 
 Last updated: 2026-08-21
 
+## 0. UAT repair status — UAT-004 bounded I/O qualified
+
+实际文件读取预算回归证明MKV、ISO、BDMV主M2TS及转码输出均只读取中段262,144 bytes形成Workspace媒体Identity，
+与逻辑文件大小无关。Libra Workspace Reference的primary media verification现在强制Handle算法为
+`middle-256k-sha256`且digest等于Physical Material fingerprint；完整SHA-256只保留给小型Artifact。
+专项合同、Workspace与Admin Web build通过；第二轮Canary继续以页面时延和真实输出验证用户侧结果。
+
 ## 0. UAT repair status — UAT-002 restart-safe qualification implemented
 
 现有Intake批量Admission、每轮32项上限、16项Handoff Acceptance预留容量和无全局串行门闩均保留。

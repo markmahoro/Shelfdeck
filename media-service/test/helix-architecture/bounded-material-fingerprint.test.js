@@ -3,12 +3,14 @@
 const assert = require('node:assert/strict');
 const crypto = require('node:crypto');
 const fs = require('node:fs');
+const os = require('node:os');
 const path = require('node:path');
 const test = require('node:test');
 
 const {
   FINGERPRINT_SAMPLE_BYTES,
   computeBoundedMaterialFingerprint,
+  computeBoundedMaterialFingerprintSync,
 } = require('../../src/helix/integrations/bounded-material-fingerprint');
 
 function stat(size, overrides = {}) {
@@ -99,6 +101,34 @@ test('N files never request more than N times 256 KiB', async () => {
   }
   assert.ok(total<=sizes.length*FINGERPRINT_SAMPLE_BYTES);
   assert.equal(reported,total);
+});
+
+test('actual large MKV, ISO, BDMV stream, and transcode output stay within the read-byte budget', () => {
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'helix-large-media-budget-'));
+  const locations=[
+    path.join(root,'Movie.mkv'),
+    path.join(root,'Movie.iso'),
+    path.join(root,'BDMV','STREAM','00000.m2ts'),
+    path.join(root,'transcode-output.mkv'),
+  ];
+  try {
+    let totalBytesRead=0;
+    for(const [index,location] of locations.entries()){
+      fs.mkdirSync(path.dirname(location),{recursive:true});
+      const descriptor=fs.openSync(location,'w');
+      try {
+        const logicalSize=64*1024*1024+index+1;
+        fs.writeSync(descriptor,Buffer.from([index+1]),0,1,logicalSize-1);
+      } finally {fs.closeSync(descriptor);}
+      const reads=[];
+      const result=computeBoundedMaterialFingerprintSync(location,{onRead:(read)=>reads.push(read)});
+      assert.equal(result.bytesSampled,FINGERPRINT_SAMPLE_BYTES);
+      assert.equal(reads.reduce((sum,read)=>sum+read.bytesRead,0),FINGERPRINT_SAMPLE_BYTES);
+      assert.ok(reads.every((read)=>read.requestedBytes<=FINGERPRINT_SAMPLE_BYTES));
+      totalBytesRead+=reads.reduce((sum,read)=>sum+read.bytesRead,0);
+    }
+    assert.equal(totalBytesRead,locations.length*FINGERPRINT_SAMPLE_BYTES);
+  } finally {fs.rmSync(root,{recursive:true,force:true,maxRetries:5,retryDelay:50});}
 });
 
 test('symlink, short read, disappearance, and permission errors fail with stable codes', async () => {

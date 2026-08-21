@@ -110,7 +110,9 @@ function validateArtifactHandle(value, handle, libraRunId, materialRole) {
 
 function validateMediaVerification(value, handle, libraRunId) {
   const verification = value.verificationValue;
-  if (value.materialRole !== 'primary_payload' || value.schemaRef !== 'ProductMediaVerification@1' || !verification ||
+  if (handle.digestAlgorithm !== 'middle-256k-sha256' ||
+      handle.digestHex !== handle.physicalIdentity.contentFingerprint ||
+      value.materialRole !== 'primary_payload' || value.schemaRef !== 'ProductMediaVerification@1' || !verification ||
       verification.schemaRef !== 'helix://contracts/types/ProductMediaVerification/v1' || verification.schemaVersion !== 1 ||
       verification.verificationKind !== 'libra_product_media' || verification.result !== 'passed' ||
       verification.candidateKind !== 'workspace_output' || verification.libraRunId !== libraRunId ||

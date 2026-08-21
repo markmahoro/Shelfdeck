@@ -4,6 +4,12 @@ Status: Movie Procurement保持`CLOSED FOR MOVIE`；Movie Libra保持`MOVIE LIBR
 
 Last updated: 2026-08-21
 
+## 0. Qualified repair — UAT-004 bounded media I/O
+
+Workspace大型媒体继续固定使用`middle-256k-sha256`，生成后额外读取上限为每个文件262,144 bytes；新增真实稀疏大文件
+预算断言覆盖MKV、ISO、BDMV M2TS及`transcode-*`产物。下游Workspace Reference的primary media验证现拒绝旧式完整
+SHA-256 Handle，防止完整文件digest由consumer重新引入；NFO、Artwork等小型Artifact仍使用完整SHA-256。
+
 ## 0. Qualified repair — UAT-002 Intake throughput
 
 Intake继续使用每个Candidate独立的concurrency scope、256个open Work硬上限、16个Handoff Acceptance预留槽，

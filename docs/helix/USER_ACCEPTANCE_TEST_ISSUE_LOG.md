@@ -69,7 +69,7 @@ Helix主体开发已经完成，Movie从Procurement、Libra到Arca及Shelf Dereg
 | UAT-001 | 豆瓣评分与Libra Subject匹配率明显偏低 | `BUSINESS_CONTRACT` | `PROJECTION_FRESHNESS`、`EXTERNAL_INTEGRATION` | User Perception + Libra Identity输入 | 正确性、时效性 | High | 已诊断，待统一复盘修复 |
 | UAT-002 | Handoff A Intake接收Subject吞吐异常偏低 | `DOMAIN_ORCHESTRATION` | `EXECUTION_SCHEDULING`、`PERFORMANCE` | Libra Intake + Foundation Work Supply接线 | 吞吐、活性 | High | 已修复并通过400 Candidate重启资格回归，待新Canary确认 |
 | UAT-003 | Libra Run在Product Identity阶段大量等待 | `BUSINESS_CONTRACT` | `EXTERNAL_INTEGRATION`、`DOMAIN_ORCHESTRATION` | Libra Product Identity + TMDB Evidence | 正确性、活性 | Critical | 已诊断，1条继续推进，其余等待统一复盘修复 |
-| UAT-004 | 大型Workspace媒体完整SHA-256导致无必要的全文件读取 | `BUSINESS_CONTRACT` | `PERFORMANCE`、`USER_EXPERIENCE` | Libra Workspace Material + Handoff B/Arca Inventory媒体完整性合同 | I/O、CPU、交付延迟 | High | 已诊断并确认方向，待SSOT统一修订 |
+| UAT-004 | 大型Workspace媒体完整SHA-256导致无必要的全文件读取 | `BUSINESS_CONTRACT` | `PERFORMANCE`、`USER_EXPERIENCE` | Libra Workspace Material + Handoff B/Arca Inventory媒体完整性合同 | I/O、CPU、交付延迟 | High | 已修复并通过实际读取预算资格回归，待新Canary确认 |
 | UAT-005 | Libra Admin Web使用内部对象语言且不能直观表达媒体整理过程 | `USER_EXPERIENCE` | `PROJECTION_FRESHNESS` | Admin Web Formation Projection + Libra公开状态翻译 | 可理解性、可观察性 | High | 已讨论并确认页面重构方向 |
 | UAT-006 | clean库概览仍展示固定演示数字并绕过管理会话 | `USER_EXPERIENCE` | `PROJECTION_FRESHNESS` | Overview Query Projection + Admin Web | 正确性、可信度、安全会话 | Critical | 已修复并完成真实页面复测 |
 | UAT-007 | clean库人物页展示固定人数且无正式Query接线 | `USER_EXPERIENCE` | `PROJECTION_FRESHNESS` | People Admin Query + Admin Web | 正确性、可信度、安全会话 | Critical | 已修复并完成真实页面首次打开复测 |
@@ -657,10 +657,11 @@ Package、Receipt、Canonical JSON等结构化事实的SHA-256与媒体字节Ide
 
 ### 6.7 当前处理决定
 
-- 问题及用户确认的方向已记录；
-- 当前运行中的Workspace文件、Event和数据库保持原样，不直接改库或中止服务；
-- 本轮用户侧测试期间暂不修改SSOT和产品代码；
-- 待集中复盘时作为正式Design Return处理，并与Handoff B/Arca媒体合同一起回归。
+- Workspace媒体写入完成后固定使用中段最多256 KiB指纹，不执行完整文件SHA-256；
+- 新增实际稀疏大文件读取预算断言，覆盖MKV、ISO、BDMV M2TS和转码输出，逐文件恰为262,144 bytes；
+- Workspace Reference的primary media验证拒绝`digestAlgorithm=sha256`，完整digest不能被下游重新要求；
+- NFO、Artwork、typed facts等小型Artifact/结构化内容继续使用完整SHA-256，不扩大优化边界；
+- 真实Canary仍需确认大型媒体完成时延、Handoff B和Arca输出均不再复现长时间摘要阶段。
 
 ## 7. UAT-005：Libra Admin Web媒体整理工作区信息架构
 
