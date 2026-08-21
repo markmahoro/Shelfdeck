@@ -921,7 +921,45 @@ Package、Receipt、Canonical JSON等结构化事实的SHA-256与媒体字节Ide
 
 当前处理决定：仅记录问题，暂不修改代码、Integration配置或既有不可变Observation/Run事实。重新请求仅为只读诊断，没有写入业务状态。
 
-## 14. 后续问题模板
+## 14. UAT-017：外部寻源未按 Acceptance Spec 预筛候选，下载后才发现产品不可达
+
+问题分类：`BUSINESS_CONTRACT / EXTERNAL_ACQUISITION / ACCEPTANCE_PREFLIGHT`
+
+用户侧现象：`一场很（没）有必要的春晚 (2022)`经MoviePilot寻源、下载、稳定性观察、身份验证、包验证和导入后，直到最终`ProductMediaVerification`才发现候选为H.264、低于4K且主音轨不满足要求；5星Acceptance Spec要求HEVC、4K和合格主音轨，因此最终没有passed候选，Libra Run以`product_unachievable / no_passed_candidate`冻结。用户质疑为何寻源阶段不能先判断种子是否明显不符合要求。
+
+现场证据：
+
+- 本次MoviePilot Search只返回并选择了一个候选，选择结果为`selected_by_provider_rank`；
+- `AcquisitionQuery@1`只包含身份、结构、Episode Scope、查询词和`hardConstraints{requiredStructureKind,requiredEpisodeKeys}`，没有携带当前Acceptance Spec派生的`MediaRequirement`；
+- `ProviderAcquisitionCandidateSnapshot`只公开Provider Rank、Availability、Identity Anchor、Structure和Episode Key，未公开候选声称的分辨率、视频编码、主音轨、大小及其Evidence；
+- MoviePilot Adapter原始结果包含`torrent_info`等发布信息，但当前合同只通过opaque `providerCandidateRef`保留Provider定位，Libra无法在下载前按正式Requirement评估这些声明；
+- 当前`SelectionCriteria@1`固定为`available_provider_rank_then_candidate_id`，明确只按Availability、Provider Rank和Candidate ID选择，因而不能把Acceptance Spec符合性用于候选Eligibility。
+
+初步诊断：当前实现符合既有SSOT，但既有External Material Acquisition合同缺少“下载前广告声明预检”。产品要求已由Acceptance Spec明确给出，却没有进入Acquisition Query、Candidate Snapshot和Candidate Selection，所以系统只能在下载并探测真实字节后首次判断媒体规格。这是已确认合同层缺口，不能通过Adapter私自过滤、解析字符串后静默排序或Executor读取current Spec来绕过。
+
+业务影响：明显不满足用户要求的种子仍会消耗下载时间、带宽和临时空间；失败发生在昂贵外部副作用之后，并可能直接冻结Run。若首个候选的发布声明不合格而后续候选合格，当前固定首选规则也不会在下载前跳过不合格候选。
+
+拟定修复边界：
+
+- 保留下载后对真实媒体字节的FFprobe最终验证；发布信息只是预筛Evidence，不能替代最终验证；
+- 由Acceptance Spec派生的immutable `MediaRequirement`或其完整有界投影进入`AcquisitionQuery`，并由digest绑定本次寻源；
+- `ProviderAcquisitionCandidateSnapshot`增加typed、bounded的广告媒体声明及Evidence，包括可获得的分辨率、Codec、音轨、大小和“未知”状态，禁止opaque自由文本直接成为业务判定；
+- 在候选选择前形成Requirement Eligibility：声明明确不合格的候选不发起下载，声明缺失或不可靠时采用明确、用户可理解的保守策略；
+- 若候选声明合格但下载后实物验证失败，按有界尝试策略继续下一个eligible候选；全部候选不合格或尝试耗尽后再形成可解释的业务不可达结果；
+- Admin Web区分“寻源阶段无符合要求候选”“发布信息不足”“下载后实物与声明不符”，并展示下一步用户动作；
+- 具体合同、Unknown策略、尝试上限和恢复语义必须先回到Design更新唯一SSOT及机器合同，再进入实现与真实浏览器UAT。
+
+预期验收：
+
+- 使用同等Canary样本时，明显声称H.264、低于4K或音轨不满足5星要求的候选不会触发下载；
+- 存在多个候选时，只从预筛eligible集合发起下载，首个实物验证失败后能在有界范围内尝试下一候选；
+- 发布信息未知时行为与页面解释符合确认后的SSOT策略，不把未知伪装为通过；
+- 下载完成后仍以真实Probe Evidence完成最终验证，错误发布信息不能使不合格媒体进入Shelf；
+- 通过真实Admin Web观察寻源、预筛、下载、复验、失败解释和恢复动作，脚本测试仅作为修复回归证据。
+
+当前处理决定：用户明确要求修复并先记录。问题保持OPEN；本次只登记架构缺口和预期结果，不修改当前SSOT、代码、MoviePilot配置、不可变Run事实或Canary文件。后续修复必须先取得返回Design并修改SSOT合同的明确授权，完成并验证后单独git commit。
+
+## 15. 后续问题模板
 
 后续发现的问题按以下结构追加：
 
