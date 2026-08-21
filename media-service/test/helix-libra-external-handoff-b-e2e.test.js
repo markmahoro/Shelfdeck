@@ -260,13 +260,13 @@ test('5-star 4K gap rejects the first real download, tries the next candidate, a
       idempotencyKey:'external-overlap-shelf-create', shelfId:'external-overlap-shelf',
       name:'invalid overlapping shelf', targetRootLocation:downloads,
       ruleTemplateId:'system-beta-recommended', expectedTemplateRevision:1,
-      placementPolicy:{ folderTemplate:'{title} ({year})', collisionPolicy:'reject' },
+      placementPolicy:{ folderTemplate:'{title} ({year})', primaryTemplate:'{stem}{ext}', nfoTemplate:'{stem}.nfo', subtitleTemplate:'{stem}{language}{forced}{sdh}{ext}', posterTemplate:'poster{ext}', fanartTemplate:'fanart{ext}', collisionPolicy:'reject' },
     } });
     assert.notEqual(result.statusCode, 201, result.body);
     result = await host.inject({ method:'POST', url:'/v1/admin/shelves', headers, payload:{
       idempotencyKey:'external-shelf-create', shelfId:'external-shelf', name:'外部获取测试收藏架',
       targetRootLocation:shelf, ruleTemplateId:'system-beta-recommended', expectedTemplateRevision:1,
-      placementPolicy:{ folderTemplate:'{title} ({year})', collisionPolicy:'reject' },
+      placementPolicy:{ folderTemplate:'{title} ({year})', primaryTemplate:'{stem}{ext}', nfoTemplate:'{stem}.nfo', subtitleTemplate:'{stem}{language}{forced}{sdh}{ext}', posterTemplate:'poster{ext}', fanartTemplate:'fanart{ext}', collisionPolicy:'reject' },
     } });
     assert.equal(result.statusCode, 201, result.body);
     const policyValue = { includedDirectories:[], excludedDirectories:[], allowedExtensions:['.mkv'],

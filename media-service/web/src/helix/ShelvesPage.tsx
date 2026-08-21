@@ -1,5 +1,5 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
-import { AdminApiError, helixAdminApi, type MovieRuleBranch, type RuleTemplate, type Shelf } from './api';
+import { AdminApiError, helixAdminApi, type MovieRuleBranch, type RuleTemplate, type Shelf, type ShelfPlacementPolicy } from './api';
 
 type SessionState = 'checking' | 'required' | 'ready';
 
@@ -30,6 +30,20 @@ function movieRules(value: { profileRuleSets: { contentProfile: string; decision
   return value.profileRuleSets.find((item) => item.contentProfile === 'movie')?.decisionBranches || [];
 }
 
+const DEFAULT_PLACEMENT: ShelfPlacementPolicy = {
+  folderTemplate: '{title} ({year})',
+  primaryTemplate: '{stem}{ext}',
+  nfoTemplate: '{stem}.nfo',
+  subtitleTemplate: '{stem}{language}{forced}{sdh}{ext}',
+  posterTemplate: 'poster{ext}',
+  fanartTemplate: 'fanart{ext}',
+  collisionPolicy: 'reject',
+};
+
+function renderPreview(template: string, values: Record<string, string>) {
+  return template.replace(/\{([^{}]+)\}/g, (_match, token) => values[token] || '');
+}
+
 export default function ShelvesPage() {
   const [session, setSession] = useState<SessionState>('checking');
   const [apiKey, setApiKey] = useState('');
@@ -42,8 +56,7 @@ export default function ShelvesPage() {
   const [name, setName] = useState('电影收藏架');
   const [targetRootLocation, setTargetRootLocation] = useState('');
   const [templateId, setTemplateId] = useState('system-beta-recommended');
-  const [folderTemplate, setFolderTemplate] = useState('{title} ({year})');
-  const [collisionPolicy, setCollisionPolicy] = useState('reject');
+  const [placement, setPlacement] = useState<ShelfPlacementPolicy>({ ...DEFAULT_PLACEMENT });
   const [confirmShelf,setConfirmShelf]=useState<Shelf|null>(null);
   const [enteredShelfName,setEnteredShelfName]=useState('');
   const [preserveFilesAcknowledged,setPreserveFilesAcknowledged]=useState(false);
@@ -111,13 +124,12 @@ export default function ShelvesPage() {
         targetRootLocation: targetRootLocation.trim(),
         ruleTemplateId: selectedTemplate.templateId,
         expectedTemplateRevision: selectedTemplate.currentRevision,
-        placementPolicy: { folderTemplate: folderTemplate.trim(), collisionPolicy },
+        placementPolicy: Object.fromEntries(Object.entries(placement).map(([key, value]) => [key, value.trim()])),
       });
       setShelfId(newShelfId());
       setName('电影收藏架');
       setTargetRootLocation('');
-      setFolderTemplate('{title} ({year})');
-      setCollisionPolicy('reject');
+      setPlacement({ ...DEFAULT_PLACEMENT });
       setShowCreate(false);
       await load();
     } catch (cause) {
@@ -169,8 +181,24 @@ export default function ShelvesPage() {
         <label><span>收藏架名称</span><input value={name} onChange={(event) => setName(event.target.value)} required /></label>
         <label><span>规则模板</span><select value={templateId} onChange={(event) => setTemplateId(event.target.value)} required>{activeTemplates.map((item) => <option key={item.templateId} value={item.templateId}>{item.name}{item.ownerKind === 'system' ? ' · 系统只读' : ''}</option>)}</select></label>
         <label className="wide"><span>收藏最终目录</span><input value={targetRootLocation} onChange={(event) => setTargetRootLocation(event.target.value)} placeholder="例如 E:\Movies 或 /media/Film" required /></label>
-        <label><span>目录命名模板</span><input value={folderTemplate} onChange={(event) => setFolderTemplate(event.target.value)} required /></label>
-        <label><span>名称冲突</span><select value={collisionPolicy} onChange={(event) => setCollisionPolicy(event.target.value)}><option value="reject">拒绝并等待处理</option><option value="suffix">添加确定性后缀</option></select></label>
+        <label><span>目录命名</span><input value={placement.folderTemplate} onChange={(event) => setPlacement((value) => ({ ...value, folderTemplate:event.target.value }))} required /></label>
+        <label><span>主视频命名</span><input value={placement.primaryTemplate} onChange={(event) => setPlacement((value) => ({ ...value, primaryTemplate:event.target.value }))} required /></label>
+        <label><span>NFO命名</span><input value={placement.nfoTemplate} onChange={(event) => setPlacement((value) => ({ ...value, nfoTemplate:event.target.value }))} required /></label>
+        <label><span>字幕命名</span><input value={placement.subtitleTemplate} onChange={(event) => setPlacement((value) => ({ ...value, subtitleTemplate:event.target.value }))} required /></label>
+        <label><span>Poster命名</span><input value={placement.posterTemplate} onChange={(event) => setPlacement((value) => ({ ...value, posterTemplate:event.target.value }))} required /></label>
+        <label><span>Fanart命名</span><input value={placement.fanartTemplate} onChange={(event) => setPlacement((value) => ({ ...value, fanartTemplate:event.target.value }))} required /></label>
+        <label><span>名称冲突</span><select value={placement.collisionPolicy} onChange={(event) => setPlacement((value) => ({ ...value, collisionPolicy:event.target.value as ShelfPlacementPolicy['collisionPolicy'] }))}><option value="reject">拒绝并等待处理</option><option value="suffix">添加确定性后缀</option></select></label>
+      </div>
+      <div className="template-preview" aria-label="最终命名保存前预览">
+        <strong>保存前预览 · 示例电影 (2026)</strong>
+        <span>{renderPreview(placement.folderTemplate, { title:'示例电影', year:'2026' })}</span>
+        <small>{[
+          renderPreview(placement.primaryTemplate, { stem:'示例电影 (2026)', ext:'.mkv' }),
+          renderPreview(placement.nfoTemplate, { stem:'示例电影 (2026)', ext:'.nfo' }),
+          renderPreview(placement.subtitleTemplate, { stem:'示例电影 (2026)', language:'.zh-CN', forced:'.forced', sdh:'.sdh', ext:'.srt' }),
+          renderPreview(placement.posterTemplate, { ext:'.jpg' }),
+          renderPreview(placement.fanartTemplate, { ext:'.jpg' }),
+        ].join(' · ')}</small>
       </div>
       {selectedTemplate && <div className="template-preview">
         <strong>{selectedTemplate.name}</strong><span>revision {selectedTemplate.currentRevision}</span><small>同一模板含Movie、Series、JAV、Western Adult四组规则；本里程碑只使用Movie。</small>

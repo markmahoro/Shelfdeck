@@ -147,7 +147,7 @@ async function createShelf(host, cookie, root, prefix) {
   const response = await host.inject({ method:'POST', url:'/v1/admin/shelves', headers:{ cookie }, payload:{
     idempotencyKey:`${prefix}-shelf-create`, shelfId:`${prefix}-shelf`, name:`${prefix} real shelf`,
     targetRootLocation:root, ruleTemplateId:'system-beta-recommended', expectedTemplateRevision:1,
-    placementPolicy:{ folderTemplate:'{title} ({year})', collisionPolicy:'reject' },
+    placementPolicy:{ folderTemplate:'{title} ({year})', primaryTemplate:'{stem}{ext}', nfoTemplate:'{stem}.nfo', subtitleTemplate:'{stem}{language}{forced}{sdh}{ext}', posterTemplate:'poster{ext}', fanartTemplate:'fanart{ext}', collisionPolicy:'reject' },
   } });
   assert.equal(response.statusCode, 201, response.body);
 }

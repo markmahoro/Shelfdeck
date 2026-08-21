@@ -13,6 +13,9 @@ const {
   fromProductMember,
 } = require('./helix/domains/arca/model/material-episode-claims');
 const { computeBoundedMaterialFingerprintSync } = require('./helix/integrations/bounded-material-fingerprint');
+const {
+  DEFAULT_SHELF_PLACEMENT_POLICY,
+} = require('./helix/domains/arca/model/shelf-placement-policy-contracts');
 
 class CleanArcaInventoryPortError extends Error {
   constructor(code, message, details = {}) {
@@ -77,6 +80,60 @@ function inventoryDisplayIdentity(packageValue) {
 
 function contained(root, target) {
   return target === root || target.startsWith(root + path.sep);
+}
+
+function renderTemplate(template, values) {
+  return template.replace(/\{([^{}]+)\}/g, (_match, token) => values[token] ?? '');
+}
+
+function subtitleQualifiers(fileName) {
+  const stem = path.basename(fileName, path.extname(fileName));
+  const languageMatch = stem.match(/(?:^|[. _-])(zh(?:[-_](?:cn|tw|hk))?|chs|cht|zho|chi|en|eng|ja|jpn|ko|kor|fr|fra|fre|de|deu|ger|es|spa)(?=$|[. _-])/i);
+  const languageAliases = Object.freeze({
+    chs:'zh-CN', cht:'zh-TW', zho:'zh', chi:'zh', eng:'en', jpn:'ja', kor:'ko',
+    fra:'fr', fre:'fr', deu:'de', ger:'de', spa:'es',
+  });
+  const rawLanguage = languageMatch?.[1]?.replace('_', '-');
+  const normalizedLanguage = rawLanguage
+    ? (languageAliases[rawLanguage.toLowerCase()] || rawLanguage.toLowerCase().replace(/-(cn|tw|hk)$/i, (_all, region) => `-${region.toUpperCase()}`))
+    : '';
+  return Object.freeze({
+    language:normalizedLanguage ? `.${normalizedLanguage}` : '',
+    forced:/(?:^|[. _-])forced(?=$|[. _-])/i.test(stem) ? '.forced' : '',
+    sdh:/(?:^|[. _-])(?:sdh|hi)(?=$|[. _-])/i.test(stem) ? '.sdh' : '',
+  });
+}
+
+function finalMemberName(member, source, identity, placement) {
+  const extension = path.extname(source).toLowerCase();
+  const stem = safeSegment(identity.year === null
+    ? identity.title
+    : `${identity.title} (${identity.year})`);
+  const common = Object.freeze({ stem, ext:extension });
+  if (member.role === 'primary_payload') {
+    return safeSegment(renderTemplate(placement.primaryTemplate, common));
+  }
+  if (member.role === 'metadata_sidecar') {
+    return safeSegment(renderTemplate(placement.nfoTemplate, common));
+  }
+  if (member.role === 'subtitle') {
+    return safeSegment(renderTemplate(placement.subtitleTemplate, {
+      ...common,
+      ...subtitleQualifiers(source),
+    }));
+  }
+  if (member.role === 'poster') {
+    return safeSegment(renderTemplate(placement.posterTemplate, { ext:extension }));
+  }
+  if (member.role === 'fanart') {
+    return safeSegment(renderTemplate(placement.fanartTemplate, { ext:extension }));
+  }
+  return safeSegment(path.basename(source));
+}
+
+function suffixName(name, materialKey) {
+  const extension = path.extname(name);
+  return `${path.basename(name, extension)}-${String(materialKey).slice(0, 8)}${extension}`;
 }
 
 function foundationDefinition(schemaManifest) {
@@ -167,14 +224,6 @@ function createCleanArcaInventoryPort(options) {
     return source;
   }
 
-  function targetName(member) {
-    // Libra has already frozen every Product member and its intended artifact
-    // name. Arca establishes the containing Shelf directory; it must not
-    // collapse historical Related files and newly produced artifacts merely
-    // because they share a semantic role.
-    return path.basename(sourcePath(member));
-  }
-
   function observe(source, member) {
     if (!fs.existsSync(source) || !fs.statSync(source).isFile()) {
       fail('CLEAN_ARCA_PRODUCT_SOURCE_MISSING',
@@ -216,26 +265,22 @@ function createCleanArcaInventoryPort(options) {
         'Shelf Target root is unavailable.');
     }
     const identity = inventoryDisplayIdentity(packageValue);
-    const placement = shelf.placement?.value || {};
-    const folderTemplate = placement.folderTemplate || '{title}';
-    if (!['{title}', '{title} ({year})'].includes(folderTemplate)) {
-      fail('CLEAN_ARCA_PLACEMENT_TEMPLATE_UNSUPPORTED',
-        'Beta Movie Inventory received an unsupported frozen folder template.');
-    }
-    const renderedFolder = folderTemplate === '{title} ({year})' && identity.year !== null
-      ? `${identity.title} (${identity.year})`
-      : identity.title;
+    const placement = { ...DEFAULT_SHELF_PLACEMENT_POLICY, ...(shelf.placement?.value || {}) };
+    const renderedFolder = renderTemplate(placement.folderTemplate, {
+      title:identity.title,
+      year:identity.year === null ? '' : String(identity.year),
+    }).replace(/\s+\(\s*\)$/, '');
     const folder = safeSegment(renderedFolder);
     const targetDirectory = path.resolve(targetRoot, folder);
     if (!contained(targetRoot, targetDirectory)) {
       fail('CLEAN_ARCA_TARGET_ESCAPE',
         'Final Inventory directory escaped the Shelf Target.');
     }
-    return Object.freeze({ targetRoot, targetDirectory });
+    return Object.freeze({ targetRoot, targetDirectory, identity, placement });
   }
 
   function buildPlan(request) {
-    const { targetRoot, targetDirectory } = resolveTargetLocation(request);
+    const { targetRoot, targetDirectory, identity, placement } = resolveTargetLocation(request);
     const shelf = request.shelf;
     const packageValue = request.onDeckProductPackage;
     const primary = packageValue.productMaterialManifest.members
@@ -248,9 +293,23 @@ function createCleanArcaInventoryPort(options) {
       packageValue.productStructureSnapshot?.structureKind === 'season'
         ? 'series'
         : 'movie';
-    const plans = packageValue.productMaterialManifest.members.map((member) => {
+    const draftPlans = packageValue.productMaterialManifest.members.map((member) => {
       const source = sourcePath(member);
-      const name = safeSegment(targetName(member));
+      const name = finalMemberName(member, source, identity, placement);
+      return Object.freeze({ member, source, name });
+    });
+    const duplicateNames = new Set(draftPlans.map((item) => item.name)
+      .filter((name, index, values) => values.indexOf(name) !== index));
+    if (duplicateNames.size > 0 && placement.collisionPolicy === 'reject') {
+      fail('CLEAN_ARCA_TARGET_COLLISION',
+        'Final Inventory Decision maps multiple members to one target.', {
+          names:[...duplicateNames].sort(),
+        });
+    }
+    const plans = draftPlans.map(({ member, source, name: proposedName }) => {
+      const name = duplicateNames.has(proposedName)
+        ? suffixName(proposedName, member.materialKey)
+        : proposedName;
       const target = path.resolve(targetDirectory, name);
       if (!contained(targetRoot, target)) {
         fail('CLEAN_ARCA_TARGET_ESCAPE',
@@ -290,6 +349,7 @@ function createCleanArcaInventoryPort(options) {
         schema: 'arca.final-inventory-member@1',
         sourceMaterialKey: plan.member.materialKey,
         role: plan.member.role,
+        finalName: plan.name,
         targetEndpointId: request.shelf.target.endpointId,
         targetLocation: plan.target,
         digestHex: plan.digestHex,
@@ -306,6 +366,11 @@ function createCleanArcaInventoryPort(options) {
         schemaRef: 'helix://contracts/domain-types/FinalInventoryMember/v1',
         digest: canonicalDigest(basis),
         objectKind: 'final-inventory-member',
+        sourceMaterialKey: plan.member.materialKey,
+        role: plan.member.role,
+        finalName: plan.name,
+        targetEndpointId: request.shelf.target.endpointId,
+        targetLocation: plan.target,
       });
     });
     const decisionBase = {
@@ -358,6 +423,7 @@ function createCleanArcaInventoryPort(options) {
       members: built.plans.map((item) => ({
         sourceMaterialKey: item.member.materialKey,
         role: item.member.role,
+        finalName: item.name,
         targetLocation: item.target,
         digestHex: item.digestHex,
         sizeBytes: item.sizeBytes,

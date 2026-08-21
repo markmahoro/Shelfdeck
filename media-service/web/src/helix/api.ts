@@ -92,6 +92,16 @@ export type RuleTemplate = {
   };
 };
 
+export type ShelfPlacementPolicy = {
+  folderTemplate: string;
+  primaryTemplate: string;
+  nfoTemplate: string;
+  subtitleTemplate: string;
+  posterTemplate: string;
+  fanartTemplate: string;
+  collisionPolicy: 'reject' | 'suffix';
+};
+
 export type Shelf = {
   shelfId: string;
   name: string;
@@ -114,7 +124,7 @@ export type Shelf = {
   placement: {
     revision: number;
     digest: string;
-    value: { folderTemplate: string; collisionPolicy: string };
+    value: ShelfPlacementPolicy;
   };
   createdAtMs: number;
   updatedAtMs: number;

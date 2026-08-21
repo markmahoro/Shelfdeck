@@ -63,6 +63,11 @@ function creation(targetRoot, overrides = {}) {
     expectedTemplateRevision: 1,
     placementPolicy: {
       folderTemplate: '{title} ({year})',
+      primaryTemplate: '{stem}{ext}',
+      nfoTemplate: '{stem}.nfo',
+      subtitleTemplate: '{stem}{language}{forced}{sdh}{ext}',
+      posterTemplate: 'poster{ext}',
+      fanartTemplate: 'fanart{ext}',
       collisionPolicy: 'reject',
     },
     ...overrides,
@@ -130,7 +135,7 @@ test('Admin creates one probed Template-derived Shelf and Libra rebuilds its pub
       payload: creation(value.targetRoot, {
         idempotencyKey: 'invalid-placement',
         shelfId: 'invalid-placement',
-        placementPolicy: { folderTemplate: '../{title}', collisionPolicy: 'reject' },
+        placementPolicy: { ...creation(value.targetRoot).placementPolicy, folderTemplate: '../{title}' },
       }),
     });
     assert.equal(invalidPlacement.statusCode, 400);

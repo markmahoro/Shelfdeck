@@ -79,6 +79,58 @@ test('target folder uses the resolved display title and derives its year without
   }
 });
 
+test('Final Inventory Decision freezes standard Movie names instead of Workspace or hash names', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'clean-arca-final-names-'));
+  try {
+    const inputs = path.join(root, 'inputs');
+    fs.mkdirSync(inputs);
+    const sources = [
+      ['69355f9a (0).mkv', 'primary_payload'],
+      ['rendered-internal-id.nfo', 'metadata_sidecar'],
+      ['transcode-deadbeef.zh-CN.forced.sdh.srt', 'subtitle'],
+      ['artifact-opaque-poster.jpeg', 'poster'],
+      ['artifact-opaque-fanart.webp', 'fanart'],
+    ].map(([name, role]) => {
+      const location = path.join(inputs, name);
+      fs.writeFileSync(location, Buffer.from(`${role}-bytes`));
+      return member(location, role, 'canary-mount');
+    });
+    const shelf = Object.freeze({
+      shelfId:'shelf-1', status:'active', currentPlacementRevision:1,
+      target:{ endpointId:'canary', rootLocation:root, mountScopeId:'canary-mount', mountScopeRevision:1 },
+      placement:{ value:{
+        folderTemplate:'{title} ({year})', primaryTemplate:'{stem}{ext}', nfoTemplate:'{stem}.nfo',
+        subtitleTemplate:'{stem}{language}{forced}{sdh}{ext}', posterTemplate:'poster{ext}',
+        fanartTemplate:'fanart{ext}', collisionPolicy:'reject',
+      } },
+    });
+    const packageValue = Object.freeze({
+      onDeckPackageId:'package-names', shelfId:'shelf-1',
+      resolvedIdentitySnapshot:{ factValue:{ title:'老笠', year:2016 } },
+      productStructureSnapshot:{ structureKind:'single' },
+      productMaterialManifest:{ members:Object.freeze(sources), manifestDigest:'manifest-names' },
+      offloadContextManifest:{ manifestDigest:'offload-names', members:Object.freeze([]) },
+    });
+    const port = createCleanArcaInventoryPort({ schemaManifest, unitOfWork:{}, workspaceRoot:path.join(root, '.workspace') });
+    const decision = port.prepare({ onDeckRunId:'on-deck-names', shelf, onDeckProductPackage:packageValue });
+    const byRole = Object.fromEntries(decision.members.map((item) => [item.role, item]));
+    assert.deepEqual(Object.fromEntries(Object.entries(byRole).map(([role, item]) => [role, item.finalName])), {
+      primary_payload:'老笠 (2016).mkv',
+      metadata_sidecar:'老笠 (2016).nfo',
+      subtitle:'老笠 (2016).zh-CN.forced.sdh.srt',
+      poster:'poster.jpeg',
+      fanart:'fanart.webp',
+    });
+    for (const item of decision.members) {
+      assert.equal(item.targetLocation, path.join(root, '老笠 (2016)', item.finalName));
+      assert.equal(item.sourceMaterialKey.length, 64);
+      assert.equal(/(?:69355f9a|transcode-|opaque|internal-id)/.test(item.finalName), false);
+    }
+  } finally {
+    fs.rmSync(root, { recursive:true, force:true });
+  }
+});
+
 test('same-root Stage/Switch preserves exact final members, merges new members, and settles final-location input as a no-op', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'clean-arca-same-root-'));
   try {
@@ -89,7 +141,7 @@ test('same-root Stage/Switch preserves exact final members, merges new members, 
     fs.mkdirSync(targetDirectory, { recursive:true });
     const primary = path.join(targetDirectory, 'Example Movie.mkv');
     const oldPoster = path.join(targetDirectory, 'poster.jpg');
-    const oldNfo = path.join(targetDirectory, 'Example Movie.nfo');
+    const oldNfo = path.join(targetDirectory, 'legacy.nfo');
     const productPoster = path.join(workspaceRoot, workspaceId, 'product', 'poster.jpg');
     const productNfo = path.join(workspaceRoot, workspaceId, 'product', 'movie.nfo');
     fs.writeFileSync(primary, Buffer.from('movie-bytes'));
@@ -138,7 +190,7 @@ test('same-root Stage/Switch preserves exact final members, merges new members, 
 
     assert.equal(fs.readFileSync(primary, 'utf8'), 'movie-bytes');
     assert.equal(fs.readFileSync(oldPoster, 'utf8'), 'same-poster-bytes');
-    assert.equal(fs.readFileSync(path.join(targetDirectory, 'movie.nfo'), 'utf8'), 'new-nfo');
+    assert.equal(fs.readFileSync(path.join(targetDirectory, 'Example Movie.nfo'), 'utf8'), 'new-nfo');
     assert.equal(fs.existsSync(targetCommitSlotHandle.slotDirectory), false);
     assert.equal(port.readFinal({ ...request, finalInventoryDecision, replayCommitted:true }).members.length, 3);
 

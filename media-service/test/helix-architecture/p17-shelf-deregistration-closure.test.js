@@ -55,7 +55,8 @@ async function createShelf(host, cookie, targetRoot) {
   const response = await host.inject({ method:'POST', url:'/v1/admin/shelves', headers:{ cookie }, payload:{
     idempotencyKey:'create-large-shelf', shelfId:'large-shelf', name:'Large Shelf', targetRootLocation:targetRoot,
     ruleTemplateId:'system-beta-recommended', expectedTemplateRevision:1,
-    placementPolicy:{ folderTemplate:'{title} ({year})', collisionPolicy:'reject' },
+    placementPolicy:{ folderTemplate:'{title} ({year})', primaryTemplate:'{stem}{ext}', nfoTemplate:'{stem}.nfo',
+      subtitleTemplate:'{stem}{language}{forced}{sdh}{ext}', posterTemplate:'poster{ext}', fanartTemplate:'fanart{ext}', collisionPolicy:'reject' },
   } });
   assert.equal(response.statusCode, 201, response.body);
   return response.json().shelf;

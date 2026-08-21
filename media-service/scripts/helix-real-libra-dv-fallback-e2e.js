@@ -243,7 +243,7 @@ async function createShelf(host,cookie,scenario,shelfRoot,template) {
   const response=await host.inject({method:'POST',url:'/v1/admin/shelves',headers:{cookie},payload:{
     idempotencyKey:`${scenario.id}-shelf-create`,shelfId:`${scenario.id}-shelf`,name:`${scenario.title} shelf`,targetRootLocation:shelfRoot,
     ruleTemplateId:template.templateId,expectedTemplateRevision:template.revision,
-    placementPolicy:{folderTemplate:'{title} ({year})',collisionPolicy:'reject'}}});
+    placementPolicy:{folderTemplate:'{title} ({year})',primaryTemplate:'{stem}{ext}',nfoTemplate:'{stem}.nfo',subtitleTemplate:'{stem}{language}{forced}{sdh}{ext}',posterTemplate:'poster{ext}',fanartTemplate:'fanart{ext}',collisionPolicy:'reject'}}});
   assert.equal(response.statusCode,201,response.body);
 }
 async function createField(host,cookie,scenario,fieldRoot) {

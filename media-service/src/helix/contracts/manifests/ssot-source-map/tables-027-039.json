@@ -12,7 +12,7 @@
       "constraintsContract": "`PK(artifact_handle_id,consumer_domain,consumer_scope_type,consumer_scope_id,reference_kind,reference_revision)`；GC只处理无active reference Artifact",
       "source": {
         "section": "8.5.10",
-        "line": 9284,
+        "line": 9291,
         "lineDigest": "78787f3ac7052b2b3d8024e78b21a426cf0b74cee321911424bf6067b995c01e"
       }
     },
@@ -23,7 +23,7 @@
       "constraintsContract": "`INDEX(owner_domain,scope_type,scope_id,occurred_at_ms)`；append-only",
       "source": {
         "section": "8.5.10",
-        "line": 9285,
+        "line": 9292,
         "lineDigest": "315e101d842e9c6aeebe4c7d83f7859cb3ab491dbef995f9c8d9d7bf1a9823d0"
       }
     },
@@ -34,7 +34,7 @@
       "constraintsContract": "active name可重复但`field_id`唯一；注销Field保留历史row并置`deregistered`，不删除Run/Observation事实；Policy/Access/Profile Hint均显式FK；`current_profile_hint_revision`从1开始且永不为NULL，以`(field_id,current_profile_hint_revision)`显式FK指向`proc_field_profile_hint_revisions`；注册时Field aggregate先插入、Profile revision后插入，因此该current pointer FK固定`DEFERRABLE INITIALLY DEFERRED`；`current_observation_revision IS NULL`表示尚未提交任何Observation page，非NULL时以`(field_id,current_observation_revision)`显式FK指向`proc_field_observations`；该pointer与Observation→Field的循环FK均`DEFERRABLE INITIALLY DEFERRED`；`INDEX(status,field_id)`",
       "source": {
         "section": "8.5.11",
-        "line": 9294,
+        "line": 9301,
         "lineDigest": "61d09bc130b218c2a9d97db1ffd707ae4b2fb69b47220c89ead5fa9cacb3a58c"
       }
     },
@@ -45,7 +45,7 @@
       "constraintsContract": "`PK(field_id,revision)`；`hint_schema_ref=helix://contracts/application-types/MaterialFieldProfileHintSnapshot/v1`；revision从1连续递增且row immutable；`hint_digest`逐字节匹配8.6.18唯一公式；注册未提供Hint时必须保存显式`mixed` revision 1，禁止NULL/空字符串/调用者默认旁路；同值修订不追加row；Field注销不删除历史；`proc_material_fields.current_profile_hint_revision`显式指向current row，`INDEX(content_profile_hint,field_id,revision)`只服务Field管理Projection，Triage不得按该索引扫描或旁读current值",
       "source": {
         "section": "8.5.11",
-        "line": 9295,
+        "line": 9302,
         "lineDigest": "e1c5fb4401e66497c375df3a6abacc77b0711b1fb28712bf712245b98872327f"
       }
     },
@@ -56,7 +56,7 @@
       "constraintsContract": "`PK(extraction_policy_id,revision)`；首版schema只允许`ExtractionPolicy@1{includedDirectories[],excludedDirectories[],allowedExtensions[],minimumSizeBytes,excludedMaterialKeys[]}`，JSON UTF-8 JCS bytes≤`16 KiB`且digest覆盖完整typed value；目录/extension/key排序、数量、normalization与precedence严格遵守5.3.1，`additionalProperties=false`；immutable；Material Field引用精确revision而非可变配置",
       "source": {
         "section": "8.5.11",
-        "line": 9296,
+        "line": 9303,
         "lineDigest": "01d8b28d88a8c38edf0a801272d86f7d3fbad6841f052c5c7e0ab5ea5c23e60a"
       }
     },
@@ -67,7 +67,7 @@
       "constraintsContract": "`PK(field_id,revision)`；`proc_material_fields.current_access_revision`显式FK；mount scope pair是Platform opaque technical ref",
       "source": {
         "section": "8.5.11",
-        "line": 9297,
+        "line": 9304,
         "lineDigest": "2ade6d735b0d5b69263b4587d06261fc99a7c37178ba5b2af3fd8348d9fe2c4a"
       }
     },
@@ -78,7 +78,7 @@
       "constraintsContract": "`PK(field_id,revision)`、`UNIQUE(observation_id)`、`UNIQUE(field_id,observation_id)`供same-Field composite FK、`UNIQUE(field_observation_work_id,page_ordinal)`、`UNIQUE(commit_marker)`；`field_observation_work_id`显式FK引用`fx_supporting_works.work_id`，`(field_id,access_revision)`显式FK引用`proc_field_access_revisions`，`(field_id,profile_hint_revision)`显式FK引用`proc_field_profile_hint_revisions`，`commit_marker`显式FK引用`fx_commit_markers.commit_marker`；revision从1开始且跨Observation Work持续递增；同一Work的pageOrdinal从0连续递增，每页使用不同observation_id且该ID只在该页重放时复用，且三项Profile Hint列逐字节相同；`expected_revision=revision-1`，首个revision的expected为0；`completed=1`恰好对应terminal page；Page只保存compact receipt，不保存文件明细，明细由同一`observation_id/page_ordinal/entry_ordinal`在`proc_field_observation_entries`恢复；`page_digest`必须匹配compact ObservationPageCommit Result，`result_digest`必须匹配typed Result；历史Page通过`commit_marker → fx_commit_markers.result_id → fx_event_result_bindings`恢复，后续Material或Profile current-row更新不改变该链；该Observation revision存在时对应Result Binding/Evidence不得GC或压缩；`observation_id/work/page`冲突重放必须拒绝；`INDEX(field_id,completed,observed_at_ms)`",
       "source": {
         "section": "8.5.11",
-        "line": 9298,
+        "line": 9305,
         "lineDigest": "0fc7fd9298e1b4290ce31a249652f37731865cf176f5d64855360848a68c7eba"
       }
     },
@@ -89,7 +89,7 @@
       "constraintsContract": "`PK(field_id,material_key)`；Identity components unique within Field；`(field_id,last_observation_id)`显式复合FK引用同Field唯一Observation page；Fingerprint evidence只在mount/inode/size/mtime/ctime全部一致时有效；state enum为`unknown|eligible|ineligible`，Control enum为`unknown|uncontrolled|procurement|production|finished_goods`；新row固定`binding_revision=1,eligibility_revision=1,unknown/observation_pending_reconcile/unknown`且Eligibility Field/Policy/Selection/Control basis列为NULL；同Identity的endpoint/location变化才递增binding revision；相同reality重放保留Eligibility，reality变化原子递增eligibility revision并写`unknown/reality_changed/unknown`、清空Field/Policy/Selection/Control basis；Eligibility Basis必须由Material-local Identity、当前Field/Access Binding与Reality/Snapshot、Extraction Policy revision/digest、Selection/Reservation digest及Material Control projection组成，global terminal Observation revision只作审计指针；终态Observation后仅对new/reality_changed/binding_changed/location_changed/missing、unknown或basis失效、以及Field/Access/Policy/Selection/Reservation/Control影响的Material Key执行Reconcile；完全相同basis幂等no-op，未变化Material不执行SQL UPDATE、不递增eligibility revision；`eligibility_observation_revision`记录上次实际评估所用Observation revision，允许在basis不变时落后于current head；非unknown Control必须有revision/digest，uncontrolled允许revision 0或正整数；`INDEX(field_id,eligibility_state,control_projection,material_key)`及`INDEX(field_id,eligibility_observation_revision,eligibility_policy_revision,material_key)`；stored state只有在`eligibility_field_status`仍匹配Field current status且material-local basis仍匹配当前Access/Policy/Selection/Control时才可用于候选筛选，否则effective projection为unknown；最终Run admission仍必须CAS `fx_material_controls`",
       "source": {
         "section": "8.5.11",
-        "line": 9299,
+        "line": 9306,
         "lineDigest": "6024b6c4c4898f8164c956870b6dc1e8e4bbbe3304c53c6ef8fd10be3f24c5c8"
       }
     },
@@ -100,7 +100,7 @@
       "constraintsContract": "`run_basis_schema_ref=ProcurementRunExecutionBasis@1`；`selected_material_count=1..1024`，`selection_scope_count=1..selected_material_count`且Scope set digest可由`proc_run_materials`唯一重建；Run及其`proc_run_materials` immutable basis列共同构成完整Basis，禁止只凭digest恢复；Field Access/Profile Hint/Observation/Policy均显式FK，`(field_id,profile_hint_revision)`指向immutable Hint revision且三项Hint列必须逐字节一致；Admission还要求terminal Observation冻结同一Hint Snapshot；Triage tuple必须由`ProcurementTriageRuleRegistry@1`当前active entry签发，Admission时验证active，历史恢复时验证精确immutable entry仍存在且digest匹配，不建立调用者可写Rule表；初始`state_revision=1,candidate_package_revision_head=0`；每次Candidate Publication在同一事务读取current head、执行`current → current+1` CAS并把Package/Receipt revision固定为新head，Planner/Work/Draft不得预分配revision或要求兄弟Candidate按Structure ordinal提交；只有该transaction-local CAS可改变head；sealed时Decision ID/digest、Outcome、Evidence digest、finished time与Seal marker/result必须同时非NULL且写后immutable，非sealed时全部NULL，`UNIQUE(seal_decision_id) WHERE seal_decision_id IS NOT NULL`；`UNIQUE(field_id,run_basis_digest)`禁止同一Basis建立第二个Run，Retry Basis因包含唯一`sourceRetryIntentId`形成新digest；`retry_intent_id`为空或唯一引用一次性Intent并加`UNIQUE(retry_intent_id) WHERE retry_intent_id IS NOT NULL`；Admission/Seal marker各自唯一且显式FK；Retry建立的Run与Intent共享同一consume/admission marker和outer result digest；Supporting Work通过`owner_domain+process_type+process_id`关联；`INDEX(state,priority_class,created_at_ms)`",
       "source": {
         "section": "8.5.11",
-        "line": 9300,
+        "line": 9307,
         "lineDigest": "aa05a73c537276aa450ca8619f4ac517ec96b05fb6f99a40a12d16d67cfffd44"
       }
     },
@@ -111,7 +111,7 @@
       "constraintsContract": "`UNIQUE(field_id,idempotency_key)`；`UNIQUE(failed_run_id,failed_basis_digest) WHERE state IN ('open','consumed')`，stale后可按新current precondition建立新Intent，consumed后必须改为对其new Run重试；`retry_*` head按`ProcurementRetryAdmissionHead@1`关系化冻结，Profile Hint tuple必须指向精确immutable revision并与terminal Observation一致，Triage tuple必须来自创建时Registry active entry；初始`state_revision=1`；`new_run_id`只在consumed时非NULL并与`proc_procurement_runs.retry_intent_id`互证，两个方向FK均`DEFERRABLE INITIALLY DEFERRED`；terminal时`consume_admission_head_json`必须是schema验证且JCS bytes≤`16 KiB`的完整current head，digest精确匹配；stale时`primary_stale_reason_code`等于8.6.18固定precedence下`staleReasonCodes[0]`，created时为NULL；create与consume marker/result分别唯一且可重放，terminal Intent必须有consume pair；消费时CAS expected state/digest并重验全部relationized precondition，不修改旧Run",
       "source": {
         "section": "8.5.11",
-        "line": 9301,
+        "line": 9308,
         "lineDigest": "fb06a292239a9c7d6dcc875117c6b7d1921cac111f262b90f79f409a589d6513"
       }
     },
@@ -122,7 +122,7 @@
       "constraintsContract": "`PK(retry_intent_id,ordinal)`及`UNIQUE(retry_intent_id,material_key)`；成员必须来自failed Run中`released+triage_failed`的Material，按materialKey UTF-8 bytes升序且`1..1024`项；`CHECK(expected_selection_has_conflict=0)`；完整expected rows重建Intent member/precondition set，aggregate digest必须匹配Intent head；Control列必须完整映射available `MaterialControlProjectionSnapshot`，包括evidence/projection两个不同digest；expected列immutable；Intent消费时全部member在同事务一次性写完整`ProcurementRetryConsumeMemberSnapshot@1`（JCS bytes≤`4 KiB`）及digest/outcome，之后immutable；stale只保存8.6.18 closed set中的唯一primary code，matched不得保存code；terminal Intent不允许存在未写consume snapshot的member",
       "source": {
         "section": "8.5.11",
-        "line": 9302,
+        "line": 9309,
         "lineDigest": "4cf05d83c863e6e7db91c3408942f16d7138dc6c7df072a41ce020d21b7721e3"
       }
     },
@@ -133,7 +133,7 @@
       "constraintsContract": "`rowMutability=cas_lifecycle`；closed transitions仅为`run_selection → candidate_delivery|released`及`candidate_delivery → transferred|released`。`PK(procurement_run_id,ordinal)`及`UNIQUE(procurement_run_id,material_key)`；ordinal从0连续，`1..1024`项且`selection_role=triage_input`；Scope identity/count/digests在同一Scope全部成员上逐字一致，scope/member ordinal连续且恰好重建Run head；Physical Identity四元组与`size_bytes`必须从Admission同事务重读的`proc_field_materials` current row逐字节复制，满足8.6.18 `PhysicalMaterialIdentity@2`的materialKey公式且size为non-negative safe integer，并作为immutable Run Basis列参与`basis_member_digest`；expected Control列完整映射Admission前的available `MaterialControlProjectionSnapshot`，包括evidence/projection两个不同digest；admitted pair冻结事务后同Field Procurement Control output并共同形成Receipt的`controlRevisionSetDigest`；Identity/size/Scope、expected字段、`basis_member_digest`和admitted pair均为write-once，禁止旁读最新值覆盖；`UNIQUE(material_key) WHERE selection_state IN ('run_selection','candidate_delivery')`强制跨Run/Candidate占用唯一；`run_selection`无Candidate/terminal pair，`candidate_delivery`要求Candidate且无terminal pair；Candidate publish只允许`run_selection → candidate_delivery`并一次性填Candidate FK，之后该FK不可改写；Run Seal只把剩余Selection置`released+completed_without_candidate|triage_failed`、要求Candidate为NULL并保存Decision同一逐成员Evidence digest；Handoff终态只允许已有Candidate的Reservation变`transferred+handoff_accepted`或`released+handoff_rejected`并保存对应Receipt/Decision Evidence digest；terminal disposition/evidence是同一CAS的write-once bundle，终态后只能相同Evidence幂等重放，不得再次UPDATE",
       "source": {
         "section": "8.5.11",
-        "line": 9303,
+        "line": 9310,
         "lineDigest": "87ca8c7f32fb41c9f24633ec4131a3c08ff80c2ce437ebc988e9306f517a355a"
       }
     },
@@ -144,7 +144,7 @@
       "constraintsContract": "Identity Metadata/Claim JSON各≤`16 KiB`；`UNIQUE(procurement_run_id,package_revision)`且revision必须等于Run head CAS后的值；Field Context、Profile/mediaType/structure/Identity/Unit/Rule/Manifest/Control/Related必须与完整CandidateDraft逐项一致；`seasonContinuityClaimSetDigest`由immutable `proc_candidate_season_continuity_claims`、Related的set/scope digest均由immutable `proc_candidate_related_references`按8.6.18唯一公式重建，不新增opaque JSON或旁读；published内容immutable；Publication必须与Manifest、Episode Claim/完整Related relation、对应`proc_run_materials → candidate_delivery`、Offer/Outbox、typed Result/marker同事务成立；`INDEX(state,published_at_ms)`",
       "source": {
         "section": "8.5.11",
-        "line": 9304,
+        "line": 9311,
         "lineDigest": "699ef0d140952614bc434fb79e10375dac2b8222e72b2089a3e228ef961ed9d3"
       }
     }

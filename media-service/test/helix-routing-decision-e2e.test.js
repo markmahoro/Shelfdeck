@@ -51,7 +51,7 @@ async function createShelf(host, cookie, root, shelfId, name) {
   const response = await host.inject({ method: 'POST', url: '/v1/admin/shelves', headers: { cookie }, payload: {
     idempotencyKey: shelfId + '-create', shelfId, name, targetRootLocation: root,
     ruleTemplateId: 'system-beta-recommended', expectedTemplateRevision: 1,
-    placementPolicy: { folderTemplate: '{title} ({year})', collisionPolicy: 'reject' },
+    placementPolicy: { folderTemplate: '{title} ({year})', primaryTemplate:'{stem}{ext}', nfoTemplate:'{stem}.nfo', subtitleTemplate:'{stem}{language}{forced}{sdh}{ext}', posterTemplate:'poster{ext}', fanartTemplate:'fanart{ext}', collisionPolicy: 'reject' },
   } });
   assert.equal(response.statusCode, 201, response.body);
 }

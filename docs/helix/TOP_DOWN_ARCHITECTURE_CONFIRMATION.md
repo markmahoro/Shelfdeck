@@ -3809,6 +3809,13 @@ On-deck Commit验证事务完成后的最终Inventory。Shelf不是物理目录�
 唯一Target Folder内的同一最终结果时，相应Stage/Switch阶段才可no-op。Material Field与Target Folder路径
 重叠不改变二者业务角色。具体Schema和用户配置入口属于Level 8–9。
 
+Movie Shelf Placement Policy的关闭合同必须同时给出目录、Primary、NFO、Subtitle、Poster与Fanart命名规则及
+collision policy，并在Admin Web保存前展示确定性预览。默认目录、Primary和NFO使用Resolved Identity派生的
+`片名 (年份)` stem；Poster/Fanart使用稳定固定名，Subtitle只追加已观察到的language、forced与SDH qualifier。
+Final Inventory Decision必须为每个成员冻结`sourceMaterialKey`、role、`finalName`、target endpoint和最终location，
+这些字段共同进入成员及Decision digest。Workspace中的`transcode-*`、Event/Package ID、digest或其他内部技术名
+不是Placement Evidence，不得直接成为永久Shelf名称；只有显式用户Placement模板的渲染结果可以改变上述默认名。
+
 Shelf已有有效Shelf Entry后发布新的Placement Policy revision，不重新执行Routing、Collection Formation或
 首次Shelf Acceptance。Arca把每个当前Inventory与新Placement结果的差异交给Aftercare Conformance评估；
 只有已知Inventory、目标可解析、成本与安全边界有界且结果可复验时才能自动迁移。迁移只形成新的Inventory

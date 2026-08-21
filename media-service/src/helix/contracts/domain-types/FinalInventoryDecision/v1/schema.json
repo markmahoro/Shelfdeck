@@ -55,8 +55,7 @@
             "minimum": 1
           },
           "schemaRef": {
-            "type": "string",
-            "minLength": 1
+            "const": "helix://contracts/domain-types/FinalInventoryMember/v1"
           },
           "digest": {
             "type": "string",
@@ -65,6 +64,41 @@
           },
           "objectKind": {
             "const": "final-inventory-member"
+          },
+          "sourceMaterialKey": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "primary_payload",
+              "structural_dependency",
+              "metadata_sidecar",
+              "poster",
+              "fanart",
+              "subtitle",
+              "external_audio",
+              "chapter",
+              "sidecar"
+            ]
+          },
+          "finalName": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255,
+            "pattern": "^[^\\\\/]+$"
+          },
+          "targetEndpointId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "targetLocation": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
           }
         },
         "required": [
@@ -72,7 +106,12 @@
           "revision",
           "schemaRef",
           "digest",
-          "objectKind"
+          "objectKind",
+          "sourceMaterialKey",
+          "role",
+          "finalName",
+          "targetEndpointId",
+          "targetLocation"
         ]
       },
       "maxItems": 4096

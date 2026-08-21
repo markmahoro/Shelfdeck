@@ -1183,6 +1183,11 @@ Decision、Off-load Context和唯一物理现实，且Shelf Health遗漏了这�
 没有修改运行时数据库。目录Identity修复仍按UAT-013保留为已完成代码修复，但完整Final Inventory结果未通过；成员命名、
 carried-forward Settlement、Commit Gate和既有Entry的Arca Aftercare恢复需完成Design确认后分别实现、验证并提交。
 
+2026-08-21修复进展：成员命名子包已完成。Shelf Placement Policy现关闭定义目录、Primary、NFO、Subtitle、Poster、Fanart
+模板及冲突策略，Admin Web创建时全部可配且保存前可预览；Final Inventory Decision逐成员冻结`finalName`与最终location。
+隔离`老笠`同型回归确认内部hash、`(0)`、`transcode-*`和artifact ID不会进入Shelf名称。未读取或改写旧现场；Settlement、
+Commit Gate、旧目录收口与Aftercare旧Binding检查尚未完成，所以UAT-020整体继续保持OPEN。
+
 ## 18. 后续问题模板
 
 后续发现的问题按以下结构追加：

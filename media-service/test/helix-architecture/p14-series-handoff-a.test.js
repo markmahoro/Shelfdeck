@@ -82,7 +82,7 @@ async function establishSeriesShelfAndRouting(
   const cookie = await session(host, apiKey);
   const shelfRoot = path.join(root, 'series-shelf');
   fs.mkdirSync(shelfRoot, { recursive: true });
-  const placement = { folderTemplate: '{title}', collisionPolicy: 'reject' };
+  const placement = { folderTemplate: '{title}', primaryTemplate:'{stem}{ext}', nfoTemplate:'{stem}.nfo', subtitleTemplate:'{stem}{language}{forced}{sdh}{ext}', posterTemplate:'poster{ext}', fanartTemplate:'fanart{ext}', collisionPolicy: 'reject' };
   const created = await host.inject({
     method: 'POST',
     url: '/v1/admin/shelves',

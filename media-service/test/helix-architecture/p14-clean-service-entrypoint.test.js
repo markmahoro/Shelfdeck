@@ -1704,7 +1704,9 @@ test.skip('failed-preparation synchronous product journey is outside the Procure
 
 test('Arca Shelf projection reads use the authenticated public HTTP path and owner-local query repository', async () => {
   const value = fixture();
-  const placementValue = { folderTemplate: '{title} ({year})', collisionPolicy: 'reject' };
+  const placementValue = { folderTemplate: '{title} ({year})', primaryTemplate:'{stem}{ext}',
+    nfoTemplate:'{stem}.nfo', subtitleTemplate:'{stem}{language}{forced}{sdh}{ext}',
+    posterTemplate:'poster{ext}', fanartTemplate:'fanart{ext}', collisionPolicy: 'reject' };
   const physicalShelfRoot = path.join(path.dirname(value.dataDir), 'physical-shelf');
   const physicalSentinel = path.join(physicalShelfRoot, 'movie.mkv');
   const nextPhysicalShelfRoot = path.join(path.dirname(value.dataDir), 'next-physical-shelf');
@@ -2460,7 +2462,9 @@ test.skip('Libra Handoff B is accepted and committed through the Arca execution 
     const cookie = await session(host);
     const shelfRoot = path.join(path.dirname(value.dataDir), 'movie-handoff-a-shelf');
     fs.mkdirSync(shelfRoot, { recursive: true });
-    const placement = { folderTemplate: '{title}', collisionPolicy: 'reject' };
+    const placement = { folderTemplate: '{title}', primaryTemplate:'{stem}{ext}',
+      nfoTemplate:'{stem}.nfo', subtitleTemplate:'{stem}{language}{forced}{sdh}{ext}',
+      posterTemplate:'poster{ext}', fanartTemplate:'fanart{ext}', collisionPolicy: 'reject' };
     const created = await host.inject({
       method: 'POST', url: '/v1/admin/shelves', headers: { cookie },
       payload: {

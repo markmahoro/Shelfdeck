@@ -345,7 +345,7 @@ async function createShelf(host, cookie, shelfRoot, template = { templateId:SYST
   const result = await host.inject({ method:'POST', url:'/v1/admin/shelves', headers:{ cookie }, payload:{
     idempotencyKey:'scenario-shelf-create', shelfId:'scenario-shelf', name:'Libra scenario shelf',
     targetRootLocation:shelfRoot, ruleTemplateId:template.templateId, expectedTemplateRevision:template.revision,
-    placementPolicy:{ folderTemplate:'{title} ({year})', collisionPolicy },
+    placementPolicy:{ folderTemplate:'{title} ({year})', primaryTemplate:'{stem}{ext}', nfoTemplate:'{stem}.nfo', subtitleTemplate:'{stem}{language}{forced}{sdh}{ext}', posterTemplate:'poster{ext}', fanartTemplate:'fanart{ext}', collisionPolicy },
   } });
   assert.equal(result.statusCode, 201, result.body);
 }

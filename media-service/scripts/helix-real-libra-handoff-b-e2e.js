@@ -219,7 +219,7 @@ async function createShelf(host, cookie, shelfRoot) {
       idempotencyKey:'real-libra-shelf-create', shelfId:'real-libra-shelf',
       name:'Real Libra Isolated Shelf', targetRootLocation:shelfRoot,
       ruleTemplateId:'system-beta-recommended', expectedTemplateRevision:1,
-      placementPolicy:{ folderTemplate:'{title} ({year})', collisionPolicy:'reject' },
+      placementPolicy:{ folderTemplate:'{title} ({year})', primaryTemplate:'{stem}{ext}', nfoTemplate:'{stem}.nfo', subtitleTemplate:'{stem}{language}{forced}{sdh}{ext}', posterTemplate:'poster{ext}', fanartTemplate:'fanart{ext}', collisionPolicy:'reject' },
     },
   });
   assert.equal(response.statusCode, 201, response.body);

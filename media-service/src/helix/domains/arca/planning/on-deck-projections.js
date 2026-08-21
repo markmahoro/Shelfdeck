@@ -3,6 +3,7 @@
 const { canonicalDigest } = require('../../../contracts/canonical-json');
 const { P } = require('./on-deck-planners');
 const { deriveAcceptedResponsibility } = require('../model/acceptance-responsibility');
+const { DEFAULT_SHELF_PLACEMENT_POLICY } = require('../model/shelf-placement-policy-contracts');
 
 const stable = (prefix, value) => prefix + canonicalDigest(value).slice(0, 40);
 function typed(parameter, value) { return Object.freeze({ parameter,
@@ -60,9 +61,10 @@ function offload(c) { const source=c.packageValue.offloadContextManifest;
     schemaRef:'helix://contracts/domain-types/OffLoadContextMember/v1',digest:item.memberDigest||canonicalDigest(item),objectKind:'offload-material'}));
   return withDigest({schemaRef:'helix://contracts/domain-types/OffLoadContext/v1',schemaVersion:1,objectId:source.manifestId,revision:source.manifestRevision||1,
     onDeckPackageId:c.packageValue.onDeckPackageId,materials:Object.freeze(materials),contextDigest:source.manifestDigest}); }
-function placement(c) { const p=c.shelf.placement; return withDigest({schemaRef:'helix://contracts/domain-types/PlacementPolicy/v1',schemaVersion:1,
+function placement(c) { const p=c.shelf.placement, value={...DEFAULT_SHELF_PLACEMENT_POLICY,...p.value}; return withDigest({schemaRef:'helix://contracts/domain-types/PlacementPolicy/v1',schemaVersion:1,
   policyId:c.shelf.shelfId+':placement',revision:p.revision,shelfId:c.shelf.shelfId,targetEndpointIds:Object.freeze([c.shelf.target.endpointId]),minimumFreeBytes:0,
-  typedParameters:Object.freeze([typed('folderTemplate',p.value.folderTemplate||'{title}'),typed('collisionPolicy',p.value.collisionPolicy||'reject')])}); }
+  typedParameters:Object.freeze(['folderTemplate','primaryTemplate','nfoTemplate','subtitleTemplate','posterTemplate','fanartTemplate','collisionPolicy']
+    .map((parameter)=>typed(parameter,value[parameter])))}); }
 function targetEndpoint(c) { return withDigest({schemaRef:'helix://contracts/domain-types/TargetEndpoint/v1',schemaVersion:1,objectId:c.shelf.target.endpointId,revision:1,
   endpointId:c.shelf.target.endpointId,mountScopeRevision:c.shelf.target.mountScopeRevision,
   capacityObservationDigest:c.feasibility?.payloadDigest||canonicalDigest(c.shelf.target)}); }

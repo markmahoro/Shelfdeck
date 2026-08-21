@@ -4,6 +4,18 @@ Status: Movie Procurement与Movie Libra封口保持有效；Movie Arca已完成H
 
 Last updated: 2026-08-21
 
+## 0. UAT repair status — UAT-020 naming implemented, Settlement pending
+
+Placement revision现冻结目录及五类Movie成员命名模板；Admin Web允许用户在创建Shelf时配置全部规则并在保存前预览。
+Arca Final Inventory Decision不再只保存opaque member ref，而是逐项冻结来源Material、role、最终文件名、endpoint与location。
+隔离`老笠 (2016)`同型回归已证明hash、`(0)`、`transcode-*`、artifact internal ID不会进入目录、视频、NFO、字幕或Artwork名称。
+当前机器合同仍为113 Capability、99 Result family、117 Domain Input、184 table、44 Canonical Transaction、118 route；
+P2 aggregate更新为`80cd8699ae5b968e6cb6cd3ed0c053a52e3c03787836ae02dbe9a64bf8dda53a`。专项文件效果回归通过；
+完整Architecture Gate为166个test file、1091 pass、7个显式skip、0 fail，Admin Web production build通过。
+
+本条只完成UAT-020的命名子问题；没有访问或修改旧Canary现场。`carried_forward + replace_or_move` Settlement、非空
+completion digest、空旧目录收口及Aftercare旧Binding检查仍须下一独立修复包完成，因此UAT-020整体保持OPEN。
+
 ## 0. UAT repair status — UAT-019 implemented, fresh Canary qualification pending
 
 Arca Acceptance现在为每个已admit Offer持久化Recovery Case，并在同一消费事务写入Foundation Inbox；Delivery可保持

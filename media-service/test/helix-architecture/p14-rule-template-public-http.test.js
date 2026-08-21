@@ -60,6 +60,11 @@ function reviseMovieRating(rules, rating, maxSizeGiB) {
 async function createShelf(host, headers) {
   const placementValue = {
     folderTemplate: '{title} ({year})',
+    primaryTemplate: '{stem}{ext}',
+    nfoTemplate: '{stem}.nfo',
+    subtitleTemplate: '{stem}{language}{forced}{sdh}{ext}',
+    posterTemplate: 'poster{ext}',
+    fanartTemplate: 'fanart{ext}',
     collisionPolicy: 'reject',
   };
   const targetRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'helix-template-shelf-'));
