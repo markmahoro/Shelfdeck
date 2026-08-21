@@ -478,6 +478,186 @@ function createIso9660(sourceRoot, target, volumeName = 'SHELFDECK') {
   return target;
 }
 
+function createUdfBluRay(sourceRoot, target) {
+  const sectorBytes = 2048;
+  const avdpSector = 256;
+  const vdsSector = 32;
+  const partitionStart = 288;
+  const metadataFileLbn = 0;
+  const metadataDataLbn = 1;
+  const metadataPartition = 1;
+  const physicalPartition = 0;
+
+  const writeUdfTag = (buffer, offset, id, location) => {
+    buffer.writeUInt16LE(id, offset);
+    buffer.writeUInt16LE(2, offset + 2);
+    buffer[offset + 5] = 0;
+    buffer.writeUInt16LE(0, offset + 6);
+    buffer.writeUInt16LE(0, offset + 8);
+    buffer.writeUInt16LE(0, offset + 10);
+    buffer.writeUInt32LE(location, offset + 12);
+    let sum = 0;
+    for (const index of [0, 1, 2, 3, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]) sum += buffer[offset + index];
+    buffer[offset + 4] = sum & 0xff;
+  };
+  const writeLongAd = (buffer, offset, length, lbn, partition) => {
+    buffer.writeUInt32LE(length, offset);
+    buffer.writeUInt32LE(lbn, offset + 4);
+    buffer.writeUInt16LE(partition, offset + 8);
+  };
+  const writeShortAd = (buffer, offset, length, lbn) => {
+    buffer.writeUInt32LE(length, offset);
+    buffer.writeUInt32LE(lbn, offset + 4);
+  };
+  const cs0 = (name) => Buffer.concat([Buffer.from([8]), Buffer.from(String(name), 'latin1')]);
+  const fidBytes = ({ location, directory, name, icbLbn, icbPartition }) => {
+    const ident = cs0(name);
+    const value = Buffer.alloc((38 + ident.length + 3) & ~3);
+    writeUdfTag(value, 0, 257, location);
+    value.writeUInt16LE(1, 16);
+    value[18] = directory ? 2 : 0;
+    value[19] = ident.length;
+    writeLongAd(value, 20, sectorBytes, icbLbn, icbPartition);
+    ident.copy(value, 38);
+    return value;
+  };
+  const fileEntryBytes = ({ location, fileType, infoLen, flags, ads }) => {
+    const value = Buffer.alloc(sectorBytes);
+    writeUdfTag(value, 0, 261, location);
+    value.writeUInt16LE(4, 20);
+    value.writeUInt16LE(1, 24);
+    value[27] = fileType;
+    value.writeUInt16LE(flags, 34);
+    value.writeBigUInt64LE(BigInt(infoLen), 56);
+    value.writeUInt32LE(ads.length, 172);
+    ads.copy(value, 176);
+    return value;
+  };
+
+  const root = { name:'', directory:true, children:[] };
+  const visit = (node, dirPath) => {
+    const entries = fs.readdirSync(dirPath, { withFileTypes:true })
+      .sort((left, right) => utf8Compare(left.name, right.name));
+    for (const entry of entries) {
+      if (entry.isSymbolicLink()) throw new Error('UDF fixture cannot contain symbolic links: ' + entry.name);
+      const sourcePath = path.join(dirPath, entry.name);
+      if (entry.isDirectory()) {
+        const child = { name:entry.name, directory:true, children:[] };
+        node.children.push(child);
+        visit(child, sourcePath);
+      } else if (entry.isFile()) {
+        node.children.push({ name:entry.name, directory:false, bytes:fs.readFileSync(sourcePath) });
+      }
+    }
+  };
+  visit(root, sourceRoot);
+
+  let metaLbn = 1;
+  const directories = [];
+  const files = [];
+  const assign = (node) => {
+    if (node.directory) {
+      node.feLbn = metaLbn;
+      metaLbn += 1;
+      node.dataLbn = metaLbn;
+      metaLbn += 1;
+      directories.push(node);
+      node.children.forEach(assign);
+      return;
+    }
+    node.feLbn = metaLbn;
+    metaLbn += 1;
+    files.push(node);
+  };
+  assign(root);
+  const metadataSectorCount = metaLbn;
+  let payloadLbn = metadataDataLbn + metadataSectorCount;
+  for (const file of files) {
+    file.payloadLbn = payloadLbn;
+    file.payloadSectors = Math.max(1, Math.ceil(file.bytes.length / sectorBytes));
+    payloadLbn += file.payloadSectors;
+  }
+  const partitionLength = payloadLbn;
+  const image = Buffer.alloc((partitionStart + partitionLength) * sectorBytes);
+
+  const writeVolumeId = (sector, ident) => {
+    const record = image.subarray(sector * sectorBytes, sector * sectorBytes + sectorBytes);
+    record[0] = 0;
+    record.write(ident, 1, 'ascii');
+    record[6] = 1;
+  };
+  writeVolumeId(16, 'BEA01');
+  writeVolumeId(17, 'NSR03');
+  writeVolumeId(18, 'TEA01');
+
+  const avdp = image.subarray(avdpSector * sectorBytes, (avdpSector + 1) * sectorBytes);
+  writeUdfTag(avdp, 0, 2, avdpSector);
+  avdp.writeUInt32LE(3 * sectorBytes, 16);
+  avdp.writeUInt32LE(vdsSector, 20);
+
+  const pd = image.subarray(vdsSector * sectorBytes, (vdsSector + 1) * sectorBytes);
+  writeUdfTag(pd, 0, 5, vdsSector);
+  pd.writeUInt16LE(0, 22);
+  pd.writeUInt32LE(partitionStart, 188);
+  pd.writeUInt32LE(partitionLength, 192);
+
+  const lvd = image.subarray((vdsSector + 1) * sectorBytes, (vdsSector + 2) * sectorBytes);
+  writeUdfTag(lvd, 0, 6, vdsSector + 1);
+  lvd.writeUInt32LE(sectorBytes, 212);
+  writeLongAd(lvd, 248, sectorBytes, 0, metadataPartition);
+  lvd.writeUInt32LE(70, 264);
+  lvd.writeUInt32LE(2, 268);
+  lvd[440] = 1;
+  lvd[441] = 6;
+  lvd.writeUInt16LE(1, 442);
+  lvd.writeUInt16LE(physicalPartition, 444);
+  lvd[446] = 2;
+  lvd[447] = 64;
+  lvd.write('*UDF Metadata Partition', 451, 'latin1');
+  lvd.writeUInt16LE(1, 482);
+  lvd.writeUInt16LE(physicalPartition, 484);
+  lvd.writeUInt32LE(metadataFileLbn, 486);
+
+  writeUdfTag(image.subarray((vdsSector + 2) * sectorBytes, (vdsSector + 3) * sectorBytes), 0, 8, vdsSector + 2);
+
+  const metadataAds = Buffer.alloc(8);
+  writeShortAd(metadataAds, 0, metadataSectorCount * sectorBytes, metadataDataLbn);
+  fileEntryBytes({
+    location:metadataFileLbn, fileType:250, infoLen:metadataSectorCount * sectorBytes, flags:0, ads:metadataAds,
+  }).copy(image, (partitionStart + metadataFileLbn) * sectorBytes);
+
+  const fsd = Buffer.alloc(sectorBytes);
+  writeUdfTag(fsd, 0, 256, 0);
+  writeLongAd(fsd, 400, sectorBytes, root.feLbn, metadataPartition);
+  fsd.copy(image, (partitionStart + metadataDataLbn) * sectorBytes);
+
+  for (const directory of directories) {
+    const packed = Buffer.concat(directory.children.map((child) => fidBytes({
+      location:directory.dataLbn, directory:child.directory, name:child.name,
+      icbLbn:child.feLbn, icbPartition:metadataPartition,
+    })));
+    if (packed.length > sectorBytes) throw new Error('UDF fixture directory exceeds one sector: ' + directory.name);
+    const ads = Buffer.alloc(8);
+    writeShortAd(ads, 0, packed.length || sectorBytes, directory.dataLbn);
+    fileEntryBytes({
+      location:directory.feLbn, fileType:4, infoLen:packed.length, flags:0, ads,
+    }).copy(image, (partitionStart + metadataDataLbn + directory.feLbn) * sectorBytes);
+    packed.copy(image, (partitionStart + metadataDataLbn + directory.dataLbn) * sectorBytes);
+  }
+  for (const file of files) {
+    const ads = Buffer.alloc(16);
+    writeLongAd(ads, 0, file.bytes.length, file.payloadLbn, physicalPartition);
+    fileEntryBytes({
+      location:file.feLbn, fileType:5, infoLen:file.bytes.length, flags:1, ads,
+    }).copy(image, (partitionStart + metadataDataLbn + file.feLbn) * sectorBytes);
+    file.bytes.copy(image, (partitionStart + file.payloadLbn) * sectorBytes);
+  }
+
+  ensureParent(target);
+  fs.writeFileSync(target, image);
+  return target;
+}
+
 function createVideo(ffmpeg, target, options) {
   ensureParent(target);
   const args = ['-hide_banner', '-loglevel', 'error', '-y',
@@ -941,4 +1121,4 @@ if (require.main === module) {
 }
 
 module.exports = Object.freeze({ LIBRARY_ID, MANIFEST_SCHEMA, SCENARIOS, REAL_SOURCE_SCENARIOS, E2E_SCENARIOS,
-  normalizedRoot, assertInside, writeMpls, createIso9660, ownedTopLevel, main });
+  normalizedRoot, assertInside, writeMpls, createIso9660, createUdfBluRay, ownedTopLevel, main });

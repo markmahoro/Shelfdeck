@@ -73,9 +73,15 @@ function isoFiles(location) {
   let metadataBytes = 0;
   try {
     const pvd = readAt(fd, SECTOR_BYTES, 16 * SECTOR_BYTES);
-    if (!pvd || pvd[0] !== 1 || pvd.subarray(1, 6).toString('ascii') !== 'CD001') return null;
+    if (!pvd || pvd[0] !== 1 || pvd.subarray(1, 6).toString('ascii') !== 'CD001') {
+      fs.closeSync(fd);
+      return null;
+    }
     const root = isoDirectoryRecord(pvd, 156);
-    if (!root?.directory) return null;
+    if (!root?.directory) {
+      fs.closeSync(fd);
+      return null;
+    }
     const files = [];
     const visit = (directory, prefix) => {
       if (directory.sizeBytes > MAX_DIRECTORY_BYTES || metadataBytes + directory.sizeBytes > MAX_METADATA_BYTES) {
@@ -111,6 +117,282 @@ function isoFiles(location) {
     };
     visit(root, '');
     return Object.freeze({ fd, files:Object.freeze(files.sort((a, b) => utf8(a.relativeLocation, b.relativeLocation))) });
+  } catch (error) {
+    fs.closeSync(fd);
+    throw error;
+  }
+}
+
+function udfTag(bytes, offset = 0) {
+  if (!bytes || offset + 16 > bytes.length) return null;
+  const id = bytes.readUInt16LE(offset);
+  if (!id) return null;
+  return Object.freeze({
+    id,
+    version: bytes.readUInt16LE(offset + 2),
+    location: bytes.readUInt32LE(offset + 12),
+  });
+}
+
+function udfExtent(bytes, offset) {
+  return Object.freeze({
+    length: bytes.readUInt32LE(offset),
+    location: bytes.readUInt32LE(offset + 4),
+  });
+}
+
+function udfLongAd(bytes, offset) {
+  return Object.freeze({
+    length: bytes.readUInt32LE(offset) & 0x3fffffff,
+    type: bytes.readUInt32LE(offset) >>> 30,
+    lbn: bytes.readUInt32LE(offset + 4),
+    partition: bytes.readUInt16LE(offset + 8),
+  });
+}
+
+function udfDecodeName(bytes) {
+  if (!bytes.length) return '';
+  if (bytes[0] === 8) return bytes.subarray(1).toString('latin1').replace(/\0/g, '');
+  if (bytes[0] === 16) {
+    let name = '';
+    for (let index = 1; index + 1 < bytes.length; index += 2) {
+      name += String.fromCharCode(bytes.readUInt16BE(index));
+    }
+    return name.replace(/\0/g, '');
+  }
+  return bytes.toString('latin1').replace(/\0/g, '');
+}
+
+function udfReadSector(fd, sector) {
+  return readAt(fd, SECTOR_BYTES, sector * SECTOR_BYTES);
+}
+
+function udfParseVolume(fd) {
+  const bea = udfReadSector(fd, 16);
+  if (!bea || bea.subarray(1, 6).toString('ascii') !== 'BEA01') return null;
+  const avdp = udfReadSector(fd, 256);
+  const avdpTag = udfTag(avdp);
+  if (!avdpTag || avdpTag.id !== 2) return null;
+  const mainVds = udfExtent(avdp, 16);
+  if (!mainVds.location || mainVds.length < SECTOR_BYTES) return null;
+  const vdsSectors = Math.min(32, Math.max(1, Math.floor(mainVds.length / SECTOR_BYTES)));
+  let partitionStart = null;
+  let partitionNumber = 0;
+  let fileSet = null;
+  const maps = [];
+  for (let index = 0; index < vdsSectors; index += 1) {
+    const sector = udfReadSector(fd, mainVds.location + index);
+    const tag = udfTag(sector);
+    if (!tag) break;
+    if (tag.id === 5) {
+      partitionNumber = sector.readUInt16LE(22);
+      partitionStart = sector.readUInt32LE(188);
+    } else if (tag.id === 6) {
+      const logicalBlockSize = sector.readUInt32LE(212);
+      if (logicalBlockSize !== SECTOR_BYTES) return null;
+      fileSet = udfLongAd(sector, 248);
+      const mapTableLength = sector.readUInt32LE(264);
+      const mapCount = sector.readUInt32LE(268);
+      if (mapCount > 8 || mapTableLength > 512) return null;
+      let offset = 440;
+      for (let mapIndex = 0; mapIndex < mapCount && offset + 2 <= sector.length; mapIndex += 1) {
+        const type = sector[offset];
+        const length = sector[offset + 1];
+        if (!length || offset + length > sector.length) return null;
+        const map = { type, partitionReference: maps.length, physicalPartition: 0, metadataDataStart: null };
+        if (type === 1 && length >= 6) map.physicalPartition = sector.readUInt16LE(offset + 4);
+        if (type === 2 && length >= 64) {
+          const ident = sector.subarray(offset + 5, offset + 28).toString('latin1');
+          map.physicalPartition = sector.readUInt16LE(offset + 38);
+          if (ident.startsWith('*UDF Metadata Partition')) {
+            map.metadataFileLocation = sector.readUInt32LE(offset + 40);
+          }
+        }
+        maps.push(Object.freeze(map));
+        offset += length;
+      }
+    } else if (tag.id === 8) break;
+  }
+  if (partitionStart === null || !fileSet || !maps.length) return null;
+  const metadataMap = maps.find((map) => Number.isSafeInteger(map.metadataFileLocation));
+  let metadataDataStart = null;
+  if (metadataMap) {
+    const metaFe = udfReadSector(fd, partitionStart + metadataMap.metadataFileLocation);
+    const entry = udfParseFileEntry(metaFe);
+    const extent = entry?.extents?.[0];
+    if (!extent || extent.type !== 0) return null;
+    metadataDataStart = extent.lbn;
+  }
+  return {
+    partitionStart,
+    partitionNumber,
+    maps: Object.freeze(maps),
+    fileSet,
+    metadataDataStart,
+    metadataBytes: 0,
+  };
+}
+
+function udfAbsoluteSector(volume, partitionRef, lbn) {
+  const map = volume.maps[partitionRef];
+  if (!map) return null;
+  if (map.type === 2 && Number.isSafeInteger(volume.metadataDataStart)) {
+    return volume.partitionStart + volume.metadataDataStart + lbn;
+  }
+  return volume.partitionStart + lbn;
+}
+
+function udfParseFileEntry(bytes) {
+  const tag = udfTag(bytes);
+  if (!tag || (tag.id !== 261 && tag.id !== 266)) return null;
+  const extended = tag.id === 266;
+  const fileType = bytes[27];
+  const flags = bytes.readUInt16LE(34);
+  const infoLen = Number(bytes.readBigUInt64LE(56));
+  const eaLen = extended ? bytes.readUInt32LE(208) : bytes.readUInt32LE(168);
+  const adLen = extended ? bytes.readUInt32LE(212) : bytes.readUInt32LE(172);
+  const adStart = (extended ? 216 : 176) + eaLen;
+  if (adStart < 0 || adLen < 0 || adStart + adLen > bytes.length || adLen > 1024) return null;
+  const ads = bytes.subarray(adStart, adStart + adLen);
+  const adType = flags & 7;
+  const stride = adType === 1 ? 16 : 8;
+  if (adType !== 0 && adType !== 1) return null;
+  const extents = [];
+  for (let offset = 0; offset + stride <= ads.length; offset += stride) {
+    if (adType === 0) {
+      const word = ads.readUInt32LE(offset);
+      const length = word & 0x3fffffff;
+      const type = word >>> 30;
+      if (!length) break;
+      extents.push(Object.freeze({
+        length, type, lbn: ads.readUInt32LE(offset + 4), partition: null,
+      }));
+    } else {
+      const ad = udfLongAd(ads, offset);
+      if (!ad.length) break;
+      extents.push(Object.freeze({
+        length: ad.length, type: ad.type, lbn: ad.lbn, partition: ad.partition,
+      }));
+    }
+  }
+  return Object.freeze({ fileType, flags, infoLen, extents: Object.freeze(extents) });
+}
+
+function udfReadEntry(fd, volume, icb) {
+  const sector = udfAbsoluteSector(volume, icb.partition, icb.lbn);
+  if (!Number.isSafeInteger(sector)) return null;
+  return udfParseFileEntry(udfReadSector(fd, sector));
+}
+
+function udfTrackMetadata(volume, bytes) {
+  volume.metadataBytes = (volume.metadataBytes || 0) + bytes;
+  if (volume.metadataBytes > MAX_METADATA_BYTES) {
+    const error = new Error('UDF directory metadata exceeds the bounded topology limit.');
+    error.code = 'DISC_TOPOLOGY_METADATA_LIMIT';
+    throw error;
+  }
+}
+
+function udfReadExtents(fd, volume, entry, asMetadata) {
+  const chunks = [];
+  let remaining = Math.min(entry.infoLen, MAX_DIRECTORY_BYTES);
+  for (const extent of entry.extents) {
+    if (remaining <= 0) break;
+    if (extent.type !== 0 || extent.length <= 0) continue;
+    const partition = asMetadata
+      ? (extent.partition === null ? volume.fileSet.partition : extent.partition)
+      : (extent.partition === null ? 0 : extent.partition);
+    const length = Math.min(extent.length, remaining);
+    const sector = udfAbsoluteSector(volume, partition, extent.lbn);
+    if (!Number.isSafeInteger(sector)) return null;
+    udfTrackMetadata(volume, length);
+    const bytes = readAt(fd, length, sector * SECTOR_BYTES);
+    if (!bytes) return null;
+    chunks.push(bytes);
+    remaining -= length;
+  }
+  return chunks.length ? Buffer.concat(chunks) : null;
+}
+
+function udfListDirectory(fd, volume, icb) {
+  const entry = udfReadEntry(fd, volume, icb);
+  if (!entry) return null;
+  const data = udfReadExtents(fd, volume, entry, true);
+  if (!data) return [];
+  const items = [];
+  for (let offset = 0; offset + 38 <= data.length;) {
+    const tag = udfTag(data, offset);
+    if (!tag || tag.id !== 257) break;
+    const characteristics = data[offset + 18];
+    const identLen = data[offset + 19];
+    const implLen = data.readUInt16LE(offset + 36);
+    const identStart = offset + 38 + implLen;
+    const rawLen = 38 + implLen + identLen;
+    const padded = (rawLen + 3) & ~3;
+    if (identStart + identLen > data.length || offset + padded > data.length) break;
+    if (!(characteristics & 4) && !(characteristics & 8)) {
+      items.push(Object.freeze({
+        directory: Boolean(characteristics & 2),
+        name: udfDecodeName(data.subarray(identStart, identStart + identLen)),
+        icb: udfLongAd(data, offset + 20),
+      }));
+    }
+    offset += padded;
+  }
+  return items;
+}
+
+function udfWalk(fd, volume, icb, prefix, files) {
+  const items = udfListDirectory(fd, volume, icb);
+  if (!items) return;
+  for (const item of items) {
+    if (!item.name) continue;
+    const relativeLocation = prefix ? prefix + '/' + item.name : item.name;
+    if (item.directory) {
+      udfWalk(fd, volume, item.icb, relativeLocation, files);
+      continue;
+    }
+    const entry = udfReadEntry(fd, volume, item.icb);
+    const extent = entry?.extents?.[0];
+    if (!entry || !extent || extent.type !== 0) continue;
+    const partition = extent.partition === null ? 0 : extent.partition;
+    const sector = udfAbsoluteSector(volume, partition, extent.lbn);
+    if (!Number.isSafeInteger(sector)) continue;
+    files.push(Object.freeze({
+      relativeLocation,
+      extent: sector,
+      sizeBytes: entry.infoLen,
+    }));
+    if (files.length > MAX_FILES) {
+      const error = new Error('ISO topology exceeds the Physical Material member limit.');
+      error.code = 'DISC_TOPOLOGY_SCOPE_TOO_LARGE';
+      throw error;
+    }
+  }
+}
+
+function udfFiles(location) {
+  const fd = fs.openSync(location, 'r');
+  try {
+    const volume = udfParseVolume(fd);
+    if (!volume) {
+      fs.closeSync(fd);
+      return null;
+    }
+    const fsdSector = udfAbsoluteSector(volume, volume.fileSet.partition, volume.fileSet.lbn);
+    const fsd = Number.isSafeInteger(fsdSector) ? udfReadSector(fd, fsdSector) : null;
+    const fsdTag = udfTag(fsd);
+    if (!fsdTag || fsdTag.id !== 256) {
+      fs.closeSync(fd);
+      return null;
+    }
+    const root = udfLongAd(fsd, 400);
+    const files = [];
+    udfWalk(fd, volume, root, '', files);
+    return Object.freeze({
+      fd,
+      files: Object.freeze(files.sort((left, right) => utf8(left.relativeLocation, right.relativeLocation))),
+    });
   } catch (error) {
     fs.closeSync(fd);
     throw error;
@@ -186,7 +468,7 @@ function finishTopology(discKind, identity, candidates, selected, members) {
 
 function inspectIso(location) {
   let listed;
-  try { listed = isoFiles(location); } catch (_) { return null; }
+  try { listed = isoFiles(location) || udfFiles(location); } catch (_) { return null; }
   if (!listed) return null;
   const { fd, files } = listed;
   try {

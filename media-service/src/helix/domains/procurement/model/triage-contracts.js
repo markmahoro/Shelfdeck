@@ -100,6 +100,13 @@ function inspectPlayability(batch, rule, options = {}) {
         probeEvidenceDigest:probe.payloadDigest, playable:true, reasonCodes:[] };
       return freeze({ ...result, resultDigest:digest(result) });
     }
+    // A proven ISO topology is the playability evidence for a disc image.
+    // ffprobe cannot open UDF/ISO9660 Blu-ray images as ordinary streams.
+    if (isProvenIsoTopology(probe)) {
+      const result = { selectionOrdinal:member.selectionOrdinal, materialKey:member.materialKey, bindingRevision:member.bindingRevision,
+        probeEvidenceDigest:probe.payloadDigest, playable:true, reasonCodes:[] };
+      return freeze({ ...result, resultDigest:digest(result) });
+    }
     if (probe.resultKind !== 'probed') reasons.push('probe_not_media');
     else {
       if (!Array.isArray(probe.videoStreams) || probe.videoStreams.length < rule.rulePayload.playabilityRule.minimumVideoStreamCount) reasons.push('no_video_stream');
@@ -379,6 +386,16 @@ function materialInputFormFromProbe(probe) {
     fail('P7_TRIAGE_INPUT_FORM_TOPOLOGY_INVALID', 'Typed disc topology evidence is incomplete for materialInputForm.');
   }
   return topology.discKind;
+}
+
+function isProvenIsoTopology(probe) {
+  if (probe?.discTopology?.discKind !== 'iso') return false;
+  try {
+    return materialInputFormFromProbe(probe) === 'iso';
+  } catch (error) {
+    if (error instanceof ProcurementTriageError) return false;
+    throw error;
+  }
 }
 
 function directoryTitleFor(context, resolvedMovieCount, scopeDigest) {
@@ -707,7 +724,9 @@ function inspectStructure(input, rule, options = {}) {
     const candidateContext = contexts.get(candidate.materialKey);
     const candidateProbe = probes.get(candidate.materialKey);
     const candidatePlay = playable.get(candidate.materialKey);
-    if (!candidateContext || candidateContext.selectionScopeKind === 'bdmv_container' || !candidateProbe || !candidatePlay?.playable) continue;
+    const isoTopology = isProvenIsoTopology(candidateProbe?.mediaProbe);
+    if (!candidateContext || candidateContext.selectionScopeKind === 'bdmv_container' || !candidateProbe ||
+        (!candidatePlay?.playable && !isoTopology)) continue;
     const token = episodeToken(candidateContext.baseName);
     const hint = profileHintSnapshot.contentProfileHint;
     const profileName = hint === 'mixed' ? (token ? 'series' : javCode(candidateContext.baseName) ? 'jav' : 'movie') : hint;
@@ -778,6 +797,28 @@ function inspectStructure(input, rule, options = {}) {
       continue;
     }
     const ordinaryDiscTopology = probe?.mediaProbe?.discTopology;
+    if (isProvenIsoTopology(probe?.mediaProbe)) {
+      processed.add(selected.materialKey);
+      const token = episodeToken(context.baseName);
+      const hint = profileHintSnapshot.contentProfileHint;
+      const profileName = hint === 'mixed' ? (token ? 'series' : javCode(context.baseName) ? 'jav' : 'movie') : hint;
+      if (!CLAIM_KIND[profileName] || profileName === 'series' && !token) {
+        unassigned.push({ materialKey:selected.materialKey, reasonCode:profileName === 'series' ? 'episode_claim_unresolved' : 'content_profile_unresolved',
+          evidenceDigest:digest({ materialKey:selected.materialKey, contextDigest:input.materialFieldContext.contextDigest }) });
+        continue;
+      }
+      const resolvedMovieCount = resolvedMovieCountByScope.get(selected.scopeOrdinal) || 0;
+      const directoryTitle = directoryTitleFor(context, resolvedMovieCount, selectionScope.scopeDigest);
+      const associationMode = selectionScope.scopeKind === 'standalone_file' ? 'standalone_same_stem'
+        : resolvedMovieCount === 1 ? 'single_movie_directory' : 'multi_movie_directory';
+      const relatedScope = relatedScopeFor({ ...context, directoryTitle, contextDigest:input.materialFieldContext.contextDigest },
+        selected.materialKey, input.observationScopeProjection?.projectionRevision || 1, associationMode);
+      const unit = unitFor(probe, { ...context, directoryTitle, fieldId:input.materialFieldContext.fieldId }, profileName,
+        profileName === 'series' ? 'group' : 'single', token && token.season, token ? token.episodes : [], relatedScope,
+        materialInputFormFromProbe(probe.mediaProbe), profileHintSnapshot);
+      if (conserveUnitBound(unit, unassigned)) units.push(unit);
+      continue;
+    }
     if (ordinaryDiscTopology?.discKind === 'dvd') {
       const group = selection.members.filter((candidate) => {
         if (candidate.scopeOrdinal !== selected.scopeOrdinal) return false;
@@ -943,5 +984,5 @@ function buildPrimaryManifestDraft(input, rule, options = {}) {
 }
 
 module.exports = Object.freeze({ CLAIM_KIND, PLAYABILITY_REASONS, STRUCTURE_REASONS, MATERIAL_INPUT_FORMS, RELATED_RULE_REVISION,
-  ProcurementTriageError, relatedScopeFor, materialInputFormFromProbe,
+  ProcurementTriageError, relatedScopeFor, materialInputFormFromProbe, isProvenIsoTopology,
   buildPrimaryManifestDraft, inspectPlayability, inspectStructure, resolveIdentity });

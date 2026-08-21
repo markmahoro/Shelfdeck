@@ -1625,14 +1625,24 @@ Scope 是 `ordinary_directory`、1 个成员。媒体探针把 ISO 当普通流�
 `1080p AVC DTS.iso`，很可能是 UDF 蓝光映像，现有 `inspectIso` 读不到 BDMV 清单，topology 为 null。
 
 精确根因：UAT-031 只解决了 Extraction Policy 准入。Triage 仍要求可播放流或已证明的 disc topology。
-UDF 蓝光 ISO 两条都不满足，被当成 `probe_not_media`。
+现有 `inspectIso` 只认 ISO9660 `CD001`。这份 `倩女幽魂2` 映像扇区 16 是 `BEA01`/`NSR03`/`TEA01`，
+AVDP 在扇区 256，随后是 UDF 2.50 元数据分区；没有 `CD001`，topology 为 null，ffprobe 也不是可播放流，
+因此被当成 `probe_not_media`。
 
 业务影响：ISO 原盘仍不能形成一部 Movie。不得用「凡是 .iso 都当 Candidate」绕过内容证明。
 
-修复边界：为 UDF/ISO9660 蓝光映像补齐有界 topology 证明，使 `materialInputForm=iso` 且一部 Movie；
-多标题仍 fail closed。不把 ffprobe 失败当作 ISO 成功。
+修复边界：为纯 UDF 蓝光映像补齐有界 AVDP / Partition Map / Metadata Partition 目录遍历，
+从 BDMV playlist 内容证明 `discKind=iso` 并选出一部主标题；Triage 仅在该 topology 完整时把
+`materialInputForm=iso` 作为一部 Movie，Playability 用 topology 代替 ffprobe 流。多标题仍 fail closed。
+不把 `.iso` 扩展名或 ffprobe 失败当作成功。
 
-当前处理决定：干净 UAT 已启动并密集监测其余 22/23。本条 `OPEN / FIX REQUIRED`，下一步修 ISO topology。
+验收证据：合成 UDF 2.50（无 ISO9660、带 metadata partition 与 BDMV）专项回归证明 `discKind=iso`、
+主 playlist `BDMV/PLAYLIST/00000.mpls`、clip `00000`；仅有 `BEA01` 而无 Volume Descriptor 的映像返回 null。
+`isProvenIsoTopology` 拒绝只有 `discKind` 没有完整 digest 的残缺证据。P7 disc topology 3/3 通过；
+只读复测真实 `F:\test_film` 的 23 GiB UDF ISO 同样选出主 playlist。
+
+修复状态（2026-08-22）：`REGRESSION PASSED / CLEAN CANARY UAT PENDING`。旧 `triage_failed` Observation 不可变；
+本修复随干净 Canary 重建后才能让 `倩女幽魂2：人间道` 形成 Candidate。
 
 ## 34. 后续问题模板
 
