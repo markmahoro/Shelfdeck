@@ -29,9 +29,10 @@ function actionLabel(works) {
   if (refs.some((ref) => ['libra.product.conformance.verify@1', 'libra.product_package.publish@1'].includes(ref))) return '直接采用并验证';
   return '尚未形成整理动作';
 }
-function identityIssue(works) {
+function extractProductIdentityIssue(works) {
   const result = works.flatMap((work) => work.events)
-    .filter((event) => event.result?.resultSchemaRef === 'helix://contracts/types/ProductIdentityEvidenceObservation/v1')
+    .filter((event) => event.capabilityRef === 'libra.product_identity.evidence.observe@1'
+      && event.result?.result?.schemaRef === 'helix://contracts/types/ProductIdentityEvidenceObservation/v1')
     .sort((a, b) => (b.result?.committedAtMs || 0) - (a.result?.committedAtMs || 0))[0]?.result?.result;
   if (!result || result.result === 'resolved') return null;
   return Object.freeze({ result: result.result, reasonCode: result.reasonCode, candidateSetDigest: result.evidenceDigest, candidates: Object.freeze(result.candidates || []) });
@@ -119,7 +120,7 @@ function createFormationProjectionSource(options) {
       const runs = value.runs.filter((item) => item.subject_id === subject.subject_id).sort((a, b) => Number(b.created_at_ms) - Number(a.created_at_ms));
       const run = runs.find((item) => ['active', 'suspended', 'frozen'].includes(item.state)) || runs[0] || null;
       const pkg = run ? latest(value.packages.filter((item) => item.libra_run_id === run.libra_run_id), 'package_revision') : null;
-      const works = run ? progressByRun.get(run.libra_run_id) || [] : [], issue = identityIssue(works);
+      const works = run ? progressByRun.get(run.libra_run_id) || [] : [], issue = extractProductIdentityIssue(works);
       const classification = pkg && pkg.state === 'published' ? 'completed' : productionStarted(works) ? 'in_progress' : 'waiting';
       const rating = ratings.get(subject.subject_id) || null;
       return Object.freeze({ formationViewId: subject.subject_id, subjectId: subject.subject_id, displayIdentity, contentProfile: subject.content_profile, structureKind: subject.structure_kind, status: subject.status, classification, myRating: rating?.rating ?? null, myRatingSource: rating?.sourceKind || null, myRatingRevision: (rating?.expectedRevision || 0) > 0 ? rating.expectedRevision : null, productIdentityIssue: issue, targetShelfId: routing?.shelf_id || null, targetShelfName: shelfNames.get(routing?.shelf_id) || null, routingState: routing?.decision || 'preparing', unresolvedReasonCode: routing?.unresolved_reason_code || null, routingPolicyMode: policy?.mode || null, routingPolicyRevision: routing?.routing_policy_revision == null ? null : Number(routing.routing_policy_revision), routingDecisionRevision: routing ? Number(routing.decision_revision) : null, routingDecisionDigest: routing?.decision_digest || null, routingDecisionHeadRevision: head ? Number(head.head_revision) : null, routingDecisionHeadDigest: head?.head_digest || null, acceptanceSpecId: spec?.acceptance_spec_id || null, acceptanceSpecRevision: spec ? Number(spec.spec_revision) : null, acceptanceSpecDigest: spec?.spec_digest || null, acceptanceSpecPublishedAtMs: spec ? Number(spec.published_at_ms) : null, primaryMaterialCount: bindings.filter((item) => item.authority_kind === 'primary_control').length, addedAtMs: decisions.length ? Number(decisions.at(-1).decided_at_ms) : Number(subject.updated_at_ms), organizingRequirement: requirementLabel(spec), organizingAction: actionLabel(works), nextAction: nextAction(works, classification, issue), currentRun: run ? Object.freeze({ libraRunId: run.libra_run_id, state: run.state, stateRevision: Number(run.state_revision), stateDigest: run.state_digest, priorityClass: run.priority_class, packageRevisionHead: Number(run.package_revision_head), currentIdentityRevision: subject.current_identity_revision === null ? null : Number(subject.current_identity_revision) }) : null, handoffB: pkg ? Object.freeze({ onDeckPackageId: pkg.on_deck_package_id, offerId: pkg.offer_id, packageRevision: Number(pkg.package_revision), packageDigest: pkg.package_digest, state: pkg.state, publishedAtMs: Number(pkg.published_at_ms) }) : null });
@@ -270,4 +271,10 @@ function createFormationQuery(options) {
   return Object.freeze({ list, get });
 }
 
-module.exports = Object.freeze({ buildFormationProjectionRow, createFormationProjectionSource, createFormationQuery, projectionItem });
+module.exports = Object.freeze({
+  buildFormationProjectionRow,
+  createFormationProjectionSource,
+  createFormationQuery,
+  extractProductIdentityIssue,
+  projectionItem,
+});

@@ -8,7 +8,11 @@ const test = require('node:test');
 const Database = require('better-sqlite3');
 const { openSqliteKernel } = require('../src/helix/foundation/persistence/sqlite-kernel');
 const { createSqliteUnitOfWork } = require('../src/helix/foundation/persistence/sqlite-unit-of-work');
-const { buildFormationProjectionRow, createFormationQuery } = require('../src/helix/domains/libra/application/formation-query');
+const {
+  buildFormationProjectionRow,
+  createFormationQuery,
+  extractProductIdentityIssue,
+} = require('../src/helix/domains/libra/application/formation-query');
 const { createFormationProjectionStore } = require('../src/helix/domains/libra/persistence/formation-projection-store');
 const { createFormationProjectionHost } = require('../src/helix/domains/libra/application/formation-projection-host');
 
@@ -28,6 +32,29 @@ function item(index,classification='waiting',attention=false){return Object.free
   currentRun:Object.freeze({libraRunId:`run-${index}`,state:'active',stateRevision:1,stateDigest:hex(400+index),priorityClass:'normal',packageRevisionHead:classification==='completed'?1:0,currentIdentityRevision:1}),
   handoffB:classification==='completed'?Object.freeze({onDeckPackageId:`package-${index}`,offerId:`offer-${index}`,packageRevision:1,packageDigest:hex(500+index),state:'published',publishedAtMs:2000+index}):null,
 });}
+
+test('Formation extracts Product Identity issues from the business result contract',()=>{
+  const conflicting={
+    result:'conflicting',reasonCode:'provider_identity_conflicting',evidenceDigest:hex(900),
+    candidates:[{candidateIdentityKey:'tmdb:movie:915935',title:'Anatomy of a Fall',year:2023}],
+  };
+  const works=[{events:[{
+    capabilityRef:'libra.product_identity.evidence.observe@1',
+    result:{
+      resultSchemaRef:'helix://contracts/capabilities/libra.product_identity.evidence.observe/v1/result',
+      committedAtMs:200,
+      result:{schemaRef:'helix://contracts/types/ProductIdentityEvidenceObservation/v1',...conflicting},
+    },
+  }]}];
+  assert.deepEqual(extractProductIdentityIssue(works),{
+    result:'conflicting',reasonCode:'provider_identity_conflicting',candidateSetDigest:hex(900),
+    candidates:conflicting.candidates,
+  });
+  assert.equal(extractProductIdentityIssue([{events:[{
+    capabilityRef:'libra.product_identity.evidence.observe@1',
+    result:{committedAtMs:300,result:{schemaRef:'helix://contracts/types/ProductIdentityEvidenceObservation/v1',result:'resolved'}},
+  }]}]),null);
+});
 
 test('durable Formation projection pages 25 active rows, sorts attention first, and no-ops unchanged basis',()=>{
   const root=fs.mkdtempSync(path.join(os.tmpdir(),'helix-formation-projection-')),databasePath=path.join(root,'shelfdeck.db');
