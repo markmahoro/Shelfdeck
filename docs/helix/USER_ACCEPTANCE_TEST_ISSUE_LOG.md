@@ -1805,7 +1805,21 @@ stderr 为 `CLEAN_ARCA_TARGET_OCCUPIED` 与 `CLEAN_ARCA_SETTLEMENT_UNKNOWN_MEMBE
 
 修复状态（2026-08-22）：`REGRESSION PASSED / NEW LIBRA RUN REQUIRED`。当前冻结的 007 Run 不可变。
 
-## 41. 后续问题模板
+## 41. UAT-044：4 星 14 GiB 无法规划 BDMV 多 TrueHD 轨的体积转码，落入 MoviePilot 冻结
+
+问题分类：`BUSINESS_CONTRACT / MEDIA_PRODUCTION`
+
+用户侧现象：BDMV `养蜂人 (2024) - 2160p HEVC Atmos TrueHD5.1` Remux 已成功（UAT-041 有效），但 4 星要求 `HEVC · 不超过 14 GiB`。Transcode assessment Plan 为 `contract_unplannable`，Work Attempt `media_size_budget_infeasible`，随后走外部获取并冻成「没有找到可获取的外部候选」。
+
+现场证据：源 `00002.m2ts` 约 68.7 GiB、约 105 分钟，至少 2 条 TrueHD + 多条 AC3 core。`deriveTargetSizeBudget` 把每条 TrueHD 按 8 Mbps、其余按 1.536 Mbps **全加**。全轨拷贝时 14 GiB 留给视频的码率会低于 100 kbps 可行线。其它 4 星片子已转码成功。MKV 养蜂人已 On-deck。
+
+精确根因：体积预算按「将写入产品的全部音轨」求和；当前 transcode 也是 `-map 0:a?` 全拷。多 TrueHD 的蓝光在 4 星 14 GiB 下无法规划，Owner 收口到 MoviePilot。这不是 Remux 失败。
+
+业务影响：用户本轮目标是两部养蜂人都 On-deck。若 4 星必须保留全部无损音轨，则 14 GiB 物理不可达，MoviePilot 冻结可视为合同终态。若 4 星目标是「HEVC ≤14 GiB 的可播放产品」，规划应只为将保留的音轨留预算（例如默认音轨 / 去掉 core 重复），而不是整盘音轨。
+
+当前处理决定：不擅自丢音轨、不抬 14 GiB 上限。需要业务确认后再改规划或接受该 4 星冻结。状态 `OPEN / BUSINESS_DECISION`。
+
+## 42. 后续问题模板
 
 后续发现的问题按以下结构追加：
 
