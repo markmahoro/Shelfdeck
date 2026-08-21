@@ -4,6 +4,13 @@ Status: Movie Procurement保持`CLOSED FOR MOVIE`；Movie Libra保持`MOVIE LIBR
 
 Last updated: 2026-08-21
 
+## 0. Active repair — UAT-001/UAT-003 Douban detail anchors
+
+豆瓣Collection行缺失年份或别名时，同一有界Acquisition Page最多读取16个精确Subject详情页；响应必须绑定相同Origin和
+Douban Subject ID。详情年份、别名和payload digest进入新的immutable source revision，旧Record不改写。Record Commit后只唤醒
+title/year Anchor精确相交的Subject Resolution，周期reconciler只承担丢Signal恢复。既有技术尾缀、括号年份和多语言Alias规则保持
+严格匹配，不提高模糊阈值。专项回归通过后单独提交，三个定向Canary留待新UAT验证。
+
 ## 0. Active repair — UAT-016 TMDB locale and alias evidence
 
 用户授权的Movie Canary修复已经开始。TMDB连接现在把首选语言作为用户可见、revisioned设置，默认`zh-CN`；Search、

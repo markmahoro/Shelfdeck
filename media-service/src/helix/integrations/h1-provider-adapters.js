@@ -792,10 +792,10 @@ function createProtocolTransport(profile, options) {
       page.bytes.fill(0);
       fail(PROVIDER_ERROR, 'Douban response HTML cannot be parsed.');
     }
-    const observations = [];
+    const drafts = [];
     const seen = new Set();
     parsed('li.item, div.item, a[href*="/subject/"]').each((_index, element) => {
-      if (observations.length >= request.input.limit) return false;
+      if (drafts.length >= request.input.limit) return false;
       const item = parsed(element);
       const link = item.is('a[href*="/subject/"]') ? item : item.find('a[href*="/subject/"]').first();
       const match = String(link.attr('href') || '').match(/\/subject\/([0-9]+)\//);
@@ -813,30 +813,65 @@ function createProtocolTransport(profile, options) {
       }
       const descriptiveText = item.find('.intro').text() + ' ' + item.find('.title').text();
       const year = Number(descriptiveText.match(/(?:18|19|20|21)\d{2}/)?.[0] || 0) || null;
+      drafts.push({ providerKey, rating, title, year });
+      return undefined;
+    });
+    const observations = [];
+    let detailRequests = 0;
+    for (const draft of drafts) {
+      let { year } = draft;
+      let aliases = [];
+      let detailEvidenceDigest = null;
+      if (year === null && detailRequests < 16) {
+        detailRequests += 1;
+        const detailUrl = endpointUrl(state.endpoint, 'subject/' + encodeURIComponent(draft.providerKey) + '/');
+        const detailPage = await fetchBytes(fetchImpl, detailUrl, {
+          headers: { accept:'text/html', cookie:request.secretBytes.toString('utf8'), 'user-agent':'ShelfDeck/1.0' },
+          signal: AbortSignal.timeout(request.timeoutMs),
+        }, TEXT_LIMIT);
+        let detailResponseUrl;
+        try { detailResponseUrl = new URL(detailPage.responseUrl); } catch (_error) {
+          detailPage.bytes.fill(0); fail(PROVIDER_ERROR, 'Douban detail response URL is invalid.');
+        }
+        if (detailResponseUrl.origin !== new URL(state.endpoint).origin ||
+            detailResponseUrl.pathname.replace(/\/+$/, '') !== '/subject/' + draft.providerKey) {
+          detailPage.bytes.fill(0); fail(PROVIDER_ERROR, 'Douban detail response belongs to a foreign identity.');
+        }
+        const detailText = detailPage.bytes.toString('utf8');
+        const detail = cheerio.load(detailText);
+        year = Number((detail('span.year').first().text() + ' ' + detail('#content h1').first().text() + ' ' + detail('#info').first().text())
+          .match(/(?:18|19|20|21)\d{2}/)?.[0] || 0) || null;
+        const reviewedTitle = String(detail('[property="v:itemreviewed"]').first().text() || '').normalize('NFKC').trim();
+        const alternateLine = String(detail('#info').first().text() || '').match(/又名\s*:\s*([^\n]+)/u)?.[1] || '';
+        aliases = [...new Set([reviewedTitle, ...alternateLine.split(/\s*\/\s*/u)]
+          .map((value) => String(value || '').normalize('NFKC').replace(/\s+/g, ' ').trim()).filter(Boolean))].slice(0, 12);
+        detailEvidenceDigest = digest(detailPage.bytes);
+        detailPage.bytes.fill(0);
+      }
       const entries = [
-        { key: 'doubanSubjectId', value: providerKey },
-        { key: 'rating', value: rating },
+        { key: 'doubanSubjectId', value: draft.providerKey },
+        { key: 'rating', value: draft.rating },
         { key: 'ratingScale', value: 'douban_1_5' },
-        { key: 'title', value: title },
+        { key: 'title', value: draft.title },
+        { key: 'aliasTitlesJson', value: JSON.stringify(aliases) },
         { key: 'watched', value: true },
         { key: 'year', value: year },
       ];
       const payloadBody = { schemaRef: 'helix://contracts/types/DoubanInterestObservation/v1', schemaVersion: 1,
         recordKind: 'perception-observation-inline-payload', entries };
       const inlinePayload = Object.freeze({ ...payloadBody, recordDigest: digest(canonicalJson(payloadBody)) });
-      const sourceRecordDigest = digest(canonicalJson({ providerKey, rating, title, year, watched: true }));
+      const sourceRecordDigest = digest(canonicalJson({ providerKey:draft.providerKey, rating:draft.rating, title:draft.title, aliases, year, watched:true, detailEvidenceDigest }));
       const sourceRecordRevision = Number(BigInt('0x' + sourceRecordDigest.slice(0, 12))) + 1;
       const observedAtMs = now();
       const observation = Object.freeze({ observationId: 'douban-observation-' + sourceRecordDigest.slice(0, 40),
-        sourceRecordKey: 'douban:' + providerKey, sourceRecordRevision, sourceRecordDigest, observedAtMs,
+        sourceRecordKey: 'douban:' + draft.providerKey, sourceRecordRevision, sourceRecordDigest, observedAtMs,
         payloadSchemaRef: inlinePayload.schemaRef, payloadDigest: digest(canonicalJson(inlinePayload)), inlinePayload,
-        provenanceDigest: digest(canonicalJson({ source: 'douban_collect', configuredUserId, providerKey,
-          sourceRecordRevision, sourceRecordDigest })) });
-      const reference = frozenRef('douban_interest_observation', providerKey, sourceRecordRevision, observation);
+        provenanceDigest: digest(canonicalJson({ source:'douban_collect', configuredUserId, providerKey:draft.providerKey,
+          sourceRecordRevision, sourceRecordDigest, detailEvidenceDigest })) });
+      const reference = frozenRef('douban_interest_observation', draft.providerKey, sourceRecordRevision, observation);
       rememberObservation(reference, observation);
-      observations.push(Object.freeze({ reference, providerKey }));
-      return undefined;
-    });
+      observations.push(Object.freeze({ reference, providerKey:draft.providerKey }));
+    }
     const nextHref = parsed('.paginator .next a[href]').first().attr('href');
     let nextCursor = null;
     if (nextHref) {

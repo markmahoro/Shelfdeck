@@ -680,6 +680,10 @@ function createProcurementExecutionRuntime(options) {
           perceptionProcessServices.ensureResolution(target.targetType,target.targetId);
           if(target.targetType==='subject')libraProcessServices.acceptanceSpecCoordinator.reconcile(target.targetId);
         }
+        if(acquisition.kind==='terminal'&&context?.scope?.mode==='provider'){
+          perceptionProcessServices.reconcileImpactedSubjectResolutions(request.processId,
+            (cursor,limit)=>libraProcessServices.routingContextReader.listActiveSubjectPage(cursor,limit));
+        }
       }
       return {workId:request.workId,disposition:request.workAttemptState};
     }

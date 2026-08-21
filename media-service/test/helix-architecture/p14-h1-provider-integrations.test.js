@@ -138,6 +138,12 @@ function providerFetch(state) {
       if (headers.cookie !== secrets.douban) {
         return response(401, 'denied', 'text/plain');
       }
+      if (url.pathname === '/subject/1292052/') {
+        return response(200,
+          '<div id="content"><h1><span property="v:itemreviewed">肖申克的救赎</span><span class="year">(1994)</span></h1></div>' +
+          '<div id="info">又名: 月黑高飞 / 刺激1995\n制片国家/地区: 美国</div>',
+          'text/html', url.toString());
+      }
       return response(
         200,
         '<a href="/people/' +
@@ -689,6 +695,10 @@ test('H1.2 provider operations execute through exact P5 ports and revision-fence
     });
     assert.equal(douban.result.resultRefs.length, 1);
     assert.equal(douban.result.resultRefs[0].objectId, '1292052');
+    const doubanObservation = await opened.services.readPerceptionObservation(douban.result.resultRefs[0]);
+    const doubanEntries = Object.fromEntries(doubanObservation.inlinePayload.entries.map((item) => [item.key,item.value]));
+    assert.equal(doubanEntries.year, 1994);
+    assert.deepEqual(JSON.parse(doubanEntries.aliasTitlesJson), ['肖申克的救赎','月黑高飞','刺激1995']);
 
     const adultBefore = state.calls.length;
     const adult = await opened.services.executeProvider(

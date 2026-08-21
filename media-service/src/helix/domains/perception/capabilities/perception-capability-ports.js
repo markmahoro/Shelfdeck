@@ -3,6 +3,7 @@
 const acquisitionTransaction = require('../../../contracts/transaction-contracts/helix.transaction.perception-acquisition-page-commit/v1/contract.json');
 const resolutionTransaction = require('../../../contracts/transaction-contracts/helix.transaction.perception-resolution-commit/v1/contract.json');
 const { canonicalDigest } = require('../../../contracts/canonical-json');
+const { titleAliases } = require('../model/perception-aliases');
 const { createCanonicalTransactionRegistry, createDomainCommitCoordinator, createDomainCommitRegistry } = require('../../../foundation/persistence/domain-commit-registry');
 const { createPerceptionAcquisitionPipeline, createPerceptionRecordCommitRegistration } = require('./perception-acquisition-pipeline');
 const { createPerceptionResolutionCommitRegistration } = require('../model/perception-resolution-lifecycle');
@@ -42,13 +43,22 @@ function normalizationRuleEvaluator() {
     if (rating !== undefined && (!Number.isSafeInteger(rating) || rating < 1 || rating > 5)) throw new TypeError('Perception rating must be an integer from 1 to 5.');
     const title = String(values.title || '').normalize('NFKC').trim();
     if (!title) throw new TypeError('Perception observation title is required.');
-    const anchors = [];
-    const add = (anchorKind, anchorValue, confidenceClass) => { if (!anchorValue) return; anchors.push(Object.freeze({ anchorKind, anchorValue:String(anchorValue), confidenceClass,
+    const anchors = [], anchorKeys = new Set();
+    const add = (anchorKind, anchorValue, confidenceClass) => { if (!anchorValue) return; const key=anchorKind+'\0'+String(anchorValue);if(anchorKeys.has(key)||anchors.length>=16)return;anchorKeys.add(key);anchors.push(Object.freeze({ anchorKind, anchorValue:String(anchorValue), confidenceClass,
       evidenceDigest:canonicalDigest({ observationId:observation.observationId, anchorKind, anchorValue:String(anchorValue), confidenceClass }) })); };
     if (direct) add(values.targetType === 'shelf_entry' ? 'shelf_entry_id' : 'subject_id', values.targetId, 'exact');
     if (values.providerIdentity) add('provider_identity', values.providerIdentity, 'strong');
     if (values.doubanSubjectId) add('provider_identity', 'douban:movie:' + values.doubanSubjectId, 'strong');
-    if (values.year) add('title_year', title + '\0' + values.year, 'medium');
+    let aliasTitles=[];
+    if(values.aliasTitlesJson!==undefined){try{aliasTitles=JSON.parse(values.aliasTitlesJson);}catch{throw new TypeError('Perception alias title set is invalid.');}}
+    if (!Array.isArray(aliasTitles) || aliasTitles.length > 12 || aliasTitles.some((item)=>typeof item!=='string'||!item.trim()||Buffer.byteLength(item,'utf8')>1024)) {
+      throw new TypeError('Perception alias title set is invalid.');
+    }
+    if (values.year) {
+      for (const alias of titleAliases([title, ...aliasTitles].join(' / '), { providerDelimited:true })) {
+        add('title_year', alias + '\0' + values.year, 'medium');
+      }
+    }
     anchors.sort((a, b) => a.anchorKind.localeCompare(b.anchorKind) || a.anchorValue.localeCompare(b.anchorValue));
     const supersedes = values.supersedesSourceRecordKey ? freeze({ sourceRecordKey:String(values.supersedesSourceRecordKey),
       sourceRecordRevision:Number(values.supersedesSourceRecordRevision), sourceRecordDigest:String(values.supersedesSourceRecordDigest) }) : null;

@@ -4,6 +4,13 @@ Status: Movie Procurement与Movie Libra封口保持有效；Movie Arca已完成H
 
 Last updated: 2026-08-21
 
+## 0. UAT repair status — UAT-001/UAT-003 implemented, targeted Canary pending
+
+豆瓣Adapter现在为缺年份Collection记录执行最多16次精确详情观察，冻结详情Evidence digest、年份及最多12个别名；Normalizer为
+标题与别名生成去重后的`title_year` Anchor，仍保持16项Record Anchor硬上限。Provider Acquisition终态后按新Anchor精确扫描
+active Subject Projection并只重建相交Resolution。专项Provider、Perception Store和Alias回归通过；`养蜂人`、`看不见的朋友`、
+`香火`的真实匹配仍须第二轮Canary确认。
+
 ## 0. UAT repair status — UAT-016 implemented, fresh Canary qualification pending
 
 TMDB Adapter已移除固定`en-US`：连接测试与后续Search、精确ID、Metadata读取使用同一用户配置语言，默认`zh-CN`。

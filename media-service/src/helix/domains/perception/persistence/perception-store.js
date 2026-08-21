@@ -118,6 +118,11 @@ function createPerceptionStore(options) {
     },
     getCommit(id) { return execute([records], (context) => mapCommit(context.repository(records.repositoryId).invoke('find_commit', { acquisition_commit_receipt_id: id }))); },
     getRecord(id) { return execute([records], (context) => mapRecord(context.repository(records.repositoryId), id)); },
+    listRecordsForAcquisition(acquisitionId) { return execute([records], (context) => {
+      const repo=context.repository(records.repositoryId);
+      return Object.freeze(repo.invoke('list_records').filter((row)=>row.perception_acquisition_id===acquisitionId)
+        .map((row)=>mapRecord(repo,row.perception_id)).sort((a,b)=>a.perceptionId.localeCompare(b.perceptionId)));
+    }); },
     listAcquisitions() { return execute([records], (context) => context.repository(records.repositoryId).invoke('list_acquisitions').map(mapAcquisition)
       .sort((left,right)=>right.createdAtMs-left.createdAtMs||left.perceptionAcquisitionId.localeCompare(right.perceptionAcquisitionId))); },
     listRecords(query = {}) { return execute([records,resolutions], (context) => {

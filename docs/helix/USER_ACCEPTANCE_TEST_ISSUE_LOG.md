@@ -305,11 +305,11 @@ Libra Subject通常只携带其中一个标题。两边实际指向同一电影�
 
 ### 3.7 当前处理决定
 
-- 问题已记录并完成初步诊断；
-- 当前用户侧测试继续；
-- 暂不修改SSOT、Resolver或历史Resolution事实；
-- 不通过扩大模糊阈值进行临时修补；
-- 待本轮用户侧测试结束后，与其他问题一起统一复盘、排序和修复。
+- 修复已实现并完成专项回归，等待第二轮Canary真实浏览器资格；
+- 缺年份Collection行会执行最多16个同源、精确Subject详情观察，并把年份、别名及payload digest写入新的immutable source revision；
+- 旧Record与历史Resolution不改写，新Anchor只精确唤醒title/year相交的active Subject；
+- 技术尾缀、括号年份和Provider多语言别名继续使用严格规则，不扩大模糊阈值；
+- `养蜂人`、`看不见的朋友`和`香火`三项只有在新Canary中均读取到既有评分后才可关闭。
 
 ## 4. UAT-002：Handoff A Intake接收Subject吞吐异常偏低
 

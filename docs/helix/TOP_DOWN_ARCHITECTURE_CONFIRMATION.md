@@ -69,6 +69,12 @@ failures are technical failures, never `not_found`. Resolution strength is exact
 Subject/Shelf Entry Anchor, then normalized title+year; same-tier conflict remains ambiguous/not_found. All Acquire,
 Normalize, Record Commit, Resolve and Resolution Commit operations use the accepted Work/Plan/Event Runtime chain.
 
+When a bounded collection-page row omits year or alias evidence, the same acquisition observation may read at most 16
+exact Douban Subject detail pages for that page. Each response is fenced to the same origin and exact Subject ID; the
+derived year and alternate titles enter the new immutable source revision with their detail payload digest. The prior
+Record remains immutable. A committed title/year anchor triggers only Subjects whose exact normalized title/year query
+anchor intersects the new anchor set; the periodic full reconciler remains recovery for a lost wake, not normal latency.
+
 `GET /v1/admin/perception/records` adds a read-only cursor-paged history Projection, including current, superseded,
 unmatched and ambiguous Douban records. It is shown as the `评分日志` Tab inside Settings and performs no rating,
 sync or Resolution side effect. Rating controls remain contextual on Formation Subject and Collection Shelf Entry.
