@@ -1,13 +1,17 @@
 # Movie Canary 真实用户全流程 UAT Checklist
 
-状态：`CONFIRMED / NOT STARTED`  
-确认日期：2026-08-21  
+状态：`CONFIRMED FOR NEXT CLEAN RUN / NOT STARTED`
+
+确认日期：2026-08-22
+
 适用范围：Movie Collection Formation、Libra、Arca Aftercare、Off-deck、Shelf Deregistration  
 执行入口：ShelfDeck Admin Web  
 
 > 本文是面向真实用户操作的验收清单，不是测试脚本、自动化测试设计、架构
 > SSOT 或活动实施计划。架构语义以
 > `docs/helix/TOP_DOWN_ARCHITECTURE_CONFIRMATION.md` 为准。
+> 下一轮成功判定、22部逐片终态、Arca逐文件展示和证据包要求见
+> `docs/helix/acceptance/MOVIE_CANARY_E2E_SUCCESS_EVALUATION.md`。
 
 ## 1. 一句话成功定义
 
@@ -21,10 +25,10 @@
 
 ### 2.1 文件边界
 
-- [ ] 基线目录固定为 `G:\test_film`。
-- [ ] 正式 Canary 目录固定为 `G:\canary_film`。
-- [ ] `G:\test_film` 只作为不可变基线；不得写入、移动、重命名或删除其中任何内容。
-- [ ] `G:\canary_film` 同时注册为 Material Field 和 Shelf Physical Target Folder，不拆分为两个根目录。
+- [ ] 基线目录固定为 `F:\test_film`。
+- [ ] 正式 Canary 目录固定为 `F:\canary`。
+- [ ] `F:\test_film` 只作为不可变基线；不得写入、移动、重命名或删除其中任何内容。
+- [ ] `F:\canary` 同时注册为 Material Field 和 Shelf Physical Target Folder，不拆分为两个根目录。
 - [ ] 本次 UAT 不访问、不扫描、不写入 `Z:\Film`。
 - [ ] 不访问 NAS，不执行 Docker/NAS/生产部署操作。
 - [ ] Canary 之外的媒体目录不得因本次 UAT 发生任何物理变化。
@@ -51,7 +55,7 @@
 - [ ] 用户授权 Codex 在 UAT 过程中直接诊断并修复发现的产品问题，无需对每个普通修复再次申请许可。
 - [ ] 授权范围包括读取日志与领域事实、修改代码和测试、执行必要的本地构建、重启本地服务，以及从真实用户页面复测受影响流程。
 - [ ] 修复不得直接改写数据库业务状态、手工推进 Work/Event、伪造 Evidence，或手工搬移媒体来制造通过结果。
-- [ ] 修复不得触碰 `G:\test_film`、`Z:\Film`、NAS、生产数据或 Canary 之外的媒体文件。
+- [ ] 修复不得触碰 `F:\test_film`、`Z:\Film`、NAS、生产数据或 Canary 之外的媒体文件。
 - [ ] 如果修复需要改变已确认的架构 Owner、Business Handoff 或其他 SSOT 边界，停止该修复并先返回 Design，由用户确认架构变更。
 - [ ] 每次修复记录根因、代码改动、服务重启点、受影响条目和复测范围；修复前的失败仍保留为 UAT Evidence。
 - [ ] 修复完成后，从 Admin Web 重走受影响的用户步骤；仅有代码测试通过不能把 UAT 项标记为 `PASS`。
@@ -75,7 +79,7 @@
 
 ### HG-01 基线绝对不变
 
-- [ ] 开始前保存 `G:\test_film` 的相对路径、类型、大小和修改时间清单。
+- [ ] 开始前保存 `F:\test_film` 的相对路径、类型、大小和修改时间清单。
 - [ ] 结束后使用相同口径再次读取。
 - [ ] 两次清单完全一致。
 
@@ -83,8 +87,8 @@
 
 ### HG-02 同根拓扑真实成立
 
-- [ ] Material Field 页面显示根目录为 `G:\canary_film`。
-- [ ] Shelf 页面显示 Physical Target Folder 也为 `G:\canary_film`。
+- [ ] Material Field 页面显示根目录为 `F:\canary`。
+- [ ] Shelf 页面显示 Physical Target Folder 也为 `F:\canary`。
 - [ ] 保存并刷新两个页面后，两个值仍完全相同且有效。
 - [ ] 产品没有要求用户为了绕开实现限制而拆分源目录和目标目录。
 
@@ -111,8 +115,8 @@
 
 ## 5. 固定测试样本与预期覆盖
 
-Preflight 以复制完成后的现实为准。当前基线预期为 22 个顶层媒体单元、455 个文件、约
-133.95 GiB；如数量不符，先判定复制或基线问题，不启动 UAT。
+Preflight 以复制完成后的现实为准。当前基线精确预期为 22 个顶层媒体单元、455 个文件、
+42 个递归目录、143,829,090,011 字节；如任一项不符，先判定复制或基线问题，不启动 UAT。
 
 | 场景 | 固定样本 / 预期 |
 | --- | --- |
@@ -131,10 +135,10 @@ Preflight 以复制完成后的现实为准。当前基线预期为 22 个顶层
 
 ### 6.1 Canary 副本
 
-- [ ] `G:\test_film` 到 `G:\canary_film` 的复制已自然完成，没有仍在写入的文件。
+- [ ] `F:\test_film` 到 `F:\canary` 的复制已自然完成，没有仍在写入的文件。
 - [ ] Canary 与基线的相对路径、文件类型和文件大小逐项一致。
 - [ ] Canary 当前为可写；基线仍保持只读使用约束。
-- [ ] `G:` 剩余空间足以容纳最坏情况下的 Workspace、转码输出和临时文件。
+- [ ] `F:` 剩余空间足以容纳最坏情况下的 Workspace、转码输出和临时文件。
 - [ ] 保存开始前 Canary 文件清单和磁盘可用空间证据。
 
 ### 6.2 服务隔离与安全
@@ -175,7 +179,7 @@ Preflight 结论：`[ ] PASS  [ ] FAILED  [ ] BLOCKED`
 ### 8.1 Material Field
 
 - [ ] 用户在“文件来源”新增或启用 Movie Material Field。
-- [ ] 物理根目录填写为 `G:\canary_film`。
+- [ ] 物理根目录填写为 `F:\canary`。
 - [ ] 页面能执行并显示有效的访问/可用性检查结果。
 - [ ] 用户可见且可配置本次所需的 Observation / 自动化选项。
 - [ ] 保存、离开页面、刷新后配置不变。
@@ -183,7 +187,7 @@ Preflight 结论：`[ ] PASS  [ ] FAILED  [ ] BLOCKED`
 ### 8.2 Shelf
 
 - [ ] 用户在“收藏架”新增或启用 Movie Shelf。
-- [ ] Physical Target Folder 填写为同一个 `G:\canary_film`。
+- [ ] Physical Target Folder 填写为同一个 `F:\canary`。
 - [ ] Routing、Acceptance、placement、collision 和自动化相关业务选项均有用户可见入口。
 - [ ] 记录本次实际采用的 placement/collision 配置：`________________`。
 - [ ] 保存、离开页面、刷新后配置不变。
@@ -269,7 +273,7 @@ Preflight 结论：`[ ] PASS  [ ] FAILED  [ ] BLOCKED`
 
 - [ ] 22 部电影均有明确、可验证的 disposition。
 - [ ] 所有 Primary、Related、Artifact 均位于预期 placement。
-- [ ] `G:\canary_film` 中不存在 hash 命名收藏目录。
+- [ ] `F:\canary` 中不存在 hash 命名收藏目录。
 - [ ] 不存在类似 `标题 (0)` 的异常年份/冲突目录。
 - [ ] 不存在原始位置一份、收藏位置又一份的未解释重复媒体。
 - [ ] 文件指针、来源引用或历史 Binding 没有被误当作当前 Inventory 成员。
@@ -281,7 +285,7 @@ Preflight 结论：`[ ] PASS  [ ] FAILED  [ ] BLOCKED`
 ## 13. Arca Aftercare 验收
 
 故障注入不是业务配置。只有在 22 个 Entry 稳定 On-deck 后，才允许在
-`G:\canary_film` 内对一个已记录的非 Primary Artifact/Related 文件制造一次可恢复缺失；
+`F:\canary` 内对一个已记录的非 Primary Artifact/Related 文件制造一次可恢复缺失；
 动作前必须记录精确 Entry、路径和预期修复方式。不得触碰基线或删除主媒体。
 
 - [ ] 故障注入对象：`________________`。
@@ -301,7 +305,7 @@ Preflight 结论：`[ ] PASS  [ ] FAILED  [ ] BLOCKED`
 
 ## 14. 全量 Off-deck 验收
 
-本阶段具有破坏性，但授权严格限于 `G:\canary_film` 中 22 个 Canary Shelf Entry 的
+本阶段具有破坏性，但授权严格限于 `F:\canary` 中 22 个 Canary Shelf Entry 的
 冻结 Destruction Scope。开始本阶段前必须再次确认基线与范围。
 
 - [ ] 用户在“退出收藏”页面选择全部 active Canary Entry。
@@ -314,9 +318,9 @@ Preflight 结论：`[ ] PASS  [ ] FAILED  [ ] BLOCKED`
 - [ ] 某项删除或 Verification 失败时，该 Entry 保持可恢复的进行中/失败状态，不被伪标为 offdecked。
 - [ ] 每个 Entry 只有在 Destruction Verification 完成后才终结 Deck Fact、释放 Control 并进入 offdecked。
 - [ ] 最终 active Shelf Entry 数为 0，active Deck Fact 数为 0。
-- [ ] `G:\canary_film` 中不再存在本次已授权 Inventory 的主媒体和应删除 Related/Artifact。
+- [ ] `F:\canary` 中不再存在本次已授权 Inventory 的主媒体和应删除 Related/Artifact。
 - [ ] 产品保留 Off-deck、Entry、Deck Fact、Authorization 和 Verification 历史。
-- [ ] `G:\test_film` 与 Canary 外所有路径保持不变。
+- [ ] `F:\test_film` 与 Canary 外所有路径保持不变。
 
 本阶段结论：`[ ] PASS  [ ] FAILED  [ ] BLOCKED`
 
@@ -329,7 +333,7 @@ Shelf Deregistration 与 Off-deck 是两个不同动作。它只能在全量 Off
 - [ ] 页面明确说明该动作是非破坏性的行政生命周期操作。
 - [ ] 注销后 Shelf 不再作为 Routing / Acceptance 目标。
 - [ ] 注销终结剩余 active Shelf administrative facts 并释放精确 Material Control。
-- [ ] Deregistration 前后 `G:\canary_film` 的物理文件清单完全相同。
+- [ ] Deregistration 前后 `F:\canary` 的物理文件清单完全相同。
 - [ ] Target Folder 本身仍存在；产品未删除、移动、重命名该目录。
 - [ ] 历史 Shelf、Entry、Deck Fact 和执行证据仍可追溯。
 - [ ] 如需停用/注销 Canary Material Field，用户通过“文件来源”独立执行，且动作同样不修改物理文件。
@@ -367,7 +371,7 @@ Shelf Deregistration 与 Off-deck 是两个不同动作。它只能在全量 Off
 
 出现以下任一情况，不得继续用重试、脚本修库或静默 fallback 掩盖：
 
-- [ ] `G:\test_film` 发生任何变化。
+- [ ] `F:\test_film` 发生任何变化。
 - [ ] 服务访问或修改了 `Z:\Film`、NAS 或其他未授权媒体路径。
 - [ ] Admin Web 显示成功，但领域事实或物理文件现实不一致。
 - [ ] 同根场景产生 hash 目录、`(0)` 目录或源/收藏双份媒体。
@@ -390,7 +394,7 @@ Shelf Deregistration 与 Off-deck 是两个不同动作。它只能在全量 Off
 - [ ] 未关闭 `FAILED` 数量：`____`。
 - [ ] 未关闭 `BLOCKED` 数量：`____`。
 - [ ] 所有偏差已记录到 `docs/helix/USER_ACCEPTANCE_TEST_ISSUE_LOG.md`，没有在现场静默修库。
-- [ ] 如需重跑，从不可变 `G:\test_film` 重新创建新的 Canary 副本；不把本轮终态当成新基线。
+- [ ] 如需重跑，从不可变 `F:\test_film` 重新创建新的 Canary 副本；不把本轮终态当成新基线。
 
 | 项目 | 记录 |
 | --- | --- |
@@ -398,8 +402,8 @@ Shelf Deregistration 与 Off-deck 是两个不同动作。它只能在全量 Off
 | UAT 结束时间 | |
 | 操作者 | |
 | Service commit / identity | |
-| Material Field | `G:\canary_film` |
-| Shelf Target | `G:\canary_film` |
+| Material Field | `F:\canary` |
+| Shelf Target | `F:\canary` |
 | 开始基线证据 | |
 | 结束基线证据 | |
 | 关联问题 | |
