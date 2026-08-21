@@ -316,7 +316,12 @@ function createCleanArcaInventoryPort(options) {
       const name = finalMemberName(member, source, identity, placement);
       return Object.freeze({ member, source, name });
     });
-    const duplicateNames = new Set(draftPlans.map((item) => item.name)
+    const uniquified = draftPlans.map((item) => {
+      const colliding = draftPlans.filter((other) => other.name === item.name).length > 1;
+      if (!colliding || item.member.role !== 'subtitle') return item;
+      return Object.freeze({ ...item, name: safeSegment(path.basename(item.source)) });
+    });
+    const duplicateNames = new Set(uniquified.map((item) => item.name)
       .filter((name, index, values) => values.indexOf(name) !== index));
     if (duplicateNames.size > 0 && placement.collisionPolicy === 'reject') {
       fail('CLEAN_ARCA_TARGET_COLLISION',
@@ -324,7 +329,7 @@ function createCleanArcaInventoryPort(options) {
           names:[...duplicateNames].sort(),
         });
     }
-    const plans = draftPlans.map(({ member, source, name: proposedName }) => {
+    const plans = uniquified.map(({ member, source, name: proposedName }) => {
       const name = duplicateNames.has(proposedName)
         ? suffixName(proposedName, member.materialKey)
         : proposedName;

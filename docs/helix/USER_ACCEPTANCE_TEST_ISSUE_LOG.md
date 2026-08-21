@@ -1851,7 +1851,23 @@ stderr 为 `CLEAN_ARCA_TARGET_OCCUPIED` 与 `CLEAN_ARCA_SETTLEMENT_UNKNOWN_MEMBE
 
 当前处理决定：按 `copy_all_supported` 跳过不支持的轨。现场 Attempt 19 Remux 成功（约 20.6 GiB MKV），已进入四星转码。状态 `REGRESSION PASSED / LIVE TRANSCODE IN PROGRESS`。
 
-## 44. 后续问题模板
+## 44. UAT-047：ISO 同语言编号字幕被压成一个最终名，验收报 TARGET_COLLISION
+
+问题分类：`PLACEMENT_NAMING / RELATED_DISPOSITION`
+
+用户侧现象：`倩女幽魂2` 四星转码已成功（约 10 GiB HEVC），停在「等待收藏架验收」。`arca.acceptance.inventory_feasibility.observe` 失败 `CLEAN_ARCA_TARGET_COLLISION`。
+
+现场证据：源目录有 50+ 条 `…DTS.N.zh-CN.srt` 外加一条 `…DTS.zh-CN.srt`。UAT-033 在证明到 `zh-CN` 后套 `{stem}{language}{ext}`，全部变成 `倩女幽魂2：人间道 (1990).zh-CN.srt`。Collision Policy 为 `reject`，整部电影无法上架。
+
+精确根因：语言模板在「多条已证明为同一语言同一扩展名」时没有保留源文件名中的编号区分。UAT-033 的 fail closed 针对无法区分的重复字幕；编号文件不是重复件。
+
+修复边界：字幕模板名冲突时回退到原 basename。原名仍冲突才 fail closed。不用 hash、`(0)` 或丢掉字幕。
+
+验收证据：三条编号/未编号 `zh-CN.srt` 最终名保持可区分原名。
+
+当前处理决定：按根因修复。状态 `REGRESSION PASSED / SERVICE RESTART REQUIRED`。
+
+## 45. 后续问题模板
 
 后续发现的问题按以下结构追加：
 

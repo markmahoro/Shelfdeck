@@ -209,6 +209,51 @@ test('unproven-language subtitles keep original names instead of collapsing onto
   }
 });
 
+test('numbered same-language subtitles keep original names instead of colliding on one stem', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'clean-arca-numbered-subs-'));
+  try {
+    const inputs = path.join(root, 'inputs');
+    fs.mkdirSync(inputs);
+    const sources = [
+      ['movie.mkv', 'primary_payload'],
+      ['A Chinese Ghost Story 2 (1990) - 1080p AVC DTS.zh-CN.srt', 'subtitle'],
+      ['A Chinese Ghost Story 2 (1990) - 1080p AVC DTS.1.zh-CN.srt', 'subtitle'],
+      ['A Chinese Ghost Story 2 (1990) - 1080p AVC DTS.2.zh-CN.srt', 'subtitle'],
+    ].map(([name, role]) => {
+      const location = path.join(inputs, name);
+      fs.writeFileSync(location, Buffer.from(name));
+      return member(location, role, 'canary-mount');
+    });
+    const shelf = Object.freeze({
+      shelfId:'shelf-1', status:'active', currentPlacementRevision:1,
+      target:{ endpointId:'canary', rootLocation:root, mountScopeId:'canary-mount', mountScopeRevision:1 },
+      placement:{ value:{
+        folderTemplate:'{title} ({year})', primaryTemplate:'{stem}{ext}', nfoTemplate:'{stem}.nfo',
+        subtitleTemplate:'{stem}{language}{forced}{sdh}{ext}', posterTemplate:'poster{ext}',
+        fanartTemplate:'fanart{ext}', collisionPolicy:'reject',
+      } },
+    });
+    const packageValue = Object.freeze({
+      onDeckPackageId:'package-iso-subs', shelfId:'shelf-1',
+      resolvedIdentitySnapshot:{ factValue:{ title:'倩女幽魂2：人间道', year:1990 } },
+      productStructureSnapshot:{ structureKind:'single' },
+      productMaterialManifest:{ members:Object.freeze(sources), manifestDigest:'manifest-iso-subs' },
+      offloadContextManifest:{ manifestDigest:'offload-iso-subs', members:Object.freeze([]) },
+    });
+    const port = createCleanArcaInventoryPort({ schemaManifest, unitOfWork:{}, workspaceRoot:path.join(root, '.workspace') });
+    const decision = port.prepare({ onDeckRunId:'on-deck-iso-subs', shelf, onDeckProductPackage:packageValue });
+    const subtitleNames = decision.members.filter((item) => item.role === 'subtitle').map((item) => item.finalName).sort();
+    assert.deepEqual(subtitleNames, [
+      'A Chinese Ghost Story 2 (1990) - 1080p AVC DTS.1.zh-CN.srt',
+      'A Chinese Ghost Story 2 (1990) - 1080p AVC DTS.2.zh-CN.srt',
+      'A Chinese Ghost Story 2 (1990) - 1080p AVC DTS.zh-CN.srt',
+    ]);
+    assert.equal(/(?:-[a-f0-9]{8}\.srt$)/.test(subtitleNames.join('\n')), false);
+  } finally {
+    fs.rmSync(root, { recursive:true, force:true });
+  }
+});
+
 test('same-root Stage/Switch preserves exact final members, merges new members, and settles final-location input as a no-op', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'clean-arca-same-root-'));
   try {
