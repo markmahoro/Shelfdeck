@@ -818,7 +818,29 @@ Package、Receipt、Canonical JSON等结构化事实的SHA-256与媒体字节Ide
 
 当前处理决定：问题已修复并分别提交；不修改旧的不可变Package或直接编辑UAT数据库。通过用户页面产生replacement Run验证新代码；在其到达终态前，第11、12阶段保持未通过。
 
-## 9. 后续问题模板
+## 9. UAT-012：On-deck Planner 丢失 Settlement Approval 契约
+
+问题分类：`EXECUTION_CONTRACT / ARCA_ONDECK`
+
+用户侧现象：`老笠 (2016)`等5部电影完成Libra整理后持续显示“等待收藏架接收”，Collection仍为0；服务高频报告`P4_PLAN_CAPABILITY_CONTRACT_MISMATCH`。
+
+现场证据：重启到已包含UAT-011修复的本地服务后，错误仍在On-deck计划形成前持续复现；`arca.ondeck.input_settlement.delete@1` Manifest要求`exact-settlement-approval`，但On-deck Planner生成所有节点时把`approvalRequirementRef`和`authorizationRequirementRef`统一写成`null`。
+
+根因：Planner没有逐节点保存Capability Manifest冻结的审批与授权契约。带`replaced_and_settled`输入的Package必然包含Settlement节点，因而整份On-deck Plan被Foundation正确拒绝；Fallback Reconciler再次提交同一计划，形成高频错误。
+
+修复边界：On-deck Planner仅从已解析Manifest逐字保留`approvalRequirementRef`与`authorizationRequirementRef`，不更改审批业务规则、不绕过Foundation验证，也不直接修改UAT事实或媒体文件。
+
+验收证据：
+
+- `p10-handoff-b-ondeck.test.js`与`p4-workflow-plan.test.js`合计16/16 PASS；新增测试明确断言Settlement节点保存Manifest Approval Contract；
+- 修复提交：`4402d9e8a`；
+- 重启本地服务后不再出现`P4_PLAN_CAPABILITY_CONTRACT_MISMATCH`；
+- 真实Admin Web中Collection从0变为1，`老笠`建立正式Shelf Entry并显示“健康”，用户评分仍为3星；
+- 本轮开始时`G:\test_film`与`G:\canary_film`仍为454个文件、143,829,081,819字节且相对路径/大小完全一致，基线未被修改；后续Inventory物理结果按下一小时观察点继续验收，不持续轮询。
+
+当前处理决定：问题已完成修复、回归、提交和浏览器用户验收。其余4份已完成Package是否逐一进入Collection留给后续小时观察点，不以本次即时等待替代验收。
+
+## 10. 后续问题模板
 
 后续发现的问题按以下结构追加：
 
