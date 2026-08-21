@@ -8,6 +8,7 @@ const test = require('node:test');
 const { canonicalDigest } = require('../../src/helix/contracts/canonical-json');
 const { computeBoundedMaterialFingerprintSync } = require('../../src/helix/integrations/bounded-material-fingerprint');
 const { observedIdentity, observeKnownOldBindings } = require('../../src/helix/domains/arca/model/known-old-binding');
+const { validNfo } = require('../../src/helix/domains/arca/capabilities/aftercare-capability-ports');
 const {
   PERIODS,
   stableJitterMs,
@@ -94,6 +95,59 @@ test('Aftercare Case closure reclaims Workspace before publishing resolved Case 
   assert.ok(closure.indexOf("C.workspaceReclaim,'workspace_reclaim'") <
     closure.indexOf("C.caseCommit,'case_commit'"));
   assert.match(closure, /C\.caseCommit[\s\S]*eventId:reclaim,satisfaction:'success'/);
+});
+
+test('same-root settled offload paths are absent, not unreadable, once the fingerprint wraps ENOENT', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'arca-old-binding-enoent-'));
+  try {
+    const finalLocation = path.join(root, 'Exiled (2006)', 'Exiled (2006).mkv');
+    const settledAway = path.join(root, 'Exiled (2006)', 'Exiled (2006) - 1080p Remux.mkv');
+    fs.mkdirSync(path.dirname(finalLocation), { recursive:true });
+    fs.writeFileSync(finalLocation, Buffer.from('final-movie-bytes'));
+    const mountScopeId = 'canary-mount';
+    const finalIdentity = observedIdentity(finalLocation, mountScopeId,
+      computeBoundedMaterialFingerprintSync);
+    const raw = {
+      oldBindings:[{
+        material_key:'a'.repeat(64), role:'offload:original_input',
+        mount_scope_id:mountScopeId, endpoint_id:'canary', location:settledAway,
+        binding_revision:1, evidence_digest:canonicalDigest({ settledAway }),
+      }],
+      materials:[{
+        material_key:finalIdentity.materialKey, role:'primary_payload',
+        location:finalLocation, size_bytes:finalIdentity.sizeBytes,
+        fingerprint_algorithm:finalIdentity.fingerprintAlgorithm,
+        fingerprint_version:finalIdentity.fingerprintVersion,
+        content_fingerprint:finalIdentity.contentFingerprint,
+      }],
+    };
+    const observed = observeKnownOldBindings(raw, computeBoundedMaterialFingerprintSync);
+    assert.equal(observed.length, 1);
+    assert.equal(observed[0].kind, 'absent');
+    const leftoverDir = path.join(root, 'Exiled (2006)', 'leftover-dir');
+    fs.mkdirSync(leftoverDir);
+    raw.oldBindings[0].location = leftoverDir;
+    assert.equal(observeKnownOldBindings(raw, computeBoundedMaterialFingerprintSync)[0].kind, 'unreadable');
+  } finally {
+    fs.rmSync(root, { recursive:true, force:true });
+  }
+});
+
+test('Libra product movie NFO without an XML declaration is valid; non-movie NFO stays corrupt', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'arca-nfo-valid-'));
+  try {
+    const movie = path.join(root, 'movie.nfo');
+    const declared = path.join(root, 'declared.nfo');
+    const series = path.join(root, 'series.nfo');
+    fs.writeFileSync(movie, Buffer.from('<movie>\n  <title>放·逐</title>\n  <tmdbid>66717</tmdbid>\n  <year>2006</year>\n</movie>\n'));
+    fs.writeFileSync(declared, Buffer.from('<?xml version="1.0" encoding="utf-8"?>\n<movie>\n  <title>放·逐</title>\n</movie>\n'));
+    fs.writeFileSync(series, Buffer.from('<tvshow>\n  <title>Not a movie</title>\n</tvshow>\n'));
+    assert.equal(validNfo(movie), true);
+    assert.equal(validNfo(declared), true);
+    assert.equal(validNfo(series), false);
+  } finally {
+    fs.rmSync(root, { recursive:true, force:true });
+  }
 });
 
 test('Aftercare recognizes an exact legacy custody Binding only when a current final member has the same bounded bytes', () => {

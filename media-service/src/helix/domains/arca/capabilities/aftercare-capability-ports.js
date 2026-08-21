@@ -55,7 +55,7 @@ function isPrimaryMaterial(item){return String(item.role||'').toLowerCase().incl
 function isRepairablePresentationArtifact(item){const role=String(item.role||'').toLowerCase(),extension=path.extname(item.location||'').toLowerCase();return role.includes('poster')||role.includes('fanart')||role.includes('nfo')||role==='metadata_sidecar'||extension==='.nfo';}
 function custodyBlocksDependentAssessment(custody){return custody?.assessmentState==='not_assessable'||custody?.findingDrafts?.some((item)=>/\/(primary_|binding_)/.test(item.schemaRef));}
 function boundedBytes(location,maxBytes=16*1024*1024){const stat=fs.statSync(location);if(!stat.isFile()||stat.size>maxBytes)return null;return fs.readFileSync(location);}
-function validNfo(location){try{const bytes=boundedBytes(location);if(!bytes)return false;const text=bytes.toString('utf8').trim();return /^<\?xml\b[^>]*>/.test(text)&&/<movie(?:\s|>)/i.test(text)&&/<\/movie>\s*$/.test(text);}catch{return false;}}
+function validNfo(location){try{const bytes=boundedBytes(location);if(!bytes)return false;const text=bytes.toString('utf8').replace(/^\uFEFF/, '').trim();const body=/^<\?xml\b[^>]*\?>/i.test(text)?text.replace(/^<\?xml\b[^>]*\?>\s*/i,''):text;return /^<movie(?:\s|>)/i.test(body)&&/<\/movie>\s*$/.test(body);}catch{return false;}}
 function validImage(location){try{const bytes=boundedBytes(location);if(!bytes||bytes.length<12)return false;return (bytes[0]===0xff&&bytes[1]===0xd8&&bytes.at(-2)===0xff&&bytes.at(-1)===0xd9)||(bytes.subarray(0,8).equals(Buffer.from([137,80,78,71,13,10,26,10])))||(bytes.subarray(0,4).toString('ascii')==='RIFF'&&bytes.subarray(8,12).toString('ascii')==='WEBP');}catch{return false;}}
 function representationMember(item, ordinal) {
   return Object.freeze({
@@ -297,4 +297,4 @@ function createAftercareCapabilityPorts(options){const now=options.now||Date.now
   return Object.freeze(ports);
 }
 
-module.exports=Object.freeze({createAftercareCapabilityPorts,decodeFinding});
+module.exports=Object.freeze({createAftercareCapabilityPorts,decodeFinding,validNfo});

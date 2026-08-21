@@ -46,8 +46,12 @@ function observeKnownOldBindings(raw, fingerprint) {
         ? { kind:'duplicate_of_final', binding, identity, final:matches[0] }
         : { kind:matches.length > 1 ? 'ambiguous_final' : 'unmatched', binding, identity });
     } catch (error) {
-      if (error?.code === 'ENOENT') return Object.freeze({ kind:'absent', binding });
-      if (String(error?.code || '').includes('NOT_REGULAR')) return Object.freeze({ kind:'not_regular', binding });
+      const causeCode = error?.details?.causeCode || error?.code;
+      if (causeCode === 'ENOENT') return Object.freeze({ kind:'absent', binding });
+      if (String(error?.code || '').includes('NOT_REGULAR') ||
+          String(causeCode || '').includes('NOT_REGULAR')) {
+        return Object.freeze({ kind:'not_regular', binding });
+      }
       return Object.freeze({ kind:'unreadable', binding, causeCode:error?.code || 'UNKNOWN' });
     }
   }));

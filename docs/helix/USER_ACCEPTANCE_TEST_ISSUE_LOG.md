@@ -1710,11 +1710,16 @@ Presentation 全是 `degraded`（`presentation:nfo_corrupt`，warning，`auto_re
 现场证据：`observeKnownOldBindings` 只对 `offload:` 旧 Binding 且路径不在当前 Final 成员集合中的行取样；
 `unreadable` 不是 `ENOENT`（缺席会被跳过）。`validNfo` 要求 UTF-8 XML 声明、`<movie` 与文末 `</movie>`。
 
-精确根因：未钉死。可能是同根 in-place 后旧 Binding 路径仍指向不可指纹的残留，或上架 NFO 与 Aftercare 校验合同不一致。
-不得把健康评估改成忽略 finding。
+精确根因（2026-08-22 现场字节）：
 
-当前处理决定：不编 workaround。干净 Canary 重建后若 23/23 On-deck 仍出现同样 Finding，再按精确 Binding/NFO 字节取证后单独修。
-状态 `OPEN / MONITOR IN CLEAN UAT`。
+- `conformance:old_binding_unreadable`：Off-load 旧路径（如 `放·逐 (2006) - 1080p Remux 2Audio DTS PTH.nfo/.mkv`）Settlement 后已经 ENOENT。`computeBoundedMaterialFingerprintSync` 把 ENOENT 包成 `PHYSICAL_MATERIAL_FINGERPRINT_IO_FAILED`（`details.causeCode=ENOENT`）。`observeKnownOldBindings` 只认 `error.code==='ENOENT'`，于是把合法缺席当成 unreadable。12 个 Entry × 大约 2 条 offload 源 ≈ 29 条。
+- `presentation:nfo_corrupt`：12 份 On-deck 产品 NFO 都是合法 `<movie>…</movie>`（例如 `放·逐 (2006).nfo` 以 `<movie>` 开头、`</movie>` 结尾），但没有 `<?xml` 声明。`validNfo` 把声明当成必填。
+
+修复边界：指纹包装的 ENOENT 视为 `absent`（与真正缺席一样跳过）；产品 movie NFO 允许无 XML 声明。目录/EACCES 等仍 `unreadable`；`<tvshow>` 或非 movie 文档仍 `nfo_corrupt`。不得忽略 finding。
+
+验收证据：缺失 offload 路径经真实 fingerprint 端口观察为 `absent`；残留目录仍 `unreadable`。无声明的 `<movie>` NFO `validNfo=true`，`<tvshow>` 为 false。p15 Aftercare 合同测试 13/13 通过。
+
+修复状态（2026-08-22）：`REGRESSION PASSED`。已上架 Entry 的 Aftercare 周期会在下次评估时不再发出这两类 Finding。
 
 ## 36. UAT-039：同根上架把源文件和兄弟电影目录当成占用/未知成员
 
