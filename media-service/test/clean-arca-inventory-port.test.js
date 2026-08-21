@@ -131,6 +131,50 @@ test('Final Inventory Decision freezes standard Movie names instead of Workspace
   }
 });
 
+test('unproven-language subtitles keep original names instead of collapsing onto one stem', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'clean-arca-subtitle-names-'));
+  try {
+    const inputs = path.join(root, 'inputs');
+    fs.mkdirSync(inputs);
+    const sources = [
+      ['movie.mkv', 'primary_payload'],
+      ['Panic Room (2002) - 1080p.chinese(简英,assrt).ass', 'subtitle'],
+      ['Panic Room (2002) - 1080p.chinese(简英,subtitle_best).ass', 'subtitle'],
+      ['Panic Room (2002) - 1080p.zh-CN.srt', 'subtitle'],
+    ].map(([name, role]) => {
+      const location = path.join(inputs, name);
+      fs.writeFileSync(location, Buffer.from(name));
+      return member(location, role, 'canary-mount');
+    });
+    const shelf = Object.freeze({
+      shelfId:'shelf-1', status:'active', currentPlacementRevision:1,
+      target:{ endpointId:'canary', rootLocation:root, mountScopeId:'canary-mount', mountScopeRevision:1 },
+      placement:{ value:{
+        folderTemplate:'{title} ({year})', primaryTemplate:'{stem}{ext}', nfoTemplate:'{stem}.nfo',
+        subtitleTemplate:'{stem}{language}{forced}{sdh}{ext}', posterTemplate:'poster{ext}',
+        fanartTemplate:'fanart{ext}', collisionPolicy:'reject',
+      } },
+    });
+    const packageValue = Object.freeze({
+      onDeckPackageId:'package-subs', shelfId:'shelf-1',
+      resolvedIdentitySnapshot:{ factValue:{ title:'战栗空间', year:2002 } },
+      productStructureSnapshot:{ structureKind:'single' },
+      productMaterialManifest:{ members:Object.freeze(sources), manifestDigest:'manifest-subs' },
+      offloadContextManifest:{ manifestDigest:'offload-subs', members:Object.freeze([]) },
+    });
+    const port = createCleanArcaInventoryPort({ schemaManifest, unitOfWork:{}, workspaceRoot:path.join(root, '.workspace') });
+    const decision = port.prepare({ onDeckRunId:'on-deck-subs', shelf, onDeckProductPackage:packageValue });
+    const subtitleNames = decision.members.filter((item) => item.role === 'subtitle').map((item) => item.finalName).sort();
+    assert.deepEqual(subtitleNames, [
+      'Panic Room (2002) - 1080p.chinese(简英,assrt).ass',
+      'Panic Room (2002) - 1080p.chinese(简英,subtitle_best).ass',
+      '战栗空间 (2002).zh-CN.srt',
+    ]);
+  } finally {
+    fs.rmSync(root, { recursive:true, force:true });
+  }
+});
+
 test('same-root Stage/Switch preserves exact final members, merges new members, and settles final-location input as a no-op', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'clean-arca-same-root-'));
   try {

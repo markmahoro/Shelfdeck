@@ -1549,7 +1549,32 @@ Observation revision 2 形成 22 个 Candidate，恰好等于「22 个顶层单�
 
 修复状态（2026-08-22）：`REGRESSION PASSED / CLEAN CANARY UAT PENDING`。
 
-## 30. 后续问题模板
+## 30. UAT-033：同名字幕和 stem-fanart 被压成同一最终文件名，同根上架报 TARGET_COLLISION
+
+问题分类：`PLACEMENT_NAMING / RELATED_DISPOSITION / SAME_ROOT_INVENTORY`
+
+用户侧现象：2026-08-22 干净 Movie Canary 中 `战栗空间 (2002)`、`养蜂人 (2024)` MKV 停在「等待收藏架验收」。
+服务对 `arca.acceptance.inventory_feasibility.observe` 报 `CLEAN_ARCA_TARGET_COLLISION`。
+
+现场证据：
+
+- `战栗空间` Product Manifest 有三条字幕，其中两条都是 `.ass` 且文件名只有 `chinese(简英,assrt)` /
+  `chinese(简英,subtitle_best)` 的差异。Placement 字幕模板在无法证明 ISO 语言时把它们都写成
+  `战栗空间 (2002).ass`。
+- `养蜂人` 同时有通用 `fanart.jpg` 和 `…-fanart.jpg`。后者被当成 fanart 角色，也被写成 `fanart.jpg`。
+
+精确根因：无语言证据时仍套用 `{stem}{ext}`；stem 限定的 fanart 被当成规范 `fanart.ext`。Collision Policy 为
+`reject`，可行性观察因此失败。失败没有变成用户可读的「需要处理」，看起来像一直在等收藏架。
+
+修复边界：没有证明 language/forced/SDH 的字幕保持原文件名。只有恰好名为 `fanart/background/backdrop.ext`
+的文件使用 fanart 角色和 `fanart.ext` 模板；`片名-fanart.jpg` 作为 sidecar 保留原名。不引入 hash 或 `(0)`。
+两条已证明为同一语言同一扩展名的字幕仍 fail closed。
+
+验收证据：战栗空间型双 `.ass` 最终名保持可区分原名；`Feature-fanart.jpg` 角色为 sidecar。
+
+修复状态（2026-08-22）：`REGRESSION PASSED / CLEAN CANARY UAT PENDING`。
+
+## 31. 后续问题模板
 
 后续发现的问题按以下结构追加：
 

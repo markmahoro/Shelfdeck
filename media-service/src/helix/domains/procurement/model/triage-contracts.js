@@ -318,8 +318,8 @@ function relatedFor(context, layoutEvidence, primaryMaterialKey) {
       if (mediaPayload) continue;
       if (!stemMatches && !standard) continue;
       const chapter = extension === '.chapters' || extension === '.xml' && /(?:^|[-_. ])chapters$/.test(stem);
-      const role = extension === '.nfo' ? 'nfo' : image && /(?:^|[-_. ])poster$/.test(stem) ? 'poster'
-        : image && /(?:^|[-_. ])(?:fanart|background|backdrop)$/.test(stem) ? 'fanart'
+      const role = extension === '.nfo' ? 'nfo' : image && /^poster\.(jpg|jpeg|png|webp)$/.test(lower) ? 'poster'
+        : image && /^(fanart|background|backdrop)\.(jpg|jpeg|png|webp)$/.test(lower) ? 'fanart'
         : /\.(srt|ass|ssa|vtt)$/.test(extension) ? 'subtitle' : /\.(aac|ac3|dts|flac|mka)$/.test(extension) ? 'external_audio'
         : chapter ? 'chapter' : 'sidecar';
       const referenceId = digest({ schema:'procurement.related-material-reference-id@1', primaryMaterialKey, role,

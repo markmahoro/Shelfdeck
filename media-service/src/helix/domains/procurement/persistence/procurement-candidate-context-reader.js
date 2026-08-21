@@ -139,8 +139,8 @@ function reconstructRelatedReferences({ basis, scope, candidateMembers, observed
       : stemMatches;
     if (mediaPayload || !allowed) continue;
     const primaryContext = primaryContexts.find((value) => value.parent === parentOf(relative)) || primaryContexts[0];
-    const role = extension === '.nfo' ? 'nfo' : /\.(jpg|jpeg|png|webp)$/.test(extension) && /(?:^|[-_. ])poster$/.test(stem) ? 'poster'
-      : /\.(jpg|jpeg|png|webp)$/.test(extension) && /(?:^|[-_. ])(?:fanart|background|backdrop)$/.test(stem) ? 'fanart'
+    const role = extension === '.nfo' ? 'nfo' : /^poster\.(jpg|jpeg|png|webp)$/.test(lower) ? 'poster'
+      : /^(fanart|background|backdrop)\.(jpg|jpeg|png|webp)$/.test(lower) ? 'fanart'
       : /\.(srt|ass|ssa|vtt)$/.test(extension) ? 'subtitle' : /\.(aac|ac3|dts|flac|mka)$/.test(extension) ? 'external_audio'
       : extension === '.chapters' || extension === '.xml' ? 'chapter' : 'sidecar';
     const referenceId = canonicalDigest({ schema:'procurement.related-material-reference-id@1', primaryMaterialKey:primaryContext.materialKey,

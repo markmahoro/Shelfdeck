@@ -219,17 +219,23 @@ test('Candidate Context applies bounded Related rules for standalone, single-fil
       observed('One Movie/clearlogo.png', 'movie-clearlogo', 12),
       observed('One Movie/banner.jpg', 'movie-banner', 13),
       observed('One Movie/landscape.jpg', 'movie-landscape', 14),
+      observed('One Movie/Feature-fanart.jpg', 'feature-fanart', 15),
+      observed('One Movie/fanart.jpg', 'generic-fanart', 16),
     ],
   });
   assert.deepEqual(single.queriedScopes, [['run-1', 'One Movie']]);
   assert.deepEqual(single.context.relatedReferences.map((item) => item.location).sort(), [
+    'One Movie/Feature-fanart.jpg',
     'One Movie/Feature.zh.srt',
     'One Movie/banner.jpg',
     'One Movie/clearlogo.png',
+    'One Movie/fanart.jpg',
     'One Movie/landscape.jpg',
     'One Movie/movie.nfo',
     'One Movie/poster.jpg',
   ]);
+  assert.equal(single.context.relatedReferences.find((item) => item.location.endsWith('fanart.jpg') && !item.location.includes('Feature')).role, 'fanart');
+  assert.equal(single.context.relatedReferences.find((item) => item.location.endsWith('Feature-fanart.jpg')).role, 'sidecar');
 
   const multi = fixture({
     primaryLocation:'Mixed/First.mkv',

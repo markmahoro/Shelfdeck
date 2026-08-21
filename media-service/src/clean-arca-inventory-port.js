@@ -117,9 +117,13 @@ function finalMemberName(member, source, identity, placement) {
     return safeSegment(renderTemplate(placement.nfoTemplate, common));
   }
   if (member.role === 'subtitle') {
+    const qualifiers = subtitleQualifiers(source);
+    if (!qualifiers.language && !qualifiers.forced && !qualifiers.sdh) {
+      return safeSegment(path.basename(source));
+    }
     return safeSegment(renderTemplate(placement.subtitleTemplate, {
       ...common,
-      ...subtitleQualifiers(source),
+      ...qualifiers,
     }));
   }
   if (member.role === 'poster') {
