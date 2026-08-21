@@ -26,7 +26,7 @@ function runProcess(executable, argv, timeoutMs, progress = null) {
   return new Promise((resolve, reject) => {
     const progressArgv=progress?[...argv.slice(0,-1),'-progress','pipe:1','-nostats',argv.at(-1)]:argv;
     const child = spawn(executable, progressArgv, { windowsHide:true, stdio:['ignore', progress?'pipe':'ignore', 'pipe'] });
-    const chunks = []; let total = 0; let timedOut = false;
+    const chunks = []; let total = 0; let timedOut = false; let settled = false;
     let progressBuffer='',lastReportedAt=0,lastOutTime='0';
     const timer = setTimeout(() => { timedOut = true; child.kill('SIGKILL'); }, timeoutMs);
     child.stderr.on('data', (chunk) => {
@@ -35,9 +35,11 @@ function runProcess(executable, argv, timeoutMs, progress = null) {
     });
     if(progress)child.stdout.on('data',(chunk)=>{progressBuffer+=chunk.toString('utf8');const lines=progressBuffer.split(/\r?\n/u);progressBuffer=lines.pop()||'';let speed=null,terminal=false;
       for(const line of lines){const at=line.indexOf('=');if(at<1)continue;const key=line.slice(0,at),value=line.slice(at+1);if(key==='out_time_us')lastOutTime=value;if(key==='speed')speed=Number.parseFloat(value)||null;if(key==='progress'&&value==='end')terminal=true;}
-      const observedAt=Date.now();if(terminal||observedAt-lastReportedAt>=5000){lastReportedAt=observedAt;progress.report(Object.freeze({mode:'indeterminate',currentValue:null,totalValue:null,unit:'media_time',rate:speed,etaMs:null,sourceSequence:progress.prefix+':'+lastOutTime+(terminal?':end':''),progressBucket:terminal?'complete':'media_time_'+Math.floor((Number(lastOutTime)||0)/30_000_000),terminal}));}});
-    child.once('error', (error) => { clearTimeout(timer); reject(error); });
+      const observedAt=Date.now();if(terminal||observedAt-lastReportedAt>=5000){lastReportedAt=observedAt;try{progress.report(Object.freeze({mode:'indeterminate',currentValue:null,totalValue:null,unit:'media_time',rate:speed,etaMs:null,sourceSequence:progress.prefix+':'+lastOutTime+':'+(speed===null?'unknown':speed)+(terminal?':end':''),progressBucket:terminal?'complete':'media_time_'+Math.floor((Number(lastOutTime)||0)/30_000_000),terminal}));}catch(error){if(!settled){settled=true;clearTimeout(timer);child.kill('SIGKILL');reject(error);}}}});
+    child.once('error', (error) => { if(settled)return;settled=true;clearTimeout(timer);reject(error); });
     child.once('close', (code) => {
+      if(settled)return;
+      settled=true;
       clearTimeout(timer);
       const stderr = Buffer.concat(chunks).toString('utf8');
       if (timedOut) return reject(Object.assign(new Error('FFmpeg timed out.'), { code:'LIBRA_MEDIA_FFMPEG_TIMEOUT' }));
@@ -217,4 +219,4 @@ function createCleanMediaProductionEffectPort(options) {
   return Object.freeze({ executeRemux, executeTranscode,verifyTranscodeInput,verifyPlayback });
 }
 
-module.exports = Object.freeze({ CleanMediaProductionEffectPortError, createCleanMediaProductionEffectPort });
+module.exports = Object.freeze({ CleanMediaProductionEffectPortError, createCleanMediaProductionEffectPort, runProcess });

@@ -1369,7 +1369,31 @@ Resolution RecordSet schema和Admin Web没有闭合该能力。直接删除旧Re
 修复状态（2026-08-22）：`IMPLEMENTED / REAL ADMIN WEB RECOVERY PENDING`。提交后需重启本地服务，从Formation点击
 “清除我的评分”，确认`第八个嫌疑人`恢复`3 星 · 豆瓣`并刷新保持。
 
-## 24. 后续问题模板
+## 24. UAT-027：恢复中的FFmpeg progress冲突导致整个服务退出
+
+问题分类：`EXECUTOR_PROGRESS / PROCESS_CONTAINMENT / SERVICE_RECOVERY`
+
+用户侧现象：为加载UAT-026修复而优雅停止并重启本地服务时，Admin Web立即连接被拒绝；服务进程以
+`P4_PROGRESS_SOURCE_SEQUENCE_CONFLICT`退出，无法完成清单要求的服务重启恢复。
+
+现场证据：恢复中的FFmpeg stdout回调直接调用Foundation Progress Reporter；相同`out_time_us`在不同progress block中可能
+携带不同`speed`，但旧`sourceSequence`只包含prefix与out_time，因而同一sequence标识不同样本。Reporter正确fail closed，
+但EventEmitter回调未捕获该同步异常，异常越过Capability Promise并终止整个Node进程。
+
+精确根因：媒体Effect Port生成的source sequence没有覆盖完整可变样本，同时没有把progress持久化失败收敛为当前Executor
+Promise失败。单个Event的技术失败因此错误升级为Service进程级崩溃。
+
+修复边界：source sequence加入speed维度，使同一序列只表示同一完整样本；stdout progress回调捕获Reporter异常，原子停止
+当前FFmpeg子进程并reject当前Effect Promise，由Foundation按普通Attempt失败闭环。Reporter的严格冲突、单调性、历史上限和
+Owner边界保持不变；不吞掉错误、不把失败标记成功。
+
+验收证据：新增真实FFmpeg子进程专项回归，强制progress持久化抛出冲突并断言错误只reject媒体Effect Promise、不产生
+uncaught process failure；与Progress Reporter门禁合计6/6通过。后续继续执行完整Runtime Gate、Admin Web build和同一UAT
+data directory真实服务重启。
+
+修复状态（2026-08-22）：`IMPLEMENTED / REAL SERVICE RESTART PENDING`。
+
+## 25. 后续问题模板
 
 后续发现的问题按以下结构追加：
 
