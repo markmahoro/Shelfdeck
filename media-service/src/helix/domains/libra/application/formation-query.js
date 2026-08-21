@@ -106,9 +106,9 @@ function createFormationProjectionSource(options) {
       const anchor = decisions.find((item) => item.intake_decision_id === subject.routing_anchor_intake_decision_id) || decisions[0];
       const snapshot = parse(anchor?.candidate_delivery_snapshot_json), claim = snapshot?.candidatePackage?.identityClaim || {};
       const displayIdentity = snapshot?.candidatePackage?.displayIdentity || claim.claimedDisplayIdentity || subject.subject_id;
-      return { subject, decisions, displayIdentity, ratingTarget: { targetType: 'subject', targetId: subject.subject_id, targetRevision: Number(subject.intake_revision), title: claim.claimedTitle || claim.displayTitle || displayIdentity, year: Number.isSafeInteger(claim.claimedYear) ? claim.claimedYear : null, providerIdentity: null, subjectSnapshotDigest: snapshot?.snapshotDigest || snapshot?.candidateDeliverySnapshotDigest || null } };
+      return { subject, decisions, displayIdentity };
     });
-    const ratings = options.readPerceptionRatings?.(prepared.map((item) => item.ratingTarget)) || new Map();
+    const ratings = options.readPerceptionRatings?.(subjects.map((item) => item.subject_id)) || new Map();
     const shelfNames = new Map((options.readShelfTargets?.() || []).map((item) => [item.shelfId, item.name]));
     return prepared.map(({ subject, decisions, displayIdentity }) => {
       const bindings = value.bindings.filter((item) => item.subject_id === subject.subject_id && Number(item.current) === 1);

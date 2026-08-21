@@ -74,6 +74,7 @@ Helix主体开发已经完成，Movie从Procurement、Libra到Arca及Shelf Dereg
 | UAT-006 | clean库概览仍展示固定演示数字并绕过管理会话 | `USER_EXPERIENCE` | `PROJECTION_FRESHNESS` | Overview Query Projection + Admin Web | 正确性、可信度、安全会话 | Critical | 已修复并完成真实页面复测 |
 | UAT-007 | clean库人物页展示固定人数且无正式Query接线 | `USER_EXPERIENCE` | `PROJECTION_FRESHNESS` | People Admin Query + Admin Web | 正确性、可信度、安全会话 | Critical | 已修复并完成真实页面首次打开复测 |
 | UAT-008 | Admin Web非根路径直接刷新返回404 | `USER_EXPERIENCE` | `PROJECTION_FRESHNESS` | Clean Service static adapter + Admin Web routing | 可用性、刷新恢复 | Critical | 已修复并完成七个页面直接刷新复测 |
+| UAT-009 | 媒体整理页评分提交成功但刷新后仍显示暂无评分 | `USER_EXPERIENCE` | `PROJECTION_FRESHNESS` | Perception Query Projection + Formation Projection | 正确性、持久化可见性 | Critical | 已修复并完成真实页面刷新复测 |
 
 ## 2.1 UAT-006：概览展示固定演示数字
 
@@ -123,6 +124,18 @@ Console无warning/error。直接刷新另发现独立的SPA deep-link 404问题�
 
 回归测试结果为12 pass、3个既有explicit skip、0 fail；测试同时确认七个页面路径返回SPA入口和`no-store`，未知页面保持404。
 同一clean UAT库重启服务后，真实浏览器分别直接打开并刷新七个页面，均恢复到对应页面内容且Console无warning/error。
+
+## 2.4 UAT-009：Formation刷新后丢失已提交评分
+
+真实页面在`养蜂人 (2024)`上提交4星后立即显示“4 星 · 我的评分”，但刷新后再次显示“暂无评分”。只读数据库诊断确认
+Direct Perception Record、Resolution revision 2及其winner均已正确持久化，缺陷不在评分写入。
+
+精确根因：Formation Projection自行从Candidate claim拼装Perception rating target；该拼装没有复用Perception正式Target Projection的
+title/year规范化结果，形成了不同的Query Input Digest，因此刷新时读回旧的`not_found` Resolution。修复后Formation仅传递Subject ID，
+由Perception正式入口统一冻结Target Projection并构造Query，避免跨边界复制身份规则。
+
+针对性回归结果为5 pass、0 fail，并新增Formation对每次Direct Rating的值、来源与revision断言。同一UAT库重启服务后，
+真实浏览器显示并在再次刷新后保留“4 星 · 我的评分”，同时恢复显示16条已匹配的豆瓣评分，Console无warning/error。
 
 
 ## 3. UAT-001：豆瓣评分匹配率偏低
