@@ -1596,7 +1596,23 @@ Observation revision 2 形成 22 个 Candidate，恰好等于「22 个顶层单�
 
 修复状态（2026-08-22）：`REGRESSION PASSED / CLEAN CANARY UAT PENDING`。
 
-## 32. 后续问题模板
+## 32. UAT-035：一次 FFmpeg 失败未钉到冻结片名
+
+问题分类：`MEDIA_EFFECT / EXECUTOR / MONITOR`
+
+用户侧现象：2026-08-22 隔离服务 stderr 有一条 `LIBRA_MEDIA_FFMPEG_FAILED`。Attempt 表没有对应
+`failure_code`，也没有因此冻结的 Formation 行。当时 `养蜂人` BDMV 仍在「处理视频文件」。
+
+现场证据：`clean-media-production-effect-port.js` 在 FFmpeg 非零退出时抛该码。未取到 stderr 摘要
+与 process_id 的对应。
+
+精确根因：未钉死。可能是进行中的 Remux/Transcode 一次 Attempt 失败后由 Foundation 重试，
+不是独立的产品合同缺口。
+
+当前处理决定：不编 workaround。干净 Canary 重建后密集监测；若再次出现并挡住上架，再按
+process/片名取证后单独修。状态 `OPEN / MONITOR IN CLEAN UAT`。
+
+## 33. 后续问题模板
 
 后续发现的问题按以下结构追加：
 
