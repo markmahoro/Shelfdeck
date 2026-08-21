@@ -1617,21 +1617,27 @@ Observation revision 2 形成 22 个 Candidate，恰好等于「22 个顶层单�
 
 修复状态（2026-08-22）：`REGRESSION PASSED / CLEAN CANARY UAT PENDING`。
 
-## 32. UAT-035：一次 FFmpeg 失败未钉到冻结片名
+## 32. UAT-035：FFmpeg 非零退出被当成进程崩溃，Remux Attempt 停在 executing
 
-问题分类：`MEDIA_EFFECT / EXECUTOR / MONITOR`
+问题分类：`MEDIA_EFFECT / EXECUTOR / RECOVERY`
 
-用户侧现象：2026-08-22 隔离服务 stderr 有一条 `LIBRA_MEDIA_FFMPEG_FAILED`。Attempt 表没有对应
-`failure_code`，也没有因此冻结的 Formation 行。当时 `养蜂人` BDMV 仍在「处理视频文件」。
+用户侧现象：干净 Canary `UAT-20260822-042527-2da763653` 中，`倩女幽魂2：人间道` 与 BDMV `养蜂人`
+页面仍是「封装整理 / 处理视频文件」，但没有 FFmpeg 进程。工作区只有一份约 82 MB 的 remux `.partial`，mtime 不再增长。
 
-现场证据：`clean-media-production-effect-port.js` 在 FFmpeg 非零退出时抛该码。未取到 stderr 摘要
-与 process_id 的对应。
+现场证据：
 
-精确根因：未钉死。可能是进行中的 Remux/Transcode 一次 Attempt 失败后由 Foundation 重试，
-不是独立的产品合同缺口。
+- stderr 两次 `LIBRA_MEDIA_FFMPEG_FAILED`，`onExecutionRuntimeError` 只打 code/message，没有 Attempt 失败码；
+- 对应 `libra.media.remux@1` Event/Attempt 仍是 `executing`，`finished_at_ms` 为空；
+- Event Runtime 对 journaled Effect 的 Executor 抛错会 rethrow；Host 记 `event_faulted` 后把 Attempt 留给「effect-specific recovery」，但活路径不会把该 Event 送进恢复队列，只有重启才可能扫到。
 
-当前处理决定：不编 workaround。干净 Canary 重建后密集监测；若再次出现并挡住上架，再按
-process/片名取证后单独修。状态 `OPEN / MONITOR IN CLEAN UAT`。
+精确根因：FFmpeg 非零退出是 Capability 失败，不是不可恢复的进程崩溃。Remux/Transcode 端口把该错误抛出去，journaled 路径不 `complete()` Attempt，页面就一直显示整理中。
+
+修复边界：Remux/Transcode 端口把 `LIBRA_MEDIA_FFMPEG_FAILED` / `LIBRA_MEDIA_FFMPEG_TIMEOUT` 收成
+`kind:failed` Outcome；startup recovery 对 journaled 的失败 Outcome 同样 `complete()`，不再 `P4_EVENT_RECOVERY_NOT_CONVERGED` 空转。未捕获的真正崩溃仍保持 executing 给 Effect recovery。不把 ISO 当普通流硬打开当成成功。
+
+验收证据：P4 Event Runtime 专项证明 journaled `LIBRA_MEDIA_FFMPEG_FAILED` Outcome 会完成 Attempt 并 `requireReconcile`；startup recovery 同样记下失败而不是 NOT_CONVERGED。既有「非纯 Executor crash 保持 executing」反例仍通过。
+
+修复状态（2026-08-22）：`REGRESSION PASSED / SERVICE RESTART REQUIRED`。当前隔离库里已卡住的 Remux Attempt 必须随服务重启走 startup recovery 才能收口。
 
 ## 33. UAT-036：ISO 已被观察但 Triage 因非可播放流失败，倩女幽魂2仍无 Candidate
 

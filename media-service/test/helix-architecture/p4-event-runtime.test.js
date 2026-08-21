@@ -141,7 +141,8 @@ function fixture(run, settings = {}) {
       effectClass: settings.effectClass || 'pure_observation', approvalRequirementRef: settings.approvalRequirementRef }, executor: { version: 1 } }) }, dispatcher,
     ...(settings.effectJournal === false ? {} : { effectJournal: {
       intend(request) { journalCalls.push('intend'); return { effect_id: request.eventAttemptId,
-        state: settings.effectIntentState || 'intended', event_attempt_id: settings.effectIntentAttemptId || request.eventAttemptId }; },
+        state: settings.effectIntentState || 'intended', event_attempt_id: settings.effectIntentAttemptId || request.eventAttemptId,
+        effect_class: request.effectClass, idempotency_key: request.idempotencyKey, intent_digest: request.intentDigest }; },
       async settle() { journalCalls.push('settle'); },
       noteExternalPending() { journalCalls.push('external-receipt'); },
       requireReconcile() { journalCalls.push('reconcile'); }
@@ -379,6 +380,38 @@ test('non-pure Executor crash leaves durable executing Attempt for effect-specif
     assert.equal(facts.event.state, 'executing'); assert.equal(facts.attempt.state, 'executing'); assert.equal(facts.results, 0);
     assert.deepEqual({ schedulerReleased: state().schedulerReleased, governorReleased: state().governorReleased }, { schedulerReleased: 1, governorReleased: 1 });
   }, { effectClass:'external_request', dispatchError: new Error('executor crash') });
+});
+
+test('non-pure Capability failed Outcome completes the Attempt and requires Effect reconcile', async () => {
+  await fixture(async ({ runtime, lease, databasePath, state }) => {
+    const result = await runtime.run({ schedulerLease: lease });
+    assert.equal(result.kind, 'failed');
+    assert.equal(result.eventState, 'waiting_for_external');
+    const facts = databaseFacts(databasePath);
+    assert.equal(facts.attempt.state, 'completed');
+    assert.equal(facts.attempt.outcome_kind, 'failed');
+    assert.equal(facts.attempt.failure_code, 'LIBRA_MEDIA_FFMPEG_FAILED');
+    assert.deepEqual(state().journalCalls, ['intend', 'reconcile']);
+  }, { effectClass:'external_request', outcome: {
+    kind:'failed', failureClass:'executor', code:'LIBRA_MEDIA_FFMPEG_FAILED',
+    message:'FFmpeg failed.', retryDirective:'contract_policy',
+    evidence:{ errorCode:'LIBRA_MEDIA_FFMPEG_FAILED' },
+  } });
+});
+
+test('startup recovery records a non-pure failed Outcome instead of looping as not converged', async () => {
+  await fixture(async ({ runtime, databasePath, state }) => {
+    const result = await runtime.recover({ eventId:'event', decision:'safe_retry_before_intent' });
+    assert.equal(result.kind, 'failed');
+    const facts = databaseFacts(databasePath);
+    assert.equal(facts.attempt.state, 'completed');
+    assert.equal(facts.attempt.failure_code, 'LIBRA_MEDIA_FFMPEG_FAILED');
+    assert.equal(state().governorReleased, 1);
+  }, { effectClass:'external_request', initialEventState:'executing', seedExecutingAttempt:true, outcome: {
+    kind:'failed', failureClass:'executor', code:'LIBRA_MEDIA_FFMPEG_FAILED',
+    message:'FFmpeg failed.', retryDirective:'contract_policy',
+    evidence:{ errorCode:'LIBRA_MEDIA_FFMPEG_FAILED' },
+  } });
 });
 
 test('startup recovery settles an old pure observation executor error instead of deferring it forever', async () => {

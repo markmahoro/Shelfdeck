@@ -30,6 +30,23 @@ function evidence(capabilityRef, basisDigest, result, observedAtMs) {
   });
 }
 
+function mediaEffectFailed(error) {
+  const code = typeof error?.code === 'string' && error.code ? error.code : 'LIBRA_MEDIA_EFFECT_FAILED';
+  if (!['LIBRA_MEDIA_FFMPEG_FAILED', 'LIBRA_MEDIA_FFMPEG_TIMEOUT'].includes(code)) throw error;
+  return Object.freeze({
+    kind: 'failed',
+    failureClass: code === 'LIBRA_MEDIA_FFMPEG_TIMEOUT' ? 'timeout' : 'executor',
+    code,
+    message: String(error.message || 'Media Effect failed.'),
+    retryDirective: 'contract_policy',
+    evidence: Object.freeze({
+      errorName: String(error.name || 'Error'),
+      errorCode: code,
+      ...(error.details && typeof error.details === 'object' ? { details: error.details } : {}),
+    }),
+  });
+}
+
 function succeeded(capabilityRef, result, observedAtMs, effectReceipt = null) {
   const basisDigest = canonicalDigest({
     schema: 'libra.production-capability-result-basis@1',
@@ -137,7 +154,9 @@ function createMediaProductionCapabilityPorts(options) {
           throw new TypeError('Remux Intent does not bind the frozen Production Source Scope.');
         }
         const source = await options.resolveProductionSourceScope(input.productionSourceScopeReference);
-        const receipt = await options.mediaEffectPort.executeRemux(Object.freeze({
+        let receipt;
+        try {
+          receipt = await options.mediaEffectPort.executeRemux(Object.freeze({
           sourceScopeReference: input.productionSourceScopeReference,
           source,
           productionIntent: input.remuxIntent,
@@ -148,6 +167,9 @@ function createMediaProductionCapabilityPorts(options) {
           runtimeEffectAuthority:Object.freeze({ effectClass:'workspace_write',
             eventAttemptId:context.eventAttemptId, idempotencyKey:context.idempotencyKey }),
         }));
+        } catch (error) {
+          return mediaEffectFailed(error);
+        }
         if (receipt.outputTargetId !== input.workspaceMediaOutputTarget.targetId ||
             receipt.outputTargetDigest !== input.workspaceMediaOutputTarget.targetDigest ||
             receipt.effectScopeDigest !== input.workspaceMediaOutputTarget.effectScopeDigest) {
@@ -181,7 +203,9 @@ function createMediaProductionCapabilityPorts(options) {
         if (input.transcodeInputVerification.result !== 'passed') {
           throw new TypeError('Transcode requires a passed input verification.');
         }
-        const receipt = await options.mediaEffectPort.executeTranscode(Object.freeze({
+        let receipt;
+        try {
+          receipt = await options.mediaEffectPort.executeTranscode(Object.freeze({
           sourceHandle: input.materialHandle,
           productionIntent: input.encodeIntent,
           deviceSnapshot: input.mediaExecutionDeviceSnapshot,
@@ -192,6 +216,9 @@ function createMediaProductionCapabilityPorts(options) {
           runtimeEffectAuthority:Object.freeze({ effectClass:'workspace_write',
             eventAttemptId:context.eventAttemptId, idempotencyKey:context.idempotencyKey }),
         }));
+        } catch (error) {
+          return mediaEffectFailed(error);
+        }
         if (receipt.outputTargetId !== input.workspaceMediaOutputTarget.targetId ||
             receipt.outputTargetDigest !== input.workspaceMediaOutputTarget.targetDigest ||
             receipt.effectScopeDigest !== input.workspaceMediaOutputTarget.effectScopeDigest) {

@@ -550,6 +550,16 @@ function createEventRuntime(options) {
           'P4_EVENT_RECOVERY_OUTCOME_INVALID', 'Pure observation recovery returned an invalid Outcome.');
         return complete(snapshot, attempt.event_attempt_id, outcome, policyDecision);
       }
+      if (outcome?.kind === 'failed') {
+        if (effect) options.effectJournal.requireReconcile(effect.effect_id);
+        const policyDecision = options.attemptPolicy.decideFailure(Object.freeze({
+          capabilityRef:snapshot.event.capability_ref,effectClass:snapshot.node.effect_class,
+          retryPolicyRef:policyBinding.retryPolicyRef,timeoutPolicyRef:policyBinding.timeoutPolicyRef,
+          failureAttemptCount:snapshot.attempts.filter((item)=>item.outcome_kind === 'failed').length + 1,
+          outcome,recoveryDecision:request.decision,
+        }));
+        return complete(snapshot, attempt.event_attempt_id, outcome, policyDecision);
+      }
       if (!outcome || outcome.kind !== 'succeeded') {
         if (effect) {
           if (outcome?.kind === 'deferred' && outcome.externalReceipt !== undefined)
