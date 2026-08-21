@@ -1747,7 +1747,23 @@ stderr 为 `CLEAN_ARCA_TARGET_OCCUPIED` 与 `CLEAN_ARCA_SETTLEMENT_UNKNOWN_MEMBE
 
 修复状态（2026-08-22）：`REGRESSION PASSED / NEW LIBRA RUN REQUIRED`。当前冻结的 ISO Remux Run 不可变，需新 Observation/Run 才会走提取路径。
 
-## 38. 后续问题模板
+## 38. UAT-041：BDMV HEVC/TrueHD Remux 因 PES 缺时间戳被 Matroska 拒绝
+
+问题分类：`DISC_INPUT / MEDIA_EFFECT`
+
+用户侧现象：嵌套 BDMV `养蜂人 (2024) - 2160p HEVC Atmos TrueHD5.1` Remux 冻成「本次整理已冻结」。Attempt 只有 `LIBRA_MEDIA_FFMPEG_FAILED`，库里没有 stderr。
+
+现场证据：唯一 `primary_payload` 是 `BDMV/STREAM/00002.m2ts`（192 字节 BDAV，68.7GiB，HEVC + TrueHD Atmos）。Workspace 残留 `82,232,093` 字节 partial，与当场用同一 argv 复现的失败输出完全同长。ffprobe 第二包视频 `pts=N/A dts=N/A`。失败句：`Can't write packet with unknown timestamp` / `Error muxing a packet`。ISO Remux 当时并发挂死，失败 Outcome 不写 `evidence_json`，所以库内看不到 stderr。
+
+精确根因：BDAV 把一个 HEVC AU 拆进多条 PES，只有第一条带 PTS/DTS。`+genpts` 填不上这些 continuation 包，Matroska copy-mux fail closed。这不是「BDMV 不能 Remux」，也不是被 ISO 挂死误杀。
+
+修复边界：Remux `-c copy` 对视频使用 `setts` 继承前一包 PTS/DTS，不发明 wall-clock 时间，不丢包，不上架原盘目录。ISO 抽出的 m2ts 走同一条 copy 路径。普通已有时间戳的流保持原 PTS。
+
+验收证据：无 setts 的生产 argv 在约 4s 内 Conversion failed 且输出 82232093 字节；带 setts 后 12s 内写出数 GiB 且无 unknown timestamp。媒体 Effect 测试覆盖缺 PTS 的 MPEG-TS 与（若存在）现场 BDAV 前缀。
+
+修复状态（2026-08-22）：`REGRESSION PASSED / NEW LIBRA RUN REQUIRED`。当前冻结的 BDMV Remux Run 不可变。
+
+## 39. 后续问题模板
 
 后续发现的问题按以下结构追加：
 

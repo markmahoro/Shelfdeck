@@ -8,6 +8,11 @@ const { DV_SDR_FILTER } = require('./clean-compute-device-runtime');
 const { inspectIso, listIsoImageFiles } = require('./helix/integrations/disc-topology');
 
 const ISO_SECTOR_BYTES = 2048;
+// BDAV/MPEG-TS often splits one HEVC access unit across PES packets and only
+// timestamps the first PES. Matroska copy-mux rejects the untimed packets.
+// Inherit the previous video timestamp; do not invent wall-clock time.
+const VIDEO_TIMESTAMP_FILL_BSF =
+  "setts=pts='if(eq(PTS\\,NOPTS)\\,PREV_OUTPTS\\,PTS)':dts='if(eq(DTS\\,NOPTS)\\,PREV_OUTDTS\\,DTS)'";
 
 class CleanMediaProductionEffectPortError extends Error {
   constructor(code, message, details = {}) {
@@ -260,8 +265,10 @@ function createCleanMediaProductionEffectPort(options) {
       async produce(temporaryTarget) {
         const input = inputArguments(request.source, temporaryTarget);
         try {
-          await runProcess(ffmpegPath, ['-hide_banner', '-nostdin', '-y', '-fflags', '+genpts', ...input.argv, '-map', '0', '-c', 'copy', '-f', 'matroska', temporaryTarget], timeoutMs,
-            request.reportProgress?{report:request.reportProgress,prefix:'remux'}:null);
+          await runProcess(ffmpegPath, [
+            '-hide_banner', '-nostdin', '-y', '-fflags', '+genpts', ...input.argv,
+            '-map', '0', '-c', 'copy', '-bsf:v', VIDEO_TIMESTAMP_FILL_BSF, '-f', 'matroska', temporaryTarget,
+          ], timeoutMs, request.reportProgress?{report:request.reportProgress,prefix:'remux'}:null);
         } finally { input.cleanup?.(); }
       } });
   }

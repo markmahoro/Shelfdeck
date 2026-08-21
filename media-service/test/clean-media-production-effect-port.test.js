@@ -50,6 +50,45 @@ function workspacePort(root) {
   };
 }
 
+function copyPrefix(source, dest, bytes) {
+  const fd = fs.openSync(source, 'r');
+  try {
+    const buffer = Buffer.alloc(bytes);
+    const read = fs.readSync(fd, buffer, 0, bytes, 0);
+    fs.writeFileSync(dest, buffer.subarray(0, read));
+  } finally { fs.closeSync(fd); }
+}
+
+function clearSecondVideoPts(file) {
+  const bytes = fs.readFileSync(file);
+  const packetSize = bytes[4] === 0x47 ? 192 : 188;
+  const header = packetSize === 192 ? 4 : 0;
+  let seen = 0;
+  for (let offset = 0; offset + packetSize <= bytes.length; offset += packetSize) {
+    if (bytes[offset + header] !== 0x47) continue;
+    if (!(bytes[offset + header + 1] & 0x40)) continue;
+    const adaptation = (bytes[offset + header + 3] >> 4) & 0x03;
+    let payload = offset + header + 4;
+    if (adaptation === 2) continue;
+    if (adaptation === 3) {
+      if (payload >= offset + packetSize) continue;
+      payload += 1 + bytes[payload];
+    }
+    if (payload + 9 >= offset + packetSize) continue;
+    if (bytes[payload] !== 0 || bytes[payload + 1] !== 0 || bytes[payload + 2] !== 1) continue;
+    const streamId = bytes[payload + 3];
+    if (streamId < 0xe0 || streamId > 0xef) continue;
+    const ptsDts = bytes[payload + 7] >> 6;
+    if (!ptsDts) continue;
+    seen += 1;
+    if (seen < 2) continue;
+    bytes[payload + 7] = bytes[payload + 7] & 0x3f;
+    fs.writeFileSync(file, bytes);
+    return true;
+  }
+  return false;
+}
+
 function remuxRequest(sourceLocation) {
   return {
     source: {
@@ -132,6 +171,58 @@ test('remux refuses an ISO volume that has no proven Blu-ray topology', async (t
   });
   await assert.rejects(() => port.executeRemux(remuxRequest(fakeUdf)), (error) =>
     error.code === 'LIBRA_MEDIA_ISO_TOPOLOGY_UNPROVEN');
+});
+
+test('remux fills missing MPEG-TS video timestamps instead of failing Matroska mux', async (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'shelfdeck-bdmv-nopts-'));
+  t.after(() => fs.rmSync(root, { recursive:true, force:true }));
+  const source = path.join(root, 'nopts.m2ts');
+  writeTinyMpegTs(source);
+  assert.equal(clearSecondVideoPts(source), true);
+  const broken = spawnSync(ffmpegPath, [
+    '-hide_banner', '-nostdin', '-y', '-fflags', '+genpts',
+    '-i', source, '-map', '0', '-c', 'copy', '-f', 'matroska', path.join(root, 'broken.mkv'),
+  ], { encoding:'utf8', windowsHide:true });
+  const workspace = path.join(root, 'workspace');
+  fs.mkdirSync(workspace);
+  const port = createCleanMediaProductionEffectPort({
+    ffmpegPath,
+    workspaceProductPort: workspacePort(workspace),
+  });
+  const receipt = await port.executeRemux(remuxRequest(source));
+  const output = path.join(workspace, 'workspace-out.mkv');
+  assert.equal(receipt.outputTargetId, 'target-1');
+  assert.ok(fs.existsSync(output));
+  assert.ok(fs.statSync(output).size > 0);
+  if (broken.status === 0) {
+    assert.ok(fs.statSync(output).size >= 1);
+    return;
+  }
+  assert.match(String(broken.stderr || ''), /unknown timestamp|Conversion failed/i);
+});
+
+test('remux copies a live BDAV HEVC TrueHD prefix that ffmpeg-static otherwise rejects', async (t) => {
+  const canary = process.env.HELIX_BDMV_M2TS_FIXTURE ||
+    'F:/canary/养蜂人 (2024)/养蜂人 (2024) - 2160p HEVC Atmos TrueHD5.1/BDMV/STREAM/00002.m2ts';
+  if (!fs.existsSync(canary)) {
+    t.skip('live BDMV STREAM fixture is absent');
+    return;
+  }
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'shelfdeck-bdmv-prefix-'));
+  t.after(() => fs.rmSync(root, { recursive:true, force:true }));
+  const prefix = path.join(root, 'prefix.m2ts');
+  copyPrefix(canary, prefix, 12 * 1024 * 1024);
+  const workspace = path.join(root, 'workspace');
+  fs.mkdirSync(workspace);
+  const port = createCleanMediaProductionEffectPort({
+    ffmpegPath,
+    workspaceProductPort: workspacePort(workspace),
+  });
+  const receipt = await port.executeRemux(remuxRequest(prefix));
+  const output = path.join(workspace, 'workspace-out.mkv');
+  assert.equal(receipt.outputTargetId, 'target-1');
+  assert.ok(fs.existsSync(output));
+  assert.ok(fs.statSync(output).size > 64 * 1024);
 });
 
 test('remux still opens an ordinary stream file without ISO extraction', async (t) => {
