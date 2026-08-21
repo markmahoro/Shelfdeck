@@ -809,11 +809,11 @@ Package、Receipt、Canonical JSON等结构化事实的SHA-256与媒体字节Ide
 
 验收证据：
 
-- `p4-event-runtime.test.js` 25/25 PASS；
+- `p4-event-runtime.test.js` 26/26 PASS，包含普通dispatch及startup recovery两条纯观察异常收口路径；
 - `p9-delivery-lifecycle.test.js` 10/10 PASS；
 - `p9-deliverable-promotion-store.test.js` 11/11 PASS；
 - `clean-arca-inventory-port.test.js` 1/1 PASS，覆盖同根既有Primary、同字节poster no-op、新NFO合并、旧NFO settlement及最终Reality读取；
-- 修复提交：`888e6d8bc`、`f6e8925fe`、`0dd1c7c76`；
+- 修复提交：`888e6d8bc`、`b85135698`、`f6e8925fe`、`0dd1c7c76`；
 - 真实Admin Web已把“老笠 (2016)”评分改为3星并建立replacement Run，当前显示“视频转码 / 处理视频文件 executing”；完整Handoff B、On-deck、Collection和物理Reality仍待后续小时观察点验证。
 
 当前处理决定：问题已修复并分别提交；不修改旧的不可变Package或直接编辑UAT数据库。通过用户页面产生replacement Run验证新代码；在其到达终态前，第11、12阶段保持未通过。
