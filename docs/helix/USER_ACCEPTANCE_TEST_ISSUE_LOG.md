@@ -1829,9 +1829,9 @@ stderr 为 `CLEAN_ARCA_TARGET_OCCUPIED` 与 `CLEAN_ARCA_SETTLEMENT_UNKNOWN_MEMBE
 
 精确根因：`helix.event-execution-key@1` 只绑 event/workAttempt/plan，不绑 Event Attempt ordinal。UNIQUE(effect_class, idempotency_key) 让第一次失败的 Effect 占住该键。第二次 Attempt 的 `intend()` 拿回 `failed` 行，`run()` 抛 `P4_EVENT_EFFECT_RECOVERY_REQUIRED` 并留下 executing Attempt；startup 把它标成 `safe_retry_before_intent`，`recover()` 再撞 `P4_EVENT_RECOVERY_EFFECT_DRIFT`，Host 把异常当成可延迟恢复并放行普通供给，于是这条 Remux 永远停在 executing。
 
-修复边界：执行幂等键在 ordinal>1 时纳入 `eventAttemptOrdinal`，第一次 Attempt 的键保持不变。Host 对 `safe_retry_before_intent` 不在 `start()` 里同步重放（避免把数小时 ISO 抽取塞进启动），就绪后由 drain 再 recover。不得跳过 ISO 拓扑抽取，不得把 `.iso` 直接丢给 FFmpeg。
+修复边界：执行幂等键在 ordinal>1 时纳入 `eventAttemptOrdinal`，第一次 Attempt 的键保持不变。Host 对 `safe_retry_before_intent` 不在 `start()` 里同步重放（避免把数小时 ISO 抽取塞进启动），就绪后由 drain 再 recover。`decideFailure` 必须接受该 recoveryDecision，否则 abandon 之后 complete 抛错，Attempt 仍停在 executing。不得跳过 ISO 拓扑抽取，不得把 `.iso` 直接丢给 FFmpeg。
 
-验收证据：ordinal 1 与旧键相同，ordinal 2 不同；`safe_retry_before_intent` 在 start 之后才 recover。p4 input-provider / host 回归通过。
+验收证据：ordinal 1 与旧键相同，ordinal 2 不同；`safe_retry_before_intent` 在 start 之后才 recover；该 decision 对非 pure 收成 `reconcile_required`。p4 input-provider / host / policy 回归通过。
 
 当前处理决定：按根因修复并提交。状态 `REGRESSION PASSED / SERVICE RESTART REQUIRED`。
 

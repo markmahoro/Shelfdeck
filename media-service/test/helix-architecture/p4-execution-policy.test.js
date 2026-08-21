@@ -94,6 +94,10 @@ test('failure budget retries only frozen technical action and non-pure retry req
     { decision: 'reconcile_required' });
   assert.deepEqual(external.value.decideFailure({ ...external.base, failureAttemptCount: 1, outcome: failed, recoveryDecision: 'safe_retry' }),
     { decision: 'retry', retryAtMs: 102000 });
+  assert.deepEqual(external.value.decideFailure({ ...external.base, failureAttemptCount: 1, outcome: failed,
+    recoveryDecision: 'safe_retry_before_intent' }), { decision: 'reconcile_required' });
+  assert.throws(() => external.value.decideFailure({ ...external.base, failureAttemptCount: 1, outcome: failed,
+    recoveryDecision: 'not_a_decision' }), { code: 'P4_ATTEMPT_RECOVERY_DECISION_INVALID' });
 });
 
 test('deferred observation budget is separate from failure attempts and enforces cadence, elapsed, and count', () => {
