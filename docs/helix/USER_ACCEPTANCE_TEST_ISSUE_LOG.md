@@ -1423,7 +1423,82 @@ Related disposition obligation，保持原始文件名，不新增业务Owner、
 
 修复状态（2026-08-22）：`REGRESSION PASSED / CLEAN CANARY REBUILD AUTHORIZED`。
 
-## 26. 后续问题模板
+## 26. UAT-029：NFO 把演员 TMDB 人 ID 误判为电影身份冲突
+
+问题分类：`IDENTITY_NORMALIZATION / NFO_PARSER / USER_VISIBLE_RECOVERY`
+
+用户侧现象：2026-08-22 干净 Movie Canary 真实 Admin Web UAT 中，`007：大破天幕杀机`、`劫机`、`放·逐`、`老笠`、`锡尔弗顿之围` 进入“需要处理”，页面显示“本次整理已冻结，需要放弃后重新采购”。用户看不到可确认的身份候选。
+
+现场证据：
+
+- Formation 冻结事实的 `identity_issue_json` 为 `result=conflicting`、`reasonCode=nfo_association_conflicting`、`candidates=[]`；
+- 这些片子的 Kodi/Emby NFO 电影级身份是唯一的。以 `007：大破天幕杀机` 为例，电影 ID 为 `<tmdbid>37724</tmdbid>` 且 `<uniqueid type="tmdb">37724</uniqueid>`，年份只有 2012；
+- 同一份 NFO 在每个 `<actor>` 下还有演职员 `<tmdbid>`（如 Daniel Craig `8784`、Judi Dench `5309`）。全文搜集后该片一次出现 50 多个数字 ID。`劫机`、`放·逐`、`老笠`、`锡尔弗顿之围` 同一模式。
+
+精确根因：Product Identity 的 NFO 解析对整份 XML 收集所有 `<tmdbid>` 以及 `uniqueid type="tmdb"`。演员节点里的人 ID 与电影 ID 被当成同一组电影身份。多个数字即返回 `ambiguous/source_fact_conflicting`，再映射为 `nfo_association_conflicting` 且候选为空。NFO 本身没有两个电影身份。
+
+业务影响：有正规 NFO 的片子无法完成身份取证，Run 被冻结，用户不能确认唯一电影 ID，本轮 UAT 这些条目不能上架。
+
+修复边界：只读取电影级身份，即 `<movie>` 的直接子节点 `<tmdbid>` / `<uniqueid type="tmdb">`；不扫描 `<actor>`、`<director>` 等演职员人 ID。多个电影级 TMDB ID 才构成冲突，并必须把这些电影 ID 作为用户可确认候选；年份仍只从电影级 `year/premiered/releasedate` 取值。不放宽模糊匹配，不改 TMDB 适配器或跨 Domain 所有权。
+
+验收证据：专项回归覆盖 `007：大破天幕杀机` 形态（电影 `37724` + 演员 `8784`/`5309` + 系列合集 `645`），断言 `parseNfo` 为 `observed` 且唯一身份为 `37724`；`observeProductIdentity` 为 `resolved`。两个电影级 TMDB ID 仍为 `ambiguous` 并带出这两个候选。P8 Decision front-half 13/13 通过。
+
+修复状态（2026-08-22）：`REGRESSION PASSED / CLEAN CANARY UAT PENDING`。旧冻结 Run 保持不可变；本修复随其余 OPEN 项完成后重建干净 Canary，再从真实 Admin Web 复测上述片名。
+
+## 27. UAT-030：五星外部获取用文件夹展示名搜索，合格源缺失时页面像卡住
+
+问题分类：`EXTERNAL_INTEGRATION / IDENTITY_NORMALIZATION / USER_VISIBLE_RECOVERY`
+
+用户侧现象：2026-08-22 干净 Movie Canary 真实 Admin Web UAT 中，一批豆瓣 5 星片子停在「外部获取」，
+进入「需要处理」，下一动作是「本次整理已冻结，需要放弃后重新采购」。表面像 MoviePilot 下载卡住。
+
+现场证据（隔离库
+`C:\Users\markm\AppData\Local\Temp\ShelfDeck-Movie-Canary-UAT-20260822-021504-2ed7baad2`）：
+
+- 五部均为 5 星，整理要求 `HEVC · 4k · 不超过 50 GiB`，主音轨白名单为 TrueHD / Atmos / DTS-HD MA / DTS:X；
+- 本地 `product_media.verify` 失败（`video_codec_unmet` / `minimum_raster_unmet` / `primary_audio_unmet`）。
+  五星禁止把低于 4K 的输入放大，也禁止音频转码冒充高质量主音轨，因此正确进入 MoviePilot 外部获取；
+- `libra-external-material-search_selection` 成功结束，`acquire_verification` 从未提交；
+- Run 冻结为 `product_unachievable`，`recovery_attempt_ordinal=0`，该 process 无失败 Attempt。
+  `P5_SECRET_LEASE_INVOCATION_FAILED` 属于另一批片子，不是这五部。
+
+| 展示名 | 搜索 keyword | MoviePilot 结果 | 选择 / 冻结码 |
+| --- | --- | --- | --- |
+| 地狱尖兵 (2022) | 同左 | 1 条 available，1080p H264，noncompliant | `not_selected` / `no_requirement_eligible_candidate` |
+| 黑客帝国动画版 (2003) | 同左 | 6 条 available，全部 below_4k | 同上 |
+| 金的音像店 (2023) | 同左 | 2 条 available，1080p H264 | 同上 |
+| 一场很（没）有必要的春晚 (2022) | 同左 | 1 条 available，1080p H264 | 同上 |
+| 看不见的朋友 (2023) - 1080p H.264 CHDWEB | 同左（含技术后缀） | 0 条 | `not_selected` / `no_available_candidate` |
+
+精确根因：
+
+1. Product Identity 已经 resolve 到 TMDB（如 `看不见的朋友` = `993092`），但
+   `buildProductIdentityCommitBundle` 仍把 Candidate 文件夹展示名写入 display identity title，
+   不使用 TMDB 正式片名，也不剥离 UAT-022 已处理过的技术发布后缀；
+2. `AcquisitionQuery` 的 title term 取自该 display identity；MoviePilot 适配器
+   `api/v1/search/title` 优先用 title，有 `provider_key`（TMDB ID）也不拿去搜；
+3. 选择合同正确丢弃明确 `noncompliant` 候选。无 `compliant`/`unknown` 时冻成产品不可达是 SSOT 规定，
+   不得用本地 1080p 或普通转码交差。页面却继续显示「外部获取」，不解释冻结原因。
+
+业务影响：五星片子看起来卡在外部获取；搜索词被文件夹名、年份和技术后缀污染，可能漏掉本可命中的源。
+即便搜索修好，若 MoviePilot 确实没有 4K HEVC + 高质量主音轨，冻结仍合法，但用户必须能看懂原因。
+
+修复边界：
+
+- Resolve 后的 display identity title 使用 TMDB 正式片名，并剥离技术发布后缀；不把文件夹质量标签留进身份；
+- MoviePilot 在已有 TMDB `provider_key` 时按该身份搜索，不以脏文件夹名为 keyword；
+- Formation 对 `no_requirement_eligible_candidate` / `no_available_candidate` 给出可读冻结原因，
+  不再让已冻结 Run 看起来像仍在外部获取；
+- 不放宽五星 4K / HEVC / 高质量主音轨合同，不选择明确不合规种子，不改 Domain Owner。
+  旧冻结 Run 保持不可变。
+
+验收计划：用 `看不见的朋友 (2023) - 1080p H.264 CHDWEB` 专项回归，断言 MoviePilot keyword 不含
+`1080p`/`H.264`/`CHDWEB`，并使用 TMDB `993092` 或干净片名。Formation 对无合格候选的冻结给出原因文案。
+修复后从真实 Admin Web 复测上述五部。无 4K 合格源时仍允许冻成产品不可达。
+
+当前处理决定：用户已确认必须修复，先入台账，与其余 OPEN 项统一修。状态 `OPEN / FIX REQUIRED`。
+
+## 28. 后续问题模板
 
 后续发现的问题按以下结构追加：
 

@@ -7,7 +7,7 @@ const test=require('node:test');
 const {canonicalDigest}=require('../../src/helix/contracts/canonical-json');
 const {buildDecisionBasisRevision,buildDecisionInputSet,decisionHeadDigest,inputSnapshotRows}=require('../../src/helix/domains/libra/model/decision-front-half-contracts');
 const {buildRoutingDecision,evaluateRoutingExpression,resolveRoutingAssessment}=require('../../src/helix/domains/libra/model/routing-contracts');
-const {parseNfo,parseProvider,providerCandidateSelection}=require('../../src/helix/domains/libra/capabilities/routing-capability-ports');
+const {parseNfo,parseProvider,providerCandidateSelection,observeProductIdentity}=require('../../src/helix/domains/libra/capabilities/routing-capability-ports');
 const {buildProductScope,resolveAcceptanceSpec}=require('../../src/helix/domains/libra/model/acceptance-spec-contracts');
 
 const D='a'.repeat(64);
@@ -127,6 +127,57 @@ test('accepts only a unique deterministic Provider match and keeps protocol fail
   const ambiguous=[...unique,{...unique[0],providerKey:'101'}];
   assert.equal(parseProvider(intent,ambiguous,handle).result,'ambiguous');
   assert.throws(()=>providerCandidateSelection(intent,[unique[0],unique[0]]),(error)=>error.code==='LIBRA_ROUTING_PROVIDER_PROTOCOL');
+});
+
+function nfoIdentityIntent(title, yearHint) {
+  return {
+    intentId:'intent-nfo-identity',
+    libraRunId:'run-1',
+    subjectId:'subject-1',
+    sourceKind:'related_nfo',
+    relatedReferenceId:'related-1',
+    contentProfile:'movie',
+    associationKind:'nfo_claim',
+    aliases:[{ value:title }],
+    yearHint,
+    intentDigest:D,
+  };
+}
+
+test('NFO actor TMDB person IDs do not conflict with the unique movie identity', async () => {
+  const xml = [
+    '<movie>',
+    '<title>007：大破天幕杀机</title>',
+    '<year>2012</year>',
+    '<tmdbid>37724</tmdbid>',
+    '<uniqueid type="tmdb">37724</uniqueid>',
+    '<actor><name>Daniel Craig</name><tmdbid>8784</tmdbid></actor>',
+    '<actor><name>Judi Dench</name><tmdbid>5309</tmdbid></actor>',
+    '<set><name>James Bond Collection</name><tmdbid>645</tmdbid></set>',
+    '</movie>',
+  ].join('');
+  const parsed = parseNfo(observationIntent('related_nfo', ['release_year', 'resolved_provider_identity']),
+    xml, { location:'C:/fixture/skyfall.nfo', bindingRevision:1 });
+  assert.equal(parsed.result, 'observed');
+  assert.equal(parsed.facts.find((item) => item.factKind === 'resolved_provider_identity').providerKey, '37724');
+  assert.equal(parsed.facts.find((item) => item.factKind === 'release_year').year, 2012);
+  const observation = await observeProductIdentity({
+    readRelatedNfo: async () => xml,
+    observeRoutingProvider: async () => { throw new Error('must not search TMDB when NFO already has a unique movie ID'); },
+  }, nfoIdentityIntent('007：大破天幕杀机', 2012), { location:'C:/fixture/skyfall.nfo', bindingRevision:1 });
+  assert.equal(observation.result, 'resolved');
+  assert.equal(observation.verifiedIdentity.providerKey, '37724');
+  assert.equal(observation.candidates.length, 0);
+});
+
+test('NFO with multiple movie-level TMDB IDs exposes those identities as user-confirmable candidates', async () => {
+  const observation = await observeProductIdentity({
+    readRelatedNfo: async () => '<movie><title>Demo</title><tmdbid>11</tmdbid><uniqueid type="tmdb">22</uniqueid></movie>',
+    observeRoutingProvider: async () => { throw new Error('must not search TMDB when NFO already has multiple IDs'); },
+  }, nfoIdentityIntent('Demo', 2016), { location:'C:/fixture/movie.nfo', bindingRevision:1 });
+  assert.equal(observation.result, 'ambiguous');
+  assert.equal(observation.reasonCode, 'nfo_association_conflicting');
+  assert.deepEqual(observation.candidates.map((item) => item.providerKey).sort(), ['11', '22']);
 });
 
 test('keeps the Routing Process Coordinator outside planning and execution infrastructure',()=>{

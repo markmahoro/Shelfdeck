@@ -65,6 +65,22 @@ function tagValues(xml, tagName, attributePattern = '') {
   return unique(values);
 }
 
+const NON_MOVIE_IDENTITY_BLOCKS =
+  /<(actor|director|credits|producer|writer|gueststar|set|fanart|fileinfo|art|resume|thumbs)(?:\s[^>]*)?>[\s\S]*?<\/\1\s*>/gi;
+
+function movieLevelXml(xml) {
+  const match = String(xml || '').match(/<movie(?:\s[^>]*)?>([\s\S]*)<\/movie\s*>/i);
+  if (!match) return '';
+  return match[1].replace(NON_MOVIE_IDENTITY_BLOCKS, '');
+}
+
+function movieLevelTmdbIds(xml) {
+  const body = movieLevelXml(xml);
+  return unique([...tagValues(body, 'tmdbid'),
+    ...tagValues(body, 'uniqueid', '(?=[^>]*\\btype\\s*=\\s*["\\\']tmdb["\\\'])')]
+    .filter((value) => /^\d+$/.test(value)));
+}
+
 function parseNfo(intent, xml, handle) {
   if (typeof xml !== 'string' || Buffer.byteLength(xml, 'utf8') > 256 * 1024) {
     const error = new Error('Routing NFO exceeds its bounded transport.'); error.code = 'LIBRA_ROUTING_NFO_BOUND'; throw error;
@@ -72,22 +88,22 @@ function parseNfo(intent, xml, handle) {
   if (!/<movie(?:\s|>)/i.test(xml) || !/<\/movie\s*>/i.test(xml) || /<!DOCTYPE/i.test(xml)) {
     const error = new Error('Routing NFO is not valid XML.'); error.code = 'LIBRA_ROUTING_NFO_PROTOCOL'; throw error;
   }
+  const movieXml = movieLevelXml(xml);
   const facts = [], sourceObjectId = intent.relatedReferenceId, sourceRevision = handle.bindingRevision;
   for (const factKind of intent.requestedFactKinds) {
     if (factKind === 'release_year') {
-      const values = unique(['year', 'premiered', 'releasedate'].flatMap((tag) => tagValues(xml, tag))
+      const values = unique(['year', 'premiered', 'releasedate'].flatMap((tag) => tagValues(movieXml, tag))
         .map((value) => String(value).match(/(?:18|19|20|21)\d{2}/)?.[0] || null));
       if (values.length > 1) return result(intent, handle.location, 'ambiguous', 'source_fact_conflicting', [], values.length);
       if (values.length === 1) facts.push(routingFact(intent, factKind, { year: Number(values[0]) }, sourceObjectId, sourceRevision));
     } else if (factKind === 'region') {
-      const values = unique(['country', 'countrycode'].flatMap((tag) => tagValues(xml, tag)).map((value) => value.toUpperCase()).filter((value) => /^[A-Z]{2}$/.test(value)));
+      const values = unique(['country', 'countrycode'].flatMap((tag) => tagValues(movieXml, tag)).map((value) => value.toUpperCase()).filter((value) => /^[A-Z]{2}$/.test(value)));
       if (values.length) facts.push(routingFact(intent, factKind, { countryCodes: Object.freeze(values) }, sourceObjectId, sourceRevision));
     } else if (factKind === 'genre') {
-      const values = tagValues(xml, 'genre').map(normalize);
+      const values = tagValues(movieXml, 'genre').map(normalize);
       if (values.length) facts.push(routingFact(intent, factKind, { genreCodes: Object.freeze(values) }, sourceObjectId, sourceRevision));
     } else if (factKind === 'resolved_provider_identity') {
-      const values = unique([...tagValues(xml, 'tmdbid'), ...tagValues(xml, 'uniqueid', '(?=[^>]*\\btype\\s*=\\s*["\\\']tmdb["\\\'])')]
-        .filter((value) => /^\d+$/.test(value)));
+      const values = movieLevelTmdbIds(xml);
       if (values.length > 1) return result(intent, handle.location, 'ambiguous', 'source_fact_conflicting', [], values.length);
       if (values.length === 1) {
         const identity = { provider: 'tmdb', namespace: 'tmdb_movie', providerKey: values[0], identityRevision: 1 };
@@ -203,9 +219,22 @@ async function observeProductIdentity(options, intent, handle) {
     strongProviderAnchor:intent.sourceKind === 'provider_exact' ? { provider:'tmdb', namespace:'tmdb_movie', providerKey:intent.providerKey } : null,
     intentDigest:intent.intentDigest };
   if (intent.sourceKind === 'related_nfo') {
-    const parsed = parseNfo(legacy, await options.readRelatedNfo(handle), handle);
+    const xml = await options.readRelatedNfo(handle);
+    const parsed = parseNfo(legacy, xml, handle);
     if (parsed.result === 'not_found') return identityObservation(intent, 'not_found', 'nfo_identity_absent', []);
-    if (parsed.result === 'ambiguous') return identityObservation(intent, 'conflicting', 'nfo_association_conflicting', []);
+    if (parsed.result === 'ambiguous') {
+      const tmdbIds = movieLevelTmdbIds(xml);
+      if (tmdbIds.length > 1) {
+        const candidates = tmdbIds.map((providerKey) => identityCandidate({
+          providerKey,
+          title:intent.aliases[0].value,
+          originalTitle:intent.aliases[1]?.value || null,
+          releaseYear:intent.yearHint,
+        }));
+        return identityObservation(intent, 'ambiguous', 'nfo_association_conflicting', candidates);
+      }
+      return identityObservation(intent, 'conflicting', 'nfo_association_conflicting', []);
+    }
     const fact = parsed.facts.find((item) => item.factKind === 'resolved_provider_identity');
     if (!fact) return identityObservation(intent, 'not_found', 'nfo_identity_absent', []);
     const candidate = identityCandidate({ providerKey:fact.providerKey, title:intent.aliases[0].value,
