@@ -204,8 +204,16 @@ function createStartupRecovery(options) {
           else findings.push('WAITING_EFFECT_MISSING:' + event.event_id);
           continue;
         }
-        if (effect.effect_class !== node.effect_class || effect.state === 'failed') {
+        if (effect.effect_class !== node.effect_class) {
           findings.push('EFFECT_CLASS_OR_STATE_DRIFT:' + event.event_id);
+          continue;
+        }
+        if (effect.state === 'failed') {
+          if (event.state === 'executing') {
+            actions.push(Object.freeze({
+              eventId: event.event_id, effectId: effect.effect_id, decision: 'already_failed',
+            }));
+          } else findings.push('EFFECT_CLASS_OR_STATE_DRIFT:' + event.event_id);
           continue;
         }
         if (effect.state === 'committed') {

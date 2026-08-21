@@ -5,7 +5,7 @@ const { EFFECT_CLASSES, assertEffectClass } = require('./runtime-contracts');
 
 const VERSIONED_REF = /^helix:\/\/[A-Za-z0-9._/-]+\/v1$/;
 const CAPABILITY_REF = /^[a-z][a-z0-9_.-]+@1$/;
-const DECISIONS = new Set(['safe_retry', 'safe_retry_before_intent', 'continue_forward', 'compensate', 'already_committed', 'terminal_failure']);
+const DECISIONS = new Set(['safe_retry', 'safe_retry_before_intent', 'already_failed', 'continue_forward', 'compensate', 'already_committed', 'terminal_failure']);
 
 class ExecutionPolicyError extends Error {
   constructor(code, message, details = {}) {

@@ -143,6 +143,9 @@ function fixture(run, settings = {}) {
       intend(request) { journalCalls.push('intend'); return { effect_id: request.eventAttemptId,
         state: settings.effectIntentState || 'intended', event_attempt_id: settings.effectIntentAttemptId || request.eventAttemptId,
         effect_class: request.effectClass, idempotency_key: request.idempotencyKey, intent_digest: request.intentDigest }; },
+      read(effectId) { journalCalls.push('read'); return settings.effectJournalRead
+        ? { ...settings.effectJournalRead, effect_id: effectId || settings.effectJournalRead.effect_id }
+        : null; },
       async settle() { journalCalls.push('settle'); },
       noteExternalPending() { journalCalls.push('external-receipt'); },
       requireReconcile() { journalCalls.push('reconcile'); },
@@ -398,6 +401,20 @@ test('non-pure Capability failed Outcome completes the Attempt and abandons the 
     message:'FFmpeg failed.', retryDirective:'contract_policy',
     evidence:{ errorCode:'LIBRA_MEDIA_FFMPEG_FAILED' },
   } });
+});
+
+test('already-failed recovery completes the executing Attempt without re-dispatch', async () => {
+  await fixture(async ({ runtime, databasePath, state }) => {
+    const result = await runtime.recover({ eventId: 'event', effectId: 'effect', decision: 'already_failed' });
+    assert.equal(result.kind, 'failed');
+    const facts = databaseFacts(databasePath);
+    assert.equal(facts.attempt.state, 'completed');
+    assert.equal(facts.attempt.failure_code, 'P4_EVENT_RECOVERY_EFFECT_ABANDONED');
+    assert.equal(facts.event.state, 'waiting_for_external');
+    assert.equal(state().governorReleased, 0);
+  }, { effectClass: 'external_request', initialEventState: 'executing', seedExecutingAttempt: true,
+    failurePolicyDecision: { decision: 'reconcile_required' },
+    effectJournalRead: { effect_id: 'effect', event_attempt_id: 'event-attempt', effect_class: 'external_request', state: 'failed' } });
 });
 
 test('startup recovery records a non-pure failed Outcome instead of looping as not converged', async () => {

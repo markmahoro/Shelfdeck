@@ -144,6 +144,15 @@ test('non-pure recovery uses exact Effect reconciler and committed Effect is nev
   }, { effectClass: 'domain_fact_commit', journal: true, effectState: 'committed' });
 });
 
+test('executing Attempt with an abandoned Effect is completed, not a host fault', async () => fixture(async (recovery) => {
+  const result = await recovery.recover();
+  assert.equal(result.state, 'recovering');
+  assert.equal(result.normalSupplyAllowed, false);
+  assert.deepEqual(result.findings, []);
+  assert.equal(result.actions[0].decision, 'already_failed');
+  assert.equal(result.actions[0].effectId, 'effect');
+}, { effectClass: 'workspace_write', journal: true, effectState: 'failed' }));
+
 test('crash before non-pure intent is distinct from unknown effect point', async () => fixture(async (recovery) => {
   const result = await recovery.recover();
   assert.equal(result.actions[0].decision, 'safe_retry_before_intent');

@@ -446,7 +446,7 @@ function createEventRuntime(options) {
   }
 
   async function recover(request) {
-    const allowed = new Set(['safe_retry', 'safe_retry_before_intent', 'continue_forward', 'already_committed']);
+    const allowed = new Set(['safe_retry', 'safe_retry_before_intent', 'continue_forward', 'already_committed', 'already_failed']);
     if (!request || typeof request !== 'object' || Array.isArray(request) ||
         typeof request.eventId !== 'string' || !allowed.has(request.decision)) fail(
       'P4_EVENT_RECOVERY_REQUEST_INVALID', 'Event recovery requires one classified recoverable action.'
@@ -467,6 +467,26 @@ function createEventRuntime(options) {
     if (!fence || fence.valid !== true || fence.digest !== attempt.fence_snapshot_digest) fail(
       'P4_EVENT_RECOVERY_FENCE_DRIFT', 'Recovery Fence no longer matches the durable Event Attempt.'
     );
+    if (request.decision === 'already_failed') {
+      const abandoned = options.effectJournal.read(request.effectId);
+      if (!abandoned || abandoned.event_attempt_id !== attempt.event_attempt_id ||
+          abandoned.effect_class !== entry.manifest.effectClass || abandoned.state !== 'failed') fail(
+        'P4_EVENT_RECOVERY_EFFECT_DRIFT', 'Recovery Effect does not match the exact durable intent and Event Attempt.'
+      );
+      const outcome = Object.freeze({
+        kind: 'failed', failureClass: 'executor', code: 'P4_EVENT_RECOVERY_EFFECT_ABANDONED',
+        message: 'Recovery found the Event Attempt Effect already abandoned.',
+        retryDirective: 'contract_policy',
+        evidence: Object.freeze({ effectId: abandoned.effect_id, effectState: abandoned.state }),
+      });
+      const policyDecision = options.attemptPolicy.decideFailure(Object.freeze({
+        capabilityRef: snapshot.event.capability_ref, effectClass: snapshot.node.effect_class,
+        retryPolicyRef: policyBinding.retryPolicyRef, timeoutPolicyRef: policyBinding.timeoutPolicyRef,
+        failureAttemptCount: snapshot.attempts.filter((item) => item.outcome_kind === 'failed').length + 1,
+        outcome, recoveryDecision: request.decision,
+      }));
+      return complete(snapshot, attempt.event_attempt_id, outcome, policyDecision);
+    }
     const demand = options.resourceDemandResolver.resolve(Object.freeze({ snapshot, inputs }));
     if (!demand || demand.eventId !== request.eventId) fail(
       'P4_EVENT_RECOVERY_RESOURCE_BINDING_MISMATCH', 'Recovery Resource Demand must bind the exact Event.'

@@ -96,6 +96,8 @@ test('failure budget retries only frozen technical action and non-pure retry req
     { decision: 'retry', retryAtMs: 102000 });
   assert.deepEqual(external.value.decideFailure({ ...external.base, failureAttemptCount: 1, outcome: failed,
     recoveryDecision: 'safe_retry_before_intent' }), { decision: 'reconcile_required' });
+  assert.deepEqual(external.value.decideFailure({ ...external.base, failureAttemptCount: 1, outcome: failed,
+    recoveryDecision: 'already_failed' }), { decision: 'reconcile_required' });
   assert.throws(() => external.value.decideFailure({ ...external.base, failureAttemptCount: 1, outcome: failed,
     recoveryDecision: 'not_a_decision' }), { code: 'P4_ATTEMPT_RECOVERY_DECISION_INVALID' });
 });
