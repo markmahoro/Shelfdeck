@@ -306,8 +306,8 @@ function relatedFor(context, layoutEvidence, primaryMaterialKey) {
       const lower = entry.baseName.toLowerCase(); const stem = lower.replace(/\.[^.]+$/, ''); const extension = (entry.extension || '').toLowerCase();
       const image = /\.(jpg|jpeg|png|webp)$/.test(extension);
       const standard = /^(movie|tvshow)\.nfo$/.test(lower) ||
-        /^(poster|fanart|background|backdrop)\.(jpg|jpeg|png|webp)$/.test(lower) ||
-        /^season0*\d+-(poster|fanart|background|backdrop)\.(jpg|jpeg|png|webp)$/.test(lower);
+        /^(poster|fanart|background|backdrop|banner|clearlogo|landscape|logo|discart)\.(jpg|jpeg|png|webp)$/.test(lower) ||
+        /^season0*\d+-(poster|fanart|background|backdrop|banner|landscape)\.(jpg|jpeg|png|webp)$/.test(lower);
       const stemMatches = [...primaryStems].some((primaryStem) => stem === primaryStem || stem.startsWith(primaryStem + '.') ||
         stem.startsWith(primaryStem + '-') || stem.startsWith(primaryStem + '_'));
       const sidecar = /\.(srt|ass|ssa|vtt|aac|ac3|dts|flac|mka|chapters|xml)$/.test(lower);

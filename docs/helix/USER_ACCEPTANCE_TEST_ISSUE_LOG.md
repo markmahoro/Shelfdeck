@@ -1394,7 +1394,36 @@ data directory真实服务重启。
 修复状态（2026-08-22）：`REAL SERVICE RESTART VERIFIED`。同一隔离UAT data directory重启后，恢复批次虽暴露后续
 业务失败，服务仍持续监听；真实Formation页面成功打开、刷新并完成UAT-026评分撤回，随后由测试方优雅停止以隔离后续诊断。
 
-## 25. 后续问题模板
+## 25. UAT-028：单电影目录的常见既有图像未进入Related disposition scope
+
+问题分类：`PROCUREMENT_RELATED_MATERIAL / HANDOFF_CONTINUITY / INPUT_SETTLEMENT`
+
+用户侧现象：12个已Accepted的On-deck Run中有10个在Input Settlement持续报
+`CLEAN_ARCA_SETTLEMENT_UNKNOWN_MEMBER`，Formation长期显示“正在完成收藏架上架”，不能建立Shelf Entry。
+
+只读现场证据：严格按冻结Off-load Context、Final Inventory Decision与当前目录成员重建Arca的unknown判定，
+`全面失控：特大号邮轮危机`、`劫机`、`短暂和平`、`第八个嫌疑人`等目录均遗漏`clearlogo.png`；其他目录还
+遗漏`banner.jpg`或`landscape.jpg`。这些文件在Canary基线中已经存在，却没有进入Candidate Related relation及
+后续Off-load Context。
+
+精确根因：Procurement Candidate Context虽然有界观察`.jpg/.png`，但`single_movie_directory`的通用文件名集合
+只识别poster、fanart、background与backdrop。Emby常见的banner、clearlogo、landscape、logo、discart因此被错误
+排除；Arca不能从目录推断授权，正确fail closed。
+
+修复边界：只扩展单电影目录和BDMV external既有的通用图像名识别集合；多电影目录与standalone file继续要求
+精确same-stem，不把共享目录中的通用图像强行归属某个Candidate。新纳入图像以现有`sidecar`角色进入完整
+Related disposition obligation，保持原始文件名，不新增业务Owner、Control或删除权限。
+
+验收证据：专项回归证明单电影目录纳入`clearlogo.png`/`banner.jpg`/`landscape.jpg`，仍排除无stem的任意字幕；
+多电影目录继续排除通用`poster.jpg`。P7 Procurement fixture 92/92通过，Admin Web production build通过。
+
+旧Candidate事实保持immutable。当前`F:\canary`已不存在；上一轮失败数据库保留在
+`C:\Users\markm\AppData\Local\Temp\ShelfDeck-Movie-Canary-UAT-20260821-225906-424bbd71-final`。
+本修复提交后从只读`F:\test_film`重建全新`F:\canary`和隔离UAT事实库，不续跑旧Formation/On-deck事实。
+
+修复状态（2026-08-22）：`REGRESSION PASSED / CLEAN CANARY REBUILD AUTHORIZED`。
+
+## 26. 后续问题模板
 
 后续发现的问题按以下结构追加：
 

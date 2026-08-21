@@ -216,11 +216,17 @@ test('Candidate Context applies bounded Related rules for standalone, single-fil
       observed('One Movie/movie.nfo', 'movie-nfo', 6),
       observed('One Movie/poster.jpg', 'movie-poster', 7),
       observed('One Movie/Other.srt', 'other-in-directory', 8),
+      observed('One Movie/clearlogo.png', 'movie-clearlogo', 12),
+      observed('One Movie/banner.jpg', 'movie-banner', 13),
+      observed('One Movie/landscape.jpg', 'movie-landscape', 14),
     ],
   });
   assert.deepEqual(single.queriedScopes, [['run-1', 'One Movie']]);
   assert.deepEqual(single.context.relatedReferences.map((item) => item.location).sort(), [
     'One Movie/Feature.zh.srt',
+    'One Movie/banner.jpg',
+    'One Movie/clearlogo.png',
+    'One Movie/landscape.jpg',
     'One Movie/movie.nfo',
     'One Movie/poster.jpg',
   ]);

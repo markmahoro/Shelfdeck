@@ -128,8 +128,8 @@ function reconstructRelatedReferences({ basis, scope, candidateMembers, observed
     const stem = lower.replace(/\.[^.]+$/, '');
     const extension = (lower.match(/\.[^.]+$/) || [''])[0];
     const standard = /^(movie|tvshow)\.nfo$/.test(lower) ||
-      /^(poster|fanart|background|backdrop)\.(jpg|jpeg|png|webp)$/.test(lower) ||
-      /^season0*\d+-(poster|fanart|background|backdrop)\.(jpg|jpeg|png|webp)$/.test(lower);
+      /^(poster|fanart|background|backdrop|banner|clearlogo|landscape|logo|discart)\.(jpg|jpeg|png|webp)$/.test(lower) ||
+      /^season0*\d+-(poster|fanart|background|backdrop|banner|landscape)\.(jpg|jpeg|png|webp)$/.test(lower);
     const stemMatches = [...stems].some((value) => stem === value || stem.startsWith(value + '.') || stem.startsWith(value + '-') || stem.startsWith(value + '_'));
     const sidecar = /\.(srt|ass|ssa|vtt|aac|ac3|dts|flac|mka|chapters|xml)$/.test(lower);
     const mediaPayload = /\.(3gp|asf|avi|divx|flv|iso|m2ts|m4v|mkv|mov|mp4|mpeg|mpg|mts|mxf|ogm|rm|rmvb|ts|vob|webm|wmv)$/.test(lower);
