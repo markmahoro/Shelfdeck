@@ -884,7 +884,28 @@ Package、Receipt、Canonical JSON等结构化事实的SHA-256与媒体字节Ide
 
 当前处理决定：Projection根因已修复、回归、提交并完成浏览器用户验收。未修改SSOT身份匹配规则、Canary媒体文件或旧的不可变Work；完整媒体整理与上架结果仍未宣告通过。
 
-## 12. 后续问题模板
+## 12. UAT-015：Frozen Libra Run 没有用户 Discard 入口
+
+问题分类：`USER_RECOVERY / LIBRA_RUN_LIFECYCLE / EXPLICIT_DECISION`
+
+用户侧现象：`坠楼死亡的剖析 (2023)`在身份确认后的Provider exact Work失败并正式进入`frozen`，但媒体整理页仍显示旧的“媒体身份信息冲突”，继续提供对Frozen Run无效的身份验证候选；用户无法理解当前终态，也无法执行SSOT要求的显式Discard。
+
+现场证据：Run `a5bd…c4be`为`frozen`、state revision 3，最新Product Identity Work及Attempt均已`failed`；一小时后页面仍显示相同身份候选。Formation Projection先判断`productIdentityIssue`再判断Run state，前端也对任何带Identity Issue的Run无条件渲染身份确认控件，同时没有调用既有`POST /v1/admin/formation/runs/:libraRunId/actions/discard`的用户入口。
+
+业务影响：Frozen Run不能由Reconciler自动恢复，用户又无法提交唯一合法的Discard Decision，因此原始输入控制无法释放，也不能按当前Eligibility重新采购；页面提供的身份按钮只会形成无效重放，制造“点击无反应”的体验。
+
+修复边界：Frozen与Suspended Run state优先于旧的Product Identity Issue形成用户状态；Frozen仅显示“本次整理已冻结，需要放弃后重新采购”，隐藏无效身份及加快操作，并提供带浏览器确认的“放弃本次整理”按钮。按钮调用既有Libra-owned Discard合同及精确state revision/digest fence，不自动Discard、不自动恢复Run，也不删除原始媒体。
+
+验收证据：
+
+- `helix-formation-projection.test.js`及`p9-run-lifecycle-store.test.js`合计16/16 PASS，Admin Web TypeScript/Vite build PASS；
+- 修复提交：`6e88c9d61`；
+- 真实Admin Web刷新后，`坠楼死亡的剖析 (2023)`与`一场很（没）有必要的春晚 (2022)`均显示Frozen说明及“放弃本次整理”按钮，不再显示无效身份确认或加快入口；
+- 本轮只验证用户入口，未代替用户确认Discard，未修改Canary媒体文件。
+
+当前处理决定：用户侧恢复入口已修复、回归、提交并完成浏览器可见性验收。两项Frozen Run仍保留原状，等待用户明确决定是否Discard；完整Movie Canary UAT仍不通过。
+
+## 13. 后续问题模板
 
 后续发现的问题按以下结构追加：
 
