@@ -18,6 +18,7 @@ const generatedRoot = path.resolve(__dirname, '../../src/helix/foundation/persis
 const schemaDdl = fs.readFileSync(path.join(generatedRoot, 'clean-schema.sql'), 'utf8');
 const schemaManifest = JSON.parse(fs.readFileSync(path.join(generatedRoot, 'clean-schema.manifest.json'), 'utf8'));
 const HASH_A = 'a'.repeat(64); const HASH_B = 'b'.repeat(64);
+const EMPTY_INPUT_DIGEST = require('node:crypto').createHash('sha256').update('{}').digest('hex');
 
 function fixture(run, settings = {}) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'helix-event-runtime-'));
@@ -76,6 +77,15 @@ function fixture(run, settings = {}) {
         started_at_ms: 1, finished_at_ms: 2,
       });
     }
+    if (settings.seedExecutingAttempt) {
+      repository.invoke('event_attempt', {
+        event_attempt_id:'event-attempt', event_id:'event', ordinal:1,
+        executor_ref:'libra.test.observe@1', executor_version:1,
+        input_snapshot_schema_ref:'helix://test/inputs', input_snapshot_digest:EMPTY_INPUT_DIGEST,
+        fence_snapshot_digest:HASH_A, state:'executing', outcome_kind:null, retry_after_ms:null,
+        failure_class:null, failure_code:null, evidence_digest:null, started_at_ms:1, finished_at_ms:null,
+      });
+    }
     if (settings.addDependent) {
       repository.invoke('node', { plan_id: 'plan', node_id: 'node-dependent', capability_ref: 'libra.test.observe@1', contract_version: 1,
         input_binding_schema_ref: 'helix://test/inputs', input_bindings_json: '{}', parameter_schema_ref: 'helix://test/parameters',
@@ -104,7 +114,9 @@ function fixture(run, settings = {}) {
   let fenceIndex = 0;
   const dispatcher = { async dispatch(request) {
     dispatchContext = request.context;
-    assert.equal(schedulerReleased, 1, 'technical scheduler lease must end before Executor call');
+    if (!settings.seedExecutingAttempt) {
+      assert.equal(schedulerReleased, 1, 'technical scheduler lease must end before Executor call');
+    }
     if (settings.effectClass && settings.effectClass !== 'pure_observation') assert.equal(journalCalls[0], 'intend');
     if (settings.dispatchError) throw settings.dispatchError;
     const outcome = settings.outcome || { kind: 'succeeded', resultSchemaRef: 'helix://test/result', result: { value: 1 },
@@ -367,6 +379,18 @@ test('non-pure Executor crash leaves durable executing Attempt for effect-specif
     assert.equal(facts.event.state, 'executing'); assert.equal(facts.attempt.state, 'executing'); assert.equal(facts.results, 0);
     assert.deepEqual({ schedulerReleased: state().schedulerReleased, governorReleased: state().governorReleased }, { schedulerReleased: 1, governorReleased: 1 });
   }, { effectClass:'external_request', dispatchError: new Error('executor crash') });
+});
+
+test('startup recovery settles an old pure observation executor error instead of deferring it forever', async () => {
+  await fixture(async ({ runtime, databasePath, state }) => {
+    const result = await runtime.recover({ eventId:'event', decision:'safe_retry' });
+    assert.equal(result.kind, 'failed');
+    const facts = databaseFacts(databasePath);
+    assert.equal(facts.event.state, 'failed'); assert.equal(facts.attempt.state, 'completed');
+    assert.equal(facts.attempt.failure_code, 'EXECUTOR_ERROR');
+    assert.equal(state().governorReleased, 1);
+  }, { initialEventState:'executing', seedExecutingAttempt:true,
+    dispatchError:new Error('old pure observation crash') });
 });
 
 test('non-pure Event persists intent before dispatch and settles verified receipt before Result commit', async () => {

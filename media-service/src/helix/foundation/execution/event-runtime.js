@@ -517,10 +517,39 @@ function createEventRuntime(options) {
       });
       if (inputs.approvalHandle !== undefined) context.approvalHandle = inputs.approvalHandle;
       if (inputs.authorizationHandle !== undefined) context.authorizationHandle = inputs.authorizationHandle;
-      const outcome = await options.timeoutController.execute(Object.freeze({ executionHandleId: attempt.event_attempt_id,
-        deadlineAtMs: attemptContract.deadlineAtMs, operation: () => options.dispatcher.dispatch({
-          capabilityRef: snapshot.event.capability_ref, context: Object.freeze(context), ownerDomain: snapshot.event.owner_domain
-        }) }));
+      let outcome;
+      try {
+        outcome = await options.timeoutController.execute(Object.freeze({ executionHandleId: attempt.event_attempt_id,
+          deadlineAtMs: attemptContract.deadlineAtMs, operation: () => options.dispatcher.dispatch({
+            capabilityRef: snapshot.event.capability_ref, context: Object.freeze(context), ownerDomain: snapshot.event.owner_domain
+          }) }));
+      } catch (error) {
+        if (entry.manifest.effectClass !== 'pure_observation') throw error;
+        outcome = Object.freeze({ kind:'failed', failureClass:error?.code === 'P4_EXECUTION_TIMEOUT'?'timeout':'executor',
+          code:error?.code === 'P4_EXECUTION_TIMEOUT'?'EXECUTION_TIMEOUT':
+            (typeof error?.code === 'string' && error.code ? error.code : 'EXECUTOR_ERROR'),
+          message:String(error?.message || 'Pure observation recovery failed.'), retryDirective:'contract_policy',
+          evidence:Object.freeze({ errorName:String(error?.name || 'Error'),
+            errorCode:typeof error?.code === 'string' && error.code ? error.code : 'EXECUTOR_ERROR' }) });
+      }
+      if (entry.manifest.effectClass === 'pure_observation' && outcome?.kind !== 'succeeded') {
+        let policyDecision = null;
+        if (outcome?.kind === 'failed') policyDecision = options.attemptPolicy.decideFailure(Object.freeze({
+          capabilityRef:snapshot.event.capability_ref,effectClass:snapshot.node.effect_class,
+          retryPolicyRef:policyBinding.retryPolicyRef,timeoutPolicyRef:policyBinding.timeoutPolicyRef,
+          failureAttemptCount:snapshot.attempts.filter((item)=>item.outcome_kind === 'failed').length + 1,
+          outcome,recoveryDecision:request.decision,
+        }));
+        if (outcome?.kind === 'deferred') policyDecision = options.attemptPolicy.decideDeferred(Object.freeze({
+          capabilityRef:snapshot.event.capability_ref,effectClass:snapshot.node.effect_class,
+          retryPolicyRef:policyBinding.retryPolicyRef,timeoutPolicyRef:policyBinding.timeoutPolicyRef,
+          observationCount:snapshot.attempts.filter((item)=>item.outcome_kind === 'deferred').length + 1,
+          firstObservedAtMs:attempt.started_at_ms,retryAfterMs:outcome.retryAfterMs,
+        }));
+        if (!outcome || !['failed','deferred'].includes(outcome.kind)) fail(
+          'P4_EVENT_RECOVERY_OUTCOME_INVALID', 'Pure observation recovery returned an invalid Outcome.');
+        return complete(snapshot, attempt.event_attempt_id, outcome, policyDecision);
+      }
       if (!outcome || outcome.kind !== 'succeeded') {
         if (effect) {
           if (outcome?.kind === 'deferred' && outcome.externalReceipt !== undefined)
