@@ -86,11 +86,32 @@ function externalOutputSnapshotSchema() {
 }
 
 function providerAcquisitionCandidateSnapshotSchema() {
+  const sourcedClaim = (knownValue) => ({ oneOf: [
+    object({ status: { const: 'known' }, value: knownValue, sourceField: text() }),
+    object({ status: { const: 'unknown' }, value: { type: 'null' }, sourceField: { type: 'null' } })
+  ] });
+  const advertisedMedia = object({
+    resolution: sourcedClaim(enumText('4k', 'below_4k')),
+    videoCodec: sourcedClaim(enumText('hevc', 'h264')),
+    primaryAudioClasses: { oneOf: [
+      object({ status: { const: 'known' }, value: arrayOf(enumText(
+        'eac3_atmos', 'truehd', 'truehd_atmos', 'dts_hd_ma', 'dts_x'), 5), sourceField: text() }),
+      object({ status: { const: 'unknown' }, value: { type: 'array', maxItems: 0 }, sourceField: { type: 'null' } })
+    ] },
+    sizeBytes: sourcedClaim(nonNegativeInteger()),
+    source: object({ provider: { const: 'moviepilot' }, providerCandidateDigest: digestHex(),
+      claimBasis: enumText('structured_and_release_fields', 'provider_row') }),
+    evidenceDigest: digestHex()
+  });
   return object({ candidateId: digestHex(), integrationId: opaqueId(), configRevision: positiveInteger(),
     providerCandidateRef: object({ objectType: { const: 'acquisition_candidate' }, objectId: opaqueId(),
       revision: positiveInteger(), digest: digestHex() }), providerRank: { type: 'integer', minimum: 0, maximum: 99 },
     identityAnchors: arrayOf(domainRef('ResolvedProviderIdentity'), 16), structureKind: enumText('single', 'season'),
-    episodeKeys: arrayOf(text(), 256), availability: enumText('available', 'unavailable'), candidateDigest: digestHex()
+    episodeKeys: arrayOf(text(), 256), availability: enumText('available', 'unavailable'), advertisedMedia,
+    requirementAssessment: enumText('compliant', 'unknown', 'noncompliant'),
+    assessmentReasonCodes: arrayOf(enumText('video_codec_unknown', 'video_codec_unmet', 'resolution_unknown',
+      'minimum_raster_unmet', 'primary_audio_unknown', 'primary_audio_unmet', 'size_unknown', 'max_size_exceeded'), 8),
+    candidateDigest: digestHex()
   });
 }
 

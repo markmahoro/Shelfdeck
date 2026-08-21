@@ -263,7 +263,7 @@ function providerFetch(state) {
             tmdb_id:Object.hasOwn(state, 'moviepilotTmdbId')
               ? state.moviepilotTmdbId : 100 },
           torrent_info: {
-            title: 'Movie.2024.1080p',
+            title: 'Movie.2024.2160p.HEVC.TrueHD',
             enclosure: 'https://tracker.test/download/torrent-1',
             size: 1024,
           },
@@ -505,6 +505,11 @@ function acquisitionQuery() {
     termKind: term.termKind,
     value: term.value,
   });
+  const mediaRequirement={requirementId:'requirement-1',revision:1,schemaRef:'MediaRequirement@1',
+    acceptanceSpecId:'spec-1',acceptanceSpecRecordDigest:canonicalDigest({spec:1}),contentProfile:'movie',structureKind:'single',
+    mandatoryMedia:{mediaForm:'stream_file',videoCodec:'hevc',container:'matroska',fileExtension:'mkv',minimumRasterClass:'4k',
+      acceptedPrimaryAudioClasses:['truehd'],forbidSystemUpscaleFor4k:true},space:{unit:'product',maxSizeGiB:null,maxSizeBytes:null}};
+  mediaRequirement.requirementDigest=canonicalDigest(mediaRequirement);
   const query = {
     schemaRef: 'helix://contracts/types/AcquisitionQuery/v1',
     schemaVersion: 1,
@@ -520,10 +525,15 @@ function acquisitionQuery() {
     contentProfile: 'movie',
     providerIdentityAnchors: [identity],
     requestedEpisodeKeys: [],
+    mediaRequirement,
+    mediaRequirementDigest:mediaRequirement.requirementDigest,
+    acquisitionPolicyDigest:canonicalDigest({ policy: 'moviepilot', revision: 1 }),
+    maxDownloadAttempts:3,
     queryTerms: [term],
     hardConstraints: {
       requiredStructureKind: 'single',
       requiredEpisodeKeys: [],
+      mediaRequirementDigest:mediaRequirement.requirementDigest,
     },
   };
   query.queryDigest = canonicalDigest({
@@ -536,6 +546,10 @@ function acquisitionQuery() {
     contentProfile: query.contentProfile,
     providerIdentityAnchors: query.providerIdentityAnchors,
     requestedEpisodeKeys: query.requestedEpisodeKeys,
+    mediaRequirement:query.mediaRequirement,
+    mediaRequirementDigest:query.mediaRequirementDigest,
+    acquisitionPolicyDigest:query.acquisitionPolicyDigest,
+    maxDownloadAttempts:query.maxDownloadAttempts,
     queryTerms: query.queryTerms,
     hardConstraints: query.hardConstraints,
   });
@@ -570,7 +584,8 @@ function selectedCandidateFromSearch(result) {
     result: 'selected',
     selectedCandidate: result.candidates[0],
     selectedCandidateId: result.candidates[0].candidateId,
-    selectionReasonCode: 'selected_by_provider_rank',
+    selectionReasonCode: result.candidates[0].requirementAssessment==='compliant'
+      ?'selected_compliant_claims':'selected_unverified_claims',
   };
   return Object.freeze({
     ...value,
@@ -661,6 +676,28 @@ test('H1.2 four providers share test-proof-save-read and never persist operator 
     assert.equal(read.body.includes('integration-envelope:'), false);
   }
   await host.close();
+});
+
+test('H1.2 MoviePilot attempt limit updates locally without re-entering or retesting credentials', async () => {
+  const value=fixture(),state={calls:[]},host=await createCleanServiceHost({dataDir:value.dataDir,
+    adminDistDir:value.adminDistDir,secretRoot,integrationFetch:providerFetch(state),now:()=>1_900_000_000_000});
+  try{
+    const cookie=await session(host,value.initialized.adminApiKey),saved=await configure(host,cookie,'moviepilot','-settings');
+    assert.equal(saved.settings.maxDownloadAttempts,3);
+    const callsBefore=state.calls.length,updated=await host.inject({method:'PATCH',
+      url:'/v1/admin/settings/integrations/moviepilot',headers:{cookie},payload:{kind:'moviepilot',
+        idempotencyKey:'moviepilot-local-settings-5',expectedConfigRevision:1,settings:{maxDownloadAttempts:5}}});
+    assert.equal(updated.statusCode,200,updated.body);
+    assert.equal(updated.json().configRevision,2);
+    assert.equal(updated.json().settings.maxDownloadAttempts,5);
+    assert.equal(updated.json().landingBinding.bindingRevision,2);
+    assert.equal(state.calls.length,callsBefore,'local policy update must not call MoviePilot');
+    const replay=await host.inject({method:'PATCH',url:'/v1/admin/settings/integrations/moviepilot',headers:{cookie},
+      payload:{kind:'moviepilot',idempotencyKey:'moviepilot-local-settings-5',expectedConfigRevision:1,
+        settings:{maxDownloadAttempts:5}}});
+    assert.equal(replay.statusCode,200,replay.body);
+    assert.deepEqual(replay.json(),updated.json());
+  }finally{await host.close();}
 });
 
 test('H1.2 provider operations execute through exact P5 ports and revision-fenced Secret leases', async () => {
@@ -790,6 +827,9 @@ test('H1.2 provider operations execute through exact P5 ports and revision-fence
       0,
     );
     assert.equal(moviepilot.result.candidates[0].availability, 'available');
+    assert.equal(moviepilot.result.candidates[0].requirementAssessment, 'compliant');
+    assert.equal(moviepilot.result.candidates[0].advertisedMedia.resolution.value, '4k');
+    assert.equal(moviepilot.result.candidates[0].advertisedMedia.videoCodec.value, 'hevc');
     assert.equal(moviepilot.result.candidates[0].identityAnchors[0].providerKey,
       '100');
     assert.ok(state.calls.some((call) =>
@@ -884,7 +924,7 @@ test('H1.2 MoviePilot external request recovers one exact durable job without du
 
     state.moviepilotTasks = [{
       hash: 'job-existing',
-      title: 'Movie.2024.1080p',
+      title: 'Movie.2024.2160p.HEVC.TrueHD',
       size: 1024,
       media: { tmdbid: 100, type: '电影' },
     }];
@@ -898,7 +938,7 @@ test('H1.2 MoviePilot external request recovers one exact durable job without du
     state.moviepilotTasks = [];
     state.moviepilotHistory = [{
       download_hash: 'job-history',
-      torrent_name: 'Movie.2024.1080p',
+      torrent_name: 'Movie.2024.2160p.HEVC.TrueHD',
       tmdbid: 100,
       type: '电影',
     }];
@@ -925,13 +965,13 @@ test('H1.2 MoviePilot external request recovers one exact durable job without du
     state.moviepilotTasks = [
       {
         hash: 'job-ambiguous-a',
-        title: 'Movie.2024.1080p',
+        title: 'Movie.2024.2160p.HEVC.TrueHD',
         size: 1024,
         media: { tmdbid: 100, type: 'movie' },
       },
       {
         hash: 'job-ambiguous-b',
-        title: 'Movie.2024.1080p',
+        title: 'Movie.2024.2160p.HEVC.TrueHD',
         size: 1024,
         media: { tmdbid: 100, type: 'movie' },
       },

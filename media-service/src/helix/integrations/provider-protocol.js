@@ -80,11 +80,16 @@ function validateResolvedIdentity(value, field) {
 function validateAcquisitionQuery(value, digest) {
   exact(value, ['schemaRef', 'schemaVersion', 'draftId', 'draftKind', 'basisDigest', 'draftDigest', 'producedAtMs',
     'libraRunId', 'runExecutionBasisDigest', 'resolvedIdentityDigest', 'productStructureDigest', 'structureKind',
-    'contentProfile', 'providerIdentityAnchors', 'requestedEpisodeKeys', 'queryTerms', 'hardConstraints', 'queryDigest'], 'P5_PROVIDER_ACQUISITION_QUERY_SHAPE');
+    'contentProfile', 'providerIdentityAnchors', 'requestedEpisodeKeys', 'mediaRequirement','mediaRequirementDigest',
+    'acquisitionPolicyDigest','maxDownloadAttempts','queryTerms', 'hardConstraints', 'queryDigest'], 'P5_PROVIDER_ACQUISITION_QUERY_SHAPE');
   if (value.schemaRef !== 'helix://contracts/types/AcquisitionQuery/v1' || value.schemaVersion !== 1 ||
       !['single', 'season'].includes(value.structureKind) || !['movie', 'series', 'jav', 'western_adult'].includes(value.contentProfile)) fail('P5_PROVIDER_ACQUISITION_QUERY_KIND', 'Acquisition Query type is invalid.');
-  ['basisDigest', 'draftDigest', 'runExecutionBasisDigest', 'resolvedIdentityDigest', 'productStructureDigest', 'queryDigest'].forEach((field) => sha(value[field], field));
+  ['basisDigest', 'draftDigest', 'runExecutionBasisDigest', 'resolvedIdentityDigest', 'productStructureDigest',
+    'mediaRequirementDigest', 'acquisitionPolicyDigest', 'queryDigest'].forEach((field) => sha(value[field], field));
   nonNegative(value.producedAtMs, 'producedAtMs');
+  if(!value.mediaRequirement||value.mediaRequirement.requirementDigest!==value.mediaRequirementDigest||
+      !Number.isSafeInteger(value.maxDownloadAttempts)||value.maxDownloadAttempts<1||value.maxDownloadAttempts>5)
+    fail('P5_PROVIDER_ACQUISITION_REQUIREMENT','Acquisition Query Media Requirement or attempt limit is invalid.');
   [value.draftId, value.draftKind, value.libraRunId].forEach((item, index) => token(item, ['draftId', 'draftKind', 'libraRunId'][index]));
   if (!Array.isArray(value.providerIdentityAnchors) || value.providerIdentityAnchors.length < 1 || value.providerIdentityAnchors.length > 16) fail('P5_PROVIDER_ACQUISITION_QUERY_BOUND', 'Acquisition Query identity anchors are invalid.');
   value.providerIdentityAnchors.forEach((item, index) => validateResolvedIdentity(item, 'providerIdentityAnchors.' + index));
@@ -101,13 +106,16 @@ function validateAcquisitionQuery(value, digest) {
     const expected = digest(canonicalJson({ schema: 'libra.external-acquisition-query-term@1', termKind: term.termKind, value: term.value }));
     if (term.termDigest !== expected) fail('P5_PROVIDER_ACQUISITION_TERM_DIGEST', 'Acquisition Query term digest is invalid.');
   });
-  exact(value.hardConstraints, ['requiredStructureKind', 'requiredEpisodeKeys'], 'P5_PROVIDER_ACQUISITION_CONSTRAINT_SHAPE');
+  exact(value.hardConstraints, ['requiredStructureKind', 'requiredEpisodeKeys','mediaRequirementDigest'], 'P5_PROVIDER_ACQUISITION_CONSTRAINT_SHAPE');
   if (value.hardConstraints.requiredStructureKind !== value.structureKind || !Array.isArray(value.hardConstraints.requiredEpisodeKeys) ||
-      canonicalJson(value.hardConstraints.requiredEpisodeKeys) !== canonicalJson(value.requestedEpisodeKeys)) fail('P5_PROVIDER_ACQUISITION_CONSTRAINT', 'Acquisition Query constraints are invalid.');
+      canonicalJson(value.hardConstraints.requiredEpisodeKeys) !== canonicalJson(value.requestedEpisodeKeys)||
+      value.hardConstraints.mediaRequirementDigest!==value.mediaRequirementDigest) fail('P5_PROVIDER_ACQUISITION_CONSTRAINT', 'Acquisition Query constraints are invalid.');
   const expectedQueryDigest = digest(canonicalJson({ schema: 'libra.external-acquisition-query@1', libraRunId: value.libraRunId,
     runExecutionBasisDigest: value.runExecutionBasisDigest, resolvedIdentityDigest: value.resolvedIdentityDigest,
     productStructureDigest: value.productStructureDigest, structureKind: value.structureKind, contentProfile: value.contentProfile,
     providerIdentityAnchors: value.providerIdentityAnchors, requestedEpisodeKeys: value.requestedEpisodeKeys,
+    mediaRequirement:value.mediaRequirement,mediaRequirementDigest:value.mediaRequirementDigest,
+    acquisitionPolicyDigest:value.acquisitionPolicyDigest,maxDownloadAttempts:value.maxDownloadAttempts,
     queryTerms: value.queryTerms, hardConstraints: value.hardConstraints }));
   const { draftDigest, ...draftBasis } = value;
   if (value.queryDigest !== expectedQueryDigest || draftDigest !== digest(canonicalJson(draftBasis))) fail('P5_PROVIDER_ACQUISITION_QUERY_DIGEST', 'Acquisition Query or Draft digest is invalid.');
@@ -116,7 +124,7 @@ function validateAcquisitionQuery(value, digest) {
 
 function validateCandidate(value, integrationId, configRevision, digest) {
   exact(value, ['candidateId', 'integrationId', 'configRevision', 'providerCandidateRef', 'providerRank', 'identityAnchors',
-    'structureKind', 'episodeKeys', 'availability', 'candidateDigest'], 'P5_PROVIDER_CANDIDATE_SHAPE');
+    'structureKind', 'episodeKeys', 'availability','advertisedMedia','requirementAssessment','assessmentReasonCodes', 'candidateDigest'], 'P5_PROVIDER_CANDIDATE_SHAPE');
   if (value.integrationId !== integrationId || value.configRevision !== configRevision || !['single', 'season'].includes(value.structureKind) || !['available', 'unavailable'].includes(value.availability)) fail('P5_PROVIDER_CANDIDATE_FENCE', 'Provider candidate fence is invalid.');
   exact(value.providerCandidateRef, ['objectType', 'objectId', 'revision', 'digest'], 'P5_PROVIDER_CANDIDATE_REF_SHAPE');
   if (value.providerCandidateRef.objectType !== 'acquisition_candidate') fail('P5_PROVIDER_CANDIDATE_REF', 'Provider candidate reference is invalid.');
@@ -129,6 +137,14 @@ function validateCandidate(value, integrationId, configRevision, digest) {
     (item) => [item.provider, item.namespace, item.providerKey, String(item.seasonNumber || 0).padStart(10, '0')].join('\u0000'),
     'P5_PROVIDER_CANDIDATE_IDENTITY_ORDER');
   requireSortedUnique(value.episodeKeys, (item) => item, 'P5_PROVIDER_CANDIDATE_EPISODE_ORDER');
+  exact(value.advertisedMedia,['resolution','videoCodec','primaryAudioClasses','sizeBytes','source','evidenceDigest'],'P5_PROVIDER_CANDIDATE_MEDIA_SHAPE');
+  for(const field of ['resolution','videoCodec','primaryAudioClasses','sizeBytes']){
+    if(!value.advertisedMedia[field]||!['known','unknown'].includes(value.advertisedMedia[field].status))
+      fail('P5_PROVIDER_CANDIDATE_MEDIA_CLAIM','Provider media claim status is invalid.');
+  }
+  if(!['compliant','unknown','noncompliant'].includes(value.requirementAssessment)||!Array.isArray(value.assessmentReasonCodes)||
+      value.advertisedMedia.evidenceDigest!==digest(canonicalJson(Object.fromEntries(Object.entries(value.advertisedMedia).filter(([key])=>key!=='evidenceDigest')))))
+    fail('P5_PROVIDER_CANDIDATE_MEDIA_CLAIM','Provider media assessment is invalid.');
   const expectedId = digest(canonicalJson({ schema: 'provider-acquisition-candidate-id@1', integrationId, configRevision, providerCandidateRef: value.providerCandidateRef }));
   const { candidateDigest, ...candidateBasis } = value;
   if (value.candidateId !== expectedId || candidateDigest !== digest(canonicalJson(candidateBasis))) fail('P5_PROVIDER_CANDIDATE_DIGEST', 'Provider candidate identity or digest is invalid.');
@@ -138,7 +154,8 @@ function validateSelectedCandidate(value, digest) {
   exact(value, ['schemaRef', 'schemaVersion', 'draftId', 'draftKind', 'basisDigest', 'draftDigest', 'producedAtMs',
     'queryDigest', 'candidateSetDigest', 'selectionCriteriaDigest', 'result', 'selectedCandidate', 'selectedCandidateId',
     'selectionReasonCode'], 'P5_PROVIDER_SELECTED_CANDIDATE_SHAPE');
-  if (value.schemaRef !== 'helix://contracts/types/SelectedCandidate/v1' || value.schemaVersion !== 1 || value.result !== 'selected' || value.selectionReasonCode !== 'selected_by_provider_rank') fail('P5_PROVIDER_SELECTED_CANDIDATE_REQUIRED', 'Acquire Request requires the selected candidate variant.');
+  if (value.schemaRef !== 'helix://contracts/types/SelectedCandidate/v1' || value.schemaVersion !== 1 || value.result !== 'selected' ||
+      !['selected_compliant_claims','selected_unverified_claims'].includes(value.selectionReasonCode)) fail('P5_PROVIDER_SELECTED_CANDIDATE_REQUIRED', 'Acquire Request requires the selected candidate variant.');
   validateCandidate(value.selectedCandidate, value.selectedCandidate.integrationId, value.selectedCandidate.configRevision, digest);
   const expectedBasisDigest = digest(canonicalJson({ schema: 'libra.external-candidate-selection-basis@1', queryDigest: value.queryDigest,
     candidateSetDigest: value.candidateSetDigest, selectionCriteriaDigest: value.selectionCriteriaDigest }));
@@ -146,6 +163,7 @@ function validateSelectedCandidate(value, digest) {
     candidateSetDigest: value.candidateSetDigest, selectionCriteriaDigest: value.selectionCriteriaDigest }));
   const { draftDigest, ...draftBasis } = value;
   if (value.selectedCandidateId !== value.selectedCandidate.candidateId || value.selectedCandidate.availability !== 'available' ||
+      value.selectedCandidate.requirementAssessment === 'noncompliant' ||
       value.basisDigest !== expectedBasisDigest || value.draftId !== expectedDraftId || draftDigest !== digest(canonicalJson(draftBasis))) fail('P5_PROVIDER_SELECTED_CANDIDATE_ID', 'Selected candidate identity or Draft digest is invalid.');
   ['basisDigest', 'draftDigest', 'queryDigest', 'candidateSetDigest', 'selectionCriteriaDigest'].forEach((field) => sha(value[field], field));
   return freezeClone(value);

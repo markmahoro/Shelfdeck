@@ -4,6 +4,16 @@ Status: Movie Procurement与Movie Libra封口保持有效；Movie Arca已完成H
 
 Last updated: 2026-08-21
 
+## 0. UAT repair status — UAT-017 implemented, fresh Canary qualification pending
+
+MoviePilot Search Candidate现在冻结当前`MediaRequirement`并公开有来源的typed媒体声明；明确合规候选优先，只有不存在
+合规项时才使用标为“发布信息不完整、下载后验证”的未知候选，明确不合规候选不会触发下载。真实Probe不合格会在
+当前Query内选择下一候选，尝试上限由Admin Web配置为1–5、默认3；修改设置会建立新Integration revision但不重录凭据。
+专项协议、选择、多候选真实字节E2E和Formation可见性回归91/91通过；完整Architecture Gate为165个test file、
+1087 pass、7个显式skip、0 fail，Admin Web production build通过。当前合同为113 Capability、99 Result family、
+117 Domain Input、182 table、44 Canonical Transaction，aggregate为
+`f44d610d01b9302e091adbbdfa35084e6648d61735c6ea8e73015fc35bffd522`；真实MoviePilot和Canary结论仍待第二轮UAT。
+
 ## 0. UAT repair status — UAT-004 bounded I/O qualified
 
 实际文件读取预算回归证明MKV、ISO、BDMV主M2TS及转码输出均只读取中段262,144 bytes形成Workspace媒体Identity，
@@ -29,7 +39,7 @@ active Subject Projection并只重建相交Resolution。专项Provider、Percept
 
 TMDB Adapter已移除固定`en-US`：连接测试与后续Search、精确ID、Metadata读取使用同一用户配置语言，默认`zh-CN`。
 Identity Evidence有界取得Original Title、Alternative Titles与Translations并携带来源；NFO精确TMDB ID不再仅因本地化标题不同
-而冲突。旧连接无需重录Credential即可按默认值读取，新连接页面可配置并展示语言。专项测试与Admin Web build通过后提交；
+而冲突。旧连接无需重录Credential即可按默认值读取，新连接页面可配置并展示语言。专项测试与Admin Web build已通过并单独提交；
 尚未启动第二轮真实Canary，因此本条不宣称UAT通过。
 
 ## 0. Current operational status — Formation projection cutover recovered

@@ -140,6 +140,7 @@ const boundedContracts = {
   PreferenceIntent: 'personId,preferenceLevel,reason',
   RemuxIntent: '',
   MediaRequirement: '',
+  AcquisitionPolicy: '',
   SamplingPlan: '',
   SelectionCriteria: '',
   ShelfStandard: 'shelfId,contentProfile,ruleSetRevision,acceptanceRuleDigest',
@@ -267,6 +268,7 @@ function buildSchema(name, role, fields) {
   if (name === 'EncodeIntent') return encodeIntentSchema();
   if (name === 'RemuxIntent') return remuxIntentSchema();
   if (name === 'MediaRequirement') return mediaRequirementSchema();
+  if (name === 'AcquisitionPolicy') return acquisitionPolicySchema();
   if (name === 'ArtifactRequirement') return artifactRequirementSchema();
   if (name === 'WesternAnalysisVariant') return westernAnalysisVariantSchema();
   if (name === 'CandidateDeliveryQuery') return candidateDeliveryQuerySchema();
@@ -1226,6 +1228,13 @@ function mediaRequirementSchema() {
     'x-helix-maxCanonicalBytes': 16 * 1024 };
 }
 
+function acquisitionPolicySchema() {
+  return { ...exactDomainSchema('AcquisitionPolicy', { contractId: id(), revision: positiveInteger(),
+    schemaRef: { const: 'AcquisitionPolicy@1' }, maxDownloadAttempts: { type: 'integer', minimum: 1, maximum: 5 },
+    policyDigest: digest() }, undefined, { 'x-helix-role': 'bounded-contract' }),
+    'x-helix-maxCanonicalBytes': 1024 };
+}
+
 function encodeIntentSchema() {
   const outputColorProfile = object({ range:text(), primaries:text(), transfer:text(), matrix:text() });
   const sdrBt709ColorProfile = object({ range:{ const:'limited' }, primaries:{ const:'bt709' }, transfer:{ const:'bt709' }, matrix:{ const:'bt709' } });
@@ -1290,7 +1299,8 @@ function identityRequirementSchema() {
 
 function selectionCriteriaSchema() {
   return {...exactDomainSchema('SelectionCriteria',{contractId:id(),revision:positiveInteger(),schemaRef:{const:'SelectionCriteria@1'},
-    queryDigest:digest(),strategy:{const:'available_provider_rank_then_candidate_id'},criteriaDigest:digest()},undefined,
+    queryDigest:digest(),attemptOrdinal:{type:'integer',minimum:1,maximum:5},
+    strategy:{const:'requirement_compliant_then_unverified_provider_rank'},criteriaDigest:digest()},undefined,
   {'x-helix-role':'bounded-contract'}),'x-helix-maxCanonicalBytes':16*1024};
 }
 

@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/domain-types/AcquisitionPolicy/v1",
+  "title": "AcquisitionPolicy@1",
+  "x-helix-ssotRefs": [
+    "8.6.13",
+    "8.6.18",
+    "8.6.20"
+  ],
+  "x-helix-role": "bounded-contract",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "contractId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "revision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "schemaRef": {
+      "const": "AcquisitionPolicy@1"
+    },
+    "maxDownloadAttempts": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 5
+    },
+    "policyDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "contractId",
+    "revision",
+    "schemaRef",
+    "maxDownloadAttempts",
+    "policyDigest"
+  ],
+  "x-helix-maxCanonicalBytes": 1024
+}

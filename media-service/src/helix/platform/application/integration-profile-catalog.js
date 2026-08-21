@@ -209,6 +209,17 @@ function moviePilotCredential(value, valueSettings) {
   });
 }
 
+function moviePilotSettings(value){
+  if(value===undefined)return Object.freeze({maxDownloadAttempts:3});
+  if(!value||typeof value!=='object'||Array.isArray(value))
+    fail('PLATFORM_INTEGRATION_CREDENTIAL_SHAPE','MoviePilot settings are invalid.');
+  const maxDownloadAttempts=value.maxDownloadAttempts??3;
+  if(!Number.isSafeInteger(maxDownloadAttempts)||maxDownloadAttempts<1||maxDownloadAttempts>5)
+    fail('PLATFORM_INTEGRATION_CREDENTIAL_INVALID','MoviePilot download attempt limit must be between 1 and 5.',
+      {field:'settings.maxDownloadAttempts'});
+  return Object.freeze({maxDownloadAttempts});
+}
+
 function embyCredential(value, settings) {
   if (settings !== undefined) exact(settings, []);
   exact(value, ['kind', 'username', 'password']);
@@ -323,6 +334,7 @@ const PROFILES = Object.freeze([
     normalizeEndpoint: (value) =>
       normalizedUrl(value, { allowPrivateHttp: true }),
     prepareCredential: moviePilotCredential,
+    normalizeSettings: moviePilotSettings,
     acceptedSecretKinds: Object.freeze(['moviepilot_api_key']),
     credentialKindsBySecret: Object.freeze({
       moviepilot_api_key: 'api_key',

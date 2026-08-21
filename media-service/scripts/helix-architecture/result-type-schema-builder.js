@@ -634,7 +634,7 @@ const contracts = {
   OnDeckProductPackageCommitReceipt: ['ReceiptEnvelope', 'promotionDecisionDigest,onDeckPackageId,packageRevision,packageDigest,offerId,libraRunId,verifiedRunStateRevision,verifiedRunStateDigest,productMaterialManifestDigest,productFactSetDigest,productFactManifestDigest,artifactManifestDigest,offloadContextDigest,controlRevisionSetDigest,receiptDigest'],
   ReclamationReceipt: ['ReceiptEnvelope', 'workspaceId,reclaimedHandleIds,retainedHandleIds,reclaimedBytes'],
   WorkspaceCleanupCommitReceipt: ['ReceiptEnvelope', 'cleanupScopeId,materialHandleId,deletionEvidenceDigest,releasedControlRevision?,cleanupState'],
-  AcquisitionQuery: ['DraftEnvelope', 'libraRunId,runExecutionBasisDigest,resolvedIdentityDigest,productStructureDigest,structureKind,contentProfile,providerIdentityAnchors,requestedEpisodeKeys,queryTerms,hardConstraints,queryDigest'],
+  AcquisitionQuery: ['DraftEnvelope', 'libraRunId,runExecutionBasisDigest,resolvedIdentityDigest,productStructureDigest,structureKind,contentProfile,providerIdentityAnchors,requestedEpisodeKeys,mediaRequirement,mediaRequirementDigest,acquisitionPolicyDigest,maxDownloadAttempts,queryTerms,hardConstraints,queryDigest'],
   AcquisitionCandidates: ['EvidenceEnvelope', 'queryDigest,integrationId,configRevision,candidates,candidateSetDigest'],
   SelectedCandidate: ['DraftEnvelope', 'queryDigest,candidateSetDigest,selectionCriteriaDigest,result,selectedCandidate,selectedCandidateId,selectionReasonCode'],
   AcquisitionObservation: ['EvidenceEnvelope', 'externalJobReceipt,phase,providerObservationRevision,outputSnapshot,observationDigest'],
@@ -778,8 +778,10 @@ function acquisitionQuerySchema() {
   return resultSchema('AcquisitionQuery','DraftEnvelope',{libraRunId:id(),runExecutionBasisDigest:digest(),resolvedIdentityDigest:digest(),
     productStructureDigest:digest(),structureKind:enumText('single','season'),contentProfile:enumText('movie','series','jav','western_adult'),
     providerIdentityAnchors:{...arrayOf(domainRef('ResolvedProviderIdentity'),16),minItems:1},requestedEpisodeKeys:arrayOf(text(),256),
+    mediaRequirement:domainRef('MediaRequirement'),mediaRequirementDigest:digest(),acquisitionPolicyDigest:digest(),
+    maxDownloadAttempts:{type:'integer',minimum:1,maximum:5},
     queryTerms:{...arrayOf(queryTerm,32),minItems:1},hardConstraints:object({requiredStructureKind:enumText('single','season'),
-      requiredEpisodeKeys:arrayOf(text(),256)}),queryDigest:digest()},{'x-helix-maxCanonicalBytes':16*1024});
+      requiredEpisodeKeys:arrayOf(text(),256),mediaRequirementDigest:digest()}),queryDigest:digest()},{'x-helix-maxCanonicalBytes':16*1024});
 }
 
 function acquisitionCandidatesSchema() {
@@ -794,7 +796,7 @@ function selectedCandidateSchema() {
     'x-helix-envelopeRef':typeId('DraftEnvelope'),'x-helix-maxCanonicalBytes':64*1024,oneOf:[
       selectedCandidateSelectedValueSchema(common),
       object({...common,result:{const:'not_selected'},selectedCandidate:{type:'null'},selectedCandidateId:{type:'null'},
-        selectionReasonCode:{const:'no_available_candidate'}})
+        selectionReasonCode:enumText('no_available_candidate','no_requirement_eligible_candidate')})
     ]};
 }
 
@@ -802,7 +804,7 @@ function selectedCandidateSelectedValueSchema(commonFields = null) {
   const common=commonFields||{schemaRef:{const:typeId('SelectedCandidate')},schemaVersion:{const:1},...envelopeFields.DraftEnvelope,
     queryDigest:digest(),candidateSetDigest:digest(),selectionCriteriaDigest:digest()};
   return object({...common,result:{const:'selected'},selectedCandidate:providerAcquisitionCandidateSnapshotSchema(),selectedCandidateId:id(),
-    selectionReasonCode:{const:'selected_by_provider_rank'}});
+    selectionReasonCode:enumText('selected_compliant_claims','selected_unverified_claims')});
 }
 
 function acquisitionObservationSchema() {

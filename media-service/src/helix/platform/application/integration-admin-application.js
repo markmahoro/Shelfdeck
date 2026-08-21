@@ -10,9 +10,11 @@ const {
 const { validateConfig } = require('./integration-runtime');
 const {
   buildMoviePilotLandingBinding,
+  reviseMoviePilotLandingBinding,
 } = require('./moviepilot-landing-binding');
 
 const RECEIPT_KIND_CONFIGURE = 'configure';
+const RECEIPT_KIND_SETTINGS_UPDATE = 'settings_update';
 const RECEIPT_KIND_DISCONNECT = 'disconnect';
 const CONNECTION_PROOF_TTL_MS = 120_000;
 
@@ -612,7 +614,62 @@ function createIntegrationAdminApplication(options) {
     });
   }
 
+  function updateSettings(inputKind, body) {
+    assertSupported(profile, inputKind);
+    exact(body, ['kind', 'idempotencyKey', 'expectedConfigRevision', 'settings'], [],
+      'PLATFORM_INTEGRATION_SETTINGS_UPDATE_SHAPE');
+    if (body.kind !== inputKind || typeof profile.normalizeSettings !== 'function') {
+      fail('PLATFORM_INTEGRATION_TARGET_MISMATCH', 'Integration settings target is invalid.');
+    }
+    const key=idempotencyKey(body.idempotencyKey),expected=expectedRevision(body.expectedConfigRevision),
+      normalizedSettings=profile.normalizeSettings(body.settings),digest=requestDigest({command:RECEIPT_KIND_SETTINGS_UPDATE,
+        kind:body.kind,idempotencyKey:key,expectedConfigRevision:expected,settings:normalizedSettings});
+    let createdEnvelope,platformCommitted=false;
+    const execute=()=>{
+      const before=current();
+      if(!before.integration||before.integration.state!=='active'||before.integration.configRevision!==expected){
+        fail('PLATFORM_INTEGRATION_CAS_CONFLICT','Integration configuration revision changed.',
+          {expectedRevision:expected,actualRevision:before.integration?.configRevision||0});
+      }
+      const secretBytes=options.secretStore.read(before.secret.secretLocator,{integrationId:profile.integrationId,
+        secretRef:profile.secretRef,secretKind:before.secret.secretKind,revision:expected,
+        envelopeDigest:before.integration.config.secretEnvelopeDigest});
+      try{
+        const revision=expected+1,committedAtMs=now();
+        createdEnvelope=options.secretStore.write({integrationId:profile.integrationId,secretRef:profile.secretRef,
+          secretKind:before.secret.secretKind,revision,secretBytes,createdAtMs:committedAtMs});
+        const config={...before.integration.config,configRevision:revision,secretEnvelopeDigest:createdEnvelope.envelopeDigest,
+          settings:normalizedSettings,landingBinding:profile.kind==='moviepilot'
+            ?reviseMoviePilotLandingBinding(before.integration.config.landingBinding,revision)
+            :before.integration.config.landingBinding,lastCommand:{commandKind:RECEIPT_KIND_SETTINGS_UPDATE,
+              idempotencyKey:key,requestDigest:digest,committedRevision:revision}};
+        const configJson=canonicalJson(config);
+        if(Buffer.byteLength(configJson,'utf8')>16*1024)fail('PLATFORM_INTEGRATION_CONFIG_TOO_LARGE',
+          'Integration configuration exceeds its table contract.');
+        if(typeof options.beforePlatformCommit==='function')options.beforePlatformCommit({
+          commandKind:RECEIPT_KIND_SETTINGS_UPDATE,integrationId:profile.integrationId,configRevision:revision});
+        const committed=options.repository.commit({expectedRevision:expected,integration:{integration_id:profile.integrationId,
+          integration_type:profile.integrationType,endpoint:before.integration.endpoint,config_revision:revision,
+          config_schema_ref:profile.configSchemaRef,config_json:configJson,config_digest:canonicalDigest(config),state:'active',
+          updated_at_ms:committedAtMs},secret:{secret_ref:profile.secretRef,owner_scope_type:'integration',
+          owner_scope_id:profile.integrationId,secret_kind:before.secret.secretKind,encrypted_ref:createdEnvelope.locator,
+          revision,state:'active',updated_at_ms:committedAtMs}});
+        platformCommitted=true;
+        return Object.freeze({publicResult:publicSnapshot(profile,committed),previousSecretLocator:before.secret.secretLocator});
+      }finally{secretBytes.fill(0);}
+    };
+    let committed;
+    try{committed=executeDurableCommand({commandKind:RECEIPT_KIND_SETTINGS_UPDATE,idempotencyKey:key,requestDigest:digest,execute});}
+    catch(error){if(createdEnvelope&&!platformCommitted){try{options.secretStore.remove(createdEnvelope.locator);}catch(_ignored){}}throw error;}
+    if(!committed.replayed){const previous=committed.domainResult.previousSecretLocator;if(previous&&previous!==createdEnvelope?.locator){
+      try{options.secretStore.remove(previous);}catch(_ignored){}}}
+    return committed.publicResult;
+  }
+
   function configure(inputKind, body) {
+    if (body && Object.hasOwn(body, 'settings') && !Object.hasOwn(body, 'connectionProofId')) {
+      return updateSettings(inputKind, body);
+    }
     assertSupported(profile, inputKind);
     exact(
       body,
@@ -929,6 +986,7 @@ function createIntegrationAdminApplication(options) {
     },
     profile,
     test,
+    updateSettings,
   });
 }
 

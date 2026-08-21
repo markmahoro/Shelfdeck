@@ -255,9 +255,10 @@ function createExternalMaterialPlanner(options) {
   function handles(request) {
     const snapshot = options.movieProductionReader.readRunSnapshot(
       request.processId);
-    return [externalSearchSelectionWork(snapshot),
-      externalAcquireVerificationWork(snapshot),
-      externalImportSelectionWork(snapshot)]
+    return Array.from({length:5},(_,index)=>index+1).flatMap((attempt)=>[
+      externalSearchSelectionWork(snapshot,attempt),
+      externalAcquireVerificationWork(snapshot,attempt),
+      externalImportSelectionWork(snapshot,attempt)])
       .some((work) => work.workId === request.workId);
   }
   return Object.freeze({
@@ -269,9 +270,28 @@ function createExternalMaterialPlanner(options) {
         request.processId);
       const identity = resolvedIdentity(options, snapshot);
       const structure = productStructure(snapshot);
-      const searchWork = externalSearchSelectionWork(snapshot);
+      const acquisitionAttempt=Array.from({length:5},(_,index)=>index+1).find((attempt)=>[
+        externalSearchSelectionWork(snapshot,attempt).workId,externalAcquireVerificationWork(snapshot,attempt).workId,
+        externalImportSelectionWork(snapshot,attempt).workId].includes(request.workId));
+      if(!acquisitionAttempt)throw new Error('External acquisition attempt is outside the configured bound.');
+      const searchWork = externalSearchSelectionWork(snapshot,acquisitionAttempt);
       if (request.workId === searchWork.workId) {
         exactWork(request, searchWork);
+        const firstSearchWork=externalSearchSelectionWork(snapshot,1);
+        if(acquisitionAttempt>1){
+          const frozenQuery=result(options,firstSearchWork,QUERY),frozenCandidates=result(options,firstSearchWork,SEARCH);
+          if(!frozenQuery||!frozenCandidates)throw new Error('Later acquisition selection requires the first frozen Candidate Snapshot.');
+          const criteria=external.buildSelectionCriteria({revision:1,queryDigest:frozenQuery.queryDigest,attemptOrdinal:acquisitionAttempt});
+          const selectEvent=stable('libra-external-select-event-',{attempt:request.workAttemptId});
+          return envelope(configured,request,searchWork,[node({...options,request,nodeId:'external_candidate_selection',
+            eventId:selectEvent,capabilityRef:SELECT,inputBindings:[literal('candidates',frozenCandidates),
+              literal('selectionCriteria',criteria)],resourceKinds:['disk_io','network']})]);
+        }
+        const mediaRequirement=buildMediaRequirement(snapshot.spec),searchIntegration=integration(options,SEARCH),
+          acquisitionSettings=options.readExternalAcquisitionSettings({integrationId:searchIntegration.integrationId,
+            configRevision:searchIntegration.configRevision}),
+          acquisitionPolicy=external.buildAcquisitionPolicy({integrationId:searchIntegration.integrationId,
+            configRevision:searchIntegration.configRevision,maxDownloadAttempts:acquisitionSettings.maxDownloadAttempts});
         const expectedQuery = external.buildAcquisitionQuery({
           resolvedProductIdentity: identity,
           productStructure: structure,
@@ -279,11 +299,13 @@ function createExternalMaterialPlanner(options) {
             libraRunId: snapshot.run.libraRunId,
             runExecutionBasisDigest: snapshot.run.executionBasisDigest,
           },
+          mediaRequirement,acquisitionPolicy,
           producedAtMs: 0,
         });
         const criteria = external.buildSelectionCriteria({
           revision: 1,
           queryDigest: expectedQuery.queryDigest,
+          attemptOrdinal:acquisitionAttempt,
         });
         const queryEvent = stable('libra-external-query-event-', {
           attempt: request.workAttemptId,
@@ -298,12 +320,13 @@ function createExternalMaterialPlanner(options) {
           node({ ...options, request, nodeId:'external_query',
             eventId:queryEvent, capabilityRef:QUERY,
             inputBindings:[literal('resolvedProductIdentity', identity),
-              literal('productStructure', structure)], resourceKinds:['cpu','disk_io','network'] }),
+              literal('productStructure', structure),literal('mediaRequirement',mediaRequirement),
+              literal('acquisitionPolicy',acquisitionPolicy)], resourceKinds:['cpu','disk_io','network'] }),
           node({ ...options, request, nodeId:'external_search',
             eventId:searchEvent, capabilityRef:SEARCH,
             inputBindings:[eventResult('acquisitionQuery', queryEvent,
               options.registry.resolve(QUERY, 'libra').manifest.resultSchemaRef),
-            literal('integrationHandle', integration(options, SEARCH))],
+            literal('integrationHandle', searchIntegration)],
             dependsOn:[{eventId:queryEvent,satisfaction:'success'}],
             resourceKinds:['disk_io','network'] }),
           node({ ...options, request, nodeId:'external_candidate_selection',
@@ -317,11 +340,11 @@ function createExternalMaterialPlanner(options) {
         return envelope(configured, request, searchWork, nodes);
       }
 
-      const acquireWork = externalAcquireVerificationWork(snapshot);
+      const acquireWork = externalAcquireVerificationWork(snapshot,acquisitionAttempt);
       if (request.workId === acquireWork.workId) {
         exactWork(request, acquireWork);
         const selected = result(options, searchWork, SELECT);
-        const query = result(options, searchWork, QUERY);
+        const query = result(options, externalSearchSelectionWork(snapshot,1), QUERY);
         if (!selected || selected.result !== 'selected' || !query) {
           throw new Error('External acquisition Work requires one selected Provider Candidate.');
         }
@@ -395,7 +418,7 @@ function createExternalMaterialPlanner(options) {
         return envelope(configured, request, acquireWork, nodes);
       }
 
-      const importWork = externalImportSelectionWork(snapshot);
+      const importWork = externalImportSelectionWork(snapshot,acquisitionAttempt);
       exactWork(request, importWork);
       const stableEvidence = result(options, acquireWork, STABILITY);
       const verified = result(options, acquireWork, PACKAGE);

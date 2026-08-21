@@ -10,11 +10,19 @@
     },
     "productStructure": {
       "$ref": "#/$defs/productStructure"
+    },
+    "mediaRequirement": {
+      "$ref": "#/$defs/mediaRequirement"
+    },
+    "acquisitionPolicy": {
+      "$ref": "#/$defs/acquisitionPolicy"
     }
   },
   "required": [
     "resolvedProductIdentity",
-    "productStructure"
+    "productStructure",
+    "mediaRequirement",
+    "acquisitionPolicy"
   ],
   "$defs": {
     "resolvedProductIdentity": {
@@ -24,6 +32,14 @@
     "productStructure": {
       "$ref": "helix://contracts/domain-types/ProductStructure/v1",
       "x-helix-typeExpression": "ProductStructure"
+    },
+    "mediaRequirement": {
+      "$ref": "helix://contracts/domain-types/MediaRequirement/v1",
+      "x-helix-typeExpression": "MediaRequirement"
+    },
+    "acquisitionPolicy": {
+      "$ref": "helix://contracts/domain-types/AcquisitionPolicy/v1",
+      "x-helix-typeExpression": "AcquisitionPolicy"
     }
   }
 }

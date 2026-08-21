@@ -4,6 +4,14 @@ Status: Movie Procurement保持`CLOSED FOR MOVIE`；Movie Libra保持`MOVIE LIBR
 
 Last updated: 2026-08-21
 
+## 0. Implemented repair — UAT-017 MoviePilot requirement preflight
+
+External Acquisition Query现在同时冻结当前`MediaRequirement`和`AcquisitionPolicy`；MoviePilot Candidate以typed
+`known/unknown`声明提供分辨率、Codec、主音轨、大小与来源Evidence。Selector优先明确合规候选，只有无合规项时才选
+页面可见的未知候选，明确不合规项永不下载；真实字节仍由Probe最终验收，失败后在用户配置的1–5次上限内选择下一候选。
+现有凭据无需重录即可revisioned修改尝试上限，默认3。专项91/91、完整Architecture Gate 1087 pass/7 skip/0 fail及
+Admin Web production build均通过；本批次单独提交，真实Provider与Canary留待第二轮UAT。
+
 ## 0. Qualified repair — UAT-004 bounded media I/O
 
 Workspace大型媒体继续固定使用`middle-256k-sha256`，生成后额外读取上限为每个文件262,144 bytes；新增真实稀疏大文件
@@ -17,19 +25,19 @@ Intake继续使用每个Candidate独立的concurrency scope、256个open Work硬
 持久Procurement Offer分页重建，内存wake只作加速。400 Candidate积压在新Coordinator实例中以13个有界批次全部重新Admission，
 不增加全局串行门闩。真实22部Canary吞吐仍由第二轮Admin Web UAT确认。
 
-## 0. Active repair — UAT-001/UAT-003 Douban detail anchors
+## 0. Qualified repair — UAT-001/UAT-003 Douban detail anchors
 
 豆瓣Collection行缺失年份或别名时，同一有界Acquisition Page最多读取16个精确Subject详情页；响应必须绑定相同Origin和
 Douban Subject ID。详情年份、别名和payload digest进入新的immutable source revision，旧Record不改写。Record Commit后只唤醒
 title/year Anchor精确相交的Subject Resolution，周期reconciler只承担丢Signal恢复。既有技术尾缀、括号年份和多语言Alias规则保持
-严格匹配，不提高模糊阈值。专项回归通过后单独提交，三个定向Canary留待新UAT验证。
+严格匹配，不提高模糊阈值。专项回归已通过并单独提交，三个定向Canary留待新UAT验证。
 
-## 0. Active repair — UAT-016 TMDB locale and alias evidence
+## 0. Qualified repair — UAT-016 TMDB locale and alias evidence
 
 用户授权的Movie Canary修复已经开始。TMDB连接现在把首选语言作为用户可见、revisioned设置，默认`zh-CN`；Search、
 精确ID Observation与Metadata读取共用该设置。精确ID和有界候选同时保留Original Title、Alternative Titles与Translations
 别名Evidence，Libra继续使用严格关联而不放宽为模糊匹配。现有无该字段的连接按明确默认值读取，新保存revision显式持久化。
-本修复完成专项回归和Admin Web build后单独提交；真实Provider与Canary浏览器资格留给第二轮UAT。
+本修复已完成专项回归、Admin Web build并单独提交；真实Provider与Canary浏览器资格留给第二轮UAT。
 
 ## 0. Current amendment — Formation durable projection local cutover
 

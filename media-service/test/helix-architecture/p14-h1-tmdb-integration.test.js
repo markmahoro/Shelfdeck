@@ -564,6 +564,27 @@ test('H1.1 Admin TMDB routes test before save, redact secrets, CAS, and replay',
   await host.close();
 });
 
+test('H1.1 TMDB language updates locally without re-entering or retesting credentials', async () => {
+  const value=fixture(),state={},host=await createCleanServiceHost({dataDir:value.dataDir,
+    adminDistDir:value.adminDistDir,secretRoot,integrationFetch:tmdbFetch(state),now:()=>1_900_000_000_000});
+  try{
+    const cookie=await session(host,value.initialized.adminApiKey),proof=await createProof(host,cookie,'tmdb-local-settings-proof'),
+      saved=await saveProof(host,cookie,proof,'tmdb-local-settings-save');
+    assert.equal(saved.statusCode,200,saved.body);
+    const callsBefore=state.calls.length,updated=await host.inject({method:'PATCH',
+      url:'/v1/admin/settings/integrations/tmdb',headers:{cookie},payload:{kind:'tmdb',
+        idempotencyKey:'tmdb-language-en-US',expectedConfigRevision:1,settings:{language:'en-US'}}});
+    assert.equal(updated.statusCode,200,updated.body);
+    assert.equal(updated.json().configRevision,2);
+    assert.deepEqual(updated.json().settings,{language:'en-US'});
+    assert.equal(state.calls.length,callsBefore,'local language update must not call TMDB');
+    const replay=await host.inject({method:'PATCH',url:'/v1/admin/settings/integrations/tmdb',headers:{cookie},
+      payload:{kind:'tmdb',idempotencyKey:'tmdb-language-en-US',expectedConfigRevision:1,settings:{language:'en-US'}}});
+    assert.equal(replay.statusCode,200,replay.body);
+    assert.deepEqual(replay.json(),updated.json());
+  }finally{await host.close();}
+});
+
 test('H1.1 routes reject target drift, unsupported providers, and failed tests without persistence', async () => {
   const value = fixture();
   const host = await createCleanServiceHost({

@@ -12,7 +12,7 @@
       ],
       "sourceLocator": {
         "section": "8.6.14",
-        "line": 10212,
+        "line": 10243,
         "lineDigest": "beced2784c1e277b20c4d5547149519e4cba307751d901ee3df5f29d59061d8c"
       },
       "targetLocator": {
@@ -20,14 +20,14 @@
       },
       "contract": {
         "packagePath": "capabilities/people/workspace/reclaim/v1",
-        "packageDigest": "60c58df45035cd6f0956cb0fb6a83e5e82ebb3338a9c04173a48efacea59b9c3",
+        "packageDigest": "07c25866a4f43d651a9c6a0e1b829ebb0c3357959ab0c5730643138a9109941e",
         "effectClass": "workspace_write",
         "inputSummary": "People Workspace handles + ReferenceEvidence",
         "outputFamily": "ReclamationReceipt"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "c2f55744819d575b3fce2a3ed814e981b1d9b5df7ecdebac7c04b71ea14a057f"
+        "value": "8882a70cc1a9dfde33221296353f7e1d1996821a62461b70aefc65371a28cfde"
       }
     }
   ]

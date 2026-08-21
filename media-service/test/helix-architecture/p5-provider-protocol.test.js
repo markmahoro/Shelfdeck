@@ -19,18 +19,26 @@ const identity = Object.freeze({ provider: 'tmdb', namespace: 'tmdb_movie', prov
 function acquisitionQuery() {
   const term = Object.freeze({ ordinal: 0, termKind: 'provider_key', value: '550',
     termDigest: digest(canonicalJson({ schema: 'libra.external-acquisition-query-term@1', termKind: 'provider_key', value: '550' })) });
+  const mediaRequirement={requirementId:'requirement-1',revision:1,schemaRef:'MediaRequirement@1',acceptanceSpecId:'spec-1',
+    acceptanceSpecRecordDigest:digest('spec'),contentProfile:'movie',structureKind:'single',mandatoryMedia:{mediaForm:'stream_file',
+      videoCodec:'hevc',container:'matroska',fileExtension:'mkv',minimumRasterClass:'4k',acceptedPrimaryAudioClasses:['truehd'],
+      forbidSystemUpscaleFor4k:true},space:{unit:'product',maxSizeGiB:null,maxSizeBytes:null}};
+  mediaRequirement.requirementDigest=digest(canonicalJson(mediaRequirement));
   const value = {
     schemaRef: 'helix://contracts/types/AcquisitionQuery/v1', schemaVersion: 1, draftId: 'query-1',
     draftKind: 'external-acquisition-query', basisDigest: digest('query-basis'),
     producedAtMs: NOW, libraRunId: 'run-1', runExecutionBasisDigest: digest('run-basis'),
     resolvedIdentityDigest: digest('resolved-identity'), productStructureDigest: digest('product-structure'),
     structureKind: 'single', contentProfile: 'movie', providerIdentityAnchors: [identity], requestedEpisodeKeys: [],
-    queryTerms: [term], hardConstraints: { requiredStructureKind: 'single', requiredEpisodeKeys: [] }
+    mediaRequirement,mediaRequirementDigest:mediaRequirement.requirementDigest,acquisitionPolicyDigest:digest('acquisition-policy'),maxDownloadAttempts:3,
+    queryTerms: [term], hardConstraints: { requiredStructureKind: 'single', requiredEpisodeKeys: [],mediaRequirementDigest:mediaRequirement.requirementDigest }
   };
   value.queryDigest = digest(canonicalJson({ schema: 'libra.external-acquisition-query@1', libraRunId: value.libraRunId,
     runExecutionBasisDigest: value.runExecutionBasisDigest, resolvedIdentityDigest: value.resolvedIdentityDigest,
     productStructureDigest: value.productStructureDigest, structureKind: value.structureKind, contentProfile: value.contentProfile,
     providerIdentityAnchors: value.providerIdentityAnchors, requestedEpisodeKeys: value.requestedEpisodeKeys,
+    mediaRequirement:value.mediaRequirement,mediaRequirementDigest:value.mediaRequirementDigest,
+    acquisitionPolicyDigest:value.acquisitionPolicyDigest,maxDownloadAttempts:value.maxDownloadAttempts,
     queryTerms: value.queryTerms, hardConstraints: value.hardConstraints }));
   value.draftDigest = digest(canonicalJson(value));
   return Object.freeze(value);
@@ -38,13 +46,19 @@ function acquisitionQuery() {
 
 function candidate() {
   const providerCandidateRef = ref('acquisition_candidate');
+  const mediaBasis={resolution:{status:'known',value:'4k',sourceField:'torrent.title'},videoCodec:{status:'known',value:'hevc',sourceField:'torrent.title'},
+    primaryAudioClasses:{status:'known',value:['truehd'],sourceField:'torrent.title'},sizeBytes:{status:'known',value:42,sourceField:'torrent.size'},
+    source:{provider:'moviepilot',providerCandidateDigest:digest('provider-row'),claimBasis:'structured_and_release_fields'}},
+    advertisedMedia={...mediaBasis,evidenceDigest:digest(canonicalJson(mediaBasis))};
   const value = { integrationId: 'integration-1', configRevision: 3, providerCandidateRef, providerRank: 0,
-    identityAnchors: [identity], structureKind: 'single', episodeKeys: [], availability: 'available' };
+    identityAnchors: [identity], structureKind: 'single', episodeKeys: [], availability: 'available',advertisedMedia,
+    requirementAssessment:'compliant',assessmentReasonCodes:[] };
   value.candidateId = digest(canonicalJson({ schema: 'provider-acquisition-candidate-id@1', integrationId: value.integrationId,
     configRevision: value.configRevision, providerCandidateRef }));
   const ordered = { candidateId: value.candidateId, integrationId: value.integrationId, configRevision: value.configRevision,
     providerCandidateRef, providerRank: value.providerRank, identityAnchors: value.identityAnchors,
-    structureKind: value.structureKind, episodeKeys: value.episodeKeys, availability: value.availability };
+    structureKind: value.structureKind, episodeKeys: value.episodeKeys, availability: value.availability,
+    advertisedMedia:value.advertisedMedia,requirementAssessment:value.requirementAssessment,assessmentReasonCodes:value.assessmentReasonCodes };
   return Object.freeze({ ...ordered, candidateDigest: digest(canonicalJson(ordered)) });
 }
 
@@ -56,7 +70,7 @@ function selectedCandidate() {
       selectionCriteriaDigest })), draftKind: 'external-selected-candidate',
     basisDigest: digest(canonicalJson({ schema: 'libra.external-candidate-selection-basis@1', queryDigest, candidateSetDigest,
       selectionCriteriaDigest })), producedAtMs: NOW, queryDigest, candidateSetDigest, selectionCriteriaDigest, result: 'selected',
-    selectedCandidate: selected, selectedCandidateId: selected.candidateId, selectionReasonCode: 'selected_by_provider_rank' };
+    selectedCandidate: selected, selectedCandidateId: selected.candidateId, selectionReasonCode: 'selected_compliant_claims' };
   return Object.freeze({ ...value, draftDigest: digest(canonicalJson(value)) });
 }
 
@@ -319,6 +333,33 @@ test('external job receipt must match exact integration, operation, idempotency,
   }) };
   const f = fixture(operation, { request, transport });
   await assert.rejects(() => f.adapter.execute(request), (error) => error.code === 'P5_PROVIDER_JOB_MISMATCH');
+});
+
+test('external request rejects an explicitly noncompliant candidate before transport', async () => {
+  const operation = operationCatalog.operations.find((item) =>
+    item.operationId === 'libra.external_material.acquire.request@1');
+  const base = requestFor(operation, 'moviepilot'), selected = structuredClone(base.input.selectedCandidate),
+    advertisedBasis = Object.fromEntries(Object.entries(selected.selectedCandidate.advertisedMedia)
+      .filter(([key]) => key !== 'evidenceDigest'));
+  advertisedBasis.videoCodec = { status:'known', value:'h264', sourceField:'torrent.title' };
+  selected.selectedCandidate.advertisedMedia = { ...advertisedBasis,
+    evidenceDigest:digest(canonicalJson(advertisedBasis)) };
+  selected.selectedCandidate.requirementAssessment = 'noncompliant';
+  selected.selectedCandidate.assessmentReasonCodes = ['video_codec_unmet'];
+  const { candidateDigest:ignoredCandidateDigest, ...candidateBasis } = selected.selectedCandidate;
+  selected.selectedCandidate.candidateDigest = digest(canonicalJson(candidateBasis));
+  const { draftDigest:ignoredDraftDigest, ...selectedBasis } = selected;
+  selected.draftDigest = digest(canonicalJson(selectedBasis));
+  const input = { ...base.input, selectedCandidate:selected };
+  const request = { ...base, input, requestDigest:digest(canonicalJson({
+    integrationId:base.integrationHandle.integrationId, integrationType:base.integrationHandle.integrationType,
+    configRevision:base.integrationHandle.configRevision, operationId:base.operationId,
+    idempotencyKey:base.idempotencyKey, input,
+  })) };
+  const f = fixture(operation, { request });
+  await assert.rejects(() => f.adapter.execute(request),
+    (error) => error.code === 'P5_PROVIDER_SELECTED_CANDIDATE_ID');
+  assert.equal(f.calls.length, 0);
 });
 
 test('old acquisition refs, forged candidate sets, and foreign material snapshots fail closed', async () => {

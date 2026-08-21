@@ -1,6 +1,7 @@
 'use strict';
 
 const { canonicalDigest, canonicalJson } = require('../../../contracts/canonical-json');
+const { assertExactMediaRequirement } = require('./media-production-contracts');
 
 class ExternalMaterialContractError extends Error {
   constructor(code, message) { super(message); this.name = 'ExternalMaterialContractError'; this.code = code; }
@@ -56,10 +57,26 @@ function identityAnchors(resolved) {
   return items;
 }
 
+function buildAcquisitionPolicy(value) {
+  const integrationId = text(value?.integrationId, 'integrationId');
+  const revision = integer(value?.configRevision, 'configRevision', 1);
+  const maxDownloadAttempts = integer(value?.maxDownloadAttempts, 'maxDownloadAttempts', 1);
+  if (maxDownloadAttempts > 5) fail('P9_EXTERNAL_ATTEMPT_LIMIT', 'Download attempt limit exceeds five.');
+  const body = { contractId:canonicalDigest({ schema:'libra.external-acquisition-policy-id@1', integrationId, revision }),
+    revision, schemaRef:'AcquisitionPolicy@1', maxDownloadAttempts };
+  body.policyDigest = canonicalDigest(body);
+  return bounded(body, 1024, 'P9_EXTERNAL_POLICY_SIZE');
+}
+
 function buildAcquisitionQuery(value) {
   const identity = value?.resolvedProductIdentity, structure = assertProductStructure(value?.productStructure), context = value?.executionContext;
   if (!identity || !context || !['movie','series','jav','western_adult'].includes(identity.contentProfile))
     fail('P9_EXTERNAL_QUERY_INPUT', 'Query requires exact Product Identity and Run execution context.');
+  const requirement=assertExactMediaRequirement(value?.mediaRequirement), policy=value?.acquisitionPolicy;
+  if (!policy || policy.schemaRef !== 'AcquisitionPolicy@1' ||
+      policy.policyDigest !== canonicalDigest(without(policy, 'policyDigest'))) {
+    fail('P9_EXTERNAL_ACQUISITION_POLICY', 'Acquisition Policy is invalid.');
+  }
   const anchors = identityAnchors(identity), episodes = structure.episodeClaims.map((item) => item.episodeKey), terms=[];
   for (const anchor of anchors) terms.push({ termKind:'provider_key', value:anchor.providerKey });
   const displayTitle = identity.title || identity.displayIdentity?.entries
@@ -71,10 +88,13 @@ function buildAcquisitionQuery(value) {
   const dedup=[]; for (const item of terms) if (!dedup.some((existing) => existing.termKind === item.termKind && existing.value === item.value)) dedup.push(item);
   const queryTerms=dedup.slice(0,32).map((item,ordinal)=>freeze({ ordinal,...item,
     termDigest:canonicalDigest({schema:'libra.external-acquisition-query-term@1',termKind:item.termKind,value:item.value}) }));
-  const hardConstraints={requiredStructureKind:structure.structureKind,requiredEpisodeKeys:episodes};
+  const hardConstraints={requiredStructureKind:structure.structureKind,requiredEpisodeKeys:episodes,
+    mediaRequirementDigest:requirement.requirementDigest};
   const common={libraRunId:text(context.libraRunId,'libraRunId'),runExecutionBasisDigest:digest(context.runExecutionBasisDigest,'runExecutionBasisDigest'),
     resolvedIdentityDigest:digest(identity.resolvedIdentityDigest || identity.identityDigest || identity.digest,'resolvedIdentityDigest'),productStructureDigest:structure.structureDigest,
-    structureKind:structure.structureKind,contentProfile:identity.contentProfile,providerIdentityAnchors:anchors,requestedEpisodeKeys:episodes,queryTerms,hardConstraints};
+    structureKind:structure.structureKind,contentProfile:identity.contentProfile,providerIdentityAnchors:anchors,requestedEpisodeKeys:episodes,
+    mediaRequirement:requirement,mediaRequirementDigest:requirement.requirementDigest,
+    acquisitionPolicyDigest:policy.policyDigest,maxDownloadAttempts:policy.maxDownloadAttempts,queryTerms,hardConstraints};
   const queryDigest=canonicalDigest({schema:'libra.external-acquisition-query@1',...common});
   const result={schemaRef:'helix://contracts/types/AcquisitionQuery/v1',schemaVersion:1,
     draftId:canonicalDigest({schema:'libra.external-acquisition-query-id@1',queryDigest}),draftKind:'external-acquisition-query',
@@ -87,7 +107,10 @@ function buildAcquisitionQuery(value) {
 function assertCandidates(value) {
   if (!value || value.schemaRef !== 'helix://contracts/types/AcquisitionCandidates/v1' || value.schemaVersion !== 1 ||
       !Array.isArray(value.candidates) || value.candidates.length > 100) fail('P9_EXTERNAL_CANDIDATES','Candidate Evidence is invalid.');
-  value.candidates.forEach((item,index)=>{ if (item.providerRank !== index || item.candidateDigest !== canonicalDigest(without(item,'candidateDigest'))) fail('P9_EXTERNAL_CANDIDATE','Candidate rank or digest is invalid.'); });
+  value.candidates.forEach((item,index)=>{ if (item.providerRank !== index || item.candidateDigest !== canonicalDigest(without(item,'candidateDigest')) ||
+      !['compliant','unknown','noncompliant'].includes(item.requirementAssessment) || !item.advertisedMedia ||
+      item.advertisedMedia.evidenceDigest!==canonicalDigest(without(item.advertisedMedia,'evidenceDigest')))
+      fail('P9_EXTERNAL_CANDIDATE','Candidate rank, media claims, or digest is invalid.'); });
   sortedUnique(value.candidates,(item)=>String(item.providerRank).padStart(3,'0')+'\0'+item.candidateId,'P9_EXTERNAL_CANDIDATE_ORDER');
   const first=value.candidates[0];
   const expected=canonicalDigest({schema:'libra.external-acquisition-candidate-set@1',queryDigest:value.queryDigest,
@@ -98,8 +121,10 @@ function assertCandidates(value) {
 
 function buildSelectionCriteria(value) {
   const body={contractId:'',revision:integer(value?.revision,'revision',1),schemaRef:'SelectionCriteria@1',queryDigest:digest(value?.queryDigest,'queryDigest'),
-    strategy:'available_provider_rank_then_candidate_id'};
-  body.contractId=canonicalDigest({schema:'libra.external-selection-criteria-id@1',queryDigest:body.queryDigest,revision:body.revision});
+    attemptOrdinal:integer(value?.attemptOrdinal??1,'attemptOrdinal',1),strategy:'requirement_compliant_then_unverified_provider_rank'};
+  if(body.attemptOrdinal>5)fail('P9_EXTERNAL_ATTEMPT_LIMIT','Selection attempt exceeds five.');
+  body.contractId=canonicalDigest({schema:'libra.external-selection-criteria-id@1',queryDigest:body.queryDigest,revision:body.revision,
+    attemptOrdinal:body.attemptOrdinal});
   body.criteriaDigest=canonicalDigest(body); return bounded(body,16*1024,'P9_EXTERNAL_SELECTION_SIZE');
 }
 
@@ -107,13 +132,15 @@ function selectCandidate(value) {
   const candidates=assertCandidates(value?.candidates), criteria=value?.selectionCriteria;
   if(!criteria||criteria.schemaRef!=='SelectionCriteria@1'||criteria.queryDigest!==candidates.queryDigest||criteria.criteriaDigest!==canonicalDigest(without(criteria,'criteriaDigest')))
     fail('P9_EXTERNAL_SELECTION_CRITERIA','Selection Criteria continuity is invalid.');
-  const selected=candidates.candidates.find((item)=>item.availability==='available')||null;
+  const available=candidates.candidates.filter((item)=>item.availability==='available'),compliant=available.filter((item)=>item.requirementAssessment==='compliant'),
+    pool=compliant.length?compliant:available.filter((item)=>item.requirementAssessment==='unknown'),selected=pool[criteria.attemptOrdinal-1]||null;
   const common={queryDigest:candidates.queryDigest,candidateSetDigest:candidates.candidateSetDigest,selectionCriteriaDigest:criteria.criteriaDigest};
   const result={schemaRef:'helix://contracts/types/SelectedCandidate/v1',schemaVersion:1,
     draftId:canonicalDigest({schema:'libra.external-selected-candidate-id@1',...common}),draftKind:'external-selected-candidate',
     basisDigest:canonicalDigest({schema:'libra.external-candidate-selection-basis@1',...common}),producedAtMs:integer(value.producedAtMs,'producedAtMs'),...common,
     result:selected?'selected':'not_selected',selectedCandidate:selected,selectedCandidateId:selected?.candidateId||null,
-    selectionReasonCode:selected?'selected_by_provider_rank':'no_available_candidate'};
+    selectionReasonCode:selected?(selected.requirementAssessment==='compliant'?'selected_compliant_claims':'selected_unverified_claims'):
+      (available.some((item)=>item.requirementAssessment==='noncompliant')?'no_requirement_eligible_candidate':'no_available_candidate')};
   result.draftDigest=canonicalDigest(result); return bounded(result,64*1024,'P9_EXTERNAL_SELECTED_SIZE');
 }
 
@@ -269,6 +296,6 @@ function buildImportedWorkspaceMediaHandle(value) {
   return bounded(result,16*1024,'P9_EXTERNAL_IMPORTED_MEDIA_SIZE');
 }
 
-module.exports=Object.freeze({ExternalMaterialContractError,buildAcquisitionQuery,assertCandidates,buildSelectionCriteria,selectCandidate,
+module.exports=Object.freeze({ExternalMaterialContractError,buildAcquisitionPolicy,buildAcquisitionQuery,assertCandidates,buildSelectionCriteria,selectCandidate,
   buildAcquisitionObservation,buildExternalMaterialHandle,buildStableEvidence,verifyIdentity,verifyPackage,buildWorkspaceDeliveryContracts,
   buildImportedWorkspaceMediaHandle});

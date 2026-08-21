@@ -45,6 +45,19 @@ aliases only for its existing strict title/year or exact-provider association; i
 selection or let the adapter choose a business winner. Existing Integration revisions without the field read with the
 documented default, while every newly saved revision persists the explicit user choice.
 
+### External acquisition requirement preflight amendment (2026-08-21)
+
+Every External Acquisition freezes the current `MediaRequirement@1` and an `AcquisitionPolicy@1` in its query Basis.
+The policy carries the user-visible MoviePilot download-attempt limit, bounded to `1..5` and defaulting to `3`; changing
+that setting creates a new Integration configuration revision without requiring the existing credential to be entered
+again. A Provider candidate publishes typed resolution, video-codec, primary-audio, size and source claims, and marks
+each absent claim `unknown`. Candidate Selection first considers explicitly compliant available candidates, falls back
+to visible unverified candidates only when no compliant candidate exists, and never downloads an explicitly
+noncompliant candidate. Selection remains deterministic by provider rank and candidate ID inside each eligible pool.
+An unverified choice is visible to the user and is not called compliant. Downloaded bytes must still pass the frozen
+real-media Probe requirement. When advertised eligibility proves false after download, Libra advances to the next
+bounded candidate; only exhaustion forms the business `product_unachievable` result.
+
 Startup Recovery keeps unresolved non-pure Effects in a dedicated safety-first recovery lane. A transient Provider,
 network or Resource failure while replaying one exact classified recovery action must retain that action and its
 Effect/Attempt identity for bounded retry; it must not discard the Effect, create a second Attempt, or hold a Permit
@@ -9862,7 +9875,7 @@ Package中的每个新Physical Material Identity取得Libra Control，并验证�
 
 | Capability ref | Input → Output | Effect Class |
 | --- | --- | --- |
-| `libra.external_material.query.prepare@1` | `ResolvedProductIdentity + ProductStructure → AcquisitionQuery` | `pure_observation` |
+| `libra.external_material.query.prepare@1` | `ResolvedProductIdentity + ProductStructure + MediaRequirement + AcquisitionPolicy → AcquisitionQuery` | `pure_observation` |
 | `libra.external_material.search@1` | `AcquisitionQuery + IntegrationHandle → AcquisitionCandidates` | `pure_observation` |
 | `libra.external_material.candidate.select@1` | `Candidates + SelectionCriteria → SelectedCandidate` | `pure_observation` |
 | `libra.external_material.acquire.request@1` | `SelectedCandidate(selected) + AcquisitionQuery + IntegrationHandle → ExternalJobReceipt` | `external_request` |
@@ -9915,19 +9928,19 @@ Handoff或Catalog Capability：
   SHA-256(JCS({schema:"libra.product-structure@1",subjectId,structureKind,episodeClaims}))`且`digest=structureDigest`。
   `AcquisitionQuery@1`固定为`DraftEnvelope + libraRunId + runExecutionBasisDigest + resolvedIdentityDigest +
   productStructureDigest + structureKind(single|season) + contentProfile(movie|series|jav|western_adult) +
-  providerIdentityAnchors[1..16 ResolvedProviderIdentity@1] + requestedEpisodeKeys[0..256] + queryTerms[1..32]{
+  providerIdentityAnchors[1..16 ResolvedProviderIdentity@1] + requestedEpisodeKeys[0..256] + mediaRequirement(MediaRequirement@1) + mediaRequirementDigest + acquisitionPolicyDigest + maxDownloadAttempts(1..5) + queryTerms[1..32]{
   ordinal,termKind(provider_key|title|season),value,termDigest} +
-  hardConstraints{requiredStructureKind,requiredEpisodeKeys} + queryDigest`。Anchor及Episode key分别按8.6.18既定
+  hardConstraints{requiredStructureKind,requiredEpisodeKeys,mediaRequirementDigest} + queryDigest`。Anchor及Episode key分别按8.6.18既定
   顺序稳定排序；term ordinal从0连续，`termDigest=SHA-256(JCS({schema:
   "libra.external-acquisition-query-term@1",termKind,value}))`。`queryDigest=SHA-256(JCS({schema:"libra.external-acquisition-query@1",libraRunId,
   runExecutionBasisDigest,resolvedIdentityDigest,productStructureDigest,structureKind,contentProfile,
-  providerIdentityAnchors,requestedEpisodeKeys,queryTerms,hardConstraints}))`，Draft digest覆盖完整value，完整JCS
+  providerIdentityAnchors,requestedEpisodeKeys,mediaRequirement,mediaRequirementDigest,acquisitionPolicyDigest,maxDownloadAttempts,queryTerms,hardConstraints}))`，Draft digest覆盖完整value，完整JCS
   不超过`16 KiB`。它只表达搜索目标，不携带Workspace路径或Provider secret。
 - `AcquisitionCandidates@1.candidates[]`不再是generic object ref，而是`0..100`项完整
   `ProviderAcquisitionCandidateSnapshot`：`{candidateId,integrationId,configRevision,providerCandidateRef{
   objectType:"acquisition_candidate",objectId,revision,digest},providerRank,
   identityAnchors[0..16 ResolvedProviderIdentity@1],structureKind,
-  episodeKeys[0..256],availability(available|unavailable),candidateDigest}`；`providerRank`为`0..99`且集合内
+  episodeKeys[0..256],availability(available|unavailable),advertisedMedia{resolution,videoCodec,primaryAudioClasses,sizeBytes,source,evidenceDigest},requirementAssessment(compliant|unknown|noncompliant),assessmentReasonCodes[0..8],candidateDigest}`；每个广告声明固定携带`known|unknown`，来源和Evidence digest；`providerRank`为`0..99`且集合内
   从0连续、candidate ID唯一。`candidateId=SHA-256(JCS({schema:
   "provider-acquisition-candidate-id@1",integrationId,configRevision,providerCandidateRef}))`，`candidateDigest=
   SHA-256(JCS(完整candidate excluding candidateDigest))`；按`providerRank,candidateId`排序且tuple唯一，
@@ -9935,12 +9948,12 @@ Handoff或Catalog Capability：
   integrationId,configRevision,items:candidates}))`。Evidence payload覆盖query、Integration fence与完整集合，完整Result
   不超过`65,536` bytes；P5 Adapter不得只返回不可解析字符串或另一个Store的locator。
 - `SelectionCriteria@1`在本链路固定为`{contractId,revision,schemaRef:"SelectionCriteria@1",queryDigest,
-  strategy:"available_provider_rank_then_candidate_id",criteriaDigest}`；它不是用户Means Policy。Candidate Select先
-  丢弃`unavailable`，再按已经冻结的`providerRank,candidateId`选择，禁止数组位置、文件大小、时间或Provider
-  current状态参与。`SelectedCandidate@1`改为closed `selected|not_selected` union，公共部分为
+  attemptOrdinal(1..5),strategy:"requirement_compliant_then_unverified_provider_rank",criteriaDigest}`；它不是用户Means Policy。
+  Candidate Select先丢弃`unavailable`和明确`noncompliant`；存在`compliant`时只按`providerRank,candidateId`选择该集合，只有不存在任何`compliant`时才从可见`unknown`集合选择。`attemptOrdinal`选择该有界pool的第N项，禁止明确不合规候选触发下载。
+  `SelectedCandidate@1`为closed `selected|not_selected` union，公共部分为
   `DraftEnvelope + queryDigest + candidateSetDigest + selectionCriteriaDigest + result + selectionReasonCode`；
-  selected恰含完整`selectedCandidate`及同值`selectedCandidateId`，reason为`selected_by_provider_rank`；
-  not_selected两项均为NULL，reason为`no_available_candidate`。`draftId=SHA-256(JCS({schema:
+  selected恰含完整`selectedCandidate`及同值`selectedCandidateId`，reason为`selected_compliant_claims|selected_unverified_claims`；
+  not_selected两项均为NULL，reason为`no_available_candidate|no_requirement_eligible_candidate`。`draftId=SHA-256(JCS({schema:
   "libra.external-selected-candidate-id@1",queryDigest,candidateSetDigest,selectionCriteriaDigest}))`，完整值不超过
   `65,536` bytes，Draft `basisDigest=SHA-256(JCS({schema:"libra.external-candidate-selection-basis@1",
   queryDigest,candidateSetDigest,selectionCriteriaDigest}))`且draftDigest按Envelope通则。Acquire Request只接受selected

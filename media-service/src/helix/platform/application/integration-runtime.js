@@ -54,7 +54,7 @@ function validateLastCommand(value, revision) {
     ],
     'PLATFORM_INTEGRATION_CONFIG_CORRUPT',
   );
-  if (!['configure', 'disconnect'].includes(value.commandKind) ||
+  if (!['configure', 'settings_update', 'disconnect'].includes(value.commandKind) ||
       typeof value.idempotencyKey !== 'string' ||
       value.idempotencyKey.length < 1 ||
       value.idempotencyKey.length > 256 ||

@@ -652,6 +652,17 @@ function createPlatformIntegrationServices(options) {
       }
       return snapshot.integration.config.landingBinding;
     },
+    readExternalAcquisitionSettings(request) {
+      const runtime=runtimeFor('moviepilot'),snapshot=runtime?.readCurrent();
+      if(!snapshot||snapshot.integration.state!=='active'||
+          request?.integrationId!==snapshot.integration.integrationId||
+          request?.configRevision!==snapshot.integration.configRevision){
+        throw new CleanServiceHostError('PLATFORM_EXTERNAL_ACQUISITION_FENCE_STALE',
+          'MoviePilot acquisition settings are unavailable or stale.');
+      }
+      const value=snapshot.integration.config.settings;
+      return Object.freeze({maxDownloadAttempts:value?.maxDownloadAttempts??3});
+    },
     assertExternalLandingRootAvailable(request) {
       const runtime = runtimeFor('moviepilot');
       return runtime
@@ -1254,6 +1265,8 @@ async function createCleanServiceHost(options) {
       platformIntegrations.resolveExternalMaterialHandle,
     readExternalMaterialLandingBinding: options.externalMaterialLandingBindingReader ||
       platformIntegrations.readExternalLandingBinding,
+    readExternalAcquisitionSettings: options.externalAcquisitionSettingsReader ||
+      platformIntegrations.readExternalAcquisitionSettings,
     executeExternalProvider: options.externalMaterialProviderExecution ||
       ((request) => platformIntegrations.executeProvider('moviepilot', request)),
     resolvePerceptionIntegrationHandle: options.perceptionIntegrationHandleResolver || platformIntegrations.resolvePerceptionHandle,

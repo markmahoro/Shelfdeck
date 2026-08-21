@@ -152,7 +152,8 @@ function validateDomainInputSchemas(options) {
       ,ProductStructure: ['objectId', 'revision', 'digest', 'subjectId', 'structureKind', 'episodeClaims', 'structureDigest']
       ,EpisodeDeliveryManifest: ['objectId', 'revision', 'digest', 'libraRunId', 'subjectId', 'structureKind', 'episodeClaims', 'deliveryDigest']
       ,IdentityRequirement: ['requirementId', 'revision', 'schemaRef', 'expectedIdentityDigest', 'strengthClass', 'digest']
-      ,SelectionCriteria: ['contractId', 'revision', 'schemaRef', 'queryDigest', 'strategy', 'criteriaDigest']
+      ,AcquisitionPolicy: ['contractId', 'revision', 'schemaRef', 'maxDownloadAttempts', 'policyDigest']
+      ,SelectionCriteria: ['contractId', 'revision', 'schemaRef', 'queryDigest', 'attemptOrdinal', 'strategy', 'criteriaDigest']
       ,WorkspaceDeliveryContract: ['contractId', 'revision', 'schemaRef', 'libraRunId', 'workspaceId', 'stableExternalMaterialHandleId',
         'verifiedPackageDigest', 'externalMemberId', 'targetRelativePath', 'digest']
       ,SelectedCandidateSelected: ['schemaRef', 'schemaVersion', 'draftId', 'queryDigest', 'candidateSetDigest', 'result',
@@ -170,7 +171,7 @@ function validateDomainInputSchemas(options) {
       }
     }
     const exactBoundedContracts = new Set(['AnalysisSpec', 'ArtifactRequirement', 'ClusterParameters', 'EncodeIntent',
-      'FaceModelRef', 'MediaRequirement', 'RemuxIntent', 'SamplingPlan', 'IdentityRequirement', 'SelectionCriteria',
+      'FaceModelRef', 'MediaRequirement', 'RemuxIntent', 'SamplingPlan', 'IdentityRequirement', 'AcquisitionPolicy', 'SelectionCriteria',
       'WorkspaceDeliveryContract', 'ProductionSourceScopeReference']);
     if (schema['x-helix-role'] === 'bounded-contract' && !exactBoundedContracts.has(entry.id) && !(schema.required || []).includes('typedParameters')) findings.push(finding(
       'UNBOUNDED_INTENT_PARAMETERS', 'Bounded intent/requirement contracts require typedParameters.', { entryId: entry.id }

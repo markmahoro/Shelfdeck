@@ -14,6 +14,16 @@
       "schemaRef": "helix://contracts/capabilities/libra.external_material.query.prepare/v1/inputs#/$defs/productStructure",
       "required": true,
       "cardinality": "one"
+    },
+    "mediaRequirement": {
+      "schemaRef": "helix://contracts/capabilities/libra.external_material.query.prepare/v1/inputs#/$defs/mediaRequirement",
+      "required": true,
+      "cardinality": "one"
+    },
+    "acquisitionPolicy": {
+      "schemaRef": "helix://contracts/capabilities/libra.external_material.query.prepare/v1/inputs#/$defs/acquisitionPolicy",
+      "required": true,
+      "cardinality": "one"
     }
   },
   "parametersSchemaRef": "helix://contracts/capabilities/libra.external_material.query.prepare/v1/parameters",
@@ -29,7 +39,7 @@
   },
   "sourceLocator": {
     "section": "8.6.8",
-    "line": 9847,
-    "lineDigest": "cc34464295093a27cf0134e1887e5d488ebb6d1488ab2d90fb686892e4fce131"
+    "line": 9878,
+    "lineDigest": "b222e4e898992b82298ccf86a739b6115054f1c9d1026251b7ab75ab7d03fa38"
   }
 }

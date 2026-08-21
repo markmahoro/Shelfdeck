@@ -11,6 +11,7 @@ const { createSqliteUnitOfWork } = require('../src/helix/foundation/persistence/
 const {
   buildFormationProjectionRow,
   createFormationQuery,
+  extractAcquisitionSelection,
   extractProductIdentityIssue,
 } = require('../src/helix/domains/libra/application/formation-query');
 const { createFormationProjectionStore } = require('../src/helix/domains/libra/persistence/formation-projection-store');
@@ -54,6 +55,14 @@ test('Formation extracts Product Identity issues from the business result contra
     capabilityRef:'libra.product_identity.evidence.observe@1',
     result:{committedAtMs:300,result:{schemaRef:'helix://contracts/types/ProductIdentityEvidenceObservation/v1',result:'resolved'}},
   }]}]),null);
+});
+
+test('Formation exposes an unverified MoviePilot selection instead of presenting it as compliant',()=>{
+  const selection={schemaRef:'helix://contracts/types/SelectedCandidate/v1',result:'selected',
+    selectionReasonCode:'selected_unverified_claims',selectedCandidate:{requirementAssessment:'unknown'}};
+  assert.deepEqual(extractAcquisitionSelection([{events:[{
+    capabilityRef:'libra.external_material.candidate.select@1',result:{committedAtMs:200,result:selection},
+  }]}]),{requirementAssessment:'unknown',selectionReasonCode:'selected_unverified_claims'});
 });
 
 test('Formation gives a frozen Run precedence over an earlier Product Identity issue',()=>{

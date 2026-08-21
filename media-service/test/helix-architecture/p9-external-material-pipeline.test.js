@@ -4,6 +4,7 @@ const assert=require('node:assert/strict');
 const test=require('node:test');
 const {canonicalDigest}=require('../../src/helix/contracts/canonical-json');
 const c=require('../../src/helix/domains/libra/model/external-material-contracts');
+const {buildMediaRequirement}=require('../../src/helix/domains/libra/model/media-production-contracts');
 const {createExternalMaterialCoordinator}=require('../../src/helix/domains/libra/application/external-material-coordinator');
 const {CONTRACTS,createExternalMaterialCapabilityRegistrations}=require('../../src/helix/domains/libra/capabilities/external-material-capability-registrations');
 
@@ -11,9 +12,28 @@ const NOW=1_700_000_000_000,d=(value)=>canonicalDigest(value),hex=(value)=>d({va
 const anchor={provider:'tmdb',namespace:'tmdb_movie',providerKey:'550',seasonNumber:null,identityAnchorDigest:hex('anchor')};
 const identity={contentProfile:'movie',title:'Fight Club',resolvedIdentityDigest:hex('identity'),providerIdentityAnchors:[anchor]};
 function structure(){const x={objectId:'structure-1',revision:1,subjectId:'subject-1',structureKind:'single',episodeClaims:[]};x.structureDigest=d({schema:'libra.product-structure@1',subjectId:x.subjectId,structureKind:x.structureKind,episodeClaims:x.episodeClaims});x.digest=x.structureDigest;return x;}
-function query(){return c.buildAcquisitionQuery({resolvedProductIdentity:identity,productStructure:structure(),executionContext:{libraRunId:'run-1',runExecutionBasisDigest:hex('run')},producedAtMs:NOW});}
-function candidate(){const providerCandidateRef={objectType:'acquisition_candidate',objectId:'provider-1',revision:1,digest:hex('provider')};const body={candidateId:d({schema:'provider-acquisition-candidate-id@1',integrationId:'integration-1',configRevision:3,providerCandidateRef}),integrationId:'integration-1',configRevision:3,providerCandidateRef,providerRank:0,identityAnchors:[anchor],structureKind:'single',episodeKeys:[],availability:'available'};return {...body,candidateDigest:d(body)};}
-function candidates(){const items=[candidate()],body={schemaRef:'helix://contracts/types/AcquisitionCandidates/v1',schemaVersion:1,evidenceId:'evidence-1',evidenceKind:'external_acquisition_candidates',producerRef:'transport-1',basisDigest:hex('search'),payloadDigest:hex('payload'),observedAtMs:NOW,queryDigest:query().queryDigest,integrationId:'integration-1',configRevision:3,candidates:items};body.candidateSetDigest=d({schema:'libra.external-acquisition-candidate-set@1',queryDigest:body.queryDigest,integrationId:body.integrationId,configRevision:body.configRevision,items});return body;}
+function mediaRequirement(){return buildMediaRequirement({schemaRef:'libra.acceptance-spec@1',schemaVersion:1,specRevision:1,
+  acceptanceSpecId:'spec-1',recordDigest:hex('spec'),contentProfile:'movie',structureKind:'single',requirements:{mandatoryMedia:{mediaForm:'stream_file',videoCodec:'hevc',container:'matroska',fileExtension:'mkv',minimumRasterClass:'4k',acceptedPrimaryAudioClasses:['truehd'],forbidSystemUpscaleFor4k:true},space:{unit:'product',maxSizeGiB:null,maxSizeBytes:null}}});}
+function query(){return c.buildAcquisitionQuery({resolvedProductIdentity:identity,productStructure:structure(),mediaRequirement:mediaRequirement(),
+  acquisitionPolicy:c.buildAcquisitionPolicy({integrationId:'integration-1',configRevision:3,maxDownloadAttempts:3}),
+  executionContext:{libraRunId:'run-1',runExecutionBasisDigest:hex('run')},producedAtMs:NOW});}
+function candidate(options={}){
+  const providerRank=options.providerRank??0,assessment=options.requirementAssessment??'compliant',
+    objectId=`provider-${providerRank}-${assessment}`,providerCandidateRef={objectType:'acquisition_candidate',objectId,revision:1,digest:hex(objectId)},
+    videoCodec=assessment==='unknown'?{status:'unknown',value:null,sourceField:null}:
+      {status:'known',value:assessment==='noncompliant'?'h264':'hevc',sourceField:'torrent.title'},
+    mediaBasis={resolution:{status:'known',value:'4k',sourceField:'torrent.title'},videoCodec,
+      primaryAudioClasses:{status:'known',value:['truehd'],sourceField:'torrent.title'},
+      sizeBytes:{status:'known',value:42,sourceField:'torrent.size'},
+      source:{provider:'moviepilot',providerCandidateDigest:hex('provider-row-'+providerRank),claimBasis:'structured_and_release_fields'}},
+    advertisedMedia={...mediaBasis,evidenceDigest:d(mediaBasis)},body={candidateId:d({schema:'provider-acquisition-candidate-id@1',
+      integrationId:'integration-1',configRevision:3,providerCandidateRef}),integrationId:'integration-1',configRevision:3,
+      providerCandidateRef,providerRank,identityAnchors:[anchor],structureKind:'single',episodeKeys:[],
+      availability:options.availability??'available',advertisedMedia,requirementAssessment:assessment,
+      assessmentReasonCodes:assessment==='unknown'?['video_codec_unknown']:assessment==='noncompliant'?['video_codec_unmet']:[]};
+  return {...body,candidateDigest:d(body)};
+}
+function candidates(items=[candidate()]){const body={schemaRef:'helix://contracts/types/AcquisitionCandidates/v1',schemaVersion:1,evidenceId:'evidence-1',evidenceKind:'external_acquisition_candidates',producerRef:'transport-1',basisDigest:hex('search'),payloadDigest:hex('payload'),observedAtMs:NOW,queryDigest:query().queryDigest,integrationId:'integration-1',configRevision:3,candidates:items};body.candidateSetDigest=d({schema:'libra.external-acquisition-candidate-set@1',queryDigest:body.queryDigest,integrationId:body.integrationId,configRevision:body.configRevision,items});return body;}
 function output(){const memberBody={ordinal:0,externalMemberId:'member-1',relativePath:'movie.mkv',sizeBytes:42,checksumAlgorithm:'sha256',checksumHex:hex('movie'),episodeClaims:[]};const members=[{...memberBody,memberDigest:d(memberBody)}],memberSetDigest=d({schema:'provider-external-material-members@1',items:members});const landingBody={schemaRef:'helix://contracts/types/MoviePilotLandingBinding/v1',schemaVersion:1,bindingId:'binding-1',bindingRevision:3,integrationId:'integration-1',configRevision:3,providerRequestSaveRoot:'/provider/downloads',providerOrganizedRoot:'/provider/organized',shelfDeckVisibleRoot:'C:/landing',endpointId:'endpoint-1',mountScopeId:'landing-mount-1',mountScopeRevision:1,accessMode:'provider_rw_shelfdeck_ro'},landingBinding={...landingBody,bindingDigest:d(landingBody)};const body={integrationId:'integration-1',configRevision:3,externalObjectRef:'external-1',endpointId:'endpoint-1',landingBinding,location:'external-1/movie.mkv',structureKind:'single',members,identityAnchors:[anchor],observedTitle:'Fight Club',releaseYear:1999,observedAtMs:NOW,newestMutationAtMs:NOW-60_000,memberSetDigest,manifestDigest:d({schema:'provider-external-material-manifest@1',structureKind:'single',memberSetDigest})};return {...body,snapshotDigest:d(body)};}
 function receipt(){return {schemaRef:'helix://contracts/types/ExternalJobReceipt/v1',schemaVersion:1,receiptId:'receipt-1',integrationId:'integration-1',externalJobId:'job-1',operationKind:'libra.external_material.acquire.request@1',idempotencyKey:'idem',requestDigest:hex('request'),configRevision:3,createdAtMs:NOW};}
 function observation(){const snapshot=output();return c.buildAcquisitionObservation({externalJobReceipt:receipt(),providerSnapshot:{externalJobReceiptId:'receipt-1',requestDigest:receipt().requestDigest,providerObservationRevision:1,state:'ready',outputSnapshot:snapshot,snapshotDigest:hex('provider-snapshot')},phase:'download',producerRef:'transport-1',observedAtMs:NOW});}
@@ -25,6 +45,29 @@ test('query and deterministic candidate selection conserve complete frozen basis
   assert.equal(q.libraRunId,'run-1');assert.equal(selected.result,'selected');assert.equal(selected.selectedCandidateId,candidate().candidateId);
   const unavailable=candidates();unavailable.candidates=[{...candidate(),availability:'unavailable'}];unavailable.candidates[0].candidateDigest=d(Object.fromEntries(Object.entries(unavailable.candidates[0]).filter(([k])=>k!=='candidateDigest')));unavailable.candidateSetDigest=d({schema:'libra.external-acquisition-candidate-set@1',queryDigest:unavailable.queryDigest,integrationId:'integration-1',configRevision:3,items:unavailable.candidates});
   assert.equal(c.selectCandidate({candidates:unavailable,selectionCriteria:criteria,producedAtMs:NOW}).result,'not_selected');
+});
+
+test('candidate prefilter never downloads known noncompliance and only falls back to visible unknown claims',()=>{
+  const q=query(),mixed=candidates([
+    candidate({providerRank:0,requirementAssessment:'noncompliant'}),
+    candidate({providerRank:1,requirementAssessment:'unknown'}),
+    candidate({providerRank:2,requirementAssessment:'compliant'}),
+    candidate({providerRank:3,requirementAssessment:'compliant'}),
+  ]),first=c.selectCandidate({candidates:mixed,selectionCriteria:c.buildSelectionCriteria({revision:1,
+    queryDigest:q.queryDigest,attemptOrdinal:1}),producedAtMs:NOW}),second=c.selectCandidate({candidates:mixed,
+    selectionCriteria:c.buildSelectionCriteria({revision:1,queryDigest:q.queryDigest,attemptOrdinal:2}),producedAtMs:NOW});
+  assert.equal(first.selectedCandidate.providerRank,2);
+  assert.equal(first.selectionReasonCode,'selected_compliant_claims');
+  assert.equal(second.selectedCandidate.providerRank,3);
+  const unknownOnly=candidates([candidate({providerRank:0,requirementAssessment:'noncompliant'}),
+    candidate({providerRank:1,requirementAssessment:'unknown'})]),fallback=c.selectCandidate({candidates:unknownOnly,
+    selectionCriteria:c.buildSelectionCriteria({revision:1,queryDigest:q.queryDigest,attemptOrdinal:1}),producedAtMs:NOW});
+  assert.equal(fallback.selectedCandidate.providerRank,1);
+  assert.equal(fallback.selectionReasonCode,'selected_unverified_claims');
+  const rejected=c.selectCandidate({candidates:candidates([candidate({providerRank:0,requirementAssessment:'noncompliant'})]),
+    selectionCriteria:c.buildSelectionCriteria({revision:1,queryDigest:q.queryDigest,attemptOrdinal:1}),producedAtMs:NOW});
+  assert.equal(rejected.result,'not_selected');
+  assert.equal(rejected.selectionReasonCode,'no_requirement_eligible_candidate');
 });
 
 test('ready observation, stability, identity and package verification form one exact chain',()=>{

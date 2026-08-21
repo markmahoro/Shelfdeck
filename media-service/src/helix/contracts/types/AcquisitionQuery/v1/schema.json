@@ -92,6 +92,24 @@
       },
       "maxItems": 256
     },
+    "mediaRequirement": {
+      "$ref": "helix://contracts/domain-types/MediaRequirement/v1"
+    },
+    "mediaRequirementDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "acquisitionPolicyDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "maxDownloadAttempts": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 5
+    },
     "queryTerms": {
       "type": "array",
       "items": {
@@ -148,11 +166,17 @@
             "minLength": 1
           },
           "maxItems": 256
+        },
+        "mediaRequirementDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
         }
       },
       "required": [
         "requiredStructureKind",
-        "requiredEpisodeKeys"
+        "requiredEpisodeKeys",
+        "mediaRequirementDigest"
       ]
     },
     "queryDigest": {
@@ -177,6 +201,10 @@
     "contentProfile",
     "providerIdentityAnchors",
     "requestedEpisodeKeys",
+    "mediaRequirement",
+    "mediaRequirementDigest",
+    "acquisitionPolicyDigest",
+    "maxDownloadAttempts",
     "queryTerms",
     "hardConstraints",
     "queryDigest"

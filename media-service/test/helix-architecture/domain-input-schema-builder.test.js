@@ -6,9 +6,9 @@ const { buildDomainInputSchemas } = require('../../scripts/helix-architecture/do
 
 const schemas = buildDomainInputSchemas();
 
-test('builds exactly the 116 formal domain input contracts', () => {
-  assert.equal(Object.keys(schemas).length, 116);
-  assert.equal(Object.values(schemas).filter((schema) => schema['x-helix-role'] === 'bounded-contract').length, 24);
+test('builds exactly the 117 formal domain input contracts', () => {
+  assert.equal(Object.keys(schemas).length, 117);
+  assert.equal(Object.values(schemas).filter((schema) => schema['x-helix-role'] === 'bounded-contract').length, 25);
   assert.equal(Object.values(schemas).filter((schema) => schema['x-helix-role'] === 'accepted-business-dto').length, 92);
 });
 
@@ -196,7 +196,10 @@ test('materializes the exact PBF-16 acquisition and one-member import inputs', (
   assert.equal(schemas.EpisodeDeliveryManifest.properties.episodeClaims.maxItems, 256);
   assert.equal(schemas.IdentityRequirement.properties.typedParameters, undefined);
   assert.equal(schemas.IdentityRequirement.properties.strengthClass.const, 'exact_provider_identity');
-  assert.equal(schemas.SelectionCriteria.properties.strategy.const, 'available_provider_rank_then_candidate_id');
+  assert.equal(schemas.SelectionCriteria.properties.strategy.const, 'requirement_compliant_then_unverified_provider_rank');
+  assert.equal(schemas.SelectionCriteria.properties.attemptOrdinal.maximum, 5);
+  assert.equal(schemas.AcquisitionPolicy.properties.maxDownloadAttempts.default, undefined);
+  assert.equal(schemas.AcquisitionPolicy.properties.maxDownloadAttempts.maximum, 5);
 
   const delivery = schemas.WorkspaceDeliveryContract;
   assert.equal(delivery.properties.typedParameters, undefined);

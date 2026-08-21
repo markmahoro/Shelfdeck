@@ -45,46 +45,49 @@ function response(status, body, responseUrl = '') {
   });
 }
 
-function moviePilotFetch(downloadFile, calls) {
-  let requested = false;
+function moviePilotFetch(downloadFiles, calls) {
+  let requestedTitle = null;
   return async (input, init = {}) => {
     const url = new URL(String(input));
-    calls.push(Object.freeze({ path:url.pathname, method:init.method || 'GET' }));
+    calls.push(Object.freeze({ path:url.pathname, method:init.method || 'GET', keyword:url.searchParams.get('keyword') }));
     if (url.host !== 'moviepilot.test' ||
         url.searchParams.get('token') !== MOVIEPILOT_KEY) {
       return response(401, { detail:'denied' });
     }
     if (url.pathname === '/api/v1/search/title') {
-      return response(200, { success:true, data:[{
+      return response(200, { success:true, data:['bad', 'good'].map((kind) => ({
         meta_info:{ name:'External Upgrade Movie', year:'2024' },
         media_info:{ title:'External Upgrade Movie', year:'2024', tmdb_id:990001 },
-        torrent_info:{ title:'External.Upgrade.Movie.2024.2160p',
-          enclosure:'https://tracker.test/external-upgrade.torrent', size:fs.statSync(downloadFile).size },
-      }] });
+        torrent_info:{ title:`External.Upgrade.Movie.2024.${kind}.2160p.HEVC.TrueHD`,
+          enclosure:`https://tracker.test/external-upgrade-${kind}.torrent`, size:fs.statSync(downloadFiles[kind]).size },
+      })) });
     }
     if (url.pathname === '/api/v1/download/add') {
       const body = JSON.parse(String(init.body || '{}'));
       assert.equal(body.tmdbid, 990001);
       assert.equal(body.save_path, '/provider/downloads');
-      requested = true;
-      return response(200, { success:true, data:{ download_id:'external-job-1' } });
+      requestedTitle = body.torrent_in.title;
+      const kind = requestedTitle.includes('.bad.') ? 'bad' : 'good';
+      return response(200, { success:true, data:{ download_id:`external-job-${kind}` } });
     }
     if (url.pathname === '/api/v1/download/') {
-      return response(200, requested ? [{
-        hash:'external-job-1', progress:100, state:'completed', content_path:downloadFile,
+      const kind = requestedTitle?.includes('.bad.') ? 'bad' : requestedTitle ? 'good' : null;
+      return response(200, kind ? [{
+        hash:`external-job-${kind}`, progress:100, state:'completed', content_path:downloadFiles[kind],
+        title:requestedTitle, size:fs.statSync(downloadFiles[kind]).size,
         media:{ title:'External Upgrade Movie', year:2024, tmdbid:990001, type:'电影' },
       }] : []);
     }
     if (url.pathname === '/api/v1/history/download') return response(200, []);
     if (url.pathname === '/api/v1/history/transfer') return response(200, {
       success:true,
-      data:{ list:requested ? [{ download_hash:'external-job-1', status:true,
-        dest:'/provider/organized/External.Upgrade.Movie.2024.2160p.mkv',
+      data:{ list:requestedTitle ? (() => { const kind=requestedTitle.includes('.bad.')?'bad':'good'; return [{ download_hash:`external-job-${kind}`, status:true,
+        dest:`/provider/organized/External.Upgrade.Movie.2024.${kind}.2160p.HEVC.TrueHD.mkv`,
         type:'电影', tmdbid:990001, title:'External Upgrade Movie' },
-      { download_hash:'external-job-1', status:true,
-        dest:'/provider/organized/External.Upgrade.Movie.2024.2160p.nfo',
-        type:'电影', tmdbid:990001, title:'External Upgrade Movie' }] : [],
-      total:requested ? 2 : 0 },
+      { download_hash:`external-job-${kind}`, status:true,
+        dest:`/provider/organized/External.Upgrade.Movie.2024.${kind}.2160p.HEVC.TrueHD.nfo`,
+        type:'电影', tmdbid:990001, title:'External Upgrade Movie' }]; })() : [],
+      total:requestedTitle ? 2 : 0 },
     });
     return response(404, { detail:'not found' });
   };
@@ -94,13 +97,15 @@ function mediaProbe() {
   return Object.freeze({
     async probe(handle) {
       const location = String(handle?.relativePath || handle?.location || '');
-      const external = location.replaceAll('\\', '/').includes('external/');
+      const normalized = location.replaceAll('\\', '/'), external = normalized.includes('external/'),
+        rejectedExternal = external && normalized.includes('.bad.');
       const value = {
         resultKind:'probed', sourceHandleDigest:canonicalDigest(handle),
         container:'matroska', durationMs:7_200_000,
-        videoStreams:[{ streamIndex:0, codec:external ? 'hevc' : 'h264',
-          dispositionDefault:true, width:external ? 3840 : 1920, height:external ? 2160 : 1080 }],
-        audioStreams:external ? [{ streamIndex:1, codec:'truehd', profile:'unknown',
+        videoStreams:[{ streamIndex:0, codec:external && !rejectedExternal ? 'hevc' : 'h264',
+          dispositionDefault:true, width:external && !rejectedExternal ? 3840 : 1920,
+          height:external && !rejectedExternal ? 2160 : 1080 }],
+        audioStreams:external && !rejectedExternal ? [{ streamIndex:1, codec:'truehd', profile:'unknown',
           dispositionDefault:true, channels:8, channelLayout:'7.1',
           normalizedAudioClass:'truehd' }] : [],
         subtitleStreams:[], discTopology:null, payloadDigest:'',
@@ -214,7 +219,7 @@ async function waitActiveOffer(dataDir, runtimeError) {
   assert.fail('Active Libra Run did not publish Handoff B: ' + JSON.stringify(current));
 }
 
-test('5-star 4K gap uses formal External Acquisition Works and publishes an unconsumed Handoff B Offer', async (t) => {
+test('5-star 4K gap rejects the first real download, tries the next candidate, and publishes Handoff B', async (t) => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'helix-external-handoff-b-'));
   t.after(() => { if (process.env.HELIX_KEEP_TEST_ASSETS !== '1') fs.rmSync(root, { recursive:true, force:true }); });
   const dataDir = path.join(root, 'data');
@@ -225,11 +230,17 @@ test('5-star 4K gap uses formal External Acquisition Works and publishes an unco
   [admin, field, shelf, downloads].forEach((directory) => fs.mkdirSync(directory, { recursive:true }));
   fs.writeFileSync(path.join(admin, 'index.html'), '<div id="root"></div>');
   fs.writeFileSync(path.join(field, 'External Upgrade Movie (2024).mkv'), 'source movie');
-  const downloaded = path.join(downloads, 'External.Upgrade.Movie.2024.2160p.mkv');
-  fs.writeFileSync(downloaded, 'verified isolated moviepilot output');
-  fs.writeFileSync(path.join(downloads, 'External.Upgrade.Movie.2024.2160p.nfo'), '<movie/>');
+  const downloaded = {
+    bad:path.join(downloads, 'External.Upgrade.Movie.2024.bad.2160p.HEVC.TrueHD.mkv'),
+    good:path.join(downloads, 'External.Upgrade.Movie.2024.good.2160p.HEVC.TrueHD.mkv'),
+  };
+  fs.writeFileSync(downloaded.bad, 'rejected isolated moviepilot output');
+  fs.writeFileSync(downloaded.good, 'verified isolated moviepilot output');
+  fs.writeFileSync(path.join(downloads, 'External.Upgrade.Movie.2024.bad.2160p.HEVC.TrueHD.nfo'), '<movie/>');
+  fs.writeFileSync(path.join(downloads, 'External.Upgrade.Movie.2024.good.2160p.HEVC.TrueHD.nfo'), '<movie/>');
   const old = new Date(Date.now() - 120_000);
-  fs.utimesSync(downloaded, old, old);
+  fs.utimesSync(downloaded.bad, old, old);
+  fs.utimesSync(downloaded.good, old, old);
   const initialized = initializeCleanData({ dataDir, confirmation:'INITIALIZE_HELIX_CLEAN_V1', secretRoot:SECRET });
   const calls = [];
   let runtimeError = null;
@@ -244,6 +255,7 @@ test('5-star 4K gap uses formal External Acquisition Works and publishes an unco
     const cookie = await session(host, initialized.adminApiKey);
     const headers = { cookie };
     await configureMoviePilot(host, cookie, downloads);
+    calls.length = 0;
     let result = await host.inject({ method:'POST', url:'/v1/admin/shelves', headers, payload:{
       idempotencyKey:'external-overlap-shelf-create', shelfId:'external-overlap-shelf',
       name:'invalid overlapping shelf', targetRootLocation:downloads,
@@ -314,6 +326,11 @@ test('5-star 4K gap uses formal External Acquisition Works and publishes an unco
         assert.ok(database.prepare('SELECT count(1) count FROM fx_workflow_events WHERE capability_ref=? AND state=?')
           .get(ref, 'succeeded').count >= 1, ref);
       }
+      assert.equal(database.prepare("SELECT count(1) count FROM fx_workflow_events WHERE capability_ref='libra.external_material.search@1' AND state='succeeded'").get().count, 1);
+      const selections=database.prepare(`SELECT r.result_json FROM fx_event_result_bindings r JOIN fx_workflow_events e ON e.event_id=r.event_id WHERE e.capability_ref='libra.external_material.candidate.select@1' AND e.state='succeeded' ORDER BY r.committed_at_ms`).all().map((row)=>JSON.parse(row.result_json));
+      assert.equal(selections.length,2);
+      assert.equal(new Set(selections.map((item)=>item.candidateSetDigest)).size,1);
+      assert.equal(new Set(selections.map((item)=>item.selectedCandidateId)).size,2);
       assert.equal(database.prepare('SELECT count(1) count FROM arca_shelf_entries').get().count, 0);
       assert.equal(database.prepare('SELECT count(1) count FROM libra_delivery_receipts').get().count, 0);
       assert.equal(database.prepare("SELECT count(1) count FROM fx_workflow_events WHERE capability_ref='libra.media.transcode@1'").get().count, 0);
@@ -327,14 +344,14 @@ test('5-star 4K gap uses formal External Acquisition Works and publishes an unco
       const importedPath = path.join(dataDir, 'workspaces', 'libra',
         imported.workspaceId,
         ...imported.relativePath.split('/'));
-      assert.deepEqual(fs.readFileSync(importedPath), fs.readFileSync(downloaded));
-      const sourceStat = fs.statSync(downloaded, { bigint:true });
+      assert.deepEqual(fs.readFileSync(importedPath), fs.readFileSync(downloaded.good));
+      const sourceStat = fs.statSync(downloaded.good, { bigint:true });
       const importedStat = fs.statSync(importedPath, { bigint:true });
       assert.equal(sourceStat.dev === importedStat.dev &&
         sourceStat.ino === importedStat.ino, false);
-      assert.equal(fs.readFileSync(downloaded, 'utf8'),
+      assert.equal(fs.readFileSync(downloaded.good, 'utf8'),
         'verified isolated moviepilot output');
     } finally { database.close(); }
-    assert.ok(calls.some((item) => item.path === '/api/v1/download/add' && item.method === 'POST'));
+    assert.equal(calls.filter((item) => item.path === '/api/v1/download/add' && item.method === 'POST').length, 2);
   } finally { await host.close(); }
 });

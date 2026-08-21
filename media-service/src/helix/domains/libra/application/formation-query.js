@@ -41,6 +41,17 @@ function productionStarted(works) {
   const kinds = new Set(['product_metadata_observation', 'product_fact_assembly', 'workspace_media_production', 'artifact_production', 'product_conformance', 'deliverable_promotion']);
   return works.some((work) => kinds.has(work.workKind) && (work.state === 'succeeded' || work.events.some((event) => ['executing', 'succeeded'].includes(event.state))));
 }
+function extractAcquisitionSelection(works) {
+  const selected = works.flatMap((work) => work.events)
+    .filter((event) => event.capabilityRef === 'libra.external_material.candidate.select@1'
+      && event.result?.result?.schemaRef === 'helix://contracts/types/SelectedCandidate/v1')
+    .sort((a, b) => (b.result?.committedAtMs || 0) - (a.result?.committedAtMs || 0))[0]?.result?.result;
+  if (!selected || selected.result !== 'selected') return null;
+  return Object.freeze({
+    requirementAssessment: selected.selectedCandidate?.requirementAssessment || 'unknown',
+    selectionReasonCode: selected.selectionReasonCode,
+  });
+}
 function nextAction(works, classification, issue, runState) {
   if (runState === 'frozen') return Object.freeze({ label: '本次整理已冻结，需要放弃后重新采购', state: 'frozen', progress: null });
   if (runState === 'suspended') return Object.freeze({ label: '整理已暂停，等待恢复评估', state: 'suspended', progress: null });
@@ -49,8 +60,16 @@ function nextAction(works, classification, issue, runState) {
   const open = works.filter((work) => !['succeeded', 'failed', 'cancelled'].includes(work.state)).sort((a, b) => a.createdAtMs - b.createdAtMs)[0];
   if (!open) return Object.freeze({ label: classification === 'waiting' ? '正在确认目标、评分、要求或身份' : '准备下一项整理工作', state: 'pending', progress: null });
   const event = open.events.find((item) => ['executing', 'ready', 'waiting_resource', 'waiting_external'].includes(item.state)) || open.events[0];
+  const acquisitionSelection = extractAcquisitionSelection(works);
   const labels = { product_identity: '确认媒体身份', product_metadata_observation: '补齐媒体资料', artifact_production: '生成或获取海报与 NFO', workspace_media_production: '处理视频文件', product_conformance: '验证整理结果', deliverable_promotion: '发布整理结果' };
-  return Object.freeze({ label: labels[open.workKind] || '继续整理媒体', state: event?.state || open.state, progress: event?.progress || null });
+  const label = open.workKind.startsWith('external_')
+    ? acquisitionSelection?.requirementAssessment === 'unknown'
+      ? '候选发布信息不完整，下载后验证真实媒体'
+      : acquisitionSelection?.requirementAssessment === 'compliant'
+        ? '正在获取预筛符合要求的候选'
+        : '正在按整理要求筛选外部候选'
+    : labels[open.workKind] || '继续整理媒体';
+  return Object.freeze({ label, state: event?.state || open.state, progress: event?.progress || null });
 }
 
 function createFormationProjectionSource(options) {
@@ -277,6 +296,7 @@ module.exports = Object.freeze({
   buildFormationProjectionRow,
   createFormationProjectionSource,
   createFormationQuery,
+  extractAcquisitionSelection,
   extractProductIdentityIssue,
   projectionItem,
 });

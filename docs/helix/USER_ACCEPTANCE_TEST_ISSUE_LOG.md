@@ -66,9 +66,9 @@ Helix主体开发已经完成，Movie从Procurement、Libra到Arca及Shelf Dereg
 
 | ID | 问题 | 主分类 | 次分类 | 主要责任边界 | 影响维度 | 严重度 | 当前状态 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| UAT-001 | 豆瓣评分与Libra Subject匹配率明显偏低 | `BUSINESS_CONTRACT` | `PROJECTION_FRESHNESS`、`EXTERNAL_INTEGRATION` | User Perception + Libra Identity输入 | 正确性、时效性 | High | 已诊断，待统一复盘修复 |
+| UAT-001 | 豆瓣评分与Libra Subject匹配率明显偏低 | `BUSINESS_CONTRACT` | `PROJECTION_FRESHNESS`、`EXTERNAL_INTEGRATION` | User Perception + Libra Identity输入 | 正确性、时效性 | High | 修复已提交，待新Canary定向确认 |
 | UAT-002 | Handoff A Intake接收Subject吞吐异常偏低 | `DOMAIN_ORCHESTRATION` | `EXECUTION_SCHEDULING`、`PERFORMANCE` | Libra Intake + Foundation Work Supply接线 | 吞吐、活性 | High | 已修复并通过400 Candidate重启资格回归，待新Canary确认 |
-| UAT-003 | Libra Run在Product Identity阶段大量等待 | `BUSINESS_CONTRACT` | `EXTERNAL_INTEGRATION`、`DOMAIN_ORCHESTRATION` | Libra Product Identity + TMDB Evidence | 正确性、活性 | Critical | 已诊断，1条继续推进，其余等待统一复盘修复 |
+| UAT-003 | Libra Run在Product Identity阶段大量等待 | `BUSINESS_CONTRACT` | `EXTERNAL_INTEGRATION`、`DOMAIN_ORCHESTRATION` | Libra Product Identity + TMDB Evidence | 正确性、活性 | Critical | 修复已提交，待新Canary真实身份确认 |
 | UAT-004 | 大型Workspace媒体完整SHA-256导致无必要的全文件读取 | `BUSINESS_CONTRACT` | `PERFORMANCE`、`USER_EXPERIENCE` | Libra Workspace Material + Handoff B/Arca Inventory媒体完整性合同 | I/O、CPU、交付延迟 | High | 已修复并通过实际读取预算资格回归，待新Canary确认 |
 | UAT-005 | Libra Admin Web使用内部对象语言且不能直观表达媒体整理过程 | `USER_EXPERIENCE` | `PROJECTION_FRESHNESS` | Admin Web Formation Projection + Libra公开状态翻译 | 可理解性、可观察性 | High | 已讨论并确认页面重构方向 |
 | UAT-006 | clean库概览仍展示固定演示数字并绕过管理会话 | `USER_EXPERIENCE` | `PROJECTION_FRESHNESS` | Overview Query Projection + Admin Web | 正确性、可信度、安全会话 | Critical | 已修复并完成真实页面复测 |
@@ -985,7 +985,12 @@ production build通过；真实Provider重取及Canary结果留在新UAT记录�
 - 下载完成后仍以真实Probe Evidence完成最终验证，错误发布信息不能使不合格媒体进入Shelf；
 - 通过真实Admin Web观察寻源、预筛、下载、复验、失败解释和恢复动作，脚本测试仅作为修复回归证据。
 
-当前处理决定：用户明确要求修复并先记录。问题保持OPEN；本次只登记架构缺口和预期结果，不修改当前SSOT、代码、MoviePilot配置、不可变Run事实或Canary文件。后续修复必须先取得返回Design并修改SSOT合同的明确授权，完成并验证后单独git commit。
+当前处理决定：修复已实现，等待第二轮Canary真实浏览器资格确认。`AcquisitionQuery`现冻结完整
+`MediaRequirement + AcquisitionPolicy digest`；Candidate Snapshot公开有来源的typed声明及逐项`known/unknown`；Selector固定为
+明确合规优先、无合规项才选择可见未知项、明确不合规永不下载。真实Probe不合格时在当前Query的1–5次用户配置上限内继续
+下一候选，默认3；页面明确把未知候选解释为“发布信息不完整，下载后验证”。现有凭据可在Admin Web直接修改尝试上限并形成
+新配置revision。专项Provider/Protocol/Selection、多候选真实字节E2E及Formation回归91/91通过；完整Architecture Gate为
+1087 pass、7 skip、0 fail，Admin Web production build通过。本批次单独提交；旧Run事实和旧Canary现场不改写。
 
 ## 15. UAT-018：Formation 顶部状态缺少“需要处理”，Discard 历史与媒体当前状态混淆
 

@@ -1070,6 +1070,42 @@ function createProtocolTransport(profile, options) {
         actual.seasonNumber === expected.seasonNumber));
   }
 
+  function moviepilotAdvertisedMedia(row,query,rowDigest){
+    const torrent=row?.torrent_info&&typeof row.torrent_info==='object'?row.torrent_info:{},texts=[];
+    for(const [owner,prefix] of [[row,'row'],[torrent,'torrent']])for(const key of ['title','name','description','quality','resolution','video_codec','codec','audio_codec','audio']){
+      if(typeof owner?.[key]==='string'&&owner[key].trim())texts.push({field:prefix+'.'+key,value:owner[key].trim()});
+    }
+    const joined=texts.map((item)=>item.value).join(' '),claim=(status,value,sourceField)=>Object.freeze({status,value,sourceField});
+    const resolution=/\b(?:2160p|4k|uhd)\b/i.test(joined)?claim('known','4k',texts.find((item)=>/\b(?:2160p|4k|uhd)\b/i.test(item.value))?.field||'release'):
+      /\b(?:1080[pi]|720p|576p|480p)\b/i.test(joined)?claim('known','below_4k',texts.find((item)=>/\b(?:1080[pi]|720p|576p|480p)\b/i.test(item.value))?.field||'release'):claim('unknown',null,null);
+    const videoCodec=/\b(?:hevc|h\.?265|x265)\b/i.test(joined)?claim('known','hevc',texts.find((item)=>/\b(?:hevc|h\.?265|x265)\b/i.test(item.value))?.field||'release'):
+      /\b(?:avc|h\.?264|x264)\b/i.test(joined)?claim('known','h264',texts.find((item)=>/\b(?:avc|h\.?264|x264)\b/i.test(item.value))?.field||'release'):claim('unknown',null,null);
+    const audio=[];
+    if(/truehd[^\n]*atmos|atmos[^\n]*truehd/i.test(joined))audio.push('truehd_atmos');else if(/\btruehd\b/i.test(joined))audio.push('truehd');
+    if(/\be-?ac-?3[^\n]*atmos|atmos[^\n]*e-?ac-?3/i.test(joined))audio.push('eac3_atmos');
+    if(/\bdts[- .]?x\b/i.test(joined))audio.push('dts_x');else if(/\bdts[- .]?hd[- .]?ma\b/i.test(joined))audio.push('dts_hd_ma');
+    const primaryAudioClasses=audio.length?claim('known',Object.freeze([...new Set(audio)].sort()),'release'):claim('unknown',Object.freeze([]),null),
+      rawSize=torrent.size??row.size??null,size=Number(rawSize),sizeBytes=Number.isSafeInteger(size)&&size>=0?claim('known',size,torrent.size!==undefined?'torrent.size':'row.size'):claim('unknown',null,null),
+      mediaBasis={resolution,videoCodec,primaryAudioClasses,sizeBytes,
+        source:Object.freeze({provider:'moviepilot',providerCandidateDigest:rowDigest,claimBasis:texts.length?'structured_and_release_fields':'provider_row'})},
+      advertisedMedia=Object.freeze({...mediaBasis,evidenceDigest:digest(canonicalJson(mediaBasis))}),mandatory=query.mediaRequirement.mandatoryMedia,
+      reasons=[],unknown=[];
+    if(mandatory.videoCodec!=='any'){
+      if(videoCodec.status==='unknown')unknown.push('video_codec_unknown');else if(videoCodec.value!==mandatory.videoCodec)reasons.push('video_codec_unmet');
+    }
+    if(mandatory.minimumRasterClass==='4k'){
+      if(resolution.status==='unknown')unknown.push('resolution_unknown');else if(resolution.value!=='4k')reasons.push('minimum_raster_unmet');
+    }
+    if(mandatory.acceptedPrimaryAudioClasses?.length){
+      if(primaryAudioClasses.status==='unknown')unknown.push('primary_audio_unknown');
+      else if(!primaryAudioClasses.value.some((item)=>mandatory.acceptedPrimaryAudioClasses.includes(item)))reasons.push('primary_audio_unmet');
+    }
+    const maximum=query.mediaRequirement.space.maxSizeBytes;
+    if(maximum!==null){if(sizeBytes.status==='unknown')unknown.push('size_unknown');else if(sizeBytes.value>maximum)reasons.push('max_size_exceeded');}
+    return Object.freeze({advertisedMedia,requirementAssessment:reasons.length?'noncompliant':unknown.length?'unknown':'compliant',
+      assessmentReasonCodes:Object.freeze(reasons.length?reasons:unknown)});
+  }
+
   async function moviepilotSearch(request, state) {
     const query = request.input.acquisitionQuery;
     const rows = await moviepilotSearchRows(request, state);
@@ -1084,6 +1120,7 @@ function createProtocolTransport(profile, options) {
         );
         const identityAnchors =
           moviepilotCandidateIdentityAnchors(row, query);
+        const advertised=moviepilotAdvertisedMedia(row,query,rowDigest);
         const basis = {
           integrationId: request.integrationId,
           configRevision: request.configRevision,
@@ -1096,6 +1133,7 @@ function createProtocolTransport(profile, options) {
             query.requestedEpisodeKeys,
           availability: moviepilotCandidateAvailable(identityAnchors, query)
             ? 'available' : 'unavailable',
+          ...advertised,
         };
         const candidateId = digest(canonicalJson({
           schema: 'provider-acquisition-candidate-id@1',

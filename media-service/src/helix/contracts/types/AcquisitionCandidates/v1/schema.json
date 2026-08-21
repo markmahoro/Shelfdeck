@@ -141,6 +141,277 @@
               "unavailable"
             ]
           },
+          "advertisedMedia": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "resolution": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "status": {
+                        "const": "known"
+                      },
+                      "value": {
+                        "type": "string",
+                        "enum": [
+                          "4k",
+                          "below_4k"
+                        ]
+                      },
+                      "sourceField": {
+                        "type": "string",
+                        "minLength": 1
+                      }
+                    },
+                    "required": [
+                      "status",
+                      "value",
+                      "sourceField"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "status": {
+                        "const": "unknown"
+                      },
+                      "value": {
+                        "type": "null"
+                      },
+                      "sourceField": {
+                        "type": "null"
+                      }
+                    },
+                    "required": [
+                      "status",
+                      "value",
+                      "sourceField"
+                    ]
+                  }
+                ]
+              },
+              "videoCodec": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "status": {
+                        "const": "known"
+                      },
+                      "value": {
+                        "type": "string",
+                        "enum": [
+                          "hevc",
+                          "h264"
+                        ]
+                      },
+                      "sourceField": {
+                        "type": "string",
+                        "minLength": 1
+                      }
+                    },
+                    "required": [
+                      "status",
+                      "value",
+                      "sourceField"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "status": {
+                        "const": "unknown"
+                      },
+                      "value": {
+                        "type": "null"
+                      },
+                      "sourceField": {
+                        "type": "null"
+                      }
+                    },
+                    "required": [
+                      "status",
+                      "value",
+                      "sourceField"
+                    ]
+                  }
+                ]
+              },
+              "primaryAudioClasses": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "status": {
+                        "const": "known"
+                      },
+                      "value": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "enum": [
+                            "eac3_atmos",
+                            "truehd",
+                            "truehd_atmos",
+                            "dts_hd_ma",
+                            "dts_x"
+                          ]
+                        },
+                        "maxItems": 5
+                      },
+                      "sourceField": {
+                        "type": "string",
+                        "minLength": 1
+                      }
+                    },
+                    "required": [
+                      "status",
+                      "value",
+                      "sourceField"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "status": {
+                        "const": "unknown"
+                      },
+                      "value": {
+                        "type": "array",
+                        "maxItems": 0
+                      },
+                      "sourceField": {
+                        "type": "null"
+                      }
+                    },
+                    "required": [
+                      "status",
+                      "value",
+                      "sourceField"
+                    ]
+                  }
+                ]
+              },
+              "sizeBytes": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "status": {
+                        "const": "known"
+                      },
+                      "value": {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      "sourceField": {
+                        "type": "string",
+                        "minLength": 1
+                      }
+                    },
+                    "required": [
+                      "status",
+                      "value",
+                      "sourceField"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "status": {
+                        "const": "unknown"
+                      },
+                      "value": {
+                        "type": "null"
+                      },
+                      "sourceField": {
+                        "type": "null"
+                      }
+                    },
+                    "required": [
+                      "status",
+                      "value",
+                      "sourceField"
+                    ]
+                  }
+                ]
+              },
+              "source": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "provider": {
+                    "const": "moviepilot"
+                  },
+                  "providerCandidateDigest": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  "claimBasis": {
+                    "type": "string",
+                    "enum": [
+                      "structured_and_release_fields",
+                      "provider_row"
+                    ]
+                  }
+                },
+                "required": [
+                  "provider",
+                  "providerCandidateDigest",
+                  "claimBasis"
+                ]
+              },
+              "evidenceDigest": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-f0-9]{64}$"
+              }
+            },
+            "required": [
+              "resolution",
+              "videoCodec",
+              "primaryAudioClasses",
+              "sizeBytes",
+              "source",
+              "evidenceDigest"
+            ]
+          },
+          "requirementAssessment": {
+            "type": "string",
+            "enum": [
+              "compliant",
+              "unknown",
+              "noncompliant"
+            ]
+          },
+          "assessmentReasonCodes": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "video_codec_unknown",
+                "video_codec_unmet",
+                "resolution_unknown",
+                "minimum_raster_unmet",
+                "primary_audio_unknown",
+                "primary_audio_unmet",
+                "size_unknown",
+                "max_size_exceeded"
+              ]
+            },
+            "maxItems": 8
+          },
           "candidateDigest": {
             "type": "string",
             "minLength": 1,
@@ -157,6 +428,9 @@
           "structureKind",
           "episodeKeys",
           "availability",
+          "advertisedMedia",
+          "requirementAssessment",
+          "assessmentReasonCodes",
           "candidateDigest"
         ]
       },
