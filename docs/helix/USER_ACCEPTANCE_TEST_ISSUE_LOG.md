@@ -1099,7 +1099,75 @@ Accepted/Rejected决定、执行重试已耗尽”这一状态的Owner对账与�
 不修改SSOT、代码、旧Work/Event、运行时数据库或Canary文件。后续若需改变Domain状态或新增Owner事实，必须先完成Design确认；
 实现、回归及真实浏览器验收完成后单独git commit。
 
-## 17. 后续问题模板
+## 17. UAT-020：Final Inventory成员命名与carried-forward输入Settlement不完整
+
+问题分类：`BUSINESS_CONTRACT / SAME_ROOT_INVENTORY / ARCA_ONDECK / USER_VISIBLE_HEALTH`
+
+用户侧现象：`老笠 (2016)`在Admin Web中已经进入“我的收藏”并显示“健康”，但物理结果不符合用户预期：
+
+1. Final Inventory目录为`G:\canary_film\1cbf…b786 (0)`，主视频和NFO分别为
+   `transcode-1-8ea9457aad82514c.mkv`和`transcode-1-8ea9457aad82514c.nfo`，没有使用用户可理解的影片名称；
+2. 原`G:\canary_film\老笠 (2016)`中的字幕和`fanart.jpg`没有完成移入后的源位置Settlement；
+3. 原目录因而仍存在，使同一影片横跨两个用户可见目录，违反同根Shelf的唯一物理现实。
+
+现场证据：
+
+- 原目录现只剩字幕和`fanart.jpg`；哈希目录包含主视频、字幕、`fanart.jpg`、`poster.jpg`和NFO；
+- 两个目录中的字幕大小均为69,026字节且SHA-256均为
+  `d93445122905e552d11a764e70ea03524d49d61cebbdc86d23aafae8e4eb5b2f`；两个`fanart.jpg`大小均为
+  119,066字节且SHA-256均为`2eaf01606ed6b7c37efd10d75d5e484cbe299a2e4343ae4cbde97b32b39c7db2`，
+  证明是同字节重复现实，不是两份不同Related；
+- 当前Arca Shelf Entry为`active`、Inventory revision为2；Inventory只登记哈希目录中的5个成员，原目录的两个副本不在
+  当前Inventory中，因此“健康”只证明已登记成员自洽，没有发现同根未结算旧位置；
+- Final Inventory Decision的`target_location`就是哈希目录。该目录错误属于UAT-013已诊断的旧Decision；目录命名代码修复
+  `6d67d0ddb`只保护修复后形成的新Decision，不重写既有immutable Decision或已提交Shelf Entry；
+- 当前Shelf Placement Policy revision 1只含`folderTemplate:"{title} ({year})"`和`collisionPolicy:"reject"`，没有
+  用户可配置的Primary、Metadata或Subtitle文件命名规则；Inventory Port的`targetName(member)`直接采用Product源路径basename，
+  所以Workspace内部`transcode-*`技术名称被永久暴露为Shelf文件名；
+- `老笠`Off-load Context把字幕和fanart标为`carried_forward + replace_or_move`；Placement Stage把它们复制到目标目录，
+  但On-deck Planner只为`replaced_and_settled + remove_after_place`成员建立Input Settlement Event，前两项永远没有Settlement；
+- On-deck Run仍进入`committed`，对应Commit Receipt的`related_disposition_completion_digest`为`null`，证明On-deck Commit没有
+  fail closed验证全部source-to-final mapping已经完成；旧目录因此自然无法清空，也没有安全的空目录收口步骤。
+
+初步诊断：UAT-013只覆盖Resolved Identity如何生成目标目录，尚未覆盖Placement Policy对Final Inventory每类成员的完整命名结果。
+同时，当前实现把`carried_forward`误解为“源位置可以继续保留”，而它只表示相同Product Material继续成为最终成员；当Final Location
+改变时，原位置仍必须按`replace_or_move`完成精确Settlement。系统复制目标、保留源文件并提交Shelf Entry，违反Final Inventory
+Decision、Off-load Context和唯一物理现实，且Shelf Health遗漏了这一Placement/Settlement Conformance Gap。
+
+拟定修复边界：
+
+- 先回到Design扩展唯一Shelf Placement Policy合同，使用户能在Admin Web配置或明确接受Movie默认成员命名；至少覆盖目录、
+  Primary、Metadata Sidecar和Subtitle命名。默认结果应使用Resolved Identity的人类可读stem，例如目录`老笠 (2016)`、视频
+  `老笠 (2016).mkv`、NFO `老笠 (2016).nfo`；poster/fanart采用稳定约定名，字幕按确认后的语言/forced/SDH后缀规则命名；
+- Workspace的`transcode-*`、Event ID、Package ID或digest只能作为内部产物名，不得在没有显式Placement决定时泄漏为永久Shelf名称；
+- On-deck Planner必须依据每个Off-load Context成员的`settlementExpectation`和冻结source-to-final mapping决定Settlement，不能只按
+  `replaced_and_settled`筛选；`carried_forward + replace_or_move`在Final Location改变时也必须完成有授权、可恢复的精确迁移/源清理；
+- On-deck Commit前必须证明所有要求Settlement的成员均已有Completion Evidence，并把非空
+  `related_disposition_completion_digest`绑定进Commit；任一成员未完成时不得建立Shelf Entry或显示健康；
+- 原目录只可在已冻结的全部受管成员完成Settlement且再次验证目录为空后删除。若存在未计划文件，必须fail closed并在页面显示
+  “需要处理”，不得递归删除或扩大Destruction Scope；
+- Shelf Health/Aftercare必须比较当前Inventory、Placement Decision和已知旧Binding，识别“目标副本健康但旧位置仍存在”的
+  Placement/Settlement Gap，不能只检查Inventory登记路径；
+- `老笠`已经Handoff B Accepted且On-deck committed，修复责任属于Arca。不得重开Libra、修改旧Decision、直接改库或手工移动文件；
+  应由正式Aftercare Placement Conformance Case生成新Inventory revision，迁移/重命名成员、精确清理旧位置并复验最终现实。
+
+预期验收：
+
+- 从Admin Web配置并刷新Shelf Placement后，目录及各类成员命名规则可见、可保存、可预览，内部技术ID不进入最终路径；
+- 新Canary Movie完成On-deck后形成单一`{title} ({year})`目录，Primary/NFO/Subtitle名称符合冻结Placement，Related齐全；
+- 同根source与target不同时，`carried_forward`成员完成move或copy-verify-settle，原位置不保留同字节副本；同一路径时形成有Evidence
+  的no-op，不删除Final Inventory；
+- 缺少任一要求的Settlement Completion时On-deck不能Commit，页面显示具体未完成成员和恢复动作；
+- 对既有`老笠`通过真实Admin Web发起Arca Aftercare修复，形成新的Inventory revision；最终只保留
+  `G:\canary_film\老笠 (2016)`一个目录，文件命名符合当前Placement，哈希目录和旧重复位置均按精确Evidence收口；
+- 重启和重复恢复不会重复复制、误删文件或创建第二个Shelf Entry；`G:\test_film`及Canary之外路径始终不变；
+- 脚本/回归测试只验证命名解析、Settlement覆盖、Commit Gate和幂等恢复，最终结果必须由真实Admin Web与只读文件现实共同验收。
+
+当前处理决定：问题保持OPEN。本次只读取两个明确Canary目录和本地UAT领域事实并登记缺口；没有移动、重命名或删除任何文件，
+没有修改运行时数据库。目录Identity修复仍按UAT-013保留为已完成代码修复，但完整Final Inventory结果未通过；成员命名、
+carried-forward Settlement、Commit Gate和既有Entry的Arca Aftercare恢复需完成Design确认后分别实现、验证并提交。
+
+## 18. 后续问题模板
 
 后续发现的问题按以下结构追加：
 
