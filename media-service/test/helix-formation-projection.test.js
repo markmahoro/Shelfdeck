@@ -56,6 +56,14 @@ test('Formation extracts Product Identity issues from the business result contra
   }]}]),null);
 });
 
+test('Formation gives a frozen Run precedence over an earlier Product Identity issue',()=>{
+  const frozenItem={...item(98,'waiting',true),currentRun:{...item(98).currentRun,state:'frozen'},nextAction:{label:'本次整理已冻结，需要放弃后重新采购',state:'frozen',progress:null}};
+  const row=buildFormationProjectionRow(frozenItem,5000);
+  assert.equal(row.attention_state,'frozen');
+  assert.equal(row.next_action_state,'frozen');
+  assert.equal(row.next_action_label,'本次整理已冻结，需要放弃后重新采购');
+});
+
 test('durable Formation projection pages 25 active rows, sorts attention first, and no-ops unchanged basis',()=>{
   const root=fs.mkdtempSync(path.join(os.tmpdir(),'helix-formation-projection-')),databasePath=path.join(root,'shelfdeck.db');
   const kernel=openSqliteKernel({Database,databasePath,schemaDdl,schemaManifest,now:()=>100});
