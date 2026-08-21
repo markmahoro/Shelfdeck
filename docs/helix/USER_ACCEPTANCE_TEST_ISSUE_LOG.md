@@ -1687,11 +1687,15 @@ AVDP 在扇区 256，随后是 UDF 2.50 元数据分区；没有 `CD001`，topol
   `libra.product_identity.evidence.observe@1` Attempt 以 `P4_CAPABILITY_SCHEMA_REJECTED` 失败；
 - Run 因此按 `product_unachievable` 冻结，从未进入 MoviePilot 选择，所以 UAT-030 的外部获取冻结文案套不上。
 
-精确根因：未钉死。只知道失败发生在 NFO 已解析之后的 `provider_exact` 观察输入/结果 schema，不是演员 TMDB ID 冲突。
+精确根因（2026-08-22 本轮隔离库钉死，尚未修）：
+
+- `007：大破天幕杀机` Run `37f9641d…`：NFO `related_nfo` 已成功，随后 `provider_identity_observation` / `libra.product_identity.evidence.observe@1` Attempt 以 `P4_CAPABILITY_SCHEMA_REJECTED` 失败（约 2s，已从 TMDB 拿到响应）。失败 Outcome 只存 `evidence_digest`，没有 `evidence_json`，schema 路径本身还不在库里。
+- `锡尔弗顿之围` Run `3ff3187b…`：同一节点以 `P5_SECRET_LEASE_INVOCATION_FAILED` 失败（约 11s）。TMDB `fetchJson` 默认超时 10s，超时码是 `PLATFORM_INTEGRATION_TIMEOUT`，Secret lease consumer 把它包成 lease 失败。两者都让 Run 按 `product_unachievable` 冻成通用句，从未进入 MoviePilot。
+
 不得把通用冻结句改成五星文案来掩盖身份观察失败。
 
-当前处理决定：不编 workaround。干净 Canary 重建后密集监测；若再次出现，按该 Event 的 schema 路径取证后单独修。
-状态 `OPEN / MONITOR IN CLEAN UAT`。
+当前处理决定：不编 workaround。下一步分别修 schema 拒绝的具体字段，以及 timeout 被 lease 改写后无法按 Integration timeout 重试。
+状态 `OPEN / PINNED / FIX REQUIRED`。
 
 ## 35. UAT-038：上架成功后 Aftercare 健康仍是 conformance/presentation 降级
 
@@ -1763,7 +1767,20 @@ stderr 为 `CLEAN_ARCA_TARGET_OCCUPIED` 与 `CLEAN_ARCA_SETTLEMENT_UNKNOWN_MEMBE
 
 修复状态（2026-08-22）：`REGRESSION PASSED / NEW LIBRA RUN REQUIRED`。当前冻结的 BDMV Remux Run 不可变。
 
-## 39. 后续问题模板
+## 39. UAT-042：同根 Off-load Settlement 源现实漂移
+
+问题分类：`SAME_ROOT_INVENTORY / SETTLEMENT_SCOPE`
+
+用户侧现象：UAT-039 之后，`光荣的愤怒`、`香火` 仍停在「正在完成收藏架上架」。服务 stderr 新出现 `CLEAN_ARCA_SETTLEMENT_REALITY_DRIFT`（Settlement source drifted from the approved Material identity）。
+
+现场证据：MKV `养蜂人` 已 completed；这两部仍 `in_progress`。同根 in-place 替换后源文件 identity/inode/size 与批准的 Off-load 源不一致。
+
+精确根因：未钉死。可能是 Stage/Switch 已替换源字节，Settlement 仍按替换前 identity 核对。
+
+修复边界：不得忽略 drift。要对着批准的 Material identity 与当前源现实逐字段钉死后再修。
+状态 `OPEN / PINNED / FIX REQUIRED`。
+
+## 40. 后续问题模板
 
 后续发现的问题按以下结构追加：
 
