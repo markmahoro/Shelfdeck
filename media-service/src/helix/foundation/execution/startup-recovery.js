@@ -225,7 +225,15 @@ function createStartupRecovery(options) {
       }
 
       for (const effect of facts.effects.filter((row) => NONTERMINAL_EFFECT_STATES.has(row.state))) {
-        if (!processedEffectIds.has(effect.effect_id)) findings.push('NONTERMINAL_EFFECT_WITHOUT_RECOVERY_EVENT:' + effect.effect_id);
+        if (processedEffectIds.has(effect.effect_id)) continue;
+        const attempt = facts.attempts.find((row) => row.event_attempt_id === effect.event_attempt_id);
+        const event = attempt ? events.get(attempt.event_id) : null;
+        if (event && ['failed', 'cancelled'].includes(event.state) &&
+            typeof options.effectJournal?.abandonUncommitted === 'function') {
+          options.effectJournal.abandonUncommitted(effect.effect_id);
+          continue;
+        }
+        findings.push('NONTERMINAL_EFFECT_WITHOUT_RECOVERY_EVENT:' + effect.effect_id);
       }
 
       const activeCircuits = facts.circuits.filter((row) => row.state !== 'closed');

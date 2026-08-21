@@ -145,7 +145,8 @@ function fixture(run, settings = {}) {
         effect_class: request.effectClass, idempotency_key: request.idempotencyKey, intent_digest: request.intentDigest }; },
       async settle() { journalCalls.push('settle'); },
       noteExternalPending() { journalCalls.push('external-receipt'); },
-      requireReconcile() { journalCalls.push('reconcile'); }
+      requireReconcile() { journalCalls.push('reconcile'); },
+      abandonUncommitted() { journalCalls.push('abandon'); }
     } }),
     attemptPolicy: {
       bindingFor: () => ({ retryPolicyRef: 'helix://foundation/retry-policies/pure_observation/v1',
@@ -382,7 +383,7 @@ test('non-pure Executor crash leaves durable executing Attempt for effect-specif
   }, { effectClass:'external_request', dispatchError: new Error('executor crash') });
 });
 
-test('non-pure Capability failed Outcome completes the Attempt and requires Effect reconcile', async () => {
+test('non-pure Capability failed Outcome completes the Attempt and abandons the uncommitted Effect', async () => {
   await fixture(async ({ runtime, lease, databasePath, state }) => {
     const result = await runtime.run({ schedulerLease: lease });
     assert.equal(result.kind, 'failed');
@@ -391,7 +392,7 @@ test('non-pure Capability failed Outcome completes the Attempt and requires Effe
     assert.equal(facts.attempt.state, 'completed');
     assert.equal(facts.attempt.outcome_kind, 'failed');
     assert.equal(facts.attempt.failure_code, 'LIBRA_MEDIA_FFMPEG_FAILED');
-    assert.deepEqual(state().journalCalls, ['intend', 'reconcile']);
+    assert.deepEqual(state().journalCalls, ['intend', 'abandon']);
   }, { effectClass:'external_request', outcome: {
     kind:'failed', failureClass:'executor', code:'LIBRA_MEDIA_FFMPEG_FAILED',
     message:'FFmpeg failed.', retryDirective:'contract_policy',

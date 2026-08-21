@@ -255,6 +255,19 @@ function createEffectJournal(options) {
     return Object.freeze(transition(effect, 'reconcile_required'));
   }
 
+  function abandonUncommitted(effectId) {
+    const effect = read(text(effectId, 'effectId'));
+    if (!effect) fail('P4_EFFECT_NOT_FOUND', 'Effect intent does not exist.');
+    if (effect.state === 'failed') return Object.freeze(effect);
+    if (effect.state === 'committed') fail(
+      'P4_EFFECT_TERMINAL_ABANDON_FORBIDDEN', 'A committed Effect cannot be abandoned.'
+    );
+    if (!['intended', 'effect_observed', 'reconcile_required'].includes(effect.state)) fail(
+      'P4_EFFECT_ABANDON_STATE_INVALID', 'Only an uncommitted Effect can be abandoned after Capability failure.'
+    );
+    return Object.freeze(transition(effect, 'failed'));
+  }
+
   function noteExternalPending(effectId, receipt) {
     const effect = read(text(effectId, 'effectId'));
     if (!effect) fail('P4_EFFECT_NOT_FOUND', 'Effect intent does not exist.');
@@ -296,7 +309,7 @@ function createEffectJournal(options) {
     return Object.freeze({ effect: Object.freeze(current), recovery: result });
   }
 
-  return Object.freeze({ intend, noteExternalPending, observeRecovery, read, reconcile, requireReconcile, settle });
+  return Object.freeze({ intend, noteExternalPending, observeRecovery, read, reconcile, requireReconcile, abandonUncommitted, settle });
 }
 
 module.exports = Object.freeze({ EffectJournalError, createEffectJournal, effectIdentity });

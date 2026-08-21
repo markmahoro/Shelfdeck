@@ -570,7 +570,7 @@ function createProcurementExecutionRuntime(options) {
     catalogVerifier: { verify: (snapshot) => verifyStartupPlanCatalog(
       snapshot, catalogDigest, registry, policyRegistry, bindingProjectionRegistry,
     ) },
-    effectReconciler });
+    effectReconciler, effectJournal });
   let host;
   function reconcileLibraRun(libraRunId) {
     const result = libraProcessServices.libraRunCoordinator.reconcile(libraRunId);

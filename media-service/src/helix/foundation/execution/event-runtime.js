@@ -551,7 +551,13 @@ function createEventRuntime(options) {
         return complete(snapshot, attempt.event_attempt_id, outcome, policyDecision);
       }
       if (outcome?.kind === 'failed') {
-        if (effect) options.effectJournal.requireReconcile(effect.effect_id);
+        if (effect) {
+          if (outcome.failureClass !== 'timeout' && typeof options.effectJournal.abandonUncommitted === 'function') {
+            options.effectJournal.abandonUncommitted(effect.effect_id);
+          } else {
+            options.effectJournal.requireReconcile(effect.effect_id);
+          }
+        }
         const policyDecision = options.attemptPolicy.decideFailure(Object.freeze({
           capabilityRef:snapshot.event.capability_ref,effectClass:snapshot.node.effect_class,
           retryPolicyRef:policyBinding.retryPolicyRef,timeoutPolicyRef:policyBinding.timeoutPolicyRef,
@@ -730,7 +736,10 @@ function createEventRuntime(options) {
             effectId: effect.effect_id, receipt: outcome.effectReceipt,
             scope: Object.freeze({ ownerDomain: inputs.ownerScope.domain, scopeType: inputs.ownerScope.processType, scopeId: inputs.ownerScope.processId })
           }));
-          else {
+          else if (outcome.kind === 'failed' && outcome.failureClass !== 'timeout' &&
+              typeof options.effectJournal.abandonUncommitted === 'function') {
+            options.effectJournal.abandonUncommitted(effect.effect_id);
+          } else {
             if (outcome.kind === 'deferred' && outcome.externalReceipt !== undefined) {
               options.effectJournal.noteExternalPending(effect.effect_id, outcome.externalReceipt);
             }
