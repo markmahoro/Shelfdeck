@@ -7,20 +7,20 @@ Last updated: 2026-08-22
 ## 0. Current operational status — clean Movie Canary Admin Web UAT in progress
 
 用户已明确授权在修复后重建干净 Movie Canary 真实 Admin Web E2E/UAT。本轮代码检查点为
-`134fdf692`（UAT-029–034 已提交，UAT-035/036 入台账）。固定路径仍为只读`F:\test_film`与
-重置后的`F:\canary`。不触碰`G:\canary_film`、`Z:\Film`或NAS生产部署。
+`2da763653`（UAT-029–034、UAT-036 已提交；UAT-035/037/038 入台账监测）。固定路径仍为只读
+`F:\test_film`与重置后的`F:\canary`。不触碰`G:\canary_film`、`Z:\Film`或NAS生产部署。
 
 | 项目 | 当前状态 |
 | --- | --- |
 | 基线 | `F:\test_film` 22/455/42 / 143,829,090,011 bytes |
-| Canary | 已从基线重建；四项零差异；未使用`/MIR` `/MOVE` `/PURGE` |
-| 隔离库 | `C:\Users\markm\AppData\Local\Temp\ShelfDeck-Movie-Canary-UAT-20260822-033722-8e18372b9` |
+| Canary | 已清空后从基线 `robocopy /E` 重建；路径/大小/mtime 零差异；未使用`/MIR` `/MOVE` `/PURGE` |
+| 隔离库 | `C:\Users\markm\AppData\Local\Temp\ShelfDeck-Movie-Canary-UAT-20260822-042527-2da763653` |
 | Copy-forward | Douban/TMDB/MoviePilot 3 个 active Integration；1547 条 Douban Record；0 旧 Field/Shelf/Run/Entry |
-| 服务 | PID 41048；`127.0.0.1:18080`；`helix-clean-v3`；`normalSupplyAllowed=true` |
+| 服务 | PID 37740；`127.0.0.1:18080`；`helix-clean-v3`；`normalSupplyAllowed=true` |
 | Admin Web | 8 个正式页面首次打开与直接刷新均成功；Field/Shelf 均为 Movie Canary → `F:\canary` |
 | Routing | Direct → Movie Canary Policy revision 1 已从页面发布 |
-| Observation | 已从页面触发；ISO 文件已进入 Observation，但 Triage 失败（UAT-036） |
-| Formation | 22 个 Subject：两部`养蜂人`已分开；缺`倩女幽魂2` ISO Candidate |
+| Observation | 已从页面触发；Observation revision 2，Procurement Run 正在准备 |
+| Formation | 干净重建后等待 Candidate / Subject；目标仍是 23/23（两部`养蜂人` + ISO `倩女幽魂2`） |
 
 2026-08-22 用户确认：成功标准旧稿把 `养蜂人` 顶层目录写成一部 Movie 是错误的。现成 MKV 与嵌套 BDMV 是两部独立电影，必须都形成 Subject 并都能 On-deck；内容去重属于 Arca Duplicate/Off-deck，不是 Formation 或 Placement 的拦截理由。基线仍是 22 个顶层单元，形成与上架口径改为 23/23。
 
