@@ -894,6 +894,9 @@ function errorResponse(error, correlationId) {
   ) status = 409;
   else if (error.code === 'ADMIN_ROUTING_COMMAND_REJECTED' || error.code === 'ADMIN_ROUTING_TARGET_MISMATCH') status = 400;
   else if (error.code === 'ADMIN_ROUTING_IDEMPOTENCY_CONFLICT') status = 409;
+  else if (error.code === 'ADMIN_ROUTING_MANUAL_INPUT_INVALID') status = 400;
+  else if (error.code === 'FORMATION_SUBJECT_NOT_FOUND') status = 404;
+  else if (error.code === 'ADMIN_ROUTING_MANUAL_STATE_CONFLICT' || error.code === 'ADMIN_ROUTING_MANUAL_HEAD_CONFLICT') status = 409;
   else if (error.code === 'ADMIN_FIELD_COMMAND_REJECTED' || error.code === 'ADMIN_FIELD_TARGET_MISMATCH' ||
     error.code === 'ADMIN_MEDIA_PROFILE_UNSUPPORTED') status = 400;
   else if (error.code === 'ADMIN_FIELD_IDEMPOTENCY_CONFLICT') status = 409;

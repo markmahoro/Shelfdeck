@@ -182,6 +182,14 @@ test('direct and sorting Routing Decisions continue through Acceptance Spec and 
     assert.deepEqual(providerCalls.filter((item)=>item.requestedFactKinds.includes('release_year'))
       .map((item)=>item.title).sort(), ['0.5毫米 provider', '无nfo且无法解析的测试标题'].sort());
 
+    const alreadyResolved = formation.items.find((item) => item.routingState === 'resolved');
+    const invalidManual = await host.inject({ method: 'POST', url: `/v1/admin/formation/subjects/${alreadyResolved.subjectId}/actions/choose-shelf`,
+      headers: { cookie }, payload: { targetShelfId: 'general',
+        expectedDecisionHead: { revision: alreadyResolved.routingDecisionHeadRevision, digest: alreadyResolved.routingDecisionHeadDigest },
+        idempotencyKey: 'manual-resolved-state-conflict' } });
+    assert.equal(invalidManual.statusCode, 409, invalidManual.body);
+    assert.equal(invalidManual.json().error.code, 'ADMIN_ROUTING_MANUAL_STATE_CONFLICT');
+
     const manual = await host.inject({ method: 'POST', url: `/v1/admin/formation/subjects/${unresolved.subjectId}/actions/choose-shelf`,
       headers: { cookie }, payload: { targetShelfId: 'general',
         expectedDecisionHead: { revision: unresolved.routingDecisionHeadRevision, digest: unresolved.routingDecisionHeadDigest },

@@ -75,6 +75,7 @@ Helix主体开发已经完成，Movie从Procurement、Libra到Arca及Shelf Dereg
 | UAT-007 | clean库人物页展示固定人数且无正式Query接线 | `USER_EXPERIENCE` | `PROJECTION_FRESHNESS` | People Admin Query + Admin Web | 正确性、可信度、安全会话 | Critical | 已修复并完成真实页面首次打开复测 |
 | UAT-008 | Admin Web非根路径直接刷新返回404 | `USER_EXPERIENCE` | `PROJECTION_FRESHNESS` | Clean Service static adapter + Admin Web routing | 可用性、刷新恢复 | Critical | 已修复并完成七个页面直接刷新复测 |
 | UAT-009 | 媒体整理页评分提交成功但刷新后仍显示暂无评分 | `USER_EXPERIENCE` | `PROJECTION_FRESHNESS` | Perception Query Projection + Formation Projection | 正确性、持久化可见性 | Critical | 已修复并完成真实页面刷新复测 |
+| UAT-010 | Routing尚未配置时Formation错误开放人工选Shelf并返回内部错误 | `USER_EXPERIENCE` | `RECOVERY_CORRECTNESS` | Formation Admin Web + Clean Service error adapter | 可理解性、命令安全 | Critical | 已修复并完成真实页面复测 |
 
 ## 2.1 UAT-006：概览展示固定演示数字
 
@@ -136,6 +137,16 @@ title/year规范化结果，形成了不同的Query Input Digest，因此刷新�
 
 针对性回归结果为5 pass、0 fail，并新增Formation对每次Direct Rating的值、来源与revision断言。同一UAT库重启服务后，
 真实浏览器显示并在再次刷新后保留“4 星 · 我的评分”，同时恢复显示16条已匹配的豆瓣评分，Console无warning/error。
+
+## 2.5 UAT-010：未配置Routing时错误开放人工选Shelf
+
+22个Subject停在`preparing`时，Formation目标列仍显示“选择”。真实页面选择唯一Shelf后返回“Clean Service请求处理失败”。
+精确根因是人工选择命令只允许`unresolved` Subject且要求有效Decision Head，但页面仅凭`targetShelfId`为空就开放按钮；同时HTTP adapter
+未映射Manual Routing的输入、状态与Head冲突错误，因而把可预期的业务冲突降质为500。
+
+修复后Formation仅在`unresolved`且Decision Head完整时展示人工选择；`preparing`明确显示“等待发布文件来源的收藏架分拣策略”。
+Manual Routing输入错误映射为400，Subject不存在映射为404，状态或Head冲突映射为409。Admin Web生产构建和Routing E2E均通过；
+同一UAT库真实页面显示22条明确等待提示、0个无效“选择”按钮，Console无warning/error。
 
 
 ## 3. UAT-001：豆瓣评分匹配率偏低
