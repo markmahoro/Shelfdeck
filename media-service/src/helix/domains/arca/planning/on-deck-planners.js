@@ -55,7 +55,9 @@ function node(options,capabilityRef,nodeId,eventId,bindings,dependsOn){const man
   return Object.freeze({nodeId,eventId,capabilityRef,contractVersion:1,inputBindingsSchemaRef:manifest.parametersSchemaRef.replace(/\/parameters$/,'/inputs'),
     inputBindings:bindingSet(bindings),parametersSchemaRef:manifest.parametersSchemaRef,parameters:Object.freeze({}),dependsOn:Object.freeze(dependsOn),
     whenSchemaRef:null,when:null,effectClass:manifest.effectClass,resourceDemandSchemaRef:manifest.resourceDemandSchemaRef,
-    resourceDemand:demand(R[capabilityRef]||(()=>{throw new Error('Arca Planner lacks an exact Resource Demand for '+capabilityRef);})()),approvalRequirementRef:null,authorizationRequirementRef:null,fenceSchemaRef:manifest.fenceSchemaRef,
+    resourceDemand:demand(R[capabilityRef]||(()=>{throw new Error('Arca Planner lacks an exact Resource Demand for '+capabilityRef);})()),
+    approvalRequirementRef:manifest.approvalRequirementRef||null,
+    authorizationRequirementRef:manifest.authorizationRequirementRef||null,fenceSchemaRef:manifest.fenceSchemaRef,
     fenceBasis:Object.freeze(fence),retryPolicyRef:policy.retryPolicyRef,timeoutPolicyRef:policy.timeoutPolicyRef,
     outputContractRef:manifest.resultSchemaRef});}
 function plan(request,plannerContractRef,catalogDigest,kind,nodes){return Object.freeze({schemaRef:'helix://foundation/types/WorkflowPlanDefinition/v1',
