@@ -778,7 +778,47 @@ Package、Receipt、Canonical JSON等结构化事实的SHA-256与媒体字节Ide
 - 具体统计边界和Projection字段在集中修复进入Design时再写入唯一SSOT及机器合同；
 - 不以纯前端字符串替换掩盖缺失的业务状态Projection。
 
-## 8. 后续问题模板
+## 8. UAT-011：Handoff B 在同根 Shelf Target 前永久等待
+
+问题分类：`BUSINESS_CONTRACT / EXECUTION_RECOVERY / SAME_ROOT_INVENTORY`
+
+用户侧现象：媒体整理页已有5部电影显示“等待收藏架接收”，但“我的收藏”始终为0；刷新页面没有错误提示，`G:\canary_film`也没有形成任何Arca Inventory变化。
+
+现场证据：
+
+- 5份`libra.product-offer.available@1`均已交付Arca，但`arca_handoff_b_receipts=0`、`arca_shelf_entries=0`；
+- 5个`arca.acceptance.inventory_feasibility.observe@1` Attempt持续处于`executing`；
+- 服务日志对5个包均报告`CLEAN_ARCA_TARGET_COLLISION`；
+- 每个包同时包含Workspace生成的`poster.jpg`和Candidate原有的`poster.jpg`，二者内容指纹相同但Material Key不同；原NFO和生成的`movie.nfo`也同时作为最终Product成员；
+- Canary的Material Field与Shelf Target均为`G:\canary_film`，目标电影目录在Arca On-deck前已经存在。
+
+初步诊断已经闭合为三个实现缺陷：
+
+1. Libra Product Delivery把需要替换的Related仍标为`carried_forward`，导致旧Related和successor同时进入Product Manifest；
+2. Execution Runtime把纯观察Executor异常留成不可恢复的`executing` Attempt，页面因而只显示永久等待；
+3. Arca Target Slot只接受尚不存在的目标目录，未实现SSOT已确认的同根原位no-op及有界合并落位。
+
+业务影响：任何带既有poster/NFO的普通电影都可能在Handoff B前卡死；即使修复包内重复，同根真实部署也会在Target Slot Prepare或Placement Switch再次失败，无法建立Shelf Entry。
+
+修复边界：
+
+- Libra按角色把已验证Artifact作为Related successor，Product Manifest只保留successor；原Related仅在Off-load Context中以`replaced_and_settled`等待精确settlement；
+- Foundation仅对无外部Effect的`pure_observation` Executor异常形成普通失败Outcome；非纯Effect仍保持Effect-specific recovery；
+- Arca允许既有目标目录，对已经位于精确最终位置且字节一致的成员形成no-op，对缺失成员从Target Slot合并落位；冲突字节继续fail closed；
+- settlement若源位置就是已验证最终Inventory位置则形成`retained_as_final` Evidence，不删除最终文件；其他被替换输入仍精确删除。
+
+验收证据：
+
+- `p4-event-runtime.test.js` 25/25 PASS；
+- `p9-delivery-lifecycle.test.js` 10/10 PASS；
+- `p9-deliverable-promotion-store.test.js` 11/11 PASS；
+- `clean-arca-inventory-port.test.js` 1/1 PASS，覆盖同根既有Primary、同字节poster no-op、新NFO合并、旧NFO settlement及最终Reality读取；
+- 修复提交：`888e6d8bc`、`f6e8925fe`、`0dd1c7c76`；
+- 真实Admin Web已把“老笠 (2016)”评分改为3星并建立replacement Run，当前显示“视频转码 / 处理视频文件 executing”；完整Handoff B、On-deck、Collection和物理Reality仍待后续小时观察点验证。
+
+当前处理决定：问题已修复并分别提交；不修改旧的不可变Package或直接编辑UAT数据库。通过用户页面产生replacement Run验证新代码；在其到达终态前，第11、12阶段保持未通过。
+
+## 9. 后续问题模板
 
 后续发现的问题按以下结构追加：
 
