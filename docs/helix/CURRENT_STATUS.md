@@ -15,7 +15,7 @@ Shelf Entry、对应active Deck Fact及非空Related Disposition completion；�
 Admin Web顶部增加“需要处理”，列表增加“当前状态”列；Discard Receipt通过独立有界历史查询显示“已结束 · 用户放弃”，
 不进入当前四桶，也不复制Subject行。专项Formation、Arca completion、Admin Web和clean schema migration回归22/22通过，
 包含真实Routing链路的最终相关回归19/19通过；完整Architecture Gate（166个test file）、P3 Persistence Gate及
-Admin Web production build均通过。当前P2 aggregate为`077a5aae97b5d7f73a9e0e92019161a6c1a2bde91e8be18b2591dadfd565f0b7`；
+Admin Web production build均通过。当前P2 aggregate为`68db5920cff98cc4dbc0751f0faa82162089b152971b590cf6db331d46dce78b`；
 P3 DDL digest为`2347c196743124bbb2e768c7b829012049310484b7cd4e49a00182c9d45f09d5`，table contract aggregate为
 `9aa8c8710b1bdc99e4d16a88c4e354526b1a7846fb4d85d528ccaa75192e6f7f`。
 

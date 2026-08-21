@@ -408,10 +408,10 @@ export const helixAdminApi = {
     Object.entries(filters).forEach(([key, value]) => { if (value !== undefined && value !== '') query.set(key, String(value)); });
     return request<{ items: PerceptionRecord[]; nextCursor: string | null; currentRating?: { state:'ready'|'pending'; rating:number|null; sourceKind:string|null; expectedRevision:number; resolutionStatus?:string; resolutionRevision?:number } }>(`/v1/admin/perception/records${query.size ? `?${query}` : ''}`);
   },
-  rate(targetType: 'subject' | 'shelf_entry', targetId: string, expectedRevision: number, rating: number) {
+  rate(targetType: 'subject' | 'shelf_entry', targetId: string, expectedRevision: number, rating: number | null) {
     return request<{ operationRef: string; state: string; expectedResultRevision: number }>('/v1/admin/perception/records', {
       method:'POST', body:JSON.stringify({ targetType, targetId, expectedRevision, rating,
-        idempotencyKey:`rating:${targetType}:${targetId}:${expectedRevision + 1}:${rating}:${crypto.randomUUID()}` }),
+        idempotencyKey:`rating:${targetType}:${targetId}:${expectedRevision + 1}:${rating===null?'clear':rating}:${crypto.randomUUID()}` }),
     });
   },
   getIntegration(kind: string) {

@@ -62,19 +62,26 @@ function normalizationRuleEvaluator() {
     anchors.sort((a, b) => a.anchorKind.localeCompare(b.anchorKind) || a.anchorValue.localeCompare(b.anchorValue));
     const supersedes = values.supersedesSourceRecordKey ? freeze({ sourceRecordKey:String(values.supersedesSourceRecordKey),
       sourceRecordRevision:Number(values.supersedesSourceRecordRevision), sourceRecordDigest:String(values.supersedesSourceRecordDigest) }) : null;
+    const retracts = values.retractsSourceRecordKey ? freeze({ sourceRecordKey:String(values.retractsSourceRecordKey),
+      sourceRecordRevision:Number(values.retractsSourceRecordRevision), sourceRecordDigest:String(values.retractsSourceRecordDigest) }) : null;
     if (supersedes && (!Number.isSafeInteger(supersedes.sourceRecordRevision) || supersedes.sourceRecordRevision < 1 || !supersedes.sourceRecordDigest)) {
       throw new TypeError('Perception correction lineage is invalid.');
     }
-    const recordKind = supersedes ? 'correction' : 'observation';
+    if (retracts && (!Number.isSafeInteger(retracts.sourceRecordRevision) || retracts.sourceRecordRevision < 1 || !retracts.sourceRecordDigest) || supersedes && retracts) {
+      throw new TypeError('Perception retraction lineage is invalid.');
+    }
+    const recordKind = retracts ? 'retraction' : supersedes ? 'correction' : 'observation';
     const draftId = stable('perception-record-', { sourceRecordKey:observation.sourceRecordKey, sourceRecordRevision:observation.sourceRecordRevision, sourceRecordDigest:observation.sourceRecordDigest });
     const record = freeze({ draftId, recordKind, sourceRecordKey:observation.sourceRecordKey,
       sourceRecordRevision:observation.sourceRecordRevision, sourceRecordDigest:observation.sourceRecordDigest,
       ...(rating === undefined ? {} : { rating }), watchedState: values.watched === undefined || values.watched === null ? null : Boolean(values.watched),
       observedTitle:title, observedAtMs:observation.observedAtMs, identityAnchors:anchors,
       provenanceRef:observation.observationId, provenanceDigest:observation.provenanceDigest });
-    const relations = supersedes ? [freeze({ relationKind:'supersedes', sourceDraftId:draftId,
-      targetSourceRecord:supersedes, ruleRevision:1,
-      evidenceDigest:canonicalDigest({ sourceDraftId:draftId, target:supersedes, rule:'direct-correction@1' }) })] : [];
+    const lineage = retracts || supersedes, relationKind = retracts ? 'retracts' : 'supersedes';
+    const relations = lineage ? [freeze({ relationKind, sourceDraftId:draftId,
+      targetSourceRecord:lineage, ruleRevision:1,
+      evidenceDigest:canonicalDigest({ sourceDraftId:draftId, target:lineage,
+        rule:retracts?'direct-retraction@1':'direct-correction@1' }) })] : [];
     return freeze({ record, sourceLineageRelations:relations });
   } });
 }

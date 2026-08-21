@@ -777,12 +777,18 @@ function perceptionResolutionQuerySchema() {
 function perceptionResolutionRecordSetSchema() {
   const facts = object({
     rating: { type: 'integer', minimum: 1, maximum: 5 }, watchedState: bool()
-  }, [], { minProperties: 1 });
+  }, []);
   const record = object({
     perceptionId: id(), recordKind: enumText('observation', 'correction', 'retraction'), sourceKind: text(),
     sourceRecordKey: text(), sourceRecordRevision: positiveInteger(), recordDigest: digest(), facts,
     observedTitle: text(), observedAtMs: nonNegativeInteger(), identityAnchors: arrayOf(identityAnchor(), 16),
     provenanceRef: id(), provenanceDigest: digest()
+  }, undefined, {
+    allOf: [{
+      if: { properties: { recordKind: { const: 'retraction' } }, required: ['recordKind'] },
+      then: { properties: { facts: { maxProperties: 0 } } },
+      else: { properties: { facts: { minProperties: 1 } } }
+    }]
   });
   const relation = object({
     relationId: id(), relationKind: enumText('duplicate_of', 'supersedes', 'retracts'),

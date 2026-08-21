@@ -65,8 +65,7 @@
                 "type": "boolean"
               }
             },
-            "required": [],
-            "minProperties": 1
+            "required": []
           },
           "observedTitle": {
             "type": "string",
@@ -133,6 +132,34 @@
           "identityAnchors",
           "provenanceRef",
           "provenanceDigest"
+        ],
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "recordKind": {
+                  "const": "retraction"
+                }
+              },
+              "required": [
+                "recordKind"
+              ]
+            },
+            "then": {
+              "properties": {
+                "facts": {
+                  "maxProperties": 0
+                }
+              }
+            },
+            "else": {
+              "properties": {
+                "facts": {
+                  "minProperties": 1
+                }
+              }
+            }
+          }
         ]
       },
       "maxItems": 256

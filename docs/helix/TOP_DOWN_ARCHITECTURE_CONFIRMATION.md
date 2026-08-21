@@ -1883,8 +1883,8 @@ subjectId或shelfEntryId等Identity Anchor，但这些Anchor都不是User Percep
 同一现实内容可以存在多条Record。修改、撤销或纠错通过追加新Record以及supersedes/retracts关系
 表达，不原地覆盖历史。来源优先级和匹配算法属于Level 5。
 
-用户1–5星评分的后续修改必须追加一条新的immutable Record并显式`supersedes`先前current Record；Beta
-不提供清除评分，因此普通产品入口不生成`retracts`。外部Douban同步冻结账号完整收藏分页中每条来源记录的
+用户1–5星评分的后续修改必须追加一条新的immutable Record并显式`supersedes`先前current Record。用户清除自己的直接评分时，Perception追加无rating的`retraction` Record并以`retracts`精确终结先前current直接评分；不得删除或修改历史Record。
+Resolution随后按既有来源优先级恢复Douban等仍active的来源，或形成`not_found`。外部Douban同步冻结账号完整收藏分页中每条来源记录的
 Douban Subject ID、原始评分/量表、规范化1–5星、title/year、可用Identity Anchor、来源revision以及
 payload/provenance digest；页面确实提供观看事实时可以同时冻结watched信息。重复同步相同来源revision不得
 制造重复Record，无法唯一关联到Subject/Shelf Entry的记录仍作为合法unmatched/ambiguous历史保留。
@@ -13426,9 +13426,9 @@ POST      /v1/admin/people/actions/dismiss-candidate
 注册/合并Person，也不删除Evidence历史。
 
 `POST /perception/records`的closed body固定为
-`{targetType:subject|shelf_entry,targetId,expectedRevision,rating:1..5,idempotencyKey}`；服务端通过对应Owner
-公开Projection冻结Identity Anchor，返回`202 operationRef`。改分追加带`supersedes`关系的新Record，不修改或
-删除旧Record，本期不提供清除评分。`GET /perception/records`无副作用，使用cursor pagination并允许按
+`{targetType:subject|shelf_entry,targetId,expectedRevision,rating:1..5|null,idempotencyKey}`；服务端通过对应Owner
+公开Projection冻结Identity Anchor，返回`202 operationRef`。改分追加带`supersedes`关系的新Record；`rating:null`只在存在
+current直接评分时追加带`retracts`关系的`retraction` Record，并按普通Resolution恢复其他来源，不修改或删除旧Record。`GET /perception/records`无副作用，使用cursor pagination并允许按
 `sourceKind,rating,resolutionStatus,targetType`筛选，返回包括未匹配Douban记录在内的全部immutable历史；它是
 设置中`评分日志`的唯一内容来源，不触发同步、Resolution或消费者重算。
 

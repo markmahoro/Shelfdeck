@@ -91,6 +91,8 @@ test('freezes executable Perception resolution inputs and removes digest-only pl
   assert.equal(schemas.PerceptionResolutionRecordSet.properties.records.maxItems, 256);
   assert.equal(schemas.PerceptionResolutionRecordSet.properties.relations.maxItems, 1024);
   assert.equal(schemas.PerceptionResolutionRecordSet.properties.records.items.properties.identityAnchors.maxItems, 16);
+  assert.equal(schemas.PerceptionResolutionRecordSet.properties.records.items.allOf[0].then.properties.facts.maxProperties, 0);
+  assert.equal(schemas.PerceptionResolutionRecordSet.properties.records.items.allOf[0].else.properties.facts.minProperties, 1);
   assert.equal(schemas.PerceptionResolutionRuleSnapshot.properties.maxCandidateRecords.const, 256);
   assert.equal(schemas.PerceptionResolutionRuleSnapshot.properties.candidateRetrievalClauses.maxItems, 32);
   assert.equal(schemas.PerceptionResolutionRuleSnapshot.properties.anchorMatchers.maxItems, 32);

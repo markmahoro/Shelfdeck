@@ -164,7 +164,7 @@ function createPerceptionStore(options) {
       const repo=context.repository(records.repositoryId),anchorKind=targetType==='subject'?'subject_id':targetType==='shelf_entry'?'shelf_entry_id':null;
       if(!anchorKind)return null;const ids=new Set(repo.invoke('find_anchors_by_kind',{anchor_kind:anchorKind}).filter((row)=>row.anchor_value===targetId).map((row)=>row.perception_id));
       const terminal=new Set(repo.invoke('list_relations').filter((row)=>['supersedes','retracts'].includes(row.relation_kind)).map((row)=>row.target_perception_id));
-      const candidates=[...ids].filter((id)=>!terminal.has(id)).map((id)=>mapRecord(repo,id)).filter((item)=>item.rating!==null)
+      const candidates=[...ids].filter((id)=>!terminal.has(id)).map((id)=>mapRecord(repo,id))
         .sort((left,right)=>right.committedAtMs-left.committedAtMs||left.perceptionId.localeCompare(right.perceptionId));
       return candidates[0]||null;
     }); },
@@ -174,7 +174,7 @@ function createPerceptionStore(options) {
       const anchors=repo.invoke('find_anchors_by_kind',{anchor_kind:anchorKind}).filter((row)=>wanted.has(row.anchor_value));
       const terminal=new Set(repo.invoke('list_relations').filter((row)=>['supersedes','retracts'].includes(row.relation_kind)).map((row)=>row.target_perception_id));
       for(const targetId of wanted){const ids=anchors.filter((row)=>row.anchor_value===targetId&&!terminal.has(row.perception_id)).map((row)=>row.perception_id);
-        const current=ids.map((id)=>mapRecord(repo,id)).filter((item)=>item.rating!==null)
+        const current=ids.map((id)=>mapRecord(repo,id))
           .sort((left,right)=>right.committedAtMs-left.committedAtMs||left.perceptionId.localeCompare(right.perceptionId))[0]||null;
         result.set(targetId,current);}
       return result;

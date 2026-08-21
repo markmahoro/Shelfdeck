@@ -1393,7 +1393,7 @@
       "relativePath": "domain-types/PerceptionResolutionRecordSet/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "31181795174a2f59e3ef64fbee27f1df305e05931bedb7aede4761c8c6c41e86"
+        "value": "07e733da57c1ffbd2fbe30c49476a5002e13c95b42e1c56d522f82deb3f43dee"
       },
       "usedBy": [
         {

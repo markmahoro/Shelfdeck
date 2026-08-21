@@ -1343,7 +1343,33 @@ Handoff A接收时由Libra拥有的versioned Decision Identity Mapping。旧`@1`
 Field、Shelf、Routing和Observation。Formation真实页面显示`看不见的朋友`5星、普通与发布标签版`养蜂人`4星、`香火`4星，
 来源均为豆瓣；22个Candidate/Subject保持唯一，随后正常形成Production动作。完整22部Arca闭环仍由本轮UAT继续验收。
 
-## 23. 后续问题模板
+## 23. UAT-026：Admin Web无法清除直接评分并恢复豆瓣来源
+
+问题分类：`USER_PERCEPTION_COMMAND / IMMUTABLE_RETRACTION / ADMIN_WEB`
+
+用户侧现象：Formation真实页面可把`第八个嫌疑人 (2023)`从`3 星 · 豆瓣`改为并刷新保持
+`2 星 · 我的评分`，但页面没有清除入口；再次点击当前2星仍保持直接评分，无法执行UAT要求的来源恢复。
+
+现场证据：`RatingControl`只渲染1–5星并始终调用number评分；Admin API客户端和Perception `createRecord`也只接受1–5，
+没有任何普通用户可达的retraction命令。旧SSOT仍保留“本期不提供清除评分”的Beta限制，与本轮用户明确确认的成功标准冲突。
+
+精确根因：底层Perception Store、Record和Relation合同已经支持immutable `retraction/retracts`，但Command、Direct Observation、
+Resolution RecordSet schema和Admin Web没有闭合该能力。直接删除旧Record会破坏历史，因此不能用简单DELETE或前端伪恢复修复。
+
+修复边界：用户通过同一Owner的评分命令提交`rating:null`；只有存在current直接评分时才接受。Perception追加无rating的
+`retraction` Record及指向current直接评分的`retracts`关系，Resolution随后恢复仍active的豆瓣来源或返回`not_found`。
+旧Record、旧Spec和Provenance保持不可变；不改变来源优先级、Libra/Arca Owner或Business Handoff。Admin Web仅在当前来源为
+`shelfdeck_direct`时显示“清除我的评分”。SSOT相应移除旧Beta禁令并冻结该精确命令语义。
+
+验收证据：Shelf Entry专项服务E2E证明rating revision 1后清除形成revision 2、一个retraction和一个retracts，Resolution回到
+`not_found`且历史两条Record均保留；Perception Store/Domain Input门禁26/26通过，Admin Web production build通过。
+完整`helix-perception-acceptance-spec-e2e`中的2个相关测试通过；另一个既有On-deck/Aftercare测试在评分步骤之后因
+`care-custody`输入`objectKind`的`P4_CAPABILITY_SCHEMA_REJECTED`失败，与本修复路径和改动文件无关，留待其独立UAT问题处理。
+
+修复状态（2026-08-22）：`IMPLEMENTED / REAL ADMIN WEB RECOVERY PENDING`。提交后需重启本地服务，从Formation点击
+“清除我的评分”，确认`第八个嫌疑人`恢复`3 星 · 豆瓣`并刷新保持。
+
+## 24. 后续问题模板
 
 后续发现的问题按以下结构追加：
 
