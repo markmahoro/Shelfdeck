@@ -1644,7 +1644,47 @@ AVDP 在扇区 256，随后是 UDF 2.50 元数据分区；没有 `CD001`，topol
 修复状态（2026-08-22）：`REGRESSION PASSED / CLEAN CANARY UAT PENDING`。旧 `triage_failed` Observation 不可变；
 本修复随干净 Canary 重建后才能让 `倩女幽魂2：人间道` 形成 Candidate。
 
-## 34. 后续问题模板
+## 34. UAT-037：007 在身份取证的 provider_exact 观察被 schema 拒绝，冻结文案退回通用句
+
+问题分类：`EXTERNAL_INTEGRATION / PRODUCT_IDENTITY / USER_VISIBLE_RECOVERY`
+
+用户侧现象：2026-08-22 隔离库 `UAT-20260822-033722-8e18372b9` 中，`007：大破天幕杀机 (2012)` 进入「需要处理」，
+下一动作是通用「本次整理已冻结，需要放弃后重新采购」，整理动作仍是「尚未形成整理动作」。同批五星片
+（地狱尖兵、黑客帝国动画版等）已经走到外部获取并显示「没有找到可获取的外部候选」。
+
+现场证据：
+
+- 豆瓣 5 星，整理要求 `HEVC · 4k · 不超过 50 GiB`；`identity_issue_json` 为空；
+- NFO 已作为 Related `nfo` 进入 Candidate；UAT-029 电影级 TMDB `37724` 仍在；
+- `fx_workflow_events` 节点 `provider_identity_observation` 的
+  `libra.product_identity.evidence.observe@1` Attempt 以 `P4_CAPABILITY_SCHEMA_REJECTED` 失败；
+- Run 因此按 `product_unachievable` 冻结，从未进入 MoviePilot 选择，所以 UAT-030 的外部获取冻结文案套不上。
+
+精确根因：未钉死。只知道失败发生在 NFO 已解析之后的 `provider_exact` 观察输入/结果 schema，不是演员 TMDB ID 冲突。
+不得把通用冻结句改成五星文案来掩盖身份观察失败。
+
+当前处理决定：不编 workaround。干净 Canary 重建后密集监测；若再次出现，按该 Event 的 schema 路径取证后单独修。
+状态 `OPEN / MONITOR IN CLEAN UAT`。
+
+## 35. UAT-038：上架成功后 Aftercare 健康仍是 conformance/presentation 降级
+
+问题分类：`AFTERCARE_CONTRACT / COLLECTION_HEALTH`
+
+用户侧现象：同一隔离库中 12 个 Shelf Entry 的 Custody 评估为 `healthy`（UAT-032 objectKind 已生效），
+但 Conformance 全是 `degraded`（`conformance:old_binding_unreadable`，critical，29 条），
+Presentation 全是 `degraded`（`presentation:nfo_corrupt`，warning，`auto_repair`，12 条）。
+收藏页健康状态因此不是健康。
+
+现场证据：`observeKnownOldBindings` 只对 `offload:` 旧 Binding 且路径不在当前 Final 成员集合中的行取样；
+`unreadable` 不是 `ENOENT`（缺席会被跳过）。`validNfo` 要求 UTF-8 XML 声明、`<movie` 与文末 `</movie>`。
+
+精确根因：未钉死。可能是同根 in-place 后旧 Binding 路径仍指向不可指纹的残留，或上架 NFO 与 Aftercare 校验合同不一致。
+不得把健康评估改成忽略 finding。
+
+当前处理决定：不编 workaround。干净 Canary 重建后若 23/23 On-deck 仍出现同样 Finding，再按精确 Binding/NFO 字节取证后单独修。
+状态 `OPEN / MONITOR IN CLEAN UAT`。
+
+## 36. 后续问题模板
 
 后续发现的问题按以下结构追加：
 
