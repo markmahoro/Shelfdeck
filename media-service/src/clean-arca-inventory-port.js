@@ -1164,7 +1164,15 @@ function createCleanArcaInventoryPort(options) {
     let sourceAbsent = !fs.existsSync(source);
     if (!sourceAbsent) {
       const observed = computeBoundedMaterialFingerprintSync(source);
-      if (Number(observed.stat.size) !== handle.expectedSizeBytes ||
+      if (sameLocation) {
+        // Same-root Switch already replaced this path with product bytes.
+        // Settlement must prove the final identity, not the consumed source.
+        if (Number(observed.stat.size) !== Number(finalPlan.sizeBytes) ||
+            observed.contentFingerprint !== finalPlan.contentFingerprint) {
+          fail('CLEAN_ARCA_SETTLEMENT_REALITY_DRIFT',
+            'Settlement final location drifted from the approved product identity.');
+        }
+      } else if (Number(observed.stat.size) !== handle.expectedSizeBytes ||
           observed.contentFingerprint !== handle.identity.contentFingerprint) {
         fail('CLEAN_ARCA_SETTLEMENT_REALITY_DRIFT',
           'Settlement source drifted from the approved Material identity.');

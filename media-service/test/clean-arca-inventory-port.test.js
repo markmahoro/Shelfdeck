@@ -319,6 +319,7 @@ test('same-root Stage/Switch replaces managed source bytes occupying the final n
     const productPoster = path.join(workspaceRoot, workspaceId, 'product', 'poster.jpg');
     fs.writeFileSync(primary, Buffer.from('movie-bytes'));
     fs.writeFileSync(oldPoster, Buffer.from('old-poster-bytes'));
+    const oldPosterIdentity = identity(oldPoster, 'canary-mount');
     fs.writeFileSync(productPoster, Buffer.from('new-poster-bytes'));
     const mountScopeId = 'canary-mount';
     const productMembers = [
@@ -355,6 +356,25 @@ test('same-root Stage/Switch replaces managed source bytes occupying the final n
       ...request, finalInventoryDecision, stagedInventoryVerification,
       targetBindings:{ bindingSetDigest:'bindings-1' }, replacedInputSetDigest:'inputs-1',
     });
+    assert.equal(fs.readFileSync(oldPoster, 'utf8'), 'new-poster-bytes');
+    const posterPlan = finalInventoryDecision.members.find((item) => item.role === 'poster');
+    const settled = port.settleInput({
+      materialHandle:{
+        schemaRef:'helix://contracts/types/PhysicalMaterialReadHandle/v1',
+        ownerDomain:'arca',
+        ownerScope:{ scopeType:'on_deck_custody', scopeId:'custody-1' },
+        location:oldPoster,
+        identity:oldPosterIdentity,
+        expectedSizeBytes:oldPosterIdentity.sizeBytes,
+      },
+      approval:{ approvalId:'approval' },
+      finalInventoryRequest:{ ...request, finalInventoryDecision },
+      finalMaterialKey:posterPlan.sourceMaterialKey,
+      finalTargetLocation:posterPlan.targetLocation,
+      settlementExpectation:'replace_or_move',
+      sourceToFinalMappingDigest:canonicalDigest({ source:oldPosterIdentity.materialKey, target:'final' }),
+    });
+    assert.equal(settled.disposition, 'retained_as_final');
     assert.equal(fs.readFileSync(oldPoster, 'utf8'), 'new-poster-bytes');
   } finally {
     fs.rmSync(root, { recursive:true, force:true });

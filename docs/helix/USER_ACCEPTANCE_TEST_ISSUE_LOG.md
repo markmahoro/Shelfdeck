@@ -1776,10 +1776,13 @@ stderr 为 `CLEAN_ARCA_TARGET_OCCUPIED` 与 `CLEAN_ARCA_SETTLEMENT_UNKNOWN_MEMBE
 
 现场证据：MKV `养蜂人` 已 completed；这两部仍 `in_progress`。同根 in-place 替换后源文件 identity/inode/size 与批准的 Off-load 源不一致。
 
-精确根因：未钉死。可能是 Stage/Switch 已替换源字节，Settlement 仍按替换前 identity 核对。
+精确根因：UAT-039 允许同根 Switch 用产品字节替换最终名上的源文件。Settlement 仍用 Off-load 源 handle 的旧 fingerprint 去核同一路径，看到的已经是产品字节，于是 `REALITY_DRIFT`。不同路径的源删除核对应仍用源 identity。
 
-修复边界：不得忽略 drift。要对着批准的 Material identity 与当前源现实逐字段钉死后再修。
-状态 `OPEN / PINNED / FIX REQUIRED`。
+修复边界：`source === finalTarget` 时，Settlement 核对最终产品 identity（`finalPlan` size/fingerprint），不删文件，disposition `retained_as_final`。其它路径仍先核源 identity 再删。不得忽略 drift。
+
+验收证据：同根 poster 替换后 Settlement 成功，最终 `poster.jpg` 仍是产品字节。Inventory port 9/9 通过。
+
+修复状态（2026-08-22）：`REGRESSION PASSED / SERVICE RETRY MAY UNBLOCK`。当前 On-deck Settlement Attempt 若已终态失败，需服务重试或新 Run。
 
 ## 40. 后续问题模板
 
