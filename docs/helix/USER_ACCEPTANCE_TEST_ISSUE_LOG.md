@@ -1739,9 +1739,13 @@ stderr 为 `CLEAN_ARCA_TARGET_OCCUPIED` 与 `CLEAN_ARCA_SETTLEMENT_UNKNOWN_MEMBE
 
 现场证据：`materialInputForm=iso`。`executeRemux` 对单一 primary 使用 `-i <iso路径> -c copy`。UDF 蓝光不是可 copy 的容器流；topology 已选出 playlist/clip，Remux 没有用这些成员。
 
-精确根因：Triage 证明 ISO topology 后，Production Remux 仍把 ISO 文件当 `stream_file` 喂给 FFmpeg。
+精确根因：Triage 证明 ISO topology 后，Production Remux 仍把 ISO 文件当 `stream_file` 喂给 FFmpeg。内置 ffmpeg-static 没有 `bluray` demuxer，`-i file.iso` 无法打开 UDF 蓝光。
 
-修复边界：ISO 的 Remux 必须按已证明 topology 的 selected playlist/clips 取流，不能把 `.iso` 当普通输入。不得用「跳过 Remux、直接上架 ISO」交差。本条 `OPEN / FIX REQUIRED`。
+修复边界：ISO 的 Remux 必须按已证明 topology 的 selected playlist/clips 从映像 extent 抽出 payload 再 `-c copy`。不得把 `.iso` 当普通输入，不得用「跳过 Remux、直接上架 ISO」交差。`MediaProbeEvidence.discTopology.members` 仍只允许 `relativeLocation/role/clipId`；extent 留在独立 ISO listing，不写进 topology 合同。无 BDMV topology 的 ISO/UDF 卷 fail closed，不退回 `-i iso`。
+
+验收证据：UDF fixture 抽出 `BDMV/STREAM/00000.m2ts` 后 Remux 得到 Matroska；普通 MKV 仍直接 `-i`；无 topology 的 BEA01 卷报 `LIBRA_MEDIA_ISO_TOPOLOGY_UNPROVEN`。disc-topology 与 media-effect 测试通过。
+
+修复状态（2026-08-22）：`REGRESSION PASSED / NEW LIBRA RUN REQUIRED`。当前冻结的 ISO Remux Run 不可变，需新 Observation/Run 才会走提取路径。
 
 ## 38. 后续问题模板
 

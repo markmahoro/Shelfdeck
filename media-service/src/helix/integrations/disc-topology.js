@@ -107,6 +107,7 @@ function isoFiles(location) {
           relativeLocation,
           extent: record.extent,
           sizeBytes: record.sizeBytes,
+          extents: Object.freeze([{ sector: record.extent, length: record.sizeBytes }]),
         }));
         if (files.length > MAX_FILES) {
           const error = new Error('ISO topology exceeds the Physical Material member limit.');
@@ -353,15 +354,21 @@ function udfWalk(fd, volume, icb, prefix, files) {
       continue;
     }
     const entry = udfReadEntry(fd, volume, item.icb);
-    const extent = entry?.extents?.[0];
-    if (!entry || !extent || extent.type !== 0) continue;
-    const partition = extent.partition === null ? 0 : extent.partition;
-    const sector = udfAbsoluteSector(volume, partition, extent.lbn);
-    if (!Number.isSafeInteger(sector)) continue;
+    if (!entry || !entry.extents?.length) continue;
+    const extents = [];
+    for (const extent of entry.extents) {
+      if (extent.type !== 0 || extent.length <= 0) continue;
+      const partition = extent.partition === null ? 0 : extent.partition;
+      const sector = udfAbsoluteSector(volume, partition, extent.lbn);
+      if (!Number.isSafeInteger(sector)) continue;
+      extents.push(Object.freeze({ sector, length: extent.length }));
+    }
+    if (!extents.length || !Number.isSafeInteger(entry.infoLen) || entry.infoLen < 1) continue;
     files.push(Object.freeze({
       relativeLocation,
-      extent: sector,
+      extent: extents[0].sector,
       sizeBytes: entry.infoLen,
+      extents: Object.freeze(extents),
     }));
     if (files.length > MAX_FILES) {
       const error = new Error('ISO topology exceeds the Physical Material member limit.');
@@ -501,10 +508,28 @@ function inspectIso(location) {
       ...selected.clipIds.map((clipId) => ({ relativeLocation:'BDMV/CLIPINF/' + clipId + '.CLPI', role:'structural_dependency', clipId })),
       { relativeLocation:'BDMV/INDEX.BDMV', role:'structural_dependency' },
       { relativeLocation:'BDMV/MOVIEOBJECT.BDMV', role:'structural_dependency' },
-    ].filter((member) => byPath.has(normalized(member.relativeLocation).toUpperCase()));
+    ].map((member) => {
+      const listed = byPath.get(normalized(member.relativeLocation).toUpperCase());
+      if (!listed) return null;
+      return member;
+    }).filter(Boolean);
     return finishTopology('iso', canonicalDigest({ location, sizeBytes:fs.fstatSync(fd).size }), candidates, selected, members);
   } finally {
     fs.closeSync(fd);
+  }
+}
+
+function listIsoImageFiles(location) {
+  let listed;
+  try { listed = isoFiles(location) || udfFiles(location); } catch (error) {
+    if (error?.code === 'DISC_TOPOLOGY_METADATA_LIMIT' || error?.code === 'DISC_TOPOLOGY_SCOPE_TOO_LARGE') throw error;
+    return null;
+  }
+  if (!listed) return null;
+  try {
+    return listed.files;
+  } finally {
+    fs.closeSync(listed.fd);
   }
 }
 
@@ -595,6 +620,7 @@ module.exports = Object.freeze({
   createDiscTopologyReader,
   inspectIso,
   inspectDvd,
+  listIsoImageFiles,
   MAX_FILES,
   MAX_METADATA_BYTES,
 });

@@ -5,6 +5,9 @@ const path = require('node:path');
 const { spawn } = require('node:child_process');
 const { canonicalDigest } = require('./helix/contracts/canonical-json');
 const { DV_SDR_FILTER } = require('./clean-compute-device-runtime');
+const { inspectIso, listIsoImageFiles } = require('./helix/integrations/disc-topology');
+
+const ISO_SECTOR_BYTES = 2048;
 
 class CleanMediaProductionEffectPortError extends Error {
   constructor(code, message, details = {}) {
@@ -71,7 +74,112 @@ function createCleanMediaProductionEffectPort(options) {
     return resolved;
   }
 
+  function isoVolumeIdentifier(isoLocation) {
+    try {
+      const fd = fs.openSync(isoLocation, 'r');
+      try {
+        const bytes = Buffer.alloc(5);
+        const read = fs.readSync(fd, bytes, 0, 5, 16 * ISO_SECTOR_BYTES + 1);
+        if (read !== 5) return null;
+        const ident = bytes.toString('ascii');
+        return ident === 'CD001' || ident === 'BEA01' ? ident : null;
+      } finally { fs.closeSync(fd); }
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function copyIsoPayload(isoLocation, file, dest) {
+    const extents = Array.isArray(file?.extents) && file.extents.length
+      ? file.extents
+      : (Number.isSafeInteger(file?.extent) && Number.isSafeInteger(file?.sizeBytes)
+        ? [{ sector: file.extent, length: file.sizeBytes }] : null);
+    if (!extents || !Number.isSafeInteger(file.sizeBytes) || file.sizeBytes < 1) {
+      fail('LIBRA_MEDIA_ISO_PAYLOAD_INVALID', 'ISO topology payload extent is incomplete.');
+    }
+    fs.mkdirSync(path.dirname(dest), { recursive:true });
+    const fd = fs.openSync(isoLocation, 'r');
+    try {
+      const out = fs.openSync(dest, 'w');
+      try {
+        let remaining = file.sizeBytes;
+        const buffer = Buffer.alloc(Math.min(1024 * 1024, remaining));
+        for (const extent of extents) {
+          if (remaining <= 0) break;
+          if (!Number.isSafeInteger(extent.sector) || extent.sector < 0 ||
+              !Number.isSafeInteger(extent.length) || extent.length < 1) {
+            fail('LIBRA_MEDIA_ISO_PAYLOAD_INVALID', 'ISO topology payload extent is incomplete.');
+          }
+          let position = extent.sector * ISO_SECTOR_BYTES;
+          let extentRemaining = Math.min(extent.length, remaining);
+          while (extentRemaining > 0) {
+            const want = Math.min(buffer.length, extentRemaining);
+            const read = fs.readSync(fd, buffer, 0, want, position);
+            if (read !== want) fail('LIBRA_MEDIA_ISO_PAYLOAD_READ', 'ISO payload could not be read exactly.');
+            fs.writeSync(out, buffer, 0, read);
+            remaining -= read;
+            extentRemaining -= read;
+            position += read;
+          }
+        }
+        if (remaining !== 0) fail('LIBRA_MEDIA_ISO_PAYLOAD_READ', 'ISO payload extents do not cover the file size.');
+      } finally { fs.closeSync(out); }
+    } finally { fs.closeSync(fd); }
+  }
+
+  function isoRemuxArguments(source, temporaryTarget) {
+    const primaries = source.primaryMembers || [];
+    if (primaries.length !== 1) return null;
+    const isoLocation = location(primaries[0].readHandle);
+    let topology;
+    try { topology = inspectIso(isoLocation); } catch (error) {
+      fail('LIBRA_MEDIA_ISO_TOPOLOGY_UNPROVEN', error.message, { causeCode: error.code });
+    }
+    if (!topology || topology.discKind !== 'iso') {
+      if (isoVolumeIdentifier(isoLocation)) {
+        fail('LIBRA_MEDIA_ISO_TOPOLOGY_UNPROVEN', 'ISO volume has no proven Blu-ray topology.');
+      }
+      return null;
+    }
+    let listing;
+    try { listing = listIsoImageFiles(isoLocation); } catch (error) {
+      fail('LIBRA_MEDIA_ISO_PAYLOAD_INVALID', error.message, { causeCode: error.code });
+    }
+    if (!listing) fail('LIBRA_MEDIA_ISO_PAYLOAD_INVALID', 'ISO payload listing could not be read.');
+    const byPath = new Map(listing.map((file) => [String(file.relativeLocation).replace(/\\/g, '/').toUpperCase(), file]));
+    const clips = (topology.members || []).filter((member) => member.role === 'primary_payload');
+    if (!clips.length) fail('LIBRA_MEDIA_ISO_PAYLOAD_INVALID', 'ISO topology has no selected primary payload.');
+    const extracted = [];
+    try {
+      clips.forEach((clip, index) => {
+        const listed = byPath.get(String(clip.relativeLocation).replace(/\\/g, '/').toUpperCase());
+        if (!listed) fail('LIBRA_MEDIA_ISO_PAYLOAD_INVALID', 'ISO selected clip is absent from the image listing.');
+        const dest = temporaryTarget + '.iso-clip-' + String(index).padStart(5, '0') + '.m2ts';
+        copyIsoPayload(isoLocation, listed, dest);
+        extracted.push(dest);
+      });
+    } catch (error) {
+      extracted.forEach((file) => fs.rmSync(file, { force:true }));
+      throw error;
+    }
+    const cleanupExtracted = () => extracted.forEach((file) => fs.rmSync(file, { force:true }));
+    if (extracted.length === 1) {
+      return Object.freeze({ argv:['-i', extracted[0]], cleanup: cleanupExtracted });
+    }
+    const listPath = temporaryTarget + '.iso-concat.txt';
+    fs.writeFileSync(listPath, extracted.map((file) => "file '" + escapeConcat(file.replace(/\\/g, '/')) + "'").join('\n') + '\n', 'utf8');
+    return Object.freeze({
+      argv:['-f', 'concat', '-safe', '0', '-i', listPath],
+      cleanup:() => {
+        cleanupExtracted();
+        if (fs.existsSync(listPath)) fs.rmSync(listPath, { force:true });
+      },
+    });
+  }
+
   function inputArguments(source, temporaryTarget) {
+    const isoInput = isoRemuxArguments(source, temporaryTarget);
+    if (isoInput) return isoInput;
     const primaries = source.primaryMembers || [];
     if (primaries.length === 1) return Object.freeze({ argv:['-i', location(primaries[0].readHandle)], cleanup:null });
     const listPath = temporaryTarget + '.concat.txt';

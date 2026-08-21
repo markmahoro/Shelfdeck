@@ -6,7 +6,7 @@ const os = require('node:os');
 const path = require('node:path');
 const test = require('node:test');
 const { createIso9660, createUdfBluRay, writeMpls } = require('../../scripts/build-helix-movie-test-library');
-const { createDiscTopologyReader } = require('../../src/helix/integrations/disc-topology');
+const { createDiscTopologyReader, listIsoImageFiles } = require('../../src/helix/integrations/disc-topology');
 const { isProvenIsoTopology, materialInputFormFromProbe } = require('../../src/helix/domains/procurement/model/triage-contracts');
 
 test('disc topology is proven from bounded content rather than filename extension', async (t) => {
@@ -29,6 +29,17 @@ test('disc topology is proven from bounded content rather than filename extensio
   assert.equal(topology.discKind, 'iso');
   assert.equal(topology.titleCount, 1);
   assert.deepEqual(topology.selectedPlaylist.clipIds, ['00000']);
+  const payload = topology.members.find((item) => item.role === 'primary_payload');
+  assert.equal(payload.relativeLocation.toUpperCase(), 'BDMV/STREAM/00000.M2TS');
+  assert.equal(payload.extent, undefined);
+  assert.equal(payload.sizeBytes, undefined);
+  const listed = listIsoImageFiles(image).find((item) =>
+    item.relativeLocation.replace(/\\/g, '/').toUpperCase() === 'BDMV/STREAM/00000.M2TS');
+  assert.equal(listed.sizeBytes, 4096);
+  assert.ok(Number.isSafeInteger(listed.extent) && listed.extent >= 0);
+  assert.equal(listed.extents.length, 1);
+  assert.equal(listed.extents[0].sector, listed.extent);
+  assert.equal(listed.extents[0].length, 4096);
   assert.equal(materialInputFormFromProbe({ discTopology:topology }), 'iso');
   assert.equal(await reader.inspect(fake), null);
 });
@@ -63,6 +74,13 @@ test('UDF Blu-ray ISO topology is proven from AVDP and metadata partition conten
   assert.equal(materialInputFormFromProbe({ discTopology: topology }), 'iso');
   assert.equal(isProvenIsoTopology({ discTopology: topology }), true);
   assert.equal(isProvenIsoTopology({ discTopology: { discKind:'iso' } }), false);
+  const udfPayload = topology.members.find((item) => item.role === 'primary_payload');
+  assert.equal(udfPayload.extent, undefined);
+  const udfListed = listIsoImageFiles(udfImage).find((item) =>
+    item.relativeLocation.replace(/\\/g, '/').toUpperCase() === 'BDMV/STREAM/00000.M2TS');
+  assert.equal(udfListed.sizeBytes, 4096);
+  assert.ok(Array.isArray(udfListed.extents) && udfListed.extents.length >= 1);
+  assert.equal(udfListed.extents[0].sector, udfListed.extent);
 
   const canaryIso = process.env.HELIX_UDF_ISO_FIXTURE;
   if (!canaryIso) return;
