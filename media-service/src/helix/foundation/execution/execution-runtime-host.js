@@ -297,6 +297,14 @@ function createExecutionRuntimeHost(options) {
         );
         let deferred = false;
         for (const action of lastRecovery.actions) {
+          // Crash-before-intent recovery may re-dispatch a hours-long
+          // workspace write. Do that in the ordinary drain lane after
+          // readiness, not inside start().
+          if (action.decision === 'safe_retry_before_intent') {
+            deferredRecoveries.set(action.eventId, { action, retryAtMs: Date.now() });
+            deferred = true;
+            continue;
+          }
           try {
             const recovered = await options.eventRuntime.recover(action);
             if (!recovered || recovered.kind === 'recovery_deferred') {

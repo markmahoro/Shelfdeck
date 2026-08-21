@@ -16,6 +16,25 @@ function fail(code, message, details) {
   throw new EventExecutionInputProviderError(code, message, details);
 }
 
+function eventAttemptOrdinal(snapshot) {
+  const active = snapshot?.activeAttempt?.ordinal;
+  if (Number.isSafeInteger(active) && active >= 1) return active;
+  const next = snapshot?.nextOrdinal;
+  if (Number.isSafeInteger(next) && next >= 1) return next;
+  return 1;
+}
+
+function eventExecutionIdempotencyKey({ eventId, workAttemptId, planId, eventAttemptOrdinal: ordinal }) {
+  const eventAttemptOrdinalValue = Number.isSafeInteger(ordinal) && ordinal > 1 ? ordinal : 1;
+  return canonicalDigest({
+    schema: 'helix.event-execution-key@1',
+    eventId,
+    workAttemptId,
+    planId,
+    ...(eventAttemptOrdinalValue > 1 ? { eventAttemptOrdinal: eventAttemptOrdinalValue } : {}),
+  });
+}
+
 function definition(schemaManifest) {
   return createRepositoryDefinition({ repositoryId: 'event_input_results', owner: 'execution-foundation', schemaManifest, statements: {
     find: { kind: 'select-one', tableId: 'fx_event_result_bindings', columns: [
@@ -149,8 +168,12 @@ function createEventExecutionInputProvider(options) {
         basisRefs: Object.freeze([{ basisType: 'execution_basis', basisId: snapshot.work.work_id,
           revision: 1, digest: snapshot.work.basis_digest }]),
         namedInputs: Object.freeze(namedInputs),
-        idempotencyKey: canonicalDigest({ schema: 'helix.event-execution-key@1', eventId: snapshot.event.event_id,
-          workAttemptId: snapshot.workAttempt.attempt_id, planId: snapshot.plan.plan_id }),
+        idempotencyKey: eventExecutionIdempotencyKey({
+          eventId: snapshot.event.event_id,
+          workAttemptId: snapshot.workAttempt.attempt_id,
+          planId: snapshot.plan.plan_id,
+          eventAttemptOrdinal: eventAttemptOrdinal(snapshot),
+        }),
         traceContext: Object.freeze({ traceId: snapshot.work.work_id, spanId: snapshot.event.event_id }),
         ...(approvalHandle?{approvalHandle}:{}),
         ...(authorizationHandle?{authorizationHandle}:{}),
@@ -159,4 +182,8 @@ function createEventExecutionInputProvider(options) {
   });
 }
 
-module.exports = Object.freeze({ EventExecutionInputProviderError, createEventExecutionInputProvider });
+module.exports = Object.freeze({
+  EventExecutionInputProviderError,
+  createEventExecutionInputProvider,
+  eventExecutionIdempotencyKey,
+});

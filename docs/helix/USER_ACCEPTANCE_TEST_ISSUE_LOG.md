@@ -1819,7 +1819,23 @@ stderr 为 `CLEAN_ARCA_TARGET_OCCUPIED` 与 `CLEAN_ARCA_SETTLEMENT_UNKNOWN_MEMBE
 
 当前处理决定：不擅自丢音轨、不抬 14 GiB 上限。需要业务确认后再改规划或接受该 4 星冻结。状态 `OPEN / BUSINESS_DECISION`。
 
-## 42. 后续问题模板
+## 42. UAT-045：ISO Remux 第二次 Attempt 在失败 Effect 与进程重启后永久停在 executing
+
+问题分类：`EXECUTION_SCHEDULING / RECOVERY_CORRECTNESS`
+
+用户侧现象：`倩女幽魂2` 仍显示「封装整理（Remux）/ 处理视频文件」，但没有 FFmpeg、没有抽出的 `.iso-clip`、工作区只剩第一次失败留下的 293 字节 partial。同一次 Canary 里其它片子继续转码并上架。
+
+现场证据：ISO Remux Event `libra-remux-media-event-c6e5cfc9…` Attempt 1 为 `LIBRA_MEDIA_FFMPEG_FAILED`，其 workspace_write Effect `a5df5a15…` 已 `failed`。Attempt 2 自 6:54 起 `executing`，Effect Journal 无该 Attempt 的行。服务在 6:55 重启后健康为 ready，`锡尔弗顿之围` 仍能完成上架。
+
+精确根因：`helix.event-execution-key@1` 只绑 event/workAttempt/plan，不绑 Event Attempt ordinal。UNIQUE(effect_class, idempotency_key) 让第一次失败的 Effect 占住该键。第二次 Attempt 的 `intend()` 拿回 `failed` 行，`run()` 抛 `P4_EVENT_EFFECT_RECOVERY_REQUIRED` 并留下 executing Attempt；startup 把它标成 `safe_retry_before_intent`，`recover()` 再撞 `P4_EVENT_RECOVERY_EFFECT_DRIFT`，Host 把异常当成可延迟恢复并放行普通供给，于是这条 Remux 永远停在 executing。
+
+修复边界：执行幂等键在 ordinal>1 时纳入 `eventAttemptOrdinal`，第一次 Attempt 的键保持不变。Host 对 `safe_retry_before_intent` 不在 `start()` 里同步重放（避免把数小时 ISO 抽取塞进启动），就绪后由 drain 再 recover。不得跳过 ISO 拓扑抽取，不得把 `.iso` 直接丢给 FFmpeg。
+
+验收证据：ordinal 1 与旧键相同，ordinal 2 不同；`safe_retry_before_intent` 在 start 之后才 recover。p4 input-provider / host 回归通过。
+
+当前处理决定：按根因修复并提交。状态 `REGRESSION PASSED / SERVICE RESTART REQUIRED`。
+
+## 43. 后续问题模板
 
 后续发现的问题按以下结构追加：
 

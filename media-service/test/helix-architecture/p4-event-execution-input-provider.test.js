@@ -9,7 +9,7 @@ const Database = require('better-sqlite3');
 const { canonicalDigest, canonicalJson } = require('../../src/helix/contracts/canonical-json');
 const { openSqliteKernel } = require('../../src/helix/foundation/persistence/sqlite-kernel');
 const { createSqliteUnitOfWork } = require('../../src/helix/foundation/persistence/sqlite-unit-of-work');
-const { createEventExecutionInputProvider } = require('../../src/helix/foundation/execution/event-execution-input-provider');
+const { createEventExecutionInputProvider, eventExecutionIdempotencyKey } = require('../../src/helix/foundation/execution/event-execution-input-provider');
 
 const generated = path.resolve(__dirname, '../../src/helix/foundation/persistence/generated');
 const schemaDdl = fs.readFileSync(path.join(generated, 'clean-schema.sql'), 'utf8');
@@ -46,6 +46,35 @@ test('Event input provider resolves predecessor typed Result plus literal ports 
     } });
     assert.deepEqual(prepared.namedInputs, { page: result, handle: { id: 'handle-1' } });
     assert.deepEqual(validated, [{ schemaRef: 'helix://fixture/CommitInputs/v1', value: prepared.namedInputs }]);
+    assert.equal(prepared.idempotencyKey, eventExecutionIdempotencyKey({
+      eventId: 'event-commit', workAttemptId: 'attempt-1', planId: 'plan-1',
+    }));
+    assert.equal(prepared.idempotencyKey, eventExecutionIdempotencyKey({
+      eventId: 'event-commit', workAttemptId: 'attempt-1', planId: 'plan-1', eventAttemptOrdinal: 1,
+    }));
+    assert.notEqual(prepared.idempotencyKey, eventExecutionIdempotencyKey({
+      eventId: 'event-commit', workAttemptId: 'attempt-1', planId: 'plan-1', eventAttemptOrdinal: 2,
+    }));
+    const retried = provider.prepare({ snapshot: {
+      node: { input_bindings_json: canonicalJson(bindingSet), input_binding_schema_ref: 'helix://fixture/CommitInputs/v1' },
+      event: { event_id: 'event-commit' },
+      work: { work_id: 'work-1', owner_domain: 'procurement', process_type: 'material_field', process_id: 'field-1',
+        basis_digest: 'a'.repeat(64) },
+      workAttempt: { attempt_id: 'attempt-1' }, plan: { plan_id: 'plan-1' },
+      nextOrdinal: 2,
+    } });
+    assert.equal(retried.idempotencyKey, eventExecutionIdempotencyKey({
+      eventId: 'event-commit', workAttemptId: 'attempt-1', planId: 'plan-1', eventAttemptOrdinal: 2,
+    }));
+    const recovered = provider.prepare({ snapshot: {
+      node: { input_bindings_json: canonicalJson(bindingSet), input_binding_schema_ref: 'helix://fixture/CommitInputs/v1' },
+      event: { event_id: 'event-commit' },
+      work: { work_id: 'work-1', owner_domain: 'procurement', process_type: 'material_field', process_id: 'field-1',
+        basis_digest: 'a'.repeat(64) },
+      workAttempt: { attempt_id: 'attempt-1' }, plan: { plan_id: 'plan-1' },
+      activeAttempt: { ordinal: 2, event_attempt_id: 'event-attempt-2' },
+    } });
+    assert.equal(recovered.idempotencyKey, retried.idempotencyKey);
   } finally {
     kernel.close();
     fs.rmSync(root, { recursive: true, force: true });

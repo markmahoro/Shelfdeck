@@ -105,6 +105,17 @@ test('recovery never fabricates committed state from observer decision without E
   assert.equal(result.recovery.decision, 'already_committed');
 }));
 
+test('an abandoned failed Effect keeps its idempotency key and is not a fresh intended row', () => fixture(({ journal }) => {
+  const first = journal.intend({ eventAttemptId: 'event-attempt', effectClass: 'workspace_write',
+    idempotencyKey: 'request-key', intentDigest: INTENT });
+  assert.equal(journal.abandonUncommitted(first.effect_id).state, 'failed');
+  const reused = journal.intend({ eventAttemptId: 'event-attempt-2', effectClass: 'workspace_write',
+    idempotencyKey: 'request-key', intentDigest: INTENT });
+  assert.equal(reused.effect_id, first.effect_id);
+  assert.equal(reused.state, 'failed');
+  assert.equal(reused.event_attempt_id, 'event-attempt');
+}));
+
 test('safe retry keeps one durable intent for reuse by a later Event Attempt', async () => fixture(async ({ journal }) => {
   journal.intend({ eventAttemptId: 'event-attempt', effectClass: 'external_request', idempotencyKey: 'request-key', intentDigest: INTENT });
   const result = await journal.reconcile(effectIdentity('external_request', 'request-key'), { reconcile: async () => ({

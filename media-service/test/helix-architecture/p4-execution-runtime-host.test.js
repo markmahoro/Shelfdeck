@@ -219,6 +219,32 @@ test('startup applies classified recovery actions before enabling ordinary Work 
   await host.stop();
 });
 
+test('crash-before-intent recovery is deferred until after ordinary supply is enabled', async () => {
+  const calls = [];
+  const host = createExecutionRuntimeHost({
+    tickIntervalMs: 60000, maxActionsPerTick: 1, recoveryRetryMs: 10,
+    startupRecovery: { async recover() {
+      return { state: 'recovering', normalSupplyAllowed: false, findings: [],
+        actions: [{ eventId: 'event-remux', decision: 'safe_retry_before_intent' }] };
+    } },
+    scheduler: { acquire() { calls.push('ordinary-supply'); return { kind: 'idle' }; }, release() {} },
+    plannerRegistry: { resolve() {} }, planPublisher: { publish() {} },
+    workLifecycle: { ensurePlanningAttempt() {}, startPlanned() {}, aggregateEvent() {
+      return { attemptTerminal: false, workTerminal: false, replayed: false };
+    }, settleWork() {} },
+    eventRuntime: { async recover(action) { calls.push('recover:' + action.decision); return { kind: 'succeeded' }; }, async run() {} },
+    domainReconciler: { reconcile() {} }, fallbackReconciler: { async start() { calls.push('fallback-start'); }, async stop() {} },
+  });
+  const started = await host.start();
+  assert.equal(started.state, 'ready');
+  assert.ok(calls.includes('fallback-start'));
+  const fallbackAt = calls.indexOf('fallback-start');
+  if (!calls.includes('recover:safe_retry_before_intent')) await host.drainOnce();
+  const recoverAt = calls.indexOf('recover:safe_retry_before_intent');
+  assert.ok(recoverAt > fallbackAt, 'crash-before-intent recover must run after ordinary readiness');
+  await host.stop();
+});
+
 test('a transient recovery invocation failure stays in the safety lane without denying ordinary service supply', async () => {
   const errors=[];
   let recoveryCalls=0;
