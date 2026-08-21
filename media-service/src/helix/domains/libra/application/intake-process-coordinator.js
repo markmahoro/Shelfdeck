@@ -14,7 +14,8 @@ function definition(kind,processId,basis,dependencyRefs=[]){return Object.freeze
     kind==='acceptance'?'helix://contracts/types/SubjectAndTransferReceipt/v1':'helix://contracts/types/IntakeRejectionReceipt/v1'});}
 function createIntakeProcessCoordinator(options){
   const deferredProcesses=new Set();
-  const admission=createWorkAdmission({schemaManifest:options.schemaManifest,unitOfWork:options.unitOfWork,limits:LIMITS,
+  let durableCursor=null;
+  const admission=options.workAdmission||createWorkAdmission({schemaManifest:options.schemaManifest,unitOfWork:options.unitOfWork,limits:LIMITS,
     eligibilityProvider:{check:(request)=>Object.freeze({eligible:request.ownerDomain==='libra'&&request.processType==='libra_intake',
       basisDigest:request.executionBasisDigest,reasonCode:'LIBRA_INTAKE_BASIS_STALE'})}});
   function submit(value){
@@ -54,11 +55,23 @@ function createIntakeProcessCoordinator(options){
       return Object.freeze({kind:succeeded(nextStatus)?'terminal':kind+'_pending',processId,evidenceWorkId:evidenceWork.workId,
         workId:next.workId,outcome:accepted?'accepted':'rejected',replayed:nextResult.replayed});}
     ,reconcilePending({ignoreAcceptanceProcessId=null,limit=100,admissionLimit=32}={}){let visited=0;const admitted=[];
-      for(const processId of [...deferredProcesses].slice(0,limit)){visited+=1;if(processId===ignoreAcceptanceProcessId)continue;
+      const processIds=[...deferredProcesses].slice(0,limit),known=new Set(processIds);
+      let durablePage=null;
+      if(processIds.length<limit&&typeof options.offerReader.listProcessPage==='function'){
+        durablePage=options.offerReader.listProcessPage(durableCursor,limit-processIds.length);
+        for(const item of durablePage.items||[]){if(!known.has(item.processId)){known.add(item.processId);processIds.push(item.processId);}}
+      }
+      let lastDurableVisited=null;
+      for(const processId of processIds){visited+=1;if(processId===ignoreAcceptanceProcessId)continue;
         const result=this.reconcile(processId);
+        if(durablePage?.items?.some((item)=>item.processId===processId))lastDurableVisited=processId;
         if(!String(result.kind).endsWith('_deferred'))deferredProcesses.delete(processId);
         if(['evidence_pending','acceptance_pending','rejection_pending'].includes(result.kind)&&result.replayed===false)admitted.push(result);
         if(admitted.length>=admissionLimit)break;}
+      if(durablePage){
+        if(lastDurableVisited&&lastDurableVisited!==durablePage.items.at(-1)?.processId)durableCursor=lastDurableVisited;
+        else durableCursor=durablePage.nextCursor;
+      }
       return Object.freeze({visited,admitted:Object.freeze(admitted),admittedCount:admitted.length});}
   });
 }

@@ -4,6 +4,13 @@ Status: Movie Procurement与Movie Libra封口保持有效；Movie Arca已完成H
 
 Last updated: 2026-08-21
 
+## 0. UAT repair status — UAT-002 restart-safe qualification implemented
+
+现有Intake批量Admission、每轮32项上限、16项Handoff Acceptance预留容量和无全局串行门闩均保留。
+修复了服务重启后内存deferred清单丢失的问题：Coordinator现在有界分页扫描持久Offer，并从准确游标继续，
+不依赖lost wake。400 Candidate下游积压/重启回归为400/400重新Admission，单轮不超过32、扫描不超过100；
+保留容量和Foundation原子Admission回归同时通过。真实页面吞吐留待新Canary观察。
+
 ## 0. UAT repair status — UAT-001/UAT-003 implemented, targeted Canary pending
 
 豆瓣Adapter现在为缺年份Collection记录执行最多16次精确详情观察，冻结详情Evidence digest、年份及最多12个别名；Normalizer为

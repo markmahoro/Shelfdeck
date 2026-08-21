@@ -2493,6 +2493,8 @@ Libra Intake Acceptance是Subject创建或Series Episode范围追加时的一次
 独立Business Process。它不拥有单独的Process ID、长期状态、人工审批或异步业务生命周期。Accepted
 时直接建立Subject或扩充既有Season Subject的Episode生产范围；Rejected时直接形成Structured
 Rejection。执行层如何安全重试这次决定属于Level 6，但重试不能把它升级成新的Domain Process Root。
+不同Candidate的Intake Acceptance不得被全Libra串行化；Foundation必须为Handoff Acceptance保留有界Work容量，
+Libra每轮可有界批量补充独立Work。任何内存wake清单都只能是优化，重启或lost wake后必须能够从持久Offer与Owner事实重新发现未终态Intake。
 
 对Series Candidate，Intake先执行确定性的Subject Continuity Resolution：Candidate的exact Season
 Continuity Claim与Libra当前active Season Subject已保存的claim做集合匹配；Resolved Product Identity中的exact

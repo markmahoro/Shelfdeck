@@ -4,6 +4,13 @@ Status: Movie Procurement保持`CLOSED FOR MOVIE`；Movie Libra保持`MOVIE LIBR
 
 Last updated: 2026-08-21
 
+## 0. Qualified repair — UAT-002 Intake throughput
+
+Intake继续使用每个Candidate独立的concurrency scope、256个open Work硬上限、16个Handoff Acceptance预留槽，
+并在一次reconcile中最多新Admission 32项。补充的重启资格检查发现deferred process只存在内存Set；现已改为同时从
+持久Procurement Offer分页重建，内存wake只作加速。400 Candidate积压在新Coordinator实例中以13个有界批次全部重新Admission，
+不增加全局串行门闩。真实22部Canary吞吐仍由第二轮Admin Web UAT确认。
+
 ## 0. Active repair — UAT-001/UAT-003 Douban detail anchors
 
 豆瓣Collection行缺失年份或别名时，同一有界Acquisition Page最多读取16个精确Subject详情页；响应必须绑定相同Origin和

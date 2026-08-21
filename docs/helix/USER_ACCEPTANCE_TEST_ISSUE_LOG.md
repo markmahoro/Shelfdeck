@@ -67,7 +67,7 @@ Helix主体开发已经完成，Movie从Procurement、Libra到Arca及Shelf Dereg
 | ID | 问题 | 主分类 | 次分类 | 主要责任边界 | 影响维度 | 严重度 | 当前状态 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | UAT-001 | 豆瓣评分与Libra Subject匹配率明显偏低 | `BUSINESS_CONTRACT` | `PROJECTION_FRESHNESS`、`EXTERNAL_INTEGRATION` | User Perception + Libra Identity输入 | 正确性、时效性 | High | 已诊断，待统一复盘修复 |
-| UAT-002 | Handoff A Intake接收Subject吞吐异常偏低 | `DOMAIN_ORCHESTRATION` | `EXECUTION_SCHEDULING`、`PERFORMANCE` | Libra Intake + Foundation Work Supply接线 | 吞吐、活性 | High | 已诊断，队列仍推进，待统一复盘修复 |
+| UAT-002 | Handoff A Intake接收Subject吞吐异常偏低 | `DOMAIN_ORCHESTRATION` | `EXECUTION_SCHEDULING`、`PERFORMANCE` | Libra Intake + Foundation Work Supply接线 | 吞吐、活性 | High | 已修复并通过400 Candidate重启资格回归，待新Canary确认 |
 | UAT-003 | Libra Run在Product Identity阶段大量等待 | `BUSINESS_CONTRACT` | `EXTERNAL_INTEGRATION`、`DOMAIN_ORCHESTRATION` | Libra Product Identity + TMDB Evidence | 正确性、活性 | Critical | 已诊断，1条继续推进，其余等待统一复盘修复 |
 | UAT-004 | 大型Workspace媒体完整SHA-256导致无必要的全文件读取 | `BUSINESS_CONTRACT` | `PERFORMANCE`、`USER_EXPERIENCE` | Libra Workspace Material + Handoff B/Arca Inventory媒体完整性合同 | I/O、CPU、交付延迟 | High | 已诊断并确认方向，待SSOT统一修订 |
 | UAT-005 | Libra Admin Web使用内部对象语言且不能直观表达媒体整理过程 | `USER_EXPERIENCE` | `PROJECTION_FRESHNESS` | Admin Web Formation Projection + Libra公开状态翻译 | 可理解性、可观察性 | High | 已讨论并确认页面重构方向 |
@@ -403,10 +403,11 @@ Procurement已经形成943个Candidate Package，但Admin Web“上架进度”�
 
 ### 4.7 当前处理决定
 
-- 当前服务和队列继续运行，不手动改库或清队列；
-- 问题已完成初步定位并记录；
-- 暂不在用户侧测试过程中修改Foundation或Libra Coordinator；
-- 待本轮用户侧测试结束后，与其他问题一起统一复盘修复。
+- 已移除全Libra Acceptance串行门闩，并保留每轮32项的有界批量Admission；
+- Foundation的256项open Work硬上限中固定为Handoff Acceptance预留16项，普通下游Work不能占用；
+- 本轮资格回归进一步修复了deferred process仅存在内存Set的问题：重启后从持久Offer分页重建，lost wake不丢工作；
+- 400个Candidate在下游积压及Coordinator重启后以13轮全部重新Admission；单轮新Admission不超过32，扫描不超过100；
+- 不修改Event Runtime状态机，不扩大256硬上限；新Canary只需确认真实用户侧吞吐和无重复Subject/Receipt。
 
 ## 5. UAT-003：Libra Run在Product Identity阶段大量等待
 
