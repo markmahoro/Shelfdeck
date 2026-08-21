@@ -1267,7 +1267,29 @@ Admin Web production build均通过。
 修复状态（2026-08-21）：`IMPLEMENTED / CLEAN CANARY UAT PENDING`。当前污染现场和失败数据库保持不变；完成独立提交后，
 须随其他已取证问题修复一起重建Canary，再通过真实Admin Web确认该条目不再进入身份待处理。
 
-## 20. 后续问题模板
+## 20. UAT-023：技术后缀移除后残留年份导致豆瓣标题锚不相交
+
+问题分类：`PERCEPTION_RESOLUTION / EXACT_ALIAS / USER_VISIBLE_RATING`
+
+用户侧现象：真实Formation页面中，`看不见的朋友 (2023) - 1080p H.264 CHDWEB`显示“暂无评分”，虽然隔离数据库
+已经copy-forward同年豆瓣记录`看不见的朋友 / 我的麻吉4個鬼`，评分为5。
+
+现场证据：Perception规则revision 2会为Subject标题生成去技术标签的`title_year`别名，但旧实现先删除“字符串末尾年份”，
+再删除技术后缀。该标题删除后缀后得到`看不见的朋友 (2023)`，不会再次去掉年份，最终锚为
+`看不见的朋友 (2023)\0 2023`，与豆瓣的`看不见的朋友\0 2023`不相交，Resolution形成`no_matching_record`。
+
+初步诊断：与UAT-022同属“年份位于技术后缀之前”的顺序缺口，但事实Owner和修复位置不同；本问题属于Perception自己的
+exact alias派生，不能依赖Libra Product Identity查询修复间接改变评分事实。
+
+修复边界：Perception先删除带技术Token的发布后缀和末尾技术Token，再删除新暴露出的尾部年份；仍保留原始标题锚，
+仍要求标题别名与年份精确相同，不引入模糊匹配或跨年匹配。
+
+验收证据：专项回归固定该真实标题，断言同时生成原始锚和`看不见的朋友\0 2023`精确锚；Perception alias专项测试3/3、
+Movie Perception Continuity架构门禁6/6及Admin Web production build均通过；后续仍需干净Canary真实页面复验。
+
+修复状态（2026-08-21）：`IMPLEMENTED / CLEAN CANARY UAT PENDING`。
+
+## 21. 后续问题模板
 
 后续发现的问题按以下结构追加：
 

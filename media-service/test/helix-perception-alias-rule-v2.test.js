@@ -24,10 +24,19 @@ test('Perception alias rule revision 2 expands Douban multilingual titles with t
 
 test('Subject release labels are removed without weakening exact title and year matching', () => {
   assert.equal(stripReleaseSuffix('The Matrix - 2160p Remux DTS-HD'), 'The Matrix');
+  assert.equal(stripReleaseSuffix('看不见的朋友 (2023) - 1080p H.264 CHDWEB'), '看不见的朋友');
   assert.deepEqual(titleAliases('The Matrix - 2160p Remux DTS-HD', { stripTechnical: true }), [
     'The Matrix - 2160p Remux DTS-HD',
     'The Matrix',
   ]);
+  assert.deepEqual(
+    deriveTitleYearEvidence('看不见的朋友 (2023) - 1080p H.264 CHDWEB\0' + '2023', { stripTechnical: true })
+      .map((item) => item.anchorValue),
+    [
+      '看不见的朋友 (2023) - 1080p H.264 CHDWEB\0' + '2023',
+      '看不见的朋友\0' + '2023',
+    ],
+  );
   assert.equal(normalizeAlias('  ＴＨＥ   Matrix  '), 'the matrix');
   assert.notEqual(normalizeAlias('The Matrix' + '\0' + '1999'), normalizeAlias('The Matrix' + '\0' + '2021'));
 });

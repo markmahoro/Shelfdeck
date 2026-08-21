@@ -19,7 +19,6 @@ function splitTitleYear(value) {
 
 function stripReleaseSuffix(title) {
   let value = String(title || '').normalize('NFKC').trim();
-  value = value.replace(/\s*(?:\((?:19|20)\d{2}\)|\[(?:19|20)\d{2}\])\s*$/u, '').trim();
   for (const separator of [' - ', ' – ', ' — ']) {
     const index = value.lastIndexOf(separator);
     if (index > 0 && TECHNICAL_TOKEN.test(value.slice(index + separator.length))) {
@@ -28,7 +27,9 @@ function stripReleaseSuffix(title) {
   }
   const tokens = value.split(/\s+/u);
   while (tokens.length > 1 && TECHNICAL_TOKEN.test(' ' + tokens.at(-1) + ' ')) tokens.pop();
-  return tokens.join(' ').trim();
+  return tokens.join(' ').trim()
+    .replace(/\s*(?:\((?:19|20)\d{2}\)|\[(?:19|20)\d{2}\])\s*$/u, '')
+    .trim();
 }
 
 function titleAliases(title, { providerDelimited = false, stripTechnical = false } = {}) {
