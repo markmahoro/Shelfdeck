@@ -196,6 +196,16 @@ Candidate Package
 
 当前阶段成功率为`21 / 238 ≈ 8.8%`。这是同步过程中的快照，不是最终比例；但下述合同与实现问题证明，单纯等待同步结束不足以恢复合理匹配率。
 
+2026-08-21 Movie Canary定向复核进一步确认，当前Admin Web共有3个Subject显示“暂无评分”，但对应豆瓣评分Record均已存在：
+
+| Canary Subject | 已存在豆瓣Record | 当前Resolution |
+| --- | --- | --- |
+| `养蜂人 (2024) - 2160p HEVC Atmos TrueHD5.1` | `养蜂人 / The Beekeeper`，4星，年份2024 | `not_found / no_matching_record` |
+| `看不见的朋友 (2023) - 1080p H.264 CHDWEB` | `看不见的朋友 / 我的麻吉4個鬼`，5星，年份2023 | `not_found / no_matching_record` |
+| `香火 (2003)` | `香火`，4星 | `not_found / no_matching_record` |
+
+前两部是用户追加的BDMV/ISO Canary样本。挑选时确认的是ShelfDeck已抓取到用户豆瓣评分，证明源Record存在；该筛选没有证明Clean Helix当前Identity Anchor合同能够把新Subject解析到同一Record。Canary选择本身有效，但当时的验收口径缺少一次正式Perception Resolution预检。
+
 ### 3.3 初步诊断
 
 #### A. 豆瓣同步尚未完成
@@ -224,22 +234,33 @@ Libra Subject通常只携带其中一个标题。两边实际指向同一电影�
 
 分类：真实合同与实现缺口。
 
-#### C. 部分Subject没有可靠年份
+#### C. 年份后带技术尾缀时形成错误Title/Year Anchor
 
-当前`deriveTitleYear`只识别“标题末尾直接以括号年份结束”的形式。若Candidate标题仍带有发行或编码标签，例如：
+当前Subject Target生成先处理显式`claimedYear`。一旦年份字段存在，`deriveTitleYear`会保留完整`claimedTitle`，不再从标题中移除括号年份；后续Alias清洗虽能截去部分发行或编码尾缀，却不会再次移除已经留在标题末尾的括号年份。例如：
 
 ```text
-标题 (2025) - 2160p HEVC TrueHD
-标题 (2014) 1080p DTS-sample
+养蜂人 (2024) - 2160p HEVC Atmos TrueHD5.1
+  → title_year = 养蜂人 (2024) + 2024
+
+看不见的朋友 (2023) - 1080p H.264 CHDWEB
+  → title_year = 看不见的朋友 (2023) + 2023
 ```
 
-年份无法拆出。Subject只剩内部`subject_id` Anchor，而豆瓣Record不可能拥有这个内部ID，因此在没有Provider Identity时无法匹配。
+对应豆瓣Record的Alias Anchor分别为`养蜂人 + 2024`和`看不见的朋友 + 2023`，因此`normalized_exact`必然不命中。这不是BDMV或ISO结构问题，而是标题清洗与年份冻结次序错误。
 
-现场259个Subject中有64个缺少有效年份，其中62个已经形成`not_found`。
+此外，未提供显式年份且标题末尾仍带技术尾缀的Subject仍可能完全无法派生年份。2026-08-20现场259个Subject中有64个缺少有效年份，其中62个已经形成`not_found`。
 
 分类：真实Identity Evidence生成缺口。
 
-#### D. 新Record进入后的Resolution刷新滞后
+#### D. 豆瓣Record缺失年份时没有可用的跨Provider Anchor
+
+`香火 (2003)`的Subject正确形成`香火 + 2003`查询Anchor，豆瓣Record也确有4星评分，但本次豆瓣页面采集没有为该Record解析出年份，因此没有形成`title_year` Anchor，只保存了`douban:movie:1754628` Provider Identity。当前Subject Target的`providerIdentity`为NULL，TMDB或NFO身份也没有被映射为豆瓣身份；两侧不存在共同Anchor，Resolution只能fail closed为`no_matching_record`。
+
+这说明豆瓣采集页面无法提供年份时，不能把“评分Record存在”误呈现为“未评分”；正式修复需要有Evidence的补充年份/Alias来源或经过确认的跨Provider身份关联，不能只按同名自动命中。
+
+分类：真实Provider Observation与Identity Anchor合同缺口。
+
+#### E. 新Record进入后的Resolution刷新滞后
 
 现场存在豆瓣Record中的Title/Year已经与Subject完全一致，但current Resolution仍停留在早期`not_found`的样本；同时也观察到少量Resolution从revision 1的`not_found`升级为revision 2的`found`。
 
@@ -262,7 +283,8 @@ Libra Subject通常只携带其中一个标题。两边实际指向同一电影�
 - 正式Movie Identity Anchor的来源优先级，优先使用可靠Provider Identity；
 - 将豆瓣中文名、原名和英文名拆成带Provenance的独立Alias Anchor；
 - Candidate/Subject标题清洗优先消费正式Identity Evidence，不依赖任意显示字符串猜测；
-- 缺少Provider Identity时，建立有界、确定性的发行标签剥离和年份提取合同；
+- 缺少Provider Identity时，建立有界、确定性的发行标签剥离和年份提取合同，并保证括号年份只出现于年份字段、不重复保留在标题Anchor；
+- 豆瓣列表页缺少年份时，定义有Evidence且有界的补充观察或Provider Identity关联路径；不得用单独标题自动关联；
 - 豆瓣Page Commit后按新增Anchor精确唤醒Subject Resolution，周期sweep只承担丢失Signal恢复；
 - 新Rating Resolution发布后，重新检查尚未开始或仍具替代资格的Acceptance Spec和Libra Run Freshness；
 - 保留`unknown/not_found/ambiguous`的fail-closed结果，禁止自动选择第一条或无Evidence的模糊命中。
@@ -276,6 +298,7 @@ Libra Subject通常只携带其中一个标题。两边实际指向同一电影�
 - Provider Identity、Alias、Title/Year各类命中数量；
 - Resolution从Record Commit到刷新完成的延迟；
 - 匹配与未匹配的有界人工抽样；
+- `养蜂人`BDMV、`看不见的朋友`ISO和`香火`三个定向Canary均解析到现有豆瓣评分Record；
 - 误匹配数量；
 - 新评分对Acceptance Spec及合法Run Replacement的影响；
 - 重启、重复同步及丢失Signal后的幂等性。
