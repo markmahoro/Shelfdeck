@@ -2,7 +2,29 @@
 
 Status: Movie Procurement与Movie Libra封口保持有效；Movie Arca已完成Handoff B Acceptance、On-deck、Shelf Entry、Deck Fact、Beta Aftercare、Off-deck及Shelf Deregistration完整闭环。当前精确状态为`MOVIE COLLECTION LIFECYCLE READY THROUGH SHELF DEREGISTRATION`；本地Movie生命周期已经最终封口，生产部署尚未开始。
 
-Last updated: 2026-08-21
+Last updated: 2026-08-22
+
+## 0. Current operational status — clean Movie Canary Admin Web UAT in progress
+
+用户已明确授权在修复后重建干净 Movie Canary 真实 Admin Web E2E/UAT。本轮代码检查点为
+`134fdf692`（UAT-029–034 已提交，UAT-035/036 入台账）。固定路径仍为只读`F:\test_film`与
+重置后的`F:\canary`。不触碰`G:\canary_film`、`Z:\Film`或NAS生产部署。
+
+| 项目 | 当前状态 |
+| --- | --- |
+| 基线 | `F:\test_film` 22/455/42 / 143,829,090,011 bytes |
+| Canary | 已从基线重建；四项零差异；未使用`/MIR` `/MOVE` `/PURGE` |
+| 隔离库 | `C:\Users\markm\AppData\Local\Temp\ShelfDeck-Movie-Canary-UAT-20260822-033722-8e18372b9` |
+| Copy-forward | Douban/TMDB/MoviePilot 3 个 active Integration；1547 条 Douban Record；0 旧 Field/Shelf/Run/Entry |
+| 服务 | PID 41048；`127.0.0.1:18080`；`helix-clean-v3`；`normalSupplyAllowed=true` |
+| Admin Web | 8 个正式页面首次打开与直接刷新均成功；Field/Shelf 均为 Movie Canary → `F:\canary` |
+| Routing | Direct → Movie Canary Policy revision 1 已从页面发布 |
+| Observation | 已从页面触发；ISO 文件已进入 Observation，但 Triage 失败（UAT-036） |
+| Formation | 22 个 Subject：两部`养蜂人`已分开；缺`倩女幽魂2` ISO Candidate |
+
+2026-08-22 用户确认：成功标准旧稿把 `养蜂人` 顶层目录写成一部 Movie 是错误的。现成 MKV 与嵌套 BDMV 是两部独立电影，必须都形成 Subject 并都能 On-deck；内容去重属于 Arca Duplicate/Off-deck，不是 Formation 或 Placement 的拦截理由。基线仍是 22 个顶层单元，形成与上架口径改为 23/23。
+
+完整 23/23 Arca 闭环尚未判定。
 
 ## 0. UAT repair status — UAT-005 / UAT-018 implemented, fresh Canary qualification pending
 
