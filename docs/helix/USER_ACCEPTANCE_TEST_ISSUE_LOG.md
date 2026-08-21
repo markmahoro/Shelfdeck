@@ -1612,7 +1612,29 @@ Observation revision 2 形成 22 个 Candidate，恰好等于「22 个顶层单�
 当前处理决定：不编 workaround。干净 Canary 重建后密集监测；若再次出现并挡住上架，再按
 process/片名取证后单独修。状态 `OPEN / MONITOR IN CLEAN UAT`。
 
-## 33. 后续问题模板
+## 33. UAT-036：ISO 已被观察但 Triage 因非可播放流失败，倩女幽魂2仍无 Candidate
+
+问题分类：`DISC_TOPOLOGY / ISO_UDF / TRIAGE_STRUCTURE`
+
+用户侧现象：干净 Canary 重建后 Field 政策已含 `.iso`，`倩女幽魂2：人间道` 的 ISO 出现在 Observation，
+但没有 Subject。Formation 仍是 22 行（含两部养蜂人）。
+
+现场证据：`proc_run_materials` 对该 ISO 为 `selection_state=released`、`terminal_disposition=triage_failed`。
+Scope 是 `ordinary_directory`、1 个成员。媒体探针把 ISO 当普通流；ffprobe 非媒体后 Structure 按
+`!playable` 丢弃。Disc topology 合同要求从 ISO9660/BDMV 内容证明 `discKind=iso`；本文件名是
+`1080p AVC DTS.iso`，很可能是 UDF 蓝光映像，现有 `inspectIso` 读不到 BDMV 清单，topology 为 null。
+
+精确根因：UAT-031 只解决了 Extraction Policy 准入。Triage 仍要求可播放流或已证明的 disc topology。
+UDF 蓝光 ISO 两条都不满足，被当成 `probe_not_media`。
+
+业务影响：ISO 原盘仍不能形成一部 Movie。不得用「凡是 .iso 都当 Candidate」绕过内容证明。
+
+修复边界：为 UDF/ISO9660 蓝光映像补齐有界 topology 证明，使 `materialInputForm=iso` 且一部 Movie；
+多标题仍 fail closed。不把 ffprobe 失败当作 ISO 成功。
+
+当前处理决定：干净 UAT 已启动并密集监测其余 22/23。本条 `OPEN / FIX REQUIRED`，下一步修 ISO topology。
+
+## 34. 后续问题模板
 
 后续发现的问题按以下结构追加：
 
