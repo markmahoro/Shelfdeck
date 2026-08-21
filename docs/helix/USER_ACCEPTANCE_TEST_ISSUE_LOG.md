@@ -840,7 +840,28 @@ Package、Receipt、Canonical JSON等结构化事实的SHA-256与媒体字节Ide
 
 当前处理决定：问题已完成修复、回归、提交和浏览器用户验收。其余4份已完成Package是否逐一进入Collection留给后续小时观察点，不以本次即时等待替代验收。
 
-## 10. 后续问题模板
+## 10. UAT-013：Resolved Identity 被错误渲染为哈希 Inventory 目录
+
+问题分类：`USER_VISIBLE_INVENTORY / SAME_ROOT_PLACEMENT / IDENTITY_PROJECTION`
+
+用户侧现象：Admin Web把`老笠`显示为已上架且“健康”，但真实Inventory位于`G:\canary_film\1cbf…b786 (0)`；原`老笠 (2016)`目录仅移除了主视频、NFO和poster，Related材料留在原目录，形成一个Shelf Entry横跨两个用户可见目录的错误结果。
+
+现场证据：本轮开始时只读差异为Baseline 454个文件、Canary 456个文件；3个原路径缺失，5个文件新增到哈希目录，文件大小无同路径漂移。Package的正式Resolved Identity包含`displayIdentity.entries[{key:"title",value:"老笠 (2016)"}]`，但Inventory Port只读取不存在的顶层`title/displayTitle/canonicalTitle`，继而退回`onDeckPackageId`；同时`Number(null)`被当作合法年份0，最终渲染为`{packageId} (0)`。
+
+业务影响：页面健康结论不能证明用户看到的物理收藏符合Placement Policy；同根Shelf会把原目录拆散，正是Canary需要阻止进入真实环境的破坏性结果。
+
+修复边界：Inventory Port从正式Resolved Identity的Display Identity条目读取标题；从`标题 (YYYY)`有界派生年份并避免重复年份；缺少用户可读标题时fail closed，禁止再以Package ID建立哈希目录；空年份不再转换为0。未直接移动、删除或修复Canary中的既有错误文件。
+
+验收证据：
+
+- `clean-arca-inventory-port.test.js`与`p10-handoff-b-ondeck.test.js`合计10/10 PASS；覆盖`老笠 (2016)`与`{title} ({year})`得到精确目标目录、缺少标题fail closed，以及同根Stage/Switch/Settlement；
+- 修复提交：`6d67d0ddb`；
+- 本地服务已加载修复且没有新的Execution Runtime错误；
+- 真实Admin Web已给`坠楼死亡的剖析 (2023)`保存4星用户评分，作为修复后新Package的浏览器验收样本；其形成正确Inventory前不宣告完整E2E通过。
+
+当前处理决定：代码根因已修复并提交；现有错误`老笠`Shelf Entry不通过直接文件操作纠正。下一小时观察点从Admin Web确认新样本的生产与上架结果，并再次只读核对物理目录。
+
+## 11. 后续问题模板
 
 后续发现的问题按以下结构追加：
 
