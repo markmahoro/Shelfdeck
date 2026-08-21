@@ -1849,7 +1849,7 @@ stderr 为 `CLEAN_ARCA_TARGET_OCCUPIED` 与 `CLEAN_ARCA_SETTLEMENT_UNKNOWN_MEMBE
 
 验收证据：探测 stderr 含 pcm_bluray 时 map 不含 `0:3`；现有 ISO/BDAV remux 回归仍通过。
 
-当前处理决定：按 `copy_all_supported` 跳过不支持的轨。状态 `REGRESSION PASSED / SERVICE RESTART REQUIRED`。
+当前处理决定：按 `copy_all_supported` 跳过不支持的轨。现场 Attempt 19 Remux 成功（约 20.6 GiB MKV），已进入四星转码。状态 `REGRESSION PASSED / LIVE TRANSCODE IN PROGRESS`。
 
 ## 44. 后续问题模板
 
