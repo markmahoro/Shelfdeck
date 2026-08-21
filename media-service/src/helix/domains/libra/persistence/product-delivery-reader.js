@@ -255,11 +255,15 @@ function assertRelatedDisposition(row, run, members, offloadMembers) {
   const relatedMembers = members.filter((item) => item.controlOperation === 'assert_related_input');
   const relatedOffload = offloadMembers.filter((item) => item.contextRole === 'related_input');
   const assertions = basis.relatedDispositionScope.items.map((scope) => {
-    const member = relatedMembers.find((item) => item.sourceRelatedReferenceId === scope.referenceId);
     const offload = relatedOffload.find((item) => item.sourceRelatedReferenceId === scope.referenceId);
+    const member = offload && members.find((item) => item.materialKey === offload.finalProductMaterialKey);
     if (!member || !offload || offload.materialKey !== scope.materialKey ||
-        member.materialKey !== offload.finalProductMaterialKey ||
-        member.derivedAuthorityDigest !== offload.derivedAuthorityDigest ||
+        (offload.dispositionKind === 'carried_forward' &&
+          (member.controlOperation !== 'assert_related_input' ||
+           member.sourceRelatedReferenceId !== scope.referenceId ||
+           member.derivedAuthorityDigest !== offload.derivedAuthorityDigest)) ||
+        (offload.dispositionKind === 'replaced_and_settled' &&
+          member.controlOperation === 'assert_related_input') ||
         !['carried_forward', 'replaced_and_settled'].includes(offload.dispositionKind)) {
       fail('P9_PRODUCT_DELIVERY_RELATED_MAPPING',
         'Product Delivery Related scope does not match Product and Off-load rows.');
@@ -276,7 +280,7 @@ function assertRelatedDisposition(row, run, members, offloadMembers) {
       bindingRevision: offload.bindingRevision,
       bindingEvidenceDigest: offload.bindingEvidenceDigest,
     });
-    if (derivedAuthorityDigest !== member.derivedAuthorityDigest ||
+    if (derivedAuthorityDigest !== offload.derivedAuthorityDigest ||
         (offload.dispositionKind === 'carried_forward') !==
           (scope.materialKey === member.materialKey)) {
       fail('P9_PRODUCT_DELIVERY_RELATED_AUTHORITY',
@@ -298,7 +302,8 @@ function assertRelatedDisposition(row, run, members, offloadMembers) {
     assertion.assertionDigest = canonicalDigest(assertion);
     return assertion;
   }).sort((left, right) => utf8(left.sourceRelatedReferenceId, right.sourceRelatedReferenceId));
-  if (assertions.length !== relatedMembers.length || assertions.length !== relatedOffload.length ||
+  if (assertions.filter((item) => item.dispositionKind === 'carried_forward').length !== relatedMembers.length ||
+      assertions.length !== relatedOffload.length ||
       canonicalDigest({ schema: 'libra.related-disposition-set@1', items: assertions }) !==
         row.related_disposition_set_digest) {
     fail('P9_PRODUCT_DELIVERY_RELATED_SET',

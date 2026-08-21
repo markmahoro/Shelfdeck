@@ -225,7 +225,7 @@ function directPrimaryMember(member, verification) {
   };
 }
 
-function relatedAuthority(snapshot, binding) {
+function relatedAuthority(snapshot, binding, replacementMember = null) {
   const reference = snapshot.relatedReferences.find((item) =>
     item.referenceId === snapshot.relatedDispositionScope.items.find((scope) =>
       scope.materialKey === binding.materialKey &&
@@ -244,17 +244,20 @@ function relatedAuthority(snapshot, binding) {
     bindingRevision: binding.bindingRevision,
     bindingEvidenceDigest: binding.bindingEvidenceDigest,
   });
+  if (replacementMember && replacementMember.role !== productRole(binding.role)) {
+    throw new Error('Related replacement Product role does not match its source role.');
+  }
   const assertion = {
     sourceRelatedReferenceId: reference.referenceId,
     primaryMaterialKey: binding.primaryMaterialKey,
     role: binding.role,
     sourceMaterialKey: binding.materialKey,
-    finalProductMaterialKey: binding.materialKey,
+    finalProductMaterialKey: replacementMember?.materialKey || binding.materialKey,
     associationEvidenceDigest: binding.associationEvidenceDigest,
     dispositionBasisDigest: binding.dispositionBasisDigest,
     bindingRevision: binding.bindingRevision,
     bindingEvidenceDigest: binding.bindingEvidenceDigest,
-    dispositionKind: 'carried_forward',
+    dispositionKind: replacementMember ? 'replaced_and_settled' : 'carried_forward',
     derivedAuthorityDigest,
   };
   assertion.assertionDigest = canonicalDigest(assertion);
@@ -438,6 +441,7 @@ function createProductDeliveryAssembler(options) {
         projected,
       ));
     }
+    const artifactProductsByRole = new Map();
     for (const item of artifacts.artifactMaterials) {
       const materialized = options.workspaceProductPort
         .readMaterializedArtifact(item.artifactHandle);
@@ -453,18 +457,26 @@ function createProductDeliveryAssembler(options) {
         owner_scope_type: 'on_deck_package',
         owner_scope_id: onDeckPackageId,
       });
-      productMembers.push(workspaceMember(
+      const productMember = workspaceMember(
         reference,
         productRole(item.artifactHandle.artifactKind),
         item.requirement.requirementDigest,
         null,
         projected,
-      ));
+      );
+      if (artifactProductsByRole.has(productMember.role)) {
+        throw new Error('Product Delivery has multiple verified Artifact replacements for one role.');
+      }
+      artifactProductsByRole.set(productMember.role, productMember);
+      productMembers.push(productMember);
     }
     const related = snapshot.relatedBindings.map((binding) =>
-      relatedAuthority(snapshot, binding));
+      relatedAuthority(snapshot, binding,
+        artifactProductsByRole.get(productRole(binding.role)) || null));
     for (const item of related) {
-      productMembers.push(relatedProductMember(item, origin));
+      if (item.assertion.dispositionKind === 'carried_forward') {
+        productMembers.push(relatedProductMember(item, origin));
+      }
     }
     const members = finalizeProductMembers(productMembers, snapshot.spec);
     const productMaterialBody = {
@@ -632,8 +644,8 @@ function createProductDeliveryAssembler(options) {
         materialKey: item.binding.materialKey,
         contextRole: 'related_input',
         sourceRelatedReferenceId: item.reference.referenceId,
-        finalProductMaterialKey: item.binding.materialKey,
-        dispositionKind: 'carried_forward',
+        finalProductMaterialKey: item.assertion.finalProductMaterialKey,
+        dispositionKind: item.assertion.dispositionKind,
         physicalIdentity: item.binding.physicalIdentity,
         endpointId: item.binding.endpointId,
         location: item.binding.location,
@@ -642,7 +654,8 @@ function createProductDeliveryAssembler(options) {
         admittedControlRevision: null,
         admittedControlProjectionDigest: null,
         derivedAuthorityDigest: item.assertion.derivedAuthorityDigest,
-        settlementExpectation: 'replace_or_move',
+        settlementExpectation: item.assertion.dispositionKind === 'carried_forward'
+          ? 'replace_or_move' : 'remove_after_place',
       });
     }
     const offloadMembers = finalizeMembers(offloadItems);

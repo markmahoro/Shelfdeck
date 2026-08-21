@@ -14,6 +14,7 @@ const without=(value,key)=>Object.fromEntries(Object.entries(value).filter(([nam
 const withoutPackageDigestFields=(value)=>Object.fromEntries(Object.entries(value)
   .filter(([name])=>!['manifestDigest','publishedAtMs','packageDigest'].includes(name)));
 const relative=(value)=>{text(value,'relativePath');const p=value.split('/');if(value.includes('\\')||value.startsWith('/')||/^[A-Za-z]:/.test(value)||p.some((x)=>!x||x==='.'||x==='..'))fail('P9_DELIVERY_PATH','Path must be canonical root-relative.');return value;};
+const productRole=(role)=>role==='nfo'?'metadata_sidecar':role;
 
 function packageContentValue(decision,subjectId,shelfId){
   const members=decision.productMaterialManifest.members;
@@ -80,11 +81,15 @@ function assertPromotionDecision(value){
     fail('P9_PROMOTION_RELATED_SCOPE','Promotion Related authority set is incomplete, unordered, or invalid.');
   const relatedMembers=members.filter((item)=>item.controlOperation==='assert_related_input');
   const relatedOffload=(value.offloadContextManifest?.members||[]).filter((item)=>item.contextRole==='related_input');
-  if(relatedMembers.length!==assertions.length||relatedOffload.length!==assertions.length||assertions.some((assertion)=>{
-    const member=relatedMembers.find((item)=>item.sourceRelatedReferenceId===assertion.sourceRelatedReferenceId);
+  const carriedAssertions=assertions.filter((item)=>item.dispositionKind==='carried_forward');
+  if(relatedMembers.length!==carriedAssertions.length||relatedOffload.length!==assertions.length||assertions.some((assertion)=>{
+    const member=members.find((item)=>item.materialKey===assertion.finalProductMaterialKey);
     const offload=relatedOffload.find((item)=>item.sourceRelatedReferenceId===assertion.sourceRelatedReferenceId);
-    return !member||!offload||member.materialKey!==assertion.finalProductMaterialKey||
-      member.derivedAuthorityDigest!==assertion.derivedAuthorityDigest||offload.materialKey!==assertion.sourceMaterialKey||
+    const carried=assertion.dispositionKind==='carried_forward';
+    return !member||!offload||!['carried_forward','replaced_and_settled'].includes(assertion.dispositionKind)||
+      member.role!==productRole(assertion.role)||(carried&&(member.controlOperation!=='assert_related_input'||
+        member.sourceRelatedReferenceId!==assertion.sourceRelatedReferenceId||member.derivedAuthorityDigest!==assertion.derivedAuthorityDigest))||
+      (!carried&&member.controlOperation==='assert_related_input')||offload.materialKey!==assertion.sourceMaterialKey||
       offload.finalProductMaterialKey!==assertion.finalProductMaterialKey||offload.dispositionKind!==assertion.dispositionKind||
       offload.derivedAuthorityDigest!==assertion.derivedAuthorityDigest;
   })) fail('P9_PROMOTION_RELATED_MAPPING','Related assertions must match Product and Off-load mappings one-for-one.');

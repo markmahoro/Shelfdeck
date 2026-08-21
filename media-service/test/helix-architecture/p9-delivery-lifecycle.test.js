@@ -104,6 +104,40 @@ test('promotion joins Product Staging references to Product members by materialK
   assert.throws(()=>c.assertPromotionDecision(wrongHandle),/one-for-one/);
 });
 
+test('Related replacement maps one source to its verified successor without duplicating the Product member',()=>{
+  const value=promotion(),posterKey=h('poster-product'),sourceKey=h('poster-source'),authority=h('related-authority');
+  value.productStagingReferences.push({referenceId:'ref-poster',workspaceId:'workspace-1',libraRunId:'run-1',
+    materialHandleId:'handle-poster',materialKey:posterKey,workspaceMaterialHandle:{handleId:'handle-poster'},
+    workspaceHandleDigest:h('handle-poster'),referenceRevision:2,state:'product_staging',episodeClaims:EMPTY_EPISODE_CLAIMS,
+    episodeScopeDigest:EMPTY_EPISODE_SCOPE_DIGEST,productVerificationRef:{verificationId:'verify-poster',
+      materialRole:'poster',workspaceMaterialHandleId:'handle-poster'},previousReferenceRevision:1,
+    committedWorkspaceRevision:3,referenceDigest:h('ref-poster')});
+  value.productMaterialManifest.members.push({materialKey:posterKey,role:'poster',controlOperation:'acquire_workspace_product',
+    workspaceReferenceId:'ref-poster',workspaceMaterialHandle:{handleId:'handle-poster'},sourceRelatedReferenceId:null,
+    derivedAuthorityDigest:null,episodeClaims:EMPTY_EPISODE_CLAIMS,episodeClaimSetDigest:EMPTY_EPISODE_CLAIM_SET_DIGEST});
+  const assertion={sourceRelatedReferenceId:'related-ref',primaryMaterialKey:h('primary-source'),role:'poster',
+    sourceMaterialKey:sourceKey,finalProductMaterialKey:posterKey,associationEvidenceDigest:h('association'),
+    dispositionBasisDigest:h('disposition'),bindingRevision:1,bindingEvidenceDigest:h('binding'),
+    dispositionKind:'replaced_and_settled',derivedAuthorityDigest:authority};
+  assertion.assertionDigest=d(assertion);
+  value.relatedAuthorityAssertions=[assertion];
+  value.relatedDispositionSetDigest=d({schema:'libra.related-disposition-set@1',items:value.relatedAuthorityAssertions});
+  value.offloadContextManifest.members=[{materialKey:sourceKey,contextRole:'related_input',
+    sourceRelatedReferenceId:'related-ref',finalProductMaterialKey:posterKey,dispositionKind:'replaced_and_settled',
+    derivedAuthorityDigest:authority}];
+  value.controlCommitScope.items.push({controlOperation:'acquire_workspace_product',materialKey:posterKey,
+    expectedControlState:'absent',toOwnerDomain:'libra',toOwnerScopeType:'on_deck_package',toOwnerScopeId:value.onDeckPackageId});
+  sealPromotion(value);
+  assert.doesNotThrow(()=>c.assertPromotionDecision(value));
+  assert.equal(value.productMaterialManifest.members.filter((item)=>item.role==='poster').length,1);
+
+  const duplicated=structuredClone(value);
+  duplicated.productMaterialManifest.members.push({materialKey:sourceKey,role:'poster',controlOperation:'assert_related_input',
+    sourceRelatedReferenceId:'related-ref',derivedAuthorityDigest:authority,episodeClaims:EMPTY_EPISODE_CLAIMS,
+    episodeClaimSetDigest:EMPTY_EPISODE_CLAIM_SET_DIGEST});
+  assert.throws(()=>c.assertPromotionDecision(duplicated),/one-for-one/);
+});
+
 test('Arca rejection leaves package immutable and same-spec rework gets next revision',()=>{
   const p={...commitPromotion().package,offerId:'offer-1'},rejection={handoffKind:'libra_to_arca',offerId:'offer-1',deliverableId:p.onDeckPackageId,rejectionCode:'mandatory_media_unmet',acceptanceEvidenceSetDigest:h('evidence')};rejection.rejectionDigest=d(rejection);
   const plan=c.planRework({structuredRejection:rejection,publishedPackage:p,acceptanceSpecRecordDigest:p.acceptanceSpecRef.recordDigest});assert.equal(plan.nextPackageRevision,2);assert.equal(plan.preservePublishedPackage,true);
