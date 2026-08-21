@@ -144,7 +144,11 @@ function identityAlias(value, sourceKind) {
 function identityCandidate(candidate) {
   const providerAliases = Array.isArray(candidate.aliases) ? candidate.aliases : [];
   const aliases = unique([candidate.title, candidate.originalTitle, ...providerAliases.map((item) => item.value)])
-    .map((value) => identityAlias(value, providerAliases.find((item) => item.value === value)?.sourceKind || 'provider'));
+    // Provider adapters may retain their own provenance vocabulary (for example
+    // TMDB's localized/original/translation labels).  ProductIdentityEvidence
+    // intentionally exposes only its bounded cross-domain vocabulary, so do not
+    // leak adapter-local labels into the typed result.
+    .map((value) => identityAlias(value, 'provider'));
   const value = { provider:'tmdb', namespace:'tmdb_movie', providerKey:String(candidate.providerKey),
     displayTitle:String(candidate.title || candidate.originalTitle), originalTitle:candidate.originalTitle ? String(candidate.originalTitle) : null,
     releaseYear:Number.isSafeInteger(candidate.releaseYear) ? candidate.releaseYear : null, aliases:Object.freeze(aliases) };

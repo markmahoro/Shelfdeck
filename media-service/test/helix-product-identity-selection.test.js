@@ -97,3 +97,17 @@ test('manual Selection Intent still performs exact TMDB observation before resol
   assert.equal(result.result, 'resolved');
   assert.equal(result.verifiedIdentity.providerKey, '278');
 });
+
+test('provider-local alias provenance is normalized before Product Identity evidence leaves Libra', async () => {
+  const result = await observeProductIdentity({ observeRoutingProvider:async () => [{
+    providerKey:'278', title:'Expected Movie', originalTitle:'Expected Movie', releaseYear:2000,
+    aliases:[
+      { value:'Expected Movie', sourceKind:'localized' },
+      { value:'The Expected Movie', sourceKind:'alternative_title' },
+    ],
+  }] }, { ...evidenceIntent('manual_selection'), yearHint:2000,
+    aliases:[{ value:'Expected Movie', sourceKind:'candidate', aliasDigest:canonicalDigest({ value:'Expected Movie', sourceKind:'candidate' })}],
+  }, { integrationId:'tmdb-main', configRevision:1 });
+  assert.equal(result.result, 'resolved');
+  assert.deepEqual(result.verifiedIdentity.aliases.map((item) => item.sourceKind), ['provider', 'provider']);
+});

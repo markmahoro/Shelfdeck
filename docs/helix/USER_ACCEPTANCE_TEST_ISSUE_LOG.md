@@ -1209,7 +1209,41 @@ Aftercare读取当前Inventory、Placement Decision和原Handoff B Custody Bindi
 UAT-020代码修复已完成，但问题继续保持OPEN：按用户指示不立即重建Canary、不启动服务、不执行第二轮真实Admin Web UAT；
 只有后续新Canary证明22/22均形成唯一物理现实后才关闭。
 
-## 18. 后续问题模板
+## 18. UAT-021：TMDB别名来源泄漏到Product Identity证据，全部整理在身份取证前冻结
+
+问题分类：`EXECUTION_CONTRACT / INTEGRATION_ADAPTER / USER_VISIBLE_PROJECTION`
+
+用户侧现象：第二轮真实Admin Web UAT中，Movie Canary的22个已路由影片没有进入实际整理。Formation页面显示
+`待整理 0 / 整理中 0 / 需要处理 22 / 已完成整理 0`；常规影片显示“本次整理已冻结，需要放弃后重新采购”，BDMV及
+ISO条目同时显示身份需要处理。
+
+现场证据：
+
+- Field页面已通过真实Admin Web发布Direct → `Movie Canary`的分拣策略，22个Subject均已获得目标Shelf和
+  Acceptance Spec；这不是未发布策略或未创建Run；
+- 本地隔离UAT数据库中，`libra.product_identity.evidence.observe@1`有20个终态失败Attempt，失败码均为
+  `P4_CAPABILITY_SCHEMA_REJECTED`，失败类别为`executor`；这些失败被Run恢复策略有界冻结；
+- 以TMDB适配器实际会返回的`localized`、`alternative_title`别名来源复现时，
+  `ProductIdentityEvidenceObservation`精确schema拒绝`verifiedIdentity.aliases[*].sourceKind`，因为该跨域结果
+  只允许`candidate`、`related_nfo`或`provider`。
+
+初步诊断：TMDB适配器保留了本地别名来源词汇，Libra的`identityCandidate`又把该词汇原样带入受限的
+Product Identity结果。适配器本地provenance不属于该结果的公共契约，因而严格校验正确地拒绝了结果；但执行路径没有在
+生成结果前完成词汇规范化，导致正常TMDB响应被误判为技术失败。
+
+修复边界：只在Libra Product Identity的跨域结果边界将Provider返回的任何别名来源统一投影为`provider`；不修改
+TMDB适配器原始响应，不放宽结果schema，不改变用户手工选择或NFO来源语义。
+
+验收证据：新增回归以`localized`和`alternative_title`模拟TMDB响应，断言形成的resolved Identity仅包含
+`provider`来源别名；随后执行专项测试、相关Architecture Gate和Admin Web build。脚本只证明契约修复；旧冻结Run保持
+不可变，后续必须从真实Admin Web按正式Discard/Recovery路径验证新的Run能够继续形成整理。
+
+修复状态（2026-08-21）：`IMPLEMENTED / REAL ADMIN WEB RECOVERY PENDING`。专项Product Identity测试5/5通过，
+TMDB集成架构门禁11/11通过，Admin Web production build通过；此前启动的完整Libra前半段门禁已自然结束，未输出可归因于
+本修复的新失败。旧冻结Run保持不可变，下一步将在独立提交后重启本地UAT服务，并从真实Admin Web执行正式恢复路径验证。
+未直接改写任何既有Run、Attempt、Event或Canary媒体文件。
+
+## 19. 后续问题模板
 
 后续发现的问题按以下结构追加：
 
