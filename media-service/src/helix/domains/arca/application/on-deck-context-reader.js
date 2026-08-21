@@ -43,6 +43,21 @@ function messageFromRefs(dependencyRefs) {
   return Object.freeze({ ...value, messageId, dedupKey: messageId });
 }
 
+function assessAcceptedInventory(inventoryPort, onDeckRunId, responsibility, context) {
+  return inventoryPort.assess({
+    onDeckRunId,
+    custodyId: responsibility.custodyId,
+    shelf: context.shelf,
+    onDeckProductPackage: context.packageValue,
+    observedAtMs: 0,
+    // After Handoff B Acceptance, Placement and per-member Settlement advance
+    // the physical reality legitimately.  Later Event input projections must
+    // therefore replay an exact final member when its approved source has
+    // already been settled; initial Acceptance still assesses with replay off.
+    replayCommitted: true,
+  });
+}
+
 function createOnDeckContextReader(options) {
   if (!options?.productDeliveryPort || typeof options.productDeliveryPort.readPackage !== 'function') {
     throw new TypeError('Arca On-deck Context requires the formal Libra Product Delivery port.');
@@ -105,14 +120,12 @@ function createOnDeckContextReader(options) {
     if (!accepted || responsibility.onDeckRunId !== onDeckRunId) {
       throw new Error('Arca On-deck Run identity is unavailable or stale.');
     }
-    const feasibility = options.inventoryPort.assess({
+    const feasibility = assessAcceptedInventory(
+      options.inventoryPort,
       onDeckRunId,
-      custodyId: responsibility.custodyId,
-      shelf: context.shelf,
-      onDeckProductPackage: context.packageValue,
-      observedAtMs: 0,
-      replayCommitted: false,
-    });
+      responsibility,
+      context,
+    );
     const targetLocation = options.inventoryPort.resolveTargetLocation({
       shelf: context.shelf,
       onDeckProductPackage: context.packageValue,
@@ -133,4 +146,8 @@ function createOnDeckContextReader(options) {
   return Object.freeze({ messageFromRefs, readOffer, readAccepted, acceptance, onDeck });
 }
 
-module.exports = Object.freeze({ createOnDeckContextReader, messageFromRefs });
+module.exports = Object.freeze({
+  assessAcceptedInventory,
+  createOnDeckContextReader,
+  messageFromRefs,
+});

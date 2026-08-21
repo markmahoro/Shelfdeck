@@ -1289,7 +1289,31 @@ Movie Perception Continuity架构门禁6/6及Admin Web production build均通过
 
 修复状态（2026-08-21）：`IMPLEMENTED / CLEAN CANARY UAT PENDING`。
 
-## 21. 后续问题模板
+## 21. UAT-024：逐成员Settlement后Accepted Context仍要求全部旧源存在
+
+问题分类：`ARCA_ONDECK / SETTLEMENT_RECOVERY / INPUT_PROJECTION`
+
+用户侧现象：`有话好好说 (1997)`完成Placement后没有到达On-deck Commit；页面仍显示整理中，后台两个
+`arca.ondeck.input_settlement.delete@1` Event在输入准备阶段失败，错误为`CLEAN_ARCA_PRODUCT_SOURCE_MISSING`。
+
+现场证据：Final目录已形成按Placement命名的视频、NFO和字幕；第一个Settlement已按冻结mapping删除一个不同名旧源。
+后续Settlement在读取同一Accepted On-deck Context时，`readAccepted`再次调用Inventory feasibility且固定
+`replayCommitted:false`。该全包检查因前一个已合法结算的源不再存在而失败，尚未轮到当前成员的Settlement Capability。
+
+初步诊断：首次Acceptance的源现实检查与Accepted责任内的后续回放使用了同一模式。逐成员Settlement本来就会使旧源集合
+单调减少；Accepted Context若仍要求初始全集存在，会把自身已提交的前序效果误判为外部漂移，形成无法闭环的终态失败。
+
+修复边界：首次Handoff B Acceptance继续使用`replayCommitted:false`严格检查原始Package；只有已经Accepted的On-deck
+Context读取使用`replayCommitted:true`，允许在旧源已结算时以Final Inventory Decision指定的精确目标字节复验。
+Final目标不存在或字节不符仍fail closed，不跳过Settlement Approval、mapping或最终现实验证。
+
+验收证据：新增Accepted Context专项回归，断言后续读取携带`replayCommitted:true`且保持Run、Custody、Shelf和Package围栏；
+专项测试1/1、Clean Arca Inventory Port测试5/5、Handoff B/On-deck架构门禁8/8及Admin Web production build通过。
+后续仍需干净Canary多成员顺序Settlement真实页面复验。
+
+修复状态（2026-08-21）：`IMPLEMENTED / CLEAN CANARY UAT PENDING`。
+
+## 22. 后续问题模板
 
 后续发现的问题按以下结构追加：
 
