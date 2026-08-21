@@ -78,22 +78,24 @@ function validateConfig(snapshot, selectedProfile = TMDB_PROFILE) {
   }
   const profile = selectedProfile;
   const config = integration.config;
+  const configFields = [
+    'schemaRef',
+    'schemaVersion',
+    'kind',
+    'endpoint',
+    'configRevision',
+    'secretRef',
+    'secretEnvelopeDigest',
+    'credentialKind',
+    'capabilityCodes',
+    'lastTestSummary',
+    'lastCommand',
+    'landingBinding',
+  ];
+  if (Object.hasOwn(config, 'settings')) configFields.push('settings');
   exact(
     config,
-    [
-      'schemaRef',
-      'schemaVersion',
-      'kind',
-      'endpoint',
-      'configRevision',
-      'secretRef',
-      'secretEnvelopeDigest',
-      'credentialKind',
-      'capabilityCodes',
-      'lastTestSummary',
-      'lastCommand',
-      'landingBinding',
-    ],
+    configFields,
     'PLATFORM_INTEGRATION_CONFIG_CORRUPT',
   );
   let endpoint;
@@ -146,6 +148,9 @@ function validateConfig(snapshot, selectedProfile = TMDB_PROFILE) {
     );
   }
   validateSummary(profile, config.lastTestSummary);
+  if (typeof profile.normalizeSettings === 'function') {
+    profile.normalizeSettings(config.settings);
+  }
   if (profile.kind === 'moviepilot') {
     assertMoviePilotLandingBinding(config.landingBinding);
   }
@@ -263,6 +268,11 @@ function createIntegrationRuntime(options) {
         secretRef: snapshot.secret.secretRef,
         secretKind: snapshot.secret.secretKind,
         secretRevision: snapshot.secret.revision,
+        ...(typeof profile.normalizeSettings === 'function'
+          ? { settings: profile.normalizeSettings(
+              snapshot.integration.config.settings,
+            ) }
+          : {}),
       });
     },
   });

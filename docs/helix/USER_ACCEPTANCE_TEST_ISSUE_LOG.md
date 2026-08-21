@@ -942,7 +942,10 @@ Package、Receipt、Canonical JSON等结构化事实的SHA-256与媒体字节Ide
 
 拟定修复边界：不放宽Product Identity严格关联规则；TMDB语言应来自用户可见配置或明确的本地化策略；精确ID验证应读取可证明Alias的Translations/Alternative Titles；查询前有界清理年份、分辨率、Codec和Release尾缀；Projection区分Provider零结果与候选被本地过滤。具体实现进入修复时再补测试与浏览器验收。
 
-当前处理决定：仅记录问题，暂不修改代码、Integration配置或既有不可变Observation/Run事实。重新请求仅为只读诊断，没有写入业务状态。
+当前处理决定：修复已实现，等待第二轮Canary真实浏览器资格确认。TMDB连接新增用户可见语言设置，默认`zh-CN`；Search、
+精确ID与Metadata共用该revision。Adapter有界取得Original Title、Alternative Titles与Translations，Libra严格关联会消费这些
+别名而不放宽为模糊匹配。旧连接不要求重录Credential，旧不可变Observation/Run事实不被改写。专项Integration回归和Admin Web
+production build通过；真实Provider重取及Canary结果留在新UAT记录中。
 
 ## 14. UAT-017：外部寻源未按 Acceptance Spec 预筛候选，下载后才发现产品不可达
 

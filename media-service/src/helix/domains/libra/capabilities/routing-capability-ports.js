@@ -111,7 +111,7 @@ function providerCandidateSelection(intent, candidates) {
   }
   if (intent.strongProviderAnchor) return candidates.filter((item) => item.providerKey === intent.strongProviderAnchor.providerKey);
   const title = normalize(intent.candidateDisplayTitle);
-  return candidates.filter((item) => [item.title, item.originalTitle].some((value) => normalize(value) === title) &&
+  return candidates.filter((item) => [item.title, item.originalTitle, ...(item.aliases || []).map((alias) => alias.value)].some((value) => normalize(value) === title) &&
     (intent.yearHint === null || item.releaseYear === intent.yearHint));
 }
 
@@ -142,7 +142,9 @@ function identityAlias(value, sourceKind) {
 }
 
 function identityCandidate(candidate) {
-  const aliases = unique([candidate.title, candidate.originalTitle]).map((value) => identityAlias(value, 'provider'));
+  const providerAliases = Array.isArray(candidate.aliases) ? candidate.aliases : [];
+  const aliases = unique([candidate.title, candidate.originalTitle, ...providerAliases.map((item) => item.value)])
+    .map((value) => identityAlias(value, providerAliases.find((item) => item.value === value)?.sourceKind || 'provider'));
   const value = { provider:'tmdb', namespace:'tmdb_movie', providerKey:String(candidate.providerKey),
     displayTitle:String(candidate.title || candidate.originalTitle), originalTitle:candidate.originalTitle ? String(candidate.originalTitle) : null,
     releaseYear:Number.isSafeInteger(candidate.releaseYear) ? candidate.releaseYear : null, aliases:Object.freeze(aliases) };
@@ -160,7 +162,7 @@ function exactProviderAssociationMatches(intent, candidate) {
   if (intent.associationKind === 'manual_selection') return true;
   if (intent.associationKind !== 'nfo_claim') return false;
   const expectedTitles = new Set((intent.aliases || []).map((item) => normalizedIdentityAssociationTitle(item.value)).filter(Boolean));
-  const providerTitles = [candidate.title, candidate.originalTitle]
+  const providerTitles = [candidate.title, candidate.originalTitle, ...(candidate.aliases || []).map((item) => item.value)]
     .map(normalizedIdentityAssociationTitle).filter(Boolean);
   return providerTitles.some((title) => expectedTitles.has(title)) &&
     (intent.yearHint === null || candidate.releaseYear === intent.yearHint);

@@ -4,6 +4,13 @@ Status: Movie Procurement与Movie Libra封口保持有效；Movie Arca已完成H
 
 Last updated: 2026-08-21
 
+## 0. UAT repair status — UAT-016 implemented, fresh Canary qualification pending
+
+TMDB Adapter已移除固定`en-US`：连接测试与后续Search、精确ID、Metadata读取使用同一用户配置语言，默认`zh-CN`。
+Identity Evidence有界取得Original Title、Alternative Titles与Translations并携带来源；NFO精确TMDB ID不再仅因本地化标题不同
+而冲突。旧连接无需重录Credential即可按默认值读取，新连接页面可配置并展示语言。专项测试与Admin Web build通过后提交；
+尚未启动第二轮真实Canary，因此本条不宣称UAT通过。
+
 ## 0. Current operational status — Formation projection cutover recovered
 
 本轮现场切换已经完成，当前本机服务保持运行。媒体整理工作区现在读取后端持久化Projection，前端不再逐请求扫描Subject、Rating、

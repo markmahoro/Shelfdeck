@@ -224,6 +224,7 @@ const METADATA_FIELDS = Object.freeze([
   'budget',
   'created_by',
   'credits',
+  'alternative_titles',
   'episode_run_time',
   'first_air_date',
   'genres',
@@ -257,6 +258,7 @@ const METADATA_FIELDS = Object.freeze([
   'status',
   'tagline',
   'title',
+  'translations',
   'type',
   'video',
   'vote_average',
@@ -385,6 +387,54 @@ function validateMetadataResponse(value) {
       }
     }
   }
+  if (value.alternative_titles !== undefined) {
+    allowed(value.alternative_titles, ['titles'], [], 'PLATFORM_INTEGRATION_RESPONSE_SCHEMA_INVALID');
+    if (!Array.isArray(value.alternative_titles.titles) || value.alternative_titles.titles.length > 64) {
+      fail('PLATFORM_INTEGRATION_RESPONSE_SCHEMA_INVALID', 'TMDB alternative title set exceeds its bound.');
+    }
+    for (const item of value.alternative_titles.titles) {
+      allowed(item, ['title'], ['iso_3166_1', 'type'], 'PLATFORM_INTEGRATION_RESPONSE_SCHEMA_INVALID');
+      boundedString(item.title, 1024, 'PLATFORM_INTEGRATION_RESPONSE_SCHEMA_INVALID');
+      boundedString(item.iso_3166_1, 16, 'PLATFORM_INTEGRATION_RESPONSE_SCHEMA_INVALID', true);
+      boundedString(item.type, 128, 'PLATFORM_INTEGRATION_RESPONSE_SCHEMA_INVALID', true);
+    }
+  }
+  if (value.translations !== undefined) {
+    allowed(value.translations, ['translations'], [], 'PLATFORM_INTEGRATION_RESPONSE_SCHEMA_INVALID');
+    if (!Array.isArray(value.translations.translations) || value.translations.translations.length > 64) {
+      fail('PLATFORM_INTEGRATION_RESPONSE_SCHEMA_INVALID', 'TMDB translation set exceeds its bound.');
+    }
+    for (const item of value.translations.translations) {
+      allowed(item, ['data'], ['iso_3166_1', 'iso_639_1', 'name', 'english_name'], 'PLATFORM_INTEGRATION_RESPONSE_SCHEMA_INVALID');
+      allowed(item.data, [], ['title', 'name', 'overview', 'homepage', 'runtime', 'tagline'], 'PLATFORM_INTEGRATION_RESPONSE_SCHEMA_INVALID');
+      boundedString(item.data.title, 1024, 'PLATFORM_INTEGRATION_RESPONSE_SCHEMA_INVALID', true);
+      boundedString(item.data.name, 1024, 'PLATFORM_INTEGRATION_RESPONSE_SCHEMA_INVALID', true);
+      boundedString(item.iso_3166_1, 16, 'PLATFORM_INTEGRATION_RESPONSE_SCHEMA_INVALID', true);
+      boundedString(item.iso_639_1, 16, 'PLATFORM_INTEGRATION_RESPONSE_SCHEMA_INVALID', true);
+    }
+  }
+}
+
+function aliasEvidence(item) {
+  const aliases = [];
+  const seen = new Set();
+  function add(value, sourceKind, language = null, region = null) {
+    const title = typeof value === 'string' ? value.normalize('NFKC').trim() : '';
+    if (!title || Buffer.byteLength(title, 'utf8') > 1024) return;
+    const key = title.toLocaleLowerCase('und');
+    if (seen.has(key) || aliases.length >= 32) return;
+    seen.add(key);
+    aliases.push(Object.freeze({ value:title, sourceKind, language, region }));
+  }
+  add(item.title || item.name, 'localized', item.original_language || null);
+  add(item.original_title || item.original_name, 'original', item.original_language || null);
+  for (const alternate of item.alternative_titles?.titles || []) {
+    add(alternate.title, 'alternative_title', null, alternate.iso_3166_1 || null);
+  }
+  for (const translation of item.translations?.translations || []) {
+    add(translation.data?.title || translation.data?.name, 'translation', translation.iso_639_1 || null, translation.iso_3166_1 || null);
+  }
+  return Object.freeze(aliases);
 }
 
 function validateImagesResponse(value) {
@@ -654,6 +704,7 @@ function createTmdbProviderAdapter(options) {
       operationId: request.operationId,
       timeoutMs: timeout(request.timeoutMs),
     }, async (snapshot, secretBytes) => {
+      const language = snapshot.settings?.language || 'zh-CN';
       if (request.operationId === 'shared.integration.search@1') {
         exact(
           request.input,
@@ -680,7 +731,7 @@ function createTmdbProviderAdapter(options) {
             query: {
               query: request.input.title.trim(),
               include_adult: 'false',
-              language: 'en-US',
+              language,
               page: 1,
             },
           },
@@ -721,18 +772,29 @@ function createTmdbProviderAdapter(options) {
         let result;
         if (request.input.strongProviderKey !== null) {
           const item = await fetchJson(snapshot.endpoint, snapshot.secretKind, secretBytes, '/movie/' + request.input.strongProviderKey, {
-            timeoutMs: timeout(request.timeoutMs), query: { language:'en-US' },
+            timeoutMs: timeout(request.timeoutMs), query: { language, append_to_response:'alternative_titles,translations' },
           });
           validateMetadataResponse(item); result = { results:[item] };
         } else {
           result = await fetchJson(snapshot.endpoint, snapshot.secretKind, secretBytes, '/search/movie', {
             timeoutMs: timeout(request.timeoutMs), query: { query: request.input.title.trim(), include_adult: 'false',
-              language: 'en-US', page: 1, ...(request.input.yearHint === null ? {} : { year: request.input.yearHint }) },
+              language, page: 1, ...(request.input.yearHint === null ? {} : { year: request.input.yearHint }) },
           });
           validateSearchResponse(result, true);
+          const expanded = [];
+          for (const candidate of result.results.slice(0, 10)) {
+            const detail = await fetchJson(snapshot.endpoint, snapshot.secretKind, secretBytes, '/movie/' + candidate.id, {
+              timeoutMs: timeout(request.timeoutMs), query: { language, append_to_response:'alternative_titles,translations' },
+            });
+            validateMetadataResponse(detail);
+            if (detail.id !== candidate.id) fail('PLATFORM_TMDB_IDENTITY_MISMATCH', 'TMDB candidate detail belongs to a foreign identity.');
+            expanded.push(detail);
+          }
+          result = { results: expanded };
         }
         return Object.freeze(result.results.map((item) => Object.freeze({
           providerKey: String(item.id), title: item.title || '', originalTitle: item.original_title || '',
+          aliases: aliasEvidence(item),
           releaseYear: typeof item.release_date === 'string' && /^\d{4}/.test(item.release_date) ? Number(item.release_date.slice(0, 4)) : null,
           regionCodes: Object.freeze(Array.isArray(item.origin_country) ? [...new Set(item.origin_country.filter((value) => typeof value === 'string'))].sort() : []),
           genreCodes: Object.freeze(Array.isArray(item.genre_ids) ? [...new Set(item.genre_ids.filter(Number.isSafeInteger).map(String))].sort() : []),
@@ -776,8 +838,8 @@ function createTmdbProviderAdapter(options) {
           {
             timeoutMs: timeout(request.timeoutMs),
             query: {
-              append_to_response: 'credits',
-              language: 'en-US',
+              append_to_response: 'credits,alternative_titles,translations',
+              language,
             },
           },
         );
@@ -975,11 +1037,11 @@ function createTmdbProviderAdapter(options) {
   });
 
   async function testCandidate(value) {
-    exact(
-      value,
-      ['endpoint', 'secretKind', 'secretBytes', 'timeoutMs'],
-      'PLATFORM_TMDB_TEST_SHAPE',
-    );
+    if (!value || typeof value !== 'object' || Array.isArray(value) ||
+        !['endpoint','secretKind','secretBytes','timeoutMs','settings'].every((field) => Object.hasOwn(value, field)) ||
+        Object.keys(value).some((field) => !['endpoint','secretKind','secretBytes','timeoutMs','settings'].includes(field))) {
+      fail('PLATFORM_TMDB_TEST_SHAPE', 'TMDB test input must match the exact closed shape.');
+    }
     if (!Buffer.isBuffer(value.secretBytes) ||
         value.secretBytes.length < 1 || value.secretBytes.length > 4096) {
       fail(
@@ -989,6 +1051,8 @@ function createTmdbProviderAdapter(options) {
     }
     const endpoint = normalizedEndpoint(value.endpoint);
     const timeoutMs = timeout(value.timeoutMs);
+    const language = value.settings?.language || 'zh-CN';
+    if (!/^[a-z]{2}(?:-[A-Z]{2})?$/.test(language)) fail('PLATFORM_TMDB_TEST_SHAPE', 'TMDB test language is invalid.');
     const configuration = await fetchJson(
       endpoint,
       value.secretKind,
@@ -1004,7 +1068,7 @@ function createTmdbProviderAdapter(options) {
       '/movie/550',
       {
         timeoutMs,
-        query: { append_to_response: 'credits', language: 'en-US' },
+        query: { append_to_response: 'credits,alternative_titles,translations', language },
       },
     );
     validateMetadataResponse(movie);

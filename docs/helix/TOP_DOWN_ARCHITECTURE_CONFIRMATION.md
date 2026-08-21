@@ -35,6 +35,16 @@ set. Repeated fact changes may lawfully replace multiple pre-effect Works, but m
 loop once the inputs become stable. This is Owner-local replacement using the existing Foundation state machine; it
 does not authorize a second identity, dual-read contract or global Runtime fallback.
 
+### TMDB locale and identity-alias amendment (2026-08-21)
+
+TMDB language is a user-visible, revisioned Integration setting. Movie Beta defaults it to `zh-CN`; every search,
+exact-identity observation and Product Metadata request is fenced to that same setting revision. A localized display
+title is not an identity veto. Exact-ID and bounded candidate observations retain the TMDB original title and bounded
+Alternative Titles/Translations as typed alias Evidence with source language/region provenance. Libra may use those
+aliases only for its existing strict title/year or exact-provider association; it may not widen the match to fuzzy
+selection or let the adapter choose a business winner. Existing Integration revisions without the field read with the
+documented default, while every newly saved revision persists the explicit user choice.
+
 Startup Recovery keeps unresolved non-pure Effects in a dedicated safety-first recovery lane. A transient Provider,
 network or Resource failure while replaying one exact classified recovery action must retain that action and its
 Effect/Attempt identity for bounded retry; it must not discard the Effect, create a second Attempt, or hold a Permit

@@ -4,6 +4,13 @@ Status: Movie Procurement保持`CLOSED FOR MOVIE`；Movie Libra保持`MOVIE LIBR
 
 Last updated: 2026-08-21
 
+## 0. Active repair — UAT-016 TMDB locale and alias evidence
+
+用户授权的Movie Canary修复已经开始。TMDB连接现在把首选语言作为用户可见、revisioned设置，默认`zh-CN`；Search、
+精确ID Observation与Metadata读取共用该设置。精确ID和有界候选同时保留Original Title、Alternative Titles与Translations
+别名Evidence，Libra继续使用严格关联而不放宽为模糊匹配。现有无该字段的连接按明确默认值读取，新保存revision显式持久化。
+本修复完成专项回归和Admin Web build后单独提交；真实Provider与Canary浏览器资格留给第二轮UAT。
+
 ## 0. Current amendment — Formation durable projection local cutover
 
 2026-08-21，本轮“媒体整理工作区”已从请求内临时拼账切换为后端维护的

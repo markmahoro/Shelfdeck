@@ -111,17 +111,35 @@ function secret(value, secretKind, credentialKind) {
   });
 }
 
-function tmdbCredential(value, settings) {
-  if (settings !== undefined) {
-    exact(settings, []);
+function tmdbSettings(value) {
+  if (value === undefined) return Object.freeze({ language: 'zh-CN' });
+  exact(value, ['language']);
+  if (typeof value.language !== 'string' ||
+      !/^[a-z]{2}(?:-[A-Z]{2})?$/.test(value.language)) {
+    fail(
+      'PLATFORM_INTEGRATION_CREDENTIAL_INVALID',
+      'TMDB language must be a language or language-region code.',
+      { field: 'settings.language' },
+    );
   }
+  return Object.freeze({ language: value.language });
+}
+
+function tmdbCredential(value, settings) {
   exact(value, ['kind', 'value']);
   const raw = boundedString(value.value, 'credential.value', 8);
+  const preparedSettings = tmdbSettings(settings);
   if (value.kind === 'api_key') {
-    return secret(raw, 'tmdb_api_key', 'api_key');
+    return Object.freeze({
+      ...secret(raw, 'tmdb_api_key', 'api_key'),
+      settings: preparedSettings,
+    });
   }
   if (value.kind === 'access_token') {
-    return secret(raw, 'tmdb_access_token', 'access_token');
+    return Object.freeze({
+      ...secret(raw, 'tmdb_access_token', 'access_token'),
+      settings: preparedSettings,
+    });
   }
   fail(
     'PLATFORM_INTEGRATION_CREDENTIAL_INVALID',
@@ -243,6 +261,7 @@ const PROFILES = Object.freeze([
     capabilityCodes: Object.freeze(['identity', 'metadata']),
     normalizeEndpoint: exactEndpoint('https://api.themoviedb.org/3'),
     prepareCredential: tmdbCredential,
+    normalizeSettings: tmdbSettings,
     acceptedSecretKinds: Object.freeze([
       'tmdb_api_key',
       'tmdb_access_token',

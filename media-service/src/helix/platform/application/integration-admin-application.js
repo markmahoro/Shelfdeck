@@ -96,6 +96,9 @@ function publicSnapshot(profile, snapshot) {
       capabilityCodes: Object.freeze([...profile.capabilityCodes]),
       lastTestSummary: null,
     };
+    if (typeof profile.normalizeSettings === 'function') {
+      result.settings = profile.normalizeSettings(undefined);
+    }
     if (profile.kind === 'moviepilot') result.landingBinding = null;
     return Object.freeze(result);
   }
@@ -116,6 +119,9 @@ function publicSnapshot(profile, snapshot) {
       ...value.config.lastTestSummary,
     }),
   };
+  if (typeof profile.normalizeSettings === 'function') {
+    result.settings = profile.normalizeSettings(value.config.settings);
+  }
   if (profile.kind === 'moviepilot') {
     result.landingBinding = value.config.landingBinding
       ? Object.freeze({ ...value.config.landingBinding })
@@ -130,10 +136,14 @@ function validateStoredPublicResult(profile, value) {
     'endpoint', 'configDigest', 'capabilityCodes', 'lastTestSummary',
   ];
   if (profile.kind === 'moviepilot') resultFields.push('landingBinding');
+  const optionalFields = [];
+  if (typeof profile.normalizeSettings === 'function') {
+    optionalFields.push('settings');
+  }
   exact(
     value,
     resultFields,
-    [],
+    optionalFields,
     'PLATFORM_INTEGRATION_COMMAND_RECEIPT_CORRUPT',
   );
   let endpoint = null;
@@ -194,6 +204,9 @@ function validateStoredPublicResult(profile, value) {
       ? Object.freeze({ ...value.lastTestSummary })
       : null,
   };
+  if (typeof profile.normalizeSettings === 'function') {
+    result.settings = profile.normalizeSettings(value.settings);
+  }
   if (profile.kind === 'moviepilot') {
     result.landingBinding = value.landingBinding
       ? Object.freeze({ ...value.landingBinding })
@@ -386,7 +399,7 @@ function createIntegrationAdminApplication(options) {
         secretBytes: prepared.secretBytes,
         timeoutMs,
       };
-      if (profile.kind !== 'tmdb') {
+      if (Object.keys(preparedSettings).length > 0) {
         candidateInput.settings = preparedSettings;
       }
       const tested = await adapter.testCandidate(candidateInput);
@@ -703,6 +716,9 @@ function createIntegrationAdminApplication(options) {
                 probe: currentLandingProbe,
               })
             : null,
+          ...(typeof profile.normalizeSettings === 'function'
+            ? { settings: profile.normalizeSettings(proof.settings) }
+            : {}),
           lastCommand: {
             commandKind: RECEIPT_KIND_CONFIGURE,
             idempotencyKey: key,

@@ -116,6 +116,8 @@ function tmdbFetch(state = {}) {
     state.calls ||= [];
     state.calls.push({
       pathname: url.pathname,
+      language: url.searchParams.get('language'),
+      appendToResponse: url.searchParams.get('append_to_response'),
       hasApiKey: url.searchParams.has('api_key'),
       hasAuthorization: Boolean(init?.headers?.authorization),
     });
@@ -157,6 +159,8 @@ function tmdbFetch(state = {}) {
       return response(200, {
         id: 550,
         title: 'Fight Club',
+        original_title: 'Fight Club',
+        original_language: 'en',
         release_date: '1999-10-15',
         overview: 'An insomniac meets a soap maker.',
         genres: [{ id: 18, name: 'Drama' }],
@@ -164,6 +168,8 @@ function tmdbFetch(state = {}) {
           cast: [{ id: 819, name: 'Edward Norton' }],
           crew: [{ id: 7467, name: 'David Fincher', job: 'Director' }],
         },
+        alternative_titles: { titles: [{ title: '搏击俱乐部', iso_3166_1: 'CN', type: '' }] },
+        translations: { translations: [{ iso_3166_1:'CN', iso_639_1:'zh', name:'普通话', english_name:'Mandarin', data:{ title:'搏击俱乐部' } }] },
       });
     }
     return response(404, { status_code: 34 });
@@ -186,6 +192,7 @@ function testCommand(kind, key) {
     idempotencyKey: key,
     endpoint: 'https://api.themoviedb.org/3',
     credential: { kind: 'api_key', value: credential },
+    settings: { language: 'zh-CN' },
     timeoutMs: 5_000,
   };
 }
@@ -352,6 +359,7 @@ test('H1.1 Admin TMDB routes test before save, redact secrets, CAS, and replay',
     configDigest: null,
     capabilityCodes: ['identity', 'metadata'],
     lastTestSummary: null,
+    settings: { language: 'zh-CN' },
   });
 
   const testPayload = testCommand('tmdb', 'tmdb-test-before-save');
@@ -401,6 +409,7 @@ test('H1.1 Admin TMDB routes test before save, redact secrets, CAS, and replay',
   assert.equal(saved.statusCode, 200, saved.body);
   assert.equal(saved.json().configRevision, 1);
   assert.equal(saved.json().configured, true);
+  assert.deepEqual(saved.json().settings, { language: 'zh-CN' });
   assert.equal(saved.body.includes(credential), false);
   assert.equal(saved.body.includes('integration-envelope:'), false);
 
@@ -778,6 +787,26 @@ test('H1.1 Platform ports fence real TMDB identity and metadata reads across res
       ...identityBasis,
       identityAnchorDigest: canonicalDigest(identityBasis),
     };
+    const identityHandle = runtime.integrationHandleResolverPort.resolve({
+      integrationId: 'tmdb-main',
+      integrationType: 'tmdb',
+      configRevision: 1,
+      allowedOperation: 'libra.product_identity.evidence.observe@1',
+      artifactKind: null,
+    });
+    const identityCandidates = await runtime.observeRoutingProvider({
+      operationId: 'libra.product_identity.evidence.observe@1',
+      intent: {
+        contentProfile:'movie',
+        candidateDisplayTitle:'搏击俱乐部',
+        yearHint:1999,
+        strongProviderAnchor:{ providerKey:'550' },
+      },
+      integrationHandle:identityHandle,
+    });
+    assert.equal(identityCandidates[0].providerKey, '550');
+    assert.ok(identityCandidates[0].aliases.some((item) =>
+      item.value === '搏击俱乐部' && item.sourceKind === 'alternative_title'));
     const handle = runtime.integrationHandleResolverPort.resolve({
       integrationId: 'tmdb-main',
       integrationType: 'tmdb',
@@ -826,6 +855,10 @@ test('H1.1 Platform ports fence real TMDB identity and metadata reads across res
     assert.ok(Buffer.isBuffer(artifact.bytes));
     assert.ok(state.calls.some((call) =>
       call.pathname === '/3/movie/550/images'));
+    assert.ok(state.calls.some((call) =>
+      call.pathname === '/3/movie/550' &&
+      call.language === 'zh-CN' &&
+      call.appendToResponse?.includes('alternative_titles')));
     assert.throws(
       () => runtime.integrationHandleResolverPort.resolve({
         integrationId: 'tmdb-main',
@@ -1409,9 +1442,9 @@ test('H1.1 source and route inventory prove no production fixture or scope expan
   const guard = require('../../scripts/p14-h1-change-scope-guard');
   assert.deepEqual(guard.routeImplementationStatus().counts, {
     total: 117,
-    real: 75,
+    real: 80,
     workerBeta404: 6,
-    unavailable503: 36,
+    unavailable503: 31,
   });
   // H1.1 is a closed historical construction phase. Its dedicated guard fixture
   // verifies the frozen seam; the live worktree is now governed by CURRENT_PLAN.

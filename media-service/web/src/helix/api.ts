@@ -245,6 +245,7 @@ export type IntegrationState = {
   configDigest: string | null;
   capabilityCodes: string[];
   lastTestSummary: { identityProviderKey?: string; checkedAtMs?: number } | null;
+  settings?: { language?: string; maxDownloadAttempts?: number };
   landingBinding: {
     bindingId: string;
     bindingRevision: number;
