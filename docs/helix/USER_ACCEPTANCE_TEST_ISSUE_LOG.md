@@ -905,7 +905,23 @@ Package、Receipt、Canonical JSON等结构化事实的SHA-256与媒体字节Ide
 
 当前处理决定：用户侧恢复入口已修复、回归、提交并完成浏览器可见性验收。两项Frozen Run仍保留原状，等待用户明确决定是否Discard；完整Movie Canary UAT仍不通过。
 
-## 13. 后续问题模板
+## 13. UAT-016：TMDB 正确候选被本地语言与标题过滤误报为未找到
+
+问题分类：`PRODUCT_IDENTITY / PROVIDER_LOCALE / TITLE_NORMALIZATION`
+
+用户侧现象：媒体整理页大量电影显示“暂未找到匹配的媒体身份”。当前17个未完成条目中，10个Projection结果为`not_found / provider_no_match`，另有5个显示`provider_identity_conflicting`。
+
+现场证据：经用户允许，使用当前本地UAT已配置的TMDB连接重新执行只读查询；`007：大破天幕杀机`、`金的音像店`、`养蜂人`、`放·逐`、`战栗空间`均返回正确电影，TMDB ID分别为`37724`、`1058673`、`866398`、`13807`、`4547`。相同中文查询在`en-US`下返回英文Display Title，在`zh-CN`下返回与Canary标题一致的中文Display Title。
+
+初步诊断：当前TMDB Adapter固定使用`language=en-US`；TMDB Search可以通过中文别名检索到对象，但ShelfDeck随后只接受Provider返回的`title/originalTitle`与中文Candidate Display Title精确相等的候选，因此把正确结果过滤为`provider_no_match`。NFO已给出精确TMDB ID的样本也会因`/movie/:id`返回英文标题、缺少Translations/Alternative Titles证明而被判`provider_identity_conflicting`。BDMV等标题若在年份后仍带分辨率、Codec或Release尾缀，现有清洗也不能形成正确查询标题。
+
+业务影响：页面把“TMDB零结果”和“TMDB有正确结果但被本地过滤”合并为同一未找到状态，迫使用户逐部手工选择身份，并可能冻结本应自动继续的Libra Run。
+
+拟定修复边界：不放宽Product Identity严格关联规则；TMDB语言应来自用户可见配置或明确的本地化策略；精确ID验证应读取可证明Alias的Translations/Alternative Titles；查询前有界清理年份、分辨率、Codec和Release尾缀；Projection区分Provider零结果与候选被本地过滤。具体实现进入修复时再补测试与浏览器验收。
+
+当前处理决定：仅记录问题，暂不修改代码、Integration配置或既有不可变Observation/Run事实。重新请求仅为只读诊断，没有写入业务状态。
+
+## 14. 后续问题模板
 
 后续发现的问题按以下结构追加：
 
