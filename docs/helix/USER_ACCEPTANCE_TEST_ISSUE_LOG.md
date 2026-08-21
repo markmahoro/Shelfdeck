@@ -1865,7 +1865,7 @@ stderr 为 `CLEAN_ARCA_TARGET_OCCUPIED` 与 `CLEAN_ARCA_SETTLEMENT_UNKNOWN_MEMBE
 
 验收证据：三条编号/未编号 `zh-CN.srt` 最终名保持可区分原名。
 
-当前处理决定：按根因修复。状态 `REGRESSION PASSED / SERVICE RESTART REQUIRED`。
+当前处理决定：按根因修复。本轮 Canary 的该 Libra Run 验收已失败收口，未自动重试。已开干净 Canary `UAT-20260821-234249-d3c617add`。状态 `REGRESSION PASSED / NEW CANARY IN PROGRESS`。
 
 ## 45. 后续问题模板
 
