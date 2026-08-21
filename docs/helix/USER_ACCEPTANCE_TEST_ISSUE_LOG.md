@@ -1833,7 +1833,7 @@ stderr 为 `CLEAN_ARCA_TARGET_OCCUPIED` 与 `CLEAN_ARCA_SETTLEMENT_UNKNOWN_MEMBE
 
 验收证据：ordinal 1 与旧键相同，ordinal 2 不同；`safe_retry_before_intent` 在 start 之后才 recover；该 decision 对非 pure 收成 `reconcile_required`。p4 input-provider / host / policy 回归通过。
 
-当前处理决定：按根因修复并提交。状态 `REGRESSION PASSED / SERVICE RESTART REQUIRED`。
+当前处理决定：按根因修复并提交。现场 Attempt 4 已在抽 ISO clip（工作区 `.iso-clip-00000.m2ts` 在增长）。状态 `REGRESSION PASSED / LIVE EXTRACT IN PROGRESS`。
 
 ## 43. 后续问题模板
 
