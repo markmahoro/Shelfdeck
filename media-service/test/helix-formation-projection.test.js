@@ -134,7 +134,16 @@ test('Formation organizingSteps use closed user language and persist GPU transco
   assert.equal(steps[0].label,'GPU转码 · HEVC · 4k · 不超过 20 GiB');
   assert.equal(steps[0].state,'running');
   assert.equal(steps[0].progress.currentValue,34);
+  const nvencWorks=[{state:'executing',events:[{
+    capabilityRef:'libra.media.transcode@1',state:'executing',
+    result:{result:{executionDeviceRef:{deviceId:'local-nvidia-nvenc-0',deviceClass:'nvidia_nvenc'}}},
+  }]}];
+  assert.equal(organizingSteps(nvencWorks,spec)[0].label,'GPU转码 · HEVC · 4k · 不超过 20 GiB');
   assert.deepEqual(organizingSteps([]),[{key:'assessing',label:'正在评估整理方案',state:'pending',progress:null}]);
+  assert.deepEqual(organizingSteps([],spec,{latestRunState:'discarded'}),
+    [{key:'reintake',label:'等待重新入库',state:'pending',progress:null}]);
+  assert.equal(actionLabel([],spec,{latestRunState:'discarded'}),'等待重新入库');
+  assert.equal(nextAction([],'pending',null,null,null,null,null,'discarded').label,'等待重新入库');
   const artworkWorks=[{state:'succeeded',events:[{capabilityRef:'libra.product_sidecar.render@1',state:'succeeded'}]}];
   assert.equal(organizingSteps(artworkWorks)[0].label,'补海报和 NFO');
   const row=buildFormationProjectionRow({...item(1,'in_progress'),organizingAction:actionLabel(gpuWorks,spec),organizingSteps:steps},4000);

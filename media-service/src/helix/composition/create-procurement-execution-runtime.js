@@ -757,7 +757,7 @@ function createProcurementExecutionRuntime(options) {
     return { workId: request.workId, disposition: 'succeeded' };
   } };
   const cursorStore=createReconcileCursorStore({schemaManifest:options.schemaManifest,unitOfWork:options.unitOfWork,now});
-  let aftercareSweepNotBeforeMs=0,offdeckPolicySweepNotBeforeMs=0,offdeckDuplicateSweepNotBeforeMs=0;
+  let offdeckPolicySweepNotBeforeMs=0,offdeckDuplicateSweepNotBeforeMs=0;
   const fallbackReconciler=createDomainReconcileRunner({cursorStore,now,onError:options.onError,registrations:[Object.freeze({
     ownerDomain:'procurement',reconcilerKey:'active-procurement-runs',
     listPage:({cursor,limit})=>triageReader.listActiveRunPage(cursor,limit),
@@ -817,7 +817,7 @@ function createProcurementExecutionRuntime(options) {
         return run.libraRunId?reconcileLibraRun(run.libraRunId):run;},
     }),Object.freeze({
       ownerDomain:'arca',reconcilerKey:'due-aftercare-shelf-entries',
-      listPage:({cursor,limit})=>{if(cursor===null&&now()<aftercareSweepNotBeforeMs)return [];const page=arcaProcessServices.aftercareContextReader.listPage(cursor,limit);if(page.length<limit)aftercareSweepNotBeforeMs=now()+24*60*60*1000;return page;},
+      listPage:({cursor,limit})=>arcaProcessServices.aftercareContextReader.listPage(cursor,limit),
       reconcile:({shelfEntryId})=>{const projection=arcaProcessServices.aftercareCoordinator.project(shelfEntryId);
         return !projection||Math.min(projection.nextCustodyDueAtMs,projection.nextDeepDueAtMs)>now()
           ?Object.freeze({kind:'not_due',shelfEntryId})

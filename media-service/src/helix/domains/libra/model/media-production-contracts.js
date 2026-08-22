@@ -165,10 +165,16 @@ function deriveTargetSizeBudget(value) {
   const subtitleBitrateBps=subtitleStreams.length*64000;
   const nonVideoBitrateBps=audioBitrateBps+subtitleBitrateBps;
   const durationSeconds=durationMs/1000;
-  const targetVideoBitrateBps=Math.floor(((maxSizeBytes-containerReserveBytes)*8/durationSeconds)-nonVideoBitrateBps);
+  const capVideoBitrateBps=Math.floor(((maxSizeBytes-containerReserveBytes)*8/durationSeconds)-nonVideoBitrateBps);
+  const sourceSizeBytes=Number.isSafeInteger(value?.sourceSizeBytes)&&value.sourceSizeBytes>0?value.sourceSizeBytes:null;
+  const fillBytes=sourceSizeBytes!==null?Math.min(maxSizeBytes,sourceSizeBytes):maxSizeBytes;
+  const fillReserveBytes=Math.max(16*1024*1024,Math.ceil(fillBytes*0.02));
+  let targetVideoBitrateBps=Math.floor(((fillBytes-fillReserveBytes)*8/durationSeconds)-nonVideoBitrateBps);
+  if(targetVideoBitrateBps<100000)targetVideoBitrateBps=Math.max(100000,Math.floor(fillBytes*8/durationSeconds*0.7));
+  if(capVideoBitrateBps>=100000)targetVideoBitrateBps=Math.min(targetVideoBitrateBps,capVideoBitrateBps);
   return freeze({sizeBudgetRevision:1,maxSizeBytes,containerReserveBytes,nonVideoBitrateBps,targetVideoBitrateBps,
-    feasible:targetVideoBitrateBps>=100000,budgetDigest:canonicalDigest({schema:'libra.target-size-budget@1',maxSizeBytes,
-      containerReserveBytes,nonVideoBitrateBps,targetVideoBitrateBps})});
+    feasible:capVideoBitrateBps>=100000,sourceSizeBytes,budgetDigest:canonicalDigest({schema:'libra.target-size-budget@1',maxSizeBytes,
+      containerReserveBytes,nonVideoBitrateBps,targetVideoBitrateBps,sourceSizeBytes})});
 }
 
 function selectCopyAudioStreamsForSizeBudget(value) {
@@ -177,7 +183,8 @@ function selectCopyAudioStreamsForSizeBudget(value) {
   const maxSizeBytes=integer(value?.maxSizeBytes,'maxSizeBytes',1),durationMs=integer(value?.durationMs,'durationMs',1);
   const evaluate=(streams)=>{
     const selected=[...streams].sort((a,b)=>a.streamIndex-b.streamIndex);
-    return {audioStreams:Object.freeze(selected),budget:deriveTargetSizeBudget({maxSizeBytes,durationMs,audioStreams:selected,subtitleStreams})};
+    return {audioStreams:Object.freeze(selected),budget:deriveTargetSizeBudget({maxSizeBytes,durationMs,audioStreams:selected,subtitleStreams,
+      ...(Number.isSafeInteger(value?.sourceSizeBytes)&&value.sourceSizeBytes>0?{sourceSizeBytes:value.sourceSizeBytes}:{})})};
   };
   const ladder=[];
   const push=(streams)=>{if(!ladder.some((item)=>sameAudioSet(item,streams)))ladder.push(Object.freeze([...streams]));};

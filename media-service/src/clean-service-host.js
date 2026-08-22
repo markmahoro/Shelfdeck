@@ -86,7 +86,7 @@ const { createExecutionProgressProjectionReader } = require('./helix/foundation/
 const { createRoutingManualSelectionService } = require('./helix/domains/libra/application/routing-manual-selection-service');
 const { createLibraRunAdminService } = require('./helix/domains/libra/application/libra-run-admin-service');
 const {
-  deriveTitleYear,
+  buildRatingTargetIdentity,
 } = require('./helix/domains/libra/model/decision-identity-evidence-contracts');
 const { createSessionTokenService } = require('./helix/platform/public/session-token-service');
 const {
@@ -1310,14 +1310,14 @@ async function createCleanServiceHost(options) {
       const context = routingExecution?.routingContextReader.read(targetId);
       if (!context) return null;
       const claim = context.deliverySnapshot?.candidatePackage?.identityClaim || {};
-      const derivedIdentity = deriveTitleYear(
-        claim.claimedTitle || claim.displayTitle || targetId,
-        Number.isSafeInteger(claim.claimedYear) ? claim.claimedYear : null,
-      );
-      const title = derivedIdentity.title;
-      const year = derivedIdentity.year;
+      const derivedIdentity = buildRatingTargetIdentity({
+        title: claim.claimedTitle || claim.displayTitle || targetId,
+        year: claim.claimedYear,
+        providerIdentity: null,
+      });
       const body = { targetType:'subject', targetId, targetRevision:context.subject.intakeRevision,
-        title, year, providerIdentity:null, subjectSnapshotDigest:context.subject.snapshotDigest };
+        title:derivedIdentity.title, year:derivedIdentity.year, providerIdentity:derivedIdentity.providerIdentity,
+        subjectSnapshotDigest:context.subject.snapshotDigest };
       return Object.freeze({ ...body, targetDigest:canonicalDigest(body) });
     }),
     workspaceProductPort,

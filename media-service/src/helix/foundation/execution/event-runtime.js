@@ -13,6 +13,12 @@ class EventRuntimeError extends Error {
 
 function fail(code, message, details) { throw new EventRuntimeError(code, message, details); }
 
+function observationFailureClass(error) {
+  if (error?.code === 'P4_EXECUTION_TIMEOUT') return 'timeout';
+  if (error?.code === 'P5_PROVIDER_TRANSPORT_FAILED') return 'integration';
+  return 'executor';
+}
+
 function canonical(value) {
   if (Array.isArray(value)) return value.map(canonical);
   if (value && typeof value === 'object') return Object.keys(value).sort().reduce((result, key) => {
@@ -545,7 +551,7 @@ function createEventRuntime(options) {
           }) }));
       } catch (error) {
         if (entry.manifest.effectClass !== 'pure_observation') throw error;
-        outcome = Object.freeze({ kind:'failed', failureClass:error?.code === 'P4_EXECUTION_TIMEOUT'?'timeout':'executor',
+        outcome = Object.freeze({ kind:'failed', failureClass:observationFailureClass(error),
           code:error?.code === 'P4_EXECUTION_TIMEOUT'?'EXECUTION_TIMEOUT':
             (typeof error?.code === 'string' && error.code ? error.code : 'EXECUTOR_ERROR'),
           message:String(error?.message || 'Pure observation recovery failed.'), retryDirective:'contract_policy',
@@ -742,7 +748,7 @@ function createEventRuntime(options) {
             // its durable Attempt in `executing` would manufacture an
             // unrecoverable crash window, so preserve the failure as an
             // ordinary policy-controlled Capability outcome.
-            outcome = Object.freeze({ kind:'failed', failureClass:'executor',
+            outcome = Object.freeze({ kind:'failed', failureClass:observationFailureClass(error),
               code:typeof error?.code === 'string' && error.code ? error.code : 'EXECUTOR_ERROR',
               message:String(error?.message || 'Pure observation executor failed.'),
               retryDirective:'contract_policy', evidence:Object.freeze({
@@ -806,4 +812,4 @@ function createEventRuntime(options) {
   });
 }
 
-module.exports = Object.freeze({ EventRuntimeError, createEventRuntime });
+module.exports = Object.freeze({ EventRuntimeError, createEventRuntime, observationFailureClass });

@@ -295,6 +295,26 @@ test('projects internal title aliases into the exact Resolution Record Set contr
   });
 });
 
+test('terminals a Douban Acquisition after its page Work is failed rather than leaving it active', () => {
+  fixture(({ store, unitOfWork }) => {
+    register(store); start(store, { scope:{ collection:'watched_movies' } });
+    const statuses=new Map();
+    const services=createPerceptionProcessServices({schemaManifest,unitOfWork,perceptionStore:store,
+      workResultReader:{status:(workId)=>statuses.get(workId)||null},
+      targetProjectionReader:()=>({title:'Example',year:1994,providerIdentity:null,targetRevision:1,targetDigest:hash('target')})});
+    const first=services.reconcileAcquisition('acquisition-1');
+    assert.equal(first.kind,'pending');
+    assert.equal(store.getAcquisition('acquisition-1').state,'active');
+    statuses.set(first.workId,{state:'failed',latestAttempt:{failure_code:'P5_PROVIDER_TRANSPORT_FAILED'}});
+    const closed=services.reconcileAcquisition('acquisition-1');
+    assert.equal(closed.kind,'terminal');
+    assert.equal(closed.state,'failed');
+    assert.equal(store.getAcquisition('acquisition-1').state,'failed');
+    assert.ok(store.getAcquisition('acquisition-1').terminalAtMs);
+    assert.equal(services.reconcileAcquisition('acquisition-1').kind,'terminal');
+  });
+});
+
 test('replans a failed Resolution input-contract attempt once under a new basis', () => {
   fixture(({ databasePath, store, unitOfWork }) => {
     const statuses=new Map();

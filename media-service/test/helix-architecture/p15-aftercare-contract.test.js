@@ -49,6 +49,23 @@ test('Aftercare cadence is deterministic, bounded, and split between daily and w
   assert.equal(health.nextDeepDueAtMs, at + PERIODS.deepMs + jitter);
 });
 
+test('a rating-driven Care Basis change is due immediately instead of waiting 24h', () => {
+  const at = 5_000_000;
+  const previous = digest('0');
+  const current = digest('a');
+  const health = projectHealth(context(current), {
+    assessments:[
+      assessment('custody', at - 1_000, previous),
+      assessment('presentation', at - 1_000, previous),
+      assessment('conformance', at - 1_000, previous),
+    ],
+    findings:[], cases:[],
+  }, at);
+  assert.equal(health.state, 'never_assessed');
+  assert.equal(health.nextCustodyDueAtMs, at);
+  assert.equal(health.nextDeepDueAtMs, at);
+});
+
 test('a terminal Case from an obsolete Care Basis remains history but cannot color current health', () => {
   const oldBasis = digest('0');
   const currentBasis = digest('a');

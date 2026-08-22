@@ -30,6 +30,15 @@ function decisionHeadDigest(subjectId,headRevision,currentRoutingDecisionId,curr
   return canonicalDigest({schema:'libra.subject-decision-head@1',subjectId,headRevision,currentRoutingDecisionId,currentDecisionBasisId,currentAcceptanceSpecId});
 }
 
+function specInputSubjectSnapshot(subject){
+  return Object.freeze({
+    subjectId:subject.subjectId,status:subject.status,intakeRevision:subject.intakeRevision,
+    structureKind:subject.structureKind,contentProfile:subject.contentProfile,
+    routingAnchorIntakeDecisionId:subject.routingAnchorIntakeDecisionId,routingProvenance:subject.routingProvenance,
+    continuitySetDigest:subject.continuitySetDigest,episodeScopeDigest:subject.episodeScopeDigest,
+  });
+}
+
 function validateSubjectSnapshot(value){
   object(value,'P8_SUBJECT_SNAPSHOT_REQUIRED');
   if(value.status!=='active'||!['single','season'].includes(value.structureKind)||!CONTENT_PROFILES.has(value.contentProfile)||
@@ -126,7 +135,7 @@ function buildDecisionInputSet(value){
     if(core.routingAuthoritySnapshot!==null||shelfRoutingTargets.length)fail('P8_SPEC_INPUT_SCOPE','Acceptance Spec Basis cannot contain Routing preparation inputs.');
     if(readiness.result==='ready'&&(!core.routingDecision||core.routingDecision.result!=='resolved'||!core.shelfStandardProjection||!core.productScope))fail('P8_SPEC_INPUT_REQUIRED','Ready Acceptance Spec Basis requires resolved Routing, Standard, and Product Scope.');
     core.routingInputDigest=core.routingDecision?digest(core.routingDecision.routingInputDigest,'routingDecision.routingInputDigest'):null;
-    core.specInputDigest=canonicalDigest({schema:'libra.spec-input@1',subjectSnapshot:subject,routingDecisionOrNull:core.routingDecision,
+    core.specInputDigest=canonicalDigest({schema:'libra.spec-input@1',subjectSnapshot:specInputSubjectSnapshot(subject),routingDecisionOrNull:core.routingDecision,
       shelfStandardProjectionOrNull:core.shelfStandardProjection,productScopeOrNull:core.productScope,decisionFacts,queryResults});
   }
   const inputSetDigest=canonicalDigest(core),decisionInputSetId=canonicalDigest({schema:'libra.decision-input-set-id@1',basisKind:value.basisKind,subjectId:subject.subjectId,inputSetDigest});
@@ -152,4 +161,4 @@ function buildDecisionBasisRevision(inputSet,basisRevision,committedAtMs,commitM
 }
 
 module.exports=Object.freeze({BASIS_KINDS,CONTENT_PROFILES,INPUT_KINDS,LibraDecisionContractError,READINESS_REASONS,REQUIREMENT_KEYS,
-  ROUTING_REASONS,buildDecisionBasisRevision,buildDecisionInputSet,decisionHeadDigest,inputSnapshotRows,validateSubjectSnapshot});
+  ROUTING_REASONS,buildDecisionBasisRevision,buildDecisionInputSet,decisionHeadDigest,inputSnapshotRows,specInputSubjectSnapshot,validateSubjectSnapshot});

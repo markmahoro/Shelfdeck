@@ -32,7 +32,8 @@ function queryFor(target){const evidence=[];const add=(anchorKind,anchorValue,co
   evidence.sort((a,b)=>a.anchorKind.localeCompare(b.anchorKind)||a.anchorValue.localeCompare(b.anchorValue));
   const body={queryContract:'perception.rating.resolve@1',queryVersion:1,querySchemaRef:'helix://contracts/domain-types/PerceptionResolutionQuery/v1',factKind:'rating',identityEvidence:evidence};
   return freeze({...body,queryInputDigest:canonicalDigest(body)});}
-function queryHandle(query,now){const body={schemaRef:'helix://contracts/types/CanonicalQueryHandle/v1',schemaVersion:1,providerDomain:'perception',consumerDomain:'libra',
+function queryHandle(query,now,consumerDomain){const domain=consumerDomain==='arca'?'arca':'libra';
+  const body={schemaRef:'helix://contracts/types/CanonicalQueryHandle/v1',schemaVersion:1,providerDomain:'perception',consumerDomain:domain,
   queryContract:query.queryContract,queryVersion:query.queryVersion,typedInputSchemaRef:query.querySchemaRef,typedInput:query,inputDigest:query.queryInputDigest,expiresAtMs:now+30*24*60*60*1000};
   return freeze({...body,fenceDigest:canonicalDigest(body)});}
 
@@ -55,9 +56,16 @@ function createPerceptionProcessServices(options){
   function acquisitionContext(acquisitionId){const acquisition=store.getAcquisition(acquisitionId);if(!acquisition)return null;const source=store.getSource(acquisition.perceptionSourceId);
     const pageOrdinal=(source.currentCursorRevision||0)-acquisition.initialCursorRevision;const prior=(source.currentCursorRevision||0)>acquisition.initialCursorRevision?store.getCursor(source.perceptionSourceId,source.currentCursorRevision):null;
     return freeze({acquisition,source,scope:JSON.parse(acquisition.scopeJson),pageOrdinal,expectedCursorRevision:source.currentCursorRevision||0,cursorIn:prior?.cursorOut||acquisition.initialCursorValue});}
-  function reconcileAcquisition(acquisitionId){const context=acquisitionContext(acquisitionId);if(!context)return freeze({kind:'not_found',acquisitionId});if(context.acquisition.state==='completed')return freeze({kind:'terminal',acquisitionId});
+  function reconcileAcquisition(acquisitionId){const context=acquisitionContext(acquisitionId);if(!context)return freeze({kind:'not_found',acquisitionId});
+    if(['completed','failed'].includes(context.acquisition.state))return freeze({kind:'terminal',acquisitionId,state:context.acquisition.state});
     const basisDigest=canonicalDigest({schema:'perception.acquisition-page-basis@1',acquisitionId,sourceRevision:context.source.configRevision,pageOrdinal:context.pageOrdinal,cursorIn:context.cursorIn,scopeDigest:context.acquisition.scopeDigest});
-    const work=definition('acquisition_page','perception_acquisition',acquisitionId,basisDigest,ACQUISITION_RESULT),submitted=submit(work);return freeze({kind:succeeded(workStatus(work.workId))?'ready_to_reconcile':'pending',acquisitionId,workId:work.workId,replayed:submitted.replayed});}
+    const work=definition('acquisition_page','perception_acquisition',acquisitionId,basisDigest,ACQUISITION_RESULT);
+    const status=workStatus(work.workId);
+    if(status?.state==='failed'){
+      const failed=store.failAcquisition(acquisitionId);
+      return freeze({kind:'terminal',acquisitionId,state:failed?.state||'failed',workId:work.workId});
+    }
+    const submitted=submit(work);return freeze({kind:succeeded(workStatus(work.workId))?'ready_to_reconcile':'pending',acquisitionId,workId:work.workId,replayed:submitted.replayed});}
   function target(targetType,targetId){const value=options.targetProjectionReader(targetType,targetId);if(!value)throw Object.assign(new Error('Rating target does not exist.'),{code:'PERCEPTION_TARGET_NOT_FOUND'});return freeze({...value,targetType,targetId});}
   function createRecord(command){const retract=command?.rating===null;if(!command||!['subject','shelf_entry'].includes(command.targetType)||!retract&&(!Number.isSafeInteger(command.rating)||command.rating<1||command.rating>5)||!Number.isSafeInteger(command.expectedRevision)||command.expectedRevision<0||typeof command.idempotencyKey!=='string'||!command.idempotencyKey)throw Object.assign(new Error('Rating command is invalid.'),{code:'PERCEPTION_RATING_COMMAND_INVALID'});
     const current=store.findCurrentTargetRating(command.targetType,command.targetId),currentRevision=current?.sourceRecordRevision||0;if(currentRevision!==command.expectedRevision)throw Object.assign(new Error('Rating revision is stale.'),{code:'PERCEPTION_RATING_REVISION_CONFLICT'});
@@ -76,7 +84,7 @@ function createPerceptionProcessServices(options){
     const acquisitionId=stable('perception-douban-acquisition-',{sourceId:config.sourceId,idempotencyKey});start({acquisitionId,sourceId:config.sourceId,sourceKind:'douban',integrationId:config.integrationId,configRevision:config.configRevision,
       scope:freeze({mode:'provider',collection:'watched_movies',sourceId:config.sourceId,idempotencyKey})});const operation=reconcileAcquisition(acquisitionId);
     return freeze({operationRef:acquisitionId,state:'accepted',sourceKind:'douban',workId:operation.workId});}
-  function resolutionContext(targetType,targetId){const snapshot=target(targetType,targetId),query=queryFor(snapshot),handle=queryHandle(query,now()),assembled=assembler.assemble({queryHandle:handle,ruleSnapshot});return freeze({target:snapshot,queryHandle:handle,...assembled});}
+  function resolutionContext(targetType,targetId){const snapshot=target(targetType,targetId),query=queryFor(snapshot),handle=queryHandle(query,now(),targetType==='shelf_entry'?'arca':'libra'),assembled=assembler.assemble({queryHandle:handle,ruleSnapshot});return freeze({target:snapshot,queryHandle:handle,...assembled});}
   function ensureResolution(targetType,targetId){const context=resolutionContext(targetType,targetId),existing=store.getResolution(context.query.queryContract,context.query.queryInputDigest);
     if(existing&&existing.recordSetDigest===context.recordSet.recordSetDigest&&existing.ruleDigest===context.ruleSnapshot.ruleDigest)return freeze({kind:'terminal',resolution:existing,queryResult:versionedQueryResult(existing,30*24*60*60*1000)});
     const processId=targetType+':'+targetId,base={queryInputDigest:context.query.queryInputDigest,recordSetDigest:context.recordSet.recordSetDigest,ruleDigest:context.ruleSnapshot.ruleDigest},basisDigest=canonicalDigest(base);

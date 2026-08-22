@@ -6,7 +6,7 @@ const os = require('node:os');
 const path = require('node:path');
 const test = require('node:test');
 const Database = require('better-sqlite3');
-const { createEventRuntime } = require('../../src/helix/foundation/execution/event-runtime');
+const { createEventRuntime, observationFailureClass } = require('../../src/helix/foundation/execution/event-runtime');
 const {
   executionInputUnavailable,
 } = require('../../src/helix/foundation/execution/execution-input-readiness');
@@ -18,6 +18,12 @@ const generatedRoot = path.resolve(__dirname, '../../src/helix/foundation/persis
 const schemaDdl = fs.readFileSync(path.join(generatedRoot, 'clean-schema.sql'), 'utf8');
 const schemaManifest = JSON.parse(fs.readFileSync(path.join(generatedRoot, 'clean-schema.manifest.json'), 'utf8'));
 const HASH_A = 'a'.repeat(64); const HASH_B = 'b'.repeat(64);
+
+test('maps Douban page transport failure to a retryable integration class', () => {
+  assert.equal(observationFailureClass({ code: 'P5_PROVIDER_TRANSPORT_FAILED' }), 'integration');
+  assert.equal(observationFailureClass({ code: 'P4_EXECUTION_TIMEOUT' }), 'timeout');
+  assert.equal(observationFailureClass({ code: 'EXECUTOR_ERROR' }), 'executor');
+});
 const EMPTY_INPUT_DIGEST = require('node:crypto').createHash('sha256').update('{}').digest('hex');
 
 function fixture(run, settings = {}) {

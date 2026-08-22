@@ -171,7 +171,8 @@ function transcodePlanning(options,snapshot,ordinal) {
     ?Object.freeze({audioStreams,budget:null,feasible:true})
     :selectCopyAudioStreamsForSizeBudget({maxSizeBytes:requirement.space.maxSizeBytes,durationMs:source.inputProbe.durationMs,
       audioStreams,subtitleStreams:source.inputProbe.subtitleStreams,
-      acceptedPrimaryAudioClasses:requirement.mandatoryMedia.acceptedPrimaryAudioClasses});
+      acceptedPrimaryAudioClasses:requirement.mandatoryMedia.acceptedPrimaryAudioClasses,
+      ...(Number.isSafeInteger(source.inputProbe.sizeBytes)&&source.inputProbe.sizeBytes>0?{sourceSizeBytes:source.inputProbe.sizeBytes}:{})});
   const budget=selectedAudio.budget;
   if(budget&&!budget.feasible)return Object.freeze({kind:'contract_unplannable',diagnosticClassification:'media_size_budget_infeasible'});
   const previous=prior.at(-1)||null,previousSelection=previous?options.workResultReader.read(

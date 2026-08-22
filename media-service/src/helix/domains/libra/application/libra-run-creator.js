@@ -34,6 +34,18 @@ function createLibraRunCreator(options){
     return buildProductionMaterialManifest({manifestRole:'run_input',manifestRevision:1,libraRunId,
       scopeKind:context.subject.structure_kind==='season'?'episode_delivery':'single',members},context.spec);
   }
+  function controlReleased(context){
+    const controlled=context.bindings.filter((row)=>row.authority_kind==='primary_control');
+    if(!controlled.length)return true;
+    const keys=controlled.map((row)=>row.material_key),controls=[];
+    for(let index=0;index<keys.length;index+=500)controls.push(...controlPort.getMaterialControlProjections(keys.slice(index,index+500)));
+    const byKey=new Map(controls.map((item)=>[item.materialKey,item]));
+    return controlled.some((row)=>{
+      const control=byKey.get(row.material_key);
+      return !control||control.resultKind!=='available'||control.controlState!=='controlled'||control.ownerDomain!=='libra'||
+        control.ownerScopeType!=='subject'||control.ownerScopeId!==context.subject.subject_id;
+    });
+  }
   function relatedDispositionScope(context){
     const related=context.bindings.filter((row)=>row.authority_kind==='related_derived').map((row)=>{
       const referenceId=canonicalDigest({schema:'procurement.related-material-reference-id@1',primaryMaterialKey:row.primary_material_key,
@@ -57,6 +69,10 @@ function createLibraRunCreator(options){
     if(eligible.length>1)throw new Error('Subject has more than one commit-eligible Libra Run.');
     const current=eligible[0]||null;
     const completed=context.runs.filter((run)=>run.state==='completed');
+    if(!current&&!forceReplacementOf&&controlReleased(context)&&
+        context.runs.some((run)=>run.state==='discarded')){
+      return Object.freeze({kind:'awaiting_reintake',subjectId,reasonCode:'LIBRA_RUN_CONTROL_RELEASED'});
+    }
     if(current&&context.acceptedDeliveryRunIds?.includes(current.libra_run_id)){
       return Object.freeze({kind:'delivered',subjectId,libraRunId:current.libra_run_id,
         acceptanceSpecId:current.acceptance_spec_id,executionBasisDigest:current.execution_basis_digest});

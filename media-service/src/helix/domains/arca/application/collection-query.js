@@ -2,6 +2,7 @@
 
 const { canonicalDigest } = require('../../../contracts/canonical-json');
 const { createRepositoryDefinition } = require('../../../foundation/persistence/owner-repository');
+const { buildRatingTargetIdentity } = require('../../libra/model/decision-identity-evidence-contracts');
 
 function containerFromLocation(location) {
   const match = String(location || '').toLowerCase().match(/\.([a-z0-9]+)(?:$|[\\/?#])/);
@@ -170,8 +171,14 @@ function createArcaCollectionQuery(options) {
       if(!poster)return null;return Object.freeze({shelfEntryId,inventoryRevision:Number(row.current_inventory_revision),
         shelfTargetRoot:shelf.target_root_location,location:poster.location,materialKey:poster.material_key,sizeBytes:Number(poster.size_bytes)});});
       return reference?options.posterReader(reference):null;},
-    targetProjection(shelfEntryId){const item=getBase(shelfEntryId);if(!item)return null;const body={targetType:'shelf_entry',targetId:item.shelfEntryId,targetRevision:item.canonicalIdentityRevision,
-        title:item.displayIdentity,year:item.year,providerIdentity:item.provider+':'+item.providerKey,canonicalIdentityDigest:item.identityDigest};return Object.freeze({...body,targetDigest:canonicalDigest(body)});},
+    targetProjection(shelfEntryId){const item=getBase(shelfEntryId);if(!item)return null;
+      const identity=buildRatingTargetIdentity({
+        title:item.displayIdentity,year:item.year,
+        providerIdentity:item.provider&&item.providerKey?item.provider+':'+item.providerKey:null,
+      });
+      const body={targetType:'shelf_entry',targetId:item.shelfEntryId,targetRevision:item.canonicalIdentityRevision,
+        title:identity.title,year:identity.year,providerIdentity:identity.providerIdentity,canonicalIdentityDigest:item.identityDigest};
+      return Object.freeze({...body,targetDigest:canonicalDigest(body)});},
   });
 }
 

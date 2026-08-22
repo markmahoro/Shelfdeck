@@ -209,6 +209,21 @@ test('publishes a six-class Acceptance Spec from the exact ready Basis',()=>{
   assert.equal(spec.acceptanceSpecId.length,64);assert.equal(spec.recordDigest.length,64);
 });
 
+test('keeps specInputDigest stable when Product Identity is written back onto the Subject',()=>{
+  const expression={nodeKind:'always'},rset=buildDecisionInputSet(routingInput(policyAuthority([{shelfId:'shelf-1',expression}]),[projection('shelf-1')],[]));
+  const rbasis=buildDecisionBasisRevision(rset,1,100,'basis-1'),assessment=resolveRoutingAssessment({...rset,decisionBasisId:rbasis.decisionBasisId});
+  const routing=buildRoutingDecision(assessment,1),empty=subject(),identified={...empty,currentIdentityRevision:1,currentIdentityDigest:'f'.repeat(64)};
+  identified.snapshotDigest=canonicalDigest(Object.fromEntries(Object.entries(identified).filter(([key])=>key!=='snapshotDigest')));
+  const scope=buildProductScope(empty,[]);
+  const expectedDecisionHead=headSnapshot('subject-1',2,routing.routingDecisionId,rbasis.decisionBasisId,null);
+  const blank=buildDecisionInputSet({basisKind:'acceptance_spec',subjectSnapshot:empty,expectedDecisionHead,readiness:{result:'ready'},
+    routingAuthoritySnapshot:null,shelfRoutingTargets:[],routingDecision:routing,shelfStandardProjection:standardProjection('shelf-1'),productScope:scope,decisionFacts:[],queryResults:[]});
+  const written=buildDecisionInputSet({basisKind:'acceptance_spec',subjectSnapshot:identified,expectedDecisionHead,readiness:{result:'ready'},
+    routingAuthoritySnapshot:null,shelfRoutingTargets:[],routingDecision:routing,shelfStandardProjection:standardProjection('shelf-1'),productScope:scope,decisionFacts:[],queryResults:[]});
+  assert.equal(blank.specInputDigest,written.specInputDigest);
+  assert.notEqual(empty.snapshotDigest,identified.snapshotDigest);
+});
+
 test('rejects season as a content profile and incomplete Requirement classes',()=>{
   const invalid=subject();invalid.contentProfile='season';invalid.snapshotDigest=canonicalDigest(Object.fromEntries(Object.entries(invalid).filter(([key])=>key!=='snapshotDigest')));
   assert.throws(()=>buildProductScope(invalid,[]),/frozen Subject snapshot/);

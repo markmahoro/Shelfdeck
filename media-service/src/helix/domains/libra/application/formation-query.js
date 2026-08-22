@@ -33,11 +33,18 @@ function latestEvent(works, predicate) {
   return works.flatMap((work) => work.events).filter(predicate)
     .sort((a, b) => (b.result?.committedAtMs || 0) - (a.result?.committedAtMs || 0))[0] || null;
 }
+function transcodeDeviceClass(event) {
+  const result = event?.result?.result || event?.result || {};
+  const ref = result.executionDeviceRef || result.deviceSnapshot || {};
+  const deviceClass = String(ref.deviceClass || '');
+  const deviceId = String(ref.deviceId || '');
+  if (['nvidia_nvenc', 'intel_qsv', 'amd_vaapi'].includes(deviceClass)) return 'gpu';
+  if (deviceClass === 'software_cpu') return 'cpu';
+  return /nvenc|cuda|qsv|vaapi|gpu/i.test(deviceId + ' ' + deviceClass) ? 'gpu' : 'cpu';
+}
 function transcodeLabel(works, spec) {
   const event = latestEvent(works, (item) => item.capabilityRef === 'libra.media.transcode@1');
-  const device = event?.result?.result?.deviceSnapshot || event?.result?.deviceSnapshot || {};
-  const deviceId = String(device.deviceId || device.deviceClass || '');
-  const gpu = /nvenc|cuda|gpu/i.test(deviceId);
+  const gpu = transcodeDeviceClass(event) === 'gpu';
   const media = parse(spec?.spec_json)?.requirements?.mandatoryMedia || {};
   const space = parse(spec?.spec_json)?.requirements?.space || {};
   const parts = [gpu ? 'GPU转码' : 'CPU转码'];
@@ -46,7 +53,7 @@ function transcodeLabel(works, spec) {
   if (space.maxSizeGiB !== null && space.maxSizeGiB !== undefined) parts.push('不超过 ' + space.maxSizeGiB + ' GiB');
   return parts.join(' · ');
 }
-function organizingSteps(works, spec) {
+function organizingSteps(works, spec, options) {
   const step = (key, label, predicate) => {
     const event = latestEvent(works, predicate);
     if (!event) return null;
@@ -70,12 +77,15 @@ function organizingSteps(works, spec) {
     step('shelf', '上架到收藏架', (event) => event.capabilityRef === 'libra.product_package.publish@1' || event.capabilityRef.startsWith('arca.')),
   ].filter(Boolean);
   if (!planned.length) {
+    if (options?.latestRunState === 'discarded') {
+      return Object.freeze([Object.freeze({ key: 'reintake', label: '等待重新入库', state: 'pending', progress: null })]);
+    }
     return Object.freeze([Object.freeze({ key: 'assessing', label: '正在评估整理方案', state: 'pending', progress: null })]);
   }
   return Object.freeze(planned);
 }
-function actionLabel(works, spec) {
-  return organizingSteps(works, spec).map((item) => item.label).join(' / ');
+function actionLabel(works, spec, options) {
+  return organizingSteps(works, spec, options).map((item) => item.label).join(' / ');
 }
 function organizingWorks(run, latestRun, progressByRun) {
   if (run) return progressByRun.get(run.libra_run_id) || [];
@@ -134,8 +144,11 @@ function frozenRunLabel(works) {
   }
   return '本次整理已冻结，需要放弃后重新采购';
 }
-function nextAction(works, classification, issue, runState, recovery, arcaStatus, productPackage) {
+function nextAction(works, classification, issue, runState, recovery, arcaStatus, productPackage, latestRunState) {
   if (classification === 'completed') return Object.freeze({ label: '已进入收藏架', state: 'completed', progress: null });
+  if (!runState && latestRunState === 'discarded') {
+    return Object.freeze({ label: '等待重新入库', state: 'pending', progress: null });
+  }
   if (runState === 'frozen') return Object.freeze({ label: frozenRunLabel(works), state: 'frozen', progress: null });
   if (runState === 'suspended') return Object.freeze({ label: '整理已暂停，等待恢复评估', state: 'suspended', progress: null });
   if (recovery?.recoveryState === 'attention_required') return Object.freeze({ label: '接纳执行异常，需要处理', state: 'attention_required', progress: null });
@@ -241,8 +254,9 @@ function createFormationProjectionSource(options) {
       const arcaStatus = pkg ? arcaStatuses.get(pkg.offer_id) || null : null;
       const classification = classifyFormation({ run, works, issue, recovery, arcaStatus, productPackage: pkg });
       const rating = ratings.get(subject.subject_id) || null;
-      const steps = organizingSteps(actionWorks, spec);
-      return Object.freeze({ formationViewId: subject.subject_id, subjectId: subject.subject_id, displayIdentity, contentProfile: subject.content_profile, structureKind: subject.structure_kind, status: subject.status, classification, myRating: rating?.rating ?? null, myRatingSource: rating?.sourceKind || null, myRatingRevision: (rating?.expectedRevision || 0) > 0 ? rating.expectedRevision : null, productIdentityIssue: issue, acceptanceRecovery: recovery, arcaStatus, targetShelfId: routing?.shelf_id || null, targetShelfName: shelfNames.get(routing?.shelf_id) || null, routingState: routing?.decision || 'preparing', unresolvedReasonCode: routing?.unresolved_reason_code || null, routingPolicyMode: policy?.mode || null, routingPolicyRevision: routing?.routing_policy_revision == null ? null : Number(routing.routing_policy_revision), routingDecisionRevision: routing ? Number(routing.decision_revision) : null, routingDecisionDigest: routing?.decision_digest || null, routingDecisionHeadRevision: head ? Number(head.head_revision) : null, routingDecisionHeadDigest: head?.head_digest || null, acceptanceSpecId: spec?.acceptance_spec_id || null, acceptanceSpecRevision: spec ? Number(spec.spec_revision) : null, acceptanceSpecDigest: spec?.spec_digest || null, acceptanceSpecPublishedAtMs: spec ? Number(spec.published_at_ms) : null, primaryMaterialCount: bindings.filter((item) => item.authority_kind === 'primary_control').length, addedAtMs: decisions.length ? Number(decisions.at(-1).decided_at_ms) : Number(subject.updated_at_ms), organizingRequirement: requirementLabel(spec), organizingAction: actionLabel(actionWorks, spec), organizingSteps: steps, nextAction: nextAction(works, classification, issue, run?.state, recovery, arcaStatus, pkg), currentRun: run ? Object.freeze({ libraRunId: run.libra_run_id, state: run.state, stateRevision: Number(run.state_revision), stateDigest: run.state_digest, priorityClass: run.priority_class, packageRevisionHead: Number(run.package_revision_head), currentIdentityRevision: subject.current_identity_revision === null ? null : Number(subject.current_identity_revision) }) : null, handoffB: pkg ? Object.freeze({ onDeckPackageId: pkg.on_deck_package_id, offerId: pkg.offer_id, packageRevision: Number(pkg.package_revision), packageDigest: pkg.package_digest, state: pkg.state, publishedAtMs: Number(pkg.published_at_ms) }) : null, completedAtMs: arcaStatus?.stage === 'completed' ? arcaStatus.completedAtMs : null });
+      const stepOptions = Object.freeze({ latestRunState: latestRun?.state || null });
+      const steps = organizingSteps(actionWorks, spec, stepOptions);
+      return Object.freeze({ formationViewId: subject.subject_id, subjectId: subject.subject_id, displayIdentity, contentProfile: subject.content_profile, structureKind: subject.structure_kind, status: subject.status, classification, myRating: rating?.rating ?? null, myRatingSource: rating?.sourceKind || null, myRatingRevision: (rating?.expectedRevision || 0) > 0 ? rating.expectedRevision : null, productIdentityIssue: issue, acceptanceRecovery: recovery, arcaStatus, targetShelfId: routing?.shelf_id || null, targetShelfName: shelfNames.get(routing?.shelf_id) || null, routingState: routing?.decision || 'preparing', unresolvedReasonCode: routing?.unresolved_reason_code || null, routingPolicyMode: policy?.mode || null, routingPolicyRevision: routing?.routing_policy_revision == null ? null : Number(routing.routing_policy_revision), routingDecisionRevision: routing ? Number(routing.decision_revision) : null, routingDecisionDigest: routing?.decision_digest || null, routingDecisionHeadRevision: head ? Number(head.head_revision) : null, routingDecisionHeadDigest: head?.head_digest || null, acceptanceSpecId: spec?.acceptance_spec_id || null, acceptanceSpecRevision: spec ? Number(spec.spec_revision) : null, acceptanceSpecDigest: spec?.spec_digest || null, acceptanceSpecPublishedAtMs: spec ? Number(spec.published_at_ms) : null, primaryMaterialCount: bindings.filter((item) => item.authority_kind === 'primary_control').length, addedAtMs: decisions.length ? Number(decisions.at(-1).decided_at_ms) : Number(subject.updated_at_ms), organizingRequirement: requirementLabel(spec), organizingAction: actionLabel(actionWorks, spec, stepOptions), organizingSteps: steps, nextAction: nextAction(works, classification, issue, run?.state, recovery, arcaStatus, pkg, latestRun?.state || null), currentRun: run ? Object.freeze({ libraRunId: run.libra_run_id, state: run.state, stateRevision: Number(run.state_revision), stateDigest: run.state_digest, priorityClass: run.priority_class, packageRevisionHead: Number(run.package_revision_head), currentIdentityRevision: subject.current_identity_revision === null ? null : Number(subject.current_identity_revision) }) : null, handoffB: pkg ? Object.freeze({ onDeckPackageId: pkg.on_deck_package_id, offerId: pkg.offer_id, packageRevision: Number(pkg.package_revision), packageDigest: pkg.package_digest, state: pkg.state, publishedAtMs: Number(pkg.published_at_ms) }) : null, completedAtMs: arcaStatus?.stage === 'completed' ? arcaStatus.completedAtMs : null });
     });
   }
   function scan(visitor) {

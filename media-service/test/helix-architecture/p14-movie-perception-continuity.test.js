@@ -250,6 +250,31 @@ test('derives an explicit terminal folder year without changing Procurement fact
   );
 });
 
+test('builds the same rating Identity Evidence for Libra Subject and Arca Shelf Entry titles', () => {
+  const { buildRatingTargetIdentity } = require('../../src/helix/domains/libra/model/decision-identity-evidence-contracts');
+  const { queryFor, queryHandle } = require('../../src/helix/domains/perception/application/perception-process-services');
+  const subject = buildRatingTargetIdentity({
+    title: '看不见的朋友 (2023) - 1080p H.264 CHDWEB', year: 2023, providerIdentity: null,
+  });
+  const entry = buildRatingTargetIdentity({
+    title: '看不见的朋友 (2023) - 1080p H.264 CHDWEB', year: '2023',
+    providerIdentity: 'tmdb:915935',
+  });
+  assert.equal(subject.title, entry.title);
+  assert.equal(subject.year, entry.year);
+  assert.equal(subject.year, 2023);
+  assert.equal(subject.providerIdentity, null);
+  assert.equal(entry.providerIdentity, 'tmdb:915935');
+  const subjectQuery = queryFor({ targetType:'subject', targetId:'subject-1', targetRevision:1, ...subject });
+  const entryQuery = queryFor({ targetType:'shelf_entry', targetId:'entry-1', targetRevision:1, ...entry });
+  const subjectYears = subjectQuery.identityEvidence.filter((item) => item.anchorKind === 'title_year').map((item) => item.anchorValue);
+  const entryYears = entryQuery.identityEvidence.filter((item) => item.anchorKind === 'title_year').map((item) => item.anchorValue);
+  assert.ok(subjectYears.some((value) => value.startsWith('看不见的朋友\0')));
+  assert.deepEqual(subjectYears, entryYears);
+  assert.equal(queryHandle(subjectQuery, 1, 'libra').consumerDomain, 'libra');
+  assert.equal(queryHandle(entryQuery, 1, 'arca').consumerDomain, 'arca');
+});
+
 test('freezes a versioned exact title-year anchor before technical release labels', () => {
   const accepted = acceptedIdentity(
     '看不见的朋友 (2023) - 1080p H.264 CHDWEB',

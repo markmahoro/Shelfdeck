@@ -130,6 +130,13 @@ test('derives a conservative size budget and freezes retry attempts as new inten
     acceptedPrimaryAudioClasses:[]});
   assert.equal(extraLossless.feasible,true);
   assert.deepEqual(extraLossless.audioStreams.map((item)=>item.streamIndex),[1]);
+  const silverton=media.deriveTargetSizeBudget({maxSizeBytes:planningLimit,sourceSizeBytes:2_077_884_000,durationMs:6_062_624,
+    audioStreams:[{normalizedAudioClass:'other'},{normalizedAudioClass:'other'}],subtitleStreams:[]});
+  const fillCap=media.deriveTargetSizeBudget({maxSizeBytes:planningLimit,durationMs:6_062_624,
+    audioStreams:[{normalizedAudioClass:'other'},{normalizedAudioClass:'other'}],subtitleStreams:[]});
+  assert.equal(silverton.feasible,true);
+  assert.ok(silverton.targetVideoBitrateBps<8_000_000);
+  assert.ok(silverton.targetVideoBitrateBps<fillCap.targetVideoBitrateBps);
   const first=media.buildEncodeIntent({revision:1,libraRunId:'run-1',sourceHandleDigest:canonicalDigest(handle),
     mediaRequirementDigest:requirement.requirementDigest,rateControlMode:'target_size',targetVideoBitrateBps:budget.targetVideoBitrateBps,
     deviceClass:'nvidia_nvenc',strategyOrdinal:1,dynamicRangeOperation:'preserve',pipelineProfileId:'ordinary_to_hevc@1',

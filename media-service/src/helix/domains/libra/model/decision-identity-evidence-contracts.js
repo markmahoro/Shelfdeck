@@ -82,6 +82,19 @@ function deriveTitleYear(claimedTitle, claimedYear = null) {
   return deriveTitleYearV1(normalized, claimedYear);
 }
 
+function coerceYear(value) {
+  if (Number.isSafeInteger(value) && value >= 1800 && value <= 2199) return value;
+  if (typeof value === 'string' && /^(?:18|19|20|21)\d{2}$/.test(value.trim())) return Number(value.trim());
+  return null;
+}
+
+function buildRatingTargetIdentity(value = {}) {
+  const derived = deriveTitleYear(value.title || '', coerceYear(value.year));
+  const providerIdentity = typeof value.providerIdentity === 'string' && value.providerIdentity
+    ? value.providerIdentity : null;
+  return freeze({ title: derived.title, year: derived.year, providerIdentity });
+}
+
 function validateDigest(value, field) {
   if (typeof value !== 'string' || !/^[a-f0-9]{64}$/.test(value)) {
     fail('LIBRA_DECISION_IDENTITY_DIGEST_INVALID',
@@ -331,6 +344,7 @@ module.exports = Object.freeze({
   buildCanonicalQueryHandle,
   buildDecisionIdentityEvidenceSnapshot,
   buildPerceptionResolutionQuery,
+  buildRatingTargetIdentity,
   deriveTitleYear,
   normalizeTitle,
   stripTechnicalReleaseSuffix,

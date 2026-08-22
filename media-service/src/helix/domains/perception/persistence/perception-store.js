@@ -99,6 +99,19 @@ function createPerceptionStore(options) {
         repo.invoke('insert_acquisition', acquisitionRow(item)); return item; });
     },
     getAcquisition(id) { return execute([records], (context) => mapAcquisition(context.repository(records.repositoryId).invoke('find_acquisition', { perception_acquisition_id: id }))); },
+    failAcquisition(id) {
+      return execute([records], (context) => {
+        const repo = context.repository(records.repositoryId);
+        const current = repo.invoke('find_acquisition', { perception_acquisition_id: id });
+        if (!current) return null;
+        if (current.state !== 'active') return mapAcquisition(current);
+        const changed = repo.invoke('terminal_acquisition', {
+          state: 'failed', terminal_at_ms: context.commitTimeMs, perception_acquisition_id: id, expected_state: 'active',
+        });
+        if (changed.changes !== 1) fail('P6_PERCEPTION_ACQUISITION_STATE_CONFLICT', 'Acquisition failure terminal CAS failed.');
+        return mapAcquisition(repo.invoke('find_acquisition', { perception_acquisition_id: id }));
+      });
+    },
     getCursor(sourceId, revision) { return execute([records], (context) => { const row=context.repository(records.repositoryId).invoke('find_cursor',{perception_source_id:sourceId,revision});
       return row?createCursor({perceptionSourceId:row.perception_source_id,revision:row.revision,perceptionAcquisitionId:row.perception_acquisition_id,
         cursorIn:row.cursor_in,cursorOut:row.cursor_out,observationPageDigest:row.observation_page_digest,hasMore:Boolean(row.has_more),committedAtMs:row.committed_at_ms}):null; }); },
