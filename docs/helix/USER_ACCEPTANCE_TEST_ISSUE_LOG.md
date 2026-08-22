@@ -1227,6 +1227,14 @@ Accepted/Rejected决定、执行重试已耗尽”这一状态的Owner对账与�
 
 本条代码修复已完成；问题在第二轮真实Admin Web UAT验证旧失败类型能经新代际到达唯一Accepted/Rejected终态后关闭。
 
+2026-08-23逐项封口在重建Canary `UAT-20260823-002500-519f8d7b5`完成。真实“我的收藏”页面显示16部当前收藏均健康，
+其中包括原悬空样本`光荣的愤怒`、`有话好好说`、`立春`和`香火`。持久事实核对为：16个published Product Package中
+缺少Acceptance Decision为0；Acceptance Decision 16/16为`accepted`，Handoff B Receipt 16/16为`accepted`，
+`libra.product-offer.available@1` Delivery 16/16为`acked`，Acceptance Recovery Case 16/16为`resolved`且active为0，
+On-deck Commit 16、active Shelf Entry 16，失败Acceptance Work为0。页面数量与Owner收口、业务终态和Arca提交事实逐层一致，
+不存在`delivered` Offer黑洞。状态`REGRESSION PASSED / CONFIRMED ON REBUILT CANARY`。
+UI证据：`admin-web-evidence/uat-019-no-dangling-offers-collection-pass.png`。
+
 ## 17. UAT-020：Final Inventory成员命名与carried-forward输入Settlement不完整
 
 问题分类：`BUSINESS_CONTRACT / SAME_ROOT_INVENTORY / ARCA_ONDECK / USER_VISIBLE_HEALTH`

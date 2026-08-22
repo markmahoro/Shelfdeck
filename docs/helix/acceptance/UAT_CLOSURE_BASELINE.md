@@ -75,7 +75,7 @@
 | UAT-016 | TMDB 正确候选不再被本地语言/标题过滤误报为未找到 | `UI` | W2 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260822-141950-0c27c8cf6 UI 设置 TMDB 首选语言简体中文 |
 | UAT-017 | 外部寻源按 Acceptance Spec 预筛，不合格候选不会先下载再发现不可达 | `UI` | W3 | `CODE_DONE_UNQUALIFIED` | `NOT RUN` |
 | UAT-018 | 顶部「需要处理」与 Discard 历史分离，Discard 不混进当前四桶 | `UI` | W2 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260822-141950-0c27c8cf6 UI 需要处理桶与已结束区分 |
-| UAT-019 | Executor 终态异常由 Owner 收口，Arca Acceptance Offer 不再悬空 | `UI` `FACT` | W3 | `CODE_DONE_UNQUALIFIED` | `NOT RUN` |
+| UAT-019 | Executor 终态异常由 Owner 收口，Arca Acceptance Offer 不再悬空 | `UI` `FACT` | W3 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260823-002500-519f8d7b5 UI 16部当前收藏均健康；FACT 16/16 Offer acked、Decision/Handoff B accepted、Recovery resolved、On-deck committed，悬空为0 |
 | UAT-020 | Final Inventory 成员命名与 carried-forward Settlement 完整，技术后缀不进入最终名 | `UI` `FS` | W3 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260823-002500-519f8d7b5 UI老笠当前收藏且健康；FS唯一目录含用户可读Primary/NFO与老笠 (2016).zh-CN.srt，无技术标签/partial |
 | UAT-021 | TMDB 别名来源不泄漏进 Product Identity 证据，整理不在取证前全员冻结 | `UI` | W2 | `CODE_DONE_UNQUALIFIED` | `NOT RUN` |
 | UAT-022 | 年份后的技术发布标签不再污染 TMDB 搜索词 | `UI` | W2 | `CODE_DONE_UNQUALIFIED` | `NOT RUN` |
