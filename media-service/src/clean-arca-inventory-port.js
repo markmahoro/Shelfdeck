@@ -40,8 +40,9 @@ function isManagedSourceLocation(request, location) {
   return managedSourceLocations(request).has(path.resolve(location));
 }
 
-function isInsideBdmvTree(location) {
-  return path.resolve(location).replaceAll('\\', '/').toUpperCase().includes('/BDMV/');
+function isInsideBluRayDiscTree(location) {
+  const normalized = path.resolve(location).replaceAll('\\', '/').toUpperCase();
+  return normalized.includes('/BDMV/') || normalized.includes('/CERTIFICATE/');
 }
 
 function safeSegment(value) {
@@ -1156,7 +1157,7 @@ function createCleanArcaInventoryPort(options) {
         .filter((item) => {
           if (allowed.has(item)) return false;
           try {
-            if (!fs.statSync(item).isDirectory()) return !isInsideBdmvTree(item);
+            if (!fs.statSync(item).isDirectory()) return !isInsideBluRayDiscTree(item);
           } catch {
             return true;
           }
