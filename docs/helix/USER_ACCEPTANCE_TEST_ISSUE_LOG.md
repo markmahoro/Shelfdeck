@@ -1576,7 +1576,12 @@ Observation revision 2 形成 22 个 Candidate，恰好等于「22 个顶层单�
 验收证据：Admin Web `materialFieldRegistration` 默认列表含 `.iso` 的专项回归通过。旧 Field 政策不可变；
 干净 Canary 重建后从页面新建 Field 才能观察到 `倩女幽魂2：人间道`。
 
-修复状态（2026-08-22）：`REGRESSION PASSED / CLEAN CANARY UAT PENDING`。
+修复状态（2026-08-22）：`REGRESSION PASSED / CONFIRMED ON CURRENT CANARY`。干净 Canary
+`UAT-20260822-141950-0c27c8cf6` 的真实「我的收藏」中有两个独立且健康的「养蜂人」当前 Shelf Entry，详情占用分别为
+`8.3 GB`和`5.8 GB`；`F:\canary`中对应目录精确为`养蜂人 (2024)`与
+`养蜂人 (2024) - 2160p HEVC Atmos TrueHD5.1`，各有一份 MKV（`6180282340`与`8932765796`字节），
+目录均非hash且无`(0)`年份。UI证据：`admin-web-evidence/uat-034-two-beekeepers-distinct-entries.png`、
+`uat-034-beekeeper-first-entry-detail.png`、`uat-034-beekeeper-second-entry-detail.png`。
 
 ## 29. UAT-032：Aftercare 旧 Custody 绑定 objectKind 与合同不一致，健康评估无法执行
 

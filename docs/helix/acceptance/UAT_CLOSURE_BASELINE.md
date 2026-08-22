@@ -51,7 +51,7 @@
 
 同一部影片可以服务多行，但每行仍要独立 `UI` 结论。不得用「23 部 completed」一口吞掉整表。
 
-## 4. 关闭矩阵（65 行）
+## 4. 关闭矩阵（66 行）
 
 证据标签：`UI` 必填；`FS` 在文件现实变化时必填；`FACT` 仅旁证。
 
@@ -90,7 +90,7 @@
 | UAT-031 | Movie Field 默认扩展名含 ISO，倩女幽魂2 能被观察 | `UI` `FS` | W2 | `CODE_DONE_UNQUALIFIED` | `NOT RUN` |
 | UAT-032 | Aftercare Custody 绑定 objectKind 与合同一致，健康评估可执行 | `UI` | W4 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260822-141950-0c27c8cf6 UI 第八个嫌疑人已上架详情显示收藏健康为健康、保管为健康，不再停在never_assessed |
 | UAT-033 | 同名字幕和 stem-fanart 最终文件名可区分，同根上架不再 `TARGET_COLLISION` | `UI` `FS` | W3 | `CODE_DONE_UNQUALIFIED` | `NOT RUN` |
-| UAT-034 | 同名片名+年份的两部养蜂人最终目录可区分且都能 On-deck | `UI` `FS` | W3 | `CODE_DONE_UNQUALIFIED` | `NOT RUN` |
+| UAT-034 | 同名片名+年份的两部养蜂人最终目录可区分且都能 On-deck | `UI` `FS` | W3 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260822-141950-0c27c8cf6 UI 两个独立健康养蜂人当前Entry；FS普通版与edition目录各有一份MKV，非hash且无(0)年份 |
 | UAT-035 | FFmpeg 非零退出按执行失败收口，Remux Attempt 不停在 executing | `UI` `FACT` | W3 | `CODE_DONE_UNQUALIFIED` | `NOT RUN` |
 | UAT-036 | 已观察 ISO 能通过 Triage 形成 Candidate，不再因非可播放流 `triage_failed` | `UI` | W2 | `CODE_DONE_UNQUALIFIED` | `NOT RUN` |
 | UAT-037 | 007 身份 provider_exact 观察不被 schema 拒绝，冻结文案不是通用句 | `UI` | W2 | `CODE_DONE_UNQUALIFIED` | `NOT RUN` |
@@ -133,11 +133,11 @@
 | 口径 | 数量 |
 | --- | --- |
 | 总行 | 66 |
-| 本轮 `PASS` | **29** |
-| 本轮未通过（`NOT RUN`+`FAILED`+`BLOCKED`） | **37**（全部为 `NOT RUN`；0 `FAILED`；0 `BLOCKED`） |
-| 是否都通过 | **否**（29/66，未通过 37） |
+| 本轮 `PASS` | **30** |
+| 本轮未通过（`NOT RUN`+`FAILED`+`BLOCKED`） | **36**（全部为 `NOT RUN`；0 `FAILED`；0 `BLOCKED`） |
+| 是否都通过 | **否**（30/66，未通过 36） |
 
-本轮 `PASS`：001、002、005、006、007、008、012、013、015、016、018、030、032、038、047、048、049、050、051、052、053、054、055、056、057、058、061、065、066。证据均包含本隔离库 Admin Web `UI`；要求文件现实的行另有`FS`。W5 Discard 重新入库、W6 退出收藏/注销在本坐席未跑完，保持 `NOT RUN`。
+本轮 `PASS`：001、002、005、006、007、008、012、013、015、016、018、030、032、034、038、047、048、049、050、051、052、053、054、055、056、057、058、061、065、066。证据均包含本隔离库 Admin Web `UI`；要求文件现实的行另有`FS`。W5 Discard 重新入库、W6 退出收藏/注销在本坐席未跑完，保持 `NOT RUN`。
 
 `UAT-005` 剩余动作合同并入 `UAT-051` 后仍保留本行，用四桶状态在新 Canary 上资格确认，不把 005 标 `VOID`。
 
@@ -297,3 +297,17 @@
 - 证据要求：`UI`。
 - 关闭结论：`PASS`。真实页面刷新后，已完成整理17/17条目标收藏架均显示`Movie Canary`；当前媒体6条也均显示`Movie Canary`。Libra Projection中的稳定`target_shelf_id`未变，页面使用同页Arca Shelf只读清单解析当前名称。
 - UI证据：`admin-web-evidence/uat-066-completed-shelf-movie-canary-after-fix.png`（位于本Canary隔离证据目录）。
+
+### UAT-034（`PASS`）
+
+- 关闭命题：同名片名+年份的两部养蜂人最终目录可区分且都能 On-deck。
+- Canary：`UAT-20260822-141950-0c27c8cf6`。
+- 证人：Admin Web「我的收藏」中两个独立「养蜂人」当前Entry；`F:\canary`下两个养蜂人目录。
+- 路径：我的收藏 → 分别打开两个养蜂人详情 → 核对当前收藏、健康与占用空间 → 只读枚举两个最终目录及MKV。
+- 允许动作：页面进入、打开/关闭详情、截图；文件系统只读枚举。
+- 禁止动作：修改评分、退出收藏、移动/重命名文件、重启服务、重建Canary、修改数据库。
+- 通过标准：两个独立Entry都已On-deck；最终目录分别保留普通版与来源edition，可区分且不使用hash或`(0)`年份；每个目录各有一份正式MKV。
+- 证据要求：`UI`、`FS`。
+- 关闭结论：`PASS`。真实Admin Web中两个养蜂人Entry均为Movie Canary当前收藏且健康，详情占用分别为`8.3 GB`与`5.8 GB`。FS目录精确为`养蜂人 (2024)`与`养蜂人 (2024) - 2160p HEVC Atmos TrueHD5.1`，各有一份MKV，字节分别为`6180282340`与`8932765796`；两目录均非hash且无`(0)`年份。
+- UI证据：`admin-web-evidence/uat-034-two-beekeepers-distinct-entries.png`、`admin-web-evidence/uat-034-beekeeper-first-entry-detail.png`、`admin-web-evidence/uat-034-beekeeper-second-entry-detail.png`（位于本Canary隔离证据目录）。
+- FS证据：2026-08-22只读枚举上述两个目录，`RootCount=2`、每个`VideoCount=1`、`IsHashName=False`、`HasZeroYear=False`。
