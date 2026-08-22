@@ -36,7 +36,7 @@ Helix主体开发已经完成，Movie从Procurement、Libra到Arca及Shelf Dereg
 
 本文不是Architecture SSOT，不替代`CURRENT_PLAN.md`。历史UAT问题仍保留原有处理状态；2026-08-21 Movie Canary真实用户UAT期间，用户已授权在不改变已确认架构边界的前提下直接修复、页面复测并为每项修复建立独立Git回滚点。2026-08-22 另完成一次 Admin Web 全页用户体验审视（文案、内部机制泄漏、文案与事实冲突、排版、字体、按钮、前端拼装与美学），问题见 `docs/helix/ADMIN_WEB_UX_ISSUE_LOG.md`；该台账不替代本文的 UAT 业务/执行缺陷记录，也不授权实现。同日用户确认四项后续改造并登记为 `UAT-050`–`UAT-053`（当前媒体筛选、分步整理动作与进度、收藏按架与占用空间、Field Observation 周期观察缺口）；随后确认退出收藏任务化界面、人物 Beta 两条登记路径、豆瓣周期同步，登记为 `UAT-054`–`UAT-056`；概览改为状态 + 待办 + 最近几件事、不与「我的收藏」合并，登记为 `UAT-057`；侧栏把文件来源与收藏架下移与系统设置一组，Tab 改名为文件来源配置 / 收藏架配置，登记为 `UAT-058`。2026-08-22 干净 Canary `UAT-20260822-194617-1ed64ca36` 转码复盘登记为 `UAT-059`：四星体积上限被规划器当成目标码率；同轮 Spec 复盘登记为 `UAT-060`：Product Identity 写回 Subject 触发语义相同的 Acceptance Spec 重发；同轮另登记 `UAT-061` 豆瓣 Acquisition 翻页失败不收口、`UAT-062` frozen Discard 后未按重新入库收口、`UAT-063` Aftercare 查豆瓣分与 Libra 不是同一套 Resolution。
 
-关闭作业不再走已删除的 `helix-beta-user-e2e` workflow。63 行冻结关闭基线见 `docs/helix/acceptance/UAT_CLOSURE_BASELINE.md`：正式关闭立即汇报且不暂停；确认关闭时发现新产品缺陷则暂停并先登记新 UAT；`PASS` 必须有干净 Canary 的 Admin Web `UI`（涉及文件现实时加 `FS`），单元测试不能单独关闭一行。
+关闭作业不再走已删除的 `helix-beta-user-e2e` workflow。当前 66 行关闭基线见 `docs/helix/acceptance/UAT_CLOSURE_BASELINE.md`：正式关闭立即汇报且不暂停；确认关闭时发现新产品缺陷则暂停并先登记新 UAT；`PASS` 必须有干净 Canary 的 Admin Web `UI`（涉及文件现实时加 `FS`），单元测试不能单独关闭一行。
 
 记录原则：
 
@@ -122,6 +122,7 @@ Helix主体开发已经完成，Movie从Procurement、Libra到Arca及Shelf Dereg
 | UAT-063 | Aftercare 问豆瓣分与 Libra 不是同一套 Resolution/Identity Evidence，上架后评分变化不触发保养 | `BUSINESS_CONTRACT` | `PROJECTION_FRESHNESS` | Arca Aftercare 拉 Perception + 与 Libra 共用 Identity Evidence | 正确性、时效性 | High | 已实现；待新 Canary 确认 |
 | UAT-064 | Formation 整理步骤展示与真实执行状态偏离：转码标 CPU、验证过早标完成 | `USER_EXPERIENCE` | `PROJECTION_FRESHNESS` | Formation 公开 Projection `organizingSteps` / `transcodeLabel` | 可理解性、可观察性 | High | 已登记；待实现授权 |
 | UAT-065 | 收藏详情把父目录名中的`.1`误显示为主视频容器 | `USER_EXPERIENCE` | `PROJECTION_FRESHNESS` | Arca Collection Query + Admin Web | 正确性、可理解性 | High | 已修复并通过当前 Canary 定向确认 |
+| UAT-066 | Formation 已完成整理表丢失目标收藏架名称，全部显示`—` | `USER_EXPERIENCE` | `PROJECTION_FRESHNESS` | Formation Admin Web + Arca Shelf只读展示接线 | 正确性、可理解性 | High | 已登记；当前 Canary 修复中 |
 
 ## 2.1 UAT-006：概览展示固定演示数字
 
@@ -2449,7 +2450,23 @@ Routing E2E单独复跑仍停在其既有`specs=24/runs=24`等待条件，与Col
 进程时从PID 6488重启为25716，public health为`ok`。真实Admin Web刷新后，同一8.3 GB BDMV「养蜂人」详情已显示
 `主视频 8.3 GB · MKV`，不再显示`· 1`；状态`REGRESSION PASSED / CONFIRMED ON CURRENT CANARY`。
 
-## 63. 后续问题模板
+## 63. UAT-066：Formation 已完成整理表丢失目标收藏架名称，全部显示`—`
+
+问题分类：`USER_EXPERIENCE / PROJECTION_FRESHNESS`
+
+用户侧现象：干净 Canary `UAT-20260822-141950-0c27c8cf6` 的 Admin Web「媒体整理工作区」展开「已完成整理」后，17 条已完成媒体的「目标收藏架」全部显示`—`；同一批媒体在「我的收藏」中明确属于`Movie Canary`。
+
+现场证据：隔离库 `libra_formation_projections` 的17条`completed`行全部保留同一个非空`target_shelf_id`，`routing_state=resolved`，但`target_shelf_name`为空；6条`attention_required`行也同样保留目标ID而名称为空。修复前页面截图为`admin-web-evidence/uat-066-completed-shelf-missing-before-fix.png`。
+
+精确根因：Arca 的正式 Shelf Routing Target Projection 只公开稳定的`shelfId`和路由/标准版本，不公开可变的Shelf名称；Formation后端Projection因此正确保留目标ID但拿不到名称。当前媒体表已经使用同页加载的Arca Shelf只读清单按`shelfId`解析显示名，而已完成表只读取`item.targetShelfName`，漏掉了同一解析接线。业务Routing Decision、Shelf Entry与目标ID均未丢失。
+
+修复边界：只修 Formation Admin Web 的只读展示接线，让已完成表按`targetShelfId`从同页已加载的Shelf清单解析当前名称；不向Libra复制可变的Arca名称，不读取Arca Store，不改Routing Decision、业务事实、Owner或Handoff。未知/已注销Shelf仍须给出可理解的稳定降级，不得伪造名称。
+
+验收标准：在真实 Admin Web 展开「已完成整理」，17条证人的目标收藏架均显示`Movie Canary`而不是`—`；刷新页面后保持；同页当前媒体的收藏架显示不回退。证据要求：`UI`。
+
+当前处理决定：已登记并暂停继续选择其他关闭卡；在当前隔离 Canary 上直接修复、构建并页面定向复测。
+
+## 64. 后续问题模板
 
 后续发现的问题按以下结构追加：
 

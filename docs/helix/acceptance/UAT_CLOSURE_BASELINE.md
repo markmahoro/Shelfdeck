@@ -4,7 +4,7 @@
 
 建立日期：2026-08-22
 
-覆盖范围：`UAT-001`–`UAT-065`（65 行，无缺口、无重复）
+覆盖范围：`UAT-001`–`UAT-066`（66 行，无缺口、无重复）
 
 > 本文是关闭台账的冻结验收工件，不是 Architecture SSOT，也不是活动实施计划。
 > 问题叙述仍以 `docs/helix/USER_ACCEPTANCE_TEST_ISSUE_LOG.md` 为准。
@@ -122,19 +122,20 @@
 | UAT-063 | Aftercare 用与 Libra 同一套 `perception.rating.resolve@1` Identity Evidence；上架后评分从无到有/变档会再评估 | `UI` | W4 | `CODE_DONE_UNQUALIFIED` | `NOT RUN` |
 | UAT-064 | Formation 步骤 CPU/GPU 与验证完成态必须与真实执行一致，不得默认 CPU、不得把 Direct 源校验画成成品验证完成 | `UI` | W3 | `RECORDED_UNIMPLEMENTED` | `NOT RUN` |
 | UAT-065 | 收藏详情只从主视频basename解析容器，不得把父目录名中的`.1`显示为容器 | `UI` | W1 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260822-141950-0c27c8cf6 UI 8.3 GB BDMV养蜂人主视频修复后显示8.3 GB · MKV，不再显示· 1 |
+| UAT-066 | Formation 已完成整理表按目标Shelf ID显示当前收藏架名称，不得整列显示`—` | `UI` | W1 | `RECORDED_UNIMPLEMENTED` | `NOT RUN` |
 
 ## 5. 计数
 
-冻结时（代码状态，不是本轮 Canary）：`CLOSED` 11，`CODE_DONE_UNQUALIFIED` 52，`RECORDED_UNIMPLEMENTED` 1（064）。本轮逐项关闭期间新增`UAT-065`并完成代码修复，当前代码状态为`CLOSED` 11、`CODE_DONE_UNQUALIFIED` 53、`RECORDED_UNIMPLEMENTED` 1（064）。
+冻结时（代码状态，不是本轮 Canary）：`CLOSED` 11，`CODE_DONE_UNQUALIFIED` 52，`RECORDED_UNIMPLEMENTED` 1（064）。本轮逐项关闭期间新增`UAT-065`并完成代码修复，另新增正在处理的`UAT-066`；当前代码状态为`CLOSED` 11、`CODE_DONE_UNQUALIFIED` 53、`RECORDED_UNIMPLEMENTED` 2（064、066）。
 
 本轮干净 Canary `UAT-20260822-141950-0c27c8cf6`（HEAD `0c27c8cf6`）PASS 列：
 
 | 口径 | 数量 |
 | --- | --- |
-| 总行 | 65 |
+| 总行 | 66 |
 | 本轮 `PASS` | **28** |
-| 本轮未通过（`NOT RUN`+`FAILED`+`BLOCKED`） | **37**（全部为 `NOT RUN`；0 `FAILED`；0 `BLOCKED`） |
-| 是否都通过 | **否**（28/65，未通过 37） |
+| 本轮未通过（`NOT RUN`+`FAILED`+`BLOCKED`） | **38**（全部为 `NOT RUN`；0 `FAILED`；0 `BLOCKED`） |
+| 是否都通过 | **否**（28/66，未通过 38） |
 
 本轮 `PASS`：001、002、005、006、007、008、012、013、015、016、018、030、032、038、047、048、049、050、051、052、053、054、055、056、057、058、061、065。证据均包含本隔离库 Admin Web `UI`；要求文件现实的行另有`FS`。W5 Discard 重新入库、W6 退出收藏/注销在本坐席未跑完，保持 `NOT RUN`。
 
