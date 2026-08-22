@@ -32,10 +32,16 @@ const pageElement: Record<string, ReactElement> = {
   settings: <SettingsPage />,
 };
 
+function railKind(data: { systemState:{ kind:string }; todos?: Array<{ key:string }> }) {
+  if (data.systemState.kind !== 'faulted' && data.todos?.some((item) => item.key === 'field_access')) return 'attention';
+  return data.systemState.kind;
+}
+
 function RailStatus() {
   const { data } = useQuery({ queryKey: ['overview'], queryFn: () => helixAdminApi.getOverview() });
   if (!data?.systemState) return null;
-  return <p className="rail-status" data-kind={data.systemState.kind}>{data.systemState.label}</p>;
+  const kind = railKind(data);
+  return <p className="rail-status" data-kind={kind}>{kind === 'attention' ? '需要你处理' : data.systemState.label}</p>;
 }
 
 export default function App() {

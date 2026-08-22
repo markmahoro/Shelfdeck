@@ -36,6 +36,34 @@ describe('Helix Overview product semantics', () => {
     expect(screen.queryByText('本地 Projection')).not.toBeInTheDocument();
   });
 
+  it('shows Field access failure as 需要你处理 and a material-fields todo, not 正常运行', async () => {
+    vi.spyOn(helixAdminApi, 'getOverview').mockResolvedValue({
+      generatedAt: new Date().toISOString(),
+      systemState: { kind: 'running', label: '正常运行', href: '/material-fields' },
+      metrics: [
+        { key: 'active_collection', label: '正式收藏', value: 0, note: '当前在收藏架上', href: '/collection' },
+        { key: 'new_this_month', label: '本月新上架', value: 0, note: '本月完成上架', href: '/collection' },
+        { key: 'healthy_collection', label: '健康收藏', value: 0, note: '检查结果为健康', href: '/collection' },
+      ],
+      todos: [{ key: 'field_access', label: '文件来源目录不可用', count: 1, href: '/material-fields' }],
+      inProgress: { count: 23, label: '待整理', href: '/formation' },
+      setup: { activeMaterialFieldCount: 2, activeShelfCount: 1 },
+      ledger: [],
+    });
+    render(<MemoryRouter initialEntries={['/']}><App /></MemoryRouter>);
+    expect(await screen.findByRole('heading', { level: 1, name: '概览' })).toBeInTheDocument();
+    expect(document.querySelector('.rail-status')).toHaveAttribute('data-kind', 'attention');
+    expect(document.querySelector('.rail-status')).toHaveTextContent('需要你处理');
+    expect(document.querySelector('.system-state')).toHaveAttribute('data-kind', 'attention');
+    expect(document.querySelector('.system-state')).toHaveAttribute('href', '/material-fields');
+    expect(screen.getAllByText('需要你处理').length).toBeGreaterThan(0);
+    expect(screen.getByText('文件来源目录不可用').closest('a')).toHaveAttribute('href', '/material-fields');
+    expect(screen.getByText('有文件来源目录不可用，先到来源配置处理')).toBeInTheDocument();
+    expect(screen.queryByText('现在没有需要你处理的事项')).not.toBeInTheDocument();
+    expect(screen.queryByText('正常运行')).not.toBeInTheDocument();
+    expect(screen.getByText(/待整理/).closest('a')).toHaveAttribute('href', '/formation');
+  });
+
   it('presents offdeck as a titled workbench instead of a JSON AST editor', async () => {
     vi.spyOn(helixAdminApi, 'getOffdeckPolicy').mockResolvedValue({
       policyId: 'policy-1', revision: 1, status: 'disabled', duplicateScheduleEnabled: false, entryRules: [], policyDigest: 'd',

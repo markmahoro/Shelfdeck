@@ -1,7 +1,28 @@
 'use strict';
 
+const fs = require('node:fs');
+
 function integer(value) {
   return Number.isSafeInteger(value) && value >= 0 ? value : 0;
+}
+
+function defaultLocationAvailable(rootLocation) {
+  try {
+    return fs.statSync(rootLocation).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
+function activeFieldAccessFailures(fields, isLocationAvailable) {
+  return fields.filter((field) => {
+    if (field.status !== 'active') return false;
+    const scan = field.procurementStatus?.observationScan;
+    if (scan && scan.accessAvailable === false) return true;
+    const root = field.access?.rootLocation;
+    if (typeof root !== 'string' || !root) return false;
+    return isLocationAvailable(root) !== true;
+  });
 }
 
 function createOverviewQuery(options) {
@@ -13,6 +34,9 @@ function createOverviewQuery(options) {
     throw new TypeError('Overview projection readers are required.');
   }
   const now = options.now || Date.now;
+  const isLocationAvailable = typeof options.isLocationAvailable === 'function'
+    ? options.isLocationAvailable
+    : defaultLocationAvailable;
 
   function collectionStats(nowMs) {
     if (typeof options.readCollectionStats === 'function') return options.readCollectionStats(nowMs);
@@ -56,6 +80,7 @@ function createOverviewQuery(options) {
     const formationAttention = integer(formation.summary?.attentionRequiredCount);
     const peopleAttention = integer(people?.openRegistrationCandidateCount);
     const healthKind = options.readHealth?.()?.kind || 'ready';
+    const fieldAccessFailures = activeFieldAccessFailures(activeFields, isLocationAvailable);
     let systemKind = 'running';
     let systemHref = '/';
     if (healthKind === 'faulted') {
@@ -63,6 +88,8 @@ function createOverviewQuery(options) {
     } else if (!activeFields.length || !activeShelves.length) {
       systemKind = 'unconfigured';
       systemHref = !activeFields.length ? '/material-fields' : '/shelves';
+    } else if (fieldAccessFailures.length) {
+      systemHref = '/material-fields';
     }
     const systemLabels = {
       unconfigured: '尚未配置',
@@ -70,6 +97,7 @@ function createOverviewQuery(options) {
       faulted: '系统故障',
     };
     const todos = [
+      fieldAccessFailures.length ? Object.freeze({ key:'field_access', label:'文件来源目录不可用', count:fieldAccessFailures.length, href:'/material-fields' }) : null,
       formationAttention ? Object.freeze({ key:'formation', label:'整理需要处理', count:formationAttention, href:'/formation' }) : null,
       collection.healthAttentionCount ? Object.freeze({ key:'health', label:'收藏健康需要处理', count:collection.healthAttentionCount, href:'/collection' }) : null,
       offdeckAttentionCount ? Object.freeze({ key:'offdeck', label:'退出收藏待审阅', count:offdeckAttentionCount, href:'/offdeck' }) : null,
@@ -89,6 +117,7 @@ function createOverviewQuery(options) {
       ledger.push(Object.freeze({ key:'progress:'+item.subjectId, label:'正在整理 · ' + item.displayIdentity, href:'/formation' }));
     }
     const inProgressCount = integer(formation.summary?.inProgressCount);
+    const pendingCount = integer(formation.summary?.pendingCount);
 
     return Object.freeze({
       generatedAt: new Date(nowMs).toISOString(),
@@ -106,6 +135,8 @@ function createOverviewQuery(options) {
       todos: Object.freeze(todos),
       inProgress: inProgressCount ? Object.freeze({
         count: inProgressCount, label:'正在整理', href:'/formation',
+      }) : pendingCount ? Object.freeze({
+        count: pendingCount, label:'待整理', href:'/formation',
       }) : null,
       setup: Object.freeze({
         activeMaterialFieldCount: activeFields.length,
