@@ -88,7 +88,7 @@
 | UAT-029 | NFO 演员 TMDB 人 ID 不再被误判为电影身份冲突 | `UI` | W2 | `CODE_DONE_UNQUALIFIED` | `NOT RUN` |
 | UAT-030 | 五星外部获取用身份搜索；无合格 4K 源时页面显示合法冻结，不像卡住 | `UI` | W5 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260822-141950-0c27c8cf6 UI 五星冻结文案没有找到可获取的外部候选 |
 | UAT-031 | Movie Field 默认扩展名含 ISO，倩女幽魂2 能被观察 | `UI` `FS` | W2 | `CODE_DONE_UNQUALIFIED` | `NOT RUN` |
-| UAT-032 | Aftercare Custody 绑定 objectKind 与合同一致，健康评估可执行 | `UI` | W4 | `CODE_DONE_UNQUALIFIED` | `NOT RUN` |
+| UAT-032 | Aftercare Custody 绑定 objectKind 与合同一致，健康评估可执行 | `UI` | W4 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260822-141950-0c27c8cf6 UI 第八个嫌疑人已上架详情显示收藏健康为健康、保管为健康，不再停在never_assessed |
 | UAT-033 | 同名字幕和 stem-fanart 最终文件名可区分，同根上架不再 `TARGET_COLLISION` | `UI` `FS` | W3 | `CODE_DONE_UNQUALIFIED` | `NOT RUN` |
 | UAT-034 | 同名片名+年份的两部养蜂人最终目录可区分且都能 On-deck | `UI` `FS` | W3 | `CODE_DONE_UNQUALIFIED` | `NOT RUN` |
 | UAT-035 | FFmpeg 非零退出按执行失败收口，Remux Attempt 不停在 executing | `UI` `FACT` | W3 | `CODE_DONE_UNQUALIFIED` | `NOT RUN` |
@@ -131,11 +131,11 @@
 | 口径 | 数量 |
 | --- | --- |
 | 总行 | 64 |
-| 本轮 `PASS` | **21** |
-| 本轮未通过（`NOT RUN`+`FAILED`+`BLOCKED`） | **43**（全部为 `NOT RUN`；0 `FAILED`；0 `BLOCKED`） |
-| 是否都通过 | **否**（21/64，未通过 43） |
+| 本轮 `PASS` | **22** |
+| 本轮未通过（`NOT RUN`+`FAILED`+`BLOCKED`） | **42**（全部为 `NOT RUN`；0 `FAILED`；0 `BLOCKED`） |
+| 是否都通过 | **否**（22/64，未通过 42） |
 
-本轮 `PASS`：001、002、005、006、007、008、015、016、018、030、038、050、051、052、053、054、055、056、057、058、061。证据均为本隔离库 Admin Web `UI`。W3 转码/ISO/BDMV 上架、W5 Discard 重新入库、W6 退出收藏/注销在本坐席未跑完，保持 `NOT RUN`。
+本轮 `PASS`：001、002、005、006、007、008、015、016、018、030、032、038、050、051、052、053、054、055、056、057、058、061。证据均为本隔离库 Admin Web `UI`。W3 转码/ISO/BDMV 上架、W5 Discard 重新入库、W6 退出收藏/注销在本坐席未跑完，保持 `NOT RUN`。
 
 `UAT-005` 剩余动作合同并入 `UAT-051` 后仍保留本行，用四桶状态在新 Canary 上资格确认，不把 005 标 `VOID`。
 
@@ -175,3 +175,17 @@
 - 旁证停车：本作业观察到的其他UAT现象只记备注，不改其他行结论。
 - 关闭结论：`PASS`。重新打开本地Admin Web并刷新收藏页后，「倩女幽魂2：人间道」仍显示「收藏健康 · 健康」，保管、呈现、合规三项均为健康；没有`old_binding_unreadable`或`nfo_corrupt`降级。
 - UI证据：`admin-web-evidence/uat-038-aftercare-healthy-chinese-ghost-story-2.png`（位于本Canary隔离证据目录）。
+
+### UAT-032（`PASS`）
+
+- 关闭命题：Aftercare Custody绑定`objectKind`与合同一致，健康评估可执行。
+- Canary：`UAT-20260822-141950-0c27c8cf6`。
+- 证人：Admin Web「我的收藏」→「Movie Canary」→「第八个嫌疑人」详情；该条目已On-deck并完成Aftercare健康评估。
+- 路径：我的收藏 → Movie Canary → 打开「第八个嫌疑人」详情 → 读取收藏健康总状态及保管状态。
+- 允许动作：页面进入、只读切换、打开/关闭详情、截图；SQLite/日志只读旁证。
+- 禁止动作：点击「立即检查健康」、修改评分、退出收藏、重启服务、重建Canary、修改文件或数据库；当前NVENC转码不得受本项影响。
+- 通过标准：已上架证人不再停在`never_assessed`，详情页保管状态为健康，证明Custody评估已成功执行且未被`objectKind` schema拒绝。
+- 证据要求：`UI`。
+- 旁证停车：呈现/合规状态及其他条目健康只作本项旁证，不改其他行结论。
+- 关闭结论：`PASS`。「第八个嫌疑人」已上架详情显示「收藏健康 · 健康」，其中保管为健康并有完成时间，不再是`never_assessed`；Custody评估已经成功执行。
+- UI证据：`admin-web-evidence/uat-032-custody-healthy-eighth-suspect.png`（位于本Canary隔离证据目录）。
