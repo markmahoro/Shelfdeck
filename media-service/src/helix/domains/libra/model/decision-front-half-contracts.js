@@ -39,6 +39,12 @@ function specInputSubjectSnapshot(subject){
   });
 }
 
+function specInputDecisionFact(value){
+  if(value?.schemaRef!=='helix://contracts/types/PerceptionResolutionRevision/v1'||value.factKind!=='rating')return value;
+  return Object.freeze({factKind:value.factKind,resultKind:value.resultKind,
+    resolvedValueOrNull:value.resultKind==='found'?value.resolvedValue:null});
+}
+
 function validateSubjectSnapshot(value){
   object(value,'P8_SUBJECT_SNAPSHOT_REQUIRED');
   if(value.status!=='active'||!['single','season'].includes(value.structureKind)||!CONTENT_PROFILES.has(value.contentProfile)||
@@ -136,7 +142,8 @@ function buildDecisionInputSet(value){
     if(readiness.result==='ready'&&(!core.routingDecision||core.routingDecision.result!=='resolved'||!core.shelfStandardProjection||!core.productScope))fail('P8_SPEC_INPUT_REQUIRED','Ready Acceptance Spec Basis requires resolved Routing, Standard, and Product Scope.');
     core.routingInputDigest=core.routingDecision?digest(core.routingDecision.routingInputDigest,'routingDecision.routingInputDigest'):null;
     core.specInputDigest=canonicalDigest({schema:'libra.spec-input@1',subjectSnapshot:specInputSubjectSnapshot(subject),routingDecisionOrNull:core.routingDecision,
-      shelfStandardProjectionOrNull:core.shelfStandardProjection,productScopeOrNull:core.productScope,decisionFacts,queryResults});
+      shelfStandardProjectionOrNull:core.shelfStandardProjection,productScopeOrNull:core.productScope,
+      decisionFacts:decisionFacts.map(specInputDecisionFact)});
   }
   const inputSetDigest=canonicalDigest(core),decisionInputSetId=canonicalDigest({schema:'libra.decision-input-set-id@1',basisKind:value.basisKind,subjectId:subject.subjectId,inputSetDigest});
   const result=Object.freeze({decisionInputSetId,...core,inputSetDigest});bytes(result,1048576,'P8_DECISION_INPUT_SET_LIMIT');inputSnapshotRows(result);return result;

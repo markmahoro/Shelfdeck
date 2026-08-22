@@ -224,6 +224,28 @@ test('keeps specInputDigest stable when Product Identity is written back onto th
   assert.notEqual(empty.snapshotDigest,identified.snapshotDigest);
 });
 
+test('keys specInputDigest to the resolved rating value instead of Perception provenance',()=>{
+  const expression={nodeKind:'always'},rset=buildDecisionInputSet(routingInput(policyAuthority([{shelfId:'shelf-1',expression}]),[projection('shelf-1')],[]));
+  const rbasis=buildDecisionBasisRevision(rset,1,100,'basis-1'),assessment=resolveRoutingAssessment({...rset,decisionBasisId:rbasis.decisionBasisId});
+  const routing=buildRoutingDecision(assessment,1),snapshot=subject(),scope=buildProductScope(snapshot,[]);
+  const expectedDecisionHead=headSnapshot('subject-1',2,routing.routingDecisionId,rbasis.decisionBasisId,null);
+  const perception=(rating,revision,sourceKind)=>{
+    const fact={schemaRef:'helix://contracts/types/PerceptionResolutionRevision/v1',factKind:'rating',factId:'rating-'+revision,
+      factDigest:String(revision).repeat(64),revision,resultKind:'found',resolvedValue:{factKind:'rating',value:rating},
+      resolvedProvenance:{sourceKind,winningPerceptionId:'perception-'+revision}};
+    const query={schemaRef:'helix://contracts/types/VersionedQueryResult/v1',providerDomain:'perception',queryContract:'perception.rating.resolve@1',
+      queryVersion:1,inputDigest:String(revision+3).repeat(64),resultKind:'found',resultRevision:revision,resultDigest:fact.factDigest,expiresAtMs:1000+revision};
+    return {fact,query};
+  };
+  const input=(rating,revision,sourceKind)=>{const evidence=perception(rating,revision,sourceKind);return buildDecisionInputSet({basisKind:'acceptance_spec',subjectSnapshot:snapshot,
+    expectedDecisionHead,readiness:{result:'ready'},routingAuthoritySnapshot:null,shelfRoutingTargets:[],routingDecision:routing,
+    shelfStandardProjection:standardProjection('shelf-1'),productScope:scope,decisionFacts:[evidence.fact],queryResults:[evidence.query]});};
+  const douban=input(4,1,'douban'),direct=input(4,2,'shelfdeck_direct'),changed=input(5,3,'shelfdeck_direct');
+  assert.equal(douban.specInputDigest,direct.specInputDigest);
+  assert.notEqual(douban.inputSetDigest,direct.inputSetDigest);
+  assert.notEqual(direct.specInputDigest,changed.specInputDigest);
+});
+
 test('rejects season as a content profile and incomplete Requirement classes',()=>{
   const invalid=subject();invalid.contentProfile='season';invalid.snapshotDigest=canonicalDigest(Object.fromEntries(Object.entries(invalid).filter(([key])=>key!=='snapshotDigest')));
   assert.throws(()=>buildProductScope(invalid,[]),/frozen Subject snapshot/);
