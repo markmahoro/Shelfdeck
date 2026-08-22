@@ -1,31 +1,22 @@
-import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { helixAdminApi, type OverviewProjection } from './api';
+import { useQuery } from '@tanstack/react-query';
+import { helixAdminApi } from './api';
 import { Button, LoadingState, PageHeader } from './chrome';
 import { isUnauthorized, useSession } from './session';
 
 export default function OverviewPage() {
   const { expire } = useSession();
-  const [projection, setProjection] = useState<OverviewProjection | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError('');
-    try {
-      setProjection(await helixAdminApi.getOverview());
-    } catch (cause) {
-      if (isUnauthorized(cause)) expire();
-      else setError(cause instanceof Error ? cause.message : '概览读取失败。');
-    } finally {
-      setLoading(false);
-    }
-  }, [expire]);
-  useEffect(() => { void load(); }, [load]);
+  const { data: projection, error, isFetching, refetch } = useQuery({
+    queryKey: ['overview'],
+    queryFn: () => helixAdminApi.getOverview(),
+  });
+  if (error && isUnauthorized(error)) expire();
+  const load = () => { void refetch(); };
+  const loading = isFetching;
   if (!projection && !error) return <LoadingState>正在读取概览…</LoadingState>;
   return <div className="source-page">
     <PageHeader title="概览" description="看系统是否就绪、有没有要你处理的事，以及最近上架了什么。" actions={<Button variant="secondary" type="button" onClick={() => void load()} disabled={loading}>{loading ? '刷新中…' : '刷新'}</Button>} />
-    {error && <p className="form-error" role="alert">{error}</p>}
+    {error && <p className="form-error" role="alert">{error instanceof Error ? error.message : '概览读取失败。'}</p>}
     {projection && <>
       <Link className="system-state" data-kind={projection.systemState.kind} to={projection.systemState.href}>
         <span>系统状态</span>

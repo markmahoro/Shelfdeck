@@ -1,3 +1,4 @@
+/** Not a Helix product entry. Official Admin Web routes live in src/helix via App.tsx. */
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { people, type PersonSummary } from '../api/client';

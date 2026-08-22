@@ -1,4 +1,5 @@
 import { useState } from 'react';
+/** Not a Helix product entry. Official Admin Web routes live in src/helix via App.tsx. */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { cleanupRecommendations, helixLibrary, type CleanupRecommendation, type HelixCleanupMode } from '../api/client';
 import { Button, Dialog, EmptyState, Field, Loading, Page, PageHeader, Status, Toast } from '../components/ui';

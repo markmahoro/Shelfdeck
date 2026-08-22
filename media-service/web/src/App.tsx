@@ -1,4 +1,5 @@
-import { useEffect, useState, type ReactElement } from 'react';
+import { useState, type ReactElement } from 'react';
+import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query';
 import { NavLink, Navigate, Route, Routes } from 'react-router-dom';
 import { pages } from './helix/surface-model';
 import HelixPage from './helix/HelixPage';
@@ -10,9 +11,15 @@ import SettingsPage from './helix/SettingsPage';
 import OffdeckPage from './helix/OffdeckPage';
 import OverviewPage from './helix/OverviewPage';
 import PeoplePage from './helix/PeoplePage';
-import { helixAdminApi, type OverviewProjection } from './helix/api';
+import { helixAdminApi } from './helix/api';
 import { SessionProvider } from './helix/session';
 import './helix/helix.css';
+
+function createQueryClient() {
+  return new QueryClient({
+    defaultOptions: { queries: { retry: false, refetchOnWindowFocus: false, staleTime: 15_000 } },
+  });
+}
 
 const pageElement: Record<string, ReactElement> = {
   overview: <OverviewPage />,
@@ -26,16 +33,14 @@ const pageElement: Record<string, ReactElement> = {
 };
 
 function RailStatus() {
-  const [state, setState] = useState<OverviewProjection['systemState'] | null>(null);
-  useEffect(() => {
-    helixAdminApi.getOverview().then((value) => setState(value.systemState)).catch(() => setState(null));
-  }, []);
-  if (!state) return null;
-  return <p className="rail-status" data-kind={state.kind}>{state.label}</p>;
+  const { data } = useQuery({ queryKey: ['overview'], queryFn: () => helixAdminApi.getOverview() });
+  if (!data?.systemState) return null;
+  return <p className="rail-status" data-kind={data.systemState.kind}>{data.systemState.label}</p>;
 }
 
 export default function App() {
-  return <SessionProvider>
+  const [queryClient] = useState(createQueryClient);
+  return <QueryClientProvider client={queryClient}><SessionProvider>
     <div className="helix-shell">
       <a className="skip-link" href="#main">跳到主要内容</a>
       <aside className="helix-rail" aria-label="ShelfDeck 主导航">
@@ -54,5 +59,5 @@ export default function App() {
         </Routes>
       </main>
     </div>
-  </SessionProvider>;
+  </SessionProvider></QueryClientProvider>;
 }

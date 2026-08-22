@@ -1,6 +1,6 @@
 # Admin Web 用户体验问题台账
 
-状态：`ADMIN WEB UX OVERHAUL IMPLEMENTED / UX-001/004/007/009/010/011/013/015/016 AND UAT-005/050–058 IMPLEMENTED / RESIDUAL UX REMAINS`
+状态：`ADMIN WEB UX OVERHAUL IMPLEMENTED / UAT-005/050–058 IMPLEMENTED / UX-006 AND UX-023 REMAIN OPEN`
 
 建立日期：2026-08-22
 
@@ -33,37 +33,37 @@
 | ID | 问题 | 分类 | 主要页面 | 严重度 | 状态 |
 | --- | --- | --- | --- | --- | --- |
 | UX-001 | 概览标题与导语是空话，不说明本页能做什么 | `COPY_REDUNDANT` | 概览 | High | 已实现 |
-| UX-002 | 各页 eyebrow / 英文副标题 / 口号式 h1 重复导航语义 | `COPY_REDUNDANT` | 全站 | Medium | OPEN |
-| UX-003 | 侧栏「收藏运营台」「本地 Projection」对用户无意义 | `COPY_REDUNDANT` | 全站导航 | Medium | OPEN |
+| UX-002 | 各页 eyebrow / 英文副标题 / 口号式 h1 重复导航语义 | `COPY_REDUNDANT` | 全站 | Medium | 已实现 |
+| UX-003 | 侧栏「收藏运营台」「本地 Projection」对用户无意义 | `COPY_REDUNDANT` | 全站导航 | Medium | 已实现 |
 | UX-004 | 文件来源把候选包、访问合同、Observation、Handoff A 当作主文案 | `COPY_INTERNAL` | 文件来源 | High | 已实现 |
-| UX-005 | 收藏架/注销确认暴露 Routing、Material Control、On-deck 责任账 | `COPY_INTERNAL` | 收藏架 | High | OPEN |
+| UX-005 | 收藏架/注销确认暴露 Routing、Material Control、On-deck 责任账 | `COPY_INTERNAL` | 收藏架 | High | 已实现 |
 | UX-006 | 我的收藏与健康详情使用 Shelf Entry / Deck / Evidence 内部口径 | `COPY_INTERNAL` | 我的收藏 | High | OPEN |
 | UX-007 | 退出收藏把 Policy AST、Case、Reservation、原始 ID 直接铺开 | `COPY_INTERNAL` | 退出收藏 | Critical | 已实现 |
-| UX-008 | 设置页 Provider / Landing / revision / Event 术语未翻译 | `COPY_INTERNAL` | 系统设置 | Medium | OPEN |
+| UX-008 | 设置页 Provider / Landing / revision / Event 术语未翻译 | `COPY_INTERNAL` | 系统设置 | Medium | 已实现 |
 | UX-009 | 已完成整理仍显示「尚未形成整理动作」 | `COPY_CONFLICT` | 媒体整理工作区 | Critical | 已实现 |
 | UX-010 | 已完成行复用「下一步动作」列和进行中操作控件 | `COPY_CONFLICT` | 媒体整理工作区 | High | 已实现 |
 | UX-011 | 人物页声称维护身份，实际只读且无操作 | `COPY_CONFLICT` | 人物 | High | 已实现 |
-| UX-012 | 设置页承诺「空间、资源与安全」，实际只有连接和评分日志 | `COPY_CONFLICT` | 系统设置 | Medium | OPEN |
+| UX-012 | 设置页承诺「空间、资源与安全」，实际只有连接和评分日志 | `COPY_CONFLICT` | 系统设置 | Medium | 已实现 |
 | UX-013 | 侧栏固定「正常运行」，与真实健康无关 | `COPY_CONFLICT` | 全站导航 | Medium | 已实现 |
-| UX-014 | 评分日志仍指引用户去已更名的「上架进度」 | `COPY_CONFLICT` | 系统设置 | Low | OPEN |
+| UX-014 | 评分日志仍指引用户去已更名的「上架进度」 | `COPY_CONFLICT` | 系统设置 | Low | 已实现 |
 | UX-015 | 退出收藏页卡片/行/危险阶段无样式，JSON 规则编辑器直出 | `LAYOUT` | 退出收藏 | Critical | 已实现 |
 | UX-016 | 媒体整理「当前媒体」九列表格未用尽横轴且内部横向溢出 | `LAYOUT` | 媒体整理工作区 | High | 已实现 |
-| UX-017 | 四项整理统计塞进三列 `source-facts` 栅格 | `LAYOUT` | 媒体整理工作区 | Medium | OPEN |
-| UX-018 | 收藏架注销确认框没有对话框样式 | `LAYOUT` | 收藏架 | High | OPEN |
-| UX-019 | 收藏详情「退出收藏」区域与 `sr-only` 缺少样式 | `LAYOUT` | 我的收藏 / 整理 | Medium | OPEN |
-| UX-020 | 登录会话在八页各自复制，文案和布局不一致 | `LAYOUT` | 全站 | Medium | OPEN |
-| UX-021 | 两套 CSS 与一套废弃 `src/pages` 并存 | `LAYOUT` | 全站 | Medium | OPEN |
-| UX-022 | 同页混用 Aptos / Inter / Georgia / 系统黑体，字号阶梯过碎 | `TYPOGRAPHY` | 全站 | High | OPEN |
+| UX-017 | 四项整理统计塞进三列 `source-facts` 栅格 | `LAYOUT` | 媒体整理工作区 | Medium | 已实现 |
+| UX-018 | 收藏架注销确认框没有对话框样式 | `LAYOUT` | 收藏架 | High | 已实现 |
+| UX-019 | 收藏详情「退出收藏」区域与 `sr-only` 缺少样式 | `LAYOUT` | 我的收藏 / 整理 | Medium | 已实现 |
+| UX-020 | 登录会话在八页各自复制，文案和布局不一致 | `LAYOUT` | 全站 | Medium | 已实现 |
+| UX-021 | 两套 CSS 与一套废弃 `src/pages` 并存 | `LAYOUT` | 全站 | Medium | 已实现 |
+| UX-022 | 同页混用 Aptos / Inter / Georgia / 系统黑体，字号阶梯过碎 | `TYPOGRAPHY` | 全站 | High | 已实现 |
 | UX-023 | 中文 eyebrow 套英文 uppercase + 大字距，同一层级字号不稳 | `TYPOGRAPHY` | 全站 | Medium | OPEN |
-| UX-024 | 按钮至少八种互不相干的形态 | `BUTTON` | 全站 | High | OPEN |
-| UX-025 | 退出收藏与整理表内按钮退回浏览器默认样式 | `BUTTON` | 退出收藏 / 整理 | High | OPEN |
-| UX-026 | 收藏墙逐张拉海报，详情再打健康与评分接口 | `PERFORMANCE` | 我的收藏 | High | OPEN |
-| UX-027 | 文件来源按 Field 再打 Routing Policy，观察期间 1s 轮询整表 | `PERFORMANCE` | 文件来源 | High | OPEN |
-| UX-028 | 设置页切到连接 Tab 仍拉取 100 条评分日志 | `PERFORMANCE` | 系统设置 | Medium | OPEN |
-| UX-029 | 概览所谓 Projection 是请求内五路拼账 | `PERFORMANCE` | 概览 | High | OPEN |
-| UX-030 | 退出收藏 3～4 路拼装，preparing 每 500ms 重拉 | `PERFORMANCE` | 退出收藏 | Medium | OPEN |
-| UX-031 | Helix 页未使用已引入的 QueryClient，切页无共享缓存 | `PERFORMANCE` | 全站 | Medium | OPEN |
-| UX-032 | 整体仍是「内部台账皮肤」，缺少统一的媒体产品视觉 | `AESTHETICS` | 全站 | High | OPEN |
+| UX-024 | 按钮至少八种互不相干的形态 | `BUTTON` | 全站 | High | 已实现 |
+| UX-025 | 退出收藏与整理表内按钮退回浏览器默认样式 | `BUTTON` | 退出收藏 / 整理 | High | 已实现 |
+| UX-026 | 收藏墙逐张拉海报，详情再打健康与评分接口 | `PERFORMANCE` | 我的收藏 | High | 已实现 |
+| UX-027 | 文件来源按 Field 再打 Routing Policy，观察期间 1s 轮询整表 | `PERFORMANCE` | 文件来源 | High | 已实现 |
+| UX-028 | 设置页切到连接 Tab 仍拉取 100 条评分日志 | `PERFORMANCE` | 系统设置 | Medium | 已实现 |
+| UX-029 | 概览所谓 Projection 是请求内五路拼账 | `PERFORMANCE` | 概览 | High | 已实现 |
+| UX-030 | 退出收藏 3～4 路拼装，preparing 每 500ms 重拉 | `PERFORMANCE` | 退出收藏 | Medium | 已实现 |
+| UX-031 | Helix 页未使用已引入的 QueryClient，切页无共享缓存 | `PERFORMANCE` | 全站 | Medium | 已实现 |
+| UX-032 | 整体仍是「内部台账皮肤」，缺少统一的媒体产品视觉 | `AESTHETICS` | 全站 | High | 已实现 |
 
 ## 3. `COPY_REDUNDANT`：冗余或非用户友好文案
 
@@ -406,3 +406,27 @@ Formation 已有 durable `libra_formation_projections`，这是正确方向。�
 5. 美学收口（UX-032）：在前四项之后做，避免先换皮肤后改信息架构。
 
 与已有 UAT 的关系：`UAT-005` 与 `UAT-051` 的 Formation 信息架构代码已落地（四桶 + organizingSteps）；本文 UX-009/010/016 随 UAT-051 关闭。其它条目不是 UAT 回归失败，而是全产品入口的独立 UX 债。
+
+## 12. 2026-08-22 残余 UX 收口证据
+
+Helix 壳层（`web/src/helix/helix.css`、`chrome.tsx`、`session.tsx`、`App.tsx`）已落地，不重做皮肤。本条不宣称 Canary 通过。
+
+| ID | 处理 | 证据 |
+| --- | --- | --- |
+| UX-002 / UX-003 | 壳层已去掉口号 eyebrow 与「收藏运营台 / 本地 Projection」 | `App.tsx`、`helix.css` |
+| UX-005 / UX-018 | 注销确认为模态对话框，主文案只说文件保留、记录结束 | `ShelvesPage.tsx` `dialog-scrim` |
+| UX-008 / UX-012 / UX-014 | 设置页只有连接与评分日志；日志指向媒体整理工作区 | `SettingsPage.tsx` |
+| UX-017 | 四项整理统计用四列 `source-facts` | `helix.css` |
+| UX-019 | `collection-exit` 与 `sr-only` 已有样式 | `collection.css`、`helix.css` |
+| UX-020 | 统一 `SessionProvider` + `PageHeader` | `session.tsx`、`chrome.tsx` |
+| UX-021 | `src/pages` 标明非产品入口，正式路由不接入 | `web/src/pages/README.md` |
+| UX-022 / UX-024 / UX-025 | 单一字体栈与 `.btn` 四种形态 | `helix.css` |
+| UX-026 | 海报墙只读 Collection 列表；健康/评分只在详情请求 | `CollectionPage.tsx` |
+| UX-027 | 仅扫描中 3s 刷新来源列表 | `MaterialFieldsPage.tsx` |
+| UX-028 | 连接 Tab 不拉评分日志 | `SettingsPage.tsx` |
+| UX-029 | Overview 用 Collection `overviewStats`，不再五路整表 map | `overview-query.js` |
+| UX-030 | preparing 审阅改为 3s 拉取 | `OffdeckPage.tsx` |
+| UX-031 | Helix `App` 包 `QueryClientProvider`，概览与侧栏共享 `['overview']` | `App.tsx`、`OverviewPage.tsx` |
+| UX-032 | 不增加口号 Hero，保持工作台信息架构 | `helix.css`、`OverviewPage.tsx` |
+
+仍 OPEN：UX-006（收藏健康详情仍有 findingKind 等内部口径）、UX-023（收藏详情部分 uppercase 标签）。

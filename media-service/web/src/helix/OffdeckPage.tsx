@@ -119,7 +119,7 @@ export default function OffdeckPage() {
     if (!review || review.state !== 'preparing') return;
     const timer = window.setInterval(() => {
       void helixAdminApi.getOffdeckReview(review.reviewId).then(setReview).catch((cause) => fail(cause, '退出范围准备失败。'));
-    }, 1500);
+    }, 3000);
     return () => window.clearInterval(timer);
   }, [fail, review]);
 

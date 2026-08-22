@@ -1,3 +1,4 @@
+/** Not a Helix product entry. Official Admin Web routes live in src/helix via App.tsx. */
 import { useQuery } from '@tanstack/react-query';
 import { dashboardHealth, spaceStats, subLibraries } from '../api/client';
 import { Loading, Metric, Page, PageHeader, Panel, Status } from '../components/ui';

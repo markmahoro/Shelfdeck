@@ -25,6 +25,8 @@ test('Admin Web exposes eight Helix pages and keeps health in Collection', () =>
   assert.match(model, /文件来源配置/);
   assert.match(model, /收藏架配置/);
   assert.match(read('web/src/App.tsx'), /nav-separator/);
+  assert.match(read('web/src/App.tsx'), /QueryClientProvider/);
+  assert.match(read('web/src/pages/README.md'), /非 Helix 产品入口/);
   assert.doesNotMatch(model, /slug:\s*'care'/);
   assert.match(read('web/src/helix/CollectionPage.tsx'), /收藏健康/);
   assert.match(read('web/src/helix/CollectionPage.tsx'), /占用空间/);
