@@ -1563,6 +1563,13 @@ data directory真实服务重启。
 修复状态（2026-08-22）：`REAL SERVICE RESTART VERIFIED`。同一隔离UAT data directory重启后，恢复批次虽暴露后续
 业务失败，服务仍持续监听；真实Formation页面成功打开、刷新并完成UAT-026评分撤回，随后由测试方优雅停止以隔离后续诊断。
 
+2026-08-23逐项封口在重建Canary `UAT-20260823-002500-519f8d7b5`再次确认。当前服务进程自00:51重启后持续存活、
+`/v1/health`为`ok`且`normalSupplyAllowed=true`；其间恢复旧Run、完成UAT-067恢复以及多次真实Admin Web命令与刷新。
+服务日志中`P4_PROGRESS_SOURCE_SEQUENCE_CONFLICT`、uncaught与Unhandled rejection均为0；真实Formation刷新成功并显示
+1待整理/6需要处理/16已完成，Console warning/error为0。媒体Effect与Progress Reporter专项回归13/13 PASS。状态
+`REGRESSION PASSED / CONFIRMED ON RESTARTED CANARY`。UI证据：
+`admin-web-evidence/uat-027-service-survives-recovery-progress-pass.png`。
+
 ## 25. UAT-028：单电影目录的常见既有图像未进入Related disposition scope
 
 问题分类：`PROCUREMENT_RELATED_MATERIAL / HANDOFF_CONTINUITY / INPUT_SETTLEMENT`
