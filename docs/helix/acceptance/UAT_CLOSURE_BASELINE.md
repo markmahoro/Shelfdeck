@@ -4,7 +4,7 @@
 
 建立日期：2026-08-22
 
-覆盖范围：`UAT-001`–`UAT-066`（66 行，无缺口、无重复）
+覆盖范围：`UAT-001`–`UAT-067`（67 行，无缺口、无重复）
 
 > 本文是关闭台账的冻结验收工件，不是 Architecture SSOT，也不是活动实施计划。
 > 问题叙述仍以 `docs/helix/USER_ACCEPTANCE_TEST_ISSUE_LOG.md` 为准。
@@ -116,7 +116,7 @@
 | UAT-057 | 概览为系统状态 + 可点待办 + 带片名最近进展，不与「我的收藏」合并 | `UI` | W1 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260822-141950-0c27c8cf6 UI 概览系统状态+待办+最近进展，不与收藏合并 |
 | UAT-058 | 侧栏运营在上、配置在下；文件来源/收藏架改名为配置并与系统设置一组 | `UI` | W1 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260822-141950-0c27c8cf6 UI 侧栏配置组：文件来源配置/收藏架配置 |
 | UAT-059 | 四星转码把 `maxSizeBytes` 当拒绝线而非填满目标；已较小的 H.264 源不得灌到档位 GiB | `UI` `FS` | W3 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260823-002500-519f8d7b5 UI锡尔弗顿1.9GB当前收藏健康；FACT/FS源2.078GB、成品2.091GB，NVENC目标码率1.919Mbps非填满14GiB |
-| UAT-060 | Product Identity 写回 Subject 不重发语义相同的 Acceptance Spec，头不空切，符合性后仍能发 Package | `UI` `FACT` | W2 | `CODE_DONE_UNQUALIFIED` | `NOT RUN` |
+| UAT-060 | Product Identity 写回 Subject 不重发语义相同的 Acceptance Spec，头不空切，符合性后仍能发 Package | `UI` `FACT` | W2 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260823-014246-3397c88f5 UI养蜂人同值4星覆盖并清除后恢复豆瓣；FACT Spec仍仅revision 1且Head四元组不变，另2个身份写回样本均已发Package |
 | UAT-061 | 豆瓣翻页传输失败有界重试；耗尽后 Acquisition 收口为失败，设置页可再同步。不得用 copy-forward 单独关闭 | `UI` | W4 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260822-141950-0c27c8cf6 UI 本轮点同步出现正在同步，约90s后按钮恢复可点且无失败卡死（非 copy-forward 单独关闭） |
 | UAT-062 | frozen Discard 后 Control 保持释放、不立刻新开 Libra Run、页面不是「正在评估整理方案」，材料走重新入库 | `UI` | W5 | `CODE_DONE_UNQUALIFIED` | `NOT RUN` |
 | UAT-063 | Aftercare 用与 Libra 同一套 `perception.rating.resolve@1` Identity Evidence；上架后评分从无到有/变档会再评估 | `UI` | W4 | `CODE_DONE_UNQUALIFIED` | `NOT RUN` |
@@ -129,18 +129,21 @@
 
 冻结时（代码状态，不是本轮 Canary）：`CLOSED` 11，`CODE_DONE_UNQUALIFIED` 52，`RECORDED_UNIMPLEMENTED` 1（064）。本轮逐项关闭期间新增并完成`UAT-065`、`UAT-066`、`UAT-067`；当前代码状态为`CLOSED` 12、`CODE_DONE_UNQUALIFIED` 54、`RECORDED_UNIMPLEMENTED` 1（064）。
 
-本轮干净 Canary `UAT-20260822-141950-0c27c8cf6`（HEAD `0c27c8cf6`）PASS 列：
+逐项关闭累计覆盖干净 Canary `UAT-20260822-141950-0c27c8cf6`、`UAT-20260823-002500-519f8d7b5`与
+`UAT-20260823-014246-3397c88f5`；当前 PASS 总账：
 
 | 口径 | 数量 |
 | --- | --- |
 | 总行 | 67 |
-| 本轮 `PASS` | **46** |
-| 本轮未通过（`NOT RUN`+`FAILED`+`BLOCKED`） | **21**（21 `NOT RUN`；0 `FAILED`；0 `BLOCKED`） |
-| 是否都通过 | **否**（46/67，未通过 21） |
+| 累计 `PASS` | **63** |
+| 尚未通过（`NOT RUN`+`FAILED`+`BLOCKED`） | **4**（4 `NOT RUN`；0 `FAILED`；0 `BLOCKED`） |
+| 是否都通过 | **否**（63/67，尚余 4） |
 
-本轮 `PASS`：001、002、003、004、005、006、007、008、009、011、012、013、015、016、018、020、030、032、034、036、037、038、039、040、041、042、043、044、045、046、047、048、049、050、051、052、053、054、055、056、057、058、061、065、066、067。证据均包含干净隔离库 Admin Web `UI`；要求文件现实的行另有`FS`。W5 Discard 重新入库、W6 退出收藏/注销在本坐席未跑完，保持 `NOT RUN`。
+累计 `PASS`：001–016、018–061（不含017）、065–067。证据均包含干净隔离库 Admin Web `UI`；要求文件现实的行另有`FS`。
+当前仅017、062、063、064保持`NOT RUN`。
 
-当前失败：无。`UAT-004`已用本轮16个Package/Inventory大Primary的正式中段指纹事实关闭；`UAT-009`已用同档用户评分写入并刷新保留关闭；`UAT-020`已由新干净Canary的新Final Inventory关闭；`UAT-067`已在同一已加急Run上恢复并关闭。剩余21行均为`NOT RUN`，不是已观察失败。
+当前失败：无。`UAT-060`已在HEAD `3397c88f5`重建的干净Canary上用同值评分来源切换及成功Package证人关闭；
+剩余4行均为`NOT RUN`，不是已观察失败。
 
 `UAT-005` 剩余动作合同并入 `UAT-051` 后仍保留本行，用四桶状态在新 Canary 上资格确认，不把 005 标 `VOID`。
 

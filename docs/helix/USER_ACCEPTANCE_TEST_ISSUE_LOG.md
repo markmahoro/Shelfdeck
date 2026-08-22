@@ -116,7 +116,7 @@ Helix主体开发已经完成，Movie从Procurement、Libra到Arca及Shelf Dereg
 | UAT-057 | 概览只重复旁页计数，缺少系统状态、可点待办与最近完成；不得与我的收藏合并 | `USER_EXPERIENCE` | `PROJECTION_FRESHNESS` | Overview 只读聚合 + Admin Web | 可理解性、可操作性 | High | 已实现；待新 Canary 确认 |
 | UAT-058 | 侧栏把文件来源与收藏架放在日常运营之前；应下移与系统设置一组并改名为配置 | `USER_EXPERIENCE` | | Admin Web 导航 | 可发现性、信息架构 | Medium | 已实现；待新 Canary 确认 |
 | UAT-059 | 四星转码把 14 GiB 上限当成目标码率，把已较小的 H.264 源灌大 | `BUSINESS_CONTRACT` | `MEDIA_PRODUCTION` | Libra Production Planner `deriveTargetSizeBudget` | 正确性、空间、质量 | High | 已实现；待新 Canary 确认 |
-| UAT-060 | Product Identity 写回 Subject 触发语义相同的 Acceptance Spec 重发，头切走后 Run 可能发不出 Package | `BUSINESS_CONTRACT` | `DOMAIN_ORCHESTRATION` | Libra Acceptance Spec `specInputDigest` + Coordinator | 正确性、活性 | High | 已实现；待新 Canary 确认 |
+| UAT-060 | Product Identity 写回 Subject 触发语义相同的 Acceptance Spec 重发，头切走后 Run 可能发不出 Package | `BUSINESS_CONTRACT` | `DOMAIN_ORCHESTRATION` | Libra Acceptance Spec `specInputDigest` + Coordinator | 正确性、活性 | High | 已修复并通过重建 Canary 确认 |
 | UAT-061 | 豆瓣 Acquisition 翻页传输失败后不重试、不收口，设置页永久「正在同步」 | `EXTERNAL_INTEGRATION` | `RECOVERY_CORRECTNESS` | Perception Acquisition + Settings 同步态 | 活性、可理解性 | High | 已实现；待新 Canary 确认 |
 | UAT-062 | frozen Run Discard 后 Control 已释放，Formation 仍空转「正在评估整理方案」，未走重新入库 | `BUSINESS_CONTRACT` | `DOMAIN_ORCHESTRATION` | Libra Run Discard 收口 + Procurement 重新入库 + Formation | 正确性、活性、可理解性 | Critical | 已实现；待新 Canary 确认 |
 | UAT-063 | Aftercare 问豆瓣分与 Libra 不是同一套 Resolution/Identity Evidence，上架后评分变化不触发保养 | `BUSINESS_CONTRACT` | `PROJECTION_FRESHNESS` | Arca Aftercare 拉 Perception + 与 Libra 共用 Identity Evidence | 正确性、时效性 | High | 已实现；待新 Canary 确认 |
@@ -2531,6 +2531,19 @@ Formation 该行 `my_rating=4`、`my_rating_source=douban`，整理要求 `HEVC 
 验收证据：无评分样本在身份 resolve 后仍只有一份 Acceptance Spec、头不切、`specInputDigest` 不含身份指针；有评分样本仅在评分/标准/分拣真正变化时才发新 Spec。负例：符合性已过的 active Run 在语义相同的头切换后仍能 publish。本轮 23 部那种「空身份 Spec 1 → 身份写回 Spec 2」不再出现。
 
 当前处理决定：2026-08-22 代码已实现。`specInputDigest` 不再纳入 `currentIdentityRevision` / `currentIdentityDigest` / `snapshotDigest`。身份写回不再发语义相同的 Spec 2。本条不宣称 Canary 或生产通过。
+
+2026-08-23逐项封口首次复测发现上述实现仍不完整：旧Canary中两部同名`养蜂人 (2024)`均有3份Acceptance Spec，
+每部的3个`specDigest`完全相同。页面先把4星豆瓣覆盖为同值4星直接评分、再清除直接评分；完整Perception Resolution来源、
+revision和Query Result虽改变，实际评分与Requirements并未改变，旧`specInputDigest`仍因此空切两次。修复提交`3397c88f5`保留完整
+Resolution/Query Result作为不可变Basis审计输入，但Spec语义判定只投影`rating`的`found/not_found`及1–5星业务值；4→5仍签发，
+豆瓣4→直接4→豆瓣4不再签发。专项合同与真实E2E共18/18通过。
+
+同日使用HEAD `3397c88f5`重建干净Canary `UAT-20260823-014246-3397c88f5`。Admin Web中`养蜂人 (2024)`完成
+“4星豆瓣→同值4星我的评分→清除→恢复4星豆瓣”；该Subject全程只有Acceptance Spec revision 1，`specDigest`、
+`currentDecisionBasisId`、Head revision 4、`currentAcceptanceSpecId`与`headDigest`逐字不变。另有`威尼斯惊魂夜 (2023)`、
+`全面失控：特大号邮轮危机 (2025)`两个身份已写回样本，均只有一份Spec、一个completed Run并各形成一份Product Package。
+状态`REGRESSION PASSED / CONFIRMED ON REBUILT CANARY`。UI证据：
+`admin-web-evidence/uat-060-semantic-spec-head-stable-pass.png`。
 
 ## 58. UAT-061：豆瓣 Acquisition 翻页传输失败后不重试、不收口，设置页永久「正在同步」
 
