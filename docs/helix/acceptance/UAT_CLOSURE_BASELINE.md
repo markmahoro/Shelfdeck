@@ -69,7 +69,7 @@
 | UAT-010 | Routing 未配置时不开放人工选架，页面给出等待策略的明确提示 | `UI` | W0 | `CLOSED` | `NOT RUN` |
 | UAT-011 | 同根 Shelf Target 前 Handoff B 能推进，不再永久等待 | `UI` `FS` | W3 | `CODE_DONE_UNQUALIFIED` | `NOT RUN` |
 | UAT-012 | On-deck Planner 带上 Settlement Approval 契约，上架能完成 | `UI` `FS` | W0 | `CLOSED` | `PASS` UAT-20260822-141950-0c27c8cf6 UI 第八个嫌疑人已为当前收藏且健康；FS主视频精确存在于F:\canary，大小2009890078与Inventory一致 |
-| UAT-013 | 已解析身份进入用户可读目录名，不再渲染成哈希 Inventory 目录 | `UI` `FS` | W3 | `CODE_DONE_UNQUALIFIED` | `NOT RUN` |
+| UAT-013 | 已解析身份进入用户可读目录名，不再渲染成哈希 Inventory 目录 | `UI` `FS` | W3 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260822-141950-0c27c8cf6 UI第八个嫌疑人；FS目录F:\canary\第八个嫌疑人 (2023)存在，非哈希且无(0)年份 |
 | UAT-014 | Formation 展示 Product Identity 冲突并提供候选选择 | `UI` | W0 | `CLOSED` | `NOT RUN` |
 | UAT-015 | 冻结的 Libra Run 有用户可见的放弃入口 | `UI` | W0 | `CLOSED` | `PASS` UAT-20260822-141950-0c27c8cf6 UI 冻结行有放弃本次整理 |
 | UAT-016 | TMDB 正确候选不再被本地语言/标题过滤误报为未找到 | `UI` | W2 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260822-141950-0c27c8cf6 UI 设置 TMDB 首选语言简体中文 |
@@ -131,11 +131,11 @@
 | 口径 | 数量 |
 | --- | --- |
 | 总行 | 64 |
-| 本轮 `PASS` | **23** |
-| 本轮未通过（`NOT RUN`+`FAILED`+`BLOCKED`） | **41**（全部为 `NOT RUN`；0 `FAILED`；0 `BLOCKED`） |
-| 是否都通过 | **否**（23/64，未通过 41） |
+| 本轮 `PASS` | **24** |
+| 本轮未通过（`NOT RUN`+`FAILED`+`BLOCKED`） | **40**（全部为 `NOT RUN`；0 `FAILED`；0 `BLOCKED`） |
+| 是否都通过 | **否**（24/64，未通过 40） |
 
-本轮 `PASS`：001、002、005、006、007、008、012、015、016、018、030、032、038、050、051、052、053、054、055、056、057、058、061。证据均包含本隔离库 Admin Web `UI`；要求文件现实的行另有`FS`。W3 转码/ISO/BDMV 上架、W5 Discard 重新入库、W6 退出收藏/注销在本坐席未跑完，保持 `NOT RUN`。
+本轮 `PASS`：001、002、005、006、007、008、012、013、015、016、018、030、032、038、050、051、052、053、054、055、056、057、058、061。证据均包含本隔离库 Admin Web `UI`；要求文件现实的行另有`FS`。W3 转码/ISO/BDMV 上架、W5 Discard 重新入库、W6 退出收藏/注销在本坐席未跑完，保持 `NOT RUN`。
 
 `UAT-005` 剩余动作合同并入 `UAT-051` 后仍保留本行，用四桶状态在新 Canary 上资格确认，不把 005 标 `VOID`。
 
@@ -204,3 +204,18 @@
 - 关闭结论：`PASS`。真实Admin Web显示「第八个嫌疑人」属于Movie Canary当前收藏且健康；Inventory主视频`F:\canary\第八个嫌疑人 (2023)\第八个嫌疑人 (2023).mp4`真实存在，大小`2009890078`字节，与Inventory声明精确一致。
 - UI证据：`admin-web-evidence/uat-012-ondeck-complete-eighth-suspect.png`（位于本Canary隔离证据目录）。
 - FS证据：2026-08-22只读`Get-Item -LiteralPath`核验上述精确路径，`Exists=True`、`Length=2009890078`、`SIZE_MATCH=True`。
+
+### UAT-013（`PASS`）
+
+- 关闭命题：已解析身份进入用户可读目录名，不再渲染成哈希Inventory目录。
+- Canary：`UAT-20260822-141950-0c27c8cf6`。
+- 证人：Admin Web「我的收藏」中的「第八个嫌疑人」；对应Inventory目录`F:\canary\第八个嫌疑人 (2023)`。
+- 路径：我的收藏 → Movie Canary → 打开「第八个嫌疑人」详情确认用户可读Identity → 只读核验Inventory父目录名及主视频路径。
+- 允许动作：页面进入、只读切换、打开/关闭详情、截图；文件系统、SQLite和日志只读旁证。
+- 禁止动作：修改评分、退出收藏、移动/重命名文件、重启服务、重建Canary、修改数据库；当前NVENC转码不得受本项影响。
+- 通过标准：页面Identity为「第八个嫌疑人」，Inventory位于用户可读的`第八个嫌疑人 (2023)`目录，目录名不是Package/哈希ID，也不含错误年份`(0)`。
+- 证据要求：`UI`、`FS`。
+- 旁证停车：成员命名、Settlement和其他Entry目录只作旁证，不改其他行结论。
+- 关闭结论：`PASS`。Admin Web以「第八个嫌疑人」展示正式收藏；对应Inventory目录精确为`F:\canary\第八个嫌疑人 (2023)`，目录存在，`IsHashName=False`、`HasZeroYear=False`，其5个成员均在该用户可读目录内。
+- UI证据：`admin-web-evidence/uat-013-readable-inventory-eighth-suspect.png`（位于本Canary隔离证据目录）。
+- FS证据：2026-08-22只读核验目录存在，名称为`第八个嫌疑人 (2023)`，非哈希、无`(0)`年份，包含主视频、NFO、poster、fanart、clearlogo共5个成员。
