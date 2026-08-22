@@ -106,5 +106,6 @@ test('discard is a frozen-only atomic exit that releases original input Control 
   assert.equal(check.prepare('SELECT state FROM fx_material_controls').get().state,'released');
   assert.equal(check.prepare('SELECT COUNT(*) n FROM libra_workspace_cleanup_scopes').get().n,0);
   assert.equal(check.prepare("SELECT COUNT(*) n FROM fx_outbox WHERE message_kind='libra.workspace-cleanup.requested@1'").get().n,1);
+  assert.equal(check.prepare("SELECT consumer_domain FROM fx_outbox_deliveries WHERE message_id=(SELECT message_id FROM fx_outbox WHERE message_kind='libra.workspace-cleanup.requested@1')").get().consumer_domain,'libra');
   check.close();
 }));

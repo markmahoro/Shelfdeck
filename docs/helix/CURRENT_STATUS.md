@@ -19,6 +19,13 @@ Git 工作区已重组为 `E:\my_project\emby_third_party-helix` / `main`；本�
 同一现场继续确认评分变化无需手动健康检查即可自动形成新 Assessment，Subject 与 Shelf Entry 命中同一 Douban Record；`UAT-063` 已关闭。
 Collection 详情同时显示 Provider 年份 2023 与 3 星豆瓣，Inventory 标准年份字段和双端同一 Record 已由只读 FACT 旁证；`UAT-068` 已关闭。当前关闭总账为 66/69，仅余`UAT-017`、`UAT-062`与按程序跳过的`UAT-064`。
 
+`UAT-062`本轮已通过真实MoviePilot形成两条`no_available_candidate` frozen Run，并从页面Discard
+`看不见的朋友 (2023)`：UI已显示「待整理 / 等待重新入库」，旧Run为`discarded`，Control revision 3为`released`，
+原Material仍在最新Field Observation中；冻结前与Discard后截图均保存在本轮F盘证据目录。关闭前FACT审计发现
+`libra.workspace-cleanup.requested@1`持续pending：delivery consumer误写为技术名`libra_workspace_reclaimer`，与Inbox的Libra
+Business Owner合同冲突。consumer已在Libra内部边界内纠正为`libra`，相关消息/Run专项回归24/24通过；当前旧Canary不改库，
+仍须在修复提交后重建Canary确认fully ack与新Procurement，故本行保持`NOT RUN`。
+
 ## 0. Clean Canary scorecard — UAT-20260822-141950-0c27c8cf6
 
 本轮干净 Movie Canary：隔离库
@@ -53,7 +60,7 @@ Collection 详情同时显示 Provider 年份 2023 与 3 星豆瓣，Inventory �
 - `UAT-059` 已实现：四星转码把 14 GiB 上限当成目标码率（`锡尔弗顿之围` 1.94 GiB H.264 → 9.35 GiB HEVC）。待新 Canary；
 - `UAT-060` 已实现：Product Identity 写回 Subject 触发语义相同的 Acceptance Spec 重发。待新 Canary；
 - `UAT-061` 已实现：豆瓣 Acquisition 翻页传输失败后不重试、不收口。待新 Canary，不得用 copy-forward 单独关闭；
-- `UAT-062` 已实现：frozen Discard 后 Control 已释放，Formation 空转「正在评估」，未走重新入库。待新 Canary；
+- `UAT-062` 修复中：页面等待重新入库与Control release已由当前Canary确认；cleanup wake的Inbox Owner错配已修正，待修复后新Canary确认fully ack与新Procurement；
 - `UAT-063` 已实现：Aftercare 问豆瓣分与 Libra 共用 Identity Evidence。待新 Canary；
 - `UAT-064` 只登记：Formation 步骤展示与真实执行偏离（CPU/验证完成态）。不深挖、不授权实现。
 - `UAT-068` 已实现：Collection 年份投影保留 Provider 标准年份字段。待本轮独立关闭；

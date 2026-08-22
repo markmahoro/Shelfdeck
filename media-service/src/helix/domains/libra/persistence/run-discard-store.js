@@ -552,10 +552,10 @@ function createRunDiscardStore(options) {
         result_schema_ref:COMMAND_RESULT_SCHEMA,result_digest:result.resultDigest,committed_at_ms:context.commitTimeMs});
       repo.invoke('insert_outbox',{message_id:message.messageId,producer_domain:'libra',message_kind:message.messageKind,
         aggregate_type:'libra_run',aggregate_id:decision.libraRunId,aggregate_revision:receipt.committedRunStateRevision,
-        dedup_key:message.dedupKey,consumer_set_digest:canonicalDigest(['libra_workspace_reclaimer']),intended_consumer_count:1,
+        dedup_key:message.dedupKey,consumer_set_digest:canonicalDigest(['libra']),intended_consumer_count:1,
         payload_schema_ref:MESSAGE_SCHEMA,payload_json:canonicalJson(message),payload_digest:canonicalDigest(message),state:'pending',
         available_at_ms:context.commitTimeMs,created_at_ms:context.commitTimeMs,all_acked_at_ms:null});
-      repo.invoke('insert_delivery',{message_id:message.messageId,consumer_domain:'libra_workspace_reclaimer',state:'pending',
+      repo.invoke('insert_delivery',{message_id:message.messageId,consumer_domain:'libra',state:'pending',
         attempt_count:0,next_attempt_at_ms:context.commitTimeMs,acked_at_ms:null});return result;
     }}];
     try{options.unitOfWork.execute(participants);return result;}catch(error){if(error instanceof Replay)return error.result;throw error;}

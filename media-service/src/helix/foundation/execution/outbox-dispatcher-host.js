@@ -102,13 +102,13 @@ function createOutboxDispatcherHost(options){const repo=repository(options.schem
       inbox.acknowledge({messageId:item.message.message_id,consumerDomain:'libra'});
       options.routingCoordinator.reconcileField(payload.fieldId,100);options.executionRuntimeHost.wake();return;
     }
-    if(item.message.message_kind==='libra.workspace-cleanup.requested@1'&&item.delivery.consumer_domain==='libra_workspace_reclaimer'){
+    if(item.message.message_kind==='libra.workspace-cleanup.requested@1'&&item.delivery.consumer_domain==='libra'){
       const resultDigest=canonicalDigest({schema:'libra.workspace-cleanup-request-consumption@1',messageId:item.message.message_id,
         libraRunId:payload.libraRunId,cleanupScopeId:payload.cleanupScopeId||null,triggerDigest:payload.triggerDigest||null});
-      inbox.consume({message:{messageId:item.message.message_id,dedupKey:item.message.dedup_key,consumerDomain:'libra_workspace_reclaimer'},resultDigest,
+      inbox.consume({message:{messageId:item.message.message_id,dedupKey:item.message.dedup_key,consumerDomain:'libra'},resultDigest,
         domainParticipant:{participantId:'libra_workspace_cleanup_wake_receipt',owner:'libra',repositories:[libraReceiptRepository],
           execute:()=>({libraRunId:payload.libraRunId,cleanupScopeId:payload.cleanupScopeId||null})}});
-      inbox.acknowledge({messageId:item.message.message_id,consumerDomain:'libra_workspace_reclaimer'});
+      inbox.acknowledge({messageId:item.message.message_id,consumerDomain:'libra'});
       options.executionRuntimeHost.wake();return;
     }
     if(item.message.message_kind.startsWith('perception.')&&item.delivery.consumer_domain==='perception'){

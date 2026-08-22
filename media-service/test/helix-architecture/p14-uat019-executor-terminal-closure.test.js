@@ -126,3 +126,34 @@ test('Handoff B admission persists Inbox before delivery and leaves Ack for a bu
     assert.ok(inbox.result_digest); assert.ok(inbox.consumed_at_ms); assert.equal(wakes,1);
   } finally { check.close(); }
 }));
+
+test('Libra consumes and fully acknowledges its internal workspace-cleanup wake', async () => fixture(async ({ databasePath, unitOfWork }) => {
+  const payload = { messageKind:'libra.workspace-cleanup.requested@1', libraRunId:'run-discarded',
+    cleanupScopeId:'cleanup-scope-1', triggerDigest:hex('5') };
+  const database = new Database(databasePath);
+  database.prepare(`INSERT INTO fx_outbox(message_id,producer_domain,message_kind,aggregate_type,aggregate_id,aggregate_revision,
+    dedup_key,consumer_set_digest,intended_consumer_count,payload_schema_ref,payload_json,payload_digest,state,available_at_ms,created_at_ms,all_acked_at_ms)
+    VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run('message-cleanup','libra','libra.workspace-cleanup.requested@1','libra_run',
+    payload.libraRunId,4,'cleanup-wake',canonicalDigest(['libra']),1,'libra.workspace-cleanup-requested@1',canonicalJson(payload),
+    canonicalDigest(payload),'pending',1,1,null);
+  database.prepare(`INSERT INTO fx_outbox_deliveries(message_id,consumer_domain,state,attempt_count,next_attempt_at_ms,acked_at_ms)
+    VALUES(?,?,?,?,?,?)`).run('message-cleanup','libra','pending',0,1,null);
+  database.close();
+
+  let wakes = 0;
+  const host = createOutboxDispatcherHost({ schemaManifest, unitOfWork, now:() => 1_800_000_000_000,
+    executionRuntimeHost:{wake(){wakes+=1;}}, onError:(error)=>{throw error;} });
+  assert.equal((await host.drainOnce()).delivered, 1);
+  const check = new Database(databasePath, { readonly:true });
+  try {
+    const delivery = check.prepare('SELECT state,attempt_count,acked_at_ms FROM fx_outbox_deliveries WHERE message_id=?')
+      .get('message-cleanup');
+    assert.deepEqual({ state:delivery.state, attempt_count:delivery.attempt_count }, { state:'acked', attempt_count:0 });
+    assert.ok(delivery.acked_at_ms);
+    assert.ok(check.prepare('SELECT result_digest FROM fx_inbox WHERE consumer_domain=? AND message_id=?')
+      .get('libra','message-cleanup').result_digest);
+    const message = check.prepare('SELECT state,all_acked_at_ms FROM fx_outbox WHERE message_id=?').get('message-cleanup');
+    assert.deepEqual(message, { state:'fully_acked', all_acked_at_ms:delivery.acked_at_ms });
+    assert.equal(wakes, 1);
+  } finally { check.close(); }
+}));

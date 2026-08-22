@@ -118,7 +118,7 @@ Helix主体开发已经完成，Movie从Procurement、Libra到Arca及Shelf Dereg
 | UAT-059 | 四星转码把 14 GiB 上限当成目标码率，把已较小的 H.264 源灌大 | `BUSINESS_CONTRACT` | `MEDIA_PRODUCTION` | Libra Production Planner `deriveTargetSizeBudget` | 正确性、空间、质量 | High | 已实现；待新 Canary 确认 |
 | UAT-060 | Product Identity 写回 Subject 触发语义相同的 Acceptance Spec 重发，头切走后 Run 可能发不出 Package | `BUSINESS_CONTRACT` | `DOMAIN_ORCHESTRATION` | Libra Acceptance Spec `specInputDigest` + Coordinator | 正确性、活性 | High | 已修复并通过重建 Canary 确认 |
 | UAT-061 | 豆瓣 Acquisition 翻页传输失败后不重试、不收口，设置页永久「正在同步」 | `EXTERNAL_INTEGRATION` | `RECOVERY_CORRECTNESS` | Perception Acquisition + Settings 同步态 | 活性、可理解性 | High | 已实现；待新 Canary 确认 |
-| UAT-062 | frozen Run Discard 后 Control 已释放，Formation 仍空转「正在评估整理方案」，未走重新入库 | `BUSINESS_CONTRACT` | `DOMAIN_ORCHESTRATION` | Libra Run Discard 收口 + Procurement 重新入库 + Formation | 正确性、活性、可理解性 | Critical | 已实现；待新 Canary 确认 |
+| UAT-062 | frozen Run Discard 后 Control 已释放，Formation 仍空转「正在评估整理方案」，未走重新入库 | `BUSINESS_CONTRACT` | `DOMAIN_ORCHESTRATION` | Libra Run Discard 收口 + Procurement 重新入库 + Formation | 正确性、活性、可理解性 | Critical | 修复中；当前 Canary 发现 cleanup Inbox Owner 错配，待修复后新 Canary |
 | UAT-063 | Aftercare 问豆瓣分与 Libra 不是同一套 Resolution/Identity Evidence，上架后评分变化不触发保养 | `BUSINESS_CONTRACT` | `PROJECTION_FRESHNESS` | Arca Aftercare 拉 Perception + 与 Libra 共用 Identity Evidence | 正确性、时效性 | High | 已修复并通过当前 Canary 确认 |
 | UAT-064 | Formation 整理步骤展示与真实执行状态偏离：转码标 CPU、验证过早标完成 | `USER_EXPERIENCE` | `PROJECTION_FRESHNESS` | Formation 公开 Projection `organizingSteps` / `transcodeLabel` | 可理解性、可观察性 | High | 已登记；待实现授权 |
 | UAT-065 | 收藏详情把父目录名中的`.1`误显示为主视频容器 | `USER_EXPERIENCE` | `PROJECTION_FRESHNESS` | Arca Collection Query + Admin Web | 正确性、可理解性 | High | 已修复并通过当前 Canary 定向确认 |
@@ -2586,13 +2586,13 @@ Resolution/Query Result作为不可变Basis审计输入，但Spec语义判定只
 
 - Discard 之后禁止立刻 admit 新 Libra Run。Control 已 released 时 Creator 返回 typed「等待重新入库」，禁止 `EXECUTION_RUNTIME_ERROR` 循环；
 - Control 释放后叫醒 Field Management / Procurement：仍在有效 Observation 集才开全新 Procurement Run；旧 Candidate/失败只作历史；
-- 接上 `libra.workspace-cleanup.requested@1` → `libra_workspace_reclaimer`；清理不在 Discard 同一 SQLite 事务里删文件，但必须有人消费；
+- 接上 `libra.workspace-cleanup.requested@1`；reclaimer是Libra内部职责，Inbox consumer必须使用Business Owner `libra`，不得把技术组件名伪装成Owner；清理不在 Discard 同一 SQLite 事务里删文件，但必须有人消费；
 - 放弃后不得写「正在评估整理方案」。Discard 历史为「已结束 · 用户放弃」（UAT-018）；当前行若还在，只允许「等待重新入库 / 等待再次发现」；
 - **不得**把 Control 留在 Libra 里「再试一次」。若产品要同一 Subject 留 Control 再开 Run，须先改 SSOT `L5-Q7`，本条不授权。
 
 验收证据：五星冻结样本 Discard 后 Control released、无新 Libra Run、无 Control-unavailable 刷屏、清理 Outbox 被消费；页面不是「正在评估」；仍在 Field 内的材料能进入新的 Procurement，而不是静默消失。
 
-当前处理决定：2026-08-22 代码已实现。Control 已释放时 Creator 返回 `awaiting_reintake`，不再抛 `Control is unavailable`；Formation 放弃后写「等待重新入库」；Outbox `libra.workspace-cleanup.requested@1` → `libra_workspace_reclaimer` 已接消费。Discard 仍是重新入库，不把 Control 留在 Libra。本条不宣称 Canary 或生产通过。
+当前处理决定：2026-08-22 第一批代码已实现。Control 已释放时 Creator 返回 `awaiting_reintake`，不再抛 `Control is unavailable`；Formation 放弃后写「等待重新入库」。2026-08-23 当前Canary真实Discard确认上述页面、Run和Control行为，但发现cleanup delivery把技术名`libra_workspace_reclaimer`写成consumer，Inbox因其不等于Business Owner `libra`而在持久化前反复失败。现已把发布与消费两端统一纠正为`libra`，补充fully-ack回归并与相关消息/Run测试合计24/24通过。旧Canary不直接改库；本条等待修复后新Canary确认Outbox消费与新Procurement，不宣称Canary或生产通过。
 
 ## 60. UAT-063：Aftercare 问豆瓣分与 Libra 不是同一套 Resolution/Identity Evidence，上架后评分变化不触发保养
 

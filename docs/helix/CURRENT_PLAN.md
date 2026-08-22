@@ -34,6 +34,11 @@ Canary 分别为其下`test_film`、`canary`。不得在 C 盘创建新的测试
 external-candidate frozen Run，再执行Discard→等待重新入库→新Procurement的完整页面验证；随后独立关闭`UAT-017`。
 `UAT-064`继续跳过、不实现。
 
+`UAT-062`首轮实证已取得冻结前与Discard后页面：`看不见的朋友 (2023)`从「没有找到可获取的外部候选」变为
+「待整理 / 等待重新入库」，旧Run为`discarded`且Control为`released`。但清理Outbox持续pending，精确根因为技术consumer
+`libra_workspace_reclaimer`与Inbox要求的Business Owner不一致。当前先在Libra边界内把consumer纠正为`libra`并通过专项回归，
+再重建Canary复验Outbox fully ack与新Procurement；不得用当前旧消息直接写库或提前关闭本行。
+
 2026-08-22 成功标准修正：`养蜂人 (2024)` 内现成 MKV 与嵌套 BDMV 按两部独立电影验收，两部都必须能上架；Arca Duplicate/Off-deck 才负责去重。形成口径 23 Subject / 23 Entry，不再使用“顶层 22 单元 = 22 Subject”或“养蜂人只能一部 Movie”。
 
 ## 0. Implemented repair — UAT-005 / UAT-018 Formation current state and ended history

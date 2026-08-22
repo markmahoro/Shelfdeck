@@ -502,13 +502,13 @@
 - 关闭命题：frozen Run Discard 后 Control 保持 released、不立刻新开 Libra Run；页面显示等待重新入库，材料由 Field Management 进入全新 Procurement。
 - Canary：`UAT-20260823-024825-f6b9eded6`。
 - 证人：优先使用《看不见的朋友 (2023)》；《黑客帝国动画版 (2003)》保留为对照。两者当前均为5星、需要4K External Acquisition。
-- 当前前置状态：两条现有 Run 均为`active`且页面尚无Discard入口；隔离库只有TMDB/Douban Integration，没有MoviePilot，因此尚未形成可合法Discard的`frozen`证人，不得把当前`pending`误判为本行结果。
+- 当前前置状态：MoviePilot已由正式设置页连接；两条五星证人均经真实Provider搜索形成`no_available_candidate` frozen Run。`看不见的朋友 (2023)`已从页面Discard并显示「待整理 / 等待重新入库」，旧Run与Control旁证成立；但cleanup Outbox因Inbox consumer误用技术组件名而持续pending，当前现场不能关闭。
 - 路径：系统设置经正式入口验证并保存MoviePilot → 等证人进入外部候选冻结且出现放弃入口 → 页面放弃本次整理 → 刷新Formation/已结束 → 文件来源观察与FACT旁证。
 - 允许动作：用户即时确认后由正式Admin Web提交本地私密MoviePilot配置；页面Discard；刷新、等待、截图；SQLite/日志/文件系统只读旁证。
 - 禁止动作：直接写Integration Secret或SQLite、伪造frozen、在未冻结时调用Discard API、手工改Control或媒体文件、触碰ShelfDeck NAS生产服务。
 - 通过标准：旧Run为discarded；Control released；无新Libra Run；页面不是正在评估而是等待重新入库/等待再次发现；清理Outbox被消费；仍在Field Observation中的材料形成新Procurement链。
 - 证据要求：`UI`；`FACT`只作旁证。
-- 当前结论：`IN PROGRESS`。等待MoviePilot敏感配置的浏览器即时确认后继续，不提前写`PASS`。
+- 当前结论：`IN PROGRESS`。页面、Run、Control与Field Observation已取得证据；cleanup Inbox Owner错配已修复且专项回归通过。旧Canary不直接改库，等待修复提交后新Canary确认Outbox fully ack与新Procurement，不提前写`PASS`。
 
 ### UAT-063（`PASS`）
 
