@@ -7,6 +7,7 @@ const path = require('node:path');
 const test = require('node:test');
 const Database = require('better-sqlite3');
 const { createWorkAdmission } = require('../../src/helix/foundation/execution/work-admission');
+const { createWorkResultReader } = require('../../src/helix/foundation/execution/work-result-reader');
 const { createRepositoryDefinition } = require('../../src/helix/foundation/persistence/owner-repository');
 const { openSqliteKernel } = require('../../src/helix/foundation/persistence/sqlite-kernel');
 const { createSqliteUnitOfWork } = require('../../src/helix/foundation/persistence/sqlite-unit-of-work');
@@ -56,6 +57,18 @@ test('Admission atomically creates Supporting Work and typed Receipt with stable
     assert.equal(receipts.length, 1);
     assert.equal(works[0].created_at_ms, receipts[0].committed_at_ms);
     assert.equal(receipts[0].caller_scope, 'libra:run-1/product');
+  });
+});
+
+test('Work Result Reader returns the exact verified Admission Definition', () => {
+  fixture(({ admission, unitOfWork, databasePath }) => {
+    const admitted = definition();
+    admission.submit(admitted);
+    const reader = createWorkResultReader({ schemaManifest, unitOfWork });
+    const stored = reader.readDefinition(admitted.workId);
+    assert.deepEqual(stored.definition, admitted);
+    assert.equal(stored.definitionDigest,
+      rows(databasePath, 'fx_supporting_works')[0].definition_digest);
   });
 });
 

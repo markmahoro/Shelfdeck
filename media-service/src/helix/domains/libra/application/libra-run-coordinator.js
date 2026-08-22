@@ -62,6 +62,18 @@ function productFactWork(snapshot,workspace,artifact) {
     outputContractRef:PRODUCT_METADATA_RESULT});
 }
 
+function definitionForReplay(work, existing) {
+  if (!existing) return work;
+  const candidate = Object.freeze({
+    ...work,
+    priorityClass: existing.definition.priorityClass,
+    priorityRevision: existing.definition.priorityRevision,
+  });
+  return canonicalDigest(candidate) === existing.definitionDigest
+    ? candidate
+    : work;
+}
+
 function createLibraRunCoordinator(options){
   if(!options?.movieProductionReader||!options.workResultReader||!options.workspaceProductPort)
     throw new TypeError('Libra Run Coordinator requires Owner facts, Foundation results, and Workspace projection.');
@@ -70,7 +82,11 @@ function createLibraRunCoordinator(options){
   const admission=createWorkAdmission({schemaManifest:options.schemaManifest,unitOfWork:options.unitOfWork,limits:LIMITS,
     eligibilityProvider:{check:(request)=>Object.freeze({eligible:request.ownerDomain==='libra'&&request.processType==='libra_run',
       basisDigest:request.executionBasisDigest,reasonCode:'LIBRA_RUN_BASIS_STALE'})}});
-  function submit(work){return admission.replay(work)||admission.submit(work);}
+  function submit(work){
+    const existing=options.workResultReader.readDefinition?.(work.workId)||null;
+    const replayDefinition=definitionForReplay(work,existing);
+    return admission.replay(replayDefinition)||admission.submit(work);
+  }
   function selectedOutput(work) {
     const selections=options.workResultReader.read(work.workId).filter((item)=>item.outcomeKind==='succeeded'&&
       item.capabilityRef==='libra.product_output.select@1');
@@ -454,7 +470,7 @@ function createLibraRunCoordinator(options){
   return Object.freeze({reconcile});
 }
 
-module.exports=Object.freeze({createLibraRunCoordinator,identityObservationWork,identityCommitWork,metadataObservationWork,artifactWork,productFactWork,
+module.exports=Object.freeze({createLibraRunCoordinator,definitionForReplay,identityObservationWork,identityCommitWork,metadataObservationWork,artifactWork,productFactWork,
   sourceMediaObservationWork,directMediaSelectionWork,remuxMediaSelectionWork,transcodeMediaSelectionWork,
   transcodeStrategyAssessmentWork,
   externalSearchSelectionWork,externalAcquireVerificationWork,externalImportSelectionWork});

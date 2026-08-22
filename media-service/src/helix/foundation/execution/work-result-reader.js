@@ -5,6 +5,7 @@ const { createRepositoryDefinition } = require('../persistence/owner-repository'
 
 function definition(schemaManifest){return createRepositoryDefinition({repositoryId:'work_result_reader',owner:'execution-foundation',schemaManifest,statements:{
   find_work:{kind:'select-one',tableId:'fx_supporting_works',columns:['work_id','owner_domain','process_type','process_id','work_kind','basis_digest','state'],keyColumns:['work_id']},
+  find_definition:{kind:'select-one',tableId:'fx_supporting_works',columns:['work_id','definition_json','definition_digest'],keyColumns:['work_id']},
   list_process_works:{kind:'select-all',tableId:'fx_supporting_works',columns:['work_id','owner_domain','process_type','process_id','work_kind','state','created_at_ms','updated_at_ms'],keyColumns:['owner_domain','process_type','process_id','work_kind'],safeIntegers:true},
   list_owner_works:{kind:'select-all',tableId:'fx_supporting_works',columns:['work_id','owner_domain','process_type','process_id','work_kind','state'],keyColumns:['owner_domain','work_kind']},
   list_attempts:{kind:'select-all',tableId:'fx_work_attempts',columns:['attempt_id','work_id','ordinal','state','failure_code'],keyColumns:['work_id'],safeIntegers:true},
@@ -21,6 +22,13 @@ function definition(schemaManifest){return createRepositoryDefinition({repositor
 
 function createWorkResultReader(options){if(!options?.schemaManifest||!options.unitOfWork)throw new TypeError('Work Result Reader requires Foundation persistence.');
   const repository=definition(options.schemaManifest);return Object.freeze({
+    readDefinition(workId){return options.unitOfWork.execute([{participantId:'work_definition_read',owner:'execution-foundation',repositories:[repository],execute(context){
+      const row=context.repository(repository.repositoryId).invoke('find_definition',{work_id:workId});
+      if(!row)return null;
+      let value;try{value=JSON.parse(row.definition_json);}catch{throw new Error('Persisted Work Definition JSON is corrupt.');}
+      if(canonicalDigest(value)!==row.definition_digest)throw new Error('Persisted Work Definition digest is corrupt.');
+      return Object.freeze({workId:row.work_id,definition:Object.freeze(value),definitionDigest:row.definition_digest});
+    }}]).work_definition_read;},
     status(workId){return options.unitOfWork.execute([{participantId:'work_status_read',owner:'execution-foundation',repositories:[repository],execute(context){
       const repo=context.repository(repository.repositoryId);const row=repo.invoke('find_work',{work_id:workId});
       if(!row)return null;

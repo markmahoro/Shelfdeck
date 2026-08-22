@@ -4,6 +4,9 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const test = require('node:test');
+const { canonicalDigest } = require('../../src/helix/contracts/canonical-json');
+const { definitionForReplay } = require(
+  '../../src/helix/domains/libra/application/libra-run-coordinator');
 
 const root = path.resolve(__dirname, '../..');
 
@@ -19,6 +22,36 @@ test('Libra Run Coordinator remains a Work issuer and terminal Result reconciler
   assert.doesNotMatch(value, /latestAttempt\?\.state\s*===\s*['"](?:succeeded|failed)['"]/);
   assert.match(value, /createWorkAdmission/);
   assert.match(value, /workResultReader/);
+});
+
+test('Libra Run Coordinator replays an admitted Work with its frozen priority only', () => {
+  const admitted = Object.freeze({
+    schemaRef:'helix://foundation/types/SupportingWorkDefinition/v1', schemaVersion:1,
+    workId:'work-1', ownerDomain:'libra', processType:'libra_run', processId:'run-1',
+    workKind:'artifact_production', workObjectiveTypeRef:'helix://libra/work/artifact-production/v1',
+    workObjectiveVersion:1, executionBasisId:'basis-1', executionBasisDigest:'a'.repeat(64),
+    dependencyRefs:Object.freeze([]), priorityClass:'normal_foreground', priorityRevision:1,
+    capabilityCatalogScope:'libra', workspaceMaterialScope:Object.freeze([]), idempotencyKey:'key-1',
+    concurrencyScope:'run-1/artifact-production',
+    outputContractRef:'helix://contracts/capabilities/shared.artifact.manifest.verify/v1/result',
+  });
+  const existing = Object.freeze({
+    definition:admitted,
+    definitionDigest:canonicalDigest(admitted),
+  });
+  const expedited = Object.freeze({
+    ...admitted,
+    priorityClass:'expedited_formation',
+    priorityRevision:2,
+  });
+  assert.deepEqual(definitionForReplay(expedited,existing),admitted);
+
+  const contractDrift = Object.freeze({
+    ...expedited,
+    outputContractRef:'helix://contracts/capabilities/changed/v1/result',
+  });
+  assert.strictEqual(definitionForReplay(contractDrift,existing),contractDrift,
+    'Only priority drift may use the frozen admitted Definition.');
 });
 
 test('clean product Composition Root has no legacy Libra coordinator execution path', () => {
