@@ -124,7 +124,7 @@ Helix主体开发已经完成，Movie从Procurement、Libra到Arca及Shelf Dereg
 | UAT-065 | 收藏详情把父目录名中的`.1`误显示为主视频容器 | `USER_EXPERIENCE` | `PROJECTION_FRESHNESS` | Arca Collection Query + Admin Web | 正确性、可理解性 | High | 已修复并通过当前 Canary 定向确认 |
 | UAT-066 | Formation 已完成整理表丢失目标收藏架名称，全部显示`—` | `USER_EXPERIENCE` | `PROJECTION_FRESHNESS` | Formation Admin Web + Arca Shelf只读展示接线 | 正确性、可理解性 | High | 已修复并通过当前 Canary 定向确认 |
 | UAT-067 | 活动 Run 加急后回放既有 Supporting Work 触发 Admission 幂等冲突，Run 不再推进 | `DOMAIN_ORCHESTRATION` | `EXECUTION_SCHEDULING` | Libra Run Coordinator + Foundation Work Admission replay | 活性、优先级正确性 | Critical | 已修复并通过同一 Canary 恢复确认 |
-| UAT-068 | Collection 年份投影遗漏 Provider 标准字段，Aftercare 丢失 title-year Identity Evidence | `PROJECTION_FRESHNESS` | `BUSINESS_CONTRACT` | Arca Collection Query + shared Rating Identity | 正确性、可理解性 | High | 已实现；待新 Canary 确认 |
+| UAT-068 | Collection 年份投影遗漏 Provider 标准字段，Aftercare 丢失 title-year Identity Evidence | `PROJECTION_FRESHNESS` | `BUSINESS_CONTRACT` | Arca Collection Query + shared Rating Identity | 正确性、可理解性 | High | 已修复并通过当前 Canary 确认 |
 | UAT-069 | 评分 Resolution 更新后 Aftercare 及时执行，但 Planner/Capability 写回旧 Care Basis | `DOMAIN_ORCHESTRATION` | `PROJECTION_FRESHNESS` | Arca Aftercare composition wiring | 正确性、时效性 | Critical | 已修复并通过当前 Canary 安全重启确认 |
 
 ## 2.1 UAT-006：概览展示固定演示数字
@@ -2754,6 +2754,8 @@ Product Package与Offer并完成On-deck；没有替换Run或数据库编辑。Ad
 验收证据：新干净 Canary 中，真实「我的收藏」详情显示正确年份；未设置 Shelf Entry 直接评分时，页面显示与 Formation 相同的豆瓣星级；只读 FACT 证明两边 Resolution 命中同一 Douban `winningPerceptionId`。证据要求：`UI`、`FACT`。
 
 当前处理决定：2026-08-23 已由 commit `a34dbde1f9` 修复。新增年份归一化单元反例及真实 Collection API 年份断言，相关单元/端到端 15/15 PASS；状态 `CODE_DONE_UNQUALIFIED`，等待新 Canary 独立关闭，不以测试直接记 PASS。
+
+关闭确认（2026-08-23）：干净 Canary `UAT-20260823-024825-f6b9eded6` 中，《威尼斯惊魂夜》收藏详情显示`2023`与`3 星 · 豆瓣`；Inventory只读 FACT 保留`year_or_release_date=2023`、`release_date=2023-09-13`。Subject 与 Shelf Entry 当前 Resolution 均命中同一 Douban Record `perception-record-5628590251074f0155192bf1b1eadf8828c3258e`。状态`REGRESSION PASSED / CLOSED`；UI证据：`admin-web-evidence/uat-068-year-and-douban-rating-pass.png`。
 
 ## 66. UAT-069：评分 Resolution 已更新且 Aftercare 已及时执行，但 Planner/Capability 写回旧 Care Basis
 

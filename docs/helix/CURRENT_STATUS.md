@@ -17,6 +17,7 @@ Git 工作区已重组为 `E:\my_project\emby_third_party-helix` / `main`；本�
 组合根已改为由 Capability、Coordinator、Planner 共享同一晚绑定评分 Reader，定向 Aftercare 合同 15/15 PASS；
 安全重启后页面与 FACT 已确认恢复、4 星直接评分、清除回豆瓣三代新 Basis，`UAT-069` 已关闭。
 同一现场继续确认评分变化无需手动健康检查即可自动形成新 Assessment，Subject 与 Shelf Entry 命中同一 Douban Record；`UAT-063` 已关闭。
+Collection 详情同时显示 Provider 年份 2023 与 3 星豆瓣，Inventory 标准年份字段和双端同一 Record 已由只读 FACT 旁证；`UAT-068` 已关闭。当前关闭总账为 66/69，仅余`UAT-017`、`UAT-062`与按程序跳过的`UAT-064`。
 
 ## 0. Clean Canary scorecard — UAT-20260822-141950-0c27c8cf6
 

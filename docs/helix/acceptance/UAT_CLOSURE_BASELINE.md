@@ -124,7 +124,7 @@
 | UAT-065 | 收藏详情只从主视频basename解析容器，不得把父目录名中的`.1`显示为容器 | `UI` | W1 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260822-141950-0c27c8cf6 UI 8.3 GB BDMV养蜂人主视频修复后显示8.3 GB · MKV，不再显示· 1 |
 | UAT-066 | Formation 已完成整理表按目标Shelf ID显示当前收藏架名称，不得整列显示`—` | `UI` | W1 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260822-141950-0c27c8cf6 UI 已完成整理17/17条均显示Movie Canary，当前媒体6条显示未回退 |
 | UAT-067 | 活动 Run 加急后既有 Work 必须按冻结 Admission Definition 回放，动态 Priority 不得制造幂等冲突 | `UI` `FACT` | W3 | `CLOSED` | `PASS` UAT-20260823-002500-519f8d7b5 UI同一已加急老笠Run恢复并完成上架；FACT形成Product Package/Offer且无替换Run或数据库编辑 |
-| UAT-068 | Collection 年份投影须保留 Provider 标准年份字段，Aftercare Shelf Entry 不得因此丢失 title-year Identity Evidence | `UI` `FACT` | W4 | `CODE_DONE_UNQUALIFIED` | `NOT RUN` |
+| UAT-068 | Collection 年份投影须保留 Provider 标准年份字段，Aftercare Shelf Entry 不得因此丢失 title-year Identity Evidence | `UI` `FACT` | W4 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260823-024825-f6b9eded6 UI威尼斯详情显示2023与3星豆瓣；FACT Inventory标准年份保留且Shelf Entry/Subject命中同一Douban Record |
 | UAT-069 | Aftercare Coordinator、Planner 与 Capability 必须共享包含当前 Perception Resolution 的 Care Basis；评分变化后不得写回旧 Basis | `UI` `FACT` | W4 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260823-024825-f6b9eded6 UI威尼斯3星豆瓣且三维健康；FACT修复后恢复、4星直评、清除回豆瓣三代Assessment均使用各自新Basis |
 
 ## 5. 计数
@@ -137,12 +137,12 @@
 | 口径 | 数量 |
 | --- | --- |
 | 总行 | 69 |
-| 累计 `PASS` | **65** |
-| 尚未通过（`NOT RUN`+`FAILED`+`BLOCKED`） | **4**（4 `NOT RUN`；0 `FAILED`；0 `BLOCKED`） |
-| 是否都通过 | **否**（65/69，尚余 4） |
+| 累计 `PASS` | **66** |
+| 尚未通过（`NOT RUN`+`FAILED`+`BLOCKED`） | **3**（3 `NOT RUN`；0 `FAILED`；0 `BLOCKED`） |
+| 是否都通过 | **否**（66/69，尚余 3） |
 
-累计 `PASS`：001–016、018–063（不含017）、065–067、069。证据均包含干净隔离库 Admin Web `UI`；要求文件现实的行另有`FS`。
-当前仅017、062、064、068保持`NOT RUN`。
+累计 `PASS`：001–016、018–063（不含017）、065–069。证据均包含干净隔离库 Admin Web `UI`；要求文件现实的行另有`FS`。
+当前仅017、062、064保持`NOT RUN`。
 
 当前资格失败证据：`UAT-063`在`UAT-20260823-024825-f6b9eded6`已证明`UAT-068`年份与外部评分恢复修复生效，但又因新登记的`UAT-069`未达到关闭标准：评分 Resolution 更新后自动 Aftercare 及时执行，Planner/Capability 却以旧 Care Basis 写回 Assessment。行仍保持`NOT RUN`，等待包含`UAT-069`修复的新 Canary 重验。`UAT-060`已在HEAD `3397c88f5`重建的干净Canary上用同值评分来源切换及成功Package证人关闭；其余未关闭行尚未形成PASS结论。
 
@@ -519,3 +519,14 @@
 - 通过标准：评分 Resolution revision 更新后自动或手动形成的 Assessment 使用包含该 `resolutionDigest` 的新 `decisionFactSetDigest` / `careBasisDigest`；页面从`尚未检查`收口为与当前档位一致的健康结论，且不重开 Libra Run。
 - 证据要求：`UI`；`FACT`只作旁证。
 - 关闭结论：`PASS`。commit `ab8184f7b` 后在无媒体生产的安全点只重启同一隔离服务，未重建数据、未编辑数据库或文件。页面最终显示`3 星 · 豆瓣`且保管/呈现/合规均健康。修复后恢复现场、4星直接评分、清除回豆瓣分别形成三组新 Assessment；最新三代 Care Basis 为`d315adad...`、`e7f6011e...`、`4b27fdc...`，均不再使用旧`1ade89d0...`。UI证据：`admin-web-evidence/uat-069-rating-aware-care-basis-pass.png`。
+
+### UAT-068（`PASS`）
+
+- 关闭命题：Collection 年份投影保留 Provider 标准年份字段，Aftercare Shelf Entry 不因年份丢失 title-year Identity Evidence。
+- Canary：`UAT-20260823-024825-f6b9eded6`。
+- 证人：「我的收藏」中的《威尼斯惊魂夜 (2023)》及 Formation 同一 Subject。
+- 允许动作：Admin Web 页面读取、刷新、截图；SQLite只读旁证。
+- 禁止动作：修改数据库、扫描 Perception Record 代替产品入口、回读 Libra Subject 作为 Arca 输入、修改媒体文件或触碰生产。
+- 通过标准：详情显示2023；无直接评分时显示Formation相同的豆瓣星级；两边Resolution命中同一Douban Record。
+- 证据要求：`UI`、`FACT`。
+- 关闭结论：`PASS`。详情显示`2023`与`3 星 · 豆瓣`；Inventory保留`year_or_release_date=2023`和`release_date=2023-09-13`。Subject与Shelf Entry当前Resolution均命中`perception-record-5628590251074f0155192bf1b1eadf8828c3258e`。UI证据：`admin-web-evidence/uat-068-year-and-douban-rating-pass.png`。
