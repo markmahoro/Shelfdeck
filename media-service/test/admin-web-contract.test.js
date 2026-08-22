@@ -21,6 +21,10 @@ test('Admin Web exposes eight Helix pages and keeps health in Collection', () =>
   for (const slug of ['overview', 'material-fields', 'shelves', 'collection', 'formation', 'offdeck', 'people', 'settings']) assert.match(model, new RegExp(`slug:\\s*'${slug}'`));
   assert.doesNotMatch(model, /slug:\s*'care'/);
   assert.match(read('web/src/helix/CollectionPage.tsx'), /收藏健康/);
+  assert.match(read('web/src/helix/CollectionPage.tsx'), /占用空间/);
+  assert.match(read('web/src/helix/CollectionPage.tsx'), /aria-label="收藏架"/);
+  assert.match(read('src/helix/domains/arca/application/collection-query.js'), /occupancyBytes/);
+  assert.match(read('src/helix/domains/arca/application/collection-query.js'), /filterCollectionIndex/);
   assert.doesNotMatch(app, /TasksPage|LibrariesPage|CleanupPage|PoliciesPage/);
 });
 

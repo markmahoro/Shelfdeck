@@ -106,7 +106,7 @@ Helix主体开发已经完成，Movie从Procurement、Libra到Arca及Shelf Dereg
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | UAT-050 | 媒体整理工作区当前媒体缺少可操作筛选 | `USER_EXPERIENCE` | `PROJECTION_FRESHNESS` | Formation 公开 Query + Admin Web | 可理解性、可操作性 | High | 已实现；待新 Canary 确认 |
 | UAT-051 | 整理动作是概括句，不能展示分步施工、分步进度、用户操作与加急 | `USER_EXPERIENCE` | `PROJECTION_FRESHNESS` | Formation 公开 Projection + Admin Web | 可理解性、可观察性 | High | 已实现；待新 Canary 确认 |
-| UAT-052 | 我的收藏一级导航不是按架，详情缺少占用空间等技术指标 | `USER_EXPERIENCE` | `PROJECTION_FRESHNESS` | Arca Collection Query + Admin Web | 可理解性、可发现性 | High | 已讨论并确认方向，待实现 |
+| UAT-052 | 我的收藏一级导航不是按架，详情缺少占用空间等技术指标 | `USER_EXPERIENCE` | `PROJECTION_FRESHNESS` | Arca Collection Query + Admin Web | 可理解性、可发现性 | High | 已实现；待新 Canary 确认 |
 | UAT-053 | 活动文件来源未按 SSOT 周期观察，扫描完成后页面禁止再扫 | `DOMAIN_ORCHESTRATION` | `USER_EXPERIENCE` | Procurement Field Management Owner 自动化 + Admin Web | 正确性、活性、可理解性 | Critical | 已实现；待新 Canary 确认 |
 | UAT-054 | 退出收藏主链已通，页面仍是内部安全链控制台 | `USER_EXPERIENCE` | | Off-deck Admin Web | 可理解性、可操作性 | High | 已讨论并确认方向，待实现 |
 | UAT-055 | 人物名录未接通 Beta 两条登记路径，页面只读且为空 | `DOMAIN_ORCHESTRATION` | `USER_EXPERIENCE` | People Owner 自动化 + Arca On-deck 人物证据 + Admin Web | 正确性、可操作性 | Critical | 已实现；待新 Canary 确认 |
@@ -2027,7 +2027,16 @@ stderr 为 `CLEAN_ARCA_TARGET_OCCUPIED` 与 `CLEAN_ARCA_SETTLEMENT_UNKNOWN_MEMBE
 
 验收证据：多架样本下按架切换墙与计数正确；详情占用空间与 Inventory 成员字节合计一致；无海报/无规格时不编造。
 
-当前处理决定：2026-08-22 用户确认一级按架，并保留「全部」；详情第一批即上列四项。只登记，不立即改代码。
+当前处理决定：2026-08-22 用户确认一级按架，并保留「全部」；详情第一批即上列四项。2026-08-22 代码已实现。一级芯片为全部 + 活动收藏架；二级当前/历史跟随所选架；健康筛选仅当前且走 Query。详情只读 Inventory：占用空间合计、主视频体积/容器、编码与清晰度（有则显示）、海报/NFO。不 probe 磁盘、不回读 Libra。本条不宣称 Canary 或生产通过。
+
+证据：
+
+- `media-service/src/helix/domains/arca/application/collection-query.js`
+- `media-service/web/src/helix/CollectionPage.tsx`
+- `media-service/web/src/helix/api.ts`
+- `media-service/test/helix-collection-query.test.js`
+- `media-service/web/test/collection.test.tsx`
+- Admin Web production build `npm run build:web` PASS
 
 ## 50. UAT-053：活动文件来源未按 SSOT 周期观察，扫描完成后页面禁止再扫
 

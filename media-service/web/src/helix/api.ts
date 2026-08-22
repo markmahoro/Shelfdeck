@@ -242,6 +242,12 @@ export type CollectionEntry = {
   genres: string[];
   people: { personId: string; displayName: string; role: string }[];
   hasPoster: boolean;
+  hasNfo: boolean;
+  occupancyBytes: number;
+  primaryVideoBytes: number | null;
+  primaryContainer: string | null;
+  videoCodec: string | null;
+  videoRaster: string | null;
   health: HealthSummary;
   currentInventoryRevision: number;
   currentDeckFactRevision: number;
@@ -421,8 +427,13 @@ export const helixAdminApi = {
     const query=new URLSearchParams({section:'ended',limit:'25'});if(cursor)query.set('cursor',cursor);
     return request<{ items: FormationRunHistory[]; summary: FormationSummary; nextCursor:string|null; projection:{status:'ready'|'rebuilding'|'stale';asOfMs:number} }>(`/v1/admin/formation?${query}`);
   },
-  listCollection() {
-    return request<{ items: CollectionEntry[] }>('/v1/admin/collection');
+  listCollection(filters?:{ shelfId?:string; status?:'current'|'history'; health?:HealthState|'all' }) {
+    const query=new URLSearchParams();
+    if(filters?.shelfId)query.set('shelfId',filters.shelfId);
+    if(filters?.status)query.set('status',filters.status);
+    if(filters?.health && filters.health !== 'all')query.set('health',filters.health);
+    const suffix=query.toString()?`?${query}`:'';
+    return request<{ items: CollectionEntry[]; shelves?: Array<{shelfId:string;name:string;currentCount:number;historyCount:number}>; summary?:{currentCount:number;historyCount:number} }>(`/v1/admin/collection${suffix}`);
   },
   collectionPosterUrl(shelfEntryId: string) {
     return `/v1/admin/collection/${encodeURIComponent(shelfEntryId)}/poster`;

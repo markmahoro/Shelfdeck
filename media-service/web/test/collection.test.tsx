@@ -22,6 +22,12 @@ const entry: CollectionEntry = {
   genres: ['Drama'],
   people: [{ personId:'person-1', displayName:'Tim Robbins', role:'actor' }],
   hasPoster: true,
+  hasNfo: true,
+  occupancyBytes: 13314398618,
+  primaryVideoBytes: 12884901888,
+  primaryContainer: 'MKV',
+  videoCodec: 'HEVC',
+  videoRaster: '2160p',
   health: { state: 'healthy' },
   currentInventoryRevision: 1,
   currentDeckFactRevision: 1,
@@ -43,6 +49,22 @@ describe('Arca collection poster wall', () => {
     expect(screen.getByText('整理完成后会显示在这里。')).toBeInTheDocument();
     expect(screen.queryByText(/Handoff B/)).not.toBeInTheDocument();
     expect(screen.queryByText(/Shelf Entry/)).not.toBeInTheDocument();
+    expect(screen.getByRole('navigation', { name: '收藏架' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '全部 0' })).toBeInTheDocument();
+  });
+
+  it('asks the collection query for the selected shelf instead of filtering the wall locally', async () => {
+    const list = vi.spyOn(helixAdminApi, 'listCollection').mockResolvedValue({
+      items:[entry],
+      shelves:[{ shelfId:'shelf-1', name:'movie test', currentCount:1, historyCount:0 }],
+      summary:{ currentCount:1, historyCount:0 },
+    });
+    renderCollection();
+    expect(await screen.findByRole('button', { name: /movie test/ })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /movie test/ }));
+    await waitFor(() => {
+      expect(list).toHaveBeenLastCalledWith(expect.objectContaining({ shelfId:'shelf-1', status:'current' }));
+    });
   });
 
   it('opens one Shelf Entry detail from the poster wall and closes it with Escape', async () => {
@@ -71,6 +93,11 @@ describe('Arca collection poster wall', () => {
     expect(dialog).toBeInTheDocument();
     expect(screen.getByText('Two imprisoned men form a lasting bond.')).toBeInTheDocument();
     expect(screen.getByText('Tim Robbins')).toBeInTheDocument();
+    expect(screen.getByText('占用空间')).toBeInTheDocument();
+    expect(screen.getByText('12.4 GB')).toBeInTheDocument();
+    expect(screen.getByText(/MKV/)).toBeInTheDocument();
+    expect(screen.getByText('HEVC · 2160p')).toBeInTheDocument();
+    expect(screen.getByText('有海报 · 有 NFO')).toBeInTheDocument();
     expect(screen.getByLabelText('The Shawshank Redemption评分')).toBeInTheDocument();
     fireEvent.keyDown(document, { key:'Escape' });
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());

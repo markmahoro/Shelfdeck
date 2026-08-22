@@ -259,7 +259,7 @@ function createCleanFacades(options) {
     facades.PerceptionAdminFacade.get_perception_sync_state = async () => ({ body:options.perceptionAdmin.syncState() });
   }
   if (options.arcaCollectionQuery) {
-    facades.ArcaCollectionFacade.get_collection = async () => ({ body:options.arcaCollectionQuery.list() });
+    facades.ArcaCollectionFacade.get_collection = async (input) => ({ body:options.arcaCollectionQuery.list(input.query || {}) });
     facades.ArcaCollectionFacade.get_collection_shelfentryid = async (input) => {
       const item=options.arcaCollectionQuery.get(input.params.shelfEntryId);
       if(!item){const error=new Error('Shelf Entry was not found.');error.code='ARCA_SHELF_ENTRY_NOT_FOUND';throw error;}

@@ -9,9 +9,18 @@ import './collection.css';
 const healthFilters: [HealthState | 'all', string][] = [['all', '全部'], ['healthy', '健康'], ['observing', '观察中'], ['repairing', '修复中'], ['attention_required', '需要处理'], ['never_assessed', '尚未检查']];
 const dimensionLabels = { custody: '保管', presentation: '呈现', conformance: '合规' };
 
+function formatBytes(value: number | null | undefined) {
+  if (value == null || !Number.isFinite(value)) return '—';
+  if (value >= 1024 ** 3) return `${(value / 1024 ** 3).toFixed(1).replace(/\.0$/, '')} GB`;
+  if (value >= 1024 ** 2) return `${(value / 1024 ** 2).toFixed(1).replace(/\.0$/, '')} MB`;
+  return `${value} B`;
+}
+
 export default function CollectionPage() {
   const { expire } = useSession();
   const [items, setItems] = useState<CollectionEntry[]>([]);
+  const [shelves, setShelves] = useState<Array<{ shelfId: string; name: string; currentCount: number; historyCount: number }>>([]);
+  const [summary, setSummary] = useState({ currentCount: 0, historyCount: 0 });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [selected, setSelected] = useState<CollectionEntry | null>(null);
@@ -19,14 +28,24 @@ export default function CollectionPage() {
   const [healthFilter, setHealthFilter] = useState<HealthState | 'all'>('all');
   const [checking, setChecking] = useState(false);
   const [exiting, setExiting] = useState(false);
+  const [shelfId, setShelfId] = useState<string | undefined>(undefined);
   const [collectionMode, setCollectionMode] = useState<'current' | 'history'>('current');
   const closeButton = useRef<HTMLButtonElement>(null);
   const load = useCallback(async () => {
     setLoading(true); setError('');
-    try { const result = await helixAdminApi.listCollection(); setItems(result.items); }
+    try {
+      const result = await helixAdminApi.listCollection({
+        shelfId,
+        status: collectionMode,
+        health: collectionMode === 'current' ? healthFilter : undefined,
+      });
+      setItems(result.items);
+      setShelves(result.shelves || []);
+      setSummary(result.summary || { currentCount: result.items.filter((item) => item.status === 'active').length, historyCount: result.items.filter((item) => item.status !== 'active').length });
+    }
     catch (cause) { if (isUnauthorized(cause)) expire(); else setError(cause instanceof Error ? cause.message : '收藏读取失败。'); }
     finally { setLoading(false); }
-  }, [expire]);
+  }, [expire, shelfId, collectionMode, healthFilter]);
   useEffect(() => { void load(); }, [load]);
   useEffect(() => {
     if (!selected) return;
@@ -44,8 +63,10 @@ export default function CollectionPage() {
       else setError(cause instanceof Error ? cause.message : '健康详情读取失败。');
     });
   }, [expire, selected]);
-  const modeItems = collectionMode === 'current' ? items.filter((item) => item.status === 'active') : items.filter((item) => item.status !== 'active');
-  const filtered = collectionMode === 'history' || healthFilter === 'all' ? modeItems : modeItems.filter((item) => item.health.state === healthFilter);
+  const filtered = items;
+  const selectedShelf = shelves.find((item) => item.shelfId === shelfId);
+  const currentCount = selectedShelf ? selectedShelf.currentCount : summary.currentCount;
+  const historyCount = selectedShelf ? selectedShelf.historyCount : summary.historyCount;
   async function checkHealth() {
     if (!selected) return;
     setChecking(true); setError('');
@@ -69,11 +90,15 @@ export default function CollectionPage() {
   return <section className="source-page collection-page">
     <PageHeader title="我的收藏" description="只显示已经上架的电影。" actions={<Button type="button" onClick={() => void load()} disabled={loading}>{loading ? '刷新中…' : '刷新'}</Button>} />
     {error && <p className="form-error" role="alert">{error}</p>}
-    <nav className="health-filters" aria-label="收藏范围">
-      <button type="button" aria-pressed={collectionMode === 'current'} onClick={() => setCollectionMode('current')}>当前收藏<span>{items.filter((item) => item.status === 'active').length}</span></button>
-      <button type="button" aria-pressed={collectionMode === 'history'} onClick={() => setCollectionMode('history')}>历史<span>{items.filter((item) => item.status !== 'active').length}</span></button>
+    <nav className="health-filters" aria-label="收藏架">
+      <button type="button" aria-pressed={!shelfId} onClick={() => setShelfId(undefined)}>全部<span>{collectionMode === 'current' ? summary.currentCount : summary.historyCount}</span></button>
+      {shelves.map((shelf) => <button type="button" key={shelf.shelfId} aria-pressed={shelfId === shelf.shelfId} onClick={() => setShelfId(shelf.shelfId)}>{shelf.name}<span>{collectionMode === 'current' ? shelf.currentCount : shelf.historyCount}</span></button>)}
     </nav>
-    {collectionMode === 'current' && <nav className="health-filters" aria-label="收藏健康筛选">{healthFilters.map(([state, label]) => <button type="button" key={state} aria-pressed={healthFilter === state} onClick={() => setHealthFilter(state)}>{label}<span>{state === 'all' ? modeItems.length : modeItems.filter((item) => item.health.state === state).length}</span></button>)}</nav>}
+    <nav className="health-filters" aria-label="收藏范围">
+      <button type="button" aria-pressed={collectionMode === 'current'} onClick={() => setCollectionMode('current')}>当前收藏<span>{currentCount}</span></button>
+      <button type="button" aria-pressed={collectionMode === 'history'} onClick={() => setCollectionMode('history')}>历史<span>{historyCount}</span></button>
+    </nav>
+    {collectionMode === 'current' && <nav className="health-filters" aria-label="收藏健康筛选">{healthFilters.map(([state, label]) => <button type="button" key={state} aria-pressed={healthFilter === state} onClick={() => setHealthFilter(state)}>{label}</button>)}</nav>}
     <section className="collection-library" aria-labelledby="collection-heading">
       <div className="collection-library-heading"><div><h2 id="collection-heading">收藏条目</h2></div><span>{filtered.length} 部</span></div>
       {filtered.length === 0 ? <div className="source-empty"><strong>{items.length === 0 ? '还没有正式上架的电影' : '当前筛选没有收藏'}</strong><p>{items.length === 0 ? '整理完成后会显示在这里。' : '试试其他健康筛选。'}</p></div> : <div className="poster-wall">{filtered.map((item) => <button className="poster-tile" key={item.shelfEntryId} onClick={() => setSelected(item)} aria-label={`查看 ${item.displayIdentity} 详情，收藏健康：${healthLabels[item.health.state]}`}>
@@ -93,6 +118,10 @@ export default function CollectionPage() {
           {selected.people.length > 0 && <dl className="collection-people"><dt>演职人员</dt><dd>{selected.people.slice(0, 12).map((person) => person.displayName).join('、')}</dd></dl>}
           <dl className="collection-facts">
             <div><dt>收藏架</dt><dd>{selected.shelfName}</dd></div>
+            <div><dt>占用空间</dt><dd>{formatBytes(selected.occupancyBytes)}</dd></div>
+            <div><dt>主视频</dt><dd>{selected.primaryVideoBytes == null ? '—' : `${formatBytes(selected.primaryVideoBytes)}${selected.primaryContainer ? ` · ${selected.primaryContainer}` : ''}`}</dd></div>
+            {(selected.videoCodec || selected.videoRaster) && <div><dt>编码与清晰度</dt><dd>{[selected.videoCodec, selected.videoRaster].filter(Boolean).join(' · ')}</dd></div>}
+            <div><dt>海报 / NFO</dt><dd>{selected.hasPoster ? '有海报' : '无海报'} · {selected.hasNfo ? '有 NFO' : '无 NFO'}</dd></div>
             <div><dt>资料来源</dt><dd>{selected.provider === 'tmdb' ? 'TMDB' : selected.provider}</dd></div>
             <div><dt>状态</dt><dd>{selected.status === 'active' ? '当前收藏' : '历史收藏'}</dd></div>
           </dl>
