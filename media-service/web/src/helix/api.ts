@@ -68,8 +68,11 @@ export type ProcurementJourneyResult = {
 export type MediaRequirement = {
   mediaForm: string;
   videoCodec: string;
+  container?: string;
+  fileExtension?: string;
   minimumRasterClass: string;
   acceptedPrimaryAudioClasses: string[];
+  forbidSystemUpscaleFor4k?: boolean;
 };
 
 export type MovieRuleBranch = {
@@ -77,16 +80,23 @@ export type MovieRuleBranch = {
   rating?: number;
   requirements: {
     mandatoryMedia: MediaRequirement;
-    space: { maxSizeGiB: number | null; maxSizeBytes: number | null };
+    space: { unit?: string; maxSizeGiB: number | null; maxSizeBytes: number | null };
+    identity?: JsonValue;
+    structure?: JsonValue;
+    metadata?: JsonValue;
+    inventory?: JsonValue;
   };
 };
 
 export type ProfileRuleSet = {
   contentProfile: string;
   decisionInputKinds: string[];
+  baseRequirements?: JsonValue;
   decisionBranches: MovieRuleBranch[];
   profileRuleSetDigest: string;
 };
+
+export type RuleTemplateRules = { profileRuleSets: ProfileRuleSet[] };
 
 export type RuleTemplate = {
   templateId: string;
@@ -97,9 +107,54 @@ export type RuleTemplate = {
   current: {
     revision: number;
     rulesDigest: string;
-    rules: { profileRuleSets: ProfileRuleSet[] };
+    rules: RuleTemplateRules;
   };
 };
+
+export type RuleTemplateDraft = {
+  templateId: string;
+  draftRevision: number;
+  basePublishedRevision: number;
+  rulesSchemaRef: string;
+  rules: RuleTemplateRules;
+  rulesDigest: string;
+  updatedAtMs: number;
+};
+
+export type PlacementPreview = {
+  previewId: string;
+  previewDigest: string;
+  shelfId: string;
+  expectedPlacementRevision: number;
+  currentTargetDigest: string;
+  proposedTarget: {
+    endpointId: string;
+    rootLocation: string;
+    mountScopeId: string;
+    mountScopeRevision: number;
+  };
+  proposedTargetDigest: string;
+  currentPlacementDigest: string;
+  proposedPlacementDigest: string;
+  affectedActiveEntryCount: number;
+  physicalEffect: 'none';
+  replayed?: boolean;
+};
+
+export type RuleTemplatePreview = {
+  previewId: string;
+  previewDigest: string;
+  templateId: string;
+  expectedCurrentRevision: number;
+  expectedDraftRevision: number;
+  expectedDraftDigest: string;
+  affectedShelfCount: number;
+  currentEntryPotentialGapCount: number;
+  replayed?: boolean;
+};
+
+export const RULE_TEMPLATE_SCHEMA_REF = 'helix://contracts/policies/ArcaRuleTemplateRules/v1';
+export const PLACEMENT_SCHEMA_REF = 'helix://contracts/policies/ArcaShelfPlacementPolicy/v1';
 
 export type ShelfPlacementPolicy = {
   folderTemplate: string;
@@ -613,6 +668,136 @@ export const helixAdminApi = {
       method: 'POST',
       body: JSON.stringify(body),
     });
+  },
+  bindShelfTemplate(shelf: Shelf, template: Pick<RuleTemplate, 'templateId' | 'currentRevision'>) {
+    return request<{ binding: { shelfId: string; standard: { ruleTemplateId: string } }; replayed: boolean }>(
+      `/v1/admin/shelves/${encodeURIComponent(shelf.shelfId)}/actions/bind-template`,
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          idempotencyKey: `shelf:${shelf.shelfId}:bind:${template.templateId}:${template.currentRevision}:${shelf.currentStandardRevision}`,
+          shelfId: shelf.shelfId,
+          expectedStandardRevision: shelf.currentStandardRevision,
+          expectedRoutingProjectionRevision: shelf.routingProjection.revision,
+          ruleTemplateId: template.templateId,
+          expectedTemplateRevision: template.currentRevision,
+        }),
+      },
+    );
+  },
+  async previewPlacement(shelf: Shelf, placementPolicy: ShelfPlacementPolicy, targetRootLocation = shelf.target.rootLocation) {
+    const value = Object.fromEntries(Object.entries(placementPolicy).map(([key, item]) => [key, typeof item === 'string' ? item.trim() : item])) as ShelfPlacementPolicy;
+    return request<PlacementPreview>(
+      `/v1/admin/shelves/${encodeURIComponent(shelf.shelfId)}/placement/actions/preview`,
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          idempotencyKey: `shelf:${shelf.shelfId}:placement-preview:${shelf.currentPlacementRevision}:${crypto.randomUUID()}`,
+          shelfId: shelf.shelfId,
+          expectedPlacementRevision: shelf.currentPlacementRevision,
+          target: { ...shelf.target, rootLocation: targetRootLocation.trim() },
+          placement: {
+            schemaRef: PLACEMENT_SCHEMA_REF,
+            value,
+            digest: await canonicalDigest(value as unknown as JsonValue),
+          },
+        }),
+      },
+    );
+  },
+  async publishPlacement(shelf: Shelf, placementPolicy: ShelfPlacementPolicy, preview: PlacementPreview, targetRootLocation = shelf.target.rootLocation) {
+    const value = Object.fromEntries(Object.entries(placementPolicy).map(([key, item]) => [key, typeof item === 'string' ? item.trim() : item])) as ShelfPlacementPolicy;
+    return request<{ shelf: Shelf; replayed: boolean }>(
+      `/v1/admin/shelves/${encodeURIComponent(shelf.shelfId)}/placement`,
+      {
+        method: 'PATCH',
+        body: JSON.stringify({
+          idempotencyKey: `shelf:${shelf.shelfId}:placement-publish:${preview.previewId}`,
+          shelfId: shelf.shelfId,
+          expectedPlacementRevision: shelf.currentPlacementRevision,
+          expectedCurrentTargetDigest: preview.currentTargetDigest,
+          target: { ...shelf.target, rootLocation: targetRootLocation.trim() },
+          previewId: preview.previewId,
+          previewDigest: preview.previewDigest,
+          placement: {
+            schemaRef: PLACEMENT_SCHEMA_REF,
+            value,
+            digest: await canonicalDigest(value as unknown as JsonValue),
+          },
+        }),
+      },
+    );
+  },
+  copyRuleTemplate(source: Pick<RuleTemplate, 'templateId' | 'currentRevision'>, name: string) {
+    const newTemplateId = `movie-rule-${crypto.randomUUID()}`;
+    return request<{ template: RuleTemplate; draft: { templateId: string; draftRevision: number; basePublishedRevision: number; rulesDigest: string }; replayed: boolean }>(
+      `/v1/admin/rule-templates/${encodeURIComponent(source.templateId)}/actions/copy`,
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          idempotencyKey: `rule-template:copy:${newTemplateId}`,
+          sourceTemplateId: source.templateId,
+          newTemplateId,
+          name,
+          expectedSourceRevision: source.currentRevision,
+        }),
+      },
+    );
+  },
+  getRuleTemplateDraft(templateId: string) {
+    return request<{ templateId: string; writable: boolean; reasonCode: string | null; draft: RuleTemplateDraft | null }>(
+      `/v1/admin/rule-templates/${encodeURIComponent(templateId)}/draft`,
+    );
+  },
+  async reviseRuleTemplateDraft(draft: RuleTemplateDraft, rules: RuleTemplateRules) {
+    const rulesDigest = await canonicalDigest(rules as unknown as JsonValue);
+    return request<RuleTemplateDraft>(
+      `/v1/admin/rule-templates/${encodeURIComponent(draft.templateId)}/draft`,
+      {
+        method: 'PATCH',
+        body: JSON.stringify({
+          idempotencyKey: `rule-template:draft:${draft.templateId}:${draft.draftRevision}:${rulesDigest}`,
+          templateId: draft.templateId,
+          expectedDraftRevision: draft.draftRevision,
+          basePublishedRevision: draft.basePublishedRevision,
+          rulesSchemaRef: draft.rulesSchemaRef || RULE_TEMPLATE_SCHEMA_REF,
+          rules,
+          rulesDigest,
+        }),
+      },
+    );
+  },
+  previewRuleTemplate(template: Pick<RuleTemplate, 'templateId' | 'currentRevision'>, draft: Pick<RuleTemplateDraft, 'draftRevision' | 'rulesDigest'>) {
+    return request<RuleTemplatePreview>(
+      `/v1/admin/rule-templates/${encodeURIComponent(template.templateId)}/actions/preview`,
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          idempotencyKey: `rule-template:preview:${template.templateId}:${draft.draftRevision}:${crypto.randomUUID()}`,
+          templateId: template.templateId,
+          expectedCurrentRevision: template.currentRevision,
+          expectedDraftRevision: draft.draftRevision,
+          expectedDraftDigest: draft.rulesDigest,
+        }),
+      },
+    );
+  },
+  publishRuleTemplate(preview: RuleTemplatePreview) {
+    return request<{ template: RuleTemplate; affectedShelfCount: number; replayed: boolean }>(
+      `/v1/admin/rule-templates/${encodeURIComponent(preview.templateId)}/actions/publish`,
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          idempotencyKey: `rule-template:publish:${preview.templateId}:${preview.previewId}`,
+          templateId: preview.templateId,
+          expectedCurrentRevision: preview.expectedCurrentRevision,
+          expectedDraftRevision: preview.expectedDraftRevision,
+          expectedDraftDigest: preview.expectedDraftDigest,
+          previewId: preview.previewId,
+          previewDigest: preview.previewDigest,
+        }),
+      },
+    );
   },
   deregisterShelf(shelf:Shelf,enteredShelfName:string,preservePhysicalFilesAcknowledged:boolean,releaseControlAcknowledged:boolean){return request<{operationRef:string;deregistrationId:string;replayed:boolean}>(`/v1/admin/shelves/${encodeURIComponent(shelf.shelfId)}/actions/deregister`,{method:'POST',body:JSON.stringify({idempotencyKey:`shelf-deregister:${shelf.shelfId}:${shelf.updatedAtMs}:${shelf.routingProjection.revision}`,shelfId:shelf.shelfId,expectedStatus:'active',expectedUpdatedAtMs:shelf.updatedAtMs,expectedRoutingProjectionRevision:shelf.routingProjection.revision,confirmation:{decision:'deregister_shelf',enteredShelfName,preservePhysicalFilesAcknowledged,releaseControlAcknowledged}})});},
   registerMaterialField(body: JsonValue) {

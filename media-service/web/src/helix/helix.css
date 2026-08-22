@@ -93,7 +93,7 @@ button, input, select, textarea { font: inherit; }
 .source-form-grid input, .source-form-grid textarea, .source-form-grid select,
 .auth-form input, .source-form input, .source-form textarea, .source-form select,
 .form-grid input, .form-grid textarea, .form-grid select,
-.dialog input, .manual-shelf input, .manual-shelf select {
+.dialog input, .dialog select, .manual-shelf input, .manual-shelf select {
   width: 100%; min-height: 36px; padding: 8px 10px; border: 1px solid #bfcfc9; border-radius: 6px; background: white; color: var(--ink);
 }
 .source-form-grid textarea, .source-form textarea, .form-grid textarea { min-height: 82px; resize: vertical; }
@@ -141,6 +141,12 @@ button, input, select, textarea { font: inherit; }
 .movie-rule-grid b { font-size: 15px; font-weight: 650; }
 .movie-rule-grid span, .movie-rule-grid small { color: var(--muted); font-size: 12px; line-height: 1.45; }
 .shelf-record { grid-template-columns: 1fr; }
+.shelf-standard-head { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; }
+.shelf-standard-head small { display: block; margin-top: 4px; color: var(--muted); font-size: 12px; font-weight: 500; }
+.shelf-card-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+.movie-rule-editor label { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; font-weight: 600; }
+.movie-rule-editor input[type="checkbox"] { width: auto; min-height: 0; }
+.dialog.dialog-wide { width: min(840px, 96vw); }
 
 .formation-chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 0 12px; }
 .formation-chips .btn[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
