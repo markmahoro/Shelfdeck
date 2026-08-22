@@ -1384,7 +1384,7 @@ async function createCleanServiceHost(options) {
     onError: options.onExecutionRuntimeError,
   });
   const executionRuntimeHost = Object.freeze({
-    async start() { const execution=await procurementExecution.host.start(); await outboxDispatcher.start(); await formationProjectionHost.start(); return execution; },
+    async start() { await outboxDispatcher.start(); const execution=await procurementExecution.host.start(); await formationProjectionHost.start(); return execution; },
     wake() { const execution=procurementExecution.host.wake(); outboxDispatcher.wake(); formationProjectionHost.wake(); return execution; },
     async stop() { await formationProjectionHost.stop(); await outboxDispatcher.stop(); return procurementExecution.host.stop(); },
   });

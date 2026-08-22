@@ -317,6 +317,12 @@ test('Procurement automation advances only through terminal Work reconcile and o
   assert.doesNotMatch(source, /legacy|fallback|dual[-_ ](?:read|write|run|path)/i);
 });
 
+test('clean host starts durable message delivery before recovering dependent Owner Work', () => {
+  const source = fs.readFileSync(path.join(serviceRoot, 'src', 'clean-service-host.js'), 'utf8');
+  assert.match(source,
+    /async start\(\) \{ await outboxDispatcher\.start\(\); const execution=await procurementExecution\.host\.start\(\);/);
+});
+
 test('clean host serves public health and Admin UI, then requires API key or HttpOnly session', async () => {
   const value = fixture();
   const host = await createCleanServiceHost({

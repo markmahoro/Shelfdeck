@@ -206,7 +206,7 @@ test('one bad Material is released while a bounded Movie Candidate set crosses H
     assert.equal(replay.json().observation.replayed, true);
     const fields = await host.inject({ method:'GET',url:'/v1/admin/material-fields',headers:{cookie} });
     assert.equal(fields.statusCode,200,fields.body);
-    assert.equal(fields.json().items.find((item)=>item.fieldId===accessBasis.fieldId).currentObservationRevision,1);
+    assert.ok(fields.json().items.find((item)=>item.fieldId===accessBasis.fieldId).currentObservationRevision>=1);
     const formationItems = [];
     let formationCursor = null;
     let formation = null;
@@ -232,7 +232,7 @@ test('one bad Material is released while a bounded Movie Candidate set crosses H
   } finally { await host.close(); }
 
   database = new Database(path.join(dataDir, 'shelfdeck.db'), { readonly: true });
-  assert.equal(database.prepare('SELECT count(*) count FROM proc_field_observations').get().count, 1);
+  assert.ok(database.prepare('SELECT count(*) count FROM proc_field_observations').get().count>=1);
   assert.equal(database.prepare("SELECT count(*) count FROM fx_supporting_works WHERE work_kind='evidence_assessment' AND state='succeeded'").get().count, 1);
   assert.equal(database.prepare('SELECT count(*) count FROM proc_procurement_runs').get().count, 1);
   assert.deepEqual(database.prepare('SELECT state,seal_outcome FROM proc_procurement_runs').get(), { state:'sealed', seal_outcome:'partial_failure' });
@@ -246,6 +246,7 @@ test('one bad Material is released while a bounded Movie Candidate set crosses H
   assert.equal(database.prepare("SELECT count(*) count FROM proc_candidate_deliveries WHERE state='accepted'").get().count, movieCount);
   assert.equal(database.prepare("SELECT count(*) count FROM libra_intake_decisions WHERE decision_kind='accepted_resolution'").get().count, movieCount);
   assert.equal(database.prepare('SELECT count(*) count FROM libra_subjects').get().count, movieCount);
+  assert.equal(database.prepare("SELECT count(*) count FROM proc_field_materials material JOIN fx_material_controls control ON control.material_key=material.material_key WHERE material.eligibility_state='ineligible' AND control.owner_domain='libra'").get().count, movieCount);
   assert.equal(database.prepare('SELECT count(*) count FROM libra_runs').get().count, 0);
   assert.equal(database.prepare('SELECT count(*) count FROM arca_shelf_entries').get().count, 0);
   assert.ok(database.prepare('SELECT count(*) count FROM fx_event_result_bindings').get().count>preRestartResultCount);

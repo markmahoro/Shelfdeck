@@ -498,8 +498,9 @@ function eligibilityDecisions(snapshot, controls, materials = snapshot.materials
   }));
 }
 
-function needsEligibilityReconcile(material, snapshot, changedMaterialKeys = null) {
+function needsEligibilityReconcile(material, snapshot, changedMaterialKeys = null, control = null) {
   return changedMaterialKeys?.has(material.material_key) ||
+    !control || control.projectionDigest !== material.control_projection_digest ||
     material.eligibility_state === 'unknown' ||
     !material.eligibility_basis_digest ||
     Number(material.access_revision) !== Number(snapshot.access.revision) ||
@@ -835,12 +836,18 @@ function createProcurementAutomationService(options) {
     const changedKeySet = new Set(changedMaterialKeys);
     let current = snapshot(observation);
     if (current.materials.length === 0) return Object.freeze({ stage:'no_observed_material', runs:Object.freeze([]), closedGroups:Object.freeze([]) });
+    const currentControls = readControlSnapshots(options,
+      current.materials.map((material) => material.material_key),
+      'procurement_automation_eligibility_control');
+    const currentControlByKey = new Map(currentControls.map((control) =>
+      [control.materialKey, control]));
     const changedMaterials = current.materials.filter((material) =>
-      needsEligibilityReconcile(material, current, changedKeySet));
+      needsEligibilityReconcile(material, current, changedKeySet,
+        currentControlByKey.get(material.material_key)));
     const alreadyReconciled = changedMaterials.length === 0;
     if (!alreadyReconciled) {
-      const controls = readControlSnapshots(options, changedMaterials.map((material) => material.material_key),
-        'procurement_automation_eligibility_control');
+      const controls = changedMaterials.map((material) =>
+        currentControlByKey.get(material.material_key));
       reconcileEligibility(options, current, eligibilityDecisions(current, controls, changedMaterials));
       current = snapshot(observation);
     }
