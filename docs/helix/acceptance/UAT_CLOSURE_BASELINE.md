@@ -121,22 +121,22 @@
 | UAT-062 | frozen Discard 后 Control 保持释放、不立刻新开 Libra Run、页面不是「正在评估整理方案」，材料走重新入库 | `UI` | W5 | `CODE_DONE_UNQUALIFIED` | `NOT RUN` |
 | UAT-063 | Aftercare 用与 Libra 同一套 `perception.rating.resolve@1` Identity Evidence；上架后评分从无到有/变档会再评估 | `UI` | W4 | `CODE_DONE_UNQUALIFIED` | `NOT RUN` |
 | UAT-064 | Formation 步骤 CPU/GPU 与验证完成态必须与真实执行一致，不得默认 CPU、不得把 Direct 源校验画成成品验证完成 | `UI` | W3 | `RECORDED_UNIMPLEMENTED` | `NOT RUN` |
-| UAT-065 | 收藏详情只从主视频basename解析容器，不得把父目录名中的`.1`显示为容器 | `UI` | W1 | `RECORDED_UNIMPLEMENTED` | `NOT RUN` |
+| UAT-065 | 收藏详情只从主视频basename解析容器，不得把父目录名中的`.1`显示为容器 | `UI` | W1 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260822-141950-0c27c8cf6 UI 8.3 GB BDMV养蜂人主视频修复后显示8.3 GB · MKV，不再显示· 1 |
 
 ## 5. 计数
 
-冻结时（代码状态，不是本轮 Canary）：`CLOSED` 11，`CODE_DONE_UNQUALIFIED` 52，`RECORDED_UNIMPLEMENTED` 1（064）。本轮逐项关闭期间新增`UAT-065`，当前为第二项`RECORDED_UNIMPLEMENTED`。
+冻结时（代码状态，不是本轮 Canary）：`CLOSED` 11，`CODE_DONE_UNQUALIFIED` 52，`RECORDED_UNIMPLEMENTED` 1（064）。本轮逐项关闭期间新增`UAT-065`并完成代码修复，当前代码状态为`CLOSED` 11、`CODE_DONE_UNQUALIFIED` 53、`RECORDED_UNIMPLEMENTED` 1（064）。
 
 本轮干净 Canary `UAT-20260822-141950-0c27c8cf6`（HEAD `0c27c8cf6`）PASS 列：
 
 | 口径 | 数量 |
 | --- | --- |
 | 总行 | 65 |
-| 本轮 `PASS` | **25** |
-| 本轮未通过（`NOT RUN`+`FAILED`+`BLOCKED`） | **40**（全部为 `NOT RUN`；0 `FAILED`；0 `BLOCKED`） |
-| 是否都通过 | **否**（25/65，未通过 40） |
+| 本轮 `PASS` | **26** |
+| 本轮未通过（`NOT RUN`+`FAILED`+`BLOCKED`） | **39**（全部为 `NOT RUN`；0 `FAILED`；0 `BLOCKED`） |
+| 是否都通过 | **否**（26/65，未通过 39） |
 
-本轮 `PASS`：001、002、005、006、007、008、012、013、015、016、018、030、032、038、047、050、051、052、053、054、055、056、057、058、061。证据均包含本隔离库 Admin Web `UI`；要求文件现实的行另有`FS`。W3 转码/ISO/BDMV 上架、W5 Discard 重新入库、W6 退出收藏/注销在本坐席未跑完，保持 `NOT RUN`。
+本轮 `PASS`：001、002、005、006、007、008、012、013、015、016、018、030、032、038、047、050、051、052、053、054、055、056、057、058、061、065。证据均包含本隔离库 Admin Web `UI`；要求文件现实的行另有`FS`。W3 转码/ISO/BDMV 上架、W5 Discard 重新入库、W6 退出收藏/注销在本坐席未跑完，保持 `NOT RUN`。
 
 `UAT-005` 剩余动作合同并入 `UAT-051` 后仍保留本行，用四桶状态在新 Canary 上资格确认，不把 005 标 `VOID`。
 
@@ -249,3 +249,18 @@
 - 旁证停车：整盘树清理由UAT-049独立关闭，本项不得顺带把UAT-049写为`PASS`。
 - 暂停原因：定位到8.3 GB BDMV「养蜂人」Entry时，Admin Web把真实`.mkv`主视频显示为`8.3 GB · 1`。该独立Projection缺陷已登记为`UAT-065`；按作业规则停止`UAT-048`关闭判定，不写`PASS`。
 - UI证据：`admin-web-evidence/uat-048-bdmv-settlement-ondeck.png`（位于本Canary隔离证据目录；同时保存UAT-065新缺陷现场）。
+
+### UAT-065（`PASS`）
+
+- 关闭命题：收藏详情只从主视频basename解析容器，不得把父目录名中的`.1`显示为容器。
+- Canary：`UAT-20260822-141950-0c27c8cf6`；修复commit `a59737c4a`。
+- 证人：Admin Web「我的收藏」中8.3 GB BDMV「养蜂人」Entry；Inventory主视频`F:\canary\养蜂人 (2024) - 2160p HEVC Atmos TrueHD5.1\养蜂人 (2024).mkv`。
+- 路径：修复后重启隔离服务 → 我的收藏 → Movie Canary → 打开8.3 GB「养蜂人」详情 → 读取主视频容器。
+- 允许动作：页面进入、只读切换、打开/关闭详情、刷新、截图；文件系统、SQLite和日志只读旁证。
+- 禁止动作：修改评分、退出收藏、移动/重命名文件、重建Canary、修改数据库。
+- 通过标准：同一Entry详情把主视频显示为`8.3 GB · MKV`，不再显示`· 1`；Inventory路径和字节不发生变化。
+- 证据要求：`UI`。
+- 回归证据：定向Collection Query 3/3 PASS；完整suite独立Routing等待失败已如实记录，不改写本项结论。
+- 旁证停车：Entry已On-deck和Settlement只作旁证，不提前恢复或关闭UAT-048。
+- 关闭结论：`PASS`。修复后刷新真实Admin Web，同一8.3 GB BDMV「养蜂人」详情显示`主视频 8.3 GB · MKV`，不再显示`· 1`；Inventory路径和`8932765796`字节未改变。
+- UI证据：`admin-web-evidence/uat-065-container-mkv-after-fix.png`（位于本Canary隔离证据目录）。

@@ -121,7 +121,7 @@ Helix主体开发已经完成，Movie从Procurement、Libra到Arca及Shelf Dereg
 | UAT-062 | frozen Run Discard 后 Control 已释放，Formation 仍空转「正在评估整理方案」，未走重新入库 | `BUSINESS_CONTRACT` | `DOMAIN_ORCHESTRATION` | Libra Run Discard 收口 + Procurement 重新入库 + Formation | 正确性、活性、可理解性 | Critical | 已实现；待新 Canary 确认 |
 | UAT-063 | Aftercare 问豆瓣分与 Libra 不是同一套 Resolution/Identity Evidence，上架后评分变化不触发保养 | `BUSINESS_CONTRACT` | `PROJECTION_FRESHNESS` | Arca Aftercare 拉 Perception + 与 Libra 共用 Identity Evidence | 正确性、时效性 | High | 已实现；待新 Canary 确认 |
 | UAT-064 | Formation 整理步骤展示与真实执行状态偏离：转码标 CPU、验证过早标完成 | `USER_EXPERIENCE` | `PROJECTION_FRESHNESS` | Formation 公开 Projection `organizingSteps` / `transcodeLabel` | 可理解性、可观察性 | High | 已登记；待实现授权 |
-| UAT-065 | 收藏详情把父目录名中的`.1`误显示为主视频容器 | `USER_EXPERIENCE` | `PROJECTION_FRESHNESS` | Arca Collection Query + Admin Web | 正确性、可理解性 | High | 已登记；待修复与新 Canary 定向确认 |
+| UAT-065 | 收藏详情把父目录名中的`.1`误显示为主视频容器 | `USER_EXPERIENCE` | `PROJECTION_FRESHNESS` | Arca Collection Query + Admin Web | 正确性、可理解性 | High | 已修复并通过当前 Canary 定向确认 |
 
 ## 2.1 UAT-006：概览展示固定演示数字
 
@@ -2442,6 +2442,12 @@ Formation 该行 `my_rating=4`、`my_rating_source=douban`，整理要求 `HEVC 
 
 当前处理决定：2026-08-22在`UAT-048`关闭作业中发现并独立登记。按一项一张作业卡规则暂停`UAT-048`关闭判定；
 本记录不授权把新缺陷吞进`UAT-048`或已关闭的`UAT-052`，不触碰Canary文件、数据库、NAS或生产。
+
+修复进展：`a59737c4a`只把容器解析收窄到最终basename并补充Windows/POSIX、带点父目录、多点文件名和无扩展名反例；
+定向`helix-collection-query.test.js` 3/3 PASS。完整`npm test`为306 PASS / 2 FAIL / 18 SKIP；Procurement失败单独复跑已PASS，
+Routing E2E单独复跑仍停在其既有`specs=24/runs=24`等待条件，与Collection Query无调用关系，不以本修复吞并。隔离服务已在无FFmpeg
+进程时从PID 6488重启为25716，public health为`ok`。真实Admin Web刷新后，同一8.3 GB BDMV「养蜂人」详情已显示
+`主视频 8.3 GB · MKV`，不再显示`· 1`；状态`REGRESSION PASSED / CONFIRMED ON CURRENT CANARY`。
 
 ## 63. 后续问题模板
 
