@@ -1462,6 +1462,13 @@ Final目标不存在或字节不符仍fail closed，不跳过Settlement Approval
 
 修复状态（2026-08-21）：`IMPLEMENTED / CLEAN CANARY UAT PENDING`。
 
+2026-08-23逐项封口在重建Canary `UAT-20260823-002500-519f8d7b5`完成。`有话好好说 (1997)`的On-deck Run
+已为`committed`，同一Run的5个`arca.ondeck.input_settlement.delete@1` Event全部`succeeded`，Final Product Verification、
+Fulfillment Verification与On-deck Commit也全部成功。真实“我的收藏”详情显示该片为当前收藏且保管/呈现/合规均健康；FS只有
+唯一`F:\canary\有话好好说 (1997)`目录，包含用户可读主视频、NFO、字幕、poster和fanart，无partial或第二个同名目录。
+状态`REGRESSION PASSED / CONFIRMED ON REBUILT CANARY`。UI证据：
+`admin-web-evidence/uat-024-multi-member-settlement-commit-pass.png`。
+
 ## 22. UAT-025：Handoff A身份快照未在技术发布标签前冻结年份锚
 
 问题分类：`LIBRA_DECISION_IDENTITY / PERCEPTION_CONTINUITY / USER_VISIBLE_RATING`
