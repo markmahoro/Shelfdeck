@@ -81,6 +81,12 @@ test('Shelves configures a probed Template-derived Movie Standard without exposi
   assert.match(page, /保存时会检查目录是否可达/);
   assert.doesNotMatch(page, /standard:\s*\{/);
   assert.match(page, /expectedTemplateRevision/);
+  assert.match(page, /全自动或关键步骤确认/);
+  assert.match(api, /\/v1\/admin\/settings\/automatic-operation/);
+  assert.match(api, /enableFullAutomaticOperation/);
+  assert.match(read('web/src/helix/AutomaticOperationPanel.tsx'), /启用全自动/);
+  assert.match(read('web/src/helix/AutomaticOperationPanel.tsx'), /关键步骤确认/);
+  assert.match(read('web/src/helix/AutomaticOperationPanel.tsx'), /退出收藏的物理销毁保持独立关闭/);
 });
 
 test('Media organization workspace uses user-facing stages after Procurement handoff', () => {

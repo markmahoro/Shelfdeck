@@ -11,6 +11,8 @@ const { canonicalDigest } = require('./helix/contracts/canonical-json');
 const { createHelixApplication } = require('./helix/composition/createHelixApplication');
 const { createCleanFacades } = require('./helix/composition/create-clean-facades');
 const { createOverviewQuery } = require('./helix/projections/overview-query');
+const { createSetupReadinessQuery } = require('./helix/projections/setup-readiness-query');
+const { createInputSettlementAuthorizationStore } = require('./helix/domains/arca/persistence/input-settlement-authorization-store');
 const { createPeopleAdminQuery } = require('./helix/domains/people/application/admin-query');
 const {
   createIntegrationAdminApplication,
@@ -899,8 +901,11 @@ function errorResponse(error, correlationId) {
   else if (error.code === 'ADMIN_SHELF_COMMAND_REJECTED' || error.code === 'ADMIN_SHELF_TARGET_MISMATCH') status = 400;
   else if (
     error.code === 'ADMIN_SHELF_IDEMPOTENCY_CONFLICT' ||
-    error.code === 'ADMIN_SHELF_CONFLICT'
+    error.code === 'ADMIN_SHELF_CONFLICT' ||
+    error.code === 'ADMIN_AUTOMATION_IDEMPOTENCY_CONFLICT' ||
+    error.code === 'ADMIN_AUTOMATION_CONFLICT'
   ) status = 409;
+  else if (error.code === 'ADMIN_AUTOMATION_COMMAND_REJECTED' || error.code === 'ADMIN_AUTOMATION_PROJECTION_UNAVAILABLE') status = 400;
   else if (error.code === 'ADMIN_RULE_TEMPLATE_NOT_FOUND') status = 404;
   else if (error.code === 'ARCA_SHELF_ENTRY_NOT_FOUND' || error.code === 'PERCEPTION_TARGET_NOT_FOUND') status = 404;
   else if (error.code === 'PERCEPTION_RATING_COMMAND_INVALID' || error.code === 'PERCEPTION_ACQUISITION_COMMAND_INVALID' || error.code === 'PERCEPTION_DOUBAN_NOT_CONFIGURED') status = 400;
@@ -1108,8 +1113,14 @@ async function createCleanServiceHost(options) {
   );
   let platformIntegrations = null;
   let shelfDeregistrationExecution = null;
+  let setupReadinessQuery = null;
+  const inputSettlementAuthorizationStore = createInputSettlementAuthorizationStore(
+    constructed.applicationDependencies,
+  );
   const arcaShelfAdmin = createArcaShelfAdminApplication({
     ...constructed.applicationDependencies,
+    inputSettlementAuthorizationStore,
+    readSetupReadiness: () => setupReadinessQuery.get(),
     targetFolderProbe: createCleanShelfTargetFolderProbe(),
     assertLocationAvailable: (request) =>
       platformIntegrations?.assertExternalLandingRootAvailable(request),
@@ -1432,9 +1443,29 @@ async function createCleanServiceHost(options) {
   const peopleAdminQuery = createPeopleAdminQuery({
     store: procurementExecution.people.store,
   });
+  setupReadinessQuery = createSetupReadinessQuery({
+    readMaterialFields: () => procurementAdmin.listMaterialFields(),
+    readShelves: () => arcaShelfAdmin.listShelves(),
+    readStandingAuthorization: () => inputSettlementAuthorizationStore.current(),
+    readRouting: (fieldId) => libraRoutingAdmin.get(fieldId),
+    readIntegration: (kind) => platformIntegrations.admin.get(kind),
+    readWorkspace: () => {
+      const rootPath = workspaceProductPort.rootPath;
+      try {
+        return Object.freeze({
+          ready: typeof rootPath === 'string' && rootPath.length > 0 && fs.existsSync(rootPath) && fs.statSync(rootPath).isDirectory(),
+          rootPath,
+        });
+      } catch {
+        return Object.freeze({ ready: false, rootPath });
+      }
+    },
+    now: options.now || Date.now,
+  });
   const overviewQuery = createOverviewQuery({
     readMaterialFields: () => procurementAdmin.listMaterialFields(),
     readShelves: () => arcaShelfAdmin.listShelves(),
+    readStandingAuthorization: () => inputSettlementAuthorizationStore.current(),
     readFormation: () => {
       const summary = formationQuery.list({ section:'active', limit:1 }).summary;
       return {
@@ -1466,6 +1497,7 @@ async function createCleanServiceHost(options) {
     readiness,
     credentialMetadata: runtime.readActiveCredential,
     overviewQuery,
+    setupReadinessQuery,
     peopleAdminQuery,
     peopleAdmin,
     procurementAdmin,

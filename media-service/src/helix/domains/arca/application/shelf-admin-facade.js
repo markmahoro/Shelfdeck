@@ -2,6 +2,7 @@
 
 const { createShelfQueryStore } = require('../persistence/shelf-query-store');
 const { createShelfDeregistrationStore } = require('../persistence/shelf-deregistration-store');
+const { createInputSettlementAuthorizationStore } = require('../persistence/input-settlement-authorization-store');
 const { createShelfPlacementPolicy } = require('../model/shelf-placement-policy-contracts');
 
 class ArcaShelfAdminApplicationError extends Error { constructor(code, message, details = {}) { super(message); this.name = 'ArcaShelfAdminApplicationError'; this.code = code; this.details = details; } }
@@ -14,6 +15,8 @@ function createArcaShelfAdminApplication(options) {
   }
   const store = createShelfQueryStore(options);
   const deregistrations = options.shelfDeregistrationStore || createShelfDeregistrationStore(options);
+  const settlementAuthorizations = options.inputSettlementAuthorizationStore
+    || createInputSettlementAuthorizationStore(options);
   const withSummary=(shelf)=>Object.freeze({...shelf,deregistrationSummary:deregistrations.summary(shelf.shelfId)});
   const targetFolderProbe = options.targetFolderProbe;
   const assertLocationAvailable = (rootLocation) => {
@@ -77,6 +80,94 @@ function createArcaShelfAdminApplication(options) {
         targetReadiness: observation.evidence,
       },
     };
+  }
+  function ownerResults(authorization) {
+    const enabled = authorization?.state === 'enabled';
+    return Object.freeze([
+      Object.freeze({
+        owner: 'arca',
+        topic: 'input_settlement',
+        result: enabled ? 'enabled' : 'confirmation_required',
+        label: enabled ? '已启用上架旧输入自动处理授权' : '上架旧输入改为每次确认',
+      }),
+      Object.freeze({
+        owner: 'procurement',
+        topic: 'accepted_automation',
+        result: 'unchanged',
+        label: '文件来源自动化保持不变',
+      }),
+      Object.freeze({
+        owner: 'libra',
+        topic: 'accepted_automation',
+        result: 'unchanged',
+        label: '整理与上架接纳自动化保持不变',
+      }),
+      Object.freeze({
+        owner: 'arca',
+        topic: 'aftercare',
+        result: 'unchanged',
+        label: '安全的收藏健康自动修复保持不变',
+      }),
+      Object.freeze({
+        owner: 'people',
+        topic: 'weak_identity',
+        result: 'unchanged_manual',
+        label: '弱人物身份仍需确认',
+      }),
+      Object.freeze({
+        owner: 'arca_offdeck',
+        topic: 'offdeck_destruction',
+        result: 'unchanged_disabled',
+        label: '退出收藏销毁保持独立关闭',
+      }),
+    ]);
+  }
+  function publishAutomaticOperation(kind, body, actor) {
+    if (!body || typeof body !== 'object' || Array.isArray(body)) {
+      throw new ArcaShelfAdminApplicationError('ADMIN_AUTOMATION_COMMAND_REJECTED', '自动运营请求体无效。');
+    }
+    const required = kind === 'enable'
+      ? ['coverExclusiveRelatedInput', 'expectedRevision', 'idempotencyKey']
+      : ['expectedRevision', 'idempotencyKey'];
+    if (JSON.stringify(Object.keys(body).sort()) !== JSON.stringify(required.slice().sort())) {
+      throw new ArcaShelfAdminApplicationError('ADMIN_AUTOMATION_COMMAND_REJECTED', '自动运营请求体无效。');
+    }
+    if (typeof body.idempotencyKey !== 'string' || body.idempotencyKey.length === 0) {
+      throw new ArcaShelfAdminApplicationError('IDEMPOTENCY_KEY_REQUIRED', '自动运营操作必须提供幂等键。');
+    }
+    try {
+      const published = kind === 'enable'
+        ? settlementAuthorizations.enable({
+            idempotencyKey: body.idempotencyKey,
+            expectedRevision: body.expectedRevision,
+            coverExclusiveRelatedInput: body.coverExclusiveRelatedInput,
+            actorId: actor?.actorId || 'admin',
+          })
+        : settlementAuthorizations.revoke({
+            idempotencyKey: body.idempotencyKey,
+            expectedRevision: body.expectedRevision,
+            actorId: actor?.actorId || 'admin',
+          });
+      const readiness = typeof options.readSetupReadiness === 'function' ? options.readSetupReadiness() : null;
+      return Object.freeze({
+        replayed: published.replayed === true,
+        standingAuthorization: published.authorization,
+        ownerResults: ownerResults(published.authorization),
+        readiness,
+      });
+    } catch (error) {
+      if (error instanceof ArcaShelfAdminApplicationError) throw error;
+      if (error.code === 'P3_COMMAND_IDEMPOTENCY_CONFLICT') {
+        throw new ArcaShelfAdminApplicationError('ADMIN_AUTOMATION_IDEMPOTENCY_CONFLICT', '同一幂等键不能用于不同的自动运营请求。');
+      }
+      if (error.code === 'P14_INPUT_SETTLEMENT_AUTH_CAS') {
+        throw new ArcaShelfAdminApplicationError('ADMIN_AUTOMATION_CONFLICT', '自动运营授权已变化，请刷新后重试。', { reasonCode: error.code });
+      }
+      if (typeof error.code === 'string' && error.code.startsWith('P14_INPUT_SETTLEMENT_AUTH_')) {
+        throw new ArcaShelfAdminApplicationError('ADMIN_AUTOMATION_COMMAND_REJECTED', '自动运营请求未通过Arca合同校验。', { reasonCode: error.code, ...(error.details || {}) });
+      }
+      throw new ArcaShelfAdminApplicationError('ADMIN_AUTOMATION_COMMAND_REJECTED', '自动运营请求未通过Arca Owner-local合同校验。', { reasonCode: error.code || 'ARCA_AUTOMATION_CONTRACT_REJECTED', ...(error.details || {}) });
+    }
   }
   return Object.freeze({
     listShelves() { return Object.freeze({ items: store.listShelves().map(withSummary) }); },
@@ -170,6 +261,21 @@ function createArcaShelfAdminApplication(options) {
         options.onDeregistrationIntent?.(result);
         return result;
       });
+    },
+    currentStandingAuthorization() {
+      return settlementAuthorizations.current();
+    },
+    getAutomaticOperation() {
+      if (typeof options.readSetupReadiness !== 'function') {
+        throw new ArcaShelfAdminApplicationError('ADMIN_AUTOMATION_PROJECTION_UNAVAILABLE', '自动运营Readiness Projection尚未接入。');
+      }
+      return options.readSetupReadiness();
+    },
+    enableFullAutomaticOperation(body, actor) {
+      return publishAutomaticOperation('enable', body, actor);
+    },
+    requireSettlementConfirmation(body, actor) {
+      return publishAutomaticOperation('revoke', body, actor);
     },
   });
 }

@@ -212,6 +212,16 @@ button, input, select, textarea { font: inherit; }
 .settings-card-actions { display: flex; justify-content: flex-end; gap: 8px; }
 .integration-state { padding: 4px 8px; background: #eceeeb; color: var(--muted); font-size: 12px; font-weight: 700; }
 .integration-state.active { background: #e1eee8; color: #356657; }
+.choice-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.choice-card { display: grid; gap: 8px; padding: 14px; border: 1px solid var(--line); background: #fff; text-align: left; cursor: pointer; }
+.choice-card strong { font-size: 15px; }
+.choice-card small { color: var(--muted); font-weight: 400; }
+.choice-card[aria-pressed="true"] { border-color: var(--accent); box-shadow: inset 3px 0 var(--accent); }
+.choice-card:disabled { cursor: default; }
+.readiness-list, .consequence-list { margin: 0; padding-left: 18px; color: var(--muted); font-size: 13px; line-height: 1.55; }
+.readiness-list li[data-ready="true"] { color: #356657; }
+.readiness-list li[data-ready="false"] { color: var(--attention); }
+.automatic-operation { margin: 18px 0; }
 .source-form { display: grid; gap: 14px; }
 .source-form small { color: var(--muted); font-weight: 400; }
 .settings-page .source-form-grid { margin-top: 0; }

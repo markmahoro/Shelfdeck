@@ -80,13 +80,48 @@ describe('Helix primary copy and workbench structure', () => {
     const ratings = vi.spyOn(helixAdminApi, 'listPerceptionRecords');
     render(<MemoryRouter initialEntries={['/settings']}><App /></MemoryRouter>);
     expect(await screen.findByRole('heading', { level: 1, name: '系统设置' })).toBeInTheDocument();
-    expect(screen.getByText(/管理豆瓣、TMDB 与 MoviePilot 连接，并查阅评分日志/)).toBeInTheDocument();
+    expect(screen.getByText(/管理连接、自动运营与评分日志/)).toBeInTheDocument();
     expect(screen.getByRole('heading', { level: 2, name: '豆瓣' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { level: 2, name: 'TMDB' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { level: 2, name: 'MoviePilot' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: '自动运营' })).toBeInTheDocument();
     expect(document.querySelectorAll('.settings-card')).toHaveLength(3);
     expect(screen.queryByText('连接、空间、资源与安全')).not.toBeInTheDocument();
     expect(ratings).not.toHaveBeenCalled();
+  });
+
+  it('lets the librarian choose 全自动 or 关键步骤确认 and keeps Off-deck independently disabled', async () => {
+    vi.spyOn(helixAdminApi, 'getIntegration').mockResolvedValue({
+      kind: 'douban', supported: true, configured: false, state: 'idle', configRevision: 0,
+      endpoint: null, configDigest: null, capabilityCodes: [], lastTestSummary: null, landingBinding: null,
+    });
+    vi.spyOn(helixAdminApi, 'getAutomaticOperation').mockResolvedValue({
+      projectionVersion: 1,
+      asOf: '2026-08-22T00:00:00.000Z',
+      freshness: 'fresh',
+      data: {
+        productChoice: 'key_step_confirmation',
+        fullAutoReady: false,
+        productChoiceLabel: '关键步骤确认',
+        fullAutoReadyLabel: '全自动尚未就绪',
+        standingInputSettlement: null,
+        offdeckDestruction: { independentlyDisabled: true, grantedByFullAuto: false, label: '退出收藏销毁保持独立关闭' },
+        items: [{ key: 'standing_authorization', owner: 'arca', ready: false, label: '上架旧输入仍需每次确认', href: '/settings' }],
+        consequences: [
+          { owner: 'arca', topic: 'input_settlement', text: '其余自动化保持不变，但每次上架处理旧输入文件前都要确认当前冻结范围。' },
+          { owner: 'arca_offdeck', topic: 'offdeck_destruction', text: '退出收藏的物理销毁保持独立关闭，与此选择无关。' },
+        ],
+      },
+      availableActions: [{ actionCode: 'enable_full_automatic_operation', label: '启用全自动', expectedRevision: 0, requiresConfirmation: false }],
+    });
+    render(<MemoryRouter initialEntries={['/settings']}><App /></MemoryRouter>);
+    fireEvent.click(await screen.findByRole('tab', { name: '自动运营' }));
+    expect(await screen.findByRole('heading', { level: 2, name: '自动运营' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /全自动（推荐）/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /关键步骤确认/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '启用全自动' })).toBeInTheDocument();
+    expect(screen.getByText(/每次上架处理旧输入文件前都要确认/)).toBeInTheDocument();
+    expect(screen.getByText('退出收藏销毁保持独立关闭')).toBeInTheDocument();
   });
 
   it('renders completed history as read-only organizing results', async () => {

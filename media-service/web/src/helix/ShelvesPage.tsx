@@ -1,5 +1,6 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { AdminApiError, helixAdminApi, type MovieRuleBranch, type RuleTemplate, type Shelf, type ShelfPlacementPolicy } from './api';
+import AutomaticOperationPanel from './AutomaticOperationPanel';
 import { Button, LoadingState, PageHeader } from './chrome';
 import { isUnauthorized, useSession } from './session';
 
@@ -134,6 +135,7 @@ export default function ShelvesPage() {
       <div><span>可用规则模板</span><strong>{activeTemplates.length}</strong><small>系统推荐模板只读</small></div>
       <div><span>媒体类型</span><strong>电影</strong><small>其他类型暂不开放</small></div>
     </div>
+    <AutomaticOperationPanel heading="全自动或关键步骤确认" />
     {showCreate && <form className="source-create" onSubmit={createShelf}>
       <div className="source-create-heading"><div><h2>创建电影收藏架</h2></div></div>
       <div className="source-form-grid">

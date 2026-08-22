@@ -1,5 +1,6 @@
 import { FormEvent, useCallback, useEffect, useState } from 'react';
 import { helixAdminApi, type IntegrationState, type PerceptionRecord } from './api';
+import AutomaticOperationPanel from './AutomaticOperationPanel';
 import { Button, LoadingState, PageHeader } from './chrome';
 import { labelOf, recordKindLabels, resolutionLabels } from './labels';
 import { isUnauthorized, useSession } from './session';
@@ -13,7 +14,7 @@ function stars(value: number | null) {
 
 export default function SettingsPage() {
   const { expire } = useSession();
-  const [tab, setTab] = useState<'integrations' | 'ratings'>('integrations');
+  const [tab, setTab] = useState<'integrations' | 'automation' | 'ratings'>('integrations');
   const [integration, setIntegration] = useState<IntegrationState | null>(null);
   const [tmdb, setTmdb] = useState<IntegrationState | null>(null);
   const [moviePilot, setMoviePilot] = useState<IntegrationState | null>(null);
@@ -174,14 +175,15 @@ export default function SettingsPage() {
 
   if (!integration && !tmdb && !moviePilot && loading && !error) return <LoadingState>正在读取系统设置…</LoadingState>;
   return <section className="source-page settings-page">
-    <PageHeader title="系统设置" description="管理豆瓣、TMDB 与 MoviePilot 连接，并查阅评分日志。" />
+    <PageHeader title="系统设置" description="管理连接、自动运营与评分日志。" />
     <div className="settings-tabs" role="tablist">
       <button type="button" role="tab" aria-selected={tab === 'integrations'} onClick={() => setTab('integrations')}>连接</button>
+      <button type="button" role="tab" aria-selected={tab === 'automation'} onClick={() => setTab('automation')}>自动运营</button>
       <button type="button" role="tab" aria-selected={tab === 'ratings'} onClick={() => setTab('ratings')}>评分日志</button>
     </div>
     {error && <p className="form-error" role="alert">{error}</p>}
     {notice && <p className="form-notice" role="status">{notice}</p>}
-    {tab === 'integrations' ? <div className="settings-stack">
+    {tab === 'automation' ? <div className="settings-stack"><AutomaticOperationPanel /></div> : tab === 'integrations' ? <div className="settings-stack">
       <section className="settings-card" aria-labelledby="douban-title">
         <header className="settings-card-head"><div><h2 id="douban-title">豆瓣</h2><p>同步收藏评分</p></div><span className={`integration-state ${integration?.configured ? 'active' : ''}`}>{integration?.configured ? '已连接' : '未连接'}</span></header>
         <div className="settings-card-body">

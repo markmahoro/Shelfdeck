@@ -15,5 +15,5 @@ export const pages: SurfacePage[] = [
   { slug: 'people', path: '/people', label: '人物', title: '人物', description: '名录是已经登记的人，不是某部电影的演员表。', group: 'ops' },
   { slug: 'material-fields', path: '/material-fields', label: '文件来源配置', title: '文件来源配置', description: '指定本机电影目录。登记不会移动、改名或删除任何文件。', group: 'config' },
   { slug: 'shelves', path: '/shelves', label: '收藏架配置', title: '收藏架配置', description: '指定上架后的目录和命名规则。创建时不会写入媒体文件。', group: 'config' },
-  { slug: 'settings', path: '/settings', label: '系统设置', title: '系统设置', description: '管理豆瓣、TMDB 与 MoviePilot 连接，并查阅评分日志。', group: 'config' },
+  { slug: 'settings', path: '/settings', label: '系统设置', title: '系统设置', description: '管理连接、自动运营与评分日志。', group: 'config' },
 ];

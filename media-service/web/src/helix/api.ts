@@ -302,8 +302,52 @@ export type OverviewProjection = {
   metrics: Array<{ key:string; label:string; value:number; note:string; href?:string }>;
   todos: Array<{ key:string; label:string; count:number; href:string }>;
   inProgress: { count:number; label:string; href:string } | null;
-  setup: { activeMaterialFieldCount:number; activeShelfCount:number };
+  setup: { activeMaterialFieldCount:number; activeShelfCount:number; productChoice?:'full_auto'|'key_step_confirmation' };
   ledger: Array<{ key:string; label:string; href?:string; value?:number }>;
+};
+
+export type SetupReadinessItem = {
+  key: string;
+  owner: string;
+  ready: boolean;
+  label: string;
+  href: string;
+};
+
+export type SetupReadinessProjection = {
+  projectionVersion: number;
+  asOf: string;
+  freshness: 'fresh' | 'stale' | 'rebuilding';
+  data: {
+    productChoice: 'full_auto' | 'key_step_confirmation';
+    fullAutoReady: boolean;
+    productChoiceLabel: string;
+    fullAutoReadyLabel: string;
+    standingInputSettlement: {
+      enabled: boolean;
+      authorizationId: string;
+      revision: number;
+      authorizationScopeKind: string;
+      coversExclusiveRelatedInput: boolean;
+    } | null;
+    offdeckDestruction: { independentlyDisabled: boolean; grantedByFullAuto: boolean; label: string };
+    items: SetupReadinessItem[];
+    consequences: Array<{ owner: string; topic: string; text: string }>;
+  };
+  availableActions: Array<{ actionCode: string; label: string; expectedRevision: number; requiresConfirmation: boolean }>;
+};
+
+export type AutomaticOperationCommandResult = {
+  replayed: boolean;
+  standingAuthorization: {
+    authorizationId: string;
+    revision: number;
+    state: 'enabled' | 'revoked';
+    authorizationScopeKind: string;
+    coversExclusiveRelatedInput: boolean;
+  } | null;
+  ownerResults: Array<{ owner: string; topic: string; result: string; label: string }>;
+  readiness: SetupReadinessProjection | null;
 };
 
 export type PeopleProjection = {
@@ -393,6 +437,31 @@ export const helixAdminApi = {
   },
   getOverview() {
     return request<OverviewProjection>('/v1/admin/overview');
+  },
+  getSetupReadiness() {
+    return request<SetupReadinessProjection>('/v1/admin/setup-readiness');
+  },
+  getAutomaticOperation() {
+    return request<SetupReadinessProjection>('/v1/admin/settings/automatic-operation');
+  },
+  enableFullAutomaticOperation(expectedRevision: number) {
+    return request<AutomaticOperationCommandResult>('/v1/admin/settings/automatic-operation/actions/enable-full', {
+      method: 'POST',
+      body: JSON.stringify({
+        idempotencyKey: `automatic-operation:enable-full:${expectedRevision}:${crypto.randomUUID()}`,
+        expectedRevision,
+        coverExclusiveRelatedInput: true,
+      }),
+    });
+  },
+  requireSettlementConfirmation(expectedRevision: number) {
+    return request<AutomaticOperationCommandResult>('/v1/admin/settings/automatic-operation/actions/require-settlement-confirmation', {
+      method: 'POST',
+      body: JSON.stringify({
+        idempotencyKey: `automatic-operation:require-settlement:${expectedRevision}:${crypto.randomUUID()}`,
+        expectedRevision,
+      }),
+    });
   },
   listPeople(params:{cursor?:string;limit?:number;search?:string;status?:'active'|'merged'}={}) {
     const query=new URLSearchParams();Object.entries(params).forEach(([key,value])=>{if(value!==undefined&&value!=='')query.set(key,String(value));});

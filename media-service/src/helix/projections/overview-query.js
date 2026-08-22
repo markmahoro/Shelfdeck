@@ -118,6 +118,10 @@ function createOverviewQuery(options) {
     }
     const inProgressCount = integer(formation.summary?.inProgressCount);
     const pendingCount = integer(formation.summary?.pendingCount);
+    const standing = typeof options.readStandingAuthorization === 'function'
+      ? options.readStandingAuthorization()
+      : null;
+    const productChoice = standing?.state === 'enabled' ? 'full_auto' : 'key_step_confirmation';
 
     return Object.freeze({
       generatedAt: new Date(nowMs).toISOString(),
@@ -141,6 +145,7 @@ function createOverviewQuery(options) {
       setup: Object.freeze({
         activeMaterialFieldCount: activeFields.length,
         activeShelfCount: activeShelves.length,
+        productChoice,
       }),
       ledger: Object.freeze(ledger.slice(0, 8)),
     });

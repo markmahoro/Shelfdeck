@@ -76,6 +76,11 @@ function createCleanFacades(options) {
       body: options.overviewQuery.get(),
     });
   }
+  if (options.setupReadinessQuery) {
+    facades.OverviewQueryFacade.get_setup_readiness = async () => ({
+      body: options.setupReadinessQuery.get(),
+    });
+  }
   if (options.peopleAdminQuery) {
     facades.PeopleAdminFacade.get_people = async (input) => ({
       body: options.peopleAdminQuery.list(input.query || {}),
@@ -180,6 +185,15 @@ function createCleanFacades(options) {
     facades.ArcaShelfAdminFacade.patch_shelves_shelfid_placement = async (input) => {const body=options.arcaShelfAdmin.revisePlacement(input.params.shelfId, input.body);options.arcaCare?.shelfBasisChanged(input.params.shelfId);return {body};};
     facades.ArcaShelfAdminFacade.post_shelves_shelfid_placement_actions_preview = async (input) => ({ body: options.arcaShelfAdmin.previewPlacement(input.params.shelfId, input.body) });
     facades.ArcaShelfAdminFacade.post_shelves_shelfid_actions_deregister = async (input) => ({ status:202,body: options.arcaShelfAdmin.deregisterShelf(input.params.shelfId, input.body) });
+    facades.ArcaShelfAdminFacade.get_settings_automatic_operation = async () => ({
+      body: options.arcaShelfAdmin.getAutomaticOperation(),
+    });
+    facades.ArcaShelfAdminFacade.post_settings_automatic_operation_actions_enable_full = async (input) => ({
+      body: options.arcaShelfAdmin.enableFullAutomaticOperation(input.body, input.actor),
+    });
+    facades.ArcaShelfAdminFacade.post_settings_automatic_operation_actions_require_settlement_confirmation = async (input) => ({
+      body: options.arcaShelfAdmin.requireSettlementConfirmation(input.body, input.actor),
+    });
   }
   if (options.arcaRuleTemplateAdmin) {
     facades.ArcaShelfAdminFacade.post_shelves_shelfid_actions_bind_template = async (input) => {const body=options.arcaRuleTemplateAdmin.bindShelf(input.params.shelfId, input.body);options.arcaCare?.shelfBasisChanged(input.params.shelfId);return {body};};
