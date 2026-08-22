@@ -208,8 +208,16 @@ function createProcurementExecutionRuntime(options) {
     manifests:Object.fromEntries(LIBRA_ENABLED.map((ref)=>[ref,manifests[ref]]))});
   const perceptionCapabilityRegistration=perceptionConstruction.createCapabilityRegistration({...perceptionOptions,now});
   const perceptionRegistrations=perceptionCapabilityRegistration.createRegistrations({manifests:Object.fromEntries(PERCEPTION_ENABLED.map((ref)=>[ref,manifests[ref]]))});
+  let perceptionProcessServices,peopleProcessServices;
+  const readShelfEntryRating=(shelfEntryId)=>perceptionProcessServices
+    ?perceptionProcessServices.readCurrentRating('shelf_entry',shelfEntryId)
+    :null;
+  const readShelfEntryRatings=(shelfEntryIds)=>perceptionProcessServices
+    ?perceptionProcessServices.readCurrentRatings('shelf_entry',shelfEntryIds)
+    :new Map();
   const arcaCapabilityRegistration=arcaConstruction.createCapabilityRegistration({...options,now,workResultReader,
-    computeBoundedMaterialFingerprintSync});
+    computeBoundedMaterialFingerprintSync,
+    readPerceptionRating:readShelfEntryRating,readPerceptionRatings:readShelfEntryRatings});
   const arcaRegistrations=arcaCapabilityRegistration.createRegistrations({enabledCapabilityRefs:ARCA_ALL_ENABLED,
     manifests:Object.fromEntries(ARCA_ALL_ENABLED.map((ref)=>[ref,manifests[ref]]))});
   const registrations = Object.freeze([...procurementRegistrations,...sharedRegistrations,...libraRegistrations,...perceptionRegistrations,...arcaRegistrations]);
@@ -344,7 +352,6 @@ function createProcurementExecutionRuntime(options) {
     contractValidator, progressReader, triageReader, triageRuleRegistry: triageRegistry, workResultReader,
     evidenceIndex, candidateContextReader, materialFieldStore: options.materialFieldStore, now,
     inspectFieldRoot: options.inspectFieldRoot });
-  let perceptionProcessServices, peopleProcessServices;
   const workLifecycle = createWorkLifecycle({ schemaManifest: options.schemaManifest, unitOfWork: options.unitOfWork,
     nextWorkAttemptId: (workId, ordinal) => workId + ':attempt:' + ordinal });
   libraProcessServices=libraConstruction.createProcessServices({...libraOptions,now,workResultReader,
@@ -370,16 +377,17 @@ function createProcurementExecutionRuntime(options) {
   const arcaProcessServices=arcaConstruction.createProcessServices({...options,now,workResultReader,executorIncidents,
     cancelProcessWorks:(scope)=>workLifecycle.cancelProcess(scope),
     contextReader:arcaCapabilityRegistration.contextReader,
+    aftercareContextReader:arcaCapabilityRegistration.aftercareContextReader,
     offdeckContextReader:arcaCapabilityRegistration.offdeckContextReader,
     shelfDeregistrationContextReader:arcaCapabilityRegistration.shelfDeregistrationContextReader,
-    readPerceptionRating:(shelfEntryId)=>perceptionProcessServices.readCurrentRating('shelf_entry',shelfEntryId),
-    readPerceptionRatings:(shelfEntryIds)=>perceptionProcessServices.readCurrentRatings('shelf_entry',shelfEntryIds)});
+    readPerceptionRating:readShelfEntryRating,readPerceptionRatings:readShelfEntryRatings});
   peopleProcessServices=createPeopleProcessServices({
     ...options, now,
     onDeckPersonEvidenceProjection:arcaProcessServices.onDeckPersonEvidenceProjection,
   });
   const arcaPlanningRegistration=arcaConstruction.createPlanningRegistration({...options,registry,policyRegistry,contractValidator,workResultReader,
-    contextReader:arcaProcessServices.contextReader,offdeckContextReader:arcaProcessServices.offdeckContextReader,
+    contextReader:arcaProcessServices.contextReader,aftercareContextReader:arcaProcessServices.aftercareContextReader,
+    offdeckContextReader:arcaProcessServices.offdeckContextReader,
     shelfDeregistrationContextReader:arcaProcessServices.shelfDeregistrationContextReader,
     materialControlProjectionPort,controlScopeDigest,computeBoundedMaterialFingerprintSync,now});
   const bindingProjectionRegistry = createInputBindingProjectionRegistry({ registrations:[...planningRegistration.bindingProjections,

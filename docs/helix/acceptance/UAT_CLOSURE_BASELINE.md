@@ -4,7 +4,7 @@
 
 建立日期：2026-08-22
 
-覆盖范围：`UAT-001`–`UAT-068`（68 行，无缺口、无重复）
+覆盖范围：`UAT-001`–`UAT-069`（69 行，无缺口、无重复）
 
 > 本文是关闭台账的冻结验收工件，不是 Architecture SSOT，也不是活动实施计划。
 > 问题叙述仍以 `docs/helix/USER_ACCEPTANCE_TEST_ISSUE_LOG.md` 为准。
@@ -51,7 +51,7 @@
 
 同一部影片可以服务多行，但每行仍要独立 `UI` 结论。不得用「23 部 completed」一口吞掉整表。
 
-## 4. 关闭矩阵（68 行）
+## 4. 关闭矩阵（69 行）
 
 证据标签：`UI` 必填；`FS` 在文件现实变化时必填；`FACT` 仅旁证。
 
@@ -125,25 +125,26 @@
 | UAT-066 | Formation 已完成整理表按目标Shelf ID显示当前收藏架名称，不得整列显示`—` | `UI` | W1 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260822-141950-0c27c8cf6 UI 已完成整理17/17条均显示Movie Canary，当前媒体6条显示未回退 |
 | UAT-067 | 活动 Run 加急后既有 Work 必须按冻结 Admission Definition 回放，动态 Priority 不得制造幂等冲突 | `UI` `FACT` | W3 | `CLOSED` | `PASS` UAT-20260823-002500-519f8d7b5 UI同一已加急老笠Run恢复并完成上架；FACT形成Product Package/Offer且无替换Run或数据库编辑 |
 | UAT-068 | Collection 年份投影须保留 Provider 标准年份字段，Aftercare Shelf Entry 不得因此丢失 title-year Identity Evidence | `UI` `FACT` | W4 | `CODE_DONE_UNQUALIFIED` | `NOT RUN` |
+| UAT-069 | Aftercare Coordinator、Planner 与 Capability 必须共享包含当前 Perception Resolution 的 Care Basis；评分变化后不得写回旧 Basis | `UI` `FACT` | W4 | `CODE_DONE_UNQUALIFIED` | `NOT RUN` |
 
 ## 5. 计数
 
-冻结时（代码状态，不是本轮 Canary）：`CLOSED` 11，`CODE_DONE_UNQUALIFIED` 52，`RECORDED_UNIMPLEMENTED` 1（064）。本轮逐项关闭期间新增并完成`UAT-065`、`UAT-066`、`UAT-067`，并新增已修复待资格确认的`UAT-068`；当前代码状态为`CLOSED` 12、`CODE_DONE_UNQUALIFIED` 55、`RECORDED_UNIMPLEMENTED` 1（064）。
+冻结时（代码状态，不是本轮 Canary）：`CLOSED` 11，`CODE_DONE_UNQUALIFIED` 52，`RECORDED_UNIMPLEMENTED` 1（064）。本轮逐项关闭期间新增并完成`UAT-065`、`UAT-066`、`UAT-067`，并新增已修复待资格确认的`UAT-068`、`UAT-069`；当前代码状态为`CLOSED` 12、`CODE_DONE_UNQUALIFIED` 56、`RECORDED_UNIMPLEMENTED` 1（064）。
 
 逐项关闭累计覆盖干净 Canary `UAT-20260822-141950-0c27c8cf6`、`UAT-20260823-002500-519f8d7b5`与
 `UAT-20260823-014246-3397c88f5`；当前 PASS 总账：
 
 | 口径 | 数量 |
 | --- | --- |
-| 总行 | 68 |
+| 总行 | 69 |
 | 累计 `PASS` | **63** |
-| 尚未通过（`NOT RUN`+`FAILED`+`BLOCKED`） | **5**（5 `NOT RUN`；0 `FAILED`；0 `BLOCKED`） |
-| 是否都通过 | **否**（63/68，尚余 5） |
+| 尚未通过（`NOT RUN`+`FAILED`+`BLOCKED`） | **6**（6 `NOT RUN`；0 `FAILED`；0 `BLOCKED`） |
+| 是否都通过 | **否**（63/69，尚余 6） |
 
 累计 `PASS`：001–016、018–061（不含017）、065–067。证据均包含干净隔离库 Admin Web `UI`；要求文件现实的行另有`FS`。
-当前仅017、062、063、064、068保持`NOT RUN`。
+当前仅017、062、063、064、068、069保持`NOT RUN`。
 
-当前资格失败证据：`UAT-063`在`UAT-20260823-014246-3397c88f5`因新登记的`UAT-068`未达到关闭标准；行仍保持`NOT RUN`，等待修复后重建验证。`UAT-060`已在HEAD `3397c88f5`重建的干净Canary上用同值评分来源切换及成功Package证人关闭；其余未关闭行尚未形成PASS结论。
+当前资格失败证据：`UAT-063`在`UAT-20260823-024825-f6b9eded6`已证明`UAT-068`年份与外部评分恢复修复生效，但又因新登记的`UAT-069`未达到关闭标准：评分 Resolution 更新后自动 Aftercare 及时执行，Planner/Capability 却以旧 Care Basis 写回 Assessment。行仍保持`NOT RUN`，等待包含`UAT-069`修复的新 Canary 重验。`UAT-060`已在HEAD `3397c88f5`重建的干净Canary上用同值评分来源切换及成功Package证人关闭；其余未关闭行尚未形成PASS结论。
 
 `UAT-005` 剩余动作合同并入 `UAT-051` 后仍保留本行，用四桶状态在新 Canary 上资格确认，不把 005 标 `VOID`。
 
@@ -506,4 +507,15 @@
 - 禁止动作：修改 SQLite 业务状态、直接扫描 Perception Record 代替产品入口、回读 Libra Subject 作为 Aftercare 输入、手工修改媒体文件、触碰 NAS/生产、在转码/ISO 活动时重启。
 - 通过标准：Subject 与 Shelf Entry Resolution 都为 `found` 且命中同一 Douban Record/星级；技术尾缀不导致 `not_found`；评分变化后无需等待 24 小时即形成新的 conformance Assessment；已符合档位的 HEVC 证人保持 healthy，不重开 Libra Run。
 - 证据要求：`UI`；`FACT`只作旁证。
-- 当前结论：旧 HEAD 复测未通过。Collection Projection 丢失 `year_or_release_date`，清除直接评分后 Shelf Entry Resolution 为 `not_found`；已独立登记并修复为 `UAT-068`，当前等待新 Canary 重验，不得提前写 `PASS`。
+- 当前结论：`UAT-20260823-024825-f6b9eded6`中年份与豆瓣 Resolution 已恢复；直接评分清除后页面立即回到`3 星 · 豆瓣`，自动 Aftercare 也在约 20 ms 后成功执行。但新 Assessment 仍写回旧 Care Basis，页面正确显示`尚未检查`。根因独立登记并修复为`UAT-069`，当前等待安全重建后重验，不得提前写`PASS`。
+
+### UAT-069（`IN PROGRESS`）
+
+- 关闭命题：Aftercare Capability、Process Coordinator 与 Planner 共享同一个包含当前 Perception Resolution 的 Care Basis；评分变化后的 Assessment 不得写回旧 Basis。
+- Canary：失败证人 `UAT-20260823-024825-f6b9eded6`；重验 Canary 等当前媒体生产自然结束后，从包含本修复的新 HEAD 安全重建。
+- 证人：「我的收藏」中的《威尼斯惊魂夜 (2023)》；页面直接评分由 4 星清除并恢复 `3 星 · 豆瓣`。
+- 允许动作：Admin Web 页面提交/清除评分、立即检查健康、刷新和截图；SQLite/日志只读旁证；无 FFmpeg/ISO 活动时按既有授权重建本地 Canary。
+- 禁止动作：修改 SQLite 业务状态、直接制造 Assessment、回读 Libra Subject 代替 Arca 输入、手工修改媒体文件、触碰 NAS/生产、在媒体生产中重启。
+- 通过标准：评分 Resolution revision 更新后自动或手动形成的 Assessment 使用包含该 `resolutionDigest` 的新 `decisionFactSetDigest` / `careBasisDigest`；页面从`尚未检查`收口为与当前档位一致的健康结论，且不重开 Libra Run。
+- 证据要求：`UI`；`FACT`只作旁证。
+- 当前结论：旧 HEAD 失败。已完成组合根因修复与回归测试，状态`CODE_DONE_UNQUALIFIED`；等待新 Canary 资格确认。

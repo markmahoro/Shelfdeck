@@ -27,6 +27,12 @@ immutable Douban Perception历史、从基线复制Canary、Preflight通过后�
 `docs/helix/acceptance/MOVIE_CANARY_USER_UAT_CHECKLIST.md`执行真实Admin Web验收。
 旧2026-08-21“修复完成后暂停、等待再授权”的hold已被本轮明确授权取代。
 
+2026-08-23 工作区重组后继续沿用同一关闭任务：正式开发路径为
+`E:\my_project\emby_third_party-helix`、分支`main`；测试专用根为`F:\shelfdeck_test_zone`，不可变基线与
+Canary 分别为其下`test_film`、`canary`。不得在 C 盘创建新的测试过程文件。当前作业卡为`UAT-069`，其
+Capability/Coordinator/Planner Care Basis 接线修复完成后，先在无 FFmpeg/ISO 活动的安全点重启同一隔离 Canary，
+用真实 Admin Web 与只读 FACT 资格确认，再回到依赖它的`UAT-063`；`UAT-064`继续跳过、不实现。
+
 2026-08-22 成功标准修正：`养蜂人 (2024)` 内现成 MKV 与嵌套 BDMV 按两部独立电影验收，两部都必须能上架；Arca Duplicate/Off-deck 才负责去重。形成口径 23 Subject / 23 Entry，不再使用“顶层 22 单元 = 22 Subject”或“养蜂人只能一部 Movie”。
 
 ## 0. Implemented repair — UAT-005 / UAT-018 Formation current state and ended history

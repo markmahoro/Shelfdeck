@@ -4,6 +4,19 @@ Status: Helix-beta 范围已收窄为仅 Movie 全链路。Movie Procurement与M
 
 Last updated: 2026-08-23
 
+## 0. Current UAT closure continuation — UAT-20260823-024825-f6b9eded6
+
+Git 工作区已重组为 `E:\my_project\emby_third_party-helix` / `main`；本轮测试根统一迁移到
+`F:\shelfdeck_test_zone`，不再在 C 盘留下测试过程文件。不可变基线为
+`F:\shelfdeck_test_zone\test_film`，Canary 为 `F:\shelfdeck_test_zone\canary`，隔离运行目录为
+`F:\shelfdeck_test_zone\runs\UAT-20260823-024825-f6b9eded6`。复制核验为 455 文件、42 目录、
+143,829,090,011 bytes，路径、类型、大小、mtime 零差异。
+
+本轮真实 Admin Web 已确认 `UAT-068` 的年份与外部评分恢复路径生效，但在关闭 `UAT-063` 时新登记
+`UAT-069`：评分 Resolution 更新后 Aftercare Work 及时成功，Planner/Capability 却写回旧 Care Basis。
+组合根已改为由 Capability、Coordinator、Planner 共享同一晚绑定评分 Reader，定向 Aftercare 合同 15/15 PASS；
+当前代码状态 `CODE_DONE_UNQUALIFIED`，须在安全重启后的真实页面与 FACT 上确认，不以测试直接关闭。
+
 ## 0. Clean Canary scorecard — UAT-20260822-141950-0c27c8cf6
 
 本轮干净 Movie Canary：隔离库
@@ -18,7 +31,7 @@ Last updated: 2026-08-23
 
 2026-08-22 Product Owner 确认 Helix-beta = 仅支持 Movie 的全功能版本（SSOT 旅程 A–I，含退出收藏与 Shelf 注销）。四类媒体 Feature Matrix 已作废。现行基线：`docs/helix/BETA_FEATURE_ACCEPTANCE_BASELINE.md`。归档：`docs/helix/archive/BETA_FEATURE_ACCEPTANCE_BASELINE_FOUR_PROFILE_2026-07-23.md`。本条只记录范围决定，不把 Movie Canary 或单元测试标成 Helix-beta 交付通过。
 
-## 0. Recorded product gaps — UAT-050–063
+## 0. Recorded product gaps — UAT-050–069
 
 2026-08-22 用户确认九项后续改造并写入 `USER_ACCEPTANCE_TEST_ISSUE_LOG.md`。`UAT-050`–`UAT-058` 代码已落地，待新 Canary 资格确认。不改 SSOT Owner/Handoff，不触碰 NAS/生产。
 
@@ -41,6 +54,8 @@ Last updated: 2026-08-23
 - `UAT-062` 已实现：frozen Discard 后 Control 已释放，Formation 空转「正在评估」，未走重新入库。待新 Canary；
 - `UAT-063` 已实现：Aftercare 问豆瓣分与 Libra 共用 Identity Evidence。待新 Canary；
 - `UAT-064` 只登记：Formation 步骤展示与真实执行偏离（CPU/验证完成态）。不深挖、不授权实现。
+- `UAT-068` 已实现：Collection 年份投影保留 Provider 标准年份字段。待本轮独立关闭；
+- `UAT-069` 已实现：Aftercare Capability、Coordinator、Planner 共享当前评分 Resolution 的 Care Basis Reader。待本轮安全重启后资格确认。
 
 建议实现顺序：`UAT-053` / `UAT-056` / `UAT-055`（已实现）→ `UAT-051` / `UAT-050` / `UAT-052` / `UAT-057` / `UAT-058` → `UAT-054`。`UAT-059`–`UAT-063` 代码已实现，待干净 Canary 按关闭基线资格确认，不得由单元测试标 `PASS`。Aftercare、Off-deck、Field Observation、豆瓣 Acquisition 与 People On-deck 证据扫描均已进入 `fallbackReconciler`。
 

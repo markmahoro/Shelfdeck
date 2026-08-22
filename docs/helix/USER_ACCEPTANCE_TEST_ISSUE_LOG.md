@@ -124,6 +124,8 @@ Helix主体开发已经完成，Movie从Procurement、Libra到Arca及Shelf Dereg
 | UAT-065 | 收藏详情把父目录名中的`.1`误显示为主视频容器 | `USER_EXPERIENCE` | `PROJECTION_FRESHNESS` | Arca Collection Query + Admin Web | 正确性、可理解性 | High | 已修复并通过当前 Canary 定向确认 |
 | UAT-066 | Formation 已完成整理表丢失目标收藏架名称，全部显示`—` | `USER_EXPERIENCE` | `PROJECTION_FRESHNESS` | Formation Admin Web + Arca Shelf只读展示接线 | 正确性、可理解性 | High | 已修复并通过当前 Canary 定向确认 |
 | UAT-067 | 活动 Run 加急后回放既有 Supporting Work 触发 Admission 幂等冲突，Run 不再推进 | `DOMAIN_ORCHESTRATION` | `EXECUTION_SCHEDULING` | Libra Run Coordinator + Foundation Work Admission replay | 活性、优先级正确性 | Critical | 已修复并通过同一 Canary 恢复确认 |
+| UAT-068 | Collection 年份投影遗漏 Provider 标准字段，Aftercare 丢失 title-year Identity Evidence | `PROJECTION_FRESHNESS` | `BUSINESS_CONTRACT` | Arca Collection Query + shared Rating Identity | 正确性、可理解性 | High | 已实现；待新 Canary 确认 |
+| UAT-069 | 评分 Resolution 更新后 Aftercare 及时执行，但 Planner/Capability 写回旧 Care Basis | `DOMAIN_ORCHESTRATION` | `PROJECTION_FRESHNESS` | Arca Aftercare composition wiring | 正确性、时效性 | Critical | 已实现；待新 Canary 确认 |
 
 ## 2.1 UAT-006：概览展示固定演示数字
 
@@ -2751,7 +2753,25 @@ Product Package与Offer并完成On-deck；没有替换Run或数据库编辑。Ad
 
 当前处理决定：2026-08-23 已由 commit `a34dbde1f9` 修复。新增年份归一化单元反例及真实 Collection API 年份断言，相关单元/端到端 15/15 PASS；状态 `CODE_DONE_UNQUALIFIED`，等待新 Canary 独立关闭，不以测试直接记 PASS。
 
-## 66. 后续问题模板
+## 66. UAT-069：评分 Resolution 已更新且 Aftercare 已及时执行，但 Planner/Capability 写回旧 Care Basis
+
+问题分类：`DOMAIN_ORCHESTRATION / PROJECTION_FRESHNESS`
+
+用户侧现象：干净 Canary `UAT-20260823-024825-f6b9eded6` 中，《威尼斯惊魂夜 (2023)》清除 4 星直接评分后立即恢复为`3 星 · 豆瓣`，但「我的收藏」健康状态从旧结论失效为`尚未检查`后不能形成当前评分 Basis 下的新结论。
+
+现场证据：Shelf Entry `5a0f45890d270029b646fcda085cc5a502e98003b7469cbb7c05100a2ae30767` 的 Perception Resolution revision 2 在 `1787427217953` 命中 Douban Record；Aftercare Work `arca-care-work-fadccd6592dec42cd9c290788e2d94bde9836859` 于 `1787427217973` 创建、`1787427218098` 成功，远早于 24 小时门槛。但新 Assessment 仍使用旧 `decisionFactSetDigest=1f3cf98b0a54f3f653ebba20bd09b33390374ddfec8aebc30e81a6fb2b4ac1b8` 与 `careBasisDigest=1ade89d001aa6a9f4d9beb151392d4531b1ecd31c82be616da934e3adb790013`，没有消费 revision 2 的 `resolutionDigest`。UI 证据保存在本轮 `admin-web-evidence`。
+
+精确根因：组合根先创建 `arcaCapabilityRegistration`，当时其 `aftercareContextReader` 没有评分读取端口；随后 Process Services 又单独创建了含评分的 Reader。Coordinator 因此能看到新 Rating Basis 并及时 Admission Work，而 Capability 与 Planning Registration 继续使用早期无评分 Reader，执行时重算并写回旧 Basis。这是同一 Owner 内的组合接线分裂，不是 Perception Resolution、24 小时门闩或数据库事实缺陷。
+
+业务影响：评分变化会触发看似成功的保养任务，但健康 Projection 仍正确拒绝把旧 Basis Assessment 当作当前结论；用户长期看到`尚未检查`，合规状态无法封口。
+
+修复边界：组合根只创建一个晚绑定 Perception 评分端口的 Aftercare Context Reader，并将同一实例显式传给 Capability、Process Coordinator 与 Planner。不得直接读 Perception Store、回读 Libra Subject、放宽健康新鲜度判断、修改 Owner/Handoff 或伪造 Assessment。
+
+验收证据：新干净 Canary 通过页面改变/清除评分后，无需等待 24 小时形成新 Assessment；只读 FACT 证明新 `decisionFactSetDigest` / `careBasisDigest` 包含当前 Resolution；页面显示当前健康结论，且不重开 Libra Run。证据要求：`UI`、`FACT`。
+
+当前处理决定：2026-08-23 已完成最小组合接线修复并补充架构回归；状态 `CODE_DONE_UNQUALIFIED`，等待当前媒体生产自然结束后重建新 Canary 资格确认，不以单元测试直接记 `PASS`。
+
+## 67. 后续问题模板
 
 后续发现的问题按以下结构追加：
 

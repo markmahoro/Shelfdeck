@@ -242,6 +242,17 @@ test('Aftercare receives the bounded fingerprint port and durable old physical i
   assert.match(handoffStore, /mount_scope_id:item\.physicalIdentity\.mountScopeId/);
 });
 
+test('Aftercare Capability, Coordinator, and Planner share the rating-aware Care Basis reader', () => {
+  const composition = fs.readFileSync(path.join(__dirname,
+    '../../src/helix/composition/create-procurement-execution-runtime.js'), 'utf8');
+  assert.match(composition,
+    /createCapabilityRegistration\([\s\S]*?readPerceptionRating:readShelfEntryRating,readPerceptionRatings:readShelfEntryRatings/);
+  assert.match(composition,
+    /createProcessServices\([\s\S]*?aftercareContextReader:arcaCapabilityRegistration\.aftercareContextReader/);
+  assert.match(composition,
+    /createPlanningRegistration\([\s\S]*?aftercareContextReader:arcaProcessServices\.aftercareContextReader/);
+});
+
 test('Shelf Deregistration settles Aftercare Workspace through a dedicated Capability Work before invalidation', () => {
   const planner = fs.readFileSync(path.join(__dirname,
     '../../src/helix/domains/arca/planning/aftercare-planners.js'), 'utf8');
