@@ -203,11 +203,13 @@ function renderTemplate(template, values) {
 function subtitleQualifiers(fileName) {
   const stem = path.basename(fileName, path.extname(fileName));
   const languageMatch = stem.match(/(?:^|[. _-])(zh(?:[-_](?:cn|tw|hk))?|chs|cht|zho|chi|en|eng|ja|jpn|ko|kor|fr|fra|fre|de|deu|ger|es|spa)(?=$|[. _-])/i);
+  const localizedChineseMatch = stem.match(/(?:^|[. _-])chinese\((简|简体|繁|繁体)\)(?=$|[. _-])/i);
   const languageAliases = Object.freeze({
     chs:'zh-CN', cht:'zh-TW', zho:'zh', chi:'zh', eng:'en', jpn:'ja', kor:'ko',
     fra:'fr', fre:'fr', deu:'de', ger:'de', spa:'es',
   });
-  const rawLanguage = languageMatch?.[1]?.replace('_', '-');
+  const rawLanguage = languageMatch?.[1]?.replace('_', '-') ||
+    (localizedChineseMatch ? (localizedChineseMatch[1].startsWith('简') ? 'zh-CN' : 'zh-TW') : '');
   const normalizedLanguage = rawLanguage
     ? (languageAliases[rawLanguage.toLowerCase()] || rawLanguage.toLowerCase().replace(/-(cn|tw|hk)$/i, (_all, region) => `-${region.toUpperCase()}`))
     : '';

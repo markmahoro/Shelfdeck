@@ -165,6 +165,45 @@ test('Final Inventory Decision freezes standard Movie names instead of Workspace
   }
 });
 
+test('exact localized Chinese subtitle markers produce standard names without release tags', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'clean-arca-localized-chinese-subtitle-'));
+  try {
+    const inputs = path.join(root, 'inputs');
+    fs.mkdirSync(inputs);
+    const sources = [
+      ['movie.mp4', 'primary_payload'],
+      ['老笠 (2016) - 1080p x264 AAC HDH.chinese(简).srt', 'subtitle'],
+    ].map(([name, role]) => {
+      const location = path.join(inputs, name);
+      fs.writeFileSync(location, Buffer.from(name));
+      return member(location, role, 'canary-mount');
+    });
+    const shelf = Object.freeze({
+      shelfId:'shelf-1', status:'active', currentPlacementRevision:1,
+      target:{ endpointId:'canary', rootLocation:root, mountScopeId:'canary-mount', mountScopeRevision:1 },
+      placement:{ value:{
+        folderTemplate:'{title} ({year})', primaryTemplate:'{stem}{ext}', nfoTemplate:'{stem}.nfo',
+        subtitleTemplate:'{stem}{language}{forced}{sdh}{ext}', posterTemplate:'poster{ext}',
+        fanartTemplate:'fanart{ext}', collisionPolicy:'reject',
+      } },
+    });
+    const packageValue = Object.freeze({
+      onDeckPackageId:'package-localized-subtitle', shelfId:'shelf-1',
+      resolvedIdentitySnapshot:{ factValue:{ title:'老笠', year:2016 } },
+      productStructureSnapshot:{ structureKind:'single' },
+      productMaterialManifest:{ members:Object.freeze(sources), manifestDigest:'manifest-localized-subtitle' },
+      offloadContextManifest:{ manifestDigest:'offload-localized-subtitle', members:Object.freeze([]) },
+    });
+    const port = createCleanArcaInventoryPort({ schemaManifest, unitOfWork:{}, workspaceRoot:path.join(root, '.workspace') });
+    const decision = port.prepare({ onDeckRunId:'on-deck-localized-subtitle', shelf, onDeckProductPackage:packageValue });
+    const subtitle = decision.members.find((item) => item.role === 'subtitle');
+    assert.equal(subtitle.finalName, '老笠 (2016).zh-CN.srt');
+    assert.equal(/(?:1080p|x264|AAC|HDH)/i.test(subtitle.finalName), false);
+  } finally {
+    fs.rmSync(root, { recursive:true, force:true });
+  }
+});
+
 test('unproven-language subtitles keep original names instead of collapsing onto one stem', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'clean-arca-subtitle-names-'));
   try {
