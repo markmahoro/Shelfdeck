@@ -36,7 +36,7 @@ Helix主体开发已经完成，Movie从Procurement、Libra到Arca及Shelf Dereg
 
 本文不是Architecture SSOT，不替代`CURRENT_PLAN.md`。历史UAT问题仍保留原有处理状态；2026-08-21 Movie Canary真实用户UAT期间，用户已授权在不改变已确认架构边界的前提下直接修复、页面复测并为每项修复建立独立Git回滚点。2026-08-22 另完成一次 Admin Web 全页用户体验审视（文案、内部机制泄漏、文案与事实冲突、排版、字体、按钮、前端拼装与美学），问题见 `docs/helix/ADMIN_WEB_UX_ISSUE_LOG.md`；该台账不替代本文的 UAT 业务/执行缺陷记录，也不授权实现。同日用户确认四项后续改造并登记为 `UAT-050`–`UAT-053`（当前媒体筛选、分步整理动作与进度、收藏按架与占用空间、Field Observation 周期观察缺口）；随后确认退出收藏任务化界面、人物 Beta 两条登记路径、豆瓣周期同步，登记为 `UAT-054`–`UAT-056`；概览改为状态 + 待办 + 最近几件事、不与「我的收藏」合并，登记为 `UAT-057`；侧栏把文件来源与收藏架下移与系统设置一组，Tab 改名为文件来源配置 / 收藏架配置，登记为 `UAT-058`。2026-08-22 干净 Canary `UAT-20260822-194617-1ed64ca36` 转码复盘登记为 `UAT-059`：四星体积上限被规划器当成目标码率；同轮 Spec 复盘登记为 `UAT-060`：Product Identity 写回 Subject 触发语义相同的 Acceptance Spec 重发；同轮另登记 `UAT-061` 豆瓣 Acquisition 翻页失败不收口、`UAT-062` frozen Discard 后未按重新入库收口、`UAT-063` Aftercare 查豆瓣分与 Libra 不是同一套 Resolution。
 
-关闭作业不再走已删除的 `helix-beta-user-e2e` workflow。当前 66 行关闭基线见 `docs/helix/acceptance/UAT_CLOSURE_BASELINE.md`：正式关闭立即汇报且不暂停；确认关闭时发现新产品缺陷则暂停并先登记新 UAT；`PASS` 必须有干净 Canary 的 Admin Web `UI`（涉及文件现实时加 `FS`），单元测试不能单独关闭一行。
+关闭作业不再走已删除的 `helix-beta-user-e2e` workflow。当前 67 行关闭基线见 `docs/helix/acceptance/UAT_CLOSURE_BASELINE.md`：正式关闭立即汇报且不暂停；确认关闭时发现新产品缺陷则暂停并先登记新 UAT；`PASS` 必须有干净 Canary 的 Admin Web `UI`（涉及文件现实时加 `FS`），单元测试不能单独关闭一行。
 
 记录原则：
 
@@ -123,6 +123,7 @@ Helix主体开发已经完成，Movie从Procurement、Libra到Arca及Shelf Dereg
 | UAT-064 | Formation 整理步骤展示与真实执行状态偏离：转码标 CPU、验证过早标完成 | `USER_EXPERIENCE` | `PROJECTION_FRESHNESS` | Formation 公开 Projection `organizingSteps` / `transcodeLabel` | 可理解性、可观察性 | High | 已登记；待实现授权 |
 | UAT-065 | 收藏详情把父目录名中的`.1`误显示为主视频容器 | `USER_EXPERIENCE` | `PROJECTION_FRESHNESS` | Arca Collection Query + Admin Web | 正确性、可理解性 | High | 已修复并通过当前 Canary 定向确认 |
 | UAT-066 | Formation 已完成整理表丢失目标收藏架名称，全部显示`—` | `USER_EXPERIENCE` | `PROJECTION_FRESHNESS` | Formation Admin Web + Arca Shelf只读展示接线 | 正确性、可理解性 | High | 已修复并通过当前 Canary 定向确认 |
+| UAT-067 | 活动 Run 加急后回放既有 Supporting Work 触发 Admission 幂等冲突，Run 不再推进 | `DOMAIN_ORCHESTRATION` | `EXECUTION_SCHEDULING` | Libra Run Coordinator + Foundation Work Admission replay | 活性、优先级正确性 | Critical | 已登记；根因已确认，修复中 |
 
 ## 2.1 UAT-006：概览展示固定演示数字
 
@@ -2535,7 +2536,42 @@ Routing E2E单独复跑仍停在其既有`specs=24/runs=24`等待条件，与Col
 
 当前处理决定：2026-08-22 已由 commit `e27b7e2ad` 修复。Admin Web 共用`shelfNameFor`按目标ID从同页Shelf清单解析当前名称；定向Admin Web合同测试13/13通过，production build通过。隔离服务从PID 25716安全重启为18132，public health为`ok`、generation为`helix-clean-v3`。真实页面刷新后，17/17条已完成媒体的目标收藏架均显示`Movie Canary`，6条当前媒体的收藏架显示也未回退；状态`REGRESSION PASSED / CONFIRMED ON CURRENT CANARY`。UI证据：`admin-web-evidence/uat-066-completed-shelf-movie-canary-after-fix.png`。
 
-## 64. 后续问题模板
+## 64. UAT-067：活动 Run 加急后回放既有 Supporting Work 触发 Admission 幂等冲突
+
+问题分类：`DOMAIN_ORCHESTRATION / EXECUTION_SCHEDULING`
+
+用户侧现象：新干净 Canary `UAT-20260823-002500-519f8d7b5` 中，为优先复测 `UAT-020`，用户页面把
+`老笠 (2016)`设为「已加急」。页面随后显示身份、资料、海报与 NFO 均为 100%，但 Run 长时间停在「待整理」，
+没有形成 Product Package；同期普通优先级转码继续逐项执行。
+
+现场证据：只读领域事实显示该 Run 为 `active + expedited`，既有 `artifact_production` Work 已成功，
+Identity、Metadata Observation 与 Artifact Event 均有唯一成功 Result，但 `product_fact_assembly` Work 始终不存在。
+服务每 30 秒的 Owner fallback reconcile 持续报告 `P4_WORK_ADMISSION_IDEMPOTENCY_CONFLICT`。既有 Artifact Work 的
+不可变 `definition_json` 冻结为 `normal_foreground / priorityRevision=1`；加急后的 Run Snapshot 为新 Priority Revision，
+Coordinator 以同一 `workId/idempotencyKey` 重建不同 Work Definition，Foundation 因请求摘要不同而正确拒绝回放。
+
+精确根因：Run Priority 是可变执行投影，但 Supporting Work Definition 与 Admission Receipt 不可变。
+`libra-run-coordinator.js` 的 `submit(work)` 每次 Reconcile 都用当前 Run Priority 重建已经存在的 Work，再调用
+`admission.replay(work)`；它没有复用该 Work Admission 时冻结的 Priority 字段，也没有验证「除 Priority 外定义完全相同」后
+使用原定义回放。因此正常→加急或加急→正常都可能把合法优先级变更误报为 Work Definition 幂等冲突。
+
+业务影响：加急不是单纯没有提速，而是可以使活动 Run 永久失去后续推进；Fallback Reconciler 在该 Subject 抛错后还会中断
+本轮后续 Registration，扩大活性影响。Foundation 的 exact-idempotency 防线本身没有错误，不得放宽为接受任意定义漂移。
+
+修复边界：Foundation 继续要求 Admission 请求摘要精确一致；Work Result Reader 只读公开既有 Work 的冻结 Definition 与摘要。
+Libra Run Coordinator 若发现同一确定性 `workId` 已存在，只允许把当前生成定义的 `priorityClass/priorityRevision`替换为已冻结值后
+比较完整 Definition Digest；仅当其余字段完全相同才按原定义 replay。其他字段、Basis、Dependency、Output Contract 或 ID 漂移
+仍必须抛 `P4_WORK_ADMISSION_IDEMPOTENCY_CONFLICT`。新 Work 仍使用当前 Run Priority，Scheduler 继续从正式 Run Execution
+Projection消费动态优先级；不改 Owner、Handoff、Foundation幂等语义或现有不可变 Work。
+
+验收证据：回归覆盖 Work 已在 normal Priority Admission、随后 Run 加急、Coordinator 再次 Reconcile 能创建下一阶段 Work且无
+幂等冲突；反例证明除 Priority 外任一字段漂移仍被拒绝。恢复同一 Canary 后，`老笠`以「已加急」继续形成 Package、上架且页面终态
+可见；不得直接编辑数据库或重建该 Run。
+
+当前处理决定：2026-08-23 在 `UAT-020` 新 Canary 复测中独立登记。当前只确认根因和最小边界；Canary 服务继续运行，
+`F:\test_film`未修改，`F:\canary`只由 ShelfDeck 工作流处理，NAS/生产未触碰。
+
+## 65. 后续问题模板
 
 后续发现的问题按以下结构追加：
 

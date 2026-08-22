@@ -123,23 +123,24 @@
 | UAT-064 | Formation 步骤 CPU/GPU 与验证完成态必须与真实执行一致，不得默认 CPU、不得把 Direct 源校验画成成品验证完成 | `UI` | W3 | `RECORDED_UNIMPLEMENTED` | `NOT RUN` |
 | UAT-065 | 收藏详情只从主视频basename解析容器，不得把父目录名中的`.1`显示为容器 | `UI` | W1 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260822-141950-0c27c8cf6 UI 8.3 GB BDMV养蜂人主视频修复后显示8.3 GB · MKV，不再显示· 1 |
 | UAT-066 | Formation 已完成整理表按目标Shelf ID显示当前收藏架名称，不得整列显示`—` | `UI` | W1 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260822-141950-0c27c8cf6 UI 已完成整理17/17条均显示Movie Canary，当前媒体6条显示未回退 |
+| UAT-067 | 活动 Run 加急后既有 Work 必须按冻结 Admission Definition 回放，动态 Priority 不得制造幂等冲突 | `UI` `FACT` | W3 | `OPEN_ROOT_CAUSE_CONFIRMED` | `FAILED` UAT-20260823-002500-519f8d7b5 UI老笠已加急且前置步骤100%；FACT既有Artifact Work成功但Product Fact Work未创建，运行时持续P4_WORK_ADMISSION_IDEMPOTENCY_CONFLICT |
 
 ## 5. 计数
 
-冻结时（代码状态，不是本轮 Canary）：`CLOSED` 11，`CODE_DONE_UNQUALIFIED` 52，`RECORDED_UNIMPLEMENTED` 1（064）。本轮逐项关闭期间新增并完成`UAT-065`、`UAT-066`；当前代码状态为`CLOSED` 11、`CODE_DONE_UNQUALIFIED` 54、`RECORDED_UNIMPLEMENTED` 1（064）。
+冻结时（代码状态，不是本轮 Canary）：`CLOSED` 11，`CODE_DONE_UNQUALIFIED` 52，`RECORDED_UNIMPLEMENTED` 1（064）。本轮逐项关闭期间新增并完成`UAT-065`、`UAT-066`，新增并确认`UAT-067`根因；当前代码状态为`CLOSED` 11、`CODE_DONE_UNQUALIFIED` 54、`RECORDED_UNIMPLEMENTED` 1（064）、`OPEN_ROOT_CAUSE_CONFIRMED` 1（067）。
 
 本轮干净 Canary `UAT-20260822-141950-0c27c8cf6`（HEAD `0c27c8cf6`）PASS 列：
 
 | 口径 | 数量 |
 | --- | --- |
-| 总行 | 66 |
+| 总行 | 67 |
 | 本轮 `PASS` | **42** |
-| 本轮未通过（`NOT RUN`+`FAILED`+`BLOCKED`） | **24**（23 `NOT RUN`；1 `FAILED`；0 `BLOCKED`） |
-| 是否都通过 | **否**（42/66，未通过 24） |
+| 本轮未通过（`NOT RUN`+`FAILED`+`BLOCKED`） | **25**（23 `NOT RUN`；2 `FAILED`；0 `BLOCKED`） |
+| 是否都通过 | **否**（42/67，未通过 25） |
 
 本轮 `PASS`：001、002、003、005、006、007、008、011、012、013、015、016、018、030、032、034、036、037、038、039、040、041、042、043、044、045、046、047、048、049、050、051、052、053、054、055、056、057、058、061、065、066。证据均包含本隔离库 Admin Web `UI`；要求文件现实的行另有`FS`。W5 Discard 重新入库、W6 退出收藏/注销在本坐席未跑完，保持 `NOT RUN`。
 
-当前失败：`UAT-020`。Final Inventory唯一目录、主视频/NFO与Settlement已收口，但`老笠`正式字幕仍保留技术发布标签；修复后需新Canary或新Final Inventory Decision验证，不得原地改名旧Inventory。
+当前失败：`UAT-020`、`UAT-067`。UAT-020的Final Inventory唯一目录、主视频/NFO与Settlement已收口，但旧Canary的`老笠`正式字幕仍保留技术发布标签；新Canary正在复测。UAT-067为新Canary中加急后既有Work Definition回放的Priority漂移冲突，先修复并恢复同一Run，再继续UAT-020终态验证。
 
 `UAT-005` 剩余动作合同并入 `UAT-051` 后仍保留本行，用四桶状态在新 Canary 上资格确认，不把 005 标 `VOID`。
 
