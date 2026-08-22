@@ -2,7 +2,7 @@
 
 Status: Helix-beta 范围已收窄为仅 Movie 全链路。Movie Procurement与Movie Libra封口保持有效；Movie Arca已完成Handoff B Acceptance、On-deck、Shelf Entry、Deck Fact、Beta Aftercare、Off-deck及Shelf Deregistration完整闭环。当前精确状态为`MOVIE COLLECTION LIFECYCLE READY THROUGH SHELF DEREGISTRATION`；Helix-beta 验收行见现行基线，尚未把任何 `HB-*` 标为验收 `PASS`。生产部署尚未开始。
 
-Last updated: 2026-08-22
+Last updated: 2026-08-23
 
 ## 0. Clean Canary scorecard — UAT-20260822-141950-0c27c8cf6
 
@@ -567,7 +567,7 @@ Scope、Run、Triage、Candidate或Handoff A合同来绕过自身设计问题；
 | Implementation Gate | standing Local Implementation open for P2–P13；external actions excluded |
 | Current allowed work | 只做现场恢复后的只读验收和UAT台账收口；Production/NAS、Z:\Film全量Observation及外部重同步仍不在范围 |
 | Integration baseline | P13 implementation closure `bd75e7e4`；P12 closure `23e3b930` |
-| Phase worktree | `E:\my_project\emby_third_party-helix-retake` on `codex/helix-first-implementation-retake` |
+| Phase worktree | `E:\my_project\emby_third_party-helix` on `main`（2026-08-23由retake分支原样提升，提交历史未改写） |
 | Next action | 保留现场服务和回滚备份；将Arca目标冲突作为独立UAT问题复盘，不把它与Projection切换混合修复 |
 
 P9-01已完成：反向实现审计证明的六段连续性缺口已由Architecture Agent在`PBF-13/PBF-13-R1`中闭合，并经实现侧

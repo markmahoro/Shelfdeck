@@ -6,9 +6,9 @@ Handoff date: 2026-08-13
 
 Exact implementation commit: `11a1bfbbaccaef5c9e48c4cabca60c758f2a0aaa`
 
-Branch: `codex/helix-first-implementation-retake`
+Branch at handoff: `codex/helix-first-implementation-retake`（2026-08-23原样改名为`main`）
 
-Workspace: `E:\my_project\emby_third_party-helix-retake`
+Current workspace: `E:\my_project\emby_third_party-helix`
 
 本文件面向一位从零接手ShelfDeck的独立测试Agent。它提供项目背景、架构词汇、当前实现边界、测试资产、执行顺序、停线条件和证据要求。它不是Architecture SSOT；任何冲突都以
 `docs/helix/TOP_DOWN_ARCHITECTURE_CONFIRMATION.md`为准。
@@ -177,16 +177,18 @@ SSOT是唯一Architecture authority。测试发现以下情况时必须返回Des
 开始测试前必须确认：
 
 ~~~powershell
-Set-Location 'E:\my_project\emby_third_party-helix-retake'
+Set-Location 'E:\my_project\emby_third_party-helix'
 git status --short --branch
 git rev-parse HEAD
+git merge-base --is-ancestor 11a1bfbbaccaef5c9e48c4cabca60c758f2a0aaa HEAD
 ~~~
 
 预期：
 
 ~~~text
-branch = codex/helix-first-implementation-retake
-HEAD   = 11a1bfbbaccaef5c9e48c4cabca60c758f2a0aaa
+branch = main
+HEAD   = 当前main提交
+11a1bfbbaccaef5c9e48c4cabca60c758f2a0aaa is ancestor of HEAD
 ~~~
 
 如果commit不同或工作区不干净，停止并向用户报告，不自行checkout/reset/clean。
@@ -242,7 +244,7 @@ C:\Users\markm\AppData\Local\Temp\ShelfDeck-P14-20260723\material-fields\.shelfd
 只读校验命令：
 
 ~~~powershell
-Set-Location 'E:\my_project\emby_third_party-helix-retake\media-service'
+Set-Location 'E:\my_project\emby_third_party-helix\media-service'
 $verified = node scripts/build-helix-movie-test-library.js `
   --root 'C:\Users\markm\AppData\Local\Temp\ShelfDeck-P14-20260723\material-fields' `
   --verify | ConvertFrom-Json
@@ -277,7 +279,7 @@ $verified.scenarios
 本机存在私密参考文件：
 
 ~~~text
-E:\my_project\emby_third_party-helix-retake\moviepilot信息.txt
+E:\my_project\emby_third_party-helix\moviepilot信息.txt
 ~~~
 
 它被Git exclude排除。测试Agent只可在用户已授权的真实MoviePilot阶段本地读取，并且：
@@ -318,7 +320,7 @@ Movie规则：
 ### 10.1 架构与回归基线
 
 ~~~powershell
-Set-Location 'E:\my_project\emby_third_party-helix-retake\media-service'
+Set-Location 'E:\my_project\emby_third_party-helix\media-service'
 npm run test:helix-architecture
 npm test
 ~~~

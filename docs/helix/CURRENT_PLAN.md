@@ -2,7 +2,7 @@
 
 Status: Helix-beta 已由 Product Owner 收窄为 **仅 Movie 的全功能版本**（旅程 A–I，含退出收藏与 Shelf 注销）。Movie Procurement保持`CLOSED FOR MOVIE`；Movie Libra保持`MOVIE LIBRA CLOSED AT HANDOFF B READY`；Movie Arca已经接通Handoff B Acceptance、On-deck、Shelf Entry、Deck Fact、Beta Aftercare、完整Off-deck及非破坏性Shelf Deregistration。当前实现状态为`MOVIE COLLECTION LIFECYCLE READY THROUGH SHELF DEREGISTRATION`；Helix-beta 验收权威为现行 `docs/helix/BETA_FEATURE_ACCEPTANCE_BASELINE.md`。Docker/NAS与生产部署仍是独立后续工作。
 
-Last updated: 2026-08-22
+Last updated: 2026-08-23
 
 ## 0. Product scope — Helix-beta is Movie-only full chain
 
@@ -15,8 +15,9 @@ Last updated: 2026-08-22
 
 ## 0. Current execution — clean Movie Canary Admin Web UAT authorized
 
-用户已于2026-08-22明确授权在工作区`E:\my_project\emby_third_party-helix-retake`、分支
-`codex/helix-first-implementation-retake`重新开始一次干净的 Movie Canary 真实 Admin Web E2E/UAT。
+用户已于2026-08-22明确授权从当时的工作区`E:\my_project\emby_third_party-helix-retake`、分支
+`codex/helix-first-implementation-retake`重新开始一次干净的 Movie Canary 真实 Admin Web E2E/UAT。该提交链已于
+2026-08-23原样提升为当前工作区`E:\my_project\emby_third_party-helix`、正式主分支`main`，未改写历史。
 文档基线 commit 为`f7037310a51dd6873776c0ae57b317b0263c7fc2`；UAT-028 sidecar 修复 commit 为
 `2ed7baad2dd663d302264cbb4747d41471a2eb96`。本轮使用`F:\test_film`只读基线和全新`F:\canary`，
 不读取、不复用、不修改`G:\canary_film`、`Z:\Film`、NAS生产部署或旧污染Formation事实。

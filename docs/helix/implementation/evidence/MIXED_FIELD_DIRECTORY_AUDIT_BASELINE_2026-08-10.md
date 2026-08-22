@@ -33,7 +33,7 @@ Run 不是电影，目录也不是电影。
 | Foundation | 当前资源调度、Event Runtime、Permit、Retry 不需要因为乱目录而改变 |
 | Handoff A | materialInputForm、Primary Manifest、Related References 的输出形态基本正确 |
 
-Run Creator 的正式约定参见 [SSOT Run Creator 部分](E:/my_project/emby_third_party-helix-retake/docs/helix/TOP_DOWN_ARCHITECTURE_CONFIRMATION.md:4869)，当前实现参见 [procurement-run-creator.js](E:/my_project/emby_third_party-helix-retake/media-service/src/helix/domains/procurement/model/procurement-run-creator.js:61)。
+Run Creator 的正式约定参见 [SSOT Run Creator 部分](E:/my_project/emby_third_party-helix/docs/helix/TOP_DOWN_ARCHITECTURE_CONFIRMATION.md:4869)，当前实现参见 [procurement-run-creator.js](E:/my_project/emby_third_party-helix/media-service/src/helix/domains/procurement/model/procurement-run-creator.js:61)。
 
 ## 必须修正的问题
 
@@ -53,7 +53,7 @@ Run Creator 的正式约定参见 [SSOT Run Creator 部分](E:/my_project/emby_t
 
 因此两个 Candidate 可能都显示成“未整理”，而不是“电影A”和“电影B”。
 
-当前规则在 [triage-contracts.js](E:/my_project/emby_third_party-helix-retake/media-service/src/helix/domains/procurement/model/triage-contracts.js:136)，SSOT 也明确写成了 directory_title → filename_title，参见 [SSOT Identity 规则](E:/my_project/emby_third_party-helix-retake/docs/helix/TOP_DOWN_ARCHITECTURE_CONFIRMATION.md:9999)。
+当前规则在 [triage-contracts.js](E:/my_project/emby_third_party-helix/media-service/src/helix/domains/procurement/model/triage-contracts.js:136)，SSOT 也明确写成了 directory_title → filename_title，参见 [SSOT Identity 规则](E:/my_project/emby_third_party-helix/docs/helix/TOP_DOWN_ARCHITECTURE_CONFIRMATION.md:9999)。
 
 这不会导致两个 Candidate 合并，但会导致：
 
@@ -81,7 +81,7 @@ Run Creator 的正式约定参见 [SSOT Run Creator 部分](E:/my_project/emby_t
 
     claimedTitle + seasonClaim
 
-见 [triage-contracts.js](E:/my_project/emby_third_party-helix-retake/media-service/src/helix/domains/procurement/model/triage-contracts.js:712)。
+见 [triage-contracts.js](E:/my_project/emby_third_party-helix/media-service/src/helix/domains/procurement/model/triage-contracts.js:712)。
 
 但 SSOT 要求 Series 还必须有稳定的父目录分组。当前实现没有把父目录纳入合并键，因此这种目录可能被错误合并：
 
@@ -114,7 +114,7 @@ Run Creator 的正式约定参见 [SSOT Run Creator 部分](E:/my_project/emby_t
 
 当前 Candidate Context 会把 poster.jpg、fanart.jpg、movie.nfo 这类通用名字视为标准 Sidecar。由于 A 和 B 都在同一个 Related Scope 中，这些文件可能同时被写入两个 Candidate Package。
 
-当前逻辑在 [procurement-candidate-context-reader.js](E:/my_project/emby_third_party-helix-retake/media-service/src/helix/domains/procurement/persistence/procurement-candidate-context-reader.js:190)。
+当前逻辑在 [procurement-candidate-context-reader.js](E:/my_project/emby_third_party-helix/media-service/src/helix/domains/procurement/persistence/procurement-candidate-context-reader.js:190)。
 
 更严重的是，当前代码对 .srt、.ass、.mka 等扩展名也存在“没有同 stem 仍然可以关联”的路径。这会导致：
 
@@ -213,7 +213,7 @@ Run Creator 把它们视为两个目录，但 Structure/Related 查询又可能�
 
 ### 6. Observation Scope 的 4096 上限没有被 Run Creator 保证
 
-当前 Planner 在一个 Structure Projection 中汇总多个 Scope，并硬性限制 entries.length <= 4096，见 [evidence-assessment-planner.js](E:/my_project/emby_third_party-helix-retake/media-service/src/helix/domains/procurement/planning/evidence-assessment-planner.js:305)。
+当前 Planner 在一个 Structure Projection 中汇总多个 Scope，并硬性限制 entries.length <= 4096，见 [evidence-assessment-planner.js](E:/my_project/emby_third_party-helix/media-service/src/helix/domains/procurement/planning/evidence-assessment-planner.js:305)。
 
 但一个 Run 可以包含：
 
