@@ -1805,6 +1805,8 @@ stderr 为 `CLEAN_ARCA_TARGET_OCCUPIED` 与 `CLEAN_ARCA_SETTLEMENT_UNKNOWN_MEMBE
 
 修复状态（2026-08-22）：`REGRESSION PASSED / NEW LIBRA RUN REQUIRED`。当前冻结的 007 Run 不可变。
 
+干净 Canary `UAT-20260821-234249-d3c617add` 定向确认（2026-08-22）：007 身份 observe / resolve 与 provider metadata fetch 均 succeeded。本地源 ProductMediaVerification 为 `minimum_raster_unmet` + `primary_audio_unmet`（HEVC、below_4k、primaryAudioClasses other、约 2.9 GiB）。五星要求 4K + 无损主音轨，外部选择 `no_available_candidate`，页面为「没有找到可获取的外部候选」。这是已确认五星合同终态，不再算 UAT-043 产品阻塞。
+
 ## 41. UAT-044：4 星 14 GiB 无法规划 BDMV 多 TrueHD 轨的体积转码，落入 MoviePilot 冻结
 
 问题分类：`BUSINESS_CONTRACT / MEDIA_PRODUCTION`
