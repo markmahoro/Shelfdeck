@@ -122,22 +122,22 @@
 | UAT-063 | Aftercare 用与 Libra 同一套 `perception.rating.resolve@1` Identity Evidence；上架后评分从无到有/变档会再评估 | `UI` | W4 | `CODE_DONE_UNQUALIFIED` | `NOT RUN` |
 | UAT-064 | Formation 步骤 CPU/GPU 与验证完成态必须与真实执行一致，不得默认 CPU、不得把 Direct 源校验画成成品验证完成 | `UI` | W3 | `RECORDED_UNIMPLEMENTED` | `NOT RUN` |
 | UAT-065 | 收藏详情只从主视频basename解析容器，不得把父目录名中的`.1`显示为容器 | `UI` | W1 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260822-141950-0c27c8cf6 UI 8.3 GB BDMV养蜂人主视频修复后显示8.3 GB · MKV，不再显示· 1 |
-| UAT-066 | Formation 已完成整理表按目标Shelf ID显示当前收藏架名称，不得整列显示`—` | `UI` | W1 | `RECORDED_UNIMPLEMENTED` | `NOT RUN` |
+| UAT-066 | Formation 已完成整理表按目标Shelf ID显示当前收藏架名称，不得整列显示`—` | `UI` | W1 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260822-141950-0c27c8cf6 UI 已完成整理17/17条均显示Movie Canary，当前媒体6条显示未回退 |
 
 ## 5. 计数
 
-冻结时（代码状态，不是本轮 Canary）：`CLOSED` 11，`CODE_DONE_UNQUALIFIED` 52，`RECORDED_UNIMPLEMENTED` 1（064）。本轮逐项关闭期间新增`UAT-065`并完成代码修复，另新增正在处理的`UAT-066`；当前代码状态为`CLOSED` 11、`CODE_DONE_UNQUALIFIED` 53、`RECORDED_UNIMPLEMENTED` 2（064、066）。
+冻结时（代码状态，不是本轮 Canary）：`CLOSED` 11，`CODE_DONE_UNQUALIFIED` 52，`RECORDED_UNIMPLEMENTED` 1（064）。本轮逐项关闭期间新增并完成`UAT-065`、`UAT-066`；当前代码状态为`CLOSED` 11、`CODE_DONE_UNQUALIFIED` 54、`RECORDED_UNIMPLEMENTED` 1（064）。
 
 本轮干净 Canary `UAT-20260822-141950-0c27c8cf6`（HEAD `0c27c8cf6`）PASS 列：
 
 | 口径 | 数量 |
 | --- | --- |
 | 总行 | 66 |
-| 本轮 `PASS` | **28** |
-| 本轮未通过（`NOT RUN`+`FAILED`+`BLOCKED`） | **38**（全部为 `NOT RUN`；0 `FAILED`；0 `BLOCKED`） |
-| 是否都通过 | **否**（28/66，未通过 38） |
+| 本轮 `PASS` | **29** |
+| 本轮未通过（`NOT RUN`+`FAILED`+`BLOCKED`） | **37**（全部为 `NOT RUN`；0 `FAILED`；0 `BLOCKED`） |
+| 是否都通过 | **否**（29/66，未通过 37） |
 
-本轮 `PASS`：001、002、005、006、007、008、012、013、015、016、018、030、032、038、047、048、049、050、051、052、053、054、055、056、057、058、061、065。证据均包含本隔离库 Admin Web `UI`；要求文件现实的行另有`FS`。W5 Discard 重新入库、W6 退出收藏/注销在本坐席未跑完，保持 `NOT RUN`。
+本轮 `PASS`：001、002、005、006、007、008、012、013、015、016、018、030、032、038、047、048、049、050、051、052、053、054、055、056、057、058、061、065、066。证据均包含本隔离库 Admin Web `UI`；要求文件现实的行另有`FS`。W5 Discard 重新入库、W6 退出收藏/注销在本坐席未跑完，保持 `NOT RUN`。
 
 `UAT-005` 剩余动作合同并入 `UAT-051` 后仍保留本行，用四桶状态在新 Canary 上资格确认，不把 005 标 `VOID`。
 
@@ -284,3 +284,16 @@
 - 旁证停车：Entry已On-deck和Settlement只作旁证，不提前恢复或关闭UAT-048。
 - 关闭结论：`PASS`。修复后刷新真实Admin Web，同一8.3 GB BDMV「养蜂人」详情显示`主视频 8.3 GB · MKV`，不再显示`· 1`；Inventory路径和`8932765796`字节未改变。
 - UI证据：`admin-web-evidence/uat-065-container-mkv-after-fix.png`（位于本Canary隔离证据目录）。
+
+### UAT-066（`PASS`）
+
+- 关闭命题：Formation 已完成整理表按目标Shelf ID显示当前收藏架名称，不得整列显示`—`。
+- Canary：`UAT-20260822-141950-0c27c8cf6`；修复commit `e27b7e2ad`。
+- 证人：Admin Web「媒体整理工作区」已完成整理17条；同页当前媒体6条；活动收藏架`Movie Canary`。
+- 路径：修复后安全重启隔离服务 → 媒体整理工作区 → 展开已完成整理 → 核对17条目标收藏架 → 刷新后复核当前媒体和已完成表。
+- 允许动作：页面进入、展开、刷新、截图；SQLite只读旁证。
+- 禁止动作：修改评分、放弃Run、重新观察、修改Routing/Shelf事实、重建Canary、修改数据库。
+- 通过标准：17条已完成媒体均显示`Movie Canary`而不是`—`；刷新后保持；当前媒体收藏架显示不回退。
+- 证据要求：`UI`。
+- 关闭结论：`PASS`。真实页面刷新后，已完成整理17/17条目标收藏架均显示`Movie Canary`；当前媒体6条也均显示`Movie Canary`。Libra Projection中的稳定`target_shelf_id`未变，页面使用同页Arca Shelf只读清单解析当前名称。
+- UI证据：`admin-web-evidence/uat-066-completed-shelf-movie-canary-after-fix.png`（位于本Canary隔离证据目录）。
