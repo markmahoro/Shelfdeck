@@ -29,9 +29,10 @@ immutable Douban Perception历史、从基线复制Canary、Preflight通过后�
 
 2026-08-23 工作区重组后继续沿用同一关闭任务：正式开发路径为
 `E:\my_project\emby_third_party-helix`、分支`main`；测试专用根为`F:\shelfdeck_test_zone`，不可变基线与
-Canary 分别为其下`test_film`、`canary`。不得在 C 盘创建新的测试过程文件。当前作业卡为`UAT-069`，其
-Capability/Coordinator/Planner Care Basis 接线修复完成后，先在无 FFmpeg/ISO 活动的安全点重启同一隔离 Canary，
-用真实 Admin Web 与只读 FACT 资格确认，再回到依赖它的`UAT-063`；`UAT-064`继续跳过、不实现。
+Canary 分别为其下`test_film`、`canary`。不得在 C 盘创建新的测试过程文件。`UAT-069`、依赖它的`UAT-063`及
+`UAT-068`均已在同一真实 Canary 关闭；当前作业卡为`UAT-062`。先经正式设置页接通MoviePilot，使五星证人形成合法
+external-candidate frozen Run，再执行Discard→等待重新入库→新Procurement的完整页面验证；随后独立关闭`UAT-017`。
+`UAT-064`继续跳过、不实现。
 
 2026-08-22 成功标准修正：`养蜂人 (2024)` 内现成 MKV 与嵌套 BDMV 按两部独立电影验收，两部都必须能上架；Arca Duplicate/Off-deck 才负责去重。形成口径 23 Subject / 23 Entry，不再使用“顶层 22 单元 = 22 Subject”或“养蜂人只能一部 Movie”。
 
