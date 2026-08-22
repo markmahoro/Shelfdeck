@@ -110,7 +110,7 @@ Helix主体开发已经完成，Movie从Procurement、Libra到Arca及Shelf Dereg
 | UAT-053 | 活动文件来源未按 SSOT 周期观察，扫描完成后页面禁止再扫 | `DOMAIN_ORCHESTRATION` | `USER_EXPERIENCE` | Procurement Field Management Owner 自动化 + Admin Web | 正确性、活性、可理解性 | Critical | 已实现；待新 Canary 确认 |
 | UAT-054 | 退出收藏主链已通，页面仍是内部安全链控制台 | `USER_EXPERIENCE` | | Off-deck Admin Web | 可理解性、可操作性 | High | 已讨论并确认方向，待实现 |
 | UAT-055 | 人物名录未接通 Beta 两条登记路径，页面只读且为空 | `DOMAIN_ORCHESTRATION` | `USER_EXPERIENCE` | People Owner 自动化 + Arca On-deck 人物证据 + Admin Web | 正确性、可操作性 | Critical | 已讨论并确认方向，待实现 |
-| UAT-056 | 豆瓣评分缺少 SSOT 周期同步，同步与日志刷新职责混在一起 | `DOMAIN_ORCHESTRATION` | `USER_EXPERIENCE` | Perception Acquisition Owner 自动化 + Admin Web | 时效性、可理解性 | High | 已讨论并确认方向，待实现 |
+| UAT-056 | 豆瓣评分缺少 SSOT 周期同步，同步与日志刷新职责混在一起 | `DOMAIN_ORCHESTRATION` | `USER_EXPERIENCE` | Perception Acquisition Owner 自动化 + Admin Web | 时效性、可理解性 | High | 已实现；待新 Canary 确认 |
 | UAT-057 | 概览只重复旁页计数，缺少系统状态、可点待办与最近完成；不得与我的收藏合并 | `USER_EXPERIENCE` | `PROJECTION_FRESHNESS` | Overview 只读聚合 + Admin Web | 可理解性、可操作性 | High | 已讨论并确认方向，待实现 |
 | UAT-058 | 侧栏把文件来源与收藏架放在日常运营之前；应下移与系统设置一组并改名为配置 | `USER_EXPERIENCE` | | Admin Web 导航 | 可发现性、信息架构 | Medium | 已讨论并确认方向，待实现 |
 
@@ -2123,7 +2123,16 @@ stderr 为 `CLEAN_ARCA_TARGET_OCCUPIED` 与 `CLEAN_ARCA_SETTLEMENT_UNKNOWN_MEMBE
 
 验收证据：配置有效时无人工点击也可在 24 小时窗口内产生新 Acquisition；同步中设置页能看到页进度；刷新日志网络只有 GET records；重复同步不制造语义重复 Record。
 
-当前处理决定：2026-08-22 用户确认补周期同步并拆开同步/日志刷新。只登记，不立即改代码。建议与 UAT-053 同属周期 Owner 自动化，先于 UAT-054。
+当前处理决定：2026-08-22 用户确认补周期同步并拆开同步/日志刷新。2026-08-22 代码已实现。活动豆瓣连接经 `fallbackReconciler` `periodic-douban-acquisitions` 启动后可开一轮 Acquisition，之后 24 小时再开（下限 6 小时，不是普通设置）。用户「同步」仍立即开一轮并显示进行中进度。「刷新日志」只 GET records，不触发 Foundation。Resolution 仍由既有 30 秒 fallback 与 digest no-op 承担。本条不宣称 Canary 或生产通过。
+
+证据：
+
+- `media-service/src/helix/domains/perception/application/perception-acquisition-automation.js`
+- `media-service/src/helix/composition/create-procurement-execution-runtime.js`
+- `media-service/web/src/helix/SettingsPage.tsx`
+- `media-service/test/helix-architecture/p6-perception-acquisition-automation.test.js`
+- `media-service/test/admin-web-contract.test.js`
+- Admin Web production build `npm run build:web` PASS
 
 ## 54. UAT-057：概览只重复旁页计数，缺少系统状态、可点待办与最近完成；不得与我的收藏合并
 

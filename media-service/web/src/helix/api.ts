@@ -436,7 +436,7 @@ export const helixAdminApi = {
     return request<{ operationRef: string; state: string }>('/v1/admin/perception/actions/sync', { method:'POST', body:JSON.stringify({ idempotencyKey:`douban-sync:${new Date().toISOString()}` }) });
   },
   getPerceptionSyncState() {
-    return request<{ latest: JsonValue | null; activeCount: number }>('/v1/admin/perception/sync-state');
+    return request<{ latest: { state?: string; createdAtMs?: number; terminalAtMs?: number | null } | null; activeCount: number }>('/v1/admin/perception/sync-state');
   },
   getRoutingPolicy(fieldId: string) {
     return request<{ policy: RoutingPolicy | null }>(`/v1/admin/routing/material-fields/${encodeURIComponent(fieldId)}`);

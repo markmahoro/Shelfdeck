@@ -773,6 +773,14 @@ function createProcurementExecutionRuntime(options) {
       .sort((a,b)=>a.perceptionAcquisitionId.localeCompare(b.perceptionAcquisitionId)).filter((item)=>cursor===null||item.perceptionAcquisitionId>cursor)
       .slice(0,limit).map((item)=>Object.freeze({cursor:item.perceptionAcquisitionId,scope:item})),
     reconcile:({perceptionAcquisitionId})=>perceptionProcessServices.reconcileAcquisition(perceptionAcquisitionId)}),Object.freeze({
+      ownerDomain:'perception',reconcilerKey:'periodic-douban-acquisitions',
+      listPage:({cursor,limit})=>perceptionProcessServices.periodicAcquisition
+        ? perceptionProcessServices.periodicAcquisition.listPage({cursor,limit})
+        : [],
+      reconcile:({sourceId})=>perceptionProcessServices.periodicAcquisition
+        ? perceptionProcessServices.periodicAcquisition.reconcile({sourceId})
+        : Object.freeze({kind:'unavailable',sourceId}),
+    }),Object.freeze({
       ownerDomain:'perception',reconcilerKey:'active-subject-rating-resolutions',
       listPage:({cursor,limit})=>libraProcessServices.routingContextReader.listActiveSubjectPage(cursor,limit).items
         .map((item)=>Object.freeze({cursor:item.subjectId,scope:item})),

@@ -79,6 +79,21 @@ test('Media organization workspace uses user-facing stages after Procurement han
   assert.doesNotMatch(formation, /Subject|Routing|Spec|Run|Work|Event|判断开采资格|准备候选包/);
 });
 
+test('Settings splits Douban sync from rating-log refresh', () => {
+  const page = read('web/src/helix/SettingsPage.tsx');
+  const api = read('web/src/helix/api.ts');
+  const runtime = read('src/helix/composition/create-procurement-execution-runtime.js');
+  assert.match(page, /正在同步/);
+  assert.match(page, /刷新日志/);
+  assert.match(page, /正在从豆瓣拉取收藏评分/);
+  assert.match(page, /不会去豆瓣同步/);
+  assert.match(api, /\/v1\/admin\/perception\/actions\/sync/);
+  assert.match(api, /\/v1\/admin\/perception\/sync-state/);
+  assert.match(api, /\/v1\/admin\/perception\/records/);
+  assert.match(runtime, /periodic-douban-acquisitions/);
+  assert.doesNotMatch(page, /同步评分/);
+});
+
 test('legacy Admin routes, pages and style layers are absent', () => {
   const removed = [
     'web/src/pages/AdultConfigPage.tsx', 'web/src/pages/AdvancedPage.tsx', 'web/src/pages/OffboardingCandidatesPage.tsx',

@@ -38,11 +38,19 @@ export default function SettingsPage() {
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [ratingsLoaded, setRatingsLoaded] = useState(false);
+  const [syncState, setSyncState] = useState<{ latest: { state?: string; createdAtMs?: number; terminalAtMs?: number | null } | null; activeCount: number } | null>(null);
 
   const fail = useCallback((cause: unknown, fallback: string) => {
     if (isUnauthorized(cause)) expire();
     else setError(cause instanceof Error ? cause.message : fallback);
   }, [expire]);
+
+  const loadSyncState = useCallback(async () => {
+    try {
+      const state = await helixAdminApi.getPerceptionSyncState();
+      setSyncState(state);
+    } catch (cause) { fail(cause, '同步进度读取失败。'); }
+  }, [fail]);
 
   const loadIntegrations = useCallback(async () => {
     setLoading(true); setError('');
@@ -57,6 +65,7 @@ export default function SettingsPage() {
       setTmdbLanguage(configuredTmdb.settings?.language || 'zh-CN');
       setMoviePilot(configuredMoviePilot);
       setMaxDownloadAttempts(configuredMoviePilot.settings?.maxDownloadAttempts || 3);
+      if (configured?.configured) await helixAdminApi.getPerceptionSyncState().then(setSyncState);
     } catch (cause) { fail(cause, '设置读取失败。'); }
     finally { setLoading(false); }
   }, [fail]);
@@ -75,6 +84,11 @@ export default function SettingsPage() {
 
   useEffect(() => { void loadIntegrations(); }, [loadIntegrations]);
   useEffect(() => { if (tab === 'ratings') void loadRatings(); }, [tab, loadRatings]);
+  useEffect(() => {
+    if (!syncState || syncState.activeCount < 1) return undefined;
+    const timer = window.setInterval(() => { void loadSyncState(); }, 3000);
+    return () => window.clearInterval(timer);
+  }, [syncState, loadSyncState]);
 
   async function connect(event: FormEvent) {
     event.preventDefault(); setLoading(true); setError(''); setNotice('');
@@ -86,9 +100,12 @@ export default function SettingsPage() {
     finally { setLoading(false); }
   }
   async function sync() {
-    setLoading(true); setError('');
-    try { await helixAdminApi.syncDouban(); setNotice('同步已进入后台；评分日志会逐步增加。'); }
-    catch (cause) { fail(cause, '豆瓣同步未启动。'); }
+    setLoading(true); setError(''); setNotice('');
+    try {
+      await helixAdminApi.syncDouban();
+      setNotice('正在从豆瓣拉取收藏评分。');
+      await loadSyncState();
+    } catch (cause) { fail(cause, '豆瓣同步未启动。'); }
     finally { setLoading(false); }
   }
   async function disconnect() {
@@ -170,7 +187,8 @@ export default function SettingsPage() {
         <div className="settings-card-body">
           {integration?.configured ? <>
             <dl className="settings-facts"><div><dt>账号</dt><dd>{integration.lastTestSummary?.identityProviderKey || '已验证'}</dd></div></dl>
-            <div className="settings-card-actions"><Button variant="primary" type="button" onClick={() => void sync()} disabled={loading}>同步评分</Button><Button variant="danger" type="button" onClick={() => void disconnect()} disabled={loading}>断开</Button></div>
+            <small>{syncState?.activeCount ? '正在从豆瓣拉取收藏评分。' : '同步会去豆瓣拉收藏；系统也会按天自动再拉一轮。'}</small>
+            <div className="settings-card-actions"><Button variant="primary" type="button" onClick={() => void sync()} disabled={loading || (syncState?.activeCount || 0) > 0}>{syncState?.activeCount ? '正在同步…' : '同步'}</Button><Button variant="danger" type="button" onClick={() => void disconnect()} disabled={loading}>断开</Button></div>
           </> : <form className="source-form" onSubmit={connect}>
             <div className="source-form-grid">
               <label><span>豆瓣用户 ID</span><input value={userId} onChange={(event) => setUserId(event.target.value)} required /></label>
@@ -221,7 +239,7 @@ export default function SettingsPage() {
         </div>
       </section>
     </div> : <section className="settings-card rating-log" aria-labelledby="rating-log-title">
-      <header className="settings-card-head"><div><h2 id="rating-log-title">评分日志</h2></div><span>{records.length} 条</span></header>
+      <header className="settings-card-head"><div><h2 id="rating-log-title">评分日志</h2><p>只读取已经落下的记录，不会去豆瓣同步。</p></div><div className="settings-card-actions"><Button type="button" onClick={() => void loadRatings()} disabled={loading}>刷新日志</Button></div></header>
       <div className="settings-card-body">
       <div className="log-filters">
         <label><span>来源</span><select value={sourceFilter} onChange={(event) => setSourceFilter(event.target.value)}><option value="">全部</option><option value="douban">豆瓣</option><option value="shelfdeck_direct">ShelfDeck</option></select></label>

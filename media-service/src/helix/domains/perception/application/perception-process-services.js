@@ -6,6 +6,7 @@ const { createPerceptionStore } = require('../persistence/perception-store');
 const { createPerceptionResolutionInputAssembler } = require('./perception-resolution-input-assembler');
 const { buildRuleSnapshot, versionedQueryResult } = require('./perception-resolution-application');
 const { deriveTitleYearEvidence } = require('../model/perception-aliases');
+const { createPerceptionAcquisitionAutomation } = require('./perception-acquisition-automation');
 
 const LIMITS = Object.freeze({ globalOpenWorks:256, ownerOpenWorks:256, openEvents:256 });
 const ACQUISITION_RESULT = 'helix://contracts/types/PerceptionRecordCommitResult/v1';
@@ -106,8 +107,13 @@ function createPerceptionProcessServices(options){
     for(const item of queries){const row=byDigest.get(item.query.queryInputDigest),resolution=row?.resolution;if(!resolution||resolution.ruleDigest!==ruleSnapshot.ruleDigest){values.set(item.targetId,freeze({state:'pending',rating:null,sourceKind:null,expectedRevision:direct.get(item.targetId)?.sourceRecordRevision||0,resolutionStatus:null,resolutionRevision:null,resolutionDigest:null}));continue;}
       values.set(item.targetId,freeze({state:'ready',rating:resolution.resultKind==='found'?resolution.resolvedValue.value:null,sourceKind:row.winner?.sourceKind||null,expectedRevision:direct.get(item.targetId)?.sourceRecordRevision||0,resolutionStatus:resolution.resultKind,resolutionRevision:resolution.revision,resolutionDigest:resolution.factDigest}));}
     return values;}
+  const periodicAcquisition = createPerceptionAcquisitionAutomation({
+    now, readDoubanSourceConfiguration: options.readDoubanSourceConfiguration,
+    listAcquisitions: () => store.listAcquisitions(), requestAcquisition,
+  });
   return Object.freeze({store,ruleSnapshot,acquisitionContext,resolutionContext,reconcileAcquisition,reconcileResolution,reconcileImpactedSubjectResolutions,createRecord,requestAcquisition,ensureResolution,resolveDecisionFact,
-    readCurrentRating,readCurrentRatings,listRecords:(query)=>store.listRecords(query),listAcquisitions:()=>store.listAcquisitions()});
+    readCurrentRating,readCurrentRatings,listRecords:(query)=>store.listRecords(query),listAcquisitions:()=>store.listAcquisitions(),
+    periodicAcquisition});
 }
 
 module.exports=Object.freeze({createPerceptionProcessServices,queryFor,queryHandle,directSourceId,RESOLUTION_INPUT_CONTRACT_REPAIR_CODE});
