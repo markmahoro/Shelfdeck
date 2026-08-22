@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import CollectionPage from '../src/helix/CollectionPage';
 import { helixAdminApi, type CollectionEntry } from '../src/helix/api';
+import { SessionProvider } from '../src/helix/session';
 
 const entry: CollectionEntry = {
   shelfEntryId: 'entry-1',
@@ -21,20 +22,27 @@ const entry: CollectionEntry = {
   genres: ['Drama'],
   people: [{ personId:'person-1', displayName:'Tim Robbins', role:'actor' }],
   hasPoster: true,
+  health: { state: 'healthy' },
   currentInventoryRevision: 1,
   currentDeckFactRevision: 1,
   createdAtMs: 1,
   terminalAtMs: null,
 };
 
+function renderCollection() {
+  return render(<SessionProvider><CollectionPage /></SessionProvider>);
+}
+
 describe('Arca collection poster wall', () => {
   afterEach(() => vi.restoreAllMocks());
 
-  it('explains the empty state before any Shelf Entry exists', async () => {
+  it('explains the empty state before any collection exists', async () => {
     vi.spyOn(helixAdminApi, 'listCollection').mockResolvedValue({ items:[] });
-    render(<CollectionPage />);
+    renderCollection();
     expect(await screen.findByText('还没有正式上架的电影')).toBeInTheDocument();
-    expect(screen.getByText(/Handoff B Accepted并完成Arca On-deck Commit/)).toBeInTheDocument();
+    expect(screen.getByText('整理完成后会显示在这里。')).toBeInTheDocument();
+    expect(screen.queryByText(/Handoff B/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Shelf Entry/)).not.toBeInTheDocument();
   });
 
   it('opens one Shelf Entry detail from the poster wall and closes it with Escape', async () => {
@@ -44,9 +52,16 @@ describe('Arca collection poster wall', () => {
       nextCursor:null,
       currentRating:null,
     });
-    render(<CollectionPage />);
+    vi.spyOn(helixAdminApi, 'getCare').mockResolvedValue({
+      shelfEntryId: entry.shelfEntryId,
+      health: { state: 'healthy' },
+      basis: { inventoryRevision: 1, standardRevision: 1, placementRevision: 1, careBasisDigest: 'd' },
+      activeCaseProgress: null,
+      history: { assessments: [], findings: [], cases: [], commits: [] },
+    });
+    renderCollection();
     const tile = await screen.findByRole('button', {
-      name:'查看 The Shawshank Redemption 详情',
+      name: /查看 The Shawshank Redemption 详情/,
     });
     expect(screen.getByText('1 部')).toBeInTheDocument();
     fireEvent.click(tile);

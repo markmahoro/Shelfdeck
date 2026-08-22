@@ -1,15 +1,18 @@
 export type SurfacePage = {
-  slug:string; path:string; label:string; eyebrow:string; title:string; description:string; glyph:string;
-  primaryAction?:string; metrics:Array<{label:string;value:string;note:string}>; ledger:string[];
+  slug: string;
+  path: string;
+  label: string;
+  title: string;
+  description: string;
 };
 
-export const pages:SurfacePage[] = [
-  {slug:'overview',path:'/',label:'概览',eyebrow:'收藏维护账本',title:'你的收藏，正在被认真照料',description:'只看系统能否持续履职，以及 ShelfDeck 最近为收藏创造了什么价值。',glyph:'◈',metrics:[{label:'正式收藏',value:'2,430',note:'Movie、Season 与 single 去重'},{label:'本月新上架',value:'86',note:'全部完成 On-deck Commit'},{label:'健康收藏',value:'2,105',note:'具有 fresh 健康结论'},{label:'需要处理',value:'7',note:'等待你的业务决定'}],ledger:['发现新材料','生产收藏成品','验收并上架','持续证明健康']},
-  {slug:'material-fields',path:'/material-fields',label:'文件来源',eyebrow:'收藏基础',title:'文件从哪里被发现',description:'管理物理文件来源、访问绑定、开采规则与去向方案。Emby 只是可选外部服务。',glyph:'⌁',primaryAction:'添加文件来源',metrics:[{label:'活动来源',value:'4',note:'全部可访问'},{label:'可处理材料',value:'128',note:'已排除受控成品'},{label:'准备中',value:'12',note:'由 Procurement 负责'}],ledger:['观察物理范围','判断开采资格','准备候选包']},
-  {slug:'shelves',path:'/shelves',label:'收藏架',eyebrow:'收藏基础',title:'每座收藏架都有自己的长期标准',description:'收藏位置、规则模板、分拣参与状态与 Placement 分开管理。',glyph:'▤',primaryAction:'新建收藏架',metrics:[{label:'活动收藏架',value:'6',note:'目标位置互不冲突'},{label:'规则模板',value:'3',note:'历史 revision 保留'},{label:'可用空间',value:'8.4 TB',note:'最近一次空间探测'}],ledger:['绑定规则模板','预览标准影响','发布新标准']},
-  {slug:'collection',path:'/collection',label:'我的收藏',eyebrow:'正式 Deck',title:'这里只展示真正上架的收藏',description:'Shelf Entry、Inventory 与 Deck Fact 是正式收藏的唯一口径。',glyph:'▦',metrics:[{label:'Movie',value:'1,824',note:'active Deck Fact'},{label:'Season',value:'574',note:'按 Season 计数'},{label:'Single',value:'32',note:'独立收藏项'}],ledger:['查看收藏事实','核对成品履历','进入健康详情']},
-  {slug:'formation',path:'/formation',label:'媒体整理工作区',eyebrow:'Media Organization',title:'从接收媒体到完成整理',description:'查看待整理、整理中、需要处理和已经进入收藏架的媒体。',glyph:'⇢',metrics:[{label:'待整理',value:'—',note:'正在确认要求'},{label:'整理中',value:'—',note:'正在处理资料或媒体'},{label:'需要处理',value:'—',note:'等待明确处理或恢复'},{label:'已完成整理',value:'—',note:'已经进入收藏架'}],ledger:['确认目标和要求','整理资料与媒体','验证结果','完成整理']},
-  {slug:'offdeck',path:'/offdeck',label:'退出收藏',eyebrow:'Collection Exit',title:'建议可以自动生成，销毁必须由你授权',description:'候选、审阅、授权和逐项销毁严格分开；高量批次需要第二次确认。',glyph:'⌫',primaryAction:'检查退出建议',metrics:[{label:'待审阅候选',value:'5',note:'尚未授权'},{label:'重复组',value:'2',note:'由你选择保留项'},{label:'已授权',value:'0',note:'不可逆动作'}],ledger:['评估退出条件','冻结审阅范围','明确授权','验证销毁并终结 Deck']},
-  {slug:'people',path:'/people',label:'人物',eyebrow:'People Registry',title:'维护人物身份，而不是改写媒体演职员事实',description:'Person、Preference、Reference Image 与候选确认都归人物域独立管理。',glyph:'◎',primaryAction:'注册人物',metrics:[{label:'已注册人物',value:'416',note:'稳定 Person identity'},{label:'注册候选',value:'3',note:'等待确认'},{label:'合并候选',value:'1',note:'保留来源历史'}],ledger:['发现人物 Evidence','确认稳定身份','维护 Reference Image']},
-  {slug:'settings',path:'/settings',label:'系统设置',eyebrow:'运行条件',title:'连接、空间、资源与安全',description:'设置运行条件，不暴露 Capability、Flow、重试参数或文件处理命令。',glyph:'⚙',metrics:[{label:'必要连接',value:'5 / 5',note:'最近验证通过'},{label:'工作区',value:'3',note:'互不重叠'},{label:'运行强度',value:'默认',note:'为 NAS 保留余量'}],ledger:['测试连接能力','保存 Secret Handle','探测计算设备','核对 Setup Readiness']}
+export const pages: SurfacePage[] = [
+  { slug: 'overview', path: '/', label: '概览', title: '收藏现状', description: '当前正式收藏、本月新上架，以及需要你处理的事项。' },
+  { slug: 'material-fields', path: '/material-fields', label: '文件来源', title: '文件来源', description: '指定本机电影目录。登记不会移动、改名或删除任何文件。' },
+  { slug: 'shelves', path: '/shelves', label: '收藏架', title: '收藏架', description: '指定上架后的目录和命名规则。创建时不会写入媒体文件。' },
+  { slug: 'collection', path: '/collection', label: '我的收藏', title: '我的收藏', description: '只显示已经上架的电影。' },
+  { slug: 'formation', path: '/formation', label: '媒体整理工作区', title: '媒体整理工作区', description: '查看待整理、整理中、需要处理和已经上架的媒体。' },
+  { slug: 'offdeck', path: '/offdeck', label: '退出收藏', title: '退出收藏', description: '先审阅建议，确认后再授权删除。没有授权不会删除文件。' },
+  { slug: 'people', path: '/people', label: '人物', title: '人物名录', description: '只读查看已登记人物。本页不能注册、合并或修改演职员事实。' },
+  { slug: 'settings', path: '/settings', label: '系统设置', title: '系统设置', description: '管理豆瓣、TMDB 与 MoviePilot 连接，并查阅评分日志。' },
 ];

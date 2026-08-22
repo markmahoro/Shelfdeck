@@ -1,37 +1,119 @@
-import { FormEvent, useCallback, useEffect, useRef, useState } from 'react';
-import { AdminApiError, helixAdminApi, type CareDetail, type CollectionEntry, type HealthState } from './api';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { helixAdminApi, type CareDetail, type CollectionEntry, type HealthState } from './api';
+import { Button, LoadingState, PageHeader } from './chrome';
+import { healthLabels } from './labels';
 import RatingControl from './RatingControl';
+import { isUnauthorized, useSession } from './session';
 import './collection.css';
 
-const healthLabels:Record<HealthState,string>={never_assessed:'尚未检查',healthy:'健康',observing:'观察中',repairing:'修复中',attention_required:'需要处理'};
-const healthFilters:[HealthState|'all',string][]=[['all','全部'],['healthy','健康'],['observing','观察中'],['repairing','修复中'],['attention_required','需要处理'],['never_assessed','尚未检查']];
+const healthFilters: [HealthState | 'all', string][] = [['all', '全部'], ['healthy', '健康'], ['observing', '观察中'], ['repairing', '修复中'], ['attention_required', '需要处理'], ['never_assessed', '尚未检查']];
+const dimensionLabels = { custody: '保管', presentation: '呈现', conformance: '合规' };
 
-export default function CollectionPage(){
-  const [session,setSession]=useState<'checking'|'required'|'ready'>('checking'),[apiKey,setApiKey]=useState(''),[items,setItems]=useState<CollectionEntry[]>([]);
-  const [loading,setLoading]=useState(false),[error,setError]=useState(''),[selected,setSelected]=useState<CollectionEntry|null>(null),[care,setCare]=useState<CareDetail|null>(null),[healthFilter,setHealthFilter]=useState<HealthState|'all'>('all'),[checking,setChecking]=useState(false);
-  const [exiting,setExiting]=useState(false);
-  const [collectionMode,setCollectionMode]=useState<'current'|'history'>('current');
-  const closeButton=useRef<HTMLButtonElement>(null);
-  const load=useCallback(async()=>{setLoading(true);setError('');try{const result=await helixAdminApi.listCollection();setItems(result.items);setSession('ready');}catch(cause){if(cause instanceof AdminApiError&&cause.status===401)setSession('required');else setError(cause instanceof Error?cause.message:'收藏读取失败。');}finally{setLoading(false);}},[]);
-  useEffect(()=>{void load();},[load]);
-  useEffect(()=>{if(!selected)return;const previous=document.activeElement as HTMLElement|null,onKey=(event:KeyboardEvent)=>{if(event.key==='Escape')setSelected(null);};document.addEventListener('keydown',onKey);document.body.classList.add('modal-open');closeButton.current?.focus();return()=>{document.removeEventListener('keydown',onKey);document.body.classList.remove('modal-open');previous?.focus();};},[selected]);
-  useEffect(()=>{setCare(null);if(selected)void helixAdminApi.getCare(selected.shelfEntryId).then(setCare).catch((cause)=>setError(cause instanceof Error?cause.message:'健康详情读取失败。'));},[selected]);
-  const modeItems=collectionMode==='current'?items.filter(item=>item.status==='active'):items.filter(item=>item.status!=='active');
-  const filtered=collectionMode==='history'||healthFilter==='all'?modeItems:modeItems.filter((item)=>item.health.state===healthFilter);
-  async function signIn(event:FormEvent){event.preventDefault();setLoading(true);try{await helixAdminApi.createSession(apiKey.trim());setApiKey('');await load();}catch(cause){setError(cause instanceof Error?cause.message:'管理凭据验证失败。');setLoading(false);}}
-  async function checkHealth(){if(!selected)return;setChecking(true);setError('');try{await helixAdminApi.checkCare(selected.shelfEntryId);setCare(await helixAdminApi.getCare(selected.shelfEntryId));await load();}catch(cause){setError(cause instanceof Error?cause.message:'健康检查未能签发。');}finally{setChecking(false);}}
-  async function exitCollection(){if(!selected)return;setExiting(true);setError('');try{const review=await helixAdminApi.createOffdeckReview({shelfEntryId:selected.shelfEntryId,originKind:'direct_intent',originRef:selected.shelfEntryId,actorId:'admin',idempotencyKey:`offdeck-direct:${selected.shelfEntryId}:${crypto.randomUUID()}`});window.location.assign(`/offdeck?review=${encodeURIComponent(review.reviewId)}`);}catch(cause){setError(cause instanceof Error?cause.message:'退出审阅未能建立。');setExiting(false);}}
-  if(session==='checking')return <section className="source-page source-page-loading" aria-live="polite">正在读取我的收藏…</section>;
-  if(session==='required')return <section className="source-page auth-stage"><div className="auth-card"><p className="eyebrow">本机管理会话</p><h1>查看我的收藏</h1><form onSubmit={signIn} className="auth-form"><label><span>管理凭据</span><input type="password" value={apiKey} onChange={(event)=>setApiKey(event.target.value)} required/></label><button disabled={loading||!apiKey.trim()}>进入管理台</button></form>{error&&<p className="form-error" role="alert">{error}</p>}</div></section>;
-  return <section className="source-page collection-page"><header className="source-hero"><div><p className="eyebrow">我的收藏 · Arca</p><h1>已经正式上架的 Shelf Entry</h1><p>海报上的检验章来自当前 Inventory、Standard 与 Placement 的 fresh Evidence。</p></div><button className="surface-action" onClick={()=>void load()} disabled={loading}>{loading?'刷新中…':'刷新'}</button></header>
-    {error&&<p className="form-error" role="alert">{error}</p>}
-    <nav className="health-filters" aria-label="收藏范围"><button aria-pressed={collectionMode==='current'} onClick={()=>setCollectionMode('current')}>当前收藏<span>{items.filter(item=>item.status==='active').length}</span></button><button aria-pressed={collectionMode==='history'} onClick={()=>setCollectionMode('history')}>历史<span>{items.filter(item=>item.status!=='active').length}</span></button></nav>
-    {collectionMode==='current'&&<nav className="health-filters" aria-label="收藏健康筛选">{healthFilters.map(([state,label])=><button key={state} aria-pressed={healthFilter===state} onClick={()=>setHealthFilter(state)}>{label}<span>{state==='all'?modeItems.length:modeItems.filter((item)=>item.health.state===state).length}</span></button>)}</nav>}
-    <section className="collection-library" aria-labelledby="collection-heading"><div className="collection-library-heading"><div><p className="eyebrow">Collection Library</p><h2 id="collection-heading">收藏条目</h2></div><span>{filtered.length} 部</span></div>
-      {filtered.length===0?<div className="source-empty"><strong>当前筛选没有收藏</strong><p>健康结论只会基于当前 Shelf Entry Basis 显示。</p></div>:<div className="poster-wall">{filtered.map((item)=><button className="poster-tile" key={item.shelfEntryId} onClick={()=>setSelected(item)} aria-label={`查看 ${item.displayIdentity} 详情，收藏健康：${healthLabels[item.health.state]}`}><span className="poster-frame">{item.hasPoster?<img src={helixAdminApi.collectionPosterUrl(item.shelfEntryId)} alt="" loading="lazy"/>:<span className="poster-fallback" aria-hidden="true"><b>{item.displayIdentity.slice(0,2)}</b><small>ShelfDeck</small></span>}<span className={`health-seal ${item.health.state}`} aria-hidden="true">◆</span></span><span className="poster-caption"><strong>{item.displayIdentity}</strong><small>{item.year||'年份未知'} · {item.shelfName}</small></span></button>)}</div>}
+export default function CollectionPage() {
+  const { expire } = useSession();
+  const [items, setItems] = useState<CollectionEntry[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [selected, setSelected] = useState<CollectionEntry | null>(null);
+  const [care, setCare] = useState<CareDetail | null>(null);
+  const [healthFilter, setHealthFilter] = useState<HealthState | 'all'>('all');
+  const [checking, setChecking] = useState(false);
+  const [exiting, setExiting] = useState(false);
+  const [collectionMode, setCollectionMode] = useState<'current' | 'history'>('current');
+  const closeButton = useRef<HTMLButtonElement>(null);
+  const load = useCallback(async () => {
+    setLoading(true); setError('');
+    try { const result = await helixAdminApi.listCollection(); setItems(result.items); }
+    catch (cause) { if (isUnauthorized(cause)) expire(); else setError(cause instanceof Error ? cause.message : '收藏读取失败。'); }
+    finally { setLoading(false); }
+  }, [expire]);
+  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    if (!selected) return;
+    const previous = document.activeElement as HTMLElement | null;
+    const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') setSelected(null); };
+    document.addEventListener('keydown', onKey);
+    document.body.classList.add('modal-open');
+    closeButton.current?.focus();
+    return () => { document.removeEventListener('keydown', onKey); document.body.classList.remove('modal-open'); previous?.focus(); };
+  }, [selected]);
+  useEffect(() => {
+    setCare(null);
+    if (selected) void helixAdminApi.getCare(selected.shelfEntryId).then(setCare).catch((cause) => {
+      if (isUnauthorized(cause)) expire();
+      else setError(cause instanceof Error ? cause.message : '健康详情读取失败。');
+    });
+  }, [expire, selected]);
+  const modeItems = collectionMode === 'current' ? items.filter((item) => item.status === 'active') : items.filter((item) => item.status !== 'active');
+  const filtered = collectionMode === 'history' || healthFilter === 'all' ? modeItems : modeItems.filter((item) => item.health.state === healthFilter);
+  async function checkHealth() {
+    if (!selected) return;
+    setChecking(true); setError('');
+    try { await helixAdminApi.checkCare(selected.shelfEntryId); setCare(await helixAdminApi.getCare(selected.shelfEntryId)); await load(); }
+    catch (cause) { if (isUnauthorized(cause)) expire(); else setError(cause instanceof Error ? cause.message : '健康检查未能开始。'); }
+    finally { setChecking(false); }
+  }
+  async function exitCollection() {
+    if (!selected) return;
+    setExiting(true); setError('');
+    try {
+      const review = await helixAdminApi.createOffdeckReview({ shelfEntryId: selected.shelfEntryId, originKind: 'direct_intent', originRef: selected.shelfEntryId, actorId: 'admin', idempotencyKey: `offdeck-direct:${selected.shelfEntryId}:${crypto.randomUUID()}` });
+      window.location.assign(`/offdeck?review=${encodeURIComponent(review.reviewId)}`);
+    } catch (cause) {
+      if (isUnauthorized(cause)) expire();
+      else setError(cause instanceof Error ? cause.message : '退出审阅未能建立。');
+      setExiting(false);
+    }
+  }
+  if (!items.length && loading && !error) return <LoadingState>正在读取我的收藏…</LoadingState>;
+  return <section className="source-page collection-page">
+    <PageHeader title="我的收藏" description="只显示已经上架的电影。" actions={<Button type="button" onClick={() => void load()} disabled={loading}>{loading ? '刷新中…' : '刷新'}</Button>} />
+    {error && <p className="form-error" role="alert">{error}</p>}
+    <nav className="health-filters" aria-label="收藏范围">
+      <button type="button" aria-pressed={collectionMode === 'current'} onClick={() => setCollectionMode('current')}>当前收藏<span>{items.filter((item) => item.status === 'active').length}</span></button>
+      <button type="button" aria-pressed={collectionMode === 'history'} onClick={() => setCollectionMode('history')}>历史<span>{items.filter((item) => item.status !== 'active').length}</span></button>
+    </nav>
+    {collectionMode === 'current' && <nav className="health-filters" aria-label="收藏健康筛选">{healthFilters.map(([state, label]) => <button type="button" key={state} aria-pressed={healthFilter === state} onClick={() => setHealthFilter(state)}>{label}<span>{state === 'all' ? modeItems.length : modeItems.filter((item) => item.health.state === state).length}</span></button>)}</nav>}
+    <section className="collection-library" aria-labelledby="collection-heading">
+      <div className="collection-library-heading"><div><h2 id="collection-heading">收藏条目</h2></div><span>{filtered.length} 部</span></div>
+      {filtered.length === 0 ? <div className="source-empty"><strong>{items.length === 0 ? '还没有正式上架的电影' : '当前筛选没有收藏'}</strong><p>{items.length === 0 ? '整理完成后会显示在这里。' : '试试其他健康筛选。'}</p></div> : <div className="poster-wall">{filtered.map((item) => <button className="poster-tile" key={item.shelfEntryId} onClick={() => setSelected(item)} aria-label={`查看 ${item.displayIdentity} 详情，收藏健康：${healthLabels[item.health.state]}`}>
+        <span className="poster-frame">{item.hasPoster ? <img src={helixAdminApi.collectionPosterUrl(item.shelfEntryId)} alt="" loading="lazy" /> : <span className="poster-fallback" aria-hidden="true"><b>{item.displayIdentity.slice(0, 2)}</b><small>ShelfDeck</small></span>}<span className={`health-seal ${item.health.state}`} title={healthLabels[item.health.state]} aria-hidden="true">{healthLabels[item.health.state].slice(0, 1)}</span></span>
+        <span className="poster-caption"><strong>{item.displayIdentity}</strong><small>{item.year || '年份未知'} · {item.shelfName}</small></span>
+      </button>)}</div>}
     </section>
-    {selected&&<div className="collection-dialog-backdrop" onMouseDown={(event)=>{if(event.target===event.currentTarget)setSelected(null);}}><section className="collection-dialog" role="dialog" aria-modal="true" aria-labelledby="collection-dialog-title"><button ref={closeButton} className="collection-dialog-close" onClick={()=>setSelected(null)} aria-label="关闭详情">×</button><div className="collection-dialog-poster">{selected.hasPoster?<img src={helixAdminApi.collectionPosterUrl(selected.shelfEntryId)} alt={`${selected.displayIdentity} 海报`}/>:<span className="poster-fallback"><b>{selected.displayIdentity.slice(0,2)}</b><small>ShelfDeck</small></span>}</div><div className="collection-dialog-copy"><p className="eyebrow">{selected.shelfName} · Deck r{selected.currentDeckFactRevision}</p><h2 id="collection-dialog-title">{selected.displayIdentity}</h2><p className="collection-dialog-meta">{selected.year||'年份未知'} · {selected.genres.length?selected.genres.join(' / '):'类型未记录'} · {selected.structureKind}</p><p className="collection-dialog-overview">{selected.overview||'当前Package没有提供剧情简介。'}</p>{selected.people.length>0&&<dl className="collection-people"><dt>演职人员</dt><dd>{selected.people.slice(0,12).map((person)=>person.displayName).join('、')}</dd></dl>}<dl className="collection-facts"><div><dt>收藏事实</dt><dd>Inventory r{selected.currentInventoryRevision}</dd></div><div><dt>身份来源</dt><dd>{selected.provider} · {selected.providerKey}</dd></div><div><dt>状态</dt><dd>{selected.status}</dd></div></dl><div className="collection-rating"><span>我的评分</span><RatingControl targetType="shelf_entry" targetId={selected.shelfEntryId} label={selected.displayIdentity}/></div>
-      <section className="collection-health" aria-labelledby="collection-health-heading"><div className="collection-health-heading"><div><p className="eyebrow">Collection care</p><h3 id="collection-health-heading">收藏健康 · {healthLabels[care?.health.state||selected.health.state]}</h3></div><button onClick={()=>void checkHealth()} disabled={checking}>{checking?'已签发检查…':'立即检查健康'}</button></div>{!care?<p className="health-loading">正在读取健康事实…</p>:<><div className="health-dimensions">{(['custody','presentation','conformance'] as const).map((kind)=><article key={kind}><strong>{kind==='custody'?'保管':kind==='presentation'?'呈现':'合规'}</strong><span>{care.health.dimensions?.[kind]?.state||'never_assessed'}</span><small>{care.health.dimensions?.[kind]?.assessedAtMs?new Date(care.health.dimensions[kind].assessedAtMs!).toLocaleString():'尚无 fresh Evidence'}</small></article>)}</div>{care.activeCaseProgress&&<div className="health-case-progress"><div><strong>自动修复进行中</strong><span>{care.activeCaseProgress.stage} · {care.activeCaseProgress.progressPercent}%</span></div><progress max="100" value={care.activeCaseProgress.progressPercent} aria-label={`自动修复进度 ${care.activeCaseProgress.progressPercent}%`}/><small>{care.activeCaseProgress.goals.join('、')}</small></div>}{care.history.findings.filter((item)=>item.state==='open').length>0&&<div className="health-findings"><strong>当前发现</strong>{care.history.findings.filter((item)=>item.state==='open').map((item)=><p key={item.findingId}>{item.findingKind} · {item.repairability}</p>)}</div>}{care.history.commits.length>0&&<div className="health-history"><strong>Inventory 修复记录</strong>{care.history.commits.slice(0,5).map((item)=><p key={item.inventoryCommitId}>r{item.previousInventoryRevision} → r{item.newInventoryRevision} · {new Date(item.committedAtMs).toLocaleString()}</p>)}</div>}{care.history.cases.length>0&&<div className="health-history"><strong>维修履历</strong>{care.history.cases.slice(0,8).map((item)=><p key={item.aftercareCaseId}>{item.state} · {new Date(item.createdAtMs).toLocaleString()}{item.terminalAtMs?` → ${new Date(item.terminalAtMs).toLocaleString()}`:''}</p>)}</div>}<p className="health-basis">Inventory r{care.basis.inventoryRevision} · Standard r{care.basis.standardRevision} · Placement r{care.basis.placementRevision}</p></>}</section><div className="collection-exit"><button onClick={()=>void exitCollection()} disabled={exiting}>{exiting?'正在建立审阅…':'退出收藏'}</button><small>这一步只建立可取消的审阅，不会立即删除文件。</small></div>
-    </div></section></div>}
+    {selected && <div className="collection-dialog-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setSelected(null); }}>
+      <section className="collection-dialog" role="dialog" aria-modal="true" aria-labelledby="collection-dialog-title">
+        <button ref={closeButton} className="collection-dialog-close" onClick={() => setSelected(null)} aria-label="关闭详情">×</button>
+        <div className="collection-dialog-poster">{selected.hasPoster ? <img src={helixAdminApi.collectionPosterUrl(selected.shelfEntryId)} alt={`${selected.displayIdentity} 海报`} /> : <span className="poster-fallback"><b>{selected.displayIdentity.slice(0, 2)}</b><small>ShelfDeck</small></span>}</div>
+        <div className="collection-dialog-copy">
+          <p className="eyebrow">{selected.shelfName}</p>
+          <h2 id="collection-dialog-title">{selected.displayIdentity}</h2>
+          <p className="collection-dialog-meta">{selected.year || '年份未知'} · {selected.genres.length ? selected.genres.join(' / ') : '类型未记录'}</p>
+          <p className="collection-dialog-overview">{selected.overview || '暂无剧情简介。'}</p>
+          {selected.people.length > 0 && <dl className="collection-people"><dt>演职人员</dt><dd>{selected.people.slice(0, 12).map((person) => person.displayName).join('、')}</dd></dl>}
+          <dl className="collection-facts">
+            <div><dt>收藏架</dt><dd>{selected.shelfName}</dd></div>
+            <div><dt>资料来源</dt><dd>{selected.provider === 'tmdb' ? 'TMDB' : selected.provider}</dd></div>
+            <div><dt>状态</dt><dd>{selected.status === 'active' ? '当前收藏' : '历史收藏'}</dd></div>
+          </dl>
+          <div className="collection-rating"><span>我的评分</span><RatingControl targetType="shelf_entry" targetId={selected.shelfEntryId} label={selected.displayIdentity} /></div>
+          <section className="collection-health" aria-labelledby="collection-health-heading">
+            <div className="collection-health-heading"><div><h3 id="collection-health-heading">收藏健康 · {healthLabels[care?.health.state || selected.health.state]}</h3></div>
+              <Button type="button" onClick={() => void checkHealth()} disabled={checking}>{checking ? '已开始检查…' : '立即检查健康'}</Button>
+            </div>
+            {!care ? <p className="health-loading">正在读取健康详情…</p> : <>
+              <div className="health-dimensions">{(['custody', 'presentation', 'conformance'] as const).map((kind) => <article key={kind}><strong>{dimensionLabels[kind]}</strong><span>{healthLabels[care.health.dimensions?.[kind]?.state || 'never_assessed']}</span><small>{care.health.dimensions?.[kind]?.assessedAtMs ? new Date(care.health.dimensions[kind].assessedAtMs!).toLocaleString() : '尚未检查'}</small></article>)}</div>
+              {care.activeCaseProgress && <div className="health-case-progress"><div><strong>自动修复进行中</strong><span>{care.activeCaseProgress.progressPercent}%</span></div><progress max="100" value={care.activeCaseProgress.progressPercent} aria-label={`自动修复进度 ${care.activeCaseProgress.progressPercent}%`} /></div>}
+              {care.history.findings.filter((item) => item.state === 'open').length > 0 && <div className="health-findings"><strong>当前发现</strong>{care.history.findings.filter((item) => item.state === 'open').map((item) => <p key={item.findingId}>{item.findingKind}</p>)}</div>}
+              <details><summary>技术标识</summary><p className="health-basis">条目 {selected.shelfEntryId}</p></details>
+            </>}
+          </section>
+          <div className="collection-exit">
+            <Button variant="danger" type="button" onClick={() => void exitCollection()} disabled={exiting}>{exiting ? '正在建立审阅…' : '退出收藏'}</Button>
+            <small>这一步只建立可取消的审阅，不会立即删除文件。</small>
+          </div>
+        </div>
+      </section>
+    </div>}
   </section>;
 }

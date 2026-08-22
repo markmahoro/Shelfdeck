@@ -103,9 +103,9 @@ function ExpressionEditor({ expression, depth, onChange }: { expression: Routing
     {(expression.nodeKind === 'all' || expression.nodeKind === 'any') && <div className="routing-expression-children">
       {expression.children.map((child, index) => <div className="routing-expression-child" key={index}>
         <ExpressionEditor expression={child} depth={depth + 1} onChange={(value) => onChange({ ...expression, children: expression.children.map((item, ordinal) => ordinal === index ? value : item) })} />
-        {expression.children.length > 1 && <button type="button" className="text-action danger" onClick={() => onChange({ ...expression, children: expression.children.filter((_item, ordinal) => ordinal !== index) })}>移除条件</button>}
+        {expression.children.length > 1 && <button type="button" className="btn btn-text danger" onClick={() => onChange({ ...expression, children: expression.children.filter((_item, ordinal) => ordinal !== index) })}>移除条件</button>}
       </div>)}
-      <button type="button" className="text-action" onClick={() => onChange({ ...expression, children: [...expression.children, predicate()] })}>添加条件</button>
+      <button type="button" className="btn btn-text" onClick={() => onChange({ ...expression, children: [...expression.children, predicate()] })}>添加条件</button>
     </div>}
   </div>;
 }
@@ -126,7 +126,7 @@ export default function RoutingPolicyPanel({ field, shelves }: { field: Material
       if (policy?.mode === 'direct') setDirectShelfId(policy.targets[0]?.shelfId || activeShelves[0]?.shelfId || '');
       else if (policy) setSortingTargets(policy.targets.map(({ shelfId, rank, matchExpression }) => ({ shelfId, rank, matchExpression })));
       else { setDirectShelfId(activeShelves[0]?.shelfId || ''); setSortingTargets(defaultSorting(activeShelves)); }
-    }).catch((cause) => setError(cause instanceof Error ? cause.message : 'Routing Policy读取失败。'));
+    }).catch((cause) => setError(cause instanceof Error ? cause.message : '分拣策略读取失败。'));
   }, [activeShelves, field.fieldId]);
 
   async function draft() {
@@ -145,32 +145,32 @@ export default function RoutingPolicyPanel({ field, shelves }: { field: Material
     try {
       const result = await helixAdminApi.previewRoutingPolicy(field.fieldId, { idempotencyKey: crypto.randomUUID(), fieldId: field.fieldId,
         policy: await draft(), facts: JSON.parse(factsJson) as JsonValue });
-      setMessage(result.result === 'resolved' ? `预览：将进入 ${activeShelves.find((item) => item.shelfId === result.targetShelfId)?.name || result.targetShelfId}` : `预览：未解决（${result.unresolvedReasonCode}）`);
-    } catch (cause) { setError(cause instanceof Error ? cause.message : 'Routing预览失败。'); }
+      setMessage(result.result === 'resolved' ? `预览：将进入 ${activeShelves.find((item) => item.shelfId === result.targetShelfId)?.name || '选定收藏架'}` : '预览：条件未能匹配到收藏架');
+    } catch (cause) { setError(cause instanceof Error ? cause.message : '分拣预览失败。'); }
   }
   async function publish() {
     setError(''); setMessage('');
     try {
       const result = await helixAdminApi.publishRoutingPolicy(field.fieldId, { idempotencyKey: crypto.randomUUID(), fieldId: field.fieldId,
         expectedPolicyId: current?.routingPolicyId || null, expectedRevision: current?.revision || 0, policy: await draft() });
-      setCurrent(result.policy); setMessage(`Policy revision ${result.policy.revision} 已发布，后台将重算该来源的active Subject。`);
-    } catch (cause) { setError(cause instanceof Error ? cause.message : 'Routing Policy发布失败。'); }
+      setCurrent(result.policy); setMessage(`分拣策略已发布，后台会按新规则重新分配该来源中尚未完成的电影。`);
+    } catch (cause) { setError(cause instanceof Error ? cause.message : '分拣策略发布失败。'); }
   }
 
   return <details className="routing-policy-panel"><summary>收藏架分拣策略</summary>
     <div className="routing-policy-body">
-      <div className="routing-policy-head"><strong>{current ? `${current.mode} · revision ${current.revision}` : '尚未发布'}</strong><span>只形成Routing Decision，不会开始生产或移动文件。</span></div>
-      <label><span>模式</span><select value={mode} onChange={(event) => setMode(event.target.value as 'direct' | 'sorting')}><option value="direct">Direct：全部进入一座收藏架</option><option value="sorting">Sorting：按优先级判断</option></select></label>
+      <div className="routing-policy-head"><strong>{current ? (current.mode === 'direct' ? '全部进入一座收藏架' : '按条件分拣') : '尚未发布'}</strong><span>只决定进哪座收藏架，不会开始整理或移动文件。</span></div>
+      <label><span>模式</span><select value={mode} onChange={(event) => setMode(event.target.value as 'direct' | 'sorting')}><option value="direct">全部进入一座收藏架</option><option value="sorting">按优先级判断</option></select></label>
       {mode === 'direct' ? <label><span>目标收藏架</span><select value={directShelfId} onChange={(event) => setDirectShelfId(event.target.value)}>{activeShelves.map((shelf) => <option key={shelf.shelfId} value={shelf.shelfId}>{shelf.name}</option>)}</select></label> : <>
         <div className="routing-rule-list">{sortingTargets.map((target, index) => <section className="routing-rule" key={`${target.shelfId}-${index}`}>
-          <header><span className="routing-rank">优先级 {index + 1}</span><div><button type="button" className="text-action" disabled={index === 0} onClick={() => moveTarget(index, -1)}>上移</button><button type="button" className="text-action" disabled={index === sortingTargets.length - 1} onClick={() => moveTarget(index, 1)}>下移</button><button type="button" className="text-action danger" disabled={sortingTargets.length === 1} onClick={() => setSortingTargets((items) => items.filter((_item, ordinal) => ordinal !== index))}>删除</button></div></header>
+          <header><span className="routing-rank">优先级 {index + 1}</span><div><button type="button" className="btn btn-text" disabled={index === 0} onClick={() => moveTarget(index, -1)}>上移</button><button type="button" className="btn btn-text" disabled={index === sortingTargets.length - 1} onClick={() => moveTarget(index, 1)}>下移</button><button type="button" className="btn btn-text danger" disabled={sortingTargets.length === 1} onClick={() => setSortingTargets((items) => items.filter((_item, ordinal) => ordinal !== index))}>删除</button></div></header>
           <label><span>目标收藏架</span><select value={target.shelfId} onChange={(event) => replaceTarget(index, { ...target, shelfId: event.target.value })}>{activeShelves.map((shelf) => <option key={shelf.shelfId} value={shelf.shelfId}>{shelf.name}</option>)}</select></label>
           <ExpressionEditor expression={target.matchExpression} depth={1} onChange={(matchExpression) => replaceTarget(index, { ...target, matchExpression })} />
         </section>)}</div>
-        <button type="button" className="routing-add-rule" disabled={sortingTargets.length >= 64 || activeShelves.length === 0} onClick={() => setSortingTargets((items) => [...items, { shelfId: activeShelves.find((shelf) => !items.some((item) => item.shelfId === shelf.shelfId))?.shelfId || activeShelves[0].shelfId, rank: items.length + 1, matchExpression: { nodeKind: 'always' } }])}>添加分拣规则</button>
-        <label><span>预览Facts（高级诊断）</span><textarea value={factsJson} onChange={(event) => setFactsJson(event.target.value)} rows={4} spellCheck={false} /></label>
+        <button type="button" className="btn btn-secondary routing-add-rule" disabled={sortingTargets.length >= 64 || activeShelves.length === 0} onClick={() => setSortingTargets((items) => [...items, { shelfId: activeShelves.find((shelf) => !items.some((item) => item.shelfId === shelf.shelfId))?.shelfId || activeShelves[0].shelfId, rank: items.length + 1, matchExpression: { nodeKind: 'always' } }])}>添加分拣规则</button>
+        <details><summary>预览用的测试条件</summary><textarea value={factsJson} onChange={(event) => setFactsJson(event.target.value)} rows={4} spellCheck={false} /></details>
       </>}
-      <div className="routing-policy-actions"><button type="button" onClick={() => void preview()}>预览</button><button type="button" onClick={() => void publish()}>发布策略</button></div>
+      <div className="routing-policy-actions"><button type="button" className="btn btn-secondary" onClick={() => void preview()}>预览</button><button type="button" className="btn btn-primary" onClick={() => void publish()}>发布策略</button></div>
       {message && <p className="routing-message" role="status">{message}</p>}{error && <p className="form-error" role="alert">{error}</p>}
     </div>
   </details>;

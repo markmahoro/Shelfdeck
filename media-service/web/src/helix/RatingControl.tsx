@@ -20,7 +20,7 @@ export default function RatingControl({targetType,targetId,label,initialRating,i
       {[1,2,3,4,5].map((value)=><button key={value} type="button" className={rating!==null&&value<=rating?'selected':''}
         aria-label={`${value}星`} aria-pressed={rating===value} disabled={pending} onClick={()=>void choose(value)}>★</button>)}
     </div>
-    {source==='shelfdeck_direct'&&<button type="button" className="rating-clear" disabled={pending} onClick={()=>void choose(null)}>清除我的评分</button>}
+    {source==='shelfdeck_direct'&&<button type="button" className="btn btn-text rating-clear" disabled={pending} onClick={()=>void choose(null)}>清除我的评分</button>}
     <small>{rating===null?'暂无评分':`${rating} 星 · ${source==='douban'?'豆瓣':source==='shelfdeck_direct'?'我的评分':source==='pending'?'提交处理中':'已解析'}`}</small>
     {error&&<span className="rating-error" role="alert">{error}</span>}
   </div>;

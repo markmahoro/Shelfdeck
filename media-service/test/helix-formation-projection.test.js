@@ -9,6 +9,7 @@ const Database = require('better-sqlite3');
 const { openSqliteKernel } = require('../src/helix/foundation/persistence/sqlite-kernel');
 const { createSqliteUnitOfWork } = require('../src/helix/foundation/persistence/sqlite-unit-of-work');
 const {
+  actionLabel,
   buildFormationProjectionRow,
   classifyFormation,
   createFormationQuery,
@@ -16,6 +17,7 @@ const {
   extractProductIdentityIssue,
   frozenRunLabel,
   nextAction,
+  organizingWorks,
 } = require('../src/helix/domains/libra/application/formation-query');
 const { createFormationProjectionStore } = require('../src/helix/domains/libra/persistence/formation-projection-store');
 const { createFormationProjectionHost } = require('../src/helix/domains/libra/application/formation-projection-host');
@@ -97,6 +99,23 @@ test('Formation gives a frozen Run precedence over an earlier Product Identity i
   assert.equal(row.attention_state,'frozen');
   assert.equal(row.next_action_state,'frozen');
   assert.equal(row.next_action_label,'本次整理已冻结，需要放弃后重新采购');
+});
+
+test('completed-run remux work becomes the organizing action instead of an empty placeholder',()=>{
+  const remuxWorks=[{state:'succeeded',events:[{capabilityRef:'libra.media.remux@1'}]}];
+  const transcodeWorks=[{state:'succeeded',events:[{capabilityRef:'libra.media.transcode@1'}]}];
+  const acquireWorks=[{state:'succeeded',events:[{capabilityRef:'libra.external_material.candidate.select@1'}]}];
+  const adoptWorks=[{state:'succeeded',events:[{capabilityRef:'libra.product.conformance.verify@1'}]}];
+  assert.equal(actionLabel(remuxWorks),'封装整理');
+  assert.equal(actionLabel(transcodeWorks),'视频转码');
+  assert.equal(actionLabel(acquireWorks),'外部获取');
+  assert.equal(actionLabel(adoptWorks),'直接采用并验证');
+  assert.equal(actionLabel([]),'尚未形成整理动作');
+  const completedRun={libra_run_id:'run-done',state:'completed'};
+  const liveRun={libra_run_id:'run-live',state:'active'};
+  const progressByRun=new Map([['run-done',remuxWorks],['run-live',[]]]);
+  assert.equal(actionLabel(organizingWorks(null,completedRun,progressByRun)),'封装整理');
+  assert.equal(actionLabel(organizingWorks(liveRun,completedRun,progressByRun)),'尚未形成整理动作');
 });
 
 test('Formation four-bucket classification requires Arca commit for completion and current open execution for progress',()=>{

@@ -44,25 +44,25 @@ function createOverviewQuery(options) {
       generatedAt: new Date(nowMs).toISOString(),
       metrics: Object.freeze([
         Object.freeze({ key:'active_collection', label:'正式收藏', value:entries.length,
-          note:'active Shelf Entry' }),
+          note:'已经上架的电影' }),
         Object.freeze({ key:'new_this_month', label:'本月新上架',
           value:entries.filter((entry) => integer(entry.createdAtMs) >= monthStartMs).length,
-          note:'已完成 On-deck Commit' }),
+          note:'本月完成上架' }),
         Object.freeze({ key:'healthy_collection', label:'健康收藏', value:healthyCount,
-          note:'具有 fresh 健康结论' }),
+          note:'检查结果为健康' }),
         Object.freeze({ key:'attention', label:'需要处理',
           value:healthAttentionCount + offdeckAttentionCount,
-          note:'健康或退出流程待处理' }),
+          note:'健康或退出需要处理' }),
       ]),
       setup: Object.freeze({
         activeMaterialFieldCount: activeFields.length,
         activeShelfCount: activeShelves.length,
       }),
       ledger: Object.freeze([
-        Object.freeze({ key:'discovery', label:'发现新材料', value:discoveredCount }),
-        Object.freeze({ key:'formation', label:'生产收藏成品', value:integer(formationSummary.totalCount) }),
-        Object.freeze({ key:'ondeck', label:'验收并上架', value:entries.length }),
-        Object.freeze({ key:'health', label:'持续证明健康', value:assessedCount }),
+        Object.freeze({ key:'discovery', label:'已发现的电影', value:discoveredCount }),
+        Object.freeze({ key:'formation', label:'正在整理', value:integer(formationSummary.totalCount) }),
+        Object.freeze({ key:'ondeck', label:'已经上架', value:entries.length }),
+        Object.freeze({ key:'health', label:'已检查健康', value:assessedCount }),
       ]),
     });
   }
