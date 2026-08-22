@@ -84,7 +84,7 @@
 | UAT-025 | Handoff A 身份快照在技术发布标签前冻结年份锚 | `UI` | W2 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260822-141950-0c27c8cf6 UI普通/发布标签养蜂人均4星豆瓣、看不见的朋友5星；当前重建再次确认后者5星且身份100% |
 | UAT-026 | Admin Web 能清除直接评分并恢复豆瓣来源 | `UI` | W2 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260823-002500-519f8d7b5 UI直接4星清除并刷新后恢复4星豆瓣；FACT追加retraction及retracts且旧Observation保留 |
 | UAT-027 | 恢复中的 FFmpeg progress 冲突不再把整个服务打退出 | `UI` `FACT` | W3 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260823-002500-519f8d7b5 UI重启后Formation刷新且Console为0；FACT服务持续存活、Progress冲突/uncaught为0、专项13/13 |
-| UAT-028 | 单电影目录的常见既有图像进入 Related disposition | `UI` `FS` | W3 | `CODE_DONE_UNQUALIFIED` | `NOT RUN` |
+| UAT-028 | 单电影目录的常见既有图像进入 Related disposition | `UI` `FS` | W3 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260823-002500-519f8d7b5 UI养蜂人当前收藏且健康；FACT/FS Inventory登记并保留banner、landscape、clearlogo，位置大小一致 |
 | UAT-029 | NFO 演员 TMDB 人 ID 不再被误判为电影身份冲突 | `UI` | W2 | `CODE_DONE_UNQUALIFIED` | `NOT RUN` |
 | UAT-030 | 五星外部获取用身份搜索；无合格 4K 源时页面显示合法冻结，不像卡住 | `UI` | W5 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260822-141950-0c27c8cf6 UI 五星冻结文案没有找到可获取的外部候选 |
 | UAT-031 | Movie Field 默认扩展名含 ISO，倩女幽魂2 能被观察 | `UI` `FS` | W2 | `CODE_DONE_UNQUALIFIED` | `NOT RUN` |

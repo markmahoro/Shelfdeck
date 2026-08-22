@@ -1599,6 +1599,13 @@ Related disposition obligation，保持原始文件名，不新增业务Owner、
 
 修复状态（2026-08-22）：`REGRESSION PASSED / CLEAN CANARY REBUILD AUTHORIZED`。
 
+2026-08-23逐项封口在重建Canary `UAT-20260823-002500-519f8d7b5`完成。已上架的`养蜂人 (2024)` Final Inventory
+精确登记`banner.jpg`（63,899字节）、`landscape.jpg`（275,844字节）和`clearlogo.png`（1,148,494字节），三项角色均为
+`sidecar`；FS中三文件与Inventory位置、大小一致。真实“我的收藏”详情显示该片为当前收藏且健康；同批`全面失控`、`劫机`、
+`短暂和平`、`第八个嫌疑人`等已完成目录也保留`clearlogo.png`，未再因这些常见图像形成unknown-member。
+状态`REGRESSION PASSED / CONFIRMED ON REBUILT CANARY`。UI证据：
+`admin-web-evidence/uat-028-common-images-related-disposition-pass.png`。
+
 ## 26. UAT-029：NFO 把演员 TMDB 人 ID 误判为电影身份冲突
 
 问题分类：`IDENTITY_NORMALIZATION / NFO_PARSER / USER_VISIBLE_RECOVERY`
