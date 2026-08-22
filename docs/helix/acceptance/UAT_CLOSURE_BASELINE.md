@@ -93,7 +93,7 @@
 | UAT-034 | 同名片名+年份的两部养蜂人最终目录可区分且都能 On-deck | `UI` `FS` | W3 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260822-141950-0c27c8cf6 UI 两个独立健康养蜂人当前Entry；FS普通版与edition目录各有一份MKV，非hash且无(0)年份 |
 | UAT-035 | FFmpeg 非零退出按执行失败收口，Remux Attempt 不停在 executing | `UI` `FACT` | W3 | `CODE_DONE_UNQUALIFIED` | `NOT RUN` |
 | UAT-036 | 已观察 ISO 能通过 Triage 形成 Candidate，不再因非可播放流 `triage_failed` | `UI` | W2 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260822-141950-0c27c8cf6 UI倩女幽魂2已形成并完成生产/On-deck，为健康当前收藏 |
-| UAT-037 | 007 身份 provider_exact 观察不被 schema 拒绝，冻结文案不是通用句 | `UI` | W2 | `CODE_DONE_UNQUALIFIED` | `NOT RUN` |
+| UAT-037 | 007 身份 provider_exact 观察不被 schema 拒绝，冻结文案不是通用句 | `UI` | W2 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260822-141950-0c27c8cf6 UI 007身份步骤100%，显示没有找到可获取的外部候选；identity observe/resolve旁证均成功 |
 | UAT-038 | 上架成功后 Aftercare 健康不再是 conformance/presentation 降级 | `UI` | W4 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260822-141950-0c27c8cf6 UI 倩女幽魂2已上架详情刷新后收藏健康为健康，保管/呈现/合规均为健康 |
 | UAT-039 | 同根上架不把源文件和兄弟电影目录当成占用/未知成员 | `UI` `FS` | W3 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260822-141950-0c27c8cf6 UI同根兄弟电影均已当前收藏且健康；FS两个养蜂人一级目录独立、无嵌套兄弟目录或.partial |
 | UAT-040 | ISO 原盘 Remux 走提取路径，不把映像文件当普通流输入 | `UI` `FS` | W3 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260822-141950-0c27c8cf6 UI倩女幽魂2为健康当前收藏且主视频MKV；FS源ISO保留、目标只有MKV且无ISO/盘树 |
@@ -133,11 +133,11 @@
 | 口径 | 数量 |
 | --- | --- |
 | 总行 | 66 |
-| 本轮 `PASS` | **38** |
-| 本轮未通过（`NOT RUN`+`FAILED`+`BLOCKED`） | **28**（全部为 `NOT RUN`；0 `FAILED`；0 `BLOCKED`） |
-| 是否都通过 | **否**（38/66，未通过 28） |
+| 本轮 `PASS` | **39** |
+| 本轮未通过（`NOT RUN`+`FAILED`+`BLOCKED`） | **27**（全部为 `NOT RUN`；0 `FAILED`；0 `BLOCKED`） |
+| 是否都通过 | **否**（39/66，未通过 27） |
 
-本轮 `PASS`：001、002、005、006、007、008、012、013、015、016、018、030、032、034、036、038、039、040、041、042、044、045、046、047、048、049、050、051、052、053、054、055、056、057、058、061、065、066。证据均包含本隔离库 Admin Web `UI`；要求文件现实的行另有`FS`。W5 Discard 重新入库、W6 退出收藏/注销在本坐席未跑完，保持 `NOT RUN`。
+本轮 `PASS`：001、002、005、006、007、008、012、013、015、016、018、030、032、034、036、037、038、039、040、041、042、044、045、046、047、048、049、050、051、052、053、054、055、056、057、058、061、065、066。证据均包含本隔离库 Admin Web `UI`；要求文件现实的行另有`FS`。W5 Discard 重新入库、W6 退出收藏/注销在本坐席未跑完，保持 `NOT RUN`。
 
 `UAT-005` 剩余动作合同并入 `UAT-051` 后仍保留本行，用四桶状态在新 Canary 上资格确认，不把 005 标 `VOID`。
 
@@ -422,3 +422,16 @@
 - 证据要求：`UI`。
 - 关闭结论：`PASS`。真实Admin Web显示《倩女幽魂2：人间道》为Movie Canary当前收藏且健康，主视频`9.3 GB · MKV`并有海报/NFO；ISO已穿过Triage、Libra生产和Arca On-deck，不再是`triage_failed`。
 - UI证据：`admin-web-evidence/uat-036-iso-triage-candidate-ondeck.png`（位于本Canary隔离证据目录）。
+
+### UAT-037（`PASS`）
+
+- 关闭命题：007身份`provider_exact`观察不被schema拒绝，冻结文案不是通用句。
+- Canary：`UAT-20260822-141950-0c27c8cf6`。
+- 证人：Formation当前媒体中的`007：大破天幕杀机 (2012)`。
+- 路径：媒体整理工作区 → 定位007 → 核对身份/资料/外部寻源步骤与需要处理文案 → SQLite只读旁证identity事件。
+- 允许动作：页面进入、刷新、截图；SQLite只读旁证。
+- 禁止动作：放弃Run、修改评分、触发外部获取、重启服务、重建Canary、修改数据库。
+- 通过标准：身份步骤完成，不出现身份冲突或通用冻结；无合格五星候选时显示明确的合法冻结文案。
+- 证据要求：`UI`。
+- 关闭结论：`PASS`。007页面身份、资料、海报/NFO、外部寻源、验证五步均100%，终态为「没有找到可获取的外部候选，本次整理已冻结」。旁证中两次identity observe与一次resolve均`succeeded`，没有`P4_CAPABILITY_SCHEMA_REJECTED`。
+- UI证据：`admin-web-evidence/uat-037-007-identity-resolved-legal-freeze.png`（位于本Canary隔离证据目录）。

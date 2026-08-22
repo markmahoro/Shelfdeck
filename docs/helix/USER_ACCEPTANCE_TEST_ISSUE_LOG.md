@@ -1735,7 +1735,11 @@ UI证据：`admin-web-evidence/uat-036-iso-triage-candidate-ondeck.png`。
 
 验收证据：全角 `007：大破天幕杀机` 加 32 条 TMDB alias 的观察通过 `ProductIdentityEvidenceObservation` schema；lease 包装的 timeout 是 `timeout` Outcome。产品身份选择测试 8/8 通过。
 
-修复状态（2026-08-22）：`REGRESSION PASSED / NEW LIBRA RUN REQUIRED`。当前冻结的 Identity Run 不可变。
+修复状态（2026-08-23）：`REGRESSION PASSED / CONFIRMED ON CURRENT CANARY`。干净 Canary
+`UAT-20260822-141950-0c27c8cf6` 的007新Run中，两次`libra.product_identity.evidence.observe@1`与一次
+`libra.product_identity.resolve@1`均`succeeded`；页面身份、资料、海报/NFO、外部寻源、验证五步均100%，终态为明确的
+「没有找到可获取的外部候选，本次整理已冻结」，不再是schema rejection或通用冻结。
+UI证据：`admin-web-evidence/uat-037-007-identity-resolved-legal-freeze.png`。
 
 ## 35. UAT-038：上架成功后 Aftercare 健康仍是 conformance/presentation 降级
 
