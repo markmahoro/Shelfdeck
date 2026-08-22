@@ -1879,13 +1879,13 @@ stderr 为 `CLEAN_ARCA_TARGET_OCCUPIED` 与 `CLEAN_ARCA_SETTLEMENT_UNKNOWN_MEMBE
 
 用户侧现象：BDMV `养蜂人 (2024) - 2160p HEVC Atmos TrueHD5.1` 四星转码已成功（约 8.32 GiB HEVC，低于 14 GiB），页面停在「正在完成收藏架上架」。stderr 反复 `CLEAN_ARCA_SETTLEMENT_UNKNOWN_MEMBER`。
 
-现场证据：终态目录已有 `养蜂人 (2024).mkv` / `.nfo` / `poster.jpg`，BDMV/STREAM 已消失。同目录还留着源带的 `banner.jpg`、`clearlogo.png`、`fanart.jpg`、`landscape.jpg`。这些文件不在本包 Off-load members 里。Settlement 对 `!sameLocation` 源（改名后的 clip / 残留相关件）listing 终态目录，把这些残留当成未知成员，Attempt 一直 executing。
+现场证据：产品已写到 `F:\canary\养蜂人 (2024) - 2160p HEVC Atmos TrueHD5.1\`（主文件约 8.32 GiB）。源仍在 `F:\canary\养蜂人 (2024)\养蜂人 (2024) - 2160p HEVC Atmos TrueHD5.1\BDMV\STREAM\`，`00002.m2ts` 约 68.7 GiB，旁边还有 `00000.m2ts`…`00061.m2ts`。Off-load 只收了选中的主 clip 和部分 structural。Settlement listing STREAM 把其余 clip 当成未知成员；Attempt 在 `intend` 后抛错，Effect 停在 `intended`。
 
-精确根因：UAT-039 只跳过没有本包 managed 路径的兄弟**目录**；终态目录里的残留**文件**仍 fail closed。同根时该目录就是产品目录，不会被删，Aftercare 才该管残留。不同路径源目录里的 `notes.txt` 仍应 fail closed。
+精确根因：UAT-039 对源目录里的未知**文件** fail closed，这是为了 `notes.txt`。蓝光 `BDMV/STREAM` 里未入包的 `.m2ts` 是同一张盘的结构件，不是外来 junk。终态产品目录里的残留 extras 同理：目录会保留，不应挡住 nested disc 源删除。
 
-修复边界：`sourceDirectory === targetDirectory` 时跳过 unknown-member 扫描；managed 源仍删除，残留 extras 保留。`notes.txt` 不同路径回归保持失败。
+修复边界：`sourceDirectory === targetDirectory` 时跳过 unknown 扫描。`BDMV/` 树内的未入包文件不当未知成员。`notes.txt` 仍 fail closed。不擅自删未入包 clip。
 
-验收证据：同根 `clip.m2ts` 结算后源 clip 删除、产品主文件保留、`banner.jpg` 仍在。既有 sibling 目录与 `notes.txt` 回归仍通过。
+验收证据：STREAM 里 `00002.m2ts` 可结算且 `00000.m2ts` 保留；同根 `banner.jpg` 保留；`notes.txt` 不同路径仍失败。
 
 当前处理决定：按根因修复并提交。现场 executing Settlement 需服务重启后按新合同重试。状态 `REGRESSION PASSED / SERVICE RESTART REQUIRED`。
 

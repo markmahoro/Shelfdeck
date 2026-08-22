@@ -519,6 +519,60 @@ function settlementFixture({ unknownMember = false, siblingDirectory = false } =
     finalMember, materialHandle, mappingDigest };
 }
 
+test('BDMV STREAM extra clips do not fail-close settlement of the selected payload', () => {
+  const fixture = settlementFixture();
+  try {
+    const extraClip = path.join(fixture.sourceDirectory, 'BDMV', 'STREAM', '00000.m2ts');
+    fs.mkdirSync(path.dirname(extraClip), { recursive:true });
+    fs.writeFileSync(extraClip, Buffer.from('other-clip'));
+    const selected = path.join(fixture.sourceDirectory, 'BDMV', 'STREAM', '00002.m2ts');
+    fs.mkdirSync(path.dirname(selected), { recursive:true });
+    fs.writeFileSync(selected, Buffer.from('exact-movie-bytes'));
+    const mountScopeId = 'canary-mount';
+    const productMember = member(selected, 'primary_payload', mountScopeId);
+    const mappingDigest = canonicalDigest({ source:productMember.materialKey, target:'final' });
+    fixture.finalInventoryRequest.onDeckProductPackage = Object.freeze({
+      ...fixture.finalInventoryRequest.onDeckProductPackage,
+      productMaterialManifest:{ members:Object.freeze([productMember]), manifestDigest:'manifest-bdmv-stream' },
+      offloadContextManifest:{ manifestDigest:'offload-bdmv-stream', members:Object.freeze([
+        Object.freeze({
+          materialKey:productMember.materialKey,
+          finalProductMaterialKey:productMember.materialKey,
+          location:selected,
+          settlementExpectation:'remove_after_place',
+          sourceToFinalMappingDigest:mappingDigest,
+        }),
+      ]) },
+    });
+    const decision = fixture.port.prepare(fixture.finalInventoryRequest);
+    fixture.finalInventoryRequest.finalInventoryDecision = decision;
+    const finalMember = decision.members[0];
+    fs.mkdirSync(path.dirname(finalMember.targetLocation), { recursive:true });
+    fs.copyFileSync(selected, finalMember.targetLocation);
+    const settled = fixture.port.settleInput({
+      materialHandle:{
+        schemaRef:'helix://contracts/types/PhysicalMaterialReadHandle/v1',
+        ownerDomain:'arca',
+        ownerScope:{ scopeType:'on_deck_custody', scopeId:'custody-settlement' },
+        location:selected,
+        identity:productMember.physicalIdentity,
+        expectedSizeBytes:productMember.physicalIdentity.sizeBytes,
+      },
+      approval:{ approvalId:'approval' },
+      finalInventoryRequest:fixture.finalInventoryRequest,
+      finalMaterialKey:finalMember.sourceMaterialKey,
+      finalTargetLocation:finalMember.targetLocation,
+      settlementExpectation:'remove_after_place',
+      sourceToFinalMappingDigest:mappingDigest,
+    });
+    assert.equal(settled.disposition, 'settled_to_final');
+    assert.equal(fs.existsSync(selected), false);
+    assert.equal(fs.existsSync(extraClip), true);
+  } finally {
+    fs.rmSync(fixture.root, { recursive:true, force:true });
+  }
+});
+
 test('same-root settlement keeps leftover extras in the retained final directory', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'clean-arca-same-root-extras-'));
   try {

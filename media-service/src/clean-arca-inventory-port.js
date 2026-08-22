@@ -40,6 +40,10 @@ function isManagedSourceLocation(request, location) {
   return managedSourceLocations(request).has(path.resolve(location));
 }
 
+function isInsideBdmvTree(location) {
+  return path.resolve(location).replaceAll('\\', '/').toUpperCase().includes('/BDMV/');
+}
+
 function safeSegment(value) {
   const segment = String(value || '').trim()
     .replace(/[<>:"/\\|?*\u0000-\u001f]/g, '_')
@@ -1152,7 +1156,7 @@ function createCleanArcaInventoryPort(options) {
         .filter((item) => {
           if (allowed.has(item)) return false;
           try {
-            if (!fs.statSync(item).isDirectory()) return true;
+            if (!fs.statSync(item).isDirectory()) return !isInsideBdmvTree(item);
           } catch {
             return true;
           }
