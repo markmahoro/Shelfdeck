@@ -112,7 +112,7 @@ Helix主体开发已经完成，Movie从Procurement、Libra到Arca及Shelf Dereg
 | UAT-055 | 人物名录未接通 Beta 两条登记路径，页面只读且为空 | `DOMAIN_ORCHESTRATION` | `USER_EXPERIENCE` | People Owner 自动化 + Arca On-deck 人物证据 + Admin Web | 正确性、可操作性 | Critical | 已实现；待新 Canary 确认 |
 | UAT-056 | 豆瓣评分缺少 SSOT 周期同步，同步与日志刷新职责混在一起 | `DOMAIN_ORCHESTRATION` | `USER_EXPERIENCE` | Perception Acquisition Owner 自动化 + Admin Web | 时效性、可理解性 | High | 已实现；待新 Canary 确认 |
 | UAT-057 | 概览只重复旁页计数，缺少系统状态、可点待办与最近完成；不得与我的收藏合并 | `USER_EXPERIENCE` | `PROJECTION_FRESHNESS` | Overview 只读聚合 + Admin Web | 可理解性、可操作性 | High | 已实现；待新 Canary 确认 |
-| UAT-058 | 侧栏把文件来源与收藏架放在日常运营之前；应下移与系统设置一组并改名为配置 | `USER_EXPERIENCE` | | Admin Web 导航 | 可发现性、信息架构 | Medium | 已讨论并确认方向，待实现 |
+| UAT-058 | 侧栏把文件来源与收藏架放在日常运营之前；应下移与系统设置一组并改名为配置 | `USER_EXPERIENCE` | | Admin Web 导航 | 可发现性、信息架构 | Medium | 已实现；待新 Canary 确认 |
 
 ## 2.1 UAT-006：概览展示固定演示数字
 
@@ -2239,7 +2239,17 @@ stderr 为 `CLEAN_ARCA_TARGET_OCCUPIED` 与 `CLEAN_ARCA_SETTLEMENT_UNKNOWN_MEMBE
 
 验收证据：侧栏上半是运营、下半是配置三页；名称与分组在桌面/窄侧栏都成立；深链 `/material-fields`、`/shelves` 仍进入原页。
 
-当前处理决定：2026-08-22 用户确认该导航顺序与 Tab 名。只登记，不立即改代码。与 UAT-057/054 同属产品表面。
+当前处理决定：2026-08-22 用户确认该导航顺序与 Tab 名。2026-08-22 代码已实现。侧栏上半为概览 / 我的收藏 / 媒体整理工作区 / 退出收藏 / 人物，下半配置组为文件来源配置 / 收藏架配置 / 系统设置。路径不改，入口不减，不并进设置页。已回写 SSOT §9.4.1 导航顺序与 §9.3.3 用户别名，未改 Owner/Handoff。本条不宣称 Canary 或生产通过。
+
+证据：
+
+- `media-service/web/src/helix/surface-model.ts`
+- `media-service/web/src/App.tsx`
+- `media-service/web/src/helix/MaterialFieldsPage.tsx`
+- `media-service/web/src/helix/ShelvesPage.tsx`
+- `docs/helix/TOP_DOWN_ARCHITECTURE_CONFIRMATION.md` §9.4.1 / §9.3.3
+- `media-service/web/test/navigation.test.tsx`
+- Admin Web production build `npm run build:web` PASS
 
 ## 56. 后续问题模板
 

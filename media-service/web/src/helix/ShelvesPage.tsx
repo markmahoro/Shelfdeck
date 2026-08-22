@@ -128,7 +128,7 @@ export default function ShelvesPage() {
   if (!shelves.length && loading && !error) return <LoadingState>正在读取收藏架…</LoadingState>;
 
   return <section className="source-page shelf-page">
-    <PageHeader title="收藏架" description="指定上架后的目录和命名规则。创建时不会写入媒体文件。" actions={<Button variant="primary" type="button" onClick={() => setShowCreate((value) => !value)}>{showCreate ? '收起' : '新建收藏架'}</Button>} />
+    <PageHeader title="收藏架配置" description="指定上架后的目录和命名规则。创建时不会写入媒体文件。" actions={<Button variant="primary" type="button" onClick={() => setShowCreate((value) => !value)}>{showCreate ? '收起' : '新建收藏架'}</Button>} />
     <div className="source-facts facts-3" aria-label="收藏架摘要">
       <div><span>活动收藏架</span><strong>{activeShelves.length}</strong><small>可接收整理结果</small></div>
       <div><span>可用规则模板</span><strong>{activeTemplates.length}</strong><small>系统推荐模板只读</small></div>

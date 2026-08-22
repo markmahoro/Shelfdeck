@@ -12642,8 +12642,8 @@ Capability ref、resource key、Fence、Effect Receipt、revision digest、Outbo
 
 | Canonical term | 普通界面用语 | 产品规则 |
 | --- | --- | --- |
-| Material Field | 文件来源 | 表达ShelfDeck从哪个物理文件范围发现原料；不能称为Emby Library |
-| Shelf | 收藏架 | 一座具有唯一目标文件夹和收藏标准的逻辑收藏容器 |
+| Material Field | 文件来源 / 文件来源配置 | 对象名仍是文件来源；一级导航与页标题写作文件来源配置。不能称为Emby Library |
+| Shelf | 收藏架 / 收藏架配置 | 一座具有唯一目标文件夹和收藏标准的逻辑收藏容器；一级导航与页标题写作收藏架配置 |
 | Shelf Physical Target Folder | 收藏位置 | 表达成品最终落点；不暗示该目录本身就是Shelf |
 | Deck | 我的收藏 / 全部收藏 | 只由有效Shelf Entry与Deck Fact组成 |
 | Shelf Entry | 收藏项 | Movie、Season或single的一项正式收藏记录 |
@@ -12717,16 +12717,17 @@ Beta Admin Web采用八个一级入口：
 
 ~~~text
 概览
-文件来源
-收藏架
 我的收藏
-上架进度
+媒体整理工作区
 退出收藏
 人物
+── 配置 ──
+文件来源配置
+收藏架配置
 系统设置
 ~~~
 
-导航可以按“收藏基础 / 日常运营 / 知识 / 系统”形成视觉分组，但不增加中间路由层。User Perception没有
+导航按“日常运营 / 配置”形成视觉分组，但不增加中间路由层、不减少八个一级入口。路径仍为 `/`、`/collection`、`/formation`、`/offdeck`、`/people`、`/material-fields`、`/shelves`、`/settings`。User Perception没有
 独立一级页面：评分和已看操作出现在上架详情、收藏详情及对应集成设置中；其Domain独立性由API/Owner保证，
 不靠菜单数量证明。普通产品不提供`任务中心`、`Gate状态`、`Flow列表`或通用失败队列。
 

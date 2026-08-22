@@ -41,7 +41,11 @@ export default function App() {
       <aside className="helix-rail" aria-label="ShelfDeck 主导航">
         <div className="helix-brand"><span className="brand-mark" aria-hidden="true">SD</span><div><strong>ShelfDeck</strong><small>媒体库管家</small></div></div>
         <RailStatus />
-        <nav>{pages.map((page) => <NavLink key={page.slug} to={page.path} end={page.path === '/'} className={({ isActive }) => isActive ? 'active' : ''}>{page.label}</NavLink>)}</nav>
+        <nav>
+          {pages.filter((page) => page.group !== 'config').map((page) => <NavLink key={page.slug} to={page.path} end={page.path === '/'} className={({ isActive }) => isActive ? 'active' : ''}>{page.label}</NavLink>)}
+          <span className="nav-separator">配置</span>
+          {pages.filter((page) => page.group === 'config').map((page) => <NavLink key={page.slug} to={page.path} end={page.path === '/'} className={({ isActive }) => isActive ? 'active' : ''}>{page.label}</NavLink>)}
+        </nav>
       </aside>
       <main id="main" className="helix-main">
         <Routes>

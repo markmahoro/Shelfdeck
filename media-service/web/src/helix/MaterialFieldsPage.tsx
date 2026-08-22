@@ -143,7 +143,7 @@ export default function MaterialFieldsPage() {
   if (!fields.length && loading && !error) return <LoadingState>正在读取文件来源…</LoadingState>;
 
   return <section className="source-page">
-    <PageHeader title="文件来源" description="指定本机电影目录。登记不会移动、改名或删除任何文件。" actions={<Button variant="primary" type="button" onClick={() => setShowCreate((value) => !value)}>{showCreate ? '收起' : '添加电影来源'}</Button>} />
+    <PageHeader title="文件来源配置" description="指定本机电影目录。登记不会移动、改名或删除任何文件。" actions={<Button variant="primary" type="button" onClick={() => setShowCreate((value) => !value)}>{showCreate ? '收起' : '添加电影来源'}</Button>} />
     <div className="source-facts facts-3" aria-label="文件来源摘要">
       <div><span>活动来源</span><strong>{activeFields.length}</strong><small>可扫描的电影目录</small></div>
       <div><span>已扫描</span><strong>{observedFields}</strong><small>已经看过目录内容</small></div>

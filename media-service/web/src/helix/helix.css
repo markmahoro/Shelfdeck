@@ -32,6 +32,7 @@ button, input, select, textarea { font: inherit; }
 .helix-rail nav a { display: flex; align-items: center; min-height: 40px; padding: 0 12px; border-radius: 6px; color: #aec7c1; text-decoration: none; font-size: 14px; font-weight: 600; }
 .helix-rail nav a:hover { background: #173936; color: white; }
 .helix-rail nav a.active { background: var(--rail-soft); color: white; box-shadow: inset 3px 0 var(--accent); }
+.nav-separator { display: block; margin: 12px 12px 4px; padding-top: 10px; border-top: 1px solid #31514d; color: #8eb2aa; font-size: 11px; font-weight: 700; letter-spacing: 0.08em; }
 .rail-status { margin: 14px 8px 0; color: #8eb2aa; font-size: 12px; font-weight: 700; }
 .rail-status[data-kind="unconfigured"] { color: #e8c48a; }
 .rail-status[data-kind="faulted"] { color: #f0b4b4; }
