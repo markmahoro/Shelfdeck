@@ -2498,6 +2498,13 @@ Formation 该行 `my_rating=4`、`my_rating_source=douban`，整理要求 `HEVC 
 
 当前处理决定：2026-08-22 代码已实现。`deriveTargetSizeBudget` 在已知源体积且源小于上限时按源量级封顶，不再把档位 GiB 当 `target_size` 填满目标；可行性仍按上限。Formation 转码步骤读 `executionDeviceRef.deviceClass`。本条不宣称 Canary 或生产通过。
 
+2026-08-23逐项封口在重建Canary `UAT-20260823-002500-519f8d7b5`完成。同一四星样本`锡尔弗顿之围 (2022)`
+原始H.264 Primary为2,077,884,000字节，HEVC最终Primary为2,090,639,953字节，仅约0.6%增长，不再成为旧现场的
+10,032,914,711字节。EncodeIntent仍正确使用`nvidia_nvenc`、HEVC、音轨copy，`targetVideoBitrateBps=1,919,325`，
+而非旧现场按14GiB上限推得的14,703,421。真实“我的收藏”详情显示1.9GB、当前收藏且健康；FS最终文件大小与Inventory一致。
+状态`REGRESSION PASSED / CONFIRMED ON REBUILT CANARY`。UI证据：
+`admin-web-evidence/uat-059-four-star-transcode-size-cap-pass.png`。
+
 ## 57. UAT-060：Product Identity 写回 Subject 触发语义相同的 Acceptance Spec 重发
 
 问题分类：`BUSINESS_CONTRACT / DOMAIN_ORCHESTRATION`
