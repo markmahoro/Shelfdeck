@@ -1867,7 +1867,9 @@ stderr 为 `CLEAN_ARCA_TARGET_OCCUPIED` 与 `CLEAN_ARCA_SETTLEMENT_UNKNOWN_MEMBE
 
 验收证据：三条编号/未编号 `zh-CN.srt` 最终名保持可区分原名。
 
-当前处理决定：按根因修复。本轮 Canary 的该 Libra Run 验收已失败收口，未自动重试。已开干净 Canary `UAT-20260821-234249-d3c617add`。状态 `REGRESSION PASSED / NEW CANARY IN PROGRESS`。
+当前处理决定：按根因修复。本轮 Canary 的该 Libra Run 验收已失败收口，未自动重试。已开干净 Canary `UAT-20260821-234249-d3c617add`。
+
+干净 Canary 定向确认（2026-08-22）：`倩女幽魂2：人间道 (1990)` 已 On-deck。主文件 `倩女幽魂2：人间道 (1990).mkv` 约 10.0 GiB；编号 `.1.zh-CN.srt` … `.55.zh-CN.srt` 与未编号 `.zh-CN.srt` 保留可区分原名，无 hash 后缀；源 `.iso` 已从终态目录消失。状态 `REGRESSION PASSED / CONFIRMED ON CLEAN CANARY`。
 
 ## 45. 后续问题模板
 
