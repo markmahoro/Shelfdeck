@@ -89,7 +89,7 @@
 | UAT-030 | 五星外部获取用身份搜索；无合格 4K 源时页面显示合法冻结，不像卡住 | `UI` | W5 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260822-141950-0c27c8cf6 UI 五星冻结文案没有找到可获取的外部候选 |
 | UAT-031 | Movie Field 默认扩展名含 ISO，倩女幽魂2 能被观察 | `UI` `FS` | W2 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260823-002500-519f8d7b5 FACT Field含.iso并形成ISO Candidate；UI倩女幽魂2当前收藏健康；FS唯一最终目录与MKV |
 | UAT-032 | Aftercare Custody 绑定 objectKind 与合同一致，健康评估可执行 | `UI` | W4 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260822-141950-0c27c8cf6 UI 第八个嫌疑人已上架详情显示收藏健康为健康、保管为健康，不再停在never_assessed |
-| UAT-033 | 同名字幕和 stem-fanart 最终文件名可区分，同根上架不再 `TARGET_COLLISION` | `UI` `FS` | W3 | `CODE_DONE_UNQUALIFIED` | `NOT RUN` |
+| UAT-033 | 同名字幕和 stem-fanart 最终文件名可区分，同根上架不再 `TARGET_COLLISION` | `UI` `FS` | W3 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260823-002500-519f8d7b5 UI战栗空间当前收藏健康；FACT/FS双ASS与双fanart名称可区分、Inventory位置全唯一、碰撞为0 |
 | UAT-034 | 同名片名+年份的两部养蜂人最终目录可区分且都能 On-deck | `UI` `FS` | W3 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260822-141950-0c27c8cf6 UI 两个独立健康养蜂人当前Entry；FS普通版与edition目录各有一份MKV，非hash且无(0)年份 |
 | UAT-035 | FFmpeg 非零退出按执行失败收口，Remux Attempt 不停在 executing | `UI` `FACT` | W3 | `CODE_DONE_UNQUALIFIED` | `NOT RUN` |
 | UAT-036 | 已观察 ISO 能通过 Triage 形成 Candidate，不再因非可播放流 `triage_failed` | `UI` | W2 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260822-141950-0c27c8cf6 UI倩女幽魂2已形成并完成生产/On-deck，为健康当前收藏 |

@@ -1775,6 +1775,13 @@ Package，原始Primary精确指向23,393,665,024字节的`倩女幽魂2：人�
 
 修复状态（2026-08-22）：`REGRESSION PASSED / CLEAN CANARY UAT PENDING`。
 
+2026-08-23逐项封口在重建Canary `UAT-20260823-002500-519f8d7b5`完成。`战栗空间 (2002)` Final Inventory中的
+两条`.ass`分别保留`chinese(简英,assrt)`与`chinese(简英,subtitle_best)`原basename，13个Inventory位置13/13唯一；
+`养蜂人 (2024)`的通用`fanart.jpg`以`fanart`登记，stem-fanart以`sidecar`及原名登记，9个Inventory位置9/9唯一。
+FS对应文件均存在，当前服务日志`CLEAN_ARCA_TARGET_COLLISION`为0；真实“我的收藏”显示`战栗空间`为当前收藏且健康。
+状态`REGRESSION PASSED / CONFIRMED ON REBUILT CANARY`。UI证据：
+`admin-web-evidence/uat-033-distinct-subtitle-fanart-names-pass.png`。
+
 ## 31. UAT-034：同名片名+年份的两部养蜂人最终目录必须可区分
 
 问题分类：`PLACEMENT_NAMING / EDITION_CONTINUITY / USER_VISIBLE_COLLECTION`
