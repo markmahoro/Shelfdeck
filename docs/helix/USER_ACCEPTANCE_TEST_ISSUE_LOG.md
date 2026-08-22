@@ -1796,7 +1796,11 @@ stderr 为 `CLEAN_ARCA_TARGET_OCCUPIED` 与 `CLEAN_ARCA_SETTLEMENT_UNKNOWN_MEMBE
 
 验收证据：UDF fixture 抽出 `BDMV/STREAM/00000.m2ts` 后 Remux 得到 Matroska；普通 MKV 仍直接 `-i`；无 topology 的 BEA01 卷报 `LIBRA_MEDIA_ISO_TOPOLOGY_UNPROVEN`。disc-topology 与 media-effect 测试通过。
 
-修复状态（2026-08-22）：`REGRESSION PASSED / NEW LIBRA RUN REQUIRED`。当前冻结的 ISO Remux Run 不可变，需新 Observation/Run 才会走提取路径。
+修复状态（2026-08-23）：`REGRESSION PASSED / CONFIRMED ON CURRENT CANARY`。干净 Canary
+`UAT-20260822-141950-0c27c8cf6` 的新 Observation/Run 已把《倩女幽魂2：人间道》完成上架；真实详情为
+`9.3 GB · MKV`、当前收藏且健康。只读源 ISO 仍位于`F:\test_film`且为`23393665024`字节；最终目录只有
+`10021609024`字节MKV，无ISO、无BDMV/CERTIFICATE树，未把映像文件当普通流或最终产品交差。UI证据：
+`admin-web-evidence/uat-040-iso-extracted-remux-ondeck.png`。
 
 ## 38. UAT-041：BDMV HEVC/TrueHD Remux 因 PES 缺时间戳被 Matroska 拒绝
 
