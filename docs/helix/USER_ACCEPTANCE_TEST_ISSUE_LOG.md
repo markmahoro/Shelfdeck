@@ -1531,6 +1531,13 @@ Resolution RecordSet schema和Admin Web没有闭合该能力。直接删除旧Re
 修复状态（2026-08-22）：`REAL ADMIN WEB VERIFIED`。本地服务重启后从Formation指定电影行点击“清除我的评分”，
 `第八个嫌疑人`由`2 星 · 我的评分`恢复为`3 星 · 豆瓣`；再次点击页面“刷新”后来源与评分保持。
 
+2026-08-23逐项封口在重建Canary `UAT-20260823-002500-519f8d7b5`再次完成真实命令验证。发布标签版
+`养蜂人 (2024) - 2160p HEVC Atmos TrueHD5.1`原为UAT-009提交的`4 星 · 我的评分`；点击“清除我的评分”并刷新后，
+页面稳定恢复为`4 星 · 豆瓣`且清除入口消失。持久事实新增一条`record_kind=retraction`、`rating=null`的直接来源Record，
+并新增一条`retracts`关系精确指向原直接4星Observation；旧Observation未删除。状态
+`REGRESSION PASSED / CONFIRMED ON REBUILT CANARY`。UI证据：
+`admin-web-evidence/uat-026-clear-direct-rating-restores-douban-pass.png`。
+
 ## 24. UAT-027：恢复中的FFmpeg progress冲突导致整个服务退出
 
 问题分类：`EXECUTOR_PROGRESS / PROCESS_CONTAINMENT / SERVICE_RECOVERY`
