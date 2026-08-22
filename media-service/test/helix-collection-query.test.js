@@ -6,6 +6,7 @@ const {
   containerFromLocation,
   filterCollectionIndex,
   occupancyFromMaterials,
+  yearFromDescriptiveFacts,
   videoSpecFromFacts,
 } = require('../src/helix/domains/arca/application/collection-query');
 
@@ -32,6 +33,13 @@ test('Collection video spec uses Inventory probe facts and does not invent codec
     codec: 'HEVC', raster: '2160p',
   });
   assert.deepEqual(videoSpecFromFacts([{ factValue: { title: 'Only metadata' } }]), { codec: null, raster: null });
+});
+
+test('Collection year follows the descriptive fields emitted by provider metadata', () => {
+  assert.equal(yearFromDescriptiveFacts(new Map([['year_or_release_date', '2023']])), 2023);
+  assert.equal(yearFromDescriptiveFacts(new Map([['release_date', '2025-06-23']])), 2025);
+  assert.equal(yearFromDescriptiveFacts(new Map([['release_year', 1999]])), 1999);
+  assert.equal(yearFromDescriptiveFacts(new Map([['year_or_release_date', 'unknown']])), null);
 });
 
 test('Collection index filter stays on the query, including unset-shelf-free current/history splits', () => {

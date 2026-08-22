@@ -36,6 +36,15 @@ function videoSpecFromFacts(facts) {
   }
   return Object.freeze({ codec: null, raster: null });
 }
+function yearFromDescriptiveFacts(descriptive) {
+  const raw = descriptive.get('year')
+    ?? descriptive.get('release_year')
+    ?? descriptive.get('year_or_release_date')
+    ?? descriptive.get('release_date')
+    ?? null;
+  const match = String(raw ?? '').match(/^(\d{4})/);
+  return match ? Number(match[1]) : null;
+}
 function occupancyFromMaterials(materials) {
   const members = materials || [];
   const occupancyBytes = members.reduce((sum, item) => sum + Number(item.size_bytes || 0), 0);
@@ -92,7 +101,7 @@ function createArcaCollectionQuery(options) {
     return Object.freeze({shelfEntryId:row.shelf_entry_id,shelfId:row.shelf_id,shelfName:shelf?.name||row.shelf_id,structureKind:row.structure_kind,status:row.status,
       canonicalIdentityRevision:Number(row.canonical_identity_revision),canonicalIdentityKey:row.canonical_identity_key,
       provider:identity.provider,providerKey:identity.provider_key,identityKind:identity.identity_kind,identityDigest:identity.identity_digest,
-      displayIdentity:descriptive.get('title')||descriptive.get('display_title')||identity.provider_key,year:descriptive.get('year')||descriptive.get('release_year')||null,
+      displayIdentity:descriptive.get('title')||descriptive.get('display_title')||identity.provider_key,year:yearFromDescriptiveFacts(descriptive),
       overview:descriptive.get('overview')||descriptive.get('plot')||null,genres:Object.freeze(genres),people:Object.freeze(people),
       hasPoster:occupancy.hasPoster,hasNfo:occupancy.hasNfo,occupancyBytes:occupancy.occupancyBytes,
       primaryVideoBytes:occupancy.primaryVideoBytes,primaryContainer:occupancy.primaryContainer,
@@ -188,5 +197,6 @@ module.exports=Object.freeze({
   createArcaCollectionQuery,
   filterCollectionIndex,
   occupancyFromMaterials,
+  yearFromDescriptiveFacts,
   videoSpecFromFacts,
 });
