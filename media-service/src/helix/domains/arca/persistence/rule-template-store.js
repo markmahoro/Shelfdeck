@@ -5,6 +5,8 @@ const { createCommandCommitCoordinator } = require('../../../foundation/persiste
 const { createRepositoryDefinition } = require('../../../foundation/persistence/owner-repository');
 const {
   RULES_SCHEMA_REF,
+  SYSTEM_TEMPLATE_ID,
+  SYSTEM_TEMPLATE_NAME,
   buildShelfStandard,
   validateRuleTemplateRules,
 } = require('../model/rule-template-contracts');
@@ -381,7 +383,7 @@ function createRuleTemplateStore(options) {
     if (!row) return null;
     const template = {
       templateId: row.rule_template_id,
-      name: row.name,
+      name: row.rule_template_id === SYSTEM_TEMPLATE_ID ? SYSTEM_TEMPLATE_NAME : row.name,
       ownerKind: row.owner_kind,
       status: row.status,
       currentRevision: row.current_revision,

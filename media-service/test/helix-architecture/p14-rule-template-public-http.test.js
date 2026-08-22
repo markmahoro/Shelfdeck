@@ -12,6 +12,7 @@ const { canonicalDigest } = require('../../src/helix/contracts/canonical-json');
 const {
   RULES_SCHEMA_REF,
   SYSTEM_TEMPLATE_ID,
+  SYSTEM_TEMPLATE_NAME,
 } = require('../../src/helix/domains/arca/model/rule-template-contracts');
 
 const secretRoot = 'p14-rule-template-secret-root-0123456789abcdef';
@@ -162,7 +163,19 @@ test('Arca Rule Template public HTTP preserves immutable system defaults and clo
     assert.equal(listed.json().items.length, 1);
     const system = listed.json().items[0];
     assert.equal(system.templateId, SYSTEM_TEMPLATE_ID);
+    assert.equal(system.name, SYSTEM_TEMPLATE_NAME);
     assert.equal(system.ownerKind, 'system');
+    const storedName = new Database(value.databasePath, { readonly: false });
+    storedName.prepare('UPDATE arca_rule_templates SET name = ? WHERE rule_template_id = ?')
+      .run('Beta Recommended', SYSTEM_TEMPLATE_ID);
+    storedName.close();
+    const listedAfterEnglishStore = await host.inject({
+      method: 'GET',
+      url: '/v1/admin/rule-templates',
+      headers,
+    });
+    assert.equal(listedAfterEnglishStore.statusCode, 200, listedAfterEnglishStore.body);
+    assert.equal(listedAfterEnglishStore.json().items[0].name, SYSTEM_TEMPLATE_NAME);
     assert.equal(system.current.rulesSchemaRef, RULES_SCHEMA_REF);
     assert.deepEqual(
       system.current.rules.profileRuleSets.map((item) => item.contentProfile),

@@ -17,6 +17,8 @@ import { Button, LoadingState, PageHeader } from './chrome';
 import { isUnauthorized, useSession } from './session';
 
 const HIGH_QUALITY_AUDIO = ['dts_hd_ma', 'dts_x', 'eac3_atmos', 'truehd', 'truehd_atmos'];
+const SYSTEM_TEMPLATE_ID = 'system-beta-recommended';
+const SYSTEM_TEMPLATE_DISPLAY_NAME = '系统推荐电影标准';
 const DEFAULT_PLACEMENT: ShelfPlacementPolicy = {
   folderTemplate: '{title} ({year})',
   primaryTemplate: '{stem}{ext}',
@@ -35,6 +37,9 @@ type MovieRuleEdit = {
   highQualityAudio: boolean;
   maxSizeGiB: string;
 };
+type StandardEditor =
+  | { kind: 'create'; source: RuleTemplate }
+  | { kind: 'shelf'; shelf: Shelf };
 
 function newShelfId() {
   return `movie-shelf-${crypto.randomUUID()}`;
@@ -114,6 +119,14 @@ async function applyMovieEdits(rules: RuleTemplateRules, edits: MovieRuleEdit[])
   movie.profileRuleSetDigest = await canonicalDigest(unsigned as never);
   return next;
 }
+function templateDisplayName(item: Pick<RuleTemplate, 'templateId' | 'name' | 'ownerKind'>) {
+  return item.templateId === SYSTEM_TEMPLATE_ID || item.ownerKind === 'system'
+    ? SYSTEM_TEMPLATE_DISPLAY_NAME
+    : item.name;
+}
+function templateOptionLabel(item: RuleTemplate) {
+  return `${templateDisplayName(item)}${item.ownerKind === 'system' ? ' · 系统只读' : ''}`;
+}
 function reassessmentCopy(entryCount: number, extraShelves = 0) {
   const titles = entryCount === 0
     ? '当前没有已上架电影。发布后，以后上架的电影会按新规则验收。'
@@ -171,7 +184,7 @@ export default function ShelvesPage() {
   const [shelfId, setShelfId] = useState(newShelfId);
   const [name, setName] = useState('电影收藏架');
   const [targetRootLocation, setTargetRootLocation] = useState('');
-  const [templateId, setTemplateId] = useState('system-beta-recommended');
+  const [templateId, setTemplateId] = useState(SYSTEM_TEMPLATE_ID);
   const [placement, setPlacement] = useState<ShelfPlacementPolicy>({ ...DEFAULT_PLACEMENT });
   const [confirmShelf, setConfirmShelf] = useState<Shelf | null>(null);
   const [enteredShelfName, setEnteredShelfName] = useState('');
@@ -183,7 +196,7 @@ export default function ShelvesPage() {
   const [placementPreview, setPlacementPreview] = useState<PlacementPreview | null>(null);
   const [bindShelf, setBindShelf] = useState<Shelf | null>(null);
   const [bindTemplateId, setBindTemplateId] = useState('');
-  const [standardShelf, setStandardShelf] = useState<Shelf | null>(null);
+  const [standardEditor, setStandardEditor] = useState<StandardEditor | null>(null);
   const [copyName, setCopyName] = useState('');
   const [movieEdits, setMovieEdits] = useState<MovieRuleEdit[]>([]);
   const [standardPreview, setStandardPreview] = useState<RuleTemplatePreview | null>(null);
@@ -195,8 +208,11 @@ export default function ShelvesPage() {
       const [shelfResult, templateResult] = await Promise.all([helixAdminApi.listShelves(), helixAdminApi.listRuleTemplates()]);
       setShelves(shelfResult.items);
       setTemplates(templateResult.items);
-      const recommended = templateResult.items.find((item) => item.templateId === 'system-beta-recommended' && item.status === 'active');
-      if (recommended) setTemplateId(recommended.templateId);
+      setTemplateId((current) => {
+        if (templateResult.items.some((item) => item.templateId === current && item.status === 'active')) return current;
+        const recommended = templateResult.items.find((item) => item.templateId === SYSTEM_TEMPLATE_ID && item.status === 'active');
+        return recommended?.templateId || current;
+      });
       if (shelfResult.items.length === 0) setShowCreate(true);
     } catch (cause) {
       if (isUnauthorized(cause)) expire();
@@ -208,8 +224,15 @@ export default function ShelvesPage() {
   const activeTemplates = useMemo(() => templates.filter((item) => item.status === 'active'), [templates]);
   const selectedTemplate = activeTemplates.find((item) => item.templateId === templateId);
   const activeShelves = shelves.filter((item) => item.status === 'active');
+  const editorShelf = standardEditor?.kind === 'shelf' ? standardEditor.shelf : null;
+  const editorSource = preparedDraft?.template
+    || (standardEditor?.kind === 'create'
+      ? standardEditor.source
+      : editorShelf
+        ? templates.find((item) => item.templateId === editorShelf.standard.ruleTemplateId)
+        : selectedTemplate);
   function templateLabel(id: string) {
-    if (id === 'system-beta-recommended') return '系统推荐';
+    if (id === SYSTEM_TEMPLATE_ID) return SYSTEM_TEMPLATE_DISPLAY_NAME;
     return templates.find((item) => item.templateId === id)?.name || id;
   }
 
@@ -272,9 +295,21 @@ export default function ShelvesPage() {
   }
   function openStandard(shelf: Shelf) {
     const source = templates.find((item) => item.templateId === shelf.standard.ruleTemplateId);
-    setStandardShelf(shelf);
+    setStandardEditor({ kind: 'shelf', shelf });
     setCopyName(`${shelf.name} 整理标准`);
     setMovieEdits(editsFromBranches(movieRules(source?.current.rules || shelf.standard.value)));
+    setStandardPreview(null);
+    setPreparedDraft(null);
+    setError(''); setNotice('');
+  }
+  function openCreateStandard() {
+    if (!selectedTemplate) {
+      setError('请先选择规则模板。');
+      return;
+    }
+    setStandardEditor({ kind: 'create', source: selectedTemplate });
+    setCopyName(`${name.trim() || '电影收藏架'} 整理标准`);
+    setMovieEdits(editsFromBranches(movieRules(selectedTemplate.current.rules)));
     setStandardPreview(null);
     setPreparedDraft(null);
     setError(''); setNotice('');
@@ -318,9 +353,8 @@ export default function ShelvesPage() {
       else { setError(commandError(cause, '规则模板绑定失败。')); setLoading(false); }
     }
   }
-  async function prepareStandardDraft(shelf: Shelf) {
-    const source = preparedDraft?.template
-      || templates.find((item) => item.templateId === shelf.standard.ruleTemplateId);
+  async function prepareStandardDraft() {
+    const source = editorSource;
     if (!source) throw new Error('找不到当前规则模板，请刷新后重试。');
     let working = preparedDraft;
     if (!working && source.ownerKind === 'user') {
@@ -345,10 +379,10 @@ export default function ShelvesPage() {
     return prepared;
   }
   async function previewStandard() {
-    if (!standardShelf) return;
+    if (!standardEditor) return;
     setLoading(true); setError('');
     try {
-      const prepared = await prepareStandardDraft(standardShelf);
+      const prepared = await prepareStandardDraft();
       setStandardPreview(await helixAdminApi.previewRuleTemplate(prepared.template, prepared.draft));
     } catch (cause) {
       if (isUnauthorized(cause)) expire();
@@ -356,17 +390,20 @@ export default function ShelvesPage() {
     } finally { setLoading(false); }
   }
   async function publishStandard() {
-    if (!standardShelf) return;
+    if (!standardEditor) return;
     setLoading(true); setError('');
     try {
-      const prepared = preparedDraft || await prepareStandardDraft(standardShelf);
+      const prepared = preparedDraft || await prepareStandardDraft();
       const preview = standardPreview || await helixAdminApi.previewRuleTemplate(prepared.template, prepared.draft);
       const published = await helixAdminApi.publishRuleTemplate(preview);
-      if (standardShelf.standard.ruleTemplateId !== published.template.templateId) {
-        await helixAdminApi.bindShelfTemplate(standardShelf, published.template);
+      if (standardEditor.kind === 'shelf' && standardEditor.shelf.standard.ruleTemplateId !== published.template.templateId) {
+        await helixAdminApi.bindShelfTemplate(standardEditor.shelf, published.template);
       }
-      setStandardShelf(null); setStandardPreview(null); setPreparedDraft(null);
-      setNotice('电影整理标准已发布。已上架电影会按新标准重新评估，身份保持同一收藏项。');
+      if (standardEditor.kind === 'create') setTemplateId(published.template.templateId);
+      setStandardEditor(null); setStandardPreview(null); setPreparedDraft(null);
+      setNotice(standardEditor.kind === 'create'
+        ? '自己的电影整理标准已发布。创建收藏架时将绑定这份规则。'
+        : '电影整理标准已发布。已上架电影会按新标准重新评估，身份保持同一收藏项。');
       await load();
     } catch (cause) {
       if (isUnauthorized(cause)) expire();
@@ -388,14 +425,17 @@ export default function ShelvesPage() {
       <div className="source-create-heading"><div><h2>创建电影收藏架</h2></div></div>
       <div className="source-form-grid">
         <label><span>收藏架名称</span><input value={name} onChange={(event) => setName(event.target.value)} required /></label>
-        <label><span>规则模板</span><select value={templateId} onChange={(event) => setTemplateId(event.target.value)} required>{activeTemplates.map((item) => <option key={item.templateId} value={item.templateId}>{item.name}{item.ownerKind === 'system' ? ' · 系统只读' : ''}</option>)}</select></label>
+        <div className="template-bind-field">
+          <label><span>规则模板</span><select value={templateId} onChange={(event) => setTemplateId(event.target.value)} required>{activeTemplates.map((item) => <option key={item.templateId} value={item.templateId}>{templateOptionLabel(item)}</option>)}</select></label>
+          <Button type="button" onClick={() => openCreateStandard()}>复制模板</Button>
+        </div>
         <label className="wide"><span>收藏最终目录</span><input value={targetRootLocation} onChange={(event) => setTargetRootLocation(event.target.value)} placeholder="例如 E:\Movies 或 /media/Film" required /></label>
         <PlacementFields placement={placement} onChange={setPlacement} />
       </div>
       <div className="template-preview" aria-label="最终命名保存前预览">{namingPreview(placement)}</div>
       {selectedTemplate && <div className="template-preview">
-        <strong>{selectedTemplate.name}</strong>
-        <small>本页只使用电影规则。</small>
+        <strong>{templateOptionLabel(selectedTemplate)}</strong>
+        <small>本页只使用电影规则。系统推荐模板不可改写；复制后发布自己的电影整理标准，再用来创建收藏架。</small>
         <div className="movie-rule-grid">{movieRules(selectedTemplate.current.rules).map((branch) => <div key={`${branch.conditionKind}-${branch.rating || 0}`}><b>{branchLabel(branch)}</b><span>{mediaLabel(branch)}</span><small>{spaceLabel(branch)}</small></div>)}</div>
       </div>}
       <div className="source-create-footer"><p>保存时会检查目录是否可达、可写，并记下命名规则。</p><Button variant="primary" type="submit" disabled={loading || activeTemplates.length === 0}>{loading ? '正在验证并保存…' : '创建收藏架'}</Button></div>
@@ -404,7 +444,7 @@ export default function ShelvesPage() {
     {error && <p className="form-error" role="alert">{error}</p>}
     <div className="source-registry">
       <div className="source-registry-heading"><div><h2>当前收藏架</h2></div><Button type="button" onClick={() => void load()} disabled={loading}>刷新</Button></div>
-      {shelves.length === 0 ? <div className="source-empty"><strong>还没有收藏架</strong><p>先选择一个目标目录，并绑定系统推荐规则模板。</p></div> : shelves.map((shelf) => <article className="source-record shelf-record" key={shelf.shelfId}>
+      {shelves.length === 0 ? <div className="source-empty"><strong>还没有收藏架</strong><p>先选择一个目标目录，并绑定系统推荐规则模板，或复制后发布自己的电影整理标准。</p></div> : shelves.map((shelf) => <article className="source-record shelf-record" key={shelf.shelfId}>
         <div className="source-record-main">
           <div className="source-record-title"><span className={`status-dot ${shelf.status}`} /><div><h3>{shelf.name}</h3><p>{shelf.target.rootLocation}</p><span className="source-state">{shelfStatusLabel(shelf.status)}</span></div></div>
           <dl>
@@ -456,7 +496,7 @@ export default function ShelvesPage() {
         <div className="dialog-head"><h2 id="shelf-bind-title">更换“{bindShelf.name}”的规则模板</h2></div>
         <div className="dialog-body">
           <p>{reassessmentCopy(bindShelf.deregistrationSummary.entryCount)}</p>
-          <label><span>已发布的规则模板</span><select value={bindTemplateId} onChange={(event) => setBindTemplateId(event.target.value)}>{activeTemplates.map((item) => <option key={item.templateId} value={item.templateId}>{item.name}{item.ownerKind === 'system' ? ' · 系统只读' : ''}</option>)}</select></label>
+          <label><span>已发布的规则模板</span><select value={bindTemplateId} onChange={(event) => setBindTemplateId(event.target.value)}>{activeTemplates.map((item) => <option key={item.templateId} value={item.templateId}>{templateOptionLabel(item)}</option>)}</select></label>
         </div>
         <div className="dialog-actions">
           <Button type="button" onClick={() => setBindShelf(null)}>返回</Button>
@@ -464,20 +504,22 @@ export default function ShelvesPage() {
         </div>
       </div>
     </div>}
-    {standardShelf && <div className="dialog-scrim" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setStandardShelf(null); }}>
+    {standardEditor && <div className="dialog-scrim" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setStandardEditor(null); }}>
       <div className="dialog dialog-wide" role="dialog" aria-modal="true" aria-labelledby="shelf-standard-title">
-        <div className="dialog-head"><h2 id="shelf-standard-title">复制并发布“{standardShelf.name}”的电影整理标准</h2></div>
+        <div className="dialog-head"><h2 id="shelf-standard-title">{standardEditor.kind === 'create' ? '复制并发布自己的电影整理标准' : `复制并发布“${standardEditor.shelf.name}”的电影整理标准`}</h2></div>
         <div className="dialog-body">
-          <p>系统推荐模板不可改写。复制后发布自己的标准，再应用到此收藏架。已上架电影按新标准重新评估，不会重新入库。</p>
-          {templates.find((item) => item.templateId === standardShelf.standard.ruleTemplateId)?.ownerKind !== 'user' && !preparedDraft && <label><span>自己的规则模板名称</span><input value={copyName} onChange={(event) => { setCopyName(event.target.value); setStandardPreview(null); }} required /></label>}
+          <p>{standardEditor.kind === 'create'
+            ? '系统推荐模板不可改写。复制后发布自己的电影整理标准，再用来创建收藏架。'
+            : '系统推荐模板不可改写。复制后发布自己的标准，再应用到此收藏架。已上架电影按新标准重新评估，不会重新入库。'}</p>
+          {editorSource?.ownerKind !== 'user' && !preparedDraft && <label><span>自己的规则模板名称</span><input value={copyName} onChange={(event) => { setCopyName(event.target.value); setStandardPreview(null); }} required /></label>}
           <MovieRuleEditor edits={movieEdits} onChange={(value) => { setMovieEdits(value); setStandardPreview(null); }} />
           {standardPreview && <div className="template-preview" role="status">
-            <strong>将影响 {standardPreview.currentEntryPotentialGapCount || standardShelf.deregistrationSummary.entryCount} 部已上架电影</strong>
-            <small>{reassessmentCopy(standardPreview.currentEntryPotentialGapCount || standardShelf.deregistrationSummary.entryCount, Math.max(0, standardPreview.affectedShelfCount - (standardShelf.standard.ruleTemplateId === standardPreview.templateId ? 1 : 0)))}</small>
+            <strong>将影响 {standardPreview.currentEntryPotentialGapCount || editorShelf?.deregistrationSummary.entryCount || 0} 部已上架电影</strong>
+            <small>{reassessmentCopy(standardPreview.currentEntryPotentialGapCount || editorShelf?.deregistrationSummary.entryCount || 0, Math.max(0, standardPreview.affectedShelfCount - (editorShelf && editorShelf.standard.ruleTemplateId === standardPreview.templateId ? 1 : 0)))}</small>
           </div>}
         </div>
         <div className="dialog-actions">
-          <Button type="button" onClick={() => setStandardShelf(null)}>返回</Button>
+          <Button type="button" onClick={() => setStandardEditor(null)}>返回</Button>
           <Button type="button" disabled={loading} onClick={() => void previewStandard()}>{loading ? '正在预览…' : '预览影响'}</Button>
           <Button variant="primary" type="button" disabled={loading || !standardPreview} onClick={() => void publishStandard()}>发布电影整理标准</Button>
         </div>

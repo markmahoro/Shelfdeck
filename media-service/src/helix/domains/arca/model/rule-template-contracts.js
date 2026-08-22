@@ -4,6 +4,7 @@ const { canonicalDigest, canonicalJson } = require('../../../contracts/canonical
 
 const RULES_SCHEMA_REF = 'helix://contracts/policies/ArcaRuleTemplateRules/v1';
 const SYSTEM_TEMPLATE_ID = 'system-beta-recommended';
+const SYSTEM_TEMPLATE_NAME = '系统推荐电影标准';
 const PROFILE_ORDER = Object.freeze(['jav', 'movie', 'series', 'western_adult']);
 const PROFILE_SET = new Set(PROFILE_ORDER);
 const PROFILE_KEYS = Object.freeze([
@@ -568,6 +569,7 @@ module.exports = Object.freeze({
   BETA_RECOMMENDED_RULES_DIGEST,
   RULES_SCHEMA_REF,
   SYSTEM_TEMPLATE_ID,
+  SYSTEM_TEMPLATE_NAME,
   buildShelfStandard,
   validateRuleTemplateRules,
 });

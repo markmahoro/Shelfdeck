@@ -83,8 +83,12 @@ test('Shelves configures a probed Template-derived Movie Standard without exposi
   assert.match(page, /未评分/);
   assert.match(page, /\$\{branch\.rating\}星/);
   assert.match(page, /保存时会检查目录是否可达/);
+  assert.match(page, /复制模板/);
+  assert.match(page, /复制后发布/);
+  assert.match(page, /系统推荐电影标准/);
   assert.match(page, /复制并修改电影整理标准/);
   assert.match(page, /更换规则模板/);
+  assert.doesNotMatch(page, /Beta Recommended/);
   assert.match(page, /调整目录布局/);
   assert.match(page, /预览影响/);
   assert.match(page, /发布目录布局/);

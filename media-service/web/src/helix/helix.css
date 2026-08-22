@@ -88,6 +88,8 @@ button, input, select, textarea { font: inherit; }
 .ledger-panel li em { color: var(--muted); font-size: 13px; font-style: normal; font-variant-numeric: tabular-nums; }
 
 .source-form-grid, .form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-top: 18px; }
+.template-bind-field { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: end; }
+.template-bind-field .btn { min-height: 36px; }
 .source-form-grid label, .auth-form label, .source-form label, .form-grid label { display: grid; gap: 6px; color: #40514f; font-size: 12px; font-weight: 700; }
 .source-form-grid label.wide { grid-column: 1 / -1; }
 .source-form-grid input, .source-form-grid textarea, .source-form-grid select,
