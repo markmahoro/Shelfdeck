@@ -4,6 +4,14 @@ Status: Helix-beta 范围已收窄为仅 Movie 全链路。Movie Procurement与M
 
 Last updated: 2026-08-22
 
+## 0. Clean Canary scorecard — UAT-20260822-141950-0c27c8cf6
+
+本轮干净 Movie Canary：隔离库
+`C:\Users\markm\AppData\Local\Temp\ShelfDeck-Movie-Canary-UAT-20260822-141950-0c27c8cf6`，HEAD `0c27c8cf6`。
+`F:\test_film` 22/455/42 / 143,829,090,011 bytes 复制前后 mtime 不变；`F:\canary` 同口径零差异。Copy-forward 3 个 Integration + 1547 条 Douban Record，0 Field/Shelf/Subject。服务 `127.0.0.1:18080` PID 6488，health `helix-clean-v3` ready。
+
+**是否都通过：否。本轮 PASS 19 / 未通过 44 / 总 63。** 未通过均为 `NOT RUN`（转码、ISO/BDMV 上架、Discard 重新入库、Off-deck/注销本坐席未做完）。关闭基线 PASS 列见 `docs/helix/acceptance/UAT_CLOSURE_BASELINE.md`。
+
 ## 0. Helix-beta scope — Movie-only full chain
 
 2026-08-22 Product Owner 确认 Helix-beta = 仅支持 Movie 的全功能版本（SSOT 旅程 A–I，含退出收藏与 Shelf 注销）。四类媒体 Feature Matrix 已作废。现行基线：`docs/helix/BETA_FEATURE_ACCEPTANCE_BASELINE.md`。归档：`docs/helix/archive/BETA_FEATURE_ACCEPTANCE_BASELINE_FOUR_PROFILE_2026-07-23.md`。本条只记录范围决定，不把 Movie Canary 或单元测试标成 Helix-beta 交付通过。
