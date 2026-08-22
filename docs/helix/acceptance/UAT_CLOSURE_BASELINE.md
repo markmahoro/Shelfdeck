@@ -4,7 +4,7 @@
 
 建立日期：2026-08-22
 
-覆盖范围：`UAT-001`–`UAT-067`（67 行，无缺口、无重复）
+覆盖范围：`UAT-001`–`UAT-068`（68 行，无缺口、无重复）
 
 > 本文是关闭台账的冻结验收工件，不是 Architecture SSOT，也不是活动实施计划。
 > 问题叙述仍以 `docs/helix/USER_ACCEPTANCE_TEST_ISSUE_LOG.md` 为准。
@@ -51,7 +51,7 @@
 
 同一部影片可以服务多行，但每行仍要独立 `UI` 结论。不得用「23 部 completed」一口吞掉整表。
 
-## 4. 关闭矩阵（66 行）
+## 4. 关闭矩阵（68 行）
 
 证据标签：`UI` 必填；`FS` 在文件现实变化时必填；`FACT` 仅旁证。
 
@@ -124,26 +124,26 @@
 | UAT-065 | 收藏详情只从主视频basename解析容器，不得把父目录名中的`.1`显示为容器 | `UI` | W1 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260822-141950-0c27c8cf6 UI 8.3 GB BDMV养蜂人主视频修复后显示8.3 GB · MKV，不再显示· 1 |
 | UAT-066 | Formation 已完成整理表按目标Shelf ID显示当前收藏架名称，不得整列显示`—` | `UI` | W1 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260822-141950-0c27c8cf6 UI 已完成整理17/17条均显示Movie Canary，当前媒体6条显示未回退 |
 | UAT-067 | 活动 Run 加急后既有 Work 必须按冻结 Admission Definition 回放，动态 Priority 不得制造幂等冲突 | `UI` `FACT` | W3 | `CLOSED` | `PASS` UAT-20260823-002500-519f8d7b5 UI同一已加急老笠Run恢复并完成上架；FACT形成Product Package/Offer且无替换Run或数据库编辑 |
+| UAT-068 | Collection 年份投影须保留 Provider 标准年份字段，Aftercare Shelf Entry 不得因此丢失 title-year Identity Evidence | `UI` `FACT` | W4 | `CODE_DONE_UNQUALIFIED` | `NOT RUN` |
 
 ## 5. 计数
 
-冻结时（代码状态，不是本轮 Canary）：`CLOSED` 11，`CODE_DONE_UNQUALIFIED` 52，`RECORDED_UNIMPLEMENTED` 1（064）。本轮逐项关闭期间新增并完成`UAT-065`、`UAT-066`、`UAT-067`；当前代码状态为`CLOSED` 12、`CODE_DONE_UNQUALIFIED` 54、`RECORDED_UNIMPLEMENTED` 1（064）。
+冻结时（代码状态，不是本轮 Canary）：`CLOSED` 11，`CODE_DONE_UNQUALIFIED` 52，`RECORDED_UNIMPLEMENTED` 1（064）。本轮逐项关闭期间新增并完成`UAT-065`、`UAT-066`、`UAT-067`，并新增已修复待资格确认的`UAT-068`；当前代码状态为`CLOSED` 12、`CODE_DONE_UNQUALIFIED` 55、`RECORDED_UNIMPLEMENTED` 1（064）。
 
 逐项关闭累计覆盖干净 Canary `UAT-20260822-141950-0c27c8cf6`、`UAT-20260823-002500-519f8d7b5`与
 `UAT-20260823-014246-3397c88f5`；当前 PASS 总账：
 
 | 口径 | 数量 |
 | --- | --- |
-| 总行 | 67 |
+| 总行 | 68 |
 | 累计 `PASS` | **63** |
-| 尚未通过（`NOT RUN`+`FAILED`+`BLOCKED`） | **4**（4 `NOT RUN`；0 `FAILED`；0 `BLOCKED`） |
-| 是否都通过 | **否**（63/67，尚余 4） |
+| 尚未通过（`NOT RUN`+`FAILED`+`BLOCKED`） | **5**（5 `NOT RUN`；0 `FAILED`；0 `BLOCKED`） |
+| 是否都通过 | **否**（63/68，尚余 5） |
 
 累计 `PASS`：001–016、018–061（不含017）、065–067。证据均包含干净隔离库 Admin Web `UI`；要求文件现实的行另有`FS`。
-当前仅017、062、063、064保持`NOT RUN`。
+当前仅017、062、063、064、068保持`NOT RUN`。
 
-当前失败：无。`UAT-060`已在HEAD `3397c88f5`重建的干净Canary上用同值评分来源切换及成功Package证人关闭；
-剩余4行均为`NOT RUN`，不是已观察失败。
+当前资格失败证据：`UAT-063`在`UAT-20260823-014246-3397c88f5`因新登记的`UAT-068`未达到关闭标准；行仍保持`NOT RUN`，等待修复后重建验证。`UAT-060`已在HEAD `3397c88f5`重建的干净Canary上用同值评分来源切换及成功Package证人关闭；其余未关闭行尚未形成PASS结论。
 
 `UAT-005` 剩余动作合同并入 `UAT-051` 后仍保留本行，用四桶状态在新 Canary 上资格确认，不把 005 标 `VOID`。
 
@@ -495,3 +495,15 @@
 - 关闭结论：`PASS`。新Canary中老笠为健康当前收藏，且只有`F:\canary\老笠 (2016)`一个目录；正式成员为`老笠 (2016).mp4`、`老笠 (2016).nfo`、`老笠 (2016).zh-CN.srt`、`poster.jpg`、`fanart.jpg`，无技术发布标签、旧兄弟目录或partial。
 - UI证据：`admin-web-evidence/uat-020-final-subtitle-normalized-pass.png`（位于新Canary隔离证据目录）。旧失败截图继续保留为修复前证据。
 - FS证据：2026-08-23只读枚举及`uat-020-fs-evidence.json`，`SiblingRootCount=1`、`PartialCount=0`，字幕basename精确为`老笠 (2016).zh-CN.srt`。
+
+### UAT-063（`IN PROGRESS`）
+
+- 关闭命题：Aftercare 使用与 Libra 相同的 `perception.rating.resolve@1` Identity Evidence；上架后评分从无到有或变档时重新评估。
+- Canary：失败证人 `UAT-20260823-014246-3397c88f5`；重验 Canary 待 HEAD `a34dbde1f9` 安全重建。
+- 证人：Formation 与「我的收藏」中的《威尼斯惊魂夜》；另选一部已符合当前档的 HEVC 低体积 Shelf Entry 作保持健康反例。
+- 路径：Formation 读取外部豆瓣星级 → 我的收藏打开对应详情 → 核对年份及豆瓣星级 → 通过页面提交/清除 Shelf Entry 直接评分 → 立即检查健康并等待 Assessment 完成 → 页面复核健康状态。
+- 允许动作：Admin Web 页面读取、评分提交/清除、立即检查健康、刷新、截图；SQLite/日志只读旁证；当前在飞媒体生产自然结束后按用户授权重建干净 Canary。
+- 禁止动作：修改 SQLite 业务状态、直接扫描 Perception Record 代替产品入口、回读 Libra Subject 作为 Aftercare 输入、手工修改媒体文件、触碰 NAS/生产、在转码/ISO 活动时重启。
+- 通过标准：Subject 与 Shelf Entry Resolution 都为 `found` 且命中同一 Douban Record/星级；技术尾缀不导致 `not_found`；评分变化后无需等待 24 小时即形成新的 conformance Assessment；已符合档位的 HEVC 证人保持 healthy，不重开 Libra Run。
+- 证据要求：`UI`；`FACT`只作旁证。
+- 当前结论：旧 HEAD 复测未通过。Collection Projection 丢失 `year_or_release_date`，清除直接评分后 Shelf Entry Resolution 为 `not_found`；已独立登记并修复为 `UAT-068`，当前等待新 Canary 重验，不得提前写 `PASS`。

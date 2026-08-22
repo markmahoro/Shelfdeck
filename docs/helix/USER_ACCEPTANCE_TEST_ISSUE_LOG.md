@@ -2618,6 +2618,8 @@ Resolution/Query Result作为不可变Basis审计输入，但Spec语义判定只
 
 当前处理决定：2026-08-22 代码已实现。Libra Subject 与 Arca Shelf Entry 共用 `buildRatingTargetIdentity`（同一 `deriveTitleYear`）；`queryHandle.consumerDomain` 按调用方为 `libra|arca`。Care Basis 因评分变化后 Aftercare 立即到期，不再被 24h 列表门闩挡住。本条不宣称 Canary 或生产通过。
 
+2026-08-23 关闭复测：干净 Canary `UAT-20260823-014246-3397c88f5` 中，Formation 的「威尼斯惊魂夜 (2023)」命中豆瓣评分；对应 Shelf Entry 在「我的收藏」详情却显示「年份未知 / 暂无评分」。通过页面提交 4 星直接评分后，Shelf Entry Resolution 立即 `found`；清除后同一 Resolution Head revision 2 明确回到 `not_found`，没有命中 Subject 使用的豆瓣记录。根因独立登记为 `UAT-068`。本轮 UAT-063 未通过资格确认，须在包含 `UAT-068` 修复的新 Canary 上重验。
+
 ## 61. UAT-064：Formation 整理步骤展示与真实执行状态偏离
 
 问题分类：`USER_EXPERIENCE / PROJECTION_FRESHNESS`
@@ -2731,7 +2733,25 @@ Product Package与Offer并完成On-deck；没有替换Run或数据库编辑。Ad
 动作包含验证整理结果和上架到收藏架。状态`REGRESSION PASSED / CLOSED`。UI证据：
 `admin-web-evidence/uat-067-expedited-run-recovered.png`；FACT证据保留于同一UAT clean数据库和运行日志。
 
-## 65. 后续问题模板
+## 65. UAT-068：Collection 年份投影遗漏 Provider 标准字段，Aftercare 丢失 title-year Identity Evidence
+
+问题分类：`PROJECTION_FRESHNESS / BUSINESS_CONTRACT`
+
+用户侧现象：干净 Canary `UAT-20260823-014246-3397c88f5` 中，Formation 的「威尼斯惊魂夜 (2023)」显示豆瓣评分，但对应已上架影片在「我的收藏」详情显示「年份未知 / 暂无评分」。页面提交 Shelf Entry 直接评分能命中，清除后不能恢复豆瓣来源。
+
+现场证据：Shelf Entry 当前 Inventory `product_metadata` 明确保存 `year_or_release_date=2023` 和 `release_date=2023-09-13`；`collection-query.js` 只读取 `year` / `release_year`，因此 Collection item 与 `targetProjection` 的 `year` 均为 `null`。页面清除直接评分后，Shelf Entry 的 `perception.rating.resolve@1` Head 从 direct `found` revision 1 变为 `not_found/no_matching_record` revision 2；未产生豆瓣 winning record。页面截图为 `admin-web-evidence/uat-063-before-health-check.png` 与 `admin-web-evidence/uat-063-direct-rating-4.png`。
+
+精确根因：Arca Collection 只读 Projection 没有消费 TMDB Product Metadata 合同实际使用的 `year_or_release_date` / `release_date`。共享 `buildRatingTargetIdentity` 本身正确，但调用方先把有效年份丢成 `null`，导致 Shelf Entry 遗失 Libra 使用的 title-year Anchor。这不是 Perception 匹配算法或 Record 数据缺陷。
+
+业务影响：上架影片显示错误年份；Aftercare 无法用与 Libra 同形的 Identity Evidence 命中同一外部评分，评分变化后的合规评估依据不可信。
+
+修复边界：Collection 只读 Projection 依次接受 `year`、`release_year`、`year_or_release_date`、`release_date`，统一解析四位年份；不得扫描 Perception Record、回读 Libra Subject、修改 Inventory 事实或放宽匹配算法。不改 Owner/Handoff。
+
+验收证据：新干净 Canary 中，真实「我的收藏」详情显示正确年份；未设置 Shelf Entry 直接评分时，页面显示与 Formation 相同的豆瓣星级；只读 FACT 证明两边 Resolution 命中同一 Douban `winningPerceptionId`。证据要求：`UI`、`FACT`。
+
+当前处理决定：2026-08-23 已由 commit `a34dbde1f9` 修复。新增年份归一化单元反例及真实 Collection API 年份断言，相关单元/端到端 15/15 PASS；状态 `CODE_DONE_UNQUALIFIED`，等待新 Canary 独立关闭，不以测试直接记 PASS。
+
+## 66. 后续问题模板
 
 后续发现的问题按以下结构追加：
 
