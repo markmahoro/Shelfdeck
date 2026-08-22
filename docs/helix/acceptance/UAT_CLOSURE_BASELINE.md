@@ -67,7 +67,7 @@
 | UAT-008 | Admin Web 七个非根路径直接刷新回到对应页面，不再 404 | `UI` | W0 | `CLOSED` | `PASS` UAT-20260822-141950-0c27c8cf6 UI 八页首次打开与直接刷新 |
 | UAT-009 | 整理页提交评分后刷新仍保留该评分 | `UI` | W0 | `CLOSED` | `NOT RUN` |
 | UAT-010 | Routing 未配置时不开放人工选架，页面给出等待策略的明确提示 | `UI` | W0 | `CLOSED` | `NOT RUN` |
-| UAT-011 | 同根 Shelf Target 前 Handoff B 能推进，不再永久等待 | `UI` `FS` | W3 | `CODE_DONE_UNQUALIFIED` | `NOT RUN` |
+| UAT-011 | 同根 Shelf Target 前 Handoff B 能推进，不再永久等待 | `UI` `FS` | W3 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260822-141950-0c27c8cf6 UI Field/Shelf同为F:\canary且Shelf有17条、收藏17部当前Entry；FS同根目录现实存在 |
 | UAT-012 | On-deck Planner 带上 Settlement Approval 契约，上架能完成 | `UI` `FS` | W0 | `CLOSED` | `PASS` UAT-20260822-141950-0c27c8cf6 UI 第八个嫌疑人已为当前收藏且健康；FS主视频精确存在于F:\canary，大小2009890078与Inventory一致 |
 | UAT-013 | 已解析身份进入用户可读目录名，不再渲染成哈希 Inventory 目录 | `UI` `FS` | W3 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260822-141950-0c27c8cf6 UI第八个嫌疑人；FS目录F:\canary\第八个嫌疑人 (2023)存在，非哈希且无(0)年份 |
 | UAT-014 | Formation 展示 Product Identity 冲突并提供候选选择 | `UI` | W0 | `CLOSED` | `NOT RUN` |
@@ -133,11 +133,11 @@
 | 口径 | 数量 |
 | --- | --- |
 | 总行 | 66 |
-| 本轮 `PASS` | **41** |
-| 本轮未通过（`NOT RUN`+`FAILED`+`BLOCKED`） | **25**（全部为 `NOT RUN`；0 `FAILED`；0 `BLOCKED`） |
-| 是否都通过 | **否**（41/66，未通过 25） |
+| 本轮 `PASS` | **42** |
+| 本轮未通过（`NOT RUN`+`FAILED`+`BLOCKED`） | **24**（全部为 `NOT RUN`；0 `FAILED`；0 `BLOCKED`） |
+| 是否都通过 | **否**（42/66，未通过 24） |
 
-本轮 `PASS`：001、002、003、005、006、007、008、012、013、015、016、018、030、032、034、036、037、038、039、040、041、042、043、044、045、046、047、048、049、050、051、052、053、054、055、056、057、058、061、065、066。证据均包含本隔离库 Admin Web `UI`；要求文件现实的行另有`FS`。W5 Discard 重新入库、W6 退出收藏/注销在本坐席未跑完，保持 `NOT RUN`。
+本轮 `PASS`：001、002、003、005、006、007、008、011、012、013、015、016、018、030、032、034、036、037、038、039、040、041、042、043、044、045、046、047、048、049、050、051、052、053、054、055、056、057、058、061、065、066。证据均包含本隔离库 Admin Web `UI`；要求文件现实的行另有`FS`。W5 Discard 重新入库、W6 退出收藏/注销在本坐席未跑完，保持 `NOT RUN`。
 
 `UAT-005` 剩余动作合同并入 `UAT-051` 后仍保留本行，用四桶状态在新 Canary 上资格确认，不把 005 标 `VOID`。
 
@@ -461,3 +461,17 @@
 - 证据要求：`UI`。
 - 关闭结论：`PASS`。Formation显示17 completed、6需要处理、`pending=0`、`in_progress=0`。六个需要处理项的确认身份、资料、海报/NFO、外部寻源与验证均100%，终态均为无可获取外部候选的合法冻结；不存在Product Identity等待堆积。
 - UI证据：`admin-web-evidence/uat-003-product-identity-no-mass-wait.png`（位于本Canary隔离证据目录）。
+
+### UAT-011（`PASS`）
+
+- 关闭命题：同根Shelf Target前Handoff B能推进，不再永久等待。
+- Canary：`UAT-20260822-141950-0c27c8cf6`。
+- 证人：活动Material Field、Movie Canary Shelf及17个当前Shelf Entry。
+- 路径：文件来源配置核对Field路径 → 收藏架配置核对Target路径和条目数 → 我的收藏核对当前Entry。
+- 允许动作：页面进入、刷新、截图；文件系统只读旁证。
+- 禁止动作：扫描、修改路由/Shelf、触发On-deck、退出收藏、重启服务、重建Canary、修改数据库或文件。
+- 通过标准：Field与Shelf Target同根；Handoff B/On-deck仍能完成；收藏架和收藏页出现正式当前Entry，不停在等待接收。
+- 证据要求：`UI`、`FS`。
+- 关闭结论：`PASS`。文件来源与Movie Canary Target均为`F:\canary`；收藏架为可接收整理结果并有17条，收藏页17部均为当前收藏。`F:\canary`现实包含22个一级电影目录；同根Handoff B没有永久等待。
+- UI证据：`admin-web-evidence/uat-011-same-root-shelf-config.png`、`admin-web-evidence/uat-011-same-root-handoff-b-complete.png`（位于本Canary隔离证据目录）。
+- FS证据：2026-08-23只读枚举`F:\canary`，同一根存在正式电影目录与产品文件，未做任何修改。

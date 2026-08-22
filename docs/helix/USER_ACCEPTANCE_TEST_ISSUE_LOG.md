@@ -903,6 +903,11 @@ Package、Receipt、Canonical JSON等结构化事实的SHA-256与媒体字节Ide
 
 当前处理决定：问题已修复并分别提交；不修改旧的不可变Package或直接编辑UAT数据库。通过用户页面产生replacement Run验证新代码；在其到达终态前，第11、12阶段保持未通过。
 
+关闭确认（2026-08-23）：干净 Canary `UAT-20260822-141950-0c27c8cf6` 的活动Material Field与
+`Movie Canary` Shelf Target均为`F:\canary`；收藏架页面显示可接收整理结果且有17个收藏条目，收藏页17部均为
+当前收藏。同根Handoff B/On-deck已真实完成，不再永久等待。状态`REGRESSION PASSED / CONFIRMED ON CURRENT CANARY`。
+UI证据：`admin-web-evidence/uat-011-same-root-shelf-config.png`、`uat-011-same-root-handoff-b-complete.png`。
+
 ## 9. UAT-012：On-deck Planner 丢失 Settlement Approval 契约
 
 问题分类：`EXECUTION_CONTRACT / ARCA_ONDECK`
