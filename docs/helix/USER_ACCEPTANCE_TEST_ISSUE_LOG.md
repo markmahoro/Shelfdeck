@@ -1432,6 +1432,12 @@ Movie Perception Continuity架构门禁6/6及Admin Web production build均通过
 
 修复状态（2026-08-21）：`IMPLEMENTED / CLEAN CANARY UAT PENDING`。
 
+2026-08-23逐项封口在重建Canary `UAT-20260823-002500-519f8d7b5`完成。真实Formation刷新后按精确样本
+`看不见的朋友 (2023) - 1080p H.264 CHDWEB`过滤，该行稳定显示`5 星 · 豆瓣`，而非“暂无评分”；同页身份步骤为100%。
+这证明去技术后缀后形成的`看不见的朋友 + 2023`锚已与copy-forward豆瓣记录相交。状态
+`REGRESSION PASSED / CONFIRMED ON REBUILT CANARY`。UI证据：
+`admin-web-evidence/uat-023-release-suffix-douban-anchor-pass.png`。
+
 ## 21. UAT-024：逐成员Settlement后Accepted Context仍要求全部旧源存在
 
 问题分类：`ARCA_ONDECK / SETTLEMENT_RECOVERY / INPUT_PROJECTION`
