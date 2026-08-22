@@ -1816,7 +1816,10 @@ stderr 为 `CLEAN_ARCA_TARGET_OCCUPIED` 与 `CLEAN_ARCA_SETTLEMENT_UNKNOWN_MEMBE
 
 验收证据：无 setts 的生产 argv 在约 4s 内 Conversion failed 且输出 82232093 字节；带 setts 后 12s 内写出数 GiB 且无 unknown timestamp。媒体 Effect 测试覆盖缺 PTS 的 MPEG-TS 与（若存在）现场 BDAV 前缀。
 
-修复状态（2026-08-22）：`REGRESSION PASSED / NEW LIBRA RUN REQUIRED`。当前冻结的 BDMV Remux Run 不可变。
+修复状态（2026-08-23）：`REGRESSION PASSED / CONFIRMED ON CURRENT CANARY`。干净 Canary
+`UAT-20260822-141950-0c27c8cf6` 的新Run已把BDMV养蜂人完成上架；真实详情显示`8.3 GB · MKV`、当前收藏且健康。
+只读源`BDMV/STREAM`仍有61个M2TS、合计`69941790720`字节；最终MKV为`8932765796`字节且无`.partial`，
+没有再因unknown timestamp冻结。UI证据：`admin-web-evidence/uat-041-bdmv-timestamp-remux-ondeck.png`。
 
 ## 39. UAT-042：同根 Off-load Settlement 源现实漂移
 

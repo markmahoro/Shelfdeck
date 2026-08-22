@@ -97,7 +97,7 @@
 | UAT-038 | 上架成功后 Aftercare 健康不再是 conformance/presentation 降级 | `UI` | W4 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260822-141950-0c27c8cf6 UI 倩女幽魂2已上架详情刷新后收藏健康为健康，保管/呈现/合规均为健康 |
 | UAT-039 | 同根上架不把源文件和兄弟电影目录当成占用/未知成员 | `UI` `FS` | W3 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260822-141950-0c27c8cf6 UI同根兄弟电影均已当前收藏且健康；FS两个养蜂人一级目录独立、无嵌套兄弟目录或.partial |
 | UAT-040 | ISO 原盘 Remux 走提取路径，不把映像文件当普通流输入 | `UI` `FS` | W3 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260822-141950-0c27c8cf6 UI倩女幽魂2为健康当前收藏且主视频MKV；FS源ISO保留、目标只有MKV且无ISO/盘树 |
-| UAT-041 | BDMV HEVC/TrueHD Remux 能处理缺 PES 时间戳，不被 Matroska 直接拒绝 | `UI` `FS` | W3 | `CODE_DONE_UNQUALIFIED` | `NOT RUN` |
+| UAT-041 | BDMV HEVC/TrueHD Remux 能处理缺 PES 时间戳，不被 Matroska 直接拒绝 | `UI` `FS` | W3 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260822-141950-0c27c8cf6 UI BDMV养蜂人为健康当前收藏且主视频MKV；FS目标MKV完整、无.partial，源BDMV保持 |
 | UAT-042 | 同根 Off-load Settlement 能解释源现实漂移 | `UI` `FS` | W3 | `CODE_DONE_UNQUALIFIED` | `NOT RUN` |
 | UAT-043 | 007 身份已过后，TMDB metadata fetch 的 closed-shape / lease 失败可重试，不一次打成冻结 | `UI` | W2 | `CODE_DONE_UNQUALIFIED` | `NOT RUN` |
 | UAT-044 | 四星 14 GiB 能规划 BDMV 多 TrueHD 轨的体积转码，音轨预算裁剪后可上架 | `UI` `FS` | W0 | `CLOSED` | `NOT RUN` |
@@ -133,11 +133,11 @@
 | 口径 | 数量 |
 | --- | --- |
 | 总行 | 66 |
-| 本轮 `PASS` | **32** |
-| 本轮未通过（`NOT RUN`+`FAILED`+`BLOCKED`） | **34**（全部为 `NOT RUN`；0 `FAILED`；0 `BLOCKED`） |
-| 是否都通过 | **否**（32/66，未通过 34） |
+| 本轮 `PASS` | **33** |
+| 本轮未通过（`NOT RUN`+`FAILED`+`BLOCKED`） | **33**（全部为 `NOT RUN`；0 `FAILED`；0 `BLOCKED`） |
+| 是否都通过 | **否**（33/66，未通过 33） |
 
-本轮 `PASS`：001、002、005、006、007、008、012、013、015、016、018、030、032、034、038、039、040、047、048、049、050、051、052、053、054、055、056、057、058、061、065、066。证据均包含本隔离库 Admin Web `UI`；要求文件现实的行另有`FS`。W5 Discard 重新入库、W6 退出收藏/注销在本坐席未跑完，保持 `NOT RUN`。
+本轮 `PASS`：001、002、005、006、007、008、012、013、015、016、018、030、032、034、038、039、040、041、047、048、049、050、051、052、053、054、055、056、057、058、061、065、066。证据均包含本隔离库 Admin Web `UI`；要求文件现实的行另有`FS`。W5 Discard 重新入库、W6 退出收藏/注销在本坐席未跑完，保持 `NOT RUN`。
 
 `UAT-005` 剩余动作合同并入 `UAT-051` 后仍保留本行，用四桶状态在新 Canary 上资格确认，不把 005 标 `VOID`。
 
@@ -339,3 +339,17 @@
 - 关闭结论：`PASS`。真实详情显示倩女幽魂2为Movie Canary当前收藏且健康，主视频`9.3 GB · MKV`。源ISO`F:\test_film\倩女幽魂2：人间道 (1990)\倩女幽魂2：人间道 (1990) - 1080p AVC DTS.iso`仍为`23393665024`字节；目标为`F:\canary\倩女幽魂2：人间道 (1990)\倩女幽魂2：人间道 (1990).mkv`、`10021609024`字节，`TargetIsoCount=0`、`TargetDiscTreeCount=0`。
 - UI证据：`admin-web-evidence/uat-040-iso-extracted-remux-ondeck.png`（位于本Canary隔离证据目录）。
 - FS证据：2026-08-23只读核验上述源ISO和目标目录，`SourceIsoCount=1`、`TargetMkvCount=1`、`TargetIsoCount=0`、`TargetDiscTreeCount=0`。
+
+### UAT-041（`PASS`）
+
+- 关闭命题：BDMV HEVC/TrueHD Remux能处理缺PES时间戳，不被Matroska直接拒绝。
+- Canary：`UAT-20260822-141950-0c27c8cf6`。
+- 证人：BDMV来源的8.3 GB养蜂人Movie Canary Entry与只读源盘树。
+- 路径：我的收藏 → 打开8.3 GB养蜂人详情 → 核对当前收藏、健康和MKV → 只读核验源M2TS、目标MKV与partial。
+- 允许动作：页面进入、打开/关闭详情、截图；文件系统只读核验。
+- 禁止动作：重跑Remux/Transcode、修改评分、退出收藏、移动/删除文件、重启服务、重建Canary、修改数据库。
+- 通过标准：新Run完成On-deck，不再因unknown timestamp冻结；源BDMV保持；最终MKV完整且没有partial残留。
+- 证据要求：`UI`、`FS`。
+- 关闭结论：`PASS`。真实详情显示BDMV养蜂人为Movie Canary当前收藏且健康，主视频`8.3 GB · MKV`。只读源`BDMV/STREAM`有61个M2TS、合计`69941790720`字节；最终MKV为`8932765796`字节，`TargetPartialCount=0`。
+- UI证据：`admin-web-evidence/uat-041-bdmv-timestamp-remux-ondeck.png`（位于本Canary隔离证据目录）。
+- FS证据：2026-08-23只读核验源BDMV与目标MKV，`SourceBdmvCount=1`、`SourceClipCount=61`、`TargetMkvExists=True`、`TargetPartialCount=0`。
