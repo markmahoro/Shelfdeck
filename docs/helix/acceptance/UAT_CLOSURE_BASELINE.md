@@ -98,7 +98,7 @@
 | UAT-039 | 同根上架不把源文件和兄弟电影目录当成占用/未知成员 | `UI` `FS` | W3 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260822-141950-0c27c8cf6 UI同根兄弟电影均已当前收藏且健康；FS两个养蜂人一级目录独立、无嵌套兄弟目录或.partial |
 | UAT-040 | ISO 原盘 Remux 走提取路径，不把映像文件当普通流输入 | `UI` `FS` | W3 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260822-141950-0c27c8cf6 UI倩女幽魂2为健康当前收藏且主视频MKV；FS源ISO保留、目标只有MKV且无ISO/盘树 |
 | UAT-041 | BDMV HEVC/TrueHD Remux 能处理缺 PES 时间戳，不被 Matroska 直接拒绝 | `UI` `FS` | W3 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260822-141950-0c27c8cf6 UI BDMV养蜂人为健康当前收藏且主视频MKV；FS目标MKV完整、无.partial，源BDMV保持 |
-| UAT-042 | 同根 Off-load Settlement 能解释源现实漂移 | `UI` `FS` | W3 | `CODE_DONE_UNQUALIFIED` | `NOT RUN` |
+| UAT-042 | 同根 Off-load Settlement 能解释源现实漂移 | `UI` `FS` | W3 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260822-141950-0c27c8cf6 UI光荣的愤怒/香火均为健康当前收藏；FS最终视频/海报/NFO保留且无.partial |
 | UAT-043 | 007 身份已过后，TMDB metadata fetch 的 closed-shape / lease 失败可重试，不一次打成冻结 | `UI` | W2 | `CODE_DONE_UNQUALIFIED` | `NOT RUN` |
 | UAT-044 | 四星 14 GiB 能规划 BDMV 多 TrueHD 轨的体积转码，音轨预算裁剪后可上架 | `UI` `FS` | W0 | `CLOSED` | `NOT RUN` |
 | UAT-045 | ISO Remux 失败 Effect 与进程重启后 Attempt 能收口，不再永久 executing | `UI` `FACT` | W3 | `CODE_DONE_UNQUALIFIED` | `NOT RUN` |
@@ -133,11 +133,11 @@
 | 口径 | 数量 |
 | --- | --- |
 | 总行 | 66 |
-| 本轮 `PASS` | **33** |
-| 本轮未通过（`NOT RUN`+`FAILED`+`BLOCKED`） | **33**（全部为 `NOT RUN`；0 `FAILED`；0 `BLOCKED`） |
-| 是否都通过 | **否**（33/66，未通过 33） |
+| 本轮 `PASS` | **34** |
+| 本轮未通过（`NOT RUN`+`FAILED`+`BLOCKED`） | **32**（全部为 `NOT RUN`；0 `FAILED`；0 `BLOCKED`） |
+| 是否都通过 | **否**（34/66，未通过 32） |
 
-本轮 `PASS`：001、002、005、006、007、008、012、013、015、016、018、030、032、034、038、039、040、041、047、048、049、050、051、052、053、054、055、056、057、058、061、065、066。证据均包含本隔离库 Admin Web `UI`；要求文件现实的行另有`FS`。W5 Discard 重新入库、W6 退出收藏/注销在本坐席未跑完，保持 `NOT RUN`。
+本轮 `PASS`：001、002、005、006、007、008、012、013、015、016、018、030、032、034、038、039、040、041、042、047、048、049、050、051、052、053、054、055、056、057、058、061、065、066。证据均包含本隔离库 Admin Web `UI`；要求文件现实的行另有`FS`。W5 Discard 重新入库、W6 退出收藏/注销在本坐席未跑完，保持 `NOT RUN`。
 
 `UAT-005` 剩余动作合同并入 `UAT-051` 后仍保留本行，用四桶状态在新 Canary 上资格确认，不把 005 标 `VOID`。
 
@@ -353,3 +353,17 @@
 - 关闭结论：`PASS`。真实详情显示BDMV养蜂人为Movie Canary当前收藏且健康，主视频`8.3 GB · MKV`。只读源`BDMV/STREAM`有61个M2TS、合计`69941790720`字节；最终MKV为`8932765796`字节，`TargetPartialCount=0`。
 - UI证据：`admin-web-evidence/uat-041-bdmv-timestamp-remux-ondeck.png`（位于本Canary隔离证据目录）。
 - FS证据：2026-08-23只读核验源BDMV与目标MKV，`SourceBdmvCount=1`、`SourceClipCount=61`、`TargetMkvExists=True`、`TargetPartialCount=0`。
+
+### UAT-042（`PASS`）
+
+- 关闭命题：同根Off-load Settlement能解释源现实漂移。
+- Canary：`UAT-20260822-141950-0c27c8cf6`。
+- 证人：同根in-place替换的《光荣的愤怒》《香火》当前Shelf Entry与最终目录。
+- 路径：我的收藏核对两部电影均为当前收藏且健康 → 只读核验最终视频、海报、NFO与partial。
+- 允许动作：页面进入、截图；文件系统只读核验。
+- 禁止动作：触发On-deck/Settlement重试、移动/删除文件、修改评分、退出收藏、重启服务、重建Canary、修改数据库。
+- 通过标准：两部电影完成On-deck；同根被替换路径按最终产品identity收口；最终产品成员保留且没有partial。
+- 证据要求：`UI`、`FS`。
+- 关闭结论：`PASS`。真实Admin Web显示《光荣的愤怒》《香火》均为Movie Canary当前收藏且健康。两者最终目录各有1个视频、1个`poster.jpg`和1个NFO，文件总数均为4，`PartialCount=0`；Settlement没有再因旧源fingerprint报reality drift。
+- UI证据：`admin-web-evidence/uat-042-same-root-settlement-complete.png`（位于本Canary隔离证据目录）。
+- FS证据：2026-08-23只读核验`F:\canary\光荣的愤怒 (2006)`与`F:\canary\香火 (2003)`，两者`VideoCount=1`、`PosterCount=1`、`NfoCount=1`、`PartialCount=0`。

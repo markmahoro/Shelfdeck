@@ -1835,7 +1835,10 @@ stderr 为 `CLEAN_ARCA_TARGET_OCCUPIED` 与 `CLEAN_ARCA_SETTLEMENT_UNKNOWN_MEMBE
 
 验收证据：同根 poster 替换后 Settlement 成功，最终 `poster.jpg` 仍是产品字节。Inventory port 9/9 通过。
 
-修复状态（2026-08-22）：`REGRESSION PASSED / SERVICE RETRY MAY UNBLOCK`。当前 On-deck Settlement Attempt 若已终态失败，需服务重试或新 Run。
+修复状态（2026-08-23）：`REGRESSION PASSED / CONFIRMED ON CURRENT CANARY`。干净 Canary
+`UAT-20260822-141950-0c27c8cf6` 中，《光荣的愤怒》《香火》均已成为`Movie Canary`当前收藏且健康。
+两者最终目录各保留1个视频、`poster.jpg`与NFO，`PartialCount=0`；同根in-place替换后的Settlement已按最终产品现实收口，
+没有再停在`CLEAN_ARCA_SETTLEMENT_REALITY_DRIFT`。UI证据：`admin-web-evidence/uat-042-same-root-settlement-complete.png`。
 
 ## 40. UAT-043：007 身份已过，TMDB metadata fetch 被 closed-shape / lease 一次打成冻结
 
