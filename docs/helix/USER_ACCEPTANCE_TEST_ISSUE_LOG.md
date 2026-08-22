@@ -1913,6 +1913,11 @@ stderr 为 `CLEAN_ARCA_TARGET_OCCUPIED` 与 `CLEAN_ARCA_SETTLEMENT_UNKNOWN_MEMBE
 
 当前处理决定：按 `copy_all_supported` 跳过不支持的轨。现场 Attempt 19 Remux 成功（约 20.6 GiB MKV），已进入四星转码。状态 `REGRESSION PASSED / LIVE TRANSCODE IN PROGRESS`。
 
+当前关闭 Canary `UAT-20260822-141950-0c27c8cf6` 定向确认（2026-08-23）：《倩女幽魂2：人间道》已完成
+On-deck，真实详情为`9.3 GB · MKV`、当前收藏且健康。最终MKV只读probe含HEVC、DTS、AC3和3条PGS字幕，
+`pcm_bluray/pcm_dvd=0`；目标目录`IsoClipCount=0`、`PartialCount=0`。状态
+`REGRESSION PASSED / CONFIRMED ON CURRENT CANARY`。UI证据：`admin-web-evidence/uat-046-iso-skip-pcm-ondeck.png`。
+
 ## 44. UAT-047：ISO 同语言编号字幕被压成一个最终名，验收报 TARGET_COLLISION
 
 问题分类：`PLACEMENT_NAMING / RELATED_DISPOSITION`

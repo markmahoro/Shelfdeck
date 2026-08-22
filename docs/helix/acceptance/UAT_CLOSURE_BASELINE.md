@@ -102,7 +102,7 @@
 | UAT-043 | 007 身份已过后，TMDB metadata fetch 的 closed-shape / lease 失败可重试，不一次打成冻结 | `UI` | W2 | `CODE_DONE_UNQUALIFIED` | `NOT RUN` |
 | UAT-044 | 四星 14 GiB 能规划 BDMV 多 TrueHD 轨的体积转码，音轨预算裁剪后可上架 | `UI` `FS` | W0 | `CLOSED` | `PASS` UAT-20260822-141950-0c27c8cf6 UI四星BDMV养蜂人为健康当前收藏；FS最终8.93GB HEVC并保留2 TrueHD、裁掉4 AC3 |
 | UAT-045 | ISO Remux 失败 Effect 与进程重启后 Attempt 能收口，不再永久 executing | `UI` `FACT` | W3 | `CODE_DONE_UNQUALIFIED` | `NOT RUN` |
-| UAT-046 | ISO Remux 抽出 m2ts 后跳过无法 copy 的 `pcm_bluray`，不整盘重抽 | `UI` `FS` | W3 | `CODE_DONE_UNQUALIFIED` | `NOT RUN` |
+| UAT-046 | ISO Remux 抽出 m2ts 后跳过无法 copy 的 `pcm_bluray`，不整盘重抽 | `UI` `FS` | W3 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260822-141950-0c27c8cf6 UI倩女幽魂2为健康当前收藏；FS最终MKV无pcm_bluray/pcm_dvd，保留DTS/AC3/PGS且无iso-clip/partial |
 | UAT-047 | ISO 同语言编号字幕最终名可区分，验收不再 `TARGET_COLLISION` | `UI` `FS` | W0 | `CLOSED` | `PASS` UAT-20260822-141950-0c27c8cf6 UI倩女幽魂2已为当前收藏；FS 56条zh-CN字幕名全部唯一，含未编号与.1-.55，无hash/(0)补丁 |
 | UAT-048 | 同根终态目录的源残留不再把 Off-load Settlement 打成 `UNKNOWN_MEMBER` | `UI` `FS` | W0 | `CLOSED` | `PASS` UAT-20260822-141950-0c27c8cf6 UI 8.3 GB BDMV养蜂人已为当前收藏且健康；FS主视频存在、大小匹配、目标无BDMV/CERTIFICATE残留 |
 | UAT-049 | 盘整理完成后原 `BDMV`/`CERTIFICATE` 整棵树从收藏目录消失 | `UI` `FS` | W3 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260822-141950-0c27c8cf6 UI 8.3 GB BDMV养蜂人已为当前收藏；FS两个养蜂人根中BDMV/CERTIFICATE为0、正式MKV为2 |
@@ -133,11 +133,11 @@
 | 口径 | 数量 |
 | --- | --- |
 | 总行 | 66 |
-| 本轮 `PASS` | **35** |
-| 本轮未通过（`NOT RUN`+`FAILED`+`BLOCKED`） | **31**（全部为 `NOT RUN`；0 `FAILED`；0 `BLOCKED`） |
-| 是否都通过 | **否**（35/66，未通过 31） |
+| 本轮 `PASS` | **36** |
+| 本轮未通过（`NOT RUN`+`FAILED`+`BLOCKED`） | **30**（全部为 `NOT RUN`；0 `FAILED`；0 `BLOCKED`） |
+| 是否都通过 | **否**（36/66，未通过 30） |
 
-本轮 `PASS`：001、002、005、006、007、008、012、013、015、016、018、030、032、034、038、039、040、041、042、044、047、048、049、050、051、052、053、054、055、056、057、058、061、065、066。证据均包含本隔离库 Admin Web `UI`；要求文件现实的行另有`FS`。W5 Discard 重新入库、W6 退出收藏/注销在本坐席未跑完，保持 `NOT RUN`。
+本轮 `PASS`：001、002、005、006、007、008、012、013、015、016、018、030、032、034、038、039、040、041、042、044、046、047、048、049、050、051、052、053、054、055、056、057、058、061、065、066。证据均包含本隔离库 Admin Web `UI`；要求文件现实的行另有`FS`。W5 Discard 重新入库、W6 退出收藏/注销在本坐席未跑完，保持 `NOT RUN`。
 
 `UAT-005` 剩余动作合同并入 `UAT-051` 后仍保留本行，用四桶状态在新 Canary 上资格确认，不把 005 标 `VOID`。
 
@@ -381,3 +381,17 @@
 - 关闭结论：`PASS`。真实详情显示证人为Movie Canary当前收藏且健康，主视频`8.3 GB · MKV`。源主clip为`68676919296`字节、HEVC Main10、2 TrueHD + 4 AC3、`6336.288278s`；最终为`8932765796`字节、HEVC Main10、2 TrueHD、`6336.289000s`，低于14 GiB且裁掉4条AC3。
 - UI证据：`admin-web-evidence/uat-044-bdmv-four-star-budget-ondeck.png`（位于本Canary隔离证据目录）。
 - FS证据：2026-08-23用部署ffprobe只读核验源与目标，视频编码/时长连续，`SourceAudioCount=6`、`TargetAudioCount=2`、目标两轨均为TrueHD。
+
+### UAT-046（`PASS`）
+
+- 关闭命题：ISO Remux抽出m2ts后跳过无法copy的`pcm_bluray`，不整盘重抽。
+- Canary：`UAT-20260822-141950-0c27c8cf6`。
+- 证人：ISO来源的《倩女幽魂2：人间道》最终MKV与Movie Canary当前Entry。
+- 路径：我的收藏 → 打开倩女幽魂2详情 → 核对当前收藏、健康与MKV → 只读ffprobe最终流 → 检查iso-clip/partial残留。
+- 允许动作：页面进入、打开/关闭详情、截图；文件系统和媒体元数据只读核验。
+- 禁止动作：重跑ISO提取/Remux、修改评分、退出收藏、移动/删除文件、重启服务、重建Canary、修改数据库。
+- 通过标准：产品完成On-deck；最终Matroska无`pcm_bluray/pcm_dvd`，仍保留可copy的视频、DTS/AC3/PGS；没有iso-clip或partial执行残留。
+- 证据要求：`UI`、`FS`。
+- 关闭结论：`PASS`。真实详情显示倩女幽魂2为Movie Canary当前收藏且健康，主视频`9.3 GB · MKV`。最终MKV含HEVC视频、DTS与AC3音频、3条PGS字幕，`UnsupportedPcm=0`；目标目录`IsoClipCount=0`、`PartialCount=0`。
+- UI证据：`admin-web-evidence/uat-046-iso-skip-pcm-ondeck.png`（位于本Canary隔离证据目录）。
+- FS证据：2026-08-23用部署ffprobe只读核验最终MKV及目标目录，支持轨道保留且无不兼容PCM或执行中间文件。
