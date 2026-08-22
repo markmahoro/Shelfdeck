@@ -68,7 +68,7 @@
 | UAT-009 | 整理页提交评分后刷新仍保留该评分 | `UI` | W0 | `CLOSED` | `NOT RUN` |
 | UAT-010 | Routing 未配置时不开放人工选架，页面给出等待策略的明确提示 | `UI` | W0 | `CLOSED` | `NOT RUN` |
 | UAT-011 | 同根 Shelf Target 前 Handoff B 能推进，不再永久等待 | `UI` `FS` | W3 | `CODE_DONE_UNQUALIFIED` | `NOT RUN` |
-| UAT-012 | On-deck Planner 带上 Settlement Approval 契约，上架能完成 | `UI` `FS` | W0 | `CLOSED` | `NOT RUN` |
+| UAT-012 | On-deck Planner 带上 Settlement Approval 契约，上架能完成 | `UI` `FS` | W0 | `CLOSED` | `PASS` UAT-20260822-141950-0c27c8cf6 UI 第八个嫌疑人已为当前收藏且健康；FS主视频精确存在于F:\canary，大小2009890078与Inventory一致 |
 | UAT-013 | 已解析身份进入用户可读目录名，不再渲染成哈希 Inventory 目录 | `UI` `FS` | W3 | `CODE_DONE_UNQUALIFIED` | `NOT RUN` |
 | UAT-014 | Formation 展示 Product Identity 冲突并提供候选选择 | `UI` | W0 | `CLOSED` | `NOT RUN` |
 | UAT-015 | 冻结的 Libra Run 有用户可见的放弃入口 | `UI` | W0 | `CLOSED` | `PASS` UAT-20260822-141950-0c27c8cf6 UI 冻结行有放弃本次整理 |
@@ -131,11 +131,11 @@
 | 口径 | 数量 |
 | --- | --- |
 | 总行 | 64 |
-| 本轮 `PASS` | **22** |
-| 本轮未通过（`NOT RUN`+`FAILED`+`BLOCKED`） | **42**（全部为 `NOT RUN`；0 `FAILED`；0 `BLOCKED`） |
-| 是否都通过 | **否**（22/64，未通过 42） |
+| 本轮 `PASS` | **23** |
+| 本轮未通过（`NOT RUN`+`FAILED`+`BLOCKED`） | **41**（全部为 `NOT RUN`；0 `FAILED`；0 `BLOCKED`） |
+| 是否都通过 | **否**（23/64，未通过 41） |
 
-本轮 `PASS`：001、002、005、006、007、008、015、016、018、030、032、038、050、051、052、053、054、055、056、057、058、061。证据均为本隔离库 Admin Web `UI`。W3 转码/ISO/BDMV 上架、W5 Discard 重新入库、W6 退出收藏/注销在本坐席未跑完，保持 `NOT RUN`。
+本轮 `PASS`：001、002、005、006、007、008、012、015、016、018、030、032、038、050、051、052、053、054、055、056、057、058、061。证据均包含本隔离库 Admin Web `UI`；要求文件现实的行另有`FS`。W3 转码/ISO/BDMV 上架、W5 Discard 重新入库、W6 退出收藏/注销在本坐席未跑完，保持 `NOT RUN`。
 
 `UAT-005` 剩余动作合同并入 `UAT-051` 后仍保留本行，用四桶状态在新 Canary 上资格确认，不把 005 标 `VOID`。
 
@@ -189,3 +189,18 @@
 - 旁证停车：呈现/合规状态及其他条目健康只作本项旁证，不改其他行结论。
 - 关闭结论：`PASS`。「第八个嫌疑人」已上架详情显示「收藏健康 · 健康」，其中保管为健康并有完成时间，不再是`never_assessed`；Custody评估已经成功执行。
 - UI证据：`admin-web-evidence/uat-032-custody-healthy-eighth-suspect.png`（位于本Canary隔离证据目录）。
+
+### UAT-012（`PASS`）
+
+- 关闭命题：On-deck Planner带上Settlement Approval契约，上架能完成。
+- Canary：`UAT-20260822-141950-0c27c8cf6`。
+- 证人：Admin Web「我的收藏」→「Movie Canary」→「第八个嫌疑人」；Inventory主视频`F:\canary\第八个嫌疑人 (2023)\第八个嫌疑人 (2023).mp4`。
+- 路径：我的收藏 → Movie Canary → 打开「第八个嫌疑人」详情确认当前收藏 → 只读核验Inventory主视频现实。
+- 允许动作：页面进入、只读切换、打开/关闭详情、截图；文件系统、SQLite和日志只读旁证。
+- 禁止动作：启动On-deck、修改评分、退出收藏、重启服务、重建Canary、修改文件或数据库；当前NVENC转码不得受本项影响。
+- 通过标准：真实Admin Web显示证人已建立当前Shelf Entry且健康；Inventory声明的主视频在`F:\canary`精确路径存在，大小与Inventory一致；页面不再停在「等待收藏架接收」。
+- 证据要求：`UI`、`FS`。
+- 旁证停车：目录命名、Aftercare状态及其他Entry只作旁证，不改其他行结论。
+- 关闭结论：`PASS`。真实Admin Web显示「第八个嫌疑人」属于Movie Canary当前收藏且健康；Inventory主视频`F:\canary\第八个嫌疑人 (2023)\第八个嫌疑人 (2023).mp4`真实存在，大小`2009890078`字节，与Inventory声明精确一致。
+- UI证据：`admin-web-evidence/uat-012-ondeck-complete-eighth-suspect.png`（位于本Canary隔离证据目录）。
+- FS证据：2026-08-22只读`Get-Item -LiteralPath`核验上述精确路径，`Exists=True`、`Length=2009890078`、`SIZE_MATCH=True`。
