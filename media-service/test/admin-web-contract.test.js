@@ -122,6 +122,9 @@ test('Media organization workspace uses user-facing stages after Procurement han
   assert.match(page, /全部当前/);
   assert.match(page, /需要我处理/);
   assert.match(page, /按片名筛选/);
+  assert.match(page, /function shelfNameFor\(item: FormationSubject, shelves: Shelf\[\]\)/);
+  assert.match(page, /<CompletedMediaTable items=\{completed\} shelves=\{shelves\}/);
+  assert.match(page, /shelfNameFor\(item, shelves\) \|\| '—'/);
   assert.doesNotMatch(page, /尚未形成整理动作/);
   assert.doesNotMatch(formation, /Subject|Routing|Spec|Run|Work|Event|判断开采资格|准备候选包/);
 });

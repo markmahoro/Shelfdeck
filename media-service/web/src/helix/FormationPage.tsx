@@ -33,6 +33,10 @@ function userActionLabel(item: FormationSubject) {
   if (canChooseShelf(item)) return '等待选择目标收藏架';
   return null;
 }
+function shelfNameFor(item: FormationSubject, shelves: Shelf[]) {
+  if (!item.targetShelfId) return null;
+  return item.targetShelfName || shelves.find((shelf) => shelf.shelfId === item.targetShelfId)?.name || '已选收藏架';
+}
 
 type TableProps = {
   items: FormationSubject[];
@@ -73,7 +77,7 @@ function CurrentMediaTable({ items, shelves, loading, onChoose, onExpedite, onCh
       <td>
         <strong>{item.displayIdentity}</strong>
         <small>{classificationLabels[item.classification]} · {formatTime(item.addedAtMs)}</small>
-        <small>{item.targetShelfId ? (item.targetShelfName || shelves.find((shelf) => shelf.shelfId === item.targetShelfId)?.name || '已选收藏架') : '尚未选定收藏架'}</small>
+        <small>{shelfNameFor(item, shelves) || '尚未选定收藏架'}</small>
         <small>{item.organizingRequirement}</small>
         <RatingControl targetType="subject" targetId={item.subjectId} label={item.displayIdentity} initialRating={item.myRating} initialSource={item.myRatingSource} initialRevision={item.myRatingRevision} />
       </td>
@@ -104,12 +108,12 @@ function CurrentMediaTable({ items, shelves, loading, onChoose, onExpedite, onCh
   })}</tbody></table></div>;
 }
 
-function CompletedMediaTable({ items }: { items: FormationSubject[] }) {
+function CompletedMediaTable({ items, shelves }: { items: FormationSubject[]; shelves: Shelf[] }) {
   return <div className="formation-table-wrap"><table className="formation-table"><thead><tr>
     <th>媒体名称</th><th>目标收藏架</th><th>整理动作</th><th>完成时间</th>
   </tr></thead><tbody>{items.map((item) => <tr key={item.subjectId}>
     <td><strong>{item.displayIdentity}</strong><small>{item.organizingRequirement}</small></td>
-    <td>{item.targetShelfName || '—'}</td>
+    <td>{shelfNameFor(item, shelves) || '—'}</td>
     <td><OrganizingStepLabels item={item} /></td>
     <td>{formatTime(item.completedAtMs || 0)}</td>
   </tr>)}</tbody></table></div>;
@@ -219,7 +223,7 @@ export default function FormationPage() {
       <div className="source-registry-heading"><div><h2>已完成整理</h2></div>
         <Button type="button" aria-expanded={expanded} onClick={() => { const value = !expanded; setExpanded(value); try { localStorage.setItem('formation-completed-expanded', String(value)); } catch { /* ignore */ } if (value) { setLoading(true); void helixAdminApi.listFormation('completed').then((result) => { setCompleted(result.items); setCompletedCursor(result.nextCursor); }).finally(() => setLoading(false)); } }}>{expanded ? '收起' : '展开'}（{summary.completedCount}）</Button>
       </div>
-      {expanded && <>{completed.length ? <CompletedMediaTable items={completed} /> : <div className="source-empty"><strong>尚无完成条目</strong></div>}
+      {expanded && <>{completed.length ? <CompletedMediaTable items={completed} shelves={shelves} /> : <div className="source-empty"><strong>尚无完成条目</strong></div>}
         {completedCursor && <Button type="button" onClick={() => void (async () => { if (!completedCursor) return; setLoading(true); try { const result = await helixAdminApi.listFormation('completed', completedCursor); setCompleted((current) => [...current, ...result.items]); setCompletedCursor(result.nextCursor); } finally { setLoading(false); } })()} disabled={loading}>加载更多</Button>}</>}
     </section>
     <section className="formation-ledger">
