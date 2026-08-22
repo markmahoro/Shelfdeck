@@ -1719,6 +1719,13 @@ Observation revision 2 形成 22 个 Candidate，恰好等于「22 个顶层单�
 目录均非hash且无`(0)`年份。UI证据：`admin-web-evidence/uat-034-two-beekeepers-distinct-entries.png`、
 `uat-034-beekeeper-first-entry-detail.png`、`uat-034-beekeeper-second-entry-detail.png`。
 
+2026-08-23逐项封口在重建Canary `UAT-20260823-002500-519f8d7b5`完成。Movie Field的Extraction Policy revision 1
+明确包含`.iso`；Procurement为`倩女幽魂2：人间道 (1990)`形成`state=published`、`material_input_form=iso`的Candidate
+Package，原始Primary精确指向23,393,665,024字节的`倩女幽魂2：人间道 (1990) - 1080p AVC DTS.iso`。真实“我的收藏”
+详情显示该片9.3GB、当前收藏且健康；FS只有一个最终目录和10,021,609,024字节MKV。状态
+`REGRESSION PASSED / CONFIRMED ON REBUILT CANARY`。UI证据：
+`admin-web-evidence/uat-031-iso-observed-and-shelved-pass.png`。
+
 ## 29. UAT-032：Aftercare 旧 Custody 绑定 objectKind 与合同不一致，健康评估无法执行
 
 问题分类：`AFTERCARE_CONTRACT / SCHEMA_REJECTION / COLLECTION_HEALTH`
