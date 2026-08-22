@@ -123,7 +123,7 @@ Helix主体开发已经完成，Movie从Procurement、Libra到Arca及Shelf Dereg
 | UAT-064 | Formation 整理步骤展示与真实执行状态偏离：转码标 CPU、验证过早标完成 | `USER_EXPERIENCE` | `PROJECTION_FRESHNESS` | Formation 公开 Projection `organizingSteps` / `transcodeLabel` | 可理解性、可观察性 | High | 已登记；待实现授权 |
 | UAT-065 | 收藏详情把父目录名中的`.1`误显示为主视频容器 | `USER_EXPERIENCE` | `PROJECTION_FRESHNESS` | Arca Collection Query + Admin Web | 正确性、可理解性 | High | 已修复并通过当前 Canary 定向确认 |
 | UAT-066 | Formation 已完成整理表丢失目标收藏架名称，全部显示`—` | `USER_EXPERIENCE` | `PROJECTION_FRESHNESS` | Formation Admin Web + Arca Shelf只读展示接线 | 正确性、可理解性 | High | 已修复并通过当前 Canary 定向确认 |
-| UAT-067 | 活动 Run 加急后回放既有 Supporting Work 触发 Admission 幂等冲突，Run 不再推进 | `DOMAIN_ORCHESTRATION` | `EXECUTION_SCHEDULING` | Libra Run Coordinator + Foundation Work Admission replay | 活性、优先级正确性 | Critical | 已登记；根因已确认，修复中 |
+| UAT-067 | 活动 Run 加急后回放既有 Supporting Work 触发 Admission 幂等冲突，Run 不再推进 | `DOMAIN_ORCHESTRATION` | `EXECUTION_SCHEDULING` | Libra Run Coordinator + Foundation Work Admission replay | 活性、优先级正确性 | Critical | 已修复并通过同一 Canary 恢复确认 |
 
 ## 2.1 UAT-006：概览展示固定演示数字
 
@@ -1286,6 +1286,14 @@ UAT-020代码修复已完成，但问题继续保持OPEN：按用户指示不立
 `chinese(简)/(简体)/(繁)/(繁体)`分别映射`zh-CN/zh-TW`；`chinese(简英,...)`等多语/来源标记仍保持原名，
 不削弱fail-closed。专项Inventory Port 16/16通过，现场同型新Decision会生成`老笠 (2016).zh-CN.srt`。
 旧Final Inventory Decision与Shelf Entry不可变，本项仍为`FAILED`，必须从不可变`F:\test_film`重建Canary后用新Entry复测。
+
+关闭确认（2026-08-23）：新干净 Canary `UAT-20260823-002500-519f8d7b5` 从不可变`F:\test_film`严格复制建立
+同根`F:\canary`，新服务为`helix-clean-v3`。真实Admin Web中`老笠 (2016)`完成整理并进入`Movie Canary`，收藏详情显示
+「当前收藏」「收藏健康 · 健康」。只读文件现实只有`F:\canary\老笠 (2016)`一个兄弟根；正式成员为
+`老笠 (2016).mp4`、`老笠 (2016).nfo`、`老笠 (2016).zh-CN.srt`、`poster.jpg`、`fanart.jpg`，无partial，
+技术发布标签未进入最终名。状态改为`REGRESSION PASSED / CLOSED`。UI证据：
+`admin-web-evidence/uat-020-final-subtitle-normalized-pass.png`；FS证据：同一UAT隔离目录的
+`uat-020-fs-evidence.json`。修复与证据未改写旧Final Inventory，也未修改`F:\test_film`。
 
 ## 18. UAT-021：TMDB别名来源泄漏到Product Identity证据，全部整理在身份取证前冻结
 
@@ -2570,6 +2578,14 @@ Projection消费动态优先级；不改 Owner、Handoff、Foundation幂等语�
 
 当前处理决定：2026-08-23 在 `UAT-020` 新 Canary 复测中独立登记。当前只确认根因和最小边界；Canary 服务继续运行，
 `F:\test_film`未修改，`F:\canary`只由 ShelfDeck 工作流处理，NAS/生产未触碰。
+
+修复与关闭确认（2026-08-23）：commit `c78ae528c`新增Foundation只读`readDefinition(workId)`并校验冻结Definition
+Digest；Libra Run Coordinator仅在当前生成定义除`priorityClass/priorityRevision`外与冻结定义完全一致时使用冻结定义replay，
+其余漂移继续由Foundation exact-idempotency拒绝。定向16项回归全部通过，覆盖Priority-only回放与Output Contract漂移反例。
+在无FFmpeg/FFprobe的安全点重启同一隔离服务后，原`active + expedited`的`老笠`Run直接恢复，创建后续Product Fact、
+Product Package与Offer并完成On-deck；没有替换Run或数据库编辑。Admin Web已完成表显示`老笠 (2016)`进入`Movie Canary`，
+动作包含验证整理结果和上架到收藏架。状态`REGRESSION PASSED / CLOSED`。UI证据：
+`admin-web-evidence/uat-067-expedited-run-recovered.png`；FACT证据保留于同一UAT clean数据库和运行日志。
 
 ## 65. 后续问题模板
 

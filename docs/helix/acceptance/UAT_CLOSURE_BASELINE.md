@@ -76,7 +76,7 @@
 | UAT-017 | 外部寻源按 Acceptance Spec 预筛，不合格候选不会先下载再发现不可达 | `UI` | W3 | `CODE_DONE_UNQUALIFIED` | `NOT RUN` |
 | UAT-018 | 顶部「需要处理」与 Discard 历史分离，Discard 不混进当前四桶 | `UI` | W2 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260822-141950-0c27c8cf6 UI 需要处理桶与已结束区分 |
 | UAT-019 | Executor 终态异常由 Owner 收口，Arca Acceptance Offer 不再悬空 | `UI` `FACT` | W3 | `CODE_DONE_UNQUALIFIED` | `NOT RUN` |
-| UAT-020 | Final Inventory 成员命名与 carried-forward Settlement 完整，技术后缀不进入最终名 | `UI` `FS` | W3 | `CODE_DONE_UNQUALIFIED` | `FAILED` UAT-20260822-141950-0c27c8cf6 UI老笠当前收藏且健康；FS唯一目录已收口，但正式字幕名仍含1080p/x264/AAC/HDH技术标签 |
+| UAT-020 | Final Inventory 成员命名与 carried-forward Settlement 完整，技术后缀不进入最终名 | `UI` `FS` | W3 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260823-002500-519f8d7b5 UI老笠当前收藏且健康；FS唯一目录含用户可读Primary/NFO与老笠 (2016).zh-CN.srt，无技术标签/partial |
 | UAT-021 | TMDB 别名来源不泄漏进 Product Identity 证据，整理不在取证前全员冻结 | `UI` | W2 | `CODE_DONE_UNQUALIFIED` | `NOT RUN` |
 | UAT-022 | 年份后的技术发布标签不再污染 TMDB 搜索词 | `UI` | W2 | `CODE_DONE_UNQUALIFIED` | `NOT RUN` |
 | UAT-023 | 去掉技术后缀后残留年份不再导致豆瓣标题锚不相交 | `UI` | W4 | `CODE_DONE_UNQUALIFIED` | `NOT RUN` |
@@ -123,24 +123,24 @@
 | UAT-064 | Formation 步骤 CPU/GPU 与验证完成态必须与真实执行一致，不得默认 CPU、不得把 Direct 源校验画成成品验证完成 | `UI` | W3 | `RECORDED_UNIMPLEMENTED` | `NOT RUN` |
 | UAT-065 | 收藏详情只从主视频basename解析容器，不得把父目录名中的`.1`显示为容器 | `UI` | W1 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260822-141950-0c27c8cf6 UI 8.3 GB BDMV养蜂人主视频修复后显示8.3 GB · MKV，不再显示· 1 |
 | UAT-066 | Formation 已完成整理表按目标Shelf ID显示当前收藏架名称，不得整列显示`—` | `UI` | W1 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260822-141950-0c27c8cf6 UI 已完成整理17/17条均显示Movie Canary，当前媒体6条显示未回退 |
-| UAT-067 | 活动 Run 加急后既有 Work 必须按冻结 Admission Definition 回放，动态 Priority 不得制造幂等冲突 | `UI` `FACT` | W3 | `OPEN_ROOT_CAUSE_CONFIRMED` | `FAILED` UAT-20260823-002500-519f8d7b5 UI老笠已加急且前置步骤100%；FACT既有Artifact Work成功但Product Fact Work未创建，运行时持续P4_WORK_ADMISSION_IDEMPOTENCY_CONFLICT |
+| UAT-067 | 活动 Run 加急后既有 Work 必须按冻结 Admission Definition 回放，动态 Priority 不得制造幂等冲突 | `UI` `FACT` | W3 | `CLOSED` | `PASS` UAT-20260823-002500-519f8d7b5 UI同一已加急老笠Run恢复并完成上架；FACT形成Product Package/Offer且无替换Run或数据库编辑 |
 
 ## 5. 计数
 
-冻结时（代码状态，不是本轮 Canary）：`CLOSED` 11，`CODE_DONE_UNQUALIFIED` 52，`RECORDED_UNIMPLEMENTED` 1（064）。本轮逐项关闭期间新增并完成`UAT-065`、`UAT-066`，新增并确认`UAT-067`根因；当前代码状态为`CLOSED` 11、`CODE_DONE_UNQUALIFIED` 54、`RECORDED_UNIMPLEMENTED` 1（064）、`OPEN_ROOT_CAUSE_CONFIRMED` 1（067）。
+冻结时（代码状态，不是本轮 Canary）：`CLOSED` 11，`CODE_DONE_UNQUALIFIED` 52，`RECORDED_UNIMPLEMENTED` 1（064）。本轮逐项关闭期间新增并完成`UAT-065`、`UAT-066`、`UAT-067`；当前代码状态为`CLOSED` 12、`CODE_DONE_UNQUALIFIED` 54、`RECORDED_UNIMPLEMENTED` 1（064）。
 
 本轮干净 Canary `UAT-20260822-141950-0c27c8cf6`（HEAD `0c27c8cf6`）PASS 列：
 
 | 口径 | 数量 |
 | --- | --- |
 | 总行 | 67 |
-| 本轮 `PASS` | **42** |
-| 本轮未通过（`NOT RUN`+`FAILED`+`BLOCKED`） | **25**（23 `NOT RUN`；2 `FAILED`；0 `BLOCKED`） |
-| 是否都通过 | **否**（42/67，未通过 25） |
+| 本轮 `PASS` | **44** |
+| 本轮未通过（`NOT RUN`+`FAILED`+`BLOCKED`） | **23**（23 `NOT RUN`；0 `FAILED`；0 `BLOCKED`） |
+| 是否都通过 | **否**（44/67，未通过 23） |
 
-本轮 `PASS`：001、002、003、005、006、007、008、011、012、013、015、016、018、030、032、034、036、037、038、039、040、041、042、043、044、045、046、047、048、049、050、051、052、053、054、055、056、057、058、061、065、066。证据均包含本隔离库 Admin Web `UI`；要求文件现实的行另有`FS`。W5 Discard 重新入库、W6 退出收藏/注销在本坐席未跑完，保持 `NOT RUN`。
+本轮 `PASS`：001、002、003、005、006、007、008、011、012、013、015、016、018、020、030、032、034、036、037、038、039、040、041、042、043、044、045、046、047、048、049、050、051、052、053、054、055、056、057、058、061、065、066、067。证据均包含干净隔离库 Admin Web `UI`；要求文件现实的行另有`FS`。W5 Discard 重新入库、W6 退出收藏/注销在本坐席未跑完，保持 `NOT RUN`。
 
-当前失败：`UAT-020`、`UAT-067`。UAT-020的Final Inventory唯一目录、主视频/NFO与Settlement已收口，但旧Canary的`老笠`正式字幕仍保留技术发布标签；新Canary正在复测。UAT-067为新Canary中加急后既有Work Definition回放的Priority漂移冲突，先修复并恢复同一Run，再继续UAT-020终态验证。
+当前失败：无。`UAT-020`已由新干净Canary的新Final Inventory关闭；`UAT-067`已在同一已加急Run上恢复并关闭。剩余23行均为`NOT RUN`，不是已观察失败。
 
 `UAT-005` 剩余动作合同并入 `UAT-051` 后仍保留本行，用四桶状态在新 Canary 上资格确认，不把 005 标 `VOID`。
 
@@ -479,17 +479,16 @@
 - UI证据：`admin-web-evidence/uat-011-same-root-shelf-config.png`、`admin-web-evidence/uat-011-same-root-handoff-b-complete.png`（位于本Canary隔离证据目录）。
 - FS证据：2026-08-23只读枚举`F:\canary`，同一根存在正式电影目录与产品文件，未做任何修改。
 
-### UAT-020（`FAILED`）
+### UAT-020（`PASS`）
 
 - 关闭命题：Final Inventory成员命名与carried-forward Settlement完整，技术后缀不进入最终名。
-- Canary：`UAT-20260822-141950-0c27c8cf6`。
+- Canary：旧失败`UAT-20260822-141950-0c27c8cf6`；关闭证人`UAT-20260823-002500-519f8d7b5`。
 - 证人：Admin Web「我的收藏」中的《老笠》及`F:\canary\老笠 (2016)`正式Inventory目录。
 - 路径：我的收藏 → 打开老笠详情 → 核对当前收藏与健康 → 只读枚举唯一目录及正式Inventory成员名。
-- 允许动作：页面进入、打开/关闭详情、截图；文件系统与SQLite只读核验。
-- 禁止动作：移动/重命名文件、触发Aftercare修复、退出收藏、重启服务、重建Canary、修改数据库。
+- 允许动作：页面进入、打开/关闭详情、截图；文件系统与SQLite只读核验；按已确认关闭程序从不可变Baseline重建新Canary。
+- 禁止动作：手工移动/重命名文件、触发Aftercare修复、退出收藏、修改数据库或改写旧Inventory。
 - 通过标准：唯一用户目录；主视频/NFO/字幕等正式成员均使用Placement决定的用户可读名；技术发布标签不进入最终名；无旧目录或partial。
 - 证据要求：`UI`、`FS`。
-- 失败结论：`FAILED`。老笠已是健康当前收藏，且只有`F:\canary\老笠 (2016)`一个目录；主视频`老笠 (2016).mp4`和NFO正确，无partial。但正式字幕仍名为`老笠 (2016) - 1080p x264 AAC HDH.chinese(简).srt`，包含分辨率、codec、audio和release group技术标签，不满足关闭命题。
-- UI证据：`admin-web-evidence/uat-020-final-subtitle-technical-name-failed.png`（位于本Canary隔离证据目录）。
-- FS证据：2026-08-23只读枚举，`SiblingRootCount=1`、`TechnicalPrimaryCount=0`、`PartialCount=0`，但正式subtitle basename仍含技术标签。
-- 后续：定位字幕语言/属性解析与Placement `finalName`接线；修复不得改写已提交Inventory，需新Canary或新Final Inventory Decision定向复测。
+- 关闭结论：`PASS`。新Canary中老笠为健康当前收藏，且只有`F:\canary\老笠 (2016)`一个目录；正式成员为`老笠 (2016).mp4`、`老笠 (2016).nfo`、`老笠 (2016).zh-CN.srt`、`poster.jpg`、`fanart.jpg`，无技术发布标签、旧兄弟目录或partial。
+- UI证据：`admin-web-evidence/uat-020-final-subtitle-normalized-pass.png`（位于新Canary隔离证据目录）。旧失败截图继续保留为修复前证据。
+- FS证据：2026-08-23只读枚举及`uat-020-fs-evidence.json`，`SiblingRootCount=1`、`PartialCount=0`，字幕basename精确为`老笠 (2016).zh-CN.srt`。
