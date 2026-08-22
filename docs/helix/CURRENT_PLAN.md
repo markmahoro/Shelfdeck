@@ -1,8 +1,17 @@
 # ShelfDeck Clean Helix Master Plan
 
-Status: Movie Procurement保持`CLOSED FOR MOVIE`；Movie Libra保持`MOVIE LIBRA CLOSED AT HANDOFF B READY`；Movie Arca已经接通Handoff B Acceptance、On-deck、Shelf Entry、Deck Fact、Beta Aftercare、完整Off-deck及非破坏性Shelf Deregistration。当前状态为`MOVIE COLLECTION LIFECYCLE READY THROUGH SHELF DEREGISTRATION`；Movie从发现、生产、收藏、养护、退出到整架行政终结的本地产品链已经闭合，Docker/NAS与生产部署仍是独立后续工作。
+Status: Helix-beta 已由 Product Owner 收窄为 **仅 Movie 的全功能版本**（旅程 A–I，含退出收藏与 Shelf 注销）。Movie Procurement保持`CLOSED FOR MOVIE`；Movie Libra保持`MOVIE LIBRA CLOSED AT HANDOFF B READY`；Movie Arca已经接通Handoff B Acceptance、On-deck、Shelf Entry、Deck Fact、Beta Aftercare、完整Off-deck及非破坏性Shelf Deregistration。当前实现状态为`MOVIE COLLECTION LIFECYCLE READY THROUGH SHELF DEREGISTRATION`；Helix-beta 验收权威为现行 `docs/helix/BETA_FEATURE_ACCEPTANCE_BASELINE.md`。Docker/NAS与生产部署仍是独立后续工作。
 
 Last updated: 2026-08-22
+
+## 0. Product scope — Helix-beta is Movie-only full chain
+
+用户于2026-08-22确认：Helix-beta 就是只支持 Movie 的全链路产品，包含发现、整理、上架、我的收藏、健康/Aftercare、评分与人物、**退出收藏**、**整架注销**和概览/安全，而不是「先上架、其他 profile 凑齐才叫 Beta」。
+
+- 现行验收基线：`docs/helix/BETA_FEATURE_ACCEPTANCE_BASELINE.md`（`HB-A`–`HB-I` / `HB-P`，从 SSOT §9.1 抽象）。
+- 已作废：2026-07-23 四类媒体 271 行 Feature Matrix，归档于 `docs/helix/archive/BETA_FEATURE_ACCEPTANCE_BASELINE_FOUR_PROFILE_2026-07-23.md`。
+- SSOT 仍定义 Series / JAV / Western Adult；它们是后续产品范围，不再作为 Helix-beta 门禁，也不得从架构正文删除。
+- `implementation/CURRENT_PHASE.md` 中「四类媒体完成后才回到完整 Feature Matrix」的 Beta DoD 已被本决定取代。
 
 ## 0. Current execution — clean Movie Canary Admin Web UAT authorized
 

@@ -1,8 +1,12 @@
 # ShelfDeck Clean Helix Current Status
 
-Status: Movie Procurement与Movie Libra封口保持有效；Movie Arca已完成Handoff B Acceptance、On-deck、Shelf Entry、Deck Fact、Beta Aftercare、Off-deck及Shelf Deregistration完整闭环。当前精确状态为`MOVIE COLLECTION LIFECYCLE READY THROUGH SHELF DEREGISTRATION`；本地Movie生命周期已经最终封口，生产部署尚未开始。
+Status: Helix-beta 范围已收窄为仅 Movie 全链路。Movie Procurement与Movie Libra封口保持有效；Movie Arca已完成Handoff B Acceptance、On-deck、Shelf Entry、Deck Fact、Beta Aftercare、Off-deck及Shelf Deregistration完整闭环。当前精确状态为`MOVIE COLLECTION LIFECYCLE READY THROUGH SHELF DEREGISTRATION`；Helix-beta 验收行见现行基线，尚未把任何 `HB-*` 标为验收 `PASS`。生产部署尚未开始。
 
 Last updated: 2026-08-22
+
+## 0. Helix-beta scope — Movie-only full chain
+
+2026-08-22 Product Owner 确认 Helix-beta = 仅支持 Movie 的全功能版本（SSOT 旅程 A–I，含退出收藏与 Shelf 注销）。四类媒体 Feature Matrix 已作废。现行基线：`docs/helix/BETA_FEATURE_ACCEPTANCE_BASELINE.md`。归档：`docs/helix/archive/BETA_FEATURE_ACCEPTANCE_BASELINE_FOUR_PROFILE_2026-07-23.md`。本条只记录范围决定，不把 Movie Canary 或单元测试标成 Helix-beta 交付通过。
 
 ## 0. Recorded product gaps — UAT-050–058
 

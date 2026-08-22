@@ -1,6 +1,6 @@
 # ShelfDeck / Helix Documentation Index
 
-Status: Movie Procurement与Movie Libra封口保持有效；Movie Arca已完成Handoff B Acceptance、On-deck、Shelf Entry、Deck Fact、Beta Aftercare、Off-deck与Shelf Deregistration闭环。“我的收藏”承载海报墙、收藏健康、直接退出及历史Entry。当前状态为`MOVIE COLLECTION LIFECYCLE READY THROUGH SHELF DEREGISTRATION`；Docker/NAS与生产部署均未开始。
+Status: Helix-beta 为仅 Movie 的全功能版本（SSOT 旅程 A–I，含退出收藏与整架注销）。验收基线：`BETA_FEATURE_ACCEPTANCE_BASELINE.md`。Movie Procurement与Movie Libra封口保持有效；Movie Arca已完成Handoff B Acceptance、On-deck、Shelf Entry、Deck Fact、Beta Aftercare、Off-deck与Shelf Deregistration闭环。“我的收藏”承载海报墙、收藏健康、直接退出及历史Entry。当前实现状态为`MOVIE COLLECTION LIFECYCLE READY THROUGH SHELF DEREGISTRATION`；Docker/NAS与生产部署均未开始。四类媒体旧 Feature Matrix 已作废。
 
 2026-08-21本地现场切换已完成：媒体整理工作区改由后端持久化`libra_formation_projections`提供展示，现场数据库已迁移到
 `helix-clean-v3`并恢复服务。当前现场数据库为182 tables、659 Subjects/659 Projection rows，Formation active首屏25条，

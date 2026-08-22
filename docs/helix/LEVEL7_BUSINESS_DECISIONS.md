@@ -1,8 +1,8 @@
 # Level 7 Business Decision Register
 
-Status: `CLOSED / NO_OPEN_BUSINESS_DECISION / LEVEL_7_ACCEPTED`
+Status: `LEVEL_7_ARCHITECTURE_CLOSED`；Helix-beta 发布范围见 2026-08-22 `L7-PS-01`
 
-Last updated: 2026-07-16
+Last updated: 2026-08-22
 
 ## Purpose and authority
 
@@ -37,9 +37,33 @@ Level 7正文可以自主确定纯技术架构，例如DAG表示、Event状态�
 用户确认前，该问题只能阻断受影响的Level 7分支，不能把假设写成正式合同。确认后仍须先回写SSOT并
 完成Level 0–7一致性审计，才能关闭Decision Item。
 
+## Product scope decisions after Level 7 closure
+
+Level 7 架构合同保持 Accepted/Closed。下列决定不改 Owner、Handoff 或 SSOT profile
+定义，只收窄 **Helix-beta 发布范围**。
+
+### L7-PS-01 Helix-beta 仅为 Movie 全链路
+
+确认日期：2026-08-22  
+确认人：Product Owner
+
+**分叉：** Helix-beta 是四类媒体（Movie / Series / JAV / Western Adult）全部验收，
+还是只把 Movie 的 SSOT 旅程 A–I（含退出收藏、Shelf 注销、人物、健康、概览）作为
+全功能 Beta。
+
+**用户确认：** Helix-beta = 仅支持 Movie 的全功能版本。退出收藏等全部 Movie 功能点
+都在范围内。2026-07-23 四类媒体 Feature Matrix 作废。
+
+**对架构的影响：** 无。SSOT 仍定义 Series / JAV / Western Adult。Helix-beta 不得宣称
+支持那些 profile，也不得从 SSOT 删除它们。
+
+**回写：** `docs/helix/BETA_FEATURE_ACCEPTANCE_BASELINE.md`；归档
+`docs/helix/archive/BETA_FEATURE_ACCEPTANCE_BASELINE_FOUR_PROFILE_2026-07-23.md`。
+不修改 `TOP_DOWN_ARCHITECTURE_CONFIRMATION.md`。
+
 ## Open business decisions
 
-没有开放的Level 7业务决策。Execution Foundation已经由Level 0–6唯一推导并通过封闭审计：用户定义Outcome，
+没有开放的Level 7架构业务决策。Execution Foundation已经由Level 0–6唯一推导并通过封闭审计：用户定义Outcome，
 系统自主选择Means；正式Material副作用、Input Settlement和Off-deck继续受既有Authorization合同约束；
 资源不足只形成等待或背压，不改变业务结果。2026-07-16完成的62项Capability Conservation Audit同样没有
 发现新的用户旅程、Owner、Handoff或Authorization分叉。

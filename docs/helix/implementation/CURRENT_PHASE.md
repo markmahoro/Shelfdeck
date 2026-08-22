@@ -1,14 +1,22 @@
 # ShelfDeck Helix Implementation
 
-状态：**SAFE PAUSE — 大纵向重定基准备完成；全部实现与验收均未授权启动**
+状态：**SAFE PAUSE 记录保留；Helix-beta DoD 已于 2026-08-22 被 Product Owner 收窄**
 
-日期：`2026-07-29`
+日期：`2026-07-29`（正文为当时冻结包）；范围修正：`2026-08-22`
+
+## 范围修正（2026-08-22，覆盖下文 Beta DoD）
+
+Helix-beta 现为 **仅 Movie 的全链路产品**。现行验收基线是
+`docs/helix/BETA_FEATURE_ACCEPTANCE_BASELINE.md`。下文「四类媒体完成后仍须回到
+完整 Feature Matrix」「不得把单类打通等同于 Beta 完成」作为 **2026-07-29 施工史**
+保留，不再是 Helix-beta 门禁。Series / JAV / Western Adult 仍在 SSOT 中，属于
+后续产品范围。2026-07-23 四类媒体 Matrix 已作废并归档。
 
 ## 当前唯一恢复点
 
 用户已确认后续采用“大纵向”施工，但本轮只授权完成基础准备后暂停。Architecture
-SSOT 与 `BETA_FEATURE_ACCEPTANCE_BASELINE.md` 均保持不变；后者仍是 Beta 的
-完整 Definition of Done，不因施工顺序改变而缩减。
+SSOT 保持不变。Helix-beta 的 Definition of Done 以现行 Movie 全链路基线为准，
+不再使用已作废的四类媒体 Feature Matrix。
 
 恢复时不得从 H1.2/H1.3 横向接线继续施工。下一次唯一允许的动作顺序是：
 
@@ -17,9 +25,9 @@ SSOT 与 `BETA_FEATURE_ACCEPTANCE_BASELINE.md` 均保持不变；后者仍是 Be
 2. 显式核对 Movie 的完整 Beta 用户结果和真实样本矩阵；
 3. 用户确认 blueprint 后，才创建一个新的 Libra 实现任务；
 4. 实现 checkpoint 经 Architecture 主动复审后，才唤醒 P14 独立验收；
-5. Movie 完整接受后再按 `Series → JAV → Western Adult` 串行推进；
+5. Movie 完整接受后再按 `Series → JAV → Western Adult` 串行推进；（2026-08-22：此项改为 Helix-beta 之后的后续产品范围，不再是 Beta 门禁）
 6. 四类媒体完成后仍须回到完整 Feature Matrix 收口；不得把“单类打通”等同于
-   Beta 完成。
+   Beta 完成。（2026-08-22：四类媒体 Matrix 已作废；Helix-beta DoD 即 Movie 全链路）
 
 Movie blueprint 至少要把以下结果作为同一大纵向的显式 DoD，而不是留给隐含的
 横向补丁：
