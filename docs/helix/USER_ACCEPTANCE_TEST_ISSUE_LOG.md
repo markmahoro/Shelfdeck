@@ -111,7 +111,7 @@ Helix主体开发已经完成，Movie从Procurement、Libra到Arca及Shelf Dereg
 | UAT-054 | 退出收藏主链已通，页面仍是内部安全链控制台 | `USER_EXPERIENCE` | | Off-deck Admin Web | 可理解性、可操作性 | High | 已讨论并确认方向，待实现 |
 | UAT-055 | 人物名录未接通 Beta 两条登记路径，页面只读且为空 | `DOMAIN_ORCHESTRATION` | `USER_EXPERIENCE` | People Owner 自动化 + Arca On-deck 人物证据 + Admin Web | 正确性、可操作性 | Critical | 已实现；待新 Canary 确认 |
 | UAT-056 | 豆瓣评分缺少 SSOT 周期同步，同步与日志刷新职责混在一起 | `DOMAIN_ORCHESTRATION` | `USER_EXPERIENCE` | Perception Acquisition Owner 自动化 + Admin Web | 时效性、可理解性 | High | 已实现；待新 Canary 确认 |
-| UAT-057 | 概览只重复旁页计数，缺少系统状态、可点待办与最近完成；不得与我的收藏合并 | `USER_EXPERIENCE` | `PROJECTION_FRESHNESS` | Overview 只读聚合 + Admin Web | 可理解性、可操作性 | High | 已讨论并确认方向，待实现 |
+| UAT-057 | 概览只重复旁页计数，缺少系统状态、可点待办与最近完成；不得与我的收藏合并 | `USER_EXPERIENCE` | `PROJECTION_FRESHNESS` | Overview 只读聚合 + Admin Web | 可理解性、可操作性 | High | 已实现；待新 Canary 确认 |
 | UAT-058 | 侧栏把文件来源与收藏架放在日常运营之前；应下移与系统设置一组并改名为配置 | `USER_EXPERIENCE` | | Admin Web 导航 | 可发现性、信息架构 | Medium | 已讨论并确认方向，待实现 |
 
 ## 2.1 UAT-006：概览展示固定演示数字
@@ -2205,7 +2205,17 @@ stderr 为 `CLEAN_ARCA_TARGET_OCCUPIED` 与 `CLEAN_ARCA_SETTLEMENT_UNKNOWN_MEMBE
 
 验收证据：概览与收藏墙仍是两个入口；待办可分别跳到整理/收藏/退出；正式收藏与已经上架不再并排；无事项与尚未配置有明确空态；主表面无 Event/Retry/队列。
 
-当前处理决定：2026-08-22 用户确认保留两页，概览改为状态 + 待办 + 最近几件事。只登记，不立即改代码、不改 SSOT 一级入口集合。实现顺序上与 UAT-052/054/058 同属产品表面，后于周期类 UAT-053/056/055。
+当前处理决定：2026-08-22 用户确认保留两页，概览改为状态 + 待办 + 最近几件事。2026-08-22 代码已实现。概览与我的收藏仍是两个入口。系统三态尚未配置 / 正常运行 / 系统故障；待办含整理 attention_required 并可点到对应页；成果只留正式收藏 / 本月新上架 / 健康；最近进展改为带片名短账。Collection 概览统计不再五路整表 map。侧栏接同一 systemState。本条不宣称 Canary 或生产通过。
+
+证据：
+
+- `media-service/src/helix/projections/overview-query.js`
+- `media-service/src/helix/domains/arca/application/collection-query.js`
+- `media-service/web/src/helix/OverviewPage.tsx`
+- `media-service/web/src/App.tsx`
+- `media-service/test/helix-overview-query.test.js`
+- `media-service/web/test/overview.test.tsx`
+- Admin Web production build `npm run build:web` PASS
 
 ## 55. UAT-058：侧栏把文件来源与收藏架放在日常运营之前；应下移与系统设置一组并改名为配置
 

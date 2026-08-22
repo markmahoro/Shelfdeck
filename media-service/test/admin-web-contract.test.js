@@ -14,7 +14,10 @@ test('Admin Web exposes eight Helix pages and keeps health in Collection', () =>
   assert.match(app, /pages\.map/);
   assert.match(app, /OverviewPage/);
   assert.match(read('web/src/helix/OverviewPage.tsx'), /getOverview/);
+  assert.match(read('web/src/helix/OverviewPage.tsx'), /需要你处理/);
+  assert.match(read('web/src/helix/OverviewPage.tsx'), /systemState/);
   assert.doesNotMatch(read('web/src/helix/OverviewPage.tsx'), /2,430|2,105/);
+  assert.doesNotMatch(read('web/src/helix/OverviewPage.tsx'), /已发现的电影|已经上架|已检查健康/);
   assert.match(app, /PeoplePage/);
   assert.match(read('web/src/helix/PeoplePage.tsx'), /listPeople/);
   assert.doesNotMatch(read('web/src/helix/PeoplePage.tsx'), />416<|>3<|>1</);

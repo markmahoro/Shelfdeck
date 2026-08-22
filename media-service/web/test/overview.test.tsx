@@ -10,23 +10,25 @@ describe('Helix Overview product semantics', () => {
   it('opens with a task-oriented collection status heading', async () => {
     vi.spyOn(helixAdminApi, 'getOverview').mockResolvedValue({
       generatedAt: new Date().toISOString(),
+      systemState: { kind: 'unconfigured', label: '尚未配置', href: '/material-fields' },
       metrics: [
-        { key: 'active_collection', label: '正式收藏', value: 0, note: '已经上架的电影' },
-        { key: 'new_this_month', label: '本月新上架', value: 0, note: '本月完成上架' },
-        { key: 'healthy_collection', label: '健康收藏', value: 0, note: '检查结果为健康' },
-        { key: 'attention', label: '需要处理', value: 0, note: '健康或退出需要处理' },
+        { key: 'active_collection', label: '正式收藏', value: 0, note: '当前在收藏架上', href: '/collection' },
+        { key: 'new_this_month', label: '本月新上架', value: 0, note: '本月完成上架', href: '/collection' },
+        { key: 'healthy_collection', label: '健康收藏', value: 0, note: '检查结果为健康', href: '/collection' },
       ],
+      todos: [{ key: 'fields', label: '还没有文件来源', count: 1, href: '/material-fields' }],
+      inProgress: null,
       setup: { activeMaterialFieldCount: 0, activeShelfCount: 0 },
-      ledger: [
-        { key: 'discovery', label: '已发现的电影', value: 0 },
-        { key: 'formation', label: '正在整理', value: 0 },
-        { key: 'ondeck', label: '已经上架', value: 0 },
-        { key: 'health', label: '已检查健康', value: 0 },
-      ],
+      ledger: [],
     });
     render(<MemoryRouter initialEntries={['/']}><App /></MemoryRouter>);
-    expect(await screen.findByRole('heading', { level: 1, name: '收藏现状' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { level: 1, name: '概览' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /尚未配置/ })).toBeInTheDocument();
+    expect(document.querySelector('.rail-status')).toHaveTextContent('尚未配置');
     expect(screen.getByText('正式收藏')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /还没有文件来源/ })).toBeInTheDocument();
+    expect(screen.queryByText('已发现的电影')).not.toBeInTheDocument();
+    expect(screen.queryByText('已检查健康')).not.toBeInTheDocument();
     expect(screen.queryByText('你的收藏，正在被认真照料')).not.toBeInTheDocument();
     expect(screen.queryByText(/持续履职/)).not.toBeInTheDocument();
     expect(screen.queryByText('任务中心')).not.toBeInTheDocument();

@@ -7,7 +7,7 @@ export type SurfacePage = {
 };
 
 export const pages: SurfacePage[] = [
-  { slug: 'overview', path: '/', label: '概览', title: '收藏现状', description: '当前正式收藏、本月新上架，以及需要你处理的事项。' },
+  { slug: 'overview', path: '/', label: '概览', title: '概览', description: '看系统是否就绪、有没有要你处理的事，以及最近上架了什么。' },
   { slug: 'material-fields', path: '/material-fields', label: '文件来源', title: '文件来源', description: '指定本机电影目录。登记不会移动、改名或删除任何文件。' },
   { slug: 'shelves', path: '/shelves', label: '收藏架', title: '收藏架', description: '指定上架后的目录和命名规则。创建时不会写入媒体文件。' },
   { slug: 'collection', path: '/collection', label: '我的收藏', title: '我的收藏', description: '只显示已经上架的电影。' },

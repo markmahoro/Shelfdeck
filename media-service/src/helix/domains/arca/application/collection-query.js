@@ -131,6 +131,38 @@ function createArcaCollectionQuery(options) {
       historyCount:packed.index.filter((row)=>row.status!=='active').length,
     });
     return Object.freeze({items:Object.freeze(items),shelves:Object.freeze(shelves),summary});},
+    overviewStats(nowMs){
+      const monthStartMs=Date.UTC(new Date(nowMs).getUTCFullYear(), new Date(nowMs).getUTCMonth(), 1);
+      const packed=execute('arca_collection_overview',(context)=>{
+        const repo=context.repository(repository.repositoryId);
+        const index=repo.invoke('list_entry_index',{});
+        const rows=repo.invoke('list_entries',{});
+        const active=rows.filter((row)=>row.status==='active')
+          .sort((left,right)=>Number(right.created_at_ms)-Number(left.created_at_ms));
+        const recent=active.slice(0,5).map((row)=>map(repo,row));
+        return Object.freeze({
+          index, activeIds:active.map((row)=>row.shelf_entry_id),
+          currentCount:active.length,
+          monthNewCount:active.filter((row)=>Number(row.created_at_ms)>=monthStartMs).length,
+          recent,
+        });
+      });
+      const health=options.healthReaderMany?.(packed.activeIds)||new Map();
+      let healthyCount=0, healthAttentionCount=0;
+      for (const id of packed.activeIds) {
+        const state=(health.get(id)||emptyHealth).state;
+        if (state==='healthy') healthyCount += 1;
+        if (state==='attention_required') healthAttentionCount += 1;
+      }
+      return Object.freeze({
+        currentCount:packed.currentCount,
+        monthNewCount:packed.monthNewCount,
+        healthyCount, healthAttentionCount,
+        recentOnDeck:Object.freeze(packed.recent.map((item)=>Object.freeze({
+          shelfEntryId:item.shelfEntryId, displayIdentity:item.displayIdentity, createdAtMs:item.createdAtMs,
+        }))),
+      });
+    },
     get,
     getPoster(shelfEntryId){const reference=execute('arca_collection_poster_reference_read',(context)=>{const repo=context.repository(repository.repositoryId),row=repo.invoke('find_entry',{shelf_entry_id:shelfEntryId});
       if(!row||row.status!=='active')return null;const shelf=repo.invoke('find_shelf',{shelf_id:row.shelf_id}),poster=repo.invoke('list_materials',{

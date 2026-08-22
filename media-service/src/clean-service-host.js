@@ -1422,16 +1422,26 @@ async function createCleanServiceHost(options) {
     assertLocationAvailable: (request) =>
       platformIntegrations.assertExternalLandingRootAvailable(request),
   });
+  const peopleAdminQuery = createPeopleAdminQuery({
+    store: procurementExecution.people.store,
+  });
   const overviewQuery = createOverviewQuery({
     readMaterialFields: () => procurementAdmin.listMaterialFields(),
     readShelves: () => arcaShelfAdmin.listShelves(),
-    readFormation: () => formationQuery.list({ section:'active', limit:25 }),
-    readCollection: () => arcaCollectionQuery.list(),
+    readFormation: () => {
+      const summary = formationQuery.list({ section:'active', limit:1 }).summary;
+      return {
+        summary,
+        attentionItems: formationQuery.list({ section:'active', classification:'attention_required', limit:5 }).items,
+        inProgressItems: formationQuery.list({ section:'active', classification:'in_progress', limit:5 }).items,
+        completedItems: formationQuery.list({ section:'completed', limit:5 }).items,
+      };
+    },
+    readCollectionStats: (nowMs) => arcaCollectionQuery.overviewStats(nowMs),
     readOffdeck: () => arcaOffdeck.candidates(),
+    readPeopleSummary: () => peopleAdminQuery.list({ limit:1 }).summary,
+    readHealth: () => ({ kind: 'ready' }),
     now: options.now || Date.now,
-  });
-  const peopleAdminQuery = createPeopleAdminQuery({
-    store: procurementExecution.people.store,
   });
   const peopleAdmin = Object.freeze({
     register(body, actor) {

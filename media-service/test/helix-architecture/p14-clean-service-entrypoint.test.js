@@ -379,7 +379,8 @@ test('clean host serves public health and Admin UI, then requires API key or Htt
       headers: { cookie },
     });
     assert.equal(overview.statusCode, 200);
-    assert.deepEqual(overview.json().metrics.map((item) => item.value), [0, 0, 0, 0]);
+    assert.deepEqual(overview.json().metrics.map((item) => item.value), [0, 0, 0]);
+    assert.equal(overview.json().systemState.kind, 'unconfigured');
     assert.deepEqual(overview.json().setup, {
       activeMaterialFieldCount: 0,
       activeShelfCount: 0,

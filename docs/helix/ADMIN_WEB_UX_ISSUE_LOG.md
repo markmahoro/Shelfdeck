@@ -1,6 +1,6 @@
 # Admin Web 用户体验问题台账
 
-状态：`ADMIN WEB UX OVERHAUL IMPLEMENTED / UX-004/009/010/011/016 AND UAT-005/050–053/055/056 IMPLEMENTED / UAT-054,057–058 REMAIN OPEN`
+状态：`ADMIN WEB UX OVERHAUL IMPLEMENTED / UX-001/004/009/010/011/013/016 AND UAT-005/050–053/055–057 IMPLEMENTED / UAT-054,058 REMAIN OPEN`
 
 建立日期：2026-08-22
 
@@ -32,7 +32,7 @@
 
 | ID | 问题 | 分类 | 主要页面 | 严重度 | 状态 |
 | --- | --- | --- | --- | --- | --- |
-| UX-001 | 概览标题与导语是空话，不说明本页能做什么 | `COPY_REDUNDANT` | 概览 | High | OPEN |
+| UX-001 | 概览标题与导语是空话，不说明本页能做什么 | `COPY_REDUNDANT` | 概览 | High | 已实现 |
 | UX-002 | 各页 eyebrow / 英文副标题 / 口号式 h1 重复导航语义 | `COPY_REDUNDANT` | 全站 | Medium | OPEN |
 | UX-003 | 侧栏「收藏运营台」「本地 Projection」对用户无意义 | `COPY_REDUNDANT` | 全站导航 | Medium | OPEN |
 | UX-004 | 文件来源把候选包、访问合同、Observation、Handoff A 当作主文案 | `COPY_INTERNAL` | 文件来源 | High | 已实现 |
@@ -44,7 +44,7 @@
 | UX-010 | 已完成行复用「下一步动作」列和进行中操作控件 | `COPY_CONFLICT` | 媒体整理工作区 | High | 已实现 |
 | UX-011 | 人物页声称维护身份，实际只读且无操作 | `COPY_CONFLICT` | 人物 | High | 已实现 |
 | UX-012 | 设置页承诺「空间、资源与安全」，实际只有连接和评分日志 | `COPY_CONFLICT` | 系统设置 | Medium | OPEN |
-| UX-013 | 侧栏固定「正常运行」，与真实健康无关 | `COPY_CONFLICT` | 全站导航 | Medium | OPEN |
+| UX-013 | 侧栏固定「正常运行」，与真实健康无关 | `COPY_CONFLICT` | 全站导航 | Medium | 已实现 |
 | UX-014 | 评分日志仍指引用户去已更名的「上架进度」 | `COPY_CONFLICT` | 系统设置 | Low | OPEN |
 | UX-015 | 退出收藏页卡片/行/危险阶段无样式，JSON 规则编辑器直出 | `LAYOUT` | 退出收藏 | Critical | OPEN |
 | UX-016 | 媒体整理「当前媒体」九列表格未用尽横轴且内部横向溢出 | `LAYOUT` | 媒体整理工作区 | High | 已实现 |
@@ -84,6 +84,8 @@
 证据：`media-service/web/src/helix/OverviewPage.tsx`；`surface-model.ts` 仍保留同一套演示文案。
 
 建议：标题直接用「概览」或「收藏现状」；导语改成一句可验证的摘要，例如「当前正式收藏、本月新上架、需要你处理的事项」。删掉履职、照料、账本、Fresh Projection、精确 Scope。用户 2026-08-22 确认概览改为系统状态 + 可点待办 + 带片名的最近进展，**不与「我的收藏」合并**，不做第二面海报墙。见 `UAT-057`。
+
+2026-08-22 实现：标题改为「概览」，导语说明系统状态、待办与最近上架；删除口号与旁页重复账本。证据见 `UAT-057` 与 `media-service/web/src/helix/OverviewPage.tsx`。本条随 UAT-057 关闭，不宣称 Canary 通过。
 
 ### UX-002 各页用口号式 h1 重复导航，不增加信息
 
@@ -211,6 +213,8 @@
 ### UX-013 侧栏「正常运行」不反映系统状态
 
 `App.tsx` 把 `正常运行` 写死。服务 faulted、Projection stale、Formation rebuilding 时侧栏仍绿灯。概览也没有接健康接口。状态灯要么接 `GET /v1/health` 的公开结论，要么不要装成运行监视。
+
+2026-08-22 实现：侧栏与概览共用 Overview `systemState` 三态（尚未配置 / 正常运行 / 系统故障）；需要处理不算系统故障。证据见 `UAT-057` 与 `media-service/web/src/App.tsx`。本条随 UAT-057 关闭，不宣称 Canary 通过。
 
 ### UX-014 评分日志指向已更名页面
 

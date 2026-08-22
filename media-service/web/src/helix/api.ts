@@ -295,9 +295,12 @@ export type IntegrationState = {
 
 export type OverviewProjection = {
   generatedAt: string;
-  metrics: Array<{ key:string; label:string; value:number; note:string }>;
+  systemState: { kind:'unconfigured'|'running'|'faulted'; label:string; href:string };
+  metrics: Array<{ key:string; label:string; value:number; note:string; href?:string }>;
+  todos: Array<{ key:string; label:string; count:number; href:string }>;
+  inProgress: { count:number; label:string; href:string } | null;
   setup: { activeMaterialFieldCount:number; activeShelfCount:number };
-  ledger: Array<{ key:string; label:string; value:number }>;
+  ledger: Array<{ key:string; label:string; href?:string; value?:number }>;
 };
 
 export type PeopleProjection = {
