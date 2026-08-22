@@ -15,7 +15,7 @@ test('P6 publishes exactly four Owner-scoped horizontal Domain Facades plus one 
   assert.deepEqual(catalog.facades.filter((item) => item.kind === 'construction').map((item) => item.exportName),
     ['PerceptionExecutionRegistration']);
   assert.deepEqual(Object.keys(perception).sort(), ['PACKAGE_ID', 'PerceptionCommandFacade', 'PerceptionExecutionRegistration', 'PerceptionResolutionFacade']);
-  assert.deepEqual(Object.keys(people).sort(), ['PACKAGE_ID', 'PeopleCommandFacade', 'PersonReferenceQueryFacade']);
+  assert.deepEqual(Object.keys(people).sort(), ['PACKAGE_ID', 'PeopleCommandFacade', 'PersonReferenceQueryFacade', 'createPeopleProcessServices']);
   assert.equal(catalog.facades.every((item) => item.owner === 'perception' || item.owner === 'people'), true);
   assert.equal(catalog.prohibitedAuthority.includes('media_cast_write'), true);
   assert.equal(catalog.prohibitedAuthority.includes('material_control'), true);

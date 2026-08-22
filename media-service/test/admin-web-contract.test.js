@@ -79,6 +79,18 @@ test('Media organization workspace uses user-facing stages after Procurement han
   assert.doesNotMatch(formation, /Subject|Routing|Spec|Run|Work|Event|判断开采资格|准备候选包/);
 });
 
+test('People page registers, confirms, and does not copy collection cast', () => {
+  const page = read('web/src/helix/PeoplePage.tsx');
+  const runtime = read('src/helix/composition/create-procurement-execution-runtime.js');
+  assert.match(page, /登记一个人/);
+  assert.match(page, /待确认登记/);
+  assert.match(page, /接受/);
+  assert.match(page, /忽略/);
+  assert.match(page, /不是某部电影的演员表/);
+  assert.match(runtime, /ondeck-person-evidence/);
+  assert.match(runtime, /createPeopleProcessServices/);
+});
+
 test('Settings splits Douban sync from rating-log refresh', () => {
   const page = read('web/src/helix/SettingsPage.tsx');
   const api = read('web/src/helix/api.ts');

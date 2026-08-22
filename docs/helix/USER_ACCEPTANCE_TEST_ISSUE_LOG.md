@@ -109,7 +109,7 @@ Helix主体开发已经完成，Movie从Procurement、Libra到Arca及Shelf Dereg
 | UAT-052 | 我的收藏一级导航不是按架，详情缺少占用空间等技术指标 | `USER_EXPERIENCE` | `PROJECTION_FRESHNESS` | Arca Collection Query + Admin Web | 可理解性、可发现性 | High | 已讨论并确认方向，待实现 |
 | UAT-053 | 活动文件来源未按 SSOT 周期观察，扫描完成后页面禁止再扫 | `DOMAIN_ORCHESTRATION` | `USER_EXPERIENCE` | Procurement Field Management Owner 自动化 + Admin Web | 正确性、活性、可理解性 | Critical | 已实现；待新 Canary 确认 |
 | UAT-054 | 退出收藏主链已通，页面仍是内部安全链控制台 | `USER_EXPERIENCE` | | Off-deck Admin Web | 可理解性、可操作性 | High | 已讨论并确认方向，待实现 |
-| UAT-055 | 人物名录未接通 Beta 两条登记路径，页面只读且为空 | `DOMAIN_ORCHESTRATION` | `USER_EXPERIENCE` | People Owner 自动化 + Arca On-deck 人物证据 + Admin Web | 正确性、可操作性 | Critical | 已讨论并确认方向，待实现 |
+| UAT-055 | 人物名录未接通 Beta 两条登记路径，页面只读且为空 | `DOMAIN_ORCHESTRATION` | `USER_EXPERIENCE` | People Owner 自动化 + Arca On-deck 人物证据 + Admin Web | 正确性、可操作性 | Critical | 已实现；待新 Canary 确认 |
 | UAT-056 | 豆瓣评分缺少 SSOT 周期同步，同步与日志刷新职责混在一起 | `DOMAIN_ORCHESTRATION` | `USER_EXPERIENCE` | Perception Acquisition Owner 自动化 + Admin Web | 时效性、可理解性 | High | 已实现；待新 Canary 确认 |
 | UAT-057 | 概览只重复旁页计数，缺少系统状态、可点待办与最近完成；不得与我的收藏合并 | `USER_EXPERIENCE` | `PROJECTION_FRESHNESS` | Overview 只读聚合 + Admin Web | 可理解性、可操作性 | High | 已讨论并确认方向，待实现 |
 | UAT-058 | 侧栏把文件来源与收藏架放在日常运营之前；应下移与系统设置一组并改名为配置 | `USER_EXPERIENCE` | | Admin Web 导航 | 可发现性、信息架构 | Medium | 已讨论并确认方向，待实现 |
@@ -2096,7 +2096,16 @@ stderr 为 `CLEAN_ARCA_TARGET_OCCUPIED` 与 `CLEAN_ARCA_SETTLEMENT_UNKNOWN_MEMBE
 
 验收证据：用户直接登记后名录出现该人且 Media-Cast 不变；上架带稳定 Provider Person Identity 的 NFO 后，周期扫描形成 Person 或 open Candidate；弱身份只出待确认；People 零 Arca Store / 物理 NFO 读取。
 
-当前处理决定：2026-08-22 用户确认补齐 Beta 两条登记路径，名录不再只读空表。只登记，不立即改代码。与 UAT-053、UAT-056 同属 Owner 自动化接线。
+当前处理决定：2026-08-22 用户确认补齐 Beta 两条登记路径。2026-08-22 代码已实现。Arca 发布只读 `OnDeckPersonEvidenceProjection`；People 每日补偿扫描该投影（fallback `ondeck-person-evidence`），不读物理 NFO、不写 Media-Cast。强身份自动接受，弱身份形成待确认 Candidate。页面提供已登记 / 待确认（接受或忽略）/ 登记一个人。八项 People Capability 的 Event Runtime 主路径未在本轮展开为独立 Planner；发现与登记走 People Owner 自动化与既有 Store 事务。本条不宣称 Canary 或生产通过。
+
+证据：
+
+- `media-service/src/helix/domains/arca/application/on-deck-person-evidence-projection.js`
+- `media-service/src/helix/domains/people/application/people-process-services.js`
+- `media-service/web/src/helix/PeoplePage.tsx`
+- `media-service/test/helix-architecture/p6-people-ondeck-registration.test.js`
+- `media-service/test/admin-web-contract.test.js`
+- Admin Web production build `npm run build:web` PASS
 
 ## 53. UAT-056：豆瓣评分缺少 SSOT 周期同步，同步与日志刷新职责混在一起
 

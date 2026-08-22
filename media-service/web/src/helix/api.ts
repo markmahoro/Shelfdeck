@@ -369,6 +369,24 @@ export const helixAdminApi = {
     const query=new URLSearchParams();Object.entries(params).forEach(([key,value])=>{if(value!==undefined&&value!=='')query.set(key,String(value));});
     return request<PeopleProjection>(`/v1/admin/people${query.size?`?${query}`:''}`);
   },
+  listPeopleRegistrationCandidates() {
+    return request<{ items: Array<{ candidateId: string; currentState: string; currentRevision: number; proposedName: string; evidenceDigest: string }> }>('/v1/admin/people/registration-candidates');
+  },
+  registerPerson(body:{ canonicalName:string; aliases?:string[]; providerIdentities?:Array<{provider?:string;namespace?:string;providerKey:string}> }) {
+    return request<{ person: { personId:string; revision?:{canonicalName:string} } }>('/v1/admin/people/actions/register', {
+      method:'POST', body:JSON.stringify({ ...body, idempotencyKey:`people-register:${body.canonicalName}:${crypto.randomUUID()}` }),
+    });
+  },
+  acceptPeopleCandidate(candidateId:string) {
+    return request<{ person: { personId:string } }>('/v1/admin/people', {
+      method:'POST', body:JSON.stringify({ candidateId, idempotencyKey:`people-accept:${candidateId}:${crypto.randomUUID()}` }),
+    });
+  },
+  dismissPeopleCandidate(candidateId:string) {
+    return request<{ candidate: { candidateId:string } }>('/v1/admin/people/actions/dismiss-candidate', {
+      method:'POST', body:JSON.stringify({ candidateId, idempotencyKey:`people-dismiss:${candidateId}:${crypto.randomUUID()}` }),
+    });
+  },
   listMaterialFields() {
     return request<{ items: MaterialField[] }>('/v1/admin/material-fields');
   },

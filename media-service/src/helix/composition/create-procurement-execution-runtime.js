@@ -36,6 +36,7 @@ const { ProcurementExecutionRegistration } = require('../domains/procurement/pub
 const { LibraExecutionRegistration } = require('../domains/libra/public');
 const { PerceptionExecutionRegistration } = require('../domains/perception/public');
 const { ArcaExecutionRegistration } = require('../domains/arca/public');
+const { createPeopleProcessServices } = require('../domains/people/public');
 
 const PROCUREMENT_ENABLED = Object.freeze(['procurement.field.observation.page.commit@1',
   'procurement.triage.playability.inspect@1','procurement.triage.bdmv.assess@1','procurement.triage.structure.inspect@1',
@@ -342,7 +343,7 @@ function createProcurementExecutionRuntime(options) {
   const planningRegistration = procurementConstruction.createPlanningRegistration({ registry, policyRegistry,
     contractValidator, progressReader, triageReader, triageRuleRegistry: triageRegistry, workResultReader,
     evidenceIndex, candidateContextReader, materialFieldStore: options.materialFieldStore, now });
-  let perceptionProcessServices;
+  let perceptionProcessServices, peopleProcessServices;
   const workLifecycle = createWorkLifecycle({ schemaManifest: options.schemaManifest, unitOfWork: options.unitOfWork,
     nextWorkAttemptId: (workId, ordinal) => workId + ':attempt:' + ordinal });
   libraProcessServices=libraConstruction.createProcessServices({...libraOptions,now,workResultReader,
@@ -372,6 +373,10 @@ function createProcurementExecutionRuntime(options) {
     shelfDeregistrationContextReader:arcaCapabilityRegistration.shelfDeregistrationContextReader,
     readPerceptionRating:(shelfEntryId)=>perceptionProcessServices.readCurrentRating('shelf_entry',shelfEntryId),
     readPerceptionRatings:(shelfEntryIds)=>perceptionProcessServices.readCurrentRatings('shelf_entry',shelfEntryIds)});
+  peopleProcessServices=createPeopleProcessServices({
+    ...options, now,
+    onDeckPersonEvidenceProjection:arcaProcessServices.onDeckPersonEvidenceProjection,
+  });
   const arcaPlanningRegistration=arcaConstruction.createPlanningRegistration({...options,registry,policyRegistry,contractValidator,workResultReader,
     contextReader:arcaProcessServices.contextReader,offdeckContextReader:arcaProcessServices.offdeckContextReader,
     shelfDeregistrationContextReader:arcaProcessServices.shelfDeregistrationContextReader,
@@ -781,6 +786,14 @@ function createProcurementExecutionRuntime(options) {
         ? perceptionProcessServices.periodicAcquisition.reconcile({sourceId})
         : Object.freeze({kind:'unavailable',sourceId}),
     }),Object.freeze({
+      ownerDomain:'people',reconcilerKey:'ondeck-person-evidence',
+      listPage:({cursor,limit})=>peopleProcessServices
+        ? peopleProcessServices.listPage({cursor,limit})
+        : [],
+      reconcile:(scope)=>peopleProcessServices
+        ? peopleProcessServices.reconcile(scope)
+        : Object.freeze({kind:'unavailable'}),
+    }),Object.freeze({
       ownerDomain:'perception',reconcilerKey:'active-subject-rating-resolutions',
       listPage:({cursor,limit})=>libraProcessServices.routingContextReader.listActiveSubjectPage(cursor,limit).items
         .map((item)=>Object.freeze({cursor:item.subjectId,scope:item})),
@@ -853,7 +866,7 @@ function createProcurementExecutionRuntime(options) {
     arcaShelfDeregistrationCoordinator:arcaProcessServices.shelfDeregistrationCoordinator,
     arcaShelfDeregistrationContextReader:arcaProcessServices.shelfDeregistrationContextReader,
     cancelProcessWorks:(scope)=>workLifecycle.cancelProcess(scope),
-    perception:perceptionProcessServices });
+    perception:perceptionProcessServices, people:peopleProcessServices });
 }
 
 module.exports = Object.freeze({

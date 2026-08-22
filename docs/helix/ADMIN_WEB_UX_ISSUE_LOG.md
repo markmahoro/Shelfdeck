@@ -1,6 +1,6 @@
 # Admin Web 用户体验问题台账
 
-状态：`ADMIN WEB UX OVERHAUL IMPLEMENTED / UX-004 AND UAT-053 IMPLEMENTED / UAT-005 AND UAT-050–052,054–058 REMAIN OPEN`
+状态：`ADMIN WEB UX OVERHAUL IMPLEMENTED / UX-004/011 AND UAT-053/055/056 IMPLEMENTED / UAT-005 AND UAT-050–052,054,057–058 REMAIN OPEN`
 
 建立日期：2026-08-22
 
@@ -42,7 +42,7 @@
 | UX-008 | 设置页 Provider / Landing / revision / Event 术语未翻译 | `COPY_INTERNAL` | 系统设置 | Medium | OPEN |
 | UX-009 | 已完成整理仍显示「尚未形成整理动作」 | `COPY_CONFLICT` | 媒体整理工作区 | Critical | OPEN |
 | UX-010 | 已完成行复用「下一步动作」列和进行中操作控件 | `COPY_CONFLICT` | 媒体整理工作区 | High | OPEN |
-| UX-011 | 人物页声称维护身份，实际只读且无操作 | `COPY_CONFLICT` | 人物 | High | OPEN |
+| UX-011 | 人物页声称维护身份，实际只读且无操作 | `COPY_CONFLICT` | 人物 | High | 已实现 |
 | UX-012 | 设置页承诺「空间、资源与安全」，实际只有连接和评分日志 | `COPY_CONFLICT` | 系统设置 | Medium | OPEN |
 | UX-013 | 侧栏固定「正常运行」，与真实健康无关 | `COPY_CONFLICT` | 全站导航 | Medium | OPEN |
 | UX-014 | 评分日志仍指引用户去已更名的「上架进度」 | `COPY_CONFLICT` | 系统设置 | Low | OPEN |
@@ -197,6 +197,8 @@
 ### UX-011 人物页能力声明与页面事实冲突
 
 标题要求用户「维护人物身份」，导语提到 Preference 与 Reference Image，摘要有「注册候选 / 合并候选」。页面没有注册、确认、合并、参考图，也没有写命令。UAT-007 已去掉无效注册按钮，但文案还在假装这是工作台。当前诚实说法是「人物名录（只读）」；做不到的能力不要写在 h1。用户 2026-08-22 确认要接通 Beta 两条登记路径（直接注册 + On-deck 发现），名录改为可确认候选的小工作台，不是把收藏详情演职员复制进名录。见 `UAT-055`。
+
+2026-08-22 实现：人物页改为已登记 / 待确认（接受或忽略）/ 登记一个人；文案写明名录不是演员表。证据见 `UAT-055` 与 `media-service/web/src/helix/PeoplePage.tsx`。本条随 UAT-055 关闭，不宣称 Canary 通过。
 
 ### UX-012 设置页范围小于它自己的承诺
 

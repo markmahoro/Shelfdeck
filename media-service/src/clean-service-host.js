@@ -11,7 +11,6 @@ const { canonicalDigest } = require('./helix/contracts/canonical-json');
 const { createHelixApplication } = require('./helix/composition/createHelixApplication');
 const { createCleanFacades } = require('./helix/composition/create-clean-facades');
 const { createOverviewQuery } = require('./helix/projections/overview-query');
-const { createPeopleStore } = require('./helix/domains/people/persistence/people-store');
 const { createPeopleAdminQuery } = require('./helix/domains/people/application/admin-query');
 const {
   createIntegrationAdminApplication,
@@ -1432,7 +1431,18 @@ async function createCleanServiceHost(options) {
     now: options.now || Date.now,
   });
   const peopleAdminQuery = createPeopleAdminQuery({
-    store: createPeopleStore(constructed.applicationDependencies),
+    store: procurementExecution.people.store,
+  });
+  const peopleAdmin = Object.freeze({
+    register(body, actor) {
+      return procurementExecution.people.registerPerson(body, actor?.credentialId || 'admin');
+    },
+    accept(body, actor) {
+      return procurementExecution.people.acceptRegistration(body, actor?.credentialId || 'admin');
+    },
+    dismiss(body, actor) {
+      return procurementExecution.people.dismissRegistration(body, actor?.credentialId || 'admin');
+    },
   });
   const facades = createCleanFacades({
     sessionTokens,
@@ -1440,6 +1450,7 @@ async function createCleanServiceHost(options) {
     credentialMetadata: runtime.readActiveCredential,
     overviewQuery,
     peopleAdminQuery,
+    peopleAdmin,
     procurementAdmin,
     arcaShelfAdmin,
     arcaRuleTemplateAdmin,

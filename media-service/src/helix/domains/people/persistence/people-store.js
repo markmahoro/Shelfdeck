@@ -766,6 +766,38 @@ function createPeopleStore(options) {
           .map((row) => mapMergeCandidate(repository, row)));
       }, 'people_candidate_store');
     },
+    acceptRegistrationCandidate(input) {
+      const decision = validateRegistrationDecision(input);
+      return execute([candidates, registry], (context) => {
+        const candidateRepository = context.repository(candidates.repositoryId);
+        const personRepository = context.repository(registry.repositoryId);
+        const row = candidateRepository.invoke('find_registration_candidate', { registration_candidate_id: decision.candidateId });
+        if (!row || row.current_state !== 'open' || row.current_revision !== decision.expectedCandidateRevision ||
+            row.candidate_payload_digest !== decision.candidatePayloadDigest) {
+          fail('P6_PEOPLE_REGISTRATION_CANDIDATE_FENCE', 'Registration Candidate revision or payload changed before acceptance.');
+        }
+        const candidate = mapRegistrationCandidate(candidateRepository, row);
+        const nextCandidateRevision = createCandidateRevision({ candidateId: decision.candidateId,
+          revision: decision.expectedCandidateRevision + 1, state: 'accepted', decisionOrigin: decision.decisionOrigin,
+          decisionRef: decision.decisionId, decisionDigest: decision.decisionDigest, committedAtMs: context.commitTimeMs });
+        candidateRepository.invoke('insert_registration_revision', candidateRevisionRow('registration', nextCandidateRevision));
+        const advanced = candidateRepository.invoke('advance_registration_candidate', { current_revision: nextCandidateRevision.revision,
+          current_state: 'accepted', terminal_at_ms: context.commitTimeMs, registration_candidate_id: decision.candidateId,
+          expected_current_revision: decision.expectedCandidateRevision, expected_current_state: 'open' });
+        if (advanced.changes !== 1) fail('P6_PEOPLE_REGISTRATION_CANDIDATE_FENCE', 'Registration Candidate head changed concurrently.');
+        const originCandidateRef = { candidateKind: 'registration', candidateId: candidate.candidateId,
+          candidateRevision: decision.expectedCandidateRevision, candidatePayloadDigest: candidate.candidatePayloadDigest };
+        const personFact = { personStatus: 'active', canonicalName: candidate.candidatePayload.proposedName, mergedIntoPersonId: null,
+          originCandidateRef, aliases: candidate.candidatePayload.aliases, providerIdentities: candidate.candidatePayload.providerIdentities };
+        const factDigest = canonicalDigest(personFact);
+        personRepository.invoke('insert_person', { person_id: decision.newPersonId, status: 'active', current_revision: 1,
+          current_preference_revision: null, current_reference_revision: null, current_reference_projection_revision: 1,
+          current_reference_projection_digest: initialProjectionDigest(decision.newPersonId), created_at_ms: context.commitTimeMs, terminal_at_ms: null });
+        writePersonRevision(personRepository, { personId: decision.newPersonId, revision: 1, ...personFact,
+          originKind: 'candidate', originDecisionRef: null, factDigest }, context.commitTimeMs, false);
+        return mapPerson(personRepository, personRepository.invoke('find_person', { person_id: decision.newPersonId }));
+      }, 'people_registration_acceptance');
+    },
     dismissCandidate(input) {
       exactInput(input, ['candidateKind', 'candidateId', 'expectedRevision', 'decisionId', 'actorId', 'decisionDigest'],
         'P6_PEOPLE_DISMISS_CANDIDATE_INPUT');

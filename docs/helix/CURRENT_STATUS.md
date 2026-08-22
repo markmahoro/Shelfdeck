@@ -13,12 +13,12 @@ Last updated: 2026-08-22
 - `UAT-052` 我的收藏一级按架（保留「全部」），详情第一批占用空间与主视频规格；
 - `UAT-053` 已实现：活动 Movie Field 经 `fallbackReconciler` `active-material-fields` 启动后首轮 Observation，之后每 30 分钟轻量变化观察；来源页三态与「扫描新文件」仅进行中禁用。待新 Canary 确认，不宣称生产通过；
 - `UAT-054` 退出收藏主链已通，页面按任务重排；不改销毁合同；人物偏好规则暂不作为可添加项；
-- `UAT-055` 人物名录接通 Beta 两条登记路径（直接注册 + On-deck 人物证据每日扫描）；禁止 People 写 Media-Cast 或读物理 NFO；
+- `UAT-055` 已实现：Arca On-deck 人物证据投影 + People 每日扫描；强身份自动接受，弱身份待确认；页面可登记/接受/忽略。待新 Canary 确认；
 - `UAT-056` 已实现：活动豆瓣连接 24h 周期 Acquisition（下限 6h）；设置页同步与刷新日志拆开。待新 Canary 确认；
 - `UAT-057` 概览改为系统三态 + 可点待办 + 带片名最近进展；否决与「我的收藏」合并；不做第二面海报墙；
 - `UAT-058` 侧栏运营在上、配置在下；文件来源 / 收藏架改名为文件来源配置 / 收藏架配置，与系统设置一组；不减一级入口、不改路由。
 
-建议实现顺序：`UAT-053`（已实现）→ `UAT-056`（已实现）→ `UAT-055` → `UAT-051` / `UAT-050` / `UAT-052` / `UAT-057` / `UAT-058` → `UAT-054`。Aftercare 24h、Off-deck 日/周 sweep、Field Observation 30 分钟 sweep 与豆瓣 24h Acquisition 已接线；People Candidate 的周期项尚未进入 `fallbackReconciler`。
+建议实现顺序：`UAT-053` / `UAT-056` / `UAT-055`（已实现）→ `UAT-051` / `UAT-050` / `UAT-052` / `UAT-057` / `UAT-058` → `UAT-054`。Aftercare、Off-deck、Field Observation、豆瓣 Acquisition 与 People On-deck 证据扫描均已进入 `fallbackReconciler`。
 
 ## 0. Current operational status — clean Movie Canary Admin Web UAT in progress
 

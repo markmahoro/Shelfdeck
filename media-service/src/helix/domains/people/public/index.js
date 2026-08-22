@@ -2,6 +2,7 @@
 
 const catalog = require('../../../contracts/ports/p6-horizontal-domain-public-contracts.json');
 const { packageId } = require('./package.boundary.json');
+const { createPeopleProcessServices } = require('../application/people-process-services');
 
 class PeoplePublicFacadeError extends Error {
   constructor(code, message, details = {}) {
@@ -35,5 +36,6 @@ function bind(exportName, implementation) {
 module.exports = Object.freeze({
   PACKAGE_ID: packageId,
   PeopleCommandFacade: (implementation) => bind('PeopleCommandFacade', implementation),
-  PersonReferenceQueryFacade: (implementation) => bind('PersonReferenceQueryFacade', implementation)
+  PersonReferenceQueryFacade: (implementation) => bind('PersonReferenceQueryFacade', implementation),
+  createPeopleProcessServices,
 });

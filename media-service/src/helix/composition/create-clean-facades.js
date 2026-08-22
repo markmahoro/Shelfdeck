@@ -89,6 +89,20 @@ function createCleanFacades(options) {
     facades.PeopleAdminFacade.get_people_merge_candidates = async () => ({
       body: options.peopleAdminQuery.mergeCandidates(),
     });
+    if (options.peopleAdmin) {
+      facades.PeopleAdminFacade.post_people_actions_register = async (input) => ({
+        status: 201,
+        body: { person: options.peopleAdmin.register(input.body, input.actor) },
+      });
+      facades.PeopleAdminFacade.post_people = async (input) => ({
+        status: 200,
+        body: { person: options.peopleAdmin.accept(input.body, input.actor) },
+      });
+      facades.PeopleAdminFacade.post_people_actions_dismiss_candidate = async (input) => ({
+        status: 200,
+        body: { candidate: options.peopleAdmin.dismiss(input.body, input.actor) },
+      });
+    }
   }
   if (options.platformIntegrationAdmin) {
     facades.PlatformAdminFacade.get_settings_integrations_kind =
