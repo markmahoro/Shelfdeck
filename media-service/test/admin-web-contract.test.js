@@ -50,7 +50,10 @@ test('Material Fields admits background Observation and projects scan progress, 
   assert.match(page, /扫描新文件/);
   assert.match(page, /等待扫描/);
   assert.match(page, /正在扫描/);
+  assert.match(page, /扫描失败/);
+  assert.match(page, /保存时会检查目录是否存在、可读/);
   assert.match(labels, /已扫描完成/);
+  assert.match(labels, /扫描失败/);
   assert.match(page, /注销文件来源/);
   assert.match(api, /actions\/deregister/);
   assert.match(api, /observationScan/);

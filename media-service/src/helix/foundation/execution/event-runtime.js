@@ -751,6 +751,7 @@ function createEventRuntime(options) {
               }) });
           } else throw error;
         }
+        let abandonedUncommitted = false;
         if (effect) {
           if (outcome.kind === 'succeeded') await options.effectJournal.settle(Object.freeze({
             effectId: effect.effect_id, receipt: outcome.effectReceipt,
@@ -759,6 +760,7 @@ function createEventRuntime(options) {
           else if (outcome.kind === 'failed' && outcome.failureClass !== 'timeout' &&
               typeof options.effectJournal.abandonUncommitted === 'function') {
             options.effectJournal.abandonUncommitted(effect.effect_id);
+            abandonedUncommitted = true;
           } else {
             if (outcome.kind === 'deferred' && outcome.externalReceipt !== undefined) {
               options.effectJournal.noteExternalPending(effect.effect_id, outcome.externalReceipt);
@@ -767,12 +769,20 @@ function createEventRuntime(options) {
           }
         }
         let policyDecision = null;
-        if (outcome.kind === 'failed') policyDecision = options.attemptPolicy.decideFailure(Object.freeze({
-          capabilityRef: snapshot.event.capability_ref, effectClass: snapshot.node.effect_class,
-          retryPolicyRef: policyBinding.retryPolicyRef, timeoutPolicyRef: policyBinding.timeoutPolicyRef,
-          failureAttemptCount: snapshot.attempts.filter((attempt) => attempt.outcome_kind === 'failed').length + 1,
-          outcome, recoveryDecision: null
-        }));
+        if (outcome.kind === 'failed') {
+          policyDecision = options.attemptPolicy.decideFailure(Object.freeze({
+            capabilityRef: snapshot.event.capability_ref, effectClass: snapshot.node.effect_class,
+            retryPolicyRef: policyBinding.retryPolicyRef, timeoutPolicyRef: policyBinding.timeoutPolicyRef,
+            failureAttemptCount: snapshot.attempts.filter((attempt) => attempt.outcome_kind === 'failed').length + 1,
+            outcome, recoveryDecision: null
+          }));
+          // Capability returned failed before any durable Effect and forbade
+          // retry.  The uncommitted journal row is already abandoned, so the
+          // Event can fail closed instead of waiting for reconcile.
+          if (abandonedUncommitted && outcome.retryDirective === 'never') {
+            policyDecision = Object.freeze({ decision: 'terminal_failure' });
+          }
+        }
         if (outcome.kind === 'deferred') {
           const prior = snapshot.attempts.filter((attempt) => attempt.outcome_kind === 'deferred');
           policyDecision = options.attemptPolicy.decideDeferred(Object.freeze({

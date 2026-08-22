@@ -42,6 +42,46 @@ function checkedInt64(value, field, location) {
   return value.toString();
 }
 
+function inspectObservationRootSync(rootLocation) {
+  const resolved = path.resolve(rootLocation);
+  let root;
+  try {
+    root = fs.statSync(resolved);
+    fs.accessSync(resolved, fs.constants.R_OK);
+  } catch (error) {
+    fail('FIELD_OBSERVATION_ROOT_UNAVAILABLE', 'Material Field当前物理访问位置不可读。', {
+      rootLocation,
+      cause: error.code || 'READ_FAILED',
+    });
+  }
+  if (!root.isDirectory()) {
+    fail('FIELD_OBSERVATION_ROOT_NOT_DIRECTORY', 'Material Field访问位置必须是目录。', {
+      rootLocation,
+    });
+  }
+  return resolved;
+}
+
+async function inspectObservationRoot(rootLocation) {
+  const resolved = path.resolve(rootLocation);
+  let root;
+  try {
+    root = await fs.promises.stat(resolved, { bigint: true });
+    await fs.promises.access(resolved, fs.constants.R_OK);
+  } catch (error) {
+    fail('FIELD_OBSERVATION_ROOT_UNAVAILABLE', 'Material Field当前物理访问位置不可读。', {
+      rootLocation,
+      cause: error.code || 'READ_FAILED',
+    });
+  }
+  if (!root.isDirectory()) {
+    fail('FIELD_OBSERVATION_ROOT_NOT_DIRECTORY', 'Material Field访问位置必须是目录。', {
+      rootLocation,
+    });
+  }
+  return resolved;
+}
+
 async function collectFiles(rootLocation) {
   const pending = [path.resolve(rootLocation)];
   const files = [];
@@ -115,7 +155,12 @@ function createCleanFieldObservationEnumerator(options = {}) {
   async function locations(fieldAccessHandle) {
     const rootLocation=path.resolve(fieldAccessHandle.rootLocation);
     const key=fieldAccessHandle.handleId+'\u0000'+fieldAccessHandle.accessDigest;
-    if(!locationSnapshots.has(key))locationSnapshots.set(key,collectFiles(rootLocation));
+    if(!locationSnapshots.has(key)){
+      locationSnapshots.set(key,(async()=>{
+        await inspectObservationRoot(rootLocation);
+        return collectFiles(rootLocation);
+      })());
+    }
     return Object.freeze({rootLocation,items:await locationSnapshots.get(key)});
   }
   return Object.freeze({
@@ -137,23 +182,7 @@ function createCleanFieldObservationEnumerator(options = {}) {
         sourceFileCount:inventory.items.length});
     },
     async scan(fieldAccessHandle) {
-      const rootLocation = path.resolve(fieldAccessHandle.rootLocation);
-      let root;
-      try {
-        root = await fs.promises.stat(rootLocation, { bigint: true });
-        await fs.promises.access(rootLocation, fs.constants.R_OK);
-      } catch (error) {
-        fail('FIELD_OBSERVATION_ROOT_UNAVAILABLE', 'Material Field当前物理访问位置不可读。', {
-          rootLocation: fieldAccessHandle.rootLocation,
-          cause: error.code || 'READ_FAILED',
-        });
-      }
-      if (!root.isDirectory()) {
-        fail('FIELD_OBSERVATION_ROOT_NOT_DIRECTORY', 'Material Field访问位置必须是目录。', {
-          rootLocation: fieldAccessHandle.rootLocation,
-        });
-      }
-
+      const rootLocation = await inspectObservationRoot(fieldAccessHandle.rootLocation);
       const locations = await collectFiles(rootLocation);
       const items = [];
       for (const location of locations) {
@@ -178,5 +207,6 @@ module.exports = Object.freeze({
   FINGERPRINT_SAMPLE_BYTES,
   MAX_FINGERPRINTED_FILES_PER_PAGE,
   DEFAULT_FINGERPRINTED_FILES_PER_BATCH,
+  inspectObservationRootSync,
   createCleanFieldObservationEnumerator,
 });

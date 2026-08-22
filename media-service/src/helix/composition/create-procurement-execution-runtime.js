@@ -342,7 +342,8 @@ function createProcurementExecutionRuntime(options) {
     evidenceIndex, candidateContextReader, fieldObservationAutomation } = processServices;
   const planningRegistration = procurementConstruction.createPlanningRegistration({ registry, policyRegistry,
     contractValidator, progressReader, triageReader, triageRuleRegistry: triageRegistry, workResultReader,
-    evidenceIndex, candidateContextReader, materialFieldStore: options.materialFieldStore, now });
+    evidenceIndex, candidateContextReader, materialFieldStore: options.materialFieldStore, now,
+    inspectFieldRoot: options.inspectFieldRoot });
   let perceptionProcessServices, peopleProcessServices;
   const workLifecycle = createWorkLifecycle({ schemaManifest: options.schemaManifest, unitOfWork: options.unitOfWork,
     nextWorkAttemptId: (workId, ordinal) => workId + ':attempt:' + ordinal });

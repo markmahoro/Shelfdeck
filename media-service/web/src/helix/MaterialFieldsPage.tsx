@@ -25,6 +25,9 @@ function scanProgress(field: MaterialField) {
   if (scan.state === 'completed') {
     return scan.pageCount > 0 ? `上次扫描 ${scan.pageCount} 页` : '目录已经扫描完成';
   }
+  if (scan.state === 'failed') {
+    return scan.failureMessage || '电影目录不存在或当前不可读取。';
+  }
   return '系统会自动扫描这个目录，也可以立即扫描新文件。';
 }
 
@@ -157,12 +160,12 @@ export default function MaterialFieldsPage() {
         <label><span>只包含这些子目录</span><textarea value={includedDirectories} onChange={(event) => setIncludedDirectories(event.target.value)} placeholder="留空表示整个来源；每行一个相对目录" /></label>
         <label><span>排除这些子目录</span><textarea value={excludedDirectories} onChange={(event) => setExcludedDirectories(event.target.value)} placeholder="例如 Extras 或临时下载" /></label>
       </div>
-      <div className="source-create-footer"><p>保存后只记下目录位置和扫描范围，不会立刻读取文件。</p><Button variant="primary" type="submit" disabled={loading}>{loading ? '正在保存…' : '保存文件来源'}</Button></div>
+      <div className="source-create-footer"><p>保存时会检查目录是否存在、可读，并且扫描范围不会超出该目录。</p><Button variant="primary" type="submit" disabled={loading}>{loading ? '正在保存…' : '保存文件来源'}</Button></div>
     </form>}
     {error && <p className="form-error" role="alert">{error}</p>}
     <div className="source-registry">
       <div className="source-registry-heading"><div><h2>当前文件来源</h2></div><Button type="button" onClick={() => void loadFields()} disabled={loading}>刷新</Button></div>
-      {fields.length === 0 ? <div className="source-empty"><strong>还没有文件来源</strong><p>先登记一个本机可读取的电影目录。登记本身不会访问目录内容。</p></div> : fields.map((field) => {
+      {fields.length === 0 ? <div className="source-empty"><strong>还没有文件来源</strong><p>先登记一个本机可读取的电影目录。保存时会检查目录是否可达。</p></div> : fields.map((field) => {
         const scan = scanOf(field);
         const observing = observingFieldId === field.fieldId;
         const scanBusy = observing || scan.state === 'scanning';

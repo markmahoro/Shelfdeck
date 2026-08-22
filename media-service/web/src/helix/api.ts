@@ -30,10 +30,13 @@ export type MaterialField = {
   procurementStatus: {
     stage: 'not_started' | 'procurement_run_active' | 'candidate_published' | 'handoff_a_ready' | 'handoff_a_accepted' | 'handoff_a_rejected';
     observationScan: {
-      state: 'waiting' | 'scanning' | 'completed';
+      state: 'waiting' | 'scanning' | 'completed' | 'failed';
       pageCount: number;
       observationRevision: number | null;
       inProgress: boolean;
+      accessAvailable?: boolean;
+      failureCode?: string;
+      failureMessage?: string;
     };
     procurementRunId?: string;
     runCount: number;

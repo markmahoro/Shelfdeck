@@ -104,7 +104,8 @@ function createExecutionRegistration() {
         triageReader, evidenceIndex, triageRuleRegistry,
       });
       const planners = Object.freeze([
-        createFieldObservationPlanner({ registry, policyRegistry, contractValidator, progressReader, materialFieldStore, now }),
+        createFieldObservationPlanner({ registry, policyRegistry, contractValidator, progressReader, materialFieldStore, now,
+          inspectFieldRoot: options.inspectFieldRoot }),
         createEvidenceAssessmentPlanner({ registry, policyRegistry, contractValidator, triageReader,
           triageRuleRegistry, workResultReader, now }),
         createCandidateAssemblyPlanner({ registry, policyRegistry, contractValidator, triageReader,

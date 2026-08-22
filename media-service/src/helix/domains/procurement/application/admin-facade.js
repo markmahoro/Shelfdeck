@@ -79,6 +79,16 @@ function rejected(error) {
       { reasonCode: error.code },
     );
   }
+  if (typeof error.code === 'string' && error.code.startsWith('FIELD_ACCESS_')) {
+    throw new ProcurementAdminApplicationError(
+      'ADMIN_FIELD_COMMAND_REJECTED',
+      error.message || '电影目录当前不可访问。',
+      {
+        reasonCode: error.code,
+        ...(error.details || {}),
+      },
+    );
+  }
   throw new ProcurementAdminApplicationError(
     'ADMIN_FIELD_COMMAND_REJECTED',
     'Material Field请求未通过Owner-local合同校验。',
@@ -181,6 +191,15 @@ function createProcurementAdminApplication(options) {
       options.assertLocationAvailable({ requestedRoot:rootLocation });
     }
   };
+  const probeFieldAccess = (access, policyValue) => {
+    if (typeof options.probeFieldAccess !== 'function' || !access) return;
+    options.probeFieldAccess({
+      fieldId: access.fieldId,
+      rootLocation: access.rootLocation,
+      includedDirectories: policyValue?.includedDirectories || [],
+      excludedDirectories: policyValue?.excludedDirectories || [],
+    });
+  };
   const fieldStatus = createProcurementFieldStatusQuery({
     ...options,
     workResultReader: options.workResultReader || createWorkResultReader(options),
@@ -197,12 +216,14 @@ function createProcurementAdminApplication(options) {
   const commands = procurementPublic.ProcurementCommandFacade({
     registerMaterialField: (envelope) => {
       assertLocationAvailable(envelope?.input?.access?.rootLocation);
+      probeFieldAccess(envelope?.input?.access, envelope?.input?.policy?.policy);
       return store.commitAdminCommand({ operation: 'register', ...envelope });
     },
     updateMaterialField: (envelope) => {
       if (envelope?.input?.operation === 'revise_access') {
         const { operation, ...revision } = envelope.input;
         assertLocationAvailable(revision?.access?.rootLocation);
+        probeFieldAccess(revision?.access, null);
         return store.commitAdminCommand({ operation: 'revise_access', idempotencyKey: envelope.idempotencyKey, input: revision, actorId: envelope.actorId });
       }
       if (envelope?.input?.operation === 'revise_profile_hint') {

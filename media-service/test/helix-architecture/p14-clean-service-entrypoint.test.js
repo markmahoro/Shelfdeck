@@ -150,6 +150,7 @@ test('formal server dependency graph reaches only the clean Helix root', () => {
       relative === 'src/server.js' ||
         relative === 'src/clean-service-host.js' ||
         relative === 'src/clean-shelf-target-folder-probe.js' ||
+        relative === 'src/clean-field-access-binding-probe.js' ||
         relative === 'src/clean-field-observation-enumerator.js' ||
         relative === 'src/clean-media-probe.js' ||
         relative === 'src/clean-compute-device-runtime.js' ||
@@ -467,6 +468,10 @@ test('clean host restarts with the same credential and fails closed on readiness
 
 test('Procurement Material Field registration is a real authenticated Owner-local HTTP journey', async () => {
   const value = fixture();
+  const fieldRoot = path.join(path.dirname(value.dataDir), 'field-http-1');
+  const revisedRoot = path.join(path.dirname(value.dataDir), 'field-http-1-revised');
+  fs.mkdirSync(path.join(fieldRoot, 'incoming'), { recursive: true });
+  fs.mkdirSync(revisedRoot, { recursive: true });
   const policyValue = {
     includedDirectories: ['incoming'], excludedDirectories: [], allowedExtensions: ['.mkv'],
     minimumSizeBytes: 0, excludedMaterialKeys: [],
@@ -475,7 +480,7 @@ test('Procurement Material Field registration is a real authenticated Owner-loca
     extractionPolicyId: 'policy-http-1', revision: 1, ...policyValue,
   };
   const accessBasis = {
-    fieldId: 'field-http-1', revision: 1, endpointId: 'endpoint-http-1', rootLocation: 'incoming',
+    fieldId: 'field-http-1', revision: 1, endpointId: 'endpoint-http-1', rootLocation: fieldRoot,
     mountScopeId: 'mount-http-1', mountScopeRevision: 1, accessSchemaRef: 'helix://fixtures/http-access/v1',
   };
   const body = {
@@ -519,7 +524,7 @@ test('Procurement Material Field registration is a real authenticated Owner-loca
     const policyRead = await host.inject({ method: 'GET', url: '/v1/admin/material-fields/field-http-1/extraction-policy', headers: { cookie } });
     assert.equal(policyRead.statusCode, 200);
     assert.equal(policyRead.json().extractionPolicy.revision, 1);
-    const accessRevisionBasis = { ...accessBasis, revision: 2, rootLocation: 'incoming-revised', mountScopeRevision: 2 };
+    const accessRevisionBasis = { ...accessBasis, revision: 2, rootLocation: revisedRoot, mountScopeRevision: 2 };
     const accessRevision = await host.inject({
       method: 'PATCH', url: '/v1/admin/material-fields/field-http-1', headers: { cookie }, payload: {
         idempotencyKey: 'field-http-access-2', operation: 'revise_access', fieldId: 'field-http-1', expectedAccessRevision: 1,
@@ -2275,13 +2280,15 @@ test('formal node entrypoint starts, authenticates and shuts down through public
     });
     assert.equal(security.status, 200);
     assert.equal((await security.json()).credentialConfigured, true);
+    const fieldRoot = path.join(path.dirname(value.dataDir), 'formal-http');
+    fs.mkdirSync(path.join(fieldRoot, 'formal-http'), { recursive: true });
     const policyValue = {
       includedDirectories: ['formal-http'], excludedDirectories: [], allowedExtensions: ['.mkv'],
       minimumSizeBytes: 0, excludedMaterialKeys: [],
     };
     const policyBasis = { extractionPolicyId: 'policy-formal-http-1', revision: 1, ...policyValue };
     const accessBasis = {
-      fieldId: 'field-formal-http-1', revision: 1, endpointId: 'endpoint-formal-http-1', rootLocation: 'formal-http',
+      fieldId: 'field-formal-http-1', revision: 1, endpointId: 'endpoint-formal-http-1', rootLocation: fieldRoot,
       mountScopeId: 'mount-formal-http-1', mountScopeRevision: 1, accessSchemaRef: 'helix://fixtures/formal-http-access/v1',
     };
     const fieldCreate = await fetch(`${base}/v1/admin/material-fields`, {

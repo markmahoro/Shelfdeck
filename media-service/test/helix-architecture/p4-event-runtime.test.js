@@ -386,6 +386,24 @@ test('non-pure Executor crash leaves durable executing Attempt for effect-specif
   }, { effectClass:'external_request', dispatchError: new Error('executor crash') });
 });
 
+test('abandoned non-pure failed Outcome with retryDirective never fail-closes the Event', async () => {
+  await fixture(async ({ runtime, lease, databasePath, state }) => {
+    const result = await runtime.run({ schedulerLease: lease });
+    assert.equal(result.kind, 'failed');
+    assert.equal(result.eventState, 'failed');
+    const facts = databaseFacts(databasePath);
+    assert.equal(facts.event.state, 'failed');
+    assert.equal(facts.attempt.state, 'completed');
+    assert.equal(facts.attempt.outcome_kind, 'failed');
+    assert.equal(facts.attempt.failure_code, 'FIELD_OBSERVATION_ROOT_UNAVAILABLE');
+    assert.deepEqual(state().journalCalls, ['intend', 'abandon']);
+  }, { effectClass:'domain_fact_commit', outcome: {
+    kind:'failed', failureClass:'executor', code:'FIELD_OBSERVATION_ROOT_UNAVAILABLE',
+    message:'Material Field当前物理访问位置不可读。', retryDirective:'never',
+    evidence:{ errorCode:'FIELD_OBSERVATION_ROOT_UNAVAILABLE' },
+  } });
+});
+
 test('non-pure Capability failed Outcome completes the Attempt and abandons the uncommitted Effect', async () => {
   await fixture(async ({ runtime, lease, databasePath, state }) => {
     const result = await runtime.run({ schedulerLease: lease });

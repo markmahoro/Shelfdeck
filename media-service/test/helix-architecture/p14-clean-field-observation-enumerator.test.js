@@ -32,6 +32,18 @@ test('Field enumerator fingerprints one bounded canonical path page and resumes 
     assert.deepEqual([...keys].sort((left,right)=>Buffer.compare(Buffer.from(left),Buffer.from(right))),keys);}
 });
 
+test('Field enumerator enumeratePage fail-closes a later-missing Observation root', async () => {
+  const missing = path.join(os.tmpdir(), `helix-enumerator-missing-${process.pid}`);
+  const enumerator = createCleanFieldObservationEnumerator({ now: () => 1000 });
+  await assert.rejects(
+    enumerator.enumeratePage({
+      fieldAccessHandle: { handleId: 'handle-missing', accessDigest: 'a'.repeat(64), rootLocation: missing, mountScopeId: 'mount-1' },
+      pageRequest: { cursorIn: null, pageBudget: 8 },
+    }),
+    (error) => error.code === 'FIELD_OBSERVATION_ROOT_UNAVAILABLE',
+  );
+});
+
 test('Field enumerator never exposes a cursor that advances past an uncommitted item', async (t) => {
   const root=fs.mkdtempSync(path.join(os.tmpdir(),'helix-enumerator-cursor-'));
   t.after(()=>fs.rmSync(root,{recursive:true,force:true}));

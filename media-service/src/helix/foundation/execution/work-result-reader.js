@@ -5,7 +5,7 @@ const { createRepositoryDefinition } = require('../persistence/owner-repository'
 
 function definition(schemaManifest){return createRepositoryDefinition({repositoryId:'work_result_reader',owner:'execution-foundation',schemaManifest,statements:{
   find_work:{kind:'select-one',tableId:'fx_supporting_works',columns:['work_id','owner_domain','process_type','process_id','work_kind','basis_digest','state'],keyColumns:['work_id']},
-  list_process_works:{kind:'select-all',tableId:'fx_supporting_works',columns:['work_id','owner_domain','process_type','process_id','work_kind','state'],keyColumns:['owner_domain','process_type','process_id','work_kind']},
+  list_process_works:{kind:'select-all',tableId:'fx_supporting_works',columns:['work_id','owner_domain','process_type','process_id','work_kind','state','created_at_ms','updated_at_ms'],keyColumns:['owner_domain','process_type','process_id','work_kind'],safeIntegers:true},
   list_owner_works:{kind:'select-all',tableId:'fx_supporting_works',columns:['work_id','owner_domain','process_type','process_id','work_kind','state'],keyColumns:['owner_domain','work_kind']},
   list_attempts:{kind:'select-all',tableId:'fx_work_attempts',columns:['attempt_id','work_id','ordinal','state','failure_code'],keyColumns:['work_id'],safeIntegers:true},
   list_events:{kind:'select-all',tableId:'fx_workflow_events',columns:['event_id','plan_id','node_id','work_id','attempt_id','owner_domain',

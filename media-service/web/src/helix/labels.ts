@@ -39,6 +39,7 @@ export const observationScanLabels: Record<string, string> = {
   waiting: '等待扫描',
   scanning: '正在扫描',
   completed: '已扫描完成',
+  failed: '扫描失败',
 };
 
 export function labelOf(map: Record<string, string>, value: string | null | undefined, fallback = value || '—') {

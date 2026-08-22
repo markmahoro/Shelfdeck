@@ -98,7 +98,11 @@ const {
 } = require('./clean-shelf-target-folder-probe');
 const {
   createCleanFieldObservationEnumerator,
+  inspectObservationRootSync,
 } = require('./clean-field-observation-enumerator');
+const {
+  createCleanFieldAccessBindingProbe,
+} = require('./clean-field-access-binding-probe');
 const {
   createHelixExecutionRuntime,
 } = require('./helix/composition/create-procurement-execution-runtime');
@@ -1268,6 +1272,7 @@ async function createCleanServiceHost(options) {
     materialFieldStore,
     pageObserverFactory: createFieldPageObserver,
     enumerator: fieldEnumerator,
+    inspectFieldRoot: inspectObservationRootSync,
     mediaProbe,
     candidateDeliveryPort,
     readArcaRoutingTargets: arcaRoutingTargets.list,
@@ -1415,12 +1420,14 @@ async function createCleanServiceHost(options) {
     requestAcquisition(body) { const result=procurementExecution.perception.requestAcquisition(body); executionRuntimeHost.wake(); return result; },
     syncState() { const items=procurementExecution.perception.listAcquisitions();return Object.freeze({latest:items[0]||null,activeCount:items.filter((item)=>item.state==='active').length}); },
   });
+  const fieldAccessProbe = createCleanFieldAccessBindingProbe();
   const procurementAdmin = createProcurementAdminApplication({
     ...constructed.applicationDependencies,
     materialFieldStore,
     executionRuntimeHost,
     assertLocationAvailable: (request) =>
       platformIntegrations.assertExternalLandingRootAvailable(request),
+    probeFieldAccess: (request) => fieldAccessProbe.inspect(request),
   });
   const peopleAdminQuery = createPeopleAdminQuery({
     store: procurementExecution.people.store,

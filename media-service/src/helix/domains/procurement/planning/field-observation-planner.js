@@ -55,6 +55,21 @@ function createFieldObservationPlanner(options) {
           resolution: progress.completed ? 'no_effect_required' : 'contract_unplannable',
           diagnosticClassification: progress.completed ? 'field_observation_already_complete' : 'field_observation_field_unavailable', nodes: Object.freeze([]) });
       }
+      if (typeof options.inspectFieldRoot === 'function') {
+        try {
+          options.inspectFieldRoot(field.access.rootLocation);
+        } catch (error) {
+          const diagnosticClassification = error?.code === 'FIELD_OBSERVATION_ROOT_NOT_DIRECTORY'
+            ? 'FIELD_OBSERVATION_ROOT_NOT_DIRECTORY'
+            : 'FIELD_OBSERVATION_ROOT_UNAVAILABLE';
+          return Object.freeze({ schemaRef: 'helix://foundation/types/WorkflowPlanDefinition/v1', schemaVersion: 1,
+            planId: stableId('field-observation-plan-', { attemptId: request.workAttemptId }), workAttemptId: request.workAttemptId,
+            ownerDomain: 'procurement', plannerContractRef: this.plannerContractRef, plannerVersion: this.plannerVersion,
+            workObjectiveTypeRef: 'helix://procurement/work/FieldObservation/v1', workObjectiveVersion: 1,
+            executionBasisDigest: request.executionBasisDigest, capabilityCatalogDigest: catalogDigest,
+            resolution: 'contract_unplannable', diagnosticClassification, nodes: Object.freeze([]) });
+        }
+      }
       const handle = accessHandle(field, request.workId, options.now());
       const currentProgress = progress.expectedObservationRevision === null
         ? Object.freeze({ ...progress, expectedObservationRevision: field.currentObservationRevision || 0 }) : progress;

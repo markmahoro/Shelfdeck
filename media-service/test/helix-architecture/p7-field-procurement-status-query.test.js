@@ -111,6 +111,7 @@ test('Field status projects waiting, scanning, and completed Observation, not la
   const scanning = query.read('field-1');
   assert.equal(scanning.observationScan.state, 'scanning');
   assert.equal(scanning.observationScan.inProgress, true);
+  assert.equal(scanning.observationScan.accessAvailable, true);
 
   insertPage(kernel, 'work-scan', 1, 0, 0);
   insertPage(kernel, 'work-scan', 2, 1, 1);
@@ -121,4 +122,20 @@ test('Field status projects waiting, scanning, and completed Observation, not la
   assert.equal(completed.observationScan.observationRevision, 2);
   assert.equal(completed.observationScan.inProgress, false);
   assert.equal(completed.stage, 'not_started');
+}));
+
+test('Field status projects a failed Observation with a readable missing-root reason', () => fixture(({ store, kernel, query }) => {
+  store.registerMaterialField(registration());
+  insertWork(kernel, 'work-failed', 'failed');
+  kernel.runPrimitive((context) => {
+    context.prepare(
+      'INSERT INTO fx_work_attempts(attempt_id,work_id,ordinal,basis_digest,state,started_at_ms,finished_at_ms,failure_code) VALUES(?,?,?,?,?,?,?,?)'
+    ).run('attempt-failed', 'work-failed', 1, 'a'.repeat(64), 'failed', 1, 2, 'FIELD_OBSERVATION_ROOT_UNAVAILABLE');
+  });
+  const failed = query.read('field-1');
+  assert.equal(failed.observationScan.state, 'failed');
+  assert.equal(failed.observationScan.inProgress, false);
+  assert.equal(failed.observationScan.accessAvailable, false);
+  assert.equal(failed.observationScan.failureCode, 'FIELD_OBSERVATION_ROOT_UNAVAILABLE');
+  assert.match(failed.observationScan.failureMessage, /不存在或当前不可读取/);
 }));

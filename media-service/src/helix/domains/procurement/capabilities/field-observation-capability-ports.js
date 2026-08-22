@@ -36,7 +36,26 @@ function createFieldObservationCapabilityPorts(options) {
         if (!context.namedInputs?.fieldAccessHandle || !context.namedInputs?.fieldObservationPageRequest) throw new TypeError('Observation page inputs are incomplete.');
       },
       async execute(context) {
-        const draft = await observer.observe({ fieldAccessHandle: context.namedInputs.fieldAccessHandle, pageRequest: context.namedInputs.fieldObservationPageRequest });
+        let draft;
+        try {
+          draft = await observer.observe({ fieldAccessHandle: context.namedInputs.fieldAccessHandle, pageRequest: context.namedInputs.fieldObservationPageRequest });
+        } catch (error) {
+          if (error?.code === 'FIELD_OBSERVATION_ROOT_UNAVAILABLE' ||
+              error?.code === 'FIELD_OBSERVATION_ROOT_NOT_DIRECTORY') {
+            return Object.freeze({
+              kind: 'failed',
+              failureClass: 'executor',
+              code: error.code,
+              message: String(error.message || 'Material Field当前物理访问位置不可读。'),
+              retryDirective: 'never',
+              evidence: Object.freeze({
+                errorName: String(error.name || 'Error'),
+                errorCode: error.code,
+              }),
+            });
+          }
+          throw error;
+        }
         const page = draft.page;
         const handle = Object.freeze({ schemaRef:'helix://contracts/types/DomainFactCommitHandle/v1', schemaVersion:1,
           handleId:'field-observation-handle-' + canonicalDigest({ eventId:context.eventId, pageDigest:page.pageDigest }), ownerDomain:'procurement',

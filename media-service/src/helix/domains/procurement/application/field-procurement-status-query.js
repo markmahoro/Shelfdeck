@@ -5,8 +5,20 @@ const {
 } = require('../../../foundation/persistence/owner-repository');
 
 const OPEN_WORK_STATES = new Set(['admitted', 'ready', 'running', 'blocked']);
+const ROOT_FAILURE_CODES = new Set([
+  'FIELD_OBSERVATION_ROOT_UNAVAILABLE',
+  'FIELD_OBSERVATION_ROOT_NOT_DIRECTORY',
+]);
+const SCAN_FAILURE_MESSAGES = Object.freeze({
+  FIELD_OBSERVATION_ROOT_UNAVAILABLE: '电影目录不存在或当前不可读取。',
+  FIELD_OBSERVATION_ROOT_NOT_DIRECTORY: '电影目录必须是一个文件夹。',
+});
 
-function observationScan(field, pages, openWork) {
+function workCreatedAt(work) {
+  return Number(work.created_at_ms) || 0;
+}
+
+function observationScan(field, pages, openWork, latestFailed) {
   const pageCount = pages.length;
   const latest = pages[pages.length - 1] || null;
   const observationRevision = field.current_observation_revision == null
@@ -18,6 +30,19 @@ function observationScan(field, pages, openWork) {
       pageCount,
       observationRevision,
       inProgress: true,
+      accessAvailable: true,
+    });
+  }
+  if (latestFailed) {
+    const failureCode = latestFailed.failureCode || 'FIELD_OBSERVATION_ROOT_UNAVAILABLE';
+    return Object.freeze({
+      state: 'failed',
+      pageCount,
+      observationRevision,
+      inProgress: false,
+      accessAvailable: !ROOT_FAILURE_CODES.has(failureCode),
+      failureCode,
+      failureMessage: SCAN_FAILURE_MESSAGES[failureCode] || '目录扫描失败。',
     });
   }
   if (latest && Number(latest.completed) === 1) {
@@ -26,6 +51,7 @@ function observationScan(field, pages, openWork) {
       pageCount,
       observationRevision,
       inProgress: false,
+      accessAvailable: true,
     });
   }
   return Object.freeze({
@@ -33,6 +59,7 @@ function observationScan(field, pages, openWork) {
     pageCount,
     observationRevision,
     inProgress: false,
+    accessAvailable: true,
   });
 }
 
@@ -132,14 +159,26 @@ function createProcurementFieldStatusQuery(options) {
   });
 
   function read(fieldId) {
-    const openWork = options.workResultReader
+    const observationWorks = options.workResultReader
       ? options.workResultReader.listWorks({
         ownerDomain: 'procurement',
         processType: 'material_field',
         processId: fieldId,
         workKind: 'field_observation',
-      }).find((work) => OPEN_WORK_STATES.has(work.state))
-      : null;
+      }).slice().sort((left, right) =>
+        workCreatedAt(left) - workCreatedAt(right) ||
+        left.work_id.localeCompare(right.work_id))
+      : [];
+    const openWork = observationWorks.find((work) => OPEN_WORK_STATES.has(work.state)) || null;
+    const latestWork = observationWorks[observationWorks.length - 1] || null;
+    let latestFailed = null;
+    if (!openWork && latestWork?.state === 'failed' && options.workResultReader) {
+      const status = options.workResultReader.status(latestWork.work_id);
+      latestFailed = Object.freeze({
+        workId: latestWork.work_id,
+        failureCode: status?.latestAttempt?.failure_code || 'FIELD_OBSERVATION_ROOT_UNAVAILABLE',
+      });
+    }
     return options.unitOfWork.execute([{
       participantId: 'procurement_field_status',
       owner: 'procurement',
@@ -158,7 +197,7 @@ function createProcurementFieldStatusQuery(options) {
           ? store.invoke('list_observation_pages', { field_observation_work_id: scanWorkId })
             .sort((left, right) => Number(left.page_ordinal) - Number(right.page_ordinal))
           : [];
-        const scan = observationScan(field || { current_observation_revision: null }, pages, openWork);
+        const scan = observationScan(field || { current_observation_revision: null }, pages, openWork, latestFailed);
         const runs = store.invoke('list_runs', { field_id: fieldId });
         const candidates = store.invoke('list_candidates', { field_id: fieldId })
           .sort((left, right) =>
