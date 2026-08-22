@@ -1499,6 +1499,12 @@ Handoff A接收时由Libra拥有的versioned Decision Identity Mapping。旧`@1`
 Field、Shelf、Routing和Observation。Formation真实页面显示`看不见的朋友`5星、普通与发布标签版`养蜂人`4星、`香火`4星，
 来源均为豆瓣；22个Candidate/Subject保持唯一，随后正常形成Production动作。完整22部Arca闭环仍由本轮UAT继续验收。
 
+2026-08-23逐项封口复核确认该项已有两轮clean Canary真实UI证据闭环：`UAT-20260822-141950-0c27c8cf6`
+的Formation同页显示普通版与发布标签版`养蜂人`均为`4 星 · 豆瓣`，`看不见的朋友`为`5 星 · 豆瓣`；当前重建Canary
+`UAT-20260823-002500-519f8d7b5`刷新后再次显示原始发布标题`看不见的朋友 (2023) - 1080p H.264 CHDWEB`
+为`5 星 · 豆瓣`且身份100%。当前发布标签版`养蜂人`已被UAT-009提交的直接评分按正式优先级覆盖，不用该覆盖态否定此前
+未覆盖时的年份锚证据。状态`REGRESSION PASSED / CONFIRMED ON CLEAN CANARY`。
+
 ## 23. UAT-026：Admin Web无法清除直接评分并恢复豆瓣来源
 
 问题分类：`USER_PERCEPTION_COMMAND / IMMUTABLE_RETRACTION / ADMIN_WEB`
