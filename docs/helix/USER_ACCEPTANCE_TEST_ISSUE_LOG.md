@@ -1876,6 +1876,11 @@ stderr 为 `CLEAN_ARCA_TARGET_OCCUPIED` 与 `CLEAN_ARCA_SETTLEMENT_UNKNOWN_MEMBE
 
 干净 Canary `UAT-20260822-082725-061cd399d` 定向确认（2026-08-22）：BDMV Remux 64.0 GiB 成功后，EncodeIntent `audio.streamIndexes=[1,5]`（两条 TrueHD，丢掉 AC3 core），`targetVideoBitrateBps=2279830`。Transcode assessment 通过，成品 `养蜂人 (2024).mkv` 8.32 GiB 已 On-deck。状态 `REGRESSION PASSED / CONFIRMED ON CLEAN CANARY`。
 
+当前关闭 Canary `UAT-20260822-141950-0c27c8cf6` 再确认（2026-08-23）：只读probe显示源主clip为
+`68676919296`字节、HEVC Main10、2条TrueHD+4条AC3；最终MKV为`8932765796`字节（低于14 GiB）、
+仍为HEVC Main10并保留2条TrueHD、裁掉4条AC3，时长从`6336.288278s`保持为`6336.289000s`。
+真实详情显示`8.3 GB · MKV`、当前收藏且健康。UI证据：`admin-web-evidence/uat-044-bdmv-four-star-budget-ondeck.png`。
+
 ## 42. UAT-045：ISO Remux 第二次 Attempt 在失败 Effect 与进程重启后永久停在 executing
 
 问题分类：`EXECUTION_SCHEDULING / RECOVERY_CORRECTNESS`

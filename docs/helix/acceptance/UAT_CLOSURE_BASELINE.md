@@ -100,7 +100,7 @@
 | UAT-041 | BDMV HEVC/TrueHD Remux 能处理缺 PES 时间戳，不被 Matroska 直接拒绝 | `UI` `FS` | W3 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260822-141950-0c27c8cf6 UI BDMV养蜂人为健康当前收藏且主视频MKV；FS目标MKV完整、无.partial，源BDMV保持 |
 | UAT-042 | 同根 Off-load Settlement 能解释源现实漂移 | `UI` `FS` | W3 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260822-141950-0c27c8cf6 UI光荣的愤怒/香火均为健康当前收藏；FS最终视频/海报/NFO保留且无.partial |
 | UAT-043 | 007 身份已过后，TMDB metadata fetch 的 closed-shape / lease 失败可重试，不一次打成冻结 | `UI` | W2 | `CODE_DONE_UNQUALIFIED` | `NOT RUN` |
-| UAT-044 | 四星 14 GiB 能规划 BDMV 多 TrueHD 轨的体积转码，音轨预算裁剪后可上架 | `UI` `FS` | W0 | `CLOSED` | `NOT RUN` |
+| UAT-044 | 四星 14 GiB 能规划 BDMV 多 TrueHD 轨的体积转码，音轨预算裁剪后可上架 | `UI` `FS` | W0 | `CLOSED` | `PASS` UAT-20260822-141950-0c27c8cf6 UI四星BDMV养蜂人为健康当前收藏；FS最终8.93GB HEVC并保留2 TrueHD、裁掉4 AC3 |
 | UAT-045 | ISO Remux 失败 Effect 与进程重启后 Attempt 能收口，不再永久 executing | `UI` `FACT` | W3 | `CODE_DONE_UNQUALIFIED` | `NOT RUN` |
 | UAT-046 | ISO Remux 抽出 m2ts 后跳过无法 copy 的 `pcm_bluray`，不整盘重抽 | `UI` `FS` | W3 | `CODE_DONE_UNQUALIFIED` | `NOT RUN` |
 | UAT-047 | ISO 同语言编号字幕最终名可区分，验收不再 `TARGET_COLLISION` | `UI` `FS` | W0 | `CLOSED` | `PASS` UAT-20260822-141950-0c27c8cf6 UI倩女幽魂2已为当前收藏；FS 56条zh-CN字幕名全部唯一，含未编号与.1-.55，无hash/(0)补丁 |
@@ -133,11 +133,11 @@
 | 口径 | 数量 |
 | --- | --- |
 | 总行 | 66 |
-| 本轮 `PASS` | **34** |
-| 本轮未通过（`NOT RUN`+`FAILED`+`BLOCKED`） | **32**（全部为 `NOT RUN`；0 `FAILED`；0 `BLOCKED`） |
-| 是否都通过 | **否**（34/66，未通过 32） |
+| 本轮 `PASS` | **35** |
+| 本轮未通过（`NOT RUN`+`FAILED`+`BLOCKED`） | **31**（全部为 `NOT RUN`；0 `FAILED`；0 `BLOCKED`） |
+| 是否都通过 | **否**（35/66，未通过 31） |
 
-本轮 `PASS`：001、002、005、006、007、008、012、013、015、016、018、030、032、034、038、039、040、041、042、047、048、049、050、051、052、053、054、055、056、057、058、061、065、066。证据均包含本隔离库 Admin Web `UI`；要求文件现实的行另有`FS`。W5 Discard 重新入库、W6 退出收藏/注销在本坐席未跑完，保持 `NOT RUN`。
+本轮 `PASS`：001、002、005、006、007、008、012、013、015、016、018、030、032、034、038、039、040、041、042、044、047、048、049、050、051、052、053、054、055、056、057、058、061、065、066。证据均包含本隔离库 Admin Web `UI`；要求文件现实的行另有`FS`。W5 Discard 重新入库、W6 退出收藏/注销在本坐席未跑完，保持 `NOT RUN`。
 
 `UAT-005` 剩余动作合同并入 `UAT-051` 后仍保留本行，用四桶状态在新 Canary 上资格确认，不把 005 标 `VOID`。
 
@@ -367,3 +367,17 @@
 - 关闭结论：`PASS`。真实Admin Web显示《光荣的愤怒》《香火》均为Movie Canary当前收藏且健康。两者最终目录各有1个视频、1个`poster.jpg`和1个NFO，文件总数均为4，`PartialCount=0`；Settlement没有再因旧源fingerprint报reality drift。
 - UI证据：`admin-web-evidence/uat-042-same-root-settlement-complete.png`（位于本Canary隔离证据目录）。
 - FS证据：2026-08-23只读核验`F:\canary\光荣的愤怒 (2006)`与`F:\canary\香火 (2003)`，两者`VideoCount=1`、`PosterCount=1`、`NfoCount=1`、`PartialCount=0`。
+
+### UAT-044（`PASS`）
+
+- 关闭命题：四星14 GiB能规划BDMV多TrueHD轨的体积转码，音轨预算裁剪后可上架。
+- Canary：`UAT-20260822-141950-0c27c8cf6`。
+- 证人：四星BDMV养蜂人源主clip与8.3 GB Movie Canary当前Entry。
+- 路径：我的收藏 → 打开8.3 GB养蜂人详情 → 核对当前收藏、健康与MKV → 只读ffprobe源主clip和最终MKV。
+- 允许动作：页面进入、打开/关闭详情、截图；文件系统和媒体元数据只读核验。
+- 禁止动作：重跑Remux/Transcode、修改评分、退出收藏、移动/删除文件、重启服务、重建Canary、修改数据库。
+- 通过标准：新Run生成低于14 GiB的HEVC产品并完成On-deck；多音轨预算裁剪保留TrueHD主音轨，不因全轨预算不可行而冻结；时长不漂移。
+- 证据要求：`UI`、`FS`。
+- 关闭结论：`PASS`。真实详情显示证人为Movie Canary当前收藏且健康，主视频`8.3 GB · MKV`。源主clip为`68676919296`字节、HEVC Main10、2 TrueHD + 4 AC3、`6336.288278s`；最终为`8932765796`字节、HEVC Main10、2 TrueHD、`6336.289000s`，低于14 GiB且裁掉4条AC3。
+- UI证据：`admin-web-evidence/uat-044-bdmv-four-star-budget-ondeck.png`（位于本Canary隔离证据目录）。
+- FS证据：2026-08-23用部署ffprobe只读核验源与目标，视频编码/时长连续，`SourceAudioCount=6`、`TargetAudioCount=2`、目标两轨均为TrueHD。
