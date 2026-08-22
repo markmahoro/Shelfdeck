@@ -1821,7 +1821,9 @@ stderr 为 `CLEAN_ARCA_TARGET_OCCUPIED` 与 `CLEAN_ARCA_SETTLEMENT_UNKNOWN_MEMBE
 
 验收证据：两 TrueHD + 四条 `other` 在 105 分钟 / 14 GiB 下全拷不可行，去掉 core 后可行且索引为 `[1,2]`；三条 TrueHD 收成默认轨 `[1]`；五星 50 GiB 仍保留 TrueHD 与 core。无 `streamIndexes` 时 map 保持 `0:a?`。
 
-当前处理决定：按已确认四星合同修规划并提交。现场冻结 Run 不能重放，需干净 Canary 确认 BDMV 养蜂人 On-deck。状态 `REGRESSION PASSED / CLEAN CANARY REQUIRED`。
+当前处理决定：按已确认四星合同修规划并提交。
+
+干净 Canary `UAT-20260822-082725-061cd399d` 定向确认（2026-08-22）：BDMV Remux 64.0 GiB 成功后，EncodeIntent `audio.streamIndexes=[1,5]`（两条 TrueHD，丢掉 AC3 core），`targetVideoBitrateBps=2279830`。Transcode assessment 通过，成品 `养蜂人 (2024).mkv` 8.32 GiB 已 On-deck。状态 `REGRESSION PASSED / CONFIRMED ON CLEAN CANARY`。
 
 ## 42. UAT-045：ISO Remux 第二次 Attempt 在失败 Effect 与进程重启后永久停在 executing
 
@@ -1887,7 +1889,7 @@ stderr 为 `CLEAN_ARCA_TARGET_OCCUPIED` 与 `CLEAN_ARCA_SETTLEMENT_UNKNOWN_MEMBE
 
 验收证据：STREAM 里 `00002.m2ts` 可结算且 `00000.m2ts` 保留；同根 `banner.jpg` 保留；`notes.txt` 不同路径仍失败。
 
-当前处理决定：按根因修复并提交。现场 executing Settlement 需服务重启后按新合同重试。状态 `REGRESSION PASSED / SERVICE RESTART REQUIRED`。
+当前处理决定：按根因修复并提交。现场 executing Settlement 经服务重启按新合同重试后，On-deck Run `4d843ef9…` 已 committed。状态 `REGRESSION PASSED / CONFIRMED ON CLEAN CANARY`。
 
 ## 46. 后续问题模板
 
