@@ -104,7 +104,7 @@
 | UAT-045 | ISO Remux 失败 Effect 与进程重启后 Attempt 能收口，不再永久 executing | `UI` `FACT` | W3 | `CODE_DONE_UNQUALIFIED` | `NOT RUN` |
 | UAT-046 | ISO Remux 抽出 m2ts 后跳过无法 copy 的 `pcm_bluray`，不整盘重抽 | `UI` `FS` | W3 | `CODE_DONE_UNQUALIFIED` | `NOT RUN` |
 | UAT-047 | ISO 同语言编号字幕最终名可区分，验收不再 `TARGET_COLLISION` | `UI` `FS` | W0 | `CLOSED` | `PASS` UAT-20260822-141950-0c27c8cf6 UI倩女幽魂2已为当前收藏；FS 56条zh-CN字幕名全部唯一，含未编号与.1-.55，无hash/(0)补丁 |
-| UAT-048 | 同根终态目录的源残留不再把 Off-load Settlement 打成 `UNKNOWN_MEMBER` | `UI` `FS` | W0 | `CLOSED` | `NOT RUN` |
+| UAT-048 | 同根终态目录的源残留不再把 Off-load Settlement 打成 `UNKNOWN_MEMBER` | `UI` `FS` | W0 | `CLOSED` | `PASS` UAT-20260822-141950-0c27c8cf6 UI 8.3 GB BDMV养蜂人已为当前收藏且健康；FS主视频存在、大小匹配、目标无BDMV/CERTIFICATE残留 |
 | UAT-049 | 盘整理完成后原 `BDMV`/`CERTIFICATE` 整棵树从收藏目录消失 | `UI` `FS` | W3 | `CODE_DONE_UNQUALIFIED` | `NOT RUN` |
 | UAT-050 | 当前媒体筛选走后端 Projection Query，不在前端筛当前页 | `UI` | W1 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260822-141950-0c27c8cf6 UI 当前媒体筛选芯片与目标收藏架 |
 | UAT-051 | 整理动作展示分步施工、分步进度、用户操作与加急；完成区只读同一套动作 | `UI` | W1 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260822-141950-0c27c8cf6 UI 分步动作/进度/加急列 |
@@ -132,11 +132,11 @@
 | 口径 | 数量 |
 | --- | --- |
 | 总行 | 65 |
-| 本轮 `PASS` | **26** |
-| 本轮未通过（`NOT RUN`+`FAILED`+`BLOCKED`） | **39**（全部为 `NOT RUN`；0 `FAILED`；0 `BLOCKED`） |
-| 是否都通过 | **否**（26/65，未通过 39） |
+| 本轮 `PASS` | **27** |
+| 本轮未通过（`NOT RUN`+`FAILED`+`BLOCKED`） | **38**（全部为 `NOT RUN`；0 `FAILED`；0 `BLOCKED`） |
+| 是否都通过 | **否**（27/65，未通过 38） |
 
-本轮 `PASS`：001、002、005、006、007、008、012、013、015、016、018、030、032、038、047、050、051、052、053、054、055、056、057、058、061、065。证据均包含本隔离库 Admin Web `UI`；要求文件现实的行另有`FS`。W3 转码/ISO/BDMV 上架、W5 Discard 重新入库、W6 退出收藏/注销在本坐席未跑完，保持 `NOT RUN`。
+本轮 `PASS`：001、002、005、006、007、008、012、013、015、016、018、030、032、038、047、048、050、051、052、053、054、055、056、057、058、061、065。证据均包含本隔离库 Admin Web `UI`；要求文件现实的行另有`FS`。W3 转码/ISO/BDMV 上架、W5 Discard 重新入库、W6 退出收藏/注销在本坐席未跑完，保持 `NOT RUN`。
 
 `UAT-005` 剩余动作合同并入 `UAT-051` 后仍保留本行，用四桶状态在新 Canary 上资格确认，不把 005 标 `VOID`。
 
@@ -236,7 +236,7 @@
 - UI证据：`admin-web-evidence/uat-047-iso-numbered-subtitles-ondeck.png`（位于本Canary隔离证据目录）。
 - FS证据：2026-08-22只读枚举`F:\canary\倩女幽魂2：人间道 (1990)`，`SubtitleCount=56`、`UniqueNameCount=56`、`NumberedCount=55`、`PlainCount=1`、`.1=True`、`.55=True`、无hash或`(0)`补丁。
 
-### UAT-048（`PAUSED / NEW DEFECT UAT-065`）
+### UAT-048（`PASS`）
 
 - 关闭命题：同根终态目录的源残留不再把Off-load Settlement打成`UNKNOWN_MEMBER`。
 - Canary：`UAT-20260822-141950-0c27c8cf6`。
@@ -249,6 +249,10 @@
 - 旁证停车：整盘树清理由UAT-049独立关闭，本项不得顺带把UAT-049写为`PASS`。
 - 暂停原因：定位到8.3 GB BDMV「养蜂人」Entry时，Admin Web把真实`.mkv`主视频显示为`8.3 GB · 1`。该独立Projection缺陷已登记为`UAT-065`；按作业规则停止`UAT-048`关闭判定，不写`PASS`。
 - UI证据：`admin-web-evidence/uat-048-bdmv-settlement-ondeck.png`（位于本Canary隔离证据目录；同时保存UAT-065新缺陷现场）。
+- 恢复条件：`UAT-065`已由`a59737c4a`修复并在同一Canary定向关闭；本卡恢复后只判定Settlement命题。
+- 关闭结论：`PASS`。修复UAT-065后恢复本卡，真实Admin Web显示8.3 GB BDMV「养蜂人」为Movie Canary当前收藏且健康；主视频`F:\canary\养蜂人 (2024) - 2160p HEVC Atmos TrueHD5.1\养蜂人 (2024).mkv`存在且大小`8932765796`与Inventory一致，目标目录`DiscTreeCount=0`，没有因旁路clip停在`UNKNOWN_MEMBER`。
+- UI证据：`admin-web-evidence/uat-048-bdmv-settlement-ondeck-after-065.png`（位于本Canary隔离证据目录）。
+- FS证据：2026-08-22只读核验`TargetExists=True`、`PrimaryExists=True`、`PrimaryLength=8932765796`、`SizeMatch=True`、`DiscTreeCount=0`。
 
 ### UAT-065（`PASS`）
 
