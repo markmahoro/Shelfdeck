@@ -1885,13 +1885,31 @@ stderr 为 `CLEAN_ARCA_TARGET_OCCUPIED` 与 `CLEAN_ARCA_SETTLEMENT_UNKNOWN_MEMBE
 
 精确根因：UAT-039 对源目录里的未知**文件** fail closed，这是为了 `notes.txt`。蓝光 `BDMV/STREAM` 里未入包的 `.m2ts` 是同一张盘的结构件，不是外来 junk。终态产品目录里的残留 extras 同理：目录会保留，不应挡住 nested disc 源删除。
 
-修复边界：`sourceDirectory === targetDirectory` 时跳过 unknown 扫描。`BDMV/` 树内的未入包文件不当未知成员。`notes.txt` 仍 fail closed。不擅自删未入包 clip。
+修复边界：`sourceDirectory === targetDirectory` 时跳过 unknown 扫描。`BDMV/` 树内的未入包文件不当未知成员。`notes.txt` 仍 fail closed。UAT-048 当时不删未入包 clip，以免把盘结构件当成 junk；整盘树清理由用户确认后改到 UAT-049。
 
-验收证据：STREAM 里 `00002.m2ts` 可结算且 `00000.m2ts` 保留；同根 `banner.jpg` 保留；`notes.txt` 不同路径仍失败。
+验收证据：STREAM 里 `00002.m2ts` 可结算且不再因旁路 clip fail closed；同根 `banner.jpg` 保留；`notes.txt` 不同路径仍失败。
 
-当前处理决定：按根因修复并提交。现场 executing Settlement 经服务重启按新合同重试后，On-deck Run `4d843ef9…` 已 committed。状态 `REGRESSION PASSED / CONFIRMED ON CLEAN CANARY`。
+当前处理决定：按根因修复并提交。现场 executing Settlement 经服务重启按新合同重试后，On-deck Run `4d843ef9…` 已 committed。状态 `REGRESSION PASSED / CONFIRMED ON CLEAN CANARY`。未入包 clip 残留由 UAT-049 处理。
 
-## 46. 后续问题模板
+## 46. UAT-049：盘整理完后原 BDMV 整棵树仍留在收藏目录
+
+问题分类：`DISC_UNIT / SETTLEMENT_LEFTOVER`
+
+用户侧现象：BDMV `养蜂人` 已 On-deck，成品在收藏根目录的版本文件夹里，但原盘 `BDMV`/`CERTIFICATE` 仍嵌在 MKV `养蜂人 (2024)` 目录下。
+
+现场证据：产品 `F:\canary\养蜂人 (2024) - 2160p HEVC Atmos TrueHD5.1\养蜂人 (2024).mkv` 约 8.32 GiB。源残留在 `F:\canary\养蜂人 (2024)\养蜂人 (2024) - 2160p HEVC Atmos TrueHD5.1\`，`00002.m2ts` 已删，其余 STREAM clip 与 CERTIFICATE 仍在。兄弟成品 `养蜂人 (2024).mkv` 也在同一标题目录。
+
+精确根因：Off-load 只收选中主 clip 和部分 structural。UAT-048 把 `BDMV`/`CERTIFICATE` 未入包文件从 unknown 扫描排除，因此结算能过，但也不会删这些盘结构件。空目录修剪只到当前文件的父目录，整棵盘树留在收藏目录。
+
+用户确认的业务规则：这部盘整理完后，原 BDMV 整棵树都要从收藏目录消失。
+
+修复边界：结算已批准的蓝光源之后，删除该盘单元 `BDMV/` 与 `CERTIFICATE/` 下仍未入包、也不是终态产品的文件，再修剪空目录；空的嵌套版本目录可删。仍不得删兄弟电影、终态产品目录、`notes.txt` 这类目录级未知文件。同根产品目录里的非盘 extras（如 `banner.jpg`）仍保留。
+
+验收证据：选中 STREAM 结算后 extra clip 与 CERTIFICATE 消失，盘根目录在变空后删除；仍受管的 structural 保留；嵌套盘文件夹删除且兄弟 MKV 仍在；同根终态目录保留产品、去掉 BDMV/CERTIFICATE；`notes.txt` 仍 fail closed。Inventory port 15/15 通过。
+
+当前处理决定：按用户确认的盘单元规则修复并提交。已 committed 的 On-deck 不会自动再跑 Settlement；本轮 Canary 现场残留需在代码修复后单独清理，不能当作以后盘的合同。
+
+## 47. 后续问题模板
 
 后续发现的问题按以下结构追加：
 

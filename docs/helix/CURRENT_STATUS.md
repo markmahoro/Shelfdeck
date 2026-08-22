@@ -8,7 +8,7 @@ Last updated: 2026-08-22
 
 用户已明确授权在修复后重建干净 Movie Canary 真实 Admin Web E2E/UAT。固定路径仍为只读
 `F:\test_film`与重置后的`F:\canary`。不触碰`G:\canary_film`、`Z:\Film`或NAS生产部署。
-干净 Movie Canary `UAT-20260822-082725-061cd399d`（HEAD `bec80a552`）已按 §1.2 收口：形成 23/23；17 部 On-deck（含两部养蜂人与 ISO 倩女幽魂2）；其余 6 部为五星无 4K 源 MoviePilot 冻结。UAT-044 四星转码 `streamIndexes=[1,5]` 成品 8.32 GiB；UAT-048 同根 BDMV Settlement 已提交。P2 aggregate 为
+干净 Movie Canary `UAT-20260822-082725-061cd399d`（HEAD `bec80a552`）已按 §1.2 收口：形成 23/23；17 部 On-deck（含两部养蜂人与 ISO 倩女幽魂2）；其余 6 部为五星无 4K 源 MoviePilot 冻结。UAT-044 四星转码 `streamIndexes=[1,5]` 成品 8.32 GiB；UAT-048 同根 BDMV Settlement 已提交；UAT-049 在盘整理完成后删除原 `BDMV`/`CERTIFICATE` 整棵树，现场嵌套残留源目录已按该规则清掉，成品与兄弟 MKV 保留。P2 aggregate 为
 `8ef344678720478f59fef4a20d61edb6d157ba22cca9cc4caa1f44e8edb25e59`。
 
 | 项目 | 当前状态 |

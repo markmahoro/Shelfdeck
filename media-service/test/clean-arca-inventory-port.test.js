@@ -519,57 +519,199 @@ function settlementFixture({ unknownMember = false, siblingDirectory = false } =
     finalMember, materialHandle, mappingDigest };
 }
 
-test('BDMV STREAM extra clips do not fail-close settlement of the selected payload', () => {
-  const fixture = settlementFixture();
-  try {
-    const extraClip = path.join(fixture.sourceDirectory, 'BDMV', 'STREAM', '00000.m2ts');
-    fs.mkdirSync(path.dirname(extraClip), { recursive:true });
-    fs.writeFileSync(extraClip, Buffer.from('other-clip'));
-    const selected = path.join(fixture.sourceDirectory, 'BDMV', 'STREAM', '00002.m2ts');
-    fs.mkdirSync(path.dirname(selected), { recursive:true });
-    fs.writeFileSync(selected, Buffer.from('exact-movie-bytes'));
-    const mountScopeId = 'canary-mount';
-    const productMember = member(selected, 'primary_payload', mountScopeId);
-    const mappingDigest = canonicalDigest({ source:productMember.materialKey, target:'final' });
-    fixture.finalInventoryRequest.onDeckProductPackage = Object.freeze({
-      ...fixture.finalInventoryRequest.onDeckProductPackage,
-      productMaterialManifest:{ members:Object.freeze([productMember]), manifestDigest:'manifest-bdmv-stream' },
-      offloadContextManifest:{ manifestDigest:'offload-bdmv-stream', members:Object.freeze([
-        Object.freeze({
-          materialKey:productMember.materialKey,
-          finalProductMaterialKey:productMember.materialKey,
-          location:selected,
-          settlementExpectation:'remove_after_place',
-          sourceToFinalMappingDigest:mappingDigest,
-        }),
-      ]) },
-    });
-    const decision = fixture.port.prepare(fixture.finalInventoryRequest);
-    fixture.finalInventoryRequest.finalInventoryDecision = decision;
-    const finalMember = decision.members[0];
-    fs.mkdirSync(path.dirname(finalMember.targetLocation), { recursive:true });
-    fs.copyFileSync(selected, finalMember.targetLocation);
-    const settled = fixture.port.settleInput({
-      materialHandle:{
-        schemaRef:'helix://contracts/types/PhysicalMaterialReadHandle/v1',
-        ownerDomain:'arca',
-        ownerScope:{ scopeType:'on_deck_custody', scopeId:'custody-settlement' },
-        location:selected,
-        identity:productMember.physicalIdentity,
-        expectedSizeBytes:productMember.physicalIdentity.sizeBytes,
-      },
-      approval:{ approvalId:'approval' },
-      finalInventoryRequest:fixture.finalInventoryRequest,
-      finalMaterialKey:finalMember.sourceMaterialKey,
-      finalTargetLocation:finalMember.targetLocation,
+function prepareDiscSettlement(root, selected, extraOffload = []) {
+  fs.mkdirSync(root, { recursive:true });
+  const mountScopeId = 'canary-mount';
+  const productMember = member(selected, 'primary_payload', mountScopeId);
+  const mappingDigest = canonicalDigest({ source:productMember.materialKey, target:'final' });
+  const offloadMembers = [
+    Object.freeze({
+      materialKey:productMember.materialKey,
+      finalProductMaterialKey:productMember.materialKey,
+      location:selected,
       settlementExpectation:'remove_after_place',
       sourceToFinalMappingDigest:mappingDigest,
+    }),
+    ...extraOffload,
+  ];
+  const packageValue = Object.freeze({
+    onDeckPackageId:'package-bdmv', shelfId:'shelf-bdmv',
+    resolvedIdentitySnapshot:{ factValue:{ title:'The Beekeeper', year:2024 } },
+    productStructureSnapshot:{ structureKind:'single' },
+    productMaterialManifest:{ members:Object.freeze([productMember]), manifestDigest:'manifest-bdmv' },
+    offloadContextManifest:{ manifestDigest:'offload-bdmv', members:Object.freeze(offloadMembers) },
+  });
+  const shelf = Object.freeze({
+    shelfId:'shelf-bdmv', status:'active', currentPlacementRevision:1,
+    target:{ endpointId:'canary', rootLocation:root, mountScopeId, mountScopeRevision:1 },
+    placement:{ value:{
+      folderTemplate:'{title} ({year})', primaryTemplate:'{title} ({year}){ext}',
+      nfoTemplate:'{stem}.nfo', posterTemplate:'poster{ext}', fanartTemplate:'fanart{ext}',
+      subtitleTemplate:'{stem}{language}{ext}', collisionPolicy:'reject',
+    } },
+  });
+  const port = createCleanArcaInventoryPort({
+    schemaManifest, unitOfWork:{}, workspaceRoot:path.join(root, '.workspace'),
+  });
+  const finalInventoryRequest = {
+    onDeckRunId:'on-deck-bdmv', custodyId:'custody-bdmv', shelf,
+    onDeckProductPackage:packageValue, observedAtMs:1, replayCommitted:true,
+  };
+  const finalInventoryDecision = port.prepare(finalInventoryRequest);
+  finalInventoryRequest.finalInventoryDecision = finalInventoryDecision;
+  const finalMember = finalInventoryDecision.members[0];
+  fs.mkdirSync(path.dirname(finalMember.targetLocation), { recursive:true });
+  fs.copyFileSync(selected, finalMember.targetLocation);
+  return {
+    port, finalInventoryRequest, finalMember, mappingDigest, productMember,
+    materialHandle:{
+      schemaRef:'helix://contracts/types/PhysicalMaterialReadHandle/v1',
+      ownerDomain:'arca',
+      ownerScope:{ scopeType:'on_deck_custody', scopeId:'custody-bdmv' },
+      location:selected,
+      identity:productMember.physicalIdentity,
+      expectedSizeBytes:productMember.physicalIdentity.sizeBytes,
+    },
+  };
+}
+
+function writeDiscTree(discRoot, { extra = true, certificate = true, structural = false } = {}) {
+  const selected = path.join(discRoot, 'BDMV', 'STREAM', '00002.m2ts');
+  fs.mkdirSync(path.dirname(selected), { recursive:true });
+  fs.writeFileSync(selected, Buffer.from('exact-movie-bytes'));
+  const extraClip = path.join(discRoot, 'BDMV', 'STREAM', '00000.m2ts');
+  if (extra) fs.writeFileSync(extraClip, Buffer.from('other-clip'));
+  const certificateFile = path.join(discRoot, 'CERTIFICATE', 'id.bdmv');
+  if (certificate) {
+    fs.mkdirSync(path.join(discRoot, 'CERTIFICATE', 'BACKUP'), { recursive:true });
+    fs.writeFileSync(certificateFile, Buffer.from('cert'));
+    fs.writeFileSync(path.join(discRoot, 'CERTIFICATE', 'BACKUP', 'id.bdmv'),
+      Buffer.from('cert-backup'));
+  }
+  const indexFile = path.join(discRoot, 'BDMV', 'index.bdmv');
+  if (structural) fs.writeFileSync(indexFile, Buffer.from('index'));
+  return { selected, extraClip, certificateFile, indexFile };
+}
+
+test('BDMV settlement deletes leftover STREAM and CERTIFICATE so the disc tree disappears', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'clean-arca-bdmv-disc-'));
+  try {
+    const discRoot = path.join(root, 'source-disc');
+    const tree = writeDiscTree(discRoot);
+    const prepared = prepareDiscSettlement(path.join(root, 'shelf'), tree.selected);
+    const settled = prepared.port.settleInput({
+      materialHandle:prepared.materialHandle,
+      approval:{ approvalId:'approval' },
+      finalInventoryRequest:prepared.finalInventoryRequest,
+      finalMaterialKey:prepared.finalMember.sourceMaterialKey,
+      finalTargetLocation:prepared.finalMember.targetLocation,
+      settlementExpectation:'remove_after_place',
+      sourceToFinalMappingDigest:prepared.mappingDigest,
     });
     assert.equal(settled.disposition, 'settled_to_final');
-    assert.equal(fs.existsSync(selected), false);
-    assert.equal(fs.existsSync(extraClip), true);
+    assert.equal(fs.existsSync(tree.selected), false);
+    assert.equal(fs.existsSync(tree.extraClip), false);
+    assert.equal(fs.existsSync(tree.certificateFile), false);
+    assert.equal(fs.existsSync(path.join(discRoot, 'BDMV')), false);
+    assert.equal(fs.existsSync(path.join(discRoot, 'CERTIFICATE')), false);
+    assert.equal(fs.existsSync(discRoot), false);
+    assert.equal(fs.readFileSync(prepared.finalMember.targetLocation, 'utf8'),
+      'exact-movie-bytes');
   } finally {
-    fs.rmSync(fixture.root, { recursive:true, force:true });
+    fs.rmSync(root, { recursive:true, force:true });
+  }
+});
+
+test('BDMV settlement keeps still-managed structural files while deleting unplanned leftovers', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'clean-arca-bdmv-managed-'));
+  try {
+    const discRoot = path.join(root, 'source-disc');
+    const tree = writeDiscTree(discRoot, { structural:true });
+    const structuralIdentity = identity(tree.indexFile, 'canary-mount');
+    const prepared = prepareDiscSettlement(path.join(root, 'shelf'), tree.selected, [
+      Object.freeze({
+        materialKey:structuralIdentity.materialKey,
+        finalProductMaterialKey:structuralIdentity.materialKey,
+        location:tree.indexFile,
+        settlementExpectation:'remove_after_place',
+        sourceToFinalMappingDigest:canonicalDigest({ source:structuralIdentity.materialKey, target:'structural' }),
+      }),
+    ]);
+    const settled = prepared.port.settleInput({
+      materialHandle:prepared.materialHandle,
+      approval:{ approvalId:'approval' },
+      finalInventoryRequest:prepared.finalInventoryRequest,
+      finalMaterialKey:prepared.finalMember.sourceMaterialKey,
+      finalTargetLocation:prepared.finalMember.targetLocation,
+      settlementExpectation:'remove_after_place',
+      sourceToFinalMappingDigest:prepared.mappingDigest,
+    });
+    assert.equal(settled.disposition, 'settled_to_final');
+    assert.equal(fs.existsSync(tree.selected), false);
+    assert.equal(fs.existsSync(tree.extraClip), false);
+    assert.equal(fs.existsSync(tree.certificateFile), false);
+    assert.equal(fs.existsSync(path.join(discRoot, 'CERTIFICATE')), false);
+    assert.equal(fs.existsSync(tree.indexFile), true);
+    assert.equal(fs.readFileSync(tree.indexFile, 'utf8'), 'index');
+  } finally {
+    fs.rmSync(root, { recursive:true, force:true });
+  }
+});
+
+test('BDMV settlement removes a nested disc folder and keeps the sibling movie', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'clean-arca-bdmv-nested-'));
+  try {
+    const titleDirectory = path.join(root, '养蜂人 (2024)');
+    const nestedDisc = path.join(titleDirectory, '养蜂人 (2024) - 2160p HEVC Atmos TrueHD5.1');
+    const siblingMovie = path.join(titleDirectory, '养蜂人 (2024).mkv');
+    fs.mkdirSync(titleDirectory, { recursive:true });
+    fs.writeFileSync(siblingMovie, Buffer.from('sibling-mkv'));
+    const tree = writeDiscTree(nestedDisc);
+    const prepared = prepareDiscSettlement(root, tree.selected);
+    const settled = prepared.port.settleInput({
+      materialHandle:prepared.materialHandle,
+      approval:{ approvalId:'approval' },
+      finalInventoryRequest:prepared.finalInventoryRequest,
+      finalMaterialKey:prepared.finalMember.sourceMaterialKey,
+      finalTargetLocation:prepared.finalMember.targetLocation,
+      settlementExpectation:'remove_after_place',
+      sourceToFinalMappingDigest:prepared.mappingDigest,
+    });
+    assert.equal(settled.disposition, 'settled_to_final');
+    assert.equal(fs.existsSync(nestedDisc), false);
+    assert.equal(fs.existsSync(path.join(nestedDisc, 'BDMV')), false);
+    assert.equal(fs.existsSync(siblingMovie), true);
+    assert.equal(fs.readFileSync(siblingMovie, 'utf8'), 'sibling-mkv');
+    assert.equal(fs.existsSync(titleDirectory), true);
+  } finally {
+    fs.rmSync(root, { recursive:true, force:true });
+  }
+});
+
+test('same-root BDMV leftover trees disappear while the final product directory remains', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'clean-arca-bdmv-same-root-'));
+  try {
+    const productDirectory = path.join(root, 'The Beekeeper (2024)');
+    const tree = writeDiscTree(productDirectory);
+    const prepared = prepareDiscSettlement(root, tree.selected);
+    const settled = prepared.port.settleInput({
+      materialHandle:prepared.materialHandle,
+      approval:{ approvalId:'approval' },
+      finalInventoryRequest:prepared.finalInventoryRequest,
+      finalMaterialKey:prepared.finalMember.sourceMaterialKey,
+      finalTargetLocation:prepared.finalMember.targetLocation,
+      settlementExpectation:'remove_after_place',
+      sourceToFinalMappingDigest:prepared.mappingDigest,
+    });
+    assert.equal(settled.disposition, 'settled_to_final');
+    assert.equal(fs.existsSync(tree.extraClip), false);
+    assert.equal(fs.existsSync(path.join(productDirectory, 'BDMV')), false);
+    assert.equal(fs.existsSync(path.join(productDirectory, 'CERTIFICATE')), false);
+    assert.equal(fs.existsSync(productDirectory), true);
+    assert.equal(fs.readFileSync(prepared.finalMember.targetLocation, 'utf8'),
+      'exact-movie-bytes');
+  } finally {
+    fs.rmSync(root, { recursive:true, force:true });
   }
 });
 

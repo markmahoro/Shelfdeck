@@ -40,9 +40,106 @@ function isManagedSourceLocation(request, location) {
   return managedSourceLocations(request).has(path.resolve(location));
 }
 
+function isBluRayDiscTreeName(name) {
+  const upper = String(name || '').toUpperCase();
+  return upper === 'BDMV' || upper === 'CERTIFICATE';
+}
+
+function findBluRayDiscRoot(location) {
+  const parts = path.resolve(location).split(path.sep);
+  for (let index = 0; index < parts.length; index += 1) {
+    if (!isBluRayDiscTreeName(parts[index])) continue;
+    if (index === 0) return null;
+    return parts.slice(0, index).join(path.sep);
+  }
+  return null;
+}
+
 function isInsideBluRayDiscTree(location) {
-  const normalized = path.resolve(location).replaceAll('\\', '/').toUpperCase();
-  return normalized.includes('/BDMV/') || normalized.includes('/CERTIFICATE/');
+  return findBluRayDiscRoot(location) !== null;
+}
+
+function listBluRayDiscTrees(discRoot) {
+  if (!discRoot || !fs.existsSync(discRoot)) return [];
+  try {
+    if (!fs.statSync(discRoot).isDirectory()) return [];
+  } catch {
+    return [];
+  }
+  return fs.readdirSync(discRoot)
+    .filter((name) => isBluRayDiscTreeName(name))
+    .map((name) => path.resolve(discRoot, name))
+    .filter((item) => {
+      try {
+        return fs.statSync(item).isDirectory();
+      } catch {
+        return false;
+      }
+    });
+}
+
+function listFilesRecursive(root) {
+  const files = [];
+  const stack = [root];
+  while (stack.length > 0) {
+    const current = stack.pop();
+    let entries;
+    try {
+      entries = fs.readdirSync(current, { withFileTypes:true });
+    } catch {
+      continue;
+    }
+    for (const entry of entries) {
+      const full = path.resolve(current, entry.name);
+      if (entry.isDirectory()) stack.push(full);
+      else files.push(full);
+    }
+  }
+  return files;
+}
+
+function pruneEmptyDirectories(root, protectedDirectories) {
+  if (!root || !fs.existsSync(root)) return;
+  let stat;
+  try {
+    stat = fs.statSync(root);
+  } catch {
+    return;
+  }
+  if (!stat.isDirectory()) return;
+  for (const name of fs.readdirSync(root)) {
+    pruneEmptyDirectories(path.resolve(root, name), protectedDirectories);
+  }
+  if (protectedDirectories.has(path.resolve(root))) return;
+  if (fs.existsSync(root) && fs.readdirSync(root).length === 0) {
+    fs.rmdirSync(root);
+  }
+}
+
+function pruneEmptyAncestors(start, protectedDirectories) {
+  let current = start;
+  while (current) {
+    const resolved = path.resolve(current);
+    if (protectedDirectories.has(resolved)) break;
+    if (!fs.existsSync(resolved)) {
+      const parent = path.dirname(resolved);
+      if (parent === resolved) break;
+      current = parent;
+      continue;
+    }
+    try {
+      if (!fs.statSync(resolved).isDirectory() ||
+          fs.readdirSync(resolved).length > 0) {
+        break;
+      }
+    } catch {
+      break;
+    }
+    fs.rmdirSync(resolved);
+    const parent = path.dirname(resolved);
+    if (parent === resolved) break;
+    current = parent;
+  }
 }
 
 function safeSegment(value) {
@@ -1197,6 +1294,25 @@ function createCleanArcaInventoryPort(options) {
         }
       }
     }
+    const discRoot = findBluRayDiscRoot(source);
+    const protectedDirectories = new Set([
+      path.resolve(built.targetRoot),
+      path.resolve(built.targetDirectory),
+    ]);
+    if (discRoot) {
+      for (const tree of listBluRayDiscTrees(discRoot)) {
+        for (const leftover of listFilesRecursive(tree)) {
+          if (allowed.has(leftover) || !fs.existsSync(leftover)) continue;
+          fs.rmSync(leftover, { force:false });
+          if (fs.existsSync(leftover)) {
+            fail('CLEAN_ARCA_SETTLEMENT_DELETE_FAILED',
+              'Approved disc leftover still exists after deletion.', {
+                location: leftover,
+              });
+          }
+        }
+      }
+    }
     let oldDirectoryDisposition = sameLocation
       ? 'retained_as_final'
       : 'not_present';
@@ -1211,6 +1327,17 @@ function createCleanArcaInventoryPort(options) {
           built.plans.some((plan) => path.resolve(plan.target) === item))
           ? 'retained_with_final_inventory'
           : 'awaiting_managed_settlement';
+      }
+    }
+    if (discRoot) {
+      for (const tree of listBluRayDiscTrees(discRoot)) {
+        pruneEmptyDirectories(tree, protectedDirectories);
+      }
+      pruneEmptyAncestors(discRoot, protectedDirectories);
+      if (!sameLocation && !fs.existsSync(sourceDirectory) &&
+          oldDirectoryDisposition !== 'removed_empty' &&
+          oldDirectoryDisposition !== 'retained_as_final') {
+        oldDirectoryDisposition = 'removed_empty';
       }
     }
     return Object.freeze({ materialKey:handle.identity.materialKey,
