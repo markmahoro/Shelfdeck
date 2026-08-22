@@ -119,7 +119,7 @@ Helix主体开发已经完成，Movie从Procurement、Libra到Arca及Shelf Dereg
 | UAT-060 | Product Identity 写回 Subject 触发语义相同的 Acceptance Spec 重发，头切走后 Run 可能发不出 Package | `BUSINESS_CONTRACT` | `DOMAIN_ORCHESTRATION` | Libra Acceptance Spec `specInputDigest` + Coordinator | 正确性、活性 | High | 已修复并通过重建 Canary 确认 |
 | UAT-061 | 豆瓣 Acquisition 翻页传输失败后不重试、不收口，设置页永久「正在同步」 | `EXTERNAL_INTEGRATION` | `RECOVERY_CORRECTNESS` | Perception Acquisition + Settings 同步态 | 活性、可理解性 | High | 已实现；待新 Canary 确认 |
 | UAT-062 | frozen Run Discard 后 Control 已释放，Formation 仍空转「正在评估整理方案」，未走重新入库 | `BUSINESS_CONTRACT` | `DOMAIN_ORCHESTRATION` | Libra Run Discard 收口 + Procurement 重新入库 + Formation | 正确性、活性、可理解性 | Critical | 已实现；待新 Canary 确认 |
-| UAT-063 | Aftercare 问豆瓣分与 Libra 不是同一套 Resolution/Identity Evidence，上架后评分变化不触发保养 | `BUSINESS_CONTRACT` | `PROJECTION_FRESHNESS` | Arca Aftercare 拉 Perception + 与 Libra 共用 Identity Evidence | 正确性、时效性 | High | 已实现；待新 Canary 确认 |
+| UAT-063 | Aftercare 问豆瓣分与 Libra 不是同一套 Resolution/Identity Evidence，上架后评分变化不触发保养 | `BUSINESS_CONTRACT` | `PROJECTION_FRESHNESS` | Arca Aftercare 拉 Perception + 与 Libra 共用 Identity Evidence | 正确性、时效性 | High | 已修复并通过当前 Canary 确认 |
 | UAT-064 | Formation 整理步骤展示与真实执行状态偏离：转码标 CPU、验证过早标完成 | `USER_EXPERIENCE` | `PROJECTION_FRESHNESS` | Formation 公开 Projection `organizingSteps` / `transcodeLabel` | 可理解性、可观察性 | High | 已登记；待实现授权 |
 | UAT-065 | 收藏详情把父目录名中的`.1`误显示为主视频容器 | `USER_EXPERIENCE` | `PROJECTION_FRESHNESS` | Arca Collection Query + Admin Web | 正确性、可理解性 | High | 已修复并通过当前 Canary 定向确认 |
 | UAT-066 | Formation 已完成整理表丢失目标收藏架名称，全部显示`—` | `USER_EXPERIENCE` | `PROJECTION_FRESHNESS` | Formation Admin Web + Arca Shelf只读展示接线 | 正确性、可理解性 | High | 已修复并通过当前 Canary 定向确认 |
@@ -2621,6 +2621,8 @@ Resolution/Query Result作为不可变Basis审计输入，但Spec语义判定只
 当前处理决定：2026-08-22 代码已实现。Libra Subject 与 Arca Shelf Entry 共用 `buildRatingTargetIdentity`（同一 `deriveTitleYear`）；`queryHandle.consumerDomain` 按调用方为 `libra|arca`。Care Basis 因评分变化后 Aftercare 立即到期，不再被 24h 列表门闩挡住。本条不宣称 Canary 或生产通过。
 
 2026-08-23 关闭复测：干净 Canary `UAT-20260823-014246-3397c88f5` 中，Formation 的「威尼斯惊魂夜 (2023)」命中豆瓣评分；对应 Shelf Entry 在「我的收藏」详情却显示「年份未知 / 暂无评分」。通过页面提交 4 星直接评分后，Shelf Entry Resolution 立即 `found`；清除后同一 Resolution Head revision 2 明确回到 `not_found`，没有命中 Subject 使用的豆瓣记录。根因独立登记为 `UAT-068`。本轮 UAT-063 未通过资格确认，须在包含 `UAT-068` 修复的新 Canary 上重验。
+
+2026-08-23 最终关闭：干净 Canary `UAT-20260823-024825-f6b9eded6` 与 commit `ab8184f7b` 的安全重启现场中，《威尼斯惊魂夜 (2023)》页面提交4星直接评分后无需手动健康检查于03:44:27形成三维健康Assessment；清除后恢复`3 星 · 豆瓣`并于03:45:06自动形成新三维健康Assessment。Subject与Shelf Entry Resolution当前均为`found`并命中同一Douban Record `perception-record-5628590251074f0155192bf1b1eadf8828c3258e`，未重开Libra Run。状态`REGRESSION PASSED / CLOSED`。
 
 ## 61. UAT-064：Formation 整理步骤展示与真实执行状态偏离
 

@@ -119,7 +119,7 @@
 | UAT-060 | Product Identity 写回 Subject 不重发语义相同的 Acceptance Spec，头不空切，符合性后仍能发 Package | `UI` `FACT` | W2 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260823-014246-3397c88f5 UI养蜂人同值4星覆盖并清除后恢复豆瓣；FACT Spec仍仅revision 1且Head四元组不变，另2个身份写回样本均已发Package |
 | UAT-061 | 豆瓣翻页传输失败有界重试；耗尽后 Acquisition 收口为失败，设置页可再同步。不得用 copy-forward 单独关闭 | `UI` | W4 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260822-141950-0c27c8cf6 UI 本轮点同步出现正在同步，约90s后按钮恢复可点且无失败卡死（非 copy-forward 单独关闭） |
 | UAT-062 | frozen Discard 后 Control 保持释放、不立刻新开 Libra Run、页面不是「正在评估整理方案」，材料走重新入库 | `UI` | W5 | `CODE_DONE_UNQUALIFIED` | `NOT RUN` |
-| UAT-063 | Aftercare 用与 Libra 同一套 `perception.rating.resolve@1` Identity Evidence；上架后评分从无到有/变档会再评估 | `UI` | W4 | `CODE_DONE_UNQUALIFIED` | `NOT RUN` |
+| UAT-063 | Aftercare 用与 Libra 同一套 `perception.rating.resolve@1` Identity Evidence；上架后评分从无到有/变档会再评估 | `UI` | W4 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260823-024825-f6b9eded6 UI威尼斯4星直评及清除回3星豆瓣均自动形成健康Assessment；FACT Subject/Shelf Entry命中同一Douban Record |
 | UAT-064 | Formation 步骤 CPU/GPU 与验证完成态必须与真实执行一致，不得默认 CPU、不得把 Direct 源校验画成成品验证完成 | `UI` | W3 | `RECORDED_UNIMPLEMENTED` | `NOT RUN` |
 | UAT-065 | 收藏详情只从主视频basename解析容器，不得把父目录名中的`.1`显示为容器 | `UI` | W1 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260822-141950-0c27c8cf6 UI 8.3 GB BDMV养蜂人主视频修复后显示8.3 GB · MKV，不再显示· 1 |
 | UAT-066 | Formation 已完成整理表按目标Shelf ID显示当前收藏架名称，不得整列显示`—` | `UI` | W1 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260822-141950-0c27c8cf6 UI 已完成整理17/17条均显示Movie Canary，当前媒体6条显示未回退 |
@@ -137,12 +137,12 @@
 | 口径 | 数量 |
 | --- | --- |
 | 总行 | 69 |
-| 累计 `PASS` | **64** |
-| 尚未通过（`NOT RUN`+`FAILED`+`BLOCKED`） | **5**（5 `NOT RUN`；0 `FAILED`；0 `BLOCKED`） |
-| 是否都通过 | **否**（64/69，尚余 5） |
+| 累计 `PASS` | **65** |
+| 尚未通过（`NOT RUN`+`FAILED`+`BLOCKED`） | **4**（4 `NOT RUN`；0 `FAILED`；0 `BLOCKED`） |
+| 是否都通过 | **否**（65/69，尚余 4） |
 
-累计 `PASS`：001–016、018–061（不含017）、065–067、069。证据均包含干净隔离库 Admin Web `UI`；要求文件现实的行另有`FS`。
-当前仅017、062、063、064、068保持`NOT RUN`。
+累计 `PASS`：001–016、018–063（不含017）、065–067、069。证据均包含干净隔离库 Admin Web `UI`；要求文件现实的行另有`FS`。
+当前仅017、062、064、068保持`NOT RUN`。
 
 当前资格失败证据：`UAT-063`在`UAT-20260823-024825-f6b9eded6`已证明`UAT-068`年份与外部评分恢复修复生效，但又因新登记的`UAT-069`未达到关闭标准：评分 Resolution 更新后自动 Aftercare 及时执行，Planner/Capability 却以旧 Care Basis 写回 Assessment。行仍保持`NOT RUN`，等待包含`UAT-069`修复的新 Canary 重验。`UAT-060`已在HEAD `3397c88f5`重建的干净Canary上用同值评分来源切换及成功Package证人关闭；其余未关闭行尚未形成PASS结论。
 
@@ -497,7 +497,7 @@
 - UI证据：`admin-web-evidence/uat-020-final-subtitle-normalized-pass.png`（位于新Canary隔离证据目录）。旧失败截图继续保留为修复前证据。
 - FS证据：2026-08-23只读枚举及`uat-020-fs-evidence.json`，`SiblingRootCount=1`、`PartialCount=0`，字幕basename精确为`老笠 (2016).zh-CN.srt`。
 
-### UAT-063（`IN PROGRESS`）
+### UAT-063（`PASS`）
 
 - 关闭命题：Aftercare 使用与 Libra 相同的 `perception.rating.resolve@1` Identity Evidence；上架后评分从无到有或变档时重新评估。
 - Canary：失败证人 `UAT-20260823-014246-3397c88f5`；重验 Canary 待 HEAD `a34dbde1f9` 安全重建。
@@ -507,7 +507,7 @@
 - 禁止动作：修改 SQLite 业务状态、直接扫描 Perception Record 代替产品入口、回读 Libra Subject 作为 Aftercare 输入、手工修改媒体文件、触碰 NAS/生产、在转码/ISO 活动时重启。
 - 通过标准：Subject 与 Shelf Entry Resolution 都为 `found` 且命中同一 Douban Record/星级；技术尾缀不导致 `not_found`；评分变化后无需等待 24 小时即形成新的 conformance Assessment；已符合档位的 HEVC 证人保持 healthy，不重开 Libra Run。
 - 证据要求：`UI`；`FACT`只作旁证。
-- 当前结论：`UAT-20260823-024825-f6b9eded6`中年份与豆瓣 Resolution 已恢复；直接评分清除后页面立即回到`3 星 · 豆瓣`，自动 Aftercare 也在约 20 ms 后成功执行。但新 Assessment 仍写回旧 Care Basis，页面正确显示`尚未检查`。根因独立登记并修复为`UAT-069`，当前等待安全重建后重验，不得提前写`PASS`。
+- 关闭结论：`PASS`。`UAT-069`修复后，页面提交4星直接评分且不点健康检查，03:44:27自动形成三维健康Assessment；清除后页面恢复`3 星 · 豆瓣`，03:45:06再次自动形成三维健康Assessment。Subject与Shelf Entry当前Resolution均为`found`，共同命中`perception-record-5628590251074f0155192bf1b1eadf8828c3258e`；没有重开Libra Run。UI证据：`admin-web-evidence/uat-063-rating-change-auto-aftercare-pass.png`。
 
 ### UAT-069（`PASS`）
 

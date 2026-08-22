@@ -16,6 +16,7 @@ Git 工作区已重组为 `E:\my_project\emby_third_party-helix` / `main`；本�
 `UAT-069`：评分 Resolution 更新后 Aftercare Work 及时成功，Planner/Capability 却写回旧 Care Basis。
 组合根已改为由 Capability、Coordinator、Planner 共享同一晚绑定评分 Reader，定向 Aftercare 合同 15/15 PASS；
 安全重启后页面与 FACT 已确认恢复、4 星直接评分、清除回豆瓣三代新 Basis，`UAT-069` 已关闭。
+同一现场继续确认评分变化无需手动健康检查即可自动形成新 Assessment，Subject 与 Shelf Entry 命中同一 Douban Record；`UAT-063` 已关闭。
 
 ## 0. Clean Canary scorecard — UAT-20260822-141950-0c27c8cf6
 
