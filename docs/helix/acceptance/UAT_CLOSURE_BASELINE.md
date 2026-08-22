@@ -105,7 +105,7 @@
 | UAT-046 | ISO Remux 抽出 m2ts 后跳过无法 copy 的 `pcm_bluray`，不整盘重抽 | `UI` `FS` | W3 | `CODE_DONE_UNQUALIFIED` | `NOT RUN` |
 | UAT-047 | ISO 同语言编号字幕最终名可区分，验收不再 `TARGET_COLLISION` | `UI` `FS` | W0 | `CLOSED` | `PASS` UAT-20260822-141950-0c27c8cf6 UI倩女幽魂2已为当前收藏；FS 56条zh-CN字幕名全部唯一，含未编号与.1-.55，无hash/(0)补丁 |
 | UAT-048 | 同根终态目录的源残留不再把 Off-load Settlement 打成 `UNKNOWN_MEMBER` | `UI` `FS` | W0 | `CLOSED` | `PASS` UAT-20260822-141950-0c27c8cf6 UI 8.3 GB BDMV养蜂人已为当前收藏且健康；FS主视频存在、大小匹配、目标无BDMV/CERTIFICATE残留 |
-| UAT-049 | 盘整理完成后原 `BDMV`/`CERTIFICATE` 整棵树从收藏目录消失 | `UI` `FS` | W3 | `CODE_DONE_UNQUALIFIED` | `NOT RUN` |
+| UAT-049 | 盘整理完成后原 `BDMV`/`CERTIFICATE` 整棵树从收藏目录消失 | `UI` `FS` | W3 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260822-141950-0c27c8cf6 UI 8.3 GB BDMV养蜂人已为当前收藏；FS两个养蜂人根中BDMV/CERTIFICATE为0、正式MKV为2 |
 | UAT-050 | 当前媒体筛选走后端 Projection Query，不在前端筛当前页 | `UI` | W1 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260822-141950-0c27c8cf6 UI 当前媒体筛选芯片与目标收藏架 |
 | UAT-051 | 整理动作展示分步施工、分步进度、用户操作与加急；完成区只读同一套动作 | `UI` | W1 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260822-141950-0c27c8cf6 UI 分步动作/进度/加急列 |
 | UAT-052 | 我的收藏一级按架（含「全部」），详情展示占用空间与主视频规格 | `UI` | W1 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260822-141950-0c27c8cf6 UI「全部 17」/「Movie Canary 17」独立切换；第八个嫌疑人详情为占用 1.9 GB、主视频 1.9 GB · MP4、有海报/有 NFO；倩女幽魂2详情为占用 9.3 GB、主视频 9.3 GB · MKV、有海报/有 NFO；Inventory无videoStreams时页面未编造编码/清晰度 |
@@ -132,11 +132,11 @@
 | 口径 | 数量 |
 | --- | --- |
 | 总行 | 65 |
-| 本轮 `PASS` | **27** |
-| 本轮未通过（`NOT RUN`+`FAILED`+`BLOCKED`） | **38**（全部为 `NOT RUN`；0 `FAILED`；0 `BLOCKED`） |
-| 是否都通过 | **否**（27/65，未通过 38） |
+| 本轮 `PASS` | **28** |
+| 本轮未通过（`NOT RUN`+`FAILED`+`BLOCKED`） | **37**（全部为 `NOT RUN`；0 `FAILED`；0 `BLOCKED`） |
+| 是否都通过 | **否**（28/65，未通过 37） |
 
-本轮 `PASS`：001、002、005、006、007、008、012、013、015、016、018、030、032、038、047、048、050、051、052、053、054、055、056、057、058、061、065。证据均包含本隔离库 Admin Web `UI`；要求文件现实的行另有`FS`。W3 转码/ISO/BDMV 上架、W5 Discard 重新入库、W6 退出收藏/注销在本坐席未跑完，保持 `NOT RUN`。
+本轮 `PASS`：001、002、005、006、007、008、012、013、015、016、018、030、032、038、047、048、049、050、051、052、053、054、055、056、057、058、061、065。证据均包含本隔离库 Admin Web `UI`；要求文件现实的行另有`FS`。W5 Discard 重新入库、W6 退出收藏/注销在本坐席未跑完，保持 `NOT RUN`。
 
 `UAT-005` 剩余动作合同并入 `UAT-051` 后仍保留本行，用四桶状态在新 Canary 上资格确认，不把 005 标 `VOID`。
 
@@ -253,6 +253,21 @@
 - 关闭结论：`PASS`。修复UAT-065后恢复本卡，真实Admin Web显示8.3 GB BDMV「养蜂人」为Movie Canary当前收藏且健康；主视频`F:\canary\养蜂人 (2024) - 2160p HEVC Atmos TrueHD5.1\养蜂人 (2024).mkv`存在且大小`8932765796`与Inventory一致，目标目录`DiscTreeCount=0`，没有因旁路clip停在`UNKNOWN_MEMBER`。
 - UI证据：`admin-web-evidence/uat-048-bdmv-settlement-ondeck-after-065.png`（位于本Canary隔离证据目录）。
 - FS证据：2026-08-22只读核验`TargetExists=True`、`PrimaryExists=True`、`PrimaryLength=8932765796`、`SizeMatch=True`、`DiscTreeCount=0`。
+
+### UAT-049（`PASS`）
+
+- 关闭命题：盘整理完成后原`BDMV`/`CERTIFICATE`整棵树从收藏目录消失。
+- Canary：`UAT-20260822-141950-0c27c8cf6`。
+- 证人：Admin Web中8.3 GB BDMV「养蜂人」当前Shelf Entry；`F:\canary`下两个「养蜂人」用户可见目录。
+- 路径：我的收藏 → Movie Canary → 打开8.3 GB「养蜂人」详情确认盘产品已上架 → 只读递归核验两个养蜂人目录的BDMV/CERTIFICATE树和兄弟MKV。
+- 允许动作：页面进入、只读切换、打开/关闭详情、截图；文件系统、SQLite和日志只读旁证。
+- 禁止动作：修改评分、退出收藏、移动/删除文件、重启服务、重建Canary、修改数据库。
+- 通过标准：盘产品已是当前收藏；`F:\canary`的养蜂人范围内不存在`BDMV`或`CERTIFICATE`目录，嵌套盘根已消失；两个正式兄弟MKV仍精确存在。
+- 证据要求：`UI`、`FS`。
+- 旁证停车：Settlement、成员命名和其他电影目录不改其他行结论。
+- 关闭结论：`PASS`。真实Admin Web显示8.3 GB BDMV「养蜂人」已经是Movie Canary当前收藏且健康；`F:\canary`下有2个养蜂人用户可见根、2个正式MKV，递归`BDMV`/`CERTIFICATE`目录为0，盘树已从收藏目录消失且兄弟MKV保留。
+- UI证据：`admin-web-evidence/uat-049-bdmv-tree-removed.png`（位于本Canary隔离证据目录）。
+- FS证据：2026-08-22只读核验`BeekeeperRootCount=2`、`DiscTreeCount=0`、`MkvCount=2`、两份MKV合计`15113048136`字节。
 
 ### UAT-065（`PASS`）
 
