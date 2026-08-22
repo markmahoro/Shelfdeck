@@ -20,14 +20,62 @@ function requirementLabel(spec) {
   if (artifacts.length) parts.push('补齐 ' + artifacts.join('、'));
   return parts.length ? parts.join(' · ') : '保持原媒体并完成资料';
 }
-function actionLabel(works) {
-  const refs = works.flatMap((work) => work.events.map((event) => event.capabilityRef));
-  if (refs.some((ref) => ref.startsWith('libra.external_material.'))) return '外部获取';
-  if (refs.includes('libra.media.transcode@1')) return '视频转码';
-  if (refs.includes('libra.media.remux@1')) return '封装整理';
-  if (refs.some((ref) => ref === 'libra.product_artifact.acquire@1' || ref === 'libra.product_sidecar.render@1')) return '资料补齐';
-  if (refs.some((ref) => ['libra.product.conformance.verify@1', 'libra.product_package.publish@1'].includes(ref))) return '直接采用并验证';
-  return '尚未形成整理动作';
+function eventState(event) {
+  if (!event) return 'pending';
+  if (['succeeded'].includes(event.state) || event.result?.outcomeKind === 'succeeded') return 'done';
+  if (['failed', 'blocked', 'cancelled'].includes(event.state)) return 'blocked';
+  if (['executing', 'ready', 'pending', 'waiting_resource', 'waiting_external', 'waiting_for_resource', 'waiting_for_external'].includes(event.state)) {
+    return 'running';
+  }
+  return 'pending';
+}
+function latestEvent(works, predicate) {
+  return works.flatMap((work) => work.events).filter(predicate)
+    .sort((a, b) => (b.result?.committedAtMs || 0) - (a.result?.committedAtMs || 0))[0] || null;
+}
+function transcodeLabel(works, spec) {
+  const event = latestEvent(works, (item) => item.capabilityRef === 'libra.media.transcode@1');
+  const device = event?.result?.result?.deviceSnapshot || event?.result?.deviceSnapshot || {};
+  const deviceId = String(device.deviceId || device.deviceClass || '');
+  const gpu = /nvenc|cuda|gpu/i.test(deviceId);
+  const media = parse(spec?.spec_json)?.requirements?.mandatoryMedia || {};
+  const space = parse(spec?.spec_json)?.requirements?.space || {};
+  const parts = [gpu ? 'GPU转码' : 'CPU转码'];
+  if (media.videoCodec && media.videoCodec !== 'any') parts.push(String(media.videoCodec).toUpperCase());
+  if (media.minimumRasterClass && media.minimumRasterClass !== 'none') parts.push(media.minimumRasterClass);
+  if (space.maxSizeGiB !== null && space.maxSizeGiB !== undefined) parts.push('不超过 ' + space.maxSizeGiB + ' GiB');
+  return parts.join(' · ');
+}
+function organizingSteps(works, spec) {
+  const step = (key, label, predicate) => {
+    const event = latestEvent(works, predicate);
+    if (!event) return null;
+    return Object.freeze({
+      key, label, state: eventState(event),
+      progress: event.progress || null,
+    });
+  };
+  const refs = (prefix) => (event) => event.capabilityRef === prefix || event.capabilityRef.startsWith(prefix);
+  const planned = [
+    step('identity', '确认影片身份', refs('libra.product_identity.')),
+    step('metadata', '补齐资料', (event) => event.capabilityRef === 'libra.product_metadata.fetch@1' || event.capabilityRef === 'libra.product_metadata.commit@1'),
+    step('artwork', '补海报和 NFO', (event) => event.capabilityRef === 'libra.product_artifact.acquire@1' || event.capabilityRef === 'libra.product_sidecar.render@1'),
+    step('acquire', '外部寻源', (event) => event.capabilityRef.startsWith('libra.external_material.')),
+    step('remux', '封装整理', (event) => event.capabilityRef === 'libra.media.remux@1'),
+    (() => {
+      const event = latestEvent(works, (item) => item.capabilityRef === 'libra.media.transcode@1');
+      return event ? Object.freeze({ key: 'transcode', label: transcodeLabel(works, spec), state: eventState(event), progress: event.progress || null }) : null;
+    })(),
+    step('verify', '验证整理结果', (event) => event.capabilityRef === 'libra.product.conformance.verify@1' || event.capabilityRef === 'libra.product_media.verify@1'),
+    step('shelf', '上架到收藏架', (event) => event.capabilityRef === 'libra.product_package.publish@1' || event.capabilityRef.startsWith('arca.')),
+  ].filter(Boolean);
+  if (!planned.length) {
+    return Object.freeze([Object.freeze({ key: 'assessing', label: '正在评估整理方案', state: 'pending', progress: null })]);
+  }
+  return Object.freeze(planned);
+}
+function actionLabel(works, spec) {
+  return organizingSteps(works, spec).map((item) => item.label).join(' / ');
 }
 function organizingWorks(run, latestRun, progressByRun) {
   if (run) return progressByRun.get(run.libra_run_id) || [];
@@ -193,7 +241,8 @@ function createFormationProjectionSource(options) {
       const arcaStatus = pkg ? arcaStatuses.get(pkg.offer_id) || null : null;
       const classification = classifyFormation({ run, works, issue, recovery, arcaStatus, productPackage: pkg });
       const rating = ratings.get(subject.subject_id) || null;
-      return Object.freeze({ formationViewId: subject.subject_id, subjectId: subject.subject_id, displayIdentity, contentProfile: subject.content_profile, structureKind: subject.structure_kind, status: subject.status, classification, myRating: rating?.rating ?? null, myRatingSource: rating?.sourceKind || null, myRatingRevision: (rating?.expectedRevision || 0) > 0 ? rating.expectedRevision : null, productIdentityIssue: issue, acceptanceRecovery: recovery, arcaStatus, targetShelfId: routing?.shelf_id || null, targetShelfName: shelfNames.get(routing?.shelf_id) || null, routingState: routing?.decision || 'preparing', unresolvedReasonCode: routing?.unresolved_reason_code || null, routingPolicyMode: policy?.mode || null, routingPolicyRevision: routing?.routing_policy_revision == null ? null : Number(routing.routing_policy_revision), routingDecisionRevision: routing ? Number(routing.decision_revision) : null, routingDecisionDigest: routing?.decision_digest || null, routingDecisionHeadRevision: head ? Number(head.head_revision) : null, routingDecisionHeadDigest: head?.head_digest || null, acceptanceSpecId: spec?.acceptance_spec_id || null, acceptanceSpecRevision: spec ? Number(spec.spec_revision) : null, acceptanceSpecDigest: spec?.spec_digest || null, acceptanceSpecPublishedAtMs: spec ? Number(spec.published_at_ms) : null, primaryMaterialCount: bindings.filter((item) => item.authority_kind === 'primary_control').length, addedAtMs: decisions.length ? Number(decisions.at(-1).decided_at_ms) : Number(subject.updated_at_ms), organizingRequirement: requirementLabel(spec), organizingAction: actionLabel(actionWorks), nextAction: nextAction(works, classification, issue, run?.state, recovery, arcaStatus, pkg), currentRun: run ? Object.freeze({ libraRunId: run.libra_run_id, state: run.state, stateRevision: Number(run.state_revision), stateDigest: run.state_digest, priorityClass: run.priority_class, packageRevisionHead: Number(run.package_revision_head), currentIdentityRevision: subject.current_identity_revision === null ? null : Number(subject.current_identity_revision) }) : null, handoffB: pkg ? Object.freeze({ onDeckPackageId: pkg.on_deck_package_id, offerId: pkg.offer_id, packageRevision: Number(pkg.package_revision), packageDigest: pkg.package_digest, state: pkg.state, publishedAtMs: Number(pkg.published_at_ms) }) : null, completedAtMs: arcaStatus?.stage === 'completed' ? arcaStatus.completedAtMs : null });
+      const steps = organizingSteps(actionWorks, spec);
+      return Object.freeze({ formationViewId: subject.subject_id, subjectId: subject.subject_id, displayIdentity, contentProfile: subject.content_profile, structureKind: subject.structure_kind, status: subject.status, classification, myRating: rating?.rating ?? null, myRatingSource: rating?.sourceKind || null, myRatingRevision: (rating?.expectedRevision || 0) > 0 ? rating.expectedRevision : null, productIdentityIssue: issue, acceptanceRecovery: recovery, arcaStatus, targetShelfId: routing?.shelf_id || null, targetShelfName: shelfNames.get(routing?.shelf_id) || null, routingState: routing?.decision || 'preparing', unresolvedReasonCode: routing?.unresolved_reason_code || null, routingPolicyMode: policy?.mode || null, routingPolicyRevision: routing?.routing_policy_revision == null ? null : Number(routing.routing_policy_revision), routingDecisionRevision: routing ? Number(routing.decision_revision) : null, routingDecisionDigest: routing?.decision_digest || null, routingDecisionHeadRevision: head ? Number(head.head_revision) : null, routingDecisionHeadDigest: head?.head_digest || null, acceptanceSpecId: spec?.acceptance_spec_id || null, acceptanceSpecRevision: spec ? Number(spec.spec_revision) : null, acceptanceSpecDigest: spec?.spec_digest || null, acceptanceSpecPublishedAtMs: spec ? Number(spec.published_at_ms) : null, primaryMaterialCount: bindings.filter((item) => item.authority_kind === 'primary_control').length, addedAtMs: decisions.length ? Number(decisions.at(-1).decided_at_ms) : Number(subject.updated_at_ms), organizingRequirement: requirementLabel(spec), organizingAction: actionLabel(actionWorks, spec), organizingSteps: steps, nextAction: nextAction(works, classification, issue, run?.state, recovery, arcaStatus, pkg), currentRun: run ? Object.freeze({ libraRunId: run.libra_run_id, state: run.state, stateRevision: Number(run.state_revision), stateDigest: run.state_digest, priorityClass: run.priority_class, packageRevisionHead: Number(run.package_revision_head), currentIdentityRevision: subject.current_identity_revision === null ? null : Number(subject.current_identity_revision) }) : null, handoffB: pkg ? Object.freeze({ onDeckPackageId: pkg.on_deck_package_id, offerId: pkg.offer_id, packageRevision: Number(pkg.package_revision), packageDigest: pkg.package_digest, state: pkg.state, publishedAtMs: Number(pkg.published_at_ms) }) : null, completedAtMs: arcaStatus?.stage === 'completed' ? arcaStatus.completedAtMs : null });
     });
   }
   function scan(visitor) {
@@ -237,7 +286,8 @@ function buildFormationProjectionRow(item, nowMs) {
     rating: [item.myRating, item.myRatingSource, item.myRatingRevision], targetShelf: [item.targetShelfId, item.targetShelfName],
     routing: [item.routingState, item.unresolvedReasonCode, item.routingPolicyMode, item.routingPolicyRevision,
       item.routingDecisionRevision, item.routingDecisionDigest, item.routingDecisionHeadRevision, item.routingDecisionHeadDigest],
-    primaryMaterialCount: item.primaryMaterialCount, requirement: item.organizingRequirement, action: item.organizingAction,
+    primaryMaterialCount: item.primaryMaterialCount, requirement: item.organizingRequirement,
+    action: item.organizingSteps || item.organizingAction,
     addedAtMs: item.addedAtMs, nextAction: item.nextAction, identityIssueDigest: identityDigest,
     acceptanceSpec: [item.acceptanceSpecId, item.acceptanceSpecRevision, item.acceptanceSpecDigest],
     run: item.currentRun, package: item.handoffB, acceptanceRecovery:item.acceptanceRecovery,
@@ -253,7 +303,9 @@ function buildFormationProjectionRow(item, nowMs) {
     routing_policy_revision: item.routingPolicyRevision, routing_decision_revision: item.routingDecisionRevision,
     routing_decision_digest: item.routingDecisionDigest, routing_decision_head_revision: item.routingDecisionHeadRevision,
     routing_decision_head_digest: item.routingDecisionHeadDigest, primary_material_count: item.primaryMaterialCount,
-    organizing_requirement: item.organizingRequirement, organizing_action: item.organizingAction, added_at_ms: item.addedAtMs,
+    organizing_requirement: item.organizingRequirement,
+    organizing_action: canonicalJson(item.organizingSteps || [{ key: 'assessing', label: item.organizingAction || '正在评估整理方案', state: 'pending', progress: null }]),
+    added_at_ms: item.addedAtMs,
     next_action_label: item.nextAction.label, next_action_state: ['waiting_resource','waiting_external'].includes(item.nextAction.state)
       ? item.nextAction.state.replace('waiting_', 'waiting_for_') : item.nextAction.state,
     progress_mode: progress?.mode || null, progress_current_value: progress?.currentValue ?? null,
@@ -299,7 +351,17 @@ function projectionItem(row) {
     routingDecisionHeadDigest: row.routing_decision_head_digest, acceptanceSpecId: row.current_acceptance_spec_id,
     acceptanceSpecRevision: row.current_acceptance_spec_revision === null ? null : Number(row.current_acceptance_spec_revision),
     acceptanceSpecDigest: row.current_acceptance_spec_digest, primaryMaterialCount: Number(row.primary_material_count),
-    addedAtMs: Number(row.added_at_ms), organizingRequirement: row.organizing_requirement, organizingAction: row.organizing_action,
+    addedAtMs: Number(row.added_at_ms), organizingRequirement: row.organizing_requirement,
+    organizingAction: (function () {
+      const steps = parse(row.organizing_action);
+      return Array.isArray(steps) ? steps.map((item) => item.label).join(' / ') : row.organizing_action;
+    }()),
+    organizingSteps: (function () {
+      const steps = parse(row.organizing_action);
+      return Array.isArray(steps) ? Object.freeze(steps.map((item) => Object.freeze(item))) : Object.freeze([{
+        key: 'legacy', label: row.organizing_action || '正在评估整理方案', state: 'pending', progress: null,
+      }]);
+    }()),
     nextAction: Object.freeze({ label: row.next_action_label, state: row.next_action_state, progress: row.progress_mode ? Object.freeze({
       mode: row.progress_mode, currentValue: row.progress_current_value === null ? null : Number(row.progress_current_value),
       totalValue: row.progress_total_value === null ? null : Number(row.progress_total_value), unit: row.progress_unit,
@@ -390,6 +452,7 @@ module.exports = Object.freeze({
   hasBlockingExecution,
   hasOpenExecution,
   nextAction,
+  organizingSteps,
   organizingWorks,
   projectionItem,
 });

@@ -17,7 +17,9 @@ const {
   extractProductIdentityIssue,
   frozenRunLabel,
   nextAction,
+  organizingSteps,
   organizingWorks,
+  projectionItem,
 } = require('../src/helix/domains/libra/application/formation-query');
 const { createFormationProjectionStore } = require('../src/helix/domains/libra/persistence/formation-projection-store');
 const { createFormationProjectionHost } = require('../src/helix/domains/libra/application/formation-projection-host');
@@ -33,7 +35,8 @@ function item(index,classification='pending',attention=false){return Object.free
   targetShelfId:'shelf-1',targetShelfName:'movie test',routingState:'resolved',unresolvedReasonCode:null,routingPolicyMode:'direct',routingPolicyRevision:1,
   routingDecisionRevision:1,routingDecisionDigest:hex(100+index),routingDecisionHeadRevision:1,routingDecisionHeadDigest:hex(200+index),
   acceptanceSpecId:`spec-${index}`,acceptanceSpecRevision:1,acceptanceSpecDigest:hex(300+index),acceptanceSpecPublishedAtMs:1000+index,
-  primaryMaterialCount:1,addedAtMs:1000+index,organizingRequirement:'保持原媒体并完成资料',organizingAction:'直接采用并验证',
+  primaryMaterialCount:1,addedAtMs:1000+index,organizingRequirement:'保持原媒体并完成资料',organizingAction:'验证整理结果',
+  organizingSteps:Object.freeze([{key:'verify',label:'验证整理结果',state:'done',progress:null}]),
   nextAction:Object.freeze({label:classification==='completed'?'已进入收藏架':'继续整理媒体',state:classification==='completed'?'completed':'pending',progress:null}),
   currentRun:Object.freeze({libraRunId:`run-${index}`,state:'active',stateRevision:1,stateDigest:hex(400+index),priorityClass:'normal',packageRevisionHead:classification==='completed'?1:0,currentIdentityRevision:1}),
   handoffB:classification==='completed'?Object.freeze({onDeckPackageId:`package-${index}`,offerId:`offer-${index}`,packageRevision:1,packageDigest:hex(500+index),state:'published',publishedAtMs:2000+index}):null,
@@ -102,20 +105,50 @@ test('Formation gives a frozen Run precedence over an earlier Product Identity i
 });
 
 test('completed-run remux work becomes the organizing action instead of an empty placeholder',()=>{
-  const remuxWorks=[{state:'succeeded',events:[{capabilityRef:'libra.media.remux@1'}]}];
-  const transcodeWorks=[{state:'succeeded',events:[{capabilityRef:'libra.media.transcode@1'}]}];
-  const acquireWorks=[{state:'succeeded',events:[{capabilityRef:'libra.external_material.candidate.select@1'}]}];
-  const adoptWorks=[{state:'succeeded',events:[{capabilityRef:'libra.product.conformance.verify@1'}]}];
+  const remuxWorks=[{state:'succeeded',events:[{capabilityRef:'libra.media.remux@1',state:'succeeded'}]}];
+  const transcodeWorks=[{state:'succeeded',events:[{capabilityRef:'libra.media.transcode@1',state:'succeeded'}]}];
+  const acquireWorks=[{state:'succeeded',events:[{capabilityRef:'libra.external_material.candidate.select@1',state:'succeeded'}]}];
+  const adoptWorks=[{state:'succeeded',events:[{capabilityRef:'libra.product.conformance.verify@1',state:'succeeded'}]}];
   assert.equal(actionLabel(remuxWorks),'封装整理');
-  assert.equal(actionLabel(transcodeWorks),'视频转码');
-  assert.equal(actionLabel(acquireWorks),'外部获取');
-  assert.equal(actionLabel(adoptWorks),'直接采用并验证');
-  assert.equal(actionLabel([]),'尚未形成整理动作');
+  assert.equal(actionLabel(transcodeWorks),'CPU转码');
+  assert.equal(actionLabel(acquireWorks),'外部寻源');
+  assert.equal(actionLabel(adoptWorks),'验证整理结果');
+  assert.equal(actionLabel([]),'正在评估整理方案');
   const completedRun={libra_run_id:'run-done',state:'completed'};
   const liveRun={libra_run_id:'run-live',state:'active'};
   const progressByRun=new Map([['run-done',remuxWorks],['run-live',[]]]);
   assert.equal(actionLabel(organizingWorks(null,completedRun,progressByRun)),'封装整理');
-  assert.equal(actionLabel(organizingWorks(liveRun,completedRun,progressByRun)),'尚未形成整理动作');
+  assert.equal(actionLabel(organizingWorks(liveRun,completedRun,progressByRun)),'正在评估整理方案');
+});
+
+test('Formation organizingSteps use closed user language and persist GPU transcode intent',()=>{
+  const gpuWorks=[{state:'executing',events:[{
+    capabilityRef:'libra.media.transcode@1',state:'executing',
+    progress:{mode:'determinate',currentValue:34,totalValue:100,unit:'percent',rate:null,etaMs:null,bucket:'transcode'},
+    result:{result:{deviceSnapshot:{deviceId:'nvenc-0'}}},
+  }]}];
+  const spec={spec_json:JSON.stringify({requirements:{mandatoryMedia:{videoCodec:'hevc',minimumRasterClass:'4k'},space:{maxSizeGiB:20}}})};
+  const steps=organizingSteps(gpuWorks,spec);
+  assert.equal(steps.length,1);
+  assert.equal(steps[0].key,'transcode');
+  assert.equal(steps[0].label,'GPU转码 · HEVC · 4k · 不超过 20 GiB');
+  assert.equal(steps[0].state,'running');
+  assert.equal(steps[0].progress.currentValue,34);
+  assert.deepEqual(organizingSteps([]),[{key:'assessing',label:'正在评估整理方案',state:'pending',progress:null}]);
+  const artworkWorks=[{state:'succeeded',events:[{capabilityRef:'libra.product_sidecar.render@1',state:'succeeded'}]}];
+  assert.equal(organizingSteps(artworkWorks)[0].label,'补海报和 NFO');
+  const row=buildFormationProjectionRow({...item(1,'in_progress'),organizingAction:actionLabel(gpuWorks,spec),organizingSteps:steps},4000);
+  const persisted=JSON.parse(row.organizing_action);
+  assert.equal(persisted[0].key,'transcode');
+  assert.equal(persisted[0].label,'GPU转码 · HEVC · 4k · 不超过 20 GiB');
+  const projected=projectionItem(row);
+  assert.equal(projected.organizingSteps[0].label,'GPU转码 · HEVC · 4k · 不超过 20 GiB');
+  assert.equal(projected.organizingSteps[0].progress.currentValue,34);
+  assert.equal(projected.organizingAction,'GPU转码 · HEVC · 4k · 不超过 20 GiB');
+  const legacy=projectionItem({...row,organizing_action:'封装整理'});
+  assert.equal(legacy.organizingAction,'封装整理');
+  assert.equal(legacy.organizingSteps[0].key,'legacy');
+  assert.equal(legacy.organizingSteps[0].label,'封装整理');
 });
 
 test('Formation four-bucket classification requires Arca commit for completion and current open execution for progress',()=>{
@@ -166,7 +199,8 @@ test('exact Formation wake drains more than one bounded batch without waiting fo
       routingState:'preparing',unresolvedReasonCode:null,routingPolicyMode:null,routingPolicyRevision:null,routingDecisionRevision:null,
       routingDecisionDigest:null,routingDecisionHeadRevision:null,routingDecisionHeadDigest:null,acceptanceSpecId:null,
       acceptanceSpecRevision:null,acceptanceSpecDigest:null,primaryMaterialCount:0,
-      addedAtMs:0,organizingRequirement:'保持原媒体并完成资料',organizingAction:'尚未形成整理动作',
+      addedAtMs:0,organizingRequirement:'保持原媒体并完成资料',organizingAction:'正在评估整理方案',
+      organizingSteps:[{key:'assessing',label:'正在评估整理方案',state:'pending',progress:null}],
       nextAction:{label:'等待处理',state:'pending',progress:null},currentRun:null,handoffB:null,acceptanceRecovery:null,arcaStatus:null,completedAtMs:null,
     }));},
   };

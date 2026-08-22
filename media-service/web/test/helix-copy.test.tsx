@@ -33,6 +33,7 @@ function completedSubject(): FormationSubject {
     addedAtMs: 1,
     organizingRequirement: 'HEVC · 4k',
     organizingAction: '封装整理',
+    organizingSteps: [{ key: 'remux', label: '封装整理', state: 'done', progress: null }],
     nextAction: { label: '已进入收藏架', state: 'completed', progress: null },
     routingState: 'resolved',
     routingPolicyMode: 'direct',
@@ -64,9 +65,10 @@ describe('Helix primary copy and workbench structure', () => {
       nextCursor: null,
       summary: { activePersonCount: 0, mergedPersonCount: 0, openRegistrationCandidateCount: 0, openMergeCandidateCount: 0 },
     });
+    vi.spyOn(helixAdminApi, 'listPeopleRegistrationCandidates').mockResolvedValue({ items: [] });
     render(<MemoryRouter initialEntries={['/people']}><App /></MemoryRouter>);
-    expect(await screen.findByRole('heading', { level: 1, name: '人物名录' })).toBeInTheDocument();
-    expect(screen.getByText(/只读查看已登记人物/)).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { level: 1, name: '人物' })).toBeInTheDocument();
+    expect(screen.getByText(/名录是已经登记的人，不是某部电影的演员表/)).toBeInTheDocument();
     expect(screen.queryByText('维护人物身份，而不是改写媒体演职员事实')).not.toBeInTheDocument();
   });
 
@@ -111,8 +113,47 @@ describe('Helix primary copy and workbench structure', () => {
     expect(await screen.findByText('封装整理')).toBeInTheDocument();
     expect(screen.queryByText('尚未形成整理动作')).not.toBeInTheDocument();
     expect(screen.queryByRole('columnheader', { name: '下一步' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('columnheader', { name: '分步进度' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('columnheader', { name: '用户操作' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('columnheader', { name: '加急' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '放弃本次整理' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '加快整理' })).not.toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: '整理动作' })).toBeInTheDocument();
+  });
+
+  it('renders current media as stacked steps, progress, user actions, and expedite', async () => {
+    const current: FormationSubject = {
+      ...completedSubject(),
+      classification: 'in_progress',
+      organizingAction: 'GPU转码 · HEVC · 4k · 不超过 20 GiB',
+      organizingSteps: [{
+        key: 'transcode',
+        label: 'GPU转码 · HEVC · 4k · 不超过 20 GiB',
+        state: 'running',
+        progress: { mode: 'determinate', currentValue: 40, totalValue: 100, unit: 'percent', rate: null, etaMs: null, bucket: 'transcode' },
+      }],
+      nextAction: { label: '继续整理媒体', state: 'running', progress: null },
+      currentRun: {
+        libraRunId: 'run-1', state: 'active', stateRevision: 1, stateDigest: 'd',
+        priorityClass: 'normal', packageRevisionHead: 0, currentIdentityRevision: 1,
+      },
+      completedAtMs: null,
+    };
+    vi.spyOn(helixAdminApi, 'listFormation').mockResolvedValue({
+      items: [current],
+      summary: { totalCount: 1, pendingCount: 0, inProgressCount: 1, attentionRequiredCount: 0, completedCount: 0 },
+      nextCursor: null,
+      projection: { status: 'ready', asOfMs: 1 },
+    });
+    vi.spyOn(helixAdminApi, 'listShelves').mockResolvedValue({ items: [] });
+    render(<MemoryRouter initialEntries={['/formation']}><App /></MemoryRouter>);
+    expect(await screen.findByRole('columnheader', { name: '整理动作' })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: '分步进度' })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: '用户操作' })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: '加急' })).toBeInTheDocument();
+    expect(screen.getByText('GPU转码 · HEVC · 4k · 不超过 20 GiB')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '加快整理' })).toBeInTheDocument();
+    expect(screen.queryByText('尚未形成整理动作')).not.toBeInTheDocument();
   });
 
   it('does not keep banned slogans on the default chrome', () => {

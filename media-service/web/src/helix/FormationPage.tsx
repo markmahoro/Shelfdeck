@@ -11,13 +11,27 @@ const classificationLabels: Record<FormationSubject['classification'], string> =
 function formatTime(value: number) {
   return value > 0 ? new Intl.DateTimeFormat('zh-CN', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value)) : '—';
 }
-function progress(item: FormationSubject) {
-  const value = item.nextAction.progress;
+type OrganizingStep = FormationSubject['organizingSteps'][number];
+function stepsOf(item: FormationSubject): OrganizingStep[] {
+  if (item.organizingSteps?.length) return item.organizingSteps;
+  return [{ key: 'legacy', label: item.organizingAction || '正在评估整理方案', state: 'pending', progress: null }];
+}
+function stepPercent(step: OrganizingStep) {
+  if (step.state === 'done') return 100;
+  const value = step.progress;
   if (!value || value.mode !== 'determinate' || !value.totalValue) return null;
   return Math.min(100, Math.round(((value.currentValue || 0) / value.totalValue) * 100));
 }
 function canChooseShelf(item: FormationSubject) {
   return item.routingState === 'unresolved' && Number.isSafeInteger(item.routingDecisionHeadRevision) && Boolean(item.routingDecisionHeadDigest);
+}
+function canExpedite(item: FormationSubject) {
+  return item.currentRun?.state === 'active' && !item.handoffB;
+}
+function userActionLabel(item: FormationSubject) {
+  if (['attention_required', 'frozen', 'suspended', 'blocked'].includes(item.nextAction.state)) return item.nextAction.label;
+  if (canChooseShelf(item)) return '等待选择目标收藏架';
+  return null;
 }
 
 type TableProps = {
@@ -31,26 +45,46 @@ type TableProps = {
   onRetryAcceptance: (item: FormationSubject) => void;
 };
 
+function OrganizingStepLabels({ item }: { item: FormationSubject }) {
+  return <ol className="organizing-steps">{stepsOf(item).map((step) => <li key={step.key} data-state={step.state}><strong>{step.label}</strong></li>)}</ol>;
+}
+
+function OrganizingStepProgress({ item }: { item: FormationSubject }) {
+  return <ol className="organizing-steps organizing-progress">{stepsOf(item).map((step) => {
+    const percent = stepPercent(step);
+    const label = `${item.displayIdentity} · ${step.label}`;
+    return <li key={step.key} data-state={step.state}>
+      {percent === null
+        ? <progress aria-label={step.progress?.mode === 'indeterminate' || step.state === 'running' ? `${label}正在进行` : `${label}尚未开始`} />
+        : <><progress max={100} value={percent} aria-label={`${label} ${percent}%`} /><small>{percent}%</small></>}
+    </li>;
+  })}</ol>;
+}
+
 function CurrentMediaTable({ items, shelves, loading, onChoose, onExpedite, onChooseIdentity, onDiscard, onRetryAcceptance }: TableProps) {
   const [targets, setTargets] = useState<Record<string, string>>({});
   const [identityIds, setIdentityIds] = useState<Record<string, string>>({});
-  return <div className="formation-table-wrap"><table className="formation-table"><thead><tr>
-    <th>媒体名称</th><th>当前状态</th><th>我的评分</th><th>目标收藏架</th><th>整理要求</th><th>整理动作</th><th>下一步</th>
+  return <div className="formation-table-wrap"><table className="formation-table formation-current-table"><thead><tr>
+    <th>媒体名称</th><th>整理动作</th><th>分步进度</th><th>用户操作</th><th>加急</th>
   </tr></thead><tbody>{items.map((item) => {
-    const percent = progress(item);
+    const reason = userActionLabel(item);
+    const expedited = item.currentRun?.priorityClass === 'expedited';
     return <tr key={item.subjectId}>
-      <td><strong>{item.displayIdentity}</strong><small>{formatTime(item.addedAtMs)}</small></td>
-      <td>{classificationLabels[item.classification]}</td>
-      <td><RatingControl targetType="subject" targetId={item.subjectId} label={item.displayIdentity} initialRating={item.myRating} initialSource={item.myRatingSource} initialRevision={item.myRatingRevision} /></td>
-      <td>{item.targetShelfId ? (item.targetShelfName || shelves.find((shelf) => shelf.shelfId === item.targetShelfId)?.name || '已选收藏架') : canChooseShelf(item) ? <div className="manual-shelf">
-        <select aria-label={`${item.displayIdentity}的目标收藏架`} value={targets[item.subjectId] || shelves[0]?.shelfId || ''} onChange={(event) => setTargets((current) => ({ ...current, [item.subjectId]: event.target.value }))}>{shelves.map((shelf) => <option key={shelf.shelfId} value={shelf.shelfId}>{shelf.name}</option>)}</select>
-        <Button type="button" disabled={loading || !shelves.length} onClick={() => onChoose(item, targets[item.subjectId] || shelves[0]?.shelfId)}>选择</Button>
-      </div> : <small>{item.routingState === 'preparing' ? '等待发布分拣策略' : '等待分拣结果'}</small>}</td>
-      <td>{item.organizingRequirement}</td>
-      <td>{item.organizingAction}</td>
       <td>
-        <strong>{item.nextAction.label}</strong>
-        {percent === null ? <>{item.nextAction.progress?.mode === 'indeterminate' && <progress aria-label={`${item.displayIdentity}正在整理`} />}</> : <><progress max={100} value={percent} aria-label={`${item.displayIdentity}整理进度 ${percent}%`} /><small>{percent}%</small></>}
+        <strong>{item.displayIdentity}</strong>
+        <small>{classificationLabels[item.classification]} · {formatTime(item.addedAtMs)}</small>
+        <small>{item.targetShelfId ? (item.targetShelfName || shelves.find((shelf) => shelf.shelfId === item.targetShelfId)?.name || '已选收藏架') : '尚未选定收藏架'}</small>
+        <small>{item.organizingRequirement}</small>
+        <RatingControl targetType="subject" targetId={item.subjectId} label={item.displayIdentity} initialRating={item.myRating} initialSource={item.myRatingSource} initialRevision={item.myRatingRevision} />
+      </td>
+      <td><OrganizingStepLabels item={item} /></td>
+      <td><OrganizingStepProgress item={item} /></td>
+      <td>
+        {reason && <strong>{reason}</strong>}
+        {canChooseShelf(item) && <div className="manual-shelf">
+          <select aria-label={`${item.displayIdentity}的目标收藏架`} value={targets[item.subjectId] || shelves[0]?.shelfId || ''} onChange={(event) => setTargets((current) => ({ ...current, [item.subjectId]: event.target.value }))}>{shelves.map((shelf) => <option key={shelf.shelfId} value={shelf.shelfId}>{shelf.name}</option>)}</select>
+          <Button type="button" disabled={loading || !shelves.length} onClick={() => onChoose(item, targets[item.subjectId] || shelves[0]?.shelfId)}>选择收藏架</Button>
+        </div>}
         {item.executorIssue && <div className="executor-issue" role="status">
           <small>整理出错，可以重试</small>
           <details><summary>详细信息</summary><small>阶段：{item.executorIssue.phase}</small><small>错误：{item.executorIssue.errorCode}</small></details>
@@ -62,20 +96,21 @@ function CurrentMediaTable({ items, shelves, loading, onChoose, onExpedite, onCh
           {item.productIdentityIssue.candidates.map((candidate) => <Button type="button" key={candidate.providerKey} disabled={loading} onClick={() => onChooseIdentity(item, candidate.providerKey)}>{candidate.displayTitle}{candidate.releaseYear ? ` (${candidate.releaseYear})` : ''}</Button>)}
         </div>}
         {item.currentRun?.state === 'frozen' && <Button type="button" disabled={loading} onClick={() => onDiscard(item)}>放弃本次整理</Button>}
-        {item.currentRun?.state === 'active' && !item.handoffB && <Button type="button" disabled={loading} onClick={() => onExpedite(item, item.currentRun?.priorityClass !== 'expedited')}>{item.currentRun.priorityClass === 'expedited' ? '取消加快' : '加快整理'}</Button>}
       </td>
+      <td>{canExpedite(item)
+        ? <div className="expedite-cell"><small>{expedited ? '已加急' : '普通'}</small><Button type="button" disabled={loading} onClick={() => onExpedite(item, !expedited)}>{expedited ? '取消加快' : '加快整理'}</Button></div>
+        : <small>—</small>}</td>
     </tr>;
   })}</tbody></table></div>;
 }
 
 function CompletedMediaTable({ items }: { items: FormationSubject[] }) {
   return <div className="formation-table-wrap"><table className="formation-table"><thead><tr>
-    <th>媒体名称</th><th>目标收藏架</th><th>整理要求</th><th>整理动作</th><th>完成时间</th>
+    <th>媒体名称</th><th>目标收藏架</th><th>整理动作</th><th>完成时间</th>
   </tr></thead><tbody>{items.map((item) => <tr key={item.subjectId}>
-    <td><strong>{item.displayIdentity}</strong></td>
+    <td><strong>{item.displayIdentity}</strong><small>{item.organizingRequirement}</small></td>
     <td>{item.targetShelfName || '—'}</td>
-    <td>{item.organizingRequirement}</td>
-    <td>{item.organizingAction}</td>
+    <td><OrganizingStepLabels item={item} /></td>
     <td>{formatTime(item.completedAtMs || 0)}</td>
   </tr>)}</tbody></table></div>;
 }

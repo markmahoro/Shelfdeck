@@ -91,7 +91,7 @@ Helix主体开发已经完成，Movie从Procurement、Libra到Arca及Shelf Dereg
 | UAT-002 | Handoff A Intake接收Subject吞吐异常偏低 | `DOMAIN_ORCHESTRATION` | `EXECUTION_SCHEDULING`、`PERFORMANCE` | Libra Intake + Foundation Work Supply接线 | 吞吐、活性 | High | 已修复并通过400 Candidate重启资格回归，待新Canary确认 |
 | UAT-003 | Libra Run在Product Identity阶段大量等待 | `BUSINESS_CONTRACT` | `EXTERNAL_INTEGRATION`、`DOMAIN_ORCHESTRATION` | Libra Product Identity + TMDB Evidence | 正确性、活性 | Critical | 修复已提交，待新Canary真实身份确认 |
 | UAT-004 | 大型Workspace媒体完整SHA-256导致无必要的全文件读取 | `BUSINESS_CONTRACT` | `PERFORMANCE`、`USER_EXPERIENCE` | Libra Workspace Material + Handoff B/Arca Inventory媒体完整性合同 | I/O、CPU、交付延迟 | High | 已修复并通过实际读取预算资格回归，待新Canary确认 |
-| UAT-005 | Libra Admin Web使用内部对象语言且不能直观表达媒体整理过程 | `USER_EXPERIENCE` | `PROJECTION_FRESHNESS` | Admin Web Formation Projection + Libra公开状态翻译 | 可理解性、可观察性 | High | 已讨论并确认页面重构方向 |
+| UAT-005 | Libra Admin Web使用内部对象语言且不能直观表达媒体整理过程 | `USER_EXPERIENCE` | `PROJECTION_FRESHNESS` | Admin Web Formation Projection + Libra公开状态翻译 | 可理解性、可观察性 | High | 代码已完成；四桶已落地，动作/进度剩余并入 UAT-051；待新 Canary 确认 |
 | UAT-006 | clean库概览仍展示固定演示数字并绕过管理会话 | `USER_EXPERIENCE` | `PROJECTION_FRESHNESS` | Overview Query Projection + Admin Web | 正确性、可信度、安全会话 | Critical | 已修复并完成真实页面复测 |
 | UAT-007 | clean库人物页展示固定人数且无正式Query接线 | `USER_EXPERIENCE` | `PROJECTION_FRESHNESS` | People Admin Query + Admin Web | 正确性、可信度、安全会话 | Critical | 已修复并完成真实页面首次打开复测 |
 | UAT-008 | Admin Web非根路径直接刷新返回404 | `USER_EXPERIENCE` | `PROJECTION_FRESHNESS` | Clean Service static adapter + Admin Web routing | 可用性、刷新恢复 | Critical | 已修复并完成七个页面直接刷新复测 |
@@ -105,7 +105,7 @@ Helix主体开发已经完成，Movie从Procurement、Libra到Arca及Shelf Dereg
 | ID | 问题 | 主分类 | 次分类 | 主要责任边界 | 影响维度 | 严重度 | 当前状态 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | UAT-050 | 媒体整理工作区当前媒体缺少可操作筛选 | `USER_EXPERIENCE` | `PROJECTION_FRESHNESS` | Formation 公开 Query + Admin Web | 可理解性、可操作性 | High | 已讨论并确认方向，待实现 |
-| UAT-051 | 整理动作是概括句，不能展示分步施工、分步进度、用户操作与加急 | `USER_EXPERIENCE` | `PROJECTION_FRESHNESS` | Formation 公开 Projection + Admin Web | 可理解性、可观察性 | High | 已讨论并确认方向，待实现 |
+| UAT-051 | 整理动作是概括句，不能展示分步施工、分步进度、用户操作与加急 | `USER_EXPERIENCE` | `PROJECTION_FRESHNESS` | Formation 公开 Projection + Admin Web | 可理解性、可观察性 | High | 已实现；待新 Canary 确认 |
 | UAT-052 | 我的收藏一级导航不是按架，详情缺少占用空间等技术指标 | `USER_EXPERIENCE` | `PROJECTION_FRESHNESS` | Arca Collection Query + Admin Web | 可理解性、可发现性 | High | 已讨论并确认方向，待实现 |
 | UAT-053 | 活动文件来源未按 SSOT 周期观察，扫描完成后页面禁止再扫 | `DOMAIN_ORCHESTRATION` | `USER_EXPERIENCE` | Procurement Field Management Owner 自动化 + Admin Web | 正确性、活性、可理解性 | Critical | 已实现；待新 Canary 确认 |
 | UAT-054 | 退出收藏主链已通，页面仍是内部安全链控制台 | `USER_EXPERIENCE` | | Off-deck Admin Web | 可理解性、可操作性 | High | 已讨论并确认方向，待实现 |
@@ -837,10 +837,15 @@ Package、Receipt、Canonical JSON等结构化事实的SHA-256与媒体字节Ide
 ### 7.8 当前处理决定
 
 - 页面重构方向已经讨论并获得用户确认；
-- 2026-08-22 用户进一步确认当前媒体筛选、分步整理动作/进度/操作/加急列及完成区动作清单，分别登记为 `UAT-050`、`UAT-051`；本项不关闭；
-- 当前仅记录到用户侧测试台账，不立即修改正在运行的Admin Web或API；
-- 具体统计边界和Projection字段在集中修复进入Design时再写入唯一SSOT及机器合同；
-- 不以纯前端字符串替换掩盖缺失的业务状态Projection。
+- 2026-08-22 用户进一步确认当前媒体筛选、分步整理动作/进度/操作/加急列及完成区动作清单，分别登记为 `UAT-050`、`UAT-051`；
+- 2026-08-22 实现：四桶 Classification 与用户语言工作区已在 Formation 公开 Projection / Admin Web 落地；剩余「概括句整理动作」并入 `UAT-051` 以 `organizingSteps[]` 收口。本项代码已完成，不宣称用户验收或 Canary 通过。
+
+证据：
+
+- `media-service/src/helix/domains/libra/application/formation-query.js`
+- `media-service/web/src/helix/FormationPage.tsx`
+- `media-service/test/helix-formation-projection.test.js`
+- `docs/helix/USER_ACCEPTANCE_TEST_ISSUE_LOG.md` §48
 
 ## 8. UAT-011：Handoff B 在同根 Shelf Target 前永久等待
 
@@ -1975,7 +1980,18 @@ stderr 为 `CLEAN_ARCA_TARGET_OCCUPIED` 与 `CLEAN_ARCA_SETTLEMENT_UNKNOWN_MEMBE
 
 验收证据：Remux、GPU/CPU 转码、补海报、外部寻源、直接采用、完成态各一类样本的步骤清单与后端正式事实一致；进行中每步进度与 Event Progress 一致且不伪造百分比；操作列与加急列互不混放。
 
-当前处理决定：2026-08-22 用户确认该列结构。只登记，不立即改代码。本项细化 `UAT-005` 的动作/进度合同，不关闭 `UAT-005`。
+当前处理决定：2026-08-22 用户确认该列结构。2026-08-22 代码已实现。Formation 公开 Projection 将 `organizing_action` TEXT 存为 `organizingSteps[]` JSON（不改 P2 表合同）：闭集用户步骤含确认影片身份、补齐资料、补海报和 NFO、外部寻源、封装整理、CPU/GPU转码（编码/清晰度/体积）、验证整理结果、上架到收藏架；空计划写「正在评估整理方案」。完成态读已完成 Run 历史 Work。当前表列为整理动作 / 分步进度 / 用户操作 / 加急，步骤在单元格内堆叠；完成区只读同一套动作，无「下一步」和进行中按钮。UAT-005 剩余动作合同并入本项后关闭。本条不宣称 Canary 或生产通过。
+
+证据：
+
+- `media-service/src/helix/domains/libra/application/formation-query.js`
+- `media-service/web/src/helix/FormationPage.tsx`
+- `media-service/web/src/helix/api.ts`
+- `media-service/web/src/helix/helix.css`
+- `media-service/test/helix-formation-projection.test.js`
+- `media-service/test/admin-web-contract.test.js`
+- `media-service/web/test/helix-copy.test.tsx`
+- Admin Web production build `npm run build:web` PASS
 
 ## 49. UAT-052：我的收藏一级导航不是按架，详情缺少占用空间等技术指标
 

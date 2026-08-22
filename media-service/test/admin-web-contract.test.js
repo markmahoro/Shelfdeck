@@ -76,6 +76,12 @@ test('Media organization workspace uses user-facing stages after Procurement han
   assert.match(formation, /待整理/);
   assert.match(formation, /需要处理/);
   assert.match(page, /已完成整理/);
+  assert.match(page, /整理动作/);
+  assert.match(page, /分步进度/);
+  assert.match(page, /用户操作/);
+  assert.match(page, />加急</);
+  assert.match(page, /organizingSteps/);
+  assert.doesNotMatch(page, /尚未形成整理动作/);
   assert.doesNotMatch(formation, /Subject|Routing|Spec|Run|Work|Event|判断开采资格|准备候选包/);
 });
 

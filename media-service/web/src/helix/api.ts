@@ -175,6 +175,12 @@ export type FormationSubject = {
   addedAtMs: number;
   organizingRequirement: string;
   organizingAction: string;
+  organizingSteps: Array<{
+    key: string;
+    label: string;
+    state: 'pending' | 'running' | 'done' | 'blocked';
+    progress: null | { mode:'determinate'|'indeterminate'; currentValue:number|null; totalValue:number|null; unit:string|null; rate:number|null; etaMs:number|null; bucket:string };
+  }>;
   nextAction: { label:string; state:string; progress:null | { mode:'determinate'|'indeterminate'; currentValue:number|null; totalValue:number|null; unit:string|null; rate:number|null; etaMs:number|null; bucket:string } };
   routingState: 'preparing' | 'unresolved' | 'resolved';
   routingPolicyMode: 'direct' | 'sorting' | null;

@@ -1,6 +1,6 @@
 # Admin Web 用户体验问题台账
 
-状态：`ADMIN WEB UX OVERHAUL IMPLEMENTED / UX-004/011 AND UAT-053/055/056 IMPLEMENTED / UAT-005 AND UAT-050–052,054,057–058 REMAIN OPEN`
+状态：`ADMIN WEB UX OVERHAUL IMPLEMENTED / UX-004/009/010/011/016 AND UAT-005/051/053/055/056 IMPLEMENTED / UAT-050,052,054,057–058 REMAIN OPEN`
 
 建立日期：2026-08-22
 
@@ -40,14 +40,14 @@
 | UX-006 | 我的收藏与健康详情使用 Shelf Entry / Deck / Evidence 内部口径 | `COPY_INTERNAL` | 我的收藏 | High | OPEN |
 | UX-007 | 退出收藏把 Policy AST、Case、Reservation、原始 ID 直接铺开 | `COPY_INTERNAL` | 退出收藏 | Critical | OPEN |
 | UX-008 | 设置页 Provider / Landing / revision / Event 术语未翻译 | `COPY_INTERNAL` | 系统设置 | Medium | OPEN |
-| UX-009 | 已完成整理仍显示「尚未形成整理动作」 | `COPY_CONFLICT` | 媒体整理工作区 | Critical | OPEN |
-| UX-010 | 已完成行复用「下一步动作」列和进行中操作控件 | `COPY_CONFLICT` | 媒体整理工作区 | High | OPEN |
+| UX-009 | 已完成整理仍显示「尚未形成整理动作」 | `COPY_CONFLICT` | 媒体整理工作区 | Critical | 已实现 |
+| UX-010 | 已完成行复用「下一步动作」列和进行中操作控件 | `COPY_CONFLICT` | 媒体整理工作区 | High | 已实现 |
 | UX-011 | 人物页声称维护身份，实际只读且无操作 | `COPY_CONFLICT` | 人物 | High | 已实现 |
 | UX-012 | 设置页承诺「空间、资源与安全」，实际只有连接和评分日志 | `COPY_CONFLICT` | 系统设置 | Medium | OPEN |
 | UX-013 | 侧栏固定「正常运行」，与真实健康无关 | `COPY_CONFLICT` | 全站导航 | Medium | OPEN |
 | UX-014 | 评分日志仍指引用户去已更名的「上架进度」 | `COPY_CONFLICT` | 系统设置 | Low | OPEN |
 | UX-015 | 退出收藏页卡片/行/危险阶段无样式，JSON 规则编辑器直出 | `LAYOUT` | 退出收藏 | Critical | OPEN |
-| UX-016 | 媒体整理「当前媒体」九列表格未用尽横轴且内部横向溢出 | `LAYOUT` | 媒体整理工作区 | High | OPEN |
+| UX-016 | 媒体整理「当前媒体」九列表格未用尽横轴且内部横向溢出 | `LAYOUT` | 媒体整理工作区 | High | 已实现 |
 | UX-017 | 四项整理统计塞进三列 `source-facts` 栅格 | `LAYOUT` | 媒体整理工作区 | Medium | OPEN |
 | UX-018 | 收藏架注销确认框没有对话框样式 | `LAYOUT` | 收藏架 | High | OPEN |
 | UX-019 | 收藏详情「退出收藏」区域与 `sr-only` 缺少样式 | `LAYOUT` | 我的收藏 / 整理 | Medium | OPEN |
@@ -190,9 +190,13 @@
 
 用户看到的是：这部已经在收藏架上，动作却是「尚未形成」。完成区应写实际做过的事。用户 2026-08-22 确认不再用一句概括，而用步骤清单（含「怎么转」），见 `UAT-051`。这是展示翻译缺陷，不是业务事实缺失；修复应落在 Formation 公开 Projection 的完成态动作，而不是让前端猜。
 
+2026-08-22 实现：完成区读已完成 Run 的 `organizingSteps[]`，空计划写「正在评估整理方案」，禁止「尚未形成整理动作」。证据见 `UAT-051` 与 `media-service/web/src/helix/FormationPage.tsx`。本条随 UAT-051 关闭，不宣称 Canary 通过。
+
 ### UX-010 完成区仍使用「下一步动作」和进行中控件
 
 `nextAction` 在 `classification === 'completed'` 时为 `已进入收藏架`，列名却仍是「下一步动作」，单元格还可能渲染评分、选架、加快、放弃。完成历史应是只读结果：完成时间、做了什么、进了哪座架。进行中列名和按钮不应出现在完成区。用户 2026-08-22 确认当前表拆成整理动作 / 分步进度条 / 用户操作 / 加急四列，见 `UAT-051`；当前媒体筛选见 `UAT-050`。
+
+2026-08-22 实现：完成区只读整理动作、目标架与完成时间；加快/放弃/选架留在当前表的用户操作与加急列。证据见 `UAT-051`。本条随 UAT-051 关闭，不宣称 Canary 通过。
 
 ### UX-011 人物页能力声明与页面事实冲突
 
@@ -245,6 +249,8 @@
 - 真正要看的「整理动作 / 下一步」被挤到表外，需要左右拖。
 
 宽屏浪费空白，窄于 1320 的内容区又滚动。当前媒体应改成「主列用尽可用宽度、次要列可收起」的工作台：片名+状态占满左侧，动作固定在右侧，评分/要求/时间进入次级或详情，而不是九列强制等宽。
+
+2026-08-22 实现：当前表改为媒体名称 + 整理动作 / 分步进度 / 用户操作 / 加急；步骤在单元格内纵向堆叠，评分/架/要求收入名称列，工作区 `max-width: none`。证据见 `UAT-051` 与 `media-service/web/src/helix/helix.css`。本条随 UAT-051 关闭，不宣称 Canary 通过。
 
 ### UX-017 四项统计放进三列栅格
 
@@ -391,4 +397,4 @@ Formation 已有 durable `libra_formation_projections`，这是正确方向。�
 4. 页面 Projection（UX-026～030）：收藏墙、来源登记簿、概览、退出工作台；禁止前端 N+1。
 5. 美学收口（UX-032）：在前四项之后做，避免先换皮肤后改信息架构。
 
-与已有 UAT 的关系：`UAT-005` 仍覆盖 Formation 信息架构；本文 UX-009/010/016 是其未收口的用户可见残留。其它条目不是 UAT 回归失败，而是全产品入口的独立 UX 债。
+与已有 UAT 的关系：`UAT-005` 与 `UAT-051` 的 Formation 信息架构代码已落地（四桶 + organizingSteps）；本文 UX-009/010/016 随 UAT-051 关闭。其它条目不是 UAT 回归失败，而是全产品入口的独立 UX 债。
