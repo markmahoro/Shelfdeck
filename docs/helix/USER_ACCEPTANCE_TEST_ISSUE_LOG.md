@@ -102,7 +102,7 @@ Helix主体开发已经完成，Movie从Procurement、Libra到Arca及Shelf Dereg
 
 ### 2.0 2026-08-22 确认的产品/实现缺口
 
-用户确认九项后续改造方向；本批只登记，不授权实现、不改 SSOT。完整叙述见 §47–55。2026-08-22 Canary 复盘新增 `UAT-059`–`UAT-063`，见 §56–60。UAT-011 至 UAT-049 仍按后文章节，不在本表重复。
+用户确认九项后续改造方向；本批只登记，不授权实现、不改 SSOT。完整叙述见 §47–55。2026-08-22 Canary 复盘新增 `UAT-059`–`UAT-063`，见 §56–60。同日干净 Canary `UAT-20260822-141950-0c27c8cf6` 另登记 `UAT-064`（Formation 步骤展示偏离真实执行），只登记不深挖。UAT-011 至 UAT-049 仍按后文章节，不在本表重复。
 
 | ID | 问题 | 主分类 | 次分类 | 主要责任边界 | 影响维度 | 严重度 | 当前状态 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -120,6 +120,7 @@ Helix主体开发已经完成，Movie从Procurement、Libra到Arca及Shelf Dereg
 | UAT-061 | 豆瓣 Acquisition 翻页传输失败后不重试、不收口，设置页永久「正在同步」 | `EXTERNAL_INTEGRATION` | `RECOVERY_CORRECTNESS` | Perception Acquisition + Settings 同步态 | 活性、可理解性 | High | 已实现；待新 Canary 确认 |
 | UAT-062 | frozen Run Discard 后 Control 已释放，Formation 仍空转「正在评估整理方案」，未走重新入库 | `BUSINESS_CONTRACT` | `DOMAIN_ORCHESTRATION` | Libra Run Discard 收口 + Procurement 重新入库 + Formation | 正确性、活性、可理解性 | Critical | 已实现；待新 Canary 确认 |
 | UAT-063 | Aftercare 问豆瓣分与 Libra 不是同一套 Resolution/Identity Evidence，上架后评分变化不触发保养 | `BUSINESS_CONTRACT` | `PROJECTION_FRESHNESS` | Arca Aftercare 拉 Perception + 与 Libra 共用 Identity Evidence | 正确性、时效性 | High | 已实现；待新 Canary 确认 |
+| UAT-064 | Formation 整理步骤展示与真实执行状态偏离：转码标 CPU、验证过早标完成 | `USER_EXPERIENCE` | `PROJECTION_FRESHNESS` | Formation 公开 Projection `organizingSteps` / `transcodeLabel` | 可理解性、可观察性 | High | 已登记；待实现授权 |
 
 ## 2.1 UAT-006：概览展示固定演示数字
 
@@ -2393,7 +2394,29 @@ Formation 该行 `my_rating=4`、`my_rating_source=douban`，整理要求 `HEVC 
 
 当前处理决定：2026-08-22 代码已实现。Libra Subject 与 Arca Shelf Entry 共用 `buildRatingTargetIdentity`（同一 `deriveTitleYear`）；`queryHandle.consumerDomain` 按调用方为 `libra|arca`。Care Basis 因评分变化后 Aftercare 立即到期，不再被 24h 列表门闩挡住。本条不宣称 Canary 或生产通过。
 
-## 61. 后续问题模板
+## 61. UAT-064：Formation 整理步骤展示与真实执行状态偏离
+
+问题分类：`USER_EXPERIENCE / PROJECTION_FRESHNESS`
+
+用户侧现象：干净 Canary `UAT-20260822-141950-0c27c8cf6` 中，`立春 (2007)` 页面像卡在「验证整理结果」；同页「CPU转码 · HEVC · 不超过 14 GiB」。用户追问是否卡住、以及为何在用 CPU 转码。
+
+现场证据：同一隔离库。Formation Projection：`classification=in_progress`，`next_action_label=处理视频文件`，`next_action_state=waiting_for_resource`。`organizingSteps` 把 `transcode` 标 `running` 且文案为 CPU，把 `verify` 标 `done`。领域事实：Direct `libra.product_media.verify@1` 已成功（源校验），随后 `transcode_1_assessment` 成功；`libra.media.transcode@1` 为 `waiting_for_resource`。本机 FFmpeg 实际命令为 `-c:v hevc_nvenc -b:v 2279830`（养蜂人 BDMV 占用编码器槽）。立春在排队，不是死锁。
+
+精确根因（登记，不深挖）：`transcodeLabel` 只从 `libra.media.transcode@1` 已落盘 Result 读 `executionDeviceRef` / `deviceSnapshot`；执行中或等待资源时 Result 为空，默认 CPU。`验证整理结果` 把 Direct 源上的 `libra.product_media.verify@1` 与成品符合性混成同一步，源校验成功后页面就显示验证完成。
+
+业务影响：用户误判卡住或走了 CPU；CPU/GPU 标签与真实设备不一致。不改变转码触发或码率合同。
+
+修复边界：
+
+- 转码步骤的 CPU/GPU 必须反映真实 `deviceClass`（EncodeIntent / 设备快照 / `executionDeviceRef`），等待资源或执行中也不得默认 CPU；
+- 「验证整理结果」不得把 Direct 源校验画成成品验证已完成；成品验证只在转码/Remux 输出校验之后；
+- 下一步文案与步骤状态必须同一套事实。不改转码规划、不改 Owner/Handoff。本条与 UAT-059 的码率灌满是不同缺陷。
+
+验收证据：GPU NVENC 执行中页面为 GPU 转码；排队时不得写 CPU。源不合格走转码时，「验证整理结果」不得在转码完成前为 done。负例：不得把 `waiting_for_resource` 画成验证卡住。
+
+当前处理决定：2026-08-22 用户确认只登记、不深挖，回到 UAT 关闭主线。不授权实现，不改 SSOT，不重建 Canary，不触碰 NAS/生产。
+
+## 62. 后续问题模板
 
 后续发现的问题按以下结构追加：
 
