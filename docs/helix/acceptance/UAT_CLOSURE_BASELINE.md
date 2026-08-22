@@ -60,7 +60,7 @@
 | UAT-001 | 整理页豆瓣分能按 Identity Evidence 匹配到对应 Subject，匹配率达到可验收水平 | `UI` `FACT` | W4 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260822-141950-0c27c8cf6 UI Formation 多部显示豆瓣星级 |
 | UAT-002 | Handoff A Intake 能持续接收 Candidate，不再被全库串行门闩打成异常低吞吐 | `UI` `FACT` | W2 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260822-141950-0c27c8cf6 UI 23 Subject 已出现（11+2+3+7） |
 | UAT-003 | Product Identity 不再因 TMDB 证据缺口把大量 Run 停在等待 | `UI` | W2 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260822-141950-0c27c8cf6 UI 17 completed+6合法冻结，pending/in_progress均0，六行身份步骤均100% |
-| UAT-004 | 大文件媒体完整性只用中段指纹，不再整文件 SHA-256 | `UI` `FACT` | W3 | `CODE_DONE_UNQUALIFIED` | `NOT RUN` |
+| UAT-004 | 大文件媒体完整性只用中段指纹，不再整文件 SHA-256 | `UI` `FACT` | W3 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260823-002500-519f8d7b5 UI 9.3 GB ISO成品当前收藏且健康；FACT 16/16大Primary的Package与Inventory均用middle-256k-sha256、完整sha256为0，小Artifact仍44/44 sha256 |
 | UAT-005 | 媒体整理工作区用四桶当前状态，不再暴露内部对象语言 | `UI` | W2 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260822-141950-0c27c8cf6 UI 四桶待整理/整理中/需要处理/已完成整理 |
 | UAT-006 | 干净库概览显示真实计数 0，并走 Admin Session | `UI` | W0 | `CLOSED` | `PASS` UAT-20260822-141950-0c27c8cf6 UI 概览正式收藏0，非演示数字，Admin Session 登录 |
 | UAT-007 | 干净库人物页显示真实 0，不再展示固定演示人数 | `UI` | W0 | `CLOSED` | `PASS` UAT-20260822-141950-0c27c8cf6 UI 人物已登记0 |
@@ -134,13 +134,13 @@
 | 口径 | 数量 |
 | --- | --- |
 | 总行 | 67 |
-| 本轮 `PASS` | **44** |
-| 本轮未通过（`NOT RUN`+`FAILED`+`BLOCKED`） | **23**（23 `NOT RUN`；0 `FAILED`；0 `BLOCKED`） |
-| 是否都通过 | **否**（44/67，未通过 23） |
+| 本轮 `PASS` | **45** |
+| 本轮未通过（`NOT RUN`+`FAILED`+`BLOCKED`） | **22**（22 `NOT RUN`；0 `FAILED`；0 `BLOCKED`） |
+| 是否都通过 | **否**（45/67，未通过 22） |
 
-本轮 `PASS`：001、002、003、005、006、007、008、011、012、013、015、016、018、020、030、032、034、036、037、038、039、040、041、042、043、044、045、046、047、048、049、050、051、052、053、054、055、056、057、058、061、065、066、067。证据均包含干净隔离库 Admin Web `UI`；要求文件现实的行另有`FS`。W5 Discard 重新入库、W6 退出收藏/注销在本坐席未跑完，保持 `NOT RUN`。
+本轮 `PASS`：001、002、003、004、005、006、007、008、011、012、013、015、016、018、020、030、032、034、036、037、038、039、040、041、042、043、044、045、046、047、048、049、050、051、052、053、054、055、056、057、058、061、065、066、067。证据均包含干净隔离库 Admin Web `UI`；要求文件现实的行另有`FS`。W5 Discard 重新入库、W6 退出收藏/注销在本坐席未跑完，保持 `NOT RUN`。
 
-当前失败：无。`UAT-020`已由新干净Canary的新Final Inventory关闭；`UAT-067`已在同一已加急Run上恢复并关闭。剩余23行均为`NOT RUN`，不是已观察失败。
+当前失败：无。`UAT-004`已用本轮16个Package/Inventory大Primary的正式中段指纹事实关闭；`UAT-020`已由新干净Canary的新Final Inventory关闭；`UAT-067`已在同一已加急Run上恢复并关闭。剩余22行均为`NOT RUN`，不是已观察失败。
 
 `UAT-005` 剩余动作合同并入 `UAT-051` 后仍保留本行，用四桶状态在新 Canary 上资格确认，不把 005 标 `VOID`。
 

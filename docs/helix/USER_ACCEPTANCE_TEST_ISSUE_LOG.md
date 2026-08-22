@@ -717,6 +717,15 @@ Package、Receipt、Canonical JSON等结构化事实的SHA-256与媒体字节Ide
 - NFO、Artwork、typed facts等小型Artifact/结构化内容继续使用完整SHA-256，不扩大优化边界；
 - 真实Canary仍需确认大型媒体完成时延、Handoff B和Arca输出均不再复现长时间摘要阶段。
 
+关闭确认（2026-08-23）：干净 Canary `UAT-20260823-002500-519f8d7b5` 已完成16个可上架Movie的真实生产与
+On-deck。Admin Web中9.3 GB的ISO证人`倩女幽魂2：人间道`显示为`Movie Canary`当前收藏、主视频
+`9.3 GB · MKV`且收藏健康。只读正式事实覆盖16个大于256 KiB的Package Primary Payload，大小范围
+625,953,034–10,021,609,024 bytes：16/16的`fingerprint_algorithm`与`digest_algorithm`均为
+`middle-256k-sha256`，`sha256`为0；对应16个Arca Final Inventory Primary同样16/16使用中段指纹。
+44个小型Artifact仍44/44保留完整`sha256`，证明优化没有误删小型结构化Artifact完整性。状态改为
+`REGRESSION PASSED / CONFIRMED ON CURRENT CANARY`。UI证据：
+`admin-web-evidence/uat-004-large-media-bounded-fingerprint-pass.png`；FACT证据：`uat-004-fact-evidence.json`。
+
 ## 7. UAT-005：Libra Admin Web媒体整理工作区信息架构
 
 分类：
