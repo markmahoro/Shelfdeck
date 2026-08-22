@@ -92,7 +92,7 @@
 | UAT-033 | 同名字幕和 stem-fanart 最终文件名可区分，同根上架不再 `TARGET_COLLISION` | `UI` `FS` | W3 | `CODE_DONE_UNQUALIFIED` | `NOT RUN` |
 | UAT-034 | 同名片名+年份的两部养蜂人最终目录可区分且都能 On-deck | `UI` `FS` | W3 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260822-141950-0c27c8cf6 UI 两个独立健康养蜂人当前Entry；FS普通版与edition目录各有一份MKV，非hash且无(0)年份 |
 | UAT-035 | FFmpeg 非零退出按执行失败收口，Remux Attempt 不停在 executing | `UI` `FACT` | W3 | `CODE_DONE_UNQUALIFIED` | `NOT RUN` |
-| UAT-036 | 已观察 ISO 能通过 Triage 形成 Candidate，不再因非可播放流 `triage_failed` | `UI` | W2 | `CODE_DONE_UNQUALIFIED` | `NOT RUN` |
+| UAT-036 | 已观察 ISO 能通过 Triage 形成 Candidate，不再因非可播放流 `triage_failed` | `UI` | W2 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260822-141950-0c27c8cf6 UI倩女幽魂2已形成并完成生产/On-deck，为健康当前收藏 |
 | UAT-037 | 007 身份 provider_exact 观察不被 schema 拒绝，冻结文案不是通用句 | `UI` | W2 | `CODE_DONE_UNQUALIFIED` | `NOT RUN` |
 | UAT-038 | 上架成功后 Aftercare 健康不再是 conformance/presentation 降级 | `UI` | W4 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260822-141950-0c27c8cf6 UI 倩女幽魂2已上架详情刷新后收藏健康为健康，保管/呈现/合规均为健康 |
 | UAT-039 | 同根上架不把源文件和兄弟电影目录当成占用/未知成员 | `UI` `FS` | W3 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260822-141950-0c27c8cf6 UI同根兄弟电影均已当前收藏且健康；FS两个养蜂人一级目录独立、无嵌套兄弟目录或.partial |
@@ -133,11 +133,11 @@
 | 口径 | 数量 |
 | --- | --- |
 | 总行 | 66 |
-| 本轮 `PASS` | **37** |
-| 本轮未通过（`NOT RUN`+`FAILED`+`BLOCKED`） | **29**（全部为 `NOT RUN`；0 `FAILED`；0 `BLOCKED`） |
-| 是否都通过 | **否**（37/66，未通过 29） |
+| 本轮 `PASS` | **38** |
+| 本轮未通过（`NOT RUN`+`FAILED`+`BLOCKED`） | **28**（全部为 `NOT RUN`；0 `FAILED`；0 `BLOCKED`） |
+| 是否都通过 | **否**（38/66，未通过 28） |
 
-本轮 `PASS`：001、002、005、006、007、008、012、013、015、016、018、030、032、034、038、039、040、041、042、044、045、046、047、048、049、050、051、052、053、054、055、056、057、058、061、065、066。证据均包含本隔离库 Admin Web `UI`；要求文件现实的行另有`FS`。W5 Discard 重新入库、W6 退出收藏/注销在本坐席未跑完，保持 `NOT RUN`。
+本轮 `PASS`：001、002、005、006、007、008、012、013、015、016、018、030、032、034、036、038、039、040、041、042、044、045、046、047、048、049、050、051、052、053、054、055、056、057、058、061、065、066。证据均包含本隔离库 Admin Web `UI`；要求文件现实的行另有`FS`。W5 Discard 重新入库、W6 退出收藏/注销在本坐席未跑完，保持 `NOT RUN`。
 
 `UAT-005` 剩余动作合同并入 `UAT-051` 后仍保留本行，用四桶状态在新 Canary 上资格确认，不把 005 标 `VOID`。
 
@@ -409,3 +409,16 @@
 - 关闭结论：`PASS`。真实详情显示倩女幽魂2为Movie Canary当前收藏且健康。只读事实显示Run为`completed`；唯一`libra.media.remux@1` Work/Event均`succeeded`，Attempt ordinal 1为`completed/succeeded`且有完成时间，无非终态Remux Attempt。
 - UI证据：`admin-web-evidence/uat-045-remux-attempt-terminal-ondeck.png`（位于本Canary隔离证据目录）。
 - FACT旁证：2026-08-23只读查询隔离SQLite，Subject `libra-subject-6a0f51918c202e17cf6e6213ac485e59503bc1ad`的Remux Attempt总数1、非终态0。
+
+### UAT-036（`PASS`）
+
+- 关闭命题：已观察ISO能通过Triage形成Candidate，不再因非可播放流`triage_failed`。
+- Canary：`UAT-20260822-141950-0c27c8cf6`。
+- 证人：纯UDF ISO来源的《倩女幽魂2：人间道》当前Shelf Entry。
+- 路径：我的收藏 → 打开倩女幽魂2详情 → 核对正式身份、当前收藏、主视频与健康。
+- 允许动作：页面进入、打开/关闭详情、截图。
+- 禁止动作：重新观察、触发Triage、修改评分、退出收藏、重启服务、重建Canary、修改数据库。
+- 通过标准：新Observation/Run已让ISO形成Candidate/Subject并完成后续链路；页面不是缺失或triage失败，而是正式当前收藏。
+- 证据要求：`UI`。
+- 关闭结论：`PASS`。真实Admin Web显示《倩女幽魂2：人间道》为Movie Canary当前收藏且健康，主视频`9.3 GB · MKV`并有海报/NFO；ISO已穿过Triage、Libra生产和Arca On-deck，不再是`triage_failed`。
+- UI证据：`admin-web-evidence/uat-036-iso-triage-candidate-ondeck.png`（位于本Canary隔离证据目录）。

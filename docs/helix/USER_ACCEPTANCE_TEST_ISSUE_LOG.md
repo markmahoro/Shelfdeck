@@ -1705,8 +1705,10 @@ AVDP 在扇区 256，随后是 UDF 2.50 元数据分区；没有 `CD001`，topol
 `isProvenIsoTopology` 拒绝只有 `discKind` 没有完整 digest 的残缺证据。P7 disc topology 3/3 通过；
 只读复测真实 `F:\test_film` 的 23 GiB UDF ISO 同样选出主 playlist。
 
-修复状态（2026-08-22）：`REGRESSION PASSED / CLEAN CANARY UAT PENDING`。旧 `triage_failed` Observation 不可变；
-本修复随干净 Canary 重建后才能让 `倩女幽魂2：人间道` 形成 Candidate。
+修复状态（2026-08-23）：`REGRESSION PASSED / CONFIRMED ON CURRENT CANARY`。干净 Canary
+`UAT-20260822-141950-0c27c8cf6` 的新Observation/Run已让《倩女幽魂2：人间道》形成Subject/Candidate并完成
+生产与On-deck；真实详情显示`9.3 GB · MKV`、当前收藏且健康。纯UDF ISO不再停在`triage_failed`。
+UI证据：`admin-web-evidence/uat-036-iso-triage-candidate-ondeck.png`。
 
 ## 34. UAT-037：007 在身份取证的 provider_exact 观察被 schema 拒绝，冻结文案退回通用句
 
