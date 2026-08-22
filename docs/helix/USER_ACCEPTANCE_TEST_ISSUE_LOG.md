@@ -1404,6 +1404,12 @@ Admin Web production build均通过。
 修复状态（2026-08-21）：`IMPLEMENTED / CLEAN CANARY UAT PENDING`。当前污染现场和失败数据库保持不变；完成独立提交后，
 须随其他已取证问题修复一起重建Canary，再通过真实Admin Web确认该条目不再进入身份待处理。
 
+2026-08-23逐项封口在重建Canary `UAT-20260823-002500-519f8d7b5`完成。真实Formation按片名过滤原始样本
+`看不见的朋友 (2023) - 1080p H.264 CHDWEB`后，该行“确认影片身份”为100%；当前“需要处理”原因明确为后续
+“没有找到可获取的外部候选”，不再是`provider_no_match`或身份待处理。状态
+`REGRESSION PASSED / CONFIRMED ON REBUILT CANARY`。UI证据：
+`admin-web-evidence/uat-022-release-suffix-identity-resolved-pass.png`。
+
 ## 20. UAT-023：技术后缀移除后残留年份导致豆瓣标题锚不相交
 
 问题分类：`PERCEPTION_RESOLUTION / EXACT_ALIAS / USER_VISIBLE_RATING`

@@ -78,7 +78,7 @@
 | UAT-019 | Executor 终态异常由 Owner 收口，Arca Acceptance Offer 不再悬空 | `UI` `FACT` | W3 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260823-002500-519f8d7b5 UI 16部当前收藏均健康；FACT 16/16 Offer acked、Decision/Handoff B accepted、Recovery resolved、On-deck committed，悬空为0 |
 | UAT-020 | Final Inventory 成员命名与 carried-forward Settlement 完整，技术后缀不进入最终名 | `UI` `FS` | W3 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260823-002500-519f8d7b5 UI老笠当前收藏且健康；FS唯一目录含用户可读Primary/NFO与老笠 (2016).zh-CN.srt，无技术标签/partial |
 | UAT-021 | TMDB 别名来源不泄漏进 Product Identity 证据，整理不在取证前全员冻结 | `UI` | W2 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260823-002500-519f8d7b5 UI 6个后续寻源冻结项身份均100%、16项完成；FACT 43/43身份resolved、446个alias均为provider来源 |
-| UAT-022 | 年份后的技术发布标签不再污染 TMDB 搜索词 | `UI` | W2 | `CODE_DONE_UNQUALIFIED` | `NOT RUN` |
+| UAT-022 | 年份后的技术发布标签不再污染 TMDB 搜索词 | `UI` | W2 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260823-002500-519f8d7b5 UI原始技术后缀标题确认影片身份100%，当前终态在后续外部寻源而非provider_no_match |
 | UAT-023 | 去掉技术后缀后残留年份不再导致豆瓣标题锚不相交 | `UI` | W4 | `CODE_DONE_UNQUALIFIED` | `NOT RUN` |
 | UAT-024 | 逐成员 Settlement 后 Accepted Context 不再要求全部旧源仍存在 | `UI` `FS` | W3 | `CODE_DONE_UNQUALIFIED` | `NOT RUN` |
 | UAT-025 | Handoff A 身份快照在技术发布标签前冻结年份锚 | `UI` | W2 | `CODE_DONE_UNQUALIFIED` | `NOT RUN` |
