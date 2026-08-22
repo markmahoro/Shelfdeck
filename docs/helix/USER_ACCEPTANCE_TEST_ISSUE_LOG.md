@@ -997,6 +997,12 @@ UI证据：`admin-web-evidence/uat-011-same-root-shelf-config.png`、`uat-011-sa
 
 当前处理决定：Projection根因已修复、回归、提交并完成浏览器用户验收。未修改SSOT身份匹配规则、Canary媒体文件或旧的不可变Work；完整媒体整理与上架结果仍未宣告通过。
 
+2026-08-23逐项封口复核确认该真实Canary证据已经覆盖完整用户闭环：Formation明确显示`媒体身份信息冲突`和候选
+`Anatomy of a Fall (2023)`，候选按钮成功形成TMDB Movie `915935`的不可变Selection Intent。当前重建Canary因后续
+本地化与Alias修复已能自动解析该样本，不再自然产生同一冲突；本轮不伪造身份事实，改以原真实页面/命令证据并重新执行
+`helix-formation-projection.test.js`与`helix-product-identity-selection.test.js`共18项回归，18/18 PASS。状态
+`REGRESSION PASSED / CONFIRMED ON CANARY`。
+
 ## 12. UAT-015：Frozen Libra Run 没有用户 Discard 入口
 
 问题分类：`USER_RECOVERY / LIBRA_RUN_LIFECYCLE / EXPLICIT_DECISION`
