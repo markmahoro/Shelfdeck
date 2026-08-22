@@ -5,7 +5,8 @@ const { createRepositoryDefinition } = require('../../../foundation/persistence/
 const { buildRatingTargetIdentity } = require('../../libra/model/decision-identity-evidence-contracts');
 
 function containerFromLocation(location) {
-  const match = String(location || '').toLowerCase().match(/\.([a-z0-9]+)(?:$|[\\/?#])/);
+  const basename = String(location || '').split(/[\\/]/).pop().split(/[?#]/)[0];
+  const match = basename.toLowerCase().match(/\.([a-z0-9]+)$/);
   if (!match) return null;
   if (match[1] === 'mkv') return 'MKV';
   if (match[1] === 'mp4') return 'MP4';

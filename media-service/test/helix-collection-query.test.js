@@ -21,6 +21,9 @@ test('Collection occupancy sums Inventory members and names primary container fr
   assert.equal(occupancy.hasPoster, true);
   assert.equal(occupancy.hasNfo, true);
   assert.equal(containerFromLocation('folder/title.mp4'), 'MP4');
+  assert.equal(containerFromLocation('F:\\canary\\Movie TrueHD5.1\\movie.mkv'), 'MKV');
+  assert.equal(containerFromLocation('/canary/Movie.TrueHD5.1/movie.release.final.m2ts?revision=1'), 'M2TS');
+  assert.equal(containerFromLocation('F:\\canary\\Movie.TrueHD5.1\\no-extension'), null);
   assert.equal(containerFromLocation('no-extension'), null);
 });
 
