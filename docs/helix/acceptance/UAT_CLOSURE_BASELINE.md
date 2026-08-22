@@ -95,7 +95,7 @@
 | UAT-036 | 已观察 ISO 能通过 Triage 形成 Candidate，不再因非可播放流 `triage_failed` | `UI` | W2 | `CODE_DONE_UNQUALIFIED` | `NOT RUN` |
 | UAT-037 | 007 身份 provider_exact 观察不被 schema 拒绝，冻结文案不是通用句 | `UI` | W2 | `CODE_DONE_UNQUALIFIED` | `NOT RUN` |
 | UAT-038 | 上架成功后 Aftercare 健康不再是 conformance/presentation 降级 | `UI` | W4 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260822-141950-0c27c8cf6 UI 倩女幽魂2已上架详情刷新后收藏健康为健康，保管/呈现/合规均为健康 |
-| UAT-039 | 同根上架不把源文件和兄弟电影目录当成占用/未知成员 | `UI` `FS` | W3 | `CODE_DONE_UNQUALIFIED` | `NOT RUN` |
+| UAT-039 | 同根上架不把源文件和兄弟电影目录当成占用/未知成员 | `UI` `FS` | W3 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260822-141950-0c27c8cf6 UI同根兄弟电影均已当前收藏且健康；FS两个养蜂人一级目录独立、无嵌套兄弟目录或.partial |
 | UAT-040 | ISO 原盘 Remux 走提取路径，不把映像文件当普通流输入 | `UI` `FS` | W3 | `CODE_DONE_UNQUALIFIED` | `NOT RUN` |
 | UAT-041 | BDMV HEVC/TrueHD Remux 能处理缺 PES 时间戳，不被 Matroska 直接拒绝 | `UI` `FS` | W3 | `CODE_DONE_UNQUALIFIED` | `NOT RUN` |
 | UAT-042 | 同根 Off-load Settlement 能解释源现实漂移 | `UI` `FS` | W3 | `CODE_DONE_UNQUALIFIED` | `NOT RUN` |
@@ -133,11 +133,11 @@
 | 口径 | 数量 |
 | --- | --- |
 | 总行 | 66 |
-| 本轮 `PASS` | **30** |
-| 本轮未通过（`NOT RUN`+`FAILED`+`BLOCKED`） | **36**（全部为 `NOT RUN`；0 `FAILED`；0 `BLOCKED`） |
-| 是否都通过 | **否**（30/66，未通过 36） |
+| 本轮 `PASS` | **31** |
+| 本轮未通过（`NOT RUN`+`FAILED`+`BLOCKED`） | **35**（全部为 `NOT RUN`；0 `FAILED`；0 `BLOCKED`） |
+| 是否都通过 | **否**（31/66，未通过 35） |
 
-本轮 `PASS`：001、002、005、006、007、008、012、013、015、016、018、030、032、034、038、047、048、049、050、051、052、053、054、055、056、057、058、061、065、066。证据均包含本隔离库 Admin Web `UI`；要求文件现实的行另有`FS`。W5 Discard 重新入库、W6 退出收藏/注销在本坐席未跑完，保持 `NOT RUN`。
+本轮 `PASS`：001、002、005、006、007、008、012、013、015、016、018、030、032、034、038、039、047、048、049、050、051、052、053、054、055、056、057、058、061、065、066。证据均包含本隔离库 Admin Web `UI`；要求文件现实的行另有`FS`。W5 Discard 重新入库、W6 退出收藏/注销在本坐席未跑完，保持 `NOT RUN`。
 
 `UAT-005` 剩余动作合同并入 `UAT-051` 后仍保留本行，用四桶状态在新 Canary 上资格确认，不把 005 标 `VOID`。
 
@@ -311,3 +311,17 @@
 - 关闭结论：`PASS`。真实Admin Web中两个养蜂人Entry均为Movie Canary当前收藏且健康，详情占用分别为`8.3 GB`与`5.8 GB`。FS目录精确为`养蜂人 (2024)`与`养蜂人 (2024) - 2160p HEVC Atmos TrueHD5.1`，各有一份MKV，字节分别为`6180282340`与`8932765796`；两目录均非hash且无`(0)`年份。
 - UI证据：`admin-web-evidence/uat-034-two-beekeepers-distinct-entries.png`、`admin-web-evidence/uat-034-beekeeper-first-entry-detail.png`、`admin-web-evidence/uat-034-beekeeper-second-entry-detail.png`（位于本Canary隔离证据目录）。
 - FS证据：2026-08-22只读枚举上述两个目录，`RootCount=2`、每个`VideoCount=1`、`IsHashName=False`、`HasZeroYear=False`。
+
+### UAT-039（`PASS`）
+
+- 关闭命题：同根上架不把源文件和兄弟电影目录当成占用/未知成员。
+- Canary：`UAT-20260822-141950-0c27c8cf6`。
+- 证人：共享`F:\canary`根完成上架的两部养蜂人、光荣的愤怒、香火及其兄弟目录现实。
+- 路径：我的收藏核对同根证人均为当前收藏且健康 → 只读枚举`F:\canary`一级目录、嵌套养蜂人目录与`.partial`。
+- 允许动作：页面进入、截图；文件系统只读枚举。
+- 禁止动作：触发On-deck、移动/删除文件、修改评分、退出收藏、重启服务、重建Canary、修改数据库。
+- 通过标准：同根证人均完成上架，不再停在`TARGET_OCCUPIED`/`UNKNOWN_MEMBER`；两个养蜂人是独立一级兄弟目录，不互相嵌套；无未收口`.partial`。
+- 证据要求：`UI`、`FS`。
+- 关闭结论：`PASS`。真实Admin Web显示两部养蜂人、光荣的愤怒、香火均为Movie Canary当前收藏且健康。`F:\canary`有22个一级电影目录、两个独立养蜂人一级目录，`NestedBeekeeperRoots=0`、`PartialCount=0`；同根源与兄弟目录未再阻止Stage/Switch或Settlement。
+- UI证据：`admin-web-evidence/uat-039-same-root-sibling-entries-ondeck.png`（位于本Canary隔离证据目录）。
+- FS证据：2026-08-23只读枚举`F:\canary`，`CanaryRootCount=22`、`BeekeeperRootCount=2`、`NestedBeekeeperRoots=0`、`PartialCount=0`。

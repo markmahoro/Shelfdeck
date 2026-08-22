@@ -1776,7 +1776,11 @@ stderr 为 `CLEAN_ARCA_TARGET_OCCUPIED` 与 `CLEAN_ARCA_SETTLEMENT_UNKNOWN_MEMBE
 
 验收证据：同根不同海报字节 Stage/Switch 后最终 `poster.jpg` 为产品字节。源目录旁有 BDMV 兄弟目录时 Settlement 成功且兄弟目录仍在；同时有 `notes.txt` 仍 fail closed。Inventory port 9/9 通过。
 
-修复状态（2026-08-22）：`REGRESSION PASSED / SERVICE RESTART REQUIRED`。当前卡住的 On-deck Run 需随服务重启恢复。
+修复状态（2026-08-23）：`REGRESSION PASSED / CONFIRMED ON CURRENT CANARY`。干净 Canary
+`UAT-20260822-141950-0c27c8cf6` 中，曾共享 Field/Shelf 根的两部养蜂人、光荣的愤怒、香火均已成为
+`Movie Canary`当前收藏且健康；`F:\canary`现有22个一级电影目录、两个独立养蜂人目录，无嵌套养蜂人兄弟目录、无`.partial`。
+同根 Stage/Switch 与 Settlement 已完成，没有再停在`TARGET_OCCUPIED`或`UNKNOWN_MEMBER`。UI证据：
+`admin-web-evidence/uat-039-same-root-sibling-entries-ondeck.png`。
 
 ## 37. UAT-040：ISO 原盘 Remux 把映像文件当成普通流输入
 
