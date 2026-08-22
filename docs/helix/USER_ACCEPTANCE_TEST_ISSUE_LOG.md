@@ -186,6 +186,12 @@ title/year规范化结果，形成了不同的Query Input Digest，因此刷新�
 针对性回归结果为5 pass、0 fail，并新增Formation对每次Direct Rating的值、来源与revision断言。同一UAT库重启服务后，
 真实浏览器显示并在再次刷新后保留“4 星 · 我的评分”，同时恢复显示16条已匹配的豆瓣评分，Console无warning/error。
 
+关闭确认（2026-08-23）：干净 Canary `UAT-20260823-002500-519f8d7b5` 的当前媒体证人
+`养蜂人 (2024) - 2160p HEVC Atmos TrueHD5.1`原先显示`4 星 · 豆瓣`。通过真实Admin Web点击4星后，
+页面立即显示`4 星 · 我的评分`和`清除我的评分`；随后重新导航刷新`/formation`并按片名重新查询，仍显示相同用户评分、
+来源和清除入口。未直接编辑Perception或Formation事实。状态`REGRESSION PASSED / CONFIRMED ON CURRENT CANARY`。
+UI证据：`admin-web-evidence/uat-009-rating-persists-after-refresh-pass.png`。
+
 ## 2.5 UAT-010：未配置Routing时错误开放人工选Shelf
 
 22个Subject停在`preparing`时，Formation目标列仍显示“选择”。真实页面选择唯一Shelf后返回“Clean Service请求处理失败”。
