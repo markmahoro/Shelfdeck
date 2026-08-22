@@ -108,7 +108,7 @@
 | UAT-049 | 盘整理完成后原 `BDMV`/`CERTIFICATE` 整棵树从收藏目录消失 | `UI` `FS` | W3 | `CODE_DONE_UNQUALIFIED` | `NOT RUN` |
 | UAT-050 | 当前媒体筛选走后端 Projection Query，不在前端筛当前页 | `UI` | W1 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260822-141950-0c27c8cf6 UI 当前媒体筛选芯片与目标收藏架 |
 | UAT-051 | 整理动作展示分步施工、分步进度、用户操作与加急；完成区只读同一套动作 | `UI` | W1 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260822-141950-0c27c8cf6 UI 分步动作/进度/加急列 |
-| UAT-052 | 我的收藏一级按架（含「全部」），详情展示占用空间与主视频规格 | `UI` | W1 | `CODE_DONE_UNQUALIFIED` | `NOT RUN` |
+| UAT-052 | 我的收藏一级按架（含「全部」），详情展示占用空间与主视频规格 | `UI` | W1 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260822-141950-0c27c8cf6 UI「全部 17」/「Movie Canary 17」独立切换；第八个嫌疑人详情为占用 1.9 GB、主视频 1.9 GB · MP4、有海报/有 NFO；倩女幽魂2详情为占用 9.3 GB、主视频 9.3 GB · MKV、有海报/有 NFO；Inventory无videoStreams时页面未编造编码/清晰度 |
 | UAT-053 | 活动文件来源按 SSOT 周期观察；「扫描新文件」仅进行中禁用 | `UI` | W2 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260822-141950-0c27c8cf6 UI 扫描新文件进行中禁用 |
 | UAT-054 | 退出收藏页面按任务重排，不再是内部安全链控制台 | `UI` | W6 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260822-141950-0c27c8cf6 UI 退出收藏按审阅-授权重排 |
 | UAT-055 | 人物名录接通 Beta 两条登记路径：强身份自动接受，弱身份可确认 | `UI` | W1 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260822-141950-0c27c8cf6 UI 人物已登记/待确认/登记一个人 |
@@ -131,11 +131,11 @@
 | 口径 | 数量 |
 | --- | --- |
 | 总行 | 64 |
-| 本轮 `PASS` | **19** |
-| 本轮未通过（`NOT RUN`+`FAILED`+`BLOCKED`） | **45**（全部为 `NOT RUN`；0 `FAILED`；0 `BLOCKED`） |
-| 是否都通过 | **否**（19/64，未通过 45） |
+| 本轮 `PASS` | **20** |
+| 本轮未通过（`NOT RUN`+`FAILED`+`BLOCKED`） | **44**（全部为 `NOT RUN`；0 `FAILED`；0 `BLOCKED`） |
+| 是否都通过 | **否**（20/64，未通过 44） |
 
-本轮 `PASS`：001、002、005、006、007、008、015、016、018、030、050、051、053、054、055、056、057、058、061。证据均为本隔离库 Admin Web `UI`。W3 转码/ISO/BDMV 上架、W5 Discard 重新入库、W6 退出收藏/注销在本坐席未跑完，保持 `NOT RUN`。
+本轮 `PASS`：001、002、005、006、007、008、015、016、018、030、050、051、052、053、054、055、056、057、058、061。证据均为本隔离库 Admin Web `UI`。W3 转码/ISO/BDMV 上架、W5 Discard 重新入库、W6 退出收藏/注销在本坐席未跑完，保持 `NOT RUN`。
 
 `UAT-005` 剩余动作合同并入 `UAT-051` 后仍保留本行，用四桶状态在新 Canary 上资格确认，不把 005 标 `VOID`。
 
@@ -145,3 +145,19 @@
 - 不声明整份 Movie Canary checklist 一次通过
 - 不在 NAS / `Z:\Film` / 生产上取证
 - 不改 SSOT Owner/Handoff（`L5-Q7` Discard 仍是「重新入库」，不是把 Control 留在 Libra 再开 Run）
+
+## 7. 单项关闭作业卡
+
+### UAT-052（`PASS`）
+
+- 关闭命题：我的收藏一级按架（含「全部」），详情展示占用空间与主视频规格。
+- Canary：`UAT-20260822-141950-0c27c8cf6`；当前代码工作区HEAD以关闭提交记录为准。
+- 证人：Admin Web「我的收藏」；收藏架「Movie Canary」；电影「第八个嫌疑人」「倩女幽魂2：人间道」。
+- 路径：登录 → 我的收藏 → 比较「全部」与「Movie Canary」一级架导航及计数 → 打开「第八个嫌疑人」详情。
+- 允许动作：页面进入、只读切换、打开/关闭详情、页面刷新、截图；SQLite/日志仅可只读旁证。
+- 禁止动作：修改评分、启动/重试/放弃Run、重新观察、重启服务、重建Canary、修改文件或数据库；当前NVENC转码不得受本项影响。
+- 通过标准：页面同时提供「全部」与活动收藏架入口，切换后的墙和计数一致；详情可见当前占用空间、主视频体积/容器、视频规格（有事实才显示）、海报/NFO状态；页面不从Libra整理过程或磁盘临时probe编造字段。
+- 证据要求：`UI`。
+- 旁证停车：本作业观察到的其他UAT现象只记备注，不改其他行结论。
+- 关闭结论：`PASS`。页面「全部 17」与「Movie Canary 17」均可独立选中且墙为17部；「第八个嫌疑人」展示占用`1.9 GB`、主视频`1.9 GB · MP4`、有海报/有NFO；「倩女幽魂2：人间道」展示占用`9.3 GB`、主视频`9.3 GB · MKV`、有海报/有NFO。只读Inventory Product Fact无`videoStreams`，页面没有编造codec/raster。
+- UI证据：`admin-web-evidence/uat-052-shelf-movie-canary.png`、`admin-web-evidence/uat-052-detail-eighth-suspect.png`、`admin-web-evidence/uat-052-detail-chinese-ghost-story-2.png`（位于本Canary隔离证据目录）。
