@@ -115,6 +115,15 @@ function CompletedMediaTable({ items }: { items: FormationSubject[] }) {
   </tr>)}</tbody></table></div>;
 }
 
+type ActiveFilters = {
+  classification?: 'pending' | 'in_progress' | 'attention_required';
+  shelfId?: string;
+  needsUserAction: boolean;
+  expedited: boolean;
+  q: string;
+};
+const emptyFilters: ActiveFilters = { needsUserAction: false, expedited: false, q: '' };
+
 export default function FormationPage() {
   const { expire } = useSession();
   const [items, setItems] = useState<FormationSubject[]>([]);
@@ -122,6 +131,7 @@ export default function FormationPage() {
   const [ended, setEnded] = useState<FormationRunHistory[]>([]);
   const [summary, setSummary] = useState<FormationSummary>(emptySummary);
   const [shelves, setShelves] = useState<Shelf[]>([]);
+  const [filters, setFilters] = useState<ActiveFilters>(emptyFilters);
   const [expanded, setExpanded] = useState(() => { try { return localStorage.getItem('formation-completed-expanded') === 'true'; } catch { return false; } });
   const [endedExpanded, setEndedExpanded] = useState(() => { try { return localStorage.getItem('formation-ended-expanded') === 'true'; } catch { return false; } });
   const [activeCursor, setActiveCursor] = useState<string | null>(null);
@@ -130,10 +140,17 @@ export default function FormationPage() {
   const [projection, setProjection] = useState<{ status: 'ready' | 'rebuilding' | 'stale'; asOfMs: number } | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const queryFilters = {
+    classification: filters.classification,
+    shelfId: filters.shelfId,
+    needsUserAction: filters.needsUserAction || undefined,
+    expedited: filters.expedited || undefined,
+    q: filters.q.trim() || undefined,
+  };
   const load = useCallback(async () => {
     setLoading(true); setError('');
     try {
-      const [active, shelfResult] = await Promise.all([helixAdminApi.listFormation('active'), helixAdminApi.listShelves()]);
+      const [active, shelfResult] = await Promise.all([helixAdminApi.listFormation('active', undefined, queryFilters), helixAdminApi.listShelves()]);
       setItems(active.items); setActiveCursor(active.nextCursor); setSummary(active.summary); setProjection(active.projection);
       setShelves(shelfResult.items.filter((item) => item.status === 'active'));
       if (expanded) {
@@ -148,7 +165,7 @@ export default function FormationPage() {
       if (isUnauthorized(cause)) expire();
       else setError(cause instanceof Error ? cause.message : '媒体整理工作区读取失败。');
     } finally { setLoading(false); }
-  }, [expire, expanded, endedExpanded]);
+  }, [expire, expanded, endedExpanded, filters.classification, filters.shelfId, filters.needsUserAction, filters.expedited, filters.q]);
   useEffect(() => { void load(); }, [load]);
   const tableProps = {
     shelves, loading,
@@ -171,10 +188,32 @@ export default function FormationPage() {
     {error && <p className="form-error" role="alert">{error}</p>}
     <section className="formation-ledger">
       <div className="source-registry-heading"><div><h2>当前媒体</h2></div><span>当前显示 {items.length} 条</span></div>
+      <div className="formation-chips" role="group" aria-label="当前媒体状态">
+        {([
+          { id: undefined, label: `全部当前 ${summary.pendingCount + summary.inProgressCount + summary.attentionRequiredCount}` },
+          { id: 'pending' as const, label: `待整理 ${summary.pendingCount}` },
+          { id: 'in_progress' as const, label: `整理中 ${summary.inProgressCount}` },
+          { id: 'attention_required' as const, label: `需要处理 ${summary.attentionRequiredCount}` },
+        ]).map((chip) => <Button key={chip.label} type="button" aria-pressed={filters.classification === chip.id} onClick={() => setFilters((current) => ({ ...current, classification: chip.id }))}>{chip.label}</Button>)}
+      </div>
+      <div className="formation-secondary">
+        <label>目标收藏架
+          <select aria-label="按收藏架筛选" value={filters.shelfId || ''} onChange={(event) => setFilters((current) => ({ ...current, shelfId: event.target.value || undefined }))}>
+            <option value="">全部收藏架</option>
+            <option value="unset">尚未选定</option>
+            {shelves.map((shelf) => <option key={shelf.shelfId} value={shelf.shelfId}>{shelf.name}</option>)}
+          </select>
+        </label>
+        <label className="formation-check"><input type="checkbox" checked={filters.needsUserAction} onChange={(event) => setFilters((current) => ({ ...current, needsUserAction: event.target.checked }))} />需要我处理</label>
+        <label className="formation-check"><input type="checkbox" checked={filters.expedited} onChange={(event) => setFilters((current) => ({ ...current, expedited: event.target.checked }))} />已加急</label>
+        <label>片名
+          <input type="search" aria-label="按片名筛选" value={filters.q} placeholder="搜索片名" onChange={(event) => setFilters((current) => ({ ...current, q: event.target.value }))} />
+        </label>
+      </div>
       {items.length ? <>
         <CurrentMediaTable items={items} {...tableProps} />
-        {activeCursor && <Button type="button" onClick={() => void (async () => { if (!activeCursor) return; setLoading(true); try { const result = await helixAdminApi.listFormation('active', activeCursor); setItems((current) => [...current, ...result.items]); setActiveCursor(result.nextCursor); setProjection(result.projection); } finally { setLoading(false); } })()} disabled={loading}>加载更多当前媒体</Button>}
-      </> : <div className="source-empty"><strong>当前没有未完成媒体</strong></div>}
+        {activeCursor && <Button type="button" onClick={() => void (async () => { if (!activeCursor) return; setLoading(true); try { const result = await helixAdminApi.listFormation('active', activeCursor, queryFilters); setItems((current) => [...current, ...result.items]); setActiveCursor(result.nextCursor); setProjection(result.projection); } finally { setLoading(false); } })()} disabled={loading}>加载更多当前媒体</Button>}
+      </> : <div className="source-empty"><strong>{filters.classification || filters.shelfId || filters.needsUserAction || filters.expedited || filters.q.trim() ? '当前没有符合筛选的媒体' : '当前没有未完成媒体'}</strong></div>}
     </section>
     <section className="formation-ledger">
       <div className="source-registry-heading"><div><h2>已完成整理</h2></div>

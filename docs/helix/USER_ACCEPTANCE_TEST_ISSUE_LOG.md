@@ -104,7 +104,7 @@ Helix主体开发已经完成，Movie从Procurement、Libra到Arca及Shelf Dereg
 
 | ID | 问题 | 主分类 | 次分类 | 主要责任边界 | 影响维度 | 严重度 | 当前状态 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| UAT-050 | 媒体整理工作区当前媒体缺少可操作筛选 | `USER_EXPERIENCE` | `PROJECTION_FRESHNESS` | Formation 公开 Query + Admin Web | 可理解性、可操作性 | High | 已讨论并确认方向，待实现 |
+| UAT-050 | 媒体整理工作区当前媒体缺少可操作筛选 | `USER_EXPERIENCE` | `PROJECTION_FRESHNESS` | Formation 公开 Query + Admin Web | 可理解性、可操作性 | High | 已实现；待新 Canary 确认 |
 | UAT-051 | 整理动作是概括句，不能展示分步施工、分步进度、用户操作与加急 | `USER_EXPERIENCE` | `PROJECTION_FRESHNESS` | Formation 公开 Projection + Admin Web | 可理解性、可观察性 | High | 已实现；待新 Canary 确认 |
 | UAT-052 | 我的收藏一级导航不是按架，详情缺少占用空间等技术指标 | `USER_EXPERIENCE` | `PROJECTION_FRESHNESS` | Arca Collection Query + Admin Web | 可理解性、可发现性 | High | 已讨论并确认方向，待实现 |
 | UAT-053 | 活动文件来源未按 SSOT 周期观察，扫描完成后页面禁止再扫 | `DOMAIN_ORCHESTRATION` | `USER_EXPERIENCE` | Procurement Field Management Owner 自动化 + Admin Web | 正确性、活性、可理解性 | Critical | 已实现；待新 Canary 确认 |
@@ -1953,7 +1953,17 @@ stderr 为 `CLEAN_ARCA_TARGET_OCCUPIED` 与 `CLEAN_ARCA_SETTLEMENT_UNKNOWN_MEMBE
 
 验收证据：有界样本下按状态、架、需要处理、加急、片名分别过滤，计数与四桶一致，分页无重复无漏行；窄屏与键盘可用。
 
-当前处理决定：2026-08-22 用户确认该方向。只登记，不立即改代码，不改 SSOT。与 `UAT-005` 并存，本项专管筛选。
+当前处理决定：2026-08-22 用户确认该方向。2026-08-22 代码已实现。当前媒体一级芯片全部当前 / 待整理 / 整理中 / 需要处理与四桶 Classification 同一套计数；二级按目标收藏架（含尚未选定）、需要我处理、已加急、片名走 `GET /v1/admin/formation` Query。切筛选重置游标，在 Projection 上过滤，不在前端筛当前 25 条。已完成整理仍在下方折叠区。本条不宣称 Canary 或生产通过。
+
+证据：
+
+- `media-service/src/helix/domains/libra/application/formation-query.js`
+- `media-service/src/helix/domains/libra/persistence/formation-projection-store.js`
+- `media-service/web/src/helix/FormationPage.tsx`
+- `media-service/web/src/helix/api.ts`
+- `media-service/test/helix-formation-projection.test.js`
+- `media-service/web/test/helix-copy.test.tsx`
+- Admin Web production build `npm run build:web` PASS
 
 ## 48. UAT-051：整理动作是概括句，不能展示分步施工、分步进度、用户操作与加急
 

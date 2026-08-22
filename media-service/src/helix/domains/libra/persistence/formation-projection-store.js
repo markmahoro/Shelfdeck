@@ -39,6 +39,9 @@ function createFormationProjectionStore(options) {
       active_page: { kind: 'select-filtered-page', tableId: TABLE_ID, excludedKeyColumns: ['classification'], maxItems: 26,
         orderBy: [{ column: 'attention_priority', direction: 'asc' }, { column: 'updated_at_ms', direction: 'desc' }, { column: 'subject_id', direction: 'asc' }],
         columns: COLUMNS, safeIntegers: true },
+      active_scan: { kind: 'select-filtered-page', tableId: TABLE_ID, excludedKeyColumns: ['classification'], maxItems: 500,
+        orderBy: [{ column: 'attention_priority', direction: 'asc' }, { column: 'updated_at_ms', direction: 'desc' }, { column: 'subject_id', direction: 'asc' }],
+        columns: COLUMNS, safeIntegers: true },
       completed_page: { kind: 'select-filtered-page', tableId: TABLE_ID, fixedKeyColumns: ['classification'], maxItems: 101,
         orderBy: [{ column: 'completed_at_ms', direction: 'desc' }, { column: 'subject_id', direction: 'asc' }],
         columns: COLUMNS, safeIntegers: true },
@@ -76,9 +79,10 @@ function createFormationProjectionStore(options) {
     } }]).libra_formation_projection_write;
   }
   function listActive(offset, limit) { return read('active_page', { excluded_classification: 'completed', offset, limit }); }
+  function listActiveScan(offset, limit) { return read('active_scan', { excluded_classification: 'completed', offset, limit }); }
   function listCompleted(offset, limit) { return read('completed_page', { classification: 'completed', offset, limit }); }
   function counts() { return read('counts', {}); }
-  return Object.freeze({ find, findByOffer, upsert, listActive, listCompleted, counts });
+  return Object.freeze({ find, findByOffer, upsert, listActive, listActiveScan, listCompleted, counts });
 }
 
 module.exports = Object.freeze({ COLUMNS, createFormationProjectionStore });

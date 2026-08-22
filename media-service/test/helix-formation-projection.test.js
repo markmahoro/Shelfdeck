@@ -181,8 +181,39 @@ test('durable Formation projection pages 25 active rows, sorts attention first, 
     assert.deepEqual(active.summary,{totalCount:31,pendingCount:29,inProgressCount:0,attentionRequiredCount:1,completedCount:1});assert.deepEqual(active.projection,{status:'ready',asOfMs:3999});
     const remainder=query.list({section:'active',limit:25,cursor:active.nextCursor});assert.equal(remainder.items.length,5);
     const completed=query.list({section:'completed',limit:25});assert.equal(completed.items.length,1);assert.equal(completed.items[0].subjectId,'subject-030');
+    const byTitle=query.list({section:'active',q:'影片 0'});
+    assert.equal(byTitle.items.length,1);assert.equal(byTitle.items[0].subjectId,'subject-000');
+    assert.notEqual(active.items.some((row)=>row.subjectId==='subject-000'),true);
+    const byBucket=query.list({section:'active',classification:'attention_required'});
+    assert.equal(byBucket.items.length,1);assert.equal(byBucket.items[0].subjectId,'subject-029');
+    assert.deepEqual(byBucket.summary,active.summary);
     const endedQuery=createFormationQuery({store,historyStore:{listDiscarded:()=>[{historyId:'discard-1',libraRunId:'old-run',subjectId:'subject-000',outcome:'user_abandoned',label:'已结束 · 用户放弃',endedAtMs:5000,stateRevision:3,stateDigest:hex(900),evidenceDigest:hex(901)}]},now:()=>5001,state:()=>({status:'ready',asOfMs:5000})});
     const ended=endedQuery.list({section:'ended',limit:25});assert.equal(ended.items.length,1);assert.equal(ended.items[0].displayIdentity,'影片 0');assert.equal(ended.items[0].label,'已结束 · 用户放弃');
+  }finally{kernel.close();fs.rmSync(root,{recursive:true,force:true,maxRetries:5,retryDelay:50});}
+});
+
+test('Formation query filters shelf, expedite, and needs-user-action on the projection',()=>{
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'helix-formation-filter-')),databasePath=path.join(root,'shelfdeck.db');
+  const kernel=openSqliteKernel({Database,databasePath,schemaDdl,schemaManifest,now:()=>100});
+  try{
+    kernel.runPrimitive(({prepare})=>{const insert=prepare(`INSERT INTO libra_subjects(subject_id,structure_kind,content_profile,routing_anchor_intake_decision_id,status,intake_revision,current_identity_revision,created_at_ms,updated_at_ms) VALUES(?,?,?,?,?,?,?,?,?)`);
+      for(let index=0;index<7;index+=1)insert.run(`subject-${String(index).padStart(3,'0')}`,'single','movie',null,'active',1,null,1000+index,1000+index);});
+    const unitOfWork=createSqliteUnitOfWork({kernel}),store=createFormationProjectionStore({schemaManifest,unitOfWork});
+    for(let index=0;index<4;index+=1)store.upsert(buildFormationProjectionRow(item(index,'pending'),3000+index));
+    store.upsert(buildFormationProjectionRow({...item(4,'pending'),displayIdentity:'加急片',currentRun:{...item(4).currentRun,priorityClass:'expedited'}},4000));
+    store.upsert(buildFormationProjectionRow({...item(5,'pending'),displayIdentity:'未分架片',targetShelfId:null,targetShelfName:null,routingState:'unresolved'},4001));
+    store.upsert(buildFormationProjectionRow(item(6,'attention_required',true),4002));
+    const query=createFormationQuery({store,now:()=>5000,state:()=>({status:'ready',asOfMs:4999})});
+    const expedited=query.list({section:'active',expedited:'1'});
+    assert.equal(expedited.items.length,1);assert.equal(expedited.items[0].displayIdentity,'加急片');
+    const unset=query.list({section:'active',shelfId:'unset'});
+    assert.equal(unset.items.length,1);assert.equal(unset.items[0].displayIdentity,'未分架片');
+    const mine=query.list({section:'active',needsUserAction:'1'});
+    assert.deepEqual(mine.items.map((row)=>row.displayIdentity).sort(),['未分架片','影片 6'].sort());
+    const shelf=query.list({section:'active',shelfId:'shelf-1',classification:'pending'});
+    assert.equal(shelf.items.length,5);
+    assert.ok(shelf.items.every((row)=>row.targetShelfId==='shelf-1' && row.classification==='pending'));
+    assert.equal(shelf.summary.pendingCount,6);
   }finally{kernel.close();fs.rmSync(root,{recursive:true,force:true,maxRetries:5,retryDelay:50});}
 });
 

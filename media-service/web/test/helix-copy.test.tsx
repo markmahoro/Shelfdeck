@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import App from '../src/App';
@@ -154,6 +154,14 @@ describe('Helix primary copy and workbench structure', () => {
     expect(screen.getByText('GPU转码 · HEVC · 4k · 不超过 20 GiB')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '加快整理' })).toBeInTheDocument();
     expect(screen.queryByText('尚未形成整理动作')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /全部当前/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /待整理/ })).toBeInTheDocument();
+    expect(screen.getByLabelText('按片名筛选')).toBeInTheDocument();
+    expect(screen.getByLabelText('按收藏架筛选')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /待整理/ }));
+    await waitFor(() => {
+      expect(helixAdminApi.listFormation).toHaveBeenLastCalledWith('active', undefined, expect.objectContaining({ classification: 'pending' }));
+    });
   });
 
   it('does not keep banned slogans on the default chrome', () => {

@@ -410,6 +410,57 @@ function createFormationQuery(options) {
     }
     return Object.freeze(result);
   }
+  function truthy(value) { return value === true || value === 1 || value === '1' || value === 'true'; }
+  function activeFilters(query) {
+    const classification = ['pending', 'in_progress', 'attention_required'].includes(query.classification) ? query.classification : null;
+    const shelfId = typeof query.shelfId === 'string' ? query.shelfId : null;
+    const title = typeof query.q === 'string' ? query.q.trim().toLowerCase() : '';
+    return Object.freeze({
+      classification, shelfId,
+      needsUserAction: truthy(query.needsUserAction),
+      expedited: truthy(query.expedited),
+      title,
+    });
+  }
+  function hasActiveFilters(filters) {
+    return Boolean(filters.classification || filters.shelfId || filters.needsUserAction || filters.expedited || filters.title);
+  }
+  function itemNeedsUserAction(item) {
+    return item.classification === 'attention_required'
+      || item.routingState === 'unresolved'
+      || Boolean(item.productIdentityIssue)
+      || Boolean(item.executorIssue)
+      || ['frozen', 'suspended'].includes(item.currentRun?.state)
+      || ['attention_required', 'frozen', 'suspended', 'blocked'].includes(item.nextAction?.state);
+  }
+  function matchesActiveItem(item, filters) {
+    if (filters.classification && item.classification !== filters.classification) return false;
+    if (filters.shelfId === 'unset' || filters.shelfId === '') {
+      if (item.targetShelfId) return false;
+    } else if (filters.shelfId && item.targetShelfId !== filters.shelfId) return false;
+    if (filters.needsUserAction && !itemNeedsUserAction(item)) return false;
+    if (filters.expedited && item.currentRun?.priorityClass !== 'expedited') return false;
+    if (filters.title && !String(item.displayIdentity || '').toLowerCase().includes(filters.title)) return false;
+    return true;
+  }
+  function scanActiveRows() {
+    const all = [];
+    let offset = 0;
+    const reader = typeof options.store.listActiveScan === 'function' ? options.store.listActiveScan.bind(options.store) : options.store.listActive.bind(options.store);
+    const chunk = typeof options.store.listActiveScan === 'function' ? 500 : 26;
+    for (;;) {
+      const page = reader(offset, chunk);
+      if (!page.length) break;
+      all.push(...page);
+      if (page.length < chunk) break;
+      offset += page.length;
+    }
+    return all;
+  }
+  function mergeAttention(rows, attention) {
+    const attentionOffers = new Set(attention.map((item) => item.current_offer_id));
+    return [...attention, ...rows.filter((item) => !attentionOffers.has(item.current_offer_id))];
+  }
   function list(query = {}) {
     const section = ['completed', 'ended'].includes(query.section) ? query.section : 'active', offset = parseCursor(query.cursor);
     const limit = Math.min(section === 'active' ? 25 : 100, Math.max(1, Number(query.limit) || 25));
@@ -423,13 +474,26 @@ function createFormationQuery(options) {
       })), summary:summary(), nextCursor:hasMore ? cursorFor(offset + limit) : null,
       projection:Object.freeze({ status:state.status, asOfMs:state.asOfMs }) });
     }
-    let rows = section === 'completed' ? options.store.listCompleted(offset, limit + 1) : options.store.listActive(offset, limit + 1);
     const attention = (options.listAcceptanceAttention?.(100) || []).map((item)=>options.store.findByOffer?.(item.offerId)).filter(Boolean);
     const attentionOffers = new Set(attention.map((item)=>item.current_offer_id));
-    if (section === 'completed') rows = rows.filter((item)=>!attentionOffers.has(item.current_offer_id));
-    else if (offset === 0) rows = [...attention, ...rows.filter((item)=>!attentionOffers.has(item.current_offer_id))];
-    const hasMore = rows.length > limit, selected = hasMore ? rows.slice(0, limit) : rows;
-    return Object.freeze({ items: Object.freeze(selected.map(projectionItem).map(technicalIssue)), summary: summary(attention),
+    if (section === 'completed') {
+      let rows = options.store.listCompleted(offset, limit + 1).filter((item)=>!attentionOffers.has(item.current_offer_id));
+      const hasMore = rows.length > limit, selected = hasMore ? rows.slice(0, limit) : rows;
+      return Object.freeze({ items: Object.freeze(selected.map(projectionItem).map(technicalIssue)), summary: summary(attention),
+        nextCursor: hasMore ? cursorFor(offset + limit) : null, projection: Object.freeze({ status: state.status, asOfMs: state.asOfMs }) });
+    }
+    const filters = activeFilters(query);
+    let items;
+    if (hasActiveFilters(filters)) {
+      items = mergeAttention(scanActiveRows(), attention).map(projectionItem).map(technicalIssue).filter((item) => matchesActiveItem(item, filters));
+    } else {
+      let rows = options.store.listActive(offset, limit + 1);
+      if (offset === 0) rows = mergeAttention(rows, attention);
+      items = rows.map(projectionItem).map(technicalIssue);
+    }
+    const windowed = hasActiveFilters(filters) ? items.slice(offset) : items;
+    const hasMore = windowed.length > limit, selected = hasMore ? windowed.slice(0, limit) : windowed;
+    return Object.freeze({ items: Object.freeze(selected), summary: summary(attention),
       nextCursor: hasMore ? cursorFor(offset + limit) : null, projection: Object.freeze({ status: state.status, asOfMs: state.asOfMs }) });
   }
   function get(subjectId) {

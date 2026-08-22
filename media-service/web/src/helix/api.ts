@@ -402,8 +402,19 @@ export const helixAdminApi = {
   listRuleTemplates() {
     return request<{ items: RuleTemplate[] }>('/v1/admin/rule-templates');
   },
-  listFormation(section:'active'|'completed'='active', cursor?:string) {
-    const query=new URLSearchParams({section,limit:'25'});if(cursor)query.set('cursor',cursor);
+  listFormation(section:'active'|'completed'='active', cursor?:string, filters?:{
+    classification?:'pending'|'in_progress'|'attention_required';
+    shelfId?:string; needsUserAction?:boolean; expedited?:boolean; q?:string;
+  }) {
+    const query=new URLSearchParams({section,limit:'25'});
+    if(cursor)query.set('cursor',cursor);
+    if(section==='active' && filters){
+      if(filters.classification)query.set('classification',filters.classification);
+      if(filters.shelfId)query.set('shelfId',filters.shelfId);
+      if(filters.needsUserAction)query.set('needsUserAction','1');
+      if(filters.expedited)query.set('expedited','1');
+      if(filters.q)query.set('q',filters.q);
+    }
     return request<{ items: FormationSubject[]; summary: FormationSummary; nextCursor:string|null; projection:{status:'ready'|'rebuilding'|'stale';asOfMs:number} }>(`/v1/admin/formation?${query}`);
   },
   listFormationHistory(cursor?:string) {
