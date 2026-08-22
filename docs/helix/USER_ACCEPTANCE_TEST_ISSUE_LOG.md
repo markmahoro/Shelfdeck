@@ -1280,6 +1280,12 @@ UAT-020代码修复已完成，但问题继续保持OPEN：按用户指示不立
 `CURRENT CANARY FAILED / ROOT CAUSE IN PROGRESS`，不另开重复UAT。UI证据：
 `admin-web-evidence/uat-020-final-subtitle-technical-name-failed.png`。
 
+根因与代码修复（2026-08-23）：`subtitleQualifiers()`只识别`zh-CN/chs/eng`等机器标记，把精确单语
+`chinese(简)`误判为语言未证明，遂按防碰撞策略保留完整源basename。commit `62086c72d`新增有界识别：仅精确
+`chinese(简)/(简体)/(繁)/(繁体)`分别映射`zh-CN/zh-TW`；`chinese(简英,...)`等多语/来源标记仍保持原名，
+不削弱fail-closed。专项Inventory Port 16/16通过，现场同型新Decision会生成`老笠 (2016).zh-CN.srt`。
+旧Final Inventory Decision与Shelf Entry不可变，本项仍为`FAILED`，必须从不可变`F:\test_film`重建Canary后用新Entry复测。
+
 ## 18. UAT-021：TMDB别名来源泄漏到Product Identity证据，全部整理在身份取证前冻结
 
 问题分类：`EXECUTION_CONTRACT / INTEGRATION_ADAPTER / USER_VISIBLE_PROJECTION`
