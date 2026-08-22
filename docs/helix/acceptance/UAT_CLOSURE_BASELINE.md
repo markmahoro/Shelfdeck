@@ -94,7 +94,7 @@
 | UAT-035 | FFmpeg 非零退出按执行失败收口，Remux Attempt 不停在 executing | `UI` `FACT` | W3 | `CODE_DONE_UNQUALIFIED` | `NOT RUN` |
 | UAT-036 | 已观察 ISO 能通过 Triage 形成 Candidate，不再因非可播放流 `triage_failed` | `UI` | W2 | `CODE_DONE_UNQUALIFIED` | `NOT RUN` |
 | UAT-037 | 007 身份 provider_exact 观察不被 schema 拒绝，冻结文案不是通用句 | `UI` | W2 | `CODE_DONE_UNQUALIFIED` | `NOT RUN` |
-| UAT-038 | 上架成功后 Aftercare 健康不再是 conformance/presentation 降级 | `UI` | W4 | `CODE_DONE_UNQUALIFIED` | `NOT RUN` |
+| UAT-038 | 上架成功后 Aftercare 健康不再是 conformance/presentation 降级 | `UI` | W4 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260822-141950-0c27c8cf6 UI 倩女幽魂2已上架详情刷新后收藏健康为健康，保管/呈现/合规均为健康 |
 | UAT-039 | 同根上架不把源文件和兄弟电影目录当成占用/未知成员 | `UI` `FS` | W3 | `CODE_DONE_UNQUALIFIED` | `NOT RUN` |
 | UAT-040 | ISO 原盘 Remux 走提取路径，不把映像文件当普通流输入 | `UI` `FS` | W3 | `CODE_DONE_UNQUALIFIED` | `NOT RUN` |
 | UAT-041 | BDMV HEVC/TrueHD Remux 能处理缺 PES 时间戳，不被 Matroska 直接拒绝 | `UI` `FS` | W3 | `CODE_DONE_UNQUALIFIED` | `NOT RUN` |
@@ -131,11 +131,11 @@
 | 口径 | 数量 |
 | --- | --- |
 | 总行 | 64 |
-| 本轮 `PASS` | **20** |
-| 本轮未通过（`NOT RUN`+`FAILED`+`BLOCKED`） | **44**（全部为 `NOT RUN`；0 `FAILED`；0 `BLOCKED`） |
-| 是否都通过 | **否**（20/64，未通过 44） |
+| 本轮 `PASS` | **21** |
+| 本轮未通过（`NOT RUN`+`FAILED`+`BLOCKED`） | **43**（全部为 `NOT RUN`；0 `FAILED`；0 `BLOCKED`） |
+| 是否都通过 | **否**（21/64，未通过 43） |
 
-本轮 `PASS`：001、002、005、006、007、008、015、016、018、030、050、051、052、053、054、055、056、057、058、061。证据均为本隔离库 Admin Web `UI`。W3 转码/ISO/BDMV 上架、W5 Discard 重新入库、W6 退出收藏/注销在本坐席未跑完，保持 `NOT RUN`。
+本轮 `PASS`：001、002、005、006、007、008、015、016、018、030、038、050、051、052、053、054、055、056、057、058、061。证据均为本隔离库 Admin Web `UI`。W3 转码/ISO/BDMV 上架、W5 Discard 重新入库、W6 退出收藏/注销在本坐席未跑完，保持 `NOT RUN`。
 
 `UAT-005` 剩余动作合同并入 `UAT-051` 后仍保留本行，用四桶状态在新 Canary 上资格确认，不把 005 标 `VOID`。
 
@@ -161,3 +161,17 @@
 - 旁证停车：本作业观察到的其他UAT现象只记备注，不改其他行结论。
 - 关闭结论：`PASS`。页面「全部 17」与「Movie Canary 17」均可独立选中且墙为17部；「第八个嫌疑人」展示占用`1.9 GB`、主视频`1.9 GB · MP4`、有海报/有NFO；「倩女幽魂2：人间道」展示占用`9.3 GB`、主视频`9.3 GB · MKV`、有海报/有NFO。只读Inventory Product Fact无`videoStreams`，页面没有编造codec/raster。
 - UI证据：`admin-web-evidence/uat-052-shelf-movie-canary.png`、`admin-web-evidence/uat-052-detail-eighth-suspect.png`、`admin-web-evidence/uat-052-detail-chinese-ghost-story-2.png`（位于本Canary隔离证据目录）。
+
+### UAT-038（`PASS`）
+
+- 关闭命题：上架成功后 Aftercare 健康不再是 conformance/presentation 降级。
+- Canary：`UAT-20260822-141950-0c27c8cf6`。
+- 证人：Admin Web「我的收藏」→「Movie Canary」→「倩女幽魂2：人间道」详情；该条目已On-deck且当前收藏健康为健康。
+- 路径：我的收藏 → Movie Canary → 打开「倩女幽魂2：人间道」详情 → 读取收藏健康总状态及保管/呈现/合规三项状态 → 刷新后复核。
+- 允许动作：页面进入、只读切换、打开/关闭详情、页面刷新、截图；SQLite/日志只读旁证。
+- 禁止动作：点击「立即检查健康」、修改评分、退出收藏、重启服务、重建Canary、修改文件或数据库；当前NVENC转码不得受本项影响。
+- 通过标准：已上架证人在详情页显示收藏健康为健康，保管、呈现、合规均为健康；不再出现`old_binding_unreadable`或`nfo_corrupt`降级。
+- 证据要求：`UI`。
+- 旁证停车：本作业观察到的其他UAT现象只记备注，不改其他行结论。
+- 关闭结论：`PASS`。重新打开本地Admin Web并刷新收藏页后，「倩女幽魂2：人间道」仍显示「收藏健康 · 健康」，保管、呈现、合规三项均为健康；没有`old_binding_unreadable`或`nfo_corrupt`降级。
+- UI证据：`admin-web-evidence/uat-038-aftercare-healthy-chinese-ghost-story-2.png`（位于本Canary隔离证据目录）。
