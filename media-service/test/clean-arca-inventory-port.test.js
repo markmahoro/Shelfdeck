@@ -519,6 +519,79 @@ function settlementFixture({ unknownMember = false, siblingDirectory = false } =
     finalMember, materialHandle, mappingDigest };
 }
 
+test('same-root settlement keeps leftover extras in the retained final directory', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'clean-arca-same-root-extras-'));
+  try {
+    const targetDirectory = path.join(root, 'The Beekeeper (2024)');
+    fs.mkdirSync(targetDirectory, { recursive:true });
+    const source = path.join(targetDirectory, 'clip.m2ts');
+    const extra = path.join(targetDirectory, 'banner.jpg');
+    fs.writeFileSync(source, Buffer.from('exact-movie-bytes'));
+    fs.writeFileSync(extra, Buffer.from('banner-bytes'));
+    const mountScopeId = 'canary-mount';
+    const productMember = member(source, 'primary_payload', mountScopeId);
+    const mappingDigest = canonicalDigest({ source:productMember.materialKey, target:'final' });
+    const packageValue = Object.freeze({
+      onDeckPackageId:'package-extras', shelfId:'shelf-extras',
+      resolvedIdentitySnapshot:{ factValue:{ title:'The Beekeeper', year:2024 } },
+      productStructureSnapshot:{ structureKind:'single' },
+      productMaterialManifest:{ members:Object.freeze([productMember]), manifestDigest:'manifest-extras' },
+      offloadContextManifest:{ manifestDigest:'offload-extras', members:Object.freeze([
+        Object.freeze({
+          materialKey:productMember.materialKey,
+          finalProductMaterialKey:productMember.materialKey,
+          location:source,
+          settlementExpectation:'remove_after_place',
+          sourceToFinalMappingDigest:mappingDigest,
+        }),
+      ]) },
+    });
+    const shelf = Object.freeze({
+      shelfId:'shelf-extras', status:'active', currentPlacementRevision:1,
+      target:{ endpointId:'canary', rootLocation:root, mountScopeId, mountScopeRevision:1 },
+      placement:{ value:{
+        folderTemplate:'{title} ({year})', primaryTemplate:'{title} ({year}){ext}',
+        nfoTemplate:'{stem}.nfo', posterTemplate:'poster{ext}', fanartTemplate:'fanart{ext}',
+        subtitleTemplate:'{stem}{language}{ext}', collisionPolicy:'reject',
+      } },
+    });
+    const port = createCleanArcaInventoryPort({
+      schemaManifest, unitOfWork:{}, workspaceRoot:path.join(root, '.workspace'),
+    });
+    const finalInventoryRequest = {
+      onDeckRunId:'on-deck-extras', custodyId:'custody-extras', shelf,
+      onDeckProductPackage:packageValue, observedAtMs:1, replayCommitted:true,
+    };
+    const finalInventoryDecision = port.prepare(finalInventoryRequest);
+    finalInventoryRequest.finalInventoryDecision = finalInventoryDecision;
+    const finalMember = finalInventoryDecision.members[0];
+    fs.copyFileSync(source, finalMember.targetLocation);
+    const settled = port.settleInput({
+      materialHandle:{
+        schemaRef:'helix://contracts/types/PhysicalMaterialReadHandle/v1',
+        ownerDomain:'arca',
+        ownerScope:{ scopeType:'on_deck_custody', scopeId:'custody-extras' },
+        location:source,
+        identity:productMember.physicalIdentity,
+        expectedSizeBytes:productMember.physicalIdentity.sizeBytes,
+      },
+      approval:{ approvalId:'approval' },
+      finalInventoryRequest,
+      finalMaterialKey:finalMember.sourceMaterialKey,
+      finalTargetLocation:finalMember.targetLocation,
+      settlementExpectation:'remove_after_place',
+      sourceToFinalMappingDigest:mappingDigest,
+    });
+    assert.equal(settled.disposition, 'settled_to_final');
+    assert.equal(fs.existsSync(source), false);
+    assert.equal(fs.existsSync(extra), true);
+    assert.equal(fs.readFileSync(finalMember.targetLocation, 'utf8'), 'exact-movie-bytes');
+    assert.equal(fs.readFileSync(extra, 'utf8'), 'banner-bytes');
+  } finally {
+    fs.rmSync(root, { recursive:true, force:true });
+  }
+});
+
 test('different-path settlement verifies the final copy before removing only the managed source and empty directory', () => {
   const fixture = settlementFixture();
   try {

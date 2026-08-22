@@ -1145,7 +1145,8 @@ function createCleanArcaInventoryPort(options) {
         ancestor = parent;
       }
     }
-    if (!sameLocation && fs.existsSync(sourceDirectory)) {
+    const retainedFinalDirectory = sourceDirectory === path.resolve(built.targetDirectory);
+    if (!sameLocation && !retainedFinalDirectory && fs.existsSync(sourceDirectory)) {
       const unknown = fs.readdirSync(sourceDirectory, { withFileTypes:true })
         .map((item) => path.resolve(sourceDirectory, item.name))
         .filter((item) => {
