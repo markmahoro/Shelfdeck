@@ -99,7 +99,7 @@
 | UAT-040 | ISO 原盘 Remux 走提取路径，不把映像文件当普通流输入 | `UI` `FS` | W3 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260822-141950-0c27c8cf6 UI倩女幽魂2为健康当前收藏且主视频MKV；FS源ISO保留、目标只有MKV且无ISO/盘树 |
 | UAT-041 | BDMV HEVC/TrueHD Remux 能处理缺 PES 时间戳，不被 Matroska 直接拒绝 | `UI` `FS` | W3 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260822-141950-0c27c8cf6 UI BDMV养蜂人为健康当前收藏且主视频MKV；FS目标MKV完整、无.partial，源BDMV保持 |
 | UAT-042 | 同根 Off-load Settlement 能解释源现实漂移 | `UI` `FS` | W3 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260822-141950-0c27c8cf6 UI光荣的愤怒/香火均为健康当前收藏；FS最终视频/海报/NFO保留且无.partial |
-| UAT-043 | 007 身份已过后，TMDB metadata fetch 的 closed-shape / lease 失败可重试，不一次打成冻结 | `UI` | W2 | `CODE_DONE_UNQUALIFIED` | `NOT RUN` |
+| UAT-043 | 007 身份已过后，TMDB metadata fetch 的 closed-shape / lease 失败可重试，不一次打成冻结 | `UI` | W2 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260822-141950-0c27c8cf6 UI 007补齐资料100%后进入无外部候选合法冻结；metadata fetch/commit旁证均成功 |
 | UAT-044 | 四星 14 GiB 能规划 BDMV 多 TrueHD 轨的体积转码，音轨预算裁剪后可上架 | `UI` `FS` | W0 | `CLOSED` | `PASS` UAT-20260822-141950-0c27c8cf6 UI四星BDMV养蜂人为健康当前收藏；FS最终8.93GB HEVC并保留2 TrueHD、裁掉4 AC3 |
 | UAT-045 | ISO Remux 失败 Effect 与进程重启后 Attempt 能收口，不再永久 executing | `UI` `FACT` | W3 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260822-141950-0c27c8cf6 UI倩女幽魂2为健康当前收藏；FACT Run completed且唯一Remux Attempt completed/succeeded，无非终态Attempt |
 | UAT-046 | ISO Remux 抽出 m2ts 后跳过无法 copy 的 `pcm_bluray`，不整盘重抽 | `UI` `FS` | W3 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260822-141950-0c27c8cf6 UI倩女幽魂2为健康当前收藏；FS最终MKV无pcm_bluray/pcm_dvd，保留DTS/AC3/PGS且无iso-clip/partial |
@@ -133,11 +133,11 @@
 | 口径 | 数量 |
 | --- | --- |
 | 总行 | 66 |
-| 本轮 `PASS` | **39** |
-| 本轮未通过（`NOT RUN`+`FAILED`+`BLOCKED`） | **27**（全部为 `NOT RUN`；0 `FAILED`；0 `BLOCKED`） |
-| 是否都通过 | **否**（39/66，未通过 27） |
+| 本轮 `PASS` | **40** |
+| 本轮未通过（`NOT RUN`+`FAILED`+`BLOCKED`） | **26**（全部为 `NOT RUN`；0 `FAILED`；0 `BLOCKED`） |
+| 是否都通过 | **否**（40/66，未通过 26） |
 
-本轮 `PASS`：001、002、005、006、007、008、012、013、015、016、018、030、032、034、036、037、038、039、040、041、042、044、045、046、047、048、049、050、051、052、053、054、055、056、057、058、061、065、066。证据均包含本隔离库 Admin Web `UI`；要求文件现实的行另有`FS`。W5 Discard 重新入库、W6 退出收藏/注销在本坐席未跑完，保持 `NOT RUN`。
+本轮 `PASS`：001、002、005、006、007、008、012、013、015、016、018、030、032、034、036、037、038、039、040、041、042、043、044、045、046、047、048、049、050、051、052、053、054、055、056、057、058、061、065、066。证据均包含本隔离库 Admin Web `UI`；要求文件现实的行另有`FS`。W5 Discard 重新入库、W6 退出收藏/注销在本坐席未跑完，保持 `NOT RUN`。
 
 `UAT-005` 剩余动作合同并入 `UAT-051` 后仍保留本行，用四桶状态在新 Canary 上资格确认，不把 005 标 `VOID`。
 
@@ -435,3 +435,16 @@
 - 证据要求：`UI`。
 - 关闭结论：`PASS`。007页面身份、资料、海报/NFO、外部寻源、验证五步均100%，终态为「没有找到可获取的外部候选，本次整理已冻结」。旁证中两次identity observe与一次resolve均`succeeded`，没有`P4_CAPABILITY_SCHEMA_REJECTED`。
 - UI证据：`admin-web-evidence/uat-037-007-identity-resolved-legal-freeze.png`（位于本Canary隔离证据目录）。
+
+### UAT-043（`PASS`）
+
+- 关闭命题：007身份已过后，TMDB metadata fetch的closed-shape/lease失败可重试，不一次打成冻结。
+- Canary：`UAT-20260822-141950-0c27c8cf6`。
+- 证人：Formation当前媒体中的`007：大破天幕杀机 (2012)`及其metadata事件。
+- 路径：媒体整理工作区 → 定位007 → 核对补齐资料与外部寻源终态 → SQLite只读旁证metadata fetch/commit。
+- 允许动作：页面进入、刷新、截图；SQLite只读旁证。
+- 禁止动作：放弃Run、修改评分、触发外部获取、重启服务、重建Canary、修改数据库。
+- 通过标准：身份之后metadata获取与提交成功；页面资料步骤完成；若五星候选不足，应在外部寻源后合法冻结而不是metadata阶段通用冻结。
+- 证据要求：`UI`。
+- 关闭结论：`PASS`。007页面「补齐资料」100%，外部寻源也100%，终态为明确的无可获取候选冻结。旁证中两次`libra.product_metadata.fetch@1`和一次`libra.product_metadata.commit@1`均`succeeded`，没有closed-shape或lease终态失败。
+- UI证据：`admin-web-evidence/uat-043-007-metadata-success-legal-freeze.png`（位于本Canary隔离证据目录）。

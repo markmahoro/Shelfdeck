@@ -1864,6 +1864,11 @@ stderr 为 `CLEAN_ARCA_TARGET_OCCUPIED` 与 `CLEAN_ARCA_SETTLEMENT_UNKNOWN_MEMBE
 
 干净 Canary `UAT-20260821-234249-d3c617add` 定向确认（2026-08-22）：007 身份 observe / resolve 与 provider metadata fetch 均 succeeded。本地源 ProductMediaVerification 为 `minimum_raster_unmet` + `primary_audio_unmet`（HEVC、below_4k、primaryAudioClasses other、约 2.9 GiB）。五星要求 4K + 无损主音轨，外部选择 `no_available_candidate`，页面为「没有找到可获取的外部候选」。这是已确认五星合同终态，不再算 UAT-043 产品阻塞。
 
+当前关闭 Canary `UAT-20260822-141950-0c27c8cf6` 再确认（2026-08-23）：007两次
+`libra.product_metadata.fetch@1`与一次`libra.product_metadata.commit@1`均`succeeded`；页面「补齐资料」100%，
+随后外部寻源完成并以「没有找到可获取的外部候选」合法冻结。状态
+`REGRESSION PASSED / CONFIRMED ON CURRENT CANARY`。UI证据：`admin-web-evidence/uat-043-007-metadata-success-legal-freeze.png`。
+
 ## 41. UAT-044：4 星 14 GiB 无法规划 BDMV 多 TrueHD 轨的体积转码，落入 MoviePilot 冻结
 
 问题分类：`MEDIA_PRODUCTION / DOMAIN_ORCHESTRATION`
