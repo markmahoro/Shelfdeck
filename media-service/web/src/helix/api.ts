@@ -329,6 +329,16 @@ export type RoutingExpression =
 export type RoutingPolicy = { routingPolicyId: string; revision: number; fieldId: string; mode: 'direct' | 'sorting';
   targets: { shelfId: string; rank: number; matchExpression: RoutingExpression; matchRuleDigest: string }[]; policyDigest: string };
 
+const ADMIN_AUTH_ERROR_COPY: Record<string, string> = {
+  ADMIN_CREDENTIAL_INVALID: '管理凭据验证失败。',
+  ADMIN_SESSION_INVALID: '管理会话已失效，请重新登录。',
+  ADMIN_SESSION_EXPIRED: '管理会话已过期，请重新登录。',
+};
+
+export function adminAuthErrorCopy(code: string, fallback = '管理凭据验证失败。') {
+  return ADMIN_AUTH_ERROR_COPY[code] || fallback;
+}
+
 export class AdminApiError extends Error {
   constructor(readonly status: number, readonly code: string, message: string, readonly details: Record<string, JsonValue> = {}) {
     super(message);
@@ -353,10 +363,11 @@ export async function canonicalDigest(value: JsonValue): Promise<string> {
 async function responseJson<T>(response: Response): Promise<T> {
   if (response.ok) return response.status === 204 ? undefined as T : response.json() as Promise<T>;
   const body = await response.json().catch(() => ({})) as { error?: { code?: string; message?: string; details?: Record<string, JsonValue> } };
+  const code = body.error?.code || `HTTP_${response.status}`;
   throw new AdminApiError(
     response.status,
-    body.error?.code || `HTTP_${response.status}`,
-    body.error?.message || '请求未完成。',
+    code,
+    adminAuthErrorCopy(code, body.error?.message || '请求未完成。'),
     body.error?.details || {},
   );
 }

@@ -1,5 +1,5 @@
 import { createContext, FormEvent, type ReactNode, useCallback, useContext, useMemo, useState } from 'react';
-import { AdminApiError, helixAdminApi } from './api';
+import { AdminApiError, adminAuthErrorCopy, helixAdminApi } from './api';
 
 type SessionStatus = 'ready' | 'required';
 
@@ -45,7 +45,7 @@ function AuthScreen() {
       await signIn(apiKey.trim());
       setApiKey('');
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : '管理凭据验证失败。');
+      setError(cause instanceof AdminApiError ? adminAuthErrorCopy(cause.code) : '管理凭据验证失败。');
     } finally {
       setLoading(false);
     }

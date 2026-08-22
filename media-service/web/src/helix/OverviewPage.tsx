@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { helixAdminApi } from './api';
@@ -10,7 +11,11 @@ export default function OverviewPage() {
     queryKey: ['overview'],
     queryFn: () => helixAdminApi.getOverview(),
   });
-  if (error && isUnauthorized(error)) expire();
+  const unauthorized = Boolean(error && isUnauthorized(error));
+  useEffect(() => {
+    if (unauthorized) expire();
+  }, [expire, unauthorized]);
+  if (unauthorized) return <LoadingState>正在读取概览…</LoadingState>;
   const load = () => { void refetch(); };
   const loading = isFetching;
   const fieldAccessAttention = projection?.systemState.kind !== 'faulted' && Boolean(projection?.todos.some((item) => item.key === 'field_access'));
