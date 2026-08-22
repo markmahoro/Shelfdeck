@@ -1086,6 +1086,14 @@ production build通过；真实Provider重取及Canary结果留在新UAT记录�
 新配置revision。专项Provider/Protocol/Selection、多候选真实字节E2E及Formation回归91/91通过；完整Architecture Gate为
 1087 pass、7 skip、0 fail，Admin Web production build通过。本批次单独提交；旧Run事实和旧Canary现场不改写。
 
+2026-08-23逐项封口复核取得部分资格证据，但尚不关单。clean Canary `UAT-20260822-021504-2ed7baad2`的持久事实中，
+`金的音像店`、`黑客帝国动画版`、`一场很（没）有必要的春晚`和`地狱尖兵`共10个Provider候选全部为
+`requirementAssessment=noncompliant`；4个Selection结果均为`no_requirement_eligible_candidate`，对应Run的
+`libra.external_material.acquire.request@1`事件数全部为0，证明不合格候选未触发下载。当前重建Canary的6个外部冻结项则是
+`no_available_candidate`，不能冒充本命题的UI样本。尝试将前述历史数据复制到隔离端口并用当前代码重放页面时，启动完整性门禁
+因历史Workspace/Source不再可重建而以`P8_DECISION_BASIS_INPUT_INTEGRITY`拒绝；未绕过门禁、未改写历史数据库、未影响当前Canary。
+状态保持`FACT PASSED / EXACT UI SAMPLE NOT RUN`，等待下一次自然出现明确不合格候选时补齐真实Admin Web文案证据。
+
 ## 15. UAT-018：Formation 顶部状态缺少“需要处理”，Discard 历史与媒体当前状态混淆
 
 问题分类：`USER_VISIBLE_PROJECTION / RUN_LIFECYCLE / CURRENT_VS_HISTORY`
