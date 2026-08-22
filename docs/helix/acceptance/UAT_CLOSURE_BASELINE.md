@@ -103,7 +103,7 @@
 | UAT-044 | 四星 14 GiB 能规划 BDMV 多 TrueHD 轨的体积转码，音轨预算裁剪后可上架 | `UI` `FS` | W0 | `CLOSED` | `NOT RUN` |
 | UAT-045 | ISO Remux 失败 Effect 与进程重启后 Attempt 能收口，不再永久 executing | `UI` `FACT` | W3 | `CODE_DONE_UNQUALIFIED` | `NOT RUN` |
 | UAT-046 | ISO Remux 抽出 m2ts 后跳过无法 copy 的 `pcm_bluray`，不整盘重抽 | `UI` `FS` | W3 | `CODE_DONE_UNQUALIFIED` | `NOT RUN` |
-| UAT-047 | ISO 同语言编号字幕最终名可区分，验收不再 `TARGET_COLLISION` | `UI` `FS` | W0 | `CLOSED` | `NOT RUN` |
+| UAT-047 | ISO 同语言编号字幕最终名可区分，验收不再 `TARGET_COLLISION` | `UI` `FS` | W0 | `CLOSED` | `PASS` UAT-20260822-141950-0c27c8cf6 UI倩女幽魂2已为当前收藏；FS 56条zh-CN字幕名全部唯一，含未编号与.1-.55，无hash/(0)补丁 |
 | UAT-048 | 同根终态目录的源残留不再把 Off-load Settlement 打成 `UNKNOWN_MEMBER` | `UI` `FS` | W0 | `CLOSED` | `NOT RUN` |
 | UAT-049 | 盘整理完成后原 `BDMV`/`CERTIFICATE` 整棵树从收藏目录消失 | `UI` `FS` | W3 | `CODE_DONE_UNQUALIFIED` | `NOT RUN` |
 | UAT-050 | 当前媒体筛选走后端 Projection Query，不在前端筛当前页 | `UI` | W1 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260822-141950-0c27c8cf6 UI 当前媒体筛选芯片与目标收藏架 |
@@ -131,11 +131,11 @@
 | 口径 | 数量 |
 | --- | --- |
 | 总行 | 64 |
-| 本轮 `PASS` | **24** |
-| 本轮未通过（`NOT RUN`+`FAILED`+`BLOCKED`） | **40**（全部为 `NOT RUN`；0 `FAILED`；0 `BLOCKED`） |
-| 是否都通过 | **否**（24/64，未通过 40） |
+| 本轮 `PASS` | **25** |
+| 本轮未通过（`NOT RUN`+`FAILED`+`BLOCKED`） | **39**（全部为 `NOT RUN`；0 `FAILED`；0 `BLOCKED`） |
+| 是否都通过 | **否**（25/64，未通过 39） |
 
-本轮 `PASS`：001、002、005、006、007、008、012、013、015、016、018、030、032、038、050、051、052、053、054、055、056、057、058、061。证据均包含本隔离库 Admin Web `UI`；要求文件现实的行另有`FS`。W3 转码/ISO/BDMV 上架、W5 Discard 重新入库、W6 退出收藏/注销在本坐席未跑完，保持 `NOT RUN`。
+本轮 `PASS`：001、002、005、006、007、008、012、013、015、016、018、030、032、038、047、050、051、052、053、054、055、056、057、058、061。证据均包含本隔离库 Admin Web `UI`；要求文件现实的行另有`FS`。W3 转码/ISO/BDMV 上架、W5 Discard 重新入库、W6 退出收藏/注销在本坐席未跑完，保持 `NOT RUN`。
 
 `UAT-005` 剩余动作合同并入 `UAT-051` 后仍保留本行，用四桶状态在新 Canary 上资格确认，不把 005 标 `VOID`。
 
@@ -219,3 +219,18 @@
 - 关闭结论：`PASS`。Admin Web以「第八个嫌疑人」展示正式收藏；对应Inventory目录精确为`F:\canary\第八个嫌疑人 (2023)`，目录存在，`IsHashName=False`、`HasZeroYear=False`，其5个成员均在该用户可读目录内。
 - UI证据：`admin-web-evidence/uat-013-readable-inventory-eighth-suspect.png`（位于本Canary隔离证据目录）。
 - FS证据：2026-08-22只读核验目录存在，名称为`第八个嫌疑人 (2023)`，非哈希、无`(0)`年份，包含主视频、NFO、poster、fanart、clearlogo共5个成员。
+
+### UAT-047（`PASS`）
+
+- 关闭命题：ISO同语言编号字幕最终名可区分，验收不再`TARGET_COLLISION`。
+- Canary：`UAT-20260822-141950-0c27c8cf6`。
+- 证人：Admin Web「我的收藏」中的「倩女幽魂2：人间道」；Inventory目录`F:\canary\倩女幽魂2：人间道 (1990)`。
+- 路径：我的收藏 → Movie Canary → 打开「倩女幽魂2：人间道」详情确认当前收藏 → 只读枚举最终字幕名称。
+- 允许动作：页面进入、只读切换、打开/关闭详情、截图；文件系统、SQLite和日志只读旁证。
+- 禁止动作：修改评分、退出收藏、移动/重命名文件、重启服务、重建Canary、修改数据库；当前NVENC转码不得受本项影响。
+- 通过标准：证人已经On-deck为当前收藏；最终目录同时保留未编号和`.1`–`.55`编号`zh-CN.srt`，文件名全部唯一，无hash/`(0)`补丁，不再因字幕目标碰撞阻止上架。
+- 证据要求：`UI`、`FS`。
+- 旁证停车：ISO提取、主视频编码、源ISO清理及其他成员只作旁证，不改其他行结论。
+- 关闭结论：`PASS`。Admin Web显示「倩女幽魂2：人间道」属于Movie Canary当前收藏且健康；最终目录有56条`zh-CN.srt`，名称56/56唯一，其中未编号1条、编号`.1`–`.55`共55条，`HashOrZeroPatchCount=0`。
+- UI证据：`admin-web-evidence/uat-047-iso-numbered-subtitles-ondeck.png`（位于本Canary隔离证据目录）。
+- FS证据：2026-08-22只读枚举`F:\canary\倩女幽魂2：人间道 (1990)`，`SubtitleCount=56`、`UniqueNameCount=56`、`NumberedCount=55`、`PlainCount=1`、`.1=True`、`.55=True`、无hash或`(0)`补丁。
