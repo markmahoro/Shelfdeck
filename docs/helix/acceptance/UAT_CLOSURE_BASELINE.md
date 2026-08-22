@@ -73,7 +73,7 @@
 | UAT-014 | Formation 展示 Product Identity 冲突并提供候选选择 | `UI` | W0 | `CLOSED` | `PASS` 真实Canary UI显示身份冲突与Anatomy of a Fall候选，按钮写入TMDB 915935 Selection Intent；2026-08-23合同回归18/18 |
 | UAT-015 | 冻结的 Libra Run 有用户可见的放弃入口 | `UI` | W0 | `CLOSED` | `PASS` UAT-20260822-141950-0c27c8cf6 UI 冻结行有放弃本次整理 |
 | UAT-016 | TMDB 正确候选不再被本地语言/标题过滤误报为未找到 | `UI` | W2 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260822-141950-0c27c8cf6 UI 设置 TMDB 首选语言简体中文 |
-| UAT-017 | 外部寻源按 Acceptance Spec 预筛，不合格候选不会先下载再发现不可达 | `UI` | W3 | `CODE_DONE_UNQUALIFIED` | `NOT RUN` |
+| UAT-017 | 外部寻源按 Acceptance Spec 预筛，不合格候选不会先下载再发现不可达 | `UI` | W3 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260823-040740-0886b2723 UI倩女幽魂2真实MoviePilot候选因H.264/低于4K/超50GiB在Selection前判为noncompliant，结果no_requirement_eligible_candidate且未发下载Work |
 | UAT-018 | 顶部「需要处理」与 Discard 历史分离，Discard 不混进当前四桶 | `UI` | W2 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260822-141950-0c27c8cf6 UI 需要处理桶与已结束区分 |
 | UAT-019 | Executor 终态异常由 Owner 收口，Arca Acceptance Offer 不再悬空 | `UI` `FACT` | W3 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260823-002500-519f8d7b5 UI 16部当前收藏均健康；FACT 16/16 Offer acked、Decision/Handoff B accepted、Recovery resolved、On-deck committed，悬空为0 |
 | UAT-020 | Final Inventory 成员命名与 carried-forward Settlement 完整，技术后缀不进入最终名 | `UI` `FS` | W3 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260823-002500-519f8d7b5 UI老笠当前收藏且健康；FS唯一目录含用户可读Primary/NFO与老笠 (2016).zh-CN.srt，无技术标签/partial |
@@ -118,7 +118,7 @@
 | UAT-059 | 四星转码把 `maxSizeBytes` 当拒绝线而非填满目标；已较小的 H.264 源不得灌到档位 GiB | `UI` `FS` | W3 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260823-002500-519f8d7b5 UI锡尔弗顿1.9GB当前收藏健康；FACT/FS源2.078GB、成品2.091GB，NVENC目标码率1.919Mbps非填满14GiB |
 | UAT-060 | Product Identity 写回 Subject 不重发语义相同的 Acceptance Spec，头不空切，符合性后仍能发 Package | `UI` `FACT` | W2 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260823-014246-3397c88f5 UI养蜂人同值4星覆盖并清除后恢复豆瓣；FACT Spec仍仅revision 1且Head四元组不变，另2个身份写回样本均已发Package |
 | UAT-061 | 豆瓣翻页传输失败有界重试；耗尽后 Acquisition 收口为失败，设置页可再同步。不得用 copy-forward 单独关闭 | `UI` | W4 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260822-141950-0c27c8cf6 UI 本轮点同步出现正在同步，约90s后按钮恢复可点且无失败卡死（非 copy-forward 单独关闭） |
-| UAT-062 | frozen Discard 后 Control 保持释放、不立刻新开 Libra Run、页面不是「正在评估整理方案」，材料走重新入库 | `UI` | W5 | `CODE_DONE_UNQUALIFIED` | `NOT RUN` |
+| UAT-062 | frozen Discard 后 Control 保持释放、不立刻新开 Libra Run、页面不是「正在评估整理方案」，材料走重新入库 | `UI` | W5 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260823-040740-0886b2723 UI倩女幽魂2从冻结变为待整理/等待重新入库；FACT cleanup fully ack，重扫形成新Procurement Run与新Subject，旧Subject未复活 |
 | UAT-063 | Aftercare 用与 Libra 同一套 `perception.rating.resolve@1` Identity Evidence；上架后评分从无到有/变档会再评估 | `UI` | W4 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260823-024825-f6b9eded6 UI威尼斯4星直评及清除回3星豆瓣均自动形成健康Assessment；FACT Subject/Shelf Entry命中同一Douban Record |
 | UAT-064 | Formation 步骤 CPU/GPU 与验证完成态必须与真实执行一致，不得默认 CPU、不得把 Direct 源校验画成成品验证完成 | `UI` | W3 | `RECORDED_UNIMPLEMENTED` | `NOT RUN` |
 | UAT-065 | 收藏详情只从主视频basename解析容器，不得把父目录名中的`.1`显示为容器 | `UI` | W1 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260822-141950-0c27c8cf6 UI 8.3 GB BDMV养蜂人主视频修复后显示8.3 GB · MKV，不再显示· 1 |
@@ -137,14 +137,14 @@
 | 口径 | 数量 |
 | --- | --- |
 | 总行 | 69 |
-| 累计 `PASS` | **66** |
-| 尚未通过（`NOT RUN`+`FAILED`+`BLOCKED`） | **3**（3 `NOT RUN`；0 `FAILED`；0 `BLOCKED`） |
-| 是否都通过 | **否**（66/69，尚余 3） |
+| 累计 `PASS` | **68** |
+| 尚未通过（`NOT RUN`+`FAILED`+`BLOCKED`） | **1**（1 `NOT RUN`；0 `FAILED`；0 `BLOCKED`） |
+| 是否都通过 | **否**（68/69，尚余 1） |
 
-累计 `PASS`：001–016、018–063（不含017）、065–069。证据均包含干净隔离库 Admin Web `UI`；要求文件现实的行另有`FS`。
-当前仅017、062、064保持`NOT RUN`。
+累计 `PASS`：001–063、065–069。证据均包含干净隔离库 Admin Web `UI`；要求文件现实的行另有`FS`。
+当前仅按程序跳过且未授权实现的064保持`NOT RUN`。
 
-当前资格失败证据：`UAT-063`在`UAT-20260823-024825-f6b9eded6`已证明`UAT-068`年份与外部评分恢复修复生效，但又因新登记的`UAT-069`未达到关闭标准：评分 Resolution 更新后自动 Aftercare 及时执行，Planner/Capability 却以旧 Care Basis 写回 Assessment。行仍保持`NOT RUN`，等待包含`UAT-069`修复的新 Canary 重验。`UAT-060`已在HEAD `3397c88f5`重建的干净Canary上用同值评分来源切换及成功Package证人关闭；其余未关闭行尚未形成PASS结论。
+最新关闭证据：`UAT-20260823-040740-0886b2723`以真实MoviePilot不合格候选关闭`UAT-017`，并以同一五星冻结证人的Discard、cleanup fully ack及重新扫描形成全新Procurement/Subject链关闭`UAT-062`。本程序不实施`UAT-064`，因此总账仍不是69/69。
 
 `UAT-005` 剩余动作合同并入 `UAT-051` 后仍保留本行，用四桶状态在新 Canary 上资格确认，不把 005 标 `VOID`。
 
@@ -483,6 +483,18 @@
 - UI证据：`admin-web-evidence/uat-011-same-root-shelf-config.png`、`admin-web-evidence/uat-011-same-root-handoff-b-complete.png`（位于本Canary隔离证据目录）。
 - FS证据：2026-08-23只读枚举`F:\canary`，同一根存在正式电影目录与产品文件，未做任何修改。
 
+### UAT-017（`PASS`）
+
+- 关闭命题：External Acquisition按当前Acceptance Spec在下载前预筛；有明确不合格广告声明的候选不得触发下载。
+- Canary：`UAT-20260823-040740-0886b2723`，HEAD `0886b2723`。
+- 证人：Formation中的《倩女幽魂2：人间道 (1990)》；5星Acceptance Spec要求HEVC、最低4K、合格premium audio、最大50 GiB并含NFO/Poster。
+- 路径：系统设置确认真实MoviePilot连接 → Formation等待外部候选 → 打开冻结详情 → 核对候选Requirement Assessment、Selection结果与下一步。
+- 允许动作：真实Admin Web读取、刷新、截图；真实Provider Search；SQLite只读旁证。
+- 禁止动作：直接写数据库、伪造Candidate声明、手工触发下载、改媒体文件或触碰NAS/生产。
+- 通过标准：明确低于4K、H.264或超50 GiB的候选为`noncompliant`，Selection为`no_requirement_eligible_candidate`，且不存在对应下载/Acquisition Work。
+- 证据要求：`UI`；`FACT`只作旁证。
+- 关闭结论：`PASS`。真实MoviePilot只返回一个候选，广告声明为`below_4k`、`h264`、190,900,558,889 bytes；页面对应冻结详情显示没有符合要求的外部候选。持久事实的拒绝理由为`video_codec_unmet`、`minimum_raster_unmet`、`max_size_exceeded`，Candidate为`noncompliant`，Selection为`not_selected / no_requirement_eligible_candidate`，未形成该候选的下载Work。UI证据：`admin-web-evidence/uat-062-frozen-before-discard.png`（同一截图先完成本行独立作业卡，随后才用于UAT-062）。
+
 ### UAT-020（`PASS`）
 
 - 关闭命题：Final Inventory成员命名与carried-forward Settlement完整，技术后缀不进入最终名。
@@ -497,18 +509,17 @@
 - UI证据：`admin-web-evidence/uat-020-final-subtitle-normalized-pass.png`（位于新Canary隔离证据目录）。旧失败截图继续保留为修复前证据。
 - FS证据：2026-08-23只读枚举及`uat-020-fs-evidence.json`，`SiblingRootCount=1`、`PartialCount=0`，字幕basename精确为`老笠 (2016).zh-CN.srt`。
 
-### UAT-062（`IN PROGRESS`）
+### UAT-062（`PASS`）
 
 - 关闭命题：frozen Run Discard 后 Control 保持 released、不立刻新开 Libra Run；页面显示等待重新入库，材料由 Field Management 进入全新 Procurement。
-- Canary：`UAT-20260823-024825-f6b9eded6`。
-- 证人：优先使用《看不见的朋友 (2023)》；《黑客帝国动画版 (2003)》保留为对照。两者当前均为5星、需要4K External Acquisition。
-- 当前前置状态：MoviePilot已由正式设置页连接；两条五星证人均经真实Provider搜索形成`no_available_candidate` frozen Run。`看不见的朋友 (2023)`已从页面Discard并显示「待整理 / 等待重新入库」，旧Run与Control旁证成立；但cleanup Outbox因Inbox consumer误用技术组件名而持续pending，当前现场不能关闭。
-- 路径：系统设置经正式入口验证并保存MoviePilot → 等证人进入外部候选冻结且出现放弃入口 → 页面放弃本次整理 → 刷新Formation/已结束 → 文件来源观察与FACT旁证。
+- Canary：`UAT-20260823-040740-0886b2723`，HEAD `0886b2723`加本轮同Canary缺陷修复后的安全重启。
+- 证人：《倩女幽魂2：人间道 (1990)》；原Run `8fdf9e2e...`，原Subject `libra-subject-fc12e089...`，材料保持在原Field Observation。
+- 路径：真实MoviePilot候选预筛后形成frozen Run → 页面出现放弃入口 → 放弃本次整理 → 刷新确认待整理/等待重新入库 → 文件来源页面扫描新文件 → Formation与FACT复核新链。
 - 允许动作：用户即时确认后由正式Admin Web提交本地私密MoviePilot配置；页面Discard；刷新、等待、截图；SQLite/日志/文件系统只读旁证。
 - 禁止动作：直接写Integration Secret或SQLite、伪造frozen、在未冻结时调用Discard API、手工改Control或媒体文件、触碰ShelfDeck NAS生产服务。
 - 通过标准：旧Run为discarded；Control released；无新Libra Run；页面不是正在评估而是等待重新入库/等待再次发现；清理Outbox被消费；仍在Field Observation中的材料形成新Procurement链。
 - 证据要求：`UI`；`FACT`只作旁证。
-- 当前结论：`IN PROGRESS`。页面、Run、Control与Field Observation已取得证据；cleanup Inbox Owner错配已修复且专项回归通过。旧Canary不直接改库，等待修复提交后新Canary确认Outbox fully ack与新Procurement，不提前写`PASS`。
+- 关闭结论：`PASS`。页面放弃后显示「待整理 / 等待重新入库」，旧Run成为`discarded` revision 4，Discard提交时Control revision 3为`released`；cleanup消息由consumer `libra`形成Inbox并达到Delivery `acked` / Outbox `fully_acked`。页面重新扫描后形成新Procurement Run `procurement-run-8ecd820a...`及accepted Candidate Delivery，材料进入新Subject `libra-subject-5e1b9392...`并形成新frozen Run；原Subject仍只有旧discarded Run，没有被直接复活。UI证据：`admin-web-evidence/uat-062-frozen-before-discard.png`、`admin-web-evidence/uat-062-awaiting-reintake-pass.png`。FACT仅作上述时序旁证；未编辑数据库或媒体文件。
 
 ### UAT-063（`PASS`）
 

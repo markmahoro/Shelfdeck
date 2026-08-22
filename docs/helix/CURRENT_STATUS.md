@@ -4,27 +4,21 @@ Status: Helix-beta 范围已收窄为仅 Movie 全链路。Movie Procurement与M
 
 Last updated: 2026-08-23
 
-## 0. Current UAT closure continuation — UAT-20260823-024825-f6b9eded6
+## 0. Current UAT closure continuation — UAT-20260823-040740-0886b2723
 
-Git 工作区已重组为 `E:\my_project\emby_third_party-helix` / `main`；本轮测试根统一迁移到
-`F:\shelfdeck_test_zone`，不再在 C 盘留下测试过程文件。不可变基线为
-`F:\shelfdeck_test_zone\test_film`，Canary 为 `F:\shelfdeck_test_zone\canary`，隔离运行目录为
-`F:\shelfdeck_test_zone\runs\UAT-20260823-024825-f6b9eded6`。复制核验为 455 文件、42 目录、
-143,829,090,011 bytes，路径、类型、大小、mtime 零差异。
+正式工作区为 `E:\my_project\emby_third_party-helix` / `main`；测试过程统一位于
+`F:\shelfdeck_test_zone`，未在 C 盘创建测试临时文件。当前隔离运行目录为
+`F:\shelfdeck_test_zone\runs\UAT-20260823-040740-0886b2723`，本轮未触碰NAS或生产。
 
-本轮真实 Admin Web 已确认 `UAT-068` 的年份与外部评分恢复路径生效，但在关闭 `UAT-063` 时新登记
-`UAT-069`：评分 Resolution 更新后 Aftercare Work 及时成功，Planner/Capability 却写回旧 Care Basis。
-组合根已改为由 Capability、Coordinator、Planner 共享同一晚绑定评分 Reader，定向 Aftercare 合同 15/15 PASS；
-安全重启后页面与 FACT 已确认恢复、4 星直接评分、清除回豆瓣三代新 Basis，`UAT-069` 已关闭。
-同一现场继续确认评分变化无需手动健康检查即可自动形成新 Assessment，Subject 与 Shelf Entry 命中同一 Douban Record；`UAT-063` 已关闭。
-Collection 详情同时显示 Provider 年份 2023 与 3 星豆瓣，Inventory 标准年份字段和双端同一 Record 已由只读 FACT 旁证；`UAT-068` 已关闭。当前关闭总账为 66/69，仅余`UAT-017`、`UAT-062`与按程序跳过的`UAT-064`。
+`UAT-017`已用真实MoviePilot关闭：《倩女幽魂2：人间道 (1990)》的5星Acceptance Spec要求HEVC、最低4K和最大50 GiB；
+唯一候选声明为H.264、低于4K且190,900,558,889 bytes，Requirement Assessment为`noncompliant`，Selection为
+`no_requirement_eligible_candidate`，未产生下载Work。冻结详情的Admin Web证据与只读FACT一致。
 
-`UAT-062`本轮已通过真实MoviePilot形成两条`no_available_candidate` frozen Run，并从页面Discard
-`看不见的朋友 (2023)`：UI已显示「待整理 / 等待重新入库」，旧Run为`discarded`，Control revision 3为`released`，
-原Material仍在最新Field Observation中；冻结前与Discard后截图均保存在本轮F盘证据目录。关闭前FACT审计发现
-`libra.workspace-cleanup.requested@1`持续pending：delivery consumer误写为技术名`libra_workspace_reclaimer`，与Inbox的Libra
-Business Owner合同冲突。consumer已在Libra内部边界内纠正为`libra`，相关消息/Run专项回归24/24通过；当前旧Canary不改库，
-仍须在修复提交后重建Canary确认fully ack与新Procurement，故本行保持`NOT RUN`。
+同一证人随后完成`UAT-062`独立作业：页面Discard后显示「待整理 / 等待重新入库」，旧Run为`discarded`，提交时Control为
+`released`；`libra.workspace-cleanup.requested@1`已由Business Owner `libra`写入Inbox并达到Delivery `acked` / Outbox
+`fully_acked`。文件来源页面重新扫描后形成新Procurement Run、accepted Candidate Delivery、新Subject与新frozen Libra Run；
+旧Subject未直接复活。现场同时暴露并修复两项同边界恢复缺陷：启动时先消费durable Outbox再恢复依赖消息的Owner Work；Field重观察
+时按current Control projection digest刷新Eligibility。当前总账为68/69，仅按程序跳过且未授权实现的`UAT-064`保持`NOT RUN`。
 
 ## 0. Clean Canary scorecard — UAT-20260822-141950-0c27c8cf6
 
@@ -44,7 +38,7 @@ Business Owner合同冲突。consumer已在Libra内部边界内纠正为`libra`�
 
 2026-08-22 用户确认九项后续改造并写入 `USER_ACCEPTANCE_TEST_ISSUE_LOG.md`。`UAT-050`–`UAT-058` 代码已落地，待新 Canary 资格确认。不改 SSOT Owner/Handoff，不触碰 NAS/生产。
 
-关闭作业基线：`docs/helix/acceptance/UAT_CLOSURE_BASELINE.md`（`UAT-001`–`UAT-064` 共 64 行）。已删除不可靠的 `helix-beta-user-e2e` workflow。正式关闭立即汇报且不暂停；确认关闭时发现新产品缺陷则暂停并先登记新 UAT。单元测试不能把任何一行标为 `PASS`。
+关闭作业基线：`docs/helix/acceptance/UAT_CLOSURE_BASELINE.md`（`UAT-001`–`UAT-069` 共 69 行）。已删除不可靠的 `helix-beta-user-e2e` workflow。正式关闭立即汇报且不暂停；确认关闭时发现新产品缺陷则暂停并先登记新 UAT。单元测试不能把任何一行标为 `PASS`。
 
 2026-08-22 干净 Canary `UAT-20260822-194617-1ed64ca36` 转码复盘另登记 `UAT-059`：本轮仅 `锡尔弗顿之围 (2022)` 触发转码；四星 H.264→HEVC 触发正确，但 Planner 把 14 GiB 上限当成 `target_size` 填满目标，成品从约 1.94 GiB 灌到约 9.35 GiB。同轮 Spec 复盘登记 `UAT-060`：23/23 部因 Product Identity 写回 Subject 而重发语义相同的 Acceptance Spec 2；`一场很（没）有必要的春晚` 卡在符合性已过、Package 未发。同轮另登记 `UAT-061` 豆瓣翻页失败后设置页永久同步、`UAT-062` Discard 后未重新入库且 UI 空转评估、`UAT-063` Aftercare 查豆瓣分与 Libra 不是同一套 Resolution（用户确认查法必须一致）。
 
@@ -60,7 +54,7 @@ Business Owner合同冲突。consumer已在Libra内部边界内纠正为`libra`�
 - `UAT-059` 已实现：四星转码把 14 GiB 上限当成目标码率（`锡尔弗顿之围` 1.94 GiB H.264 → 9.35 GiB HEVC）。待新 Canary；
 - `UAT-060` 已实现：Product Identity 写回 Subject 触发语义相同的 Acceptance Spec 重发。待新 Canary；
 - `UAT-061` 已实现：豆瓣 Acquisition 翻页传输失败后不重试、不收口。待新 Canary，不得用 copy-forward 单独关闭；
-- `UAT-062` 修复中：页面等待重新入库与Control release已由当前Canary确认；cleanup wake的Inbox Owner错配已修正，待修复后新Canary确认fully ack与新Procurement；
+- `UAT-062` 已关闭：页面等待重新入库、Discard时Control release、cleanup fully ack与重扫形成全新Procurement/Subject链均由当前Canary确认；
 - `UAT-063` 已实现：Aftercare 问豆瓣分与 Libra 共用 Identity Evidence。待新 Canary；
 - `UAT-064` 只登记：Formation 步骤展示与真实执行偏离（CPU/验证完成态）。不深挖、不授权实现。
 - `UAT-068` 已实现：Collection 年份投影保留 Provider 标准年份字段。待本轮独立关闭；
@@ -141,7 +135,7 @@ skip、0 fail，依赖/语义finding均为空。当前机器合同为113 Capabil
 44 Canonical Transaction、118 route，P2 aggregate为
 `c4f08ec964a1c81c4284ee08d9a10d41c5b03ea40611d813a348e29366a2758d`。当前失败Canary事实未改写，真实恢复与页面结论留待第二轮UAT。
 
-## 0. UAT repair status — UAT-017 implemented, fresh Canary qualification pending
+## 0. UAT repair status — UAT-017 Canary qualified
 
 MoviePilot Search Candidate现在冻结当前`MediaRequirement`并公开有来源的typed媒体声明；明确合规候选优先，只有不存在
 合规项时才使用标为“发布信息不完整、下载后验证”的未知候选，明确不合规候选不会触发下载。真实Probe不合格会在
@@ -149,7 +143,8 @@ MoviePilot Search Candidate现在冻结当前`MediaRequirement`并公开有来�
 专项协议、选择、多候选真实字节E2E和Formation可见性回归91/91通过；完整Architecture Gate为165个test file、
 1087 pass、7个显式skip、0 fail，Admin Web production build通过。当前合同为113 Capability、99 Result family、
 117 Domain Input、182 table、44 Canonical Transaction，aggregate为
-`f44d610d01b9302e091adbbdfa35084e6648d61735c6ea8e73015fc35bffd522`；真实MoviePilot和Canary结论仍待第二轮UAT。
+`f44d610d01b9302e091adbbdfa35084e6648d61735c6ea8e73015fc35bffd522`。真实MoviePilot与Canary资格已由
+`UAT-20260823-040740-0886b2723`中的明确不合格候选关闭；该候选未触发下载Work。
 
 ## 0. UAT repair status — UAT-004 bounded I/O qualified
 

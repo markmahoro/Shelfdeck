@@ -36,7 +36,7 @@ Helix主体开发已经完成，Movie从Procurement、Libra到Arca及Shelf Dereg
 
 本文不是Architecture SSOT，不替代`CURRENT_PLAN.md`。历史UAT问题仍保留原有处理状态；2026-08-21 Movie Canary真实用户UAT期间，用户已授权在不改变已确认架构边界的前提下直接修复、页面复测并为每项修复建立独立Git回滚点。2026-08-22 另完成一次 Admin Web 全页用户体验审视（文案、内部机制泄漏、文案与事实冲突、排版、字体、按钮、前端拼装与美学），问题见 `docs/helix/ADMIN_WEB_UX_ISSUE_LOG.md`；该台账不替代本文的 UAT 业务/执行缺陷记录，也不授权实现。同日用户确认四项后续改造并登记为 `UAT-050`–`UAT-053`（当前媒体筛选、分步整理动作与进度、收藏按架与占用空间、Field Observation 周期观察缺口）；随后确认退出收藏任务化界面、人物 Beta 两条登记路径、豆瓣周期同步，登记为 `UAT-054`–`UAT-056`；概览改为状态 + 待办 + 最近几件事、不与「我的收藏」合并，登记为 `UAT-057`；侧栏把文件来源与收藏架下移与系统设置一组，Tab 改名为文件来源配置 / 收藏架配置，登记为 `UAT-058`。2026-08-22 干净 Canary `UAT-20260822-194617-1ed64ca36` 转码复盘登记为 `UAT-059`：四星体积上限被规划器当成目标码率；同轮 Spec 复盘登记为 `UAT-060`：Product Identity 写回 Subject 触发语义相同的 Acceptance Spec 重发；同轮另登记 `UAT-061` 豆瓣 Acquisition 翻页失败不收口、`UAT-062` frozen Discard 后未按重新入库收口、`UAT-063` Aftercare 查豆瓣分与 Libra 不是同一套 Resolution。
 
-关闭作业不再走已删除的 `helix-beta-user-e2e` workflow。当前 67 行关闭基线见 `docs/helix/acceptance/UAT_CLOSURE_BASELINE.md`：正式关闭立即汇报且不暂停；确认关闭时发现新产品缺陷则暂停并先登记新 UAT；`PASS` 必须有干净 Canary 的 Admin Web `UI`（涉及文件现实时加 `FS`），单元测试不能单独关闭一行。
+关闭作业不再走已删除的 `helix-beta-user-e2e` workflow。当前 69 行关闭基线见 `docs/helix/acceptance/UAT_CLOSURE_BASELINE.md`：正式关闭立即汇报且不暂停；确认关闭时发现新产品缺陷则暂停并先登记新 UAT；`PASS` 必须有干净 Canary 的 Admin Web `UI`（涉及文件现实时加 `FS`），单元测试不能单独关闭一行。
 
 记录原则：
 
@@ -118,7 +118,7 @@ Helix主体开发已经完成，Movie从Procurement、Libra到Arca及Shelf Dereg
 | UAT-059 | 四星转码把 14 GiB 上限当成目标码率，把已较小的 H.264 源灌大 | `BUSINESS_CONTRACT` | `MEDIA_PRODUCTION` | Libra Production Planner `deriveTargetSizeBudget` | 正确性、空间、质量 | High | 已实现；待新 Canary 确认 |
 | UAT-060 | Product Identity 写回 Subject 触发语义相同的 Acceptance Spec 重发，头切走后 Run 可能发不出 Package | `BUSINESS_CONTRACT` | `DOMAIN_ORCHESTRATION` | Libra Acceptance Spec `specInputDigest` + Coordinator | 正确性、活性 | High | 已修复并通过重建 Canary 确认 |
 | UAT-061 | 豆瓣 Acquisition 翻页传输失败后不重试、不收口，设置页永久「正在同步」 | `EXTERNAL_INTEGRATION` | `RECOVERY_CORRECTNESS` | Perception Acquisition + Settings 同步态 | 活性、可理解性 | High | 已实现；待新 Canary 确认 |
-| UAT-062 | frozen Run Discard 后 Control 已释放，Formation 仍空转「正在评估整理方案」，未走重新入库 | `BUSINESS_CONTRACT` | `DOMAIN_ORCHESTRATION` | Libra Run Discard 收口 + Procurement 重新入库 + Formation | 正确性、活性、可理解性 | Critical | 修复中；当前 Canary 发现 cleanup Inbox Owner 错配，待修复后新 Canary |
+| UAT-062 | frozen Run Discard 后 Control 已释放，Formation 仍空转「正在评估整理方案」，未走重新入库 | `BUSINESS_CONTRACT` | `DOMAIN_ORCHESTRATION` | Libra Run Discard 收口 + Procurement 重新入库 + Formation | 正确性、活性、可理解性 | Critical | 已修复并通过当前 Canary 确认 |
 | UAT-063 | Aftercare 问豆瓣分与 Libra 不是同一套 Resolution/Identity Evidence，上架后评分变化不触发保养 | `BUSINESS_CONTRACT` | `PROJECTION_FRESHNESS` | Arca Aftercare 拉 Perception + 与 Libra 共用 Identity Evidence | 正确性、时效性 | High | 已修复并通过当前 Canary 确认 |
 | UAT-064 | Formation 整理步骤展示与真实执行状态偏离：转码标 CPU、验证过早标完成 | `USER_EXPERIENCE` | `PROJECTION_FRESHNESS` | Formation 公开 Projection `organizingSteps` / `transcodeLabel` | 可理解性、可观察性 | High | 已登记；待实现授权 |
 | UAT-065 | 收藏详情把父目录名中的`.1`误显示为主视频容器 | `USER_EXPERIENCE` | `PROJECTION_FRESHNESS` | Arca Collection Query + Admin Web | 正确性、可理解性 | High | 已修复并通过当前 Canary 定向确认 |
@@ -1095,6 +1095,11 @@ production build通过；真实Provider重取及Canary结果留在新UAT记录�
 `no_available_candidate`，不能冒充本命题的UI样本。尝试将前述历史数据复制到隔离端口并用当前代码重放页面时，启动完整性门禁
 因历史Workspace/Source不再可重建而以`P8_DECISION_BASIS_INPUT_INTEGRITY`拒绝；未绕过门禁、未改写历史数据库、未影响当前Canary。
 状态保持`FACT PASSED / EXACT UI SAMPLE NOT RUN`，等待下一次自然出现明确不合格候选时补齐真实Admin Web文案证据。
+
+2026-08-23最终关闭：干净Canary `UAT-20260823-040740-0886b2723`中，《倩女幽魂2：人间道 (1990)》按5星
+Acceptance Spec经真实MoviePilot搜索只返回一个候选；其声明为H.264、低于4K且190,900,558,889 bytes，页面冻结详情显示没有符合
+要求的外部候选。持久Requirement Assessment明确为`noncompliant`，理由为`video_codec_unmet`、`minimum_raster_unmet`、
+`max_size_exceeded`，Selection为`no_requirement_eligible_candidate`，对应下载Work为0。状态`REGRESSION PASSED / CLOSED`。
 
 ## 15. UAT-018：Formation 顶部状态缺少“需要处理”，Discard 历史与媒体当前状态混淆
 
@@ -2592,7 +2597,7 @@ Resolution/Query Result作为不可变Basis审计输入，但Spec语义判定只
 
 验收证据：五星冻结样本 Discard 后 Control released、无新 Libra Run、无 Control-unavailable 刷屏、清理 Outbox 被消费；页面不是「正在评估」；仍在 Field 内的材料能进入新的 Procurement，而不是静默消失。
 
-当前处理决定：2026-08-22 第一批代码已实现。Control 已释放时 Creator 返回 `awaiting_reintake`，不再抛 `Control is unavailable`；Formation 放弃后写「等待重新入库」。2026-08-23 当前Canary真实Discard确认上述页面、Run和Control行为，但发现cleanup delivery把技术名`libra_workspace_reclaimer`写成consumer，Inbox因其不等于Business Owner `libra`而在持久化前反复失败。现已把发布与消费两端统一纠正为`libra`，补充fully-ack回归并与相关消息/Run测试合计24/24通过。旧Canary不直接改库；本条等待修复后新Canary确认Outbox消费与新Procurement，不宣称Canary或生产通过。
+当前处理决定：2026-08-23最终关闭。干净Canary `UAT-20260823-040740-0886b2723`中，《倩女幽魂2：人间道 (1990)》的frozen Run经正式放弃入口成为`discarded`，页面显示「待整理 / 等待重新入库」；Discard提交时Control为`released`。cleanup delivery以Business Owner `libra`写入Inbox并达到Delivery `acked` / Outbox `fully_acked`。随后从文件来源页面扫描新文件，形成新Procurement Run、accepted Candidate Delivery、新Subject及新frozen Libra Run；旧Subject仍只有原discarded Run。过程中另修正恢复启动顺序（先消费durable Outbox，再恢复依赖该消息的Owner Work）以及Field重观察时基于当前Control digest刷新Eligibility，均保持原Owner/Handoff边界。状态`REGRESSION PASSED / CLOSED`。
 
 ## 60. UAT-063：Aftercare 问豆瓣分与 Libra 不是同一套 Resolution/Identity Evidence，上架后评分变化不触发保养
 

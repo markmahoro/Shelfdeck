@@ -29,15 +29,12 @@ immutable Douban Perception历史、从基线复制Canary、Preflight通过后�
 
 2026-08-23 工作区重组后继续沿用同一关闭任务：正式开发路径为
 `E:\my_project\emby_third_party-helix`、分支`main`；测试专用根为`F:\shelfdeck_test_zone`，不可变基线与
-Canary 分别为其下`test_film`、`canary`。不得在 C 盘创建新的测试过程文件。`UAT-069`、依赖它的`UAT-063`及
-`UAT-068`均已在同一真实 Canary 关闭；当前作业卡为`UAT-062`。先经正式设置页接通MoviePilot，使五星证人形成合法
-external-candidate frozen Run，再执行Discard→等待重新入库→新Procurement的完整页面验证；随后独立关闭`UAT-017`。
-`UAT-064`继续跳过、不实现。
+Canary分别为其下`test_film`、`canary`，不得在C盘创建新的测试过程文件。当前Canary
+`UAT-20260823-040740-0886b2723`已逐项关闭`UAT-017`与`UAT-062`：真实MoviePilot明确不合格候选在下载前被拒；
+frozen Discard后页面进入等待重新入库、cleanup fully ack，重扫形成全新Procurement/Subject链而未复活旧Subject。
 
-`UAT-062`首轮实证已取得冻结前与Discard后页面：`看不见的朋友 (2023)`从「没有找到可获取的外部候选」变为
-「待整理 / 等待重新入库」，旧Run为`discarded`且Control为`released`。但清理Outbox持续pending，精确根因为技术consumer
-`libra_workspace_reclaimer`与Inbox要求的Business Owner不一致。当前先在Libra边界内把consumer纠正为`libra`并通过专项回归，
-再重建Canary复验Outbox fully ack与新Procurement；不得用当前旧消息直接写库或提前关闭本行。
+UAT关闭总账现为68/69。唯一剩余`UAT-064`按本程序明确跳过且没有实现授权，因此本轮不为凑齐69/69实施或重建Canary；
+后续只有用户另行授权该产品缺口时才开始新的独立作业卡。
 
 2026-08-22 成功标准修正：`养蜂人 (2024)` 内现成 MKV 与嵌套 BDMV 按两部独立电影验收，两部都必须能上架；Arca Duplicate/Off-deck 才负责去重。形成口径 23 Subject / 23 Entry，不再使用“顶层 22 单元 = 22 Subject”或“养蜂人只能一部 Movie”。
 
@@ -88,7 +85,7 @@ External Acquisition Query现在同时冻结当前`MediaRequirement`和`Acquisit
 `known/unknown`声明提供分辨率、Codec、主音轨、大小与来源Evidence。Selector优先明确合规候选，只有无合规项时才选
 页面可见的未知候选，明确不合规项永不下载；真实字节仍由Probe最终验收，失败后在用户配置的1–5次上限内选择下一候选。
 现有凭据无需重录即可revisioned修改尝试上限，默认3。专项91/91、完整Architecture Gate 1087 pass/7 skip/0 fail及
-Admin Web production build均通过；本批次单独提交，真实Provider与Canary留待第二轮UAT。
+Admin Web production build均通过；真实Provider资格已由`UAT-20260823-040740-0886b2723`关闭`UAT-017`。
 
 ## 0. Qualified repair — UAT-004 bounded media I/O
 
