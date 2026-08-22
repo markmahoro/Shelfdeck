@@ -1373,6 +1373,13 @@ TMDB集成架构门禁11/11通过，Admin Web production build通过；此前启
 本修复的新失败。旧冻结Run保持不可变，下一步将在独立提交后重启本地UAT服务，并从真实Admin Web执行正式恢复路径验证。
 未直接改写任何既有Run、Attempt、Event或Canary媒体文件。
 
+2026-08-23逐项封口在重建Canary `UAT-20260823-002500-519f8d7b5`完成。持久事实中43份
+`libra.product_identity.evidence.observe@1`结果全部为`resolved`；其`verifiedIdentity.aliases`共446项，
+`sourceKind`全部为`provider`，非法alias来源为0。真实Formation的6个“需要处理”样本均显示“确认影片身份”100%，冻结原因
+明确位于后续外部寻源；另有16项已完成整理，不再出现取证前全员冻结。状态
+`REGRESSION PASSED / CONFIRMED ON REBUILT CANARY`。UI证据：
+`admin-web-evidence/uat-021-identity-evidence-before-external-freeze-pass.png`。
+
 ## 19. UAT-022：年份后的技术发布标签污染TMDB身份搜索词
 
 问题分类：`IDENTITY_NORMALIZATION / PROVIDER_QUERY / USER_VISIBLE_RECOVERY`
