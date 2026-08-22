@@ -1897,6 +1897,11 @@ stderr 为 `CLEAN_ARCA_TARGET_OCCUPIED` 与 `CLEAN_ARCA_SETTLEMENT_UNKNOWN_MEMBE
 
 当前处理决定：按根因修复并提交。现场 Attempt 4 已在抽 ISO clip（工作区 `.iso-clip-00000.m2ts` 在增长）。状态 `REGRESSION PASSED / LIVE EXTRACT IN PROGRESS`。
 
+当前关闭 Canary `UAT-20260822-141950-0c27c8cf6` 定向确认（2026-08-23）：《倩女幽魂2：人间道》
+的Run为`completed`；`libra.media.remux@1`只有一个Event/Attempt，Work与Event均`succeeded`，Attempt为
+`completed/succeeded`且有`finished_at_ms`，没有任何非终态Remux Attempt。真实详情为当前收藏且健康。状态
+`REGRESSION PASSED / CONFIRMED ON CURRENT CANARY`。UI证据：`admin-web-evidence/uat-045-remux-attempt-terminal-ondeck.png`。
+
 ## 43. UAT-046：ISO Remux 抽出 m2ts 后因 pcm_bluray 无法 copy 进 Matroska 立即失败并整盘重抽
 
 问题分类：`MEDIA_PRODUCTION / BUSINESS_CONTRACT`
