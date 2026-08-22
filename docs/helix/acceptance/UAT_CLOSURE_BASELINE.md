@@ -4,7 +4,7 @@
 
 建立日期：2026-08-22
 
-覆盖范围：`UAT-001`–`UAT-064`（64 行，无缺口、无重复）
+覆盖范围：`UAT-001`–`UAT-065`（65 行，无缺口、无重复）
 
 > 本文是关闭台账的冻结验收工件，不是 Architecture SSOT，也不是活动实施计划。
 > 问题叙述仍以 `docs/helix/USER_ACCEPTANCE_TEST_ISSUE_LOG.md` 为准。
@@ -51,7 +51,7 @@
 
 同一部影片可以服务多行，但每行仍要独立 `UI` 结论。不得用「23 部 completed」一口吞掉整表。
 
-## 4. 关闭矩阵（63 行）
+## 4. 关闭矩阵（65 行）
 
 证据标签：`UI` 必填；`FS` 在文件现实变化时必填；`FACT` 仅旁证。
 
@@ -121,19 +121,20 @@
 | UAT-062 | frozen Discard 后 Control 保持释放、不立刻新开 Libra Run、页面不是「正在评估整理方案」，材料走重新入库 | `UI` | W5 | `CODE_DONE_UNQUALIFIED` | `NOT RUN` |
 | UAT-063 | Aftercare 用与 Libra 同一套 `perception.rating.resolve@1` Identity Evidence；上架后评分从无到有/变档会再评估 | `UI` | W4 | `CODE_DONE_UNQUALIFIED` | `NOT RUN` |
 | UAT-064 | Formation 步骤 CPU/GPU 与验证完成态必须与真实执行一致，不得默认 CPU、不得把 Direct 源校验画成成品验证完成 | `UI` | W3 | `RECORDED_UNIMPLEMENTED` | `NOT RUN` |
+| UAT-065 | 收藏详情只从主视频basename解析容器，不得把父目录名中的`.1`显示为容器 | `UI` | W1 | `RECORDED_UNIMPLEMENTED` | `NOT RUN` |
 
 ## 5. 计数
 
-冻结时（代码状态，不是本轮 Canary）：`CLOSED` 11，`CODE_DONE_UNQUALIFIED` 52，`RECORDED_UNIMPLEMENTED` 1（064）。
+冻结时（代码状态，不是本轮 Canary）：`CLOSED` 11，`CODE_DONE_UNQUALIFIED` 52，`RECORDED_UNIMPLEMENTED` 1（064）。本轮逐项关闭期间新增`UAT-065`，当前为第二项`RECORDED_UNIMPLEMENTED`。
 
 本轮干净 Canary `UAT-20260822-141950-0c27c8cf6`（HEAD `0c27c8cf6`）PASS 列：
 
 | 口径 | 数量 |
 | --- | --- |
-| 总行 | 64 |
+| 总行 | 65 |
 | 本轮 `PASS` | **25** |
-| 本轮未通过（`NOT RUN`+`FAILED`+`BLOCKED`） | **39**（全部为 `NOT RUN`；0 `FAILED`；0 `BLOCKED`） |
-| 是否都通过 | **否**（25/64，未通过 39） |
+| 本轮未通过（`NOT RUN`+`FAILED`+`BLOCKED`） | **40**（全部为 `NOT RUN`；0 `FAILED`；0 `BLOCKED`） |
+| 是否都通过 | **否**（25/65，未通过 40） |
 
 本轮 `PASS`：001、002、005、006、007、008、012、013、015、016、018、030、032、038、047、050、051、052、053、054、055、056、057、058、061。证据均包含本隔离库 Admin Web `UI`；要求文件现实的行另有`FS`。W3 转码/ISO/BDMV 上架、W5 Discard 重新入库、W6 退出收藏/注销在本坐席未跑完，保持 `NOT RUN`。
 
@@ -234,3 +235,17 @@
 - 关闭结论：`PASS`。Admin Web显示「倩女幽魂2：人间道」属于Movie Canary当前收藏且健康；最终目录有56条`zh-CN.srt`，名称56/56唯一，其中未编号1条、编号`.1`–`.55`共55条，`HashOrZeroPatchCount=0`。
 - UI证据：`admin-web-evidence/uat-047-iso-numbered-subtitles-ondeck.png`（位于本Canary隔离证据目录）。
 - FS证据：2026-08-22只读枚举`F:\canary\倩女幽魂2：人间道 (1990)`，`SubtitleCount=56`、`UniqueNameCount=56`、`NumberedCount=55`、`PlainCount=1`、`.1=True`、`.55=True`、无hash或`(0)`补丁。
+
+### UAT-048（`PAUSED / NEW DEFECT UAT-065`）
+
+- 关闭命题：同根终态目录的源残留不再把Off-load Settlement打成`UNKNOWN_MEMBER`。
+- Canary：`UAT-20260822-141950-0c27c8cf6`。
+- 证人：Admin Web「我的收藏」中第二个「养蜂人」Entry；Inventory目录`F:\canary\养蜂人 (2024) - 2160p HEVC Atmos TrueHD5.1`及主视频`养蜂人 (2024).mkv`（`8932765796`字节）。
+- 路径：我的收藏 → Movie Canary → 打开第二个「养蜂人」详情确认当前收藏 → 只读核验Inventory目录和盘树残留。
+- 允许动作：页面进入、只读切换、打开/关闭详情、截图；文件系统、SQLite和日志只读旁证。
+- 禁止动作：修改评分、退出收藏、移动/重命名文件、重启服务、重建Canary、修改数据库。
+- 通过标准：BDMV证人已经On-deck为当前收藏而非停在「正在完成收藏架上架」；Inventory主视频真实存在且目录不含BDMV/CERTIFICATE残留，Settlement没有被旁路clip错误打成`UNKNOWN_MEMBER`。
+- 证据要求：`UI`、`FS`。
+- 旁证停车：整盘树清理由UAT-049独立关闭，本项不得顺带把UAT-049写为`PASS`。
+- 暂停原因：定位到8.3 GB BDMV「养蜂人」Entry时，Admin Web把真实`.mkv`主视频显示为`8.3 GB · 1`。该独立Projection缺陷已登记为`UAT-065`；按作业规则停止`UAT-048`关闭判定，不写`PASS`。
+- UI证据：`admin-web-evidence/uat-048-bdmv-settlement-ondeck.png`（位于本Canary隔离证据目录；同时保存UAT-065新缺陷现场）。

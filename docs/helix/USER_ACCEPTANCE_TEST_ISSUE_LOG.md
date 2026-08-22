@@ -121,6 +121,7 @@ Helix主体开发已经完成，Movie从Procurement、Libra到Arca及Shelf Dereg
 | UAT-062 | frozen Run Discard 后 Control 已释放，Formation 仍空转「正在评估整理方案」，未走重新入库 | `BUSINESS_CONTRACT` | `DOMAIN_ORCHESTRATION` | Libra Run Discard 收口 + Procurement 重新入库 + Formation | 正确性、活性、可理解性 | Critical | 已实现；待新 Canary 确认 |
 | UAT-063 | Aftercare 问豆瓣分与 Libra 不是同一套 Resolution/Identity Evidence，上架后评分变化不触发保养 | `BUSINESS_CONTRACT` | `PROJECTION_FRESHNESS` | Arca Aftercare 拉 Perception + 与 Libra 共用 Identity Evidence | 正确性、时效性 | High | 已实现；待新 Canary 确认 |
 | UAT-064 | Formation 整理步骤展示与真实执行状态偏离：转码标 CPU、验证过早标完成 | `USER_EXPERIENCE` | `PROJECTION_FRESHNESS` | Formation 公开 Projection `organizingSteps` / `transcodeLabel` | 可理解性、可观察性 | High | 已登记；待实现授权 |
+| UAT-065 | 收藏详情把父目录名中的`.1`误显示为主视频容器 | `USER_EXPERIENCE` | `PROJECTION_FRESHNESS` | Arca Collection Query + Admin Web | 正确性、可理解性 | High | 已登记；待修复与新 Canary 定向确认 |
 
 ## 2.1 UAT-006：概览展示固定演示数字
 
@@ -2416,7 +2417,33 @@ Formation 该行 `my_rating=4`、`my_rating_source=douban`，整理要求 `HEVC 
 
 当前处理决定：2026-08-22 用户确认只登记、不深挖，回到 UAT 关闭主线。不授权实现，不改 SSOT，不重建 Canary，不触碰 NAS/生产。
 
-## 62. 后续问题模板
+## 62. UAT-065：收藏详情把父目录名中的`.1`误显示为主视频容器
+
+问题分类：`USER_EXPERIENCE / PROJECTION_FRESHNESS`
+
+用户侧现象：逐项关闭`UAT-048`时，干净Canary的BDMV「养蜂人」已经On-deck且主视频实际为
+`F:\canary\养蜂人 (2024) - 2160p HEVC Atmos TrueHD5.1\养蜂人 (2024).mkv`，但「我的收藏」详情把
+主视频显示为`8.3 GB · 1`，没有显示真实容器`MKV`。
+
+现场证据：同一详情显示当前收藏、健康、占用空间`8.3 GB`；只读Inventory确认`primary_payload`位置以上述
+`.mkv`结尾，大小`8932765796`字节。`collection-query.js`的`containerFromLocation(location)`直接对完整路径执行
+`/\.([a-z0-9]+)(?:$|[\\/?#])/`，先命中父目录`TrueHD5.1\`中的`.1`，因此返回`1`而不再检查basename扩展名。
+
+初步诊断：容器推导没有先取最终文件basename。只要任一父目录含点号加字母/数字并紧邻路径分隔符，就可能把目录后缀
+误当文件扩展名。这是Collection只读Projection翻译缺陷，不是Inventory、Placement或On-deck事实错误。
+
+业务影响：用户在正式收藏详情中看到错误的主视频容器，无法可信判断媒体规格；该错误也会影响其他带点号父目录的Entry。
+
+修复边界：`containerFromLocation`只从最终文件basename解析最后一个扩展名，并保留MKV/MP4/M2TS等现有用户文案；
+无扩展名时显示未知而不是扫描父目录。不得probe磁盘，不改Inventory事实、Owner或Handoff。
+
+验收证据：用真实Admin Web重新打开上述「养蜂人」详情，主视频显示`8.3 GB · MKV`；覆盖`TrueHD5.1`父目录、普通目录、
+多点文件名和无扩展名的回归反例；不得用直接数据库修改制造通过。
+
+当前处理决定：2026-08-22在`UAT-048`关闭作业中发现并独立登记。按一项一张作业卡规则暂停`UAT-048`关闭判定；
+本记录不授权把新缺陷吞进`UAT-048`或已关闭的`UAT-052`，不触碰Canary文件、数据库、NAS或生产。
+
+## 63. 后续问题模板
 
 后续发现的问题按以下结构追加：
 
