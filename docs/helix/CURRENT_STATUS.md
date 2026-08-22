@@ -15,7 +15,7 @@ Git 工作区已重组为 `E:\my_project\emby_third_party-helix` / `main`；本�
 本轮真实 Admin Web 已确认 `UAT-068` 的年份与外部评分恢复路径生效，但在关闭 `UAT-063` 时新登记
 `UAT-069`：评分 Resolution 更新后 Aftercare Work 及时成功，Planner/Capability 却写回旧 Care Basis。
 组合根已改为由 Capability、Coordinator、Planner 共享同一晚绑定评分 Reader，定向 Aftercare 合同 15/15 PASS；
-当前代码状态 `CODE_DONE_UNQUALIFIED`，须在安全重启后的真实页面与 FACT 上确认，不以测试直接关闭。
+安全重启后页面与 FACT 已确认恢复、4 星直接评分、清除回豆瓣三代新 Basis，`UAT-069` 已关闭。
 
 ## 0. Clean Canary scorecard — UAT-20260822-141950-0c27c8cf6
 

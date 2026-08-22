@@ -125,7 +125,7 @@ Helix主体开发已经完成，Movie从Procurement、Libra到Arca及Shelf Dereg
 | UAT-066 | Formation 已完成整理表丢失目标收藏架名称，全部显示`—` | `USER_EXPERIENCE` | `PROJECTION_FRESHNESS` | Formation Admin Web + Arca Shelf只读展示接线 | 正确性、可理解性 | High | 已修复并通过当前 Canary 定向确认 |
 | UAT-067 | 活动 Run 加急后回放既有 Supporting Work 触发 Admission 幂等冲突，Run 不再推进 | `DOMAIN_ORCHESTRATION` | `EXECUTION_SCHEDULING` | Libra Run Coordinator + Foundation Work Admission replay | 活性、优先级正确性 | Critical | 已修复并通过同一 Canary 恢复确认 |
 | UAT-068 | Collection 年份投影遗漏 Provider 标准字段，Aftercare 丢失 title-year Identity Evidence | `PROJECTION_FRESHNESS` | `BUSINESS_CONTRACT` | Arca Collection Query + shared Rating Identity | 正确性、可理解性 | High | 已实现；待新 Canary 确认 |
-| UAT-069 | 评分 Resolution 更新后 Aftercare 及时执行，但 Planner/Capability 写回旧 Care Basis | `DOMAIN_ORCHESTRATION` | `PROJECTION_FRESHNESS` | Arca Aftercare composition wiring | 正确性、时效性 | Critical | 已实现；待新 Canary 确认 |
+| UAT-069 | 评分 Resolution 更新后 Aftercare 及时执行，但 Planner/Capability 写回旧 Care Basis | `DOMAIN_ORCHESTRATION` | `PROJECTION_FRESHNESS` | Arca Aftercare composition wiring | 正确性、时效性 | Critical | 已修复并通过当前 Canary 安全重启确认 |
 
 ## 2.1 UAT-006：概览展示固定演示数字
 
@@ -2769,7 +2769,7 @@ Product Package与Offer并完成On-deck；没有替换Run或数据库编辑。Ad
 
 验收证据：新干净 Canary 通过页面改变/清除评分后，无需等待 24 小时形成新 Assessment；只读 FACT 证明新 `decisionFactSetDigest` / `careBasisDigest` 包含当前 Resolution；页面显示当前健康结论，且不重开 Libra Run。证据要求：`UI`、`FACT`。
 
-当前处理决定：2026-08-23 已完成最小组合接线修复并补充架构回归；状态 `CODE_DONE_UNQUALIFIED`，等待当前媒体生产自然结束后重建新 Canary 资格确认，不以单元测试直接记 `PASS`。
+修复与关闭确认（2026-08-23）：commit `ab8184f7b` 让 Capability、Coordinator、Planner 共用晚绑定评分 Reader；定向 Aftercare 合同 15/15 PASS。在 Formation 整理中为0且无 FFmpeg/FFprobe的安全点，仅重启同一隔离服务。真实页面中《威尼斯惊魂夜》先恢复为三维健康，随后页面 4 星直接评分与清除回`3 星 · 豆瓣`都无需手动健康检查自动形成新健康 Assessment。FACT 中三代 `decisionFactSetDigest` / `careBasisDigest` 均不同，最新不再使用旧 Basis；状态 `REGRESSION PASSED / CLOSED`。UI证据：`admin-web-evidence/uat-069-rating-aware-care-basis-pass.png`。
 
 ## 67. 后续问题模板
 
