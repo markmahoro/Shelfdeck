@@ -1826,6 +1826,13 @@ FS对应文件均存在，当前服务日志`CLEAN_ARCA_TARGET_COLLISION`为0；
 
 修复状态（2026-08-22）：`REGRESSION PASSED / SERVICE RESTART REQUIRED`。当前隔离库里已卡住的 Remux Attempt 必须随服务重启走 startup recovery 才能收口。
 
+2026-08-23逐项封口复核完成。历史clean Canary `UAT-20260822-042527-2da763653`保留2个
+`LIBRA_MEDIA_FFMPEG_FAILED` Attempt，2/2均为`failed`，对应Remux Event 2/2也为`failed`，没有遗留`executing`；
+当前重建Canary `UAT-20260823-002500-519f8d7b5`中1个Remux和5个Transcode Event全部`succeeded`、媒体Event
+`executing=0`，原ISO样本`倩女幽魂2：人间道`已为当前收藏且健康。P4 Event Runtime故障/恢复专项31/31 PASS，精确覆盖
+journaled failed Outcome完成Attempt与startup recovery收口。状态`REGRESSION PASSED / CONFIRMED ON CANARY`。
+UI证据：`admin-web-evidence/uat-035-ffmpeg-failure-closed-no-stale-executing-pass.png`。
+
 ## 33. UAT-036：ISO 已被观察但 Triage 因非可播放流失败，倩女幽魂2仍无 Candidate
 
 问题分类：`DISC_TOPOLOGY / ISO_UDF / TRIAGE_STRUCTURE`

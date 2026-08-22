@@ -91,7 +91,7 @@
 | UAT-032 | Aftercare Custody 绑定 objectKind 与合同一致，健康评估可执行 | `UI` | W4 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260822-141950-0c27c8cf6 UI 第八个嫌疑人已上架详情显示收藏健康为健康、保管为健康，不再停在never_assessed |
 | UAT-033 | 同名字幕和 stem-fanart 最终文件名可区分，同根上架不再 `TARGET_COLLISION` | `UI` `FS` | W3 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260823-002500-519f8d7b5 UI战栗空间当前收藏健康；FACT/FS双ASS与双fanart名称可区分、Inventory位置全唯一、碰撞为0 |
 | UAT-034 | 同名片名+年份的两部养蜂人最终目录可区分且都能 On-deck | `UI` `FS` | W3 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260822-141950-0c27c8cf6 UI 两个独立健康养蜂人当前Entry；FS普通版与edition目录各有一份MKV，非hash且无(0)年份 |
-| UAT-035 | FFmpeg 非零退出按执行失败收口，Remux Attempt 不停在 executing | `UI` `FACT` | W3 | `CODE_DONE_UNQUALIFIED` | `NOT RUN` |
+| UAT-035 | FFmpeg 非零退出按执行失败收口，Remux Attempt 不停在 executing | `UI` `FACT` | W3 | `CODE_DONE_UNQUALIFIED` | `PASS` 历史Canary 2个FFmpeg失败Attempt/Event均failed无executing；当前Canary媒体Event executing=0且ISO样本当前收藏健康；专项31/31 |
 | UAT-036 | 已观察 ISO 能通过 Triage 形成 Candidate，不再因非可播放流 `triage_failed` | `UI` | W2 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260822-141950-0c27c8cf6 UI倩女幽魂2已形成并完成生产/On-deck，为健康当前收藏 |
 | UAT-037 | 007 身份 provider_exact 观察不被 schema 拒绝，冻结文案不是通用句 | `UI` | W2 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260822-141950-0c27c8cf6 UI 007身份步骤100%，显示没有找到可获取的外部候选；identity observe/resolve旁证均成功 |
 | UAT-038 | 上架成功后 Aftercare 健康不再是 conformance/presentation 降级 | `UI` | W4 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260822-141950-0c27c8cf6 UI 倩女幽魂2已上架详情刷新后收藏健康为健康，保管/呈现/合规均为健康 |
