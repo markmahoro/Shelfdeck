@@ -22,6 +22,11 @@ const ruleKindLabels: Record<RuleKind, string> = {
   unresolved_care: '长期健康问题',
   retention_age: '收藏时间过长',
 };
+const addableRuleKinds: RuleKind[] = ['rating_and_collection_age', 'unresolved_care', 'retention_age'];
+function formatGiB(bytes: number) {
+  if (!Number.isFinite(bytes) || bytes <= 0) return '—';
+  return `${(bytes / 1024 / 1024 / 1024).toFixed(2)} GB`;
+}
 
 function emptyRule(kind: RuleKind): RuleDraft {
   return {
@@ -73,7 +78,7 @@ export default function OffdeckPage() {
   const [ruleDrafts, setRuleDrafts] = useState<RuleDraft[]>([]);
   const [policyStatus, setPolicyStatus] = useState<'active' | 'disabled'>('disabled');
   const [duplicateScheduleEnabled, setDuplicateScheduleEnabled] = useState(false);
-  const [titles, setTitles] = useState<Record<string, string>>({});
+  const [titles, setTitles] = useState<Record<string, { title: string; occupancyBytes: number | null }>>({});
   const [shelves, setShelves] = useState<Shelf[]>([]);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -101,7 +106,7 @@ export default function OffdeckPage() {
       setCandidates(candidateResult.candidates);
       setGroups(candidateResult.duplicateGroups);
       setCases(caseResult.items);
-      setTitles(Object.fromEntries(collection.items.map((item) => [item.shelfEntryId, item.displayIdentity])));
+      setTitles(Object.fromEntries(collection.items.map((item) => [item.shelfEntryId, { title: item.displayIdentity, occupancyBytes: item.occupancyBytes ?? null }])));
       setShelves(shelfResult.items.filter((item) => item.status === 'active'));
       const id = new URLSearchParams(location.search).get('review');
       if (id) setReview(await helixAdminApi.getOffdeckReview(id));
@@ -133,7 +138,11 @@ export default function OffdeckPage() {
   }
   function titleOf(id: string | null) {
     if (!id) return '未命名收藏';
-    return titles[id] || '未命名收藏';
+    return titles[id]?.title || '未命名收藏';
+  }
+  function sizeOf(id: string | null) {
+    if (!id) return null;
+    return titles[id]?.occupancyBytes ?? null;
   }
   async function openCandidate(item: OffdeckCandidate) {
     let body: Record<string, unknown>;
@@ -165,71 +174,78 @@ export default function OffdeckPage() {
   const shelfOptions = useMemo(() => shelves.map((shelf) => ({ id: shelf.shelfId, name: shelf.name })), [shelves]);
 
   if (!loaded && busy) return <LoadingState>正在读取退出收藏…</LoadingState>;
-  return <section className="source-page">
+  const nextReviewAction = review?.state === 'open' ? '核对将删除的文件'
+    : review?.state === 'awaiting_escalation' ? '再次确认大批量'
+    : review?.state === 'selection_confirmed' ? '授权删除'
+    : review?.state === 'preparing' ? '正在准备将删除的文件'
+    : null;
+  return <section className="source-page offdeck-page">
     <PageHeader title="退出收藏" description="先审阅建议，确认后再授权删除。没有授权不会删除文件。" actions={<Button type="button" onClick={() => void load()} disabled={busy}>刷新</Button>} />
     {error && <p className="form-error" role="alert">{error}</p>}
-    <section className="source-card">
-      <div className="source-card-heading"><div><h2>{policy?.status === 'active' ? '自动建议已启用' : '自动建议默认关闭'}</h2></div><Button variant="primary" type="button" onClick={() => void action(savePolicy)} disabled={busy}>保存规则</Button></div>
-      <p className="page-lede">规则按顺序评估。信息不完整时不会产生建议。手动检测重复始终可用。</p>
+    <details className="offdeck-task">
+      <summary><strong>退出规则</strong><small>{policyStatus === 'active' ? '自动建议已启用' : '自动建议默认关闭'}</small></summary>
+      <p className="page-lede">规则少见，默认关闭。信息不完整时不会产生建议。可从我的收藏直接退出。</p>
       <div className="form-grid">
         <label><span>自动建议</span><select value={policyStatus} onChange={(event) => setPolicyStatus(event.target.value as 'active' | 'disabled')}><option value="disabled">关闭</option><option value="active">启用</option></select></label>
-        <label><span>定期检测重复</span><select value={duplicateScheduleEnabled ? 'on' : 'off'} onChange={(event) => setDuplicateScheduleEnabled(event.target.value === 'on')}><option value="off">关闭</option><option value="on">启用</option></select></label>
+        <label><span>定期查重复</span><select value={duplicateScheduleEnabled ? 'on' : 'off'} onChange={(event) => setDuplicateScheduleEnabled(event.target.value === 'on')}><option value="off">关闭</option><option value="on">启用</option></select></label>
       </div>
       {ruleDrafts.map((draft, index) => <article className="source-row rule-form" key={draft.ruleId}>
         <div className="form-grid">
-          <label><span>规则类型</span><select value={draft.kind} disabled={Boolean(draft.unknownCondition)} onChange={(event) => updateRule(index, { kind: event.target.value as RuleKind })}>{(Object.keys(ruleKindLabels) as RuleKind[]).map((kind) => <option key={kind} value={kind}>{ruleKindLabels[kind]}</option>)}</select></label>
+          <label><span>规则类型</span><select value={draft.kind} disabled={Boolean(draft.unknownCondition) || draft.kind === 'disliked_person'} onChange={(event) => updateRule(index, { kind: event.target.value as RuleKind })}>{(draft.kind === 'disliked_person' ? (Object.keys(ruleKindLabels) as RuleKind[]) : addableRuleKinds).map((kind) => <option key={kind} value={kind}>{ruleKindLabels[kind]}</option>)}</select></label>
           <label><span>适用范围</span><select value={draft.shelfScope} onChange={(event) => updateRule(index, { shelfScope: event.target.value as 'all' | 'selected' })}><option value="all">全部收藏架</option><option value="selected">指定收藏架</option></select></label>
           {draft.shelfScope === 'selected' && <label><span>收藏架</span><select value={draft.shelfIds} onChange={(event) => updateRule(index, { shelfIds: event.target.value })}><option value="">选择收藏架</option>{shelfOptions.map((shelf) => <option key={shelf.id} value={shelf.id}>{shelf.name}</option>)}</select></label>}
           {draft.kind === 'rating_and_collection_age' && !draft.unknownCondition && <>
             <label><span>最高评分</span><input type="number" min={1} max={5} value={draft.maxRating} onChange={(event) => updateRule(index, { maxRating: Number(event.target.value) })} /></label>
             <label><span>最少收藏天数</span><input type="number" min={1} value={draft.minimumAgeDays} onChange={(event) => updateRule(index, { minimumAgeDays: Number(event.target.value) })} /></label>
           </>}
-          {draft.kind === 'disliked_person' && !draft.unknownCondition && <label><span>人物偏好上限</span><input type="number" value={draft.maximumPreferenceLevel} onChange={(event) => updateRule(index, { maximumPreferenceLevel: Number(event.target.value) })} /></label>}
+          {draft.kind === 'disliked_person' && !draft.unknownCondition && <p className="page-lede">人物偏好规则暂不可新增，这条仅保留已有设置。</p>}
           {(draft.kind === 'unresolved_care' || draft.kind === 'retention_age') && !draft.unknownCondition && <label><span>最少天数</span><input type="number" min={1} value={draft.minimumAgeDays} onChange={(event) => updateRule(index, { minimumAgeDays: Number(event.target.value) })} /></label>}
         </div>
-        {draft.unknownCondition && <details><summary>无法用表单表达的规则，仅作技术查看</summary><pre>{JSON.stringify(draft.unknownCondition, null, 2)}</pre></details>}
-        <Button type="button" onClick={() => setRuleDrafts((items) => items.filter((_, i) => i !== index))}>移除规则</Button>
+        {draft.unknownCondition && <details><summary>技术查看</summary><pre>{JSON.stringify(draft.unknownCondition, null, 2)}</pre></details>}
+        <Button type="button" onClick={() => setRuleDrafts((items) => items.filter((_, i) => i !== index))}>去掉这条规则</Button>
       </article>)}
       <div className="button-row">
-        <Button type="button" onClick={() => setRuleDrafts((items) => [...items, emptyRule('rating_and_collection_age')])}>低评分且收藏较久</Button>
-        <Button type="button" onClick={() => setRuleDrafts((items) => [...items, emptyRule('disliked_person')])}>不喜欢的人物</Button>
-        <Button type="button" onClick={() => setRuleDrafts((items) => [...items, emptyRule('unresolved_care')])}>长期健康问题</Button>
-        <Button type="button" onClick={() => setRuleDrafts((items) => [...items, emptyRule('retention_age')])}>收藏时间过长</Button>
-        <Button type="button" onClick={() => void action(() => helixAdminApi.evaluateOffdeck())}>立即评估</Button>
-        <Button type="button" onClick={() => void action(() => helixAdminApi.detectOffdeckDuplicates())}>检测重复收藏</Button>
+        {addableRuleKinds.map((kind) => <Button key={kind} type="button" onClick={() => setRuleDrafts((items) => [...items, emptyRule(kind)])}>{ruleKindLabels[kind]}</Button>)}
+        <Button variant="primary" type="button" onClick={() => void action(savePolicy)} disabled={busy}>保存规则</Button>
+        <Button type="button" onClick={() => void action(() => helixAdminApi.evaluateOffdeck())}>现在检查一次<small>评估建议</small></Button>
+        <Button type="button" onClick={() => void action(() => helixAdminApi.detectOffdeckDuplicates())}>查重复</Button>
       </div>
-    </section>
-    <section className="source-card">
-      <div className="source-card-heading"><div><h2>{openCandidates.length} 条待审阅</h2></div></div>
-      {openCandidates.length === 0 ? <p>当前没有开放建议。</p> : openCandidates.map((item) => {
+    </details>
+    <section className="offdeck-task">
+      <div className="source-card-heading"><div><h2>建议退出</h2></div><span>{openCandidates.length} 部</span></div>
+      {openCandidates.length === 0 ? <div className="source-empty"><strong>当前没有建议</strong><p>不会自动建议，可从我的收藏直接退出或先保存规则再检查。</p></div> : <div className="offdeck-suggest">{openCandidates.map((item) => {
         const group = item.candidate_kind === 'duplicate_group' ? groups.find((value) => value.duplicate_group_id === item.duplicate_group_id) : null;
-        return <article className="source-row" key={item.candidate_id}>
-          <div>
-            <strong>{item.candidate_kind === 'entry' ? titleOf(item.shelf_entry_id) : '重复收藏组'}</strong>
-            <small>{item.candidate_kind === 'entry' ? '建议退出' : `${group?.members.length || 0} 个重复项，请选择要退出的收藏`}</small>
-            {group && <fieldset><legend>选择需要退出的成员</legend>{group.members.map((member) => <label key={member.shelf_entry_id}><input type="checkbox" checked={(groupSelection[group.duplicate_group_id] || []).includes(member.shelf_entry_id)} onChange={() => toggleMember(group.duplicate_group_id, member.shelf_entry_id)} />{titleOf(member.shelf_entry_id)}</label>)}</fieldset>}
-          </div>
+        const size = sizeOf(item.shelf_entry_id);
+        return <article key={item.candidate_id}>
+          <strong>{item.candidate_kind === 'entry' ? titleOf(item.shelf_entry_id) : '重复收藏'}</strong>
+          <small>{item.candidate_kind === 'entry' ? `规则建议退出${size ? ` · ${formatGiB(size)}` : ''}` : `${group?.members.length || 0} 个重复项，请选择要退出的收藏`}</small>
+          {group && <fieldset><legend>选择需要退出的成员</legend>{group.members.map((member) => <label key={member.shelf_entry_id}><input type="checkbox" checked={(groupSelection[group.duplicate_group_id] || []).includes(member.shelf_entry_id)} onChange={() => toggleMember(group.duplicate_group_id, member.shelf_entry_id)} />{titleOf(member.shelf_entry_id)}</label>)}</fieldset>}
           <div className="button-row">
-            <Button variant="primary" type="button" onClick={() => void action(() => openCandidate(item))}>进入审阅</Button>
-            <Button type="button" onClick={() => void action(() => item.candidate_kind === 'entry' ? helixAdminApi.suppressOffdeckCandidate(item.candidate_id) : helixAdminApi.whitelistOffdeckDuplicate(item.duplicate_group_id!))}>继续保留</Button>
+            <Button variant="primary" type="button" onClick={() => void action(() => openCandidate(item))}>审阅这部</Button>
+            <Button type="button" onClick={() => void action(() => item.candidate_kind === 'entry' ? helixAdminApi.suppressOffdeckCandidate(item.candidate_id) : helixAdminApi.whitelistOffdeckDuplicate(item.duplicate_group_id!))}>先留着</Button>
           </div>
         </article>;
-      })}
+      })}</div>}
     </section>
-    {review && <section className={`source-card ${review.state === 'awaiting_escalation' ? 'danger-stage' : ''}`}>
-      <div className="source-card-heading"><div><h2>{labelOf(reviewStateLabels, review.state)}</h2></div></div>
-      {review.state === 'awaiting_escalation' && <p role="alert">本次范围较大，请再次核对数量和空间后再确认。</p>}
-      {review.scopes.map((scope) => <article key={scope.destructionScopeId}><strong>{titleOf(scope.shelfEntryId)} · {scope.memberCount} 个文件 · {(scope.totalBytes / 1024 / 1024 / 1024).toFixed(2)} GiB</strong>{scope.materials.map((material) => <p key={material.materialKey}>{material.role === 'primary' ? '主媒体' : '附属文件'} · {material.location}</p>)}</article>)}
+    {review && <section className={`offdeck-task ${review.state === 'awaiting_escalation' ? 'danger-stage' : ''}`}>
+      <div className="source-card-heading"><div><h2>当前审阅</h2></div><small>{labelOf(reviewStateLabels, review.state)}</small></div>
+      {review.state === 'awaiting_escalation' && <p role="alert">这次数量或体积较大，请再次核对后再授权删除。</p>}
+      {review.scopes.map((scope) => <article className="offdeck-scope" key={scope.destructionScopeId}>
+        <strong>{titleOf(scope.shelfEntryId)}</strong>
+        <small>{scope.memberCount} 个文件 · {formatGiB(scope.totalBytes)}</small>
+        {scope.materials.map((material) => <p key={material.materialKey}>{material.role === 'primary' ? '主视频' : '附属文件'} · {material.location}</p>)}
+      </article>)}
       <div className="button-row">
-        {review.state === 'open' && <Button variant="primary" type="button" onClick={() => void action(async () => setReview(await helixAdminApi.confirmOffdeckSelection(review.reviewId, { actorId: 'admin' })))}>确认范围</Button>}
-        {review.state === 'awaiting_escalation' && <Button variant="danger" type="button" onClick={() => void action(async () => setReview(await helixAdminApi.confirmOffdeckHighVolume(review.reviewId, { actorId: 'admin' })))}>我已再次核对，确认退出</Button>}
-        {review.state === 'selection_confirmed' && <Button variant="danger" type="button" onClick={() => void action(() => helixAdminApi.authorizeOffdeck(review.reviewId))}>授权并开始退出</Button>}
-        {['preparing', 'open', 'selection_confirmed', 'awaiting_escalation'].includes(review.state) && <Button type="button" onClick={() => void action(() => helixAdminApi.cancelOffdeckReview(review.reviewId))}>取消审阅</Button>}
+        {review.state === 'open' && <Button variant="primary" type="button" onClick={() => void action(async () => setReview(await helixAdminApi.confirmOffdeckSelection(review.reviewId, { actorId: 'admin' })))}>核对将删除的文件</Button>}
+        {review.state === 'awaiting_escalation' && <Button variant="danger" type="button" onClick={() => void action(async () => setReview(await helixAdminApi.confirmOffdeckHighVolume(review.reviewId, { actorId: 'admin' })))}>再次确认大批量</Button>}
+        {review.state === 'selection_confirmed' && <Button variant="danger" type="button" onClick={() => void action(() => helixAdminApi.authorizeOffdeck(review.reviewId))}>授权删除</Button>}
+        {['preparing', 'open', 'selection_confirmed', 'awaiting_escalation'].includes(review.state) && <Button type="button" onClick={() => void action(() => helixAdminApi.cancelOffdeckReview(review.reviewId))}>取消这次审阅</Button>}
       </div>
+      {nextReviewAction && review.state === 'preparing' && <p className="page-lede">{nextReviewAction}</p>}
     </section>}
-    <section className="source-card">
-      <div className="source-card-heading"><div><h2>{cases.length} 项退出进度</h2></div></div>
-      {cases.length === 0 ? <p>尚无退出执行。</p> : cases.map((item) => <article className="source-row" key={item.offdeckCaseId}>
+    <section className="offdeck-task">
+      <div className="source-card-heading"><div><h2>正在退出</h2></div><span>{cases.length} 部</span></div>
+      {cases.length === 0 ? <div className="source-empty"><strong>现在没有正在退出的收藏</strong></div> : cases.map((item) => <article className="source-row" key={item.offdeckCaseId}>
         <div>
           <strong>{titleOf(item.shelfEntryId)}</strong>
           <small>{labelOf(caseStateLabels, item.state)}</small>

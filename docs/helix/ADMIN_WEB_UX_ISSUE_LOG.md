@@ -1,6 +1,6 @@
 # Admin Web 用户体验问题台账
 
-状态：`ADMIN WEB UX OVERHAUL IMPLEMENTED / UX-001/004/009/010/011/013/016 AND UAT-005/050–053/055–058 IMPLEMENTED / UAT-054 REMAINS OPEN`
+状态：`ADMIN WEB UX OVERHAUL IMPLEMENTED / UX-001/004/007/009/010/011/013/015/016 AND UAT-005/050–058 IMPLEMENTED / RESIDUAL UX REMAINS`
 
 建立日期：2026-08-22
 
@@ -38,7 +38,7 @@
 | UX-004 | 文件来源把候选包、访问合同、Observation、Handoff A 当作主文案 | `COPY_INTERNAL` | 文件来源 | High | 已实现 |
 | UX-005 | 收藏架/注销确认暴露 Routing、Material Control、On-deck 责任账 | `COPY_INTERNAL` | 收藏架 | High | OPEN |
 | UX-006 | 我的收藏与健康详情使用 Shelf Entry / Deck / Evidence 内部口径 | `COPY_INTERNAL` | 我的收藏 | High | OPEN |
-| UX-007 | 退出收藏把 Policy AST、Case、Reservation、原始 ID 直接铺开 | `COPY_INTERNAL` | 退出收藏 | Critical | OPEN |
+| UX-007 | 退出收藏把 Policy AST、Case、Reservation、原始 ID 直接铺开 | `COPY_INTERNAL` | 退出收藏 | Critical | 已实现 |
 | UX-008 | 设置页 Provider / Landing / revision / Event 术语未翻译 | `COPY_INTERNAL` | 系统设置 | Medium | OPEN |
 | UX-009 | 已完成整理仍显示「尚未形成整理动作」 | `COPY_CONFLICT` | 媒体整理工作区 | Critical | 已实现 |
 | UX-010 | 已完成行复用「下一步动作」列和进行中操作控件 | `COPY_CONFLICT` | 媒体整理工作区 | High | 已实现 |
@@ -46,7 +46,7 @@
 | UX-012 | 设置页承诺「空间、资源与安全」，实际只有连接和评分日志 | `COPY_CONFLICT` | 系统设置 | Medium | OPEN |
 | UX-013 | 侧栏固定「正常运行」，与真实健康无关 | `COPY_CONFLICT` | 全站导航 | Medium | 已实现 |
 | UX-014 | 评分日志仍指引用户去已更名的「上架进度」 | `COPY_CONFLICT` | 系统设置 | Low | OPEN |
-| UX-015 | 退出收藏页卡片/行/危险阶段无样式，JSON 规则编辑器直出 | `LAYOUT` | 退出收藏 | Critical | OPEN |
+| UX-015 | 退出收藏页卡片/行/危险阶段无样式，JSON 规则编辑器直出 | `LAYOUT` | 退出收藏 | Critical | 已实现 |
 | UX-016 | 媒体整理「当前媒体」九列表格未用尽横轴且内部横向溢出 | `LAYOUT` | 媒体整理工作区 | High | 已实现 |
 | UX-017 | 四项整理统计塞进三列 `source-facts` 栅格 | `LAYOUT` | 媒体整理工作区 | Medium | OPEN |
 | UX-018 | 收藏架注销确认框没有对话框样式 | `LAYOUT` | 收藏架 | High | OPEN |
@@ -166,6 +166,8 @@
 
 这是本轮最严重的内部机制泄漏。用户要的是：哪些片子建议退出、重复的两部留哪部、删除前确认文件和大小、授权后看到进度。规则编辑如果必须保留，也该是「评分≤2 且收藏超过 1 年」这类表单，不是 AST JSON。用户 2026-08-22 确认按任务重排页面、主按钮用用户语言，不重做销毁主链；「不喜欢的人物」在人物偏好入口可用前不作为可加规则。见 `UAT-054`。
 
+2026-08-22 实现：主表面改为建议片名/原因/体积与当前审阅文件清单；内部阶段名降为小字；人物偏好不可新增。证据见 `UAT-054`。本条随 UAT-054 关闭，不宣称 Canary 通过。
+
 ### UX-008 设置页未翻译集成与执行术语
 
 豆瓣/TMDB/MoviePilot 区块 eyebrow 分别为 `User Perception Provider`、`Identity, Metadata & Artwork Provider`、`External Acquisition Provider`。已连接态还展示 `配置 revision`、`Binding revision`、`Landing 与 Libra Workspace`、`等待身份输入的Event`。评分日志列 `recordKind`、`resolutionStatus`、`subject · {id}`。连接表单本身可以技术化，但一级标题和表格单元格应使用「豆瓣 / 电影资料 / 自动寻源」「已匹配 / 未匹配」。
@@ -242,6 +244,8 @@
 - 高量确认与普通按钮视觉权重不够。
 
 这就是用户说的「退出收藏页面排版混乱」。根因是页面按内部安全链堆了控件，却没有为这些 class 写布局。
+
+2026-08-22 实现：规则/建议/审阅/正在退出使用 `offdeck-task` 卡片；规则默认折叠；高量确认为危险阶段。证据见 `UAT-054`。本条随 UAT-054 关闭，不宣称 Canary 通过。
 
 ### UX-016 媒体整理「当前媒体」没有用尽横轴
 

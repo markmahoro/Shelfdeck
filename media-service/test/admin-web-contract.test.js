@@ -125,6 +125,20 @@ test('Settings splits Douban sync from rating-log refresh', () => {
   assert.doesNotMatch(page, /同步评分/);
 });
 
+test('Off-deck page uses task language and keeps rules collapsed', () => {
+  const page = read('web/src/helix/OffdeckPage.tsx');
+  assert.match(page, /<details className="offdeck-task">/);
+  assert.match(page, /审阅这部/);
+  assert.match(page, /先留着/);
+  assert.match(page, /核对将删除的文件/);
+  assert.match(page, /授权删除/);
+  assert.match(page, /取消这次审阅/);
+  assert.match(page, /addableRuleKinds/);
+  assert.doesNotMatch(page, /emptyRule\('disliked_person'\)/);
+  assert.doesNotMatch(page, />进入审阅</);
+  assert.doesNotMatch(page, />授权并开始退出</);
+});
+
 test('legacy Admin routes, pages and style layers are absent', () => {
   const removed = [
     'web/src/pages/AdultConfigPage.tsx', 'web/src/pages/AdvancedPage.tsx', 'web/src/pages/OffboardingCandidatesPage.tsx',

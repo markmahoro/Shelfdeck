@@ -218,6 +218,14 @@ button, input, select, textarea { font: inherit; }
 .log-filters label { display: grid; gap: 6px; color: #40514f; font-size: 12px; font-weight: 700; }
 .log-filters select { width: 100%; min-height: 36px; padding: 8px 10px; border: 1px solid #bfcfc9; border-radius: 6px; background: white; }
 
+.offdeck-task { margin-top: 24px; padding: 22px 24px; background: var(--paper); border: 1px solid var(--line); }
+.offdeck-task > summary { cursor: pointer; display: flex; gap: 12px; align-items: baseline; }
+.offdeck-task > summary small { color: var(--muted); font-weight: 400; }
+.offdeck-task .form-grid, .offdeck-task .button-row { margin-top: 16px; }
+.offdeck-suggest { display: grid; gap: 12px; margin-top: 16px; }
+.offdeck-suggest article, .offdeck-scope { display: grid; gap: 8px; padding: 14px; border: 1px solid var(--line); background: #fff; }
+.offdeck-scope p { margin: 0; color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
+.offdeck-page .btn small { display: block; font-size: 11px; font-weight: 500; color: var(--muted); }
 .source-card + .source-card { margin-top: 16px; }
 .source-row { display: grid; gap: 10px; padding: 14px 0; border-bottom: 1px solid var(--line); }
 .source-row:last-child { border-bottom: 0; }

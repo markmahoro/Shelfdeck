@@ -108,7 +108,7 @@ Helix主体开发已经完成，Movie从Procurement、Libra到Arca及Shelf Dereg
 | UAT-051 | 整理动作是概括句，不能展示分步施工、分步进度、用户操作与加急 | `USER_EXPERIENCE` | `PROJECTION_FRESHNESS` | Formation 公开 Projection + Admin Web | 可理解性、可观察性 | High | 已实现；待新 Canary 确认 |
 | UAT-052 | 我的收藏一级导航不是按架，详情缺少占用空间等技术指标 | `USER_EXPERIENCE` | `PROJECTION_FRESHNESS` | Arca Collection Query + Admin Web | 可理解性、可发现性 | High | 已实现；待新 Canary 确认 |
 | UAT-053 | 活动文件来源未按 SSOT 周期观察，扫描完成后页面禁止再扫 | `DOMAIN_ORCHESTRATION` | `USER_EXPERIENCE` | Procurement Field Management Owner 自动化 + Admin Web | 正确性、活性、可理解性 | Critical | 已实现；待新 Canary 确认 |
-| UAT-054 | 退出收藏主链已通，页面仍是内部安全链控制台 | `USER_EXPERIENCE` | | Off-deck Admin Web | 可理解性、可操作性 | High | 已讨论并确认方向，待实现 |
+| UAT-054 | 退出收藏主链已通，页面仍是内部安全链控制台 | `USER_EXPERIENCE` | | Off-deck Admin Web | 可理解性、可操作性 | High | 已实现；待新 Canary 确认 |
 | UAT-055 | 人物名录未接通 Beta 两条登记路径，页面只读且为空 | `DOMAIN_ORCHESTRATION` | `USER_EXPERIENCE` | People Owner 自动化 + Arca On-deck 人物证据 + Admin Web | 正确性、可操作性 | Critical | 已实现；待新 Canary 确认 |
 | UAT-056 | 豆瓣评分缺少 SSOT 周期同步，同步与日志刷新职责混在一起 | `DOMAIN_ORCHESTRATION` | `USER_EXPERIENCE` | Perception Acquisition Owner 自动化 + Admin Web | 时效性、可理解性 | High | 已实现；待新 Canary 确认 |
 | UAT-057 | 概览只重复旁页计数，缺少系统状态、可点待办与最近完成；不得与我的收藏合并 | `USER_EXPERIENCE` | `PROJECTION_FRESHNESS` | Overview 只读聚合 + Admin Web | 可理解性、可操作性 | High | 已实现；待新 Canary 确认 |
@@ -2103,7 +2103,15 @@ stderr 为 `CLEAN_ARCA_TARGET_OCCUPIED` 与 `CLEAN_ARCA_SETTLEMENT_UNKNOWN_MEMBE
 
 验收证据：无规则时页面说明「不会自动建议，可从我的收藏直接退出或先保存规则再检查」；有建议时主路径能用片名走完审阅→授权；授权前取消零文件副作用；技术标识不出现在主表面。
 
-当前处理决定：2026-08-22 用户确认只做任务化界面，不重做销毁主链。只登记，不立即改代码。实现顺序上后于周期类缺口 UAT-053/055/056。
+当前处理决定：2026-08-22 用户确认只做任务化界面，不重做销毁主链。2026-08-22 代码已实现。页面按规则（可折叠）→ 建议（片名/原因/体积）→ 当前审阅 → 正在退出重排；按钮改为审阅这部、先留着、核对将删除的文件、再次确认大批量、授权删除、取消这次审阅。人物偏好不作为可添加规则。未改销毁合同、默认 Policy 关闭、授权前可取消、授权后不可反悔。本条不宣称 Canary 或生产通过。
+
+证据：
+
+- `media-service/web/src/helix/OffdeckPage.tsx`
+- `media-service/web/src/helix/helix.css`
+- `media-service/test/admin-web-contract.test.js`
+- `media-service/web/test/overview.test.tsx`
+- Admin Web production build `npm run build:web` PASS
 
 ## 52. UAT-055：人物名录未接通 Beta 两条登记路径，页面只读且为空
 
