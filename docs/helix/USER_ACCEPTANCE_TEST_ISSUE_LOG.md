@@ -202,6 +202,13 @@ UI证据：`admin-web-evidence/uat-009-rating-persists-after-refresh-pass.png`�
 Manual Routing输入错误映射为400，Subject不存在映射为404，状态或Head冲突映射为409。Admin Web生产构建和Routing E2E均通过；
 同一UAT库真实页面显示22条明确等待提示、0个无效“选择”按钮，Console无warning/error。
 
+2026-08-23逐项封口复核沿用clean Canary `UAT-20260822-064512-fe37bffec`的未发布Routing现场证据：真实Formation中
+`战栗空间 (2002)`处于`待整理`，目标收藏架列明确显示“等待发布文件来源的收藏架分拣策略”，且该行和整页均没有人工选架入口；
+同次`admin-web-preflight-report.json`记录Formation首次打开与直接刷新均成功、Console error为0。该证据命中“未配置时等待且不开放
+非法命令”的关闭命题，因此无需为了复现前置状态而撤销当前Canary已经发布的Routing。状态
+`REGRESSION PASSED / CONFIRMED ON CLEAN CANARY`。UI证据：
+`UAT-20260822-064512-fe37bffec/admin-web-evidence/formation-after-observe.png`。
+
 
 ## 3. UAT-001：豆瓣评分匹配率偏低
 

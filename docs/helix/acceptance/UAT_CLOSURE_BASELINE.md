@@ -66,7 +66,7 @@
 | UAT-007 | 干净库人物页显示真实 0，不再展示固定演示人数 | `UI` | W0 | `CLOSED` | `PASS` UAT-20260822-141950-0c27c8cf6 UI 人物已登记0 |
 | UAT-008 | Admin Web 七个非根路径直接刷新回到对应页面，不再 404 | `UI` | W0 | `CLOSED` | `PASS` UAT-20260822-141950-0c27c8cf6 UI 八页首次打开与直接刷新 |
 | UAT-009 | 整理页提交评分后刷新仍保留该评分 | `UI` | W0 | `CLOSED` | `PASS` UAT-20260823-002500-519f8d7b5 UI第二个养蜂人从4星豆瓣提交为4星我的评分，重新导航刷新后仍保留且显示清除入口 |
-| UAT-010 | Routing 未配置时不开放人工选架，页面给出等待策略的明确提示 | `UI` | W0 | `CLOSED` | `NOT RUN` |
+| UAT-010 | Routing 未配置时不开放人工选架，页面给出等待策略的明确提示 | `UI` | W0 | `CLOSED` | `PASS` UAT-20260822-064512-fe37bffec UI未路由Subject明确等待策略、无人工选架入口，首次打开与刷新Console error均为0 |
 | UAT-011 | 同根 Shelf Target 前 Handoff B 能推进，不再永久等待 | `UI` `FS` | W3 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260822-141950-0c27c8cf6 UI Field/Shelf同为F:\canary且Shelf有17条、收藏17部当前Entry；FS同根目录现实存在 |
 | UAT-012 | On-deck Planner 带上 Settlement Approval 契约，上架能完成 | `UI` `FS` | W0 | `CLOSED` | `PASS` UAT-20260822-141950-0c27c8cf6 UI 第八个嫌疑人已为当前收藏且健康；FS主视频精确存在于F:\canary，大小2009890078与Inventory一致 |
 | UAT-013 | 已解析身份进入用户可读目录名，不再渲染成哈希 Inventory 目录 | `UI` `FS` | W3 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260822-141950-0c27c8cf6 UI第八个嫌疑人；FS目录F:\canary\第八个嫌疑人 (2023)存在，非哈希且无(0)年份 |
