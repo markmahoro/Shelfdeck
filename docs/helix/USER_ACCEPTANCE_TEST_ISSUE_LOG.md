@@ -34,7 +34,9 @@ Helix主体开发已经完成，Movie从Procurement、Libra到Arca及Shelf Dereg
 
 本文统一记录这一阶段发现的待修复问题，作为后续集中复盘、Design Return、修复排序和回归验收的工作基线。
 
-本文不是Architecture SSOT，不替代`CURRENT_PLAN.md`。历史UAT问题仍保留原有处理状态；2026-08-21 Movie Canary真实用户UAT期间，用户已授权在不改变已确认架构边界的前提下直接修复、页面复测并为每项修复建立独立Git回滚点。2026-08-22 另完成一次 Admin Web 全页用户体验审视（文案、内部机制泄漏、文案与事实冲突、排版、字体、按钮、前端拼装与美学），问题见 `docs/helix/ADMIN_WEB_UX_ISSUE_LOG.md`；该台账不替代本文的 UAT 业务/执行缺陷记录，也不授权实现。同日用户确认四项后续改造并登记为 `UAT-050`–`UAT-053`（当前媒体筛选、分步整理动作与进度、收藏按架与占用空间、Field Observation 周期观察缺口）；随后确认退出收藏任务化界面、人物 Beta 两条登记路径、豆瓣周期同步，登记为 `UAT-054`–`UAT-056`；概览改为状态 + 待办 + 最近几件事、不与「我的收藏」合并，登记为 `UAT-057`；侧栏把文件来源与收藏架下移与系统设置一组，Tab 改名为文件来源配置 / 收藏架配置，登记为 `UAT-058`。只登记方向，不授权实现。
+本文不是Architecture SSOT，不替代`CURRENT_PLAN.md`。历史UAT问题仍保留原有处理状态；2026-08-21 Movie Canary真实用户UAT期间，用户已授权在不改变已确认架构边界的前提下直接修复、页面复测并为每项修复建立独立Git回滚点。2026-08-22 另完成一次 Admin Web 全页用户体验审视（文案、内部机制泄漏、文案与事实冲突、排版、字体、按钮、前端拼装与美学），问题见 `docs/helix/ADMIN_WEB_UX_ISSUE_LOG.md`；该台账不替代本文的 UAT 业务/执行缺陷记录，也不授权实现。同日用户确认四项后续改造并登记为 `UAT-050`–`UAT-053`（当前媒体筛选、分步整理动作与进度、收藏按架与占用空间、Field Observation 周期观察缺口）；随后确认退出收藏任务化界面、人物 Beta 两条登记路径、豆瓣周期同步，登记为 `UAT-054`–`UAT-056`；概览改为状态 + 待办 + 最近几件事、不与「我的收藏」合并，登记为 `UAT-057`；侧栏把文件来源与收藏架下移与系统设置一组，Tab 改名为文件来源配置 / 收藏架配置，登记为 `UAT-058`。2026-08-22 干净 Canary `UAT-20260822-194617-1ed64ca36` 转码复盘登记为 `UAT-059`：四星体积上限被规划器当成目标码率；同轮 Spec 复盘登记为 `UAT-060`：Product Identity 写回 Subject 触发语义相同的 Acceptance Spec 重发；同轮另登记 `UAT-061` 豆瓣 Acquisition 翻页失败不收口、`UAT-062` frozen Discard 后未按重新入库收口、`UAT-063` Aftercare 查豆瓣分与 Libra 不是同一套 Resolution。
+
+关闭作业不再走已删除的 `helix-beta-user-e2e` workflow。63 行冻结关闭基线见 `docs/helix/acceptance/UAT_CLOSURE_BASELINE.md`：正式关闭立即汇报且不暂停；确认关闭时发现新产品缺陷则暂停并先登记新 UAT；`PASS` 必须有干净 Canary 的 Admin Web `UI`（涉及文件现实时加 `FS`），单元测试不能单独关闭一行。
 
 记录原则：
 
@@ -100,7 +102,7 @@ Helix主体开发已经完成，Movie从Procurement、Libra到Arca及Shelf Dereg
 
 ### 2.0 2026-08-22 确认的产品/实现缺口
 
-用户确认九项后续改造方向；本批只登记，不授权实现、不改 SSOT。完整叙述见 §47–55。UAT-011 至 UAT-049 仍按后文章节，不在本表重复。
+用户确认九项后续改造方向；本批只登记，不授权实现、不改 SSOT。完整叙述见 §47–55。2026-08-22 Canary 复盘新增 `UAT-059`–`UAT-063`，见 §56–60。UAT-011 至 UAT-049 仍按后文章节，不在本表重复。
 
 | ID | 问题 | 主分类 | 次分类 | 主要责任边界 | 影响维度 | 严重度 | 当前状态 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -113,6 +115,11 @@ Helix主体开发已经完成，Movie从Procurement、Libra到Arca及Shelf Dereg
 | UAT-056 | 豆瓣评分缺少 SSOT 周期同步，同步与日志刷新职责混在一起 | `DOMAIN_ORCHESTRATION` | `USER_EXPERIENCE` | Perception Acquisition Owner 自动化 + Admin Web | 时效性、可理解性 | High | 已实现；待新 Canary 确认 |
 | UAT-057 | 概览只重复旁页计数，缺少系统状态、可点待办与最近完成；不得与我的收藏合并 | `USER_EXPERIENCE` | `PROJECTION_FRESHNESS` | Overview 只读聚合 + Admin Web | 可理解性、可操作性 | High | 已实现；待新 Canary 确认 |
 | UAT-058 | 侧栏把文件来源与收藏架放在日常运营之前；应下移与系统设置一组并改名为配置 | `USER_EXPERIENCE` | | Admin Web 导航 | 可发现性、信息架构 | Medium | 已实现；待新 Canary 确认 |
+| UAT-059 | 四星转码把 14 GiB 上限当成目标码率，把已较小的 H.264 源灌大 | `BUSINESS_CONTRACT` | `MEDIA_PRODUCTION` | Libra Production Planner `deriveTargetSizeBudget` | 正确性、空间、质量 | High | 已实现；待新 Canary 确认 |
+| UAT-060 | Product Identity 写回 Subject 触发语义相同的 Acceptance Spec 重发，头切走后 Run 可能发不出 Package | `BUSINESS_CONTRACT` | `DOMAIN_ORCHESTRATION` | Libra Acceptance Spec `specInputDigest` + Coordinator | 正确性、活性 | High | 已实现；待新 Canary 确认 |
+| UAT-061 | 豆瓣 Acquisition 翻页传输失败后不重试、不收口，设置页永久「正在同步」 | `EXTERNAL_INTEGRATION` | `RECOVERY_CORRECTNESS` | Perception Acquisition + Settings 同步态 | 活性、可理解性 | High | 已实现；待新 Canary 确认 |
+| UAT-062 | frozen Run Discard 后 Control 已释放，Formation 仍空转「正在评估整理方案」，未走重新入库 | `BUSINESS_CONTRACT` | `DOMAIN_ORCHESTRATION` | Libra Run Discard 收口 + Procurement 重新入库 + Formation | 正确性、活性、可理解性 | Critical | 已实现；待新 Canary 确认 |
+| UAT-063 | Aftercare 问豆瓣分与 Libra 不是同一套 Resolution/Identity Evidence，上架后评分变化不触发保养 | `BUSINESS_CONTRACT` | `PROJECTION_FRESHNESS` | Arca Aftercare 拉 Perception + 与 Libra 共用 Identity Evidence | 正确性、时效性 | High | 已实现；待新 Canary 确认 |
 
 ## 2.1 UAT-006：概览展示固定演示数字
 
@@ -2259,7 +2266,134 @@ stderr 为 `CLEAN_ARCA_TARGET_OCCUPIED` 与 `CLEAN_ARCA_SETTLEMENT_UNKNOWN_MEMBE
 - `media-service/web/test/navigation.test.tsx`
 - Admin Web production build `npm run build:web` PASS
 
-## 56. 后续问题模板
+## 56. UAT-059：四星转码把 14 GiB 上限当成目标码率，把已较小的 H.264 源灌大
+
+问题分类：`BUSINESS_CONTRACT / MEDIA_PRODUCTION`
+
+用户侧现象：干净 Canary `UAT-20260822-194617-1ed64ca36` 中，23 部里只有 `锡尔弗顿之围 (2022)` 触发了 `libra.media.transcode@1`。四星合同是 HEVC、不超过 14 GiB。源已是 1080p stream file，体积约 1.94 GiB，转完变成约 9.35 GiB 仍低于上限。页面步骤写成「CPU转码 · HEVC · 不超过 14 GiB」，实际走的是本机 NVIDIA NVENC。
+
+现场证据：隔离库
+`C:\Users\markm\AppData\Local\Temp\ShelfDeck-Movie-Canary-UAT-20260822-194617-1ed64ca36`。
+Formation 该行 `my_rating=4`、`my_rating_source=douban`，整理要求 `HEVC · 不超过 14 GiB · 补齐 nfo、poster`。源 Probe：H.264、Matroska、`sizeBytes=2077884000`、`durationMs=6062624`（约 101 分钟）、两条 `eac3`（`normalizedAudioClass=other`）。EncodeIntent：`deviceClass=nvidia_nvenc`、`rateControlMode=target_size`、`targetVideoBitrateBps=14703421`、`audio.mode=copy`、`streamIndexes=[1,2]`、`preserveRaster=true`、`forbidUpscale=true`、`pipelineProfileId=ordinary_to_hevc@1`。成品 Probe 与 `F:\canary\锡尔弗顿之围 (2022)\锡尔弗顿之围 (2022).mkv` 均为 HEVC、`sizeBytes=10032914711`（约 9.35 GiB）。体积放大约 4.8 倍。同轮另两部只 Remux、未转码：ISO `倩女幽魂2：人间道`、BDMV `养蜂人 (2024) - 2160p HEVC Atmos TrueHD5.1`。
+
+精确根因：`deriveTargetSizeBudget` 用 `maxSizeBytes` 减去容器预留和音轨估算后，把剩余字节直接当成视频目标码率。NVENC 在有体积上限时优先 `target_size`，于是四星 14 GiB 变成约 14.7 Mbps 的灌满目标，而不是「不要超过」。源 1.94 GiB H.264 并非已经合规（缺 HEVC），所以转码触发本身正确；错的是施工码率按上限填满。SSOT §7.3.5：`maxSizeGB` 是最终空间上限，不是目标码率；Planner 可以按时长、分辨率、当前质量 Evidence、编码效率和计算成本推导内部码率，不得把估算参数写回 Shelf Standard；已经合规的产品不得为了贴近上限再次转码。相关展示偏差：`formation-query.js` 的 `transcodeLabel` 从 `deviceSnapshot` 猜 CPU/GPU，真实 Result 在 `executionDeviceRef`（`local-nvidia-nvenc-0`），因此完成态误标 CPU。
+
+业务影响：四星 1080p 源会被无必要放大数倍，浪费收藏空间和转码时间；体积上限验收仍可通过，用户看到的是「整理后更大」。库规模上去后同一规划会系统性灌满 1–5 星各档上限。CPU/GPU 标签与真实设备不一致，UAT-051 要求的转码步骤说明不可信。
+
+修复边界：
+
+- 触发条件保持不变：四星 H.264 仍须转 HEVC；禁止 Direct 交差；
+- `maxSizeBytes` 只作拒绝线和预算可行性下限（视频码率 ≥ 100 kbps），不得作为 `target_size` 的填满目标；
+- 码率/质量须由时长、分辨率、源码率/体积和质量 Evidence 推导，目标成品不得无理由大于源；NVENC 在源已小于上限时应改质量约束或封顶到源量级，而不是打满档位 GiB；
+- 不抬 14 GiB，不做音频转码，不改五星 4K/白名单，不把无评分片子强制转码；
+- Formation 转码步骤的 CPU/GPU 必须读 EncodeIntent / `executionDeviceRef` 的真实 `deviceClass`，不得因缺 `deviceSnapshot` 默认 CPU；
+- 本条不改 Owner、Handoff 或 Capability 边界。已 On-deck 的 `锡尔弗顿之围` 成品不可变；修复后须新 Canary 或新 Libra Run 验证。
+
+验收证据：同型 4 星 1080p H.264、源约 2 GiB、上限 14 GiB 的样本，转码后为 HEVC、音轨 copy、体积明显低于 14 GiB 且不得数倍大于源；EncodeIntent 的 `targetVideoBitrateBps` 或 `qualityBound` 能追溯到源质量而不是 `14 GiB - reserve`；页面步骤为 GPU 转码当且仅当设备为 NVENC/QSV/VAAPI。负例：已是 HEVC 且低于上限的 3 星片子仍 Direct。UAT-044 的多音轨预算裁剪回归不得回退。
+
+当前处理决定：2026-08-22 代码已实现。`deriveTargetSizeBudget` 在已知源体积且源小于上限时按源量级封顶，不再把档位 GiB 当 `target_size` 填满目标；可行性仍按上限。Formation 转码步骤读 `executionDeviceRef.deviceClass`。本条不宣称 Canary 或生产通过。
+
+## 57. UAT-060：Product Identity 写回 Subject 触发语义相同的 Acceptance Spec 重发
+
+问题分类：`BUSINESS_CONTRACT / DOMAIN_ORCHESTRATION`
+
+用户侧现象：干净 Canary `UAT-20260822-194617-1ed64ca36` 中，`一场很（没）有必要的春晚 (2022)` 身份/资料/海报/视频验证均已成功，页面却停在待整理。Decision Head 已从 Acceptance Spec revision 1 切到 revision 2；Run 仍绑 Spec 1，没有 `product_package.publish`、没有 Package、没有 Handoff B。用户追问头为何会切到 Spec 2。
+
+现场证据：隔离库
+`C:\Users\markm\AppData\Local\Temp\ShelfDeck-Movie-Canary-UAT-20260822-194617-1ed64ca36`。
+本轮 **23/23** 部都是同一路径：Spec 1 发布时 `subject_snapshot.currentIdentityRevision = null`；Run 内 `libra.product_identity.resolve@1` 成功后写回 `currentIdentityRevision = 1`；随后 `active-acceptance-spec-subjects` 再 reconcile，发 Spec 2。两次 Perception 评分均为 `not_found`；Routing、Shelf Standard、Product Scope 不变；两次 `specDigest` 相同（春晚均为 `5a0e2e5e…`，要求仍是「补齐 nfo、poster」）。变的是 `specInputDigest` / `recordDigest` / `decisionBasisId`。春晚符合性成功于 `…527832`，Spec 2 发布于 `…542743`（间隔约 15 秒），期间没有 publish。其余 19 部在 Spec 2 前已发出 Package（符合性后约 150–250ms）；BDMV `养蜂人` 在 Remux 期间被切头，后来仍发布成功。`看不见的朋友` / `黑客帝国动画版` 未走到符合性，卡在五星冻结后的放弃路径，不是本条。
+
+精确根因：`specInputDigest` 哈希整份 `subjectSnapshot`，含 `currentIdentityRevision` / `currentIdentityDigest`。这两项是 Run 产出的 Product Fact，不是定评分档/HEVC/体积的 Decision Input。Coordinator 用 `specInputDigest` 判断「是否还是当前 Spec」，身份从空到已确认就被当成新输入，重发语义相同的 immutable Spec，头必须跟上。SSOT §6.4.6：语义与初始 Execution Basis 都未变时，当前 Run 继续，不改写 immutable Spec/Basis。Run Creator 因 `specDigest` 相同不替换 Run，于是出现「头是 Spec 2、Run 仍是 Spec 1」。春晚另卡在符合性已过、Package 未发的窗口；不能单靠下一次 sweep 碰运气。
+
+业务影响：每部电影整理过程都会无意义切一次头。多数片子发布够快所以看不出来；落到「验证完、尚未 publish」窗口的片子会停在待整理，用户无法理解。库规模上去后，身份确认与 Spec reconcile 交错会系统性制造这种空切。
+
+修复边界：
+
+- `specInputDigest` 只纳入进 Spec 的稳定输入：Subject 结构/profile、intake revision、routing 锚、已 resolved Routing、Shelf Standard、Product Scope、Perception 评分 Resolution；**不得**纳入 `currentIdentityRevision` / `currentIdentityDigest`；
+- 身份从空到 TMDB 已确认不得新开 Acceptance Spec Basis、不得发语义相同的 Spec 2、不得切头；
+- 头上 Spec 的 `specDigest` 与 Run 冻结 Spec 相同时，freshness 必须为 `same`，`deliverable_promotion` 必须继续；禁止只因 Spec ID / Basis ID 变化就 `replacement_required`；
+- 符合性成功后必须在同一次 reconcile 或可靠 wake 里提交 publish，不得把发布留给后续 sweep；
+- 不推迟第一份 Spec 到身份确认之后；不在 `specDigest` 相同时替换 Run；不禁止身份写回 Subject；不把本条交给 Aftercare；
+- 不改 Owner、Handoff 或 Capability 边界。已 On-deck 的 19 部不可变；春晚现场需修复后新 reconcile 或新 Canary 验证。
+
+验收证据：无评分样本在身份 resolve 后仍只有一份 Acceptance Spec、头不切、`specInputDigest` 不含身份指针；有评分样本仅在评分/标准/分拣真正变化时才发新 Spec。负例：符合性已过的 active Run 在语义相同的头切换后仍能 publish。本轮 23 部那种「空身份 Spec 1 → 身份写回 Spec 2」不再出现。
+
+当前处理决定：2026-08-22 代码已实现。`specInputDigest` 不再纳入 `currentIdentityRevision` / `currentIdentityDigest` / `snapshotDigest`。身份写回不再发语义相同的 Spec 2。本条不宣称 Canary 或生产通过。
+
+## 58. UAT-061：豆瓣 Acquisition 翻页传输失败后不重试、不收口，设置页永久「正在同步」
+
+问题分类：`EXTERNAL_INTEGRATION / RECOVERY_CORRECTNESS`
+
+用户侧现象：干净 Canary `UAT-20260822-194617-1ed64ca36` 设置页豆瓣连接一直「正在同步…」，按钮禁用。用户以为还在拉收藏。
+
+现场证据：同一隔离库。`perception_acquisitions` 仅一条，`state=active`，`terminal_at_ms=null`，`idempotencyKey=douban-sync:2026-08-22T12:10:56.059Z`。成功 commit 17 页、cursor `0→255`、`perception_records=255`，最新 cursor `has_more=1`。第 18 页 Work `perception-acquisition_page-work-35c2593159ef…` 为 `failed`；`perception.source.acquire@1` Attempt 1 终态 `P5_PROVIDER_TRANSPORT_FAILED`，`failure_class=executor`，无第二次 Attempt。`reconcileAcquisition` 用同一 `pageOrdinal` 幂等提交已失败 Work，Acquisition 永不收口。Settings 以 `syncState.activeCount > 0` 显示「正在同步」。23 个 Subject Resolution 仅 6 个 `found`、17 个 `not_found`；春晚等不在这 255 条里。
+
+精确根因：翻页传输失败被打成一次 `executor` 终态，既不按 timeout/integration 有界重试，失败页又占住幂等键。UAT-043 已要求 lease 包装的 timeout/network/HTTP 收成可重试；本条是 Acquisition 分页在同类失败上没有收口。设置页把「仍为 active」当成进行中，没有失败态。
+
+业务影响：同步表面永远转圈；收藏后半段评分进不来；后续 Aftercare/Spec 只能对已入库的 255 条 Resolution。用户无法点第二次同步。
+
+修复边界：
+
+- 豆瓣 HTTP/传输失败按 `timeout|integration` 在同一页 Work 上有界重试；不得一次 `executor` 打成整轮挂死；
+- 重试耗尽后 Acquisition **收口为失败**，设置页显示失败和可再点的「同步」，禁止继续 `activeCount>0`；
+- 已 commit 的页与 255 条 Record 保留；新一轮从 cursor 继续或按来源 digest 幂等，不造语义重复 Record；
+- GET 评分日志仍不得触发同步。本条不改 UAT-001 匹配强度，不改 SSOT Owner。
+
+验收证据：人为让第 N+1 页传输失败后，有界重试可见；耗尽后 Acquisition 非 active、设置页可再同步；失败前已入库 Record 仍在。负例：不得把失败显示成「正在同步」。
+
+当前处理决定：2026-08-22 代码已实现。`P5_PROVIDER_TRANSPORT_FAILED` 记为可重试 `integration`；页 Work 终态失败后 Acquisition 收口为 `failed`，设置页 `activeCount` 归零。本条不宣称 Canary 或生产通过。不得用 copy-forward 单独关闭。
+
+## 59. UAT-062：frozen Run Discard 后 Control 已释放，Formation 仍空转「正在评估整理方案」，未走重新入库
+
+问题分类：`BUSINESS_CONTRACT / DOMAIN_ORCHESTRATION`
+
+用户侧现象：对五星冻结的 `看不见的朋友 (2023)`、`黑客帝国动画版 (2003)` 点「放弃本次整理」后，前端一直停在「正在评估整理方案」。
+
+现场证据：同一隔离库。两条 `libra_run_discard_decisions` / `receipts` 均成立，Run 为 `discarded`，`committed_run_state_revision=4`。Formation：`classification=pending`，`current_libra_run_id=null`，整理动作 `assessing:正在评估整理方案`，下一步「正在确认目标、评分、要求或身份」。豆瓣 Record 里这两部已是 5 星，Head 上仍有当前 Spec（HEVC · 4k · 50 GiB）。stderr 反复 `Libra Run input Control is unavailable.` 以及 `No Outbox consumer is registered for libra.workspace-cleanup.requested@1 -> libra_workspace_reclaimer`。
+
+精确根因：Discard 按合同释放了 Primary Material Control，但 `ready-libra-runs` 仍对该 Subject `admit` 新 Run，Creator 要求 Control 仍由 Libra 持有，于是抛错打转。Workspace 清理 Outbox 无 consumer。页面把「无当前 Run、无 Work」译成空计划「正在评估」。SSOT §4.4.7 / `L5-Q7`：放弃是「放弃本次处理并**重新入库**」，释放 Control 后由 Field Management 在 Identity 仍属于有效 Observation 时开 **全新 Procurement**，不是 Libra→Procurement 反向 Handoff，也不是同一 Subject 立刻再开 Libra Run。
+
+业务影响：用户以为系统在再评估；实际上新 Run 开不了、清理做不完、也不会重新入库。五星无 4K 源即使再走一遍仍应冻成「没有外部候选」，那是合同终态，不能用空转文案代替。
+
+修复边界：
+
+- Discard 之后禁止立刻 admit 新 Libra Run。Control 已 released 时 Creator 返回 typed「等待重新入库」，禁止 `EXECUTION_RUNTIME_ERROR` 循环；
+- Control 释放后叫醒 Field Management / Procurement：仍在有效 Observation 集才开全新 Procurement Run；旧 Candidate/失败只作历史；
+- 接上 `libra.workspace-cleanup.requested@1` → `libra_workspace_reclaimer`；清理不在 Discard 同一 SQLite 事务里删文件，但必须有人消费；
+- 放弃后不得写「正在评估整理方案」。Discard 历史为「已结束 · 用户放弃」（UAT-018）；当前行若还在，只允许「等待重新入库 / 等待再次发现」；
+- **不得**把 Control 留在 Libra 里「再试一次」。若产品要同一 Subject 留 Control 再开 Run，须先改 SSOT `L5-Q7`，本条不授权。
+
+验收证据：五星冻结样本 Discard 后 Control released、无新 Libra Run、无 Control-unavailable 刷屏、清理 Outbox 被消费；页面不是「正在评估」；仍在 Field 内的材料能进入新的 Procurement，而不是静默消失。
+
+当前处理决定：2026-08-22 代码已实现。Control 已释放时 Creator 返回 `awaiting_reintake`，不再抛 `Control is unavailable`；Formation 放弃后写「等待重新入库」；Outbox `libra.workspace-cleanup.requested@1` → `libra_workspace_reclaimer` 已接消费。Discard 仍是重新入库，不把 Control 留在 Libra。本条不宣称 Canary 或生产通过。
+
+## 60. UAT-063：Aftercare 问豆瓣分与 Libra 不是同一套 Resolution/Identity Evidence，上架后评分变化不触发保养
+
+问题分类：`BUSINESS_CONTRACT / PROJECTION_FRESHNESS`
+
+用户侧现象：用户认为豆瓣分已经刷出来，已上架影片却没有 Aftercare。补充确认：**Aftercare 去 Perception 查豆瓣分的方法，必须和 Libra 去查的方法一致。**
+
+现场证据：同一隔离库。`arca_aftercare_assessments` 57 行（19 部 × custody/presentation/conformance），结果全 `healthy`；`findings=0`，`cases=0`；最晚评估约 BDMV `养蜂人` On-deck 时。之后无因评分再评估。`due-aftercare-shelf-entries` 为 24h Custody / 7d Deep。Libra：`resolveDecisionFact({targetType:'subject', subjectId})`，title/year 来自 Candidate claim 经 `deriveTitleYear`，`providerIdentity=null`，锚为 `subject_id`。Aftercare：`readCurrentRating('shelf_entry', shelfEntryId)`，title 用 Collection `displayIdentity`（可含 `1080p H.264` 等展示尾缀），`providerIdentity=tmdb:providerKey`，锚为 `shelf_entry_id`。两边合同都是 `perception.rating.resolve@1`，但 Identity Evidence / `queryInputDigest` 不同。豆瓣 Record 有 Douban ID 与片名年，没有 `shelf_entry_id`，通常也对不上 `tmdb:…`。Libra 靠 `title_year` 才能 `found`（本轮仅 6/23）；Aftercare 用另一套证据，同一条豆瓣分对 Entry 变成 `not_found`。`queryHandle.consumerDomain` 写死 `libra`。叠加 UAT-061：Acquisition 停在 255 条，多数片子在 Perception 里本来就还没有分。
+
+精确根因：Perception 不推送、不因 Record 直接建 Aftercare Case（SSOT §3.6.4），On-deck 后的 Perception 变化归 Aftercare 自己再查（§6.4.6）。Aftercare 作为消费者 (1) 构造的 Identity Evidence 与 Libra 不一致，查不到同一条 Douban Record；(2) 没有「上架后分从无到有 / 星级变化」的再查询，只靠日历扫描。用户确认的硬条件：两边查法必须是同一套 Resolution 合同加同一套 Identity Evidence 构造，不是 Aftercare 拿 `subjectId` 回流 Libra，也不是第二套匹配算法。
+
+业务影响：整理页看得到的豆瓣分，收藏保养当没分。无评分规则收下的 H.264 后来变成 3/4 星应 HEVC 时，Aftercare 不会补做。已经符合的片子也不该被错误重做。
+
+修复边界：
+
+- Aftercare / Off-deck 的 `targetProjection` 与 Libra Subject 投影共用 **同一套 Identity Evidence 构造**（同一 `deriveTitleYear` / 去技术尾缀；Provider 有则同一形态，没有就不要伪造另一套键）；禁止用未剥离的 `displayIdentity` 去查；
+- 继续只走 Perception 公开入口 `perception.rating.resolve@1`（`resolveDecisionFact` / `readCurrentRating`），kind=`rating`，同一匹配阶梯与消歧；Arca 不得直接扫 `perception_records`；
+- 消费者仍是自己：Libra 问 Subject，Arca 问 Shelf Entry；投影来源不同，证据形状和解析规则相同。Entry 的 Canonical Identity（片名、年、TMDB）冻出的 Evidence 须能对上 Libra 当时问到的同一条 Douban Record；用户给 Entry 的直接分仍走 `shelf_entry` 锚，按既有来源优先级合并；
+- Aftercare 业务流程须在「上架后第一次评分从无到有 / 星级变化、care basis 因而变化」时自己再拉一次上述查询；24h Custody 仍作兜底。这是 Aftercare 拉 Resolution，不是 Perception 推 Case；
+- 新分使产品不再符合当前档才开 Aftercare Case（无评分收下的 H.264 → 3/4 星 HEVC）；已符合的保持 healthy，不得为切档重做；
+- 不接受：Aftercare 用 `subjectId` 当 target；给 Entry 单独模糊匹配；评分变化重开 Libra Run；
+- 本条依赖 UAT-061 把 Acquisition 收口，否则多数片子仍是 Perception `not_found`。不改 Owner/Handoff。`queryHandle.consumerDomain` 应按调用方为 `libra|arca`，不得因此换匹配规则。
+
+验收证据：同一 Douban Record，Libra Subject Resolution 为 `found` 时，对应 Shelf Entry 用同一套 Evidence 查询也为 `found` 且星级相同；展示名含技术尾缀的 Entry 不得因此 `not_found`。上架时无分、同步后出现 3/4 星且源为 H.264 的样本，Aftercare 在评分变化后（不必空等 24h）出现 conformance 再评估；已是 HEVC 且低于上限的 3 星样本保持 healthy。负例：Aftercare 不得为查分回读 Libra Subject 或扫描 Record 表。
+
+当前处理决定：2026-08-22 代码已实现。Libra Subject 与 Arca Shelf Entry 共用 `buildRatingTargetIdentity`（同一 `deriveTitleYear`）；`queryHandle.consumerDomain` 按调用方为 `libra|arca`。Care Basis 因评分变化后 Aftercare 立即到期，不再被 24h 列表门闩挡住。本条不宣称 Canary 或生产通过。
+
+## 61. 后续问题模板
 
 后续发现的问题按以下结构追加：
 
