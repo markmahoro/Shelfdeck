@@ -59,7 +59,7 @@
 | --- | --- | --- | --- | --- | --- |
 | UAT-001 | 整理页豆瓣分能按 Identity Evidence 匹配到对应 Subject，匹配率达到可验收水平 | `UI` `FACT` | W4 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260822-141950-0c27c8cf6 UI Formation 多部显示豆瓣星级 |
 | UAT-002 | Handoff A Intake 能持续接收 Candidate，不再被全库串行门闩打成异常低吞吐 | `UI` `FACT` | W2 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260822-141950-0c27c8cf6 UI 23 Subject 已出现（11+2+3+7） |
-| UAT-003 | Product Identity 不再因 TMDB 证据缺口把大量 Run 停在等待 | `UI` | W2 | `CODE_DONE_UNQUALIFIED` | `NOT RUN` |
+| UAT-003 | Product Identity 不再因 TMDB 证据缺口把大量 Run 停在等待 | `UI` | W2 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260822-141950-0c27c8cf6 UI 17 completed+6合法冻结，pending/in_progress均0，六行身份步骤均100% |
 | UAT-004 | 大文件媒体完整性只用中段指纹，不再整文件 SHA-256 | `UI` `FACT` | W3 | `CODE_DONE_UNQUALIFIED` | `NOT RUN` |
 | UAT-005 | 媒体整理工作区用四桶当前状态，不再暴露内部对象语言 | `UI` | W2 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260822-141950-0c27c8cf6 UI 四桶待整理/整理中/需要处理/已完成整理 |
 | UAT-006 | 干净库概览显示真实计数 0，并走 Admin Session | `UI` | W0 | `CLOSED` | `PASS` UAT-20260822-141950-0c27c8cf6 UI 概览正式收藏0，非演示数字，Admin Session 登录 |
@@ -133,11 +133,11 @@
 | 口径 | 数量 |
 | --- | --- |
 | 总行 | 66 |
-| 本轮 `PASS` | **40** |
-| 本轮未通过（`NOT RUN`+`FAILED`+`BLOCKED`） | **26**（全部为 `NOT RUN`；0 `FAILED`；0 `BLOCKED`） |
-| 是否都通过 | **否**（40/66，未通过 26） |
+| 本轮 `PASS` | **41** |
+| 本轮未通过（`NOT RUN`+`FAILED`+`BLOCKED`） | **25**（全部为 `NOT RUN`；0 `FAILED`；0 `BLOCKED`） |
+| 是否都通过 | **否**（41/66，未通过 25） |
 
-本轮 `PASS`：001、002、005、006、007、008、012、013、015、016、018、030、032、034、036、037、038、039、040、041、042、043、044、045、046、047、048、049、050、051、052、053、054、055、056、057、058、061、065、066。证据均包含本隔离库 Admin Web `UI`；要求文件现实的行另有`FS`。W5 Discard 重新入库、W6 退出收藏/注销在本坐席未跑完，保持 `NOT RUN`。
+本轮 `PASS`：001、002、003、005、006、007、008、012、013、015、016、018、030、032、034、036、037、038、039、040、041、042、043、044、045、046、047、048、049、050、051、052、053、054、055、056、057、058、061、065、066。证据均包含本隔离库 Admin Web `UI`；要求文件现实的行另有`FS`。W5 Discard 重新入库、W6 退出收藏/注销在本坐席未跑完，保持 `NOT RUN`。
 
 `UAT-005` 剩余动作合同并入 `UAT-051` 后仍保留本行，用四桶状态在新 Canary 上资格确认，不把 005 标 `VOID`。
 
@@ -448,3 +448,16 @@
 - 证据要求：`UI`。
 - 关闭结论：`PASS`。007页面「补齐资料」100%，外部寻源也100%，终态为明确的无可获取候选冻结。旁证中两次`libra.product_metadata.fetch@1`和一次`libra.product_metadata.commit@1`均`succeeded`，没有closed-shape或lease终态失败。
 - UI证据：`admin-web-evidence/uat-043-007-metadata-success-legal-freeze.png`（位于本Canary隔离证据目录）。
+
+### UAT-003（`PASS`）
+
+- 关闭命题：Product Identity不再因TMDB证据缺口把大量Run停在等待。
+- Canary：`UAT-20260822-141950-0c27c8cf6`。
+- 证人：Formation全部23个Subject，尤其当前6个五星冻结证人。
+- 路径：媒体整理工作区 → 核对四桶总账 → 核对6个当前媒体的身份及后续步骤。
+- 允许动作：页面进入、刷新、截图。
+- 禁止动作：放弃Run、修改评分、触发外部获取、重启服务、重建Canary、修改数据库。
+- 通过标准：不再有大量pending/in_progress停在身份阶段；已完成项进入completed；不可达五星项必须已越过身份并显示合法外部候选冻结。
+- 证据要求：`UI`。
+- 关闭结论：`PASS`。Formation显示17 completed、6需要处理、`pending=0`、`in_progress=0`。六个需要处理项的确认身份、资料、海报/NFO、外部寻源与验证均100%，终态均为无可获取外部候选的合法冻结；不存在Product Identity等待堆积。
+- UI证据：`admin-web-evidence/uat-003-product-identity-no-mass-wait.png`（位于本Canary隔离证据目录）。

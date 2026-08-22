@@ -616,6 +616,12 @@ TMDB没有视频字节指纹，ShelfDeck无法从媒体字节数学证明一部�
 - 暂不增加宽松TMDB匹配或隐藏fallback；
 - 待用户侧测试结束后，与UAT-001的Identity修复统一Design，再分别回归评分与Libra生产链。
 
+关闭确认（2026-08-23）：经后续已确认设计与实现，干净 Canary `UAT-20260822-141950-0c27c8cf6`
+的23个Subject已收成17个completed与6个合法五星外部候选冻结，Formation为`pending=0`、`in_progress=0`。
+六个当前冻结证人的「确认影片身份」均100%，并已继续完成资料、海报/NFO、外部寻源与验证；没有Run仍停在
+Product Identity等待。状态`REGRESSION PASSED / CONFIRMED ON CURRENT CANARY`。UI证据：
+`admin-web-evidence/uat-003-product-identity-no-mass-wait.png`。
+
 ## 6. UAT-004：大型Workspace媒体完整SHA-256导致无必要的全文件读取
 
 分类：
