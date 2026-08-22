@@ -1628,6 +1628,12 @@ Related disposition obligation，保持原始文件名，不新增业务Owner、
 
 修复状态（2026-08-22）：`REGRESSION PASSED / CLEAN CANARY UAT PENDING`。旧冻结 Run 保持不可变；本修复随其余 OPEN 项完成后重建干净 Canary，再从真实 Admin Web 复测上述片名。
 
+2026-08-23逐项封口在重建Canary `UAT-20260823-002500-519f8d7b5`完成。原问题片单`007：大破天幕杀机`、
+`劫机`、`放·逐`、`老笠`和`锡尔弗顿之围`的NFO Observation与Provider exact Observation全部为`resolved`、reasonCode为空，
+电影TMDB ID分别唯一为37724、1147710、13807、345735、951470。真实Formation中`007`“确认影片身份”100%，没有
+“媒体身份信息冲突”，当前终态明确位于后续外部寻源。状态`REGRESSION PASSED / CONFIRMED ON REBUILT CANARY`。
+UI证据：`admin-web-evidence/uat-029-movie-level-nfo-identity-pass.png`。
+
 ## 27. UAT-030：五星外部获取用文件夹展示名搜索，合格源缺失时页面像卡住
 
 问题分类：`EXTERNAL_INTEGRATION / IDENTITY_NORMALIZATION / USER_VISIBLE_RECOVERY`
