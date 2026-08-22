@@ -76,7 +76,7 @@
 | UAT-017 | 外部寻源按 Acceptance Spec 预筛，不合格候选不会先下载再发现不可达 | `UI` | W3 | `CODE_DONE_UNQUALIFIED` | `NOT RUN` |
 | UAT-018 | 顶部「需要处理」与 Discard 历史分离，Discard 不混进当前四桶 | `UI` | W2 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260822-141950-0c27c8cf6 UI 需要处理桶与已结束区分 |
 | UAT-019 | Executor 终态异常由 Owner 收口，Arca Acceptance Offer 不再悬空 | `UI` `FACT` | W3 | `CODE_DONE_UNQUALIFIED` | `NOT RUN` |
-| UAT-020 | Final Inventory 成员命名与 carried-forward Settlement 完整，技术后缀不进入最终名 | `UI` `FS` | W3 | `CODE_DONE_UNQUALIFIED` | `NOT RUN` |
+| UAT-020 | Final Inventory 成员命名与 carried-forward Settlement 完整，技术后缀不进入最终名 | `UI` `FS` | W3 | `CODE_DONE_UNQUALIFIED` | `FAILED` UAT-20260822-141950-0c27c8cf6 UI老笠当前收藏且健康；FS唯一目录已收口，但正式字幕名仍含1080p/x264/AAC/HDH技术标签 |
 | UAT-021 | TMDB 别名来源不泄漏进 Product Identity 证据，整理不在取证前全员冻结 | `UI` | W2 | `CODE_DONE_UNQUALIFIED` | `NOT RUN` |
 | UAT-022 | 年份后的技术发布标签不再污染 TMDB 搜索词 | `UI` | W2 | `CODE_DONE_UNQUALIFIED` | `NOT RUN` |
 | UAT-023 | 去掉技术后缀后残留年份不再导致豆瓣标题锚不相交 | `UI` | W4 | `CODE_DONE_UNQUALIFIED` | `NOT RUN` |
@@ -134,10 +134,12 @@
 | --- | --- |
 | 总行 | 66 |
 | 本轮 `PASS` | **42** |
-| 本轮未通过（`NOT RUN`+`FAILED`+`BLOCKED`） | **24**（全部为 `NOT RUN`；0 `FAILED`；0 `BLOCKED`） |
+| 本轮未通过（`NOT RUN`+`FAILED`+`BLOCKED`） | **24**（23 `NOT RUN`；1 `FAILED`；0 `BLOCKED`） |
 | 是否都通过 | **否**（42/66，未通过 24） |
 
 本轮 `PASS`：001、002、003、005、006、007、008、011、012、013、015、016、018、030、032、034、036、037、038、039、040、041、042、043、044、045、046、047、048、049、050、051、052、053、054、055、056、057、058、061、065、066。证据均包含本隔离库 Admin Web `UI`；要求文件现实的行另有`FS`。W5 Discard 重新入库、W6 退出收藏/注销在本坐席未跑完，保持 `NOT RUN`。
+
+当前失败：`UAT-020`。Final Inventory唯一目录、主视频/NFO与Settlement已收口，但`老笠`正式字幕仍保留技术发布标签；修复后需新Canary或新Final Inventory Decision验证，不得原地改名旧Inventory。
 
 `UAT-005` 剩余动作合同并入 `UAT-051` 后仍保留本行，用四桶状态在新 Canary 上资格确认，不把 005 标 `VOID`。
 
@@ -475,3 +477,18 @@
 - 关闭结论：`PASS`。文件来源与Movie Canary Target均为`F:\canary`；收藏架为可接收整理结果并有17条，收藏页17部均为当前收藏。`F:\canary`现实包含22个一级电影目录；同根Handoff B没有永久等待。
 - UI证据：`admin-web-evidence/uat-011-same-root-shelf-config.png`、`admin-web-evidence/uat-011-same-root-handoff-b-complete.png`（位于本Canary隔离证据目录）。
 - FS证据：2026-08-23只读枚举`F:\canary`，同一根存在正式电影目录与产品文件，未做任何修改。
+
+### UAT-020（`FAILED`）
+
+- 关闭命题：Final Inventory成员命名与carried-forward Settlement完整，技术后缀不进入最终名。
+- Canary：`UAT-20260822-141950-0c27c8cf6`。
+- 证人：Admin Web「我的收藏」中的《老笠》及`F:\canary\老笠 (2016)`正式Inventory目录。
+- 路径：我的收藏 → 打开老笠详情 → 核对当前收藏与健康 → 只读枚举唯一目录及正式Inventory成员名。
+- 允许动作：页面进入、打开/关闭详情、截图；文件系统与SQLite只读核验。
+- 禁止动作：移动/重命名文件、触发Aftercare修复、退出收藏、重启服务、重建Canary、修改数据库。
+- 通过标准：唯一用户目录；主视频/NFO/字幕等正式成员均使用Placement决定的用户可读名；技术发布标签不进入最终名；无旧目录或partial。
+- 证据要求：`UI`、`FS`。
+- 失败结论：`FAILED`。老笠已是健康当前收藏，且只有`F:\canary\老笠 (2016)`一个目录；主视频`老笠 (2016).mp4`和NFO正确，无partial。但正式字幕仍名为`老笠 (2016) - 1080p x264 AAC HDH.chinese(简).srt`，包含分辨率、codec、audio和release group技术标签，不满足关闭命题。
+- UI证据：`admin-web-evidence/uat-020-final-subtitle-technical-name-failed.png`（位于本Canary隔离证据目录）。
+- FS证据：2026-08-23只读枚举，`SiblingRootCount=1`、`TechnicalPrimaryCount=0`、`PartialCount=0`，但正式subtitle basename仍含技术标签。
+- 后续：定位字幕语言/属性解析与Placement `finalName`接线；修复不得改写已提交Inventory，需新Canary或新Final Inventory Decision定向复测。

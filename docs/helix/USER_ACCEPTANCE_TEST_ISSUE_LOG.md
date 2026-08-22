@@ -1273,6 +1273,13 @@ Aftercare读取当前Inventory、Placement Decision和原Handoff B Custody Bindi
 UAT-020代码修复已完成，但问题继续保持OPEN：按用户指示不立即重建Canary、不启动服务、不执行第二轮真实Admin Web UAT；
 只有后续新Canary证明22/22均形成唯一物理现实后才关闭。
 
+当前关闭 Canary `UAT-20260822-141950-0c27c8cf6` 复测失败（2026-08-23）：`老笠 (2016)`已形成唯一目录，
+主视频`老笠 (2016).mp4`与NFO均为用户可读名，旧兄弟目录也已消失；但正式Inventory中的字幕仍为
+`老笠 (2016) - 1080p x264 AAC HDH.chinese(简).srt`，把分辨率、codec、audio与release group技术标签带入
+最终成员名。页面显示当前收藏且健康，说明Health也未把该命名偏差显性化。UAT-020状态改为
+`CURRENT CANARY FAILED / ROOT CAUSE IN PROGRESS`，不另开重复UAT。UI证据：
+`admin-web-evidence/uat-020-final-subtitle-technical-name-failed.png`。
+
 ## 18. UAT-021：TMDB别名来源泄漏到Product Identity证据，全部整理在身份取证前冻结
 
 问题分类：`EXECUTION_CONTRACT / INTEGRATION_ADAPTER / USER_VISIBLE_PROJECTION`
