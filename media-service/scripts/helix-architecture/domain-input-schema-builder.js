@@ -1269,7 +1269,8 @@ function encodeIntentSchema() {
   const properties = { intentId: id(), revision: positiveInteger(), schemaRef: { const: 'EncodeIntent@1' }, libraRunId: id(),
     sourceHandleDigest: digest(), mediaRequirementDigest: digest(), planningPolicyRef: { const: 'LibraMediaPlanningPolicy@1' },
     planningPolicyRevision: positiveInteger(), planningPolicyDigest: digest(), strategyOrdinal: positiveInteger(), sizeBudgetRevision: positiveInteger(),
-    outputExtension: { const: 'mkv' }, video, audio: object({ mode: { const: 'copy' } }),
+    outputExtension: { const: 'mkv' }, video,
+    audio: object({ mode: { const: 'copy' }, streamIndexes: { type: 'array', items: nonNegativeInteger(), minItems: 1, maxItems: 64, uniqueItems: true } }, ['mode']),
     outputContainer: { const: 'matroska' }, subtitle: object({ mode: { const: 'copy' } }), deviceClass: deviceClass(),
     previousIntentDigest: nullable(digest()), intentDigest: digest()
   };

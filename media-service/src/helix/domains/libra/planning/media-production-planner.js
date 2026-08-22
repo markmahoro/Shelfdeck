@@ -12,6 +12,7 @@ const {
   buildRemuxIntent,
   deriveRetryTargetVideoBitrate,
   deriveTargetSizeBudget,
+  selectCopyAudioStreamsForSizeBudget,
   buildWorkspaceMediaOutputTarget,
   LIBRA_MEDIA_PLANNING_POLICY,
 } = require('../model/media-production-contracts');
@@ -165,8 +166,13 @@ function transcodePlanning(options,snapshot,ordinal) {
   if(!strategy)return prior.length
     ?Object.freeze({kind:'contract_unplannable',diagnosticClassification:'media_device_strategies_exhausted'})
     :Object.freeze({kind:'temporarily_unplannable',diagnosticClassification:'media_device_strategies_unavailable'});
-  const budget=requirement.space.maxSizeBytes===null?null:deriveTargetSizeBudget({maxSizeBytes:requirement.space.maxSizeBytes,
-    durationMs:source.inputProbe.durationMs,audioStreams:source.inputProbe.audioStreams,subtitleStreams:source.inputProbe.subtitleStreams});
+  const audioStreams=source.inputProbe.audioStreams||[];
+  const selectedAudio=requirement.space.maxSizeBytes===null
+    ?Object.freeze({audioStreams,budget:null,feasible:true})
+    :selectCopyAudioStreamsForSizeBudget({maxSizeBytes:requirement.space.maxSizeBytes,durationMs:source.inputProbe.durationMs,
+      audioStreams,subtitleStreams:source.inputProbe.subtitleStreams,
+      acceptedPrimaryAudioClasses:requirement.mandatoryMedia.acceptedPrimaryAudioClasses});
+  const budget=selectedAudio.budget;
   if(budget&&!budget.feasible)return Object.freeze({kind:'contract_unplannable',diagnosticClassification:'media_size_budget_infeasible'});
   const previous=prior.at(-1)||null,previousSelection=previous?options.workResultReader.read(
     transcodeMediaSelectionWork(snapshot,ordinal-1).workId):[],previousVerification=previousSelection.find((item)=>item.capabilityRef===VERIFY)?.result||null;
@@ -183,7 +189,8 @@ function transcodePlanning(options,snapshot,ordinal) {
     outputPixelFormat:hasDolbyVision?'yuv420p':(streams[0]?.pixelFormat||'encoder_selected'),
     outputColorProfile:hasDolbyVision?{range:'limited',primaries:'bt709',transfer:'bt709',matrix:'bt709'}:
       {range:'source',primaries:'source',transfer:'source',matrix:'source'},
-    ...(previous?{previousIntentDigest:previous.intent.intentDigest}:{})});
+    ...(previous?{previousIntentDigest:previous.intent.intentDigest}:{}),
+    ...(selectedAudio.audioStreams.length?{audioStreamIndexes:selectedAudio.audioStreams.map((item)=>item.streamIndex)}:{})});
   const workspace=options.movieProductionReader.readWorkspace(workspaceId(snapshot.run.libraRunId));
   if(!workspace||workspace.state!=='active')throw new Error('Active Libra Workspace is unavailable for Transcode planning.');
   const root=options.workspaceProductPort.rootSnapshot(),target=buildWorkspaceMediaOutputTarget({libraRunId:snapshot.run.libraRunId,

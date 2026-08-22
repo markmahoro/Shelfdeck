@@ -15,6 +15,18 @@ const VIDEO_TIMESTAMP_FILL_BSF =
   "setts=pts='if(eq(PTS\\,NOPTS)\\,PREV_OUTPTS\\,PTS)':dts='if(eq(DTS\\,NOPTS)\\,PREV_OUTDTS\\,DTS)'";
 const MATROSKA_UNCOPYABLE_AUDIO = new Set(['pcm_bluray', 'pcm_dvd']);
 
+function productStreamMap(intent, audioInput = '0') {
+  const indexes = intent?.audio?.streamIndexes;
+  const maps = ['-map', '0:v:0'];
+  if (Array.isArray(indexes) && indexes.length) {
+    for (const index of indexes) maps.push('-map', `${audioInput}:${index}`);
+    maps.push('-map', `${audioInput}:s?`);
+    return maps;
+  }
+  maps.push('-map', `${audioInput}:a?`, '-map', `${audioInput}:s?`);
+  return maps;
+}
+
 function matroskaCopyMapsFromProbe(stderr) {
   const maps = [];
   const pattern = /^\s*Stream #0:(\d+)(?:\[[^\]]*\])?(?:\([^)]*\))?: (Video|Audio|Subtitle): ([A-Za-z0-9_]+)/gm;
@@ -223,14 +235,6 @@ function createCleanMediaProductionEffectPort(options) {
     return ['-c:v', encoder, '-b:v', bitrate];
   }
 
-  function productStreamMap() {
-    // A Libra Movie product contains the selected video plus media streams.
-    // Container attachments and unknown data streams are not Primary media and
-    // must not silently survive a normalization encode (notably test padding,
-    // stale cover attachments, or a carried DOVI configuration side channel).
-    return ['-map', '0:v:0', '-map', '0:a?', '-map', '0:s?'];
-  }
-
   function videoProfileArguments(intent){
     if(intent.video.dynamicRangeOperation!=='tone_map_to_sdr_bt709')return [];
     if(intent.video.pipelineProfileId!=='pq_bt2020_base_to_sdr_bt709_hevc@1')
@@ -309,7 +313,7 @@ function createCleanMediaProductionEffectPort(options) {
           normalizedVideoTarget=temporaryTarget+'.normalized-video.ts';
         async function muxNormalizedVideo() {
           await runProcess(ffmpegPath,['-hide_banner','-nostdin','-y','-i',normalizedVideoTarget,'-i',source,
-            '-map','0:v:0','-map','1:a?','-map','1:s?','-c:v','copy','-c:a','copy','-c:s','copy',
+            ...productStreamMap(request.productionIntent,'1'),'-c:v','copy','-c:a','copy','-c:s','copy',
             '-map_metadata','-1','-f','matroska',temporaryTarget],timeoutMs);
         }
         if(request.productionIntent.video.rateControlMode==='two_pass_abr'){
@@ -328,7 +332,7 @@ function createCleanMediaProductionEffectPort(options) {
                 '-pass','2','-passlogfile',passlog,'-an','-sn','-f','mpegts',normalizedVideoTarget],timeoutMs,request.reportProgress?{report:request.reportProgress,prefix:'transcode-pass2'}:null);
               await muxNormalizedVideo();
             }else{
-              await runProcess(ffmpegPath,['-hide_banner','-nostdin','-y','-i',source,...productStreamMap(),...profile,...encoding,
+              await runProcess(ffmpegPath,['-hide_banner','-nostdin','-y','-i',source,...productStreamMap(request.productionIntent),...profile,...encoding,
                 '-pass','2','-passlogfile',passlog,'-c:a','copy','-c:s','copy','-f','matroska',temporaryTarget],timeoutMs,request.reportProgress?{report:request.reportProgress,prefix:'transcode-pass2'}:null);
             }
           } finally {
@@ -347,7 +351,7 @@ function createCleanMediaProductionEffectPort(options) {
           }finally{if(fs.existsSync(normalizedVideoTarget))fs.rmSync(normalizedVideoTarget,{force:true});}
         }else{
           await runProcess(ffmpegPath, ['-hide_banner', '-nostdin', '-y', '-i', source,
-            ...productStreamMap(), ...profile,...encoding, '-c:a', 'copy', '-c:s', 'copy', '-f', 'matroska', temporaryTarget], timeoutMs,
+            ...productStreamMap(request.productionIntent), ...profile,...encoding, '-c:a', 'copy', '-c:s', 'copy', '-f', 'matroska', temporaryTarget], timeoutMs,
             request.reportProgress?{report:request.reportProgress,prefix:'transcode'}:null);
         }
       } });
@@ -361,4 +365,5 @@ module.exports = Object.freeze({
   createCleanMediaProductionEffectPort,
   runProcess,
   matroskaCopyMapsFromProbe,
+  productStreamMap,
 });

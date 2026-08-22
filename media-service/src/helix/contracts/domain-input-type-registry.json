@@ -634,7 +634,7 @@
       "relativePath": "domain-types/EncodeIntent/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "1d63f81fda98e166d66bbec92441d39ce83478deee9bfd07f3d65ec6f8e4a36e"
+        "value": "e68b6a8a3c8695fb7e8c90e2035aeafd25f3d7263cf6504d088cd36692bfa889"
       },
       "usedBy": [
         {

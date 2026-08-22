@@ -436,6 +436,16 @@
       "properties": {
         "mode": {
           "const": "copy"
+        },
+        "streamIndexes": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "minItems": 1,
+          "maxItems": 64,
+          "uniqueItems": true
         }
       },
       "required": [

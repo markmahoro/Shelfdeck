@@ -6,9 +6,10 @@ Last updated: 2026-08-22
 
 ## 0. Current operational status — clean Movie Canary Admin Web UAT in progress
 
-用户已明确授权在修复后重建干净 Movie Canary 真实 Admin Web E2E/UAT。本轮代码检查点为
-`2da763653`（UAT-029–034、UAT-036 已提交；UAT-035/037/038 入台账监测）。固定路径仍为只读
+用户已明确授权在修复后重建干净 Movie Canary 真实 Admin Web E2E/UAT。固定路径仍为只读
 `F:\test_film`与重置后的`F:\canary`。不触碰`G:\canary_film`、`Z:\Film`或NAS生产部署。
+当前代码含 UAT-044：四星体积转码只为将 copy 的音轨留预算；P2 aggregate 为
+`8ef344678720478f59fef4a20d61edb6d157ba22cca9cc4caa1f44e8edb25e59`。冻结 Run 不可重放，BDMV 养蜂人需干净 Canary 确认。
 
 | 项目 | 当前状态 |
 | --- | --- |

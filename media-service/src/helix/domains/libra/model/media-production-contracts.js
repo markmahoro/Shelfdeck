@@ -119,12 +119,49 @@ function buildProductionSourceScopeReference(value) {
   return limited(result,16*1024,'P9_MEDIA_SOURCE_SCOPE_SIZE');
 }
 
+const SIZE_BUDGET_HIGH_BITRATE_AUDIO = Object.freeze(['dts_hd_ma', 'dts_x', 'truehd', 'truehd_atmos']);
+
+function estimatedAudioBitrateBps(stream) {
+  if (Number.isSafeInteger(stream?.bitRateBps) && stream.bitRateBps > 0) return stream.bitRateBps;
+  return SIZE_BUDGET_HIGH_BITRATE_AUDIO.includes(stream?.normalizedAudioClass) ? 8000000 : 1536000;
+}
+
+function uniqueIncreasingIndexes(values, name) {
+  if (!Array.isArray(values) || !values.length || values.length > 64 ||
+      values.some((item, index) => !Number.isSafeInteger(item) || item < 0 || (index && item <= values[index - 1])))
+    fail('P9_MEDIA_STREAM_INDEXES', name + ' must be a strictly increasing integer array.');
+  return Object.freeze([...values]);
+}
+
+function sameAudioSet(left, right) {
+  return left.length === right.length && left.every((item, index) => item.streamIndex === right[index].streamIndex);
+}
+
+function preferRetainedPrimaryAudio(audioStreams, acceptedPrimaryAudioClasses) {
+  const ordered = [...audioStreams].sort((a, b) => a.streamIndex - b.streamIndex);
+  if (!ordered.length) return Object.freeze([]);
+  const defaults = ordered.filter((item) => item.dispositionDefault === true);
+  const accepted = Array.isArray(acceptedPrimaryAudioClasses) ? acceptedPrimaryAudioClasses : [];
+  if (accepted.length) {
+    const qualifying = ordered.filter((item) => accepted.includes(item.normalizedAudioClass));
+    if (qualifying.length) {
+      const defaultQualifying = qualifying.filter((item) => item.dispositionDefault === true);
+      return Object.freeze(defaultQualifying.length ? defaultQualifying.slice(0, 1) : qualifying.slice(0, 1));
+    }
+  }
+  const highBitrate = ordered.filter((item) => SIZE_BUDGET_HIGH_BITRATE_AUDIO.includes(item.normalizedAudioClass));
+  const defaultHigh = highBitrate.filter((item) => item.dispositionDefault === true);
+  if (defaultHigh.length) return Object.freeze(defaultHigh.slice(0, 1));
+  if (highBitrate.length) return Object.freeze(highBitrate.slice(0, 1));
+  if (defaults.length) return Object.freeze(defaults.slice(0, 1));
+  return Object.freeze(ordered.slice(0, 1));
+}
+
 function deriveTargetSizeBudget(value) {
   const maxSizeBytes=integer(value?.maxSizeBytes,'maxSizeBytes',1),durationMs=integer(value?.durationMs,'durationMs',1);
   const containerReserveBytes=Math.max(16*1024*1024,Math.ceil(maxSizeBytes*0.02));
   const audioStreams=Array.isArray(value.audioStreams)?value.audioStreams:[],subtitleStreams=Array.isArray(value.subtitleStreams)?value.subtitleStreams:[];
-  const audioBitrateBps=audioStreams.reduce((sum,item)=>sum+(Number.isSafeInteger(item.bitRateBps)&&item.bitRateBps>0?
-    item.bitRateBps:(['truehd','truehd_atmos','dts_hd_ma','dts_x'].includes(item.normalizedAudioClass)?8000000:1536000)),0);
+  const audioBitrateBps=audioStreams.reduce((sum,item)=>sum+estimatedAudioBitrateBps(item),0);
   const subtitleBitrateBps=subtitleStreams.length*64000;
   const nonVideoBitrateBps=audioBitrateBps+subtitleBitrateBps;
   const durationSeconds=durationMs/1000;
@@ -132,6 +169,29 @@ function deriveTargetSizeBudget(value) {
   return freeze({sizeBudgetRevision:1,maxSizeBytes,containerReserveBytes,nonVideoBitrateBps,targetVideoBitrateBps,
     feasible:targetVideoBitrateBps>=100000,budgetDigest:canonicalDigest({schema:'libra.target-size-budget@1',maxSizeBytes,
       containerReserveBytes,nonVideoBitrateBps,targetVideoBitrateBps})});
+}
+
+function selectCopyAudioStreamsForSizeBudget(value) {
+  const audioStreams=[...(Array.isArray(value?.audioStreams)?value.audioStreams:[])].sort((a,b)=>a.streamIndex-b.streamIndex);
+  const subtitleStreams=Array.isArray(value?.subtitleStreams)?value.subtitleStreams:[];
+  const maxSizeBytes=integer(value?.maxSizeBytes,'maxSizeBytes',1),durationMs=integer(value?.durationMs,'durationMs',1);
+  const evaluate=(streams)=>{
+    const selected=[...streams].sort((a,b)=>a.streamIndex-b.streamIndex);
+    return {audioStreams:Object.freeze(selected),budget:deriveTargetSizeBudget({maxSizeBytes,durationMs,audioStreams:selected,subtitleStreams})};
+  };
+  const ladder=[];
+  const push=(streams)=>{if(!ladder.some((item)=>sameAudioSet(item,streams)))ladder.push(Object.freeze([...streams]));};
+  push(audioStreams);
+  const withoutOther=audioStreams.filter((item)=>item.normalizedAudioClass!=='other');
+  if(withoutOther.length)push(withoutOther);
+  const retained=preferRetainedPrimaryAudio(audioStreams,value?.acceptedPrimaryAudioClasses);
+  if(retained.length)push(retained);
+  for(const candidate of ladder){
+    const result=evaluate(candidate);
+    if(result.budget.feasible)return freeze({...result,feasible:true});
+  }
+  const last=evaluate(ladder.at(-1)||[]);
+  return freeze({...last,feasible:false});
 }
 
 function deriveRetryTargetVideoBitrate(value) {
@@ -169,6 +229,8 @@ function buildEncodeIntent(value) {
     video:{codec:'hevc',rateControlMode:mode,targetVideoBitrateBps,qualityBound,preserveRaster:true,forbidUpscale:true,
       dynamicRangeOperation:operation,pipelineProfileId,outputDynamicRangeKind,outputPixelFormat,outputColorProfile},
     audio:{mode:'copy'},subtitle:{mode:'copy'},deviceClass:text(value.deviceClass, 'deviceClass') };
+  if(value.audioStreamIndexes!==undefined)
+    result.audio={mode:'copy',streamIndexes:uniqueIncreasingIndexes(value.audioStreamIndexes,'audioStreamIndexes')};
   if(strategyOrdinal>1)result.previousIntentDigest=value.previousIntentDigest;
   return finalizeProductionIntent(result);
 }
@@ -478,7 +540,8 @@ function selectProductOutput(value) {
 }
 
 module.exports=Object.freeze({MediaProductionContractError,LIBRA_MEDIA_PLANNING_POLICY,LIBRA_MEDIA_PLANNING_POLICY_DIGEST,
-  buildMediaRequirement,buildProductionSourceScopeReference,deriveTargetSizeBudget,deriveRetryTargetVideoBitrate,
+  buildMediaRequirement,buildProductionSourceScopeReference,deriveTargetSizeBudget,selectCopyAudioStreamsForSizeBudget,
+  deriveRetryTargetVideoBitrate,
   buildEncodeIntent,buildRemuxIntent,buildTranscodeInputVerification,
   buildWorkspaceMediaOutputTarget,buildWorkspaceMediaHandle,buildProductMediaCandidateInput,
   buildPlannedProductCandidateReference,buildProductMediaVerification,

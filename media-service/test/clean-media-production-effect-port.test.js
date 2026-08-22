@@ -12,6 +12,7 @@ const {
   runProcess,
   createCleanMediaProductionEffectPort,
   matroskaCopyMapsFromProbe,
+  productStreamMap,
 } = require('../src/clean-media-production-effect-port');
 
 function writeTinyMpegTs(target) {
@@ -110,6 +111,18 @@ function remuxRequest(sourceLocation) {
     idempotencyKey: 'key-1',
   };
 }
+
+test('transcode maps copy only the EncodeIntent audio stream indexes', () => {
+  assert.deepEqual(productStreamMap({ audio: { mode: 'copy' } }), [
+    '-map', '0:v:0', '-map', '0:a?', '-map', '0:s?',
+  ]);
+  assert.deepEqual(productStreamMap({ audio: { mode: 'copy', streamIndexes: [1, 2] } }), [
+    '-map', '0:v:0', '-map', '0:1', '-map', '0:2', '-map', '0:s?',
+  ]);
+  assert.deepEqual(productStreamMap({ audio: { mode: 'copy', streamIndexes: [1] } }, '1'), [
+    '-map', '0:v:0', '-map', '1:1', '-map', '1:s?',
+  ]);
+});
 
 test('remux maps skip Matroska-uncopyable Blu-ray LPCM under copy_all_supported', () => {
   const stderr = [

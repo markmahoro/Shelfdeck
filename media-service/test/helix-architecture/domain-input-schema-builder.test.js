@@ -128,6 +128,8 @@ test('legacy bounded inputs stay generic while media intents are exact and typed
   assert.equal(schemas.EncodeIntent.properties.video.oneOf[3].properties.rateControlMode.const, 'quality_bound');
   assert.equal(schemas.EncodeIntent.properties.planningPolicyRef.const, 'LibraMediaPlanningPolicy@1');
   assert.equal(schemas.EncodeIntent.properties.sizeBudgetRevision.minimum, 1);
+  assert.deepEqual(schemas.EncodeIntent.properties.audio.required, ['mode']);
+  assert.equal(schemas.EncodeIntent.properties.audio.properties.streamIndexes.maxItems, 64);
   assert.equal(schemas.ProductionSourceScopeReference.properties.scopeKind.enum.includes('bdmv'), true);
   assert.equal(schemas.RemuxIntent.properties.streamPolicy.const, 'copy_all_supported');
   assert.equal(schemas.RemuxIntent.properties.schemaRef.const, 'RemuxIntent@1');

@@ -1809,17 +1809,19 @@ stderr 为 `CLEAN_ARCA_TARGET_OCCUPIED` 与 `CLEAN_ARCA_SETTLEMENT_UNKNOWN_MEMBE
 
 ## 41. UAT-044：4 星 14 GiB 无法规划 BDMV 多 TrueHD 轨的体积转码，落入 MoviePilot 冻结
 
-问题分类：`BUSINESS_CONTRACT / MEDIA_PRODUCTION`
+问题分类：`MEDIA_PRODUCTION / DOMAIN_ORCHESTRATION`
 
 用户侧现象：BDMV `养蜂人 (2024) - 2160p HEVC Atmos TrueHD5.1` Remux 已成功（UAT-041 有效），但 4 星要求 `HEVC · 不超过 14 GiB`。Transcode assessment Plan 为 `contract_unplannable`，Work Attempt `media_size_budget_infeasible`，随后走外部获取并冻成「没有找到可获取的外部候选」。
 
 现场证据：源 `00002.m2ts` 约 68.7 GiB、约 105 分钟，至少 2 条 TrueHD + 多条 AC3 core。`deriveTargetSizeBudget` 把每条 TrueHD 按 8 Mbps、其余按 1.536 Mbps **全加**。全轨拷贝时 14 GiB 留给视频的码率会低于 100 kbps 可行线。其它 4 星片子已转码成功。MKV 养蜂人已 On-deck。
 
-精确根因：体积预算按「将写入产品的全部音轨」求和；当前 transcode 也是 `-map 0:a?` 全拷。多 TrueHD 的蓝光在 4 星 14 GiB 下无法规划，Owner 收口到 MoviePilot。这不是 Remux 失败。
+精确根因：体积预算按将写入产品的全部音轨求和，transcode 也是 `-map 0:a?` 全拷。SSOT 5.5.7 四星只强制 HEVC、`mediaForm=stream_file` 和 14 GiB，高质量主音轨白名单只属于五星。把「拷贝整盘音轨」当成四星合同，是规划器误把实现细节升级成用户决策。
 
-业务影响：用户本轮目标是两部养蜂人都 On-deck。若 4 星必须保留全部无损音轨，则 14 GiB 物理不可达，MoviePilot 冻结可视为合同终态。若 4 星目标是「HEVC ≤14 GiB 的可播放产品」，规划应只为将保留的音轨留预算（例如默认音轨 / 去掉 core 重复），而不是整盘音轨。
+修复边界：规划只为实际 copy 的音轨留预算。体积上限下先去掉 `other` 伴随 core，仍不可行再只留默认/高质量主音轨。EncodeIntent 冻结 `audio.streamIndexes`，transcode map 只 copy 这些轨。不抬 14 GiB，不做音频转码，不改五星白名单。本轮该 Libra Run 已冻结不可变。
 
-当前处理决定：不擅自丢音轨、不抬 14 GiB 上限。需要业务确认后再改规划或接受该 4 星冻结。状态 `OPEN / BUSINESS_DECISION`。
+验收证据：两 TrueHD + 四条 `other` 在 105 分钟 / 14 GiB 下全拷不可行，去掉 core 后可行且索引为 `[1,2]`；三条 TrueHD 收成默认轨 `[1]`；五星 50 GiB 仍保留 TrueHD 与 core。无 `streamIndexes` 时 map 保持 `0:a?`。
+
+当前处理决定：按已确认四星合同修规划并提交。现场冻结 Run 不能重放，需干净 Canary 确认 BDMV 养蜂人 On-deck。状态 `REGRESSION PASSED / CLEAN CANARY REQUIRED`。
 
 ## 42. UAT-045：ISO Remux 第二次 Attempt 在失败 Effect 与进程重启后永久停在 executing
 

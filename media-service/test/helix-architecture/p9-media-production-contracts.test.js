@@ -99,6 +99,37 @@ test('derives a conservative size budget and freezes retry attempts as new inten
     audioStreams:[{normalizedAudioClass:'truehd'}],subtitleStreams:[{}]});
   assert.equal(budget.containerReserveBytes,Math.ceil(planningLimit*0.02));
   assert.equal(budget.feasible,true);assert.ok(budget.targetVideoBitrateBps>=100000);
+  const allCopy=media.deriveTargetSizeBudget({maxSizeBytes:planningLimit,durationMs:6_300_000,audioStreams:[
+    {streamIndex:1,dispositionDefault:true,normalizedAudioClass:'truehd'},
+    {streamIndex:2,dispositionDefault:false,normalizedAudioClass:'truehd'},
+    {streamIndex:3,dispositionDefault:false,normalizedAudioClass:'other'},
+    {streamIndex:4,dispositionDefault:false,normalizedAudioClass:'other'},
+    {streamIndex:5,dispositionDefault:false,normalizedAudioClass:'other'},
+    {streamIndex:6,dispositionDefault:false,normalizedAudioClass:'other'}],subtitleStreams:[{},{}]});
+  assert.equal(allCopy.feasible,false);
+  const selected=media.selectCopyAudioStreamsForSizeBudget({maxSizeBytes:planningLimit,durationMs:6_300_000,audioStreams:[
+    {streamIndex:1,dispositionDefault:true,normalizedAudioClass:'truehd'},
+    {streamIndex:2,dispositionDefault:false,normalizedAudioClass:'truehd'},
+    {streamIndex:3,dispositionDefault:false,normalizedAudioClass:'other'},
+    {streamIndex:4,dispositionDefault:false,normalizedAudioClass:'other'},
+    {streamIndex:5,dispositionDefault:false,normalizedAudioClass:'other'},
+    {streamIndex:6,dispositionDefault:false,normalizedAudioClass:'other'}],subtitleStreams:[{},{}],
+    acceptedPrimaryAudioClasses:[]});
+  assert.equal(selected.feasible,true);
+  assert.deepEqual(selected.audioStreams.map((item)=>item.streamIndex),[1,2]);
+  const fiveStar=media.selectCopyAudioStreamsForSizeBudget({maxSizeBytes:50*1073741824,durationMs:6_300_000,audioStreams:[
+    {streamIndex:1,dispositionDefault:true,normalizedAudioClass:'truehd'},
+    {streamIndex:2,dispositionDefault:false,normalizedAudioClass:'other'}],subtitleStreams:[],
+    acceptedPrimaryAudioClasses:['truehd','truehd_atmos','dts_hd_ma','dts_x','eac3_atmos']});
+  assert.equal(fiveStar.feasible,true);
+  assert.deepEqual(fiveStar.audioStreams.map((item)=>item.streamIndex),[1,2]);
+  const extraLossless=media.selectCopyAudioStreamsForSizeBudget({maxSizeBytes:planningLimit,durationMs:6_300_000,audioStreams:[
+    {streamIndex:1,dispositionDefault:true,normalizedAudioClass:'truehd'},
+    {streamIndex:2,dispositionDefault:false,normalizedAudioClass:'truehd'},
+    {streamIndex:3,dispositionDefault:false,normalizedAudioClass:'truehd'}],subtitleStreams:[],
+    acceptedPrimaryAudioClasses:[]});
+  assert.equal(extraLossless.feasible,true);
+  assert.deepEqual(extraLossless.audioStreams.map((item)=>item.streamIndex),[1]);
   const first=media.buildEncodeIntent({revision:1,libraRunId:'run-1',sourceHandleDigest:canonicalDigest(handle),
     mediaRequirementDigest:requirement.requirementDigest,rateControlMode:'target_size',targetVideoBitrateBps:budget.targetVideoBitrateBps,
     deviceClass:'nvidia_nvenc',strategyOrdinal:1,dynamicRangeOperation:'preserve',pipelineProfileId:'ordinary_to_hevc@1',
@@ -112,6 +143,18 @@ test('derives a conservative size budget and freezes retry attempts as new inten
     outputColorProfile:{range:'source',primaries:'source',transfer:'source',matrix:'source'}});
   valid('helix://contracts/domain-types/EncodeIntent/v1',first);valid('helix://contracts/domain-types/EncodeIntent/v1',retry);
   assert.notEqual(first.intentDigest,retry.intentDigest);assert.equal(retry.previousIntentDigest,first.intentDigest);
+  const indexed=media.buildEncodeIntent({revision:1,libraRunId:'run-1',sourceHandleDigest:canonicalDigest(handle),
+    mediaRequirementDigest:requirement.requirementDigest,rateControlMode:'target_size',targetVideoBitrateBps:budget.targetVideoBitrateBps,
+    deviceClass:'nvidia_nvenc',strategyOrdinal:1,dynamicRangeOperation:'preserve',pipelineProfileId:'ordinary_to_hevc@1',
+    outputDynamicRangeKind:'sdr',outputPixelFormat:'yuv420p',outputColorProfile:{range:'source',primaries:'source',transfer:'source',matrix:'source'},
+    audioStreamIndexes:[1,2]});
+  valid('helix://contracts/domain-types/EncodeIntent/v1',indexed);
+  assert.deepEqual(indexed.audio.streamIndexes,[1,2]);
+  assert.throws(()=>media.buildEncodeIntent({revision:1,libraRunId:'run-1',sourceHandleDigest:canonicalDigest(handle),
+    mediaRequirementDigest:requirement.requirementDigest,rateControlMode:'target_size',targetVideoBitrateBps:budget.targetVideoBitrateBps,
+    deviceClass:'nvidia_nvenc',strategyOrdinal:1,dynamicRangeOperation:'preserve',pipelineProfileId:'ordinary_to_hevc@1',
+    outputDynamicRangeKind:'sdr',outputPixelFormat:'yuv420p',outputColorProfile:{range:'source',primaries:'source',transfer:'source',matrix:'source'},
+    audioStreamIndexes:[2,1]}),(error)=>error.code==='P9_MEDIA_STREAM_INDEXES');
 });
 
 test('freezes transcode verification from the exact probe, intent, and device snapshot',()=>{
