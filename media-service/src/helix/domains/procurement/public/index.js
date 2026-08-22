@@ -12,6 +12,12 @@ const { createTriageEvidenceIndex } = require('../persistence/triage-evidence-in
 const { createProcurementCandidateContextReader } = require('../persistence/procurement-candidate-context-reader');
 const { createProcurementRunSealCommandStore } = require('../persistence/procurement-run-seal-command-store');
 const { createProcurementAutomationService } = require('../application/procurement-automation-service');
+const {
+  createFieldObservationAdminService,
+} = require('../application/field-observation-admin-service');
+const {
+  createFieldObservationAutomation,
+} = require('../application/field-observation-automation');
 const { createProcurementRunCoordinator } = require('../application/procurement-run-coordinator');
 const { PROBE_BATCH_PROJECTION,BDMV_ASSESS_INPUT_PROJECTION,STRUCTURE_INPUT_PROJECTION,createEvidenceAssessmentPlanner,createProbeBatchProjection,createBdmvAssessmentInputProjection,createStructureInputProjection } = require('../planning/evidence-assessment-planner');
 const { DRAFT_PROJECTION,COMMIT_HANDLE_PROJECTION,IDENTITY_INPUT_PROJECTION,MANIFEST_INPUT_PROJECTION,
@@ -75,8 +81,20 @@ function createExecutionRegistration() {
       const procurementAutomation = createProcurementAutomationService({ ...options, triageRegistry: triageRuleRegistry });
       const runSealStore = createProcurementRunSealCommandStore(options);
       const runCoordinator = createProcurementRunCoordinator({ ...options, triageReader, workResultReader, evidenceIndex, runSealStore });
+      const observationAdmin = options.executionRuntimeHost && options.materialFieldStore
+        ? createFieldObservationAdminService(options)
+        : null;
+      const fieldObservationAutomation = observationAdmin && workResultReader
+        ? createFieldObservationAutomation({
+          materialFieldStore: options.materialFieldStore,
+          observationAdmin,
+          workResultReader,
+          progressReader,
+          now: options.now || Date.now,
+        })
+        : null;
       return Object.freeze({ triageReader, triageRuleRegistry, progressReader, procurementAutomation, runCoordinator,
-        evidenceIndex, candidateContextReader });
+        evidenceIndex, candidateContextReader, observationAdmin, fieldObservationAutomation });
     },
     createPlanningRegistration(options) {
       const { registry, policyRegistry, contractValidator, progressReader, triageReader,

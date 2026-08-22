@@ -14,6 +14,7 @@ const {
 const {
   createProcurementFieldStatusQuery,
 } = require('./field-procurement-status-query');
+const { createWorkResultReader } = require('../../../foundation/execution/work-result-reader');
 const {
   assertProfileHint,
 } = require('../model/field-profile-hint-contracts');
@@ -180,7 +181,10 @@ function createProcurementAdminApplication(options) {
       options.assertLocationAvailable({ requestedRoot:rootLocation });
     }
   };
-  const fieldStatus = createProcurementFieldStatusQuery(options);
+  const fieldStatus = createProcurementFieldStatusQuery({
+    ...options,
+    workResultReader: options.workResultReader || createWorkResultReader(options),
+  });
   const observation = createFieldObservationAdminService({
     ...options,
     materialFieldStore: store,

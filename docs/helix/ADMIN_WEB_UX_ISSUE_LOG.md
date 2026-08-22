@@ -1,12 +1,12 @@
 # Admin Web 用户体验问题台账
 
-状态：`ADMIN WEB UX OVERHAUL IMPLEMENTED / UAT-005 REMAINS OPEN`
+状态：`ADMIN WEB UX OVERHAUL IMPLEMENTED / UX-004 AND UAT-053 IMPLEMENTED / UAT-005 AND UAT-050–052,054–058 REMAIN OPEN`
 
 建立日期：2026-08-22
 
 审视范围：`media-service/web` 当前正式产品入口，即 `src/App.tsx` 接入的 Helix 八页：概览、文件来源、收藏架、我的收藏、媒体整理工作区、退出收藏、人物、系统设置。证据来自页面源码、样式、公开 Query/Projection 文案，以及本机 `127.0.0.1:18080` 健康接口与 `/admin` 入口确认服务可访问。本轮没有改代码、没有改 SSOT、没有动现场数据。
 
-本文不是 Architecture SSOT，不替代 `CURRENT_PLAN.md` 或 `USER_ACCEPTANCE_TEST_ISSUE_LOG.md`。UAT 业务/执行缺陷继续记在原台账；本文只沉淀 Admin Web 的文案、排版、字体、按钮、前端拼装与美学问题。与 `UAT-005` 重叠的 Formation 信息架构缺口在此展开为全产品入口，不关闭也不改写该 UAT 项。
+本文不是 Architecture SSOT，不替代 `CURRENT_PLAN.md` 或 `USER_ACCEPTANCE_TEST_ISSUE_LOG.md`。UAT 业务/执行缺陷继续记在原台账；本文只沉淀 Admin Web 的文案、排版、字体、按钮、前端拼装与美学问题。与 `UAT-005` 重叠的 Formation 信息架构缺口在此展开为全产品入口，不关闭也不改写该 UAT 项。2026-08-22 用户确认的后续改造以 `UAT-050`–`UAT-058` 为工作基线；其中 UI 可见部分与本文 `UX-001`、`UX-002`、`UX-003`、`UX-004`、`UX-006`、`UX-007`、`UX-008`、`UX-009`、`UX-010`、`UX-011`、`UX-013`、`UX-015`、`UX-016`、`UX-026`、`UX-028`、`UX-029` 交叉，不在此另开平行编号。
 
 记录原则：
 
@@ -35,7 +35,7 @@
 | UX-001 | 概览标题与导语是空话，不说明本页能做什么 | `COPY_REDUNDANT` | 概览 | High | OPEN |
 | UX-002 | 各页 eyebrow / 英文副标题 / 口号式 h1 重复导航语义 | `COPY_REDUNDANT` | 全站 | Medium | OPEN |
 | UX-003 | 侧栏「收藏运营台」「本地 Projection」对用户无意义 | `COPY_REDUNDANT` | 全站导航 | Medium | OPEN |
-| UX-004 | 文件来源把候选包、访问合同、Observation、Handoff A 当作主文案 | `COPY_INTERNAL` | 文件来源 | High | OPEN |
+| UX-004 | 文件来源把候选包、访问合同、Observation、Handoff A 当作主文案 | `COPY_INTERNAL` | 文件来源 | High | 已实现 |
 | UX-005 | 收藏架/注销确认暴露 Routing、Material Control、On-deck 责任账 | `COPY_INTERNAL` | 收藏架 | High | OPEN |
 | UX-006 | 我的收藏与健康详情使用 Shelf Entry / Deck / Evidence 内部口径 | `COPY_INTERNAL` | 我的收藏 | High | OPEN |
 | UX-007 | 退出收藏把 Policy AST、Case、Reservation、原始 ID 直接铺开 | `COPY_INTERNAL` | 退出收藏 | Critical | OPEN |
@@ -83,7 +83,7 @@
 
 证据：`media-service/web/src/helix/OverviewPage.tsx`；`surface-model.ts` 仍保留同一套演示文案。
 
-建议：标题直接用「概览」或「收藏现状」；导语改成一句可验证的摘要，例如「当前正式收藏、本月新上架、需要你处理的事项」。删掉履职、照料、账本、Fresh Projection、精确 Scope。
+建议：标题直接用「概览」或「收藏现状」；导语改成一句可验证的摘要，例如「当前正式收藏、本月新上架、需要你处理的事项」。删掉履职、照料、账本、Fresh Projection、精确 Scope。用户 2026-08-22 确认概览改为系统状态 + 可点待办 + 带片名的最近进展，**不与「我的收藏」合并**，不做第二面海报墙。见 `UAT-057`。
 
 ### UX-002 各页用口号式 h1 重复导航，不增加信息
 
@@ -103,7 +103,7 @@
 
 ### UX-003 侧栏品牌区说「收藏运营台 / 本地 Projection」
 
-`App.tsx` 侧栏：品牌副标题 `收藏运营台`，底部永远是 `正常运行` + `本地 Projection`。用户不需要知道自己在看 Projection，更不需要「运营台」这种内部工作名。底部状态若不接健康接口，就是装饰。
+`App.tsx` 侧栏：品牌副标题 `收藏运营台`，底部永远是 `正常运行` + `本地 Projection`。用户不需要知道自己在看 Projection，更不需要「运营台」这种内部工作名。底部状态若不接健康接口，就是装饰。用户 2026-08-22 确认侧栏顺序改为运营在上、配置在下（文件来源配置、收藏架配置、系统设置），见 `UAT-058`。
 
 ---
 
@@ -122,7 +122,9 @@
 
 用户在这一页要做的事是：指出电影目录、让系统去看、决定以后进哪座收藏架。他们不需要合同、revision、Handoff A 或 Offer。技术标识已有 `<details>`，主表面不应再重复。
 
-建议用户语言：`等待扫描` / `正在扫描` / `已发现 N 部电影` / `已交给整理` / `未被接收`。访问合同改为「目录位置」或干脆不展示 revision。
+建议用户语言：`等待扫描` / `正在扫描` / `已扫描完成`；绿框展示扫描进度，不要写 `已交给整理`。整理进度只去媒体整理工作区。访问合同改为「目录位置」或干脆不展示 revision。用户 2026-08-22 确认的完整合同见 `UAT-053`：周期 Observation 是 SSOT 已有义务，不是文案选择题；扫描完成后按钮应变为「扫描新文件」，仅进行中禁用。
+
+2026-08-22 实现：来源页主表面改为上述三态与「扫描新文件」；绿框只写扫描页进度，不再渲染 Candidate / Handoff A。证据见 `UAT-053` 与 `media-service/web/src/helix/MaterialFieldsPage.tsx`。本条随 UAT-053 关闭，不宣称 Canary 通过。
 
 ### UX-005 收藏架把 Routing、Placement、责任账写进主界面
 
@@ -147,7 +149,7 @@
 - 发现：`{findingKind} · {repairability}`
 - 页脚：`Inventory r · Standard r · Placement r`
 
-海报墙本身是对的。点开后应看到片名、评分、是否健康、能否退出。revision、Basis、Evidence、findingKind 不是用户语言。检验章 `◆` 也没有图例，六个筛选要靠猜。
+海报墙本身是对的。点开后应看到片名、评分、是否健康、能否退出。revision、Basis、Evidence、findingKind 不是用户语言。检验章 `◆` 也没有图例，六个筛选要靠猜。用户 2026-08-22 确认一级导航改为按收藏架（保留「全部」），详情第一批补占用空间、主视频体积/容器、编码与清晰度、海报/NFO 是否齐全，见 `UAT-052`。
 
 ### UX-007 退出收藏是内部安全链控制台
 
@@ -160,7 +162,7 @@
 - 范围：`N 个 Physical Material`、`role · location · deleteCondition`
 - 进度：`{shelfEntryId}` + `{state} · recovery revision {n}` + `重新授权同一Case`
 
-这是本轮最严重的内部机制泄漏。用户要的是：哪些片子建议退出、重复的两部留哪部、删除前确认文件和大小、授权后看到进度。规则编辑如果必须保留，也该是「评分≤2 且收藏超过 1 年」这类表单，不是 AST JSON。
+这是本轮最严重的内部机制泄漏。用户要的是：哪些片子建议退出、重复的两部留哪部、删除前确认文件和大小、授权后看到进度。规则编辑如果必须保留，也该是「评分≤2 且收藏超过 1 年」这类表单，不是 AST JSON。用户 2026-08-22 确认按任务重排页面、主按钮用用户语言，不重做销毁主链；「不喜欢的人物」在人物偏好入口可用前不作为可加规则。见 `UAT-054`。
 
 ### UX-008 设置页未翻译集成与执行术语
 
@@ -186,15 +188,15 @@
 2. `works` 只从 `active | suspended | frozen` 的当前 Run 读取；
 3. 已完成条目的当前 Run 为空，于是 `works=[]`，完成结果一律落到默认句。
 
-用户看到的是：这部已经在收藏架上，动作却是「尚未形成」。完成区应写实际做过的事：`保持原片并补齐资料` / `封装整理` / `视频转码` / `外部获取后整理`。这是展示翻译缺陷，不是业务事实缺失；修复应落在 Formation 公开 Projection 的完成态动作，而不是让前端猜。
+用户看到的是：这部已经在收藏架上，动作却是「尚未形成」。完成区应写实际做过的事。用户 2026-08-22 确认不再用一句概括，而用步骤清单（含「怎么转」），见 `UAT-051`。这是展示翻译缺陷，不是业务事实缺失；修复应落在 Formation 公开 Projection 的完成态动作，而不是让前端猜。
 
 ### UX-010 完成区仍使用「下一步动作」和进行中控件
 
-`nextAction` 在 `classification === 'completed'` 时为 `已进入收藏架`，列名却仍是「下一步动作」，单元格还可能渲染评分、选架、加快、放弃。完成历史应是只读结果：完成时间、做了什么、进了哪座架。进行中列名和按钮不应出现在完成区。
+`nextAction` 在 `classification === 'completed'` 时为 `已进入收藏架`，列名却仍是「下一步动作」，单元格还可能渲染评分、选架、加快、放弃。完成历史应是只读结果：完成时间、做了什么、进了哪座架。进行中列名和按钮不应出现在完成区。用户 2026-08-22 确认当前表拆成整理动作 / 分步进度条 / 用户操作 / 加急四列，见 `UAT-051`；当前媒体筛选见 `UAT-050`。
 
 ### UX-011 人物页能力声明与页面事实冲突
 
-标题要求用户「维护人物身份」，导语提到 Preference 与 Reference Image，摘要有「注册候选 / 合并候选」。页面没有注册、确认、合并、参考图，也没有写命令。UAT-007 已去掉无效注册按钮，但文案还在假装这是工作台。当前诚实说法是「人物名录（只读）」；做不到的能力不要写在 h1。
+标题要求用户「维护人物身份」，导语提到 Preference 与 Reference Image，摘要有「注册候选 / 合并候选」。页面没有注册、确认、合并、参考图，也没有写命令。UAT-007 已去掉无效注册按钮，但文案还在假装这是工作台。当前诚实说法是「人物名录（只读）」；做不到的能力不要写在 h1。用户 2026-08-22 确认要接通 Beta 两条登记路径（直接注册 + On-deck 发现），名录改为可确认候选的小工作台，不是把收藏详情演职员复制进名录。见 `UAT-055`。
 
 ### UX-012 设置页范围小于它自己的承诺
 

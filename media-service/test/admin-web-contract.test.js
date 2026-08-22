@@ -18,30 +18,34 @@ test('Admin Web exposes eight Helix pages and keeps health in Collection', () =>
   assert.match(app, /PeoplePage/);
   assert.match(read('web/src/helix/PeoplePage.tsx'), /listPeople/);
   assert.doesNotMatch(read('web/src/helix/PeoplePage.tsx'), />416<|>3<|>1</);
-  for (const slug of ['overview', 'material-fields', 'shelves', 'collection', 'formation', 'offdeck', 'people', 'settings']) assert.match(model, new RegExp(`slug:'${slug}'`));
-  assert.doesNotMatch(model, /slug:'care'/);
+  for (const slug of ['overview', 'material-fields', 'shelves', 'collection', 'formation', 'offdeck', 'people', 'settings']) assert.match(model, new RegExp(`slug:\\s*'${slug}'`));
+  assert.doesNotMatch(model, /slug:\s*'care'/);
   assert.match(read('web/src/helix/CollectionPage.tsx'), /收藏健康/);
   assert.doesNotMatch(app, /TasksPage|LibrariesPage|CleanupPage|PoliciesPage/);
 });
 
-test('Material Fields admits background Observation and projects progress toward Handoff A ready', () => {
+test('Material Fields admits background Observation and projects scan progress, not Candidate Handoff', () => {
   const app = read('web/src/App.tsx');
   const page = read('web/src/helix/MaterialFieldsPage.tsx');
+  const labels = read('web/src/helix/labels.ts');
   const api = read('web/src/helix/api.ts');
   const admin = read('src/helix/domains/procurement/application/admin-facade.js');
+  const runtime = read('src/helix/composition/create-procurement-execution-runtime.js');
   assert.match(app, /MaterialFieldsPage/);
   assert.match(api, /\/v1\/admin\/session/);
   assert.match(api, /\/v1\/admin\/material-fields/);
   assert.match(page, /保存文件来源/);
-  assert.match(page, /观察并准备候选/);
+  assert.match(page, /扫描新文件/);
+  assert.match(page, /等待扫描/);
+  assert.match(page, /正在扫描/);
+  assert.match(labels, /已扫描完成/);
   assert.match(page, /注销文件来源/);
   assert.match(api, /actions\/deregister/);
-  assert.match(api, /procurementStatus/);
+  assert.match(api, /observationScan/);
   assert.doesNotMatch(page, />删除文件来源</);
-  assert.match(page, /Candidate Package/);
-  assert.match(page, /Handoff A/);
+  assert.doesNotMatch(page, /Candidate Package|Handoff A|已交给整理|已发现电影/);
   assert.match(api, /actions\/observe/);
-  assert.match(page, /Observation已进入后台队列/);
+  assert.match(runtime, /active-material-fields/);
   assert.match(api, /operationRef/);
   assert.doesNotMatch(admin, /advanceToHandoffAReady/);
   assert.doesNotMatch(admin, /movieRunCoordinator\.advance\(/);
@@ -57,21 +61,21 @@ test('Shelves configures a probed Template-derived Movie Standard without exposi
   assert.match(page, /system-beta-recommended/);
   assert.match(page, /创建收藏架/);
   assert.match(page, /收藏最终目录/);
-  assert.match(page, /Target probe/);
   assert.match(page, /未评分/);
   assert.match(page, /\$\{branch\.rating\}星/);
-  assert.match(page, /不会建立正式收藏，也不会移动、改名或写入任何媒体文件/);
+  assert.match(page, /保存时会检查目录是否可达/);
   assert.doesNotMatch(page, /standard:\s*\{/);
   assert.match(page, /expectedTemplateRevision/);
 });
 
 test('Media organization workspace uses user-facing stages after Procurement handoff', () => {
   const model = read('web/src/helix/surface-model.ts');
-  const formation = model.split("slug:'formation'")[1].split("slug:'offdeck'")[0];
+  const page = read('web/src/helix/FormationPage.tsx');
+  const formation = model.split("slug: 'formation'")[1].split("slug: 'offdeck'")[0];
   assert.match(formation, /媒体整理工作区/);
   assert.match(formation, /待整理/);
   assert.match(formation, /需要处理/);
-  assert.match(formation, /已完成整理/);
+  assert.match(page, /已完成整理/);
   assert.doesNotMatch(formation, /Subject|Routing|Spec|Run|Work|Event|判断开采资格|准备候选包/);
 });
 

@@ -1,7 +1,7 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { helixAdminApi, materialFieldRegistration, type MaterialField, type ProcurementJourneyResult, type Shelf } from './api';
 import { Button, LoadingState, PageHeader } from './chrome';
-import { procurementStageLabels } from './labels';
+import { observationScanLabels } from './labels';
 import RoutingPolicyPanel from './RoutingPolicyPanel';
 import { isUnauthorized, useSession } from './session';
 
@@ -11,8 +11,21 @@ function newFieldId() {
 function directorySet(value: string) {
   return [...new Set(value.split(/[\n,]/).map((item) => item.trim().replace(/\\/g, '/')).filter(Boolean))].sort();
 }
-function journeyLabel(stage: string | undefined) {
-  return procurementStageLabels[stage || ''] || '正在处理后台任务';
+function scanOf(field: MaterialField) {
+  return field.procurementStatus.observationScan || { state: 'waiting' as const, pageCount: 0, observationRevision: null, inProgress: false };
+}
+function scanLabel(field: MaterialField) {
+  return observationScanLabels[scanOf(field).state] || '等待扫描';
+}
+function scanProgress(field: MaterialField) {
+  const scan = scanOf(field);
+  if (scan.state === 'scanning') {
+    return scan.pageCount > 0 ? `正在查看目录 · 已扫描 ${scan.pageCount} 页` : '正在查看目录';
+  }
+  if (scan.state === 'completed') {
+    return scan.pageCount > 0 ? `上次扫描 ${scan.pageCount} 页` : '目录已经扫描完成';
+  }
+  return '系统会自动扫描这个目录，也可以立即扫描新文件。';
 }
 
 export default function MaterialFieldsPage() {
@@ -32,8 +45,8 @@ export default function MaterialFieldsPage() {
   const [confirmDeregisterFieldId, setConfirmDeregisterFieldId] = useState('');
   const [operations, setOperations] = useState<Record<string, ProcurementJourneyResult>>({});
 
-  const loadFields = useCallback(async () => {
-    setLoading(true);
+  const loadFields = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     setError('');
     try {
       const [result, shelfResult] = await Promise.all([helixAdminApi.listMaterialFields(), helixAdminApi.listShelves()]);
@@ -44,15 +57,25 @@ export default function MaterialFieldsPage() {
       if (isUnauthorized(cause)) expire();
       else setError(cause instanceof Error ? cause.message : '文件来源读取失败。');
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [expire]);
 
   useEffect(() => { void loadFields(); }, [loadFields]);
 
+  const scanning = useMemo(
+    () => fields.some((field) => field.status === 'active' && scanOf(field).state === 'scanning'),
+    [fields],
+  );
+  useEffect(() => {
+    if (!scanning) return undefined;
+    const timer = window.setInterval(() => { void loadFields(true); }, 3000);
+    return () => window.clearInterval(timer);
+  }, [scanning, loadFields]);
+
   const activeFields = useMemo(() => fields.filter((field) => field.status === 'active'), [fields]);
   const observedFields = useMemo(
-    () => activeFields.filter((field) => field.currentObservationRevision !== undefined).length,
+    () => activeFields.filter((field) => scanOf(field).state === 'completed').length,
     [activeFields],
   );
 
@@ -93,7 +116,7 @@ export default function MaterialFieldsPage() {
     try {
       const result = await helixAdminApi.observeMaterialField(field);
       setOperations((current) => ({ ...current, [field.fieldId]: result }));
-      await loadFields();
+      await loadFields(true);
     } catch (cause) {
       if (isUnauthorized(cause)) expire();
       else setError(cause instanceof Error ? cause.message : '文件来源扫描失败。');
@@ -139,21 +162,25 @@ export default function MaterialFieldsPage() {
     {error && <p className="form-error" role="alert">{error}</p>}
     <div className="source-registry">
       <div className="source-registry-heading"><div><h2>当前文件来源</h2></div><Button type="button" onClick={() => void loadFields()} disabled={loading}>刷新</Button></div>
-      {fields.length === 0 ? <div className="source-empty"><strong>还没有文件来源</strong><p>先登记一个本机可读取的电影目录。登记本身不会访问目录内容。</p></div> : fields.map((field) => <article className="source-record" key={field.fieldId}>
+      {fields.length === 0 ? <div className="source-empty"><strong>还没有文件来源</strong><p>先登记一个本机可读取的电影目录。登记本身不会访问目录内容。</p></div> : fields.map((field) => {
+        const scan = scanOf(field);
+        const observing = observingFieldId === field.fieldId;
+        const scanBusy = observing || scan.state === 'scanning';
+        return <article className="source-record" key={field.fieldId}>
         <div className="source-record-main">
           <div className="source-record-title"><span className={`status-dot ${field.status}`} /><div><h3>{field.name}</h3><p>{field.access.rootLocation}</p><span className="source-state">{field.status === 'active' ? '活动来源' : '已注销'}</span></div></div>
           <dl>
             <div><dt>内容类型</dt><dd>{field.currentProfileHintSnapshot.contentProfileHint === 'movie' ? '电影' : field.currentProfileHintSnapshot.contentProfileHint}</dd></div>
             <div><dt>目录位置</dt><dd>已绑定</dd></div>
-            <div><dt>扫描规则</dt><dd>{field.currentObservationRevision === undefined ? '尚未扫描' : '已扫描'}</dd></div>
-            <div><dt>当前状态</dt><dd>{journeyLabel(field.procurementStatus.stage)}</dd></div>
+            <div><dt>扫描状态</dt><dd>{scanLabel(field)}</dd></div>
+            <div><dt>扫描进度</dt><dd>{scan.pageCount > 0 ? `${scan.pageCount} 页` : '尚未开始'}</dd></div>
           </dl>
         </div>
         <div className="source-record-action">
           {field.status === 'active' && confirmDeregisterFieldId !== field.fieldId && <>
-            <Button variant="primary" type="button" disabled={observingFieldId.length > 0 || deregisteringFieldId.length > 0 || ['handoff_a_ready', 'handoff_a_accepted'].includes(field.procurementStatus.stage)} onClick={() => void observeField(field)}>{observingFieldId === field.fieldId ? '正在扫描…' : field.procurementStatus.stage === 'handoff_a_ready' ? '已发现电影' : field.procurementStatus.stage === 'handoff_a_accepted' ? '已交给整理' : '扫描并准备整理'}</Button>
+            <Button variant="primary" type="button" disabled={observingFieldId.length > 0 || deregisteringFieldId.length > 0 || scanBusy} onClick={() => void observeField(field)}>{observing ? '正在扫描…' : '扫描新文件'}</Button>
             <Button type="button" disabled={observingFieldId.length > 0 || deregisteringFieldId.length > 0} onClick={() => setConfirmDeregisterFieldId(field.fieldId)}>注销文件来源</Button>
-            <small>扫描只读取目录，不会移动或删除文件。完成后请点刷新查看结果。</small>
+            <small>扫描只读取目录，不会移动或删除文件。进行中时不能再点；完成后可随时扫描新文件。</small>
           </>}
           {field.status === 'active' && confirmDeregisterFieldId === field.fieldId && <div className="source-stop-confirm" role="alert">
             <strong>注销这个文件来源？</strong>
@@ -162,13 +189,14 @@ export default function MaterialFieldsPage() {
           </div>}
           {field.status === 'deregistered' && <small>不再扫描这个目录。历史记录保留，媒体文件不变。</small>}
         </div>
-        {(operations[field.fieldId] || field.procurementStatus.stage !== 'not_started') && <div className="source-journey" role="status">
-          <strong>{operations[field.fieldId] ? '扫描已开始，完成后请刷新' : journeyLabel(field.procurementStatus.stage)}</strong>
-          <span>已发现 {field.procurementStatus.candidateCount} 部电影{field.procurementStatus.candidatePackage?.displayIdentity ? ` · ${field.procurementStatus.candidatePackage.displayIdentity}` : ''}</span>
+        {field.status === 'active' && <div className="source-journey" role="status">
+          <strong>{operations[field.fieldId] && scan.state !== 'completed' ? '扫描已开始' : scanLabel(field)}</strong>
+          <span>{scanProgress(field)}</span>
         </div>}
         {field.status === 'active' && <RoutingPolicyPanel field={field} shelves={shelves} />}
         <details><summary>技术标识</summary><code>{field.fieldId}</code><code>{field.access.endpointId}</code><code>{field.access.mountScopeId}</code></details>
-      </article>)}
+      </article>;
+      })}
     </div>
   </section>;
 }

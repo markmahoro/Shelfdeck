@@ -4,6 +4,22 @@ Status: Movie Procurement与Movie Libra封口保持有效；Movie Arca已完成H
 
 Last updated: 2026-08-22
 
+## 0. Recorded product gaps — UAT-050–058
+
+2026-08-22 用户确认九项后续改造并写入 `USER_ACCEPTANCE_TEST_ISSUE_LOG.md`。`UAT-053` 已实现（待新 Canary）；其余仍待实现。不改 SSOT Owner/Handoff，不重建 Canary，不触碰 NAS/生产。
+
+- `UAT-050` 媒体整理工作区当前媒体筛选（后端 Projection Query，不本地筛当前页）；
+- `UAT-051` 整理步骤清单、每步进度条、用户操作列与加急列；完成区只读同一套动作；
+- `UAT-052` 我的收藏一级按架（保留「全部」），详情第一批占用空间与主视频规格；
+- `UAT-053` 已实现：活动 Movie Field 经 `fallbackReconciler` `active-material-fields` 启动后首轮 Observation，之后每 30 分钟轻量变化观察；来源页三态与「扫描新文件」仅进行中禁用。待新 Canary 确认，不宣称生产通过；
+- `UAT-054` 退出收藏主链已通，页面按任务重排；不改销毁合同；人物偏好规则暂不作为可添加项；
+- `UAT-055` 人物名录接通 Beta 两条登记路径（直接注册 + On-deck 人物证据每日扫描）；禁止 People 写 Media-Cast 或读物理 NFO；
+- `UAT-056` 豆瓣活动连接按 SSOT 做 24h（下限 6h）周期 Acquisition；同步与评分日志刷新拆开；GET 日志不得触发 Foundation；
+- `UAT-057` 概览改为系统三态 + 可点待办 + 带片名最近进展；否决与「我的收藏」合并；不做第二面海报墙；
+- `UAT-058` 侧栏运营在上、配置在下；文件来源 / 收藏架改名为文件来源配置 / 收藏架配置，与系统设置一组；不减一级入口、不改路由。
+
+建议实现顺序：`UAT-053`（已实现）→ `UAT-056` → `UAT-055` → `UAT-051` / `UAT-050` / `UAT-052` / `UAT-057` / `UAT-058` → `UAT-054`。Aftercare 24h、Off-deck 日/周 sweep 与 Field Observation 30 分钟 sweep 已接线；Perception Integration、People Candidate 的周期项尚未进入 `fallbackReconciler`。
+
 ## 0. Current operational status — clean Movie Canary Admin Web UAT in progress
 
 用户已明确授权在修复后重建干净 Movie Canary 真实 Admin Web E2E/UAT。固定路径仍为只读

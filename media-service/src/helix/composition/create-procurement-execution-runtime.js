@@ -164,6 +164,7 @@ function findIntegrationHandle(value,seen=new Set()){
 function createProcurementExecutionRuntime(options) {
   const contractsRoot = options.contractsRoot || path.resolve(__dirname, '../contracts');
   const now = options.now || Date.now;
+  let host;
   const materialControlProjectionPort = createMaterialControlProjectionPort(options);
   const workResultReader = createWorkResultReader(options);
   const contractValidator = createCapabilityContractValidator({ schemas: collectSchemas(contractsRoot) });
@@ -332,9 +333,12 @@ function createProcurementExecutionRuntime(options) {
   const effectReconciler = createEffectReconcilerRegistry({ observers: Object.freeze(Object.fromEntries([
     'workspace_write', 'external_request', 'domain_fact_commit', 'responsibility_control_commit', 'material_commit', 'destructive_commit'
   ].map((effectClass) => [effectClass, recoveryReality(effectClass)]))) });
-  const processServices = procurementConstruction.createProcessServices({ ...options, now, workResultReader });
+  const processServices = procurementConstruction.createProcessServices({
+    ...options, now, workResultReader,
+    executionRuntimeHost: { wake() { host?.wake(); } },
+  });
   const { triageReader, triageRuleRegistry: triageRegistry, progressReader, procurementAutomation, runCoordinator,
-    evidenceIndex, candidateContextReader } = processServices;
+    evidenceIndex, candidateContextReader, fieldObservationAutomation } = processServices;
   const planningRegistration = procurementConstruction.createPlanningRegistration({ registry, policyRegistry,
     contractValidator, progressReader, triageReader, triageRuleRegistry: triageRegistry, workResultReader,
     evidenceIndex, candidateContextReader, materialFieldStore: options.materialFieldStore, now });
@@ -571,7 +575,6 @@ function createProcurementExecutionRuntime(options) {
       snapshot, catalogDigest, registry, policyRegistry, bindingProjectionRegistry,
     ) },
     effectReconciler, effectJournal });
-  let host;
   function reconcileLibraRun(libraRunId) {
     const result = libraProcessServices.libraRunCoordinator.reconcile(libraRunId);
     if (result?.kind !== 'replacement_required') return result;
@@ -753,6 +756,14 @@ function createProcurementExecutionRuntime(options) {
     ownerDomain:'procurement',reconcilerKey:'active-procurement-runs',
     listPage:({cursor,limit})=>triageReader.listActiveRunPage(cursor,limit),
     reconcile:({procurementRunId})=>runCoordinator.reconcile(procurementRunId),
+  }),Object.freeze({
+    ownerDomain:'procurement',reconcilerKey:'active-material-fields',
+    listPage:({cursor,limit})=>fieldObservationAutomation
+      ? fieldObservationAutomation.listPage({cursor,limit})
+      : [],
+    reconcile:({fieldId})=>fieldObservationAutomation
+      ? fieldObservationAutomation.reconcile({fieldId})
+      : Object.freeze({kind:'unavailable',fieldId}),
   }),Object.freeze({ownerDomain:'libra',reconcilerKey:'pending-intake-offers',
     listPage:({cursor,limit})=>libraProcessServices.offerReader.listProcessPage(cursor,limit).items.map((item)=>Object.freeze({cursor:item.processId,scope:item})),
     reconcile:({processId})=>libraProcessServices.coordinator.reconcile(processId)}),Object.freeze({ownerDomain:'libra',reconcilerKey:'active-routing-subjects',

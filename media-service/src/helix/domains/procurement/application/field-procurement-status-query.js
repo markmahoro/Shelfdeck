@@ -4,6 +4,38 @@ const {
   createRepositoryDefinition,
 } = require('../../../foundation/persistence/owner-repository');
 
+const OPEN_WORK_STATES = new Set(['admitted', 'ready', 'running', 'blocked']);
+
+function observationScan(field, pages, openWork) {
+  const pageCount = pages.length;
+  const latest = pages[pages.length - 1] || null;
+  const observationRevision = field.current_observation_revision == null
+    ? null
+    : Number(field.current_observation_revision);
+  if (openWork) {
+    return Object.freeze({
+      state: 'scanning',
+      pageCount,
+      observationRevision,
+      inProgress: true,
+    });
+  }
+  if (latest && Number(latest.completed) === 1) {
+    return Object.freeze({
+      state: 'completed',
+      pageCount,
+      observationRevision,
+      inProgress: false,
+    });
+  }
+  return Object.freeze({
+    state: 'waiting',
+    pageCount,
+    observationRevision,
+    inProgress: false,
+  });
+}
+
 function createProcurementFieldStatusQuery(options) {
   if (!options?.schemaManifest || !options.unitOfWork) {
     throw new TypeError('Procurement Field status query requires clean persistence dependencies.');
@@ -13,6 +45,43 @@ function createProcurementFieldStatusQuery(options) {
     owner: 'procurement',
     schemaManifest: options.schemaManifest,
     statements: {
+      find_field: {
+        kind: 'select-one',
+        tableId: 'proc_material_fields',
+        safeIntegers: true,
+        columns: ['field_id', 'status', 'current_observation_revision'],
+        keyColumns: ['field_id'],
+      },
+      list_observation_pages: {
+        kind: 'select-all',
+        tableId: 'proc_field_observations',
+        safeIntegers: true,
+        columns: [
+          'field_id',
+          'revision',
+          'observation_id',
+          'field_observation_work_id',
+          'page_ordinal',
+          'completed',
+          'observed_at_ms',
+        ],
+        keyColumns: ['field_observation_work_id'],
+      },
+      find_observation: {
+        kind: 'select-one',
+        tableId: 'proc_field_observations',
+        safeIntegers: true,
+        columns: [
+          'field_id',
+          'revision',
+          'observation_id',
+          'field_observation_work_id',
+          'page_ordinal',
+          'completed',
+          'observed_at_ms',
+        ],
+        keyColumns: ['field_id', 'revision'],
+      },
       list_runs: {
         kind: 'select-all',
         tableId: 'proc_procurement_runs',
@@ -63,12 +132,33 @@ function createProcurementFieldStatusQuery(options) {
   });
 
   function read(fieldId) {
+    const openWork = options.workResultReader
+      ? options.workResultReader.listWorks({
+        ownerDomain: 'procurement',
+        processType: 'material_field',
+        processId: fieldId,
+        workKind: 'field_observation',
+      }).find((work) => OPEN_WORK_STATES.has(work.state))
+      : null;
     return options.unitOfWork.execute([{
       participantId: 'procurement_field_status',
       owner: 'procurement',
       repositories: [repository],
       execute(context) {
         const store = context.repository(repository.repositoryId);
+        const field = store.invoke('find_field', { field_id: fieldId });
+        const currentObservation = field?.current_observation_revision == null
+          ? null
+          : store.invoke('find_observation', {
+            field_id: fieldId,
+            revision: field.current_observation_revision,
+          });
+        const scanWorkId = openWork?.work_id || currentObservation?.field_observation_work_id || null;
+        const pages = scanWorkId
+          ? store.invoke('list_observation_pages', { field_observation_work_id: scanWorkId })
+            .sort((left, right) => Number(left.page_ordinal) - Number(right.page_ordinal))
+          : [];
+        const scan = observationScan(field || { current_observation_revision: null }, pages, openWork);
         const runs = store.invoke('list_runs', { field_id: fieldId });
         const candidates = store.invoke('list_candidates', { field_id: fieldId })
           .sort((left, right) =>
@@ -76,6 +166,7 @@ function createProcurementFieldStatusQuery(options) {
             Number(right.package_revision) - Number(left.package_revision) ||
             right.candidate_package_id.localeCompare(left.candidate_package_id));
         const runSummary = Object.freeze({
+          observationScan: scan,
           runCount: runs.length,
           activeRunCount: runs.filter((run) => ['active', 'waiting'].includes(run.state)).length,
           sealedRunCount: runs.filter((run) => run.state === 'sealed').length,

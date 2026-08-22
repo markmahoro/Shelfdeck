@@ -29,6 +29,12 @@ export type MaterialField = {
   policy: { policy: ExtractionPolicyValue };
   procurementStatus: {
     stage: 'not_started' | 'procurement_run_active' | 'candidate_published' | 'handoff_a_ready' | 'handoff_a_accepted' | 'handoff_a_rejected';
+    observationScan: {
+      state: 'waiting' | 'scanning' | 'completed';
+      pageCount: number;
+      observationRevision: number | null;
+      inProgress: boolean;
+    };
     procurementRunId?: string;
     runCount: number;
     activeRunCount: number;

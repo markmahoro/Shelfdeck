@@ -35,14 +35,10 @@ export const recordKindLabels: Record<string, string> = {
   retraction: '撤回',
 };
 
-export const procurementStageLabels: Record<string, string> = {
-  not_started: '等待扫描',
-  procurement_run_active: '正在扫描',
-  candidate_published: '已发现电影',
-  handoff_a_ready: '已发现电影',
-  handoff_a_accepted: '已交给整理',
-  handoff_a_rejected: '未被接收',
-  triage_not_ready: '还不能整理',
+export const observationScanLabels: Record<string, string> = {
+  waiting: '等待扫描',
+  scanning: '正在扫描',
+  completed: '已扫描完成',
 };
 
 export function labelOf(map: Record<string, string>, value: string | null | undefined, fallback = value || '—') {

@@ -34,7 +34,7 @@ Helix主体开发已经完成，Movie从Procurement、Libra到Arca及Shelf Dereg
 
 本文统一记录这一阶段发现的待修复问题，作为后续集中复盘、Design Return、修复排序和回归验收的工作基线。
 
-本文不是Architecture SSOT，不替代`CURRENT_PLAN.md`。历史UAT问题仍保留原有处理状态；2026-08-21 Movie Canary真实用户UAT期间，用户已授权在不改变已确认架构边界的前提下直接修复、页面复测并为每项修复建立独立Git回滚点。2026-08-22 另完成一次 Admin Web 全页用户体验审视（文案、内部机制泄漏、文案与事实冲突、排版、字体、按钮、前端拼装与美学），问题见 `docs/helix/ADMIN_WEB_UX_ISSUE_LOG.md`；该台账不替代本文的 UAT 业务/执行缺陷记录，也不授权实现。
+本文不是Architecture SSOT，不替代`CURRENT_PLAN.md`。历史UAT问题仍保留原有处理状态；2026-08-21 Movie Canary真实用户UAT期间，用户已授权在不改变已确认架构边界的前提下直接修复、页面复测并为每项修复建立独立Git回滚点。2026-08-22 另完成一次 Admin Web 全页用户体验审视（文案、内部机制泄漏、文案与事实冲突、排版、字体、按钮、前端拼装与美学），问题见 `docs/helix/ADMIN_WEB_UX_ISSUE_LOG.md`；该台账不替代本文的 UAT 业务/执行缺陷记录，也不授权实现。同日用户确认四项后续改造并登记为 `UAT-050`–`UAT-053`（当前媒体筛选、分步整理动作与进度、收藏按架与占用空间、Field Observation 周期观察缺口）；随后确认退出收藏任务化界面、人物 Beta 两条登记路径、豆瓣周期同步，登记为 `UAT-054`–`UAT-056`；概览改为状态 + 待办 + 最近几件事、不与「我的收藏」合并，登记为 `UAT-057`；侧栏把文件来源与收藏架下移与系统设置一组，Tab 改名为文件来源配置 / 收藏架配置，登记为 `UAT-058`。只登记方向，不授权实现。
 
 记录原则：
 
@@ -97,6 +97,22 @@ Helix主体开发已经完成，Movie从Procurement、Libra到Arca及Shelf Dereg
 | UAT-008 | Admin Web非根路径直接刷新返回404 | `USER_EXPERIENCE` | `PROJECTION_FRESHNESS` | Clean Service static adapter + Admin Web routing | 可用性、刷新恢复 | Critical | 已修复并完成七个页面直接刷新复测 |
 | UAT-009 | 媒体整理页评分提交成功但刷新后仍显示暂无评分 | `USER_EXPERIENCE` | `PROJECTION_FRESHNESS` | Perception Query Projection + Formation Projection | 正确性、持久化可见性 | Critical | 已修复并完成真实页面刷新复测 |
 | UAT-010 | Routing尚未配置时Formation错误开放人工选Shelf并返回内部错误 | `USER_EXPERIENCE` | `RECOVERY_CORRECTNESS` | Formation Admin Web + Clean Service error adapter | 可理解性、命令安全 | Critical | 已修复并完成真实页面复测 |
+
+### 2.0 2026-08-22 确认的产品/实现缺口
+
+用户确认九项后续改造方向；本批只登记，不授权实现、不改 SSOT。完整叙述见 §47–55。UAT-011 至 UAT-049 仍按后文章节，不在本表重复。
+
+| ID | 问题 | 主分类 | 次分类 | 主要责任边界 | 影响维度 | 严重度 | 当前状态 |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| UAT-050 | 媒体整理工作区当前媒体缺少可操作筛选 | `USER_EXPERIENCE` | `PROJECTION_FRESHNESS` | Formation 公开 Query + Admin Web | 可理解性、可操作性 | High | 已讨论并确认方向，待实现 |
+| UAT-051 | 整理动作是概括句，不能展示分步施工、分步进度、用户操作与加急 | `USER_EXPERIENCE` | `PROJECTION_FRESHNESS` | Formation 公开 Projection + Admin Web | 可理解性、可观察性 | High | 已讨论并确认方向，待实现 |
+| UAT-052 | 我的收藏一级导航不是按架，详情缺少占用空间等技术指标 | `USER_EXPERIENCE` | `PROJECTION_FRESHNESS` | Arca Collection Query + Admin Web | 可理解性、可发现性 | High | 已讨论并确认方向，待实现 |
+| UAT-053 | 活动文件来源未按 SSOT 周期观察，扫描完成后页面禁止再扫 | `DOMAIN_ORCHESTRATION` | `USER_EXPERIENCE` | Procurement Field Management Owner 自动化 + Admin Web | 正确性、活性、可理解性 | Critical | 已实现；待新 Canary 确认 |
+| UAT-054 | 退出收藏主链已通，页面仍是内部安全链控制台 | `USER_EXPERIENCE` | | Off-deck Admin Web | 可理解性、可操作性 | High | 已讨论并确认方向，待实现 |
+| UAT-055 | 人物名录未接通 Beta 两条登记路径，页面只读且为空 | `DOMAIN_ORCHESTRATION` | `USER_EXPERIENCE` | People Owner 自动化 + Arca On-deck 人物证据 + Admin Web | 正确性、可操作性 | Critical | 已讨论并确认方向，待实现 |
+| UAT-056 | 豆瓣评分缺少 SSOT 周期同步，同步与日志刷新职责混在一起 | `DOMAIN_ORCHESTRATION` | `USER_EXPERIENCE` | Perception Acquisition Owner 自动化 + Admin Web | 时效性、可理解性 | High | 已讨论并确认方向，待实现 |
+| UAT-057 | 概览只重复旁页计数，缺少系统状态、可点待办与最近完成；不得与我的收藏合并 | `USER_EXPERIENCE` | `PROJECTION_FRESHNESS` | Overview 只读聚合 + Admin Web | 可理解性、可操作性 | High | 已讨论并确认方向，待实现 |
+| UAT-058 | 侧栏把文件来源与收藏架放在日常运营之前；应下移与系统设置一组并改名为配置 | `USER_EXPERIENCE` | | Admin Web 导航 | 可发现性、信息架构 | Medium | 已讨论并确认方向，待实现 |
 
 ## 2.1 UAT-006：概览展示固定演示数字
 
@@ -821,6 +837,7 @@ Package、Receipt、Canonical JSON等结构化事实的SHA-256与媒体字节Ide
 ### 7.8 当前处理决定
 
 - 页面重构方向已经讨论并获得用户确认；
+- 2026-08-22 用户进一步确认当前媒体筛选、分步整理动作/进度/操作/加急列及完成区动作清单，分别登记为 `UAT-050`、`UAT-051`；本项不关闭；
 - 当前仅记录到用户侧测试台账，不立即修改正在运行的Admin Web或API；
 - 具体统计边界和Projection字段在集中修复进入Design时再写入唯一SSOT及机器合同；
 - 不以纯前端字符串替换掩盖缺失的业务状态Projection。
@@ -1909,7 +1926,259 @@ stderr 为 `CLEAN_ARCA_TARGET_OCCUPIED` 与 `CLEAN_ARCA_SETTLEMENT_UNKNOWN_MEMBE
 
 当前处理决定：按用户确认的盘单元规则修复并提交。已 committed 的 On-deck 不会自动再跑 Settlement；本轮 Canary 现场残留需在代码修复后单独清理，不能当作以后盘的合同。
 
-## 47. 后续问题模板
+## 47. UAT-050：媒体整理工作区当前媒体缺少可操作筛选
+
+问题分类：`USER_EXPERIENCE / PROJECTION_FRESHNESS`
+
+用户侧现象：媒体整理工作区顶部有待整理 / 整理中 / 需要处理 / 已完成整理四个数字，但点不了；「当前媒体」是一页混表。用户无法按状态、目标收藏架、是否需要自己处理、是否加急或片名缩小范围。
+
+现场证据：`FormationPage.tsx` 当前表无筛选控件。`createFormationQuery.list` 只接受 `active | completed | ended`，active 默认 25 条分页。`libra_formation_projections` 已按 `classification` 分桶，但没有 `shelfId` / `needsUserAction` / `expedited` / 片名 query。前端若只筛当前页会漏数据。
+
+初步诊断：展示缺口，不是业务分类错误。四桶 Classification 已存在；缺的是同一 Projection 上的有界过滤。
+
+业务影响：媒体一多，需要处理的行和加急行被埋在混表里，用户无法当工作台用。
+
+修复边界：
+
+- 筛选同一张当前工作表，不新开一级页面；已完成整理仍在下方折叠区；
+- 一级芯片与顶部四桶同一套分类：全部当前 / 待整理 / 整理中 / 需要处理；
+- 二级：目标收藏架（含尚未选定）、需要我处理、已加急、片名搜索；评分和整理动作类型先不做；
+- 过滤必须走 Formation 公开 Query，切筛选重置游标；禁止前端对当前 25 条本地 filter；
+- 不改 Subject / Run / Handoff 合同。
+
+验收证据：有界样本下按状态、架、需要处理、加急、片名分别过滤，计数与四桶一致，分页无重复无漏行；窄屏与键盘可用。
+
+当前处理决定：2026-08-22 用户确认该方向。只登记，不立即改代码，不改 SSOT。与 `UAT-005` 并存，本项专管筛选。
+
+## 48. UAT-051：整理动作是概括句，不能展示分步施工、分步进度、用户操作与加急
+
+问题分类：`USER_EXPERIENCE / PROJECTION_FRESHNESS`
+
+用户侧现象：整理动作列只有一句「视频转码 / 封装整理 / 资料补齐 / 尚未形成整理动作」。下一步列把当前一步标签、一条进度条、选架、确认身份、重试、放弃、加快塞在一格。用户看不到要 Remux、怎么转码、要不要补海报；完成区也说不清这部实际做了哪些事。重叠 `UX-009`、`UX-010`。
+
+现场证据：`formation-query.js` 的 `actionLabel(works)` 按 capability 取第一条命中；`nextAction` 只投影当前开放 Work 的一句标签加一条 `progress`。当前表列：媒体名称、当前状态、我的评分、目标收藏架、整理要求、整理动作、下一步。完成表复用 `organizingAction` 字符串。Encode / Remux Intent（CPU/GPU、目标编码、清晰度、体积）未进入 Formation 公开 Projection。
+
+初步诊断：UAT-005 已要求「整理动作 = 整套施工方案，下一步 = 当前一步」。用户 2026-08-22 进一步要求步骤清单、每步进度条、用户操作列、加急列拆开；完成区只读同一套动作清单。这是公开 Projection 形状扩展，不是 Planner/Capability 边界变更。
+
+业务影响：用户无法感知系统在做什么、卡在哪一步、要不要自己动手；完成历史像没整理过。
+
+修复边界：
+
+- 当前表固定四列职责：整理动作（有序用户步骤）、进度（每步一条进度条）、用户操作（只放需要人点的入口）、加急（加快 / 已加急 / 取消加快）；
+- 步骤词表闭集，禁止 capability 名。建议：确认影片身份、补齐资料、补海报和 NFO、外部寻源（仅缺口存在时）、封装整理、视频转码（须写出 CPU/GPU、目标编码、清晰度档、体积上限）、验证整理结果、上架到收藏架；
+- 尚未形成计划时写「正在评估整理方案」，不提前猜 Remux 或转码；
+- 有真实字节/时长 Evidence 才用确定百分比；TMDB/等资源用不确定条；受阻/冻结停住并指向用户操作列；
+- 完成区只读：实际执行过的步骤、进了哪座架、完成时间；不要「下一步」和进行中按钮；
+- 步骤在单元格内纵向堆叠，避免再增加列数撑爆（`UX-016`）；
+- 扩展 `libra_formation_projections` 的公开展示字段（`organizingAction: string` → `organizingSteps[]`）；完成态读已完成 Run 历史 Work，不读当前空 Run；
+- 不改 Planner、Capability、Work Owner；页面不直接读 Event。
+
+验收证据：Remux、GPU/CPU 转码、补海报、外部寻源、直接采用、完成态各一类样本的步骤清单与后端正式事实一致；进行中每步进度与 Event Progress 一致且不伪造百分比；操作列与加急列互不混放。
+
+当前处理决定：2026-08-22 用户确认该列结构。只登记，不立即改代码。本项细化 `UAT-005` 的动作/进度合同，不关闭 `UAT-005`。
+
+## 49. UAT-052：我的收藏一级导航不是按架，详情缺少占用空间等技术指标
+
+问题分类：`USER_EXPERIENCE / PROJECTION_FRESHNESS`
+
+用户侧现象：我的收藏一级是「当前收藏 / 历史」，海报墙把所有架混在一起，只在副标题写架名。详情有剧情、演职员、健康，没有当前占用空间等用户关心的技术指标。
+
+现场证据：`CollectionPage.tsx` 筛选为 current/history + 健康状态。`collection-query.js` 已读 `arca_inventory_materials.size_bytes`，仅用于判断是否有海报，不求和、不对外。`CollectionEntry` 无占用空间、容器、编码、清晰度字段。列表为 `select-all`，无 `shelfId` 过滤。重叠 `UX-006`、`UX-026`。
+
+初步诊断：Shelf 与 Inventory 字节已是 Arca 事实。缺的是 Collection 公开 Query 的按架过滤和详情翻译，不是新业务对象。
+
+业务影响：多架时用户不能按收藏目录浏览；点开详情看不到这部占多少空间、主视频是什么规格。
+
+修复边界：
+
+- 一级导航按收藏架，保留「全部」为默认；二级才是当前 / 历史，健康筛选仅用于当前；
+- 历史跟随当前所选架，不另做全局历史墙；注销中的架不进当前墙；
+- 收藏一多必须后端按 `shelfId` 过滤，不能把整库拉到前端再筛；可与 `UX-026` 海报墙性能一并处理；
+- 详情第一批只展示 Inventory 已有事实：当前占用空间（主视频 + 海报/NFO/字幕等成员合计，格式如 `12.4 GB`）、主视频体积与容器、视频规格（有则显示，如 `HEVC · 2160p`）、海报/NFO 是否齐全；
+- 口径是当前正式收藏占用，不是源目录或 Workspace 中间文件；
+- 片长、音轨、HDR 等第二批只有 Inventory 已有稳定事实才加，前端不得为填格子去 probe 磁盘；
+- Collection 继续只读 Arca；不回读 Libra Run，不把整理步骤搬进收藏详情。
+
+验收证据：多架样本下按架切换墙与计数正确；详情占用空间与 Inventory 成员字节合计一致；无海报/无规格时不编造。
+
+当前处理决定：2026-08-22 用户确认一级按架，并保留「全部」；详情第一批即上列四项。只登记，不立即改代码。
+
+## 50. UAT-053：活动文件来源未按 SSOT 周期观察，扫描完成后页面禁止再扫
+
+问题分类：`DOMAIN_ORCHESTRATION / USER_EXPERIENCE`
+
+用户侧现象：文件来源把整座目录的状态写成最近一部 Candidate 的 Handoff（「已交给整理」），按钮随之置灰。绿框不是扫描进度。用户不知道扫描是否在走、新文件会不会被看见。
+
+现场证据：
+
+- SSOT §6.3.2：Field Observation 可由 Field 注册、周期到期、用户显式观察、启动恢复或可靠 Field 变更 Hint 触发。
+- SSOT §6.9.1：Material Field 已注册且 Access 有效时，周期 / 启动恢复自动执行；允许用户显式观察。
+- SSOT §10.3.3：活动 Field 启动后 2 分钟内首次 cursor sweep，随后每 30 分钟轻量变化观察；只有新增或变化成员进入 Triage Evidence。每一轮仍用同一套目录对账。
+- §3.2.4「该数据模型能力不授予目录扫描、文件系统 Journal 或 rename 监听」约束的是 Physical Material Identity / Binding Health 公式本身，不禁止 Field Management 周期 Observation，也不等于「新文件可以不发现」。
+- 代码：`field_observation` Work 只在 `field-observation-admin-service.js` 由 Admin `POST .../actions/observe` 签发。`fallbackReconciler` 的 Procurement 项只有 `active-procurement-runs`。登记 Field 不启动观察。无 2 分钟 / 30 分钟 Field Observation sweep。`procurementAutomation.reconcileFromObservation` 只消费已 terminal 的 Observation，自己不看目录。
+- 对照：同文件 Aftercare `due-aftercare-shelf-entries`（Custody 24h）和 Off-deck 日/周 sweep 已接线。
+- 前端：`MaterialFieldsPage.tsx` 在 `handoff_a_ready` / `handoff_a_accepted` 时 `disabled` 扫描按钮；`field-procurement-status-query.js` 用来源内最近一部 Candidate 的 delivery 代表整座 Field。
+
+初步诊断：Observation 分页、增量 Eligibility、扫完后自动开 Run 已落地。缺的是 Procurement Owner 周期签发下一轮 Observation，外加页面把唯一显式入口关掉。这是实现落后于已关闭 SSOT，不是开放产品选择题，也不是要做 inotify/Journal。
+
+业务影响：下载目录或共享盘新进的电影，系统不会自己看见。按钮灰掉后用户也无法再扫。整理工作区、收藏墙、概览会表现为「库停在第一次扫描」。Canary 路径是「登记 → 立刻点扫描」，不易自然暴露。
+
+修复边界：
+
+- 补上 Field Observation Owner 自动化：活动来源启动后 2 分钟内首扫，之后每 30 分钟轻量变化观察；启动恢复发现未收口的 Observation Work；用户「扫描新文件」始终可点，仅 Observation Work 进行中禁用；
+- 来源页只管扫没扫完：等待扫描 / 正在扫描 / 已扫描完成；绿框展示扫描进度（页数或已查看文件数），不要写成「已交给整理」；整理进度只去媒体整理工作区；
+- 不引入文件系统 Journal、rename watch 或未知路径全盘搜索；可靠 Field 变更 Hint 仍是可选加速，不是发现新文件的前提；
+- 不把最近一部 Candidate 的 Handoff 当成整座来源的扫描状态；
+- 不改 Handoff A/B、不改 Identity 公式、不让 Aftercare 承担 Field 扫描。
+
+验收证据：活动来源在无人工点击时于启动窗口和 30 分钟窗口产生新的 Observation revision；目录新增独立电影后进入整理工作区；进行中按钮禁用、完成后「扫描新文件」可点；绿框进度与 Observation page chain 一致；外部 rename 不承诺自动修 Binding。
+
+当前处理决定：2026-08-22 用户确认这是重大实现缺口；2026-08-22 代码已实现。`fallbackReconciler` 新增 `active-material-fields`：启动后立即对活动 Movie Field 做首次 Observation sweep（满足启动 2 分钟内首轮），整页完成后 30 分钟再扫；从未观察过的活动来源可在 30 分钟门闩内进入首轮。进行中或未完成的 Observation Work 不重开。来源页三态为等待扫描 / 正在扫描 / 已扫描完成，绿框只展示扫描页进度，「扫描新文件」仅 Observation 进行中禁用，不再用最近一部 Candidate 的 Handoff 代表整座来源。GET 列表无副作用。本条不宣称 Canary 或生产通过。
+
+证据：
+
+- `media-service/src/helix/domains/procurement/application/field-observation-automation.js`
+- `media-service/src/helix/composition/create-procurement-execution-runtime.js`
+- `media-service/src/helix/domains/procurement/application/field-procurement-status-query.js`
+- `media-service/web/src/helix/MaterialFieldsPage.tsx`
+- `media-service/test/helix-architecture/p7-field-observation-automation.test.js`
+- `media-service/test/helix-architecture/p7-field-procurement-status-query.test.js`
+- `media-service/test/admin-web-contract.test.js`
+- Admin Web production build `npm run build:web` PASS
+
+## 51. UAT-054：退出收藏主链已通，页面仍是内部安全链控制台
+
+问题分类：`USER_EXPERIENCE`
+
+用户侧现象：退出收藏页四截硬拼（规则、建议、审阅、进度），按钮像内部控制台：进入审阅、确认范围、授权并开始退出。用户看不懂每个按钮做什么，也不知道默认关闭自动建议时为什么没有待审阅。重叠 `UX-007`、`UX-015`、`UX-025`。
+
+现场证据：`OffdeckPage.tsx` 主表面仍可能露出 `review.state`、Case、AST/无法表达的规则 JSON。规则四类草稿按钮只往表单加行，不评估；真正评估是「立即评估」「检测重复收藏」。默认 Policy `disabled`、规则为空、定期查重复关闭。后端 `offdeck-admin-application.js` 与 Foundation 销毁链已接通；「我的收藏」直接退出走同一 `direct_intent` 审阅。High-volume 二次确认、授权前可取消、授权后不可反悔均已实现。
+
+初步诊断：这是产品信息架构缺口，不是销毁合同缺失。SSOT §6.7 的发现/授权/Case 分层已经落地。
+
+业务影响：用户不敢点或点错阶段名；能退出，但不像「审阅清楚再删」。
+
+修复边界：
+
+- 按任务重排为：规则（少见、可折叠）→ 建议列表（片名、原因、体积）→ 当前这一单审阅（文件清单 + 体积 + 明确下一步）→ 正在退出的片子；
+- 主按钮只用用户任务语言，例如启用自动建议、保存规则、现在检查一次、查重复、审阅这部、先留着、核对将删除的文件、再次确认大批量、授权删除、取消这次审阅；内部阶段名可降为按钮下小字；
+- 主表面只用片名、评分、体积、将删文件数；`review.state`、Case ID、AST、原始 JSON 进折叠；
+- 「不喜欢的人物」规则在人物偏好产品入口可用前不作为可添加规则；Policy 合同可保留；
+- 不改默认自动建议关闭、unknown 不出建议、授权前可取消、授权后不可用取消审阅反悔、大批量二次确认、共享主文件拒绝删、附属留到最后引用、直接退出与建议退出共用一条链。
+
+验收证据：无规则时页面说明「不会自动建议，可从我的收藏直接退出或先保存规则再检查」；有建议时主路径能用片名走完审阅→授权；授权前取消零文件副作用；技术标识不出现在主表面。
+
+当前处理决定：2026-08-22 用户确认只做任务化界面，不重做销毁主链。只登记，不立即改代码。实现顺序上后于周期类缺口 UAT-053/055/056。
+
+## 52. UAT-055：人物名录未接通 Beta 两条登记路径，页面只读且为空
+
+问题分类：`DOMAIN_ORCHESTRATION / USER_EXPERIENCE`
+
+用户侧现象：人物名录已登记/待确认均为 0。收藏详情却可能列出演职员。用户不知道名录是干什么的，也不知道为什么空。重叠 `UAT-007`（已修演示数字，仍只读）、`UX-011`。
+
+现场证据：
+
+- SSOT §5.9.4 / §6.8.3：Beta 只有用户直接注册，以及系统从 On-deck NFO 经 `OnDeckPersonEvidenceProjection` 每日补偿扫描形成 Candidate；强身份可自动接受，弱身份必须用户接受或忽略。People 不得写 Media-Cast，也不得读 Arca Store 或物理 NFO。
+- 代码：People Store、只读 Admin Query、Capability 合同和直接注册 Domain 命令模块存在；`create-procurement-execution-runtime.js` 未启用 People；`people/planning/` 无产品 Planner；Arca 无 `OnDeckPersonEvidenceProjection` 实现；People Admin Facade 只有 GET；页面明确不能注册/合并。
+- 收藏详情 `people` 来自 `arca_inventory_person_relations`，允许 `personId=null`，不是 Person Registry。
+
+初步诊断：名录空是因为 Registry 里没有 Person，不是 Query 失败。与 UAT-053 同类：合同写了 Owner 自动化，Composition Root 没挂上；另外缺写命令入口。
+
+业务影响：一级导航页没有产品意义；「待确认登记/合并」计数无法操作；后续 Off-deck「不喜欢的人物」也没有偏好主体。
+
+修复边界：
+
+- 把 People 挂进 Composition Root（Planner、Capability、fallback reconciler）；People Candidate 每日补偿扫描每页最多 100 项，见 SSOT §10.3.3；
+- Arca 发布 On-deck 人物证据投影，People 只消费该投影；禁止打开物理 NFO、禁止改 Media-Cast；
+- 页面改为小工作台：已登记人物、待确认登记/合并（接受或忽略）、登记一个人（姓名、可选别名/外部编号，参考图不是前置条件）；
+- 文案：名录是已登记的人，不是某部电影的演员表；演员表留在收藏详情；
+- 不实现联网搜演员图、人脸聚类主路径、人物页改演职员、用人物偏好做上架规则；不把 Inventory 显示名批量写成 Person。
+
+验收证据：用户直接登记后名录出现该人且 Media-Cast 不变；上架带稳定 Provider Person Identity 的 NFO 后，周期扫描形成 Person 或 open Candidate；弱身份只出待确认；People 零 Arca Store / 物理 NFO 读取。
+
+当前处理决定：2026-08-22 用户确认补齐 Beta 两条登记路径，名录不再只读空表。只登记，不立即改代码。与 UAT-053、UAT-056 同属 Owner 自动化接线。
+
+## 53. UAT-056：豆瓣评分缺少 SSOT 周期同步，同步与日志刷新职责混在一起
+
+问题分类：`DOMAIN_ORCHESTRATION / USER_EXPERIENCE`
+
+用户侧现象：设置页「同步」与评分日志「刷新」都像在更新豆瓣。点刷新日志并不去豆瓣；点过一次同步后，系统不会按 SSOT 周期再拉收藏。重叠 `UX-008`、`UX-028`。
+
+现场证据：
+
+- SSOT §6.8.2：外部同步使用 `perception.source.acquire@1` 分页 Observation，走 Foundation；GET 不得触发 Acquisition/Resolution 提交。Provider Acquisition terminal 后按锚加速 Resolution；30 秒 fallback 扫活动评分目标；digest 不变 no-op。
+- SSOT §10.3.3：Perception Integration 低频周期，Beta 下限 6 小时、推荐初始 24 小时，不是可随意调小的普通设置。
+- 代码：`SettingsPage`「同步」→ `POST /v1/admin/perception/actions/sync` → `requestAcquisition` → Foundation `acquisition_page`（acquire / normalize / commit）。评分日志「刷新」→ `GET .../perception/records`，只读。执行运行时有 `active-acquisitions`（把已开始的页跑完）和 `active-subject-rating-resolutions`（30 秒 Resolution），**没有** 6h/24h 再开豆瓣 Acquisition。前端每次同步用新的时间戳 idempotencyKey，故每次点击是新 Acquisition；Record 仍以来源 digest 幂等。
+
+初步诊断：人工同步链正确且走 Foundation。日志刷新不走 Foundation 也正确。缺的是周期 Acquisition，以及界面把两个动作混成「刷新」。不要绑进 UAT-001 匹配率。
+
+业务影响：豆瓣收藏变化后，评分来源停在上一次人工同步；用户以为刷新日志等于更新豆瓣。
+
+修复边界：
+
+- 活动豆瓣连接按 SSOT 做启动恢复与周期 Acquisition，推荐初始 24 小时、下限 6 小时；用户「同步」仍立即开一轮；
+- 界面拆开：同步 = 去豆瓣拉收藏，显示 Acquisition 页进度（已有 `listAcquisitions` / `sync-state`）；刷新日志 = 只重读已落库 Record；
+- Resolution 保持：同步结束后撞相交目标、30 秒 fallback、digest 不变 no-op、直接评分另走 Foundation；
+- GET 评分日志不得触发同步或 Resolution 提交；不得覆盖历史 Record；不放宽模糊匹配；不把豆瓣优先级抬到 Handoff 前面。
+
+验收证据：配置有效时无人工点击也可在 24 小时窗口内产生新 Acquisition；同步中设置页能看到页进度；刷新日志网络只有 GET records；重复同步不制造语义重复 Record。
+
+当前处理决定：2026-08-22 用户确认补周期同步并拆开同步/日志刷新。只登记，不立即改代码。建议与 UAT-053 同属周期 Owner 自动化，先于 UAT-054。
+
+## 54. UAT-057：概览只重复旁页计数，缺少系统状态、可点待办与最近完成；不得与我的收藏合并
+
+问题分类：`USER_EXPERIENCE / PROJECTION_FRESHNESS`
+
+用户侧现象：概览简略，数字与「我的收藏」、整理工作区、文件来源重复；没有系统是否正常、没有可点的待办、没有带片名的最近完成。用户提出是否与「我的收藏」合并。重叠 `UX-001`、`UX-029`、`UX-013`。
+
+现场证据：
+
+- SSOT §9.2 旅程 I（系统与成果概览）与旅程 C（浏览正式收藏）分离。§9.4.2 概览只回答系统三态和已创造的收藏价值，含需要处理入口（链到未分拣/Frozen/授权/人物/配置）和最近完成的上架/修复/退出。§9.4.5 我的收藏是有效 Shelf Entry 的权威检索入口（海报墙）。§9.9.1：每个页面一个主要工作，概览证明价值，收藏证明 Own。Beta 八个一级入口含概览与我的收藏；UI Surface 为 8 pages + 9 journeys。
+- `OverviewPage.tsx` 只有四指标 + 四条总量账本 + 页脚来源/架数。`overview-query.js` 请求内拼 Field / Shelf / Formation / Collection / Offdeck；「正式收藏」与账本「已经上架」同为 active Entry 计数；「需要处理」只加健康 attention 与退出 Candidate，不含整理工作区 `attention_required`。无系统三态、无空间节省、无本月完成修复、无带片名履历、无深链。
+
+初步诊断：概览没做自己的工作，只抄了旁页计数，所以显得又薄又该合并。缺的是首页合同内容，不是少一面收藏墙。
+
+业务影响：打开管理台既看不了库，也办不了事；合并会压矮海报墙（UAT-052 还要按架），并让整理/退出/人物待办从首页消失。
+
+修复边界：
+
+- **否决与「我的收藏」合并**；保留八个一级入口；`/` 仍是概览；
+- 系统三态：尚未配置 / 正常运行 / 系统故障；尚未配置链到来源或收藏架；故障才用危险态；不把「需要处理」当成系统坏了；侧栏状态与此同一套（`UX-013`）；
+- 「需要你处理」做成可点分类待办，链到整理工作区、收藏健康筛选、退出收藏、人物名录（UAT-055 后）、设置；无事项则明确空态；合计须包含整理 `attention_required`，不能只加健康+退出；
+- 成果只留不重复项：正式收藏、本月新上架、健康；有事实再显示本月完成修复、累计节省空间。「正在整理」最多一条且点进工作区。删除已经上架、已检查健康、已发现的电影、页脚来源/架数；
+- 「最近进展」改为带片名的短账（上架、修复、正在做的关键动作），不是库存总量；无履历则空态；
+- 不做完整海报墙；最多「本月新上架」少量可点缩略图，点进收藏详情；
+- Overview 保持跨域只读聚合、无写权；改进时应避免每次 GET 整表五路扫描（`UX-029`），GET 无副作用。
+
+验收证据：概览与收藏墙仍是两个入口；待办可分别跳到整理/收藏/退出；正式收藏与已经上架不再并排；无事项与尚未配置有明确空态；主表面无 Event/Retry/队列。
+
+当前处理决定：2026-08-22 用户确认保留两页，概览改为状态 + 待办 + 最近几件事。只登记，不立即改代码、不改 SSOT 一级入口集合。实现顺序上与 UAT-052/054/058 同属产品表面，后于周期类 UAT-053/056/055。
+
+## 55. UAT-058：侧栏把文件来源与收藏架放在日常运营之前；应下移与系统设置一组并改名为配置
+
+问题分类：`USER_EXPERIENCE`
+
+用户侧现象：左边导航把「文件来源」「收藏架」放在概览之后、我的收藏之前。日常要用的是收藏墙和整理工作区，来源和架是一次性配置。用户要求下移，与「系统设置」形成一组；Tab 名称改为「文件来源配置」「收藏架配置」。重叠 `UX-002`、`UX-003`。
+
+现场证据：`surface-model.ts` 的 `pages` 顺序即 `App.tsx` 侧栏顺序：概览、文件来源、收藏架、我的收藏、媒体整理工作区、退出收藏、人物、系统设置。路由仍为 `/material-fields`、`/shelves`。SSOT §9.4.1 列出同一八个一级入口，并允许按「收藏基础 / 日常运营 / 知识 / 系统」视觉分组、不增加中间路由层。§9.3.3 用户语言仍是「文件来源」「收藏架」。
+
+初步诊断：八个入口保留。问题是日常运营和配置混排，以及配置页在导航上不像设置。
+
+业务影响：新用户或回访都先经过配置项才能到收藏和整理。
+
+修复边界：
+
+- 侧栏顺序改为：概览、我的收藏、媒体整理工作区、退出收藏、人物；其下为配置组：文件来源配置、收藏架配置、系统设置；
+- 配置组用视觉分隔（例如细线或小组标题「配置」），不新增路由层、不减少一级入口；
+- 导航与页内标题使用「文件来源配置」「收藏架配置」；Canonical 仍是 Material Field / Shelf，路径不改；
+- 不把来源/架并进系统设置页，不取消独立页面；
+- 实现进入 Design 时再把 §9.4.1 导航顺序与用户别名写回 SSOT；本条不直接改 SSOT。
+
+验收证据：侧栏上半是运营、下半是配置三页；名称与分组在桌面/窄侧栏都成立；深链 `/material-fields`、`/shelves` 仍进入原页。
+
+当前处理决定：2026-08-22 用户确认该导航顺序与 Tab 名。只登记，不立即改代码。与 UAT-057/054 同属产品表面。
+
+## 56. 后续问题模板
 
 后续发现的问题按以下结构追加：
 

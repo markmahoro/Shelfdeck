@@ -16,8 +16,11 @@ test('product Procurement path uses the typed construction port and never mounts
   const publicEntry=source('src/helix/domains/procurement/public/index.js');
   assert.match(composition,/ProcurementExecutionRegistration/);
   assert.match(publicEntry,/createProcurementRunCoordinator/);
+  assert.match(publicEntry,/createFieldObservationAutomation/);
   assert.match(composition,/['"]evidence_assessment['"]/);
   assert.match(composition,/['"]candidate_assembly['"]/);
+  assert.match(composition,/active-material-fields/);
+  assert.match(composition,/due-aftercare-shelf-entries/);
 });
 
 test('Procurement Run Coordinator only reads terminal facts and issues Work',()=>{
