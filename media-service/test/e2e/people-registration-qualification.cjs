@@ -192,6 +192,7 @@ async function main() {
   for (const target of Object.values(roots).filter((value) => value !== roots.data)) fs.mkdirSync(target, { recursive: true });
   const moviePath = path.join(roots.field, 'People Evidence Movie (1999).mkv');
   fs.copyFileSync(SOURCE, moviePath);
+  const copiedBytes = fs.statSync(moviePath).size;
   fs.writeFileSync(path.join(roots.field, 'People Evidence Movie (1999).nfo'),
     '<?xml version="1.0" encoding="UTF-8"?>\n<movie><title>People Evidence Movie</title><year>1999</year><tmdbid>550</tmdbid></movie>\n');
   const secretRoot = crypto.randomBytes(32).toString('base64url');
@@ -257,7 +258,7 @@ async function main() {
     schema: 'shelfdeck.people-registration-avatar-qualification@1',
     result: 'PASS', sourceBaseline: SOURCE, copiedMovie: moviePath,
     expectedStrongProviderPeople: PEOPLE.length, first, restarted,
-    sourceBytes: fs.statSync(SOURCE).size, copiedBytes: fs.statSync(moviePath).size,
+    sourceBytes: fs.statSync(SOURCE).size, copiedBytes,
   });
   fs.writeFileSync(path.join(roots.evidence, 'people-registration-facts.json'), JSON.stringify(facts, null, 2) + '\n');
   process.stdout.write(JSON.stringify({ result: facts.result, expectedStrongProviderPeople: PEOPLE.length,

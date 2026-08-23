@@ -163,3 +163,25 @@ test('the same Provider Person Identity remains idempotent across sources and se
   assert.equal(restartedService.reconcile(secondScope).kind, 'known');
   assert.equal(store.listPeople().length, 1);
 }));
+
+test('new On-deck evidence is visible immediately after an empty sweep', () => fixture(({ store, unitOfWork, schemaManifest }) => {
+  let page = [];
+  const people = createPeopleProcessServices({
+    schemaManifest, unitOfWork, peopleStore: store,
+    onDeckPersonEvidenceProjection: { listPage: () => page },
+  });
+  assert.deepEqual(people.listPage({ cursor: null, limit: 100 }), []);
+  const base = {
+    relationId: 'relation-after-empty-sweep', shelfEntryId: 'entry-1', inventoryRevision: 1,
+    relationDigest: canonicalDigest({ relationId: 'relation-after-empty-sweep' }),
+    originEvidenceDigest: canonicalDigest({ source: 'movie-after-empty-sweep' }),
+    displayName: '后到的人物证据', displayNameNormalized: '后到的人物证据', role: 'actor',
+    providerIdentities: [{ provider: 'tmdb', namespace: 'tmdb_person', providerKey: '909090' }],
+    identityStrength: 'strong',
+  };
+  const scope = Object.freeze({ ...base, evidenceDigest: relationEvidenceDigest(base) });
+  page = [Object.freeze({ cursor: scope.relationId, scope })];
+  assert.equal(people.listPage({ cursor: null, limit: 100 }).length, 1);
+  assert.equal(people.reconcile(scope).kind, 'auto_accepted');
+  assert.equal(store.listPeople().length, 1);
+}));

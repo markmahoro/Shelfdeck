@@ -4,7 +4,6 @@ const { canonicalDigest } = require('../../../contracts/canonical-json');
 const { createPeopleStore } = require('../persistence/people-store');
 const { createCandidateDraft } = require('../model/people-store-contracts');
 
-const PERIOD_MS = 24 * 60 * 60 * 1000;
 const PEOPLE_CANDIDATE_DRAFT_SCHEMA = 'helix://contracts/types/PeopleCandidateDraft/v1';
 
 function digestValue(value) {
@@ -37,7 +36,6 @@ function createPeopleProcessServices(options) {
   const now = options.now || Date.now;
   const store = options.peopleStore || createPeopleStore(options);
   const evidenceProjection = options.onDeckPersonEvidenceProjection;
-  let sweepNotBeforeMs = 0;
 
   function alreadyKnown(evidence) {
     const identities = providerIdentitiesFrom(evidence);
@@ -104,11 +102,7 @@ function createPeopleProcessServices(options) {
 
   function listPage({ cursor, limit }) {
     if (!evidenceProjection || typeof evidenceProjection.listPage !== 'function') return [];
-    const gated = cursor === null && now() < sweepNotBeforeMs;
-    if (gated) return [];
-    const page = evidenceProjection.listPage({ cursor, limit });
-    if (page.length < limit) sweepNotBeforeMs = now() + PERIOD_MS;
-    return page;
+    return evidenceProjection.listPage({ cursor, limit });
   }
 
   function reconcile(scope) {
@@ -189,7 +183,6 @@ function createPeopleProcessServices(options) {
   }
 
   return Object.freeze({
-    PERIOD_MS,
     store,
     listPage,
     reconcile,

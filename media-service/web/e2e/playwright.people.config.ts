@@ -15,7 +15,7 @@ export default defineConfig({
     trace: 'retain-on-failure',
   },
   webServer: {
-    command: 'node e2e/people-e2e-server.cjs',
+    command: 'node people-e2e-server.cjs',
     url: `http://127.0.0.1:${port}/v1/health`,
     reuseExistingServer: false,
     timeout: 120_000,
