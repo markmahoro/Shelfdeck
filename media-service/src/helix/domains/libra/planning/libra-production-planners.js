@@ -614,11 +614,13 @@ function artifactProviderIntent(options, context) {
     resolvedProviderIdentity: providerIdentity,
     requestedFields: requiredMetadataFields(context.snapshot),
     providerKind: providerIdentity.provider,
-    integrationId: providerIdentity.provider + '-main',
-    configRevision: 1,
   };
-  const resolved = options.productProductionPort.resolveIntegrationHandle({
-    intent: buildMetadataFetchIntent(seed), operationId: ARTIFACT_ACQUIRE,
+  const resolved = options.productProductionPort.resolveCurrentIntegrationHandle({
+    // No metadata Provider Observation exists to carry a frozen revision.
+    // Resolve the current Platform handle before freezing the Artifact intent.
+    sourceKind:'provider',
+    providerKind:providerIdentity.provider,
+    operationId: ARTIFACT_ACQUIRE,
   });
   return buildMetadataFetchIntent({
     ...seed, integrationId: resolved.integrationId, configRevision: resolved.configRevision,

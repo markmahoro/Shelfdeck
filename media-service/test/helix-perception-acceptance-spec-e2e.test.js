@@ -29,6 +29,7 @@ async function productArtifactFetch({artifactKind,resolvedProviderIdentity,integ
   resolvedProviderIdentity});}
 function productionOptions(){return {routingIntegrationHandleResolver:()=>routingHandle(),
   productIntegrationHandleResolver:({intent,operationId,artifactKind})=>productHandle(intent,operationId,artifactKind||null),
+  currentProductIntegrationHandleResolver:({providerKind,operationId,artifactKind})=>productHandle({integrationId:providerKind+'-main',configRevision:1},operationId,artifactKind||null),
   productProviderMetadataFetch:productMetadataFetch,productProviderArtifactFetch:productArtifactFetch,
   routingProviderObservation:async({intent})=>Object.freeze([Object.freeze({providerKey:'990001',
     title:intent.candidateDisplayTitle,originalTitle:intent.candidateDisplayTitle,releaseYear:2024,

@@ -48,7 +48,7 @@ function options(results, onProvider = () => {}) {
       read(workId) { return [results[Number(workId.slice('source-work-'.length))]]; },
     },
     productProductionPort: {
-      resolveIntegrationHandle(request) {
+      resolveCurrentIntegrationHandle(request) {
         onProvider(request);
         return Object.freeze({ integrationId:'tmdb-main', configRevision:7 });
       },
@@ -86,26 +86,42 @@ test('Product Metadata signs one NFO source Work first and does not contact TMDB
 });
 
 test('Product Metadata creates a distinct provider Work only for fields still missing after durable NFO evidence', () => {
-  let providerCalls=0;
+  let providerCalls=0,providerRequest=null;
   const first=nextMetadataStage(options([]),snapshot(),identity());
   const firstWork=metadataObservationWork(snapshot(),first.source);
   const second=nextMetadataStage(options([
     result(0,'related_nfo',['title','year']),
-  ],()=>{providerCalls+=1;}),snapshot(),identity());
+  ],(request)=>{providerCalls+=1;providerRequest=request;}),snapshot(),identity());
   assert.equal(second.kind,'source');
   assert.equal(second.source.kind,'provider');
   assert.deepEqual(second.source.intent.requestedFields,['plot']);
   assert.equal(providerCalls,1);
+  assert.deepEqual(providerRequest, {
+    sourceKind:'provider', providerKind:'tmdb',
+    operationId:'libra.product_metadata.fetch@1',
+  });
+  assert.equal(second.source.intent.integrationId,'tmdb-main');
+  assert.equal(second.source.intent.configRevision,7);
   const secondWork=metadataObservationWork(snapshot(),second.source);
   assert.notEqual(secondWork.workId,firstWork.workId);
   assert.notEqual(secondWork.idempotencyKey,firstWork.idempotencyKey);
   assert.equal(second.source.intent.sourcePriority,1);
 });
 
+test('Product Metadata freezes the currently resolved Integration revision instead of assuming revision one', () => {
+  const source=nextMetadataStage(options([
+    result(0,'related_nfo',['title','year']),
+  ]),snapshot(),identity()).source;
+  assert.equal(source.kind,'provider');
+  assert.equal(source.intent.integrationId,'tmdb-main');
+  assert.equal(source.intent.configRevision,7);
+  assert.equal(source.intent.providerKind,'tmdb');
+});
+
 test('missing provider Integration leaves staged Product Metadata waiting without fabricating not-found evidence', () => {
   const blocked=nextMetadataStage({
     workResultReader:options([result(0,'related_nfo',['title'])]).workResultReader,
-    productProductionPort:{resolveIntegrationHandle(){const error=new Error('unavailable');
+    productProductionPort:{resolveCurrentIntegrationHandle(){const error=new Error('unavailable');
       error.code='CLEAN_PRODUCT_INTEGRATION_UNAVAILABLE';throw error;}},
   },snapshot(),identity());
   assert.equal(blocked.kind,'unavailable');

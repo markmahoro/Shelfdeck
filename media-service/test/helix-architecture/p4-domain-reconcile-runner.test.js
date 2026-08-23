@@ -58,3 +58,35 @@ test('205 active Process scopes sweep in three bounded pages and resume from the
     fs.rmSync(root,{recursive:true,force:true});
   }
 });
+
+test('one Owner scope failure is reported and retried without failing startup or skipping its cursor', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'helix-reconcile-failure-'));
+  const databasePath = path.join(root, 'shelfdeck.db');
+  const opened = open(databasePath);
+  const seen=[]; const errors=[]; let failFirst=true;
+  const registration=Object.freeze({ownerDomain:'libra',reconcilerKey:'ready-runs',
+    listPage:({cursor})=>cursor===null?[
+      Object.freeze({cursor:'run-1',scope:Object.freeze({processId:'run-1'})}),
+      Object.freeze({cursor:'run-2',scope:Object.freeze({processId:'run-2'})}),
+    ]:[Object.freeze({cursor:'run-2',scope:Object.freeze({processId:'run-2'})})],
+    reconcile(scope){seen.push(scope.processId);if(scope.processId==='run-1'&&failFirst){failFirst=false;
+      throw Object.assign(new Error('stale integration revision'),{code:'PLATFORM_INTEGRATION_REVISION_MISMATCH'});}},
+  });
+  const runner=createDomainReconcileRunner({cursorStore:opened.cursorStore,registrations:[registration],now:Date.now,
+    cadenceMs:60000,pageLimit:100,budgetMs:5000,onError:(error)=>errors.push(error.code)});
+  try {
+    const startup=await runner.start();
+    assert.equal(startup.kind,'completed');
+    assert.equal(startup.results[0].processed,1);
+    assert.equal(startup.results[0].cursor,null);
+    assert.equal(startup.results[0].errorCode,'PLATFORM_INTEGRATION_REVISION_MISMATCH');
+    assert.deepEqual(errors,['PLATFORM_INTEGRATION_REVISION_MISMATCH']);
+    const retry=await runner.runOnce();
+    assert.equal(retry.results[0].processed,2);
+    assert.equal(retry.results[0].cursor,null);
+    assert.deepEqual(seen,['run-1','run-2','run-1','run-2']);
+  } finally {
+    await runner.stop(); opened.kernel.close();
+    fs.rmSync(root,{recursive:true,force:true});
+  }
+});

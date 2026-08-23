@@ -104,6 +104,26 @@ function createCleanProductProductionPort(options = {}) {
     });
   }
 
+  function resolveCurrentIntegrationHandle(value) {
+    if (!value || value.sourceKind !== 'provider' ||
+        typeof value.providerKind !== 'string' || !value.providerKind ||
+        !['libra.product_metadata.fetch@1',
+          'libra.product_artifact.acquire@1'].includes(value.operationId)) {
+      fail('CLEAN_PRODUCT_CURRENT_INTEGRATION_HANDLE_INPUT',
+        'Current Integration Handle resolution requires one exact Provider operation.');
+    }
+    if (typeof options.resolveCurrentProductIntegrationHandle !== 'function') {
+      fail('CLEAN_PRODUCT_INTEGRATION_UNAVAILABLE',
+        'The requested current Product integration is not available.');
+    }
+    const resolved = options.resolveCurrentProductIntegrationHandle(value);
+    if (!resolved) {
+      fail('CLEAN_PRODUCT_INTEGRATION_UNAVAILABLE',
+        'The requested current Product integration is not active.');
+    }
+    return resolved;
+  }
+
   function exactPhysicalReality(value) {
     const location = normalizedLocation(value.location);
     const bounded = computeBoundedMaterialFingerprintSync(location);
@@ -638,6 +658,7 @@ function createCleanProductProductionPort(options = {}) {
     probe,
     readRelatedNfo,
     renderProductSidecar,
+    resolveCurrentIntegrationHandle,
     resolveIntegrationHandle,
     searchProviderIdentity,
   });

@@ -107,15 +107,17 @@ function providerSource(options, snapshot, identity, sourcePriority,
     resolvedProviderIdentity: providerIdentity,
     requestedFields,
     providerKind: providerIdentity.provider,
-    integrationId: providerIdentity.provider + '-main',
-    configRevision: 1,
   };
   let handle;
   try {
-    handle = options.productProductionPort.resolveIntegrationHandle({
-      intent: buildMetadataFetchIntent(seed),
-      operationId: 'libra.product_metadata.fetch@1',
-    });
+    // This is the creation boundary for a new immutable source Work. Ask
+    // Platform for the current handle first, then freeze its exact revision
+    // into the Fetch Intent.
+    handle = options.productProductionPort.resolveCurrentIntegrationHandle({
+        sourceKind: 'provider',
+        providerKind: providerIdentity.provider,
+        operationId: 'libra.product_metadata.fetch@1',
+      });
   } catch (error) {
     if (error?.code !== 'CLEAN_PRODUCT_INTEGRATION_UNAVAILABLE') throw error;
     return Object.freeze({ kind:'unavailable',

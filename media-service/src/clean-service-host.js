@@ -767,6 +767,16 @@ function createPlatformIntegrationServices(options) {
         artifactKind: value.artifactKind || null,
       });
     },
+    resolveCurrentProductHandle(value) {
+      if (!value || typeof value.operationId !== 'string') return undefined;
+      if (value.providerKind === 'tmdb') {
+        return handleFor('tmdb', value.operationId, value.artifactKind || null);
+      }
+      if (value.providerKind === 'jav' && javRuntime.isActive()) {
+        return javProductHandle(value.operationId, value.artifactKind || null);
+      }
+      return undefined;
+    },
     async executeProvider(kind, request) {
       const profile = getIntegrationProfile(kind);
       const runtime = runtimeFor(kind);
@@ -1239,6 +1249,8 @@ async function createCleanServiceHost(options) {
         platformIntegrations.searchProviderIdentity(request),
       resolveProductIntegrationHandle: (request) =>
         (options.productIntegrationHandleResolver || platformIntegrations.resolveProductHandle)(request),
+      resolveCurrentProductIntegrationHandle: options.currentProductIntegrationHandleResolver ||
+        ((request) => platformIntegrations.resolveCurrentProductHandle(request)),
     });
   const mediaEffectPort = options.mediaProductionEffectPort ||
     createCleanMediaProductionEffectPort({

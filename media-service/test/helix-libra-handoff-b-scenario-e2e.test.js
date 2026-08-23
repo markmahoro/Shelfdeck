@@ -125,6 +125,8 @@ function productOptions(metadataCalls = null, metadataGate = null) {
     })]),
     productIntegrationHandleResolver: ({ intent, operationId, artifactKind }) =>
       productHandle(intent, operationId, artifactKind || null),
+    currentProductIntegrationHandleResolver: ({ providerKind, operationId, artifactKind }) =>
+      productHandle({ integrationId:providerKind + '-main', configRevision:1 }, operationId, artifactKind || null),
     productProviderMetadataFetch: async ({ metadataFetchIntent:intent }) => {
       metadataCalls?.push(Object.freeze({
         libraRunId:intent.libraRunId,

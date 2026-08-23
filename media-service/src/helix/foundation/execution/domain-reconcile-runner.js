@@ -21,15 +21,28 @@ function createDomainReconcileRunner(options){
     if(!Array.isArray(page)||page.length>pageLimit||page.some((item)=>!item||typeof item.cursor!=='string'||!item.scope)){
       fail('P4_DOMAIN_RECONCILE_PAGE_INVALID','Owner returned an invalid bounded reconcile page.');
     }
-    let processed=0,nextCursor=head.cursor;
+    let processed=0,nextCursor=head.cursor,error=null,cursorFrozen=false;
     for(const item of page){
       if(processed>0&&options.now()-started>=budgetMs)break;
-      await registration.reconcile(item.scope);nextCursor=item.cursor;processed+=1;
+      try {
+        await registration.reconcile(item.scope);
+        if(!cursorFrozen)nextCursor=item.cursor;
+        processed+=1;
+      } catch (caught) {
+        // One Owner scope is not a process-wide startup invariant. Keep the
+        // durable cursor before the first failed scope so the bounded cadence
+        // can retry it, but continue the page so one bad scope cannot starve
+        // its independent siblings.
+        if(!error)error=caught;
+        cursorFrozen=true;
+        options.onError?.(caught);
+      }
     }
-    if(page.length<pageLimit&&processed===page.length)nextCursor=null;
+    if(!error&&page.length<pageLimit&&processed===page.length)nextCursor=null;
     const advanced=options.cursorStore.advance({ownerDomain:registration.ownerDomain,reconcilerKey:registration.reconcilerKey,
       expectedRevision:head.revision,cursor:nextCursor});
-    return Object.freeze({ownerDomain:registration.ownerDomain,reconcilerKey:registration.reconcilerKey,processed,cursor:advanced.cursor});
+    return Object.freeze({ownerDomain:registration.ownerDomain,reconcilerKey:registration.reconcilerKey,processed,cursor:advanced.cursor,
+      ...(error?{errorCode:typeof error.code==='string'?error.code:'DOMAIN_RECONCILE_FAILED'}:{})});
   }
   async function runOnce(){
     if(running)return running;
