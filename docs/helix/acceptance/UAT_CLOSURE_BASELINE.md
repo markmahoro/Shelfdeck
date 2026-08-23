@@ -151,7 +151,7 @@
 
 2026-08-23在70/70关闭之后，独立登记并修复`UAT-071`（多人自动登记Evidence碰撞）、`UAT-072`（已登记人物头像）与真实Canary进一步暴露的`UAT-073`（NFO人物强身份丢失及重复关系）。三项属于post-closure qualification，不追加进上方`UAT-001`–`UAT-070`表、不改变70/70历史结论，也不追溯修改`UAT-055`的已接受证据。
 
-同日后续使用保留Canary时，Product Owner另确认下一轮`UAT-074`–`UAT-084`，权威范围与验收标准见`docs/helix/USER_ACCEPTANCE_TEST_ISSUE_LOG.md`。这些条目已在当前提交版隔离Canary和失败库只读克隆中逐项关闭，作为post-closure qualification记录于本文末尾；它们不改写上方历史70/70，也不改变`UAT-071`–`UAT-073`的资格结论。之后登记的`UAT-085`–`UAT-087`仍为OPEN，不得计入本关闭基线的PASS数量。
+同日后续使用保留Canary时，Product Owner另确认下一轮`UAT-074`–`UAT-084`，权威范围与验收标准见`docs/helix/USER_ACCEPTANCE_TEST_ISSUE_LOG.md`。这些条目已在当前提交版隔离Canary和失败库只读克隆中逐项关闭，作为post-closure qualification记录于本文末尾；它们不改写上方历史70/70，也不改变`UAT-071`–`UAT-073`的资格结论。之后登记的`UAT-085`–`UAT-091`继续作为独立post-closure qualification：`UAT-089`–`UAT-091`已关闭，`UAT-085`–`UAT-088`已有FACT/FS/RESTART证据但仍缺真实认证页面证据，不得在取得UI或Owner明确接受现有证据前标为PASS。
 
 `UAT-20260823-people-registration-avatar-91e6bb141`仅为确定性本地TMDB stub自动化夹具，证明合同与回退，不作为真实UI UAT证据。权威post-closure真实资格运行是`F:\shelfdeck_test_zone\runs\UAT-20260823-people-real-avatar-fix-b8861a3dd`：从只读`test_film`复制《放·逐 (2006)》，使用真实TMDB走正式Formation→On-deck→People，23个唯一TMDB Person Identity形成23个active Person、0 open Candidate，安全重启后不增不减；桌面与390px真实页面显示23张卡、21个真实代理头像、2个无图首字回退，axe serious/critical为0。FACT与截图均保存在该运行目录；既有Canary、旧Candidate与历史UAT证据均未修改。
 
@@ -623,23 +623,44 @@
 - 关闭命题：当前Formation每行均可落到正式Owner事实、根因和恢复动作。
 - 关闭结论：`evidence/uat-084-formation-audit.json`对25/25行审计PASS：12身份确认、9历史Artifact Handle失败、1历史Secret Lease失败、1产品符合性失败、1 Arca验收失败、1完成；`in_progress=0`，无失败标完成、无未知类别。审计只读，未修改保留SQLite、Observation或源文件。
 
-## 10. Post-closure OPEN UAT-085–UAT-087（2026-08-23）
+## 10. Post-closure qualification UAT-085–UAT-091（2026-08-24）
 
-以下三项在历史70/70与`UAT-074`–`UAT-084`关闭之后由新的clean环境真实使用发现。它们只登记为新的OPEN资格项，不追溯改写既有PASS；完整合同、现场证据和修复边界以`docs/helix/USER_ACCEPTANCE_TEST_ISSUE_LOG.md`为准。
+以下七项在历史70/70与`UAT-074`–`UAT-084`关闭之后由新的clean环境真实使用发现，不追溯改写既有PASS。最终资格环境为
+`F:\shelfdeck_test_zone\runs\UAT-20260824-031004-228f39a37`，Canary从不可变`test_film`重新复制，按用户实际顺序先配置同根Field、
+再配置Shelf，并使用相同TMDB、Douban、MoviePilot配置。完整合同、现场证据和修复边界以
+`docs/helix/USER_ACCEPTANCE_TEST_ISSUE_LOG.md`为准。
 
-### UAT-085（`OPEN`）
+### UAT-085（`UI PENDING`）
 
-- 关闭命题：豆瓣多页Acquisition失败后能够从持久游标有节奏地续传，并在Settings与Formation显性区分“同步未完成”和完整数据中的无匹配。
-- 当前状态：`RECORDED / OPEN`，尚未实现或资格关闭。
+- FACT/RESTART：真实Provider在cursor 435持续拒绝；successor从revision 29/cursor 435继续而非从0重放，3次有界失败后终态收口，157秒内没有第三条Acquisition风暴；重启后不漂移。
+- 未关闭项：未取得认证后Settings与Formation真实渲染截图，不把API/FACT冒充UI，因此保持`FACT/RESTART PASSED / UI PENDING`。
 
-### UAT-086（`OPEN`）
+### UAT-086（`UI PENDING`）
 
-- 关闭命题：候选级媒体验证未通过但已进入后续策略时，Formation显示当前整理责任和真实执行状态，不误报整个Run失败；真正终局失败仍须显性可操作。
-- 当前证人：《锡尔弗顿之围》direct候选`video_codec_unmet`后正常转码并上架；《养蜂人》remux候选`max_size_exceeded`后正在转码，外层曾错误显示blocked。
-- 当前状态：`RECORDED / OPEN`，尚未实现或资格关闭。
+- FACT/RESTART：当前Transcode责任在存在旧候选失败Result时仍为in_progress，真正冻结的5项仍为attention_required；受控重启后当前责任继续推进。
+- 未关闭项：未取得认证后Formation列表与中心详情卡真实渲染截图，因此保持`FACT/RESTART PASSED / UI PENDING`。
 
-### UAT-087（`OPEN`）
+### UAT-087（`UI PENDING`）
 
-- 关闭命题：真实Transcode从FFmpeg到Foundation Progress、Formation Projection和中心详情形成持久、单调、可量化的执行进度；无可靠总量时明确显示indeterminate而不伪造百分比。
-- 当前证人：锡尔弗顿与养蜂人的Transcode Event均无Progress行；同一养蜂人Run的Remux已有55个Progress revision。
-- 当前状态：`RECORDED / OPEN`，尚未实现或资格关闭。
+- FACT/RESTART：受控重启后的真实Transcode进度revision 77→194、8.4%→42.1%，rate和ETA单调有效，Formation Projection同步推进，无重复Effect。
+- 未关闭项：未取得认证后的进度条与详情卡真实渲染截图，因此保持`FACT/RESTART PASSED / UI PENDING`。
+
+### UAT-088（`UI PENDING`）
+
+- FACT/FS/RESTART：同根Field/Shelf共同冻结`local-mount-b4257a…@1`；Candidate/Subject/Shelf Entry在完整运行及重启监控中保持23/23/17，duplicate Candidate Package和finished-goods recandidate均为0。
+- 未关闭项：未取得认证后配置页与Formation真实渲染截图，因此保持`FACT/FS/RESTART PASSED / UI PENDING`。
+
+### UAT-089（`PASS`）
+
+- 关闭结论：真实61成员Settlement的Stage为21.769秒、总耗时96.398秒；15分06秒全窗Health p95/p99为136.0/222.0ms，Admin为184.1/243.4ms，零timeout。受控重启后独立API窗口覆盖20个30秒Reconcile周期，Health p95/p99/max为5.047/78.794/97.994ms，Admin为122.323/130.305/134.264ms，1556样本零error、零timeout、零≥500ms；资源窗口无阻塞窗、无孤儿媒体进程。
+- 修复仍保留确定性临时槽、复制后验证、原子rename及Effect恢复；状态`PERFORMANCE/FS/RESTART PASSED / CLOSED`。
+
+### UAT-090（`PASS`）
+
+- 关闭结论：真实Acceptance Work 31、zero-attempt 0、首次Attempt延迟平均680.71ms；P8=0，无waiter churn。重启后10分钟Node CPU平均0.446%，DB仅增长20,480 bytes、WAL不变，defer签名全窗稳定。
+- 状态`FACT/PERFORMANCE/RESTART PASSED / CLOSED`。
+
+### UAT-091（`PASS`）
+
+- 关闭结论：受控重启发现已cancelled Remux Event遗留两条waiting Resource Defer；commit `0bc45ed98`将取消收口纳入同一事务，并以有审计、可回滚的确定性修复处理历史终态集合。未经手工改库，同一失败库恢复health ok / `normalSupplyAllowed=true`。
+- 两条Defer均为cancelled、Event retry为NULL；terminal/orphan waiting defer、duplicate Effect、committed Effect + executing Attempt均为0，SQLite integrity为ok。状态`FACT/RESTART PASSED / CLOSED`。

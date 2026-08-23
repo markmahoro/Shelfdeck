@@ -2,7 +2,32 @@
 
 Status: Helix-beta 范围已收窄为仅 Movie 全链路。Movie Procurement与Movie Libra封口保持有效；Movie Arca已完成Handoff B Acceptance、On-deck、Shelf Entry、Deck Fact、Beta Aftercare、Off-deck及Shelf Deregistration完整闭环。当前精确状态为`MOVIE COLLECTION LIFECYCLE READY THROUGH SHELF DEREGISTRATION`；Helix-beta 验收行见现行基线，尚未把任何 `HB-*` 标为验收 `PASS`。生产部署尚未开始。
 
-Last updated: 2026-08-23
+Last updated: 2026-08-24
+
+## 0. Current UAT qualification — UAT-085–UAT-091
+
+正式工作区为`E:\my_project\emby_third_party-helix` / `main`，当前代码HEAD为`0bc45ed98`。最终运行目录为
+`F:\shelfdeck_test_zone\runs\UAT-20260824-031004-228f39a37`，Canary为
+`F:\shelfdeck_test_zone\canary-uat085-090-final-v3-20260824-031004`；它从不可变`test_film`复制，455文件、
+143,829,090,011 bytes与基线一致。服务使用同一TMDB、Douban、MoviePilot配置，同根Field/Shelf按用户实际顺序配置，当前
+`127.0.0.1:18080` health ok、`normalSupplyAllowed=true`；管理凭据只保存在运行目录`private-runtime.json`，不得提交或转述。
+
+`UAT-085`–`UAT-090`的主要修复提交为`290883837`、`4ebcd44e4`、`0cc5932cd`、`01204fe65`、`a3d62ca55`，随后由
+`4d8bab651`、`72c9139ad`、`5e526e6e7`及`228f39a37`关闭真实负载下的Formation、Settlement、周期Reconcile Event Loop长尾。
+最终15分06秒窗口Health p95/p99为136.0/222.0ms，Admin为184.1/243.4ms，零timeout；61成员Settlement Stage 21.769秒、
+总耗时96.398秒。重启后10分钟资源窗口Health p95/p99/max为22.001/54.818/110.503ms，Node CPU平均0.446%；Candidate、
+Subject、Shelf Entry全窗稳定为23/23/17，P8、waiting defer、重复Effect与finished-goods recandidate均为0。真实恢复转码
+9.3%→43.0%，rate 3.42–3.57x，ETA单调下降，Formation Projection同步更新。独立10分钟API窗口覆盖20个30秒Reconcile周期，
+Health p95/p99/max为5.047/78.794/97.994ms，Admin为122.323/130.305/134.264ms，1556样本零error、零timeout、
+零≥500ms，没有周期黑窗。
+
+受控重启另暴露`UAT-091`：已cancelled Event遗留waiting Resource Defer会令Startup Recovery fail-closed。commit `0bc45ed98`
+把Event取消、retry fence清除和Defer取消纳入同一事务，并仅对可由终态Event证明的历史集合执行有审计、可回滚的确定性修复；孤儿与
+非终态漂移继续fail-closed。同一失败库未经手工修改SQLite即恢复ready，两条Defer已cancelled，完整Service测试320 pass / 18 skip /
+0 fail，Admin Web production build通过。
+
+当前post-closure资格结论：`UAT-089`–`UAT-091`为PASS/CLOSED；`UAT-085`–`UAT-088`的FACT/FS/RESTART已经通过，但本轮未取得
+认证后的真实Admin Web截图，按既定规则保持UI PENDING，不用API或自动化合同冒充UI证据。历史`UAT-001`–`UAT-070`的70/70不变。
 
 ## 0. Post-UAT qualification — People registration, identity conservation, and avatars
 
