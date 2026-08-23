@@ -11,7 +11,7 @@ if (!relative || relative.startsWith('..') || path.isAbsolute(relative)) {
   throw new Error('SHELFDECK_PEOPLE_E2E_ROOT must be inside the F: qualification runs root.');
 }
 const privateRuntime = JSON.parse(fs.readFileSync(path.join(runRoot, 'private-runtime.json'), 'utf8'));
-const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', 'base64');
+const png = fs.readFileSync(path.resolve(__dirname, '../public/icon-192.png'));
 
 function response(status, value, contentType = 'application/json') {
   const bytes = Buffer.isBuffer(value) ? value : Buffer.from(JSON.stringify(value), 'utf8');
@@ -38,6 +38,10 @@ async function main() {
     adminDistDir: path.resolve(__dirname, '../../dist/admin'),
     secretRoot: privateRuntime.secretRoot,
     integrationFetch,
+    onRequestError(error, request) {
+      if (['ADMIN_SESSION_INVALID', 'PEOPLE_AVATAR_NOT_AVAILABLE'].includes(error.code)) return;
+      process.stderr.write(`${request.method} ${request.path} ${request.correlationId} ${error.stack || error.message}\n`);
+    },
     libraWorkspaceRoot: path.join(runRoot, 'workspace'),
     integrationReservedRoots: [path.join(runRoot, 'field'), path.join(runRoot, 'shelf')],
   });

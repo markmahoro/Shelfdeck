@@ -20,10 +20,15 @@ test('registered People render as an accessible portrait contact sheet', async (
   const cards = page.getByRole('article', { name: /已登记/ });
   await expect(cards).toHaveCount(16);
   await expect(page.getByText('TMDB · 80000')).toBeVisible();
-  const firstImage = page.getByRole('img', { name: 'Qualification Person 01头像' });
-  await expect(firstImage).toBeVisible();
-  await expect.poll(() => firstImage.evaluate((image: HTMLImageElement) => image.naturalWidth)).toBeGreaterThan(0);
+  const portraits = page.getByRole('img', { name: /Qualification Person \d+头像/ });
+  await expect(portraits).toHaveCount(15);
+  for (let index = 0; index < await portraits.count(); index += 1) {
+    const portrait = portraits.nth(index);
+    await portrait.scrollIntoViewIfNeeded();
+    await expect.poll(() => portrait.evaluate((image: HTMLImageElement) => image.naturalWidth)).toBeGreaterThan(0);
+  }
   await expect(cards.filter({ hasText: 'Qualification Person 16' }).getByText('使用姓名首字头像')).toBeAttached();
+  await page.evaluate(() => window.scrollTo(0, 0));
   const results = await new AxeBuilder({ page }).analyze();
   expect(results.violations.filter((violation) => ['serious', 'critical'].includes(violation.impact || ''))).toEqual([]);
   if (testInfo.project.name === 'narrow') {

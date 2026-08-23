@@ -18,7 +18,7 @@ function createPeopleAdminQuery(options) {
     const cursor = String(query.cursor || '');
     const search = String(query.search || '').trim().toLocaleLowerCase();
     const status = ['active', 'merged'].includes(query.status) ? query.status : null;
-    const people = options.store.listPeople().sort((left, right) => compare(left.personId, right.personId));
+    const people = [...options.store.listPeople()].sort((left, right) => compare(left.personId, right.personId));
     const filtered = people.filter((person) => {
       if (status && person.status !== status) return false;
       if (cursor && compare(person.personId, cursor) <= 0) return false;
@@ -69,4 +69,3 @@ function createPeopleAdminQuery(options) {
 }
 
 module.exports = Object.freeze({ createPeopleAdminQuery });
-

@@ -8,7 +8,7 @@ export default defineConfig({
   testDir: '.',
   testMatch: 'people-avatar.spec.ts',
   timeout: 45_000,
-  outputDir: path.join(runRoot, 'playwright'),
+  outputDir: path.join(runRoot, 'playwright', process.env.SHELFDECK_PEOPLE_PLAYWRIGHT_RUN || 'current'),
   reporter: [['line']],
   use: {
     baseURL: `http://127.0.0.1:${port}`,

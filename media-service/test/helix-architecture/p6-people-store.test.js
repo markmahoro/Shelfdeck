@@ -12,6 +12,7 @@ const { canonicalDigest } = require('../../src/helix/contracts/canonical-json');
 const { openSqliteKernel } = require('../../src/helix/foundation/persistence/sqlite-kernel');
 const { createSqliteUnitOfWork } = require('../../src/helix/foundation/persistence/sqlite-unit-of-work');
 const { createPeopleStore } = require('../../src/helix/domains/people/persistence/people-store');
+const { createPeopleAdminQuery } = require('../../src/helix/domains/people/application/admin-query');
 
 const generatedRoot = path.resolve(__dirname, '../../src/helix/foundation/persistence/generated');
 const schemaDdl = fs.readFileSync(path.join(generatedRoot, 'clean-schema.sql'), 'utf8');
@@ -128,6 +129,17 @@ test('keeps stable provider identity active-unique and rolls back the complete c
     assert.equal(inspected.prepare('SELECT COUNT(*) count FROM people_persons').get().count, 1);
     assert.equal(inspected.prepare('SELECT COUNT(*) count FROM people_person_revisions').get().count, 1);
     inspected.close();
+  });
+});
+
+test('admin projection sorts a frozen multi-Person result without mutating the Owner store value', () => {
+  fixture(({ store }) => {
+    store.registerDirectPerson(directDecision('person-z'));
+    store.registerDirectPerson(directDecision('person-a'));
+    const query = createPeopleAdminQuery({ store });
+    const result = query.list({ limit: 50 });
+    assert.deepEqual(result.items.map((person) => person.personId), ['person-a', 'person-z']);
+    assert.equal(result.summary.activePersonCount, 2);
   });
 });
 
