@@ -96,7 +96,7 @@ function parseNfo(intent, xml, handle) {
     const error = new Error('Routing NFO exceeds its bounded transport.'); error.code = 'LIBRA_ROUTING_NFO_BOUND'; throw error;
   }
   if (!/<movie(?:\s|>)/i.test(xml) || !/<\/movie\s*>/i.test(xml) || /<!DOCTYPE/i.test(xml)) {
-    const error = new Error('Routing NFO is not valid XML.'); error.code = 'LIBRA_ROUTING_NFO_PROTOCOL'; throw error;
+    return result(intent, handle.location, 'not_found', 'source_nfo_damaged', [], 0);
   }
   const movieXml = movieLevelXml(xml);
   const facts = [], sourceObjectId = intent.relatedReferenceId, sourceRevision = handle.bindingRevision;

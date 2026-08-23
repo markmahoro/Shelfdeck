@@ -114,7 +114,8 @@ test('classifies bounded NFO Routing observations as observed, absent, or ambigu
   assert.deepEqual(observed.facts.map((fact)=>fact.factKind),['release_year','region','genre','resolved_provider_identity']);
   assert.equal(parseNfo(observationIntent('related_nfo',['release_year']),'<movie><title>Unknown</title></movie>',handle).result,'not_found');
   assert.equal(parseNfo(observationIntent('related_nfo',['release_year']),'<movie><year>1989</year><releasedate>2025-01-01</releasedate></movie>',handle).result,'ambiguous');
-  assert.throws(()=>parseNfo(observationIntent('related_nfo',['release_year']),'not xml',handle),(error)=>error.code==='LIBRA_ROUTING_NFO_PROTOCOL');
+  const damaged=parseNfo(observationIntent('related_nfo',['release_year']),'not xml',handle);
+  assert.equal(damaged.result,'not_found');assert.equal(damaged.reasonCode,'source_nfo_damaged');
 });
 
 test('accepts only a unique deterministic Provider match and keeps protocol failures technical',()=>{

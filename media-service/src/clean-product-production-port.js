@@ -58,6 +58,157 @@ function parseRelatedNfoPeopleHints(xml) {
   return Object.freeze(peopleHints);
 }
 
+function directNfoChildren(xml, expectedRoot) {
+  const value = String(xml || '').replace(/^\uFEFF/, '');
+  const open = new RegExp('<' + expectedRoot + '(?:\\s[^<>]*?)?>', 'i').exec(value);
+  const closeIndex = value.toLowerCase().lastIndexOf('</' + expectedRoot.toLowerCase() + '>');
+  if (!open || closeIndex < open.index + open[0].length) return Object.freeze([]);
+  const body = value.slice(open.index + open[0].length, closeIndex);
+  const tokenPattern = /<!--[\s\S]*?-->|<!\[CDATA\[[\s\S]*?\]\]>|<\?[^>]*\?>|<\/?[a-z][^>]*>/gi;
+  const children = [];
+  let depth = 0;
+  let active = null;
+  for (const token of body.matchAll(tokenPattern)) {
+    const markup = token[0];
+    if (/^<!--|^<!\[CDATA|^<\?/.test(markup)) continue;
+    const closing = /^<\//.test(markup);
+    const selfClosing = /\/\s*>$/.test(markup);
+    const name = markup.match(/^<\/?\s*([a-z][\w:.-]*)/i)?.[1]?.toLowerCase();
+    if (!name) continue;
+    if (closing) {
+      depth -= 1;
+      if (active && depth === 0 && name === active.name) {
+        const raw = body.slice(active.start, token.index).trim();
+        children.push(Object.freeze({ name, attributes:active.attributes, raw }));
+        active = null;
+      }
+      continue;
+    }
+    if (depth === 0) {
+      const attributes = markup.slice(1 + name.length, markup.length - 1).replace(/\/\s*$/, '').trim();
+      if (selfClosing) children.push(Object.freeze({ name, attributes, raw:'' }));
+      else active = { name, attributes, start:token.index + markup.length };
+    }
+    if (!selfClosing) depth += 1;
+  }
+  return Object.freeze(children);
+}
+
+function directNfoText(children, tag, predicate = () => true) {
+  const node = children.find((item) => item.name === tag && predicate(item));
+  if (!node || /<(?!\!\[CDATA\[)/.test(node.raw)) return undefined;
+  return node.raw.replace(/^<!\[CDATA\[([\s\S]*)\]\]>$/, '$1').trim() || undefined;
+}
+
+function parseRelatedNfoMovieIdentity(xml) {
+  const children = directNfoChildren(xml, 'movie');
+  const tmdbMovieId = directNfoText(children, 'tmdbid') || directNfoText(children, 'uniqueid', (item) =>
+    /\btype\s*=\s*["']tmdb["']/i.test(item.attributes));
+  return Object.freeze({
+    title:directNfoText(children, 'title') || null,
+    releaseYear:directNfoText(children, 'year') || null,
+    tmdbMovieId:tmdbMovieId || null,
+  });
+}
+
+function escapeXml(value) {
+  return String(value)
+    .replaceAll('&', '&amp;').replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;').replaceAll('"', '&quot;')
+    .replaceAll("'", '&apos;');
+}
+
+function usableNfoDocument(xml, expectedRoot) {
+  const value = String(xml || '').replace(/^\uFEFF/, '').trim();
+  if (!value || /<!DOCTYPE|<!ENTITY/i.test(value)) return false;
+  const withoutPreamble = value
+    .replace(/^<\?xml[\s\S]*?\?>\s*/i, '')
+    .replace(/^(?:<!--[\s\S]*?-->\s*)*/, '');
+  const root = withoutPreamble.match(/^<([a-z][\w:.-]*)(?:\s[^<>]*?)?>/i)?.[1]?.toLowerCase();
+  if (root !== expectedRoot) return false;
+  if (!new RegExp('</' + expectedRoot + '>\\s*$', 'i').test(withoutPreamble)) return false;
+  const stack = [];
+  const tokens = withoutPreamble.match(/<!--[\s\S]*?-->|<!\[CDATA\[[\s\S]*?\]\]>|<\?[^>]*\?>|<\/?[a-z][^>]*>/gi);
+  if (!tokens) return false;
+  for (const token of tokens) {
+    if (/^<!--|^<!\[CDATA|^<\?/.test(token)) continue;
+    const closing = /^<\//.test(token);
+    const selfClosing = /\/\s*>$/.test(token);
+    const name = token.match(/^<\/?\s*([a-z][\w:.-]*)/i)?.[1]?.toLowerCase();
+    if (!name) return false;
+    if (closing) {
+      if (stack.pop() !== name) return false;
+    } else if (!selfClosing) {
+      stack.push(name);
+    }
+  }
+  return stack.length === 0;
+}
+
+function updateNfoDocument(xml, rootName, entries) {
+  let output = String(xml).replace(/^\uFEFF/, '');
+  const managed = [
+    [rootName === 'tvshow' ? 'series_title' : 'title', 'title'],
+    [rootName === 'tvshow' ? 'tmdb_series_id' : 'tmdb_movie_id', 'tmdbid'],
+    ['jav_code', 'id'],
+    ['season_number', 'season'],
+    ['episode_number', 'episode'],
+    ['episode_title', 'episodetitle'],
+    ['episode_plot', 'episodeplot'],
+    ['year_or_release_date', 'year'],
+    ['release_date', 'releasedate'],
+    ['studio', 'studio'],
+    ['plot', 'plot'],
+    ['genre', 'genre'],
+    ['director', 'director'],
+  ];
+  for (const [key, tag] of managed) {
+    if (!entries.has(key)) continue;
+    const encoded = escapeXml(entries.get(key));
+    const existing = new RegExp('(<'+tag+'(?:\\s[^>]*)?>)[\\s\\S]*?(</'+tag+'>)', 'i');
+    if (existing.test(output)) output = output.replace(existing, '$1' + encoded + '$2');
+    else output = output.replace(new RegExp('(\\s*</'+rootName+'>\\s*)$', 'i'),
+      '\n  <' + tag + '>' + encoded + '</' + tag + '>$1');
+  }
+  const tmdbKey = rootName === 'tvshow' ? 'tmdb_series_id' : 'tmdb_movie_id';
+  if (entries.has(tmdbKey)) {
+    const encoded = escapeXml(entries.get(tmdbKey));
+    const uniqueId = /(<uniqueid\b[^>]*\btype=["']tmdb["'][^>]*>)[\s\S]*?(<\/uniqueid>)/i;
+    if (uniqueId.test(output)) output = output.replace(uniqueId, '$1' + encoded + '$2');
+    else output = output.replace(new RegExp('(\\s*</'+rootName+'>\\s*)$', 'i'),
+      '\n  <uniqueid type="tmdb">' + encoded + '</uniqueid>$1');
+  }
+  return output.endsWith('\n') ? output : output + '\n';
+}
+
+function createNfoDocument(rootName, entries) {
+  const tags = [
+    [rootName === 'tvshow' ? 'series_title' : 'title', 'title'],
+    [rootName === 'tvshow' ? 'tmdb_series_id' : 'tmdb_movie_id', 'tmdbid'],
+    ['jav_code', 'id'], ['season_number', 'season'], ['episode_number', 'episode'],
+    ['episode_title', 'episodetitle'], ['episode_plot', 'episodeplot'],
+    ['year_or_release_date', 'year'], ['release_date', 'releasedate'],
+    ['studio', 'studio'], ['plot', 'plot'], ['genre', 'genre'], ['director', 'director'],
+  ];
+  const lines = ['<' + rootName + '>'];
+  for (const [key, tag] of tags) if (entries.has(key)) {
+    lines.push('  <' + tag + '>' + escapeXml(entries.get(key)) + '</' + tag + '>');
+  }
+  const tmdbKey = rootName === 'tvshow' ? 'tmdb_series_id' : 'tmdb_movie_id';
+  if (entries.has(tmdbKey)) lines.push(
+    '  <uniqueid type="tmdb">' + escapeXml(entries.get(tmdbKey)) + '</uniqueid>',
+  );
+  lines.push('</' + rootName + '>');
+  return lines.join('\n') + '\n';
+}
+
+function nfoIdentityConsistent(observedEntries, desiredEntries, rootName) {
+  const key = rootName === 'tvshow' ? 'tmdb_series_id' : 'tmdb_movie_id';
+  const observed = observedEntries.get(key);
+  const desired = desiredEntries.get(key);
+  return !observed || !desired || observed === desired;
+}
+
 function createCleanProductProductionPort(options = {}) {
   if (!options.mediaProbe || typeof options.mediaProbe.probe !== 'function') {
     fail('CLEAN_PRODUCT_PROBE_REQUIRED', 'Product production requires the typed media probe port.');
@@ -239,6 +390,9 @@ function createCleanProductProductionPort(options = {}) {
     }
     const xml = bytes.toString('utf8');
     const entries = [];
+    const rootName = /<tvshow(?:\s|>)/i.test(xml) ? 'tvshow' : /<episodedetails(?:\s|>)/i.test(xml)
+      ? 'episodedetails' : 'movie';
+    const directChildren = directNfoChildren(xml, rootName);
     const fields = [
       ['title', 'title'],
       ['year_or_release_date', 'year'],
@@ -252,16 +406,16 @@ function createCleanProductProductionPort(options = {}) {
       ['actor', 'name'],
     ];
     for (const [key, tag] of fields) {
-      const match = xml.match(new RegExp('<' + tag + '(?:\\s[^>]*)?>([^<]+)</' + tag + '>', 'i'));
-      if (match && match[1].trim()) entries.push({ key, value: match[1].trim() });
+      const value = directNfoText(directChildren, tag);
+      if (value) entries.push({ key, value });
     }
-    const tagValue = (tag) => xml.match(
-      new RegExp('<' + tag + '(?:\\s[^>]*)?>([^<]+)</' + tag + '>', 'i'),
-    )?.[1]?.trim();
-    if (/<movie(?:\s|>)/i.test(xml) && tagValue('tmdbid')) {
-      entries.push({ key: 'tmdb_movie_id', value: tagValue('tmdbid') });
+    const tagValue = (tag) => directNfoText(directChildren, tag);
+    const tmdbUniqueId = rootName === 'movie' ? parseRelatedNfoMovieIdentity(xml).tmdbMovieId :
+      directNfoText(directChildren, 'uniqueid', (item) => /\btype\s*=\s*["']tmdb["']/i.test(item.attributes));
+    if (rootName === 'movie' && (tagValue('tmdbid') || tmdbUniqueId)) {
+      entries.push({ key: 'tmdb_movie_id', value: tagValue('tmdbid') || tmdbUniqueId });
     }
-    if (/<tvshow(?:\s|>)/i.test(xml)) {
+    if (rootName === 'tvshow') {
       if (tagValue('title')) {
         entries.push({ key: 'series_title', value: tagValue('title') });
       }
@@ -269,7 +423,7 @@ function createCleanProductProductionPort(options = {}) {
         entries.push({ key: 'tmdb_series_id', value: tagValue('tmdbid') });
       }
     }
-    if (/<episodedetails(?:\s|>)/i.test(xml) && tagValue('title')) {
+    if (rootName === 'episodedetails' && tagValue('title')) {
       entries.push({ key: 'episode_title', value: tagValue('title') });
     }
     entries.sort((left, right) => Buffer.compare(Buffer.from(left.key), Buffer.from(right.key)));
@@ -590,48 +744,55 @@ function createCleanProductProductionPort(options = {}) {
       draft.descriptiveFacts.entries.map((item) => [item.key, item.value]),
     );
     const series = request.contentProfile === 'series';
-    const tags = [
-      [series ? 'series_title' : 'title', 'title'],
-      [series ? 'tmdb_series_id' : 'tmdb_movie_id', 'tmdbid'],
-      ['jav_code', 'id'],
-      ['season_number', 'season'],
-      ['episode_number', 'episode'],
-      ['episode_title', 'episodetitle'],
-      ['episode_plot', 'episodeplot'],
-      ['year_or_release_date', 'year'],
-      ['release_date', 'releasedate'],
-      ['studio', 'studio'],
-      ['plot', 'plot'],
-      ['genre', 'genre'],
-      ['director', 'director'],
-    ];
-    const escape = (value) => String(value)
-      .replaceAll('&', '&amp;').replaceAll('<', '&lt;')
-      .replaceAll('>', '&gt;').replaceAll('"', '&quot;')
-      .replaceAll("'", '&apos;');
-    const lines = ['<' + (series ? 'tvshow' : 'movie') + '>'];
-    for (const [key, tag] of tags) {
-      if (values.has(key)) {
-        lines.push('  <' + tag + '>' + escape(values.get(key)) +
-          '</' + tag + '>');
+    const rootName = series ? 'tvshow' : 'movie';
+    let bytes;
+    let provenanceRef = {
+      objectType: 'product_metadata_draft_create',
+      objectId: draft.draftId,
+      revision: 1,
+      digest: draft.draftDigest,
+    };
+    if (request.relatedReference) {
+      const related = readRelatedNfo({
+        primaryMaterialKey: request.relatedReference.primaryMaterialKey,
+        reference: request.relatedReference,
+      });
+      const original = related.bytes.toString('utf8');
+      const observedEntries = new Map(related.entries.map((item) => [item.key, item.value]));
+      if (usableNfoDocument(original, rootName) && nfoIdentityConsistent(observedEntries, values, rootName)) {
+        bytes = Buffer.from(updateNfoDocument(original, rootName, values), 'utf8');
+        provenanceRef = {
+          objectType: 'related_nfo_update',
+          objectId: request.relatedReference.referenceId,
+          revision: 1,
+          digest: request.relatedReference.referenceDigest,
+        };
+      } else {
+        bytes = Buffer.from(createNfoDocument(rootName, values), 'utf8');
+        provenanceRef = {
+          objectType: 'product_metadata_draft_rebuild',
+          objectId: draft.draftId,
+          revision: 1,
+          digest: draft.draftDigest,
+        };
       }
+    } else {
+      bytes = Buffer.from(createNfoDocument(rootName, values), 'utf8');
     }
-    lines.push('</' + (series ? 'tvshow' : 'movie') + '>');
     const materialized = options.workspaceProductPort.materializeArtifact({
       libraRunId: request.libraRunId,
       workspaceId: request.workspaceId,
       relativePath: request.relativePath,
       artifactKind: 'nfo',
       mediaType: 'application/xml',
-      bytes: Buffer.from(lines.join('\n') + '\n', 'utf8'),
-      provenanceRef: {
-        objectType: 'product_metadata_draft',
-        objectId: draft.draftId,
-        revision: 1,
-        digest: draft.draftDigest,
-      },
+      bytes,
+      provenanceRef,
       runtimeEffectAuthority: request.runtimeEffectAuthority,
     });
+    if (materialized.artifactHandle.provenanceRef.objectType !== provenanceRef.objectType) {
+      fail('CLEAN_PRODUCT_SIDECAR_DISPOSITION_MISMATCH',
+        'Product Sidecar disposition is not reflected by its Artifact provenance.');
+    }
     return materialized.artifactHandle;
   }
 
@@ -688,5 +849,6 @@ function createCleanProductProductionPort(options = {}) {
 module.exports = Object.freeze({
   CleanProductProductionPortError,
   createCleanProductProductionPort,
+  parseRelatedNfoMovieIdentity,
   parseRelatedNfoPeopleHints,
 });
