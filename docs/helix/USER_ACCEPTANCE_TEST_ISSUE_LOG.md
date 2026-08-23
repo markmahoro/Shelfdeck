@@ -120,7 +120,7 @@ Helix主体开发已经完成，Movie从Procurement、Libra到Arca及Shelf Dereg
 | UAT-061 | 豆瓣 Acquisition 翻页传输失败后不重试、不收口，设置页永久「正在同步」 | `EXTERNAL_INTEGRATION` | `RECOVERY_CORRECTNESS` | Perception Acquisition + Settings 同步态 | 活性、可理解性 | High | 已实现；待新 Canary 确认 |
 | UAT-062 | frozen Run Discard 后 Control 已释放，Formation 仍空转「正在评估整理方案」，未走重新入库 | `BUSINESS_CONTRACT` | `DOMAIN_ORCHESTRATION` | Libra Run Discard 收口 + Procurement 重新入库 + Formation | 正确性、活性、可理解性 | Critical | 已修复并通过当前 Canary 确认 |
 | UAT-063 | Aftercare 问豆瓣分与 Libra 不是同一套 Resolution/Identity Evidence，上架后评分变化不触发保养 | `BUSINESS_CONTRACT` | `PROJECTION_FRESHNESS` | Arca Aftercare 拉 Perception + 与 Libra 共用 Identity Evidence | 正确性、时效性 | High | 已修复并通过当前 Canary 确认 |
-| UAT-064 | Formation 整理步骤展示与真实执行状态偏离：转码标 CPU、验证过早标完成 | `USER_EXPERIENCE` | `PROJECTION_FRESHNESS` | Formation 公开 Projection `organizingSteps` / `transcodeLabel` | 可理解性、可观察性 | High | 已登记；待实现授权 |
+| UAT-064 | Formation 整理步骤展示与真实执行状态偏离：转码标 CPU、验证过早标完成 | `USER_EXPERIENCE` | `PROJECTION_FRESHNESS` | Formation 公开 Projection `organizingSteps` / `transcodeLabel` | 可理解性、可观察性 | High | 已修复；真实 Canary FACT/重启通过，待 UI 资格确认 |
 | UAT-065 | 收藏详情把父目录名中的`.1`误显示为主视频容器 | `USER_EXPERIENCE` | `PROJECTION_FRESHNESS` | Arca Collection Query + Admin Web | 正确性、可理解性 | High | 已修复并通过当前 Canary 定向确认 |
 | UAT-066 | Formation 已完成整理表丢失目标收藏架名称，全部显示`—` | `USER_EXPERIENCE` | `PROJECTION_FRESHNESS` | Formation Admin Web + Arca Shelf只读展示接线 | 正确性、可理解性 | High | 已修复并通过当前 Canary 定向确认 |
 | UAT-067 | 活动 Run 加急后回放既有 Supporting Work 触发 Admission 幂等冲突，Run 不再推进 | `DOMAIN_ORCHESTRATION` | `EXECUTION_SCHEDULING` | Libra Run Coordinator + Foundation Work Admission replay | 活性、优先级正确性 | Critical | 已修复并通过同一 Canary 恢复确认 |
@@ -2650,7 +2650,7 @@ Resolution/Query Result作为不可变Basis审计输入，但Spec语义判定只
 
 验收证据：GPU NVENC 执行中页面为 GPU 转码；排队时不得写 CPU。源不合格走转码时，「验证整理结果」不得在转码完成前为 done。负例：不得把 `waiting_for_resource` 画成验证卡住。
 
-当前处理决定：2026-08-22 用户确认只登记、不深挖，回到 UAT 关闭主线。不授权实现，不改 SSOT，不重建 Canary，不触碰 NAS/生产。
+实现与资格证据（2026-08-23）：commit `daaef8c3d` 让 Formation 步骤从冻结 Plan/Work/Event FACT 推导执行设备与输出验证状态。隔离运行 `F:\shelfdeck_test_zone\runs\UAT-20260823-135500-daaef8c3d` 的执行中证人曾显示 `GPU转码 · HEVC · 不超过 14 GiB = running`、`验证整理结果 = pending`；同一时点 Direct 源校验已 succeeded、转码 executing、输出校验 pending。安全重启到 commit `71e8e5b63` 后该证人自然完成，Formation Projection 显示 GPU 转码、验证与上架均 done；FACT 中 Direct 校验、NVENC 转码、输出校验及 Product Conformance 均 succeeded，EncodeIntent 与设备快照均为 `nvidia_nvenc`。最终 FACT 位于 `uat-064-final-facts.json`。因 Codex Browser 本机 URL 策略禁止取得渲染页面，当前按关闭基线记为 `BLOCKED ON UI EVIDENCE / CODE_DONE_UNQUALIFIED`，不以 API/FACT 代替 UI 冒记 PASS；不触碰 NAS/生产。
 
 ## 62. UAT-065：收藏详情把父目录名中的`.1`误显示为主视频容器
 

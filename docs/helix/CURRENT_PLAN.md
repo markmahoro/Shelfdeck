@@ -34,9 +34,10 @@ Canary分别为其下`test_film`、`canary`，不得在C盘创建新的测试过
 frozen Discard后页面进入等待重新入库、cleanup fully ack，重扫形成全新Procurement/Subject链而未复活旧Subject。
 
 UAT关闭总账现为68/70。`UAT-070` 已由 commit `efaf2d827` 完成精确根因修复：新 Work 创建时读取并冻结当前
-Integration Handle，单个 reconcile scope 失败不再击穿整个 startup。真实失败库克隆已通过 RESTART/FACT，因页面工具策略
-尚缺 UI 见证而保持 `CODE_DONE_UNQUALIFIED / NOT RUN`。现按用户顺序返回 `UAT-064` 补最终 UI/FACT。全过程不触碰
-NAS/生产、不 push 远端。
+Integration Handle，单个 reconcile scope 失败不再击穿整个 startup；真实失败库克隆已通过 RESTART/FACT。`UAT-064`
+commit `daaef8c3d` 的同一真实证人在安全重启后自然完成，执行中与完成态 API/FACT 都满足关闭命题。两项均只因页面工具策略
+无法取得基线要求的渲染 UI 而记为 `BLOCKED / CODE_DONE_UNQUALIFIED`，不得用 API/FACT 冒记 PASS。全过程未触碰 NAS/生产、
+未 push 远端。
 
 2026-08-22 成功标准修正：`养蜂人 (2024)` 内现成 MKV 与嵌套 BDMV 按两部独立电影验收，两部都必须能上架；Arca Duplicate/Off-deck 才负责去重。形成口径 23 Subject / 23 Entry，不再使用“顶层 22 单元 = 22 Subject”或“养蜂人只能一部 Movie”。
 

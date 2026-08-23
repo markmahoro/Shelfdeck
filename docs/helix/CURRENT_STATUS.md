@@ -18,7 +18,7 @@ Last updated: 2026-08-23
 `released`；`libra.workspace-cleanup.requested@1`已由Business Owner `libra`写入Inbox并达到Delivery `acked` / Outbox
 `fully_acked`。文件来源页面重新扫描后形成新Procurement Run、accepted Candidate Delivery、新Subject与新frozen Libra Run；
 旧Subject未直接复活。现场同时暴露并修复两项同边界恢复缺陷：启动时先消费durable Outbox再恢复依赖消息的Owner Work；Field重观察
-时按current Control projection digest刷新Eligibility。`UAT-070` 已由 commit `efaf2d827` 修复：失败库克隆在 TMDB revision 3 下安全进入 ready，新 Metadata Work 冻结并使用 revision 3，revision mismatch 为0；已有 RESTART/FACT，待 UI。现返回 `UAT-064` 最终见证。当前总账为68/70：`UAT-064`、`UAT-070`保持`NOT RUN`。
+时按current Control projection digest刷新Eligibility。`UAT-070` 已由 commit `efaf2d827` 修复并通过失败库克隆 RESTART/FACT；`UAT-064` 同一真实证人在安全重启后自然完成，执行中与完成态 API/FACT 都满足命题。两项均因页面工具策略无法取得渲染 UI 而记为 `BLOCKED / CODE_DONE_UNQUALIFIED`。当前总账仍为68/70。
 
 ## 0. Clean Canary scorecard — UAT-20260822-141950-0c27c8cf6
 
@@ -56,7 +56,7 @@ Last updated: 2026-08-23
 - `UAT-061` 已实现：豆瓣 Acquisition 翻页传输失败后不重试、不收口。待新 Canary，不得用 copy-forward 单独关闭；
 - `UAT-062` 已关闭：页面等待重新入库、Discard时Control release、cleanup fully ack与重扫形成全新Procurement/Subject链均由当前Canary确认；
 - `UAT-063` 已实现：Aftercare 问豆瓣分与 Libra 共用 Identity Evidence。待新 Canary；
-- `UAT-064` 已实现：Formation 步骤从冻结 Plan/Work/Event FACT 推导真实 CPU/GPU 与成品验证状态；commit `daaef8c3d`，待 `UAT-070` 后补最终 UI 见证。
+- `UAT-064` 已实现：Formation 步骤从冻结 Plan/Work/Event FACT 推导真实 CPU/GPU 与成品验证状态；commit `daaef8c3d`。真实证人执行中为 GPU running / output verify pending，安全重启后 GPU、输出验证与上架均完成；API/FACT 通过，待 UI 资格确认。
 - `UAT-068` 已实现：Collection 年份投影保留 Provider 标准年份字段。待本轮独立关闭；
 - `UAT-069` 已实现：Aftercare Capability、Coordinator、Planner 共享当前评分 Resolution 的 Care Basis Reader。待本轮安全重启后资格确认。
 - `UAT-070` 已实现：新 Metadata Work 创建时读取并冻结当前 Integration Handle；单个 reconcile scope 失败不再阻断 startup 或跳过失败 cursor。commit `efaf2d827`，真实失败库克隆 RESTART/FACT 已通过，待 UI 资格确认。

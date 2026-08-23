@@ -120,13 +120,13 @@
 | UAT-061 | 豆瓣翻页传输失败有界重试；耗尽后 Acquisition 收口为失败，设置页可再同步。不得用 copy-forward 单独关闭 | `UI` | W4 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260822-141950-0c27c8cf6 UI 本轮点同步出现正在同步，约90s后按钮恢复可点且无失败卡死（非 copy-forward 单独关闭） |
 | UAT-062 | frozen Discard 后 Control 保持释放、不立刻新开 Libra Run、页面不是「正在评估整理方案」，材料走重新入库 | `UI` | W5 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260823-040740-0886b2723 UI倩女幽魂2从冻结变为待整理/等待重新入库；FACT cleanup fully ack，重扫形成新Procurement Run与新Subject，旧Subject未复活 |
 | UAT-063 | Aftercare 用与 Libra 同一套 `perception.rating.resolve@1` Identity Evidence；上架后评分从无到有/变档会再评估 | `UI` | W4 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260823-024825-f6b9eded6 UI威尼斯4星直评及清除回3星豆瓣均自动形成健康Assessment；FACT Subject/Shelf Entry命中同一Douban Record |
-| UAT-064 | Formation 步骤 CPU/GPU 与验证完成态必须与真实执行一致，不得默认 CPU、不得把 Direct 源校验画成成品验证完成 | `UI` `FACT` | W3 | `CODE_DONE_UNQUALIFIED` | `NOT RUN`；commit `daaef8c3d`，执行 FACT 已取得，待 UAT-070 后补 UI 见证 |
+| UAT-064 | Formation 步骤 CPU/GPU 与验证完成态必须与真实执行一致，不得默认 CPU、不得把 Direct 源校验画成成品验证完成 | `UI` `FACT` | W3 | `CODE_DONE_UNQUALIFIED` | `BLOCKED`；commit `daaef8c3d`，执行中与完成态 API/FACT 均通过，页面工具策略阻止最终 UI 见证 |
 | UAT-065 | 收藏详情只从主视频basename解析容器，不得把父目录名中的`.1`显示为容器 | `UI` | W1 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260822-141950-0c27c8cf6 UI 8.3 GB BDMV养蜂人主视频修复后显示8.3 GB · MKV，不再显示· 1 |
 | UAT-066 | Formation 已完成整理表按目标Shelf ID显示当前收藏架名称，不得整列显示`—` | `UI` | W1 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260822-141950-0c27c8cf6 UI 已完成整理17/17条均显示Movie Canary，当前媒体6条显示未回退 |
 | UAT-067 | 活动 Run 加急后既有 Work 必须按冻结 Admission Definition 回放，动态 Priority 不得制造幂等冲突 | `UI` `FACT` | W3 | `CLOSED` | `PASS` UAT-20260823-002500-519f8d7b5 UI同一已加急老笠Run恢复并完成上架；FACT形成Product Package/Offer且无替换Run或数据库编辑 |
 | UAT-068 | Collection 年份投影须保留 Provider 标准年份字段，Aftercare Shelf Entry 不得因此丢失 title-year Identity Evidence | `UI` `FACT` | W4 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260823-024825-f6b9eded6 UI威尼斯详情显示2023与3星豆瓣；FACT Inventory标准年份保留且Shelf Entry/Subject命中同一Douban Record |
 | UAT-069 | Aftercare Coordinator、Planner 与 Capability 必须共享包含当前 Perception Resolution 的 Care Basis；评分变化后不得写回旧 Basis | `UI` `FACT` | W4 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260823-024825-f6b9eded6 UI威尼斯3星豆瓣且三维健康；FACT修复后恢复、4星直评、清除回豆瓣三代Assessment均使用各自新Basis |
-| UAT-070 | 集成配置 revision 更新后，新 Work 必须冻结当前 Handle；单个 reconcile scope 失败不得阻断启动或跳过失败 cursor | `UI` `FACT` `RESTART` | W7 | `CODE_DONE_UNQUALIFIED` | `NOT RUN`；commit `efaf2d827`，失败库克隆 RESTART/FACT 已通过，待 UI 见证 |
+| UAT-070 | 集成配置 revision 更新后，新 Work 必须冻结当前 Handle；单个 reconcile scope 失败不得阻断启动或跳过失败 cursor | `UI` `FACT` `RESTART` | W7 | `CODE_DONE_UNQUALIFIED` | `BLOCKED`；commit `efaf2d827`，失败库克隆 RESTART/FACT 已通过，页面工具策略阻止最终 UI 见证 |
 
 ## 5. 计数
 
@@ -143,9 +143,9 @@
 | 是否都通过 | **否**（68/70，尚余 2） |
 
 累计 `PASS`：001–063、065–069。证据均包含干净隔离库 Admin Web `UI`；要求文件现实的行另有`FS`。
-当前 `UAT-070` 已完成代码、回归及真实失败库克隆 RESTART/FACT，因本机页面工具策略尚缺 UI 见证而保持 `NOT RUN`；现按用户顺序返回 `UAT-064` 补 UI/FACT。
+当前 `UAT-064` 与 `UAT-070` 均已完成代码及真实隔离现场的 FACT/RESTART 资格；两项仅因本机页面工具策略无法取得基线强制要求的渲染 UI 而记为 `BLOCKED`，不得冒记 `PASS`。
 
-最新关闭证据：`UAT-20260823-040740-0886b2723`以真实MoviePilot不合格候选关闭`UAT-017`，并以同一五星冻结证人的Discard、cleanup fully ack及重新扫描形成全新Procurement/Subject链关闭`UAT-062`。`UAT-070` 的失败库克隆 `UAT-20260823-uat070-recovery-v2` 已通过 RESTART/FACT，但尚缺 UI；`UAT-064` 现恢复最终见证，因此总账仍为68/70。
+最新关闭证据：`UAT-20260823-040740-0886b2723`以真实MoviePilot不合格候选关闭`UAT-017`，并以同一五星冻结证人的Discard、cleanup fully ack及重新扫描形成全新Procurement/Subject链关闭`UAT-062`。`UAT-070` 的失败库克隆 `UAT-20260823-uat070-recovery-v2` 已通过 RESTART/FACT；`UAT-064` 的 `UAT-20260823-135500-daaef8c3d` 已通过执行中与完成态 API/FACT。两项均缺渲染 UI，因此总账仍为68/70、剩余两项均 `BLOCKED`。
 
 `UAT-005` 剩余动作合同并入 `UAT-051` 后仍保留本行，用四桶状态在新 Canary 上资格确认，不把 005 标 `VOID`。
 
