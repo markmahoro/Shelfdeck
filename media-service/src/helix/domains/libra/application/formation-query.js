@@ -34,20 +34,26 @@ function latestEvent(works, predicate) {
     .sort((a, b) => (b.result?.committedAtMs || 0) - (a.result?.committedAtMs || 0))[0] || null;
 }
 function transcodeDeviceClass(event) {
+  const planned = String(event?.executionDeviceClass || '');
+  if (['nvidia_nvenc', 'intel_qsv', 'amd_vaapi'].includes(planned)) return 'gpu';
+  if (planned === 'software_cpu') return 'cpu';
+  if (planned === 'remote_worker') return 'remote';
   const result = event?.result?.result || event?.result || {};
   const ref = result.executionDeviceRef || result.deviceSnapshot || {};
   const deviceClass = String(ref.deviceClass || '');
   const deviceId = String(ref.deviceId || '');
   if (['nvidia_nvenc', 'intel_qsv', 'amd_vaapi'].includes(deviceClass)) return 'gpu';
   if (deviceClass === 'software_cpu') return 'cpu';
-  return /nvenc|cuda|qsv|vaapi|gpu/i.test(deviceId + ' ' + deviceClass) ? 'gpu' : 'cpu';
+  if (deviceClass === 'remote_worker') return 'remote';
+  return /nvenc|cuda|qsv|vaapi|gpu/i.test(deviceId + ' ' + deviceClass) ? 'gpu' : null;
 }
 function transcodeLabel(works, spec) {
   const event = latestEvent(works, (item) => item.capabilityRef === 'libra.media.transcode@1');
-  const gpu = transcodeDeviceClass(event) === 'gpu';
+  const deviceClass = transcodeDeviceClass(event);
   const media = parse(spec?.spec_json)?.requirements?.mandatoryMedia || {};
   const space = parse(spec?.spec_json)?.requirements?.space || {};
-  const parts = [gpu ? 'GPU转码' : 'CPU转码'];
+  const parts = [deviceClass === 'gpu' ? 'GPU转码' : deviceClass === 'cpu' ? 'CPU转码' :
+    deviceClass === 'remote' ? '远程转码' : '转码'];
   if (media.videoCodec && media.videoCodec !== 'any') parts.push(String(media.videoCodec).toUpperCase());
   if (media.minimumRasterClass && media.minimumRasterClass !== 'none') parts.push(media.minimumRasterClass);
   if (space.maxSizeGiB !== null && space.maxSizeGiB !== undefined) parts.push('不超过 ' + space.maxSizeGiB + ' GiB');
@@ -63,17 +69,21 @@ function organizingSteps(works, spec, options) {
     });
   };
   const refs = (prefix) => (event) => event.capabilityRef === prefix || event.capabilityRef.startsWith(prefix);
+  const remux = step('remux', '封装整理', (event) => event.capabilityRef === 'libra.media.remux@1');
+  const transcode = (() => {
+    const event = latestEvent(works, (item) => item.capabilityRef === 'libra.media.transcode@1');
+    return event ? Object.freeze({ key: 'transcode', label: transcodeLabel(works, spec), state: eventState(event), progress: event.progress || null }) : null;
+  })();
+  const conformance = step('verify', '验证整理结果',
+    (event) => event.capabilityRef === 'libra.product.conformance.verify@1');
   const planned = [
     step('identity', '确认影片身份', refs('libra.product_identity.')),
     step('metadata', '补齐资料', (event) => event.capabilityRef === 'libra.product_metadata.fetch@1' || event.capabilityRef === 'libra.product_metadata.commit@1'),
     step('artwork', '补海报和 NFO', (event) => event.capabilityRef === 'libra.product_artifact.acquire@1' || event.capabilityRef === 'libra.product_sidecar.render@1'),
     step('acquire', '外部寻源', (event) => event.capabilityRef.startsWith('libra.external_material.')),
-    step('remux', '封装整理', (event) => event.capabilityRef === 'libra.media.remux@1'),
-    (() => {
-      const event = latestEvent(works, (item) => item.capabilityRef === 'libra.media.transcode@1');
-      return event ? Object.freeze({ key: 'transcode', label: transcodeLabel(works, spec), state: eventState(event), progress: event.progress || null }) : null;
-    })(),
-    step('verify', '验证整理结果', (event) => event.capabilityRef === 'libra.product.conformance.verify@1' || event.capabilityRef === 'libra.product_media.verify@1'),
+    remux,
+    transcode,
+    conformance || (remux || transcode ? Object.freeze({ key:'verify', label:'验证整理结果', state:'pending', progress:null }) : null),
     step('shelf', '上架到收藏架', (event) => event.capabilityRef === 'libra.product_package.publish@1' || event.capabilityRef.startsWith('arca.')),
   ].filter(Boolean);
   if (!planned.length) {
