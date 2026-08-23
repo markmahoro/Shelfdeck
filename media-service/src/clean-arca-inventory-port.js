@@ -12,7 +12,10 @@ const {
 const {
   fromProductMember,
 } = require('./helix/domains/arca/model/material-episode-claims');
-const { computeBoundedMaterialFingerprintSync } = require('./helix/integrations/bounded-material-fingerprint');
+const {
+  computeBoundedMaterialFingerprint,
+  computeBoundedMaterialFingerprintSync,
+} = require('./helix/integrations/bounded-material-fingerprint');
 const {
   DEFAULT_SHELF_PLACEMENT_POLICY,
 } = require('./helix/domains/arca/model/shelf-placement-policy-contracts');
@@ -337,6 +340,8 @@ function createCleanArcaInventoryPort(options) {
   const workspaceRoot = path.resolve(options.workspaceRoot);
   const statfsSync = options.statfsSync || fs.statfsSync;
   const copyFile = options.copyFile || cooperativeCopyFile;
+  const computeFingerprint = options.computeFingerprint ||
+    computeBoundedMaterialFingerprint;
 
   function execute(participantId, body) {
     return options.unitOfWork.execute([{
@@ -381,6 +386,36 @@ function createCleanArcaInventoryPort(options) {
         });
     }
     const bounded = computeBoundedMaterialFingerprintSync(source);
+    const stat = bounded.stat;
+    if (Number(stat.size) !== member.sizeBytes ||
+        Number(stat.size) !== member.physicalIdentity.sizeBytes ||
+        bounded.fingerprintAlgorithm !== member.physicalIdentity.fingerprintAlgorithm ||
+        bounded.fingerprintVersion !== member.physicalIdentity.fingerprintVersion ||
+        bounded.contentFingerprint !== member.physicalIdentity.contentFingerprint) {
+      fail('CLEAN_ARCA_PRODUCT_SOURCE_DRIFT',
+        'Product Material bytes drifted from the immutable Package.', {
+          materialKey: member.materialKey,
+        });
+    }
+    return Object.freeze({ sizeBytes:Number(stat.size), contentFingerprint:bounded.contentFingerprint,
+      digestHex:canonicalDigest({ schema:'physical-material-bounded-fingerprint-evidence@1', sizeBytes:Number(stat.size),
+        fingerprintAlgorithm:bounded.fingerprintAlgorithm, fingerprintVersion:bounded.fingerprintVersion,
+        contentFingerprint:bounded.contentFingerprint }) });
+  }
+
+  async function observeAsync(source, member) {
+    let bounded;
+    try {
+      bounded = await computeFingerprint(source);
+    } catch (error) {
+      if (error?.details?.causeCode === 'ENOENT') {
+        fail('CLEAN_ARCA_PRODUCT_SOURCE_MISSING',
+          'Product Material source is unavailable.', {
+            materialKey: member.materialKey,
+          });
+      }
+      throw error;
+    }
     const stat = bounded.stat;
     if (Number(stat.size) !== member.sizeBytes ||
         Number(stat.size) !== member.physicalIdentity.sizeBytes ||
@@ -485,6 +520,78 @@ function createCleanArcaInventoryPort(options) {
         ...observed,
       });
     }).sort((left, right) =>
+      Buffer.compare(Buffer.from(left.member.materialKey),
+        Buffer.from(right.member.materialKey)));
+    if (new Set(plans.map((item) => item.target)).size !== plans.length) {
+      fail('CLEAN_ARCA_TARGET_COLLISION',
+        'Final Inventory Decision maps multiple members to one target.');
+    }
+    return Object.freeze({
+      targetRoot,
+      targetDirectory,
+      plans: Object.freeze(plans),
+    });
+  }
+
+  async function buildPlanAsync(request) {
+    const { targetRoot, targetDirectory, identity, placement } = resolveTargetLocation(request);
+    const packageValue = request.onDeckProductPackage;
+    const primary = packageValue.productMaterialManifest.members
+      .find((member) => member.role === 'primary_payload');
+    if (!primary) {
+      fail('CLEAN_ARCA_PRIMARY_MISSING',
+        'Product Material Manifest has no primary payload.');
+    }
+    const contentProfile =
+      packageValue.productStructureSnapshot?.structureKind === 'season'
+        ? 'series'
+        : 'movie';
+    const draftPlans = packageValue.productMaterialManifest.members.map((member) => {
+      const source = sourcePath(member);
+      const name = finalMemberName(member, source, identity, placement);
+      return Object.freeze({ member, source, name });
+    });
+    const uniquified = draftPlans.map((item) => {
+      const colliding = draftPlans.filter((other) => other.name === item.name).length > 1;
+      if (!colliding || item.member.role !== 'subtitle') return item;
+      return Object.freeze({ ...item, name: safeSegment(path.basename(item.source)) });
+    });
+    const duplicateNames = new Set(uniquified.map((item) => item.name)
+      .filter((name, index, values) => values.indexOf(name) !== index));
+    if (duplicateNames.size > 0 && placement.collisionPolicy === 'reject') {
+      fail('CLEAN_ARCA_TARGET_COLLISION',
+        'Final Inventory Decision maps multiple members to one target.', {
+          names:[...duplicateNames].sort(),
+        });
+    }
+    const plans = [];
+    for (const { member, source, name:proposedName } of uniquified) {
+      const name = duplicateNames.has(proposedName)
+        ? suffixName(proposedName, member.materialKey)
+        : proposedName;
+      const target = path.resolve(targetDirectory, name);
+      if (!contained(targetRoot, target)) {
+        fail('CLEAN_ARCA_TARGET_ESCAPE',
+          'Final Inventory member escaped the Shelf Target.');
+      }
+      let observed;
+      try {
+        observed = await observeAsync(source, member);
+      } catch (error) {
+        if (!request.replayCommitted ||
+            error?.code !== 'CLEAN_ARCA_PRODUCT_SOURCE_MISSING') throw error;
+        observed = await observeAsync(target, member);
+      }
+      plans.push(Object.freeze({
+        member,
+        episodeClaims:fromProductMember(member, contentProfile),
+        source,
+        target,
+        name,
+        ...observed,
+      }));
+    }
+    plans.sort((left, right) =>
       Buffer.compare(Buffer.from(left.member.materialKey),
         Buffer.from(right.member.materialKey)));
     if (new Set(plans.map((item) => item.target)).size !== plans.length) {
@@ -938,7 +1045,7 @@ function createCleanArcaInventoryPort(options) {
   }
 
   async function stage(request) {
-    const built = buildPlan(request);
+    const built = await buildPlanAsync(request);
     const handle = slotHandle(request);
     if (!request?.targetCommitSlotHandle ||
         canonicalJson(request.targetCommitSlotHandle) !== canonicalJson(handle)) {
@@ -954,7 +1061,7 @@ function createCleanArcaInventoryPort(options) {
           'Staged Inventory member escaped the Target Commit Slot.');
       }
       const finalExisting = fs.existsSync(plan.target)
-        ? computeBoundedMaterialFingerprintSync(plan.target)
+        ? await computeFingerprint(plan.target)
         : null;
       const finalExact = finalExisting &&
         Number(finalExisting.stat.size) === plan.sizeBytes &&
@@ -964,7 +1071,7 @@ function createCleanArcaInventoryPort(options) {
           'Final Inventory target contains conflicting bytes.');
       }
       const existing = fs.existsSync(target)
-        ? computeBoundedMaterialFingerprintSync(target)
+        ? await computeFingerprint(target)
         : null;
       const exact = existing && Number(existing.stat.size) === plan.sizeBytes &&
         existing.contentFingerprint === plan.contentFingerprint;
@@ -983,7 +1090,7 @@ function createCleanArcaInventoryPort(options) {
         await fs.promises.rm(temporary, { force:true });
         try {
           await copyFile(plan.source, temporary, fs.constants.COPYFILE_EXCL);
-          const observed = computeBoundedMaterialFingerprintSync(temporary);
+          const observed = await computeFingerprint(temporary);
           if (Number(observed.stat.size) !== plan.sizeBytes ||
               observed.contentFingerprint !== plan.contentFingerprint) {
             fail('CLEAN_ARCA_STAGE_COPY_VERIFY',
@@ -996,7 +1103,7 @@ function createCleanArcaInventoryPort(options) {
         }
       }
       const observed = finalExact
-        ? finalExisting : computeBoundedMaterialFingerprintSync(target);
+        ? finalExisting : await computeFingerprint(target);
       const identityBase = {
         schemaRef: 'helix://contracts/types/PhysicalMaterialIdentity/v2',
         schemaVersion: 2,
@@ -1056,7 +1163,7 @@ function createCleanArcaInventoryPort(options) {
     return Object.freeze({ ...base, manifestDigest:canonicalDigest(base) });
   }
 
-  function verifyStaged(request) {
+  async function verifyStaged(request) {
     const manifest = request?.stagedInventoryManifest;
     const handle = slotHandle(request);
     if (!manifest || manifest.targetCommitSlotId !== handle.slotId ||
@@ -1065,7 +1172,8 @@ function createCleanArcaInventoryPort(options) {
       fail('CLEAN_ARCA_STAGED_MANIFEST_DRIFT',
         'Staged Inventory Manifest is stale.');
     }
-    const observed = manifest.stagedMembers.map((member) => {
+    const observed = [];
+    for (const member of manifest.stagedMembers) {
       const finalLocation = path.resolve(member.location);
       if (!contained(handle.targetDirectory, finalLocation)) {
         fail('CLEAN_ARCA_STAGE_SLOT_ESCAPE',
@@ -1075,7 +1183,7 @@ function createCleanArcaInventoryPort(options) {
         path.basename(finalLocation));
       const location = fs.existsSync(stagedLocation)
         ? stagedLocation : finalLocation;
-      const fingerprint = computeBoundedMaterialFingerprintSync(location);
+      const fingerprint = await computeFingerprint(location);
       if (Number(fingerprint.stat.size) !== member.physicalIdentity.sizeBytes ||
           fingerprint.contentFingerprint !==
             request.onDeckProductPackage.productMaterialManifest.members.find(
@@ -1084,8 +1192,8 @@ function createCleanArcaInventoryPort(options) {
         fail('CLEAN_ARCA_STAGED_REALITY_DRIFT',
           'Staged member bytes drifted before placement.');
       }
-      return member;
-    });
+      observed.push(member);
+    }
     const basisDigest = canonicalDigest({ manifest, observed });
     return Object.freeze({
       schemaRef: 'helix://contracts/types/StagedInventoryVerification/v1',
@@ -1108,8 +1216,8 @@ function createCleanArcaInventoryPort(options) {
     });
   }
 
-  function switchPlacement(request) {
-    const built = buildPlan(request);
+  async function switchPlacement(request) {
+    const built = await buildPlanAsync(request);
     const handle = slotHandle(request);
     const verification = request?.stagedInventoryVerification;
     if (!verification || verification.result !== 'passed' ||
@@ -1129,7 +1237,7 @@ function createCleanArcaInventoryPort(options) {
     for (const plan of built.plans) {
       const stagedLocation = path.resolve(handle.slotDirectory, plan.name);
       const final = fs.existsSync(plan.target)
-        ? computeBoundedMaterialFingerprintSync(plan.target) : null;
+        ? await computeFingerprint(plan.target) : null;
       const finalExact = final && Number(final.stat.size) === plan.sizeBytes &&
         final.contentFingerprint === plan.contentFingerprint;
       if (final && !finalExact && !isManagedSourceLocation(request, plan.target)) {
@@ -1147,7 +1255,7 @@ function createCleanArcaInventoryPort(options) {
         fail('CLEAN_ARCA_STAGE_SLOT_MISSING',
           'Verified staged member disappeared before placement.');
       }
-      const staged = computeBoundedMaterialFingerprintSync(stagedLocation);
+      const staged = await computeFingerprint(stagedLocation);
       if (Number(staged.stat.size) !== plan.sizeBytes ||
           staged.contentFingerprint !== plan.contentFingerprint) {
         fail('CLEAN_ARCA_STAGED_REALITY_DRIFT',

@@ -377,10 +377,10 @@ test('same-root Stage/Switch preserves exact final members, merges new members, 
     assert.equal(immediateRan, true);
     releaseCopy();
     const stagedManifest = await staging;
-    const stagedInventoryVerification = port.verifyStaged({
+    const stagedInventoryVerification = await port.verifyStaged({
       ...request, finalInventoryDecision, stagedInventoryManifest:stagedManifest,
     });
-    port.switchPlacement({
+    await port.switchPlacement({
       ...request, finalInventoryDecision, stagedInventoryVerification,
       targetBindings:{ bindingSetDigest:'bindings-1' }, replacedInputSetDigest:'inputs-1',
     });
@@ -485,10 +485,10 @@ test('same-root Stage/Switch replaces managed source bytes occupying the final n
       [],
     );
     const stagedManifest = await port.stage({ ...request, finalInventoryDecision, targetCommitSlotHandle });
-    const stagedInventoryVerification = port.verifyStaged({
+    const stagedInventoryVerification = await port.verifyStaged({
       ...request, finalInventoryDecision, stagedInventoryManifest:stagedManifest,
     });
-    port.switchPlacement({
+    await port.switchPlacement({
       ...request, finalInventoryDecision, stagedInventoryVerification,
       targetBindings:{ bindingSetDigest:'bindings-1' }, replacedInputSetDigest:'inputs-1',
     });

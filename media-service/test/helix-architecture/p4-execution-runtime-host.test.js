@@ -181,6 +181,29 @@ test('lost wake is harmless because bounded periodic ticks rescan durable Schedu
   assert.ok(scans >= 4 && scans <= 8, `expected bounded fallback scans without hot polling, got ${scans}`);
 });
 
+test('dense synchronous Event fanout yields to the Node poll phase between bounded batches', async () => {
+  let next=0;
+  const host=createExecutionRuntimeHost({
+    tickIntervalMs:60000,maxActionsPerTick:16,maxInFlightEvents:16,
+    startupRecovery:{recover:async()=>({state:'ready',normalSupplyAllowed:true})},
+    scheduler:{acquire({targetType}){
+      if(targetType==='work'||next>=200)return {kind:'idle'};
+      const targetId='fanout-'+next++;
+      return {kind:'leased',lease:{targetType:'event',targetId,leaseId:'lease-'+targetId}};
+    },release(){}},
+    plannerRegistry:{resolve(){}},planPublisher:{publish(){}},
+    workLifecycle:{ensurePlanningAttempt(){},startPlanned(){},aggregateEvent(){return {
+      attemptTerminal:false,workTerminal:false,replayed:false,
+    };},settleWork(){},pendingOwnerReconciliations(){return [];}},
+    eventRuntime:{async run(){return {kind:'succeeded'};}},
+    domainReconciler:{reconcile(){}},fallbackReconciler:{async start(){},async stop(){}},
+  });
+  await host.start();
+  await new Promise((resolve)=>setImmediate(resolve));
+  assert.ok(next>0&&next<200,`dense fanout must yield before draining all Events, leased ${next}`);
+  await host.stop();
+});
+
 test('startup invokes the independent durable Domain fallback runner', async () => {
   let scans = 0;
   const host = createExecutionRuntimeHost({
@@ -444,7 +467,10 @@ test('Runtime Host launches up to sixteen Events concurrently and stop leases no
     domainReconciler:{reconcile(){}},fallbackReconciler:{async start(){},async stop(){}},
   });
   await host.start();
-  await new Promise((resolve)=>setImmediate(resolve));
+  const capacityDeadline=Date.now()+1000;
+  while(host.activity().inFlightEvents<16&&Date.now()<capacityDeadline){
+    await new Promise((resolve)=>setImmediate(resolve));
+  }
   assert.equal(host.activity().inFlightEvents,16);
   assert.equal(leased.length,16);
   const stopping=host.stop();

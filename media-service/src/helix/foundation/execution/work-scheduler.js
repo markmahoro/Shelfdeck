@@ -40,21 +40,35 @@ function exactRequest(request) {
 function repositories(schemaManifest) {
   return Object.freeze({
     works: createRepositoryDefinition({ repositoryId: 'scheduler_works', owner: 'execution-foundation', schemaManifest, statements: {
-      list: { kind: 'select-all', tableId: 'fx_supporting_works', columns: [
+      list_by_states: { kind: 'select-in', tableId: 'fx_supporting_works', columns: [
         'work_id', 'owner_domain', 'process_type', 'process_id', 'work_kind', 'priority_class', 'state', 'created_at_ms'
-      ], keyColumns: [] }
+      ], keyColumn:'state', maxItems:4 },
+      list_by_ids: { kind: 'select-in', tableId: 'fx_supporting_works', columns: [
+        'work_id', 'owner_domain', 'process_type', 'process_id', 'work_kind', 'priority_class', 'state', 'created_at_ms'
+      ], keyColumn:'work_id', maxItems:500 }
     } }),
     events: createRepositoryDefinition({ repositoryId: 'scheduler_events', owner: 'execution-foundation', schemaManifest, statements: {
-      list: { kind: 'select-all', tableId: 'fx_workflow_events', columns: [
+      list_by_states: { kind: 'select-in', tableId: 'fx_workflow_events', columns: [
         'event_id', 'plan_id', 'node_id', 'work_id', 'priority_class', 'state', 'ready_at_ms', 'retry_at_ms'
-      ], keyColumns: [] }
+      ], keyColumn:'state', maxItems:4 },
+      list_by_plans: { kind: 'select-in', tableId: 'fx_workflow_events', columns: [
+        'event_id', 'plan_id', 'node_id', 'work_id', 'priority_class', 'state', 'ready_at_ms', 'retry_at_ms'
+      ], keyColumn:'plan_id', maxItems:500 }
     } }),
     edges: createRepositoryDefinition({ repositoryId: 'scheduler_edges', owner: 'execution-foundation', schemaManifest, statements: {
-      list: { kind: 'select-all', tableId: 'fx_plan_edges', columns: [
+      list_by_plans: { kind: 'select-in', tableId: 'fx_plan_edges', columns: [
         'plan_id', 'from_node_id', 'to_node_id', 'dependency_kind'
-      ], keyColumns: [] }
+      ], keyColumn:'plan_id', maxItems:500 }
     } })
   });
+}
+
+function boundedChunks(values, maximum = 500) {
+  const chunks = [];
+  for (let index = 0; index < values.length; index += maximum) {
+    chunks.push(values.slice(index, index + maximum));
+  }
+  return chunks;
 }
 
 function assertProjection(projection, work) {
@@ -114,10 +128,25 @@ function createWorkScheduler(options) {
     return options.unitOfWork.execute([{
       participantId: 'work_scheduler_snapshot', owner: 'execution-foundation', repositories: Object.values(definitions),
       execute(context) {
-        const works = context.repository('scheduler_works').invoke('list');
-        if (targetType === 'work') return { works, candidates: works.filter((work) => WORK_STATES.has(work.state)) };
-        const events = context.repository('scheduler_events').invoke('list');
-        const edges = context.repository('scheduler_edges').invoke('list');
+        const worksRepository = context.repository('scheduler_works');
+        const eventsRepository = context.repository('scheduler_events');
+        if (targetType === 'work') {
+          const works = worksRepository.invoke('list_by_states', { values:[...WORK_STATES] });
+          return { works, candidates: works };
+        }
+        const candidates = eventsRepository.invoke('list_by_states', {
+          values:['ready', 'waiting_for_resource', 'waiting_for_external'],
+        });
+        if (candidates.length === 0) return { works:[], candidates:[] };
+        const planIds = [...new Set(candidates.map((event) => event.plan_id))];
+        const workIds = [...new Set(candidates.map((event) => event.work_id))];
+        const events = boundedChunks(planIds).flatMap((values) =>
+          eventsRepository.invoke('list_by_plans', { values }));
+        const edgesRepository = context.repository('scheduler_edges');
+        const edges = boundedChunks(planIds).flatMap((values) =>
+          edgesRepository.invoke('list_by_plans', { values }));
+        const works = boundedChunks(workIds).flatMap((values) =>
+          worksRepository.invoke('list_by_ids', { values }));
         const eventsByPlanNode = new Map(events.map((event) => [event.plan_id + '\u0000' + event.node_id, event]));
         const inboundByPlanNode = new Map();
         for (const edge of edges) {
@@ -127,10 +156,7 @@ function createWorkScheduler(options) {
         }
         return {
           works,
-          candidates: events.filter((event) =>
-            (event.state === 'ready' ||
-              event.state === 'waiting_for_resource' ||
-              event.state === 'waiting_for_external') &&
+          candidates: candidates.filter((event) =>
             dependenciesSatisfied(event, eventsByPlanNode, inboundByPlanNode))
         };
       }

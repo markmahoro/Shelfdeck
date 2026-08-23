@@ -298,6 +298,12 @@ function createExecutionRuntimeHost(options) {
           result = await drainOnce();
           if (result.kind === 'idle' || result.kind === 'inactive') break;
           count += 1;
+          // A large ready graph can complete synchronously and immediately
+          // wake the next drain. Give HTTP and operational timers a poll
+          // opportunity before another batch monopolizes the Node thread.
+          if (count % 4 === 0) {
+            await new Promise((resolve) => setImmediate(resolve));
+          }
         }
         return Object.freeze({ kind: 'tick_complete', actions: count, last: result });
       } finally {
@@ -337,7 +343,7 @@ function createExecutionRuntimeHost(options) {
     }
     if (state !== 'ready' || wakeQueued) return Object.freeze({ accepted: false, state });
     wakeQueued = true;
-    queueMicrotask(() => {
+    setImmediate(() => {
       wakeQueued = false;
       tick().then((result) => {
         if (state !== 'ready') return;

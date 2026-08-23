@@ -146,11 +146,11 @@ function createOnDeckCapabilityPorts(options){const now=options.now||Date.now,ac
     finalInventoryDecision:c.finalInventoryDecision,observedAtMs:at,replayCommitted:execution.recoveryDecision==='already_committed'}),targetCommitSlotHandle:execution.namedInputs.targetCommitSlotHandle});
     return committedOutcome(execution,C.stage,staged,at,'material_commit');},
     validateResult(_c,o){if(!o?.result?.manifestDigest)throw new TypeError('Staged Inventory Manifest is invalid.');}});
-  ports[C.stagedVerify]=Object.freeze({validateInputs(c){requireNamed(c,['stagedManifest','finalInventoryDecision']);},execute(execution){
+  ports[C.stagedVerify]=Object.freeze({validateInputs(c){requireNamed(c,['stagedManifest','finalInventoryDecision']);},async execute(execution){
     const c=ctx(execution),n=execution.namedInputs,request=aftercareRequest(execution,c)||{onDeckRunId:c.responsibility.onDeckRunId,
       custodyId:c.responsibility.custodyId,shelf:c.shelf,onDeckProductPackage:c.packageValue,finalInventoryDecision:c.finalInventoryDecision,
       observedAtMs:now(),replayCommitted:false};
-    return outcome(C.stagedVerify,options.inventoryPort.verifyStaged({...request,finalInventoryDecision:n.finalInventoryDecision,
+    return outcome(C.stagedVerify,await options.inventoryPort.verifyStaged({...request,finalInventoryDecision:n.finalInventoryDecision,
       stagedInventoryManifest:n.stagedManifest}),now());},validateResult(_c,o){if(o?.result?.result!=='passed')throw new TypeError('Staged Inventory Verification is invalid.');}});
   ports[C.finalVerify]=pure(C.finalVerify,['finalBindings','productDispositionManifest'],(n,c,at)=>{const basisDigest=canonicalDigest(n),aftercare=Boolean(c.shelfEntryId),
     keys=(aftercare?c.raw.materials.map((item)=>item.material_key):c.packageValue.productMaterialManifest.members.map(m=>m.materialKey)).sort(),
@@ -160,12 +160,12 @@ function createOnDeckCapabilityPorts(options){const now=options.now||Date.now,ac
       verificationKind:'final_product',basisDigest,result:'passed',reasonCodes:Object.freeze([]),evidenceRefs:Object.freeze([aftercare?c.basis.digest:c.packageValue.onDeckPackageId]),verifiedAtMs:at,
       finalBindingSetDigest:n.finalBindings.bindingSetDigest,productManifestDigest,
       relatedDispositionSetDigest:n.productDispositionManifest.relatedDispositionSetDigest,verifiedMaterialKeys:Object.freeze(keys),targetContainmentDigest:containment});});
-  ports[C.placement]=Object.freeze({validateInputs(c){requireNamed(c,['verifiedStagedManifest','targetBindings']);},execute(execution){const c=ctx(execution),n=execution.namedInputs,
-    at=effectAt(execution),aftercare=aftercareRequest(execution,c,at);if(aftercare){const body=options.inventoryPort.switchPlacement({...aftercare,
+  ports[C.placement]=Object.freeze({validateInputs(c){requireNamed(c,['verifiedStagedManifest','targetBindings']);},async execute(execution){const c=ctx(execution),n=execution.namedInputs,
+    at=effectAt(execution),aftercare=aftercareRequest(execution,c,at);if(aftercare){const body=await options.inventoryPort.switchPlacement({...aftercare,
       stagedInventoryVerification:n.verifiedStagedManifest,targetBindings:n.targetBindings,
       replacedInputSetDigest:canonicalDigest(c.raw.materials.map((item)=>item.material_key).sort())});
       return committedOutcome(execution,C.placement,body,at,'material_commit');}
-    const body=options.inventoryPort.switchPlacement({onDeckRunId:c.responsibility.onDeckRunId,custodyId:c.responsibility.custodyId,shelf:c.shelf,
+    const body=await options.inventoryPort.switchPlacement({onDeckRunId:c.responsibility.onDeckRunId,custodyId:c.responsibility.custodyId,shelf:c.shelf,
       onDeckProductPackage:c.packageValue,finalInventoryDecision:c.finalInventoryDecision,stagedInventoryVerification:n.verifiedStagedManifest,
       targetBindings:n.targetBindings,replacedInputSetDigest:canonicalDigest(c.packageValue.offloadContextManifest.members),observedAtMs:at,replayCommitted:execution.recoveryDecision==='already_committed'});
     return committedOutcome(execution,C.placement,body,at,'material_commit');},

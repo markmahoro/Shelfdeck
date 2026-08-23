@@ -98,6 +98,16 @@ function createWorkSupplyController(options) {
             const circuit = context.repository('work_supply_circuits').invoke('find', { circuit_key: key });
             if (circuit && circuit.state !== 'closed') return Object.freeze({ kind: 'deferred', reasonCode: 'CIRCUIT_' + circuit.state.toUpperCase() });
           }
+          // Global backlog caps control creation of new Work Attempts only.
+          // An already-created Event must drain, so scanning every Work,
+          // Attempt, and Event here cannot change its admission decision.
+          if(request.supplyKind==='event_dispatch'){
+            const snapshot={supplyKind:request.supplyKind,targetId:request.targetId,targetState:target.state,
+              priorityClass:target.priority_class,supplyRole:projection.supplyRole};
+            return Object.freeze({kind:'permitted',supplyKind:request.supplyKind,targetId:request.targetId,
+              lane:RESERVED.has(target.priority_class)?'reserved':projection.supplyRole==='completion'?'completion':'normal',
+              snapshotDigest:digest(JSON.stringify(canonical(snapshot)))});
+          }
           const works = worksRepo.invoke('list');
           const attempts = context.repository('work_supply_attempts').invoke('list');
           const events = eventsRepo.invoke('list');
