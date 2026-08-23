@@ -1433,6 +1433,8 @@ function assertTerminalEvidence(repo, decision, run, resolveRetryPolicyDigest) {
           payload.selectionReasonCode,
           payload.reasonCode,
           ...(Array.isArray(payload.reasonCodes) ? payload.reasonCodes : []),
+          ...(Array.isArray(payload.unmetRequirementCodes)
+            ? payload.unmetRequirementCodes : []),
         ].filter(Boolean);
         businessResultValid = boundResult.outcome_kind === "succeeded" &&
           canonicalDigest(payload) === boundResult.result_digest &&

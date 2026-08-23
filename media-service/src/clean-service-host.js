@@ -1298,11 +1298,12 @@ async function createCleanServiceHost(options) {
     ...constructed.applicationDependencies,
     progressProjectionReader: createExecutionProgressProjectionReader(constructed.applicationDependencies),
     readPerceptionRatings: (targets) => formationRatingReader(targets),
-    readShelfTargets: arcaRoutingTargets.list,
+    readShelfTargets: () => arcaShelfAdmin.listShelves().items,
     readAcceptanceRecoveries: (offerIds) => new Map(offerIds.map((offerId) => [offerId, formationAcceptanceReader(offerId)])),
     readArcaFormationStatuses: (offerIds) => formationArcaStatusReader(offerIds),
   });
   const formationQuery = createFormationQuery({ store: formationProjectionStore, historyStore: formationRunHistoryStore,
+    detailSource: formationProjectionSource,
     now: options.now || Date.now,
     readAcceptanceRecovery:(offerId)=>formationAcceptanceReader(offerId),
     listAcceptanceAttention:(limit)=>formationAcceptanceAttention(limit),

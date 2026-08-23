@@ -147,6 +147,14 @@ function createOnDeckProcessCoordinator(options) {
     }
     return Object.freeze(parameters.dependencyRefs);
   }
+  function recordTerminalFailure(request) {
+    const status = options.workResultReader.status(request.workId);
+    const errorCode = request.errorCode || status?.latestAttempt?.failure_code || 'ARCA_ACCEPTANCE_EXECUTOR_FAILED';
+    const incident = options.executorIncidents?.recordFailure({ ownerDomain:'arca', processType:'arca_acceptance',
+      workKind:request.workKind, errorCode }) || Object.freeze({ incidentKey:canonicalDigest({ processId:request.processId, errorCode }) });
+    return recovery.recordFailure(request.processId, { workId:request.workId, failurePhase:request.workKind,
+      errorCode, terminalAttemptCount:Number(status?.latestAttempt?.ordinal || 1), incidentKey:incident.incidentKey });
+  }
   function reconcileAcceptance(processId, dependencyRefs = null) {
     let refs = dependencyRefs;
     const recoveryCase = recovery.read(processId);
@@ -161,6 +169,10 @@ function createOnDeckProcessCoordinator(options) {
     submit(assessment);
     const assessmentStatus = options.workResultReader.status(assessment.workId);
     if (assessmentStatus?.state === 'failed' || assessmentStatus?.latestAttempt?.state === 'failed') {
+      const current = recovery.read(processId);
+      if (current?.recoveryState !== 'attention_required') {
+        recordTerminalFailure({ processId, workId:assessment.workId, workKind:'acceptance_assessment' });
+      }
       return Object.freeze({ kind:'attention_required', processId, workId:assessment.workId,
         recovery:recovery.read(processId) });
     }
@@ -209,14 +221,7 @@ function createOnDeckProcessCoordinator(options) {
         result:circuit?.blocked ? Object.freeze({kind:'deferred',reasonCode:'EXECUTOR_CIRCUIT_OPEN'}) : submit(work),
         admissionParticipant:recovery.admissionParticipant({ offerId:offer.offerId, workId:work.workId, packageDigest:offer.packageDigest }) });
     },
-    recordTerminalFailure(request) {
-      const status = options.workResultReader.status(request.workId);
-      const errorCode = request.errorCode || status?.latestAttempt?.failure_code || 'ARCA_ACCEPTANCE_EXECUTOR_FAILED';
-      const incident = options.executorIncidents?.recordFailure({ ownerDomain:'arca', processType:'arca_acceptance',
-        workKind:request.workKind, errorCode }) || Object.freeze({ incidentKey:canonicalDigest({ processId:request.processId, errorCode }) });
-      return recovery.recordFailure(request.processId, { workId:request.workId, failurePhase:request.workKind,
-        errorCode, terminalAttemptCount:Number(status?.latestAttempt?.ordinal || 1), incidentKey:incident.incidentKey });
-    },
+    recordTerminalFailure,
     recoverAttentionCases(limit = 100) {
       const triggerDigest = recoveryTriggerDigest(), results = [];
       for (const item of recovery.listAttention(limit)) {

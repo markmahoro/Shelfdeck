@@ -1,11 +1,12 @@
 import { useState, type ReactElement } from 'react';
 import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query';
-import { NavLink, Navigate, Route, Routes } from 'react-router-dom';
+import { NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { pages } from './helix/surface-model';
 import HelixPage from './helix/HelixPage';
 import MaterialFieldsPage from './helix/MaterialFieldsPage';
 import ShelvesPage from './helix/ShelvesPage';
 import FormationPage from './helix/FormationPage';
+import FormationStubPage from './helix/FormationStubPage';
 import CollectionPage from './helix/CollectionPage';
 import SettingsPage from './helix/SettingsPage';
 import OffdeckPage from './helix/OffdeckPage';
@@ -25,12 +26,17 @@ const pageElement: Record<string, ReactElement> = {
   overview: <OverviewPage />,
   'material-fields': <MaterialFieldsPage />,
   shelves: <ShelvesPage />,
-  formation: <FormationPage />,
+  formation: <FormationRoute />,
   collection: <CollectionPage />,
   offdeck: <OffdeckPage />,
   people: <PeoplePage />,
   settings: <SettingsPage />,
 };
+
+function FormationRoute() {
+  const location = useLocation();
+  return new URLSearchParams(location.search).get('stub') === '1' ? <FormationStubPage /> : <FormationPage />;
+}
 
 function railKind(data: { systemState:{ kind:string }; todos?: Array<{ key:string }> }) {
   if (data.systemState.kind !== 'faulted' && data.todos?.some((item) => item.key === 'field_access')) return 'attention';

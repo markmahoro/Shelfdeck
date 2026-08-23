@@ -32,6 +32,8 @@ function createLibraRunContextReader(options) {
         keyColumns:['offer_id']},
       page_active_subjects:{kind:'select-page-after',tableId:'libra_subjects',keyColumn:'subject_id',fixedKeyColumns:['status'],maxItems:100,
         columns:['subject_id','status']},
+      page_active_runs:{kind:'select-page-after',tableId:'libra_runs',keyColumn:'libra_run_id',fixedKeyColumns:['state'],maxItems:100,
+        columns:['libra_run_id','state']},
     }
   });
   function exact(body){return options.unitOfWork.execute([{participantId:'libra_run_context_read',owner:'libra',repositories:[repository],
@@ -80,7 +82,11 @@ function createLibraRunContextReader(options) {
     const rows=exact((context)=>context.repository(repository.repositoryId).invoke('page_active_subjects',{status:'active',cursor,limit}));
     const items=Object.freeze(rows.map((row)=>Object.freeze({subjectId:row.subject_id})));
     return Object.freeze({items,nextCursor:items.length===limit?items.at(-1).subjectId:null});}
-  return Object.freeze({read,headSnapshot,decisionHeadSnapshot,readAcceptanceSpec,listReadySubjectPage});
+  function listActiveRunPage(cursor=null,limit=100){if(!Number.isSafeInteger(limit)||limit<1||limit>100)throw new TypeError('Active Libra Run page limit must be 1..100.');
+    const rows=exact((context)=>context.repository(repository.repositoryId).invoke('page_active_runs',{state:'active',cursor,limit}));
+    const items=Object.freeze(rows.map((row)=>Object.freeze({libraRunId:row.libra_run_id})));
+    return Object.freeze({items,nextCursor:items.length===limit?items.at(-1).libraRunId:null});}
+  return Object.freeze({read,headSnapshot,decisionHeadSnapshot,readAcceptanceSpec,listReadySubjectPage,listActiveRunPage});
 }
 
 module.exports=Object.freeze({createLibraRunContextReader});

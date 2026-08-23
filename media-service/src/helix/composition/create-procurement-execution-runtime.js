@@ -808,6 +808,14 @@ function createProcurementExecutionRuntime(options) {
         .map((item)=>Object.freeze({cursor:item.subjectId,scope:item})),
       reconcile:({subjectId})=>perceptionProcessServices.ensureResolution('subject',subjectId),
     }),Object.freeze({
+      ownerDomain:'arca',reconcilerKey:'failed-acceptance-assessments',
+      listPage:({cursor,limit})=>workResultReader.listOwnerWorks({ownerDomain:'arca',workKind:'acceptance_assessment'})
+        .filter((item)=>item.state==='failed').sort((a,b)=>a.work_id.localeCompare(b.work_id))
+        .filter((item)=>cursor===null||item.work_id>cursor).slice(0,limit)
+        .map((item)=>Object.freeze({cursor:item.work_id,scope:Object.freeze({processId:item.process_id,workId:item.work_id,
+          workKind:item.work_kind})})),
+      reconcile:(scope)=>arcaProcessServices.coordinator.recordTerminalFailure(scope),
+    }),Object.freeze({
       ownerDomain:'arca',reconcilerKey:'acceptance-technical-recovery',
       listPage:({cursor,limit})=>arcaProcessServices.coordinator.listAcceptanceAttention(limit,cursor)
         .map((item)=>Object.freeze({cursor:item.offerId,scope:item})),
@@ -823,6 +831,11 @@ function createProcurementExecutionRuntime(options) {
         .map((item)=>Object.freeze({cursor:item.subjectId,scope:item})),
       reconcile:({subjectId})=>{const run=libraProcessServices.libraRunCreator.reconcile(subjectId);
         return run.libraRunId?reconcileLibraRun(run.libraRunId):run;},
+    }),Object.freeze({
+      ownerDomain:'libra',reconcilerKey:'active-libra-runs',
+      listPage:({cursor,limit})=>libraProcessServices.libraRunContextReader.listActiveRunPage(cursor,limit).items
+        .map((item)=>Object.freeze({cursor:item.libraRunId,scope:item})),
+      reconcile:({libraRunId})=>reconcileLibraRun(libraRunId),
     }),Object.freeze({
       ownerDomain:'arca',reconcilerKey:'due-aftercare-shelf-entries',
       listPage:({cursor,limit})=>arcaProcessServices.aftercareContextReader.listPage(cursor,limit),

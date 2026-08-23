@@ -144,6 +144,28 @@ function createLibraRunCoordinator(options){
     return Object.freeze({ kind:'product_unachievable', libraRunId:snapshot.run.libraRunId,
       workId:work.workId, reasonCode:failureCode });
   }
+  function freezePersistedConformanceFailure(snapshot) {
+    if (typeof options.workResultReader.listWorks !== 'function') return null;
+    const works = options.workResultReader.listWorks({
+      ownerDomain: 'libra',
+      processType: 'libra_run',
+      processId: snapshot.run.libraRunId,
+      workKind: 'product_conformance',
+    }).filter((item) => item.state === 'succeeded')
+      .sort((left, right) => Number(right.updated_at_ms) - Number(left.updated_at_ms));
+    for (const work of works) {
+      const record = options.workResultReader.read(work.work_id).find((item) =>
+        item.outcomeKind === 'succeeded' &&
+        item.capabilityRef === 'libra.product.conformance.verify@1');
+      const evidence = record?.result;
+      if (evidence && evidence.result !== 'passed') {
+        return freezeBusinessTerminal(snapshot, { workId:work.work_id }, record,
+          evidence.unmetRequirementCodes?.[0] ||
+          evidence.reasonCodes?.[0] || 'product_conformance_failed');
+      }
+    }
+    return null;
+  }
   function mediaVerification(work) {
     const values = options.workResultReader.read(work.workId).filter((item) =>
       item.outcomeKind === 'succeeded' &&
@@ -301,10 +323,9 @@ function createLibraRunCoordinator(options){
     const conformanceResults=options.workResultReader.read(conformance.workId).filter((item)=>item.outcomeKind==='succeeded'&&
       item.capabilityRef==='libra.product.conformance.verify@1');
     if(conformanceResults.length!==1)throw new Error('Terminal Product Conformance Work lacks one durable Evidence Result.');
-    const evidence=conformanceResults[0].result;
-    if(evidence.result!=='passed')return Object.freeze({kind:'product_conformance_failed',libraRunId:snapshot.run.libraRunId,
-      workId:conformance.workId,verificationId:evidence.verificationId,reasonCodes:evidence.reasonCodes,
-      unmetRequirementCodes:evidence.unmetRequirementCodes,workspaceId:workspace.workspaceId});
+    const conformanceRecord=conformanceResults[0],evidence=conformanceRecord.result;
+    if(evidence.result!=='passed')return freezeBusinessTerminal(snapshot,conformance,conformanceRecord,
+      evidence.unmetRequirementCodes?.[0] || evidence.reasonCodes?.[0] || 'product_conformance_failed');
     const promotion=deliverablePromotionWork(snapshot,selectedMediaWork,conformance,evidence),
       promotionSubmitted=submit(promotion),promotionStatus=options.workResultReader.status(promotion.workId);
     if(!workSucceeded(promotionStatus)){
@@ -330,6 +351,8 @@ function createLibraRunCoordinator(options){
     catch(error){if(error?.code==='P14_MOVIE_PRODUCTION_RUN_UNAVAILABLE')return Object.freeze({kind:'not_found',libraRunId});throw error;}
     if(snapshot.run.state!=='active' && snapshot.run.state!=='suspended')
       return Object.freeze({kind:'terminal',libraRunId,state:snapshot.run.state});
+    const persistedConformanceFailure = freezePersistedConformanceFailure(snapshot);
+    if (persistedConformanceFailure) return persistedConformanceFailure;
     const lifecycle = options.libraRunLifecycleService?.reconcile(libraRunId);
     if (lifecycle && lifecycle.kind !== 'ready') {
       if (['freshness_confirmed', 'resume'].includes(lifecycle.kind)) {

@@ -226,6 +226,9 @@ export type FormationSubject = {
   myRating: number | null;
   myRatingSource: string | null;
   myRatingRevision: number | null;
+  ratingState?: 'pending'|'ready';
+  ratingResolutionStatus?: 'found'|'not_found'|null;
+  ratingReasonCode?: string|null;
   productIdentityIssue: null | { result:'not_found'|'ambiguous'|'conflicting'; reasonCode:string; candidateSetDigest:string; candidates:Array<{ providerKey:string; displayTitle:string; originalTitle:string|null; releaseYear:number|null }> };
   executorIssue: null | { phase:string; errorCode:string; attemptCount:number; owner:string; recoveryState:string;
     recoveryGeneration:number; automaticRecoveryUsed:boolean; canRetry:boolean; offerId:string };
@@ -239,6 +242,11 @@ export type FormationSubject = {
     state: 'pending' | 'running' | 'done' | 'blocked';
     progress: null | { mode:'determinate'|'indeterminate'; currentValue:number|null; totalValue:number|null; unit:string|null; rate:number|null; etaMs:number|null; bucket:string };
   }>;
+  processDetail?: {
+    receivedMaterials: { primaryCount:number; relatedCount:number; relatedRoles:string[]; state:'completed'; summary:string };
+    mediaOrganization: { state:'completed'|'attention'|'pending'; summary:string; steps:FormationSubject['organizingSteps'] };
+    acceptanceAndShelving: { state:'completed'|'attention'|'pending'; summary:string; reasonCode:string|null };
+  };
   nextAction: { label:string; state:string; progress:null | { mode:'determinate'|'indeterminate'; currentValue:number|null; totalValue:number|null; unit:string|null; rate:number|null; etaMs:number|null; bucket:string } };
   routingState: 'preparing' | 'unresolved' | 'resolved';
   routingPolicyMode: 'direct' | 'sorting' | null;
@@ -337,6 +345,7 @@ export type IntegrationState = {
   configDigest: string | null;
   capabilityCodes: string[];
   lastTestSummary: { identityProviderKey?: string; checkedAtMs?: number } | null;
+  validation?: { status:'not_tested'|'passed'|'failed'; checkedAtMs:number|null; configRevision:number; errorCode:string|null };
   settings?: { language?: string; maxDownloadAttempts?: number };
   landingBinding: {
     bindingId: string;
@@ -566,6 +575,9 @@ export const helixAdminApi = {
       if(filters.q)query.set('q',filters.q);
     }
     return request<{ items: FormationSubject[]; summary: FormationSummary; nextCursor:string|null; projection:{status:'ready'|'rebuilding'|'stale';asOfMs:number} }>(`/v1/admin/formation?${query}`);
+  },
+  getFormation(formationViewId:string) {
+    return request<FormationSubject>(`/v1/admin/formation/${encodeURIComponent(formationViewId)}`);
   },
   listFormationHistory(cursor?:string) {
     const query=new URLSearchParams({section:'ended',limit:'25'});if(cursor)query.set('cursor',cursor);
@@ -861,12 +873,18 @@ export async function materialFieldRegistration(input: {
     excludedMaterialKeys: [],
   };
   const extractionPolicyId = `movie-policy-${input.fieldId}`;
+  const normalizedRoot = input.rootLocation.replace(/\\/g, '/').replace(/\/+$/, '');
+  const physicalRoot = /^[a-zA-Z]:\//.test(normalizedRoot) ? normalizedRoot.toLowerCase() : normalizedRoot;
+  const physicalScopeDigest = await canonicalDigest({
+    schema:'shelfdeck.local-filesystem-physical-scope@1',
+    rootLocation:physicalRoot,
+  });
   const access = {
     fieldId: input.fieldId,
     revision: 1,
-    endpointId: `local-fs-${input.fieldId}`,
+    endpointId: `local-fs-${physicalScopeDigest.slice(0, 32)}`,
     rootLocation: input.rootLocation,
-    mountScopeId: `local-mount-${input.fieldId}`,
+    mountScopeId: `local-mount-${physicalScopeDigest.slice(0, 32)}`,
     mountScopeRevision: 1,
     accessSchemaRef: 'helix://shelfdeck/platform/local-filesystem-field-access/v1',
   };

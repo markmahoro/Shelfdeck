@@ -141,19 +141,17 @@ describe('Helix primary copy and workbench structure', () => {
         projection: { status: 'ready', asOfMs: 1 },
       };
     });
+    vi.spyOn(helixAdminApi, 'listFormationHistory').mockResolvedValue({ items: [], summary: { totalCount:1, pendingCount:0, inProgressCount:0, attentionRequiredCount:0, completedCount:1 }, nextCursor:null, projection:{status:'ready',asOfMs:1} });
     vi.spyOn(helixAdminApi, 'listShelves').mockResolvedValue({ items: [] });
     render(<MemoryRouter initialEntries={['/formation']}><App /></MemoryRouter>);
     expect(await screen.findByRole('heading', { level: 1, name: '媒体整理工作区' })).toBeInTheDocument();
-    fireEvent.click(await screen.findByRole('button', { name: '展开（1）' }));
-    expect(await screen.findByText('封装整理')).toBeInTheDocument();
-    expect(screen.queryByText('尚未形成整理动作')).not.toBeInTheDocument();
-    expect(screen.queryByRole('columnheader', { name: '下一步' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('columnheader', { name: '分步进度' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('columnheader', { name: '用户操作' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('columnheader', { name: '加急' })).not.toBeInTheDocument();
+    expect(await screen.findByText('示例电影 (2024)')).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: '当前进展' })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: '详情' })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: '用户操作' })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: '加急' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '放弃本次整理' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: '加快整理' })).not.toBeInTheDocument();
-    expect(screen.getByRole('columnheader', { name: '整理动作' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '示例电影 (2024)无需加急' })).toBeDisabled();
   });
 
   it('renders current media as stacked steps, progress, user actions, and expedite', async () => {
@@ -174,29 +172,24 @@ describe('Helix primary copy and workbench structure', () => {
       },
       completedAtMs: null,
     };
-    vi.spyOn(helixAdminApi, 'listFormation').mockResolvedValue({
-      items: [current],
-      summary: { totalCount: 1, pendingCount: 0, inProgressCount: 1, attentionRequiredCount: 0, completedCount: 0 },
-      nextCursor: null,
-      projection: { status: 'ready', asOfMs: 1 },
-    });
+    vi.spyOn(helixAdminApi, 'listFormation').mockImplementation(async(section)=>({
+      items: section==='active'?[current]:[], summary: { totalCount:1,pendingCount:0,inProgressCount:1,attentionRequiredCount:0,completedCount:0 },
+      nextCursor:null,projection:{status:'ready',asOfMs:1},
+    }));
+    vi.spyOn(helixAdminApi, 'listFormationHistory').mockResolvedValue({ items:[],summary:{totalCount:1,pendingCount:0,inProgressCount:1,attentionRequiredCount:0,completedCount:0},nextCursor:null,projection:{status:'ready',asOfMs:1} });
     vi.spyOn(helixAdminApi, 'listShelves').mockResolvedValue({ items: [] });
     render(<MemoryRouter initialEntries={['/formation']}><App /></MemoryRouter>);
-    expect(await screen.findByRole('columnheader', { name: '整理动作' })).toBeInTheDocument();
-    expect(screen.getByRole('columnheader', { name: '分步进度' })).toBeInTheDocument();
+    expect(await screen.findByRole('columnheader', { name: '媒体名称' })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: '当前进展' })).toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: '用户操作' })).toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: '加急' })).toBeInTheDocument();
     expect(screen.getByText('GPU转码 · HEVC · 4k · 不超过 20 GiB')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '加快整理' })).toBeInTheDocument();
-    expect(screen.queryByText('尚未形成整理动作')).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /全部当前/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '加急 示例电影 (2024)' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /全部/ })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /待整理/ })).toBeInTheDocument();
     expect(screen.getByLabelText('按片名筛选')).toBeInTheDocument();
-    expect(screen.getByLabelText('按收藏架筛选')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: /待整理/ }));
-    await waitFor(() => {
-      expect(helixAdminApi.listFormation).toHaveBeenLastCalledWith('active', undefined, expect.objectContaining({ classification: 'pending' }));
-    });
+    await waitFor(() => expect(screen.queryByText('示例电影 (2024)')).not.toBeInTheDocument());
   });
 
   it('does not keep banned slogans on the default chrome', () => {

@@ -18,6 +18,10 @@ function createFormationStatusProjection(options) {
         columns: ['offer_id', 'outcome', 'custody_id', 'on_deck_package_id', 'package_digest', 'rejection_code', 'committed_at_ms'],
         safeIntegers: true,
       },
+      recoveries: {
+        kind: 'select-in', tableId: 'arca_acceptance_recovery_cases', keyColumn: 'offer_id', maxItems: MAX_ITEMS,
+        columns: ['offer_id', 'active_work_id', 'recovery_state', 'error_code', 'updated_at_ms'], safeIntegers: true,
+      },
       runs: {
         kind: 'select-in', tableId: 'arca_ondeck_runs', keyColumn: 'custody_id', maxItems: MAX_ITEMS,
         columns: ['on_deck_run_id', 'custody_id', 'state', 'terminal_at_ms'], safeIntegers: true,
@@ -46,6 +50,7 @@ function createFormationStatusProjection(options) {
       participantId: 'arca_formation_status_read', owner: 'arca', repositories: [repository], execute(context) {
         const repo = context.repository(repository.repositoryId);
         const receipts = repo.invoke('receipts', { values: ids });
+        const recoveries = repo.invoke('recoveries', { values: ids });
         const custodyIds = receipts.filter((row) => row.outcome === 'accepted' && row.custody_id).map((row) => row.custody_id);
         const runs = custodyIds.length ? repo.invoke('runs', { values: [...new Set(custodyIds)] }) : [];
         const runIds = runs.map((row) => row.on_deck_run_id);
@@ -54,6 +59,18 @@ function createFormationStatusProjection(options) {
         const entries = entryIds.length ? repo.invoke('entries', { values: [...new Set(entryIds)] }) : [];
         const decks = entryIds.length ? repo.invoke('decks', { values: [...new Set(entryIds)] }) : [];
         const result = new Map();
+        for (const recovery of recoveries) {
+          if (recovery.recovery_state === 'attention_required') {
+            result.set(recovery.offer_id, Object.freeze({
+              stage:'attention_required', reasonCode:recovery.error_code || 'ARCA_ACCEPTANCE_EXECUTION_FAILED',
+              completedAtMs:null, shelfEntryId:null,
+            }));
+          } else {
+            result.set(recovery.offer_id, Object.freeze({
+              stage:'in_progress', reasonCode:null, completedAtMs:null, shelfEntryId:null,
+            }));
+          }
+        }
         for (const receipt of receipts) {
           if (receipt.outcome === 'rejected') {
             result.set(receipt.offer_id, Object.freeze({

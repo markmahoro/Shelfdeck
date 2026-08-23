@@ -22,6 +22,9 @@ function requirementLabel(spec) {
 }
 function eventState(event) {
   if (!event) return 'pending';
+  const value = event.result?.result;
+  if (event.result?.outcomeKind === 'failed' || value?.result === 'failed' ||
+      value?.resultKind === 'not_available') return 'blocked';
   if (['succeeded'].includes(event.state) || event.result?.outcomeKind === 'succeeded') return 'done';
   if (['failed', 'blocked', 'cancelled'].includes(event.state)) return 'blocked';
   if (['executing', 'ready', 'pending', 'waiting_resource', 'waiting_external', 'waiting_for_resource', 'waiting_for_external'].includes(event.state)) {
@@ -60,11 +63,11 @@ function transcodeLabel(works, spec) {
   return parts.join(' · ');
 }
 function organizingSteps(works, spec, options) {
-  const step = (key, label, predicate) => {
+  const step = (key, label, predicate, resultLabel) => {
     const event = latestEvent(works, predicate);
     if (!event) return null;
     return Object.freeze({
-      key, label, state: eventState(event),
+      key, label: typeof resultLabel === 'function' ? resultLabel(event) : label, state: eventState(event),
       progress: event.progress || null,
     });
   };
@@ -76,15 +79,26 @@ function organizingSteps(works, spec, options) {
   })();
   const conformance = step('verify', '验证整理结果',
     (event) => event.capabilityRef === 'libra.product.conformance.verify@1');
+  const nfo = step('nfo', '生成整理后的 NFO',
+    (event) => event.capabilityRef === 'libra.product_sidecar.render@1',
+    (event) => ({ related_nfo_update:'更新 NFO', product_metadata_draft_rebuild:'重建 NFO',
+      product_metadata_draft_create:'创建 NFO' }[event.result?.result?.provenanceRef?.objectType] ||
+      (event.result?.result ? '生成整理后的 NFO（历史记录未区分更新或重建）' : '生成整理后的 NFO')));
+  const poster = step('poster', '取得海报',
+    (event) => event.capabilityRef === 'libra.product_artifact.acquire@1' &&
+      (event.result?.result?.artifactHandle?.artifactKind === 'poster' || !event.result?.result),
+    (event) => event.result?.result?.artifactHandle?.provenanceRef?.objectType === 'related_material_reference'
+      ? '复用现有海报' : '下载海报');
   const planned = [
-    step('identity', '确认影片身份', refs('libra.product_identity.')),
-    step('metadata', '补齐资料', (event) => event.capabilityRef === 'libra.product_metadata.fetch@1' || event.capabilityRef === 'libra.product_metadata.commit@1'),
-    step('artwork', '补海报和 NFO', (event) => event.capabilityRef === 'libra.product_artifact.acquire@1' || event.capabilityRef === 'libra.product_sidecar.render@1'),
+    step('identity', '核对影片身份', refs('libra.product_identity.')),
+    step('metadata', '读取并补充媒体资料', (event) => event.capabilityRef === 'libra.product_metadata.fetch@1' || event.capabilityRef === 'libra.product_metadata.commit@1'),
+    poster,
+    nfo,
     step('acquire', '外部寻源', (event) => event.capabilityRef.startsWith('libra.external_material.')),
     remux,
     transcode,
     conformance || (remux || transcode ? Object.freeze({ key:'verify', label:'验证整理结果', state:'pending', progress:null }) : null),
-    step('shelf', '上架到收藏架', (event) => event.capabilityRef === 'libra.product_package.publish@1' || event.capabilityRef.startsWith('arca.')),
+    step('shelf', '提交收藏架验收', (event) => event.capabilityRef === 'libra.product_package.publish@1'),
   ].filter(Boolean);
   if (!planned.length) {
     if (options?.latestRunState === 'discarded') {
@@ -96,6 +110,16 @@ function organizingSteps(works, spec, options) {
 }
 function actionLabel(works, spec, options) {
   return organizingSteps(works, spec, options).map((item) => item.label).join(' / ');
+}
+
+const RELATED_ROLE_LABELS = Object.freeze({ fanart:'背景图', nfo:'NFO', poster:'海报', sidecar:'附属资料', subtitle:'字幕' });
+function relatedMaterialsSummary(primaryCount, relatedRoles) {
+  if (!relatedRoles.length) return `已接收 ${primaryCount} 个主媒体`;
+  const counts = new Map();
+  for (const role of relatedRoles) counts.set(role, (counts.get(role) || 0) + 1);
+  const breakdown = [...counts.entries()].sort(([left],[right])=>Buffer.from(left).compare(Buffer.from(right)))
+    .map(([role,count])=>`${RELATED_ROLE_LABELS[role] || role} ${count}`).join('、');
+  return `已接收 ${primaryCount} 个主媒体，以及 ${relatedRoles.length} 个相关材料（${breakdown}）`;
 }
 function organizingWorks(run, latestRun, progressByRun) {
   if (run) return progressByRun.get(run.libra_run_id) || [];
@@ -116,11 +140,17 @@ function hasOpenExecution(works) {
 function hasBlockingExecution(works) {
   return works.some((work) => ['failed', 'blocked'].includes(work.state));
 }
+function hasBusinessFailure(works) {
+  return works.some((work) => work.events.some((event) => {
+    const value = event.result?.result;
+    return value?.result === 'failed' || value?.resultKind === 'not_available';
+  }));
+}
 function classifyFormation({ run, works, issue, recovery, arcaStatus, productPackage }) {
   if (arcaStatus?.stage === 'completed') return 'completed';
   if ((run && ['frozen', 'suspended'].includes(run.state)) || issue ||
       recovery?.recoveryState === 'attention_required' ||
-      arcaStatus?.stage === 'attention_required' || hasBlockingExecution(works)) {
+      arcaStatus?.stage === 'attention_required' || hasBlockingExecution(works) || hasBusinessFailure(works)) {
     return 'attention_required';
   }
   if (productPackage || arcaStatus?.stage === 'in_progress' || hasOpenExecution(works)) return 'in_progress';
@@ -164,7 +194,16 @@ function nextAction(works, classification, issue, runState, recovery, arcaStatus
   if (recovery?.recoveryState === 'attention_required') return Object.freeze({ label: '接纳执行异常，需要处理', state: 'attention_required', progress: null });
   if (arcaStatus?.stage === 'attention_required') return Object.freeze({ label: '收藏架接纳或上架需要处理', state: 'attention_required', progress: null });
   if (issue) return Object.freeze({ label: issue.result === 'ambiguous' ? '需要确认媒体身份' : issue.result === 'conflicting' ? '媒体身份信息冲突' : '暂未找到匹配的媒体身份', state: 'attention_required', progress: null });
-  if (hasBlockingExecution(works)) return Object.freeze({ label: '整理执行受阻，需要处理', state: 'blocked', progress: null });
+  const businessFailure = latestEvent(works, (event) => eventState(event) === 'blocked');
+  if (businessFailure?.capabilityRef === 'libra.product.conformance.verify@1') {
+    const codes = businessFailure.result?.result?.unmetRequirementCodes || [];
+    return Object.freeze({ label: codes.includes('metadata_field_unmet')
+      ? '媒体产品验收未通过：缺少要求的资料' : '媒体产品验收未通过', state:'blocked', progress:null });
+  }
+  if (businessFailure?.capabilityRef === 'libra.product_artifact.acquire@1') {
+    return Object.freeze({ label:'没有取得要求的海报', state:'blocked', progress:null });
+  }
+  if (hasBlockingExecution(works) || businessFailure) return Object.freeze({ label: '媒体整理执行失败，需要处理', state: 'blocked', progress: null });
   const open = works.filter((work) => !['succeeded', 'failed', 'cancelled'].includes(work.state)).sort((a, b) => a.createdAtMs - b.createdAtMs)[0];
   if (!open && productPackage) return Object.freeze({ label: arcaStatus ? '正在完成收藏架上架' : '等待收藏架验收', state: 'running', progress: null });
   if (!open) return Object.freeze({ label: classification === 'pending' ? '正在确认目标、评分、要求或身份' : '准备下一项整理工作', state: 'pending', progress: null });
@@ -242,11 +281,11 @@ function createFormationProjectionSource(options) {
       const anchor = decisions.find((item) => item.intake_decision_id === subject.routing_anchor_intake_decision_id) || decisions[0];
       const snapshot = parse(anchor?.candidate_delivery_snapshot_json), claim = snapshot?.candidatePackage?.identityClaim || {};
       const displayIdentity = snapshot?.candidatePackage?.displayIdentity || claim.claimedDisplayIdentity || subject.subject_id;
-      return { subject, decisions, displayIdentity };
+      return { subject, decisions, displayIdentity, snapshot };
     });
     const ratings = options.readPerceptionRatings?.(subjects.map((item) => item.subject_id)) || new Map();
     const shelfNames = new Map((options.readShelfTargets?.() || []).map((item) => [item.shelfId, item.name]));
-    return prepared.map(({ subject, decisions, displayIdentity }) => {
+    return prepared.map(({ subject, decisions, displayIdentity, snapshot }) => {
       const bindings = value.bindings.filter((item) => item.subject_id === subject.subject_id && Number(item.current) === 1);
       const routing = latest(value.routingDecisions.filter((item) => item.subject_id === subject.subject_id), 'decision_revision');
       const policy = routing ? value.routingPolicies.find((item) => item.routing_policy_id === routing.routing_policy_id && Number(item.revision) === Number(routing.routing_policy_revision)) : null;
@@ -266,7 +305,23 @@ function createFormationProjectionSource(options) {
       const rating = ratings.get(subject.subject_id) || null;
       const stepOptions = Object.freeze({ latestRunState: latestRun?.state || null });
       const steps = organizingSteps(actionWorks, spec, stepOptions);
-      return Object.freeze({ formationViewId: subject.subject_id, subjectId: subject.subject_id, displayIdentity, contentProfile: subject.content_profile, structureKind: subject.structure_kind, status: subject.status, classification, myRating: rating?.rating ?? null, myRatingSource: rating?.sourceKind || null, myRatingRevision: (rating?.expectedRevision || 0) > 0 ? rating.expectedRevision : null, productIdentityIssue: issue, acceptanceRecovery: recovery, arcaStatus, targetShelfId: routing?.shelf_id || null, targetShelfName: shelfNames.get(routing?.shelf_id) || null, routingState: routing?.decision || 'preparing', unresolvedReasonCode: routing?.unresolved_reason_code || null, routingPolicyMode: policy?.mode || null, routingPolicyRevision: routing?.routing_policy_revision == null ? null : Number(routing.routing_policy_revision), routingDecisionRevision: routing ? Number(routing.decision_revision) : null, routingDecisionDigest: routing?.decision_digest || null, routingDecisionHeadRevision: head ? Number(head.head_revision) : null, routingDecisionHeadDigest: head?.head_digest || null, acceptanceSpecId: spec?.acceptance_spec_id || null, acceptanceSpecRevision: spec ? Number(spec.spec_revision) : null, acceptanceSpecDigest: spec?.spec_digest || null, acceptanceSpecPublishedAtMs: spec ? Number(spec.published_at_ms) : null, primaryMaterialCount: bindings.filter((item) => item.authority_kind === 'primary_control').length, addedAtMs: decisions.length ? Number(decisions.at(-1).decided_at_ms) : Number(subject.updated_at_ms), organizingRequirement: requirementLabel(spec), organizingAction: actionLabel(actionWorks, spec, stepOptions), organizingSteps: steps, nextAction: nextAction(works, classification, issue, run?.state, recovery, arcaStatus, pkg, latestRun?.state || null), currentRun: run ? Object.freeze({ libraRunId: run.libra_run_id, state: run.state, stateRevision: Number(run.state_revision), stateDigest: run.state_digest, priorityClass: run.priority_class, packageRevisionHead: Number(run.package_revision_head), currentIdentityRevision: subject.current_identity_revision === null ? null : Number(subject.current_identity_revision) }) : null, handoffB: pkg ? Object.freeze({ onDeckPackageId: pkg.on_deck_package_id, offerId: pkg.offer_id, packageRevision: Number(pkg.package_revision), packageDigest: pkg.package_digest, state: pkg.state, publishedAtMs: Number(pkg.published_at_ms) }) : null, completedAtMs: arcaStatus?.stage === 'completed' ? arcaStatus.completedAtMs : null });
+      const primaryCount = snapshot?.primaryInputManifest?.members?.length ||
+        bindings.filter((item) => item.authority_kind === 'primary_control').length;
+      const relatedRoles = Object.freeze((snapshot?.candidatePackage?.relatedReferences || [])
+        .map((item) => item.role).sort());
+      const detail = Object.freeze({
+        receivedMaterials:Object.freeze({ primaryCount, relatedCount:relatedRoles.length, relatedRoles,
+          state:'completed', summary:relatedMaterialsSummary(primaryCount,relatedRoles) }),
+        mediaOrganization:Object.freeze({ state:classification === 'attention_required' && !arcaStatus ? 'attention' :
+          pkg ? 'completed' : 'pending', steps, summary:steps.map((item)=>item.label).join(' → ') || '等待形成媒体整理方案' }),
+        acceptanceAndShelving:Object.freeze({ state:arcaStatus?.stage === 'completed' ? 'completed' :
+          arcaStatus?.stage === 'attention_required' || recovery?.recoveryState === 'attention_required' ? 'attention' : 'pending',
+          reasonCode:arcaStatus?.reasonCode || recovery?.errorCode || null,
+          summary:arcaStatus?.stage === 'completed' ? '收藏架验收通过，已正式上架' :
+            arcaStatus?.stage === 'attention_required' ? '收藏架验收或上架失败，需要处理' :
+              pkg ? '媒体产品已提交，等待收藏架验收与上架' : '媒体产品尚未提交收藏架' }),
+      });
+      return Object.freeze({ formationViewId: subject.subject_id, subjectId: subject.subject_id, displayIdentity, contentProfile: subject.content_profile, structureKind: subject.structure_kind, status: subject.status, classification, myRating: rating?.rating ?? null, myRatingSource: rating?.sourceKind || null, myRatingRevision: (rating?.expectedRevision || 0) > 0 ? rating.expectedRevision : null, ratingState:rating?.state || 'pending', ratingResolutionStatus:rating?.resolutionStatus || null, ratingReasonCode:rating?.reasonCode || null, productIdentityIssue: issue, acceptanceRecovery: recovery, arcaStatus, processDetail:detail, targetShelfId: routing?.shelf_id || null, targetShelfName: shelfNames.get(routing?.shelf_id) || null, routingState: routing?.decision || 'preparing', unresolvedReasonCode: routing?.unresolved_reason_code || null, routingPolicyMode: policy?.mode || null, routingPolicyRevision: routing?.routing_policy_revision == null ? null : Number(routing.routing_policy_revision), routingDecisionRevision: routing ? Number(routing.decision_revision) : null, routingDecisionDigest: routing?.decision_digest || null, routingDecisionHeadRevision: head ? Number(head.head_revision) : null, routingDecisionHeadDigest: head?.head_digest || null, acceptanceSpecId: spec?.acceptance_spec_id || null, acceptanceSpecRevision: spec ? Number(spec.spec_revision) : null, acceptanceSpecDigest: spec?.spec_digest || null, acceptanceSpecPublishedAtMs: spec ? Number(spec.published_at_ms) : null, primaryMaterialCount: primaryCount, addedAtMs: decisions.length ? Number(decisions.at(-1).decided_at_ms) : Number(subject.updated_at_ms), organizingRequirement: requirementLabel(spec), organizingAction: actionLabel(actionWorks, spec, stepOptions), organizingSteps: steps, nextAction: nextAction(works, classification, issue, run?.state, recovery, arcaStatus, pkg, latestRun?.state || null), currentRun: run ? Object.freeze({ libraRunId: run.libra_run_id, state: run.state, stateRevision: Number(run.state_revision), stateDigest: run.state_digest, priorityClass: run.priority_class, packageRevisionHead: Number(run.package_revision_head), currentIdentityRevision: subject.current_identity_revision === null ? null : Number(subject.current_identity_revision) }) : null, handoffB: pkg ? Object.freeze({ onDeckPackageId: pkg.on_deck_package_id, offerId: pkg.offer_id, packageRevision: Number(pkg.package_revision), packageDigest: pkg.package_digest, state: pkg.state, publishedAtMs: Number(pkg.published_at_ms) }) : null, completedAtMs: arcaStatus?.stage === 'completed' ? arcaStatus.completedAtMs : null });
     });
   }
   function scan(visitor) {
@@ -284,7 +339,8 @@ function createFormationProjectionSource(options) {
     if (!found) { const error = new Error('Media organization item was not found.'); error.code = 'FORMATION_SUBJECT_NOT_FOUND'; throw error; }
     return found;
   }
-  return Object.freeze({ readPage, readSubject, findSubjectByRun, buildBatch, scan, get });
+  function getMany(subjectIds) { return buildBatch(subjectIds.map(readSubject).filter(Boolean)); }
+  return Object.freeze({ readPage, readSubject, findSubjectByRun, buildBatch, scan, get, getMany });
 }
 
 function attentionFor(item) {
@@ -305,6 +361,7 @@ function buildFormationProjectionRow(item, nowMs) {
   const identityDigest = item.productIdentityIssue ? canonicalDigest(item.productIdentityIssue) : null;
   const attentionPriority = item.classification === 'attention_required' ? 0 : item.classification === 'in_progress' ? 1 : item.classification === 'pending' ? 2 : 3;
   const basis = {
+    projectionContractRevision: 2,
     subjectId: item.subjectId, displayIdentity: item.displayIdentity, contentProfile: item.contentProfile,
     structureKind: item.structureKind, subjectStatus: item.status, classification: item.classification,
     rating: [item.myRating, item.myRatingSource, item.myRatingRevision], targetShelf: [item.targetShelfId, item.targetShelfName],
@@ -318,7 +375,7 @@ function buildFormationProjectionRow(item, nowMs) {
     arcaStatus:item.arcaStatus, completedAtMs:item.completedAtMs,
   };
   const row = {
-    subject_id: item.subjectId, projection_revision: 1, classification: item.classification,
+    subject_id: item.subjectId, projection_revision: 2, classification: item.classification,
     attention_state: attentionState, attention_priority: attentionPriority, display_identity: item.displayIdentity,
     content_profile: item.contentProfile, structure_kind: item.structureKind, subject_status: item.status,
     my_rating: item.myRating, my_rating_source: item.myRatingSource, my_rating_revision: item.myRatingRevision,
@@ -406,15 +463,28 @@ function projectionItem(row) {
 function createFormationQuery(options) {
   if (!options?.store) throw new TypeError('Formation query requires the durable projection store.');
   const now = options.now || Date.now;
+  function acceptanceIssueLabel(value) {
+    if (value.errorCode === 'CLEAN_ARCA_TARGET_ROOT_UNAVAILABLE') {
+      return '媒体整理完成，目标收藏架目录不可用，上架失败';
+    }
+    return '媒体整理完成，收藏架验收或上架失败';
+  }
   function technicalIssue(item) {
     const value = item.handoffB?.offerId ? options.readAcceptanceRecovery?.(item.handoffB.offerId) : null;
     if (!value || value.recoveryState !== 'attention_required') return Object.freeze({ ...item, executorIssue:null });
     return Object.freeze({ ...item, classification:'attention_required',
-      nextAction:Object.freeze({ label:'需要处理', state:'attention_required', progress:null }),
+      nextAction:Object.freeze({ label:acceptanceIssueLabel(value), state:'attention_required', progress:null }),
       executorIssue:Object.freeze({ phase:value.failurePhase, errorCode:value.errorCode,
         attemptCount:value.terminalAttemptCount, owner:value.ownerDomain,
         recoveryState:value.recoveryState, recoveryGeneration:value.recoveryGeneration,
         automaticRecoveryUsed:value.automaticRecoveryUsed, canRetry:true, offerId:value.offerId }) });
+  }
+  function currentRatingFacts(items) {
+    if (!options.detailSource?.getMany || !items.length) return items;
+    const fresh = new Map(options.detailSource.getMany(items.map((item)=>item.subjectId)).map((item)=>[item.subjectId,item]));
+    return items.map((item)=>{const value=fresh.get(item.subjectId);return value ? Object.freeze({ ...item,
+      myRating:value.myRating,myRatingSource:value.myRatingSource,myRatingRevision:value.myRatingRevision,
+      ratingState:value.ratingState,ratingResolutionStatus:value.ratingResolutionStatus,ratingReasonCode:value.ratingReasonCode }) : item;});
   }
   function summary(attentionRows = []) {
     const result = { totalCount: 0, pendingCount: 0, inProgressCount: 0, attentionRequiredCount: 0, completedCount: 0 };
@@ -503,7 +573,7 @@ function createFormationQuery(options) {
     if (section === 'completed') {
       let rows = options.store.listCompleted(offset, limit + 1).filter((item)=>!attentionOffers.has(item.current_offer_id));
       const hasMore = rows.length > limit, selected = hasMore ? rows.slice(0, limit) : rows;
-      return Object.freeze({ items: Object.freeze(selected.map(projectionItem).map(technicalIssue)), summary: summary(attention),
+      return Object.freeze({ items: Object.freeze(currentRatingFacts(selected.map(projectionItem).map(technicalIssue))), summary: summary(attention),
         nextCursor: hasMore ? cursorFor(offset + limit) : null, projection: Object.freeze({ status: state.status, asOfMs: state.asOfMs }) });
     }
     const filters = activeFilters(query);
@@ -517,10 +587,11 @@ function createFormationQuery(options) {
     }
     const windowed = hasActiveFilters(filters) ? items.slice(offset) : items;
     const hasMore = windowed.length > limit, selected = hasMore ? windowed.slice(0, limit) : windowed;
-    return Object.freeze({ items: Object.freeze(selected), summary: summary(attention),
+    return Object.freeze({ items: Object.freeze(currentRatingFacts(selected)), summary: summary(attention),
       nextCursor: hasMore ? cursorFor(offset + limit) : null, projection: Object.freeze({ status: state.status, asOfMs: state.asOfMs }) });
   }
   function get(subjectId) {
+    if (options.detailSource?.get) return technicalIssue(options.detailSource.get(subjectId));
     const row = options.store.find(subjectId);
     if (!row) throw Object.assign(new Error('Media organization item was not found.'), { code: 'FORMATION_SUBJECT_NOT_FOUND' });
     return technicalIssue(projectionItem(row));
@@ -538,9 +609,11 @@ module.exports = Object.freeze({
   extractProductIdentityIssue,
   frozenRunLabel,
   hasBlockingExecution,
+  hasBusinessFailure,
   hasOpenExecution,
   nextAction,
   organizingSteps,
   organizingWorks,
   projectionItem,
+  relatedMaterialsSummary,
 });

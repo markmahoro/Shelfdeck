@@ -1,237 +1,84 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { helixAdminApi, type FormationRunHistory, type FormationSubject, type FormationSummary, type Shelf } from './api';
 import { Button, LoadingState, PageHeader } from './chrome';
 import RatingControl from './RatingControl';
 import { isUnauthorized, useSession } from './session';
 
-const emptySummary: FormationSummary = { totalCount: 0, pendingCount: 0, inProgressCount: 0, attentionRequiredCount: 0, completedCount: 0 };
-const classificationLabels: Record<FormationSubject['classification'], string> = {
-  pending: '待整理', in_progress: '整理中', attention_required: '需要处理', completed: '已完成整理',
-};
-function formatTime(value: number) {
-  return value > 0 ? new Intl.DateTimeFormat('zh-CN', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value)) : '—';
-}
-type OrganizingStep = FormationSubject['organizingSteps'][number];
-function stepsOf(item: FormationSubject): OrganizingStep[] {
-  if (item.organizingSteps?.length) return item.organizingSteps;
-  return [{ key: 'legacy', label: item.organizingAction || '正在评估整理方案', state: 'pending', progress: null }];
-}
-function stepPercent(step: OrganizingStep) {
-  if (step.state === 'done') return 100;
-  const value = step.progress;
-  if (!value || value.mode !== 'determinate' || !value.totalValue) return null;
-  return Math.min(100, Math.round(((value.currentValue || 0) / value.totalValue) * 100));
-}
-function canChooseShelf(item: FormationSubject) {
-  return item.routingState === 'unresolved' && Number.isSafeInteger(item.routingDecisionHeadRevision) && Boolean(item.routingDecisionHeadDigest);
-}
-function canExpedite(item: FormationSubject) {
-  return item.currentRun?.state === 'active' && !item.handoffB;
-}
-function userActionLabel(item: FormationSubject) {
-  if (['attention_required', 'frozen', 'suspended', 'blocked'].includes(item.nextAction.state)) return item.nextAction.label;
-  if (canChooseShelf(item)) return '等待选择目标收藏架';
-  return null;
-}
-function shelfNameFor(item: FormationSubject, shelves: Shelf[]) {
-  if (!item.targetShelfId) return null;
-  return item.targetShelfName || shelves.find((shelf) => shelf.shelfId === item.targetShelfId)?.name || '已选收藏架';
+const emptySummary: FormationSummary = { totalCount:0, pendingCount:0, inProgressCount:0, attentionRequiredCount:0, completedCount:0 };
+type Filter = 'all'|'pending'|'in_progress'|'attention_required'|'completed'|'ended';
+type LedgerRow = { kind:'formation'; item:FormationSubject } | { kind:'ended'; item:FormationRunHistory };
+
+function formatTime(value:number) { return value > 0 ? new Intl.DateTimeFormat('zh-CN', { dateStyle:'medium', timeStyle:'short' }).format(new Date(value)) : '—'; }
+function statusLabel(item:FormationSubject) { return ({ pending:'待整理', in_progress:'整理中', attention_required:'需要处理', completed:'已完成整理' } as const)[item.classification]; }
+function stageState(item:FormationSubject) { return item.classification === 'completed' ? 'completed' : item.classification === 'attention_required' ? 'attention' : 'pending'; }
+function canExpedite(item:FormationSubject) { return item.currentRun?.state === 'active' && !item.handoffB; }
+function canChooseShelf(item:FormationSubject) { return item.routingState==='unresolved' && Number.isSafeInteger(item.routingDecisionHeadRevision) && Boolean(item.routingDecisionHeadDigest); }
+function shelfName(item:FormationSubject, shelves:Shelf[]) { return item.targetShelfName || shelves.find((shelf)=>shelf.shelfId===item.targetShelfId)?.name || '尚未选定'; }
+function ratingText(item:FormationSubject) {
+  if (item.myRating) return `${item.myRating} 星 · ${item.myRatingSource === 'douban' ? '豆瓣' : 'ShelfDeck'}`;
+  if (item.productIdentityIssue) return '影片身份待确认';
+  if (item.ratingState === 'pending') return '正在匹配豆瓣评分';
+  if (item.ratingReasonCode === 'requested_fact_absent') return '豆瓣记录没有评分';
+  if (item.ratingReasonCode === 'strongest_value_conflict') return '豆瓣评分记录有冲突';
+  if (item.ratingResolutionStatus === 'not_found') return '豆瓣暂无匹配评分';
+  return '正在匹配豆瓣评分';
 }
 
-type TableProps = {
-  items: FormationSubject[];
-  shelves: Shelf[];
-  loading: boolean;
-  onChoose: (item: FormationSubject, shelfId: string) => void;
-  onExpedite: (item: FormationSubject, value: boolean) => void;
-  onChooseIdentity: (item: FormationSubject, tmdbMovieId: string) => void;
-  onDiscard: (item: FormationSubject) => void;
-  onRetryAcceptance: (item: FormationSubject) => void;
-};
-
-function OrganizingStepLabels({ item }: { item: FormationSubject }) {
-  return <ol className="organizing-steps">{stepsOf(item).map((step) => <li key={step.key} data-state={step.state}><strong>{step.label}</strong></li>)}</ol>;
+function StageState({ state }:{ state:'completed'|'attention'|'pending' }) {
+  return <span className="formation-stub-stage-state" data-state={state}>{state==='completed'?'已完成':state==='attention'?'需要处理':'尚未完成'}</span>;
 }
-
-function OrganizingStepProgress({ item }: { item: FormationSubject }) {
-  return <ol className="organizing-steps organizing-progress">{stepsOf(item).map((step) => {
-    const percent = stepPercent(step);
-    const label = `${item.displayIdentity} · ${step.label}`;
-    return <li key={step.key} data-state={step.state}>
-      {percent === null
-        ? <progress aria-label={step.progress?.mode === 'indeterminate' || step.state === 'running' ? `${label}正在进行` : `${label}尚未开始`} />
-        : <><progress max={100} value={percent} aria-label={`${label} ${percent}%`} /><small>{percent}%</small></>}
-    </li>;
-  })}</ol>;
+function ProcessDetail({ item }:{ item:FormationSubject }) {
+  const detail=item.processDetail,mediaSteps=detail?.mediaOrganization.steps || item.organizingSteps;
+  return <article className="formation-process-card" aria-label={`${item.displayIdentity}的上架过程详情`}>
+    <header className="formation-process-head"><div><span className="formation-process-eyebrow">上架过程详情</span><h3>{item.displayIdentity}</h3><p>{item.nextAction.label}</p></div><span className="formation-process-status" data-state={stageState(item)}>{statusLabel(item)}</span></header>
+    <dl className="formation-process-facts"><div><dt>目标收藏架</dt><dd>{item.targetShelfName || '尚未选定'}</dd></div><div><dt>收藏要求</dt><dd>{item.organizingRequirement}</dd></div><div><dt>当前进展</dt><dd>{item.nextAction.label}</dd></div></dl>
+    <div className="formation-process-stages">
+      <details className="formation-process-stage"><summary><span className="formation-stage-index" aria-hidden="true">1</span><span><strong>已接收的材料</strong><small>{detail?.receivedMaterials.summary || `已接收 ${item.primaryMaterialCount} 个主媒体`}</small></span><StageState state="completed" /></summary><div className="formation-stage-body"><ol><li className="formation-stub-result" data-state="completed"><span className="formation-stub-result-mark" aria-hidden="true">✓</span><div><strong>Libra Intake 已接收</strong><p>{detail?.receivedMaterials.summary || `主媒体 ${item.primaryMaterialCount} 个；候选材料范围已经冻结。`}</p></div></li></ol></div></details>
+      <details className="formation-process-stage" open><summary><span className="formation-stage-index" aria-hidden="true">2</span><span><strong>媒体整理</strong><small>{detail?.mediaOrganization.summary || item.organizingAction}</small></span><StageState state={detail?.mediaOrganization.state || stageState(item)} /></summary><div className="formation-stage-body"><ol>{mediaSteps.map((step)=><li key={step.key} className="formation-stub-result" data-state={step.state==='done'?'completed':step.state==='blocked'?'attention':'pending'}><span className="formation-stub-result-mark" aria-hidden="true">{step.state==='done'?'✓':step.state==='blocked'?'×':'○'}</span><div><strong>{step.label}</strong><p>{step.state==='done'?'已完成。':step.state==='blocked'?'执行或业务验收失败，无法继续。':step.state==='running'?'正在执行。':'尚未开始。'}</p>{step.progress?.mode==='determinate' && step.progress.totalValue ? <div className="formation-stub-progress"><progress max={step.progress.totalValue} value={step.progress.currentValue || 0} aria-label={`${step.label}进度`} /><small>{step.progress.currentValue || 0}/{step.progress.totalValue} {step.progress.unit || ''}</small></div>:null}</div></li>)}</ol></div></details>
+      <details className="formation-process-stage" open={detail?.acceptanceAndShelving.state==='attention'}><summary><span className="formation-stage-index" aria-hidden="true">3</span><span><strong>验收与上架</strong><small>{detail?.acceptanceAndShelving.summary || (item.handoffB?'等待收藏架验收与上架':'媒体产品尚未提交收藏架')}</small></span><StageState state={detail?.acceptanceAndShelving.state || (item.classification==='completed'?'completed':'pending')} /></summary><div className="formation-stage-body"><ol><li className="formation-stub-result" data-state={detail?.acceptanceAndShelving.state==='completed'?'completed':detail?.acceptanceAndShelving.state==='attention'?'attention':'pending'}><span className="formation-stub-result-mark" aria-hidden="true">{detail?.acceptanceAndShelving.state==='completed'?'✓':detail?.acceptanceAndShelving.state==='attention'?'×':'○'}</span><div><strong>收藏架验收与上架</strong><p>{detail?.acceptanceAndShelving.summary || '等待媒体产品提交。'}</p></div></li></ol>{detail?.acceptanceAndShelving.reasonCode && <details className="formation-diagnostic"><summary>技术诊断</summary><code>{detail.acceptanceAndShelving.reasonCode}</code></details>}</div></details>
+    </div>
+  </article>;
 }
-
-function CurrentMediaTable({ items, shelves, loading, onChoose, onExpedite, onChooseIdentity, onDiscard, onRetryAcceptance }: TableProps) {
-  const [targets, setTargets] = useState<Record<string, string>>({});
-  const [identityIds, setIdentityIds] = useState<Record<string, string>>({});
-  return <div className="formation-table-wrap"><table className="formation-table formation-current-table"><thead><tr>
-    <th>媒体名称</th><th>整理动作</th><th>分步进度</th><th>用户操作</th><th>加急</th>
-  </tr></thead><tbody>{items.map((item) => {
-    const reason = userActionLabel(item);
-    const expedited = item.currentRun?.priorityClass === 'expedited';
-    return <tr key={item.subjectId}>
-      <td>
-        <strong>{item.displayIdentity}</strong>
-        <small>{classificationLabels[item.classification]} · {formatTime(item.addedAtMs)}</small>
-        <small>{shelfNameFor(item, shelves) || '尚未选定收藏架'}</small>
-        <small>{item.organizingRequirement}</small>
-        <RatingControl targetType="subject" targetId={item.subjectId} label={item.displayIdentity} initialRating={item.myRating} initialSource={item.myRatingSource} initialRevision={item.myRatingRevision} />
-      </td>
-      <td><OrganizingStepLabels item={item} /></td>
-      <td><OrganizingStepProgress item={item} /></td>
-      <td>
-        {reason && <strong>{reason}</strong>}
-        {canChooseShelf(item) && <div className="manual-shelf">
-          <select aria-label={`${item.displayIdentity}的目标收藏架`} value={targets[item.subjectId] || shelves[0]?.shelfId || ''} onChange={(event) => setTargets((current) => ({ ...current, [item.subjectId]: event.target.value }))}>{shelves.map((shelf) => <option key={shelf.shelfId} value={shelf.shelfId}>{shelf.name}</option>)}</select>
-          <Button type="button" disabled={loading || !shelves.length} onClick={() => onChoose(item, targets[item.subjectId] || shelves[0]?.shelfId)}>选择收藏架</Button>
-        </div>}
-        {item.executorIssue && <div className="executor-issue" role="status">
-          <small>整理出错，可以重试</small>
-          <details><summary>详细信息</summary><small>阶段：{item.executorIssue.phase}</small><small>错误：{item.executorIssue.errorCode}</small></details>
-          <Button variant="primary" type="button" disabled={loading || !item.executorIssue.canRetry} onClick={() => onRetryAcceptance(item)}>重试</Button>
-        </div>}
-        {item.productIdentityIssue && item.currentRun && !['frozen', 'discarded'].includes(item.currentRun.state) && <div className="manual-shelf">
-          <label><span className="sr-only">TMDB 编号</span><input aria-label={`${item.displayIdentity}的 TMDB 编号`} inputMode="numeric" placeholder="TMDB 编号" value={identityIds[item.subjectId] || ''} onChange={(event) => setIdentityIds((current) => ({ ...current, [item.subjectId]: event.target.value.replace(/\D/g, '') }))} /></label>
-          <Button type="button" disabled={loading || !/^\d+$/.test(identityIds[item.subjectId] || '')} onClick={() => onChooseIdentity(item, identityIds[item.subjectId])}>验证此身份</Button>
-          {item.productIdentityIssue.candidates.map((candidate) => <Button type="button" key={candidate.providerKey} disabled={loading} onClick={() => onChooseIdentity(item, candidate.providerKey)}>{candidate.displayTitle}{candidate.releaseYear ? ` (${candidate.releaseYear})` : ''}</Button>)}
-        </div>}
-        {item.currentRun?.state === 'frozen' && <Button type="button" disabled={loading} onClick={() => onDiscard(item)}>放弃本次整理</Button>}
-      </td>
-      <td>{canExpedite(item)
-        ? <div className="expedite-cell"><small>{expedited ? '已加急' : '普通'}</small><Button type="button" disabled={loading} onClick={() => onExpedite(item, !expedited)}>{expedited ? '取消加快' : '加快整理'}</Button></div>
-        : <small>—</small>}</td>
-    </tr>;
-  })}</tbody></table></div>;
-}
-
-function CompletedMediaTable({ items, shelves }: { items: FormationSubject[]; shelves: Shelf[] }) {
-  return <div className="formation-table-wrap"><table className="formation-table"><thead><tr>
-    <th>媒体名称</th><th>目标收藏架</th><th>整理动作</th><th>完成时间</th>
-  </tr></thead><tbody>{items.map((item) => <tr key={item.subjectId}>
-    <td><strong>{item.displayIdentity}</strong><small>{item.organizingRequirement}</small></td>
-    <td>{shelfNameFor(item, shelves) || '—'}</td>
-    <td><OrganizingStepLabels item={item} /></td>
-    <td>{formatTime(item.completedAtMs || 0)}</td>
-  </tr>)}</tbody></table></div>;
-}
-
-type ActiveFilters = {
-  classification?: 'pending' | 'in_progress' | 'attention_required';
-  shelfId?: string;
-  needsUserAction: boolean;
-  expedited: boolean;
-  q: string;
-};
-const emptyFilters: ActiveFilters = { needsUserAction: false, expedited: false, q: '' };
 
 export default function FormationPage() {
-  const { expire } = useSession();
-  const [items, setItems] = useState<FormationSubject[]>([]);
-  const [completed, setCompleted] = useState<FormationSubject[]>([]);
-  const [ended, setEnded] = useState<FormationRunHistory[]>([]);
-  const [summary, setSummary] = useState<FormationSummary>(emptySummary);
-  const [shelves, setShelves] = useState<Shelf[]>([]);
-  const [filters, setFilters] = useState<ActiveFilters>(emptyFilters);
-  const [expanded, setExpanded] = useState(() => { try { return localStorage.getItem('formation-completed-expanded') === 'true'; } catch { return false; } });
-  const [endedExpanded, setEndedExpanded] = useState(() => { try { return localStorage.getItem('formation-ended-expanded') === 'true'; } catch { return false; } });
-  const [activeCursor, setActiveCursor] = useState<string | null>(null);
-  const [completedCursor, setCompletedCursor] = useState<string | null>(null);
-  const [endedCursor, setEndedCursor] = useState<string | null>(null);
-  const [projection, setProjection] = useState<{ status: 'ready' | 'rebuilding' | 'stale'; asOfMs: number } | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const queryFilters = {
-    classification: filters.classification,
-    shelfId: filters.shelfId,
-    needsUserAction: filters.needsUserAction || undefined,
-    expedited: filters.expedited || undefined,
-    q: filters.q.trim() || undefined,
-  };
-  const load = useCallback(async () => {
-    setLoading(true); setError('');
-    try {
-      const [active, shelfResult] = await Promise.all([helixAdminApi.listFormation('active', undefined, queryFilters), helixAdminApi.listShelves()]);
-      setItems(active.items); setActiveCursor(active.nextCursor); setSummary(active.summary); setProjection(active.projection);
-      setShelves(shelfResult.items.filter((item) => item.status === 'active'));
-      if (expanded) {
-        const done = await helixAdminApi.listFormation('completed');
-        setCompleted(done.items); setCompletedCursor(done.nextCursor);
-      }
-      if (endedExpanded) {
-        const history = await helixAdminApi.listFormationHistory();
-        setEnded(history.items); setEndedCursor(history.nextCursor);
-      }
-    } catch (cause) {
-      if (isUnauthorized(cause)) expire();
-      else setError(cause instanceof Error ? cause.message : '媒体整理工作区读取失败。');
-    } finally { setLoading(false); }
-  }, [expire, expanded, endedExpanded, filters.classification, filters.shelfId, filters.needsUserAction, filters.expedited, filters.q]);
-  useEffect(() => { void load(); }, [load]);
-  const tableProps = {
-    shelves, loading,
-    onChoose: async (item: FormationSubject, shelfId: string) => { if (!shelfId) return; setLoading(true); try { await helixAdminApi.chooseShelf(item, shelfId); await load(); } catch (cause) { if (isUnauthorized(cause)) expire(); else setError(cause instanceof Error ? cause.message : '收藏架选择失败。'); setLoading(false); } },
-    onExpedite: async (item: FormationSubject, value: boolean) => { setLoading(true); try { await helixAdminApi.setRunExpedited(item, value); await load(); } catch (cause) { if (isUnauthorized(cause)) expire(); else setError(cause instanceof Error ? cause.message : '整理优先级修改失败。'); setLoading(false); } },
-    onDiscard: async (item: FormationSubject) => { if (!window.confirm(`确认放弃“${item.displayIdentity}”的本次整理？原始媒体不会因此删除。`)) return; setLoading(true); try { await helixAdminApi.discardRun(item); await load(); } catch (cause) { if (isUnauthorized(cause)) expire(); else setError(cause instanceof Error ? cause.message : '放弃本次整理失败。'); setLoading(false); } },
-    onChooseIdentity: async (item: FormationSubject, tmdbMovieId: string) => { setLoading(true); try { await helixAdminApi.chooseProductIdentity(item, tmdbMovieId); await load(); } catch (cause) { if (isUnauthorized(cause)) expire(); else setError(cause instanceof Error ? cause.message : '媒体身份确认失败。'); setLoading(false); } },
-    onRetryAcceptance: async (item: FormationSubject) => { setLoading(true); try { await helixAdminApi.retryAcceptance(item); await load(); } catch (cause) { if (isUnauthorized(cause)) expire(); else setError(cause instanceof Error ? cause.message : '重试失败。'); setLoading(false); } },
-  };
-  if (!projection && !error && loading) return <LoadingState>正在读取媒体整理工作区…</LoadingState>;
-  return <section className="source-page workbench formation-page">
-    <PageHeader title="媒体整理工作区" description="查看待整理、整理中、需要处理和已经上架的媒体。" actions={<Button type="button" onClick={() => void load()} disabled={loading}>{loading ? '正在刷新…' : '刷新'}</Button>} />
-    {projection && <p className="formation-projection-state">{projection.status === 'ready' ? '展示已更新' : projection.status === 'rebuilding' ? '正在更新展示' : '展示可能稍有滞后'} · {formatTime(projection.asOfMs)}</p>}
-    <div className="source-facts" aria-label="整理状态摘要">
-      <div><span>待整理</span><strong>{summary.pendingCount}</strong></div>
-      <div><span>整理中</span><strong>{summary.inProgressCount}</strong></div>
-      <div><span>需要处理</span><strong>{summary.attentionRequiredCount}</strong></div>
-      <div><span>已完成整理</span><strong>{summary.completedCount}</strong></div>
-    </div>
-    {error && <p className="form-error" role="alert">{error}</p>}
-    <section className="formation-ledger">
-      <div className="source-registry-heading"><div><h2>当前媒体</h2></div><span>当前显示 {items.length} 条</span></div>
-      <div className="formation-chips" role="group" aria-label="当前媒体状态">
-        {([
-          { id: undefined, label: `全部当前 ${summary.pendingCount + summary.inProgressCount + summary.attentionRequiredCount}` },
-          { id: 'pending' as const, label: `待整理 ${summary.pendingCount}` },
-          { id: 'in_progress' as const, label: `整理中 ${summary.inProgressCount}` },
-          { id: 'attention_required' as const, label: `需要处理 ${summary.attentionRequiredCount}` },
-        ]).map((chip) => <Button key={chip.label} type="button" aria-pressed={filters.classification === chip.id} onClick={() => setFilters((current) => ({ ...current, classification: chip.id }))}>{chip.label}</Button>)}
-      </div>
-      <div className="formation-secondary">
-        <label>目标收藏架
-          <select aria-label="按收藏架筛选" value={filters.shelfId || ''} onChange={(event) => setFilters((current) => ({ ...current, shelfId: event.target.value || undefined }))}>
-            <option value="">全部收藏架</option>
-            <option value="unset">尚未选定</option>
-            {shelves.map((shelf) => <option key={shelf.shelfId} value={shelf.shelfId}>{shelf.name}</option>)}
-          </select>
-        </label>
-        <label className="formation-check"><input type="checkbox" checked={filters.needsUserAction} onChange={(event) => setFilters((current) => ({ ...current, needsUserAction: event.target.checked }))} />需要我处理</label>
-        <label className="formation-check"><input type="checkbox" checked={filters.expedited} onChange={(event) => setFilters((current) => ({ ...current, expedited: event.target.checked }))} />已加急</label>
-        <label>片名
-          <input type="search" aria-label="按片名筛选" value={filters.q} placeholder="搜索片名" onChange={(event) => setFilters((current) => ({ ...current, q: event.target.value }))} />
-        </label>
-      </div>
-      {items.length ? <>
-        <CurrentMediaTable items={items} {...tableProps} />
-        {activeCursor && <Button type="button" onClick={() => void (async () => { if (!activeCursor) return; setLoading(true); try { const result = await helixAdminApi.listFormation('active', activeCursor, queryFilters); setItems((current) => [...current, ...result.items]); setActiveCursor(result.nextCursor); setProjection(result.projection); } finally { setLoading(false); } })()} disabled={loading}>加载更多当前媒体</Button>}
-      </> : <div className="source-empty"><strong>{filters.classification || filters.shelfId || filters.needsUserAction || filters.expedited || filters.q.trim() ? '当前没有符合筛选的媒体' : '当前没有未完成媒体'}</strong></div>}
+  const { expire }=useSession();
+  const [active,setActive]=useState<FormationSubject[]>([]),[completed,setCompleted]=useState<FormationSubject[]>([]),[ended,setEnded]=useState<FormationRunHistory[]>([]),[summary,setSummary]=useState(emptySummary),[shelves,setShelves]=useState<Shelf[]>([]);
+  const [filter,setFilter]=useState<Filter>('all'),[q,setQ]=useState(''),[shelfFilter,setShelfFilter]=useState(''),[needsActionOnly,setNeedsActionOnly]=useState(false),[expeditedOnly,setExpeditedOnly]=useState(false),[loading,setLoading]=useState(false),[error,setError]=useState('');
+  const [selected,setSelected]=useState<FormationSubject|null>(null),closeRef=useRef<HTMLButtonElement>(null),triggerRef=useRef<HTMLButtonElement|null>(null);
+  const load=useCallback(async()=>{setLoading(true);setError('');try{
+    const loadAllFormation=async(section:'active'|'completed')=>{let cursor: string|undefined,summary=emptySummary;const items:FormationSubject[]=[];const seen=new Set<string>();do{const page=await helixAdminApi.listFormation(section,cursor);items.push(...page.items);summary=page.summary;if(!page.nextCursor)break;if(seen.has(page.nextCursor)||seen.size>=399)throw new Error('媒体整理分页游标异常，已停止读取。');seen.add(page.nextCursor);cursor=page.nextCursor;}while(cursor);return{items,summary};};
+    const loadAllHistory=async()=>{let cursor: string|undefined;const items:FormationRunHistory[]=[];const seen=new Set<string>();do{const page=await helixAdminApi.listFormationHistory(cursor);items.push(...page.items);if(!page.nextCursor)break;if(seen.has(page.nextCursor)||seen.size>=399)throw new Error('整理历史分页游标异常，已停止读取。');seen.add(page.nextCursor);cursor=page.nextCursor;}while(cursor);return items;};
+    const [a,c,e,s]=await Promise.all([loadAllFormation('active'),loadAllFormation('completed'),loadAllHistory(),helixAdminApi.listShelves()]);
+    setActive(a.items);setCompleted(c.items);setEnded(e);setSummary(a.summary);setShelves(s.items.filter((item)=>item.status==='active'));
+  }catch(cause){if(isUnauthorized(cause))expire();else setError(cause instanceof Error?cause.message:'媒体整理工作区读取失败。');}finally{setLoading(false);}},[expire]);
+  useEffect(()=>{void load();},[load]);
+  const rows=useMemo<LedgerRow[]>(()=>[...active.map((item)=>({kind:'formation' as const,item})),...completed.map((item)=>({kind:'formation' as const,item})),...ended.map((item)=>({kind:'ended' as const,item}))].filter((row)=>{
+    if(q.trim()&&!row.item.displayIdentity.toLowerCase().includes(q.trim().toLowerCase()))return false;
+    if(row.kind==='formation'&&shelfFilter&&row.item.targetShelfId!==shelfFilter)return false;
+    if(needsActionOnly&&(row.kind==='ended'||!(row.item.productIdentityIssue||row.item.executorIssue?.canRetry||row.item.currentRun?.state==='frozen'||canChooseShelf(row.item))))return false;
+    if(expeditedOnly&&(row.kind==='ended'||row.item.currentRun?.priorityClass!=='expedited'))return false;
+    if(filter==='all')return true;if(filter==='ended')return row.kind==='ended';return row.kind==='formation'&&row.item.classification===filter;
+  }),[active,completed,ended,expeditedOnly,filter,needsActionOnly,q,shelfFilter]);
+  const close=()=>{setSelected(null);window.setTimeout(()=>triggerRef.current?.focus(),0);};
+  useEffect(()=>{if(!selected)return;const key=(event:KeyboardEvent)=>{if(event.key==='Escape')close();};document.body.classList.add('formation-process-modal-open');document.addEventListener('keydown',key);closeRef.current?.focus();return()=>{document.body.classList.remove('formation-process-modal-open');document.removeEventListener('keydown',key);};},[selected]);
+  const open=async(item:FormationSubject,button:HTMLButtonElement)=>{triggerRef.current=button;setLoading(true);try{setSelected(await helixAdminApi.getFormation(item.formationViewId));}catch(cause){setError(cause instanceof Error?cause.message:'上架过程详情读取失败。');}finally{setLoading(false);}};
+  const action=async(item:FormationSubject,kind:'expedite'|'discard'|'retry'|'chooseShelf'|'chooseIdentity',value?:boolean|string)=>{setLoading(true);try{if(kind==='expedite')await helixAdminApi.setRunExpedited(item,Boolean(value));else if(kind==='discard')await helixAdminApi.discardRun(item);else if(kind==='retry')await helixAdminApi.retryAcceptance(item);else if(kind==='chooseShelf')await helixAdminApi.chooseShelf(item,String(value));else await helixAdminApi.chooseProductIdentity(item,String(value));await load();}catch(cause){setError(cause instanceof Error?cause.message:'操作失败。');setLoading(false);}};
+  if(!active.length&&!completed.length&&!ended.length&&loading&&!error)return <LoadingState>正在读取媒体整理工作区…</LoadingState>;
+  const counts:Record<Filter,number>={all:summary.totalCount+ended.length,pending:summary.pendingCount,in_progress:summary.inProgressCount,attention_required:summary.attentionRequiredCount,completed:summary.completedCount,ended:ended.length};
+  return <section className="source-page workbench formation-page"><PageHeader title="媒体整理工作区" description="一张表查看全部媒体；列表显示当前进展，完整上架过程在屏幕中央查看。" actions={<Button type="button" onClick={()=>void load()} disabled={loading}>{loading?'正在刷新…':'刷新'}</Button>} />
+    {error&&<p className="form-error" role="alert">{error}</p>}
+    <section className="formation-ledger"><div className="source-registry-heading"><div><h2>全部媒体</h2></div><span>当前显示 {rows.length} 条</span></div>
+      <div className="formation-chips" role="group" aria-label="媒体整理状态">{([{id:'all',label:'全部'},{id:'pending',label:'待整理'},{id:'in_progress',label:'整理中'},{id:'attention_required',label:'需要处理'},{id:'completed',label:'已完成'},{id:'ended',label:'已结束'}] as Array<{id:Filter;label:string}>).map((entry)=><Button key={entry.id} type="button" aria-pressed={filter===entry.id} onClick={()=>setFilter(entry.id)}>{entry.label} {counts[entry.id]}</Button>)}</div>
+      <div className="formation-secondary"><label>片名<input type="search" aria-label="按片名筛选" value={q} placeholder="搜索片名" onChange={(event)=>setQ(event.target.value)} /></label><label>目标收藏架<select aria-label="按目标收藏架筛选" value={shelfFilter} onChange={(event)=>setShelfFilter(event.target.value)}><option value="">全部收藏架</option>{shelves.map((shelf)=><option key={shelf.shelfId} value={shelf.shelfId}>{shelf.name}</option>)}</select></label><label className="formation-check"><input type="checkbox" checked={needsActionOnly} onChange={(event)=>setNeedsActionOnly(event.target.checked)} />仅需用户处理</label><label className="formation-check"><input type="checkbox" checked={expeditedOnly} onChange={(event)=>setExpeditedOnly(event.target.checked)} />仅看加急</label></div>
+      <div className="formation-table-wrap"><table className="formation-table formation-stub-table"><thead><tr><th>媒体名称</th><th>评分</th><th>目标收藏架</th><th>整理要求</th><th>当前进展</th><th>详情</th><th>用户操作</th><th>加急</th></tr></thead><tbody>{rows.map((row)=>row.kind==='ended'?<tr key={row.item.historyId} className="formation-stub-media-row"><td><strong>{row.item.displayIdentity}</strong><small>已结束</small></td><td>—</td><td>—</td><td>—</td><td><strong className="formation-stub-current">{row.item.label}</strong><small>{formatTime(row.item.endedAtMs)}</small></td><td>—</td><td>—</td><td><button type="button" className="formation-expedite-toggle" disabled>加急</button></td></tr>:<MediaRow key={row.item.subjectId} item={row.item} shelves={shelves} loading={loading} onOpen={open} onAction={action} />)}</tbody></table></div>
     </section>
-    <section className="formation-ledger">
-      <div className="source-registry-heading"><div><h2>已完成整理</h2></div>
-        <Button type="button" aria-expanded={expanded} onClick={() => { const value = !expanded; setExpanded(value); try { localStorage.setItem('formation-completed-expanded', String(value)); } catch { /* ignore */ } if (value) { setLoading(true); void helixAdminApi.listFormation('completed').then((result) => { setCompleted(result.items); setCompletedCursor(result.nextCursor); }).finally(() => setLoading(false)); } }}>{expanded ? '收起' : '展开'}（{summary.completedCount}）</Button>
-      </div>
-      {expanded && <>{completed.length ? <CompletedMediaTable items={completed} shelves={shelves} /> : <div className="source-empty"><strong>尚无完成条目</strong></div>}
-        {completedCursor && <Button type="button" onClick={() => void (async () => { if (!completedCursor) return; setLoading(true); try { const result = await helixAdminApi.listFormation('completed', completedCursor); setCompleted((current) => [...current, ...result.items]); setCompletedCursor(result.nextCursor); } finally { setLoading(false); } })()} disabled={loading}>加载更多</Button>}</>}
-    </section>
-    <section className="formation-ledger">
-      <div className="source-registry-heading"><div><h2>已结束</h2></div>
-        <Button type="button" aria-expanded={endedExpanded} onClick={() => { const value = !endedExpanded; setEndedExpanded(value); try { localStorage.setItem('formation-ended-expanded', String(value)); } catch { /* ignore */ } if (value) { setLoading(true); void helixAdminApi.listFormationHistory().then((result) => { setEnded(result.items); setEndedCursor(result.nextCursor); }).finally(() => setLoading(false)); } }}>{endedExpanded ? '收起' : '展开'}</Button>
-      </div>
-      {endedExpanded && <>{ended.length ? <div className="formation-table-wrap"><table className="formation-table"><thead><tr><th>媒体名称</th><th>结果</th><th>结束时间</th></tr></thead><tbody>{ended.map((item) => <tr key={item.historyId}><td><strong>{item.displayIdentity}</strong></td><td>{item.label}</td><td>{formatTime(item.endedAtMs)}</td></tr>)}</tbody></table></div> : <div className="source-empty"><strong>尚无已结束记录</strong></div>}
-        {endedCursor && <Button type="button" onClick={() => void (async () => { if (!endedCursor) return; setLoading(true); try { const result = await helixAdminApi.listFormationHistory(endedCursor); setEnded((current) => [...current, ...result.items]); setEndedCursor(result.nextCursor); } finally { setLoading(false); } })()} disabled={loading}>加载更多</Button>}</>}
-    </section>
+    {selected&&<div className="formation-process-backdrop" role="presentation" onMouseDown={(event)=>{if(event.target===event.currentTarget)close();}}><section className="formation-process-dialog" role="dialog" aria-modal="true" aria-labelledby="formation-process-dialog-title"><button ref={closeRef} className="formation-process-dialog-close" type="button" aria-label="关闭上架过程详情" onClick={close}>×</button><h2 id="formation-process-dialog-title" className="formation-process-dialog-title">{selected.displayIdentity}的上架过程详情</h2><ProcessDetail item={selected} /></section></div>}
   </section>;
+}
+
+function MediaRow({item,shelves,loading,onOpen,onAction}:{item:FormationSubject;shelves:Shelf[];loading:boolean;onOpen:(item:FormationSubject,button:HTMLButtonElement)=>void;onAction:(item:FormationSubject,kind:'expedite'|'discard'|'retry'|'chooseShelf'|'chooseIdentity',value?:boolean|string)=>void}) {
+  const expedited=item.currentRun?.priorityClass==='expedited',reason=item.nextAction.label;
+  const [shelfId,setShelfId]=useState(''),[identityId,setIdentityId]=useState('');
+  const actionControl=item.executorIssue?.canRetry?<Button type="button" disabled={loading} onClick={()=>void onAction(item,'retry')}>重试验收</Button>:item.currentRun?.state==='frozen'&&!item.productIdentityIssue?<Button type="button" disabled={loading} onClick={()=>void onAction(item,'discard')}>放弃本次整理</Button>:item.productIdentityIssue?<div className="formation-inline-action"><select aria-label={`为${item.displayIdentity}选择影片身份`} value={identityId} onChange={(event)=>setIdentityId(event.target.value)}><option value="">选择影片身份</option>{item.productIdentityIssue.candidates.map((candidate)=><option key={candidate.providerKey} value={candidate.providerKey.replace(/^tmdb:movie:/,'')}>{candidate.displayTitle}{candidate.releaseYear?` (${candidate.releaseYear})`:''}</option>)}</select><Button type="button" disabled={loading||!identityId} onClick={()=>void onAction(item,'chooseIdentity',identityId)}>确认</Button><Button type="button" variant="text" disabled={loading} onClick={()=>void onAction(item,'discard')}>放弃</Button></div>:canChooseShelf(item)?<div className="formation-inline-action"><select aria-label={`为${item.displayIdentity}选择收藏架`} value={shelfId} onChange={(event)=>setShelfId(event.target.value)}><option value="">选择收藏架</option>{shelves.map((shelf)=><option key={shelf.shelfId} value={shelf.shelfId}>{shelf.name}</option>)}</select><Button type="button" disabled={loading||!shelfId} onClick={()=>void onAction(item,'chooseShelf',shelfId)}>确认</Button></div>:<span className="formation-stub-empty">—</span>;
+  return <tr className="formation-stub-media-row" data-classification={item.classification} data-expedited={expedited||undefined}><td><strong>{item.displayIdentity}</strong><small>{statusLabel(item)} · {formatTime(item.addedAtMs)}</small></td><td><span className="formation-stub-rating">{ratingText(item)}</span>{item.myRatingSource!=='douban'&&<RatingControl targetType="subject" targetId={item.subjectId} label={item.displayIdentity} initialRating={item.myRating} initialSource={item.myRatingSource} initialRevision={item.myRatingRevision} />}</td><td>{shelfName(item,shelves)}</td><td>{item.organizingRequirement}</td><td><strong className="formation-stub-current" data-state={item.classification}>{reason}</strong><small>{item.organizingSteps.find((step)=>step.state==='running'||step.state==='blocked')?.label || item.organizingSteps[item.organizingSteps.length-1]?.label || '正在评估'}</small></td><td><Button type="button" variant="text" aria-haspopup="dialog" onClick={(event)=>void onOpen(item,event.currentTarget)}>查看过程</Button></td><td>{actionControl}</td><td><button type="button" className="formation-expedite-toggle" aria-label={canExpedite(item)?(expedited?`取消加急 ${item.displayIdentity}`:`加急 ${item.displayIdentity}`):`${item.displayIdentity}无需加急`} aria-pressed={canExpedite(item)?expedited:undefined} disabled={loading||!canExpedite(item)} onClick={()=>void onAction(item,'expedite',!expedited)}>{expedited?'已加急':'加急'}</button></td></tr>;
 }

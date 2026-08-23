@@ -162,8 +162,12 @@ test('Formation organizingSteps use closed user language and persist GPU transco
     [{key:'reintake',label:'等待重新入库',state:'pending',progress:null}]);
   assert.equal(actionLabel([],spec,{latestRunState:'discarded'}),'等待重新入库');
   assert.equal(nextAction([],'pending',null,null,null,null,null,'discarded').label,'等待重新入库');
-  const artworkWorks=[{state:'succeeded',events:[{capabilityRef:'libra.product_sidecar.render@1',state:'succeeded'}]}];
-  assert.equal(organizingSteps(artworkWorks)[0].label,'补海报和 NFO');
+  const nfoWorks=[{state:'succeeded',events:[{capabilityRef:'libra.product_sidecar.render@1',state:'succeeded',
+    result:{result:{provenanceRef:{objectType:'related_nfo_update'}}}}]}];
+  assert.equal(organizingSteps(nfoWorks)[0].label,'更新 NFO');
+  const historicalNfoWorks=[{state:'succeeded',events:[{capabilityRef:'libra.product_sidecar.render@1',state:'succeeded',
+    result:{result:{artifactKind:'nfo'}}}]}];
+  assert.equal(organizingSteps(historicalNfoWorks)[0].label,'生成整理后的 NFO（历史记录未区分更新或重建）');
   const row=buildFormationProjectionRow({...item(1,'in_progress'),organizingAction:actionLabel(gpuWorks,spec),organizingSteps:steps},4000);
   const persisted=JSON.parse(row.organizing_action);
   assert.equal(persisted[0].key,'transcode');
