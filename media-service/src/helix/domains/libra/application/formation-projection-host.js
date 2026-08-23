@@ -6,6 +6,7 @@ const { buildFormationProjectionRow } = require('./formation-query');
 const OWNER_DOMAIN = 'libra';
 const RECONCILER_KEY = 'media-formation-projection';
 const PAGE_LIMIT = 100;
+const FALLBACK_PAGE_LIMIT = 4;
 const CADENCE_MS = 30_000;
 
 function createFormationProjectionHost(options) {
@@ -37,9 +38,9 @@ function createFormationProjectionHost(options) {
   }
   async function sweepPage() {
     const head = cursorStore.read({ ownerDomain: OWNER_DOMAIN, reconcilerKey: RECONCILER_KEY });
-    const subjects = options.source.readPage(head.cursor);
+    const subjects = options.source.readPage(head.cursor, FALLBACK_PAGE_LIMIT);
     rebuildRows(subjects);
-    const nextCursor = subjects.length < PAGE_LIMIT ? null : subjects.at(-1).subject_id;
+    const nextCursor = subjects.length < FALLBACK_PAGE_LIMIT ? null : subjects.at(-1).subject_id;
     cursorStore.advance({ ownerDomain: OWNER_DOMAIN, reconcilerKey: RECONCILER_KEY,
       expectedRevision: head.revision, cursor: nextCursor });
     return Object.freeze({ processed: subjects.length, cursor: nextCursor });
@@ -98,4 +99,4 @@ function createFormationProjectionHost(options) {
   });
 }
 
-module.exports = Object.freeze({ CADENCE_MS, PAGE_LIMIT, createFormationProjectionHost });
+module.exports = Object.freeze({ CADENCE_MS, FALLBACK_PAGE_LIMIT, PAGE_LIMIT, createFormationProjectionHost });

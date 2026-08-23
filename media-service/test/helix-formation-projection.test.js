@@ -290,9 +290,9 @@ test('Formation query filters shelf, expedite, and needs-user-action on the proj
 test('exact Formation wake drains more than one bounded batch without waiting for fallback',async()=>{
   const root=fs.mkdtempSync(path.join(os.tmpdir(),'helix-formation-projection-host-')),databasePath=path.join(root,'shelfdeck.db');
   const kernel=openSqliteKernel({Database,databasePath,schemaDdl,schemaManifest,now:()=>100});
-  const unitOfWork=createSqliteUnitOfWork({kernel}),ids=Array.from({length:101},(_,index)=>`subject-${String(index).padStart(3,'0')}`),processed=[],batchSizes=[];
+  const unitOfWork=createSqliteUnitOfWork({kernel}),ids=Array.from({length:101},(_,index)=>`subject-${String(index).padStart(3,'0')}`),processed=[],batchSizes=[],fallbackLimits=[];
   const source={
-    readPage:()=>[],
+    readPage:(_cursor,limit)=>{fallbackLimits.push(limit);return [];},
     readSubject:(subjectId)=>ids.includes(subjectId)?{subject_id:subjectId}:null,
     buildBatch:(subjects)=>{batchSizes.push(subjects.length);return subjects.map(({subject_id:subjectId})=>({
       formationViewId:subjectId,subjectId,displayIdentity:subjectId,contentProfile:'movie',structureKind:'single',status:'active',classification:'pending',
@@ -315,6 +315,7 @@ test('exact Formation wake drains more than one bounded batch without waiting fo
     assert.equal(processed.length,ids.length,errors.map((error)=>`${error.code||error.name}: ${error.message} ${JSON.stringify(error.details||{})}`).join('\n'));
     assert.equal(new Set(processed).size,ids.length);
     assert.deepEqual(batchSizes.sort((left,right)=>left-right),[1,100]);
+    assert.ok(fallbackLimits.length>0&&fallbackLimits.every((limit)=>limit===4));
     assert.equal(host.state().queued,0);
   }finally{await host.stop();kernel.close();fs.rmSync(root,{recursive:true,force:true,maxRetries:5,retryDelay:50});}
 });

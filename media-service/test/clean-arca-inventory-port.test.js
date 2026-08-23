@@ -394,7 +394,7 @@ test('same-root Stage/Switch preserves exact final members, merges new members, 
     const finalInventoryRequest = { ...request, finalInventoryDecision };
     const posterFinal = finalInventoryDecision.members.find((item) => item.role === 'poster');
     const nfoFinal = finalInventoryDecision.members.find((item) => item.role === 'metadata_sidecar');
-    const retained = port.settleInput({
+    const retained = await port.settleInputAsync({
       materialHandle:{ schemaRef:'helix://contracts/types/PhysicalMaterialReadHandle/v1', ownerDomain:'arca',
         ownerScope:{ scopeType:'on_deck_custody', scopeId:'custody-1' }, location:oldPoster,
         identity:identity(oldPoster, mountScopeId), expectedSizeBytes:fs.statSync(oldPoster).size },
@@ -406,7 +406,7 @@ test('same-root Stage/Switch preserves exact final members, merges new members, 
       { absent:false, disposition:'retained_as_final' });
     assert.equal(fs.existsSync(oldPoster), true);
 
-    const deleted = port.settleInput({
+    const deleted = await port.settleInputAsync({
       materialHandle:{ schemaRef:'helix://contracts/types/PhysicalMaterialReadHandle/v1', ownerDomain:'arca',
         ownerScope:{ scopeType:'on_deck_custody', scopeId:'custody-1' }, location:oldNfo,
         identity:identity(oldNfo, mountScopeId), expectedSizeBytes:fs.statSync(oldNfo).size },

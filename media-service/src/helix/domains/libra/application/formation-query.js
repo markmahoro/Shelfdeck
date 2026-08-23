@@ -241,9 +241,12 @@ function createFormationProjectionSource(options) {
     find_packages: { kind: 'select-in', tableId: 'libra_product_packages', keyColumn: 'libra_run_id', maxItems: 500, columns: ['on_deck_package_id', 'offer_id', 'libra_run_id', 'package_revision', 'package_digest', 'state', 'published_at_ms'], safeIntegers: true },
   } });
 
-  function readPage(cursor) {
+  function readPage(cursor, limit = PAGE_SIZE) {
+    if (!Number.isSafeInteger(limit) || limit < 1 || limit > PAGE_SIZE) {
+      throw new TypeError('Formation projection page limit is invalid.');
+    }
     return options.unitOfWork.execute([{ participantId: 'libra_formation_subject_page', owner: 'libra', repositories: [repository], execute(context) {
-      return context.repository(repository.repositoryId).invoke('page_subjects', { cursor, limit: PAGE_SIZE });
+      return context.repository(repository.repositoryId).invoke('page_subjects', { cursor, limit });
     } }]).libra_formation_subject_page;
   }
   function readSubject(subjectId) {

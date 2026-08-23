@@ -51,10 +51,10 @@ function definitions(schemaManifest) {
       find: { kind: 'select-one', tableId: 'fx_event_attempts', columns: ['event_attempt_id', 'event_id', 'state'], keyColumns: ['event_attempt_id'] }
     } }),
     samples: createRepositoryDefinition({ repositoryId: 'progress_samples', owner: 'execution-foundation', schemaManifest, statements: {
-      list: { kind: 'select-all', tableId: 'fx_event_progress', columns: [
+      list: { kind: 'select-all', tableId: 'fx_event_progress', keyColumns: ['event_attempt_id'], columns: [
         'event_id', 'event_attempt_id', 'revision', 'mode', 'current_value', 'total_value', 'unit', 'rate', 'eta_ms',
         'source_sequence', 'progress_bucket', 'sampled_at_ms'
-      ], keyColumns: [] },
+      ] },
       insert: { kind: 'insert', tableId: 'fx_event_progress', columns: [
         'event_id', 'event_attempt_id', 'revision', 'mode', 'current_value', 'total_value', 'unit', 'rate', 'eta_ms',
         'source_sequence', 'progress_bucket', 'sampled_at_ms'
@@ -83,7 +83,7 @@ function createProgressReporter(options) {
           if (!attempt || !event || attempt.event_id !== event.event_id || attempt.state !== 'executing' || event.state !== 'executing') fail(
             'P4_PROGRESS_ATTEMPT_INACTIVE', 'Progress can only bind the current executing Event Attempt.'
           );
-          const all = context.repository('progress_samples').invoke('list').filter((row) => row.event_attempt_id === options.eventAttemptId)
+          const all = context.repository('progress_samples').invoke('list', { event_attempt_id:options.eventAttemptId })
             .sort((left, right) => left.revision - right.revision);
           if (sample.sourceSequence !== null) {
             const replay = all.find((row) => row.source_sequence === sample.sourceSequence);

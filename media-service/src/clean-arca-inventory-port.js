@@ -1293,20 +1293,7 @@ function createCleanArcaInventoryPort(options) {
     return Object.freeze(base);
   }
 
-  function readFinal(request) {
-    const built = buildPlan({ ...request, replayCommitted:true });
-    if (!fs.existsSync(built.targetDirectory) ||
-        !fs.statSync(built.targetDirectory).isDirectory()) {
-      fail('CLEAN_ARCA_FINAL_REALITY_MISSING',
-        'Final Inventory target is absent after placement.');
-    }
-    const members = built.plans.map((plan) => {
-      const observed = computeBoundedMaterialFingerprintSync(plan.target);
-      if (Number(observed.stat.size) !== plan.sizeBytes ||
-          observed.contentFingerprint !== plan.contentFingerprint) {
-        fail('CLEAN_ARCA_FINAL_REALITY_DRIFT',
-          'Final Inventory member drifted after placement.');
-      }
+  function finalRealityMember(request, plan, observed) {
       const identityBase = {schemaRef:'helix://contracts/types/PhysicalMaterialIdentity/v2',schemaVersion:2,
         mountScopeId:request.shelf.target.mountScopeId,inode:observed.stat.ino.toString(),sizeBytes:Number(observed.stat.size),
         fingerprintAlgorithm:observed.fingerprintAlgorithm,fingerprintVersion:observed.fingerprintVersion,
@@ -1327,7 +1314,9 @@ function createCleanArcaInventoryPort(options) {
         contentFingerprint: observed.contentFingerprint,
         episodeClaims:plan.episodeClaims,
       });
-    });
+  }
+
+  function finalRealityResult(request, built, members) {
     members.sort((left,right)=>Buffer.compare(Buffer.from(left.sourceMaterialKey),Buffer.from(right.sourceMaterialKey)));
     const stagedMembers=members.map((item)=>Object.freeze({sourceMaterialKey:item.sourceMaterialKey,
       physicalIdentity:item.physicalIdentity,role:item.role,
@@ -1348,6 +1337,50 @@ function createCleanArcaInventoryPort(options) {
         members,
       }),
     });
+  }
+
+  function assertFinalFingerprint(plan, observed) {
+    if (Number(observed.stat.size) !== plan.sizeBytes ||
+        observed.contentFingerprint !== plan.contentFingerprint) {
+      fail('CLEAN_ARCA_FINAL_REALITY_DRIFT',
+        'Final Inventory member drifted after placement.');
+    }
+  }
+
+  function readFinal(request) {
+    const built = buildPlan({ ...request, replayCommitted:true });
+    if (!fs.existsSync(built.targetDirectory) ||
+        !fs.statSync(built.targetDirectory).isDirectory()) {
+      fail('CLEAN_ARCA_FINAL_REALITY_MISSING',
+        'Final Inventory target is absent after placement.');
+    }
+    const members = built.plans.map((plan) => {
+      const observed = computeBoundedMaterialFingerprintSync(plan.target);
+      assertFinalFingerprint(plan, observed);
+      return finalRealityMember(request, plan, observed);
+    });
+    return finalRealityResult(request, built, members);
+  }
+
+  async function readFinalAsync(request) {
+    const built = await buildPlanAsync({ ...request, replayCommitted:true });
+    let targetStat;
+    try {
+      targetStat = await fs.promises.stat(built.targetDirectory);
+    } catch (error) {
+      if (error?.code !== 'ENOENT') throw error;
+    }
+    if (!targetStat?.isDirectory()) {
+      fail('CLEAN_ARCA_FINAL_REALITY_MISSING',
+        'Final Inventory target is absent after placement.');
+    }
+    const members = [];
+    for (const plan of built.plans) {
+      const observed = await computeFingerprint(plan.target);
+      assertFinalFingerprint(plan, observed);
+      members.push(finalRealityMember(request, plan, observed));
+    }
+    return finalRealityResult(request, built, members);
   }
 
   function settleInput(request) {
@@ -1498,8 +1531,168 @@ function createCleanArcaInventoryPort(options) {
       oldDirectoryDisposition });
   }
 
+  async function settleInputAsync(request) {
+    const handle = request?.materialHandle;
+    if (!handle || handle.schemaRef !==
+        'helix://contracts/types/PhysicalMaterialReadHandle/v1' ||
+        handle.ownerDomain !== 'arca' ||
+        handle.ownerScope?.scopeType !== 'on_deck_custody') {
+      fail('CLEAN_ARCA_SETTLEMENT_HANDLE_INVALID',
+        'Input settlement requires the exact Arca custody read handle.');
+    }
+    const source = path.resolve(handle.location);
+    const finalRequest = request?.finalInventoryRequest;
+    if (!finalRequest || !request.finalMaterialKey || !request.finalTargetLocation ||
+        !request.sourceToFinalMappingDigest ||
+        !['replace_or_move', 'remove_after_place'].includes(request.settlementExpectation)) {
+      fail('CLEAN_ARCA_SETTLEMENT_MAPPING_INVALID',
+        'Input settlement requires its frozen source-to-final mapping.');
+    }
+    const target = resolveTargetLocation(finalRequest);
+    const decisionMember = finalRequest.finalInventoryDecision?.members?.find((item) =>
+      item.sourceMaterialKey === request.finalMaterialKey);
+    const productMember = finalRequest.onDeckProductPackage?.productMaterialManifest?.members?.find((item) =>
+      item.materialKey === request.finalMaterialKey);
+    const finalTarget = path.resolve(request.finalTargetLocation);
+    if (!decisionMember || !productMember ||
+        path.resolve(decisionMember.targetLocation) !== finalTarget) {
+      fail('CLEAN_ARCA_SETTLEMENT_MAPPING_DRIFT',
+        'Settlement mapping drifted from the Final Inventory Decision.');
+    }
+    const finalObserved = await observeAsync(finalTarget, productMember);
+    const sameLocation = source === finalTarget;
+    const sourceDirectory = path.dirname(source);
+    const managedLocations = [
+      ...(finalRequest.onDeckProductPackage.offloadContextManifest?.members || [])
+        .map((item) => path.resolve(item.location)),
+      ...finalRequest.finalInventoryDecision.members
+        .map((item) => path.resolve(item.targetLocation)),
+    ];
+    const allowed = new Set(managedLocations);
+    for (const location of managedLocations) {
+      let ancestor = path.dirname(location);
+      while (ancestor !== sourceDirectory && ancestor.startsWith(sourceDirectory + path.sep)) {
+        allowed.add(ancestor);
+        const parent = path.dirname(ancestor);
+        if (parent === ancestor) break;
+        ancestor = parent;
+      }
+    }
+    const exists = async (location) => {
+      try { await fs.promises.access(location); return true; }
+      catch (error) { if (error?.code === 'ENOENT') return false; throw error; }
+    };
+    const retainedFinalDirectory = sourceDirectory === target.targetDirectory;
+    if (!sameLocation && !retainedFinalDirectory && await exists(sourceDirectory)) {
+      const unknown = [];
+      for (const item of await fs.promises.readdir(sourceDirectory, { withFileTypes:true })) {
+        const location = path.resolve(sourceDirectory, item.name);
+        if (allowed.has(location)) continue;
+        if (!item.isDirectory()) {
+          if (!isInsideBluRayDiscTree(location)) unknown.push(location);
+          continue;
+        }
+        if (![...allowed].some((allowedLocation) =>
+          allowedLocation === location || allowedLocation.startsWith(location + path.sep))) {
+          unknown.push(location);
+        }
+      }
+      if (unknown.length > 0) {
+        fail('CLEAN_ARCA_SETTLEMENT_UNKNOWN_MEMBER',
+          'Old Material directory contains an unplanned member.', {
+            sourceDirectory,
+            unknownNames:unknown.map((item) => path.basename(item)).sort(),
+          });
+      }
+    }
+    let sourceAbsent = !await exists(source);
+    if (!sourceAbsent) {
+      if (sameLocation) {
+        if (finalObserved.sizeBytes !== productMember.sizeBytes ||
+            finalObserved.contentFingerprint !== productMember.physicalIdentity.contentFingerprint) {
+          fail('CLEAN_ARCA_SETTLEMENT_REALITY_DRIFT',
+            'Settlement final location drifted from the approved product identity.');
+        }
+      } else {
+        const observed = await computeFingerprint(source);
+        if (Number(observed.stat.size) !== handle.expectedSizeBytes ||
+            observed.contentFingerprint !== handle.identity.contentFingerprint) {
+          fail('CLEAN_ARCA_SETTLEMENT_REALITY_DRIFT',
+            'Settlement source drifted from the approved Material identity.');
+        }
+      }
+      if (!sameLocation) {
+        await fs.promises.rm(source, { force:false });
+        sourceAbsent = !await exists(source);
+        if (!sourceAbsent) {
+          fail('CLEAN_ARCA_SETTLEMENT_DELETE_FAILED',
+            'Approved settlement source still exists after deletion.');
+        }
+      }
+    }
+    const discRoot = findBluRayDiscRoot(source);
+    const protectedDirectories = new Set([
+      target.targetRoot,
+      target.targetDirectory,
+    ]);
+    if (discRoot) {
+      for (const tree of listBluRayDiscTrees(discRoot)) {
+        for (const leftover of listFilesRecursive(tree)) {
+          await new Promise((resolve) => setImmediate(resolve));
+          if (allowed.has(leftover) || !await exists(leftover)) continue;
+          await fs.promises.rm(leftover, { force:false });
+          if (await exists(leftover)) {
+            fail('CLEAN_ARCA_SETTLEMENT_DELETE_FAILED',
+              'Approved disc leftover still exists after deletion.', {
+                location: leftover,
+              });
+          }
+        }
+      }
+    }
+    let oldDirectoryDisposition = sameLocation
+      ? 'retained_as_final'
+      : 'not_present';
+    if (!sameLocation && await exists(sourceDirectory)) {
+      const children = (await fs.promises.readdir(sourceDirectory, { withFileTypes:true }))
+        .map((item) => path.resolve(sourceDirectory, item.name));
+      if (children.length === 0 && sourceDirectory !== target.targetRoot) {
+        await fs.promises.rmdir(sourceDirectory);
+        oldDirectoryDisposition = 'removed_empty';
+      } else {
+        oldDirectoryDisposition = children.some((item) =>
+          finalRequest.finalInventoryDecision.members.some((member) =>
+            path.resolve(member.targetLocation) === item))
+          ? 'retained_with_final_inventory'
+          : 'awaiting_managed_settlement';
+      }
+    }
+    if (discRoot) {
+      await new Promise((resolve) => setImmediate(resolve));
+      for (const tree of listBluRayDiscTrees(discRoot)) {
+        pruneEmptyDirectories(tree, protectedDirectories);
+      }
+      pruneEmptyAncestors(discRoot, protectedDirectories);
+      if (!sameLocation && !await exists(sourceDirectory) &&
+          oldDirectoryDisposition !== 'removed_empty' &&
+          oldDirectoryDisposition !== 'retained_as_final') {
+        oldDirectoryDisposition = 'removed_empty';
+      }
+    }
+    return Object.freeze({ materialKey:handle.identity.materialKey,
+      preDeleteIdentityDigest:canonicalDigest(handle.identity),
+      absent:sourceAbsent,
+      disposition:sameLocation ? 'retained_as_final' : 'settled_to_final',
+      sourceToFinalMappingDigest:request.sourceToFinalMappingDigest,
+      finalMaterialKey:request.finalMaterialKey,
+      finalTargetLocation:finalTarget,
+      finalRealityDigest:finalObserved.digestHex,
+      finalVerified:true,
+      oldDirectoryDisposition });
+  }
+
   return Object.freeze({ assess, resolveTargetLocation, prepare, materialize, slotHandle, prepareSlot,
-    stage, verifyStaged, switchPlacement, readFinal, settleInput });
+    stage, verifyStaged, switchPlacement, readFinal, readFinalAsync, settleInput, settleInputAsync });
 }
 
 module.exports = Object.freeze({
