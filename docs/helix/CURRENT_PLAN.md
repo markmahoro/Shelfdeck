@@ -4,16 +4,15 @@ Status: Helix-beta 已由 Product Owner 收窄为 **仅 Movie 的全功能版本
 
 Last updated: 2026-08-24
 
-## 0. Current UAT plan — preserve final runtime and finish only remaining UI qualification
+## 0. Current UAT plan — UAT-085–UAT-091 closed
 
 `UAT-085`–`UAT-091`的代码、FACT、FS、PERFORMANCE与RESTART作业已在最终隔离运行
 `F:\shelfdeck_test_zone\runs\UAT-20260824-031004-228f39a37`完成。当前HEAD `0bc45ed98`服务保持运行，真实恢复转码继续推进；
-不得为了补证停止服务、手工改SQLite、删除最终Canary或修改`test_film`。`UAT-089`–`UAT-091`已关闭。
+不得为了补证停止服务、手工改SQLite、删除最终Canary或修改`test_film`。2026-08-24 Product Owner明确接受现有证据并授权关闭，
+`UAT-085`–`UAT-091`全部PASS/CLOSED。
 
-剩余工作仅为`UAT-085`–`UAT-088`的认证后Admin Web真实渲染资格：Settings须显示Acquisition不完整与从cursor续传；Formation须显示
-当前successor责任而非旧候选失败；真实Transcode须在列表和中心详情显示同一持久进度；同根Field/Shelf配置及结果须保持一个Mount Scope且
-无重复整理。若Product Owner明确接受现有FACT/FS/RESTART证据，也可按历史`UAT-064`/`UAT-070`同样记录“未取得UI截图”后关闭；
-不得自行把API、projection JSON或stub页面记作真实UI PASS。
+当前没有剩余UAT关闭动作。`UAT-085`–`UAT-088`未取得新的认证页面截图这一证据限制继续保留，不补写UI PASS；最终运行与Canary作为
+可复核现场保留，服务继续正常运行。
 
 ## 0. Post-UAT implementation — People registration, identity conservation, and avatars complete
 

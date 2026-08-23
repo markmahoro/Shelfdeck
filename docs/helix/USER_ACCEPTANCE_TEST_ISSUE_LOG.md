@@ -45,8 +45,8 @@ Helix主体开发已经完成，Movie从Procurement、Libra到Arca及Shelf Dereg
 2026-08-24 对该clean环境进行API、SQLite与进程三路监测后，新增`UAT-088`–`UAT-090`：同根Field/Shelf因Platform Mount Scope未装配而重复观察上架成品；Arca以同步大文件复制阻塞Node Event Loop；Foundation软等待、严格优先级与Intake历史扫描共同造成写放大、后台饥饿和终态Offer重放。用户已授权在正式`main`本地隔离环境逐项修复，并以重新复制`test_film`的新Canary、相同配置顺序和相同三路监测关闭；不得修改只读基线或触碰NAS生产。
 
 最终隔离复测的受控重启另发现`UAT-091`：Run replacement取消了Event/Work却遗留waiting Resource Defer，令下一次Startup Recovery
-fail-closed。commit `0bc45ed98`已在Foundation同一事务收口，并以有审计、可回滚的确定性修复恢复原失败库；`UAT-089`–`UAT-091`
-已关闭。`UAT-085`–`UAT-088`的FACT/FS/RESTART证据已通过，但未取得认证后的真实页面截图，依既定规则保持UI PENDING。
+fail-closed。commit `0bc45ed98`已在Foundation同一事务收口，并以有审计、可回滚的确定性修复恢复原失败库。2026-08-24 Product Owner
+明确接受本轮现有FACT/FS/PERFORMANCE/RESTART证据并授权关闭`UAT-085`–`UAT-091`；记录保留未取得新的认证页面截图，不伪造UI证据。
 
 关闭作业不再走已删除的 `helix-beta-user-e2e` workflow。当前 70 行关闭基线见 `docs/helix/acceptance/UAT_CLOSURE_BASELINE.md`：正式关闭立即汇报且不暂停；确认关闭时发现新产品缺陷则暂停并先登记新 UAT；`PASS` 必须有干净 Canary 的 Admin Web `UI`（涉及文件现实时加 `FS`），单元测试不能单独关闭一行。
 
@@ -153,10 +153,10 @@ fail-closed。commit `0bc45ed98`已在Foundation同一事务收口，并以有�
 | UAT-082 | Formation的100%总进度和完成标记可掩盖真实失败，使报错影片看起来只是“停在那里” | `PROJECTION_FRESHNESS` | `USER_EXPERIENCE`、`RECOVERY_CORRECTNESS` | Libra/Arca Work与Event事实 + Formation Projection | 正确性、可操作性、故障恢复 | Critical | `REGRESSION PASSED / CLOSED` |
 | UAT-083 | 保留旧Field并对同一目录新增第二Material Field时，必须只形成一次有效整理且不能发生竞争控制 | `BUSINESS_CONTRACT` | `DOMAIN_ORCHESTRATION`、`USER_EXPERIENCE` | Procurement Field/Material Control + Libra Intake | 正确性、幂等、可理解性 | Critical | `REGRESSION PASSED / CLOSED` |
 | UAT-084 | 当前Formation工作区缺少逐片事实审计，除已知影片外仍可能存在未解释的冻结、失败或错误投影 | `DOMAIN_ORCHESTRATION` | `PROJECTION_FRESHNESS`、`USER_EXPERIENCE` | Procurement/Libra/Arca跨域只读审计 | 完整性、诊断性、回归风险 | High | `FACT PASSED / CLOSED` |
-| UAT-085 | 豆瓣完整收藏同步被Provider 403中断后不能从持久游标续传，页面仍把部分数据表现为普通未匹配 | `EXTERNAL_INTEGRATION` | `RECOVERY_CORRECTNESS`、`USER_EXPERIENCE`、`PROJECTION_FRESHNESS` | Perception Acquisition + Settings/Formation Query | 完整性、正确性、可恢复性、可理解性 | Critical | `FACT/RESTART PASSED / UI PENDING` |
-| UAT-086 | Formation把已进入后续策略的候选验证未通过误报为整个媒体整理失败 | `PROJECTION_FRESHNESS` | `BUSINESS_CONTRACT`、`USER_EXPERIENCE` | Libra媒体生产策略链 + Formation Projection | 正确性、可操作性、可信度 | Critical | `FACT/RESTART PASSED / UI PENDING` |
-| UAT-087 | 实际Transcode没有持久进度样本，Formation无法显示真实可量化进度 | `DOMAIN_ORCHESTRATION` | `PROJECTION_FRESHNESS`、`USER_EXPERIENCE` | Libra Transcode Capability + Foundation Progress + Formation Admin Web | 可观察性、执行可信度、恢复可见性 | High | `FACT/RESTART PASSED / UI PENDING` |
-| UAT-088 | 同根Field与Shelf被分配不同Mount Scope，Shelf成品会再次进入Procurement并形成重复整理 | `BUSINESS_CONTRACT` | `DOMAIN_ORCHESTRATION`、`PLATFORM_INTEGRATION` | Platform Mount Scope Registry + Procurement Field + Arca Shelf Target | 正确性、幂等、活性 | Critical | `FACT/FS/RESTART PASSED / UI PENDING` |
+| UAT-085 | 豆瓣完整收藏同步被Provider 403中断后不能从持久游标续传，页面仍把部分数据表现为普通未匹配 | `EXTERNAL_INTEGRATION` | `RECOVERY_CORRECTNESS`、`USER_EXPERIENCE`、`PROJECTION_FRESHNESS` | Perception Acquisition + Settings/Formation Query | 完整性、正确性、可恢复性、可理解性 | Critical | `OWNER ACCEPTED / CLOSED` |
+| UAT-086 | Formation把已进入后续策略的候选验证未通过误报为整个媒体整理失败 | `PROJECTION_FRESHNESS` | `BUSINESS_CONTRACT`、`USER_EXPERIENCE` | Libra媒体生产策略链 + Formation Projection | 正确性、可操作性、可信度 | Critical | `OWNER ACCEPTED / CLOSED` |
+| UAT-087 | 实际Transcode没有持久进度样本，Formation无法显示真实可量化进度 | `DOMAIN_ORCHESTRATION` | `PROJECTION_FRESHNESS`、`USER_EXPERIENCE` | Libra Transcode Capability + Foundation Progress + Formation Admin Web | 可观察性、执行可信度、恢复可见性 | High | `OWNER ACCEPTED / CLOSED` |
+| UAT-088 | 同根Field与Shelf被分配不同Mount Scope，Shelf成品会再次进入Procurement并形成重复整理 | `BUSINESS_CONTRACT` | `DOMAIN_ORCHESTRATION`、`PLATFORM_INTEGRATION` | Platform Mount Scope Registry + Procurement Field + Arca Shelf Target | 正确性、幂等、活性 | Critical | `OWNER ACCEPTED / CLOSED` |
 | UAT-089 | Arca上架同步复制大文件阻塞Node Event Loop，使Admin Web与Health整窗超时 | `PERFORMANCE` | `RESOURCE_CAPACITY`、`USER_EXPERIENCE` | Arca Inventory staging + Platform filesystem effect | 可用性、延迟、上架吞吐 | Critical | `PERFORMANCE/FS/RESTART PASSED / CLOSED` |
 | UAT-090 | Resource软等待滚动写、后台饥饿与终态Intake重扫形成持续高CPU和SQLite写放大 | `PERFORMANCE` | `EXECUTION_SCHEDULING`、`RECOVERY_CORRECTNESS` | Foundation Governor/Scheduler + Libra Intake fallback reconcile | 可用性、吞吐、恢复正确性 | Critical | `FACT/PERFORMANCE/RESTART PASSED / CLOSED` |
 | UAT-091 | Process Work取消未同步终结Resource Defer，导致下一次服务启动被一致性检查阻断 | `RECOVERY_CORRECTNESS` | `EXECUTION_SCHEDULING`、`OPERATIONAL_SAFETY` | Foundation Work Lifecycle + Resource Governor + Startup Recovery | 可恢复性、原子性、服务可用性 | Critical | `FACT/RESTART PASSED / CLOSED` |
@@ -3077,7 +3077,8 @@ Owner确认的前端基线：当前正式工作区中的`/formation?stub=1`是UA
 `F:\shelfdeck_test_zone\runs\UAT-20260824-031004-228f39a37`中，首次真实Acquisition已提交29页、revision 29、cursor 435，随后仅作
 3次有界`P5_PROVIDER_TRANSPORT_FAILED`并终态failed；人工同步建立的successor从精确revision 29/cursor 435继续，没有从0重放，仍只作3次
 有界失败。终态后157秒内总Acquisition保持2、active 0，没有第三条自动重试风暴；安全重启后状态不漂移。Provider持续拒绝，因此没有伪造
-`hasMore=false`或完整成功。FACT/RESTART已通过；本轮未取得认证后Admin Web渲染截图，按既定关闭规则保持`UI PENDING`。
+`hasMore=false`或完整成功。FACT/RESTART已通过；本轮未取得新的认证后Admin Web渲染截图。2026-08-24 Product Owner明确接受现有证据并
+授权关闭，状态`OWNER ACCEPTED / CLOSED`；不追记或伪造UI证据。
 
 ## 83. UAT-086：候选策略未通过被误报为整个媒体整理失败
 
@@ -3104,8 +3105,8 @@ Owner确认的前端基线：当前正式工作区中的`/formation?stub=1`是UA
 
 当前处理决定：commit `4ebcd44e4`已修正当前successor Work与历史候选失败的Projection优先级。最终隔离运行中Formation保持
 17 completed / 5 attention_required / 1 in_progress；当前Transcode即使存在旧候选未通过Result仍归入in_progress，受控重启后同一责任继续推进，
-没有被旧failed Work/Result覆盖。真正冻结的5项仍保持attention_required。FACT/RESTART已通过；本轮未取得认证后Admin Web渲染截图，
-按既定关闭规则保持`UI PENDING`。
+没有被旧failed Work/Result覆盖。真正冻结的5项仍保持attention_required。FACT/RESTART已通过；本轮未取得新的认证后Admin Web渲染截图。
+2026-08-24 Product Owner明确接受现有证据并授权关闭，状态`OWNER ACCEPTED / CLOSED`；不追记或伪造UI证据。
 
 ## 84. UAT-087：转码执行没有真实可量化进度
 
@@ -3130,7 +3131,8 @@ Owner确认的前端基线：当前正式工作区中的`/formation?stub=1`是UA
 当前处理决定：commit `0cc5932cd`已接入Capability Progress Reporter、FFmpeg真实媒体时间与Formation定时刷新。最终运行的受控重启后，
 真实Transcode以新Attempt恢复，10分钟窗口内durable progress revision 77→194、8.4%→42.1%，另一路进程证据为9.3%→43.0%、rate
 3.42–3.57x、ETA 1,665,801→1,017,376ms，全部单调；Formation Projection revision同步推进。旧Attempt保持completed/failed，
-没有重复Effect。FACT/RESTART已通过；本轮未取得认证后Admin Web渲染截图，按既定关闭规则保持`UI PENDING`。
+没有重复Effect。FACT/RESTART已通过；本轮未取得新的认证后Admin Web渲染截图。2026-08-24 Product Owner明确接受现有证据并授权关闭，
+状态`OWNER ACCEPTED / CLOSED`；不追记或伪造UI证据。
 
 ## 85. UAT-088：同根Field与Shelf的Mount Scope分裂导致成品重复进入Procurement
 
@@ -3146,8 +3148,8 @@ Owner确认的前端基线：当前正式工作区中的`/formation?stub=1`是UA
 
 当前处理决定：commit `290883837`已装配Platform Mount Scope Registry并完成注册次序、重启fail-closed与同根E2E专项回归。最终Canary按
 “先Field、后Shelf”把同一根冻结为同一`local-mount-b4257a…@1`；完整运行及重启后Candidate=23、Subject=23、Shelf Entry=17，
-duplicate Candidate Package=0、finished-goods recandidate=0，10分钟监控全窗计数不增长。FACT/FS/RESTART已通过；本轮未取得认证后Admin Web
-渲染截图，按既定关闭规则保持`UI PENDING`。
+duplicate Candidate Package=0、finished-goods recandidate=0，10分钟监控全窗计数不增长。FACT/FS/RESTART已通过；本轮未取得新的认证后
+Admin Web渲染截图。2026-08-24 Product Owner明确接受现有证据并授权关闭，状态`OWNER ACCEPTED / CLOSED`；不追记或伪造UI证据。
 
 ## 86. UAT-089：Arca同步大文件staging阻塞Admin Web
 

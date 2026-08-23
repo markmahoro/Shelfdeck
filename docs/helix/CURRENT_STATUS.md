@@ -26,8 +26,9 @@ Health p95/p99/max为5.047/78.794/97.994ms，Admin为122.323/130.305/134.264ms�
 非终态漂移继续fail-closed。同一失败库未经手工修改SQLite即恢复ready，两条Defer已cancelled，完整Service测试320 pass / 18 skip /
 0 fail，Admin Web production build通过。
 
-当前post-closure资格结论：`UAT-089`–`UAT-091`为PASS/CLOSED；`UAT-085`–`UAT-088`的FACT/FS/RESTART已经通过，但本轮未取得
-认证后的真实Admin Web截图，按既定规则保持UI PENDING，不用API或自动化合同冒充UI证据。历史`UAT-001`–`UAT-070`的70/70不变。
+当前post-closure资格结论：2026-08-24 Product Owner明确接受现有FACT/FS/PERFORMANCE/RESTART证据并授权关闭，`UAT-085`–`UAT-091`
+全部PASS/CLOSED。本轮未取得`UAT-085`–`UAT-088`新的认证后Admin Web截图，记录不以API或自动化合同冒充UI证据。历史
+`UAT-001`–`UAT-070`的70/70不变。
 
 ## 0. Post-UAT qualification — People registration, identity conservation, and avatars
 

@@ -151,7 +151,7 @@
 
 2026-08-23在70/70关闭之后，独立登记并修复`UAT-071`（多人自动登记Evidence碰撞）、`UAT-072`（已登记人物头像）与真实Canary进一步暴露的`UAT-073`（NFO人物强身份丢失及重复关系）。三项属于post-closure qualification，不追加进上方`UAT-001`–`UAT-070`表、不改变70/70历史结论，也不追溯修改`UAT-055`的已接受证据。
 
-同日后续使用保留Canary时，Product Owner另确认下一轮`UAT-074`–`UAT-084`，权威范围与验收标准见`docs/helix/USER_ACCEPTANCE_TEST_ISSUE_LOG.md`。这些条目已在当前提交版隔离Canary和失败库只读克隆中逐项关闭，作为post-closure qualification记录于本文末尾；它们不改写上方历史70/70，也不改变`UAT-071`–`UAT-073`的资格结论。之后登记的`UAT-085`–`UAT-091`继续作为独立post-closure qualification：`UAT-089`–`UAT-091`已关闭，`UAT-085`–`UAT-088`已有FACT/FS/RESTART证据但仍缺真实认证页面证据，不得在取得UI或Owner明确接受现有证据前标为PASS。
+同日后续使用保留Canary时，Product Owner另确认下一轮`UAT-074`–`UAT-084`，权威范围与验收标准见`docs/helix/USER_ACCEPTANCE_TEST_ISSUE_LOG.md`。这些条目已在当前提交版隔离Canary和失败库只读克隆中逐项关闭，作为post-closure qualification记录于本文末尾；它们不改写上方历史70/70，也不改变`UAT-071`–`UAT-073`的资格结论。之后登记的`UAT-085`–`UAT-091`继续作为独立post-closure qualification。2026-08-24 Product Owner明确接受现有FACT/FS/PERFORMANCE/RESTART证据并授权全部关闭；记录如实保留`UAT-085`–`UAT-088`没有取得新的认证页面截图，不追记或伪造UI证据。
 
 `UAT-20260823-people-registration-avatar-91e6bb141`仅为确定性本地TMDB stub自动化夹具，证明合同与回退，不作为真实UI UAT证据。权威post-closure真实资格运行是`F:\shelfdeck_test_zone\runs\UAT-20260823-people-real-avatar-fix-b8861a3dd`：从只读`test_film`复制《放·逐 (2006)》，使用真实TMDB走正式Formation→On-deck→People，23个唯一TMDB Person Identity形成23个active Person、0 open Candidate，安全重启后不增不减；桌面与390px真实页面显示23张卡、21个真实代理头像、2个无图首字回退，axe serious/critical为0。FACT与截图均保存在该运行目录；既有Canary、旧Candidate与历史UAT证据均未修改。
 
@@ -630,25 +630,25 @@
 再配置Shelf，并使用相同TMDB、Douban、MoviePilot配置。完整合同、现场证据和修复边界以
 `docs/helix/USER_ACCEPTANCE_TEST_ISSUE_LOG.md`为准。
 
-### UAT-085（`UI PENDING`）
+### UAT-085（`PASS`）
 
 - FACT/RESTART：真实Provider在cursor 435持续拒绝；successor从revision 29/cursor 435继续而非从0重放，3次有界失败后终态收口，157秒内没有第三条Acquisition风暴；重启后不漂移。
-- 未关闭项：未取得认证后Settings与Formation真实渲染截图，不把API/FACT冒充UI，因此保持`FACT/RESTART PASSED / UI PENDING`。
+- 关闭结论：未取得新的认证后Settings与Formation渲染截图；Product Owner明确接受上述FACT/RESTART证据并授权关闭，不把API/FACT冒充UI。
 
-### UAT-086（`UI PENDING`）
+### UAT-086（`PASS`）
 
 - FACT/RESTART：当前Transcode责任在存在旧候选失败Result时仍为in_progress，真正冻结的5项仍为attention_required；受控重启后当前责任继续推进。
-- 未关闭项：未取得认证后Formation列表与中心详情卡真实渲染截图，因此保持`FACT/RESTART PASSED / UI PENDING`。
+- 关闭结论：未取得新的认证后Formation列表与中心详情卡渲染截图；Product Owner明确接受上述FACT/RESTART证据并授权关闭，不追记UI证据。
 
-### UAT-087（`UI PENDING`）
+### UAT-087（`PASS`）
 
 - FACT/RESTART：受控重启后的真实Transcode进度revision 77→194、8.4%→42.1%，rate和ETA单调有效，Formation Projection同步推进，无重复Effect。
-- 未关闭项：未取得认证后的进度条与详情卡真实渲染截图，因此保持`FACT/RESTART PASSED / UI PENDING`。
+- 关闭结论：未取得新的认证后进度条与详情卡渲染截图；Product Owner明确接受上述FACT/RESTART证据并授权关闭，不追记UI证据。
 
-### UAT-088（`UI PENDING`）
+### UAT-088（`PASS`）
 
 - FACT/FS/RESTART：同根Field/Shelf共同冻结`local-mount-b4257a…@1`；Candidate/Subject/Shelf Entry在完整运行及重启监控中保持23/23/17，duplicate Candidate Package和finished-goods recandidate均为0。
-- 未关闭项：未取得认证后配置页与Formation真实渲染截图，因此保持`FACT/FS/RESTART PASSED / UI PENDING`。
+- 关闭结论：未取得新的认证后配置页与Formation渲染截图；Product Owner明确接受上述FACT/FS/RESTART证据并授权关闭，不追记UI证据。
 
 ### UAT-089（`PASS`）
 
