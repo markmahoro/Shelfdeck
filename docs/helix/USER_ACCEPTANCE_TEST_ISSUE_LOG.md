@@ -120,13 +120,13 @@ Helix主体开发已经完成，Movie从Procurement、Libra到Arca及Shelf Dereg
 | UAT-061 | 豆瓣 Acquisition 翻页传输失败后不重试、不收口，设置页永久「正在同步」 | `EXTERNAL_INTEGRATION` | `RECOVERY_CORRECTNESS` | Perception Acquisition + Settings 同步态 | 活性、可理解性 | High | 已实现；待新 Canary 确认 |
 | UAT-062 | frozen Run Discard 后 Control 已释放，Formation 仍空转「正在评估整理方案」，未走重新入库 | `BUSINESS_CONTRACT` | `DOMAIN_ORCHESTRATION` | Libra Run Discard 收口 + Procurement 重新入库 + Formation | 正确性、活性、可理解性 | Critical | 已修复并通过当前 Canary 确认 |
 | UAT-063 | Aftercare 问豆瓣分与 Libra 不是同一套 Resolution/Identity Evidence，上架后评分变化不触发保养 | `BUSINESS_CONTRACT` | `PROJECTION_FRESHNESS` | Arca Aftercare 拉 Perception + 与 Libra 共用 Identity Evidence | 正确性、时效性 | High | 已修复并通过当前 Canary 确认 |
-| UAT-064 | Formation 整理步骤展示与真实执行状态偏离：转码标 CPU、验证过早标完成 | `USER_EXPERIENCE` | `PROJECTION_FRESHNESS` | Formation 公开 Projection `organizingSteps` / `transcodeLabel` | 可理解性、可观察性 | High | 已修复；真实 Canary FACT/重启通过，待 UI 资格确认 |
+| UAT-064 | Formation 整理步骤展示与真实执行状态偏离：转码标 CPU、验证过早标完成 | `USER_EXPERIENCE` | `PROJECTION_FRESHNESS` | Formation 公开 Projection `organizingSteps` / `transcodeLabel` | 可理解性、可观察性 | High | 已修复并由 Product Owner 接受现有证据关闭 |
 | UAT-065 | 收藏详情把父目录名中的`.1`误显示为主视频容器 | `USER_EXPERIENCE` | `PROJECTION_FRESHNESS` | Arca Collection Query + Admin Web | 正确性、可理解性 | High | 已修复并通过当前 Canary 定向确认 |
 | UAT-066 | Formation 已完成整理表丢失目标收藏架名称，全部显示`—` | `USER_EXPERIENCE` | `PROJECTION_FRESHNESS` | Formation Admin Web + Arca Shelf只读展示接线 | 正确性、可理解性 | High | 已修复并通过当前 Canary 定向确认 |
 | UAT-067 | 活动 Run 加急后回放既有 Supporting Work 触发 Admission 幂等冲突，Run 不再推进 | `DOMAIN_ORCHESTRATION` | `EXECUTION_SCHEDULING` | Libra Run Coordinator + Foundation Work Admission replay | 活性、优先级正确性 | Critical | 已修复并通过同一 Canary 恢复确认 |
 | UAT-068 | Collection 年份投影遗漏 Provider 标准字段，Aftercare 丢失 title-year Identity Evidence | `PROJECTION_FRESHNESS` | `BUSINESS_CONTRACT` | Arca Collection Query + shared Rating Identity | 正确性、可理解性 | High | 已修复并通过当前 Canary 确认 |
 | UAT-069 | 评分 Resolution 更新后 Aftercare 及时执行，但 Planner/Capability 写回旧 Care Basis | `DOMAIN_ORCHESTRATION` | `PROJECTION_FRESHNESS` | Arca Aftercare composition wiring | 正确性、时效性 | Critical | 已修复并通过当前 Canary 安全重启确认 |
-| UAT-070 | 集成配置 revision 更新后，新建 Metadata Work 仍假定 revision 1，并让首轮 reconcile 阻断服务启动 | `DOMAIN_ORCHESTRATION` | `RECOVERY_CORRECTNESS`、`EXTERNAL_INTEGRATION` | Libra Metadata Planning + Foundation reconciliation | 可用性、活性、恢复正确性 | Critical | 已修复；真实故障库克隆已通过 RESTART/FACT，待 UI 资格确认 |
+| UAT-070 | 集成配置 revision 更新后，新建 Metadata Work 仍假定 revision 1，并让首轮 reconcile 阻断服务启动 | `DOMAIN_ORCHESTRATION` | `RECOVERY_CORRECTNESS`、`EXTERNAL_INTEGRATION` | Libra Metadata Planning + Foundation reconciliation | 可用性、活性、恢复正确性 | Critical | 已修复并由 Product Owner 接受现有证据关闭 |
 
 ## 2.1 UAT-006：概览展示固定演示数字
 
@@ -2650,7 +2650,7 @@ Resolution/Query Result作为不可变Basis审计输入，但Spec语义判定只
 
 验收证据：GPU NVENC 执行中页面为 GPU 转码；排队时不得写 CPU。源不合格走转码时，「验证整理结果」不得在转码完成前为 done。负例：不得把 `waiting_for_resource` 画成验证卡住。
 
-实现与资格证据（2026-08-23）：commit `daaef8c3d` 让 Formation 步骤从冻结 Plan/Work/Event FACT 推导执行设备与输出验证状态。隔离运行 `F:\shelfdeck_test_zone\runs\UAT-20260823-135500-daaef8c3d` 的执行中证人曾显示 `GPU转码 · HEVC · 不超过 14 GiB = running`、`验证整理结果 = pending`；同一时点 Direct 源校验已 succeeded、转码 executing、输出校验 pending。安全重启到 commit `71e8e5b63` 后该证人自然完成，Formation Projection 显示 GPU 转码、验证与上架均 done；FACT 中 Direct 校验、NVENC 转码、输出校验及 Product Conformance 均 succeeded，EncodeIntent 与设备快照均为 `nvidia_nvenc`。最终 FACT 位于 `uat-064-final-facts.json`。因 Codex Browser 本机 URL 策略禁止取得渲染页面，当前按关闭基线记为 `BLOCKED ON UI EVIDENCE / CODE_DONE_UNQUALIFIED`，不以 API/FACT 代替 UI 冒记 PASS；不触碰 NAS/生产。
+实现与关闭确认（2026-08-23）：commit `daaef8c3d` 让 Formation 步骤从冻结 Plan/Work/Event FACT 推导执行设备与输出验证状态。隔离运行 `F:\shelfdeck_test_zone\runs\UAT-20260823-135500-daaef8c3d` 的执行中证人曾显示 `GPU转码 · HEVC · 不超过 14 GiB = running`、`验证整理结果 = pending`；同一时点 Direct 源校验已 succeeded、转码 executing、输出校验 pending。安全重启到 commit `71e8e5b63` 后该证人自然完成，Formation Projection 显示 GPU 转码、验证与上架均 done；FACT 中 Direct 校验、NVENC 转码、输出校验及 Product Conformance 均 succeeded，EncodeIntent 与设备快照均为 `nvidia_nvenc`。最终 FACT 位于 `uat-064-final-facts.json`。Codex Browser 本机 URL 策略未能提供渲染截图；Product Owner 于同日明确接受现有 API/FACT/RESTART 证据并要求标记关闭。状态 `REGRESSION PASSED / CLOSED BY PRODUCT OWNER ACCEPTANCE`；不声称存在未取得的 UI 截图。
 
 ## 62. UAT-065：收藏详情把父目录名中的`.1`误显示为主视频容器
 
@@ -2795,9 +2795,9 @@ Product Package与Offer并完成On-deck；没有替换Run或数据库编辑。Ad
 
 修复边界：commit `efaf2d827` 增加“创建新 Work 时读取当前 Integration Handle”的专用端口；Planner 只在创建边界读取一次，并把返回的真实 revision 冻结进不可变 Work，既有冻结输入的严格校验不变。Foundation reconcile 对单个 scope 的异常保留失败前 cursor、报告错误并继续兄弟 scope，使首轮启动和后续有界重试不再被单项故障击穿。未修改历史事实，未用新 Credential 偷换旧 Handle，也未改变任何 Owner/Handoff。
 
-验收证据：真实失败库独立克隆 `F:\shelfdeck_test_zone\runs\UAT-20260823-uat070-recovery-v2` 在同一 TMDB revision 3 下安全启动为 `ready` 并干净关闭；新 Metadata Work/Event 成功，结果 sourceRef 为 `tmdb:tmdb-main@3`，`PLATFORM_INTEGRATION_REVISION_MISMATCH` attempt 为 0。相关回归最终 10/10 PASS。证据要求仍为 `UI`、`FACT`、`RESTART`；当前已有 FACT/RESTART，因 Codex Browser 本机 URL 策略无法取得渲染 UI，故保持 `CODE_DONE_UNQUALIFIED`，不以 API 或测试代替 UI 标记 PASS。
+验收证据：真实失败库独立克隆 `F:\shelfdeck_test_zone\runs\UAT-20260823-uat070-recovery-v2` 在同一 TMDB revision 3 下安全启动为 `ready` 并干净关闭；新 Metadata Work/Event 成功，结果 sourceRef 为 `tmdb:tmdb-main@3`，`PLATFORM_INTEGRATION_REVISION_MISMATCH` attempt 为 0。相关回归最终 10/10 PASS。Codex Browser 本机 URL 策略未能提供渲染截图；Product Owner 于同日明确接受现有 FACT/RESTART/回归证据并要求标记关闭，不声称存在未取得的 UI 截图。
 
-当前处理决定：2026-08-23 用户授权登记、深度排查、根因修复与 F 盘隔离 Canary 关闭。代码、回归与真实失败库克隆的 RESTART/FACT 已完成；正式 UI 资格仍待补证。依用户顺序现返回 `UAT-064` 补最终 UI/FACT；不触碰 NAS/生产，不在 C 盘留下测试过程文件。
+关闭确认：commit `efaf2d827` 完成根因修复；代码、回归与真实失败库克隆的 RESTART/FACT 均已通过。2026-08-23 Product Owner 明确接受现有证据并要求关闭，状态 `REGRESSION PASSED / CLOSED BY PRODUCT OWNER ACCEPTANCE`。未触碰 NAS/生产，未在 C 盘留下测试过程文件。
 
 ## 68. 后续问题模板
 
