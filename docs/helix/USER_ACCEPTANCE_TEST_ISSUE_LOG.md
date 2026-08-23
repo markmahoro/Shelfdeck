@@ -38,6 +38,8 @@ Helix主体开发已经完成，Movie从Procurement、Libra到Arca及Shelf Dereg
 
 2026-08-23 在历史70/70关闭及`UAT-071`–`UAT-073`资格完成后，用户基于保留Canary的再次使用确认下一轮改进，登记为`UAT-074`–`UAT-084`。本轮覆盖NFO“更新/重建”语义、Related Artwork复用与TMDB Artifact Handle、Integration配置可见性、豆瓣匹配、Formation单表与详情事实、失败态投影、同根第二Material Field，以及当前工作区逐片审计。用户随后授权在本地隔离环境逐项实施和关闭；2026-08-23当前提交版真实Canary、失败现场克隆、Admin Web和25行只读审计均已完成，`UAT-074`–`UAT-084`现全部关闭，不重开或改写历史行。
 
+2026-08-23 全新clean环境再次使用真实豆瓣配置时发现独立的完整性缺口，登记为`UAT-085`：Acquisition虽按`UAT-061`在翻页失败后有界重试并收口，但真实收藏连续抓取在固定游标被Provider 403拒绝；再次同步又从头抓取，无法从最后已提交页续传，设置页也没有明确说明当前只得到部分记录。该项只登记，不重开`UAT-061`或`UAT-079`，未授权实现。
+
 关闭作业不再走已删除的 `helix-beta-user-e2e` workflow。当前 70 行关闭基线见 `docs/helix/acceptance/UAT_CLOSURE_BASELINE.md`：正式关闭立即汇报且不暂停；确认关闭时发现新产品缺陷则暂停并先登记新 UAT；`PASS` 必须有干净 Canary 的 Admin Web `UI`（涉及文件现实时加 `FS`），单元测试不能单独关闭一行。
 
 记录原则：
@@ -143,6 +145,7 @@ Helix主体开发已经完成，Movie从Procurement、Libra到Arca及Shelf Dereg
 | UAT-082 | Formation的100%总进度和完成标记可掩盖真实失败，使报错影片看起来只是“停在那里” | `PROJECTION_FRESHNESS` | `USER_EXPERIENCE`、`RECOVERY_CORRECTNESS` | Libra/Arca Work与Event事实 + Formation Projection | 正确性、可操作性、故障恢复 | Critical | `REGRESSION PASSED / CLOSED` |
 | UAT-083 | 保留旧Field并对同一目录新增第二Material Field时，必须只形成一次有效整理且不能发生竞争控制 | `BUSINESS_CONTRACT` | `DOMAIN_ORCHESTRATION`、`USER_EXPERIENCE` | Procurement Field/Material Control + Libra Intake | 正确性、幂等、可理解性 | Critical | `REGRESSION PASSED / CLOSED` |
 | UAT-084 | 当前Formation工作区缺少逐片事实审计，除已知影片外仍可能存在未解释的冻结、失败或错误投影 | `DOMAIN_ORCHESTRATION` | `PROJECTION_FRESHNESS`、`USER_EXPERIENCE` | Procurement/Libra/Arca跨域只读审计 | 完整性、诊断性、回归风险 | High | `FACT PASSED / CLOSED` |
+| UAT-085 | 豆瓣完整收藏同步被Provider 403中断后不能从持久游标续传，页面仍把部分数据表现为普通未匹配 | `EXTERNAL_INTEGRATION` | `RECOVERY_CORRECTNESS`、`USER_EXPERIENCE`、`PROJECTION_FRESHNESS` | Perception Acquisition + Settings/Formation Query | 完整性、正确性、可恢复性、可理解性 | Critical | `RECORDED / OPEN` |
 
 ### 2.0.1 UAT-074–UAT-084必须保护的历史修复
 
@@ -3020,7 +3023,39 @@ Owner确认的前端基线：当前正式工作区中的`/formation?stub=1`是UA
 
 关闭确认（2026-08-23）：只读审计脚本`formation-uat-084-audit.cjs`对失败克隆v7当前25行逐一读取Formation详情并与SQLite Owner事实对账，结果25/25 PASS：12条身份确认、9条历史`PLATFORM_INTEGRATION_HANDLE_INVALID`、1条历史`P5_SECRET_LEASE_INVOCATION_FAILED`、1条产品符合性失败、1条Arca验收失败、1条已完成。每行均记录用户状态、Domain阶段、最后有效事实、根因、恢复动作和对应UAT；`in_progress=0`，没有业务失败被标成完成，也没有未知类别。审计没有写数据库、重跑Observation或改变源文件。状态`FACT PASSED / CLOSED`。
 
-## 82. 后续问题模板
+## 82. UAT-085：豆瓣完整收藏同步失败后不能续传，部分数据被表现为普通未匹配
+
+问题分类：`EXTERNAL_INTEGRATION / RECOVERY_CORRECTNESS / USER_EXPERIENCE / PROJECTION_FRESHNESS`
+
+用户侧现象：在全新clean环境正确配置豆瓣并同步后，Formation仍有大量影片显示“豆瓣暂无匹配评分”。设置页的连接状态为当前可用，同步按钮也已恢复可点，用户无法判断本轮只取得了部分收藏记录，容易把数据未取得误认为影片身份或匹配规则失败。
+
+现场证据（2026-08-23）：正式工作区`main@a2a0e40fc`，运行目录`F:\shelfdeck_test_zone\runs\clean-main-a2a0e40fc`。TMDB、Douban和MoviePilot均为active revision 1且最近验证passed；数据库`integrity_check=ok`，服务`helix-clean-v3` ready。本次诊断只读API、SQLite和Provider响应，没有触发新同步、修改记录或改变影片状态。
+
+两次真实Douban Acquisition均先成功提交29页（page 0–28，每页15条，游标`0 → 435`），第30页`perception.source.acquire@1`连续3次以`failure_class=integration / P5_PROVIDER_TRANSPORT_FAILED`失败，随后Work与Acquisition正确收口为`failed`，`activeCount=0`。使用同一已配置账号对精确URL参数`start=435`进行一次有界只读诊断，Provider返回HTTP 403并将响应路径导向`/b`；这不是Integration未配置或Connection Proof失败。
+
+当前clean库只有436条Douban Record，而此前同一账号完整基线约1547条。23个Formation Subject中14个Resolution为`found`、9个为`no_matching_record`；其中007、《短暂和平》《一场很（没）有必要的春晚》《倩女幽魂2：人间道》《坠楼死亡的剖析》《放·逐》《有话好好说》《立春》在现有436条中完全不存在，首要原因是后续收藏页没有进入Perception Store，不是这8部的匹配算法已证明失败。
+
+《老笠》是独立的保护性未匹配：Douban Record已经存在，锚为`老笠\0 2015`，当前Subject为`老笠 (2016)`。现行Resolution要求规范化片名与年份同时成立，因此拒绝关联符合Identity保护；`UAT-085`不得通过放宽年份、模糊猜测或直接把这条记录写给Subject来提高表面命中率。若后续存在更强的跨Provider Identity Evidence，应另按正式身份合同评估。
+
+与历史UAT的关系：`UAT-061`关闭的是“翻页失败后不重试、不收口，设置页永久正在同步”。当前实现已经有界重试3次、把失败页Work和Acquisition收口、令同步按钮恢复，因此不重开`UAT-061`。`UAT-079`关闭的是Resolution状态/原因透传和Identity变化后的重算，也不保证Provider完整收藏必然取得。本条是两者之间此前未覆盖的“完整Acquisition、续传和部分同步可见性”缺口。
+
+初步诊断：当前页推进速度没有面向Provider拒绝的持久冷却；失败Acquisition终态后，新同步从空`initialCursorValue`重新抓取第1页，重复已提交的`0–435`并再次撞到相同Provider保护。虽有记录幂等和失败收口，但没有可持续的“从最后成功Cursor继续取得剩余收藏”路径。Settings只把`activeCount`用于“正在同步”按钮，没有向用户展示最新Acquisition的failed终态、最后成功游标、已取得记录数或“结果不完整”；Formation因此只能把缺失记录投影为普通`no_matching_record`。
+
+业务影响：豆瓣评分是Acceptance Spec及后续Care决策的正式输入。部分同步若被误当成完整快照，会让真实已评分影片按无评分路径形成要求，且用户无法区分“账号没有这条评分”和“系统尚未取得这条记录”。反复从头同步还会增加Provider请求量并提高再次被拒绝的概率。
+
+修复边界：
+
+1. 遵守Provider限制，加入有界请求节奏、持久冷却和可审计的拒绝分类；不得绕过反自动化保护、伪造成功或无限快速重试。
+2. 已提交页和Source Cursor继续由Perception Owner持久化；重试或后续授权同步必须能够从最后成功游标继续，不能删除已落记录、伪造SQLite或每次无条件从第1页重放。
+3. Acquisition失败事实仍须终态可见；Settings应以用户语言显示“同步未完成”、最后成功进度与可恢复动作，不能仅因`activeCount=0`表现得像完整成功。
+4. 新Record提交后必须精确唤醒受影响的Subject/Entry Resolution；不得让Perception越界拥有Libra Subject或Arca Shelf Entry。
+5. `no_matching_record`必须区分“完整数据中无匹配”和“Acquisition不完整，尚不能下结论”。《老笠》的年份冲突继续保持显性保护，不纳入续传成功率冒充自动匹配。
+
+验收证据：在新的隔离clean Canary中使用真实Provider完成有节奏的多页Acquisition，证明所有页提交、末页`hasMore=false`、Acquisition terminal completed，且安全重启不重复已提交页。另以确定性403/限流夹具证明拒绝后不忙等、不从头重放，冷却或恢复后从最后成功Cursor继续；Settings与Formation分别显示部分同步、失败原因和恢复后的Resolution变化。真实Provider证据记录请求页数、游标、终态和记录计数，不记录Cookie。证据要求：`FACT`、`UI`、`RESTART`；若Provider当时持续拒绝，不得伪造完整成功。
+
+当前处理决定：`RECORDED / OPEN`。本轮只登记问题，不修改代码、不触发再次同步、不改变当前影片或豆瓣记录。
+
+## 83. 后续问题模板
 
 后续发现的问题按以下结构追加：
 
