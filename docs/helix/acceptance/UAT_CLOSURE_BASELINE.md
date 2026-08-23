@@ -151,6 +151,8 @@
 
 2026-08-23在70/70关闭之后，独立登记并修复`UAT-071`（多人自动登记Evidence碰撞）、`UAT-072`（已登记人物头像）与真实Canary进一步暴露的`UAT-073`（NFO人物强身份丢失及重复关系）。三项属于post-closure qualification，不追加进上方`UAT-001`–`UAT-070`表、不改变70/70历史结论，也不追溯修改`UAT-055`的已接受证据。
 
+同日后续使用保留Canary时，Product Owner另确认下一轮`UAT-074`–`UAT-084`，权威范围与验收标准见`docs/helix/USER_ACCEPTANCE_TEST_ISSUE_LOG.md`。这些条目已在当前提交版隔离Canary和失败库只读克隆中逐项关闭，作为post-closure qualification记录于本文末尾；它们不改写上方历史70/70，也不改变`UAT-071`–`UAT-073`的资格结论。
+
 `UAT-20260823-people-registration-avatar-91e6bb141`仅为确定性本地TMDB stub自动化夹具，证明合同与回退，不作为真实UI UAT证据。权威post-closure真实资格运行是`F:\shelfdeck_test_zone\runs\UAT-20260823-people-real-avatar-fix-b8861a3dd`：从只读`test_film`复制《放·逐 (2006)》，使用真实TMDB走正式Formation→On-deck→People，23个唯一TMDB Person Identity形成23个active Person、0 open Candidate，安全重启后不增不减；桌面与390px真实页面显示23张卡、21个真实代理头像、2个无图首字回退，axe serious/critical为0。FACT与截图均保存在该运行目录；既有Canary、旧Candidate与历史UAT证据均未修改。
 
 `UAT-005` 剩余动作合同并入 `UAT-051` 后仍保留本行，用四桶状态在新 Canary 上资格确认，不把 005 标 `VOID`。
@@ -561,3 +563,62 @@
 - 通过标准：详情显示2023；无直接评分时显示Formation相同的豆瓣星级；两边Resolution命中同一Douban Record。
 - 证据要求：`UI`、`FACT`。
 - 关闭结论：`PASS`。详情显示`2023`与`3 星 · 豆瓣`；Inventory保留`year_or_release_date=2023`和`release_date=2023-09-13`。Subject与Shelf Entry当前Resolution均命中`perception-record-5628590251074f0155192bf1b1eadf8828c3258e`。UI证据：`admin-web-evidence/uat-068-year-and-douban-rating-pass.png`。
+
+## 9. Post-closure UAT-074–UAT-084（2026-08-23）
+
+共同当前提交：`3722e129b`、`6cc38e2f2`、`857df10e1`、`004c17ac4`、`b4e36d5c0`。共同干净Canary：`F:\shelfdeck_test_zone\runs\UAT-20260823-formation-074-083-b4e36d5c-v11`；共同FACT：`evidence/formation-uat-074-083-facts.json`。失败态与逐片审计证人：`F:\shelfdeck_test_zone\runs\UAT-20260823-uat082-formation-failure-witness-v7-dc10a5b9`。未触碰NAS生产，Credential未进入文档、截图或FACT。
+
+### UAT-074（`PASS`）
+
+- 关闭命题：可用NFO更新、损坏NFO重建、缺失NFO创建，源Field只读。
+- 关闭结论：007、香火、威尼斯惊魂夜分别形成`related_nfo_update`、`product_metadata_draft_rebuild`、`product_metadata_draft_create`；三部均上架，源前后快照一致。真实007详情显示“更新 NFO”。
+
+### UAT-075（`PASS`）
+
+- 关闭命题：NFO更新保留丰富字段并稳定电影/人物强身份。
+- 关闭结论：007输出NFO为13,348字节，保留演员、IMDb `tt1074638`与电影TMDB `37724`；演员Person ID `8784`未再成为电影ID，007无身份冲突并完成上架。
+
+### UAT-076（`PASS`）
+
+- 关闭命题：合格Related Artwork复用，缺失时才外部获取。
+- 关闭结论：007与香火poster来自`related_material_reference`；威尼斯惊魂夜缺图才使用TMDB并成功`acquired`。详情明确显示“复用现有海报”。
+
+### UAT-077（`PASS`）
+
+- 关闭命题：Artifact Handle在Provider调用前冻结当前revision与`artifactKind`。
+- 关闭结论：真实威尼斯海报请求使用`tmdb:tmdb-main@1`并成功；`PLATFORM_INTEGRATION_HANDLE_INVALID=0`、revision mismatch=0。服务自身优雅关闭和重启后结果稳定。
+
+### UAT-078（`PASS`）
+
+- 关闭命题：设置页如实区分Integration配置与最近验证状态，不暴露Credential。
+- 关闭结论：真实页面TMDB与豆瓣均显示“当前可用”，优雅重启后保持；DOM和FACT不含API Key、Secret或Cookie。UI证据：`evidence/uat-078-settings-current-available.png`。
+
+### UAT-079（`PASS`）
+
+- 关闭命题：新Subject按规范化身份形成豆瓣Resolution，空值必须解释。
+- 关闭结论：v11三部新Subject均形成`found`或明确`no_matching_record`；页面用“豆瓣暂无匹配评分”而非空白`—`，保留现场未补历史数据。
+
+### UAT-080（`PASS`）
+
+- 关闭命题：按Owner确认Stub实现一张紧凑媒体表，用户操作与加急分列。
+- 关闭结论：真实页面使用一张表和确认的八列；状态筛选、正式加急API、绿色纯文字控件保留。390px下仅表容器横向滚动，页面不被撑宽；Admin Web 26/26和production build通过。
+
+### UAT-081（`PASS`）
+
+- 关闭命题：单一中心卡片透传已接收材料、媒体整理、验收与上架三段正式事实。
+- 关闭结论：真实007详情显示三段事实、“更新 NFO”“复用现有海报”和完成验收；倩女幽魂失败详情将60个Related Material按角色计数，Libra发布写作“提交收藏架验收”。UI证据：`evidence/uat-074-081-007-detail.png`。
+
+### UAT-082（`PASS`）
+
+- 关闭命题：业务Result失败不能显示完成，列表与详情必须给出可用恢复动作。
+- 关闭结论：失败克隆中春晚`metadata_field_unmet`Run被冻结为revision 3；列表显示“本次整理已冻结，需要放弃后重新采购”，操作为“放弃本次整理”、加急禁用，详情“验证整理结果”为失败且尚未进入Arca。倩女幽魂独立显示`CLEAN_ARCA_TARGET_ROOT_UNAVAILABLE`与“重试验收”。UI证据：`evidence/uat-082-spring-gala-frozen-detail.png`。
+
+### UAT-083（`PASS`）
+
+- 关闭命题：旧Field保留时新增同根第二Field，只形成一次合法整理。
+- 关闭结论：`formation-uat-field-a`与`formation-uat-field-b`为不同fieldId、同endpoint/mount/root；最终三部电影仅有3个Candidate、3个Subject、3个Run和3个Shelf Entry，源快照不变，重启后不重复。
+
+### UAT-084（`PASS`）
+
+- 关闭命题：当前Formation每行均可落到正式Owner事实、根因和恢复动作。
+- 关闭结论：`evidence/uat-084-formation-audit.json`对25/25行审计PASS：12身份确认、9历史Artifact Handle失败、1历史Secret Lease失败、1产品符合性失败、1 Arca验收失败、1完成；`in_progress=0`，无失败标完成、无未知类别。审计只读，未修改保留SQLite、Observation或源文件。

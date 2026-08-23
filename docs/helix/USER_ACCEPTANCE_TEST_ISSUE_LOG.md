@@ -36,6 +36,8 @@ Helix主体开发已经完成，Movie从Procurement、Libra到Arca及Shelf Dereg
 
 本文不是Architecture SSOT，不替代`CURRENT_PLAN.md`。历史UAT问题仍保留原有处理状态；2026-08-21 Movie Canary真实用户UAT期间，用户已授权在不改变已确认架构边界的前提下直接修复、页面复测并为每项修复建立独立Git回滚点。2026-08-22 另完成一次 Admin Web 全页用户体验审视（文案、内部机制泄漏、文案与事实冲突、排版、字体、按钮、前端拼装与美学），问题见 `docs/helix/ADMIN_WEB_UX_ISSUE_LOG.md`；该台账不替代本文的 UAT 业务/执行缺陷记录，也不授权实现。同日用户确认四项后续改造并登记为 `UAT-050`–`UAT-053`（当前媒体筛选、分步整理动作与进度、收藏按架与占用空间、Field Observation 周期观察缺口）；随后确认退出收藏任务化界面、人物 Beta 两条登记路径、豆瓣周期同步，登记为 `UAT-054`–`UAT-056`；概览改为状态 + 待办 + 最近几件事、不与「我的收藏」合并，登记为 `UAT-057`；侧栏把文件来源与收藏架下移与系统设置一组，Tab 改名为文件来源配置 / 收藏架配置，登记为 `UAT-058`。2026-08-22 干净 Canary `UAT-20260822-194617-1ed64ca36` 转码复盘登记为 `UAT-059`：四星体积上限被规划器当成目标码率；同轮 Spec 复盘登记为 `UAT-060`：Product Identity 写回 Subject 触发语义相同的 Acceptance Spec 重发；同轮另登记 `UAT-061` 豆瓣 Acquisition 翻页失败不收口、`UAT-062` frozen Discard 后未按重新入库收口、`UAT-063` Aftercare 查豆瓣分与 Libra 不是同一套 Resolution。
 
+2026-08-23 在历史70/70关闭及`UAT-071`–`UAT-073`资格完成后，用户基于保留Canary的再次使用确认下一轮改进，登记为`UAT-074`–`UAT-084`。本轮覆盖NFO“更新/重建”语义、Related Artwork复用与TMDB Artifact Handle、Integration配置可见性、豆瓣匹配、Formation单表与详情事实、失败态投影、同根第二Material Field，以及当前工作区逐片审计。用户随后授权在本地隔离环境逐项实施和关闭；2026-08-23当前提交版真实Canary、失败现场克隆、Admin Web和25行只读审计均已完成，`UAT-074`–`UAT-084`现全部关闭，不重开或改写历史行。
+
 关闭作业不再走已删除的 `helix-beta-user-e2e` workflow。当前 70 行关闭基线见 `docs/helix/acceptance/UAT_CLOSURE_BASELINE.md`：正式关闭立即汇报且不暂停；确认关闭时发现新产品缺陷则暂停并先登记新 UAT；`PASS` 必须有干净 Canary 的 Admin Web `UI`（涉及文件现实时加 `FS`），单元测试不能单独关闭一行。
 
 记录原则：
@@ -130,6 +132,34 @@ Helix主体开发已经完成，Movie从Procurement、Libra到Arca及Shelf Dereg
 | UAT-071 | 同一上架电影的多个人物关系共用来源 digest，只有首个人物自动登记 | `DOMAIN_ORCHESTRATION` | `PROJECTION_FRESHNESS` | Arca On-deck Person Evidence + People登记幂等 | 正确性、名录完整性 | Critical | 已修复并通过全新隔离 Canary FACT/RESTART确认 |
 | UAT-072 | 已登记人物名录缺少头像，无法形成可辨识的人物联系表 | `USER_EXPERIENCE` | `EXTERNAL_INTEGRATION`、`PROJECTION_FRESHNESS` | People Admin Query + Platform TMDB adapter + Admin Web | 可辨识性、安全性、可访问性 | High | 已修复并通过桌面/390px UI E2E确认 |
 | UAT-073 | NFO演员块的TMDB Person ID被丢弃，与Provider演员关系重复后产生整组待确认登记 | `DOMAIN_ORCHESTRATION` | `EXTERNAL_INTEGRATION`、`PROJECTION_FRESHNESS` | Libra NFO Metadata Observation + Media Cast形成 | 正确性、名录完整性、可理解性 | Critical | 已修复并通过真实电影/真实TMDB Canary与UI确认 |
+| UAT-074 | 可用的原NFO被从空白模板重写，产品应按“未坏则更新、坏则重建、缺失则创建”处置 | `BUSINESS_CONTRACT` | `USER_EXPERIENCE` | Libra Related NFO disposition + Production Workspace | 正确性、信息保真、可理解性 | Critical | `REGRESSION PASSED / CLOSED` |
+| UAT-075 | NFO更新未保留原有丰富字段，ShelfDeck输出再次入库时也缺少身份稳定性保证 | `BUSINESS_CONTRACT` | `DOMAIN_ORCHESTRATION` | Libra NFO update/render + Metadata Observation | 信息保真、幂等、身份正确性 | Critical | `REGRESSION PASSED / CLOSED` |
+| UAT-076 | 已有合格海报未按Related Material直接沿用，缺失/损坏海报的外部获取边界也未清楚区分 | `BUSINESS_CONTRACT` | `EXTERNAL_INTEGRATION` | Libra Related Artwork disposition + Production Workspace | 正确性、I/O、外部依赖 | High | `REGRESSION PASSED / CLOSED` |
+| UAT-077 | TMDB海报Artifact Handle缺少`artifactKind`，请求在进入Provider前即被拒绝 | `EXTERNAL_INTEGRATION` | `DOMAIN_ORCHESTRATION` | Libra Artifact Work creation + Platform Integration Runtime | 活性、正确性、诊断性 | Critical | `REGRESSION PASSED / CLOSED` |
+| UAT-078 | TMDB与豆瓣实际已有配置，但设置页呈现为未正确配置 | `USER_EXPERIENCE` | `PROJECTION_FRESHNESS`、`EXTERNAL_INTEGRATION` | Integration Admin Query + Settings Admin Web | 可理解性、可信度、安全性 | High | `REGRESSION PASSED / CLOSED` |
+| UAT-079 | 多部影片未取得豆瓣评分，身份形成或确认后没有稳定重算且空值原因不可见 | `BUSINESS_CONTRACT` | `PROJECTION_FRESHNESS`、`EXTERNAL_INTEGRATION` | Perception Resolution + Libra Identity input + Formation Query | 正确性、时效性、可理解性 | Critical | `REGRESSION PASSED / CLOSED` |
+| UAT-080 | Formation被拆成多张宽表且媒体名称列承载过多信息，不能形成一个可扫读的媒体台账 | `USER_EXPERIENCE` | `PROJECTION_FRESHNESS` | Formation Admin Query + Admin Web | 信息架构、可扫读性、窄屏可用性 | High | `REGRESSION PASSED / CLOSED` |
+| UAT-081 | Formation详情使用前端聚合概念和模糊步骤，未清楚透传已接收材料、媒体整理、验收与上架事实 | `USER_EXPERIENCE` | `BUSINESS_CONTRACT`、`PROJECTION_FRESHNESS` | Procurement/Libra/Arca公开事实 + Formation Query + Admin Web | 可理解性、事实正确性、可观察性 | Critical | `REGRESSION PASSED / CLOSED` |
+| UAT-082 | Formation的100%总进度和完成标记可掩盖真实失败，使报错影片看起来只是“停在那里” | `PROJECTION_FRESHNESS` | `USER_EXPERIENCE`、`RECOVERY_CORRECTNESS` | Libra/Arca Work与Event事实 + Formation Projection | 正确性、可操作性、故障恢复 | Critical | `REGRESSION PASSED / CLOSED` |
+| UAT-083 | 保留旧Field并对同一目录新增第二Material Field时，必须只形成一次有效整理且不能发生竞争控制 | `BUSINESS_CONTRACT` | `DOMAIN_ORCHESTRATION`、`USER_EXPERIENCE` | Procurement Field/Material Control + Libra Intake | 正确性、幂等、可理解性 | Critical | `REGRESSION PASSED / CLOSED` |
+| UAT-084 | 当前Formation工作区缺少逐片事实审计，除已知影片外仍可能存在未解释的冻结、失败或错误投影 | `DOMAIN_ORCHESTRATION` | `PROJECTION_FRESHNESS`、`USER_EXPERIENCE` | Procurement/Libra/Arca跨域只读审计 | 完整性、诊断性、回归风险 | High | `FACT PASSED / CLOSED` |
+
+### 2.0.1 UAT-074–UAT-084必须保护的历史修复
+
+本轮不是只验收新增页面或新增代码。每项PASS必须同时证明对应历史修复没有回退；下表只是回归绑定，不重开或改写历史UAT的关闭状态。
+
+| 本轮UAT | 必须一并保护的历史UAT | 回归底线 |
+| --- | --- | --- |
+| UAT-074、UAT-075 | UAT-014、UAT-029、UAT-037、UAT-043、UAT-071、UAT-073 | NFO更新/重建不能把演员Person ID当电影ID、丢失Person强身份、重复人物关系或重新制造007身份/Metadata永久冻结；身份冲突仍须显性保护 |
+| UAT-076、UAT-077 | UAT-028、UAT-070 | 既有Related Artwork继续进入正式处置范围；新Artifact Work使用完整Handle和当前Integration revision，单scope失败不能击穿服务启动 |
+| UAT-078 | UAT-061、UAT-070 | 设置页状态必须与当前Integration revision和同步终态一致；翻页失败必须收口，重连后不得显示旧revision或误报未配置 |
+| UAT-079 | UAT-001、UAT-023、UAT-025、UAT-026、UAT-056、UAT-061、UAT-063、UAT-068、UAT-069 | 豆瓣匹配继续使用规范化Identity Evidence；周期同步、失败收口、直接评分清除、Aftercare共用Resolution及当前Care Basis均不得回退 |
+| UAT-080 | UAT-005、UAT-018、UAT-050、UAT-051、UAT-066、UAT-067 | 四桶/筛选、目标架解析、用户操作与加急分离继续成立；加急复用正式API，既有Work replay不发生幂等冲突 |
+| UAT-081、UAT-082 | UAT-005、UAT-019、UAT-037、UAT-043、UAT-051、UAT-064 | 详情和当前进展必须来自真实Plan/Work/Event/Result；外层Event成功不能覆盖业务Result失败，GPU/CPU与验证完成态不得伪造，007仍能得到明确恢复动作 |
+| UAT-083 | UAT-053、UAT-060、UAT-062 | Field仍可周期观察；同语义Spec不得重复发Run，释放Control后的材料能重新入库且不会形成竞争或重复整理 |
+| UAT-084 | UAT-014、UAT-018、UAT-019、UAT-037、UAT-043、UAT-062、UAT-064、UAT-067、UAT-070 | 当前每一行都必须落到可解释的正式事实和恢复路径；不得用通用“冻结/100%/停在那里”掩盖历史故障类型 |
+
+历史回归证据必须和本轮新场景使用同一代码版本。若历史底线失败，应记录为对应新UAT的回归失败；只有出现独立根因或独立修复边界时才新增UAT，不能为了保持旧PASS而忽略回退。
 
 ## 2.1 UAT-006：概览展示固定演示数字
 
@@ -2844,7 +2874,153 @@ Product Package与Offer并完成On-deck；没有替换Run或数据库编辑。Ad
 
 当前处理决定：提交`da485edc6`完成生产修复，`b8861a3dd`加入真实电影资格脚本，`a82ea3367`加入真实UI/axe证据脚本。专项People/Libra回归52/52、Admin Web build及真实E2E通过。完整Service `npm test`为310 PASS / 18 SKIP / 1 FAIL，唯一失败是既有Routing陈旧等待条件（实际24/24、旧断言等待25/24），不得为此恢复重复Acceptance Spec。状态`REGRESSION PASSED / QUALIFIED WITH REAL MOVIE AND REAL TMDB`。
 
-## 71. 后续问题模板
+## 71. UAT-074：NFO按“更新、重建、创建”三种结果处置
+
+问题分类：`BUSINESS_CONTRACT / USER_EXPERIENCE`
+
+用户验收目标：ShelfDeck不再把所有NFO都解释为“重新生成”。原NFO可用时应在Libra Production Workspace中**更新**；原NFO损坏时**重建**；原来没有NFO时**创建**。普通用户只需要看到这三个结果，不需要理解XML解析错误与内容身份错误的技术区别。
+
+当前证据：现有Planner把所有NFO统一路由到`SIDECAR_RENDER`，Renderer从最小空白草稿生成XML。以《倩女幽魂》保留Canary为证，原NFO已有丰富信息，Workspace NFO却被缩减为少量字段。这不是SSOT要求，而是当前实现缺口。
+
+修复边界：源Material Field保持只读；所有更新或重建只发生在Libra Workspace。影片身份仍先于NFO成品处理：身份尚未确定时显示“需要确认影片身份”，不得以错误身份更新或重建NFO。修复不得移动Product Metadata Owner或改变Handoff。
+
+验收场景：在全新隔离Canary中分别提供一份可用NFO、一份损坏NFO和一部无NFO影片；详情明确显示“检查原NFO→更新NFO→验证”“检查原NFO→原文件不可用→重建并验证”或“未发现NFO→创建并验证”。源目录size、mtime与内容不变；Workspace与最终Shelf结果符合对应处置。证据要求：`UI`、`FACT`、`FS`。
+
+关闭确认（2026-08-23）：commit `3722e129b`实现`update/rebuild/create`三种正式Disposition。当前提交版隔离Canary `UAT-20260823-formation-074-083-b4e36d5c-v11`中，007为`related_nfo_update`、香火为`product_metadata_draft_rebuild`、威尼斯惊魂夜为`product_metadata_draft_create`；三部均完成Formation→On-deck，源文件前后快照完全一致。007真实中心详情显示“更新 NFO”。状态`REGRESSION PASSED / CLOSED`。
+
+## 72. UAT-075：NFO更新保留信息并保证再次入库身份稳定
+
+问题分类：`BUSINESS_CONTRACT / DOMAIN_ORCHESTRATION`
+
+用户验收目标：所谓“更新”必须以原NFO为基底，修改ShelfDeck确实需要改变的字段，同时保留演员、外部ID、评分、系列/集合、标签、自定义字段及不能证明应删除的扩展信息；不能用更短的新文件替换丰富的原文件。与媒体现实绑定且已经过时的`fileinfo/streamdetails`等字段，可以按新成品现实更新或移除。
+
+回归边界：演员块中的TMDB Person ID不能再次被当成电影ID或被丢失，持续保护`UAT-029`和`UAT-073`。ShelfDeck产出的NFO再次由ShelfDeck观察时，必须得到同一电影身份；不得把自己的合格输出判断为损坏、产生新的身份冲突或重复人物关系。
+
+验收场景：以包含演员、`uniqueid`、豆瓣/TMDB/IMDb ID、rating、set、tag及自定义节点的丰富NFO作为输入，完成一次真实Formation→On-deck；逐字段对账证明应保留字段仍在、应更新字段与成品一致。再以该输出建立新的隔离Material Field，身份自动稳定解析，不要求人工确认且不产生重复人物。证据要求：`FACT`、`FS`、必要的`UI`。
+
+关闭确认（2026-08-23）：007输出NFO为13,348字节，保留演员块、IMDb身份`tt1074638`与电影TMDB `37724`；演员Person ID `8784`未再被解析为电影ID，007无需人工确认并正常上架。损坏输入只重建可信字段，未把坏身份带入成品；相关结构与Round-trip专项测试通过。状态`REGRESSION PASSED / CLOSED`。
+
+## 73. UAT-076：Related Artwork按可用性复用或外部获取
+
+问题分类：`BUSINESS_CONTRACT / EXTERNAL_INTEGRATION`
+
+用户验收目标：原材料中已有且合格的poster、fanart等Related Artwork应直接带入Workspace并随产品结算；只有缺失或损坏的目标图像才进入TMDB Artifact获取。详情必须说清“检查原海报、沿用原海报”或“未发现/不可用，下载海报”，不能统一写成含糊的“补齐资料”。
+
+修复边界：Related Materials仍只作为引用随Candidate Package旅行，不获得独立Field Observation membership或控制锁；源文件只读。是否可用由Libra在既有责任内判断，不把该决定交给前端Projection。
+
+验收场景：同一隔离Canary至少包含一部已有合格poster和一部缺少poster的影片。前者不得发起不必要的TMDB图片请求，最终文件与来源图像相符；后者成功获取并验证图像。两条详情均展示实际动作与结果。证据要求：`UI`、`FACT`、`FS`。
+
+关闭确认（2026-08-23）：同一v11中，007和香火的poster均以`related_material_reference`复用，威尼斯惊魂夜缺少poster时才形成TMDB获取且结果`acquired`。真实详情显示“复用现有海报”；源目录前后不变，最终三部均上架。状态`REGRESSION PASSED / CLOSED`。
+
+## 74. UAT-077：TMDB Artifact Handle必须在Provider调用前完整有效
+
+问题分类：`EXTERNAL_INTEGRATION / DOMAIN_ORCHESTRATION`
+
+用户侧现象：海报获取报`PLATFORM_INTEGRATION_HANDLE_INVALID`，但这并不是TMDB Credential或网络失败；Artifact Handle缺少`artifactKind`，运行时在真正发起TMDB请求前即正确拒绝。
+
+修复边界：创建Artifact Work的边界必须冻结完整Handle，至少包含正确的integration、当前`configRevision`与`artifactKind`。既有Handle严格校验不得放宽；不得伪造Provider成功、不得把Secret下沉到Work或前端。`UAT-070`“创建新Work读取当前revision、单scope失败不击穿startup”的修复必须保持。
+
+验收场景：对缺失海报的新Subject创建Artifact Work，FACT证明Handle完整且使用当前Integration revision，请求实际到达TMDB adapter并取得图片；错误Credential、网络错误与无图必须分别保留其真实错误码，不能再混成Handle invalid。服务安全重启不发生revision mismatch或startup outage。证据要求：`FACT`、`RESTART`、`FS`，真实页面展示最终结果。
+
+关闭确认（2026-08-23）：commit `6cc38e2f2`在Artifact Intent创建边界冻结`artifactKind`并由当前Handle resolver验证。v11真实TMDB海报结果来自`tmdb:tmdb-main@1`，`PLATFORM_INTEGRATION_HANDLE_INVALID=0`、revision mismatch=0；同一库经服务自身`close()`完成优雅关闭和安全重启，subject/run计数与结果不变。状态`REGRESSION PASSED / CLOSED`。
+
+## 75. UAT-078：Integration设置页如实呈现TMDB与豆瓣配置状态
+
+问题分类：`USER_EXPERIENCE / PROJECTION_FRESHNESS / EXTERNAL_INTEGRATION`
+
+用户验收目标：已保存且当前被运行时采用的TMDB、豆瓣配置，设置页不能看起来像“未配置”。页面应区分“未配置”“已配置但尚未验证”“当前可用”“最近验证失败”，且不能把配置存在与一次网络连通性混为一谈。
+
+修复边界：Admin Web只读取正式Integration Admin Query，不读取本地Secret文件或猜测表单状态；API和页面不得回显API Key、Secret、Cookie等Credential。技术诊断可显示当前配置版本及最近验证结果，但普通状态文案优先表达用户可理解的结论。
+
+验收场景：分别覆盖未配置、保存成功、重连后revision前进、可用、网络失败和错误Credential。刷新页面与安全重启后状态仍与运行时Handle现实一致，Secret不出现在DOM、网络响应或截图。证据要求：`UI`、`FACT`、`RESTART`。
+
+关闭确认（2026-08-23）：commit `857df10e1`将最近验证Observation持久化为不含Credential的正式Command Receipt，设置页区分未配置、未验证、当前可用、最近验证失败和停用。v11当前提交版真实页面中TMDB与豆瓣均显示“当前可用”；DOM与证据JSON不含API Key、Secret或Cookie，优雅重启后状态保持。状态`REGRESSION PASSED / CLOSED`。
+
+## 76. UAT-079：豆瓣评分按已解析身份重算并解释未匹配原因
+
+问题分类：`BUSINESS_CONTRACT / PROJECTION_FRESHNESS / EXTERNAL_INTEGRATION`
+
+用户侧现象：Formation中多部影片没有豆瓣评分，只显示`—`；用户无法区分尚未同步、身份未定、豆瓣无记录、同步失败或匹配失败。此前`UAT-001`、`UAT-023`、`UAT-025`、`UAT-056`、`UAT-063`、`UAT-068`、`UAT-069`虽分别修复过相关链路，当前新Field场景仍需以端到端结果重新资格。
+
+修复边界：匹配输入以已解析的影片身份及规范化标题/年份为准，不直接使用带技术发布标签的原始文件夹展示名。新Subject形成、身份确认或有效Identity Evidence变化后，Resolution应自动重算；不得要求用户手工补当前保留UAT数据，也不得让Perception越界拥有Libra Subject。
+
+验收场景：新隔离Field中覆盖自动匹配、人工确认身份后匹配、豆瓣确无记录、同步失败和候选不足。页面分别显示豆瓣评分或明确原因，不再以空白`—`吞掉状态；身份确认后无需重新添加Field或手工刷新数据库即可形成新Resolution。证据要求：`UI`、`FACT`，外部调用可审计。
+
+关闭确认（2026-08-23）：commit `857df10e1`让Formation读取当前Perception Resolution并透传`resultKind/reasonCode`。v11三个新Subject均形成Resolution，结果为`found`或明确`no_matching_record`；页面用“豆瓣暂无匹配评分”等可理解文案替代空白`—`。对保留工作区未补历史评分；UAT-084逐行审计同时证明所有缺失评分均有状态或原因。状态`REGRESSION PASSED / CLOSED`。
+
+## 77. UAT-080：Formation改为一张紧凑的完整媒体表
+
+问题分类：`USER_EXPERIENCE / PROJECTION_FRESHNESS`
+
+用户验收目标：媒体整理工作区只使用一张完整媒体表，不再把“当前、已完成、已结束”做成三张不同的表。状态可以筛选，但表结构保持一致。列表不能靠持续加宽单行承载细节。
+
+确认列结构：媒体名称、评分及来源、目标收藏架、整理要求、当前进展、详情、用户操作、加急。媒体名称列只承担身份展示，不再混入评分、目标架、要求、状态和动作。`加急`不是一种用户操作，必须与`用户操作`语义分离；每一行媒体提供独立的紧凑加急控件，并明确区分未加急、已加急与当前不可加急。
+
+既有能力基线：加急不是本轮新增功能。正式Admin Web已经通过`setRunExpedited`调用verified的`POST /v1/admin/formation/runs/:libraRunId/actions/expedite`与`cancel-expedite`；只对尚未Handoff B Accepted的active Libra Run开放。命令以精确Run state revision/digest和幂等Priority Intent提交，事务内把未终态Supporting Work与Event切换到`expedited_formation`；Scheduler与Resource Governor消费当前Run Execution Projection，合法replacement Run继承同一Intent，Handoff B Accepted后结束。`UAT-067`已经修复并关闭加急后既有Work replay的幂等冲突。本轮只迁移现有能力的UI位置和视觉表达，不重做Priority模型、API或调度器。
+
+验收场景：桌面常用宽度与390px窄屏均可识别上述字段；长片名、长错误和多个操作不会把整行无限撑宽。待整理、整理中、需要处理、已完成与已结束默认都在同一张表中，状态筛选只改变当前可见行，不重复表头或复制多套Projection。逐行切换必须调用既有正式API并在刷新、重启后从`currentRun.priorityClass`恢复，不能使用前端本地状态冒充；已完成、已结束、frozen、suspended或已经Handoff B Accepted的媒体明确不可加急。加急、取消加急、已加急筛选、Priority-only既有Work replay、资源等待者重排、replacement继承和Handoff B终止均不得回退。证据要求：`UI`、`FACT`、`RESTART`、可访问性检查。
+
+当前处理决定：单表、分列、紧凑、默认包含已结束媒体以及逐行独立加急控件均已确认；加急使用无图标的“加急/已加急”纯文字按钮，并统一使用ShelfDeck绿色状态，不引入额外强调色。该按钮必须复用上述已实现完整链路，Stub只用于视觉确认。不能退回三张表、把加急混入用户操作，或另造前端Priority状态。
+
+Owner确认的前端基线：当前正式工作区中的`/formation?stub=1`是UAT-080与UAT-081共同采用的视觉、信息结构和交互基线。正式实现必须保持其一张完整媒体表、已确认列顺序与紧凑密度、状态筛选、绿色纯文字加急控件、单一“查看过程”入口、屏幕中央详情卡片及三段内容层级。实现工作只把Stub静态样本替换为正式Formation Projection和既有Admin API，并补齐加载、错误、分页、窄屏和可访问性状态；未经Product Owner再次确认，不得自行改成行内展开、多表、侧边抽屉、多个详情入口、不同强调色或另一套信息架构。Stub本身不作为业务FACT或UAT PASS证据。
+
+关闭确认（2026-08-23）：commit `004c17ac4`按Owner确认Stub实现一张正式媒体表，列顺序为媒体名称、评分、目标收藏架、整理要求、当前进展、详情、用户操作、加急；既有状态筛选和正式加急API保留，加急为独立绿色纯文字控件。真实v11页面显示3条完成媒体共用同一表；390px下表容器横向滚动、页面本身不溢出，中心卡片在视口内独立纵向滚动。Admin Web 26/26与production build通过。状态`REGRESSION PASSED / CLOSED`。
+
+## 78. UAT-081：Formation中心详情卡片透传三段正式事实
+
+问题分类：`USER_EXPERIENCE / BUSINESS_CONTRACT / PROJECTION_FRESHNESS`
+
+用户验收目标：每一行只有一个“详情”入口，点击后在屏幕中央弹出卡片；不在表格行内展开，也不分别放三个详情按钮。卡片按顺序展示“已接收的材料”“媒体整理”“验收与上架”。其中“媒体整理”是确认文案，不再使用“产品整理”。
+
+事实边界：“已接收的材料”只展示Procurement完成并经Libra Intake接收的工作成果，例如接收了哪些媒体与Related Material、结果是否可用；Formation中的媒体都已完成Intake，因此不展示Field Observation的扫描文件数、当前目录、耗时或实时观察进度。“媒体整理”透传Libra实际步骤；“验收与上架”透传Handoff B与Arca事实。页面只组织显示，不创造跨域Global Plan、全局Task或前端拼凑的业务状态。
+
+步骤文案：必须描述具体动作和结果，例如“检查原NFO”“更新NFO”“验证更新后的NFO”“检查原海报”“沿用原海报”或“下载海报”，不得只写“补NFO”“补齐资料”。技术错误码默认收在“技术诊断”中，主文案表达用户能采取的行动。
+
+验收场景：至少以一部完成、一部Libra失败、一部Arca失败和一部需确认身份的影片见证。卡片逐项与正式Plan/Work/Event/Package/Offer/On-deck事实对账；刷新与重启后不漂移。证据要求：`UI`、`FACT`、`RESTART`。
+
+关闭确认（2026-08-23）：commit `004c17ac4`把单一“查看过程”入口实现为屏幕中央卡片，并从正式Projection透传“已接收的材料 / 媒体整理 / 验收与上架”。v11的007详情明确显示“更新 NFO”“复用现有海报”和完成的收藏架验收；失败克隆v7的倩女幽魂详情将60个Related Material按角色计数汇总，步骤为“提交收藏架验收”而非误称已上架。状态`REGRESSION PASSED / CLOSED`。
+
+## 79. UAT-082：Formation当前进展与失败态必须忠实可操作
+
+问题分类：`PROJECTION_FRESHNESS / USER_EXPERIENCE / RECOVERY_CORRECTNESS`
+
+用户侧现象：当前“分布进度100%”不能说明计划做到了什么；错误又可能被渲染成步骤完成，使《倩女幽魂》和《一场很没必要的春晚》等影片看起来只是停在那里。用户无法判断当前在做什么、在哪里失败、是否需要自己操作。
+
+修复边界：列表“当前进展”只表达当前实际动作、已完成结果或真实阻塞，并给出可用操作；只有真实执行步骤具备可量化进度时才显示局部进度条，不再生成没有业务意义的全局100%。Projection从各Owner的durable Plan/Work/Event/Result读取，不能用外层Event成功覆盖业务Result失败，也不能把Libra完成误写成Arca上架完成。
+
+故障证人：保留现场中《倩女幽魂》已完成Libra Package发布，但Arca因`CLEAN_ARCA_TARGET_ROOT_UNAVAILABLE`失败，页面应显示“媒体整理完成，上架失败/目标收藏架目录不可用”；《一场很没必要的春晚》在Libra conformance业务结果因`metadata_field_unmet`失败、没有Package/Offer且未进入Arca，页面不得显示“验证完成”。007身份未定时显示“需要确认影片身份”。技术码可折叠查看。
+
+验收场景：以隔离克隆或确定性故障夹具覆盖running、completed、attention required、Libra business failure、Arca failure和可重试恢复。列表与详情一致；故障解除后状态由新事实推进，不靠前端假完成。证据要求：`UI`、`FACT`、`RESTART`。
+
+关闭确认（2026-08-23）：commit `004c17ac4`让业务Result失败参与分类并修复启动时active Run的Owner reconcile。失败库只读克隆v7中，春晚conformance `metadata_field_unmet`被合法冻结为Run revision 3，列表显示“需要处理 / 本次整理已冻结，需要放弃后重新采购”，用户操作为“放弃本次整理”、加急禁用；中心详情将“验证整理结果”标为失败且显示尚未提交Arca。倩女幽魂独立显示目标收藏架目录不可用并提供“重试验收”。未编辑原保留库。状态`REGRESSION PASSED / CLOSED`。
+
+## 80. UAT-083：同根第二Material Field只形成一次合法整理
+
+问题分类：`BUSINESS_CONTRACT / DOMAIN_ORCHESTRATION / USER_EXPERIENCE`
+
+用户验收场景：旧Material Field保持登记，不注销；旧Shelf已经按Shelf Deregistration合同结束并释放其精确Material Control。用户再添加一个指向同一Canary目录的新Material Field，期望合格材料能够重新进入Formation并正常整理，而不是因历史Field存在永久冻结。
+
+验收结果：同一Physical Material在本轮只能形成一次有效Candidate/Subject/Libra Run与一次Control链，不得因两个Field观察同一路径而双重整理、竞争控制或生成重复Shelf Entry。若某材料仍被现行Control占用，应明确显示“仍被现有整理控制”，而不是无解释地停住；Control释放后应可由新Field触发一次合法流程。旧Field保持登记，源目录保持只读。
+
+修复边界：不得引入global media business ID或跨Domain Store；Physical Material Identity、Field-local Material Binding与Material Control继续分离。实现可在Procurement既有Owner内选择确定性去重/资格裁决，但不能让两个Field同时拥有同一控制现实。
+
+验收证据：只在新建隔离Canary中执行，不复用或改写保留UAT数据库。记录两个fieldId、同一物理路径的Observation/eligibility、Control取得与释放、唯一Run和最终唯一Shelf Entry；重启后不重复。证据要求：`UI`、`FACT`、`FS`、`RESTART`。
+
+关闭确认（2026-08-23）：commit `b4e36d5c0`加入当前场景资格脚本与Admin Web合同。v11同时保留`formation-uat-field-a`和新增`formation-uat-field-b`，两者为不同fieldId但冻结同一endpoint、mount scope和root；最终只有3个Candidate、3个Subject、3个Run和3个Shelf Entry，对应三部电影各一次，没有双重整理。源文件前后快照一致，优雅重启后计数不变。状态`REGRESSION PASSED / CLOSED`。
+
+## 81. UAT-084：当前Formation工作区逐片事实审计与问题分流
+
+问题分类：`DOMAIN_ORCHESTRATION / PROJECTION_FRESHNESS / USER_EXPERIENCE`
+
+审计目标：对当前保留Formation工作区中的每部影片逐行核对Subject、Identity、Libra Run/Work/Event、Package/Offer、Arca On-deck及页面Projection，解释为什么在当前状态、由谁推进、用户是否需要操作。范围至少包含007、《倩女幽魂2：人间道》《一场很（没）有必要的春晚》《威尼斯惊魂夜》《坠落的审判》，并覆盖页面当前全部行。
+
+执行边界：本条首先是只读资格审计，不在保留现场补数据、伪造SQLite状态、重跑Observation或改变源文件。已知根因归入`UAT-074`–`UAT-083`；发现具有独立根因的新产品缺陷时，必须另立UAT，不把多个问题以一条“整理冻结”笼统关闭。暂态运行、环境故障和产品缺陷分别记录。
+
+验收证据：形成逐片对账表，每行包含用户可见状态、真实Domain阶段、最后有效事实、阻塞/失败根因、可用恢复动作及对应UAT。所有页面行都有解释，且没有“无活动Work/Event却继续显示整理中”或“业务Result失败却显示完成”的未归类状态。证据要求：`FACT`、必要的`UI`；只读审计本身不要求修改当前影片。
+
+关闭确认（2026-08-23）：只读审计脚本`formation-uat-084-audit.cjs`对失败克隆v7当前25行逐一读取Formation详情并与SQLite Owner事实对账，结果25/25 PASS：12条身份确认、9条历史`PLATFORM_INTEGRATION_HANDLE_INVALID`、1条历史`P5_SECRET_LEASE_INVOCATION_FAILED`、1条产品符合性失败、1条Arca验收失败、1条已完成。每行均记录用户状态、Domain阶段、最后有效事实、根因、恢复动作和对应UAT；`in_progress=0`，没有业务失败被标成完成，也没有未知类别。审计没有写数据库、重跑Observation或改变源文件。状态`FACT PASSED / CLOSED`。
+
+## 82. 后续问题模板
 
 后续发现的问题按以下结构追加：
 
