@@ -90,11 +90,21 @@ function definitions(schemaManifest) {
       find: { kind: 'select-one', tableId: 'fx_workflow_plans', columns: ['plan_id', 'attempt_id', 'state'], keyColumns: ['attempt_id'] }
     } }),
     events: createRepositoryDefinition({ repositoryId: 'work_lifecycle_events', owner: 'execution-foundation', schemaManifest, statements: {
-      list_work: { kind: 'select-all', tableId: 'fx_workflow_events', columns: ['event_id', 'work_id', 'attempt_id', 'state', 'result_id'], keyColumns: ['work_id'] },
+      list_work: { kind: 'select-all', tableId: 'fx_workflow_events', columns: [
+        'event_id', 'work_id', 'attempt_id', 'state', 'retry_at_ms', 'result_id'
+      ], keyColumns: ['work_id'] },
       find: { kind: 'select-one', tableId: 'fx_workflow_events', columns: ['event_id', 'work_id', 'state', 'result_id'], keyColumns: ['event_id'] },
       transition: { kind: 'update', tableId: 'fx_workflow_events', setColumns: ['state'], keyColumns: ['event_id'],
+        compareColumns: [{ column: 'state', parameter: 'expected_state' }] },
+      cancel: { kind: 'update', tableId: 'fx_workflow_events', setColumns: ['state', 'retry_at_ms'], keyColumns: ['event_id'],
         compareColumns: [{ column: 'state', parameter: 'expected_state' }] }
     } }),
+    resourceDefers: createRepositoryDefinition({ repositoryId: 'work_lifecycle_resource_defers', owner: 'execution-foundation', schemaManifest,
+      statements: {
+        list: { kind: 'select-all', tableId: 'fx_resource_defer', columns: ['event_id', 'resource_key', 'state'], keyColumns: [] },
+        cancel: { kind: 'update', tableId: 'fx_resource_defer', setColumns: ['state'], keyColumns: ['event_id', 'resource_key'],
+          compareColumns: [{ column: 'state', parameter: 'expected_state' }] }
+      } }),
     eventAttempts: createRepositoryDefinition({ repositoryId:'work_lifecycle_event_attempts', owner:'execution-foundation', schemaManifest, statements:{
       list:{kind:'select-all',tableId:'fx_event_attempts',columns:['event_attempt_id','event_id','ordinal','state','outcome_kind','failure_code'],keyColumns:['event_id'],safeIntegers:true}
     } }),
@@ -298,9 +308,15 @@ function createWorkLifecycle(options) {
       const works = context.repository('work_lifecycle_works');
       const attempts = context.repository('work_lifecycle_attempts');
       const events = context.repository('work_lifecycle_events');
+      const resourceDefers = context.repository('work_lifecycle_resource_defers');
       const selected = works.invoke('list', {}).filter((work) => work.owner_domain === request.ownerDomain &&
         work.process_type === request.processType && work.process_id === request.processId &&
         !['succeeded', 'failed', 'cancelled'].includes(work.state));
+      const waitingDefersByEvent = new Map();
+      for (const defer of resourceDefers.invoke('list').filter((row) => row.state === 'waiting')) {
+        if (!waitingDefersByEvent.has(defer.event_id)) waitingDefersByEvent.set(defer.event_id, []);
+        waitingDefersByEvent.get(defer.event_id).push(defer);
+      }
       let cancelledWorks = 0; let drainingWorks = 0; let cancelledEvents = 0;
       for (const work of selected) {
         const workAttempts = attempts.invoke('list', { work_id: work.work_id });
@@ -310,7 +326,18 @@ function createWorkLifecycle(options) {
         const executing = workEvents.some((event) => event.state === 'executing');
         for (const event of workEvents.filter((item) =>
           ['pending', 'ready', 'waiting_for_resource', 'waiting_for_external', 'waiting_for_approval'].includes(item.state))) {
-          if (events.invoke('transition', { event_id:event.event_id, state:'cancelled', expected_state:event.state }).changes !== 1) {
+          const waitingDefers = waitingDefersByEvent.get(event.event_id) || [];
+          for (const defer of waitingDefers) {
+            if (resourceDefers.invoke('cancel', { event_id:event.event_id, resource_key:defer.resource_key,
+              state:'cancelled', expected_state:'waiting' }).changes !== 1) {
+              fail('P4_WORK_CANCELLATION_RESOURCE_DEFER_CAS',
+                'Resource defer changed during Process Work cancellation.', {
+                  eventId:event.event_id, resourceKey:defer.resource_key,
+                });
+            }
+          }
+          if (events.invoke('cancel', { event_id:event.event_id, state:'cancelled', retry_at_ms:null,
+            expected_state:event.state }).changes !== 1) {
             fail('P4_WORK_CANCELLATION_EVENT_CAS', 'Event changed during Process Work cancellation.', { eventId:event.event_id });
           }
           cancelledEvents += 1;

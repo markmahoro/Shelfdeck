@@ -141,3 +141,38 @@ test('Owner can request a new bounded Attempt without changing Work identity or 
   assert.notEqual(second.attempt.attempt_id, first.attempt.attempt_id);
   assert.equal(second.attempt.basis_digest, first.attempt.basis_digest);
 }));
+
+test('Process cancellation atomically cancels durable Resource Defers and clears the Event retry fence', () => fixture(({ lifecycle, databasePath }) => {
+  const activation = lifecycle.ensurePlanningAttempt('work-1');
+  const database = new Database(databasePath);
+  database.prepare(`INSERT INTO fx_workflow_plans
+    (plan_id,attempt_id,planner_ref,planner_version,catalog_digest,basis_digest,graph_digest,state,created_at_ms)
+    VALUES (?,?,?,?,?,?,?,?,?)`).run('plan-1', activation.attempt.attempt_id, 'planner@1', 1,
+      'b'.repeat(64), 'a'.repeat(64), 'c'.repeat(64), 'planned', 2);
+  database.prepare(`INSERT INTO fx_workflow_events
+    (event_id,plan_id,node_id,work_id,attempt_id,owner_domain,capability_ref,contract_version,state,priority_class,ready_at_ms,retry_at_ms)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`).run('event-1', 'plan-1', 'node-1', 'work-1', activation.attempt.attempt_id,
+    'procurement', 'procurement.test@1', 1, 'waiting_for_resource', 'normal_foreground', 2, 999);
+  const insertDefer = database.prepare(`INSERT INTO fx_resource_defer
+    (event_id,resource_key,queue_class,local_priority,enqueued_at_ms,retry_at_ms,state) VALUES(?,?,?,?,?,?,?)`);
+  insertDefer.run('event-1', 'cpu', 'normal_foreground', 0, 3, 999, 'waiting');
+  insertDefer.run('event-1', 'volume:test', 'normal_foreground', 0, 3, 999, 'waiting');
+  database.close();
+  lifecycle.startPlanned('work-1', activation.attempt.attempt_id);
+
+  assert.deepEqual(lifecycle.cancelProcess({ ownerDomain:'procurement', processType:'procurement_run',
+    processId:'run-1', reasonCode:'TEST_PROCESS_CANCELLED' }), {
+    ownerDomain:'procurement', processType:'procurement_run', processId:'run-1', reasonCode:'TEST_PROCESS_CANCELLED',
+    selectedWorks:1, cancelledWorks:1, drainingWorks:0, cancelledEvents:1,
+  });
+  assert.deepEqual(read(databasePath, 'SELECT state,retry_at_ms FROM fx_workflow_events WHERE event_id=?', 'event-1'),
+    { state:'cancelled', retry_at_ms:null });
+  const check = new Database(databasePath, { readonly:true });
+  try {
+    assert.deepEqual(check.prepare('SELECT resource_key,state FROM fx_resource_defer WHERE event_id=? ORDER BY resource_key')
+      .all('event-1'), [{resource_key:'cpu',state:'cancelled'},{resource_key:'volume:test',state:'cancelled'}]);
+  } finally { check.close(); }
+  assert.deepEqual(read(databasePath, 'SELECT state,failure_code FROM fx_work_attempts WHERE attempt_id=?', activation.attempt.attempt_id),
+    { state:'cancelled', failure_code:'TEST_PROCESS_CANCELLED' });
+  assert.deepEqual(read(databasePath, 'SELECT state FROM fx_supporting_works WHERE work_id=?', 'work-1'), { state:'cancelled' });
+}));

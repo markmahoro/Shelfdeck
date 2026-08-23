@@ -149,6 +149,9 @@ const {
   migrateUatIdentitySelectionSchema,
 } = require('./helix/foundation/persistence/uat-identity-selection-migration');
 const {
+  repairTerminalResourceDefers,
+} = require('./helix/foundation/persistence/execution-consistency-repair');
+const {
   createAdminCredentialSecretStore,
 } = require('./admin-credential-secret-store');
 const schemaManifest = require('./helix/foundation/persistence/generated/clean-schema.manifest.json');
@@ -1066,6 +1069,7 @@ function createRuntime(options) {
   let kernel;
   try {
     migrateUatIdentitySelectionSchema({ Database, databasePath, schemaManifest, now: options.now });
+    repairTerminalResourceDefers({ Database, databasePath, now: options.now });
     kernel = openSqliteKernel({
       Database,
       databasePath,

@@ -154,6 +154,13 @@ test('waiting Event after an abandoned Effect remains recoverable ordinary suppl
   assert.deepEqual(result.actions, []);
 }, { effectClass: 'workspace_write', journal: true, effectState: 'failed', eventState: 'waiting_for_external' }));
 
+test('startup still fails closed when a terminal Event owns an unrepaired waiting Resource Defer', async () => fixture(async (recovery) => {
+  const result = await recovery.recover();
+  assert.equal(result.state, 'faulted');
+  assert.equal(result.normalSupplyAllowed, false);
+  assert.equal(result.findings.includes('RESOURCE_DEFER_STATE_DRIFT:event'), true);
+}, { eventState:'cancelled', defer:true }));
+
 test('executing Attempt with an abandoned Effect is completed, not a host fault', async () => fixture(async (recovery) => {
   const result = await recovery.recover();
   assert.equal(result.state, 'recovering');
