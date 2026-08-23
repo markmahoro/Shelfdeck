@@ -76,7 +76,7 @@ test('multi-resource Permit is acquired atomically and a later pull promotes one
   });
 });
 
-test('capacity wait publishes waiting_for_resource with a short Scheduler retry timestamp', () => {
+test('capacity wait publishes one durable Scheduler fence without rolling writes', () => {
   fixture(({ governor, databasePath, seedEvents, setNow }) => {
     seedEvents('holder', 'waiter');
     const holder = governor.acquire(request('holder', [['cpu_heavy']]));
@@ -90,7 +90,12 @@ test('capacity wait publishes waiting_for_resource with a short Scheduler retry 
         { state: 'waiting_for_resource', retry_at_ms: 180100 });
     } finally { database.close(); }
     setNow(180100);
-    assert.equal(governor.acquire(request('waiter', [['cpu_heavy']])).retryAtMs, 180200);
+    assert.equal(governor.acquire(request('waiter', [['cpu_heavy']])).retryAtMs, 180100);
+    const stable = new Database(databasePath, { readonly: true });
+    try {
+      assert.deepEqual(stable.prepare('SELECT enqueued_at_ms,retry_at_ms FROM fx_resource_defer WHERE event_id=?').get('waiter'),
+        { enqueued_at_ms: 180000, retry_at_ms: 180100 });
+    } finally { stable.close(); }
     governor.release(holder.permit);
     assert.equal(governor.acquire(request('waiter', [['cpu_heavy']])).kind, 'permitted');
     const released = new Database(databasePath, { readonly: true });

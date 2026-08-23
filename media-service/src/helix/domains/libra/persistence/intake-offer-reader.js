@@ -2,6 +2,7 @@
 
 const { canonicalDigest, canonicalJson } = require('../../../contracts/canonical-json');
 const { createRepositoryDefinition } = require('../../../foundation/persistence/owner-repository');
+const { createLibraIntakeStore } = require('./libra-intake-store');
 
 class IntakeOfferReaderError extends Error {
   constructor(code, message, details = {}) { super(message); this.name = 'IntakeOfferReaderError'; this.code = code; this.details = details; }
@@ -30,6 +31,8 @@ function createIntakeOfferReader(options) {
     fail('P14_INTAKE_OFFER_READER_DEPENDENCIES','Intake Offer reader requires Foundation persistence and Candidate Delivery Port.');
   }
   const repository=definition(options.schemaManifest);
+  const completionReader=options.intakeCompletionReader||createLibraIntakeStore(options);
+  if(typeof completionReader.getReceipt!=='function')fail('P14_INTAKE_COMPLETION_READER_INVALID','Intake completion reader must expose getReceipt.');
   const sourceByProcessId=new Map();
   let orderedProcessIds=null;
   let durableIndexLoaded=false;
@@ -53,6 +56,11 @@ function createIntakeOfferReader(options) {
     return Object.freeze({processId,offer:item.offer,messageId:item.row?.message_id||null,dedupKey:item.row?.dedup_key||null,snapshot:delivery.snapshot});
   }
   function rebuild(){const next=new Map();for(const item of list().map(envelope)){const processId=decisionId(item.offer.offerId);
+      // Receipt is Libra's durable terminal Intake fact.  A Decision without
+      // a Receipt remains pending so a crash between decision and commit is
+      // still recovered; historical terminal Offers never reopen Delivery or
+      // WorkAdmission during the fallback sweep.
+      if(completionReader.getReceipt(processId))continue;
       if(next.has(processId))fail('P14_INTAKE_PROCESS_OFFER_CONFLICT','One Intake technical process resolves multiple Offers.',{processId});
       next.set(processId,source(item));}
     sourceByProcessId.clear();for(const [processId,value] of next)sourceByProcessId.set(processId,value);

@@ -31,6 +31,9 @@ function fixture(run) {
     event: { kind: 'insert', tableId: 'fx_workflow_events', columns: [
       'event_id', 'plan_id', 'node_id', 'work_id', 'owner_domain', 'priority_class', 'state', 'ready_at_ms', 'retry_at_ms'
     ] },
+    event_attempt: { kind: 'insert', tableId: 'fx_event_attempts', columns: [
+      'event_attempt_id', 'event_id', 'ordinal', 'state', 'started_at_ms'
+    ] },
     edge: { kind: 'insert', tableId: 'fx_plan_edges', columns: ['plan_id', 'from_node_id', 'to_node_id', 'dependency_kind'] }
   } });
   const projections = new Map();
@@ -121,6 +124,33 @@ test('resource wait does not invert below the waiting Event while same-priority 
       addEventGraph(repository, projections, 'lower', { localPriority: 0, readyAtMs: 100000 });
     });
     assert.equal(scheduler.acquire({ targetType: 'event' }).lease.targetId, 'event-peer');
+  });
+});
+
+test('one due background Event gets bounded progress unless a reserved Event is runnable', () => {
+  fixture(({ scheduler, seedRows, projections }) => {
+    seedRows((repository) => {
+      addEventGraph(repository, projections, 'background', { priorityClass:'background_observation', readyAtMs:100000 });
+      addEventGraph(repository, projections, 'normal', { readyAtMs:179000 });
+    });
+    const minimum=scheduler.acquire({targetType:'event'});
+    assert.equal(minimum.lease.targetId,'event-background');
+    assert.equal(minimum.priorityClass,'background_observation');
+  });
+  fixture(({ scheduler, seedRows, projections }) => {
+    seedRows((repository) => {
+      addEventGraph(repository, projections, 'background', { priorityClass:'background_observation', readyAtMs:100000 });
+      addEventGraph(repository, projections, 'safety', { priorityClass:'safety_liveness', readyAtMs:179000 });
+    });
+    assert.equal(scheduler.acquire({targetType:'event'}).lease.targetId,'event-safety');
+  });
+  fixture(({ scheduler, seedRows, projections }) => {
+    seedRows((repository) => {
+      addEventGraph(repository, projections, 'background', { priorityClass:'background_observation', readyAtMs:100000 });
+      addEventGraph(repository, projections, 'normal', { readyAtMs:179000 });
+      repository.invoke('event_attempt',{event_attempt_id:'attempt-background-done',event_id:'event-background',ordinal:1,state:'completed',started_at_ms:179500});
+    });
+    assert.equal(scheduler.acquire({targetType:'event'}).lease.targetId,'event-normal');
   });
 });
 

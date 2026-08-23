@@ -52,6 +52,9 @@ function repositories(schemaManifest) {
       list: { kind: 'select-all', tableId: 'fx_plan_edges', columns: [
         'plan_id', 'from_node_id', 'to_node_id', 'dependency_kind'
       ], keyColumns: [] }
+    } }),
+    eventAttempts: createRepositoryDefinition({ repositoryId: 'scheduler_event_attempts', owner: 'execution-foundation', schemaManifest, statements: {
+      list: { kind: 'select-all', tableId: 'fx_event_attempts', columns: ['event_id', 'started_at_ms'], keyColumns: [] }
     } })
   });
 }
@@ -121,6 +124,7 @@ function createWorkScheduler(options) {
         }
         return {
           works,
+          eventAttempts: context.repository('scheduler_event_attempts').invoke('list'),
           candidates: events.filter((event) =>
             (event.state === 'ready' ||
               event.state === 'waiting_for_resource' ||
@@ -175,6 +179,17 @@ function createWorkScheduler(options) {
         : runnable.find((item) =>
           PRIORITY_CLASSES.indexOf(item.projection.priorityClass) <= PRIORITY_CLASSES.indexOf(head.projection.priorityClass) &&
           item.projection.localPriority >= head.projection.localPriority) || null;
+      const reservedRunnable = runnable.some((item) => ['safety_liveness', 'handoff_acceptance'].includes(item.projection.priorityClass));
+      const lastBackgroundStartedAtMs = (facts.eventAttempts || []).reduce((latest, attempt) => {
+        const event = candidates.find((item) => item.target.event_id === attempt.event_id);
+        return event?.projection.priorityClass === 'background_observation'
+          ? Math.max(latest, attempt.started_at_ms || 0)
+          : latest;
+      }, 0);
+      const minimumBackground = !reservedRunnable && nowMs - lastBackgroundStartedAtMs >= AGING_INTERVAL_MS
+        ? runnable.find((item) => item.projection.priorityClass === 'background_observation')
+        : null;
+      if (minimumBackground) selected = minimumBackground;
     }
     if (!selected) return Object.freeze({ kind: 'idle', reasonCode: 'NO_ELIGIBLE_TARGET' });
     const supply = options.supplyController.evaluate({

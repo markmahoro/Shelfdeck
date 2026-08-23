@@ -1,8 +1,15 @@
 'use strict';
 
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
 const test = require('node:test');
 const { createIntakeProcessCoordinator } = require('../../src/helix/domains/libra/application/intake-process-coordinator');
+const { createIntakeOfferReader, decisionId } = require('../../src/helix/domains/libra/persistence/intake-offer-reader');
+const { canonicalDigest, canonicalJson } = require('../../src/helix/contracts/canonical-json');
+
+const generatedRoot=path.resolve(__dirname,'../../src/helix/foundation/persistence/generated');
+const schemaManifest=JSON.parse(fs.readFileSync(path.join(generatedRoot,'clean-schema.manifest.json'),'utf8'));
 
 function digest(index) { return index.toString(16).padStart(64, '0'); }
 function offer(index) {
@@ -59,4 +66,28 @@ test('hundreds of deferred Intake Candidates are rediscovered after restart and 
   }
   assert.equal(admitted,400);
   assert.equal(calls,13);
+});
+
+test('fallback Intake discovery skips terminal Receipts but preserves the decision-to-receipt crash gap',()=>{
+  const values=['terminal','decision-only','pending'].map((name,index)=>Object.freeze({
+    schemaRef:'helix://contracts/types/ProcurementCandidateOfferAvailableMessage/v1',schemaVersion:1,
+    messageKind:'procurement_candidate_offer_available',acceptanceOwnerDomain:'libra',targetContext:'libra_intake',
+    offerId:`offer-${name}`,candidatePackageId:`candidate-${name}`,packageRevision:1,
+    packageDigest:digest(index+5000),acceptanceBasisDigest:digest(index+6000),
+  }));
+  const rows=values.map((value,index)=>Object.freeze({message_id:'message-'+index,producer_domain:'procurement',
+    message_kind:'procurement_candidate_offer_available',aggregate_type:'candidate_package',aggregate_id:value.candidatePackageId,
+    aggregate_revision:1,dedup_key:'dedup-'+index,payload_schema_ref:value.schemaRef,payload_json:canonicalJson(value),
+    payload_digest:canonicalDigest(value),state:'fully_acked',created_at_ms:1}));
+  const unitOfWork={execute(participants){const participant=participants[0],result=participant.execute({repository(){return {invoke(){return rows;}}}});return {[participant.participantId]:result};}};
+  const deliveryCalls=[];
+  const reader=createIntakeOfferReader({schemaManifest,unitOfWork,intakeCompletionReader:{getReceipt:(processId)=>
+    processId===decisionId(values[0].offerId)?Object.freeze({receiptId:'receipt-terminal'}):null},candidateDeliveryPort:{readSnapshot(request){
+    deliveryCalls.push(request.offerId);const value=values.find((item)=>item.offerId===request.offerId);
+    const snapshot={offer:value,deliverySnapshotDigest:''};snapshot.deliverySnapshotDigest=canonicalDigest({offer:value});
+    return {resultKind:'found',snapshot:Object.freeze(snapshot)};
+  }}});
+  const page=reader.listProcessPage(null,100);
+  assert.deepEqual(page.items.map((item)=>item.processId),[decisionId(values[1].offerId),decisionId(values[2].offerId)].sort());
+  assert.deepEqual(deliveryCalls.sort(),[values[1].offerId,values[2].offerId].sort());
 });

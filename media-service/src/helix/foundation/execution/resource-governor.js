@@ -183,9 +183,19 @@ function createResourceGovernor(options) {
             'P4_RESOURCE_DEFER_DEMAND_DRIFT', 'Durable Resource Demand cannot change for the same Event.'
           );
           const retryAt = Math.max(...existing.map((row) => row.retry_at_ms));
-          if (retryAt > deferredAtMs) return Object.freeze({ retryAtMs: retryAt, replayed: true });
+          const unchanged = existing.every((row) => row.state === 'waiting' && row.queue_class === request.queueClass &&
+            row.local_priority === request.localPriority);
+          // A soft waiter is already durably discoverable.  Once its short
+          // Scheduler fence has elapsed it must stay elapsed: rolling the
+          // timestamp on every host tick writes the same wait state forever
+          // and can prevent the Event from becoming runnable.  Capacity
+          // release wakes the host; the elapsed fence remains the recovery
+          // safety net.
+          if (unchanged) return Object.freeze({ retryAtMs: retryAt, replayed: true });
         }
-        const retryAtMs = deferredAtMs + delayMs;
+        const retryAtMs = existing.length
+          ? Math.max(...existing.map((row) => row.retry_at_ms))
+          : deferredAtMs + delayMs;
         const byKey = new Map(existing.map((row) => [row.resource_key, row]));
         for (const resource of request.resources) {
           const values = { event_id: request.eventId, resource_key: resource.resourceKey, queue_class: request.queueClass,
