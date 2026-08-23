@@ -212,6 +212,7 @@ function createMediaProductionCapabilityPorts(options) {
           transcodeInputVerification: input.transcodeInputVerification,
           outputTarget: input.workspaceMediaOutputTarget,
           producingEventId: context.eventId,
+          reportProgress: context.reportProgress,
           idempotencyKey: context.idempotencyKey,
           runtimeEffectAuthority:Object.freeze({ effectClass:'workspace_write',
             eventAttemptId:context.eventAttemptId, idempotencyKey:context.idempotencyKey }),

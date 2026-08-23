@@ -57,20 +57,71 @@ function resolveFfmpegPath(explicit){
   return 'ffmpeg';
 }
 
+function progressGroup(report, phaseCount = 1) {
+  return { report, phaseCount, durationUs:null, lastCurrentValue:0 };
+}
+
+function progressPhase(group, prefix, phaseIndex = 0, terminalAtEnd = true) {
+  return { group, prefix, phaseIndex, terminalAtEnd };
+}
+
+function durationUsFromFfmpeg(value) {
+  const match = /Duration:\s*(\d+):(\d{2}):(\d{2}(?:\.\d+)?)/u.exec(value);
+  if (!match) return null;
+  const seconds = Number(match[1]) * 3600 + Number(match[2]) * 60 + Number(match[3]);
+  return Number.isFinite(seconds) && seconds > 0 ? Math.round(seconds * 1_000_000) : null;
+}
+
+function reportProcessProgress(progress, outTimeUs, speed, atEnd) {
+  const group = progress.group;
+  const durationUs = group.durationUs;
+  let mode = 'indeterminate', currentValue = null, totalValue = null, unit = null, etaMs = null;
+  if (durationUs) {
+    const phaseRatio = Math.min(Math.max((Number(outTimeUs) || 0) / durationUs, 0), 1);
+    const overallRatio = Math.min((progress.phaseIndex + phaseRatio) / group.phaseCount, 1);
+    mode = 'determinate';
+    totalValue = 100;
+    currentValue = Math.max(group.lastCurrentValue, Math.round(overallRatio * 1000) / 10);
+    if (atEnd) currentValue = Math.max(currentValue, Math.round(((progress.phaseIndex + 1) / group.phaseCount) * 1000) / 10);
+    if (atEnd && progress.terminalAtEnd) currentValue = 100;
+    group.lastCurrentValue = currentValue;
+    unit = 'percent';
+    if (speed && speed > 0) etaMs = Math.max(0, Math.round((group.phaseCount * durationUs * (1 - currentValue / 100)) / speed / 1000));
+  }
+  const terminal = Boolean(atEnd && progress.terminalAtEnd);
+  return group.report(Object.freeze({
+    mode, currentValue, totalValue, unit, rate:speed, etaMs,
+    sourceSequence:progress.prefix+':'+outTimeUs+(atEnd?':end':''),
+    progressBucket:terminal?'complete':mode==='determinate'?'percent-'+Math.floor(currentValue):progress.prefix+'-running',
+    terminal,
+  }));
+}
+
+function completeProcessProgress(group, prefix) {
+  group.lastCurrentValue = 100;
+  return group.report(Object.freeze({ mode:'determinate', currentValue:100, totalValue:100, unit:'percent', rate:null, etaMs:0,
+    sourceSequence:prefix+':complete', progressBucket:'complete', terminal:true }));
+}
+
 function runProcess(executable, argv, timeoutMs, progress = null) {
   return new Promise((resolve, reject) => {
+    if (progress && !progress.group) progress = progressPhase(progressGroup(progress.report), progress.prefix);
     const progressArgv=progress?[...argv.slice(0,-1),'-progress','pipe:1','-nostats',argv.at(-1)]:argv;
     const child = spawn(executable, progressArgv, { windowsHide:true, stdio:['ignore', progress?'pipe':'ignore', 'pipe'] });
     const chunks = []; let total = 0; let timedOut = false; let settled = false;
-    let progressBuffer='',lastReportedAt=0,lastOutTime='0';
+    let progressBuffer='',durationBuffer='',lastReportedAt=0,lastOutTime='0';
     const timer = setTimeout(() => { timedOut = true; child.kill('SIGKILL'); }, timeoutMs);
     child.stderr.on('data', (chunk) => {
       total += chunk.length;
       if (total <= 256 * 1024) chunks.push(Buffer.from(chunk));
+      if (progress && !progress.group.durationUs && durationBuffer.length < 16 * 1024) {
+        durationBuffer += chunk.toString('utf8');
+        progress.group.durationUs = durationUsFromFfmpeg(durationBuffer);
+      }
     });
     if(progress)child.stdout.on('data',(chunk)=>{progressBuffer+=chunk.toString('utf8');const lines=progressBuffer.split(/\r?\n/u);progressBuffer=lines.pop()||'';let speed=null,terminal=false;
       for(const line of lines){const at=line.indexOf('=');if(at<1)continue;const key=line.slice(0,at),value=line.slice(at+1);if(key==='out_time_us')lastOutTime=value;if(key==='speed')speed=Number.parseFloat(value)||null;if(key==='progress'&&value==='end')terminal=true;}
-      const observedAt=Date.now();if(terminal||observedAt-lastReportedAt>=5000){lastReportedAt=observedAt;try{progress.report(Object.freeze({mode:'indeterminate',currentValue:null,totalValue:null,unit:'media_time',rate:speed,etaMs:null,sourceSequence:progress.prefix+':'+lastOutTime+':'+(speed===null?'unknown':speed)+(terminal?':end':''),progressBucket:terminal?'complete':'media_time_'+Math.floor((Number(lastOutTime)||0)/30_000_000),terminal}));}catch(error){if(!settled){settled=true;clearTimeout(timer);child.kill('SIGKILL');reject(error);}}}});
+      const observedAt=Date.now();if(terminal||observedAt-lastReportedAt>=5000){lastReportedAt=observedAt;try{reportProcessProgress(progress,lastOutTime,speed,terminal);}catch(error){if(!settled){settled=true;clearTimeout(timer);child.kill('SIGKILL');reject(error);}}}});
     child.once('error', (error) => { if(settled)return;settled=true;clearTimeout(timer);reject(error); });
     child.once('close', (code) => {
       if(settled)return;
@@ -276,6 +327,7 @@ function createCleanMediaProductionEffectPort(options) {
 
   async function executeRemux(request) {
     const target = request.outputTarget;
+    const progress=request.reportProgress?progressGroup(request.reportProgress):null;
     return options.workspaceProductPort.materializeMedia({ libraRunId:target.libraRunId, workspaceId:target.workspaceId,
       relativePath:target.targetRelativePath, intentDigest:request.productionIntent.intentDigest,
       idempotencyKey:request.idempotencyKey, effectScopeDigest:target.effectScopeDigest,
@@ -294,13 +346,15 @@ function createCleanMediaProductionEffectPort(options) {
           await runProcess(ffmpegPath, [
             '-hide_banner', '-nostdin', '-y', '-fflags', '+genpts', ...input.argv,
             ...maps, '-c', 'copy', '-bsf:v', VIDEO_TIMESTAMP_FILL_BSF, '-f', 'matroska', temporaryTarget,
-          ], timeoutMs, request.reportProgress?{report:request.reportProgress,prefix:'remux'}:null);
+          ], timeoutMs, progress?progressPhase(progress,'remux'):null);
         } finally { input.cleanup?.(); }
       } });
   }
 
   async function executeTranscode(request) {
     const target = request.outputTarget;
+    const phaseCount=request.productionIntent.video.rateControlMode==='two_pass_abr'?2:1,
+      progress=request.reportProgress?progressGroup(request.reportProgress,phaseCount):null;
     return options.workspaceProductPort.materializeMedia({ libraRunId:target.libraRunId, workspaceId:target.workspaceId,
       relativePath:target.targetRelativePath, intentDigest:request.productionIntent.intentDigest,
       idempotencyKey:request.idempotencyKey, effectScopeDigest:target.effectScopeDigest,
@@ -320,7 +374,7 @@ function createCleanMediaProductionEffectPort(options) {
           const passlog=temporaryTarget+'.passlog',nullTarget=process.platform==='win32'?'NUL':'/dev/null';
           try {
             await runProcess(ffmpegPath,['-hide_banner','-nostdin','-y','-i',source,'-map','0:v:0',...profile,...encoding,
-              '-pass','1','-passlogfile',passlog,'-an','-sn','-f','null',nullTarget],timeoutMs,request.reportProgress?{report:request.reportProgress,prefix:'transcode-pass1'}:null);
+              '-pass','1','-passlogfile',passlog,'-an','-sn','-f','null',nullTarget],timeoutMs,progress?progressPhase(progress,'transcode-pass1',0,false):null);
             if(normalizeDolbyVision){
               // FFmpeg 6.x Matroska propagation can copy the source DOVI
               // configuration side-data even after a full pixel encode. A
@@ -329,11 +383,12 @@ function createCleanMediaProductionEffectPort(options) {
               // The final mux then carries audio/subtitles from the source,
               // never the source video stream or its DOVI configuration.
               await runProcess(ffmpegPath,['-hide_banner','-nostdin','-y','-i',source,'-map','0:v:0',...profile,...encoding,
-                '-pass','2','-passlogfile',passlog,'-an','-sn','-f','mpegts',normalizedVideoTarget],timeoutMs,request.reportProgress?{report:request.reportProgress,prefix:'transcode-pass2'}:null);
+                '-pass','2','-passlogfile',passlog,'-an','-sn','-f','mpegts',normalizedVideoTarget],timeoutMs,progress?progressPhase(progress,'transcode-pass2',1,false):null);
               await muxNormalizedVideo();
+              if(progress)completeProcessProgress(progress,'transcode-pass2-mux');
             }else{
               await runProcess(ffmpegPath,['-hide_banner','-nostdin','-y','-i',source,...productStreamMap(request.productionIntent),...profile,...encoding,
-                '-pass','2','-passlogfile',passlog,'-c:a','copy','-c:s','copy','-f','matroska',temporaryTarget],timeoutMs,request.reportProgress?{report:request.reportProgress,prefix:'transcode-pass2'}:null);
+                '-pass','2','-passlogfile',passlog,'-c:a','copy','-c:s','copy','-f','matroska',temporaryTarget],timeoutMs,progress?progressPhase(progress,'transcode-pass2',1,true):null);
             }
           } finally {
             for(const suffix of ['', '.log', '.log.mbtree', '-0.log', '-0.log.mbtree']){
@@ -346,13 +401,14 @@ function createCleanMediaProductionEffectPort(options) {
         if(normalizeDolbyVision){
           try{
           await runProcess(ffmpegPath,['-hide_banner','-nostdin','-y','-i',source,'-map','0:v:0',...profile,...encoding,
-              '-an','-sn','-f','mpegts',normalizedVideoTarget],timeoutMs,request.reportProgress?{report:request.reportProgress,prefix:'transcode'}:null);
+              '-an','-sn','-f','mpegts',normalizedVideoTarget],timeoutMs,progress?progressPhase(progress,'transcode',0,false):null);
             await muxNormalizedVideo();
+            if(progress)completeProcessProgress(progress,'transcode-mux');
           }finally{if(fs.existsSync(normalizedVideoTarget))fs.rmSync(normalizedVideoTarget,{force:true});}
         }else{
           await runProcess(ffmpegPath, ['-hide_banner', '-nostdin', '-y', '-i', source,
             ...productStreamMap(request.productionIntent), ...profile,...encoding, '-c:a', 'copy', '-c:s', 'copy', '-f', 'matroska', temporaryTarget], timeoutMs,
-            request.reportProgress?{report:request.reportProgress,prefix:'transcode'}:null);
+            progress?progressPhase(progress,'transcode',0,true):null);
         }
       } });
   }
@@ -364,6 +420,9 @@ module.exports = Object.freeze({
   CleanMediaProductionEffectPortError,
   createCleanMediaProductionEffectPort,
   runProcess,
+  durationUsFromFfmpeg,
+  progressGroup,
+  progressPhase,
   matroskaCopyMapsFromProbe,
   productStreamMap,
 });

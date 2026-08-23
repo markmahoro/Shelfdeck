@@ -11,6 +11,9 @@ const { createUdfBluRay, writeMpls } = require('../scripts/build-helix-movie-tes
 const {
   runProcess,
   createCleanMediaProductionEffectPort,
+  durationUsFromFfmpeg,
+  progressGroup,
+  progressPhase,
   matroskaCopyMapsFromProbe,
   productStreamMap,
 } = require('../src/clean-media-production-effect-port');
@@ -150,6 +153,23 @@ test('contains progress persistence failures inside the media effect promise', a
     prefix: 'test-progress',
     report() { throw failure; },
   }), (error) => error === failure);
+});
+
+test('turns FFmpeg media time into bounded determinate progress', async (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'shelfdeck-progress-'));
+  t.after(() => fs.rmSync(root, { recursive:true, force:true }));
+  const source = path.join(root, 'source.ts'), target = path.join(root, 'target.mkv');
+  writeTinyMpegTs(source);
+  const samples=[],group=progressGroup((sample)=>{samples.push(sample);return {sampled:true};});
+  await runProcess(ffmpegPath,['-hide_banner','-nostdin','-y','-i',source,'-map','0:v:0','-c:v','libx264','-f','matroska',target],10_000,
+    progressPhase(group,'fixture'));
+  assert.equal(durationUsFromFfmpeg('Duration: 01:02:03.50, start: 0'),3723500000);
+  assert.ok(samples.length>=1);
+  assert.equal(samples.at(-1).mode,'determinate');
+  assert.equal(samples.at(-1).currentValue,100);
+  assert.equal(samples.at(-1).totalValue,100);
+  assert.equal(samples.at(-1).unit,'percent');
+  assert.equal(samples.at(-1).terminal,true);
 });
 
 test('remux extracts proven ISO topology payloads instead of opening the image as a stream', async (t) => {
