@@ -33,8 +33,10 @@ function eventState(event) {
   return 'pending';
 }
 function latestEvent(works, predicate) {
-  return works.flatMap((work) => work.events).filter(predicate)
-    .sort((a, b) => (b.result?.committedAtMs || 0) - (a.result?.committedAtMs || 0))[0] || null;
+  return works.flatMap((work) => work.events.map((event) => ({ work, event }))).filter(({ event }) => predicate(event))
+    .sort((left, right) => (right.work.createdAtMs || 0) - (left.work.createdAtMs || 0) ||
+      (right.event.result?.committedAtMs || 0) - (left.event.result?.committedAtMs || 0) ||
+      String(right.event.eventId || '').localeCompare(String(left.event.eventId || '')))[0]?.event || null;
 }
 function transcodeDeviceClass(event) {
   const planned = String(event?.executionDeviceClass || '');
@@ -150,10 +152,11 @@ function classifyFormation({ run, works, issue, recovery, arcaStatus, productPac
   if (arcaStatus?.stage === 'completed') return 'completed';
   if ((run && ['frozen', 'suspended'].includes(run.state)) || issue ||
       recovery?.recoveryState === 'attention_required' ||
-      arcaStatus?.stage === 'attention_required' || hasBlockingExecution(works) || hasBusinessFailure(works)) {
+      arcaStatus?.stage === 'attention_required') {
     return 'attention_required';
   }
   if (productPackage || arcaStatus?.stage === 'in_progress' || hasOpenExecution(works)) return 'in_progress';
+  if (hasBlockingExecution(works) || hasBusinessFailure(works)) return 'attention_required';
   return 'pending';
 }
 function extractAcquisitionSelection(works) {
@@ -194,6 +197,20 @@ function nextAction(works, classification, issue, runState, recovery, arcaStatus
   if (recovery?.recoveryState === 'attention_required') return Object.freeze({ label: '接纳执行异常，需要处理', state: 'attention_required', progress: null });
   if (arcaStatus?.stage === 'attention_required') return Object.freeze({ label: '收藏架接纳或上架需要处理', state: 'attention_required', progress: null });
   if (issue) return Object.freeze({ label: issue.result === 'ambiguous' ? '需要确认媒体身份' : issue.result === 'conflicting' ? '媒体身份信息冲突' : '暂未找到匹配的媒体身份', state: 'attention_required', progress: null });
+  const open = works.filter((work) => !['succeeded', 'failed', 'cancelled'].includes(work.state)).sort((a, b) => a.createdAtMs - b.createdAtMs)[0];
+  if (open) {
+    const event = open.events.find((item) => ['executing', 'ready', 'waiting_resource', 'waiting_external'].includes(item.state)) || open.events[0];
+    const acquisitionSelection = extractAcquisitionSelection(works);
+    const labels = { product_identity: '确认媒体身份', product_metadata_observation: '补齐媒体资料', artifact_production: '生成或获取海报与 NFO', workspace_media_production: '处理视频文件', product_conformance: '验证整理结果', deliverable_promotion: '发布整理结果' };
+    const label = open.workKind.startsWith('external_')
+      ? acquisitionSelection?.requirementAssessment === 'unknown'
+        ? '候选发布信息不完整，下载后验证真实媒体'
+        : acquisitionSelection?.requirementAssessment === 'compliant'
+          ? '正在获取预筛符合要求的候选'
+          : '正在按整理要求筛选外部候选'
+      : labels[open.workKind] || '继续整理媒体';
+    return Object.freeze({ label, state: event?.state || open.state, progress: event?.progress || null });
+  }
   const businessFailure = latestEvent(works, (event) => eventState(event) === 'blocked');
   if (businessFailure?.capabilityRef === 'libra.product.conformance.verify@1') {
     const codes = businessFailure.result?.result?.unmetRequirementCodes || [];
@@ -204,20 +221,9 @@ function nextAction(works, classification, issue, runState, recovery, arcaStatus
     return Object.freeze({ label:'没有取得要求的海报', state:'blocked', progress:null });
   }
   if (hasBlockingExecution(works) || businessFailure) return Object.freeze({ label: '媒体整理执行失败，需要处理', state: 'blocked', progress: null });
-  const open = works.filter((work) => !['succeeded', 'failed', 'cancelled'].includes(work.state)).sort((a, b) => a.createdAtMs - b.createdAtMs)[0];
   if (!open && productPackage) return Object.freeze({ label: arcaStatus ? '正在完成收藏架上架' : '等待收藏架验收', state: 'running', progress: null });
   if (!open) return Object.freeze({ label: classification === 'pending' ? '正在确认目标、评分、要求或身份' : '准备下一项整理工作', state: 'pending', progress: null });
-  const event = open.events.find((item) => ['executing', 'ready', 'waiting_resource', 'waiting_external'].includes(item.state)) || open.events[0];
-  const acquisitionSelection = extractAcquisitionSelection(works);
-  const labels = { product_identity: '确认媒体身份', product_metadata_observation: '补齐媒体资料', artifact_production: '生成或获取海报与 NFO', workspace_media_production: '处理视频文件', product_conformance: '验证整理结果', deliverable_promotion: '发布整理结果' };
-  const label = open.workKind.startsWith('external_')
-    ? acquisitionSelection?.requirementAssessment === 'unknown'
-      ? '候选发布信息不完整，下载后验证真实媒体'
-      : acquisitionSelection?.requirementAssessment === 'compliant'
-        ? '正在获取预筛符合要求的候选'
-        : '正在按整理要求筛选外部候选'
-    : labels[open.workKind] || '继续整理媒体';
-  return Object.freeze({ label, state: event?.state || open.state, progress: event?.progress || null });
+  throw new Error('Formation next action reached an impossible open-work branch.');
 }
 
 function createFormationProjectionSource(options) {

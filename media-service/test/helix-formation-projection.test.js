@@ -206,6 +206,23 @@ test('Formation four-bucket classification requires Arca commit for completion a
   assert.equal(classifyFormation({run:null,works:[],issue:null,recovery:null,arcaStatus:{stage:'completed'},productPackage:{offerId:'offer'}}),'completed');
 });
 
+test('a current successor Work stays in progress while an earlier strategy Work remains failed',()=>{
+  const failed={workId:'failed-work',workKind:'workspace_media_production',state:'failed',createdAtMs:10,events:[{
+    eventId:'failed-event',capabilityRef:'libra.media.transcode@1',state:'succeeded',progress:null,
+    result:{outcomeKind:'succeeded',committedAtMs:20,result:{resultKind:'not_available'}},
+  }]};
+  const running={workId:'running-work',workKind:'workspace_media_production',state:'running',createdAtMs:30,events:[{
+    eventId:'running-event',capabilityRef:'libra.media.transcode@1',state:'executing',progress:{mode:'determinate',currentValue:25,totalValue:100,unit:'percent',rate:1,etaMs:1000,bucket:'percent-25'},result:null,
+  }]};
+  const works=[failed,running];
+  assert.equal(classifyFormation({run:{state:'active'},works,issue:null,recovery:null,arcaStatus:null,productPackage:null}),'in_progress');
+  assert.equal(nextAction(works,'in_progress',null,'active',null,null,null,null).label,'处理视频文件');
+  assert.equal(nextAction(works,'in_progress',null,'active',null,null,null,null).state,'executing');
+  assert.deepEqual(organizingSteps(works).map(({key,state})=>({key,state})),[
+    {key:'transcode',state:'running'},{key:'verify',state:'pending'},
+  ]);
+});
+
 test('durable Formation projection pages 25 active rows, sorts attention first, and no-ops unchanged basis',()=>{
   const root=fs.mkdtempSync(path.join(os.tmpdir(),'helix-formation-projection-')),databasePath=path.join(root,'shelfdeck.db');
   const kernel=openSqliteKernel({Database,databasePath,schemaDdl,schemaManifest,now:()=>100});
