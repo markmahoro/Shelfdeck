@@ -40,6 +40,8 @@ Helix主体开发已经完成，Movie从Procurement、Libra到Arca及Shelf Dereg
 
 2026-08-23 全新clean环境再次使用真实豆瓣配置时发现独立的完整性缺口，登记为`UAT-085`：Acquisition虽按`UAT-061`在翻页失败后有界重试并收口，但真实收藏连续抓取在固定游标被Provider 403拒绝；再次同步又从头抓取，无法从最后已提交页续传，设置页也没有明确说明当前只得到部分记录。该项只登记，不重开`UAT-061`或`UAT-079`，未授权实现。
 
+同一clean环境的真实媒体生产又暴露两个独立缺口，登记为`UAT-086`与`UAT-087`：Formation把已被后续策略正常消费的候选验证未通过误报为整个Run失败；Transcode Capability漏接Foundation Progress Reporter，且现有FFmpeg采样只形成不可量化状态，页面无法显示真实转码进度。两项均以在飞的《锡尔弗顿之围》和《养蜂人》为只读现场证人，只登记、不停止转码、不修改数据库或当前影片。
+
 关闭作业不再走已删除的 `helix-beta-user-e2e` workflow。当前 70 行关闭基线见 `docs/helix/acceptance/UAT_CLOSURE_BASELINE.md`：正式关闭立即汇报且不暂停；确认关闭时发现新产品缺陷则暂停并先登记新 UAT；`PASS` 必须有干净 Canary 的 Admin Web `UI`（涉及文件现实时加 `FS`），单元测试不能单独关闭一行。
 
 记录原则：
@@ -146,6 +148,8 @@ Helix主体开发已经完成，Movie从Procurement、Libra到Arca及Shelf Dereg
 | UAT-083 | 保留旧Field并对同一目录新增第二Material Field时，必须只形成一次有效整理且不能发生竞争控制 | `BUSINESS_CONTRACT` | `DOMAIN_ORCHESTRATION`、`USER_EXPERIENCE` | Procurement Field/Material Control + Libra Intake | 正确性、幂等、可理解性 | Critical | `REGRESSION PASSED / CLOSED` |
 | UAT-084 | 当前Formation工作区缺少逐片事实审计，除已知影片外仍可能存在未解释的冻结、失败或错误投影 | `DOMAIN_ORCHESTRATION` | `PROJECTION_FRESHNESS`、`USER_EXPERIENCE` | Procurement/Libra/Arca跨域只读审计 | 完整性、诊断性、回归风险 | High | `FACT PASSED / CLOSED` |
 | UAT-085 | 豆瓣完整收藏同步被Provider 403中断后不能从持久游标续传，页面仍把部分数据表现为普通未匹配 | `EXTERNAL_INTEGRATION` | `RECOVERY_CORRECTNESS`、`USER_EXPERIENCE`、`PROJECTION_FRESHNESS` | Perception Acquisition + Settings/Formation Query | 完整性、正确性、可恢复性、可理解性 | Critical | `RECORDED / OPEN` |
+| UAT-086 | Formation把已进入后续策略的候选验证未通过误报为整个媒体整理失败 | `PROJECTION_FRESHNESS` | `BUSINESS_CONTRACT`、`USER_EXPERIENCE` | Libra媒体生产策略链 + Formation Projection | 正确性、可操作性、可信度 | Critical | `RECORDED / OPEN` |
+| UAT-087 | 实际Transcode没有持久进度样本，Formation无法显示真实可量化进度 | `DOMAIN_ORCHESTRATION` | `PROJECTION_FRESHNESS`、`USER_EXPERIENCE` | Libra Transcode Capability + Foundation Progress + Formation Admin Web | 可观察性、执行可信度、恢复可见性 | High | `RECORDED / OPEN` |
 
 ### 2.0.1 UAT-074–UAT-084必须保护的历史修复
 
@@ -161,6 +165,8 @@ Helix主体开发已经完成，Movie从Procurement、Libra到Arca及Shelf Dereg
 | UAT-081、UAT-082 | UAT-005、UAT-019、UAT-037、UAT-043、UAT-051、UAT-064 | 详情和当前进展必须来自真实Plan/Work/Event/Result；外层Event成功不能覆盖业务Result失败，GPU/CPU与验证完成态不得伪造，007仍能得到明确恢复动作 |
 | UAT-083 | UAT-053、UAT-060、UAT-062 | Field仍可周期观察；同语义Spec不得重复发Run，释放Control后的材料能重新入库且不会形成竞争或重复整理 |
 | UAT-084 | UAT-014、UAT-018、UAT-019、UAT-037、UAT-043、UAT-062、UAT-064、UAT-067、UAT-070 | 当前每一行都必须落到可解释的正式事实和恢复路径；不得用通用“冻结/100%/停在那里”掩盖历史故障类型 |
+| UAT-086 | UAT-019、UAT-051、UAT-064、UAT-082 | 真正失败仍须显性且可操作；候选不合格后已有开放策略时不得覆盖当前执行责任，GPU/CPU和步骤状态继续由正式事实推导 |
+| UAT-087 | UAT-027、UAT-051、UAT-064 | Progress写入失败不得击穿服务；进度必须来自Event执行事实并保持单调，不能由前端估算或用无意义全局100%替代 |
 
 历史回归证据必须和本轮新场景使用同一代码版本。若历史底线失败，应记录为对应新UAT的回归失败；只有出现独立根因或独立修复边界时才新增UAT，不能为了保持旧PASS而忽略回退。
 
@@ -3055,7 +3061,54 @@ Owner确认的前端基线：当前正式工作区中的`/formation?stub=1`是UA
 
 当前处理决定：`RECORDED / OPEN`。本轮只登记问题，不修改代码、不触发再次同步、不改变当前影片或豆瓣记录。
 
-## 83. 后续问题模板
+## 83. UAT-086：候选策略未通过被误报为整个媒体整理失败
+
+问题分类：`PROJECTION_FRESHNESS / BUSINESS_CONTRACT / USER_EXPERIENCE`
+
+用户侧现象：真实转码已经开始，Formation详情中的转码步骤也显示`running`，但同一媒体的外层分类却是“需要处理”，当前进展显示“媒体整理执行失败，需要处理”。《锡尔弗顿之围 (2022)》和《养蜂人 (2024) - 2160p HEVC Atmos TrueHD5.1》均出现这一自相矛盾的状态。
+
+现场证据（2026-08-23）：正式工作区`main@a2a0e40fc`，运行目录`F:\shelfdeck_test_zone\runs\clean-main-a2a0e40fc`。调查期间《锡尔弗顿之围》的FFmpeg、Transcode Event和Attempt均为执行中，无failure code；随后该转码成功并完成上架。《养蜂人》的Transcode Event与Attempt同样为执行中，无失败或blocked Supporting Work。调查只读SQLite、进程命令行和Formation Projection，没有停止进程、修改数据库或改变影片。
+
+两部影片都存在一个已经成功提交的`libra.product_media.verify@1` Event，其业务结果用于拒绝当前候选：锡尔弗顿的direct候选为`result=failed / video_codec_unmet`，随后正常进入转码；养蜂人的remux候选为`result=failed / max_size_exceeded`，实际约64.0 GB而上限约15.0 GB，随后正常进入转码。这些是媒体生产策略选择事实，不是Event执行失败或Run终态失败。
+
+精确根因：`formation-query.js`中的`hasBusinessFailure()`扫描当前Run的全部历史Works，只要任一Event Result含`result='failed'`或`resultKind='not_available'`就判定整体业务失败；`classifyFormation()`和`nextAction()`又让该判断优先于当前开放Work。因此旧候选验证结果覆盖了后续正在执行的Transcode责任。正在运行的Event尚无Result，按Result提交时间选择“最新失败”也会持续命中旧验证结果。
+
+与历史UAT的关系：`UAT-082`关闭的是终局Libra business failure或Arca failure不能被渲染成完成。本条是其后真实多策略链暴露的独立反向缺口：正常候选淘汰不能被渲染成终局失败。不得通过忽略全部业务Result来修复，否则会回退`UAT-082`。
+
+修复边界：
+
+1. Formation必须区分候选级Verification未通过与当前责任的终局失败；已存在可推进或正在执行的后续策略时，外层状态以当前开放责任为准。
+2. direct、remux或前一ordinal候选未通过的事实可以保留在详情中，但不能让列表进入`attention_required/blocked`，也不能开放错误的用户恢复动作。
+3. 真正failed/blocked的Supporting Work、没有后续策略的终局Conformance失败、frozen/suspended Run及Arca失败仍须按既有合同显性展示，不得被开放Work或通用“整理中”吞掉。
+4. Projection只能解释Owner的Plan/Work/Event/Result，不改变Libra媒体生产策略链或把候选选择决策移入Projection。
+
+验收证据：在新的隔离Canary中分别覆盖direct→transcode running、remux→transcode waiting-for-resource/executing，以及前一转码候选未通过后下一ordinal继续执行。列表必须显示“整理中”和当前转码动作，详情保留前候选未通过的具体原因但不宣称整个整理失败；最终成功后进入收藏架。另以真实终局Conformance失败和失败Work作反例，确认仍显示需要处理及正确恢复动作。刷新和安全重启后状态不漂移。证据要求：`UI`、`FACT`、`RESTART`。
+
+当前处理决定：`RECORDED / OPEN`。本轮只登记问题，保留现场证据，不修改Projection代码、数据库或当前媒体生产。
+
+## 84. UAT-087：转码执行没有真实可量化进度
+
+问题分类：`DOMAIN_ORCHESTRATION / PROJECTION_FRESHNESS / USER_EXPERIENCE`
+
+用户侧现象：《锡尔弗顿之围》和《养蜂人》已经由本机FFmpeg执行GPU转码，但Formation媒体整理详情只有“正在执行”，没有进度条、完成比例或预计剩余时间；用户无法判断转码是在持续推进还是已经停死。
+
+现场证据（2026-08-23）：锡尔弗顿Transcode Event在约5分钟实际执行期间`current_progress_revision=NULL`且`fx_event_progress`为0行；随后成功结束。养蜂人调查时的Transcode Event和Attempt仍为`executing`，同样没有任何Progress行。对照同一养蜂人Run此前的Remux Event已产生55个Progress revision，证明Foundation Progress Store和Reader并非整体不可用。两条真实FFmpeg命令都没有`-progress pipe:1`。
+
+精确根因分为两层：第一，`media-production-capability-ports.js`的Remux请求会传`reportProgress: context.reportProgress`，Transcode请求却遗漏该字段，导致下游`executeTranscode()`关闭FFmpeg progress adapter。第二，即使只补上传递，当前`clean-media-production-effect-port.js`固定报告`mode='indeterminate'`、`currentValue/totalValue=NULL`，而Formation Admin Web只为`determinate`样本渲染进度条，因此仍不能满足真实进度展示。
+
+修复边界：
+
+1. Transcode Capability必须把当前Event Attempt的Progress Reporter传给Media Effect Port；FFmpeg进度继续通过Foundation写入`fx_event_progress`并更新Event current revision，不能建立Libra私有进度表。
+2. 使用已冻结、可审计的Source Probe时长作为Transcode正式输入，在执行侧把`out_time_us`换算为单调的`currentValue/totalValue`、rate和ETA；前端不得根据墙钟、文件大小或动画自行估算业务进度。
+3. 单遍和两遍编码都必须形成单调的整体进度；两遍编码第二遍不能从零回退并触发`P4_PROGRESS_REGRESSION`。terminal成功时应形成完成样本，失败时保留最后样本并显示真实失败。
+4. Formation列表当前进展与中心详情卡片读取同一最新Progress事实；等待资源可以显示明确等待态，真正开始编码后必须显示可量化进度。无可靠总时长时允许明确的indeterminate活动态，但不得伪造百分比。
+5. Progress报告、Projection重建或页面刷新异常不得杀死FFmpeg、击穿服务或改变媒体生产Outcome；继续保护`UAT-027`的恢复边界。
+
+验收证据：以新的隔离Canary执行至少一个真实单遍转码和一个确定性两遍转码见证。执行中SQLite持续形成非空、单调Progress revisions，Formation列表与详情显示一致的真实进度且能观察到中间值；完成时到达terminal完成状态。另覆盖等待GPU资源、执行失败、Progress Reporter拒绝回归和服务安全重启后最新持久样本仍可读取。证据要求：`UI`、`FACT`、`RESTART`；不得以手工构造前端Progress或直接写SQLite关闭。
+
+当前处理决定：`RECORDED / OPEN`。本轮只登记问题，不修改执行链、不中断当前转码、不伪造Progress事实。
+
+## 85. 后续问题模板
 
 后续发现的问题按以下结构追加：
 

@@ -151,7 +151,7 @@
 
 2026-08-23在70/70关闭之后，独立登记并修复`UAT-071`（多人自动登记Evidence碰撞）、`UAT-072`（已登记人物头像）与真实Canary进一步暴露的`UAT-073`（NFO人物强身份丢失及重复关系）。三项属于post-closure qualification，不追加进上方`UAT-001`–`UAT-070`表、不改变70/70历史结论，也不追溯修改`UAT-055`的已接受证据。
 
-同日后续使用保留Canary时，Product Owner另确认下一轮`UAT-074`–`UAT-084`，权威范围与验收标准见`docs/helix/USER_ACCEPTANCE_TEST_ISSUE_LOG.md`。这些条目已在当前提交版隔离Canary和失败库只读克隆中逐项关闭，作为post-closure qualification记录于本文末尾；它们不改写上方历史70/70，也不改变`UAT-071`–`UAT-073`的资格结论。
+同日后续使用保留Canary时，Product Owner另确认下一轮`UAT-074`–`UAT-084`，权威范围与验收标准见`docs/helix/USER_ACCEPTANCE_TEST_ISSUE_LOG.md`。这些条目已在当前提交版隔离Canary和失败库只读克隆中逐项关闭，作为post-closure qualification记录于本文末尾；它们不改写上方历史70/70，也不改变`UAT-071`–`UAT-073`的资格结论。之后登记的`UAT-085`–`UAT-087`仍为OPEN，不得计入本关闭基线的PASS数量。
 
 `UAT-20260823-people-registration-avatar-91e6bb141`仅为确定性本地TMDB stub自动化夹具，证明合同与回退，不作为真实UI UAT证据。权威post-closure真实资格运行是`F:\shelfdeck_test_zone\runs\UAT-20260823-people-real-avatar-fix-b8861a3dd`：从只读`test_film`复制《放·逐 (2006)》，使用真实TMDB走正式Formation→On-deck→People，23个唯一TMDB Person Identity形成23个active Person、0 open Candidate，安全重启后不增不减；桌面与390px真实页面显示23张卡、21个真实代理头像、2个无图首字回退，axe serious/critical为0。FACT与截图均保存在该运行目录；既有Canary、旧Candidate与历史UAT证据均未修改。
 
@@ -622,3 +622,24 @@
 
 - 关闭命题：当前Formation每行均可落到正式Owner事实、根因和恢复动作。
 - 关闭结论：`evidence/uat-084-formation-audit.json`对25/25行审计PASS：12身份确认、9历史Artifact Handle失败、1历史Secret Lease失败、1产品符合性失败、1 Arca验收失败、1完成；`in_progress=0`，无失败标完成、无未知类别。审计只读，未修改保留SQLite、Observation或源文件。
+
+## 10. Post-closure OPEN UAT-085–UAT-087（2026-08-23）
+
+以下三项在历史70/70与`UAT-074`–`UAT-084`关闭之后由新的clean环境真实使用发现。它们只登记为新的OPEN资格项，不追溯改写既有PASS；完整合同、现场证据和修复边界以`docs/helix/USER_ACCEPTANCE_TEST_ISSUE_LOG.md`为准。
+
+### UAT-085（`OPEN`）
+
+- 关闭命题：豆瓣多页Acquisition失败后能够从持久游标有节奏地续传，并在Settings与Formation显性区分“同步未完成”和完整数据中的无匹配。
+- 当前状态：`RECORDED / OPEN`，尚未实现或资格关闭。
+
+### UAT-086（`OPEN`）
+
+- 关闭命题：候选级媒体验证未通过但已进入后续策略时，Formation显示当前整理责任和真实执行状态，不误报整个Run失败；真正终局失败仍须显性可操作。
+- 当前证人：《锡尔弗顿之围》direct候选`video_codec_unmet`后正常转码并上架；《养蜂人》remux候选`max_size_exceeded`后正在转码，外层曾错误显示blocked。
+- 当前状态：`RECORDED / OPEN`，尚未实现或资格关闭。
+
+### UAT-087（`OPEN`）
+
+- 关闭命题：真实Transcode从FFmpeg到Foundation Progress、Formation Projection和中心详情形成持久、单调、可量化的执行进度；无可靠总量时明确显示indeterminate而不伪造百分比。
+- 当前证人：锡尔弗顿与养蜂人的Transcode Event均无Progress行；同一养蜂人Run的Remux已有55个Progress revision。
+- 当前状态：`RECORDED / OPEN`，尚未实现或资格关闭。
