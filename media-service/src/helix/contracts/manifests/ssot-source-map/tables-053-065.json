@@ -12,7 +12,7 @@
       "constraintsContract": "`PK(subject_id,episode_key)`；只允许Series，Episode key来自Accepted Candidate Delivery Manifest全部Primary member claim的去重并集；append-only且同Episode不能被同Subject第二次接受；该表是FA-04 overlap唯一权威来源，不从Binding JSON或Run推断",
       "source": {
         "section": "8.5.11",
-        "line": 9342,
+        "line": 9343,
         "lineDigest": "a6da2891ebfdb821bbf88db6cdbd5e14ad3793695cdf7ac429706dd6b30372c9"
       }
     },
@@ -23,7 +23,7 @@
       "constraintsContract": "`UNIQUE(subject_id)`；immutable；只允许没有任何current Libra Run且Pre-deck责任仍active的Subject建立",
       "source": {
         "section": "8.5.11",
-        "line": 9343,
+        "line": 9344,
         "lineDigest": "7bdbc6b9de101584a171ad47849cc47d061237bba3fb44ce943e2d047ece924e"
       }
     },
@@ -34,7 +34,7 @@
       "constraintsContract": "`UNIQUE(abandon_decision_id)`；与Subject terminal和精确Primary Control release同一事务成立",
       "source": {
         "section": "8.5.11",
-        "line": 9344,
+        "line": 9345,
         "lineDigest": "ae4b6b78f23821dabe8a903651002644bd555ba5aa5de2dfff90d214a0e9d185"
       }
     },
@@ -45,7 +45,7 @@
       "constraintsContract": "immutable revision以`PK(subject_id,material_key,binding_revision)`保存；完整Physical Identity必须逐字节满足materialKey公式且size为non-negative safe integer；每个`subject+material+role`只有一个current row；Handoff A为每个Primary Manifest member建立`primary_control` Binding并逐项复制`CandidatePrimaryMaterialDelivery@1`，同时为每个Related Reference建立`related_derived` Binding并逐项复制同一Delivery Snapshot的exclusive association/disposition basis；两种variant严格互斥，related variant的Primary/association/disposition列全非NULL且不得携带Control revision；不得从current Field补读或默认；不能为多Episode复制Binding或把Episode拼入字符串",
       "source": {
         "section": "8.5.11",
-        "line": 9345,
+        "line": 9346,
         "lineDigest": "494c8273af44465e3b5448570c6c78c57a57aa43b2594900dbca4a23c17e4a4c"
       }
     },
@@ -56,7 +56,7 @@
       "constraintsContract": "`PK(subject_id,material_key,binding_revision,episode_key)`并以复合FK指向`libra_material_bindings`；逐项无损复制同一Manifest member的Episode Claim；single与无Episode structural dependency为0 row；Binding set digest包含这些relation，不允许只取第一项",
       "source": {
         "section": "8.5.11",
-        "line": 9346,
+        "line": 9347,
         "lineDigest": "47921a735f544a3ccde2cdeef6ba7c1c413a1af927d5f86971e710796bb8d1fb"
       }
     },
@@ -67,7 +67,7 @@
       "constraintsContract": "`PK(subject_id,revision)`；immutable；`libra_subjects.current_identity_revision`正整数时显式指向本表；Series的exact Season Claim完整值保存在`libra_subject_season_continuity_claims`并与本revision同事务成立，digest只用于一致性校验而不是可枚举事实替代品",
       "source": {
         "section": "8.5.11",
-        "line": 9347,
+        "line": 9348,
         "lineDigest": "c12c6c8ed5039eaec90833f0bbf4f5c28a280bb8ab848c5555f5c07ef9f88900"
       }
     },
@@ -78,7 +78,7 @@
       "constraintsContract": "append-only；`UNIQUE(libra_run_id,intent_revision)`、`UNIQUE(libra_run_id,idempotency_key)`；用户选择只形成Libra-owned immutable Intent，后续仍须由`provider_exact` Evidence Work验证，不能直接发布Resolved Identity",
       "source": {
         "section": "8.5.11",
-        "line": 9348,
+        "line": 9349,
         "lineDigest": "6104e8adb8500a15f9f91830a143abbb2a70ce40a9cf59fde78b8a3e313d5c20"
       }
     },
@@ -89,7 +89,7 @@
       "constraintsContract": "current technical Read Projection；每个Subject恰好至多一行且可由Libra正式事实、User Perception/Arca公开Projection及Foundation Progress Projection重建；四类current状态互斥，`completed`必须由Arca公开Projection逐项证明On-deck Commit Receipt、Shelf Entry与对应active Deck Fact均成立，Product Package published或Handoff B Accepted单独都不构成完成；`attention_required`优先覆盖technical failure、blocked、suspended、frozen及需要用户确认的合法状态；`in_progress`必须有当前开放可推进的Libra/Arca执行责任；Discarded Run只进入immutable历史且当前eligible Subject回到`pending`，不得重复计数；`projection_revision>=1`且相同`basis_digest`必须no-op，不递增revision、不执行UPDATE；nullable rating、identity issue、Spec、Run、Package/Offer及progress字段各自按closed bundle同时成立；`identity_issue_json`为JCS且≤`16 KiB`并由digest保护；`projection_digest=SHA-256(JCS(完整用户行 excluding projectionDigest))`；`INDEX(attention_priority,classification,updated_at_ms,subject_id)`供active排序，`INDEX(classification,completed_at_ms,subject_id)`供completed cursor，`INDEX(classification,subject_id)`供统计；本表不授权任何命令，损坏或缺失时必须重建，不能回填或改写Owner业务事实",
       "source": {
         "section": "8.5.11",
-        "line": 9349,
+        "line": 9350,
         "lineDigest": "59d627e267e37c410cdb667103c6a94e9280f6dba44caee10046947cb8cdad80"
       }
     },
@@ -100,7 +100,7 @@
       "constraintsContract": "Field ID是Procurement公开opaque ref、不建跨Domain FK；current pair显式FK到Policy revision；一片Field恰好至多一份current去向方案",
       "source": {
         "section": "8.5.11",
-        "line": 9350,
+        "line": 9351,
         "lineDigest": "798b380ce2cc0c6b9f83bdc869efb8494d784c4a7776e02bc3e1c35d81ec5d39"
       }
     },
@@ -111,7 +111,7 @@
       "constraintsContract": "Policy JSON上限`64 KiB`；`PK(routing_policy_id,revision)`；immutable；`INDEX(field_id,effective_at_ms)`；同一revision只属于一片Field",
       "source": {
         "section": "8.5.11",
-        "line": 9351,
+        "line": 9352,
         "lineDigest": "f1d288d4b709ef019d295af7576074e514b1ff4a568b230461b1168aee26bec8"
       }
     },
@@ -122,7 +122,7 @@
       "constraintsContract": "`PK(routing_policy_id,policy_revision,shelf_id)`及`UNIQUE(routing_policy_id,policy_revision,rank)`；Rule固定`RoutingMatchExpression@1`，JSON≤`16 KiB`、AST深度≤4、节点≤64；Shelf ID为Arca公开Projection中的opaque ref",
       "source": {
         "section": "8.5.11",
-        "line": 9352,
+        "line": 9353,
         "lineDigest": "c8d677a64b58754a2abd5ccba0071c8b049a56f01a597124c2f304630ab578bf"
       }
     },
@@ -133,7 +133,7 @@
       "constraintsContract": "policy与manual列variant互斥；JSON≤`64 KiB`并完整重建`RoutingAssessmentEvidence@1`；`UNIQUE(subject_id,decision_basis_id,routing_input_digest)`；immutable",
       "source": {
         "section": "8.5.11",
-        "line": 9353,
+        "line": 9354,
         "lineDigest": "85c68ee54029d863bb07647404c1d4bd8a21f6620ee23df9a8f858c724e19bcf"
       }
     },
@@ -144,7 +144,7 @@
       "constraintsContract": "authority列variant互斥；resolved要求shelf非NULL/reason NULL，unresolved相反；同一assessment只有一个Decision；`UNIQUE(subject_id,decision_revision)`；immutable；`INDEX(shelf_id,decided_at_ms)`",
       "source": {
         "section": "8.5.11",
-        "line": 9354,
+        "line": 9355,
         "lineDigest": "4d81260004fcd8848c270f5bd695c3467f193875693611044b90f24ef8cdce94"
       }
     }

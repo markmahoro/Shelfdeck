@@ -9,6 +9,7 @@ const {
   MIN_PERIOD_MS,
   createPerceptionAcquisitionAutomation,
 } = require('../../src/helix/domains/perception/application/perception-acquisition-automation');
+const { normalizePerceptionSourceId } = require('../../src/clean-service-host');
 
 function acquisition(overrides = {}) {
   return Object.freeze({
@@ -82,6 +83,25 @@ test('a failed round advances periodic idempotency lineage instead of replaying 
   assert.match(harness.issued[0].idempotencyKey, /:after-acq-failed$/);
 });
 
+test('a recent failed round observes the durable period gate across automation restart', () => {
+  const nowMs=1_800_000_000_000;
+  const failed=acquisition({perceptionAcquisitionId:'acq-failed',state:'failed',terminalAtMs:nowMs-60_000});
+  for(let restart=0;restart<2;restart+=1){
+    const harness=createHarness({nowMs,acquisitions:[failed]});
+    assert.deepEqual(harness.automation.listPage({cursor:null,limit:100}).map((item)=>item.cursor),['douban-user']);
+    assert.equal(harness.automation.reconcile({sourceId:'douban-user'}).kind,'not_due');
+    assert.equal(harness.issued.length,0);
+    assert.deepEqual(harness.automation.listPage({cursor:null,limit:100}),[]);
+  }
+});
+
+test('a failed round becomes due exactly at the durable period boundary', () => {
+  const nowMs=1_800_000_000_000,failed=acquisition({perceptionAcquisitionId:'acq-failed',state:'failed',terminalAtMs:nowMs-PERIOD_MS});
+  const harness=createHarness({nowMs,acquisitions:[failed]});
+  assert.equal(harness.automation.reconcile({sourceId:'douban-user'}).kind,'issued');
+  assert.match(harness.issued[0].idempotencyKey,/:after-acq-failed$/);
+});
+
 test('never-acquired Douban connections still enter the first sweep while the 24-hour gate is closed', () => {
   const harness = createHarness();
   harness.automation.listPage({ cursor: null, limit: 100 });
@@ -92,6 +112,14 @@ test('unconfigured Douban connections are skipped', () => {
   const harness = createHarness({ config: null });
   assert.deepEqual(harness.automation.listPage({ cursor: null, limit: 100 }), []);
   assert.equal(harness.automation.reconcile({ sourceId: 'douban-user' }).kind, 'not_configured');
+});
+
+test('Platform normalizes numeric Douban provider identity before Perception automation', () => {
+  assert.equal(normalizePerceptionSourceId(4176893), '4176893');
+  assert.equal(normalizePerceptionSourceId(' 4176893 '), '4176893');
+  assert.equal(normalizePerceptionSourceId(null), null);
+  assert.throws(() => createHarness({ config:{ sourceId:4176893, integrationId:'douban', configRevision:1 } })
+    .automation.listPage({ cursor:null, limit:100 }), { code:'PERCEPTION_ACQUISITION_SOURCE_ID_INVALID' });
 });
 
 test('period cannot be shortened below the 6-hour Beta floor', () => {

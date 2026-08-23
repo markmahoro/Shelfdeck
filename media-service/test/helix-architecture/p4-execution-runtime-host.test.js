@@ -167,6 +167,7 @@ test('lost wake is harmless because bounded periodic ticks rescan durable Schedu
   let scans = 0;
   const host = createExecutionRuntimeHost({
     tickIntervalMs: 10,
+    maxIdlePollMs: 40,
     maxActionsPerTick: 1,
     startupRecovery: { recover: async () => ({ state: 'ready', normalSupplyAllowed: true }) },
     scheduler: { acquire() { scans += 1; return { kind: 'idle' }; }, release() {} },
@@ -175,9 +176,9 @@ test('lost wake is harmless because bounded periodic ticks rescan durable Schedu
     eventRuntime: { run() {} }, domainReconciler: { reconcile() {} },fallbackReconciler:{async start(){},async stop(){}},
   });
   await host.start();
-  await new Promise((resolve) => setTimeout(resolve, 35));
+  await new Promise((resolve) => setTimeout(resolve, 115));
   await host.stop();
-  assert.ok(scans >= 4, `expected repeated durable scans, got ${scans}`);
+  assert.ok(scans >= 4 && scans <= 8, `expected bounded fallback scans without hot polling, got ${scans}`);
 });
 
 test('startup invokes the independent durable Domain fallback runner', async () => {
@@ -269,6 +270,34 @@ test('a transient recovery invocation failure stays in the safety lane without d
   await new Promise((resolve)=>setTimeout(resolve,15));
   await host.drainOnce();
   assert.equal(recoveryCalls,2);
+  assert.equal(host.activity().deferredRecoveryActions,0);
+  await host.stop();
+});
+
+test('an in-process Event crash after Effect commit enters recovery without requiring service restart', async () => {
+  let eventAvailable = true;
+  let recoveries = 0;
+  const host = createExecutionRuntimeHost({
+    tickIntervalMs:60000,maxActionsPerTick:1,recoveryRetryMs:10,
+    startupRecovery:{async recover(){return {state:'ready',normalSupplyAllowed:true,findings:[],actions:[]};}},
+    scheduler:{acquire({targetType}){
+      if(targetType==='event'&&eventAvailable){eventAvailable=false;return {kind:'leased',lease:{
+        targetType:'event',targetId:'event-commit-window',leaseId:'lease-commit-window',
+      }};}
+      return {kind:'idle'};
+    },release(){}},
+    plannerRegistry:{resolve(){}},planPublisher:{publish(){}},
+    workLifecycle:{ensurePlanningAttempt(){},startPlanned(){},aggregateEvent(){return {
+      attemptTerminal:false,workTerminal:false,replayed:false,
+    };},settleWork(){},pendingOwnerReconciliations(){return [];}},
+    eventRuntime:{async run(){throw new Error('result binding failed after effect commit');},
+      retryPendingCompletion(eventId){recoveries+=1;assert.equal(eventId,'event-commit-window');return {kind:'succeeded'};}},
+    domainReconciler:{reconcile(){}},fallbackReconciler:{async start(){},async stop(){}},
+  });
+  await host.start();
+  const deadline=Date.now()+1000;
+  while(recoveries===0&&Date.now()<deadline)await new Promise((resolve)=>setImmediate(resolve));
+  assert.equal(recoveries,1);
   assert.equal(host.activity().deferredRecoveryActions,0);
   await host.stop();
 });

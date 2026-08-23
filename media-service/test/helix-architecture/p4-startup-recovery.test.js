@@ -140,7 +140,9 @@ test('non-pure recovery uses exact Effect reconciler and committed Effect is nev
     assert.equal(result.actions[0].decision, 'continue_forward');
   }, { effectClass: 'material_commit', journal: true });
   await fixture(async (recovery) => {
-    assert.equal((await recovery.recover()).actions[0].decision, 'already_committed');
+    const action = (await recovery.recover()).actions[0];
+    assert.equal(action.decision, 'already_committed');
+    assert.equal(action.effectId, 'effect');
   }, { effectClass: 'domain_fact_commit', journal: true, effectState: 'committed' });
 });
 

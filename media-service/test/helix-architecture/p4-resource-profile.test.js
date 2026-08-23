@@ -5,6 +5,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const test = require('node:test');
 const { createResourceProfileMapper } = require('../../src/helix/foundation/execution/resource-profile-mapper');
+const { volumeReadUnitsForCapability } = require('../../src/helix/composition/create-procurement-execution-runtime');
 
 function projection(profileKey) {
   return {
@@ -41,6 +42,18 @@ test('unknown or unvalidated resources have zero capacity and unknown kinds fail
   assert.equal(mapper.capacityFor('volume_read:missing'), 0);
   assert.throws(() => mapper.capacityFor('disk:C:\\media'), { code: 'P4_RESOURCE_KEY_INVALID' });
   assert.throws(() => mapper.capacityFor('mystery:thing'), { code: 'P4_RESOURCE_KEY_KIND_UNKNOWN' });
+});
+
+test('Transcode input preflight reserves the full default volume read capacity', () => {
+  assert.equal(volumeReadUnitsForCapability('libra.transcode.input.verify@1'), 2);
+  assert.equal(volumeReadUnitsForCapability('libra.product_media.verify@1'), 1);
+  assert.equal(volumeReadUnitsForCapability('shared.material.media.probe@1'), 1);
+});
+
+test('Acceptance Spec execution is a bounded completion stage ahead of production expansion', () => {
+  const source = fs.readFileSync(path.resolve(__dirname,
+    '../../src/helix/composition/create-procurement-execution-runtime.js'), 'utf8');
+  assert.match(source, /processType==='libra_acceptance_spec'[\s\S]*?priorityClass:'normal_foreground',localPriority:230,priorityRevision:1,supplyRole:'completion'/);
 });
 
 test('Profile projection is exact, versioned, bounded and duplicate-free', () => {

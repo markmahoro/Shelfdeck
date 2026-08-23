@@ -180,6 +180,12 @@ class CleanServiceHostError extends Error {
   }
 }
 
+function normalizePerceptionSourceId(providerKey) {
+  if (providerKey === null || providerKey === undefined) return null;
+  const sourceId = String(providerKey).trim();
+  return sourceId || null;
+}
+
 function integrationSecretKey(secretRoot) {
   if (typeof secretRoot !== 'string' ||
       Buffer.byteLength(secretRoot, 'utf8') < 32) {
@@ -864,8 +870,14 @@ function createPlatformIntegrationServices(options) {
     },
     readDoubanSourceConfiguration() {
       const snapshot = runtimeFor('douban')?.readCurrent();
-      const sourceId = snapshot?.integration?.config?.lastTestSummary?.identityProviderKey;
-      if (!snapshot || snapshot.integration.state !== 'active' || !sourceId) return null;
+      const providerKey = snapshot?.integration?.config?.lastTestSummary?.identityProviderKey;
+      if (!snapshot || snapshot.integration.state !== 'active') return null;
+      // Platform provider summaries may carry numeric external identities, while
+      // Perception owns a durable TEXT identity. Normalize at the Platform ->
+      // Perception boundary so automation can compare current configuration with
+      // its persisted Acquisition facts exactly.
+      const sourceId = normalizePerceptionSourceId(providerKey);
+      if (!sourceId) return null;
       return Object.freeze({ sourceId, integrationId:snapshot.integration.integrationId,
         configRevision:snapshot.integration.configRevision });
     },
@@ -1711,5 +1723,6 @@ module.exports = Object.freeze({
   createCleanServiceHost,
   createIntegrationSecretStore,
   createPlatformIntegrationServices,
+  normalizePerceptionSourceId,
   inspectCleanRuntimeReadiness,
 });

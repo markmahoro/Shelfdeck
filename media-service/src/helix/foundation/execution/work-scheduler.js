@@ -115,8 +115,8 @@ function createWorkScheduler(options) {
       participantId: 'work_scheduler_snapshot', owner: 'execution-foundation', repositories: Object.values(definitions),
       execute(context) {
         const works = context.repository('scheduler_works').invoke('list');
-        const events = context.repository('scheduler_events').invoke('list');
         if (targetType === 'work') return { works, candidates: works.filter((work) => WORK_STATES.has(work.state)) };
+        const events = context.repository('scheduler_events').invoke('list');
         const edges = context.repository('scheduler_edges').invoke('list');
         const eventsByPlanNode = new Map(events.map((event) => [event.plan_id + '\u0000' + event.node_id, event]));
         const inboundByPlanNode = new Map();
@@ -181,7 +181,8 @@ function createWorkScheduler(options) {
         ? head
         : runnable.find((item) =>
           PRIORITY_CLASSES.indexOf(item.projection.priorityClass) <= PRIORITY_CLASSES.indexOf(head.projection.priorityClass) &&
-          item.projection.localPriority >= head.projection.localPriority) || null;
+          (item.projection.localPriority >= head.projection.localPriority ||
+            item.effectiveLocalPriority >= head.effectiveLocalPriority)) || null;
       const reservedHead = head && ['safety_liveness', 'handoff_acceptance'].includes(head.projection.priorityClass);
       const minimumBackground = !reservedHead && nowMs >= minimumBackgroundNotBeforeMs
         ? runnable.find((item) => item.projection.priorityClass === 'background_observation')

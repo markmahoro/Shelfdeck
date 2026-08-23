@@ -54,6 +54,11 @@
       "minLength": 1,
       "pattern": "^[a-f0-9]{64}$"
     },
+    "bindingResolutionBasisDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
     "candidateDeliverySnapshotDigest": {
       "type": "string",
       "minLength": 1,
@@ -94,6 +99,7 @@
     "basisDigest",
     "subjectRef",
     "resolutionDecisionDigest",
+    "bindingResolutionBasisDigest",
     "candidateDeliverySnapshotDigest",
     "bindingCount",
     "primaryBindingCount",

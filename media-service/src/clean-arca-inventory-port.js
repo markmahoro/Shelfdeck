@@ -299,6 +299,34 @@ function foundationDefinition(schemaManifest) {
   });
 }
 
+async function cooperativeCopyFile(source, target, flags = 0) {
+  if (flags !== 0 && flags !== fs.constants.COPYFILE_EXCL) {
+    throw new TypeError('Cooperative Inventory copy supports only the exclusive-create flag.');
+  }
+  const input = await fs.promises.open(source, 'r');
+  let output;
+  try {
+    output = await fs.promises.open(target, flags === fs.constants.COPYFILE_EXCL ? 'wx' : 'w');
+    const buffer = Buffer.allocUnsafe(4 * 1024 * 1024);
+    let position = 0;
+    for (;;) {
+      const {bytesRead} = await input.read(buffer, 0, buffer.length, position);
+      if (bytesRead === 0) break;
+      let written = 0;
+      while (written < bytesRead) {
+        const result = await output.write(buffer, written, bytesRead - written);
+        if (result.bytesWritten < 1) throw new Error('Cooperative Inventory copy could not advance the target file.');
+        written += result.bytesWritten;
+      }
+      position += bytesRead;
+      await new Promise((resolve) => setImmediate(resolve));
+    }
+  } finally {
+    await output?.close();
+    await input.close();
+  }
+}
+
 function createCleanArcaInventoryPort(options) {
   if (!options?.schemaManifest || !options.unitOfWork ||
       typeof options.workspaceRoot !== 'string' || !options.workspaceRoot) {
@@ -308,8 +336,7 @@ function createCleanArcaInventoryPort(options) {
   const foundation = foundationDefinition(options.schemaManifest);
   const workspaceRoot = path.resolve(options.workspaceRoot);
   const statfsSync = options.statfsSync || fs.statfsSync;
-  const copyFile = options.copyFile || ((source, target, flags) =>
-    fs.promises.copyFile(source, target, flags));
+  const copyFile = options.copyFile || cooperativeCopyFile;
 
   function execute(participantId, body) {
     return options.unitOfWork.execute([{
@@ -945,6 +972,10 @@ function createCleanArcaInventoryPort(options) {
         fail('CLEAN_ARCA_STAGE_CONFLICT',
           'Target Commit Slot contains conflicting staged bytes.');
       }
+      if (request.replayCommitted && !finalExact && !exact) {
+        fail('CLEAN_ARCA_COMMITTED_REALITY_DRIFT',
+          'Committed Inventory Effect no longer matches physical reality.');
+      }
       if (!finalExact && !exact) {
         const temporary = target + '.tmp-' +
           canonicalDigest({ run:request.onDeckRunId, key:plan.member.materialKey })
@@ -987,20 +1018,19 @@ function createCleanArcaInventoryPort(options) {
       });
       stagedMembers.push(Object.freeze({
         sourceMaterialKey: plan.member.materialKey,
-        materialKey,
         physicalIdentity: Object.freeze({ ...identityBase, materialKey }),
         role: plan.member.role,
         endpointId: request.shelf.target.endpointId,
         location: plan.target,
         bindingRevision: 1,
-        digestHex: plan.digestHex,
-        sizeBytes: plan.sizeBytes,
         episodeClaims: plan.episodeClaims,
       }));
     }
     stagedMembers.sort((left, right) =>
       Buffer.compare(Buffer.from(left.sourceMaterialKey),
-        Buffer.from(right.sourceMaterialKey)));
+        Buffer.from(right.sourceMaterialKey)) ||
+      Buffer.compare(Buffer.from(left.physicalIdentity.materialKey),
+        Buffer.from(right.physicalIdentity.materialKey)));
     const membersDigest = canonicalDigest({
       schema: 'arca.staged-inventory-members@1',
       items: stagedMembers,
@@ -1046,7 +1076,7 @@ function createCleanArcaInventoryPort(options) {
       const location = fs.existsSync(stagedLocation)
         ? stagedLocation : finalLocation;
       const fingerprint = computeBoundedMaterialFingerprintSync(location);
-      if (Number(fingerprint.stat.size) !== member.sizeBytes ||
+      if (Number(fingerprint.stat.size) !== member.physicalIdentity.sizeBytes ||
           fingerprint.contentFingerprint !==
             request.onDeckProductPackage.productMaterialManifest.members.find(
               (item) => item.materialKey === member.sourceMaterialKey,
@@ -1191,9 +1221,9 @@ function createCleanArcaInventoryPort(options) {
       });
     });
     members.sort((left,right)=>Buffer.compare(Buffer.from(left.sourceMaterialKey),Buffer.from(right.sourceMaterialKey)));
-    const stagedMembers=members.map((item)=>Object.freeze({sourceMaterialKey:item.sourceMaterialKey,materialKey:item.materialKey,
+    const stagedMembers=members.map((item)=>Object.freeze({sourceMaterialKey:item.sourceMaterialKey,
       physicalIdentity:item.physicalIdentity,role:item.role,
-      endpointId:item.endpointId,location:item.location,bindingRevision:1,digestHex:item.digestHex,sizeBytes:item.sizeBytes,episodeClaims:item.episodeClaims}));
+      endpointId:item.endpointId,location:item.location,bindingRevision:1,episodeClaims:item.episodeClaims}));
     const membersDigest=canonicalDigest({schema:'arca.staged-inventory-members@1',items:stagedMembers}),manifestBase={
       schemaRef:'helix://contracts/types/StagedInventoryManifest/v1',schemaVersion:1,
       manifestId:canonicalDigest({schema:'arca.staged-inventory-manifest-id@1',onDeckRunId:request.onDeckRunId}),manifestKind:'staged_inventory',
@@ -1366,5 +1396,6 @@ function createCleanArcaInventoryPort(options) {
 
 module.exports = Object.freeze({
   CleanArcaInventoryPortError,
+  cooperativeCopyFile,
   createCleanArcaInventoryPort,
 });

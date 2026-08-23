@@ -33,6 +33,19 @@ function plannedExecutionDeviceClass(node) {
   return values[0];
 }
 
+function projectedProgress(sample) {
+  if (!sample) return null;
+  return Object.freeze({
+    mode: sample.mode,
+    currentValue: sample.current_value === null ? null : Number(sample.current_value),
+    totalValue: sample.total_value === null ? null : Number(sample.total_value),
+    unit: sample.unit,
+    rate: sample.rate === null ? null : Number(sample.rate),
+    etaMs: sample.eta_ms === null ? null : Number(sample.eta_ms),
+    bucket: sample.progress_bucket,
+  });
+}
+
 function createExecutionProgressProjectionReader(options) {
   const repository = createRepositoryDefinition({
     repositoryId: 'execution_progress_projection_reader',
@@ -73,12 +86,7 @@ function createExecutionProgressProjectionReader(options) {
           events: Object.freeze(events.filter((event) => event.work_id === work.work_id).map((event) => Object.freeze({
             eventId: event.event_id, capabilityRef: event.capability_ref, state: event.state,
             executionDeviceClass: plannedExecutionDeviceClass(nodeByKey.get(`${event.plan_id}\0${event.node_id}`)),
-            progress: latest.has(event.event_id) ? Object.freeze({
-              mode: latest.get(event.event_id).mode, currentValue: latest.get(event.event_id).current_value,
-              totalValue: latest.get(event.event_id).total_value, unit: latest.get(event.event_id).unit,
-              rate: latest.get(event.event_id).rate, etaMs: latest.get(event.event_id).eta_ms,
-              bucket: latest.get(event.event_id).progress_bucket,
-            }) : null, result: resultByEvent.get(event.event_id)||null,
+            progress: projectedProgress(latest.get(event.event_id)), result: resultByEvent.get(event.event_id)||null,
           }))),
         })));
       } }]).execution_progress_projection;
@@ -86,4 +94,4 @@ function createExecutionProgressProjectionReader(options) {
   });
 }
 
-module.exports = Object.freeze({ createExecutionProgressProjectionReader, plannedExecutionDeviceClass });
+module.exports = Object.freeze({ createExecutionProgressProjectionReader, plannedExecutionDeviceClass, projectedProgress });

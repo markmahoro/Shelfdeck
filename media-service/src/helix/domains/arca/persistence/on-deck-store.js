@@ -607,14 +607,11 @@ function createOnDeckStore(options) {
     const stagedManifestMembers = [...request.staged.manifest.stagedMembers];
     const expectedStagedMembers = stagedMembers.map((item) => ({
       sourceMaterialKey: item.sourceMaterialKey,
-      materialKey: item.materialKey,
       physicalIdentity: item.physicalIdentity,
       role: item.role,
       endpointId: item.endpointId,
       location: item.location,
       bindingRevision: 1,
-      digestHex: item.digestHex,
-      sizeBytes: item.sizeBytes,
       episodeClaims: item.episodeClaims,
     }));
     if (canonicalJson(stagedManifestMembers) !==

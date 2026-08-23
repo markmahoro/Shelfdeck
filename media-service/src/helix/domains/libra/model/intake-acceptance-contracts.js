@@ -18,6 +18,13 @@ function freeze(value){if(Array.isArray(value))return Object.freeze(value.map(fr
   Object.fromEntries(Object.entries(value).map(([key,item])=>[key,freeze(item)])));return value;}
 function bounded(value,maximum,code){if(Buffer.byteLength(canonicalJson(value),'utf8')>maximum)fail(code,'Canonical value exceeds its SSOT byte bound.');}
 function subjectId(decision){return decision.result==='season_extension'?decision.targetSubjectId:decision.allocatedSubjectId;}
+function isClaimFreeNewSubject(decision){return decision?.result==='new_subject'&&
+  Array.isArray(decision.candidateContinuityClaims)&&decision.candidateContinuityClaims.length===0&&
+  Array.isArray(decision.candidateEpisodeScope?.episodeKeys)&&decision.candidateEpisodeScope.episodeKeys.length===0;}
+function bindingResolutionBasisDigest(decision){return isClaimFreeNewSubject(decision)
+  ?canonicalDigest({schema:'libra.claim-free-binding-resolution-basis@1',
+    decision:without(decision,'decisionDigest','expectedContinuityHead')})
+  :decision?.decisionDigest;}
 function validateDecision(snapshot,decision){
   if(!snapshot||snapshot.snapshotContract!=='procurement.candidate-delivery@1'||
       snapshot.deliverySnapshotDigest!==canonicalDigest(without(snapshot,'deliverySnapshotDigest'))||!decision||
@@ -98,6 +105,7 @@ function buildLibraBindingDraftReceipt(snapshot,decision,producedAtMs){
     receiptId:canonicalDigest({schema:'libra.binding-draft-receipt-id@1',draftId:draft.draftId,bindingSetDigest:draft.bindingSetDigest}),
     receiptKind:'libra_binding_draft_resolved',basisDigest:draft.basisDigest,subjectRef:draft.subjectRef,
     resolutionDecisionDigest:draft.resolutionDecision.decisionDigest,
+    bindingResolutionBasisDigest:bindingResolutionBasisDigest(draft.resolutionDecision),
     candidateDeliverySnapshotDigest:draft.candidateDeliverySnapshotDigest,bindingCount:draft.bindings.length,
     primaryBindingCount,relatedBindingCount,bindingSetDigest:draft.bindingSetDigest,producedAtMs:draft.producedAtMs};
   const result={...value,receiptDigest:canonicalDigest(value)};
@@ -106,9 +114,12 @@ function buildLibraBindingDraftReceipt(snapshot,decision,producedAtMs){
 
 function rebuildLibraBindingDraftFromReceipt(snapshot,decision,receipt){
   validateDecision(snapshot,decision);
+  const headIndependent=isClaimFreeNewSubject(decision),exactDecision=receipt?.basisDigest===decision.decisionDigest&&
+    receipt?.resolutionDecisionDigest===decision.decisionDigest;
   if(!receipt||receipt.schemaRef!==BINDING_RECEIPT_SCHEMA||receipt.schemaVersion!==1||
       receipt.receiptKind!=='libra_binding_draft_resolved'||receipt.receiptDigest!==canonicalDigest(without(receipt,'receiptDigest'))||
-      receipt.basisDigest!==decision.decisionDigest||receipt.resolutionDecisionDigest!==decision.decisionDigest||
+      receipt.bindingResolutionBasisDigest!==bindingResolutionBasisDigest(decision)||
+      (!headIndependent&&!exactDecision)||(headIndependent&&receipt.basisDigest!==receipt.resolutionDecisionDigest)||
       receipt.candidateDeliverySnapshotDigest!==snapshot.deliverySnapshotDigest||
       receipt.subjectRef?.subjectId!==subjectId(decision)||receipt.subjectRef?.resolutionKind!==decision.result||
       !Number.isSafeInteger(receipt.bindingCount)||receipt.bindingCount<1||
@@ -212,5 +223,6 @@ function buildLibraCandidateAcceptedMessage(receipt){
 }
 
 module.exports=Object.freeze({BINDING_SCHEMA,BINDING_RECEIPT_SCHEMA,MESSAGE_SCHEMA,PAYLOAD_SCHEMA,RECEIPT_SCHEMA,IntakeAcceptanceContractError,
+  bindingResolutionBasisDigest,isClaimFreeNewSubject,
   buildAcceptedIntakePayload,buildLibraBindingDraft,buildLibraBindingDraftReceipt,rebuildLibraBindingDraftFromReceipt,
   buildLibraCandidateAcceptedMessage,buildSubjectAndTransferReceipt});

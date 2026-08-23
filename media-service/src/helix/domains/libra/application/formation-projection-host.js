@@ -52,8 +52,10 @@ function createFormationProjectionHost(options) {
         if (reason !== 'exact') {
           const page = await sweepPage();
           if (!startupComplete && page.cursor === null) startupComplete = true;
+          lastError = null;
           return page;
         }
+        lastError = null;
         return Object.freeze({ processed: 0, cursor: null });
       } catch (error) {
         lastError = error; throw error;

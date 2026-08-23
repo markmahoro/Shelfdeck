@@ -123,6 +123,7 @@ function createEventRuntime(options) {
     'P4_EVENT_RUNTIME_DEPENDENCIES_REQUIRED', 'Event Runtime requires exact persistence, scheduler, Governor, Registry, Dispatcher, typed providers, IDs, and clock.'
   );
   const repositories = definitions(options.schemaManifest);
+  const pendingCompletions = new Map();
 
   function advancePlan(context, planId) {
     const events = context.repository('runtime_events').invoke('list').filter((event) => event.plan_id === planId);
@@ -451,6 +452,19 @@ function createEventRuntime(options) {
     }]).event_runtime_complete;
   }
 
+  function completeCommittedEffect(snapshot, attemptId, outcome) {
+    pendingCompletions.set(snapshot.event.event_id, Object.freeze({ snapshot, attemptId, outcome }));
+    const completed = complete(snapshot, attemptId, outcome, null);
+    pendingCompletions.delete(snapshot.event.event_id);
+    return completed;
+  }
+
+  function retryPendingCompletion(eventId) {
+    const pending = pendingCompletions.get(eventId);
+    if (!pending) return Object.freeze({ kind:'no_pending_completion', eventId });
+    return completeCommittedEffect(pending.snapshot, pending.attemptId, pending.outcome);
+  }
+
   async function recover(request) {
     const allowed = new Set(['safe_retry', 'safe_retry_before_intent', 'continue_forward', 'already_committed', 'already_failed']);
     if (!request || typeof request !== 'object' || Array.isArray(request) ||
@@ -541,6 +555,10 @@ function createEventRuntime(options) {
           ownerDomain:snapshot.work.owner_domain,processType:snapshot.work.process_type,processId:snapshot.work.process_id,
           workId:snapshot.work.work_id,eventId:request.eventId })); return result; }
       });
+      Object.defineProperties(context, {
+        effectOccurredAtMs:{ configurable:false, enumerable:false, writable:false, value:attempt.started_at_ms },
+        recoveryDecision:{ configurable:false, enumerable:false, writable:false, value:request.decision },
+      });
       if (inputs.approvalHandle !== undefined) context.approvalHandle = inputs.approvalHandle;
       if (inputs.authorizationHandle !== undefined) context.authorizationHandle = inputs.authorizationHandle;
       let outcome;
@@ -604,7 +622,9 @@ function createEventRuntime(options) {
       }
       if (effect) await options.effectJournal.settle(Object.freeze({ effectId: effect.effect_id, receipt: outcome.effectReceipt,
         scope: Object.freeze({ ownerDomain: inputs.ownerScope.domain, scopeType: inputs.ownerScope.processType, scopeId: inputs.ownerScope.processId }) }));
-      return complete(snapshot, attempt.event_attempt_id, outcome, null);
+      return effect
+        ? completeCommittedEffect(snapshot, attempt.event_attempt_id, outcome)
+        : complete(snapshot, attempt.event_attempt_id, outcome, null);
     } finally {
       options.governor.release(permit);
     }
@@ -612,6 +632,7 @@ function createEventRuntime(options) {
 
   return Object.freeze({
     recover,
+    retryPendingCompletion,
     async run(request) {
       if (!request || typeof request !== 'object' || Array.isArray(request) ||
           JSON.stringify(Object.keys(request)) !== JSON.stringify(['schedulerLease'])) fail(
@@ -730,6 +751,10 @@ function createEventRuntime(options) {
             ownerDomain:snapshot.work.owner_domain,processType:snapshot.work.process_type,processId:snapshot.work.process_id,
             workId:snapshot.work.work_id,eventId })); return result; }
         });
+        Object.defineProperties(context, {
+          effectOccurredAtMs:{ configurable:false, enumerable:false, writable:false, value:startedAtMs },
+          recoveryDecision:{ configurable:false, enumerable:false, writable:false, value:null },
+        });
         if (inputs.approvalHandle !== undefined) context.approvalHandle = inputs.approvalHandle;
         if (inputs.authorizationHandle !== undefined) context.authorizationHandle = inputs.authorizationHandle;
         context.deadlineAtMs = attemptContract.deadlineAtMs;
@@ -802,7 +827,9 @@ function createEventRuntime(options) {
           }));
         }
         resourceOutcome = outcome.kind;
-        return complete(snapshot, attemptId, outcome, policyDecision);
+        return effect && outcome.kind === 'succeeded'
+          ? completeCommittedEffect(snapshot, attemptId, outcome)
+          : complete(snapshot, attemptId, outcome, policyDecision);
       } finally {
         if (permit) {
           options.governor.release(permit);

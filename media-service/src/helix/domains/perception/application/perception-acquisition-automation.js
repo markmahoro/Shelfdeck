@@ -26,9 +26,14 @@ function createPerceptionAcquisitionAutomation(options) {
   let sweepNotBeforeMs = 0;
 
   function doubanConfig() {
-    return typeof options.readDoubanSourceConfiguration === 'function'
+    const config = typeof options.readDoubanSourceConfiguration === 'function'
       ? options.readDoubanSourceConfiguration()
       : null;
+    if (config && (typeof config.sourceId !== 'string' || !config.sourceId)) {
+      fail('PERCEPTION_ACQUISITION_SOURCE_ID_INVALID',
+        'Perception Acquisition automation requires one normalized string Source identity.');
+    }
+    return config;
   }
 
   function providerAcquisitions(sourceId) {
@@ -38,8 +43,9 @@ function createPerceptionAcquisitionAutomation(options) {
         || left.perceptionAcquisitionId.localeCompare(right.perceptionAcquisitionId));
   }
 
-  function hasCompletedProviderAcquisition(sourceId) {
-    return providerAcquisitions(sourceId).some((item) => item.state === 'completed' && item.terminalAtMs != null);
+  function hasTerminalProviderAcquisition(sourceId) {
+    return providerAcquisitions(sourceId).some((item) =>
+      ['completed', 'failed'].includes(item.state) && item.terminalAtMs != null);
   }
 
   function listPage({ cursor, limit }) {
@@ -49,7 +55,7 @@ function createPerceptionAcquisitionAutomation(options) {
     const config = doubanConfig();
     if (!config) return [];
     const gated = cursor === null && options.now() < sweepNotBeforeMs;
-    if (gated && hasCompletedProviderAcquisition(config.sourceId)) return [];
+    if (gated && hasTerminalProviderAcquisition(config.sourceId)) return [];
     if (cursor !== null && config.sourceId <= cursor) return [];
     const page = [Object.freeze({ cursor: config.sourceId, scope: Object.freeze({ sourceId: config.sourceId }) })];
     if (!gated && page.length < limit) sweepNotBeforeMs = options.now() + periodMs;
@@ -62,11 +68,10 @@ function createPerceptionAcquisitionAutomation(options) {
     const items = providerAcquisitions(sourceId);
     const active = items.find((item) => item.state === 'active');
     if (active) return Object.freeze({ kind: 'in_progress', sourceId, perceptionAcquisitionId: active.perceptionAcquisitionId });
-    const completed = items.find((item) => item.state === 'completed' && item.terminalAtMs != null);
-    if (completed && options.now() - Number(completed.terminalAtMs) < periodMs) {
-      return Object.freeze({ kind: 'not_due', sourceId, perceptionAcquisitionId: completed.perceptionAcquisitionId });
-    }
     const latestTerminal = items.find((item) => ['completed', 'failed'].includes(item.state) && item.terminalAtMs != null);
+    if (latestTerminal && options.now() - Number(latestTerminal.terminalAtMs) < periodMs) {
+      return Object.freeze({ kind: 'not_due', sourceId, perceptionAcquisitionId: latestTerminal.perceptionAcquisitionId });
+    }
     const observed = options.requestAcquisition({
       idempotencyKey: 'periodic-douban-acquisition:' + config.sourceId + ':config-' + config.configRevision
         + ':after-' + (latestTerminal ? latestTerminal.perceptionAcquisitionId : 'none'),

@@ -51,12 +51,13 @@ function acceptanceAttemptId(c){return canonicalDigest({schema:'arca.acceptance-
 
 function createOnDeckCapabilityPorts(options){const now=options.now||Date.now,acceptance=createHandoffBAcceptanceStore(options),onDeck=createOnDeckStore(options),
   controls=createMaterialControlProjectionPort(options),inbox=createInboxCoordinator(options);
+  const effectAt=(execution)=>Number.isSafeInteger(execution.effectOccurredAtMs)?execution.effectOccurredAtMs:now();
   function ctx(execution){return context(options,execution,dependencyRefs(options,execution));}
-  function aftercareRequest(execution,c){
+  function aftercareRequest(execution,c,at=now()){
     if(execution.ownerScope.processType!=='arca_shelf_entry')return null;
     const care=options.aftercareContextReader.store.history(c.shelfEntryId).cases.find((item)=>item.state==='active');
     if(!care||care.careBasisDigest!==c.basis.digest)throw new Error('Aftercare Placement Case is absent or stale.');
-    return buildAftercareInventoryRequest(c,options.inventoryPort,now(),care.aftercareCaseId);
+    return buildAftercareInventoryRequest(c,options.inventoryPort,at,care.aftercareCaseId);
   }
   function pure(ref,names,build){return Object.freeze({validateInputs(c){requireNamed(c,names);},execute(c){return outcome(ref,build(c.namedInputs,ctx(c),now()),now());},
     validateResult(_c,o){if(!o?.result)throw new TypeError(ref+' Result is absent.');}});}
@@ -113,7 +114,7 @@ function createOnDeckCapabilityPorts(options){const now=options.now||Date.now,ac
         ...c.packageValue.productMaterialManifest.members.map(m=>bindingFromProduct(m,contentProfile)),...c.packageValue.offloadContextManifest.members.map(bindingFromContext)]
         .sort((a,b)=>a.materialKey.localeCompare(b.materialKey)||a.role.localeCompare(b.role)),controlTransfers:projections.map(p=>({materialKey:p.materialKey,
           expectedRevision:p.controlRevision,expectedProjectionDigest:p.projectionDigest,fromScope:{ownerDomain:p.ownerDomain,scopeType:p.ownerScopeType,scopeId:p.ownerScopeId}}))});
-    inbox.acknowledge({messageId:c.offer.messageId,consumerDomain:'arca'});return committedOutcome(execution,C.accept,accepted.receipt,now(),'responsibility_control_commit');},
+    inbox.acknowledge({messageId:c.offer.messageId,consumerDomain:'arca'});return committedOutcome(execution,C.accept,accepted.receipt,effectAt(execution),'responsibility_control_commit');},
     validateResult(_c,o){if(o?.result?.receiptKind!=='handoff_b_accepted')throw new TypeError('Arca Acceptance Receipt is invalid.');}});
   ports[C.reject]=Object.freeze({validateInputs(c){requireNamed(c,['arcaAcceptanceRejectionDecision','domainFactCommitHandle']);},execute(execution){const c=ctx(execution),d=execution.namedInputs.arcaAcceptanceRejectionDecision,
     assessmentWork=options.workResultReader.listWorks({ownerDomain:'arca',processType:'arca_acceptance',processId:c.offer.offerId,workKind:'acceptance_assessment'})
@@ -126,24 +127,24 @@ function createOnDeckCapabilityPorts(options){const now=options.now||Date.now,ac
         standardRevision:c.shelf.currentStandardRevision,placementRevision:c.shelf.currentPlacementRevision,checks});
     const rejected=acceptance.reject({assessment,decision:d,offerMessage:c.offer});
     inbox.acknowledge({messageId:c.offer.messageId,consumerDomain:'arca'});
-    return committedOutcome(execution,C.reject,rejected.receipt,now(),'domain_fact_commit');},validateResult(_c,o){if(o?.result?.receiptKind!=='handoff_b_rejected')throw new TypeError('Arca Rejection Receipt is invalid.');}});
+    return committedOutcome(execution,C.reject,rejected.receipt,effectAt(execution),'domain_fact_commit');},validateResult(_c,o){if(o?.result?.receiptKind!=='handoff_b_rejected')throw new TypeError('Arca Rejection Receipt is invalid.');}});
   ports[C.slot]=Object.freeze({validateInputs(c){requireNamed(c,['finalInventoryDecision','targetHandle']);},execute(execution){const c=ctx(execution),n=execution.namedInputs;
-    const aftercare=aftercareRequest(execution,c);if(aftercare){
+    const at=effectAt(execution),aftercare=aftercareRequest(execution,c,at);if(aftercare){
       if(n.finalInventoryDecision.decisionDigest!==aftercare.finalInventoryDecision.decisionDigest)
         throw new Error('Aftercare Final Inventory Decision is stale.');
       const result=options.inventoryPort.prepareSlot({...aftercare,targetCommitSlotHandle:n.targetHandle});
-      return committedOutcome(execution,C.slot,result,now(),'material_commit');
+      return committedOutcome(execution,C.slot,result,at,'material_commit');
     }
     onDeck.verifyAcceptedResponsibility({onDeckRunId:c.responsibility.onDeckRunId,custodyId:c.responsibility.custodyId,shelf:c.shelf,package:c.packageValue,
       finalInventoryDecision:c.finalInventoryDecision,targetLocation:c.targetLocation});onDeck.setOffloading(c.responsibility.onDeckRunId,c.finalInventoryDecision.decisionDigest);
     const result=options.inventoryPort.prepareSlot({onDeckRunId:c.responsibility.onDeckRunId,custodyId:c.responsibility.custodyId,shelf:c.shelf,
-      onDeckProductPackage:c.packageValue,finalInventoryDecision:c.finalInventoryDecision,targetCommitSlotHandle:n.targetHandle,observedAtMs:now(),replayCommitted:false});
-    return committedOutcome(execution,C.slot,result,now(),'material_commit');},validateResult(_c,o){if(!o?.result?.slotId)throw new TypeError('Target Commit Slot Handle is invalid.');}});
-  ports[C.stage]=Object.freeze({validateInputs(c){requireNamed(c,['productMaterialHandleList','targetCommitSlotHandle']);},async execute(execution){const c=ctx(execution),staged=await options.inventoryPort.stage({
-    ...(aftercareRequest(execution,c)||{
+      onDeckProductPackage:c.packageValue,finalInventoryDecision:c.finalInventoryDecision,targetCommitSlotHandle:n.targetHandle,observedAtMs:at,replayCommitted:execution.recoveryDecision==='already_committed'});
+    return committedOutcome(execution,C.slot,result,at,'material_commit');},validateResult(_c,o){if(!o?.result?.slotId)throw new TypeError('Target Commit Slot Handle is invalid.');}});
+  ports[C.stage]=Object.freeze({validateInputs(c){requireNamed(c,['productMaterialHandleList','targetCommitSlotHandle']);},async execute(execution){const c=ctx(execution),at=effectAt(execution),staged=await options.inventoryPort.stage({
+    ...(aftercareRequest(execution,c,at)||{
     onDeckRunId:c.responsibility.onDeckRunId,custodyId:c.responsibility.custodyId,shelf:c.shelf,onDeckProductPackage:c.packageValue,
-    finalInventoryDecision:c.finalInventoryDecision,observedAtMs:now(),replayCommitted:false}),targetCommitSlotHandle:execution.namedInputs.targetCommitSlotHandle});
-    return committedOutcome(execution,C.stage,staged,now(),'material_commit');},
+    finalInventoryDecision:c.finalInventoryDecision,observedAtMs:at,replayCommitted:execution.recoveryDecision==='already_committed'}),targetCommitSlotHandle:execution.namedInputs.targetCommitSlotHandle});
+    return committedOutcome(execution,C.stage,staged,at,'material_commit');},
     validateResult(_c,o){if(!o?.result?.manifestDigest)throw new TypeError('Staged Inventory Manifest is invalid.');}});
   ports[C.stagedVerify]=Object.freeze({validateInputs(c){requireNamed(c,['stagedManifest','finalInventoryDecision']);},execute(execution){
     const c=ctx(execution),n=execution.namedInputs,request=aftercareRequest(execution,c)||{onDeckRunId:c.responsibility.onDeckRunId,
@@ -160,16 +161,16 @@ function createOnDeckCapabilityPorts(options){const now=options.now||Date.now,ac
       finalBindingSetDigest:n.finalBindings.bindingSetDigest,productManifestDigest,
       relatedDispositionSetDigest:n.productDispositionManifest.relatedDispositionSetDigest,verifiedMaterialKeys:Object.freeze(keys),targetContainmentDigest:containment});});
   ports[C.placement]=Object.freeze({validateInputs(c){requireNamed(c,['verifiedStagedManifest','targetBindings']);},execute(execution){const c=ctx(execution),n=execution.namedInputs,
-    aftercare=aftercareRequest(execution,c);if(aftercare){const body=options.inventoryPort.switchPlacement({...aftercare,
+    at=effectAt(execution),aftercare=aftercareRequest(execution,c,at);if(aftercare){const body=options.inventoryPort.switchPlacement({...aftercare,
       stagedInventoryVerification:n.verifiedStagedManifest,targetBindings:n.targetBindings,
       replacedInputSetDigest:canonicalDigest(c.raw.materials.map((item)=>item.material_key).sort())});
-      return committedOutcome(execution,C.placement,body,now(),'material_commit');}
+      return committedOutcome(execution,C.placement,body,at,'material_commit');}
     const body=options.inventoryPort.switchPlacement({onDeckRunId:c.responsibility.onDeckRunId,custodyId:c.responsibility.custodyId,shelf:c.shelf,
       onDeckProductPackage:c.packageValue,finalInventoryDecision:c.finalInventoryDecision,stagedInventoryVerification:n.verifiedStagedManifest,
-      targetBindings:n.targetBindings,replacedInputSetDigest:canonicalDigest(c.packageValue.offloadContextManifest.members),observedAtMs:now(),replayCommitted:false});
-    return committedOutcome(execution,C.placement,body,now(),'material_commit');},
+      targetBindings:n.targetBindings,replacedInputSetDigest:canonicalDigest(c.packageValue.offloadContextManifest.members),observedAtMs:at,replayCommitted:execution.recoveryDecision==='already_committed'});
+    return committedOutcome(execution,C.placement,body,at,'material_commit');},
     validateResult(_c,o){if(o?.result?.receiptKind!=='placement_switched')throw new TypeError('Placement Switch Receipt is invalid.');}});
-  ports[C.settlement]=Object.freeze({validateInputs(c){requireNamed(c,['oldPrimaryStructuralExclusiveRelatedHandleList','inputSettlementApproval']);},execute(execution){const n=execution.namedInputs,m=n.oldPrimaryStructuralExclusiveRelatedHandleList.members[0],at=now(),c=ctx(execution),
+  ports[C.settlement]=Object.freeze({validateInputs(c){requireNamed(c,['oldPrimaryStructuralExclusiveRelatedHandleList','inputSettlementApproval']);},execute(execution){const n=execution.namedInputs,m=n.oldPrimaryStructuralExclusiveRelatedHandleList.members[0],at=effectAt(execution),c=ctx(execution),
     settled=options.inventoryPort.settleInput({materialHandle:m.materialHandle,approval:n.inputSettlementApproval,
       finalMaterialKey:m.finalMaterialKey,finalTargetLocation:m.finalTargetLocation,
       settlementExpectation:m.settlementExpectation,sourceToFinalMappingDigest:m.sourceToFinalMappingDigest,
@@ -219,7 +220,7 @@ function createOnDeckCapabilityPorts(options){const now=options.now||Date.now,ac
       fulfillmentVerificationDigest:canonicalDigest(fulfillment),relatedDispositionCompletionDigest,custodyControls,targetControls});
     options.afterOnDeckCommit?.(Object.freeze({offerId:c.offer.offerId,subjectId:c.offer.subjectId,
       onDeckRunId:c.responsibility.onDeckRunId,shelfEntryId:committed.result.onDeckCommitReceipt.shelfEntryId}));
-    return committedOutcome(execution,C.commit,committed.result,now(),'responsibility_control_commit');},
+    return committedOutcome(execution,C.commit,committed.result,effectAt(execution),'responsibility_control_commit');},
     validateResult(_c,o){if(o?.result?.onDeckCommitReceipt?.receiptKind!=='on_deck_committed')throw new TypeError('On-deck Commit Result is invalid.');}});
   return Object.freeze(ports);
 }

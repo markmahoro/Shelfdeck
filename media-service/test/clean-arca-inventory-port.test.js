@@ -5,7 +5,23 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const test = require('node:test');
-const { createCleanArcaInventoryPort } = require('../src/clean-arca-inventory-port');
+const { cooperativeCopyFile, createCleanArcaInventoryPort } = require('../src/clean-arca-inventory-port');
+
+test('large Inventory copies yield to the service event loop between bounded chunks', async () => {
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'clean-arca-cooperative-copy-'));
+  const source=path.join(root,'source.bin'),target=path.join(root,'target.bin');
+  try {
+    fs.writeFileSync(source,Buffer.alloc(12*1024*1024,0x5a));
+    let turns=0,running=true;
+    const tick=()=>{turns+=1;if(running)setImmediate(tick);};
+    setImmediate(tick);
+    await cooperativeCopyFile(source,target,fs.constants.COPYFILE_EXCL);
+    running=false;
+    assert.ok(turns>=3,`expected event-loop turns during copy, observed ${turns}`);
+    assert.equal(fs.statSync(target).size,fs.statSync(source).size);
+    assert.deepEqual(fs.readFileSync(target),fs.readFileSync(source));
+  } finally { fs.rmSync(root,{recursive:true,force:true}); }
+});
 const { canonicalDigest } = require('../src/helix/contracts/canonical-json');
 const { editionFromSourceDisplay } = require('../src/helix/domains/libra/model/product-identity-commit-contracts');
 const { computeBoundedMaterialFingerprintSync } = require('../src/helix/integrations/bounded-material-fingerprint');
@@ -499,6 +515,44 @@ test('same-root Stage/Switch replaces managed source bytes occupying the final n
   } finally {
     fs.rmSync(root, { recursive:true, force:true });
   }
+});
+
+test('Stage Result stays below the Foundation 64 KiB bound with many subtitle members', async () => {
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'clean-arca-bounded-stage-'));
+  try {
+    const inputs=path.join(root,'inputs');
+    const targetRoot=path.join(root,'target');
+    fs.mkdirSync(inputs);fs.mkdirSync(targetRoot);
+    const mountScopeId='canary-mount';
+    const locations=[];
+    for(let index=0;index<61;index+=1){
+      const extension=index===0?'.mkv':'.'+String(index).padStart(2,'0')+'.zh-CN.srt';
+      const location=path.join(inputs,'A Chinese Ghost Story 2 (1990) - 1080p AVC DTS'+extension);
+      fs.writeFileSync(location,Buffer.from('member-'+index));
+      locations.push(member(location,index===0?'primary_payload':'subtitle',mountScopeId));
+    }
+    const shelf=Object.freeze({shelfId:'shelf-bounded',status:'active',currentPlacementRevision:1,
+      target:{endpointId:'canary',rootLocation:targetRoot,mountScopeId,mountScopeRevision:1},
+      placement:{value:{folderTemplate:'{title} ({year})',collisionPolicy:'reject'}}});
+    const packageValue=Object.freeze({onDeckPackageId:'package-bounded',shelfId:'shelf-bounded',
+      resolvedIdentitySnapshot:{factValue:{title:'倩女幽魂2',year:1990}},productStructureSnapshot:{structureKind:'single'},
+      productMaterialManifest:{members:Object.freeze(locations),manifestDigest:canonicalDigest('bounded-manifest')},
+      offloadContextManifest:{manifestDigest:canonicalDigest('bounded-offload'),members:Object.freeze([])}});
+    const port=createCleanArcaInventoryPort({schemaManifest,unitOfWork:{},workspaceRoot:path.join(root,'.workspace')});
+    const request={onDeckRunId:'on-deck-bounded',custodyId:'custody-bounded',shelf,onDeckProductPackage:packageValue,
+      observedAtMs:1,replayCommitted:false};
+    const finalInventoryDecision=port.prepare(request);
+    const targetCommitSlotHandle=port.prepareSlot({...request,finalInventoryDecision});
+    const manifest=await port.stage({...request,finalInventoryDecision,targetCommitSlotHandle});
+    assert.equal(manifest.stagedMembers.length,61);
+    assert.ok(Buffer.byteLength(JSON.stringify(manifest))<=65536);
+    for(const staged of manifest.stagedMembers){
+      assert.equal(Object.hasOwn(staged,'materialKey'),false);
+      assert.equal(Object.hasOwn(staged,'digestHex'),false);
+      assert.equal(Object.hasOwn(staged,'sizeBytes'),false);
+      assert.equal(staged.physicalIdentity.materialKey.length,64);
+    }
+  }finally{fs.rmSync(root,{recursive:true,force:true});}
 });
 
 test('settlement ignores a sibling movie directory and still rejects unknown files', () => {

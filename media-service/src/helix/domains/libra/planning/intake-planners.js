@@ -2,7 +2,8 @@
 
 const { canonicalDigest } = require('../../../contracts/canonical-json');
 const { executionCatalogDigest } = require('../../../foundation/execution/workflow-plan');
-const { buildAcceptedIntakePayload, rebuildLibraBindingDraftFromReceipt } = require('../model/intake-acceptance-contracts');
+const { bindingResolutionBasisDigest, buildAcceptedIntakePayload,
+  rebuildLibraBindingDraftFromReceipt } = require('../model/intake-acceptance-contracts');
 const { buildIntakeRejectionDecision } = require('../model/intake-rejection-contracts');
 
 const CANDIDATE='libra.intake.candidate.verify@1', MATERIAL='libra.intake.material.verify@1',
@@ -68,7 +69,7 @@ function createIntakeProjections(options){
     return {candidate,material};}
   function payload(ownerScope,bindingReceipt,requestedWorkId){const snapshot=read(ownerScope).snapshot,
     current=options.decisionResolver.resolve(snapshot),v=verifications(ownerScope,requestedWorkId);
-    if(!bindingReceipt||bindingReceipt.resolutionDecisionDigest!==current.decisionDigest){const error=new Error('Subject continuity basis changed after Binding resolution.');
+    if(!bindingReceipt||bindingReceipt.bindingResolutionBasisDigest!==bindingResolutionBasisDigest(current)){const error=new Error('Subject continuity basis changed after Binding resolution.');
       error.code='P8_ACCEPTANCE_CONTINUITY_BASIS_STALE';throw error;}
     const bindingDraft=rebuildLibraBindingDraftFromReceipt(snapshot,current,bindingReceipt);
     const decision=current;

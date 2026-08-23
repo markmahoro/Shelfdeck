@@ -14,6 +14,7 @@ function runtimeOptions(env = process.env) {
       console.error('[shelfdeck] execution runtime error', {
         code: error?.code || 'EXECUTION_RUNTIME_ERROR',
         message: error?.message || 'Execution Runtime failed.',
+        details: error?.details || {},
       });
     },
   });

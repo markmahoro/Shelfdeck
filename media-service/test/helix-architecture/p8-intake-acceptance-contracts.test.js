@@ -3,7 +3,7 @@
 const assert=require('node:assert/strict');
 const test=require('node:test');
 const {canonicalDigest}=require('../../src/helix/contracts/canonical-json');
-const {buildAcceptedIntakePayload,buildLibraBindingDraft,buildLibraBindingDraftReceipt,rebuildLibraBindingDraftFromReceipt,buildLibraCandidateAcceptedMessage,
+const {bindingResolutionBasisDigest,buildAcceptedIntakePayload,buildLibraBindingDraft,buildLibraBindingDraftReceipt,rebuildLibraBindingDraftFromReceipt,buildLibraCandidateAcceptedMessage,
   buildSubjectAndTransferReceipt}=require('../../src/helix/domains/libra/model/intake-acceptance-contracts');
 
 const D=(value)=>canonicalDigest({value});
@@ -91,4 +91,32 @@ test('persists a compact Binding receipt and reconstructs a large immutable Bind
   const rebuilt=rebuildLibraBindingDraftFromReceipt(value.snapshot,value.decision,receipt);
   assert.equal(rebuilt.bindings.length,62);
   assert.equal(rebuilt.bindingSetDigest,receipt.bindingSetDigest);
+});
+
+test('claim-free Movie Binding receipt rebases across unrelated continuity head advances',()=>{
+  const value=basis();
+  value.snapshot.primaryMaterialDeliveries[0]={...value.snapshot.primaryMaterialDeliveries[0],episodeClaims:[]};
+  value.snapshot.primaryInputManifest={...value.snapshot.primaryInputManifest,structureKind:'single'};
+  value.snapshot.candidatePackage={...value.snapshot.candidatePackage,contentProfile:'movie'};
+  value.snapshot.deliverySnapshotDigest=canonicalDigest(without(value.snapshot,'deliverySnapshotDigest'));
+  value.decision={...value.decision,candidateDeliverySnapshotDigest:value.snapshot.deliverySnapshotDigest,
+    expectedContinuityHead:{revision:3,digest:D('head-3')},candidateEpisodeScope:{structureKind:'single',episodeKeys:[],episodeScopeDigest:D('empty-episodes')},decisionDigest:''};
+  value.decision.decisionDigest=canonicalDigest(without(value.decision,'decisionDigest'));
+  value.candidateVerification={...value.candidateVerification,candidateDeliverySnapshotDigest:value.snapshot.deliverySnapshotDigest};
+  value.materialVerification={...value.materialVerification,candidateDeliverySnapshotDigest:value.snapshot.deliverySnapshotDigest};
+  const receipt=buildLibraBindingDraftReceipt(value.snapshot,value.decision,10);
+  const current={...value.decision,expectedContinuityHead:{revision:9,digest:D('head-9')},decisionDigest:''};
+  current.decisionDigest=canonicalDigest(without(current,'decisionDigest'));
+  assert.notEqual(current.decisionDigest,value.decision.decisionDigest);
+  assert.equal(bindingResolutionBasisDigest(current),receipt.bindingResolutionBasisDigest);
+  const bindingDraft=rebuildLibraBindingDraftFromReceipt(value.snapshot,current,receipt);
+  assert.doesNotThrow(()=>buildAcceptedIntakePayload({...value,decision:current,bindingDraft}));
+});
+
+test('claim-bearing Binding receipt remains fenced by the exact continuity head',()=>{
+  const value=basis(),receipt=buildLibraBindingDraftReceipt(value.snapshot,value.decision,10);
+  const current={...value.decision,expectedContinuityHead:{revision:9,digest:D('head-9')},decisionDigest:''};
+  current.decisionDigest=canonicalDigest(without(current,'decisionDigest'));
+  assert.throws(()=>rebuildLibraBindingDraftFromReceipt(value.snapshot,current,receipt),
+    (error)=>error.code==='P8_BINDING_DRAFT_RECEIPT_INVALID');
 });

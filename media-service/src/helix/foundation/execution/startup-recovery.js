@@ -219,7 +219,7 @@ function createStartupRecovery(options) {
           continue;
         }
         if (effect.state === 'committed') {
-          actions.push(Object.freeze({ eventId: event.event_id, decision: 'already_committed' }));
+          actions.push(Object.freeze({ eventId: event.event_id, effectId: effect.effect_id, decision: 'already_committed' }));
           continue;
         }
         if (!NONTERMINAL_EFFECT_STATES.has(effect.state)) {

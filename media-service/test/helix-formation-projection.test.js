@@ -23,7 +23,7 @@ const {
 } = require('../src/helix/domains/libra/application/formation-query');
 const { createFormationProjectionStore } = require('../src/helix/domains/libra/persistence/formation-projection-store');
 const { createFormationProjectionHost } = require('../src/helix/domains/libra/application/formation-projection-host');
-const { plannedExecutionDeviceClass } = require('../src/helix/foundation/execution/progress-projection-reader');
+const { plannedExecutionDeviceClass, projectedProgress } = require('../src/helix/foundation/execution/progress-projection-reader');
 const { canonicalJson } = require('../src/helix/contracts/canonical-json');
 
 const generatedRoot=path.resolve(__dirname,'../src/helix/foundation/persistence/generated');
@@ -196,6 +196,14 @@ test('execution progress derives the Transcode device class from immutable plann
   ]})}),/single valid device class/);
 });
 
+test('execution progress converts SQLite safe integers before Formation JSON projection',()=>{
+  const progress=projectedProgress({mode:'determinate',current_value:34n,total_value:100n,unit:'percent',rate:2.5,
+    eta_ms:12000n,progress_bucket:'percent-34'});
+  assert.deepEqual(progress,{mode:'determinate',currentValue:34,totalValue:100,unit:'percent',rate:2.5,
+    etaMs:12000,bucket:'percent-34'});
+  assert.doesNotThrow(()=>canonicalJson(progress));
+});
+
 test('Formation four-bucket classification requires Arca commit for completion and current open execution for progress',()=>{
   const historicalSuccess=[{state:'succeeded',events:[{state:'succeeded'}]}];
   assert.equal(classifyFormation({run:{state:'frozen'},works:historicalSuccess,issue:null,recovery:null,arcaStatus:null,productPackage:null}),'attention_required');
@@ -308,5 +316,27 @@ test('exact Formation wake drains more than one bounded batch without waiting fo
     assert.equal(new Set(processed).size,ids.length);
     assert.deepEqual(batchSizes.sort((left,right)=>left-right),[1,100]);
     assert.equal(host.state().queued,0);
+  }finally{await host.stop();kernel.close();fs.rmSync(root,{recursive:true,force:true,maxRetries:5,retryDelay:50});}
+});
+
+test('Formation projection freshness recovers after a transient rebuild failure',async()=>{
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'helix-formation-projection-recovery-')),databasePath=path.join(root,'shelfdeck.db');
+  const kernel=openSqliteKernel({Database,databasePath,schemaDdl,schemaManifest,now:()=>100});
+  const unitOfWork=createSqliteUnitOfWork({kernel});let failNext=false,writes=0;const errors=[];
+  const source={readPage:()=>[],readSubject:()=>({subject_id:'subject-recovery'}),buildBatch:()=>{
+    if(failNext){failNext=false;throw Object.assign(new Error('transient projection input'),{code:'TRANSIENT_PROJECTION_INPUT'});}
+    return [item(1,'pending')];
+  }};
+  const host=createFormationProjectionHost({schemaManifest,unitOfWork,source,store:{upsert:()=>{writes+=1;return {kind:'inserted'};}},
+    now:()=>100,onError:(error)=>errors.push(error)});
+  try{
+    await host.start();
+    const readyDeadline=Date.now()+1000;while(host.state().status!=='ready'&&Date.now()<readyDeadline)await new Promise((resolve)=>setTimeout(resolve,5));
+    failNext=true;host.enqueue('subject-recovery');
+    const failedDeadline=Date.now()+1000;while(errors.length<1&&Date.now()<failedDeadline)await new Promise((resolve)=>setTimeout(resolve,5));
+    assert.equal(host.state().status,'stale');
+    host.enqueue('subject-recovery');
+    const recoveredDeadline=Date.now()+1000;while(writes<1&&Date.now()<recoveredDeadline)await new Promise((resolve)=>setTimeout(resolve,5));
+    assert.equal(host.state().status,'ready');
   }finally{await host.stop();kernel.close();fs.rmSync(root,{recursive:true,force:true,maxRetries:5,retryDelay:50});}
 });

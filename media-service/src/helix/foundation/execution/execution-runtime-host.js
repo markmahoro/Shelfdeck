@@ -27,11 +27,13 @@ function createExecutionRuntimeHost(options) {
     fail('P4_EXECUTION_HOST_DEPENDENCIES_REQUIRED', 'Execution Runtime Host requires the complete Foundation execution rail.');
   }
   const tickIntervalMs = options.tickIntervalMs === undefined ? 100 : options.tickIntervalMs;
+  const maxIdlePollMs = options.maxIdlePollMs === undefined ? Math.max(1000, tickIntervalMs) : options.maxIdlePollMs;
   const maxActionsPerTick = options.maxActionsPerTick === undefined ? 16 : options.maxActionsPerTick;
   const maxInFlightEvents = options.maxInFlightEvents === undefined ? 16 : options.maxInFlightEvents;
   const leaseHeartbeatMs = options.leaseHeartbeatMs === undefined ? 1000 : options.leaseHeartbeatMs;
   const recoveryRetryMs = options.recoveryRetryMs === undefined ? 30000 : options.recoveryRetryMs;
   if (!Number.isSafeInteger(tickIntervalMs) || tickIntervalMs < 10 || tickIntervalMs > 60000 ||
+      !Number.isSafeInteger(maxIdlePollMs) || maxIdlePollMs < tickIntervalMs || maxIdlePollMs > 60000 ||
       !Number.isSafeInteger(maxActionsPerTick) || maxActionsPerTick < 1 || maxActionsPerTick > 256 ||
       !Number.isSafeInteger(maxInFlightEvents) || maxInFlightEvents < 1 || maxInFlightEvents > 256 ||
       !Number.isSafeInteger(leaseHeartbeatMs) || leaseHeartbeatMs < 10 || leaseHeartbeatMs > 30000 ||
@@ -42,10 +44,12 @@ function createExecutionRuntimeHost(options) {
   let timer = null;
   let draining = null;
   let wakeQueued = false;
+  let idlePollMs = tickIntervalMs;
   let lastRecovery = null;
   let firstFault = null;
   const inFlightEvents = new Map();
   const deferredRecoveries = new Map();
+  const completionRetries = new Map();
 
   async function reconcileTerminal(aggregation) {
     if (!aggregation?.attemptTerminal || aggregation.replayed) return;
@@ -170,9 +174,25 @@ function createExecutionRuntimeHost(options) {
       wakeAfterCompletion=aggregation.attemptTerminal===true||aggregation.workTerminal===true;
       return Object.freeze({kind:'event_advanced',eventId,outcome,
         attemptTerminal:aggregation.attemptTerminal,workTerminal:aggregation.workTerminal});
-    })().catch((error)=>{
-      // Executor crash stays Event-local; effect-specific recovery owns the executing Attempt.
+    })().catch(async(error)=>{
+      // Event Runtime retains the exact successful Outcome when an Effect
+      // committed immediately before Result binding failed. Retry only that
+      // completion capsule; never re-dispatch the physical Capability here.
       if(typeof options.onError==='function')options.onError(error);
+      if(typeof options.eventRuntime.retryPendingCompletion==='function'){
+        try{
+          const retried=options.eventRuntime.retryPendingCompletion(eventId);
+          if(retried?.kind!=='no_pending_completion'){
+            const aggregation=options.workLifecycle.aggregateEvent(eventId);
+            await reconcileTerminal(aggregation);
+            wakeAfterCompletion=true;
+          }
+        }catch(completionError){
+          completionRetries.set(eventId,{eventId,retryAtMs:Date.now()+recoveryRetryMs});
+          if(typeof options.onError==='function')options.onError(completionError);
+          wakeAfterCompletion=true;
+        }
+      }
       return Object.freeze({kind:'event_faulted',eventId,error});
     }).finally(()=>{
       inFlightEvents.delete(eventId);
@@ -202,6 +222,23 @@ function createExecutionRuntimeHost(options) {
 
   async function drainOneDeferredRecovery() {
     const current = Date.now();
+    const completion=[...completionRetries.values()]
+      .sort((left,right)=>left.retryAtMs-right.retryAtMs||left.eventId.localeCompare(right.eventId))
+      .find((item)=>item.retryAtMs<=current);
+    if(completion){
+      completion.retryAtMs=current+recoveryRetryMs;
+      try{
+        const recovered=options.eventRuntime.retryPendingCompletion(completion.eventId);
+        if(!recovered||recovered.kind==='no_pending_completion')return Object.freeze({kind:'recovery_deferred',eventId:completion.eventId});
+        completionRetries.delete(completion.eventId);
+        const aggregation=options.workLifecycle.aggregateEvent(completion.eventId);
+        await reconcileTerminal(aggregation);
+        return Object.freeze({kind:'recovery_advanced',eventId:completion.eventId});
+      }catch(error){
+        if(typeof options.onError==='function')options.onError(error);
+        return Object.freeze({kind:'recovery_deferred',eventId:completion.eventId,error});
+      }
+    }
     const pending = [...deferredRecoveries.values()]
       .sort((left, right) => left.retryAtMs - right.retryAtMs || left.action.eventId.localeCompare(right.action.eventId))
       .find((item) => item.retryAtMs <= current);
@@ -271,18 +308,56 @@ function createExecutionRuntimeHost(options) {
     return draining;
   }
 
-  function wake() {
+  function nextIdlePoll(current) {
+    if (current >= maxIdlePollMs) return maxIdlePollMs;
+    const multiplier = current === tickIntervalMs ? 2.5 : 2;
+    return Math.min(maxIdlePollMs, Math.max(current + 1, Math.ceil(current * multiplier)));
+  }
+
+  function scheduleFallbackPoll() {
+    if (state !== 'ready' || timer) return;
+    const delay = idlePollMs;
+    idlePollMs = nextIdlePoll(idlePollMs);
+    timer = setTimeout(() => {
+      timer = null;
+      queueTick(false);
+    }, delay);
+    timer.unref?.();
+  }
+
+  function queueTick(resetIdlePoll) {
+    if (resetIdlePoll) {
+      idlePollMs = tickIntervalMs;
+      if (timer) clearTimeout(timer);
+      timer = null;
+    }
+    if (state === 'draining') {
+      wakeQueued = true;
+      return Object.freeze({ accepted:true, state });
+    }
     if (state !== 'ready' || wakeQueued) return Object.freeze({ accepted: false, state });
     wakeQueued = true;
     queueMicrotask(() => {
       wakeQueued = false;
-      tick().catch((error) => {
-        state = 'faulted';
-        if (typeof options.onError === 'function') options.onError(error);
-      });
+      tick().then((result) => {
+        if (state !== 'ready') return;
+        const pendingWake = wakeQueued;
+        if (pendingWake) wakeQueued = false;
+        if (pendingWake) {
+          queueTick(false);
+          return;
+        }
+        if (result.actions > 0) idlePollMs = tickIntervalMs;
+        scheduleFallbackPoll();
+      }).catch((error) => {
+          state = 'faulted';
+          if (typeof options.onError === 'function') options.onError(error);
+        });
     });
     return Object.freeze({ accepted: true, state });
   }
+
+  function wake() { return queueTick(true); }
 
   return Object.freeze({
     async start() {
@@ -333,8 +408,6 @@ function createExecutionRuntimeHost(options) {
       }
       state = 'ready';
       await options.fallbackReconciler.start();
-      timer = setInterval(() => wake(), tickIntervalMs);
-      timer.unref?.();
       wake();
       return Object.freeze({ state, normalSupplyAllowed: true, recovery: lastRecovery });
     },
@@ -344,7 +417,7 @@ function createExecutionRuntimeHost(options) {
     async stop() {
       if (state === 'stopped') return Object.freeze({ state, fault:firstFault });
       state = 'stopping';
-      if (timer) clearInterval(timer);
+      if (timer) clearTimeout(timer);
       timer = null;
       wakeQueued = false;
       await options.fallbackReconciler.stop();
@@ -354,7 +427,7 @@ function createExecutionRuntimeHost(options) {
       return Object.freeze({ state, fault:firstFault });
     },
     activity(){return Object.freeze({state,inFlightEvents:inFlightEvents.size,maxInFlightEvents,
-      deferredRecoveryActions:deferredRecoveries.size,faulted:firstFault!==null});},
+      deferredRecoveryActions:deferredRecoveries.size+completionRetries.size,faulted:firstFault!==null});},
   });
 }
 

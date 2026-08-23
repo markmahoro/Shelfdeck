@@ -172,7 +172,7 @@ function createCleanMediaProductionEffectPort(options) {
     }
   }
 
-  function copyIsoPayload(isoLocation, file, dest) {
+  async function copyIsoPayload(isoLocation, file, dest) {
     const extents = Array.isArray(file?.extents) && file.extents.length
       ? file.extents
       : (Number.isSafeInteger(file?.extent) && Number.isSafeInteger(file?.sizeBytes)
@@ -180,10 +180,11 @@ function createCleanMediaProductionEffectPort(options) {
     if (!extents || !Number.isSafeInteger(file.sizeBytes) || file.sizeBytes < 1) {
       fail('LIBRA_MEDIA_ISO_PAYLOAD_INVALID', 'ISO topology payload extent is incomplete.');
     }
-    fs.mkdirSync(path.dirname(dest), { recursive:true });
-    const fd = fs.openSync(isoLocation, 'r');
+    await fs.promises.mkdir(path.dirname(dest), { recursive:true });
+    const source = await fs.promises.open(isoLocation, 'r');
+    let output;
     try {
-      const out = fs.openSync(dest, 'w');
+      output = await fs.promises.open(dest, 'w');
       try {
         let remaining = file.sizeBytes;
         const buffer = Buffer.alloc(Math.min(1024 * 1024, remaining));
@@ -197,20 +198,29 @@ function createCleanMediaProductionEffectPort(options) {
           let extentRemaining = Math.min(extent.length, remaining);
           while (extentRemaining > 0) {
             const want = Math.min(buffer.length, extentRemaining);
-            const read = fs.readSync(fd, buffer, 0, want, position);
-            if (read !== want) fail('LIBRA_MEDIA_ISO_PAYLOAD_READ', 'ISO payload could not be read exactly.');
-            fs.writeSync(out, buffer, 0, read);
-            remaining -= read;
-            extentRemaining -= read;
-            position += read;
+            const {bytesRead} = await source.read(buffer, 0, want, position);
+            if (bytesRead !== want) fail('LIBRA_MEDIA_ISO_PAYLOAD_READ', 'ISO payload could not be read exactly.');
+            let written = 0;
+            while (written < bytesRead) {
+              const result = await output.write(buffer, written, bytesRead - written);
+              if (result.bytesWritten < 1) fail('LIBRA_MEDIA_ISO_PAYLOAD_READ', 'ISO payload could not be written exactly.');
+              written += result.bytesWritten;
+            }
+            remaining -= bytesRead;
+            extentRemaining -= bytesRead;
+            position += bytesRead;
+            await new Promise((resolve) => setImmediate(resolve));
           }
         }
         if (remaining !== 0) fail('LIBRA_MEDIA_ISO_PAYLOAD_READ', 'ISO payload extents do not cover the file size.');
-      } finally { fs.closeSync(out); }
-    } finally { fs.closeSync(fd); }
+      } finally { await output.close(); }
+    } catch (error) {
+      await fs.promises.rm(dest, { force:true }).catch(() => undefined);
+      throw error;
+    } finally { await source.close(); }
   }
 
-  function isoRemuxArguments(source, temporaryTarget) {
+  async function isoRemuxArguments(source, temporaryTarget) {
     const primaries = source.primaryMembers || [];
     if (primaries.length !== 1) return null;
     const isoLocation = location(primaries[0].readHandle);
@@ -234,34 +244,31 @@ function createCleanMediaProductionEffectPort(options) {
     if (!clips.length) fail('LIBRA_MEDIA_ISO_PAYLOAD_INVALID', 'ISO topology has no selected primary payload.');
     const extracted = [];
     try {
-      clips.forEach((clip, index) => {
+      for (const [index, clip] of clips.entries()) {
         const listed = byPath.get(String(clip.relativeLocation).replace(/\\/g, '/').toUpperCase());
         if (!listed) fail('LIBRA_MEDIA_ISO_PAYLOAD_INVALID', 'ISO selected clip is absent from the image listing.');
         const dest = temporaryTarget + '.iso-clip-' + String(index).padStart(5, '0') + '.m2ts';
-        copyIsoPayload(isoLocation, listed, dest);
+        await copyIsoPayload(isoLocation, listed, dest);
         extracted.push(dest);
-      });
+      }
     } catch (error) {
-      extracted.forEach((file) => fs.rmSync(file, { force:true }));
+      await Promise.all(extracted.map((file) => fs.promises.rm(file, { force:true })));
       throw error;
     }
-    const cleanupExtracted = () => extracted.forEach((file) => fs.rmSync(file, { force:true }));
+    const cleanupExtracted = () => Promise.all(extracted.map((file) => fs.promises.rm(file, { force:true })));
     if (extracted.length === 1) {
       return Object.freeze({ argv:['-i', extracted[0]], cleanup: cleanupExtracted });
     }
     const listPath = temporaryTarget + '.iso-concat.txt';
-    fs.writeFileSync(listPath, extracted.map((file) => "file '" + escapeConcat(file.replace(/\\/g, '/')) + "'").join('\n') + '\n', 'utf8');
+    await fs.promises.writeFile(listPath, extracted.map((file) => "file '" + escapeConcat(file.replace(/\\/g, '/')) + "'").join('\n') + '\n', 'utf8');
     return Object.freeze({
       argv:['-f', 'concat', '-safe', '0', '-i', listPath],
-      cleanup:() => {
-        cleanupExtracted();
-        if (fs.existsSync(listPath)) fs.rmSync(listPath, { force:true });
-      },
+      cleanup:async () => { await cleanupExtracted(); await fs.promises.rm(listPath, { force:true }); },
     });
   }
 
-  function inputArguments(source, temporaryTarget) {
-    const isoInput = isoRemuxArguments(source, temporaryTarget);
+  async function inputArguments(source, temporaryTarget) {
+    const isoInput = await isoRemuxArguments(source, temporaryTarget);
     if (isoInput) return isoInput;
     const primaries = source.primaryMembers || [];
     if (primaries.length === 1) return Object.freeze({ argv:['-i', location(primaries[0].readHandle)], cleanup:null });
@@ -334,7 +341,7 @@ function createCleanMediaProductionEffectPort(options) {
       outputTargetId:target.targetId, outputTargetDigest:target.targetDigest,
       runtimeEffectAuthority:request.runtimeEffectAuthority,
       async produce(temporaryTarget) {
-        const input = inputArguments(request.source, temporaryTarget);
+        const input = await inputArguments(request.source, temporaryTarget);
         try {
           let identify = '';
           try {
@@ -347,7 +354,7 @@ function createCleanMediaProductionEffectPort(options) {
             '-hide_banner', '-nostdin', '-y', '-fflags', '+genpts', ...input.argv,
             ...maps, '-c', 'copy', '-bsf:v', VIDEO_TIMESTAMP_FILL_BSF, '-f', 'matroska', temporaryTarget,
           ], timeoutMs, progress?progressPhase(progress,'remux'):null);
-        } finally { input.cleanup?.(); }
+        } finally { await input.cleanup?.(); }
       } });
   }
 

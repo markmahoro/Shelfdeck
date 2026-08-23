@@ -32,6 +32,10 @@ const { createMaterialControlProjectionPort, controlScopeDigest } = require('../
 const { createDomainReconcileRunner } = require('../foundation/execution/domain-reconcile-runner');
 const { createWorkflowPlanPublisher, executionCatalogDigest } = require('../foundation/execution/workflow-plan');
 const { PRE_PROJECTION_PLAN_REPLAN_CODE } = require('../foundation/persistence/uat-identity-selection-migration');
+
+function volumeReadUnitsForCapability(capability) {
+  return capability === 'libra.transcode.input.verify@1' ? 2 : 1;
+}
 const { ProcurementExecutionRegistration } = require('../domains/procurement/public');
 const { LibraExecutionRegistration } = require('../domains/libra/public');
 const { PerceptionExecutionRegistration } = require('../domains/perception/public');
@@ -275,6 +279,7 @@ function createProcurementExecutionRuntime(options) {
     if(processType==='libra_intake')return Object.freeze({priorityClass:'handoff_acceptance',localPriority:300,priorityRevision:1,supplyRole:'completion'});
     if(processType==='libra_routing')return Object.freeze({priorityClass:'normal_foreground',localPriority:250,priorityRevision:1,supplyRole:'completion'});
     if(processType==='perception_acquisition'||processType==='perception_resolution')return Object.freeze({priorityClass:'normal_foreground',localPriority:240,priorityRevision:1,supplyRole:'completion'});
+    if(processType==='libra_acceptance_spec')return Object.freeze({priorityClass:'normal_foreground',localPriority:230,priorityRevision:1,supplyRole:'completion'});
     if(processType==='arca_acceptance')return Object.freeze({priorityClass:'handoff_acceptance',localPriority:400,priorityRevision:1,supplyRole:'completion'});
     if(processType==='arca_ondeck_run')return Object.freeze({priorityClass:'normal_foreground',localPriority:300,priorityRevision:1,supplyRole:'completion'});
     if(processType==='arca_offdeck_case')return Object.freeze({priorityClass:'safety_liveness',localPriority:500,priorityRevision:1,supplyRole:'completion'});
@@ -448,7 +453,16 @@ function createProcurementExecutionRuntime(options) {
       }
       if(capability==='libra.transcode.input.verify@1'||capability==='libra.product_media.verify@1'){
         const mountScopeId=findMountScopeId(inputs);if(!mountScopeId)throw new Error('P4_TYPED_MEDIA_VOLUME_UNRESOLVED:'+capability);
-        validatedVolumeKeys.add(mountScopeId);resources.push({resourceKey:'volume_read:'+mountScopeId,units:1});
+        validatedVolumeKeys.add(mountScopeId);resources.push({resourceKey:'volume_read:'+mountScopeId,
+          units:volumeReadUnitsForCapability(capability)});
+        if(capability==='libra.transcode.input.verify@1'){
+          const device=inputs.namedInputs?.mediaExecutionDeviceSnapshot,slots=device?.capabilityPayload?.validatedConcurrentSlots;
+          if(!device?.deviceId||!Number.isSafeInteger(slots)||slots<1)
+            throw new Error('P4_TYPED_TRANSCODE_PREFLIGHT_DEVICE_UNRESOLVED');
+          validatedEncoderSlots.set(device.deviceId,slots);
+          resources.push({resourceKey:'encoder:'+device.deviceId,units:1});
+          if(device.deviceClass==='software_cpu')resources.push({resourceKey:'cpu_heavy',units:1});
+        }
       }
       if(capability==='libra.media.remux@1'){
         const sourceRef=inputs.namedInputs?.productionSourceScopeReference,workspaceRoot=libraOptions.workspaceProductPort.rootSnapshot();
@@ -900,5 +914,6 @@ module.exports = Object.freeze({
   PRE_PROJECTION_EXECUTION_CATALOG_DIGEST,
   createProcurementExecutionRuntime,
   createHelixExecutionRuntime:createProcurementExecutionRuntime,
+  volumeReadUnitsForCapability,
   verifyStartupPlanCatalog,
 });

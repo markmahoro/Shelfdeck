@@ -62,11 +62,6 @@
             "minLength": 1,
             "maxLength": 256
           },
-          "materialKey": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 256
-          },
           "physicalIdentity": {
             "$ref": "helix://contracts/types/PhysicalMaterialIdentity/v2"
           },
@@ -98,29 +93,17 @@
             "type": "integer",
             "minimum": 1
           },
-          "digestHex": {
-            "type": "string",
-            "minLength": 1,
-            "pattern": "^[a-f0-9]{64}$"
-          },
-          "sizeBytes": {
-            "type": "integer",
-            "minimum": 0
-          },
           "episodeClaims": {
             "$ref": "helix://contracts/application-types/ArcaMaterialEpisodeClaims/v1"
           }
         },
         "required": [
           "sourceMaterialKey",
-          "materialKey",
           "physicalIdentity",
           "role",
           "endpointId",
           "location",
           "bindingRevision",
-          "digestHex",
-          "sizeBytes",
           "episodeClaims"
         ]
       },
@@ -145,5 +128,6 @@
     "targetCommitSlotId",
     "stagedMembers",
     "sourceProductManifestDigest"
-  ]
+  ],
+  "x-helix-maxCanonicalBytes": 65536
 }

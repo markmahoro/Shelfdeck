@@ -363,6 +363,7 @@ const special = {
   }), 1024),
   'LibraBindingDraftReceipt.receiptKind': { const: 'libra_binding_draft_resolved' },
   'LibraBindingDraftReceipt.subjectRef': object({ subjectId: id(), resolutionKind: enumText('new_subject', 'season_extension') }),
+  'LibraBindingDraftReceipt.bindingResolutionBasisDigest': digest(),
   'LibraBindingDraftReceipt.bindingCount': positiveInteger(),
   'LibraBindingDraftReceipt.primaryBindingCount': positiveInteger(),
   'LibraBindingDraftReceipt.relatedBindingCount': nonNegativeInteger(),
@@ -461,7 +462,6 @@ const special = {
   'AcceptanceCheck.checkKind': enumText('identity', 'structure', 'metadata', 'mandatory_media', 'space'),
   'StagedInventoryManifest.stagedMembers': arrayOf(object({
     sourceMaterialKey: id(),
-    materialKey: id(),
     physicalIdentity: ref('PhysicalMaterialIdentity'),
     role: enumText(
       'primary_payload', 'metadata_sidecar', 'poster', 'fanart',
@@ -470,8 +470,6 @@ const special = {
     endpointId: id(),
     location: text({ maxLength: 4096 }),
     bindingRevision: positiveInteger(),
-    digestHex: digest(),
-    sizeBytes: nonNegativeInteger(),
     episodeClaims: applicationRef('ArcaMaterialEpisodeClaims'),
   }), 4096),
   'SettlementDeletionEvidence.postDeleteReality': boundedRecord('post-delete-reality'),
@@ -608,7 +606,7 @@ const contracts = {
   CandidateContractVerification: ['VerificationEnvelope', 'offerId,candidatePackageId,packageRevision,packageDigest,acceptanceBasisDigest,primaryInputManifestDigest,candidateDeliverySnapshotDigest'],
   IntakeMaterialVerification: ['VerificationEnvelope', 'candidatePackageId,packageDigest,candidateDeliverySnapshotDigest,verifiedMaterials,verifiedMaterialSetDigest'],
   LibraBindingDraft: ['DraftEnvelope', 'subjectRef,resolutionDecision,candidateDeliverySnapshotDigest,bindings,bindingSetDigest'],
-  LibraBindingDraftReceipt: [null, 'receiptId,receiptKind,basisDigest,subjectRef,resolutionDecisionDigest,candidateDeliverySnapshotDigest,bindingCount,primaryBindingCount,relatedBindingCount,bindingSetDigest,producedAtMs,receiptDigest'],
+  LibraBindingDraftReceipt: [null, 'receiptId,receiptKind,basisDigest,subjectRef,resolutionDecisionDigest,bindingResolutionBasisDigest,candidateDeliverySnapshotDigest,bindingCount,primaryBindingCount,relatedBindingCount,bindingSetDigest,producedAtMs,receiptDigest'],
   IntakeRejectionReceipt: ['ReceiptEnvelope', 'intakeDecisionId,handoffKind,offerId,deliverableId,deliverableRevision,deliverableDigest,rejectionId,primaryRejectionCode,rejectionReasonSetDigest,rejectionDigest,receiptDigest'],
   RejectionReceipt: ['ReceiptEnvelope', 'acceptanceDecisionId,handoffKind,offerId,deliverableId,rejectionCode,acceptanceEvidenceSetDigest,rejectionDigest,receiptDigest'],
   SubjectAndTransferReceipt: ['ReceiptEnvelope', 'intakeDecisionId,offerId,candidatePackageId,packageRevision,packageDigest,candidateDeliverySnapshotDigest,relatedDispositionScopeDigest,subjectId,subjectIntakeRevision,subjectContinuityHeadRevision,subjectContinuitySetDigest,subjectEpisodeScopeDigest,libraBindingSetDigest,controlRevisionSetDigest,receiptDigest'],
@@ -746,6 +744,7 @@ function buildResultTypeSchema(name, [base, fieldList]) {
   };
   if (name === 'ObservationPageCommitResult' || name === 'ObservationPageCommitReceipt') result['x-helix-maxCanonicalBytes'] = 16 * 1024;
   if (name === 'BdmvAssessmentEvidence') result['x-helix-maxCanonicalBytes'] = 64 * 1024;
+  if (name === 'StagedInventoryManifest') result['x-helix-maxCanonicalBytes'] = 64 * 1024;
   if (name === 'LibraCandidateAcceptedMessage' || name === 'LibraCandidateRejectedMessage') result['x-helix-maxCanonicalBytes'] = 16 * 1024;
   if (name === 'ProcurementCandidateRejectionClosureResult') result['x-helix-maxCanonicalBytes'] = 64 * 1024;
   if (name === 'ProcurementCandidateAcceptanceClosureResult') result['x-helix-maxCanonicalBytes'] = 64 * 1024;

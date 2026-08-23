@@ -118,12 +118,12 @@ function productHandles(c) { return Object.freeze(c.packageValue.productMaterial
   endpointId:item.location.endpointId,location:item.location.location,mountScopeRevision:1,expectedSizeBytes:item.sizeBytes,expectedMtimeNs:0,expectedCtimeNs:0,
   fingerprintVerifiedAtMs:0,readScope:'exact_inventory_input',expiresAtMs:Number.MAX_SAFE_INTEGER,
   fenceDigest:canonicalDigest({key:item.materialKey,run:c.responsibility.onDeckRunId})}))); }
-function finalBindings(c,staged) { const bindings=(staged?.stagedMembers||[]).map((member)=>{const body={objectId:stable('arca-binding-',{run:c.responsibility.onDeckRunId,key:member.materialKey}),
+function finalBindings(c,staged) { const bindings=(staged?.stagedMembers||[]).map((member)=>{const body={objectId:stable('arca-binding-',{run:c.responsibility.onDeckRunId,key:member.physicalIdentity.materialKey}),
   revision:1,schemaRef:'helix://contracts/domain-types/ArcaMaterialBinding/v1',objectKind:'arca-material-binding'};return Object.freeze({...body,digest:canonicalDigest({...body,member})});});
   const body={schemaRef:'helix://contracts/domain-types/FinalBindings/v1',schemaVersion:1,objectId:c.responsibility.onDeckRunId+':bindings',revision:1,
     shelfEntryId:stable('arca-entry-preview-',{run:c.responsibility.onDeckRunId}),bindings:Object.freeze(bindings),bindingSetDigest:canonicalDigest({schema:'arca.final-bindings@1',items:bindings})};
   return withDigest(body); }
-function targetBindings(c,staged) { const bindings=(staged?.stagedMembers||[]).map((member)=>{const body={objectId:stable('arca-target-binding-',{run:c.responsibility.onDeckRunId,key:member.materialKey}),
+function targetBindings(c,staged) { const bindings=(staged?.stagedMembers||[]).map((member)=>{const body={objectId:stable('arca-target-binding-',{run:c.responsibility.onDeckRunId,key:member.physicalIdentity.materialKey}),
   revision:1,schemaRef:'helix://contracts/domain-types/TargetMaterialBinding/v1',objectKind:'target-material-binding'};return Object.freeze({...body,digest:canonicalDigest({...body,member})});});
   return withDigest({schemaRef:'helix://contracts/domain-types/TargetBindings/v1',schemaVersion:1,objectId:c.responsibility.onDeckRunId+':target-bindings',revision:1,
     targetCommitSlotId:staged.targetCommitSlotId,bindings:Object.freeze(bindings),bindingSetDigest:canonicalDigest({schema:'arca.target-bindings@1',items:bindings})}); }
