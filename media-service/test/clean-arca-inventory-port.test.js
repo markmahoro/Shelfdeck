@@ -293,7 +293,7 @@ test('numbered same-language subtitles keep original names instead of colliding 
   }
 });
 
-test('same-root Stage/Switch preserves exact final members, merges new members, and settles final-location input as a no-op', () => {
+test('same-root Stage/Switch preserves exact final members, merges new members, and settles final-location input as a no-op', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'clean-arca-same-root-'));
   try {
     const targetDirectory = path.join(root, 'Example Movie');
@@ -335,8 +335,17 @@ test('same-root Stage/Switch preserves exact final members, merges new members, 
       target:{ endpointId:'canary', rootLocation:root, mountScopeId, mountScopeRevision:1 },
       placement:{ value:{ folderTemplate:'{title}' } },
     });
+    let copyStarted;
+    let releaseCopy;
+    const copyStartedPromise = new Promise((resolve) => { copyStarted = resolve; });
+    const copyGate = new Promise((resolve) => { releaseCopy = resolve; });
     const port = createCleanArcaInventoryPort({
       schemaManifest, unitOfWork:{}, workspaceRoot,
+      copyFile:async (...args) => {
+        copyStarted();
+        await copyGate;
+        return fs.promises.copyFile(...args);
+      },
     });
     const request = {
       onDeckRunId:'on-deck-1', custodyId:'custody-1', shelf,
@@ -344,7 +353,14 @@ test('same-root Stage/Switch preserves exact final members, merges new members, 
     };
     const finalInventoryDecision = port.prepare(request);
     const targetCommitSlotHandle = port.prepareSlot({ ...request, finalInventoryDecision });
-    const stagedManifest = port.stage({ ...request, finalInventoryDecision, targetCommitSlotHandle });
+    const staging = port.stage({ ...request, finalInventoryDecision, targetCommitSlotHandle });
+    assert.equal(typeof staging.then, 'function');
+    await copyStartedPromise;
+    let immediateRan = false;
+    await new Promise((resolve) => setImmediate(() => { immediateRan = true; resolve(); }));
+    assert.equal(immediateRan, true);
+    releaseCopy();
+    const stagedManifest = await staging;
     const stagedInventoryVerification = port.verifyStaged({
       ...request, finalInventoryDecision, stagedInventoryManifest:stagedManifest,
     });
@@ -390,7 +406,7 @@ test('same-root Stage/Switch preserves exact final members, merges new members, 
   }
 });
 
-test('same-root Stage/Switch replaces managed source bytes occupying the final name', () => {
+test('same-root Stage/Switch replaces managed source bytes occupying the final name', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'clean-arca-same-root-replace-'));
   try {
     const targetDirectory = path.join(root, 'Example Movie');
@@ -425,14 +441,34 @@ test('same-root Stage/Switch replaces managed source bytes occupying the final n
       target:{ endpointId:'canary', rootLocation:root, mountScopeId, mountScopeRevision:1 },
       placement:{ value:{ folderTemplate:'{title}' } },
     });
-    const port = createCleanArcaInventoryPort({ schemaManifest, unitOfWork:{}, workspaceRoot });
+    let copyAttempts = 0;
+    const port = createCleanArcaInventoryPort({
+      schemaManifest, unitOfWork:{}, workspaceRoot,
+      copyFile:async (...args) => {
+        copyAttempts += 1;
+        if (copyAttempts === 1) {
+          await fs.promises.writeFile(args[1], Buffer.from('partial'), { flag:'wx' });
+          throw new Error('simulated async copy interruption');
+        }
+        return fs.promises.copyFile(...args);
+      },
+    });
     const request = {
       onDeckRunId:'on-deck-1', custodyId:'custody-1', shelf,
       onDeckProductPackage:packageValue, observedAtMs:1, replayCommitted:false,
     };
     const finalInventoryDecision = port.prepare(request);
     const targetCommitSlotHandle = port.prepareSlot({ ...request, finalInventoryDecision });
-    const stagedManifest = port.stage({ ...request, finalInventoryDecision, targetCommitSlotHandle });
+    await assert.rejects(
+      port.stage({ ...request, finalInventoryDecision, targetCommitSlotHandle }),
+      /simulated async copy interruption/,
+    );
+    assert.deepEqual(
+      fs.readdirSync(targetCommitSlotHandle.slotDirectory)
+        .filter((name) => name.includes('.tmp-')),
+      [],
+    );
+    const stagedManifest = await port.stage({ ...request, finalInventoryDecision, targetCommitSlotHandle });
     const stagedInventoryVerification = port.verifyStaged({
       ...request, finalInventoryDecision, stagedInventoryManifest:stagedManifest,
     });

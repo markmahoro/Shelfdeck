@@ -139,7 +139,7 @@ function createOnDeckCapabilityPorts(options){const now=options.now||Date.now,ac
     const result=options.inventoryPort.prepareSlot({onDeckRunId:c.responsibility.onDeckRunId,custodyId:c.responsibility.custodyId,shelf:c.shelf,
       onDeckProductPackage:c.packageValue,finalInventoryDecision:c.finalInventoryDecision,targetCommitSlotHandle:n.targetHandle,observedAtMs:now(),replayCommitted:false});
     return committedOutcome(execution,C.slot,result,now(),'material_commit');},validateResult(_c,o){if(!o?.result?.slotId)throw new TypeError('Target Commit Slot Handle is invalid.');}});
-  ports[C.stage]=Object.freeze({validateInputs(c){requireNamed(c,['productMaterialHandleList','targetCommitSlotHandle']);},execute(execution){const c=ctx(execution),staged=options.inventoryPort.stage({
+  ports[C.stage]=Object.freeze({validateInputs(c){requireNamed(c,['productMaterialHandleList','targetCommitSlotHandle']);},async execute(execution){const c=ctx(execution),staged=await options.inventoryPort.stage({
     ...(aftercareRequest(execution,c)||{
     onDeckRunId:c.responsibility.onDeckRunId,custodyId:c.responsibility.custodyId,shelf:c.shelf,onDeckProductPackage:c.packageValue,
     finalInventoryDecision:c.finalInventoryDecision,observedAtMs:now(),replayCommitted:false}),targetCommitSlotHandle:execution.namedInputs.targetCommitSlotHandle});

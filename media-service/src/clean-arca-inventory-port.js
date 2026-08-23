@@ -308,6 +308,8 @@ function createCleanArcaInventoryPort(options) {
   const foundation = foundationDefinition(options.schemaManifest);
   const workspaceRoot = path.resolve(options.workspaceRoot);
   const statfsSync = options.statfsSync || fs.statfsSync;
+  const copyFile = options.copyFile || ((source, target, flags) =>
+    fs.promises.copyFile(source, target, flags));
 
   function execute(participantId, body) {
     return options.unitOfWork.execute([{
@@ -908,7 +910,7 @@ function createCleanArcaInventoryPort(options) {
     return handle;
   }
 
-  function stage(request) {
+  async function stage(request) {
     const built = buildPlan(request);
     const handle = slotHandle(request);
     if (!request?.targetCommitSlotHandle ||
@@ -947,16 +949,20 @@ function createCleanArcaInventoryPort(options) {
         const temporary = target + '.tmp-' +
           canonicalDigest({ run:request.onDeckRunId, key:plan.member.materialKey })
             .slice(0, 16);
-        if (fs.existsSync(temporary)) fs.rmSync(temporary, { force:true });
-        fs.copyFileSync(plan.source, temporary, fs.constants.COPYFILE_EXCL);
-        const observed = computeBoundedMaterialFingerprintSync(temporary);
-        if (Number(observed.stat.size) !== plan.sizeBytes ||
-            observed.contentFingerprint !== plan.contentFingerprint) {
-          fs.rmSync(temporary, { force:true });
-          fail('CLEAN_ARCA_STAGE_COPY_VERIFY',
-            'Staged Inventory bytes failed verification.');
+        await fs.promises.rm(temporary, { force:true });
+        try {
+          await copyFile(plan.source, temporary, fs.constants.COPYFILE_EXCL);
+          const observed = computeBoundedMaterialFingerprintSync(temporary);
+          if (Number(observed.stat.size) !== plan.sizeBytes ||
+              observed.contentFingerprint !== plan.contentFingerprint) {
+            fail('CLEAN_ARCA_STAGE_COPY_VERIFY',
+              'Staged Inventory bytes failed verification.');
+          }
+          await fs.promises.rename(temporary, target);
+        } catch (error) {
+          await fs.promises.rm(temporary, { force:true }).catch(() => undefined);
+          throw error;
         }
-        fs.renameSync(temporary, target);
       }
       const observed = finalExact
         ? finalExisting : computeBoundedMaterialFingerprintSync(target);
