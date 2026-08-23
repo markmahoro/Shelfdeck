@@ -542,6 +542,12 @@ function createLibraIntakeRepositoryDefinitions(schemaManifest) {
         ],
         keyColumns: ["intake_decision_id"],
       },
+      list_receipt_ids: {
+        kind: "select-all",
+        tableId: "libra_handoff_a_receipts",
+        columns: ["intake_decision_id"],
+        keyColumns: [],
+      },
     },
   });
   return Object.freeze({
@@ -653,6 +659,15 @@ function createLibraIntakeStore(options) {
             .repository(repositories.intake.repositoryId)
             .invoke("find_receipt", { intake_decision_id: intakeDecisionId }) ||
           null,
+      );
+    },
+    listTerminalIntakeDecisionIds() {
+      return execute([repositories.intake], (context) =>
+        context
+          .repository(repositories.intake.repositoryId)
+          .invoke("list_receipt_ids")
+          .map((row) => row.intake_decision_id)
+          .sort(),
       );
     },
     listSubjectClaims(subjectId) {

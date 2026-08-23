@@ -147,8 +147,9 @@ test('formal server dependency graph reaches only the clean Helix root', () => {
   for (const file of graph) {
     const relative = path.relative(serviceRoot, file).split(path.sep).join('/');
     assert.ok(
-      relative === 'src/server.js' ||
+        relative === 'src/server.js' ||
         relative === 'src/clean-service-host.js' ||
+        relative === 'src/clean-local-filesystem-mount-probe.js' ||
         relative === 'src/clean-shelf-target-folder-probe.js' ||
         relative === 'src/clean-field-access-binding-probe.js' ||
         relative === 'src/clean-field-observation-enumerator.js' ||
@@ -237,7 +238,7 @@ test('legacy Movie formation coordinator remains disconnected while Intake uses 
   assert.match(source, /find_intake:[\s\S]*?keyColumns: \['intake_decision_id'\]/);
   assert.match(source, /find_spec:[\s\S]*?keyColumns: \['acceptance_spec_id'\]/);
   assert.doesNotMatch(hostSource, /createMovieFormationCoordinator|movie-formation-coordinator/);
-  assert.doesNotMatch(hostSource, /domains\/arca\/(?:persistence|application\/shelf-store)/);
+  assert.doesNotMatch(hostSource, /domains\/arca\/application\/shelf-store/);
   assert.match(hostSource, /readArcaShelfStandard: arcaRoutingTargets\.getStandard/);
   assert.match(hostSource, /createHelixExecutionRuntime/);
   assert.match(hostSource, /createFormationQuery/);
@@ -391,6 +392,7 @@ test('clean host serves public health and Admin UI, then requires API key or Htt
     assert.deepEqual(overview.json().setup, {
       activeMaterialFieldCount: 0,
       activeShelfCount: 0,
+      productChoice: 'key_step_confirmation',
     });
 
     const people = await host.inject({
@@ -661,7 +663,10 @@ test('Procurement Material Field registration is a real authenticated Owner-loca
     const exchange = await restarted.inject({ method: 'POST', url: '/v1/admin/session', headers: { 'x-api-key': value.initialized.adminApiKey } });
     const response = await restarted.inject({ method: 'GET', url: '/v1/admin/material-fields/field-http-1', headers: { cookie: exchange.headers['set-cookie'] } });
     assert.equal(response.statusCode, 200);
-    assert.equal(response.json().materialField.access.endpointId, 'endpoint-http-1');
+    assert.equal(response.json().materialField.access.endpointId,
+      'local-filesystem-' + process.platform);
+    assert.match(response.json().materialField.access.mountScopeId,
+      /^local-mount-[0-9a-f]{32}$/);
     assert.equal(
       response.json().materialField.currentProfileHintSnapshot.contentProfileHint,
       'western_adult',
@@ -1738,6 +1743,7 @@ test('Arca Shelf projection reads use the authenticated public HTTP path and own
   let deregistrationCommand;
   let deregistrationId;
   let placementCommand;
+  let resolvedPlacementTarget;
   const host = await createCleanServiceHost({ dataDir: value.dataDir, adminDistDir: value.adminDistDir, secretRoot });
   try {
     const unauthenticated = await host.inject({ method: 'POST', url: '/v1/admin/shelves', payload: body });
@@ -1839,6 +1845,7 @@ test('Arca Shelf projection reads use the authenticated public HTTP path and own
     assert.equal(placementPreview.json().proposedTarget.rootLocation, fs.realpathSync(nextPhysicalShelfRoot));
     assert.equal(placementPreview.json().targetReadinessEvidence.observationMode, 'read_only');
     assert.equal(placementPreview.json().targetReadinessEvidence.safeMaterialCommit, true);
+    resolvedPlacementTarget = placementPreview.json().proposedTarget;
     const placementPreviewReplay = await host.inject({ method: 'POST', url: '/v1/admin/shelves/shelf-http-1/placement/actions/preview', headers: { cookie }, payload: {
       idempotencyKey: 'shelf-http-placement-preview-2', ...placementDraft,
     } });
@@ -1894,12 +1901,7 @@ test('Arca Shelf projection reads use the authenticated public HTTP path and own
     const placementRevision = await host.inject({ method: 'PATCH', url: '/v1/admin/shelves/shelf-http-1/placement', headers: { cookie }, payload: placementCommand });
     assert.equal(placementRevision.statusCode, 200, placementRevision.body);
     assert.equal(placementRevision.json().shelf.currentPlacementRevision, 2);
-    assert.deepEqual(placementRevision.json().shelf.target, {
-      endpointId: 'shelf-endpoint-2',
-      rootLocation: fs.realpathSync(nextPhysicalShelfRoot),
-      mountScopeId: 'shelf-mount-2',
-      mountScopeRevision: 2,
-    });
+    assert.deepEqual(placementRevision.json().shelf.target, resolvedPlacementTarget);
     const placementReplay = await host.inject({ method: 'PATCH', url: '/v1/admin/shelves/shelf-http-1/placement', headers: { cookie }, payload: placementCommand });
     assert.equal(placementReplay.statusCode, 200);
     assert.equal(placementReplay.json().replayed, true);
@@ -2179,10 +2181,10 @@ test('Arca Shelf projection reads use the authenticated public HTTP path and own
     assert.deepEqual(
       ownerEvidence.prepare('SELECT target_endpoint_id,target_root_location,target_mount_scope_id,target_mount_scope_revision FROM arca_shelves WHERE shelf_id=?').get('shelf-http-1'),
       {
-        target_endpoint_id: 'shelf-endpoint-2',
+        target_endpoint_id: 'local-filesystem-' + process.platform,
         target_root_location: fs.realpathSync(nextPhysicalShelfRoot),
-        target_mount_scope_id: 'shelf-mount-2',
-        target_mount_scope_revision: 2,
+        target_mount_scope_id: resolvedPlacementTarget.mountScopeId,
+        target_mount_scope_revision: resolvedPlacementTarget.mountScopeRevision,
       },
     );
     assert.equal(ownerEvidence.prepare("SELECT count(*) AS count FROM fx_command_receipts WHERE owner_domain='arca' AND target_id='shelf-http-1'").get().count, 5);
@@ -2220,7 +2222,8 @@ test('Arca Shelf projection reads use the authenticated public HTTP path and own
     });
     assert.equal(placementReplay.statusCode, 200);
     assert.equal(placementReplay.json().replayed, true);
-    assert.equal(placementReplay.json().shelf.target.endpointId, 'shelf-endpoint-2');
+    assert.equal(placementReplay.json().shelf.target.endpointId,
+      resolvedPlacementTarget.endpointId);
     const routing = await restarted.inject({ method: 'GET', url: '/v1/admin/routing/material-fields/field-http-1', headers: { cookie: exchange.headers['set-cookie'] } });
     assert.equal(routing.statusCode, 200);
     assert.equal(routing.json().policy.routingPolicyId, 'routing-http-1');

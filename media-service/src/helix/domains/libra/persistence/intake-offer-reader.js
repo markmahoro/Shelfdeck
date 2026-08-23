@@ -32,7 +32,7 @@ function createIntakeOfferReader(options) {
   }
   const repository=definition(options.schemaManifest);
   const completionReader=options.intakeCompletionReader||createLibraIntakeStore(options);
-  if(typeof completionReader.getReceipt!=='function')fail('P14_INTAKE_COMPLETION_READER_INVALID','Intake completion reader must expose getReceipt.');
+  if(typeof completionReader.listTerminalIntakeDecisionIds!=='function')fail('P14_INTAKE_COMPLETION_READER_INVALID','Intake completion reader must expose terminal Intake Decision identities.');
   const sourceByProcessId=new Map();
   let orderedProcessIds=null;
   let durableIndexLoaded=false;
@@ -55,12 +55,13 @@ function createIntakeOfferReader(options) {
     }
     return Object.freeze({processId,offer:item.offer,messageId:item.row?.message_id||null,dedupKey:item.row?.dedup_key||null,snapshot:delivery.snapshot});
   }
-  function rebuild(){const next=new Map();for(const item of list().map(envelope)){const processId=decisionId(item.offer.offerId);
+  function terminalIds(){return new Set(completionReader.listTerminalIntakeDecisionIds());}
+  function rebuild(){const next=new Map(),terminal=terminalIds();for(const item of list().map(envelope)){const processId=decisionId(item.offer.offerId);
       // Receipt is Libra's durable terminal Intake fact.  A Decision without
       // a Receipt remains pending so a crash between decision and commit is
       // still recovered; historical terminal Offers never reopen Delivery or
       // WorkAdmission during the fallback sweep.
-      if(completionReader.getReceipt(processId))continue;
+      if(terminal.has(processId))continue;
       if(next.has(processId))fail('P14_INTAKE_PROCESS_OFFER_CONFLICT','One Intake technical process resolves multiple Offers.',{processId});
       next.set(processId,source(item));}
     sourceByProcessId.clear();for(const [processId,value] of next)sourceByProcessId.set(processId,value);
@@ -74,7 +75,7 @@ function createIntakeOfferReader(options) {
   }
   function read(processId){if(!sourceByProcessId.has(processId))rebuild();return sourceByProcessId.get(processId)||null;}
   function listProcessPage(cursor,limit=100){if(!durableIndexLoaded)rebuild();
-    if(orderedProcessIds===null)orderedProcessIds=Object.freeze([...sourceByProcessId.keys()].sort());const ids=orderedProcessIds;
+    if(orderedProcessIds===null)orderedProcessIds=Object.freeze([...sourceByProcessId.keys()].sort());const terminal=terminalIds(),ids=orderedProcessIds.filter((id)=>!terminal.has(id));
     const start=cursor?ids.findIndex((item)=>item>cursor):0;const offset=start<0?ids.length:start;
     const items=ids.slice(offset,offset+limit).map((processId)=>Object.freeze({processId}));
     return Object.freeze({items,nextCursor:offset+items.length<ids.length?items.at(-1).processId:null});

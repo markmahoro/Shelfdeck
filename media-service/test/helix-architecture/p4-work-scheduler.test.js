@@ -31,9 +31,6 @@ function fixture(run) {
     event: { kind: 'insert', tableId: 'fx_workflow_events', columns: [
       'event_id', 'plan_id', 'node_id', 'work_id', 'owner_domain', 'priority_class', 'state', 'ready_at_ms', 'retry_at_ms'
     ] },
-    event_attempt: { kind: 'insert', tableId: 'fx_event_attempts', columns: [
-      'event_attempt_id', 'event_id', 'ordinal', 'state', 'started_at_ms'
-    ] },
     edge: { kind: 'insert', tableId: 'fx_plan_edges', columns: ['plan_id', 'from_node_id', 'to_node_id', 'dependency_kind'] }
   } });
   const projections = new Map();
@@ -127,8 +124,8 @@ test('resource wait does not invert below the waiting Event while same-priority 
   });
 });
 
-test('one due background Event gets bounded progress unless a reserved Event is runnable', () => {
-  fixture(({ scheduler, seedRows, projections }) => {
+test('one due background Event gets bounded progress without starving ordinary or reserved work', () => {
+  fixture(({ scheduler, seedRows, projections, setNow }) => {
     seedRows((repository) => {
       addEventGraph(repository, projections, 'background', { priorityClass:'background_observation', readyAtMs:100000 });
       addEventGraph(repository, projections, 'normal', { readyAtMs:179000 });
@@ -136,6 +133,14 @@ test('one due background Event gets bounded progress unless a reserved Event is 
     const minimum=scheduler.acquire({targetType:'event'});
     assert.equal(minimum.lease.targetId,'event-background');
     assert.equal(minimum.priorityClass,'background_observation');
+    assert.equal(minimum.lane,'minimum_background');
+    assert.equal(scheduler.noteDispatchOutcome(minimum.lease,{kind:'started'}).recorded,true);
+    scheduler.release(minimum.lease);
+    const ordinary=scheduler.acquire({targetType:'event'});
+    assert.equal(ordinary.lease.targetId,'event-normal');
+    scheduler.release(ordinary.lease);
+    setNow(240000);
+    assert.equal(scheduler.acquire({targetType:'event'}).lease.targetId,'event-background');
   });
   fixture(({ scheduler, seedRows, projections }) => {
     seedRows((repository) => {
@@ -148,9 +153,20 @@ test('one due background Event gets bounded progress unless a reserved Event is 
     seedRows((repository) => {
       addEventGraph(repository, projections, 'background', { priorityClass:'background_observation', readyAtMs:100000 });
       addEventGraph(repository, projections, 'normal', { readyAtMs:179000 });
-      repository.invoke('event_attempt',{event_attempt_id:'attempt-background-done',event_id:'event-background',ordinal:1,state:'completed',started_at_ms:179500});
     });
+    const blocked=scheduler.acquire({targetType:'event'});
+    assert.equal(blocked.lease.targetId,'event-background');
+    assert.equal(scheduler.noteDispatchOutcome(blocked.lease,{kind:'resource_wait'}).recorded,true);
+    scheduler.release(blocked.lease);
     assert.equal(scheduler.acquire({targetType:'event'}).lease.targetId,'event-normal');
+  });
+  fixture(({ scheduler, seedRows, projections }) => {
+    seedRows((repository) => {
+      addEventGraph(repository, projections, 'background', { priorityClass:'background_observation', readyAtMs:100000 });
+      addEventGraph(repository, projections, 'safety-fenced', { priorityClass:'safety_liveness', readyAtMs:100000,
+        eventState:'waiting_for_resource', retryAtMs:180100 });
+    });
+    assert.equal(scheduler.acquire({targetType:'event'}).kind,'idle');
   });
 });
 

@@ -270,14 +270,13 @@ function extension(location) {
     : name.slice(index).replace(/[A-Z]/g, (character) => character.toLowerCase());
 }
 
-function selectionSnapshot(repo, runs, material) {
+function selectionSnapshot(runMaterialByKey, runs, material) {
   const activeSelections = runs
     .filter((run) => ['active', 'waiting'].includes(run.state))
     .map((run) => {
-      const selected = repo.invoke('find_run_material', {
-        procurement_run_id: run.procurement_run_id,
-        material_key: material.material_key,
-      });
+      const selected = runMaterialByKey.get(
+        run.procurement_run_id + '\u0000' + material.material_key,
+      );
       return selected &&
         ['run_selection', 'candidate_delivery'].includes(selected.selection_state) && {
           procurementRunId: run.procurement_run_id,
@@ -377,6 +376,19 @@ function readOwnerSnapshot(options, repository, observation, rule) {
       const runs = repo.invoke('list_runs', {
         field_id: observation.fieldId,
       });
+      const runMaterialByKey = new Map();
+      for (const run of runs.filter((item) => ['active', 'waiting'].includes(item.state))) {
+        for (const material of materials) {
+          const selected = repo.invoke('find_run_material', {
+            procurement_run_id: run.procurement_run_id,
+            material_key: material.material_key,
+          });
+          if (selected) runMaterialByKey.set(
+            run.procurement_run_id + '\u0000' + material.material_key,
+            selected,
+          );
+        }
+      }
       const appearedInTerminalWork = new Map(materials.map((material) => {
         const lastObservation = repo.invoke('find_observation_id', {
           observation_id: material.last_observation_id,
@@ -398,6 +410,7 @@ function readOwnerSnapshot(options, repository, observation, rule) {
         existingRun,
         materials: Object.freeze(materials),
         runs: Object.freeze(runs),
+        runMaterialByKey,
         appearedInTerminalWork,
       });
     },
@@ -489,7 +502,7 @@ function eligibilityDecisions(snapshot, controls, materials = snapshot.materials
       observedExtension: extension(relative),
       extractionPolicy: policy,
       selectionSnapshot: selectionSnapshot(
-        snapshot.repository,
+        snapshot.runMaterialByKey,
         snapshot.runs,
         material,
       ),
@@ -748,8 +761,7 @@ function createProcurementAutomationService(options) {
   const rule = activeTriageRule(options.triageRegistry);
 
   function snapshot(observation) {
-    const value = readOwnerSnapshot(options, repository, observation, rule);
-    return Object.freeze({ ...value, repository });
+    return readOwnerSnapshot(options, repository, observation, rule);
   }
 
   function recoverExisting(runSnapshot) {

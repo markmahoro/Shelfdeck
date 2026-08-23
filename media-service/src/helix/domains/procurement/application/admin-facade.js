@@ -192,13 +192,27 @@ function createProcurementAdminApplication(options) {
     }
   };
   const probeFieldAccess = (access, policyValue) => {
-    if (typeof options.probeFieldAccess !== 'function' || !access) return;
-    options.probeFieldAccess({
+    if (typeof options.probeFieldAccess !== 'function' || !access) return access;
+    const observed = options.probeFieldAccess({
       fieldId: access.fieldId,
       rootLocation: access.rootLocation,
       includedDirectories: policyValue?.includedDirectories || [],
       excludedDirectories: policyValue?.excludedDirectories || [],
     });
+    if (!observed?.endpointId || !observed?.rootLocation ||
+        !observed?.mountScopeId || !Number.isSafeInteger(observed?.mountScopeRevision)) {
+      return access;
+    }
+    const basis = {
+      fieldId: access.fieldId,
+      revision: access.revision,
+      endpointId: observed.endpointId,
+      rootLocation: observed.rootLocation,
+      mountScopeId: observed.mountScopeId,
+      mountScopeRevision: observed.mountScopeRevision,
+      accessSchemaRef: access.accessSchemaRef,
+    };
+    return Object.freeze({ ...basis, accessDigest: canonicalDigest(basis) });
   };
   const fieldStatus = createProcurementFieldStatusQuery({
     ...options,
@@ -216,15 +230,17 @@ function createProcurementAdminApplication(options) {
   const commands = procurementPublic.ProcurementCommandFacade({
     registerMaterialField: (envelope) => {
       assertLocationAvailable(envelope?.input?.access?.rootLocation);
-      probeFieldAccess(envelope?.input?.access, envelope?.input?.policy?.policy);
-      return store.commitAdminCommand({ operation: 'register', ...envelope });
+      const access = probeFieldAccess(envelope?.input?.access, envelope?.input?.policy?.policy);
+      return store.commitAdminCommand({ operation: 'register', ...envelope,
+        input: { ...envelope.input, access } });
     },
     updateMaterialField: (envelope) => {
       if (envelope?.input?.operation === 'revise_access') {
         const { operation, ...revision } = envelope.input;
         assertLocationAvailable(revision?.access?.rootLocation);
-        probeFieldAccess(revision?.access, null);
-        return store.commitAdminCommand({ operation: 'revise_access', idempotencyKey: envelope.idempotencyKey, input: revision, actorId: envelope.actorId });
+        const access = probeFieldAccess(revision?.access, null);
+        return store.commitAdminCommand({ operation: 'revise_access', idempotencyKey: envelope.idempotencyKey,
+          input: { ...revision, access }, actorId: envelope.actorId });
       }
       if (envelope?.input?.operation === 'revise_profile_hint') {
         const { operation, ...revision } = envelope.input;

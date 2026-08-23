@@ -1,5 +1,5 @@
 import { FormEvent, useCallback, useEffect, useState } from 'react';
-import { helixAdminApi, type IntegrationState, type PerceptionRecord } from './api';
+import { helixAdminApi, type IntegrationState, type PerceptionRecord, type PerceptionSyncState } from './api';
 import AutomaticOperationPanel from './AutomaticOperationPanel';
 import { Button, LoadingState, PageHeader } from './chrome';
 import { labelOf, recordKindLabels, resolutionLabels } from './labels';
@@ -47,7 +47,7 @@ export default function SettingsPage() {
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [ratingsLoaded, setRatingsLoaded] = useState(false);
-  const [syncState, setSyncState] = useState<{ latest: { state?: string; createdAtMs?: number; terminalAtMs?: number | null } | null; activeCount: number } | null>(null);
+  const [syncState, setSyncState] = useState<PerceptionSyncState | null>(null);
 
   const fail = useCallback((cause: unknown, fallback: string) => {
     if (isUnauthorized(cause)) expire();
@@ -197,7 +197,13 @@ export default function SettingsPage() {
         <div className="settings-card-body">
           {integration?.configured ? <>
             <dl className="settings-facts"><div><dt>账号</dt><dd>{integration.lastTestSummary?.identityProviderKey || '已验证'}</dd></div></dl>
-            <small>{syncState?.activeCount ? '正在从豆瓣拉取收藏评分。' : '同步会去豆瓣拉收藏；系统也会按天自动再拉一轮。'}</small>
+            <small>{syncState?.completionState==='incomplete'
+              ? `上次同步未完成，已保存 ${syncState.recordCount} 条评分；再次同步会从上次成功位置继续。`
+              : syncState?.activeCount
+                ? `正在从豆瓣拉取收藏评分，已保存 ${syncState.recordCount} 条。`
+                : syncState?.completionState==='complete'
+                  ? `最近一次同步已完整结束，共保存 ${syncState.recordCount} 条评分。`
+                  : '同步会去豆瓣拉收藏；系统也会按天自动再拉一轮。'}</small>
             <div className="settings-card-actions"><Button variant="primary" type="button" onClick={() => void sync()} disabled={loading || (syncState?.activeCount || 0) > 0}>{syncState?.activeCount ? '正在同步…' : '同步'}</Button><Button variant="danger" type="button" onClick={() => void disconnect()} disabled={loading}>断开</Button></div>
           </> : <form className="source-form" onSubmit={connect}>
             <div className="source-form-grid">

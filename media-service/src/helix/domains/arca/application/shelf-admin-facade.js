@@ -239,18 +239,18 @@ function createArcaShelfAdminApplication(options) {
     },
     revisePlacement(shelfId, body) {
       return invoke(() => {
-        const envelope = placementEnvelope(shelfId, body);
+        const envelope = placementRequest(placementEnvelope(shelfId, body), shelfId);
         const replay = store.preflightPlacementCommand(envelope, 'revise_placement');
         if (replay) return replay;
-        return store.revisePlacement(placementRequest(envelope, shelfId));
+        return store.revisePlacement(envelope);
       });
     },
     previewPlacement(shelfId, body) {
       return invoke(() => {
-        const envelope = placementEnvelope(shelfId, body);
+        const envelope = placementRequest(placementEnvelope(shelfId, body), shelfId);
         const replay = store.preflightPlacementCommand(envelope, 'placement_preview');
         if (replay) return replay;
-        return store.previewPlacement(placementRequest(envelope, shelfId));
+        return store.previewPlacement(envelope);
       });
     },
     deregisterShelf(shelfId, body) {

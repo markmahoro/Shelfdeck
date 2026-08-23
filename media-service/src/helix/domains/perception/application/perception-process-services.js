@@ -51,8 +51,7 @@ function createPerceptionProcessServices(options){
     }return current;}
   function start(input){const existing=store.getAcquisition(input.acquisitionId);if(existing)return existing;const source=ensureSource(input);
     const scope=freeze(input.scope);return store.startAcquisition({perceptionAcquisitionId:input.acquisitionId,perceptionSourceId:source.perceptionSourceId,
-      sourceConfigRevision:source.configRevision,scopeSchemaRef:'helix://contracts/types/PerceptionAcquisitionScope/v1',scope,scopeDigest:canonicalDigest(scope),
-      initialCursorRevision:source.currentCursorRevision||0,initialCursorValue:null});}
+      sourceConfigRevision:source.configRevision,scopeSchemaRef:'helix://contracts/types/PerceptionAcquisitionScope/v1',scope,scopeDigest:canonicalDigest(scope)});}
   function acquisitionContext(acquisitionId){const acquisition=store.getAcquisition(acquisitionId);if(!acquisition)return null;const source=store.getSource(acquisition.perceptionSourceId);
     const pageOrdinal=(source.currentCursorRevision||0)-acquisition.initialCursorRevision;const prior=(source.currentCursorRevision||0)>acquisition.initialCursorRevision?store.getCursor(source.perceptionSourceId,source.currentCursorRevision):null;
     return freeze({acquisition,source,scope:JSON.parse(acquisition.scopeJson),pageOrdinal,expectedCursorRevision:source.currentCursorRevision||0,cursorIn:prior?.cursorOut||acquisition.initialCursorValue});}
@@ -81,8 +80,16 @@ function createPerceptionProcessServices(options){
     const operation=reconcileAcquisition(acquisitionId);return freeze({operationRef:acquisitionId,state:'accepted',targetType:command.targetType,targetId:command.targetId,expectedResultRevision:revision,workId:operation.workId});}
   function requestAcquisition(command){const config=options.readDoubanSourceConfiguration?.();if(!config)throw Object.assign(new Error('Douban integration is not configured.'),{code:'PERCEPTION_DOUBAN_NOT_CONFIGURED'});
     const idempotencyKey=command?.idempotencyKey;if(typeof idempotencyKey!=='string'||!idempotencyKey)throw Object.assign(new Error('Douban sync requires idempotencyKey.'),{code:'PERCEPTION_ACQUISITION_COMMAND_INVALID'});
-    const acquisitionId=stable('perception-douban-acquisition-',{sourceId:config.sourceId,idempotencyKey});start({acquisitionId,sourceId:config.sourceId,sourceKind:'douban',integrationId:config.integrationId,configRevision:config.configRevision,
-      scope:freeze({mode:'provider',collection:'watched_movies',sourceId:config.sourceId,idempotencyKey})});const operation=reconcileAcquisition(acquisitionId);
+    const acquisitionId=stable('perception-douban-acquisition-',{sourceId:config.sourceId,idempotencyKey});
+    const existing=store.getAcquisition(acquisitionId);let scope;
+    if(existing)scope=JSON.parse(existing.scopeJson);
+    else {const source=store.getSource(config.sourceId),head=source?.currentCursorRevision?store.getCursor(config.sourceId,source.currentCursorRevision):null,
+      headAcquisition=head?store.getAcquisition(head.perceptionAcquisitionId):null;
+      scope=head?.hasMore&&headAcquisition?.state==='failed'&&headAcquisition.sourceConfigRevision===config.configRevision
+        ? JSON.parse(headAcquisition.scopeJson)
+        : freeze({mode:'provider',collection:'watched_movies',sourceId:config.sourceId,
+          acquisitionWindow:freeze({kind:'full_snapshot',openedAtMs:now()})});}
+    start({acquisitionId,sourceId:config.sourceId,sourceKind:'douban',integrationId:config.integrationId,configRevision:config.configRevision,scope});const operation=reconcileAcquisition(acquisitionId);
     return freeze({operationRef:acquisitionId,state:'accepted',sourceKind:'douban',workId:operation.workId});}
   function resolutionContext(targetType,targetId){const snapshot=target(targetType,targetId),query=queryFor(snapshot),handle=queryHandle(query,now(),targetType==='shelf_entry'?'arca':'libra'),assembled=assembler.assemble({queryHandle:handle,ruleSnapshot});return freeze({target:snapshot,queryHandle:handle,...assembled});}
   function ensureResolution(targetType,targetId){const context=resolutionContext(targetType,targetId),existing=store.getResolution(context.query.queryContract,context.query.queryInputDigest);
@@ -119,9 +126,19 @@ function createPerceptionProcessServices(options){
     now, readDoubanSourceConfiguration: options.readDoubanSourceConfiguration,
     listAcquisitions: () => store.listAcquisitions(), requestAcquisition,
   });
+  function syncState(){const config=options.readDoubanSourceConfiguration?.();if(!config)return freeze({latest:null,activeCount:0,
+    completionState:'not_started',lastCursorOut:null,cursorRevision:0,committedPageCount:0,recordCount:0});
+    const items=store.listAcquisitions().filter((item)=>item.perceptionSourceId===config.sourceId),latest=items[0]||null,
+      activeCount=items.filter((item)=>item.state==='active').length,source=store.getSource(config.sourceId),
+      cursor=source?.currentCursorRevision?store.getCursor(config.sourceId,source.currentCursorRevision):null,
+      latestCursor=cursor?.perceptionAcquisitionId===latest?.perceptionAcquisitionId?cursor:null;
+    const completionState=!latest?'not_started':activeCount>0?'in_progress':latest.state==='completed'&&!latestCursor?.hasMore?'complete':'incomplete';
+    return freeze({latest,activeCount,completionState,lastCursorOut:latestCursor?.cursorOut||latest?.initialCursorValue||null,
+      cursorRevision:source?.currentCursorRevision||0,committedPageCount:latest?Math.max(0,(source?.currentCursorRevision||0)-latest.initialCursorRevision):0,
+      recordCount:store.countRecordsForSource(config.sourceId)});}
   return Object.freeze({store,ruleSnapshot,acquisitionContext,resolutionContext,reconcileAcquisition,reconcileResolution,reconcileImpactedSubjectResolutions,createRecord,requestAcquisition,ensureResolution,resolveDecisionFact,
     readCurrentRating,readCurrentRatings,listRecords:(query)=>store.listRecords(query),listAcquisitions:()=>store.listAcquisitions(),
-    periodicAcquisition});
+    syncState,periodicAcquisition});
 }
 
 module.exports=Object.freeze({createPerceptionProcessServices,queryFor,queryHandle,directSourceId,RESOLUTION_INPUT_CONTRACT_REPAIR_CODE});

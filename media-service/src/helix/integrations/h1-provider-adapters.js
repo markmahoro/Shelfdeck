@@ -31,6 +31,7 @@ const EXTERNAL_VIDEO_EXTENSIONS = new Set([
   '.mts', '.ts', '.webm', '.wmv',
 ]);
 const PROVIDER_ERROR = 'P5_PROVIDER_TRANSPORT_FAILED';
+const DOUBAN_REQUEST_PACE_MS = 800;
 
 function endpointRelativeLocation(binding, providerLocation) {
   if (typeof providerLocation !== 'string' || providerLocation.length < 1 ||
@@ -736,6 +737,16 @@ function createProtocolTransport(profile, options) {
     });
   }
 
+  const doubanRequestPaceMs = Number.isSafeInteger(options.doubanRequestPaceMs)
+    ? Math.max(0, Math.min(60_000, options.doubanRequestPaceMs))
+    : DOUBAN_REQUEST_PACE_MS;
+  const doubanDelay = typeof options.doubanDelay === 'function'
+    ? options.doubanDelay
+    : (delayMs) => new Promise((resolve) => setTimeout(resolve, delayMs));
+  const paceDoubanRequest = () => doubanRequestPaceMs > 0
+    ? doubanDelay(doubanRequestPaceMs)
+    : Promise.resolve();
+
   async function doubanObservation(request, state) {
     const sourceId = request.input.sourceRef.objectId;
     const configuredUserId =
@@ -759,6 +770,7 @@ function createProtocolTransport(profile, options) {
       'people/' + encodeURIComponent(sourceId) +
         '/collect?start=' + cursor + '&mode=grid&type=movie&sort=time',
     );
+    await paceDoubanRequest();
     const page = await fetchBytes(fetchImpl, url, {
       headers: {
         accept: 'text/html',
@@ -825,6 +837,7 @@ function createProtocolTransport(profile, options) {
       if (year === null && detailRequests < 16) {
         detailRequests += 1;
         const detailUrl = endpointUrl(state.endpoint, 'subject/' + encodeURIComponent(draft.providerKey) + '/');
+        await paceDoubanRequest();
         const detailPage = await fetchBytes(fetchImpl, detailUrl, {
           headers: { accept:'text/html', cookie:request.secretBytes.toString('utf8'), 'user-agent':'ShelfDeck/1.0' },
           signal: AbortSignal.timeout(request.timeoutMs),

@@ -225,6 +225,8 @@ function createProcurementExecutionRuntime(options) {
   const retryPolicies = [
     { ref: 'helix://foundation/retry/pure-observation/v1', effectClass: 'pure_observation', maxFailureAttempts: 3,
       backoffMs: [1000, 5000], retryableFailureClasses: ['integration', 'timeout'] },
+    { ref: 'helix://foundation/retry/perception-provider-observation/v1', effectClass: 'pure_observation', maxFailureAttempts: 3,
+      backoffMs: [30_000, 120_000], retryableFailureClasses: ['integration', 'timeout'] },
     { ref: 'helix://foundation/retry/domain-fact-commit/v1', effectClass: 'domain_fact_commit', maxFailureAttempts: 1,
       backoffMs: [], retryableFailureClasses: [] },
     { ref: 'helix://foundation/retry/responsibility-control-commit/v1', effectClass: 'responsibility_control_commit', maxFailureAttempts: 1,
@@ -255,12 +257,13 @@ function createProcurementExecutionRuntime(options) {
   const policyRegistry = createExecutionPolicyRegistry({ expectedCapabilityRefs: ENABLED, retryPolicies, timeoutPolicies,
     compensationContracts: [], capabilityBindings: ENABLED.map((capabilityRef) => ({ capabilityRef,
       effectClass: manifests[capabilityRef].effectClass,
-      retryPolicyRef: manifests[capabilityRef].effectClass === 'pure_observation' ? retryPolicies[0].ref :
-          manifests[capabilityRef].effectClass === 'responsibility_control_commit' ? retryPolicies[2].ref :
-          manifests[capabilityRef].effectClass === 'workspace_write' ? retryPolicies[3].ref :
-          manifests[capabilityRef].effectClass === 'external_request' ? retryPolicies[4].ref :
-          manifests[capabilityRef].effectClass === 'material_commit' ? retryPolicies[5].ref :
-          manifests[capabilityRef].effectClass === 'destructive_commit' ? retryPolicies[6].ref : retryPolicies[1].ref,
+      retryPolicyRef: capabilityRef === 'perception.source.acquire@1' ? retryPolicies[1].ref :
+          manifests[capabilityRef].effectClass === 'pure_observation' ? retryPolicies[0].ref :
+          manifests[capabilityRef].effectClass === 'responsibility_control_commit' ? retryPolicies[3].ref :
+          manifests[capabilityRef].effectClass === 'workspace_write' ? retryPolicies[4].ref :
+          manifests[capabilityRef].effectClass === 'external_request' ? retryPolicies[5].ref :
+          manifests[capabilityRef].effectClass === 'material_commit' ? retryPolicies[6].ref :
+          manifests[capabilityRef].effectClass === 'destructive_commit' ? retryPolicies[7].ref : retryPolicies[2].ref,
       timeoutPolicyRef: timeoutPolicyFor(capabilityRef), compensationContractRefs: [] })) });
   let libraProcessServices;
   const executionProjectionProvider=Object.freeze({read:({processType,processId,workKind})=>{
@@ -303,7 +306,8 @@ function createProcurementExecutionRuntime(options) {
     return mapper.capacityFor(resourceKey);
   }});
   const governor = createResourceGovernor({ schemaManifest: options.schemaManifest, unitOfWork: options.unitOfWork,
-    profileProvider: { current: () => activeMapper }, now, nextPermitId: () => 'permit-' + (++sequence) });
+    profileProvider: { current: () => activeMapper }, now, nextPermitId: () => 'permit-' + (++sequence),
+    onCapacityChanged:()=>host?.wake() });
   const breaker = createCircuitBreaker({ schemaManifest: options.schemaManifest, unitOfWork: options.unitOfWork });
   const executorIncidents = createExecutorIncidentRegistry({ schemaManifest:options.schemaManifest,
     unitOfWork:options.unitOfWork, circuitBreaker:breaker, now });

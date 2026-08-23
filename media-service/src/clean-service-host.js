@@ -97,6 +97,15 @@ const {
   createAdminCredentialRepository,
 } = require('./helix/platform/persistence/admin-credential-repository');
 const {
+  createLocationRegistryRepository,
+} = require('./helix/platform/persistence/location-registry-repository');
+const {
+  createLocalFilesystemMountScopeResolver,
+} = require('./helix/platform/application/local-filesystem-mount-scope-resolver');
+const {
+  createCleanLocalFilesystemMountProbe,
+} = require('./clean-local-filesystem-mount-probe');
+const {
   createCleanShelfTargetFolderProbe,
 } = require('./clean-shelf-target-folder-probe');
 const {
@@ -495,6 +504,8 @@ function createPlatformIntegrationServices(options) {
           runtime,
           fetchImpl: options.fetchImpl,
           now: options.now,
+          doubanRequestPaceMs: options.doubanRequestPaceMs,
+          doubanDelay: options.doubanDelay,
         });
     const admin = createIntegrationAdminApplication({
       profile,
@@ -1141,6 +1152,12 @@ async function createCleanServiceHost(options) {
   const materialFieldStore = createMaterialFieldStore(
     constructed.applicationDependencies,
   );
+  const localMountProbe = createCleanLocalFilesystemMountProbe();
+  const localMountScopeResolver = createLocalFilesystemMountScopeResolver({
+    repository: createLocationRegistryRepository(constructed.applicationDependencies),
+    inspectRoot: (rootLocation) => localMountProbe.inspectRoot(rootLocation),
+    now: options.now || Date.now,
+  });
   let platformIntegrations = null;
   let shelfDeregistrationExecution = null;
   let setupReadinessQuery = null;
@@ -1151,7 +1168,9 @@ async function createCleanServiceHost(options) {
     ...constructed.applicationDependencies,
     inputSettlementAuthorizationStore,
     readSetupReadiness: () => setupReadinessQuery.get(),
-    targetFolderProbe: createCleanShelfTargetFolderProbe(),
+    targetFolderProbe: createCleanShelfTargetFolderProbe({
+      mountScopeResolver: localMountScopeResolver,
+    }),
     assertLocationAvailable: (request) =>
       platformIntegrations?.assertExternalLandingRootAvailable(request),
     onDeregistrationIntent: (intent) => {
@@ -1171,6 +1190,8 @@ async function createCleanServiceHost(options) {
     secretRoot: options.secretRoot,
     now: options.now || Date.now,
     fetchImpl: options.integrationFetch,
+    doubanRequestPaceMs: options.doubanRequestPaceMs,
+    doubanDelay: options.doubanDelay,
     reservedRoots: () => [
       options.libraWorkspaceRoot ||
         path.join(options.dataDir, 'workspaces', 'libra'),
@@ -1462,7 +1483,7 @@ async function createCleanServiceHost(options) {
       return Object.freeze({...result,currentRating:procurementExecution.perception.readCurrentRating(query.targetType,query.targetId)}); },
     listAcquisitions() { return procurementExecution.perception.listAcquisitions(); },
     requestAcquisition(body) { const result=procurementExecution.perception.requestAcquisition(body); executionRuntimeHost.wake(); return result; },
-    syncState() { const items=procurementExecution.perception.listAcquisitions();return Object.freeze({latest:items[0]||null,activeCount:items.filter((item)=>item.state==='active').length}); },
+    syncState() { return procurementExecution.perception.syncState(); },
   });
   const fieldAccessProbe = createCleanFieldAccessBindingProbe();
   const procurementAdmin = createProcurementAdminApplication({
@@ -1471,8 +1492,40 @@ async function createCleanServiceHost(options) {
     executionRuntimeHost,
     assertLocationAvailable: (request) =>
       platformIntegrations.assertExternalLandingRootAvailable(request),
-    probeFieldAccess: (request) => fieldAccessProbe.inspect(request),
+    probeFieldAccess: (request) => Object.freeze({
+      ...fieldAccessProbe.inspect(request),
+      ...localMountScopeResolver.resolveRoot({ rootLocation: request.rootLocation }),
+    }),
   });
+  try {
+    for (const field of procurementAdmin.listMaterialFields().items
+      .filter((item) => item.status === 'active')) {
+      localMountScopeResolver.validateReference({
+        endpointId: field.access.endpointId,
+        rootLocation: field.access.rootLocation,
+        mountScopeId: field.access.mountScopeId,
+        mountScopeRevision: field.access.mountScopeRevision,
+        allowUnavailable: true,
+      });
+    }
+    for (const shelf of arcaShelfAdmin.listShelves().items
+      .filter((item) => item.status !== 'deregistered')) {
+      localMountScopeResolver.validateReference({
+        endpointId: shelf.target.endpointId,
+        rootLocation: shelf.target.rootLocation,
+        mountScopeId: shelf.target.mountScopeId,
+        mountScopeRevision: shelf.target.mountScopeRevision,
+        allowUnavailable: true,
+      });
+    }
+  } catch (error) {
+    constructed.close();
+    throw new CleanServiceHostError(
+      'HELIX_MOUNT_SCOPE_UNSAFE',
+      'Clean service refuses startup because a configured Field or Shelf Mount Scope is unsafe.',
+      { reasonCode: error.code || 'HELIX_MOUNT_SCOPE_UNSAFE' },
+    );
+  }
   const peopleAdminQuery = createPeopleAdminQuery({
     store: procurementExecution.people.store,
   });

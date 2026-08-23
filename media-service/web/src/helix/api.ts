@@ -290,6 +290,16 @@ export type PerceptionRecord = {
   recordDigest: string;
 };
 
+export type PerceptionSyncState = {
+  latest: { state?: string; createdAtMs?: number; terminalAtMs?: number | null } | null;
+  activeCount: number;
+  completionState: 'not_started' | 'in_progress' | 'complete' | 'incomplete';
+  lastCursorOut: string | null;
+  cursorRevision: number;
+  committedPageCount: number;
+  recordCount: number;
+};
+
 export type CollectionEntry = {
   shelfEntryId: string;
   shelfId: string;
@@ -638,7 +648,7 @@ export const helixAdminApi = {
     return request<{ operationRef: string; state: string }>('/v1/admin/perception/actions/sync', { method:'POST', body:JSON.stringify({ idempotencyKey:`douban-sync:${new Date().toISOString()}` }) });
   },
   getPerceptionSyncState() {
-    return request<{ latest: { state?: string; createdAtMs?: number; terminalAtMs?: number | null } | null; activeCount: number }>('/v1/admin/perception/sync-state');
+    return request<PerceptionSyncState>('/v1/admin/perception/sync-state');
   },
   getRoutingPolicy(fieldId: string) {
     return request<{ policy: RoutingPolicy | null }>(`/v1/admin/routing/material-fields/${encodeURIComponent(fieldId)}`);
@@ -873,19 +883,10 @@ export async function materialFieldRegistration(input: {
     excludedMaterialKeys: [],
   };
   const extractionPolicyId = `movie-policy-${input.fieldId}`;
-  const normalizedRoot = input.rootLocation.replace(/\\/g, '/').replace(/\/+$/, '');
-  const physicalRoot = /^[a-zA-Z]:\//.test(normalizedRoot) ? normalizedRoot.toLowerCase() : normalizedRoot;
-  const physicalScopeDigest = await canonicalDigest({
-    schema:'shelfdeck.local-filesystem-physical-scope@1',
-    rootLocation:physicalRoot,
-  });
   const access = {
     fieldId: input.fieldId,
     revision: 1,
-    endpointId: `local-fs-${physicalScopeDigest.slice(0, 32)}`,
     rootLocation: input.rootLocation,
-    mountScopeId: `local-mount-${physicalScopeDigest.slice(0, 32)}`,
-    mountScopeRevision: 1,
     accessSchemaRef: 'helix://shelfdeck/platform/local-filesystem-field-access/v1',
   };
   return {
@@ -900,6 +901,6 @@ export async function materialFieldRegistration(input: {
       policy,
       policyDigest: await canonicalDigest({ extractionPolicyId, revision: 1, ...policy }),
     },
-    access: { ...access, accessDigest: await canonicalDigest(access) },
+    access,
   };
 }

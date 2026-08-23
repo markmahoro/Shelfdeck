@@ -677,10 +677,12 @@ function createEventRuntime(options) {
         resourceRequestedAtMs = clock();
         const acquired = options.governor.acquire(demand);
         if (acquired.kind !== 'permitted') {
+          options.scheduler.noteDispatchOutcome?.(request.schedulerLease, Object.freeze({ kind:'resource_wait' }));
           options.scheduler.release(request.schedulerLease); schedulerReleased = true;
           return acquired;
         }
         permit = acquired.permit;
+        options.scheduler.noteDispatchOutcome?.(request.schedulerLease, Object.freeze({ kind:'started' }));
         const commitFence = options.fenceValidator.validate(Object.freeze({ phase: 'protected_effect', snapshot, inputs }));
         if (!commitFence || commitFence.valid !== true) {
           options.scheduler.release(request.schedulerLease); schedulerReleased = true;

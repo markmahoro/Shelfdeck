@@ -45,7 +45,7 @@ function start(store, overrides = {}) {
   return store.startAcquisition({
     perceptionAcquisitionId: 'acquisition-1', perceptionSourceId: 'source-1', sourceConfigRevision: 1,
     scopeSchemaRef: 'helix://contracts/types/PerceptionAcquisitionScope/v1', scope, scopeDigest: canonicalDigest(scope),
-    initialCursorRevision: 0, initialCursorValue: null, ...overrides, scope
+    ...overrides, scope
   });
 }
 
@@ -116,11 +116,85 @@ test('permits only one active Acquisition per Source and permits a new one after
     assert.equal(store.getAcquisition('acquisition-1').state, 'completed');
     const nextScope = { collection: 'ratings' };
     const next = start(store, {
-      perceptionAcquisitionId: 'acquisition-2', scope: nextScope, scopeDigest: canonicalDigest(nextScope),
-      initialCursorRevision: 1, initialCursorValue: null
+      perceptionAcquisitionId: 'acquisition-2', scope: nextScope, scopeDigest: canonicalDigest(nextScope)
     });
     assert.equal(next.initialCursorRevision, 1);
     assert.equal(next.initialCursorValue, null);
+  });
+});
+
+test('inherits a compatible persisted Source cursor after restart and resets only an incompatible scope', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'helix-perception-resume-'));
+  const databasePath = path.join(root, 'shelfdeck.db');
+  let now = 1_700_020_000_000;
+  const open = () => {
+    const kernel = openSqliteKernel({ Database, databasePath, schemaDdl, schemaManifest, now: () => now++ });
+    const unitOfWork = createSqliteUnitOfWork({ kernel });
+    return { kernel, unitOfWork, store:createPerceptionStore({ schemaManifest, unitOfWork }) };
+  };
+  const scope = { mode:'provider', collection:'watched_movies', sourceId:'source-1', acquisitionWindow:{ kind:'full_snapshot', openedAtMs:1 } };
+  let opened = open();
+  try {
+    register(opened.store);
+    start(opened.store, { scope, scopeDigest:canonicalDigest(scope) });
+    page(opened.store, { cursorOut:'435', hasMore:true });
+    opened.store.failAcquisition('acquisition-1');
+  } finally { opened.kernel.close(); }
+  opened = open();
+  try {
+    const services = createPerceptionProcessServices({ schemaManifest, unitOfWork:opened.unitOfWork,
+      perceptionStore:opened.store, now:() => now++,
+      readDoubanSourceConfiguration:() => ({ sourceId:'source-1', integrationId:'integration-douban', configRevision:1 }),
+      workResultReader:{ status:() => null },
+      targetProjectionReader:() => ({ title:'Example', year:1994, providerIdentity:null,
+        targetRevision:1, targetDigest:hash('target') }) });
+    assert.deepEqual(services.syncState(),{
+      latest:opened.store.getAcquisition('acquisition-1'),activeCount:0,completionState:'incomplete',lastCursorOut:'435',
+      cursorRevision:1,committedPageCount:1,recordCount:1,
+    });
+    const resumedRequest = services.requestAcquisition({ idempotencyKey:'restart-after-403' });
+    const resumed = opened.store.getAcquisition(resumedRequest.operationRef);
+    assert.equal(resumed.initialCursorRevision, 1);
+    assert.equal(resumed.initialCursorValue, '435');
+    assert.equal(resumed.scopeDigest, canonicalDigest(scope));
+    assert.equal(services.acquisitionContext(resumedRequest.operationRef).cursorIn, '435');
+    assert.equal(services.syncState().completionState,'in_progress');
+    opened.store.failAcquisition(resumedRequest.operationRef);
+    const changedScope = { ...scope, acquisitionWindow:{ kind:'full_snapshot', openedAtMs:2 } };
+    const reset = start(opened.store, { perceptionAcquisitionId:'acquisition-3', scope:changedScope, scopeDigest:canonicalDigest(changedScope) });
+    assert.equal(reset.initialCursorRevision, 1);
+    assert.equal(reset.initialCursorValue, null);
+    opened.store.failAcquisition('acquisition-3');
+    opened.store.reviseSource({ perceptionSourceId:'source-1', sourceKind:'douban',
+      integrationId:'integration-douban', status:'active', configRevision:2 }, 1);
+    const revised = start(opened.store, { perceptionAcquisitionId:'acquisition-4',
+      sourceConfigRevision:2, scope, scopeDigest:canonicalDigest(scope) });
+    assert.equal(revised.initialCursorRevision, 1);
+    assert.equal(revised.initialCursorValue, null);
+  } finally { opened.kernel.close(); fs.rmSync(root, { recursive:true, force:true }); }
+});
+
+test('provider retry reuses the failed stable scope without idempotency-key pollution', () => {
+  fixture(({ store, unitOfWork }) => {
+    const statuses = new Map(); let now = 1_700_030_000_000;
+    const services = createPerceptionProcessServices({ schemaManifest, unitOfWork, perceptionStore:store,
+      now:() => now++, readDoubanSourceConfiguration:() => ({ sourceId:'source-1', integrationId:'integration-douban', configRevision:1 }),
+      workResultReader:{ status:(workId) => statuses.get(workId) || null },
+      targetProjectionReader:() => ({ title:'Example', year:1994, providerIdentity:null, targetRevision:1, targetDigest:hash('target') }) });
+    const first = services.requestAcquisition({ idempotencyKey:'first-http-command' });
+    const firstAcquisition = store.getAcquisition(first.operationRef), scope = JSON.parse(firstAcquisition.scopeJson);
+    assert.equal(Object.hasOwn(scope, 'idempotencyKey'), false);
+    page(store, { perceptionAcquisitionId:first.operationRef, cursorOut:'435', hasMore:true });
+    const failingPage = services.reconcileAcquisition(first.operationRef);
+    statuses.set(failingPage.workId, { state:'failed', latestAttempt:{ failure_code:'P5_PROVIDER_TRANSPORT_FAILED' } });
+    services.reconcileAcquisition(first.operationRef);
+    const resumed = services.requestAcquisition({ idempotencyKey:'resume-after-403' });
+    const resumedAcquisition = store.getAcquisition(resumed.operationRef);
+    assert.equal(resumedAcquisition.scopeDigest, firstAcquisition.scopeDigest);
+    assert.equal(resumedAcquisition.initialCursorRevision, 1);
+    assert.equal(resumedAcquisition.initialCursorValue, '435');
+    assert.equal(services.acquisitionContext(resumed.operationRef).cursorIn, '435');
+    assert.equal(services.acquisitionContext(resumed.operationRef).pageOrdinal, 0);
   });
 });
 
@@ -154,13 +228,13 @@ test('replays the original typed Result by commit marker and counts source-ident
     assert.throws(() => page(store, { observationPageDigest: hash('drift') }),
       (error) => error.code === 'P6_PERCEPTION_COMMIT_REPLAY_DRIFT');
 
-    const scope = { collection: 'replay-window' };
+    const scope = { collection: 'watched', locale: 'zh-CN' };
     start(store, { perceptionAcquisitionId: 'acquisition-2', scope, scopeDigest: canonicalDigest(scope),
-      initialCursorRevision: 1, initialCursorValue: 'cursor-1' });
+    });
     const duplicate = record('different-draft-id', {
       sourceRecordKey: 'perception-1', sourceRecordDigest: hash('perception-1:source')
     });
-    const second = page(store, { acquisitionCommitReceiptId: 'commit-2', perceptionAcquisitionId: 'acquisition-2', pageOrdinal: 1,
+    const second = page(store, { acquisitionCommitReceiptId: 'commit-2', perceptionAcquisitionId: 'acquisition-2', pageOrdinal: 0,
       expectedCursorRevision: 1, cursorIn: 'cursor-1', cursorOut: 'cursor-2', commitMarker: 'marker-2', records: [duplicate] });
     assert.equal(second.commit.result.insertedCount, 0);
     assert.equal(second.commit.result.duplicateCount, 1);
@@ -190,18 +264,18 @@ test('requires correction/retraction source lineage in the same page and preserv
   fixture(({ databasePath, store }) => {
     register(store); start(store); page(store);
     const scope = { collection: 'watched-v2' };
-    start(store, { perceptionAcquisitionId: 'acquisition-2', scope, scopeDigest: canonicalDigest(scope), initialCursorRevision: 1, initialCursorValue: 'cursor-1' });
+    start(store, { perceptionAcquisitionId: 'acquisition-2', scope, scopeDigest: canonicalDigest(scope) });
     const correction = record('perception-2', { recordKind: 'correction', sourceRecordKey: 'perception-1', sourceRecordRevision: 2 });
     assert.throws(() => page(store, {
-      acquisitionCommitReceiptId: 'commit-2', perceptionAcquisitionId: 'acquisition-2', pageOrdinal: 1,
-      expectedCursorRevision: 1, cursorIn: 'cursor-1', cursorOut: 'cursor-2', commitMarker: 'marker-2', records: [correction]
+      acquisitionCommitReceiptId: 'commit-2', perceptionAcquisitionId: 'acquisition-2', pageOrdinal: 0,
+      expectedCursorRevision: 1, cursorIn: null, cursorOut: 'cursor-2', commitMarker: 'marker-2', records: [correction]
     }), (error) => error.code === 'P6_PERCEPTION_LINEAGE_REQUIRED');
     assert.equal(count(databasePath, 'perception_records'), 1);
     const relation = { relationId: 'relation-supersedes', relationKind: 'supersedes', sourcePerceptionId: 'perception-2',
       targetPerceptionId: 'perception-1', ruleRevision: 1, evidenceDigest: hash('relation-supersedes') };
     const committed = page(store, {
-      acquisitionCommitReceiptId: 'commit-2', perceptionAcquisitionId: 'acquisition-2', pageOrdinal: 1,
-      expectedCursorRevision: 1, cursorIn: 'cursor-1', cursorOut: 'cursor-2', commitMarker: 'marker-2', records: [correction], relations: [relation]
+      acquisitionCommitReceiptId: 'commit-2', perceptionAcquisitionId: 'acquisition-2', pageOrdinal: 0,
+      expectedCursorRevision: 1, cursorIn: null, cursorOut: 'cursor-2', commitMarker: 'marker-2', records: [correction], relations: [relation]
     });
     assert.deepEqual(committed.relationIds, ['relation-supersedes']);
     const database = new Database(databasePath, { readonly: true });

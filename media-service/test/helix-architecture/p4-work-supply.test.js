@@ -31,7 +31,6 @@ function fixture(run, now = 120000) {
       attempt: { kind: 'insert', tableId: 'fx_work_attempts', columns: ['attempt_id', 'work_id', 'state'] },
       plan: { kind: 'insert', tableId: 'fx_workflow_plans', columns: ['plan_id', 'attempt_id', 'state'] },
       event: { kind: 'insert', tableId: 'fx_workflow_events', columns: ['event_id', 'plan_id','work_id', 'owner_domain', 'priority_class', 'state'] },
-      event_attempt: { kind: 'insert', tableId: 'fx_event_attempts', columns: ['event_attempt_id', 'event_id', 'ordinal', 'state', 'started_at_ms'] },
       circuit: { kind: 'insert', tableId: 'fx_circuit_states', columns: ['circuit_key', 'state'] }
     }
   });
@@ -133,7 +132,7 @@ test('open admitted backlog above its hard cap remains drainable', () => {
   });
 });
 
-test('existing Events keep draining across Work backlog caps and background minimum remains observable', () => {
+test('existing Events keep draining across Work backlog caps while Scheduler owns background opportunity', () => {
   fixture(({ controller, seedRows }) => {
     seedRows((repository) => {
       addEventGraph(repository, 'background', 'background_observation');
@@ -141,24 +140,12 @@ test('existing Events keep draining across Work backlog caps and background mini
     });
     const decision = controller.evaluate({ supplyKind: 'event_dispatch', targetId: 'event-background' });
     assert.equal(decision.kind, 'permitted');
-    assert.equal(decision.lane, 'minimum_background');
+    assert.equal(decision.lane, 'normal');
   }, 120000);
   fixture(({ controller, seedRows }) => {
     seedRows((repository) => {
       addEventGraph(repository, 'background', 'background_observation');
       addEventGraph(repository, 'safety', 'safety_liveness');
-    });
-    const decision=controller.evaluate({ supplyKind: 'event_dispatch', targetId: 'event-background' });
-    assert.equal(decision.kind,'permitted');
-    assert.equal(decision.lane,'normal');
-  }, 120000);
-  fixture(({ controller, seedRows }) => {
-    seedRows((repository) => {
-      addEventGraph(repository, 'background', 'background_observation');
-      addWork(repository, 'filler');
-      repository.invoke('event_attempt', {
-        event_attempt_id: 'event-attempt-background', event_id: 'event-background', ordinal: 1, state: 'completed', started_at_ms: 90000
-      });
     });
     const decision=controller.evaluate({ supplyKind: 'event_dispatch', targetId: 'event-background' });
     assert.equal(decision.kind,'permitted');

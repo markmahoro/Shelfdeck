@@ -39,9 +39,6 @@ function repositories(schemaManifest) {
       list: { kind: 'select-all', tableId: 'fx_workflow_events', columns: ['event_id', 'work_id', 'owner_domain', 'priority_class', 'state'], keyColumns: [] },
       find: { kind: 'select-one', tableId: 'fx_workflow_events', columns: ['event_id', 'work_id', 'owner_domain', 'priority_class', 'state'], keyColumns: ['event_id'] }
     } }),
-    eventAttempts: createRepositoryDefinition({ repositoryId: 'work_supply_event_attempts', owner: 'execution-foundation', schemaManifest, statements: {
-      list: { kind: 'select-all', tableId: 'fx_event_attempts', columns: ['event_id', 'started_at_ms'], keyColumns: [] }
-    } }),
     circuits: createRepositoryDefinition({ repositoryId: 'work_supply_circuits', owner: 'execution-foundation', schemaManifest, statements: {
       find: { kind: 'select-one', tableId: 'fx_circuit_states', columns: ['state'], keyColumns: ['circuit_key'] }
     } })
@@ -119,15 +116,6 @@ function createWorkSupplyController(options) {
           const soft = snapshot.activeAttempt >= limits.activeAttemptSoft ||
             snapshot.dispatchableEvent >= limits.dispatchableEventSoft;
           const priority = target.priority_class;
-          let minimumBackgroundDue = false;
-          if (request.supplyKind === 'event_dispatch' && priority === 'background_observation') {
-            const eventPriority = new Map(events.map((event) => [event.event_id, event.priority_class]));
-            const lastBackground = context.repository('work_supply_event_attempts').invoke('list')
-              .filter((attempt) => eventPriority.get(attempt.event_id) === 'background_observation')
-              .reduce((latest, attempt) => Math.max(latest, attempt.started_at_ms || 0), 0);
-            const reservedReady = events.some((event) => event.state === 'ready' && RESERVED.has(event.priority_class));
-            minimumBackgroundDue = !reservedReady && nowMs - lastBackground >= 60000;
-          }
           // Backlog limits gate creation of another Work Attempt. Once an Event exists,
           // refusing to dispatch it would prevent the active backlog from ever draining;
           // Resource Governor remains the sole Capability-capacity gate for that Event.
@@ -139,7 +127,7 @@ function createWorkSupplyController(options) {
           }
           return Object.freeze({
             kind: 'permitted', supplyKind: request.supplyKind, targetId: request.targetId,
-            lane: RESERVED.has(priority) ? 'reserved' : minimumBackgroundDue ? 'minimum_background' :
+            lane: RESERVED.has(priority) ? 'reserved' :
               projection.supplyRole==='completion'?'completion':'normal',
             snapshotDigest: digest(JSON.stringify(canonical(snapshot)))
           });

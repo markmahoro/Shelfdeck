@@ -253,7 +253,11 @@ function createResourceGovernor(options) {
         waiters.delete(request.eventId);
         return Object.freeze({ kind: 'permitted', permit: issue(currentWaiter.request, currentMapper, requestedAtMs) });
       }
-      return waiting(currentWaiter.request, true, requestedAtMs);
+      if (Number.isSafeInteger(currentWaiter.retryAtMs)) return Object.freeze({ kind:'waiting', eventId:request.eventId,
+        replayed:true, retryAtMs:currentWaiter.retryAtMs });
+      const durable = waiting(currentWaiter.request, true, requestedAtMs);
+      waiters.set(request.eventId, Object.freeze({ ...currentWaiter, retryAtMs:durable.retryAtMs }));
+      return durable;
     }
     const impossible = request.resources.find((resource) => resource.units > currentMapper.capacityFor(resource.resourceKey));
     if (impossible) return Object.freeze({ kind: 'unavailable', reasonCode: 'RESOURCE_MAP_UNSATISFIABLE', resourceKey: impossible.resourceKey });
@@ -266,8 +270,9 @@ function createResourceGovernor(options) {
       const deferred = persistDeferred(request, requestedAtMs);
       return Object.freeze({ kind: 'deferred', reasonCode: 'RESOURCE_QUEUE_HARD_CAP', retryAtMs: deferred.retryAtMs, replayed: deferred.replayed });
     }
-    waiters.set(request.eventId, Object.freeze({ request, enqueuedAtMs: requestedAtMs }));
-    return waiting(request, false, requestedAtMs);
+    const durable=waiting(request, false, requestedAtMs);
+    waiters.set(request.eventId, Object.freeze({ request, enqueuedAtMs: requestedAtMs, retryAtMs:durable.retryAtMs }));
+    return durable;
   }
 
   function compareWaiters(left, right, atMs) {
@@ -287,6 +292,7 @@ function createResourceGovernor(options) {
       if (remaining === 0) inUse.delete(resource.resourceKey); else inUse.set(resource.resourceKey, remaining);
     }
     permits.delete(current.permitId); eventPermits.delete(current.eventId);
+    options.onCapacityChanged?.();
     return Object.freeze({ released: true, permitId: current.permitId });
   }
 
@@ -299,7 +305,7 @@ function createResourceGovernor(options) {
       'P4_RESOURCE_PRIORITY_UPDATE_INVALID', 'Waiter priority update requires a newer valid Owner projection.'
     );
     waiters.set(request.eventId, Object.freeze({ ...waiter, request: Object.freeze({ ...waiter.request, queueClass: request.queueClass,
-      localPriority: request.localPriority, priorityRevision: request.priorityRevision }) }));
+      localPriority: request.localPriority, priorityRevision: request.priorityRevision }), retryAtMs:null }));
     return Object.freeze({ updated: true, eventId: request.eventId });
   }
 

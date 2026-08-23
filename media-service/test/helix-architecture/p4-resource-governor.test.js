@@ -32,7 +32,9 @@ function fixture(run) {
   const databasePath = path.join(root, 'shelfdeck.db');
   let currentProfile = profile(); let now = 180000; let permitOrdinal = 0;
   const kernel = openSqliteKernel({ Database, databasePath, schemaDdl, schemaManifest, now: () => 1700000001500 });
-  const unitOfWork = createSqliteUnitOfWork({ kernel });
+  const sqliteUnitOfWork = createSqliteUnitOfWork({ kernel });
+  let unitOfWorkExecutions=0;
+  const unitOfWork={execute(participants){unitOfWorkExecutions+=1;return sqliteUnitOfWork.execute(participants);}};
   const seed = createRepositoryDefinition({ repositoryId: 'governor_seed', owner: 'execution-foundation', schemaManifest, statements: {
     work: { kind: 'insert', tableId: 'fx_supporting_works', columns: ['work_id', 'owner_domain', 'priority_class', 'state', 'idempotency_key'] },
     attempt: { kind: 'insert', tableId: 'fx_work_attempts', columns: ['attempt_id', 'work_id', 'state'] },
@@ -57,7 +59,8 @@ function fixture(run) {
     profileProvider: { current: () => currentProfile }, nextPermitId: () => 'permit-' + (++permitOrdinal) });
   const cleanup = () => { kernel.close(); fs.rmSync(root, { recursive: true, force: true }); };
   try {
-    const result = run({ governor, databasePath, seedEvents, setNow: (value) => { now = value; }, setProfile: (value) => { currentProfile = value; } });
+    const result = run({ governor, databasePath, seedEvents, getUnitOfWorkExecutions:()=>unitOfWorkExecutions,
+      setNow: (value) => { now = value; }, setProfile: (value) => { currentProfile = value; } });
     if (result && typeof result.then === 'function') return result.finally(cleanup);
     cleanup(); return result;
   } catch (error) { cleanup(); throw error; }
@@ -76,14 +79,17 @@ test('multi-resource Permit is acquired atomically and a later pull promotes one
   });
 });
 
-test('capacity wait publishes one durable Scheduler fence without rolling writes', () => {
-  fixture(({ governor, databasePath, seedEvents, setNow }) => {
+test('capacity wait publishes one durable Scheduler fence without rolling reads or writes', () => {
+  fixture(({ governor, databasePath, seedEvents, setNow, getUnitOfWorkExecutions }) => {
     seedEvents('holder', 'waiter');
     const holder = governor.acquire(request('holder', [['cpu_heavy']]));
     const first = governor.acquire(request('waiter', [['cpu_heavy']]));
     assert.equal(first.kind, 'waiting');
     assert.equal(first.retryAtMs, 180100);
     assert.equal(governor.acquire(request('waiter', [['cpu_heavy']])).retryAtMs, 180100);
+    const persistedExecutions=getUnitOfWorkExecutions();
+    for(let index=0;index<1000;index++)assert.equal(governor.acquire(request('waiter',[['cpu_heavy']])).retryAtMs,180100);
+    assert.equal(getUnitOfWorkExecutions(),persistedExecutions);
     const database = new Database(databasePath, { readonly: true });
     try {
       assert.deepEqual(database.prepare('SELECT state,retry_at_ms FROM fx_workflow_events WHERE event_id=?').get('waiter'),

@@ -39,11 +39,15 @@ function text(value, field, maximum = 4096) {
 function createCleanShelfTargetFolderProbe(options = {}) {
   const fsApi = options.fsApi || fs;
   const pathApi = options.pathApi || path;
+  const mountScopeResolver = options.mountScopeResolver;
+  if (!mountScopeResolver || typeof mountScopeResolver.resolveRoot !== 'function') {
+    fail('P14_SHELF_TARGET_MOUNT_RESOLVER_REQUIRED',
+      'Shelf Target probe requires the Platform Mount Scope resolver.');
+  }
 
-  function inspectResolved(shelfId, requestedRoot, proposedTarget) {
+  function inspectResolved(shelfId, requestedRoot) {
     let resolvedRoot;
     let filesystemType = 'unknown';
-    let deviceId = 'unknown';
     try {
       const realpath = fsApi.realpathSync.native || fsApi.realpathSync;
       resolvedRoot = pathApi.normalize(realpath(requestedRoot));
@@ -54,7 +58,6 @@ function createCleanShelfTargetFolderProbe(options = {}) {
           'Shelf Target Folder must resolve to a directory.',
         );
       }
-      deviceId = String(stat.dev);
       fsApi.accessSync(resolvedRoot, fs.constants.R_OK | fs.constants.W_OK);
       if (typeof fsApi.statfsSync === 'function') {
         try {
@@ -72,19 +75,7 @@ function createCleanShelfTargetFolderProbe(options = {}) {
       );
     }
 
-    const target = proposedTarget || Object.freeze({
-      endpointId: `local-filesystem-${process.platform}`,
-      rootLocation: resolvedRoot,
-      mountScopeId: `local-mount-${canonicalDigest({
-        schema: 'platform.local-mount-scope@1',
-        platform: process.platform,
-        deviceId,
-        filesystemType,
-        pathRoot: pathApi.parse(resolvedRoot).root,
-      }).slice(0, 32)}`,
-      mountScopeRevision: 1,
-    });
-    const normalizedTarget = Object.freeze({ ...target, rootLocation: resolvedRoot });
+    const normalizedTarget = mountScopeResolver.resolveRoot({ rootLocation: resolvedRoot });
     const evidenceBase = {
       schemaRef: EVIDENCE_SCHEMA_REF,
       shelfId,
@@ -146,13 +137,7 @@ function createCleanShelfTargetFolderProbe(options = {}) {
       );
     }
 
-    const target = Object.freeze({
-      endpointId,
-      rootLocation: requestedRoot,
-      mountScopeId,
-      mountScopeRevision: request.target.mountScopeRevision,
-    });
-    return inspectResolved(shelfId, requestedRoot, target);
+    return inspectResolved(shelfId, requestedRoot);
   }
 
   return Object.freeze({ inspect, inspectRoot });

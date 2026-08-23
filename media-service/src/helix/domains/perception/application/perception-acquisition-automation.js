@@ -66,9 +66,10 @@ function createPerceptionAcquisitionAutomation(options) {
     if (completed && options.now() - Number(completed.terminalAtMs) < periodMs) {
       return Object.freeze({ kind: 'not_due', sourceId, perceptionAcquisitionId: completed.perceptionAcquisitionId });
     }
+    const latestTerminal = items.find((item) => ['completed', 'failed'].includes(item.state) && item.terminalAtMs != null);
     const observed = options.requestAcquisition({
       idempotencyKey: 'periodic-douban-acquisition:' + config.sourceId + ':config-' + config.configRevision
-        + ':after-' + (completed ? completed.perceptionAcquisitionId : 'none'),
+        + ':after-' + (latestTerminal ? latestTerminal.perceptionAcquisitionId : 'none'),
     });
     return Object.freeze({
       kind: 'issued',

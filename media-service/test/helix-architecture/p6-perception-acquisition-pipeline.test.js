@@ -92,8 +92,7 @@ test('Record Commit registration writes Perception facts, durable typed Result, 
   try {
     store.registerSource({ perceptionSourceId:'source-1', sourceKind:'douban', integrationId:'integration-1', status:'active', configRevision:1 });
     const scope = { collection:'watched' }; store.startAcquisition({ perceptionAcquisitionId:'acquisition-1', perceptionSourceId:'source-1',
-      sourceConfigRevision:1, scopeSchemaRef:'helix://contracts/types/PerceptionAcquisitionScope/v1', scope, scopeDigest:canonicalDigest(scope),
-      initialCursorRevision:0, initialCursorValue:null });
+      sourceConfigRevision:1, scopeSchemaRef:'helix://contracts/types/PerceptionAcquisitionScope/v1', scope, scopeDigest:canonicalDigest(scope) });
     const pipeline = pipelineFixture().instance; const page = await pipeline.acquirePage(acquireRequest());
     const draft = await pipeline.normalizePage({ observationPage:page, normalizationRule:rule(), draftId:'draft-1', producedAtMs:NOW + 1 });
     const registry = createDomainCommitRegistry({ registrations:[createPerceptionRecordCommitRegistration(store)] });

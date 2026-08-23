@@ -138,6 +138,9 @@ function providerFetch(state) {
       if (headers.cookie !== secrets.douban) {
         return response(401, 'denied', 'text/plain');
       }
+      if (state.doubanStatus) {
+        return response(state.doubanStatus, 'provider rejected request', 'text/plain', url.toString());
+      }
       if (url.pathname === '/subject/1292052/') {
         return response(200,
           '<div id="content"><h1><span property="v:itemreviewed">肖申克的救赎</span><span class="year">(1994)</span></h1></div>' +
@@ -457,7 +460,7 @@ function inspect(dataDir) {
   }
 }
 
-function openServices(value, fetchImpl) {
+function openServices(value, fetchImpl, options = {}) {
   const kernel = openSqliteKernel({
     Database,
     databasePath: path.join(value.dataDir, 'shelfdeck.db'),
@@ -474,6 +477,8 @@ function openServices(value, fetchImpl) {
       secretRoot,
       now: () => 1_900_000_000_000,
       fetchImpl,
+      doubanRequestPaceMs: options.doubanRequestPaceMs ?? 0,
+      doubanDelay: options.doubanDelay,
     }),
   };
 }
@@ -638,7 +643,8 @@ test('H1.2 four providers share test-proof-save-read and never persist operator 
   const rows = inspect(value.dataDir);
   assert.equal(rows.integrations.length, 4);
   assert.equal(rows.secrets.length, 4);
-  assert.equal(rows.receipts, 4);
+  // Each provider persists one test proof and one save receipt.
+  assert.equal(rows.receipts, 8);
   const persisted = JSON.stringify(rows);
   for (const value of Object.values(secrets)) {
     assert.equal(persisted.includes(value), false);
@@ -1445,6 +1451,84 @@ test('H1.2 Douban observation transport has a referenced hard deadline', async (
       (error) => error.code === 'P5_PROVIDER_TRANSPORT_FAILED',
     );
     assert.ok(Date.now() - startedAt < 1_000);
+  } finally {
+    opened.kernel.close();
+  }
+});
+
+test('H1.2 Douban observation maps provider 403 to a retryable transport failure', async () => {
+  const value = fixture();
+  const state = { calls: [] };
+  const fetchImpl = providerFetch(state);
+  const host = await createCleanServiceHost({
+    dataDir: value.dataDir,
+    adminDistDir: value.adminDistDir,
+    secretRoot,
+    integrationFetch: fetchImpl,
+    now: () => 1_900_000_000_000,
+  });
+  const cookie = await session(host, value.initialized.adminApiKey);
+  await configure(host, cookie, 'douban', '-403');
+  await host.close();
+  const opened = openServices(value, fetchImpl);
+  try {
+    state.doubanStatus = 403;
+    await assert.rejects(
+      () => opened.services.executeProvider('douban', {
+        operationId: 'perception.source.acquire@1',
+        effectClass: 'pure_observation',
+        idempotencyKey: 'douban-provider-403',
+        timeoutMs: 5_000,
+        input: {
+          sourceRef: ref('perception-source', 'test-user'),
+          cursor: null,
+          limit: 20,
+        },
+      }),
+      (error) => error.code === 'P5_PROVIDER_TRANSPORT_FAILED',
+    );
+  } finally {
+    opened.kernel.close();
+  }
+});
+
+test('H1.2 Douban observation applies bounded pacing to list and detail requests', async () => {
+  const value = fixture();
+  const state = { calls: [] };
+  const fetchImpl = providerFetch(state);
+  const host = await createCleanServiceHost({
+    dataDir: value.dataDir,
+    adminDistDir: value.adminDistDir,
+    secretRoot,
+    integrationFetch: fetchImpl,
+    now: () => 1_900_000_000_000,
+  });
+  const cookie = await session(host, value.initialized.adminApiKey);
+  await configure(host, cookie, 'douban', '-pace');
+  await host.close();
+  const delays = [];
+  const opened = openServices(value, fetchImpl, {
+    doubanRequestPaceMs: 800,
+    doubanDelay: async (delayMs) => delays.push(delayMs),
+  });
+  try {
+    const before = state.calls.length;
+    await opened.services.executeProvider('douban', {
+      operationId: 'perception.source.acquire@1',
+      effectClass: 'pure_observation',
+      idempotencyKey: 'douban-paced-page',
+      timeoutMs: 5_000,
+      input: {
+        sourceRef: ref('perception-source', 'test-user'),
+        cursor: null,
+        limit: 20,
+      },
+    });
+    assert.deepEqual(delays, [800, 800]);
+    assert.deepEqual(
+      state.calls.slice(before).map((call) => call.path),
+      ['/people/test-user/collect', '/subject/1292052/'],
+    );
   } finally {
     opened.kernel.close();
   }

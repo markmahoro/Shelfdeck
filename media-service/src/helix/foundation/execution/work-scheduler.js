@@ -7,6 +7,7 @@ const { PRIORITY_CLASSES } = require('./runtime-contracts');
 const TERMINAL_EVENT_STATES = new Set(['succeeded', 'skipped', 'failed', 'cancelled']);
 const WORK_STATES = new Set(['admitted', 'ready']);
 const AGING_INTERVAL_MS = 60000;
+const MINIMUM_BACKGROUND_RETRY_MS = 100;
 // Planning is allowed to build a bounded immutable plan from durable facts.  A
 // five-second technical lease is shorter than a legitimate plan construction
 // (especially when SQLite is briefly contended), so the default must cover the
@@ -52,9 +53,6 @@ function repositories(schemaManifest) {
       list: { kind: 'select-all', tableId: 'fx_plan_edges', columns: [
         'plan_id', 'from_node_id', 'to_node_id', 'dependency_kind'
       ], keyColumns: [] }
-    } }),
-    eventAttempts: createRepositoryDefinition({ repositoryId: 'scheduler_event_attempts', owner: 'execution-foundation', schemaManifest, statements: {
-      list: { kind: 'select-all', tableId: 'fx_event_attempts', columns: ['event_id', 'started_at_ms'], keyColumns: [] }
     } })
   });
 }
@@ -102,9 +100,14 @@ function createWorkScheduler(options) {
   const nextLeaseId = options.nextLeaseId;
   const definitions = repositories(options.schemaManifest);
   const activeLeases = new Map();
+  const minimumBackgroundLeases = new Set();
+  let minimumBackgroundNotBeforeMs = 0;
 
   function purgeExpired(nowMs) {
-    for (const [targetKey, lease] of activeLeases) if (lease.expiresAtMs <= nowMs) activeLeases.delete(targetKey);
+    for (const [targetKey, lease] of activeLeases) if (lease.expiresAtMs <= nowMs) {
+      activeLeases.delete(targetKey);
+      minimumBackgroundLeases.delete(lease.leaseId);
+    }
   }
 
   function snapshot(targetType, nowMs) {
@@ -124,7 +127,6 @@ function createWorkScheduler(options) {
         }
         return {
           works,
-          eventAttempts: context.repository('scheduler_event_attempts').invoke('list'),
           candidates: events.filter((event) =>
             (event.state === 'ready' ||
               event.state === 'waiting_for_resource' ||
@@ -166,6 +168,7 @@ function createWorkScheduler(options) {
     candidates.sort((left, right) => PRIORITY_CLASSES.indexOf(left.projection.priorityClass) - PRIORITY_CLASSES.indexOf(right.projection.priorityClass) ||
       right.effectiveLocalPriority - left.effectiveLocalPriority || left.queuedAtMs - right.queuedAtMs || left.targetId.localeCompare(right.targetId));
     let selected = candidates[0] || null;
+    let minimumBackgroundSelected = false;
     if (request.targetType === 'event') {
       const retryElapsed = (item) => item.target.retry_at_ms === null || item.target.retry_at_ms <= nowMs;
       const ordering = candidates.filter((item) => item.target.state === 'waiting_for_resource' || retryElapsed(item));
@@ -179,17 +182,11 @@ function createWorkScheduler(options) {
         : runnable.find((item) =>
           PRIORITY_CLASSES.indexOf(item.projection.priorityClass) <= PRIORITY_CLASSES.indexOf(head.projection.priorityClass) &&
           item.projection.localPriority >= head.projection.localPriority) || null;
-      const reservedRunnable = runnable.some((item) => ['safety_liveness', 'handoff_acceptance'].includes(item.projection.priorityClass));
-      const lastBackgroundStartedAtMs = (facts.eventAttempts || []).reduce((latest, attempt) => {
-        const event = candidates.find((item) => item.target.event_id === attempt.event_id);
-        return event?.projection.priorityClass === 'background_observation'
-          ? Math.max(latest, attempt.started_at_ms || 0)
-          : latest;
-      }, 0);
-      const minimumBackground = !reservedRunnable && nowMs - lastBackgroundStartedAtMs >= AGING_INTERVAL_MS
+      const reservedHead = head && ['safety_liveness', 'handoff_acceptance'].includes(head.projection.priorityClass);
+      const minimumBackground = !reservedHead && nowMs >= minimumBackgroundNotBeforeMs
         ? runnable.find((item) => item.projection.priorityClass === 'background_observation')
         : null;
-      if (minimumBackground) selected = minimumBackground;
+      if (minimumBackground) { selected = minimumBackground; minimumBackgroundSelected = true; }
     }
     if (!selected) return Object.freeze({ kind: 'idle', reasonCode: 'NO_ELIGIBLE_TARGET' });
     const supply = options.supplyController.evaluate({
@@ -206,8 +203,25 @@ function createWorkScheduler(options) {
     const lease = Object.freeze({ leaseId, targetType: request.targetType, targetId: selected.targetId, issuedAtMs: nowMs,
       expiresAtMs: nowMs + leaseTtlMs, fenceDigest });
     activeLeases.set(selected.targetKey, lease);
-    return Object.freeze({ kind: 'leased', lease, lane: supply.lane, priorityClass: selected.projection.priorityClass,
+    if (minimumBackgroundSelected) {
+      minimumBackgroundLeases.add(leaseId);
+      minimumBackgroundNotBeforeMs = nowMs + MINIMUM_BACKGROUND_RETRY_MS;
+    }
+    return Object.freeze({ kind: 'leased', lease, lane: minimumBackgroundSelected ? 'minimum_background' : supply.lane, priorityClass: selected.projection.priorityClass,
       localPriority: selected.projection.localPriority, aging: selected.aging });
+  }
+
+  function noteDispatchOutcome(lease, outcome) {
+    const current = assertCurrent(lease);
+    if (!outcome || typeof outcome !== 'object' || Array.isArray(outcome) ||
+        JSON.stringify(Object.keys(outcome)) !== JSON.stringify(['kind']) ||
+        !['started', 'resource_wait'].includes(outcome.kind)) {
+      fail('P4_SCHEDULER_DISPATCH_OUTCOME_INVALID', 'Dispatch outcome must be an exact started or resource_wait value.');
+    }
+    if (!minimumBackgroundLeases.has(current.leaseId)) return Object.freeze({ recorded:false });
+    minimumBackgroundNotBeforeMs = options.now() + (outcome.kind === 'started' ? AGING_INTERVAL_MS : MINIMUM_BACKGROUND_RETRY_MS);
+    minimumBackgroundLeases.delete(current.leaseId);
+    return Object.freeze({ recorded:true, kind:outcome.kind, notBeforeMs:minimumBackgroundNotBeforeMs });
   }
 
   function assertCurrent(lease) {
@@ -226,6 +240,7 @@ function createWorkScheduler(options) {
   function release(lease) {
     const current = assertCurrent(lease);
     activeLeases.delete(current.targetType + ':' + current.targetId);
+    minimumBackgroundLeases.delete(current.leaseId);
     return Object.freeze({ released: true, leaseId: current.leaseId });
   }
 
@@ -240,7 +255,7 @@ function createWorkScheduler(options) {
     return renewed;
   }
 
-  return Object.freeze({ acquire, assertCurrent, release, renew });
+  return Object.freeze({ acquire, assertCurrent, noteDispatchOutcome, release, renew });
 }
 
-module.exports = Object.freeze({ AGING_INTERVAL_MS, DEFAULT_LEASE_TTL_MS, WorkSchedulerError, createWorkScheduler });
+module.exports = Object.freeze({ AGING_INTERVAL_MS, DEFAULT_LEASE_TTL_MS, MINIMUM_BACKGROUND_RETRY_MS, WorkSchedulerError, createWorkScheduler });

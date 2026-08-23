@@ -88,13 +88,23 @@ function createPerceptionStore(options) {
     },
     getSource(id) { return execute([records], (context) => mapSource(context.repository(records.repositoryId).invoke('find_source', { perception_source_id: id }))); },
     startAcquisition(input) {
-      exact(input, ['perceptionAcquisitionId','perceptionSourceId','sourceConfigRevision','scopeSchemaRef','scope','scopeDigest','initialCursorRevision','initialCursorValue'], 'P6_PERCEPTION_ACQUISITION_INPUT');
+      exact(input, ['perceptionAcquisitionId','perceptionSourceId','sourceConfigRevision','scopeSchemaRef','scope','scopeDigest'], 'P6_PERCEPTION_ACQUISITION_INPUT');
       const scopeJson = canonicalJson(input.scope); if (Buffer.byteLength(scopeJson, 'utf8') > 16384 || canonicalDigest(input.scope) !== input.scopeDigest) fail('P6_PERCEPTION_SCOPE_DIGEST_MISMATCH', 'Acquisition scope exceeds its bound or digest.');
       return execute([records], (context) => { const repo = context.repository(records.repositoryId); const source = repo.invoke('find_source', { perception_source_id: input.perceptionSourceId });
-        if (!source || source.config_revision !== input.sourceConfigRevision || (source.current_cursor_revision || 0) !== input.initialCursorRevision) fail('P6_PERCEPTION_ACQUISITION_BASIS_STALE', 'Acquisition must freeze the current Source config and cursor head.');
+        if (!source || source.config_revision !== input.sourceConfigRevision) fail('P6_PERCEPTION_ACQUISITION_BASIS_STALE', 'Acquisition must freeze the current Source config and cursor head.');
+        const initialCursorRevision = source.current_cursor_revision || 0;
+        let initialCursorValue = null;
+        if (initialCursorRevision > 0) {
+          const head = repo.invoke('find_cursor', { perception_source_id: input.perceptionSourceId, revision: initialCursorRevision });
+          const headAcquisition = head ? repo.invoke('find_acquisition', { perception_acquisition_id: head.perception_acquisition_id }) : null;
+          if (!head || !headAcquisition) fail('P6_PERCEPTION_ACQUISITION_BASIS_STALE', 'Source cursor head does not resolve to its Acquisition.');
+          if (headAcquisition.source_config_revision === input.sourceConfigRevision && headAcquisition.scope_digest === input.scopeDigest) {
+            initialCursorValue = head.cursor_out;
+          }
+        }
         const item = createAcquisition({ perceptionAcquisitionId: input.perceptionAcquisitionId, perceptionSourceId: input.perceptionSourceId,
           sourceConfigRevision: input.sourceConfigRevision, scopeSchemaRef: input.scopeSchemaRef, scopeJson, scopeDigest: input.scopeDigest,
-          initialCursorRevision: input.initialCursorRevision, initialCursorValue: input.initialCursorValue,
+          initialCursorRevision, initialCursorValue,
           state: 'active', createdAtMs: context.commitTimeMs, terminalAtMs: null });
         repo.invoke('insert_acquisition', acquisitionRow(item)); return item; });
     },
@@ -136,6 +146,9 @@ function createPerceptionStore(options) {
       return Object.freeze(repo.invoke('list_records').filter((row)=>row.perception_acquisition_id===acquisitionId)
         .map((row)=>mapRecord(repo,row.perception_id)).sort((a,b)=>a.perceptionId.localeCompare(b.perceptionId)));
     }); },
+    countRecordsForSource(sourceId) { return execute([records], (context) =>
+      context.repository(records.repositoryId).invoke('list_records')
+        .filter((row)=>row.perception_source_id===sourceId).length); },
     listAcquisitions() { return execute([records], (context) => context.repository(records.repositoryId).invoke('list_acquisitions').map(mapAcquisition)
       .sort((left,right)=>right.createdAtMs-left.createdAtMs||left.perceptionAcquisitionId.localeCompare(right.perceptionAcquisitionId))); },
     listRecords(query = {}) { return execute([records,resolutions], (context) => {

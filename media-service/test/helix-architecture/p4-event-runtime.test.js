@@ -106,7 +106,15 @@ function fixture(run, settings = {}) {
   } }]);
   let schedulerReleased = 0; let governorReleased = 0; let dispatchContext; const journalCalls = [];
   const lease = Object.freeze({ leaseId: 'lease', targetType: 'event', targetId: 'event', issuedAtMs: 1, expiresAtMs: 999999, fenceDigest: HASH_A });
-  const scheduler = { assertCurrent(value) { assert.equal(value, lease); }, release(value) { assert.equal(value, lease); schedulerReleased += 1; } };
+  const scheduler = {
+    assertCurrent(value) { assert.equal(value, lease); },
+    noteDispatchOutcome(value, outcome) {
+      assert.equal(value, lease);
+      if (settings.dispatchOutcomeError && outcome.kind === 'started') throw settings.dispatchOutcomeError;
+      return { recorded: false };
+    },
+    release(value) { assert.equal(value, lease); schedulerReleased += 1; },
+  };
   const permit = Object.freeze({ permitId: 'permit', eventId: 'event', resources: Object.freeze([{ resourceKey: 'cpu_heavy', units: 1 }]), profileRevision: 1, issuedAtMs: 1000 });
   const governor = { acquire: () => {
     if (settings.assertReadyBeforeAcquire) {
@@ -369,6 +377,16 @@ test('Fence rejection before or after Permit records completed Attempt and never
     assert.equal(databaseFacts(databasePath).attempt.outcome_kind, 'fence_rejected');
     assert.equal(state().dispatchContext, undefined); assert.equal(state().governorReleased, 1);
   }, { fences: [{ valid: true, digest: HASH_A, snapshot: {} }, { valid: true, digest: HASH_B, snapshot: {} }] });
+});
+
+test('scheduler dispatch feedback failure releases an already granted Resource Permit exactly once', async () => {
+  await fixture(async ({ runtime, lease, state }) => {
+    await assert.rejects(runtime.run({ schedulerLease: lease }), /dispatch feedback failed/);
+    assert.deepEqual(
+      { schedulerReleased: state().schedulerReleased, governorReleased: state().governorReleased },
+      { schedulerReleased: 1, governorReleased: 1 },
+    );
+  }, { dispatchOutcomeError: new Error('dispatch feedback failed') });
 });
 
 test('pure observation executor error completes its Attempt under failure policy', async () => {

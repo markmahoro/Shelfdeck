@@ -153,8 +153,6 @@ function registerRecord(store, {
     scopeSchemaRef: 'helix://contracts/types/PerceptionAcquisitionScope/v1',
     scope,
     scopeDigest: canonicalDigest(scope),
-    initialCursorRevision: 0,
-    initialCursorValue: null,
   });
   store.commitPage({
     acquisitionCommitReceiptId: 'commit-1',
