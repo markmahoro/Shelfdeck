@@ -90,3 +90,28 @@ test('one Owner scope failure is reported and retried without failing startup or
     fs.rmSync(root,{recursive:true,force:true});
   }
 });
+
+test('periodic owner fanout yields to the Node poll phase between scopes', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'helix-reconcile-yield-'));
+  const databasePath = path.join(root, 'shelfdeck.db');
+  const opened = open(databasePath);
+  const scopes = Array.from({length:24},(_,index)=>Object.freeze({
+    cursor:String(index).padStart(2,'0'), scope:Object.freeze({processId:`process-${index}`}),
+  }));
+  const seen=[];
+  const registration=Object.freeze({ownerDomain:'libra',reconcilerKey:'yielding-runs',
+    listPage:()=>scopes,reconcile:({processId})=>{seen.push(processId);}});
+  const runner=createDomainReconcileRunner({cursorStore:opened.cursorStore,registrations:[registration],now:Date.now,
+    cadenceMs:60000,pageLimit:100,budgetMs:5000});
+  try {
+    const startup=runner.start();
+    await new Promise((resolve)=>setImmediate(resolve));
+    assert.ok(seen.length>0&&seen.length<scopes.length,
+      `reconcile fanout must yield before all scopes complete, processed ${seen.length}`);
+    const result=await startup;
+    assert.equal(result.results[0].processed,scopes.length);
+  } finally {
+    await runner.stop(); opened.kernel.close();
+    fs.rmSync(root,{recursive:true,force:true});
+  }
+});

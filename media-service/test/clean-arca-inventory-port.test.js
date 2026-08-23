@@ -7,7 +7,7 @@ const path = require('node:path');
 const test = require('node:test');
 const { cooperativeCopyFile, createCleanArcaInventoryPort } = require('../src/clean-arca-inventory-port');
 
-test('large Inventory copies yield to the service event loop between bounded chunks', async () => {
+test('large Inventory copies yield once and use the native asynchronous copy path', async () => {
   const root=fs.mkdtempSync(path.join(os.tmpdir(),'clean-arca-cooperative-copy-'));
   const source=path.join(root,'source.bin'),target=path.join(root,'target.bin');
   try {
@@ -17,7 +17,8 @@ test('large Inventory copies yield to the service event loop between bounded chu
     setImmediate(tick);
     await cooperativeCopyFile(source,target,fs.constants.COPYFILE_EXCL);
     running=false;
-    assert.ok(turns>=3,`expected event-loop turns during copy, observed ${turns}`);
+    assert.ok(turns>=1,`expected an event-loop turn before native copy, observed ${turns}`);
+    assert.doesNotMatch(cooperativeCopyFile.toString(), /\.read\(|\.write\(/);
     assert.equal(fs.statSync(target).size,fs.statSync(source).size);
     assert.deepEqual(fs.readFileSync(target),fs.readFileSync(source));
   } finally { fs.rmSync(root,{recursive:true,force:true}); }

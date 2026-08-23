@@ -301,9 +301,7 @@ function createExecutionRuntimeHost(options) {
           // A large ready graph can complete synchronously and immediately
           // wake the next drain. Give HTTP and operational timers a poll
           // opportunity before another batch monopolizes the Node thread.
-          if (count % 4 === 0) {
-            await new Promise((resolve) => setImmediate(resolve));
-          }
+          await new Promise((resolve) => setImmediate(resolve));
         }
         return Object.freeze({ kind: 'tick_complete', actions: count, last: result });
       } finally {

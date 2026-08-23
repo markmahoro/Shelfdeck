@@ -306,28 +306,12 @@ async function cooperativeCopyFile(source, target, flags = 0) {
   if (flags !== 0 && flags !== fs.constants.COPYFILE_EXCL) {
     throw new TypeError('Cooperative Inventory copy supports only the exclusive-create flag.');
   }
-  const input = await fs.promises.open(source, 'r');
-  let output;
-  try {
-    output = await fs.promises.open(target, flags === fs.constants.COPYFILE_EXCL ? 'wx' : 'w');
-    const buffer = Buffer.allocUnsafe(4 * 1024 * 1024);
-    let position = 0;
-    for (;;) {
-      const {bytesRead} = await input.read(buffer, 0, buffer.length, position);
-      if (bytesRead === 0) break;
-      let written = 0;
-      while (written < bytesRead) {
-        const result = await output.write(buffer, written, bytesRead - written);
-        if (result.bytesWritten < 1) throw new Error('Cooperative Inventory copy could not advance the target file.');
-        written += result.bytesWritten;
-      }
-      position += bytesRead;
-      await new Promise((resolve) => setImmediate(resolve));
-    }
-  } finally {
-    await output?.close();
-    await input.close();
-  }
+  // Keep the service turn cooperative, then delegate the complete copy to the
+  // platform's native asynchronous primitive. A JavaScript read/write loop
+  // produces one libuv completion per chunk and can starve HTTP callbacks when
+  // Stage competes with FFmpeg on the same volume.
+  await new Promise((resolve) => setImmediate(resolve));
+  await fs.promises.copyFile(source, target, flags);
 }
 
 function createCleanArcaInventoryPort(options) {

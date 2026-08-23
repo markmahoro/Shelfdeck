@@ -37,6 +37,10 @@ function createDomainReconcileRunner(options){
         cursorFrozen=true;
         options.onError?.(caught);
       }
+      // Owner reconciliation is commonly synchronous even though the runner
+      // accepts async registrations. Yield after every bounded scope so a
+      // periodic sweep cannot concatenate many owners into one HTTP blackout.
+      await new Promise((resolve)=>setImmediate(resolve));
     }
     if(!error&&page.length<pageLimit&&processed===page.length)nextCursor=null;
     const advanced=options.cursorStore.advance({ownerDomain:registration.ownerDomain,reconcilerKey:registration.reconcilerKey,
@@ -46,7 +50,8 @@ function createDomainReconcileRunner(options){
   }
   async function runOnce(){
     if(running)return running;
-    running=(async()=>{const results=[];for(const registration of options.registrations)results.push(await runRegistration(registration));
+    running=(async()=>{const results=[];for(const registration of options.registrations){results.push(await runRegistration(registration));
+      await new Promise((resolve)=>setImmediate(resolve));}
       return Object.freeze({kind:'completed',results:Object.freeze(results)});})().finally(()=>{running=null;});
     return running;
   }

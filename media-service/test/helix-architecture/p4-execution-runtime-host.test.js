@@ -367,8 +367,10 @@ test('planner throw stays Work-local and does not fault the Runtime Host', async
     onError(error) { errors.push(error); },
   });
   await host.start();
-  await new Promise((resolve) => setImmediate(resolve));
-  await new Promise((resolve) => setImmediate(resolve));
+  const deadline=Date.now()+1000;
+  while((host.readiness().state!=='ready'||succeeded<1||errors.length<1)&&Date.now()<deadline) {
+    await new Promise((resolve) => setImmediate(resolve));
+  }
   assert.equal(host.readiness().state, 'ready');
   assert.equal(host.activity().faulted, false);
   assert.equal(succeeded, 1);
@@ -410,8 +412,10 @@ test('executor crash stays Event-local and does not fault the Runtime Host', asy
     onError(error) { errors.push(error); },
   });
   await host.start();
-  await new Promise((resolve) => setImmediate(resolve));
-  await new Promise((resolve) => setImmediate(resolve));
+  const deadline=Date.now()+1000;
+  while((host.readiness().state!=='ready'||succeeded<1||errors.length<1)&&Date.now()<deadline) {
+    await new Promise((resolve) => setImmediate(resolve));
+  }
   assert.equal(host.readiness().state, 'ready');
   assert.equal(host.activity().faulted, false);
   assert.equal(succeeded, 1);
