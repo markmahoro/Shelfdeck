@@ -118,13 +118,19 @@ function createArtifactProductionCapabilityPorts(options) {
     [SIDECAR]: Object.freeze({
       validateInputs(context) { requireNamed(context, ['productMetadataDraft', 'sidecarProfile']); },
       execute(context) {
+        const snapshot = typeof options.movieProductionReader.readRunSnapshot === 'function'
+          ? options.movieProductionReader.readRunSnapshot(context.ownerScope.processId)
+          : options.movieProductionReader.readRun(context.ownerScope.processId);
+        const relatedNfo = snapshot?.relatedReferences?.find((item) => item.role === 'nfo') || null;
+        const contentProfile = snapshot?.spec?.contentProfile || 'movie';
         const result = options.productProductionPort.renderProductSidecar({
           productMetadataDraft: context.namedInputs.productMetadataDraft,
           sidecarProfile: context.namedInputs.sidecarProfile,
           libraRunId: context.ownerScope.processId,
           workspaceId: workspaceId(context.ownerScope.processId),
-          relativePath: 'product/movie.nfo',
-          contentProfile: 'movie',
+          relativePath: contentProfile === 'series' ? 'product/season.nfo' : 'product/movie.nfo',
+          contentProfile,
+          relatedReference: relatedNfo,
           runtimeEffectAuthority: Object.freeze({
             effectClass:'workspace_write',
             eventAttemptId:context.eventAttemptId,

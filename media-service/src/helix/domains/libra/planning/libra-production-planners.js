@@ -591,7 +591,7 @@ function createProductFactAssemblyProjections(options) {
   ]);
 }
 
-function artifactProviderIntent(options, context) {
+function artifactProviderIntent(options, context, artifactKind) {
   const provider = context.sources.find((item) => item.kind === 'provider');
   if (provider) return provider.intent;
   const providerIdentity = context.identity.factValue.providerIdentities[0];
@@ -613,6 +613,7 @@ function artifactProviderIntent(options, context) {
     sourceKind:'provider',
     providerKind:providerIdentity.provider,
     operationId: ARTIFACT_ACQUIRE,
+    artifactKind,
   });
   return buildMetadataFetchIntent({
     ...seed, integrationId: resolved.integrationId, configRevision: resolved.configRevision,
@@ -674,7 +675,7 @@ function createArtifactProductionProjections(options) {
     Object.freeze({projectionRef:ARTIFACT_INTEGRATION,projection:Object.freeze({project:({ownerScope,parameters})=>{
       const value=context(ownerScope);
       return options.productProductionPort.resolveIntegrationHandle({
-        intent:artifactProviderIntent(options,value),operationId:ARTIFACT_ACQUIRE,
+        intent:artifactProviderIntent(options,value,parameters.artifactKind),operationId:ARTIFACT_ACQUIRE,
         artifactKind:parameters.artifactKind});
     }})}),
     Object.freeze({projectionRef:ARTIFACT_HANDLE_LIST,projection:Object.freeze({project:({sourceResult,parameters})=>{
@@ -692,5 +693,6 @@ module.exports=Object.freeze({DECISION_EVIDENCE,IDENTITY_CLAIM,IDENTITY_HANDLE,P
   createProductIdentityPlanner,createProductIdentityProjections,
   createProductMetadataObservationPlanner,createProductMetadataObservationProjections,decisionEvidence,identityCommitFence,
   createArtifactProductionPlanner,createArtifactProductionProjections,artifactRequirement,productMetadataContext,
+  artifactProviderIntent,
   artifactVerificationContext,createProductFactAssemblyPlanner,createProductFactAssemblyProjections,factCommitFence,mediaCastRelations,
   productStructure,sidecarProfile});

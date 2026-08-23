@@ -587,13 +587,13 @@ test('H1.1 TMDB language updates locally without re-entering or retesting creden
 
 test('H1.1 routes reject target drift, unsupported providers, and failed tests without persistence', async () => {
   const value = fixture();
-  const host = await createCleanServiceHost({
+  let host = await createCleanServiceHost({
     dataDir: value.dataDir,
     adminDistDir: value.adminDistDir,
     secretRoot,
     integrationFetch: async () => response(401, { status_code: 7 }),
   });
-  const cookie = await session(host, value.initialized.adminApiKey);
+  let cookie = await session(host, value.initialized.adminApiKey);
 
   const unsupported = await host.inject({
     method: 'GET',
@@ -660,13 +660,13 @@ test('H1.1 invalid endpoint, credential, network, HTTP, schema, and timeout leav
     }
     throw new Error('unexpected test mode');
   };
-  const host = await createCleanServiceHost({
+  let host = await createCleanServiceHost({
     dataDir: value.dataDir,
     adminDistDir: value.adminDistDir,
     secretRoot,
     integrationFetch: fetchImpl,
   });
-  const cookie = await session(host, value.initialized.adminApiKey);
+  let cookie = await session(host, value.initialized.adminApiKey);
 
   const invalidEndpoint = testCommand('tmdb', 'invalid-endpoint');
   invalidEndpoint.endpoint = 'http://api.themoviedb.org/3';
@@ -733,6 +733,19 @@ test('H1.1 invalid endpoint, credential, network, HTTP, schema, and timeout leav
     fs.existsSync(path.join(value.dataDir, 'secrets', 'integrations')),
     false,
   );
+  await host.close();
+  host = await createCleanServiceHost({
+    dataDir:value.dataDir, adminDistDir:value.adminDistDir, secretRoot,
+    integrationFetch:fetchImpl,
+  });
+  cookie = await session(host, value.initialized.adminApiKey);
+  const visibleFailure = await host.inject({ method:'GET',
+    url:'/v1/admin/settings/integrations/tmdb', headers:{ cookie } });
+  assert.equal(visibleFailure.statusCode, 200, visibleFailure.body);
+  assert.equal(visibleFailure.json().configured, false);
+  assert.equal(visibleFailure.json().validation.status, 'failed');
+  assert.equal(visibleFailure.json().validation.errorCode, 'PLATFORM_INTEGRATION_TIMEOUT');
+  assert.equal(visibleFailure.body.includes(credential), false);
   await host.close();
 });
 
