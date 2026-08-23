@@ -171,6 +171,7 @@ export default function OffdeckPage() {
   }
 
   const openCandidates = candidates.filter((item) => item.state === 'open');
+  const activeCases = cases.filter((item) => item.state !== 'completed');
   const shelfOptions = useMemo(() => shelves.map((shelf) => ({ id: shelf.shelfId, name: shelf.name })), [shelves]);
 
   if (!loaded && busy) return <LoadingState>正在读取退出收藏…</LoadingState>;
@@ -244,8 +245,8 @@ export default function OffdeckPage() {
       {nextReviewAction && review.state === 'preparing' && <p className="page-lede">{nextReviewAction}</p>}
     </section>}
     <section className="offdeck-task">
-      <div className="source-card-heading"><div><h2>正在退出</h2></div><span>{cases.length} 部</span></div>
-      {cases.length === 0 ? <div className="source-empty"><strong>现在没有正在退出的收藏</strong></div> : cases.map((item) => <article className="source-row" key={item.offdeckCaseId}>
+      <div className="source-card-heading"><div><h2>正在退出</h2></div><span>{activeCases.length} 部</span></div>
+      {activeCases.length === 0 ? <div className="source-empty"><strong>现在没有正在退出的收藏</strong></div> : activeCases.map((item) => <article className="source-row" key={item.offdeckCaseId}>
         <div>
           <strong>{titleOf(item.shelfEntryId)}</strong>
           <small>{labelOf(caseStateLabels, item.state)}</small>

@@ -9,6 +9,18 @@ class OffdeckStoreError extends Error {
 }
 const fail = (code, message) => { throw new OffdeckStoreError(code, message); };
 const number = (value) => value === null || value === undefined ? null : Number(value);
+const candidateProjection = (row) => Object.freeze({ ...row,
+  policy_revision:Number(row.policy_revision), created_at_ms:Number(row.created_at_ms) });
+const duplicateMemberProjection = (row) => Object.freeze({ ...row,
+  inventory_revision:Number(row.inventory_revision) });
+const duplicateGroupProjection = (row, members) => Object.freeze({ ...row,
+  detected_at_ms:Number(row.detected_at_ms), superseded_at_ms:number(row.superseded_at_ms),
+  members:Object.freeze(members.map(duplicateMemberProjection)) });
+const suppressionProjection = (row) => Object.freeze({ ...row,
+  policy_revision:Number(row.policy_revision), effective_at_ms:Number(row.effective_at_ms),
+  expires_at_ms:number(row.expires_at_ms), revoked_at_ms:number(row.revoked_at_ms) });
+const whitelistProjection = (row) => Object.freeze({ ...row,
+  created_at_ms:Number(row.created_at_ms), revoked_at_ms:number(row.revoked_at_ms) });
 function normalizedAbsoluteLocation(value) {
   const raw=String(value||'').replace(/\\/g,'/').replace(/\/+/g,'/');
   const drive=/^[A-Za-z]:\//.test(raw)?raw.slice(0,3):null;
@@ -202,7 +214,7 @@ function createOffdeckStore(options) {
     });
   }
 
-  function listCandidates() { return read((ctx)=>{const r=ctx.repository(repo.repositoryId),groups=r.invoke('list_duplicate_groups',{}),members=r.invoke('list_duplicate_members',{}),suppressions=r.invoke('list_suppressions',{}),whitelists=r.invoke('list_whitelists',{});return Object.freeze({candidates:Object.freeze(r.invoke('list_candidates',{})),duplicateGroups:Object.freeze(groups.map((group)=>Object.freeze({...group,members:Object.freeze(members.filter((x)=>x.duplicate_group_id===group.duplicate_group_id))}))),suppressions:Object.freeze(suppressions),whitelists:Object.freeze(whitelists)});}); }
+  function listCandidates() { return read((ctx)=>{const r=ctx.repository(repo.repositoryId),groups=r.invoke('list_duplicate_groups',{}),members=r.invoke('list_duplicate_members',{}),suppressions=r.invoke('list_suppressions',{}),whitelists=r.invoke('list_whitelists',{});return Object.freeze({candidates:Object.freeze(r.invoke('list_candidates',{}).map(candidateProjection)),duplicateGroups:Object.freeze(groups.map((group)=>duplicateGroupProjection(group,members.filter((x)=>x.duplicate_group_id===group.duplicate_group_id)))),suppressions:Object.freeze(suppressions.map(suppressionProjection)),whitelists:Object.freeze(whitelists.map(whitelistProjection))});}); }
   function suppressCandidate(candidateId,input={}) { return write('arca_offdeck_candidate_suppress',(ctx)=>{const r=ctx.repository(repo.repositoryId),candidate=r.invoke('list_candidates',{}).find((x)=>x.candidate_id===candidateId);if(!candidate||candidate.state!=='open')fail('ARCA_OFFDECK_CANDIDATE_NOT_OPEN','Off-deck Candidate is not open.');if(candidate.candidate_kind!=='entry'||!candidate.shelf_entry_id)fail('ARCA_OFFDECK_SUPPRESSION_TARGET_INVALID','Only Entry Candidate can be suppressed.');const id=stable('arca-offdeck-suppression-',{candidateId,policyRevision:candidate.policy_revision,reason:candidate.reason_digest});if(!r.invoke('list_suppressions',{}).some((x)=>x.suppression_id===id))r.invoke('insert_suppression',{suppression_id:id,shelf_entry_id:candidate.shelf_entry_id,candidate_kind:candidate.candidate_kind,policy_id:candidate.policy_id,policy_revision:Number(candidate.policy_revision),reason_digest:candidate.reason_digest,state:'active',effective_at_ms:now(),expires_at_ms:input.expiresAtMs||null,revoked_at_ms:null});r.invoke('update_candidate',{state:'dismissed',candidate_id:candidateId,expected_state:'open'});return Object.freeze({suppressionId:id,candidateId});}); }
   function revokeSuppression(suppressionId) { return write('arca_offdeck_suppression_revoke',(ctx)=>{const r=ctx.repository(repo.repositoryId),item=r.invoke('list_suppressions',{}).find((x)=>x.suppression_id===suppressionId);if(!item||item.state!=='active')fail('ARCA_OFFDECK_SUPPRESSION_NOT_ACTIVE','Off-deck Suppression is not active.');r.invoke('update_suppression',{state:'revoked',revoked_at_ms:now(),suppression_id:suppressionId,expected_state:'active'});return Object.freeze({suppressionId,state:'revoked'});}); }
   function whitelistDuplicate(groupId,input={}) { return write('arca_offdeck_duplicate_whitelist',(ctx)=>{const r=ctx.repository(repo.repositoryId),group=r.invoke('list_duplicate_groups',{}).find((x)=>x.duplicate_group_id===groupId);if(!group||group.state!=='active')fail('ARCA_OFFDECK_DUPLICATE_GROUP_NOT_ACTIVE','Duplicate Group is not active.');const id=stable('arca-offdeck-whitelist-',{groupId,memberSetDigest:group.member_set_digest});if(!r.invoke('list_whitelists',{}).some((x)=>x.whitelist_id===id))r.invoke('insert_whitelist',{whitelist_id:id,duplicate_group_id:groupId,member_set_digest:group.member_set_digest,state:'active',actor_id:input.actorId||'admin',created_at_ms:now(),revoked_at_ms:null});return Object.freeze({whitelistId:id,groupId});}); }

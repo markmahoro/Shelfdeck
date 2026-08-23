@@ -5,15 +5,21 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const test = require('node:test');
+const Ajv2020 = require('ajv/dist/2020');
 const { canonicalDigest } = require('../../src/helix/contracts/canonical-json');
 const { computeBoundedMaterialFingerprintSync } = require('../../src/helix/integrations/bounded-material-fingerprint');
 const { createCleanOffdeckDeletionPort } = require('../../src/clean-offdeck-deletion-port');
 const { createOffdeckContextReader } = require('../../src/helix/domains/arca/application/offdeck-context-reader');
 const { createOffdeckCapabilityPorts } = require('../../src/helix/domains/arca/capabilities/offdeck-capability-ports');
+const { createOffdeckStore } = require('../../src/helix/domains/arca/persistence/offdeck-store');
 const { CAPABILITY_REFS } = require('../../src/helix/domains/arca/model/offdeck-contract');
 const { defaultPolicy, normalizePolicy, evaluateCondition, evaluateEntryPolicy, highVolumeDecision } =
   require('../../src/helix/domains/arca/model/offdeck-contract');
+const activeShelfEntryIdentityProjectionSchema =
+  require('../../src/helix/contracts/domain-types/ActiveShelfEntryIdentityProjection/v1/schema.json');
 const schemaManifest = require('../../src/helix/foundation/persistence/generated/clean-schema.manifest.json');
+const validateActiveShelfEntryIdentityProjection = new Ajv2020({ allErrors:true, strict:false })
+  .compile(activeShelfEntryIdentityProjectionSchema);
 
 test('Off-deck Policy is disabled by default and preserves tri-state unknown', () => {
   const disabled = defaultPolicy(1);
@@ -88,6 +94,8 @@ test('Duplicate detection pages stay bounded and never split one strong Identity
     materialControlProjectionPort:{ getMaterialControlProjections:()=>[] } });
   const pages = reader.activeIdentityProjectionPages(100);
   assert.deepEqual(pages.map((page) => page.entries.length), [100, 100, 5]);
+  for (const page of pages) assert.equal(validateActiveShelfEntryIdentityProjection(page), true,
+    JSON.stringify(validateActiveShelfEntryIdentityProjection.errors));
   const pageByIdentity = new Map();
   pages.forEach((page, pageIndex) => page.entries.forEach((entry) => {
     assert.equal(pageByIdentity.has(entry.digest) ? pageByIdentity.get(entry.digest) : pageIndex, pageIndex);
@@ -98,6 +106,42 @@ test('Duplicate detection pages stay bounded and never split one strong Identity
       canonical_identity_key:'same', identity:{ identity_digest:'f'.repeat(64) } })) },
     materialControlProjectionPort:{ getMaterialControlProjections:()=>[] } }).activeIdentityProjectionPages(100),
   (error) => error?.code === 'ARCA_OFFDECK_DUPLICATE_GROUP_TOO_LARGE');
+  const empty = createOffdeckContextReader({ offdeckStore:{ allEntryFacts:()=>[] },
+    materialControlProjectionPort:{ getMaterialControlProjections:()=>[] } }).activeIdentityProjection();
+  assert.equal(validateActiveShelfEntryIdentityProjection(empty), true,
+    JSON.stringify(validateActiveShelfEntryIdentityProjection.errors));
+});
+
+test('Off-deck Candidate query converts SQLite safe integers into JSON values', () => {
+  const rows = {
+    list_candidates:[{ candidate_id:'candidate-1', candidate_kind:'entry', shelf_entry_id:'entry-1',
+      duplicate_group_id:null, target_digest:'a'.repeat(64), policy_id:'policy-1', policy_revision:3n,
+      condition_evidence_schema_ref:'arca://types/OffdeckConditionEvidence/v1', condition_evidence_json:'{}',
+      condition_evidence_digest:'b'.repeat(64), reason_digest:'c'.repeat(64), state:'open', created_at_ms:10n }],
+    list_duplicate_groups:[{ duplicate_group_id:'group-1', canonical_identity_digest:'d'.repeat(64),
+      member_set_digest:'e'.repeat(64), state:'active', detected_at_ms:11n, superseded_at_ms:null }],
+    list_duplicate_members:[{ duplicate_group_id:'group-1', shelf_entry_id:'entry-1',
+      inventory_revision:4n, member_digest:'f'.repeat(64) }],
+    list_suppressions:[{ suppression_id:'suppression-1', shelf_entry_id:'entry-1', candidate_kind:'entry',
+      policy_id:'policy-1', policy_revision:3n, reason_digest:'1'.repeat(64), state:'active',
+      effective_at_ms:12n, expires_at_ms:13n, revoked_at_ms:null }],
+    list_whitelists:[{ whitelist_id:'whitelist-1', duplicate_group_id:'group-1',
+      member_set_digest:'e'.repeat(64), state:'active', actor_id:'admin', created_at_ms:14n,
+      revoked_at_ms:null }],
+  };
+  const unitOfWork = { execute(participants) {
+    return Object.fromEntries(participants.map((participant) => [participant.participantId,
+      participant.execute({ repository() { return { invoke(statementId) { return rows[statementId] || []; } }; } })]));
+  } };
+  const projection = createOffdeckStore({ schemaManifest, unitOfWork }).listCandidates();
+  assert.doesNotThrow(() => JSON.stringify(projection));
+  assert.equal(typeof projection.candidates[0].policy_revision, 'number');
+  assert.equal(typeof projection.candidates[0].created_at_ms, 'number');
+  assert.equal(typeof projection.duplicateGroups[0].detected_at_ms, 'number');
+  assert.equal(typeof projection.duplicateGroups[0].members[0].inventory_revision, 'number');
+  assert.equal(typeof projection.suppressions[0].expires_at_ms, 'number');
+  assert.equal(projection.suppressions[0].revoked_at_ms, null);
+  assert.equal(typeof projection.whitelists[0].created_at_ms, 'number');
 });
 
 function materialHandle(root, relativeLocation) {
