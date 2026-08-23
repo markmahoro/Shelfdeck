@@ -4,11 +4,11 @@ Status: Helix-beta 已由 Product Owner 收窄为 **仅 Movie 的全功能版本
 
 Last updated: 2026-08-23
 
-## 0. Post-UAT implementation — People registration and avatars complete
+## 0. Post-UAT implementation — People registration, identity conservation, and avatars complete
 
-分支`codex/fix-people-registration-avatars`已完成`UAT-071`与`UAT-072`的独立实现和隔离资格验证：Arca按人物关系冻结Evidence，People按Provider Person Identity优先幂等，Admin Web显示服务端代理TMDB头像并在失败时回退姓名首字。正式Route Inventory增加1条头像GET route，总计119条；不新增表，不迁移或删除旧错误Candidate，不改变People/Arca Owner、Media-Cast或Business Handoff。
+分支`codex/fix-people-registration-avatars`已完成`UAT-071`、`UAT-072`与真实Canary暴露的`UAT-073`：Arca按人物关系冻结Evidence，People按Provider Person Identity优先幂等；Libra保留NFO演员`tmdbid`并按稳定Provider Person Identity精确去重；Admin Web显示服务端代理TMDB头像并在失败时回退姓名首字。正式Route Inventory增加1条头像GET route，总计119条；不新增表，不迁移或删除旧错误Candidate，不放宽弱身份确认规则，不改变People/Arca Owner、Media-Cast或Business Handoff。
 
-资格运行固定为`F:\shelfdeck_test_zone\runs\UAT-20260823-people-registration-avatar-91e6bb141`，独立端口、数据、Field、Shelf、tmp、Playwright与evidence均位于F盘。正式Formation→On-deck链路得到16/16强身份Person，重启后数量不变；桌面及390px UI E2E、头像成功/回退、可访问性、专项回归与Web build均已完成。后续交付只需保留提交与证据，不切换当前`18080`服务，不清理现有或本轮失败/成功运行目录，不部署NAS。
+确定性stub运行`UAT-20260823-people-registration-avatar-91e6bb141`只保留为自动化夹具，不作为真实UAT截图。真实资格运行固定为`F:\shelfdeck_test_zone\runs\UAT-20260823-people-real-avatar-fix-b8861a3dd`，独立端口、数据、Field、Shelf、tmp、Playwright与evidence均位于F盘。《放·逐 (2006)》正式Formation→On-deck链路得到23/23强身份Person、0待确认，重启后数量不变；桌面及390px真实UI为21个真实TMDB头像、2个首字回退，axe serious/critical为0。后续交付只需保留提交与证据，不切换当前`18080`服务，不清理现有或本轮失败/成功运行目录，不部署NAS。
 
 ## 0. Product scope — Helix-beta is Movie-only full chain
 

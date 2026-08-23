@@ -129,6 +129,7 @@ Helix主体开发已经完成，Movie从Procurement、Libra到Arca及Shelf Dereg
 | UAT-070 | 集成配置 revision 更新后，新建 Metadata Work 仍假定 revision 1，并让首轮 reconcile 阻断服务启动 | `DOMAIN_ORCHESTRATION` | `RECOVERY_CORRECTNESS`、`EXTERNAL_INTEGRATION` | Libra Metadata Planning + Foundation reconciliation | 可用性、活性、恢复正确性 | Critical | 已修复并由 Product Owner 接受现有证据关闭 |
 | UAT-071 | 同一上架电影的多个人物关系共用来源 digest，只有首个人物自动登记 | `DOMAIN_ORCHESTRATION` | `PROJECTION_FRESHNESS` | Arca On-deck Person Evidence + People登记幂等 | 正确性、名录完整性 | Critical | 已修复并通过全新隔离 Canary FACT/RESTART确认 |
 | UAT-072 | 已登记人物名录缺少头像，无法形成可辨识的人物联系表 | `USER_EXPERIENCE` | `EXTERNAL_INTEGRATION`、`PROJECTION_FRESHNESS` | People Admin Query + Platform TMDB adapter + Admin Web | 可辨识性、安全性、可访问性 | High | 已修复并通过桌面/390px UI E2E确认 |
+| UAT-073 | NFO演员块的TMDB Person ID被丢弃，与Provider演员关系重复后产生整组待确认登记 | `DOMAIN_ORCHESTRATION` | `EXTERNAL_INTEGRATION`、`PROJECTION_FRESHNESS` | Libra NFO Metadata Observation + Media Cast形成 | 正确性、名录完整性、可理解性 | Critical | 已修复并通过真实电影/真实TMDB Canary与UI确认 |
 
 ## 2.1 UAT-006：概览展示固定演示数字
 
@@ -2811,7 +2812,7 @@ Product Package与Offer并完成On-deck；没有替换Run或数据库编辑。Ad
 
 修复边界：Arca按`relationId`、`relationDigest`、来源provenance、姓名、角色及Provider Identity计算确定性逐关系Evidence digest；People先按稳定Provider Person Identity查现有Person，再按逐关系digest查历史Candidate。移除重复的Process-local 24小时门闩，Foundation仍保持30秒有界调度。未新增表、未迁移旧Candidate、未改变Owner/Handoff。
 
-验收证据：隔离运行`F:\shelfdeck_test_zone\runs\UAT-20260823-people-registration-avatar-91e6bb141`从只读基线复制一部电影，走正式Formation→On-deck→People链路。Arca不同TMDB Person Identity为16，People active Person为16，open Candidate为0；安全重启后仍为16/16，源与复制字节数一致。专项测试覆盖共享来源的16个强身份、多个弱身份、跨来源/重扫/重启幂等、新证据及时可见及失败cursor不越过。
+验收证据：隔离运行`F:\shelfdeck_test_zone\runs\UAT-20260823-people-registration-avatar-91e6bb141`是确定性本地Provider stub自动化夹具，只证明逐关系Evidence、16个强身份、重启幂等与失败cursor合同，不作为真实TMDB或真实UI UAT证据。随后真实运行`F:\shelfdeck_test_zone\runs\UAT-20260823-people-real-avatar-fix-b8861a3dd`从只读`test_film`复制《放·逐 (2006)》，走正式Formation→On-deck→People链路，23个不同TMDB Person Identity对应23个active Person、0 open Candidate；安全重启后仍为23/23，源电影与NFO的size/mtime保持不变。
 
 当前处理决定：提交`bcca79848`修复逐关系Evidence与幂等顺序，提交`0cc272d2f`修复新证据唤醒。状态`REGRESSION PASSED / QUALIFIED IN ISOLATED CANARY`；不修改保留UAT数据库或旧错误Candidate。
 
@@ -2823,11 +2824,27 @@ Product Package与Offer并完成On-deck；没有替换Run或数据库编辑。Ad
 
 修复边界：新增受保护的`GET /v1/admin/people/:personId/avatar`，只读取active Person的TMDB Person Identity，以当前Integration revision请求人物资料并代理`w185`图片。边界为10秒、4 MiB、JPEG/PNG/WebP；24小时内存缓存按Integration revision与Provider key隔离，最多64项/32 MiB，不写盘。无图、Integration不可用或网络失败返回明确错误，由前端显示姓名首字头像。
 
-验收证据：Admin Web人物页改为响应式竖向头像卡，展示姓名、登记状态、别名和外部编号，支持lazy loading、键盘焦点、窄屏单列及加载失败回退。隔离Playwright桌面与390px两项均通过，验证16张卡、15个成功代理图片、1个无图首字回退及axe serious/critical为0；截图为运行目录`evidence/people-desktop.png`与`evidence/people-narrow-390.png`。头像后端覆盖成功、无图、超时、超限、错误MIME、Integration revision变化和未授权访问。
+验收证据：Admin Web人物页改为响应式竖向头像卡，展示姓名、登记状态、别名和外部编号，支持lazy loading、键盘焦点、窄屏单列及加载失败回退。早先`UAT-20260823-people-registration-avatar-91e6bb141`截图使用确定性本地TMDB stub，只作为自动化夹具证据，不作为真实UI UAT截图。真实运行`UAT-20260823-people-real-avatar-fix-b8861a3dd`的桌面与390px Playwright均通过：23张真实电影人物卡、21个真实TMDB代理头像、2个TMDB无图首字回退、待确认0，axe serious/critical为0。截图位于`playwright/people-real-desktop.png`与`playwright/people-real-narrow.png`；FACT位于`evidence/people-real-avatar-ui-facts.json`。头像后端另覆盖成功、无图、超时、超限、错误MIME、Integration revision变化和未授权访问。
 
 当前处理决定：提交`7f93e1b1d`完成头像route与UI，`8b9df550f`加入专项/E2E，`ea860b19e`修复冻结People列表的Admin投影并强化真实名录UI见证。状态`REGRESSION PASSED / QUALIFIED IN ISOLATED UI E2E`。Route Inventory总数为119；未暴露Secret或TMDB原始地址。
 
-## 70. 后续问题模板
+## 70. UAT-073：NFO人物强身份丢失并与Provider关系重复
+
+问题分类：`DOMAIN_ORCHESTRATION / EXTERNAL_INTEGRATION / PROJECTION_FRESHNESS`
+
+用户侧现象：第一次真实《放·逐 (2006)》Canary中，人物名录自动登记16人，但同时出现23条需要用户确认的英文姓名。用户已经提供了带`<tmdbid>`的NFO，不应再确认同一批演员。
+
+现场证据：保留现场`F:\shelfdeck_test_zone\runs\UAT-20260823-people-real-avatar-4916191ea`中，Arca有16条真实TMDB Provider强身份关系和23条NFO弱身份关系；例如`黄秋生 / tmdb_person 66717`自动登记，同时`Anthony Wong / 无Provider Identity`形成open Candidate。23条NFO演员实际都含`<tmdbid>`。
+
+精确根因：Libra的Related NFO读取只提取演员`<name>`，硬编码`providerIdentities=[]`，丢弃同一`<actor>`块内的`<tmdbid>`；Media Cast形成又把NFO与Provider的people hints全部追加，不按稳定Provider Person Identity去重。People按合同不能用中英文姓名猜测合并，因此正确地把23条弱关系交给用户确认。
+
+修复边界：commit`da485edc6`在Libra NFO读取边界把有效正整数`<tmdbid>`冻结为`tmdb/tmdb_person`身份，并在Metadata Media Cast形成时按`provider + namespace + providerKey`精确去重，遵守既有NFO-first来源优先级。无稳定ID的人仍保持弱身份待确认；不做姓名模糊合并，不修改People自动接受规则，不新增表、不迁移或删除旧现场Candidate、不改变Owner/Handoff。
+
+验收证据：全新真实运行`F:\shelfdeck_test_zone\runs\UAT-20260823-people-real-avatar-fix-b8861a3dd`从只读`F:\shelfdeck_test_zone\test_film\放·逐 (2006)`复制MKV/NFO，使用真实TMDB并走正式Formation→On-deck→People。NFO预期23个唯一TMDB Person ID，Arca为23、People active为23、open Candidate为0；安全重启后数量不变，源size/mtime不变。真实UI桌面及390px均显示23人、待确认0，21个真实头像与2个首字回退；axe serious/critical为0。业务FACT为`evidence/people-real-canary-facts.json`，UI FACT为`evidence/people-real-avatar-ui-facts.json`。
+
+当前处理决定：提交`da485edc6`完成生产修复，`b8861a3dd`加入真实电影资格脚本，`a82ea3367`加入真实UI/axe证据脚本。专项People/Libra回归52/52、Admin Web build及真实E2E通过。完整Service `npm test`为310 PASS / 18 SKIP / 1 FAIL，唯一失败是既有Routing陈旧等待条件（实际24/24、旧断言等待25/24），不得为此恢复重复Acceptance Spec。状态`REGRESSION PASSED / QUALIFIED WITH REAL MOVIE AND REAL TMDB`。
+
+## 71. 后续问题模板
 
 后续发现的问题按以下结构追加：
 

@@ -4,15 +4,17 @@ Status: Helix-beta 范围已收窄为仅 Movie 全链路。Movie Procurement与M
 
 Last updated: 2026-08-23
 
-## 0. Post-UAT qualification — People registration and avatars
+## 0. Post-UAT qualification — People registration, identity conservation, and avatars
 
 `codex/fix-people-registration-avatars` 已从 `main@2ef325cfe` 独立修复人物登记与头像，不触碰现有 `18080` 服务、NAS或既有 UAT 证据库。Arca 现在按每条人物关系输出确定性的 Evidence digest，电影/NFO级 `originEvidenceDigest` 只作为 provenance；People 先按稳定 Provider Person Identity 幂等，再按逐人物 Evidence digest 查历史 Candidate。强身份自动接受、弱身份保持待确认，Owner 与 Handoff 均未改变。
 
 新增受保护的 `GET /v1/admin/people/:personId/avatar` 后，机器 Route Inventory 为119条（118条 Admin + public health）。头像仅从已登记 Person 的 TMDB Identity读取，由服务端在当前 Integration revision 下代理 `w185` 图片；Secret和原始图片地址不进入浏览器。Admin Web 已改为响应式人物头像名录，并保留无图/失败时的姓名首字回退。
 
-全新隔离运行 `F:\shelfdeck_test_zone\runs\UAT-20260823-people-registration-avatar-91e6bb141` 使用正式 Formation→On-deck→People 链路：Arca 16个不同 TMDB Person Identity 对应 People 16个 active Person，0 open Candidate；安全重启后仍为16/16，1个 active Shelf Entry，源与复制前字节数均为937,977,503。桌面与390px Playwright均通过，15个代理头像和1个确定性无图回退可见，axe serious/critical finding为0。证据位于该运行目录的 `evidence` 子目录。
+最初的`F:\shelfdeck_test_zone\runs\UAT-20260823-people-registration-avatar-91e6bb141`使用确定性本地TMDB stub，只是自动化夹具，不作为真实UI UAT证据。第一次真实《放·逐 (2006)》运行`UAT-20260823-people-real-avatar-4916191ea`暴露`UAT-073`：16个Provider强身份已登记，同时23个NFO演员因`tmdbid`被读取层丢弃而成为open Candidate。People拒绝按中英文姓名猜测合并是正确行为。
 
-本轮专项 People测试23/23、Admin Web 22/22、Playwright 2/2及 production build通过。完整 `npm test` 为309 PASS / 18 SKIP / 2 FAIL：Routing仍是已知陈旧断言（实际24/24，等待25/24）；Procurement-only旅程在Field注销后的旧联合查询仍期待65、实际为0，独立复跑同样失败，且本分支未改该边界。P6总门禁另受既有 source-map digest、dependency与persistence baseline finding阻断；均未以本修复扩大范围或改写Owner合同。问题记录见`UAT-071`、`UAT-072`；历史`UAT-001`–`UAT-070`的70/70关闭结论保持不变。
+commit`da485edc6`在Libra读取边界保留NFO演员TMDB Person ID，并在Media Cast形成时按稳定Provider Identity精确去重，不改变People弱身份规则。全新真实运行`F:\shelfdeck_test_zone\runs\UAT-20260823-people-real-avatar-fix-b8861a3dd`使用只读`test_film`的《放·逐 (2006)》与真实TMDB：Arca 23、People active 23、open Candidate 0、active Shelf Entry 1，安全重启后数量不变，源MKV/NFO size与mtime不变。桌面与390px Playwright均显示23人、待确认0；21个真实TMDB头像加载成功，2个明确无图人物显示首字回退，axe serious/critical为0。业务FACT、UI FACT与截图均在该运行目录。
+
+本轮专项People/Libra回归52/52、Admin Web production build与真实Playwright桌面/窄屏通过。完整Service`npm test`为310 PASS / 18 SKIP / 1 FAIL；唯一失败仍是已知Routing陈旧等待条件（实际specs=24/runs=24，旧断言等待25/24），未恢复重复Acceptance Spec。问题记录见`UAT-071`–`UAT-073`；历史`UAT-001`–`UAT-070`的70/70关闭结论保持不变。
 
 ## 0. Current UAT closure continuation — UAT-20260823-040740-0886b2723
 

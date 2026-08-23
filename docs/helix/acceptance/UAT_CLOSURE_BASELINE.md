@@ -149,9 +149,9 @@
 
 ### Post-closure qualification（不改写历史70行）
 
-2026-08-23在70/70关闭之后，独立登记并修复`UAT-071`（多人自动登记Evidence碰撞）与`UAT-072`（已登记人物头像）。两项属于post-closure qualification，不追加进上方`UAT-001`–`UAT-070`表、不改变70/70历史结论，也不追溯修改`UAT-055`的已接受证据。
+2026-08-23在70/70关闭之后，独立登记并修复`UAT-071`（多人自动登记Evidence碰撞）、`UAT-072`（已登记人物头像）与真实Canary进一步暴露的`UAT-073`（NFO人物强身份丢失及重复关系）。三项属于post-closure qualification，不追加进上方`UAT-001`–`UAT-070`表、不改变70/70历史结论，也不追溯修改`UAT-055`的已接受证据。
 
-隔离运行`F:\shelfdeck_test_zone\runs\UAT-20260823-people-registration-avatar-91e6bb141`证明：一部正式上架电影投影出的16个不同TMDB Person Identity形成16个active Person，重启后不增不减；人物页桌面与390px E2E显示16张人物卡，其中15个头像由本地确定性TMDB stub经正式服务端代理route读取，1个无图人物使用姓名首字回退，axe serious/critical为0。FACT与截图均保存在该运行目录`evidence`下；既有Canary、旧Candidate与历史UAT证据均未修改。
+`UAT-20260823-people-registration-avatar-91e6bb141`仅为确定性本地TMDB stub自动化夹具，证明合同与回退，不作为真实UI UAT证据。权威post-closure真实资格运行是`F:\shelfdeck_test_zone\runs\UAT-20260823-people-real-avatar-fix-b8861a3dd`：从只读`test_film`复制《放·逐 (2006)》，使用真实TMDB走正式Formation→On-deck→People，23个唯一TMDB Person Identity形成23个active Person、0 open Candidate，安全重启后不增不减；桌面与390px真实页面显示23张卡、21个真实代理头像、2个无图首字回退，axe serious/critical为0。FACT与截图均保存在该运行目录；既有Canary、旧Candidate与历史UAT证据均未修改。
 
 `UAT-005` 剩余动作合同并入 `UAT-051` 后仍保留本行，用四桶状态在新 Canary 上资格确认，不把 005 标 `VOID`。
 
