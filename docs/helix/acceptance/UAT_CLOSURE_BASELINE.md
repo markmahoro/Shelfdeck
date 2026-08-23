@@ -126,11 +126,11 @@
 | UAT-067 | 活动 Run 加急后既有 Work 必须按冻结 Admission Definition 回放，动态 Priority 不得制造幂等冲突 | `UI` `FACT` | W3 | `CLOSED` | `PASS` UAT-20260823-002500-519f8d7b5 UI同一已加急老笠Run恢复并完成上架；FACT形成Product Package/Offer且无替换Run或数据库编辑 |
 | UAT-068 | Collection 年份投影须保留 Provider 标准年份字段，Aftercare Shelf Entry 不得因此丢失 title-year Identity Evidence | `UI` `FACT` | W4 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260823-024825-f6b9eded6 UI威尼斯详情显示2023与3星豆瓣；FACT Inventory标准年份保留且Shelf Entry/Subject命中同一Douban Record |
 | UAT-069 | Aftercare Coordinator、Planner 与 Capability 必须共享包含当前 Perception Resolution 的 Care Basis；评分变化后不得写回旧 Basis | `UI` `FACT` | W4 | `CODE_DONE_UNQUALIFIED` | `PASS` UAT-20260823-024825-f6b9eded6 UI威尼斯3星豆瓣且三维健康；FACT修复后恢复、4星直评、清除回豆瓣三代Assessment均使用各自新Basis |
-| UAT-070 | 集成配置 revision 更新后，旧 Run 冻结 Handle 不得令 startup recovery 崩溃；旧 Handle 不得偷换新 Credential 执行 | `UI` `FACT` `RESTART` | W7 | `RECORDED_UNIMPLEMENTED` | `NOT RUN`；失败证人 UAT-20260823-132053-daaef8c3d |
+| UAT-070 | 集成配置 revision 更新后，新 Work 必须冻结当前 Handle；单个 reconcile scope 失败不得阻断启动或跳过失败 cursor | `UI` `FACT` `RESTART` | W7 | `CODE_DONE_UNQUALIFIED` | `NOT RUN`；commit `efaf2d827`，失败库克隆 RESTART/FACT 已通过，待 UI 见证 |
 
 ## 5. 计数
 
-冻结时（代码状态，不是本轮 Canary）：`CLOSED` 11，`CODE_DONE_UNQUALIFIED` 52，`RECORDED_UNIMPLEMENTED` 1（064）。本轮逐项关闭期间新增并完成`UAT-065`、`UAT-066`、`UAT-067`，并新增已修复待资格确认的`UAT-068`、`UAT-069`；`UAT-064` 已实现待 UI 见证，`UAT-070` 已登记并进入根因修复。当前代码状态为`CLOSED` 12、`CODE_DONE_UNQUALIFIED` 57、`RECORDED_UNIMPLEMENTED` 1（070）。
+冻结时（代码状态，不是本轮 Canary）：`CLOSED` 11，`CODE_DONE_UNQUALIFIED` 52，`RECORDED_UNIMPLEMENTED` 1（064）。本轮逐项关闭期间新增并完成`UAT-065`、`UAT-066`、`UAT-067`，并新增已修复待资格确认的`UAT-068`、`UAT-069`；`UAT-064` 已实现待 UI 见证，`UAT-070` 已完成根因修复与失败库克隆 RESTART/FACT。当前代码状态为`CLOSED` 12、`CODE_DONE_UNQUALIFIED` 58、`RECORDED_UNIMPLEMENTED` 0。
 
 逐项关闭累计覆盖干净 Canary `UAT-20260822-141950-0c27c8cf6`、`UAT-20260823-002500-519f8d7b5`与
 `UAT-20260823-014246-3397c88f5`；当前 PASS 总账：
@@ -143,9 +143,9 @@
 | 是否都通过 | **否**（68/70，尚余 2） |
 
 累计 `PASS`：001–063、065–069。证据均包含干净隔离库 Admin Web `UI`；要求文件现实的行另有`FS`。
-当前 `UAT-064` 已实现并取得执行 FACT，待 `UAT-070` 关闭后补 UI 见证；`UAT-070` 已登记并在修复中。
+当前 `UAT-070` 已完成代码、回归及真实失败库克隆 RESTART/FACT，因本机页面工具策略尚缺 UI 见证而保持 `NOT RUN`；现按用户顺序返回 `UAT-064` 补 UI/FACT。
 
-最新关闭证据：`UAT-20260823-040740-0886b2723`以真实MoviePilot不合格候选关闭`UAT-017`，并以同一五星冻结证人的Discard、cleanup fully ack及重新扫描形成全新Procurement/Subject链关闭`UAT-062`。`UAT-064` 最终 UI 见证暂停于 `UAT-070` 根因修复之后，因此总账当前为68/70。
+最新关闭证据：`UAT-20260823-040740-0886b2723`以真实MoviePilot不合格候选关闭`UAT-017`，并以同一五星冻结证人的Discard、cleanup fully ack及重新扫描形成全新Procurement/Subject链关闭`UAT-062`。`UAT-070` 的失败库克隆 `UAT-20260823-uat070-recovery-v2` 已通过 RESTART/FACT，但尚缺 UI；`UAT-064` 现恢复最终见证，因此总账仍为68/70。
 
 `UAT-005` 剩余动作合同并入 `UAT-051` 后仍保留本行，用四桶状态在新 Canary 上资格确认，不把 005 标 `VOID`。
 
