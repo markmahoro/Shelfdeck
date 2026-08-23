@@ -268,6 +268,39 @@ function createIntegrationAdminApplication(options) {
     return options.secretStore.requestDigest(canonicalJson(value));
   }
 
+  function recordValidation(testKey, endpoint, status, error = null) {
+    const snapshot = current();
+    const result = Object.freeze({
+      schemaRef:'helix://implementation-contracts/platform-integrations/validation-observation/v1',
+      schemaVersion:1,
+      kind:profile.kind,
+      status,
+      checkedAtMs:now(),
+      endpointDigest:canonicalDigest({ endpoint }),
+      configRevision:snapshot.integration?.configRevision || 0,
+      errorCode:status === 'failed' ? String(error?.details?.causeCode || error?.code || 'PLATFORM_INTEGRATION_VALIDATION_FAILED') : null,
+    });
+    options.receiptRepository.commit({
+      commandKind:'validation_observation',
+      commandContract:commandContract('validation_observation'),
+      idempotencyKey:'validation:' + testKey,
+      integrationId:profile.integrationId,
+      requestDigest:requestDigest({ command:'validation_observation', testKey, result }),
+      result,
+    });
+    return result;
+  }
+
+  function withValidation(snapshot) {
+    const value = publicSnapshot(profile, snapshot);
+    const observation = options.receiptRepository.latestForTarget?.(
+      profile.integrationId,
+      (result) => result?.schemaRef === 'helix://implementation-contracts/platform-integrations/validation-observation/v1' &&
+        result.kind === profile.kind,
+    )?.result || null;
+    return observation ? Object.freeze({ ...value, validation:Object.freeze({ ...observation }) }) : value;
+  }
+
   function removeProof(proof) {
     proofs.delete(proof.connectionProofId);
     if (tests.get(proof.testIdempotencyKey)?.connectionProofId ===
@@ -511,6 +544,7 @@ function createIntegrationAdminApplication(options) {
         connectionProofId,
         result,
       }));
+      recordValidation(testKey, endpoint, 'passed');
       return result;
     } catch (error) {
       if (secretLocator) {
@@ -520,6 +554,7 @@ function createIntegrationAdminApplication(options) {
           // The authoritative test error remains unchanged.
         }
       }
+      recordValidation(testKey, endpoint, 'failed', error);
       throw error;
     } finally {
       prepared.secretBytes.fill(0);
@@ -982,7 +1017,7 @@ function createIntegrationAdminApplication(options) {
     disconnect,
     get(inputKind) {
       assertSupported(profile, inputKind);
-      return publicSnapshot(profile, current());
+      return withValidation(current());
     },
     profile,
     test,

@@ -125,8 +125,17 @@ function productOptions(metadataCalls = null, metadataGate = null) {
     })]),
     productIntegrationHandleResolver: ({ intent, operationId, artifactKind }) =>
       productHandle(intent, operationId, artifactKind || null),
-    currentProductIntegrationHandleResolver: ({ providerKind, operationId, artifactKind }) =>
-      productHandle({ integrationId:providerKind + '-main', configRevision:1 }, operationId, artifactKind || null),
+    currentProductIntegrationHandleResolver: ({ providerKind, operationId, artifactKind }) => {
+      if (operationId === 'libra.product_artifact.acquire@1') {
+        assert.ok(['poster', 'fanart'].includes(artifactKind),
+          'Artifact Handle resolution must freeze the exact artifactKind.');
+      }
+      return productHandle(
+        { integrationId:providerKind + '-main', configRevision:1 },
+        operationId,
+        artifactKind || null,
+      );
+    },
     productProviderMetadataFetch: async ({ metadataFetchIntent:intent }) => {
       metadataCalls?.push(Object.freeze({
         libraRunId:intent.libraRunId,

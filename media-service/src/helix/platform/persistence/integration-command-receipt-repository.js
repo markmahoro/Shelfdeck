@@ -82,6 +82,15 @@ function createIntegrationCommandReceiptRepository(options) {
           'idempotency_key',
         ],
       },
+      list_target: {
+        kind: 'select-all',
+        tableId: 'fx_command_receipts',
+        columns: [
+          'command_receipt_id', 'request_digest', 'result_schema_ref',
+          'result_ref_json', 'result_digest', 'committed_at_ms',
+        ],
+        keyColumns: ['owner_domain', 'target_type', 'target_id'],
+      },
       insert: {
         kind: 'insert',
         tableId: 'fx_command_receipts',
@@ -266,7 +275,19 @@ function createIntegrationCommandReceiptRepository(options) {
     }]).platform_integration_receipt_commit;
   }
 
-  return Object.freeze({ commit, read });
+  function latestForTarget(integrationId, predicate = () => true) {
+    return options.unitOfWork.execute([{
+      participantId:'platform_integration_receipt_latest', owner:'execution-foundation', repositories:[receipts],
+      execute(context) {
+        return context.repository(receipts.repositoryId).invoke('list_target', {
+          owner_domain:'platform-settings', target_type:'platform_integration', target_id:integrationId,
+        }).map(decode).filter((item)=>predicate(item.result))
+          .sort((left,right)=>right.committedAtMs-left.committedAtMs)[0];
+      },
+    }]).platform_integration_receipt_latest;
+  }
+
+  return Object.freeze({ commit, latestForTarget, read });
 }
 
 module.exports = Object.freeze({

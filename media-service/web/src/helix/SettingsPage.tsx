@@ -5,6 +5,14 @@ import { Button, LoadingState, PageHeader } from './chrome';
 import { labelOf, recordKindLabels, resolutionLabels } from './labels';
 import { isUnauthorized, useSession } from './session';
 
+function integrationStateLabel(value:IntegrationState|null) {
+  if (!value || value.configRevision === 0) return '未配置';
+  if (value.validation?.status === 'failed') return '已配置 · 最近验证失败';
+  if (value.configured && (value.validation?.status === 'passed' || value.lastTestSummary)) return '当前可用';
+  if (value.configured) return '已配置 · 尚未验证';
+  return '已配置 · 当前停用';
+}
+
 function time(value: number) {
   return new Intl.DateTimeFormat('zh-CN', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value));
 }
@@ -185,7 +193,7 @@ export default function SettingsPage() {
     {notice && <p className="form-notice" role="status">{notice}</p>}
     {tab === 'automation' ? <div className="settings-stack"><AutomaticOperationPanel /></div> : tab === 'integrations' ? <div className="settings-stack">
       <section className="settings-card" aria-labelledby="douban-title">
-        <header className="settings-card-head"><div><h2 id="douban-title">豆瓣</h2><p>同步收藏评分</p></div><span className={`integration-state ${integration?.configured ? 'active' : ''}`}>{integration?.configured ? '已连接' : '未连接'}</span></header>
+        <header className="settings-card-head"><div><h2 id="douban-title">豆瓣</h2><p>同步收藏评分</p></div><span className={`integration-state ${integration?.configured ? 'active' : ''}`}>{integrationStateLabel(integration)}</span></header>
         <div className="settings-card-body">
           {integration?.configured ? <>
             <dl className="settings-facts"><div><dt>账号</dt><dd>{integration.lastTestSummary?.identityProviderKey || '已验证'}</dd></div></dl>
@@ -201,7 +209,7 @@ export default function SettingsPage() {
         </div>
       </section>
       <section className="settings-card" aria-labelledby="tmdb-title">
-        <header className="settings-card-head"><div><h2 id="tmdb-title">TMDB</h2><p>电影身份、资料与海报</p></div><span className={`integration-state ${tmdb?.configured ? 'active' : ''}`}>{tmdb?.configured ? '已连接' : '未连接'}</span></header>
+        <header className="settings-card-head"><div><h2 id="tmdb-title">TMDB</h2><p>电影身份、资料与海报</p></div><span className={`integration-state ${tmdb?.configured ? 'active' : ''}`}>{integrationStateLabel(tmdb)}</span></header>
         <div className="settings-card-body">
           {tmdb?.configured ? <>
             <label className="settings-inline-field"><span>首选语言</span><select value={tmdbLanguage} onChange={(event) => setTmdbLanguage(event.target.value)}><option value="zh-CN">简体中文</option><option value="zh-TW">繁体中文</option><option value="en-US">English</option></select></label>
@@ -217,7 +225,7 @@ export default function SettingsPage() {
         </div>
       </section>
       <section className="settings-card" aria-labelledby="moviepilot-title">
-        <header className="settings-card-head"><div><h2 id="moviepilot-title">MoviePilot</h2><p>按整理要求寻找外部片源</p></div><span className={`integration-state ${moviePilot?.configured ? 'active' : ''}`}>{moviePilot?.configured ? '已连接' : '未连接'}</span></header>
+        <header className="settings-card-head"><div><h2 id="moviepilot-title">MoviePilot</h2><p>按整理要求寻找外部片源</p></div><span className={`integration-state ${moviePilot?.configured ? 'active' : ''}`}>{integrationStateLabel(moviePilot)}</span></header>
         <div className="settings-card-body">
           {moviePilot?.configured && moviePilot.landingBinding ? <>
             <dl className="settings-facts">
