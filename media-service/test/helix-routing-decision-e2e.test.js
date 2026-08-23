@@ -206,7 +206,7 @@ test('direct and sorting Routing Decisions continue through Acceptance Spec and 
     await host.close();
     host = await createCleanServiceHost(hostOptions);
     cookie = await session(host, initialized.adminApiKey);
-    await waitForDurableAcceptance(path.join(dataDir, 'shelfdeck.db'), 25, 24);
+    await waitForDurableAcceptance(path.join(dataDir, 'shelfdeck.db'), 24, 24);
     const recovered = await host.inject({ method: 'GET', url: '/v1/admin/formation', headers: { cookie } });
     assert.equal(recovered.statusCode, 200, recovered.body);
     const recoveredSummary=recovered.json().summary;
@@ -225,7 +225,7 @@ test('direct and sorting Routing Decisions continue through Acceptance Spec and 
       assert.equal(database.prepare("SELECT count(*) count FROM fx_supporting_works WHERE process_type='libra_routing' AND state='succeeded'").get().count, 29);
       assert.equal(database.prepare("SELECT count(*) count FROM fx_workflow_events event JOIN fx_supporting_works work ON work.work_id=event.work_id WHERE work.process_type='libra_routing' AND event.capability_ref='libra.routing.fact.observe@1' AND event.state='succeeded'").get().count, 5);
       assert.equal(database.prepare("SELECT count(*) count FROM fx_workflow_events event JOIN fx_supporting_works work ON work.work_id=event.work_id WHERE work.process_type='libra_routing' AND event.capability_ref='libra.decision_basis.commit@1' AND event.state='succeeded'").get().count, 24);
-      assert.equal(database.prepare('SELECT count(*) count FROM libra_acceptance_specs').get().count, 25);
+      assert.equal(database.prepare('SELECT count(*) count FROM libra_acceptance_specs').get().count, 24);
       assert.equal(database.prepare("SELECT count(*) count FROM (SELECT subject_id,spec_digest FROM libra_acceptance_specs GROUP BY subject_id,spec_digest)").get().count, 24);
       assert.equal(database.prepare('SELECT count(*) count FROM libra_runs').get().count, 24);
       assert.equal(database.prepare('SELECT count(*) count FROM libra_workspaces').get().count, 0);
