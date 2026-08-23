@@ -11,6 +11,7 @@ const { openSqliteKernel } = require('../../src/helix/foundation/persistence/sql
 const { createSqliteUnitOfWork } = require('../../src/helix/foundation/persistence/sqlite-unit-of-work');
 const { createPeopleStore } = require('../../src/helix/domains/people/persistence/people-store');
 const { createPeopleProcessServices } = require('../../src/helix/domains/people/application/people-process-services');
+const { relationEvidenceDigest } = require('../../src/helix/domains/arca/application/on-deck-person-evidence-projection');
 
 const generatedRoot = path.resolve(__dirname, '../../src/helix/foundation/persistence/generated');
 const schemaDdl = fs.readFileSync(path.join(generatedRoot, 'clean-schema.sql'), 'utf8');
@@ -75,5 +76,90 @@ test('direct registration writes the Person Registry and does not require On-dec
   const people = createPeopleProcessServices({ schemaManifest, unitOfWork, peopleStore: store, onDeckPersonEvidenceProjection: { listPage: () => [] } });
   const person = people.registerPerson({ canonicalName: '直接登记', aliases: ['Direct'] }, 'admin');
   assert.equal(person.revision.canonicalName, '直接登记');
+  assert.equal(store.listPeople().length, 1);
+}));
+
+test('shared origin provenance produces one deterministic Evidence digest per Person relation', () => {
+  const originEvidenceDigest = canonicalDigest({ kind: 'movie-nfo', source: 'movie-1' });
+  const evidence = Array.from({ length: 16 }, (_, index) => ({
+    shelfEntryId: 'entry-1',
+    inventoryRevision: 1,
+    relationId: `relation-${index + 1}`,
+    relationDigest: canonicalDigest({ kind: 'person-relation', index }),
+    originEvidenceDigest,
+    displayName: `演员 ${index + 1}`,
+    displayNameNormalized: `演员 ${index + 1}`,
+    role: 'actor',
+    providerIdentities: [{ provider: 'tmdb', namespace: 'person', providerKey: String(10_000 + index) }],
+  }));
+  const digests = evidence.map(relationEvidenceDigest);
+  assert.equal(new Set(digests).size, 16);
+  assert.equal(relationEvidenceDigest(evidence[0]), digests[0]);
+});
+
+test('shared source provenance registers every strong identity and keeps every weak identity as a separate Candidate', () => fixture(({ store, unitOfWork, schemaManifest }) => {
+  const originEvidenceDigest = canonicalDigest({ kind: 'movie-nfo', source: 'movie-1' });
+  const relations = [
+    ...Array.from({ length: 16 }, (_, index) => ({
+      relationId: `strong-${index + 1}`,
+      displayName: `强身份演员 ${index + 1}`,
+      providerIdentities: [{ provider: 'tmdb', namespace: 'person', providerKey: String(20_000 + index) }],
+      identityStrength: 'strong',
+    })),
+    ...Array.from({ length: 3 }, (_, index) => ({
+      relationId: `weak-${index + 1}`,
+      displayName: `弱身份演员 ${index + 1}`,
+      providerIdentities: [],
+      identityStrength: 'weak',
+    })),
+  ].map((item) => {
+    const relationDigest = canonicalDigest({ relationId: item.relationId, displayName: item.displayName });
+    const base = {
+      ...item,
+      shelfEntryId: 'entry-1',
+      inventoryRevision: 1,
+      relationDigest,
+      originEvidenceDigest,
+      displayNameNormalized: item.displayName.toLocaleLowerCase(),
+      role: 'actor',
+    };
+    return Object.freeze({ ...base, evidenceDigest: relationEvidenceDigest(base) });
+  });
+  const people = createPeopleProcessServices({
+    schemaManifest, unitOfWork, peopleStore: store,
+    onDeckPersonEvidenceProjection: { listPage: () => relations.map((scope) => ({ cursor: scope.relationId, scope })) },
+  });
+  const first = relations.map((scope) => people.reconcile(scope));
+  assert.equal(first.filter((item) => item.kind === 'auto_accepted').length, 16);
+  assert.equal(first.filter((item) => item.kind === 'candidate_open').length, 3);
+  assert.equal(store.listPeople().filter((item) => item.status === 'active').length, 16);
+  assert.equal(store.listRegistrationCandidates().filter((item) => item.currentState === 'open').length, 3);
+  assert.ok(relations.every((scope) => people.reconcile(scope).kind === 'known'));
+  assert.equal(store.listPeople().length, 16);
+}));
+
+test('the same Provider Person Identity remains idempotent across sources and service restart', () => fixture(({ store, unitOfWork, schemaManifest }) => {
+  const scopeFor = (relationId, source) => {
+    const base = {
+      relationId,
+      shelfEntryId: `entry-${source}`,
+      inventoryRevision: 1,
+      relationDigest: canonicalDigest({ relationId }),
+      originEvidenceDigest: canonicalDigest({ source }),
+      displayName: '同一人物',
+      displayNameNormalized: '同一人物',
+      role: 'actor',
+      providerIdentities: [{ provider: 'tmdb', namespace: 'person', providerKey: '424242' }],
+      identityStrength: 'strong',
+    };
+    return Object.freeze({ ...base, evidenceDigest: relationEvidenceDigest(base) });
+  };
+  const firstScope = scopeFor('relation-a', 'a');
+  const secondScope = scopeFor('relation-b', 'b');
+  const firstService = createPeopleProcessServices({ schemaManifest, unitOfWork, peopleStore: store, onDeckPersonEvidenceProjection: { listPage: () => [] } });
+  assert.equal(firstService.reconcile(firstScope).kind, 'auto_accepted');
+  assert.equal(firstService.reconcile(secondScope).kind, 'known');
+  const restartedService = createPeopleProcessServices({ schemaManifest, unitOfWork, peopleStore: store, onDeckPersonEvidenceProjection: { listPage: () => [] } });
+  assert.equal(restartedService.reconcile(secondScope).kind, 'known');
   assert.equal(store.listPeople().length, 1);
 }));

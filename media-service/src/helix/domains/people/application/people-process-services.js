@@ -40,13 +40,12 @@ function createPeopleProcessServices(options) {
   let sweepNotBeforeMs = 0;
 
   function alreadyKnown(evidence) {
-    const digest = evidence.evidenceDigest;
-    if (store.listRegistrationCandidates().some((item) => item.evidenceDigest === digest)) return true;
     const identities = providerIdentitiesFrom(evidence);
-    if (!identities.length) return false;
-    return store.listPeople().some((person) => person.revision.providerIdentities.some((identity) =>
+    if (identities.length && store.listPeople().some((person) => person.revision.providerIdentities.some((identity) =>
       identities.some((item) => item.provider === identity.provider && item.namespace === identity.namespace
-        && item.providerKey === identity.providerKey)));
+        && item.providerKey === identity.providerKey)))) return true;
+    const digest = evidence.evidenceDigest;
+    return store.listRegistrationCandidates().some((item) => item.evidenceDigest === digest);
   }
 
   function openDraft(evidence) {
