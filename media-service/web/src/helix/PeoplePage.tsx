@@ -10,6 +10,53 @@ type RegistrationCandidate = {
   proposedName: string;
 };
 
+type RegisteredPerson = PeopleProjection['items'][number];
+
+function initials(name: string) {
+  const words = name.trim().split(/\s+/).filter(Boolean);
+  if (words.length > 1) return words.slice(0, 2).map((word) => Array.from(word)[0]).join('').toLocaleUpperCase();
+  return Array.from(words[0] || '?').slice(0, 2).join('').toLocaleUpperCase();
+}
+
+function PersonAvatar({ person }: { person: RegisteredPerson }) {
+  const hasTmdbIdentity = person.providerIdentities.some((identity) =>
+    identity.provider === 'tmdb' && identity.namespace === 'tmdb_person');
+  const [state, setState] = useState<'loading' | 'loaded' | 'fallback'>(hasTmdbIdentity ? 'loading' : 'fallback');
+
+  useEffect(() => {
+    setState(hasTmdbIdentity ? 'loading' : 'fallback');
+  }, [hasTmdbIdentity, person.personId]);
+
+  return <div className="people-avatar" data-state={state}>
+    <span className="people-avatar-initials" aria-hidden="true">{initials(person.canonicalName)}</span>
+    {hasTmdbIdentity && state !== 'fallback' && <img
+      src={helixAdminApi.personAvatarUrl(person.personId)}
+      alt={`${person.canonicalName}头像`}
+      loading="lazy"
+      onLoad={() => setState('loaded')}
+      onError={() => setState('fallback')}
+    />}
+    <span className="sr-only">{state === 'loaded' ? '人物头像已加载' : state === 'loading' ? '人物头像加载中' : '使用姓名首字头像'}</span>
+  </div>;
+}
+
+function PersonCard({ person }: { person: RegisteredPerson }) {
+  const aliases = person.aliases.filter((alias) => alias !== person.canonicalName);
+  return <article className="people-card" tabIndex={0} aria-label={`${person.canonicalName}，${person.status === 'active' ? '已登记' : '已合并'}`}>
+    <PersonAvatar person={person} />
+    <div className="people-card-body">
+      <div className="people-card-title">
+        <h3>{person.canonicalName}</h3>
+        <span data-status={person.status}>{person.status === 'active' ? '已登记' : '已合并'}</span>
+      </div>
+      <dl>
+        <div><dt>别名</dt><dd>{aliases.join('、') || '—'}</dd></div>
+        <div><dt>外部编号</dt><dd>{person.providerIdentities.map((identity) => `${identity.provider.toUpperCase()} · ${identity.providerKey}`).join('、') || '—'}</dd></div>
+      </dl>
+    </div>
+  </article>;
+}
+
 export default function PeoplePage() {
   const { expire } = useSession();
   const [projection, setProjection] = useState<PeopleProjection | null>(null);
@@ -46,7 +93,7 @@ export default function PeoplePage() {
       await helixAdminApi.registerPerson({
         canonicalName: canonicalName.trim(),
         aliases: aliases.split(/[,\n]/).map((item) => item.trim()).filter(Boolean),
-        providerIdentities: providerKey.trim() ? [{ provider: 'tmdb', providerKey: providerKey.trim() }] : [],
+        providerIdentities: providerKey.trim() ? [{ provider: 'tmdb', namespace: 'tmdb_person', providerKey: providerKey.trim() }] : [],
       });
       setCanonicalName(''); setAliases(''); setProviderKey('');
       setNotice('已登记这个人。收藏详情里的演职员不会被改写。');
@@ -96,7 +143,7 @@ export default function PeoplePage() {
     </section>
     <section className="source-registry">
       <div className="source-registry-heading"><div><h2>已登记人物</h2></div><span>当前显示 {projection?.items.length ?? 0} 条</span></div>
-      {projection?.items.length ? <div className="formation-table-wrap"><table className="formation-table"><thead><tr><th>人物</th><th>状态</th><th>别名</th><th>外部编号</th></tr></thead><tbody>{projection.items.map((person) => <tr key={person.personId}><td><strong>{person.canonicalName}</strong></td><td>{person.status === 'active' ? '已登记' : '已合并'}</td><td>{person.aliases.join('、') || '—'}</td><td>{person.providerIdentities.map((identity) => `${identity.provider} ${identity.providerKey}`).join('、') || '—'}</td></tr>)}</tbody></table></div> : <div className="source-empty"><strong>还没有已登记人物</strong><p>可以直接登记，或等待上架资料带来的待确认项。</p></div>}
+      {projection?.items.length ? <div className="people-contact-sheet" aria-label="已登记人物名录">{projection.items.map((person) => <PersonCard key={person.personId} person={person} />)}</div> : <div className="source-empty"><strong>还没有已登记人物</strong><p>可以直接登记，或等待上架资料带来的待确认项。</p></div>}
     </section>
   </section>;
 }

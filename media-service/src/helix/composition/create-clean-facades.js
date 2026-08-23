@@ -88,6 +88,12 @@ function createCleanFacades(options) {
     facades.PeopleAdminFacade.get_people_personid = async (input) => ({
       body: options.peopleAdminQuery.get(input.params.personId),
     });
+    if (options.peopleAvatarQuery) {
+      facades.PeopleAdminFacade.get_people_personid_avatar = async (input) => {
+        const value = await options.peopleAvatarQuery.get(input.params.personId);
+        return { body: value.bytes, contentType: value.contentType };
+      };
+    }
     facades.PeopleAdminFacade.get_people_registration_candidates = async () => ({
       body: options.peopleAdminQuery.registrationCandidates(),
     });

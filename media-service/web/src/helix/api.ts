@@ -525,6 +525,9 @@ export const helixAdminApi = {
   listPeopleRegistrationCandidates() {
     return request<{ items: Array<{ candidateId: string; currentState: string; currentRevision: number; proposedName: string; evidenceDigest: string }> }>('/v1/admin/people/registration-candidates');
   },
+  personAvatarUrl(personId: string) {
+    return `/v1/admin/people/${encodeURIComponent(personId)}/avatar`;
+  },
   registerPerson(body:{ canonicalName:string; aliases?:string[]; providerIdentities?:Array<{provider?:string;namespace?:string;providerKey:string}> }) {
     return request<{ person: { personId:string; revision?:{canonicalName:string} } }>('/v1/admin/people/actions/register', {
       method:'POST', body:JSON.stringify({ ...body, idempotencyKey:`people-register:${body.canonicalName}:${crypto.randomUUID()}` }),

@@ -13411,6 +13411,7 @@ GET  /v1/admin/perception/sync-state
 
 GET/POST  /v1/admin/people
 GET/PATCH /v1/admin/people/:personId
+GET       /v1/admin/people/:personId/avatar
 GET       /v1/admin/people/:personId/collection
 POST      /v1/admin/people/:personId/reference-assets
 DELETE    /v1/admin/people/:personId/reference-assets/:assetId

@@ -8,6 +8,7 @@ const {
 
 const SUPPORTED_OPERATIONS = new Set([
   'shared.integration.search@1',
+  'people.registration_evidence.observe@1',
   'libra.routing.fact.observe@1',
   'libra.product_identity.evidence.observe@1',
   'libra.product_metadata.fetch@1',
@@ -15,6 +16,15 @@ const SUPPORTED_OPERATIONS = new Set([
 ]);
 const JSON_RESPONSE_MAX_BYTES = 1024 * 1024;
 const ARTIFACT_RESPONSE_MAX_BYTES = 16 * 1024 * 1024;
+const PERSON_AVATAR_MAX_BYTES = 4 * 1024 * 1024;
+const PERSON_AVATAR_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+const PERSON_AVATAR_CACHE_MAX_ITEMS = 64;
+const PERSON_AVATAR_CACHE_MAX_BYTES = 32 * 1024 * 1024;
+const PERSON_AVATAR_MEDIA_TYPES = new Set([
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+]);
 const REQUESTED_FIELDS = new Set([
   'director',
   'genre',
@@ -559,6 +569,49 @@ function createTmdbProviderAdapter(options) {
     throw new TypeError('TMDB adapter requires a Fetch implementation.');
   }
   const now = options.now || Date.now;
+  const personAvatarCache = new Map();
+  let personAvatarCacheBytes = 0;
+
+  function deleteCachedPersonAvatar(key) {
+    const entry = personAvatarCache.get(key);
+    if (!entry) return;
+    personAvatarCache.delete(key);
+    personAvatarCacheBytes -= entry.bytes.length;
+    entry.bytes.fill(0);
+  }
+
+  function cachedPersonAvatar(key) {
+    const entry = personAvatarCache.get(key);
+    if (!entry) return undefined;
+    if (entry.expiresAtMs <= now()) {
+      deleteCachedPersonAvatar(key);
+      return undefined;
+    }
+    personAvatarCache.delete(key);
+    personAvatarCache.set(key, entry);
+    return Object.freeze({
+      ...entry.result,
+      bytes: Buffer.from(entry.bytes),
+      cacheStatus: 'hit',
+    });
+  }
+
+  function cachePersonAvatar(key, result) {
+    deleteCachedPersonAvatar(key);
+    while (personAvatarCache.size >= PERSON_AVATAR_CACHE_MAX_ITEMS ||
+        personAvatarCacheBytes + result.bytes.length > PERSON_AVATAR_CACHE_MAX_BYTES) {
+      const oldestKey = personAvatarCache.keys().next().value;
+      if (oldestKey === undefined) break;
+      deleteCachedPersonAvatar(oldestKey);
+    }
+    const bytes = Buffer.from(result.bytes);
+    personAvatarCache.set(key, {
+      result: Object.freeze({ ...result, bytes: undefined }),
+      bytes,
+      expiresAtMs: now() + PERSON_AVATAR_CACHE_TTL_MS,
+    });
+    personAvatarCacheBytes += bytes.length;
+  }
 
   async function fetchJson(endpoint, secretKind, secretBytes, relative, init) {
     const exactEndpoint = normalizedEndpoint(endpoint);
@@ -705,6 +758,18 @@ function createTmdbProviderAdapter(options) {
         'TMDB Integration Handle is stale or foreign.',
       );
     }
+    const personAvatarCacheKey = request.operationId ===
+        'people.registration_evidence.observe@1'
+      ? [
+          expected.integrationId,
+          expected.configRevision,
+          request.input?.providerIdentity?.providerKey,
+        ].join(':')
+      : null;
+    if (personAvatarCacheKey) {
+      const cached = cachedPersonAvatar(personAvatarCacheKey);
+      if (cached) return cached;
+    }
     return withSavedSecret({
       integrationId: expected.integrationId,
       configRevision: expected.configRevision,
@@ -712,6 +777,122 @@ function createTmdbProviderAdapter(options) {
       timeoutMs: timeout(request.timeoutMs),
     }, async (snapshot, secretBytes) => {
       const language = snapshot.settings?.language || 'zh-CN';
+      if (request.operationId === 'people.registration_evidence.observe@1') {
+        exact(
+          request.input,
+          ['providerIdentity'],
+          'PLATFORM_TMDB_PERSON_AVATAR_SHAPE',
+        );
+        const resolved = request.input.providerIdentity;
+        if (resolved?.provider !== 'tmdb' ||
+            resolved.namespace !== 'tmdb_person' ||
+            typeof resolved.providerKey !== 'string' ||
+            !/^[0-9]+$/.test(resolved.providerKey)) {
+          fail(
+            'PLATFORM_TMDB_PERSON_IDENTITY_INVALID',
+            'TMDB Person avatar requires one exact Provider Person identity.',
+          );
+        }
+        const person = await fetchJson(
+          snapshot.endpoint,
+          snapshot.secretKind,
+          secretBytes,
+          '/person/' + resolved.providerKey,
+          { timeoutMs: timeout(request.timeoutMs), query: { language } },
+        );
+        requireFields(
+          person,
+          ['id', 'profile_path'],
+          'PLATFORM_INTEGRATION_RESPONSE_SCHEMA_INVALID',
+        );
+        if (String(person.id) !== resolved.providerKey) {
+          fail(
+            'PLATFORM_TMDB_IDENTITY_MISMATCH',
+            'TMDB Person response belongs to a foreign identity.',
+          );
+        }
+        if (person.profile_path === null) {
+          return Object.freeze({
+            resultKind: 'not_available',
+            reasonCode: 'person_avatar_not_available',
+            integrationId: snapshot.integrationId,
+            configRevision: snapshot.configRevision,
+          });
+        }
+        if (typeof person.profile_path !== 'string' ||
+            !/^\/[A-Za-z0-9._-]+$/.test(person.profile_path)) {
+          fail(
+            'PLATFORM_INTEGRATION_RESPONSE_SCHEMA_INVALID',
+            'TMDB Person profile path is invalid.',
+          );
+        }
+        const controller = new AbortController();
+        const timer = setTimeout(
+          () => controller.abort(),
+          timeout(request.timeoutMs),
+        );
+        let imageResponse;
+        try {
+          imageResponse = await fetchImpl(
+            'https://image.tmdb.org/t/p/w185' + person.profile_path,
+            {
+              headers: {
+                accept: 'image/jpeg, image/png, image/webp',
+                'user-agent': 'ShelfDeck-Helix/1',
+              },
+              signal: controller.signal,
+            },
+          );
+        } catch (_error) {
+          fail(
+            controller.signal.aborted
+              ? 'PLATFORM_INTEGRATION_TIMEOUT'
+              : 'PLATFORM_INTEGRATION_NETWORK_FAILED',
+            controller.signal.aborted
+              ? 'TMDB Person avatar request exceeded its bounded timeout.'
+              : 'TMDB Person avatar request failed.',
+          );
+        } finally {
+          clearTimeout(timer);
+        }
+        if (!imageResponse || imageResponse.status < 200 ||
+            imageResponse.status > 299) {
+          fail(
+            'PLATFORM_INTEGRATION_HTTP_FAILED',
+            'TMDB Person avatar request was rejected.',
+          );
+        }
+        const mediaType = String(
+          imageResponse.headers?.get?.('content-type') || '',
+        ).split(';', 1)[0].trim().toLowerCase();
+        if (!PERSON_AVATAR_MEDIA_TYPES.has(mediaType)) {
+          fail(
+            'PLATFORM_TMDB_PERSON_AVATAR_MEDIA_TYPE_INVALID',
+            'TMDB Person avatar media type is not allowed.',
+          );
+        }
+        const bytes = await boundedResponseBytes(
+          imageResponse,
+          PERSON_AVATAR_MAX_BYTES,
+        );
+        if (!bytes.length) {
+          fail(
+            'PLATFORM_INTEGRATION_RESPONSE_INVALID',
+            'TMDB Person avatar is empty.',
+          );
+        }
+        const result = Object.freeze({
+          resultKind: 'acquired',
+          integrationId: snapshot.integrationId,
+          configRevision: snapshot.configRevision,
+          resolvedProviderIdentity: Object.freeze({ ...resolved }),
+          mediaType,
+          bytes,
+          cacheStatus: 'miss',
+        });
+        cachePersonAvatar(personAvatarCacheKey, result);
+        return result;
+      }
       if (request.operationId === 'shared.integration.search@1') {
         exact(
           request.input,

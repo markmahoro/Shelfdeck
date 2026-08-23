@@ -14,6 +14,7 @@ const { createOverviewQuery } = require('./helix/projections/overview-query');
 const { createSetupReadinessQuery } = require('./helix/projections/setup-readiness-query');
 const { createInputSettlementAuthorizationStore } = require('./helix/domains/arca/persistence/input-settlement-authorization-store');
 const { createPeopleAdminQuery } = require('./helix/domains/people/application/admin-query');
+const { createPeopleAvatarQuery } = require('./helix/domains/people/application/avatar-query');
 const {
   createIntegrationAdminApplication,
   createPlatformIntegrationRuntime,
@@ -735,6 +736,24 @@ function createPlatformIntegrationServices(options) {
         timeoutMs: 20_000,
       });
     },
+    async readPersonAvatar(providerIdentity) {
+      const handle = handleFor(
+        'tmdb',
+        'people.registration_evidence.observe@1',
+      );
+      if (!handle) {
+        throw new CleanServiceHostError(
+          'PLATFORM_INTEGRATION_NOT_CONFIGURED',
+          'TMDB integration is not configured.',
+        );
+      }
+      return tmdbAdapter.observationPort.execute({
+        operationId: 'people.registration_evidence.observe@1',
+        integrationHandle: handle,
+        input: { providerIdentity },
+        timeoutMs: 10_000,
+      });
+    },
     async fetchJavProviderMetadata(request) {
       return javProductAdapter.fetchProviderMetadata(request);
     },
@@ -933,6 +952,7 @@ function errorResponse(error, correlationId) {
   else if (error.code === 'ADMIN_ROUTING_IDEMPOTENCY_CONFLICT') status = 409;
   else if (error.code === 'ADMIN_ROUTING_MANUAL_INPUT_INVALID') status = 400;
   else if (error.code === 'FORMATION_SUBJECT_NOT_FOUND') status = 404;
+  else if (typeof error.code === 'string' && error.code.startsWith('PEOPLE_')) status = 404;
   else if (error.code === 'ADMIN_ROUTING_MANUAL_STATE_CONFLICT' || error.code === 'ADMIN_ROUTING_MANUAL_HEAD_CONFLICT') status = 409;
   else if (error.code === 'ADMIN_FIELD_COMMAND_REJECTED' || error.code === 'ADMIN_FIELD_TARGET_MISMATCH' ||
     error.code === 'ADMIN_MEDIA_PROFILE_UNSUPPORTED') status = 400;
@@ -1007,7 +1027,7 @@ function createRuntime(options) {
   if (!fs.existsSync(path.join(options.adminDistDir, 'index.html'))) {
     findings.push('ADMIN_WEB_BUILD_MISSING');
   }
-  if (routeManifest.status !== 'active' || routeManifest.entries.length !== 118) {
+  if (routeManifest.status !== 'active' || routeManifest.entries.length !== 119) {
     findings.push('ROUTE_INVENTORY_INCOMPLETE');
   }
   if (uiManifest.status !== 'active' || uiManifest.entries.length !== 17) {
@@ -1455,6 +1475,10 @@ async function createCleanServiceHost(options) {
   const peopleAdminQuery = createPeopleAdminQuery({
     store: procurementExecution.people.store,
   });
+  const peopleAvatarQuery = createPeopleAvatarQuery({
+    store: procurementExecution.people.store,
+    readProviderAvatar: (identity) => platformIntegrations.readPersonAvatar(identity),
+  });
   setupReadinessQuery = createSetupReadinessQuery({
     readMaterialFields: () => procurementAdmin.listMaterialFields(),
     readShelves: () => arcaShelfAdmin.listShelves(),
@@ -1511,6 +1535,7 @@ async function createCleanServiceHost(options) {
     overviewQuery,
     setupReadinessQuery,
     peopleAdminQuery,
+    peopleAvatarQuery,
     peopleAdmin,
     procurementAdmin,
     arcaShelfAdmin,
