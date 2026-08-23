@@ -36,7 +36,7 @@ Helix主体开发已经完成，Movie从Procurement、Libra到Arca及Shelf Dereg
 
 本文不是Architecture SSOT，不替代`CURRENT_PLAN.md`。历史UAT问题仍保留原有处理状态；2026-08-21 Movie Canary真实用户UAT期间，用户已授权在不改变已确认架构边界的前提下直接修复、页面复测并为每项修复建立独立Git回滚点。2026-08-22 另完成一次 Admin Web 全页用户体验审视（文案、内部机制泄漏、文案与事实冲突、排版、字体、按钮、前端拼装与美学），问题见 `docs/helix/ADMIN_WEB_UX_ISSUE_LOG.md`；该台账不替代本文的 UAT 业务/执行缺陷记录，也不授权实现。同日用户确认四项后续改造并登记为 `UAT-050`–`UAT-053`（当前媒体筛选、分步整理动作与进度、收藏按架与占用空间、Field Observation 周期观察缺口）；随后确认退出收藏任务化界面、人物 Beta 两条登记路径、豆瓣周期同步，登记为 `UAT-054`–`UAT-056`；概览改为状态 + 待办 + 最近几件事、不与「我的收藏」合并，登记为 `UAT-057`；侧栏把文件来源与收藏架下移与系统设置一组，Tab 改名为文件来源配置 / 收藏架配置，登记为 `UAT-058`。2026-08-22 干净 Canary `UAT-20260822-194617-1ed64ca36` 转码复盘登记为 `UAT-059`：四星体积上限被规划器当成目标码率；同轮 Spec 复盘登记为 `UAT-060`：Product Identity 写回 Subject 触发语义相同的 Acceptance Spec 重发；同轮另登记 `UAT-061` 豆瓣 Acquisition 翻页失败不收口、`UAT-062` frozen Discard 后未按重新入库收口、`UAT-063` Aftercare 查豆瓣分与 Libra 不是同一套 Resolution。
 
-关闭作业不再走已删除的 `helix-beta-user-e2e` workflow。当前 69 行关闭基线见 `docs/helix/acceptance/UAT_CLOSURE_BASELINE.md`：正式关闭立即汇报且不暂停；确认关闭时发现新产品缺陷则暂停并先登记新 UAT；`PASS` 必须有干净 Canary 的 Admin Web `UI`（涉及文件现实时加 `FS`），单元测试不能单独关闭一行。
+关闭作业不再走已删除的 `helix-beta-user-e2e` workflow。当前 70 行关闭基线见 `docs/helix/acceptance/UAT_CLOSURE_BASELINE.md`：正式关闭立即汇报且不暂停；确认关闭时发现新产品缺陷则暂停并先登记新 UAT；`PASS` 必须有干净 Canary 的 Admin Web `UI`（涉及文件现实时加 `FS`），单元测试不能单独关闭一行。
 
 记录原则：
 
@@ -126,6 +126,7 @@ Helix主体开发已经完成，Movie从Procurement、Libra到Arca及Shelf Dereg
 | UAT-067 | 活动 Run 加急后回放既有 Supporting Work 触发 Admission 幂等冲突，Run 不再推进 | `DOMAIN_ORCHESTRATION` | `EXECUTION_SCHEDULING` | Libra Run Coordinator + Foundation Work Admission replay | 活性、优先级正确性 | Critical | 已修复并通过同一 Canary 恢复确认 |
 | UAT-068 | Collection 年份投影遗漏 Provider 标准字段，Aftercare 丢失 title-year Identity Evidence | `PROJECTION_FRESHNESS` | `BUSINESS_CONTRACT` | Arca Collection Query + shared Rating Identity | 正确性、可理解性 | High | 已修复并通过当前 Canary 确认 |
 | UAT-069 | 评分 Resolution 更新后 Aftercare 及时执行，但 Planner/Capability 写回旧 Care Basis | `DOMAIN_ORCHESTRATION` | `PROJECTION_FRESHNESS` | Arca Aftercare composition wiring | 正确性、时效性 | Critical | 已修复并通过当前 Canary 安全重启确认 |
+| UAT-070 | 集成配置 revision 更新后，旧 Run 的冻结 Integration Handle 使服务重启失败 | `DOMAIN_ORCHESTRATION` | `RECOVERY_CORRECTNESS`、`EXTERNAL_INTEGRATION` | Foundation recovery + Platform Integration Runtime | 可用性、活性、恢复正确性 | Critical | 已登记；深度排查与修复进行中 |
 
 ## 2.1 UAT-006：概览展示固定演示数字
 
@@ -2780,7 +2781,25 @@ Product Package与Offer并完成On-deck；没有替换Run或数据库编辑。Ad
 
 修复与关闭确认（2026-08-23）：commit `ab8184f7b` 让 Capability、Coordinator、Planner 共用晚绑定评分 Reader；定向 Aftercare 合同 15/15 PASS。在 Formation 整理中为0且无 FFmpeg/FFprobe的安全点，仅重启同一隔离服务。真实页面中《威尼斯惊魂夜》先恢复为三维健康，随后页面 4 星直接评分与清除回`3 星 · 豆瓣`都无需手动健康检查自动形成新健康 Assessment。FACT 中三代 `decisionFactSetDigest` / `careBasisDigest` 均不同，最新不再使用旧 Basis；状态 `REGRESSION PASSED / CLOSED`。UI证据：`admin-web-evidence/uat-069-rating-aware-care-basis-pass.png`。
 
-## 67. 后续问题模板
+## 67. UAT-070：集成配置 revision 更新后，旧 Run 的冻结 Integration Handle 使服务重启失败
+
+问题分类：`DOMAIN_ORCHESTRATION / RECOVERY_CORRECTNESS / EXTERNAL_INTEGRATION`
+
+用户侧现象：隔离 Canary 中，活动 Libra Run 使用旧 TMDB Integration Handle；通过正式 Admin Web 重新连接 TMDB 后，Integration 配置 revision 前进。随后在无 FFmpeg/FFprobe 的安全点重启同一隔离服务，服务未能进入 ready，Admin Web 与 Formation 均不可访问。
+
+现场证据：失败现场位于 `F:\shelfdeck_test_zone\runs\UAT-20260823-132053-daaef8c3d`。重连前精确身份观察曾因 Secret 来源不可读失败；重连后运行期反复出现 `PLATFORM_INTEGRATION_REVISION_MISMATCH`。安全重启时 startup recovery 以同一码和 `Integration Handle revision is stale.` 直接失败，端口停止监听。另一个健康隔离运行的 `/v1/health` 与 `/formation` 均可返回，说明 Codex Browser 的本机 URL 策略限制与本产品故障是两个独立问题。
+
+初步诊断：Plan/Work 中冻结旧 Integration Handle 是不可变执行输入；Platform Integration Runtime 正确拒绝用旧 revision 偷换执行当前配置，但 startup recovery 没有把该确定性失配收口为旧 Event/Work 的可恢复结果，而让异常逃逸为进程级启动失败。最终根因与责任点以代码链路和回归反例为准，不通过改库、替换冻结输入或静默使用最新 Credential 绕过。
+
+业务影响：用户一次正常的 Integration 重连可令仍含旧 Handle 的持久化工作在后续重启时阻断整个 ShelfDeck 服务；管理页面、Formation 与其他不相关业务一并不可用。
+
+修复边界：保留 Work/Plan/Event 与 Integration Handle 的不可变性、revision/digest/Secret Lease 安全围栏。恢复流程不得让旧 Handle 对新 Credential 执行，也不得直接修改历史事实；应在既有 Owner/Execution Foundation 边界内确定性处理旧执行，并保持服务可启动、Owner 可继续协调使用新 revision 的后续工作。
+
+验收证据：构造活动 Run 使用旧 Handle、再通过正式配置入口推进 Integration revision；安全重启后服务保持 ready、Admin Web 可访问；旧执行不得用新 Credential 偷跑，必须形成可解释的确定性结果，Owner 后续工作若重建则使用新 revision。证据要求：`UI`、`FACT`、`RESTART`。
+
+当前处理决定：2026-08-23 用户授权登记、深度排查、根因修复与 F 盘隔离 Canary 关闭。UAT-064 的最终 UI 见证暂停，待本项关闭后继续；不触碰 NAS/生产，不在 C 盘留下测试过程文件。
+
+## 68. 后续问题模板
 
 后续发现的问题按以下结构追加：
 

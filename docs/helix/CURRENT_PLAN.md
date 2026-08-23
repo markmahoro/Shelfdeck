@@ -33,8 +33,9 @@ Canary分别为其下`test_film`、`canary`，不得在C盘创建新的测试过
 `UAT-20260823-040740-0886b2723`已逐项关闭`UAT-017`与`UAT-062`：真实MoviePilot明确不合格候选在下载前被拒；
 frozen Discard后页面进入等待重新入库、cleanup fully ack，重扫形成全新Procurement/Subject链而未复活旧Subject。
 
-UAT关闭总账现为68/69。唯一剩余`UAT-064`按本程序明确跳过且没有实现授权，因此本轮不为凑齐69/69实施或重建Canary；
-后续只有用户另行授权该产品缺口时才开始新的独立作业卡。
+UAT关闭总账现为68/70。`UAT-064` 已由 commit `daaef8c3d` 实现并取得执行 FACT；最终 UI 见证暂停，先处理新登记的
+`UAT-070`：Integration 配置 revision 更新后，旧 Run 的冻结 Handle 令 startup recovery 失败。用户已授权完成登记、深度排查、
+边界内修复、F盘隔离 Canary 关闭，再回到 `UAT-064` 补 UI/FACT 并更新总账。全过程不触碰 NAS/生产、不 push 远端。
 
 2026-08-22 成功标准修正：`养蜂人 (2024)` 内现成 MKV 与嵌套 BDMV 按两部独立电影验收，两部都必须能上架；Arca Duplicate/Off-deck 才负责去重。形成口径 23 Subject / 23 Entry，不再使用“顶层 22 单元 = 22 Subject”或“养蜂人只能一部 Movie”。
 

@@ -18,7 +18,7 @@ Last updated: 2026-08-23
 `released`；`libra.workspace-cleanup.requested@1`已由Business Owner `libra`写入Inbox并达到Delivery `acked` / Outbox
 `fully_acked`。文件来源页面重新扫描后形成新Procurement Run、accepted Candidate Delivery、新Subject与新frozen Libra Run；
 旧Subject未直接复活。现场同时暴露并修复两项同边界恢复缺陷：启动时先消费durable Outbox再恢复依赖消息的Owner Work；Field重观察
-时按current Control projection digest刷新Eligibility。当前总账为68/69，仅按程序跳过且未授权实现的`UAT-064`保持`NOT RUN`。
+时按current Control projection digest刷新Eligibility。`UAT-064` 已由 commit `daaef8c3d` 实现并取得执行 FACT，最终 UI 见证因新登记的 `UAT-070` 暂停。当前总账为68/70：`UAT-064`、`UAT-070`保持`NOT RUN`。
 
 ## 0. Clean Canary scorecard — UAT-20260822-141950-0c27c8cf6
 
@@ -34,11 +34,11 @@ Last updated: 2026-08-23
 
 2026-08-22 Product Owner 确认 Helix-beta = 仅支持 Movie 的全功能版本（SSOT 旅程 A–I，含退出收藏与 Shelf 注销）。四类媒体 Feature Matrix 已作废。现行基线：`docs/helix/BETA_FEATURE_ACCEPTANCE_BASELINE.md`。归档：`docs/helix/archive/BETA_FEATURE_ACCEPTANCE_BASELINE_FOUR_PROFILE_2026-07-23.md`。本条只记录范围决定，不把 Movie Canary 或单元测试标成 Helix-beta 交付通过。
 
-## 0. Recorded product gaps — UAT-050–069
+## 0. Recorded product gaps — UAT-050–070
 
 2026-08-22 用户确认九项后续改造并写入 `USER_ACCEPTANCE_TEST_ISSUE_LOG.md`。`UAT-050`–`UAT-058` 代码已落地，待新 Canary 资格确认。不改 SSOT Owner/Handoff，不触碰 NAS/生产。
 
-关闭作业基线：`docs/helix/acceptance/UAT_CLOSURE_BASELINE.md`（`UAT-001`–`UAT-069` 共 69 行）。已删除不可靠的 `helix-beta-user-e2e` workflow。正式关闭立即汇报且不暂停；确认关闭时发现新产品缺陷则暂停并先登记新 UAT。单元测试不能把任何一行标为 `PASS`。
+关闭作业基线：`docs/helix/acceptance/UAT_CLOSURE_BASELINE.md`（`UAT-001`–`UAT-070` 共 70 行）。已删除不可靠的 `helix-beta-user-e2e` workflow。正式关闭立即汇报且不暂停；确认关闭时发现新产品缺陷则暂停并先登记新 UAT。单元测试不能把任何一行标为 `PASS`。
 
 2026-08-22 干净 Canary `UAT-20260822-194617-1ed64ca36` 转码复盘另登记 `UAT-059`：本轮仅 `锡尔弗顿之围 (2022)` 触发转码；四星 H.264→HEVC 触发正确，但 Planner 把 14 GiB 上限当成 `target_size` 填满目标，成品从约 1.94 GiB 灌到约 9.35 GiB。同轮 Spec 复盘登记 `UAT-060`：23/23 部因 Product Identity 写回 Subject 而重发语义相同的 Acceptance Spec 2；`一场很（没）有必要的春晚` 卡在符合性已过、Package 未发。同轮另登记 `UAT-061` 豆瓣翻页失败后设置页永久同步、`UAT-062` Discard 后未重新入库且 UI 空转评估、`UAT-063` Aftercare 查豆瓣分与 Libra 不是同一套 Resolution（用户确认查法必须一致）。
 
@@ -56,9 +56,10 @@ Last updated: 2026-08-23
 - `UAT-061` 已实现：豆瓣 Acquisition 翻页传输失败后不重试、不收口。待新 Canary，不得用 copy-forward 单独关闭；
 - `UAT-062` 已关闭：页面等待重新入库、Discard时Control release、cleanup fully ack与重扫形成全新Procurement/Subject链均由当前Canary确认；
 - `UAT-063` 已实现：Aftercare 问豆瓣分与 Libra 共用 Identity Evidence。待新 Canary；
-- `UAT-064` 只登记：Formation 步骤展示与真实执行偏离（CPU/验证完成态）。不深挖、不授权实现。
+- `UAT-064` 已实现：Formation 步骤从冻结 Plan/Work/Event FACT 推导真实 CPU/GPU 与成品验证状态；commit `daaef8c3d`，待 `UAT-070` 后补最终 UI 见证。
 - `UAT-068` 已实现：Collection 年份投影保留 Provider 标准年份字段。待本轮独立关闭；
 - `UAT-069` 已实现：Aftercare Capability、Coordinator、Planner 共享当前评分 Resolution 的 Care Basis Reader。待本轮安全重启后资格确认。
+- `UAT-070` 已登记：Integration 配置 revision 更新后，旧 Run 冻结 Handle 令 startup recovery 以 `PLATFORM_INTEGRATION_REVISION_MISMATCH` 失败。深度排查与修复进行中。
 
 建议实现顺序：`UAT-053` / `UAT-056` / `UAT-055`（已实现）→ `UAT-051` / `UAT-050` / `UAT-052` / `UAT-057` / `UAT-058` → `UAT-054`。`UAT-059`–`UAT-063` 代码已实现，待干净 Canary 按关闭基线资格确认，不得由单元测试标 `PASS`。Aftercare、Off-deck、Field Observation、豆瓣 Acquisition 与 People On-deck 证据扫描均已进入 `fallbackReconciler`。
 
