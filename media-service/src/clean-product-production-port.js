@@ -29,6 +29,35 @@ function normalizedLocation(value) {
   return path.resolve(value.replace(/\//g, path.sep));
 }
 
+function parseRelatedNfoPeopleHints(xml) {
+  const peopleHints = [];
+  for (const actorMatch of String(xml || '').matchAll(
+    /<actor(?:\s[^>]*)?>([\s\S]*?)<\/actor>/gi,
+  )) {
+    const actorXml = actorMatch[1];
+    const displayName = actorXml.match(
+      /<name(?:\s[^>]*)?>([^<]+)<\/name>/i,
+    )?.[1]?.trim();
+    if (!displayName) continue;
+    const tmdbPersonId = actorXml.match(
+      /<tmdbid(?:\s[^>]*)?>([^<]+)<\/tmdbid>/i,
+    )?.[1]?.trim();
+    const providerIdentities = /^[1-9]\d*$/.test(tmdbPersonId || '')
+      ? [Object.freeze({
+        provider: 'tmdb',
+        namespace: 'tmdb_person',
+        providerKey: tmdbPersonId,
+      })]
+      : [];
+    peopleHints.push(Object.freeze({
+      displayName,
+      role: 'actor',
+      providerIdentities: Object.freeze(providerIdentities),
+    }));
+  }
+  return Object.freeze(peopleHints);
+}
+
 function createCleanProductProductionPort(options = {}) {
   if (!options.mediaProbe || typeof options.mediaProbe.probe !== 'function') {
     fail('CLEAN_PRODUCT_PROBE_REQUIRED', 'Product production requires the typed media probe port.');
@@ -244,15 +273,7 @@ function createCleanProductProductionPort(options = {}) {
       entries.push({ key: 'episode_title', value: tagValue('title') });
     }
     entries.sort((left, right) => Buffer.compare(Buffer.from(left.key), Buffer.from(right.key)));
-    const peopleHints = [];
-    for (const match of xml.matchAll(/<actor(?:\s[^>]*)?>[\s\S]*?<name(?:\s[^>]*)?>([^<]+)<\/name>/gi)) {
-      const displayName = match[1].trim();
-      if (displayName) {
-        peopleHints.push(Object.freeze({
-          displayName, role: 'actor', providerIdentities: Object.freeze([]),
-        }));
-      }
-    }
+    const peopleHints = parseRelatedNfoPeopleHints(xml);
     return Object.freeze({ bytes, entries: Object.freeze(entries), peopleHints: Object.freeze(peopleHints) });
   }
 
@@ -667,4 +688,5 @@ function createCleanProductProductionPort(options = {}) {
 module.exports = Object.freeze({
   CleanProductProductionPortError,
   createCleanProductProductionPort,
+  parseRelatedNfoPeopleHints,
 });

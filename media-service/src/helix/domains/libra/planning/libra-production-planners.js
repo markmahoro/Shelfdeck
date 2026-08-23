@@ -8,7 +8,7 @@ const {
 const { buildProductIdentityCommitBundle } = require('../model/product-identity-commit-contracts');
 const { buildMetadataFetchIntent, buildMetadataObservationBasis, buildProductMetadataDraft } =
   require('../model/product-fact-contracts');
-const { buildMediaCastDraft, buildProductFactHandle } = require('../model/product-fact-contracts');
+const { buildMediaCastDraft, buildMetadataMediaCastRelations, buildProductFactHandle } = require('../model/product-fact-contracts');
 const { factCommitFence, identityCommitFence } = require('../model/product-fact-execution-fences');
 const { identityCommitWork, identityObservationWork } =
   require('./product-identity-work');
@@ -518,18 +518,10 @@ function artifactVerificationContext(options, libraRunId) {
 }
 
 function mediaCastRelations(context) {
-  const relations=[];
-  for(const observation of context.basis.observationSet.observations)for(const hint of observation.peopleHints||[]){
-    const seed={subjectId:context.snapshot.run.subjectId,role:hint.role,displayName:hint.displayName,
-      providerIdentities:hint.providerIdentities||[],originEvidenceDigest:observation.payloadDigest};
-    relations.push({relationId:stable('libra-media-cast-relation-',seed),personId:null,displayName:hint.displayName,
-      displayNameNormalized:hint.displayName.normalize('NFKC').toLowerCase(),role:hint.role,source:observation.sourceRef,
-      providerIdentities:Object.freeze([...(hint.providerIdentities||[])]),originEvidenceDigest:observation.payloadDigest,
-      confidenceClass:'provider_asserted'});
-  }
-  return Object.freeze(relations.sort((left,right)=>Buffer.from(left.role).compare(Buffer.from(right.role))||
-    Buffer.from(left.displayNameNormalized).compare(Buffer.from(right.displayNameNormalized))||
-    Buffer.from(left.relationId).compare(Buffer.from(right.relationId))));
+  return buildMetadataMediaCastRelations({
+    sourceBasis:context.basis,
+    subjectId:context.snapshot.run.subjectId,
+  });
 }
 
 function createProductFactAssemblyPlanner(options) {

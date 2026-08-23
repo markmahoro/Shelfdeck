@@ -2,7 +2,7 @@
 
 const { canonicalDigest } = require('../../../contracts/canonical-json');
 const { buildProductIdentityCommitBundle, findProductIdentitySourceResult } = require('../model/product-identity-commit-contracts');
-const { buildMediaCastDraft, buildProductFactHandle } = require('../model/product-fact-contracts');
+const { buildMediaCastDraft, buildMetadataMediaCastRelations, buildProductFactHandle } = require('../model/product-fact-contracts');
 const { identityCommitFence, factCommitFence } = require('../model/product-fact-execution-fences');
 
 const IDENTITY = 'libra.product_identity.resolve@1';
@@ -25,22 +25,6 @@ function eventEvidence(capabilityRef,result,basisDigest,now,payloadDigest=canoni
   evidenceKind:'libra_product_fact_execution',producerRef:capabilityRef,basisDigest,
   payloadDigest,observedAtMs:now(),
 });}
-
-function relationsFromBasis(sourceBasis,subjectId){
-  const unique=new Map();
-  for(const observation of sourceBasis?.observationSet?.observations||[])for(const hint of observation.peopleHints||[]){
-    const seed={subjectId,role:hint.role,displayName:hint.displayName,providerIdentities:hint.providerIdentities||[],
-      originEvidenceDigest:observation.payloadDigest};
-    const relationId='libra-media-cast-relation-'+canonicalDigest(seed).slice(0,40);
-    if(!unique.has(relationId))unique.set(relationId,{relationId,personId:null,displayName:hint.displayName,
-      displayNameNormalized:hint.displayName.normalize('NFKC').toLowerCase(),role:hint.role,source:observation.sourceRef,
-      providerIdentities:Object.freeze([...(hint.providerIdentities||[])]),originEvidenceDigest:observation.payloadDigest,
-      confidenceClass:'provider_asserted'});
-  }
-  return Object.freeze([...unique.values()].sort((left,right)=>Buffer.from(left.role).compare(Buffer.from(right.role))||
-    Buffer.from(left.displayNameNormalized).compare(Buffer.from(right.displayNameNormalized))||
-    Buffer.from(left.relationId).compare(Buffer.from(right.relationId))));
-}
 
 function createProductFactCapabilityPorts(options) {
   if(!options?.workResultReader||typeof options.workResultReader.read!=='function'||
@@ -99,7 +83,7 @@ function createProductFactCapabilityPorts(options) {
       if(!run)throw new TypeError('Libra Run snapshot is unavailable for Media Cast resolution.');
       const observations=sourceBasis?.observationSet?.observations||[];
       const result=buildMediaCastDraft({subjectId:run.run.subjectId,sourceBasis,
-        relations:relationsFromBasis(sourceBasis,run.run.subjectId),
+        relations:buildMetadataMediaCastRelations({sourceBasis,subjectId:run.run.subjectId}),
         personProjection:{items:context.namedInputs.personReferenceProjectionList},
         producedAtMs:Math.max(...observations.map((item)=>item.observedAtMs))});
       const schemas=resultSchemas(MEDIA_CAST_RESOLVE);

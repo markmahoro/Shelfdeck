@@ -3,11 +3,13 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
 const { canonicalDigest } = require('../../src/helix/contracts/canonical-json');
-const { buildArtifactManifestVerification, buildMediaCastDraft, buildMediaCastFact, buildMetadataFetchIntent, buildMetadataObservationBasis, buildProductFactEvidence,
+const { buildArtifactManifestVerification, buildMediaCastDraft, buildMetadataMediaCastRelations, buildMediaCastFact, buildMetadataFetchIntent, buildMetadataObservationBasis, buildProductFactEvidence,
   buildProductFactHandle, buildProductMetadataDraft, buildProductMetadataFact, metadataObservationWorkIdempotencyKey, selectMetadataObservations,
   buildProductFactSourceRefs, buildWesternProductMetadataDraft,
   validateVerifiedArtifactManifest } =
   require('../../src/helix/domains/libra/model/product-fact-contracts');
+const { parseRelatedNfoPeopleHints } =
+  require('../../src/clean-product-production-port');
 
 const d = (value) => canonicalDigest({ value });
 function providerIdentity(provider = 'tmdb', namespace = 'tmdb_movie',
@@ -59,7 +61,7 @@ function observation(intent, options = {}) {
     providerIdentitySet:{ schemaRef:'helix://contracts/records/provider-identity-set/v1', schemaVersion:1,
       recordKind:'provider-identity-set', recordDigest:d(`providers-${intent.sourcePriority}`),
       entries:intent.sourceKind === 'provider' ? [intent.resolvedProviderIdentity] : [] },
-    peopleHints:[], artifactHints:[] };
+    peopleHints:options.peopleHints || [], artifactHints:[] };
   result.payloadDigest = d(`payload-${intent.sourcePriority}`);
   const resultId = options.resultId || `result-${intent.sourcePriority}`;
   return { ownerDomain:'libra', processType:'libra_run', processId:'run-1', workKind:'product_metadata_observation',
@@ -296,6 +298,49 @@ test('keeps Media Cast in Libra and accepts only explicit People Projection refe
   assert.equal(buildMediaCastDraft({subjectId:'subject-1',sourceBasis:westernBasis,relations:[],producedAtMs:10}).relations.length,0);
   assert.throws(()=>buildMediaCastDraft({subjectId:'subject-1',sourceBasis:westernBasis,relations:[{...relation,personId:null}],producedAtMs:10}),
     (error)=>error.code==='P9_MEDIA_CAST_MATCH_CONTINUITY');
+});
+
+test('preserves NFO TMDB Person identities and deduplicates Media Cast by stable identity', () => {
+  const parsed = parseRelatedNfoPeopleHints(`
+    <movie>
+      <actor><name>Anthony Wong</name><tmdbid>66717</tmdbid></actor>
+      <actor><name>Known Only In NFO</name><tmdbid>202</tmdbid></actor>
+      <actor><name>Needs Confirmation</name></actor>
+      <actor><name>Invalid Identity</name><tmdbid>not-a-number</tmdbid></actor>
+    </movie>`);
+  assert.deepEqual(parsed[0].providerIdentities, [{
+    provider:'tmdb', namespace:'tmdb_person', providerKey:'66717',
+  }]);
+  assert.deepEqual(parsed[2].providerIdentities, []);
+  assert.deepEqual(parsed[3].providerIdentities, []);
+
+  const sourceIntents = intents();
+  const nfo = observation(sourceIntents[0], { peopleHints:parsed.slice(0, 3) });
+  const provider = observation(sourceIntents[1], { peopleHints:[
+    { displayName:'黄秋生', role:'actor', providerIdentities:[{
+      provider:'tmdb', namespace:'tmdb_person', providerKey:'66717',
+    }] },
+    { displayName:'Provider Only', role:'actor', providerIdentities:[{
+      provider:'tmdb', namespace:'tmdb_person', providerKey:'303',
+    }] },
+  ] });
+  const basis = buildMetadataObservationBasis({
+    intents:sourceIntents,
+    results:[provider, nfo],
+    factKind:'media_cast',
+    expectedRevision:0,
+  });
+  const relations = buildMetadataMediaCastRelations({
+    sourceBasis:basis,
+    subjectId:'subject-1',
+  });
+  assert.equal(relations.length, 4);
+  assert.equal(relations.filter((item) => item.providerIdentities.some(
+    (identity) => identity.providerKey === '66717')).length, 1);
+  assert.equal(relations.find((item) => item.providerIdentities.some(
+    (identity) => identity.providerKey === '66717')).displayName, 'Anthony Wong');
+  assert.equal(relations.find((item) => item.displayName === 'Anthony Wong').source, 'ref-nfo');
+  assert.equal(relations.some((item) => item.displayName === 'Needs Confirmation'), true);
 });
 
 test('verifies artifact handles without embedding bytes or reading a second owner', () => {

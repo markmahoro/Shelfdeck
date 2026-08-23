@@ -593,6 +593,59 @@ function buildMediaCastDraft(value) {
   return Object.freeze(bytes(draft, 64 * 1024, 'P9_MEDIA_CAST_DRAFT_SIZE'));
 }
 
+function buildMetadataMediaCastRelations(value) {
+  const subjectId = text(value?.subjectId, 'subjectId');
+  const observations = value?.sourceBasis?.observationSet?.observations;
+  if (!Array.isArray(observations)) {
+    fail('P9_MEDIA_CAST_BASIS',
+      'Metadata Media Cast relations require a closed Observation Set.');
+  }
+  const relations = [];
+  const claimedProviderIdentities = new Set();
+  for (const observation of observations) {
+    for (const hint of observation.peopleHints || []) {
+      const identityKeys = (hint.providerIdentities || [])
+        .filter((identity) => identity &&
+          typeof identity.provider === 'string' && identity.provider &&
+          typeof identity.namespace === 'string' && identity.namespace &&
+          typeof identity.providerKey === 'string' && identity.providerKey)
+        .map((identity) => canonicalJson({
+          provider: identity.provider,
+          namespace: identity.namespace,
+          providerKey: identity.providerKey,
+        }));
+      if (identityKeys.some((key) => claimedProviderIdentities.has(key))) {
+        continue;
+      }
+      const seed = {
+        subjectId,
+        role: hint.role,
+        displayName: hint.displayName,
+        providerIdentities: hint.providerIdentities || [],
+        originEvidenceDigest: observation.payloadDigest,
+      };
+      const relationId = 'libra-media-cast-relation-' +
+        canonicalDigest(seed).slice(0, 40);
+      relations.push(Object.freeze({
+        relationId,
+        personId: null,
+        displayName: hint.displayName,
+        displayNameNormalized: hint.displayName.normalize('NFKC').toLowerCase(),
+        role: hint.role,
+        source: observation.sourceRef,
+        providerIdentities: Object.freeze([...(hint.providerIdentities || [])]),
+        originEvidenceDigest: observation.payloadDigest,
+        confidenceClass: 'provider_asserted',
+      }));
+      for (const key of identityKeys) claimedProviderIdentities.add(key);
+    }
+  }
+  return Object.freeze(relations.sort((left, right) =>
+    compare(left.role, right.role) ||
+    compare(left.displayNameNormalized, right.displayNameNormalized) ||
+    compare(left.relationId, right.relationId)));
+}
+
 function validateVerifiedArtifactManifest(value, context) {
   if (!value || value.libraRunId === undefined || !Array.isArray(value.items) || value.items.length > 256)
     fail('P9_ARTIFACT_MANIFEST', 'Verified Artifact Manifest is invalid.');
@@ -865,7 +918,7 @@ function buildProductFactEvidence(value) {
     eventFenceDigest:digest(value?.eventFenceDigest, 'eventFenceDigest') });
 }
 
-module.exports = Object.freeze({ ProductFactContractError, buildArtifactManifestVerification, buildMediaCastDraft, buildMediaCastFact, buildMetadataFetchIntent,
+module.exports = Object.freeze({ ProductFactContractError, buildArtifactManifestVerification, buildMediaCastDraft, buildMetadataMediaCastRelations, buildMediaCastFact, buildMetadataFetchIntent,
   buildMetadataObservation, buildMetadataObservationBasis, buildProductFactHandle, buildProductFactSourceRefs, buildProductMetadataDraft, metadataObservationWorkIdempotencyKey,
   buildProductMetadataFact, buildProductFactEvidence, buildResolvedProductIdentity, buildWesternProductMetadataDraft, metadataSourceRef, selectMetadataObservations,
   validateArtifactRequirement, validateVerifiedArtifactManifest });
