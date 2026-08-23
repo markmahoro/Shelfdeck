@@ -4,6 +4,16 @@ Status: Helix-beta 范围已收窄为仅 Movie 全链路。Movie Procurement与M
 
 Last updated: 2026-08-23
 
+## 0. Post-UAT qualification — People registration and avatars
+
+`codex/fix-people-registration-avatars` 已从 `main@2ef325cfe` 独立修复人物登记与头像，不触碰现有 `18080` 服务、NAS或既有 UAT 证据库。Arca 现在按每条人物关系输出确定性的 Evidence digest，电影/NFO级 `originEvidenceDigest` 只作为 provenance；People 先按稳定 Provider Person Identity 幂等，再按逐人物 Evidence digest 查历史 Candidate。强身份自动接受、弱身份保持待确认，Owner 与 Handoff 均未改变。
+
+新增受保护的 `GET /v1/admin/people/:personId/avatar` 后，机器 Route Inventory 为119条（118条 Admin + public health）。头像仅从已登记 Person 的 TMDB Identity读取，由服务端在当前 Integration revision 下代理 `w185` 图片；Secret和原始图片地址不进入浏览器。Admin Web 已改为响应式人物头像名录，并保留无图/失败时的姓名首字回退。
+
+全新隔离运行 `F:\shelfdeck_test_zone\runs\UAT-20260823-people-registration-avatar-91e6bb141` 使用正式 Formation→On-deck→People 链路：Arca 16个不同 TMDB Person Identity 对应 People 16个 active Person，0 open Candidate；安全重启后仍为16/16，1个 active Shelf Entry，源与复制前字节数均为937,977,503。桌面与390px Playwright均通过，15个代理头像和1个确定性无图回退可见，axe serious/critical finding为0。证据位于该运行目录的 `evidence` 子目录。
+
+本轮专项 People测试23/23、Admin Web 22/22、Playwright 2/2及 production build通过。完整 `npm test` 为309 PASS / 18 SKIP / 2 FAIL：Routing仍是已知陈旧断言（实际24/24，等待25/24）；Procurement-only旅程在Field注销后的旧联合查询仍期待65、实际为0，独立复跑同样失败，且本分支未改该边界。P6总门禁另受既有 source-map digest、dependency与persistence baseline finding阻断；均未以本修复扩大范围或改写Owner合同。问题记录见`UAT-071`、`UAT-072`；历史`UAT-001`–`UAT-070`的70/70关闭结论保持不变。
+
 ## 0. Current UAT closure continuation — UAT-20260823-040740-0886b2723
 
 正式工作区为 `E:\my_project\emby_third_party-helix` / `main`；测试过程统一位于

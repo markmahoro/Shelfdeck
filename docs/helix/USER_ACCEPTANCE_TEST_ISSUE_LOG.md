@@ -127,6 +127,8 @@ Helix主体开发已经完成，Movie从Procurement、Libra到Arca及Shelf Dereg
 | UAT-068 | Collection 年份投影遗漏 Provider 标准字段，Aftercare 丢失 title-year Identity Evidence | `PROJECTION_FRESHNESS` | `BUSINESS_CONTRACT` | Arca Collection Query + shared Rating Identity | 正确性、可理解性 | High | 已修复并通过当前 Canary 确认 |
 | UAT-069 | 评分 Resolution 更新后 Aftercare 及时执行，但 Planner/Capability 写回旧 Care Basis | `DOMAIN_ORCHESTRATION` | `PROJECTION_FRESHNESS` | Arca Aftercare composition wiring | 正确性、时效性 | Critical | 已修复并通过当前 Canary 安全重启确认 |
 | UAT-070 | 集成配置 revision 更新后，新建 Metadata Work 仍假定 revision 1，并让首轮 reconcile 阻断服务启动 | `DOMAIN_ORCHESTRATION` | `RECOVERY_CORRECTNESS`、`EXTERNAL_INTEGRATION` | Libra Metadata Planning + Foundation reconciliation | 可用性、活性、恢复正确性 | Critical | 已修复并由 Product Owner 接受现有证据关闭 |
+| UAT-071 | 同一上架电影的多个人物关系共用来源 digest，只有首个人物自动登记 | `DOMAIN_ORCHESTRATION` | `PROJECTION_FRESHNESS` | Arca On-deck Person Evidence + People登记幂等 | 正确性、名录完整性 | Critical | 已修复并通过全新隔离 Canary FACT/RESTART确认 |
+| UAT-072 | 已登记人物名录缺少头像，无法形成可辨识的人物联系表 | `USER_EXPERIENCE` | `EXTERNAL_INTEGRATION`、`PROJECTION_FRESHNESS` | People Admin Query + Platform TMDB adapter + Admin Web | 可辨识性、安全性、可访问性 | High | 已修复并通过桌面/390px UI E2E确认 |
 
 ## 2.1 UAT-006：概览展示固定演示数字
 
@@ -2799,7 +2801,33 @@ Product Package与Offer并完成On-deck；没有替换Run或数据库编辑。Ad
 
 关闭确认：commit `efaf2d827` 完成根因修复；代码、回归与真实失败库克隆的 RESTART/FACT 均已通过。2026-08-23 Product Owner 明确接受现有证据并要求关闭，状态 `REGRESSION PASSED / CLOSED BY PRODUCT OWNER ACCEPTANCE`。未触碰 NAS/生产，未在 C 盘留下测试过程文件。
 
-## 68. 后续问题模板
+## 68. UAT-071：同一来源的多个人物关系因共享 Evidence digest 发生自动登记碰撞
+
+问题分类：`DOMAIN_ORCHESTRATION / PROJECTION_FRESHNESS`
+
+用户侧现象：已有电影成功上架，但人物名录没有自动登记完整演职员；同一电影的多个人物关系共用电影/NFO级`originEvidenceDigest`时，首个Candidate使后续人物被误判为已知。
+
+精确根因：Arca投影把来源级digest直接当作People Candidate去重键，People又先按该digest短路；不同姓名、角色和TMDB Person ID因此在登记边界发生碰撞。另有24小时Process-local空扫门闩会让服务启动后的新On-deck证据延迟到下一周期。
+
+修复边界：Arca按`relationId`、`relationDigest`、来源provenance、姓名、角色及Provider Identity计算确定性逐关系Evidence digest；People先按稳定Provider Person Identity查现有Person，再按逐关系digest查历史Candidate。移除重复的Process-local 24小时门闩，Foundation仍保持30秒有界调度。未新增表、未迁移旧Candidate、未改变Owner/Handoff。
+
+验收证据：隔离运行`F:\shelfdeck_test_zone\runs\UAT-20260823-people-registration-avatar-91e6bb141`从只读基线复制一部电影，走正式Formation→On-deck→People链路。Arca不同TMDB Person Identity为16，People active Person为16，open Candidate为0；安全重启后仍为16/16，源与复制字节数一致。专项测试覆盖共享来源的16个强身份、多个弱身份、跨来源/重扫/重启幂等、新证据及时可见及失败cursor不越过。
+
+当前处理决定：提交`bcca79848`修复逐关系Evidence与幂等顺序，提交`0cc272d2f`修复新证据唤醒。状态`REGRESSION PASSED / QUALIFIED IN ISOLATED CANARY`；不修改保留UAT数据库或旧错误Candidate。
+
+## 69. UAT-072：已登记人物缺少安全代理头像与UI回退
+
+问题分类：`USER_EXPERIENCE / EXTERNAL_INTEGRATION / PROJECTION_FRESHNESS`
+
+用户侧现象：人物页只有文字名录，已登记人物没有头像；直接把TMDB Secret或原始图片地址交给浏览器又不符合安全边界。
+
+修复边界：新增受保护的`GET /v1/admin/people/:personId/avatar`，只读取active Person的TMDB Person Identity，以当前Integration revision请求人物资料并代理`w185`图片。边界为10秒、4 MiB、JPEG/PNG/WebP；24小时内存缓存按Integration revision与Provider key隔离，最多64项/32 MiB，不写盘。无图、Integration不可用或网络失败返回明确错误，由前端显示姓名首字头像。
+
+验收证据：Admin Web人物页改为响应式竖向头像卡，展示姓名、登记状态、别名和外部编号，支持lazy loading、键盘焦点、窄屏单列及加载失败回退。隔离Playwright桌面与390px两项均通过，验证16张卡、15个成功代理图片、1个无图首字回退及axe serious/critical为0；截图为运行目录`evidence/people-desktop.png`与`evidence/people-narrow-390.png`。头像后端覆盖成功、无图、超时、超限、错误MIME、Integration revision变化和未授权访问。
+
+当前处理决定：提交`7f93e1b1d`完成头像route与UI，`8b9df550f`加入专项/E2E，`ea860b19e`修复冻结People列表的Admin投影并强化真实名录UI见证。状态`REGRESSION PASSED / QUALIFIED IN ISOLATED UI E2E`。Route Inventory总数为119；未暴露Secret或TMDB原始地址。
+
+## 70. 后续问题模板
 
 后续发现的问题按以下结构追加：
 
