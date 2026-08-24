@@ -4,7 +4,18 @@ Status: Helix-beta 范围已收窄为仅 Movie 全链路。Movie Procurement与M
 
 Last updated: 2026-08-24
 
-## 0. Current UAT qualification — UAT-085–UAT-091
+## 0. Current UAT qualification — UAT-092 code and regression passed
+
+2026-08-24用户现场的`一场很（没）有必要的春晚 (2022)`与`全面失控：特大号邮轮危机 (2025)`均因原NFO没有演员、Libra却跳过
+TMDB Metadata Work而形成空Media Cast，最终在内部Product Conformance以`metadata_field_unmet`冻结。`UAT-092`已登记；修复保持演员属于
+独立`MediaCastDraft/MediaCastFact`，把演员完备性纳入Metadata阶段，并把同一Observation集合形成的Media Cast草稿加入
+`libra.product_sidecar.render@1`正式输入。NFO更新保留原丰富字段与已有Person ID，仅补缺失演员；坏文件重建、缺失文件创建均写入演员。
+
+专项Metadata/NFO/Product Fact/Conformance与真实Handoff B/Perception链路均通过；完整Service`npm test`为320 pass / 18 skip / 0 fail。
+测试临时目录仅位于`F:\shelfdeck_test_zone\runs\UAT-20260824-uat092-dev\tmp`，未改现有UAT数据库、Canary、`test_film`或NAS。
+当前状态`CODE/REGRESSION PASSED / REAL CANARY PENDING`；尚未以全新真实TMDB Canary关闭UAT。
+
+## 0. Previous UAT qualification — UAT-085–UAT-091
 
 正式工作区为`E:\my_project\emby_third_party-helix` / `main`，当前代码HEAD为`0bc45ed98`。最终运行目录为
 `F:\shelfdeck_test_zone\runs\UAT-20260824-031004-228f39a37`，Canary为

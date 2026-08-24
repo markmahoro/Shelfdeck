@@ -15,6 +15,8 @@ function draft() {
   return Object.freeze({
     draftId:'draft-1',
     draftDigest:'d'.repeat(64),
+    basisDigest:'b'.repeat(64),
+    metadataObservationSetDigest:'c'.repeat(64),
     descriptiveFacts:Object.freeze({ entries:Object.freeze([
       Object.freeze({ key:'title', value:'倩女幽魂' }),
       Object.freeze({ key:'tmdb_movie_id', value:'12345' }),
@@ -22,6 +24,25 @@ function draft() {
       Object.freeze({ key:'plot', value:'更新后的简介' }),
     ]) }),
   });
+}
+
+function mediaCastDraft() {
+  const relations = Object.freeze([
+    Object.freeze({ role:'actor', displayName:'张国荣', providerIdentities:Object.freeze([
+      Object.freeze({ provider:'tmdb', namespace:'tmdb_person', providerKey:'123' }),
+    ]) }),
+    Object.freeze({ role:'actor', displayName:'王祖贤', providerIdentities:Object.freeze([
+      Object.freeze({ provider:'tmdb', namespace:'tmdb_person', providerKey:'124' }),
+    ]) }),
+  ]);
+  const body = {
+    schemaRef:'helix://contracts/types/MediaCastDraft/v1', schemaVersion:1,
+    draftId:'cast-draft-1', draftKind:'media_cast', basisDigest:'b'.repeat(64),
+    producedAtMs:1, subjectId:'subject-1', sourceBasisKind:'metadata_observation',
+    metadataObservationSetDigest:'c'.repeat(64), westernMatchBasisDigest:null,
+    relations,
+  };
+  return Object.freeze({ ...body, draftDigest:canonicalDigest(body) });
 }
 
 function profile() {
@@ -89,7 +110,8 @@ function render(sourceBytes) {
     const reference = sourceBytes === null ? null : relatedReference(source);
     const before = sourceBytes === null ? null : fs.readFileSync(source);
     const handle = port.renderProductSidecar({
-      productMetadataDraft:draft(), sidecarProfile:profile(), libraRunId:'run-1',
+      productMetadataDraft:draft(), mediaCastDraft:mediaCastDraft(),
+      sidecarProfile:profile(), libraRunId:'run-1',
       workspaceId:'workspace-1', relativePath:'product/movie.nfo', contentProfile:'movie',
       relatedReference:reference,
     });
@@ -132,6 +154,9 @@ test('usable related NFO is updated without losing rich or custom fields', () =>
   for (const preserved of ['tt0012345', 'douban', '张国荣', '自定义合集', '私人标签', '自定义内容']) {
     assert.ok(result.output.includes(preserved), 'preserves ' + preserved);
   }
+  assert.equal((result.output.match(/<name>张国荣<\/name>/g) || []).length, 1,
+    'the strong existing actor is not duplicated');
+  assert.match(result.output, /<name>王祖贤<\/name>[\s\S]*?<tmdbid>124<\/tmdbid>/);
 });
 
 test('damaged related NFO is rebuilt and absent NFO is created', () => {
@@ -139,6 +164,7 @@ test('damaged related NFO is rebuilt and absent NFO is created', () => {
   assert.equal(rebuilt.handle.provenanceRef.objectType, 'product_metadata_draft_rebuild');
   assert.match(rebuilt.output, /^<movie>/);
   assert.match(rebuilt.output, /<uniqueid type="tmdb">12345<\/uniqueid>/);
+  assert.match(rebuilt.output, /<name>王祖贤<\/name>[\s\S]*?<tmdbid>124<\/tmdbid>/);
   assert.deepEqual(rebuilt.after, rebuilt.before, 'damaged source remains unchanged');
 
   const identityDamaged = render(Buffer.from('<movie><title>倩女幽魂</title><tmdbid>99</tmdbid></movie>', 'utf8'));
@@ -149,4 +175,5 @@ test('damaged related NFO is rebuilt and absent NFO is created', () => {
   const created = render(null);
   assert.equal(created.handle.provenanceRef.objectType, 'product_metadata_draft_create');
   assert.match(created.output, /<title>倩女幽魂<\/title>/);
+  assert.match(created.output, /<name>张国荣<\/name>[\s\S]*?<tmdbid>123<\/tmdbid>/);
 });

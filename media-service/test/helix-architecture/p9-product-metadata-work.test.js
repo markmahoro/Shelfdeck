@@ -20,12 +20,12 @@ function providerIdentity() {
   return Object.freeze({ ...value, identityAnchorDigest: canonicalDigest(value) });
 }
 
-function snapshot() {
+function snapshot(requiredFieldCodes = ['plot','title','year']) {
   return Object.freeze({
     run: Object.freeze({ libraRunId:'run-metadata', executionBasisDigest:D('run-basis'),
       priorityClass:'normal', priorityRevision:1 }),
     spec: Object.freeze({ contentProfile:'movie', requirements:Object.freeze({ metadata:Object.freeze({
-      requiredFieldCodes:Object.freeze(['plot','title','year']),
+      requiredFieldCodes:Object.freeze(requiredFieldCodes),
     }) }) }),
     relatedReferences: Object.freeze([Object.freeze({
       role:'nfo', referenceId:'nfo-1', referenceDigest:D('nfo-reference'),
@@ -56,7 +56,7 @@ function options(results, onProvider = () => {}) {
   };
 }
 
-function result(sourcePriority, sourceKind, fields) {
+function result(sourcePriority, sourceKind, fields, peopleHints = []) {
   return Object.freeze({
     outcomeKind:'succeeded', capabilityRef:'libra.product_metadata.fetch@1',
     result:Object.freeze({
@@ -64,6 +64,7 @@ function result(sourcePriority, sourceKind, fields) {
       sourceRef:sourceKind === 'related_nfo' ? 'nfo-1' : 'tmdb-main',
       evidenceId:'evidence-' + sourcePriority,
       descriptiveFacts:Object.freeze({ entries:Object.freeze(fields.map((key) => Object.freeze({ key, value:key + '-value' }))) }),
+      peopleHints:Object.freeze(peopleHints),
     }),
   });
 }
@@ -127,4 +128,36 @@ test('missing provider Integration leaves staged Product Metadata waiting withou
   assert.equal(blocked.kind,'unavailable');
   assert.equal(blocked.reasonCode,'product_metadata_integration_unavailable');
   assert.deepEqual(blocked.missingFields,['plot','year']);
+});
+
+test('actor-only NFO gap creates a provider Work and becomes ready only after durable cast evidence', () => {
+  const actorSnapshot = snapshot(['actor','plot','title','year']);
+  const provider = nextMetadataStage(options([
+    result(0,'related_nfo',['plot','title','year']),
+  ]),actorSnapshot,identity());
+  assert.equal(provider.kind,'source');
+  assert.equal(provider.source.kind,'provider');
+  assert.deepEqual(provider.source.intent.requestedFields,[]);
+  assert.deepEqual(provider.missingFields,[]);
+  assert.deepEqual(provider.missingCastRoles,['actor']);
+
+  const ready = nextMetadataStage(options([
+    result(0,'related_nfo',['plot','title','year']),
+    result(1,'provider',[],[Object.freeze({
+      role:'actor', displayName:'演员甲', providerIdentities:Object.freeze([]),
+    })]),
+  ]),actorSnapshot,identity());
+  assert.equal(ready.kind,'ready');
+  assert.deepEqual(ready.missingFields,[]);
+  assert.deepEqual(ready.missingCastRoles,[]);
+});
+
+test('provider result without a required actor remains unresolved', () => {
+  const unresolved = nextMetadataStage(options([
+    result(0,'related_nfo',['plot','title','year']),
+    result(1,'provider',[]),
+  ]),snapshot(['actor','plot','title','year']),identity());
+  assert.equal(unresolved.kind,'unresolved');
+  assert.equal(unresolved.reasonCode,'product_metadata_required_cast_missing');
+  assert.deepEqual(unresolved.missingCastRoles,['actor']);
 });

@@ -10,6 +10,11 @@
       "required": true,
       "cardinality": "one"
     },
+    "mediaCastDraft": {
+      "schemaRef": "helix://contracts/capabilities/libra.product_sidecar.render/v1/inputs#/$defs/mediaCastDraft",
+      "required": true,
+      "cardinality": "one"
+    },
     "sidecarProfile": {
       "schemaRef": "helix://contracts/capabilities/libra.product_sidecar.render/v1/inputs#/$defs/sidecarProfile",
       "required": true,
@@ -29,7 +34,7 @@
   },
   "sourceLocator": {
     "section": "8.6.6",
-    "line": 9785,
-    "lineDigest": "15a7d89c84badd6020622e0397e8d63040e7a16843bb2c209ba2ffc7b1225ad8"
+    "line": 9786,
+    "lineDigest": "98b498f7022ed3fe3ec1168ee4e45652d3778c0e26c2fc024524b4a63b3515c3"
   }
 }

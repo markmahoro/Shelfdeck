@@ -405,7 +405,8 @@ function createLibraRunCoordinator(options){
     if(metadataStage.kind==='unavailable'||metadataStage.kind==='unresolved')return Object.freeze({
       kind:metadataStage.kind==='unavailable'?'waiting_external_integration':'product_metadata_unresolved',
       phase:'product_metadata_observation',libraRunId,reasonCode:metadataStage.reasonCode,
-      missingFields:metadataStage.missingFields});
+      missingFields:metadataStage.missingFields,
+      missingCastRoles:metadataStage.missingCastRoles});
     if(metadataStage.kind==='source'){
       const work=metadataObservationWork(snapshot,metadataStage.source),submitted=submit(work),
         status=options.workResultReader.status(work.workId);

@@ -56,6 +56,7 @@ const {
   buildArtifactManifestVerification,
   buildMediaCastDraft,
   buildMetadataFetchIntent,
+  buildMetadataMediaCastRelations,
   buildMetadataObservationBasis,
   buildProductFactHandle,
   buildProductMetadataDraft,
@@ -1901,6 +1902,7 @@ function createMovieProductionCoordinator(options) {
         });
         const capabilityInput = Object.freeze({
           productMetadataDraft: normalizeChain.result,
+          mediaCastDraft: castDraftChain.result,
           sidecarProfile,
         });
         artifactChain = await phase({
@@ -1909,7 +1911,7 @@ function createMovieProductionCoordinator(options) {
           effectClass: 'workspace_write',
           capabilityInput,
           upstreamChains: [normalizeChain],
-          resourceKinds: ['disk_io'],
+          resourceKinds: ['cpu', 'disk_io'],
           resultSchemaRef: 'helix://contracts/types/ArtifactHandle/v1',
           execute: () => options.productionPort.renderProductSidecar({
             ...capabilityInput,
@@ -2421,6 +2423,21 @@ function createMovieProductionCoordinator(options) {
         missingFields: metadataDraftResult.missingFields,
       });
     }
+    const castBasis = buildMetadataObservationBasis({
+      intents: [...nfoSources.map((item) => item.intent), providerIntent],
+      results,
+      factKind: 'media_cast',
+      expectedRevision: 0,
+    });
+    const castDraft = buildMediaCastDraft({
+      subjectId: snapshot.run.subjectId,
+      sourceBasis: castBasis,
+      relations: buildMetadataMediaCastRelations({
+        sourceBasis: castBasis,
+        subjectId: snapshot.run.subjectId,
+      }),
+      producedAtMs: productionTimeMs,
+    });
     materials = [];
     artifactChains = [];
     for (const [ordinal, kind] of snapshot.spec.requirements.metadata
@@ -2455,6 +2472,7 @@ function createMovieProductionCoordinator(options) {
         });
         const inputBindings = Object.freeze({
           productMetadataDraft: metadataDraftResult.draft,
+          mediaCastDraft: castDraft,
           sidecarProfile,
         });
         artifactChain = await runResultCapability(snapshot.run, {
@@ -2614,36 +2632,6 @@ function createMovieProductionCoordinator(options) {
     };
     verifiedArtifactManifest.manifestDigest =
       canonicalDigest(verifiedArtifactManifest);
-    const castBasis = buildMetadataObservationBasis({
-      intents: [...nfoSources.map((item) => item.intent), providerIntent],
-      results,
-      factKind: 'media_cast',
-      expectedRevision: 0,
-    });
-    const relations = providerObservation.peopleHints.map((item) => ({
-      relationId: stable('movie-cast-relation-', {
-        subjectId: snapshot.run.subjectId,
-        role: item.role,
-        displayName: item.displayName,
-        providerIdentities: item.providerIdentities || [],
-      }),
-      personId: null,
-      displayName: item.displayName,
-      displayNameNormalized: item.displayName.normalize('NFKC').toLowerCase(),
-      role: item.role,
-      source: providerSearch.provider,
-      providerIdentities: item.providerIdentities || [],
-      originEvidenceDigest: providerObservation.payloadDigest,
-      confidenceClass: 'provider_asserted',
-    })).sort((left, right) => Buffer.compare(Buffer.from(left.role), Buffer.from(right.role)) ||
-      Buffer.compare(Buffer.from(left.displayNameNormalized), Buffer.from(right.displayNameNormalized)) ||
-      Buffer.compare(Buffer.from(left.relationId), Buffer.from(right.relationId)));
-    const castDraft = buildMediaCastDraft({
-      subjectId: snapshot.run.subjectId,
-      sourceBasis: castBasis,
-      relations,
-      producedAtMs: productionTimeMs,
-    });
     castFact = commitFact(snapshot.run, 'media_cast', castBasis, {
       schema: 'libra.media-cast-fact-commit-payload@1',
       mediaCastDraft: castDraft,

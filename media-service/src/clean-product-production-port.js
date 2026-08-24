@@ -145,7 +145,68 @@ function usableNfoDocument(xml, expectedRoot) {
   return stack.length === 0;
 }
 
-function updateNfoDocument(xml, rootName, entries) {
+function normalizedPersonName(value) {
+  return String(value || '').trim().normalize('NFKC').toLowerCase();
+}
+
+function tmdbPersonId(relation) {
+  return relation.providerIdentities?.find((item) =>
+    item.provider === 'tmdb' && item.namespace === 'tmdb_person')?.providerKey || null;
+}
+
+function actorRelations(mediaCastDraft) {
+  return (mediaCastDraft.relations || []).filter((item) =>
+    item.role === 'actor' && typeof item.displayName === 'string' &&
+    item.displayName.trim());
+}
+
+function actorBlock(relation) {
+  const lines = [
+    '  <actor>',
+    '    <name>' + escapeXml(relation.displayName.trim()) + '</name>',
+  ];
+  const personId = tmdbPersonId(relation);
+  if (personId) lines.push('    <tmdbid>' + escapeXml(personId) + '</tmdbid>');
+  lines.push('  </actor>');
+  return lines.join('\n');
+}
+
+function mergeNfoActors(xml, rootName, relations) {
+  let output = xml;
+  const records = [...output.matchAll(/<actor(?:\s[^>]*)?>[\s\S]*?<\/actor>/gi)]
+    .map((match) => {
+      const raw = match[0];
+      const name = raw.match(/<name(?:\s[^>]*)?>([\s\S]*?)<\/name>/i)?.[1]
+        ?.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/, '$1').trim() || '';
+      const personId = raw.match(/<tmdbid(?:\s[^>]*)?>([\s\S]*?)<\/tmdbid>/i)?.[1]?.trim() ||
+        raw.match(/<uniqueid\b[^>]*\btype=["']tmdb["'][^>]*>([\s\S]*?)<\/uniqueid>/i)?.[1]?.trim() || '';
+      return { raw, name, normalizedName:normalizedPersonName(name), personId };
+    });
+  for (const relation of relations) {
+    const personId = tmdbPersonId(relation);
+    if (personId && records.some((item) => item.personId === personId)) continue;
+    const normalizedName = normalizedPersonName(relation.displayName);
+    const sameName = records.find((item) => item.normalizedName === normalizedName);
+    if (sameName) {
+      if (personId && !sameName.personId) {
+        const updated = sameName.raw.replace(/\s*<\/actor>\s*$/i,
+          '\n    <tmdbid>' + escapeXml(personId) + '</tmdbid>\n  </actor>');
+        output = output.replace(sameName.raw, updated);
+        sameName.raw = updated;
+        sameName.personId = personId;
+      }
+      continue;
+    }
+    const block = actorBlock(relation);
+    output = output.replace(new RegExp('(\\s*</'+rootName+'>\\s*)$', 'i'),
+      '\n' + block + '$1');
+    records.push({ raw:block, name:relation.displayName,
+      normalizedName, personId:personId || '' });
+  }
+  return output;
+}
+
+function updateNfoDocument(xml, rootName, entries, relations) {
   let output = String(xml).replace(/^\uFEFF/, '');
   const managed = [
     [rootName === 'tvshow' ? 'series_title' : 'title', 'title'],
@@ -178,10 +239,11 @@ function updateNfoDocument(xml, rootName, entries) {
     else output = output.replace(new RegExp('(\\s*</'+rootName+'>\\s*)$', 'i'),
       '\n  <uniqueid type="tmdb">' + encoded + '</uniqueid>$1');
   }
+  output = mergeNfoActors(output, rootName, relations);
   return output.endsWith('\n') ? output : output + '\n';
 }
 
-function createNfoDocument(rootName, entries) {
+function createNfoDocument(rootName, entries, relations) {
   const tags = [
     [rootName === 'tvshow' ? 'series_title' : 'title', 'title'],
     [rootName === 'tvshow' ? 'tmdb_series_id' : 'tmdb_movie_id', 'tmdbid'],
@@ -198,6 +260,7 @@ function createNfoDocument(rootName, entries) {
   if (entries.has(tmdbKey)) lines.push(
     '  <uniqueid type="tmdb">' + escapeXml(entries.get(tmdbKey)) + '</uniqueid>',
   );
+  for (const relation of relations) lines.push(actorBlock(relation));
   lines.push('</' + rootName + '>');
   return lines.join('\n') + '\n';
 }
@@ -729,8 +792,16 @@ function createCleanProductProductionPort(options = {}) {
 
   function renderProductSidecar(request) {
     const draft = request?.productMetadataDraft;
+    const mediaCastDraft = request?.mediaCastDraft;
     const profile = request?.sidecarProfile;
-    if (!draft || !profile ||
+    if (!draft || !mediaCastDraft || !profile ||
+        mediaCastDraft.schemaRef !== 'helix://contracts/types/MediaCastDraft/v1' ||
+        mediaCastDraft.schemaVersion !== 1 ||
+        (mediaCastDraft.sourceBasisKind === 'metadata_observation' &&
+          mediaCastDraft.metadataObservationSetDigest !==
+            draft.metadataObservationSetDigest) ||
+        mediaCastDraft.draftDigest !== canonicalDigest(Object.fromEntries(
+          Object.entries(mediaCastDraft).filter(([key]) => key !== 'draftDigest'))) ||
         profile.schemaRef !==
           'helix://contracts/domain-types/SidecarProfile/v1' ||
         profile.schemaVersion !== 1 ||
@@ -743,6 +814,7 @@ function createCleanProductProductionPort(options = {}) {
     const values = new Map(
       draft.descriptiveFacts.entries.map((item) => [item.key, item.value]),
     );
+    const actors = actorRelations(mediaCastDraft);
     const series = request.contentProfile === 'series';
     const rootName = series ? 'tvshow' : 'movie';
     let bytes;
@@ -760,7 +832,7 @@ function createCleanProductProductionPort(options = {}) {
       const original = related.bytes.toString('utf8');
       const observedEntries = new Map(related.entries.map((item) => [item.key, item.value]));
       if (usableNfoDocument(original, rootName) && nfoIdentityConsistent(observedEntries, values, rootName)) {
-        bytes = Buffer.from(updateNfoDocument(original, rootName, values), 'utf8');
+        bytes = Buffer.from(updateNfoDocument(original, rootName, values, actors), 'utf8');
         provenanceRef = {
           objectType: 'related_nfo_update',
           objectId: request.relatedReference.referenceId,
@@ -768,7 +840,7 @@ function createCleanProductProductionPort(options = {}) {
           digest: request.relatedReference.referenceDigest,
         };
       } else {
-        bytes = Buffer.from(createNfoDocument(rootName, values), 'utf8');
+        bytes = Buffer.from(createNfoDocument(rootName, values, actors), 'utf8');
         provenanceRef = {
           objectType: 'product_metadata_draft_rebuild',
           objectId: draft.draftId,
@@ -777,7 +849,7 @@ function createCleanProductProductionPort(options = {}) {
         };
       }
     } else {
-      bytes = Buffer.from(createNfoDocument(rootName, values), 'utf8');
+      bytes = Buffer.from(createNfoDocument(rootName, values, actors), 'utf8');
     }
     const materialized = options.workspaceProductPort.materializeArtifact({
       libraRunId: request.libraRunId,

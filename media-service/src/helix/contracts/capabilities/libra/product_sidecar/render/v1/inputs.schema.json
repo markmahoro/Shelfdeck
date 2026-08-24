@@ -8,18 +8,26 @@
     "productMetadataDraft": {
       "$ref": "#/$defs/productMetadataDraft"
     },
+    "mediaCastDraft": {
+      "$ref": "#/$defs/mediaCastDraft"
+    },
     "sidecarProfile": {
       "$ref": "#/$defs/sidecarProfile"
     }
   },
   "required": [
     "productMetadataDraft",
+    "mediaCastDraft",
     "sidecarProfile"
   ],
   "$defs": {
     "productMetadataDraft": {
       "$ref": "helix://contracts/types/ProductMetadataDraft/v1",
       "x-helix-typeExpression": "ProductMetadataDraft"
+    },
+    "mediaCastDraft": {
+      "$ref": "helix://contracts/types/MediaCastDraft/v1",
+      "x-helix-typeExpression": "MediaCastDraft"
     },
     "sidecarProfile": {
       "$ref": "helix://contracts/domain-types/SidecarProfile/v1",

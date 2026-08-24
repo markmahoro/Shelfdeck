@@ -116,7 +116,7 @@ function createArtifactProductionCapabilityPorts(options) {
       },
     }),
     [SIDECAR]: Object.freeze({
-      validateInputs(context) { requireNamed(context, ['productMetadataDraft', 'sidecarProfile']); },
+      validateInputs(context) { requireNamed(context, ['productMetadataDraft', 'mediaCastDraft', 'sidecarProfile']); },
       execute(context) {
         const snapshot = typeof options.movieProductionReader.readRunSnapshot === 'function'
           ? options.movieProductionReader.readRunSnapshot(context.ownerScope.processId)
@@ -125,6 +125,7 @@ function createArtifactProductionCapabilityPorts(options) {
         const contentProfile = snapshot?.spec?.contentProfile || 'movie';
         const result = options.productProductionPort.renderProductSidecar({
           productMetadataDraft: context.namedInputs.productMetadataDraft,
+          mediaCastDraft: context.namedInputs.mediaCastDraft,
           sidecarProfile: context.namedInputs.sidecarProfile,
           libraRunId: context.ownerScope.processId,
           workspaceId: workspaceId(context.ownerScope.processId),

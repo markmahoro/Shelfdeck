@@ -9783,7 +9783,7 @@ Canonical Decision可以使用Owner的普通Domain transaction提交，不在Pla
 | `libra.western.metadata.normalize@1` | `WesternAnalysisVariant → ProductMetadataDraft` | `pure_observation` |
 | `libra.media_cast.resolve@1` | `LibraMediaCastSourceBasis(metadata_observation|western_match) + PersonReferenceProjection[0..256] → MediaCastDraft` | `pure_observation` |
 | `libra.media_cast.commit@1` | `LibraMediaCastSourceBasis(metadata_observation|western_match) + MediaCastDraft + DomainFactCommitHandle → MediaCastFact` | `domain_fact_commit` |
-| `libra.product_sidecar.render@1` | `ProductMetadataDraft + SidecarProfile → ArtifactHandle` | `workspace_write` |
+| `libra.product_sidecar.render@1` | `ProductMetadataDraft + MediaCastDraft + SidecarProfile → ArtifactHandle` | `workspace_write` |
 | `libra.product_artifact.acquire@1` | `ProductMetadataDraft + artifactKind + IntegrationHandle → ArtifactAcquisitionResult` | `workspace_write` |
 | `libra.product_metadata.commit@1` | `LibraProductMetadataSourceBasis(metadata_observation|western_analysis) + ProductMetadataDraft + VerifiedArtifactManifest + mediaCastFactRef?{productFactId,factRevision,factDigest} + DomainFactCommitHandle → ProductMetadataFact` | `domain_fact_commit` |
 

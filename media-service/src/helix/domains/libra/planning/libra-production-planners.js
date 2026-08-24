@@ -39,6 +39,7 @@ const ARTIFACT_INTEGRATION = 'helix://libra/input-projections/ProductArtifactInt
 const SIDECAR_PROFILE = 'helix://libra/input-projections/ProductSidecarProfile/v1';
 const ARTIFACT_REQUIREMENT = 'helix://libra/input-projections/ProductArtifactRequirement/v1';
 const ARTIFACT_HANDLE_LIST = 'helix://libra/input-projections/ProductArtifactHandleList/v1';
+const SIDECAR_MEDIA_CAST_DRAFT = 'helix://libra/input-projections/ProductSidecarMediaCastDraft/v1';
 const MEDIA_CAST_RESOLVE = 'libra.media_cast.resolve@1';
 const MEDIA_CAST_COMMIT = 'libra.media_cast.commit@1';
 const METADATA_COMMIT = 'libra.product_metadata.commit@1';
@@ -524,6 +525,26 @@ function mediaCastRelations(context) {
   });
 }
 
+function sidecarMediaCastDraft(context) {
+  const sourceBasis = buildMetadataObservationBasis({
+    intents: context.sources.map((item) => item.intent),
+    results: context.results,
+    factKind: 'media_cast',
+    expectedRevision: 0,
+  });
+  return buildMediaCastDraft({
+    sourceBasis,
+    subjectId: context.snapshot.run.subjectId,
+    relations: buildMetadataMediaCastRelations({
+      sourceBasis,
+      subjectId: context.snapshot.run.subjectId,
+    }),
+    personProjection: Object.freeze({ items:Object.freeze([]) }),
+    producedAtMs: Math.max(...sourceBasis.observationSet.observations
+      .map((item) => item.observedAtMs)),
+  });
+}
+
 function createProductFactAssemblyPlanner(options) {
   const catalogDigest=executionCatalogDigest(options.registry,options.policyRegistry);
   return Object.freeze({plannerContractRef:'helix://libra/planners/ProductFactAssembly/v1',plannerVersion:1,plan(request){
@@ -640,11 +661,14 @@ function createArtifactProductionPlanner(options) {
       const producerRef=requirement.artifactKind==='nfo'?SIDECAR_RENDER:ARTIFACT_ACQUIRE;
       const producerEventId=stable('libra-artifact-producer-event-',{attempt:request.workAttemptId,requirementDigest:requirement.requirementDigest});
       const inputBindings=[owner('productMetadataDraft',request,METADATA_DRAFT)];
-      if(producerRef===SIDECAR_RENDER)inputBindings.push(owner('sidecarProfile',request,SIDECAR_PROFILE));
+      if(producerRef===SIDECAR_RENDER)inputBindings.push(
+        owner('mediaCastDraft',request,SIDECAR_MEDIA_CAST_DRAFT),
+        owner('sidecarProfile',request,SIDECAR_PROFILE),
+      );
       else inputBindings.push(owner('integrationHandle',request,ARTIFACT_INTEGRATION,{artifactKind:requirement.artifactKind}));
       nodes.push(planNode({...options,request,nodeId:'artifact_'+ordinal,eventId:producerEventId,capabilityRef:producerRef,
         inputBindings,parameters:producerRef===ARTIFACT_ACQUIRE?{artifactKind:requirement.artifactKind}:{},
-        resourceKinds:producerRef===ARTIFACT_ACQUIRE?['disk_io','network']:['cpu']}));
+        resourceKinds:producerRef===ARTIFACT_ACQUIRE?['disk_io','network']:['cpu','disk_io']}));
       const verifyEventId=stable('libra-artifact-verify-event-',{attempt:request.workAttemptId,requirementDigest:requirement.requirementDigest});
       nodes.push(planNode({...options,request,nodeId:'artifact_verify_'+ordinal,eventId:verifyEventId,capabilityRef:ARTIFACT_VERIFY,
         inputBindings:[projected('artifactHandleList',producerEventId,options.registry.resolve(producerRef,'libra').manifest.resultSchemaRef,
@@ -670,6 +694,8 @@ function createArtifactProductionProjections(options) {
   };
   return Object.freeze([
     Object.freeze({projectionRef:METADATA_DRAFT,projection:Object.freeze({project:({ownerScope})=>context(ownerScope).draft})}),
+    Object.freeze({projectionRef:SIDECAR_MEDIA_CAST_DRAFT,projection:Object.freeze({project:({ownerScope})=>
+      sidecarMediaCastDraft(context(ownerScope))})}),
     Object.freeze({projectionRef:SIDECAR_PROFILE,projection:Object.freeze({project:({ownerScope})=>sidecarProfile(context(ownerScope))})}),
     Object.freeze({projectionRef:ARTIFACT_REQUIREMENT,projection:Object.freeze({project:({ownerScope,parameters})=>requirement(ownerScope,parameters)})}),
     Object.freeze({projectionRef:ARTIFACT_INTEGRATION,projection:Object.freeze({project:({ownerScope,parameters})=>{
@@ -689,10 +715,11 @@ function createArtifactProductionProjections(options) {
 
 module.exports=Object.freeze({DECISION_EVIDENCE,IDENTITY_CLAIM,IDENTITY_HANDLE,PRODUCT_STRUCTURE,IDENTITY_EVIDENCE_INTENT,IDENTITY_EVIDENCE_SOURCE,
   UAT_SOURCE_ROUTING_INTENT,UAT_SOURCE_ROUTING_SOURCE,
-  METADATA_INTENT,METADATA_SOURCE,METADATA_DRAFT,ARTIFACT_INTEGRATION,SIDECAR_PROFILE,ARTIFACT_REQUIREMENT,ARTIFACT_HANDLE_LIST,
+  METADATA_INTENT,METADATA_SOURCE,METADATA_DRAFT,ARTIFACT_INTEGRATION,SIDECAR_PROFILE,SIDECAR_MEDIA_CAST_DRAFT,
+  ARTIFACT_REQUIREMENT,ARTIFACT_HANDLE_LIST,
   createProductIdentityPlanner,createProductIdentityProjections,
   createProductMetadataObservationPlanner,createProductMetadataObservationProjections,decisionEvidence,identityCommitFence,
   createArtifactProductionPlanner,createArtifactProductionProjections,artifactRequirement,productMetadataContext,
   artifactProviderIntent,
   artifactVerificationContext,createProductFactAssemblyPlanner,createProductFactAssemblyProjections,factCommitFence,mediaCastRelations,
-  productStructure,sidecarProfile});
+  productStructure,sidecarMediaCastDraft,sidecarProfile});

@@ -4,7 +4,17 @@ Status: Helix-beta 已由 Product Owner 收窄为 **仅 Movie 的全功能版本
 
 Last updated: 2026-08-24
 
-## 0. Current UAT plan — UAT-085–UAT-091 closed
+## 0. Current UAT plan — UAT-092 real Canary pending
+
+`UAT-092`已完成代码与自动化回归：Acceptance Spec要求演员而Related NFO没有演员时，Libra继续创建TMDB Metadata Work；
+同一Observation集合形成的`MediaCastDraft`作为正式Sidecar输入，NFO按“未坏则更新、坏则重建、缺失则创建”写入演员，同时保留原丰富字段和
+Person强身份。完整Service回归320 pass / 18 skip / 0 fail。
+
+剩余关闭动作仅为全新隔离真实TMDB Canary：用未污染的`test_film`副本重跑至少一部原NFO无演员影片，证明Provider Work、Media Cast、
+输出NFO演员、Product Conformance和Formation终态一致且不产生`metadata_field_unmet`冻结。在取得FACT/FS终态前，状态保持
+`CODE/REGRESSION PASSED / REAL CANARY PENDING`；不得修改旧冻结Run或伪造恢复。
+
+## 0. Previous UAT plan — UAT-085–UAT-091 closed
 
 `UAT-085`–`UAT-091`的代码、FACT、FS、PERFORMANCE与RESTART作业已在最终隔离运行
 `F:\shelfdeck_test_zone\runs\UAT-20260824-031004-228f39a37`完成。当前HEAD `0bc45ed98`服务保持运行，真实恢复转码继续推进；

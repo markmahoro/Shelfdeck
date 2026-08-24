@@ -160,6 +160,7 @@ fail-closed。commit `0bc45ed98`已在Foundation同一事务收口，并以有�
 | UAT-089 | Arca上架同步复制大文件阻塞Node Event Loop，使Admin Web与Health整窗超时 | `PERFORMANCE` | `RESOURCE_CAPACITY`、`USER_EXPERIENCE` | Arca Inventory staging + Platform filesystem effect | 可用性、延迟、上架吞吐 | Critical | `PERFORMANCE/FS/RESTART PASSED / CLOSED` |
 | UAT-090 | Resource软等待滚动写、后台饥饿与终态Intake重扫形成持续高CPU和SQLite写放大 | `PERFORMANCE` | `EXECUTION_SCHEDULING`、`RECOVERY_CORRECTNESS` | Foundation Governor/Scheduler + Libra Intake fallback reconcile | 可用性、吞吐、恢复正确性 | Critical | `FACT/PERFORMANCE/RESTART PASSED / CLOSED` |
 | UAT-091 | Process Work取消未同步终结Resource Defer，导致下一次服务启动被一致性检查阻断 | `RECOVERY_CORRECTNESS` | `EXECUTION_SCHEDULING`、`OPERATIONAL_SAFETY` | Foundation Work Lifecycle + Resource Governor + Startup Recovery | 可恢复性、原子性、服务可用性 | Critical | `FACT/RESTART PASSED / CLOSED` |
+| UAT-092 | 原NFO缺少演员时Libra误判Metadata已齐全，既不向TMDB补演员也不能把新演员写入NFO，最终在内部符合性验收冻结 | `BUSINESS_CONTRACT` | `DOMAIN_ORCHESTRATION`、`EXTERNAL_INTEGRATION` | Libra Metadata Planning + Media Cast + NFO Sidecar + Product Conformance | 正确性、活性、信息完整性 | Critical | `CODE/REGRESSION PASSED / REAL CANARY PENDING` |
 
 ### 2.0.1 UAT-074–UAT-084必须保护的历史修复
 
@@ -181,6 +182,7 @@ fail-closed。commit `0bc45ed98`已在Foundation同一事务收口，并以有�
 | UAT-089 | UAT-004、UAT-042、UAT-047 | 大文件仍须走确定性临时槽、复制后指纹校验、同卷原子rename与可恢复Effect；性能修复不得绕过Arca Commit |
 | UAT-090 | UAT-002、UAT-027、UAT-037、UAT-053 | Priority Class与Owner projection不变；安全/接纳保留车道不降级；重启仍能恢复真实待办且终态Offer不重开 |
 | UAT-091 | UAT-027、UAT-070、UAT-090 | 启动继续fail-closed；只修复可由终态Event确定证明的历史Resource Defer，孤儿或非终态漂移不得被静默忽略；取消必须保持单事务原子性 |
+| UAT-092 | UAT-014、UAT-029、UAT-043、UAT-073、UAT-074、UAT-075 | 演员继续作为独立Media Cast事实而非普通描述字段；NFO更新保留原丰富字段和已有Person强身份，重建/创建写入演员但不得把演员Person ID当成影片ID；可修复的演员缺口不得直接形成永久冻结 |
 
 历史回归证据必须和本轮新场景使用同一代码版本。若历史底线失败，应记录为对应新UAT的回归失败；只有出现独立根因或独立修复边界时才新增UAT，不能为了保持旧PASS而忽略回退。
 
@@ -3217,7 +3219,42 @@ committed Effect + executing Attempt均为0，`integrity_check=ok`。Candidate/S
 当前处理决定：`FACT/RESTART PASSED / CLOSED`。证据位于最终运行`monitoring/restart-recovery-db-analysis.json`、
 `startup-recovery-readonly-audit.json`、`post-controlled-restart-db-audit.json`和`post-restart-db-monitor.json`。
 
-## 89. 后续问题模板
+## 89. UAT-092：缺演员的NFO绕过补齐并在Libra内部验收冻结
+
+问题分类：`BUSINESS_CONTRACT / DOMAIN_ORCHESTRATION / EXTERNAL_INTEGRATION`
+
+用户侧现象：`一场很（没）有必要的春晚 (2022)`和`全面失控：特大号邮轮危机 (2025)`在Formation显示“需要处理”。这不是Arca上架失败，
+而是Libra内部Product Conformance以`metadata_field_unmet`拒绝产品并冻结Run；缺口均为演员。
+
+现场证据：两部影片冻结Acceptance Spec都要求`actor`。原始Material Field NFO包含标题、年份、剧情等描述信息，但没有任何`<actor>`；对应
+Metadata Observation只采用Related NFO，Media Cast关系数为0，没有创建TMDB Metadata Work。当前NFO renderer又只接收
+`ProductMetadataDraft + SidecarProfile`，即使Provider Observation取得`peopleHints`，也无法把新演员写入更新、重建或新建NFO。
+
+精确根因：演员有意不属于`ProductMetadataDraft.descriptiveFacts`，而属于独立`MediaCastDraft/MediaCastFact`；但Metadata阶段的ready判断只检查
+普通描述字段，错误地把“描述齐全但演员为空”视为ready。Sidecar capability也没有接收Media Cast输入，导致事实模型与成品NFO序列化之间断链。
+
+业务影响：Acceptance Spec要求演员时，原NFO只要缺演员就会稳定重现无效流程：跳过可用TMDB补齐、生成空Media Cast、在末端第一次验收失败后冻结。
+用户只能看到需要处理，实际上系统具备外部补齐能力却没有使用；即使只修ready判断，输出NFO仍会继续缺演员，形成内部事实与成品不一致。
+
+修复边界：演员继续由`MediaCastDraft/MediaCastFact`拥有，不得重新混入普通描述字段。若Spec要求演员，Metadata规划必须把现有NFO的
+`peopleHints`纳入完备性判断；NFO没有演员时，即使普通描述字段已齐，也必须创建冻结当前Integration revision的Provider Work。Sidecar render必须显式接收
+同一Metadata Observation Basis形成的`MediaCastDraft`：可用原NFO按“未坏则更新”保留未知/丰富字段及已有演员，仅追加未出现的强身份演员；坏NFO重建、
+缺失NFO创建时写入演员姓名和可用TMDB Person ID。不得把演员Person ID解析为影片ID，不得用前端或Conformance fallback伪造通过。
+
+验收标准：至少覆盖“描述齐全、演员为空”的Related NFO触发Provider，Provider演员进入Media Cast，更新/重建/创建NFO均输出演员，已有强身份演员不重复且
+原丰富字段不丢失；同一Run应在Product Conformance前完成这一可修复缺口，不产生`metadata_field_unmet`冻结。UAT-029、UAT-073、UAT-074、
+UAT-075相关回归必须同版通过。
+
+验收证据：Metadata专项新增“描述齐全但演员为空”场景，证明Related NFO之后仍创建冻结当前Integration revision的Provider Work、
+`requestedFields=[]`不阻止演员获取、Provider仍无演员时保持unresolved；NFO专项证明更新保留原评分、合集、标签、自定义字段及既有演员强身份，
+只追加缺失演员，坏文件重建和缺失文件创建均写入姓名与TMDB Person ID。Product Fact/Conformance与两条真实链路回归同版通过；完整Service
+`npm test`为320 pass / 18 skip / 0 fail。所有测试TEMP/TMP/TMPDIR均位于
+`F:\shelfdeck_test_zone\runs\UAT-20260824-uat092-dev\tmp`。
+
+当前处理决定：代码与自动化回归已完成，状态`CODE/REGRESSION PASSED / REAL CANARY PENDING`。尚未用全新真实TMDB Canary取得两部原问题影片的
+Formation/FACT/FS终态，因此不提前标记UAT PASS/CLOSED，也不修改保留的现场数据库。
+
+## 90. 后续问题模板
 
 后续发现的问题按以下结构追加：
 

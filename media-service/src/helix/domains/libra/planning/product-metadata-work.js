@@ -22,6 +22,11 @@ function requiredMetadataFields(snapshot) {
     .sort(compare));
 }
 
+function requiredMediaCastRoles(snapshot) {
+  return Object.freeze(snapshot.spec.requirements.metadata.requiredFieldCodes
+    .includes('actor') ? ['actor'] : []);
+}
+
 function nfoReferences(snapshot) {
   return Object.freeze(snapshot.relatedReferences
     .filter((item) => item.role === 'nfo')
@@ -39,6 +44,19 @@ function observedFieldKeys(resultItems) {
     }
   }
   return keys;
+}
+
+function observedMediaCastRoles(resultItems) {
+  const roles = new Set();
+  for (const item of resultItems) {
+    for (const hint of item.result.peopleHints || []) {
+      if (typeof hint?.role === 'string' && hint.role &&
+          typeof hint.displayName === 'string' && hint.displayName) {
+        roles.add(hint.role);
+      }
+    }
+  }
+  return roles;
 }
 
 function metadataResultItems(options, libraRunId) {
@@ -135,12 +153,17 @@ function providerSource(options, snapshot, identity, sourcePriority,
 
 function nextMetadataStage(options, snapshot, identity) {
   const requiredFields = requiredMetadataFields(snapshot);
+  const requiredCastRoles = requiredMediaCastRoles(snapshot);
   const results = metadataResultItems(options, snapshot.run.libraRunId);
   const observed = observedFieldKeys(results);
+  const observedCastRoles = observedMediaCastRoles(results);
   const missingFields = requiredFields.filter((field) => !observed.has(field));
-  if (results.length > 0 && missingFields.length === 0) {
+  const missingCastRoles = requiredCastRoles.filter((role) =>
+    !observedCastRoles.has(role));
+  if (results.length > 0 && missingFields.length === 0 &&
+      missingCastRoles.length === 0) {
     return Object.freeze({ kind:'ready', requiredFields, missingFields,
-      results });
+      requiredCastRoles, missingCastRoles, results });
   }
   const references = nfoReferences(snapshot);
   const usedNfoRefs = new Set(results
@@ -151,20 +174,24 @@ function nextMetadataStage(options, snapshot, identity) {
     const source = nfoSource(snapshot, identity, nextReference,
       results.length, missingFields);
     return Object.freeze({ kind:'source', source, requiredFields,
-      missingFields, results });
+      missingFields, requiredCastRoles, missingCastRoles, results });
   }
   if (results.some((item) => item.result.sourceKind === 'provider')) {
     return Object.freeze({ kind:'unresolved',
-      reasonCode:'product_metadata_required_fields_missing', requiredFields,
-      missingFields, results });
+      reasonCode:missingFields.length > 0
+        ? 'product_metadata_required_fields_missing'
+        : 'product_metadata_required_cast_missing',
+      requiredFields, missingFields, requiredCastRoles, missingCastRoles,
+      results });
   }
   const source = providerSource(options, snapshot, identity, results.length,
     missingFields);
   if (source.kind === 'unavailable') {
-    return Object.freeze({ ...source, requiredFields, missingFields, results });
+    return Object.freeze({ ...source, requiredFields, missingFields,
+      requiredCastRoles, missingCastRoles, results });
   }
   return Object.freeze({ kind:'source', source, requiredFields,
-    missingFields, results });
+    missingFields, requiredCastRoles, missingCastRoles, results });
 }
 
 function metadataObservationWork(snapshot, source) {
@@ -207,5 +234,6 @@ module.exports = Object.freeze({
   metadataResultItems,
   nextMetadataStage,
   nfoReferences,
+  requiredMediaCastRoles,
   requiredMetadataFields,
 });
