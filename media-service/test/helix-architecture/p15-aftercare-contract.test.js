@@ -5,7 +5,11 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const test = require('node:test');
+const Database = require('better-sqlite3');
 const { canonicalDigest } = require('../../src/helix/contracts/canonical-json');
+const { openSqliteKernel } = require('../../src/helix/foundation/persistence/sqlite-kernel');
+const { createSqliteUnitOfWork } = require('../../src/helix/foundation/persistence/sqlite-unit-of-work');
+const { createAftercareProcessCoordinator } = require('../../src/helix/domains/arca/application/aftercare-process-coordinator');
 const { computeBoundedMaterialFingerprintSync } = require('../../src/helix/integrations/bounded-material-fingerprint');
 const { observedIdentity, observeKnownOldBindings } = require('../../src/helix/domains/arca/model/known-old-binding');
 const { validNfo } = require('../../src/helix/domains/arca/capabilities/aftercare-capability-ports');
@@ -17,6 +21,9 @@ const {
 } = require('../../src/helix/domains/arca/model/aftercare-contract');
 
 const digest = (character) => character.repeat(64);
+const generated = path.resolve(__dirname, '../../src/helix/foundation/persistence/generated');
+const schemaDdl = fs.readFileSync(path.join(generated, 'clean-schema.sql'), 'utf8');
+const schemaManifest = JSON.parse(fs.readFileSync(path.join(generated, 'clean-schema.manifest.json'), 'utf8'));
 const context = (basisDigest = digest('a')) => Object.freeze({
   shelfEntryId:'entry-1',
   basis:Object.freeze({ digest:basisDigest }),
@@ -64,6 +71,45 @@ test('a rating-driven Care Basis change is due immediately instead of waiting 24
   assert.equal(health.state, 'never_assessed');
   assert.equal(health.nextCustodyDueAtMs, at);
   assert.equal(health.nextDeepDueAtMs, at);
+});
+
+test('Aftercare pulls a stale Shelf Entry rating Resolution before applying its cadence gate', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'arca-rating-pull-'));
+  const kernel = openSqliteKernel({
+    Database,
+    databasePath:path.join(root, 'shelfdeck.db'),
+    schemaDdl,
+    schemaManifest,
+    now:() => 5_000_000,
+  });
+  try {
+    const calls=[];
+    const reader={
+      store:{ history(){throw new Error('Cadence/history must wait for the current rating Resolution.');} },
+      read(shelfEntryId){return Object.freeze({
+        shelfEntryId,
+        raw:Object.freeze({perceptionRating:Object.freeze({state:'pending',reasonCode:'resolution_pending'})}),
+        basis:Object.freeze({digest:digest('a')}),
+      });},
+    };
+    const coordinator=createAftercareProcessCoordinator({
+      schemaManifest,
+      unitOfWork:createSqliteUnitOfWork({kernel}),
+      contextReader:reader,
+      workResultReader:Object.freeze({status(){return null;},read(){return [];}}),
+      ensurePerceptionRatingResolution(shelfEntryId){calls.push(shelfEntryId);return Object.freeze({kind:'pending',workId:'rating-resolution-work'});},
+      now:() => 5_000_000,
+    });
+    assert.deepEqual(coordinator.reconcile('entry-rating-changed'),{
+      kind:'rating_resolution_pending',
+      shelfEntryId:'entry-rating-changed',
+      workId:'rating-resolution-work',
+    });
+    assert.deepEqual(calls,['entry-rating-changed']);
+  } finally {
+    kernel.close();
+    fs.rmSync(root,{recursive:true,force:true});
+  }
 });
 
 test('a terminal Case from an obsolete Care Basis remains history but cannot color current health', () => {
@@ -251,6 +297,10 @@ test('Aftercare Capability, Coordinator, and Planner share the rating-aware Care
     /createProcessServices\([\s\S]*?aftercareContextReader:arcaCapabilityRegistration\.aftercareContextReader/);
   assert.match(composition,
     /createPlanningRegistration\([\s\S]*?aftercareContextReader:arcaProcessServices\.aftercareContextReader/);
+  assert.match(composition,
+    /ensurePerceptionRatingResolution:ensureShelfEntryRatingResolution/);
+  assert.match(composition,
+    /reconcilerKey:'due-aftercare-shelf-entries'[\s\S]*?aftercareCoordinator\.reconcile\(shelfEntryId\)/);
 });
 
 test('Shelf Deregistration settles Aftercare Workspace through a dedicated Capability Work before invalidation', () => {

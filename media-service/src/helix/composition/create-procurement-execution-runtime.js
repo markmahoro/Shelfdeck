@@ -222,6 +222,9 @@ function createProcurementExecutionRuntime(options) {
   const readShelfEntryRatings=(shelfEntryIds)=>perceptionProcessServices
     ?perceptionProcessServices.readCurrentRatings('shelf_entry',shelfEntryIds)
     :new Map();
+  const ensureShelfEntryRatingResolution=(shelfEntryId)=>perceptionProcessServices
+    ?perceptionProcessServices.ensureResolution('shelf_entry',shelfEntryId)
+    :Object.freeze({kind:'pending'});
   const arcaCapabilityRegistration=arcaConstruction.createCapabilityRegistration({...options,now,workResultReader,
     computeBoundedMaterialFingerprintSync,
     readPerceptionRating:readShelfEntryRating,readPerceptionRatings:readShelfEntryRatings});
@@ -392,7 +395,8 @@ function createProcurementExecutionRuntime(options) {
     aftercareContextReader:arcaCapabilityRegistration.aftercareContextReader,
     offdeckContextReader:arcaCapabilityRegistration.offdeckContextReader,
     shelfDeregistrationContextReader:arcaCapabilityRegistration.shelfDeregistrationContextReader,
-    readPerceptionRating:readShelfEntryRating,readPerceptionRatings:readShelfEntryRatings});
+    readPerceptionRating:readShelfEntryRating,readPerceptionRatings:readShelfEntryRatings,
+    ensurePerceptionRatingResolution:ensureShelfEntryRatingResolution});
   peopleProcessServices=createPeopleProcessServices({
     ...options, now,
     onDeckPersonEvidenceProjection:arcaProcessServices.onDeckPersonEvidenceProjection,
@@ -860,10 +864,7 @@ function createProcurementExecutionRuntime(options) {
     }),Object.freeze({
       ownerDomain:'arca',reconcilerKey:'due-aftercare-shelf-entries',
       listPage:({cursor,limit})=>arcaProcessServices.aftercareContextReader.listPage(cursor,limit),
-      reconcile:({shelfEntryId})=>{const projection=arcaProcessServices.aftercareCoordinator.project(shelfEntryId);
-        return !projection||Math.min(projection.nextCustodyDueAtMs,projection.nextDeepDueAtMs)>now()
-          ?Object.freeze({kind:'not_due',shelfEntryId})
-          :arcaProcessServices.aftercareCoordinator.reconcile(shelfEntryId);},
+      reconcile:({shelfEntryId})=>arcaProcessServices.aftercareCoordinator.reconcile(shelfEntryId),
     }),Object.freeze({
       ownerDomain:'arca',reconcilerKey:'preparing-offdeck-reviews',
       listPage:({cursor,limit})=>arcaProcessServices.offdeckContextReader.store.listReviews().filter((item)=>item.state==='preparing'&&
