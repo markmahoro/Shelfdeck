@@ -871,6 +871,20 @@ test('H1.1 Platform ports fence real TMDB identity and metadata reads across res
     assert.ok(metadata.peopleHints.some(
       (item) => item.displayName === 'Edward Norton',
     ));
+    const castOnlyMetadata = await runtime.fetchProviderMetadata({
+      metadataFetchIntent: {
+        resolvedProviderIdentity,
+        requestedFields: [],
+      },
+      integrationHandle: handle,
+    });
+    assert.deepEqual(
+      castOnlyMetadata.descriptiveEntries.map((item) => item.key),
+      ['tmdb_movie_id'],
+    );
+    assert.ok(castOnlyMetadata.peopleHints.some(
+      (item) => item.displayName === 'Edward Norton',
+    ));
     const artifactHandle = runtime.integrationHandleResolverPort.resolve({
       integrationId: 'tmdb-main',
       integrationType: 'tmdb',

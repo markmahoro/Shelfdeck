@@ -1003,7 +1003,6 @@ function createTmdbProviderAdapter(options) {
             typeof resolved.providerKey !== 'string' ||
             !/^[0-9]+$/.test(resolved.providerKey) ||
             !Array.isArray(request.input.requestedFields) ||
-            request.input.requestedFields.length < 1 ||
             request.input.requestedFields.length > 16 ||
             request.input.requestedFields.some((field) =>
               typeof field !== 'string' ||
