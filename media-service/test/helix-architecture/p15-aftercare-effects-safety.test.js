@@ -15,6 +15,8 @@ const {
   validImageBytes,
   materializeArtifactWithRollback,
   materializeMediaWithRollback,
+  nfoCommitSource,
+  custodyIdentityChangedFinding,
 } = require('../../src/helix/domains/arca/capabilities/aftercare-capability-ports');
 const { hasIncompatibleRepairCombination } = require('../../src/helix/domains/arca/model/aftercare-contract');
 const { readAftercarePlacementAuthority } = require('../../src/helix/domains/arca/capabilities/on-deck-capability-ports');
@@ -45,6 +47,8 @@ test('Aftercare poster qualification decodes image bytes instead of trusting mag
 test('Aftercare assessment and rendering share the same existing NFO and poster classifiers', () => {
   const source = fs.readFileSync(path.join(sourceRoot,
     'domains/arca/capabilities/aftercare-capability-ports.js'), 'utf8');
+  const planner = fs.readFileSync(path.join(sourceRoot,
+    'domains/arca/planning/aftercare-planners.js'), 'utf8');
   const presentation = source.slice(source.indexOf('ports[C.presentation]'),
     source.indexOf('ports[C.conformance]'));
   const render = source.slice(source.indexOf('ports[C.textRender]'),
@@ -53,6 +57,7 @@ test('Aftercare assessment and rendering share the same existing NFO and poster 
   assert.match(presentation, /existingMaterials\(c\.raw\.materials,isPosterMaterial\)/);
   assert.match(render, /selectedNfoMaterial\(c\.raw\.materials\)/);
   assert.doesNotMatch(render, /role===['"]metadata_sidecar['"]/);
+  assert.match(planner, /custody:nfo_identity_changed/);
 });
 
 test('Aftercare progress samples use the exact Foundation determinate shape', () => {
@@ -94,7 +99,35 @@ test('Aftercare Provider Artifact accepts bytes only behind the frozen response 
   assert.match(acquire, /response\.integrationId!==n\.integrationHandle\.integrationId/);
   assert.match(acquire, /response\.configRevision!==n\.integrationHandle\.configRevision/);
   assert.match(acquire, /canonicalDigest\(response\.resolvedProviderIdentity\)/);
+  assert.doesNotMatch(acquire, /integrationHandle\.artifactKind/);
+  assert.match(acquire, /code:'ARCA_AFTERCARE_PROVIDER_INPUT_STALE'/);
   assert.ok((acquire.match(/revalidateCaseAuthority\(execution,care\)/g) || []).length >= 2);
+});
+
+test('Aftercare treats exact NFO drift as repairable but keeps non-NFO drift behind attention', () => {
+  const nfo=custodyIdentityChangedFinding({role:'metadata_sidecar',location:'F:/shelf/movie.nfo',material_key:canonicalDigest('old-nfo')}),
+    subtitle=custodyIdentityChangedFinding({role:'subtitle',location:'F:/shelf/movie.srt',material_key:canonicalDigest('old-subtitle')}),
+    primary=custodyIdentityChangedFinding({role:'primary_payload',location:'F:/shelf/movie.mkv',material_key:canonicalDigest('old-primary')});
+  assert.match(nfo.schemaRef,/\/custody\/nfo_identity_changed\/critical\/auto_repair\//);
+  assert.match(subtitle.schemaRef,/\/custody\/material_identity_changed\/critical\/attention_required\//);
+  assert.match(primary.schemaRef,/\/custody\/primary_identity_changed\/critical\/attention_required\//);
+});
+
+test('Aftercare NFO commit accepts only the exact source observed during preparation', () => {
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'aftercare-nfo-source-guard-'));
+  try {
+    const location=path.join(root,'movie.nfo');fs.writeFileSync(location,'<movie><title>edited once</title></movie>');
+    const bounded=boundedFingerprint(location),tuple={mountScopeId:'mount-1',inode:String(bounded.stat.ino),sizeBytes:Number(bounded.stat.size),
+      fingerprintAlgorithm:bounded.fingerprintAlgorithm,fingerprintVersion:bounded.fingerprintVersion,contentFingerprint:bounded.contentFingerprint},
+      current={schemaRef:'helix://contracts/types/PhysicalMaterialIdentity/v2',schemaVersion:2,materialKey:canonicalDigest({schema:'physical-material-identity@2',...tuple}),...tuple},
+      context={basis:{digest:canonicalDigest('basis')}},output={provenanceRef:{digest:canonicalDigest({schema:'arca.aftercare-nfo-source-guard@1',careBasisDigest:context.basis.digest,sourceMaterialIdentity:current})}},
+      frozen={material_key:canonicalDigest('old-inventory')},accepted=nfoCommitSource(context,output,location,frozen,'mount-1',boundedFingerprint);
+    assert.equal(accepted.material.material_key,current.materialKey);
+    assert.equal(accepted.supersededMaterialIdentity.materialKey,current.materialKey);
+    fs.writeFileSync(location,'<movie><title>edited twice</title></movie>');
+    assert.throws(()=>nfoCommitSource(context,output,location,frozen,'mount-1',boundedFingerprint),
+      (error)=>error.code==='ARCA_AFTERCARE_NFO_SOURCE_STALE');
+  } finally { fs.rmSync(root,{recursive:true,force:true}); }
 });
 
 test('Aftercare media materialization is async and FFmpeg reports durable progress', () => {
