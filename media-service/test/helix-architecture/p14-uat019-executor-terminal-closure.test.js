@@ -84,6 +84,8 @@ test('equal deterministic failures aggregate and open then close one process-loc
   assert.equal(breaker.read(incident.circuitKey).state, 'open');
   assert.equal(incidents.scopeStatus({ ownerDomain:'arca', processType:'arca_acceptance',
     workKind:'acceptance_assessment' }).blocked, true);
+  assert.equal(incidents.recordFailure({ ownerDomain:'arca', processType:'arca_acceptance',
+    workKind:'acceptance_assessment', errorCode:'DETERMINISTIC_BROKEN_EXECUTOR',occurrenceId:'work-four' }).occurrenceCount,4);
   assert.equal(incidents.allows({ ownerDomain:'arca', processType:'arca_acceptance',
     workKind:'acceptance_assessment', errorCode:'DETERMINISTIC_BROKEN_EXECUTOR' }).allowed, false);
   incidents.beginRecovery(incident.incidentKey);
@@ -93,6 +95,53 @@ test('equal deterministic failures aggregate and open then close one process-loc
   assert.equal(incidents.read(incident.incidentKey).incident_state, 'resolved');
   assert.equal(incidents.scopeStatus({ ownerDomain:'arca', processType:'arca_acceptance',
     workKind:'acceptance_assessment' }).blocked, false);
+}));
+
+test('the same durable failed Work occurrence is counted once across repeated reconciliation and restart', () => fixture(({ incidents }) => {
+  const request = { ownerDomain:'arca', processType:'arca_shelf_entry', workKind:'care_repair_commit',
+    errorCode:'PLATFORM_INTEGRATION_UNAVAILABLE', occurrenceId:'work-1:attempt-3' };
+  assert.equal(incidents.recordFailure(request).occurrenceCount, 1);
+  assert.equal(incidents.recordFailure(request).occurrenceCount, 1);
+  assert.equal(incidents.recordFailure({ ...request, occurrenceId:'work-2:attempt-1' }).occurrenceCount, 2);
+  assert.equal(incidents.scopeStatus({ ownerDomain:'arca', processType:'arca_shelf_entry',
+    workKind:'care_repair_commit' }).blocked, false);
+}));
+
+test('a resolved Incident ignores stale replay of its last Work occurrence and reopens only for a new Work', () => fixture(({ breaker, incidents }) => {
+  const request={ownerDomain:'arca',processType:'arca_shelf_entry',workKind:'care_repair_commit',
+    errorCode:'PLATFORM_INTEGRATION_UNAVAILABLE'};
+  let incident;
+  for(let ordinal=1;ordinal<=OPEN_THRESHOLD;ordinal+=1)incident=incidents.recordFailure({...request,occurrenceId:'work-'+ordinal});
+  incidents.beginRecovery(incident.incidentKey);
+  incidents.resolve(incident.incidentKey,hex('d'));
+  const replay=incidents.recordFailure({...request,occurrenceId:'work-'+OPEN_THRESHOLD});
+  assert.deepEqual({count:replay.occurrenceCount,open:replay.circuitOpen,state:breaker.read(replay.circuitKey).state},
+    {count:OPEN_THRESHOLD,open:false,state:'closed'});
+  const next=incidents.recordFailure({...request,occurrenceId:'work-next'});
+  assert.deepEqual({count:next.occurrenceCount,open:next.circuitOpen,state:breaker.read(next.circuitKey).state},
+    {count:OPEN_THRESHOLD+1,open:true,state:'open'});
+}));
+
+test('Executor Incidents isolate and recover exact resource-scoped Circuits', () => fixture(({ breaker, incidents }) => {
+  const base={ownerDomain:'arca',processType:'arca_shelf_entry',workKind:'care_repair_prepare',
+    errorCode:'PLATFORM_INTEGRATION_NETWORK_FAILED'};
+  let left,right;
+  for(let ordinal=1;ordinal<=OPEN_THRESHOLD;ordinal+=1){
+    left=incidents.recordFailure({...base,resourceKey:'integration/tmdb-main@3',occurrenceId:'left-work-'+ordinal});
+    right=incidents.recordFailure({...base,resourceKey:'integration/tmdb-backup@1',occurrenceId:'right-work-'+ordinal});
+  }
+  const leftScope={ownerDomain:base.ownerDomain,processType:base.processType,workKind:base.workKind,resourceKey:'integration/tmdb-main@3'};
+  const rightScope={ownerDomain:base.ownerDomain,processType:base.processType,workKind:base.workKind,resourceKey:'integration/tmdb-backup@1'};
+  assert.notEqual(left.circuitKey,right.circuitKey);
+  assert.equal(incidents.scopeStatus(leftScope).blocked,true);
+  assert.equal(incidents.scopeStatus(rightScope).blocked,true);
+  assert.equal(incidents.scopeStatus({...leftScope,resourceKey:'integration/tmdb-third@1'}).blocked,false);
+  incidents.beginRecovery(left.incidentKey);
+  incidents.resolve(left.incidentKey,hex('e'));
+  assert.equal(breaker.read(left.circuitKey).state,'closed');
+  assert.equal(incidents.scopeStatus(leftScope).blocked,false);
+  assert.equal(breaker.read(right.circuitKey).state,'open');
+  assert.equal(incidents.scopeStatus(rightScope).blocked,true);
 }));
 
 test('Handoff B admission persists Inbox before delivery and leaves Ack for a business terminal fact', async () => fixture(async ({ databasePath, unitOfWork, recovery }) => {

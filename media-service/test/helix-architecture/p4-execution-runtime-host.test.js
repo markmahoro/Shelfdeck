@@ -87,7 +87,7 @@ test('Execution Runtime Host plans Work, delegates Event execution, aggregates t
 test('Execution Runtime Host persists terminal Work before notifying its exact Domain Process scope', async () => {
   let eventAvailable=true;
   let persistedState='running';
-  const observations=[];
+  const observations=[],incidentObservations=[];
   const host=createExecutionRuntimeHost({
     tickIntervalMs:60000,maxActionsPerTick:4,
     startupRecovery:{recover:async()=>({state:'ready',normalSupplyAllowed:true})},
@@ -106,8 +106,10 @@ test('Execution Runtime Host persists terminal Work before notifying its exact D
         return {workId:request.workId,state:persistedState,replayed:false};},
     },
     eventRuntime:{async run(){return {kind:'succeeded'};}},
+    incidentObserver:{observeTerminalWork(request){incidentObservations.push(request);return {incidentRefs:[{incidentKey:'incident-1'}]};}},
     domainReconciler:{async reconcile(request){
-      observations.push({phase:request.reconcilePhase,reported:request.workState,persisted:persistedState});
+      observations.push({phase:request.reconcilePhase,reported:request.workState,persisted:persistedState,
+        incidentRefs:request.incidentRefs||[]});
       return request.reconcilePhase==='attempt_terminal'
         ? {workId:request.workId,disposition:'succeeded'} : null;
     }},
@@ -117,9 +119,12 @@ test('Execution Runtime Host persists terminal Work before notifying its exact D
   await new Promise((resolve)=>setImmediate(resolve));
   await host.stop();
   assert.deepEqual(observations,[
-    {phase:'attempt_terminal',reported:'running',persisted:'running'},
-    {phase:'work_terminal',reported:'succeeded',persisted:'succeeded'},
+    {phase:'attempt_terminal',reported:'running',persisted:'running',incidentRefs:[]},
+    {phase:'work_terminal',reported:'succeeded',persisted:'succeeded',incidentRefs:[{incidentKey:'incident-1'}]},
   ]);
+  assert.deepEqual(incidentObservations,[{ownerDomain:'libra',processType:'libra_run',processId:'run-terminal',
+    workKind:'product_identity',workId:'work-terminal',workAttemptId:'attempt-terminal',workAttemptFailureCode:null,
+    workState:'succeeded'}]);
 });
 
 test('Execution Runtime Host renews a Work lease while an asynchronous Planner is still building its plan', async () => {

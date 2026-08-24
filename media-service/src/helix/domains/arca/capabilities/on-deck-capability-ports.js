@@ -49,16 +49,28 @@ function bindingFromContext(member){return Object.freeze({materialKey:member.mat
 function acceptanceAttemptId(c){return canonicalDigest({schema:'arca.acceptance-attempt-id@1',offerId:c.offer.offerId,onDeckPackageId:c.offer.onDeckPackageId,
   packageDigest:c.offer.packageDigest,standardRevision:c.shelf.currentStandardRevision,placementRevision:c.shelf.currentPlacementRevision});}
 
+function readAftercarePlacementAuthority(options,execution,expectedCaseId=null){
+  if(execution.ownerScope.processType!=='arca_shelf_entry')return null;
+  if(typeof execution.shouldContinue==='function'&&execution.shouldContinue()===false)
+    throw Object.assign(new Error('Aftercare Placement execution was cancelled.'),{code:'ARCA_AFTERCARE_MODIFICATION_FENCED'});
+  const current=options.aftercareContextReader.read(execution.ownerScope.processId),care=current&&
+    options.aftercareContextReader.store.history(current.shelfEntryId).cases.find((item)=>item.state==='active');
+  if(!current||!care||care.careBasisDigest!==current.basis.digest||
+      current.raw.shelf.status!=='active'||current.raw.reservations.some((item)=>item.state==='active')||
+      (expectedCaseId&&care.aftercareCaseId!==expectedCaseId))
+    throw Object.assign(new Error('Aftercare Placement modification authority is absent, stale, or fenced.'),{code:'ARCA_AFTERCARE_MODIFICATION_FENCED'});
+  return Object.freeze({context:current,care});
+}
+
 function createOnDeckCapabilityPorts(options){const now=options.now||Date.now,acceptance=createHandoffBAcceptanceStore(options),onDeck=createOnDeckStore(options),
   controls=createMaterialControlProjectionPort(options),inbox=createInboxCoordinator(options);
   const effectAt=(execution)=>Number.isSafeInteger(execution.effectOccurredAtMs)?execution.effectOccurredAtMs:now();
   function ctx(execution){return context(options,execution,dependencyRefs(options,execution));}
-  function aftercareRequest(execution,c,at=now()){
-    if(execution.ownerScope.processType!=='arca_shelf_entry')return null;
-    const care=options.aftercareContextReader.store.history(c.shelfEntryId).cases.find((item)=>item.state==='active');
-    if(!care||care.careBasisDigest!==c.basis.digest)throw new Error('Aftercare Placement Case is absent or stale.');
-    return buildAftercareInventoryRequest(c,options.inventoryPort,at,care.aftercareCaseId);
+  function aftercareRequest(execution,_c,at=now(),expectedCaseId=null){
+    const authority=readAftercarePlacementAuthority(options,execution,expectedCaseId);
+    return authority&&buildAftercareInventoryRequest(authority.context,options.inventoryPort,at,authority.care.aftercareCaseId);
   }
+  function aftercareShouldContinue(execution,caseId){return ()=>{try{readAftercarePlacementAuthority(options,execution,caseId);return true;}catch{return false;}};}
   function pure(ref,names,build){return Object.freeze({validateInputs(c){requireNamed(c,names);},execute(c){return outcome(ref,build(c.namedInputs,ctx(c),now()),now());},
     validateResult(_c,o){if(!o?.result)throw new TypeError(ref+' Result is absent.');}});}
   const ports={};
@@ -140,18 +152,22 @@ function createOnDeckCapabilityPorts(options){const now=options.now||Date.now,ac
     const result=options.inventoryPort.prepareSlot({onDeckRunId:c.responsibility.onDeckRunId,custodyId:c.responsibility.custodyId,shelf:c.shelf,
       onDeckProductPackage:c.packageValue,finalInventoryDecision:c.finalInventoryDecision,targetCommitSlotHandle:n.targetHandle,observedAtMs:at,replayCommitted:execution.recoveryDecision==='already_committed'});
     return committedOutcome(execution,C.slot,result,at,'material_commit');},validateResult(_c,o){if(!o?.result?.slotId)throw new TypeError('Target Commit Slot Handle is invalid.');}});
-  ports[C.stage]=Object.freeze({validateInputs(c){requireNamed(c,['productMaterialHandleList','targetCommitSlotHandle']);},async execute(execution){const c=ctx(execution),at=effectAt(execution),staged=await options.inventoryPort.stage({
-    ...(aftercareRequest(execution,c,at)||{
+  ports[C.stage]=Object.freeze({validateInputs(c){requireNamed(c,['productMaterialHandleList','targetCommitSlotHandle']);},async execute(execution){const c=ctx(execution),at=effectAt(execution),aftercare=aftercareRequest(execution,c,at),staged=await options.inventoryPort.stage({
+    ...(aftercare||{
     onDeckRunId:c.responsibility.onDeckRunId,custodyId:c.responsibility.custodyId,shelf:c.shelf,onDeckProductPackage:c.packageValue,
-    finalInventoryDecision:c.finalInventoryDecision,observedAtMs:at,replayCommitted:execution.recoveryDecision==='already_committed'}),targetCommitSlotHandle:execution.namedInputs.targetCommitSlotHandle});
+    finalInventoryDecision:c.finalInventoryDecision,observedAtMs:at,replayCommitted:execution.recoveryDecision==='already_committed'}),targetCommitSlotHandle:execution.namedInputs.targetCommitSlotHandle,
+    ...(aftercare?{shouldContinue:aftercareShouldContinue(execution,aftercare.aftercareCaseId)}:{})});
+    if(aftercare)readAftercarePlacementAuthority(options,execution,aftercare.aftercareCaseId);
     return committedOutcome(execution,C.stage,staged,at,'material_commit');},
     validateResult(_c,o){if(!o?.result?.manifestDigest)throw new TypeError('Staged Inventory Manifest is invalid.');}});
   ports[C.stagedVerify]=Object.freeze({validateInputs(c){requireNamed(c,['stagedManifest','finalInventoryDecision']);},async execute(execution){
     const c=ctx(execution),n=execution.namedInputs,request=aftercareRequest(execution,c)||{onDeckRunId:c.responsibility.onDeckRunId,
       custodyId:c.responsibility.custodyId,shelf:c.shelf,onDeckProductPackage:c.packageValue,finalInventoryDecision:c.finalInventoryDecision,
       observedAtMs:now(),replayCommitted:false};
-    return outcome(C.stagedVerify,await options.inventoryPort.verifyStaged({...request,finalInventoryDecision:n.finalInventoryDecision,
-      stagedInventoryManifest:n.stagedManifest}),now());},validateResult(_c,o){if(o?.result?.result!=='passed')throw new TypeError('Staged Inventory Verification is invalid.');}});
+    const aftercare=execution.ownerScope.processType==='arca_shelf_entry',result=await options.inventoryPort.verifyStaged({...request,finalInventoryDecision:n.finalInventoryDecision,
+      stagedInventoryManifest:n.stagedManifest,...(aftercare?{shouldContinue:aftercareShouldContinue(execution,request.aftercareCaseId)}:{})});
+    if(aftercare)readAftercarePlacementAuthority(options,execution,request.aftercareCaseId);
+    return outcome(C.stagedVerify,result,now());},validateResult(_c,o){if(o?.result?.result!=='passed')throw new TypeError('Staged Inventory Verification is invalid.');}});
   ports[C.finalVerify]=pure(C.finalVerify,['finalBindings','productDispositionManifest'],(n,c,at)=>{const basisDigest=canonicalDigest(n),aftercare=Boolean(c.shelfEntryId),
     keys=(aftercare?c.raw.materials.map((item)=>item.material_key):c.packageValue.productMaterialManifest.members.map(m=>m.materialKey)).sort(),
     processId=aftercare?c.shelfEntryId:c.responsibility.onDeckRunId,productManifestDigest=aftercare?canonicalDigest(keys):c.packageValue.productMaterialManifest.manifestDigest,
@@ -161,9 +177,11 @@ function createOnDeckCapabilityPorts(options){const now=options.now||Date.now,ac
       finalBindingSetDigest:n.finalBindings.bindingSetDigest,productManifestDigest,
       relatedDispositionSetDigest:n.productDispositionManifest.relatedDispositionSetDigest,verifiedMaterialKeys:Object.freeze(keys),targetContainmentDigest:containment});});
   ports[C.placement]=Object.freeze({validateInputs(c){requireNamed(c,['verifiedStagedManifest','targetBindings']);},async execute(execution){const c=ctx(execution),n=execution.namedInputs,
-    at=effectAt(execution),aftercare=aftercareRequest(execution,c,at);if(aftercare){const body=await options.inventoryPort.switchPlacement({...aftercare,
+    at=effectAt(execution),aftercare=aftercareRequest(execution,c,at);if(aftercare){readAftercarePlacementAuthority(options,execution,aftercare.aftercareCaseId);const body=await options.inventoryPort.switchPlacement({...aftercare,
       stagedInventoryVerification:n.verifiedStagedManifest,targetBindings:n.targetBindings,
-      replacedInputSetDigest:canonicalDigest(c.raw.materials.map((item)=>item.material_key).sort())});
+      replacedInputSetDigest:canonicalDigest(c.raw.materials.map((item)=>item.material_key).sort()),
+      shouldContinue:aftercareShouldContinue(execution,aftercare.aftercareCaseId)});
+      readAftercarePlacementAuthority(options,execution,aftercare.aftercareCaseId);
       return committedOutcome(execution,C.placement,body,at,'material_commit');}
     const body=await options.inventoryPort.switchPlacement({onDeckRunId:c.responsibility.onDeckRunId,custodyId:c.responsibility.custodyId,shelf:c.shelf,
       onDeckProductPackage:c.packageValue,finalInventoryDecision:c.finalInventoryDecision,stagedInventoryVerification:n.verifiedStagedManifest,
@@ -225,4 +243,4 @@ function createOnDeckCapabilityPorts(options){const now=options.now||Date.now,ac
   return Object.freeze(ports);
 }
 
-module.exports=Object.freeze({createOnDeckCapabilityPorts});
+module.exports=Object.freeze({createOnDeckCapabilityPorts,readAftercarePlacementAuthority});

@@ -149,7 +149,7 @@ const stream = object(videoStreamFields, Object.keys(videoStreamFields).filter((
   ]
 });
 const audioStream = object({ streamIndex: nonNegativeInteger(), dispositionDefault: bool(), codec: text(), profile: text(),
-  channels: positiveInteger(), channelLayout: text(), formatTags: arrayOf(text(), 64),
+  channels: positiveInteger(), channelLayout: text(), bitRateBps: positiveInteger(), formatTags: arrayOf(text(), 64),
   normalizedAudioClass: enumText('eac3_atmos', 'truehd', 'truehd_atmos', 'dts_hd_ma', 'dts_x', 'other'), language: nullable(text()) },
 ['streamIndex', 'dispositionDefault', 'codec', 'profile', 'channels', 'channelLayout', 'formatTags', 'normalizedAudioClass']);
 const simpleStream = object({ streamIndex: nonNegativeInteger(), codec: text(), language: nullable(text()) }, ['streamIndex', 'codec']);

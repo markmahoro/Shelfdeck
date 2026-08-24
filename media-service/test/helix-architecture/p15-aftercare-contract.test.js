@@ -19,6 +19,7 @@ const {
   stableJitterMs,
   projectHealth,
   dispositionFromAssessments,
+  isAftercareArtifactMaterial,
 } = require('../../src/helix/domains/arca/model/aftercare-contract');
 
 const digest = (character) => character.repeat(64);
@@ -185,13 +186,24 @@ test('Aftercare Known Bindings keep a single schema objectKind for current and o
   assert.doesNotMatch(source, /arca-known-old-binding/);
 });
 
-test('Aftercare Case closure reclaims Workspace before publishing resolved Case Result', () => {
+test('Aftercare Case closure publishes the terminal Result before any delayed Workspace reclaim', () => {
   const source = fs.readFileSync(path.join(__dirname,
     '../../src/helix/domains/arca/planning/aftercare-planners.js'), 'utf8');
   const closure = source.slice(source.indexOf('function createCareCaseClosurePlanner'));
-  assert.ok(closure.indexOf("C.workspaceReclaim,'workspace_reclaim'") <
-    closure.indexOf("C.caseCommit,'case_commit'"));
-  assert.match(closure, /C\.caseCommit[\s\S]*eventId:reclaim,satisfaction:'success'/);
+  const closureOnly = closure.slice(0, closure.indexOf('function createCareDeregistrationSettlementPlanner'));
+  assert.match(closureOnly, /C\.caseCommit,'case_commit'/);
+  assert.doesNotMatch(closureOnly, /C\.workspaceReclaim/);
+});
+
+test('Planner and Settlement materialization share filename-aware artifact classification', () => {
+  const planner=fs.readFileSync(path.join(__dirname,'../../src/helix/domains/arca/planning/aftercare-planners.js'),'utf8'),
+    capability=fs.readFileSync(path.join(__dirname,'../../src/helix/domains/arca/capabilities/aftercare-capability-ports.js'),'utf8');
+  assert.equal(isAftercareArtifactMaterial({ role:'sidecar',location:'F:/movie/movie.nfo' },'nfo'),true);
+  assert.equal(isAftercareArtifactMaterial({ role:'related_artwork',location:'F:/movie/poster.jpg' },'poster'),true);
+  assert.match(planner,/outputKinds\.has\('nfo'\)&&isAftercareArtifactMaterial\(item,'nfo'\)/);
+  assert.match(planner,/outputKinds\.has\('poster'\)&&isAftercareArtifactMaterial\(item,'poster'\)/);
+  assert.match(capability,/function isNfoMaterial\(item\)\{return isAftercareArtifactMaterial\(item,'nfo'\);\}/);
+  assert.match(capability,/function isPosterMaterial\(item\)\{return isAftercareArtifactMaterial\(item,'poster'\);\}/);
 });
 
 test('same-root settled offload paths are absent, not unreadable, once the fingerprint wraps ENOENT', () => {
@@ -293,10 +305,12 @@ test('Aftercare recognizes an exact legacy custody Binding only when a current f
 test('Aftercare legacy settlement remains evidence-gated and refuses unknown directory members', () => {
   const projection = fs.readFileSync(path.join(__dirname,
     '../../src/helix/domains/arca/planning/aftercare-projections.js'), 'utf8');
+  const model = fs.readFileSync(path.join(__dirname,
+    '../../src/helix/domains/arca/model/aftercare-contract.js'), 'utf8');
   const capability = fs.readFileSync(path.join(__dirname,
     '../../src/helix/domains/arca/capabilities/aftercare-capability-ports.js'), 'utf8');
   assert.match(projection, /observeKnownOldBindings/);
-  assert.match(projection, /finalMaterialKey:observed\.final\.material_key/);
+  assert.match(model, /finalMaterialKey:final\.material_key/);
   assert.match(capability, /ARCA_AFTERCARE_SETTLEMENT_FINAL_MISMATCH/);
   assert.match(capability, /ARCA_AFTERCARE_SETTLEMENT_UNKNOWN_MEMBER/);
   assert.doesNotMatch(capability, /fs\.rmSync\(handle\.location[^\n]*recursive\s*:\s*true/);
@@ -346,20 +360,20 @@ test('Aftercare Capability, Coordinator, and Planner share the rating-aware Care
     /reconcilerKey:'due-aftercare-shelf-entries'[\s\S]*?aftercareCoordinator\.reconcile\(shelfEntryId\)/);
 });
 
-test('Shelf Deregistration settles Aftercare Workspace through a dedicated Capability Work before invalidation', () => {
-  const planner = fs.readFileSync(path.join(__dirname,
-    '../../src/helix/domains/arca/planning/aftercare-planners.js'), 'utf8');
-  const settlement = planner.slice(planner.indexOf('function createCareDeregistrationSettlementPlanner'));
-  assert.match(settlement, /C\.workspaceReclaim,'workspace_reclaim'/);
-  assert.doesNotMatch(settlement.slice(0, settlement.indexOf('module.exports')), /C\.caseCommit/);
+test('Shelf Deregistration invalidates Aftercare without immediate Workspace deletion', () => {
   const aftercare = fs.readFileSync(path.join(__dirname,
     '../../src/helix/domains/arca/application/aftercare-process-coordinator.js'), 'utf8');
-  assert.ok(aftercare.indexOf("caseWork(c,'care_deregistration_settlement',care)") <
-    aftercare.indexOf("store.terminateCase(care.aftercareCaseId,'invalidated')"));
+  const stopCase=aftercare.slice(aftercare.indexOf('function stopCase'),aftercare.indexOf('function stopForModificationFence'));
+  assert.match(stopCase,/store\.terminateCase\(care\.aftercareCaseId,'invalidated',reasonCode,terminalEvidenceDigest\)/);
+  assert.doesNotMatch(stopCase,/care_deregistration_settlement|workspaceReclaim|reconcileAftercareWorkspaceLifecycle/);
   const deregistration = fs.readFileSync(path.join(__dirname,
     '../../src/helix/domains/arca/application/shelf-deregistration-coordinator.js'), 'utf8');
   assert.match(deregistration, /aftercareCoordinator\.stopForShelfDeregistration/);
   assert.doesNotMatch(deregistration, /terminateCase/);
+  const workspace=fs.readFileSync(path.join(__dirname,
+    '../../src/helix/domains/arca/persistence/aftercare-workspace-store.js'),'utf8');
+  assert.match(workspace,/TERMINAL_CASE_STATES = new Set\(\['resolved', 'invalidated', 'unresolved'\]\)/);
+  assert.match(workspace,/!TERMINAL_CASE_STATES\.has\(care\.state\).*case_active/);
 });
 
 test('Aftercare Coordinator stays above Planner, Runtime, Governor, Capability and cross-owner repositories', () => {

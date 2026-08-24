@@ -11,6 +11,7 @@ const { createCapabilityRegistry } = require('../foundation/capability/capabilit
 const { createExecutorDispatcher } = require('../foundation/capability/executor-dispatcher');
 const { createCircuitBreaker } = require('../foundation/diagnostics/pressure-guard');
 const { createExecutorIncidentRegistry } = require('../foundation/execution/executor-incident-registry');
+const { createExecutorIncidentObserver } = require('../foundation/execution/executor-incident-observer');
 const { createEffectJournal } = require('../foundation/effects/effect-journal');
 const { createEffectReconcilerRegistry } = require('../foundation/effects/effect-reconcilers');
 const { createEventExecutionInputProvider } = require('../foundation/execution/event-execution-input-provider');
@@ -89,6 +90,7 @@ const PRE_PROJECTION_EXECUTION_CATALOG_DIGEST = '13315cdbdf6ab5cbe30b32075f89bd7
 const PRE_ACTOR_COMPLETION_EXECUTION_CATALOG_DIGEST = '9e0e24c88512973e16d601c79c362d01844af0853bc1c2c37442041acda1821d';
 const TERMINAL_EVENT_STATES = new Set(['succeeded', 'skipped', 'failed', 'cancelled']);
 const TERMINAL_ATTEMPT_STATES = new Set(['succeeded', 'failed', 'cancelled']);
+const AFTERCARE_LONG_MEDIA_TIMEOUT_MS = 12 * 60 * 60 * 1000;
 
 function verifyStartupPlanCatalog(snapshot, currentCatalogDigest, registry, policyRegistry, bindingProjectionRegistry) {
   if (!snapshot || !snapshot.plan) return false;
@@ -257,10 +259,14 @@ function createProcurementExecutionRuntime(options) {
       minObservationCadenceMs: 5_000, maxObservationElapsedMs: 300_000, maxObservationCount: 16 },
     { ref: 'helix://foundation/timeout/external-job-observation/v1', timeoutMs: 1_800_000,
       minObservationCadenceMs: 15_000, maxObservationElapsedMs: 86_400_000, maxObservationCount: 1_024 },
+    { ref: 'helix://foundation/timeout/aftercare-long-media/v1', timeoutMs: AFTERCARE_LONG_MEDIA_TIMEOUT_MS,
+      minObservationCadenceMs: null, maxObservationElapsedMs: null, maxObservationCount: null },
   ];
-  const timeoutPolicyFor = (capabilityRef) => capabilityRef ===
-    'libra.external_material.acquire.observe@1'
-    ? timeoutPolicies[2].ref
+  const timeoutPolicyFor = (capabilityRef) => ['arca.aftercare.media.remux@1',
+    'arca.aftercare.media.transcode@1'].includes(capabilityRef)
+    ? timeoutPolicies[3].ref
+    : capabilityRef === 'libra.external_material.acquire.observe@1'
+      ? timeoutPolicies[2].ref
     : capabilityRef === 'libra.external_material.stability.observe@1'
       ? timeoutPolicies[1].ref
       : timeoutPolicies[0].ref;
@@ -322,6 +328,11 @@ function createProcurementExecutionRuntime(options) {
   const breaker = createCircuitBreaker({ schemaManifest: options.schemaManifest, unitOfWork: options.unitOfWork });
   const executorIncidents = createExecutorIncidentRegistry({ schemaManifest:options.schemaManifest,
     unitOfWork:options.unitOfWork, circuitBreaker:breaker, now });
+  const executorIncidentObserver=createExecutorIncidentObserver({schemaManifest:options.schemaManifest,
+    unitOfWork:options.unitOfWork,registry:executorIncidents});
+  const executorIncidentProjection=Object.freeze({
+    projectionForWork:(request)=>executorIncidentObserver.projectionForWork(request),
+  });
   const realityVerifiers = Object.fromEntries(['workspace_write', 'external_request', 'domain_fact_commit',
     'responsibility_control_commit', 'material_commit', 'destructive_commit'].map((effectClass) => [effectClass,
     { verify: async ({ receipt }) => ({ verified: true, evidenceDigest: receipt.verificationEvidenceDigest }) }]));
@@ -389,7 +400,8 @@ function createProcurementExecutionRuntime(options) {
   perceptionProcessServices=perceptionConstruction.createProcessServices({...perceptionOptions,now,workResultReader});
   const perceptionPlanningRegistration=perceptionConstruction.createPlanningRegistration({registry,policyRegistry,contractValidator,
     workResultReader,processServices:perceptionProcessServices,resolvePerceptionIntegrationHandle:options.resolvePerceptionIntegrationHandle,now});
-  const arcaProcessServices=arcaConstruction.createProcessServices({...options,now,workResultReader,executorIncidents,
+  const arcaProcessServices=arcaConstruction.createProcessServices({...options,now,workResultReader,
+    executorIncidentProjection,
     cancelProcessWorks:(scope)=>workLifecycle.cancelProcess(scope),
     contextReader:arcaCapabilityRegistration.contextReader,
     aftercareContextReader:arcaCapabilityRegistration.aftercareContextReader,
@@ -418,6 +430,7 @@ function createProcurementExecutionRuntime(options) {
   const dispatcher = createExecutorDispatcher({ registry, contractValidator });
   const eventRuntime = createEventRuntime({ schemaManifest: options.schemaManifest, unitOfWork: options.unitOfWork,
     scheduler, governor, registry, dispatcher, effectJournal, attemptPolicy, timeoutController, circuitBreaker: breaker,
+    incidentObserver:executorIncidentObserver,
     onProgress: (sample) => { if(sample.ownerDomain==='libra'&&sample.processType==='libra_run')options.onFormationRunChanged?.(sample.processId); },
     executionInputProvider, whenEvaluator: { evaluate: () => 'run' },
     fenceValidator: { validate: ({ snapshot }) => {
@@ -551,8 +564,8 @@ function createProcurementExecutionRuntime(options) {
         if(capability==='arca.aftercare.conformance.observe@1')resources.push({resourceKey:'cpu_heavy',units:1});
         if(['arca.aftercare.text_artifact.render@1','arca.aftercare.media.remux@1',
           'arca.aftercare.media.transcode@1'].includes(capability)){
-          validatedVolumeKeys.add('aftercare_workspace_local');resources.push({resourceKey:'volume_write:aftercare_workspace_local',units:1});
-          if(capability!=='arca.aftercare.text_artifact.render@1')resources.push({resourceKey:'volume_read:'+targetMount,units:1});
+          if(!targetMount)throw new Error('P4_TYPED_AFTERCARE_SHELF_VOLUME_UNRESOLVED');
+          const workspaceMount=options.aftercareWorkspaceMountScopeId||'aftercare_workspace_local';validatedVolumeKeys.add(workspaceMount);resources.push({resourceKey:'volume_read:'+targetMount,units:1},{resourceKey:'volume_write:'+workspaceMount,units:1});
           if(capability==='arca.aftercare.media.transcode@1'){
             const device=inputs.namedInputs?.aftercareMediaRepairStrategy?.selectedDeviceSnapshot,slots=device?.capabilityPayload?.validatedConcurrentSlots;
             if(!device?.deviceId||!Number.isSafeInteger(slots)||slots<1)throw new Error('P4_TYPED_AFTERCARE_TRANSCODE_DEVICE_UNRESOLVED');
@@ -562,12 +575,19 @@ function createProcurementExecutionRuntime(options) {
         }
         if(capability==='arca.aftercare.binary_artifact.acquire@1'){
           const integrationId=findIntegrationId(inputs);if(!integrationId)throw new Error('P4_TYPED_AFTERCARE_INTEGRATION_UNRESOLVED');
-          validatedIntegrationKeys.add(integrationId);resources.push({resourceKey:'integration:'+integrationId,units:1},{resourceKey:'volume_write:aftercare_workspace_local',units:1});validatedVolumeKeys.add('aftercare_workspace_local');
+          const workspaceMount=options.aftercareWorkspaceMountScopeId||'aftercare_workspace_local';validatedIntegrationKeys.add(integrationId);resources.push({resourceKey:'integration:'+integrationId,units:1},{resourceKey:'volume_write:'+workspaceMount,units:1});validatedVolumeKeys.add(workspaceMount);
         }
-        if(capability==='arca.aftercare.artifact.materialize@1')resources.push({resourceKey:'volume_mutation:'+targetMount,units:1});
-        if(capability==='arca.aftercare.media.verify@1')resources.push({resourceKey:'volume_read:aftercare_workspace_local',units:1});
+        if(capability==='arca.aftercare.artifact.materialize@1'){
+          const workspaceMount=options.aftercareWorkspaceMountScopeId||'aftercare_workspace_local';validatedVolumeKeys.add(workspaceMount);resources.push({resourceKey:'volume_read:'+workspaceMount,units:1},{resourceKey:'volume_mutation:'+targetMount,units:1});
+        }
+        if(capability==='arca.aftercare.media.verify@1'){
+          if(!targetMount)throw new Error('P4_TYPED_AFTERCARE_SHELF_VOLUME_UNRESOLVED');
+          const workspaceMount=options.aftercareWorkspaceMountScopeId||'aftercare_workspace_local';validatedVolumeKeys.add(workspaceMount);resources.push({resourceKey:'volume_read:'+targetMount,units:1},{resourceKey:'volume_read:'+workspaceMount,units:1});
+        }
         if(capability==='arca.aftercare.input_settlement.delete@1')resources.push({resourceKey:'volume_mutation:'+targetMount,units:1});
-        if(capability==='arca.aftercare.workspace.reclaim@1')resources.push({resourceKey:'volume_mutation:aftercare_workspace_local',units:1});
+        if(capability==='arca.aftercare.workspace.reclaim@1'){
+          const workspaceMount=options.aftercareWorkspaceMountScopeId||'aftercare_workspace_local';validatedVolumeKeys.add(workspaceMount);resources.push({resourceKey:'volume_mutation:'+workspaceMount,units:1});
+        }
         if(['arca.aftercare.assessment.commit@1','arca.aftercare.inventory.commit@1','arca.aftercare.case.commit@1'].includes(capability))
           resources.push({resourceKey:'sqlite_write',units:1});
         if(['arca.offdeck.primary_material.delete@1','arca.offdeck.unreferenced_related.delete@1'].includes(capability))
@@ -597,7 +617,7 @@ function createProcurementExecutionRuntime(options) {
     'product_identity','product_metadata_observation','artifact_production','product_fact_assembly','workspace_media_production',
     'product_conformance','deliverable_promotion'];
   const perceptionPlannerKinds=['acquisition_page','resolution'];
-  const arcaPlannerKinds=['acceptance_assessment','acceptance_commit','acceptance_rejection','on_deck_execution','health_assessment','custody_assessment','care_repair_prepare','care_repair_commit','care_case_closure','care_deregistration_settlement','offdeck_policy_evaluation','offdeck_duplicate_detection','offdeck_scope_verification','offdeck_material_destruction','offdeck_terminal_commit','shelf_deregistration_manifest_verify','shelf_deregistration_commit'];
+  const arcaPlannerKinds=['acceptance_assessment','acceptance_commit','acceptance_rejection','on_deck_execution','health_assessment','custody_assessment','care_repair_prepare','care_repair_commit','care_case_closure','care_deregistration_settlement','care_workspace_reclaim','offdeck_policy_evaluation','offdeck_duplicate_detection','offdeck_scope_verification','offdeck_material_destruction','offdeck_terminal_commit','shelf_deregistration_manifest_verify','shelf_deregistration_commit'];
   const plannerRegistry = createPlannerRegistry({ registrations: [...planningRegistration.planners.map((planner, index) => ({
     ownerDomain: 'procurement', workKind: plannerKinds[index], plannerContractRef: planner.plannerContractRef,
     plannerVersion: planner.plannerVersion, planner
@@ -695,9 +715,9 @@ function createProcurementExecutionRuntime(options) {
     }
     if(request.ownerDomain==='arca'&&request.processType==='arca_acceptance'){
       if(request.workAttemptState==='succeeded')arcaProcessServices.coordinator.reconcileAcceptance(request.processId);
-      else if(request.reconcilePhase==='attempt_terminal'&&['failed','blocked','cancelled'].includes(request.workAttemptState))
+      else if(['failed','blocked','cancelled'].includes(request.workAttemptState))
         arcaProcessServices.coordinator.recordTerminalFailure({processId:request.processId,workId:request.workId,
-          workKind:request.workKind,errorCode:request.workAttemptFailureCode});
+          workKind:request.workKind,errorCode:request.workAttemptFailureCode,incidentRef:request.incidentRefs?.[0]||null});
       return {workId:request.workId,disposition:request.workAttemptState};
     }
     if(request.ownerDomain==='arca'&&request.processType==='arca_ondeck_run'){
@@ -730,10 +750,9 @@ function createProcurementExecutionRuntime(options) {
           perceptionProcessServices.ensureResolution(target.targetType,target.targetId);
           if(target.targetType==='subject')libraProcessServices.acceptanceSpecCoordinator.reconcile(target.targetId);
         }
-        if(acquisition.kind==='terminal'&&context?.scope?.mode==='provider'){
-          perceptionProcessServices.reconcileImpactedSubjectResolutions(request.processId,
-            (cursor,limit)=>libraProcessServices.routingContextReader.listActiveSubjectPage(cursor,limit));
-        }
+        // Provider-wide rating fan-out is intentionally left to the durable,
+        // bounded Domain Reconcile cursors below. Never scan every Subject on
+        // the terminal Event callback that is also serving Admin Web traffic.
       }
       return {workId:request.workId,disposition:request.workAttemptState};
     }
@@ -833,6 +852,10 @@ function createProcurementExecutionRuntime(options) {
         .map((item)=>Object.freeze({cursor:item.subjectId,scope:item})),
       reconcile:({subjectId})=>perceptionProcessServices.ensureResolution('subject',subjectId),
     }),Object.freeze({
+      ownerDomain:'perception',reconcilerKey:'active-shelf-entry-rating-resolutions',
+      listPage:({cursor,limit})=>arcaProcessServices.aftercareContextReader.listPage(cursor,limit),
+      reconcile:({shelfEntryId})=>perceptionProcessServices.ensureResolution('shelf_entry',shelfEntryId),
+    }),Object.freeze({
       ownerDomain:'arca',reconcilerKey:'failed-acceptance-assessments',
       listPage:({cursor,limit})=>workResultReader.listOwnerWorks({ownerDomain:'arca',workKind:'acceptance_assessment'})
         .filter((item)=>item.state==='failed').sort((a,b)=>a.work_id.localeCompare(b.work_id))
@@ -866,6 +889,10 @@ function createProcurementExecutionRuntime(options) {
       listPage:({cursor,limit})=>arcaProcessServices.aftercareContextReader.listPage(cursor,limit),
       reconcile:({shelfEntryId})=>arcaProcessServices.aftercareCoordinator.reconcile(shelfEntryId),
     }),Object.freeze({
+      ownerDomain:'arca',reconcilerKey:'aftercare-workspace-lifecycle',
+      listPage:({cursor,limit})=>arcaProcessServices.aftercareContextReader.store.listAftercareWorkspaceLifecyclePage(cursor,limit),
+      reconcile:({aftercareCaseId})=>arcaProcessServices.aftercareCoordinator.reconcileWorkspaceLifecycle(aftercareCaseId),
+    }),Object.freeze({
       ownerDomain:'arca',reconcilerKey:'preparing-offdeck-reviews',
       listPage:({cursor,limit})=>arcaProcessServices.offdeckContextReader.store.listReviews().filter((item)=>item.state==='preparing'&&
         (cursor===null||item.review_id>cursor)).sort((a,b)=>a.review_id.localeCompare(b.review_id)).slice(0,limit)
@@ -891,7 +918,8 @@ function createProcurementExecutionRuntime(options) {
       reconcile:()=>arcaProcessServices.offdeckAutomationCoordinator.detectDuplicates(),
     })]});
   host = createExecutionRuntimeHost({ startupRecovery, scheduler, plannerRegistry, planPublisher, workLifecycle,
-    eventRuntime, domainReconciler, fallbackReconciler, onError: options.onError,maxInFlightEvents:16 });
+    eventRuntime, domainReconciler, fallbackReconciler, incidentObserver:executorIncidentObserver,
+    onError: options.onError,maxInFlightEvents:16 });
   return Object.freeze({ host, registry, policyRegistry, contractValidator, progressReader, procurementAutomation,triageReader,runCoordinator,
     intakeCoordinator:libraProcessServices.coordinator,intakeOfferReader:libraProcessServices.offerReader,
     routingCoordinator:libraProcessServices.routingCoordinator,routingContextReader:libraProcessServices.routingContextReader,

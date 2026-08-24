@@ -603,6 +603,7 @@ function createCleanProductProductionPort(options = {}) {
         'Product Artifact acquisition input is incomplete or unfenced.');
     }
     const input = Object.freeze({
+      operationId: 'libra.product_artifact.acquire@1',
       productMetadataDraft: draft,
       artifactKind: kind,
       resolvedProviderIdentity: identity,

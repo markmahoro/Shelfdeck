@@ -879,6 +879,7 @@ test('H1.1 Platform ports fence real TMDB identity and metadata reads across res
       artifactKind: 'poster',
     });
     const artifact = await runtime.fetchProviderArtifact({
+      operationId: 'libra.product_artifact.acquire@1',
       artifactKind: 'poster',
       resolvedProviderIdentity,
       integrationHandle: artifactHandle,
@@ -887,6 +888,22 @@ test('H1.1 Platform ports fence real TMDB identity and metadata reads across res
     assert.equal(artifact.artifactKind, 'poster');
     assert.equal(artifact.mediaType, 'image/jpeg');
     assert.ok(Buffer.isBuffer(artifact.bytes));
+    const aftercareArtifactHandle = runtime.integrationHandleResolverPort.resolve({
+      integrationId: 'tmdb-main',
+      integrationType: 'tmdb',
+      configRevision: 1,
+      allowedOperation: 'arca.aftercare.binary_artifact.acquire@1',
+      artifactKind: 'poster',
+    });
+    const aftercareArtifact = await runtime.fetchProviderArtifact({
+      operationId: 'arca.aftercare.binary_artifact.acquire@1',
+      artifactKind: 'poster',
+      resolvedProviderIdentity,
+      integrationHandle: aftercareArtifactHandle,
+    });
+    assert.equal(aftercareArtifact.resultKind, 'acquired');
+    assert.equal(aftercareArtifact.artifactKind, 'poster');
+    assert.ok(Buffer.isBuffer(aftercareArtifact.bytes));
     assert.ok(state.calls.some((call) =>
       call.pathname === '/3/movie/550/images'));
     assert.ok(state.calls.some((call) =>

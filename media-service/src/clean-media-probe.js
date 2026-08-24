@@ -41,7 +41,7 @@ function run(binary, location) {
       '-v', 'fatal', '-of', 'json=compact=1',
       '-show_entries', [
         'format=format_name,duration,size',
-        'stream=index,codec_type,codec_name,profile,pix_fmt,bits_per_raw_sample,chroma_location,color_range,color_space,color_transfer,color_primaries,width,height,channels,channel_layout,disposition',
+        'stream=index,codec_type,codec_name,profile,pix_fmt,bits_per_raw_sample,bit_rate,chroma_location,color_range,color_space,color_transfer,color_primaries,width,height,channels,channel_layout,disposition',
         'stream_tags',
         'stream_side_data',
       ].join(':'), location,
@@ -96,6 +96,8 @@ function normalizedStream(stream) {
     formatTags,
   };
   if (stream.codec_type === 'audio') {
+    const bitRateBps = Number(stream.bit_rate);
+    if (Number.isSafeInteger(bitRateBps) && bitRateBps > 0) value.bitRateBps = bitRateBps;
     value.normalizedAudioClass = normalizeAudioClass({
       codec: value.codec,
       profile: value.profile,

@@ -100,6 +100,9 @@ const {
   createLocationRegistryRepository,
 } = require('./helix/platform/persistence/location-registry-repository');
 const {
+  createPathAuthority,
+} = require('./helix/platform/model/path-authority');
+const {
   createLocalFilesystemMountScopeResolver,
 } = require('./helix/platform/application/local-filesystem-mount-scope-resolver');
 const {
@@ -181,6 +184,47 @@ class CleanServiceHostError extends Error {
     this.code = code;
     this.details = details;
   }
+}
+
+function assertAftercareWorkspaceRootAvailable(aftercareWorkspaceRoot, reservedRoots) {
+  const authority = createPathAuthority(path);
+  const canonicalize = (candidate) => {
+    const lexical = authority.canonicalize(candidate);
+    const missingSegments = [];
+    let existing = lexical;
+    while (!fs.existsSync(existing)) {
+      const parent = path.dirname(existing);
+      if (parent === existing) return lexical;
+      missingSegments.unshift(path.basename(existing));
+      existing = parent;
+    }
+    const realpath = fs.realpathSync.native || fs.realpathSync;
+    return authority.canonicalize(path.join(realpath(existing), ...missingSegments));
+  };
+  const root = canonicalize(aftercareWorkspaceRoot);
+  if (!Array.isArray(reservedRoots) || reservedRoots.length > 4096) {
+    throw new CleanServiceHostError(
+      'ARCA_AFTERCARE_WORKSPACE_ROOT_PROJECTION_INVALID',
+      'Aftercare Workspace root safety projection is invalid.',
+    );
+  }
+  for (const item of reservedRoots) {
+    if (!item || typeof item.kind !== 'string' || typeof item.rootId !== 'string' ||
+        typeof item.resolvedRoot !== 'string') {
+      throw new CleanServiceHostError(
+        'ARCA_AFTERCARE_WORKSPACE_ROOT_PROJECTION_INVALID',
+        'Aftercare Workspace root safety projection is invalid.',
+      );
+    }
+    if (authority.overlaps(root, canonicalize(item.resolvedRoot))) {
+      throw new CleanServiceHostError(
+        'ARCA_AFTERCARE_WORKSPACE_ROOT_OVERLAP',
+        'Aftercare Workspace root overlaps another active physical root.',
+        { reservedKind:item.kind, reservedRootId:item.rootId },
+      );
+    }
+  }
+  return root;
 }
 
 function normalizePerceptionSourceId(providerKey) {
@@ -745,8 +789,22 @@ function createPlatformIntegrationServices(options) {
       });
     },
     async fetchProviderArtifact(request) {
+      const operationId = request.integrationHandle?.allowedOperation;
+      if (request.operationId !== operationId) {
+        throw new CleanServiceHostError(
+          'PLATFORM_INTEGRATION_HANDLE_INVALID',
+          'Provider artifact request does not match its frozen Integration Handle operation.',
+        );
+      }
+      if (!['libra.product_artifact.acquire@1',
+        'arca.aftercare.binary_artifact.acquire@1'].includes(operationId)) {
+        throw new CleanServiceHostError(
+          'PLATFORM_INTEGRATION_HANDLE_INVALID',
+          'Provider artifact acquisition requires an artifact-scoped Integration Handle.',
+        );
+      }
       return tmdbAdapter.artifactPort.execute({
-        operationId: 'libra.product_artifact.acquire@1',
+        operationId,
         integrationHandle: request.integrationHandle,
         input: {
           artifactKind: request.artifactKind,
@@ -1169,11 +1227,16 @@ async function createCleanServiceHost(options) {
     constructed.applicationDependencies,
   );
   const localMountProbe = createCleanLocalFilesystemMountProbe();
+  const locationRegistryRepository = createLocationRegistryRepository(
+    constructed.applicationDependencies,
+  );
   const localMountScopeResolver = createLocalFilesystemMountScopeResolver({
-    repository: createLocationRegistryRepository(constructed.applicationDependencies),
+    repository: locationRegistryRepository,
     inspectRoot: (rootLocation) => localMountProbe.inspectRoot(rootLocation),
     now: options.now || Date.now,
   });
+  let aftercareWorkspaceRoot = path.resolve(options.aftercareWorkspaceRoot ||
+    path.join(options.dataDir, 'workspaces', 'aftercare'));
   let platformIntegrations = null;
   let shelfDeregistrationExecution = null;
   let setupReadinessQuery = null;
@@ -1200,6 +1263,26 @@ async function createCleanServiceHost(options) {
       });
     },
   });
+  const aftercareReservedRoots = [
+    { kind:'libra-workspace', rootId:'service-libra-production-workspace',
+      resolvedRoot:path.resolve(options.libraWorkspaceRoot || path.join(options.dataDir, 'workspaces', 'libra')) },
+    ...materialFieldStore.listMaterialFields()
+      .filter((field) => field.status === 'active')
+      .map((field) => ({ kind:'material-field', rootId:field.fieldId, resolvedRoot:field.access.rootLocation })),
+    ...arcaShelfAdmin.listShelves().items
+      .filter((shelf) => shelf.status === 'active')
+      .map((shelf) => ({ kind:'shelf-target', rootId:shelf.shelfId, resolvedRoot:shelf.target.rootLocation })),
+    ...locationRegistryRepository.listWorkspaceRoots()
+      .filter((root) => root.state === 'active' && root.rootId !== 'service-arca-aftercare-workspace')
+      .map((root) => ({ kind:'platform-workspace', rootId:root.rootId, resolvedRoot:root.resolvedRoot })),
+  ];
+  assertAftercareWorkspaceRootAvailable(aftercareWorkspaceRoot, aftercareReservedRoots);
+  fs.mkdirSync(aftercareWorkspaceRoot, { recursive:true });
+  aftercareWorkspaceRoot = localMountProbe.inspectRoot(aftercareWorkspaceRoot).resolvedRoot;
+  assertAftercareWorkspaceRootAvailable(aftercareWorkspaceRoot, aftercareReservedRoots);
+  const aftercareWorkspaceMount = localMountScopeResolver.resolveRoot({
+    rootLocation: aftercareWorkspaceRoot,
+  });
   platformIntegrations = createPlatformIntegrationServices({
     ...constructed.applicationDependencies,
     dataDir: options.dataDir,
@@ -1211,6 +1294,7 @@ async function createCleanServiceHost(options) {
     reservedRoots: () => [
       options.libraWorkspaceRoot ||
         path.join(options.dataDir, 'workspaces', 'libra'),
+      aftercareWorkspaceRoot,
       ...(options.integrationReservedRoots || []),
       ...materialFieldStore.listMaterialFields()
         .filter((field) => field.status === 'active')
@@ -1331,9 +1415,10 @@ async function createCleanServiceHost(options) {
     formationAcceptanceAttention = () => [], formationArcaStatusReader = () => new Map(), formationProjectionHost = null;
   const formationProjectionStore = createFormationProjectionStore(constructed.applicationDependencies);
   const formationRunHistoryStore = createFormationRunHistoryStore(constructed.applicationDependencies);
+  const executionProgressProjectionReader = createExecutionProgressProjectionReader(constructed.applicationDependencies);
   const formationProjectionSource = createFormationProjectionSource({
     ...constructed.applicationDependencies,
-    progressProjectionReader: createExecutionProgressProjectionReader(constructed.applicationDependencies),
+    progressProjectionReader: executionProgressProjectionReader,
     readPerceptionRatings: (targets) => formationRatingReader(targets),
     readShelfTargets: () => arcaShelfAdmin.listShelves().items,
     readAcceptanceRecoveries: (offerIds) => new Map(offerIds.map((offerId) => [offerId, formationAcceptanceReader(offerId)])),
@@ -1393,6 +1478,7 @@ async function createCleanServiceHost(options) {
     workspaceProductPort,
     productProductionPort,
     mediaEffectPort,
+    progressProjectionReader: executionProgressProjectionReader,
     platformComputeRuntime,
     productDeliveryPort,
     inventoryPort: arcaInventoryPort,
@@ -1402,8 +1488,16 @@ async function createCleanServiceHost(options) {
     fetchAftercareArtifact: options.aftercareArtifactFetch || options.productProviderArtifactFetch ||
       platformIntegrations.fetchProviderArtifact,
     resolveAftercareIntegrationHandle: options.aftercareIntegrationHandleResolver ||
-      options.productIntegrationHandleResolver || platformIntegrations.resolveProductHandle,
-    aftercareWorkspaceRoot: options.aftercareWorkspaceRoot,
+      options.currentProductIntegrationHandleResolver || ((request) =>
+        platformIntegrations.resolveCurrentProductHandle({
+          providerKind: request.providerKind || request.intent?.providerKind,
+          operationId: request.operationId,
+          artifactKind: request.artifactKind || null,
+        })),
+    aftercareWorkspaceRoot,
+    aftercareWorkspaceEndpointId: aftercareWorkspaceMount.endpointId,
+    aftercareWorkspaceMountScopeId: aftercareWorkspaceMount.mountScopeId,
+    aftercareWorkspaceMountScopeRevision: aftercareWorkspaceMount.mountScopeRevision,
     ffmpegPath: options.ffmpegPath,
     now: options.now || Date.now,
     onFormationSubjectChanged: (subjectId) => formationProjectionHost?.enqueue(subjectId),
@@ -1454,7 +1548,18 @@ async function createCleanServiceHost(options) {
     onError: options.onExecutionRuntimeError,
   });
   const executionRuntimeHost = Object.freeze({
-    async start() { await outboxDispatcher.start(); const execution=await procurementExecution.host.start(); await formationProjectionHost.start(); return execution; },
+    async start() {
+      const execution = await procurementExecution.host.start();
+      try {
+        await outboxDispatcher.start();
+        await formationProjectionHost.start();
+        return execution;
+      } catch (error) {
+        await outboxDispatcher.stop().catch(() => {});
+        await procurementExecution.host.stop().catch(() => {});
+        throw error;
+      }
+    },
     wake() { const execution=procurementExecution.host.wake(); outboxDispatcher.wake(); formationProjectionHost.wake(); return execution; },
     async stop() { await formationProjectionHost.stop(); await outboxDispatcher.stop(); return procurementExecution.host.stop(); },
   });
@@ -1727,6 +1832,7 @@ module.exports = Object.freeze({
   createCleanServiceHost,
   createIntegrationSecretStore,
   createPlatformIntegrationServices,
+  assertAftercareWorkspaceRootAvailable,
   normalizePerceptionSourceId,
   inspectCleanRuntimeReadiness,
 });

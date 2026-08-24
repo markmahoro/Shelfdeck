@@ -33,7 +33,7 @@ function fixture(run, settings = {}) {
   const unitOfWork = createSqliteUnitOfWork({ kernel });
   const seed = createRepositoryDefinition({ repositoryId: 'event_runtime_seed', owner: 'execution-foundation', schemaManifest, statements: {
     work: { kind: 'insert', tableId: 'fx_supporting_works', columns: [
-      'work_id', 'owner_domain', 'process_type', 'process_id', 'basis_digest', 'priority_class', 'state', 'idempotency_key'
+      'work_id', 'owner_domain', 'process_type', 'process_id', 'work_kind', 'basis_digest', 'priority_class', 'state', 'idempotency_key'
     ] },
     work_attempt: { kind: 'insert', tableId: 'fx_work_attempts', columns: ['attempt_id', 'work_id', 'basis_digest', 'state'] },
     plan: { kind: 'insert', tableId: 'fx_workflow_plans', columns: [
@@ -58,7 +58,7 @@ function fixture(run, settings = {}) {
   } });
   unitOfWork.execute([{ participantId: 'event_runtime_seed', owner: 'execution-foundation', repositories: [seed], execute(context) {
     const repository = context.repository('event_runtime_seed');
-    repository.invoke('work', { work_id: 'work', owner_domain: 'libra', process_type: 'libra_run', process_id: 'run', basis_digest: HASH_A,
+    repository.invoke('work', { work_id: 'work', owner_domain: 'libra', process_type: 'libra_run', process_id: 'run', work_kind:'test_work', basis_digest: HASH_A,
       priority_class: 'normal_foreground', state: 'running', idempotency_key: 'work' });
     repository.invoke('work_attempt', { attempt_id: 'work-attempt', work_id: 'work', basis_digest: HASH_A, state: 'running' });
     repository.invoke('plan', { plan_id: 'plan', attempt_id: 'work-attempt', basis_digest: HASH_A, state: 'planned' });
@@ -151,6 +151,7 @@ function fixture(run, settings = {}) {
     return outcome;
   } };
   const runtime = createEventRuntime({ schemaManifest, unitOfWork, scheduler, governor,
+    ...(settings.incidentObserver ? { incidentObserver:settings.incidentObserver } : {}),
     registry: { resolve: () => ({ manifest: { capabilityRef: 'libra.test.observe@1', resultSchemaRef: 'helix://test/result',
       effectClass: settings.effectClass || 'pure_observation', approvalRequirementRef: settings.approvalRequirementRef }, executor: { version: 1 } }) }, dispatcher,
     ...(settings.effectJournal === false ? {} : { effectJournal: {
@@ -364,6 +365,18 @@ test('open Circuit blocks unstarted Event before Permit, Attempt, or effect inte
     try { assert.equal(database.prepare('SELECT COUNT(*) count FROM fx_event_attempts').get().count, 0); }
     finally { database.close(); }
   }, { effectClass: 'domain_fact_commit', circuitDecision: { allowed: false, reason: 'circuit_blocks_new_effect' } });
+});
+
+test('Foundation Incident gate receives the exact frozen Work scope and typed Resource demand before Permit', async () => {
+  const requests=[];
+  await fixture(async ({ runtime, lease, databasePath, state }) => {
+    assert.equal((await runtime.run({ schedulerLease:lease })).kind,'circuit_deferred');
+    assert.deepEqual(requests,[{ownerDomain:'libra',processType:'libra_run',workKind:'test_work',workId:'work',resourceKeys:['cpu_heavy']}]);
+    assert.equal(state().governorReleased,0);
+    const database=new Database(databasePath,{readonly:true});
+    try{assert.equal(database.prepare('SELECT COUNT(*) count FROM fx_event_attempts').get().count,0);}
+    finally{database.close();}
+  },{incidentObserver:{prepareExecution(request){requests.push(request);return {allowed:false,reason:'resource_recovery_in_progress'};}}});
 });
 
 test('Fence rejection before or after Permit records completed Attempt and never dispatches', async () => {

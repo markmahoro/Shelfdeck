@@ -22,6 +22,7 @@ function createExecutionRuntimeHost(options) {
       typeof options.workLifecycle.ensurePlanningAttempt !== 'function' || typeof options.workLifecycle.startPlanned !== 'function' ||
       typeof options.workLifecycle.aggregateEvent !== 'function' || typeof options.workLifecycle.settleWork !== 'function' ||
       typeof options.eventRuntime.run !== 'function' ||
+      (options.incidentObserver && typeof options.incidentObserver.observeTerminalWork !== 'function') ||
       typeof options.domainReconciler.reconcile !== 'function'||typeof options.fallbackReconciler.start!=='function'||
       typeof options.fallbackReconciler.stop!=='function') {
     fail('P4_EXECUTION_HOST_DEPENDENCIES_REQUIRED', 'Execution Runtime Host requires the complete Foundation execution rail.');
@@ -68,6 +69,12 @@ function createExecutionRuntimeHost(options) {
     if (!disposition) return;
     const settled = options.workLifecycle.settleWork({...disposition,workAttemptId:aggregation.attemptId});
     if (!['succeeded', 'failed', 'cancelled'].includes(settled.state)) return;
+    const incidentObservation=options.incidentObserver&&['succeeded','failed','cancelled'].includes(settled.state)
+      ?options.incidentObserver.observeTerminalWork(Object.freeze({ownerDomain:aggregation.work.owner_domain,
+        processType:aggregation.work.process_type,processId:aggregation.work.process_id,workKind:aggregation.work.work_kind,
+        workId:aggregation.work.work_id,workAttemptId:aggregation.attemptId,workAttemptFailureCode:aggregation.attemptFailureCode||null,
+        workState:settled.state}))
+      :null;
     await options.domainReconciler.reconcile(Object.freeze({
       reconcilePhase: 'work_terminal',
       ownerDomain: aggregation.work.owner_domain,
@@ -79,6 +86,7 @@ function createExecutionRuntimeHost(options) {
       workAttemptId: aggregation.attemptId,
       workAttemptState: aggregation.attemptState,
       workAttemptFailureCode: aggregation.attemptFailureCode || null,
+      incidentRefs: incidentObservation?.incidentRefs||Object.freeze([]),
     }));
   }
 

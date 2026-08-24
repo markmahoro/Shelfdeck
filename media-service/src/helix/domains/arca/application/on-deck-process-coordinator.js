@@ -150,10 +150,12 @@ function createOnDeckProcessCoordinator(options) {
   function recordTerminalFailure(request) {
     const status = options.workResultReader.status(request.workId);
     const errorCode = request.errorCode || status?.latestAttempt?.failure_code || 'ARCA_ACCEPTANCE_EXECUTOR_FAILED';
-    const incident = options.executorIncidents?.recordFailure({ ownerDomain:'arca', processType:'arca_acceptance',
-      workKind:request.workKind, errorCode }) || Object.freeze({ incidentKey:canonicalDigest({ processId:request.processId, errorCode }) });
+    const incident=request.incidentRef||options.executorIncidentProjection?.projectionForWork({ownerDomain:'arca',processType:'arca_acceptance',
+      workKind:request.workKind,workId:request.workId,workAttemptId:status?.latestAttempt?.attempt_id,
+      workAttemptFailureCode:errorCode})?.[0]||null;
     return recovery.recordFailure(request.processId, { workId:request.workId, failurePhase:request.workKind,
-      errorCode, terminalAttemptCount:Number(status?.latestAttempt?.ordinal || 1), incidentKey:incident.incidentKey });
+      errorCode, terminalAttemptCount:Number(status?.latestAttempt?.ordinal || 1),
+      incidentKey:incident?.incidentKey||incident?.incident_key||null });
   }
   function reconcileAcceptance(processId, dependencyRefs = null) {
     let refs = dependencyRefs;
@@ -190,8 +192,6 @@ function createOnDeckProcessCoordinator(options) {
       onDeckPackageId:offerContext.offer.onDeckPackageId,packageDigest:offerContext.offer.packageDigest,
       standardRevision:offerContext.shelf.currentStandardRevision,placementRevision:offerContext.shelf.currentPlacementRevision});
     const resolved = recovery.resolve(processId, attemptId, canonicalDigest({ assessmentWorkId:assessment.workId, commitWorkId:commit.workId }));
-    options.executorIncidents?.resolve(resolved?.incidentKey, canonicalDigest({ schema:'arca.acceptance-recovered@1',
-      offerId:processId, assessmentWorkId:assessment.workId, commitWorkId:commit.workId }));
     if(disposition==='rejected')return Object.freeze({kind:'rejected',processId,workId:commit.workId,
       result:options.workResultReader.read(commit.workId).find((item)=>item.outcomeKind==='succeeded')?.result||null});
     const accepted = options.workResultReader.read(commit.workId).find((item)=>
@@ -212,13 +212,8 @@ function createOnDeckProcessCoordinator(options) {
       const recoveryCase = recovery.admit({ offerId:offer.offerId, onDeckPackageId:offer.onDeckPackageId,
         packageDigest:offer.packageDigest, workId:provisional.workId, workKind:'acceptance_assessment', recoveryTriggerDigest:triggerDigest });
       const work = assessmentWork(offer.offerId, refs, recoveryCase.recoveryGeneration, recoveryCase.recoveryTriggerDigest);
-      const circuit = options.executorIncidents?.scopeStatus({ ownerDomain:'arca', processType:'arca_acceptance',
-        workKind:'acceptance_assessment' });
-      const current = circuit?.blocked ? recovery.recordFailure(offer.offerId, { workId:work.workId,
-        failurePhase:'acceptance_assessment', errorCode:circuit.incident.error_code, terminalAttemptCount:0,
-        incidentKey:circuit.incident.incident_key }) : recoveryCase;
-      return Object.freeze({ processId:offer.offerId, dependencyRefs:refs, work, recovery:current,
-        result:circuit?.blocked ? Object.freeze({kind:'deferred',reasonCode:'EXECUTOR_CIRCUIT_OPEN'}) : submit(work),
+      return Object.freeze({ processId:offer.offerId, dependencyRefs:refs, work, recovery:recoveryCase,
+        result:submit(work),
         admissionParticipant:recovery.admissionParticipant({ offerId:offer.offerId, workId:work.workId, packageDigest:offer.packageDigest }) });
     },
     recordTerminalFailure,
@@ -228,7 +223,6 @@ function createOnDeckProcessCoordinator(options) {
         if (item.automaticRecoveryUsed || item.failedTriggerDigest === triggerDigest) continue;
         const refs = refsFromWorkResult(item.activeWorkId);
         const nextWork = assessmentWork(item.offerId, refs, item.recoveryGeneration + 1, triggerDigest);
-        options.executorIncidents?.beginRecovery(item.incidentKey);
         const next = recovery.startGeneration(item.offerId, { mode:'automatic', workId:nextWork.workId, recoveryTriggerDigest:triggerDigest });
         if (next.activeWorkId === nextWork.workId) results.push(Object.freeze({ offerId:item.offerId, work:nextWork, result:submit(nextWork) }));
       }
@@ -239,7 +233,6 @@ function createOnDeckProcessCoordinator(options) {
       if (!item) throw Object.assign(new Error('Acceptance Recovery Case was not found.'), { code:'ARCA_ACCEPTANCE_RECOVERY_NOT_FOUND' });
       const refs = refsFromWorkResult(item.activeWorkId), triggerDigest = recoveryTriggerDigest();
       const nextWork = assessmentWork(offerId, refs, item.recoveryGeneration + 1, triggerDigest);
-      options.executorIncidents?.beginRecovery(item.incidentKey);
       const next = recovery.startGeneration(offerId, { mode:'user', workId:nextWork.workId, recoveryTriggerDigest:triggerDigest });
       return Object.freeze({ recovery:next, work:nextWork, result:submit(nextWork) });
     },

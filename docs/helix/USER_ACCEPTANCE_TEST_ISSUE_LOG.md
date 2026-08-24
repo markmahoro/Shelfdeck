@@ -168,6 +168,18 @@ User Perception全面取消year关联校验，year仅作为资料保存/展示�
 | UAT-091 | Process Work取消未同步终结Resource Defer，导致下一次服务启动被一致性检查阻断 | `RECOVERY_CORRECTNESS` | `EXECUTION_SCHEDULING`、`OPERATIONAL_SAFETY` | Foundation Work Lifecycle + Resource Governor + Startup Recovery | 可恢复性、原子性、服务可用性 | Critical | `FACT/RESTART PASSED / CLOSED` |
 | UAT-092 | 原NFO缺少演员时Libra误判Metadata已齐全，既不向TMDB补演员也不能把新演员写入NFO，最终在内部符合性验收冻结 | `BUSINESS_CONTRACT` | `DOMAIN_ORCHESTRATION`、`EXTERNAL_INTEGRATION` | Libra Metadata Planning + Media Cast + NFO Sidecar + Product Conformance | 正确性、活性、信息完整性 | Critical | `CODE/REGRESSION PASSED / REAL CANARY PENDING` |
 | UAT-093 | Douban列表缺year时强制访问Subject详情，单条404阻断整库同步；year关联校验复杂度高且收益低 | `BUSINESS_CONTRACT` | `EXTERNAL_INTEGRATION`、`RECOVERY_CORRECTNESS`、`PROJECTION_FRESHNESS` | Perception Acquisition + Resolution + Acceptance Spec | 完整性、活性、规则可理解性 | Critical | `FACT/RESTART PASSED / CLOSED` |
+| UAT-094 | Aftercare把最大体积上限误作扩容目标，可能将较小源文件转成更大的成品 | `BUSINESS_CONTRACT` | `MEDIA_PRODUCTION`、`RESOURCE_CAPACITY` | Arca Aftercare Media Strategy | 正确性、容量、成品质量 | Critical | `CODE/REGRESSION PASSED / REAL CANARY PENDING` |
+| UAT-095 | Aftercare媒体符合性与输出完整性检查遗漏主音轨、媒体形态、默认流和流连续性 | `BUSINESS_CONTRACT` | `PRODUCT_CONFORMANCE`、`SAFETY` | Arca Aftercare Conformance + Media Verification | 正确性、完整性、安全性 | Critical | `CODE/REGRESSION PASSED / REAL CANARY PENDING` |
+| UAT-096 | Aftercare NFO未遵循坏则重建、没坏则更新，可能丢失原有丰富资料 | `BUSINESS_CONTRACT` | `METADATA_INTEGRITY`、`USER_DATA_PRESERVATION` | Arca Aftercare NFO | 信息保真、身份正确性、幂等 | Critical | `CODE/REGRESSION PASSED / REAL CANARY PENDING` |
+| UAT-097 | Aftercare Artifact未完成真实验证或使用陈旧Integration Handle即进入Inventory | `EXTERNAL_INTEGRATION` | `PRODUCT_CONFORMANCE`、`ATOMICITY` | Arca Aftercare Artifact + Platform Integration | 正确性、活性、原子性 | Critical | `CODE/REGRESSION PASSED / REAL CANARY PENDING` |
+| UAT-098 | Care Basis或Reservation变化时，Aftercare正式效果仍可能继续写入和关闭 | `RECOVERY_CORRECTNESS` | `AUTHORIZATION_FENCE`、`DOMAIN_ORCHESTRATION` | Arca Aftercare Effect Fence | 正确性、安全停线、恢复性 | Critical | `CODE/REGRESSION PASSED / REAL CANARY PENDING` |
+| UAT-099 | Inventory已提交但Settlement未终态时，Aftercare可能过早Reassessment并关闭Case | `DOMAIN_ORCHESTRATION` | `DESTRUCTIVE_SAFETY`、`ATOMICITY` | Arca Aftercare Settlement + Case Closure | 正确性、删除安全、原子性 | Critical | `CODE/REGRESSION PASSED / REAL CANARY PENDING` |
+| UAT-100 | Aftercare失败、替代Work、终态原因与资源收口不完整，可能永久卡住或静默重开 | `RECOVERY_CORRECTNESS` | `AUDITABILITY`、`LIVENESS` | Arca Aftercare Case/Work/Workspace lifecycle | 可恢复性、审计性、活性 | Critical | `CODE/REGRESSION PASSED / REAL CANARY PENDING` |
+| UAT-101 | Aftercare长任务缺真实进度并含同步大文件I/O，可能拖慢Admin Web | `PERFORMANCE` | `PROGRESS`、`OPERATIONAL_SAFETY` | Arca Aftercare FFmpeg/Filesystem + Foundation Progress | 可观察性、延迟、取消安全 | Critical | `CODE/REGRESSION PASSED / REAL CANARY PENDING` |
+| UAT-102 | Aftercare Workspace未正式登记、默认进入OS TEMP且关闭时过早递归删除 | `PLATFORM_INTEGRATION` | `RECOVERY_CORRECTNESS`、`DATA_SAFETY` | Platform Workspace Registry + Arca Aftercare Workspace | 数据安全、恢复性、空间治理 | Critical | `CODE/REGRESSION PASSED / REAL CANARY PENDING` |
+| UAT-103 | 大量评分重评形成Incident/Projection同步风暴，且Domain越界控制Foundation Incident | `PERFORMANCE` | `INCIDENT_AGGREGATION`、`PROJECTION_FRESHNESS` | Foundation Incident Runtime + Arca Care Projection | 性能、边界正确性、隔离性 | Critical | `CODE/REGRESSION PASSED / REAL CANARY PENDING` |
+| UAT-104 | Outbox/Inbox可能早于Startup Recovery Gate扩大执行范围 | `STARTUP_RECOVERY` | `OPERATIONAL_SAFETY` | Clean Service startup composition | 启动安全、恢复正确性 | Critical | `CODE/REGRESSION PASSED / REAL CANARY PENDING` |
+| UAT-105 | 缺少全新真实Canary证明评分刷新后的Aftercare完整闭环 | `REAL_CANARY` | `END_TO_END`、`RESTART` | Procurement → Libra → Arca Aftercare | 真实正确性、性能、恢复性 | Critical | `OPEN` |
 
 ### 2.0.1 UAT-074–UAT-084必须保护的历史修复
 
@@ -3293,7 +3305,125 @@ cursor revision 104并进入terminal complete。《网诱惊魂》Record合法�
 `title_year`；未再因Subject详情404失败。SQLite integrity为ok，服务health ok / `normalSupplyAllowed=true`。
 状态`FACT/RESTART PASSED / CLOSED`。
 
-## 91. 后续问题模板
+## 91. UAT-094：Aftercare 目标体积上限不能变成扩容目标
+
+问题分类：`BUSINESS_CONTRACT / MEDIA_PRODUCTION / RESOURCE_CAPACITY`
+
+用户侧现象：评分刷新触发Aftercare后，原本约1.9GB的影片被转成6–8GB；Shelf Standard的`maxSizeBytes`被错误理解为“尽量填满”的目标，而不是不可超过的上限。
+
+精确根因：Arca Aftercare按`maxSizeBytes`直接计算视频码率，没有以当前Primary实际大小封顶；Probe Evidence还丢失音轨码率，使估算进一步偏大。这是Aftercare本域独立缺陷，不重开已关闭的Libra `UAT-059`。
+
+修复边界与验收：Aftercare自己的冻结Strategy必须以`min(sourceSizeBytes,maxSizeBytes)`形成预算，保留音轨实际码率Evidence；不得调用或共享Libra生产状态机。覆盖小源HEVC修复、大源压缩、无size上限及不可行预算，证明修复产物不因上限而放大且最终符合Standard。状态`CODE/REGRESSION PASSED / REAL CANARY PENDING`。
+
+## 92. UAT-095：Aftercare媒体符合性与输出完整性检查不完整
+
+问题分类：`BUSINESS_CONTRACT / PRODUCT_CONFORMANCE / SAFETY`
+
+用户侧现象：Aftercare可能把不具备要求主音轨、错误媒体形态或流集合受损的成品判为健康并关闭Case。
+
+精确根因：当前Conformance只检查视频Codec、容器、扩展名、4K和大小，遗漏`acceptedPrimaryAudioClasses`、`mediaForm/discTopology`，且取第一视频流而不是default-first；输出验证也没有核对音轨、字幕、时长和默认流连续性。
+
+修复边界与验收：按冻结Standard执行default-first完整检查；缺少当前Aftercare能力不能安全生成的高质量音轨或媒体形态必须`attention_required`，不得创建伪自动修复Case；Remux/Transcode输出须核对duration、default视频、音轨及字幕集合。覆盖五星音轨、原盘形态、多视频流和流丢失反例。状态`CODE/REGRESSION PASSED / REAL CANARY PENDING`。
+
+## 93. UAT-096：Aftercare NFO必须遵循“坏则重建、没坏则更新”
+
+问题分类：`BUSINESS_CONTRACT / METADATA_INTEGRITY / USER_DATA_PRESERVATION`
+
+用户侧现象：现有合法NFO缺少新字段时不会进入更新；一旦触发修复又会生成只含title/year/plot/tmdbid的极简NFO，原评分、合集、标签、自定义字段、演员及强Person ID可能丢失。
+
+精确根因：当前只用`<movie>...</movie>`首尾正则判断健康，只识别missing/corrupt；renderer始终从空文档重建，没有消费完整Accepted Product Facts和Media Cast。
+
+修复边界与验收：Aftercare本域对NFO做有界真实XML解析与语义检查；缺失=create，技术或内容损坏=rebuild，合法但缺项/过期=update。Update必须保留未知/丰富字段和既有强演员身份，只更新Shelf Standard拥有的字段；不得返回Libra补资料。与`UAT-074/075/092`原则同版回归，状态`CODE/REGRESSION PASSED / REAL CANARY PENDING`。
+
+## 94. UAT-097：Aftercare Artifact必须先验证再进入Inventory
+
+问题分类：`EXTERNAL_INTEGRATION / PRODUCT_CONFORMANCE / ATOMICITY`
+
+用户侧现象：非空但不可解码的海报、或只具有XML外壳的NFO，可能被直接物化并提交Inventory，事后Reassessment才发现问题。
+
+精确根因：Binary Acquire只检查非空bytes，图片检查仅魔数；NFO/Poster没有显式Verified Artifact步骤。真实Poster路径还用历史Metadata Fact的旧Integration revision，并把Arca操作Handle交给只接受Libra操作的Adapter。
+
+修复边界与验收：Case/Work创建边界冻结当前Provider Integration revision和`artifactKind=poster`；在任何Materialize/Inventory Commit前形成Arca拥有的显式Artifact Verification Result，NFO执行parse+semantic，图片执行有界真实decode。坏字节、revision前进和验证中断均不得改变Inventory/Control；真实TMDB海报修复须通过。状态`CODE/REGRESSION PASSED / REAL CANARY PENDING`。
+
+## 95. UAT-098：Aftercare每个正式效果必须重验当前Care Basis并安全停线
+
+问题分类：`RECOVERY_CORRECTNESS / AUTHORIZATION_FENCE / DOMAIN_ORCHESTRATION`
+
+用户侧现象：Standard、Placement、Identity、Decision Fact或Reservation在转码/物化/删除过程中变化时，旧Case仍可能继续写文件、提交Inventory或关闭。
+
+精确根因：Foundation运行时的通用Fence Validator当前只回显valid；Aftercare仅在Event入口读取一次active Case，Basis变化时Coordinator又直接终结Case而不cancel/drain执行中Work。
+
+修复边界与验收：不修改Owner/Handoff；由Arca在Event开始和每个workspace/material/control/destructive/domain commit边界重验当前Care Basis与修改授权。变化后取消未开始Event、执行中到安全点停止、回收已声明临时材料，再形成可审计invalidated结果；旧Case不得发布新Handle或提交。逐窗口故障注入并跨重启验证。状态`CODE/REGRESSION PASSED / REAL CANARY PENDING`。
+
+## 96. UAT-099：Repair必须完成Settlement后才能Reassessment和Case Closure
+
+问题分类：`DOMAIN_ORCHESTRATION / DESTRUCTIVE_SAFETY / ATOMICITY`
+
+用户侧现象：Inventory刚提交但旧材料Settlement仍等待或失败时，Case可能已经显示resolved；随后Settlement因找不到active Case反而失败并遗留旧材料。
+
+精确根因：Coordinator把存在Inventory Commit误当成整个Repair Work完成；删除Approval只是Projection临时构造，没有持久`active → consumed|stale`生命周期。
+
+修复边界与验收：推进条件必须是精确Repair Work（包含Settlement）整体succeeded；Approval按exact scope和Care Basis持久化，Basis变化即stale，删除提交时原子consume。覆盖Inventory/Settlement之间崩溃、资源等待、逐文件中断、未知目录成员和重放；Case只能在Settlement与重新评估都成功后resolved。状态`CODE/REGRESSION PASSED / REAL CANARY PENDING`。
+
+## 97. UAT-100：Aftercare失败、重试、Work lineage与终态必须可恢复
+
+问题分类：`RECOVERY_CORRECTNESS / AUDITABILITY / LIVENESS`
+
+用户侧现象：Prepare/Commit/Closure的Work一旦耗尽重试，active Case可能永久重放同一个failed Work；另一些路径直接写unresolved/invalidated但没有原因、Evidence或安全收口。
+
+精确根因：Inventory revision变化后用新Basis重新计算prepare/commit Work ID，Closure引用到不存在的Work；直接终态路径没有统一cancel→drain→reclaim→terminal result，也没有完整Care Basis/实际Work lineage。
+
+修复边界与验收：持久冻结真实Assessment/Prepare/Commit/Reassessment Work引用和完整Care Basis输入；临时故障保持active并按有界新Attempt/新Work代际恢复，业务上不可达才unresolved。所有终态保存reason/evidence并收口资源；相同Assessment trigger精确重放同一terminal Case，新的Assessment trigger才建立下一generation；每个Aftercare effect在前/中/后kill均证明forward-only/exactly-once。状态`CODE/REGRESSION PASSED / REAL CANARY PENDING`。
+
+## 98. UAT-101：Aftercare长任务必须有真实进度、可取消且不能阻塞Admin Web
+
+问题分类：`PERFORMANCE / PROGRESS / OPERATIONAL_SAFETY`
+
+用户侧现象：Aftercare转码只有固定15/55/80伪百分比；大文件从Workspace复制回Shelf、Settlement和Workspace删除会同步阻塞Node，停服/取消也可能长时间等待FFmpeg。
+
+精确根因：Aftercare FFmpeg没有`-progress`或Progress Reporter；大文件路径使用`copyFileSync`和递归sync filesystem API，临时文件名又绑定PID且失败后不能稳定恢复。
+
+修复边界与验收：使用Foundation Progress Reporter和冻结时长形成单调current/total、rate、ETA，两遍编码整体不回退；取消/停服在有界时间终止child且不发布final Handle。大媒体复制、61成员Settlement和回收改为可等待异步I/O，保持确定性temp、bounded fingerprint、atomic rename与Effect recovery。真实窗口要求Health p99≤500ms、Admin p99≤2s、零10秒超时。状态`CODE/REGRESSION PASSED / REAL CANARY PENDING`。
+
+## 99. UAT-102：Aftercare Workspace必须进入Platform Registry并按保留期回收
+
+问题分类：`PLATFORM_INTEGRATION / RECOVERY_CORRECTNESS / DATA_SAFETY`
+
+用户侧现象：普通运行把Aftercare Workspace默认放到OS TEMP（Windows即C盘），Case关闭前会直接递归删除整个目录。
+
+精确根因：当前server没有解析Aftercare Workspace Root；Handle自造endpoint/mount/root且不登记正式Workspace Material，Closure Plan顺序是先reclaim后case commit，与SSOT的terminal、无引用、保留期后回收相反。
+
+修复边界与验收：接入既有Platform Workspace Root Registry，root不得与Field/Shelf重叠，Handle的endpoint/mount/root逐字节匹配注册快照并持久登记；所有terminal Case在无引用且满24小时后只逐项删除声明成员，未知成员fail closed；成员在全部删除并形成durable Receipt前保持active，部分删除只能由同一Foundation Effect recovery继续。测试TEMP/TMP/TMPDIR及Aftercare Root全部位于F盘。状态`CODE/REGRESSION PASSED / REAL CANARY PENDING`。
+
+## 100. UAT-103：Aftercare Incident与Care Projection必须有界，评分刷新不得形成同步风暴
+
+问题分类：`PERFORMANCE / INCIDENT_AGGREGATION / PROJECTION_FRESHNESS`
+
+用户侧现象：大量Shelf Entry在评分刷新后同时重评时，Provider/Endpoint故障会为每部影片建立Case；Care、Collection和Overview读取又反复全表扫描，导致前端响应明显变慢。
+
+精确根因：Aftercare Store按页select-all并在JS做N×filter，Care列表逐Entry再次读取history；Douban Acquisition terminal后同步遍历全部Subject并逐项Resolution/Aftercare reconcile。
+
+修复边界与验收：同一Provider/Endpoint/Workspace故障先聚合一个Incident并把受影响条目标为not_assessable，不批量创建修复Case；技术失败计数、Incident生命周期、Circuit开关与恢复必须由Foundation Runtime根据terminal Attempt及其冻结/实际Resource事实统一完成，Arca不得按错误码猜资源、直接`record/beginRecovery/resolve`或自建Circuit。Arca只投影业务影响并申请后续Work；Libra业务代码、Run/Spec/Workspace/lifecycle语义不变，仅证明同一Foundation机制不会改变既有业务结果。Resolution和Aftercare唤醒按持久cursor分批且每批yield。1000/10000 Entry SQL trace不得出现按Entry全表扫描，Care/Collection并发p95≤300ms、p99≤1s，重启续传且同Basis不重复Work。状态`CODE/REGRESSION PASSED / REAL CANARY PENDING`。
+
+## 101. UAT-104：Startup Recovery Gate必须先于Outbox/Inbox扩大执行范围
+
+问题分类：`STARTUP_RECOVERY / OPERATIONAL_SAFETY`
+
+用户侧现象：故障库启动时，Outbox可能在Startup Recovery确认安全前先消费消息、admit新Work或改变Domain状态。
+
+精确根因：外层Service Host先启动Outbox Dispatcher，再启动包含Recovery Gate的Execution Host。
+
+修复边界与验收：不改变Foundation状态机，只修Composition启动顺序：Effect/Workspace/Execution Recovery全部通过后才允许Outbox/Inbox dispatch；任一hard finding必须在零新ack、零新admission、零Domain mutation下fail closed。健康库反例证明Gate完成后消息正常继续。状态`CODE/REGRESSION PASSED / REAL CANARY PENDING`。
+
+## 102. UAT-105：全新真实Canary证明评分刷新后的Aftercare完整闭环
+
+问题分类：`REAL_CANARY / END_TO_END / RESTART`
+
+测试方法：从不可变`F:\shelfdeck_test_zone\test_film`选择性复制真实字节到全新隔离Canary，禁止hardlink、`/MIR`和任何基线回写；Field、Shelf、Aftercare Workspace、data、temp与monitoring根互不重叠且全部位于F盘。先配置Integration、Field、Shelf，等待所有可自动处理条目进入Arca，再同步Douban评分制造Aftercare条件。
+
+验收范围：逐项关闭`UAT-094`–`UAT-104`的FACT/FS/PERFORMANCE/RESTART证据；至少覆盖约4.8GB Primary、61成员目录、NFO update/rebuild、真实TMDB Poster、评分驱动的媒体修复、真实进度、受控重启与baseline零变化。同时复核`UAT-092`两部演员缺失影片的真实链路；未取得真实终态前不得把`UAT-092`或本条关闭。状态`OPEN`。
+
+## 103. 后续问题模板
 
 后续发现的问题按以下结构追加：
 

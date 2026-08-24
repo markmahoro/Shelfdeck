@@ -148,6 +148,10 @@ function createLocationRegistryRepository(options) {
     },
     getWorkspaceRoot(rootId) {
       return execute((context) => mapRoot(context.repository(definition.repositoryId).invoke('find_workspace_root', { root_id: rootId })));
+    },
+    listWorkspaceRoots() {
+      return execute((context) => Object.freeze(context.repository(definition.repositoryId)
+        .invoke('list_workspace_roots').map(mapRoot)));
     }
   });
 }

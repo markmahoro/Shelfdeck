@@ -9,6 +9,10 @@ function runtimeOptions(env = process.env) {
     host: env.MEDIA_SERVICE_HOST || '0.0.0.0',
     dataDir: path.resolve(env.MEDIA_SERVICE_DATA_DIR || path.join(__dirname, '..', 'data')),
     adminDistDir: path.resolve(env.MEDIA_SERVICE_ADMIN_DIST_DIR || path.join(__dirname, '..', 'dist', 'admin')),
+    libraWorkspaceRoot: env.LIBRA_WORKSPACE_ROOT ? path.resolve(env.LIBRA_WORKSPACE_ROOT) : undefined,
+    aftercareWorkspaceRoot: env.ARCA_AFTERCARE_WORKSPACE_ROOT ? path.resolve(env.ARCA_AFTERCARE_WORKSPACE_ROOT) : undefined,
+    ffmpegPath: env.FFMPEG_PATH || undefined,
+    ffprobePath: env.FFPROBE_PATH || undefined,
     secretRoot: env.SHELFDECK_SECRET_ROOT,
     onExecutionRuntimeError(error) {
       console.error('[shelfdeck] execution runtime error', {

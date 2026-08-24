@@ -15,7 +15,8 @@ const { createAftercareProcessCoordinator } = require('../application/aftercare-
 const { createAftercareCapabilityPorts } = require('../capabilities/aftercare-capability-ports');
 const { createAftercareCapabilityRegistrations } = require('../capabilities/aftercare-execution-registrations');
 const { createHealthAssessmentPlanner, createCustodyAssessmentPlanner, createCareRepairPreparationPlanner,
-  createCareRepairCommitPlanner, createCareCaseClosurePlanner, createCareDeregistrationSettlementPlanner } = require('../planning/aftercare-planners');
+  createCareRepairCommitPlanner, createCareCaseClosurePlanner, createCareDeregistrationSettlementPlanner,
+  createCareWorkspaceReclaimPlanner } = require('../planning/aftercare-planners');
 const { createAftercareProjections } = require('../planning/aftercare-projections');
 const { createOffdeckContextReader } = require('../application/offdeck-context-reader');
 const { createOffdeckProcessCoordinator } = require('../application/offdeck-process-coordinator');
@@ -104,6 +105,7 @@ function createArcaExecutionRegistration() {
         createCareRepairCommitPlanner({...options,contextReader:aftercareContextReader}),
         createCareCaseClosurePlanner({...options,contextReader:aftercareContextReader}),
         createCareDeregistrationSettlementPlanner({...options,contextReader:aftercareContextReader}),
+        createCareWorkspaceReclaimPlanner({...options,contextReader:aftercareContextReader}),
         createOffdeckPolicyEvaluationPlanner({...options,contextReader:offdeckContextReader}),
         createOffdeckDuplicateDetectionPlanner({...options,contextReader:offdeckContextReader}),
         createScopeVerificationPlanner({...options,contextReader:offdeckContextReader}),

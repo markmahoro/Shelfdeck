@@ -8,7 +8,8 @@ const TARGET_GENERATION = 'helix-clean-v3';
 const SOURCE_SCHEMA_DIGEST = '78075366b3409916b8f8c6fcd3c0786daa5e45bab82f59ba83d91a2663689119';
 const INTERMEDIATE_SCHEMA_DIGEST = 'fee80cf21719481a83274c3b9021918571ed8e5a510239b1d82995758a4cbcd4';
 const PRE_EXECUTOR_CLOSURE_SCHEMA_DIGEST = '998b673af4d2f0a6ed4f96bcb7f34c56b8dad3ffc562f40a69a335b948a7cab0';
-const TARGET_SCHEMA_DIGEST = '2347c196743124bbb2e768c7b829012049310484b7cd4e49a00182c9d45f09d5';
+const PRE_AFTERCARE_HARDENING_SCHEMA_DIGEST = '2347c196743124bbb2e768c7b829012049310484b7cd4e49a00182c9d45f09d5';
+const TARGET_SCHEMA_DIGEST = '6172e70c94c31091005b19b4eefaf7567b195d04dc9cb3b4bee7099a070383f3';
 const PRE_UAT_EXECUTION_CATALOG_DIGEST = 'b0371a6d2793c1e381a4c2e7fc421d312a1a1e90d2de5e47f61a45022f09793b';
 const PRE_PROJECTION_EXECUTION_CATALOG_DIGEST = '13315cdbdf6ab5cbe30b32075f89bd76ae1a873d84034dc572824f4fbc3886e6';
 const INTAKE_BINDING_REPLAN_CODE = 'P4_UAT_INTAKE_BINDING_RESULT_REPLAN_REQUIRED';
@@ -114,6 +115,35 @@ function catalogRows(database) {
   return database.prepare(
     "SELECT type,name,tbl_name,sql FROM sqlite_master WHERE name NOT LIKE 'sqlite_%' ORDER BY type,name",
   ).all().map((row) => ({ ...row, sql: row.sql && row.sql.replaceAll('\r\n', '\n') }));
+}
+
+function ensureAftercareCaseTerminalEvidence(database) {
+  const present=new Set(database.prepare('PRAGMA table_info("arca_aftercare_cases")').all().map((row)=>row.name));
+  const required=['case_generation','trigger_digest','terminal_reason_code','terminal_evidence_digest'];
+  if(required.every((name)=>present.has(name)))return false;
+  if(!present.has('case_generation'))database.exec('ALTER TABLE "arca_aftercare_cases" ADD COLUMN "case_generation" INTEGER');
+  if(!present.has('trigger_digest'))database.exec('ALTER TABLE "arca_aftercare_cases" ADD COLUMN "trigger_digest" TEXT');
+  if(!present.has('terminal_reason_code'))database.exec('ALTER TABLE "arca_aftercare_cases" ADD COLUMN "terminal_reason_code" TEXT');
+  if(!present.has('terminal_evidence_digest'))database.exec('ALTER TABLE "arca_aftercare_cases" ADD COLUMN "terminal_evidence_digest" TEXT');
+  const rows=database.prepare(`SELECT aftercare_case_id,shelf_entry_id,care_basis_digest,finding_set_digest,
+    care_requirement_digest,state,case_generation,trigger_digest,terminal_reason_code,terminal_evidence_digest
+    FROM arca_aftercare_cases ORDER BY shelf_entry_id,care_basis_digest,finding_set_digest,care_requirement_digest,created_at_ms,aftercare_case_id`).all();
+  const generations=new Map(),update=database.prepare(`UPDATE arca_aftercare_cases SET case_generation=?,trigger_digest=?,
+    terminal_reason_code=?,terminal_evidence_digest=? WHERE aftercare_case_id=?`);
+  for(const row of rows){const group=[row.shelf_entry_id,row.care_basis_digest,row.finding_set_digest,row.care_requirement_digest].join('\u0000'),
+      generation=Number.isSafeInteger(Number(row.case_generation))&&Number(row.case_generation)>0?Number(row.case_generation):(generations.get(group)||0)+1,
+      triggerDigest=row.trigger_digest||digest({schema:'arca.aftercare-case-legacy-trigger@1',aftercareCaseId:row.aftercare_case_id}),
+      terminal=row.state!=='active',reasonCode=terminal?(row.terminal_reason_code||'legacy_'+row.state):null,
+      evidenceDigest=terminal?(row.terminal_evidence_digest||digest({schema:'arca.aftercare-case-legacy-terminal-evidence@1',
+        aftercareCaseId:row.aftercare_case_id,state:row.state,reasonCode})):null;
+    generations.set(group,Math.max(generations.get(group)||0,generation));
+    update.run(generation,triggerDigest,reasonCode,evidenceDigest,row.aftercare_case_id);
+  }
+  database.exec(`CREATE UNIQUE INDEX IF NOT EXISTS "uidx_arca_aftercare_cases_generation"
+    ON "arca_aftercare_cases" ("shelf_entry_id","care_basis_digest","finding_set_digest","care_requirement_digest","case_generation");
+    CREATE UNIQUE INDEX IF NOT EXISTS "uidx_arca_aftercare_cases_trigger"
+    ON "arca_aftercare_cases" ("shelf_entry_id","trigger_digest");`);
+  return true;
 }
 
 function retirePreCorrectionIntakeBindingAttempts(database, appliedAtMs) {
@@ -293,11 +323,13 @@ function migrateUatIdentitySelectionSchema(options) {
         'The source database does not contain the expected ShelfDeck schema marker.');
     }
     const alreadyCurrent = marker.generation === TARGET_GENERATION && marker.schema_digest === TARGET_SCHEMA_DIGEST;
+    const aftercareHardeningSource = marker.generation === TARGET_GENERATION &&
+      marker.schema_digest === PRE_AFTERCARE_HARDENING_SCHEMA_DIGEST;
     const executorClosureSource = marker.generation === TARGET_GENERATION &&
       marker.schema_digest === PRE_EXECUTOR_CLOSURE_SCHEMA_DIGEST;
     const legacySource = marker.generation === SOURCE_GENERATION && marker.schema_digest === SOURCE_SCHEMA_DIGEST;
     const v2Source = marker.generation === INTERMEDIATE_GENERATION && marker.schema_digest === INTERMEDIATE_SCHEMA_DIGEST;
-    if (!alreadyCurrent && !executorClosureSource && !legacySource && !v2Source) {
+    if (!alreadyCurrent && !aftercareHardeningSource && !executorClosureSource && !legacySource && !v2Source) {
       throw new UatIdentitySelectionMigrationError('UAT_MIGRATION_SOURCE_SCHEMA_UNSUPPORTED',
         'Only the exact pre-UAT live schema can be upgraded in place.', {
           generation: marker.generation, schemaDigest: marker.schema_digest,
@@ -330,7 +362,8 @@ function migrateUatIdentitySelectionSchema(options) {
         FOREIGN KEY ("libra_run_id") REFERENCES "libra_runs" ("libra_run_id") ON DELETE RESTRICT
       )`);
       if (legacySource || v2Source) database.exec(FORMATION_PROJECTION_DDL);
-      if (!alreadyCurrent) database.exec(EXECUTOR_CLOSURE_DDL);
+      if (legacySource || v2Source || executorClosureSource) database.exec(EXECUTOR_CLOSURE_DDL);
+      if (!alreadyCurrent) ensureAftercareCaseTerminalEvidence(database);
       const appliedAtMs = now();
       if (!Number.isSafeInteger(appliedAtMs) || appliedAtMs < 0) {
         throw new UatIdentitySelectionMigrationError('UAT_MIGRATION_INVALID_TIME', 'Migration time must be a non-negative safe integer.');
@@ -370,6 +403,7 @@ module.exports = Object.freeze({
   PRE_PROJECTION_EXECUTION_CATALOG_DIGEST,
   INTAKE_BINDING_REPLAN_CODE,
   PRE_PROJECTION_PLAN_REPLAN_CODE,
+  PRE_AFTERCARE_HARDENING_SCHEMA_DIGEST,
   TARGET_GENERATION,
   TARGET_SCHEMA_DIGEST,
   UatIdentitySelectionMigrationError,

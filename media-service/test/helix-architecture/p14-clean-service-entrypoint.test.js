@@ -318,10 +318,10 @@ test('Procurement automation advances only through terminal Work reconcile and o
   assert.doesNotMatch(source, /legacy|fallback|dual[-_ ](?:read|write|run|path)/i);
 });
 
-test('clean host starts durable message delivery before recovering dependent Owner Work', () => {
+test('clean host recovers dependent Owner Work before durable message delivery can enlarge scope', () => {
   const source = fs.readFileSync(path.join(serviceRoot, 'src', 'clean-service-host.js'), 'utf8');
-  assert.match(source,
-    /async start\(\) \{ await outboxDispatcher\.start\(\); const execution=await procurementExecution\.host\.start\(\);/);
+  const start=source.slice(source.indexOf('const executionRuntimeHost = Object.freeze'),source.indexOf('arcaCare=createArcaCareApplication'));
+  assert.ok(start.indexOf('await procurementExecution.host.start()')<start.indexOf('await outboxDispatcher.start()'));
 });
 
 test('clean host serves public health and Admin UI, then requires API key or HttpOnly session', async () => {
@@ -2346,6 +2346,17 @@ test('Windows and Docker artifacts select the service-only clean entrypoint', ()
   assert.match(windows, /cleanHelixSource/);
   assert.doesNotMatch(windows, /^\s*['"]src['"],?\s*$/m);
   assert.doesNotMatch(windows, /media-worker|face-service|19110|ollama/i);
+});
+
+test('service entrypoint accepts explicit isolated Libra and Aftercare Workspace roots', () => {
+  const { runtimeOptions } = require('../../src/server');
+  const options=runtimeOptions({MEDIA_SERVICE_DATA_DIR:'F:/uat/data',MEDIA_SERVICE_ADMIN_DIST_DIR:'F:/uat/admin',
+    LIBRA_WORKSPACE_ROOT:'F:/uat/libra-workspace',ARCA_AFTERCARE_WORKSPACE_ROOT:'F:/uat/aftercare-workspace',
+    FFMPEG_PATH:'F:/tools/ffmpeg.exe',FFPROBE_PATH:'F:/tools/ffprobe.exe',SHELFDECK_SECRET_ROOT:'x'.repeat(32)});
+  assert.equal(options.libraWorkspaceRoot,path.resolve('F:/uat/libra-workspace'));
+  assert.equal(options.aftercareWorkspaceRoot,path.resolve('F:/uat/aftercare-workspace'));
+  assert.equal(options.ffmpegPath,'F:/tools/ffmpeg.exe');
+  assert.equal(options.ffprobePath,'F:/tools/ffprobe.exe');
 });
 
 test.skip('Libra Handoff B is accepted and committed through the Arca execution path', async () => {

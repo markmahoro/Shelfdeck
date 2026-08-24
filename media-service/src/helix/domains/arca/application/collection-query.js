@@ -80,22 +80,33 @@ function createArcaCollectionQuery(options) {
       list_shelves:{kind:'select-all',tableId:'arca_shelves',columns:['shelf_id','name','status'],keyColumns:[]},
       find_entry:{kind:'select-one',tableId:'arca_shelf_entries',columns:['shelf_entry_id','shelf_id','structure_kind','status','canonical_identity_revision','canonical_identity_key','current_inventory_revision','current_deck_fact_revision','created_at_ms','terminal_at_ms'],keyColumns:['shelf_entry_id'],safeIntegers:true},
       find_identity:{kind:'select-one',tableId:'arca_canonical_identity_revisions',columns:['shelf_entry_id','revision','structure_kind','identity_kind','provider','provider_key','identity_digest','committed_at_ms'],keyColumns:['shelf_entry_id','revision'],safeIntegers:true},
+      list_identities:{kind:'select-all',tableId:'arca_canonical_identity_revisions',columns:['shelf_entry_id','revision','structure_kind','identity_kind','provider','provider_key','identity_digest','committed_at_ms'],keyColumns:[],safeIntegers:true},
+      find_identities:{kind:'select-in',tableId:'arca_canonical_identity_revisions',keyColumn:'shelf_entry_id',maxItems:500,columns:['shelf_entry_id','revision','structure_kind','identity_kind','provider','provider_key','identity_digest','committed_at_ms'],safeIntegers:true},
       find_shelf:{kind:'select-one',tableId:'arca_shelves',columns:['shelf_id','name','status','target_root_location'],keyColumns:['shelf_id']},
       list_materials:{kind:'select-all',tableId:'arca_inventory_materials',columns:['shelf_entry_id','inventory_revision','ordinal','material_key','role','endpoint_id','location','size_bytes','active_guard'],keyColumns:['shelf_entry_id','inventory_revision'],safeIntegers:true},
+      list_all_materials:{kind:'select-all',tableId:'arca_inventory_materials',columns:['shelf_entry_id','inventory_revision','ordinal','material_key','role','endpoint_id','location','size_bytes','active_guard'],keyColumns:[],safeIntegers:true},
+      find_materials:{kind:'select-in',tableId:'arca_inventory_materials',keyColumn:'shelf_entry_id',maxItems:500,columns:['shelf_entry_id','inventory_revision','ordinal','material_key','role','endpoint_id','location','size_bytes','active_guard'],safeIntegers:true},
       list_facts:{kind:'select-all',tableId:'arca_inventory_product_facts',columns:['shelf_entry_id','inventory_revision','fact_kind','fact_revision','fact_json','fact_digest'],keyColumns:['shelf_entry_id','inventory_revision'],safeIntegers:true},
+      list_all_facts:{kind:'select-all',tableId:'arca_inventory_product_facts',columns:['shelf_entry_id','inventory_revision','fact_kind','fact_revision','fact_json','fact_digest'],keyColumns:[],safeIntegers:true},
+      find_facts:{kind:'select-in',tableId:'arca_inventory_product_facts',keyColumn:'shelf_entry_id',maxItems:500,columns:['shelf_entry_id','inventory_revision','fact_kind','fact_revision','fact_json','fact_digest'],safeIntegers:true},
       list_people:{kind:'select-all',tableId:'arca_inventory_person_relations',columns:['shelf_entry_id','inventory_revision','person_id','display_name','role','relation_digest'],keyColumns:['shelf_entry_id','inventory_revision'],safeIntegers:true},
+      list_all_people:{kind:'select-all',tableId:'arca_inventory_person_relations',columns:['shelf_entry_id','inventory_revision','person_id','display_name','role','relation_digest'],keyColumns:[],safeIntegers:true},
+      find_people:{kind:'select-in',tableId:'arca_inventory_person_relations',keyColumn:'shelf_entry_id',maxItems:500,columns:['shelf_entry_id','inventory_revision','person_id','display_name','role','relation_digest'],safeIntegers:true},
     }});
   const execute=(participant,body)=>options.unitOfWork.execute([{participantId:participant,owner:'arca',repositories:[repository],execute:body}])[participant];
-  function map(repo,row){if(!row)return null;const identity=repo.invoke('find_identity',{shelf_entry_id:row.shelf_entry_id,revision:Number(row.canonical_identity_revision)});
+  function group(rows,keyOf){const values=new Map();for(const row of rows){const key=keyOf(row),items=values.get(key)||[];items.push(row);values.set(key,items);}return values;}
+  function selectedRows(repo,statement,ids){const rows=[];for(let offset=0;offset<ids.length;offset+=500)rows.push(...repo.invoke(statement,{values:ids.slice(offset,offset+500)}));return rows;}
+  function collectionCaches(repo,entries){const ids=[...new Set(entries.map((row)=>row.shelf_entry_id))].sort();if(!ids.length)return Object.freeze({identities:new Map(),shelves:new Map(),materials:new Map(),facts:new Map(),people:new Map()});return Object.freeze({identities:new Map(selectedRows(repo,'find_identities',ids).map((row)=>[row.shelf_entry_id+':'+Number(row.revision),row])),shelves:new Map(repo.invoke('list_shelves',{}).map((row)=>[row.shelf_id,row])),materials:group(selectedRows(repo,'find_materials',ids),(row)=>row.shelf_entry_id+':'+Number(row.inventory_revision)),facts:group(selectedRows(repo,'find_facts',ids),(row)=>row.shelf_entry_id+':'+Number(row.inventory_revision)),people:group(selectedRows(repo,'find_people',ids),(row)=>row.shelf_entry_id+':'+Number(row.inventory_revision))});}
+  function map(repo,row,caches=null){if(!row)return null;const identity=caches?caches.identities.get(row.shelf_entry_id+':'+Number(row.canonical_identity_revision)):repo.invoke('find_identity',{shelf_entry_id:row.shelf_entry_id,revision:Number(row.canonical_identity_revision)});
     if(!identity)throw new Error('Shelf Entry current Canonical Identity is absent.');
-    const shelf=repo.invoke('find_shelf',{shelf_id:row.shelf_id});
-    const revision=Number(row.current_inventory_revision),facts=repo.invoke('list_facts',{shelf_entry_id:row.shelf_entry_id,inventory_revision:revision}).map((item)=>{
+    const shelf=caches?caches.shelves.get(row.shelf_id):repo.invoke('find_shelf',{shelf_id:row.shelf_id});
+    const revision=Number(row.current_inventory_revision),key=row.shelf_entry_id+':'+revision,facts=(caches?(caches.facts.get(key)||[]):repo.invoke('list_facts',{shelf_entry_id:row.shelf_entry_id,inventory_revision:revision})).map((item)=>{
       try{return Object.freeze({factKind:item.fact_kind,factValue:JSON.parse(item.fact_json),factDigest:item.fact_digest});}catch{throw new Error('Shelf Entry Product Fact is corrupt.');}}),
       metadata=facts.find((item)=>item.factKind==='product_metadata')?.factValue||{},descriptive=new Map((metadata.descriptiveFacts?.entries||[]).map((item)=>[item.key,item.value])),
       genresValue=descriptive.get('genres')??descriptive.get('genre')??[],genres=Array.isArray(genresValue)?genresValue:(typeof genresValue==='string'?genresValue.split(/[,/|]/).map((item)=>item.trim()).filter(Boolean):[]),
-      people=repo.invoke('list_people',{shelf_entry_id:row.shelf_entry_id,inventory_revision:revision})
+      people=(caches?(caches.people.get(key)||[]):repo.invoke('list_people',{shelf_entry_id:row.shelf_entry_id,inventory_revision:revision}))
         .map((item)=>Object.freeze({personId:item.person_id,displayName:item.display_name,role:item.role}));
-    const materials=repo.invoke('list_materials',{shelf_entry_id:row.shelf_entry_id,inventory_revision:revision});
+    const materials=caches?(caches.materials.get(key)||[]):repo.invoke('list_materials',{shelf_entry_id:row.shelf_entry_id,inventory_revision:revision});
     const occupancy=occupancyFromMaterials(materials);
     const spec=videoSpecFromFacts(facts);
     return Object.freeze({shelfEntryId:row.shelf_entry_id,shelfId:row.shelf_id,shelfName:shelf?.name||row.shelf_id,structureKind:row.structure_kind,status:row.status,
@@ -119,8 +130,9 @@ function createArcaCollectionQuery(options) {
       const selected=filterCollectionIndex(index,query);
       const wanted=new Set(selected.map((row)=>row.shelf_entry_id));
       const source=query.shelfId?repo.invoke('list_entries_by_shelf',{shelf_id:query.shelfId}):repo.invoke('list_entries',{});
+      const rows=source.filter((row)=>wanted.has(row.shelf_entry_id)),caches=collectionCaches(repo,rows);
       return Object.freeze({
-        rows:source.filter((row)=>wanted.has(row.shelf_entry_id)).map((row)=>map(repo,row)),
+        rows:rows.map((row)=>map(repo,row,caches)),
         index, shelfRows,
       });
     });

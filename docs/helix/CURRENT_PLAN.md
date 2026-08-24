@@ -4,6 +4,14 @@ Status: Helix-beta 已由 Product Owner 收窄为 **仅 Movie 的全功能版本
 
 Last updated: 2026-08-24
 
+## 0. Current UAT plan — UAT-094–UAT-105 Aftercare internal hardening
+
+Product Owner已明确：不调整SSOT、不改变Domain/Owner/Handoff、不把Aftercare退回Libra，也不抽取共享生产核心；只在Arca Aftercare及其既有Platform/Foundation端口内修复本域缺陷。已完成三路只读深审计，并在UAT台账登记`UAT-094`–`UAT-105`。
+
+关闭顺序固定为：媒体策略与完整符合性（094–095）→ NFO/Poster及Verified Artifact（096–097）→ Basis/Settlement/失败恢复（098–100）→ Progress、异步I/O与Workspace生命周期（101–102）→ Incident/Projection与Startup Gate（103–104）→ 全新真实Canary评分刷新闭环（105，同时完成UAT-092真实资格）。每项先完成反例和专项回归，再进入下一项；不得以一次全量测试替代独立关闭证据。
+
+当前正式工作区为`E:\my_project\emby_third_party-helix`、`main@194d4947d`，服务保持停止。`F:\shelfdeck_test_zone\test_film`为不可变基线；F盘当前空间不足以复制133.95GiB全量基线，最终Canary采用真实字节的选择性副本，所有data/temp/workspace/monitoring均在F盘。远端、NAS生产和旧证据库不在本轮范围。
+
 ## 0. Previous UAT plan — UAT-093 closed
 
 `UAT-093`已完成SSOT、代码与自动化回归：Douban collection页缺year时仍形成Record并推进cursor，不再访问Subject详情；

@@ -1,5 +1,6 @@
 'use strict';
 
+const path = require('node:path');
 const { canonicalDigest } = require('../../../contracts/canonical-json');
 
 const CAPABILITY_REFS = Object.freeze({
@@ -24,6 +25,13 @@ const CASE_STATES = Object.freeze(['active','resolved','invalidated','unresolved
 const DISPOSITIONS = Object.freeze(['observe','auto_repair','attention_required']);
 const ASSESSMENT_KINDS = Object.freeze(['custody','presentation','conformance']);
 const PERIODS = Object.freeze({ custodyMs:24*60*60*1000, deepMs:7*24*60*60*1000, jitterMs:2*60*60*1000 });
+
+function isAftercareArtifactMaterial(item, artifactKind) {
+  const role=String(item?.role||'').toLowerCase(),location=String(item?.location||''),name=path.basename(location).toLowerCase();
+  if(artifactKind==='nfo')return role.includes('nfo')||role==='metadata_sidecar'||path.extname(location).toLowerCase()==='.nfo';
+  if(artifactKind==='poster')return role.includes('poster')||/(^|[-_. ])poster\.(jpg|jpeg|png|webp)$/.test(name);
+  return false;
+}
 
 function physicalIdentityFromInventoryRow(row) {
   const tuple = {
@@ -91,6 +99,103 @@ function deriveInventoryMaterialChanges(materials, receipts) {
     right.identity.materialKey)));
 }
 
+function settlementScopeDigest(handles) {
+  return canonicalDigest((handles || []).map((handle) => Object.freeze({
+    endpointId:handle.endpointId || null,
+    location:String(handle.location || '').replace(/\\/g, '/'),
+    identity:handle.identity,
+    bindingRevision:Number(handle.bindingRevision),
+    mountScopeRevision:Number(handle.mountScopeRevision),
+    readScope:handle.readScope || null,
+    finalLocation:handle.finalLocation ? String(handle.finalLocation).replace(/\\/g, '/') : null,
+    finalMaterialKey:handle.finalMaterialKey || null,
+  })).sort((left, right) => (left.location + ':' + left.identity.materialKey)
+    .localeCompare(right.location + ':' + right.identity.materialKey)));
+}
+
+function aftercareSettlementEventId(workAttemptId) {
+  return 'care-settlement-' + canonicalDigest(workAttemptId).slice(0, 18);
+}
+
+function aftercareServiceCatalogRevision(registry) {
+  const revision = registry?.resolve(CAPABILITY_REFS.settlement, 'arca')?.manifest?.contractVersion;
+  if (!Number.isSafeInteger(revision) || revision < 1) {
+    throw new TypeError('Aftercare Settlement requires the current Service Catalog revision.');
+  }
+  return revision;
+}
+
+function aftercareSettlementApprovalId(value) {
+  return 'arca-care-settlement-approval-' + canonicalDigest({
+    caseId:value.aftercareCaseId,
+    scope:value.settlementScopeDigest,
+    basis:value.careBasisDigest,
+    eventId:value.settlementEventId,
+  }).slice(0, 40);
+}
+
+function buildAftercareSettlementHandles(input) {
+  const handles = [];
+  const context = input.context;
+  const caseId = input.aftercareCaseId;
+  const frozenMaterials = input.frozenMaterials || [];
+  const add = (entry, values) => {
+    const normalizedLocation = String(entry.location || '').replace(/\\/g, '/');
+    if (handles.some((handle) => handle.identity.materialKey === entry.identity.materialKey &&
+        String(handle.location).replace(/\\/g, '/') === normalizedLocation)) return;
+    const base = {
+      schemaRef:'helix://contracts/types/PhysicalMaterialReadHandle/v1', schemaVersion:1,
+      handleId:'arca-care-settlement-' + canonicalDigest({ caseId, location:entry.location }).slice(0, 40),
+      identity:entry.identity, ownerDomain:'arca',
+      ownerScope:Object.freeze({ scopeType:'aftercare_case', scopeId:caseId }), bindingRevision:values.bindingRevision,
+      endpointId:values.endpointId, location:normalizedLocation,
+      mountScopeRevision:Number(context.raw.shelf.target_mount_scope_revision),
+      expectedSizeBytes:entry.identity.sizeBytes, expectedMtimeNs:0, expectedCtimeNs:0,
+      fingerprintVerifiedAtMs:values.fingerprintVerifiedAtMs, readScope:values.readScope,
+      expiresAtMs:Number.MAX_SAFE_INTEGER, ...(values.finalMaterialKey ? {
+        finalMaterialKey:values.finalMaterialKey, finalLocation:values.finalLocation,
+      } : {}),
+    };
+    handles.push(Object.freeze({ ...base, fenceDigest:canonicalDigest(base) }));
+  };
+  for (const receipt of input.receipts || []) {
+    const retired = [
+      ...(receipt.retiredMaterials || []).filter((entry) => entry.requiresSettlement),
+      ...(receipt.supersededLocation && receipt.supersededMaterialIdentity ? [{
+        identity:receipt.supersededMaterialIdentity, location:receipt.supersededLocation,
+      }] : []),
+    ];
+    for (const entry of retired) add(entry, {
+      bindingRevision:1,
+      endpointId:frozenMaterials.find((row) => row.material_key === entry.identity.materialKey)?.endpoint_id ||
+        context.raw.materials.find((row) => row.material_key === entry.identity.materialKey)?.endpoint_id ||
+        receipt.targetEndpointId,
+      fingerprintVerifiedAtMs:receipt.committedAtMs,
+      readScope:'exact_aftercare_settlement',
+    });
+  }
+  for (const observed of input.observedOldBindings || []) {
+    let identity = observed.identity;
+    let final = observed.final;
+    if (observed.kind === 'absent') {
+      identity = physicalIdentityFromInventoryRow(observed.binding);
+      const matches = context.raw.materials.filter((item) =>
+        Number(item.size_bytes) === identity.sizeBytes &&
+        item.fingerprint_algorithm === identity.fingerprintAlgorithm &&
+        Number(item.fingerprint_version) === identity.fingerprintVersion &&
+        item.content_fingerprint === identity.contentFingerprint);
+      final = matches.length === 1 ? matches[0] : null;
+    }
+    if (!identity || !final || !['duplicate_of_final','absent'].includes(observed.kind)) continue;
+    add({ identity, location:observed.binding.location }, {
+      bindingRevision:Number(observed.binding.binding_revision), endpointId:observed.binding.endpoint_id,
+      fingerprintVerifiedAtMs:input.observedAtMs, readScope:'exact_known_old_binding_settlement',
+      finalMaterialKey:final.material_key, finalLocation:final.location,
+    });
+  }
+  return Object.freeze(handles.sort((left, right) => left.identity.materialKey.localeCompare(right.identity.materialKey)));
+}
+
 function stableJitterMs(shelfEntryId) {
   const prefix = canonicalDigest({ schema:'arca.aftercare-jitter@1', shelfEntryId }).slice(0, 12);
   return Number(BigInt('0x' + prefix) % BigInt(PERIODS.jitterMs + 1));
@@ -103,6 +208,13 @@ function latestForBasis(history, careBasisDigest) {
     latest.set(item.assessmentKind, item);
   }
   return latest;
+}
+
+function hasIncompatibleRepairCombination(findings) {
+  const kinds = (findings || []).filter((item) => item?.state === undefined || item.state === 'open')
+    .map((item) => String(item.findingKind || ''));
+  return kinds.includes('conformance:placement_unmet') && kinds.some((kind) =>
+    kind.startsWith('presentation:') || (kind.startsWith('conformance:') && kind !== 'conformance:placement_unmet'));
 }
 
 function projectHealth(context, history, at = Date.now()) {
@@ -124,6 +236,7 @@ function projectHealth(context, history, at = Date.now()) {
       state:assessment?.result || 'never_assessed',
       assessedAtMs:assessment?.assessedAtMs || null,
       evidenceDigest:assessment?.evidenceDigest || null,
+      incidentKey:assessment?.incidentKey || null,
       findings:Object.freeze(assessment ? (findingsByAssessment.get(assessment.assessmentId) || []) : []),
     })];
   }));
@@ -131,6 +244,7 @@ function projectHealth(context, history, at = Date.now()) {
   const all = Object.values(dimensions);
   if (activeCase) state = 'repairing';
   else if (latestCase?.state === 'unresolved') state = 'attention_required';
+  else if (hasIncompatibleRepairCombination(all.flatMap((item) => item.findings))) state = 'attention_required';
   else if (all.some((item) => item.findings.some((finding) => finding.repairability === 'attention_required'))) state = 'attention_required';
   else if (all.some((item) => item.state === 'not_assessable' || item.findings.some((finding) => finding.repairability === 'observe'))) state = 'observing';
   else if (all.every((item) => item.state === 'healthy')) state = 'healthy';
@@ -145,6 +259,7 @@ function projectHealth(context, history, at = Date.now()) {
 
 function dispositionFromAssessments(assessments) {
   const findings = assessments.flatMap((item) => item.findings || []);
+  if (hasIncompatibleRepairCombination(findings)) return 'attention_required';
   if (findings.some((item) => item.repairability === 'attention_required')) return 'attention_required';
   if (findings.length && findings.every((item) => item.repairability === 'auto_repair')) return 'auto_repair';
   return findings.length ? 'observe' : 'observe';
@@ -152,4 +267,7 @@ function dispositionFromAssessments(assessments) {
 
 module.exports = Object.freeze({ CAPABILITY_REFS, HEALTH_STATES, CASE_STATES, DISPOSITIONS,
   ASSESSMENT_KINDS, PERIODS, stableJitterMs, projectHealth, dispositionFromAssessments,
-  physicalIdentityFromInventoryRow, deriveInventoryMaterialChanges });
+  hasIncompatibleRepairCombination,
+  physicalIdentityFromInventoryRow, deriveInventoryMaterialChanges, settlementScopeDigest,
+  isAftercareArtifactMaterial, aftercareSettlementEventId, aftercareServiceCatalogRevision, aftercareSettlementApprovalId,
+  buildAftercareSettlementHandles });

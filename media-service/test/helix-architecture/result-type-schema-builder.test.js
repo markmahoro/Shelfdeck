@@ -30,6 +30,8 @@ test('freezes the normalized media probe raster and bounded stream contract', ()
     assert.ok(video.required.includes(field));
   }
   assert.equal(schema.properties.videoStreams.maxItems, 64);
+  assert.equal(schema.properties.audioStreams.items.properties.bitRateBps.minimum, 1);
+  assert.equal(schema.properties.audioStreams.items.required.includes('bitRateBps'), false);
 });
 
 test('freezes FA-04 continuity kinds and non-empty Primary Input membership', () => {

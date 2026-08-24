@@ -8,6 +8,14 @@ import './collection.css';
 
 const healthFilters: [HealthState | 'all', string][] = [['all', '全部'], ['healthy', '健康'], ['observing', '观察中'], ['repairing', '修复中'], ['attention_required', '需要处理'], ['never_assessed', '尚未检查']];
 const dimensionLabels = { custody: '保管', presentation: '呈现', conformance: '合规' };
+const careStageLabels: Record<string, string> = { preparing: '正在准备修复', preparing_media: '正在处理媒体', committing_inventory: '正在更新收藏', reassessing: '正在复核结果', waiting_for_recovery: '等待自动恢复' };
+const terminalReasonLabels: Record<string, string> = {
+  care_basis_changed: '收藏依据已变化，本次修复已停止', modification_fenced: '条目正在执行其他变更，本次修复已停止',
+  provider_artifact_not_available: '所需资料暂时无法取得', media_verification_failed: '处理后的媒体未通过复核',
+  repair_preparation_exhausted: '材料准备多次失败', repair_commit_exhausted: '收藏更新多次失败',
+  settlement_or_commit_failed: '收藏更新或原材料收尾失败', reassessment_exhausted: '结果复核多次失败',
+  reassessment_not_healthy: '修复完成后仍未达到收藏要求', case_closure_exhausted: '修复结果未能完成登记',
+};
 
 function formatBytes(value: number | null | undefined) {
   if (value == null || !Number.isFinite(value)) return '—';
@@ -58,15 +66,34 @@ export default function CollectionPage() {
   }, [selected]);
   useEffect(() => {
     setCare(null);
-    if (selected) void helixAdminApi.getCare(selected.shelfEntryId).then(setCare).catch((cause) => {
-      if (isUnauthorized(cause)) expire();
-      else setError(cause instanceof Error ? cause.message : '健康详情读取失败。');
-    });
+    if (!selected) return;
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const refresh = async () => {
+      let nextDelayMs = 15_000;
+      try {
+        const next = await helixAdminApi.getCare(selected.shelfEntryId);
+        if (!cancelled) {
+          setCare(next);
+          nextDelayMs = next.activeCaseProgress ? 2_000 : 15_000;
+        }
+      } catch (cause) {
+        if (cancelled) return;
+        if (isUnauthorized(cause)) expire();
+        else setError(cause instanceof Error ? cause.message : '健康详情读取失败。');
+      } finally {
+        if (!cancelled) timer = setTimeout(() => void refresh(), nextDelayMs);
+      }
+    };
+    void refresh();
+    return () => { cancelled = true; if (timer) clearTimeout(timer); };
   }, [expire, selected]);
   const filtered = items;
   const selectedShelf = shelves.find((item) => item.shelfId === shelfId);
   const currentCount = selectedShelf ? selectedShelf.currentCount : summary.currentCount;
   const historyCount = selectedShelf ? selectedShelf.historyCount : summary.historyCount;
+  const latestTerminalCase = care?.history.cases.filter((item) => ['invalidated', 'unresolved'].includes(item.state) && item.terminalAtMs != null)
+    .sort((left, right) => Number(right.terminalAtMs) - Number(left.terminalAtMs))[0] || null;
   async function checkHealth() {
     if (!selected) return;
     setChecking(true); setError('');
@@ -132,7 +159,8 @@ export default function CollectionPage() {
             </div>
             {!care ? <p className="health-loading">正在读取健康详情…</p> : <>
               <div className="health-dimensions">{(['custody', 'presentation', 'conformance'] as const).map((kind) => <article key={kind}><strong>{dimensionLabels[kind]}</strong><span>{healthLabels[care.health.dimensions?.[kind]?.state || 'never_assessed']}</span><small>{care.health.dimensions?.[kind]?.assessedAtMs ? new Date(care.health.dimensions[kind].assessedAtMs!).toLocaleString() : '尚未检查'}</small></article>)}</div>
-              {care.activeCaseProgress && <div className="health-case-progress"><div><strong>自动修复进行中</strong><span>{care.activeCaseProgress.progressPercent}%</span></div><progress max="100" value={care.activeCaseProgress.progressPercent} aria-label={`自动修复进度 ${care.activeCaseProgress.progressPercent}%`} /></div>}
+               {care.activeCaseProgress && <div className="health-case-progress"><div><strong>自动修复进行中</strong><span>{care.activeCaseProgress.progressPercent == null ? (careStageLabels[care.activeCaseProgress.stage] || '处理中') : `${care.activeCaseProgress.progressPercent}%`}</span></div>{care.activeCaseProgress.progressPercent != null && <progress max="100" value={care.activeCaseProgress.progressPercent} aria-label={`自动修复进度 ${care.activeCaseProgress.progressPercent}%`} />}</div>}
+               {!care.activeCaseProgress && latestTerminalCase?.terminalReasonCode && <div className="health-findings"><strong>最近一次自动修复未完成</strong><p>{terminalReasonLabels[latestTerminalCase.terminalReasonCode] || `原因：${latestTerminalCase.terminalReasonCode}`}</p></div>}
               {care.history.findings.filter((item) => item.state === 'open').length > 0 && <div className="health-findings"><strong>当前发现</strong>{care.history.findings.filter((item) => item.state === 'open').map((item) => <p key={item.findingId}>{item.findingKind}</p>)}</div>}
               <details><summary>技术标识</summary><p className="health-basis">条目 {selected.shelfEntryId}</p></details>
             </>}

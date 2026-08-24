@@ -695,7 +695,7 @@
       "relativePath": "types/MediaProbeEvidence/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "d40b98325103fb5d8b36100076655c0cdb6fcaaac2aa738c783c804ba595664a"
+        "value": "3faae10b07cbe7817fa89c56b12f10634e92306282b66370864f8550fe5a62d1"
       },
       "source": {
         "section": "8.6.19",

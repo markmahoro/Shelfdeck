@@ -33,6 +33,12 @@ function fail(code, message, details) {
   throw new CleanArcaInventoryPortError(code, message, details);
 }
 
+function requireContinuation(request) {
+  if (typeof request?.shouldContinue === 'function' && request.shouldContinue() === false) {
+    fail('CLEAN_ARCA_EFFECT_FENCED', 'Inventory effect lost its current modification authority.');
+  }
+}
+
 function managedSourceLocations(request) {
   return new Set((request?.onDeckProductPackage?.offloadContextManifest?.members || [])
     .map((item) => path.resolve(String(item.location || '')))
@@ -1030,6 +1036,7 @@ function createCleanArcaInventoryPort(options) {
 
   async function stage(request) {
     const built = await buildPlanAsync(request);
+    requireContinuation(request);
     const handle = slotHandle(request);
     if (!request?.targetCommitSlotHandle ||
         canonicalJson(request.targetCommitSlotHandle) !== canonicalJson(handle)) {
@@ -1039,6 +1046,7 @@ function createCleanArcaInventoryPort(options) {
     prepareSlot(request);
     const stagedMembers = [];
     for (const plan of built.plans) {
+      requireContinuation(request);
       const target = path.resolve(handle.slotDirectory, plan.name);
       if (!contained(handle.slotDirectory, target)) {
         fail('CLEAN_ARCA_TARGET_ESCAPE',
@@ -1086,6 +1094,7 @@ function createCleanArcaInventoryPort(options) {
           throw error;
         }
       }
+      requireContinuation(request);
       const observed = finalExact
         ? finalExisting : await computeFingerprint(target);
       const identityBase = {
@@ -1122,6 +1131,7 @@ function createCleanArcaInventoryPort(options) {
         Buffer.from(right.sourceMaterialKey)) ||
       Buffer.compare(Buffer.from(left.physicalIdentity.materialKey),
         Buffer.from(right.physicalIdentity.materialKey)));
+    requireContinuation(request);
     const membersDigest = canonicalDigest({
       schema: 'arca.staged-inventory-members@1',
       items: stagedMembers,
@@ -1149,6 +1159,7 @@ function createCleanArcaInventoryPort(options) {
 
   async function verifyStaged(request) {
     const manifest = request?.stagedInventoryManifest;
+    requireContinuation(request);
     const handle = slotHandle(request);
     if (!manifest || manifest.targetCommitSlotId !== handle.slotId ||
         manifest.sourceProductManifestDigest !==
@@ -1158,6 +1169,7 @@ function createCleanArcaInventoryPort(options) {
     }
     const observed = [];
     for (const member of manifest.stagedMembers) {
+      requireContinuation(request);
       const finalLocation = path.resolve(member.location);
       if (!contained(handle.targetDirectory, finalLocation)) {
         fail('CLEAN_ARCA_STAGE_SLOT_ESCAPE',
@@ -1176,6 +1188,7 @@ function createCleanArcaInventoryPort(options) {
         fail('CLEAN_ARCA_STAGED_REALITY_DRIFT',
           'Staged member bytes drifted before placement.');
       }
+      requireContinuation(request);
       observed.push(member);
     }
     const basisDigest = canonicalDigest({ manifest, observed });
@@ -1210,6 +1223,7 @@ function createCleanArcaInventoryPort(options) {
       fail('CLEAN_ARCA_PLACEMENT_UNVERIFIED',
         'Placement switch requires exact passed staging verification.');
     }
+    requireContinuation(request);
     if (fs.existsSync(handle.targetDirectory) &&
         !fs.statSync(handle.targetDirectory).isDirectory()) {
       fail('CLEAN_ARCA_TARGET_OCCUPIED',

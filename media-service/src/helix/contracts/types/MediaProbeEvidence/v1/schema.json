@@ -303,6 +303,10 @@
             "type": "string",
             "minLength": 1
           },
+          "bitRateBps": {
+            "type": "integer",
+            "minimum": 1
+          },
           "formatTags": {
             "type": "array",
             "items": {

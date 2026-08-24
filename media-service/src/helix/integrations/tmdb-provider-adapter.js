@@ -13,6 +13,7 @@ const SUPPORTED_OPERATIONS = new Set([
   'libra.product_identity.evidence.observe@1',
   'libra.product_metadata.fetch@1',
   'libra.product_artifact.acquire@1',
+  'arca.aftercare.binary_artifact.acquire@1',
 ]);
 const JSON_RESPONSE_MAX_BYTES = 1024 * 1024;
 const ARTIFACT_RESPONSE_MAX_BYTES = 16 * 1024 * 1024;
@@ -1201,8 +1202,8 @@ function createTmdbProviderAdapter(options) {
 
   const observationPort = ExternalProviderObservationPort({
     execute(request) {
-      if (request?.operationId ===
-          'libra.product_artifact.acquire@1') {
+      if (['libra.product_artifact.acquire@1',
+        'arca.aftercare.binary_artifact.acquire@1'].includes(request?.operationId)) {
         fail(
           'PLATFORM_TMDB_EFFECT_CLASS_MISMATCH',
           'TMDB Artifact acquisition requires the workspace-write port.',
@@ -1213,11 +1214,11 @@ function createTmdbProviderAdapter(options) {
   });
   const artifactPort = ExternalProviderArtifactPort({
     execute(request) {
-      if (request?.operationId !==
-          'libra.product_artifact.acquire@1') {
+      if (!['libra.product_artifact.acquire@1',
+        'arca.aftercare.binary_artifact.acquire@1'].includes(request?.operationId)) {
         fail(
           'PLATFORM_TMDB_EFFECT_CLASS_MISMATCH',
-          'TMDB Artifact port accepts only the workspace-write operation.',
+          'TMDB Artifact port accepts only workspace-write artifact operations.',
         );
       }
       return execute(request);

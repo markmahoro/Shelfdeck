@@ -118,6 +118,7 @@ function createEventRuntime(options) {
       typeof options.attemptPolicy.decideFailure !== 'function' || typeof options.attemptPolicy.decideDeferred !== 'function' ||
       !options.timeoutController || typeof options.timeoutController.execute !== 'function' ||
       !options.circuitBreaker || typeof options.circuitBreaker.allows !== 'function' ||
+      (options.incidentObserver && typeof options.incidentObserver.prepareExecution !== 'function') ||
       !options.whenEvaluator || typeof options.whenEvaluator.evaluate !== 'function' ||
       requiredFunctions.some((name) => typeof options[name] !== 'function')) fail(
     'P4_EVENT_RUNTIME_DEPENDENCIES_REQUIRED', 'Event Runtime requires exact persistence, scheduler, Governor, Registry, Dispatcher, typed providers, IDs, and clock.'
@@ -551,7 +552,7 @@ function createEventRuntime(options) {
         eventId: request.eventId, eventAttemptId: attempt.event_attempt_id, now: clock });
       Object.defineProperty(context, 'reportProgress', {
         configurable: false, enumerable: false, writable: false,
-        value: (sample) => { const result=progressReporter.report(sample); options.onProgress?.(Object.freeze({
+        value: (sample) => { const result=progressReporter.report(sample);if(result.sampled)options.onProgress?.(Object.freeze({
           ownerDomain:snapshot.work.owner_domain,processType:snapshot.work.process_type,processId:snapshot.work.process_id,
           workId:snapshot.work.work_id,eventId:request.eventId })); return result; }
       });
@@ -694,6 +695,11 @@ function createEventRuntime(options) {
         }
         demand = options.resourceDemandResolver.resolve(Object.freeze({ snapshot, inputs }));
         if (!demand || demand.eventId !== eventId) fail('P4_EVENT_RESOURCE_DEMAND_BINDING_MISMATCH', 'Resolved Resource Demand must bind the current Event.');
+        if(options.incidentObserver){const decision=options.incidentObserver.prepareExecution(Object.freeze({
+          ownerDomain:snapshot.work.owner_domain,processType:snapshot.work.process_type,workKind:snapshot.work.work_kind,
+          workId:snapshot.work.work_id,resourceKeys:Object.freeze(demand.resources.map((item)=>item.resourceKey))}));
+          if(!decision?.allowed){options.scheduler.release(request.schedulerLease);schedulerReleased=true;return Object.freeze({kind:'circuit_deferred',eventId,
+            circuitKey:decision?.circuitKey||null,reason:decision?.reason||'incident_circuit_open'});}}
         promoteExternalWaitToReady(snapshot);
         resourceRequestedAtMs = clock();
         const acquired = options.governor.acquire(demand);
@@ -747,7 +753,7 @@ function createEventRuntime(options) {
         // CapabilityExecutionContext contract stays unchanged.
         Object.defineProperty(context, 'reportProgress', {
           configurable: false, enumerable: false, writable: false,
-          value: (sample) => { const result=progressReporter.report(sample); options.onProgress?.(Object.freeze({
+          value: (sample) => { const result=progressReporter.report(sample);if(result.sampled)options.onProgress?.(Object.freeze({
             ownerDomain:snapshot.work.owner_domain,processType:snapshot.work.process_type,processId:snapshot.work.process_id,
             workId:snapshot.work.work_id,eventId })); return result; }
         });
