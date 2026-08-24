@@ -167,7 +167,7 @@ User Perception全面取消year关联校验，year仅作为资料保存/展示�
 | UAT-090 | Resource软等待滚动写、后台饥饿与终态Intake重扫形成持续高CPU和SQLite写放大 | `PERFORMANCE` | `EXECUTION_SCHEDULING`、`RECOVERY_CORRECTNESS` | Foundation Governor/Scheduler + Libra Intake fallback reconcile | 可用性、吞吐、恢复正确性 | Critical | `FACT/PERFORMANCE/RESTART PASSED / CLOSED` |
 | UAT-091 | Process Work取消未同步终结Resource Defer，导致下一次服务启动被一致性检查阻断 | `RECOVERY_CORRECTNESS` | `EXECUTION_SCHEDULING`、`OPERATIONAL_SAFETY` | Foundation Work Lifecycle + Resource Governor + Startup Recovery | 可恢复性、原子性、服务可用性 | Critical | `FACT/RESTART PASSED / CLOSED` |
 | UAT-092 | 原NFO缺少演员时Libra误判Metadata已齐全，既不向TMDB补演员也不能把新演员写入NFO，最终在内部符合性验收冻结 | `BUSINESS_CONTRACT` | `DOMAIN_ORCHESTRATION`、`EXTERNAL_INTEGRATION` | Libra Metadata Planning + Media Cast + NFO Sidecar + Product Conformance | 正确性、活性、信息完整性 | Critical | `CODE/REGRESSION PASSED / REAL CANARY PENDING` |
-| UAT-093 | Douban列表缺year时强制访问Subject详情，单条404阻断整库同步；year关联校验复杂度高且收益低 | `BUSINESS_CONTRACT` | `EXTERNAL_INTEGRATION`、`RECOVERY_CORRECTNESS`、`PROJECTION_FRESHNESS` | Perception Acquisition + Resolution + Acceptance Spec | 完整性、活性、规则可理解性 | Critical | `CODE/REGRESSION PASSED / LIVE CURSOR PENDING` |
+| UAT-093 | Douban列表缺year时强制访问Subject详情，单条404阻断整库同步；year关联校验复杂度高且收益低 | `BUSINESS_CONTRACT` | `EXTERNAL_INTEGRATION`、`RECOVERY_CORRECTNESS`、`PROJECTION_FRESHNESS` | Perception Acquisition + Resolution + Acceptance Spec | 完整性、活性、规则可理解性 | Critical | `FACT/RESTART PASSED / CLOSED` |
 
 ### 2.0.1 UAT-074–UAT-084必须保护的历史修复
 
@@ -3287,7 +3287,11 @@ Provider/Target强身份、值冲突、幂等、断点续传和Acceptance Spec�
 完整Service`npm test`为320 pass / 18 skip / 0 fail。自动化证明缺year时只发collection请求、Record拥有title而无`title_year`也合法；
 历史`title_year` Record可与不同year的同名Subject形成title-only found。所有TEMP/TMP/TMPDIR均位于F盘保留运行的`temp-uat093`。
 
-当前处理决定：`CODE/REGRESSION PASSED / LIVE CURSOR PENDING`。尚未在保留真实账号现场重启新代码并证明cursor越过435。
+关闭确认（2026-08-24）：保留现场未经SQLite修改，从上一版全部终态Execution Plan安全恢复到当前Catalog；未知Catalog或任一
+非终态Attempt/Event仍保持fail-closed。使用既有真实账号再次同步，Acquisition从cursor 435连续提交75页，最终Record总数1547、
+cursor revision 104并进入terminal complete。《网诱惊魂》Record合法提交强`provider_identity`和中等`title` Anchor，没有
+`title_year`；未再因Subject详情404失败。SQLite integrity为ok，服务health ok / `normalSupplyAllowed=true`。
+状态`FACT/RESTART PASSED / CLOSED`。
 
 ## 91. 后续问题模板
 

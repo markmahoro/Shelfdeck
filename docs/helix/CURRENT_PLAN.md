@@ -4,15 +4,15 @@ Status: Helix-beta 已由 Product Owner 收窄为 **仅 Movie 的全功能版本
 
 Last updated: 2026-08-24
 
-## 0. Current UAT plan — UAT-093 live cursor qualification pending
+## 0. Previous UAT plan — UAT-093 closed
 
 `UAT-093`已完成SSOT、代码与自动化回归：Douban collection页缺year时仍形成Record并推进cursor，不再访问Subject详情；
 Perception Resolution Rule revision 3使用明确Provider/Target Anchor后退到规范化title exact，year只保存/展示。历史
 `title_year`事实通过可重建Projection参与title关联，旧Record不修改。专项84/84与完整Service 320 pass / 18 skip / 0 fail。
 
-剩余关闭动作：在保留现场安全重启当前HEAD，不修改SQLite，使用既有配置再次同步并证明revision 29 / cursor 435至少推进到450；
-同时核对《网诱惊魂》Record合法提交、没有Subject详情请求造成的失败、Acquisition/Work/Event终态与SQLite integrity。完成前状态保持
-`CODE/REGRESSION PASSED / LIVE CURSOR PENDING`。
+关闭结果：保留现场未经SQLite修改安全恢复并使用既有配置续传；真实Acquisition从cursor 435完成75页，最终Record 1547、
+cursor revision 104、terminal complete。《网诱惊魂》Record合法提交`provider_identity + title` Anchor且没有`title_year`；
+SQLite integrity为ok，服务保持ready。状态`FACT/RESTART PASSED / CLOSED`，没有剩余UAT-093动作。
 
 ## 0. Current UAT plan — UAT-092 real Canary pending
 

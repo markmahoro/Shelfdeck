@@ -664,3 +664,12 @@
 
 - 关闭结论：受控重启发现已cancelled Remux Event遗留两条waiting Resource Defer；commit `0bc45ed98`将取消收口纳入同一事务，并以有审计、可回滚的确定性修复处理历史终态集合。未经手工改库，同一失败库恢复health ok / `normalSupplyAllowed=true`。
 - 两条Defer均为cancelled、Event retry为NULL；terminal/orphan waiting defer、duplicate Effect、committed Effect + executing Attempt均为0，SQLite integrity为ok。状态`FACT/RESTART PASSED / CLOSED`。
+
+## 11. Post-closure qualification UAT-093（2026-08-24）
+
+### UAT-093（`PASS`）
+
+- 关闭命题：Douban collection行缺year时不得访问Subject详情或阻断分页；User Perception评分关联全面取消year门禁，year仅保存和展示。
+- CODE/REGRESSION：Resolution Rule revision 3按明确Provider/Target Anchor优先、规范化title exact兜底；同强度不同评分仍fail-closed。专项84/84，完整Service 320 pass / 18 skip / 0 fail。
+- FACT/RESTART：保留SQLite未经修改安全恢复；真实Acquisition从cursor 435完成75页，Record总数1547、cursor revision 104、terminal complete。《网诱惊魂》提交`provider_identity + title`且无`title_year`；SQLite integrity为ok，服务health ok / `normalSupplyAllowed=true`。
+- 关闭结论：状态`FACT/RESTART PASSED / CLOSED`。本项为Integration与业务规则闭环，不伪造未取得的Settings或Formation页面截图。

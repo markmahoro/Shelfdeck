@@ -4,7 +4,7 @@ Status: Helix-beta 范围已收窄为仅 Movie 全链路。Movie Procurement与M
 
 Last updated: 2026-08-24
 
-## 0. Current UAT qualification — UAT-093 code and regression passed
+## 0. Current UAT qualification — UAT-093 closed
 
 2026-08-24保留环境的Douban同步在revision 29 / cursor 435正确续传，但collection第30页《网诱惊魂》的列表行没有year；
 旧Adapter为补year强制请求Subject详情并得到404，令整页三次失败且Record保持435。Product Owner确认year关联校验的收益低于其
@@ -14,8 +14,11 @@ Last updated: 2026-08-24
 实现把Perception Resolution Rule提升为revision 3，明确Provider/Target Anchor优先，最后使用规范化title exact；不同评分的
 同强度Record仍`not_found`，不引入fuzzy或第一项选择。历史immutable `title_year` Anchor通过可重建title Projection参与新规则，
 不改旧Record。Douban Adapter不再为year/alias访问Subject详情。专项84/84与完整Service`npm test` 320 pass / 18 skip / 0 fail；
-所有测试临时目录均在保留运行的F盘`temp-uat093`。当前状态`CODE/REGRESSION PASSED / LIVE CURSOR PENDING`，尚未重启当前服务并
-证明真实cursor从435推进。
+所有测试临时目录均在保留运行的F盘`temp-uat093`。
+
+保留现场未经SQLite修改，从上一版全部终态Plan安全恢复到当前Catalog；真实Acquisition从cursor 435续传，最终完成75页、
+Record总数1547、cursor revision 104并进入terminal。缺year的《网诱惊魂》合法提交`provider_identity + title` Anchor且无
+`title_year`，SQLite integrity为ok，服务保持health ok / `normalSupplyAllowed=true`。当前状态`FACT/RESTART PASSED / CLOSED`。
 
 ## 0. Current UAT qualification — UAT-092 code and regression passed
 
