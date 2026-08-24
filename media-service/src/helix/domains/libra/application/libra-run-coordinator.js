@@ -74,6 +74,26 @@ function definitionForReplay(work, existing) {
     : work;
 }
 
+function unresolvedMetadataTerminal(metadataStage) {
+  if (metadataStage?.kind !== 'unresolved') {
+    throw new TypeError('Product Metadata terminal selection requires an unresolved stage.');
+  }
+  const providerResults = (metadataStage.results || []).filter((item) =>
+    item?.result?.sourceKind === 'provider');
+  if (providerResults.length !== 1) {
+    throw new Error('Unresolved Product Metadata must bind exactly one durable Provider Result.');
+  }
+  const resultRecord = providerResults[0];
+  if (typeof resultRecord.sourceWorkId !== 'string' || !resultRecord.sourceWorkId) {
+    throw new Error('Unresolved Product Metadata Provider Result lacks its durable Work identity.');
+  }
+  return Object.freeze({
+    work: Object.freeze({ workId:resultRecord.sourceWorkId }),
+    resultRecord,
+    failureCode: metadataStage.reasonCode,
+  });
+}
+
 function createLibraRunCoordinator(options){
   if(!options?.movieProductionReader||!options.workResultReader||!options.workspaceProductPort)
     throw new TypeError('Libra Run Coordinator requires Owner facts, Foundation results, and Workspace projection.');
@@ -402,11 +422,14 @@ function createLibraRunCoordinator(options){
         throw new Error('Terminal Product Identity Work did not atomically publish its Product Fact.');
     }
     const metadataStage=nextMetadataStage(options,snapshot,committed);
-    if(metadataStage.kind==='unavailable'||metadataStage.kind==='unresolved')return Object.freeze({
-      kind:metadataStage.kind==='unavailable'?'waiting_external_integration':'product_metadata_unresolved',
-      phase:'product_metadata_observation',libraRunId,reasonCode:metadataStage.reasonCode,
-      missingFields:metadataStage.missingFields,
+    if(metadataStage.kind==='unavailable')return Object.freeze({
+      kind:'waiting_external_integration', phase:'product_metadata_observation',libraRunId,
+      reasonCode:metadataStage.reasonCode, missingFields:metadataStage.missingFields,
       missingCastRoles:metadataStage.missingCastRoles});
+    if(metadataStage.kind==='unresolved'){
+      const terminal=unresolvedMetadataTerminal(metadataStage);
+      return freezeBusinessTerminal(snapshot,terminal.work,terminal.resultRecord,terminal.failureCode);
+    }
     if(metadataStage.kind==='source'){
       const work=metadataObservationWork(snapshot,metadataStage.source),submitted=submit(work),
         status=options.workResultReader.status(work.workId);
@@ -494,7 +517,7 @@ function createLibraRunCoordinator(options){
   return Object.freeze({reconcile});
 }
 
-module.exports=Object.freeze({createLibraRunCoordinator,definitionForReplay,identityObservationWork,identityCommitWork,metadataObservationWork,artifactWork,productFactWork,
+module.exports=Object.freeze({createLibraRunCoordinator,definitionForReplay,unresolvedMetadataTerminal,identityObservationWork,identityCommitWork,metadataObservationWork,artifactWork,productFactWork,
   sourceMediaObservationWork,directMediaSelectionWork,remuxMediaSelectionWork,transcodeMediaSelectionWork,
   transcodeStrategyAssessmentWork,
   externalSearchSelectionWork,externalAcquireVerificationWork,externalImportSelectionWork});

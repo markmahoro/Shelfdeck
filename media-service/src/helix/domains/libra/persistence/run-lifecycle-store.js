@@ -1436,10 +1436,16 @@ function assertTerminalEvidence(repo, decision, run, resolveRetryPolicyDigest) {
           ...(Array.isArray(payload.unmetRequirementCodes)
             ? payload.unmetRequirementCodes : []),
         ].filter(Boolean);
+        const actorMissing = member.failureCode === "product_metadata_required_cast_missing" &&
+          member.capabilityRef === "libra.product_metadata.fetch@1" &&
+          payload.sourceKind === "provider" &&
+          Array.isArray(payload.peopleHints) &&
+          !payload.peopleHints.some((item) => item?.role === "actor" &&
+            typeof item.displayName === "string" && item.displayName);
         businessResultValid = boundResult.outcome_kind === "succeeded" &&
           canonicalDigest(payload) === boundResult.result_digest &&
           boundResult.result_digest === member.terminalEvidenceDigest &&
-          reasons.includes(member.failureCode);
+          (reasons.includes(member.failureCode) || actorMissing);
       } catch {
         businessResultValid = false;
       }

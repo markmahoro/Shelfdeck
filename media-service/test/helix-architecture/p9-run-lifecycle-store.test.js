@@ -59,6 +59,40 @@ test('freezes from a terminal succeeded Work only when its durable typed Result 
   assert.equal(result.committedState,'frozen');
 }));
 
+test('freezes a zero-cast Run from the succeeded Metadata Provider Result without converting it to executor failure',()=>fixture((input)=>{
+  const capabilityRef='libra.product_metadata.fetch@1',workId='metadata-provider-work',planId='metadata-provider-plan',
+    eventId='metadata-provider-event',workBasisDigest=D('metadata-provider-basis'),retryPolicyDigest=D('metadata-provider-retry'),
+    selectedResult={sourceKind:'provider',peopleHints:[],descriptiveFacts:{entries:[]}},resultDigest=canonicalDigest(selectedResult),db=new Database(input.databasePath);
+  db.prepare('INSERT INTO fx_supporting_works (work_id,owner_domain,process_type,process_id,work_kind,basis_digest,priority_class,state,idempotency_key,created_at_ms,updated_at_ms) VALUES (?,?,?,?,?,?,?,?,?,?,?)')
+    .run(workId,'libra','libra_run',input.libraRunId,'product_metadata_observation',workBasisDigest,'normal','succeeded','metadata-provider-key',1,2);
+  db.prepare('INSERT INTO fx_workflow_plans (plan_id,attempt_id,planner_ref,planner_version,catalog_digest,basis_digest,graph_digest,state,created_at_ms) VALUES (?,?,?,?,?,?,?,?,?)')
+    .run(planId,null,'planner',1,D('catalog'),workBasisDigest,D('graph'),'planned',1);
+  db.prepare('INSERT INTO fx_workflow_events (event_id,plan_id,node_id,work_id,attempt_id,owner_domain,capability_ref,contract_version,state,priority_class,result_id) VALUES (?,?,?,?,?,?,?,?,?,?,?)')
+    .run(eventId,planId,'node-1',workId,null,'libra',capabilityRef,1,'succeeded','normal','external-selection-result');
+  db.prepare('INSERT INTO fx_event_attempts (event_attempt_id,event_id,ordinal,state,outcome_kind,started_at_ms,finished_at_ms) VALUES (?,?,?,?,?,?,?)')
+    .run('external-selection-attempt',eventId,1,'completed','succeeded',1,2);
+  db.prepare('INSERT INTO fx_event_result_bindings (result_id,event_id,outcome_kind,result_schema_ref,result_json,result_digest,committed_at_ms) VALUES (?,?,?,?,?,?,?)')
+    .run('external-selection-result',eventId,'succeeded','helix://contracts/capabilities/libra.product_metadata.fetch/v1/result',canonicalJson(selectedResult),resultDigest,2);
+  db.close();
+  const store=createRunLifecycleStore({schemaManifest,unitOfWork:input.unitOfWork,
+    resolveRetryPolicyDigest:(ref)=>ref===capabilityRef?retryPolicyDigest:null}),built=store.buildTerminalEvidence({
+      libraRunId:input.libraRunId,workId,blockerKind:'product_unachievable',assessedAtMs:2000,
+    terminalResult:{eventId,failureClass:'business_unachievable',failureCode:'product_metadata_required_cast_missing',resultDigest}});
+  assert.equal(built.kind,'terminal_evidence');
+  assert.equal(built.evidence.blockedWorks[0].failureClass,'business_unachievable');
+  assert.equal(built.evidence.blockedWorks[0].failureCode,'product_metadata_required_cast_missing');
+  assert.equal(built.evidence.blockedWorks[0].terminalEvidenceDigest,resultDigest);
+  const result=store.transition({decision:lifecycleDecision(input,built.evidence,'freeze'),
+    commitMarker:'business-terminal-marker',resultId:'business-terminal-result'}).result;
+  assert.equal(result.committedState,'frozen');
+  const check=new Database(input.databasePath,{readonly:true});
+  assert.equal(check.prepare('SELECT state FROM fx_supporting_works WHERE work_id=?').get(workId).state,'succeeded');
+  assert.equal(check.prepare('SELECT state FROM libra_runs WHERE libra_run_id=?').get(input.libraRunId).state,'frozen');
+  const evidence=JSON.parse(check.prepare('SELECT transition_evidence_json FROM libra_run_revisions WHERE libra_run_id=? ORDER BY state_revision DESC LIMIT 1').get(input.libraRunId).transition_evidence_json);
+  assert.equal(evidence.blockedWorks[0].failureCode,'product_metadata_required_cast_missing');
+  check.close();
+}));
+
 test('published Package custody drift rejects a non-complete transition with zero writes',()=>fixture((input)=>{const onDeckPackageId='package-custody',packageDigest=D('custody-package'),offerId=canonicalDigest({schema:'libra.product-offer-id@1',onDeckPackageId,packageDigest}),db=new Database(input.databasePath);db.prepare('INSERT INTO libra_product_packages (on_deck_package_id,offer_id,package_revision,libra_run_id,package_digest,state,published_at_ms) VALUES (?,?,?,?,?,?,?)').run(onDeckPackageId,offerId,1,input.libraRunId,packageDigest,'published',2);db.prepare('INSERT INTO libra_product_package_materials (on_deck_package_id,ordinal,material_key,committed_control_revision,committed_control_projection_digest,member_digest) SELECT ?,0,material_key,2,?,? FROM libra_run_material_members LIMIT 1').run(onDeckPackageId,D('committed-control'),D('package-member'));db.prepare("UPDATE fx_material_controls SET owner_domain='arca',owner_scope_type='on_deck',owner_scope_id='other-custody'").run();db.close();const intent={libraRunId:input.libraRunId,actorId:'user-1',idempotencyKey:'custody-priority',expectedPriorityClass:'normal',requestedPriorityClass:'expedited',intentKind:'accelerate',issuedAtMs:2000};intent.intentId=canonicalDigest({schema:'libra.run-priority-intent-id@1',libraRunId:intent.libraRunId,actorId:intent.actorId,idempotencyKey:intent.idempotencyKey});intent.intentDigest=canonicalDigest(intent);const decision=buildRunLifecycleDecision({libraRunId:input.libraRunId,expectedStateRevision:input.admitted.stateRevision,expectedStateDigest:input.admitted.stateDigest,transitionKind:'set_priority',newPriority:{priorityClass:'expedited',priorityIntentDigest:intent.intentDigest},transitionEvidence:intent,expectedAdmissionHeadRevision:input.admitted.committedAdmissionHeadRevision,expectedActiveScopeSetDigest:input.admitted.activeScopeSetDigest});assert.throws(()=>createRunLifecycleStore({schemaManifest,unitOfWork:input.unitOfWork}).transition({decision,commitMarker:'custody-marker',resultId:'custody-result'}),/no longer owned by Libra/);const check=new Database(input.databasePath,{readonly:true});assert.equal(check.prepare('SELECT state_revision FROM libra_runs').get().state_revision,1);assert.equal(check.prepare('SELECT head_revision FROM libra_run_admission_heads').get().head_revision,1);assert.equal(check.prepare("SELECT COUNT(*) n FROM fx_commit_markers WHERE commit_marker='custody-marker'").get().n,0);check.close();}));
 
 test('discard is a frozen-only atomic exit that releases original input Control without deleting files',()=>fixture((input)=>{

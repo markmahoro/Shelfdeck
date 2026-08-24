@@ -7,6 +7,8 @@ const test = require('node:test');
 const { canonicalDigest } = require('../../src/helix/contracts/canonical-json');
 const { definitionForReplay } = require(
   '../../src/helix/domains/libra/application/libra-run-coordinator');
+const { unresolvedMetadataTerminal } = require(
+  '../../src/helix/domains/libra/application/libra-run-coordinator');
 
 const root = path.resolve(__dirname, '../..');
 
@@ -52,6 +54,30 @@ test('Libra Run Coordinator replays an admitted Work with its frozen priority on
   });
   assert.strictEqual(definitionForReplay(contractDrift,existing),contractDrift,
     'Only priority drift may use the frozen admitted Definition.');
+});
+
+test('Libra Run Coordinator binds a zero-cast business terminal to the succeeded Provider Work Result', () => {
+  const providerResult = Object.freeze({
+    sourceWorkId:'metadata-provider-work', eventId:'metadata-provider-event',
+    resultDigest:'a'.repeat(64), outcomeKind:'succeeded',
+    capabilityRef:'libra.product_metadata.fetch@1',
+    result:Object.freeze({ sourceKind:'provider', peopleHints:Object.freeze([]) }),
+  });
+  const terminal = unresolvedMetadataTerminal(Object.freeze({
+    kind:'unresolved', reasonCode:'product_metadata_required_cast_missing',
+    results:Object.freeze([Object.freeze({
+      sourceWorkId:'metadata-nfo-work', result:Object.freeze({ sourceKind:'related_nfo' }),
+    }), providerResult]),
+  }));
+  assert.equal(terminal.work.workId, 'metadata-provider-work');
+  assert.strictEqual(terminal.resultRecord, providerResult);
+  assert.equal(terminal.failureCode, 'product_metadata_required_cast_missing');
+  assert.equal(terminal.resultRecord.outcomeKind, 'succeeded',
+    'A business-unachievable outcome must not rewrite the technical Work as failed.');
+
+  const coordinator = source('src/helix/domains/libra/application/libra-run-coordinator.js');
+  assert.match(coordinator,
+    /metadataStage\.kind==='unresolved'[\s\S]*unresolvedMetadataTerminal\(metadataStage\)[\s\S]*freezeBusinessTerminal/);
 });
 
 test('clean product Composition Root has no legacy Libra coordinator execution path', () => {

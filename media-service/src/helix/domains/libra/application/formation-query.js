@@ -148,7 +148,23 @@ function hasBusinessFailure(works) {
     return value?.result === 'failed' || value?.resultKind === 'not_available';
   }));
 }
-function classifyFormation({ run, works, issue, recovery, arcaStatus, productPackage }) {
+function waitsForExternalIntegration(works, integrationReady) {
+  if (integrationReady !== false) return false;
+  const verification = latestEvent(works, (event) =>
+    event.capabilityRef === 'libra.product_media.verify@1')?.result?.result;
+  const selection = latestEvent(works, (event) =>
+    event.capabilityRef === 'libra.product_output.select@1')?.result?.result;
+  const reasons = new Set(verification?.reasonCodes || []);
+  const needsExternalSource = reasons.has('minimum_raster_unmet') ||
+    reasons.has('system_upscale_forbidden') || reasons.has('primary_audio_unmet');
+  const externalWorkExists = works.some((work) => work.events.some((event) =>
+    event.capabilityRef.startsWith('libra.external_material.')));
+  return verification?.result === 'failed' && needsExternalSource &&
+    selection?.result === 'not_selected' && selection.selectionReasonCode === 'no_passed_candidate' &&
+    !externalWorkExists;
+}
+function classifyFormation({ run, works, issue, recovery, arcaStatus, productPackage,
+  waitingExternalIntegration = false }) {
   if (arcaStatus?.stage === 'completed') return 'completed';
   if ((run && ['frozen', 'suspended'].includes(run.state)) || issue ||
       recovery?.recoveryState === 'attention_required' ||
@@ -156,6 +172,7 @@ function classifyFormation({ run, works, issue, recovery, arcaStatus, productPac
     return 'attention_required';
   }
   if (productPackage || arcaStatus?.stage === 'in_progress' || hasOpenExecution(works)) return 'in_progress';
+  if (waitingExternalIntegration) return 'pending';
   if (hasBlockingExecution(works) || hasBusinessFailure(works)) return 'attention_required';
   return 'pending';
 }
@@ -177,7 +194,16 @@ function extractAcquisitionTerminal(works) {
     .sort((a, b) => (b.result?.committedAtMs || 0) - (a.result?.committedAtMs || 0))[0]?.result?.result;
   return selected || null;
 }
-function frozenRunLabel(works) {
+function terminalFailureCode(terminalEvidence) {
+  const blockers = terminalEvidence?.blockedWorks;
+  return Array.isArray(blockers) && blockers.length === 1
+    ? blockers[0]?.failureCode || null
+    : null;
+}
+function frozenRunLabel(works, terminalEvidence = null) {
+  if (terminalFailureCode(terminalEvidence) === 'product_metadata_required_cast_missing') {
+    return '媒体资料中缺少验收要求的演员信息，本次整理已冻结';
+  }
   const terminal = extractAcquisitionTerminal(works);
   if (terminal?.result === 'not_selected' && terminal.selectionReasonCode === 'no_requirement_eligible_candidate') {
     return '没有符合整理要求的外部候选，本次整理已冻结';
@@ -187,12 +213,13 @@ function frozenRunLabel(works) {
   }
   return '本次整理已冻结，需要放弃后重新采购';
 }
-function nextAction(works, classification, issue, runState, recovery, arcaStatus, productPackage, latestRunState) {
+function nextAction(works, classification, issue, runState, recovery, arcaStatus, productPackage, latestRunState,
+  waitingExternalIntegration = false, terminalEvidence = null) {
   if (classification === 'completed') return Object.freeze({ label: '已进入收藏架', state: 'completed', progress: null });
   if (!runState && latestRunState === 'discarded') {
     return Object.freeze({ label: '等待重新入库', state: 'pending', progress: null });
   }
-  if (runState === 'frozen') return Object.freeze({ label: frozenRunLabel(works), state: 'frozen', progress: null });
+  if (runState === 'frozen') return Object.freeze({ label: frozenRunLabel(works, terminalEvidence), state: 'frozen', progress: null });
   if (runState === 'suspended') return Object.freeze({ label: '整理已暂停，等待恢复评估', state: 'suspended', progress: null });
   if (recovery?.recoveryState === 'attention_required') return Object.freeze({ label: '接纳执行异常，需要处理', state: 'attention_required', progress: null });
   if (arcaStatus?.stage === 'attention_required') return Object.freeze({ label: '收藏架接纳或上架需要处理', state: 'attention_required', progress: null });
@@ -211,6 +238,9 @@ function nextAction(works, classification, issue, runState, recovery, arcaStatus
       : labels[open.workKind] || '继续整理媒体';
     return Object.freeze({ label, state: event?.state || open.state, progress: event?.progress || null });
   }
+  if (waitingExternalIntegration) return Object.freeze({
+    label: '等待配置外部获取服务后继续整理', state: 'waiting_external', progress: null,
+  });
   const businessFailure = latestEvent(works, (event) => eventState(event) === 'blocked');
   if (businessFailure?.capabilityRef === 'libra.product.conformance.verify@1') {
     const codes = businessFailure.result?.result?.unmetRequirementCodes || [];
@@ -237,6 +267,7 @@ function createFormationProjectionSource(options) {
     find_decision_heads: { kind: 'select-in', tableId: 'libra_subject_decision_heads', keyColumn: 'subject_id', maxItems: PAGE_SIZE, columns: ['subject_id', 'head_revision', 'head_digest', 'current_acceptance_spec_id'], safeIntegers: true },
     find_acceptance_specs: { kind: 'select-in', tableId: 'libra_acceptance_specs', keyColumn: 'subject_id', maxItems: PAGE_SIZE, columns: ['acceptance_spec_id', 'subject_id', 'spec_revision', 'spec_json', 'spec_digest', 'shelf_id', 'published_at_ms'], safeIntegers: true },
     find_runs: { kind: 'select-in', tableId: 'libra_runs', keyColumn: 'subject_id', maxItems: PAGE_SIZE, columns: ['libra_run_id', 'subject_id', 'state', 'state_revision', 'state_digest', 'priority_class', 'package_revision_head', 'created_at_ms'], safeIntegers: true },
+    find_run_revisions: { kind: 'select-in', tableId: 'libra_run_revisions', keyColumn: 'libra_run_id', maxItems: PAGE_SIZE, columns: ['libra_run_id', 'state_revision', 'transition_evidence_json'], safeIntegers: true },
     find_run_subject: { kind: 'select-one', tableId: 'libra_runs', keyColumns: ['libra_run_id'], columns: ['subject_id'] },
     find_packages: { kind: 'select-in', tableId: 'libra_product_packages', keyColumn: 'libra_run_id', maxItems: 500, columns: ['on_deck_package_id', 'offer_id', 'libra_run_id', 'package_revision', 'package_digest', 'state', 'published_at_ms'], safeIntegers: true },
   } });
@@ -272,8 +303,9 @@ function createFormationProjectionSource(options) {
       const acceptanceSpecs = repo.invoke('find_acceptance_specs', { values: subjectIds });
       const runs = repo.invoke('find_runs', { values: subjectIds });
       const runIds = unique(runs.map((row) => row.libra_run_id));
+      const runRevisions = runIds.length ? chunks(runIds).flatMap((values) => repo.invoke('find_run_revisions', { values })) : [];
       const packages = runIds.length ? chunks(runIds).flatMap((values) => repo.invoke('find_packages', { values })) : [];
-      return { decisions, bindings, routingDecisions, routingPolicies, decisionHeads, acceptanceSpecs, runs, packages };
+      return { decisions, bindings, routingDecisions, routingPolicies, decisionHeads, acceptanceSpecs, runs, runRevisions, packages };
     } }]).libra_formation_batch;
   }
   function buildBatch(subjects) {
@@ -294,6 +326,8 @@ function createFormationProjectionSource(options) {
     });
     const ratings = options.readPerceptionRatings?.(subjects.map((item) => item.subject_id)) || new Map();
     const shelfNames = new Map((options.readShelfTargets?.() || []).map((item) => [item.shelfId, item.name]));
+    const externalIntegrationReady = typeof options.isExternalMaterialIntegrationReady === 'function'
+      ? options.isExternalMaterialIntegrationReady() === true : null;
     return prepared.map(({ subject, decisions, displayIdentity, snapshot }) => {
       const bindings = value.bindings.filter((item) => item.subject_id === subject.subject_id && Number(item.current) === 1);
       const routing = latest(value.routingDecisions.filter((item) => item.subject_id === subject.subject_id), 'decision_revision');
@@ -302,17 +336,22 @@ function createFormationProjectionSource(options) {
       const spec = head?.current_acceptance_spec_id ? value.acceptanceSpecs.find((item) => item.acceptance_spec_id === head.current_acceptance_spec_id) : null;
       const runs = value.runs.filter((item) => item.subject_id === subject.subject_id).sort((a, b) => Number(b.created_at_ms) - Number(a.created_at_ms));
       const run = runs.find((item) => ['active', 'suspended', 'frozen'].includes(item.state)) || null;
+      const runRevision = run ? value.runRevisions.find((item) => item.libra_run_id === run.libra_run_id &&
+        Number(item.state_revision) === Number(run.state_revision)) : null;
+      const terminalEvidence = runRevision ? parse(runRevision.transition_evidence_json) : null;
       const latestRun = runs[0] || null;
       const packageRun = run || (latestRun?.state === 'completed' ? latestRun : null);
       const pkg = packageRun ? latest(value.packages.filter((item) => item.libra_run_id === packageRun.libra_run_id), 'package_revision') : null;
       const works = run ? progressByRun.get(run.libra_run_id) || [] : [];
       const actionWorks = organizingWorks(run, latestRun, progressByRun);
       const issue = extractProductIdentityIssue(works);
+      const waitingExternalIntegration = waitsForExternalIntegration(works, externalIntegrationReady);
       const recovery = pkg ? recoveries.get(pkg.offer_id) || null : null;
       const arcaStatus = pkg ? arcaStatuses.get(pkg.offer_id) || null : null;
-      const classification = classifyFormation({ run, works, issue, recovery, arcaStatus, productPackage: pkg });
+      const classification = classifyFormation({ run, works, issue, recovery, arcaStatus, productPackage: pkg,
+        waitingExternalIntegration });
       const rating = ratings.get(subject.subject_id) || null;
-      const stepOptions = Object.freeze({ latestRunState: latestRun?.state || null });
+      const stepOptions = Object.freeze({ latestRunState: latestRun?.state || null, waitingExternalIntegration });
       const steps = organizingSteps(actionWorks, spec, stepOptions);
       const primaryCount = snapshot?.primaryInputManifest?.members?.length ||
         bindings.filter((item) => item.authority_kind === 'primary_control').length;
@@ -330,7 +369,7 @@ function createFormationProjectionSource(options) {
             arcaStatus?.stage === 'attention_required' ? '收藏架验收或上架失败，需要处理' :
               pkg ? '媒体产品已提交，等待收藏架验收与上架' : '媒体产品尚未提交收藏架' }),
       });
-      return Object.freeze({ formationViewId: subject.subject_id, subjectId: subject.subject_id, displayIdentity, contentProfile: subject.content_profile, structureKind: subject.structure_kind, status: subject.status, classification, myRating: rating?.rating ?? null, myRatingSource: rating?.sourceKind || null, myRatingRevision: (rating?.expectedRevision || 0) > 0 ? rating.expectedRevision : null, ratingState:rating?.state || 'pending', ratingResolutionStatus:rating?.resolutionStatus || null, ratingReasonCode:rating?.reasonCode || null, productIdentityIssue: issue, acceptanceRecovery: recovery, arcaStatus, processDetail:detail, targetShelfId: routing?.shelf_id || null, targetShelfName: shelfNames.get(routing?.shelf_id) || null, routingState: routing?.decision || 'preparing', unresolvedReasonCode: routing?.unresolved_reason_code || null, routingPolicyMode: policy?.mode || null, routingPolicyRevision: routing?.routing_policy_revision == null ? null : Number(routing.routing_policy_revision), routingDecisionRevision: routing ? Number(routing.decision_revision) : null, routingDecisionDigest: routing?.decision_digest || null, routingDecisionHeadRevision: head ? Number(head.head_revision) : null, routingDecisionHeadDigest: head?.head_digest || null, acceptanceSpecId: spec?.acceptance_spec_id || null, acceptanceSpecRevision: spec ? Number(spec.spec_revision) : null, acceptanceSpecDigest: spec?.spec_digest || null, acceptanceSpecPublishedAtMs: spec ? Number(spec.published_at_ms) : null, primaryMaterialCount: primaryCount, addedAtMs: decisions.length ? Number(decisions.at(-1).decided_at_ms) : Number(subject.updated_at_ms), organizingRequirement: requirementLabel(spec), organizingAction: actionLabel(actionWorks, spec, stepOptions), organizingSteps: steps, nextAction: nextAction(works, classification, issue, run?.state, recovery, arcaStatus, pkg, latestRun?.state || null), currentRun: run ? Object.freeze({ libraRunId: run.libra_run_id, state: run.state, stateRevision: Number(run.state_revision), stateDigest: run.state_digest, priorityClass: run.priority_class, packageRevisionHead: Number(run.package_revision_head), currentIdentityRevision: subject.current_identity_revision === null ? null : Number(subject.current_identity_revision) }) : null, handoffB: pkg ? Object.freeze({ onDeckPackageId: pkg.on_deck_package_id, offerId: pkg.offer_id, packageRevision: Number(pkg.package_revision), packageDigest: pkg.package_digest, state: pkg.state, publishedAtMs: Number(pkg.published_at_ms) }) : null, completedAtMs: arcaStatus?.stage === 'completed' ? arcaStatus.completedAtMs : null });
+      return Object.freeze({ formationViewId: subject.subject_id, subjectId: subject.subject_id, displayIdentity, contentProfile: subject.content_profile, structureKind: subject.structure_kind, status: subject.status, classification, myRating: rating?.rating ?? null, myRatingSource: rating?.sourceKind || null, myRatingRevision: (rating?.expectedRevision || 0) > 0 ? rating.expectedRevision : null, ratingState:rating?.state || 'pending', ratingResolutionStatus:rating?.resolutionStatus || null, ratingReasonCode:rating?.reasonCode || null, productIdentityIssue: issue, acceptanceRecovery: recovery, arcaStatus, processDetail:detail, targetShelfId: routing?.shelf_id || null, targetShelfName: shelfNames.get(routing?.shelf_id) || null, routingState: routing?.decision || 'preparing', unresolvedReasonCode: routing?.unresolved_reason_code || null, routingPolicyMode: policy?.mode || null, routingPolicyRevision: routing?.routing_policy_revision == null ? null : Number(routing.routing_policy_revision), routingDecisionRevision: routing ? Number(routing.decision_revision) : null, routingDecisionDigest: routing?.decision_digest || null, routingDecisionHeadRevision: head ? Number(head.head_revision) : null, routingDecisionHeadDigest: head?.head_digest || null, acceptanceSpecId: spec?.acceptance_spec_id || null, acceptanceSpecRevision: spec ? Number(spec.spec_revision) : null, acceptanceSpecDigest: spec?.spec_digest || null, acceptanceSpecPublishedAtMs: spec ? Number(spec.published_at_ms) : null, primaryMaterialCount: primaryCount, addedAtMs: decisions.length ? Number(decisions.at(-1).decided_at_ms) : Number(subject.updated_at_ms), organizingRequirement: requirementLabel(spec), organizingAction: actionLabel(actionWorks, spec, stepOptions), organizingSteps: steps, nextAction: nextAction(works, classification, issue, run?.state, recovery, arcaStatus, pkg, latestRun?.state || null, waitingExternalIntegration, terminalEvidence), currentRun: run ? Object.freeze({ libraRunId: run.libra_run_id, state: run.state, stateRevision: Number(run.state_revision), stateDigest: run.state_digest, priorityClass: run.priority_class, packageRevisionHead: Number(run.package_revision_head), currentIdentityRevision: subject.current_identity_revision === null ? null : Number(subject.current_identity_revision) }) : null, handoffB: pkg ? Object.freeze({ onDeckPackageId: pkg.on_deck_package_id, offerId: pkg.offer_id, packageRevision: Number(pkg.package_revision), packageDigest: pkg.package_digest, state: pkg.state, publishedAtMs: Number(pkg.published_at_ms) }) : null, completedAtMs: arcaStatus?.stage === 'completed' ? arcaStatus.completedAtMs : null });
     });
   }
   function scan(visitor) {
@@ -370,7 +409,7 @@ function buildFormationProjectionRow(item, nowMs) {
   const identityDigest = item.productIdentityIssue ? canonicalDigest(item.productIdentityIssue) : null;
   const attentionPriority = item.classification === 'attention_required' ? 0 : item.classification === 'in_progress' ? 1 : item.classification === 'pending' ? 2 : 3;
   const basis = {
-    projectionContractRevision: 2,
+    projectionContractRevision: 3,
     subjectId: item.subjectId, displayIdentity: item.displayIdentity, contentProfile: item.contentProfile,
     structureKind: item.structureKind, subjectStatus: item.status, classification: item.classification,
     rating: [item.myRating, item.myRatingSource, item.myRatingRevision], targetShelf: [item.targetShelfId, item.targetShelfName],
@@ -384,7 +423,7 @@ function buildFormationProjectionRow(item, nowMs) {
     arcaStatus:item.arcaStatus, completedAtMs:item.completedAtMs,
   };
   const row = {
-    subject_id: item.subjectId, projection_revision: 2, classification: item.classification,
+    subject_id: item.subjectId, projection_revision: 3, classification: item.classification,
     attention_state: attentionState, attention_priority: attentionPriority, display_identity: item.displayIdentity,
     content_profile: item.contentProfile, structure_kind: item.structureKind, subject_status: item.status,
     my_rating: item.myRating, my_rating_source: item.myRatingSource, my_rating_revision: item.myRatingRevision,
@@ -625,4 +664,5 @@ module.exports = Object.freeze({
   organizingWorks,
   projectionItem,
   relatedMaterialsSummary,
+  waitsForExternalIntegration,
 });

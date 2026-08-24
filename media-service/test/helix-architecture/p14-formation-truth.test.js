@@ -2,7 +2,8 @@
 
 const assert = require('node:assert/strict');
 const test = require('node:test');
-const { classifyFormation, createFormationQuery, organizingSteps, relatedMaterialsSummary } = require('../../src/helix/domains/libra/application/formation-query');
+const { classifyFormation, createFormationQuery, nextAction, organizingSteps, relatedMaterialsSummary,
+  waitsForExternalIntegration } = require('../../src/helix/domains/libra/application/formation-query');
 
 function work(events) { return [{ workId:'work-1', processId:'run-1', workKind:'artifact_production', state:'succeeded', createdAtMs:1, events }]; }
 function event(capabilityRef, result) { return { eventId:capabilityRef, capabilityRef, state:'succeeded', progress:null,
@@ -19,6 +20,55 @@ test('Formation reports business failure as blocked even when the executor commi
   ]);
   assert.equal(classifyFormation({run:{state:'active'},works,issue:null,recovery:null,arcaStatus:null,productPackage:null}),
     'attention_required');
+});
+
+test('Formation explains a zero-cast business freeze without presenting an executor failure', () => {
+  const works = [{ workId:'metadata-provider-work', processId:'run-1',
+    workKind:'product_metadata_observation', state:'succeeded', createdAtMs:1,
+    events:[event('libra.product_metadata.fetch@1', {
+      sourceKind:'provider', peopleHints:[], descriptiveFacts:{entries:[]},
+    })] }];
+  const terminalEvidence = Object.freeze({ blockedWorks:Object.freeze([Object.freeze({
+    failureClass:'business_unachievable',
+    failureCode:'product_metadata_required_cast_missing',
+  })]) });
+  assert.equal(classifyFormation({run:{state:'frozen'},works,issue:null,recovery:null,
+    arcaStatus:null,productPackage:null}), 'attention_required');
+  const action = nextAction(works, 'attention_required', null, 'frozen', null, null,
+    null, null, false, terminalEvidence);
+  assert.equal(action.state, 'frozen');
+  assert.equal(action.label, '媒体资料中缺少验收要求的演员信息，本次整理已冻结');
+  assert.doesNotMatch(action.label, /执行失败/);
+});
+
+test('Formation keeps an active Run visibly waiting when external media is required but MoviePilot is absent', () => {
+  const works = work([
+    event('libra.product_media.verify@1', {
+      schemaRef:'helix://contracts/types/ProductMediaVerification/v1', result:'failed',
+      reasonCodes:['video_codec_unmet','minimum_raster_unmet','primary_audio_unmet'],
+    }),
+    event('libra.product_output.select@1', {
+      schemaRef:'helix://contracts/types/SelectedProductOutput/v1', result:'not_selected',
+      selectionReasonCode:'no_passed_candidate',
+    }),
+  ]);
+  assert.equal(waitsForExternalIntegration(works, false), true);
+  assert.equal(waitsForExternalIntegration(works, true), false);
+  assert.equal(classifyFormation({ run:{state:'active'}, works, issue:null, recovery:null,
+    arcaStatus:null, productPackage:null, waitingExternalIntegration:true }), 'pending');
+  assert.deepEqual(nextAction(works, 'pending', null, 'active', null, null, null, 'active', true), {
+    label:'等待配置外部获取服务后继续整理', state:'waiting_external', progress:null,
+  });
+});
+
+test('Formation does not hide unrelated successful-executor business failures as integration waiting', () => {
+  const works = work([event('libra.product.conformance.verify@1', {
+    schemaRef:'helix://contracts/types/ProductConformanceEvidence/v1', result:'failed',
+    unmetRequirementCodes:['metadata_field_unmet'],
+  })]);
+  assert.equal(waitsForExternalIntegration(works, false), false);
+  assert.equal(classifyFormation({run:{state:'active'},works,issue:null,recovery:null,arcaStatus:null,
+    productPackage:null,waitingExternalIntegration:false}), 'attention_required');
 });
 
 test('Formation transmits exact NFO and related poster dispositions', () => {

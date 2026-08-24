@@ -1421,6 +1421,8 @@ async function createCleanServiceHost(options) {
     progressProjectionReader: executionProgressProjectionReader,
     readPerceptionRatings: (targets) => formationRatingReader(targets),
     readShelfTargets: () => arcaShelfAdmin.listShelves().items,
+    isExternalMaterialIntegrationReady: options.externalMaterialIntegrationReadinessReader ||
+      (() => platformIntegrations.isActive('moviepilot')),
     readAcceptanceRecoveries: (offerIds) => new Map(offerIds.map((offerId) => [offerId, formationAcceptanceReader(offerId)])),
     readArcaFormationStatuses: (offerIds) => formationArcaStatusReader(offerIds),
   });
