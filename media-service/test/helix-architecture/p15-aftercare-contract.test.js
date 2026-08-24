@@ -7,12 +7,13 @@ const path = require('node:path');
 const test = require('node:test');
 const Database = require('better-sqlite3');
 const { canonicalDigest } = require('../../src/helix/contracts/canonical-json');
+const { createCapabilityContractValidator } = require('../../src/helix/foundation/capability/contract-validator');
 const { openSqliteKernel } = require('../../src/helix/foundation/persistence/sqlite-kernel');
 const { createSqliteUnitOfWork } = require('../../src/helix/foundation/persistence/sqlite-unit-of-work');
 const { createAftercareProcessCoordinator } = require('../../src/helix/domains/arca/application/aftercare-process-coordinator');
 const { computeBoundedMaterialFingerprintSync } = require('../../src/helix/integrations/bounded-material-fingerprint');
 const { observedIdentity, observeKnownOldBindings } = require('../../src/helix/domains/arca/model/known-old-binding');
-const { validNfo } = require('../../src/helix/domains/arca/capabilities/aftercare-capability-ports');
+const { validNfo, aftercareMediaProbeEvidence } = require('../../src/helix/domains/arca/capabilities/aftercare-capability-ports');
 const {
   PERIODS,
   stableJitterMs,
@@ -115,9 +116,26 @@ test('Aftercare pulls a stale Shelf Entry rating Resolution before applying its 
 test('Aftercare assessment identity advances after the conformance executor contract repair', () => {
   const coordinator = fs.readFileSync(path.join(__dirname,
     '../../src/helix/domains/arca/application/aftercare-process-coordinator.js'), 'utf8');
-  assert.match(coordinator, /ASSESSMENT_EXECUTION_REVISION=2/);
+  assert.match(coordinator, /ASSESSMENT_EXECUTION_REVISION=3/);
   assert.match(coordinator,
     /assessmentExecutionRevision:ASSESSMENT_EXECUTION_REVISION/);
+});
+
+test('Aftercare promotes raw ffprobe output to formal Media Probe Evidence before strategy assessment', () => {
+  const handle=Object.freeze({schemaRef:'helix://contracts/types/PhysicalMaterialReadHandle/v1',schemaVersion:1,
+    handleId:'handle-1',identity:Object.freeze({schemaRef:'helix://contracts/types/PhysicalMaterialIdentity/v2',schemaVersion:2,
+      materialKey:digest('a')}),endpointId:'endpoint-1',location:'F:/movie.mkv',accessMode:'read_only',bindingRevision:1,
+    handleDigest:digest('b')});
+  const raw=Object.freeze({resultKind:'probed',container:'matroska',durationMs:1000,payloadDigest:digest('c'),
+    videoStreams:Object.freeze([Object.freeze({streamIndex:0,dispositionDefault:true,codec:'h264',width:1920,height:1080,
+      profile:'High',pixelFormat:'yuv420p',bitDepth:8,chroma:'4:2:0',colorRange:'limited',colorPrimaries:'bt709',
+      colorTransfer:'bt709',colorMatrix:'bt709',dynamicRangeKind:'sdr'})]),audioStreams:Object.freeze([]),subtitleStreams:Object.freeze([]),discTopology:null});
+  const result=aftercareMediaProbeEvidence(raw,handle,1234,5);
+  assert.match(result.evidenceId,/^arca-care-media-probe-/);
+  assert.equal(result.sourceHandleDigest,canonicalDigest(handle));
+  assert.equal(result.payloadDigest,canonicalDigest(Object.fromEntries(Object.entries(result).filter(([key])=>key!=='payloadDigest'))));
+  const schema=JSON.parse(fs.readFileSync(path.resolve(__dirname,'../../src/helix/contracts/types/MediaProbeEvidence/v1/schema.json'),'utf8'));
+  assert.equal(createCapabilityContractValidator({schemas:[schema]}).validate(schema.$id,result),result);
 });
 
 test('a terminal Case from an obsolete Care Basis remains history but cannot color current health', () => {

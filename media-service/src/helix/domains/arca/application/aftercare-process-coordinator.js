@@ -5,7 +5,7 @@ const { createWorkAdmission } = require('../../../foundation/execution/work-admi
 const { dispositionFromAssessments, projectHealth } = require('../model/aftercare-contract');
 
 const LIMITS=Object.freeze({globalOpenWorks:256,ownerOpenWorks:256,openEvents:256});
-const ASSESSMENT_EXECUTION_REVISION=2;
+const ASSESSMENT_EXECUTION_REVISION=3;
 const stable=(prefix,value)=>prefix+canonicalDigest(value).slice(0,40);
 const succeeded=(value)=>value?.state==='succeeded'||value?.latestAttempt?.state==='succeeded';
 const terminalFailure=(value)=>['failed','cancelled','timed_out'].includes(value?.state)||['failed','cancelled','timed_out'].includes(value?.latestAttempt?.state);

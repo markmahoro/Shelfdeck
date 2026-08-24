@@ -89,6 +89,31 @@ function primaryReadHandle(context,item){return Object.freeze({schemaRef:'helix:
   identity:Object.freeze({schemaRef:'helix://contracts/types/PhysicalMaterialIdentity/v2',schemaVersion:2,materialKey:item.material_key}),
   endpointId:item.endpoint_id,location:item.location,accessMode:'read_only',bindingRevision:Number(item.binding_revision||1),
   handleDigest:canonicalDigest({materialKey:item.material_key,endpointId:item.endpoint_id,location:item.location,bindingRevision:Number(item.binding_revision||1)})});}
+function aftercareMediaProbeEvidence(raw,handle,sizeBytes,observedAtMs){
+  const base={schemaRef:'helix://contracts/types/MediaProbeEvidence/v1',schemaVersion:1,
+    evidenceId:stable('arca-care-media-probe-',{handle,raw}),evidenceKind:'media_probe',producerRef:'shared.material.media.probe@1',
+    basisDigest:canonicalDigest(handle),payloadDigest:'',observedAtMs:Number(observedAtMs),sourceHandleDigest:canonicalDigest(handle),
+    resultKind:raw.resultKind,...(raw.resultKind==='not_media'?{reasonCode:'probe_not_media'}:{container:raw.container||'unknown',durationMs:Number(raw.durationMs||0)}),
+    sizeBytes:Number(sizeBytes),videoStreams:Object.freeze((raw.videoStreams||[]).map((stream)=>{
+      const codedWidth=Math.max(1,Number(stream.codedWidth||stream.width||1)),codedHeight=Math.max(1,Number(stream.codedHeight||stream.height||1)),
+        rotation=Number(stream.rotation||0),rotated=Math.abs(rotation)%180===90,
+        displayWidth=Math.max(1,Number(stream.displayWidth||(rotated?codedHeight:codedWidth))),displayHeight=Math.max(1,Number(stream.displayHeight||(rotated?codedWidth:codedHeight)));
+      return Object.freeze({streamIndex:Number(stream.streamIndex),dispositionDefault:Boolean(stream.dispositionDefault),codec:stream.codec||'unknown',
+        codecProfile:stream.codecProfile||stream.profile||'unknown',pixelFormat:stream.pixelFormat||'unknown',bitDepth:Math.max(1,Number(stream.bitDepth||8)),
+        chroma:stream.chroma||'unknown',colorRange:stream.colorRange||'unknown',colorPrimaries:stream.colorPrimaries||'unknown',
+        colorTransfer:stream.colorTransfer||'unknown',colorMatrix:stream.colorMatrix||'unknown',dynamicRangeKind:stream.dynamicRangeKind||'unknown',
+        ...(stream.dolbyVision?{dolbyVision:stream.dolbyVision}:{}),codedWidth,codedHeight,sampleAspectRatio:stream.sampleAspectRatio||'1:1',
+        rotation,displayWidth,displayHeight,longEdge:Math.max(displayWidth,displayHeight),shortEdge:Math.min(displayWidth,displayHeight)});
+    })),audioStreams:Object.freeze((raw.audioStreams||[]).map((stream)=>Object.freeze({streamIndex:Number(stream.streamIndex),
+      dispositionDefault:Boolean(stream.dispositionDefault),codec:stream.codec||'unknown',profile:stream.profile||'unknown',
+      channels:Math.max(1,Number(stream.channels||1)),channelLayout:stream.channelLayout||'unknown',
+      formatTags:Object.freeze((stream.formatTags||[]).map(String).filter(Boolean)),normalizedAudioClass:stream.normalizedAudioClass||'other',
+      ...(stream.language?{language:stream.language}:{})}))),subtitleStreams:Object.freeze((raw.subtitleStreams||[]).map((stream)=>Object.freeze({
+      streamIndex:Number(stream.streamIndex),codec:stream.codec||'unknown',...(stream.language?{language:stream.language}:{})}))),
+    ...(raw.discTopology?{discTopology:raw.discTopology}:{})};
+  base.payloadDigest=canonicalDigest(Object.fromEntries(Object.entries(base).filter(([key])=>key!=='payloadDigest')));
+  return Object.freeze(base);
+}
 function probeConformance(context,probe){const requirements=effectiveRequirements(context),mandatory=requirements?.mandatoryMedia||{},space=requirements?.space||{},primary=context.raw.materials.find(isPrimaryMaterial),findings=[];
   if(!primary)return [finding('conformance','primary_missing','critical','attention_required',context.shelfEntryId)];
   if(!probe||probe.resultKind!=='probed'){findings.push(finding('conformance','primary_decode_failed','critical','attention_required',primary.material_key));return findings;}
@@ -142,7 +167,7 @@ function structuralStrategyRejection(probe,device,intent){const pipeline=(device
   if(pipeline&&stream&&!pipeline.inputPixelFormats.includes(stream.pixelFormat))reasons.push('source_pixel_format_unsupported');
   return Object.freeze(reasons);
 }
-async function assessMediaRepairStrategy(options,context,probe){const profile=repairVideoProfile(probe);if(!profile||typeof options.mediaEffectPort?.verifyTranscodeInput!=='function')return null;
+async function assessMediaRepairStrategy(options,context,probe,sourceProbeEvidence){const profile=repairVideoProfile(probe);if(!profile||typeof options.mediaEffectPort?.verifyTranscodeInput!=='function')return null;
   const requirements=effectiveRequirements(context),hasLimit=Number.isSafeInteger(requirements?.space?.maxSizeBytes),devices=readyDeviceSnapshots(options.platformComputeRuntime),
     ordinary=devices.filter((item)=>item.deviceClass!=='software_cpu'),cpu=devices.filter((item)=>item.deviceClass==='software_cpu'),rejected=[];
   let ordinal=0;for(const device of [...ordinary,...cpu]){if(device.deviceClass==='remote_worker')continue;const modes=device.deviceClass==='software_cpu'
@@ -152,7 +177,7 @@ async function assessMediaRepairStrategy(options,context,probe){const profile=re
         deviceSnapshotDigest:device.snapshotDigest,disposition:'strategy_rejected',rejectionScope:'rate_control_strategy',
         reasonCodes:Object.freeze(['media_size_budget_infeasible']),preflightDigest:canonicalDigest({intent:intent.intentDigest,reason:'media_size_budget_infeasible'})}));continue;}
       const structural=structuralStrategyRejection(probe,device,intent);let preflight=null;if(!structural.length){preflight=await options.mediaEffectPort.verifyTranscodeInput({sourceHandle:primaryReadHandle(context,context.raw.materials.find(isPrimaryMaterial)),
-          sourceProbeEvidence:probe,productionIntent:intent,deviceSnapshot:device});}
+          sourceProbeEvidence,productionIntent:intent,deviceSnapshot:device});}
       const reasons=structural.length?structural:(preflight?.reasonCode?[preflight.reasonCode]:[]);if(reasons.length){rejected.push(Object.freeze({deviceId:device.deviceId,
         deviceClass:device.deviceClass,deviceSnapshotDigest:device.snapshotDigest,disposition:'strategy_rejected',
         rejectionScope:reasons.includes('rate_control_unsupported')?'rate_control_strategy':'device_pipeline',reasonCodes:Object.freeze(reasons),
@@ -160,7 +185,7 @@ async function assessMediaRepairStrategy(options,context,probe){const profile=re
       const base={schemaRef:'helix://contracts/domain-types/AftercareMediaRepairStrategy/v1',schemaVersion:1,
         strategyId:stable('arca-care-media-strategy-',{basis:context.basis.digest,intent:intent.intentDigest,device:device.snapshotDigest}),revision:1,
         careBasisDigest:context.basis.digest,sourceHandleDigest:intent.sourceHandleDigest,
-        sourceProbeEvidenceId:probe.evidenceId,sourceProbeEvidenceDigest:canonicalDigest(probe),
+        sourceProbeEvidenceId:sourceProbeEvidence.evidenceId,sourceProbeEvidenceDigest:canonicalDigest(sourceProbeEvidence),
         sourceVideoProfileDigest:canonicalDigest(repairVideoProfile(probe)),
         selectedDeviceSnapshot:device,selectedDeviceSnapshotDigest:device.snapshotDigest,
         selectedDeviceClass:device.deviceClass,video:intent.video,priorStrategyAssessments:Object.freeze(rejected),
@@ -206,9 +231,9 @@ function createAftercareCapabilityPorts(options){const now=options.now||Date.now
   ports[C.conformance]=Object.freeze({validateInputs(c){requireNamed(c,['careBasis','inventoryRevision','knownBindings','standard','placement']);},async execute(execution){const c=context(execution),at=now(),custody=resultFor(execution,C.custody);
     if(custodyBlocksDependentAssessment(custody))return outcome(C.conformance,assessment('conformance',c,[],at,'not_assessable',execution.workId,custody.incidentKey),at);
     const primary=c.raw.materials.find(isPrimaryMaterial);if(!primary)return outcome(C.conformance,assessment('conformance',c,[finding('conformance','primary_missing','critical','attention_required',c.shelfEntryId)],at,undefined,execution.workId),at);
-    const probe=await options.mediaProbe.probe(primaryReadHandle(c,primary));let findings=probeConformance(c,probe);const needsTranscode=findings.some((item)=>
+    const readHandle=primaryReadHandle(c,primary),probe=await options.mediaProbe.probe(readHandle),sourceProbeEvidence=aftercareMediaProbeEvidence(probe,readHandle,primary.size_bytes,now());let findings=probeConformance(c,probe);const needsTranscode=findings.some((item)=>
       /\/(video_codec_unmet|max_size_exceeded)\//.test(item.schemaRef)),mediaRepairStrategy=needsTranscode&&probe.resultKind==='probed'
-        ?await assessMediaRepairStrategy(options,c,probe):null;
+        ?await assessMediaRepairStrategy(options,c,probe,sourceProbeEvidence):null;
     if(needsTranscode&&!mediaRepairStrategy)findings=[...findings.filter((item)=>!/\/(video_codec_unmet|max_size_exceeded)\//.test(item.schemaRef)),
       finding('conformance','media_strategy_unavailable','critical','attention_required',canonicalDigest({basis:c.basis.digest,probeDigest:canonicalDigest(probe)}))];
     const initial=c.raw.initialPlacementDecision,initialStillCurrent=initial&&Number(initial.placement_revision)===Number(c.basis.placementRevision)&&initial.target_endpoint_id===c.raw.shelf.target_endpoint_id&&c.raw.materials.every((item)=>path.resolve(path.dirname(item.location))===path.resolve(initial.target_location)),placementRequest=initialStillCurrent?null:buildAftercareInventoryRequest(c,options.inventoryPort,at,stable('arca-care-assessment-placement-',{entry:c.shelfEntryId,basis:c.basis.digest})),desired=placementRequest?options.inventoryPort.resolveTargetLocation(placementRequest):null,placementUnmet=Boolean(desired)&&c.raw.materials.some((item)=>item.endpoint_id!==c.raw.shelf.target_endpoint_id||path.resolve(path.dirname(item.location))!==path.resolve(desired.targetDirectory));
@@ -297,4 +322,4 @@ function createAftercareCapabilityPorts(options){const now=options.now||Date.now
   return Object.freeze(ports);
 }
 
-module.exports=Object.freeze({createAftercareCapabilityPorts,decodeFinding,validNfo});
+module.exports=Object.freeze({createAftercareCapabilityPorts,decodeFinding,validNfo,aftercareMediaProbeEvidence});
