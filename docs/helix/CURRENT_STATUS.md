@@ -4,6 +4,19 @@ Status: Helix-beta 范围已收窄为仅 Movie 全链路。Movie Procurement与M
 
 Last updated: 2026-08-24
 
+## 0. Current UAT qualification — UAT-093 code and regression passed
+
+2026-08-24保留环境的Douban同步在revision 29 / cursor 435正确续传，但collection第30页《网诱惊魂》的列表行没有year；
+旧Adapter为补year强制请求Subject详情并得到404，令整页三次失败且Record保持435。Product Owner确认year关联校验的收益低于其
+外部请求和规则复杂度，正式决定：Douban同步只读取collection页，缺year照常提交；User Perception Resolution全面取消year
+关联，year仅作为资料保存和展示。
+
+实现把Perception Resolution Rule提升为revision 3，明确Provider/Target Anchor优先，最后使用规范化title exact；不同评分的
+同强度Record仍`not_found`，不引入fuzzy或第一项选择。历史immutable `title_year` Anchor通过可重建title Projection参与新规则，
+不改旧Record。Douban Adapter不再为year/alias访问Subject详情。专项84/84与完整Service`npm test` 320 pass / 18 skip / 0 fail；
+所有测试临时目录均在保留运行的F盘`temp-uat093`。当前状态`CODE/REGRESSION PASSED / LIVE CURSOR PENDING`，尚未重启当前服务并
+证明真实cursor从435推进。
+
 ## 0. Current UAT qualification — UAT-092 code and regression passed
 
 2026-08-24用户现场的`一场很（没）有必要的春晚 (2022)`与`全面失控：特大号邮轮危机 (2025)`均因原NFO没有演员、Libra却跳过

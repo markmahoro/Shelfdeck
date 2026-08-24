@@ -5,7 +5,7 @@ const { createWorkAdmission } = require('../../../foundation/execution/work-admi
 const { createPerceptionStore } = require('../persistence/perception-store');
 const { createPerceptionResolutionInputAssembler } = require('./perception-resolution-input-assembler');
 const { buildRuleSnapshot, versionedQueryResult } = require('./perception-resolution-application');
-const { deriveTitleYearEvidence } = require('../model/perception-aliases');
+const { deriveTitleEvidence, normalizeAlias, titleAssociationAliases } = require('../model/perception-aliases');
 const { createPerceptionAcquisitionAutomation } = require('./perception-acquisition-automation');
 
 const LIMITS = Object.freeze({ globalOpenWorks:256, ownerOpenWorks:256, openEvents:256 });
@@ -26,8 +26,8 @@ function definition(kind,processType,processId,basisDigest,outputContractRef){re
 function queryFor(target){const evidence=[];const add=(anchorKind,anchorValue,confidenceClass)=>{if(!anchorValue)return;evidence.push({anchorKind,anchorValue:String(anchorValue),confidenceClass,
   evidenceDigest:canonicalDigest({targetType:target.targetType,targetId:target.targetId,targetRevision:target.targetRevision,anchorKind,anchorValue:String(anchorValue)})});};
   add(target.targetType==='shelf_entry'?'shelf_entry_id':'subject_id',target.targetId,'exact');
-  add('provider_identity',target.providerIdentity,'strong');if(target.title&&target.year){
-    for(const alias of deriveTitleYearEvidence(target.title+'\0'+target.year,{stripTechnical:true}))add('title_year',alias.anchorValue,'medium');
+  add('provider_identity',target.providerIdentity,'strong');if(target.title){
+    for(const alias of titleAssociationAliases(target.title))add('title',alias,'medium');
   }
   evidence.sort((a,b)=>a.anchorKind.localeCompare(b.anchorKind)||a.anchorValue.localeCompare(b.anchorValue));
   const body={queryContract:'perception.rating.resolve@1',queryVersion:1,querySchemaRef:'helix://contracts/domain-types/PerceptionResolutionQuery/v1',factKind:'rating',identityEvidence:evidence};
@@ -102,12 +102,13 @@ function createPerceptionProcessServices(options){
   function reconcileResolution(processId){const separator=processId.indexOf(':');return ensureResolution(processId.slice(0,separator),processId.slice(separator+1));}
   function reconcileImpactedSubjectResolutions(acquisitionId,listSubjectPage){
     if(typeof listSubjectPage!=='function')return freeze({matchedSubjectIds:[]});
-    const anchorValues=new Set(store.listRecordsForAcquisition(acquisitionId).flatMap((record)=>record.anchors || [])
-      .filter((anchor)=>anchor.anchorKind==='title_year').flatMap((anchor)=>deriveTitleYearEvidence(anchor.anchorValue,{providerDelimited:true}).map((item)=>item.anchorValue)));
+    const anchorValues=new Set(store.listRecordsForAcquisition(acquisitionId).flatMap((record)=>(record.anchors || []).flatMap((anchor)=>
+      anchor.anchorKind==='title'?[anchor.anchorValue]:anchor.anchorKind==='title_year'
+        ? deriveTitleEvidence(anchor.anchorValue,{providerDelimited:true}).map((item)=>item.anchorValue):[])).map(normalizeAlias));
     if(!anchorValues.size)return freeze({matchedSubjectIds:[]});
     const matched=[];let cursor=null;
     do{const page=listSubjectPage(cursor,100);for(const item of page.items||[]){const snapshot=target('subject',item.subjectId),query=queryFor(snapshot);
-      if(query.identityEvidence.some((evidence)=>evidence.anchorKind==='title_year'&&anchorValues.has(evidence.anchorValue))){ensureResolution('subject',item.subjectId);matched.push(item.subjectId);}}
+      if(query.identityEvidence.some((evidence)=>evidence.anchorKind==='title'&&anchorValues.has(normalizeAlias(evidence.anchorValue)))){ensureResolution('subject',item.subjectId);matched.push(item.subjectId);}}
       cursor=page.nextCursor||null;}while(cursor!==null);
     return freeze({matchedSubjectIds:[...new Set(matched)].sort()});
   }

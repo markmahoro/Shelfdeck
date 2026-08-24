@@ -13,7 +13,8 @@ const { createSqliteUnitOfWork } = require('../../src/helix/foundation/persisten
 const { canonicalDigest } = require('../../src/helix/contracts/canonical-json');
 const { createPerceptionResolutionQuery } = require('../../src/helix/domains/perception/application/perception-resolution-query');
 const { createPerceptionResolutionInputAssembler } = require('../../src/helix/domains/perception/application/perception-resolution-input-assembler');
-const { createPerceptionProcessServices } = require('../../src/helix/domains/perception/application/perception-process-services');
+const { buildRuleSnapshot } = require('../../src/helix/domains/perception/application/perception-resolution-application');
+const { createPerceptionProcessServices, queryFor, queryHandle } = require('../../src/helix/domains/perception/application/perception-process-services');
 const { createPerceptionResolutionCommitRegistration } = require('../../src/helix/domains/perception/capabilities/perception-resolution-lifecycle');
 const { resolvePerception } = require('../../src/helix/domains/perception/capabilities/perception-resolution-resolver');
 const { createPerceptionStore } = require('../../src/helix/domains/perception/persistence/perception-store');
@@ -353,7 +354,7 @@ test('assembles, resolves and commits a complete typed Resolution without Facade
   });
 });
 
-test('projects internal title aliases into the exact Resolution Record Set contract', () => {
+test('projects historical title-year aliases into title-only Resolution evidence', () => {
   fixture(({ store }) => {
     register(store); start(store);
     const commonAnchor={anchorKind:'provider_id',anchorValue:'douban:alias',confidenceClass:'strong',evidenceDigest:hash('alias-anchor')};
@@ -363,9 +364,22 @@ test('projects internal title aliases into the exact Resolution Record Set contr
     const { queryHandle, ruleSnapshot }=resolutionBasis(commonAnchor);
     const inputs=createPerceptionResolutionInputAssembler({store}).assemble({queryHandle,ruleSnapshot});
     const anchors=inputs.recordSet.records[0].identityAnchors;
-    assert.ok(anchors.some((item)=>item.anchorValue==='肖申克的救赎'+titleYearSuffix));
-    assert.ok(anchors.some((item)=>item.anchorValue==='The Shawshank Redemption'+titleYearSuffix));
+    assert.ok(anchors.some((item)=>item.anchorKind==='title'&&item.anchorValue==='肖申克的救赎'));
+    assert.ok(anchors.some((item)=>item.anchorKind==='title'&&item.anchorValue==='The Shawshank Redemption'));
     assert.ok(anchors.every((item)=>Object.keys(item).sort().join(',')==='anchorKind,anchorValue,confidenceClass,evidenceDigest'));
+  });
+});
+
+test('resolves a historical title-year Record for a same-title target with a different year', () => {
+  fixture(({ store }) => {
+    register(store); start(store);
+    const oldAnchor={anchorKind:'title_year',anchorValue:'同名电影\0'+'1990',confidenceClass:'medium',evidenceDigest:hash('old-title-year')};
+    page(store,{records:[record('perception-old-year',{rating:4,observedTitle:'同名电影',anchors:[oldAnchor]})]});
+    const query=queryFor({targetType:'subject',targetId:'subject-new-year',targetRevision:1,title:'同名电影',year:2024,providerIdentity:null});
+    const inputs=createPerceptionResolutionInputAssembler({store}).assemble({queryHandle:queryHandle(query,1,'libra'),ruleSnapshot:buildRuleSnapshot()});
+    const draft=resolvePerception(inputs,{draftId:'title-only-resolution',producedAtMs:1});
+    assert.equal(draft.resultKind,'found');
+    assert.equal(draft.winningPerceptionId,'perception-old-year');
   });
 });
 

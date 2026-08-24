@@ -3,7 +3,7 @@
 const acquisitionTransaction = require('../../../contracts/transaction-contracts/helix.transaction.perception-acquisition-page-commit/v1/contract.json');
 const resolutionTransaction = require('../../../contracts/transaction-contracts/helix.transaction.perception-resolution-commit/v1/contract.json');
 const { canonicalDigest } = require('../../../contracts/canonical-json');
-const { titleAliases } = require('../model/perception-aliases');
+const { titleAliases, titleAssociationAliases } = require('../model/perception-aliases');
 const { createCanonicalTransactionRegistry, createDomainCommitCoordinator, createDomainCommitRegistry } = require('../../../foundation/persistence/domain-commit-registry');
 const { createPerceptionAcquisitionPipeline, createPerceptionRecordCommitRegistration } = require('./perception-acquisition-pipeline');
 const { createPerceptionResolutionCommitRegistration } = require('../model/perception-resolution-lifecycle');
@@ -53,6 +53,9 @@ function normalizationRuleEvaluator() {
     if(values.aliasTitlesJson!==undefined){try{aliasTitles=JSON.parse(values.aliasTitlesJson);}catch{throw new TypeError('Perception alias title set is invalid.');}}
     if (!Array.isArray(aliasTitles) || aliasTitles.length > 12 || aliasTitles.some((item)=>typeof item!=='string'||!item.trim()||Buffer.byteLength(item,'utf8')>1024)) {
       throw new TypeError('Perception alias title set is invalid.');
+    }
+    for (const alias of titleAssociationAliases([title, ...aliasTitles].join(' / '), { providerDelimited:true })) {
+      add('title', alias, 'medium');
     }
     if (values.year) {
       for (const alias of titleAliases([title, ...aliasTitles].join(' / '), { providerDelimited:true })) {

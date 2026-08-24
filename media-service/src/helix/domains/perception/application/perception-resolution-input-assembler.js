@@ -1,7 +1,7 @@
 'use strict';
 
 const { canonicalDigest, canonicalJson } = require('../../../contracts/canonical-json');
-const { deriveTitleYearEvidence } = require('../model/perception-aliases');
+const { deriveTitleEvidence } = require('../model/perception-aliases');
 
 class PerceptionResolutionInputError extends Error {
   constructor(code, message, details = {}) { super(message); this.name = 'PerceptionResolutionInputError'; this.code = code; this.details = details; }
@@ -29,10 +29,10 @@ function createPerceptionResolutionInputAssembler(options) {
         const facts={}; if(record.rating!==null)facts.rating=record.rating; if(record.watchedState!==null)facts.watchedState=record.watchedState;
         const identityAnchors=[...record.anchors];
         for(const anchor of record.anchors.filter((item)=>item.anchorKind==='title_year')){
-          for(const alias of deriveTitleYearEvidence(anchor.anchorValue,{providerDelimited:record.sourceKind==='douban'})){
+          for(const alias of deriveTitleEvidence(anchor.anchorValue,{providerDelimited:record.sourceKind==='douban'})){
             const dtoAlias={anchorKind:alias.anchorKind,anchorValue:alias.anchorValue,
               confidenceClass:alias.confidenceClass,evidenceDigest:alias.evidenceDigest};
-            if(!identityAnchors.some((item)=>item.anchorKind==='title_year'&&item.anchorValue===dtoAlias.anchorValue))identityAnchors.push(dtoAlias);
+            if(!identityAnchors.some((item)=>item.anchorKind==='title'&&item.anchorValue===dtoAlias.anchorValue))identityAnchors.push(dtoAlias);
           }
         }
         identityAnchors.sort((left,right)=>left.anchorKind.localeCompare(right.anchorKind)||left.anchorValue.localeCompare(right.anchorValue));

@@ -48,6 +48,12 @@ Helix主体开发已经完成，Movie从Procurement、Libra到Arca及Shelf Dereg
 fail-closed。commit `0bc45ed98`已在Foundation同一事务收口，并以有审计、可回滚的确定性修复恢复原失败库。2026-08-24 Product Owner
 明确接受本轮现有FACT/FS/PERFORMANCE/RESTART证据并授权关闭`UAT-085`–`UAT-091`；记录保留未取得新的认证页面截图，不伪造UI证据。
 
+2026-08-24 同一保留环境再次手动同步Douban时确认`UAT-093`：续传已从cursor 435正确开始，但collection第30页的
+《网诱惊魂》列表行没有year，Adapter为补year强制请求Subject详情并得到HTTP 404，令整页三次失败、Record保持435。
+Product Owner进一步确认year带来的关联收益不足以承担详情请求和身份复杂度：Douban同步只信任collection页，缺year照常入库；
+User Perception全面取消year关联校验，year仅作为资料保存/展示。该决定明确取代`UAT-085`中“不放宽年份”的旧保护语句，
+但保留明确Provider Identity、Target Anchor优先、规范化title exact、同强度不同评分冲突为`not_found`以及禁止模糊/第一项选择。
+
 关闭作业不再走已删除的 `helix-beta-user-e2e` workflow。当前 70 行关闭基线见 `docs/helix/acceptance/UAT_CLOSURE_BASELINE.md`：正式关闭立即汇报且不暂停；确认关闭时发现新产品缺陷则暂停并先登记新 UAT；`PASS` 必须有干净 Canary 的 Admin Web `UI`（涉及文件现实时加 `FS`），单元测试不能单独关闭一行。
 
 记录原则：
@@ -161,6 +167,7 @@ fail-closed。commit `0bc45ed98`已在Foundation同一事务收口，并以有�
 | UAT-090 | Resource软等待滚动写、后台饥饿与终态Intake重扫形成持续高CPU和SQLite写放大 | `PERFORMANCE` | `EXECUTION_SCHEDULING`、`RECOVERY_CORRECTNESS` | Foundation Governor/Scheduler + Libra Intake fallback reconcile | 可用性、吞吐、恢复正确性 | Critical | `FACT/PERFORMANCE/RESTART PASSED / CLOSED` |
 | UAT-091 | Process Work取消未同步终结Resource Defer，导致下一次服务启动被一致性检查阻断 | `RECOVERY_CORRECTNESS` | `EXECUTION_SCHEDULING`、`OPERATIONAL_SAFETY` | Foundation Work Lifecycle + Resource Governor + Startup Recovery | 可恢复性、原子性、服务可用性 | Critical | `FACT/RESTART PASSED / CLOSED` |
 | UAT-092 | 原NFO缺少演员时Libra误判Metadata已齐全，既不向TMDB补演员也不能把新演员写入NFO，最终在内部符合性验收冻结 | `BUSINESS_CONTRACT` | `DOMAIN_ORCHESTRATION`、`EXTERNAL_INTEGRATION` | Libra Metadata Planning + Media Cast + NFO Sidecar + Product Conformance | 正确性、活性、信息完整性 | Critical | `CODE/REGRESSION PASSED / REAL CANARY PENDING` |
+| UAT-093 | Douban列表缺year时强制访问Subject详情，单条404阻断整库同步；year关联校验复杂度高且收益低 | `BUSINESS_CONTRACT` | `EXTERNAL_INTEGRATION`、`RECOVERY_CORRECTNESS`、`PROJECTION_FRESHNESS` | Perception Acquisition + Resolution + Acceptance Spec | 完整性、活性、规则可理解性 | Critical | `CODE/REGRESSION PASSED / LIVE CURSOR PENDING` |
 
 ### 2.0.1 UAT-074–UAT-084必须保护的历史修复
 
@@ -183,6 +190,7 @@ fail-closed。commit `0bc45ed98`已在Foundation同一事务收口，并以有�
 | UAT-090 | UAT-002、UAT-027、UAT-037、UAT-053 | Priority Class与Owner projection不变；安全/接纳保留车道不降级；重启仍能恢复真实待办且终态Offer不重开 |
 | UAT-091 | UAT-027、UAT-070、UAT-090 | 启动继续fail-closed；只修复可由终态Event确定证明的历史Resource Defer，孤儿或非终态漂移不得被静默忽略；取消必须保持单事务原子性 |
 | UAT-092 | UAT-014、UAT-029、UAT-043、UAT-073、UAT-074、UAT-075 | 演员继续作为独立Media Cast事实而非普通描述字段；NFO更新保留原丰富字段和已有Person强身份，重建/创建写入演员但不得把演员Person ID当成影片ID；可修复的演员缺口不得直接形成永久冻结 |
+| UAT-093 | UAT-001、UAT-023、UAT-025、UAT-061、UAT-063、UAT-079、UAT-085 | 完整收藏仍须分页、失败有界收口并从最后commit续传；明确Provider/Target身份优先，title只做规范化exact且冲突不选第一项。Product Owner明确取消year校验并取代UAT-085对应保护，不得通过详情补year或把year作为Acceptance Spec评分门禁 |
 
 历史回归证据必须和本轮新场景使用同一代码版本。若历史底线失败，应记录为对应新UAT的回归失败；只有出现独立根因或独立修复边界时才新增UAT，不能为了保持旧PASS而忽略回退。
 
@@ -3254,7 +3262,34 @@ UAT-075相关回归必须同版通过。
 当前处理决定：代码与自动化回归已完成，状态`CODE/REGRESSION PASSED / REAL CANARY PENDING`。尚未用全新真实TMDB Canary取得两部原问题影片的
 Formation/FACT/FS终态，因此不提前标记UAT PASS/CLOSED，也不修改保留的现场数据库。
 
-## 90. 后续问题模板
+## 90. UAT-093：Douban缺year强制详情查询阻断同步，年份关联校验全面取消
+
+问题分类：`BUSINESS_CONTRACT / EXTERNAL_INTEGRATION / RECOVERY_CORRECTNESS / PROJECTION_FRESHNESS`
+
+用户侧现象：用户再次点击同步后，设置页仍显示400多条；当前准确值为435，Formation后续影片继续没有豆瓣评分。
+
+现场证据：保留运行`F:\shelfdeck_test_zone\runs\UAT-20260824-031004-228f39a37`中，最新Acquisition从
+revision 29 / cursor 435正确续传，但page Work三次以`P5_PROVIDER_TRANSPORT_FAILED`失败且零page commit。精确只读诊断证明
+collection `start=435`返回200、15条并存在next cursor 450；其中《网诱惊魂》Douban Subject `27608279`列表行没有year，
+对应Subject详情返回404。当前Adapter把用于补year的详情404提升为整页Transport Failure，因此永久卡在同一cursor。
+
+Product Owner决定：year仅保存和展示，全面退出User Perception评分关联；同步不得为了year或alias强制查询Subject详情。
+collection页的Douban ID、title、rating与watched事实足以形成合法Record，缺year不得阻断page commit。Resolution优先明确
+Provider Identity和Target Anchor，最后使用规范化title exact；year既不接受也不否决关联。同强度不同评分Record仍形成
+`strongest_value_conflict/not_found`，不得模糊匹配或选择第一项。
+
+验收标准：缺year且详情即使会404的collection行不产生详情请求，整页Record和cursor正常提交；历史仅有`title_year` Anchor的
+immutable Record可以通过可重建title Projection参与新规则，原Record不改写；相同title、不同year的Subject得到相同title关联结果；
+Provider/Target强身份、值冲突、幂等、断点续传和Acceptance Spec消费合同同版通过。真实保留现场须从435推进到至少450，且不是
+手工修改SQLite或跳过整个collection行。
+
+验收证据：H1 Provider、Perception Store/Resolution/Acquisition、真实形态Douban分页、Formation与Acceptance Spec专项共84/84；
+完整Service`npm test`为320 pass / 18 skip / 0 fail。自动化证明缺year时只发collection请求、Record拥有title而无`title_year`也合法；
+历史`title_year` Record可与不同year的同名Subject形成title-only found。所有TEMP/TMP/TMPDIR均位于F盘保留运行的`temp-uat093`。
+
+当前处理决定：`CODE/REGRESSION PASSED / LIVE CURSOR PENDING`。尚未在保留真实账号现场重启新代码并证明cursor越过435。
+
+## 91. 后续问题模板
 
 后续发现的问题按以下结构追加：
 

@@ -746,8 +746,8 @@ test('H1.2 provider operations execute through exact P5 ports and revision-fence
     assert.equal(douban.result.resultRefs[0].objectId, '1292052');
     const doubanObservation = await opened.services.readPerceptionObservation(douban.result.resultRefs[0]);
     const doubanEntries = Object.fromEntries(doubanObservation.inlinePayload.entries.map((item) => [item.key,item.value]));
-    assert.equal(doubanEntries.year, 1994);
-    assert.deepEqual(JSON.parse(doubanEntries.aliasTitlesJson), ['肖申克的救赎','月黑高飞','刺激1995']);
+    assert.equal(doubanEntries.year, null);
+    assert.deepEqual(JSON.parse(doubanEntries.aliasTitlesJson), []);
 
     const adultBefore = state.calls.length;
     const adult = await opened.services.executeProvider(
@@ -1492,7 +1492,7 @@ test('H1.2 Douban observation maps provider 403 to a retryable transport failure
   }
 });
 
-test('H1.2 Douban observation applies bounded pacing to list and detail requests', async () => {
+test('H1.2 Douban observation paces the collection page and never forces a detail lookup for a missing year', async () => {
   const value = fixture();
   const state = { calls: [] };
   const fetchImpl = providerFetch(state);
@@ -1524,10 +1524,10 @@ test('H1.2 Douban observation applies bounded pacing to list and detail requests
         limit: 20,
       },
     });
-    assert.deepEqual(delays, [800, 800]);
+    assert.deepEqual(delays, [800]);
     assert.deepEqual(
       state.calls.slice(before).map((call) => call.path),
-      ['/people/test-user/collect', '/subject/1292052/'],
+      ['/people/test-user/collect'],
     );
   } finally {
     opened.kernel.close();

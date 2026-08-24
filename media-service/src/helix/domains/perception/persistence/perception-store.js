@@ -1,6 +1,6 @@
 'use strict';
 
-const { deriveTitleYearEvidence, normalizeAlias } = require('../model/perception-aliases');
+const { deriveTitleEvidence, deriveTitleYearEvidence, normalizeAlias } = require('../model/perception-aliases');
 
 const { createRepositoryDefinition } = require('../../../foundation/persistence/owner-repository');
 const { canonicalDigest, canonicalJson } = require('../../../contracts/canonical-json');
@@ -158,7 +158,7 @@ function createPerceptionStore(options) {
       const winning=new Set(winningResolutionByPerceptionId.keys());
       const superseded=new Set(relations.filter((row)=>['supersedes','retracts'].includes(row.relation_kind)).map((row)=>row.target_perception_id));
       const currentRows=repo.invoke('list_records').filter((row)=>!superseded.has(row.perception_id));
-      const anchorRank=new Map([['provider_identity',1],['subject_id',2],['shelf_entry_id',2],['title_year',3]]),groups=new Map();
+      const anchorRank=new Map([['provider_identity',1],['subject_id',2],['shelf_entry_id',2],['title',3],['title_year',3]]),groups=new Map();
       for(const row of currentRows){const owned=anchors.filter((anchor)=>anchor.perception_id===row.perception_id&&anchorRank.has(anchor.anchor_kind))
         .sort((left,right)=>anchorRank.get(left.anchor_kind)-anchorRank.get(right.anchor_kind)||left.anchor_kind.localeCompare(right.anchor_kind));
         if(owned.length===0||row.rating===null)continue;const rank=anchorRank.get(owned[0].anchor_kind);
@@ -221,7 +221,15 @@ function createPerceptionStore(options) {
       for(const clause of ruleSnapshot.candidateRetrievalClauses){
         const evidence=query.identityEvidence.filter((item)=>item.anchorKind===clause.anchorKind);
         if(evidence.length===0) continue;
-        const matches=repo.invoke('find_anchors_by_kind',{anchor_kind:clause.anchorKind}).filter((anchor)=>{
+        const candidates=clause.anchorKind==='title'
+          ? [...repo.invoke('find_anchors_by_kind',{anchor_kind:'title'}),
+            ...repo.invoke('find_anchors_by_kind',{anchor_kind:'title_year'})]
+          : repo.invoke('find_anchors_by_kind',{anchor_kind:clause.anchorKind});
+        const matches=candidates.filter((anchor)=>{
+          if(clause.anchorKind==='title'&&anchor.anchor_kind==='title_year'){
+            const aliases=deriveTitleEvidence(anchor.anchor_value,{providerDelimited:true});
+            return evidence.some((item)=>aliases.some((alias)=>normalizeAlias(item.anchorValue)===normalizeAlias(alias.anchorValue)));
+          }
           if(clause.anchorKind!=='title_year')return evidence.some((item)=>anchorValuesMatch(item.anchorValue,anchor.anchor_value,clause.lookupMode,clause.normalizationProfileRef,clause.threshold));
           const aliases=deriveTitleYearEvidence(anchor.anchor_value,{providerDelimited:true});
           return evidence.some((item)=>aliases.some((alias)=>normalizeAlias(item.anchorValue)===normalizeAlias(alias.anchorValue)));

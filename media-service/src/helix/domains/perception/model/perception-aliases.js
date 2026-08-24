@@ -2,7 +2,7 @@
 
 const { canonicalDigest } = require('../../../contracts/canonical-json');
 
-const RULE_REVISION = 2;
+const RULE_REVISION = 3;
 const TECHNICAL_TOKEN = /(?:^|[\s._-])(?:2160p|1080p|720p|480p|4k|uhd|bluray|blu-ray|remux|web[- .]?dl|webrip|hdtv|x26[45]|h\.?26[45]|hevc|avc|hdr10\+?|dolby[ .]?vision|dv|atmos|truehd|dts(?:-hd)?|aac|flac)(?:$|[\s._-])/iu;
 
 function normalizeAlias(value) {
@@ -45,6 +45,16 @@ function titleAliases(title, { providerDelimited = false, stripTechnical = false
   return Object.freeze([...result.values()].slice(0, 16));
 }
 
+function titleAssociationAliases(title, { providerDelimited = false } = {}) {
+  const result = new Map();
+  for (const alias of titleAliases(title, { providerDelimited })) {
+    const associationTitle = stripReleaseSuffix(alias);
+    const normalized = normalizeAlias(associationTitle);
+    if (normalized) result.set(normalized, associationTitle);
+  }
+  return Object.freeze([...result.values()].slice(0, 16));
+}
+
 function deriveTitleYearEvidence(anchorValue, options = {}) {
   const parsed = splitTitleYear(anchorValue);
   if (!parsed) return Object.freeze([]);
@@ -63,6 +73,23 @@ function deriveTitleYearEvidence(anchorValue, options = {}) {
   })));
 }
 
+function deriveTitleEvidence(anchorValue, options = {}) {
+  const parsed = splitTitleYear(anchorValue);
+  const sourceTitle = parsed ? parsed.title : String(anchorValue || '');
+  return Object.freeze(titleAssociationAliases(sourceTitle, options).map((alias) => Object.freeze({
+    anchorKind: 'title',
+    anchorValue: alias,
+    confidenceClass: 'medium',
+    aliasRuleRevision: RULE_REVISION,
+    evidenceDigest: canonicalDigest({
+      schema: 'perception-derived-title-alias@3',
+      sourceAnchorValue: anchorValue,
+      alias,
+      aliasRuleRevision: RULE_REVISION,
+    }),
+  })));
+}
+
 function aliasesMatch(left, right) {
   return normalizeAlias(left) === normalizeAlias(right);
 }
@@ -70,9 +97,11 @@ function aliasesMatch(left, right) {
 module.exports = Object.freeze({
   RULE_REVISION,
   aliasesMatch,
+  deriveTitleEvidence,
   deriveTitleYearEvidence,
   normalizeAlias,
   splitTitleYear,
   stripReleaseSuffix,
+  titleAssociationAliases,
   titleAliases,
 });

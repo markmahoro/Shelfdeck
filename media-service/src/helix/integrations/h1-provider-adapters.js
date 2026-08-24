@@ -829,38 +829,10 @@ function createProtocolTransport(profile, options) {
       return undefined;
     });
     const observations = [];
-    let detailRequests = 0;
     for (const draft of drafts) {
-      let { year } = draft;
-      let aliases = [];
-      let detailEvidenceDigest = null;
-      if (year === null && detailRequests < 16) {
-        detailRequests += 1;
-        const detailUrl = endpointUrl(state.endpoint, 'subject/' + encodeURIComponent(draft.providerKey) + '/');
-        await paceDoubanRequest();
-        const detailPage = await fetchBytes(fetchImpl, detailUrl, {
-          headers: { accept:'text/html', cookie:request.secretBytes.toString('utf8'), 'user-agent':'ShelfDeck/1.0' },
-          signal: AbortSignal.timeout(request.timeoutMs),
-        }, TEXT_LIMIT);
-        let detailResponseUrl;
-        try { detailResponseUrl = new URL(detailPage.responseUrl); } catch (_error) {
-          detailPage.bytes.fill(0); fail(PROVIDER_ERROR, 'Douban detail response URL is invalid.');
-        }
-        if (detailResponseUrl.origin !== new URL(state.endpoint).origin ||
-            detailResponseUrl.pathname.replace(/\/+$/, '') !== '/subject/' + draft.providerKey) {
-          detailPage.bytes.fill(0); fail(PROVIDER_ERROR, 'Douban detail response belongs to a foreign identity.');
-        }
-        const detailText = detailPage.bytes.toString('utf8');
-        const detail = cheerio.load(detailText);
-        year = Number((detail('span.year').first().text() + ' ' + detail('#content h1').first().text() + ' ' + detail('#info').first().text())
-          .match(/(?:18|19|20|21)\d{2}/)?.[0] || 0) || null;
-        const reviewedTitle = String(detail('[property="v:itemreviewed"]').first().text() || '').normalize('NFKC').trim();
-        const alternateLine = String(detail('#info').first().text() || '').match(/又名\s*:\s*([^\n]+)/u)?.[1] || '';
-        aliases = [...new Set([reviewedTitle, ...alternateLine.split(/\s*\/\s*/u)]
-          .map((value) => String(value || '').normalize('NFKC').replace(/\s+/g, ' ').trim()).filter(Boolean))].slice(0, 12);
-        detailEvidenceDigest = digest(detailPage.bytes);
-        detailPage.bytes.fill(0);
-      }
+      const { year } = draft;
+      const aliases = [];
+      const detailEvidenceDigest = null;
       const entries = [
         { key: 'doubanSubjectId', value: draft.providerKey },
         { key: 'rating', value: draft.rating },

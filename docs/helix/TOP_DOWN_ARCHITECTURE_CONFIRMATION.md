@@ -97,17 +97,20 @@ public Projection and signs an Acquisition Work; HTTP does not write a Record sy
 immutable Record with an explicit supersedes relation. Beta exposes no rating deletion.
 
 Douban synchronization traverses the configured account's complete collection pages and freezes bounded source
-records containing Douban Subject ID, original rating/scale, normalized 1–5 rating, title/year, available anchors,
+records containing Douban Subject ID, original rating/scale, normalized 1–5 rating, title, any year already present on
+the collection page, available anchors,
 source revision and payload/provenance digests. Transport, authentication, HTML, source-identity, bound and schema
 failures are technical failures, never `not_found`. Resolution strength is exact Provider Identity, then exact
-Subject/Shelf Entry Anchor, then normalized title+year; same-tier conflict remains ambiguous/not_found. All Acquire,
+Subject/Shelf Entry Anchor, then normalized title; year is descriptive metadata and never an association gate or veto.
+Same-tier value conflict remains ambiguous/not_found. All Acquire,
 Normalize, Record Commit, Resolve and Resolution Commit operations use the accepted Work/Plan/Event Runtime chain.
 
-When a bounded collection-page row omits year or alias evidence, the same acquisition observation may read at most 16
-exact Douban Subject detail pages for that page. Each response is fenced to the same origin and exact Subject ID; the
-derived year and alternate titles enter the new immutable source revision with their detail payload digest. The prior
-Record remains immutable. A committed title/year anchor triggers only Subjects whose exact normalized title/year query
-anchor intersects the new anchor set; the periodic full reconciler remains recovery for a lost wake, not normal latency.
+The collection page is the complete acquisition source for this synchronization. A row that omits year or aliases is
+still a valid bounded source Record; the adapter must not issue a Subject-detail request merely to enrich rating
+identity. Missing year therefore cannot fail or stall the page. A committed title anchor triggers only Subjects whose
+normalized title query anchor intersects the new anchor set; the periodic full reconciler remains recovery for a lost
+wake, not normal latency. Historical immutable `title_year` anchors may be projected to their title component for the
+current rule without rewriting the source Record.
 
 `GET /v1/admin/perception/records` adds a read-only cursor-paged history Projection, including current, superseded,
 unmatched and ambiguous Douban records. It is shown as the `评分日志` Tab inside Settings and performs no rating,
@@ -1885,7 +1888,7 @@ subjectId或shelfEntryId等Identity Anchor，但这些Anchor都不是User Percep
 
 用户1–5星评分的后续修改必须追加一条新的immutable Record并显式`supersedes`先前current Record。用户清除自己的直接评分时，Perception追加无rating的`retraction` Record并以`retracts`精确终结先前current直接评分；不得删除或修改历史Record。
 Resolution随后按既有来源优先级恢复Douban等仍active的来源，或形成`not_found`。外部Douban同步冻结账号完整收藏分页中每条来源记录的
-Douban Subject ID、原始评分/量表、规范化1–5星、title/year、可用Identity Anchor、来源revision以及
+Douban Subject ID、原始评分/量表、规范化1–5星、title、页面已有的可选year、可用Identity Anchor、来源revision以及
 payload/provenance digest；页面确实提供观看事实时可以同时冻结watched信息。重复同步相同来源revision不得
 制造重复Record，无法唯一关联到Subject/Shelf Entry的记录仍作为合法unmatched/ambiguous历史保留。
 
@@ -1906,7 +1909,8 @@ kind以及内部如何去重都不对消费者可见。例如`rating`查询不�
 自己的业务流程决定。
 
 Resolution匹配强度固定为：相同Provider Identity优先；其次是确定的Subject/Shelf Entry Anchor；再次是
-规范化`title+year`。同一强度存在多个无法消歧的目标时返回`not_found`并在User Perception内部保留
+规范化`title`。year只作为资料保存和展示，不参与User Perception关联校验。同一强度存在多个不同评分的
+Record且无法形成值共识时返回`not_found`并在User Perception内部保留
 `ambiguous`解析状态，不能随意选择第一项。`not_found`是正式Resolution，不表示技术错误或仍在等待。
 
 ### 3.7 People Management Domain Model
@@ -15071,14 +15075,16 @@ Business Object, Domain or Handoff count.
 The 2026-08-20 user acceptance run exposed five bounded defects without reopening the Domain or Handoff model. The
 following rules replace the affected active contracts and are part of the sole Architecture SSOT.
 
-### Perception Resolution revision 2
+### Perception Resolution revision 3
 
 - An imported Perception Record remains immutable. A resolver may derive a rebuildable Alias Projection from the
-  Record's original title/year anchor, including the provider-delimited localized, original and English titles. The
+  Record's original title or historical title/year anchor, including provider-delimited localized, original and
+  English titles while discarding year only in the derived association Projection. The
   Projection carries the normalization-rule revision and source Record digest; it is not a second rating fact.
-- Resolution uses exact normalized alias plus year. Normalization is Unicode NFKC, whitespace folding and
+- Resolution uses the exact normalized title alias without year. Normalization is Unicode NFKC, whitespace folding and
   case-folding where applicable. Candidate aliases may remove only the closed, versioned release-tag grammar. Fuzzy
-  distance, first-result selection and a missing/conflicting year cannot establish identity.
+  distance and first-result selection cannot establish identity; year is descriptive metadata and cannot accept,
+  reject or veto a rating association.
 - A Record commit precisely wakes affected Subject scopes. A durable cursor sweep is the correctness fallback. A new
   Resolution appends a revision and may cause a new Acceptance Spec and a legally replaceable Libra Run; published
   Package, Offer and completed Run facts remain immutable.

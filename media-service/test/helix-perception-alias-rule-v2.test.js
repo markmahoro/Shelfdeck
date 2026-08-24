@@ -4,41 +4,40 @@ const assert = require('node:assert/strict');
 const test = require('node:test');
 const {
   RULE_REVISION,
+  deriveTitleEvidence,
   deriveTitleYearEvidence,
   normalizeAlias,
   stripReleaseSuffix,
+  titleAssociationAliases,
   titleAliases,
 } = require('../src/helix/domains/perception/model/perception-aliases');
 
-test('Perception alias rule revision 2 expands Douban multilingual titles with the same year', () => {
-  assert.equal(RULE_REVISION, 2);
-  const evidence = deriveTitleYearEvidence('肖申克的救赎 / The Shawshank Redemption' + '\0' + '1994', {
+test('Perception alias rule revision 3 projects historical multilingual title-year evidence to titles', () => {
+  assert.equal(RULE_REVISION, 3);
+  const historical = deriveTitleYearEvidence('肖申克的救赎 / The Shawshank Redemption' + '\0' + '1994', {
     providerDelimited: true,
   });
-  assert.deepEqual(evidence.map((item) => item.anchorValue), [
+  assert.deepEqual(historical.map((item) => item.anchorValue), [
     '肖申克的救赎' + '\0' + '1994',
     'The Shawshank Redemption' + '\0' + '1994',
   ]);
-  assert.ok(evidence.every((item) => item.aliasRuleRevision === 2));
+  const current = deriveTitleEvidence('肖申克的救赎 / The Shawshank Redemption' + '\0' + '1994', {
+    providerDelimited: true,
+  });
+  assert.deepEqual(current.map((item) => item.anchorValue), ['肖申克的救赎','The Shawshank Redemption']);
+  assert.ok(current.every((item) => item.aliasRuleRevision === 3));
 });
 
-test('Subject release labels are removed without weakening exact title and year matching', () => {
+test('Subject release labels and terminal years are removed from rating association titles', () => {
   assert.equal(stripReleaseSuffix('The Matrix - 2160p Remux DTS-HD'), 'The Matrix');
   assert.equal(stripReleaseSuffix('看不见的朋友 (2023) - 1080p H.264 CHDWEB'), '看不见的朋友');
   assert.deepEqual(titleAliases('The Matrix - 2160p Remux DTS-HD', { stripTechnical: true }), [
     'The Matrix - 2160p Remux DTS-HD',
     'The Matrix',
   ]);
-  assert.deepEqual(
-    deriveTitleYearEvidence('看不见的朋友 (2023) - 1080p H.264 CHDWEB\0' + '2023', { stripTechnical: true })
-      .map((item) => item.anchorValue),
-    [
-      '看不见的朋友 (2023) - 1080p H.264 CHDWEB\0' + '2023',
-      '看不见的朋友\0' + '2023',
-    ],
-  );
+  assert.deepEqual(titleAssociationAliases('看不见的朋友 (2023) - 1080p H.264 CHDWEB'), ['看不见的朋友']);
+  assert.deepEqual(titleAssociationAliases('看不见的朋友 (2024) - 1080p H.264 CHDWEB'), ['看不见的朋友']);
   assert.equal(normalizeAlias('  ＴＨＥ   Matrix  '), 'the matrix');
-  assert.notEqual(normalizeAlias('The Matrix' + '\0' + '1999'), normalizeAlias('The Matrix' + '\0' + '2021'));
 });
 
 test('Provider title splitting does not invent fuzzy aliases', () => {
