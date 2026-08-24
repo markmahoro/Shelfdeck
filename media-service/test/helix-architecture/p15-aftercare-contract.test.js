@@ -112,6 +112,14 @@ test('Aftercare pulls a stale Shelf Entry rating Resolution before applying its 
   }
 });
 
+test('Aftercare assessment identity advances after the conformance executor contract repair', () => {
+  const coordinator = fs.readFileSync(path.join(__dirname,
+    '../../src/helix/domains/arca/application/aftercare-process-coordinator.js'), 'utf8');
+  assert.match(coordinator, /ASSESSMENT_EXECUTION_REVISION=2/);
+  assert.match(coordinator,
+    /assessmentExecutionRevision:ASSESSMENT_EXECUTION_REVISION/);
+});
+
 test('a terminal Case from an obsolete Care Basis remains history but cannot color current health', () => {
   const oldBasis = digest('0');
   const currentBasis = digest('a');
@@ -266,6 +274,15 @@ test('Aftercare legacy settlement remains evidence-gated and refuses unknown dir
   assert.match(capability, /ARCA_AFTERCARE_SETTLEMENT_FINAL_MISMATCH/);
   assert.match(capability, /ARCA_AFTERCARE_SETTLEMENT_UNKNOWN_MEMBER/);
   assert.doesNotMatch(capability, /fs\.rmSync\(handle\.location[^\n]*recursive\s*:\s*true/);
+});
+
+test('Aftercare conformance digests the complete Probe when optional payloadDigest is absent', () => {
+  const capability = fs.readFileSync(path.join(__dirname,
+    '../../src/helix/domains/arca/capabilities/aftercare-capability-ports.js'), 'utf8');
+  assert.match(capability,
+    /media_strategy_unavailable[\s\S]*?probeDigest:canonicalDigest\(probe\)/);
+  assert.doesNotMatch(capability,
+    /media_strategy_unavailable[\s\S]*?probe:probe\.payloadDigest/);
 });
 
 test('Aftercare receives the bounded fingerprint port and durable old physical identity tuple', () => {
