@@ -166,7 +166,7 @@ User Perception全面取消year关联校验，year仅作为资料保存/展示�
 | UAT-089 | Arca上架同步复制大文件阻塞Node Event Loop，使Admin Web与Health整窗超时 | `PERFORMANCE` | `RESOURCE_CAPACITY`、`USER_EXPERIENCE` | Arca Inventory staging + Platform filesystem effect | 可用性、延迟、上架吞吐 | Critical | `PERFORMANCE/FS/RESTART PASSED / CLOSED` |
 | UAT-090 | Resource软等待滚动写、后台饥饿与终态Intake重扫形成持续高CPU和SQLite写放大 | `PERFORMANCE` | `EXECUTION_SCHEDULING`、`RECOVERY_CORRECTNESS` | Foundation Governor/Scheduler + Libra Intake fallback reconcile | 可用性、吞吐、恢复正确性 | Critical | `FACT/PERFORMANCE/RESTART PASSED / CLOSED` |
 | UAT-091 | Process Work取消未同步终结Resource Defer，导致下一次服务启动被一致性检查阻断 | `RECOVERY_CORRECTNESS` | `EXECUTION_SCHEDULING`、`OPERATIONAL_SAFETY` | Foundation Work Lifecycle + Resource Governor + Startup Recovery | 可恢复性、原子性、服务可用性 | Critical | `FACT/RESTART PASSED / CLOSED` |
-| UAT-092 | 原NFO缺少演员时Libra误判Metadata已齐全，既不向TMDB补演员也不能把新演员写入NFO，最终在内部符合性验收冻结 | `BUSINESS_CONTRACT` | `DOMAIN_ORCHESTRATION`、`EXTERNAL_INTEGRATION` | Libra Metadata Planning + Media Cast + NFO Sidecar + Product Conformance | 正确性、活性、信息完整性 | Critical | `CODE/REGRESSION PASSED / REAL CANARY PENDING` |
+| UAT-092 | 原NFO缺少演员时Libra误判Metadata已齐全，既不向TMDB补演员也不能把新演员写入NFO，最终在内部符合性验收冻结 | `BUSINESS_CONTRACT` | `DOMAIN_ORCHESTRATION`、`EXTERNAL_INTEGRATION` | Libra Metadata Planning + Media Cast + NFO Sidecar + Product Conformance | 正确性、活性、信息完整性 | Critical | `FACT/UI/RESTART PASSED / CLOSED` |
 | UAT-093 | Douban列表缺year时强制访问Subject详情，单条404阻断整库同步；year关联校验复杂度高且收益低 | `BUSINESS_CONTRACT` | `EXTERNAL_INTEGRATION`、`RECOVERY_CORRECTNESS`、`PROJECTION_FRESHNESS` | Perception Acquisition + Resolution + Acceptance Spec | 完整性、活性、规则可理解性 | Critical | `FACT/RESTART PASSED / CLOSED` |
 | UAT-094 | Aftercare把最大体积上限误作扩容目标，可能将较小源文件转成更大的成品 | `BUSINESS_CONTRACT` | `MEDIA_PRODUCTION`、`RESOURCE_CAPACITY` | Arca Aftercare Media Strategy | 正确性、容量、成品质量 | Critical | `CODE/REGRESSION PASSED / REAL CANARY PENDING` |
 | UAT-095 | Aftercare媒体符合性与输出完整性检查遗漏主音轨、媒体形态、默认流和流连续性 | `BUSINESS_CONTRACT` | `PRODUCT_CONFORMANCE`、`SAFETY` | Arca Aftercare Conformance + Media Verification | 正确性、完整性、安全性 | Critical | `CODE/REGRESSION PASSED / REAL CANARY PENDING` |
@@ -180,6 +180,8 @@ User Perception全面取消year关联校验，year仅作为资料保存/展示�
 | UAT-103 | 大量评分重评形成Incident/Projection同步风暴，且Domain越界控制Foundation Incident | `PERFORMANCE` | `INCIDENT_AGGREGATION`、`PROJECTION_FRESHNESS` | Foundation Incident Runtime + Arca Care Projection | 性能、边界正确性、隔离性 | Critical | `CODE/REGRESSION PASSED / REAL CANARY PENDING` |
 | UAT-104 | Outbox/Inbox可能早于Startup Recovery Gate扩大执行范围 | `STARTUP_RECOVERY` | `OPERATIONAL_SAFETY` | Clean Service startup composition | 启动安全、恢复正确性 | Critical | `CODE/REGRESSION PASSED / REAL CANARY PENDING` |
 | UAT-105 | 缺少全新真实Canary证明评分刷新后的Aftercare完整闭环 | `REAL_CANARY` | `END_TO_END`、`RESTART` | Procurement → Libra → Arca Aftercare | 真实正确性、性能、恢复性 | Critical | `OPEN` |
+| UAT-106 | TMDB cast-only请求成功但返回零演员后，Libra Run保持active且没有开放Work或可行动终态 | `DOMAIN_ORCHESTRATION` | `LIVENESS`、`USER_EXPERIENCE` | Libra Metadata Coordinator + Run Lifecycle + Formation | 活性、可解释性、终态正确性 | Critical | `FACT/UI/RESTART PASSED / CLOSED` |
+| UAT-107 | 本地媒体不合格且MoviePilot未配置时，Libra只返回瞬时waiting并被UI误报为执行失败 | `DOMAIN_ORCHESTRATION` | `EXTERNAL_INTEGRATION`、`USER_EXPERIENCE` | Libra Media Planning + Formation + Platform Integration readiness | 活性、可行动性、状态真实性 | Critical | `FACT/UI/RESTART PASSED / CLOSED` |
 
 ### 2.0.1 UAT-074–UAT-084必须保护的历史修复
 
@@ -3274,6 +3276,12 @@ UAT-075相关回归必须同版通过。
 当前处理决定：代码与自动化回归已完成，状态`CODE/REGRESSION PASSED / REAL CANARY PENDING`。尚未用全新真实TMDB Canary取得两部原问题影片的
 Formation/FACT/FS终态，因此不提前标记UAT PASS/CLOSED，也不修改保留的现场数据库。
 
+关闭确认（2026-08-24）：真实Canary `UAT-20260824-210652-fd1e1190e`中，`全面失控：特大号邮轮危机`
+通过cast-only TMDB请求取得8名演员、生成含演员的NFO并进入Arca；`一场很（没）有必要的春晚`同样实际执行了
+cast-only请求，TMDB合法返回零演员，因此没有伪造Media Cast或进入末端Conformance。后者的零演员后继活性缺口由
+UAT-106独立登记并关闭。UAT-092原命题的Metadata规划、TMDB调用、Media Cast和NFO接线已取得FACT/UI/RESTART证据，
+状态`FACT/UI/RESTART PASSED / CLOSED`。
+
 ## 90. UAT-093：Douban缺year强制详情查询阻断同步，年份关联校验全面取消
 
 问题分类：`BUSINESS_CONTRACT / EXTERNAL_INTEGRATION / RECOVERY_CORRECTNESS / PROJECTION_FRESHNESS`
@@ -3423,7 +3431,49 @@ cursor revision 104并进入terminal complete。《网诱惊魂》Record合法�
 
 验收范围：逐项关闭`UAT-094`–`UAT-104`的FACT/FS/PERFORMANCE/RESTART证据；至少覆盖约4.8GB Primary、61成员目录、NFO update/rebuild、真实TMDB Poster、评分驱动的媒体修复、真实进度、受控重启与baseline零变化。同时复核`UAT-092`两部演员缺失影片的真实链路；未取得真实终态前不得把`UAT-092`或本条关闭。状态`OPEN`。
 
-## 103. 后续问题模板
+## 103. UAT-106：TMDB零演员结果后Libra Run没有可行动终态
+
+问题分类：`DOMAIN_ORCHESTRATION / LIVENESS / USER_EXPERIENCE`
+
+用户侧现象：`一场很（没）有必要的春晚 (2022)`长期显示“正在确认目标、评分、要求或身份”。Run为`active`，
+5个Metadata前序Work全部`succeeded`且开放Work为0；NFO和TMDB Provider Result的`peopleHints`都为空。
+
+历史漏项：UAT-092提交`1e339358d`修复“缺演员NFO必须创建cast-only Provider Work并把Media Cast写入NFO”；
+`fd1e1190e`只移除TMDB Adapter对空`requestedFields`的错误拒绝。旧回归明确断言Provider零演员时Metadata Stage为
+`unresolved`，但没有继续约束Coordinator、Run Lifecycle和Formation终态；UAT-092当时也保持
+`REAL CANARY PENDING`，因此不是已关闭行为回退。
+
+修复边界：Provider Fetch Work和Attempt保持`succeeded`。Coordinator把其durable zero-cast Result作为
+`business_unachievable / product_metadata_required_cast_missing`证据，通过既有Run Lifecycle冻结当前Run；
+不制造executor failure、不把演员混入普通描述字段、不改Foundation。
+
+验收证据：提交`c07d59ac5`；真实保留库重启后Run `7d03fa...`从active revision 2进入frozen revision 3，
+5个Work仍全部succeeded，当前transition evidence唯一blocker为`libra.product_metadata.fetch@1`的上述业务原因。
+Admin Web显示“媒体资料中缺少验收要求的演员信息，本次整理已冻结”，不含“执行失败”。专项32/32、完整Service
+320 pass / 18 skip / 0 fail。状态`FACT/UI/RESTART PASSED / CLOSED`。
+
+## 104. UAT-107：MoviePilot未配置时Libra零资源等待被误报为执行失败
+
+问题分类：`DOMAIN_ORCHESTRATION / EXTERNAL_INTEGRATION / USER_EXPERIENCE`
+
+用户侧现象：`地狱尖兵 (2022)`的Direct Product Media Verification以`video_codec_unmet`、
+`minimum_raster_unmet`、`primary_audio_unmet`拒绝现有媒体，并形成`no_passed_candidate`；当前环境没有MoviePilot。
+Run仍active，8个Work全部succeeded、开放Work为0，但Formation显示“媒体整理执行失败，需要处理”。
+
+历史漏项：UAT-017/UAT-030只覆盖MoviePilot已配置后候选`noncompliant`或`no_available_candidate`形成合法业务冻结；
+历史“5-star without MoviePilot”E2E仅证明不得伪造Package/Offer，没有断言持久等待投影、可行动文案或UI桶。
+Coordinator原有`waiting_external_integration`只是瞬时结果，Formation没有读取Platform Integration readiness。
+
+修复边界：Run保持active且零执行资源占用，配置MoviePilot后由既有reconcile继续，不伪造Work或冻结为技术失败。
+Formation通过Composition提供的只读Platform readiness，只有在durable Media Verification要求外部来源、Selection为
+`no_passed_candidate`且尚无External Work时，投影`pending / waiting_for_external`和“等待配置外部获取服务后继续整理”；
+其他业务失败仍为attention，不被此分支隐藏。
+
+验收证据：提交`c07d59ac5`；真实保留库重启后地狱尖兵保持active revision 2，Projection由
+`attention_required / blocked`变为`pending / waiting_for_external`，Admin Web归入“待整理”并显示精确等待文案。
+专项32/32、完整Service 320 pass / 18 skip / 0 fail。状态`FACT/UI/RESTART PASSED / CLOSED`。
+
+## 105. 后续问题模板
 
 后续发现的问题按以下结构追加：
 
