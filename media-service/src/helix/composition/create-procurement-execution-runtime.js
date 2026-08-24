@@ -86,13 +86,16 @@ const ARCA_ALL_ENABLED=Object.freeze([...ARCA_ENABLED,...ARCA_OFFDECK_ENABLED,..
 const ENABLED = Object.freeze([...PROCUREMENT_ENABLED, ...SHARED_ENABLED, ...LIBRA_ENABLED, ...PERCEPTION_ENABLED,...ARCA_ALL_ENABLED]);
 const UAT_SOURCE_EXECUTION_CATALOG_DIGEST = 'b0371a6d2793c1e381a4c2e7fc421d312a1a1e90d2de5e47f61a45022f09793b';
 const PRE_PROJECTION_EXECUTION_CATALOG_DIGEST = '13315cdbdf6ab5cbe30b32075f89bd76ae1a873d84034dc572824f4fbc3886e6';
+const PRE_ACTOR_COMPLETION_EXECUTION_CATALOG_DIGEST = '9e0e24c88512973e16d601c79c362d01844af0853bc1c2c37442041acda1821d';
 const TERMINAL_EVENT_STATES = new Set(['succeeded', 'skipped', 'failed', 'cancelled']);
+const TERMINAL_ATTEMPT_STATES = new Set(['succeeded', 'failed', 'cancelled']);
 
 function verifyStartupPlanCatalog(snapshot, currentCatalogDigest, registry, policyRegistry, bindingProjectionRegistry) {
   if (!snapshot || !snapshot.plan) return false;
   if (snapshot.plan.catalog_digest === currentCatalogDigest) return true;
-  if (snapshot.plan.catalog_digest === PRE_PROJECTION_EXECUTION_CATALOG_DIGEST &&
-      ['succeeded', 'failed', 'cancelled'].includes(snapshot.workAttempt?.state) &&
+  if ([PRE_PROJECTION_EXECUTION_CATALOG_DIGEST,
+    PRE_ACTOR_COMPLETION_EXECUTION_CATALOG_DIGEST].includes(snapshot.plan.catalog_digest) &&
+      TERMINAL_ATTEMPT_STATES.has(snapshot.workAttempt?.state) &&
       Array.isArray(snapshot.events) && snapshot.events.every((event) => TERMINAL_EVENT_STATES.has(event.state))) return true;
   if (snapshot.plan.catalog_digest !== UAT_SOURCE_EXECUTION_CATALOG_DIGEST ||
       !snapshot.work || !Array.isArray(snapshot.nodes) || !Array.isArray(snapshot.events) ||
@@ -912,6 +915,7 @@ function createProcurementExecutionRuntime(options) {
 module.exports = Object.freeze({
   UAT_SOURCE_EXECUTION_CATALOG_DIGEST,
   PRE_PROJECTION_EXECUTION_CATALOG_DIGEST,
+  PRE_ACTOR_COMPLETION_EXECUTION_CATALOG_DIGEST,
   createProcurementExecutionRuntime,
   createHelixExecutionRuntime:createProcurementExecutionRuntime,
   volumeReadUnitsForCapability,

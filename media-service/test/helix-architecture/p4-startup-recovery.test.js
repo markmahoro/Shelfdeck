@@ -10,6 +10,7 @@ const { createStartupRecovery } = require('../../src/helix/foundation/execution/
 const {
   UAT_SOURCE_EXECUTION_CATALOG_DIGEST,
   PRE_PROJECTION_EXECUTION_CATALOG_DIGEST,
+  PRE_ACTOR_COMPLETION_EXECUTION_CATALOG_DIGEST,
   verifyStartupPlanCatalog,
 } = require('../../src/helix/composition/create-procurement-execution-runtime');
 const { openSqliteKernel } = require('../../src/helix/foundation/persistence/sqlite-kernel');
@@ -124,6 +125,20 @@ test('a retired pre-projection Catalog is accepted only for terminal immutable A
   assert.equal(verifyStartupPlanCatalog(base,current,{},{}),true);
   assert.equal(verifyStartupPlanCatalog({...base,workAttempt:{state:'running'}},current,{},{}),false);
   assert.equal(verifyStartupPlanCatalog({...base,events:[{...terminalEvent,state:'ready'}]},current,{},{}),false);
+});
+
+test('the known pre-actor-completion Catalog is accepted only after all durable execution is terminal', () => {
+  const current = 'c'.repeat(64);
+  const terminalEvent = Object.freeze({ plan_id:'old-plan',node_id:'node',state:'succeeded' });
+  const base = Object.freeze({
+    plan:Object.freeze({catalog_digest:PRE_ACTOR_COMPLETION_EXECUTION_CATALOG_DIGEST}),
+    workAttempt:Object.freeze({state:'succeeded'}),
+    events:Object.freeze([terminalEvent]),
+  });
+  assert.equal(verifyStartupPlanCatalog(base,current,{},{}),true);
+  assert.equal(verifyStartupPlanCatalog({...base,workAttempt:{state:'running'}},current,{},{}),false);
+  assert.equal(verifyStartupPlanCatalog({...base,events:[{...terminalEvent,state:'waiting_for_external'}]},current,{},{}),false);
+  assert.equal(verifyStartupPlanCatalog({...base,plan:{catalog_digest:'d'.repeat(64)}},current,{},{}),false);
 });
 
 test('pure crash is classified safe_retry but readiness remains recovering until action converges', async () => fixture(async (recovery) => {
