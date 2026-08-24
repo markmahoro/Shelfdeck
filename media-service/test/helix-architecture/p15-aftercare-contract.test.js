@@ -13,7 +13,7 @@ const { createSqliteUnitOfWork } = require('../../src/helix/foundation/persisten
 const { createAftercareProcessCoordinator } = require('../../src/helix/domains/arca/application/aftercare-process-coordinator');
 const { computeBoundedMaterialFingerprintSync } = require('../../src/helix/integrations/bounded-material-fingerprint');
 const { observedIdentity, observeKnownOldBindings } = require('../../src/helix/domains/arca/model/known-old-binding');
-const { validNfo, aftercareMediaProbeEvidence } = require('../../src/helix/domains/arca/capabilities/aftercare-capability-ports');
+const { validNfo, aftercareMediaProbeEvidence, resolveAftercareFfmpegPath } = require('../../src/helix/domains/arca/capabilities/aftercare-capability-ports');
 const {
   PERIODS,
   stableJitterMs,
@@ -136,6 +136,14 @@ test('Aftercare promotes raw ffprobe output to formal Media Probe Evidence befor
   assert.equal(result.payloadDigest,canonicalDigest(Object.fromEntries(Object.entries(result).filter(([key])=>key!=='payloadDigest'))));
   const schema=JSON.parse(fs.readFileSync(path.resolve(__dirname,'../../src/helix/contracts/types/MediaProbeEvidence/v1/schema.json'),'utf8'));
   assert.equal(createCapabilityContractValidator({schemas:[schema]}).validate(schema.$id,result),result);
+});
+
+test('Aftercare media repair uses the deployment FFmpeg resolution chain', () => {
+  assert.equal(resolveAftercareFfmpegPath(' C:/runtime/ffmpeg.exe '),'C:/runtime/ffmpeg.exe');
+  const previous=process.env.FFMPEG_PATH;
+  delete process.env.FFMPEG_PATH;
+  try{assert.equal(resolveAftercareFfmpegPath(),require('ffmpeg-static'));}
+  finally{if(previous===undefined)delete process.env.FFMPEG_PATH;else process.env.FFMPEG_PATH=previous;}
 });
 
 test('a terminal Case from an obsolete Care Basis remains history but cannot color current health', () => {
