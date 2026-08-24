@@ -310,7 +310,9 @@ test('Aftercare legacy settlement remains evidence-gated and refuses unknown dir
   const capability = fs.readFileSync(path.join(__dirname,
     '../../src/helix/domains/arca/capabilities/aftercare-capability-ports.js'), 'utf8');
   assert.match(projection, /observeKnownOldBindings/);
-  assert.match(model, /finalMaterialKey:final\.material_key/);
+  assert.match(model, /readScope:'exact_known_old_binding_settlement'/);
+  assert.doesNotMatch(model, /finalReplacement/);
+  assert.match(capability, /resolveAftercareSettlementTarget/);
   assert.match(capability, /ARCA_AFTERCARE_SETTLEMENT_FINAL_MISMATCH/);
   assert.match(capability, /ARCA_AFTERCARE_SETTLEMENT_UNKNOWN_MEMBER/);
   assert.doesNotMatch(capability, /fs\.rmSync\(handle\.location[^\n]*recursive\s*:\s*true/);

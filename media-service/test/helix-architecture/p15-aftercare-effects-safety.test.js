@@ -17,8 +17,9 @@ const {
   materializeMediaWithRollback,
   nfoCommitSource,
   custodyIdentityChangedFinding,
+  permitsMissingArtifactReplacement,
 } = require('../../src/helix/domains/arca/capabilities/aftercare-capability-ports');
-const { hasIncompatibleRepairCombination } = require('../../src/helix/domains/arca/model/aftercare-contract');
+const { hasIncompatibleRepairCombination,deriveInventoryMaterialChanges,buildAftercareSettlementHandles } = require('../../src/helix/domains/arca/model/aftercare-contract');
 const { readAftercarePlacementAuthority } = require('../../src/helix/domains/arca/capabilities/on-deck-capability-ports');
 const { canonicalDigest } = require('../../src/helix/contracts/canonical-json');
 
@@ -204,6 +205,102 @@ test('Aftercare Artifact materialization restores the exact old file when copy f
   } finally { fs.rmSync(root,{recursive:true,force:true}); }
 });
 
+test('Aftercare permits an absent frozen Artifact only for the matching missing finding pair', () => {
+  const care=(codes)=>Object.freeze({ careRequirement:Object.freeze({ typedParameters:Object.freeze(codes.map((value)=>Object.freeze({ value }))) }) });
+  assert.equal(permitsMissingArtifactReplacement(care(['custody:artifact_missing','presentation:poster_missing']),'poster'),true);
+  assert.equal(permitsMissingArtifactReplacement(care(['custody:artifact_missing','presentation:nfo_missing']),'nfo'),true);
+  assert.equal(permitsMissingArtifactReplacement(care(['presentation:poster_missing']),'poster'),false);
+  assert.equal(permitsMissingArtifactReplacement(care(['custody:artifact_missing','presentation:poster_missing']),'nfo'),false);
+  assert.equal(permitsMissingArtifactReplacement(care(['custody:artifact_missing','presentation:nfo_missing']),'poster'),false);
+  assert.equal(permitsMissingArtifactReplacement(care(['custody:artifact_missing','presentation:poster_missing']),'media'),false);
+  const source=fs.readFileSync(path.join(sourceRoot,'domains/arca/capabilities/aftercare-capability-ports.js'),'utf8'),
+    materialize=source.slice(source.indexOf('ports[C.artifactMaterialize]'),source.indexOf('async function mediaEffect'));
+  assert.match(materialize,/allowMissingOld:permitsMissingArtifactReplacement\(care,kind\)/);
+});
+
+test('Aftercare materializes and replays a frozen missing Artifact without fabricating retired state', () => {
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'aftercare-artifact-missing-'));
+  try {
+    const source=path.join(root,'workspace.jpg'),location=path.join(root,'poster.jpg'),retiredLocation=location+'.superseded-case-1';
+    fs.writeFileSync(source,'new-poster');fs.writeFileSync(location,'old-poster');const oldMaterial=inventoryRow(location);fs.rmSync(location);
+    const first=materializeArtifactWithRollback({source,location,retiredLocation,oldMaterial,mountScopeId:'mount-1',
+      fingerprint:boundedFingerprint,revalidate:()=>{},allowMissingOld:true});
+    const replay=materializeArtifactWithRollback({source,location,retiredLocation,oldMaterial,mountScopeId:'mount-1',
+      fingerprint:boundedFingerprint,revalidate:()=>{},allowMissingOld:true});
+    assert.equal(first.materialKey,replay.materialKey);
+    assert.equal(fs.readFileSync(location,'utf8'),'new-poster');
+    assert.equal(fs.existsSync(retiredLocation),false);
+  } finally { fs.rmSync(root,{recursive:true,force:true}); }
+});
+
+test('Aftercare missing Artifact authorization stays fail-closed when absent evidence is not frozen', () => {
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'aftercare-artifact-missing-denied-'));
+  try {
+    const source=path.join(root,'workspace.nfo'),location=path.join(root,'movie.nfo'),retiredLocation=location+'.superseded-case-1';
+    fs.writeFileSync(source,'new-nfo');fs.writeFileSync(location,'old-nfo');const oldMaterial=inventoryRow(location);fs.rmSync(location);
+    assert.throws(()=>materializeArtifactWithRollback({source,location,retiredLocation,oldMaterial,mountScopeId:'mount-1',
+      fingerprint:boundedFingerprint,revalidate:()=>{}}),(error)=>error.code==='ARCA_AFTERCARE_TARGET_CONFLICT');
+    assert.equal(fs.existsSync(location),false);
+    assert.equal(fs.existsSync(retiredLocation),false);
+  } finally { fs.rmSync(root,{recursive:true,force:true}); }
+});
+
+test('Aftercare missing Artifact authorization conflicts if the target reappears with other bytes', () => {
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'aftercare-artifact-reappeared-'));
+  try {
+    const source=path.join(root,'workspace.jpg'),location=path.join(root,'poster.jpg'),retiredLocation=location+'.superseded-case-1';
+    fs.writeFileSync(source,'new-poster');fs.writeFileSync(location,'old-poster');const oldMaterial=inventoryRow(location);
+    fs.writeFileSync(location,'outside-case-poster');
+    assert.throws(()=>materializeArtifactWithRollback({source,location,retiredLocation,oldMaterial,mountScopeId:'mount-1',
+      fingerprint:boundedFingerprint,revalidate:()=>{},allowMissingOld:true}),(error)=>error.code==='ARCA_AFTERCARE_TARGET_CONFLICT');
+    assert.equal(fs.readFileSync(location,'utf8'),'outside-case-poster');
+    assert.equal(fs.existsSync(retiredLocation),false);
+  } finally { fs.rmSync(root,{recursive:true,force:true}); }
+});
+
+test('Aftercare missing Artifact authorization conflicts if the exact frozen old target reappears', () => {
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'aftercare-artifact-old-reappeared-'));
+  try {
+    const source=path.join(root,'workspace.jpg'),location=path.join(root,'poster.jpg'),retiredLocation=location+'.superseded-case-1';
+    fs.writeFileSync(source,'new-poster');fs.writeFileSync(location,'old-poster');const oldMaterial=inventoryRow(location);
+    assert.throws(()=>materializeArtifactWithRollback({source,location,retiredLocation,oldMaterial,mountScopeId:'mount-1',
+      fingerprint:boundedFingerprint,revalidate:()=>{},allowMissingOld:true}),(error)=>error.code==='ARCA_AFTERCARE_TARGET_CONFLICT');
+    assert.equal(fs.readFileSync(location,'utf8'),'old-poster');
+    assert.equal(fs.existsSync(retiredLocation),false);
+  } finally { fs.rmSync(root,{recursive:true,force:true}); }
+});
+
+test('Aftercare removes a newly materialized missing Artifact when authority changes', () => {
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'aftercare-artifact-missing-rollback-'));
+  try {
+    const source=path.join(root,'workspace.nfo'),location=path.join(root,'movie.nfo'),retiredLocation=location+'.superseded-case-1';
+    fs.writeFileSync(source,'new-nfo');fs.writeFileSync(location,'old-nfo');const oldMaterial=inventoryRow(location);fs.rmSync(location);
+    assert.throws(()=>materializeArtifactWithRollback({source,location,retiredLocation,oldMaterial,mountScopeId:'mount-1',
+      fingerprint:boundedFingerprint,revalidate:()=>{throw Object.assign(new Error('fenced'),{code:'ARCA_AFTERCARE_EFFECT_FENCED'});},allowMissingOld:true}),
+    (error)=>error.code==='ARCA_AFTERCARE_EFFECT_FENCED');
+    assert.equal(fs.existsSync(location),false);
+    assert.equal(fs.existsSync(retiredLocation),false);
+    assert.equal(fs.existsSync(location+'.aftercare-'+process.pid+'.tmp'),false);
+  } finally { fs.rmSync(root,{recursive:true,force:true}); }
+});
+
+test('Aftercare missing Artifact Inventory release and empty Settlement remain deterministic on replay', () => {
+  const identity=(materialKey)=>Object.freeze({schemaRef:'helix://contracts/types/PhysicalMaterialIdentity/v2',schemaVersion:2,
+    materialKey,mountScopeId:'mount-1',inode:materialKey,sizeBytes:10,fingerprintAlgorithm:'sha256',fingerprintVersion:1,
+    contentFingerprint:canonicalDigest(materialKey)}),oldIdentity=identity(canonicalDigest('old-missing-poster')),
+    newIdentity=identity(canonicalDigest('new-poster')),receipt=Object.freeze({finalMaterialIdentity:newIdentity,
+      targetLocation:'F:/shelf/movie/poster.jpg',retiredMaterials:Object.freeze([Object.freeze({identity:oldIdentity,
+        location:'F:/shelf/movie/poster.jpg',requiresSettlement:false})])}),materials=Object.freeze([]),receipts=Object.freeze([receipt]);
+  const changes=deriveInventoryMaterialChanges(materials,receipts);
+  assert.deepEqual(changes,deriveInventoryMaterialChanges(materials,receipts));
+  assert.deepEqual(changes.map((item)=>[item.identity.materialKey,item.action]).sort(),
+    [[newIdentity.materialKey,'acquire'],[oldIdentity.materialKey,'release']].sort());
+  const settlementInput=Object.freeze({context:Object.freeze({}),aftercareCaseId:'case-1',frozenMaterials:Object.freeze([]),
+    receipts,observedOldBindings:Object.freeze([])});
+  assert.deepEqual(buildAftercareSettlementHandles(settlementInput),[]);
+  assert.deepEqual(buildAftercareSettlementHandles(settlementInput),[]);
+});
+
 test('Aftercare media materialization revalidates after canonical effect and rolls back canonical, superseded, and staged state', async () => {
   const root=fs.mkdtempSync(path.join(os.tmpdir(),'aftercare-media-rollback-'));
   try {
@@ -233,6 +330,42 @@ test('Aftercare media materialization rolls back the exact state when the staged
     await assert.rejects(materializeMediaWithRollback({source,location,supersededLocation,staged,oldMaterial,mountScopeId:'mount-1',
       fingerprint:boundedFingerprint,revalidate:()=>{},rename}),(error)=>error.code==='EIO');
     assert.equal(fs.readFileSync(location,'utf8'),'old-media');
+    assert.equal(fs.existsSync(supersededLocation),false);
+    assert.equal(fs.existsSync(staged),false);
+  } finally { fs.rmSync(root,{recursive:true,force:true}); }
+});
+
+test('Aftercare media replacement changes the canonical extension without losing rollback authority', async () => {
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'aftercare-media-extension-'));
+  try {
+    const source=path.join(root,'workspace.mkv'),oldLocation=path.join(root,'movie.avi'),
+      location=path.join(root,'movie.mkv'),supersededLocation=oldLocation+'.superseded-case-1',
+      staged=location+'.staged-case-1';
+    fs.writeFileSync(source,'new-media');fs.writeFileSync(oldLocation,'old-media');
+    const oldMaterial=inventoryRow(oldLocation);
+    const identity=await materializeMediaWithRollback({source,location,oldLocation,supersededLocation,staged,
+      oldMaterial,mountScopeId:'mount-1',fingerprint:boundedFingerprint,revalidate:()=>{}});
+    assert.equal(fs.readFileSync(location,'utf8'),'new-media');
+    assert.equal(fs.readFileSync(supersededLocation,'utf8'),'old-media');
+    assert.equal(fs.existsSync(oldLocation),false);
+    assert.equal(identity.sizeBytes,Buffer.byteLength('new-media'));
+  } finally { fs.rmSync(root,{recursive:true,force:true}); }
+});
+
+test('Aftercare cross-extension replacement restores the original filename when commit authority is fenced', async () => {
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'aftercare-media-extension-rollback-'));
+  try {
+    const source=path.join(root,'workspace.mkv'),oldLocation=path.join(root,'movie.avi'),
+      location=path.join(root,'movie.mkv'),supersededLocation=oldLocation+'.superseded-case-1',
+      staged=location+'.staged-case-1';
+    fs.writeFileSync(source,'new-media');fs.writeFileSync(oldLocation,'old-media');
+    const oldMaterial=inventoryRow(oldLocation);let validations=0;
+    await assert.rejects(materializeMediaWithRollback({source,location,oldLocation,supersededLocation,staged,
+      oldMaterial,mountScopeId:'mount-1',fingerprint:boundedFingerprint,revalidate:()=>{
+        validations+=1;if(validations===3)throw Object.assign(new Error('fenced'),{code:'ARCA_AFTERCARE_EFFECT_FENCED'});
+      }}),(error)=>error.code==='ARCA_AFTERCARE_EFFECT_FENCED');
+    assert.equal(fs.readFileSync(oldLocation,'utf8'),'old-media');
+    assert.equal(fs.existsSync(location),false);
     assert.equal(fs.existsSync(supersededLocation),false);
     assert.equal(fs.existsSync(staged),false);
   } finally { fs.rmSync(root,{recursive:true,force:true}); }

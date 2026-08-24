@@ -10,9 +10,11 @@ const stable = (prefix, value) => prefix + canonicalDigest(value).slice(0, 40);
 function typed(parameter, value) { return Object.freeze({ parameter,
   valueType:typeof value === 'number' ? (Number.isInteger(value) ? 'integer' : 'number') : typeof value,
   value, valueDigest:canonicalDigest({ parameter, value }) }); }
-function contextFor(options, ownerScope, parameters) { const deps=parameters?.dependencyRefs||[];
+function contextFor(options, ownerScope, parameters, projectionRef) { const deps=parameters?.dependencyRefs||[];
   return ownerScope.processType === 'arca_ondeck_run'
-    ? options.contextReader.readAccepted(ownerScope.processId, deps)
+    ? [P.settlementHandles,P.settlementApproval].includes(projectionRef)
+      ? options.contextReader.readSettlement(ownerScope.processId,deps,parameters.materialKey)
+      : options.contextReader.readAccepted(ownerScope.processId, deps)
     : options.contextReader.readOffer(deps); }
 function attemptId(c) { return canonicalDigest({ schema:'arca.acceptance-attempt-id@1', offerId:c.offer.offerId,
   onDeckPackageId:c.offer.onDeckPackageId, packageDigest:c.offer.packageDigest,
@@ -153,8 +155,9 @@ function settlementHandles(c,materialKey) { const source=(c.packageValue.offload
     location:source.location,mountScopeRevision:1,expectedSizeBytes:source.physicalIdentity.sizeBytes,expectedMtimeNs:0,expectedCtimeNs:0,fingerprintVerifiedAtMs:0,
     readScope:'exact_input_settlement',expiresAtMs:Number.MAX_SAFE_INTEGER,fenceDigest:canonicalDigest({run:c.responsibility.onDeckRunId,memberDigest:source.memberDigest})});
   const role=source.contextRole==='original_input'?'primary_payload':source.contextRole==='structural_dependency'?'structural_dependency':'exclusive_related';
-  const finalMember=c.finalInventoryDecision.members.find((item)=>item.sourceMaterialKey===source.finalProductMaterialKey);
+  const finalMember=c.settlementFinalMember;
   if(!finalMember)throw new Error('Settlement source-to-final mapping is absent from the Final Inventory Decision.');
+  if(finalMember.sourceMaterialKey!==source.finalProductMaterialKey)throw new Error('Settlement source-to-final mapping drifted from the bounded Final Inventory member.');
   const memberBody={ordinal:0,materialKey:source.materialKey,role,sourceRelatedReferenceId:source.sourceRelatedReferenceId,materialHandle:handle,
     finalMaterialKey:source.finalProductMaterialKey,finalTargetLocation:finalMember.targetLocation,settlementExpectation:source.settlementExpectation,
     dispositionMemberRef:source.memberDigest,sourceToFinalMappingDigest:source.derivedAuthorityDigest||canonicalDigest(source),
@@ -183,11 +186,11 @@ function createOnDeckProjections(options) { const definitions=[
   [P.settlementApproval,(c,_s,p)=>{const scope=settlementHandles(c,p.materialKey);return Object.freeze({schemaRef:'helix://contracts/types/ApprovalHandle/v1',schemaVersion:1,
     approvalId:stable('arca-settlement-approval-',{run:c.responsibility.onDeckRunId,key:p.materialKey}),ownerDomain:'arca',processType:'arca_ondeck_run',
     processId:c.responsibility.onDeckRunId,eventId:p.eventId,exactEffectScopeDigest:scope.approvalScopeDigest,approvalRevision:1,actorId:'system-policy',
-    invalidatingFactDigests:Object.freeze([c.finalInventoryDecision.decisionDigest]),approvedAtMs:0});}],
+    invalidatingFactDigests:Object.freeze([c.finalInventoryDecisionRef.decisionDigest]),approvedAtMs:0});}],
   [P.finalReality,(c,source)=>source||finalReality(options,c)],[P.onDeckControl,(c,_s,p)=>controlHandle(c,'arca_ondeck_run',c.responsibility.onDeckRunId,p.eventId,'replace_control_set')],
   ];
   return Object.freeze(definitions.map(([projectionRef,build])=>Object.freeze({projectionRef,projection:Object.freeze({project({ownerScope,sourceResult,parameters}){
-    return build(contextFor(options,ownerScope,parameters),sourceResult,parameters||{});}})})));
+    return build(contextFor(options,ownerScope,parameters,projectionRef),sourceResult,parameters||{});}})})));
 }
 
 module.exports=Object.freeze({createOnDeckProjections,attemptId,packageIdentity,standard,productManifest});

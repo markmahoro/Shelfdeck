@@ -8,7 +8,7 @@ import './collection.css';
 
 const healthFilters: [HealthState | 'all', string][] = [['all', '全部'], ['healthy', '健康'], ['observing', '观察中'], ['repairing', '修复中'], ['attention_required', '需要处理'], ['never_assessed', '尚未检查']];
 const dimensionLabels = { custody: '保管', presentation: '呈现', conformance: '合规' };
-const careStageLabels: Record<string, string> = { preparing: '正在准备修复', preparing_media: '正在处理媒体', committing_inventory: '正在更新收藏', reassessing: '正在复核结果', waiting_for_recovery: '等待自动恢复' };
+const careStageLabels: Record<string, string> = { preparing: '正在准备修复', preparing_media: '正在处理媒体', verifying_media: '正在验证媒体', committing_inventory: '正在更新收藏', reassessing: '正在复核结果', waiting_for_recovery: '等待自动恢复' };
 const terminalReasonLabels: Record<string, string> = {
   care_basis_changed: '收藏依据已变化，本次修复已停止', modification_fenced: '条目正在执行其他变更，本次修复已停止',
   provider_artifact_not_available: '所需资料暂时无法取得', media_verification_failed: '处理后的媒体未通过复核',

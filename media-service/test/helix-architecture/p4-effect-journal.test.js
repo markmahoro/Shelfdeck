@@ -75,6 +75,22 @@ test('settle persists observation, verifies reality, and atomically commits mark
   } finally { database.close(); }
 }));
 
+test('settle adopts an exact marker pre-bound by the atomic business transaction', async () => fixture(async ({ journal,databasePath }) => {
+  const idempotencyKey='inventory-key',effectId=effectIdentity('responsibility_control_commit',idempotencyKey),
+    atomicReceipt=receipt({effectId,effectClass:'responsibility_control_commit',idempotencyKey,
+      commitMarker:'atomic-inventory-marker',externalReceiptRef:null});
+  journal.intend({eventAttemptId:'event-attempt',effectClass:'responsibility_control_commit',idempotencyKey,intentDigest:INTENT});
+  const database=new Database(databasePath);
+  try{database.prepare(`INSERT INTO fx_commit_markers
+    (commit_marker,effect_id,owner_domain,scope_type,scope_id,commit_digest,result_id,result_schema_ref,result_digest,committed_at_ms)
+    VALUES (?,?,?,?,?,?,NULL,NULL,NULL,?)`).run(atomicReceipt.commitMarker,effectId,'arca','shelf_entry','entry-1',
+      atomicReceipt.verificationEvidenceDigest,atomicReceipt.committedAtMs);}finally{database.close();}
+  const settled=await journal.settle({effectId,receipt:atomicReceipt,
+    scope:{ownerDomain:'arca',scopeType:'shelf_entry',scopeId:'entry-1'}});
+  assert.equal(settled.state,'committed');
+  assert.deepEqual(journal.observeRecovery(effectId).markers.map((item)=>item.commit_marker),['atomic-inventory-marker']);
+}));
+
 test('unverified reality remains reconcile_required and cannot bind a fabricated commit marker', async () => fixture(async ({ journal, databasePath }) => {
   journal.intend({ eventAttemptId: 'event-attempt', effectClass: 'external_request', idempotencyKey: 'request-key', intentDigest: INTENT });
   await assert.rejects(journal.settle({ effectId: effectIdentity('external_request', 'request-key'), receipt: receipt(),

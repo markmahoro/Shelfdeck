@@ -1,9 +1,11 @@
 'use strict';
 
+const path = require('node:path');
 const { canonicalDigest } = require('../../../contracts/canonical-json');
 const { createShelfQueryStore } = require('../persistence/shelf-query-store');
 const { createHandoffBAcceptanceStore } = require('../persistence/handoff-b-acceptance-store');
 const { createOnDeckStore } = require('../persistence/on-deck-store');
+const { requiresInputSettlement } = require('../model/offload-settlement');
 
 function stable(schema, value) { return canonicalDigest({ schema, ...value }); }
 
@@ -55,6 +57,55 @@ function assessAcceptedInventory(inventoryPort, onDeckRunId, responsibility, con
     // therefore replay an exact final member when its approved source has
     // already been settled; initial Acceptance still assesses with replay off.
     replayCommitted: true,
+  });
+}
+
+function boundedSettlementContext(context, responsibility, verified, materialKey) {
+  const finalInventoryDecision = responsibility.finalInventoryDecision;
+  const source = (context.packageValue.offloadContextManifest?.members || [])
+    .find((item) => item.materialKey === materialKey && requiresInputSettlement(item));
+  if (!source || !source.finalProductMaterialKey) {
+    throw new Error('Settlement Material is outside the accepted Off-load Context.');
+  }
+  const productMember = context.packageValue.productMaterialManifest.members
+    .find((item) => item.materialKey === source.finalProductMaterialKey);
+  const finalMember = finalInventoryDecision.members
+    .find((item) => item.sourceMaterialKey === source.finalProductMaterialKey);
+  if (!productMember || !finalMember) {
+    throw new Error('Settlement source-to-final mapping is absent from the accepted Final Inventory Decision.');
+  }
+  const managedLocations = Object.freeze([
+    ...(context.packageValue.offloadContextManifest?.members || [])
+      .map((item) => item.location),
+    ...finalInventoryDecision.members.map((item) => item.targetLocation),
+  ].filter(Boolean));
+  const packageValue = Object.freeze({
+    ...context.packageValue,
+    productMaterialManifest:Object.freeze({
+      ...context.packageValue.productMaterialManifest,
+      members:Object.freeze([productMember]),
+    }),
+    offloadContextManifest:Object.freeze({
+      ...context.packageValue.offloadContextManifest,
+      members:Object.freeze([source]),
+    }),
+  });
+  return Object.freeze({
+    ...context,
+    responsibility:Object.freeze({
+      onDeckRunId:responsibility.onDeckRunId,
+      custodyId:responsibility.custodyId,
+      acceptanceDecisionId:responsibility.acceptanceDecisionId,
+    }),
+    verified,
+    packageValue,
+    finalInventoryDecisionRef:Object.freeze({
+      objectId:finalInventoryDecision.objectId,
+      revision:finalInventoryDecision.revision,
+      decisionDigest:finalInventoryDecision.decisionDigest,
+    }),
+    settlementFinalMember:finalMember,
+    settlementManagedLocations:managedLocations,
   });
 }
 
@@ -143,11 +194,40 @@ function createOnDeckContextReader(options) {
       finalInventoryDecision: accepted.finalInventoryDecision });
   }
 
-  return Object.freeze({ messageFromRefs, readOffer, readAccepted, acceptance, onDeck });
+  function readSettlement(onDeckRunId, dependencyRefs, materialKey) {
+    const context = readOffer(dependencyRefs, { allowDeregistering:true });
+    const responsibility = acceptance.readRunResponsibility(onDeckRunId);
+    if (!responsibility || responsibility.onDeckRunId !== onDeckRunId ||
+        responsibility.offerId !== context.offer.offerId ||
+        responsibility.onDeckPackageId !== context.offer.onDeckPackageId ||
+        responsibility.packageDigest !== context.offer.packageDigest ||
+        responsibility.shelfId !== context.shelf.shelfId ||
+        responsibility.standardRevision !== context.shelf.currentStandardRevision ||
+        responsibility.placementRevision !== context.shelf.currentPlacementRevision) {
+      throw new Error('Arca On-deck settlement responsibility is unavailable or stale.');
+    }
+    const firstFinalMember = responsibility.finalInventoryDecision.members?.[0];
+    if (!firstFinalMember?.targetLocation) {
+      throw new Error('Arca On-deck settlement Final Inventory Decision is empty.');
+    }
+    const targetLocation = path.dirname(path.resolve(firstFinalMember.targetLocation));
+    const verified = onDeck.verifyAcceptedResponsibility({
+      onDeckRunId,
+      custodyId:responsibility.custodyId,
+      shelf:context.shelf,
+      package:context.packageValue,
+      finalInventoryDecision:responsibility.finalInventoryDecision,
+      targetLocation,
+    });
+    return boundedSettlementContext(context, responsibility, verified, materialKey);
+  }
+
+  return Object.freeze({ messageFromRefs, readOffer, readAccepted, readSettlement, acceptance, onDeck });
 }
 
 module.exports = Object.freeze({
   assessAcceptedInventory,
+  boundedSettlementContext,
   createOnDeckContextReader,
   messageFromRefs,
 });

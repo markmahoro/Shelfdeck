@@ -9,6 +9,13 @@ const {
   evaluateAftercareConformance,
   verifyOutputContinuity,
 } = require('../../src/helix/domains/arca/model/aftercare-media-policy');
+const {
+  buildProductionVideoProfile,
+  verifyPlaybackBounded,
+} = require('../../src/helix/domains/arca/capabilities/aftercare-capability-ports');
+const {
+  canonicalDigest,
+} = require('../../src/helix/contracts/canonical-json');
 
 function video(streamIndex, codec, dispositionDefault, width = 1920, height = 1080) {
   return Object.freeze({ streamIndex, codec, dispositionDefault, width, height });
@@ -36,6 +43,54 @@ test('Aftercare primary stream selection is default-first instead of array-first
   });
   assert.deepEqual(primaryVideoStreams(value).map((item) => item.streamIndex), [3]);
   assert.deepEqual(primaryAudioStreams(value).map((item) => item.streamIndex), [5]);
+});
+
+test('Aftercare transcode freezes the exact schema-valid production profile digest', () => {
+  const videoProfile = Object.freeze({
+    dynamicRangeOperation:'preserve',
+    pipelineProfileId:'ordinary_to_hevc@1',
+    outputDynamicRangeKind:'sdr',
+    outputPixelFormat:'encoder_selected',
+    outputColorProfile:Object.freeze({
+      range:'source', primaries:'source', transfer:'source', matrix:'source',
+    }),
+  });
+  assert.deepEqual(buildProductionVideoProfile(videoProfile), {
+    ...videoProfile,
+    profileDigest:canonicalDigest(videoProfile),
+  });
+  assert.equal(buildProductionVideoProfile(null), null);
+});
+
+test('Aftercare playback verification resolves its own Arca Workspace handle', async () => {
+  let inheritedLibraCalls = 0;
+  const processCalls = [];
+  const store = {
+    aftercareWorkspaceRootSnapshot: {
+      rootHandleRef:'arca-root', endpointId:'local-filesystem-win32', mountScopeId:'mount-a',
+    },
+    aftercareWorkspaceLocation(workspaceId, relativePath) {
+      assert.equal(workspaceId, 'case-1');
+      assert.equal(relativePath, 'media/output.mkv');
+      return 'F:/aftercare/case-1/media/output.mkv';
+    },
+  };
+  const workspaceMediaHandle = {
+    workspaceMaterialHandle: {
+      workspaceId:'case-1', relativePath:'media/output.mkv', rootHandleRef:'arca-root',
+      endpointId:'local-filesystem-win32', physicalIdentity:{ mountScopeId:'mount-a' },
+    },
+  };
+  const result = await verifyPlaybackBounded({
+    ffmpegPath:'ffmpeg',
+    mediaEffectPort:{ async verifyPlayback() { inheritedLibraCalls += 1; throw new Error('Libra-only port'); } },
+  }, store, workspaceMediaHandle, { durationMs:100_000 }, async (binary, args, timeoutMs) => {
+    processCalls.push({ binary, args, timeoutMs });
+  });
+  assert.equal(inheritedLibraCalls, 0);
+  assert.equal(processCalls.length, 3);
+  assert.deepEqual(result.passedSamplePointsPercent, [5, 50, 95]);
+  assert.equal(processCalls.every((item) => item.args.includes('F:/aftercare/case-1/media/output.mkv')), true);
 });
 
 test('Aftercare target bitrate is capped to source size while retaining copied stream bitrate', () => {

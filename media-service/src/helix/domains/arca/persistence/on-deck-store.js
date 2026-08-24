@@ -49,6 +49,75 @@ function outboxPayloadDigest(value) {
   return canonicalDigest(value);
 }
 
+function deriveOnDeckControlChanges(options) {
+  const oldMaterials = options.oldMaterials;
+  const stagedMembers = options.stagedMembers;
+  const custodyByKey = new Map(options.custodyControls.map((item) =>
+    [item.materialKey, item]));
+  const targetByKey = new Map(options.targetControls.map((item) =>
+    [item.materialKey, item]));
+  const stagedByKey = new Map(stagedMembers.map((item) =>
+    [item.materialKey, item]));
+  const custodyScope = Object.freeze({
+    ownerDomain: 'arca',
+    scopeType: 'on_deck_custody',
+    scopeId: options.custodyId,
+  });
+  const shelfEntryScope = Object.freeze({
+    ownerDomain: 'arca',
+    scopeType: 'shelf_entry',
+    scopeId: options.shelfEntryId,
+  });
+  const changes = [];
+
+  for (const [materialKey, member] of oldMaterials) {
+    const control = custodyByKey.get(materialKey);
+    if (!control) {
+      fail('P14_ONDECK_CUSTODY_CONTROL_MISSING',
+        'On-deck Commit lost a Custody Control member.');
+    }
+    const retained = stagedByKey.has(materialKey);
+    if (retained) {
+      const targetControl = targetByKey.get(materialKey);
+      if (!targetControl ||
+          targetControl.projectionDigest !== control.projectionDigest) {
+        fail('P14_ONDECK_CONTROL_PROJECTION_DRIFT',
+          'On-deck Commit observed different Control projections for a retained Material.');
+      }
+    }
+    changes.push(Object.freeze({
+      identity: member.physicalIdentity,
+      action: retained ? 'transfer' : 'release',
+      expectedRevision: control.controlRevision,
+      expectedProjectionDigest: control.projectionDigest,
+      fromScope: custodyScope,
+      toScope: retained ? shelfEntryScope : null,
+    }));
+  }
+
+  for (const member of stagedMembers) {
+    if (oldMaterials.has(member.materialKey)) continue;
+    const control = targetByKey.get(member.materialKey);
+    if (!control || control.resultKind !== 'available' ||
+        control.controlState !== 'uncontrolled') {
+      fail('P14_ONDECK_TARGET_CONTROL_CONFLICT',
+        'Final Inventory target Material is already controlled.');
+    }
+    changes.push(Object.freeze({
+      identity: member.physicalIdentity,
+      action: 'acquire',
+      expectedRevision: control.controlRevision,
+      expectedProjectionDigest: control.projectionDigest,
+      fromScope: null,
+      toScope: shelfEntryScope,
+    }));
+  }
+
+  return Object.freeze(changes.sort((left, right) =>
+    Buffer.compare(Buffer.from(left.identity.materialKey),
+      Buffer.from(right.identity.materialKey))));
+}
+
 function arcaDefinition(schemaManifest) {
   return createRepositoryDefinition({
     repositoryId: 'arca_ondeck_store',
@@ -648,56 +717,14 @@ function createOnDeckStore(options) {
         oldMaterials.set(member.materialKey, member);
       }
     }
-    const changes = [
-      ...[...oldMaterials.values()].map((member) => {
-        const control = request.custodyControls.find((item) =>
-          item.materialKey === member.materialKey);
-        if (!control) {
-          fail('P14_ONDECK_CUSTODY_CONTROL_MISSING',
-            'On-deck Commit lost a Custody Control member.');
-        }
-        return Object.freeze({
-          identity: member.physicalIdentity,
-          action: 'release',
-          expectedRevision: control.controlRevision,
-          expectedProjectionDigest: control.projectionDigest,
-          fromScope: Object.freeze({
-            ownerDomain: 'arca',
-            scopeType: 'on_deck_custody',
-            scopeId: request.custodyId,
-          }),
-          toScope: null,
-        });
-      }),
-      ...stagedMembers.map((member) => {
-        const control = request.targetControls.find((item) =>
-          item.materialKey === member.materialKey);
-        if (!control || control.controlRevision !== 0 ||
-            control.controlState !== 'uncontrolled') {
-          fail('P14_ONDECK_TARGET_CONTROL_CONFLICT',
-            'Final Inventory target Material is already controlled.');
-        }
-        return Object.freeze({
-          identity: member.physicalIdentity,
-          action: 'acquire',
-          expectedRevision: 0,
-          expectedProjectionDigest: control.projectionDigest,
-          fromScope: null,
-          toScope: Object.freeze({
-            ownerDomain: 'arca',
-            scopeType: 'shelf_entry',
-            scopeId: shelfEntryId,
-          }),
-        });
-      }),
-    ].sort((left, right) =>
-      Buffer.compare(Buffer.from(left.identity.materialKey),
-        Buffer.from(right.identity.materialKey)));
-    if (new Set(changes.map((item) => item.identity.materialKey)).size !==
-        changes.length) {
-      fail('P14_ONDECK_CONTROL_SET_OVERLAP',
-        'Input release and final Inventory acquire sets overlap.');
-    }
+    const changes = deriveOnDeckControlChanges({
+      oldMaterials,
+      stagedMembers,
+      custodyControls: request.custodyControls,
+      targetControls: request.targetControls,
+      custodyId: request.custodyId,
+      shelfEntryId,
+    });
     const authorizedControlScopeDigest = controlScopeDigest(changes);
     const representationDigest = canonicalDigest({
       schema: 'arca.inventory-representation@1',
@@ -1361,4 +1388,5 @@ function resultFromRows(receipt, completion, commitDigest) {
 module.exports = Object.freeze({
   OnDeckStoreError,
   createOnDeckStore,
+  deriveOnDeckControlChanges,
 });

@@ -89,8 +89,8 @@ function definitions(schemaManifest) {
     } }),
     results: createRepositoryDefinition({ repositoryId: 'runtime_results', owner: 'execution-foundation', schemaManifest, statements: {
       find: { kind: 'select-one', tableId: 'fx_event_result_bindings', columns: [
-        'result_id', 'event_id', 'result_schema_ref', 'result_json', 'result_digest',
-        'evidence_schema_ref', 'evidence_json', 'evidence_digest', 'effect_receipt_id'
+        'result_id', 'event_id', 'outcome_kind', 'result_schema_ref', 'result_json', 'result_digest',
+        'evidence_schema_ref', 'evidence_json', 'evidence_digest', 'effect_receipt_id', 'committed_at_ms'
       ], keyColumns: ['event_id'] },
       list: { kind: 'select-all', tableId: 'fx_event_result_bindings', columns: [
         'event_id', 'outcome_kind', 'result_schema_ref', 'result_json', 'evidence_schema_ref', 'evidence_json', 'effect_receipt_id'
@@ -99,6 +99,9 @@ function definitions(schemaManifest) {
         'result_id', 'event_id', 'outcome_kind', 'result_schema_ref', 'result_json', 'result_digest', 'evidence_schema_ref',
         'evidence_json', 'evidence_digest', 'effect_receipt_id', 'committed_at_ms'
       ] }
+    } }),
+    markers: createRepositoryDefinition({ repositoryId:'runtime_commit_markers',owner:'execution-foundation',schemaManifest,statements:{
+      list:{kind:'select-all',tableId:'fx_commit_markers',columns:['commit_marker','effect_id','owner_domain','scope_type','scope_id','commit_digest','result_id','result_schema_ref','result_digest','committed_at_ms'],keyColumns:[]}
     } }),
     timings: createRepositoryDefinition({ repositoryId: 'runtime_resource_timings', owner: 'execution-foundation', schemaManifest, statements: {
       insert: { kind: 'insert', tableId: 'fx_event_resource_timings', columns: [
@@ -112,7 +115,8 @@ function definitions(schemaManifest) {
 function createEventRuntime(options) {
   const requiredFunctions = ['nextEventAttemptId', 'nextExecutionId', 'nextResultId', 'now'];
   if (!options || !options.schemaManifest || !options.unitOfWork || !options.scheduler || !options.governor || !options.registry ||
-      !options.dispatcher || !options.executionInputProvider || !options.fenceValidator || !options.resourceDemandResolver ||
+      !options.dispatcher || !options.contractValidator || typeof options.contractValidator.validate !== 'function' ||
+      !options.executionInputProvider || !options.fenceValidator || !options.resourceDemandResolver ||
       !options.attemptPolicy || typeof options.attemptPolicy.prepare !== 'function' ||
       typeof options.attemptPolicy.bindingFor !== 'function' ||
       typeof options.attemptPolicy.decideFailure !== 'function' || typeof options.attemptPolicy.decideDeferred !== 'function' ||
@@ -229,6 +233,51 @@ function createEventRuntime(options) {
         return Object.freeze({ event, node, work, workAttempt, plan, attempts: Object.freeze(attempts), activeAttempt: active[0] });
       }
     }]).event_runtime_recovery_snapshot;
+  }
+
+  function readPreboundCommittedOutcome(eventId, effectId, attempt, entry) {
+    const binding=options.unitOfWork.execute([{participantId:'event_runtime_prebound_result_read',owner:'execution-foundation',
+      repositories:[repositories.results,repositories.markers],execute(context){return Object.freeze({
+        row:context.repository('runtime_results').invoke('find',{event_id:eventId}),
+        markers:Object.freeze(context.repository('runtime_commit_markers').invoke('list').filter((item)=>item.effect_id===effectId)),
+      });}}]).event_runtime_prebound_result_read,row=binding.row;
+    if(!row)return null;
+    if(row.result_schema_ref!==entry.manifest.resultSchemaRef||
+        row.evidence_schema_ref!==entry.manifest.evidenceSchemaRef)return null;
+    const effect=options.effectJournal?.read(effectId),marker=binding.markers.length===1?binding.markers[0]:null;
+    if(!effect||effect.event_attempt_id!==attempt.event_attempt_id||effect.effect_class!==entry.manifest.effectClass||
+        !['intended','effect_observed','reconcile_required','committed'].includes(effect.state)||
+        typeof effect.idempotency_key!=='string'||!effect.idempotency_key||!marker||marker.owner_domain!==entry.manifest.ownerScope||
+        marker.result_id!==row.result_id||marker.result_schema_ref!==row.result_schema_ref||
+        marker.result_digest!==row.result_digest||
+        !Number.isSafeInteger(marker.committed_at_ms)||marker.committed_at_ms<Number(attempt.started_at_ms)||
+        !Number.isSafeInteger(row.committed_at_ms)||row.committed_at_ms<marker.committed_at_ms||
+        typeof row.effect_receipt_id!=='string'||!row.effect_receipt_id)
+      fail('P4_EVENT_PREBOUND_RESULT_CORRUPT','Atomic Capability Result is not linked to the exact Effect and Commit Marker.');
+    let result,evidence;
+    try{if(typeof row.result_json!=='string'||typeof row.evidence_json!=='string')throw new Error('non-json');result=JSON.parse(row.result_json);evidence=JSON.parse(row.evidence_json);}catch{
+      fail('P4_EVENT_PREBOUND_RESULT_CORRUPT','Atomic Capability pre-bound invalid Result JSON.');
+    }
+    if(row.outcome_kind!=='succeeded'||row.result_schema_ref!==entry.manifest.resultSchemaRef||
+        row.evidence_schema_ref!==entry.manifest.evidenceSchemaRef||json(result)!==row.result_json||
+        json(evidence)!==row.evidence_json||digest(row.result_json)!==row.result_digest||
+        digest(row.evidence_json)!==row.evidence_digest||result.ownerDomain!==marker.owner_domain||
+        result.scopeType!==marker.scope_type||result.scopeId!==marker.scope_id||
+        result.effectReceiptRef!==row.effect_receipt_id)
+      fail('P4_EVENT_PREBOUND_RESULT_CORRUPT','Atomic Capability pre-bound Result does not match its frozen contract.');
+    options.contractValidator.validate(entry.manifest.resultSchemaRef,result);
+    options.contractValidator.validate(row.evidence_schema_ref,evidence);
+    const effectReceipt=Object.freeze({schemaRef:'helix://contracts/types/EffectReceipt/v1',schemaVersion:1,
+      effectReceiptId:row.effect_receipt_id,effectId:effect.effect_id,effectClass:effect.effect_class,
+      idempotencyKey:effect.idempotency_key,commitMarker:marker.commit_marker,
+      externalReceiptRef:effect.external_receipt_ref||null,outputDigest:row.result_digest,
+      verificationEvidenceDigest:marker.commit_digest,committedAtMs:marker.committed_at_ms});
+    options.contractValidator.validate('helix://contracts/types/EffectReceipt/v1',effectReceipt);
+    const outcome=Object.freeze({kind:'succeeded',resultSchemaRef:entry.manifest.resultSchemaRef,result:Object.freeze(result),
+      evidenceSchemaRef:row.evidence_schema_ref,evidence:Object.freeze(evidence),
+      effectReceipt});
+    options.contractValidator.validate('helix://contracts/types/CapabilityOutcome/v1',outcome);
+    return Object.freeze({outcome,scope:Object.freeze({ownerDomain:marker.owner_domain,scopeType:marker.scope_type,scopeId:marker.scope_id})});
   }
 
   function clock() {
@@ -413,6 +462,13 @@ function createEventRuntime(options) {
                 existing.effect_receipt_id !== expectedReceiptId) {
               fail('P4_EVENT_PREBOUND_RESULT_CONFLICT', 'Atomic Capability commit pre-bound a different Event Result.');
             }
+            const linkedMarkers=outcome.effectReceipt?context.repository('runtime_commit_markers').invoke('list').filter((marker)=>
+              marker.commit_marker===outcome.effectReceipt.commitMarker&&marker.effect_id===outcome.effectReceipt.effectId&&
+              marker.owner_domain===event.owner_domain&&marker.result_id===existing.result_id&&
+              marker.result_schema_ref===existing.result_schema_ref&&marker.result_digest===existing.result_digest&&
+              marker.commit_digest===outcome.effectReceipt.verificationEvidenceDigest&&
+              marker.committed_at_ms===outcome.effectReceipt.committedAtMs):[];
+            if(linkedMarkers.length!==1)fail('P4_EVENT_PREBOUND_RESULT_CONFLICT','Atomic Capability Result lacks its exact Effect Commit Marker.');
             resultId = existing.result_id;
           } else {
             resultId = assertId(options.nextResultId(), 'result');
@@ -480,6 +536,10 @@ function createEventRuntime(options) {
         attempt.executor_ref !== entry.manifest.capabilityRef || attempt.executor_version !== entry.executor.version) fail(
       'P4_EVENT_RECOVERY_CONTRACT_MISMATCH', 'Recovery cannot change the frozen Capability or Executor contract.'
     );
+    if(request.decision==='already_committed'){
+      const prebound=readPreboundCommittedOutcome(request.eventId,request.effectId,attempt,entry);
+      if(prebound){await options.effectJournal.settle(Object.freeze({effectId:request.effectId,receipt:prebound.outcome.effectReceipt,scope:prebound.scope}));return completeCommittedEffect(snapshot,attempt.event_attempt_id,prebound.outcome);}
+    }
     const inputs = options.executionInputProvider.prepare(Object.freeze({ snapshot }));
     if (valueDigest(inputs.namedInputs) !== attempt.input_snapshot_digest) fail(
       'P4_EVENT_RECOVERY_INPUT_DRIFT', 'Recovery inputs differ from the durable Event Attempt snapshot.'

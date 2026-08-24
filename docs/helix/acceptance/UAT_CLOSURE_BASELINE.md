@@ -673,3 +673,40 @@
 - CODE/REGRESSION：Resolution Rule revision 3按明确Provider/Target Anchor优先、规范化title exact兜底；同强度不同评分仍fail-closed。专项84/84，完整Service 320 pass / 18 skip / 0 fail。
 - FACT/RESTART：保留SQLite未经修改安全恢复；真实Acquisition从cursor 435完成75页，Record总数1547、cursor revision 104、terminal complete。《网诱惊魂》提交`provider_identity + title`且无`title_year`；SQLite integrity为ok，服务health ok / `normalSupplyAllowed=true`。
 - 关闭结论：状态`FACT/RESTART PASSED / CLOSED`。本项为Integration与业务规则闭环，不伪造未取得的Settings或Formation页面截图。
+
+## 12. Aftercare qualification UAT-094–UAT-118（2026-08-25）
+
+完整问题、根因、边界与逐项证据以`docs/helix/USER_ACCEPTANCE_TEST_ISSUE_LOG.md`为准。最终评分驱动媒体修复证人是
+`F:\shelfdeck_test_zone\runs\UAT-20260825-aftercare-final-v5`，Canary为
+`F:\shelfdeck_test_zone\canary-uat105-final-v5`；61成员性能证据和NFO/Poster专项真实现场继续保留。所有运行的
+data、Workspace和TEMP/TMP/TMPDIR均位于F盘，未触碰NAS生产或只读`test_film`基线。
+
+### UAT-094–UAT-104（`PASS`）
+
+- Aftercare媒体预算、完整Conformance、NFO update/rebuild、Artifact验证、Care Basis Fence、Settlement后复验、失败代际、真实Progress、Workspace Registry、批量Projection与Startup Recovery Gate全部完成专项回归。
+- 综合真实证据覆盖61成员Settlement、NFO update/rebuild、真实TMDB Poster与评分驱动转码；全新v5中731,172,864-byte AVI转为728,533,253-byte MKV，Case最终`resolved / reassessed_healthy`。
+- 状态：`FACT/FS/PERFORMANCE/RESTART PASSED / CLOSED`。其中UAT-098的竞态窗口由确定性故障注入和真实链共同关闭，不伪造未发生的线上竞态。
+
+### UAT-105（`PASS`）
+
+- Douban完整同步1547条后，《光荣的愤怒》评分从无到3星并触发Aftercare；最终Inventory revision 2只有一个MKV Primary，三维Assessment均healthy。
+- Admin Web真实详情显示`694.8 MB · MKV`、`3 星 · 豆瓣`和保管/呈现/合规健康。受控重启后Entry=1、Libra Run=1、Case=1、Inventory Commit=1、Approval=1，active Work/Event/Incident=0。
+- 状态：`UI/FACT/FS/RESTART PASSED / CLOSED`。
+
+### UAT-106–UAT-110（`PASS`）
+
+- UAT-106/UAT-107的Libra零演员与零资源终态已分别以真实Admin Web、FACT和重启关闭；UAT-108–UAT-110的NFO漂移、Artifact missing CAS和Catalog/Inventory/Approval原子恢复已用独立真实现场关闭。
+- 状态：`FACT/UI/FS/RESTART PASSED / CLOSED`。
+
+### UAT-111（`PASS`）
+
+- 61个On-deck Settlement Event保持逐项Approval与Deletion Evidence，但改用按`onDeckRunId + materialKey`的有界Accepted Context。
+- 修复前窗口79.365秒、Capability总耗时72.885秒；修复后窗口15.582秒、总耗时14.234秒，平均233.3毫秒、p95 270毫秒、p99/max 671毫秒，resource wait为0。独立HTTP监控Health/Formation/Collection p99均低于46毫秒。
+- 状态：`PERFORMANCE/FACT/RESTART PASSED / CLOSED`。
+
+### UAT-112–UAT-118（`PASS`）
+
+- 关闭同根On-deck Control transfer、生产视频Profile、same-Work Result Projection、验证阶段进度、同根Resource Demand、Arca自有Playback Verify以及AVI→MKV Inventory/Control收口七项真实链缺口；没有修改Libra业务逻辑或Foundation状态机。
+- v5文件系统无AVI或superseded残留；旧AVI Control为released，新MKV由同一Shelf Entry controlled。浏览器、数据库和重启结论一致。
+- Aftercare专项126/126、Foundation Event Runtime 40/40、Foundation Event/Effect/Startup Recovery组合71/71、Admin Web Collection 4/4、Admin Web production build、完整Service 320 pass / 18 skip / 0 fail。
+- 状态：`UI/FACT/FS/RESTART PASSED / CLOSED`。

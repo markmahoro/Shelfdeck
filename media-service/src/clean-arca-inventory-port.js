@@ -1547,8 +1547,9 @@ function createCleanArcaInventoryPort(options) {
         'Input settlement requires its frozen source-to-final mapping.');
     }
     const target = resolveTargetLocation(finalRequest);
-    const decisionMember = finalRequest.finalInventoryDecision?.members?.find((item) =>
-      item.sourceMaterialKey === request.finalMaterialKey);
+    const decisionMember = finalRequest.finalInventoryMember ||
+      finalRequest.finalInventoryDecision?.members?.find((item) =>
+        item.sourceMaterialKey === request.finalMaterialKey);
     const productMember = finalRequest.onDeckProductPackage?.productMaterialManifest?.members?.find((item) =>
       item.materialKey === request.finalMaterialKey);
     const finalTarget = path.resolve(request.finalTargetLocation);
@@ -1560,12 +1561,12 @@ function createCleanArcaInventoryPort(options) {
     const finalObserved = await observeAsync(finalTarget, productMember);
     const sameLocation = source === finalTarget;
     const sourceDirectory = path.dirname(source);
-    const managedLocations = [
+    const managedLocations = (request.managedLocations || [
       ...(finalRequest.onDeckProductPackage.offloadContextManifest?.members || [])
-        .map((item) => path.resolve(item.location)),
-      ...finalRequest.finalInventoryDecision.members
-        .map((item) => path.resolve(item.targetLocation)),
-    ];
+        .map((item) => item.location),
+      ...(finalRequest.finalInventoryDecision?.members || [])
+        .map((item) => item.targetLocation),
+    ]).map((item) => path.resolve(item));
     const allowed = new Set(managedLocations);
     for (const location of managedLocations) {
       let ancestor = path.dirname(location);
@@ -1658,9 +1659,7 @@ function createCleanArcaInventoryPort(options) {
         await fs.promises.rmdir(sourceDirectory);
         oldDirectoryDisposition = 'removed_empty';
       } else {
-        oldDirectoryDisposition = children.some((item) =>
-          finalRequest.finalInventoryDecision.members.some((member) =>
-            path.resolve(member.targetLocation) === item))
+        oldDirectoryDisposition = children.some((item) => managedLocations.includes(item))
           ? 'retained_with_final_inventory'
           : 'awaiting_managed_settlement';
       }

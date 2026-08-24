@@ -61,17 +61,19 @@ function physicalIdentityFromInventoryRow(row) {
 
 function deriveInventoryMaterialChanges(materials, receipts) {
   const canonicalLocation = (value) => String(value || '').replace(/\\/g, '/');
+  const frozenMaterialKeys = new Set(materials.map((row) => row.material_key));
   const acquire = new Map();
   const release = new Map();
   for (const receipt of receipts) {
     acquire.set(receipt.finalMaterialIdentity.materialKey,
       receipt.finalMaterialIdentity);
-    if (receipt.supersededMaterialIdentity) {
-      release.set(receipt.supersededMaterialIdentity.materialKey,
-        receipt.supersededMaterialIdentity);
-    }
     for (const retired of receipt.retiredMaterials || []) {
       release.set(retired.identity.materialKey, retired.identity);
+    }
+    if (receipt.supersededMaterialIdentity &&
+        frozenMaterialKeys.has(receipt.supersededMaterialIdentity.materialKey)) {
+      release.set(receipt.supersededMaterialIdentity.materialKey,
+        receipt.supersededMaterialIdentity);
     }
     for (const row of materials) {
       if (canonicalLocation(row.location) !==
@@ -100,16 +102,19 @@ function deriveInventoryMaterialChanges(materials, receipts) {
 }
 
 function settlementScopeDigest(handles) {
-  return canonicalDigest((handles || []).map((handle) => Object.freeze({
+  return canonicalDigest((handles || []).map((handle) => {
+    return Object.freeze({
     endpointId:handle.endpointId || null,
     location:String(handle.location || '').replace(/\\/g, '/'),
     identity:handle.identity,
+    ownerDomain:handle.ownerDomain || null,
+    ownerScope:handle.ownerScope || null,
     bindingRevision:Number(handle.bindingRevision),
     mountScopeRevision:Number(handle.mountScopeRevision),
     readScope:handle.readScope || null,
-    finalLocation:handle.finalLocation ? String(handle.finalLocation).replace(/\\/g, '/') : null,
-    finalMaterialKey:handle.finalMaterialKey || null,
-  })).sort((left, right) => (left.location + ':' + left.identity.materialKey)
+    fenceDigest:handle.fenceDigest || null,
+  });
+  }).sort((left, right) => (left.location + ':' + left.identity.materialKey)
     .localeCompare(right.location + ':' + right.identity.materialKey)));
 }
 
@@ -134,6 +139,30 @@ function aftercareSettlementApprovalId(value) {
   }).slice(0, 40);
 }
 
+function aftercareInventoryCommitId(value) {
+  return 'arca-aftercare-inventory-' + canonicalDigest({
+    caseId:value.aftercareCaseId,
+    shelfEntryId:value.shelfEntryId,
+    previous:Number(value.previousInventoryRevision),
+    representationDigest:value.representationDigest,
+  }).slice(0, 40);
+}
+
+function aftercareInventoryCommitDigest(value, resultDigest) {
+  const previous = Number(value.previousInventoryRevision);
+  return canonicalDigest({
+    schema:'arca.aftercare-inventory-commit@1',
+    commitId:aftercareInventoryCommitId(value),
+    caseId:value.aftercareCaseId,
+    shelfEntryId:value.shelfEntryId,
+    previous,
+    next:previous + 1,
+    representationDigest:value.representationDigest,
+    controlChangeDigest:value.controlChangeDigest,
+    resultDigest,
+  });
+}
+
 function buildAftercareSettlementHandles(input) {
   const handles = [];
   const context = input.context;
@@ -141,8 +170,10 @@ function buildAftercareSettlementHandles(input) {
   const frozenMaterials = input.frozenMaterials || [];
   const add = (entry, values) => {
     const normalizedLocation = String(entry.location || '').replace(/\\/g, '/');
-    if (handles.some((handle) => handle.identity.materialKey === entry.identity.materialKey &&
-        String(handle.location).replace(/\\/g, '/') === normalizedLocation)) return;
+    if (handles.some((handle) => {
+      return handle.identity.materialKey === entry.identity.materialKey &&
+        String(handle.location).replace(/\\/g, '/') === normalizedLocation;
+    })) return;
     const base = {
       schemaRef:'helix://contracts/types/PhysicalMaterialReadHandle/v1', schemaVersion:1,
       handleId:'arca-care-settlement-' + canonicalDigest({ caseId, location:entry.location }).slice(0, 40),
@@ -152,11 +183,10 @@ function buildAftercareSettlementHandles(input) {
       mountScopeRevision:Number(context.raw.shelf.target_mount_scope_revision),
       expectedSizeBytes:entry.identity.sizeBytes, expectedMtimeNs:0, expectedCtimeNs:0,
       fingerprintVerifiedAtMs:values.fingerprintVerifiedAtMs, readScope:values.readScope,
-      expiresAtMs:Number.MAX_SAFE_INTEGER, ...(values.finalMaterialKey ? {
-        finalMaterialKey:values.finalMaterialKey, finalLocation:values.finalLocation,
-      } : {}),
+      expiresAtMs:Number.MAX_SAFE_INTEGER,
     };
-    handles.push(Object.freeze({ ...base, fenceDigest:canonicalDigest(base) }));
+    const readHandle = Object.freeze({ ...base, fenceDigest:canonicalDigest(base) });
+    handles.push(readHandle);
   };
   for (const receipt of input.receipts || []) {
     const retired = [
@@ -190,10 +220,11 @@ function buildAftercareSettlementHandles(input) {
     add({ identity, location:observed.binding.location }, {
       bindingRevision:Number(observed.binding.binding_revision), endpointId:observed.binding.endpoint_id,
       fingerprintVerifiedAtMs:input.observedAtMs, readScope:'exact_known_old_binding_settlement',
-      finalMaterialKey:final.material_key, finalLocation:final.location,
     });
   }
-  return Object.freeze(handles.sort((left, right) => left.identity.materialKey.localeCompare(right.identity.materialKey)));
+  return Object.freeze(handles.sort((left, right) =>
+    (left.location + ':' + left.identity.materialKey)
+      .localeCompare(right.location + ':' + right.identity.materialKey)));
 }
 
 function stableJitterMs(shelfEntryId) {
@@ -270,4 +301,5 @@ module.exports = Object.freeze({ CAPABILITY_REFS, HEALTH_STATES, CASE_STATES, DI
   hasIncompatibleRepairCombination,
   physicalIdentityFromInventoryRow, deriveInventoryMaterialChanges, settlementScopeDigest,
   isAftercareArtifactMaterial, aftercareSettlementEventId, aftercareServiceCatalogRevision, aftercareSettlementApprovalId,
+  aftercareInventoryCommitId, aftercareInventoryCommitDigest,
   buildAftercareSettlementHandles });

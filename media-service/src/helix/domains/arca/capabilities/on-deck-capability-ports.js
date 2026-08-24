@@ -66,6 +66,8 @@ function createOnDeckCapabilityPorts(options){const now=options.now||Date.now,ac
   controls=createMaterialControlProjectionPort(options),inbox=createInboxCoordinator(options);
   const effectAt=(execution)=>Number.isSafeInteger(execution.effectOccurredAtMs)?execution.effectOccurredAtMs:now();
   function ctx(execution){return context(options,execution,dependencyRefs(options,execution));}
+  function settlementCtx(execution,materialKey){return options.contextReader.readSettlement(
+    execution.ownerScope.processId,dependencyRefs(options,execution),materialKey);}
   function aftercareRequest(execution,_c,at=now(),expectedCaseId=null){
     const authority=readAftercarePlacementAuthority(options,execution,expectedCaseId);
     return authority&&buildAftercareInventoryRequest(authority.context,options.inventoryPort,at,authority.care.aftercareCaseId);
@@ -188,12 +190,14 @@ function createOnDeckCapabilityPorts(options){const now=options.now||Date.now,ac
       targetBindings:n.targetBindings,replacedInputSetDigest:canonicalDigest(c.packageValue.offloadContextManifest.members),observedAtMs:at,replayCommitted:execution.recoveryDecision==='already_committed'});
     return committedOutcome(execution,C.placement,body,at,'material_commit');},
     validateResult(_c,o){if(o?.result?.receiptKind!=='placement_switched')throw new TypeError('Placement Switch Receipt is invalid.');}});
-  ports[C.settlement]=Object.freeze({validateInputs(c){requireNamed(c,['oldPrimaryStructuralExclusiveRelatedHandleList','inputSettlementApproval']);},async execute(execution){const n=execution.namedInputs,m=n.oldPrimaryStructuralExclusiveRelatedHandleList.members[0],at=effectAt(execution),c=ctx(execution),
+  ports[C.settlement]=Object.freeze({validateInputs(c){requireNamed(c,['oldPrimaryStructuralExclusiveRelatedHandleList','inputSettlementApproval']);},async execute(execution){const n=execution.namedInputs,m=n.oldPrimaryStructuralExclusiveRelatedHandleList.members[0],at=effectAt(execution),c=settlementCtx(execution,m.materialKey),
     settled=await options.inventoryPort.settleInputAsync({materialHandle:m.materialHandle,approval:n.inputSettlementApproval,
       finalMaterialKey:m.finalMaterialKey,finalTargetLocation:m.finalTargetLocation,
       settlementExpectation:m.settlementExpectation,sourceToFinalMappingDigest:m.sourceToFinalMappingDigest,
+      managedLocations:c.settlementManagedLocations,
       finalInventoryRequest:{onDeckRunId:c.responsibility.onDeckRunId,custodyId:c.responsibility.custodyId,shelf:c.shelf,
-        onDeckProductPackage:c.packageValue,finalInventoryDecision:c.finalInventoryDecision,observedAtMs:at}}),
+        onDeckProductPackage:c.packageValue,finalInventoryDecisionRef:c.finalInventoryDecisionRef,
+        finalInventoryMember:c.settlementFinalMember,observedAtMs:at}}),
     base={schemaRef:'helix://contracts/types/SettlementDeletionEvidence/v1',schemaVersion:1,evidenceId:stable('arca-settlement-evidence-',{eventId:execution.eventId}),
       evidenceKind:'input_settlement',producerRef:C.settlement,basisDigest:n.oldPrimaryStructuralExclusiveRelatedHandleList.digest,observedAtMs:at,
       authorizationOrApprovalRef:n.inputSettlementApproval.approvalId,materialKey:m.materialKey,preDeleteIdentityDigest:settled.preDeleteIdentityDigest,

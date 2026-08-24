@@ -54,6 +54,11 @@ function fixture(run, settings = {}) {
       'state', 'outcome_kind', 'retry_after_ms', 'failure_class', 'failure_code',
       'evidence_digest', 'started_at_ms', 'finished_at_ms'
     ] },
+    result: { kind:'insert',tableId:'fx_event_result_bindings',columns:[
+      'result_id','event_id','outcome_kind','result_schema_ref','result_json','result_digest','evidence_schema_ref',
+      'evidence_json','evidence_digest','effect_receipt_id','committed_at_ms'
+    ] },
+    marker:{kind:'insert',tableId:'fx_commit_markers',columns:['commit_marker','effect_id','owner_domain','scope_type','scope_id','commit_digest','result_id','result_schema_ref','result_digest','committed_at_ms']},
     edge: { kind: 'insert', tableId: 'fx_plan_edges', columns: ['plan_id', 'from_node_id', 'to_node_id', 'dependency_kind'] }
   } });
   unitOfWork.execute([{ participantId: 'event_runtime_seed', owner: 'execution-foundation', repositories: [seed], execute(context) {
@@ -91,6 +96,19 @@ function fixture(run, settings = {}) {
         fence_snapshot_digest:HASH_A, state:'executing', outcome_kind:null, retry_after_ms:null,
         failure_class:null, failure_code:null, evidence_digest:null, started_at_ms:1, finished_at_ms:null,
       });
+    }
+    if(settings.seedPreboundRecovery){
+      const resultValue=settings.preboundResult||{effectReceiptRef:'atomic-receipt',ownerDomain:'libra',scopeId:'run',scopeType:'libra_run',value:1},
+        resultSchemaRef=settings.preboundResultSchemaRef||'helix://test/result',resultJson=JSON.stringify(resultValue),
+        evidenceJson=JSON.stringify({proof:true}),resultDigest=require('node:crypto').createHash('sha256').update(resultJson).digest('hex'),
+        commitDigest=settings.preboundCommitDigest||resultDigest;
+      repository.invoke('result',{result_id:'atomic-result',event_id:'event',outcome_kind:'succeeded',
+        result_schema_ref:resultSchemaRef,result_json:resultJson,result_digest:resultDigest,
+        evidence_schema_ref:'helix://test/evidence',evidence_json:evidenceJson,evidence_digest:require('node:crypto').createHash('sha256').update(evidenceJson).digest('hex'),
+        effect_receipt_id:'atomic-receipt',committed_at_ms:1000});
+      if(settings.seedPreboundMarker!==false)repository.invoke('marker',{commit_marker:'atomic-marker',effect_id:'effect',owner_domain:'libra',
+        scope_type:settings.preboundMarkerScopeType||'libra_run',scope_id:'run',commit_digest:commitDigest,result_id:'atomic-result',result_schema_ref:resultSchemaRef,
+        result_digest:resultDigest,committed_at_ms:1000});
     }
     if (settings.addDependent) {
       repository.invoke('node', { plan_id: 'plan', node_id: 'node-dependent', capability_ref: 'libra.test.observe@1', contract_version: 1,
@@ -131,7 +149,10 @@ function fixture(run, settings = {}) {
     if (!settings.seedExecutingAttempt) {
       assert.equal(schedulerReleased, 1, 'technical scheduler lease must end before Executor call');
     }
-    if (settings.effectClass && settings.effectClass !== 'pure_observation') assert.equal(journalCalls[0], 'intend');
+    if (settings.effectClass && settings.effectClass !== 'pure_observation') {
+      if (settings.seedExecutingAttempt) assert.ok(['intend','read'].includes(journalCalls[0]));
+      else assert.equal(journalCalls[0], 'intend');
+    }
     if (settings.dispatchError) throw settings.dispatchError;
     const outcome = settings.outcome || { kind: 'succeeded', resultSchemaRef: 'helix://test/result', result: { value: 1 },
       evidenceSchemaRef: 'helix://test/evidence', evidence: { proof: true } };
@@ -146,14 +167,19 @@ function fixture(run, settings = {}) {
           VALUES (?,?,?,?,?,?,?,?,?,?,?)`).run('atomic-result', 'event', 'succeeded', outcome.resultSchemaRef,
           resultJson, hash(resultJson), outcome.evidenceSchemaRef, evidenceJson, hash(evidenceJson),
           outcome.effectReceipt?.effectReceiptId || null, 1000);
+        if(outcome.effectReceipt)database.prepare(`INSERT INTO fx_commit_markers
+          (commit_marker,effect_id,owner_domain,scope_type,scope_id,commit_digest,result_id,result_schema_ref,result_digest,committed_at_ms)
+          VALUES (?,?,?,?,?,?,?,?,?,?)`).run(outcome.effectReceipt.commitMarker,outcome.effectReceipt.effectId,'libra','libra_run','run',
+            outcome.effectReceipt.verificationEvidenceDigest,'atomic-result',outcome.resultSchemaRef,hash(resultJson),outcome.effectReceipt.committedAtMs);
       } finally { database.close(); }
     }
     return outcome;
   } };
   const runtime = createEventRuntime({ schemaManifest, unitOfWork, scheduler, governor,
     ...(settings.incidentObserver ? { incidentObserver:settings.incidentObserver } : {}),
-    registry: { resolve: () => ({ manifest: { capabilityRef: 'libra.test.observe@1', resultSchemaRef: 'helix://test/result',
+    registry: { resolve: () => ({ manifest: { capabilityRef: 'libra.test.observe@1',ownerScope:'libra',resultSchemaRef: 'helix://test/result',evidenceSchemaRef:'helix://test/evidence',
       effectClass: settings.effectClass || 'pure_observation', approvalRequirementRef: settings.approvalRequirementRef }, executor: { version: 1 } }) }, dispatcher,
+    contractValidator:settings.contractValidator||{validate:(_schemaRef,value)=>value},
     ...(settings.effectJournal === false ? {} : { effectJournal: {
       intend(request) { journalCalls.push('intend'); return { effect_id: request.eventAttemptId,
         state: settings.effectIntentState || 'intended', event_attempt_id: settings.effectIntentAttemptId || request.eventAttemptId,
@@ -235,11 +261,16 @@ test('succeeded Outcome binds one immutable Result and least-authority Context',
 });
 
 test('atomic Domain commit may pre-bind the exact typed Result before Event terminal transition', async () => {
+  const result={value:1},resultDigest=require('node:crypto').createHash('sha256').update(JSON.stringify(result)).digest('hex'),
+    effectReceipt={schemaRef:'helix://contracts/types/EffectReceipt/v1',schemaVersion:1,effectReceiptId:'atomic-receipt',
+      effectId:'event-attempt',effectClass:'domain_fact_commit',idempotencyKey:'event-attempt',commitMarker:'atomic-marker',
+      externalReceiptRef:null,outputDigest:resultDigest,verificationEvidenceDigest:resultDigest,committedAtMs:1000};
   await fixture(async ({ runtime, lease, databasePath }) => {
     const completed = await runtime.run({ schedulerLease: lease });
     assert.equal(completed.resultId, 'atomic-result');
     assert.equal(databaseFacts(databasePath).results, 1);
-  }, { prebindResult: true });
+  }, { prebindResult:true,effectClass:'domain_fact_commit',outcome:{kind:'succeeded',resultSchemaRef:'helix://test/result',result,
+    evidenceSchemaRef:'helix://test/evidence',evidence:{proof:true},effectReceipt} });
 });
 
 test('deferred Outcome completes Attempt without Result and persists external retry wait', async () => {
@@ -470,6 +501,108 @@ test('already-failed recovery completes the executing Attempt without re-dispatc
   }, { effectClass: 'external_request', initialEventState: 'executing', seedExecutingAttempt: true,
     failurePolicyDecision: { decision: 'reconcile_required' },
     effectJournalRead: { effect_id: 'effect', event_attempt_id: 'event-attempt', effect_class: 'external_request', state: 'failed' } });
+});
+
+test('already-committed recovery completes from the atomic pre-bound Result without reprojecting inputs', async () => {
+  await fixture(async ({runtime,databasePath,state})=>{
+    const result=await runtime.recover({eventId:'event',effectId:'effect',decision:'already_committed'});
+    assert.equal(result.kind,'succeeded');
+    assert.equal(result.resultId,'atomic-result');
+    assert.deepEqual(databaseFacts(databasePath),{event:{state:'succeeded',retry_at_ms:null,result_id:'atomic-result'},
+      attempt:{state:'completed',outcome_kind:'succeeded',retry_after_ms:null,failure_class:null,failure_code:null},attempts:1,results:1});
+    assert.equal(state().dispatchContext,undefined);
+    assert.equal(state().governorReleased,0);
+    assert.deepEqual(state().journalCalls,['read','settle']);
+  },{effectClass:'responsibility_control_commit',initialEventState:'executing',seedExecutingAttempt:true,
+    seedPreboundRecovery:true,inputError:new Error('mutable owner projection must not be recomputed'),
+    effectJournalRead:{event_attempt_id:'event-attempt',effect_class:'responsibility_control_commit',state:'intended',
+      idempotency_key:'event-attempt',external_receipt_ref:null}});
+});
+
+test('already-settled effect recovery completes the Event from the same atomic Result chain', async () => {
+  await fixture(async ({runtime,databasePath,state})=>{
+    const result=await runtime.recover({eventId:'event',effectId:'effect',decision:'already_committed'});
+    assert.equal(result.kind,'succeeded');
+    assert.equal(result.resultId,'atomic-result');
+    assert.equal(databaseFacts(databasePath).event.state,'succeeded');
+    assert.equal(state().dispatchContext,undefined);
+    assert.deepEqual(state().journalCalls,['read','settle']);
+  },{effectClass:'responsibility_control_commit',initialEventState:'executing',seedExecutingAttempt:true,
+    seedPreboundRecovery:true,inputError:new Error('settled effect recovery must not reproject mutable inputs'),
+    effectJournalRead:{event_attempt_id:'event-attempt',effect_class:'responsibility_control_commit',state:'committed',
+      idempotency_key:'event-attempt',external_receipt_ref:null}});
+});
+
+test('atomic recovery keeps output and verified business reality digests independent', async () => {
+  await fixture(async ({runtime,databasePath,state})=>{
+    const result=await runtime.recover({eventId:'event',effectId:'effect',decision:'already_committed'});
+    assert.equal(result.resultId,'atomic-result');
+    assert.equal(databaseFacts(databasePath).event.state,'succeeded');
+    assert.deepEqual(state().journalCalls,['read','settle']);
+  },{effectClass:'responsibility_control_commit',initialEventState:'executing',seedExecutingAttempt:true,
+    seedPreboundRecovery:true,preboundCommitDigest:HASH_A,
+    effectJournalRead:{event_attempt_id:'event-attempt',effect_class:'responsibility_control_commit',state:'intended',
+      idempotency_key:'event-attempt',external_receipt_ref:null}});
+});
+
+test('legacy typed atomic Result keeps the existing capability replay recovery path', async () => {
+  const result={effectReceiptRef:'atomic-receipt',ownerDomain:'libra',schemaRef:'helix://test/type',scopeId:'run',scopeType:'libra_run',value:1},
+    hash=(value)=>require('node:crypto').createHash('sha256').update(value).digest('hex'),resultDigest=hash(JSON.stringify(result)),
+    intentDigest=hash(JSON.stringify({capabilityRef:'libra.test.observe@1',contractVersion:1,eventId:'event',
+      fenceSnapshotDigest:HASH_A,inputSnapshotDigest:EMPTY_INPUT_DIGEST})),effectReceipt={
+      schemaRef:'helix://contracts/types/EffectReceipt/v1',schemaVersion:1,effectReceiptId:'atomic-receipt',effectId:'effect',
+      effectClass:'responsibility_control_commit',idempotencyKey:'event-attempt',commitMarker:'atomic-marker',externalReceiptRef:null,
+      outputDigest:resultDigest,verificationEvidenceDigest:HASH_A,committedAtMs:1000};
+  await fixture(async ({runtime,databasePath,state})=>{
+    const recovered=await runtime.recover({eventId:'event',effectId:'effect',decision:'already_committed'});
+    assert.equal(recovered.resultId,'atomic-result');
+    assert.equal(databaseFacts(databasePath).event.state,'succeeded');
+    assert.notEqual(state().dispatchContext,undefined);
+    assert.deepEqual(state().journalCalls,['read','settle']);
+  },{effectClass:'responsibility_control_commit',initialEventState:'executing',seedExecutingAttempt:true,
+    seedPreboundRecovery:true,preboundResult:result,preboundResultSchemaRef:'helix://test/type',preboundCommitDigest:HASH_A,
+    outcome:{kind:'succeeded',resultSchemaRef:'helix://test/result',result,evidenceSchemaRef:'helix://test/evidence',
+      evidence:{proof:true},effectReceipt},effectJournalRead:{event_attempt_id:'event-attempt',
+      effect_class:'responsibility_control_commit',state:'committed',idempotency_key:'event-attempt',
+      intent_digest:intentDigest,external_receipt_ref:null}});
+});
+
+test('exact atomic recovery rejects marker scope or Effect Receipt reference drift', async () => {
+  const settings={effectClass:'responsibility_control_commit',initialEventState:'executing',seedExecutingAttempt:true,
+    seedPreboundRecovery:true,effectJournalRead:{event_attempt_id:'event-attempt',effect_class:'responsibility_control_commit',
+      state:'intended',idempotency_key:'event-attempt',external_receipt_ref:null}};
+  await fixture(async ({runtime})=>{
+    await assert.rejects(runtime.recover({eventId:'event',effectId:'effect',decision:'already_committed'}),
+      (error)=>error.code==='P4_EVENT_PREBOUND_RESULT_CORRUPT');
+  },{...settings,preboundMarkerScopeType:'other_scope'});
+  await fixture(async ({runtime})=>{
+    await assert.rejects(runtime.recover({eventId:'event',effectId:'effect',decision:'already_committed'}),
+      (error)=>error.code==='P4_EVENT_PREBOUND_RESULT_CORRUPT');
+  },{...settings,preboundResult:{effectReceiptRef:'other-receipt',ownerDomain:'libra',scopeId:'run',scopeType:'libra_run',value:1}});
+});
+
+test('already-committed recovery rejects an orphan Result without the exact Effect Marker', async () => {
+  await fixture(async ({runtime,databasePath,state})=>{
+    await assert.rejects(runtime.recover({eventId:'event',effectId:'effect',decision:'already_committed'}),
+      (error)=>error.code==='P4_EVENT_PREBOUND_RESULT_CORRUPT');
+    assert.equal(databaseFacts(databasePath).event.state,'executing');
+    assert.deepEqual(state().journalCalls,['read']);
+  },{effectClass:'responsibility_control_commit',initialEventState:'executing',seedExecutingAttempt:true,
+    seedPreboundRecovery:true,seedPreboundMarker:false,
+    effectJournalRead:{event_attempt_id:'event-attempt',effect_class:'responsibility_control_commit',state:'intended',
+      idempotency_key:'event-attempt',external_receipt_ref:null}});
+});
+
+test('already-committed recovery rejects self-consistent JSON that violates the frozen Result schema', async () => {
+  const invalid=Object.assign(new Error('invalid typed result'),{code:'P4_CAPABILITY_SCHEMA_REJECTED'});
+  await fixture(async ({runtime,databasePath,state})=>{
+    await assert.rejects(runtime.recover({eventId:'event',effectId:'effect',decision:'already_committed'}),invalid);
+    assert.equal(databaseFacts(databasePath).event.state,'executing');
+    assert.deepEqual(state().journalCalls,['read']);
+  },{effectClass:'responsibility_control_commit',initialEventState:'executing',seedExecutingAttempt:true,
+    seedPreboundRecovery:true,contractValidator:{validate:(schemaRef,value)=>{if(schemaRef==='helix://test/result')throw invalid;return value;}},
+    effectJournalRead:{event_attempt_id:'event-attempt',effect_class:'responsibility_control_commit',state:'intended',
+      idempotency_key:'event-attempt',external_receipt_ref:null}});
 });
 
 test('startup recovery records a non-pure failed Outcome instead of looping as not converged', async () => {

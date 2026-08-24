@@ -102,4 +102,27 @@ describe('Arca collection poster wall', () => {
     fireEvent.keyDown(document, { key:'Escape' });
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
   });
+
+  it('labels the post-transcode verification stage without presenting it as 100 percent complete', async () => {
+    vi.spyOn(helixAdminApi, 'listCollection').mockResolvedValue({ items:[entry] });
+    vi.spyOn(helixAdminApi, 'listPerceptionRecords').mockResolvedValue({
+      items:[], nextCursor:null, currentRating:null,
+    });
+    vi.spyOn(helixAdminApi, 'getCare').mockResolvedValue({
+      shelfEntryId:entry.shelfEntryId,
+      health:{ state:'repairing', dimensions:{} },
+      basis:{ inventoryRevision:1, standardRevision:1, placementRevision:1, careBasisDigest:'d' },
+      activeCaseProgress:{
+        aftercareCaseId:'case-1', stage:'verifying_media', progressPercent:null,
+        progress:null, goals:[],
+      },
+      history:{ assessments:[], findings:[], cases:[], commits:[] },
+    });
+    renderCollection();
+    fireEvent.click(await screen.findByRole('button', {
+      name:/查看 The Shawshank Redemption 详情/,
+    }));
+    expect(await screen.findByText('正在验证媒体')).toBeInTheDocument();
+    expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
+  });
 });

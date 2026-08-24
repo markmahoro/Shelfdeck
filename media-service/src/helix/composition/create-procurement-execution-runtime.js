@@ -37,6 +37,16 @@ const { PRE_PROJECTION_PLAN_REPLAN_CODE } = require('../foundation/persistence/u
 function volumeReadUnitsForCapability(capability) {
   return capability === 'libra.transcode.input.verify@1' ? 2 : 1;
 }
+
+function mergeResourceDemands(resources) {
+  const merged = new Map();
+  for (const resource of resources) {
+    const existing = merged.get(resource.resourceKey);
+    if (existing) existing.units += resource.units;
+    else merged.set(resource.resourceKey, { resourceKey: resource.resourceKey, units: resource.units });
+  }
+  return [...merged.values()];
+}
 const { ProcurementExecutionRegistration } = require('../domains/procurement/public');
 const { LibraExecutionRegistration } = require('../domains/libra/public');
 const { PerceptionExecutionRegistration } = require('../domains/perception/public');
@@ -174,7 +184,13 @@ function findIntegrationHandle(value,seen=new Set()){
 function createProcurementExecutionRuntime(options) {
   const contractsRoot = options.contractsRoot || path.resolve(__dirname, '../contracts');
   const now = options.now || Date.now;
-  let host;
+  let host, registry;
+  const currentServiceCatalog = Object.freeze({
+    resolve(capabilityRef, ownerDomain) {
+      if (!registry) throw new Error('Current Service Catalog is unavailable during runtime construction.');
+      return registry.resolve(capabilityRef, ownerDomain);
+    },
+  });
   const materialControlProjectionPort = createMaterialControlProjectionPort(options);
   const workResultReader = createWorkResultReader(options);
   const contractValidator = createCapabilityContractValidator({ schemas: collectSchemas(contractsRoot) });
@@ -227,13 +243,14 @@ function createProcurementExecutionRuntime(options) {
   const ensureShelfEntryRatingResolution=(shelfEntryId)=>perceptionProcessServices
     ?perceptionProcessServices.ensureResolution('shelf_entry',shelfEntryId)
     :Object.freeze({kind:'pending'});
-  const arcaCapabilityRegistration=arcaConstruction.createCapabilityRegistration({...options,now,workResultReader,
+  const arcaCapabilityRegistration=arcaConstruction.createCapabilityRegistration({...options,now,workResultReader,contractValidator,
+    registry:currentServiceCatalog,
     computeBoundedMaterialFingerprintSync,
     readPerceptionRating:readShelfEntryRating,readPerceptionRatings:readShelfEntryRatings});
   const arcaRegistrations=arcaCapabilityRegistration.createRegistrations({enabledCapabilityRefs:ARCA_ALL_ENABLED,
     manifests:Object.fromEntries(ARCA_ALL_ENABLED.map((ref)=>[ref,manifests[ref]]))});
   const registrations = Object.freeze([...procurementRegistrations,...sharedRegistrations,...libraRegistrations,...perceptionRegistrations,...arcaRegistrations]);
-  const registry = createCapabilityRegistry({ registrations, expectedCapabilityRefs: ENABLED });
+  registry = createCapabilityRegistry({ registrations, expectedCapabilityRefs: ENABLED });
   const retryPolicies = [
     { ref: 'helix://foundation/retry/pure-observation/v1', effectClass: 'pure_observation', maxFailureAttempts: 3,
       backoffMs: [1000, 5000], retryableFailureClasses: ['integration', 'timeout'] },
@@ -400,7 +417,7 @@ function createProcurementExecutionRuntime(options) {
   perceptionProcessServices=perceptionConstruction.createProcessServices({...perceptionOptions,now,workResultReader});
   const perceptionPlanningRegistration=perceptionConstruction.createPlanningRegistration({registry,policyRegistry,contractValidator,
     workResultReader,processServices:perceptionProcessServices,resolvePerceptionIntegrationHandle:options.resolvePerceptionIntegrationHandle,now});
-  const arcaProcessServices=arcaConstruction.createProcessServices({...options,now,workResultReader,
+  const arcaProcessServices=arcaConstruction.createProcessServices({...options,now,registry,workResultReader,
     executorIncidentProjection,
     cancelProcessWorks:(scope)=>workLifecycle.cancelProcess(scope),
     contextReader:arcaCapabilityRegistration.contextReader,
@@ -428,7 +445,7 @@ function createProcurementExecutionRuntime(options) {
     run: ({ operation }) => operation(), terminateAndIsolate: async () => {},
   } });
   const dispatcher = createExecutorDispatcher({ registry, contractValidator });
-  const eventRuntime = createEventRuntime({ schemaManifest: options.schemaManifest, unitOfWork: options.unitOfWork,
+  const eventRuntime = createEventRuntime({ schemaManifest: options.schemaManifest, unitOfWork: options.unitOfWork,contractValidator,
     scheduler, governor, registry, dispatcher, effectJournal, attemptPolicy, timeoutController, circuitBreaker: breaker,
     incidentObserver:executorIncidentObserver,
     onProgress: (sample) => { if(sample.ownerDomain==='libra'&&sample.processType==='libra_run')options.onFormationRunChanged?.(sample.processId); },
@@ -540,10 +557,13 @@ function createProcurementExecutionRuntime(options) {
         const refs=workResultReader.readBindings(snapshot.work.work_id).flatMap((item)=>item.inputBindings?.bindings||[])
           .find((item)=>Array.isArray(item.parameters?.dependencyRefs))?.parameters.dependencyRefs||[];
         const isAftercare=snapshot.work.process_type==='arca_shelf_entry',isOffdeck=snapshot.work.process_type==='arca_offdeck_case',isOffdeckAutomation=snapshot.work.process_type==='arca_offdeck_automation';
+        const settlementMaterialKey=inputs.namedInputs?.oldPrimaryStructuralExclusiveRelatedHandleList?.members?.[0]?.materialKey;
         const arcaContext=isOffdeckAutomation?null:isOffdeck?arcaProcessServices.offdeckContextReader.read(snapshot.work.process_id):isAftercare
           ?arcaProcessServices.aftercareContextReader.read(snapshot.work.process_id)
           :snapshot.work.process_type==='arca_ondeck_run'
-            ?arcaProcessServices.contextReader.readAccepted(snapshot.work.process_id,refs)
+            ?capability==='arca.ondeck.input_settlement.delete@1'
+              ?arcaProcessServices.contextReader.readSettlement(snapshot.work.process_id,refs,settlementMaterialKey)
+              :arcaProcessServices.contextReader.readAccepted(snapshot.work.process_id,refs)
             :arcaProcessServices.contextReader.readOffer(refs);
         const targetMount=isOffdeckAutomation?null:isOffdeck?arcaContext.snapshot.shelf.target_mount_scope_id:isAftercare?arcaContext.raw.shelf.target_mount_scope_id:arcaContext.shelf.target.mountScopeId;
         if(targetMount)validatedVolumeKeys.add(targetMount);
@@ -608,6 +628,7 @@ function createProcurementExecutionRuntime(options) {
       }
       if(['perception.record.commit@1','perception.resolution.commit@1'].includes(capability))resources.push({resourceKey:'sqlite_write',units:1});
       if(resources.length===0)resources=[{resourceKey:'cpu_heavy',units:1}];
+      if(capability==='arca.aftercare.media.verify@1')resources=mergeResourceDemands(resources);
       return {eventId:snapshot.event.event_id,queueClass:projection.priorityClass,localPriority:projection.localPriority,
         priorityRevision:projection.priorityRevision,resources}; } },
     nextEventAttemptId: () => 'event-attempt-' + randomUUID(), nextExecutionId: () => 'execution-' + randomUUID(),
@@ -948,5 +969,6 @@ module.exports = Object.freeze({
   createProcurementExecutionRuntime,
   createHelixExecutionRuntime:createProcurementExecutionRuntime,
   volumeReadUnitsForCapability,
+  mergeResourceDemands,
   verifyStartupPlanCatalog,
 });
