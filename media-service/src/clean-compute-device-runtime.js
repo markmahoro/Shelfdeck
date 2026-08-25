@@ -78,10 +78,11 @@ function probeVideo(mode,profileId){return Object.freeze({rateControlMode:mode,
 
 async function createGeneratedProbeInput(executable,target,kind,timeoutMs){
   const hdr=kind==='hdr10_compatible';
+  const colorArgs=kind==='unknown'?[]:['-color_range','tv','-color_primaries',hdr?'bt2020':'bt709',
+    '-color_trc',hdr?'smpte2084':'bt709','-colorspace',hdr?'bt2020nc':'bt709'];
   return runCommand(executable,['-hide_banner','-nostdin','-loglevel','error','-y','-f','lavfi','-i',
     'color=c=white:s=256x256:r=24:d=0.5,format='+(hdr?'yuv420p10le':'yuv420p'),'-frames:v','12','-c:v',hdr?'libx265':'libx264',
-    '-preset','ultrafast','-pix_fmt',hdr?'yuv420p10le':'yuv420p','-color_range','tv','-color_primaries',hdr?'bt2020':'bt709',
-    '-color_trc',hdr?'smpte2084':'bt709','-colorspace',hdr?'bt2020nc':'bt709',target],timeoutMs);
+    '-preset','ultrafast','-pix_fmt',hdr?'yuv420p10le':'yuv420p',...colorArgs,target],timeoutMs);
 }
 
 async function encodeProbeMode(executable,input,output,deviceClass,mode,profileId,timeoutMs){
@@ -100,10 +101,12 @@ async function validateProbeOutput(executable,output,profileId,inputKind,timeout
   const metadata=await runJsonCommand(resolveFfprobePath(),['-v','fatal','-of','json=compact=1','-select_streams','v:0',
     '-show_entries','stream=codec_name,pix_fmt,color_range,color_primaries,color_transfer,color_space:stream_side_data',output],timeoutMs),
     stream=metadata.value?.streams?.[0],toneMapped=profileId===DV_SDR_PROFILE_ID,hdr=!toneMapped&&inputKind==='hdr10_compatible',
-    metadataPassed=metadata.passed&&stream?.codec_name==='hevc'&&
-      ((toneMapped||!hdr)?stream?.pix_fmt==='yuv420p':stream?.pix_fmt==='yuv420p10le')&&['tv','mpeg'].includes(stream?.color_range)&&
+    unknown=!toneMapped&&inputKind==='unknown',noDovi=!(stream?.side_data_list||[]).some((item)=>/dovi/i.test(String(item.side_data_type||''))),
+    unknownProfileSafe=unknown&&stream?.pix_fmt==='yuv420p'&&!['smpte2084','arib-std-b67'].includes(stream?.color_transfer),
+    knownProfileSafe=!unknown&&((toneMapped||!hdr)?stream?.pix_fmt==='yuv420p':stream?.pix_fmt==='yuv420p10le')&&['tv','mpeg'].includes(stream?.color_range)&&
       stream?.color_primaries===((toneMapped||!hdr)?'bt709':'bt2020')&&stream?.color_transfer===((toneMapped||!hdr)?'bt709':'smpte2084')&&
-      stream?.color_space===((toneMapped||!hdr)?'bt709':'bt2020nc')&&!(stream?.side_data_list||[]).some((item)=>/dovi/i.test(String(item.side_data_type||'')));
+      stream?.color_space===((toneMapped||!hdr)?'bt709':'bt2020nc'),
+    metadataPassed=metadata.passed&&stream?.codec_name==='hevc'&&(unknownProfileSafe||knownProfileSafe)&&noDovi;
   if(!metadataPassed)return Object.freeze({passed:false,reasonCode:'pipeline_output_profile_failed',metadata});
   const decoded=await runCommand(executable,['-hide_banner','-nostdin','-loglevel','error','-i',output,'-map','0:v:0','-frames:v','1',
     '-f','null',process.platform==='win32'?'NUL':'/dev/null'],timeoutMs);
@@ -112,7 +115,7 @@ async function validateProbeOutput(executable,output,profileId,inputKind,timeout
 
 async function runValidatedDeviceProfileProbe(executable,spec,profileId,modes,timeoutMs){
   const root=fs.mkdtempSync(path.join(os.tmpdir(),'helix-device-pipeline-')),results=[],
-    inputKinds=profileId===DV_SDR_PROFILE_ID?['hdr10_compatible']:['sdr','hdr10_compatible'],inputs=[];
+    inputKinds=profileId===DV_SDR_PROFILE_ID?['hdr10_compatible']:['sdr','hdr10_compatible','unknown'],inputs=[];
   try{
     for(const inputKind of inputKinds){const input=path.join(root,'generated-'+inputKind+'.mkv'),generated=await createGeneratedProbeInput(executable,input,inputKind,timeoutMs);
       inputs.push(Object.freeze({inputKind,input,generated}));if(!generated.passed)return Object.freeze({passed:false,passedModes:Object.freeze([]),
@@ -135,7 +138,7 @@ async function runValidatedPipelineProbe(executable,encoder,timeoutMs){
 }
 
 function pipeline(profileId,selfTestDigest){
-  if(profileId===SDR_PROFILE_ID)return Object.freeze({pipelineProfileId:profileId,inputDynamicRangeKinds:Object.freeze(['sdr','hdr10_compatible']),
+  if(profileId===SDR_PROFILE_ID)return Object.freeze({pipelineProfileId:profileId,inputDynamicRangeKinds:Object.freeze(['sdr','hdr10_compatible','unknown']),
     inputPixelFormats:Object.freeze(['yuv420p','yuv420p10le']),outputCodec:'hevc',outputDynamicRangeKind:'unknown',
     outputPixelFormat:'encoder_selected',outputColorProfile:Object.freeze({range:'source',primaries:'source',transfer:'source',matrix:'source'}),selfTestDigest});
   return Object.freeze({pipelineProfileId:profileId,inputDynamicRangeKinds:Object.freeze(['dolby_vision','hdr10_compatible']),

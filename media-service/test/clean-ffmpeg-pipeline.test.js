@@ -3,6 +3,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { compileFfmpegPipeline, DV_SDR_PROFILE_ID, SDR_PROFILE_ID } = require('../src/clean-ffmpeg-pipeline');
+const { runValidatedDeviceProfileProbe } = require('../src/clean-compute-device-runtime');
 
 function video(overrides = {}) {
   return { rateControlMode:'quality_bound', qualityBound:23, targetVideoBitrateBps:null,
@@ -43,4 +44,12 @@ test('strict NVENC ABR compiles CBR controls and VAAPI is never advertised on Wi
   assert.deepEqual(pipeline.videoArgs.slice(-8),['-rc','cbr','-b:v','1000000','-maxrate','1000000','-bufsize','2000000']);
   assert.throws(()=>compileFfmpegPipeline({deviceClass:'amd_vaapi',platform:'win32',video:video()}),
     (error)=>error.code==='PLATFORM_MEDIA_DEVICE_UNSUPPORTED');
+});
+
+test('ordinary device qualification includes an untagged dynamic-range input', async () => {
+  const result=await runValidatedDeviceProfileProbe(require('ffmpeg-static'),
+    {deviceKind:'software_cpu',encoder:'libx265'},SDR_PROFILE_ID,['quality_bound'],30_000);
+  assert.equal(result.passed,true);
+  assert.deepEqual(result.passedModes,['quality_bound']);
+  assert.match(result.evidenceDigest,/^[0-9a-f]{64}$/u);
 });
