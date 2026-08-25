@@ -185,3 +185,21 @@ test('new On-deck evidence is visible immediately after an empty sweep', () => f
   assert.equal(people.reconcile(scope).kind, 'auto_accepted');
   assert.equal(store.listPeople().length, 1);
 }));
+
+test('periodic Person evidence reconciliation uses exact identity and evidence lookups', () => fixture(({ store, unitOfWork, schemaManifest }) => {
+  const guardedStore=Object.freeze({...store,
+    listPeople(){throw new Error('periodic reconciliation must not scan the Person Registry');},
+    listRegistrationCandidates(){throw new Error('periodic reconciliation must not scan all Candidates');},
+  });
+  const people=createPeopleProcessServices({schemaManifest,unitOfWork,peopleStore:guardedStore,
+    onDeckPersonEvidenceProjection:{listPage:()=>[]}});
+  const strong=Object.freeze({displayName:'有界强身份',shelfEntryId:'entry-bounded',inventoryRevision:1,
+    providerIdentities:[{provider:'tmdb',namespace:'person',providerKey:'bounded-1'}],
+    evidenceDigest:canonicalDigest({kind:'bounded-strong'}),identityStrength:'strong'});
+  const weak=Object.freeze({displayName:'有界弱身份',shelfEntryId:'entry-bounded',inventoryRevision:1,
+    providerIdentities:[],evidenceDigest:canonicalDigest({kind:'bounded-weak'}),identityStrength:'weak'});
+  assert.equal(people.reconcile(strong).kind,'auto_accepted');
+  assert.equal(people.reconcile(strong).kind,'known');
+  assert.equal(people.reconcile(weak).kind,'candidate_open');
+  assert.equal(people.reconcile(weak).kind,'known');
+}));

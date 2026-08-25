@@ -426,6 +426,7 @@ function createExecutionRuntimeHost(options) {
     wake,
     drainOnce,
     readiness() { return Object.freeze({ state, normalSupplyAllowed: state === 'ready', recovery: lastRecovery }); },
+    backgroundOperations(){return options.fallbackReconciler.snapshot();},
     async stop() {
       if (state === 'stopped') return Object.freeze({ state, fault:firstFault });
       state = 'stopping';

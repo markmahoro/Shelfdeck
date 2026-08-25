@@ -94,6 +94,9 @@ function personRegistryDefinition(schemaManifest) {
       find_provider_identities: { kind: 'select-all', tableId: 'people_provider_identities', columns: [
         'person_id', 'revision', 'provider', 'namespace', 'provider_key', 'provenance_digest', 'active_guard'
       ], keyColumns: ['person_id', 'revision'] },
+      find_active_provider_identity: { kind: 'select-one', tableId: 'people_provider_identities', columns: [
+        'person_id', 'revision', 'provider', 'namespace', 'provider_key', 'provenance_digest', 'active_guard'
+      ], keyColumns: ['provider', 'namespace', 'provider_key', 'active_guard'] },
       insert_preference: { kind: 'insert', tableId: 'people_preference_revisions', columns: [
         'person_id', 'revision', 'preference_level', 'reason', 'origin_kind', 'origin_ref', 'committed_at_ms'
       ] },
@@ -166,6 +169,10 @@ function candidateDefinition(schemaManifest) {
         'registration_candidate_id', 'current_revision', 'current_state', 'proposed_name', 'evidence_digest', 'candidate_schema_ref',
         'candidate_json', 'candidate_payload_digest', 'created_at_ms', 'terminal_at_ms'
       ], keyColumns: ['registration_candidate_id'] },
+      find_registration_candidate_by_evidence: { kind: 'select-one', tableId: 'people_registration_candidates', columns: [
+        'registration_candidate_id', 'current_revision', 'current_state', 'proposed_name', 'evidence_digest', 'candidate_schema_ref',
+        'candidate_json', 'candidate_payload_digest', 'created_at_ms', 'terminal_at_ms'
+      ], keyColumns: ['evidence_digest'] },
       list_registration_candidates: { kind: 'select-all', tableId: 'people_registration_candidates', columns: [
         'registration_candidate_id', 'current_revision', 'current_state', 'proposed_name', 'evidence_digest', 'candidate_schema_ref',
         'candidate_json', 'candidate_payload_digest', 'created_at_ms', 'terminal_at_ms'
@@ -393,6 +400,15 @@ function createPeopleStore(options) {
       return execute([registry], (context) => {
         const repository = context.repository(registry.repositoryId);
         return Object.freeze(repository.invoke('list_people').map((row) => mapPerson(repository, row)));
+      });
+    },
+    findActivePersonByProviderIdentity(identity) {
+      exactInput(identity, ['provider', 'namespace', 'providerKey'], 'P6_PEOPLE_PROVIDER_IDENTITY_LOOKUP_INPUT');
+      return execute([registry], (context) => {
+        const repository = context.repository(registry.repositoryId);
+        const row = repository.invoke('find_active_provider_identity', { provider:identity.provider,
+          namespace:identity.namespace,provider_key:identity.providerKey,active_guard:1 });
+        return row ? mapPerson(repository, repository.invoke('find_person', { person_id:row.person_id })) : undefined;
       });
     },
     appendPreference(input) {
@@ -747,6 +763,13 @@ function createPeopleStore(options) {
     getRegistrationCandidate(candidateId) {
       return execute([candidates], (context) => mapRegistrationCandidate(context.repository(candidates.repositoryId),
         context.repository(candidates.repositoryId).invoke('find_registration_candidate', { registration_candidate_id: candidateId })), 'people_candidate_store');
+    },
+    findRegistrationCandidateByEvidence(evidenceDigest) {
+      return execute([candidates], (context) => {
+        const repository=context.repository(candidates.repositoryId);
+        return mapRegistrationCandidate(repository,
+          repository.invoke('find_registration_candidate_by_evidence', { evidence_digest:evidenceDigest }));
+      }, 'people_candidate_store');
     },
     listRegistrationCandidates() {
       return execute([candidates], (context) => {

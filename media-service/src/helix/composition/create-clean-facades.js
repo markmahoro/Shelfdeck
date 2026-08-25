@@ -142,6 +142,11 @@ function createCleanFacades(options) {
         ),
       });
   }
+  if(options.workspaceRootAdmin){
+    facades.PlatformAdminFacade.get_settings_workspaces=async()=>({body:options.workspaceRootAdmin.get()});
+    facades.PlatformAdminFacade.patch_settings_workspaces=async(input)=>({body:options.workspaceRootAdmin.configure(input.body)});
+    facades.PlatformAdminFacade.post_settings_workspaces_actions_probe=async(input)=>({body:options.workspaceRootAdmin.probe(input.body)});
+  }
   if (options.procurementAdmin) {
     facades.ProcurementAdminFacade.get_material_fields = async () => ({
       body: options.procurementAdmin.listMaterialFields(),

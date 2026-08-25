@@ -1,5 +1,5 @@
 import { FormEvent, useCallback, useEffect, useState } from 'react';
-import { helixAdminApi, type IntegrationState, type PerceptionRecord, type PerceptionSyncState } from './api';
+import { helixAdminApi, type IntegrationState, type PerceptionRecord, type PerceptionSyncState, type WorkspaceRootSettings } from './api';
 import AutomaticOperationPanel from './AutomaticOperationPanel';
 import { Button, LoadingState, PageHeader } from './chrome';
 import { labelOf, recordKindLabels, resolutionLabels } from './labels';
@@ -22,7 +22,7 @@ function stars(value: number | null) {
 
 export default function SettingsPage() {
   const { expire } = useSession();
-  const [tab, setTab] = useState<'integrations' | 'automation' | 'ratings'>('integrations');
+  const [tab, setTab] = useState<'integrations' | 'automation' | 'workspace' | 'ratings'>('integrations');
   const [integration, setIntegration] = useState<IntegrationState | null>(null);
   const [tmdb, setTmdb] = useState<IntegrationState | null>(null);
   const [moviePilot, setMoviePilot] = useState<IntegrationState | null>(null);
@@ -48,6 +48,8 @@ export default function SettingsPage() {
   const [notice, setNotice] = useState('');
   const [ratingsLoaded, setRatingsLoaded] = useState(false);
   const [syncState, setSyncState] = useState<PerceptionSyncState | null>(null);
+  const [workspace,setWorkspace]=useState<WorkspaceRootSettings|null>(null);
+  const [workspaceRoot,setWorkspaceRoot]=useState('');
 
   const fail = useCallback((cause: unknown, fallback: string) => {
     if (isUnauthorized(cause)) expire();
@@ -91,8 +93,13 @@ export default function SettingsPage() {
     finally { setLoading(false); }
   }, [fail, ratingFilter, sourceFilter, statusFilter, targetFilter]);
 
+  const loadWorkspace=useCallback(async()=>{setLoading(true);setError('');try{const value=await helixAdminApi.getWorkspaceRootSettings();
+    setWorkspace(value);setWorkspaceRoot(value.pending?.rootPath||value.current.rootPath);}catch(cause){fail(cause,'Workspace 设置读取失败。');}
+    finally{setLoading(false);}},[fail]);
+
   useEffect(() => { void loadIntegrations(); }, [loadIntegrations]);
   useEffect(() => { if (tab === 'ratings') void loadRatings(); }, [tab, loadRatings]);
+  useEffect(()=>{if(tab==='workspace')void loadWorkspace();},[tab,loadWorkspace]);
   useEffect(() => {
     if (!syncState || syncState.activeCount < 1) return undefined;
     const timer = window.setInterval(() => { void loadSyncState(); }, 3000);
@@ -180,6 +187,11 @@ export default function SettingsPage() {
     const result = await helixAdminApi.listPerceptionRecords({ cursor: nextCursor, limit: 100, sourceKind: sourceFilter, resolutionStatus: statusFilter, rating: ratingFilter ? Number(ratingFilter) : undefined, targetType: targetFilter });
     setRecords((current) => [...current, ...result.items]); setNextCursor(result.nextCursor);
   }
+  async function saveWorkspace(event:FormEvent){event.preventDefault();if(!workspace)return;setLoading(true);setError('');setNotice('');
+    try{await helixAdminApi.probeWorkspaceRoot(workspaceRoot);const value=await helixAdminApi.configureWorkspaceRoot(
+      workspaceRoot,workspace.pending?.configRevision||workspace.current.configRevision);setWorkspace(value);
+      setNotice(value.restartRequired?'目录已验证并保存，重启 ShelfDeck 后生效。':'目录无需变更。');}
+    catch(cause){fail(cause,'Workspace 目录保存失败。');}finally{setLoading(false);}}
 
   if (!integration && !tmdb && !moviePilot && loading && !error) return <LoadingState>正在读取系统设置…</LoadingState>;
   return <section className="source-page settings-page">
@@ -187,11 +199,24 @@ export default function SettingsPage() {
     <div className="settings-tabs" role="tablist">
       <button type="button" role="tab" aria-selected={tab === 'integrations'} onClick={() => setTab('integrations')}>连接</button>
       <button type="button" role="tab" aria-selected={tab === 'automation'} onClick={() => setTab('automation')}>自动运营</button>
+      <button type="button" role="tab" aria-selected={tab === 'workspace'} onClick={() => setTab('workspace')}>Workspace</button>
       <button type="button" role="tab" aria-selected={tab === 'ratings'} onClick={() => setTab('ratings')}>评分日志</button>
     </div>
     {error && <p className="form-error" role="alert">{error}</p>}
     {notice && <p className="form-notice" role="status">{notice}</p>}
-    {tab === 'automation' ? <div className="settings-stack"><AutomaticOperationPanel /></div> : tab === 'integrations' ? <div className="settings-stack">
+    {tab === 'automation' ? <div className="settings-stack"><AutomaticOperationPanel /></div> : tab === 'workspace' ? <div className="settings-stack">
+      <section className="settings-card" aria-labelledby="workspace-title">
+        <header className="settings-card-head"><div><h2 id="workspace-title">Production Workspace</h2><p>整理媒体时使用的临时工作目录</p></div>
+          <span className={`integration-state ${workspace?.restartRequired?'':'active'}`}>{workspace?.restartRequired?'等待重启':'当前生效'}</span></header>
+        <div className="settings-card-body">{workspace?<form className="source-form" onSubmit={saveWorkspace}>
+          <dl className="settings-facts"><div><dt>当前目录</dt><dd>{workspace.current.rootPath}</dd></div>
+            {workspace.pending&&<div><dt>重启后目录</dt><dd>{workspace.pending.rootPath}</dd></div>}</dl>
+          <label className="settings-inline-field"><span>自定义目录</span><input value={workspaceRoot} onChange={(event)=>setWorkspaceRoot(event.target.value)} required /></label>
+          <small>保存会检查读写、删除、原子改名、可用空间和目录冲突；不会搬动或删除旧目录。</small>
+          <div className="settings-card-actions"><Button variant="primary" disabled={loading||!workspaceRoot||workspaceRoot===(workspace.pending?.rootPath||workspace.current.rootPath)}>验证并保存</Button></div>
+        </form>:<LoadingState>正在读取 Workspace 设置…</LoadingState>}</div>
+      </section>
+    </div> : tab === 'integrations' ? <div className="settings-stack">
       <section className="settings-card" aria-labelledby="douban-title">
         <header className="settings-card-head"><div><h2 id="douban-title">豆瓣</h2><p>同步收藏评分</p></div><span className={`integration-state ${integration?.configured ? 'active' : ''}`}>{integrationStateLabel(integration)}</span></header>
         <div className="settings-card-body">

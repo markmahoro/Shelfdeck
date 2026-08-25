@@ -161,6 +161,7 @@ test('formal server dependency graph reaches only the clean Helix root', () => {
         relative === 'src/clean-layout-observer.js' ||
         relative === 'src/clean-product-production-port.js' ||
         relative === 'src/clean-workspace-product-port.js' ||
+        relative === 'src/clean-workspace-root-admin.js' ||
         relative === 'src/clean-western-analysis-port.js' ||
         relative === 'src/clean-arca-inventory-port.js' ||
         relative === 'src/clean-offdeck-deletion-port.js' ||
@@ -396,6 +397,27 @@ test('clean host serves public health and Admin UI, then requires API key or Htt
       activeShelfCount: 0,
       productChoice: 'key_step_confirmation',
     });
+    assert.ok(['normal','running'].includes(overview.json().backgroundOperations.state));
+    assert.equal(overview.json().backgroundOperations.cadenceMs, 30000);
+    assert.ok(overview.json().backgroundOperations.registrations.some((item) =>
+      item.ownerDomain === 'people' && item.reconcilerKey === 'ondeck-person-evidence'));
+    assert.ok(overview.json().backgroundOperations.registrations.some((item) =>
+      item.ownerDomain === 'libra' && item.reconcilerKey === 'completed-workspace-reclamation'));
+
+    const workspaceSettings=await host.inject({method:'GET',url:'/v1/admin/settings/workspaces',headers:{cookie}});
+    assert.equal(workspaceSettings.statusCode,200);
+    assert.equal(workspaceSettings.json().restartRequired,false);
+    assert.equal(path.isAbsolute(workspaceSettings.json().current.rootPath),true);
+    const workspaceProbe=await host.inject({method:'POST',url:'/v1/admin/settings/workspaces/actions/probe',headers:{cookie},
+      payload:{rootPath:path.join(value.dataDir,'custom-production-workspace'),idempotencyKey:'workspace-probe-entrypoint'}});
+    assert.equal(workspaceProbe.statusCode,200,workspaceProbe.body);
+    assert.equal(workspaceProbe.json().validation,'passed');
+    const workspaceConfigured=await host.inject({method:'PATCH',url:'/v1/admin/settings/workspaces',headers:{cookie},
+      payload:{rootPath:path.join(value.dataDir,'custom-production-workspace'),expectedConfigRevision:1,
+        idempotencyKey:'workspace-configure-entrypoint'}});
+    assert.equal(workspaceConfigured.statusCode,200,workspaceConfigured.body);
+    assert.equal(workspaceConfigured.json().restartRequired,true);
+    assert.equal(workspaceConfigured.json().pending.rootPath,workspaceProbe.json().rootPath);
 
     const people = await host.inject({
       method: 'GET',

@@ -128,6 +128,7 @@ const { createCleanMediaProbe } = require('./clean-media-probe');
 const {
   createCleanWorkspaceProductPort,
 } = require('./clean-workspace-product-port');
+const { createCleanWorkspaceRootAdmin } = require('./clean-workspace-root-admin');
 const {
   createCleanProductProductionPort,
 } = require('./clean-product-production-port');
@@ -1231,6 +1232,9 @@ async function createCleanServiceHost(options) {
   const locationRegistryRepository = createLocationRegistryRepository(
     constructed.applicationDependencies,
   );
+  const durableLibraWorkspaceRoot=locationRegistryRepository.getWorkspaceRoot('service-libra-production-workspace');
+  const libraWorkspaceRoot=path.resolve(durableLibraWorkspaceRoot?.resolvedRoot||options.libraWorkspaceRoot||
+    path.join(options.dataDir,'workspaces','libra'));
   const localMountScopeResolver = createLocalFilesystemMountScopeResolver({
     repository: locationRegistryRepository,
     inspectRoot: (rootLocation) => localMountProbe.inspectRoot(rootLocation),
@@ -1266,7 +1270,7 @@ async function createCleanServiceHost(options) {
   });
   const aftercareReservedRoots = [
     { kind:'libra-workspace', rootId:'service-libra-production-workspace',
-      resolvedRoot:path.resolve(options.libraWorkspaceRoot || path.join(options.dataDir, 'workspaces', 'libra')) },
+      resolvedRoot:libraWorkspaceRoot },
     ...materialFieldStore.listMaterialFields()
       .filter((field) => field.status === 'active')
       .map((field) => ({ kind:'material-field', rootId:field.fieldId, resolvedRoot:field.access.rootLocation })),
@@ -1293,8 +1297,7 @@ async function createCleanServiceHost(options) {
     doubanRequestPaceMs: options.doubanRequestPaceMs,
     doubanDelay: options.doubanDelay,
     reservedRoots: () => [
-      options.libraWorkspaceRoot ||
-        path.join(options.dataDir, 'workspaces', 'libra'),
+      libraWorkspaceRoot,
       aftercareWorkspaceRoot,
       ...(options.integrationReservedRoots || []),
       ...materialFieldStore.listMaterialFields()
@@ -1354,8 +1357,7 @@ async function createCleanServiceHost(options) {
   const workspaceProductPort = options.workspaceProductPort ||
     createCleanWorkspaceProductPort({
       ...constructed.applicationDependencies,
-      rootPath: options.libraWorkspaceRoot ||
-        path.join(options.dataDir, 'workspaces', 'libra'),
+      rootPath: libraWorkspaceRoot,
       externalLandingResolver: (request) =>
         platformIntegrations.resolveExternalLandingLocation(request),
       now: options.now || Date.now,
@@ -1365,6 +1367,27 @@ async function createCleanServiceHost(options) {
       afterMediaEffectCommit: options.workspaceAfterMediaEffectCommit,
       afterCleanupPhysicalEffect: options.workspaceAfterCleanupPhysicalEffect,
     });
+  workspaceProductPort.rootSnapshot();
+  const workspaceRootAdmin=createCleanWorkspaceRootAdmin({
+    ...constructed.applicationDependencies,locationRegistryRepository,mountScopeResolver:localMountScopeResolver,
+    effectiveRootPath:workspaceProductPort.rootPath,statfsSync:options.workspaceStatfsSync,now:options.now||Date.now,
+    reservedRoots:()=>{
+      let landing=[];
+      try{
+        const binding=platformIntegrations.admin.get('moviepilot')?.landingBinding;
+        landing=binding?[binding.providerRequestSaveRoot,binding.providerOrganizedRoot,binding.shelfDeckVisibleRoot]
+          .filter(Boolean).map((resolvedRoot,index)=>({kind:'external-landing',rootId:`moviepilot-landing-${index+1}`,resolvedRoot,revision:1})):[];
+      }catch{}
+      return [
+        {kind:'aftercare-workspace',rootId:'service-arca-aftercare-workspace',resolvedRoot:aftercareWorkspaceRoot,revision:1},
+        ...materialFieldStore.listMaterialFields().filter((field)=>field.status==='active').map((field)=>({kind:'material-field',
+          rootId:field.fieldId,resolvedRoot:field.access.rootLocation,revision:field.currentAccessRevision||1})),
+        ...arcaShelfAdmin.listShelves().items.filter((shelf)=>shelf.status==='active').map((shelf)=>({kind:'shelf-target',
+          rootId:shelf.shelfId,resolvedRoot:shelf.target.rootLocation,revision:shelf.target.revision||1})),
+        ...landing,
+      ];
+    },
+  });
   const productDeliveryPort = ProductDeliveryPort(createProductDeliveryReader(
     constructed.applicationDependencies,
   ));
@@ -1549,6 +1572,7 @@ async function createCleanServiceHost(options) {
     perceptionCoordinator: procurementExecution.perception,
     arcaCoordinator: procurementExecution.arcaCoordinator,
     handoffBOutcomeConsumer,
+    wakeWorkspaceReclaimer: () => procurementExecution.wakeWorkspaceReclaimer(),
     deferredDeliveryKeys: options.deferredDeliveryKeys || [],
     executionRuntimeHost: procurementExecution.host,
     onError: options.onExecutionRuntimeError,
@@ -1701,6 +1725,7 @@ async function createCleanServiceHost(options) {
     readCollectionStats: (nowMs) => arcaCollectionQuery.overviewStats(nowMs),
     readOffdeck: () => arcaOffdeck.candidates(),
     readPeopleSummary: () => peopleAdminQuery.list({ limit:1 }).summary,
+    readBackgroundOperations: () => procurementExecution.host.backgroundOperations(),
     readHealth: () => ({ kind: 'ready' }),
     now: options.now || Date.now,
   });
@@ -1737,6 +1762,7 @@ async function createCleanServiceHost(options) {
     productIdentitySelection,
     arcaAcceptanceRecovery,
     platformIntegrationAdmin: platformIntegrations.admin,
+    workspaceRootAdmin,
     perceptionAdmin,
     nonce: crypto.randomUUID,
   });

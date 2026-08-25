@@ -85,7 +85,13 @@ describe('Helix primary copy and workbench structure', () => {
     expect(screen.getByRole('heading', { level: 2, name: 'TMDB' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { level: 2, name: 'MoviePilot' })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: '自动运营' })).toBeInTheDocument();
-    expect(document.querySelectorAll('.settings-card')).toHaveLength(3);
+    vi.spyOn(helixAdminApi,'getWorkspaceRootSettings').mockResolvedValue({current:{rootPath:'D:\\ShelfDeck\\workspace',configRevision:1},
+      pending:null,restartRequired:false});
+    fireEvent.click(screen.getByRole('tab',{name:'Workspace'}));
+    expect(await screen.findByRole('heading',{level:2,name:'Production Workspace'})).toBeInTheDocument();
+    expect(screen.getByDisplayValue('D:\\ShelfDeck\\workspace')).toBeInTheDocument();
+    expect(screen.getByText(/不会搬动或删除旧目录/)).toBeInTheDocument();
+    expect(document.querySelectorAll('.settings-card')).toHaveLength(1);
     expect(screen.queryByText('连接、空间、资源与安全')).not.toBeInTheDocument();
     expect(ratings).not.toHaveBeenCalled();
   });
