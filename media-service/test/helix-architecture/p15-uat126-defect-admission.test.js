@@ -39,10 +39,10 @@ function terminal(failureCode, capabilityRef = 'libra.product_metadata.fetch@1')
 }
 function authorize(candidate) {
   return buildAuthorizedDefectManifest({ candidate, actorId:'admin',
-    idempotencyKey:'uat-119', acknowledged:true, decidedAtMs:119 });
+    idempotencyKey:'uat-126', acknowledged:true, decidedAtMs:119 });
 }
 
-test('UAT-119 admits an evidenced actor absence but preserves the unmet fact', () => {
+test('UAT-126 admits an evidenced actor absence but preserves the unmet fact', () => {
   const candidate = buildDefectAdmissionCandidate({ run:frozen(),
     terminalEvidence:terminal('product_metadata_required_cast_missing') });
   assert.deepEqual(candidate.waivedRequirementCodes, ['metadata_field_unmet']);
@@ -65,7 +65,7 @@ test('UAT-119 admits an evidenced actor absence but preserves the unmet fact', (
   { state:'active', revision:4, transitionKind:'defect_admitted' });
 });
 
-test('UAT-119 admits exhausted sourcing only for the exact safe original verification', () => {
+test('UAT-126 admits exhausted sourcing only for the exact safe original verification', () => {
   const verification = Object.freeze({ candidateKind:'direct_input', result:'failed',
     libraRunId:'run-119', verificationId:D('verification'),
     reasonCodes:Object.freeze(['container_unmet']) });
@@ -91,7 +91,7 @@ test('UAT-119 admits exhausted sourcing only for the exact safe original verific
   (error) => error.code === 'P9_DEFECT_ADMISSION_ORIGINAL_MEDIA');
 });
 
-test('UAT-119 rejects provider outages and Arca rejects stale or broader attestations', () => {
+test('UAT-126 rejects provider outages and Arca rejects stale or broader attestations', () => {
   assert.throws(() => buildDefectAdmissionCandidate({ run:frozen(),
     terminalEvidence:terminal('provider_timeout', 'libra.external.search@1') }),
   (error) => error.code === 'P9_DEFECT_ADMISSION_INELIGIBLE');
@@ -103,7 +103,7 @@ test('UAT-119 rejects provider outages and Arca rejects stale or broader attesta
     authorizedDefectManifest:manifest }), false);
 });
 
-test('UAT-119 Aftercare ignores only the authorized conformance gap', () => {
+test('UAT-126 Aftercare ignores only the authorized conformance gap', () => {
   const manifest = authorize(buildDefectAdmissionCandidate({ run:frozen(),
     terminalEvidence:terminal('product_metadata_required_cast_missing') }));
   const basis = D('care');
@@ -126,12 +126,12 @@ test('UAT-119 Aftercare ignores only the authorized conformance gap', () => {
   assert.equal(unrelated.state, 'attention_required');
 });
 
-test('UAT-119 upgrades the prior clean schema before defect admission revisions are written', () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'uat119-schema-'));
+test('UAT-126 upgrades the prior clean schema before defect admission revisions are written', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'uat126-schema-'));
   try {
     const dataDir = path.join(root, 'data');
     initializeCleanData({ dataDir, confirmation:'INITIALIZE_HELIX_CLEAN_V1',
-      secretRoot:'uat119-schema-secret-root-0123456789abcdef' });
+      secretRoot:'uat126-schema-secret-root-0123456789abcdef' });
     const databasePath = path.join(dataDir, 'shelfdeck.db');
     let database = new Database(databasePath);
     const catalog = database.prepare(
