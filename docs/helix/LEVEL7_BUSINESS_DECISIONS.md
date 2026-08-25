@@ -80,7 +80,7 @@ Level 7 架构合同保持 Accepted/Closed。下列决定不改 Owner、Handoff 
 **Owner/Handoff影响：** 不新增Domain或Handoff。Libra拥有用户Decision和Authorized Defect Manifest；Arca在
 Handoff B独立验证并把Manifest保存为Accepted Inventory Fact。事实不改写为普通合格。
 
-**回写：** SSOT §5.6.7、§5.7.2、§5.8.2、§6.5.2、§8.5.11、§9.5.3；Beta HB-B.25–26、HB-D.05；UAT-119。
+**回写：** SSOT §5.6.7、§5.7.2、§5.8.2、§6.5.2、§8.5.11、§9.5.3；Beta HB-B.25–26、HB-D.05；UAT-126。
 
 ## Deferred product decisions
 
