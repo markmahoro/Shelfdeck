@@ -121,6 +121,16 @@ function stateDefinition(schemaManifest) {
         ],
         keyColumns: ['libra_run_id'], safeIntegers: true,
       },
+      page_active_workspaces: {
+        kind: 'select-page-after', tableId: 'libra_workspaces', keyColumn:'workspace_id',
+        fixedKeyColumns:['state'], maxItems:100, safeIntegers:true,
+        columns:['workspace_id','libra_run_id','state'],
+      },
+      page_active_cleanup_scopes: {
+        kind: 'select-page-after', tableId: 'libra_workspace_cleanup_scopes', keyColumn:'cleanup_scope_id',
+        fixedKeyColumns:['state'], maxItems:100, safeIntegers:true,
+        columns:['cleanup_scope_id','libra_run_id','workspace_id','state'],
+      },
     },
   });
 }
@@ -364,7 +374,66 @@ function createMovieResponsibilityClosureCoordinator(options) {
     });
   }
 
-  function cleanupWorkspace(libraRunId, packageValue) {
+  function drainCleanupScope(cleanupScopeId, maxMembers = Number.POSITIVE_INFINITY) {
+    let scope = cleanup.readScope(cleanupScopeId);
+    const receipts = [];
+    while (scope.state === 'active' && receipts.length < maxMembers) {
+      const member = scope.members.find((item) => item.state === 'pending');
+      if (!member) {
+        fail('P14_MOVIE_CLEANUP_MEMBER_MISSING',
+          'Active cleanup Scope has no pending member.');
+      }
+      const handle = cleanup.readHandle(scope.workspaceId,
+        member.materialHandleId);
+      const intent = buildEffectIntent(scope, member, handle);
+      const effect = options.workspaceProductPort.reclaimMaterial(intent);
+      const workspace = cleanup.currentWorkspace(scope.workspaceId);
+      const freshScope = cleanup.readScope(scope.cleanupScopeId);
+      const freshMember = freshScope.members.find((item) =>
+        item.materialHandleId === member.materialHandleId);
+      const pendingMembers = freshScope.members.filter((item) =>
+        item.state === 'pending');
+      if (pendingMembers.length === 1 &&
+          pendingMembers[0].materialHandleId === member.materialHandleId) {
+        options.workspaceProductPort.reclaimEmptyWorkspace?.(scope.workspaceId);
+      }
+      const commitDecision = buildCommitDecision({
+        scope: freshScope,
+        member: freshMember,
+        workspace,
+        deletionEvidence: effect.deletionEvidence,
+      });
+      const committed = cleanup.commit({
+        decision: commitDecision,
+        commitMarker: canonicalDigest({
+          schema: 'libra.workspace-cleanup-member-marker@1',
+          cleanupScopeId: scope.cleanupScopeId,
+          materialHandleId: member.materialHandleId,
+          decisionDigest: commitDecision.decisionDigest,
+        }),
+        resultId: canonicalDigest({
+          schema: 'libra.workspace-cleanup-member-result-id@1',
+          cleanupScopeId: scope.cleanupScopeId,
+          materialHandleId: member.materialHandleId,
+        }),
+      });
+      receipts.push(committed.result);
+      if (typeof options.afterCleanupCommit === 'function' &&
+          !committed.replayed) {
+        options.afterCleanupCommit(committed.result);
+      }
+      scope = cleanup.readScope(scope.cleanupScopeId);
+    }
+    return Object.freeze({
+      stage: scope.state === 'completed'
+        ? 'workspace_cleanup_completed' : 'workspace_cleanup_in_progress',
+      cleanupScopeId: scope.cleanupScopeId,
+      scope,
+      receipts: Object.freeze(receipts),
+    });
+  }
+
+  function cleanupWorkspace(libraRunId, packageValue, maxMembers = Number.POSITIVE_INFINITY) {
     const triggerSnapshot = options.offloadCompletionPort.readCompletion({
       queryContract: 'arca.offload-completion@1',
       onDeckPackageId: packageValue.onDeckPackageId,
@@ -469,56 +538,7 @@ function createMovieResponsibilityClosureCoordinator(options) {
       wake = consumeOptionalOffloadWake(offloadWake, admission);
       scope = cleanup.readScope(decision.cleanupScopeId);
     }
-    const receipts = [];
-    while (scope.state === 'active') {
-      const member = scope.members.find((item) => item.state === 'pending');
-      if (!member) {
-        fail('P14_MOVIE_CLEANUP_MEMBER_MISSING',
-          'Active cleanup Scope has no pending member.');
-      }
-      const handle = cleanup.readHandle(scope.workspaceId,
-        member.materialHandleId);
-      const intent = buildEffectIntent(scope, member, handle);
-      const effect = options.workspaceProductPort.reclaimMaterial(intent);
-      const workspace = cleanup.currentWorkspace(scope.workspaceId);
-      const freshScope = cleanup.readScope(scope.cleanupScopeId);
-      const freshMember = freshScope.members.find((item) =>
-        item.materialHandleId === member.materialHandleId);
-      const commitDecision = buildCommitDecision({
-        scope: freshScope,
-        member: freshMember,
-        workspace,
-        deletionEvidence: effect.deletionEvidence,
-      });
-      const committed = cleanup.commit({
-        decision: commitDecision,
-        commitMarker: canonicalDigest({
-          schema: 'libra.workspace-cleanup-member-marker@1',
-          cleanupScopeId: scope.cleanupScopeId,
-          materialHandleId: member.materialHandleId,
-          decisionDigest: commitDecision.decisionDigest,
-        }),
-        resultId: canonicalDigest({
-          schema: 'libra.workspace-cleanup-member-result-id@1',
-          cleanupScopeId: scope.cleanupScopeId,
-          materialHandleId: member.materialHandleId,
-        }),
-      });
-      receipts.push(committed.result);
-      if (typeof options.afterCleanupCommit === 'function' &&
-          !committed.replayed) {
-        options.afterCleanupCommit(committed.result);
-      }
-      scope = cleanup.readScope(scope.cleanupScopeId);
-    }
-    return Object.freeze({
-      stage: scope.state === 'completed'
-        ? 'workspace_cleanup_completed' : 'workspace_cleanup_blocked',
-      cleanupScopeId: scope.cleanupScopeId,
-      scope,
-      receipts: Object.freeze(receipts),
-      wake,
-    });
+    return Object.freeze({...drainCleanupScope(scope.cleanupScopeId,maxMembers),wake});
   }
 
   function advance(request) {
@@ -582,7 +602,42 @@ function createMovieResponsibilityClosureCoordinator(options) {
     }]).movie_completed_run_read;
   }
 
-  return Object.freeze({ advance, findCompletedRun });
+  function listCompletedWorkspacePage(cursor, limit) {
+    return options.unitOfWork.execute([{
+      participantId:'movie_completed_workspace_page',owner:'libra',repositories:[stateRepository],execute(context){
+        const repo=context.repository(stateRepository.repositoryId);
+        return Object.freeze(repo.invoke('page_active_workspaces',{state:'active',cursor:cursor||null,limit}).map((workspace)=>{
+          const run=repo.invoke('find_run',{libra_run_id:workspace.libra_run_id});
+          if(!run||run.state!=='completed')return Object.freeze({cursor:workspace.workspace_id,scope:Object.freeze({skipped:true})});
+          const packages=repo.invoke('list_run_packages',{libra_run_id:workspace.libra_run_id}).filter((item)=>item.state==='published');
+          if(packages.length!==1)fail('P14_MOVIE_COMPLETED_PACKAGE_AMBIGUOUS','Completed Movie Run requires one published Product Package.');
+          return Object.freeze({cursor:workspace.workspace_id,scope:Object.freeze({libraRunId:workspace.libra_run_id,
+            onDeckProductPackage:Object.freeze({onDeckPackageId:packages[0].on_deck_package_id,offerId:packages[0].offer_id,
+              packageRevision:Number(packages[0].package_revision),packageDigest:packages[0].package_digest})})});
+        }));
+      },
+    }]).movie_completed_workspace_page;
+  }
+
+  function listActiveCleanupScopePage(cursor, limit) {
+    return options.unitOfWork.execute([{
+      participantId:'movie_active_cleanup_scope_page',owner:'libra',repositories:[stateRepository],execute(context){
+        const repo=context.repository(stateRepository.repositoryId);
+        return Object.freeze(repo.invoke('page_active_cleanup_scopes',{state:'active',cursor:cursor||null,limit})
+          .map((scope)=>Object.freeze({cursor:scope.cleanup_scope_id,scope:Object.freeze({cleanupScopeId:scope.cleanup_scope_id})})));
+      },
+    }]).movie_active_cleanup_scope_page;
+  }
+
+  function reconcileCompletedWorkspace(scope) {
+    if(scope?.skipped)return Object.freeze({stage:'skipped'});
+    try{return cleanupWorkspace(scope.libraRunId,scope.onDeckProductPackage,1);}
+    catch(error){if(error.code!=='P14_CLEANUP_GRACE_ACTIVE')throw error;return Object.freeze({stage:'workspace_cleanup_grace_active',
+      graceDeadlineMs:error.details.graceDeadlineMs});}
+  }
+
+  return Object.freeze({ advance, findCompletedRun, listCompletedWorkspacePage, listActiveCleanupScopePage,
+    reconcileCompletedWorkspace, reconcileCleanupScope:({cleanupScopeId})=>drainCleanupScope(cleanupScopeId,1) });
 }
 
 module.exports = Object.freeze({

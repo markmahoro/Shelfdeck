@@ -68,7 +68,7 @@ function createOutboxDispatcherHost(options){const repo=repository(options.schem
           return {onDeckPackageId:payload.onDeckPackageId,completionDigest:payload.offloadCompletionFact?.completionDigest};
         }}});
       inbox.acknowledge({messageId:item.message.message_id,consumerDomain:'libra'});
-      options.executionRuntimeHost.wake();return;
+      options.wakeWorkspaceReclaimer?.();options.executionRuntimeHost.wake();return;
     }
     if(item.message.message_kind==='libra_candidate_accepted'&&item.delivery.consumer_domain==='procurement'){
       options.acceptanceConsumer.consume(envelope(item,payload));inbox.acknowledge({messageId:item.message.message_id,consumerDomain:'procurement'});return;
@@ -109,7 +109,7 @@ function createOutboxDispatcherHost(options){const repo=repository(options.schem
         domainParticipant:{participantId:'libra_workspace_cleanup_wake_receipt',owner:'libra',repositories:[libraReceiptRepository],
           execute:()=>({libraRunId:payload.libraRunId,cleanupScopeId:payload.cleanupScopeId||null})}});
       inbox.acknowledge({messageId:item.message.message_id,consumerDomain:'libra'});
-      options.executionRuntimeHost.wake();return;
+      options.wakeWorkspaceReclaimer?.();options.executionRuntimeHost.wake();return;
     }
     if(item.message.message_kind.startsWith('perception.')&&item.delivery.consumer_domain==='perception'){
       const resultDigest=canonicalDigest({schema:'perception.internal-wake-consumption@1',messageKind:item.message.message_kind,

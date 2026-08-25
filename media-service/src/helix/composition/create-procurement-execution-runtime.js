@@ -52,6 +52,8 @@ const { LibraExecutionRegistration } = require('../domains/libra/public');
 const { PerceptionExecutionRegistration } = require('../domains/perception/public');
 const { ArcaExecutionRegistration } = require('../domains/arca/public');
 const { createPeopleProcessServices } = require('../domains/people/public');
+const { createOffloadCompletionPort } = require('../domains/arca/public/offload-completion-port');
+const { createMovieResponsibilityClosureCoordinator } = require('../domains/libra/application/movie-responsibility-closure-coordinator');
 
 const PROCUREMENT_ENABLED = Object.freeze(['procurement.field.observation.page.commit@1',
   'procurement.triage.playability.inspect@1','procurement.triage.bdmv.assess@1','procurement.triage.structure.inspect@1',
@@ -830,6 +832,11 @@ function createProcurementExecutionRuntime(options) {
     return { workId: request.workId, disposition: 'succeeded' };
   } };
   const cursorStore=createReconcileCursorStore({schemaManifest:options.schemaManifest,unitOfWork:options.unitOfWork,now});
+  const workspaceReclaimer=createMovieResponsibilityClosureCoordinator({...options,now,
+    offloadCompletionPort:createOffloadCompletionPort(options),workspaceProductPort:libraOptions.workspaceProductPort,
+    offloadWakeVisible:false});
+  const WORKSPACE_RECLAIMER_FALLBACK_MS=15*60*1000;
+  let completedWorkspaceSweepNotBeforeMs=0,activeCleanupSweepNotBeforeMs=0;
   let offdeckPolicySweepNotBeforeMs=0,offdeckDuplicateSweepNotBeforeMs=0;
   const fallbackReconciler=createDomainReconcileRunner({cursorStore,now,onError:options.onError,registrations:[Object.freeze({
     ownerDomain:'procurement',reconcilerKey:'active-procurement-runs',
@@ -914,6 +921,22 @@ function createProcurementExecutionRuntime(options) {
       listPage:({cursor,limit})=>arcaProcessServices.aftercareContextReader.store.listAftercareWorkspaceLifecyclePage(cursor,limit),
       reconcile:({aftercareCaseId})=>arcaProcessServices.aftercareCoordinator.reconcileWorkspaceLifecycle(aftercareCaseId),
     }),Object.freeze({
+      ownerDomain:'libra',reconcilerKey:'completed-workspace-reclamation',
+      listPage:({cursor,limit})=>{if(cursor===null&&now()<completedWorkspaceSweepNotBeforeMs)return [];
+        const page=workspaceReclaimer.listCompletedWorkspacePage(cursor,limit);
+        if(page.length<limit)completedWorkspaceSweepNotBeforeMs=now()+WORKSPACE_RECLAIMER_FALLBACK_MS;
+        return page;},
+      nextDueAtMs:()=>completedWorkspaceSweepNotBeforeMs||null,
+      reconcile:(scope)=>workspaceReclaimer.reconcileCompletedWorkspace(scope),
+    }),Object.freeze({
+      ownerDomain:'libra',reconcilerKey:'active-workspace-cleanup-scopes',
+      listPage:({cursor,limit})=>{if(cursor===null&&now()<activeCleanupSweepNotBeforeMs)return [];
+        const page=workspaceReclaimer.listActiveCleanupScopePage(cursor,limit);
+        if(page.length===0)activeCleanupSweepNotBeforeMs=now()+WORKSPACE_RECLAIMER_FALLBACK_MS;
+        return page;},
+      nextDueAtMs:()=>activeCleanupSweepNotBeforeMs||null,
+      reconcile:(scope)=>workspaceReclaimer.reconcileCleanupScope(scope),
+    }),Object.freeze({
       ownerDomain:'arca',reconcilerKey:'preparing-offdeck-reviews',
       listPage:({cursor,limit})=>arcaProcessServices.offdeckContextReader.store.listReviews().filter((item)=>item.state==='preparing'&&
         (cursor===null||item.review_id>cursor)).sort((a,b)=>a.review_id.localeCompare(b.review_id)).slice(0,limit)
@@ -958,6 +981,8 @@ function createProcurementExecutionRuntime(options) {
     arcaOffdeckAutomationCoordinator:arcaProcessServices.offdeckAutomationCoordinator,
     arcaShelfDeregistrationCoordinator:arcaProcessServices.shelfDeregistrationCoordinator,
     arcaShelfDeregistrationContextReader:arcaProcessServices.shelfDeregistrationContextReader,
+    wakeWorkspaceReclaimer(){completedWorkspaceSweepNotBeforeMs=0;activeCleanupSweepNotBeforeMs=0;
+      return Object.freeze({kind:'wake_recorded'});},workspaceReclaimer,
     cancelProcessWorks:(scope)=>workLifecycle.cancelProcess(scope),
     perception:perceptionProcessServices, people:peopleProcessServices });
 }

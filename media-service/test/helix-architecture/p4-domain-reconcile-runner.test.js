@@ -104,8 +104,11 @@ test('periodic owner fanout yields to the Node poll phase between scopes', async
   const runner=createDomainReconcileRunner({cursorStore:opened.cursorStore,registrations:[registration],now:Date.now,
     cadenceMs:60000,pageLimit:100,budgetMs:5000});
   try {
+    assert.equal(runner.snapshot().state,'waiting_first_check');
     const startup=runner.start();
     await new Promise((resolve)=>setImmediate(resolve));
+    assert.equal(runner.snapshot().state,'running');
+    assert.equal(runner.snapshot().registrations[0].state,'running');
     assert.ok(seen.length>0&&seen.length<scopes.length,
       `reconcile fanout must yield before all scopes complete, processed ${seen.length}`);
     const result=await startup;
@@ -114,4 +117,58 @@ test('periodic owner fanout yields to the Node poll phase between scopes', async
     await runner.stop(); opened.kernel.close();
     fs.rmSync(root,{recursive:true,force:true});
   }
+});
+
+test('one registration list failure is visible and does not starve later registrations', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'helix-reconcile-registration-failure-'));
+  const databasePath = path.join(root, 'shelfdeck.db');
+  const opened = open(databasePath);
+  const seen=[]; const errors=[];
+  const registrations=[
+    Object.freeze({ownerDomain:'people',reconcilerKey:'person-evidence',listPage(){
+      throw Object.assign(new Error('projection unavailable'),{code:'PEOPLE_EVIDENCE_PROJECTION_UNAVAILABLE'});
+    },reconcile(){throw new Error('unreachable');}}),
+    Object.freeze({ownerDomain:'arca',reconcilerKey:'aftercare',listPage(){return [Object.freeze({
+      cursor:'aftercare-1',scope:Object.freeze({processId:'aftercare-1'}),
+    })];},reconcile(scope){seen.push(scope.processId);}}),
+  ];
+  const runner=createDomainReconcileRunner({cursorStore:opened.cursorStore,registrations,now:Date.now,
+    cadenceMs:60000,pageLimit:100,budgetMs:5000,onError:(error)=>errors.push(error.code)});
+  try {
+    const result=await runner.start();
+    assert.equal(result.kind,'completed');
+    assert.equal(result.results[0].errorCode,'PEOPLE_EVIDENCE_PROJECTION_UNAVAILABLE');
+    assert.equal(result.results[1].processed,1);
+    assert.deepEqual(seen,['aftercare-1']);
+    assert.deepEqual(errors,['PEOPLE_EVIDENCE_PROJECTION_UNAVAILABLE']);
+    const snapshot=runner.snapshot();
+    assert.equal(snapshot.state,'attention');
+    assert.equal(snapshot.pendingCount,1);
+    assert.equal(snapshot.registrations[0].state,'attention');
+    assert.equal(snapshot.registrations[0].pendingCount,1);
+    assert.equal(snapshot.registrations[1].state,'normal');
+    assert.ok(Number.isSafeInteger(snapshot.lastCompletedAtMs));
+  } finally {
+    await runner.stop(); opened.kernel.close();
+    fs.rmSync(root,{recursive:true,force:true});
+  }
+});
+
+test('a successful cheap due check is visible as waiting for business time, not pending work', async () => {
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'helix-reconcile-not-due-'));
+  const opened=open(path.join(root,'shelfdeck.db'));
+  const clock=1_700_000_000_000;
+  const registration=Object.freeze({ownerDomain:'libra',reconcilerKey:'workspace-cleanup',
+    listPage:()=>[],nextDueAtMs:()=>clock+15*60*1000,reconcile(){throw new Error('unreachable');}});
+  const runner=createDomainReconcileRunner({cursorStore:opened.cursorStore,registrations:[registration],now:()=>clock,
+    cadenceMs:60000,pageLimit:100,budgetMs:5000});
+  try{
+    await runner.start();
+    const snapshot=runner.snapshot();
+    assert.equal(snapshot.state,'normal');
+    assert.equal(snapshot.pendingCount,0);
+    assert.equal(snapshot.registrations[0].state,'waiting_business_time');
+    assert.equal(snapshot.registrations[0].lastResultKind,'not_due');
+    assert.equal(snapshot.registrations[0].nextDueAtMs,clock+15*60*1000);
+  }finally{await runner.stop();opened.kernel.close();fs.rmSync(root,{recursive:true,force:true});}
 });

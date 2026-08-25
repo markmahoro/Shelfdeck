@@ -196,8 +196,8 @@ function rootSnapshot(value) {
     rootKind: 'production-workspace',
     endpointId: value.endpointId,
     mountScopeId: value.mountScopeId,
-    mountScopeRevision: 1,
-    configRevision: 1,
+    mountScopeRevision: value.mountScopeRevision || 1,
+    configRevision: value.configRevision || 1,
     capabilityDigest: value.capabilityDigest,
     state: 'active',
     rootHandleRef: value.rootHandleRef,
@@ -276,7 +276,7 @@ function createCleanWorkspaceProductPort(options) {
     capabilityDigest,
   });
   const snapshot = rootSnapshot({
-    rootId, endpointId, mountScopeId, capabilityDigest, rootHandleRef,
+    rootId, endpointId, mountScopeId, mountScopeRevision:1,configRevision:1,capabilityDigest, rootHandleRef,
   });
 
   const execute = (participantId, owner, repository, body) =>
@@ -293,13 +293,16 @@ function createCleanWorkspaceProductPort(options) {
       const repo = context.repository(repositories.platform.repositoryId);
       const existing = repo.invoke('find_root', { root_id: rootId });
       if (existing) {
-        if (existing.resolved_root !== absoluteRoot ||
-            existing.snapshot_digest !== snapshot.snapshotDigest ||
-            existing.state !== 'active') {
+        const current=rootSnapshot({rootId:existing.root_id,endpointId:existing.endpoint_id,
+          mountScopeId:existing.mount_scope_id,mountScopeRevision:Number(existing.mount_scope_revision),
+          configRevision:Number(existing.config_revision),capabilityDigest:existing.capability_digest,
+          rootHandleRef:existing.root_handle_ref});
+        if (path.resolve(existing.resolved_root) !== absoluteRoot ||
+            existing.snapshot_digest !== current.snapshotDigest || existing.state !== 'active') {
           fail('CLEAN_WORKSPACE_ROOT_CONFLICT',
             'Configured Workspace root conflicts with its durable Platform snapshot.');
         }
-        return snapshot;
+        return current;
       }
       repo.invoke('insert_root', {
         root_id: rootId,
@@ -1415,6 +1418,32 @@ function createCleanWorkspaceProductPort(options) {
     });
   }
 
+  function reclaimEmptyWorkspace(workspaceId) {
+    if (typeof workspaceId !== 'string' || !workspaceId) {
+      fail('CLEAN_WORKSPACE_RECLAIM_WORKSPACE_ID', 'Workspace identity is required for empty-directory cleanup.');
+    }
+    const workspaceRoot=path.resolve(absoluteRoot,workspaceId);
+    if(workspaceRoot===absoluteRoot||!workspaceRoot.startsWith(absoluteRoot+path.sep)){
+      fail('CLEAN_WORKSPACE_RECLAIM_ESCAPE','Workspace directory cleanup escaped the configured root.');
+    }
+    if(!fs.existsSync(workspaceRoot))return Object.freeze({workspaceId,removed:false,reason:'already_absent'});
+    if(!fs.statSync(workspaceRoot).isDirectory()){
+      fail('CLEAN_WORKSPACE_RECLAIM_REALITY','Workspace root is not a directory.');
+    }
+    function removeEmpty(directory){
+      for(const entry of fs.readdirSync(directory,{withFileTypes:true})){
+        if(entry.isDirectory()&&!entry.isSymbolicLink())removeEmpty(path.join(directory,entry.name));
+      }
+      if(fs.readdirSync(directory).length===0)fs.rmdirSync(directory);
+    }
+    removeEmpty(workspaceRoot);
+    if(fs.existsSync(workspaceRoot)){
+      fail('CLEAN_WORKSPACE_RECLAIM_UNKNOWN_MEMBER',
+        'Workspace contains material outside the admitted cleanup Scope.');
+    }
+    return Object.freeze({workspaceId,removed:true,reason:'empty'});
+  }
+
   async function materializeMedia(request) {
     const root = ensureRoot();
     const runtimeAuthority = runtimeEffectAuthority(request);
@@ -1679,6 +1708,7 @@ function createCleanWorkspaceProductPort(options) {
     readMaterializedArtifact,
     resolveMaterialLocation,
     observeSpace,
+    reclaimEmptyWorkspace,
     reclaimMaterial,
   });
 }

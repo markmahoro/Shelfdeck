@@ -122,6 +122,9 @@ function createOverviewQuery(options) {
       ? options.readStandingAuthorization()
       : null;
     const productChoice = standing?.state === 'enabled' ? 'full_auto' : 'key_step_confirmation';
+    const backgroundOperations = typeof options.readBackgroundOperations === 'function'
+      ? options.readBackgroundOperations()
+      : null;
 
     return Object.freeze({
       generatedAt: new Date(nowMs).toISOString(),
@@ -148,6 +151,7 @@ function createOverviewQuery(options) {
         productChoice,
       }),
       ledger: Object.freeze(ledger.slice(0, 8)),
+      backgroundOperations,
     });
   }
 

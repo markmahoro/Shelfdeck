@@ -20,6 +20,10 @@ describe('Helix Overview product semantics', () => {
       inProgress: null,
       setup: { activeMaterialFieldCount: 0, activeShelfCount: 0 },
       ledger: [],
+      backgroundOperations: {state:'normal',cadenceMs:30000,lastStartedAtMs:1700000000000,lastCompletedAtMs:1700000000100,
+        pendingCount:0,registrations:[{ownerDomain:'people',reconcilerKey:'ondeck-person-evidence',state:'normal',
+          lastStartedAtMs:1700000000000,lastCompletedAtMs:1700000000100,processed:0,pendingCount:0,errorCode:null,
+          lastResultKind:'no_pending',nextDueAtMs:null}]},
     });
     render(<MemoryRouter initialEntries={['/']}><App /></MemoryRouter>);
     expect(await screen.findByRole('heading', { level: 1, name: '概览' })).toBeInTheDocument();
@@ -34,6 +38,11 @@ describe('Helix Overview product semantics', () => {
     expect(screen.queryByText('任务中心')).not.toBeInTheDocument();
     expect(screen.queryByText('收藏运营台')).not.toBeInTheDocument();
     expect(screen.queryByText('本地 Projection')).not.toBeInTheDocument();
+    expect(screen.getByText('后台检查')).toBeInTheDocument();
+    expect(screen.getByText('正常', { selector:'.background-status strong' })).toBeInTheDocument();
+    expect(screen.getByText('待处理')).toBeInTheDocument();
+    expect(screen.getByText('人物信息')).toBeInTheDocument();
+    expect(screen.getByText('没有待处理项')).toBeInTheDocument();
   });
 
   it('shows Field access failure as 需要你处理 and a material-fields todo, not 正常运行', async () => {
@@ -49,6 +58,7 @@ describe('Helix Overview product semantics', () => {
       inProgress: { count: 23, label: '待整理', href: '/formation' },
       setup: { activeMaterialFieldCount: 2, activeShelfCount: 1 },
       ledger: [],
+      backgroundOperations: null,
     });
     render(<MemoryRouter initialEntries={['/']}><App /></MemoryRouter>);
     expect(await screen.findByRole('heading', { level: 1, name: '概览' })).toBeInTheDocument();

@@ -373,6 +373,12 @@ export type IntegrationState = {
   } | null;
 };
 
+export type WorkspaceRootSettings = {
+  current:{rootPath:string;configRevision:number};
+  pending:{rootPath:string;configRevision:number;validation:'passed'}|null;
+  restartRequired:boolean;
+};
+
 export type OverviewProjection = {
   generatedAt: string;
   systemState: { kind:'unconfigured'|'running'|'faulted'; label:string; href:string };
@@ -381,6 +387,13 @@ export type OverviewProjection = {
   inProgress: { count:number; label:string; href:string } | null;
   setup: { activeMaterialFieldCount:number; activeShelfCount:number; productChoice?:'full_auto'|'key_step_confirmation' };
   ledger: Array<{ key:string; label:string; href?:string; value?:number }>;
+  backgroundOperations: {
+    state:'waiting_first_check'|'running'|'normal'|'attention'|'stopped';
+    cadenceMs:number; lastStartedAtMs:number|null; lastCompletedAtMs:number|null; pendingCount:number;
+    registrations:Array<{ownerDomain:string;reconcilerKey:string;state:'waiting_first_check'|'waiting_business_time'|'running'|'normal'|'attention';
+      lastStartedAtMs:number|null;lastCompletedAtMs:number|null;processed:number;pendingCount:number;errorCode:string|null;
+      lastResultKind:'failed'|'not_due'|'no_pending'|'processed'|null;nextDueAtMs:number|null}>;
+  } | null;
 };
 
 export type SetupReadinessItem = {
@@ -638,6 +651,12 @@ export const helixAdminApi = {
   getIntegration(kind: string) {
     return request<IntegrationState>(`/v1/admin/settings/integrations/${encodeURIComponent(kind)}`);
   },
+  getWorkspaceRootSettings(){return request<WorkspaceRootSettings>('/v1/admin/settings/workspaces');},
+  probeWorkspaceRoot(rootPath:string){return request<{rootPath:string;validation:'passed';availableBytes:number}>(
+    '/v1/admin/settings/workspaces/actions/probe',{method:'POST',body:JSON.stringify({rootPath,idempotencyKey:`workspace-probe:${crypto.randomUUID()}`})});},
+  configureWorkspaceRoot(rootPath:string,expectedConfigRevision:number){return request<WorkspaceRootSettings>(
+    '/v1/admin/settings/workspaces',{method:'PATCH',body:JSON.stringify({rootPath,expectedConfigRevision,
+      idempotencyKey:`workspace-configure:${expectedConfigRevision + 1}:${crypto.randomUUID()}`})});},
   testIntegration(kind: string, body: JsonValue) {
     return request<{ connectionProofId: string; identityProviderKey: string; expiresAtMs: number }>(`/v1/admin/settings/integrations/${encodeURIComponent(kind)}/actions/test`, { method:'POST', body:JSON.stringify(body) });
   },
