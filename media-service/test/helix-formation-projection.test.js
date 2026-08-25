@@ -12,6 +12,7 @@ const {
   actionLabel,
   buildFormationProjectionRow,
   classifyFormation,
+  createFormationProjectionSource,
   createFormationQuery,
   extractAcquisitionSelection,
   extractProductIdentityIssue,
@@ -202,7 +203,7 @@ test('Formation four-bucket classification requires Arca commit for completion a
   assert.equal(classifyFormation({run:null,works:[],issue:null,recovery:null,arcaStatus:{stage:'completed'},productPackage:{offerId:'offer'}}),'completed');
 });
 
-test('durable Formation projection pages 25 active rows, sorts attention first, and no-ops unchanged basis',()=>{
+test('durable Formation projection pages active rows in stable Subject intake order',()=>{
   const root=fs.mkdtempSync(path.join(os.tmpdir(),'helix-formation-projection-')),databasePath=path.join(root,'shelfdeck.db');
   const kernel=openSqliteKernel({Database,databasePath,schemaDdl,schemaManifest,now:()=>100});
   try{
@@ -218,7 +219,7 @@ test('durable Formation projection pages 25 active rows, sorts attention first, 
     const unchanged=store.upsert(buildFormationProjectionRow(item(0),3000));assert.equal(unchanged.kind,'no_op');assert.equal(unchanged.revision,1);
     assert.equal(kernel.runPrimitive(({prepare})=>prepare('SELECT update_count FROM formation_projection_update_probe').get().update_count),0);
     const query=createFormationQuery({store,now:()=>4000,state:()=>({status:'ready',asOfMs:3999})}),active=query.list({section:'active',limit:25});
-    assert.equal(active.items.length,25);assert.equal(active.items[0].subjectId,'subject-029');assert.ok(active.nextCursor);
+    assert.equal(active.items.length,25);assert.deepEqual(active.items.slice(0,3).map((row)=>row.subjectId),['subject-029','subject-028','subject-027']);assert.ok(active.nextCursor);
     assert.deepEqual(active.summary,{totalCount:31,pendingCount:29,inProgressCount:0,attentionRequiredCount:1,completedCount:1});assert.deepEqual(active.projection,{status:'ready',asOfMs:3999});
     const remainder=query.list({section:'active',limit:25,cursor:active.nextCursor});assert.equal(remainder.items.length,5);
     const completed=query.list({section:'completed',limit:25});assert.equal(completed.items.length,1);assert.equal(completed.items[0].subjectId,'subject-030');
@@ -228,8 +229,45 @@ test('durable Formation projection pages 25 active rows, sorts attention first, 
     const byBucket=query.list({section:'active',classification:'attention_required'});
     assert.equal(byBucket.items.length,1);assert.equal(byBucket.items[0].subjectId,'subject-029');
     assert.deepEqual(byBucket.summary,active.summary);
+    store.upsert(buildFormationProjectionRow(item(5,'attention_required',true),9000));
+    const afterStatusChange=query.list({section:'active',limit:25});
+    assert.deepEqual(afterStatusChange.items.slice(0,3).map((row)=>row.subjectId),['subject-029','subject-028','subject-027']);
+    assert.ok(afterStatusChange.items.findIndex((row)=>row.subjectId==='subject-005')
+      > afterStatusChange.items.findIndex((row)=>row.subjectId==='subject-006'));
+
+    const itemWithOffer={...item(5),handoffB:Object.freeze({onDeckPackageId:'package-5',offerId:'offer-5',packageRevision:1,packageDigest:hex(505),state:'published',publishedAtMs:2005})};
+    store.upsert(buildFormationProjectionRow(itemWithOffer,10000));
+    const attentionQuery=createFormationQuery({
+      store,now:()=>11000,state:()=>({status:'ready',asOfMs:10999}),
+      listAcceptanceAttention:()=>[{offerId:'offer-5'}],
+      readAcceptanceRecovery:()=>({recoveryState:'attention_required',failurePhase:'commit',errorCode:'TEST_FAILURE',terminalAttemptCount:1,ownerDomain:'arca',recoveryGeneration:1,automaticRecoveryUsed:false,offerId:'offer-5'}),
+    });
+    const attentionFirstPage=attentionQuery.list({section:'active',limit:25});
+    assert.deepEqual(attentionFirstPage.items.slice(0,3).map((row)=>row.subjectId),['subject-029','subject-028','subject-027']);
+    const issueIndex=attentionFirstPage.items.findIndex((row)=>row.subjectId==='subject-005');
+    assert.ok(issueIndex>attentionFirstPage.items.findIndex((row)=>row.subjectId==='subject-006'));
+    assert.equal(attentionFirstPage.items[issueIndex].classification,'attention_required');
+    const attentionSecondPage=attentionQuery.list({section:'active',limit:25,cursor:attentionFirstPage.nextCursor});
+    assert.deepEqual(attentionSecondPage.items.map((row)=>row.subjectId),['subject-004','subject-003','subject-002','subject-001','subject-000']);
+    assert.equal(new Set([...attentionFirstPage.items,...attentionSecondPage.items].map((row)=>row.subjectId)).size,30);
     const endedQuery=createFormationQuery({store,historyStore:{listDiscarded:()=>[{historyId:'discard-1',libraRunId:'old-run',subjectId:'subject-000',outcome:'user_abandoned',label:'已结束 · 用户放弃',endedAtMs:5000,stateRevision:3,stateDigest:hex(900),evidenceDigest:hex(901)}]},now:()=>5001,state:()=>({status:'ready',asOfMs:5000})});
     const ended=endedQuery.list({section:'ended',limit:25});assert.equal(ended.items.length,1);assert.equal(ended.items[0].displayIdentity,'影片 0');assert.equal(ended.items[0].label,'已结束 · 用户放弃');
+  }finally{kernel.close();fs.rmSync(root,{recursive:true,force:true,maxRetries:5,retryDelay:50});}
+});
+
+test('Formation position timestamp remains the Subject creation time when mutable facts change',()=>{
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'helix-formation-created-at-')),databasePath=path.join(root,'shelfdeck.db');
+  const kernel=openSqliteKernel({Database,databasePath,schemaDdl,schemaManifest,now:()=>100});
+  try{
+    kernel.runPrimitive(({prepare})=>prepare(`INSERT INTO libra_subjects(subject_id,structure_kind,content_profile,routing_anchor_intake_decision_id,status,intake_revision,current_identity_revision,created_at_ms,updated_at_ms) VALUES(?,?,?,?,?,?,?,?,?)`)
+      .run('subject-stable','single','movie',null,'active',1,null,1000,9000));
+    const unitOfWork=createSqliteUnitOfWork({kernel});
+    const source=createFormationProjectionSource({schemaManifest,unitOfWork});
+    const first=source.buildBatch([source.readSubject('subject-stable')])[0];
+    assert.equal(first.addedAtMs,1000);
+    kernel.runPrimitive(({prepare})=>prepare('UPDATE libra_subjects SET intake_revision=?,updated_at_ms=? WHERE subject_id=?').run(2,12000,'subject-stable'));
+    const changed=source.buildBatch([source.readSubject('subject-stable')])[0];
+    assert.equal(changed.addedAtMs,1000);
   }finally{kernel.close();fs.rmSync(root,{recursive:true,force:true,maxRetries:5,retryDelay:50});}
 });
 

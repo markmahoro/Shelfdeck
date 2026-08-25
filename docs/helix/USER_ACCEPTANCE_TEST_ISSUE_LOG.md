@@ -130,6 +130,7 @@ Helix主体开发已经完成，Movie从Procurement、Libra到Arca及Shelf Dereg
 | UAT-071 | 同一上架电影的多个人物关系共用来源 digest，只有首个人物自动登记 | `DOMAIN_ORCHESTRATION` | `PROJECTION_FRESHNESS` | Arca On-deck Person Evidence + People登记幂等 | 正确性、名录完整性 | Critical | 已修复并通过全新隔离 Canary FACT/RESTART确认 |
 | UAT-072 | 已登记人物名录缺少头像，无法形成可辨识的人物联系表 | `USER_EXPERIENCE` | `EXTERNAL_INTEGRATION`、`PROJECTION_FRESHNESS` | People Admin Query + Platform TMDB adapter + Admin Web | 可辨识性、安全性、可访问性 | High | 已修复并通过桌面/390px UI E2E确认 |
 | UAT-073 | NFO演员块的TMDB Person ID被丢弃，与Provider演员关系重复后产生整组待确认登记 | `DOMAIN_ORCHESTRATION` | `EXTERNAL_INTEGRATION`、`PROJECTION_FRESHNESS` | Libra NFO Metadata Observation + Media Cast形成 | 正确性、名录完整性、可理解性 | Critical | 已修复并通过真实电影/真实TMDB Canary与UI确认 |
+| UAT-074 | Formation条目随状态更新和接纳异常在当前列表中跳位 | `USER_EXPERIENCE` | `PROJECTION_FRESHNESS` | Formation公开Projection Query + Admin Web | 可读性、操作连续性 | High | 已修复并通过隔离Projection回归；待UI Canary确认 |
 
 ## 2.1 UAT-006：概览展示固定演示数字
 
@@ -2844,7 +2845,26 @@ Product Package与Offer并完成On-deck；没有替换Run或数据库编辑。Ad
 
 当前处理决定：提交`da485edc6`完成生产修复，`b8861a3dd`加入真实电影资格脚本，`a82ea3367`加入真实UI/axe证据脚本。专项People/Libra回归52/52、Admin Web build及真实E2E通过。完整Service `npm test`为310 PASS / 18 SKIP / 1 FAIL，唯一失败是既有Routing陈旧等待条件（实际24/24、旧断言等待25/24），不得为此恢复重复Acceptance Spec。状态`REGRESSION PASSED / QUALIFIED WITH REAL MOVIE AND REAL TMDB`。
 
-## 71. 后续问题模板
+## 71. UAT-074：Formation条目随状态更新和接纳异常在当前列表中跳位
+
+问题分类：`USER_EXPERIENCE / PROJECTION_FRESHNESS`
+
+用户侧现象：媒体整理工作区的当前媒体条目在状态变化后改变列表位置，用户持续观察或准备操作同一条目时会失去视觉定位。
+
+精确根因：`libra_formation_projections`的active Query按`attention_priority ASC, updated_at_ms DESC`排序；每次Projection状态变化都会更新
+`updated_at_ms`，分类变化还会改变`attention_priority`。接纳执行异常的临时展示合并又把异常条目直接插到列表首部，因此普通状态变化和
+技术异常都会主动重排当前列表。
+
+修复边界：当前媒体统一按Subject不可变的`created_at_ms`倒序、`subject_id`升序确定位置；状态、进度、加急和需要处理仍更新展示及筛选，
+但不参与排序。接纳异常先与完整active Projection集合去重合并，再按同一稳定键分页，避免跨页丢失或重复。条目完成后仍按既有产品结构
+进入下方“已完成整理”，不改变Classification、Owner、Handoff、业务状态或授权合同。
+
+验收证据：纯临时SQLite回归覆盖普通状态变化、接纳异常、25条分页边界、去重和不可变Subject创建时间；相关Formation测试12/12 PASS。
+仍需在独立Admin Web UI Canary中观察一次真实状态刷新，确认浏览器中当前行相对位置不变。
+
+当前处理决定：2026-08-25在独立分支`codex/formation-stable-order`实现；未连接现场数据库，未触碰媒体、NAS或生产。
+
+## 72. 后续问题模板
 
 后续发现的问题按以下结构追加：
 
