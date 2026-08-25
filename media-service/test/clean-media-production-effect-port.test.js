@@ -17,6 +17,7 @@ const {
   matroskaCopyMapsFromProbe,
   productStreamMap,
 } = require('../src/clean-media-production-effect-port');
+const { createFfmpegProcessRegistry } = require('../src/clean-ffmpeg-process-registry');
 
 function writeTinyMpegTs(target) {
   const result = spawnSync(ffmpegPath, [
@@ -170,6 +171,24 @@ test('turns FFmpeg media time into bounded determinate progress', async (t) => {
   assert.equal(samples.at(-1).totalValue,100);
   assert.equal(samples.at(-1).unit,'percent');
   assert.equal(samples.at(-1).terminal,true);
+});
+
+test('FFmpeg failures retain the actual stderr tail after a long diagnostic stream', async () => {
+  await assert.rejects(runProcess(process.execPath,['-e',
+    "process.stderr.write('x'.repeat(300*1024));process.stderr.write('FINAL_FFMPEG_DIAGNOSTIC');process.exit(2)"],10_000),
+  (error)=>error.code==='LIBRA_MEDIA_FFMPEG_FAILED'&&error.details.stderr.includes('FINAL_FFMPEG_DIAGNOSTIC'));
+});
+
+test('service process registry terminates an active FFmpeg child during shutdown', async () => {
+  const registry=createFfmpegProcessRegistry();
+  const running=runProcess(ffmpegPath,['-hide_banner','-nostdin','-loglevel','error','-re','-f','lavfi','-i',
+    'color=c=black:s=256x256:r=24:d=30','-f','null',process.platform==='win32'?'NUL':'/dev/null'],60_000,null,{processRegistry:registry});
+  const stopped=assert.rejects(running,(error)=>error.code==='LIBRA_MEDIA_FFMPEG_FAILED');
+  await new Promise((resolve)=>setTimeout(resolve,100));
+  assert.equal(registry.size(),1);
+  await registry.close();
+  await stopped;
+  assert.equal(registry.size(),0);
 });
 
 test('remux extracts proven ISO topology payloads instead of opening the image as a stream', async (t) => {

@@ -8,6 +8,7 @@ const { spawn } = require('node:child_process');
 const { canonicalDigest } = require('./helix/contracts/canonical-json');
 const { createResourceWorkerRegistry } = require('./helix/platform/application/resource-worker-registry');
 const { createResourceWorkerRepository } = require('./helix/platform/persistence/resource-worker-repository');
+const { compileFfmpegPipeline, DV_SDR_FILTER, SDR_PROFILE_ID, DV_SDR_PROFILE_ID } = require('./clean-ffmpeg-pipeline');
 
 const PROBES = Object.freeze([
   Object.freeze({ deviceId:'local-nvidia-nvenc-0', deviceKind:'nvidia_nvenc', encoder:'hevc_nvenc',
@@ -71,32 +72,70 @@ function runJsonCommand(executable,args,timeoutMs){return new Promise((resolve)=
   child.once('close',(code)=>{clearTimeout(timer);if(timedOut||code!==0)return finish({passed:false,code,timedOut,stderrDigest:canonicalDigest(stderr)});
     try{finish({passed:true,value:JSON.parse(stdout),stdoutDigest:canonicalDigest(stdout)});}catch{finish({passed:false,code,reasonCode:'invalid_json'});}});});}
 
-const SDR_PROFILE_ID='ordinary_to_hevc@1';
-const DV_SDR_PROFILE_ID='pq_bt2020_base_to_sdr_bt709_hevc@1';
-const DV_SDR_FILTER='setparams=color_primaries=bt2020:color_trc=smpte2084:colorspace=bt2020nc:range=limited,zscale=t=linear:npl=100,format=gbrpf32le,zscale=p=bt709,tonemap=hable:desat=0,zscale=t=bt709:m=bt709:r=tv,format=yuv420p';
+function probeVideo(mode,profileId){return Object.freeze({rateControlMode:mode,
+  targetVideoBitrateBps:mode==='quality_bound'?null:1_000_000,qualityBound:mode==='quality_bound'?23:null,
+  dynamicRangeOperation:profileId===DV_SDR_PROFILE_ID?'tone_map_to_sdr_bt709':'preserve',pipelineProfileId:profileId});}
 
-async function runValidatedPipelineProbe(executable,encoder,timeoutMs){
-  const root=fs.mkdtempSync(path.join(os.tmpdir(),'helix-device-pipeline-')),output=path.join(root,'probe.mkv');
+async function createGeneratedProbeInput(executable,target,kind,timeoutMs){
+  const hdr=kind==='hdr10_compatible';
+  return runCommand(executable,['-hide_banner','-nostdin','-loglevel','error','-y','-f','lavfi','-i',
+    'color=c=white:s=256x256:r=24:d=0.5,format='+(hdr?'yuv420p10le':'yuv420p'),'-frames:v','12','-c:v',hdr?'libx265':'libx264',
+    '-preset','ultrafast','-pix_fmt',hdr?'yuv420p10le':'yuv420p','-color_range','tv','-color_primaries',hdr?'bt2020':'bt709',
+    '-color_trc',hdr?'smpte2084':'bt709','-colorspace',hdr?'bt2020nc':'bt709',target],timeoutMs);
+}
+
+async function encodeProbeMode(executable,input,output,deviceClass,mode,profileId,timeoutMs){
+  const compiled=compileFfmpegPipeline({deviceClass,video:probeVideo(mode,profileId)}),base=['-hide_banner','-nostdin','-loglevel','error','-y',
+    ...compiled.inputArgs,'-i',input,'-map','0:v:0',...compiled.videoArgs],nullTarget=process.platform==='win32'?'NUL':'/dev/null';
+  if(mode!=='two_pass_abr')return runCommand(executable,[...base,'-an','-sn','-f','matroska',output],timeoutMs);
+  const passlog=output+'.passlog';
   try{
-    const encoded=await runCommand(executable,['-hide_banner','-nostdin','-loglevel','error','-y','-f','lavfi','-i',
-      'color=c=white:s=256x256:r=24:d=0.25,format=yuv420p10le','-vf',DV_SDR_FILTER,'-frames:v','6',
-      '-c:v',encoder,'-color_range','tv','-color_primaries','bt709','-color_trc','bt709','-colorspace','bt709',output],timeoutMs);
-    if(!encoded.passed)return Object.freeze({passed:false,reasonCode:'pipeline_encode_failed',evidenceDigest:canonicalDigest(encoded)});
-    const metadata=await runJsonCommand(resolveFfprobePath(),['-v','fatal','-of','json=compact=1','-select_streams','v:0',
-      '-show_entries','stream=codec_name,pix_fmt,color_range,color_primaries,color_transfer,color_space:stream_side_data',output],timeoutMs);
-    const stream=metadata.value?.streams?.[0],metadataPassed=metadata.passed&&stream?.codec_name==='hevc'&&stream?.pix_fmt==='yuv420p'&&
-      ['tv','mpeg'].includes(stream?.color_range)&&stream?.color_primaries==='bt709'&&stream?.color_transfer==='bt709'&&stream?.color_space==='bt709'&&
-      !(stream?.side_data_list||[]).some((item)=>/dovi/i.test(String(item.side_data_type||'')));
-    if(!metadataPassed)return Object.freeze({passed:false,reasonCode:'pipeline_output_profile_failed',
-      evidenceDigest:canonicalDigest({encoder,filter:DV_SDR_FILTER,encoded,metadata})});
-    const decoded=await runCommand(executable,['-hide_banner','-nostdin','-loglevel','error','-i',output,'-map','0:v:0','-frames:v','1','-f','null',process.platform==='win32'?'NUL':'/dev/null'],timeoutMs);
-    return Object.freeze({passed:decoded.passed,reasonCode:decoded.passed?null:'pipeline_decode_failed',
-      evidenceDigest:canonicalDigest({encoder,filter:DV_SDR_FILTER,encoded,metadata,decoded})});
+    const first=await runCommand(executable,[...base,'-pass','1','-passlogfile',passlog,'-an','-sn','-f','null',nullTarget],timeoutMs);
+    if(!first.passed)return first;
+    return runCommand(executable,[...base,'-pass','2','-passlogfile',passlog,'-an','-sn','-f','matroska',output],timeoutMs);
+  }finally{for(const suffix of ['', '.log', '.log.mbtree', '-0.log', '-0.log.mbtree']){const item=passlog+suffix;if(fs.existsSync(item))fs.rmSync(item,{force:true});}}
+}
+
+async function validateProbeOutput(executable,output,profileId,inputKind,timeoutMs){
+  const metadata=await runJsonCommand(resolveFfprobePath(),['-v','fatal','-of','json=compact=1','-select_streams','v:0',
+    '-show_entries','stream=codec_name,pix_fmt,color_range,color_primaries,color_transfer,color_space:stream_side_data',output],timeoutMs),
+    stream=metadata.value?.streams?.[0],toneMapped=profileId===DV_SDR_PROFILE_ID,hdr=!toneMapped&&inputKind==='hdr10_compatible',
+    metadataPassed=metadata.passed&&stream?.codec_name==='hevc'&&
+      ((toneMapped||!hdr)?stream?.pix_fmt==='yuv420p':stream?.pix_fmt==='yuv420p10le')&&['tv','mpeg'].includes(stream?.color_range)&&
+      stream?.color_primaries===((toneMapped||!hdr)?'bt709':'bt2020')&&stream?.color_transfer===((toneMapped||!hdr)?'bt709':'smpte2084')&&
+      stream?.color_space===((toneMapped||!hdr)?'bt709':'bt2020nc')&&!(stream?.side_data_list||[]).some((item)=>/dovi/i.test(String(item.side_data_type||'')));
+  if(!metadataPassed)return Object.freeze({passed:false,reasonCode:'pipeline_output_profile_failed',metadata});
+  const decoded=await runCommand(executable,['-hide_banner','-nostdin','-loglevel','error','-i',output,'-map','0:v:0','-frames:v','1',
+    '-f','null',process.platform==='win32'?'NUL':'/dev/null'],timeoutMs);
+  return Object.freeze({passed:decoded.passed,reasonCode:decoded.passed?null:'pipeline_decode_failed',metadata,decoded});
+}
+
+async function runValidatedDeviceProfileProbe(executable,spec,profileId,modes,timeoutMs){
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'helix-device-pipeline-')),results=[],
+    inputKinds=profileId===DV_SDR_PROFILE_ID?['hdr10_compatible']:['sdr','hdr10_compatible'],inputs=[];
+  try{
+    for(const inputKind of inputKinds){const input=path.join(root,'generated-'+inputKind+'.mkv'),generated=await createGeneratedProbeInput(executable,input,inputKind,timeoutMs);
+      inputs.push(Object.freeze({inputKind,input,generated}));if(!generated.passed)return Object.freeze({passed:false,passedModes:Object.freeze([]),
+        reasonCode:'pipeline_input_generation_failed',evidenceDigest:canonicalDigest({deviceClass:spec.deviceKind,profileId,inputKind,generated})});}
+    for(const mode of modes)for(const item of inputs){const output=path.join(root,'probe-'+mode+'-'+item.inputKind+'.mkv');let encoded;
+      try{encoded=await encodeProbeMode(executable,item.input,output,spec.deviceKind,mode,profileId,timeoutMs);}catch(error){encoded={passed:false,
+        reasonCode:error?.code||'pipeline_compile_failed',errorDigest:canonicalDigest({message:error?.message||'unknown'})};}
+      const verified=encoded.passed?await validateProbeOutput(executable,output,profileId,item.inputKind,timeoutMs):null;
+      results.push(Object.freeze({mode,inputKind:item.inputKind,passed:Boolean(encoded.passed&&verified?.passed),encoded,verified}));}
+    const passedModes=Object.freeze(modes.filter((mode)=>inputKinds.every((inputKind)=>results.some((item)=>item.mode===mode&&item.inputKind===inputKind&&item.passed))));
+    return Object.freeze({passed:passedModes.length===modes.length,passedModes,reasonCode:passedModes.length===modes.length?null:'pipeline_mode_failed',
+      evidenceDigest:canonicalDigest({deviceClass:spec.deviceKind,encoder:spec.encoder,profileId,inputs:inputs.map((item)=>({inputKind:item.inputKind,generated:item.generated})),results})});
   }finally{fs.rmSync(root,{recursive:true,force:true});}
 }
 
+async function runValidatedPipelineProbe(executable,encoder,timeoutMs){
+  const deviceKind=encoder==='hevc_nvenc'?'nvidia_nvenc':encoder==='hevc_qsv'?'intel_qsv':encoder==='hevc_vaapi'?'amd_vaapi':'software_cpu',
+    modes=deviceKind==='software_cpu'?['quality_bound']:['quality_bound'];
+  return runValidatedDeviceProfileProbe(executable,{deviceKind,encoder},DV_SDR_PROFILE_ID,modes,timeoutMs);
+}
+
 function pipeline(profileId,selfTestDigest){
-  if(profileId===SDR_PROFILE_ID)return Object.freeze({pipelineProfileId:profileId,inputDynamicRangeKinds:Object.freeze(['sdr','hdr10_compatible','hlg','unknown']),
+  if(profileId===SDR_PROFILE_ID)return Object.freeze({pipelineProfileId:profileId,inputDynamicRangeKinds:Object.freeze(['sdr','hdr10_compatible']),
     inputPixelFormats:Object.freeze(['yuv420p','yuv420p10le']),outputCodec:'hevc',outputDynamicRangeKind:'unknown',
     outputPixelFormat:'encoder_selected',outputColorProfile:Object.freeze({range:'source',primaries:'source',transfer:'source',matrix:'source'}),selfTestDigest});
   return Object.freeze({pipelineProfileId:profileId,inputDynamicRangeKinds:Object.freeze(['dolby_vision','hdr10_compatible']),
@@ -114,15 +153,19 @@ async function createCleanComputeDeviceRuntime(options) {
     infrastructureProjection:{current:()=>Object.freeze({integrations:Object.freeze([]),volumes:Object.freeze([])})},
     probeVerifier:{verifyDevice:(proposal)=>verified.has(proposal.deviceId+'\0'+proposal.capabilityDigest),verifyWorker:()=>false}});
   let pending=probeCache.get(ffmpegPath);
-  if(!pending){pending=Promise.all(PROBES.map(async(spec)=>{const result=await runProbe(ffmpegPath,spec.encoder,options.timeoutMs||15_000);
-    const dv=result.passed?await runValidatedPipelineProbe(ffmpegPath,spec.encoder,options.pipelineTimeoutMs||30_000):
-      Object.freeze({passed:false,reasonCode:'device_unavailable',evidenceDigest:result.evidenceDigest});
-    return Object.freeze({spec,result,dv});}));probeCache.set(ffmpegPath,pending);}
+  if(!pending){pending=Promise.all(PROBES.map(async(spec)=>{
+    const ordinary=await runValidatedDeviceProfileProbe(ffmpegPath,spec,SDR_PROFILE_ID,spec.modes,options.pipelineTimeoutMs||30_000),
+      ordinaryAvailable=ordinary.passedModes.length>0,
+      dv=ordinaryAvailable?await runValidatedDeviceProfileProbe(ffmpegPath,spec,DV_SDR_PROFILE_ID,ordinary.passedModes,options.pipelineTimeoutMs||30_000):
+        Object.freeze({passed:false,passedModes:Object.freeze([]),reasonCode:'ordinary_pipeline_unavailable',evidenceDigest:ordinary.evidenceDigest}),
+      result=Object.freeze({passed:ordinaryAvailable,reasonCode:ordinaryAvailable?null:ordinary.reasonCode,
+        evidenceDigest:canonicalDigest({ordinary,dv})});
+    return Object.freeze({spec,result,ordinary,dv});}));probeCache.set(ffmpegPath,pending);}
   const observations=await pending;
-  for(const {spec,result,dv} of observations){
-    const capability={supportedVideoCodecs:Object.freeze(['hevc']),supportedRateControlModes:spec.modes,
+  for(const {spec,result,ordinary,dv} of observations){
+    const capability={supportedVideoCodecs:Object.freeze(['hevc']),supportedRateControlModes:ordinary.passedModes.length?ordinary.passedModes:spec.modes,
       validatedConcurrentSlots:1,validatedVideoPipelines:Object.freeze([
-        pipeline(SDR_PROFILE_ID,result.evidenceDigest),...(dv.passed?[pipeline(DV_SDR_PROFILE_ID,dv.evidenceDigest)]:[]),
+        pipeline(SDR_PROFILE_ID,ordinary.evidenceDigest),...(dv.passed?[pipeline(DV_SDR_PROFILE_ID,dv.evidenceDigest)]:[]),
       ])};
     const capabilityDigest=canonicalDigest(capability);
     const current=repository.getDevice(spec.deviceId);
@@ -137,4 +180,4 @@ async function createCleanComputeDeviceRuntime(options) {
 }
 
 module.exports=Object.freeze({PROBES,DEVICE_PROBE_LAVFI_SOURCE,DV_SDR_FILTER,SDR_PROFILE_ID,DV_SDR_PROFILE_ID,
-  runValidatedPipelineProbe,createCleanComputeDeviceRuntime});
+  runValidatedPipelineProbe,runValidatedDeviceProfileProbe,createCleanComputeDeviceRuntime});

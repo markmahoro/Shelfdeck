@@ -280,6 +280,8 @@ function buildTranscodeInputVerification(value) {
     if(primary.some((stream)=>!stream.dolbyVision?.blPresent||stream.dolbyVision?.baseLayerKind!=='pq_bt2020_compatible'))
       reasons.push('dolby_vision_base_layer_unsupported');
   }
+  if(pipeline&&primary.some((stream)=>!(pipeline.inputDynamicRangeKinds||[]).includes(stream.dynamicRangeKind)))
+    reasons.push('source_dynamic_range_unsupported');
   if(pipeline&&primary.some((stream)=>!(pipeline.inputPixelFormats||[]).includes(stream.pixelFormat)))reasons.push('source_pixel_format_unsupported');
   const preflight=value.preflight||{sampleCount:0,passedSampleCount:0,reasonCode:null,preflightDigest:canonicalDigest({schema:'libra.empty-preflight@1'})};
   if(preflight.reasonCode==='encoder_rejected_source_pipeline')reasons.push('encoder_rejected_source_pipeline');

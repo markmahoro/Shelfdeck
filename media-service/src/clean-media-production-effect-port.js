@@ -4,7 +4,8 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { spawn } = require('node:child_process');
 const { canonicalDigest } = require('./helix/contracts/canonical-json');
-const { DV_SDR_FILTER } = require('./clean-compute-device-runtime');
+const { compileFfmpegPipeline } = require('./clean-ffmpeg-pipeline');
+const { createFfmpegProcessRegistry } = require('./clean-ffmpeg-process-registry');
 const { inspectIso, listIsoImageFiles } = require('./helix/integrations/disc-topology');
 
 const ISO_SECTOR_BYTES = 2048;
@@ -103,17 +104,23 @@ function completeProcessProgress(group, prefix) {
     sourceSequence:prefix+':complete', progressBucket:'complete', terminal:true }));
 }
 
-function runProcess(executable, argv, timeoutMs, progress = null) {
+function runProcess(executable, argv, timeoutMs, progress = null, control = {}) {
   return new Promise((resolve, reject) => {
     if (progress && !progress.group) progress = progressPhase(progressGroup(progress.report), progress.prefix);
     const progressArgv=progress?[...argv.slice(0,-1),'-progress','pipe:1','-nostats',argv.at(-1)]:argv;
     const child = spawn(executable, progressArgv, { windowsHide:true, stdio:['ignore', progress?'pipe':'ignore', 'pipe'] });
-    const chunks = []; let total = 0; let timedOut = false; let settled = false;
+    const chunks = []; let retained = 0; let total = 0; let timedOut = false; let cancelled = false; let settled = false;
     let progressBuffer='',durationBuffer='',lastReportedAt=0,lastOutTime='0';
-    const timer = setTimeout(() => { timedOut = true; child.kill('SIGKILL'); }, timeoutMs);
+    const boundedTimeout=Number.isSafeInteger(control.deadlineAtMs)
+      ?Math.max(1,Math.min(timeoutMs,control.deadlineAtMs-Date.now())):timeoutMs;
+    const timer = setTimeout(() => { timedOut = true; child.kill('SIGKILL'); }, boundedTimeout);
+    const fence=typeof control.shouldContinue==='function'?setInterval(()=>{try{if(control.shouldContinue()===false){cancelled=true;child.kill('SIGKILL');}}catch{cancelled=true;child.kill('SIGKILL');}},1000):null;
+    control.processRegistry?.register(child);
+    const cleanup=()=>{clearTimeout(timer);if(fence)clearInterval(fence);control.processRegistry?.unregister(child);};
     child.stderr.on('data', (chunk) => {
       total += chunk.length;
-      if (total <= 256 * 1024) chunks.push(Buffer.from(chunk));
+      chunks.push(Buffer.from(chunk));retained+=chunk.length;
+      while(retained>256*1024&&chunks.length){const first=chunks[0],excess=retained-256*1024;if(first.length<=excess){chunks.shift();retained-=first.length;}else{chunks[0]=first.subarray(excess);retained-=excess;}}
       if (progress && !progress.group.durationUs && durationBuffer.length < 16 * 1024) {
         durationBuffer += chunk.toString('utf8');
         progress.group.durationUs = durationUsFromFfmpeg(durationBuffer);
@@ -121,14 +128,15 @@ function runProcess(executable, argv, timeoutMs, progress = null) {
     });
     if(progress)child.stdout.on('data',(chunk)=>{progressBuffer+=chunk.toString('utf8');const lines=progressBuffer.split(/\r?\n/u);progressBuffer=lines.pop()||'';let speed=null,terminal=false;
       for(const line of lines){const at=line.indexOf('=');if(at<1)continue;const key=line.slice(0,at),value=line.slice(at+1);if(key==='out_time_us')lastOutTime=value;if(key==='speed')speed=Number.parseFloat(value)||null;if(key==='progress'&&value==='end')terminal=true;}
-      const observedAt=Date.now();if(terminal||observedAt-lastReportedAt>=5000){lastReportedAt=observedAt;try{reportProcessProgress(progress,lastOutTime,speed,terminal);}catch(error){if(!settled){settled=true;clearTimeout(timer);child.kill('SIGKILL');reject(error);}}}});
-    child.once('error', (error) => { if(settled)return;settled=true;clearTimeout(timer);reject(error); });
+      const observedAt=Date.now();if(terminal||observedAt-lastReportedAt>=5000){lastReportedAt=observedAt;try{reportProcessProgress(progress,lastOutTime,speed,terminal);}catch(error){if(!settled){settled=true;cleanup();child.kill('SIGKILL');reject(error);}}}});
+    child.once('error', (error) => { if(settled)return;settled=true;cleanup();reject(error); });
     child.once('close', (code) => {
       if(settled)return;
       settled=true;
-      clearTimeout(timer);
+      cleanup();
       const stderr = Buffer.concat(chunks).toString('utf8');
       if (timedOut) return reject(Object.assign(new Error('FFmpeg timed out.'), { code:'LIBRA_MEDIA_FFMPEG_TIMEOUT' }));
+      if (cancelled) return reject(Object.assign(new Error('FFmpeg stopped because its execution authority changed.'), { code:'LIBRA_MEDIA_FFMPEG_CANCELLED' }));
       if (code !== 0) return reject(Object.assign(new Error('FFmpeg failed.'), {
         code:'LIBRA_MEDIA_FFMPEG_FAILED', details:{ exitCode:code, stderr:stderr.slice(-8192) },
       }));
@@ -143,6 +151,7 @@ function createCleanMediaProductionEffectPort(options) {
   }
   const ffmpegPath = resolveFfmpegPath(options.ffmpegPath);
   const timeoutMs = options.timeoutMs || 12 * 60 * 60 * 1000;
+  const processRegistry = options.ffmpegProcessRegistry || createFfmpegProcessRegistry();
   function sourceLocation(handle) {
     if (handle?.schemaRef === 'helix://contracts/types/WorkspaceMaterialHandle/v1') {
       if (typeof options.workspaceProductPort.resolveMaterialLocation !== 'function') {
@@ -279,35 +288,22 @@ function createCleanMediaProductionEffectPort(options) {
     } });
   }
 
-  function encoderArguments(intent, device) {
-    const klass = device.deviceClass;
-    const encoder = klass === 'nvidia_nvenc' ? 'hevc_nvenc' : klass === 'intel_qsv' ? 'hevc_qsv' :
-      klass === 'amd_vaapi' ? 'hevc_vaapi' : klass === 'software_cpu' ? 'libx265' : null;
-    if (!encoder) fail('LIBRA_MEDIA_DEVICE_UNSUPPORTED', 'Selected compute device has no local FFmpeg encoder.', { deviceClass:klass });
-    if (intent.video.rateControlMode === 'quality_bound') {
-      return klass === 'software_cpu' ? ['-c:v', encoder, '-crf', String(intent.video.qualityBound)] :
-        ['-c:v', encoder, '-cq', String(intent.video.qualityBound)];
+  function ffmpegPipeline(intent, device) {
+    try { return compileFfmpegPipeline({ deviceClass:device.deviceClass, video:intent.video }); }
+    catch (error) {
+      fail(error?.code || 'LIBRA_MEDIA_DEVICE_UNSUPPORTED', error?.message || 'Selected compute device has no local FFmpeg pipeline.',
+        { ...(error?.details || {}), deviceClass:device.deviceClass });
     }
-    const bitrate = String(intent.video.targetVideoBitrateBps);
-    if (intent.video.rateControlMode === 'strict_abr') return ['-c:v', encoder, '-b:v', bitrate, '-maxrate', bitrate, '-bufsize', String(intent.video.targetVideoBitrateBps * 2)];
-    return ['-c:v', encoder, '-b:v', bitrate];
-  }
-
-  function videoProfileArguments(intent){
-    if(intent.video.dynamicRangeOperation!=='tone_map_to_sdr_bt709')return [];
-    if(intent.video.pipelineProfileId!=='pq_bt2020_base_to_sdr_bt709_hevc@1')
-      fail('LIBRA_MEDIA_PIPELINE_PROFILE','DV normalization requires the closed PQ/BT.2020 to SDR pipeline.');
-    return ['-vf',DV_SDR_FILTER,'-pix_fmt','yuv420p','-color_range','tv','-color_primaries','bt709',
-      '-color_trc','bt709','-colorspace','bt709','-map_metadata','-1'];
   }
 
   async function verifyTranscodeInput(request){
     const source=sourceLocation(request.sourceHandle),intent=request.productionIntent,device=request.deviceSnapshot,
-      durationMs=Math.max(1,Number(request.sourceProbeEvidence.durationMs||1)),points=[5,50,95],encoding=encoderArguments(intent,device),
-      profile=videoProfileArguments(intent),passed=[];
+      durationMs=Math.max(1,Number(request.sourceProbeEvidence.durationMs||1)),points=[5,50,95],pipeline=ffmpegPipeline(intent,device),passed=[];
     for(const point of points){const seconds=Math.max(0,durationMs/1000*point/100);
-      try{await runProcess(ffmpegPath,['-hide_banner','-nostdin','-loglevel','error','-ss',seconds.toFixed(3),'-i',source,
-        '-map','0:v:0','-frames:v','8',...profile,...encoding,'-an','-sn','-f','null',process.platform==='win32'?'NUL':'/dev/null'],30_000);
+      try{await runProcess(ffmpegPath,['-hide_banner','-nostdin','-loglevel','error','-y','-ss',seconds.toFixed(3),...pipeline.inputArgs,'-i',source,
+        ...productStreamMap(intent),'-frames:v','8',...pipeline.videoArgs,'-c:a','copy','-c:s','copy','-f','matroska',
+        process.platform==='win32'?'NUL':'/dev/null'],30_000,null,
+        {processRegistry,deadlineAtMs:request.deadlineAtMs,shouldContinue:request.shouldContinue});
         passed.push(point);
       }catch(error){if(error?.code==='LIBRA_MEDIA_FFMPEG_TIMEOUT'||error?.code==='ENOENT'||error?.code==='EACCES')throw error;
         return Object.freeze({sampleCount:24,passedSampleCount:passed.length*8,reasonCode:'encoder_rejected_source_pipeline',
@@ -325,7 +321,8 @@ function createCleanMediaProductionEffectPort(options) {
       source=sourceLocation(handle),durationMs=Math.max(1,Number(request.outputProbeEvidence?.durationMs||1)),points=[5,50,95],passed=[];
     for(const point of points){const seconds=Math.max(0,durationMs/1000*point/100);
       try{await runProcess(ffmpegPath,['-hide_banner','-nostdin','-loglevel','error','-ss',seconds.toFixed(3),'-i',source,
-        '-map','0:v:0','-frames:v','1','-f','null',process.platform==='win32'?'NUL':'/dev/null'],30_000);passed.push(point);}
+        '-map','0:v:0','-frames:v','1','-f','null',process.platform==='win32'?'NUL':'/dev/null'],30_000,null,
+        {processRegistry,deadlineAtMs:request.deadlineAtMs,shouldContinue:request.shouldContinue});passed.push(point);}
       catch(error){if(error?.code==='LIBRA_MEDIA_FFMPEG_TIMEOUT'||error?.code==='ENOENT'||error?.code==='EACCES')throw error;}
     }
     return Object.freeze({samplePointsPercent:Object.freeze(points),passedSamplePointsPercent:Object.freeze(passed),
@@ -335,6 +332,8 @@ function createCleanMediaProductionEffectPort(options) {
   async function executeRemux(request) {
     const target = request.outputTarget;
     const progress=request.reportProgress?progressGroup(request.reportProgress):null;
+    const run=(args,limit,processProgress=null)=>runProcess(ffmpegPath,args,limit,processProgress,
+      {processRegistry,deadlineAtMs:request.deadlineAtMs,shouldContinue:request.shouldContinue});
     return options.workspaceProductPort.materializeMedia({ libraRunId:target.libraRunId, workspaceId:target.workspaceId,
       relativePath:target.targetRelativePath, intentDigest:request.productionIntent.intentDigest,
       idempotencyKey:request.idempotencyKey, effectScopeDigest:target.effectScopeDigest,
@@ -345,12 +344,12 @@ function createCleanMediaProductionEffectPort(options) {
         try {
           let identify = '';
           try {
-            await runProcess(ffmpegPath, ['-hide_banner', '-nostdin', ...input.argv], 60_000);
+            await run(['-hide_banner', '-nostdin', ...input.argv], 60_000);
           } catch (error) {
             identify = String(error?.details?.stderr || '');
           }
           const maps = matroskaCopyMapsFromProbe(identify);
-          await runProcess(ffmpegPath, [
+          await run([
             '-hide_banner', '-nostdin', '-y', '-fflags', '+genpts', ...input.argv,
             ...maps, '-c', 'copy', '-bsf:v', VIDEO_TIMESTAMP_FILL_BSF, '-f', 'matroska', temporaryTarget,
           ], timeoutMs, progress?progressPhase(progress,'remux'):null);
@@ -362,25 +361,26 @@ function createCleanMediaProductionEffectPort(options) {
     const target = request.outputTarget;
     const phaseCount=request.productionIntent.video.rateControlMode==='two_pass_abr'?2:1,
       progress=request.reportProgress?progressGroup(request.reportProgress,phaseCount):null;
+    const run=(args,limit,processProgress=null)=>runProcess(ffmpegPath,args,limit,processProgress,
+      {processRegistry,deadlineAtMs:request.deadlineAtMs,shouldContinue:request.shouldContinue});
     return options.workspaceProductPort.materializeMedia({ libraRunId:target.libraRunId, workspaceId:target.workspaceId,
       relativePath:target.targetRelativePath, intentDigest:request.productionIntent.intentDigest,
       idempotencyKey:request.idempotencyKey, effectScopeDigest:target.effectScopeDigest,
       outputTargetId:target.targetId, outputTargetDigest:target.targetDigest,
       runtimeEffectAuthority:request.runtimeEffectAuthority,
       async produce(temporaryTarget) {
-        const source=sourceLocation(request.sourceHandle),encoding=encoderArguments(request.productionIntent, request.deviceSnapshot),
-          profile=videoProfileArguments(request.productionIntent),
+        const source=sourceLocation(request.sourceHandle),pipeline=ffmpegPipeline(request.productionIntent, request.deviceSnapshot),
           normalizeDolbyVision=request.productionIntent.video.dynamicRangeOperation==='tone_map_to_sdr_bt709',
           normalizedVideoTarget=temporaryTarget+'.normalized-video.ts';
         async function muxNormalizedVideo() {
-          await runProcess(ffmpegPath,['-hide_banner','-nostdin','-y','-i',normalizedVideoTarget,'-i',source,
+          await run(['-hide_banner','-nostdin','-y','-i',normalizedVideoTarget,'-i',source,
             ...productStreamMap(request.productionIntent,'1'),'-c:v','copy','-c:a','copy','-c:s','copy',
             '-map_metadata','-1','-f','matroska',temporaryTarget],timeoutMs);
         }
         if(request.productionIntent.video.rateControlMode==='two_pass_abr'){
           const passlog=temporaryTarget+'.passlog',nullTarget=process.platform==='win32'?'NUL':'/dev/null';
           try {
-            await runProcess(ffmpegPath,['-hide_banner','-nostdin','-y','-i',source,'-map','0:v:0',...profile,...encoding,
+            await run(['-hide_banner','-nostdin','-y',...pipeline.inputArgs,'-i',source,'-map','0:v:0',...pipeline.videoArgs,
               '-pass','1','-passlogfile',passlog,'-an','-sn','-f','null',nullTarget],timeoutMs,progress?progressPhase(progress,'transcode-pass1',0,false):null);
             if(normalizeDolbyVision){
               // FFmpeg 6.x Matroska propagation can copy the source DOVI
@@ -389,12 +389,12 @@ function createCleanMediaProductionEffectPort(options) {
               // HEVC bytes while deliberately severing that source metadata.
               // The final mux then carries audio/subtitles from the source,
               // never the source video stream or its DOVI configuration.
-              await runProcess(ffmpegPath,['-hide_banner','-nostdin','-y','-i',source,'-map','0:v:0',...profile,...encoding,
+              await run(['-hide_banner','-nostdin','-y',...pipeline.inputArgs,'-i',source,'-map','0:v:0',...pipeline.videoArgs,
                 '-pass','2','-passlogfile',passlog,'-an','-sn','-f','mpegts',normalizedVideoTarget],timeoutMs,progress?progressPhase(progress,'transcode-pass2',1,false):null);
               await muxNormalizedVideo();
               if(progress)completeProcessProgress(progress,'transcode-pass2-mux');
             }else{
-              await runProcess(ffmpegPath,['-hide_banner','-nostdin','-y','-i',source,...productStreamMap(request.productionIntent),...profile,...encoding,
+              await run(['-hide_banner','-nostdin','-y',...pipeline.inputArgs,'-i',source,...productStreamMap(request.productionIntent),...pipeline.videoArgs,
                 '-pass','2','-passlogfile',passlog,'-c:a','copy','-c:s','copy','-f','matroska',temporaryTarget],timeoutMs,progress?progressPhase(progress,'transcode-pass2',1,true):null);
             }
           } finally {
@@ -407,20 +407,22 @@ function createCleanMediaProductionEffectPort(options) {
         }
         if(normalizeDolbyVision){
           try{
-          await runProcess(ffmpegPath,['-hide_banner','-nostdin','-y','-i',source,'-map','0:v:0',...profile,...encoding,
+          await run(['-hide_banner','-nostdin','-y',...pipeline.inputArgs,'-i',source,'-map','0:v:0',...pipeline.videoArgs,
               '-an','-sn','-f','mpegts',normalizedVideoTarget],timeoutMs,progress?progressPhase(progress,'transcode',0,false):null);
             await muxNormalizedVideo();
             if(progress)completeProcessProgress(progress,'transcode-mux');
           }finally{if(fs.existsSync(normalizedVideoTarget))fs.rmSync(normalizedVideoTarget,{force:true});}
         }else{
-          await runProcess(ffmpegPath, ['-hide_banner', '-nostdin', '-y', '-i', source,
-            ...productStreamMap(request.productionIntent), ...profile,...encoding, '-c:a', 'copy', '-c:s', 'copy', '-f', 'matroska', temporaryTarget], timeoutMs,
+          await run(['-hide_banner', '-nostdin', '-y', ...pipeline.inputArgs, '-i', source,
+            ...productStreamMap(request.productionIntent), ...pipeline.videoArgs, '-c:a', 'copy', '-c:s', 'copy', '-f', 'matroska', temporaryTarget], timeoutMs,
             progress?progressPhase(progress,'transcode',0,true):null);
         }
       } });
   }
 
-  return Object.freeze({ executeRemux, executeTranscode,verifyTranscodeInput,verifyPlayback });
+  async function close(){await processRegistry.close();}
+
+  return Object.freeze({ executeRemux, executeTranscode,verifyTranscodeInput,verifyPlayback,close });
 }
 
 module.exports = Object.freeze({

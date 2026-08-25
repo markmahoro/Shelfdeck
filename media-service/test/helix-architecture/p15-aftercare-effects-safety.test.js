@@ -146,6 +146,9 @@ test('Aftercare media materialization is async and FFmpeg reports durable progre
   assert.match(materialize, /await materializeMediaWithRollback/);
   assert.match(ffmpeg, /'-progress','pipe:1'/);
   assert.match(ffmpeg, /options\.reportProgress\(progressSample/);
+  assert.match(source, /compileFfmpegPipeline\(\{deviceClass:strategy\.selectedDeviceClass,video\}\)/);
+  assert.match(source, /normalized-video\.ts/);
+  assert.match(source, /pass2Format=normalizeDolbyVision\?'mpegts':'matroska'/);
 });
 
 test('Aftercare uses the registered workspace mount for handles and resource permits', () => {

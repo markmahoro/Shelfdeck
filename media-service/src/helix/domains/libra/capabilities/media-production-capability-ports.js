@@ -123,11 +123,13 @@ function createMediaProductionCapabilityPorts(options) {
           item.pipelineProfileId===input.encodeIntent.video.pipelineProfileId);
         const structurallyCompatible=Boolean(pipeline)&&
           (input.mediaExecutionDeviceSnapshot.capabilityPayload?.supportedRateControlModes||[]).includes(input.encodeIntent.video.rateControlMode)&&
+          streams.every((stream)=>(pipeline.inputDynamicRangeKinds||[]).includes(stream.dynamicRangeKind)&&
+            (pipeline.inputPixelFormats||[]).includes(stream.pixelFormat))&&
           (input.encodeIntent.video.dynamicRangeOperation!=='tone_map_to_sdr_bt709'||streams.every((stream)=>
             stream.dynamicRangeKind==='dolby_vision'&&stream.dolbyVision?.blPresent&&stream.dolbyVision?.baseLayerKind==='pq_bt2020_compatible'));
         const preflight=structurallyCompatible?await options.mediaEffectPort.verifyTranscodeInput({
           sourceHandle:input.physicalMaterialReadHandleOrWorkspaceMaterialHandle,sourceProbeEvidence:input.mediaProbeEvidence,
-          productionIntent:input.encodeIntent,deviceSnapshot:input.mediaExecutionDeviceSnapshot,
+          productionIntent:input.encodeIntent,deviceSnapshot:input.mediaExecutionDeviceSnapshot,deadlineAtMs:context.deadlineAtMs,
         }):Object.freeze({sampleCount:0,passedSampleCount:0,reasonCode:null,
           preflightDigest:canonicalDigest({schema:'libra.preflight-not-executed@1',intentDigest:input.encodeIntent.intentDigest})});
         const result = buildTranscodeInputVerification({
@@ -163,6 +165,7 @@ function createMediaProductionCapabilityPorts(options) {
           outputTarget: input.workspaceMediaOutputTarget,
           producingEventId: context.eventId,
           reportProgress: context.reportProgress,
+          deadlineAtMs: context.deadlineAtMs,
           idempotencyKey: context.idempotencyKey,
           runtimeEffectAuthority:Object.freeze({ effectClass:'workspace_write',
             eventAttemptId:context.eventAttemptId, idempotencyKey:context.idempotencyKey }),
@@ -213,6 +216,7 @@ function createMediaProductionCapabilityPorts(options) {
           outputTarget: input.workspaceMediaOutputTarget,
           producingEventId: context.eventId,
           reportProgress: context.reportProgress,
+          deadlineAtMs: context.deadlineAtMs,
           idempotencyKey: context.idempotencyKey,
           runtimeEffectAuthority:Object.freeze({ effectClass:'workspace_write',
             eventAttemptId:context.eventAttemptId, idempotencyKey:context.idempotencyKey }),

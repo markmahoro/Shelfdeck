@@ -134,6 +134,7 @@ const {
 const {
   createCleanMediaProductionEffectPort,
 } = require('./clean-media-production-effect-port');
+const { createFfmpegProcessRegistry } = require('./clean-ffmpeg-process-registry');
 const {
   createCleanComputeDeviceRuntime,
 } = require('./clean-compute-device-runtime');
@@ -1393,10 +1394,12 @@ async function createCleanServiceHost(options) {
       resolveCurrentProductIntegrationHandle: options.currentProductIntegrationHandleResolver ||
         ((request) => platformIntegrations.resolveCurrentProductHandle(request)),
     });
+  const ffmpegProcessRegistry = options.ffmpegProcessRegistry || createFfmpegProcessRegistry();
   const mediaEffectPort = options.mediaProductionEffectPort ||
     createCleanMediaProductionEffectPort({
       workspaceProductPort,
       ffmpegPath: options.ffmpegPath,
+      ffmpegProcessRegistry,
     });
   const platformComputeRuntime = options.platformComputeRuntime || (options.mediaProbe ? undefined :
     await createCleanComputeDeviceRuntime({
@@ -1480,6 +1483,7 @@ async function createCleanServiceHost(options) {
     workspaceProductPort,
     productProductionPort,
     mediaEffectPort,
+    ffmpegProcessRegistry,
     progressProjectionReader: executionProgressProjectionReader,
     platformComputeRuntime,
     productDeliveryPort,
@@ -1563,7 +1567,13 @@ async function createCleanServiceHost(options) {
       }
     },
     wake() { const execution=procurementExecution.host.wake(); outboxDispatcher.wake(); formationProjectionHost.wake(); return execution; },
-    async stop() { await formationProjectionHost.stop(); await outboxDispatcher.stop(); return procurementExecution.host.stop(); },
+    async stop() {
+      await ffmpegProcessRegistry.close();
+      await mediaEffectPort.close?.();
+      await formationProjectionHost.stop();
+      await outboxDispatcher.stop();
+      return procurementExecution.host.stop();
+    },
   });
   arcaCare=createArcaCareApplication({contextReader:procurementExecution.arcaAftercareContextReader,
     coordinator:procurementExecution.arcaAftercareCoordinator,wake:()=>executionRuntimeHost.wake()});
