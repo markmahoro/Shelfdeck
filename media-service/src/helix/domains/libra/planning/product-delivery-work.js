@@ -1,6 +1,8 @@
 'use strict';
 
 const { canonicalDigest } = require('../../../contracts/canonical-json');
+const { coversRequirementGaps, resolveProductSelection } =
+  require('../model/defect-admission-contracts');
 
 const CONFORMANCE_RESULT =
   'helix://contracts/capabilities/libra.product.conformance.verify/v1/result';
@@ -101,11 +103,16 @@ function findSelectedMediaWork(options, snapshot) {
     processType: 'libra_run',
     processId: snapshot.run.libraRunId,
     workKind: 'workspace_media_production',
-  }).filter((work) => work.state === 'succeeded').filter((work) =>
-    options.workResultReader.read(work.work_id).some((item) =>
-      item.outcomeKind === 'succeeded' &&
+  }).filter((work) => work.state === 'succeeded').filter((work) => {
+    const results = options.workResultReader.read(work.work_id);
+    if (results.some((item) => item.outcomeKind === 'succeeded' &&
       item.capabilityRef === 'libra.product_output.select@1' &&
-      item.result?.result === 'selected'));
+      item.result?.result === 'selected')) return true;
+    if (!snapshot.run.authorizedDefectManifest) return false;
+    try { return resolveProductSelection(results,
+      snapshot.run.authorizedDefectManifest).selection?.result ===
+      'authorized_defect_selection'; } catch { return false; }
+  });
   if (candidates.length !== 1) {
     throw new Error(
       'Libra Run must have exactly one terminal selected media Work.',
@@ -122,12 +129,18 @@ function findPassedConformance(options, snapshot, selectedMediaWork) {
   const results = options.workResultReader.read(work.workId).filter((item) =>
     item.outcomeKind === 'succeeded' &&
     item.capabilityRef === 'libra.product.conformance.verify@1');
-  if (results.length !== 1 || results[0].result?.result !== 'passed') {
+  const evidence = results[0]?.result;
+  const authorized = evidence?.result === 'failed' &&
+    snapshot.run.authorizedDefectManifest &&
+    coversRequirementGaps(snapshot.run.authorizedDefectManifest,
+      evidence.unmetRequirementCodes || evidence.reasonCodes || []);
+  if (results.length !== 1 || (evidence?.result !== 'passed' && !authorized)) {
     throw new Error(
       'Libra Run must have one exact passed Product Conformance Evidence.',
     );
   }
-  return Object.freeze({ work, evidence: results[0].result });
+  return Object.freeze({ work, evidence, authorizedDefectManifest:
+    authorized ? snapshot.run.authorizedDefectManifest : null });
 }
 
 module.exports = Object.freeze({

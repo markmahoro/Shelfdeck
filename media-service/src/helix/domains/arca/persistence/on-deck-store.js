@@ -965,6 +965,23 @@ function createOnDeckStore(options) {
             committed_at_ms: context.commitTimeMs,
           });
         });
+        const authorizedDefectManifest =
+          packageValue.productionAttestation?.acceptanceKind === 'accepted_with_defects'
+            ? packageValue.productionAttestation.authorizedDefectManifest : null;
+        if (authorizedDefectManifest) {
+          repo.invoke('insert_fact', {
+            shelf_entry_id: shelfEntryId,
+            inventory_revision: inventoryRevision,
+            fact_kind: 'authorized_defect_manifest',
+            fact_revision: 1,
+            fact_schema_ref: authorizedDefectManifest.schemaRef,
+            fact_json: canonicalJson(authorizedDefectManifest),
+            fact_digest: authorizedDefectManifest.manifestDigest,
+            source_package_id: packageValue.onDeckPackageId,
+            provenance_digest: packageValue.productionAttestation.attestationDigest,
+            committed_at_ms: context.commitTimeMs,
+          });
+        }
         for (const item of packageValue.mediaCastSnapshot.relations || []) {
           const providerIdentities = item.providerIdentities || [];
           repo.invoke('insert_person', {

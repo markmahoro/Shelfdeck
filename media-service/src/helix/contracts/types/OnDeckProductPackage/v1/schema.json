@@ -846,7 +846,45 @@
           "pattern": "^[a-f0-9]{64}$"
         },
         "unmetRequirementCount": {
-          "const": 0
+          "type": "integer",
+          "minimum": 0
+        },
+        "unmetRequirementCodes": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "metadata_field_unmet",
+              "video_codec_unmet",
+              "container_unmet",
+              "file_extension_unmet",
+              "minimum_raster_unmet",
+              "system_upscale_forbidden",
+              "primary_audio_unmet",
+              "max_size_exceeded",
+              "dynamic_range_conversion_unmet",
+              "output_color_profile_unmet",
+              "dolby_vision_metadata_not_removed"
+            ]
+          },
+          "maxItems": 12
+        },
+        "acceptanceKind": {
+          "type": "string",
+          "enum": [
+            "accepted",
+            "accepted_with_defects"
+          ]
+        },
+        "authorizedDefectManifest": {
+          "anyOf": [
+            {
+              "$ref": "helix://contracts/application-types/AuthorizedDefectManifest/v1"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "attestedAtMs": {
           "type": "integer",
@@ -869,6 +907,9 @@
         "evaluatedRequirementSetDigest",
         "productSnapshotDigest",
         "unmetRequirementCount",
+        "unmetRequirementCodes",
+        "acceptanceKind",
+        "authorizedDefectManifest",
         "attestedAtMs",
         "attestationDigest"
       ]

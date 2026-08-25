@@ -1,6 +1,8 @@
 'use strict';
 
 const { canonicalDigest } = require('../../../contracts/canonical-json');
+const { coversRequirementGaps, resolveProductSelection } =
+  require('../model/defect-admission-contracts');
 const {
   buildImportedWorkspaceMediaHandle,
 } = require('../model/external-material-contracts');
@@ -98,13 +100,13 @@ function productFactSnapshots(options, runId) {
 function selectedContext(options, snapshot, selectedWorkId) {
   const results = options.workResultReader.read(selectedWorkId)
     .filter((item) => item.outcomeKind === 'succeeded');
-  const selected = results.find((item) =>
-    item.capabilityRef === 'libra.product_output.select@1')?.result;
-  const verification = results.find((item) =>
-    item.capabilityRef === 'libra.product_media.verify@1' &&
-    item.result?.verificationId === selected?.selectedVerificationId)?.result;
-  if (!selected || selected.result !== 'selected' || !verification ||
-      verification.result !== 'passed') {
+  const resolvedSelection = resolveProductSelection(results,
+    snapshot.run.authorizedDefectManifest);
+  const selected = resolvedSelection.selection;
+  const verification = resolvedSelection.verification;
+  const verificationAuthorized = selected?.result === 'authorized_defect_selection';
+  if (!selected || !['selected', 'authorized_defect_selection'].includes(selected.result) ||
+      !verification || (verification.result !== 'passed' && !verificationAuthorized)) {
     throw new Error('Selected Product output and verification are unavailable.');
   }
   let workspaceMediaHandle = null;
@@ -588,7 +590,11 @@ function createProductDeliveryAssembler(options) {
   function promotion(libraRunId, selectedWorkId, conformance,
     eventFenceDigest) {
     const value = context(libraRunId, selectedWorkId);
-    if (!conformance || conformance.result !== 'passed' ||
+    const authorized = conformance?.result === 'failed' &&
+      value.snapshot.run.authorizedDefectManifest && coversRequirementGaps(
+        value.snapshot.run.authorizedDefectManifest,
+        conformance.unmetRequirementCodes || conformance.reasonCodes || []);
+    if (!conformance || (conformance.result !== 'passed' && !authorized) ||
         conformance.libraRunId !== libraRunId ||
         conformance.basisDigest !== value.conformanceInput.snapshotDigest) {
       throw new Error('Promotion requires the exact passed Conformance Evidence.');
@@ -754,6 +760,10 @@ function createProductDeliveryAssembler(options) {
       evaluatedRequirementSetDigest: conformance.evaluatedRequirementSetDigest,
       productSnapshotDigest: conformance.productSnapshotDigest,
       unmetRequirementCount: conformance.unmetRequirementCodes.length,
+      unmetRequirementCodes: Object.freeze([...(conformance.unmetRequirementCodes || [])]),
+      acceptanceKind: authorized ? 'accepted_with_defects' : 'accepted',
+      authorizedDefectManifest: authorized
+        ? value.snapshot.run.authorizedDefectManifest : null,
       attestedAtMs: conformance.verifiedAtMs,
     };
     const productionAttestation = Object.freeze({

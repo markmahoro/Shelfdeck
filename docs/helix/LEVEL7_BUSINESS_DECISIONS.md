@@ -68,6 +68,20 @@ Level 7 架构合同保持 Accepted/Closed。下列决定不改 Owner、Handoff 
 资源不足只形成等待或背压，不改变业务结果。2026-07-16完成的62项Capability Conservation Audit同样没有
 发现新的用户旅程、Owner、Handoff或Authorization分叉。
 
+### L7-DP-01 Frozen Run支持用户显式瑕疵入库
+
+确认日期：2026-08-25
+确认人：Product Owner
+
+**用户确认：** `接受瑕疵`与`放弃整理`是Frozen Run上的同级决定；V1只支持`actor_unavailable`与
+`external_source_exhausted`，且只能由用户逐项显式指定。瑕疵On-deck后Aftercare不再尝试补齐或重新寻源，
+但仍处理其他新问题。`放弃整理`不使用“重新入库”作为按钮文案，后果在确认页说明。
+
+**Owner/Handoff影响：** 不新增Domain或Handoff。Libra拥有用户Decision和Authorized Defect Manifest；Arca在
+Handoff B独立验证并把Manifest保存为Accepted Inventory Fact。事实不改写为普通合格。
+
+**回写：** SSOT §5.6.7、§5.7.2、§5.8.2、§6.5.2、§8.5.11、§9.5.3；Beta HB-B.25–26、HB-D.05；UAT-119。
+
 ## Deferred product decisions
 
 以下问题尚未确定，但不阻断Level 7 Foundation合同，并且不在本层要求用户决策：

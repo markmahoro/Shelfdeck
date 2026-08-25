@@ -2,6 +2,7 @@
 
 const { canonicalDigest, canonicalJson } =
   require('../../../contracts/canonical-json');
+const { resolveProductSelection } = require('../model/defect-admission-contracts');
 const {
   absentReferenceDigest,
   buildReferenceDecision,
@@ -178,9 +179,9 @@ function createProductStagingService(options) {
 
     const results = options.workResultReader.read(selectedWork.workId)
       .filter((item) => item.outcomeKind === 'succeeded');
-    const selection = results.find((item) =>
-      item.capabilityRef === 'libra.product_output.select@1')?.result;
-    if (!selection || selection.result !== 'selected') {
+    const selection = resolveProductSelection(results,
+      snapshot.run.authorizedDefectManifest).selection;
+    if (!selection || !['selected', 'authorized_defect_selection'].includes(selection.result)) {
       throw new Error('Selected media Work lacks its terminal selected output.');
     }
     if (selection.selectedCandidateKind === 'workspace_output') {

@@ -182,7 +182,7 @@
       "sourceLocator": {
         "section": "8.5.11",
         "line": 9373,
-        "lineDigest": "62fcd825785196b91ee8518025e1689d7de6492f462e288b90a95e76a893b3c9"
+        "lineDigest": "4d560d3b4e35d0f7648b007589ef7303342a959880fe7a5fabb58354e183e6c9"
       },
       "targetLocator": {
         "path": "table-contracts/libra_run_revisions/v1/contract.json"
@@ -191,11 +191,11 @@
         "tableId": "libra_run_revisions",
         "owner": "libra",
         "contractRef": "helix://contracts/tables/libra_run_revisions/v1",
-        "contractDigest": "5935479ce31ea134f7f9883677228924fa9eb5622705433f6d2453aca15f6baf"
+        "contractDigest": "a79923f5eb630dc95043a432f05418f322620827ec01704de65da113fdd796d5"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "acecb1e3fe97672c8b1638baf57b15fed07e17a2dd9fe38422ac6d0b38eaff87"
+        "value": "7710d637dbfc881f2ed08ee6b77d73c55d16ea112212502f55067bda2ac503c3"
       }
     },
     {

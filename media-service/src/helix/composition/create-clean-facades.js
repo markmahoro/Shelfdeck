@@ -259,6 +259,12 @@ function createCleanFacades(options) {
     facades.LibraFormationFacade.post_formation_runs_librarunid_actions_discard = async (input) => ({
       body: options.libraRunAdmin.discard(input.params.libraRunId, input.body),
     });
+    facades.LibraFormationFacade.get_formation_runs_librarunid_defect_admission_candidate = async (input) => ({
+      body: options.libraRunAdmin.previewDefects(input.params.libraRunId),
+    });
+    facades.LibraFormationFacade.post_formation_runs_librarunid_actions_admit_with_defects = async (input) => ({
+      body: options.libraRunAdmin.admitWithDefects(input.params.libraRunId, input.body),
+    });
   }
   if (options.productIdentitySelection) {
     facades.LibraFormationFacade.post_formation_runs_librarunid_actions_choose_product_identity = async (input) => ({

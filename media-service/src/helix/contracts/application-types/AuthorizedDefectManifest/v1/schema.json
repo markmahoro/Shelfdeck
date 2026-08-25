@@ -1,0 +1,244 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/application-types/AuthorizedDefectManifest/v1",
+  "title": "AuthorizedDefectManifest@1",
+  "x-helix-ssotRefs": [
+    "5.6.7",
+    "5.7.2",
+    "5.8.2",
+    "8.6.21"
+  ],
+  "x-helix-maxCanonicalBytes": 65536,
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaRef": {
+      "const": "helix://contracts/application-types/AuthorizedDefectManifest/v1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "manifestId": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "defectDecisionId": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "libraRunId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "frozenRunRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "stateRevision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "stateDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "stateRevision",
+        "stateDigest"
+      ]
+    },
+    "candidateRevision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "candidateDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "terminalEvidenceDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "defects": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 2,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "defectCode": {
+            "type": "string",
+            "enum": [
+              "actor_unavailable",
+              "external_source_exhausted"
+            ]
+          },
+          "sourceFailureCode": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "sourceWorkId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "sourceEvidenceDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "originalMediaVerificationId": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "originalMediaVerificationDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "waivedRequirementCodes": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 11,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "enum": [
+                "metadata_field_unmet",
+                "video_codec_unmet",
+                "container_unmet",
+                "file_extension_unmet",
+                "minimum_raster_unmet",
+                "system_upscale_forbidden",
+                "primary_audio_unmet",
+                "max_size_exceeded",
+                "dynamic_range_conversion_unmet",
+                "output_color_profile_unmet",
+                "dolby_vision_metadata_not_removed"
+              ]
+            }
+          }
+        },
+        "required": [
+          "defectCode",
+          "sourceFailureCode",
+          "sourceWorkId",
+          "sourceEvidenceDigest",
+          "waivedRequirementCodes"
+        ],
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "defectCode": {
+                  "const": "external_source_exhausted"
+                }
+              }
+            },
+            "then": {
+              "required": [
+                "originalMediaVerificationId",
+                "originalMediaVerificationDigest"
+              ]
+            },
+            "else": {
+              "not": {
+                "anyOf": [
+                  {
+                    "required": [
+                      "originalMediaVerificationId"
+                    ]
+                  },
+                  {
+                    "required": [
+                      "originalMediaVerificationDigest"
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        ]
+      }
+    },
+    "defectCount": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 2
+    },
+    "waivedRequirementCodes": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 12,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "enum": [
+          "metadata_field_unmet",
+          "video_codec_unmet",
+          "container_unmet",
+          "file_extension_unmet",
+          "minimum_raster_unmet",
+          "system_upscale_forbidden",
+          "primary_audio_unmet",
+          "max_size_exceeded",
+          "dynamic_range_conversion_unmet",
+          "output_color_profile_unmet",
+          "dolby_vision_metadata_not_removed"
+        ]
+      }
+    },
+    "actorId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "acknowledgement": {
+      "const": "accept_listed_defects"
+    },
+    "idempotencyKey": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "decidedAtMs": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "manifestDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "schemaRef",
+    "schemaVersion",
+    "manifestId",
+    "defectDecisionId",
+    "libraRunId",
+    "frozenRunRef",
+    "candidateRevision",
+    "candidateDigest",
+    "terminalEvidenceDigest",
+    "defects",
+    "defectCount",
+    "waivedRequirementCodes",
+    "actorId",
+    "acknowledgement",
+    "idempotencyKey",
+    "decidedAtMs",
+    "manifestDigest"
+  ]
+}

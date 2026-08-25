@@ -5,8 +5,26 @@
   "kind": "application-type-registry",
   "owner": "libra",
   "status": "active",
-  "targetCount": 30,
+  "targetCount": 31,
   "entries": [
+    {
+      "id": "AuthorizedDefectManifest",
+      "version": 1,
+      "owner": "libra",
+      "status": "contracted",
+      "schemaId": "helix://contracts/application-types/AuthorizedDefectManifest/v1",
+      "relativePath": "application-types/AuthorizedDefectManifest/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "3b618374ad3f48fd38e273ea184217736f7cf40cbc8a76207f00fc21d204f379"
+      },
+      "ssotRefs": [
+        "5.6.7",
+        "5.7.2",
+        "5.8.2",
+        "8.6.21"
+      ]
+    },
     {
       "id": "LibraProductFactCommitPlanBinding",
       "version": 1,
@@ -168,7 +186,7 @@
       "relativePath": "application-types/LibraRunLifecycleDecision/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "5f8227d78e104b4de1abc9992f3fd4b07b202f29ec2c9dee0264f204b1b273b4"
+        "value": "d2aaafc1c117ffb199daf576ae8cf03e5d15b62bc401b9c55056e1bcb2b733f7"
       },
       "ssotRefs": [
         "8.6.21"

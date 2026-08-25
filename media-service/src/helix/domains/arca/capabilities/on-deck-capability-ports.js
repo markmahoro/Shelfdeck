@@ -6,6 +6,7 @@ const { createMaterialControlProjectionPort } = require('../../../foundation/per
 const { createHandoffBAcceptanceStore } = require('../persistence/handoff-b-acceptance-store');
 const { createOnDeckStore } = require('../persistence/on-deck-store');
 const { emptyArcaMaterialEpisodeClaims, fromProductMember } = require('../model/material-episode-claims');
+const { acceptsProductionAttestation } = require('../model/authorized-defect-manifest');
 const { CAPABILITY_REFS:C } = require('../model/on-deck-contract');
 const { buildAftercareInventoryRequest } = require('../model/aftercare-placement');
 const { requiresInputSettlement } = require('../model/offload-settlement');
@@ -90,7 +91,7 @@ function createOnDeckCapabilityPorts(options){const now=options.now||Date.now,ac
     acceptanceAttemptId:acceptanceAttemptId(c),standardRevision:c.shelf.currentStandardRevision,packageDigest:c.packageValue.packageDigest,
     onDeckProductPackage:n.onDeckProductPackage,mandatoryRequirement:n.mandatoryRequirement},
     n.onDeckProductPackage.packageDigest===c.packageValue.packageDigest&&
-      n.onDeckProductPackage.productionAttestation?.unmetRequirementCount===0,
+      acceptsProductionAttestation(n.onDeckProductPackage.productionAttestation),
     'mandatory_media_requirement_unmet',at));
   ports[C.space]=pure(C.space,['productManifest','spaceRequirement'],(n,c,at)=>check(C.space,'space',{
     acceptanceAttemptId:acceptanceAttemptId(c),standardRevision:c.shelf.currentStandardRevision,packageDigest:c.packageValue.packageDigest,

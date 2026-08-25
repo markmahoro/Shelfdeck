@@ -1,5 +1,7 @@
 'use strict';
 
+const { actionableAftercareFindings, validManifest } = require('./authorized-defect-manifest');
+
 const path = require('node:path');
 const { canonicalDigest } = require('../../../contracts/canonical-json');
 
@@ -263,12 +265,16 @@ function projectHealth(context, history, at = Date.now()) {
   }
   const dimensions = Object.fromEntries(ASSESSMENT_KINDS.map((kind) => {
     const assessment = current.get(kind) || null;
+    const observedFindings = assessment ? (findingsByAssessment.get(assessment.assessmentId) || []) : [];
+    const findings = actionableAftercareFindings(context.authorizedDefectManifest,
+      observedFindings);
     return [kind, Object.freeze({
-      state:assessment?.result || 'never_assessed',
+      state:assessment && observedFindings.length > 0 && findings.length === 0
+        ? 'healthy' : assessment?.result || 'never_assessed',
       assessedAtMs:assessment?.assessedAtMs || null,
       evidenceDigest:assessment?.evidenceDigest || null,
       incidentKey:assessment?.incidentKey || null,
-      findings:Object.freeze(assessment ? (findingsByAssessment.get(assessment.assessmentId) || []) : []),
+      findings,
     })];
   }));
   let state = 'never_assessed';
@@ -283,6 +289,8 @@ function projectHealth(context, history, at = Date.now()) {
     deep = Math.min(...['presentation','conformance'].map((kind) => dimensions[kind].assessedAtMs || 0));
   return Object.freeze({ shelfEntryId:context.shelfEntryId, state, careBasisDigest:context.basis.digest,
     basisCurrent:true, dimensions:Object.freeze(dimensions), activeCase,
+    admittedDefects:validManifest(context.authorizedDefectManifest)
+      ? context.authorizedDefectManifest.defects : Object.freeze([]),
     nextCustodyDueAtMs:custody ? custody + PERIODS.custodyMs + jitter : at,
     nextDeepDueAtMs:deep ? deep + PERIODS.deepMs + jitter : at,
     updatedAtMs:Math.max(0,...all.map((item)=>item.assessedAtMs || 0),activeCase?.createdAtMs || 0) });

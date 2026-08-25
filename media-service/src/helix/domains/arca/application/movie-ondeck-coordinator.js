@@ -23,6 +23,7 @@ const {
   emptyArcaMaterialEpisodeClaims,
   fromProductMember,
 } = require('../model/material-episode-claims');
+const { acceptsProductionAttestation } = require('../model/authorized-defect-manifest');
 
 class MovieOnDeckCoordinatorError extends Error {
   constructor(code, message, details = {}) {
@@ -223,8 +224,8 @@ function createMovieOnDeckCoordinator(options) {
     const metadataPassed = factKinds.has('product_metadata') &&
       packageValue.artifactManifest.items.some((item) =>
         item.artifactKind === 'nfo');
-    const mandatoryPassed =
-      packageValue.productionAttestation?.unmetRequirementCount === 0 &&
+    const mandatoryPassed = acceptsProductionAttestation(
+      packageValue.productionAttestation) &&
       packageValue.productionAttestation?.productConformanceEvidenceDigest;
     const spacePassed = feasibility.availableBytes >= feasibility.requiredBytes;
     const checkInputs = [

@@ -193,6 +193,7 @@ User Perception全面取消year关联校验，year仅作为资料保存/展示�
 | UAT-116 | 同根Field/Shelf使Aftercare验证形成重复Resource Demand，Event在Attempt前被Foundation拒绝并反复ready | `RESOURCE_CAPACITY` | `SAME_ROOT`、`LIVENESS` | Composition Resource Demand mapping | 活性、CPU、资源正确性 | Critical | `FACT/REGRESSION/RESTART PASSED / CLOSED` |
 | UAT-117 | Aftercare播放验证借用了Libra Workspace端口，Arca Handle在真正解码前被拒绝 | `DOMAIN_ORCHESTRATION` | `MEDIA_VERIFICATION`、`BOUNDARY_CORRECTNESS` | Arca Aftercare playback verification | 活性、边界正确性、成品验证 | Critical | `FACT/FS/RESTART PASSED / CLOSED` |
 | UAT-118 | AVI转MKV后物理文件虽正确，Inventory与Material Control仍保留旧AVI Primary | `MATERIAL_CONTROL` | `INVENTORY_INTEGRITY`、`MEDIA_PRODUCTION` | Arca Aftercare Inventory replacement | 收藏健康、控制正确性、幂等 | Critical | `UI/FACT/FS/RESTART PASSED / CLOSED` |
+| UAT-119 | Frozen条目只有放弃路径，演员确实无外部资料或外部寻源耗尽时不能由用户显式接受瑕疵入库 | `BUSINESS_CONTRACT` | `AUTHORIZATION_FENCE`、`DOMAIN_ORCHESTRATION`、`USER_EXPERIENCE` | Libra Defect Admission + Handoff B + Arca Aftercare + Admin Web | 用户决断、事实真实性、活性、售后边界 | Critical | `IMPLEMENTED / TARGETED LOCAL PASS / ISOLATED CANARY PENDING` |
 
 ### 2.0.1 UAT-074–UAT-084必须保护的历史修复
 
@@ -3592,7 +3593,41 @@ Media Verify与前序Transcode在同一Work内，Foundation已把前序Result作
 
 v5最终物理目录只有728,533,253-byte MKV、NFO与图片，无AVI或superseded残留；revision 2恰有一个active Primary=MKV，旧AVI Control为released、新MKV由同一Shelf Entry controlled。Case为`resolved / reassessed_healthy`，Admin Web显示`694.8 MB · MKV`、豆瓣3星和三维健康；重启后所有计数不变。状态`UI/FACT/FS/RESTART PASSED / CLOSED`。
 
-## 116. 后续问题模板
+## 116. UAT-119：Frozen条目缺少用户显式瑕疵入库闭环
+
+问题分类：`BUSINESS_CONTRACT / AUTHORIZATION_FENCE / DOMAIN_ORCHESTRATION / USER_EXPERIENCE`
+
+用户侧现象：`一场很（没）有必要的春晚 (2022)`原NFO没有actor；TMDB movie 1030398的
+`credits.cast=[]`且crew有4人。Libra按当前Movie Shelf Standard正确识别演员缺口并冻结，但页面只能放弃整理；
+用户无法明确表示“我知道资料不完整，仍接受它成为收藏”。同样，原始媒体安全可播放但MoviePilot有界寻源
+耗尽时也只能冻结或放弃。
+
+历史漏项：UAT-092修复了可补演员时的NFO/TMDB补齐，UAT-106只保证TMDB零演员形成可行动Frozen终态；
+HB-B.12/HB-B.17只验收冻结与放弃，没有覆盖“外部现实确实为空”这一合法边界，也没有约束首次接纳豁免与
+Aftercare后续补齐策略必须使用同一授权事实。
+
+修复边界：Frozen只提供用户显式的同级动作`放弃整理`与`接受瑕疵`。V1 closed set为
+`actor_unavailable|external_source_exhausted`；授权绑定当前Run revision/digest、完整Terminal/Verification
+Evidence、acknowledgement与idempotency。Libra保留真实unmet Requirement，Package携带Authorized Defect
+Manifest；Arca独立验证实际Gap与授权集合精确相等后才形成`accepted_with_defects`并在On-deck Inventory保存
+Manifest。Aftercare从observed gaps中扣除已接纳集合，不补齐、不重试这两项，但仍处理其他新问题。Identity、
+结构、不可播放、Integrity、Binding、Containment、Control、stale、Shelf inactive、空间接管及未授权Gap不可豁免。
+
+UI验收：Frozen合法场景同时显示`接受瑕疵`和`放弃整理`；按钮文案不出现“重新入库”。放弃确认说明临时文件
+清理、原始媒体不删除且以后可能重新发现；瑕疵确认逐项显示原因。On-deck后收藏显示`瑕疵入库 · N项`。
+
+验收证据（2026-08-25，隔离开发分支）：UAT-119专项覆盖演员资料确实为空、外部寻源耗尽且原始媒体仅有白名单
+Gap、Provider断连/错误Capability/跨Run或不可豁免Gap拒绝、Arca精确集合验收、Aftercare只忽略授权Gap，以及旧
+Clean Schema到`defect_admitted`枚举的迁移；专项5/5通过。契约/路由/Schema聚焦门禁25/25通过，相关
+Libra Lifecycle、Metadata、Delivery、Handoff B与Aftercare回归72/72通过，Admin Web生产构建通过，
+Manifest集合与`git diff --check`通过。完整架构集仍有People公开包、Shelf Deregistration启动一致性及
+`execution-consistency-repair` P3基线失败，未把这些非UAT-119门禁误记为本功能通过。
+
+当前处理决定：Product Owner于2026-08-25确认上述业务决定，已回写SSOT与Beta HB-B.25–26/HB-D.05；
+实现与专项负向测试已完成，未经独立隔离Canary不得关闭或宣称生产验收完成。状态
+`IMPLEMENTED / TARGETED LOCAL PASS / ISOLATED CANARY PENDING`。
+
+## 117. 后续问题模板
 
 后续发现的问题按以下结构追加：
 
