@@ -142,11 +142,14 @@ function hasOpenExecution(works) {
 function hasBlockingExecution(works) {
   return works.some((work) => ['failed', 'blocked'].includes(work.state));
 }
+function isTerminalBusinessFailure(event) {
+  const value = event.result?.result;
+  if (event.capabilityRef === 'libra.product.conformance.verify@1') return value?.result === 'failed';
+  if (event.capabilityRef === 'libra.product_artifact.acquire@1') return value?.resultKind === 'not_available';
+  return false;
+}
 function hasBusinessFailure(works) {
-  return works.some((work) => work.events.some((event) => {
-    const value = event.result?.result;
-    return value?.result === 'failed' || value?.resultKind === 'not_available';
-  }));
+  return works.some((work) => work.events.some(isTerminalBusinessFailure));
 }
 function waitsForExternalIntegration(works, integrationReady) {
   if (integrationReady !== false) return false;
@@ -174,6 +177,7 @@ function classifyFormation({ run, works, issue, recovery, arcaStatus, productPac
   if (productPackage || arcaStatus?.stage === 'in_progress' || hasOpenExecution(works)) return 'in_progress';
   if (waitingExternalIntegration) return 'pending';
   if (hasBlockingExecution(works) || hasBusinessFailure(works)) return 'attention_required';
+  if (run?.state === 'active') return 'in_progress';
   return 'pending';
 }
 function extractAcquisitionSelection(works) {
@@ -241,7 +245,7 @@ function nextAction(works, classification, issue, runState, recovery, arcaStatus
   if (waitingExternalIntegration) return Object.freeze({
     label: '等待配置外部获取服务后继续整理', state: 'waiting_external', progress: null,
   });
-  const businessFailure = latestEvent(works, (event) => eventState(event) === 'blocked');
+  const businessFailure = latestEvent(works, isTerminalBusinessFailure);
   if (businessFailure?.capabilityRef === 'libra.product.conformance.verify@1') {
     const codes = businessFailure.result?.result?.unmetRequirementCodes || [];
     return Object.freeze({ label: codes.includes('metadata_field_unmet')
@@ -252,7 +256,8 @@ function nextAction(works, classification, issue, runState, recovery, arcaStatus
   }
   if (hasBlockingExecution(works) || businessFailure) return Object.freeze({ label: '媒体整理执行失败，需要处理', state: 'blocked', progress: null });
   if (!open && productPackage) return Object.freeze({ label: arcaStatus ? '正在完成收藏架上架' : '等待收藏架验收', state: 'running', progress: null });
-  if (!open) return Object.freeze({ label: classification === 'pending' ? '正在确认目标、评分、要求或身份' : '准备下一项整理工作', state: 'pending', progress: null });
+  if (!open) return Object.freeze({ label: runState === 'active' ? '准备下一项整理工作' :
+    classification === 'pending' ? '正在确认目标、评分、要求或身份' : '准备下一项整理工作', state: 'pending', progress: null });
   throw new Error('Formation next action reached an impossible open-work branch.');
 }
 

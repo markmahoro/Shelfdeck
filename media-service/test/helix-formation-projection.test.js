@@ -205,11 +205,11 @@ test('execution progress converts SQLite safe integers before Formation JSON pro
   assert.doesNotThrow(()=>canonicalJson(progress));
 });
 
-test('Formation four-bucket classification requires Arca commit for completion and current open execution for progress',()=>{
+test('Formation four-bucket classification requires Arca commit and keeps an active Run in progress between stages',()=>{
   const historicalSuccess=[{state:'succeeded',events:[{state:'succeeded'}]}];
   assert.equal(classifyFormation({run:{state:'frozen'},works:historicalSuccess,issue:null,recovery:null,arcaStatus:null,productPackage:null}),'attention_required');
   assert.equal(classifyFormation({run:{state:'active'},works:[{state:'running',events:[{state:'executing'}]}],issue:null,recovery:null,arcaStatus:null,productPackage:null}),'in_progress');
-  assert.equal(classifyFormation({run:{state:'active'},works:[{state:'succeeded',events:[{state:'failed'},{state:'succeeded'}]}],issue:null,recovery:null,arcaStatus:null,productPackage:null}),'pending');
+  assert.equal(classifyFormation({run:{state:'active'},works:[{state:'succeeded',events:[{state:'failed'},{state:'succeeded'}]}],issue:null,recovery:null,arcaStatus:null,productPackage:null}),'in_progress');
   assert.equal(classifyFormation({run:null,works:[],issue:null,recovery:null,arcaStatus:null,productPackage:null}),'pending');
   assert.equal(classifyFormation({run:null,works:[],issue:null,recovery:null,arcaStatus:null,productPackage:{offerId:'offer'}}),'in_progress');
   assert.equal(classifyFormation({run:null,works:[],issue:null,recovery:null,arcaStatus:{stage:'completed'},productPackage:{offerId:'offer'}}),'completed');
@@ -230,6 +230,34 @@ test('a current successor Work stays in progress while an earlier strategy Work 
   assert.deepEqual(organizingSteps(works).map(({key,state})=>({key,state})),[
     {key:'transcode',state:'running'},{key:'verify',state:'pending'},
   ]);
+});
+
+test('a passed successor media verification suppresses an obsolete direct-candidate failure during the promotion gap',()=>{
+  const rejectedDirect={workId:'direct-work',workKind:'workspace_media_production',state:'succeeded',createdAtMs:10,events:[{
+    eventId:'direct-verify',capabilityRef:'libra.product_media.verify@1',state:'succeeded',progress:null,
+    result:{outcomeKind:'succeeded',committedAtMs:20,result:{result:'failed',reasonCodes:['video_codec_unmet']}},
+  }]};
+  const acceptedTranscode={workId:'transcode-work',workKind:'workspace_media_production',state:'succeeded',createdAtMs:30,events:[{
+    eventId:'transcode-verify',capabilityRef:'libra.product_media.verify@1',state:'succeeded',progress:null,
+    result:{outcomeKind:'succeeded',committedAtMs:40,result:{result:'passed',reasonCodes:[]}},
+  }]};
+  const works=[rejectedDirect,acceptedTranscode];
+  assert.equal(classifyFormation({run:{state:'active'},works,issue:null,recovery:null,arcaStatus:null,productPackage:null}),'in_progress');
+  assert.deepEqual(nextAction(works,'in_progress',null,'active',null,null,null,null),{
+    label:'准备下一项整理工作',state:'pending',progress:null,
+  });
+});
+
+test('a final product conformance failure remains an explicit Formation attention state',()=>{
+  const conformanceFailure={workId:'conformance-work',workKind:'product_conformance',state:'succeeded',createdAtMs:50,events:[{
+    eventId:'conformance-verify',capabilityRef:'libra.product.conformance.verify@1',state:'succeeded',progress:null,
+    result:{outcomeKind:'succeeded',committedAtMs:60,result:{result:'failed',unmetRequirementCodes:['metadata_field_unmet']}},
+  }]};
+  const works=[conformanceFailure];
+  assert.equal(classifyFormation({run:{state:'active'},works,issue:null,recovery:null,arcaStatus:null,productPackage:null}),'attention_required');
+  assert.deepEqual(nextAction(works,'attention_required',null,'active',null,null,null,null),{
+    label:'媒体产品验收未通过：缺少要求的资料',state:'blocked',progress:null,
+  });
 });
 
 test('durable Formation projection pages active rows in stable Subject intake order',()=>{
