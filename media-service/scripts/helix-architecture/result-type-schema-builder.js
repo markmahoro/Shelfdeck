@@ -1071,7 +1071,15 @@ function onDeckProductPackageSchema() {
     acceptanceSpecId: id(), acceptanceSpecRecordDigest: digest(),
     productConformanceEvidenceId: id(), productConformanceEvidenceDigest: digest(),
     evaluatedRequirementSetDigest: digest(), productSnapshotDigest: digest(),
-    unmetRequirementCount: { const: 0 }, attestedAtMs: nonNegativeInteger(),
+    unmetRequirementCount: nonNegativeInteger(),
+    unmetRequirementCodes: arrayOf(enumText(
+      'metadata_field_unmet', 'video_codec_unmet', 'container_unmet',
+      'file_extension_unmet', 'minimum_raster_unmet', 'system_upscale_forbidden',
+      'primary_audio_unmet', 'max_size_exceeded', 'dynamic_range_conversion_unmet',
+      'output_color_profile_unmet', 'dolby_vision_metadata_not_removed'), 12),
+    acceptanceKind: enumText('accepted', 'accepted_with_defects'),
+    authorizedDefectManifest: nullable({ $ref: 'helix://contracts/application-types/AuthorizedDefectManifest/v1' }),
+    attestedAtMs: nonNegativeInteger(),
     attestationDigest: digest()
   });
   const resolvedIdentitySnapshot = object({

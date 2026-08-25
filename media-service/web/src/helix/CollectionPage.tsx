@@ -92,8 +92,9 @@ export default function CollectionPage() {
   const selectedShelf = shelves.find((item) => item.shelfId === shelfId);
   const currentCount = selectedShelf ? selectedShelf.currentCount : summary.currentCount;
   const historyCount = selectedShelf ? selectedShelf.historyCount : summary.historyCount;
-  const latestTerminalCase = care?.history.cases.filter((item) => ['invalidated', 'unresolved'].includes(item.state) && item.terminalAtMs != null)
+  const latestTerminalCase = care?.history.cases.filter((item) => item.careBasisDigest === care.basis.careBasisDigest && ['invalidated', 'unresolved'].includes(item.state) && item.terminalAtMs != null)
     .sort((left, right) => Number(right.terminalAtMs) - Number(left.terminalAtMs))[0] || null;
+  const currentFindings = care ? Object.values(care.health.dimensions || {}).flatMap((dimension) => dimension.findings || []) : [];
   async function checkHealth() {
     if (!selected) return;
     setChecking(true); setError('');
@@ -130,7 +131,7 @@ export default function CollectionPage() {
       <div className="collection-library-heading"><div><h2 id="collection-heading">收藏条目</h2></div><span>{filtered.length} 部</span></div>
       {filtered.length === 0 ? <div className="source-empty"><strong>{items.length === 0 ? '还没有正式上架的电影' : '当前筛选没有收藏'}</strong><p>{items.length === 0 ? '整理完成后会显示在这里。' : '试试其他健康筛选。'}</p></div> : <div className="poster-wall">{filtered.map((item) => <button className="poster-tile" key={item.shelfEntryId} onClick={() => setSelected(item)} aria-label={`查看 ${item.displayIdentity} 详情，收藏健康：${healthLabels[item.health.state]}`}>
         <span className="poster-frame">{item.hasPoster ? <img src={helixAdminApi.collectionPosterUrl(item.shelfEntryId)} alt="" loading="lazy" /> : <span className="poster-fallback" aria-hidden="true"><b>{item.displayIdentity.slice(0, 2)}</b><small>ShelfDeck</small></span>}<span className={`health-seal ${item.health.state}`} title={healthLabels[item.health.state]} aria-hidden="true">{healthLabels[item.health.state].slice(0, 1)}</span></span>
-        <span className="poster-caption"><strong>{item.displayIdentity}</strong><small>{item.year || '年份未知'} · {item.shelfName}</small></span>
+        <span className="poster-caption"><strong>{item.displayIdentity}</strong><small>{item.year || '年份未知'} · {item.shelfName}</small>{item.defectAdmission&&<small>瑕疵入库 · {item.defectAdmission.defectCount}项</small>}</span>
       </button>)}</div>}
     </section>
     {selected && <div className="collection-dialog-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setSelected(null); }}>
@@ -142,6 +143,7 @@ export default function CollectionPage() {
           <h2 id="collection-dialog-title">{selected.displayIdentity}</h2>
           <p className="collection-dialog-meta">{selected.year || '年份未知'} · {selected.genres.length ? selected.genres.join(' / ') : '类型未记录'}</p>
           <p className="collection-dialog-overview">{selected.overview || '暂无剧情简介。'}</p>
+          {selected.defectAdmission&&<p className="form-notice">瑕疵入库 · {selected.defectAdmission.defectCount}项</p>}
           {selected.people.length > 0 && <dl className="collection-people"><dt>演职人员</dt><dd>{selected.people.slice(0, 12).map((person) => person.displayName).join('、')}</dd></dl>}
           <dl className="collection-facts">
             <div><dt>收藏架</dt><dd>{selected.shelfName}</dd></div>
@@ -161,7 +163,7 @@ export default function CollectionPage() {
               <div className="health-dimensions">{(['custody', 'presentation', 'conformance'] as const).map((kind) => <article key={kind}><strong>{dimensionLabels[kind]}</strong><span>{healthLabels[care.health.dimensions?.[kind]?.state || 'never_assessed']}</span><small>{care.health.dimensions?.[kind]?.assessedAtMs ? new Date(care.health.dimensions[kind].assessedAtMs!).toLocaleString() : '尚未检查'}</small></article>)}</div>
                {care.activeCaseProgress && <div className="health-case-progress"><div><strong>自动修复进行中</strong><span>{care.activeCaseProgress.progressPercent == null ? (careStageLabels[care.activeCaseProgress.stage] || '处理中') : `${care.activeCaseProgress.progressPercent}%`}</span></div>{care.activeCaseProgress.progressPercent != null && <progress max="100" value={care.activeCaseProgress.progressPercent} aria-label={`自动修复进度 ${care.activeCaseProgress.progressPercent}%`} />}</div>}
                {!care.activeCaseProgress && latestTerminalCase?.terminalReasonCode && <div className="health-findings"><strong>最近一次自动修复未完成</strong><p>{terminalReasonLabels[latestTerminalCase.terminalReasonCode] || `原因：${latestTerminalCase.terminalReasonCode}`}</p></div>}
-              {care.history.findings.filter((item) => item.state === 'open').length > 0 && <div className="health-findings"><strong>当前发现</strong>{care.history.findings.filter((item) => item.state === 'open').map((item) => <p key={item.findingId}>{item.findingKind}</p>)}</div>}
+              {currentFindings.length > 0 && <div className="health-findings"><strong>当前发现</strong>{currentFindings.map((item) => <p key={item.findingId}>{item.findingKind}</p>)}</div>}
               <details><summary>技术标识</summary><p className="health-basis">条目 {selected.shelfEntryId}</p></details>
             </>}
           </section>

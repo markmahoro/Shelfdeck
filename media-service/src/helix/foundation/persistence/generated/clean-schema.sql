@@ -2113,7 +2113,7 @@ CREATE TABLE "libra_run_revisions" (
   "run_scope_digest" TEXT CHECK (length("run_scope_digest") = 64 AND "run_scope_digest" NOT GLOB '*[^0-9a-f]*'),
   "priority_class" TEXT,
   "priority_intent_digest" TEXT CHECK (length("priority_intent_digest") = 64 AND "priority_intent_digest" NOT GLOB '*[^0-9a-f]*'),
-  "transition_kind" TEXT CHECK ("transition_kind" IN ('admitted', 'freshness_confirmed', 'suspended', 'recovery_reassessed', 'resumed', 'reprioritized', 'superseded', 'frozen', 'discarded', 'completed')),
+  "transition_kind" TEXT CHECK ("transition_kind" IN ('admitted', 'freshness_confirmed', 'suspended', 'recovery_reassessed', 'resumed', 'reprioritized', 'superseded', 'frozen', 'defect_admitted', 'discarded', 'completed')),
   "transition_decision_id" TEXT,
   "transition_decision_digest" TEXT CHECK (length("transition_decision_digest") = 64 AND "transition_decision_digest" NOT GLOB '*[^0-9a-f]*'),
   "transition_evidence_schema_ref" TEXT,

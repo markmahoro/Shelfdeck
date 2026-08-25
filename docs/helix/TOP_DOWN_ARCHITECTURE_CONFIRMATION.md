@@ -3990,7 +3990,7 @@ Acceptance Spec仍无法交付时，Libra把对应Run置为frozen。冻结合同
 - Integration、Provider、Capability或Runtime后来恢复都不能自动把Run从frozen变回活动状态；
 - Policy、Perception或Identity变化即使足以产生不同Spec，也不能绕过用户决断自动替换frozen Run。
 
-frozen只有一个允许的后续用户决定：**放弃本次处理并重新入库**。该决定原子地完成：
+frozen只允许两个同级、互斥且必须由用户显式作出的后续决定：**放弃整理**或**接受瑕疵**；系统不得自动选择、批量选择或把其中任一项设为默认动作。`放弃整理`原子地完成：
 
 ~~~text
 frozen Libra Run
@@ -4006,9 +4006,9 @@ Run、Candidate Package以及相应的新Subject/Libra Run；旧Spec、旧进度
 流程的业务事实。single通常随该范围释放而终结Subject当前责任；Series Season只释放被冻结Run的
 Episode Delivery Manifest范围，其他已经On-deck或仍由其他有效Run承担的Episode不受影响。
 
-frozen Run数量和原因分布是有效的Capability/Integration建设反馈。系统应能投影该积压，但不得通过
-后台自动唤醒、静默重开Run、释放锁或隐藏记录来降低数字。精确重试预算、进入frozen的状态迁移、用户
-操作授权与Workspace GC属于Level 6、Level 8–10；上述单向业务语义不得被后续Level改变。
+frozen Run数量和原因分布是有效的Capability/Integration建设反馈。`接受瑕疵`只在当前frozen revision及完整Terminal Evidence确定性证明V1 closed set时可用：`actor_unavailable`要求Related NFO无actor且唯一Provider Metadata Result成功但actor集合为空（断连、认证、超时或Result缺失不算）；`external_source_exhausted`要求原始Primary的冻结Probe证明可读、可播放且无Integrity/Binding/Containment问题，MoviePilot配置上限耗尽仍无合格候选，且最终只能接纳该原始Primary。
+用户决定形成immutable `Authorized Defect Manifest`，逐项保存实际Gap、原Terminal/Verification Evidence、frozen Run revision/digest、actor、acknowledgement、idempotency identity和完整digest；它以CAS进入受约束的`defect_admitting`生产分支，实现可复用active调度但revision必须显式记录`defect_admitted`，普通Lifecycle/Run Creator不得解释为自动恢复；Product Conformance仍保存真实unmet Requirement，Promotion只允许`actual unmet set == authorized set`且Manifest仍与当前Run/Spec/Product snapshot一致。
+Identity unresolved、结构错误、Primary不可播放、Integrity、Binding、Containment、Control、stale basis、Shelf inactive、空间接管失败或其他未授权Gap均不可豁免；两个V1瑕疵可同Manifest出现，第三类Gap不得提交。系统应投影frozen积压但不得自动唤醒、静默重开Run、释放锁或隐藏记录；精确重试预算、状态迁移、用户授权与Workspace GC属于Level 6、Level 8–10，上述单向业务语义不得被后续Level改变。
 
 ### 5.7 Arca Shelf Acceptance Decision
 
@@ -4034,9 +4034,9 @@ Shelf Acceptance先验证前五类产品Requirement，并对Inventory Requiremen
 可解析性和标准Off-load事务Readiness检查；On-deck Commit在事务完成后验证最终location、layout、Material
 完整性与Binding Health。两次验证消费同一Shelf Standard和Placement Policy，不构成两套Policy或六个顺序Gate。
 
-只有产品Requirement通过、Final Inventory Decision唯一、标准Off-load事务可执行且revision一致，Shelf Acceptance Decision才能是
-accepted。任一必要Requirement不通过或缺乏足够Evidence，Decision必须是rejected并保留Structured
-Rejection。Accepted后不能再次改判Rejected；Off-load或最终Inventory提交失败由Arca On-deck Run负责恢复。
+只有产品Requirement通过，或唯一未满足集合被当前、完整、可重建的`Authorized Defect Manifest`逐项覆盖，且Final Inventory Decision唯一、标准Off-load事务可执行、revision一致，Shelf Acceptance Decision才能是`accepted`或`accepted_with_defects`。
+Arca必须独立重验Manifest与实际Gap；Libra用户授权不能替代Identity、Structure、可播放性、Integrity、Binding、Containment、Control、Space和freshness检查。其他任一必要Requirement不通过或缺乏足够Evidence，Decision必须是rejected并保留Structured Rejection。
+Accepted后不能再次改判Rejected；Off-load或最终Inventory提交失败由Arca On-deck Run负责恢复。
 
 #### 5.7.3 Structured Rejection使用稳定业务类别
 
@@ -4105,11 +4105,11 @@ Process Root或Run。Aftercare内部健康评估至少读取：
 - 当前Shelf Placement Policy revision及Inventory是否符合其Final Inventory结果；
 - Inventory Representation、Binding Health、On-deck留下的已知历史Custody Binding与现实承载Evidence；
 - Product Metadata和其他Standard明确要求的当前事实；
-- 相关Aftercare Assessment/Case结果。
+- 相关Aftercare Assessment/Case结果，以及On-deck Commit保存的`Authorized Defect Manifest`（若有）。
 
-评估形成Aftercare拥有的Assessment Evidence和Care Gap；Shelf Health Projection只是把当前结论、原因、
-Evidence freshness与Care状态投影给用户和Arca内部消费者。它不启动跨域流程、不修改Shelf Entry、不
-直接进入Off-deck，也不重新打开历史Libra Run。
+评估形成Aftercare拥有的Assessment Evidence和Care Gap；Shelf Health Projection只是把当前结论、原因、Evidence freshness与Care状态投影给用户和Arca内部消费者。Aftercare对已接纳瑕疵使用集合差：`actionableFindings = observedGaps - admittedDefects`；精确匹配的演员或媒体Gap只保留审计事实与“瑕疵入库 · N项”标签，不建Case、不补齐、不重试Provider/外部寻源，也不投影为需要处理。
+现实中新出现的Custody、Presentation、Conformance问题或任何Manifest外Gap仍按普通Aftercare合同处理，不得因一个接纳瑕疵忽略整个Entry；
+它不启动跨域流程、不修改Shelf Entry、不直接进入Off-deck，也不重新打开历史Libra Run。
 
 Top-down验证Shelf Entry的现实承载，以及根据Arca已经拥有的Inventory Representation对已知Endpoint、
 location和Material成员执行有界现实核对，都是Aftercare取得Assessment Evidence的内部手段。这里的
@@ -5739,7 +5739,7 @@ Decision必须一次性覆盖全部必要Requirement。
 
 | Attempt result | Business consequence |
 | --- | --- |
-| accepted | 原子建立On-deck Run、On-deck Material Custody、精确Control transfer与Handoff Receipt；不建立Shelf Entry |
+| accepted / accepted_with_defects | 普通accepted要求无Gap；accepted_with_defects要求Arca独立证明实际Gap与用户授权Manifest精确相等并保存Manifest为Accepted Inventory Fact；两者都原子建立On-deck Run、Custody、精确Control transfer与Handoff Receipt，不建立Shelf Entry |
 | rejected | 不建立On-deck Run、不取得Control，保存Structured Rejection与Evidence |
 | waiting | 仅表示必要Evidence的有界取得尚未完成，不形成伪Accepted/Rejected |
 
@@ -9370,7 +9370,7 @@ Plan node input/parameter/Fence/Resource Demand的具体JSON不直接重复存�
 | `libra_subject_decision_heads` | `subject_id PK/FK, head_revision, head_digest, current_routing_decision_id NULL FK, current_decision_basis_id NULL FK, current_acceptance_spec_id NULL FK, updated_at_ms` | Subject刚Accepted时允许无row；首次Decision Basis Commit以logical expected revision 0原子建立revision 1，后续每次pointer切换expected CAS并加1；row存在时current Basis必须非NULL，current Routing非NULL时Basis也必须非NULL，current Spec非NULL时Routing/Basis都必须非NULL；`head_digest=SHA-256(JCS({schema:"libra.subject-decision-head@1",subjectId,headRevision,currentRoutingDecisionId,currentDecisionBasisId,currentAcceptanceSpecId}))`；Automation/Run Creator只读head，不按时间戳猜revision |
 | `libra_run_admission_heads` | `subject_id PK/FK, head_revision, active_scope_set_digest, updated_at_ms` | Subject没有Run时允许无row并以logical revision 0/空set验证；该logical 0不建立sentinel row，实际row的`head_revision`为正整数并从1开始；每次Run admission/replacement、全部Lifecycle transition及Discard都对expected head CAS并加1，因为active scope set同时绑定member Run的state revision/digest；`active_scope_set_digest=SHA-256(JCS({schema:"libra.active-run-scopes@1",subjectId,items:[{libraRunId,runScopeDigest,stateRevision,stateDigest}]按libraRunId UTF-8 bytes排序}))`，只收录具有最终提交资格的`active|suspended|frozen` Run；不能按时间戳或扫描Supporting Work猜current scope |
 | `libra_runs` | `libra_run_id PK, subject_id FK, admission_revision, acceptance_spec_id FK, run_material_manifest_id FK, execution_basis_schema_ref, execution_basis_record_json, execution_basis_digest, run_scope_digest, state(active|suspended|superseded|frozen|discarded|completed), state_revision, state_digest, package_revision_head INTEGER, priority_class(normal|expedited), priority_intent_digest, recovery_policy_ref NULL, recovery_policy_digest NULL, suspension_started_at_ms NULL, recovery_attempt_ordinal INTEGER, recovery_next_due_at_ms NULL, latest_freshness_assessment_id NULL, latest_freshness_assessment_digest NULL, supersedes_run_id NULL FK, superseded_by_run_id NULL FK, created_at_ms, terminal_at_ms NULL` | `run_material_manifest_id`与Manifest回指Run的复合建立使用`DEFERRABLE INITIALLY DEFERRED` FK并在事务commit前完整验证，禁止nullable后补。`execution_basis_schema_ref=LibraRunExecutionBasisRecord@1`且typed JSON≤`1 MiB`，保存除大Manifest成员外的完整冻结Basis及Manifest ref；与Manifest relation展开后必须重算同一execution basis digest。`UNIQUE(subject_id,admission_revision)`及`UNIQUE(subject_id,acceptance_spec_id,run_scope_digest,admission_revision)`；current aggregate row使用`rowMutability=cas_lifecycle`：每次state/priority/freshness/recovery变化必须同时追加`libra_run_revisions`，Deliverable Promotion只允许expected `package_revision_head` CAS加1且不得改state；`package_revision_head`固定为`INTEGER NOT NULL DEFAULT 0 CHECK(package_revision_head >= 0)`，Run Admission初值0，每次Promotion以expected数值CAS后加1，禁止物化为TEXT或从时间戳推导。Admission固定`recovery_attempt_ordinal=0`且其余recovery/freshness列为NULL；首次`suspended`写固定Policy、start、attempt 0、首个next due与Assessment pair；`suspended`要求attempt `0..4`且next due非NULL，每次unresolved恢复点CAS递增attempt并更新next due；第5次仍unresolved原子进入`frozen`、attempt=5且next due=NULL；`active`不得有next due，resume后保留latest Assessment及历史Policy/start/attempt供审计但下一次suspend按新Evidence重置恢复episode；`frozen`不得被Lifecycle或Run Creator自动恢复。`terminal_at_ms`仅`completed|superseded|discarded`非NULL，其他状态为NULL；same-spec/scope semantic replay返回原Run，新的合法replacement使用新admission revision；`INDEX(state,recovery_next_due_at_ms,priority_class,created_at_ms)` |
-| `libra_run_revisions` | `libra_run_id FK, state_revision, state, acceptance_spec_id FK, execution_basis_digest, run_scope_digest, priority_class, priority_intent_digest, transition_kind(admitted|freshness_confirmed|suspended|recovery_reassessed|resumed|reprioritized|superseded|frozen|discarded|completed), transition_decision_id, transition_decision_digest, transition_evidence_schema_ref, transition_evidence_id, transition_evidence_json, transition_evidence_digest, recovery_policy_ref NULL, recovery_policy_digest NULL, suspension_started_at_ms NULL, recovery_attempt_ordinal INTEGER, recovery_next_due_at_ms NULL, expected_admission_head_revision INTEGER, expected_active_scope_set_digest, committed_admission_head_revision INTEGER, committed_active_scope_set_digest, previous_state_revision NULL, revision_digest, committed_at_ms` | `PK(libra_run_id,state_revision)`；revision从1连续且append-only；`expected_admission_head_revision`固定为`INTEGER NOT NULL CHECK(expected_admission_head_revision >= 0)`，只有initial Admission的首条Run revision允许0并逐字节保存absent pre-CAS snapshot；replacement及全部后续Lifecycle/Discard revision必须为正整数。`transition_evidence_json`保存与schema/id/digest逐字节匹配的完整typed Evidence，JCS bytes≤`1 MiB`；Admission Evidence可使用bounded Admission Decision snapshot，freshness variants必须是`LibraRunFreshnessAssessment@1`，直接active→frozen必须是`LibraRunTerminalDeliveryEvidence@1`，reprioritized必须是`LibraRunPriorityIntent@1`，completed必须是`ArcaProductAcceptedMessage@1`，不得仅保存opaque ref。`freshness_confirmed`保持active，`recovery_reassessed`保持suspended并使attempt严格加1；其他closed transition按8.6.21执行。`committed_admission_head_revision`固定为`INTEGER NOT NULL CHECK(committed_admission_head_revision >= 1)`；Admission/replacement两个Run revision都绑定同一Admission Decision，Lifecycle/Discard绑定各自Decision；expected/committed head及recovery snapshot永久保存pre/post CAS，不能从later current head或state revision数量反推；`revision_digest=SHA-256(JCS(完整business value excluding revisionDigest))`；current Run的state/priority/recovery字段由最高state revision重建，独立`package_revision_head`由immutable Package revisions（无Package时为数值0）重建；不从Foundation Result恢复 |
+| `libra_run_revisions` | `libra_run_id FK, state_revision, state, acceptance_spec_id FK, execution_basis_digest, run_scope_digest, priority_class, priority_intent_digest, transition_kind(admitted|freshness_confirmed|suspended|recovery_reassessed|resumed|reprioritized|superseded|frozen|defect_admitted|discarded|completed), transition_decision_id, transition_decision_digest, transition_evidence_schema_ref, transition_evidence_id, transition_evidence_json, transition_evidence_digest, recovery_policy_ref NULL, recovery_policy_digest NULL, suspension_started_at_ms NULL, recovery_attempt_ordinal INTEGER, recovery_next_due_at_ms NULL, expected_admission_head_revision INTEGER, expected_active_scope_set_digest, committed_admission_head_revision INTEGER, committed_active_scope_set_digest, previous_state_revision NULL, revision_digest, committed_at_ms` | `PK(libra_run_id,state_revision)`；revision从1连续且append-only；`expected_admission_head_revision`固定为`INTEGER NOT NULL CHECK(expected_admission_head_revision >= 0)`，只有initial Admission的首条Run revision允许0并逐字节保存absent pre-CAS snapshot；replacement及全部后续Lifecycle/Discard revision必须为正整数。`transition_evidence_json`保存与schema/id/digest逐字节匹配的完整typed Evidence，JCS bytes≤`1 MiB`；Admission Evidence可使用bounded Admission Decision snapshot，freshness variants必须是`LibraRunFreshnessAssessment@1`，直接active→frozen必须是`LibraRunTerminalDeliveryEvidence@1`，`defect_admitted`必须是当前frozen revision对应且由用户确认的`AuthorizedDefectManifest@1`，reprioritized必须是`LibraRunPriorityIntent@1`，completed必须是`ArcaProductAcceptedMessage@1`，不得仅保存opaque ref。`freshness_confirmed`保持active，`recovery_reassessed`保持suspended并使attempt严格加1；其他closed transition按8.6.21执行。`committed_admission_head_revision`固定为`INTEGER NOT NULL CHECK(committed_admission_head_revision >= 1)`；Admission/replacement两个Run revision都绑定同一Admission Decision，Lifecycle/Discard绑定各自Decision；expected/committed head及recovery snapshot永久保存pre/post CAS，不能从later current head或state revision数量反推；`revision_digest=SHA-256(JCS(完整business value excluding revisionDigest))`；current Run的state/priority/recovery字段由最高state revision重建，独立`package_revision_head`由immutable Package revisions（无Package时为数值0）重建；不从Foundation Result恢复 |
 | `libra_run_discard_decisions` | `discard_decision_id PK, libra_run_id FK, expected_run_state_revision, expected_run_state_digest, run_scope_digest, input_control_scope_digest, workspace_cleanup_scope_id NULL FK, workspace_cleanup_member_set_digest, actor_id, idempotency_key, decision_digest, decided_at_ms` | `UNIQUE(libra_run_id)`及`UNIQUE(actor_id,idempotency_key)`；immutable；只允许当前`frozen` Run建立；没有Workspace Reference时scope ID为NULL且member set为正式empty digest；非空时从同事务Cleanup Scope/member rows重建Draft；`decisionDigest`按8.6.21完整typed value唯一计算 |
 | `libra_run_discard_receipts` | `receipt_id PK, discard_decision_id FK, libra_run_id FK, committed_run_state_revision, released_input_control_set_digest, cleanup_scope_id NULL FK, cleanup_member_set_digest, commit_digest, committed_at_ms` | `UNIQUE(discard_decision_id)`；与Run terminal/admission head、原始Input Control release及非空Cleanup Scope同事务；没有Workspace Reference时`cleanup_scope_id=NULL`且member set为empty-set digest，不能为满足FK虚构Workspace/Scope；完整结果只从这些Owner/Control rows重建 |
 | `libra_run_material_manifests` | `run_material_manifest_id PK, libra_run_id FK UNIQUE, manifest_role(run_input), scope_kind(single|episode_delivery), manifest_revision(1), member_count, member_set_digest, episode_scope_digest, manifest_digest, published_at_ms` | immutable；由Run Admission从current Libra Binding/Episode relation建立并成为`LibraRunExecutionBasis@1`组成部分；不是上游Candidate Manifest alias；single的episode scope为空 |
@@ -13008,8 +13008,11 @@ revision中，可通过“恢复为新revision”复用，但不能暗中继续�
   structural dependency和exclusive Related分别显示数量、当前位置、source-to-final结果与将执行的
   `carried_forward|replaced_and_settled`动作；目录、未来材料、ambiguous/shared Related不在范围内，任何成员或
   映射变化都使旧确认失效；
-- `放弃本次处理并重新入库`只在frozen Run出现，必须说明当前Workspace中间产物将被清理、Primary Control
-  将释放并可能被Procurement作为全新材料再次处理；源文件本身不会因为discard被删除；
+- `放弃整理`只在frozen Run出现；确认文案说明本次整理结束、Workspace中间产物会被清理、原始媒体不删除，
+  以后仍可能被重新发现并开始新的整理；
+- `接受瑕疵`只在frozen Run的当前Evidence完全属于`actor_unavailable|external_source_exhausted`时出现；确认页
+  逐项展示将被接纳的实际Gap，Command必须携带当前Run revision/digest、候选Manifest revision/digest、明确
+  acknowledgement和idempotency key。成功后页面显示`瑕疵入库 · N项`；不可豁免或新增Gap必须拒绝旧确认；
 - 评分与已看操作只写User Perception，不被包装成“重新计算”或“启动维护”按钮。
 
 Formation没有用户Pause、Start Task、Retry Event、Execute Next Gate、选择Flow/Capability或Task级Priority。
@@ -13372,6 +13375,8 @@ POST /v1/admin/formation/subjects/:subjectId/actions/abandon
 POST /v1/admin/formation/runs/:libraRunId/actions/expedite
 POST /v1/admin/formation/runs/:libraRunId/actions/cancel-expedite
 POST /v1/admin/formation/runs/:libraRunId/actions/discard
+GET  /v1/admin/formation/runs/:libraRunId/defect-admission-candidate
+POST /v1/admin/formation/runs/:libraRunId/actions/admit-with-defects
 POST /v1/admin/formation/runs/:libraRunId/actions/choose-product-identity
 POST /v1/admin/formation/acceptance/:offerId/actions/retry
 POST /v1/admin/formation/on-deck-runs/:onDeckRunId/actions/approve-input-settlement

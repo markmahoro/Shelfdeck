@@ -109,6 +109,11 @@ function createArcaCollectionQuery(options) {
     const materials=caches?(caches.materials.get(key)||[]):repo.invoke('list_materials',{shelf_entry_id:row.shelf_entry_id,inventory_revision:revision});
     const occupancy=occupancyFromMaterials(materials);
     const spec=videoSpecFromFacts(facts);
+    const defectManifest=facts.find((item)=>item.factKind==='authorized_defect_manifest')?.factValue||null;
+    const defectAdmission=defectManifest?Object.freeze({
+      defectCount:Number(defectManifest.defectCount)||0,
+      defects:Object.freeze([...(defectManifest.defects||[])]),
+    }):null;
     return Object.freeze({shelfEntryId:row.shelf_entry_id,shelfId:row.shelf_id,shelfName:shelf?.name||row.shelf_id,structureKind:row.structure_kind,status:row.status,
       canonicalIdentityRevision:Number(row.canonical_identity_revision),canonicalIdentityKey:row.canonical_identity_key,
       provider:identity.provider,providerKey:identity.provider_key,identityKind:identity.identity_kind,identityDigest:identity.identity_digest,
@@ -116,7 +121,7 @@ function createArcaCollectionQuery(options) {
       overview:descriptive.get('overview')||descriptive.get('plot')||null,genres:Object.freeze(genres),people:Object.freeze(people),
       hasPoster:occupancy.hasPoster,hasNfo:occupancy.hasNfo,occupancyBytes:occupancy.occupancyBytes,
       primaryVideoBytes:occupancy.primaryVideoBytes,primaryContainer:occupancy.primaryContainer,
-      videoCodec:spec.codec,videoRaster:spec.raster,
+      videoCodec:spec.codec,videoRaster:spec.raster,defectAdmission,
       currentInventoryRevision:revision,currentDeckFactRevision:Number(row.current_deck_fact_revision),
       createdAtMs:Number(row.created_at_ms),terminalAtMs:row.terminal_at_ms===null?null:Number(row.terminal_at_ms)});}
   const emptyHealth=Object.freeze({state:'never_assessed'});

@@ -4,8 +4,14 @@ const { canonicalDigest } = require('../../../contracts/canonical-json');
 const { createRepositoryDefinition } = require('../../../foundation/persistence/owner-repository');
 const { buildRunLifecycleDecision } = require('../model/run-lifecycle-contracts');
 const { buildRunDiscardCommand } = require('../model/run-discard-contracts');
+const {
+  SCHEMA_REF: DEFECT_MANIFEST_SCHEMA,
+  buildAuthorizedDefectManifest,
+  buildDefectAdmissionCandidate,
+} = require('../model/defect-admission-contracts');
 const { createRunDiscardStore } = require('../persistence/run-discard-store');
 const { createRunLifecycleStore } = require('../persistence/run-lifecycle-store');
+const { createWorkResultReader } = require('../../../foundation/execution/work-result-reader');
 
 class LibraRunAdminError extends Error {
   constructor(code, message, details = {}) {
@@ -28,6 +34,7 @@ function createLibraRunAdminService(options) {
   }
   const lifecycle = createRunLifecycleStore(options);
   const discardStore = createRunDiscardStore(options);
+  const workResultReader = options.workResultReader || createWorkResultReader(options);
   const repository = createRepositoryDefinition({
     repositoryId: 'libra_run_admin_read',
     owner: 'libra',
@@ -50,6 +57,14 @@ function createLibraRunAdminService(options) {
         keyColumns: ['subject_id'],
         safeIntegers: true,
       },
+      list_revisions: {
+        kind: 'select-all',
+        tableId: 'libra_run_revisions',
+        columns: ['libra_run_id', 'state_revision', 'transition_kind',
+          'transition_evidence_json'],
+        keyColumns: ['libra_run_id'],
+        safeIntegers: true,
+      },
     },
   });
 
@@ -65,7 +80,10 @@ function createLibraRunAdminService(options) {
         const head = repo.invoke('find_head', { subject_id: run.subject_id });
         if (!head) fail('LIBRA_RUN_HEAD_NOT_FOUND',
           'Active Libra Run admission head was not found.');
-        return Object.freeze({ run:Object.freeze(run), head:Object.freeze(head) });
+        const revisions = repo.invoke('list_revisions', { libra_run_id:libraRunId })
+          .sort((left, right) => Number(left.state_revision) - Number(right.state_revision));
+        return Object.freeze({ run:Object.freeze(run), head:Object.freeze(head),
+          revisions:Object.freeze(revisions) });
       },
     }]).libra_run_admin_snapshot;
   }
@@ -149,6 +167,39 @@ function createLibraRunAdminService(options) {
     });
   }
 
+  function defectCandidate(libraRunId, snapshot = current(libraRunId)) {
+    if (snapshot.run.state !== 'frozen') {
+      fail('LIBRA_DEFECT_ADMISSION_STATE', 'Only a frozen Libra Run can accept defects.');
+    }
+    const latestDefect = [...snapshot.revisions].reverse().map((row) => {
+      if (row.transition_kind !== 'defect_admitted') return null;
+      try { return JSON.parse(row.transition_evidence_json); } catch { return null; }
+    }).find((item) => item?.schemaRef === DEFECT_MANIFEST_SCHEMA) || null;
+    const terminalRow = snapshot.revisions.find((row) =>
+      Number(row.state_revision) === Number(snapshot.run.state_revision));
+    let terminalEvidence;
+    try { terminalEvidence = JSON.parse(terminalRow?.transition_evidence_json); } catch {
+      fail('LIBRA_DEFECT_ADMISSION_TERMINAL', 'Frozen terminal Evidence is corrupt.');
+    }
+    let directMediaVerification = null;
+    for (const work of workResultReader.listWorks({ ownerDomain:'libra',
+      processType:'libra_run', processId:libraRunId,
+      workKind:'workspace_media_production' })) {
+      const found = workResultReader.read(work.work_id).find((item) =>
+        item.outcomeKind === 'succeeded' &&
+        item.capabilityRef === 'libra.product_media.verify@1' &&
+        item.result?.candidateKind === 'direct_input');
+      if (found) directMediaVerification = found.result;
+    }
+    return buildDefectAdmissionCandidate({
+      run:Object.freeze({ libraRunId, state:'frozen',
+        stateRevision:Number(snapshot.run.state_revision), stateDigest:snapshot.run.state_digest }),
+      terminalEvidence,
+      directMediaVerification,
+      priorAuthorizedManifest:latestDefect,
+    });
+  }
+
   return Object.freeze({
     expedite(libraRunId, body) {
       return setPriority(libraRunId, body, 'expedited');
@@ -179,6 +230,64 @@ function createLibraRunAdminService(options) {
         options.wake?.();
       }
       return result;
+    },
+    previewDefects(libraRunId) {
+      return defectCandidate(libraRunId);
+    },
+    admitWithDefects(libraRunId, body) {
+      if (!body || typeof body.idempotencyKey !== 'string' || !body.idempotencyKey ||
+          !Number.isSafeInteger(body.expectedRunStateRevision) ||
+          typeof body.expectedRunStateDigest !== 'string' ||
+          typeof body.expectedDefectCandidateDigest !== 'string' ||
+          body.acknowledged !== true) {
+        fail('LIBRA_DEFECT_ADMISSION_INPUT',
+          'Defect admission requires exact Run/candidate fences, acknowledgement, and idempotency.');
+      }
+      const snapshot = current(libraRunId);
+      const latestDefect = [...snapshot.revisions].reverse().map((row) => {
+        if (row.transition_kind !== 'defect_admitted') return null;
+        try { return JSON.parse(row.transition_evidence_json); } catch { return null; }
+      }).find((item) => item?.schemaRef === DEFECT_MANIFEST_SCHEMA) || null;
+      if (snapshot.run.state === 'active' && latestDefect &&
+          latestDefect.actorId === 'admin' &&
+          latestDefect.idempotencyKey === body.idempotencyKey) {
+        return Object.freeze({ resultKind:'defect_admitted', libraRunId,
+          stateRevision:Number(snapshot.run.state_revision), stateDigest:snapshot.run.state_digest,
+          authorizedDefectManifest:latestDefect, replayed:true });
+      }
+      if (snapshot.run.state !== 'frozen') {
+        fail('LIBRA_DEFECT_ADMISSION_STATE', 'Only a frozen Libra Run can accept defects.');
+      }
+      if (Number(snapshot.run.state_revision) !== body.expectedRunStateRevision ||
+          snapshot.run.state_digest !== body.expectedRunStateDigest) {
+        fail('LIBRA_DEFECT_ADMISSION_STALE', 'Libra Run changed before defect admission.');
+      }
+      const candidate = defectCandidate(libraRunId, snapshot);
+      if (candidate.candidateDigest !== body.expectedDefectCandidateDigest) {
+        fail('LIBRA_DEFECT_ADMISSION_CANDIDATE_STALE',
+          'Defect candidate changed before user acknowledgement.',
+          { currentCandidateDigest:candidate.candidateDigest });
+      }
+      const manifest = buildAuthorizedDefectManifest({ candidate, actorId:'admin',
+        idempotencyKey:body.idempotencyKey, acknowledged:true,
+        decidedAtMs:(options.now || Date.now)() });
+      const decision = buildRunLifecycleDecision({ libraRunId,
+        expectedStateRevision:Number(snapshot.run.state_revision),
+        expectedStateDigest:snapshot.run.state_digest,
+        transitionKind:'defect_admit', transitionEvidence:manifest,
+        expectedAdmissionHeadRevision:Number(snapshot.head.head_revision),
+        expectedActiveScopeSetDigest:snapshot.head.active_scope_set_digest });
+      const committed = lifecycle.transition({ decision,
+        commitMarker:canonicalDigest({ schema:'libra.defect-admission-marker@1',
+          defectDecisionId:manifest.defectDecisionId, decisionDigest:decision.decisionDigest }),
+        resultId:canonicalDigest({ schema:'libra.defect-admission-result-id@1',
+          defectDecisionId:manifest.defectDecisionId }) });
+      options.libraRunExecutionProjection.invalidate(libraRunId);
+      options.wake?.();
+      return Object.freeze({ resultKind:'defect_admitted', libraRunId,
+        stateRevision:committed.result.committedStateRevision,
+        stateDigest:committed.result.committedStateDigest,
+        authorizedDefectManifest:manifest, replayed:committed.replayed });
     },
   });
 }

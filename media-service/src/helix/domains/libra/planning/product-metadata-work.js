@@ -153,7 +153,10 @@ function providerSource(options, snapshot, identity, sourcePriority,
 
 function nextMetadataStage(options, snapshot, identity) {
   const requiredFields = requiredMetadataFields(snapshot);
-  const requiredCastRoles = requiredMediaCastRoles(snapshot);
+  const authorizedDefects = new Set((snapshot.run.authorizedDefectManifest?.defects || [])
+    .map((item) => item.defectCode));
+  const requiredCastRoles = Object.freeze(requiredMediaCastRoles(snapshot)
+    .filter((role) => role !== 'actor' || !authorizedDefects.has('actor_unavailable')));
   const results = metadataResultItems(options, snapshot.run.libraRunId);
   const observed = observedFieldKeys(results);
   const observedCastRoles = observedMediaCastRoles(results);

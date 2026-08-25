@@ -9,7 +9,8 @@ const SOURCE_SCHEMA_DIGEST = '78075366b3409916b8f8c6fcd3c0786daa5e45bab82f59ba83
 const INTERMEDIATE_SCHEMA_DIGEST = 'fee80cf21719481a83274c3b9021918571ed8e5a510239b1d82995758a4cbcd4';
 const PRE_EXECUTOR_CLOSURE_SCHEMA_DIGEST = '998b673af4d2f0a6ed4f96bcb7f34c56b8dad3ffc562f40a69a335b948a7cab0';
 const PRE_AFTERCARE_HARDENING_SCHEMA_DIGEST = '2347c196743124bbb2e768c7b829012049310484b7cd4e49a00182c9d45f09d5';
-const TARGET_SCHEMA_DIGEST = '6172e70c94c31091005b19b4eefaf7567b195d04dc9cb3b4bee7099a070383f3';
+const PRE_DEFECT_ADMISSION_SCHEMA_DIGEST = '6172e70c94c31091005b19b4eefaf7567b195d04dc9cb3b4bee7099a070383f3';
+const TARGET_SCHEMA_DIGEST = '411b6c0e2f350d3f5a9374738f56d51a0304df2772c813f2b3009e6526daa889';
 const PRE_UAT_EXECUTION_CATALOG_DIGEST = 'b0371a6d2793c1e381a4c2e7fc421d312a1a1e90d2de5e47f61a45022f09793b';
 const PRE_PROJECTION_EXECUTION_CATALOG_DIGEST = '13315cdbdf6ab5cbe30b32075f89bd76ae1a873d84034dc572824f4fbc3886e6';
 const INTAKE_BINDING_REPLAN_CODE = 'P4_UAT_INTAKE_BINDING_RESULT_REPLAN_REQUIRED';
@@ -301,6 +302,46 @@ function retirePreProjectionExecutionWorks(database, appliedAtMs) {
   });
 }
 
+function migrateDefectAdmissionRevisionKind(database) {
+  database.exec(`ALTER TABLE "libra_run_revisions" RENAME TO "libra_run_revisions_pre_defect_admission";
+CREATE TABLE "libra_run_revisions" (
+  "libra_run_id" TEXT,
+  "state_revision" INTEGER CHECK ("state_revision" >= 1),
+  "state" TEXT CHECK ("state" IN ('active', 'suspended', 'superseded', 'frozen', 'discarded', 'completed')),
+  "acceptance_spec_id" TEXT,
+  "execution_basis_digest" TEXT CHECK (length("execution_basis_digest") = 64 AND "execution_basis_digest" NOT GLOB '*[^0-9a-f]*'),
+  "run_scope_digest" TEXT CHECK (length("run_scope_digest") = 64 AND "run_scope_digest" NOT GLOB '*[^0-9a-f]*'),
+  "priority_class" TEXT,
+  "priority_intent_digest" TEXT CHECK (length("priority_intent_digest") = 64 AND "priority_intent_digest" NOT GLOB '*[^0-9a-f]*'),
+  "transition_kind" TEXT CHECK ("transition_kind" IN ('admitted', 'freshness_confirmed', 'suspended', 'recovery_reassessed', 'resumed', 'reprioritized', 'superseded', 'frozen', 'defect_admitted', 'discarded', 'completed')),
+  "transition_decision_id" TEXT,
+  "transition_decision_digest" TEXT CHECK (length("transition_decision_digest") = 64 AND "transition_decision_digest" NOT GLOB '*[^0-9a-f]*'),
+  "transition_evidence_schema_ref" TEXT,
+  "transition_evidence_id" TEXT,
+  "transition_evidence_json" TEXT,
+  "transition_evidence_digest" TEXT CHECK (length("transition_evidence_digest") = 64 AND "transition_evidence_digest" NOT GLOB '*[^0-9a-f]*'),
+  "recovery_policy_ref" TEXT,
+  "recovery_policy_digest" TEXT CHECK (length("recovery_policy_digest") = 64 AND "recovery_policy_digest" NOT GLOB '*[^0-9a-f]*'),
+  "suspension_started_at_ms" INTEGER CHECK ("suspension_started_at_ms" >= 0),
+  "recovery_attempt_ordinal" INTEGER CHECK ("recovery_attempt_ordinal" >= 0),
+  "recovery_next_due_at_ms" INTEGER CHECK ("recovery_next_due_at_ms" >= 0),
+  "expected_admission_head_revision" INTEGER NOT NULL CHECK ("expected_admission_head_revision" >= 0),
+  "expected_active_scope_set_digest" TEXT CHECK (length("expected_active_scope_set_digest") = 64 AND "expected_active_scope_set_digest" NOT GLOB '*[^0-9a-f]*'),
+  "committed_admission_head_revision" INTEGER CHECK ("committed_admission_head_revision" >= 1),
+  "committed_active_scope_set_digest" TEXT CHECK (length("committed_active_scope_set_digest") = 64 AND "committed_active_scope_set_digest" NOT GLOB '*[^0-9a-f]*'),
+  "previous_state_revision" INTEGER CHECK ("previous_state_revision" >= 1),
+  "revision_digest" TEXT CHECK (length("revision_digest") = 64 AND "revision_digest" NOT GLOB '*[^0-9a-f]*'),
+  "committed_at_ms" INTEGER CHECK ("committed_at_ms" >= 0),
+  PRIMARY KEY ("libra_run_id", "state_revision"),
+  CHECK (json_valid("transition_evidence_json")),
+  CHECK (length(CAST("transition_evidence_json" AS BLOB)) <= 1048576),
+  FOREIGN KEY ("libra_run_id") REFERENCES "libra_runs" ("libra_run_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("acceptance_spec_id") REFERENCES "libra_acceptance_specs" ("acceptance_spec_id") ON DELETE RESTRICT
+);
+INSERT INTO "libra_run_revisions" SELECT * FROM "libra_run_revisions_pre_defect_admission";
+DROP TABLE "libra_run_revisions_pre_defect_admission";`);
+}
+
 function migrateUatIdentitySelectionSchema(options) {
   if (!options || typeof options.Database !== 'function' || typeof options.databasePath !== 'string' || !options.schemaManifest) {
     throw new TypeError('The UAT identity-selection migration requires a database driver, path, and target manifest.');
@@ -323,13 +364,15 @@ function migrateUatIdentitySelectionSchema(options) {
         'The source database does not contain the expected ShelfDeck schema marker.');
     }
     const alreadyCurrent = marker.generation === TARGET_GENERATION && marker.schema_digest === TARGET_SCHEMA_DIGEST;
+    const defectAdmissionSource = marker.generation === TARGET_GENERATION &&
+      marker.schema_digest === PRE_DEFECT_ADMISSION_SCHEMA_DIGEST;
     const aftercareHardeningSource = marker.generation === TARGET_GENERATION &&
       marker.schema_digest === PRE_AFTERCARE_HARDENING_SCHEMA_DIGEST;
     const executorClosureSource = marker.generation === TARGET_GENERATION &&
       marker.schema_digest === PRE_EXECUTOR_CLOSURE_SCHEMA_DIGEST;
     const legacySource = marker.generation === SOURCE_GENERATION && marker.schema_digest === SOURCE_SCHEMA_DIGEST;
     const v2Source = marker.generation === INTERMEDIATE_GENERATION && marker.schema_digest === INTERMEDIATE_SCHEMA_DIGEST;
-    if (!alreadyCurrent && !aftercareHardeningSource && !executorClosureSource && !legacySource && !v2Source) {
+    if (!alreadyCurrent && !defectAdmissionSource && !aftercareHardeningSource && !executorClosureSource && !legacySource && !v2Source) {
       throw new UatIdentitySelectionMigrationError('UAT_MIGRATION_SOURCE_SCHEMA_UNSUPPORTED',
         'Only the exact pre-UAT live schema can be upgraded in place.', {
           generation: marker.generation, schemaDigest: marker.schema_digest,
@@ -364,6 +407,7 @@ function migrateUatIdentitySelectionSchema(options) {
       if (legacySource || v2Source) database.exec(FORMATION_PROJECTION_DDL);
       if (legacySource || v2Source || executorClosureSource) database.exec(EXECUTOR_CLOSURE_DDL);
       if (!alreadyCurrent) ensureAftercareCaseTerminalEvidence(database);
+      if (!alreadyCurrent) migrateDefectAdmissionRevisionKind(database);
       const appliedAtMs = now();
       if (!Number.isSafeInteger(appliedAtMs) || appliedAtMs < 0) {
         throw new UatIdentitySelectionMigrationError('UAT_MIGRATION_INVALID_TIME', 'Migration time must be a non-negative safe integer.');
@@ -404,6 +448,7 @@ module.exports = Object.freeze({
   INTAKE_BINDING_REPLAN_CODE,
   PRE_PROJECTION_PLAN_REPLAN_CODE,
   PRE_AFTERCARE_HARDENING_SCHEMA_DIGEST,
+  PRE_DEFECT_ADMISSION_SCHEMA_DIGEST,
   TARGET_GENERATION,
   TARGET_SCHEMA_DIGEST,
   UatIdentitySelectionMigrationError,

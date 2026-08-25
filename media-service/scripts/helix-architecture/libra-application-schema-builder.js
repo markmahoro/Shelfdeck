@@ -422,14 +422,53 @@ function runTerminalDeliveryEvidence() {
       assessedAtMs: nonNegative(), evidenceDigest: digest() }) };
 }
 
+function authorizedDefectManifest() {
+  const requirementCode = { type: 'string', enum: [
+    'metadata_field_unmet', 'video_codec_unmet', 'container_unmet',
+    'file_extension_unmet', 'minimum_raster_unmet', 'system_upscale_forbidden',
+    'primary_audio_unmet', 'max_size_exceeded', 'dynamic_range_conversion_unmet',
+    'output_color_profile_unmet', 'dolby_vision_metadata_not_removed'
+  ] };
+  const defect = object({
+    defectCode: { type: 'string', enum: ['actor_unavailable', 'external_source_exhausted'] },
+    sourceFailureCode: id(), sourceWorkId: id(), sourceEvidenceDigest: digest(),
+    originalMediaVerificationId: digest(), originalMediaVerificationDigest: digest(),
+    waivedRequirementCodes: { type: 'array', minItems: 1, maxItems: 11,
+      uniqueItems: true, items: requirementCode }
+  }, ['defectCode', 'sourceFailureCode', 'sourceWorkId', 'sourceEvidenceDigest',
+    'waivedRequirementCodes'], {
+    allOf: [{
+      if: { properties: { defectCode: { const: 'external_source_exhausted' } } },
+      then: { required: ['originalMediaVerificationId', 'originalMediaVerificationDigest'] },
+      else: { not: { anyOf: [{ required: ['originalMediaVerificationId'] },
+        { required: ['originalMediaVerificationDigest'] }] } }
+    }]
+  });
+  return { $schema: DRAFT, $id: typeId('AuthorizedDefectManifest'),
+    title: 'AuthorizedDefectManifest@1',
+    'x-helix-ssotRefs': ['5.6.7', '5.7.2', '5.8.2', '8.6.21'],
+    'x-helix-maxCanonicalBytes': 64 * 1024,
+    ...object({ schemaRef: { const: typeId('AuthorizedDefectManifest') },
+      schemaVersion: { const: 1 }, manifestId: digest(), defectDecisionId: digest(),
+      libraRunId: id(), frozenRunRef: object({ stateRevision: positive(), stateDigest: digest() }),
+      candidateRevision: positive(), candidateDigest: digest(), terminalEvidenceDigest: digest(),
+      defects: { type: 'array', minItems: 1, maxItems: 2, uniqueItems: true, items: defect },
+      defectCount: { type: 'integer', minimum: 1, maximum: 2 },
+      waivedRequirementCodes: { type: 'array', minItems: 1, maxItems: 12,
+        uniqueItems: true, items: requirementCode }, actorId: id(),
+      acknowledgement: { const: 'accept_listed_defects' }, idempotencyKey: id(),
+      decidedAtMs: nonNegative(), manifestDigest: digest() }) };
+}
+
 function runLifecycleDecision() {
   return { $schema: DRAFT, $id: typeId('LibraRunLifecycleDecision'), title: 'LibraRunLifecycleDecision@1',
     'x-helix-ssotRefs': ['8.6.21'], 'x-helix-maxCanonicalBytes': 1024 * 1024,
     ...object({ decisionId: digest(), libraRunId: digest(), expectedStateRevision: positive(), expectedStateDigest: digest(),
-      transitionKind: { type: 'string', enum: ['suspend', 'resume', 'freeze', 'freshness_confirmed', 'recovery_reassessed', 'set_priority', 'complete'] },
+      transitionKind: { type: 'string', enum: ['suspend', 'resume', 'freeze', 'freshness_confirmed', 'recovery_reassessed', 'defect_admit', 'set_priority', 'complete'] },
       newPriority: object({ priorityClass: { type: 'string', enum: ['normal', 'expedited'] }, priorityIntentDigest: digest() }),
       transitionEvidence: { oneOf: [{ $ref: typeId('LibraRunFreshnessAssessment') }, { $ref: typeId('LibraRunTerminalDeliveryEvidence') },
-        { $ref: typeId('LibraRunPriorityIntent') }, { $ref: 'helix://contracts/messages/ArcaProductAcceptedMessage/v1' }] },
+        { $ref: typeId('AuthorizedDefectManifest') }, { $ref: typeId('LibraRunPriorityIntent') },
+        { $ref: 'helix://contracts/messages/ArcaProductAcceptedMessage/v1' }] },
       expectedAdmissionHeadRevision: positive(), expectedActiveScopeSetDigest: digest(), decisionDigest: digest()
     }, ['decisionId', 'libraRunId', 'expectedStateRevision', 'expectedStateDigest', 'transitionKind', 'transitionEvidence',
       'expectedAdmissionHeadRevision', 'expectedActiveScopeSetDigest', 'decisionDigest']) };
@@ -800,6 +839,7 @@ function buildLibraApplicationSchemas() {
     LibraRunFreshnessAssessment: runFreshnessAssessment(),
     LibraRunPriorityIntent: runPriorityIntent(),
     LibraRunTerminalDeliveryEvidence: runTerminalDeliveryEvidence(),
+    AuthorizedDefectManifest: authorizedDefectManifest(),
     LibraRunLifecycleDecision: runLifecycleDecision(),
     LibraRunLifecycleResult: runLifecycleResult(),
     LibraWorkspaceAdmissionDecision: workspaceAdmissionDecision(),

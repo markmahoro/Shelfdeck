@@ -23,6 +23,7 @@ const {
   metadataObservationWork,
   nextMetadataStage,
 } = require('../planning/product-metadata-work');
+const { coversRequirementGaps } = require('../model/defect-admission-contracts');
 
 const LIMITS=Object.freeze({globalOpenWorks:256,ownerOpenWorks:256,openEvents:256});
 const ARTIFACT_RESULT='helix://contracts/capabilities/shared.artifact.manifest.verify/v1/result';
@@ -179,6 +180,9 @@ function createLibraRunCoordinator(options){
         item.capabilityRef === 'libra.product.conformance.verify@1');
       const evidence = record?.result;
       if (evidence && evidence.result !== 'passed') {
+        if (snapshot.run.authorizedDefectManifest && coversRequirementGaps(
+          snapshot.run.authorizedDefectManifest,
+          evidence.unmetRequirementCodes || evidence.reasonCodes || [])) continue;
         return freezeBusinessTerminal(snapshot, { workId:work.work_id }, record,
           evidence.unmetRequirementCodes?.[0] ||
           evidence.reasonCodes?.[0] || 'product_conformance_failed');
@@ -344,7 +348,9 @@ function createLibraRunCoordinator(options){
       item.capabilityRef==='libra.product.conformance.verify@1');
     if(conformanceResults.length!==1)throw new Error('Terminal Product Conformance Work lacks one durable Evidence Result.');
     const conformanceRecord=conformanceResults[0],evidence=conformanceRecord.result;
-    if(evidence.result!=='passed')return freezeBusinessTerminal(snapshot,conformance,conformanceRecord,
+    if(evidence.result!=='passed' && !(snapshot.run.authorizedDefectManifest &&
+      coversRequirementGaps(snapshot.run.authorizedDefectManifest,
+        evidence.unmetRequirementCodes || evidence.reasonCodes || [])))return freezeBusinessTerminal(snapshot,conformance,conformanceRecord,
       evidence.unmetRequirementCodes?.[0] || evidence.reasonCodes?.[0] || 'product_conformance_failed');
     const promotion=deliverablePromotionWork(snapshot,selectedMediaWork,conformance,evidence),
       promotionSubmitted=submit(promotion),promotionStatus=options.workResultReader.status(promotion.workId);
@@ -509,7 +515,9 @@ function createLibraRunCoordinator(options){
     }
     const selection=selectedOutput(direct);
     if(selection.result!=='selected')return requiresExternalSource(direct)
-      ?ensureExternalSelection(snapshot,workspace)
+      ?snapshot.run.authorizedDefectManifest?.defects?.some((item)=>item.defectCode==='external_source_exhausted')
+        ?ensureDelivery(snapshot,workspace,direct)
+        :ensureExternalSelection(snapshot,workspace)
       :ensureTranscodeSelection(snapshot,workspace,
         {sourceWorkId:sourceMedia.workId,priorSelectionWorkId:direct.workId});
     return ensureDelivery(snapshot,workspace,direct);

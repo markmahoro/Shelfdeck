@@ -36,6 +36,7 @@
         "freeze",
         "freshness_confirmed",
         "recovery_reassessed",
+        "defect_admit",
         "set_priority",
         "complete"
       ]
@@ -69,6 +70,9 @@
         },
         {
           "$ref": "helix://contracts/application-types/LibraRunTerminalDeliveryEvidence/v1"
+        },
+        {
+          "$ref": "helix://contracts/application-types/AuthorizedDefectManifest/v1"
         },
         {
           "$ref": "helix://contracts/application-types/LibraRunPriorityIntent/v1"

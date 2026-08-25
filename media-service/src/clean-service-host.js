@@ -1112,7 +1112,7 @@ function createRuntime(options) {
   if (!fs.existsSync(path.join(options.adminDistDir, 'index.html'))) {
     findings.push('ADMIN_WEB_BUILD_MISSING');
   }
-  if (routeManifest.status !== 'active' || routeManifest.entries.length !== 119) {
+  if (routeManifest.status !== 'active' || routeManifest.entries.length !== 121) {
     findings.push('ROUTE_INVENTORY_INCOMPLETE');
   }
   if (uiManifest.status !== 'active' || uiManifest.entries.length !== 17) {
@@ -1595,6 +1595,8 @@ async function createCleanServiceHost(options) {
     expedite(libraRunId, body) { const result=libraRunAdminService.expedite(libraRunId,body); formationProjectionHost.enqueue(formationProjectionSource.findSubjectByRun(libraRunId)); return result; },
     cancelExpedite(libraRunId, body) { const result=libraRunAdminService.cancelExpedite(libraRunId,body); formationProjectionHost.enqueue(formationProjectionSource.findSubjectByRun(libraRunId)); return result; },
     discard(libraRunId, body) { const result=libraRunAdminService.discard(libraRunId,body); formationProjectionHost.enqueue(formationProjectionSource.findSubjectByRun(libraRunId)); return result; },
+    previewDefects(libraRunId) { return libraRunAdminService.previewDefects(libraRunId); },
+    admitWithDefects(libraRunId, body) { const result=libraRunAdminService.admitWithDefects(libraRunId,body); formationProjectionHost.enqueue(formationProjectionSource.findSubjectByRun(libraRunId)); return result; },
   });
   const productIdentitySelection = Object.freeze({
     choose(libraRunId, body) {

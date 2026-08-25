@@ -55,6 +55,14 @@ function definition(schemaManifest) {
         keyColumns: ['libra_run_id', 'state_revision'],
         safeIntegers: true,
       },
+      list_run_revisions: {
+        kind: 'select-all',
+        tableId: 'libra_run_revisions',
+        columns: ['libra_run_id', 'state_revision', 'transition_kind',
+          'transition_evidence_json'],
+        keyColumns: ['libra_run_id'],
+        safeIntegers: true,
+      },
       find_spec: {
         kind: 'select-one',
         tableId: 'libra_acceptance_specs',
@@ -264,6 +272,12 @@ function createMovieProductionReader(options) {
         libra_run_id: libraRunId,
         state_revision: Number(run.state_revision),
       });
+      const authorizedDefectManifest = repo.invoke('list_run_revisions', {
+        libra_run_id: libraRunId,
+      }).filter((item) => item.transition_kind === 'defect_admitted')
+        .sort((left, right) => Number(right.state_revision) - Number(left.state_revision))
+        .map((item) => parse(item.transition_evidence_json,
+          'P14_MOVIE_DEFECT_MANIFEST_CORRUPT'))[0] || null;
       const specRow = repo.invoke('find_spec', {
         acceptance_spec_id: run.acceptance_spec_id,
       });
@@ -554,6 +568,7 @@ function createMovieProductionReader(options) {
           createdAtMs: Number(run.created_at_ms),
           runMaterialManifestId: run.run_material_manifest_id,
           runMaterialManifestDigest: manifest.manifest_digest,
+          authorizedDefectManifest,
         }),
         spec: Object.freeze(spec),
         decisionBasisId: specRow.decision_basis_id,
