@@ -1,12 +1,13 @@
 'use strict';
 
-const { canonicalDigest } = require('../../../contracts/canonical-json');
+const { canonicalDigest, canonicalJson } = require('../../../contracts/canonical-json');
 const { createInboxCoordinator } = require('../../../foundation/persistence/outbox-inbox');
 const { createMaterialControlProjectionPort } = require('../../../foundation/persistence/material-control');
 const { createHandoffBAcceptanceStore } = require('../persistence/handoff-b-acceptance-store');
 const { createOnDeckStore } = require('../persistence/on-deck-store');
 const { emptyArcaMaterialEpisodeClaims, fromProductMember } = require('../model/material-episode-claims');
-const { acceptsProductionAttestation } = require('../model/authorized-defect-manifest');
+const { observeMandatoryMedia } = require('../model/mandatory-media-acceptance');
+const { finalGapDecision, GAP_CODES_BY_CHECK } = require('../model/acceptance-gap-decision');
 const { CAPABILITY_REFS:C } = require('../model/on-deck-contract');
 const { buildAftercareInventoryRequest } = require('../model/aftercare-placement');
 const { requiresInputSettlement } = require('../model/offload-settlement');
@@ -25,11 +26,71 @@ function outcome(ref,result,at,effectClass=null){const value={kind:'succeeded',r
 function committedOutcome(context,ref,result,at,effectClass){return Object.freeze({kind:'succeeded',resultSchemaRef:BASE+ref.replace('@1','/v1/result'),result,
   evidenceSchemaRef:BASE+ref.replace('@1','/v1/evidence'),evidence:evidence(ref,result,at),effectReceipt:effectReceipt(context,effectClass,result,at)});}
 function requireNamed(context,names){for(const name of names)if(!Object.hasOwn(context?.namedInputs||{},name))throw new TypeError('Arca Capability input is absent: '+name);}
-function check(ref,kind,input,passed,reason,at){const basisDigest=canonicalDigest({ref,kind,input}),result=Object.freeze({
+function actualGapDigest(kind,items){return canonicalDigest({schema:'arca.acceptance-check-actual-gap-set@1',checkKind:kind,items});}
+function emptyObservationDigest(){return canonicalDigest({schema:'arca.mandatory-media-primary-observation-set@1',items:[]});}
+function check(ref,kind,input,passed,reason,at,details={}){const basisDigest=canonicalDigest({ref,kind,input}),gaps=Object.freeze([...(details.actualGapCodes||[])]),
+  observations=Object.freeze([...(details.primaryMediaObservations||[])]),manifest=details.authorizedDefectManifest||input.onDeckProductPackage?.productionAttestation?.authorizedDefectManifest||
+    input.packageValue?.productionAttestation?.authorizedDefectManifest||null,result=Object.freeze({
   schemaRef:'helix://contracts/types/AcceptanceCheck/v1',schemaVersion:1,verificationId:stable('arca-acceptance-check-',{kind,basisDigest}),
   verificationKind:'shelf_acceptance',basisDigest,result:passed?'passed':'failed',reasonCodes:Object.freeze(passed?[]:[reason]),
   evidenceRefs:Object.freeze([basisDigest]),verifiedAtMs:at,acceptanceAttemptId:input.acceptanceAttemptId,checkKind:kind,
-  standardRevision:input.standardRevision,packageDigest:input.packageDigest});return result;}
+  standardRevision:input.standardRevision,packageDigest:input.packageDigest,requirementDigest:details.requirementDigest||canonicalDigest(input),
+  evidenceStatus:details.evidenceStatus||'complete',actualGapCodes:gaps,actualGapSetDigest:details.actualGapSetDigest||actualGapDigest(kind,gaps),
+  primaryMediaObservations:observations,primaryMediaObservationSetDigest:details.primaryMediaObservationSetDigest||emptyObservationDigest(),
+  authorizedDefectManifestDigestOrNull:manifest?.manifestDigest||null,
+  authorizedGapComparison:manifest?'pending_final_union':'not_applicable'});return result;}
+function packageRequirementSnapshot(c){const value=c.packageValue?.productionProvenance?.acceptanceRequirementSnapshot,
+  body=value&&Object.fromEntries(Object.entries(value).filter(([key])=>key!=='snapshotDigest')),
+  structure=c.packageValue?.productStructureSnapshot?.structureKind==='season'?'season':'single';
+  if(!value||value.schemaRef!=='helix://contracts/domain-types/AcceptanceRequirementSnapshot/v1'||value.schemaVersion!==1||
+      value.snapshotDigest!==canonicalDigest(body)||value.acceptanceSpecId!==c.packageValue.acceptanceSpecRef?.id||
+      value.acceptanceSpecRecordDigest!==c.packageValue.acceptanceSpecRef?.recordDigest||value.targetShelfId!==c.packageValue.shelfId||
+      value.structureKind!==structure||value.contentProfile!==(structure==='season'?'series':'movie'))
+    throw Object.assign(new TypeError('Package Acceptance Requirement Snapshot is invalid.'),{code:'ARCA_ACCEPTANCE_REQUIREMENT_INVALID'});
+  return Object.freeze({value,stale:value.shelfStandardRevision!==c.shelf.currentStandardRevision||
+    value.shelfStandardDigest!==c.shelf.standard.digest});}
+function dimensionDisposition(c,kind,gaps){const manifest=c.packageValue.productionAttestation?.authorizedDefectManifest;
+  return manifest?canonicalJson(gaps)===canonicalJson(GAP_CODES_BY_CHECK[kind].filter((item)=>manifest.waivedRequirementCodes.includes(item))):gaps.length===0;}
+function gapReason(kind){return {identity:'identity_requirement_unmet',structure:'structure_requirement_unmet',metadata:'metadata_requirement_unmet',
+  mandatory_media:'mandatory_requirement_unmet',space:'space_requirement_unmet'}[kind];}
+function dimensionCheck(ref,kind,input,c,at,gaps,requirementDigest){const snapshot=packageRequirementSnapshot(c),authorizedDefectManifest=c.packageValue.productionAttestation?.authorizedDefectManifest||null;
+  if(snapshot.stale)return check(ref,kind,input,false,'stale_decision_basis',at,{requirementDigest,evidenceStatus:'stale_basis',authorizedDefectManifest});
+  return check(ref,kind,input,dimensionDisposition(c,kind,gaps),gapReason(kind),at,{actualGapCodes:gaps,requirementDigest,authorizedDefectManifest});}
+function identityGaps(c,requirement){const identity=c.packageValue.resolvedIdentitySnapshot?.factValue?.resolvedProductIdentity||
+  c.packageValue.resolvedIdentitySnapshot?.factValue||{},providers=identity.providerIdentities||identity.providerIdentityAnchors||[],gaps=[];
+  if(!identity.identityDigest||requirement.identityKind==='tmdb_movie'&&!providers.some((item)=>item.namespace==='tmdb_movie')||
+      requirement.identityKind==='tmdb_series_season'&&!providers.some((item)=>item.namespace==='tmdb_series'))gaps.push('identity_unmet');
+  if(requirement.requireSeasonNumber&&!providers.some((item)=>item.namespace==='tmdb_series'&&item.seasonNumber!=null))
+    gaps.push('season_identity_unmet');return Object.freeze(gaps);}
+function structureGaps(c,requirement){const structure=c.packageValue.productStructureSnapshot,manifest=c.packageValue.productMaterialManifest,
+  primaries=(manifest?.members||[]).filter((item)=>item.role==='primary_payload'),gaps=[];
+  if(structure?.structureKind!==requirement.structureKind||manifest?.scopeKind!==(requirement.structureKind==='season'?'episode_delivery':'single')||!primaries.length)
+    gaps.push('structure_unmet');
+  if(requirement.requireOnePrimaryPerEpisode&&(primaries.some((item)=>!item.episodeClaims?.length)||
+      new Set(primaries.flatMap((item)=>item.episodeClaims.map((claim)=>claim.episodeKey))).size<primaries.length))gaps.push('episode_coverage_unmet');
+  return Object.freeze(gaps);}
+function nonempty(value){return value!==null&&value!==undefined&&(!Array.isArray(value)||value.length>0)&&
+  (typeof value!=='string'||value.trim().length>0);}
+function metadataGaps(c,requirement){const facts=c.packageValue.productFactManifest?.items||[],metadata=facts.find((item)=>item.factKind==='product_metadata')?.factValue||{},
+  identity=c.packageValue.resolvedIdentitySnapshot?.factValue?.resolvedProductIdentity||c.packageValue.resolvedIdentitySnapshot?.factValue||{},
+  descriptive=new Map((metadata.descriptiveFacts?.entries||[]).map((item)=>[item.key,item.value])),cast=c.packageValue.mediaCastSnapshot?.relations||[],
+  artifacts=c.packageValue.artifactManifest?.items||[],identities=identity.providerIdentities||[],missingField=requirement.requiredFieldCodes.some((code)=>{
+    if(code==='actor')return cast.length===0;if(code==='tmdb_movie_id')return !(identity.providerIdentities||[]).some((item)=>item.namespace==='tmdb_movie');
+    if(code==='tmdb_series_id')return !(identity.providerIdentities||[]).some((item)=>item.namespace==='tmdb_series');
+    if(code==='jav_code')return !identities.some((item)=>item.namespace==='jav_code');
+    if(code==='internal_identity')return !identities.some((item)=>item.namespace==='internal_identity');
+    if(code==='season_number')return !identities.some((item)=>item.namespace==='tmdb_series'&&item.seasonNumber!=null);
+    if(code==='episode_number')return !(c.packageValue.productMaterialManifest?.members||[]).some((item)=>item.episodeClaims?.length);
+    return !nonempty(descriptive.get(code));}),gaps=[],verifiedKinds=new Set(artifacts.map((item)=>item.artifactKind));
+  if(missingField)gaps.push('metadata_field_unmet');
+  if(requirement.requiredArtifactKinds.some((kind)=>!verifiedKinds.has(kind)))gaps.push('metadata_artifact_unmet');
+  if(requirement.requireRenderableSidecar&&!verifiedKinds.has('nfo'))gaps.push('sidecar_unrenderable');
+  if(requirement.requireDecodableImages&&requirement.requiredArtifactKinds.filter((kind)=>kind==='poster'||kind==='fanart')
+    .some((kind)=>!verifiedKinds.has(kind)))gaps.push('image_undecodable');
+  return Object.freeze(gaps);}
+function spaceGaps(c,requirement){const maximum=requirement.maxSizeBytes,total=(c.packageValue.productMaterialManifest?.members||[])
+  .filter((item)=>item.role==='primary_payload').reduce((sum,item)=>sum+Number(item.sizeBytes||0),0);
+  return Object.freeze(Number.isSafeInteger(maximum)&&total>maximum?['max_size_exceeded']:[]);}
 function context(options,execution,refs){
   if(execution.ownerScope.processType==='arca_shelf_entry')
     return options.aftercareContextReader.read(execution.ownerScope.processId);
@@ -77,25 +138,35 @@ function createOnDeckCapabilityPorts(options){const now=options.now||Date.now,ac
   function pure(ref,names,build){return Object.freeze({validateInputs(c){requireNamed(c,names);},execute(c){return outcome(ref,build(c.namedInputs,ctx(c),now()),now());},
     validateResult(_c,o){if(!o?.result)throw new TypeError(ref+' Result is absent.');}});}
   const ports={};
-  ports[C.identity]=pure(C.identity,['packageIdentity','shelfStandard'],(n,c,at)=>check(C.identity,'identity',{
+  ports[C.identity]=pure(C.identity,['packageIdentity','shelfStandard'],(n,c,at)=>{const snapshot=packageRequirementSnapshot(c);return dimensionCheck(C.identity,'identity',{
     acceptanceAttemptId:acceptanceAttemptId(c),standardRevision:c.shelf.currentStandardRevision,packageDigest:c.packageValue.packageDigest,
-    packageIdentity:n.packageIdentity,shelfStandard:n.shelfStandard},Boolean(n.packageIdentity.resolvedIdentityDigest),'identity_requirement_unmet',at));
-  ports[C.metadata]=pure(C.metadata,['productMetadataArtifact','metadataRequirement'],(n,c,at)=>check(C.metadata,'metadata',{
+    packageIdentity:n.packageIdentity,shelfStandard:n.shelfStandard},c,at,identityGaps(c,snapshot.value.requirements.identity),n.shelfStandard.digest);});
+  ports[C.metadata]=pure(C.metadata,['productMetadataArtifact','metadataRequirement'],(n,c,at)=>{const snapshot=packageRequirementSnapshot(c);return dimensionCheck(C.metadata,'metadata',{
     acceptanceAttemptId:acceptanceAttemptId(c),standardRevision:c.shelf.currentStandardRevision,packageDigest:c.packageValue.packageDigest,
-    productMetadataArtifact:n.productMetadataArtifact,metadataRequirement:n.metadataRequirement},
-    n.productMetadataArtifact.metadataFactRefs.length>=3&&(c.packageValue.artifactManifest?.items||[]).some(i=>i.artifactKind==='nfo'),'metadata_requirement_unmet',at));
-  ports[C.structure]=pure(C.structure,['productManifest','structureRequirement'],(n,c,at)=>check(C.structure,'structure',{
+    productMetadataArtifact:n.productMetadataArtifact,metadataRequirement:n.metadataRequirement},c,at,
+    metadataGaps(c,snapshot.value.requirements.metadata),n.metadataRequirement.digest);});
+  ports[C.structure]=pure(C.structure,['productManifest','structureRequirement'],(n,c,at)=>{const snapshot=packageRequirementSnapshot(c);return dimensionCheck(C.structure,'structure',{
     acceptanceAttemptId:acceptanceAttemptId(c),standardRevision:c.shelf.currentStandardRevision,packageDigest:c.packageValue.packageDigest,
-    productManifest:n.productManifest,structureRequirement:n.structureRequirement},n.productManifest.members.length>0,'structure_requirement_unmet',at));
-  ports[C.mandatory]=pure(C.mandatory,['onDeckProductPackage','mandatoryRequirement'],(n,c,at)=>check(C.mandatory,'mandatory_media',{
+    productManifest:n.productManifest,structureRequirement:n.structureRequirement},c,at,
+    structureGaps(c,snapshot.value.requirements.structure),n.structureRequirement.digest);});
+  ports[C.mandatory]=Object.freeze({validateInputs(execution){requireNamed(execution,['onDeckProductPackage','mandatoryRequirement']);},
+    async execute(execution){const c=ctx(execution),n=execution.namedInputs,at=now(),input={acceptanceAttemptId:acceptanceAttemptId(c),
+      standardRevision:c.shelf.currentStandardRevision,packageDigest:c.packageValue.packageDigest,onDeckProductPackage:n.onDeckProductPackage,
+      mandatoryRequirement:n.mandatoryRequirement},snapshot=packageRequirementSnapshot(c),manifest=c.packageValue.productionAttestation?.authorizedDefectManifest||null;
+      if(n.onDeckProductPackage.packageDigest!==c.packageValue.packageDigest)throw Object.assign(new TypeError('Mandatory Package input is stale.'),{code:'ARCA_MANDATORY_PACKAGE_STALE'});
+      if(snapshot.stale){const result=check(C.mandatory,'mandatory_media',input,false,'stale_decision_basis',at,{requirementDigest:n.mandatoryRequirement.digest,
+        evidenceStatus:'stale_basis',authorizedDefectManifest:manifest});return outcome(C.mandatory,result,at);}
+      const observed=await observeMandatoryMedia({packageValue:n.onDeckProductPackage,requirement:n.mandatoryRequirement,observedAtMs:at,
+        mediaProbe:options.mediaProbe,mediaEffectPort:options.mediaEffectPort,computeBoundedMaterialFingerprint:options.computeBoundedMaterialFingerprint,
+        deadlineAtMs:execution.deadlineAtMs,shouldContinue:execution.shouldContinue});
+      const passed=observed.evidenceStatus==='complete'&&dimensionDisposition(c,'mandatory_media',observed.actualGapCodes),reason=observed.evidenceStatus==='stale_basis'
+        ?'stale_decision_basis':observed.actualGapCodes.includes('playback_decode_failed')?'playback_decode_failed':'mandatory_requirement_unmet',
+        result=check(C.mandatory,'mandatory_media',input,passed,reason,at,{...observed,requirementDigest:n.mandatoryRequirement.digest,
+          authorizedDefectManifest:manifest});return outcome(C.mandatory,result,at);},
+    validateResult(_c,o){if(o?.result?.checkKind!=='mandatory_media')throw new TypeError('Mandatory Acceptance Check is invalid.');}});
+  ports[C.space]=pure(C.space,['productManifest','spaceRequirement'],(n,c,at)=>{const snapshot=packageRequirementSnapshot(c);return dimensionCheck(C.space,'space',{
     acceptanceAttemptId:acceptanceAttemptId(c),standardRevision:c.shelf.currentStandardRevision,packageDigest:c.packageValue.packageDigest,
-    onDeckProductPackage:n.onDeckProductPackage,mandatoryRequirement:n.mandatoryRequirement},
-    n.onDeckProductPackage.packageDigest===c.packageValue.packageDigest&&
-      acceptsProductionAttestation(n.onDeckProductPackage.productionAttestation),
-    'mandatory_media_requirement_unmet',at));
-  ports[C.space]=pure(C.space,['productManifest','spaceRequirement'],(n,c,at)=>check(C.space,'space',{
-    acceptanceAttemptId:acceptanceAttemptId(c),standardRevision:c.shelf.currentStandardRevision,packageDigest:c.packageValue.packageDigest,
-    productManifest:n.productManifest,spaceRequirement:n.spaceRequirement},n.spaceRequirement.requiredBytes>=0,'space_requirement_invalid',at));
+    productManifest:n.productManifest,spaceRequirement:n.spaceRequirement},c,at,spaceGaps(c,snapshot.value.requirements.space),n.spaceRequirement.digest);});
   ports[C.feasibility]=pure(C.feasibility,['offLoadContext','placementPolicy','targetEndpoint'],(_n,c,at)=>options.inventoryPort.assess({
     onDeckRunId:stable('arca-ondeck-preview-',{offer:c.offer.offerId}),custodyId:stable('arca-custody-preview-',{offer:c.offer.offerId}),shelf:c.shelf,
     onDeckProductPackage:c.packageValue,observedAtMs:at,replayCommitted:false}));
@@ -108,6 +179,10 @@ function createOnDeckCapabilityPorts(options){const now=options.now||Date.now,ac
       .sort((a,b)=>a.kind.localeCompare(b.kind));
     const assessmentId=canonicalDigest({schema:'arca.acceptance-attempt-id@1',offerId:c.offer.offerId,onDeckPackageId:c.offer.onDeckPackageId,
       packageDigest:c.offer.packageDigest,standardRevision:c.shelf.currentStandardRevision,placementRevision:c.shelf.currentPlacementRevision});
+    const gapDecision=finalGapDecision({acceptanceChecks:values.filter((value)=>value.schemaRef==='helix://contracts/types/AcceptanceCheck/v1'),acceptanceAttemptId:assessmentId,
+      packageDigest:c.packageValue.packageDigest,standardRevision:c.shelf.currentStandardRevision,
+      authorizedDefectManifest:c.packageValue.productionAttestation?.authorizedDefectManifest||null});
+    if(!['exact_match','not_applicable'].includes(gapDecision.authorizedGapComparison))throw new Error('Arca Handoff B authorized Gap union does not match the Manifest.');
     const assessment=acceptance.readAssessment(assessmentId)||acceptance.recordAssessment({acceptanceAttemptId:assessmentId,offerId:c.offer.offerId,
       onDeckPackageId:c.offer.onDeckPackageId,packageDigest:c.offer.packageDigest,shelfId:c.shelf.shelfId,standardRevision:c.shelf.currentStandardRevision,
       placementRevision:c.shelf.currentPlacementRevision,checks});if(checks.some(x=>x.outcome!=='passed'))throw new Error('Arca Handoff B acceptance checks failed.');
@@ -125,22 +200,30 @@ function createOnDeckCapabilityPorts(options){const now=options.now||Date.now,ac
           p.projectionDigest!==expectedDigest)throw new Error('Arca Handoff B Product Control fence is stale for '+p.materialKey);}
     const accepted=acceptance.readAccepted({acceptanceAttemptId:assessmentId,offerMessage:c.offer,libraRunId:c.offer.libraRunId,onDeckRunId:responsibility.onDeckRunId,
       finalInventoryDecision})||acceptance.accept({assessment,offerMessage:c.offer,libraRunId:c.offer.libraRunId,shelf:c.shelf,package:c.packageValue,
-      onDeckRunId:responsibility.onDeckRunId,finalInventoryDecision,targetLocation,bindings:[
+      onDeckRunId:responsibility.onDeckRunId,finalInventoryDecision,targetLocation,gapDecision,
+      acceptanceChecks:gapDecision.acceptanceChecks,bindings:[
         ...c.packageValue.productMaterialManifest.members.map(m=>bindingFromProduct(m,contentProfile)),...c.packageValue.offloadContextManifest.members.map(bindingFromContext)]
         .sort((a,b)=>a.materialKey.localeCompare(b.materialKey)||a.role.localeCompare(b.role)),controlTransfers:projections.map(p=>({materialKey:p.materialKey,
           expectedRevision:p.controlRevision,expectedProjectionDigest:p.projectionDigest,fromScope:{ownerDomain:p.ownerDomain,scopeType:p.ownerScopeType,scopeId:p.ownerScopeId}}))});
     inbox.acknowledge({messageId:c.offer.messageId,consumerDomain:'arca'});return committedOutcome(execution,C.accept,accepted.receipt,effectAt(execution),'responsibility_control_commit');},
     validateResult(_c,o){if(o?.result?.receiptKind!=='handoff_b_accepted')throw new TypeError('Arca Acceptance Receipt is invalid.');}});
   ports[C.reject]=Object.freeze({validateInputs(c){requireNamed(c,['arcaAcceptanceRejectionDecision','domainFactCommitHandle']);},execute(execution){const c=ctx(execution),d=execution.namedInputs.arcaAcceptanceRejectionDecision,
-    assessmentWork=options.workResultReader.listWorks({ownerDomain:'arca',processType:'arca_acceptance',processId:c.offer.offerId,workKind:'acceptance_assessment'})
+      assessmentWork=options.workResultReader.listWorks({ownerDomain:'arca',processType:'arca_acceptance',processId:c.offer.offerId,workKind:'acceptance_assessment'})
       .find((item)=>options.workResultReader.status(item.work_id)?.state==='succeeded');
     if(!assessmentWork)throw new Error('Arca Acceptance assessment Work is absent.');const values=options.workResultReader.read(assessmentWork.work_id)
       .filter(i=>i.outcomeKind==='succeeded').map(i=>i.result),checks=values.map(v=>v.schemaRef==='helix://contracts/types/AcceptanceCheck/v1'
         ?{kind:v.checkKind,outcome:v.result,evidenceDigest:canonicalDigest(v)}:{kind:'inventory_feasibility',outcome:v.availableBytes>=v.requiredBytes?'passed':'failed',evidenceDigest:v.payloadDigest})
-      .sort((a,b)=>a.kind.localeCompare(b.kind)),assessment=acceptance.readAssessment(acceptanceAttemptId(c))||acceptance.recordAssessment({acceptanceAttemptId:acceptanceAttemptId(c),
+      .sort((a,b)=>a.kind.localeCompare(b.kind)),gapDecision=finalGapDecision({acceptanceAttemptId:acceptanceAttemptId(c),
+        acceptanceChecks:values.filter((value)=>value.schemaRef==='helix://contracts/types/AcceptanceCheck/v1'),
+        packageDigest:c.packageValue.packageDigest,standardRevision:c.shelf.currentStandardRevision,
+        authorizedDefectManifest:c.packageValue.productionAttestation?.authorizedDefectManifest||null}),
+      assessment=acceptance.readAssessment(acceptanceAttemptId(c))||acceptance.recordAssessment({acceptanceAttemptId:acceptanceAttemptId(c),
         offerId:c.offer.offerId,onDeckPackageId:c.offer.onDeckPackageId,packageDigest:c.offer.packageDigest,shelfId:c.shelf.shelfId,
         standardRevision:c.shelf.currentStandardRevision,placementRevision:c.shelf.currentPlacementRevision,checks});
-    const rejected=acceptance.reject({assessment,decision:d,offerMessage:c.offer});
+    if(d.acceptanceCheckSetDigest!==gapDecision.acceptanceCheckSetDigest||d.actualGapUnionDigest!==gapDecision.actualGapUnionDigest||
+        d.authorizedGapComparison!==gapDecision.authorizedGapComparison)throw new Error('Arca Rejection Decision Gap union is stale.');
+    const rejected=acceptance.reject({assessment,decision:d,offerMessage:c.offer,package:c.packageValue,
+      gapDecision,acceptanceChecks:gapDecision.acceptanceChecks});
     inbox.acknowledge({messageId:c.offer.messageId,consumerDomain:'arca'});
     return committedOutcome(execution,C.reject,rejected.receipt,effectAt(execution),'domain_fact_commit');},validateResult(_c,o){if(o?.result?.receiptKind!=='handoff_b_rejected')throw new TypeError('Arca Rejection Receipt is invalid.');}});
   ports[C.slot]=Object.freeze({validateInputs(c){requireNamed(c,['finalInventoryDecision','targetHandle']);},execute(execution){const c=ctx(execution),n=execution.namedInputs;

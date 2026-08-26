@@ -3813,7 +3813,72 @@ Manifest集合与`git diff --check`通过。完整架构集仍有People公开包
 
 当前处理决定：冻结SHA `d5708c90d3777c9708f58ffd0162f1ce74983be6`仍为`QUALIFICATION BLOCKED BEFORE OBSERVATION`，不具备Helix-beta发布资格；修复状态为`LOCAL IMPLEMENTATION AND FULL REGRESSION PASSED / NEW CLEAN MAIN SHA FULL RERUN REQUIRED`。本条不声称任何NAS访问、生产副作用或A–I执行。
 
-## 128. 后续问题模板
+## 128. UAT-131：瑕疵接纳不得把未选中产品伪造成普通Selected Product
+
+问题分类：`BUSINESS_CONTRACT / AUTHORIZATION_FENCE / PRODUCT_CONFORMANCE / RELEASE_BLOCKER`
+
+用户侧现象：Helix-beta冻结SHA `fb28e360467766b666a3d021e1668c6f09d255da`的全量Movie资格运行中，
+6个符合HB-B.25的Frozen Movie均已从真实Admin Web执行“接受瑕疵”，并形成有效
+`accept_listed_defects` Authorized Defect Manifest；随后六项全部再次进入Frozen。页面只剩“放弃整理”，
+没有合法重试入口；六项均无开放Work/Event、无Product Package、无Arca Acceptance、Shelf Entry或Deck Fact。
+
+现场证据（2026-08-27）：隔离运行
+`F:\shelfdeck_test_zone\runs\BETA-20260827-011127-fb28e36046`在10/23 On-deck时停止。
+`ui-018-formation-frozen-checkpoint.png`、`ui-019-defects-accepted.png`、
+`ui-023-new-hb-b25-defects-accepted.png`与`ui-034-current-attention-actions.png`证明Frozen中间态、
+页面接纳及最终无恢复入口；`qualification-stop-db`证明六个最新
+`libra.product.conformance.verify@1` Event Attempt均以
+`P9_CONFORMANCE_SELECTED_CONTINUITY`失败，且Executor尚未执行Promotion。服务、FFmpeg和18080已安全停止，
+未访问NAS、`Z:`、Docker或生产媒体。同期UAT-127已独立证明同一Transcode Work/Event/Attempt从61.2%恢复到
+64.6%并最终100%，只有一个Effect Receipt、一个Package、一个accepted Handoff、一个active Entry与Deck Fact。
+
+精确根因：`resolveProductSelection()`把原始、合法且digest已冻结的
+`SelectedProductOutput@1(result=not_selected)`通过对象展开改写为未注册的
+`authorized_defect_selection`，新增`authorizedDefectManifestDigest`并复用旧`draftDigest`；该对象不符合
+`SelectedProductOutput@1`的closed enum、closed properties和Draft Envelope digest合同。
+`Product Delivery Assembler`又把该伪对象与原始failed `ProductMediaVerification`送入
+`ProductConformanceInputSnapshot`，而SSOT §8.6.20和P9实现仍只允许普通`selected + passed`连续性，故输入投影
+被正确fail closed。UAT-126专项只覆盖Manifest、Lifecycle、Aftercare和Arca布尔验收模型，没有覆盖
+`not_selected -> Product Conformance -> Promotion -> Arca`真实全链。
+
+业务影响：HB-B.25允许的`external_source_exhausted`无法形成HB-B.26要求的
+`accepted_with_defects`，23/23主检查点不可达；重复接纳、Discard、数据库直写或伪造passed Verification均会绕过
+用户授权和真实unmet Requirement，不能作为修复或验收手段。该SHA的资格结果固定为`FAILED`，不得继续拼接
+Aftercare、Off-deck、UAT-129或24小时Evidence。
+
+修复边界：先返回Design，对SSOT §8.6.20做与§5.6.7一致的有界补全。原
+`SelectedProductOutput@1`及其`draftDigest`保持逐字节不变；`ProductConformanceInputSnapshot`显式携带完整
+`AuthorizedDefectManifest|null`。普通分支仍只允许`selected + passed`；External瑕疵分支保存原始
+`not_selected`、Manifest精确引用的failed direct-input Verification及真实reason codes，并验证Run、Spec、
+Verification ID/digest、waived set和零Workspace Handle完全闭合。Conformance输出仍为failed并保留真实unmet，
+只有Promotion确认`actual unmet set == authorized set`后才可继续。Manifest digest必须进入Conformance Work/Event
+身份与恢复fence，防止复用旧失败Work。Arca还必须拒绝cross-run Manifest，并以自身实际Gap集合独立复核，
+不能只信Libra Attestation。不得扩展`SelectedProductOutput` enum、伪造selected/passed或移动Domain Owner。
+
+验收证据：新增actor-only、external-only及组合Manifest的完整
+`not_selected -> conformance failed with exact unmet -> promotion -> accepted_with_defects -> On-deck`链路；
+负向覆盖Manifest/Run/Spec/Verification ID、digest、reason set、Workspace Handle和额外Gap篡改、cross-run Arca拒绝；
+覆盖同Manifest幂等重放、Manifest变化生成新Work/Event、服务重启不复用旧失败Evidence。完整Service、Admin Web、
+Architecture/Contract Gate通过后提交新的clean main SHA，并从不可变基线建立全新Canary完整重跑。
+
+有界设计与本地实现（2026-08-27）：Product Owner已授权上述§8.6.20补全。原`not_selected`与
+`draftDigest`保持不变，Authorized Defect Manifest、原始failed Verification及零Workspace连续性进入正式Conformance输入；
+普通分支继续要求`selected + passed`，瑕疵分支继续输出真实failed/unmet，Promotion仅在实际Gap与授权集合精确相等时继续。
+Manifest digest已进入Work/Event及恢复身份。Arca不信任Libra布尔结论，重新读取并探测原始Source与最终Product，执行
+5/50/95 decode并按五个媒体维度形成自身Gap集合，再与Manifest精确比较。
+
+本地验收结果（2026-08-27）：真实Admin HTTP的actor-only、external-only、组合及restart四场景`4/4 PASS`；UAT-131、
+合同与相关回归`93/93 PASS`，External Handoff与Perception专项PASS，Admin Web `29/29 PASS`且production build通过；
+完整Service `353 total / 335 pass / 18 explicit real-media environment skip / 0 fail`。Contract/Manifest/Semantic Gate均PASS，
+P2 aggregate为`a6c284fd3c5c3a4a9542a8d02323def5902c078cbca84184b12887c695e4b80b`；Architecture fixture只保留
+clean main已有发现，UAT-131未新增越界。以上均为本地实现证据，不替代真实Canary资格。
+
+当前处理决定：冻结SHA `fb28e360467766b666a3d021e1668c6f09d255da`保持
+`QUALIFICATION FAILED`；修复状态为
+`SSOT BOUNDED AMENDMENT AND LOCAL FULL REGRESSION PASSED / NEW CLEAN MAIN SHA FULL RERUN REQUIRED`。
+旧运行只保留失败现场，不继续拼接Evidence；只有新clean main SHA从全新Canary完成全部门禁和24小时观察后，才能关闭本条并判断Beta资格。
+
+## 129. 后续问题模板
 
 后续发现的问题按以下结构追加：
 

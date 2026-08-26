@@ -16,6 +16,7 @@ const {
   parseArcaMaterialEpisodeClaims,
 } = require('../model/material-episode-claims');
 const { deriveAcceptedResponsibility } = require('../model/acceptance-responsibility');
+const { finalGapDecision } = require('../model/acceptance-gap-decision');
 
 const RECEIPT_SCHEMA = 'helix://contracts/types/CustodyAndTransferReceipt/v1';
 const MESSAGE_SCHEMA = 'helix://contracts/types/ArcaProductAcceptedMessage/v1';
@@ -332,6 +333,17 @@ function foundationDefinition(schemaManifest) {
         keyColumns: ['commit_marker'],
         safeIntegers: true,
       },
+      find_result: {
+        kind: 'select-one',
+        tableId: 'fx_event_result_bindings',
+        columns: [
+          'result_id', 'result_schema_ref', 'result_json', 'result_digest',
+          'evidence_schema_ref', 'evidence_json', 'evidence_digest',
+          'committed_at_ms',
+        ],
+        keyColumns: ['result_id'],
+        safeIntegers: true,
+      },
       insert_result: {
         kind: 'insert',
         tableId: 'fx_event_result_bindings',
@@ -577,6 +589,24 @@ function createHandoffBAcceptanceStore(options) {
 
   function accept(request) {
     const assessment = exactAttempt(request.assessment);
+    const gapDecision=request.gapDecision;
+    let recomputedGapDecision;
+    try {
+      recomputedGapDecision=finalGapDecision({acceptanceChecks:request.acceptanceChecks,acceptanceAttemptId:assessment.acceptanceAttemptId,
+        packageDigest:assessment.packageDigest,standardRevision:assessment.standardRevision,
+        authorizedDefectManifest:request.package?.productionAttestation?.authorizedDefectManifest||null});
+    } catch (error) {
+      fail('P14_HANDOFF_B_GAP_DECISION','Accepted Handoff B requires a complete final Acceptance Gap union.',{cause:error.code||error.message});
+    }
+    const assessedAcceptanceChecks=(assessment.checks||[]).filter((item)=>item.kind!=='inventory_feasibility');
+    const suppliedAcceptanceChecks=(request.acceptanceChecks||[]).map((item)=>Object.freeze({kind:item.checkKind,outcome:item.result,
+      evidenceDigest:canonicalDigest(item)})).sort((left,right)=>Buffer.compare(Buffer.from(left.kind),Buffer.from(right.kind)));
+    if(!gapDecision||!Array.isArray(gapDecision.actualGapUnionCodes)||
+        !['exact_match','not_applicable'].includes(gapDecision.authorizedGapComparison)||
+        canonicalJson(assessedAcceptanceChecks)!==canonicalJson(suppliedAcceptanceChecks)||
+        canonicalJson(without(gapDecision,'acceptanceChecks'))!==canonicalJson(without(recomputedGapDecision,'acceptanceChecks'))) {
+      fail('P14_HANDOFF_B_GAP_DECISION','Accepted Handoff B requires an exact final Acceptance Gap union.');
+    }
     const responsibilityIdentity =
       deriveAcceptedResponsibility(assessment);
     const decisionId = responsibilityIdentity.acceptanceDecisionId;
@@ -698,6 +728,12 @@ function createHandoffBAcceptanceStore(options) {
       standardRevision: assessment.standardRevision,
       placementRevision: assessment.placementRevision,
       acceptanceEvidenceSetDigest: assessment.acceptanceEvidenceSetDigest,
+      acceptanceCheckSetDigest: gapDecision.acceptanceCheckSetDigest,
+      actualGapUnionCodes: gapDecision.actualGapUnionCodes,
+      actualGapUnionDigest: gapDecision.actualGapUnionDigest,
+      authorizedDefectManifestDigestOrNull:
+        gapDecision.authorizedDefectManifestDigestOrNull,
+      authorizedGapComparison: gapDecision.authorizedGapComparison,
       arcaBindingSetDigest,
       controlScopeDigest,
     };
@@ -1184,11 +1220,32 @@ function createHandoffBAcceptanceStore(options) {
 
   function reject(request) {
     const assessment=exactAttempt(request.assessment),decision=request.decision;
+    const gapDecision=request.gapDecision;
+    let recomputedGapDecision;
+    try {
+      recomputedGapDecision=finalGapDecision({acceptanceChecks:request.acceptanceChecks,acceptanceAttemptId:assessment.acceptanceAttemptId,
+        packageDigest:assessment.packageDigest,standardRevision:assessment.standardRevision,
+        authorizedDefectManifest:request.package?.productionAttestation?.authorizedDefectManifest||null});
+    } catch (error) {
+      fail('P14_HANDOFF_B_REJECTION_CONTRACT','Rejected Handoff B requires a complete final Acceptance Gap union.',{cause:error.code||error.message});
+    }
+    const assessedAcceptanceChecks=(assessment.checks||[]).filter((item)=>item.kind!=='inventory_feasibility');
+    const suppliedAcceptanceChecks=(request.acceptanceChecks||[]).map((item)=>Object.freeze({kind:item.checkKind,outcome:item.result,
+      evidenceDigest:canonicalDigest(item)})).sort((left,right)=>Buffer.compare(Buffer.from(left.kind),Buffer.from(right.kind)));
     if (!decision || decision.acceptanceAttemptId!==assessment.acceptanceAttemptId ||
         decision.offerId!==assessment.offerId || decision.onDeckPackageId!==assessment.onDeckPackageId ||
         decision.packageDigest!==assessment.packageDigest || decision.shelfId!==assessment.shelfId ||
         decision.standardRevision!==assessment.standardRevision || decision.placementRevision!==assessment.placementRevision ||
         decision.structuredRejection?.acceptanceEvidenceSetDigest!==assessment.acceptanceEvidenceSetDigest ||
+        !gapDecision || canonicalJson(assessedAcceptanceChecks)!==canonicalJson(suppliedAcceptanceChecks) ||
+        canonicalJson(without(gapDecision,'acceptanceChecks'))!==canonicalJson(without(recomputedGapDecision,'acceptanceChecks')) ||
+        decision.acceptanceCheckSetDigest!==gapDecision.acceptanceCheckSetDigest ||
+        decision.actualGapUnionDigest!==gapDecision.actualGapUnionDigest ||
+        canonicalJson(decision.actualGapUnionCodes)!==canonicalJson(gapDecision.actualGapUnionCodes) ||
+        decision.authorizedDefectManifestDigestOrNull!==gapDecision.authorizedDefectManifestDigestOrNull ||
+        decision.authorizedGapComparison!==gapDecision.authorizedGapComparison ||
+        gapDecision.acceptanceCheckSetDigest!==canonicalDigest({schema:'arca.acceptance-check-set@1',items:request.acceptanceChecks||[]}) ||
+        gapDecision.actualGapUnionDigest!==canonicalDigest({schema:'arca.acceptance-actual-gap-union@1',items:gapDecision.actualGapUnionCodes}) ||
         assessment.checks.every((item)=>item.outcome==='passed') ||
         decision.structuredRejection?.rejectionDigest!==canonicalDigest(without(decision.structuredRejection,'rejectionDigest')) ||
         decision.decisionDigest!==canonicalDigest(without(decision,'decisionDigest'))) {
@@ -1285,6 +1342,60 @@ function createHandoffBAcceptanceStore(options) {
       packageDigest: request.offerMessage.packageDigest,
     });
     const decisionId = responsibility.acceptanceDecisionId;
+    let decisionHead = null;
+    const decisionRead = options.unitOfWork.execute([{
+      participantId: 'arca_handoff_b_accepted_decision_head_read',
+      owner: 'arca',
+      repositories: [arca],
+      execute(context) {
+        decisionHead = context.repository(arca.repositoryId).invoke(
+          'find_decision', { acceptance_decision_id: decisionId });
+        return decisionHead;
+      },
+    }, {
+      participantId: 'arca_handoff_b_accepted_decision_evidence_read',
+      owner: 'execution-foundation',
+      boundBusinessOwner: 'arca',
+      repositories: [foundation],
+      execute(context) {
+        if (!decisionHead) return null;
+        const repo = context.repository(foundation.repositoryId);
+        const markerId = stable('arca.handoff-b-accepted-marker@1', {
+          acceptanceDecisionId: decisionId,
+          decisionDigest: decisionHead.decision_digest,
+        });
+        const marker = repo.invoke('find_marker', { commit_marker: markerId });
+        const resultRow = marker && repo.invoke('find_result', {
+          result_id: marker.result_id,
+        });
+        let value;
+        try {
+          value = resultRow && Object.freeze(JSON.parse(resultRow.evidence_json));
+        } catch {
+          fail('P14_HANDOFF_B_REPLAY_CORRUPT',
+            'Accepted Decision Evidence JSON is corrupt.');
+        }
+        if (!marker || !resultRow || !value ||
+            marker.owner_domain !== 'arca' ||
+            marker.commit_digest !== decisionHead.decision_digest ||
+            resultRow.evidence_schema_ref !==
+              'helix://contracts/domain-types/ArcaAcceptanceDecision/v1' ||
+            resultRow.evidence_digest !== value.decisionDigest ||
+            value.decisionDigest !==
+              canonicalDigest(without(value, 'decisionDigest')) ||
+            value.acceptanceDecisionId !== decisionId ||
+            value.acceptanceAttemptId !== request.acceptanceAttemptId ||
+            value.acceptanceCheckSetDigest === undefined ||
+            !Array.isArray(value.actualGapUnionCodes)) {
+          fail('P14_HANDOFF_B_REPLAY_CORRUPT',
+            'Accepted Decision Foundation Evidence is incomplete or corrupt.');
+        }
+        return value;
+      },
+    }]);
+    if (!decisionHead) return null;
+    const decision =
+      decisionRead.arca_handoff_b_accepted_decision_evidence_read;
     return options.unitOfWork.execute([{
       participantId: 'arca_handoff_b_accepted_read',
       owner: 'arca',
@@ -1327,28 +1438,6 @@ function createHandoffBAcceptanceStore(options) {
           request.finalInventoryDecision || persistedFinalInventoryDecision;
         const expectedOnDeckRunId = request.onDeckRunId ||
           responsibility.onDeckRunId;
-        const decisionBase = {
-          schemaRef:
-            'helix://contracts/domain-types/ArcaAcceptanceDecision/v1',
-          schemaVersion: 1,
-          acceptanceDecisionId: decisionId,
-          acceptanceAttemptId: request.acceptanceAttemptId,
-          result: 'accepted',
-          offerId: row.offer_id,
-          onDeckPackageId: row.on_deck_package_id,
-          packageDigest: row.package_digest,
-          shelfId: row.shelf_id,
-          standardRevision: Number(row.standard_revision),
-          placementRevision: Number(row.placement_revision),
-          acceptanceEvidenceSetDigest:
-            row.acceptance_evidence_set_digest,
-          arcaBindingSetDigest: receipt.arcaBindingSetDigest,
-          controlScopeDigest: custody?.control_scope_digest,
-        };
-        const decision = Object.freeze({
-          ...decisionBase,
-          decisionDigest: canonicalDigest(decisionBase),
-        });
         if (!custody || !attempt || !run || !finalDecision ||
             attempt.state !== 'accepted' ||
             attempt.finished_at_ms === null ||

@@ -1,6 +1,6 @@
 'use strict';
 
-const { canonicalDigest } = require('../../../contracts/canonical-json');
+const { canonicalDigest, canonicalJson } = require('../../../contracts/canonical-json');
 const { coversRequirementGaps, resolveProductSelection } =
   require('../model/defect-admission-contracts');
 const {
@@ -102,11 +102,13 @@ function selectedContext(options, snapshot, selectedWorkId) {
     .filter((item) => item.outcomeKind === 'succeeded');
   const resolvedSelection = resolveProductSelection(results,
     snapshot.run.authorizedDefectManifest);
-  const selected = resolvedSelection.selection;
+  const selectedProduct = resolvedSelection.selection;
+  const selected = resolvedSelection.effectiveSelection;
   const verification = resolvedSelection.verification;
-  const verificationAuthorized = selected?.result === 'authorized_defect_selection';
-  if (!selected || !['selected', 'authorized_defect_selection'].includes(selected.result) ||
-      !verification || (verification.result !== 'passed' && !verificationAuthorized)) {
+  const verificationAuthorized = selected?.selectionKind ===
+    'authorized_defect_direct_input';
+  if (!selectedProduct || !selected || !verification ||
+      (verification.result !== 'passed' && !verificationAuthorized)) {
     throw new Error('Selected Product output and verification are unavailable.');
   }
   let workspaceMediaHandle = null;
@@ -144,7 +146,8 @@ function selectedContext(options, snapshot, selectedWorkId) {
       throw new Error('Selected Workspace media Handle is unavailable.');
     }
   }
-  return Object.freeze({ results, selected, verification, workspaceMediaHandle });
+  return Object.freeze({ results, selectedProduct, selected, verification,
+    workspaceMediaHandle });
 }
 
 function workspaceMember(reference, role, outputRequirementDigest,
@@ -386,8 +389,199 @@ function productFactManifest(runId, packageRevision, facts) {
 
 function createProductDeliveryAssembler(options) {
   if (!options?.movieProductionReader || !options.workResultReader ||
-      !options.workspaceProductPort) {
+      !options.workspaceProductPort || !options.productProductionPort ||
+      typeof options.productProductionPort.issuePhysicalReadHandle !== 'function' ||
+      typeof options.productProductionPort.issueShelfAcceptanceReadHandle !== 'function') {
     throw new TypeError('Product Delivery assembly requires exact typed readers.');
+  }
+
+  function shelfAcceptancePrimaryReadSet(value, conformance) {
+    const sourceMembers = value.snapshot.members.filter((item) =>
+      item.role === 'primary_payload');
+    const productMembers = value.productMaterialManifest.members.filter((item) =>
+      item.role === 'primary_payload');
+    if (sourceMembers.length !== 1 || productMembers.length !== 1) {
+      throw new Error('Movie Shelf Acceptance authority requires one source and one Product Primary.');
+    }
+    const sourceMember = sourceMembers[0];
+    const productMember = productMembers[0];
+    const verification = value.selected.verification;
+    const originalSourceHandle = options.productProductionPort.issuePhysicalReadHandle({
+      libraRunId: value.snapshot.run.libraRunId,
+      runExecutionBasisDigest: value.snapshot.run.executionBasisDigest,
+      runCreatedAtMs: value.snapshot.run.createdAtMs,
+      physicalIdentity: sourceMember.physicalIdentity,
+      sizeBytes: sourceMember.sizeBytes,
+      endpointId: sourceMember.endpointId,
+      location: sourceMember.location,
+      bindingRevision: sourceMember.bindingRevision,
+      mountScopeRevision: 1,
+    });
+    const productHandle = productMember.workspaceMaterialHandle ||
+      originalSourceHandle;
+    const originalSourceHandleDigest = canonicalDigest(originalSourceHandle);
+    const productHandleDigest = canonicalDigest(productHandle);
+    const sourceProbes = options.workResultReader.listWorks({
+      ownerDomain:'libra',
+      processType:'libra_run',
+      processId:value.snapshot.run.libraRunId,
+      workKind:'workspace_media_production',
+    }).filter((item) => item.state === 'succeeded').flatMap((item) =>
+      options.workResultReader.read(item.work_id)).filter((item) =>
+      item.outcomeKind === 'succeeded' &&
+      item.capabilityRef === 'shared.material.media.probe@1' &&
+      item.result?.sourceHandleDigest === originalSourceHandleDigest);
+    if (sourceProbes.length !== 1) {
+      throw new Error(
+        'Frozen Run Primary source Probe is unavailable or ambiguous.',
+      );
+    }
+    const sourceProbe = sourceProbes[0].result;
+    const verificationEvent = value.selected.results.find((item) =>
+      item.result?.verificationId === verification.verificationId);
+    const candidateBinding = verificationEvent?.inputBindings?.bindings?.find(
+      (item) => item.portName === 'productMediaCandidateInput');
+    const productProbe = productHandleDigest === originalSourceHandleDigest
+      ? sourceProbe
+      : value.selected.results.find((item) =>
+        item.outcomeKind === 'succeeded' &&
+        item.capabilityRef === 'shared.material.media.probe@1' &&
+        item.result?.sourceHandleDigest === productHandleDigest &&
+        item.result?.evidenceId === verification.outputProbeEvidenceId &&
+        canonicalDigest(item.result) === verification.outputProbeEvidenceDigest)
+        ?.result || null;
+    if (!productProbe) {
+      throw new Error('Selected Product output Probe is unavailable or stale.');
+    }
+    const candidateSourceProbe = typeof candidateBinding?.parameters?.sourceWorkId === 'string'
+      ? sourceProbe : productProbe;
+    if (candidateSourceProbe.evidenceId !== verification.sourceProbeEvidenceId ||
+        canonicalDigest(candidateSourceProbe) !== verification.sourceProbeEvidenceDigest) {
+      throw new Error(
+        'Selected Product verification source typed binding is unavailable or stale.',
+      );
+    }
+    if (verification.productMaterialHandleId !== productHandle.handleId ||
+        verification.productMaterialHandleDigest !== productHandleDigest) {
+      throw new Error('Selected Product verification does not bind the final Product Primary.');
+    }
+    const issuedAtMs = conformance.verifiedAtMs;
+    const expiresAtMs = issuedAtMs + 24 * 60 * 60 * 1000;
+    if (!Number.isSafeInteger(expiresAtMs)) {
+      throw new Error('Shelf Acceptance read authority expiry is outside the safe range.');
+    }
+    const common = {
+      libraRunId: value.snapshot.run.libraRunId,
+      runExecutionBasisDigest: value.snapshot.run.executionBasisDigest,
+      onDeckPackageId: value.onDeckPackageId,
+      acceptanceSpecId: value.snapshot.spec.acceptanceSpecId,
+      acceptanceSpecRecordDigest: value.snapshot.spec.recordDigest,
+      productMemberDigest: productMember.memberDigest,
+      issuedAtMs,
+      expiresAtMs,
+    };
+    let sourceReadHandle;
+    let productReadHandle;
+    const samePhysicalMaterial = sourceMember.materialKey === productMember.materialKey;
+    if (samePhysicalMaterial) {
+      sourceReadHandle = options.productProductionPort.issueShelfAcceptanceReadHandle({
+        ...common,
+        readRole: 'source_and_product_primary',
+        physicalIdentity: sourceMember.physicalIdentity,
+        sizeBytes: sourceMember.sizeBytes,
+        endpointId: sourceMember.endpointId,
+        location: sourceMember.location,
+        bindingRevision: sourceMember.bindingRevision,
+        mountScopeRevision: 1,
+      });
+      productReadHandle = sourceReadHandle;
+    } else {
+      sourceReadHandle = options.productProductionPort.issueShelfAcceptanceReadHandle({
+        ...common,
+        readRole: 'source_primary',
+        physicalIdentity: sourceMember.physicalIdentity,
+        sizeBytes: sourceMember.sizeBytes,
+        endpointId: sourceMember.endpointId,
+        location: sourceMember.location,
+        bindingRevision: sourceMember.bindingRevision,
+        mountScopeRevision: 1,
+      });
+      const workspaceRoot = options.workspaceProductPort.rootSnapshot();
+      productReadHandle = options.productProductionPort.issueShelfAcceptanceReadHandle({
+        ...common,
+        readRole: 'product_primary',
+        physicalIdentity: productMember.physicalIdentity,
+        sizeBytes: productMember.sizeBytes,
+        endpointId: productMember.location.endpointId,
+        location: options.workspaceProductPort.resolveMaterialLocation(
+          productMember.workspaceMaterialHandle),
+        bindingRevision: productMember.bindingRevision,
+        mountScopeRevision: workspaceRoot.mountScopeRevision,
+      });
+    }
+    const itemBody = {
+      ordinal: 0,
+      materialKey: productMember.materialKey,
+      productMemberDigest: productMember.memberDigest,
+      productMediaVerification: verification,
+      productMediaVerificationDigest: canonicalDigest(verification),
+      sourceReadHandle,
+      sourceReadHandleDigest: canonicalDigest(sourceReadHandle),
+      productReadHandle,
+      productReadHandleDigest: canonicalDigest(productReadHandle),
+      samePhysicalMaterial,
+    };
+    const primaryInputs = Object.freeze([Object.freeze({
+      ...itemBody,
+      itemDigest: canonicalDigest(itemBody),
+    })]);
+    const body = {
+      schemaRef: 'helix://contracts/domain-types/ShelfAcceptancePrimaryReadSet/v1',
+      schemaVersion: 1,
+      onDeckPackageId: value.onDeckPackageId,
+      libraRunId: value.snapshot.run.libraRunId,
+      runExecutionBasisDigest: value.snapshot.run.executionBasisDigest,
+      acceptanceSpecId: value.snapshot.spec.acceptanceSpecId,
+      acceptanceSpecRecordDigest: value.snapshot.spec.recordDigest,
+      issuedAtMs,
+      expiresAtMs,
+      primaryInputs,
+      primaryInputSetDigest: canonicalDigest({
+        schema: 'libra.shelf-acceptance-primary-input-set@1',
+        items: primaryInputs,
+      }),
+    };
+    const result = Object.freeze({
+      ...body,
+      readAuthorityDigest: canonicalDigest({
+        schema: 'libra.shelf-acceptance-primary-read-authority@1',
+        ...body,
+      }),
+    });
+    if (Buffer.byteLength(canonicalJson(result), 'utf8') > 1024 * 1024) {
+      throw new Error('Shelf Acceptance Primary Read Set exceeds its canonical size bound.');
+    }
+    return result;
+  }
+
+  function acceptanceRequirementSnapshot(snapshot) {
+    const body = {
+      schemaRef: 'helix://contracts/domain-types/AcceptanceRequirementSnapshot/v1',
+      schemaVersion: 1,
+      acceptanceSpecId: snapshot.spec.acceptanceSpecId,
+      acceptanceSpecRecordDigest: snapshot.spec.recordDigest,
+      targetShelfId: snapshot.spec.targetShelfId,
+      contentProfile: snapshot.spec.contentProfile,
+      structureKind: snapshot.spec.structureKind,
+      shelfStandardRevision: snapshot.spec.shelfStandardRevision,
+      shelfStandardDigest: snapshot.spec.shelfStandardDigest,
+      requirements: snapshot.spec.requirements,
+    };
+    const result = Object.freeze({ ...body, snapshotDigest:canonicalDigest(body) });
+    if (Buffer.byteLength(canonicalJson(result), 'utf8') > 64 * 1024) {
+      throw new Error('Acceptance Requirement Snapshot exceeds its canonical size bound.');
+    }
+    return result;
   }
 
   function context(libraRunId, selectedWorkId) {
@@ -544,7 +738,8 @@ function createProductDeliveryAssembler(options) {
         return Object.freeze({ ...body, snapshotDigest:canonicalDigest(body) });
       }).sort((left, right) => left.ordinal - right.ordinal);
     const selectedProducts = Object.freeze([Object.freeze({
-      selectedProduct: selected.selected,
+      selectionKind: selected.selected.selectionKind,
+      selectedProduct: selected.selectedProduct,
       verification: selected.verification,
       workspaceHandleDigest: selected.workspaceMediaHandle
         ? canonicalDigest(selected.workspaceMediaHandle) : null,
@@ -555,6 +750,7 @@ function createProductDeliveryAssembler(options) {
       acceptanceSpecId: snapshot.spec.acceptanceSpecId,
       acceptanceSpecRecordDigest: snapshot.spec.recordDigest,
       acceptanceSpec: snapshot.spec,
+      authorizedDefectManifest: snapshot.run.authorizedDefectManifest || null,
       resolvedIdentitySnapshot: facts.find((item) =>
         item.factKind === 'resolved_identity'),
       productFactSnapshots: facts,
@@ -731,6 +927,7 @@ function createProductDeliveryAssembler(options) {
     evidenceItems.sort((left, right) => utf8(left.evidenceId, right.evidenceId));
     verificationItems.sort((left, right) =>
       utf8(left.verificationId, right.verificationId));
+    const shelfAcceptanceReadSet = shelfAcceptancePrimaryReadSet(value, conformance);
     const provenanceBody = {
       libraRunId,
       runExecutionBasisDigest: snapshot.run.executionBasisDigest,
@@ -738,6 +935,8 @@ function createProductDeliveryAssembler(options) {
       workflowPlanRefs: Object.freeze(planItems),
       productVerificationRefs: Object.freeze(verificationItems),
       externalRealityObservationRefs: Object.freeze(evidenceItems),
+      acceptanceRequirementSnapshot: acceptanceRequirementSnapshot(snapshot),
+      shelfAcceptancePrimaryReadSet: shelfAcceptanceReadSet,
     };
     const productionProvenance = Object.freeze({
       ...provenanceBody,

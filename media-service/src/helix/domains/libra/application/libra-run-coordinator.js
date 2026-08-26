@@ -261,6 +261,28 @@ function createLibraRunCoordinator(options){
     }
     throw new Error('External acquisition attempt loop escaped its configured bound.');
   }
+  function continueExternalOrAuthorizedDirectInput(snapshot, workspace, context) {
+    const authorized = snapshot.run.authorizedDefectManifest?.defects?.some(
+      (item) => item.defectCode === 'external_source_exhausted');
+    if (authorized && typeof context?.priorSelectionWorkId === 'string') {
+      const persisted = options.workResultReader.readDefinition?.(
+        context.priorSelectionWorkId,
+      )?.definition;
+      if (!persisted || persisted.ownerDomain !== 'libra' ||
+          persisted.processType !== 'libra_run' ||
+          persisted.processId !== snapshot.run.libraRunId ||
+          persisted.executionBasisDigest !== snapshot.run.executionBasisDigest) {
+        throw new Error(
+          'Authorized direct-input selection Work changed from the frozen Run Basis.',
+        );
+      }
+      return ensureDelivery(snapshot, workspace, Object.freeze({
+        workId:persisted.workId,
+        executionBasisDigest:persisted.executionBasisDigest,
+      }));
+    }
+    return ensureExternalSelection(snapshot, workspace);
+  }
   function ensureTranscodeSelection(snapshot,workspace,context) {
     for(let ordinal=1;ordinal<=64;ordinal+=1){
       const assessment=transcodeStrategyAssessmentWork(snapshot,ordinal),assessmentSubmitted=submit(assessment),
@@ -269,7 +291,7 @@ function createLibraRunCoordinator(options){
         if(workFailed(assessmentStatus)){
           const reasonCode=assessmentStatus?.latestAttempt?.failure_code||'transcode_assessment_failed';
           if(['media_device_strategies_exhausted','media_size_budget_infeasible'].includes(reasonCode))
-            return ensureExternalSelection(snapshot,workspace);
+            return continueExternalOrAuthorizedDirectInput(snapshot,workspace,context);
           return terminalWork(snapshot,assessment,assessmentStatus);
         }
         return Object.freeze({kind:'pending',phase:'transcode_strategy_assessment',libraRunId:snapshot.run.libraRunId,
@@ -290,20 +312,20 @@ function createLibraRunCoordinator(options){
       if(workSucceeded(status)){
         const selection=selectedOutput(work);
         if(selection.result==='selected')return ensureDelivery(snapshot,workspace,work);
-        if(requiresExternalSource(work))return ensureExternalSelection(snapshot,workspace);
+        if(requiresExternalSource(work))return continueExternalOrAuthorizedDirectInput(snapshot,workspace,context);
         continue;
       }
       if(workFailed(status)){
         const reasonCode=status?.latestAttempt?.failure_code||'transcode_work_failed';
         if(['media_device_strategies_exhausted','media_size_budget_infeasible'].includes(reasonCode))
-          return ensureExternalSelection(snapshot,workspace);
+          return continueExternalOrAuthorizedDirectInput(snapshot,workspace,context);
         return terminalWork(snapshot,work,status);
       }
       return Object.freeze({kind:'pending',phase:'workspace_media_transcode_selection',libraRunId:snapshot.run.libraRunId,
         workId:work.workId,replayed:submitted.replayed,transcodeStrategyOrdinal:ordinal,
         workspaceId:workspace.workspaceId,workspaceRevision:workspace.currentRevision});
     }
-    return ensureExternalSelection(snapshot,workspace);
+    return continueExternalOrAuthorizedDirectInput(snapshot,workspace,context);
   }
   function ensureWorkspace(snapshot) {
     const id=workspaceId(snapshot.run.libraRunId),existing=options.movieProductionReader.readWorkspace(id);

@@ -159,7 +159,9 @@ function createProductDeliveryPlanner(options) {
             'productConformanceInputSnapshot',
             request,
             CONFORMANCE_INPUT,
-            { selectedMediaWorkId: selected.workId },
+            { selectedMediaWorkId: selected.workId,
+              authorizedDefectManifestDigest:
+                snapshot.run.authorizedDefectManifest?.manifestDigest || null },
           )],
           resourceKinds: ['cpu'],
         });
@@ -252,6 +254,15 @@ function createProductDeliveryProjections(options) {
       projectionRef: CONFORMANCE_INPUT,
       projection: Object.freeze({
         project({ ownerScope, parameters }) {
+          const snapshot = options.movieProductionReader.readRunSnapshot(
+            ownerScope.processId,
+          );
+          if ((snapshot.run.authorizedDefectManifest?.manifestDigest || null) !==
+              parameters.authorizedDefectManifestDigest) {
+            throw new Error(
+              'Product Conformance authorized-defect Manifest changed.',
+            );
+          }
           return options.productDeliveryAssembler.conformanceInput(
             ownerScope.processId,
             parameters.selectedMediaWorkId,

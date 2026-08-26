@@ -2,6 +2,7 @@
 
 const { canonicalDigest, canonicalJson } = require('../../../contracts/canonical-json');
 const { buildMediaRequirement } = require('./media-production-contracts');
+const { assertAuthorizedDefectManifest } = require('./defect-admission-contracts');
 
 class ProductConformanceError extends Error {
   constructor(code, message) { super(message); this.name = 'ProductConformanceError'; this.code = code; }
@@ -13,6 +14,7 @@ const UNMET_ORDER = Object.freeze(['identity_unmet', 'season_identity_unmet', 's
   'episode_coverage_unmet', 'metadata_field_unmet', 'metadata_artifact_unmet', 'sidecar_unrenderable',
   'image_undecodable', 'media_form_unmet', 'video_codec_unmet', 'container_unmet', 'file_extension_unmet',
   'minimum_raster_unmet', 'system_upscale_forbidden', 'primary_audio_unmet', 'max_size_exceeded',
+  'dynamic_range_conversion_unmet', 'output_color_profile_unmet', 'dolby_vision_metadata_not_removed',
   'domain_binding_unmet', 'checksum_unmet', 'artifact_materialization_unmet', 'layout_unmet']);
 const FACT_SCHEMAS = Object.freeze({
   resolved_identity: 'helix://contracts/types/ResolvedProductIdentity/v1',
@@ -209,22 +211,57 @@ function buildProductConformanceInputSnapshot(value) {
       artifactVerificationSnapshots.some((item, index) => item.ordinal !== index ||
         canonicalJson(item.verifiedManifestItem) !== canonicalJson(verifiedArtifactManifest.items[index])))
     fail('P9_CONFORMANCE_ARTIFACT_COVERAGE', 'Artifact verification snapshots must exactly cover the verified manifest.');
+  const manifest = value.authorizedDefectManifest === null ? null :
+    assertAuthorizedDefectManifest(value.authorizedDefectManifest);
+  if (manifest && manifest.libraRunId !== libraRunId)
+    fail('P9_CONFORMANCE_AUTHORIZED_DEFECT_CONTINUITY',
+      'Authorized Defect Manifest belongs to another Libra Run.');
+  const externalDefect = manifest?.defects.find((item) =>
+    item.defectCode === 'external_source_exhausted') || null;
   const mediaRequirement=buildMediaRequirement(acceptanceSpec),selectedProducts = value.selectedProducts.map((item) => clone(item));
-  assertSorted(selectedProducts, (a, b) => utf8(a.selectedProduct.selectedHandleId, b.selectedProduct.selectedHandleId) ||
-    utf8(a.selectedProduct.selectedVerificationId, b.selectedProduct.selectedVerificationId), 'P9_CONFORMANCE_SELECTED_ORDER');
+  assertSorted(selectedProducts, (a, b) => utf8(a.selectionKind, b.selectionKind) ||
+    utf8(a.verification.verificationId, b.verification.verificationId), 'P9_CONFORMANCE_SELECTED_ORDER');
   if (!selectedProducts.length || selectedProducts.length > 32 || new Set(selectedProducts.map((item) =>
-    item.selectedProduct.selectedHandleId + '\0' + item.selectedProduct.selectedVerificationId)).size !== selectedProducts.length)
+    item.selectionKind + '\0' + item.verification.verificationId)).size !== selectedProducts.length)
     fail('P9_CONFORMANCE_SELECTED_SET', 'Selected Product set cardinality or identity is invalid.');
   for (const item of selectedProducts) {
     const selected = item.selectedProduct, verification = item.verification;
-    if (selected.result !== 'selected' || verification.result !== 'passed' ||
-        selected.selectedVerificationId !== verification.verificationId || selected.selectedVerificationDigest !== canonicalDigest(verification) ||
-        selected.selectedHandleId !== verification.productMaterialHandleId || selected.libraRunId !== libraRunId || verification.libraRunId !== libraRunId ||
+    const expectedSelectionId = canonicalDigest({schema:'libra.selected-product-output-id@1',
+      libraRunId:selected.libraRunId,criteriaId:selected.criteriaId,
+      candidateSetDigest:selected.candidateSetDigest});
+    if (selected.schemaRef !== 'helix://contracts/types/SelectedProductOutput/v1' ||
+        selected.schemaVersion !== 1 || selected.draftKind !== 'selected_product_output' ||
+        selected.draftId !== expectedSelectionId ||
+        selected.draftDigest !== canonicalDigest(without(selected, 'draftDigest')) ||
+        selected.libraRunId !== libraRunId || verification.libraRunId !== libraRunId ||
         selected.acceptanceSpecId!==acceptanceSpec.acceptanceSpecId||selected.mediaRequirementDigest!==mediaRequirement.requirementDigest||
-        verification.mediaRequirementId!==mediaRequirement.requirementId||verification.mediaRequirementDigest!==mediaRequirement.requirementDigest||
-        verification.reasonCodes.length!==0||
-        (verification.candidateKind === 'workspace_output') !== Boolean(item.workspaceHandleDigest))
-      fail('P9_CONFORMANCE_SELECTED_CONTINUITY', 'Selected Product and passed verification continuity failed.');
+        verification.mediaRequirementId!==mediaRequirement.requirementId||verification.mediaRequirementDigest!==mediaRequirement.requirementDigest)
+      fail('P9_CONFORMANCE_SELECTED_CONTINUITY', 'Selected Product and verification basis continuity failed.');
+    if (item.selectionKind === 'ordinary_selected') {
+      if (externalDefect || selected.result !== 'selected' || verification.result !== 'passed' ||
+          selected.selectedVerificationId !== verification.verificationId || selected.selectedVerificationDigest !== canonicalDigest(verification) ||
+          selected.selectedHandleId !== verification.productMaterialHandleId || verification.reasonCodes.length!==0||
+          (verification.candidateKind === 'workspace_output') !== Boolean(item.workspaceHandleDigest))
+        fail('P9_CONFORMANCE_SELECTED_CONTINUITY', 'Ordinary Selected Product and passed verification continuity failed.');
+    } else if (item.selectionKind === 'authorized_defect_direct_input') {
+      const reasons = [...new Set(verification.reasonCodes || [])].sort(utf8);
+      const waived = [...new Set(externalDefect?.waivedRequirementCodes || [])].sort(utf8);
+      if (!manifest || !externalDefect || selected.result !== 'not_selected' ||
+          selected.selectionReasonCode !== 'no_passed_candidate' ||
+          selected.selectedCandidateKind !== null || selected.selectedHandleId !== null ||
+          selected.selectedWorkspaceMediaHandleId !== null || selected.selectedVerificationId !== null ||
+          selected.selectedVerificationDigest !== null || verification.result !== 'failed' ||
+          verification.candidateKind !== 'direct_input' || verification.workspaceMediaHandleId !== null ||
+          verification.producingEventId !== null ||
+          item.workspaceHandleDigest !== null ||
+          externalDefect.originalMediaVerificationId !== verification.verificationId ||
+          externalDefect.originalMediaVerificationDigest !== canonicalDigest(verification) ||
+          canonicalJson(reasons) !== canonicalJson(waived))
+        fail('P9_CONFORMANCE_AUTHORIZED_DEFECT_CONTINUITY',
+          'Authorized direct-input defect selection continuity failed.');
+    } else {
+      fail('P9_CONFORMANCE_SELECTED_CONTINUITY', 'Product selection kind is outside the closed set.');
+    }
     const expectedVerificationId=canonicalDigest({schema:'libra.product-media-verification-id@1',candidateId:verification.candidateId,
       candidateNodeId:verification.candidateNodeId,candidateBasisDigest:verification.candidateBasisDigest,candidateKind:verification.candidateKind,
       libraRunId:verification.libraRunId,productMaterialHandleId:verification.productMaterialHandleId,
@@ -235,12 +272,15 @@ function buildProductConformanceInputSnapshot(value) {
   const productFactSetDigest = canonicalDigest({ schema:'libra.product-conformance-fact-set@1', items:facts });
   const artifactVerificationSetDigest = canonicalDigest({ schema:'libra.product-conformance-artifact-verification-set@1', items:artifactVerificationSnapshots });
   const selectedProductSetDigest = canonicalDigest({ schema:'libra.product-conformance-selected-product-set@1', items:selectedProducts });
+  const authorizedDefectManifestDigestOrNull = manifest?.manifestDigest || null;
   const productSnapshotDigest = canonicalDigest({ schema:'libra.product-conformance-product-snapshot@1',
     resolvedIdentityReferenceDigest:resolvedIdentitySnapshot.referenceDigest,
     productStructureDigest:inventorySnapshot.productStructureSnapshot.productStructureDigest, productFactSetDigest,
     verifiedArtifactManifestDigest:verifiedArtifactManifest.manifestDigest, artifactVerificationSetDigest,
-    inventoryDigest:inventorySnapshot.inventoryDigest, selectedProductSetDigest });
+    inventoryDigest:inventorySnapshot.inventoryDigest, selectedProductSetDigest,
+    authorizedDefectManifestDigestOrNull });
   const result = { snapshotId:'', libraRunId, runExecutionBasisDigest, acceptanceSpec,
+    authorizedDefectManifest:manifest,
     resolvedIdentitySnapshot, productStructureSnapshot:inventorySnapshot.productStructureSnapshot,
     productFactSnapshots:facts, verifiedArtifactManifest, artifactVerificationSnapshots,
     inventorySnapshot, selectedProducts, productFactSetDigest, artifactVerificationSetDigest,
@@ -294,7 +334,8 @@ function evaluateProductConformance(value) {
   if (requirements.metadata.requireDecodableImages && (requirements.metadata.requiredArtifactKinds || [])
     .filter((kind) => kind === 'poster' || kind === 'fanart').some((kind) => !verifiedKinds.has(kind))) unmet.add('image_undecodable');
   const mediaCodes = new Set(['media_form_unmet','video_codec_unmet','container_unmet','file_extension_unmet','minimum_raster_unmet',
-    'system_upscale_forbidden','primary_audio_unmet','max_size_exceeded']);
+    'system_upscale_forbidden','primary_audio_unmet','max_size_exceeded','dynamic_range_conversion_unmet',
+    'output_color_profile_unmet','dolby_vision_metadata_not_removed']);
   for (const selected of input.selectedProducts) for (const code of selected.verification.reasonCodes || []) if (mediaCodes.has(code)) unmet.add(code);
   const inventory = requirements.inventory, members = material.members;
   if (inventory.requireDomainBinding && members.some((item) => !['libra_material_binding','workspace_material_reference'].includes(item.bindingKind)))

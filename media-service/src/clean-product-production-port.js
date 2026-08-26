@@ -426,6 +426,67 @@ function createCleanProductProductionPort(options = {}) {
     return Object.freeze(basis);
   }
 
+  function issueShelfAcceptanceReadHandle(value) {
+    if (!value || !['source_primary', 'product_primary',
+      'source_and_product_primary'].includes(value.readRole) ||
+        !Number.isSafeInteger(value.issuedAtMs) || value.issuedAtMs < 0 ||
+        !Number.isSafeInteger(value.expiresAtMs) ||
+        value.expiresAtMs !== value.issuedAtMs + 24 * 60 * 60 * 1000) {
+      fail('CLEAN_PRODUCT_SHELF_ACCEPTANCE_HANDLE_INPUT',
+        'Shelf Acceptance read authority requires one exact 24-hour Package fence.');
+    }
+    const reality = exactPhysicalReality(value);
+    const identity = Object.freeze({
+      schemaRef: 'helix://contracts/types/PhysicalMaterialIdentity/v2',
+      schemaVersion: 2,
+      ...value.physicalIdentity,
+    });
+    const basis = {
+      schemaRef: 'helix://contracts/types/PhysicalMaterialReadHandle/v1',
+      schemaVersion: 1,
+      handleId: '',
+      identity,
+      ownerDomain: 'libra',
+      ownerScope: Object.freeze({
+        scopeType: 'on_deck_package',
+        scopeId: value.onDeckPackageId,
+      }),
+      bindingRevision: value.bindingRevision,
+      endpointId: value.endpointId,
+      location: reality.location.replace(/\\/g, '/'),
+      mountScopeRevision: value.mountScopeRevision,
+      expectedSizeBytes: value.sizeBytes,
+      expectedMtimeNs: Number(reality.stat.mtimeNs / 1_000_000n),
+      expectedCtimeNs: Number(reality.stat.ctimeNs / 1_000_000n),
+      fingerprintVerifiedAtMs: value.issuedAtMs,
+      readScope: 'shelf_acceptance_primary_probe_decode',
+      expiresAtMs: value.expiresAtMs,
+      fenceDigest: '',
+    };
+    basis.handleId = canonicalDigest({
+      schema: 'libra.shelf-acceptance-primary-read-handle-id@1',
+      onDeckPackageId: value.onDeckPackageId,
+      libraRunId: value.libraRunId,
+      readRole: value.readRole,
+      materialKey: identity.materialKey,
+      bindingRevision: value.bindingRevision,
+      productMemberDigest: value.productMemberDigest,
+      acceptanceSpecRecordDigest: value.acceptanceSpecRecordDigest,
+    });
+    basis.fenceDigest = canonicalDigest({
+      schema: 'libra.shelf-acceptance-primary-read-handle-fence@1',
+      ...Object.fromEntries(Object.entries(basis)
+        .filter(([key]) => key !== 'fenceDigest')),
+      libraRunId: value.libraRunId,
+      runExecutionBasisDigest: value.runExecutionBasisDigest,
+      acceptanceSpecId: value.acceptanceSpecId,
+      acceptanceSpecRecordDigest: value.acceptanceSpecRecordDigest,
+      productMemberDigest: value.productMemberDigest,
+      readRole: value.readRole,
+    });
+    return Object.freeze(basis);
+  }
+
   function readRelatedNfo(value) {
     if (!value?.reference || value.reference.role !== 'nfo' ||
         value.reference.primaryMaterialKey !== value.primaryMaterialKey) {
@@ -909,6 +970,7 @@ function createCleanProductProductionPort(options = {}) {
     acquireProviderArtifact,
     fetchProvider,
     issuePhysicalReadHandle,
+    issueShelfAcceptanceReadHandle,
     materializeRelatedArtifact,
     probe,
     readRelatedNfo,

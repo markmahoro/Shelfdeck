@@ -22,6 +22,11 @@ TMDB Adapter对连接测试、Identity/Metadata API、People头像以及Poster/F
 Shelf Deregistration；另覆盖活动转码恢复、Procurement retry crash window、豆瓣同步触发Aftercare、旧Handle Settlement和24小时后台治理观察。
 同一资格运行中禁止修改代码后续跑；任何缺陷都必须保留现场、登记UAT、修复进入新的`main` SHA后从clean Canary重跑。
 
+2026-08-27的`fb28e360467766b666a3d021e1668c6f09d255da`资格运行在10/23 On-deck时因UAT-131停止并固定为
+`QUALIFICATION FAILED`。Product Owner随后授权SSOT §8.6.20有界补全；本地合同、实现、Admin Web及完整Service回归已0失败，
+Arca也增加了独立Source/Product探测与实际Gap复核。当前状态仅为
+`LOCAL FULL REGRESSION PASSED / NEW CLEAN MAIN SHA FULL RERUN REQUIRED`，不继承旧运行Evidence，不宣称任何HB门禁PASS。
+
 ## 0. Open UAT — UAT-125 registered
 
 2026-08-25完成后台周期检查与Workspace治理审计，并把完整修复边界登记为`UAT-125`。现有30秒共享

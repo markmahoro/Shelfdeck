@@ -134,6 +134,32 @@ test('materializes the complete nominal On-deck Product Package rather than gene
   }
 });
 
+test('freezes independent Shelf Acceptance probe, decode, and exact-gap evidence', () => {
+  const packageSchema = schemas.OnDeckProductPackage;
+  assert.deepEqual(
+    packageSchema.properties.productionProvenance.properties
+      .shelfAcceptancePrimaryReadSet,
+    { $ref: 'helix://contracts/domain-types/ShelfAcceptancePrimaryReadSet/v1' },
+  );
+  assert.deepEqual(
+    packageSchema.properties.productionProvenance.properties
+      .acceptanceRequirementSnapshot,
+    { $ref: 'helix://contracts/domain-types/AcceptanceRequirementSnapshot/v1' },
+  );
+  const acceptance = schemas.AcceptanceCheck;
+  assert.equal(acceptance.additionalProperties, false);
+  assert.deepEqual(acceptance.properties.checkKind.enum,
+    ['identity', 'structure', 'metadata', 'mandatory_media', 'space']);
+  const observation = acceptance.properties.primaryMediaObservations.items;
+  assert.ok(observation.required.includes('sourceProbeEvidenceDigest'));
+  assert.ok(observation.required.includes('productProbeEvidenceDigest'));
+  assert.ok(observation.required.includes('sourceDecodeSummary'));
+  assert.ok(observation.required.includes('productDecodeSummary'));
+  assert.deepEqual(acceptance.properties.authorizedGapComparison.enum,
+    ['not_applicable', 'pending_final_union']);
+  assert.equal(acceptance['x-helix-maxCanonicalBytes'], 2 * 1024 * 1024);
+});
+
 test('freezes Candidate Publication acceptance basis and offer message helpers', () => {
   const basis = schemas.CandidateIntakeAcceptanceBasis;
   assert.equal(basis.properties.handoffContractRef.const, 'helix://handoffs/procurement-to-libra/v1');

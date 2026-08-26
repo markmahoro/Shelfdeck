@@ -91,7 +91,9 @@ function createProductConformanceCoordinator(options){
     if(!resolvedRef||!resolvedIdentitySnapshot)fail('P9_CONFORMANCE_RESOLVED_REF','Plan lacks the exact resolved identity Fact ref.');
     return buildProductConformanceInputSnapshot({libraRunId:runBasis.libraRunId,runExecutionBasisDigest:runBasis.runExecutionBasisDigest,
       acceptanceSpecId:acceptanceSpec.acceptanceSpecId,acceptanceSpecRecordDigest:acceptanceSpec.recordDigest,acceptanceSpec,
-      resolvedIdentitySnapshot,productFactSnapshots,verifiedArtifactManifest,artifactVerificationSnapshots,inventorySnapshot,selectedProducts});
+      authorizedDefectManifest:null,resolvedIdentitySnapshot,productFactSnapshots,verifiedArtifactManifest,
+      artifactVerificationSnapshots,inventorySnapshot,selectedProducts:selectedProducts.map((item)=>({
+        selectionKind:'ordinary_selected',...item}))});
   }
   return Object.freeze({assemble});
 }

@@ -23,7 +23,8 @@ const {
   emptyArcaMaterialEpisodeClaims,
   fromProductMember,
 } = require('../model/material-episode-claims');
-const { acceptsProductionAttestation } = require('../model/authorized-defect-manifest');
+const { observeMandatoryMedia } = require('../model/mandatory-media-acceptance');
+const { finalGapDecision, GAP_CODES_BY_CHECK } = require('../model/acceptance-gap-decision');
 
 class MovieOnDeckCoordinatorError extends Error {
   constructor(code, message, details = {}) {
@@ -84,11 +85,176 @@ function acceptanceCheck(input) {
     checkKind: input.checkKind,
     standardRevision: input.standardRevision,
     packageDigest: input.packageDigest,
+    requirementDigest: input.requirementDigest,
+    evidenceStatus: input.evidenceStatus || 'complete',
+    actualGapCodes: Object.freeze([...(input.actualGapCodes || [])]),
+    actualGapSetDigest: canonicalDigest({
+      schema: 'arca.acceptance-check-actual-gap-set@1',
+      checkKind: input.checkKind,
+      items: input.actualGapCodes || [],
+    }),
+    primaryMediaObservations: Object.freeze([
+      ...(input.primaryMediaObservations || []),
+    ]),
+    primaryMediaObservationSetDigest:
+      input.primaryMediaObservationSetDigest || canonicalDigest({
+        schema: 'arca.mandatory-media-primary-observation-set@1',
+        items: [],
+      }),
+    authorizedDefectManifestDigestOrNull:
+      input.authorizedDefectManifest?.manifestDigest || null,
+    authorizedGapComparison: input.authorizedDefectManifest
+      ? 'pending_final_union'
+      : 'not_applicable',
   };
-  return Object.freeze({
-    ...base,
-    evidenceDigest: canonicalDigest(base),
+  return Object.freeze(base);
+}
+
+function exactRequirementSnapshot(packageValue, shelf) {
+  const value = packageValue.productionProvenance
+    ?.acceptanceRequirementSnapshot;
+  const body = value && Object.fromEntries(Object.entries(value)
+    .filter(([key]) => key !== 'snapshotDigest'));
+  const structureKind = packageValue.productStructureSnapshot
+    ?.structureKind === 'season' ? 'season' : 'single';
+  if (!value || value.snapshotDigest !== canonicalDigest(body) ||
+      value.acceptanceSpecId !== packageValue.acceptanceSpecRef?.id ||
+      value.acceptanceSpecRecordDigest !==
+        packageValue.acceptanceSpecRef?.recordDigest ||
+      value.targetShelfId !== packageValue.shelfId ||
+      value.structureKind !== structureKind ||
+      value.shelfStandardRevision !== shelf.currentStandardRevision ||
+      value.shelfStandardDigest !== shelf.standard.digest) {
+    fail('P14_HANDOFF_B_REQUIREMENT_STALE',
+      'Package Acceptance Requirement Snapshot is invalid or stale.');
+  }
+  return value;
+}
+
+function metadataGaps(packageValue, requirement) {
+  const metadata = (packageValue.productFactManifest?.items || [])
+    .find((item) => item.factKind === 'product_metadata')?.factValue || {};
+  const identity = packageValue.resolvedIdentitySnapshot?.factValue
+    ?.resolvedProductIdentity ||
+    packageValue.resolvedIdentitySnapshot?.factValue || {};
+  const relations = packageValue.mediaCastSnapshot?.relations || [];
+  const identities = identity.providerIdentities || [];
+  const descriptive = new Map((metadata.descriptiveFacts?.entries || [])
+    .map((item) => [item.key, item.value]));
+  const missingField = requirement.requiredFieldCodes.some((code) => {
+    if (code === 'actor') return relations.length === 0;
+    if (code === 'internal_identity') {
+      return !identities.some((item) => item.namespace === 'internal_identity');
+    }
+    if (code === 'jav_code') {
+      return !identities.some((item) => item.namespace === 'jav_code');
+    }
+    if (code === 'season_number') {
+      return !identities.some((item) =>
+        item.namespace === 'tmdb_series' && item.seasonNumber != null);
+    }
+    if (code === 'episode_number') {
+      return !(packageValue.productMaterialManifest?.members || [])
+        .some((item) => item.episodeClaims?.length);
+    }
+    if (code === 'tmdb_movie_id' || code === 'tmdb_series_id') {
+      return !identities.some((item) =>
+        item.namespace === code.replace('_id', ''));
+    }
+    const value = descriptive.get(code);
+    return value == null || value === '' ||
+      (Array.isArray(value) && value.length === 0);
   });
+  const artifacts = packageValue.artifactManifest?.items || [];
+  const verifiedKinds = new Set(artifacts.map((item) => item.artifactKind));
+  return Object.freeze([
+    ...(missingField ? ['metadata_field_unmet'] : []),
+    ...(requirement.requiredArtifactKinds.some((kind) =>
+      !verifiedKinds.has(kind)) ? ['metadata_artifact_unmet'] : []),
+    ...(requirement.requireRenderableSidecar && !verifiedKinds.has('nfo')
+      ? ['sidecar_unrenderable'] : []),
+    ...(requirement.requireDecodableImages &&
+      requirement.requiredArtifactKinds
+        .filter((kind) => kind === 'poster' || kind === 'fanart')
+        .some((kind) => !verifiedKinds.has(kind))
+      ? ['image_undecodable'] : []),
+  ]);
+}
+
+function ordinaryDimensionGaps(packageValue, snapshot) {
+  const identity = packageValue.resolvedIdentitySnapshot?.factValue
+    ?.resolvedProductIdentity ||
+    packageValue.resolvedIdentitySnapshot?.factValue || {};
+  const providers = identity.providerIdentities || [];
+  const identityGaps = [];
+  if (!identity.identityDigest ||
+      snapshot.requirements.identity.identityKind === 'tmdb_movie' &&
+        !providers.some((item) => item.namespace === 'tmdb_movie') ||
+      snapshot.requirements.identity.identityKind === 'tmdb_series_season' &&
+        !providers.some((item) => item.namespace === 'tmdb_series')) {
+    identityGaps.push('identity_unmet');
+  }
+  if (snapshot.requirements.identity.requireSeasonNumber &&
+      !(identity.seasonNumber >= 0)) identityGaps.push('season_identity_unmet');
+  const structure = packageValue.productStructureSnapshot;
+  const manifest = packageValue.productMaterialManifest;
+  const primaries = (manifest.members || [])
+    .filter((item) => item.role === 'primary_payload');
+  const structureGaps = [];
+  if (structure?.structureKind !== snapshot.requirements.structure.structureKind ||
+      manifest.scopeKind !== (snapshot.requirements.structure.structureKind ===
+        'season' ? 'episode_delivery' : 'single') || !primaries.length) {
+    structureGaps.push('structure_unmet');
+  }
+  if (snapshot.requirements.structure.requireOnePrimaryPerEpisode &&
+      primaries.some((item) => !item.episodeClaims?.length)) {
+    structureGaps.push('episode_coverage_unmet');
+  }
+  const max = snapshot.requirements.space.maxSizeBytes;
+  const bytes = primaries.reduce((sum, item) =>
+    sum + Number(item.sizeBytes || 0), 0);
+  return Object.freeze({
+    identity: Object.freeze(identityGaps),
+    structure: Object.freeze(structureGaps),
+    metadata: metadataGaps(packageValue, snapshot.requirements.metadata),
+    space: Object.freeze(Number.isSafeInteger(max) && bytes > max
+      ? ['max_size_exceeded'] : []),
+  });
+}
+
+function mandatoryRequirement(packageValue, snapshot) {
+  const media = snapshot.requirements.mandatoryMedia;
+  const body = {
+    schemaRef: 'helix://contracts/domain-types/MandatoryRequirement/v1',
+    schemaVersion: 1,
+    requirementId: packageValue.shelfId + ':mandatory',
+    revision: snapshot.shelfStandardRevision,
+    shelfId: packageValue.shelfId,
+    shelfStandardRevision: snapshot.shelfStandardRevision,
+    shelfStandardDigest: snapshot.shelfStandardDigest,
+    contentProfile: snapshot.contentProfile,
+    mediaForm: media.mediaForm,
+    videoCodec: media.videoCodec,
+    container: media.container,
+    fileExtension: media.fileExtension,
+    minimumRasterClass: media.minimumRasterClass,
+    acceptedPrimaryAudioClasses: Object.freeze([
+      ...media.acceptedPrimaryAudioClasses,
+    ]),
+    maxSizeBytes: snapshot.requirements.space.maxSizeBytes,
+    forbidSystemUpscaleFor4k: media.forbidSystemUpscaleFor4k,
+    acceptedOutputDynamicRangeKinds: Object.freeze([
+      'sdr', 'hdr10_compatible', 'hlg', 'dolby_vision',
+    ]),
+    sdrOutputPixelFormat: 'yuv420p',
+    sdrOutputColorProfile: Object.freeze({
+      range: 'limited', primaries: 'bt709', transfer: 'bt709', matrix: 'bt709',
+    }),
+    forbidDolbyVisionMetadataOnSdr: true,
+    decodeSamplePointsPercent: Object.freeze([5, 50, 95]),
+    requireAllDecodeSamples: true,
+  };
+  return Object.freeze({ ...body, digest: canonicalDigest(body) });
 }
 
 function bindingFromProduct(member, contentProfile) {
@@ -132,12 +298,9 @@ function createMovieOnDeckCoordinator(options) {
   const acceptance = createHandoffBAcceptanceStore(options);
   const onDeck = createOnDeckStore(options);
   const inbox = createInboxCoordinator(options);
-  const observedAtMs = (packageValue) =>
-    Number.isSafeInteger(packageValue.publishedAtMs)
-      ? packageValue.publishedAtMs
-      : 0;
+  const now = options.now || Date.now;
 
-  function acceptProductOffer(inputMessage) {
+  async function acceptProductOffer(inputMessage) {
     const offer = exactOffer(inputMessage);
     const delivery = options.productDeliveryPort.readPackage({
       queryContract: 'libra.product-delivery@1',
@@ -194,7 +357,7 @@ function createMovieOnDeckCoordinator(options) {
       custodyId: historicalResponsibility.custodyId,
     });
     const replayCommittedInventory = Boolean(committedHistory);
-    const at = observedAtMs(packageValue);
+    const at = now();
     const feasibility = options.inventoryPort.assess({
       onDeckRunId: stable('arca.on-deck-run-preview@1', {
         offerId: offer.offerId,
@@ -207,31 +370,26 @@ function createMovieOnDeckCoordinator(options) {
       observedAtMs: at,
       replayCommitted: replayCommittedInventory,
     });
-    const factKinds = new Set(
-      packageValue.productFactManifest.items.map((item) => item.factKind),
-    );
-    const identityPassed =
-      packageValue.resolvedIdentitySnapshot?.factValue
-        ?.resolvedProductIdentity?.identityDigest ||
-      packageValue.resolvedIdentitySnapshot?.factValue?.identityDigest;
-    const structureKind =
-      packageValue.productStructureSnapshot?.structureKind;
-    const scopeKind = packageValue.productMaterialManifest.scopeKind;
-    const structurePassed =
-      (structureKind === 'single' && scopeKind === 'single') ||
-      (structureKind === 'season' && scopeKind === 'episode_delivery');
+    const structureKind = packageValue.productStructureSnapshot?.structureKind;
     const contentProfile = structureKind === 'season' ? 'series' : 'movie';
-    const metadataPassed = factKinds.has('product_metadata') &&
-      packageValue.artifactManifest.items.some((item) =>
-        item.artifactKind === 'nfo');
-    const mandatoryPassed = acceptsProductionAttestation(
-      packageValue.productionAttestation) &&
-      packageValue.productionAttestation?.productConformanceEvidenceDigest;
-    const spacePassed = feasibility.availableBytes >= feasibility.requiredBytes;
+    const snapshot = exactRequirementSnapshot(packageValue, shelf);
+    const dimensionGaps = ordinaryDimensionGaps(packageValue, snapshot);
+    const mandatory = mandatoryRequirement(packageValue, snapshot);
+    const observed = await observeMandatoryMedia({
+      packageValue,
+      requirement: mandatory,
+      observedAtMs: at,
+      mediaProbe: options.mediaProbe,
+      mediaEffectPort: options.mediaEffectPort,
+      computeBoundedMaterialFingerprint:
+        options.computeBoundedMaterialFingerprint,
+    });
+    const authorizedDefectManifest = packageValue.productionAttestation
+      ?.authorizedDefectManifest || null;
     const checkInputs = [
       {
         checkKind: 'identity',
-        passed: Boolean(identityPassed),
+        actualGapCodes: dimensionGaps.identity,
         reasonCode: 'identity_requirement_unmet',
         evidenceRefs: [
           packageValue.resolvedIdentitySnapshot?.productFactId ||
@@ -241,7 +399,7 @@ function createMovieOnDeckCoordinator(options) {
       },
       {
         checkKind: 'structure',
-        passed: structurePassed,
+        actualGapCodes: dimensionGaps.structure,
         reasonCode: 'structure_requirement_unmet',
         evidenceRefs: [packageValue.productStructureSnapshot
           ?.productStructureId].filter(Boolean),
@@ -249,34 +407,43 @@ function createMovieOnDeckCoordinator(options) {
       },
       {
         checkKind: 'metadata',
-        passed: metadataPassed,
+        actualGapCodes: dimensionGaps.metadata,
         reasonCode: 'metadata_requirement_unmet',
         evidenceRefs: [packageValue.productFactManifest.manifestId],
         evidence: packageValue.productFactManifest,
       },
       {
         checkKind: 'mandatory_media',
-        passed: Boolean(mandatoryPassed),
-        reasonCode: 'mandatory_media_requirement_unmet',
+        actualGapCodes: observed.actualGapCodes,
+        reasonCode: observed.evidenceStatus === 'stale_basis'
+          ? 'stale_decision_basis' : 'mandatory_requirement_unmet',
         evidenceRefs: [packageValue.productionAttestation?.attestationId]
           .filter(Boolean),
         evidence: packageValue.productionAttestation,
       },
       {
         checkKind: 'space',
-        passed: spacePassed,
+        actualGapCodes: dimensionGaps.space,
         reasonCode: 'space_requirement_unmet',
         evidenceRefs: [feasibility.evidenceId],
         evidence: feasibility,
       },
     ];
-    const checks = checkInputs.map((item) => acceptanceCheck({
+    const checks = checkInputs.map((item) => {
+      const gaps = item.actualGapCodes || [];
+      const dimensionCodes = GAP_CODES_BY_CHECK[item.checkKind];
+      const passed = authorizedDefectManifest
+        ? canonicalJson(gaps) === canonicalJson(dimensionCodes.filter((code) =>
+          authorizedDefectManifest.waivedRequirementCodes.includes(code)))
+        : gaps.length === 0;
+      return acceptanceCheck({
       acceptanceAttemptId: attemptId,
       checkKind: item.checkKind,
       standardRevision: shelf.currentStandardRevision,
       packageDigest: packageValue.packageDigest,
       verifiedAtMs: at,
-      passed: item.passed,
+      passed: observed.evidenceStatus === 'stale_basis' &&
+        item.checkKind === 'mandatory_media' ? false : passed,
       reasonCode: item.reasonCode,
       evidenceRefs: item.evidenceRefs,
       basisDigest: canonicalDigest({
@@ -288,9 +455,30 @@ function createMovieOnDeckCoordinator(options) {
         packageDigest: packageValue.packageDigest,
         evidence: item.evidence,
       }),
-    }));
+      requirementDigest: item.checkKind === 'mandatory_media'
+        ? mandatory.digest
+        : canonicalDigest(snapshot.requirements[item.checkKind === 'mandatory_media'
+          ? 'mandatoryMedia' : item.checkKind]),
+      evidenceStatus: item.checkKind === 'mandatory_media'
+        ? observed.evidenceStatus : 'complete',
+      actualGapCodes: gaps,
+      primaryMediaObservations: item.checkKind === 'mandatory_media'
+        ? observed.primaryMediaObservations : [],
+      primaryMediaObservationSetDigest: item.checkKind === 'mandatory_media'
+        ? observed.primaryMediaObservationSetDigest : undefined,
+      authorizedDefectManifest,
+    });});
+    const gapDecision = finalGapDecision({
+      acceptanceChecks: checks,
+      acceptanceAttemptId: attemptId,
+      packageDigest: packageValue.packageDigest,
+      standardRevision: shelf.currentStandardRevision,
+      authorizedDefectManifest,
+    });
     if (checks.some((item) => item.result !== 'passed') ||
-        feasibility.outcome !== 'passed') {
+        feasibility.outcome !== 'passed' ||
+        !['exact_match', 'not_applicable']
+          .includes(gapDecision.authorizedGapComparison)) {
       fail('P14_HANDOFF_B_ACCEPTANCE_REJECTED',
         'Product Package does not satisfy the current Shelf acceptance basis.',
         {
@@ -302,7 +490,7 @@ function createMovieOnDeckCoordinator(options) {
       ...checks.map((item) => Object.freeze({
         kind: item.checkKind,
         outcome: item.result,
-        evidenceDigest: item.evidenceDigest,
+        evidenceDigest: canonicalDigest(item),
       })),
       Object.freeze({
         kind: 'inventory_feasibility',
@@ -396,6 +584,8 @@ function createMovieOnDeckCoordinator(options) {
         onDeckRunId,
         finalInventoryDecision,
         targetLocation: feasibility.targetLocation,
+        gapDecision,
+        acceptanceChecks: gapDecision.acceptanceChecks,
         bindings: [
           ...productMembers.map((member) =>
             bindingFromProduct(member, contentProfile)),

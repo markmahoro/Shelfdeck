@@ -2,7 +2,14 @@
 
 Status: Helix-beta 已由 Product Owner 收窄为 **仅 Movie 的全功能版本**（旅程 A–I，含退出收藏与 Shelf 注销）。Movie Procurement保持`CLOSED FOR MOVIE`；Movie Libra保持`MOVIE LIBRA CLOSED AT HANDOFF B READY`；Movie Arca已经接通Handoff B Acceptance、On-deck、Shelf Entry、Deck Fact、Beta Aftercare、完整Off-deck及非破坏性Shelf Deregistration。当前实现状态为`MOVIE COLLECTION LIFECYCLE READY THROUGH SHELF DEREGISTRATION`；Helix-beta 验收权威为现行 `docs/helix/BETA_FEATURE_ACCEPTANCE_BASELINE.md`。Docker/NAS与生产部署仍是独立后续工作。
 
-Last updated: 2026-08-24
+Last updated: 2026-08-27
+
+## 0. Current UAT plan — UAT-131 repaired, clean rerun required
+
+`fb28e360467766b666a3d021e1668c6f09d255da`资格运行已因UAT-131固定为失败并保留现场。经Product Owner授权，SSOT §8.6.20
+有界补全、Libra授权瑕疵连续性、Arca独立Source/Product探测及Gap复核已完成本地实现与0失败回归。下一步只允许把该修复形成
+新的clean main SHA，再从不可变基线建立全新Canary，完整重跑A–I、UAT-127、UAT-129、23/23主检查点、Aftercare、Off-deck、
+Shelf Deregistration和至少24小时观察。不得把旧运行的10/23、恢复或其他Evidence拼入新资格结论。
 
 ## 0. Current UAT plan — UAT-094–UAT-105 Aftercare internal hardening
 

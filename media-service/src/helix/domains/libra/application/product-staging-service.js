@@ -180,8 +180,8 @@ function createProductStagingService(options) {
     const results = options.workResultReader.read(selectedWork.workId)
       .filter((item) => item.outcomeKind === 'succeeded');
     const selection = resolveProductSelection(results,
-      snapshot.run.authorizedDefectManifest).selection;
-    if (!selection || !['selected', 'authorized_defect_selection'].includes(selection.result)) {
+      snapshot.run.authorizedDefectManifest).effectiveSelection;
+    if (!selection) {
       throw new Error('Selected media Work lacks its terminal selected output.');
     }
     if (selection.selectedCandidateKind === 'workspace_output') {

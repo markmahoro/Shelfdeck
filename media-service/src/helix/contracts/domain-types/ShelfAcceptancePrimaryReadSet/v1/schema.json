@@ -1,0 +1,149 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/domain-types/ShelfAcceptancePrimaryReadSet/v1",
+  "title": "ShelfAcceptancePrimaryReadSet@1",
+  "x-helix-ssotRefs": [
+    "8.6.13",
+    "8.6.18",
+    "8.6.20"
+  ],
+  "x-helix-role": "accepted-business-dto",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaRef": {
+      "const": "helix://contracts/domain-types/ShelfAcceptancePrimaryReadSet/v1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "onDeckPackageId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "libraRunId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "runExecutionBasisDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "acceptanceSpecId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "acceptanceSpecRecordDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "issuedAtMs": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "expiresAtMs": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "primaryInputs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "ordinal": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "materialKey": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "productMemberDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "productMediaVerification": {
+            "$ref": "helix://contracts/types/ProductMediaVerification/v1"
+          },
+          "productMediaVerificationDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "sourceReadHandle": {
+            "$ref": "helix://contracts/types/PhysicalMaterialReadHandle/v1"
+          },
+          "sourceReadHandleDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "productReadHandle": {
+            "$ref": "helix://contracts/types/PhysicalMaterialReadHandle/v1"
+          },
+          "productReadHandleDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "samePhysicalMaterial": {
+            "type": "boolean"
+          },
+          "itemDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          }
+        },
+        "required": [
+          "ordinal",
+          "materialKey",
+          "productMemberDigest",
+          "productMediaVerification",
+          "productMediaVerificationDigest",
+          "sourceReadHandle",
+          "sourceReadHandleDigest",
+          "productReadHandle",
+          "productReadHandleDigest",
+          "samePhysicalMaterial",
+          "itemDigest"
+        ]
+      },
+      "maxItems": 32,
+      "minItems": 1
+    },
+    "primaryInputSetDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "readAuthorityDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "schemaRef",
+    "schemaVersion",
+    "onDeckPackageId",
+    "libraRunId",
+    "runExecutionBasisDigest",
+    "acceptanceSpecId",
+    "acceptanceSpecRecordDigest",
+    "issuedAtMs",
+    "expiresAtMs",
+    "primaryInputs",
+    "primaryInputSetDigest",
+    "readAuthorityDigest"
+  ],
+  "x-helix-maxCanonicalBytes": 1048576
+}

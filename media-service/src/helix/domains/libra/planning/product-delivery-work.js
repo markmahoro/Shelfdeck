@@ -64,6 +64,8 @@ function productConformanceWork(snapshot, selectedMediaWork) {
     libraRunId: snapshot.run.libraRunId,
     executionBasisDigest: snapshot.run.executionBasisDigest,
     selectedMediaWorkId: selectedMediaWork.workId,
+    authorizedDefectManifestDigest:
+      snapshot.run.authorizedDefectManifest?.manifestDigest || null,
   };
   return definition(
     snapshot,
@@ -110,8 +112,8 @@ function findSelectedMediaWork(options, snapshot) {
       item.result?.result === 'selected')) return true;
     if (!snapshot.run.authorizedDefectManifest) return false;
     try { return resolveProductSelection(results,
-      snapshot.run.authorizedDefectManifest).selection?.result ===
-      'authorized_defect_selection'; } catch { return false; }
+      snapshot.run.authorizedDefectManifest).effectiveSelection?.selectionKind ===
+      'authorized_defect_direct_input'; } catch { return false; }
   });
   if (candidates.length !== 1) {
     throw new Error(

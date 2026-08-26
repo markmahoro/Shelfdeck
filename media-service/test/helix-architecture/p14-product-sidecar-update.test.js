@@ -131,6 +131,60 @@ test('movie identity ignores actor tmdb ids and reads only the root-level movie 
   assert.deepEqual(identity, { title:'007：大破天幕杀机', releaseYear:'2012', tmdbMovieId:'37724' });
 });
 
+test('Shelf Acceptance read Handle closes Package, Spec, role, and 24-hour reality', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'helix-shelf-acceptance-read-'));
+  const location = path.join(root, 'movie.mkv');
+  fs.writeFileSync(location, Buffer.from('bounded movie bytes'));
+  try {
+    const bounded = computeBoundedMaterialFingerprintSync(location);
+    const identityBasis = {
+      mountScopeId:'workspace-mount', inode:String(bounded.stat.ino),
+      sizeBytes:Number(bounded.stat.size),
+      fingerprintAlgorithm:bounded.fingerprintAlgorithm,
+      fingerprintVersion:bounded.fingerprintVersion,
+      contentFingerprint:bounded.contentFingerprint,
+    };
+    const physicalIdentity = {
+      ...identityBasis,
+      materialKey:canonicalDigest({ schema:'physical-material-identity@2', ...identityBasis }),
+    };
+    const port = createCleanProductProductionPort({
+      mediaProbe:{ probe() { throw new Error('not used'); } },
+      workspaceProductPort:{
+        materializeArtifact() { throw new Error('not used'); },
+        acquireArtifact() { throw new Error('not used'); },
+      },
+    });
+    const handle = port.issueShelfAcceptanceReadHandle({
+      libraRunId:'run-1', runExecutionBasisDigest:'a'.repeat(64),
+      onDeckPackageId:'package-1', acceptanceSpecId:'spec-1',
+      acceptanceSpecRecordDigest:'b'.repeat(64),
+      productMemberDigest:'c'.repeat(64), readRole:'product_primary',
+      physicalIdentity, sizeBytes:physicalIdentity.sizeBytes,
+      endpointId:'workspace-endpoint', location, bindingRevision:1,
+      mountScopeRevision:1, issuedAtMs:1_700_000_000_000,
+      expiresAtMs:1_700_086_400_000,
+    });
+    assert.deepEqual(handle.ownerScope,
+      { scopeType:'on_deck_package', scopeId:'package-1' });
+    assert.equal(handle.readScope, 'shelf_acceptance_primary_probe_decode');
+    assert.equal(handle.expiresAtMs - handle.fingerprintVerifiedAtMs, 86_400_000);
+    assert.match(handle.fenceDigest, /^[a-f0-9]{64}$/);
+    assert.throws(() => port.issueShelfAcceptanceReadHandle({
+      libraRunId:'run-1', runExecutionBasisDigest:'a'.repeat(64),
+      onDeckPackageId:'package-1', acceptanceSpecId:'spec-1',
+      acceptanceSpecRecordDigest:'b'.repeat(64),
+      productMemberDigest:'c'.repeat(64), readRole:'product_primary',
+      physicalIdentity, sizeBytes:physicalIdentity.sizeBytes,
+      endpointId:'workspace-endpoint', location, bindingRevision:1,
+      mountScopeRevision:1, issuedAtMs:1_700_000_000_000,
+      expiresAtMs:1_700_086_400_001,
+    }), /24-hour Package fence/);
+  } finally {
+    fs.rmSync(root, { recursive:true, force:true });
+  }
+});
+
 test('usable related NFO is updated without losing rich or custom fields', () => {
   const source = Buffer.from(`<?xml version="1.0" encoding="UTF-8"?>
 <movie>

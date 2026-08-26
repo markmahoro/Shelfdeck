@@ -9,7 +9,11 @@ const { createCapabilityContractValidator } = require('../../src/helix/foundatio
 const { buildMediaRequirement } = require('../../src/helix/domains/libra/model/media-production-contracts');
 const { buildProductConformanceFactSnapshot, buildProductConformanceInputSnapshot,
   evaluateProductConformance } = require('../../src/helix/domains/libra/model/product-conformance');
+const { buildAuthorizedDefectManifest, buildDefectAdmissionCandidate,
+  resolveProductSelection } =
+  require('../../src/helix/domains/libra/model/defect-admission-contracts');
 const { createProductConformanceCoordinator } = require('../../src/helix/domains/libra/application/media-production-coordinator');
+const { productConformanceWork } = require('../../src/helix/domains/libra/planning/product-delivery-work');
 
 const D = (value) => canonicalDigest({ value });
 const complete = (value, field) => ({ ...value, [field]:canonicalDigest(value) });
@@ -150,15 +154,87 @@ function snapshot() {
     libraRunId:verification.libraRunId,productMaterialHandleId:verification.productMaterialHandleId,
     productMaterialFenceDigest:verification.productMaterialFenceDigest,mediaRequirementDigest:verification.mediaRequirementDigest,
     sourceProbeEvidenceDigest:verification.sourceProbeEvidenceDigest,outputProbeEvidenceDigest:verification.outputProbeEvidenceDigest});
-  const selected={schemaRef:'helix://contracts/types/SelectedProductOutput/v1',schemaVersion:1,draftId:'selected-1',draftKind:'selected_product_output',
-    basisDigest:D('selection-basis'),draftDigest:D('selection'),producedAtMs:1,libraRunId:'run-1',acceptanceSpecId:'spec-1',
+  const selected={schemaRef:'helix://contracts/types/SelectedProductOutput/v1',schemaVersion:1,draftId:'',draftKind:'selected_product_output',
+    basisDigest:D('selection-basis'),draftDigest:'',producedAtMs:1,libraRunId:'run-1',acceptanceSpecId:'spec-1',
     mediaRequirementDigest:requirement.requirementDigest,criteriaId:'criteria-1',criteriaDigest:D('criteria'),candidateSetDigest:D('candidate-set'),result:'selected',
     selectedCandidateKind:'direct_input',selectedHandleId:'handle-1',selectedWorkspaceMediaHandleId:null,selectedVerificationId:verification.verificationId,
     selectedVerificationDigest:canonicalDigest(verification),selectionReasonCode:'selected_by_declared_rank'};
+  selected.draftId=canonicalDigest({schema:'libra.selected-product-output-id@1',libraRunId:selected.libraRunId,
+    criteriaId:selected.criteriaId,candidateSetDigest:selected.candidateSetDigest});
+  selected.draftDigest=canonicalDigest(Object.fromEntries(Object.entries(selected)
+    .filter(([key])=>key!=='draftDigest')));
   return buildProductConformanceInputSnapshot({libraRunId:'run-1',runExecutionBasisDigest:D('run-basis'),acceptanceSpecId:'spec-1',
     acceptanceSpecRecordDigest:D('spec-record'),acceptanceSpec:spec,resolvedIdentitySnapshot:factSet.resolved,
+    authorizedDefectManifest:null,
     productFactSnapshots:factSet.items,verifiedArtifactManifest:verified,artifactVerificationSnapshots:[],inventorySnapshot:inventory,
-    selectedProducts:[{selectedProduct:selected,verification,workspaceHandleDigest:null}]});
+    selectedProducts:[{selectionKind:'ordinary_selected',selectedProduct:selected,verification,workspaceHandleDigest:null}]});
+}
+
+function authorizedSnapshot() {
+  const base=snapshot(), ordinary=base.selectedProducts[0], verification={...ordinary.verification,
+    result:'failed',reasonCodes:['container_unmet']};
+  const terminalWork={workId:'work-external',failureCode:'no_passed_candidate',
+    capabilityRef:'libra.product_output.select@1',failureClass:'business_unachievable',
+    terminalEvidenceDigest:D('terminal-work')};
+  const terminalEvidence={blockedWorks:[terminalWork]};
+  terminalEvidence.evidenceDigest=canonicalDigest(terminalEvidence);
+  const run={libraRunId:base.libraRunId,state:'frozen',stateRevision:2,stateDigest:D('frozen')};
+  const candidate=buildDefectAdmissionCandidate({run,terminalEvidence,
+    directMediaVerification:verification});
+  const manifest=buildAuthorizedDefectManifest({candidate,actorId:'admin',
+    idempotencyKey:'uat-131',acknowledged:true,decidedAtMs:20});
+  const selectedProduct={...ordinary.selectedProduct,result:'not_selected',selectedCandidateKind:null,
+    selectedHandleId:null,selectedWorkspaceMediaHandleId:null,selectedVerificationId:null,
+    selectedVerificationDigest:null,selectionReasonCode:'no_passed_candidate'};
+  selectedProduct.draftDigest=canonicalDigest(Object.fromEntries(Object.entries(selectedProduct)
+    .filter(([key])=>key!=='draftDigest')));
+  const input=buildProductConformanceInputSnapshot({libraRunId:base.libraRunId,
+    runExecutionBasisDigest:base.runExecutionBasisDigest,acceptanceSpecId:base.acceptanceSpec.acceptanceSpecId,
+    acceptanceSpecRecordDigest:base.acceptanceSpec.recordDigest,acceptanceSpec:base.acceptanceSpec,
+    authorizedDefectManifest:manifest,resolvedIdentitySnapshot:base.resolvedIdentitySnapshot,
+    productFactSnapshots:base.productFactSnapshots,verifiedArtifactManifest:base.verifiedArtifactManifest,
+    artifactVerificationSnapshots:base.artifactVerificationSnapshots,inventorySnapshot:base.inventorySnapshot,
+    selectedProducts:[{selectionKind:'authorized_defect_direct_input',selectedProduct,
+      verification,workspaceHandleDigest:null}]});
+  return {input,manifest,selectedProduct,verification};
+}
+
+function rebuildSnapshot(base, selectedProducts, authorizedDefectManifest =
+  base.authorizedDefectManifest) {
+  return buildProductConformanceInputSnapshot({libraRunId:base.libraRunId,
+    runExecutionBasisDigest:base.runExecutionBasisDigest,
+    acceptanceSpecId:base.acceptanceSpec.acceptanceSpecId,
+    acceptanceSpecRecordDigest:base.acceptanceSpec.recordDigest,
+    acceptanceSpec:base.acceptanceSpec,authorizedDefectManifest,
+    resolvedIdentitySnapshot:base.resolvedIdentitySnapshot,
+    productFactSnapshots:base.productFactSnapshots,
+    verifiedArtifactManifest:base.verifiedArtifactManifest,
+    artifactVerificationSnapshots:base.artifactVerificationSnapshots,
+    inventorySnapshot:base.inventorySnapshot,selectedProducts});
+}
+
+function additionalOrdinarySelection(item) {
+  const verification={...item.verification,candidateId:'candidate-media-2',
+    candidateNodeId:'node-2',productMaterialHandleId:'handle-2'};
+  verification.verificationId=canonicalDigest({schema:'libra.product-media-verification-id@1',
+    candidateId:verification.candidateId,candidateNodeId:verification.candidateNodeId,
+    candidateBasisDigest:verification.candidateBasisDigest,candidateKind:verification.candidateKind,
+    libraRunId:verification.libraRunId,productMaterialHandleId:verification.productMaterialHandleId,
+    productMaterialFenceDigest:verification.productMaterialFenceDigest,
+    mediaRequirementDigest:verification.mediaRequirementDigest,
+    sourceProbeEvidenceDigest:verification.sourceProbeEvidenceDigest,
+    outputProbeEvidenceDigest:verification.outputProbeEvidenceDigest});
+  const selectedProduct={...item.selectedProduct,criteriaId:'criteria-2',
+    candidateSetDigest:D('candidate-set-2'),selectedHandleId:verification.productMaterialHandleId,
+    selectedVerificationId:verification.verificationId,
+    selectedVerificationDigest:canonicalDigest(verification)};
+  selectedProduct.draftId=canonicalDigest({schema:'libra.selected-product-output-id@1',
+    libraRunId:selectedProduct.libraRunId,criteriaId:selectedProduct.criteriaId,
+    candidateSetDigest:selectedProduct.candidateSetDigest});
+  selectedProduct.draftDigest=canonicalDigest(Object.fromEntries(Object.entries(selectedProduct)
+    .filter(([key])=>key!=='draftDigest')));
+  return {selectionKind:'ordinary_selected',selectedProduct,verification,
+    workspaceHandleDigest:null};
 }
 
 test('assembles one closed conformance snapshot and deterministically passes all six rule groups',()=>{
@@ -175,6 +251,94 @@ test('returns closed ordered business unmet codes without treating legal absence
   const result=evaluateProductConformance({input:changed,verifiedAtMs:11});
   assert.equal(result.result,'failed');assert.deepEqual(result.reasonCodes,[]);
   assert.deepEqual(result.unmetRequirementCodes,['metadata_field_unmet','metadata_artifact_unmet','sidecar_unrenderable']);
+});
+
+test('preserves not_selected and failed verification through the authorized direct-input branch',()=>{
+  const {input,manifest}=authorizedSnapshot(),result=evaluateProductConformance({input,verifiedAtMs:20});
+  valid('helix://contracts/domain-types/ProductConformanceInputSnapshot/v1',input);
+  assert.equal(input.selectedProducts[0].selectedProduct.result,'not_selected');
+  assert.equal(input.selectedProducts[0].verification.result,'failed');
+  assert.equal(input.authorizedDefectManifest.manifestDigest,manifest.manifestDigest);
+  assert.equal(result.result,'failed');
+  assert.deepEqual(result.reasonCodes,[]);
+  assert.deepEqual(result.unmetRequirementCodes,['container_unmet']);
+  assert.equal(input.productSnapshotDigest,canonicalDigest({
+    schema:'libra.product-conformance-product-snapshot@1',
+    resolvedIdentityReferenceDigest:input.resolvedIdentitySnapshot.referenceDigest,
+    productStructureDigest:input.productStructureSnapshot.productStructureDigest,
+    productFactSetDigest:input.productFactSetDigest,
+    verifiedArtifactManifestDigest:input.verifiedArtifactManifest.manifestDigest,
+    artifactVerificationSetDigest:input.artifactVerificationSetDigest,
+    inventoryDigest:input.inventorySnapshot.inventoryDigest,
+    selectedProductSetDigest:input.selectedProductSetDigest,
+    authorizedDefectManifestDigestOrNull:manifest.manifestDigest}));
+});
+
+test('selected Products sort by selectionKind then verificationId and reject duplicate tuples',()=>{
+  const base=snapshot(),first=base.selectedProducts[0],second=additionalOrdinarySelection(first),
+    ordered=[first,second].sort((left,right)=>Buffer.from(left.selectionKind).compare(Buffer.from(right.selectionKind))||
+      Buffer.from(left.verification.verificationId).compare(Buffer.from(right.verification.verificationId)));
+  const rebuilt=rebuildSnapshot(base,ordered,null);
+  assert.deepEqual(rebuilt.selectedProducts.map((item)=>[item.selectionKind,item.verification.verificationId]),
+    ordered.map((item)=>[item.selectionKind,item.verification.verificationId]));
+  assert.throws(()=>rebuildSnapshot(base,[...ordered].reverse(),null),
+    (error)=>error.code==='P9_CONFORMANCE_SELECTED_ORDER');
+  assert.throws(()=>rebuildSnapshot(base,[first,first],null),
+    (error)=>error.code==='P9_CONFORMANCE_SELECTED_SET');
+  const authorized=authorizedSnapshot();
+  assert.throws(()=>rebuildSnapshot(authorized.input,[first,
+    authorized.input.selectedProducts[0]],authorized.manifest),
+  (error)=>error.code==='P9_CONFORMANCE_SELECTED_ORDER');
+});
+
+test('Selection resolution preserves the original Result and exposes a separate effective view',()=>{
+  const fixture=authorizedSnapshot(),original=fixture.selectedProduct;
+  const results=[{capabilityRef:'libra.product_output.select@1',result:original},
+    {capabilityRef:'libra.product_media.verify@1',result:fixture.verification}];
+  const resolved=resolveProductSelection(results,fixture.manifest);
+  assert.equal(resolved.selection,original);
+  assert.equal(resolved.selection.result,'not_selected');
+  assert.equal(resolved.selection.draftDigest,original.draftDigest);
+  assert.deepEqual(resolved.effectiveSelection,{
+    selectionKind:'authorized_defect_direct_input',selectedCandidateKind:'direct_input',
+    selectedHandleId:fixture.verification.productMaterialHandleId,
+    selectedWorkspaceMediaHandleId:null,selectedVerificationId:fixture.verification.verificationId,
+    selectedVerificationDigest:canonicalDigest(fixture.verification)});
+  assert.equal(Object.hasOwn(resolved.effectiveSelection,'result'),false);
+  assert.equal(Object.hasOwn(resolved.effectiveSelection,'draftDigest'),false);
+});
+
+test('Manifest digest fences Conformance Work identity and idempotent replay',()=>{
+  const {manifest}=authorizedSnapshot(),selectedMediaWork={workId:'media-work-1',
+    executionBasisDigest:D('run-basis')};
+  const run={libraRunId:'run-1',executionBasisDigest:D('run-basis'),priorityClass:'normal',
+    authorizedDefectManifest:null};
+  const ordinary=productConformanceWork({run},selectedMediaWork);
+  const authorized=productConformanceWork({run:{...run,authorizedDefectManifest:manifest}},selectedMediaWork);
+  const replay=productConformanceWork({run:{...run,authorizedDefectManifest:manifest}},selectedMediaWork);
+  assert.notEqual(authorized.workId,ordinary.workId);
+  assert.notEqual(authorized.idempotencyKey,ordinary.idempotencyKey);
+  assert.deepEqual(authorized,replay);
+});
+
+test('authorized direct-input branch closes Manifest, selection, reason, digest, and Workspace continuity',()=>{
+  const fixture=authorizedSnapshot(),base=fixture.input;
+  const build=(changes={})=>buildProductConformanceInputSnapshot({libraRunId:base.libraRunId,
+    runExecutionBasisDigest:base.runExecutionBasisDigest,acceptanceSpecId:base.acceptanceSpec.acceptanceSpecId,
+    acceptanceSpecRecordDigest:base.acceptanceSpec.recordDigest,acceptanceSpec:base.acceptanceSpec,
+    authorizedDefectManifest:changes.manifest??base.authorizedDefectManifest,
+    resolvedIdentitySnapshot:base.resolvedIdentitySnapshot,productFactSnapshots:base.productFactSnapshots,
+    verifiedArtifactManifest:base.verifiedArtifactManifest,artifactVerificationSnapshots:base.artifactVerificationSnapshots,
+    inventorySnapshot:base.inventorySnapshot,selectedProducts:[changes.selected??base.selectedProducts[0]]});
+  assert.throws(()=>build({manifest:{...fixture.manifest,libraRunId:'run-foreign'}}));
+  assert.throws(()=>build({selected:{...base.selectedProducts[0],workspaceHandleDigest:D('workspace')}}),
+    (error)=>error.code==='P9_CONFORMANCE_AUTHORIZED_DEFECT_CONTINUITY');
+  assert.throws(()=>build({selected:{...base.selectedProducts[0],verification:{...fixture.verification,
+    reasonCodes:['video_codec_unmet']}}}),
+  (error)=>error.code==='P9_CONFORMANCE_AUTHORIZED_DEFECT_CONTINUITY');
+  assert.throws(()=>build({selected:{...base.selectedProducts[0],selectedProduct:{...fixture.selectedProduct,
+    draftDigest:D('forged')}}}),
+  (error)=>error.code==='P9_CONFORMANCE_SELECTED_CONTINUITY');
 });
 
 test('rejects a forged nested Product Fact as snapshot integrity failure',()=>{
@@ -200,7 +364,8 @@ test('rejects an unrelated passed Artifact Requirement verification',()=>{
   assert.throws(()=>buildProductConformanceInputSnapshot({libraRunId:base.libraRunId,runExecutionBasisDigest:base.runExecutionBasisDigest,
     acceptanceSpecId:base.acceptanceSpec.acceptanceSpecId,acceptanceSpecRecordDigest:base.acceptanceSpec.recordDigest,
     acceptanceSpec:base.acceptanceSpec,resolvedIdentitySnapshot:base.resolvedIdentitySnapshot,productFactSnapshots:base.productFactSnapshots,
-    verifiedArtifactManifest,artifactVerificationSnapshots:[artifactVerificationSnapshot],inventorySnapshot,selectedProducts:base.selectedProducts}),
+    authorizedDefectManifest:base.authorizedDefectManifest,verifiedArtifactManifest,
+    artifactVerificationSnapshots:[artifactVerificationSnapshot],inventorySnapshot,selectedProducts:base.selectedProducts}),
   (error)=>error.code==='P9_CONFORMANCE_ARTIFACT_REQUIREMENT');
 });
 
@@ -219,8 +384,9 @@ test('rejects a valid Media Requirement derived from a foreign Acceptance Spec',
   assert.throws(()=>buildProductConformanceInputSnapshot({libraRunId:base.libraRunId,runExecutionBasisDigest:base.runExecutionBasisDigest,
     acceptanceSpecId:base.acceptanceSpec.acceptanceSpecId,acceptanceSpecRecordDigest:base.acceptanceSpec.recordDigest,
     acceptanceSpec:base.acceptanceSpec,resolvedIdentitySnapshot:base.resolvedIdentitySnapshot,productFactSnapshots:base.productFactSnapshots,
-    verifiedArtifactManifest:base.verifiedArtifactManifest,artifactVerificationSnapshots:[],inventorySnapshot:base.inventorySnapshot,
-    selectedProducts:[{selectedProduct,verification,workspaceHandleDigest:null}]}),
+    authorizedDefectManifest:base.authorizedDefectManifest,verifiedArtifactManifest:base.verifiedArtifactManifest,
+    artifactVerificationSnapshots:[],inventorySnapshot:base.inventorySnapshot,
+    selectedProducts:[{selectionKind:'ordinary_selected',selectedProduct,verification,workspaceHandleDigest:null}]}),
   (error)=>error.code==='P9_CONFORMANCE_SELECTED_CONTINUITY');
 });
 

@@ -309,6 +309,9 @@ function fixtureValue() {
     evaluatedRequirementSetDigest: D('requirements'),
     productSnapshotDigest: D('product-snapshot'),
     unmetRequirementCount: 0,
+    unmetRequirementCodes: [],
+    acceptanceKind: 'accepted',
+    authorizedDefectManifest: null,
     attestedAtMs: NOW,
     attestationDigest: '',
   };

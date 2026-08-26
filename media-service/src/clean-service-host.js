@@ -1638,7 +1638,13 @@ async function createCleanServiceHost(options) {
     cancelExpedite(libraRunId, body) { const result=libraRunAdminService.cancelExpedite(libraRunId,body); formationProjectionHost.enqueue(formationProjectionSource.findSubjectByRun(libraRunId)); return result; },
     discard(libraRunId, body) { const result=libraRunAdminService.discard(libraRunId,body); formationProjectionHost.enqueue(formationProjectionSource.findSubjectByRun(libraRunId)); return result; },
     previewDefects(libraRunId) { return libraRunAdminService.previewDefects(libraRunId); },
-    admitWithDefects(libraRunId, body) { const result=libraRunAdminService.admitWithDefects(libraRunId,body); formationProjectionHost.enqueue(formationProjectionSource.findSubjectByRun(libraRunId)); return result; },
+    admitWithDefects(libraRunId, body) {
+      const result=libraRunAdminService.admitWithDefects(libraRunId,body);
+      formationProjectionHost.enqueue(formationProjectionSource.findSubjectByRun(libraRunId));
+      procurementExecution.libraRunCoordinator.reconcile(libraRunId);
+      executionRuntimeHost.wake();
+      return result;
+    },
   });
   const productIdentitySelection = Object.freeze({
     choose(libraRunId, body) {

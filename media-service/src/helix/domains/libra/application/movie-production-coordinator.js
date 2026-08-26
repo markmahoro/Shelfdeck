@@ -2843,6 +2843,7 @@ function createMovieProductionCoordinator(options) {
       acceptanceSpecId: snapshot.spec.acceptanceSpecId,
       acceptanceSpecRecordDigest: snapshot.spec.recordDigest,
       acceptanceSpec: snapshot.spec,
+      authorizedDefectManifest: null,
       resolvedIdentitySnapshot: facts.find((item) =>
         item.factKind === 'resolved_identity'),
       productFactSnapshots: facts,
@@ -2850,6 +2851,7 @@ function createMovieProductionCoordinator(options) {
       artifactVerificationSnapshots,
       inventorySnapshot: inventory,
       selectedProducts: mediaProducts.map((item) => ({
+        selectionKind: 'ordinary_selected',
         selectedProduct: item.selected,
         verification: item.verification,
         workspaceHandleDigest: null,

@@ -4,6 +4,10 @@ const assert=require('node:assert/strict');
 const test=require('node:test');
 const {canonicalDigest:d}=require('../../src/helix/contracts/canonical-json');
 const c=require('../../src/helix/domains/libra/model/delivery-lifecycle-contracts');
+const {
+  buildAuthorizedDefectManifest,
+  buildDefectAdmissionCandidate,
+}=require('../../src/helix/domains/libra/model/defect-admission-contracts');
 const {createDeliveryLifecycleLedger}=require('../../src/helix/domains/libra/persistence/delivery-lifecycle-ledger');
 const {CONTRACTS,createDeliveryLifecycleCapabilityRegistrations}=require('../../src/helix/domains/libra/capabilities/delivery-lifecycle-capability-registrations');
 const h=(v)=>d({v}),NOW=1_700_000_000_000;
@@ -46,7 +50,9 @@ function promotion(){
     productionAttestation:{attestationId:'',libraRunId:'run-1',onDeckPackageId:packageId,acceptanceSpecId:'spec-1',
       acceptanceSpecRecordDigest:h('spec'),productConformanceEvidenceId:'conformance-1',
       productConformanceEvidenceDigest:h('conformance'),evaluatedRequirementSetDigest:h('requirements'),
-      productSnapshotDigest:h('product-snapshot'),unmetRequirementCount:0,attestedAtMs:NOW,attestationDigest:''},
+      productSnapshotDigest:h('product-snapshot'),unmetRequirementCount:0,
+      unmetRequirementCodes:[],acceptanceKind:'accepted',authorizedDefectManifest:null,
+      attestedAtMs:NOW,attestationDigest:''},
     relatedAuthorityAssertions:[],relatedDispositionSetDigest:d({schema:'libra.related-disposition-set@1',items:[]}),
     controlCommitScope:{items:[{controlOperation:'acquire_workspace_product',materialKey:h('material'),expectedControlState:'absent',
       toOwnerDomain:'libra',toOwnerScopeType:'on_deck_package',toOwnerScopeId:packageId}],
@@ -57,6 +63,28 @@ function promotion(){
   x.productionAttestation.attestationDigest=d(Object.fromEntries(
     Object.entries(x.productionAttestation).filter(([key])=>key!=='attestationDigest')));
   return sealPromotion(x);
+}
+
+function actorDefectManifest(libraRunId='run-1'){
+  const run=Object.freeze({libraRunId,state:'frozen',stateRevision:3,
+    stateDigest:h('frozen')});
+  const work=Object.freeze({workId:'work-actor',failureCode:'product_metadata_required_cast_missing',
+    capabilityRef:'libra.product_metadata.fetch@1',failureClass:'business_unachievable',
+    terminalEvidenceDigest:h('actor-terminal')});
+  const terminalBody={blockedWorks:[work]};
+  const candidate=buildDefectAdmissionCandidate({run,terminalEvidence:Object.freeze({...terminalBody,
+    evidenceDigest:d(terminalBody)})});
+  return buildAuthorizedDefectManifest({candidate,actorId:'admin',idempotencyKey:'p9-promotion-defect',
+    acknowledged:true,decidedAtMs:NOW});
+}
+
+function withAuthorizedMetadataGap(value=promotion(),manifest=actorDefectManifest()){
+  const body={...value.productionAttestation,unmetRequirementCount:1,
+    unmetRequirementCodes:['metadata_field_unmet'],acceptanceKind:'accepted_with_defects',
+    authorizedDefectManifest:manifest};
+  delete body.attestationDigest;
+  value.productionAttestation={...body,attestationDigest:d(body)};
+  return sealPromotion(value);
 }
 function commitPromotion(value=promotion()){
   return c.buildPromotionCommit({decision:value,committedAtMs:NOW,subjectId:'subject-1',shelfId:'shelf-1',
@@ -73,6 +101,34 @@ test('promotion publishes immutable package, exact Control commits, receipt and 
   const wrongRole=promotion();wrongRole.productStagingReferences[0].productVerificationRef.materialRole='metadata_sidecar';
   wrongRole.productStagingReferences[0].episodeScopeDigest=EMPTY_EPISODE_SCOPE_DIGEST;
   assert.throws(()=>commitPromotion(wrongRole),/one-for-one/);
+});
+
+test('promotion accepts only the exact authorized defect gap set',()=>{
+  const authorized=withAuthorizedMetadataGap();
+  const committed=commitPromotion(authorized);
+  assert.equal(committed.package.productionAttestation.acceptanceKind,'accepted_with_defects');
+  assert.deepEqual(committed.package.productionAttestation.unmetRequirementCodes,
+    ['metadata_field_unmet']);
+
+  const wider=structuredClone(authorized);
+  wider.productionAttestation.unmetRequirementCodes=['metadata_field_unmet','max_size_exceeded'];
+  wider.productionAttestation.unmetRequirementCount=2;
+  delete wider.productionAttestation.attestationDigest;
+  wider.productionAttestation.attestationDigest=d(wider.productionAttestation);
+  sealPromotion(wider);
+  assert.throws(()=>commitPromotion(wider),/conformant/);
+
+  const duplicated=structuredClone(authorized);
+  duplicated.productionAttestation.unmetRequirementCodes=
+    ['metadata_field_unmet','metadata_field_unmet'];
+  duplicated.productionAttestation.unmetRequirementCount=2;
+  delete duplicated.productionAttestation.attestationDigest;
+  duplicated.productionAttestation.attestationDigest=d(duplicated.productionAttestation);
+  sealPromotion(duplicated);
+  assert.throws(()=>commitPromotion(duplicated),/conformant/);
+
+  const foreign=withAuthorizedMetadataGap(promotion(),actorDefectManifest('run-other'));
+  assert.throws(()=>commitPromotion(foreign),/conformant/);
 });
 
 test('promotion joins Product Staging references to Product members by materialKey rather than array position',()=>{

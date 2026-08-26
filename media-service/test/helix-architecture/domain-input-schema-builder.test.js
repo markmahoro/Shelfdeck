@@ -6,10 +6,37 @@ const { buildDomainInputSchemas } = require('../../scripts/helix-architecture/do
 
 const schemas = buildDomainInputSchemas();
 
-test('builds exactly the 117 formal domain input contracts', () => {
-  assert.equal(Object.keys(schemas).length, 117);
+test('builds exactly the 119 formal domain input contracts', () => {
+  assert.equal(Object.keys(schemas).length, 119);
   assert.equal(Object.values(schemas).filter((schema) => schema['x-helix-role'] === 'bounded-contract').length, 25);
-  assert.equal(Object.values(schemas).filter((schema) => schema['x-helix-role'] === 'accepted-business-dto').length, 92);
+  assert.equal(Object.values(schemas).filter((schema) => schema['x-helix-role'] === 'accepted-business-dto').length, 94);
+});
+
+test('freezes bounded Shelf Acceptance source and Product read authority', () => {
+  const readSet = schemas.ShelfAcceptancePrimaryReadSet;
+  const item = readSet.properties.primaryInputs.items;
+  assert.equal(readSet.additionalProperties, false);
+  assert.equal(readSet.properties.primaryInputs.minItems, 1);
+  assert.equal(readSet.properties.primaryInputs.maxItems, 32);
+  assert.deepEqual(item.properties.sourceReadHandle,
+    { $ref: 'helix://contracts/types/PhysicalMaterialReadHandle/v1' });
+  assert.deepEqual(item.properties.productReadHandle,
+    { $ref: 'helix://contracts/types/PhysicalMaterialReadHandle/v1' });
+  assert.ok(item.required.includes('samePhysicalMaterial'));
+  assert.equal(readSet['x-helix-maxCanonicalBytes'], 1024 * 1024);
+
+  const requirement = schemas.MandatoryRequirement;
+  assert.equal(requirement.additionalProperties, false);
+  assert.deepEqual(requirement.properties.maxSizeBytes.anyOf,
+    [{ type: 'integer', minimum: 0 }, { type: 'null' }]);
+  assert.deepEqual(requirement.properties.decodeSamplePointsPercent.prefixItems,
+    [{ const: 5 }, { const: 50 }, { const: 95 }]);
+
+  const snapshot = schemas.AcceptanceRequirementSnapshot;
+  assert.equal(snapshot.additionalProperties, false);
+  assert.deepEqual(Object.keys(snapshot.properties.requirements.properties),
+    ['identity', 'structure', 'metadata', 'mandatoryMedia', 'space', 'inventory']);
+  assert.equal(snapshot['x-helix-maxCanonicalBytes'], 64 * 1024);
 });
 
 test('materializes the exact service-local Western analysis construction inputs', () => {
@@ -137,6 +164,11 @@ test('legacy bounded inputs stay generic while media intents are exact and typed
   assert.equal(schemas.MediaRequirement.properties.mandatoryMedia.additionalProperties, false);
   assert.equal(schemas.ProductConformanceInputSnapshot.properties.inventorySnapshot.$ref,
     'helix://contracts/domain-types/ProductInventoryConformanceSnapshot/v1');
+  assert.deepEqual(schemas.ProductConformanceInputSnapshot.properties.authorizedDefectManifest,
+    { anyOf:[{ $ref:'helix://contracts/application-types/AuthorizedDefectManifest/v1' },{ type:'null' }] });
+  assert.deepEqual(schemas.ProductConformanceInputSnapshot.properties.selectedProducts.items.oneOf
+    .map((branch)=>branch.properties.selectionKind.const),
+  ['ordinary_selected','authorized_defect_direct_input']);
   const productionManifest = schemas.ProductionMaterialManifest;
   assert.deepEqual(productionManifest.oneOf.map((branch) => branch.properties.manifestRole.const), ['run_input', 'product_delivery']);
   for (const branch of productionManifest.oneOf) {
@@ -184,6 +216,11 @@ test('conserves complete run-input and product-delivery Production Material memb
 test('propagates the nominal Production Material Manifest into Promotion without an inline subset', () => {
   const promotion = schemas.LibraDeliverablePromotionDecision.properties.productMaterialManifest;
   assert.deepEqual(promotion, { $ref:'helix://contracts/domain-types/ProductionMaterialManifest/v1' });
+  const provenance = schemas.LibraDeliverablePromotionDecision.properties.productionProvenance;
+  assert.deepEqual(provenance.properties.acceptanceRequirementSnapshot,
+    { $ref:'helix://contracts/domain-types/AcceptanceRequirementSnapshot/v1' });
+  assert.deepEqual(provenance.properties.shelfAcceptancePrimaryReadSet,
+    { $ref:'helix://contracts/domain-types/ShelfAcceptancePrimaryReadSet/v1' });
   const serialized = JSON.stringify(schemas.LibraDeliverablePromotionDecision);
   assert.equal(serialized.includes('"locationKind"'), false);
   assert.equal(serialized.includes('"committedControlRevision"'), false);
@@ -263,6 +300,29 @@ test('accepted DTOs freeze semantic members instead of exposing arbitrary payloa
   assert.equal(registration.properties.candidateKind.const, 'registration');
   assert.equal(merge.properties.candidateKind.const, 'merge');
   assert.deepEqual(merge.properties.preferenceResolution.enum, ['keep_source', 'keep_target', 'set_explicit']);
+});
+
+test('freezes the final five-check gap union on Handoff B rejection Decisions', () => {
+  const decision = schemas.ArcaAcceptanceRejectionDecision;
+  for (const field of ['acceptanceCheckSetDigest', 'actualGapUnionCodes',
+    'actualGapUnionDigest', 'authorizedDefectManifestDigestOrNull',
+    'authorizedGapComparison']) assert.ok(decision.required.includes(field), field);
+  assert.deepEqual(decision.properties.actualGapUnionCodes.items.enum, [
+    'identity_unmet', 'season_identity_unmet',
+    'structure_unmet', 'episode_coverage_unmet',
+    'metadata_field_unmet', 'metadata_artifact_unmet', 'sidecar_unrenderable',
+    'image_undecodable', 'media_form_unmet', 'video_codec_unmet',
+    'container_unmet', 'file_extension_unmet', 'minimum_raster_unmet',
+    'system_upscale_forbidden', 'primary_audio_unmet',
+    'dynamic_range_conversion_unmet', 'output_color_profile_unmet',
+    'dolby_vision_metadata_not_removed', 'playback_decode_failed',
+    'max_size_exceeded',
+  ]);
+  assert.equal(decision.properties.actualGapUnionCodes.uniqueItems, true);
+  assert.deepEqual(decision.properties.authorizedDefectManifestDigestOrNull.anyOf.at(-1),
+    { type:'null' });
+  assert.deepEqual(decision.properties.authorizedGapComparison.enum,
+    ['exact_match', 'mismatch', 'not_applicable']);
 });
 
 test('projection and aggregate inputs are bounded snapshots rather than Store rows', () => {

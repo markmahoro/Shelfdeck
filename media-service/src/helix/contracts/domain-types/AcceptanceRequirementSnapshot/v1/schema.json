@@ -1,0 +1,358 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/domain-types/AcceptanceRequirementSnapshot/v1",
+  "title": "AcceptanceRequirementSnapshot@1",
+  "x-helix-ssotRefs": [
+    "8.6.13",
+    "8.6.18",
+    "8.6.20"
+  ],
+  "x-helix-role": "accepted-business-dto",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaRef": {
+      "const": "helix://contracts/domain-types/AcceptanceRequirementSnapshot/v1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "acceptanceSpecId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "acceptanceSpecRecordDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "targetShelfId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "contentProfile": {
+      "type": "string",
+      "enum": [
+        "movie",
+        "series",
+        "jav",
+        "western_adult"
+      ]
+    },
+    "structureKind": {
+      "type": "string",
+      "enum": [
+        "single",
+        "season"
+      ]
+    },
+    "shelfStandardRevision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "shelfStandardDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "requirements": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "identity": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "identityKind": {
+              "type": "string",
+              "enum": [
+                "tmdb_movie",
+                "tmdb_series_season",
+                "jav_code",
+                "internal_identity"
+              ]
+            },
+            "requiredProvider": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "tmdb"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "requireSeasonNumber": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "identityKind",
+            "requiredProvider",
+            "requireSeasonNumber"
+          ]
+        },
+        "structure": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "structureKind": {
+              "type": "string",
+              "enum": [
+                "single",
+                "season"
+              ]
+            },
+            "primaryModel": {
+              "type": "string",
+              "enum": [
+                "single_primary",
+                "episode_primary"
+              ]
+            },
+            "requireOnePrimaryPerEpisode": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "structureKind",
+            "primaryModel",
+            "requireOnePrimaryPerEpisode"
+          ]
+        },
+        "metadata": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "requiredFieldCodes": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "tmdb_movie_id",
+                  "tmdb_series_id",
+                  "title",
+                  "series_title",
+                  "year_or_release_date",
+                  "release_date",
+                  "plot",
+                  "genre",
+                  "actor",
+                  "director",
+                  "season_number",
+                  "episode_number",
+                  "episode_title",
+                  "episode_plot",
+                  "jav_code",
+                  "studio",
+                  "internal_identity"
+                ]
+              },
+              "maxItems": 18
+            },
+            "requiredArtifactKinds": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "nfo",
+                  "poster",
+                  "fanart"
+                ]
+              },
+              "maxItems": 3
+            },
+            "requireRenderableSidecar": {
+              "type": "boolean"
+            },
+            "requireDecodableImages": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "requiredFieldCodes",
+            "requiredArtifactKinds",
+            "requireRenderableSidecar",
+            "requireDecodableImages"
+          ]
+        },
+        "mandatoryMedia": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "mediaForm": {
+              "type": "string",
+              "enum": [
+                "any",
+                "stream_file"
+              ]
+            },
+            "videoCodec": {
+              "type": "string",
+              "enum": [
+                "any",
+                "hevc"
+              ]
+            },
+            "container": {
+              "type": "string",
+              "enum": [
+                "any",
+                "matroska"
+              ]
+            },
+            "fileExtension": {
+              "type": "string",
+              "enum": [
+                "any",
+                "mkv"
+              ]
+            },
+            "minimumRasterClass": {
+              "type": "string",
+              "enum": [
+                "none",
+                "4k"
+              ]
+            },
+            "acceptedPrimaryAudioClasses": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "eac3_atmos",
+                  "truehd",
+                  "truehd_atmos",
+                  "dts_hd_ma",
+                  "dts_x"
+                ]
+              },
+              "maxItems": 5
+            },
+            "forbidSystemUpscaleFor4k": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "mediaForm",
+            "videoCodec",
+            "container",
+            "fileExtension",
+            "minimumRasterClass",
+            "acceptedPrimaryAudioClasses",
+            "forbidSystemUpscaleFor4k"
+          ]
+        },
+        "space": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "unit": {
+              "type": "string",
+              "enum": [
+                "product",
+                "episode"
+              ]
+            },
+            "maxSizeGiB": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "maxSizeBytes": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "unit",
+            "maxSizeGiB",
+            "maxSizeBytes"
+          ]
+        },
+        "inventory": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "requireDomainBinding": {
+              "type": "boolean"
+            },
+            "requireChecksum": {
+              "type": "boolean"
+            },
+            "requiredMaterializedArtifactKinds": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "nfo",
+                  "poster",
+                  "fanart"
+                ]
+              },
+              "maxItems": 3
+            },
+            "layoutModel": {
+              "type": "string",
+              "enum": [
+                "single",
+                "season_episode"
+              ]
+            }
+          },
+          "required": [
+            "requireDomainBinding",
+            "requireChecksum",
+            "requiredMaterializedArtifactKinds",
+            "layoutModel"
+          ]
+        }
+      },
+      "required": [
+        "identity",
+        "structure",
+        "metadata",
+        "mandatoryMedia",
+        "space",
+        "inventory"
+      ]
+    },
+    "snapshotDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "schemaRef",
+    "schemaVersion",
+    "acceptanceSpecId",
+    "acceptanceSpecRecordDigest",
+    "targetShelfId",
+    "contentProfile",
+    "structureKind",
+    "shelfStandardRevision",
+    "shelfStandardDigest",
+    "requirements",
+    "snapshotDigest"
+  ],
+  "x-helix-maxCanonicalBytes": 65536
+}

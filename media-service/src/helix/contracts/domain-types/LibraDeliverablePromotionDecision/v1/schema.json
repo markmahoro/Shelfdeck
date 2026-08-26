@@ -990,6 +990,12 @@
           },
           "maxItems": 256
         },
+        "acceptanceRequirementSnapshot": {
+          "$ref": "helix://contracts/domain-types/AcceptanceRequirementSnapshot/v1"
+        },
+        "shelfAcceptancePrimaryReadSet": {
+          "$ref": "helix://contracts/domain-types/ShelfAcceptancePrimaryReadSet/v1"
+        },
         "provenanceDigest": {
           "type": "string",
           "minLength": 1,
@@ -1003,6 +1009,8 @@
         "workflowPlanRefs",
         "productVerificationRefs",
         "externalRealityObservationRefs",
+        "acceptanceRequirementSnapshot",
+        "shelfAcceptancePrimaryReadSet",
         "provenanceDigest"
       ]
     },

@@ -25,6 +25,28 @@ const bool = () => ({ type: 'boolean' });
 const nullable = (schema) => ({ anyOf: [schema, { type: 'null' }] });
 const enumText = (...values) => ({ type: 'string', enum: values });
 const arrayOf = (items, maxItems = 1024) => ({ type: 'array', items, maxItems });
+const ACCEPTANCE_ACTUAL_GAP_CODES = Object.freeze([
+  'identity_unmet',
+  'season_identity_unmet',
+  'structure_unmet',
+  'episode_coverage_unmet',
+  'metadata_field_unmet',
+  'metadata_artifact_unmet',
+  'sidecar_unrenderable',
+  'image_undecodable',
+  'media_form_unmet',
+  'video_codec_unmet',
+  'container_unmet',
+  'file_extension_unmet',
+  'minimum_raster_unmet',
+  'system_upscale_forbidden',
+  'primary_audio_unmet',
+  'dynamic_range_conversion_unmet',
+  'output_color_profile_unmet',
+  'dolby_vision_metadata_not_removed',
+  'playback_decode_failed',
+  'max_size_exceeded',
+]);
 const object = (properties, required = Object.keys(properties), options = {}) => ({
   type: 'object', additionalProperties: false, properties, required, ...options
 });
@@ -144,7 +166,7 @@ const boundedContracts = {
   FaceModelRef: '',
   BoundedFingerprintProfile: 'profileRef,revision,algorithm,maxSampleBytes,profileDigest',
   IdentityRequirement: '',
-  MandatoryRequirement: 'requirementCodes',
+  MandatoryRequirement: '',
   ManifestContract: 'manifestKind,memberSchemaRef,minMembers,maxMembers',
   MetadataRequirement: 'requiredFactKeys,artifactRequirementDigest',
   PlacementPolicy: 'shelfId,targetEndpointIds,minimumFreeBytes',
@@ -163,6 +185,7 @@ const boundedContracts = {
 
 const dtoContracts = {
   AcceptedIntakePayload: '',
+  AcceptanceRequirementSnapshot: '',
   AftercareMediaRepairStrategy: '',
   AcceptedPayload: 'onDeckProductPackage,acceptanceDecisionId,custodyDigest',
   AcceptedProductFacts: 'shelfEntryId,inventoryRevision,productFactSetDigest',
@@ -222,6 +245,7 @@ const dtoContracts = {
   ProductMediaCandidateInput: '',
   ProductOutputSelectionInput: '',
   ProductConformanceInputSnapshot: '',
+  ShelfAcceptancePrimaryReadSet: '',
   ProductManifest: 'manifestId,members,manifestDigest',
   ProductMetadataArtifact: 'subjectId,metadataFactRefs,artifactHandles,setDigest',
   ProductStructure: 'subjectId,structureKind,episodeClaims,structureDigest',
@@ -246,7 +270,7 @@ const dtoContracts = {
   StableProviderIdentity: 'providerId,providerObjectId,identityRevision,identityDigest',
   Standard: 'standardId,standardRevision,standardDigest',
   IntakeRejectionDecision: 'intakeDecisionId,decisionRevision,offerId,candidatePackageId,packageRevision,packageDigest,acceptanceBasisDigest,candidateDeliverySnapshotDigest,structuredRejection,decisionDigest',
-  ArcaAcceptanceRejectionDecision: 'acceptanceDecisionId,acceptanceAttemptId,offerId,onDeckPackageId,packageDigest,shelfId,standardRevision,placementRevision,structuredRejection,decisionDigest,decidedAtMs',
+  ArcaAcceptanceRejectionDecision: 'acceptanceDecisionId,acceptanceAttemptId,offerId,onDeckPackageId,packageDigest,shelfId,standardRevision,placementRevision,acceptanceCheckSetDigest,actualGapUnionCodes,actualGapUnionDigest,authorizedDefectManifestDigestOrNull,authorizedGapComparison,structuredRejection,decisionDigest,decidedAtMs',
   StructuredRejection: 'handoffKind,offerId,deliverableId,rejectionCode,acceptanceEvidenceSetDigest,rejectionDigest',
   TargetBindings: 'targetCommitSlotId,bindings,bindingSetDigest',
   TargetEndpoint: 'endpointId,mountScopeRevision,capacityObservationDigest',
@@ -331,9 +355,12 @@ function buildSchema(name, role, fields) {
   if (name === 'ProductMediaCandidateInput') return productMediaCandidateInputSchema();
   if (name === 'ProductOutputSelectionInput') return productOutputSelectionInputSchema();
   if (name === 'ProductConformanceInputSnapshot') return productConformanceInputSnapshotSchema();
+  if (name === 'ShelfAcceptancePrimaryReadSet') return shelfAcceptancePrimaryReadSetSchema();
+  if (name === 'AcceptanceRequirementSnapshot') return acceptanceRequirementSnapshotSchema();
   if (name === 'ProductDispositionManifest') return productDispositionManifestSchema();
   if (name === 'OldPrimaryStructuralExclusiveRelatedHandles') return oldPrimaryStructuralExclusiveRelatedHandlesSchema();
   if (name === 'IdentityRequirement') return identityRequirementSchema();
+  if (name === 'MandatoryRequirement') return mandatoryRequirementSchema();
   if (name === 'SelectionCriteria') return selectionCriteriaSchema();
   if (name === 'WorkspaceDeliveryContract') return workspaceDeliveryContractSchema();
   if (name === 'EpisodeDeliveryManifest') return episodeDeliveryManifestSchema();
@@ -491,6 +518,11 @@ function arcaAcceptanceRejectionDecisionSchema() {
   return { ...exactDomainSchema('ArcaAcceptanceRejectionDecision', {
     acceptanceDecisionId: digest(), acceptanceAttemptId: id(), offerId: id(), onDeckPackageId: id(), packageDigest: digest(),
     shelfId: id(), standardRevision: positiveInteger(), placementRevision: positiveInteger(),
+    acceptanceCheckSetDigest: digest(),
+    actualGapUnionCodes: { ...arrayOf(enumText(...ACCEPTANCE_ACTUAL_GAP_CODES),
+      ACCEPTANCE_ACTUAL_GAP_CODES.length), uniqueItems: true },
+    actualGapUnionDigest: digest(), authorizedDefectManifestDigestOrNull: nullable(digest()),
+    authorizedGapComparison: enumText('exact_match', 'mismatch', 'not_applicable'),
     structuredRejection: domainRef('StructuredRejection'), decisionDigest: digest(), decidedAtMs: nonNegativeInteger()
   }), 'x-helix-maxCanonicalBytes': 32 * 1024 };
 }
@@ -1148,7 +1180,9 @@ function libraDeliverablePromotionDecisionSchema() {
     productionProvenance: object({ libraRunId: id(), runExecutionBasisDigest: digest(), acceptanceSpecRecordDigest: digest(),
       workflowPlanRefs: arrayOf(object({ planId: id(), planRevision: positiveInteger(), planDigest: digest() }), 256),
       productVerificationRefs: arrayOf(object({ verificationId: id(), verificationDigest: digest() }), 256),
-      externalRealityObservationRefs: arrayOf(object({ evidenceId: id(), evidenceDigest: digest() }), 256), provenanceDigest: digest() }),
+      externalRealityObservationRefs: arrayOf(object({ evidenceId: id(), evidenceDigest: digest() }), 256),
+      acceptanceRequirementSnapshot:domainRef('AcceptanceRequirementSnapshot'),
+      shelfAcceptancePrimaryReadSet:domainRef('ShelfAcceptancePrimaryReadSet'), provenanceDigest: digest() }),
     productionAttestation: object({ attestationId: id(), libraRunId: id(), onDeckPackageId: id(), acceptanceSpecId: id(),
       acceptanceSpecRecordDigest:digest(), productConformanceEvidenceId: id(), productConformanceEvidenceDigest: digest(),
       evaluatedRequirementSetDigest:digest(), productSnapshotDigest:digest(), unmetRequirementCount:nonNegativeInteger(),
@@ -1636,18 +1670,115 @@ function productOutputSelectionInputSchema() {
 }
 
 function productConformanceInputSnapshotSchema() {
-  const selected = object({ selectedProduct: typeRef('SelectedProductOutput'), verification: typeRef('ProductMediaVerification'),
+  const selected = (selectionKind) => object({ selectionKind: { const: selectionKind },
+    selectedProduct: typeRef('SelectedProductOutput'), verification: typeRef('ProductMediaVerification'),
     workspaceHandleDigest: nullable(digest()) });
   return { ...exactDomainSchema('ProductConformanceInputSnapshot', { snapshotId: id(), libraRunId: id(), runExecutionBasisDigest: digest(),
-    acceptanceSpec: acceptanceSpecValueSchema(), resolvedIdentitySnapshot: domainRef('ProductConformanceFactSnapshot'),
+    acceptanceSpec: acceptanceSpecValueSchema(),
+    authorizedDefectManifest: nullable(applicationRef('AuthorizedDefectManifest')),
+    resolvedIdentitySnapshot: domainRef('ProductConformanceFactSnapshot'),
     productStructureSnapshot: domainRef('ProductStructureSnapshot'),
     productFactSnapshots: { ...arrayOf(domainRef('ProductConformanceFactSnapshot'), 3), minItems: 1 },
     verifiedArtifactManifest: domainRef('VerifiedArtifactManifest'),
     artifactVerificationSnapshots: arrayOf(domainRef('ArtifactConformanceVerificationSnapshot'), 256),
     inventorySnapshot: domainRef('ProductInventoryConformanceSnapshot'),
-    selectedProducts: { ...arrayOf(selected, 32), minItems: 1 }, productFactSetDigest: digest(),
+    selectedProducts: { ...arrayOf({ oneOf:[selected('ordinary_selected'),
+      selected('authorized_defect_direct_input')] }, 32), minItems: 1 }, productFactSetDigest: digest(),
     artifactVerificationSetDigest: digest(), selectedProductSetDigest: digest(), productSnapshotDigest: digest(), snapshotDigest: digest()
   }), 'x-helix-maxCanonicalBytes': 8 * 1024 * 1024 };
+}
+
+function shelfAcceptancePrimaryReadSetSchema() {
+  const item = object({
+    ordinal: nonNegativeInteger(),
+    materialKey: digest(),
+    productMemberDigest: digest(),
+    productMediaVerification: typeRef('ProductMediaVerification'),
+    productMediaVerificationDigest: digest(),
+    sourceReadHandle: typeRef('PhysicalMaterialReadHandle'),
+    sourceReadHandleDigest: digest(),
+    productReadHandle: typeRef('PhysicalMaterialReadHandle'),
+    productReadHandleDigest: digest(),
+    samePhysicalMaterial: bool(),
+    itemDigest: digest(),
+  });
+  return {
+    ...exactDomainSchema('ShelfAcceptancePrimaryReadSet', {
+      schemaRef: { const: domainTypeId('ShelfAcceptancePrimaryReadSet') },
+      schemaVersion: { const: 1 },
+      onDeckPackageId: id(),
+      libraRunId: id(),
+      runExecutionBasisDigest: digest(),
+      acceptanceSpecId: id(),
+      acceptanceSpecRecordDigest: digest(),
+      issuedAtMs: nonNegativeInteger(),
+      expiresAtMs: nonNegativeInteger(),
+      primaryInputs: { ...arrayOf(item, 32), minItems: 1 },
+      primaryInputSetDigest: digest(),
+      readAuthorityDigest: digest(),
+    }),
+    'x-helix-maxCanonicalBytes': 1024 * 1024,
+  };
+}
+
+function acceptanceRequirementSnapshotSchema() {
+  return {
+    ...exactDomainSchema('AcceptanceRequirementSnapshot', {
+      schemaRef: { const: domainTypeId('AcceptanceRequirementSnapshot') },
+      schemaVersion: { const: 1 },
+      acceptanceSpecId: id(),
+      acceptanceSpecRecordDigest: digest(),
+      targetShelfId: id(),
+      contentProfile: contentProfile(),
+      structureKind: acceptanceStructureKind(),
+      shelfStandardRevision: positiveInteger(),
+      shelfStandardDigest: digest(),
+      requirements: acceptanceRequirementSetSchema(),
+      snapshotDigest: digest(),
+    }),
+    'x-helix-maxCanonicalBytes': 64 * 1024,
+  };
+}
+
+function mandatoryRequirementSchema() {
+  return {
+    $schema: DRAFT,
+    $id: domainTypeId('MandatoryRequirement'),
+    title: 'MandatoryRequirement@1',
+    'x-helix-ssotRefs': ['5.7.1', '8.6.9', '8.6.20'],
+    'x-helix-role': 'bounded-contract',
+    'x-helix-maxCanonicalBytes': 16 * 1024,
+    ...object({
+      schemaRef: { const: domainTypeId('MandatoryRequirement') },
+      schemaVersion: { const: 1 },
+      requirementId: id(),
+      revision: positiveInteger(),
+      digest: digest(),
+      shelfId: id(),
+      shelfStandardRevision: positiveInteger(),
+      shelfStandardDigest: digest(),
+      contentProfile: enumText('movie', 'series', 'jav', 'western_adult'),
+      mediaForm: enumText('any', 'stream_file'),
+      videoCodec: enumText('any', 'hevc'),
+      container: enumText('any', 'matroska'),
+      fileExtension: enumText('any', 'mkv'),
+      minimumRasterClass: enumText('none', '720p', '1080p', '4k'),
+      acceptedPrimaryAudioClasses: { ...arrayOf(text(), 128), uniqueItems: true },
+      maxSizeBytes: nullable(nonNegativeInteger()),
+      forbidSystemUpscaleFor4k: bool(),
+      acceptedOutputDynamicRangeKinds: { ...arrayOf(enumText(
+        'sdr', 'hdr10_compatible', 'hlg', 'dolby_vision'), 4), minItems: 1,
+        uniqueItems: true },
+      sdrOutputPixelFormat: { const: 'yuv420p' },
+      sdrOutputColorProfile: object({ range: { const:'limited' },
+        primaries: { const:'bt709' }, transfer: { const:'bt709' },
+        matrix: { const:'bt709' } }),
+      forbidDolbyVisionMetadataOnSdr: { const: true },
+      decodeSamplePointsPercent: { type:'array', prefixItems:[{const:5},{const:50},{const:95}],
+        items:false, minItems:3, maxItems:3 },
+      requireAllDecodeSamples: { const: true },
+    }),
+  };
 }
 
 function productDispositionManifestSchema() {

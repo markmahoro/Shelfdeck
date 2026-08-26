@@ -234,9 +234,17 @@ function coversRequirementGaps(manifestValue, unmetRequirementCodes) {
     canonicalJson(manifest.waivedRequirementCodes);
 }
 
-function acceptsProductionAttestation(attestation) {
+function acceptsProductionAttestation(attestation, expected = null) {
   if (!attestation || !Array.isArray(attestation.unmetRequirementCodes) ||
+      canonicalJson(attestation.unmetRequirementCodes) !==
+        canonicalJson(ordered(attestation.unmetRequirementCodes)) ||
       attestation.unmetRequirementCount !== attestation.unmetRequirementCodes.length) return false;
+  if (expected && (attestation.libraRunId !== expected.libraRunId ||
+      attestation.onDeckPackageId !== expected.onDeckPackageId ||
+      attestation.acceptanceSpecId !== expected.acceptanceSpecId ||
+      attestation.acceptanceSpecRecordDigest !== expected.acceptanceSpecRecordDigest ||
+      (attestation.authorizedDefectManifest &&
+        attestation.authorizedDefectManifest.libraRunId !== expected.libraRunId))) return false;
   if (attestation.unmetRequirementCount === 0) {
     return attestation.acceptanceKind === 'accepted' &&
       attestation.authorizedDefectManifest === null;
@@ -265,13 +273,24 @@ function resolveProductSelection(results, manifestValue) {
     const verification = (results || []).find((item) =>
       item.capabilityRef === 'libra.product_media.verify@1' &&
       item.result?.verificationId === selection.selectedVerificationId)?.result || null;
-    return Object.freeze({ selection, verification, admittedDefect:null });
+    const effectiveSelection = verification ? Object.freeze({
+      selectionKind: 'ordinary_selected',
+      selectedCandidateKind: selection.selectedCandidateKind,
+      selectedHandleId: selection.selectedHandleId,
+      selectedWorkspaceMediaHandleId: selection.selectedWorkspaceMediaHandleId,
+      selectedVerificationId: selection.selectedVerificationId,
+      selectedVerificationDigest: selection.selectedVerificationDigest,
+    }) : null;
+    return Object.freeze({ selection, effectiveSelection, verification,
+      admittedDefect:null });
   }
-  if (!manifestValue) return Object.freeze({ selection, verification:null, admittedDefect:null });
+  if (!manifestValue) return Object.freeze({ selection, effectiveSelection:null,
+    verification:null, admittedDefect:null });
   const manifest = assertAuthorizedDefectManifest(manifestValue);
   const defect = manifest.defects.find((item) =>
     item.defectCode === 'external_source_exhausted');
-  if (!defect) return Object.freeze({ selection, verification:null, admittedDefect:null });
+  if (!defect) return Object.freeze({ selection, effectiveSelection:null,
+    verification:null, admittedDefect:null });
   const verification = (results || []).find((item) =>
     item.capabilityRef === 'libra.product_media.verify@1' &&
     item.result?.candidateKind === 'direct_input' &&
@@ -283,18 +302,15 @@ function resolveProductSelection(results, manifestValue) {
     fail('P9_DEFECT_ADMISSION_ORIGINAL_MEDIA_STALE',
       'Authorized original-media verification is absent or changed.');
   }
-  const authorizedSelection = Object.freeze({
-    ...selection,
-    result: 'authorized_defect_selection',
+  const effectiveSelection = Object.freeze({
+    selectionKind: 'authorized_defect_direct_input',
     selectedCandidateKind: 'direct_input',
     selectedHandleId: verification.productMaterialHandleId,
     selectedWorkspaceMediaHandleId: null,
     selectedVerificationId: verification.verificationId,
     selectedVerificationDigest: canonicalDigest(verification),
-    selectionReasonCode: 'user_authorized_external_source_exhaustion',
-    authorizedDefectManifestDigest: manifest.manifestDigest,
   });
-  return Object.freeze({ selection:authorizedSelection, verification,
+  return Object.freeze({ selection, effectiveSelection, verification,
     admittedDefect:defect });
 }
 

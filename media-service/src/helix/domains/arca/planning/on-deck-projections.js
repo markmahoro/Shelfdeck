@@ -1,6 +1,7 @@
 'use strict';
 
 const { canonicalDigest } = require('../../../contracts/canonical-json');
+const { finalGapDecision } = require('../model/acceptance-gap-decision');
 const { P } = require('./on-deck-planners');
 const { deriveAcceptedResponsibility } = require('../model/acceptance-responsibility');
 const { DEFAULT_SHELF_PLACEMENT_POLICY } = require('../model/shelf-placement-policy-contracts');
@@ -20,12 +21,22 @@ function attemptId(c) { return canonicalDigest({ schema:'arca.acceptance-attempt
   onDeckPackageId:c.offer.onDeckPackageId, packageDigest:c.offer.packageDigest,
   standardRevision:c.shelf.currentStandardRevision, placementRevision:c.shelf.currentPlacementRevision }); }
 function withDigest(value) { return Object.freeze({ ...value, digest:canonicalDigest(value) }); }
-function standard(c) { const value=c.shelf.standard.value, movie=value.profiles?.movie||value.movie||value;
-  const parameters=Object.entries(movie).filter(([,v])=>['string','number','boolean'].includes(typeof v)).slice(0,256).map(([k,v])=>typed(k,v));
+function acceptanceRequirements(c) { const value=c.packageValue.productionProvenance?.acceptanceRequirementSnapshot;
+  const body=value&&Object.fromEntries(Object.entries(value).filter(([key])=>key!=='snapshotDigest')),
+    expectedStructure=c.packageValue.productStructureSnapshot?.structureKind==='season'?'season':'single';
+  if(!value||value.schemaRef!=='helix://contracts/domain-types/AcceptanceRequirementSnapshot/v1'||value.schemaVersion!==1||
+      value.snapshotDigest!==canonicalDigest(body)||value.acceptanceSpecId!==c.packageValue.acceptanceSpecRef?.id||
+      value.acceptanceSpecRecordDigest!==c.packageValue.acceptanceSpecRef?.recordDigest||value.targetShelfId!==c.packageValue.shelfId||
+      value.structureKind!==expectedStructure||value.contentProfile!==(expectedStructure==='season'?'series':'movie'))
+    throw Object.assign(new TypeError('Package Acceptance Requirement Snapshot is invalid.'),{code:'ARCA_ACCEPTANCE_REQUIREMENT_INVALID'});
+  return value; }
+function standard(c) { const snapshot=acceptanceRequirements(c),parameters=[
+  typed('acceptanceRequirementSnapshotDigest',snapshot.snapshotDigest),
+  typed('shelfStandardDigest',snapshot.shelfStandardDigest)];
   return withDigest({ schemaRef:'helix://contracts/domain-types/ShelfStandard/v1',schemaVersion:1,
-    standardId:c.shelf.shelfId+':standard',revision:c.shelf.currentStandardRevision,shelfId:c.shelf.shelfId,
-    contentProfile:'movie',ruleSetRevision:c.shelf.standard.ruleTemplateRevision||1,
-    acceptanceRuleDigest:c.shelf.standard.digest,typedParameters:Object.freeze(parameters) }); }
+    standardId:c.shelf.shelfId+':standard',revision:snapshot.shelfStandardRevision,shelfId:c.shelf.shelfId,
+    contentProfile:snapshot.contentProfile,ruleSetRevision:c.shelf.standard.ruleTemplateRevision||1,
+    acceptanceRuleDigest:snapshot.shelfStandardDigest,typedParameters:Object.freeze(parameters) }); }
 function packageIdentity(c) { const raw=c.packageValue.resolvedIdentitySnapshot?.factValue?.resolvedProductIdentity||
   c.packageValue.resolvedIdentitySnapshot?.factValue||{}; return withDigest({schemaRef:'helix://contracts/domain-types/PackageIdentity/v1',schemaVersion:1,
     objectId:c.packageValue.onDeckPackageId,revision:c.packageValue.packageRevision,onDeckPackageId:c.packageValue.onDeckPackageId,
@@ -42,23 +53,38 @@ function productMetadata(c) { const facts=(c.packageValue.productFactManifest?.i
   const setDigest=canonicalDigest({metadataFactRefs,artifactHandles});return withDigest({schemaRef:'helix://contracts/domain-types/ProductMetadataArtifact/v1',schemaVersion:1,
     objectId:c.packageValue.onDeckPackageId+':metadata',revision:1,subjectId:c.packageValue.subjectId,
     metadataFactRefs:Object.freeze(metadataFactRefs),artifactHandles:Object.freeze(artifactHandles),setDigest}); }
-function requirement(schemaRef,id,extra) { return withDigest({schemaRef,schemaVersion:1,requirementId:id,revision:1,...extra}); }
-function metadataRequirement(c) { const nfo=(c.packageValue.artifactManifest?.items||[]).find((item)=>item.artifactKind==='nfo');
+function requirement(schemaRef,id,revision,extra) { return withDigest({schemaRef,schemaVersion:1,requirementId:id,revision,...extra}); }
+function requirementParameters(prefix,value){return Object.entries(value||{}).flatMap(([key,item])=>Array.isArray(item)
+  ?item.map((entry)=>typed(prefix+'.'+key+'.'+entry,true)):['string','number','boolean'].includes(typeof item)
+    ?[typed(prefix+'.'+key,item)]:[]);}
+function metadataRequirement(c) { const snapshot=acceptanceRequirements(c),nfo=(c.packageValue.artifactManifest?.items||[]).find((item)=>item.artifactKind==='nfo');
   const requiredFactKeys=(c.packageValue.productFactManifest?.items||[]).filter((item)=>
     ['product_metadata','resolved_identity','media_cast'].includes(item.factKind)).map((item)=>Object.freeze({
       objectId:item.productFactId,revision:item.factRevision,schemaRef:item.schemaRef,digest:item.factDigest,
       objectKind:'required-fact-key',
     }));
-  return requirement('helix://contracts/domain-types/MetadataRequirement/v1',c.shelf.shelfId+':metadata',{requiredFactKeys:Object.freeze(requiredFactKeys),
-    artifactRequirementDigest:nfo?.requirementDigest||canonicalDigest('nfo'),typedParameters:Object.freeze([])}); }
-function structureRequirement(c) { return requirement('helix://contracts/domain-types/StructureRequirement/v1',c.shelf.shelfId+':structure',{
-  structureKind:c.packageValue.productStructureSnapshot?.structureKind==='season'?'season':'single',
-  memberConstraintDigest:canonicalDigest(c.packageValue.productStructureSnapshot||{}),typedParameters:Object.freeze([])}); }
-function mandatoryRequirement(c) { return requirement('helix://contracts/domain-types/MandatoryRequirement/v1',c.shelf.shelfId+':mandatory',{
-  requirementCodes:Object.freeze([]),typedParameters:Object.freeze([])}); }
-function spaceRequirement(c) { const bytes=c.packageValue.productMaterialManifest.members.reduce((sum,item)=>sum+Number(item.sizeBytes||0),0);
-  return requirement('helix://contracts/domain-types/SpaceRequirement/v1',c.shelf.shelfId+':space',{
-    requiredBytes:bytes,reserveBytes:Math.max(16*1024*1024,Math.ceil(bytes*.02)),typedParameters:Object.freeze([])}); }
+  return requirement('helix://contracts/domain-types/MetadataRequirement/v1',c.shelf.shelfId+':metadata',snapshot.shelfStandardRevision,
+    {requiredFactKeys:Object.freeze(requiredFactKeys),artifactRequirementDigest:nfo?.requirementDigest||snapshot.snapshotDigest,
+      typedParameters:Object.freeze(requirementParameters('metadata',snapshot.requirements.metadata))}); }
+function structureRequirement(c) { const snapshot=acceptanceRequirements(c);return requirement(
+  'helix://contracts/domain-types/StructureRequirement/v1',c.shelf.shelfId+':structure',snapshot.shelfStandardRevision,{
+    structureKind:snapshot.requirements.structure.structureKind,
+    memberConstraintDigest:canonicalDigest(snapshot.requirements.structure),
+    typedParameters:Object.freeze(requirementParameters('structure',snapshot.requirements.structure))}); }
+function mandatoryRequirement(c) { const snapshot=acceptanceRequirements(c),media=snapshot.requirements.mandatoryMedia;
+  return requirement('helix://contracts/domain-types/MandatoryRequirement/v1',c.shelf.shelfId+':mandatory',snapshot.shelfStandardRevision,{
+    shelfId:c.shelf.shelfId,shelfStandardRevision:snapshot.shelfStandardRevision,shelfStandardDigest:snapshot.shelfStandardDigest,
+    contentProfile:snapshot.contentProfile,mediaForm:media.mediaForm,videoCodec:media.videoCodec,container:media.container,
+    fileExtension:media.fileExtension,minimumRasterClass:media.minimumRasterClass,
+    acceptedPrimaryAudioClasses:Object.freeze([...media.acceptedPrimaryAudioClasses]),maxSizeBytes:snapshot.requirements.space.maxSizeBytes,
+    forbidSystemUpscaleFor4k:media.forbidSystemUpscaleFor4k,
+    acceptedOutputDynamicRangeKinds:Object.freeze(['sdr','hdr10_compatible','hlg','dolby_vision']),sdrOutputPixelFormat:'yuv420p',
+    sdrOutputColorProfile:Object.freeze({range:'limited',primaries:'bt709',transfer:'bt709',matrix:'bt709'}),
+    forbidDolbyVisionMetadataOnSdr:true,decodeSamplePointsPercent:Object.freeze([5,50,95]),requireAllDecodeSamples:true}); }
+function spaceRequirement(c) { const snapshot=acceptanceRequirements(c),bytes=c.packageValue.productMaterialManifest.members.reduce((sum,item)=>sum+Number(item.sizeBytes||0),0),
+  maximum=snapshot.requirements.space.maxSizeBytes,parameters=[typed('space.hasMaxSize',maximum!==null)];if(maximum!==null)parameters.push(typed('space.maxSizeBytes',maximum));
+  return requirement('helix://contracts/domain-types/SpaceRequirement/v1',c.shelf.shelfId+':space',snapshot.shelfStandardRevision,{
+    requiredBytes:bytes,reserveBytes:0,typedParameters:Object.freeze(parameters)}); }
 function offload(c) { const source=c.packageValue.offloadContextManifest;
   const materials=(source.members||[]).map((item)=>Object.freeze({objectId:item.materialKey,revision:item.bindingRevision||1,
     schemaRef:'helix://contracts/domain-types/OffLoadContextMember/v1',digest:item.memberDigest||canonicalDigest(item),objectKind:'offload-material'}));
@@ -87,15 +113,21 @@ function assessmentFacts(options,c) { const rows=options.workResultReader.listWo
   const assessment={acceptanceAttemptId:attemptId(c),offerId:c.offer.offerId,onDeckPackageId:c.offer.onDeckPackageId,packageDigest:c.offer.packageDigest,
     shelfId:c.shelf.shelfId,standardRevision:c.shelf.currentStandardRevision,placementRevision:c.shelf.currentPlacementRevision,
     checks:Object.freeze(checks.map(({kind,outcome,evidenceDigest})=>Object.freeze({kind,outcome,evidenceDigest})))};
+  const gapDecision=finalGapDecision({acceptanceChecks:values.filter((value)=>value.schemaRef==='helix://contracts/types/AcceptanceCheck/v1'),acceptanceAttemptId:attemptId(c),
+    packageDigest:c.packageValue.packageDigest,standardRevision:c.shelf.currentStandardRevision,
+    authorizedDefectManifest:c.packageValue.productionAttestation?.authorizedDefectManifest||null});
   return Object.freeze({...assessment,acceptanceEvidenceSetDigest:canonicalDigest({schema:'arca.acceptance-evidence-set@1',
-    acceptanceAttemptId:assessment.acceptanceAttemptId,checks:assessment.checks}),failed:Object.freeze(checks.filter((item)=>item.outcome!=='passed'))}); }
+    acceptanceAttemptId:assessment.acceptanceAttemptId,checks:assessment.checks}),failed:Object.freeze(checks.filter((item)=>item.outcome!=='passed')),gapDecision}); }
 function rejectionDecision(options,c) { const assessment=assessmentFacts(options,c);if(!assessment.failed.length)throw new Error('Accepted Handoff B cannot produce a Rejection Decision.');
   const structuredBase={handoffKind:'libra_to_arca',offerId:c.offer.offerId,deliverableId:c.offer.onDeckPackageId,
     rejectionCode:assessment.failed[0].reasonCode||'shelf_acceptance_rejected',acceptanceEvidenceSetDigest:assessment.acceptanceEvidenceSetDigest},
     structuredRejection=Object.freeze({...structuredBase,rejectionDigest:canonicalDigest(structuredBase)}),responsibility=deriveAcceptedResponsibility(assessment),
     base={acceptanceDecisionId:responsibility.acceptanceDecisionId,acceptanceAttemptId:assessment.acceptanceAttemptId,offerId:c.offer.offerId,
       onDeckPackageId:c.offer.onDeckPackageId,packageDigest:c.offer.packageDigest,shelfId:c.shelf.shelfId,standardRevision:c.shelf.currentStandardRevision,
-      placementRevision:c.shelf.currentPlacementRevision,structuredRejection,decidedAtMs:0};return Object.freeze({...base,decisionDigest:canonicalDigest(base)}); }
+      placementRevision:c.shelf.currentPlacementRevision,acceptanceCheckSetDigest:assessment.gapDecision.acceptanceCheckSetDigest,
+      actualGapUnionCodes:assessment.gapDecision.actualGapUnionCodes,actualGapUnionDigest:assessment.gapDecision.actualGapUnionDigest,
+      authorizedDefectManifestDigestOrNull:assessment.gapDecision.authorizedDefectManifestDigestOrNull,
+      authorizedGapComparison:assessment.gapDecision.authorizedGapComparison,structuredRejection,decidedAtMs:0};return Object.freeze({...base,decisionDigest:canonicalDigest(base)}); }
 function rejectionCommitHandle(options,c,eventId) { const decision=rejectionDecision(options,c);return Object.freeze({schemaRef:'helix://contracts/types/DomainFactCommitHandle/v1',schemaVersion:1,
   handleId:stable('arca-rejection-commit-',{eventId,decision:decision.acceptanceDecisionId}),ownerDomain:'arca',aggregateType:'acceptance_decision',
   aggregateId:decision.acceptanceDecisionId,factType:'handoff_b_rejection',factSchemaRef:'helix://contracts/domain-types/ArcaAcceptanceRejectionDecision/v1',

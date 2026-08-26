@@ -1,6 +1,7 @@
 'use strict';
 
 const {canonicalDigest,canonicalJson}=require('../../../contracts/canonical-json');
+const {acceptsProductionAttestation}=require('./defect-admission-contracts');
 
 class DeliveryLifecycleContractError extends Error{constructor(code,message){super(message);this.name='DeliveryLifecycleContractError';this.code=code;}}
 const fail=(code,message)=>{throw new DeliveryLifecycleContractError(code,message);};
@@ -64,7 +65,9 @@ function verifyOnDeckProductPackageDigest(value){
 
 function assertPromotionDecision(value){
   if(!value||!Array.isArray(value.productStagingReferences)||value.productStagingReferences.some((item)=>item.state!=='product_staging')||
-      value.productionAttestation?.unmetRequirementCount!==0||!Array.isArray(value.controlCommitScope?.items))
+      !acceptsProductionAttestation(value.productionAttestation,{libraRunId:value.libraRunRef?.libraRunId,
+        onDeckPackageId:value.onDeckPackageId,acceptanceSpecId:value.acceptanceSpecRef?.acceptanceSpecId,
+        acceptanceSpecRecordDigest:value.acceptanceSpecRef?.recordDigest})||!Array.isArray(value.controlCommitScope?.items))
     fail('P9_PROMOTION_INPUT','Promotion requires staged, verified, conformant Product input.');
   const refs=value.productStagingReferences;
   if(new Set(refs.map((item)=>item.referenceId)).size!==refs.length||new Set(refs.map((item)=>item.materialKey)).size!==refs.length)

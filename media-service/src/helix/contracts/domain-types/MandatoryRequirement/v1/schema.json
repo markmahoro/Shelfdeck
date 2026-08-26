@@ -3,9 +3,12 @@
   "$id": "helix://contracts/domain-types/MandatoryRequirement/v1",
   "title": "MandatoryRequirement@1",
   "x-helix-ssotRefs": [
+    "5.7.1",
+    "8.6.9",
     "8.6.20"
   ],
   "x-helix-role": "bounded-contract",
+  "x-helix-maxCanonicalBytes": 16384,
   "type": "object",
   "additionalProperties": false,
   "properties": {
@@ -29,86 +32,153 @@
       "minLength": 1,
       "pattern": "^[a-f0-9]{64}$"
     },
-    "requirementCodes": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "additionalProperties": false,
-        "properties": {
-          "objectId": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 256
-          },
-          "revision": {
-            "type": "integer",
-            "minimum": 1
-          },
-          "schemaRef": {
-            "type": "string",
-            "minLength": 1
-          },
-          "digest": {
-            "type": "string",
-            "minLength": 1,
-            "pattern": "^[a-f0-9]{64}$"
-          },
-          "objectKind": {
-            "const": "requirement-code"
-          }
-        },
-        "required": [
-          "objectId",
-          "revision",
-          "schemaRef",
-          "digest",
-          "objectKind"
-        ]
-      },
-      "maxItems": 1024
+    "shelfId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
     },
-    "typedParameters": {
+    "shelfStandardRevision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "shelfStandardDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "contentProfile": {
+      "type": "string",
+      "enum": [
+        "movie",
+        "series",
+        "jav",
+        "western_adult"
+      ]
+    },
+    "mediaForm": {
+      "type": "string",
+      "enum": [
+        "any",
+        "stream_file"
+      ]
+    },
+    "videoCodec": {
+      "type": "string",
+      "enum": [
+        "any",
+        "hevc"
+      ]
+    },
+    "container": {
+      "type": "string",
+      "enum": [
+        "any",
+        "matroska"
+      ]
+    },
+    "fileExtension": {
+      "type": "string",
+      "enum": [
+        "any",
+        "mkv"
+      ]
+    },
+    "minimumRasterClass": {
+      "type": "string",
+      "enum": [
+        "none",
+        "720p",
+        "1080p",
+        "4k"
+      ]
+    },
+    "acceptedPrimaryAudioClasses": {
       "type": "array",
       "items": {
-        "type": "object",
-        "additionalProperties": false,
-        "properties": {
-          "parameter": {
-            "type": "string",
-            "minLength": 1,
-            "pattern": "^[a-z][a-zA-Z0-9_.-]{0,127}$"
-          },
-          "valueType": {
-            "type": "string",
-            "enum": [
-              "string",
-              "integer",
-              "number",
-              "boolean"
-            ]
-          },
-          "value": {
-            "type": [
-              "string",
-              "integer",
-              "number",
-              "boolean"
-            ]
-          },
-          "valueDigest": {
-            "type": "string",
-            "minLength": 1,
-            "pattern": "^[a-f0-9]{64}$"
-          }
+        "type": "string",
+        "minLength": 1
+      },
+      "maxItems": 128,
+      "uniqueItems": true
+    },
+    "maxSizeBytes": {
+      "anyOf": [
+        {
+          "type": "integer",
+          "minimum": 0
         },
-        "required": [
-          "parameter",
-          "valueType",
-          "value",
-          "valueDigest"
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "forbidSystemUpscaleFor4k": {
+      "type": "boolean"
+    },
+    "acceptedOutputDynamicRangeKinds": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "sdr",
+          "hdr10_compatible",
+          "hlg",
+          "dolby_vision"
         ]
       },
-      "maxItems": 256
+      "maxItems": 4,
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "sdrOutputPixelFormat": {
+      "const": "yuv420p"
+    },
+    "sdrOutputColorProfile": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "range": {
+          "const": "limited"
+        },
+        "primaries": {
+          "const": "bt709"
+        },
+        "transfer": {
+          "const": "bt709"
+        },
+        "matrix": {
+          "const": "bt709"
+        }
+      },
+      "required": [
+        "range",
+        "primaries",
+        "transfer",
+        "matrix"
+      ]
+    },
+    "forbidDolbyVisionMetadataOnSdr": {
+      "const": true
+    },
+    "decodeSamplePointsPercent": {
+      "type": "array",
+      "prefixItems": [
+        {
+          "const": 5
+        },
+        {
+          "const": 50
+        },
+        {
+          "const": 95
+        }
+      ],
+      "items": false,
+      "minItems": 3,
+      "maxItems": 3
+    },
+    "requireAllDecodeSamples": {
+      "const": true
     }
   },
   "required": [
@@ -117,7 +187,23 @@
     "requirementId",
     "revision",
     "digest",
-    "requirementCodes",
-    "typedParameters"
+    "shelfId",
+    "shelfStandardRevision",
+    "shelfStandardDigest",
+    "contentProfile",
+    "mediaForm",
+    "videoCodec",
+    "container",
+    "fileExtension",
+    "minimumRasterClass",
+    "acceptedPrimaryAudioClasses",
+    "maxSizeBytes",
+    "forbidSystemUpscaleFor4k",
+    "acceptedOutputDynamicRangeKinds",
+    "sdrOutputPixelFormat",
+    "sdrOutputColorProfile",
+    "forbidDolbyVisionMetadataOnSdr",
+    "decodeSamplePointsPercent",
+    "requireAllDecodeSamples"
   ]
 }

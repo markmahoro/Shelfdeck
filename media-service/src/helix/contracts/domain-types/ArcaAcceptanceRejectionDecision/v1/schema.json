@@ -49,6 +49,66 @@
       "type": "integer",
       "minimum": 1
     },
+    "acceptanceCheckSetDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "actualGapUnionCodes": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "identity_unmet",
+          "season_identity_unmet",
+          "structure_unmet",
+          "episode_coverage_unmet",
+          "metadata_field_unmet",
+          "metadata_artifact_unmet",
+          "sidecar_unrenderable",
+          "image_undecodable",
+          "media_form_unmet",
+          "video_codec_unmet",
+          "container_unmet",
+          "file_extension_unmet",
+          "minimum_raster_unmet",
+          "system_upscale_forbidden",
+          "primary_audio_unmet",
+          "dynamic_range_conversion_unmet",
+          "output_color_profile_unmet",
+          "dolby_vision_metadata_not_removed",
+          "playback_decode_failed",
+          "max_size_exceeded"
+        ]
+      },
+      "maxItems": 20,
+      "uniqueItems": true
+    },
+    "actualGapUnionDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "authorizedDefectManifestDigestOrNull": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "authorizedGapComparison": {
+      "type": "string",
+      "enum": [
+        "exact_match",
+        "mismatch",
+        "not_applicable"
+      ]
+    },
     "structuredRejection": {
       "$ref": "helix://contracts/domain-types/StructuredRejection/v1"
     },
@@ -71,6 +131,11 @@
     "shelfId",
     "standardRevision",
     "placementRevision",
+    "acceptanceCheckSetDigest",
+    "actualGapUnionCodes",
+    "actualGapUnionDigest",
+    "authorizedDefectManifestDigestOrNull",
+    "authorizedGapComparison",
     "structuredRejection",
     "decisionDigest",
     "decidedAtMs"

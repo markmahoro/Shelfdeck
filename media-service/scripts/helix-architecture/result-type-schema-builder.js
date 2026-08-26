@@ -433,8 +433,9 @@ const special = {
   'ProductConformanceEvidence.unmetRequirementCodes': arrayOf(enumText('identity_unmet', 'season_identity_unmet', 'structure_unmet',
     'episode_coverage_unmet', 'metadata_field_unmet', 'metadata_artifact_unmet', 'sidecar_unrenderable', 'image_undecodable',
     'media_form_unmet', 'video_codec_unmet', 'container_unmet', 'file_extension_unmet', 'minimum_raster_unmet',
-    'system_upscale_forbidden', 'primary_audio_unmet', 'max_size_exceeded', 'domain_binding_unmet', 'checksum_unmet',
-    'artifact_materialization_unmet', 'layout_unmet'), 20),
+    'system_upscale_forbidden', 'primary_audio_unmet', 'max_size_exceeded', 'dynamic_range_conversion_unmet',
+    'output_color_profile_unmet', 'dolby_vision_metadata_not_removed', 'domain_binding_unmet', 'checksum_unmet',
+    'artifact_materialization_unmet', 'layout_unmet'), 23),
   'TranscodeInputVerification.reasonCodes': arrayOf(enumText('source_handle_mismatch', 'source_not_media', 'probe_integrity_failure',
     'device_class_mismatch', 'input_fence_mismatch', 'source_dynamic_range_unsupported', 'dolby_vision_base_layer_unsupported',
     'required_pipeline_profile_unavailable', 'source_pixel_format_unsupported', 'output_profile_unsupported',
@@ -639,7 +640,7 @@ const contracts = {
   StableExternalMaterialEvidence: ['VerificationEnvelope', 'sourceExternalMaterialHandleId,stableExternalMaterialHandle,observationWindow,stableDigest'],
   IdentityVerification: ['VerificationEnvelope', 'expectedIdentityDigest,observedIdentityDigest,strengthClass'],
   VerifiedExternalPackage: ['VerificationEnvelope', 'stableExternalMaterialHandleId,stableManifestDigest,episodeDeliveryManifestDigest,identityVerificationId,identityVerificationDigest,verifiedMemberIds,verifiedMemberSetDigest,packageManifestDigest'],
-  AcceptanceCheck: ['VerificationEnvelope', 'acceptanceAttemptId,checkKind,standardRevision,packageDigest'],
+  AcceptanceCheck: ['VerificationEnvelope', 'acceptanceAttemptId,checkKind,standardRevision,packageDigest,requirementDigest,evidenceStatus,actualGapCodes,actualGapSetDigest,primaryMediaObservations,primaryMediaObservationSetDigest,authorizedDefectManifestDigestOrNull,authorizedGapComparison'],
   InventoryFeasibilityEvidence: ['EvidenceEnvelope', 'shelfId,placementRevision,targetEndpointId,requiredBytes,availableBytes,finalInventoryDecisionDraftDigest'],
   CustodyAndTransferReceipt: ['ReceiptEnvelope', 'acceptanceDecisionId,custodyId,arcaBindingSetDigest,controlRevisionSetDigest,receiptDigest'],
   StagedInventoryManifest: ['ManifestEnvelope', 'targetCommitSlotId,stagedMembers,sourceProductManifestDigest'],
@@ -721,6 +722,7 @@ function buildResultTypeSchema(name, [base, fieldList]) {
   if (name === 'StableExternalMaterialEvidence') return stableExternalMaterialEvidenceSchema();
   if (name === 'IdentityVerification') return identityVerificationSchema();
   if (name === 'VerifiedExternalPackage') return verifiedExternalPackageSchema();
+  if (name === 'AcceptanceCheck') return acceptanceCheckSchema();
   const workspaceFields = base === 'WorkspaceMaterialHandle'
     ? Object.fromEntries(Object.entries(buildSharedTypeSchemas().WorkspaceMaterialHandle.properties)
       .filter(([field]) => field !== 'schemaRef' && field !== 'schemaVersion'))
@@ -832,6 +834,135 @@ function verifiedExternalPackageSchema() {
     stableExternalMaterialHandleId:id(),stableManifestDigest:digest(),episodeDeliveryManifestDigest:digest(),identityVerificationId:id(),
     identityVerificationDigest:digest(),verifiedMemberIds:{...arrayOf(id(),256),minItems:1},verifiedMemberSetDigest:digest(),
     packageManifestDigest:digest()},{'x-helix-maxCanonicalBytes':16*1024});
+}
+
+function acceptanceCheckSchema() {
+  const actualGapCode = enumText(
+    'identity_unmet', 'season_identity_unmet',
+    'structure_unmet', 'episode_coverage_unmet',
+    'metadata_field_unmet', 'metadata_artifact_unmet',
+    'sidecar_unrenderable', 'image_undecodable',
+    'media_form_unmet', 'video_codec_unmet', 'container_unmet',
+    'file_extension_unmet', 'minimum_raster_unmet',
+    'system_upscale_forbidden', 'primary_audio_unmet',
+    'dynamic_range_conversion_unmet', 'output_color_profile_unmet',
+    'dolby_vision_metadata_not_removed', 'playback_decode_failed',
+    'max_size_exceeded',
+  );
+  const gapSet = {
+    ...arrayOf(actualGapCode, 20), uniqueItems: true,
+    'x-helix-canonicalOrder': 'SSOT Acceptance actual-gap code order',
+  };
+  const colorProfile = object({
+    range: text(), primaries: text(), transfer: text(), matrix: text(),
+  });
+  const decodeSummary = object({
+    samplePointsPercent: {
+      type: 'array', prefixItems: [{ const: 5 }, { const: 50 }, { const: 95 }],
+      items: false, minItems: 3, maxItems: 3,
+    },
+    passedSamplePointsPercent: {
+      type: 'array', items: { enum: [5, 50, 95] }, maxItems: 3,
+      uniqueItems: true, 'x-helix-canonicalOrder': 'numeric ascending',
+    },
+    decodeDigest: digest(),
+  });
+  const observation = object({
+    ordinal: nonNegativeInteger(), materialKey: digest(),
+    sourceReadHandleDigest: digest(), productReadHandleDigest: digest(),
+    requirementDigest: digest(), sourceProbeEvidenceDigest: digest(),
+    productProbeEvidenceDigest: digest(), observedSizeBytes: nonNegativeInteger(),
+    qualitySummary: object({
+      videoCodec: text(), container: text(), fileExtension: text(),
+      displayRasterClass: text(), primaryAudioClasses: {
+        ...arrayOf(text(), 128), uniqueItems: true,
+        'x-helix-canonicalOrder': 'UTF-8(value)',
+      },
+      sourceDisplayRasterClass: text(), systemUpscaleDetected: bool(),
+    }),
+    dynamicRangeSummary: object({
+      sourceDynamicRangeKind: text(), outputDynamicRangeKind: text(),
+      conversionOperation: enumText('none', 'preserve', 'tone_map_to_sdr_bt709'),
+      outputPixelFormat: text(), outputColorProfile: colorProfile,
+      dolbyVisionMetadataPresent: bool(),
+    }),
+    sourceDecodeSummary: decodeSummary, productDecodeSummary: decodeSummary,
+    actualGapCodes: {
+      ...arrayOf(enumText(
+        'media_form_unmet', 'video_codec_unmet', 'container_unmet',
+        'file_extension_unmet', 'minimum_raster_unmet',
+        'system_upscale_forbidden', 'primary_audio_unmet',
+        'dynamic_range_conversion_unmet', 'output_color_profile_unmet',
+        'dolby_vision_metadata_not_removed', 'playback_decode_failed'), 11),
+      uniqueItems: true,
+      'x-helix-canonicalOrder': 'SSOT Mandatory media actual-gap code order',
+    },
+    actualGapSetDigest: digest(),
+    observedAtMs: nonNegativeInteger(), observationDigest: digest(),
+  });
+  const properties = {
+    schemaRef: { const: typeId('AcceptanceCheck') }, schemaVersion: { const: 1 },
+    ...envelopeFields.VerificationEnvelope,
+    result: enumText('passed', 'failed'),
+    reasonCodes: arrayOf(enumText(
+      'identity_requirement_unmet', 'structure_requirement_unmet',
+      'metadata_requirement_unmet', 'space_requirement_unmet',
+      'mandatory_requirement_unmet', 'stale_decision_basis',
+      'authorized_gap_mismatch', 'playback_decode_failed'), 8),
+    acceptanceAttemptId: id(), checkKind: enumText(
+      'identity', 'structure', 'metadata', 'mandatory_media', 'space'),
+    standardRevision: positiveInteger(), packageDigest: digest(),
+    requirementDigest: digest(), evidenceStatus: enumText('complete', 'stale_basis'),
+    actualGapCodes: gapSet, actualGapSetDigest: digest(),
+    primaryMediaObservations: arrayOf(observation, 32),
+    primaryMediaObservationSetDigest: digest(),
+    authorizedDefectManifestDigestOrNull: nullable(digest()),
+    authorizedGapComparison: enumText('not_applicable', 'pending_final_union'),
+  };
+  return {
+    $schema: DRAFT, $id: typeId('AcceptanceCheck'), title: 'AcceptanceCheck@1',
+    'x-helix-ssotRefs': ['5.7.1', '8.6.9', '8.6.19', '8.6.20'],
+    'x-helix-envelopeRef': typeId('VerificationEnvelope'),
+    'x-helix-maxCanonicalBytes': 2 * 1024 * 1024,
+    ...object(properties),
+    allOf: [
+      {
+        if: { properties: { checkKind: { const: 'identity' } }, required: ['checkKind'] },
+        then: { properties: { actualGapCodes: arrayOf(enumText(
+          'identity_unmet', 'season_identity_unmet'), 2),
+        primaryMediaObservations: { type: 'array', maxItems: 0 } } },
+      },
+      {
+        if: { properties: { checkKind: { const: 'structure' } }, required: ['checkKind'] },
+        then: { properties: { actualGapCodes: arrayOf(enumText(
+          'structure_unmet', 'episode_coverage_unmet'), 2),
+        primaryMediaObservations: { type: 'array', maxItems: 0 } } },
+      },
+      {
+        if: { properties: { checkKind: { const: 'metadata' } }, required: ['checkKind'] },
+        then: { properties: { actualGapCodes: arrayOf(enumText(
+          'metadata_field_unmet', 'metadata_artifact_unmet',
+          'sidecar_unrenderable', 'image_undecodable'), 4),
+        primaryMediaObservations: { type: 'array', maxItems: 0 } } },
+      },
+      {
+        if: { properties: { checkKind: { const: 'mandatory_media' } }, required: ['checkKind'] },
+        then: { properties: { actualGapCodes: arrayOf(enumText(
+          'media_form_unmet', 'video_codec_unmet', 'container_unmet',
+          'file_extension_unmet', 'minimum_raster_unmet',
+          'system_upscale_forbidden', 'primary_audio_unmet',
+          'dynamic_range_conversion_unmet', 'output_color_profile_unmet',
+          'dolby_vision_metadata_not_removed', 'playback_decode_failed'), 11),
+        primaryMediaObservations: { ...arrayOf(observation, 32), minItems: 1 } } },
+      },
+      {
+        if: { properties: { checkKind: { const: 'space' } }, required: ['checkKind'] },
+        then: { properties: { actualGapCodes: arrayOf(
+          enumText('max_size_exceeded'), 1),
+        primaryMediaObservations: { type: 'array', maxItems: 0 } } },
+      },
+    ],
+  };
 }
 
 function metadataObservationSchema() {
@@ -1064,6 +1195,8 @@ function onDeckProductPackageSchema() {
     externalRealityObservationRefs: arrayOf(object({
       evidenceId: id(), evidenceDigest: digest()
     }), 256),
+    acceptanceRequirementSnapshot: domainRef('AcceptanceRequirementSnapshot'),
+    shelfAcceptancePrimaryReadSet: domainRef('ShelfAcceptancePrimaryReadSet'),
     provenanceDigest: digest()
   });
   const attestation = object({

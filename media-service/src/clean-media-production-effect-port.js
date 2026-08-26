@@ -325,7 +325,9 @@ function createCleanMediaProductionEffectPort(options) {
   }
 
   async function verifyPlayback(request){
-    const handle=request.workspaceMediaHandle?.workspaceMaterialHandle||request.workspaceMaterialHandle||request,
+    const handle=request.physicalMaterialReadHandle||
+      request.workspaceMediaHandle?.workspaceMaterialHandle||
+      request.workspaceMaterialHandle||request,
       source=sourceLocation(handle),durationMs=Math.max(1,Number(request.outputProbeEvidence?.durationMs||1)),points=[5,50,95],passed=[];
     for(const point of points){const seconds=Math.max(0,durationMs/1000*point/100);
       try{await runProcess(ffmpegPath,['-hide_banner','-nostdin','-loglevel','error','-ss',seconds.toFixed(3),'-i',source,

@@ -484,6 +484,16 @@
         "publishedAtMs"
       ]
     },
+    "authorizedDefectManifest": {
+      "anyOf": [
+        {
+          "$ref": "helix://contracts/application-types/AuthorizedDefectManifest/v1"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "resolvedIdentitySnapshot": {
       "$ref": "helix://contracts/domain-types/ProductConformanceFactSnapshot/v1"
     },
@@ -514,32 +524,73 @@
     "selectedProducts": {
       "type": "array",
       "items": {
-        "type": "object",
-        "additionalProperties": false,
-        "properties": {
-          "selectedProduct": {
-            "$ref": "helix://contracts/types/SelectedProductOutput/v1"
-          },
-          "verification": {
-            "$ref": "helix://contracts/types/ProductMediaVerification/v1"
-          },
-          "workspaceHandleDigest": {
-            "anyOf": [
-              {
-                "type": "string",
-                "minLength": 1,
-                "pattern": "^[a-f0-9]{64}$"
+        "oneOf": [
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "selectionKind": {
+                "const": "ordinary_selected"
               },
-              {
-                "type": "null"
+              "selectedProduct": {
+                "$ref": "helix://contracts/types/SelectedProductOutput/v1"
+              },
+              "verification": {
+                "$ref": "helix://contracts/types/ProductMediaVerification/v1"
+              },
+              "workspaceHandleDigest": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
               }
+            },
+            "required": [
+              "selectionKind",
+              "selectedProduct",
+              "verification",
+              "workspaceHandleDigest"
+            ]
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "selectionKind": {
+                "const": "authorized_defect_direct_input"
+              },
+              "selectedProduct": {
+                "$ref": "helix://contracts/types/SelectedProductOutput/v1"
+              },
+              "verification": {
+                "$ref": "helix://contracts/types/ProductMediaVerification/v1"
+              },
+              "workspaceHandleDigest": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "selectionKind",
+              "selectedProduct",
+              "verification",
+              "workspaceHandleDigest"
             ]
           }
-        },
-        "required": [
-          "selectedProduct",
-          "verification",
-          "workspaceHandleDigest"
         ]
       },
       "maxItems": 32,
@@ -576,6 +627,7 @@
     "libraRunId",
     "runExecutionBasisDigest",
     "acceptanceSpec",
+    "authorizedDefectManifest",
     "resolvedIdentitySnapshot",
     "productStructureSnapshot",
     "productFactSnapshots",

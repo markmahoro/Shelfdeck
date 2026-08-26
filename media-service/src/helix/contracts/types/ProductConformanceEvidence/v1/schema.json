@@ -114,13 +114,16 @@
           "system_upscale_forbidden",
           "primary_audio_unmet",
           "max_size_exceeded",
+          "dynamic_range_conversion_unmet",
+          "output_color_profile_unmet",
+          "dolby_vision_metadata_not_removed",
           "domain_binding_unmet",
           "checksum_unmet",
           "artifact_materialization_unmet",
           "layout_unmet"
         ]
       },
-      "maxItems": 20
+      "maxItems": 23
     }
   },
   "required": [
