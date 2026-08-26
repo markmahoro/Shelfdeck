@@ -135,11 +135,13 @@ test('Event input provider projects durable Results from the owning Work across 
     const provider = createEventExecutionInputProvider({ schemaManifest, unitOfWork,
       contractValidator: { validate(_schemaRef, value) { return value; } },
       workResultReader: { read(workId) { assert.equal(workId, 'work-1'); return Object.freeze([
-        Object.freeze({ eventId:'prior-a', outcomeKind:'succeeded', resultSchemaRef:'helix://fixture/A/v1', result:Object.freeze({ value:1 }) }),
+        Object.freeze({ eventId:'prior-a', outcomeKind:'succeeded', resultSchemaRef:'helix://fixture/A/v1', result:Object.freeze({ value:1 }),
+          inputBindings:Object.freeze({bindings:Object.freeze([Object.freeze({portName:'source',bindingKind:'literal',value:'frozen'})])}) }),
         Object.freeze({ eventId:'prior-b', outcomeKind:'failed', resultSchemaRef:'helix://fixture/A/v1', result:Object.freeze({ value:2 }) }),
       ]); } },
       bindingProjectionRegistry: { resolve() { return { project({ sourceResults, sourceWorkId }) {
-        return { sourceWorkId, values:sourceResults.map((item)=>item.result.value) };
+        return { sourceWorkId, values:sourceResults.map((item)=>item.result.value),
+          frozenInputs:sourceResults.map((item)=>item.inputBindings.bindings[0].value) };
       } }; } },
     });
     const bindingSet={schemaRef:'helix://foundation/types/EventInputBindingSet/v1',schemaVersion:1,bindings:[{
@@ -151,7 +153,7 @@ test('Event input provider projects durable Results from the owning Work across 
       event:{event_id:'event-page-1'},work:{work_id:'work-1',owner_domain:'procurement',process_type:'run',process_id:'run-1',basis_digest:'a'.repeat(64)},
       workAttempt:{attempt_id:'attempt-2'},plan:{plan_id:'plan-2'},
     }});
-    assert.deepEqual(prepared.namedInputs,{continued:{sourceWorkId:'work-1',values:[1]}});
+    assert.deepEqual(prepared.namedInputs,{continued:{sourceWorkId:'work-1',values:[1],frozenInputs:['frozen']}});
   } finally {
     kernel.close();
     fs.rmSync(root,{recursive:true,force:true});

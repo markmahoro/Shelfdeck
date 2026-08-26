@@ -91,16 +91,25 @@ for (const memberCount of [100, 101, 256]) {
 
 test('compact Probe Batch projection reconstructs the exact ordinal range from durable Work Results', () => {
   const value = snapshot(101);
-  const projection = createProbeBatchProjection({ triageReader:{ read:()=>value } });
   const sourceResults = value.materials.map((material, ordinal) => Object.freeze({
     eventId:'probe-'+ordinal,
     resultSchemaRef:manifests['shared.material.media.probe@1'].resultSchemaRef,
     result:Object.freeze({ sourceHandleDigest:canonicalDigest(material.readHandle), evidenceId:'probe-evidence-'+ordinal }),
+    inputBindings:Object.freeze({schemaRef:'helix://foundation/types/EventInputBindingSet/v1',schemaVersion:1,
+      bindings:Object.freeze([Object.freeze({portName:'physicalMaterialReadHandleOrWorkspaceMaterialHandle',
+        bindingKind:'literal',value:material.readHandle})])}),
   })).reverse();
+  const changedHandle=Object.freeze({...value.materials[1].readHandle,
+    fingerprintVerifiedAtMs:value.materials[1].readHandle.fingerprintVerifiedAtMs+1});
+  const current=Object.freeze({...value,materials:Object.freeze(value.materials.map((material,ordinal)=>
+    ordinal===1?Object.freeze({...material,readHandle:changedHandle}):material))});
+  const projection = createProbeBatchProjection({ triageReader:{ read:()=>current } });
   const batch = projection.project({ sourceResults, parameters:{ runId:'run-1', startOrdinal:1, batchSize:100,
     batchOrdinal:0, runBasisDigest:value.run.run_basis_digest } });
   assert.equal(batch.members.length, 100);
   assert.deepEqual(batch.members.map((member) => member.selectionOrdinal), Array.from({length:100},(_unused,index)=>index+1));
   assert.equal(batch.members[0].mediaProbe.evidenceId, 'probe-evidence-1');
+  assert.deepEqual(batch.members[0].readHandle,value.materials[1].readHandle,
+    'projection must retain the Probe Event frozen handle when current verification time changes');
   assert.equal(batch.members.at(-1).mediaProbe.evidenceId, 'probe-evidence-100');
 });

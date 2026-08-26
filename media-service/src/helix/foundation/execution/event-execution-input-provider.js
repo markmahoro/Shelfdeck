@@ -111,7 +111,8 @@ function createEventExecutionInputProvider(options) {
         const allowed = new Set(binding.resultSchemaRefs);
         const sources = options.workResultReader.read(binding.sourceWorkId)
           .filter((item) => item.outcomeKind === 'succeeded' && allowed.has(item.resultSchemaRef))
-          .map((item) => Object.freeze({ eventId: item.eventId, resultSchemaRef: item.resultSchemaRef, result: item.result }));
+          .map((item) => Object.freeze({ eventId: item.eventId, resultSchemaRef: item.resultSchemaRef,
+            result: item.result, inputBindings:item.inputBindings }));
         const projection = options.bindingProjectionRegistry.resolve(binding.projectionRef);
         namedInputs[binding.portName] = projection.project(Object.freeze({
           sourceResults: Object.freeze(sources), parameters: Object.freeze(binding.parameters),

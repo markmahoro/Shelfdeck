@@ -158,23 +158,41 @@ function createEvidenceAssessmentPlanner(options) {
     } });
 }
 
+function frozenProbeSourcesByMaterialKey(sourceResults) {
+  const byMaterialKey = new Map();
+  for (const source of sourceResults.filter((item) => item.resultSchemaRef?.includes('media.probe'))) {
+    const binding = source.inputBindings?.bindings?.find((item) =>
+      item.bindingKind === 'literal' && item.portName === 'physicalMaterialReadHandleOrWorkspaceMaterialHandle');
+    const readHandle = binding?.value;
+    const materialKey = readHandle?.identity?.materialKey;
+    if (!materialKey || source.result?.sourceHandleDigest !== canonicalDigest(readHandle)) {
+      throw new Error('Durable Media Probe Result is not bound to its frozen Physical Material Read Handle.');
+    }
+    if (byMaterialKey.has(materialKey)) throw new Error('Probe Results contain a duplicate Physical Material binding.');
+    byMaterialKey.set(materialKey, Object.freeze({ readHandle, probe:source.result }));
+  }
+  return byMaterialKey;
+}
+
 function createProbeBatchProjection(options) {
   return Object.freeze({ project({ sourceResults, parameters }) {
     const snapshot = options.triageReader.read(parameters.runId); const selection = selected(snapshot);
     const items = logicalItems(snapshot);
-    const probeByHandle = new Map(sourceResults.map((source) => [source.result?.sourceHandleDigest, source.result]));
+    const probeByMaterialKey = frozenProbeSourcesByMaterialKey(sourceResults);
     const assessmentByScope = new Map(sourceResults.map((source) => [source.result?.scopeDigest, source.result]));
     const members = [];
     for (let index = 0; index < parameters.batchSize; index += 1) {
       const item = items[parameters.startOrdinal + index];
       if (!item) throw new Error('Probe Batch projection references a missing logical item.');
       if (item.kind === 'material') {
-        const material = snapshot.materials[item.selectionOrdinal]; const probe = probeByHandle.get(canonicalDigest(material.readHandle));
-        if (!probe) throw new Error('Probe Batch projection is missing a durable Media Probe Result.');
+        const material = snapshot.materials[item.selectionOrdinal];
         const member = selection.members[item.selectionOrdinal];
+        const frozen = probeByMaterialKey.get(member.materialKey);
+        if (!frozen) throw new Error('Probe Batch projection is missing a durable Media Probe Result.');
         const value = { inputKind:'material', selectionOrdinal:item.selectionOrdinal, materialKey:member.materialKey,
           bindingRevision:member.bindingRevision, admittedControlRevision:Number(material.member.admitted_control_revision),
-          admittedControlProjectionDigest:material.member.admitted_control_projection_digest, readHandle:material.readHandle, mediaProbe:probe };
+          admittedControlProjectionDigest:material.member.admitted_control_projection_digest,
+          readHandle:frozen.readHandle, mediaProbe:frozen.probe };
         members.push(Object.freeze({ ...value, memberDigest:canonicalDigest(value) }));
       } else {
         const scope = bdmvScopeReference(snapshot, item); const assessment = assessmentByScope.get(scope.scopeDigest);
@@ -247,13 +265,12 @@ function createStructureInputProjection(options) {
       const snapshot = options.triageReader.read(parameters.runId);
       const selection = selected(snapshot);
       const contexts = snapshot.materials.map((material, ordinal) => memberContext(snapshot, material, ordinal));
-      const probes = sourceResults.filter((source) => source.resultSchemaRef.includes('media.probe')).map((source) => source.result);
+      const probeByMaterialKey = frozenProbeSourcesByMaterialKey(sourceResults);
       const assessments = sourceResults.filter((source) => source.resultSchemaRef.includes('bdmv.assess')).map((source) => source.result);
       const plays = sourceResults.filter((source) => source.resultSchemaRef.includes('playability.inspect')).map((source) => source.result);
-      const probeByHandle = new Map(probes.map((item) => [item.sourceHandleDigest, item]));
       const assessmentByScope = new Map(assessments.map((item) => [item.scopeDigest, item]));
       const logical = logicalItems(snapshot);
-      const orderedProbes = snapshot.materials.map((material) => probeByHandle.get(canonicalDigest(material.readHandle)));
+      const orderedProbes = snapshot.materials.map((material) => probeByMaterialKey.get(material.member.material_key));
 
       // Structure consumes only the immutable Run Selection. Related candidates are
       // reconstructed later by Candidate Context from the frozen Observation facts;
@@ -306,11 +323,11 @@ function createStructureInputProjection(options) {
         const members = logical.slice(offset, offset + 100).map((item) => {
           if (item.kind === 'material') {
             const material = snapshot.materials[item.selectionOrdinal]; const selectedMember = selection.members[item.selectionOrdinal];
-            const probe = orderedProbes[item.selectionOrdinal];
-            if (!probe) throw new Error('Structure input projection is missing a durable Media Probe Result.');
+            const frozen = orderedProbes[item.selectionOrdinal];
+            if (!frozen) throw new Error('Structure input projection is missing a durable Media Probe Result.');
             const value = { inputKind:'material', selectionOrdinal:item.selectionOrdinal, materialKey:selectedMember.materialKey, bindingRevision:selectedMember.bindingRevision,
               admittedControlRevision:Number(material.member.admitted_control_revision), admittedControlProjectionDigest:material.member.admitted_control_projection_digest,
-              readHandle:material.readHandle, mediaProbe:probe };
+              readHandle:frozen.readHandle, mediaProbe:frozen.probe };
             return Object.freeze({ ...value, memberDigest:canonicalDigest(value) });
           }
           const scope = bdmvScopeReference(snapshot, item); const assessment = assessmentByScope.get(scope.scopeDigest);
