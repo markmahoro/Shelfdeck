@@ -201,9 +201,13 @@ User Perception全面取消year关联校验，year仅作为资料保存/展示�
 | UAT-124 | 转码完成到Product Conformance接续窗口短暂误报“媒体整理执行失败” | `USER_EXPERIENCE` | `PROJECTION_TRUTH`、`MEDIA_PRODUCTION` | Libra Formation Query | 状态真实性、转码进度连续性 | High | `FACT/REGRESSION/RESTART PASSED / CLOSED` |
 | UAT-125 | 后台周期检查缺少完整Workspace治理、低成本域内检查与用户可见状态 | `DOMAIN_ORCHESTRATION` | `PERFORMANCE`、`USER_EXPERIENCE`、`PLATFORM_INTEGRATION`、`RECOVERY_CORRECTNESS` | Foundation Domain Reconcile Runner + People/Perception/Procurement/Libra/Arca Owner + Platform Workspace Registry + Admin Web | 活性、页面响应、空间治理、配置安全、可观察性 | Critical | `LOCAL IMPLEMENTATION AND REGRESSION PASSED / FULL-CHAIN CLEANUP CANARY PENDING` |
 | UAT-126 | Frozen条目只有放弃路径，演员确实无外部资料或外部寻源耗尽时不能由用户显式接受瑕疵入库 | `BUSINESS_CONTRACT` | `AUTHORIZATION_FENCE`、`DOMAIN_ORCHESTRATION`、`USER_EXPERIENCE` | Libra Defect Admission + Handoff B + Arca Aftercare + Admin Web | 用户决断、事实真实性、活性、售后边界 | Critical | `IMPLEMENTED / TARGETED LOCAL PASS / ISOLATED CANARY PENDING` |
-| UAT-127 | 同一执行中的转码在服务重启后复用不完整Progress身份，并从0开始回报导致冲突或回退 | `RECOVERY_CORRECTNESS` | `PROGRESS`、`MEDIA_PRODUCTION` | Foundation Event Runtime + Libra FFmpeg Effect | 转码活性、进度真实性、重启恢复 | Critical | `CODE/FULL REGRESSION PASSED / ACTIVE-TRANSCODE RESTART CANARY PENDING` |
+| UAT-127 | 同一执行中的转码在服务重启后复用不完整Progress身份，并从0开始回报导致冲突或回退 | `RECOVERY_CORRECTNESS` | `PROGRESS`、`MEDIA_PRODUCTION` | Foundation Event Runtime + Libra FFmpeg Effect | 转码活性、进度真实性、重启恢复 | Critical | `QUALIFICATION FAILED AT 63%→0% / EVENT-LEVEL FLOOR FIX UNDER REGRESSION` |
 | UAT-128 | Aftercare旧材料Handle被同路径Product Binding误判为多重匹配，Settlement持续恢复失败 | `RECOVERY_CORRECTNESS` | `MATERIAL_CONTROL`、`DESTRUCTIVE_SAFETY` | Arca Aftercare Settlement | 售后活性、删除安全、材料边界 | Critical | `CODE/FULL REGRESSION PASSED / SETTLEMENT RESTART CANARY PENDING` |
 | UAT-129 | Procurement Retry Intent消息没有消费者，崩溃窗口可留下永久open Intent并持续重试Outbox | `RECOVERY_CORRECTNESS` | `OUTBOX_INBOX`、`DOMAIN_ORCHESTRATION` | Procurement Failed Preparation Retry + Foundation Delivery Host | 重试活性、幂等、启动恢复 | Critical | `CODE/FULL REGRESSION PASSED / OUTBOX RESTART CANARY PENDING` |
+| UAT-130 | 已配置的MoviePilot没有只修订External Landing且复用Secret的Admin Web入口 | `PLATFORM_INTEGRATION` | `CONFIGURATION_SAFETY`、`USER_EXPERIENCE` | Platform Integration Admin + Admin Web | 隔离安全、Secret安全、可运维性 | Critical | `LOCAL FULL REGRESSION PASSED / NEW CANARY REQUIRED` |
+| UAT-131 | Authorized Defect路径伪造Selected Product，无法形成真实failed Conformance到accepted_with_defects连续性 | `BUSINESS_CONTRACT` | `AUTHORIZATION_FENCE`、`PRODUCT_CONFORMANCE` | Libra Product Delivery + Arca Handoff B | 用户授权、事实真实性、上架活性 | Critical | `LOCAL FULL REGRESSION PASSED / NEW CANARY REQUIRED` |
+| UAT-132 | Arca独立媒体复核遗漏合法unknown动态范围并拒绝Direct产品 | `PRODUCT_CONFORMANCE` | `HANDOFF_B_ACCEPTANCE`、`CONTRACT_PROPAGATION` | Arca Mandatory Media Acceptance | 成品正确性、独立验收、上架活性 | Critical | `LOCAL FULL REGRESSION PASSED / NEW CANARY REQUIRED` |
+| UAT-133 | 多缺口Authorized Defect在Libra Attestation与Arca Gap union使用不一致规范顺序 | `BUSINESS_CONTRACT` | `CANONICALIZATION`、`HANDOFF_B_ACCEPTANCE` | Libra Product Delivery + Arca Acceptance Gap Decision | 多缺口接纳、恢复活性、事实一致性 | Critical | `QUALIFICATION FAILED / LOCAL FIX UNDER FULL REGRESSION` |
 
 ### 2.0.1 UAT-074–UAT-084必须保护的历史修复
 
@@ -3769,6 +3773,22 @@ Manifest集合与`git diff --check`通过。完整架构集仍有People公开包
 
 验收证据：新增Reporter latest-sample隔离、Recovery Context非枚举floor、Effect catch-up与完整样本身份测试；连同Aftercare专项共80项为79 pass / 1 environment skip / 0 fail，完整Service为331 pass / 18 environment skip / 0 fail。按用户指示暂不重启当前现场，状态`CODE/FULL REGRESSION PASSED / ACTIVE-TRANSCODE RESTART CANARY PENDING`。
 
+资格失败补充（2026-08-27）：冻结SHA `82283e2e1f15704aed8aa612c0779288337f1475`的隔离运行
+`F:\shelfdeck_test_zone\runs\BETA-20260827-054933-82283e2e1f`按真实恢复专项在《老笠》长转码已有非零进度时安全停止。
+重启前真实Admin Web显示44%，同一Event的durable Progress已经到63%、revision 82、Attempt 1；同一SHA/data重启后建立Attempt 2，
+revision 83首先写入0%，页面回退到6%。`ui-027-uat127-prerestart-nonzero-44pct.*`、
+`ui-028-uat127-postrestart-progress-regressed-6pct.*`、`uat127-prerestart-work-event-progress.json`、
+`uat127-postrestart-db-regression.json`与`qualification-failure-freeze.json`共同证明同一Event跨Attempt发生63%→0%的真实回退。
+
+精确根因补充：此前修复只覆盖“仍为executing的同一Attempt启动恢复”。优雅关闭会先把当前FFmpeg Attempt标为failed；普通重试随后
+创建新Attempt，但Event Runtime把其`progressFloor`硬编码为null，Progress Reporter也只检查当前Attempt，因此跨Attempt没有Event级
+单调性门禁。修复在Foundation以Event当前Progress指针只读恢复跨Attempt floor，普通重试与启动恢复均通过非枚举runtime-only Context
+传递同一事实；Reporter在写入前拒绝同一Event跨Attempt的total/unit身份漂移和current回退，Media Effect继续只负责追平前抑制低值。
+失败、回退和身份冲突仍fail closed，不通过改库或伪造进度恢复。
+
+当前处理决定：`82283e2e1f`资格结果固定为`FAILED`，旧Canary/data/Evidence只读保留且服务已停止；Event级修复须完成全量回归、
+进入新的clean main SHA，并在全新Canary重做同一真实长转码停止/重启专项后才能关闭本条。
+
 ## 125. UAT-128：Aftercare known-old Settlement必须按旧材料角色判定唯一性
 
 问题分类：`RECOVERY_CORRECTNESS / MATERIAL_CONTROL / DESTRUCTIVE_SAFETY`
@@ -3934,7 +3954,43 @@ Procurement retry fixture与22项dependency findings，UAT-132未新增finding�
 当前处理决定：冻结SHA `d7506e0bc534f6906f3a0ef53461b1a16f7bccd9`为
 `QUALIFICATION FAILED`；UAT-132状态为`LOCAL FULL REGRESSION PASSED / NEW CLEAN MAIN SHA FULL RERUN REQUIRED`。
 
-## 130. 后续问题模板
+## 130. UAT-133：多缺口Authorized Defect的规范顺序必须跨Libra与Arca一致
+
+问题分类：`BUSINESS_CONTRACT / CANONICALIZATION / HANDOFF_B_ACCEPTANCE / RELEASE_BLOCKER`
+
+用户侧现象：冻结SHA `82283e2e1f15704aed8aa612c0779288337f1475`的全量Movie资格运行中，用户已通过真实Admin Web
+为《地狱尖兵》《看不见的朋友》《金的音像店》接受HB-B.25允许的精确瑕疵。三项具有相同的三个真实缺口，恢复后却反复执行
+Libra Promotion/Arca Acceptance，无法形成On-deck。
+
+现场证据（2026-08-27）：失败运行
+`F:\shelfdeck_test_zone\runs\BETA-20260827-054933-82283e2e1f`的
+`qualification-stop-p9-promotion-input-events.json`保留三项重复`P9_PROMOTION_INPUT`现场。Conformance按业务评估顺序输出
+`video_codec_unmet, minimum_raster_unmet, primary_audio_unmet`；Authorized Defect Manifest按UTF-8 canonical顺序冻结为
+`minimum_raster_unmet, primary_audio_unmet, video_codec_unmet`。集合完全相同，没有额外、缺失或未知Gap。
+
+精确根因：Libra Product Delivery Assembler把Conformance的评估顺序原样写入Production Attestation，而接收端要求规范UTF-8顺序，
+令Promotion输入先被拒绝；修正Attestation后，Arca仍把自身业务评估顺序`video, minimum, primary`与Manifest字节顺序直接比较，
+把相同集合误判为union不一致。两个边界分别使用不同顺序语义，缺少“规范序列用于持久合同、域内顺序只用于独立计算”的闭合规则。
+
+业务影响：合法多缺口External Authorized Defect不能通过Handoff B，反复恢复也不会收敛，23/23 On-deck不可达。重排数据库、
+跳过Arca独立复核或放宽为包含关系都会破坏授权精确性，不能作为修复或验收手段。该SHA已经因UAT-127与本条停止资格判定。
+
+修复边界：不修改SSOT、Owner、Handoff或Gap定义。Libra Production Attestation在持久化前对实际unmet Requirement codes执行UTF-8
+排序，count与list来自同一canonical结果；Arca继续独立形成实际Gap union，但先独立验证Manifest列表已经UTF-8 canonical、无重复、
+无未知项，再以精确集合比较拒绝extra/missing Gap。Arca本域的确定性评估顺序不再被误当成跨域Manifest字节顺序。
+
+本地验收：新增真实Admin HTTP三缺口场景，证明`not_selected -> conformance failed with exact unmet -> promotion ->
+accepted_with_defects -> On-deck`闭环；Foundation、Media Effect、Libra Delivery与Arca Gap专项为105 pass / 1显式环境skip / 0 fail，
+actor-only、external-only、external-multi与combined真实Admin HTTP为5/5 PASS。完整Service为
+`354 total / 336 pass / 18 explicit real-media environment skip / 0 fail`，Admin Web `29/29`及production build PASS；
+Contract/Manifest/Semantic Gate均PASS，P2 aggregate为`d8dea1240147afa36b17cb075f7dca130fb6eed365af0047e1575f5a57d7eaf9`。
+完整Architecture verifier保留clean main已有的8项fixture失败与22项dependency findings，本次四个修改源文件没有新增finding。
+以上本地证据不替代新Canary资格。
+
+当前处理决定：`82283e2e1f`资格结果固定为`FAILED`；旧运行只保留失败现场。修复完成全量回归并形成新的clean main SHA后，
+必须从全新Canary完整重跑，确认三项多缺口产品均由真实页面授权并通过Arca独立复核，才能关闭本条。
+
+## 131. 后续问题模板
 
 后续发现的问题按以下结构追加：
 

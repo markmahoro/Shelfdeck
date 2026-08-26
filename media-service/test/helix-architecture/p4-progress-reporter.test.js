@@ -44,7 +44,9 @@ function fixture(run) {
     repository.invoke('event_attempt', { event_attempt_id: 'event-attempt', event_id: 'event', ordinal: 1, state: 'executing', started_at_ms: 1 });
   } }]);
   const reporter = createProgressReporter({ schemaManifest, unitOfWork, eventId: 'event', eventAttemptId: 'event-attempt', now: () => now });
-  try { return run({ reporter, databasePath, setNow: (value) => { now = value; } }); }
+  try { return run({ reporter, databasePath, setNow: (value) => { now = value; },
+    createReporter: (eventAttemptId) => createProgressReporter({ schemaManifest, unitOfWork,
+      eventId:'event', eventAttemptId, now:() => now }) }); }
   finally { kernel.close(); fs.rmSync(root, { recursive: true, force: true }); }
 }
 
@@ -72,6 +74,30 @@ test('current returns only the latest persisted sample for the exact Event Attem
       revision:2,mode:'determinate',currentValue:2,totalValue:10,unit:'items',rate:1,etaMs:9000,
       sourceSequence:'seq-2',progressBucket:'20-percent',sampledAtMs:15000,
     });
+  });
+});
+
+test('Event progress floor survives a failed Attempt and rejects a lower retry sample', () => {
+  fixture(({ reporter, databasePath, setNow, createReporter }) => {
+    reporter.report(sample({ currentValue:6.3, totalValue:10, sourceSequence:'attempt-1-63', progressBucket:'percent-63' }));
+    const database = new Database(databasePath);
+    try {
+      database.prepare("UPDATE fx_event_attempts SET state='completed' WHERE event_attempt_id='event-attempt'").run();
+      database.prepare(`INSERT INTO fx_event_attempts
+        (event_attempt_id,event_id,ordinal,state,started_at_ms) VALUES (?,?,?,?,?)`)
+        .run('event-attempt-2','event',2,'executing',2);
+    } finally { database.close(); }
+    const retry = createReporter('event-attempt-2');
+    assert.equal(retry.current(), null);
+    assert.deepEqual(retry.floor(), {
+      revision:1, mode:'determinate', currentValue:6.3, totalValue:10, unit:'items', rate:1, etaMs:9000,
+      sourceSequence:'attempt-1-63', progressBucket:'percent-63', sampledAtMs:10000,
+    });
+    setNow(15000);
+    assert.throws(() => retry.report(sample({ currentValue:0, sourceSequence:'attempt-2-zero', progressBucket:'percent-0' })),
+      { code:'P4_PROGRESS_REGRESSION' });
+    assert.deepEqual(retry.report(sample({ currentValue:6.4, sourceSequence:'attempt-2-64', progressBucket:'percent-64' })),
+      { sampled:true, replayed:false, revision:2 });
   });
 });
 

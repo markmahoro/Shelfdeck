@@ -36,6 +36,21 @@ closed set遗漏正式合同已有的`unknown`。实现已把canonical set补齐
 `353 total / 335 pass / 18 explicit environment skip / 0 fail`，Admin Web `29/29`及production build PASS。
 当前状态为`UAT-132 LOCAL FULL REGRESSION PASSED / NEW CLEAN MAIN SHA FULL RERUN REQUIRED`，仍不宣称Beta资格。
 
+随后冻结SHA `82283e2e1f15704aed8aa612c0779288337f1475`从新的隔离Canary重跑。UAT-132两项均已真实On-deck，
+但UAT-127真实长转码恢复专项证明同一Event在Attempt 1 durable 63%后，普通重试Attempt 2首先写入0%、页面回退到6%；
+同时三个合法多缺口Authorized Defect暴露UAT-133，Libra Attestation、Manifest与Arca Gap union把业务评估顺序和UTF-8
+canonical顺序混用，导致相同Gap集合反复拒绝。运行
+`F:\shelfdeck_test_zone\runs\BETA-20260827-054933-82283e2e1f`已冻结为`QUALIFICATION FAILED`，服务、FFmpeg、
+FFprobe和18080本地监听均已安全停止；Canary/data/UI/FACT/FS/日志与被动监控Evidence完整保留，未访问NAS、`Z:`、Docker或生产媒体。
+
+UAT-127修复现在把同一Event的Progress floor跨Attempt保持，并让普通重试与启动恢复共用同一只读runtime Context；UAT-133修复让
+Libra持久Attestation使用UTF-8 canonical序列，Arca则独立验证Manifest规范性后用自身实际Gap union做精确集合比较。二者都保持
+fail-closed且不修改SSOT或Domain Owner。专项105 pass / 1显式环境skip / 0 fail、真实Admin HTTP 5/5、完整Service
+336 pass / 18显式环境skip / 0 fail、Admin Web 29/29与production build、Contract/Manifest/Semantic Gate均PASS；完整Architecture
+verifier只保留既有8项fixture失败与22项dependency findings，修改源文件无新增finding。当前状态为
+`UAT-127/UAT-133 LOCAL FULL REGRESSION PASSED / NEW CLEAN MAIN SHA FULL RERUN REQUIRED`，
+不得继承`82283e2e1f`的任何资格通过结论。
+
 ## 0. Open UAT — UAT-125 registered
 
 2026-08-25完成后台周期检查与Workspace治理审计，并把完整修复边界登记为`UAT-125`。现有30秒共享

@@ -42,6 +42,10 @@ function validate(sample) {
 }
 
 function definitions(schemaManifest) {
+  const progressColumns = [
+    'event_id', 'event_attempt_id', 'revision', 'mode', 'current_value', 'total_value', 'unit', 'rate', 'eta_ms',
+    'source_sequence', 'progress_bucket', 'sampled_at_ms'
+  ];
   return Object.freeze({
     events: createRepositoryDefinition({ repositoryId: 'progress_events', owner: 'execution-foundation', schemaManifest, statements: {
       find: { kind: 'select-one', tableId: 'fx_workflow_events', columns: ['event_id', 'state', 'current_progress_revision'], keyColumns: ['event_id'] },
@@ -51,16 +55,23 @@ function definitions(schemaManifest) {
       find: { kind: 'select-one', tableId: 'fx_event_attempts', columns: ['event_attempt_id', 'event_id', 'state'], keyColumns: ['event_attempt_id'] }
     } }),
     samples: createRepositoryDefinition({ repositoryId: 'progress_samples', owner: 'execution-foundation', schemaManifest, statements: {
-      list: { kind: 'select-all', tableId: 'fx_event_progress', keyColumns: ['event_attempt_id'], columns: [
-        'event_id', 'event_attempt_id', 'revision', 'mode', 'current_value', 'total_value', 'unit', 'rate', 'eta_ms',
-        'source_sequence', 'progress_bucket', 'sampled_at_ms'
-      ] },
+      find: { kind: 'select-one', tableId: 'fx_event_progress', keyColumns: ['event_id', 'revision'], columns: progressColumns },
+      list: { kind: 'select-all', tableId: 'fx_event_progress', keyColumns: ['event_attempt_id'], columns: progressColumns },
       insert: { kind: 'insert', tableId: 'fx_event_progress', columns: [
         'event_id', 'event_attempt_id', 'revision', 'mode', 'current_value', 'total_value', 'unit', 'rate', 'eta_ms',
         'source_sequence', 'progress_bucket', 'sampled_at_ms'
       ] }
     } })
   });
+}
+
+function projection(row) {
+  return row ? Object.freeze({
+    revision:row.revision, mode:row.mode, currentValue:row.current_value,
+    totalValue:row.total_value, unit:row.unit, rate:row.rate, etaMs:row.eta_ms,
+    sourceSequence:row.source_sequence, progressBucket:row.progress_bucket,
+    sampledAtMs:row.sampled_at_ms,
+  }) : null;
 }
 
 function createProgressReporter(options) {
@@ -82,14 +93,28 @@ function createProgressReporter(options) {
           );
           const latest = context.repository('progress_samples').invoke('list', { event_attempt_id:options.eventAttemptId })
             .sort((left, right) => left.revision - right.revision).at(-1);
-          return latest ? Object.freeze({
-            revision:latest.revision, mode:latest.mode, currentValue:latest.current_value,
-            totalValue:latest.total_value, unit:latest.unit, rate:latest.rate, etaMs:latest.eta_ms,
-            sourceSequence:latest.source_sequence, progressBucket:latest.progress_bucket,
-            sampledAtMs:latest.sampled_at_ms,
-          }) : null;
+          return projection(latest);
         }
       }]).progress_current_read;
+    },
+    floor() {
+      return options.unitOfWork.execute([{
+        participantId: 'progress_floor_read', owner: 'execution-foundation', repositories: Object.values(repositories),
+        execute(context) {
+          const attempt = context.repository('progress_attempts').invoke('find', { event_attempt_id: options.eventAttemptId });
+          const event = context.repository('progress_events').invoke('find', { event_id: options.eventId });
+          if (!attempt || !event || attempt.event_id !== event.event_id) fail(
+            'P4_PROGRESS_ATTEMPT_MISSING', 'Progress floor requires the exact Event Attempt.'
+          );
+          if (event.current_progress_revision === null) return null;
+          const latest = context.repository('progress_samples').invoke('find', {
+            event_id: options.eventId,
+            revision: event.current_progress_revision,
+          });
+          if (!latest) fail('P4_PROGRESS_POINTER_BROKEN', 'Event progress pointer has no exact durable sample.');
+          return projection(latest);
+        }
+      }]).progress_floor_read;
     },
     report(rawSample) {
       const sample = validate(rawSample);
@@ -105,6 +130,14 @@ function createProgressReporter(options) {
           );
           const all = context.repository('progress_samples').invoke('list', { event_attempt_id:options.eventAttemptId })
             .sort((left, right) => left.revision - right.revision);
+          const eventLatest = event.current_progress_revision === null ? null
+            : context.repository('progress_samples').invoke('find', {
+              event_id: options.eventId,
+              revision: event.current_progress_revision,
+            });
+          if (event.current_progress_revision !== null && !eventLatest) fail(
+            'P4_PROGRESS_POINTER_BROKEN', 'Event progress pointer has no exact durable sample.'
+          );
           if (sample.sourceSequence !== null) {
             const replay = all.find((row) => row.source_sequence === sample.sourceSequence);
             if (replay) {
@@ -115,8 +148,12 @@ function createProgressReporter(options) {
             }
           }
           const latest = all.at(-1);
-          if (latest && sample.mode === 'determinate' && latest.mode === 'determinate' && sample.currentValue < latest.current_value) fail(
-            'P4_PROGRESS_REGRESSION', 'Progress current value cannot regress within one Event Attempt.'
+          if (eventLatest && sample.mode === 'determinate' && eventLatest.mode === 'determinate' &&
+              (sample.unit !== eventLatest.unit || sample.totalValue !== eventLatest.total_value)) fail(
+            'P4_PROGRESS_EVENT_IDENTITY_CONFLICT', 'Progress units and total cannot change across Event Attempts.'
+          );
+          if (eventLatest && sample.mode === 'determinate' && eventLatest.mode === 'determinate' && sample.currentValue < eventLatest.current_value) fail(
+            'P4_PROGRESS_REGRESSION', 'Progress current value cannot regress across one Event execution.'
           );
           const changedBucket = !latest || latest.progress_bucket !== sample.progressBucket;
           if (latest && sampledAtMs - latest.sampled_at_ms < SAMPLE_INTERVAL_MS && !changedBucket && !sample.terminal) {

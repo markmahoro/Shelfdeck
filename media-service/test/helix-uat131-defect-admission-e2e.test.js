@@ -392,10 +392,10 @@ async function waitFormation(host, cookie, predicate, timeoutMs = 60_000) {
   assert.fail('Formation did not reach UAT-131 state: ' + JSON.stringify(items));
 }
 
-async function rateOne(host, cookie, subjectId, suffix) {
+async function rateSubject(host, cookie, subjectId, suffix, rating) {
   const response = await host.inject({
     method:'POST', url:'/v1/admin/perception/records', headers:{ cookie }, payload:{
-      targetType:'subject', targetId:subjectId, expectedRevision:0, rating:1,
+      targetType:'subject', targetId:subjectId, expectedRevision:0, rating,
       idempotencyKey:'uat-131-rating-' + suffix,
     },
   });
@@ -409,7 +409,7 @@ async function rateOne(host, cookie, subjectId, suffix) {
     });
     assert.equal(current.statusCode, 200, current.body);
     if (current.json().currentRating?.state === 'ready' &&
-        current.json().currentRating.rating === 1) return;
+        current.json().currentRating.rating === rating) return;
     await pause(50);
   }
   assert.fail('UAT-131 rating did not become ready.');
@@ -583,7 +583,9 @@ function assertCompletedEvidence(database, expectedCodes, finalManifest, origina
   assert.equal(conformances.length, 1);
   assert.equal(conformances[0].state, 'succeeded');
   assert.equal(conformances[0].result.result, 'failed');
-  assert.deepEqual(conformances[0].result.unmetRequirementCodes, expectedCodes);
+  assert.deepEqual([...conformances[0].result.unmetRequirementCodes]
+    .sort((left, right) => Buffer.compare(Buffer.from(left), Buffer.from(right))),
+  expectedCodes);
 
   const packageRows = database.prepare(
     'SELECT on_deck_package_id,attestation_json FROM libra_product_packages').all();
@@ -705,7 +707,11 @@ const SCENARIOS = Object.freeze([
   Object.freeze({ name:'actor-only', actorAvailable:false, mediaGap:false,
     expectedCodes:Object.freeze(['metadata_field_unmet']) }),
   Object.freeze({ name:'external-only', actorAvailable:true, mediaGap:true,
-    expectedCodes:Object.freeze(['video_codec_unmet']) }),
+    rating:1, expectedCodes:Object.freeze(['video_codec_unmet']) }),
+  Object.freeze({ name:'external-multi', actorAvailable:true, mediaGap:true,
+    rating:5, expectedCodes:Object.freeze([
+      'minimum_raster_unmet', 'primary_audio_unmet', 'video_codec_unmet',
+    ]) }),
   Object.freeze({ name:'combined', actorAvailable:false, mediaGap:true,
     expectedCodes:Object.freeze(['metadata_field_unmet', 'video_codec_unmet']) }),
 ]);
@@ -735,7 +741,8 @@ test('UAT-131 real Admin HTTP admits exact defects and reaches one On-deck commi
     const subject = await waitFormation(harness.host, harness.cookie,
       (item) => String(item.displayIdentity || '').includes('UAT131 Movie'));
     if (scenario.mediaGap) {
-      await rateOne(harness.host, harness.cookie, subject.subjectId, suffix);
+      await rateSubject(harness.host, harness.cookie, subject.subjectId, suffix,
+        scenario.rating || 1);
     }
     await route(harness.host, harness.cookie, fieldId, shelfId);
     const frozen = await waitFormation(harness.host, harness.cookie,

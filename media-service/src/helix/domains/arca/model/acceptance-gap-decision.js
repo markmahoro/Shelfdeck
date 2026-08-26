@@ -183,9 +183,12 @@ function finalGapDecision(input) {
   );
   const canonicalAuthorized = ACCEPTANCE_GAP_ORDER.filter((item) =>
     authorized.includes(item));
+  const canonicalManifestAuthorized = [...new Set(authorized)].sort((left, right) =>
+    Buffer.compare(Buffer.from(left), Buffer.from(right)));
   const authorizedGapComparison = manifest
     ? canonicalJson(actualGapUnionCodes) === canonicalJson(canonicalAuthorized) &&
-      canonicalJson(authorized) === canonicalJson(canonicalAuthorized)
+      canonicalAuthorized.length === canonicalManifestAuthorized.length &&
+      canonicalJson(authorized) === canonicalJson(canonicalManifestAuthorized)
       ? 'exact_match'
       : 'mismatch'
     : actualGapUnionCodes.length === 0

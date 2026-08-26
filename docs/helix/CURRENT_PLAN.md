@@ -4,7 +4,7 @@ Status: Helix-beta 已由 Product Owner 收窄为 **仅 Movie 的全功能版本
 
 Last updated: 2026-08-27
 
-## 0. Current UAT plan — UAT-131/UAT-132 repaired, clean rerun required
+## 0. Current UAT plan — UAT-127/UAT-133 repaired, clean rerun required
 
 `fb28e360467766b666a3d021e1668c6f09d255da`资格运行已因UAT-131固定为失败并保留现场。经Product Owner授权，SSOT §8.6.20
 有界补全、Libra授权瑕疵连续性、Arca独立Source/Product探测及Gap复核已完成本地实现与0失败回归。下一步只允许把该修复形成
@@ -16,6 +16,14 @@ accepted dynamic-range closed set遗漏`unknown`，误拒绝两份合法Direct�
 SSOT完成五值合同传播，并把`none`、`preserve`、`tone_map_to_sdr_bt709`分支分别封闭；独立Architecture复核、Service全量、
 Admin Web测试与构建均PASS。下一步先形成新的clean local main SHA，再从不可变基线建立新的timestamp+SHA Canary和data，完整
 重跑全部协议；不得复用`d7506e0bc`的7项On-deck、6项Frozen或其他过程Evidence。
+
+后续冻结SHA `82283e2e1f15704aed8aa612c0779288337f1475`已再次固定失败：UAT-127真实长转码在同一Event跨Attempt恢复时
+从durable 63%写回0%，UAT-133又令三个合法多缺口Authorized Defect因规范顺序不一致而无法通过Handoff B。失败Canary、data与
+Evidence全部保留，服务已停止。Event级Progress floor与跨Libra/Arca canonical Gap union修复的专项、完整Service、Admin Web及
+Contract/Manifest/Semantic回归已经0失败；完整Architecture verifier只保留clean main既有8项fixture失败与22项dependency findings，
+修改源文件无新增finding。当前形成新的clean local main SHA；之后必须从不可变基线创建新的timestamp+SHA Canary、data、temp、Workspace、External Landing和Evidence，
+完整重跑A–I、UAT-127、UAT-129、23/23主检查点、豆瓣触发Aftercare、受控Artifact修复、UAT-128、全量Off-deck、Shelf
+Deregistration及至少24小时观察。不得复用`82283e2e1f`的过程Evidence，也不得在资格运行期间修改代码继续拼接结论。
 
 ## 0. Current UAT plan — UAT-094–UAT-105 Aftercare internal hardening
 

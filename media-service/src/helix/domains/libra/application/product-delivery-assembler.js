@@ -942,6 +942,9 @@ function createProductDeliveryAssembler(options) {
       ...provenanceBody,
       provenanceDigest: canonicalDigest(provenanceBody),
     });
+    const attestedUnmetRequirementCodes = Object.freeze([
+      ...(conformance.unmetRequirementCodes || []),
+    ].sort(utf8));
     const attestationBody = {
       attestationId: canonicalDigest({
         schema: 'libra.production-attestation-id@1',
@@ -958,8 +961,8 @@ function createProductDeliveryAssembler(options) {
       productConformanceEvidenceDigest: canonicalDigest(conformance),
       evaluatedRequirementSetDigest: conformance.evaluatedRequirementSetDigest,
       productSnapshotDigest: conformance.productSnapshotDigest,
-      unmetRequirementCount: conformance.unmetRequirementCodes.length,
-      unmetRequirementCodes: Object.freeze([...(conformance.unmetRequirementCodes || [])]),
+      unmetRequirementCount: attestedUnmetRequirementCodes.length,
+      unmetRequirementCodes: attestedUnmetRequirementCodes,
       acceptanceKind: authorized ? 'accepted_with_defects' : 'accepted',
       authorizedDefectManifest: authorized
         ? value.snapshot.run.authorizedDefectManifest : null,

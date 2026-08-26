@@ -46,8 +46,9 @@ function fixture(run, settings = {}) {
     ] },
     event: { kind: 'insert', tableId: 'fx_workflow_events', columns: [
       'event_id', 'plan_id', 'node_id', 'work_id', 'attempt_id', 'owner_domain', 'capability_ref', 'contract_version',
-      'priority_class', 'state', 'ready_at_ms', 'retry_at_ms', 'result_id'
+      'priority_class', 'state', 'ready_at_ms', 'retry_at_ms', 'result_id', 'current_progress_revision'
     ] },
+    point: { kind:'update', tableId:'fx_workflow_events', setColumns:['current_progress_revision'], keyColumns:['event_id'] },
     event_attempt: { kind: 'insert', tableId: 'fx_event_attempts', columns: [
       'event_attempt_id', 'event_id', 'ordinal', 'executor_ref', 'executor_version',
       'input_snapshot_schema_ref', 'input_snapshot_digest', 'fence_snapshot_digest',
@@ -59,7 +60,11 @@ function fixture(run, settings = {}) {
       'evidence_json','evidence_digest','effect_receipt_id','committed_at_ms'
     ] },
     marker:{kind:'insert',tableId:'fx_commit_markers',columns:['commit_marker','effect_id','owner_domain','scope_type','scope_id','commit_digest','result_id','result_schema_ref','result_digest','committed_at_ms']},
-    edge: { kind: 'insert', tableId: 'fx_plan_edges', columns: ['plan_id', 'from_node_id', 'to_node_id', 'dependency_kind'] }
+    edge: { kind: 'insert', tableId: 'fx_plan_edges', columns: ['plan_id', 'from_node_id', 'to_node_id', 'dependency_kind'] },
+    progress: { kind:'insert', tableId:'fx_event_progress', columns:[
+      'event_id','event_attempt_id','revision','mode','current_value','total_value','unit','rate','eta_ms',
+      'source_sequence','progress_bucket','sampled_at_ms'
+    ] }
   } });
   unitOfWork.execute([{ participantId: 'event_runtime_seed', owner: 'execution-foundation', repositories: [seed], execute(context) {
     const repository = context.repository('event_runtime_seed');
@@ -76,7 +81,7 @@ function fixture(run, settings = {}) {
       owner_domain: 'libra', capability_ref: 'libra.test.observe@1', contract_version: 1, priority_class: 'normal_foreground',
       state: settings.initialEventState || 'ready', ready_at_ms: 1,
       retry_at_ms: settings.initialEventState === 'waiting_for_external' ? 999 : null,
-      result_id: null });
+      result_id: null, current_progress_revision:null });
     if (settings.seedDeferredAttempt) {
       repository.invoke('event_attempt', {
         event_attempt_id: 'event-attempt-1', event_id: 'event', ordinal: 1,
@@ -87,6 +92,12 @@ function fixture(run, settings = {}) {
         failure_class: null, failure_code: null, evidence_digest: HASH_B,
         started_at_ms: 1, finished_at_ms: 2,
       });
+      if (settings.seedPriorProgress) repository.invoke('progress', {
+        event_id:'event', event_attempt_id:'event-attempt-1', revision:1,
+        mode:'determinate', current_value:63, total_value:100, unit:'percent', rate:8.58, eta_ms:241155,
+        source_sequence:'attempt-1-63', progress_bucket:'percent-63', sampled_at_ms:900,
+      });
+      if (settings.seedPriorProgress) repository.invoke('point', { event_id:'event', current_progress_revision:1 });
     }
     if (settings.seedExecutingAttempt) {
       repository.invoke('event_attempt', {
@@ -118,7 +129,8 @@ function fixture(run, settings = {}) {
         fence_basis_json: '{}', resource_demand_schema_ref: 'helix://test/resources', resource_demand_json: '{}' });
       repository.invoke('event', { event_id: 'event-dependent', plan_id: 'plan', node_id: 'node-dependent', work_id: 'work',
         attempt_id: 'work-attempt', owner_domain: 'libra', capability_ref: 'libra.test.observe@1', contract_version: 1,
-        priority_class: 'normal_foreground', state: 'pending', ready_at_ms: null, retry_at_ms: null, result_id: null });
+        priority_class: 'normal_foreground', state: 'pending', ready_at_ms: null, retry_at_ms: null, result_id: null,
+        current_progress_revision:null });
       repository.invoke('edge', { plan_id: 'plan', from_node_id: 'node', to_node_id: 'node-dependent', dependency_kind: 'success' });
     }
   } }]);
@@ -655,6 +667,18 @@ test('startup recovery exposes the exact persisted progress floor only as runtim
     });
     assert.equal(Object.keys(state().dispatchContext).includes('progressFloor'),false);
   },{initialEventState:'executing',seedExecutingAttempt:true});
+});
+
+test('ordinary retry exposes the prior Event Attempt progress floor without resetting it', async () => {
+  await fixture(async ({runtime,lease,state}) => {
+    await runtime.run({ schedulerLease:lease });
+    assert.deepEqual(state().dispatchContext.progressFloor, {
+      revision:1, mode:'determinate', currentValue:63, totalValue:100, unit:'percent', rate:8.58, etaMs:241155,
+      sourceSequence:'attempt-1-63', progressBucket:'percent-63', sampledAtMs:900,
+    });
+    assert.equal(state().dispatchContext.eventAttemptId, 'event-attempt-2');
+    assert.equal(Object.keys(state().dispatchContext).includes('progressFloor'), false);
+  }, { initialEventState:'waiting_for_external', seedDeferredAttempt:true, seedPriorProgress:true });
 });
 
 test('non-pure Event persists intent before dispatch and settles verified receipt before Result commit', async () => {
