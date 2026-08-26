@@ -39,7 +39,7 @@ Architecture authority: `docs/helix/TOP_DOWN_ARCHITECTURE_CONFIRMATION.md`（唯
 3. 实现不得把本范围收窄解释成可以删 SSOT、改 Owner/Handoff，或在 Movie 链路上做 workaround。
 4. API `200`、页面渲染、单元测试或 Mock 不能单独证明旅程通过。页面、公开 Projection 与（涉及文件时）物理现实必须一致。
 5. **旅程通过至少要求对用户可用。** 这不是高效执行或容量优化：后台转码可以很久，只要进度和等待原因诚实。若首屏/刷新无法结束、整页卡死、无理由转圈、或页面写「整理中」却没有任何执行证据，该旅程不得标为通过。
-6. 破坏性 Off-deck 只允许在用户授权的 Movie 样本根（当前为 `F:\canary`，基线 `F:\test_film` 只读）或一次性 disposable root。生产 NAS 与 `Z:\Film` 不在范围。
+6. 破坏性 Off-deck 只允许在用户授权的本轮 Movie Canary 根（位于 `F:\shelfdeck_test_zone`，基线 `F:\shelfdeck_test_zone\test_film` 只读）或一次性 disposable root。生产 NAS 与 `Z:\Film` 不在范围。
 
 状态词汇：
 
@@ -151,7 +151,7 @@ SSOT: §9.1.4, §9.1.5, §9.4.7, §5.7
 | HB-D.03 | 低成本、高成功率、非破坏性 Finding 自动修，修完独立复验 | E2E, FS, RECOVERY |
 | HB-D.04 | 不确定/不可修复显示 `需要处理`，不提供虚假修复按钮；不自动创建 Off-deck 授权 | UI, API, E2E, NEG, AUDIT |
 | HB-D.05 | Aftercare不补齐、不重试已接纳的精确瑕疵，但继续处理同一Entry中新出现或未授权的其他问题 | API, E2E, NEG, RECOVERY |
-| HB-D.05 | Aftercare 只用 Arca 已拥有且位置明确的材料，不回流 Procurement/Libra 采购新媒体 | E2E, NEG, AUDIT |
+| HB-D.06 | Aftercare 只用 Arca 已拥有且位置明确的材料，不回流 Procurement/Libra 采购新媒体 | E2E, NEG, AUDIT |
 | HB-E.01 | 发布新 Movie Shelf Standard / Placement 后，现有 Entry 重新评估；身份保持同一 Entry | UI, API, E2E |
 | HB-E.02 | 完全可规划 Gap 走 Aftercare；需要外部 Acquisition 的 Gap 保持可解释 attention | UI, API, E2E, NEG |
 
@@ -218,7 +218,7 @@ SSOT: §8.2, §8.4, §9.6.6–§9.6.8, §7.2–§7.4
 
 | ID | 用户结果 | 主要验证 |
 | --- | --- | --- |
-| HB-P.01 | 可测试并保存真实 TMDB（默认语言 `zh-CN`）、豆瓣、MoviePilot；测试连接在 Save 前不持久化 | UI, API, PROVIDER, NEG |
+| HB-P.01 | 可测试并保存真实 TMDB（默认语言 `zh-CN`，可选安全的 HTTP/HTTPS Proxy Origin）、豆瓣、MoviePilot；测试连接在 Save 前不持久化 | UI, API, PROVIDER, NEG |
 | HB-P.02 | 可选 Emby：保存 Token/Secret Handle 而非密码；不要求 Library Mapping；永不创建/修改 Emby Library | UI, API, PROVIDER, NEG, AUDIT |
 | HB-P.03 | Workspace / Aftercare Workspace / Artifact Root 互不重叠，也不与 active Field/Shelf Target 重叠 | UI, API, FS, NEG |
 | HB-P.04 | 本机 CPU/GPU 只有真实短编码/Probe 后才显示可用；不得只凭 NVENC 名称 | UI, API, PROBE, NEG |
@@ -253,8 +253,9 @@ Helix-beta 的真实来源验收车辆是 Movie Canary：
 
 | 角色 | 路径 |
 | --- | --- |
-| 不可变基线 | `F:\test_film` |
-| 工作副本 / 同根 Field 与 Shelf Target | `F:\canary` |
+| 不可变基线 | `F:\shelfdeck_test_zone\test_film` |
+| 工作副本 / 同根 Field 与 Shelf Target | `F:\shelfdeck_test_zone\canary-beta-<timestamp>-<short-sha>` |
+| 隔离运行与 Evidence | `F:\shelfdeck_test_zone\runs\BETA-<timestamp>-<short-sha>` |
 | 禁止 | `Z:\Film`、`G:\canary_film`、NAS `192.168.12.230`、生产数据 |
 
 操作清单与成功检查点仍见：
@@ -262,16 +263,35 @@ Helix-beta 的真实来源验收车辆是 Movie Canary：
 - `docs/helix/acceptance/MOVIE_CANARY_USER_UAT_CHECKLIST.md`
 - `docs/helix/acceptance/MOVIE_CANARY_E2E_SUCCESS_EVALUATION.md`
 
-口径修正（已确认，覆盖成功评估旧稿中「23 部都必须 On-deck」的过宽句子）：
+最终发布资格口径：
 
 - 形成 23/23（`养蜂人` 现成 MKV 与嵌套 BDMV 各一部 + ISO `倩女幽魂2` 一部）；
-- 合同允许上架的都必须 On-deck；
-- 其余只允许 HB-B.12 的合法五星冻结；
+- 必须先取得《一场很（没）有必要的春晚》等真实 Frozen / `需要处理` Evidence；若缺口属于 HB-B.25 允许的精确范围，再由用户通过正式页面执行`接受瑕疵`；
+- 主成功检查点要求 23/23 全部 On-deck。Frozen 是必须验证的中间业务终态，不是最终发布残留；不得绕过、不直接改库，也不得把不允许的缺口强行接纳；
 - 产品阻塞必须清零。
 
-主检查点签字前不执行 Off-deck / Shelf 注销。G/H 作为第二阶段，或从 `F:\test_film` 另建 Canary。污染后的重建规则：先把 `F:\canary` 改名保留，再 `robocopy /E` 出新目录；禁止 `/MIR` `/MOVE` `/PURGE`。合法 On-deck 后与基线有 diff **不是**污染。
+主检查点签字前不执行 Off-deck / Shelf 注销。23/23 On-deck 的 UI/FACT/FS Evidence 冻结后，可在同一主 Canary 上继续 G/H，以避免再复制整套媒体；破坏后的现场不能再反向充当 Formation 成功证据。污染后的重建规则：保留失败现场，再从不可变基线创建一个此前不存在的新 Canary；禁止 `/MIR` `/MOVE` `/PURGE`。合法 On-deck 后与基线有 diff **不是**污染。
 
-「生产 Canary 部署」与样本库 `F:\canary` 不是同一个词。
+「生产 Canary 部署」与本地 Movie Canary 样本库不是同一个词。
+
+### 6.1 Beta 发布资格冻结规则
+
+1. 开始前必须证明当前分支为 `main`、工作区 clean，并把精确 commit SHA 写入 Evidence。Service、Admin Web 和所有恢复场景都必须从该 SHA 构建和启动。
+2. 同一资格运行期间不得修改代码或文档。发现产品缺陷时保留 UI/FACT/FS/日志与失败现场，登记 UAT，停止该资格运行；修复、回归并提交到 `main` 后，必须以新的 SHA 和新的 clean Canary 从头开始。旧 SHA 的部分通过不得拼接到新 SHA。
+3. `TEMP`、`TMP`、`TMPDIR`、Service data、Workspace、External Landing、Evidence 和测试临时文件全部位于本轮 `F:\shelfdeck_test_zone\runs\BETA-*` 内；不得在 C 盘留下测试临时文件。
+4. 正式业务配置与动作只通过真实 Admin Web 完成；只读 API、数据库、日志、进程、GPU/CPU 和文件系统观测用于交叉取证，不得制造业务状态。
+5. 八个一级入口全部执行首次打开、直接刷新、返回和长任务并发可用性检查；健康状态并入“我的收藏”，不得再按第九页验收。
+
+### 6.2 最终专项场景
+
+- **Formation / FFmpeg：** 覆盖 Direct、Remux、Transcode、External、BDMV、ISO、缺 NFO、身份确认、Frozen 后瑕疵接纳；真实长转码必须显示连续、同一身份的进度，并同步记录 CPU、GPU decoder/encoder、RSS、Event-loop lag 与关键页面响应时间。
+- **UAT-127 恢复：** 在真实转码处于活动状态且已产生非零进度后安全终止 Service，再以同一 data directory 和同一 SHA 启动；同一执行身份继续，进度不得倒退到零或产生冲突，最终只产生一次物理效果与一次 On-deck。
+- **Aftercare / UAT-128：** 23/23 On-deck 后先通过页面同步豆瓣评分，证明相应 Aftercare 被真实触发、完成并留下可见结果；再对一个已登记的非 Primary Artifact 做有界缺失注入并验证修复。旧输入 Handle 与同路径 Product Binding 并存时，Settlement 必须精确收口，不能多重匹配、误删或连坐其他 Entry。
+- **Procurement / UAT-129：** 使用独立的小型 Recovery Canary，在 retry intent 已持久化而消费尚未完成的窗口终止 Service；重启后 Outbox 必须交付，Preparation 只能恢复一次且没有重复 Candidate/Subject。若产品没有安全、确定性的人工停点，真实运行证明终端 replay，并以覆盖该精确 crash window 的自动化用例补足。
+- **UAT-125 后台治理：** 主流程收口后保持同一 SHA 与 data directory 连续运行至少 24 小时；验证共享 Runner 的隔离、后台状态卡、People 增量成本、Libra/Aftercare Workspace 回收、无无限重试、无磁盘持续泄漏，并记录页面响应与 event-loop 指标。
+- **G/H：** 只有 23/23 On-deck 检查点完成封存后，才从正式 UI 执行全量 Off-deck 和 Shelf Deregistration；逐项核对授权、物理删除、Deck Fact/Control 终结，以及注销本身零文件副作用。
+
+总体 `PASS` 只属于同一个冻结 SHA：旅程 A–I 全部完成，23/23 主检查点成立，专项恢复和 24 小时观察通过，最终 `FAILED=0`、`BLOCKED=0`、无未解释 `NOT_RUN`。
 
 ## 7. 验证方法与 Evidence
 

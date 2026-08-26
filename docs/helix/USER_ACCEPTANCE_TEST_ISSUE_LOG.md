@@ -193,6 +193,13 @@ User Perception全面取消year关联校验，year仅作为资料保存/展示�
 | UAT-116 | 同根Field/Shelf使Aftercare验证形成重复Resource Demand，Event在Attempt前被Foundation拒绝并反复ready | `RESOURCE_CAPACITY` | `SAME_ROOT`、`LIVENESS` | Composition Resource Demand mapping | 活性、CPU、资源正确性 | Critical | `FACT/REGRESSION/RESTART PASSED / CLOSED` |
 | UAT-117 | Aftercare播放验证借用了Libra Workspace端口，Arca Handle在真正解码前被拒绝 | `DOMAIN_ORCHESTRATION` | `MEDIA_VERIFICATION`、`BOUNDARY_CORRECTNESS` | Arca Aftercare playback verification | 活性、边界正确性、成品验证 | Critical | `FACT/FS/RESTART PASSED / CLOSED` |
 | UAT-118 | AVI转MKV后物理文件虽正确，Inventory与Material Control仍保留旧AVI Primary | `MATERIAL_CONTROL` | `INVENTORY_INTEGRITY`、`MEDIA_PRODUCTION` | Arca Aftercare Inventory replacement | 收藏健康、控制正确性、幂等 | Critical | `UI/FACT/FS/RESTART PASSED / CLOSED` |
+| UAT-119 | TMDB连接缺少可配置代理服务器，受限网络无法统一配置API与图片出口 | `EXTERNAL_INTEGRATION` | `INTEGRATION_CONFIGURATION`、`NETWORK_ACCESS`、`USER_EXPERIENCE` | Platform TMDB Integration + Settings | 可达性、配置安全、用户可理解性 | Critical | `CODE/REGRESSION PASSED / REAL PROXY CANARY NOT RUN` |
+| UAT-120 | Formation列表因可变业务时间重排，刷新后媒体位置跳动 | `USER_EXPERIENCE` | `PROJECTION_STABILITY`、`PAGINATION` | Libra Formation Query + Admin Web | 队列可读性、分页稳定性 | High | `REGRESSION PASSED / UI CANARY PENDING` |
+| UAT-121 | FFmpeg设备声明、预检与实际编码管线不一致，可能产生错误码控或不合格HDR/DV成品 | `PRODUCT_CONFORMANCE` | `MEDIA_PRODUCTION`、`DEVICE_QUALIFICATION` | Libra/Arca Media Production + Platform Compute Device | 画质、成品正确性、可审计性 | Critical | `PIPELINE/FULL CANARY/REGRESSION PASSED / CLOSED` |
+| UAT-122 | GPU编码仍由CPU解码且长进程缺少统一关闭、deadline和真实错误尾部 | `PERFORMANCE` | `RESOURCE_EFFICIENCY`、`OPERATIONAL_SAFETY` | Libra/Arca FFmpeg Effect + Service lifecycle | CPU占用、页面响应、停止安全 | Critical | `FULL CANARY/PERFORMANCE/RESTART PASSED / CLOSED` |
+| UAT-123 | GPU/CPU路径与fallback必须按已验证设备能力执行，不得在同一Event中隐藏降级 | `RESOURCE_CAPACITY` | `STRATEGY_INTEGRITY`、`RECOVERY_CORRECTNESS` | Platform Device Probe + Libra Media Planner | GPU利用、CPU fallback、恢复正确性 | Critical | `STRATEGY CANARY/PIPELINE/REGRESSION PASSED / CLOSED` |
+| UAT-124 | 转码完成到Product Conformance接续窗口短暂误报“媒体整理执行失败” | `USER_EXPERIENCE` | `PROJECTION_TRUTH`、`MEDIA_PRODUCTION` | Libra Formation Query | 状态真实性、转码进度连续性 | High | `FACT/REGRESSION/RESTART PASSED / CLOSED` |
+| UAT-125 | 后台周期检查缺少完整Workspace治理、低成本域内检查与用户可见状态 | `DOMAIN_ORCHESTRATION` | `PERFORMANCE`、`USER_EXPERIENCE`、`PLATFORM_INTEGRATION`、`RECOVERY_CORRECTNESS` | Foundation Domain Reconcile Runner + People/Perception/Procurement/Libra/Arca Owner + Platform Workspace Registry + Admin Web | 活性、页面响应、空间治理、配置安全、可观察性 | Critical | `LOCAL IMPLEMENTATION AND REGRESSION PASSED / FULL-CHAIN CLEANUP CANARY PENDING` |
 | UAT-126 | Frozen条目只有放弃路径，演员确实无外部资料或外部寻源耗尽时不能由用户显式接受瑕疵入库 | `BUSINESS_CONTRACT` | `AUTHORIZATION_FENCE`、`DOMAIN_ORCHESTRATION`、`USER_EXPERIENCE` | Libra Defect Admission + Handoff B + Arca Aftercare + Admin Web | 用户决断、事实真实性、活性、售后边界 | Critical | `IMPLEMENTED / TARGETED LOCAL PASS / ISOLATED CANARY PENDING` |
 | UAT-127 | 同一执行中的转码在服务重启后复用不完整Progress身份，并从0开始回报导致冲突或回退 | `RECOVERY_CORRECTNESS` | `PROGRESS`、`MEDIA_PRODUCTION` | Foundation Event Runtime + Libra FFmpeg Effect | 转码活性、进度真实性、重启恢复 | Critical | `CODE/FULL REGRESSION PASSED / ACTIVE-TRANSCODE RESTART CANARY PENDING` |
 | UAT-128 | Aftercare旧材料Handle被同路径Product Binding误判为多重匹配，Settlement持续恢复失败 | `RECOVERY_CORRECTNESS` | `MATERIAL_CONTROL`、`DESTRUCTIVE_SAFETY` | Arca Aftercare Settlement | 售后活性、删除安全、材料边界 | Critical | `CODE/FULL REGRESSION PASSED / SETTLEMENT RESTART CANARY PENDING` |
@@ -3595,6 +3602,126 @@ Media Verify与前序Transcode在同一Work内，Foundation已把前序Result作
 第一层缺陷把Matroska/HEVC字节写回`.avi`文件名；改为按Workspace产物扩展生成`.mkv`后，第二层缺陷暴露：Receipt的旧AVI只在`supersededMaterialIdentity`，而Inventory变化只按`retiredMaterials`或相同目标路径释放，revision 2于是同时保留AVI/MKV两个Primary且两者均controlled。修复仅在旧身份确属冻结Inventory时release，未纳管NFO drift仍不释放；新Primary同时继承原episode claims，跨扩展回滚恢复原文件名。
 
 v5最终物理目录只有728,533,253-byte MKV、NFO与图片，无AVI或superseded残留；revision 2恰有一个active Primary=MKV，旧AVI Control为released、新MKV由同一Shelf Entry controlled。Case为`resolved / reassessed_healthy`，Admin Web显示`694.8 MB · MKV`、豆瓣3星和三维健康；重启后所有计数不变。状态`UI/FACT/FS/RESTART PASSED / CLOSED`。
+
+## 116. UAT-119：TMDB连接缺少可配置代理服务器
+
+问题分类：`INTEGRATION_CONFIGURATION / NETWORK_ACCESS / USER_EXPERIENCE`
+
+用户侧现象：系统设置只能填写TMDB Credential和首选语言；在必须经代理访问TMDB的网络环境中，连接测试、资料请求与图片请求均无法配置出口。
+
+精确根因：TMDB Platform settings是只允许`language`的closed shape，Adapter的API、人物头像和Poster/Fanart请求都直接调用`fetch`，没有消费任何代理配置。仅增加前端输入框不会改变运行时网络路径。
+
+修复边界与验收：TMDB settings新增可选`proxyServer`，只接受不含账号密码、路径、query或fragment的HTTP/HTTPS Origin；空值明确表示直连。首次连接测试、后续Identity/Metadata API、People头像及Poster/Fanart统一使用同一保存设置。现有只含`language`的配置继续合法读取；Credential、代理认证与原始图片地址仍不得进入浏览器、Work或Domain Fact。
+
+验收证据：冻结前TMDB专项11/11证明配置规范化、非法认证URL拒绝、保存/重放、重启后的API请求与图片请求均注入代理Dispatcher；Admin Web 28/28与production build通过；完整Service回归331 pass / 18 environment skip / 0 fail。实现提交为`03b61be5f`。未提供可用于资格测试的真实代理，因此当前状态`CODE/REGRESSION PASSED / REAL PROXY CANARY NOT RUN`。
+
+## 117. UAT-120：Formation列表必须保持稳定媒体顺序
+
+问题分类：`USER_EXPERIENCE / PROJECTION_STABILITY / PAGINATION`
+
+用户侧现象：媒体状态、进度或更新时间变化后，Formation同一页的行会重新排序；长队列刷新时用户难以持续跟踪同一影片，分页边界也可能漂移。
+
+精确根因：Projection把可变的业务更新时间当作位置时间。修复将位置锚定到不可变的Subject创建时间，并在服务端使用稳定的时间与Subject ID次序完成筛选、排序和分页；前端不再自行改变服务端队列顺序。专项Formation回归15/15通过。当前状态`REGRESSION PASSED / UI CANARY PENDING`。
+
+## 118. UAT-121：FFmpeg画质资格必须覆盖真实设备管线和成品Profile
+
+问题分类：`PRODUCT_CONFORMANCE / MEDIA_PRODUCTION / DEVICE_QUALIFICATION`
+
+用户侧现象：此前设备探测只证明编码器名称可调用；实际预检与转码又分别拼接参数，NVENC、QSV、VAAPI、CPU共用并不等价的码控参数。系统因此无法证明SDR/HDR保持、DV转SDR、目标码率和最终Matroska成品使用的是同一条合格管线。
+
+修复边界：新增唯一的typed FFmpeg pipeline compiler，由Device Probe、Libra预检、Libra转码和Arca Aftercare转码共同消费。不同backend使用各自的quality/ABR参数；普通SDR/HDR与DV转SDR均执行生成输入、真实解码编码、输出Profile检查和再次解码。预检在5%/50%/95%位置按实际音视频/字幕映射验证最终Matroska mux，不以video-only null输出代替成品资格。
+
+首轮Canary补充发现：大量真实普通影片因缺少完整色彩标签被Probe记为`unknown`，而初版收紧后的设备资格只广告`sdr/hdr10_compatible`，导致NVENC与CPU在FFmpeg前被正确但过度地拒绝。修复没有绕过校验，而是新增无色彩标签的生成输入，要求实际解码、编码、输出非HDR Profile和再次解码均通过后才广告`unknown`。
+
+验收证据：本机NVENC的`target_size / strict_abr / quality_bound`普通（含`sdr/hdr10_compatible/unknown`）与DV Profile全通过；unknown专项5/5、相关专项42 pass / 4 environment skip / 0 fail。修复后完整Canary中，《锡尔弗顿之围》保持1920x1080 SDR安全Profile、两条EAC3和26条字幕的顺序、语言、标题及默认标记；《养蜂人》HEVC Main10 BT.2020/PQ直通未被误转码。最终完整Service 330 pass / 18 environment skip / 0 fail。状态`PIPELINE/FULL CANARY/REGRESSION PASSED / CLOSED`。
+
+## 119. UAT-122：GPU转码必须使用硬件解码并正确收口长进程
+
+问题分类：`PERFORMANCE / RESOURCE_EFFICIENCY / OPERATIONAL_SAFETY`
+
+用户侧现象：Formation显示GPU转码时，《养蜂人》仍造成明显CPU占用；服务停止、执行deadline或授权变化时也缺少统一的FFmpeg子进程收口，长stderr只保留开头而可能丢失真正根因。
+
+精确根因：旧命令只选择GPU encoder，没有配置对应hardware decoder；Libra与Aftercare各自启动子进程，生命周期没有共享登记。修复为NVENC/QSV/VAAPI普通管线加入匹配的hardware decode输入参数；DV软件tone-map显式标记为`CPU decode/filter + GPU encode`混合路径。所有clean FFmpeg进程纳入Service registry，遵守Event deadline与continuation fence，shutdown先终止并等待子进程，诊断保留最后256 KiB。
+
+验收证据：《养蜂人》同源短样本中，旧CPU-decode/GPU-encode整机CPU约4.14%，新GPU-decode/GPU-encode约0.10%。完整Canary中，《锡尔弗顿之围》FFmpeg整机CPU平均约0.63%、峰值约1.46%，NVIDIA encoder约50%–51%、decoder约19%–23%；Formation从约7.3%持续显示到100%。最新`main`安全重启后Health正常、3部影片均完成、无FFmpeg/FFprobe遗留进程。状态`FULL CANARY/PERFORMANCE/RESTART PASSED / CLOSED`。
+
+## 120. UAT-123：CPU fallback必须是独立Strategy/Work而非FFmpeg调用内暗降级
+
+问题分类：`RESOURCE_CAPACITY / STRATEGY_INTEGRITY / RECOVERY_CORRECTNESS`
+
+SSOT要求：Planner按已资格化设备依次选择NVENC、QSV、VAAPI、remote，CPU保持`backup_only`；某设备或管线终态`strategy_rejected`后，才创建下一份冻结的Plan/Work/Event。单个Event不得在内部从GPU静默改用CPU。
+
+修复与审计结论：clean Helix的Libra Planner既有独立fallback语义保持不变；新Device Probe只广告通过全管线资格的设备、Profile与码控模式，执行层严格消费冻结的device class，不做隐藏fallback。历史`src/services/transcodeService.js`仍保留旧Kairox内部降级实现，但当前`src/server.js`只组合clean service，Libra与Aftercare均不可达该旧执行器；本轮不以清理历史实现扩大修复边界。
+
+验收证据：首轮真实Canary在`unknown` Profile被收紧时，先产生NVENC Strategy assessment，终态拒绝后再产生独立的CPU assessment Work，证明接续没有藏在同一Event内；随后本机CPU无标签输入全管线资格与NVENC三种码控均通过。Planner/device/fallback合同和最终完整Service回归通过。QSV只能在具有对应硬件的Linux环境广告和资格化，不属于本机NVENC资格的伪通过条件。状态`STRATEGY CANARY/PIPELINE/REGRESSION PASSED / CLOSED`。
+
+## 121. UAT-124：转码阶段接缝不得短暂误报整次整理失败
+
+问题分类：`USER_EXPERIENCE / PROJECTION_TRUTH / MEDIA_PRODUCTION`
+
+用户侧现象：《锡尔弗顿之围》实际FFmpeg仍按计划完成，Event、Attempt与进度均为成功，但Formation在转码100%到后续Product Conformance/Package接续的短窗口内短暂显示“媒体整理执行失败，需要处理”，随后又自动完成上架。
+
+精确根因：Formation Query把Run历史中Direct候选的`ProductMediaVerification failed`当成整次整理的终局业务失败。该Fact只表示Direct候选不满足要求，合法的Transcode Strategy成功后仍保留历史；当已有Work刚全部终结而下一Work尚未进入Projection时，旧候选失败被错误捞回。UAT-086只覆盖了“旧失败+已存在开放successor Work”，没有覆盖零开放Work的Promotion接缝。
+
+修复边界：只修Libra Formation Query。候选媒体验证与输出选择不得直接成为Formation终局失败；终局问题只认Run冻结/暂停、failed/blocked Work、最终Product Conformance失败、Artifact终局不可得及Arca recovery/attention。Active Run在阶段接缝保持`in_progress`并显示“准备下一项整理工作”。没有修改Foundation、Coordinator或业务Handoff。
+
+验收证据：真实Canary保留了旧投影误报与成功Event时间线；新增Direct失败→Transcode成功→Active Run无开放Work、最终Conformance失败两个正反回归，Formation专项24/24通过，完整Service 330 pass / 18 environment skip / 0 fail。最新提交重启后Projection ready、3部影片完成、attention=0。状态`FACT/REGRESSION/RESTART PASSED / CLOSED`。
+
+## 122. UAT-125：后台周期检查与Workspace生命周期必须低成本、完整且对用户可见
+
+问题分类：`DOMAIN_ORCHESTRATION / PERFORMANCE / USER_EXPERIENCE / PLATFORM_INTEGRATION / RECOVERY_CORRECTNESS`
+
+用户侧现象：ShelfDeck虽然每30秒会统一唤醒一次Domain Reconcile Runner，但用户看不到后台最近是否检查、是否正常、还有多少真正待处理项；People检查会周期性重复读取较大范围数据；Libra Run完成或Discard后，页面可以显示业务已终结，但Production Workspace中的中间材料可能长期占用磁盘。Production Workspace目录只能通过启动环境变量指定，管理后台不能配置，也不能安全地把已有实例切换到新目录。
+
+现场证据与精确诊断：
+
+- 现有30秒共享Runner及“Runner只负责叫醒、各Domain判断是否到期”的架构成立，不需要新增低频Runner；每个scope失败已有隔离和事件循环让步，但某个registration在`listPage`阶段失败仍会中止本轮后续checklist。
+- People的On-deck Person Evidence每轮从关系表重新分页；逐项判重又读取完整People和Registration Candidate集合，库增大后形成重复查询与页面响应风险。优化点属于People Owner内部查询和已处理Evidence判断，不改变Runner周期。
+- 后端没有面向Admin Web的后台运行只读Projection。前端无法区分“检查成功但时间未到”“没有待处理项”“正在处理”和“检查失败”。
+- `LIBRA_WORKSPACE_ROOT`和`ARCA_AFTERCARE_WORKSPACE_ROOT`支持部署启动时指定目录；Libra Root首次初始化后以固定`configRevision=1`和resolved path登记，修改路径会触发root conflict。当前没有Admin配置接口，Libra自定义Root也没有像Aftercare一样在创建前后完整校验与活动Material Field、Shelf Target、External Landing及其他Workspace Root不重叠。
+- Arca On-deck Input Settlement会在最终Shelf Reality验证后清理需要settle的交付输入；Aftercare Workspace已经通过共享Runner、24小时保留期、引用/Work Fence、精确Handle集合、物理删除、空目录删除和forward recovery闭环。
+- Libra底层`reclaimMaterial`、Cleanup Scope/Member、Off-load Completion Projection和历史Responsibility Closure Coordinator均存在；Discard也会原子建立Cleanup Scope并发送`libra.workspace-cleanup.requested@1`。但当前Outbox consumer只记录/确认该wake并唤醒Execution Host，生产Composition没有注册Libra Workspace Reclaimer，Libra执行Capability集合也没有启用`libra.workspace.material.reclaim@1`与`libra.workspace.cleanup.commit@1`。因此Completed Run遗留的Supporting Material及Discarded Run Workspace没有稳定的产品路径回收，Libra空Workspace目录也不会由底层逐文件删除自动收口。
+- 本地`main`定向验证中，Discard合同、Cleanup admission/commit、Outbox wake和Aftercare lifecycle等41项测试全部通过；显式Workspace Root启动配置测试通过。证明Libra Handoff B至物理Cleanup的Clean Service集成测试仍为`skip`，不能据此声明Libra产品路径Cleanup可运转。
+
+业务影响：
+
+1. 用户无法判断后台是正常空闲、尚未到期、正在工作还是已经失败，只能通过页面数据长期不变或磁盘增长反推。
+2. People关系和候选规模增长后，30秒周期检查可能制造持续SQLite/CPU开销，拖慢Admin Web及其他Domain检查。
+3. 某个checklist在取待处理页时失败，后续Domain可能错过本轮唤醒；虽然下一轮仍会重试，但故障不可见且会放大时效波动。
+4. Libra Workspace材料持续积累后会消耗磁盘，最终令新Run因Workspace空间不足而无法开始；Discard显示完成但物理空间未释放，用户认知与系统现实不一致。
+5. 未经完整重叠校验的自定义Libra目录可能落入文件来源、正式Shelf或其他受控Root，带来写入、回收目标混淆和误伤风险。
+
+确认的修复边界：
+
+1. 保留一个30秒共享`DomainReconcileRunner`；不增加低频Runner，不建设新的Scheduler、Automation Supervisor、Task表或跨Domain运行时。
+2. 在Runner最外层隔离每个registration的`listPage + reconcile`结果。一个checklist失败必须记录错误并继续后续checklist；已有page limit、time budget、cursor、scope级隔离及event-loop yield保持不变。
+3. People只查询当前有资格且尚未消费的Person Evidence，并使用Owner-local精确Identity/Evidence查找完成判重；禁止每个Evidence重复加载完整People和Candidate集合。其他Domain同样先做廉价到期/eligibility判断，再进入有界分页处理。
+4. 增加只读后台运行状态Projection及`GET /v1/admin/*`查询。它至少返回Runner总体状态和每个checklist的最近开始/完成时间、结果种类、处理数量、简短错误码以及可选的Domain next-due；不得成为业务授权、历史Task账本或新的调度来源。
+5. Admin Web首页只增加简化卡片：`状态`、`最近检查`、`待处理`，存在异常时显示一条最重要的问题。点击后才显示豆瓣、Observation、People、Libra Workspace Cleanup、Aftercare等checklist的`状态 / 最近运行 / 结果`。`待处理`只统计真正待执行或需关注项，不把“已检查但时间未到”计入；页面刷新只读状态，不触发Runner。
+6. 增加Production Workspace自定义目录设置，展示当前有效目录、待生效目录、校验结果和“重启后生效”。保存前必须验证absolute/canonical path、创建与读写删除能力、atomic rename、可用空间、mount identity，以及与活动Material Field、Shelf Target、External Landing、Aftercare和其他Workspace Root不重叠。
+7. Workspace Root切换只允许在没有active或unreclaimed Libra Workspace时提交，并按Platform Workspace Root revision合同推进；重启后只让新Workspace使用新Root。不得在线搬迁、自动复制或删除旧目录，不得改写既有Handle/Physical Material Identity。旧Root只有在Owner事实证明零活动、零引用、零待回收后才可由用户另行处理。
+8. 把Libra Workspace Reclaimer注册进现有共享Runner。Off-load和Cleanup Signal只负责提前wake；Reclaimer仍由Libra周期读取Arca durable Off-load Completion Projection，并在Domain内部执行15分钟fallback到期判断、24小时grace及两次相隔一个cycle的Reference/Control真实审计。
+9. Completed Run与Discarded Run都必须通过现有Cleanup Scope、精确Handle、Effect Intent、Deletion Evidence、Reference/Control release和幂等commit闭环。只删除Libra拥有且已证明可回收的Workspace Material；正式外部Input、Shelf Inventory、External Landing及Aftercare材料不进入该scope。全部声明成员terminal reclaimed后，安全删除已空的Run Workspace目录；未知成员必须fail closed并显示为需关注。
+10. 保持Arca On-deck Settlement与Aftercare Workspace Lifecycle现有Owner、保留期、Fence和恢复路径，不把Libra清理责任移动给Arca，也不以Arca Signal代替Libra独立读取Owner Projection。
+
+明确不做：不调整30秒Runner周期；不增加长周期Runner；不允许用户逐项修改Domain cadence；不提供“立即执行、暂停、强制清理”按钮；不建设完整任务历史或日志浏览器；不做Workspace在线迁移、自动搬旧文件或兼容双Root；不修改Business Domain、Owner、Handoff、Material Control或SSOT。
+
+验收证据要求：
+
+- Runner专项证明registration的`listPage`异常、单scope异常、超时预算和空页互不阻塞后续checklist，cursor可重试且服务保持ready。
+- People专项以大规模关系fixture证明每轮只处理有资格增量，SQL/Store读取有界，不再形成逐Evidence全量People/Candidate扫描；同时保护强Identity自动登记、弱Evidence候选和幂等重放。
+- 后台状态API和Admin Web专项证明“正常空闲 / 等待业务时间 / 正在处理 / 需要关注 / 重启后等待首次检查”五种状态真实；首页仅显示三项摘要，详情行不泄漏Stack、Secret或内部业务授权对象。
+- Workspace Root专项覆盖全新自定义目录、不可写、非absolute、Field/Shelf/Landing/Aftercare/Workspace重叠、symlink/realpath变化、active/unreclaimed Workspace阻止切换、revision冲突、重启生效和旧目录完全不动。
+- Libra Cleanup必须有启用的Clean Service集成测试，覆盖Handoff B Accepted/On-deck/Off-load后Signal可见与丢失两路、24小时grace、两次审计、活动Reference/Control阻断、逐成员物理Effect前后崩溃、未知成员、空目录收口及重启幂等；最终同时核对磁盘absence、Workspace/Material/Reference/Control Owner事实和Reclamation Receipt。
+- Discard集成测试必须证明业务终态、Control释放、Cleanup wake和最终物理回收连续；cleanup尚未完成时公开状态不得伪装成已释放空间。
+- Aftercare lifecycle、Arca On-deck Settlement、周期豆瓣、Field Observation、Off-deck policy及Startup Recovery执行完整回归，证明本修复没有扩大Owner或改变既有cadence。
+- 完整Service回归、Admin Web测试与production build通过；使用disposable本地Root完成FS/RESTART Canary。未取得真实Admin Web、文件现实和重启Evidence前，本UAT不得标记`PASS/CLOSED`。
+
+本地实现进展（2026-08-25）：保留单一30秒Runner并补齐registration外层隔离和只读状态快照；People判重改为Owner-local精确Identity/Evidence查询；Admin首页增加简化后台检查卡片；Production Workspace支持后台验证、revision提交和重启生效；Libra Completed/Discard Cleanup已接入共享Runner的15分钟fallback及Signal提前到期，继续复用24小时grace、两次审计、精确Handle/Effect/Evidence/commit，并在最后成员提交前安全收口空目录，未知成员fail closed。未新增Scheduler、Task表、手动运行、在线迁移或双Root。
+
+本地验收证据（2026-08-25）：完整Service `330 pass / 18 environment skip / 0 fail`；Admin Web `28/28`及production build通过；Runner、People、Workspace Root、Clean Service入口、Outbox、Discard、Cleanup合同、Aftercare lifecycle/safety共72项定向回归通过；Disposable Root覆盖absolute/overlap/symlink、active Workspace阻断、revision重放、重启生效、旧Root不动及未知成员不删除。历史Movie Handoff B同步式Clean Service集成测试仍为`skip`且已不符合当前background Observation入口，因此本条尚不以该旧测试伪报完整物理Cleanup Canary。
+
+当前处理决定：`LOCAL IMPLEMENTATION AND REGRESSION PASSED / DISPOSABLE FULL-CHAIN CLEANUP CANARY PENDING`。不授权Docker、NAS、生产部署、真实媒体副作用或Workspace迁移。
 
 ## 123. UAT-126：Frozen条目缺少用户显式瑕疵入库闭环
 

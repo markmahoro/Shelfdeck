@@ -14,32 +14,33 @@
 
 下一轮只有在以下结论同时成立时，才可以标记为 `PASS`：
 
-1. `F:\test_film` 在开始和结束时完全相同；
-2. `F:\canary` 从基线的精确副本开始，只通过真实 Admin Web 业务流程发生变化；
-3. 22 个顶层媒体单元形成 23 个 Movie Subject：`养蜂人 (2024)` 顶层目录内的现成 MKV 与嵌套 BDMV 是两部独立电影，其余顶层单元各一部；
-4. 23/23 Movie 全部到达 Arca On-deck Commit；
-5. Arca 中存在 23 个唯一 active Shelf Entry、23 个唯一 active Deck Fact，并且每个 Entry 的
-   Inventory 能逐文件解释 `F:\canary` 中的最终现实；
-6. `F:\canary` 最终有 23 个用户可读的电影目录，每部电影只有一个最终 Primary 现实；`养蜂人` 的 MKV 部与 BDMV 部都必须上架，各占一个可区分目录；
-7. 页面刷新、服务重启和重复 reconcile 不产生重复事实、重复文件或状态倒退；
-8. 没有未闭环技术失败、无 Ack Delivery、悬空 Acceptance、无限恢复循环或用户不可见的未知候选行为；
-9. 全程未访问 `Z:\Film`、G 盘旧 Canary、NAS、SSH、Docker、生产环境或 Canary 以外媒体目录。
+1. 当前分支是 clean `main`，冻结精确 commit SHA；全部Evidence来自同一SHA，期间没有代码或文档漂移；
+2. `<BASELINE_ROOT>` 在开始和结束时完全相同；
+3. `<CANARY_ROOT>` 从基线的精确副本开始，只通过真实 Admin Web 业务流程发生变化；
+4. 22 个顶层媒体单元形成 23 个 Movie Subject：`养蜂人 (2024)` 顶层目录内的现成 MKV 与嵌套 BDMV 是两部独立电影，其余顶层单元各一部；
+5. Frozen/需要处理被真实展示；属于允许范围的瑕疵由用户从正式页面接纳后，23/23 Movie 全部到达 Arca On-deck Commit；
+6. Arca 中存在 23 个唯一 active Shelf Entry、23 个唯一 active Deck Fact，并且每个 Entry 的
+   Inventory 能逐文件解释 `<CANARY_ROOT>` 中的最终现实；
+7. `<CANARY_ROOT>` 最终有 23 个用户可读的电影目录，每部电影只有一个最终 Primary 现实；`养蜂人` 的 MKV 部与 BDMV 部都必须上架，各占一个可区分目录；
+8. 页面刷新、活动转码重启、Procurement retry恢复和重复 reconcile 不产生重复事实、重复文件、进度归零或状态倒退；
+9. 豆瓣同步真实触发并完成Aftercare，缺失非Primary Artifact修复和旧Handle Settlement通过；共享后台Runner连续24小时无连坐、无限重试、磁盘泄漏或页面性能恶化；
+10. 没有未闭环技术失败、无 Ack Delivery、悬空 Acceptance、无限恢复循环或用户不可见的未知候选行为；
+11. 全程未访问 `Z:\Film`、G 盘旧 Canary、NAS、SSH、Docker、生产环境或 Canary 以外媒体目录。
 
 任一项不成立，即使自动化测试全部通过，也不能宣布本轮成功。
 
 ## 2. 本轮成功检查点与破坏性后续阶段
 
-本文定义的主成功检查点是：**23/23 已稳定进入 Arca，且 `F:\canary` 已整理完成并保留现场**。
+本文定义的主成功检查点是：**23/23 已稳定进入 Arca，且 `<CANARY_ROOT>` 已整理完成并保留现场**。
 
 在该检查点完成截图、逐文件清单和签字以前：
 
 - 不执行 Off-deck；
 - 不执行 Shelf Deregistration；
-- 不删除或重建已经通过的 `F:\canary`。
+- 不删除或重建已经通过的 `<CANARY_ROOT>`。
 
 原因是 Off-deck 的正式目标就是退出收藏并可能删除已授权的 Inventory 文件；如果先执行它，便无法再用
-`F:\canary` 的整理终态证明本轮 Collection Formation 成功。Aftercare、Off-deck 和 Shelf
-Deregistration 如需继续验收，应在主检查点签字后作为第二阶段记录，或从 `F:\test_film` 另建新的 Canary 运行。
+`<CANARY_ROOT>` 的整理终态证明本轮 Collection Formation 成功。封存该检查点后，在同一主Canary继续Aftercare、Off-deck和Shelf Deregistration；破坏后的终态不得反向替代已封存的Formation证据。UAT-129使用独立的小型Recovery Canary。
 
 ## 3. 固定物理边界与基线指纹
 
@@ -47,10 +48,10 @@ Deregistration 如需继续验收，应在主检查点签字后作为第二阶�
 
 | 用途 | 固定路径 | 权限/作用 |
 | --- | --- | --- |
-| 不可变基线 | `F:\test_film` | 只读；禁止写入、移动、改名或删除 |
-| Material Field | `F:\canary` | 只允许本轮 ShelfDeck 流程操作 |
-| Shelf Physical Target | `F:\canary` | 与 Material Field 同根 |
-| Libra Workspace | `<isolated UAT data directory>\workspaces\libra` | 系统隔离、按需创建；不得指向 Canary |
+| `<BASELINE_ROOT>` | `F:\shelfdeck_test_zone\test_film` | 只读；禁止写入、移动、改名或删除 |
+| `<CANARY_ROOT>` | `F:\shelfdeck_test_zone\canary-beta-<timestamp>-<short-sha>` | 同根Material Field与Shelf Target；只允许本轮流程操作 |
+| `<RUN_ROOT>` | `F:\shelfdeck_test_zone\runs\BETA-<timestamp>-<short-sha>` | data、Workspace、Landing、Evidence、TEMP/TMP/TMPDIR |
+| Libra Workspace | `<RUN_ROOT>\workspaces\libra` | 系统隔离、按需创建；不得指向 Canary |
 
 G 盘旧目录只作为历史现场，不属于下一轮测试范围，不读取、不复用。
 
@@ -76,18 +77,17 @@ G 盘旧目录只作为历史现场，不属于下一轮测试范围，不读取
 
 ### 3.3 Clean Canary 起点
 
-正式 Observation 前，`F:\canary` 必须是从 `F:\test_film` 复制得到的新目录，并通过相同四项严格比较。
+正式 Observation 前，`<CANARY_ROOT>` 必须是从 `<BASELINE_ROOT>` 复制得到的此前不存在的新目录，并通过相同四项严格比较。
 禁止使用 `/MIR`、`/MOVE`、`/PURGE`，禁止覆盖一个已有目录来伪装 clean start。
 
-如果上轮 Canary 已被业务流程或失败修复污染，应先原子重命名保存为
-`F:\canary.failed-<timestamp>-<short-sha>`，再创建原本不存在的 `F:\canary`。历史失败现场不得删除。
+如果上轮 Canary 已被业务流程或失败修复污染，保留为独立失败现场；再以新timestamp/SHA创建另一个此前不存在的`<CANARY_ROOT>`。历史失败现场不得删除。
 
 ## 4. 必须通过页面确认的运行配置
 
 以下配置必须在 Admin Web 中可见、可保存，并在刷新后保持：
 
-- Material Field：`F:\canary`；
-- Shelf Target：`F:\canary`；
+- Material Field：`<CANARY_ROOT>`；
+- Shelf Target：`<CANARY_ROOT>`；
 - TMDB 语言：`zh-CN`；
 - MoviePilot 最大下载尝试：3；
 - MoviePilot Landing 与 Libra Workspace 互相独立，也都不与 Field/Shelf 重叠；
@@ -140,7 +140,7 @@ G 盘旧目录只作为历史现场，不属于下一轮测试范围，不读取
 - Frozen、Suspended、Executor failure、身份待确认、Acceptance 技术失败是“需要处理”；
 - 用户放弃的旧 Run 只在历史中显示“已结束 · 用户放弃”，不能占用当前四桶的重复名额。
 
-## 6. `F:\canary` 的最终目录合同
+## 6. `<CANARY_ROOT>` 的最终目录合同
 
 ### 6.1 顶层必须恰好是以下 23 个目录
 
@@ -249,7 +249,7 @@ Direct 可以保留经验证的扩展名，Remux/Transcode 通常形成 `.mkv`�
 | 字段 | 成功要求 |
 | --- | --- |
 | Role | `primary_payload`、`metadata_sidecar`、`subtitle`、`poster`、`fanart` 或明确 Related role |
-| 文件名/相对路径 | 精确相对于 `F:\canary`，用户可读，不泄漏内部 ID |
+| 文件名/相对路径 | 精确相对于 `<CANARY_ROOT>`，用户可读，不泄漏内部 ID |
 | 大小 | 与磁盘实际字节一致 |
 | 当前状态 | current/active，或明确 superseded/settled 历史 |
 | 来源/形成方式 | Direct、Remux、Transcode、External、Provider Artifact 或 carried-forward Related |
@@ -262,7 +262,7 @@ Direct 可以保留经验证的扩展名，Remux/Transcode 通常形成 `.mkv`�
 
 对每个 Entry，必须满足：
 
-`Arca 当前 Inventory 文件集合 = Final Inventory Decision 文件集合 = F:\canary 对应目录的受管文件集合`
+`Arca 当前 Inventory 文件集合 = Final Inventory Decision 文件集合 = <CANARY_ROOT> 对应目录的受管文件集合`
 
 比较至少包括 role、规范相对路径、类型、大小和当前/历史状态。差异处理规则：
 
@@ -293,26 +293,35 @@ Direct 可以保留经验证的扩展名，Remux/Transcode 通常形成 `.mkv`�
 - 重启和重复 reconcile 不重复文件效果、Acceptance、Delivery、Ack、Shelf Entry 或 Deck Fact；
 - 不存在 Handoff B Acceptance 无对应 Ack Delivery，也不存在 On-deck Commit 前未完成的逐成员 Settlement。
 
+### 8.3 最终恢复与后台治理专项
+
+- **活动转码恢复（UAT-127）：** 在非零真实进度时安全终止Service；同一SHA和data directory重启后复用完整Progress身份，进度不归零、不冲突，最终物理效果与On-deck各一次。
+- **Aftercare（UAT-128）：** 23/23检查点后从页面触发豆瓣同步，证明Aftercare Case/Work/Event被触发且跑完；再恢复一个受控缺失的非Primary Artifact。旧输入Handle与同路径Product Binding不得导致多重匹配、误删或跨Entry连坐。
+- **Procurement retry（UAT-129）：** 独立小型Recovery Canary覆盖retry intent持久化后、消费前的中断；重启后Outbox终端交付，Preparation只恢复一次。缺少安全人工停点时，可用真实terminal replay加覆盖精确crash window的自动化Evidence，但不得伪造业务结果。
+- **后台治理（UAT-125）：** 同一冻结SHA和data directory连续运行至少24小时，检查共享Runner registration隔离、People增量成本、Libra/Aftercare Workspace回收、磁盘趋势、Event-loop lag及八个一级入口响应。
+
 ## 9. 证据包与最终判定表
 
-下一轮应在隔离 UAT data directory 外建立只读报告目录，但不得放进 `F:\canary`。至少保存：
+下一轮Evidence固定写入`<RUN_ROOT>\evidence`，不得放进`<CANARY_ROOT>`。至少保存：
 
-1. Git branch、起始 SHA、每个修复 commit SHA、最终 SHA 和 clean status；
-2. `F:\test_film` 开始/结束 Manifest 及零差异报告；
+1. Git branch、冻结 SHA、clean status及Service build identity；资格运行期间不得出现修复commit；
+2. `<BASELINE_ROOT>` 开始/结束 Manifest 及零差异报告；
 3. Clean copy 后 `test_film`/`canary` 四项零差异报告；
-4. On-deck 完成后的 `F:\canary` 完整相对路径/类型/大小/mtime Manifest；
-5. Admin Web 九页首次打开、刷新、返回和服务重启恢复证据；
+4. On-deck 完成后的 `<CANARY_ROOT>` 完整相对路径/类型/大小/mtime Manifest；
+5. Admin Web八个一级入口首次打开、刷新、返回、长任务并发可用性及服务重启恢复证据（健康并入“我的收藏”）；
 6. 23 行 Formation 终态及四桶计数；
 7. 23 张 Arca Entry 详情证据和逐文件 Inventory 导出/截图；
 8. 每部电影的 Inventory/Decision/FS 三方比较结果；
 9. MoviePilot 候选预筛、unknown 可见性、下载和真实 Probe 证据；
-10. 所有失败、根因、修复 commit、专项回归、架构门禁、Admin Web build 和真实页面复测记录。
+10. 活动转码恢复、Aftercare、Procurement retry、24小时后台治理和性能时间线；
+11. 所有失败、根因、对应UAT、架构门禁和停止资格运行的时间点。修复在下一冻结SHA运行，不混入本次Evidence。
 
 最终签字表：
 
 | Gate | PASS 条件 | 结果 |
 | --- | --- | --- |
-| Baseline | `F:\test_film` 前后四项零差异 | |
+| Release identity | clean `main`与冻结SHA；全部Evidence同一build identity | |
+| Baseline | `<BASELINE_ROOT>` 前后四项零差异 | |
 | Clean start | 初始 Canary 与基线四项零差异 | |
 | Identity | 23 Candidate → 23 unique Subject；养蜂人 MKV 与 BDMV 分属两部 | |
 | Ratings | 两部养蜂人及指定豆瓣评分正确；直接评分/清除恢复通过 | |
@@ -323,6 +332,9 @@ Direct 可以保留经验证的扩展名，Remux/Transcode 通常形成 `.mkv`�
 | Files | 23标准目录、养蜂人两部各一目录、每部唯一Primary、Related全部有Disposition | |
 | File UI | Arca逐文件展示与磁盘现实一致 | |
 | Recovery | 刷新、重启、reconcile不重复 | |
+| Aftercare | 豆瓣同步真实触发并完成；Artifact修复与UAT-128 Settlement通过 | |
+| Runtime recovery | UAT-127活动转码恢复与UAT-129 Procurement retry恢复通过 | |
+| Soak/performance | 同一SHA连续24小时；后台隔离、Workspace、磁盘和页面响应通过 | |
 | Safety | 未越过任何路径/环境边界 | |
 | Open failures | `FAILED=0`、`BLOCKED=0` | |
 
@@ -335,10 +347,10 @@ UAT 中发现问题时：
 1. 先记录用户操作、页面现象和最小只读物理证据；
 2. 定位精确根因，不使用 workaround、静默 fallback 或直接改库；
 3. 如修复越过 SSOT Owner/Handoff 边界，停止并返回 Design；
-4. 修改代码与专项测试，执行相关 Architecture/Persistence Gate 和 Admin Web build；
-5. 从真实 Admin Web 重走受影响流程；
-6. 每个完成且验证过的问题单独 Git commit；
-7. 如果 immutable Candidate/Run 或 Canary 文件现实已污染，保留失败现场并从基线重建，不在污染现场续跑；
-8. 从最后一个可证明安全的页面检查点继续。
+4. 立即结束当前SHA的发布资格判定，不在运行中修改代码后续跑；
+5. 修改代码与专项测试，执行相关 Architecture/Persistence Gate 和 Admin Web build；
+6. 每个完成且验证过的问题单独 Git commit并进入`main`；
+7. 以新SHA、新data directory和新Canary从头开始，重新从真实Admin Web执行；
+8. immutable Candidate/Run或Canary文件现实已污染时保留失败现场，不在污染现场续跑。
 
 测试脚本只能证明修复的局部技术性质，不能代替本文任何 `UI + FS` 成功结论。

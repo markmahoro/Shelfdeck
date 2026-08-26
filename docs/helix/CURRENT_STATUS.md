@@ -2,7 +2,36 @@
 
 Status: Helix-beta 范围已收窄为仅 Movie 全链路。Movie Procurement与Movie Libra封口保持有效；Movie Arca已完成Handoff B Acceptance、On-deck、Shelf Entry、Deck Fact、Beta Aftercare、Off-deck及Shelf Deregistration完整闭环。当前精确状态为`MOVIE COLLECTION LIFECYCLE READY THROUGH SHELF DEREGISTRATION`；Helix-beta 验收行见现行基线，尚未把任何 `HB-*` 标为验收 `PASS`。生产部署尚未开始。
 
-Last updated: 2026-08-24
+Last updated: 2026-08-27
+
+## 0. TMDB proxy configuration — code and regression passed
+
+2026-08-25补齐TMDB可选代理服务器配置。Admin Web在首次“测试并连接”和已连接设置中均可填写
+`http://`或`https://`代理Origin；Platform设置闭包负责规范化并拒绝内嵌账号密码、路径、query与fragment。
+现有只含`language`的配置继续合法读取，未配置代理时明确归一为空字符串。
+
+TMDB Adapter对连接测试、Identity/Metadata API、People头像以及Poster/Fanart请求统一使用保存的代理Dispatcher，
+不把Credential或代理认证信息下沉到浏览器、Work或Domain Fact。冻结前TMDB专项11/11、Admin Web 28/28、production build
+及完整Service回归331 pass / 18 environment skip / 0 fail。实现提交为`03b61be5f`。当前状态为
+`CODE/REGRESSION PASSED / REAL PROXY CANARY NOT RUN`；未使用真实代理或真实TMDB Credential做外网资格，不宣称Provider实测通过。
+
+## 0. Beta final E2E qualification — protocol prepared
+
+2026-08-27已把最终发布资格规则写入Beta基线、Movie Canary Checklist和成功评估：以clean `main`精确SHA冻结，使用
+`F:\shelfdeck_test_zone\test_film`不可变基线和全新的同根Canary，23/23 On-deck检查点封存后再执行Aftercare、全量Off-deck及
+Shelf Deregistration；另覆盖活动转码恢复、Procurement retry crash window、豆瓣同步触发Aftercare、旧Handle Settlement和24小时后台治理观察。
+同一资格运行中禁止修改代码后续跑；任何缺陷都必须保留现场、登记UAT、修复进入新的`main` SHA后从clean Canary重跑。
+
+## 0. Open UAT — UAT-125 registered
+
+2026-08-25完成后台周期检查与Workspace治理审计，并把完整修复边界登记为`UAT-125`。现有30秒共享
+`DomainReconcileRunner`架构保持；不新增低频Runner或重型Scheduler。Open范围包括People域内有界检查、registration级故障隔离、
+简化后台运行状态卡片及只读详情、Production Workspace安全自定义目录，以及缺失生产接线的Libra Workspace Reclaimer。
+
+定向验证证明Discard/Cleanup合同、Outbox wake和Aftercare Workspace lifecycle低层能力成立，但Clean Service中证明Libra Handoff B
+至物理Cleanup的集成测试仍为`skip`，且生产Composition没有注册Libra Workspace Reclaimer；因此不能声明Libra Workspace Cleanup
+当前正常运转。状态为`OPEN / DESIGN CONFIRMED / IMPLEMENTATION NOT STARTED`。本次只登记UAT，没有修改代码、运行真实媒体、切换目录、
+触碰Docker/NAS或生产数据。
 
 ## 0. Current UAT qualification — UAT-093 closed
 

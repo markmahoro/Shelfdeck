@@ -2,7 +2,7 @@
 
 状态：`CONFIRMED FOR NEXT CLEAN RUN / NOT STARTED`
 
-确认日期：2026-08-22
+确认日期：2026-08-27
 
 适用范围：Movie Collection Formation、Libra、Arca Aftercare、Off-deck、Shelf Deregistration  
 执行入口：ShelfDeck Admin Web  
@@ -25,10 +25,12 @@
 
 ### 2.1 文件边界
 
-- [ ] 基线目录固定为 `F:\test_film`。
-- [ ] 正式 Canary 目录固定为 `F:\canary`。
-- [ ] `F:\test_film` 只作为不可变基线；不得写入、移动、重命名或删除其中任何内容。
-- [ ] `F:\canary` 同时注册为 Material Field 和 Shelf Physical Target Folder，不拆分为两个根目录。
+- [ ] 基线目录固定为 `F:\shelfdeck_test_zone\test_film`（下文记作 `<BASELINE_ROOT>`）。
+- [ ] 正式 Canary 使用此前不存在的 `F:\shelfdeck_test_zone\canary-beta-<timestamp>-<short-sha>`（下文记作 `<CANARY_ROOT>`）。
+- [ ] 隔离运行目录固定在 `F:\shelfdeck_test_zone\runs\BETA-<timestamp>-<short-sha>`（下文记作 `<RUN_ROOT>`）。
+- [ ] `<BASELINE_ROOT>` 只作为不可变基线；不得写入、移动、重命名或删除其中任何内容。
+- [ ] `<CANARY_ROOT>` 同时注册为 Material Field 和 Shelf Physical Target Folder，不拆分为两个根目录。
+- [ ] `TEMP`、`TMP`、`TMPDIR`、Service data、Workspace、External Landing、Evidence 和测试临时文件均落在 `<RUN_ROOT>` 或本轮指定的 F 盘子目录，不在 C 盘留下测试文件。
 - [ ] 本次 UAT 不访问、不扫描、不写入 `Z:\Film`。
 - [ ] 不访问 NAS，不执行 Docker/NAS/生产部署操作。
 - [ ] Canary 之外的媒体目录不得因本次 UAT 发生任何物理变化。
@@ -46,18 +48,20 @@
 
 ### 2.3 观察频率
 
-- [ ] 正常执行期间每 1 小时观察一次，不进行实时轮询或持续监控。
-- [ ] 每次观察由用户实际打开或刷新相关管理页面，并记录可见结果。
-- [ ] 只有安全边界被突破、发生范围不明的破坏性动作、服务完全不可用或需要用户授权时，才立即中断，不等待下一个整点。
+- [ ] 测试侧持续被动记录 Service/FFmpeg进程、CPU、GPU decoder/encoder、RSS、Event-loop lag、关键请求耗时、Work/Event/Outbox状态与磁盘变化；采样不得向业务接口持续施压。
+- [ ] 用户可见 Evidence 每个关键阶段至少一次，长阶段至少每 1 小时一次；由真实浏览器打开或刷新相关页面，并记录可见结果。
+- [ ] 转码开始、非零进度、重启前、重启后恢复、100%、Formation阶段接缝、Aftercare触发与收口均是额外观察点，不等待整点。
+- [ ] 安全边界被突破、发生范围不明的破坏性动作、服务不可用、状态无执行证据、页面响应显著恶化或需要用户授权时，立即中断。
 
 ### 2.4 测试中直接修复授权
 
 - [ ] 用户授权 Codex 在 UAT 过程中直接诊断并修复发现的产品问题，无需对每个普通修复再次申请许可。
 - [ ] 授权范围包括读取日志与领域事实、修改代码和测试、执行必要的本地构建、重启本地服务，以及从真实用户页面复测受影响流程。
 - [ ] 修复不得直接改写数据库业务状态、手工推进 Work/Event、伪造 Evidence，或手工搬移媒体来制造通过结果。
-- [ ] 修复不得触碰 `F:\test_film`、`Z:\Film`、NAS、生产数据或 Canary 之外的媒体文件。
+- [ ] 修复不得触碰 `<BASELINE_ROOT>`、`Z:\Film`、NAS、生产数据或 Canary 之外的媒体文件。
 - [ ] 如果修复需要改变已确认的架构 Owner、Business Handoff 或其他 SSOT 边界，停止该修复并先返回 Design，由用户确认架构变更。
 - [ ] 每次修复记录根因、代码改动、服务重启点、受影响条目和复测范围；修复前的失败仍保留为 UAT Evidence。
+- [ ] 资格运行以一个 clean `main` commit SHA冻结。发现缺陷时先保留现场并停止本轮；修复完成、回归、提交到`main`后，必须从新的 clean data和Canary以新SHA重跑，不得把两个SHA的Evidence拼成一次发布资格。
 - [ ] 修复完成后，从 Admin Web 重走受影响的用户步骤；仅有代码测试通过不能把 UAT 项标记为 `PASS`。
 - [ ] 每个问题完成修复并通过必要验证后，立即创建一个范围清晰的 Git commit，作为独立回滚点。
 - [ ] Commit 只包含该问题的相关改动，不夹带用户已有改动或其他未完成修复；commit message 使用英文并描述实际修复。
@@ -79,7 +83,7 @@
 
 ### HG-01 基线绝对不变
 
-- [ ] 开始前保存 `F:\test_film` 的相对路径、类型、大小和修改时间清单。
+- [ ] 开始前保存 `<BASELINE_ROOT>` 的相对路径、类型、大小和修改时间清单。
 - [ ] 结束后使用相同口径再次读取。
 - [ ] 两次清单完全一致。
 
@@ -87,8 +91,8 @@
 
 ### HG-02 同根拓扑真实成立
 
-- [ ] Material Field 页面显示根目录为 `F:\canary`。
-- [ ] Shelf 页面显示 Physical Target Folder 也为 `F:\canary`。
+- [ ] Material Field 页面显示根目录为 `<CANARY_ROOT>`。
+- [ ] Shelf 页面显示 Physical Target Folder 也为 `<CANARY_ROOT>`。
 - [ ] 保存并刷新两个页面后，两个值仍完全相同且有效。
 - [ ] 产品没有要求用户为了绕开实现限制而拆分源目录和目标目录。
 
@@ -135,7 +139,7 @@ Preflight 以复制完成后的现实为准。当前基线精确预期为 22 个
 
 ### 6.1 Canary 副本
 
-- [ ] `F:\test_film` 到 `F:\canary` 的复制已自然完成，没有仍在写入的文件。
+- [ ] `<BASELINE_ROOT>` 到 `<CANARY_ROOT>` 的复制已自然完成，没有仍在写入的文件。
 - [ ] Canary 与基线的相对路径、文件类型和文件大小逐项一致。
 - [ ] Canary 当前为可写；基线仍保持只读使用约束。
 - [ ] `F:` 剩余空间足以容纳最坏情况下的 Workspace、转码输出和临时文件。
@@ -161,14 +165,14 @@ Preflight 结论：`[ ] PASS  [ ] FAILED  [ ] BLOCKED`
 | 概览 | [ ] | [ ] | [ ] | [ ] | |
 | 文件来源 | [ ] | [ ] | [ ] | [ ] | |
 | 收藏架 | [ ] | [ ] | [ ] | [ ] | |
-| 媒体整理 / 上架进度 | [ ] | [ ] | [ ] | [ ] | |
-| 我的收藏 | [ ] | [ ] | [ ] | [ ] | |
-| 收藏健康 | [ ] | [ ] | [ ] | [ ] | |
+| 媒体整理工作区 | [ ] | [ ] | [ ] | [ ] | |
+| 我的收藏（含健康） | [ ] | [ ] | [ ] | [ ] | |
 | 退出收藏 | [ ] | [ ] | [ ] | [ ] | |
 | 人物 | [ ] | [ ] | [ ] | [ ] | |
 | 系统设置 | [ ] | [ ] | [ ] | [ ] | |
 
 - [ ] 后台长任务运行时，页面仍能在合理时间内响应和刷新。
+- [ ] 概览后台检查卡能区分正常空闲、等待到期、正在处理、需要关注和重启后等待首次检查；详情只读且不泄漏Secret/Stack。
 - [ ] 页面展示的是可理解的业务状态，而不是内部 Event/数据库术语堆叠。
 - [ ] 页面提示的成功、失败或等待状态与后续实际结果一致。
 
@@ -179,7 +183,7 @@ Preflight 结论：`[ ] PASS  [ ] FAILED  [ ] BLOCKED`
 ### 8.1 Material Field
 
 - [ ] 用户在“文件来源”新增或启用 Movie Material Field。
-- [ ] 物理根目录填写为 `F:\canary`。
+- [ ] 物理根目录填写为 `<CANARY_ROOT>`。
 - [ ] 页面能执行并显示有效的访问/可用性检查结果。
 - [ ] 用户可见且可配置本次所需的 Observation / 自动化选项。
 - [ ] 保存、离开页面、刷新后配置不变。
@@ -187,7 +191,7 @@ Preflight 结论：`[ ] PASS  [ ] FAILED  [ ] BLOCKED`
 ### 8.2 Shelf
 
 - [ ] 用户在“收藏架”新增或启用 Movie Shelf。
-- [ ] Physical Target Folder 填写为同一个 `F:\canary`。
+- [ ] Physical Target Folder 填写为同一个 `<CANARY_ROOT>`。
 - [ ] Routing、Acceptance、placement、collision 和自动化相关业务选项均有用户可见入口。
 - [ ] 记录本次实际采用的 placement/collision 配置：`________________`。
 - [ ] 保存、离开页面、刷新后配置不变。
@@ -244,6 +248,7 @@ Preflight 结论：`[ ] PASS  [ ] FAILED  [ ] BLOCKED`
 - [ ] 顶部“待整理、整理中、需要处理、已完成整理”四项与行级状态互斥且合计恰为当前23部媒体；分页不改变全量计数。
 - [ ] Package published及Handoff B Accepted仍显示“整理中”；只有Arca On-deck Commit、Shelf Entry和Deck Fact全部成立才显示“已完成整理”。
 - [ ] Frozen、Suspended、blocked、Product Identity确认及Executor技术失败均显示“需要处理”，不得同时计入“整理中”。
+- [ ] 至少保留一次真实Frozen中间态的UI/FACT Evidence；只有HB-B.25允许的精确缺口才通过页面执行“接受瑕疵”，随后验证Arca为`accepted_with_defects`。不允许的缺口不得被接纳。
 - [ ] 用户放弃的旧Run只在历史显示“已结束 · 用户放弃”；仍eligible的当前媒体只回到“待整理”一次，不重复计数。
 - [ ] Handoff B 只有在包完整、自包含且验证通过后才 Accepted。
 - [ ] 失败、暂停、重试、空间不足或外部等待在页面中如实呈现，不静默 fallback。
@@ -273,7 +278,7 @@ Preflight 结论：`[ ] PASS  [ ] FAILED  [ ] BLOCKED`
 
 - [ ] 23 部电影均有明确、可验证的 disposition。
 - [ ] 所有 Primary、Related、Artifact 均位于预期 placement。
-- [ ] `F:\canary` 中不存在 hash 命名收藏目录。
+- [ ] `<CANARY_ROOT>` 中不存在 hash 命名收藏目录。
 - [ ] 不存在类似 `标题 (0)` 的异常年份/冲突目录。
 - [ ] 不存在原始位置一份、收藏位置又一份的未解释重复媒体。
 - [ ] 文件指针、来源引用或历史 Binding 没有被误当作当前 Inventory 成员。
@@ -284,13 +289,14 @@ Preflight 结论：`[ ] PASS  [ ] FAILED  [ ] BLOCKED`
 
 ## 13. Arca Aftercare 验收
 
-故障注入不是业务配置。只有在 23 个 Entry 稳定 On-deck 后，才允许在
-`F:\canary` 内对一个已记录的非 Primary Artifact/Related 文件制造一次可恢复缺失；
+故障注入不是业务配置。只有在 23 个 Entry 稳定 On-deck、主检查点Evidence已封存后，才允许在
+`<CANARY_ROOT>` 内对一个已记录的非 Primary Artifact/Related 文件制造一次可恢复缺失；
 动作前必须记录精确 Entry、路径和预期修复方式。不得触碰基线或删除主媒体。
 
 - [ ] 故障注入对象：`________________`。
 - [ ] 精确路径：`________________`。
 - [ ] 注入前 Inventory revision / 文件证据已保存。
+- [ ] 先从系统设置通过真实页面触发一次豆瓣评分同步；确认相应Shelf Entry产生新的Aftercare需求，Case/Work/Event真实执行并终态完成，而不只是“同步成功”。
 - [ ] 下一个小时观察点，“收藏健康”显示真实 Finding，严重度和原因可理解。
 - [ ] 用户从页面查看 Finding 和可用维护动作。
 - [ ] 用户通过页面发起正式 Repair；不直接写文件或数据库伪造修复。
@@ -300,12 +306,19 @@ Preflight 结论：`[ ] PASS  [ ] FAILED  [ ] BLOCKED`
 - [ ] 非故障对象和其他 22 部电影的物理内容未被改变。
 - [ ] Aftercare 不自动创建 Off-deck 授权，不继承或猜测用户的删除意图。
 - [ ] 页面刷新后 Finding、Case、历史和当前健康状态一致。
+- [ ] 覆盖旧输入Handle与同路径Product Binding并存的Settlement；重启前后精确识别责任，零多重匹配、零误删、零其他Entry连坐。
+
+### 13.1 恢复专项
+
+- [ ] **UAT-127：** 在真实长转码已有非零进度时记录执行身份与进度，安全终止Service，再以同一`<RUN_ROOT>`、同一SHA启动；进度不得回到零或产生identity conflict，最终只有一次输出、一次Handoff B和一次On-deck。
+- [ ] **UAT-129：** 在独立小型Recovery Canary验证Procurement retry intent恢复；持久化后、消费前中断，重启后Outbox交付且Preparation只恢复一次。若没有安全人工停点，真实终端replay与覆盖精确crash window的自动化测试共同构成Evidence。
+- [ ] 两个场景均检查重启后无重复Candidate、Subject、Work副作用、Acceptance、Ack、Shelf Entry或Deck Fact。
 
 本阶段结论：`[ ] PASS  [ ] FAILED  [ ] BLOCKED`
 
 ## 14. 全量 Off-deck 验收
 
-本阶段具有破坏性，但授权严格限于 `F:\canary` 中 23 个 Canary Shelf Entry 的
+本阶段具有破坏性，但授权严格限于 `<CANARY_ROOT>` 中 23 个 Canary Shelf Entry 的
 冻结 Destruction Scope。开始本阶段前必须再次确认基线与范围。
 
 - [ ] 用户在“退出收藏”页面选择全部 active Canary Entry。
@@ -318,9 +331,9 @@ Preflight 结论：`[ ] PASS  [ ] FAILED  [ ] BLOCKED`
 - [ ] 某项删除或 Verification 失败时，该 Entry 保持可恢复的进行中/失败状态，不被伪标为 offdecked。
 - [ ] 每个 Entry 只有在 Destruction Verification 完成后才终结 Deck Fact、释放 Control 并进入 offdecked。
 - [ ] 最终 active Shelf Entry 数为 0，active Deck Fact 数为 0。
-- [ ] `F:\canary` 中不再存在本次已授权 Inventory 的主媒体和应删除 Related/Artifact。
+- [ ] `<CANARY_ROOT>` 中不再存在本次已授权 Inventory 的主媒体和应删除 Related/Artifact。
 - [ ] 产品保留 Off-deck、Entry、Deck Fact、Authorization 和 Verification 历史。
-- [ ] `F:\test_film` 与 Canary 外所有路径保持不变。
+- [ ] `<BASELINE_ROOT>` 与 Canary 外所有路径保持不变。
 
 本阶段结论：`[ ] PASS  [ ] FAILED  [ ] BLOCKED`
 
@@ -333,16 +346,16 @@ Shelf Deregistration 与 Off-deck 是两个不同动作。它只能在全量 Off
 - [ ] 页面明确说明该动作是非破坏性的行政生命周期操作。
 - [ ] 注销后 Shelf 不再作为 Routing / Acceptance 目标。
 - [ ] 注销终结剩余 active Shelf administrative facts 并释放精确 Material Control。
-- [ ] Deregistration 前后 `F:\canary` 的物理文件清单完全相同。
+- [ ] Deregistration 前后 `<CANARY_ROOT>` 的物理文件清单完全相同。
 - [ ] Target Folder 本身仍存在；产品未删除、移动、重命名该目录。
 - [ ] 历史 Shelf、Entry、Deck Fact 和执行证据仍可追溯。
 - [ ] 如需停用/注销 Canary Material Field，用户通过“文件来源”独立执行，且动作同样不修改物理文件。
 
 本阶段结论：`[ ] PASS  [ ] FAILED  [ ] BLOCKED`
 
-## 16. 每小时观察记录
+## 16. 持续监控与24小时观察记录
 
-不在两个观察点之间持续刷新或轮询。每个观察点只记录用户在页面能看到的真实进度，并做一次最小只读取证。
+主流程与恢复场景使用被动遥测持续监控，不持续刷新业务页面。23/23主检查点后，同一SHA、data directory和Service连续运行至少24小时；每小时记录一次UI与最小只读事实，证明后台治理、Workspace回收和页面性能没有随时间恶化。
 
 | 时间 | 刷新的页面 | 当前阶段/数量 | 过去 1 小时变化 | UI 响应 | 外部/资源状态 | 安全边界 | 结论/下一步 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -358,6 +371,7 @@ Shelf Deregistration 与 Off-deck 是两个不同动作。它只能在全量 Off
 - [ ] 失败/阻塞有明确用户可见原因。
 - [ ] 未发现基线、`Z:\Film`、NAS 或 Canary 外路径被触碰。
 - [ ] 未发现 hash 目录、`(0)` 目录或同一媒体双份并存。
+- [ ] Libra/Aftercare Workspace按保留期与Fence收口；无磁盘持续泄漏、无限重试或单个registration阻断后续checklist。
 - [ ] 不需要新授权；如需要，立即停止相应动作并交由用户决定。
 
 测试中修复记录：
@@ -371,7 +385,7 @@ Shelf Deregistration 与 Off-deck 是两个不同动作。它只能在全量 Off
 
 出现以下任一情况，不得继续用重试、脚本修库或静默 fallback 掩盖：
 
-- [ ] `F:\test_film` 发生任何变化。
+- [ ] `<BASELINE_ROOT>` 发生任何变化。
 - [ ] 服务访问或修改了 `Z:\Film`、NAS 或其他未授权媒体路径。
 - [ ] Admin Web 显示成功，但领域事实或物理文件现实不一致。
 - [ ] 同根场景产生 hash 目录、`(0)` 目录或源/收藏双份媒体。
@@ -394,7 +408,7 @@ Shelf Deregistration 与 Off-deck 是两个不同动作。它只能在全量 Off
 - [ ] 未关闭 `FAILED` 数量：`____`。
 - [ ] 未关闭 `BLOCKED` 数量：`____`。
 - [ ] 所有偏差已记录到 `docs/helix/USER_ACCEPTANCE_TEST_ISSUE_LOG.md`，没有在现场静默修库。
-- [ ] 如需重跑，从不可变 `F:\test_film` 重新创建新的 Canary 副本；不把本轮终态当成新基线。
+- [ ] 如需重跑，从不可变 `<BASELINE_ROOT>` 重新创建此前不存在的新 Canary；不把本轮终态当成新基线。
 
 | 项目 | 记录 |
 | --- | --- |
@@ -402,8 +416,9 @@ Shelf Deregistration 与 Off-deck 是两个不同动作。它只能在全量 Off
 | UAT 结束时间 | |
 | 操作者 | |
 | Service commit / identity | |
-| Material Field | `F:\canary` |
-| Shelf Target | `F:\canary` |
+| Frozen main SHA | |
+| Material Field | `<CANARY_ROOT>` |
+| Shelf Target | `<CANARY_ROOT>` |
 | 开始基线证据 | |
 | 结束基线证据 | |
 | 关联问题 | |
