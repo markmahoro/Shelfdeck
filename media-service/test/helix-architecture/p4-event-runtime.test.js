@@ -122,7 +122,8 @@ function fixture(run, settings = {}) {
       repository.invoke('edge', { plan_id: 'plan', from_node_id: 'node', to_node_id: 'node-dependent', dependency_kind: 'success' });
     }
   } }]);
-  let schedulerReleased = 0; let governorReleased = 0; let dispatchContext; const journalCalls = [];
+  let schedulerReleased = 0; let governorReleased = 0; let recoveryAcquireCount = 0;
+  let dispatchContext; const journalCalls = [];
   const lease = Object.freeze({ leaseId: 'lease', targetType: 'event', targetId: 'event', issuedAtMs: 1, expiresAtMs: 999999, fenceDigest: HASH_A });
   const scheduler = {
     assertCurrent(value) { assert.equal(value, lease); },
@@ -134,13 +135,17 @@ function fixture(run, settings = {}) {
     release(value) { assert.equal(value, lease); schedulerReleased += 1; },
   };
   const permit = Object.freeze({ permitId: 'permit', eventId: 'event', resources: Object.freeze([{ resourceKey: 'cpu_heavy', units: 1 }]), profileRevision: 1, issuedAtMs: 1000 });
-  const governor = { acquire: () => {
+  const acquire = () => {
     if (settings.assertReadyBeforeAcquire) {
       const database = new Database(databasePath, { readonly: true });
       try { assert.equal(database.prepare('SELECT state FROM fx_workflow_events WHERE event_id=?').get('event').state, 'ready'); }
       finally { database.close(); }
     }
     return settings.governorDecision || ({ kind: 'permitted', permit });
+  };
+  const governor = { acquire, acquireRecovery: () => {
+    recoveryAcquireCount += 1;
+    return acquire();
   }, release(value) { assert.equal(value, permit); governorReleased += 1; return { grants: [] }; } };
   const fences = settings.fences || [{ valid: true, digest: HASH_A, snapshot: {} }, { valid: true, digest: HASH_A, snapshot: {} }];
   let fenceIndex = 0;
@@ -222,7 +227,8 @@ function fixture(run, settings = {}) {
     nextExecutionId: () => 'execution', nextResultId: () => 'result', now: () => 1000 });
   const cleanup = () => { kernel.close(); fs.rmSync(root, { recursive: true, force: true }); };
   try {
-    const result = run({ runtime, lease, databasePath, state: () => ({ schedulerReleased, governorReleased, dispatchContext, journalCalls }) });
+    const result = run({ runtime, lease, databasePath, state: () => ({ schedulerReleased,
+      governorReleased, recoveryAcquireCount, dispatchContext, journalCalls }) });
     if (result && typeof result.then === 'function') return result.finally(cleanup);
     cleanup(); return result;
   } catch (error) { cleanup(); throw error; }
@@ -613,6 +619,7 @@ test('startup recovery records a non-pure failed Outcome instead of looping as n
     assert.equal(facts.attempt.state, 'completed');
     assert.equal(facts.attempt.failure_code, 'LIBRA_MEDIA_FFMPEG_FAILED');
     assert.equal(state().governorReleased, 1);
+    assert.equal(state().recoveryAcquireCount, 1);
   }, { effectClass:'external_request', initialEventState:'executing', seedExecutingAttempt:true, outcome: {
     kind:'failed', failureClass:'executor', code:'LIBRA_MEDIA_FFMPEG_FAILED',
     message:'FFmpeg failed.', retryDirective:'contract_policy',

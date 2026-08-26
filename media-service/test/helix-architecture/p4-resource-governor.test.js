@@ -41,7 +41,9 @@ function fixture(run) {
     plan: { kind: 'insert', tableId: 'fx_workflow_plans', columns: ['plan_id', 'attempt_id', 'state'] },
     event: { kind: 'insert', tableId: 'fx_workflow_events', columns: [
       'event_id', 'plan_id', 'node_id', 'work_id', 'owner_domain', 'priority_class', 'state', 'ready_at_ms', 'retry_at_ms'
-    ] }
+    ] },
+    set_event_state: { kind:'update', tableId:'fx_workflow_events',
+      setColumns:['state'], keyColumns:['event_id'] }
   } });
   function seedEvents(...ids) {
     unitOfWork.execute([{ participantId: 'governor_seed', owner: 'execution-foundation', repositories: [seed], execute(context) {
@@ -55,11 +57,20 @@ function fixture(run) {
       }
     } }]);
   }
+  function setEventState(eventId, state) {
+    unitOfWork.execute([{ participantId:'governor_seed_state',
+      owner:'execution-foundation', repositories:[seed], execute(context) {
+        context.repository('governor_seed').invoke('set_event_state', {
+          event_id:eventId, state,
+        });
+      } }]);
+  }
   const governor = createResourceGovernor({ schemaManifest, unitOfWork, queueLimits, now: () => now,
     profileProvider: { current: () => currentProfile }, nextPermitId: () => 'permit-' + (++permitOrdinal) });
   const cleanup = () => { kernel.close(); fs.rmSync(root, { recursive: true, force: true }); };
   try {
-    const result = run({ governor, databasePath, seedEvents, getUnitOfWorkExecutions:()=>unitOfWorkExecutions,
+    const result = run({ governor, databasePath, seedEvents, setEventState,
+      getUnitOfWorkExecutions:()=>unitOfWorkExecutions,
       setNow: (value) => { now = value; }, setProfile: (value) => { currentProfile = value; } });
     if (result && typeof result.then === 'function') return result.finally(cleanup);
     cleanup(); return result;
@@ -109,6 +120,28 @@ test('capacity wait publishes one durable Scheduler fence without rolling reads 
       assert.deepEqual(released.prepare('SELECT state FROM fx_resource_defer WHERE event_id=?').all('waiter'),
         [{ state: 'released' }]);
     } finally { released.close(); }
+  });
+});
+
+test('recovery capacity wait preserves the executing Event without a durable ordinary waiter', () => {
+  fixture(({ governor, databasePath, seedEvents, setEventState }) => {
+    seedEvents('holder', 'recovering');
+    setEventState('recovering', 'executing');
+    const holder = governor.acquire(request('holder', [['cpu_heavy']]));
+    const waiting = governor.acquireRecovery(request('recovering', [['cpu_heavy']]));
+    assert.equal(waiting.kind, 'waiting');
+    assert.equal(governor.snapshot().waiterCount, 0);
+    const database = new Database(databasePath, { readonly:true });
+    try {
+      assert.deepEqual(database.prepare(
+        'SELECT state,retry_at_ms FROM fx_workflow_events WHERE event_id=?').get('recovering'),
+      { state:'executing', retry_at_ms:null });
+      assert.equal(database.prepare(
+        'SELECT COUNT(*) count FROM fx_resource_defer WHERE event_id=?').get('recovering').count, 0);
+    } finally { database.close(); }
+    governor.release(holder.permit);
+    assert.equal(governor.acquireRecovery(
+      request('recovering', [['cpu_heavy']])).kind, 'permitted');
   });
 });
 

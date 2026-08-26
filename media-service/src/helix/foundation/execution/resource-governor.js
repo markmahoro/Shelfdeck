@@ -275,6 +275,27 @@ function createResourceGovernor(options) {
     return durable;
   }
 
+  function acquireRecovery(rawRequest) {
+    const request = validateRequest(rawRequest);
+    const requestedAtMs = now();
+    if (eventPermits.has(request.eventId)) fail('P4_RESOURCE_EVENT_ALREADY_PERMITTED',
+      'Event already owns an active Permit bundle.');
+    const currentMapper = mapper();
+    const impossible = request.resources.find((resource) =>
+      resource.units > currentMapper.capacityFor(resource.resourceKey));
+    if (impossible) return Object.freeze({ kind:'unavailable',
+      reasonCode:'RESOURCE_MAP_UNSATISFIABLE', resourceKey:impossible.resourceKey });
+    if (canAcquire(request.resources, currentMapper)) {
+      return Object.freeze({ kind:'permitted',
+        permit:issue(request, currentMapper, requestedAtMs) });
+    }
+    // Recovery belongs to an already-executing durable Event. It stays in
+    // the Host recovery lane while capacity is occupied; writing the ordinary
+    // ready -> waiting_for_resource transition would corrupt its active Attempt.
+    return Object.freeze({ kind:'waiting', eventId:request.eventId,
+      replayed:false, retryAtMs:requestedAtMs + 100 });
+  }
+
   function compareWaiters(left, right, atMs) {
     const classOrder = QUEUE_CLASSES.indexOf(left.request.queueClass) - QUEUE_CLASSES.indexOf(right.request.queueClass);
     const leftScore = left.request.localPriority + Math.floor((atMs - left.enqueuedAtMs) / 60000);
@@ -331,7 +352,8 @@ function createResourceGovernor(options) {
       queueSoftExceeded: waiters.size >= queueLimits.globalSoft });
   }
 
-  return Object.freeze({ abandon, acquire, release, snapshot, updateWaiterPriority, withPermit });
+  return Object.freeze({ abandon, acquire, acquireRecovery, release, snapshot,
+    updateWaiterPriority, withPermit });
 }
 
 module.exports = Object.freeze({ BACKOFF_MS, DEFAULT_QUEUE_LIMITS, QUEUE_CLASSES, ResourceGovernorError, createResourceGovernor });

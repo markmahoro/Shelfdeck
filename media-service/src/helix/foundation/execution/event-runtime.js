@@ -114,7 +114,8 @@ function definitions(schemaManifest) {
 
 function createEventRuntime(options) {
   const requiredFunctions = ['nextEventAttemptId', 'nextExecutionId', 'nextResultId', 'now'];
-  if (!options || !options.schemaManifest || !options.unitOfWork || !options.scheduler || !options.governor || !options.registry ||
+  if (!options || !options.schemaManifest || !options.unitOfWork || !options.scheduler || !options.governor ||
+      typeof options.governor.acquire !== 'function' || typeof options.governor.acquireRecovery !== 'function' || !options.registry ||
       !options.dispatcher || !options.contractValidator || typeof options.contractValidator.validate !== 'function' ||
       !options.executionInputProvider || !options.fenceValidator || !options.resourceDemandResolver ||
       !options.attemptPolicy || typeof options.attemptPolicy.prepare !== 'function' ||
@@ -572,7 +573,7 @@ function createEventRuntime(options) {
     if (!demand || demand.eventId !== request.eventId) fail(
       'P4_EVENT_RECOVERY_RESOURCE_BINDING_MISMATCH', 'Recovery Resource Demand must bind the exact Event.'
     );
-    const acquired = options.governor.acquire(demand);
+    const acquired = options.governor.acquireRecovery(demand);
     if (acquired.kind !== 'permitted') return Object.freeze({ kind: 'recovery_deferred', eventId: request.eventId, demand: acquired });
     const permit = acquired.permit;
     try {
