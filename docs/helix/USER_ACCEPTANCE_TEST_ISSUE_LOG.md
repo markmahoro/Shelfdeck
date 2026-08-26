@@ -201,13 +201,14 @@ User Perception全面取消year关联校验，year仅作为资料保存/展示�
 | UAT-124 | 转码完成到Product Conformance接续窗口短暂误报“媒体整理执行失败” | `USER_EXPERIENCE` | `PROJECTION_TRUTH`、`MEDIA_PRODUCTION` | Libra Formation Query | 状态真实性、转码进度连续性 | High | `FACT/REGRESSION/RESTART PASSED / CLOSED` |
 | UAT-125 | 后台周期检查缺少完整Workspace治理、低成本域内检查与用户可见状态 | `DOMAIN_ORCHESTRATION` | `PERFORMANCE`、`USER_EXPERIENCE`、`PLATFORM_INTEGRATION`、`RECOVERY_CORRECTNESS` | Foundation Domain Reconcile Runner + People/Perception/Procurement/Libra/Arca Owner + Platform Workspace Registry + Admin Web | 活性、页面响应、空间治理、配置安全、可观察性 | Critical | `LOCAL IMPLEMENTATION AND REGRESSION PASSED / FULL-CHAIN CLEANUP CANARY PENDING` |
 | UAT-126 | Frozen条目只有放弃路径，演员确实无外部资料或外部寻源耗尽时不能由用户显式接受瑕疵入库 | `BUSINESS_CONTRACT` | `AUTHORIZATION_FENCE`、`DOMAIN_ORCHESTRATION`、`USER_EXPERIENCE` | Libra Defect Admission + Handoff B + Arca Aftercare + Admin Web | 用户决断、事实真实性、活性、售后边界 | Critical | `IMPLEMENTED / TARGETED LOCAL PASS / ISOLATED CANARY PENDING` |
-| UAT-127 | 同一执行中的转码在服务重启后复用不完整Progress身份，并从0开始回报导致冲突或回退 | `RECOVERY_CORRECTNESS` | `PROGRESS`、`MEDIA_PRODUCTION` | Foundation Event Runtime + Libra FFmpeg Effect | 转码活性、进度真实性、重启恢复 | Critical | `QUALIFICATION FAILED AT 63%→0% / EVENT-LEVEL FLOOR FIX UNDER REGRESSION` |
+| UAT-127 | 同一执行中的转码在服务重启后复用不完整Progress身份，并从0开始回报导致冲突或回退 | `RECOVERY_CORRECTNESS` | `PROGRESS`、`MEDIA_PRODUCTION` | Foundation Event Runtime + Libra FFmpeg Effect | 转码活性、进度真实性、重启恢复 | Critical | `QUALIFICATION FAILED / LOCAL FULL REGRESSION PASSED / NEW CANARY REQUIRED` |
 | UAT-128 | Aftercare旧材料Handle被同路径Product Binding误判为多重匹配，Settlement持续恢复失败 | `RECOVERY_CORRECTNESS` | `MATERIAL_CONTROL`、`DESTRUCTIVE_SAFETY` | Arca Aftercare Settlement | 售后活性、删除安全、材料边界 | Critical | `CODE/FULL REGRESSION PASSED / SETTLEMENT RESTART CANARY PENDING` |
 | UAT-129 | Procurement Retry Intent消息没有消费者，崩溃窗口可留下永久open Intent并持续重试Outbox | `RECOVERY_CORRECTNESS` | `OUTBOX_INBOX`、`DOMAIN_ORCHESTRATION` | Procurement Failed Preparation Retry + Foundation Delivery Host | 重试活性、幂等、启动恢复 | Critical | `CODE/FULL REGRESSION PASSED / OUTBOX RESTART CANARY PENDING` |
 | UAT-130 | 已配置的MoviePilot没有只修订External Landing且复用Secret的Admin Web入口 | `PLATFORM_INTEGRATION` | `CONFIGURATION_SAFETY`、`USER_EXPERIENCE` | Platform Integration Admin + Admin Web | 隔离安全、Secret安全、可运维性 | Critical | `LOCAL FULL REGRESSION PASSED / NEW CANARY REQUIRED` |
 | UAT-131 | Authorized Defect路径伪造Selected Product，无法形成真实failed Conformance到accepted_with_defects连续性 | `BUSINESS_CONTRACT` | `AUTHORIZATION_FENCE`、`PRODUCT_CONFORMANCE` | Libra Product Delivery + Arca Handoff B | 用户授权、事实真实性、上架活性 | Critical | `LOCAL FULL REGRESSION PASSED / NEW CANARY REQUIRED` |
 | UAT-132 | Arca独立媒体复核遗漏合法unknown动态范围并拒绝Direct产品 | `PRODUCT_CONFORMANCE` | `HANDOFF_B_ACCEPTANCE`、`CONTRACT_PROPAGATION` | Arca Mandatory Media Acceptance | 成品正确性、独立验收、上架活性 | Critical | `LOCAL FULL REGRESSION PASSED / NEW CANARY REQUIRED` |
-| UAT-133 | 多缺口Authorized Defect在Libra Attestation与Arca Gap union使用不一致规范顺序 | `BUSINESS_CONTRACT` | `CANONICALIZATION`、`HANDOFF_B_ACCEPTANCE` | Libra Product Delivery + Arca Acceptance Gap Decision | 多缺口接纳、恢复活性、事实一致性 | Critical | `QUALIFICATION FAILED / LOCAL FIX UNDER FULL REGRESSION` |
+| UAT-133 | 多缺口Authorized Defect在Libra Attestation与Arca Gap union使用不一致规范顺序 | `BUSINESS_CONTRACT` | `CANONICALIZATION`、`HANDOFF_B_ACCEPTANCE` | Libra Product Delivery + Arca Acceptance Gap Decision | 多缺口接纳、恢复活性、事实一致性 | Critical | `QUALIFICATION FAILED / LOCAL FULL REGRESSION PASSED / NEW CANARY REQUIRED` |
+| UAT-134 | 同根Field/Shelf的单项Settlement把其他合法顶层媒体单元误判为unknown member并永久悬挂 | `MATERIAL_CONTROL` | `SAME_ROOT`、`DESTRUCTIVE_SAFETY`、`LIVENESS` | Arca On-deck Input Settlement | 上架活性、同根配置、删除安全、状态真实性 | Critical | `QUALIFICATION FAILED / LOCAL FULL REGRESSION PASSED / NEW CANARY REQUIRED` |
 
 ### 2.0.1 UAT-074–UAT-084必须保护的历史修复
 
@@ -3990,7 +3991,53 @@ Contract/Manifest/Semantic Gate均PASS，P2 aggregate为`d8dea1240147afa36b17cb0
 当前处理决定：`82283e2e1f`资格结果固定为`FAILED`；旧运行只保留失败现场。修复完成全量回归并形成新的clean main SHA后，
 必须从全新Canary完整重跑，确认三项多缺口产品均由真实页面授权并通过Arca独立复核，才能关闭本条。
 
-## 131. 后续问题模板
+## 131. UAT-134：同根Field/Shelf的Settlement不得把其他媒体单元当成当前输入目录成员
+
+问题分类：`MATERIAL_CONTROL / SAME_ROOT / DESTRUCTIVE_SAFETY / LIVENESS / RELEASE_BLOCKER`
+
+用户侧现象：冻结SHA `185636805e879d56b7fff4c3a1a079129ccee843`按Beta协议把同一个主Canary同时配置为
+Material Field与Shelf Physical Target。《看不见的朋友》已形成Package、Handoff B Acceptance与Final Inventory Decision，
+但On-deck Run长期停在`offloading`；Formation始终不能进入On-deck。Service每次reconcile以及同SHA/data重启后均重复
+`CLEAN_ARCA_SETTLEMENT_UNKNOWN_MEMBER`，同时Work/Event汇总仍为`FAILED=0`，形成不可见的永久悬挂。
+
+现场证据（2026-08-27）：失败现场保留于
+`F:\shelfdeck_test_zone\runs\BETA-20260827-064135-185636805e`，主Canary为
+`F:\shelfdeck_test_zone\canary-beta-20260827-064135-185636805e`。`ui-031-uat134-same-root-settlement-stuck.png`与
+对应DOM保留真实Admin Web现场；`uat134-same-root-settlement-failure.json`证明On-deck Run
+`39bb96220733a1cb445b1e2b09e41c812560aa025a252f343261d8aaef631288`停在`offloading`，Settlement Event
+`ondeck-settlement-c01063abff9b731899-0000`的Attempt保持`executing`。精确Source是Canary根下该影片的单个MKV，
+精确Target是同根下该影片的标准目录；错误列出的unknown names全部是另外21个合法顶层媒体单元或已提交成品目录。
+被动监控共855.15秒，最终Service、18080、FFmpeg均安全停止；未访问NAS、`Z:`、Docker或生产媒体。
+
+精确根因：`settleInput()`与`settleInputAsync()`在`source != finalTarget`时，以`dirname(source)`作为“旧材料目录”
+执行unknown-member封闭性检查。独立Field场景中该目录确实是单项输入目录；但同根Field/Shelf且Source为顶层文件时，
+该目录就是整个Shelf Target Root。实现只豁免`sourceDirectory == targetDirectory`，没有豁免
+`sourceDirectory == targetRoot`，于是把其他Shelf Entry、待处理媒体和并发Stage目录错误纳入当前Settlement的独占目录范围。
+随后错误由runtime handler反复记录，Event Attempt未转成可见失败，reconcile持续重放但永不收敛。
+
+业务影响：冻结协议明确要求同一Canary同时作为Material Field和Shelf Physical Target，禁止拆根绕过；因此23/23
+On-deck主检查点不可达。删除其他媒体、直接改库、手工搬文件、拆分Field/Shelf Root或忽略Settlement均会突破Material Control、
+删除安全或资格协议，不能作为验收手段。该SHA资格结果固定为`FAILED`，不得继续拼接Aftercare、Off-deck、UAT-129或24小时Evidence。
+
+修复边界：不修改SSOT、Root配置、On-deck授权、Material Handle或Final Inventory Decision。只有当
+`sourceDirectory`精确等于已冻结的Shelf Target Root时，Settlement跳过“目录必须被当前Package独占”的unknown-member检查；
+仍只可在精确Handle/Fingerprint、Final Product reality、Source-to-Final mapping与Standing Authorization全部通过后删除当前
+Source，其他兄弟文件和目录必须逐字节保留。普通独立Source Directory仍维持unknown-member fail closed；Target Root与
+Target Directory继续进入prune保护集合，禁止删除Shelf根或其他Entry。
+
+本地回归（2026-08-27）：同步与异步Settlement新增同根Root夹具，包含另一个BDMV媒体目录与未知兄弟文件；两条路径均只删除
+精确fenced Source，保留所有兄弟成员并验证Final Product bytes。原独立Source Directory的unknown-member负向仍通过；
+`clean-arca-inventory-port`专项19/19，Arca/Handoff/Settlement/Recovery组合67 pass / 16显式真实媒体环境skip / 0 fail，
+完整Service `355 total / 337 pass / 18 explicit environment skip / 0 fail`，真实Admin HTTP的actor-only、external-only、
+external-multi与combined全部通过；Admin Web `29/29`及production build PASS。Contract/Manifest/Semantic Gate均PASS，
+P2 aggregate保持`d8dea1240147afa36b17cb075f7dca130fb6eed365af0047e1575f5a57d7eaf9`；完整Architecture verifier只保留
+clean main既有8项fixture失败与22项dependency findings，本次修改源文件没有新增finding。形成新的clean main SHA后仍必须从
+不可变基线建立此前不存在的新Canary完整重跑。
+
+当前处理决定：`185636805e`资格结果固定为`FAILED`；旧运行与Canary只保留失败现场。UAT-134为
+`LOCAL FULL REGRESSION PASSED / NEW CLEAN MAIN SHA FULL RERUN REQUIRED`。
+
+## 132. 后续问题模板
 
 后续发现的问题按以下结构追加：
 

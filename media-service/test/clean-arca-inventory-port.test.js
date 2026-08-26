@@ -590,10 +590,64 @@ test('settlement ignores a sibling movie directory and still rejects unknown fil
   }
 });
 
-function settlementFixture({ unknownMember = false, siblingDirectory = false } = {}) {
+test('same-root settlement removes only the fenced source and retains unrelated shelf members', async () => {
+  const syncFixture = settlementFixture({
+    sameRoot:true, siblingDirectory:true, unknownMember:true,
+  });
+  try {
+    const result = syncFixture.port.settleInput({
+      materialHandle:syncFixture.materialHandle,
+      approval:{ approvalId:'approval' },
+      finalInventoryRequest:syncFixture.finalInventoryRequest,
+      finalMaterialKey:syncFixture.finalMember.sourceMaterialKey,
+      finalTargetLocation:syncFixture.finalMember.targetLocation,
+      settlementExpectation:'replace_or_move',
+      sourceToFinalMappingDigest:syncFixture.mappingDigest,
+    });
+    assert.equal(result.disposition, 'settled_to_final');
+    assert.equal(fs.existsSync(syncFixture.source), false);
+    assert.equal(fs.existsSync(path.join(syncFixture.sourceDirectory, 'notes.txt')), true);
+    assert.equal(fs.existsSync(path.join(syncFixture.sourceDirectory,
+      '养蜂人 (2024) - 2160p HEVC Atmos TrueHD5.1')), true);
+    assert.equal(fs.readFileSync(syncFixture.finalMember.targetLocation, 'utf8'),
+      'exact-movie-bytes');
+  } finally {
+    fs.rmSync(syncFixture.root, { recursive:true, force:true });
+  }
+
+  const asyncFixture = settlementFixture({
+    sameRoot:true, siblingDirectory:true, unknownMember:true,
+  });
+  try {
+    const result = await asyncFixture.port.settleInputAsync({
+      materialHandle:asyncFixture.materialHandle,
+      approval:{ approvalId:'approval' },
+      finalInventoryRequest:asyncFixture.finalInventoryRequest,
+      finalMaterialKey:asyncFixture.finalMember.sourceMaterialKey,
+      finalTargetLocation:asyncFixture.finalMember.targetLocation,
+      settlementExpectation:'replace_or_move',
+      sourceToFinalMappingDigest:asyncFixture.mappingDigest,
+    });
+    assert.equal(result.disposition, 'settled_to_final');
+    assert.equal(fs.existsSync(asyncFixture.source), false);
+    assert.equal(fs.existsSync(path.join(asyncFixture.sourceDirectory, 'notes.txt')), true);
+    assert.equal(fs.existsSync(path.join(asyncFixture.sourceDirectory,
+      '养蜂人 (2024) - 2160p HEVC Atmos TrueHD5.1')), true);
+    assert.equal(fs.readFileSync(asyncFixture.finalMember.targetLocation, 'utf8'),
+      'exact-movie-bytes');
+  } finally {
+    fs.rmSync(asyncFixture.root, { recursive:true, force:true });
+  }
+});
+
+function settlementFixture({
+  unknownMember = false,
+  siblingDirectory = false,
+  sameRoot = false,
+} = {}) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'clean-arca-settlement-'));
   const sourceDirectory = path.join(root, 'opaque-source');
-  const targetRoot = path.join(root, 'shelf');
+  const targetRoot = sameRoot ? sourceDirectory : path.join(root, 'shelf');
   fs.mkdirSync(sourceDirectory, { recursive:true });
   fs.mkdirSync(targetRoot, { recursive:true });
   const source = path.join(sourceDirectory, 'opaque-hash.mkv');

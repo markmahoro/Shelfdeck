@@ -1425,7 +1425,9 @@ function createCleanArcaInventoryPort(options) {
       }
     }
     const retainedFinalDirectory = sourceDirectory === path.resolve(built.targetDirectory);
-    if (!sameLocation && !retainedFinalDirectory && fs.existsSync(sourceDirectory)) {
+    const retainedShelfRoot = sourceDirectory === path.resolve(built.targetRoot);
+    if (!sameLocation && !retainedFinalDirectory && !retainedShelfRoot &&
+        fs.existsSync(sourceDirectory)) {
       const unknown = fs.readdirSync(sourceDirectory, { withFileTypes:true })
         .map((item) => path.resolve(sourceDirectory, item.name))
         .filter((item) => {
@@ -1582,7 +1584,9 @@ function createCleanArcaInventoryPort(options) {
       catch (error) { if (error?.code === 'ENOENT') return false; throw error; }
     };
     const retainedFinalDirectory = sourceDirectory === target.targetDirectory;
-    if (!sameLocation && !retainedFinalDirectory && await exists(sourceDirectory)) {
+    const retainedShelfRoot = sourceDirectory === target.targetRoot;
+    if (!sameLocation && !retainedFinalDirectory && !retainedShelfRoot &&
+        await exists(sourceDirectory)) {
       const unknown = [];
       for (const item of await fs.promises.readdir(sourceDirectory, { withFileTypes:true })) {
         const location = path.resolve(sourceDirectory, item.name);

@@ -4,7 +4,7 @@ Status: Helix-beta 已由 Product Owner 收窄为 **仅 Movie 的全功能版本
 
 Last updated: 2026-08-27
 
-## 0. Current UAT plan — UAT-127/UAT-133 repaired, clean rerun required
+## 0. Current UAT plan — UAT-127/UAT-134 repaired, clean rerun required
 
 `fb28e360467766b666a3d021e1668c6f09d255da`资格运行已因UAT-131固定为失败并保留现场。经Product Owner授权，SSOT §8.6.20
 有界补全、Libra授权瑕疵连续性、Arca独立Source/Product探测及Gap复核已完成本地实现与0失败回归。下一步只允许把该修复形成
@@ -24,6 +24,14 @@ Contract/Manifest/Semantic回归已经0失败；完整Architecture verifier只�
 修改源文件无新增finding。当前形成新的clean local main SHA；之后必须从不可变基线创建新的timestamp+SHA Canary、data、temp、Workspace、External Landing和Evidence，
 完整重跑A–I、UAT-127、UAT-129、23/23主检查点、豆瓣触发Aftercare、受控Artifact修复、UAT-128、全量Off-deck、Shelf
 Deregistration及至少24小时观察。不得复用`82283e2e1f`的过程Evidence，也不得在资格运行期间修改代码继续拼接结论。
+
+最新冻结SHA `185636805e879d56b7fff4c3a1a079129ccee843`又因UAT-134固定失败：同根Field/Shelf下，Arca把单个顶层
+Source的父目录误当作当前Package独占旧目录，并把其他合法媒体单元判为unknown member，令On-deck永久停在`offloading`。
+失败现场、UAT-127计划重启窗口及被动监控均已封存，Service与媒体进程已停止。修复保持在Arca Settlement边界，只豁免精确
+Shelf Target Root的目录独占检查，仍只删除通过完整fence验证的当前Source；专项、完整Service、真实Admin HTTP、Admin Web、
+Contract/Manifest/Semantic回归均0失败，Architecture只保留既有baseline findings。下一步形成新的clean local main SHA，清理足够F盘
+空间后从不可变基线创建此前不存在的timestamp+SHA Canary与全新data，完整重跑全部协议；不得复用`185636805e`的13/23、
+UAT-127 floor或其他部分Evidence。
 
 ## 0. Current UAT plan — UAT-094–UAT-105 Aftercare internal hardening
 

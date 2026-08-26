@@ -51,6 +51,20 @@ verifier只保留既有8项fixture失败与22项dependency findings，修改源�
 `UAT-127/UAT-133 LOCAL FULL REGRESSION PASSED / NEW CLEAN MAIN SHA FULL RERUN REQUIRED`，
 不得继承`82283e2e1f`的任何资格通过结论。
 
+随后冻结SHA `185636805e879d56b7fff4c3a1a079129ccee843`从新的隔离Canary再次重跑。UAT-127计划内重启已证明同一
+Event从durable 25.6%进入Attempt 2后页面保持26%、零低于floor的样本；但主流程在13/23 On-deck附近暴露UAT-134：协议要求的
+同根Field/Shelf下，《看不见的朋友》的Input Settlement把Canary根内其他合法顶层媒体单元误判为unknown member，On-deck Run
+永久停在`offloading`，同时Work/Event汇总仍显示`FAILED=0`。运行
+`F:\shelfdeck_test_zone\runs\BETA-20260827-064135-185636805e`已冻结为`QUALIFICATION FAILED`，最终Service、18080、
+FFmpeg/FFprobe均安全停止，未访问NAS、`Z:`、Docker或生产媒体。
+
+UAT-134修复只在Source父目录精确等于冻结Shelf Target Root时跳过“当前Package独占目录”检查；精确Handle、Fingerprint、Mapping、
+Final Product reality及Standing Authorization仍全部保留，普通独立Source Directory继续对unknown member fail closed。专项19/19、
+Arca/Handoff/Settlement/Recovery组合67 pass / 16显式环境skip / 0 fail、完整Service 337 pass / 18显式环境skip / 0 fail、
+Admin Web 29/29与production build、Contract/Manifest/Semantic Gate均PASS；完整Architecture verifier只保留既有8项fixture失败与
+22项dependency findings。当前状态为`UAT-134 LOCAL FULL REGRESSION PASSED / NEW CLEAN MAIN SHA FULL RERUN REQUIRED`，
+不得继承`185636805e`的部分UAT-127或Formation Evidence。
+
 ## 0. Open UAT — UAT-125 registered
 
 2026-08-25完成后台周期检查与Workspace治理审计，并把完整修复边界登记为`UAT-125`。现有30秒共享
