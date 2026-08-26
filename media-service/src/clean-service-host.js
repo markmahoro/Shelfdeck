@@ -62,6 +62,12 @@ const {
   createCandidateAcceptanceConsumer,
 } = require('./helix/domains/procurement/application/candidate-acceptance-consumer');
 const { createCandidateRejectionConsumer } = require('./helix/domains/procurement/application/candidate-rejection-consumer');
+const {
+  createFailedPreparationRetryAdminService,
+} = require('./helix/domains/procurement/application/failed-preparation-retry-admin-service');
+const {
+  createDefaultTriageRuleRegistry,
+} = require('./helix/domains/procurement/model/procurement-run-contracts');
 const { createOutboxDispatcherHost } = require('./helix/foundation/execution/outbox-dispatcher-host');
 const {
   createSynchronousDomainWork,
@@ -1563,6 +1569,14 @@ async function createCleanServiceHost(options) {
     libraRunExecutionProjection:
       procurementExecution.libraRunExecutionProjection,
   });
+  const failedPreparationRetryWorkRuntime = createSynchronousDomainWork(
+    constructed.applicationDependencies,
+  );
+  const failedPreparationRetryService = createFailedPreparationRetryAdminService({
+    ...constructed.applicationDependencies,
+    triageRegistry: createDefaultTriageRuleRegistry(),
+    workRuntime: failedPreparationRetryWorkRuntime,
+  });
   const outboxDispatcherFactory = options.outboxDispatcherFactory || createOutboxDispatcherHost;
   const outboxDispatcher = outboxDispatcherFactory({
     ...constructed.applicationDependencies,
@@ -1570,6 +1584,7 @@ async function createCleanServiceHost(options) {
     intakeCoordinator: procurementExecution.intakeCoordinator,
     acceptanceConsumer: candidateAcceptance,
     rejectionConsumer: candidateRejection,
+    failedPreparationRetryService,
     procurementAutomation: procurementExecution.procurementAutomation,
     routingCoordinator: procurementExecution.routingCoordinator,
     perceptionCoordinator: procurementExecution.perception,
@@ -1652,7 +1667,8 @@ async function createCleanServiceHost(options) {
     ...constructed.applicationDependencies,
     materialFieldStore,
     executionRuntimeHost,
-    workRuntime: createSynchronousDomainWork(constructed.applicationDependencies),
+    workRuntime: failedPreparationRetryWorkRuntime,
+    failedPreparationRetryService,
     assertLocationAvailable: (request) =>
       platformIntegrations.assertExternalLandingRootAvailable(request),
     probeFieldAccess: (request) => Object.freeze({

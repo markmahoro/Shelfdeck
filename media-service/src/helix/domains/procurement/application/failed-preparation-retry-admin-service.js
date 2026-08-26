@@ -126,6 +126,26 @@ function repositoryDefinition(schemaManifest) {
         ],
         keyColumns: ['failed_run_id'],
       },
+      find_retry_intent: {
+        kind: 'select-one',
+        tableId: 'proc_procurement_retry_intents',
+        columns: [
+          'retry_intent_id',
+          'field_id',
+          'failed_run_id',
+          'state',
+          'state_revision',
+          'idempotency_key',
+          'intent_digest',
+          'retry_scope_digest',
+          'create_commit_marker',
+          'create_result_digest',
+          'consume_commit_marker',
+          'consume_result_digest',
+        ],
+        keyColumns: ['retry_intent_id'],
+        safeIntegers: true,
+      },
       find_field: {
         kind: 'select-one',
         tableId: 'proc_material_fields',
@@ -401,6 +421,46 @@ function thawAdmissionRequest(request) {
   });
 }
 
+function retryIntentAvailablePayload(intent) {
+  return Object.freeze({
+    messageKind: 'procurement_retry_intent_available',
+    retryIntentId: intent.retryIntentId,
+    fieldId: intent.fieldId,
+    failedRunId: intent.failedRunId,
+    intentStateRevision: 1,
+    intentDigest: intent.intentDigest,
+    retryScopeDigest: intent.retryScopeDigest,
+  });
+}
+
+function validateRetryIntentAvailablePayload(payload) {
+  const keys = [
+    'messageKind',
+    'retryIntentId',
+    'fieldId',
+    'failedRunId',
+    'intentStateRevision',
+    'intentDigest',
+    'retryScopeDigest',
+  ];
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload) ||
+      Object.keys(payload).length !== keys.length ||
+      keys.some((key) => !Object.hasOwn(payload, key)) ||
+      payload.messageKind !== 'procurement_retry_intent_available' ||
+      typeof payload.retryIntentId !== 'string' || payload.retryIntentId.length === 0 ||
+      typeof payload.fieldId !== 'string' || payload.fieldId.length === 0 ||
+      typeof payload.failedRunId !== 'string' || payload.failedRunId.length === 0 ||
+      payload.intentStateRevision !== 1 ||
+      !SHA256.test(payload.intentDigest || '') ||
+      !SHA256.test(payload.retryScopeDigest || '')) {
+    fail(
+      'FAILED_PREPARATION_RETRY_AVAILABLE_MESSAGE_INVALID',
+      'Procurement Retry Intent Available消息不符合closed合同。',
+    );
+  }
+  return Object.freeze({ ...payload });
+}
+
 function capabilityStep(options) {
   const inputSetDigest = canonicalDigest(options.input);
   const fence = {
@@ -482,8 +542,10 @@ function createFailedPreparationRetryAdminService(options) {
     );
   }
   const repository = repositoryDefinition(options.schemaManifest);
-  const intentStore = createProcurementRetryIntentStore(options);
-  const retryConsumer = createProcurementRetryAdmissionStore(options);
+  const intentStore = options.retryIntentStore ||
+    createProcurementRetryIntentStore(options);
+  const retryConsumer = options.retryAdmissionStore ||
+    createProcurementRetryAdmissionStore(options);
 
   function assemble(input, workId, basisDigest) {
     let snapshot;
@@ -857,6 +919,147 @@ function createFailedPreparationRetryAdminService(options) {
     });
   }
 
+  function retryIntentRow(retryIntentId) {
+    return options.unitOfWork.execute([{
+      participantId: 'failed_preparation_retry_intent_lookup',
+      owner: 'procurement',
+      repositories: [repository],
+      execute(context) {
+        return context.repository(repository.repositoryId).invoke(
+          'find_retry_intent',
+          { retry_intent_id: retryIntentId },
+        );
+      },
+    }]).failed_preparation_retry_intent_lookup;
+  }
+
+  function assertAvailableMessageRow(payload, row) {
+    if (!row ||
+        row.retry_intent_id !== payload.retryIntentId ||
+        row.field_id !== payload.fieldId ||
+        row.failed_run_id !== payload.failedRunId ||
+        row.intent_digest !== payload.intentDigest ||
+        row.retry_scope_digest !== payload.retryScopeDigest ||
+        !['open', 'consumed', 'stale'].includes(row.state) ||
+        ![1, 2].includes(Number(row.state_revision)) ||
+        (row.state === 'open' && Number(row.state_revision) !== 1) ||
+        (row.state !== 'open' && Number(row.state_revision) !== 2)) {
+      fail(
+        'FAILED_PREPARATION_RETRY_AVAILABLE_MESSAGE_STALE',
+        'Procurement Retry Intent Available消息与Owner事实不一致。',
+        { retryIntentId: payload.retryIntentId },
+      );
+    }
+  }
+
+  function frozenRetryWork(payload, row) {
+    const workId = stableId('failed-preparation-retry-work-', {
+      fieldId: row.field_id,
+      idempotencyKey: row.idempotency_key,
+    });
+    const snapshot = options.workRuntime.snapshot(workId);
+    const intentRequest = snapshot?.pages?.[0]?.intentRequest;
+    const frozenAdmissionRequest = snapshot?.pages?.[1]?.admissionRequest;
+    const expectedIntentEventId = stableId('retry-intent-event-', { workId });
+    const expectedAdmissionEventId = stableId('retry-admission-event-', { workId });
+    const eventIds = (snapshot?.events || []).map((event) => event.event_id).sort();
+    const frozenIntentDigest = intentRequest?.intent
+      ? canonicalDigest(Object.fromEntries(
+        Object.entries(intentRequest.intent).filter(([key]) => key !== 'intentDigest'),
+      ))
+      : null;
+    if (!snapshot?.plan || snapshot.plan.planner_ref !==
+          'procurement.failed-preparation-retry-planner@1' ||
+        snapshot.pages.length !== 2 || snapshot.events.length !== 2 ||
+        eventIds[0] !== [expectedAdmissionEventId, expectedIntentEventId].sort()[0] ||
+        eventIds[1] !== [expectedAdmissionEventId, expectedIntentEventId].sort()[1] ||
+        !intentRequest?.intent ||
+        intentRequest.intent.retryIntentId !== payload.retryIntentId ||
+        intentRequest.intent.fieldId !== payload.fieldId ||
+        intentRequest.intent.failedRunId !== payload.failedRunId ||
+        intentRequest.intent.intentDigest !== payload.intentDigest ||
+        intentRequest.intent.retryScopeDigest !== payload.retryScopeDigest ||
+        frozenIntentDigest !== payload.intentDigest ||
+        intentRequest.commitMarker?.commitMarker !== row.create_commit_marker ||
+        !frozenAdmissionRequest ||
+        frozenAdmissionRequest.retryIntentId !== payload.retryIntentId ||
+        frozenAdmissionRequest.expectedStateRevision !== 1 ||
+        frozenAdmissionRequest.expectedIntentDigest !== payload.intentDigest ||
+        frozenAdmissionRequest.resultBinding?.eventId !== expectedAdmissionEventId) {
+      fail(
+        'FAILED_PREPARATION_RETRY_FROZEN_WORK_CORRUPT',
+        'Retry Intent无法从冻结Supporting Work/Plan恢复精确Admission。',
+        { retryIntentId: payload.retryIntentId, workId },
+      );
+    }
+    return Object.freeze({
+      workId,
+      intentEventId: expectedIntentEventId,
+      admissionEventId: expectedAdmissionEventId,
+      intentRequest,
+      admissionRequest: thawAdmissionRequest(frozenAdmissionRequest),
+    });
+  }
+
+  function retryInboxParticipant(payload, admissionResultDigest) {
+    return Object.freeze({
+      participantId: 'procurement_retry_intent_available_receipt',
+      owner: 'procurement',
+      repositories: [repository],
+      execute(context) {
+        const row = context.repository(repository.repositoryId).invoke(
+          'find_retry_intent',
+          { retry_intent_id: payload.retryIntentId },
+        );
+        assertAvailableMessageRow(payload, row);
+        if (!['consumed', 'stale'].includes(row.state) ||
+            row.consume_result_digest !== admissionResultDigest ||
+            typeof row.consume_commit_marker !== 'string' ||
+            row.consume_commit_marker.length === 0) {
+          fail(
+            'FAILED_PREPARATION_RETRY_AVAILABLE_MESSAGE_UNSETTLED',
+            'Retry Intent Available消息不能在Admission终态前写入Inbox。',
+            { retryIntentId: payload.retryIntentId },
+          );
+        }
+        return Object.freeze({
+          retryIntentId: row.retry_intent_id,
+          terminalIntentState: row.state,
+          admissionResultDigest,
+        });
+      },
+    });
+  }
+
+  function consumeAvailable(messagePayload) {
+    const payload = validateRetryIntentAvailablePayload(messagePayload);
+    const row = retryIntentRow(payload.retryIntentId);
+    assertAvailableMessageRow(payload, row);
+    const frozen = frozenRetryWork(payload, row);
+
+    options.workRuntime.beginEvent(frozen.intentEventId);
+    options.workRuntime.completeEvent(
+      frozen.intentEventId,
+      frozen.intentRequest.resultBinding.resultId,
+    );
+    options.workRuntime.beginEvent(frozen.admissionEventId);
+    const retryAdmission = retryConsumer.consume(frozen.admissionRequest);
+    options.workRuntime.completeEvent(
+      frozen.admissionEventId,
+      frozen.admissionRequest.resultBinding.resultId,
+    );
+    options.workRuntime.complete(frozen.workId);
+
+    const admissionResultDigest = canonicalDigest(retryAdmission.typedResult);
+    return Object.freeze({
+      workId: frozen.workId,
+      retryAdmissionResult: retryAdmission.typedResult,
+      replayed: Boolean(retryAdmission.replayed),
+      resultDigest: admissionResultDigest,
+      inboxParticipant: retryInboxParticipant(payload, admissionResultDigest),
+    });
+  }
+
   function retry(input) {
     validateInput(input);
     const basisValue = {
@@ -947,9 +1150,7 @@ function createFailedPreparationRetryAdminService(options) {
     });
     const frozen = activated.snapshot.pages;
     const intentStep = frozen[0];
-    const admissionStep = frozen[1];
     const intentEventId = stableId('retry-intent-event-', { workId });
-    const admissionEventId = stableId('retry-admission-event-', { workId });
 
     options.workRuntime.beginEvent(intentEventId);
     const intentResult = intentStore.create(intentStep.intentRequest);
@@ -957,32 +1158,24 @@ function createFailedPreparationRetryAdminService(options) {
       intentEventId,
       intentStep.intentRequest.resultBinding.resultId,
     );
-
-    options.workRuntime.beginEvent(admissionEventId);
-    const admissionRequest = thawAdmissionRequest(
-      admissionStep.admissionRequest,
+    const consumed = consumeAvailable(
+      retryIntentAvailablePayload(intentStep.intentRequest.intent),
     );
-    const retryAdmission = retryConsumer.consume(admissionRequest);
-    options.workRuntime.completeEvent(
-      admissionEventId,
-      admissionRequest.resultBinding.resultId,
-    );
-    options.workRuntime.complete(workId);
 
     return Object.freeze({
       workId,
       state: 'succeeded',
       retryIntentReceipt: intentResult.typedResult,
-      retryAdmissionResult: retryAdmission.typedResult,
+      retryAdmissionResult: consumed.retryAdmissionResult,
       replayed: Boolean(
         admission.replayed &&
         intentResult.replayed &&
-        retryAdmission.replayed,
+        consumed.replayed,
       ),
     });
   }
 
-  return Object.freeze({ retry });
+  return Object.freeze({ consumeAvailable, retry });
 }
 
 module.exports = Object.freeze({

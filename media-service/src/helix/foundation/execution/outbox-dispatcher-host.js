@@ -76,6 +76,22 @@ function createOutboxDispatcherHost(options){const repo=repository(options.schem
     if(item.message.message_kind==='libra_candidate_rejected'&&item.delivery.consumer_domain==='procurement'){
       options.rejectionConsumer.consume(envelope(item,payload));inbox.acknowledge({messageId:item.message.message_id,consumerDomain:'procurement'});return;
     }
+    if(item.message.message_kind==='procurement_retry_intent_available'&&item.delivery.consumer_domain==='procurement'){
+      if(item.message.payload_schema_ref!==
+          'helix://contracts/application-types/ProcurementRetryIntentAvailableMessage/v1')
+        throw new Error('Procurement Retry Intent Available payload schema is invalid.');
+      if(!options.failedPreparationRetryService?.consumeAvailable)
+        throw new Error('Procurement Retry Intent Available consumer is unavailable.');
+      const consumed=options.failedPreparationRetryService.consumeAvailable(payload);
+      const resultDigest=canonicalDigest({schema:'procurement.retry-intent-wake-consumption@1',
+        retryIntentId:payload.retryIntentId,intentDigest:payload.intentDigest,
+        terminalIntentState:consumed.retryAdmissionResult.terminalIntentState,
+        admissionResultDigest:consumed.resultDigest});
+      inbox.consume({message:{messageId:item.message.message_id,dedupKey:item.message.dedup_key,consumerDomain:'procurement'},
+        resultDigest,domainParticipant:consumed.inboxParticipant});
+      inbox.acknowledge({messageId:item.message.message_id,consumerDomain:'procurement'});
+      options.executionRuntimeHost.wake();return;
+    }
     if(item.message.message_kind==='arca.shelf_deregistration.control_released@1'&&item.delivery.consumer_domain==='procurement'){
       if(!Array.isArray(payload.materialIds)||payload.materialIds.length<1||payload.materialIds.length>100||
           new Set(payload.materialIds).size!==payload.materialIds.length||canonicalDigest([...payload.materialIds].sort())!==payload.materialKeySetDigest)

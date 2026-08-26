@@ -224,9 +224,9 @@ function createProcurementAdminApplication(options) {
     now: options.now || Date.now,
   });
   const triageRegistry = options.triageRegistry || createDefaultTriageRuleRegistry();
-  const retry = options.workRuntime
+  const retry = options.failedPreparationRetryService || (options.workRuntime
     ? createFailedPreparationRetryAdminService({ ...options, triageRegistry })
-    : null;
+    : null);
   const commands = procurementPublic.ProcurementCommandFacade({
     registerMaterialField: (envelope) => {
       assertLocationAvailable(envelope?.input?.access?.rootLocation);
