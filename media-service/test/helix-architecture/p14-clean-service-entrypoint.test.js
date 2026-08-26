@@ -1597,6 +1597,20 @@ test.skip('failed-preparation synchronous product journey is outside the Procure
     ).get().state,
     'succeeded',
   );
+  const retryAdmissionPlanInput = completedEvidence.prepare(
+    `SELECT input_bindings_json
+       FROM fx_plan_nodes
+      WHERE capability_ref='procurement.retry.admit@1'`
+  ).get();
+  assert.ok(retryAdmissionPlanInput);
+  assert.ok(Buffer.byteLength(retryAdmissionPlanInput.input_bindings_json) <= 16 * 1024);
+  assert.equal(
+    Object.hasOwn(
+      JSON.parse(retryAdmissionPlanInput.input_bindings_json).admissionRequest,
+      'controlHandle',
+    ),
+    false,
+  );
   completedEvidence.close();
 
   kernel = openSqliteKernel({

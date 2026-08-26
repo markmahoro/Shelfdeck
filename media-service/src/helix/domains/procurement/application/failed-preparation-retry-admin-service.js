@@ -388,6 +388,19 @@ function controlHandle(newRunBasis) {
   });
 }
 
+function freezeAdmissionRequest(request) {
+  const { controlHandle: derivedControlHandle, ...frozen } = request;
+  return Object.freeze(frozen);
+}
+
+function thawAdmissionRequest(request) {
+  if (!request?.newRunBasis || request.controlHandle) return request;
+  return Object.freeze({
+    ...request,
+    controlHandle: controlHandle(request.newRunBasis),
+  });
+}
+
 function capabilityStep(options) {
   const inputSetDigest = canonicalDigest(options.input);
   const fence = {
@@ -832,8 +845,10 @@ function createFailedPreparationRetryAdminService(options) {
           eventId: admissionEventId,
           capabilityRef: ADMISSION_CAPABILITY,
           inputSchemaRef:
-            'helix://implementation/procurement/retry-admission-command/v1',
-          input: Object.freeze({ admissionRequest }),
+            'helix://implementation/procurement/retry-admission-plan-input/v1',
+          input: Object.freeze({
+            admissionRequest: freezeAdmissionRequest(admissionRequest),
+          }),
           basisDigest,
           fieldId: input.fieldId,
           failedRunId: input.failedProcurementRunId,
@@ -944,12 +959,13 @@ function createFailedPreparationRetryAdminService(options) {
     );
 
     options.workRuntime.beginEvent(admissionEventId);
-    const retryAdmission = retryConsumer.consume(
+    const admissionRequest = thawAdmissionRequest(
       admissionStep.admissionRequest,
     );
+    const retryAdmission = retryConsumer.consume(admissionRequest);
     options.workRuntime.completeEvent(
       admissionEventId,
-      admissionStep.admissionRequest.resultBinding.resultId,
+      admissionRequest.resultBinding.resultId,
     );
     options.workRuntime.complete(workId);
 
