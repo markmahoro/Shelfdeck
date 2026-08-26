@@ -115,12 +115,16 @@ function createWorkScheduler(options) {
   const definitions = repositories(options.schemaManifest);
   const activeLeases = new Map();
   const minimumBackgroundLeases = new Set();
+  const resourceWaitNotBeforeByTarget = new Map();
   let minimumBackgroundNotBeforeMs = 0;
 
   function purgeExpired(nowMs) {
     for (const [targetKey, lease] of activeLeases) if (lease.expiresAtMs <= nowMs) {
       activeLeases.delete(targetKey);
       minimumBackgroundLeases.delete(lease.leaseId);
+    }
+    for (const [targetId, notBeforeMs] of resourceWaitNotBeforeByTarget) {
+      if (notBeforeMs <= nowMs) resourceWaitNotBeforeByTarget.delete(targetId);
     }
   }
 
@@ -183,6 +187,10 @@ function createWorkScheduler(options) {
       const targetId = request.targetType === 'work' ? target.work_id : target.event_id;
       const targetKey = request.targetType + ':' + targetId;
       if (activeLeases.has(targetKey)) continue;
+      if (request.targetType === 'event') {
+        const resourceWaitNotBeforeMs = resourceWaitNotBeforeByTarget.get(targetId);
+        if (resourceWaitNotBeforeMs !== undefined && resourceWaitNotBeforeMs > nowMs) continue;
+      }
       const queuedAtMs = request.targetType === 'work' ? target.created_at_ms : target.ready_at_ms;
       if (!Number.isSafeInteger(queuedAtMs) || queuedAtMs < 0 || queuedAtMs > nowMs) fail(
         'P4_SCHEDULER_QUEUE_TIME_INVALID', 'Eligible target requires a valid non-future queue timestamp.', { targetId }
@@ -244,6 +252,16 @@ function createWorkScheduler(options) {
         JSON.stringify(Object.keys(outcome)) !== JSON.stringify(['kind']) ||
         !['started', 'resource_wait'].includes(outcome.kind)) {
       fail('P4_SCHEDULER_DISPATCH_OUTCOME_INVALID', 'Dispatch outcome must be an exact started or resource_wait value.');
+    }
+    if (outcome.kind === 'resource_wait') {
+      // The durable retry fence may already be elapsed when a waiter is
+      // reconstructed after restart. Keep one short process-local dispatch
+      // cooldown so the same waiter cannot consume every action in a tick and
+      // starve the remaining eligible Events. Capacity release still wakes the
+      // Host, and the bounded fallback retry remains within 100ms.
+      resourceWaitNotBeforeByTarget.set(current.targetId, options.now() + MINIMUM_BACKGROUND_RETRY_MS);
+    } else {
+      resourceWaitNotBeforeByTarget.delete(current.targetId);
     }
     if (!minimumBackgroundLeases.has(current.leaseId)) return Object.freeze({ recorded:false });
     minimumBackgroundNotBeforeMs = options.now() + (outcome.kind === 'started' ? AGING_INTERVAL_MS : MINIMUM_BACKGROUND_RETRY_MS);

@@ -124,6 +124,26 @@ test('resource wait does not invert below the waiting Event while same-priority 
   });
 });
 
+test('an elapsed resource waiter cannot monopolize one scheduling tick', () => {
+  fixture(({ scheduler, seedRows, projections, setNow }) => {
+    seedRows((repository) => {
+      addEventGraph(repository, projections, 'waiting', {
+        localPriority:100,eventState:'waiting_for_resource',retryAtMs:179999,readyAtMs:100000,
+      });
+      addEventGraph(repository, projections, 'peer', {localPriority:0,readyAtMs:130000});
+    });
+    const waiting=scheduler.acquire({targetType:'event'});
+    assert.equal(waiting.lease.targetId,'event-waiting');
+    assert.equal(scheduler.noteDispatchOutcome(waiting.lease,{kind:'resource_wait'}).recorded,false);
+    scheduler.release(waiting.lease);
+    const peer=scheduler.acquire({targetType:'event'});
+    assert.equal(peer.lease.targetId,'event-peer');
+    scheduler.release(peer.lease);
+    setNow(180100);
+    assert.equal(scheduler.acquire({targetType:'event'}).lease.targetId,'event-waiting');
+  });
+});
+
 test('one due background Event gets bounded progress without starving ordinary or reserved work', () => {
   fixture(({ scheduler, seedRows, projections, setNow }) => {
     seedRows((repository) => {
