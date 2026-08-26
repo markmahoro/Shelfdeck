@@ -62,6 +62,19 @@ test('Progress sample and current pointer commit atomically with monotonic revis
   });
 });
 
+test('current returns only the latest persisted sample for the exact Event Attempt', () => {
+  fixture(({ reporter, setNow }) => {
+    assert.equal(reporter.current(),null);
+    reporter.report(sample());
+    setNow(15000);
+    reporter.report(sample({currentValue:2,sourceSequence:'seq-2',progressBucket:'20-percent'}));
+    assert.deepEqual(reporter.current(),{
+      revision:2,mode:'determinate',currentValue:2,totalValue:10,unit:'items',rate:1,etaMs:9000,
+      sourceSequence:'seq-2',progressBucket:'20-percent',sampledAtMs:15000,
+    });
+  });
+});
+
 test('same source sequence replays exact value and rejects changed value', () => {
   fixture(({ reporter }) => {
     reporter.report(sample());

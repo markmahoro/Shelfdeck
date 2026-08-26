@@ -58,8 +58,11 @@ function resolveFfmpegPath(explicit){
   return 'ffmpeg';
 }
 
-function progressGroup(report, phaseCount = 1) {
-  return { report, phaseCount, durationUs:null, lastCurrentValue:0 };
+function progressGroup(report, phaseCount = 1, progressFloor = null) {
+  const floor=progressFloor?.mode==='determinate'&&progressFloor.unit==='percent'&&
+    Number(progressFloor.totalValue)===100&&Number.isFinite(progressFloor.currentValue)
+    ?Math.max(0,Math.min(100,Number(progressFloor.currentValue))):0;
+  return { report, phaseCount, durationUs:null, lastCurrentValue:floor };
 }
 
 function progressPhase(group, prefix, phaseIndex = 0, terminalAtEnd = true) {
@@ -82,7 +85,11 @@ function reportProcessProgress(progress, outTimeUs, speed, atEnd) {
     const overallRatio = Math.min((progress.phaseIndex + phaseRatio) / group.phaseCount, 1);
     mode = 'determinate';
     totalValue = 100;
-    currentValue = Math.max(group.lastCurrentValue, Math.round(overallRatio * 1000) / 10);
+    const observedCurrentValue = Math.round(overallRatio * 1000) / 10;
+    if (!atEnd && observedCurrentValue < group.lastCurrentValue) return Object.freeze({
+      sampled:false, replayed:false, reasonCode:'RECOVERY_CATCHUP', currentValue:group.lastCurrentValue,
+    });
+    currentValue = Math.max(group.lastCurrentValue, observedCurrentValue);
     if (atEnd) currentValue = Math.max(currentValue, Math.round(((progress.phaseIndex + 1) / group.phaseCount) * 1000) / 10);
     if (atEnd && progress.terminalAtEnd) currentValue = 100;
     group.lastCurrentValue = currentValue;
@@ -90,11 +97,12 @@ function reportProcessProgress(progress, outTimeUs, speed, atEnd) {
     if (speed && speed > 0) etaMs = Math.max(0, Math.round((group.phaseCount * durationUs * (1 - currentValue / 100)) / speed / 1000));
   }
   const terminal = Boolean(atEnd && progress.terminalAtEnd);
-  return group.report(Object.freeze({
-    mode, currentValue, totalValue, unit, rate:speed, etaMs,
-    sourceSequence:progress.prefix+':'+outTimeUs+(atEnd?':end':''),
+  const sample={ mode, currentValue, totalValue, unit, rate:speed, etaMs,
     progressBucket:terminal?'complete':mode==='determinate'?'percent-'+Math.floor(currentValue):progress.prefix+'-running',
-    terminal,
+    terminal };
+  return group.report(Object.freeze({ ...sample,
+    sourceSequence:progress.prefix+':'+canonicalDigest({ schema:'ffmpeg-progress-source-sequence@1',
+      prefix:progress.prefix,outTimeUs:String(outTimeUs),speed:speed??null,...sample }),
   }));
 }
 
@@ -331,7 +339,7 @@ function createCleanMediaProductionEffectPort(options) {
 
   async function executeRemux(request) {
     const target = request.outputTarget;
-    const progress=request.reportProgress?progressGroup(request.reportProgress):null;
+    const progress=request.reportProgress?progressGroup(request.reportProgress,1,request.progressFloor):null;
     const run=(args,limit,processProgress=null)=>runProcess(ffmpegPath,args,limit,processProgress,
       {processRegistry,deadlineAtMs:request.deadlineAtMs,shouldContinue:request.shouldContinue});
     return options.workspaceProductPort.materializeMedia({ libraRunId:target.libraRunId, workspaceId:target.workspaceId,
@@ -360,7 +368,7 @@ function createCleanMediaProductionEffectPort(options) {
   async function executeTranscode(request) {
     const target = request.outputTarget;
     const phaseCount=request.productionIntent.video.rateControlMode==='two_pass_abr'?2:1,
-      progress=request.reportProgress?progressGroup(request.reportProgress,phaseCount):null;
+      progress=request.reportProgress?progressGroup(request.reportProgress,phaseCount,request.progressFloor):null;
     const run=(args,limit,processProgress=null)=>runProcess(ffmpegPath,args,limit,processProgress,
       {processRegistry,deadlineAtMs:request.deadlineAtMs,shouldContinue:request.shouldContinue});
     return options.workspaceProductPort.materializeMedia({ libraRunId:target.libraRunId, workspaceId:target.workspaceId,
@@ -432,6 +440,7 @@ module.exports = Object.freeze({
   durationUsFromFfmpeg,
   progressGroup,
   progressPhase,
+  reportProcessProgress,
   matroskaCopyMapsFromProbe,
   productStreamMap,
 });

@@ -14,6 +14,7 @@ const {
   durationUsFromFfmpeg,
   progressGroup,
   progressPhase,
+  reportProcessProgress,
   matroskaCopyMapsFromProbe,
   productStreamMap,
 } = require('../src/clean-media-production-effect-port');
@@ -171,6 +172,24 @@ test('turns FFmpeg media time into bounded determinate progress', async (t) => {
   assert.equal(samples.at(-1).totalValue,100);
   assert.equal(samples.at(-1).unit,'percent');
   assert.equal(samples.at(-1).terminal,true);
+});
+
+test('recovered FFmpeg progress catches up to its persisted floor and uses the complete observation as identity', () => {
+  const samples=[];
+  const group=progressGroup((sample)=>{samples.push(sample);return sample;},1,
+    {mode:'determinate',currentValue:40,totalValue:100,unit:'percent'});
+  group.durationUs=100_000_000;
+  const phase=progressPhase(group,'transcode');
+  assert.deepEqual(reportProcessProgress(phase,20_000_000,1,false),{
+    sampled:false,replayed:false,reasonCode:'RECOVERY_CATCHUP',currentValue:40,
+  });
+  assert.equal(samples.length,0);
+  const first=reportProcessProgress(phase,50_000_000,1,false);
+  const changedRate=reportProcessProgress(phase,50_000_000,2,false);
+  const exactReplay=reportProcessProgress(phase,50_000_000,2,false);
+  assert.equal(first.currentValue,50);
+  assert.notEqual(first.sourceSequence,changedRate.sourceSequence);
+  assert.equal(changedRate.sourceSequence,exactReplay.sourceSequence);
 });
 
 test('FFmpeg failures retain the actual stderr tail after a long diagnostic stream', async () => {

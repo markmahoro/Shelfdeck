@@ -639,6 +639,24 @@ test('startup recovery settles an old pure observation executor error instead of
     dispatchError:new Error('old pure observation crash') });
 });
 
+test('startup recovery exposes the exact persisted progress floor only as runtime context', async () => {
+  await fixture(async ({runtime,databasePath,state})=>{
+    const database=new Database(databasePath);
+    try {
+      database.prepare(`INSERT INTO fx_event_progress
+        (event_id,event_attempt_id,revision,mode,current_value,total_value,unit,rate,eta_ms,source_sequence,progress_bucket,sampled_at_ms)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`).run('event','event-attempt',1,'determinate',42,100,'percent',2,29000,'persisted-42','percent-42',900);
+      database.prepare('UPDATE fx_workflow_events SET current_progress_revision=1 WHERE event_id=?').run('event');
+    } finally { database.close(); }
+    await runtime.recover({eventId:'event',decision:'safe_retry'});
+    assert.deepEqual(state().dispatchContext.progressFloor,{
+      revision:1,mode:'determinate',currentValue:42,totalValue:100,unit:'percent',rate:2,etaMs:29000,
+      sourceSequence:'persisted-42',progressBucket:'percent-42',sampledAtMs:900,
+    });
+    assert.equal(Object.keys(state().dispatchContext).includes('progressFloor'),false);
+  },{initialEventState:'executing',seedExecutingAttempt:true});
+});
+
 test('non-pure Event persists intent before dispatch and settles verified receipt before Result commit', async () => {
   const effectReceipt = { effectReceiptId: 'receipt', effectId: 'event-attempt', effectClass: 'external_request', idempotencyKey: 'event-attempt' };
   await fixture(async ({ runtime, lease, state, databasePath }) => {

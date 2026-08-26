@@ -71,6 +71,26 @@ function createProgressReporter(options) {
   );
   const repositories = definitions(options.schemaManifest);
   return Object.freeze({
+    current() {
+      return options.unitOfWork.execute([{
+        participantId: 'progress_current_read', owner: 'execution-foundation', repositories: Object.values(repositories),
+        execute(context) {
+          const attempt = context.repository('progress_attempts').invoke('find', { event_attempt_id: options.eventAttemptId });
+          const event = context.repository('progress_events').invoke('find', { event_id: options.eventId });
+          if (!attempt || !event || attempt.event_id !== event.event_id) fail(
+            'P4_PROGRESS_ATTEMPT_MISSING', 'Current progress requires the exact Event Attempt.'
+          );
+          const latest = context.repository('progress_samples').invoke('list', { event_attempt_id:options.eventAttemptId })
+            .sort((left, right) => left.revision - right.revision).at(-1);
+          return latest ? Object.freeze({
+            revision:latest.revision, mode:latest.mode, currentValue:latest.current_value,
+            totalValue:latest.total_value, unit:latest.unit, rate:latest.rate, etaMs:latest.eta_ms,
+            sourceSequence:latest.source_sequence, progressBucket:latest.progress_bucket,
+            sampledAtMs:latest.sampled_at_ms,
+          }) : null;
+        }
+      }]).progress_current_read;
+    },
     report(rawSample) {
       const sample = validate(rawSample);
       const sampledAtMs = options.now();

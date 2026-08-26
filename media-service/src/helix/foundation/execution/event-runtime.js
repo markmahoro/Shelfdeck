@@ -620,6 +620,7 @@ function createEventRuntime(options) {
       Object.defineProperties(context, {
         effectOccurredAtMs:{ configurable:false, enumerable:false, writable:false, value:attempt.started_at_ms },
         recoveryDecision:{ configurable:false, enumerable:false, writable:false, value:request.decision },
+        progressFloor:{ configurable:false, enumerable:false, writable:false, value:progressReporter.current() },
       });
       if (inputs.approvalHandle !== undefined) context.approvalHandle = inputs.approvalHandle;
       if (inputs.authorizationHandle !== undefined) context.authorizationHandle = inputs.authorizationHandle;
@@ -821,6 +822,7 @@ function createEventRuntime(options) {
         Object.defineProperties(context, {
           effectOccurredAtMs:{ configurable:false, enumerable:false, writable:false, value:startedAtMs },
           recoveryDecision:{ configurable:false, enumerable:false, writable:false, value:null },
+          progressFloor:{ configurable:false, enumerable:false, writable:false, value:null },
         });
         if (inputs.approvalHandle !== undefined) context.approvalHandle = inputs.approvalHandle;
         if (inputs.authorizationHandle !== undefined) context.authorizationHandle = inputs.authorizationHandle;
