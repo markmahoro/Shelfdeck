@@ -27,6 +27,15 @@ Shelf Deregistration；另覆盖活动转码恢复、Procurement retry crash win
 Arca也增加了独立Source/Product探测与实际Gap复核。当前状态仅为
 `LOCAL FULL REGRESSION PASSED / NEW CLEAN MAIN SHA FULL RERUN REQUIRED`，不继承旧运行Evidence，不宣称任何HB门禁PASS。
 
+随后冻结SHA `d7506e0bc534f6906f3a0ef53461b1a16f7bccd9`从全新Canary重跑，在7项On-deck、6项合法Frozen时暴露
+`UAT-132`：两份实际HEVC、无完整色彩标签的Direct产品被Arca仅以`dynamic_range_conversion_unmet`拒绝。失败运行
+`F:\shelfdeck_test_zone\runs\BETA-20260827-050140-d7506e0bc`已封存并停止；根因是UAT-131传播的Arca accepted dynamic-range
+closed set遗漏正式合同已有的`unknown`。实现已把canonical set补齐为五值，并按既有SSOT区分`none`、`preserve`与
+`tone_map_to_sdr_bt709`：External Import的`none`不伪造Source/Product相等要求，`preserve`才要求两者一致，tone-map继续严格
+复核DV→SDR、BT.709、DOVI移除及双端5/50/95解码。独立Architecture复核PASS且SSOT无改动；Service全量
+`353 total / 335 pass / 18 explicit environment skip / 0 fail`，Admin Web `29/29`及production build PASS。
+当前状态为`UAT-132 LOCAL FULL REGRESSION PASSED / NEW CLEAN MAIN SHA FULL RERUN REQUIRED`，仍不宣称Beta资格。
+
 ## 0. Open UAT — UAT-125 registered
 
 2026-08-25完成后台周期检查与Workspace治理审计，并把完整修复边界登记为`UAT-125`。现有30秒共享

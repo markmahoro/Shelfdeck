@@ -240,11 +240,23 @@
             "properties": {
               "sourceDynamicRangeKind": {
                 "type": "string",
-                "minLength": 1
+                "enum": [
+                  "sdr",
+                  "hdr10_compatible",
+                  "hlg",
+                  "dolby_vision",
+                  "unknown"
+                ]
               },
               "outputDynamicRangeKind": {
                 "type": "string",
-                "minLength": 1
+                "enum": [
+                  "sdr",
+                  "hdr10_compatible",
+                  "hlg",
+                  "dolby_vision",
+                  "unknown"
+                ]
               },
               "conversionOperation": {
                 "type": "string",
@@ -724,11 +736,23 @@
                   "properties": {
                     "sourceDynamicRangeKind": {
                       "type": "string",
-                      "minLength": 1
+                      "enum": [
+                        "sdr",
+                        "hdr10_compatible",
+                        "hlg",
+                        "dolby_vision",
+                        "unknown"
+                      ]
                     },
                     "outputDynamicRangeKind": {
                       "type": "string",
-                      "minLength": 1
+                      "enum": [
+                        "sdr",
+                        "hdr10_compatible",
+                        "hlg",
+                        "dolby_vision",
+                        "unknown"
+                      ]
                     },
                     "conversionOperation": {
                       "type": "string",

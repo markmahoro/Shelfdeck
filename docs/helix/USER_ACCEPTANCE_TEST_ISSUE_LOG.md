@@ -3878,7 +3878,63 @@ clean main已有发现，UAT-131未新增越界。以上均为本地实现证据
 `SSOT BOUNDED AMENDMENT AND LOCAL FULL REGRESSION PASSED / NEW CLEAN MAIN SHA FULL RERUN REQUIRED`。
 旧运行只保留失败现场，不继续拼接Evidence；只有新clean main SHA从全新Canary完成全部门禁和24小时观察后，才能关闭本条并判断Beta资格。
 
-## 129. 后续问题模板
+## 129. UAT-132：Arca独立媒体复核错误拒绝无完整色彩标签的合法Direct产品
+
+问题分类：`PRODUCT_CONFORMANCE / HANDOFF_B_ACCEPTANCE / CONTRACT_PROPAGATION / RELEASE_BLOCKER`
+
+用户侧现象：Helix-beta冻结SHA `d7506e0bc534f6906f3a0ef53461b1a16f7bccd9`的全量Movie资格运行中，
+`威尼斯惊魂夜 (2023)`与`全面失控：特大号邮轮危机 (2025)`均完成Libra Intake、Identity、Metadata、
+Product Verification、Package与Handoff B提交，但Formation最终显示“收藏架接纳或上架需要处理”。两项没有
+`接受瑕疵`入口；Arca均以`mandatory_requirement_unmet`拒绝，23/23主检查点不可达。
+
+现场证据（2026-08-27）：失败现场保留于
+`F:\shelfdeck_test_zone\runs\BETA-20260827-050140-d7506e0bc`。真实Admin Web的
+`ui-017-formation-defect-freeze.png`、`ui-018-venice-arca-rejection.png`与
+`ui-019-cruise-arca-rejection.png`证明7项On-deck、6项合法HB-B.25 Frozen及两项独立Arca拒绝并存；
+`uat-132-qualification-defect-fact-fs.json`证明两份Primary实际均为HEVC、`yuv420p`，大小与Package Handle/FS一致，
+Libra `ProductMediaVerification`均为`passed`且`conversionOperation=none`。Arca五个其他维度全部passed，唯一Gap均为
+`dynamic_range_conversion_unmet`；FFprobe分别把缺少完整色彩标签的文件识别为`unknown`动态范围。服务PID 41904及
+本轮FFmpeg/FFprobe随后安全停止，18080不再监听；未访问NAS、`Z:`、Docker或生产媒体。
+
+精确根因：UAT-131新增的Arca独立Mandatory Media复核把
+`MandatoryRequirement.acceptedOutputDynamicRangeKinds`硬编码为
+`sdr|hdr10_compatible|hlg|dolby_vision`，对应closed Schema也只允许这四项；而正式
+`MediaProbeEvidence`、`ProductMediaVerification`、Device Qualification及UAT-121已经把无完整色彩标签的普通影片定义为
+`unknown`并要求实际解码/编码/输出验证。`mandatory-media-acceptance.js`因此在codec、尺寸、音频、大小和5/50/95解码
+均满足时，仅因`unknown`不在硬编码集合制造`dynamic_range_conversion_unmet`。文件名中的H.264并非依据；独立FFprobe与
+Libra正式Probe均证明实际codec为HEVC。
+
+业务影响：合法Direct产品被Arca稳定拒绝，既不能普通On-deck，也不属于HB-B.25允许接纳的外部资料缺口。扩大瑕疵白名单、
+直接改库、跳过Arca实检或伪造SDR标签都会破坏独立验收与事实真实性。冻结SHA的资格结果固定为`FAILED`，不得继续拼接
+Aftercare、Off-deck、UAT-129或24小时Evidence。
+
+修复边界：先按E2E缺口治理返回Design，核对SSOT §8.6.20的动态范围通则与UAT-121既有合同。修复必须保留Arca独立
+live Probe、5/50/95 Decode、Handle/Fingerprint/Fence及Gap fail-closed；合法`unknown`不能被改写为`sdr`，也不能跳过
+色彩检查。若Product Verification声明`tone_map_to_sdr_bt709`，Arca仍必须独立要求真实输出为SDR、limited BT.709、
+`yuv420p`且无Dolby Vision metadata；`unknown`只适用于未声明转换且现实确实缺少完整标签的普通输出。修复不得移动Owner、
+信任Libra passed布尔值、读取旧Probe代替当前现实或放宽codec/media form/size/playback等其他门禁。
+
+验收证据：增加真实缺标签HEVC Direct的正式Mandatory Requirement/Schema/Capability测试，证明`unknown + no conversion +
+5/50/95 decode`通过；负向覆盖tone-map预期却仍为unknown、错误SDR色彩Profile、Dolby Vision metadata残留、decode缺样本、
+codec错误、stale Handle与跨Run/篡改Verification。UAT-121、UAT-131、Handoff B、Contract/Manifest/Semantic及完整Service回归
+必须同版通过。形成新的clean main SHA后，从不可变基线建立此前不存在的Canary完整重跑；旧失败现场只保留Evidence。
+
+实现与回归（2026-08-27）：独立Architecture复核确认SSOT已唯一约束该缺口，不需修改SSOT。两个MandatoryRequirement
+派生点统一使用五值canonical set`sdr|hdr10_compatible|hlg|dolby_vision|unknown`，Schema与AcceptanceCheck enum同步传播并拒绝
+caller-narrowed四值伪策略。Arca按正式PMV operation分支独立读取当前现实：`none`只要求Product动态范围属于五值且匹配attested
+output，从而合法容纳Direct、Remux与原Run Source/外部成品动态范围不同的External Import；`preserve`才要求fresh Source与Product
+相等并分别匹配attested summary；`tone_map_to_sdr_bt709`继续要求attested+fresh DV→SDR、`yuv420p`、limited BT.709、无DOVI，
+且Source/Product均通过5/50/95解码。未新增路径猜测、兼容分支、旧Probe信任或Owner移动。
+
+专项Mandatory Media 17/17 PASS；独立复核补充定向47/47及Media Production/Recovery/External Handoff 16/16 PASS；完整Service
+`353 total / 335 pass / 18 explicit real-media environment skip / 0 fail`，Admin Web `29/29`与production build PASS。
+Contract/Manifest/Semantic子门禁PASS；完整Architecture verifier仅报告clean main在修复前已经存在的public package identity、P3 fixture、
+Procurement retry fixture与22项dependency findings，UAT-132未新增finding。以上仅为本地实现证据，不替代新Canary资格。
+
+当前处理决定：冻结SHA `d7506e0bc534f6906f3a0ef53461b1a16f7bccd9`为
+`QUALIFICATION FAILED`；UAT-132状态为`LOCAL FULL REGRESSION PASSED / NEW CLEAN MAIN SHA FULL RERUN REQUIRED`。
+
+## 130. 后续问题模板
 
 后续发现的问题按以下结构追加：
 

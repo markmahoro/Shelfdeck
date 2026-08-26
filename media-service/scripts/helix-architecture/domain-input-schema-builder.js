@@ -1767,7 +1767,7 @@ function mandatoryRequirementSchema() {
       maxSizeBytes: nullable(nonNegativeInteger()),
       forbidSystemUpscaleFor4k: bool(),
       acceptedOutputDynamicRangeKinds: { ...arrayOf(enumText(
-        'sdr', 'hdr10_compatible', 'hlg', 'dolby_vision'), 4), minItems: 1,
+        'sdr', 'hdr10_compatible', 'hlg', 'dolby_vision', 'unknown'), 5), minItems: 1,
         uniqueItems: true },
       sdrOutputPixelFormat: { const: 'yuv420p' },
       sdrOutputColorProfile: object({ range: { const:'limited' },

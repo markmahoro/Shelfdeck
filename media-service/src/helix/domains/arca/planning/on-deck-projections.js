@@ -6,6 +6,9 @@ const { P } = require('./on-deck-planners');
 const { deriveAcceptedResponsibility } = require('../model/acceptance-responsibility');
 const { DEFAULT_SHELF_PLACEMENT_POLICY } = require('../model/shelf-placement-policy-contracts');
 const { requiresInputSettlement } = require('../model/offload-settlement');
+const {
+  ACCEPTED_OUTPUT_DYNAMIC_RANGE_KINDS,
+} = require('../model/mandatory-media-acceptance');
 
 const stable = (prefix, value) => prefix + canonicalDigest(value).slice(0, 40);
 function typed(parameter, value) { return Object.freeze({ parameter,
@@ -78,7 +81,7 @@ function mandatoryRequirement(c) { const snapshot=acceptanceRequirements(c),medi
     fileExtension:media.fileExtension,minimumRasterClass:media.minimumRasterClass,
     acceptedPrimaryAudioClasses:Object.freeze([...media.acceptedPrimaryAudioClasses]),maxSizeBytes:snapshot.requirements.space.maxSizeBytes,
     forbidSystemUpscaleFor4k:media.forbidSystemUpscaleFor4k,
-    acceptedOutputDynamicRangeKinds:Object.freeze(['sdr','hdr10_compatible','hlg','dolby_vision']),sdrOutputPixelFormat:'yuv420p',
+    acceptedOutputDynamicRangeKinds:ACCEPTED_OUTPUT_DYNAMIC_RANGE_KINDS,sdrOutputPixelFormat:'yuv420p',
     sdrOutputColorProfile:Object.freeze({range:'limited',primaries:'bt709',transfer:'bt709',matrix:'bt709'}),
     forbidDolbyVisionMetadataOnSdr:true,decodeSamplePointsPercent:Object.freeze([5,50,95]),requireAllDecodeSamples:true}); }
 function spaceRequirement(c) { const snapshot=acceptanceRequirements(c),bytes=c.packageValue.productMaterialManifest.members.reduce((sum,item)=>sum+Number(item.sizeBytes||0),0),

@@ -31,6 +31,9 @@ test('freezes bounded Shelf Acceptance source and Product read authority', () =>
     [{ type: 'integer', minimum: 0 }, { type: 'null' }]);
   assert.deepEqual(requirement.properties.decodeSamplePointsPercent.prefixItems,
     [{ const: 5 }, { const: 50 }, { const: 95 }]);
+  assert.deepEqual(requirement.properties.acceptedOutputDynamicRangeKinds.items.enum,
+    ['sdr', 'hdr10_compatible', 'hlg', 'dolby_vision', 'unknown']);
+  assert.equal(requirement.properties.acceptedOutputDynamicRangeKinds.maxItems, 5);
 
   const snapshot = schemas.AcceptanceRequirementSnapshot;
   assert.equal(snapshot.additionalProperties, false);

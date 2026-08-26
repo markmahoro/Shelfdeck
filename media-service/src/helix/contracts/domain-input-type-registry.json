@@ -1036,7 +1036,7 @@
       "relativePath": "domain-types/MandatoryRequirement/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "21df8e69d266a1af2825369c0200f0e41e1b2bf547d51093048986c1ae73ad4f"
+        "value": "56e155831b4f91e184bc92ac9a871844d1b8bb4c656671260b0dc9a44616103f"
       },
       "usedBy": [
         {

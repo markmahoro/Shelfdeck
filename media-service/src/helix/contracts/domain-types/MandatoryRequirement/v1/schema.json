@@ -123,10 +123,11 @@
           "sdr",
           "hdr10_compatible",
           "hlg",
-          "dolby_vision"
+          "dolby_vision",
+          "unknown"
         ]
       },
-      "maxItems": 4,
+      "maxItems": 5,
       "minItems": 1,
       "uniqueItems": true
     },

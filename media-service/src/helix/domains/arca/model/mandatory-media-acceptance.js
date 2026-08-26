@@ -27,6 +27,13 @@ const GAP_ORDER = Object.freeze([
 const GAP_INDEX = new Map(GAP_ORDER.map((value, index) => [value, index]));
 const SAMPLE_POINTS = Object.freeze([5, 50, 95]);
 const DAY_MS = 24 * 60 * 60 * 1000;
+const ACCEPTED_OUTPUT_DYNAMIC_RANGE_KINDS = Object.freeze([
+  'sdr',
+  'hdr10_compatible',
+  'hlg',
+  'dolby_vision',
+  'unknown',
+]);
 
 class MandatoryMediaAcceptanceError extends Error {
   constructor(code, message, details = {}) {
@@ -231,7 +238,9 @@ function validateReadSet(packageValue, requirement) {
   })) invalid('Shelf Acceptance Primary Read Set authority digest is invalid.');
   if (!requirement || requirement.schemaRef !== REQUIREMENT_SCHEMA ||
       requirement.schemaVersion !== 1 || !exactDigest(requirement, 'digest') ||
-      requirement.shelfId !== packageValue.shelfId) {
+      requirement.shelfId !== packageValue.shelfId ||
+      canonicalJson(requirement.acceptedOutputDynamicRangeKinds) !==
+        canonicalJson(ACCEPTED_OUTPUT_DYNAMIC_RANGE_KINDS)) {
     invalid('Mandatory Requirement is not an exact executable Shelf contract.');
   }
   readSet.primaryInputs.forEach((item, index) => {
@@ -277,6 +286,20 @@ function validateReadSet(packageValue, requirement) {
         (item.samePhysicalMaterial && canonicalJson(item.sourceReadHandle) !==
           canonicalJson(product))) {
       invalid('Source/Product Physical Material variant is inconsistent.', {
+        materialKey:item.materialKey,
+      });
+    }
+    const verification = item.productMediaVerification;
+    const conversionOperation =
+      verification?.dynamicRangeSummary?.conversionOperation;
+    if ((item.samePhysicalMaterial &&
+          (verification?.candidateKind !== 'direct_input' ||
+           conversionOperation !== 'none')) ||
+        (!item.samePhysicalMaterial &&
+          (verification?.candidateKind !== 'workspace_output' ||
+           !['none', 'preserve', 'tone_map_to_sdr_bt709']
+             .includes(conversionOperation)))) {
+      invalid('Product media operation does not match the Source/Product Handle variant.', {
         materialKey:item.materialKey,
       });
     }
@@ -344,10 +367,15 @@ function requirementGaps(requirement, item, sourceProbe, productProbe,
         requirement.acceptedPrimaryAudioClasses.includes(itemValue))) {
     gaps.push('primary_audio_unmet');
   }
-  if (!requirement.acceptedOutputDynamicRangeKinds.includes(outputDynamic)) {
-    gaps.push('dynamic_range_conversion_unmet');
-  }
-  if (outputDynamic === 'sdr') {
+  const expectedConversion =
+    item.productMediaVerification?.dynamicRangeSummary?.conversionOperation || 'none';
+  const attestedDynamic = item.productMediaVerification?.dynamicRangeSummary || {};
+  if (expectedConversion === 'tone_map_to_sdr_bt709') {
+    if (attestedDynamic.sourceDynamicRangeKind !== 'dolby_vision' ||
+        attestedDynamic.outputDynamicRangeKind !== 'sdr' ||
+        sourceDynamic !== 'dolby_vision' || outputDynamic !== 'sdr') {
+      gaps.push('dynamic_range_conversion_unmet');
+    }
     if (outputVideo.pixelFormat !== requirement.sdrOutputPixelFormat ||
         canonicalJson(outputColor) !== canonicalJson(requirement.sdrOutputColorProfile)) {
       gaps.push('output_color_profile_unmet');
@@ -355,14 +383,21 @@ function requirementGaps(requirement, item, sourceProbe, productProbe,
     if (requirement.forbidDolbyVisionMetadataOnSdr && dovi) {
       gaps.push('dolby_vision_metadata_not_removed');
     }
+  } else if (expectedConversion === 'preserve') {
+    if (!requirement.acceptedOutputDynamicRangeKinds.includes(outputDynamic) ||
+        sourceDynamic !== outputDynamic ||
+        sourceDynamic !== attestedDynamic.sourceDynamicRangeKind ||
+        outputDynamic !== attestedDynamic.outputDynamicRangeKind) {
+      gaps.push('dynamic_range_conversion_unmet');
+    }
+  } else if (!requirement.acceptedOutputDynamicRangeKinds.includes(outputDynamic) ||
+      outputDynamic !== attestedDynamic.outputDynamicRangeKind) {
+    gaps.push('dynamic_range_conversion_unmet');
   }
   if (sourceDecode.passedSamplePointsPercent.length !== SAMPLE_POINTS.length ||
       productDecode.passedSamplePointsPercent.length !== SAMPLE_POINTS.length) {
     gaps.push('playback_decode_failed');
   }
-  const conversionOperation = item.samePhysicalMaterial ? 'none' :
-    outputDynamic === 'sdr' && sourceDynamic !== 'sdr'
-      ? 'tone_map_to_sdr_bt709' : 'preserve';
   return Object.freeze({
     actualGapCodes: ordered(gaps),
     observedSizeBytes,
@@ -378,7 +413,7 @@ function requirementGaps(requirement, item, sourceProbe, productProbe,
     dynamicRangeSummary: Object.freeze({
       sourceDynamicRangeKind: sourceDynamic,
       outputDynamicRangeKind: outputDynamic,
-      conversionOperation,
+      conversionOperation: expectedConversion,
       outputPixelFormat: outputVideo.pixelFormat || 'unknown',
       outputColorProfile: outputColor,
       dolbyVisionMetadataPresent: dovi,
@@ -484,6 +519,7 @@ async function observeMandatoryMedia(value) {
 }
 
 module.exports = Object.freeze({
+  ACCEPTED_OUTPUT_DYNAMIC_RANGE_KINDS,
   GAP_ORDER,
   MandatoryMediaAcceptanceError,
   gapSetDigest,

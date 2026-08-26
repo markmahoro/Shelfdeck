@@ -155,6 +155,14 @@ test('freezes independent Shelf Acceptance probe, decode, and exact-gap evidence
   assert.ok(observation.required.includes('productProbeEvidenceDigest'));
   assert.ok(observation.required.includes('sourceDecodeSummary'));
   assert.ok(observation.required.includes('productDecodeSummary'));
+  assert.deepEqual(
+    observation.properties.dynamicRangeSummary.properties.sourceDynamicRangeKind.enum,
+    ['sdr', 'hdr10_compatible', 'hlg', 'dolby_vision', 'unknown'],
+  );
+  assert.deepEqual(
+    observation.properties.dynamicRangeSummary.properties.outputDynamicRangeKind.enum,
+    ['sdr', 'hdr10_compatible', 'hlg', 'dolby_vision', 'unknown'],
+  );
   assert.deepEqual(acceptance.properties.authorizedGapComparison.enum,
     ['not_applicable', 'pending_final_union']);
   assert.equal(acceptance['x-helix-maxCanonicalBytes'], 2 * 1024 * 1024);

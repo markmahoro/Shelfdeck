@@ -4,12 +4,18 @@ Status: Helix-beta 已由 Product Owner 收窄为 **仅 Movie 的全功能版本
 
 Last updated: 2026-08-27
 
-## 0. Current UAT plan — UAT-131 repaired, clean rerun required
+## 0. Current UAT plan — UAT-131/UAT-132 repaired, clean rerun required
 
 `fb28e360467766b666a3d021e1668c6f09d255da`资格运行已因UAT-131固定为失败并保留现场。经Product Owner授权，SSOT §8.6.20
 有界补全、Libra授权瑕疵连续性、Arca独立Source/Product探测及Gap复核已完成本地实现与0失败回归。下一步只允许把该修复形成
 新的clean main SHA，再从不可变基线建立全新Canary，完整重跑A–I、UAT-127、UAT-129、23/23主检查点、Aftercare、Off-deck、
 Shelf Deregistration和至少24小时观察。不得把旧运行的10/23、恢复或其他Evidence拼入新资格结论。
+
+该新运行又在冻结SHA `d7506e0bc534f6906f3a0ef53461b1a16f7bccd9`暴露UAT-132并固定失败：Arca独立复核的
+accepted dynamic-range closed set遗漏`unknown`，误拒绝两份合法Direct产品。失败现场已封存，服务已停止。UAT-132现已按既有
+SSOT完成五值合同传播，并把`none`、`preserve`、`tone_map_to_sdr_bt709`分支分别封闭；独立Architecture复核、Service全量、
+Admin Web测试与构建均PASS。下一步先形成新的clean local main SHA，再从不可变基线建立新的timestamp+SHA Canary和data，完整
+重跑全部协议；不得复用`d7506e0bc`的7项On-deck、6项Frozen或其他过程Evidence。
 
 ## 0. Current UAT plan — UAT-094–UAT-105 Aftercare internal hardening
 

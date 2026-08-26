@@ -23,7 +23,10 @@ const {
   emptyArcaMaterialEpisodeClaims,
   fromProductMember,
 } = require('../model/material-episode-claims');
-const { observeMandatoryMedia } = require('../model/mandatory-media-acceptance');
+const {
+  ACCEPTED_OUTPUT_DYNAMIC_RANGE_KINDS,
+  observeMandatoryMedia,
+} = require('../model/mandatory-media-acceptance');
 const { finalGapDecision, GAP_CODES_BY_CHECK } = require('../model/acceptance-gap-decision');
 
 class MovieOnDeckCoordinatorError extends Error {
@@ -243,9 +246,7 @@ function mandatoryRequirement(packageValue, snapshot) {
     ]),
     maxSizeBytes: snapshot.requirements.space.maxSizeBytes,
     forbidSystemUpscaleFor4k: media.forbidSystemUpscaleFor4k,
-    acceptedOutputDynamicRangeKinds: Object.freeze([
-      'sdr', 'hdr10_compatible', 'hlg', 'dolby_vision',
-    ]),
+    acceptedOutputDynamicRangeKinds: ACCEPTED_OUTPUT_DYNAMIC_RANGE_KINDS,
     sdrOutputPixelFormat: 'yuv420p',
     sdrOutputColorProfile: Object.freeze({
       range: 'limited', primaries: 'bt709', transfer: 'bt709', matrix: 'bt709',

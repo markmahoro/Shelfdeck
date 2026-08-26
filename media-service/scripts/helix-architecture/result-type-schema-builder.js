@@ -881,7 +881,10 @@ function acceptanceCheckSchema() {
       sourceDisplayRasterClass: text(), systemUpscaleDetected: bool(),
     }),
     dynamicRangeSummary: object({
-      sourceDynamicRangeKind: text(), outputDynamicRangeKind: text(),
+      sourceDynamicRangeKind: enumText(
+        'sdr', 'hdr10_compatible', 'hlg', 'dolby_vision', 'unknown'),
+      outputDynamicRangeKind: enumText(
+        'sdr', 'hdr10_compatible', 'hlg', 'dolby_vision', 'unknown'),
       conversionOperation: enumText('none', 'preserve', 'tone_map_to_sdr_bt709'),
       outputPixelFormat: text(), outputColorProfile: colorProfile,
       dolbyVisionMetadataPresent: bool(),
