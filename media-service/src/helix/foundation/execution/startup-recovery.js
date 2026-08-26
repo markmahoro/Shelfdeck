@@ -71,6 +71,11 @@ function createStartupRecovery(options) {
       !options.catalogVerifier || typeof options.catalogVerifier.verify !== 'function') {
     fail('P4_STARTUP_DEPENDENCIES_REQUIRED', 'Startup Recovery requires exact stores, registries, reconciler, and integrity verifier.');
   }
+  const standaloneEffectClasses = new Set(options.standaloneEffectClasses || []);
+  if (![...standaloneEffectClasses].every((value) => typeof value === 'string' && value)) {
+    fail('P4_STARTUP_STANDALONE_EFFECT_CLASS_INVALID',
+      'Standalone Effect classes must be explicit non-empty identities.');
+  }
   const repositories = definitions(options.schemaManifest);
   let readiness = Object.freeze({ state: 'bootstrapping', normalSupplyAllowed: false, findings: Object.freeze([]) });
 
@@ -128,7 +133,12 @@ function createStartupRecovery(options) {
         }))) findings.push('PLAN_CATALOG_DRIFT:' + plan.plan_id);
       }
       for (const effect of facts.effects) {
-        if (!facts.attempts.some((attempt) => attempt.event_attempt_id === effect.event_attempt_id)) findings.push('ORPHAN_EFFECT:' + effect.effect_id);
+        const standalone = effect.event_attempt_id === null &&
+          standaloneEffectClasses.has(effect.effect_class);
+        if (!standalone && !facts.attempts.some((attempt) =>
+          attempt.event_attempt_id === effect.event_attempt_id)) {
+          findings.push('ORPHAN_EFFECT:' + effect.effect_id);
+        }
       }
       for (const defer of facts.defers.filter((row) => row.state === 'waiting')) {
         if (!events.has(defer.event_id)) findings.push('ORPHAN_RESOURCE_DEFER:' + defer.event_id);
@@ -235,6 +245,8 @@ function createStartupRecovery(options) {
       }
 
       for (const effect of facts.effects.filter((row) => NONTERMINAL_EFFECT_STATES.has(row.state))) {
+        if (effect.event_attempt_id === null &&
+            standaloneEffectClasses.has(effect.effect_class)) continue;
         if (processedEffectIds.has(effect.effect_id)) continue;
         const attempt = facts.attempts.find((row) => row.event_attempt_id === effect.event_attempt_id);
         const event = attempt ? events.get(attempt.event_id) : null;

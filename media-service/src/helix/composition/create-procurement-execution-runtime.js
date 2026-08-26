@@ -652,6 +652,7 @@ function createProcurementExecutionRuntime(options) {
     registry, contractValidator, policyRegistry });
   const catalogDigest = executionCatalogDigest(registry, policyRegistry);
   const startupRecovery = createStartupRecovery({ schemaManifest: options.schemaManifest, unitOfWork: options.unitOfWork,
+    standaloneEffectClasses:Object.freeze(['libra_workspace_material_reclaim']),
     registry, policyRegistry, integrityVerifier: { verify: () => ({ ok: true }) },
     catalogVerifier: { verify: (snapshot) => verifyStartupPlanCatalog(
       snapshot, catalogDigest, registry, policyRegistry, bindingProjectionRegistry,

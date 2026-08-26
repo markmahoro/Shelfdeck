@@ -50,6 +50,13 @@ function fixture(run, settings = {}) {
     transaction.prepare("INSERT INTO fx_circuit_states(circuit_key,state,reason_code,evidence_digest,opened_at_ms) VALUES(?, 'open','FAULT',?,1)")
       .run(settings.circuit, 'b'.repeat(64));
   });
+  if (settings.standaloneJournal) kernel.runPrimitive((transaction) => {
+    transaction.prepare("INSERT INTO fx_effect_journal(effect_id,event_attempt_id,effect_class,idempotency_key,intent_digest,state,external_receipt_ref,output_digest,verified_at_ms,updated_at_ms) VALUES('standalone-effect',NULL,?,'standalone-key',?,?,?, ?,1,1)")
+      .run(settings.standaloneEffectClass || 'standalone.cleanup', HASH,
+        settings.standaloneEffectState || 'committed',
+        settings.standaloneEffectState === 'committed' ? 'receipt' : null,
+        settings.standaloneEffectState === 'committed' ? HASH : null);
+  });
   const recovery = createStartupRecovery({
     schemaManifest,
     unitOfWork: createSqliteUnitOfWork({ kernel }),
@@ -60,6 +67,7 @@ function fixture(run, settings = {}) {
       if (typeof settings.onCatalogSnapshot === 'function') settings.onCatalogSnapshot(snapshot);
       return settings.catalog !== false;
     } },
+    standaloneEffectClasses: settings.standaloneEffectClasses || [],
     effectReconciler: { async reconcile() {
       if (settings.reconcilerUnavailable) throw new Error('unavailable');
       return { decision: 'continue_forward', evidenceDigest: 'c'.repeat(64) };
@@ -77,6 +85,26 @@ test('empty durable runtime becomes ready while bootstrapping never supplies nor
     recoveredInMemoryLeases: 0, recoveredInMemoryPermits: 0, recoveredInMemoryWaiters: 0
   });
 }, { seedEvent: false }));
+
+test('registered standalone cleanup Effects are owned by fallback recovery, while unknown orphans still block startup', async () => {
+  await fixture(async (recovery) => {
+    const result = await recovery.recover();
+    assert.equal(result.state, 'ready');
+    assert.deepEqual(result.findings, []);
+  }, { seedEvent:false, standaloneJournal:true,
+    standaloneEffectClasses:['standalone.cleanup'] });
+  await fixture(async (recovery) => {
+    const result = await recovery.recover();
+    assert.equal(result.state, 'ready');
+    assert.deepEqual(result.findings, []);
+  }, { seedEvent:false, standaloneJournal:true,
+    standaloneEffectState:'intended', standaloneEffectClasses:['standalone.cleanup'] });
+  await fixture(async (recovery) => {
+    const result = await recovery.recover();
+    assert.equal(result.state, 'faulted');
+    assert.equal(result.findings.includes('ORPHAN_EFFECT:standalone-effect'), true);
+  }, { seedEvent:false, standaloneJournal:true });
+});
 
 test('catalog verification receives the immutable Plan execution context', async () => {
   let observed;
