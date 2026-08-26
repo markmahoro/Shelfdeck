@@ -345,6 +345,7 @@ function procurementDefinition(schemaManifest) {
           "last_observation_id",
           "eligibility_revision",
           "eligibility_state",
+          "eligibility_reason_code",
           "eligibility_basis_digest",
           "eligibility_field_status",
           "eligibility_observation_revision",
@@ -859,6 +860,8 @@ function createProcurementRetryAdmissionStore(options) {
                         material.eligibility_revision,
                       ),
                       currentEligibilityState: material.eligibility_state,
+                      currentEligibilityReasonCode:
+                        material.eligibility_reason_code,
                       currentEligibilityBasisDigest:
                         material.eligibility_basis_digest,
                     }

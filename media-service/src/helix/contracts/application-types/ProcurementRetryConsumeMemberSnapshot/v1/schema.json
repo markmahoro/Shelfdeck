@@ -51,6 +51,11 @@
         "ineligible"
       ]
     },
+    "currentEligibilityReasonCode": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
     "currentEligibilityBasisDigest": {
       "type": "string",
       "minLength": 1,
@@ -299,6 +304,11 @@
             {
               "required": [
                 "currentEligibilityState"
+              ]
+            },
+            {
+              "required": [
+                "currentEligibilityReasonCode"
               ]
             },
             {

@@ -16,6 +16,7 @@ const {
   emptySelectionSnapshot,
   failedRunMaterialDigest,
   memberPreconditionDigest,
+  retryEligibilityAvailable,
   validateRetryIntent,
 } = require('../model/procurement-retry-contracts');
 const {
@@ -203,6 +204,7 @@ function repositoryDefinition(schemaManifest) {
           'last_observation_id',
           'eligibility_revision',
           'eligibility_state',
+          'eligibility_reason_code',
           'eligibility_basis_digest',
         ],
         keyColumns: ['field_id', 'material_key'],
@@ -563,8 +565,7 @@ function createFailedPreparationRetryAdminService(options) {
             material_key: failedMember.material_key,
           });
           const selection = currentSelection(repo, runs, failedMember.material_key);
-          if (!material || material.eligibility_state !== 'eligible' ||
-              selection.hasConflict) {
+          if (!material || selection.hasConflict) {
             fail(
               'FAILED_PREPARATION_RETRY_MEMBER_INELIGIBLE',
               '失败成员当前不可重试或仍被Selection占用。',
@@ -599,6 +600,15 @@ function createFailedPreparationRetryAdminService(options) {
       },
     });
     options.unitOfWork.execute([read, controlRead]);
+    for(let index=0;index<snapshot.materials.length;index++){
+      const material=snapshot.materials[index];
+      if(!retryEligibilityAvailable({currentEligibilityState:material.eligibility_state,
+        currentEligibilityReasonCode:material.eligibility_reason_code,currentSelection:snapshot.selections[index],
+        currentControlSnapshot:controls[index]},input.fieldId)){
+        fail('FAILED_PREPARATION_RETRY_MEMBER_INELIGIBLE','失败成员当前不满足显式重试条件。',
+          {materialKey:material.material_key});
+      }
+    }
 
     const rule = activeTriageRule(options.triageRegistry);
     const headValue = {
