@@ -15,7 +15,7 @@ const generatedRoot = path.resolve(__dirname, '../../src/helix/foundation/persis
 const schemaDdl = fs.readFileSync(path.join(generatedRoot, 'clean-schema.sql'), 'utf8');
 const schemaManifest = JSON.parse(fs.readFileSync(path.join(generatedRoot, 'clean-schema.manifest.json'), 'utf8'));
 
-function fixture(run) {
+function fixture(run, schedulerOptions = {}) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'helix-scheduler-'));
   const databasePath = path.join(root, 'shelfdeck.db');
   let now = 180000;
@@ -37,7 +37,7 @@ function fixture(run) {
   const supplyController = { evaluate: ({ targetId }) => Object.freeze({ kind: 'permitted', targetId, lane: 'normal' }) };
   const priorityProjectionProvider = { read: ({ processId }) => projections.get(processId) };
   const scheduler = createWorkScheduler({ schemaManifest, unitOfWork, supplyController, priorityProjectionProvider,
-    now: () => now, leaseTtlMs: 1000, nextLeaseId: () => 'lease-' + (++leaseOrdinal) });
+    now: () => now, leaseTtlMs: 1000, nextLeaseId: () => 'lease-' + (++leaseOrdinal), ...schedulerOptions });
   function seedRows(callback) {
     unitOfWork.execute([{ participantId: 'scheduler_seed', owner: 'execution-foundation', repositories: [seed],
       execute(context) { callback(context.repository('scheduler_seed')); } }]);
@@ -100,6 +100,17 @@ test('same effective local priority uses durable FIFO timestamp then identity', 
     });
     assert.equal(scheduler.acquire({ targetType: 'work' }).lease.targetId, 'work-z');
   });
+});
+
+test('externally managed Work stays admitted while ordinary planner Work remains supply-eligible', () => {
+  fixture(({ scheduler, seedRows, projections }) => {
+    seedRows((repository) => {
+      addWork(repository, projections, 'external', { createdAtMs: 60000, localPriority: 100 });
+      addWork(repository, projections, 'ordinary', { createdAtMs: 120000, localPriority: 0 });
+    });
+    const selected = scheduler.acquire({ targetType: 'work' });
+    assert.equal(selected.lease.targetId, 'work-ordinary');
+  }, { workSupplyEligibilityProvider: { check: ({ processId }) => processId !== 'process-external' } });
 });
 
 test('Event requires ready state, elapsed retryAt, and exact success or terminal dependencies', () => {

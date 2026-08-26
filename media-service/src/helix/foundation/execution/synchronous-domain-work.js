@@ -64,6 +64,13 @@ function definitions(schemaManifest) {
           keyColumns: ['attempt_id'],
           compareColumns: [{ column: 'state', parameter: 'expected_state' }],
         },
+        start: {
+          kind: 'update',
+          tableId: 'fx_work_attempts',
+          setColumns: ['state', 'started_at_ms', 'finished_at_ms', 'failure_code'],
+          keyColumns: ['attempt_id'],
+          compareColumns: [{ column: 'state', parameter: 'expected_state' }],
+        },
       },
     }),
     plans: createRepositoryDefinition({
@@ -243,23 +250,25 @@ function createSynchronousDomainWork(options) {
     }
     execute('synchronous_work_activate', (context) => {
       const works = context.repository(repositories.works.repositoryId);
+      const attempts = context.repository(repositories.attempts.repositoryId);
       const work = works.invoke('find', { work_id: request.workId });
       if (!work || work.owner_domain !== request.ownerDomain ||
-          work.basis_digest !== request.basisDigest || work.state !== 'admitted') {
+          work.basis_digest !== request.basisDigest || !['admitted','ready'].includes(work.state)) {
         fail('SYNCHRONOUS_WORK_ADMISSION_FENCE', 'Supporting Work is absent or no longer admitted on the same Basis.');
       }
       const attemptId = request.workId + ':attempt:1';
       const planId = request.workId + ':plan:1';
-      context.repository(repositories.attempts.repositoryId).invoke('insert', {
-        attempt_id: attemptId,
-        work_id: request.workId,
-        ordinal: 1,
-        basis_digest: request.basisDigest,
-        state: 'running',
-        started_at_ms: context.commitTimeMs,
-        finished_at_ms: null,
-        failure_code: null,
-      });
+      const existingAttempt=attempts.invoke('find',{work_id:request.workId,ordinal:1});
+      const resumeReadyAttempt=work.state==='ready'&&existingAttempt?.attempt_id===attemptId&&
+        existingAttempt.basis_digest===request.basisDigest&&existingAttempt.state==='ready';
+      if(work.state==='ready'&&!resumeReadyAttempt){
+        fail('SYNCHRONOUS_WORK_ADMISSION_FENCE','Ready Supporting Work does not own the recoverable first planning Attempt.');
+      }
+      if(work.state==='admitted'){
+        if(existingAttempt)fail('SYNCHRONOUS_WORK_ADMISSION_FENCE','Admitted Supporting Work already has an unexpected planning Attempt.');
+        attempts.invoke('insert', {attempt_id:attemptId,work_id:request.workId,ordinal:1,basis_digest:request.basisDigest,
+          state:'running',started_at_ms:context.commitTimeMs,finished_at_ms:null,failure_code:null});
+      }
       context.repository(repositories.plans.repositoryId).invoke('insert', {
         plan_id: planId,
         attempt_id: attemptId,
@@ -307,12 +316,12 @@ function createSynchronousDomainWork(options) {
           current_progress_revision: null,
         });
       });
-      if (works.invoke('transition', {
-        work_id: request.workId,
-        state: 'ready',
-        updated_at_ms: context.commitTimeMs,
-        expected_state: 'admitted',
-      }).changes !== 1 || works.invoke('transition', {
+      if(resumeReadyAttempt&&attempts.invoke('start',{attempt_id:attemptId,state:'running',started_at_ms:context.commitTimeMs,
+        finished_at_ms:null,failure_code:null,expected_state:'ready'}).changes!==1){
+        fail('SYNCHRONOUS_WORK_ADMISSION_FENCE','Recovered planning Attempt start CAS failed.');
+      }
+      if ((!resumeReadyAttempt&&works.invoke('transition', {work_id:request.workId,state:'ready',updated_at_ms:context.commitTimeMs,
+        expected_state:'admitted'}).changes!==1) || works.invoke('transition', {
         work_id: request.workId,
         state: 'running',
         updated_at_ms: context.commitTimeMs,

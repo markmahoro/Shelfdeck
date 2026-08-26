@@ -326,6 +326,8 @@ function createProcurementExecutionRuntime(options) {
   let sequence = 0;
   const scheduler = createWorkScheduler({ schemaManifest: options.schemaManifest, unitOfWork: options.unitOfWork,
     supplyController, now, nextLeaseId: () => 'lease-' + (++sequence),
+    workSupplyEligibilityProvider:{check:({ownerDomain,workKind})=>
+      !(ownerDomain==='procurement'&&workKind==='failed_preparation_retry')},
     priorityProjectionProvider: executionProjectionProvider });
   const mapper = createResourceProfileMapper({ profileKey: 'default', profileRevision: 1,
     logicalCpu: Math.max(1, os.cpus().length), integrations: [], volumes: [], encoders: [], aiDevices: [], workers: [] });

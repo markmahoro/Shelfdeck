@@ -104,7 +104,8 @@ function createWorkScheduler(options) {
   if (!options || !options.schemaManifest || !options.unitOfWork || typeof options.unitOfWork.execute !== 'function' ||
       !options.supplyController || typeof options.supplyController.evaluate !== 'function' ||
       !options.priorityProjectionProvider || typeof options.priorityProjectionProvider.read !== 'function' || typeof options.now !== 'function' ||
-      typeof options.nextLeaseId !== 'function') {
+      typeof options.nextLeaseId !== 'function' || (options.workSupplyEligibilityProvider &&
+        typeof options.workSupplyEligibilityProvider.check !== 'function')) {
     fail('P4_SCHEDULER_DEPENDENCIES_REQUIRED', 'Scheduler requires scoped persistence, Supply Controller, Owner priority provider, clock, and lease ID source.');
   }
   const leaseTtlMs = options.leaseTtlMs === undefined ? DEFAULT_LEASE_TTL_MS : options.leaseTtlMs;
@@ -178,6 +179,13 @@ function createWorkScheduler(options) {
     for (const target of facts.candidates) {
       const work = request.targetType === 'work' ? target : workById.get(target.work_id);
       if (!work) fail('P4_SCHEDULER_WORK_FACT_MISSING', 'Event has no corresponding Supporting Work.', { eventId: target.event_id });
+      if(request.targetType==='work'&&options.workSupplyEligibilityProvider){
+        const eligible=options.workSupplyEligibilityProvider.check(Object.freeze({ownerDomain:work.owner_domain,
+          processType:work.process_type,processId:work.process_id,workKind:work.work_kind}));
+        if(typeof eligible!=='boolean')fail('P4_SCHEDULER_WORK_SUPPLY_ELIGIBILITY_INVALID',
+          'Work supply eligibility provider must return a boolean.',{workId:work.work_id});
+        if(!eligible)continue;
+      }
       const projection = assertProjection(options.priorityProjectionProvider.read(Object.freeze({
         ownerDomain: work.owner_domain, processType: work.process_type, processId: work.process_id, workKind:work.work_kind
       })), work);
