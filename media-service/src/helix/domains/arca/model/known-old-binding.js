@@ -4,6 +4,10 @@ const { canonicalDigest } = require('../../../contracts/canonical-json');
 
 const comparableLocation = (value) => String(value || '').replace(/\\/g, '/').toLowerCase();
 
+function isKnownOldOffloadBinding(binding) {
+  return String(binding?.role || '').startsWith('offload:');
+}
+
 function observedIdentity(location, mountScopeId, fingerprint) {
   const bounded = fingerprint(location);
   const tuple = {
@@ -29,7 +33,7 @@ function observeKnownOldBindings(raw, fingerprint) {
   const currentLocations = new Set((raw.materials || []).map((item) =>
     comparableLocation(item.location)));
   return Object.freeze((raw.oldBindings || []).filter((binding) =>
-    String(binding.role || '').startsWith('offload:') &&
+    isKnownOldOffloadBinding(binding) &&
     !currentLocations.has(comparableLocation(binding.location))).map((binding) => {
     try {
       const identity = observedIdentity(binding.location,
@@ -57,4 +61,4 @@ function observeKnownOldBindings(raw, fingerprint) {
   }));
 }
 
-module.exports = Object.freeze({ observedIdentity, observeKnownOldBindings });
+module.exports = Object.freeze({ isKnownOldOffloadBinding, observedIdentity, observeKnownOldBindings });

@@ -487,6 +487,25 @@ test('Settlement rejects a foreign owner or a drifted Handle fence at the effect
   } finally { value.close(); }
 });
 
+test('known-old Settlement requires exactly one offload Binding when the same physical tuple is also a Product Binding', () => {
+  const value=fixture();
+  try {
+    const x=settlementCapabilityFixture(value,['old-subtitle.ass']),file=x.files[0],base=x.handles[0],handleBase={...base,
+      readScope:'exact_known_old_binding_settlement'},handle=Object.freeze({...handleBase,
+        fenceDigest:canonicalDigest(Object.fromEntries(Object.entries(handleBase).filter(([key])=>key!=='fenceDigest')))}),
+      binding={ material_key:file.identity.materialKey,location:file.location,endpoint_id:'endpoint-1',binding_revision:1,
+        mount_scope_id:'mount-1' };
+    x.context.raw.oldBindings=[{...binding,role:'offload:related_input'},{...binding,role:'product:subtitle'}];
+    assert.equal(assertAftercareSettlementHandle(x.context,x.care,handle),handle);
+    x.context.raw.oldBindings=[{...binding,role:'product:subtitle'}];
+    assert.throws(()=>assertAftercareSettlementHandle(x.context,x.care,handle),
+      (error)=>error.code==='ARCA_AFTERCARE_SETTLEMENT_HANDLE_INVALID');
+    x.context.raw.oldBindings=[{...binding,role:'offload:related_input'},{...binding,role:'offload:related_input'}];
+    assert.throws(()=>assertAftercareSettlementHandle(x.context,x.care,handle),
+      (error)=>error.code==='ARCA_AFTERCARE_SETTLEMENT_HANDLE_INVALID');
+  } finally { value.close(); }
+});
+
 test('Settlement Evidence overflow fails closed before deleting any Material', async () => {
   const value=fixture();
   try {

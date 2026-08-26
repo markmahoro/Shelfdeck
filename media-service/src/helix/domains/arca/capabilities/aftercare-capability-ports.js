@@ -19,7 +19,7 @@ const { buildAftercareInventoryRequest,
   placementMaterialReceipts } = require('../model/aftercare-placement');
 const { SCHEMA_REF:EPISODE_CLAIMS_SCHEMA,
   emptyArcaMaterialEpisodeClaims } = require('../model/material-episode-claims');
-const { observeKnownOldBindings } = require('../model/known-old-binding');
+const { isKnownOldOffloadBinding, observeKnownOldBindings } = require('../model/known-old-binding');
 const {
   inspectAftercareMovieNfo,
   renderAftercareMovieNfo,
@@ -82,7 +82,7 @@ function assertAftercareSettlementHandle(c,care,handle){
       !inside(c.raw.shelf.target_root_location,handle.location))
     throw Object.assign(new Error('Aftercare Settlement Handle is outside its exact Arca authority.'),{code:'ARCA_AFTERCARE_SETTLEMENT_HANDLE_INVALID'});
   if(handle.readScope==='exact_known_old_binding_settlement'){
-    const matches=(c.raw.oldBindings||[]).filter((item)=>item.material_key===handle.identity.materialKey&&
+    const matches=(c.raw.oldBindings||[]).filter((item)=>isKnownOldOffloadBinding(item)&&item.material_key===handle.identity.materialKey&&
       samePhysicalLocation(item.location,handle.location)&&item.endpoint_id===handle.endpointId&&
       Number(item.binding_revision)===Number(handle.bindingRevision)&&item.mount_scope_id===handle.identity.mountScopeId);
     if(matches.length!==1)throw Object.assign(new Error('Aftercare known old Settlement Handle is not an exact Arca Binding.'),{code:'ARCA_AFTERCARE_SETTLEMENT_HANDLE_INVALID'});
