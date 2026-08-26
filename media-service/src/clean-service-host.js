@@ -64,6 +64,9 @@ const {
 const { createCandidateRejectionConsumer } = require('./helix/domains/procurement/application/candidate-rejection-consumer');
 const { createOutboxDispatcherHost } = require('./helix/foundation/execution/outbox-dispatcher-host');
 const {
+  createSynchronousDomainWork,
+} = require('./helix/foundation/execution/synchronous-domain-work');
+const {
   createHandoffBOutcomeConsumer,
 } = require('./helix/domains/libra/application/handoff-b-outcome-consumer');
 const {
@@ -1649,6 +1652,7 @@ async function createCleanServiceHost(options) {
     ...constructed.applicationDependencies,
     materialFieldStore,
     executionRuntimeHost,
+    workRuntime: createSynchronousDomainWork(constructed.applicationDependencies),
     assertLocationAvailable: (request) =>
       platformIntegrations.assertExternalLandingRootAvailable(request),
     probeFieldAccess: (request) => Object.freeze({
