@@ -103,9 +103,44 @@ const PRE_ACTOR_COMPLETION_EXECUTION_CATALOG_DIGEST = '9e0e24c88512973e16d601c79
 const TERMINAL_EVENT_STATES = new Set(['succeeded', 'skipped', 'failed', 'cancelled']);
 const TERMINAL_ATTEMPT_STATES = new Set(['succeeded', 'failed', 'cancelled']);
 const AFTERCARE_LONG_MEDIA_TIMEOUT_MS = 12 * 60 * 60 * 1000;
+const FAILED_PREPARATION_RETRY_CATALOG_DIGEST = canonicalDigest({
+  schema: 'procurement.failed-preparation-retry-catalog@1',
+  capabilities: [
+    'procurement.retry.intent.create@1',
+    'procurement.retry.admit@1',
+  ],
+});
+
+function verifyFailedPreparationRetryPlan(snapshot) {
+  if (snapshot?.plan?.catalog_digest !== FAILED_PREPARATION_RETRY_CATALOG_DIGEST ||
+      snapshot.plan.state !== 'planned' ||
+      snapshot.work?.owner_domain !== 'procurement' ||
+      snapshot.work?.work_kind !== 'failed_preparation_retry' ||
+      !Array.isArray(snapshot.nodes) || !Array.isArray(snapshot.events) ||
+      snapshot.nodes.length !== 2 || snapshot.events.length !== 2) return false;
+  const expectedCapabilities = new Set([
+    'procurement.retry.intent.create@1',
+    'procurement.retry.admit@1',
+  ]);
+  const events = new Map(snapshot.events.map((event) => [
+    event.plan_id + '\0' + event.node_id,
+    event,
+  ]));
+  if (events.size !== 2) return false;
+  for (const node of snapshot.nodes) {
+    const event = events.get(node.plan_id + '\0' + node.node_id);
+    if (!event || !expectedCapabilities.delete(node.capability_ref) ||
+        event.owner_domain !== 'procurement' ||
+        event.capability_ref !== node.capability_ref ||
+        node.contract_version !== 1 ||
+        node.effect_class !== 'domain_fact_commit') return false;
+  }
+  return expectedCapabilities.size === 0;
+}
 
 function verifyStartupPlanCatalog(snapshot, currentCatalogDigest, registry, policyRegistry, bindingProjectionRegistry) {
   if (!snapshot || !snapshot.plan) return false;
+  if (verifyFailedPreparationRetryPlan(snapshot)) return true;
   if (snapshot.plan.catalog_digest === currentCatalogDigest) return true;
   if ([PRE_PROJECTION_EXECUTION_CATALOG_DIGEST,
     PRE_ACTOR_COMPLETION_EXECUTION_CATALOG_DIGEST].includes(snapshot.plan.catalog_digest) &&

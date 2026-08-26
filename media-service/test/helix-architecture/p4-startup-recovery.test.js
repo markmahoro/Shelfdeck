@@ -15,6 +15,7 @@ const {
 } = require('../../src/helix/composition/create-procurement-execution-runtime');
 const { openSqliteKernel } = require('../../src/helix/foundation/persistence/sqlite-kernel');
 const { createSqliteUnitOfWork } = require('../../src/helix/foundation/persistence/sqlite-unit-of-work');
+const { canonicalDigest } = require('../../src/helix/contracts/canonical-json');
 
 const generated = path.resolve(__dirname, '../../src/helix/foundation/persistence/generated');
 const schemaDdl = fs.readFileSync(path.join(generated, 'clean-schema.sql'), 'utf8');
@@ -140,6 +141,55 @@ test('the exact UAT source Catalog continues only when every immutable node stil
   assert.equal(verifyStartupPlanCatalog({ ...base, events: [] }, current, registry, policyRegistry,projections), false);
   assert.equal(verifyStartupPlanCatalog({ ...base, nodes:[{...node,input_bindings_json:JSON.stringify({bindings:[{
     projectionRef:'helix://libra/input-projections/Missing/v1'}]})}]},current,registry,policyRegistry,projections),false);
+});
+
+test('the externally managed failed-preparation retry Catalog is accepted only for its exact Owner-local graph', () => {
+  const current = 'c'.repeat(64);
+  const catalogDigest = canonicalDigest({
+    schema: 'procurement.failed-preparation-retry-catalog@1',
+    capabilities: [
+      'procurement.retry.intent.create@1',
+      'procurement.retry.admit@1',
+    ],
+  });
+  const capabilities = [
+    'procurement.retry.intent.create@1',
+    'procurement.retry.admit@1',
+  ];
+  const nodes = capabilities.map((capabilityRef, index) => ({
+    plan_id: 'retry-plan',
+    node_id: 'node-' + index,
+    capability_ref: capabilityRef,
+    contract_version: 1,
+    effect_class: 'domain_fact_commit',
+  }));
+  const events = capabilities.map((capabilityRef, index) => ({
+    plan_id: 'retry-plan',
+    node_id: 'node-' + index,
+    owner_domain: 'procurement',
+    capability_ref: capabilityRef,
+    state: index === 0 ? 'succeeded' : 'executing',
+  }));
+  const base = {
+    plan: { catalog_digest: catalogDigest, state: 'planned' },
+    work: { owner_domain: 'procurement', work_kind: 'failed_preparation_retry' },
+    workAttempt: { state: 'running' },
+    nodes,
+    events,
+  };
+  assert.equal(verifyStartupPlanCatalog(base, current, {}, {}), true);
+  assert.equal(verifyStartupPlanCatalog({
+    ...base,
+    work: { ...base.work, work_kind: 'evidence_assessment' },
+  }, current, {}, {}), false);
+  assert.equal(verifyStartupPlanCatalog({
+    ...base,
+    nodes: [{ ...nodes[0], effect_class: 'workspace_write' }, nodes[1]],
+  }, current, {}, {}), false);
+  assert.equal(verifyStartupPlanCatalog({
+    ...base,
+    events: [events[0], { ...events[1], capability_ref: capabilities[0] }],
+  }, current, {}, {}), false);
 });
 
 test('a retired pre-projection Catalog is accepted only for terminal immutable Attempts', () => {

@@ -31,7 +31,9 @@ function listRepository(schemaManifest, repositoryId, tableId, columns) {
 
 function definitions(schemaManifest) {
   return Object.freeze({
-    works: listRepository(schemaManifest, 'startup_works', 'fx_supporting_works', ['work_id', 'owner_domain', 'state']),
+    works: listRepository(schemaManifest, 'startup_works', 'fx_supporting_works', [
+      'work_id', 'owner_domain', 'work_kind', 'state'
+    ]),
     workAttempts: listRepository(schemaManifest, 'startup_work_attempts', 'fx_work_attempts', ['attempt_id', 'work_id', 'state']),
     plans: listRepository(schemaManifest, 'startup_plans', 'fx_workflow_plans', ['plan_id', 'attempt_id', 'catalog_digest', 'state']),
     events: listRepository(schemaManifest, 'startup_events', 'fx_workflow_events', [
