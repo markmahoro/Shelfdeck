@@ -194,6 +194,9 @@ User Perception全面取消year关联校验，year仅作为资料保存/展示�
 | UAT-117 | Aftercare播放验证借用了Libra Workspace端口，Arca Handle在真正解码前被拒绝 | `DOMAIN_ORCHESTRATION` | `MEDIA_VERIFICATION`、`BOUNDARY_CORRECTNESS` | Arca Aftercare playback verification | 活性、边界正确性、成品验证 | Critical | `FACT/FS/RESTART PASSED / CLOSED` |
 | UAT-118 | AVI转MKV后物理文件虽正确，Inventory与Material Control仍保留旧AVI Primary | `MATERIAL_CONTROL` | `INVENTORY_INTEGRITY`、`MEDIA_PRODUCTION` | Arca Aftercare Inventory replacement | 收藏健康、控制正确性、幂等 | Critical | `UI/FACT/FS/RESTART PASSED / CLOSED` |
 | UAT-126 | Frozen条目只有放弃路径，演员确实无外部资料或外部寻源耗尽时不能由用户显式接受瑕疵入库 | `BUSINESS_CONTRACT` | `AUTHORIZATION_FENCE`、`DOMAIN_ORCHESTRATION`、`USER_EXPERIENCE` | Libra Defect Admission + Handoff B + Arca Aftercare + Admin Web | 用户决断、事实真实性、活性、售后边界 | Critical | `IMPLEMENTED / TARGETED LOCAL PASS / ISOLATED CANARY PENDING` |
+| UAT-127 | 同一执行中的转码在服务重启后复用不完整Progress身份，并从0开始回报导致冲突或回退 | `RECOVERY_CORRECTNESS` | `PROGRESS`、`MEDIA_PRODUCTION` | Foundation Event Runtime + Libra FFmpeg Effect | 转码活性、进度真实性、重启恢复 | Critical | `CODE/FULL REGRESSION PASSED / ACTIVE-TRANSCODE RESTART CANARY PENDING` |
+| UAT-128 | Aftercare旧材料Handle被同路径Product Binding误判为多重匹配，Settlement持续恢复失败 | `RECOVERY_CORRECTNESS` | `MATERIAL_CONTROL`、`DESTRUCTIVE_SAFETY` | Arca Aftercare Settlement | 售后活性、删除安全、材料边界 | Critical | `CODE/FULL REGRESSION PASSED / SETTLEMENT RESTART CANARY PENDING` |
+| UAT-129 | Procurement Retry Intent消息没有消费者，崩溃窗口可留下永久open Intent并持续重试Outbox | `RECOVERY_CORRECTNESS` | `OUTBOX_INBOX`、`DOMAIN_ORCHESTRATION` | Procurement Failed Preparation Retry + Foundation Delivery Host | 重试活性、幂等、启动恢复 | Critical | `CODE/FULL REGRESSION PASSED / OUTBOX RESTART CANARY PENDING` |
 
 ### 2.0.1 UAT-074–UAT-084必须保护的历史修复
 
@@ -3627,7 +3630,43 @@ Manifest集合与`git diff --check`通过。完整架构集仍有People公开包
 实现与专项负向测试已完成，未经独立隔离Canary不得关闭或宣称生产验收完成。状态
 `IMPLEMENTED / TARGETED LOCAL PASS / ISOLATED CANARY PENDING`。
 
-## 124. 后续问题模板
+## 124. UAT-127：活动转码重启后必须保持单调且无样本身份冲突
+
+问题分类：`RECOVERY_CORRECTNESS / PROGRESS / MEDIA_PRODUCTION`
+
+现场现象：服务重启恢复4个仍为`executing`的Libra转码Event Attempt时，重复出现`P4_PROGRESS_SOURCE_SEQUENCE_CONFLICT`；FFmpeg被正确终止，但同一Attempt持续恢复失败。受影响现场包括《锡尔弗顿之围》《养蜂人》《倩女幽魂2：人间道》和《老笠》。
+
+精确根因：UAT-087把FFmpeg进度改为确定性百分比时，`sourceSequence`只保留`out_time_us`，遗漏会改变`rate/eta`的speed观察；同一序列因此可映射到不同完整样本。仅补speed仍不够，因为重启后的FFmpeg从0重新执行，低于已持久化的15%或79%会继续触发`P4_PROGRESS_REGRESSION`。
+
+修复边界：Foundation Progress Reporter只读返回同一Event Attempt的最新样本；Event Runtime仅在恢复Context中以非枚举runtime-only事实提供`progressFloor`。Libra不读取Foundation Store，只把该事实交给Media Effect；Effect在追平floor前不发布低值，追平后继续单调发布，并用完整FFmpeg观察及派生样本的canonical digest作为`sourceSequence`。冲突、回退和写入失败仍保持fail-closed并终止FFmpeg。
+
+验收证据：新增Reporter latest-sample隔离、Recovery Context非枚举floor、Effect catch-up与完整样本身份测试；连同Aftercare专项共80项为79 pass / 1 environment skip / 0 fail，完整Service为331 pass / 18 environment skip / 0 fail。按用户指示暂不重启当前现场，状态`CODE/FULL REGRESSION PASSED / ACTIVE-TRANSCODE RESTART CANARY PENDING`。
+
+## 125. UAT-128：Aftercare known-old Settlement必须按旧材料角色判定唯一性
+
+问题分类：`RECOVERY_CORRECTNESS / MATERIAL_CONTROL / DESTRUCTIVE_SAFETY`
+
+现场现象：《短暂和平 (2013)》的Aftercare Inventory已提交，但Settlement Event持续报`ARCA_AFTERCARE_SETTLEMENT_HANDLE_INVALID`并停留在恢复中；错误发生在任何物理删除前。
+
+精确根因：同一旧字幕物理tuple同时保留`offload:related_input`与`product:subtitle`两条不同业务角色Binding。Handle生成只从`offload:*`范围产生，Effect边界复核却遗漏角色过滤并要求全集合恰好一条，因而把合法的跨角色共存误判为歧义。
+
+修复边界：生成与Effect复核共用`isKnownOldOffloadBinding`谓词，只在`offload:*`旧材料范围内要求恰好一条。没有把唯一性放宽为`>=1`，没有修改Handle、Material Control、Foundation、Libra或SSOT；Product Binding不能单独授权删除，同一旧材料角色重复仍fail-closed。
+
+验收证据：新增“一个offload + 一个product同tuple通过、仅product拒绝、两个offload拒绝”测试；Aftercare Settlement专项21/21通过，完整Service为331 pass / 18 environment skip / 0 fail。按用户指示暂不重启当前现场，状态`CODE/FULL REGRESSION PASSED / SETTLEMENT RESTART CANARY PENDING`。
+
+## 126. UAT-129：Procurement Retry Intent Available必须形成自动恢复闭环
+
+问题分类：`RECOVERY_CORRECTNESS / OUTBOX_INBOX / DOMAIN_ORCHESTRATION`
+
+现场现象：失败准备重试的同步Admin请求已经成功建立新Run，但`procurement_retry_intent_available -> procurement`没有注册消费者；Delivery保持pending并持续重试，Inbox为0。若服务在Intent创建提交后、同步Admission前崩溃，Intent会永久停在open，普通Scheduler又按合同排除这类同步Work。
+
+精确根因：消息生产、Retry Intent Store和Retry Admission Store均已存在，但Admin路径直接消费Admission，Outbox Dispatcher没有接入同一个Procurement消费者；历史恢复测试通过主动重发相同HTTP请求恢复，未覆盖无人重发的崩溃窗口。
+
+修复边界：新增Procurement-owned `consumeAvailable`入口，从durable Intent精确推导原Supporting Work，读取冻结Plan中的Admission Request，不重新观察或拼装当前业务输入。同步Admin和异步Outbox复用同一入口；open、consumed、stale均按正式Retry Admission幂等处理。消息、Owner row或冻结Plan漂移时fail-closed；终态后以Procurement receipt写Inbox，再由Dispatcher ack并形成`fully_acked`，不删除或静默确认消息，不修改Libra及Foundation状态机语义。
+
+验收证据：新增Intent创建后恢复、terminal重放、消息closed-shape拒绝、Inbox唯一消费、Delivery ack及Outbox fully_acked专项；相关组合28 pass / 3既有skip / 0 fail，Startup/Synchronous Recovery组合21/21通过，完整Service为331 pass / 18 environment skip / 0 fail。按用户指示暂不重启或重建当前现场，状态`CODE/FULL REGRESSION PASSED / OUTBOX RESTART CANARY PENDING`。
+
+## 127. 后续问题模板
 
 后续发现的问题按以下结构追加：
 
