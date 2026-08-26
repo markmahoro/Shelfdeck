@@ -35,6 +35,7 @@ export default function SettingsPage() {
   const [tmdbCredentialKind, setTmdbCredentialKind] = useState<'api_key' | 'access_token'>('access_token');
   const [tmdbCredential, setTmdbCredential] = useState('');
   const [tmdbLanguage, setTmdbLanguage] = useState('zh-CN');
+  const [tmdbProxyServer, setTmdbProxyServer] = useState('');
   const [moviePilotEndpoint, setMoviePilotEndpoint] = useState('');
   const [moviePilotKey, setMoviePilotKey] = useState('');
   const [providerRequestRoot, setProviderRequestRoot] = useState('');
@@ -74,6 +75,7 @@ export default function SettingsPage() {
       setIntegration(configured);
       setTmdb(configuredTmdb);
       setTmdbLanguage(configuredTmdb.settings?.language || 'zh-CN');
+      setTmdbProxyServer(configuredTmdb.settings?.proxyServer || '');
       setMoviePilot(configuredMoviePilot);
       setMaxDownloadAttempts(configuredMoviePilot.settings?.maxDownloadAttempts || 3);
       if (configured?.configured) await helixAdminApi.getPerceptionSyncState().then(setSyncState);
@@ -135,7 +137,7 @@ export default function SettingsPage() {
   async function connectTmdb(event: FormEvent) {
     event.preventDefault(); setLoading(true); setError(''); setNotice('');
     try {
-      const proof = await helixAdminApi.testIntegration('tmdb', { kind: 'tmdb', idempotencyKey: `tmdb-test:${crypto.randomUUID()}`, endpoint: 'https://api.themoviedb.org/3', credential: { kind: tmdbCredentialKind, value: tmdbCredential }, settings: { language: tmdbLanguage }, timeoutMs: 20_000 });
+      const proof = await helixAdminApi.testIntegration('tmdb', { kind: 'tmdb', idempotencyKey: `tmdb-test:${crypto.randomUUID()}`, endpoint: 'https://api.themoviedb.org/3', credential: { kind: tmdbCredentialKind, value: tmdbCredential }, settings: { language: tmdbLanguage, proxyServer: tmdbProxyServer.trim() }, timeoutMs: 20_000 });
       await helixAdminApi.configureIntegration('tmdb', { kind: 'tmdb', idempotencyKey: `tmdb-configure:${proof.connectionProofId}`, expectedConfigRevision: tmdb?.configRevision || 0, connectionProofId: proof.connectionProofId });
       setTmdbCredential(''); setNotice('TMDB 已验证并保存。'); await loadIntegrations();
     } catch (cause) { fail(cause, 'TMDB 连接失败。'); }
@@ -149,12 +151,12 @@ export default function SettingsPage() {
     } catch (cause) { fail(cause, '断开失败。'); }
     finally { setLoading(false); }
   }
-  async function updateTmdbLanguage() {
+  async function updateTmdbSettings() {
     if (!tmdb) return; setLoading(true); setError('');
     try {
-      await helixAdminApi.configureIntegration('tmdb', { kind: 'tmdb', idempotencyKey: `tmdb-settings:${tmdb.configRevision}:${tmdbLanguage}`, expectedConfigRevision: tmdb.configRevision, settings: { language: tmdbLanguage } });
-      setNotice('TMDB 首选语言已更新。'); await loadIntegrations();
-    } catch (cause) { fail(cause, 'TMDB 语言更新失败。'); }
+      await helixAdminApi.configureIntegration('tmdb', { kind: 'tmdb', idempotencyKey: `tmdb-settings:${tmdb.configRevision}:${crypto.randomUUID()}`, expectedConfigRevision: tmdb.configRevision, settings: { language: tmdbLanguage, proxyServer: tmdbProxyServer.trim() } });
+      setNotice('TMDB 设置已更新。'); await loadIntegrations();
+    } catch (cause) { fail(cause, 'TMDB 设置更新失败。'); }
     finally { setLoading(false); }
   }
   async function connectMoviePilot(event: FormEvent) {
@@ -244,12 +246,14 @@ export default function SettingsPage() {
         <div className="settings-card-body">
           {tmdb?.configured ? <>
             <label className="settings-inline-field"><span>首选语言</span><select value={tmdbLanguage} onChange={(event) => setTmdbLanguage(event.target.value)}><option value="zh-CN">简体中文</option><option value="zh-TW">繁体中文</option><option value="en-US">English</option></select></label>
-            <div className="settings-card-actions"><Button variant="primary" type="button" onClick={() => void updateTmdbLanguage()} disabled={loading || tmdbLanguage === (tmdb.settings?.language || 'zh-CN')}>保存语言</Button><Button variant="danger" type="button" onClick={() => void disconnectTmdb()} disabled={loading}>断开</Button></div>
+            <label className="settings-inline-field"><span>代理服务器</span><input type="url" value={tmdbProxyServer} onChange={(event) => setTmdbProxyServer(event.target.value)} placeholder="http://127.0.0.1:7890" /><small>可选；支持 HTTP/HTTPS，不要在地址中填写账号密码。</small></label>
+            <div className="settings-card-actions"><Button variant="primary" type="button" onClick={() => void updateTmdbSettings()} disabled={loading || (tmdbLanguage === (tmdb.settings?.language || 'zh-CN') && tmdbProxyServer.trim() === (tmdb.settings?.proxyServer || ''))}>保存设置</Button><Button variant="danger" type="button" onClick={() => void disconnectTmdb()} disabled={loading}>断开</Button></div>
           </> : <form className="source-form" onSubmit={connectTmdb}>
             <div className="source-form-grid">
               <label><span>首选语言</span><select value={tmdbLanguage} onChange={(event) => setTmdbLanguage(event.target.value)}><option value="zh-CN">简体中文</option><option value="zh-TW">繁体中文</option><option value="en-US">English</option></select></label>
               <label><span>凭据类型</span><select value={tmdbCredentialKind} onChange={(event) => setTmdbCredentialKind(event.target.value as 'api_key' | 'access_token')}><option value="access_token">Read Access Token</option><option value="api_key">API Key</option></select></label>
               <label className="wide"><span>{tmdbCredentialKind === 'access_token' ? 'Read Access Token' : 'API Key'}</span><input type="password" value={tmdbCredential} onChange={(event) => setTmdbCredential(event.target.value)} required /></label>
+              <label className="wide"><span>代理服务器</span><input type="url" value={tmdbProxyServer} onChange={(event) => setTmdbProxyServer(event.target.value)} placeholder="http://127.0.0.1:7890" /><small>可选；连接测试和后续 API、人物头像、海报请求都会使用该代理。</small></label>
             </div>
             <div className="settings-card-actions"><Button variant="primary" disabled={loading || tmdbCredential.length < 8}>{loading ? '正在验证…' : '测试并连接'}</Button></div>
           </form>}

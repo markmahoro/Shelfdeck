@@ -359,7 +359,11 @@ export type IntegrationState = {
   capabilityCodes: string[];
   lastTestSummary: { identityProviderKey?: string; checkedAtMs?: number } | null;
   validation?: { status:'not_tested'|'passed'|'failed'; checkedAtMs:number|null; configRevision:number; errorCode:string|null };
-  settings?: { language?: string; maxDownloadAttempts?: number };
+  settings?: {
+    language?: string;
+    proxyServer?: string;
+    maxDownloadAttempts?: number;
+  };
   landingBinding: {
     bindingId: string;
     bindingRevision: number;

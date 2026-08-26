@@ -111,9 +111,44 @@ function secret(value, secretKind, credentialKind) {
   });
 }
 
+function normalizedProxyServer(value) {
+  if (value === undefined || value === null || value === '') return '';
+  if (typeof value !== 'string' || value.length > 2048) {
+    fail(
+      'PLATFORM_INTEGRATION_CREDENTIAL_INVALID',
+      'TMDB proxy server must be an HTTP or HTTPS URL.',
+      { field: 'settings.proxyServer' },
+    );
+  }
+  const trimmed = value.trim();
+  if (!trimmed) return '';
+  let parsed;
+  try {
+    parsed = new URL(trimmed);
+  } catch (_error) {
+    fail(
+      'PLATFORM_INTEGRATION_CREDENTIAL_INVALID',
+      'TMDB proxy server must be an HTTP or HTTPS URL.',
+      { field: 'settings.proxyServer' },
+    );
+  }
+  if (!['http:', 'https:'].includes(parsed.protocol) ||
+      !parsed.hostname || parsed.username || parsed.password ||
+      parsed.search || parsed.hash || !['', '/'].includes(parsed.pathname)) {
+    fail(
+      'PLATFORM_INTEGRATION_CREDENTIAL_INVALID',
+      'TMDB proxy server must be an HTTP or HTTPS origin without credentials.',
+      { field: 'settings.proxyServer' },
+    );
+  }
+  return parsed.origin;
+}
+
 function tmdbSettings(value) {
-  if (value === undefined) return Object.freeze({ language: 'zh-CN' });
-  exact(value, ['language']);
+  if (value === undefined) {
+    return Object.freeze({ language: 'zh-CN', proxyServer: '' });
+  }
+  exact(value, ['language'], ['proxyServer']);
   if (typeof value.language !== 'string' ||
       !/^[a-z]{2}(?:-[A-Z]{2})?$/.test(value.language)) {
     fail(
@@ -122,7 +157,10 @@ function tmdbSettings(value) {
       { field: 'settings.language' },
     );
   }
-  return Object.freeze({ language: value.language });
+  return Object.freeze({
+    language: value.language,
+    proxyServer: normalizedProxyServer(value.proxyServer),
+  });
 }
 
 function tmdbCredential(value, settings) {

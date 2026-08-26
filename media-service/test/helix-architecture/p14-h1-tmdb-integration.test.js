@@ -110,6 +110,11 @@ function tmdbFetch(state = {}) {
     const authorized = url.searchParams.get('api_key') === credential ||
       init?.headers?.authorization === `Bearer ${credential}`;
     if (url.hostname === 'image.tmdb.org') {
+      state.imageCalls ||= [];
+      state.imageCalls.push({
+        pathname: url.pathname,
+        usesProxy: Boolean(init?.dispatcher),
+      });
       return response(200, null, [0xff, 0xd8, 0xff, 0xd9]);
     }
     if (!authorized) return response(401, { status_code: 7 });
@@ -120,6 +125,7 @@ function tmdbFetch(state = {}) {
       appendToResponse: url.searchParams.get('append_to_response'),
       hasApiKey: url.searchParams.has('api_key'),
       hasAuthorization: Boolean(init?.headers?.authorization),
+      usesProxy: Boolean(init?.dispatcher),
     });
     if (url.pathname === '/3/configuration') {
       return response(200, {
@@ -192,7 +198,7 @@ function testCommand(kind, key) {
     idempotencyKey: key,
     endpoint: 'https://api.themoviedb.org/3',
     credential: { kind: 'api_key', value: credential },
-    settings: { language: 'zh-CN' },
+    settings: { language: 'zh-CN', proxyServer: '' },
     timeoutMs: 5_000,
   };
 }
@@ -359,7 +365,7 @@ test('H1.1 Admin TMDB routes test before save, redact secrets, CAS, and replay',
     configDigest: null,
     capabilityCodes: ['identity', 'metadata'],
     lastTestSummary: null,
-    settings: { language: 'zh-CN' },
+    settings: { language: 'zh-CN', proxyServer: '' },
   });
 
   const testPayload = testCommand('tmdb', 'tmdb-test-before-save');
@@ -409,7 +415,10 @@ test('H1.1 Admin TMDB routes test before save, redact secrets, CAS, and replay',
   assert.equal(saved.statusCode, 200, saved.body);
   assert.equal(saved.json().configRevision, 1);
   assert.equal(saved.json().configured, true);
-  assert.deepEqual(saved.json().settings, { language: 'zh-CN' });
+  assert.deepEqual(saved.json().settings, {
+    language: 'zh-CN',
+    proxyServer: '',
+  });
   assert.equal(saved.body.includes(credential), false);
   assert.equal(saved.body.includes('integration-envelope:'), false);
 
@@ -564,7 +573,7 @@ test('H1.1 Admin TMDB routes test before save, redact secrets, CAS, and replay',
   await host.close();
 });
 
-test('H1.1 TMDB language updates locally without re-entering or retesting credentials', async () => {
+test('H1.1 TMDB language and proxy update locally without re-entering credentials', async () => {
   const value=fixture(),state={},host=await createCleanServiceHost({dataDir:value.dataDir,
     adminDistDir:value.adminDistDir,secretRoot,integrationFetch:tmdbFetch(state),now:()=>1_900_000_000_000});
   try{
@@ -573,13 +582,16 @@ test('H1.1 TMDB language updates locally without re-entering or retesting creden
     assert.equal(saved.statusCode,200,saved.body);
     const callsBefore=state.calls.length,updated=await host.inject({method:'PATCH',
       url:'/v1/admin/settings/integrations/tmdb',headers:{cookie},payload:{kind:'tmdb',
-        idempotencyKey:'tmdb-language-en-US',expectedConfigRevision:1,settings:{language:'en-US'}}});
+        idempotencyKey:'tmdb-language-en-US',expectedConfigRevision:1,
+        settings:{language:'en-US',proxyServer:'http://127.0.0.1:7890'}}});
     assert.equal(updated.statusCode,200,updated.body);
     assert.equal(updated.json().configRevision,2);
-    assert.deepEqual(updated.json().settings,{language:'en-US'});
-    assert.equal(state.calls.length,callsBefore,'local language update must not call TMDB');
+    assert.deepEqual(updated.json().settings,
+      {language:'en-US',proxyServer:'http://127.0.0.1:7890'});
+    assert.equal(state.calls.length,callsBefore,'local settings update must not call TMDB');
     const replay=await host.inject({method:'PATCH',url:'/v1/admin/settings/integrations/tmdb',headers:{cookie},
-      payload:{kind:'tmdb',idempotencyKey:'tmdb-language-en-US',expectedConfigRevision:1,settings:{language:'en-US'}}});
+      payload:{kind:'tmdb',idempotencyKey:'tmdb-language-en-US',expectedConfigRevision:1,
+        settings:{language:'en-US',proxyServer:'http://127.0.0.1:7890'}}});
     assert.equal(replay.statusCode,200,replay.body);
     assert.deepEqual(replay.json(),updated.json());
   }finally{await host.close();}
@@ -672,9 +684,12 @@ test('H1.1 invalid endpoint, credential, network, HTTP, schema, and timeout leav
   invalidEndpoint.endpoint = 'http://api.themoviedb.org/3';
   const invalidCredential = testCommand('tmdb', 'invalid-credential');
   invalidCredential.credential.value = 'short';
+  const invalidProxy = testCommand('tmdb', 'invalid-proxy');
+  invalidProxy.settings.proxyServer = 'http://user:password@127.0.0.1:7890';
   const cases = [
     [invalidEndpoint, 'PLATFORM_INTEGRATION_ENDPOINT_INVALID', 400],
     [invalidCredential, 'PLATFORM_INTEGRATION_CREDENTIAL_INVALID', 400],
+    [invalidProxy, 'PLATFORM_INTEGRATION_CREDENTIAL_INVALID', 400],
     [testCommand('tmdb', 'network-failure'),
       'PLATFORM_INTEGRATION_NETWORK_FAILED', 502],
   ];
@@ -761,11 +776,13 @@ test('H1.1 Platform ports fence real TMDB identity and metadata reads across res
     now: () => 1_900_000_000_000,
   });
   const cookie = await session(host, value.initialized.adminApiKey);
+  const typedCommand = testCommand('tmdb', 'typed-test');
+  typedCommand.settings.proxyServer = 'http://127.0.0.1:7890';
   const tested = await host.inject({
     method: 'POST',
     url: '/v1/admin/settings/integrations/tmdb/actions/test',
     headers: { cookie },
-    payload: testCommand('tmdb', 'typed-test'),
+    payload: typedCommand,
   });
   assert.equal(tested.statusCode, 200, tested.body);
   const saved = await host.inject({
@@ -779,6 +796,10 @@ test('H1.1 Platform ports fence real TMDB identity and metadata reads across res
     ),
   });
   assert.equal(saved.statusCode, 200, saved.body);
+  assert.deepEqual(saved.json().settings, {
+    language: 'zh-CN',
+    proxyServer: 'http://127.0.0.1:7890',
+  });
   await host.close();
 
   const kernel = openSqliteKernel({
@@ -924,6 +945,10 @@ test('H1.1 Platform ports fence real TMDB identity and metadata reads across res
       call.pathname === '/3/movie/550' &&
       call.language === 'zh-CN' &&
       call.appendToResponse?.includes('alternative_titles')));
+    assert.ok(state.calls.length > 0 &&
+      state.calls.every((call) => call.usesProxy));
+    assert.ok(state.imageCalls.length > 0 &&
+      state.imageCalls.every((call) => call.usesProxy));
     assert.throws(
       () => runtime.integrationHandleResolverPort.resolve({
         integrationId: 'tmdb-main',
@@ -1507,9 +1532,9 @@ test('H1.1 source and route inventory prove no production fixture or scope expan
   const guard = require('../../scripts/p14-h1-change-scope-guard');
   assert.deepEqual(guard.routeImplementationStatus().counts, {
     total: 121,
-    real: 91,
+    real: 94,
     workerBeta404: 6,
-    unavailable503: 24,
+    unavailable503: 21,
   });
   // H1.1 is a closed historical construction phase. Its dedicated guard fixture
   // verifies the frozen seam; the live worktree is now governed by CURRENT_PLAN.

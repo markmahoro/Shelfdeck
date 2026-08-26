@@ -1,5 +1,6 @@
 'use strict';
 
+const { ProxyAgent } = require('undici');
 const { canonicalDigest } = require('../contracts/canonical-json');
 const {
   ExternalProviderArtifactPort,
@@ -36,6 +37,7 @@ const REQUESTED_FIELDS = new Set([
   'tmdb_series_id',
   'year_or_release_date',
 ]);
+const proxyAgents = new Map();
 
 class TmdbProviderAdapterError extends Error {
   constructor(code, message, details = {}) {
@@ -539,6 +541,23 @@ function timeout(value) {
   return timeoutMs;
 }
 
+function dispatcherFor(proxyServer) {
+  const value = String(proxyServer || '').trim();
+  if (!value) return undefined;
+  if (!proxyAgents.has(value)) {
+    try {
+      proxyAgents.set(value, new ProxyAgent(value));
+    } catch (_error) {
+      fail(
+        'PLATFORM_INTEGRATION_CREDENTIAL_INVALID',
+        'TMDB proxy server is invalid.',
+        { field: 'settings.proxyServer' },
+      );
+    }
+  }
+  return proxyAgents.get(value);
+}
+
 function identity(providerKey, namespace, seasonNumber = null) {
   const basis = {
     provider: 'tmdb',
@@ -639,12 +658,14 @@ function createTmdbProviderAdapter(options) {
     }
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), init.timeoutMs);
+    const dispatcher = dispatcherFor(init.proxyServer);
     let response;
     try {
       response = await fetchImpl(target, {
         method: 'GET',
         headers,
         signal: controller.signal,
+        ...(dispatcher ? { dispatcher } : {}),
       });
     } catch (_error) {
       if (controller.signal.aborted) {
@@ -778,6 +799,8 @@ function createTmdbProviderAdapter(options) {
       timeoutMs: timeout(request.timeoutMs),
     }, async (snapshot, secretBytes) => {
       const language = snapshot.settings?.language || 'zh-CN';
+      const proxyServer = snapshot.settings?.proxyServer || '';
+      const proxyDispatcher = dispatcherFor(proxyServer);
       if (request.operationId === 'people.registration_evidence.observe@1') {
         exact(
           request.input,
@@ -799,7 +822,11 @@ function createTmdbProviderAdapter(options) {
           snapshot.secretKind,
           secretBytes,
           '/person/' + resolved.providerKey,
-          { timeoutMs: timeout(request.timeoutMs), query: { language } },
+          {
+            timeoutMs: timeout(request.timeoutMs),
+            query: { language },
+            proxyServer,
+          },
         );
         requireFields(
           person,
@@ -842,6 +869,9 @@ function createTmdbProviderAdapter(options) {
                 'user-agent': 'ShelfDeck-Helix/1',
               },
               signal: controller.signal,
+              ...(proxyDispatcher
+                ? { dispatcher: proxyDispatcher }
+                : {}),
             },
           );
         } catch (_error) {
@@ -923,6 +953,7 @@ function createTmdbProviderAdapter(options) {
               language,
               page: 1,
             },
+            proxyServer,
           },
         );
         validateSearchResponse(result);
@@ -962,18 +993,21 @@ function createTmdbProviderAdapter(options) {
         if (request.input.strongProviderKey !== null) {
           const item = await fetchJson(snapshot.endpoint, snapshot.secretKind, secretBytes, '/movie/' + request.input.strongProviderKey, {
             timeoutMs: timeout(request.timeoutMs), query: { language, append_to_response:'alternative_titles,translations' },
+            proxyServer,
           });
           validateMetadataResponse(item); result = { results:[item] };
         } else {
           result = await fetchJson(snapshot.endpoint, snapshot.secretKind, secretBytes, '/search/movie', {
             timeoutMs: timeout(request.timeoutMs), query: { query: request.input.title.trim(), include_adult: 'false',
               language, page: 1, ...(request.input.yearHint === null ? {} : { year: request.input.yearHint }) },
+            proxyServer,
           });
           validateSearchResponse(result, true);
           const expanded = [];
           for (const candidate of result.results.slice(0, 10)) {
             const detail = await fetchJson(snapshot.endpoint, snapshot.secretKind, secretBytes, '/movie/' + candidate.id, {
               timeoutMs: timeout(request.timeoutMs), query: { language, append_to_response:'alternative_titles,translations' },
+              proxyServer,
             });
             validateMetadataResponse(detail);
             if (detail.id !== candidate.id) fail('PLATFORM_TMDB_IDENTITY_MISMATCH', 'TMDB candidate detail belongs to a foreign identity.');
@@ -1029,6 +1063,7 @@ function createTmdbProviderAdapter(options) {
               append_to_response: 'credits,alternative_titles,translations',
               language,
             },
+            proxyServer,
           },
         );
         validateMetadataResponse(body);
@@ -1128,7 +1163,11 @@ function createTmdbProviderAdapter(options) {
         secretBytes,
         '/' + (series ? 'tv' : 'movie') +
           '/' + resolved.providerKey + '/images',
-        { timeoutMs: timeout(request.timeoutMs), query: {} },
+        {
+          timeoutMs: timeout(request.timeoutMs),
+          query: {},
+          proxyServer,
+        },
       );
       validateImagesResponse(images);
       const collection = artifactKind === 'poster'
@@ -1159,6 +1198,9 @@ function createTmdbProviderAdapter(options) {
               'user-agent': 'ShelfDeck-Helix/1',
             },
             signal: controller.signal,
+            ...(proxyDispatcher
+              ? { dispatcher: proxyDispatcher }
+              : {}),
           },
         );
       } catch (_error) {
@@ -1240,13 +1282,14 @@ function createTmdbProviderAdapter(options) {
     const endpoint = normalizedEndpoint(value.endpoint);
     const timeoutMs = timeout(value.timeoutMs);
     const language = value.settings?.language || 'zh-CN';
+    const proxyServer = value.settings?.proxyServer || '';
     if (!/^[a-z]{2}(?:-[A-Z]{2})?$/.test(language)) fail('PLATFORM_TMDB_TEST_SHAPE', 'TMDB test language is invalid.');
     const configuration = await fetchJson(
       endpoint,
       value.secretKind,
       value.secretBytes,
       '/configuration',
-      { timeoutMs, query: {} },
+      { timeoutMs, query: {}, proxyServer },
     );
     validateConfigurationResponse(configuration);
     const movie = await fetchJson(
@@ -1257,6 +1300,7 @@ function createTmdbProviderAdapter(options) {
       {
         timeoutMs,
         query: { append_to_response: 'credits,alternative_titles,translations', language },
+        proxyServer,
       },
     );
     validateMetadataResponse(movie);

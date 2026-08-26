@@ -83,6 +83,10 @@ describe('Helix primary copy and workbench structure', () => {
     expect(screen.getByText(/管理连接、自动运营与评分日志/)).toBeInTheDocument();
     expect(screen.getByRole('heading', { level: 2, name: '豆瓣' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { level: 2, name: 'TMDB' })).toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: /^代理服务器/ })).toHaveAttribute(
+      'placeholder',
+      'http://127.0.0.1:7890',
+    );
     expect(screen.getByRole('heading', { level: 2, name: 'MoviePilot' })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: '自动运营' })).toBeInTheDocument();
     vi.spyOn(helixAdminApi,'getWorkspaceRootSettings').mockResolvedValue({current:{rootPath:'D:\\ShelfDeck\\workspace',configRevision:1},
