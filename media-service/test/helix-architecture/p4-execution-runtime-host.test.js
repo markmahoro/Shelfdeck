@@ -274,6 +274,50 @@ test('crash-before-intent recovery is deferred until after ordinary supply is en
   await host.stop();
 });
 
+test('a long crash-before-intent recovery does not block ordinary Event supply', async () => {
+  let eventAvailable=true;
+  let releaseRecovery;
+  let recoveryCalls=0;
+  let recoveryStarted=false;
+  let ordinaryEventStarted=false;
+  const recoveryGate=new Promise((resolve)=>{releaseRecovery=resolve;});
+  const host=createExecutionRuntimeHost({
+    tickIntervalMs:60000,maxActionsPerTick:4,recoveryRetryMs:10,
+    startupRecovery:{async recover(){return {state:'recovering',normalSupplyAllowed:false,findings:[],
+      actions:[{eventId:'event-long-recovery',decision:'safe_retry_before_intent'}]};}},
+    scheduler:{acquire({targetType}){
+      if(targetType==='work'||!eventAvailable)return {kind:'idle'};
+      eventAvailable=false;
+      return {kind:'leased',lease:{targetType:'event',targetId:'event-ordinary',leaseId:'lease-ordinary'}};
+    },release(){}},
+    plannerRegistry:{resolve(){}},planPublisher:{publish(){}},
+    workLifecycle:{ensurePlanningAttempt(){},startPlanned(){},aggregateEvent(){return {
+      attemptTerminal:false,workTerminal:false,replayed:false,
+    };},settleWork(){},pendingOwnerReconciliations(){return [];}},
+    eventRuntime:{async recover(){recoveryCalls+=1;recoveryStarted=true;await recoveryGate;return {kind:'succeeded'};},
+      async run(){ordinaryEventStarted=true;return {kind:'succeeded'};}},
+    domainReconciler:{reconcile(){}},fallbackReconciler:{async start(){},async stop(){}},
+  });
+  await host.start();
+  const supplyDeadline=Date.now()+1000;
+  while((!recoveryStarted||!ordinaryEventStarted)&&Date.now()<supplyDeadline){
+    await new Promise((resolve)=>setImmediate(resolve));
+  }
+  assert.equal(recoveryStarted,true);
+  assert.equal(ordinaryEventStarted,true,'ordinary Event must start before the long recovery settles');
+  assert.equal(host.activity().inFlightRecoveries,1);
+  await host.drainOnce();
+  await host.drainOnce();
+  assert.equal(recoveryCalls,1,'the same in-flight recovery must not be started twice');
+  let stopSettled=false;
+  const stopping=host.stop().then((result)=>{stopSettled=true;return result;});
+  await new Promise((resolve)=>setImmediate(resolve));
+  assert.equal(stopSettled,false,'stop must wait for an in-flight recovery to settle');
+  releaseRecovery();
+  assert.equal((await stopping).state,'stopped');
+  assert.equal(host.activity().inFlightRecoveries,0);
+});
+
 test('a transient recovery invocation failure stays in the safety lane without denying ordinary service supply', async () => {
   const errors=[];
   let recoveryCalls=0;

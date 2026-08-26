@@ -49,6 +49,7 @@ function createExecutionRuntimeHost(options) {
   let lastRecovery = null;
   let firstFault = null;
   const inFlightEvents = new Map();
+  const inFlightRecoveries = new Map();
   const deferredRecoveries = new Map();
   const completionRetries = new Map();
 
@@ -228,31 +229,39 @@ function createExecutionRuntimeHost(options) {
     return Object.freeze({ kind:'idle' });
   }
 
-  async function drainOneDeferredRecovery() {
+  function drainOneDeferredRecovery() {
+    if (inFlightRecoveries.size >= maxInFlightEvents) return Object.freeze({
+      kind:'at_capacity', lane:'recovery', inFlight:inFlightRecoveries.size,
+    });
     const current = Date.now();
     const completion=[...completionRetries.values()]
       .sort((left,right)=>left.retryAtMs-right.retryAtMs||left.eventId.localeCompare(right.eventId))
-      .find((item)=>item.retryAtMs<=current);
+      .find((item)=>item.retryAtMs<=current&&!inFlightRecoveries.has(item.eventId));
     if(completion){
       completion.retryAtMs=current+recoveryRetryMs;
-      try{
+      const operation=(async()=>{
         const recovered=options.eventRuntime.retryPendingCompletion(completion.eventId);
         if(!recovered||recovered.kind==='no_pending_completion')return Object.freeze({kind:'recovery_deferred',eventId:completion.eventId});
         completionRetries.delete(completion.eventId);
         const aggregation=options.workLifecycle.aggregateEvent(completion.eventId);
         await reconcileTerminal(aggregation);
         return Object.freeze({kind:'recovery_advanced',eventId:completion.eventId});
-      }catch(error){
+      })().catch((error)=>{
         if(typeof options.onError==='function')options.onError(error);
         return Object.freeze({kind:'recovery_deferred',eventId:completion.eventId,error});
-      }
+      }).finally(()=>{
+        inFlightRecoveries.delete(completion.eventId);
+        if(state==='ready')wake();
+      });
+      inFlightRecoveries.set(completion.eventId,operation);
+      return Object.freeze({kind:'recovery_launched',eventId:completion.eventId,inFlight:inFlightRecoveries.size});
     }
     const pending = [...deferredRecoveries.values()]
       .sort((left, right) => left.retryAtMs - right.retryAtMs || left.action.eventId.localeCompare(right.action.eventId))
-      .find((item) => item.retryAtMs <= current);
+      .find((item) => item.retryAtMs <= current&&!inFlightRecoveries.has(item.action.eventId));
     if (!pending) return Object.freeze({ kind:'idle' });
     pending.retryAtMs = current + recoveryRetryMs;
-    try {
+    const operation=(async()=>{
       const recovered = await options.eventRuntime.recover(pending.action);
       if (!recovered || recovered.kind === 'recovery_deferred') return Object.freeze({
         kind:'recovery_deferred', eventId:pending.action.eventId,
@@ -261,16 +270,21 @@ function createExecutionRuntimeHost(options) {
       const aggregation = options.workLifecycle.aggregateEvent(pending.action.eventId);
       await reconcileTerminal(aggregation);
       return Object.freeze({ kind:'recovery_advanced', eventId:pending.action.eventId });
-    } catch (error) {
+    })().catch((error)=>{
       if (typeof options.onError === 'function') options.onError(error);
       return Object.freeze({ kind:'recovery_deferred', eventId:pending.action.eventId, error });
-    }
+    }).finally(()=>{
+      inFlightRecoveries.delete(pending.action.eventId);
+      if(state==='ready')wake();
+    });
+    inFlightRecoveries.set(pending.action.eventId,operation);
+    return Object.freeze({kind:'recovery_launched',eventId:pending.action.eventId,inFlight:inFlightRecoveries.size});
   }
 
   async function drainOnce() {
     if (!['ready', 'draining'].includes(state)) return Object.freeze({ kind: 'inactive', state });
     let recovery; let work; let event; let owner;
-    try { recovery = await drainOneDeferredRecovery(); }
+    try { recovery = drainOneDeferredRecovery(); }
     catch (error) {
       if (typeof options.onError === 'function') options.onError(error);
       recovery = Object.freeze({ kind:'recovery_deferred', error });
@@ -290,7 +304,7 @@ function createExecutionRuntimeHost(options) {
       if (typeof options.onError === 'function') options.onError(error);
       owner = Object.freeze({ kind: 'owner_faulted', error });
     }
-    const advanced=recovery.kind==='recovery_advanced'||work.kind==='work_planned'||event.kind==='event_launched'||owner.kind==='owner_reconciled';
+    const advanced=recovery.kind==='recovery_launched'||work.kind==='work_planned'||event.kind==='event_launched'||owner.kind==='owner_reconciled';
     return Object.freeze({ kind:advanced?'advanced':'idle',
       recovery, work, event, owner });
   }
@@ -436,10 +450,11 @@ function createExecutionRuntimeHost(options) {
       await options.fallbackReconciler.stop();
       if (draining) await draining;
       if(inFlightEvents.size>0)await Promise.all([...inFlightEvents.values()]);
+      if(inFlightRecoveries.size>0)await Promise.all([...inFlightRecoveries.values()]);
       state = 'stopped';
       return Object.freeze({ state, fault:firstFault });
     },
-    activity(){return Object.freeze({state,inFlightEvents:inFlightEvents.size,maxInFlightEvents,
+    activity(){return Object.freeze({state,inFlightEvents:inFlightEvents.size,inFlightRecoveries:inFlightRecoveries.size,maxInFlightEvents,
       deferredRecoveryActions:deferredRecoveries.size+completionRetries.size,faulted:firstFault!==null});},
   });
 }
