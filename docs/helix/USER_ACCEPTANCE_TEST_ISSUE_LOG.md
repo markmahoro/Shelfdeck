@@ -3793,7 +3793,27 @@ Manifest集合与`git diff --check`通过。完整架构集仍有People公开包
 
 验收证据：新增Intent创建后恢复、terminal重放、消息closed-shape拒绝、Inbox唯一消费、Delivery ack及Outbox fully_acked专项；相关组合28 pass / 3既有skip / 0 fail，Startup/Synchronous Recovery组合21/21通过，完整Service为331 pass / 18 environment skip / 0 fail。按用户指示暂不重启或重建当前现场，状态`CODE/FULL REGRESSION PASSED / OUTBOX RESTART CANARY PENDING`。
 
-## 127. 后续问题模板
+## 127. UAT-130：已配置的MoviePilot无法在Admin Web中安全修订External Landing Binding
+
+问题分类：`PLATFORM_INTEGRATION / USER_EXPERIENCE / CONFIGURATION_SAFETY / RELEASE_BLOCKER`
+
+用户侧现象：Helix-beta冻结SHA `d5708c90d3777c9708f58ffd0162f1ce74983be6`的全量Movie资格运行中，按协议只copy-forward既有MoviePilot Integration与Secret后，设置页如实显示Integration当前可用，但External Landing仍绑定到旧NAS路径。已配置状态下页面只允许修改最大下载尝试次数；用户不能在保留既有Integration与Secret的前提下，把External Landing修订为本次隔离Canary目录。页面唯一可见的重新配置入口是先断开连接，再重新输入endpoint、API Key与全部Landing字段。
+
+现场证据（2026-08-27）：隔离运行`F:\shelfdeck_test_zone\runs\BETA-20260827-001402-d5708c90d`在任何Material Field配置或Observation之前停止。`ui-blocker-moviepilot-landing-nas.png`与DOM快照证明页面显示`/vol2/1000/shelfdeck_upgrade`及`\\192.168.12.230\shelfdeck_upgrade`，但没有修订Landing的控件；`preflight-blocker-facts.json`证明基线与Canary均保持22个顶层媒体单元、455个文件、42个递归目录和143829090011字节，逐项Manifest差异为0，Field/Observation/Subject/Run/Entry/Work/Event/Outbox均为0；`preflight-process-network.json`证明服务只有`127.0.0.1:18080`本地监听，没有访问NAS。未使用数据库直写、测试接口或外部路径探测制造业务状态。
+
+精确诊断：MoviePilot Integration的持久化配置已经包含独立`landingBinding`，后端Integration Admin命令也以revision管理配置，但Admin Web在`configured=true`时隐藏endpoint、Credential与Landing表单，仅保留`maxDownloadAttempts`更新。结果是部署相关Landing Binding与Credential被前端耦合成“断开并重新配置”一个动作，无法满足copy-forward Secret后只修订物理Landing的安全运维场景。
+
+业务影响：资格环境若沿用旧Binding，Observation或后续Procurement可能触及禁止的NAS/生产Landing；若靠直写数据库改成隔离目录，则绕过正式Admin配置、revision与验证事实；若先断开再重录，又违反冻结验收清单对既有External Integration/Secret的复用约束。因此该SHA不能安全开始A–I旅程，属于Preflight release blocker。
+
+修复边界：在既有Integration Admin Owner与配置revision合同内提供已配置MoviePilot的Landing Binding修订入口。用户只修改三个Landing字段时必须复用当前Credential Secret，不回显、不要求重录、不删除Integration，也不产生兼容双Binding；提交前执行既有absolute/canonical、可达性及与Material Field、Shelf Target、Libra/Aftercare Workspace等受控Root不重叠的验证，失败保持旧revision有效。endpoint或Credential变更仍走现有显式重连合同。不得把配置写入Procurement、Libra、Arca或Foundation，也不得为测试添加直写库捷径。
+
+验收证据：Admin Web专项覆盖已配置状态显示当前Landing、只改Landing并保持Credential不出DOM/response/log、revision单调推进、刷新与重启保持、validation失败不提交、revision冲突、与Field/Shelf/Workspace/Aftercare重叠拒绝，以及旧Binding在切换前后不被自动搬迁或清理。真实隔离Canary必须从允许的copy-forward状态经页面把Landing改到F盘本轮目录，再完成A–I、恢复专项与24小时观察；未取得`UI / FACT / FS / RESTART`证据前不得关闭。
+
+本地实现与回归（2026-08-27）：Admin Web在已配置状态下显示三个Landing字段与当前endpoint，但不渲染Credential输入；页面提交仅携带Landing、下载尝试上限、expected revision与idempotency key。Integration Admin复用现有Secret，在CAS内验证当前本地Landing reality并建立下一Binding/config revision；重叠、不可读、closed-shape、stale revision均fail closed，重放直接返回原Command Receipt。MoviePilot/Platform/Landing/Admin专项32/32、Admin Web 29/29、完整Service 331 pass / 18 environment skip / 0 fail及production build通过；专项另证明Provider调用数不增加、response无Credential、重启后新Binding保持。以上仅为本地实现证据，不替代新Canary。
+
+当前处理决定：冻结SHA `d5708c90d3777c9708f58ffd0162f1ce74983be6`仍为`QUALIFICATION BLOCKED BEFORE OBSERVATION`，不具备Helix-beta发布资格；修复状态为`LOCAL IMPLEMENTATION AND FULL REGRESSION PASSED / NEW CLEAN MAIN SHA FULL RERUN REQUIRED`。本条不声称任何NAS访问、生产副作用或A–I执行。
+
+## 128. 后续问题模板
 
 后续发现的问题按以下结构追加：
 

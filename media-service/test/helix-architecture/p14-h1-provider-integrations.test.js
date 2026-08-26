@@ -712,6 +712,85 @@ test('H1.2 MoviePilot attempt limit updates locally without re-entering or retes
   }finally{await host.close();}
 });
 
+test('UAT-130 configured MoviePilot revises External Landing locally while retaining its credential', async () => {
+  const value=fixture(),state={calls:[]};
+  let host=await createCleanServiceHost({dataDir:value.dataDir,adminDistDir:value.adminDistDir,
+    secretRoot,integrationFetch:providerFetch(state),now:()=>1_900_000_000_000});
+  try{
+    const cookie=await session(host,value.initialized.adminApiKey);
+    const saved=await configure(host,cookie,'moviepilot','-landing-update');
+    const landing=fs.mkdtempSync(path.join(os.tmpdir(),'helix-h1-moviepilot-revised-'));
+    roots.push(landing);
+    const callsBefore=state.calls.length;
+    const updated=await host.inject({method:'PATCH',url:'/v1/admin/settings/integrations/moviepilot',
+      headers:{cookie},payload:{kind:'moviepilot',idempotencyKey:'moviepilot-landing-update-2',
+        expectedConfigRevision:1,settings:{providerRequestSaveRoot:'/provider/revised-downloads',
+          providerOrganizedRoot:'/provider/revised-organized',shelfDeckVisibleRoot:landing,
+          maxDownloadAttempts:4}}});
+    assert.equal(updated.statusCode,200,updated.body);
+    const result=updated.json();
+    assert.equal(result.configRevision,2);
+    assert.equal(result.endpoint,saved.endpoint);
+    assert.equal(result.settings.maxDownloadAttempts,4);
+    assert.equal(result.landingBinding.bindingId,saved.landingBinding.bindingId);
+    assert.equal(result.landingBinding.bindingRevision,2);
+    assert.equal(result.landingBinding.providerRequestSaveRoot,'/provider/revised-downloads');
+    assert.equal(result.landingBinding.providerOrganizedRoot,'/provider/revised-organized');
+    assert.equal(result.landingBinding.shelfDeckVisibleRoot,fs.realpathSync.native(landing));
+    assert.equal(updated.body.includes(secrets.moviepilot),false);
+    assert.equal(state.calls.length,callsBefore,'Landing revision must not call or retest MoviePilot');
+    fs.rmdirSync(landing);
+    const replay=await host.inject({method:'PATCH',url:'/v1/admin/settings/integrations/moviepilot',
+      headers:{cookie},payload:{kind:'moviepilot',idempotencyKey:'moviepilot-landing-update-2',
+        expectedConfigRevision:1,settings:{providerRequestSaveRoot:'/provider/revised-downloads',
+          providerOrganizedRoot:'/provider/revised-organized',shelfDeckVisibleRoot:landing,
+          maxDownloadAttempts:4}}});
+    assert.equal(replay.statusCode,200,replay.body);
+    assert.deepEqual(replay.json(),result);
+    fs.mkdirSync(landing);
+
+    await host.close();
+    host=await createCleanServiceHost({dataDir:value.dataDir,adminDistDir:value.adminDistDir,
+      secretRoot,integrationFetch:providerFetch(state),now:()=>1_900_000_000_000});
+    const restarted=await session(host,value.initialized.adminApiKey);
+    const read=await host.inject({method:'GET',url:'/v1/admin/settings/integrations/moviepilot',
+      headers:{cookie:restarted}});
+    assert.equal(read.statusCode,200,read.body);
+    assert.equal(read.json().configRevision,2);
+    assert.equal(read.json().landingBinding.shelfDeckVisibleRoot,fs.realpathSync.native(landing));
+    assert.equal(read.body.includes(secrets.moviepilot),false);
+  }finally{await host?.close();}
+});
+
+test('UAT-130 MoviePilot Landing overlap fails closed without advancing configuration', async () => {
+  const value=fixture(),state={calls:[]},host=await createCleanServiceHost({dataDir:value.dataDir,
+    adminDistDir:value.adminDistDir,secretRoot,integrationFetch:providerFetch(state),
+    now:()=>1_900_000_000_000});
+  try{
+    const cookie=await session(host,value.initialized.adminApiKey);
+    const saved=await configure(host,cookie,'moviepilot','-landing-overlap');
+    const partial=await host.inject({method:'PATCH',url:'/v1/admin/settings/integrations/moviepilot',
+      headers:{cookie},payload:{kind:'moviepilot',idempotencyKey:'moviepilot-landing-partial-2',
+        expectedConfigRevision:1,settings:{providerRequestSaveRoot:'/provider/downloads',
+          maxDownloadAttempts:3}}});
+    assert.equal(partial.statusCode,400,partial.body);
+    assert.equal(partial.json().error.code,'PLATFORM_MOVIEPILOT_LANDING_SETTINGS_SHAPE');
+    const conflict=path.join(value.dataDir,'workspaces','libra');
+    const rejected=await host.inject({method:'PATCH',url:'/v1/admin/settings/integrations/moviepilot',
+      headers:{cookie},payload:{kind:'moviepilot',idempotencyKey:'moviepilot-landing-overlap-2',
+        expectedConfigRevision:1,settings:{providerRequestSaveRoot:'/provider/downloads',
+          providerOrganizedRoot:'/provider/organized',shelfDeckVisibleRoot:conflict,
+          maxDownloadAttempts:3}}});
+    assert.equal(rejected.statusCode,400,rejected.body);
+    assert.equal(rejected.json().error.code,'PLATFORM_MOVIEPILOT_LANDING_ROOT_OVERLAP');
+    const read=await host.inject({method:'GET',url:'/v1/admin/settings/integrations/moviepilot',
+      headers:{cookie}});
+    assert.equal(read.statusCode,200,read.body);
+    assert.equal(read.json().configRevision,1);
+    assert.equal(read.json().landingBinding.bindingDigest,saved.landingBinding.bindingDigest);
+  }finally{await host.close();}
+});
+
 test('H1.2 provider operations execute through exact P5 ports and revision-fenced Secret leases', async () => {
   const value = fixture();
   const state = { calls: [] };

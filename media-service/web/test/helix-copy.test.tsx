@@ -100,6 +100,46 @@ describe('Helix primary copy and workbench structure', () => {
     expect(ratings).not.toHaveBeenCalled();
   });
 
+  it('revises configured MoviePilot Landing without asking for or sending its credential', async () => {
+    const unconfigured = (kind:string) => ({
+      kind, supported:true, configured:false, state:'unconfigured', configRevision:0,
+      endpoint:null, configDigest:null, capabilityCodes:[], lastTestSummary:null, landingBinding:null,
+    });
+    const configuredMoviePilot = {
+      kind:'moviepilot', supported:true, configured:true, state:'active', configRevision:7,
+      endpoint:'http://moviepilot.test', configDigest:'digest', capabilityCodes:['acquisition'],
+      lastTestSummary:{ identityProviderKey:'moviepilot-instance' }, settings:{ maxDownloadAttempts:3 },
+      landingBinding:{ bindingId:'binding', bindingRevision:7,
+        providerRequestSaveRoot:'/provider/downloads', providerOrganizedRoot:'/provider/organized',
+        shelfDeckVisibleRoot:'F:\\old-landing', endpointId:'endpoint', mountScopeId:'mount',
+        mountScopeRevision:1, bindingDigest:'binding-digest' },
+    };
+    vi.spyOn(helixAdminApi,'getIntegration').mockImplementation(async(kind) =>
+      kind==='moviepilot' ? configuredMoviePilot : unconfigured(kind));
+    const configure=vi.spyOn(helixAdminApi,'configureIntegration').mockResolvedValue({
+      ...configuredMoviePilot, configRevision:8,
+      landingBinding:{...configuredMoviePilot.landingBinding,bindingRevision:8,
+        shelfDeckVisibleRoot:'F:\\new-landing'},
+    });
+    render(<MemoryRouter initialEntries={['/settings']}><App /></MemoryRouter>);
+    expect(await screen.findByDisplayValue('F:\\old-landing')).toBeInTheDocument();
+    const moviePilotCard=screen.getByRole('heading',{level:2,name:'MoviePilot'}).closest('section');
+    expect(moviePilotCard?.querySelector('input[type="password"]')).toBeNull();
+    fireEvent.change(screen.getByRole('textbox',{name:/ShelfDeck 可见目录/}),{
+      target:{value:'F:\\new-landing'},
+    });
+    fireEvent.click(screen.getByRole('button',{name:'验证并保存 Landing'}));
+    await waitFor(()=>expect(configure).toHaveBeenCalledTimes(1));
+    const [kind,body]=configure.mock.calls[0];
+    expect(kind).toBe('moviepilot');
+    expect(body).toMatchObject({kind:'moviepilot',expectedConfigRevision:7,settings:{
+      providerRequestSaveRoot:'/provider/downloads',providerOrganizedRoot:'/provider/organized',
+      shelfDeckVisibleRoot:'F:\\new-landing',maxDownloadAttempts:3,
+    }});
+    expect(body).not.toHaveProperty('credential');
+    expect(body).not.toHaveProperty('connectionProofId');
+  });
+
   it('lets the librarian choose 全自动 or 关键步骤确认 and keeps Off-deck independently disabled', async () => {
     vi.spyOn(helixAdminApi, 'getIntegration').mockResolvedValue({
       kind: 'douban', supported: true, configured: false, state: 'idle', configRevision: 0,

@@ -78,6 +78,11 @@ export default function SettingsPage() {
       setTmdbProxyServer(configuredTmdb.settings?.proxyServer || '');
       setMoviePilot(configuredMoviePilot);
       setMaxDownloadAttempts(configuredMoviePilot.settings?.maxDownloadAttempts || 3);
+      if (configuredMoviePilot.landingBinding) {
+        setProviderRequestRoot(configuredMoviePilot.landingBinding.providerRequestSaveRoot);
+        setProviderOrganizedRoot(configuredMoviePilot.landingBinding.providerOrganizedRoot);
+        setVisibleLandingRoot(configuredMoviePilot.landingBinding.shelfDeckVisibleRoot);
+      }
       if (configured?.configured) await helixAdminApi.getPerceptionSyncState().then(setSyncState);
     } catch (cause) { fail(cause, '设置读取失败。'); }
     finally { setLoading(false); }
@@ -176,12 +181,23 @@ export default function SettingsPage() {
     } catch (cause) { fail(cause, '断开失败。'); }
     finally { setLoading(false); }
   }
-  async function updateMoviePilotAttempts() {
-    if (!moviePilot) return; setLoading(true); setError('');
+  async function updateMoviePilotSettings(event: FormEvent) {
+    event.preventDefault();
+    if (!moviePilot?.landingBinding) return; setLoading(true); setError(''); setNotice('');
     try {
-      await helixAdminApi.configureIntegration('moviepilot', { kind: 'moviepilot', idempotencyKey: `moviepilot-settings:${moviePilot.configRevision}:${maxDownloadAttempts}`, expectedConfigRevision: moviePilot.configRevision, settings: { maxDownloadAttempts } });
-      setNotice('下载尝试上限已更新。'); await loadIntegrations();
-    } catch (cause) { fail(cause, '尝试上限更新失败。'); }
+      await helixAdminApi.configureIntegration('moviepilot', {
+        kind: 'moviepilot',
+        idempotencyKey: `moviepilot-settings:${moviePilot.configRevision}:${crypto.randomUUID()}`,
+        expectedConfigRevision: moviePilot.configRevision,
+        settings: {
+          providerRequestSaveRoot: providerRequestRoot,
+          providerOrganizedRoot,
+          shelfDeckVisibleRoot: visibleLandingRoot,
+          maxDownloadAttempts,
+        },
+      });
+      setNotice('MoviePilot Landing 与下载尝试上限已更新；当前 API Key 保持不变。'); await loadIntegrations();
+    } catch (cause) { fail(cause, 'MoviePilot Landing 设置更新失败。'); }
     finally { setLoading(false); }
   }
   async function loadMore() {
@@ -262,15 +278,19 @@ export default function SettingsPage() {
       <section className="settings-card" aria-labelledby="moviepilot-title">
         <header className="settings-card-head"><div><h2 id="moviepilot-title">MoviePilot</h2><p>按整理要求寻找外部片源</p></div><span className={`integration-state ${moviePilot?.configured ? 'active' : ''}`}>{integrationStateLabel(moviePilot)}</span></header>
         <div className="settings-card-body">
-          {moviePilot?.configured && moviePilot.landingBinding ? <>
+          {moviePilot?.configured && moviePilot.landingBinding ? <form className="source-form" onSubmit={updateMoviePilotSettings}>
             <dl className="settings-facts">
-              <div><dt>下载目录</dt><dd>{moviePilot.landingBinding.providerRequestSaveRoot}</dd></div>
-              <div><dt>整理目录</dt><dd>{moviePilot.landingBinding.providerOrganizedRoot}</dd></div>
-              <div><dt>可见目录</dt><dd>{moviePilot.landingBinding.shelfDeckVisibleRoot}</dd></div>
+              <div><dt>服务地址</dt><dd>{moviePilot.endpoint}</dd></div>
+              <div><dt>Credential</dt><dd>已安全保存并复用</dd></div>
             </dl>
-            <label className="settings-inline-field"><span>下载尝试上限</span><input type="number" min={1} max={5} value={maxDownloadAttempts} onChange={(event) => setMaxDownloadAttempts(Number(event.target.value))} /></label>
-            <div className="settings-card-actions"><Button variant="primary" type="button" onClick={() => void updateMoviePilotAttempts()} disabled={loading || maxDownloadAttempts < 1 || maxDownloadAttempts > 5 || maxDownloadAttempts === (moviePilot.settings?.maxDownloadAttempts || 3)}>保存上限</Button><Button variant="danger" type="button" onClick={() => void disconnectMoviePilot()} disabled={loading}>断开</Button></div>
-          </> : <form className="source-form" onSubmit={connectMoviePilot}>
+            <div className="source-form-grid">
+              <label className="wide"><span>MoviePilot 下载目录</span><input value={providerRequestRoot} onChange={(event) => setProviderRequestRoot(event.target.value)} required /></label>
+              <label className="wide"><span>MoviePilot 整理目录</span><input value={providerOrganizedRoot} onChange={(event) => setProviderOrganizedRoot(event.target.value)} required /></label>
+              <label className="wide"><span>ShelfDeck 可见目录</span><input value={visibleLandingRoot} onChange={(event) => setVisibleLandingRoot(event.target.value)} required /><small>保存时验证本地可读性与受控目录冲突；不会回显或要求重新输入 API Key。</small></label>
+              <label><span>下载尝试上限</span><input type="number" min={1} max={5} value={maxDownloadAttempts} onChange={(event) => setMaxDownloadAttempts(Number(event.target.value))} /></label>
+            </div>
+            <div className="settings-card-actions"><Button variant="primary" disabled={loading || !providerRequestRoot || !providerOrganizedRoot || !visibleLandingRoot || maxDownloadAttempts < 1 || maxDownloadAttempts > 5 || (providerRequestRoot === moviePilot.landingBinding.providerRequestSaveRoot && providerOrganizedRoot === moviePilot.landingBinding.providerOrganizedRoot && visibleLandingRoot === moviePilot.landingBinding.shelfDeckVisibleRoot && maxDownloadAttempts === (moviePilot.settings?.maxDownloadAttempts || 3))}>验证并保存 Landing</Button><Button variant="danger" type="button" onClick={() => void disconnectMoviePilot()} disabled={loading}>断开</Button></div>
+          </form> : <form className="source-form" onSubmit={connectMoviePilot}>
             <div className="source-form-grid">
               <label><span>服务地址</span><input value={moviePilotEndpoint} onChange={(event) => setMoviePilotEndpoint(event.target.value)} placeholder="http://nas:3000" required /></label>
               <label><span>API Key</span><input type="password" value={moviePilotKey} onChange={(event) => setMoviePilotKey(event.target.value)} required /></label>

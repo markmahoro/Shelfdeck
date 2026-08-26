@@ -11,6 +11,7 @@ const { validateConfig } = require('./integration-runtime');
 const {
   buildMoviePilotLandingBinding,
   reviseMoviePilotLandingBinding,
+  settings: normalizeMoviePilotLandingSettings,
 } = require('./moviepilot-landing-binding');
 
 const RECEIPT_KIND_CONFIGURE = 'configure';
@@ -656,9 +657,26 @@ function createIntegrationAdminApplication(options) {
     if (body.kind !== inputKind || typeof profile.normalizeSettings !== 'function') {
       fail('PLATFORM_INTEGRATION_TARGET_MISMATCH', 'Integration settings target is invalid.');
     }
-    const key=idempotencyKey(body.idempotencyKey),expected=expectedRevision(body.expectedConfigRevision),
-      normalizedSettings=profile.normalizeSettings(body.settings),digest=requestDigest({command:RECEIPT_KIND_SETTINGS_UPDATE,
-        kind:body.kind,idempotencyKey:key,expectedConfigRevision:expected,settings:normalizedSettings});
+    const key=idempotencyKey(body.idempotencyKey),expected=expectedRevision(body.expectedConfigRevision);
+    const moviePilotLandingUpdate = profile.kind === 'moviepilot' &&
+      body.settings && typeof body.settings === 'object' &&
+      !Array.isArray(body.settings) && [
+        'providerRequestSaveRoot',
+        'providerOrganizedRoot',
+        'shelfDeckVisibleRoot',
+      ].some((field) => Object.hasOwn(body.settings, field));
+    if (profile.kind === 'moviepilot' && !moviePilotLandingUpdate) {
+      exact(body.settings, ['maxDownloadAttempts'], [],
+        'PLATFORM_INTEGRATION_SETTINGS_UPDATE_SHAPE');
+    }
+    const requestedLandingSettings = moviePilotLandingUpdate
+      ? normalizeMoviePilotLandingSettings(body.settings)
+      : null;
+    const normalizedSettings=profile.normalizeSettings(requestedLandingSettings
+      ? { maxDownloadAttempts:requestedLandingSettings.maxDownloadAttempts }
+      : body.settings),digest=requestDigest({command:RECEIPT_KIND_SETTINGS_UPDATE,
+      kind:body.kind,idempotencyKey:key,expectedConfigRevision:expected,settings:normalizedSettings,
+      ...(requestedLandingSettings ? { landingSettings:requestedLandingSettings } : {})});
     let createdEnvelope,platformCommitted=false;
     const execute=()=>{
       const before=current();
@@ -671,11 +689,21 @@ function createIntegrationAdminApplication(options) {
         envelopeDigest:before.integration.config.secretEnvelopeDigest});
       try{
         const revision=expected+1,committedAtMs=now();
+        const currentLandingProbe = requestedLandingSettings
+          ? landingAccessAdapter.probe({
+              settings: requestedLandingSettings,
+              reservedRoots: reservedRoots(),
+              now,
+            })
+          : null;
         createdEnvelope=options.secretStore.write({integrationId:profile.integrationId,secretRef:profile.secretRef,
           secretKind:before.secret.secretKind,revision,secretBytes,createdAtMs:committedAtMs});
         const config={...before.integration.config,configRevision:revision,secretEnvelopeDigest:createdEnvelope.envelopeDigest,
           settings:normalizedSettings,landingBinding:profile.kind==='moviepilot'
-            ?reviseMoviePilotLandingBinding(before.integration.config.landingBinding,revision)
+            ?currentLandingProbe
+              ?buildMoviePilotLandingBinding({integrationId:profile.integrationId,configRevision:revision,
+                probe:currentLandingProbe})
+              :reviseMoviePilotLandingBinding(before.integration.config.landingBinding,revision)
             :before.integration.config.landingBinding,lastCommand:{commandKind:RECEIPT_KIND_SETTINGS_UPDATE,
               idempotencyKey:key,requestDigest:digest,committedRevision:revision}};
         const configJson=canonicalJson(config);
