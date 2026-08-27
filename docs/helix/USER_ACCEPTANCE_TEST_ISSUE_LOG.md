@@ -4185,6 +4185,10 @@ findings，修改源文件无新增finding。以上本地证据不替代新Canar
 Workspace、UI/FACT/FS/监控证据原样保留。UAT-137为
 `QUALIFICATION FAILED / LOCAL FULL REGRESSION PASSED / NEW CLEAN MAIN SHA FULL RERUN REQUIRED`。
 
+后续空间治理（2026-08-27）：在UAT-137的UI/FACT/FS、data、monitoring、private与Recovery Evidence封存后，为新的全量
+Canary回收可从不可变Baseline重建的旧Canary媒体副本与Production Workspace；精确删除范围、字节数和保留项记录于该失败运行
+`evidence/post-seal-media-reclaim.json`。不可变Baseline与当前UAT-138失败现场未触碰，UAT-137资格结论不变。
+
 ## 135. UAT-138：已观察的 `Thumbs.db` 不得成为Final Inventory之外的孤儿文件
 
 问题分类：`MATERIAL_CONTROL / RELATED_MATERIAL / INVENTORY_INTEGRITY / SAME_ROOT / RELEASE_BLOCKER`

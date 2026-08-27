@@ -132,6 +132,10 @@ Architecture修改范围无新增finding。当前状态为
 `UAT-138 QUALIFICATION FAILED / LOCAL FULL REGRESSION PASSED / NEW CLEAN MAIN SHA FULL RERUN REQUIRED`，不得继承
 `c5adeb32ab`的23/23、UAT-127、UAT-129、UAT-137或其他部分资格Evidence。
 
+为建立下一轮全量Canary，已在保留9f924运行的data、evidence、monitoring、private与Recovery事实后，仅回收其可从不可变Baseline
+重建的旧Canary和Production Workspace，共190750677741字节；清理清单与删除后验证位于该运行
+`evidence/post-seal-media-reclaim.json`。当前c5ade失败现场及不可变Baseline均未触碰，F盘可用空间为275.72 GiB。
+
 ## 0. Open UAT — UAT-125 registered
 
 2026-08-25完成后台周期检查与Workspace治理审计，并把完整修复边界登记为`UAT-125`。现有30秒共享
