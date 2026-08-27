@@ -5,6 +5,7 @@
 // playlist and IFO metadata. It never reads an entire ISO or VOB payload.
 
 const fs = require('node:fs');
+const path = require('node:path');
 const { canonicalDigest } = require('../contracts/canonical-json');
 
 const SECTOR_BYTES = 2048;
@@ -514,8 +515,10 @@ function inspectIsoPlaybackPlan(location) {
       if (!listed) return null;
       return member;
     }).filter(Boolean);
-    const topology = finishTopology('iso',
-      canonicalDigest({ location, sizeBytes:fs.fstatSync(fd).size }), candidates, selected, members);
+    const topology = finishTopology('iso', canonicalDigest({
+      location:path.resolve(location).replace(/\\/gu, '/'),
+      sizeBytes:fs.fstatSync(fd).size,
+    }), candidates, selected, members);
     const playItems = Object.freeze(selected.clips.map((clip, index) => Object.freeze({
       sequence:index,
       clipId:clip.clipId,

@@ -210,6 +210,7 @@ User Perception全面取消year关联校验，year仅作为资料保存/展示�
 | UAT-133 | 多缺口Authorized Defect在Libra Attestation与Arca Gap union使用不一致规范顺序 | `BUSINESS_CONTRACT` | `CANONICALIZATION`、`HANDOFF_B_ACCEPTANCE` | Libra Product Delivery + Arca Acceptance Gap Decision | 多缺口接纳、恢复活性、事实一致性 | Critical | `QUALIFICATION FAILED / LOCAL FULL REGRESSION PASSED / NEW CANARY REQUIRED` |
 | UAT-134 | 同根Field/Shelf的单项Settlement把其他合法顶层媒体单元误判为unknown member并永久悬挂 | `MATERIAL_CONTROL` | `SAME_ROOT`、`DESTRUCTIVE_SAFETY`、`LIVENESS` | Arca On-deck Input Settlement | 上架活性、同根配置、删除安全、状态真实性 | Critical | `QUALIFICATION FAILED / LOCAL FULL REGRESSION PASSED / NEW CANARY REQUIRED` |
 | UAT-135 | Arca独立媒体复核把已证明拓扑的ISO Source当普通流直接Probe/Decode并拒绝合法成品 | `PRODUCT_CONFORMANCE` | `DISC_TOPOLOGY`、`HANDOFF_B_ACCEPTANCE`、`AUTHORITY_FENCE` | Arca Mandatory Media Acceptance + Platform Media Observation | ISO上架活性、独立验收、事实真实性 | Critical | `QUALIFICATION FAILED / LOCAL FULL REGRESSION PASSED / NEW CANARY REQUIRED` |
+| UAT-136 | 同一ISO物理路径的正斜杠与Windows规范路径形成不同Topology Digest，fresh重验误报漂移 | `RECOVERY_CORRECTNESS` | `DISC_TOPOLOGY`、`PATH_CANONICALIZATION`、`AUTHORITY_FENCE` | Platform Disc Topology + Arca Mandatory Media Acceptance | ISO上架活性、路径等价性、事实真实性 | Critical | `QUALIFICATION FAILED / LOCAL FULL REGRESSION PASSED / NEW CANARY REQUIRED` |
 
 ### 2.0.1 UAT-074–UAT-084必须保护的历史修复
 
@@ -4093,7 +4094,49 @@ UAT-131/132、Disc topology、Handoff B与Recovery组合0失败。完整Service�
 不继续执行后续资格步骤。UAT-135为
 `QUALIFICATION FAILED / LOCAL FULL REGRESSION PASSED / NEW CLEAN MAIN SHA FULL RERUN REQUIRED`。
 
-## 133. 后续问题模板
+## 133. UAT-136：ISO Topology身份不得绑定等价路径的文本拼写
+
+问题分类：`RECOVERY_CORRECTNESS / DISC_TOPOLOGY / PATH_CANONICALIZATION / AUTHORITY_FENCE / RELEASE_BLOCKER`
+
+用户侧现象：冻结SHA `89dc47fc926ce5dbae27c9fa3527afe75ccd006a`从全新主Canary完成ISO的Remux、服务重启恢复、
+GPU Transcode与Product Verification；页面在“已提交，等待收藏架验收与上架”后进入“需要处理”，技术诊断为
+`ARCA_MEDIA_DISC_TOPOLOGY_DRIFT`。其余Identity、Metadata、Structure、Space和Inventory Feasibility检查均成功，只有
+Mandatory Media Event失败，23/23主检查点不可达。
+
+现场证据（2026-08-27）：失败运行保留于
+`F:\shelfdeck_test_zone\runs\BETA-20260827-094442-89dc47fc92`，主Canary为
+`F:\shelfdeck_test_zone\canary-beta-20260827-094442-89dc47fc92`。`ui-023-uat136-iso-acceptance-failed-not-projected.png`
+及对应DOM保留真实Admin Web现场；`uat136-qualification-defect-fact-fs.json`保存Package、Work/Event/Attempt、Recovery、
+Outbox、原ISO与最终Product的只读FACT/FS。`uat136-root-cause-reproduction.json`进一步证明同一inode、同一
+`23,393,665,024`字节ISO，仅因签封Handle使用`F:/...`而Effect先`path.resolve()`为`F:\...`，得到不同Topology与
+Selected Plan Digest；除digest外的Topology Descriptor逐项相同。服务、18080、FFmpeg/FFprobe和监控均已停止，失败Canary、
+data、Workspace与Evidence保持原样；未访问NAS、`Z:`、Docker或生产媒体。
+
+精确根因：`inspectIsoPlaybackPlan()`把调用者传入的原始`location`字符串直接纳入Topology identity。Media Probe按Package签封
+Handle的正斜杠路径观察，Arca播放观察Effect为本机I/O先把同一路径解析成Windows原生反斜杠绝对路径，再执行同一uncached
+Topology检查。两次读取命中同一物理文件、成员、MPLS、extent与选择结果，但路径文本不同使Topology Digest稳定不等；
+`ARCA_MEDIA_DISC_TOPOLOGY_DRIFT`因此误把路径等价性当成物理漂移。
+
+业务影响：UAT-135的Source selected-payload实检已实际执行并保持fail-closed，但任何Package使用规范URL式Windows路径时都会被
+Arca误拒绝。直接忽略Topology Digest、放宽错误码、重用旧Probe或跳过Source实检都会破坏authority fence；该SHA资格固定为
+`FAILED`，不得继续拼接23/23、Aftercare、Off-deck或24小时Evidence。
+
+修复边界：只在Platform Disc Topology形成ISO identity前把绝对路径规范为稳定`path.resolve(...).replace(/\\/g, '/')`拼写。
+Topology Descriptor、selected playlist、MPLS原始顺序/重复/in-out、extent、Source stat/fingerprint、Handle digest、
+fresh Probe与5/50/95 Decode全部保持不变；真实Topology或Handle漂移仍必须fail closed。不得修改SSOT、Domain Owner、Handoff、
+Package、Shelf Standard、业务路径或现有失败事实。
+
+本地证据：现有真实失败ISO在修复代码下以Handle拼写与Effect规范拼写重算后，Topology Digest和Selected Plan Digest均精确相等；
+正向UDF夹具改为使用`source/../movie.iso`等价路径，证明Probe与Effect可闭合。`clean-media-production-effect-port`专项
+`14 pass / 1 explicit live fixture skip / 0 fail`；Topology篡改、签封Handle漂移与scratch回收负向保持通过。完整Service为
+`358 total / 340 pass / 18 explicit environment skip / 0 fail`，Admin Web `29/29`与production build PASS；
+Contract/Manifest/Semantic均PASS。完整Architecture verifier只保留clean main既有8项fixture失败与22项dependency findings，
+修改源文件没有新增finding。提交新的clean main SHA后仍必须从新的Canary全量重跑，本地回归不替代资格。
+
+当前处理决定：`89dc47fc92`资格结果固定为`FAILED`；UAT-136为
+`QUALIFICATION FAILED / LOCAL FULL REGRESSION PASSED / NEW CLEAN MAIN SHA FULL RERUN REQUIRED`。
+
+## 134. 后续问题模板
 
 后续发现的问题按以下结构追加：
 

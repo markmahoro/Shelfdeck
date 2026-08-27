@@ -80,6 +80,22 @@ Contract/Manifest/Semantic均PASS；Architecture只保留既有8项fixture失败
 `UAT-135 LOCAL FULL REGRESSION PASSED / NEW CLEAN MAIN SHA FULL RERUN REQUIRED`，不得继承`06aba07a4e`的19/23、
 UAT-127或其他部分Evidence。
 
+随后冻结SHA `89dc47fc926ce5dbae27c9fa3527afe75ccd006a`从新的隔离Canary全量重跑。UAT-127已在ISO真实长转码
+18.6%时安全停止Service，同一Event/Work/Process及Input/Fence Digest在Attempt 2保持，页面恢复地板19.4%且新Attempt继续到
+100%；UAT-129独立小型Recovery Canary也证明Outbox `fully_acked`、Delivery `acked`、Inbox精确1。主流程达到15项On-deck后，
+ISO完成Product Verification却在Arca Mandatory Media以`ARCA_MEDIA_DISC_TOPOLOGY_DRIFT`失败，登记UAT-136。失败运行
+`F:\shelfdeck_test_zone\runs\BETA-20260827-094442-89dc47fc92`及Canary、data、Workspace、UI/FACT/FS/监控Evidence已封存，
+Service、18080与媒体进程均安全停止。
+
+UAT-136根因是ISO Topology identity直接绑定原始路径字符串：Package Handle使用`F:/...`，Effect I/O使用
+`path.resolve()`后的`F:\...`，同一inode、同一字节与同一Topology Descriptor因此形成不同digest。修复只规范化Topology identity
+中的绝对路径拼写，不放宽Topology、Handle、Fingerprint、MPLS plan、fresh Probe或Decode门禁。真实失败ISO重算已证明两种拼写的
+Topology与Selected Plan Digest均相等；专项`14 pass / 1 explicit live fixture skip / 0 fail`，完整Service为
+`358 total / 340 pass / 18 explicit environment skip / 0 fail`。Admin Web `29/29`与production build、
+Contract/Manifest/Semantic均PASS；Architecture只保留既有8项fixture失败与22项dependency findings。当前状态为
+`UAT-136 QUALIFICATION FAILED / LOCAL FULL REGRESSION PASSED / NEW CLEAN MAIN SHA FULL RERUN REQUIRED`，
+不得继承`89dc47fc92`的15/23、UAT-127或UAT-129资格Evidence。
+
 ## 0. Open UAT — UAT-125 registered
 
 2026-08-25完成后台周期检查与Workspace治理审计，并把完整修复边界登记为`UAT-125`。现有30秒共享

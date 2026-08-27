@@ -281,7 +281,7 @@ test('remux refuses an ISO volume that has no proven Blu-ray topology', async (t
     error.code === 'LIBRA_MEDIA_ISO_TOPOLOGY_UNPROVEN');
 });
 
-test('UAT-135 observes a proven UDF ISO selected payload with fresh Probe and 5/50/95 Decode', async (t) => {
+test('UAT-135/UAT-136 observes a proven ISO across equivalent path spellings with fresh Probe and 5/50/95 Decode', async (t) => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'shelfdeck-iso-acceptance-'));
   t.after(() => fs.rmSync(root, { recursive:true, force:true }));
   const source = path.join(root, 'source');
@@ -299,7 +299,7 @@ test('UAT-135 observes a proven UDF ISO selected payload with fresh Probe and 5/
   const workspace = path.join(root, 'workspace'), scratch = path.join(root, 'acceptance-scratch');
   fs.mkdirSync(workspace);
   const mediaProbe = createCleanMediaProbe();
-  const handle = physicalReadHandle(image);
+  const handle = physicalReadHandle(path.join(source, '..', 'movie.iso'));
   const containerProbe = await mediaProbe.probe(handle);
   assert.equal(containerProbe.discTopology.discKind, 'iso');
   const port = createCleanMediaProductionEffectPort({

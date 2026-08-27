@@ -4,7 +4,7 @@ Status: Helix-beta 已由 Product Owner 收窄为 **仅 Movie 的全功能版本
 
 Last updated: 2026-08-27
 
-## 0. Current UAT plan — UAT-127/UAT-135 repaired, clean rerun required
+## 0. Current UAT plan — UAT-127/UAT-136 repair and clean rerun required
 
 `fb28e360467766b666a3d021e1668c6f09d255da`资格运行已因UAT-131固定为失败并保留现场。经Product Owner授权，SSOT §8.6.20
 有界补全、Libra授权瑕疵连续性、Arca独立Source/Product探测及Gap复核已完成本地实现与0失败回归。下一步只允许把该修复形成
@@ -42,6 +42,16 @@ Shelf Standard或Handle authority；同一签封ISO经uncached topology与stat/f
 既有baseline findings。下一步提交新的clean local main SHA，从不可变基线建立全新Canary/data/runtime/evidence，再完整重跑
 A–I、UAT-127、UAT-129、23/23、Aftercare、UAT-128、全量Off-deck、Shelf Deregistration和至少24小时观察；不得复用
 `06aba07a4e`的任何资格结论。
+
+最新冻结SHA `89dc47fc926ce5dbae27c9fa3527afe75ccd006a`又因UAT-136固定失败：Package签封Handle的正斜杠
+Windows路径与Arca Effect解析后的反斜杠绝对路径指向同一ISO，却因Topology identity绑定原始路径文本形成不同digest，触发
+`ARCA_MEDIA_DISC_TOPOLOGY_DRIFT`。失败现场包含UAT-127完整恢复、UAT-129独立Recovery Canary与15/23 On-deck过程，但均不得
+拼入后续资格。修复仅规范化ISO Topology identity的绝对路径拼写，真实Topology、Handle、Fingerprint、MPLS plan、Probe/Decode
+漂移仍fail closed；专项与真实失败ISO重算已经通过。完整Service、Admin Web、Contract/Manifest/Semantic和Architecture
+回归也已完成：Service 340 pass / 18显式环境skip / 0 fail，Admin Web 29/29与production build、Contract/Manifest/Semantic
+均PASS，Architecture只保留既有baseline findings。下一步形成新的clean local main SHA；随后从不可变基线创建此前不存在的
+全新Canary/data/runtime/evidence，再完整重跑A–I、
+UAT-127、UAT-129、23/23、Aftercare、UAT-128、全量Off-deck、Shelf Deregistration及至少24小时观察。
 
 ## 0. Current UAT plan — UAT-094–UAT-105 Aftercare internal hardening
 
