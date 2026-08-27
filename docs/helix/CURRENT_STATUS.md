@@ -132,6 +132,20 @@ Architecture修改范围无新增finding。当前状态为
 `UAT-138 QUALIFICATION FAILED / LOCAL FULL REGRESSION PASSED / NEW CLEAN MAIN SHA FULL RERUN REQUIRED`，不得继承
 `c5adeb32ab`的23/23、UAT-127、UAT-129、UAT-137或其他部分资格Evidence。
 
+随后冻结SHA `6ed28d6841f7fe8df4ee9501d1b98880e660d343`从新的隔离Canary完成23/23 On-deck与逐文件三方对账；
+真实豆瓣同步形成3个resolved Aftercare Case，受控《短暂和平》NFO缺失由页面健康检查触发并完成Inventory 2→3、旧Handle释放、
+新Handle Control与Settlement；UAT-127最终只有一个Package、accepted Handoff、On-deck Commit、Shelf Entry和Deck Fact，
+UAT-129独立Recovery Canary也证明Outbox fully_acked、Delivery acked、Inbox精确1。进入全量Off-deck时发现UAT-139：
+页面没有把23个active Entry多选/全选为一个batch Review的入口，当前规则建议为0，只能逐条Review或选择重复组，无法满足统一
+Destruction Scope审阅和High-volume二次确认。Review、Authorization、Case和Deregistration均未创建，Baseline保持精确，Service、
+18080、FFmpeg/FFprobe与监控已安全停止；该SHA资格固定为`FAILED`。
+
+UAT-139修复只补Admin Web的当前收藏选择清单、全选/清空、数量/空间汇总和batch Review提交；既有Arca Scope冻结、High-volume
+重算、二次确认、逐Entry Authorization与Destruction合同不变。Admin Web `30/30`、production build、Admin Contract/P16专项
+`26/26`及完整Service `358 total / 340 pass / 18 explicit environment skip / 0 fail`均通过。当前状态为
+`UAT-139 QUALIFICATION FAILED / LOCAL FULL REGRESSION PASSED / NEW CLEAN MAIN SHA FULL RERUN REQUIRED`；不得继承
+`6ed28d6841`的23/23、Aftercare、UAT-127、UAT-128、UAT-129或其他部分资格Evidence。
+
 为建立下一轮全量Canary，已在保留9f924运行的data、evidence、monitoring、private与Recovery事实后，仅回收其可从不可变Baseline
 重建的旧Canary和Production Workspace，共190750677741字节；清理清单与删除后验证位于该运行
 `evidence/post-seal-media-reclaim.json`。当前c5ade失败现场及不可变Baseline均未触碰，F盘可用空间为275.72 GiB。

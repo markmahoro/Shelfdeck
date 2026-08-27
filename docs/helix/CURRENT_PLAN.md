@@ -74,6 +74,15 @@ Canary、data、runtime、Workspace、External Landing与Evidence，完整重跑
 Aftercare、受控Artifact修复、UAT-128、全量Off-deck、Shelf Deregistration及至少24小时观察；不得复用`c5adeb32ab`
 的任何资格通过结论。
 
+最新冻结SHA `6ed28d6841f7fe8df4ee9501d1b98880e660d343`已通过23/23主检查点、豆瓣Aftercare、受控NFO修复、
+UAT-127与UAT-129，但在全量Off-deck前置页面门禁发现UAT-139：Admin Web没有将全部当前收藏多选/全选为一个batch Review的
+入口，因而无法执行统一Scope核对和High-volume二次确认。该SHA资格已固定失败，Review、Authorization、Case、Off-deck和
+Deregistration均未发生。修复只补现有Off-deck页面的选择清单、全选/清空、数量/空间汇总与batch Review动作，继续复用Arca
+既有Scope、High-volume、Authorization与删除合同；Admin Web、build、Off-deck专项及完整Service回归均0失败。下一步形成新的
+clean local main SHA，再从不可变基线创建此前不存在的新Canary、data、runtime、Workspace、External Landing与Evidence，完整
+重跑A–I、UAT-127、UAT-129、23/23、豆瓣Aftercare、受控Artifact修复、UAT-128、全量Off-deck、Shelf Deregistration及至少
+24小时观察；不得复用`6ed28d6841`的任何资格通过结论。
+
 ## 0. Current UAT plan — UAT-094–UAT-105 Aftercare internal hardening
 
 Product Owner已明确：不调整SSOT、不改变Domain/Owner/Handoff、不把Aftercare退回Libra，也不抽取共享生产核心；只在Arca Aftercare及其既有Platform/Foundation端口内修复本域缺陷。已完成三路只读深审计，并在UAT台账登记`UAT-094`–`UAT-105`。

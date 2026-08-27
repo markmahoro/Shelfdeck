@@ -213,6 +213,7 @@ User Perception全面取消year关联校验，year仅作为资料保存/展示�
 | UAT-136 | 同一ISO物理路径的正斜杠与Windows规范路径形成不同Topology Digest，fresh重验误报漂移 | `RECOVERY_CORRECTNESS` | `DISC_TOPOLOGY`、`PATH_CANONICALIZATION`、`AUTHORITY_FENCE` | Platform Disc Topology + Arca Mandatory Media Acceptance | ISO上架活性、路径等价性、事实真实性 | Critical | `QUALIFICATION FAILED / LOCAL FULL REGRESSION PASSED / NEW CANARY REQUIRED` |
 | UAT-137 | Arca把历史Product Verification动态范围标签当成现场事实，误拒绝fresh SDR到SDR preserve成品 | `PRODUCT_CONFORMANCE` | `HANDOFF_B_ACCEPTANCE`、`CONTRACT_PROPAGATION`、`FRESH_REALITY` | Arca Mandatory Media Acceptance | 成品正确性、独立验收、ISO上架活性 | Critical | `QUALIFICATION FAILED / LOCAL FULL REGRESSION PASSED / NEW CANARY REQUIRED` |
 | UAT-138 | 单Movie目录中的Windows `Thumbs.db`已被Field观察却未进入Related处置，形成Final Inventory外孤儿文件 | `MATERIAL_CONTROL` | `RELATED_MATERIAL`、`INVENTORY_INTEGRITY`、`SAME_ROOT` | Procurement Related Material Association + Libra/Arca Disposition continuity | 逐文件可追溯性、上架正确性、删除安全 | Critical | `QUALIFICATION FAILED / LOCAL FULL REGRESSION PASSED / NEW CANARY REQUIRED` |
+| UAT-139 | Off-deck Admin Web没有将全部当前收藏多选/全选为一个batch Review的入口，无法执行统一Scope核对和High-volume二次确认 | `USER_EXPERIENCE` | `DESTRUCTIVE_AUTHORIZATION`、`HIGH_VOLUME_FENCE` | Arca Off-deck Admin Web + existing batch Review command | 删除授权完整性、大批量安全、全Shelf退出可达性 | Critical | `QUALIFICATION FAILED / LOCAL FULL REGRESSION PASSED / NEW CANARY REQUIRED` |
 
 ### 2.0.1 UAT-074–UAT-084必须保护的历史修复
 
@@ -4231,7 +4232,47 @@ Candidate/Delivery/Handoff B/On-deck/Settlement组合54/54；完整Service `358 
 失败Canary、data、Workspace、UI/FACT/FS/监控Evidence原样保留，未触发豆瓣同步或Aftercare。UAT-138为
 `QUALIFICATION FAILED / LOCAL FULL REGRESSION PASSED / NEW CLEAN MAIN SHA FULL RERUN REQUIRED`。
 
-## 136. 后续问题模板
+## 136. UAT-139：Off-deck Admin Web必须能把全部当前收藏建立为一个批量Review
+
+问题分类：`USER_EXPERIENCE / DESTRUCTIVE_AUTHORIZATION / HIGH_VOLUME_FENCE / RELEASE_BLOCKER`
+
+用户侧现象：冻结SHA `6ed28d6841f7fe8df4ee9501d1b98880e660d343`的全新主Canary已完成23/23 On-deck主检查点、
+豆瓣同步触发的Aftercare、受控NFO缺失修复、UAT-127长转码恢复和UAT-129独立Recovery Canary。进入全量Off-deck时，
+真实Admin Web的“退出收藏”页面只有规则生成的单条建议、重复组成员选择，以及从“我的收藏”详情建立单条Review；页面没有
+从23个active Shelf Entry中多选或全选并建立一个普通batch Review的入口。当前23部均健康、规则默认关闭，建议数为0。
+
+现场证据（2026-08-27）：失败运行和主Canary分别保留于
+`F:\shelfdeck_test_zone\runs\BETA-20260827-155921-6ed28d6841`与
+`F:\shelfdeck_test_zone\canary-beta-20260827-155921-6ed28d6841`。`ui-035-offdeck-bulk-selection-blocker.png`及DOM证明页面只有
+0条建议、0个进行中Case和规则入口；`qualification-stop-uat139-offdeck-bulk-ui-facts.json`证明此时23个active Shelf Entry、
+23个active Deck Fact，而Review、Authorization Batch、Authorization、Case、Terminal Receipt和Deregistration均为0。
+`qualification-stop-uat139-process-baseline.json`证明Service、18080、测试媒体进程与监控已安全停止，不可变Baseline仍精确为
+22个顶层媒体单元、455个文件、42个递归目录和143829090011字节。主检查点、Aftercare/UAT-128、UAT-127、UAT-129的独立
+Evidence均保留，但不得拼入后续SHA的资格结论。
+
+精确根因：Arca Off-deck Store与Admin API已经接受`shelfEntryIds[]`并在多Entry时建立`originKind=batch`，High-volume判定、
+二次确认、逐Entry Scope与Authorization合同也已存在；缺口只在Admin Web。`OffdeckPage`仅从候选规则或重复组调用batch形态，
+没有把当前Collection Projection呈现为可选择的退出范围。逐条建立23个单Entry Review会绕过冻结清单要求的统一范围审阅和
+High-volume二次确认；直接调用Admin API或写库又不属于真实页面业务动作，均不能作为资格绕行。
+
+业务影响：用户无法从产品页面一次核对并授权整个Shelf的退出范围，且可能被迫以多次小授权规避大批量安全门禁。
+因此全量Off-deck、Shelf Deregistration和后续24小时收口不可继续，`6ed28d6841f7fe8df4ee9501d1b98880e660d343`资格固定为`FAILED`。
+
+修复边界：只在现有Off-deck Admin Web中增加当前Collection Entry的多选清单、全选、清空、已选数量/占用空间与“审阅已选”动作；
+提交仍调用既有batch Review命令，由Arca重新冻结Inventory Scope并决定是否进入`awaiting_escalation`。不得从规则建议伪造候选，
+不得在前端预判或降低High-volume阈值，不得合并逐Entry Case/Authorization，也不得修改Off-deck Owner、Destruction Scope、
+Control、文件删除或Shelf Deregistration合同。
+
+本地实现与回归（2026-08-27）：页面新增与现有媒体管理台一致的选择清单，可全选当前收藏、逐项取消、清空，并显示已选数量和
+合计占用空间；提交排序去重后的`shelfEntryIds[]`，后端返回High-volume Review后仍显示既有“再次确认大批量”动作。
+Admin Web完整`30/30 PASS`，生产build PASS；Admin Contract与P16 Off-deck专项`26/26 PASS`；完整Service
+`358 total / 340 pass / 18 explicit environment skip / 0 fail`。以上本地证据不替代新SHA、新Canary的全量资格。
+
+当前处理决定：`6ed28d6841f7fe8df4ee9501d1b98880e660d343`资格固定为`FAILED`；失败Canary、data、Workspace、Recovery与
+UI/FACT/FS/监控Evidence原样保留。UAT-139为
+`QUALIFICATION FAILED / LOCAL FULL REGRESSION PASSED / NEW CLEAN MAIN SHA FULL RERUN REQUIRED`。
+
+## 137. 后续问题模板
 
 后续发现的问题按以下结构追加：
 

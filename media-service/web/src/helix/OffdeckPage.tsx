@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { helixAdminApi, type JsonValue, type OffdeckCase, type OffdeckCandidate, type OffdeckDuplicateGroup, type OffdeckPolicy, type OffdeckReview, type Shelf } from './api';
+import { helixAdminApi, type CollectionEntry, type JsonValue, type OffdeckCase, type OffdeckCandidate, type OffdeckDuplicateGroup, type OffdeckPolicy, type OffdeckReview, type Shelf } from './api';
 import { Button, LoadingState, PageHeader } from './chrome';
 import { caseStateLabels, labelOf, reviewStateLabels } from './labels';
 import { isUnauthorized, useSession } from './session';
@@ -78,6 +78,8 @@ export default function OffdeckPage() {
   const [ruleDrafts, setRuleDrafts] = useState<RuleDraft[]>([]);
   const [policyStatus, setPolicyStatus] = useState<'active' | 'disabled'>('disabled');
   const [duplicateScheduleEnabled, setDuplicateScheduleEnabled] = useState(false);
+  const [collectionEntries, setCollectionEntries] = useState<CollectionEntry[]>([]);
+  const [bulkSelection, setBulkSelection] = useState<string[]>([]);
   const [titles, setTitles] = useState<Record<string, { title: string; occupancyBytes: number | null }>>({});
   const [shelves, setShelves] = useState<Shelf[]>([]);
   const [error, setError] = useState('');
@@ -106,6 +108,11 @@ export default function OffdeckPage() {
       setCandidates(candidateResult.candidates);
       setGroups(candidateResult.duplicateGroups);
       setCases(caseResult.items);
+      setCollectionEntries(collection.items);
+      setBulkSelection((current) => {
+        const activeIds = new Set(collection.items.map((item) => item.shelfEntryId));
+        return current.filter((id) => activeIds.has(id));
+      });
       setTitles(Object.fromEntries(collection.items.map((item) => [item.shelfEntryId, { title: item.displayIdentity, occupancyBytes: item.occupancyBytes ?? null }])));
       setShelves(shelfResult.items.filter((item) => item.status === 'active'));
       const id = new URLSearchParams(location.search).get('review');
@@ -136,6 +143,13 @@ export default function OffdeckPage() {
       return { ...current, [groupId]: [...selected].sort() };
     });
   }
+  function toggleBulkEntry(shelfEntryId: string) {
+    setBulkSelection((current) => {
+      const selected = new Set(current);
+      selected.has(shelfEntryId) ? selected.delete(shelfEntryId) : selected.add(shelfEntryId);
+      return [...selected].sort();
+    });
+  }
   function titleOf(id: string | null) {
     if (!id) return '未命名收藏';
     return titles[id]?.title || '未命名收藏';
@@ -156,6 +170,14 @@ export default function OffdeckPage() {
     setReview(value);
     history.replaceState(null, '', `/offdeck?review=${encodeURIComponent(value.reviewId)}`);
   }
+  async function openBulkReview() {
+    const shelfEntryIds = [...new Set(bulkSelection)].sort();
+    if (shelfEntryIds.length === 0) throw new Error('请先选择需要退出的收藏。');
+    const idempotencyKey = `offdeck-batch:${shelfEntryIds.join(',')}:${crypto.randomUUID()}`;
+    const value = await helixAdminApi.createOffdeckReview({ shelfEntryIds, actorId: 'admin', idempotencyKey });
+    setReview(value);
+    history.replaceState(null, '', `/offdeck?review=${encodeURIComponent(value.reviewId)}`);
+  }
   async function savePolicy() {
     if (!policy) throw new Error('退出规则尚未加载。');
     const entryRules = ruleDrafts.map((draft) => ({
@@ -173,6 +195,7 @@ export default function OffdeckPage() {
   const openCandidates = candidates.filter((item) => item.state === 'open');
   const activeCases = cases.filter((item) => item.state !== 'completed');
   const shelfOptions = useMemo(() => shelves.map((shelf) => ({ id: shelf.shelfId, name: shelf.name })), [shelves]);
+  const selectedBytes = bulkSelection.reduce((total, id) => total + Number(titles[id]?.occupancyBytes || 0), 0);
 
   if (!loaded && busy) return <LoadingState>正在读取退出收藏…</LoadingState>;
   const nextReviewAction = review?.state === 'open' ? '核对将删除的文件'
@@ -212,6 +235,29 @@ export default function OffdeckPage() {
         <Button type="button" onClick={() => void action(() => helixAdminApi.detectOffdeckDuplicates())}>查重复</Button>
       </div>
     </details>
+    <section className="offdeck-task offdeck-bulk-task">
+      <div className="source-card-heading"><div><h2>选择退出收藏</h2><p>从当前收藏中建立一次完整审阅；这里只选择范围，不会删除文件。</p></div><span>{bulkSelection.length} / {collectionEntries.length} 部</span></div>
+      {collectionEntries.length === 0 ? <div className="source-empty"><strong>当前没有可退出的收藏</strong></div> : <>
+        <div className="offdeck-bulk-toolbar">
+          <div><strong>已选择 {bulkSelection.length} 部</strong><small>{bulkSelection.length ? ` · ${formatGiB(selectedBytes)}` : ' · 尚未选择'}</small></div>
+          <div className="button-row">
+            <Button type="button" onClick={() => setBulkSelection(collectionEntries.map((item) => item.shelfEntryId).sort())}>全选当前收藏</Button>
+            <Button type="button" onClick={() => setBulkSelection([])} disabled={bulkSelection.length === 0}>清空选择</Button>
+          </div>
+        </div>
+        <fieldset className="offdeck-bulk-list">
+          <legend>本次审阅范围</legend>
+          {collectionEntries.map((item) => <label key={item.shelfEntryId}>
+            <input type="checkbox" checked={bulkSelection.includes(item.shelfEntryId)} onChange={() => toggleBulkEntry(item.shelfEntryId)} />
+            <span><strong>{item.displayIdentity}</strong><small>{item.shelfName} · {formatGiB(item.occupancyBytes)}</small></span>
+          </label>)}
+        </fieldset>
+        <div className="button-row offdeck-bulk-action">
+          <Button variant="primary" type="button" onClick={() => void action(openBulkReview)} disabled={busy || bulkSelection.length === 0}>审阅已选 {bulkSelection.length} 部</Button>
+          <small>大批量或大体积范围会在文件清单核对后要求第二次确认。</small>
+        </div>
+      </>}
+    </section>
     <section className="offdeck-task">
       <div className="source-card-heading"><div><h2>建议退出</h2></div><span>{openCandidates.length} 部</span></div>
       {openCandidates.length === 0 ? <div className="source-empty"><strong>当前没有建议</strong><p>不会自动建议，可从我的收藏直接退出或先保存规则再检查。</p></div> : <div className="offdeck-suggest">{openCandidates.map((item) => {
