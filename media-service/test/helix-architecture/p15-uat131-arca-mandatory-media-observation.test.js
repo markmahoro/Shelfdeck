@@ -328,15 +328,48 @@ test('UAT-132 External no-conversion accepts a fresh product dynamic range diffe
   assert.deepEqual(observed.actualGapCodes,[]);
 });
 
-test('UAT-132 no-conversion rejects a fresh product dynamic range that contradicts its attestation', async () => {
+test('UAT-137 no-conversion trusts fresh product reality over historical dynamic-range labels', async () => {
   const value=fixture({workspace:true,conversionOperation:'none',sourceDynamicRangeKind:'unknown',outputDynamicRangeKind:'sdr'}),
     observed=await observeMandatoryMedia({...value,...ports(value.identity,'hevc','unknown','hdr10_compatible'),observedAtMs:NOW});
-  assert.deepEqual(observed.actualGapCodes,['dynamic_range_conversion_unmet']);
+  assert.deepEqual(observed.actualGapCodes,[]);
+});
+
+test('UAT-137 preserve accepts fresh SDR to SDR when historical Source range was unknown', async () => {
+  const value=fixture({workspace:true,conversionOperation:'preserve',sourceDynamicRangeKind:'unknown',outputDynamicRangeKind:'sdr'}),
+    observed=await observeMandatoryMedia({...value,...ports(value.identity,'hevc','sdr','sdr'),observedAtMs:NOW});
+  assert.deepEqual(observed.actualGapCodes,[]);
+});
+
+test('UAT-137 preserve trusts matching fresh SDR reality over both historical labels', async () => {
+  const value=fixture({workspace:true,conversionOperation:'preserve',
+    sourceDynamicRangeKind:'unknown',outputDynamicRangeKind:'hdr10_compatible'}),
+    observed=await observeMandatoryMedia({...value,...ports(value.identity,'hevc','sdr','sdr'),observedAtMs:NOW});
+  assert.deepEqual(observed.actualGapCodes,[]);
 });
 
 test('UAT-132 preserve rejects fresh source/output dynamic-range drift', async () => {
   const value=fixture({workspace:true,conversionOperation:'preserve',sourceDynamicRangeKind:'unknown',outputDynamicRangeKind:'unknown'}),
     observed=await observeMandatoryMedia({...value,...ports(value.identity,'hevc','unknown','hdr10_compatible'),observedAtMs:NOW});
+  assert.deepEqual(observed.actualGapCodes,['dynamic_range_conversion_unmet']);
+});
+
+test('UAT-137 preserve still rejects fresh SDR to HDR drift', async () => {
+  const value=fixture({workspace:true,conversionOperation:'preserve',sourceDynamicRangeKind:'sdr',outputDynamicRangeKind:'sdr'}),
+    observed=await observeMandatoryMedia({...value,...ports(value.identity,'hevc','hdr10_compatible','sdr'),observedAtMs:NOW});
+  assert.deepEqual(observed.actualGapCodes,['dynamic_range_conversion_unmet']);
+});
+
+test('UAT-137 tone-map trusts fresh Dolby Vision to SDR reality over historical labels', async () => {
+  const value=fixture({workspace:true,conversionOperation:'tone_map_to_sdr_bt709',
+    sourceDynamicRangeKind:'unknown',outputDynamicRangeKind:'unknown'}),
+    observed=await observeMandatoryMedia({...value,...ports(value.identity,'hevc','sdr','dolby_vision'),observedAtMs:NOW});
+  assert.deepEqual(observed.actualGapCodes,[]);
+});
+
+test('UAT-137 tone-map still rejects a fresh non-Dolby-Vision Source', async () => {
+  const value=fixture({workspace:true,conversionOperation:'tone_map_to_sdr_bt709',
+    sourceDynamicRangeKind:'dolby_vision',outputDynamicRangeKind:'sdr'}),
+    observed=await observeMandatoryMedia({...value,...ports(value.identity,'hevc','sdr','hdr10_compatible'),observedAtMs:NOW});
   assert.deepEqual(observed.actualGapCodes,['dynamic_range_conversion_unmet']);
 });
 

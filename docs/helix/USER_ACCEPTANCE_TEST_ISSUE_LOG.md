@@ -211,6 +211,7 @@ User Perception全面取消year关联校验，year仅作为资料保存/展示�
 | UAT-134 | 同根Field/Shelf的单项Settlement把其他合法顶层媒体单元误判为unknown member并永久悬挂 | `MATERIAL_CONTROL` | `SAME_ROOT`、`DESTRUCTIVE_SAFETY`、`LIVENESS` | Arca On-deck Input Settlement | 上架活性、同根配置、删除安全、状态真实性 | Critical | `QUALIFICATION FAILED / LOCAL FULL REGRESSION PASSED / NEW CANARY REQUIRED` |
 | UAT-135 | Arca独立媒体复核把已证明拓扑的ISO Source当普通流直接Probe/Decode并拒绝合法成品 | `PRODUCT_CONFORMANCE` | `DISC_TOPOLOGY`、`HANDOFF_B_ACCEPTANCE`、`AUTHORITY_FENCE` | Arca Mandatory Media Acceptance + Platform Media Observation | ISO上架活性、独立验收、事实真实性 | Critical | `QUALIFICATION FAILED / LOCAL FULL REGRESSION PASSED / NEW CANARY REQUIRED` |
 | UAT-136 | 同一ISO物理路径的正斜杠与Windows规范路径形成不同Topology Digest，fresh重验误报漂移 | `RECOVERY_CORRECTNESS` | `DISC_TOPOLOGY`、`PATH_CANONICALIZATION`、`AUTHORITY_FENCE` | Platform Disc Topology + Arca Mandatory Media Acceptance | ISO上架活性、路径等价性、事实真实性 | Critical | `QUALIFICATION FAILED / LOCAL FULL REGRESSION PASSED / NEW CANARY REQUIRED` |
+| UAT-137 | Arca把历史Product Verification动态范围标签当成现场事实，误拒绝fresh SDR到SDR preserve成品 | `PRODUCT_CONFORMANCE` | `HANDOFF_B_ACCEPTANCE`、`CONTRACT_PROPAGATION`、`FRESH_REALITY` | Arca Mandatory Media Acceptance | 成品正确性、独立验收、ISO上架活性 | Critical | `QUALIFICATION FAILED / LOCAL FULL REGRESSION PASSED / NEW CANARY REQUIRED` |
 
 ### 2.0.1 UAT-074–UAT-084必须保护的历史修复
 
@@ -4136,7 +4137,54 @@ Contract/Manifest/Semantic均PASS。完整Architecture verifier只保留clean ma
 当前处理决定：`89dc47fc92`资格结果固定为`FAILED`；UAT-136为
 `QUALIFICATION FAILED / LOCAL FULL REGRESSION PASSED / NEW CLEAN MAIN SHA FULL RERUN REQUIRED`。
 
-## 134. 后续问题模板
+## 134. UAT-137：Arca独立验收不得用历史动态范围标签覆盖fresh Source/Product reality
+
+问题分类：`PRODUCT_CONFORMANCE / HANDOFF_B_ACCEPTANCE / CONTRACT_PROPAGATION / FRESH_REALITY / RELEASE_BLOCKER`
+
+用户侧现象：冻结SHA `9f924128d8b3f48898f6e5a125bb96a8e2591df5`从全新主Canary完成23个Subject中的22个
+On-deck；最后的ISO影片《倩女幽魂2：人间道 (1990)》已完成Identity、Metadata、Remux、GPU Transcode、
+Product Verification和Handoff B提交，Admin Web却显示“收藏架接纳或上架需要处理”。Arca Acceptance的Identity、Structure、
+Metadata、Space与Inventory Feasibility均通过，唯一失败为Mandatory Media生成
+`dynamic_range_conversion_unmet`，使23/23主检查点不可达。
+
+现场证据（2026-08-27）：失败运行保留于
+`F:\shelfdeck_test_zone\runs\BETA-20260827-104300-9f924128d8`，主Canary为
+`F:\shelfdeck_test_zone\canary-beta-20260827-104300-9f924128d8`。`ui-028-uat136-iso-attention-after-complete.png`与
+`ui-029-uat136-iso-acceptance-attention-dialog.png`及对应DOM保存真实Admin Web现场；
+`uat137-sdr-preserve-false-dynamic-range-gap-facts.json`保存Subject、Run、Package、Offer、Attempt、六项Acceptance Check、
+Recovery Case、Mandatory Media Event Result、完整Product Media Verification与签封Source/Product Read Handle；
+`uat137-fs-and-stop-facts.json`保存原ISO、Workspace Product及不可变Baseline的只读FS事实。Baseline仍精确为22个顶层媒体单元、
+455个文件、42个递归目录和143829090011字节。运行使用`helix-clean-v3`、schema digest
+`411b6c0e2f350d3f5a9374738f56d51a0304df2772c813f2b3009e6526daa889`；发现后Service、18080、测试
+FFmpeg/FFprobe与监控均已安全停止。未访问远端、push、NAS、Docker生产、`Z:\Film`或生产媒体，未记录Credential。
+
+精确根因：Libra Product Media Verification签封`conversionOperation=preserve`、历史Source Dynamic Range=`unknown`、
+历史Product Dynamic Range=`sdr`。Arca基于同一签封Read Authority重新执行fresh Source selected-payload Probe/5/50/95 Decode和
+fresh Product Probe/5/50/95 Decode，得到Source=`sdr`、Product=`sdr`、BT.709、无Dolby Vision metadata且两侧3/3 Decode通过。
+`mandatory-media-acceptance.js`的`requirementGaps()`除正确检查fresh Source与Product一致外，又要求fresh Source等于历史
+Verification Source标签；`unknown != sdr`因而制造错误Gap。Product Verification只能证明operation/provenance continuity，不能
+替代或否决Arca现场独立实检。
+
+业务影响：任何生产阶段因容器拓扑或早期Probe能力而留下`unknown`历史Source标签、但Arca后来可fresh证明为合法SDR到SDR
+preserve的产品都会被误拒绝。该问题不属于HB-B.25允许接受的缺口；不得接受瑕疵、直接写库、重试拼接或继续Aftercare、
+Off-deck与24小时Evidence。`9f924128d8b3f48898f6e5a125bb96a8e2591df5`资格结果固定为`FAILED`。
+
+修复边界：只保留Product Verification的`conversionOperation`作为生产操作连续性；`preserve`按fresh Source/Product相等且fresh
+Product属于Shelf接受集合判断，`none`按fresh Product属于接受集合判断，`tone_map_to_sdr_bt709`按fresh Dolby Vision Source、
+fresh SDR Product及既有BT.709/Dolby Vision removal门禁判断。不得放宽实际Source/Product drift、颜色、Dolby Vision、Decode、
+Handle/Fingerprint/Fence或Shelf Standard；不得修改SSOT、Owner、Handoff、Package schema、ISO观察或历史失败事实。
+
+验收证据：定向Mandatory Media回归新增历史`unknown`、fresh SDR到SDR preserve通过，历史Source/Product标签与fresh reality
+不同时的`none`、`preserve`与tone-map正向，以及fresh preserve SDR到HDR、fresh非DV tone-map继续失败；定向文件`25/25 PASS`。
+完整Service `358 total / 340 pass / 18 explicit environment skip / 0 fail`，Admin Web `29/29`与production build、
+Contract/Manifest/Semantic均PASS；独立Architecture审计PASS，完整verifier只保留clean main既有8项fixture失败与22项dependency
+findings，修改源文件无新增finding。以上本地证据不替代新Canary资格。
+
+当前处理决定：`9f924128d8b3f48898f6e5a125bb96a8e2591df5`资格固定为`FAILED`；失败运行、Canary、data、
+Workspace、UI/FACT/FS/监控证据原样保留。UAT-137为
+`QUALIFICATION FAILED / LOCAL FULL REGRESSION PASSED / NEW CLEAN MAIN SHA FULL RERUN REQUIRED`。
+
+## 135. 后续问题模板
 
 后续发现的问题按以下结构追加：
 

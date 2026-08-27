@@ -96,6 +96,25 @@ Contract/Manifest/Semantic均PASS；Architecture只保留既有8项fixture失败
 `UAT-136 QUALIFICATION FAILED / LOCAL FULL REGRESSION PASSED / NEW CLEAN MAIN SHA FULL RERUN REQUIRED`，
 不得继承`89dc47fc92`的15/23、UAT-127或UAT-129资格Evidence。
 
+随后冻结SHA `9f924128d8b3f48898f6e5a125bb96a8e2591df5`从新的隔离Canary全量重跑。UAT-127已在《立春》
+真实GPU长转码非零进度时安全停止并用同一SHA/data恢复，同一Event/Work/Process、Input/Fence Digest与durable Progress floor
+保持连续，最终副作用唯一；UAT-129独立Recovery Canary也通过。主流程完成22/23 On-deck，最后的ISO《倩女幽魂2：人间道》
+已通过UAT-136的fresh topology、selected-payload Probe与5/50/95 Decode，却在Arca Mandatory Media被唯一
+`dynamic_range_conversion_unmet`误拒绝，登记UAT-137。失败运行
+`F:\shelfdeck_test_zone\runs\BETA-20260827-104300-9f924128d8`及Canary、data、Workspace、UI/FACT/FS/监控Evidence
+已封存；不可变Baseline仍精确为22个顶层媒体单元、455个文件、42个递归目录和143829090011字节。Service、18080、
+测试FFmpeg/FFprobe与监控均已安全停止，未访问远端、NAS、`Z:`、Docker生产或生产媒体。
+
+UAT-137根因是Arca fresh实检已得到Source=`sdr`、Product=`sdr`、preserve、BT.709、无DOVI且双侧3/3 Decode通过，
+但`requirementGaps()`又要求fresh Source等于Product Media Verification历史Source标签`unknown`。修复保留历史
+`conversionOperation`作为operation continuity，只用fresh Source/Product reality判断`none`、`preserve`与tone-map；实际
+SDR→HDR drift、fresh非DV tone-map、颜色、DOVI、Decode、Handle/Fingerprint/Fence及Shelf accepted set负向全部保持严格。
+专项`25/25`、完整Service `358 total / 340 pass / 18 explicit environment skip / 0 fail`、Admin Web `29/29`与
+production build、Contract/Manifest/Semantic均PASS；Architecture审计PASS，完整verifier只保留既有8项fixture失败与22项
+dependency findings，修改源文件无新增finding。当前状态为
+`UAT-137 QUALIFICATION FAILED / LOCAL FULL REGRESSION PASSED / NEW CLEAN MAIN SHA FULL RERUN REQUIRED`；不得继承
+`9f924128d8`的22/23、UAT-127、UAT-129或其他资格Evidence。
+
 ## 0. Open UAT — UAT-125 registered
 
 2026-08-25完成后台周期检查与Workspace治理审计，并把完整修复边界登记为`UAT-125`。现有30秒共享

@@ -4,7 +4,7 @@ Status: Helix-beta 已由 Product Owner 收窄为 **仅 Movie 的全功能版本
 
 Last updated: 2026-08-27
 
-## 0. Current UAT plan — UAT-127/UAT-136 repair and clean rerun required
+## 0. Current UAT plan — UAT-127/UAT-137 repair and clean rerun required
 
 `fb28e360467766b666a3d021e1668c6f09d255da`资格运行已因UAT-131固定为失败并保留现场。经Product Owner授权，SSOT §8.6.20
 有界补全、Libra授权瑕疵连续性、Arca独立Source/Product探测及Gap复核已完成本地实现与0失败回归。下一步只允许把该修复形成
@@ -52,6 +52,16 @@ Windows路径与Arca Effect解析后的反斜杠绝对路径指向同一ISO，�
 均PASS，Architecture只保留既有baseline findings。下一步形成新的clean local main SHA；随后从不可变基线创建此前不存在的
 全新Canary/data/runtime/evidence，再完整重跑A–I、
 UAT-127、UAT-129、23/23、Aftercare、UAT-128、全量Off-deck、Shelf Deregistration及至少24小时观察。
+
+最新冻结SHA `9f924128d8b3f48898f6e5a125bb96a8e2591df5`又因UAT-137固定失败：ISO Source/Product的Arca
+fresh实检已证明SDR→SDR preserve且双侧5/50/95 Decode通过，但历史Product Media Verification的Source动态范围标签仍为
+`unknown`，旧比较逻辑据此制造`dynamic_range_conversion_unmet`。22/23主检查点、已通过的UAT-127/UAT-129与全部过程
+Evidence均只保留为失败现场，Service和媒体进程已停止。修复只保留历史`conversionOperation`用于operation continuity，
+具体动态范围符合性完全由Arca fresh Source/Product reality判断；真实preserve drift、非DV tone-map、颜色、DOVI与Decode负向
+仍fail closed。专项、完整Service、Admin Web、Contract/Manifest/Semantic及Architecture审计已经通过，完整Architecture verifier
+只保留既有baseline findings。下一步形成新的clean local main SHA；随后从不可变基线建立此前不存在的新Canary、data、runtime、
+Workspace、External Landing与Evidence，完整重跑A–I、UAT-127、UAT-129、23/23、豆瓣触发Aftercare、受控Artifact修复、
+UAT-128、全量Off-deck、Shelf Deregistration及至少24小时观察。不得复用`9f924128d8`的任何资格通过结论。
 
 ## 0. Current UAT plan — UAT-094–UAT-105 Aftercare internal hardening
 

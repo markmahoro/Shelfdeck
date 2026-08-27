@@ -371,11 +371,8 @@ function requirementGaps(requirement, item, sourceProbe, productProbe,
   }
   const expectedConversion =
     item.productMediaVerification?.dynamicRangeSummary?.conversionOperation || 'none';
-  const attestedDynamic = item.productMediaVerification?.dynamicRangeSummary || {};
   if (expectedConversion === 'tone_map_to_sdr_bt709') {
-    if (attestedDynamic.sourceDynamicRangeKind !== 'dolby_vision' ||
-        attestedDynamic.outputDynamicRangeKind !== 'sdr' ||
-        outputDynamic !== 'sdr' ||
+    if (outputDynamic !== 'sdr' ||
         (sourceFactsObserved && sourceDynamic !== 'dolby_vision')) {
       gaps.push('dynamic_range_conversion_unmet');
     }
@@ -388,13 +385,10 @@ function requirementGaps(requirement, item, sourceProbe, productProbe,
     }
   } else if (expectedConversion === 'preserve') {
     if (!requirement.acceptedOutputDynamicRangeKinds.includes(outputDynamic) ||
-        outputDynamic !== attestedDynamic.outputDynamicRangeKind ||
-        (sourceFactsObserved && (sourceDynamic !== outputDynamic ||
-          sourceDynamic !== attestedDynamic.sourceDynamicRangeKind))) {
+        (sourceFactsObserved && sourceDynamic !== outputDynamic)) {
       gaps.push('dynamic_range_conversion_unmet');
     }
-  } else if (!requirement.acceptedOutputDynamicRangeKinds.includes(outputDynamic) ||
-      outputDynamic !== attestedDynamic.outputDynamicRangeKind) {
+  } else if (!requirement.acceptedOutputDynamicRangeKinds.includes(outputDynamic)) {
     gaps.push('dynamic_range_conversion_unmet');
   }
   if (sourceDecode.passedSamplePointsPercent.length !== SAMPLE_POINTS.length ||
