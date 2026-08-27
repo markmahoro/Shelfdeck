@@ -4,7 +4,7 @@ Status: Helix-beta 已由 Product Owner 收窄为 **仅 Movie 的全功能版本
 
 Last updated: 2026-08-27
 
-## 0. Current UAT plan — UAT-127/UAT-137 repair and clean rerun required
+## 0. Current UAT plan — UAT-127/UAT-138 repair and clean rerun required
 
 `fb28e360467766b666a3d021e1668c6f09d255da`资格运行已因UAT-131固定为失败并保留现场。经Product Owner授权，SSOT §8.6.20
 有界补全、Libra授权瑕疵连续性、Arca独立Source/Product探测及Gap复核已完成本地实现与0失败回归。下一步只允许把该修复形成
@@ -62,6 +62,17 @@ Evidence均只保留为失败现场，Service和媒体进程已停止。修复�
 只保留既有baseline findings。下一步形成新的clean local main SHA；随后从不可变基线建立此前不存在的新Canary、data、runtime、
 Workspace、External Landing与Evidence，完整重跑A–I、UAT-127、UAT-129、23/23、豆瓣触发Aftercare、受控Artifact修复、
 UAT-128、全量Off-deck、Shelf Deregistration及至少24小时观察。不得复用`9f924128d8`的任何资格通过结论。
+
+最新冻结SHA `c5adeb32ab068e6377187d725427c39fda2426e0`首次达到23/23 On-deck，但主检查点逐文件审计发现
+UAT-138：007目录内Baseline原有的`Thumbs.db`虽已被Field Observation观察，却未进入Candidate Related、Product、Final
+Inventory Decision或Arca Inventory，形成“Decision 9 = Inventory 9 != FS 10”。该SHA资格已固定失败，豆瓣、Aftercare、
+Off-deck与24小时观察均未继续。修复以新的Related Rule revision 2只在single Movie与BDMV external parent识别精确
+`Thumbs.db`为exclusive `sidecar`并沿现有carried-forward与逐成员Disposition链收拢；历史revision 1、standalone、multi-movie、
+其他`.db`、Material Control及Arca authority均保持不变。专项、完整Service、Admin Web、build与Contract/Manifest/Semantic
+回归已通过，Architecture无新增finding。下一步把修复提交为新的clean local main SHA，随后从不可变基线创建此前不存在的新
+Canary、data、runtime、Workspace、External Landing与Evidence，完整重跑A–I、UAT-127、UAT-129、23/23、豆瓣触发
+Aftercare、受控Artifact修复、UAT-128、全量Off-deck、Shelf Deregistration及至少24小时观察；不得复用`c5adeb32ab`
+的任何资格通过结论。
 
 ## 0. Current UAT plan — UAT-094–UAT-105 Aftercare internal hardening
 

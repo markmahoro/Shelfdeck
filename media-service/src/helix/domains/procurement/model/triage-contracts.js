@@ -20,7 +20,7 @@ const STRUCTURE_REASONS = Object.freeze([...PLAYABILITY_REASONS, 'content_profil
   'episode_claim_unresolved', 'disc_structure_incomplete', 'disc_multi_title_unsupported', 'disc_non_primary_title',
   'triage_unit_contract_too_large', 'structure_ambiguous']);
 const CLAIM_KIND = Object.freeze({ movie:'movie_title', series:'series_season', jav:'jav_code', western_adult:'western_temporary' });
-const RELATED_RULE_REVISION = 1;
+const RELATED_RULE_REVISION = 2;
 const MATERIAL_INPUT_FORMS = Object.freeze(['stream_file', 'bdmv', 'dvd', 'iso']);
 
 class ProcurementTriageError extends Error {

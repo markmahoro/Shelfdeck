@@ -108,6 +108,7 @@ test('single-title BDMV becomes one compact Unit with structural dependencies an
   assert.equal(Object.hasOwn(result.units[0], 'members'), false);
   assert.equal(result.units[0].relatedScope.scopeKind, 'bdmv_external_parent');
   assert.equal(result.units[0].relatedScope.parentRelativeLocation, 'Movies/My Movie');
+  assert.equal(result.units[0].relatedScope.relatedRuleRevision, 2);
   assert.equal(Object.hasOwn(result.units[0], 'relatedReferences'), false);
   assert.equal(result.units[0].materialInputForm, 'bdmv');
   assert.equal(result.unassignedMaterials.length, 0);

@@ -23,19 +23,19 @@ function identity(label, inode) {
   return { ...value, materialKey:canonicalDigest({ schema:'physical-material-identity@2', ...value }) };
 }
 
-function relatedScope(parentRelativeLocation, stemKey, associationMode) {
+function relatedScope(parentRelativeLocation, stemKey, associationMode, relatedRuleRevision = 2, scopeKind = 'ordinary_parent') {
   const value = {
-    scopeKind:'ordinary_parent',
+    scopeKind,
     parentRelativeLocation,
     stemKey,
     associationMode,
     observationProjectionRevision:1,
-    relatedRuleRevision:1,
+    relatedRuleRevision,
   };
   return { ...value, scopeDigest:canonicalDigest({ schema:'procurement.related-scope@1', ...value }) };
 }
 
-function fixture({ primaryLocation, scopeRoot, scopeKind, associationMode, observed }) {
+function fixture({ primaryLocation, scopeRoot, scopeKind, associationMode, observed, relatedRuleRevision = 2, relatedScopeKind = 'ordinary_parent', relatedParentLocation = null }) {
   const primaryIdentity = identity('primary', 1);
   const scopeKey = scopeKind === 'standalone_file'
     ? `standalone-file:${primaryLocation}`
@@ -128,9 +128,11 @@ function fixture({ primaryLocation, scopeRoot, scopeKind, associationMode, obser
   const materialContext = { member, identity:primaryIdentity, current:null };
   const queriedScopes = [];
   const scopeValueForUnit = relatedScope(
-    primaryLocation.includes('/') ? primaryLocation.slice(0, primaryLocation.lastIndexOf('/')) : '.',
+    relatedParentLocation || (primaryLocation.includes('/') ? primaryLocation.slice(0, primaryLocation.lastIndexOf('/')) : '.'),
     primaryLocation.split('/').at(-1).replace(/\.[^.]+$/, '').toLocaleLowerCase('en-US'),
     associationMode,
+    relatedRuleRevision,
+    relatedScopeKind,
   );
   const entry = {
     unit:{
@@ -201,6 +203,7 @@ test('Candidate Context applies bounded Related rules for standalone, single-fil
       observed('苹果.chinese.srt', 'apple-subtitle', 2),
       observed('poster.jpg', 'root-poster', 3),
       observed('Other.srt', 'other-subtitle', 4),
+      observed('Thumbs.db', 'standalone-windows-thumbnails', 25),
     ],
   });
   assert.deepEqual(standalone.queriedScopes, [['run-1', '.']]);
@@ -221,12 +224,15 @@ test('Candidate Context applies bounded Related rules for standalone, single-fil
       observed('One Movie/landscape.jpg', 'movie-landscape', 14),
       observed('One Movie/Feature-fanart.jpg', 'feature-fanart', 15),
       observed('One Movie/fanart.jpg', 'generic-fanart', 16),
+      observed('One Movie/Thumbs.db', 'windows-thumbnails', 17),
+      observed('One Movie/cache.db', 'unrecognized-database', 18),
     ],
   });
   assert.deepEqual(single.queriedScopes, [['run-1', 'One Movie']]);
   assert.deepEqual(single.context.relatedReferences.map((item) => item.location).sort(), [
     'One Movie/Feature-fanart.jpg',
     'One Movie/Feature.zh.srt',
+    'One Movie/Thumbs.db',
     'One Movie/banner.jpg',
     'One Movie/clearlogo.png',
     'One Movie/fanart.jpg',
@@ -236,6 +242,7 @@ test('Candidate Context applies bounded Related rules for standalone, single-fil
   ]);
   assert.equal(single.context.relatedReferences.find((item) => item.location.endsWith('fanart.jpg') && !item.location.includes('Feature')).role, 'fanart');
   assert.equal(single.context.relatedReferences.find((item) => item.location.endsWith('Feature-fanart.jpg')).role, 'sidecar');
+  assert.equal(single.context.relatedReferences.find((item) => item.location.endsWith('Thumbs.db')).role, 'sidecar');
 
   const multi = fixture({
     primaryLocation:'Mixed/First.mkv',
@@ -246,6 +253,7 @@ test('Candidate Context applies bounded Related rules for standalone, single-fil
       observed('Mixed/First.zh.srt', 'first-subtitle', 9),
       observed('Mixed/poster.jpg', 'generic-poster', 10),
       observed('Mixed/Second.nfo', 'second-nfo', 11),
+      observed('Mixed/Thumbs.db', 'shared-windows-thumbnails', 19),
     ],
   });
   assert.deepEqual(multi.queriedScopes, [['run-1', 'Mixed']]);
@@ -271,4 +279,60 @@ test('Manifest projection carries only the current Candidate members even when i
   assert.equal(input.candidateMembers.length,1);
   assert.equal(input.candidateMembers[0].materialKey,context.candidateMembers[0].materialKey);
   assert.ok(Buffer.byteLength(JSON.stringify(input))<16*1024);
+});
+
+test('UAT-138 Related rule revision 2 adds only exact Thumbs.db in a single Movie directory', () => {
+  const observedMaterials = [
+    observed('One Movie/Thumbs.db', 'windows-thumbnails', 21),
+    observed('One Movie/THUMBS.DB', 'uppercase-windows-thumbnails', 22),
+    observed('One Movie/cache.db', 'unrecognized-database', 23),
+    observed('One Movie/Other.srt', 'unrelated-subtitle', 24),
+  ];
+  const historical = fixture({
+    primaryLocation:'One Movie/Feature.mkv',
+    scopeRoot:'One Movie',
+    scopeKind:'ordinary_directory',
+    associationMode:'single_movie_directory',
+    relatedRuleRevision:1,
+    observed:observedMaterials,
+  });
+  assert.deepEqual(historical.context.relatedReferences, []);
+
+  const current = fixture({
+    primaryLocation:'One Movie/Feature.mkv',
+    scopeRoot:'One Movie',
+    scopeKind:'ordinary_directory',
+    associationMode:'single_movie_directory',
+    relatedRuleRevision:2,
+    observed:observedMaterials,
+  });
+  assert.deepEqual(
+    current.context.relatedReferences.map((item) => [item.location, item.role]).sort(),
+    [
+      ['One Movie/THUMBS.DB', 'sidecar'],
+      ['One Movie/Thumbs.db', 'sidecar'],
+    ],
+  );
+  assert.ok(current.context.relatedReferences.every((item) => item.dispositionRequired === true));
+});
+
+test('UAT-138 Related rule revision 2 includes Thumbs.db only from a BDMV external parent', () => {
+  const current = fixture({
+    primaryLocation:'Disc/BDMV/STREAM/00001.m2ts',
+    scopeRoot:'Disc/BDMV',
+    scopeKind:'ordinary_directory',
+    associationMode:'bdmv_external',
+    relatedRuleRevision:2,
+    relatedScopeKind:'bdmv_external_parent',
+    relatedParentLocation:'Disc',
+    observed:[
+      observed('Disc/Thumbs.db', 'external-windows-thumbnails', 26),
+      observed('Disc/BDMV/Thumbs.db', 'internal-windows-thumbnails', 27),
+      observed('Disc/cache.db', 'external-unrecognized-database', 28),
+    ],
+  });
+  assert.deepEqual(
+    current.context.relatedReferences.map((item) => [item.location, item.role]),
+    [['Disc/Thumbs.db', 'sidecar']],
+  );
 });

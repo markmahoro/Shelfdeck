@@ -212,6 +212,7 @@ User Perception全面取消year关联校验，year仅作为资料保存/展示�
 | UAT-135 | Arca独立媒体复核把已证明拓扑的ISO Source当普通流直接Probe/Decode并拒绝合法成品 | `PRODUCT_CONFORMANCE` | `DISC_TOPOLOGY`、`HANDOFF_B_ACCEPTANCE`、`AUTHORITY_FENCE` | Arca Mandatory Media Acceptance + Platform Media Observation | ISO上架活性、独立验收、事实真实性 | Critical | `QUALIFICATION FAILED / LOCAL FULL REGRESSION PASSED / NEW CANARY REQUIRED` |
 | UAT-136 | 同一ISO物理路径的正斜杠与Windows规范路径形成不同Topology Digest，fresh重验误报漂移 | `RECOVERY_CORRECTNESS` | `DISC_TOPOLOGY`、`PATH_CANONICALIZATION`、`AUTHORITY_FENCE` | Platform Disc Topology + Arca Mandatory Media Acceptance | ISO上架活性、路径等价性、事实真实性 | Critical | `QUALIFICATION FAILED / LOCAL FULL REGRESSION PASSED / NEW CANARY REQUIRED` |
 | UAT-137 | Arca把历史Product Verification动态范围标签当成现场事实，误拒绝fresh SDR到SDR preserve成品 | `PRODUCT_CONFORMANCE` | `HANDOFF_B_ACCEPTANCE`、`CONTRACT_PROPAGATION`、`FRESH_REALITY` | Arca Mandatory Media Acceptance | 成品正确性、独立验收、ISO上架活性 | Critical | `QUALIFICATION FAILED / LOCAL FULL REGRESSION PASSED / NEW CANARY REQUIRED` |
+| UAT-138 | 单Movie目录中的Windows `Thumbs.db`已被Field观察却未进入Related处置，形成Final Inventory外孤儿文件 | `MATERIAL_CONTROL` | `RELATED_MATERIAL`、`INVENTORY_INTEGRITY`、`SAME_ROOT` | Procurement Related Material Association + Libra/Arca Disposition continuity | 逐文件可追溯性、上架正确性、删除安全 | Critical | `QUALIFICATION FAILED / LOCAL FULL REGRESSION PASSED / NEW CANARY REQUIRED` |
 
 ### 2.0.1 UAT-074–UAT-084必须保护的历史修复
 
@@ -4184,7 +4185,49 @@ findings，修改源文件无新增finding。以上本地证据不替代新Canar
 Workspace、UI/FACT/FS/监控证据原样保留。UAT-137为
 `QUALIFICATION FAILED / LOCAL FULL REGRESSION PASSED / NEW CLEAN MAIN SHA FULL RERUN REQUIRED`。
 
-## 135. 后续问题模板
+## 135. UAT-138：已观察的 `Thumbs.db` 不得成为Final Inventory之外的孤儿文件
+
+问题分类：`MATERIAL_CONTROL / RELATED_MATERIAL / INVENTORY_INTEGRITY / SAME_ROOT / RELEASE_BLOCKER`
+
+用户侧现象：冻结SHA `c5adeb32ab068e6377187d725427c39fda2426e0`的全新主Canary已在真实Admin Web达到
+23/23 On-deck、23个active Shelf Entry、23个active Deck Fact与23份Commit Receipt；主检查点随后的逐文件三方对账发现
+《007：大破天幕杀机 (2012)》Final Inventory Decision与Arca当前Inventory各9项，最终目录却有10个文件，唯一多出的
+`Thumbs.db`未被任何Inventory成员或Disposition结果解释。冻结协议7.3明确规定“磁盘有、Inventory无”立即失败。
+
+现场证据（2026-08-27）：失败运行与Canary分别保留于
+`F:\shelfdeck_test_zone\runs\BETA-20260827-133621-c5adeb32ab`和
+`F:\shelfdeck_test_zone\canary-beta-20260827-133621-c5adeb32ab`。`main-23-tri-party-checkpoint.json`保存23个Entry逐项集合对账，
+`uat138-thumbsdb-orphan-fact-fs.json`保存007的Final Inventory Decision、当前Inventory、Commit Receipt、磁盘清单与精确差集；
+`ui-030`至`ui-032`保存23/23主检查点和007收藏详情。Field Observation曾以同一Physical Material identity多次观察
+`Thumbs.db`，但`proc_candidate_related_references`、Product Package、Final Inventory Decision与Arca Inventory均无该成员。
+不可变Baseline复核仍精确为22个顶层媒体单元、455个文件、42个递归目录和143829090011字节。
+
+初步诊断：Procurement的有界Related关联只接受主文件同stem或少数目录级标准名；单Movie目录内的Windows缩略图数据库
+`Thumbs.db`虽已被Field Observation完整记录，却既不匹配主stem，也不在目录级受识别Sidecar集合，因而在Candidate发布前被静默遗漏。
+同根Field/Shelf上架保留最终目录时，Arca只能处置已由Handoff B交接且有精确source-to-final mapping的成员，不能越权删除未交接文件；
+最终形成9项受管Inventory加1项无Owner磁盘文件。
+
+业务影响：任何单Movie目录包含`Thumbs.db`时都可能在业务页面显示健康并完成On-deck，却违反“Candidate全部唯一Related收拢”和
+Inventory/Decision/FS逐文件相等。该问题不是HB-B.25允许的产品瑕疵，不得直接删文件、写库补Inventory、忽略隐藏属性或继续拼接
+豆瓣、Aftercare、Off-deck与24小时资格Evidence。
+
+修复边界：只在Procurement既有Observation与Related Material association边界把精确文件名`Thumbs.db`识别为single Movie或唯一BDMV外层目录级
+`sidecar`，使其以exclusive Related dependent obligation进入Candidate、Libra Product/Disposition、Arca Final Inventory Decision及
+当前Inventory；必须保持原稳定文件名与精确Physical identity。不得让任意未知文件自动成为Related，不得扩大到多Movie目录、
+不得赋予Related独立Control，不得在Arca绕过Handoff直接删除或伪造Inventory，也不得修改SSOT、Shelf Standard或同根配置。
+
+验收证据：Related Rule revision 2专项证明大小写不敏感的精确`Thumbs.db`只在single Movie与BDMV external parent进入
+exclusive `sidecar`；revision 1历史语义、standalone、multi-movie、任意其他`.db`和非同stem字幕仍不关联。P7定向25/25，
+Candidate/Delivery/Handoff B/On-deck/Settlement组合54/54；完整Service `358 total / 340 pass / 18 explicit environment skip /
+0 fail`，Admin Web `29/29`与production build PASS。Contract/Manifest/Semantic Gate全部PASS，P2 aggregate保持
+`d8dea1240147afa36b17cb075f7dca130fb6eed365af0047e1575f5a57d7eaf9`；完整Architecture verifier只报告clean main
+既有8项fixture失败与22项dependency findings，修改文件没有新增finding。以上本地证据仍不替代新的clean Canary资格。
+
+当前处理决定：`c5adeb32ab068e6377187d725427c39fda2426e0`资格固定为`FAILED`；Service、18080、FFmpeg/FFprobe与监控已安全停止，
+失败Canary、data、Workspace、UI/FACT/FS/监控Evidence原样保留，未触发豆瓣同步或Aftercare。UAT-138为
+`QUALIFICATION FAILED / LOCAL FULL REGRESSION PASSED / NEW CLEAN MAIN SHA FULL RERUN REQUIRED`。
+
+## 136. 后续问题模板
 
 后续发现的问题按以下结构追加：
 

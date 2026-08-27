@@ -115,6 +115,23 @@ dependency findings，修改源文件无新增finding。当前状态为
 `UAT-137 QUALIFICATION FAILED / LOCAL FULL REGRESSION PASSED / NEW CLEAN MAIN SHA FULL RERUN REQUIRED`；不得继承
 `9f924128d8`的22/23、UAT-127、UAT-129或其他资格Evidence。
 
+随后冻结SHA `c5adeb32ab068e6377187d725427c39fda2426e0`从新的隔离Canary全量重跑。UAT-127真实长转码恢复、
+UAT-129独立Recovery Canary及UAT-137真实ISO回归均通过，主流程首次达到23/23 On-deck；但封存主检查点后的逐文件
+Inventory / Final Inventory Decision / FS对账发现UAT-138：《007：大破天幕杀机 (2012)》Decision与Inventory各9项，
+最终目录有10项，唯一额外文件为Baseline原有的隐藏系统文件`Thumbs.db`。协议7.3明确判定“磁盘有、Inventory无”为失败。
+失败运行`F:\shelfdeck_test_zone\runs\BETA-20260827-133621-c5adeb32ab`及Canary、data、Workspace、UI/FACT/FS与监控
+Evidence已封存；不可变Baseline仍精确为22个顶层媒体单元、455个文件、42个递归目录和143829090011字节。未触发豆瓣、
+Aftercare、Off-deck或后续24小时观察，Service、18080、FFmpeg/FFprobe与监控均已安全停止。
+
+UAT-138根因是Field Observation已完整观察`Thumbs.db`，但Related Rule revision 1只认主文件同stem或少数目录级标准名，
+Candidate Context因此静默漏掉该成员，下游Package、Disposition、Final Inventory与Inventory均无权补入或删除。修复以revision 2
+仅在single Movie与BDMV external parent把精确`Thumbs.db`识别为exclusive `sidecar`并走既有carried-forward链；revision 1、
+standalone、multi-movie、任意其他`.db`与Arca authority保持不变。P7专项25/25、下游组合54/54、完整Service
+`340 pass / 18 explicit environment skip / 0 fail`、Admin Web `29/29`、production build与Contract/Manifest/Semantic均PASS；
+Architecture修改范围无新增finding。当前状态为
+`UAT-138 QUALIFICATION FAILED / LOCAL FULL REGRESSION PASSED / NEW CLEAN MAIN SHA FULL RERUN REQUIRED`，不得继承
+`c5adeb32ab`的23/23、UAT-127、UAT-129、UAT-137或其他部分资格Evidence。
+
 ## 0. Open UAT — UAT-125 registered
 
 2026-08-25完成后台周期检查与Workspace治理审计，并把完整修复边界登记为`UAT-125`。现有30秒共享
