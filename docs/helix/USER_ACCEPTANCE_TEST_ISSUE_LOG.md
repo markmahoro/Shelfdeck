@@ -209,6 +209,7 @@ User Perception全面取消year关联校验，year仅作为资料保存/展示�
 | UAT-132 | Arca独立媒体复核遗漏合法unknown动态范围并拒绝Direct产品 | `PRODUCT_CONFORMANCE` | `HANDOFF_B_ACCEPTANCE`、`CONTRACT_PROPAGATION` | Arca Mandatory Media Acceptance | 成品正确性、独立验收、上架活性 | Critical | `LOCAL FULL REGRESSION PASSED / NEW CANARY REQUIRED` |
 | UAT-133 | 多缺口Authorized Defect在Libra Attestation与Arca Gap union使用不一致规范顺序 | `BUSINESS_CONTRACT` | `CANONICALIZATION`、`HANDOFF_B_ACCEPTANCE` | Libra Product Delivery + Arca Acceptance Gap Decision | 多缺口接纳、恢复活性、事实一致性 | Critical | `QUALIFICATION FAILED / LOCAL FULL REGRESSION PASSED / NEW CANARY REQUIRED` |
 | UAT-134 | 同根Field/Shelf的单项Settlement把其他合法顶层媒体单元误判为unknown member并永久悬挂 | `MATERIAL_CONTROL` | `SAME_ROOT`、`DESTRUCTIVE_SAFETY`、`LIVENESS` | Arca On-deck Input Settlement | 上架活性、同根配置、删除安全、状态真实性 | Critical | `QUALIFICATION FAILED / LOCAL FULL REGRESSION PASSED / NEW CANARY REQUIRED` |
+| UAT-135 | Arca独立媒体复核把已证明拓扑的ISO Source当普通流直接Probe/Decode并拒绝合法成品 | `PRODUCT_CONFORMANCE` | `DISC_TOPOLOGY`、`HANDOFF_B_ACCEPTANCE`、`AUTHORITY_FENCE` | Arca Mandatory Media Acceptance + Platform Media Observation | ISO上架活性、独立验收、事实真实性 | Critical | `QUALIFICATION FAILED / LOCAL FULL REGRESSION PASSED / NEW CANARY REQUIRED` |
 
 ### 2.0.1 UAT-074–UAT-084必须保护的历史修复
 
@@ -4037,7 +4038,62 @@ clean main既有8项fixture失败与22项dependency findings，本次修改源�
 当前处理决定：`185636805e`资格结果固定为`FAILED`；旧运行与Canary只保留失败现场。UAT-134为
 `LOCAL FULL REGRESSION PASSED / NEW CLEAN MAIN SHA FULL RERUN REQUIRED`。
 
-## 132. 后续问题模板
+## 132. UAT-135：Arca独立媒体复核不得把已证明拓扑的ISO Source当普通流直接Probe/Decode
+
+问题分类：`PRODUCT_CONFORMANCE / DISC_TOPOLOGY / HANDOFF_B_ACCEPTANCE / AUTHORITY_FENCE / RELEASE_BLOCKER`
+
+用户侧现象：冻结SHA `06aba07a4e279735af40ae8f47c93d818ff1141d`的全量Movie资格运行中，
+ISO样本`倩女幽魂2：人间道 (1990)`已经作为一个Movie完成确定性主标题选择、ISO payload抽取、Remux、GPU Transcode、
+Product Verification与Handoff B提交，真实Admin Web仍显示“收藏架接纳或上架需要处理”。页面无HB-B.25接受瑕疵入口，
+技术诊断为`playback_decode_failed`，23/23 On-deck不可达。
+
+现场证据（2026-08-27）：失败运行保留于
+`F:\shelfdeck_test_zone\runs\BETA-20260827-073400-06aba07a4e`，主Canary为
+`F:\shelfdeck_test_zone\canary-beta-20260827-073400-06aba07a4e`。`ui-032-uat-new-arca-acceptance-failure.png`与
+`ui-033-uat-arca-playback-decode-failed.png`保留真实Admin Web现场；
+`uat-135-qualification-defect-fact-fs-v2.json`证明Arca Mandatory Media的实际Gap为
+`dynamic_range_conversion_unmet + playback_decode_failed`，Source 5/50/95 Decode为`[]`，Product为`[5,50,95]`。
+Source与Product的当前size、bounded fingerprint均精确命中冻结Handle；最终Product是`10,033,903,147`字节HEVC MKV，
+fresh FFprobe与Arca三点Decode全部通过。失败Source是`23,393,665,024`字节UDF ISO；直接`ffmpeg -i <iso>`稳定返回
+`Invalid data found when processing input`。该ISO的durable `MediaProbeEvidence.discTopology`已证明`discKind=iso`、
+selected playlist `BDMV/PLAYLIST/00007.mpls`与唯一Primary `BDMV/STREAM/00005.m2ts`。服务、FFmpeg和18080随后安全停止，
+未访问NAS、`Z:`、Docker或生产媒体。
+
+精确根因：UAT-131新增的Arca独立实检正确要求Source与Product均基于fresh reality重新Probe并在5/50/95有界Decode，
+但当前Platform observation只把`PhysicalMaterialReadHandle.location`交给普通FFprobe/FFmpeg。对ISO，这个location是受控的完整
+UDF映像文件而不是可播放流；实现没有消费同一fresh Probe已经给出的disc topology和selected payload extent，遂把ISO容器
+误当普通`stream_file`。Source Probe因此得到`resultKind=not_media`、无Video Stream、动态范围`unknown`，三点Decode全部失败；
+成品MKV现实没有任何播放故障。问题不在ISO Triage、Remux、Transcode或最终Product。
+
+业务影响：ISO输入永远无法通过Arca独立Shelf Acceptance，既不能普通On-deck，也不属于HB-B.25允许接受的外部资料缺口。
+跳过Source实检、信任Libra旧Probe/`passed`布尔值、把ISO直接上架、伪造SDR标签或扩大瑕疵白名单都会破坏SSOT §8.6.9的
+独立验收与authority fence。该SHA资格结果固定为`FAILED`，不得继续拼接Aftercare、Off-deck、UAT-129或24小时Evidence。
+
+修复边界：不修改Domain Owner、Handoff、Shelf Standard、Physical Material Identity或Source/Product双实检原则。
+Arca仍只能消费Package签发的同一`sourceReadHandle`与当前stat/fingerprint/fence；当fresh Probe证明该Handle代表ISO且具有完整
+selected topology时，Platform observation必须在该Handle授权的ISO字节范围内按已证明extent物化有界临时selected payload，
+对该逻辑Source执行fresh FFprobe和5/50/95 Decode，并在完成或失败后回收临时文件。不得凭扩展名或路径猜ISO，不得使用旧Probe
+替代当前现实，不得把最终Product反向冒充Source。普通stream、BDMV selected payload与Direct Product路径保持原合同；
+topology缺失、extent不闭合、selected payload缺失、Handle漂移、Probe/Decode失败均继续fail closed。
+
+实现与验收证据：Platform从同一签封Handle执行uncached ISO topology重验，并形成不进入正式Schema的private selected playback
+plan；该plan保留MPLS play-item原始顺序、重复及in/out边界，每个unique clip extent只抽取一次，同一technical session供fresh
+FFprobe与5/50/95 Decode共用。抽取前、抽取后及Decode后均重新闭合原ISO stat/fingerprint；Probe与Decode digest闭合
+`originalHandle + liveTopology + selectedPlan`。scratch由Composition固定注入`Service data/runtime/arca-acceptance-observation`，
+启动先清理遗留，成功/失败均回收；不使用Libra/Aftercare Workspace、Shelf或系统TEMP。Source selected payload无法Probe时只报告
+真实`playback_decode_failed`，不再以缺失facts制造dynamic-range或upscale Gap。
+
+真实tiny UDF Blu-ray单clip和multi-clip顺序/重复/in-out、topology篡改、签封Handle漂移、scratch回收及普通stream回归均通过；
+UAT-131/132、Disc topology、Handoff B与Recovery组合0失败。完整Service为`358 total / 340 pass / 18 explicit environment skip /
+0 fail`，Admin Web `29/29`与production build PASS；Contract、Manifest、Semantic均PASS，完整Architecture verifier精确保留clean main
+既有8项fixture失败与22项dependency findings，本次修改源文件没有新增finding。形成新的clean main SHA后，仍必须从不可变基线
+建立此前不存在的新Canary完整重跑；以上本地证据不替代资格。
+
+当前处理决定：`06aba07a4e`资格结果固定为`FAILED`；失败运行、主Canary和全部UI/FACT/FS/监控证据只作为现场保留，
+不继续执行后续资格步骤。UAT-135为
+`QUALIFICATION FAILED / LOCAL FULL REGRESSION PASSED / NEW CLEAN MAIN SHA FULL RERUN REQUIRED`。
+
+## 133. 后续问题模板
 
 后续发现的问题按以下结构追加：
 

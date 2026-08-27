@@ -327,6 +327,8 @@ function requirementGaps(requirement, item, sourceProbe, productProbe,
   sourceDecode, productDecode, observedSizeBytes) {
   const gaps = [];
   const outputVideo = primaryVideo(productProbe);
+  const sourceFactsObserved = sourceProbe?.resultKind === 'probed' &&
+    primaryStreams(sourceProbe?.videoStreams).length > 0;
   const outputRaster = rasterClass(productProbe);
   const sourceRaster = rasterClass(sourceProbe);
   const outputDynamic = dynamicRangeKind(productProbe);
@@ -358,7 +360,7 @@ function requirementGaps(requirement, item, sourceProbe, productProbe,
       (rasterRank.get(requirement.minimumRasterClass) || 0)) {
     gaps.push('minimum_raster_unmet');
   }
-  const systemUpscale = outputRaster === '4k' && sourceRaster !== '4k';
+  const systemUpscale = sourceFactsObserved && outputRaster === '4k' && sourceRaster !== '4k';
   if (requirement.forbidSystemUpscaleFor4k && systemUpscale) {
     gaps.push('system_upscale_forbidden');
   }
@@ -373,7 +375,8 @@ function requirementGaps(requirement, item, sourceProbe, productProbe,
   if (expectedConversion === 'tone_map_to_sdr_bt709') {
     if (attestedDynamic.sourceDynamicRangeKind !== 'dolby_vision' ||
         attestedDynamic.outputDynamicRangeKind !== 'sdr' ||
-        sourceDynamic !== 'dolby_vision' || outputDynamic !== 'sdr') {
+        outputDynamic !== 'sdr' ||
+        (sourceFactsObserved && sourceDynamic !== 'dolby_vision')) {
       gaps.push('dynamic_range_conversion_unmet');
     }
     if (outputVideo.pixelFormat !== requirement.sdrOutputPixelFormat ||
@@ -385,9 +388,9 @@ function requirementGaps(requirement, item, sourceProbe, productProbe,
     }
   } else if (expectedConversion === 'preserve') {
     if (!requirement.acceptedOutputDynamicRangeKinds.includes(outputDynamic) ||
-        sourceDynamic !== outputDynamic ||
-        sourceDynamic !== attestedDynamic.sourceDynamicRangeKind ||
-        outputDynamic !== attestedDynamic.outputDynamicRangeKind) {
+        outputDynamic !== attestedDynamic.outputDynamicRangeKind ||
+        (sourceFactsObserved && (sourceDynamic !== outputDynamic ||
+          sourceDynamic !== attestedDynamic.sourceDynamicRangeKind))) {
       gaps.push('dynamic_range_conversion_unmet');
     }
   } else if (!requirement.acceptedOutputDynamicRangeKinds.includes(outputDynamic) ||
@@ -467,14 +470,29 @@ async function observeMandatoryMedia(value) {
     }
     if (!realityMatches(item.sourceReadHandle, sourceReality) ||
         !realityMatches(item.productReadHandle, productReality)) return staleResult();
-    const sourceProbe = await mediaProbe.probe(item.sourceReadHandle);
+    let sourceProbe = await mediaProbe.probe(item.sourceReadHandle);
     const productProbe = await mediaProbe.probe(item.productReadHandle);
-    const sourceDecode = decodeSummary(await mediaEffectPort.verifyPlayback({
-      physicalMaterialReadHandle: item.sourceReadHandle,
-      outputProbeEvidence: sourceProbe,
-      deadlineAtMs: value.deadlineAtMs,
-      shouldContinue,
-    }));
+    let sourceDecode;
+    if (sourceProbe.discTopology?.discKind === 'iso') {
+      if (typeof mediaEffectPort.observeDiscPlayback !== 'function') {
+        invalid('Proven ISO Source requires the topology-aware playback observation port.');
+      }
+      const observedDisc = await mediaEffectPort.observeDiscPlayback({
+        physicalMaterialReadHandle:item.sourceReadHandle,
+        outputProbeEvidence:sourceProbe,
+        deadlineAtMs:value.deadlineAtMs,
+        shouldContinue,
+      });
+      sourceProbe = observedDisc.probeEvidence;
+      sourceDecode = decodeSummary(observedDisc);
+    } else {
+      sourceDecode = decodeSummary(await mediaEffectPort.verifyPlayback({
+        physicalMaterialReadHandle: item.sourceReadHandle,
+        outputProbeEvidence: sourceProbe,
+        deadlineAtMs: value.deadlineAtMs,
+        shouldContinue,
+      }));
+    }
     const productDecode = decodeSummary(await mediaEffectPort.verifyPlayback({
       physicalMaterialReadHandle: item.productReadHandle,
       outputProbeEvidence: productProbe,

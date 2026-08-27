@@ -19,6 +19,11 @@ const {
   productStreamMap,
 } = require('../src/clean-media-production-effect-port');
 const { createFfmpegProcessRegistry } = require('../src/clean-ffmpeg-process-registry');
+const { createCleanMediaProbe } = require('../src/clean-media-probe');
+const { canonicalDigest } = require('../src/helix/contracts/canonical-json');
+const { computeBoundedMaterialFingerprintSync } =
+  require('../src/helix/integrations/bounded-material-fingerprint');
+const { inspectIsoPlaybackPlan } = require('../src/helix/integrations/disc-topology');
 
 function writeTinyMpegTs(target) {
   const result = spawnSync(ffmpegPath, [
@@ -115,6 +120,23 @@ function remuxRequest(sourceLocation) {
     },
     idempotencyKey: 'key-1',
   };
+}
+
+function physicalReadHandle(location) {
+  const observed = computeBoundedMaterialFingerprintSync(location);
+  return Object.freeze({
+    location,
+    expectedSizeBytes:Number(observed.stat.size),
+    expectedMtimeNs:Number(observed.stat.mtimeNs / 1_000_000n),
+    expectedCtimeNs:Number(observed.stat.ctimeNs / 1_000_000n),
+    identity:Object.freeze({
+      inode:String(observed.stat.ino),
+      sizeBytes:Number(observed.stat.size),
+      fingerprintAlgorithm:observed.fingerprintAlgorithm,
+      fingerprintVersion:observed.fingerprintVersion,
+      contentFingerprint:observed.contentFingerprint,
+    }),
+  });
 }
 
 test('transcode maps copy only the EncodeIntent audio stream indexes', () => {
@@ -257,6 +279,122 @@ test('remux refuses an ISO volume that has no proven Blu-ray topology', async (t
   });
   await assert.rejects(() => port.executeRemux(remuxRequest(fakeUdf)), (error) =>
     error.code === 'LIBRA_MEDIA_ISO_TOPOLOGY_UNPROVEN');
+});
+
+test('UAT-135 observes a proven UDF ISO selected payload with fresh Probe and 5/50/95 Decode', async (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'shelfdeck-iso-acceptance-'));
+  t.after(() => fs.rmSync(root, { recursive:true, force:true }));
+  const source = path.join(root, 'source');
+  fs.mkdirSync(path.join(source, 'BDMV', 'STREAM'), { recursive:true });
+  fs.mkdirSync(path.join(source, 'BDMV', 'CLIPINF'), { recursive:true });
+  writeTinyMpegTs(path.join(source, 'BDMV', 'STREAM', '00000.m2ts'));
+  fs.writeFileSync(path.join(source, 'BDMV', 'CLIPINF', '00000.clpi'), Buffer.from('clip'));
+  fs.writeFileSync(path.join(source, 'BDMV', 'index.bdmv'), Buffer.from('index'));
+  fs.writeFileSync(path.join(source, 'BDMV', 'MovieObject.bdmv'), Buffer.from('object'));
+  writeMpls(root, 'source/BDMV/PLAYLIST/00000.mpls', [
+    { clipId:'00000', inTime:0, outTime:45000 },
+  ]);
+  const image = path.join(root, 'movie.iso');
+  createUdfBluRay(source, image);
+  const workspace = path.join(root, 'workspace'), scratch = path.join(root, 'acceptance-scratch');
+  fs.mkdirSync(workspace);
+  const mediaProbe = createCleanMediaProbe();
+  const handle = physicalReadHandle(image);
+  const containerProbe = await mediaProbe.probe(handle);
+  assert.equal(containerProbe.discTopology.discKind, 'iso');
+  const port = createCleanMediaProductionEffectPort({
+    ffmpegPath,
+    workspaceProductPort:workspacePort(workspace),
+    mediaProbe,
+    acceptanceScratchRoot:path.resolve(scratch),
+  });
+  const observed = await port.observeDiscPlayback({
+    physicalMaterialReadHandle:handle,
+    outputProbeEvidence:containerProbe,
+    deadlineAtMs:Date.now() + 30_000,
+    shouldContinue:() => true,
+  });
+  assert.equal(observed.probeEvidence.resultKind, 'probed');
+  assert.equal(observed.probeEvidence.sourceHandleDigest, canonicalDigest(handle));
+  assert.ok(observed.probeEvidence.videoStreams.length > 0);
+  assert.deepEqual(observed.samplePointsPercent, [5,50,95]);
+  assert.deepEqual(observed.passedSamplePointsPercent, [5,50,95]);
+  assert.match(observed.observationBindingDigest, /^[0-9a-f]{64}$/u);
+  assert.deepEqual(fs.readdirSync(scratch), []);
+});
+
+test('UAT-135 fails closed on topology or signed Handle drift and always reclaims scratch', async (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'shelfdeck-iso-acceptance-negative-'));
+  t.after(() => fs.rmSync(root, { recursive:true, force:true }));
+  const source = path.join(root, 'source');
+  fs.mkdirSync(path.join(source, 'BDMV', 'STREAM'), { recursive:true });
+  fs.mkdirSync(path.join(source, 'BDMV', 'CLIPINF'), { recursive:true });
+  writeTinyMpegTs(path.join(source, 'BDMV', 'STREAM', '00000.m2ts'));
+  fs.writeFileSync(path.join(source, 'BDMV', 'CLIPINF', '00000.clpi'), Buffer.from('clip'));
+  fs.writeFileSync(path.join(source, 'BDMV', 'index.bdmv'), Buffer.from('index'));
+  fs.writeFileSync(path.join(source, 'BDMV', 'MovieObject.bdmv'), Buffer.from('object'));
+  writeMpls(root, 'source/BDMV/PLAYLIST/00000.mpls', [{ clipId:'00000', outTime:45000 }]);
+  const image = path.join(root, 'movie.iso');
+  createUdfBluRay(source, image);
+  const workspace = path.join(root, 'workspace'), scratch = path.resolve(path.join(root, 'acceptance-scratch'));
+  fs.mkdirSync(workspace);
+  const mediaProbe = createCleanMediaProbe(), handle = physicalReadHandle(image),
+    containerProbe = await mediaProbe.probe(handle), port = createCleanMediaProductionEffectPort({
+      ffmpegPath, workspaceProductPort:workspacePort(workspace), mediaProbe,
+      acceptanceScratchRoot:scratch,
+    });
+  const changedTopology = Object.freeze({ ...containerProbe,
+    discTopology:Object.freeze({ ...containerProbe.discTopology, topologyDigest:'0'.repeat(64) }) });
+  await assert.rejects(() => port.observeDiscPlayback({physicalMaterialReadHandle:handle,
+    outputProbeEvidence:changedTopology,deadlineAtMs:Date.now()+30_000,shouldContinue:()=>true}),
+  (error) => error.code === 'ARCA_MEDIA_DISC_TOPOLOGY_DRIFT');
+  assert.deepEqual(fs.readdirSync(scratch), []);
+  const staleHandle = Object.freeze({ ...handle, identity:Object.freeze({
+    ...handle.identity, contentFingerprint:'f'.repeat(64),
+  }) });
+  await assert.rejects(() => port.observeDiscPlayback({physicalMaterialReadHandle:staleHandle,
+    outputProbeEvidence:containerProbe,deadlineAtMs:Date.now()+30_000,shouldContinue:()=>true}),
+  (error) => error.code === 'ARCA_MEDIA_DISC_SOURCE_STALE');
+  assert.deepEqual(fs.readdirSync(scratch), []);
+});
+
+test('UAT-135 preserves multi-clip MPLS order, repetition, and in/out boundaries', async (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'shelfdeck-iso-play-plan-'));
+  t.after(() => fs.rmSync(root, { recursive:true, force:true }));
+  const source = path.join(root, 'source');
+  fs.mkdirSync(path.join(source, 'BDMV', 'STREAM'), { recursive:true });
+  fs.mkdirSync(path.join(source, 'BDMV', 'CLIPINF'), { recursive:true });
+  for (const clipId of ['00000','00001']) {
+    writeTinyMpegTs(path.join(source, 'BDMV', 'STREAM', clipId + '.m2ts'));
+    fs.writeFileSync(path.join(source, 'BDMV', 'CLIPINF', clipId + '.clpi'), Buffer.from('clip-' + clipId));
+  }
+  fs.writeFileSync(path.join(source, 'BDMV', 'index.bdmv'), Buffer.from('index'));
+  fs.writeFileSync(path.join(source, 'BDMV', 'MovieObject.bdmv'), Buffer.from('object'));
+  writeMpls(root, 'source/BDMV/PLAYLIST/00000.mpls', [
+    { clipId:'00001', inTime:0, outTime:22500 },
+    { clipId:'00000', inTime:0, outTime:22500 },
+    { clipId:'00001', inTime:22500, outTime:45000 },
+  ]);
+  const image = path.join(root, 'movie.iso');
+  createUdfBluRay(source, image);
+  const inspection = inspectIsoPlaybackPlan(image);
+  assert.deepEqual(inspection.selectedPlan.playItems.map((item) => item.clipId),
+    ['00001','00000','00001']);
+  assert.deepEqual(inspection.selectedPlan.playItems.map((item) => [item.inTimeTicks,item.outTimeTicks]),
+    [[0,22500],[0,22500],[22500,45000]]);
+  assert.equal(new Set(inspection.selectedPlan.playItems.map((item) => item.relativeLocation)).size, 2);
+  const workspace = path.join(root, 'workspace'), scratch = path.resolve(path.join(root, 'acceptance-scratch'));
+  fs.mkdirSync(workspace);
+  const mediaProbe = createCleanMediaProbe(), handle = physicalReadHandle(image),
+    containerProbe = await mediaProbe.probe(handle), port = createCleanMediaProductionEffectPort({
+      ffmpegPath, workspaceProductPort:workspacePort(workspace), mediaProbe,
+      acceptanceScratchRoot:scratch,
+    });
+  const observed = await port.observeDiscPlayback({physicalMaterialReadHandle:handle,
+    outputProbeEvidence:containerProbe,deadlineAtMs:Date.now()+30_000,shouldContinue:()=>true});
+  assert.equal(observed.probeEvidence.resultKind, 'probed');
+  assert.deepEqual(observed.passedSamplePointsPercent, [5,50,95]);
+  assert.deepEqual(fs.readdirSync(scratch), []);
 });
 
 test('remux fills missing MPEG-TS video timestamps instead of failing Matroska mux', async (t) => {

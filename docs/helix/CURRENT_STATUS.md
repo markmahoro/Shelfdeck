@@ -65,6 +65,21 @@ Admin Web 29/29与production build、Contract/Manifest/Semantic Gate均PASS；�
 22项dependency findings。当前状态为`UAT-134 LOCAL FULL REGRESSION PASSED / NEW CLEAN MAIN SHA FULL RERUN REQUIRED`，
 不得继承`185636805e`的部分UAT-127或Formation Evidence。
 
+随后冻结SHA `06aba07a4e279735af40ae8f47c93d818ff1141d`从新的隔离Canary重跑，UAT-127真实恢复已经证明
+Attempt 2从非零durable floor连续完成且副作用唯一；主流程达到19项On-deck时，ISO样本《倩女幽魂2：人间道》被Arca以
+`dynamic_range_conversion_unmet + playback_decode_failed`拒绝，暴露UAT-135。现场证明最终HEVC MKV的fresh Probe与5/50/95
+Decode全部通过，Source Handle/fingerprint也未漂移；根因是Arca把已证明UDF/Blu-ray topology的ISO容器路径直接交给普通
+FFprobe/FFmpeg，没有观察selected payload。失败运行
+`F:\shelfdeck_test_zone\runs\BETA-20260827-073400-06aba07a4e`已封存，服务、18080和媒体进程均安全停止。
+
+UAT-135修复保持同一Package Handle authority与Source/Product双独立实检：Platform执行uncached topology重验，按MPLS原始
+play-item顺序、重复和in/out边界只抽取一次unique extent，由同一session完成fresh Probe和5/50/95 Decode，并在抽取前后及
+Decode后重验ISO stat/fingerprint。technical scratch固定在Service data专用runtime目录并在启动/结束回收，不进入Libra/Aftercare
+Workspace或Shelf。完整Service `340 pass / 18 explicit environment skip / 0 fail`，Admin Web `29/29`与production build、
+Contract/Manifest/Semantic均PASS；Architecture只保留既有8项fixture失败与22项dependency findings。当前状态为
+`UAT-135 LOCAL FULL REGRESSION PASSED / NEW CLEAN MAIN SHA FULL RERUN REQUIRED`，不得继承`06aba07a4e`的19/23、
+UAT-127或其他部分Evidence。
+
 ## 0. Open UAT — UAT-125 registered
 
 2026-08-25完成后台周期检查与Workspace治理审计，并把完整修复边界登记为`UAT-125`。现有30秒共享

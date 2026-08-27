@@ -33,7 +33,7 @@ function commandPath() {
   return null;
 }
 
-function run(binary, location) {
+function run(binary, location, inputArgv = null) {
   return new Promise((resolve, reject) => {
     const child = spawn(binary, [
       // Fatal-only diagnostics keep non-fatal packet warnings from overflowing the
@@ -44,7 +44,7 @@ function run(binary, location) {
         'stream=index,codec_type,codec_name,profile,pix_fmt,bits_per_raw_sample,bit_rate,chroma_location,color_range,color_space,color_transfer,color_primaries,width,height,channels,channel_layout,disposition',
         'stream_tags',
         'stream_side_data',
-      ].join(':'), location,
+      ].join(':'), ...(inputArgv || [location]),
     ], { windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
     const stdout = [];
     const stderr = [];
@@ -181,6 +181,36 @@ function evidence(readHandle, parsed, discTopology = null) {
   return Object.freeze(value);
 }
 
+function parseProbeResult(readHandle, result, discTopology) {
+  if (result.code !== 0) {
+    const value = {
+      resultKind: 'not_media',
+      sourceHandleDigest: canonicalDigest(readHandle),
+      durationMs: 0,
+      videoStreams: Object.freeze([]),
+      audioStreams: Object.freeze([]),
+      subtitleStreams: Object.freeze([]),
+      discTopology,
+      payloadDigest: '',
+    };
+    value.payloadDigest = canonicalDigest(without(value, 'payloadDigest'));
+    return Object.freeze(value);
+  }
+  try {
+    const parsed = JSON.parse(result.stdout);
+    if (!parsed || typeof parsed !== 'object' || !Array.isArray(parsed.streams) ||
+        parsed.streams.length > 256 || !parsed.format || typeof parsed.format !== 'object') {
+      throw new CleanMediaProbeError('CLEAN_MEDIA_PROBE_CONTRACT',
+        'ffprobe output does not match the bounded typed projection.');
+    }
+    return evidence(readHandle, parsed, discTopology);
+  } catch (error) {
+    if (error instanceof CleanMediaProbeError) throw error;
+    throw new CleanMediaProbeError('CLEAN_MEDIA_PROBE_CONTRACT',
+      'ffprobe output could not be normalized to MediaProbeEvidence.', { cause:error.code || 'INVALID_JSON' });
+  }
+}
+
 function bdmvTopologyLocation(location) {
   const normalized = String(location || '').replace(/\\/g, '/');
   const parts = normalized.split('/');
@@ -245,33 +275,22 @@ function createCleanMediaProbe(options = {}) {
         throw new CleanMediaProbeError('CLEAN_MEDIA_PROBE_EXECUTION',
           'Bundled ffprobe could not be executed.', { cause: error.code || 'EXECUTION_FAILED' });
       }
-      if (result.code !== 0) {
-        const value = {
-          resultKind: 'not_media',
-          sourceHandleDigest: canonicalDigest(readHandle),
-          durationMs: 0,
-          videoStreams: Object.freeze([]),
-          audioStreams: Object.freeze([]),
-          subtitleStreams: Object.freeze([]),
-          discTopology: detectedTopology,
-          payloadDigest: '',
-        };
-        value.payloadDigest = canonicalDigest(without(value, 'payloadDigest'));
-        return Object.freeze(value);
+      return parseProbeResult(readHandle, result, detectedTopology);
+    },
+    async probeAuthorizedInput(readHandle, inputArgv, discTopology) {
+      if (!readHandle || !readHandle.identity || !Array.isArray(inputArgv) || !inputArgv.length ||
+          discTopology?.discKind !== 'iso' || typeof discTopology.topologyDigest !== 'string') {
+        throw new CleanMediaProbeError('CLEAN_MEDIA_PROBE_INPUT',
+          'Authorized disc payload Probe requires the original Handle, input argv, and proven ISO topology.');
       }
+      let result;
       try {
-        const parsed = JSON.parse(result.stdout);
-        if (!parsed || typeof parsed !== 'object' || !Array.isArray(parsed.streams) ||
-            parsed.streams.length > 256 || !parsed.format || typeof parsed.format !== 'object') {
-          throw new CleanMediaProbeError('CLEAN_MEDIA_PROBE_CONTRACT',
-            'ffprobe output does not match the bounded typed projection.');
-        }
-        return evidence(readHandle, parsed, detectedTopology);
+        result = await run(binary, null, inputArgv);
       } catch (error) {
-        if (error instanceof CleanMediaProbeError) throw error;
-        throw new CleanMediaProbeError('CLEAN_MEDIA_PROBE_CONTRACT',
-          'ffprobe output could not be normalized to MediaProbeEvidence.', { cause:error.code || 'INVALID_JSON' });
+        throw new CleanMediaProbeError('CLEAN_MEDIA_PROBE_EXECUTION',
+          'Bundled ffprobe could not observe the authorized disc payload.', { cause:error.code || 'EXECUTION_FAILED' });
       }
+      return parseProbeResult(readHandle, result, discTopology);
     },
   });
 }

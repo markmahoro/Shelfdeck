@@ -167,6 +167,75 @@ test('UAT-131 expired read authority fails as stale basis without manufacturing 
   assert.deepEqual(result.primaryMediaObservations,[]);
 });
 
+test('UAT-135 proven ISO Source uses one topology-aware selected-payload observation', async () => {
+  const value=fixture({workspace:true,conversionOperation:'preserve',sourceDynamicRangeKind:'sdr',outputDynamicRangeKind:'sdr'}),
+    base=ports(value.identity,'hevc','sdr','sdr'),calls=[];
+  const sourceStream=Object.freeze({streamIndex:0,dispositionDefault:true,codec:'h264',width:1920,height:1080,
+    dynamicRangeKind:'sdr',pixelFormat:'yuv420p',colorRange:'limited',colorPrimaries:'bt709',
+    colorTransfer:'bt709',colorMatrix:'bt709'}),
+    productStream=Object.freeze({...sourceStream,codec:'hevc'}),
+    topology=Object.freeze({discKind:'iso',topologyDigest:D('live-topology'),
+      selectedPlaylist:Object.freeze({relativeLocation:'BDMV/PLAYLIST/00000.mpls',durationMs:1000,clipIds:Object.freeze(['00000'])})});
+  const runtime={...base,
+    mediaProbe:{async probe(handle){const source=handle.identity.materialKey===value.sourceIdentity.materialKey;
+      calls.push(source?'probe-source-container':'probe-product');
+      const body=source
+        ? {resultKind:'not_media',durationMs:0,container:'unknown',videoStreams:Object.freeze([]),audioStreams:Object.freeze([]),
+          subtitleStreams:Object.freeze([]),discTopology:topology}
+        : {resultKind:'probed',durationMs:1000,container:'matroska',videoStreams:Object.freeze([productStream]),
+          audioStreams:Object.freeze([]),subtitleStreams:Object.freeze([]),discTopology:null};
+      return Object.freeze({...body,sourceHandleDigest:canonicalDigest(handle),payloadDigest:canonicalDigest(body)});
+    }},
+    mediaEffectPort:{
+      async observeDiscPlayback({physicalMaterialReadHandle}){calls.push('observe-selected-payload');
+        const body={resultKind:'probed',durationMs:1000,container:'mpegts',videoStreams:Object.freeze([sourceStream]),
+          audioStreams:Object.freeze([]),subtitleStreams:Object.freeze([]),discTopology:topology};
+        return Object.freeze({probeEvidence:Object.freeze({...body,
+          sourceHandleDigest:canonicalDigest(physicalMaterialReadHandle),payloadDigest:canonicalDigest(body)}),
+        samplePointsPercent:Object.freeze([5,50,95]),passedSamplePointsPercent:Object.freeze([5,50,95]),decodeDigest:D('iso-decode')});
+      },
+      async verifyPlayback(){calls.push('verify-product');return Object.freeze({samplePointsPercent:Object.freeze([5,50,95]),
+        passedSamplePointsPercent:Object.freeze([5,50,95]),decodeDigest:D('product-decode')});},
+    },
+  };
+  const observed=await observeMandatoryMedia({...value,...runtime,observedAtMs:NOW});
+  assert.deepEqual(observed.actualGapCodes,[]);
+  assert.deepEqual(calls,['probe-source-container','probe-product','observe-selected-payload','verify-product']);
+  assert.equal(observed.primaryMediaObservations[0].dynamicRangeSummary.sourceDynamicRangeKind,'sdr');
+  assert.deepEqual(observed.primaryMediaObservations[0].sourceDecodeSummary.passedSamplePointsPercent,[5,50,95]);
+});
+
+test('UAT-135 proven ISO Source fails contract when topology-aware observation is absent', async () => {
+  const value=fixture({workspace:true,conversionOperation:'preserve'}),base=ports(value.identity,'hevc'),
+    topology=Object.freeze({discKind:'iso',topologyDigest:D('live-topology')});
+  await assert.rejects(() => observeMandatoryMedia({...value,...base,observedAtMs:NOW,
+    mediaProbe:{async probe(handle){const source=handle.identity.materialKey===value.sourceIdentity.materialKey,
+      body=source?{resultKind:'not_media',durationMs:0,videoStreams:Object.freeze([]),audioStreams:Object.freeze([]),
+        subtitleStreams:Object.freeze([]),discTopology:topology}:{resultKind:'probed',durationMs:1000,container:'matroska',
+        videoStreams:Object.freeze([]),audioStreams:Object.freeze([]),subtitleStreams:Object.freeze([]),discTopology:null};
+      return Object.freeze({...body,sourceHandleDigest:canonicalDigest(handle),payloadDigest:canonicalDigest(body)});
+    }},mediaEffectPort:{verifyPlayback:base.mediaEffectPort.verifyPlayback}}),
+  (error)=>error.code==='ARCA_MANDATORY_MEDIA_INVALID_CONTRACT');
+});
+
+test('UAT-135 an undecodable selected payload does not manufacture a dynamic-range Gap', async () => {
+  const value=fixture({workspace:true,conversionOperation:'preserve',sourceDynamicRangeKind:'sdr',outputDynamicRangeKind:'sdr'}),
+    base=ports(value.identity,'hevc','sdr','sdr'),topology=Object.freeze({discKind:'iso',topologyDigest:D('live-topology')}),
+    productStream=Object.freeze({streamIndex:0,dispositionDefault:true,codec:'hevc',width:1920,height:1080,
+      dynamicRangeKind:'sdr',pixelFormat:'yuv420p',colorRange:'limited',colorPrimaries:'bt709',colorTransfer:'bt709',colorMatrix:'bt709'}),
+    notMedia=Object.freeze({resultKind:'not_media',durationMs:0,videoStreams:Object.freeze([]),audioStreams:Object.freeze([]),
+      subtitleStreams:Object.freeze([]),discTopology:topology}),product=Object.freeze({resultKind:'probed',durationMs:1000,container:'matroska',
+      videoStreams:Object.freeze([productStream]),audioStreams:Object.freeze([]),subtitleStreams:Object.freeze([]),discTopology:null});
+  const observed=await observeMandatoryMedia({...value,...base,observedAtMs:NOW,
+    mediaProbe:{async probe(handle){const body=handle.identity.materialKey===value.sourceIdentity.materialKey?notMedia:product;
+      return Object.freeze({...body,sourceHandleDigest:canonicalDigest(handle),payloadDigest:canonicalDigest(body)});}},
+    mediaEffectPort:{async observeDiscPlayback({physicalMaterialReadHandle}){return Object.freeze({probeEvidence:Object.freeze({...notMedia,
+      sourceHandleDigest:canonicalDigest(physicalMaterialReadHandle),payloadDigest:canonicalDigest(notMedia)}),samplePointsPercent:Object.freeze([5,50,95]),
+      passedSamplePointsPercent:Object.freeze([]),decodeDigest:D('iso-decode-failed')});},verifyPlayback:base.mediaEffectPort.verifyPlayback}});
+  assert.deepEqual(observed.actualGapCodes,['playback_decode_failed']);
+  assert.equal(observed.primaryMediaObservations[0].dynamicRangeSummary.sourceDynamicRangeKind,'unknown');
+});
+
 test('UAT-131 formal mandatory Capability executes independent observation on ordinary and defect Packages', async () => {
   for (const authorized of [false, true]) {
     const value=fixture({authorized}),runtime=ports(value.identity),capabilities=createOnDeckCapabilityPorts({

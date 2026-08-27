@@ -425,7 +425,8 @@ function parseMpls(bytes, relativeLocation, streamByPath) {
     if (/^\d{5}$/u.test(clipId) && codec === 'M2TS') {
       const stream = streamByPath.get('BDMV/STREAM/' + clipId + '.M2TS');
       if (!stream) return null;
-      clips.push(Object.freeze({ clipId, relativeLocation:stream.relativeLocation, sizeBytes:stream.sizeBytes }));
+      clips.push(Object.freeze({ clipId, relativeLocation:stream.relativeLocation,
+        sizeBytes:stream.sizeBytes, inTimeTicks:inTime, outTimeTicks:outTime }));
       durationTicks += Math.max(0, outTime - inTime);
     }
     offset += 2 + length;
@@ -473,7 +474,7 @@ function finishTopology(discKind, identity, candidates, selected, members) {
   });
 }
 
-function inspectIso(location) {
+function inspectIsoPlaybackPlan(location) {
   let listed;
   try { listed = isoFiles(location) || udfFiles(location); } catch (_) { return null; }
   if (!listed) return null;
@@ -513,10 +514,37 @@ function inspectIso(location) {
       if (!listed) return null;
       return member;
     }).filter(Boolean);
-    return finishTopology('iso', canonicalDigest({ location, sizeBytes:fs.fstatSync(fd).size }), candidates, selected, members);
+    const topology = finishTopology('iso',
+      canonicalDigest({ location, sizeBytes:fs.fstatSync(fd).size }), candidates, selected, members);
+    const playItems = Object.freeze(selected.clips.map((clip, index) => Object.freeze({
+      sequence:index,
+      clipId:clip.clipId,
+      relativeLocation:clip.relativeLocation,
+      sizeBytes:clip.sizeBytes,
+      inTimeTicks:clip.inTimeTicks,
+      outTimeTicks:clip.outTimeTicks,
+    })));
+    const selectedPlan = {
+      playlistRelativeLocation:selected.relativeLocation,
+      durationMs:selected.durationMs,
+      playItems,
+      selectedPlanDigest:'',
+    };
+    selectedPlan.selectedPlanDigest = canonicalDigest({
+      schema:'helix.iso-selected-playback-plan@1',
+      topologyDigest:topology.topologyDigest,
+      playlistRelativeLocation:selectedPlan.playlistRelativeLocation,
+      durationMs:selectedPlan.durationMs,
+      playItems:selectedPlan.playItems,
+    });
+    return Object.freeze({ topology, selectedPlan:Object.freeze(selectedPlan), files });
   } finally {
     fs.closeSync(fd);
   }
+}
+
+function inspectIso(location) {
+  return inspectIsoPlaybackPlan(location)?.topology || null;
 }
 
 function listIsoImageFiles(location) {
@@ -619,6 +647,7 @@ function createDiscTopologyReader(options = {}) {
 module.exports = Object.freeze({
   createDiscTopologyReader,
   inspectIso,
+  inspectIsoPlaybackPlan,
   inspectDvd,
   listIsoImageFiles,
   MAX_FILES,

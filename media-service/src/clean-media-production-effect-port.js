@@ -6,7 +6,9 @@ const { spawn } = require('node:child_process');
 const { canonicalDigest } = require('./helix/contracts/canonical-json');
 const { compileFfmpegPipeline } = require('./clean-ffmpeg-pipeline');
 const { createFfmpegProcessRegistry } = require('./clean-ffmpeg-process-registry');
-const { inspectIso, listIsoImageFiles } = require('./helix/integrations/disc-topology');
+const { inspectIsoPlaybackPlan } = require('./helix/integrations/disc-topology');
+const { computeBoundedMaterialFingerprint } =
+  require('./helix/integrations/bounded-material-fingerprint');
 
 const ISO_SECTOR_BYTES = 2048;
 // BDAV/MPEG-TS often splits one HEVC access unit across PES packets and only
@@ -189,7 +191,7 @@ function createCleanMediaProductionEffectPort(options) {
     }
   }
 
-  async function copyIsoPayload(isoLocation, file, dest) {
+  async function copyIsoPayload(isoLocation, file, dest, control = {}) {
     const extents = Array.isArray(file?.extents) && file.extents.length
       ? file.extents
       : (Number.isSafeInteger(file?.extent) && Number.isSafeInteger(file?.sizeBytes)
@@ -214,6 +216,12 @@ function createCleanMediaProductionEffectPort(options) {
           let position = extent.sector * ISO_SECTOR_BYTES;
           let extentRemaining = Math.min(extent.length, remaining);
           while (extentRemaining > 0) {
+            if (typeof control.shouldContinue === 'function' && control.shouldContinue() === false) {
+              fail('LIBRA_MEDIA_ISO_PAYLOAD_CANCELLED', 'ISO payload observation authority changed.');
+            }
+            if (Number.isSafeInteger(control.deadlineAtMs) && Date.now() >= control.deadlineAtMs) {
+              fail('LIBRA_MEDIA_ISO_PAYLOAD_TIMEOUT', 'ISO payload observation exceeded its deadline.');
+            }
             const want = Math.min(buffer.length, extentRemaining);
             const {bytesRead} = await source.read(buffer, 0, want, position);
             if (bytesRead !== want) fail('LIBRA_MEDIA_ISO_PAYLOAD_READ', 'ISO payload could not be read exactly.');
@@ -237,50 +245,63 @@ function createCleanMediaProductionEffectPort(options) {
     } finally { await source.close(); }
   }
 
-  async function isoRemuxArguments(source, temporaryTarget) {
+  async function isoRemuxArguments(source, temporaryTarget, control = {}) {
     const primaries = source.primaryMembers || [];
     if (primaries.length !== 1) return null;
     const isoLocation = location(primaries[0].readHandle);
-    let topology;
-    try { topology = inspectIso(isoLocation); } catch (error) {
+    let inspection;
+    try { inspection = inspectIsoPlaybackPlan(isoLocation); } catch (error) {
       fail('LIBRA_MEDIA_ISO_TOPOLOGY_UNPROVEN', error.message, { causeCode: error.code });
     }
+    const topology = inspection?.topology;
     if (!topology || topology.discKind !== 'iso') {
       if (isoVolumeIdentifier(isoLocation)) {
         fail('LIBRA_MEDIA_ISO_TOPOLOGY_UNPROVEN', 'ISO volume has no proven Blu-ray topology.');
       }
       return null;
     }
-    let listing;
-    try { listing = listIsoImageFiles(isoLocation); } catch (error) {
-      fail('LIBRA_MEDIA_ISO_PAYLOAD_INVALID', error.message, { causeCode: error.code });
-    }
-    if (!listing) fail('LIBRA_MEDIA_ISO_PAYLOAD_INVALID', 'ISO payload listing could not be read.');
+    const listing = inspection.files;
     const byPath = new Map(listing.map((file) => [String(file.relativeLocation).replace(/\\/g, '/').toUpperCase(), file]));
-    const clips = (topology.members || []).filter((member) => member.role === 'primary_payload');
-    if (!clips.length) fail('LIBRA_MEDIA_ISO_PAYLOAD_INVALID', 'ISO topology has no selected primary payload.');
+    const playItems = inspection.selectedPlan?.playItems || [];
+    if (!playItems.length) fail('LIBRA_MEDIA_ISO_PAYLOAD_INVALID', 'ISO topology has no selected playback plan.');
     const extracted = [];
+    const extractedByPath = new Map();
     try {
-      for (const [index, clip] of clips.entries()) {
+      for (const clip of playItems) {
+        const key = String(clip.relativeLocation).replace(/\\/g, '/').toUpperCase();
+        if (extractedByPath.has(key)) continue;
         const listed = byPath.get(String(clip.relativeLocation).replace(/\\/g, '/').toUpperCase());
         if (!listed) fail('LIBRA_MEDIA_ISO_PAYLOAD_INVALID', 'ISO selected clip is absent from the image listing.');
-        const dest = temporaryTarget + '.iso-clip-' + String(index).padStart(5, '0') + '.m2ts';
-        await copyIsoPayload(isoLocation, listed, dest);
+        const dest = temporaryTarget + '.iso-clip-' + String(extracted.length).padStart(5, '0') + '.m2ts';
+        await copyIsoPayload(isoLocation, listed, dest, control);
         extracted.push(dest);
+        extractedByPath.set(key, dest);
       }
     } catch (error) {
       await Promise.all(extracted.map((file) => fs.promises.rm(file, { force:true })));
       throw error;
     }
     const cleanupExtracted = () => Promise.all(extracted.map((file) => fs.promises.rm(file, { force:true })));
-    if (extracted.length === 1) {
-      return Object.freeze({ argv:['-i', extracted[0]], cleanup: cleanupExtracted });
-    }
     const listPath = temporaryTarget + '.iso-concat.txt';
-    await fs.promises.writeFile(listPath, extracted.map((file) => "file '" + escapeConcat(file.replace(/\\/g, '/')) + "'").join('\n') + '\n', 'utf8');
+    const concatLines = [];
+    for (const item of playItems) {
+      const key = String(item.relativeLocation).replace(/\\/g, '/').toUpperCase();
+      const file = extractedByPath.get(key);
+      if (!file || !Number.isSafeInteger(item.inTimeTicks) ||
+          !Number.isSafeInteger(item.outTimeTicks) || item.outTimeTicks <= item.inTimeTicks) {
+        await cleanupExtracted();
+        fail('LIBRA_MEDIA_ISO_PAYLOAD_INVALID', 'ISO selected playback item is incomplete.');
+      }
+      concatLines.push("file '" + escapeConcat(file.replace(/\\/g, '/')) + "'");
+      concatLines.push('inpoint ' + (item.inTimeTicks / 45000).toFixed(6));
+      concatLines.push('outpoint ' + (item.outTimeTicks / 45000).toFixed(6));
+    }
+    await fs.promises.writeFile(listPath, concatLines.join('\n') + '\n', 'utf8');
     return Object.freeze({
       argv:['-f', 'concat', '-safe', '0', '-i', listPath],
       cleanup:async () => { await cleanupExtracted(); await fs.promises.rm(listPath, { force:true }); },
+      topology,
+      selectedPlan:inspection.selectedPlan,
     });
   }
 
@@ -337,6 +358,121 @@ function createCleanMediaProductionEffectPort(options) {
     }
     return Object.freeze({samplePointsPercent:Object.freeze(points),passedSamplePointsPercent:Object.freeze(passed),
       decodeDigest:canonicalDigest({schema:'libra.product-playback-decode@1',handleDigest:canonicalDigest(handle),points,passed})});
+  }
+
+  function matchesPhysicalHandle(handle, observed) {
+    const stat = observed?.stat;
+    return stat && Number(stat.size) === handle?.expectedSizeBytes &&
+      Number(stat.size) === handle?.identity?.sizeBytes &&
+      String(stat.ino) === handle?.identity?.inode &&
+      Number(stat.mtimeNs / 1_000_000n) === handle?.expectedMtimeNs &&
+      Number(stat.ctimeNs / 1_000_000n) === handle?.expectedCtimeNs &&
+      observed.fingerprintAlgorithm === handle?.identity?.fingerprintAlgorithm &&
+      observed.fingerprintVersion === handle?.identity?.fingerprintVersion &&
+      observed.contentFingerprint === handle?.identity?.contentFingerprint;
+  }
+
+  async function assertCurrentPhysicalHandle(handle) {
+    let observed;
+    try { observed = await computeBoundedMaterialFingerprint(location(handle)); }
+    catch (error) {
+      fail('ARCA_MEDIA_DISC_SOURCE_STALE', 'ISO Source reality could not be re-established.', {
+        causeCode:error?.code || 'FINGERPRINT_FAILED',
+      });
+    }
+    if (!matchesPhysicalHandle(handle, observed)) {
+      fail('ARCA_MEDIA_DISC_SOURCE_STALE', 'ISO Source changed outside its signed Physical Handle.');
+    }
+  }
+
+  async function observeDiscPlayback(request) {
+    const handle = request.physicalMaterialReadHandle;
+    const observedTopology = request.outputProbeEvidence?.discTopology;
+    if (!handle || observedTopology?.discKind !== 'iso' ||
+        typeof observedTopology.topologyDigest !== 'string') {
+      fail('ARCA_MEDIA_DISC_OBSERVATION_INPUT',
+        'Disc playback observation requires the original Physical Handle and fresh ISO topology.');
+    }
+    if (typeof options.mediaProbe?.probeAuthorizedInput !== 'function') {
+      fail('ARCA_MEDIA_DISC_PROBE_UNAVAILABLE',
+        'Disc playback observation requires the authorized selected-payload Probe port.');
+    }
+    if (typeof options.acceptanceScratchRoot !== 'string' ||
+        path.resolve(options.acceptanceScratchRoot) !== options.acceptanceScratchRoot) {
+      fail('ARCA_MEDIA_DISC_SCRATCH_UNAVAILABLE',
+        'Disc playback observation requires an absolute Platform acceptance scratch root.');
+    }
+    await fs.promises.mkdir(options.acceptanceScratchRoot, { recursive:true });
+    const temporaryRoot = await fs.promises.mkdtemp(path.join(
+      options.acceptanceScratchRoot, 'session-'));
+    let input = null;
+    let observationFailed = false;
+    try {
+      await assertCurrentPhysicalHandle(handle);
+      input = await isoRemuxArguments(
+        { primaryMembers:Object.freeze([{ readHandle:handle }]) },
+        path.join(temporaryRoot, 'selected'),
+        { deadlineAtMs:request.deadlineAtMs, shouldContinue:request.shouldContinue });
+      if (!input || input.topology?.discKind !== 'iso' ||
+          input.topology.topologyDigest !== observedTopology.topologyDigest ||
+          typeof input.selectedPlan?.selectedPlanDigest !== 'string') {
+        fail('ARCA_MEDIA_DISC_TOPOLOGY_DRIFT',
+          'Current ISO topology no longer matches the fresh authorized observation.');
+      }
+      await assertCurrentPhysicalHandle(handle);
+      const observationBindingDigest = canonicalDigest({
+        schema:'arca.disc-selected-payload-observation-binding@1',
+        originalHandleDigest:canonicalDigest(handle),
+        liveTopologyDigest:input.topology.topologyDigest,
+        selectedPlanDigest:input.selectedPlan.selectedPlanDigest,
+      });
+      const probeEvidence = await options.mediaProbe.probeAuthorizedInput(
+        handle, input.argv, input.topology);
+      if (probeEvidence.resultKind !== 'probed' || !probeEvidence.videoStreams?.length) {
+        await assertCurrentPhysicalHandle(handle);
+        return Object.freeze({ probeEvidence, samplePointsPercent:Object.freeze([5,50,95]),
+          passedSamplePointsPercent:Object.freeze([]), observationBindingDigest,
+          decodeDigest:canonicalDigest({ schema:'arca.disc-playback-decode@1',
+            observationBindingDigest, points:[5,50,95],passed:[] }) });
+      }
+      const durationMs = Math.max(1, Number(probeEvidence.durationMs ||
+        input.topology.selectedPlaylist?.durationMs || 1));
+      const points = [5,50,95], passed = [];
+      for (const point of points) {
+        const seconds = Math.max(0, durationMs / 1000 * point / 100);
+        try {
+          await runProcess(ffmpegPath, ['-hide_banner','-nostdin','-loglevel','error',
+            '-ss',seconds.toFixed(3),...input.argv,'-map','0:v:0','-frames:v','1','-f','null',
+            process.platform==='win32'?'NUL':'/dev/null'], 30_000, null,
+          { processRegistry, deadlineAtMs:request.deadlineAtMs,
+            shouldContinue:request.shouldContinue });
+          passed.push(point);
+        } catch (error) {
+          if (error?.code === 'LIBRA_MEDIA_FFMPEG_TIMEOUT' || error?.code === 'ENOENT' ||
+              error?.code === 'EACCES' || error?.code === 'LIBRA_MEDIA_FFMPEG_CANCELLED') throw error;
+        }
+      }
+      await assertCurrentPhysicalHandle(handle);
+      return Object.freeze({ probeEvidence, samplePointsPercent:Object.freeze(points),
+        passedSamplePointsPercent:Object.freeze(passed), observationBindingDigest,
+        decodeDigest:canonicalDigest({ schema:'arca.disc-playback-decode@1',
+          observationBindingDigest, points,passed }) });
+    } catch (error) {
+      observationFailed = true;
+      throw error;
+    } finally {
+      let cleanupFailure = null;
+      try { if (input?.cleanup) await input.cleanup(); }
+      catch (error) { cleanupFailure = error; }
+      try { await fs.promises.rm(temporaryRoot, { recursive:true, force:true }); }
+      catch (error) { cleanupFailure ||= error; }
+      if (cleanupFailure && !observationFailed) {
+        fail('ARCA_MEDIA_DISC_SCRATCH_RECLAIM_FAILED',
+          'Disc playback observation scratch could not be reclaimed.', {
+            causeCode:cleanupFailure.code || 'SCRATCH_RECLAIM_FAILED',
+          });
+      }
+    }
   }
 
   async function executeRemux(request) {
@@ -432,7 +568,7 @@ function createCleanMediaProductionEffectPort(options) {
 
   async function close(){await processRegistry.close();}
 
-  return Object.freeze({ executeRemux, executeTranscode,verifyTranscodeInput,verifyPlayback,close });
+  return Object.freeze({ executeRemux, executeTranscode,verifyTranscodeInput,verifyPlayback,observeDiscPlayback,close });
 }
 
 module.exports = Object.freeze({

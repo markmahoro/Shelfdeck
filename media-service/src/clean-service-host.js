@@ -1427,11 +1427,17 @@ async function createCleanServiceHost(options) {
         ((request) => platformIntegrations.resolveCurrentProductHandle(request)),
     });
   const ffmpegProcessRegistry = options.ffmpegProcessRegistry || createFfmpegProcessRegistry();
+  const arcaMediaAcceptanceScratchRoot = path.join(
+    path.resolve(options.dataDir), 'runtime', 'arca-acceptance-observation');
+  fs.rmSync(arcaMediaAcceptanceScratchRoot, { recursive:true, force:true });
+  fs.mkdirSync(arcaMediaAcceptanceScratchRoot, { recursive:true });
   const mediaEffectPort = options.mediaProductionEffectPort ||
     createCleanMediaProductionEffectPort({
       workspaceProductPort,
       ffmpegPath: options.ffmpegPath,
       ffmpegProcessRegistry,
+      mediaProbe,
+      acceptanceScratchRoot:arcaMediaAcceptanceScratchRoot,
     });
   const platformComputeRuntime = options.platformComputeRuntime || (options.mediaProbe ? undefined :
     await createCleanComputeDeviceRuntime({

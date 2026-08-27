@@ -4,7 +4,7 @@ Status: Helix-beta 已由 Product Owner 收窄为 **仅 Movie 的全功能版本
 
 Last updated: 2026-08-27
 
-## 0. Current UAT plan — UAT-127/UAT-134 repaired, clean rerun required
+## 0. Current UAT plan — UAT-127/UAT-135 repaired, clean rerun required
 
 `fb28e360467766b666a3d021e1668c6f09d255da`资格运行已因UAT-131固定为失败并保留现场。经Product Owner授权，SSOT §8.6.20
 有界补全、Libra授权瑕疵连续性、Arca独立Source/Product探测及Gap复核已完成本地实现与0失败回归。下一步只允许把该修复形成
@@ -32,6 +32,16 @@ Shelf Target Root的目录独占检查，仍只删除通过完整fence验证的�
 Contract/Manifest/Semantic回归均0失败，Architecture只保留既有baseline findings。下一步形成新的clean local main SHA，清理足够F盘
 空间后从不可变基线创建此前不存在的timestamp+SHA Canary与全新data，完整重跑全部协议；不得复用`185636805e`的13/23、
 UAT-127 floor或其他部分Evidence。
+
+最新冻结SHA `06aba07a4e279735af40ae8f47c93d818ff1141d`又因UAT-135固定失败：Arca独立媒体实检没有消费
+fresh Probe已经证明的ISO selected topology，而把UDF容器路径直接当普通流Probe/Decode，误拒绝实际合法的HEVC Product。
+失败现场、19/23主检查点与已通过UAT-127恢复证据均已封存，Service和媒体进程保持停止。修复没有改变Owner、Handoff、
+Shelf Standard或Handle authority；同一签封ISO经uncached topology与stat/fingerprint重验后，只物化一次按MPLS精确顺序/
+重复/in-out构成的selected payload session，fresh Probe与5/50/95 Decode共用并严格回收Service data专用scratch。
+真实UDF单/多clip、漂移与回收负向、完整Service、Admin Web及Contract/Manifest/Semantic回归均0失败，Architecture只保留
+既有baseline findings。下一步提交新的clean local main SHA，从不可变基线建立全新Canary/data/runtime/evidence，再完整重跑
+A–I、UAT-127、UAT-129、23/23、Aftercare、UAT-128、全量Off-deck、Shelf Deregistration和至少24小时观察；不得复用
+`06aba07a4e`的任何资格结论。
 
 ## 0. Current UAT plan — UAT-094–UAT-105 Aftercare internal hardening
 
