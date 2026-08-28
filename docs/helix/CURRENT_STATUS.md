@@ -1,12 +1,12 @@
 # ShelfDeck Clean Helix Current Status
 
-Status: Helix-beta 范围已收窄为仅 Movie 全链路。Movie Procurement与Movie Libra封口保持有效；Movie Arca已完成Handoff B Acceptance、On-deck、Shelf Entry、Deck Fact、Beta Aftercare、Off-deck及Shelf Deregistration完整闭环。当前精确状态为`MOVIE COLLECTION LIFECYCLE READY THROUGH SHELF DEREGISTRATION`。Product Owner 已于 2026-08-28 授权并完成 Helix-beta 首次 NAS 部署，随后以不改配置的方式升级。当前生产镜像为 `markmahoro/shelfdeck:helix-beta-20260828-0279bf5c8`，health `ok` / `helix-clean-v3`。Helix-beta 验收行见现行基线，尚未把任何 `HB-*` 标为验收 `PASS`。
+Status: Helix-beta 范围已收窄为仅 Movie 全链路。Movie Procurement与Movie Libra封口保持有效；Movie Arca已完成Handoff B Acceptance、On-deck、Shelf Entry、Deck Fact、Beta Aftercare、Off-deck及Shelf Deregistration完整闭环。当前精确状态为`MOVIE COLLECTION LIFECYCLE READY THROUGH SHELF DEREGISTRATION`。Product Owner 已于 2026-08-28 授权并完成 Helix-beta 首次 NAS 部署，随后以不改配置的方式升级。当前生产镜像为 `markmahoro/shelfdeck:helix-beta-20260828-0b3a268ef`，health `ok` / `helix-clean-v3`。Helix-beta 验收行见现行基线，尚未把任何 `HB-*` 标为验收 `PASS`。
 
 Last updated: 2026-08-28
 
 ## 0. Production upgrade — `/transcode` is Workspace; PROD-003/005 fixed
 
-2026-08-28 Product Owner 确认 `/transcode` 就是 Production Workspace，要求记录现网配置后修复并重启，配置不变。已升级到 `markmahoro/shelfdeck:helix-beta-20260828-0279bf5c8`（tar SHA-256 `1a1d62b5fdf5926d9dfc68b195676c499c662e04386bf5c01f646669410a7dc8`），未 `--helix-clean-init`。重启后 `CLEAN_WORKSPACE_ROOT_CONFLICT` 为 0，durable Workspace 仍是 `/transcode` `config_revision=2`，来源 `/media/Film`、收藏架 `/media/Film`、TMDB 代理 `http://192.168.12.230:7890` 均未改。重启约 1 分钟后已出现 `artifact_production` admitted。现网配置写在 `docs/v2/PRODUCTION_DEPLOYMENT.md`。OPEN 只剩 `PROD-004`（同根 Field/Shelf，明确保留）。
+2026-08-28 Product Owner 确认 `/transcode` 就是 Production Workspace，要求记录现网配置后修复并重启，配置不变。已升级到 `markmahoro/shelfdeck:helix-beta-20260828-0b3a268ef`（tar SHA-256 `82abcc12fd890583ac6b4fd712aa6795f8702828dfc4a55363d9554b55c9663f`），未 `--helix-clean-init`。重启后 `CLEAN_WORKSPACE_ROOT_CONFLICT` 为 0，durable Workspace 仍是 `/transcode` `config_revision=2`，来源 `/media/Film`、收藏架 `/media/Film`、TMDB 代理 `http://192.168.12.230:7890` 均未改。重启约 1 分钟后已出现 `artifact_production` admitted。现网配置写在 `docs/v2/PRODUCTION_DEPLOYMENT.md`。OPEN 只剩 `PROD-004`（同根 Field/Shelf，明确保留）。
 
 ## 0. Production deploy issue log opened — no new fixes authorized
 
