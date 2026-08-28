@@ -1,12 +1,16 @@
 # ShelfDeck Clean Helix Current Status
 
-Status: Helix-beta 范围已收窄为仅 Movie 全链路。Movie Procurement与Movie Libra封口保持有效；Movie Arca已完成Handoff B Acceptance、On-deck、Shelf Entry、Deck Fact、Beta Aftercare、Off-deck及Shelf Deregistration完整闭环。当前精确状态为`MOVIE COLLECTION LIFECYCLE READY THROUGH SHELF DEREGISTRATION`。Product Owner 已于 2026-08-28 授权并完成 Helix-beta 首次 NAS 部署。当前生产镜像为 `markmahoro/shelfdeck:helix-beta-20260828-a3e07a1e1`，health `ok` / `helix-clean-v3`。Helix-beta 验收行见现行基线，尚未把任何 `HB-*` 标为验收 `PASS`。
+Status: Helix-beta 范围已收窄为仅 Movie 全链路。Movie Procurement与Movie Libra封口保持有效；Movie Arca已完成Handoff B Acceptance、On-deck、Shelf Entry、Deck Fact、Beta Aftercare、Off-deck及Shelf Deregistration完整闭环。当前精确状态为`MOVIE COLLECTION LIFECYCLE READY THROUGH SHELF DEREGISTRATION`。Product Owner 已于 2026-08-28 授权并完成 Helix-beta 首次 NAS 部署，随后以不改配置的方式升级。当前生产镜像为 `markmahoro/shelfdeck:helix-beta-20260828-0b757574c`，health `ok` / `helix-clean-v3`。Helix-beta 验收行见现行基线，尚未把任何 `HB-*` 标为验收 `PASS`。
 
 Last updated: 2026-08-28
 
+## 0. Production upgrade — `/transcode` is Workspace; PROD-003/005 fixed
+
+2026-08-28 Product Owner 确认 `/transcode` 就是 Production Workspace，要求记录现网配置后修复并重启，配置不变。已升级到 `markmahoro/shelfdeck:helix-beta-20260828-0b757574c`（tar SHA-256 `1a1d62b5fdf5926d9dfc68b195676c499c662e04386bf5c01f646669410a7dc8`），未 `--helix-clean-init`。重启后 `CLEAN_WORKSPACE_ROOT_CONFLICT` 为 0，durable Workspace 仍是 `/transcode` `config_revision=2`，来源 `/media/Film`、收藏架 `/media/Film`、TMDB 代理 `http://192.168.12.230:7890` 均未改。重启约 1 分钟后已出现 `artifact_production` admitted。现网配置写在 `docs/v2/PRODUCTION_DEPLOYMENT.md`。OPEN 只剩 `PROD-004`（同根 Field/Shelf，明确保留）。
+
 ## 0. Production deploy issue log opened — no new fixes authorized
 
-2026-08-28 Product Owner 要求单独记录部署到飞牛生产后的问题，并明确先不修。台账为 `docs/helix/PRODUCTION_DEPLOY_ISSUE_LOG.md`。当前 OPEN 项为 `PROD-003`（观察「已扫描完成」被读成整理已结束，工作区当时为空）和 `PROD-004`（来源与收藏架同为 `/media/Film`）。`PROD-001`/`PROD-002` 仅为已热修的 HTTP 安全上下文崩溃记录。
+2026-08-28 Product Owner 要求单独记录部署到飞牛生产后的问题，并明确先不修。台账为 `docs/helix/PRODUCTION_DEPLOY_ISSUE_LOG.md`。`PROD-003`/`PROD-005` 已在 `0b757574c` 升级中修复；当前 OPEN 项为 `PROD-004`（来源与收藏架同为 `/media/Film`）。`PROD-001`/`PROD-002` 仅为已热修的 HTTP 安全上下文崩溃记录。
 
 ## 0. NAS SSH restored; historical images and databases cleared
 

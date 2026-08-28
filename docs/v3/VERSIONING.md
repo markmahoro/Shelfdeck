@@ -11,11 +11,11 @@ Last updated: 2026-08-28
 | 项 | 当前值 | 说明 |
 | --- | --- | --- |
 | Product line | Helix modular monolith in `media-service` | 架构权威为 `docs/helix/`；Helix-beta 仅为 Movie 全链路 |
-| Current release goal | `Helix Beta` deployment preparation | Product Owner 已授权从本地干净 `main@bdafe1869` 开始 NAS 打包；构建与 `--apply` 尚未执行；`media-desktop` 不在本次范围 |
-| Deployment candidate commit | `bdafe186974e3fe4467f8b4c483f96bf578f9dce` | 尚未建成镜像，不是已部署身份 |
-| Latest deployed image | `markmahoro/shelfdeck:helix-beta-20260828-a3e07a1e1` | 2026-08-28 Helix-beta 首次 NAS cutover |
-| Latest deployed commit | `a3e07a1e1` | 镜像内代码；随后 `8632fbdaf` 只修部署脚本 |
-| Latest deployed image SHA256 | `a97718db4207355e5a9dab72956c36057603881da41810aa8bd14aff3fe37e01` | 本地 tar 与 NAS 上传校验 hash |
+| Current release goal | `Helix Beta` NAS production | Movie-only 全链路已部署；`media-desktop` 不在本次范围 |
+| Deployment candidate commit | `0b757574c` | 当前生产镜像内代码 |
+| Latest deployed image | `markmahoro/shelfdeck:helix-beta-20260828-0b757574c` | 2026-08-28 Workspace 升级，未清库 |
+| Latest deployed commit | `0b757574c` | 记录 `/transcode` 为 Workspace，修复 PROD-003/005 |
+| Latest deployed image SHA256 | `1a1d62b5fdf5926d9dfc68b195676c499c662e04386bf5c01f646669410a7dc8` | 本地 tar 与 NAS 上传校验 hash |
 | Latest Git release tag | `v2.0.0` | 历史 release tag，不代表当前 Helix 生产镜像，本次部署不打 Git tag |
 | package versions | `1.0.0` | 当前不作为 Helix 阶段版本来源 |
 
