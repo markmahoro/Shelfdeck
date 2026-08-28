@@ -4,21 +4,16 @@ Status: Helix-beta 已由 Product Owner 收窄为 **仅 Movie 的全功能版本
 
 Last updated: 2026-08-29
 
-## 0. Local fix ready — PROD-016 discard leftover Workspace reclaim
+## 0. Deployed — PROD-014/015/016 lossless NAS upgrade
 
-remux/transcode/artifact 产出后立刻挂 working 引用，放弃时 Discard 能列入 cleanup。已放弃且没有引用的工作区由 leftover 回收器清 Foundation 材料。不改 SSOT：空引用仍不建空 cleanup Scope。未部署。
+已部署 `markmahoro/shelfdeck:helix-beta-20260829-83d3c4424`，未 `--helix-clean-init`：
 
-## 0. Local fix ready — PROD-015 fingerprint identity ignores mtime/ctime
+1. 转码预检从头编 24 帧，失败换路不冻 Run。
+2. 有界指纹身份只比 inode+size，忽略 mtime/ctime。
+3. remux/transcode/artifact 产出后立刻挂 working 引用；已放弃且无引用的工作区清 leftover。
+4. Formation 上架拆成提交验收 / 写入收藏架 / 完成上架。
 
-有界指纹身份门禁不再把 mtime/ctime 当「材料被换」。仍比对 inode+size，拷贝后仍核 Package 内容指纹。现场《怦然心动》`product.stage` 卡在 executing 需无损升级重启走 startup recovery。未部署。
-
-## 0. Local fix ready — Formation 上架 checklist
-
-验收与上架拆成提交验收 / 写入收藏架 / 完成上架。On-deck 正在 `product.stage` 时详情展开并显示「正在写入收藏架」。未部署。
-
-## 0. Local fix ready — transcode preflight matches the real encode
-
-预检改为从头用正式转码同一条管线编 24 帧；FFmpeg 失败或超时返回 `encoder_rejected_source_pipeline`（换下一条设备），不再当执行器崩溃冻 Run。不测偏色、不测整片可播。已冻结的《宇航员》不能从 terminal freeze 恢复，升级后需放弃并重新进整理（会再 remux）。未部署。
+升级方式：标准镜像替换并重启，保留 Field/Shelf/`/transcode`/集成。在途 FFmpeg 会被重启打断后按恢复续跑。台账 `PROD-014`/`PROD-015`/`PROD-016`。
 
 ## 0. Deployed — PROD-013 encode-device probe / blocked replan
 

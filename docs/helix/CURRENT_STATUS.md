@@ -1,20 +1,12 @@
 # ShelfDeck Clean Helix Current Status
 
-Status: Helix-beta 范围已收窄为仅 Movie 全链路。Movie Procurement与Movie Libra封口保持有效；Movie Arca已完成Handoff B Acceptance、On-deck、Shelf Entry、Deck Fact、Beta Aftercare、Off-deck及Shelf Deregistration完整闭环。当前精确状态为`MOVIE COLLECTION LIFECYCLE READY THROUGH SHELF DEREGISTRATION`。当前生产镜像为 `markmahoro/shelfdeck:helix-beta-20260829-0eb39ed97`（无损升级，无 `--helix-clean-init`），health `ok` / `helix-clean-v3`。Intake 席位 3，Workspace `/transcode` rev 2。Helix-beta 验收行见现行基线，尚未把任何 `HB-*` 标为验收 `PASS`。
+Status: Helix-beta 范围已收窄为仅 Movie 全链路。Movie Procurement与Movie Libra封口保持有效；Movie Arca已完成Handoff B Acceptance、On-deck、Shelf Entry、Deck Fact、Beta Aftercare、Off-deck及Shelf Deregistration完整闭环。当前精确状态为`MOVIE COLLECTION LIFECYCLE READY THROUGH SHELF DEREGISTRATION`。当前生产镜像为 `markmahoro/shelfdeck:helix-beta-20260829-83d3c4424`（无损升级，无 `--helix-clean-init`），health `ok` / `helix-clean-v3`。Intake 席位 3，Workspace `/transcode` rev 2。Helix-beta 验收行见现行基线，尚未把任何 `HB-*` 标为验收 `PASS`。
 
 Last updated: 2026-08-29
 
-## 0. Local fix ready — PROD-016 discarded Workspace remux leftover
+## 0. Production lossless upgrade — PROD-014/015/016
 
-2026-08-29 本地已改：产出后挂 working 引用；discarded/superseded 且无当前引用的工作区清 Foundation leftover。专项测试通过。未部署。现场两份 orphan remux 按授权删除 `/transcode` 工作区目录，原片不动。
-
-## 0. Local fix ready — PROD-015 staging fingerprint mtime fence
-
-2026-08-29 本地已改：有界指纹身份只比 inode+size，忽略 mtime/ctime。未部署。现场《怦然心动》On-deck stage 仍 `executing`，需升级重启后由 startup recovery 续跑。不改 P4 journaled crash 留 executing 的合同。
-
-## 0. Local fix ready — PROD-014 transcode preflight
-
-2026-08-29 本地已改：预检用正式转码管线从头编 24 帧，失败换路。未部署。已冻结的《宇航员》不能自动解冻，升级后需放弃重新进整理。
+2026-08-29 已部署 `helix-beta-20260829-83d3c4424`（git `83d3c4424`，tar SHA-256 `1265a473e7d4966610e547b9b530e24d407584ffdea2ba3fe8cfc1cc34c4de4f`），未 `--helix-clean-init`。readiness `helix-clean-v3` / 184 tables / findings []。含转码预检 24 帧、指纹忽略 mtime/ctime、discard leftover 回收、上架 checklist。两份 orphan remux 目录已在升级前删除。Field/Shelf/`/transcode`/集成未改。
 
 ## 0. Production lossless upgrade — PROD-013 encode-device probe
 

@@ -33,9 +33,9 @@
 | PROD-011 | 片源探测已能判定本地加工补不上时，仍先整盘 remux 再寻源 | `EXECUTION` / Libra 媒体阶段顺序 | 媒体整理工作区 | Medium | **FIXED** 无损升级 `helix-beta-20260829-e4d601cd9`。 |
 | PROD-012 | 用户放弃后，工作区仍留「等待重新入库」待整理行 | `USER_EXPERIENCE` / Formation 当前 Subject 与结束历史叠在一起 | 媒体整理工作区 | Medium | **FIXED** 无损升级 `helix-beta-20260829-e4d601cd9`。 |
 | PROD-013 | 三部转码停在「编码设备未就绪」；QSV/CPU 能编码但自检全失败 | `EXECUTION` / 编码设备探测校验过严 | 媒体整理工作区 | High | **FIXED** 无损升级 `helix-beta-20260829-0eb39ed97`。 |
-| PROD-014 | 转码输入预检用跳转硬解，与正式转码命令不同；超时冻《宇航员》 | `EXECUTION` / 预检命令不是真转码缩小版 | 媒体整理工作区 | High | **LOCAL FIX READY / 待无损升级**。预检从头编 24 帧；失败换路不冻 Run。已冻结片子需放弃后重新进整理。 |
-| PROD-015 | 《怦然心动》上架拷贝后卡在 `product.stage` executing | `EXECUTION` / 指纹门禁把 mtime 当换材料 | 媒体整理工作区 | High | **LOCAL FIX READY / 待无损升级**。指纹身份只比 inode+size；mtime/ctime 触摸不再判材料变了。内容指纹比对仍在。 |
-| PROD-016 | 放弃整理后 Workspace remux 没删，`/transcode` 空间未释放 | `EXECUTION` / Discard 只清已挂的 Libra 引用 | 媒体整理工作区、Workspace | High | **LOCAL FIX READY / 待无损升级**。产出后立刻挂 working 引用；已放弃且无引用的工作区由 leftover 回收器清 Foundation 材料。 |
+| PROD-014 | 转码输入预检用跳转硬解，与正式转码命令不同；超时冻《宇航员》 | `EXECUTION` / 预检命令不是真转码缩小版 | 媒体整理工作区 | High | **FIXED** 无损升级 `helix-beta-20260829-83d3c4424`。已冻结片子需放弃后重新进整理。 |
+| PROD-015 | 《怦然心动》上架拷贝后卡在 `product.stage` executing | `EXECUTION` / 指纹门禁把 mtime 当换材料 | 媒体整理工作区 | High | **FIXED** 无损升级 `helix-beta-20260829-83d3c4424`。重启走 startup recovery。 |
+| PROD-016 | 放弃整理后 Workspace remux 没删，`/transcode` 空间未释放 | `EXECUTION` / Discard 只清已挂的 Libra 引用 | 媒体整理工作区、Workspace | High | **FIXED** 无损升级 `helix-beta-20260829-83d3c4424`。两份 orphan 目录升级前已删。 |
 
 PROD-001、PROD-002 的共同环境前提：生产管理台是 `http://192.168.12.230`，浏览器不提供 `crypto.randomUUID` / `crypto.subtle`。这不是传输加密设计，只是浏览器 API 限制。未改成 HTTPS。
 
@@ -212,13 +212,13 @@ Product Owner 随后确认 `/transcode` 就是 Production Workspace，要求记�
 
 部署：`helix-beta-20260829-0eb39ed97`，tar SHA-256 `e95c8bfdad460770064c5a66138813d1e1da5dae8985063719a5c798369d43ea`，无 `--helix-clean-init`。升级后 QSV/VAAPI/CPU `ready`；《怦然心动》GPU 转码执行中，《影子写手》等写槽；《宇航员》输入校验 `LIBRA_MEDIA_FFMPEG_TIMEOUT` 后冻结，不在本项范围内自动解冻。
 
-## 15. PROD-014 — 转码预检不是正式命令的缩小版（LOCAL FIX READY）
+## 15. PROD-014 — 转码预检不是正式命令的缩小版（FIXED）
 
 发现：2026-08-29。《宇航员》在设备就绪后做 `libra.transcode.input.verify`，30 秒超时冻住。预检带 `-ss` 跳到 5%/50%/95% 再 QSV 硬解编 8 帧并 copy 全部音轨字幕；正式转码从 0 开始、无 seek。demux 跳转 115ms 正常。超时被当成 `executor` 崩溃，不能换 VAAPI/CPU。
 
-修复（本地，未部署）：预检改为正式管线从头编 24 帧；失败或超时返回 `encoder_rejected_source_pipeline`，评估 `strategy_rejected` 后换下一条设备。不测偏色、不测整片可播。Terminal freeze 不能 resume；已冻的《宇航员》升级后需放弃并重新进整理。待无损升级。
+修复：预检改为正式管线从头编 24 帧；失败或超时返回 `encoder_rejected_source_pipeline`，评估 `strategy_rejected` 后换下一条设备。不测偏色、不测整片可播。Terminal freeze 不能 resume；已冻的《宇航员》升级后需放弃并重新进整理。已无损升级 `helix-beta-20260829-83d3c4424`。
 
-## 16. PROD-015 — 上架指纹把 mtime 触摸当成材料被换（LOCAL FIX READY）
+## 16. PROD-015 — 上架指纹把 mtime 触摸当成材料被换（FIXED）
 
 发现：2026-08-29。《怦然心动》转码成功并进入 Arca On-deck `arca.inventory.product.stage@1`。staging 目录里只有 banner/fanart/clearlogo；随后 Event 停在 `executing`。日志是 `PHYSICAL_MATERIAL_STAT_FENCE_CHANGED`，对象是刚写入的 `怦然心动 (2010).nfo.tmp-…`。catch 删了 tmp 再把错误抛出去。
 
@@ -226,9 +226,9 @@ Product Owner 随后确认 `/transcode` 就是 Production Workspace，要求记�
 
 P4 对 journaled `material_commit` 的 Executor throw 仍会把 Attempt 留在 `executing` 等启动恢复，这是既有合同，本项不改。现场卡住的 Event 要等无损升级重启走 startup recovery；mtime 门禁取消后这次误伤不再发生。
 
-修复（本地，未部署）：`sameIdentity` 只比 inode+size。采样期间换 inode 或改大小仍 `PHYSICAL_MATERIAL_STAT_FENCE_CHANGED`。拷贝后仍用 middle-256KiB SHA-256 对 Package 内容指纹。待无损升级。
+修复：`sameIdentity` 只比 inode+size。采样期间换 inode 或改大小仍 `PHYSICAL_MATERIAL_STAT_FENCE_CHANGED`。拷贝后仍用 middle-256KiB SHA-256 对 Package 内容指纹。已无损升级 `helix-beta-20260829-83d3c4424`。重启走 startup recovery。
 
-## 17. PROD-016 — 放弃整理后 Workspace remux 未释放（OPEN）
+## 17. PROD-016 — 放弃整理后 Workspace remux 未释放（FIXED）
 
 发现：2026-08-29，Product Owner 放弃《宇航员》后要求核对空间是否释放。只读现场：
 
@@ -241,9 +241,9 @@ P4 对 journaled `material_commit` 的 Executor throw 仍会把 Attempt 留在 `
 
 根因：Discard 只把已挂到 Libra Workspace Reference 的材料列入 cleanup。转码输入校验冻住时 remux 已写入 Foundation Workspace，但还没 `attach_working`，所以放弃时当成「工作区是空的」。SSOT 禁止用目录扫描补 cleanup member，所以不能在 Discard 事务里从 Foundation 材料编造 Scope。
 
-修复（本地，未部署）：
+修复：
 
 1. remux / transcode / artifact / import 产出后立刻 `attach_working`。以后再放弃，Discard 能看到引用并建立 cleanup Scope。
 2. 已放弃或已被替代、工作区仍 active、当前没有未释放引用时，leftover 回收器删除 Foundation 材料并收空目录。不新建空 cleanup Scope，不改 Discard 合同。
 
-现场两份 orphan（宇航员约 32.3 GiB、女性瘾者约 35.5 GiB）在代码落地后按 Product Owner 授权清掉 `/transcode` 下对应工作区目录，不碰 `/media/Film`。升级后 leftover 回收器会把库里仍标 active 的 Foundation 行收成 reclaimed。待无损升级。
+现场两份 orphan（宇航员约 32.3 GiB、女性瘾者约 35.5 GiB）在升级前按授权清掉 `/transcode` 下对应工作区目录，不碰 `/media/Film`。已无损升级 `helix-beta-20260829-83d3c4424`。
