@@ -1,12 +1,12 @@
 # ShelfDeck Clean Helix Current Status
 
-Status: Helix-beta 范围已收窄为仅 Movie 全链路。Movie Procurement与Movie Libra封口保持有效；Movie Arca已完成Handoff B Acceptance、On-deck、Shelf Entry、Deck Fact、Beta Aftercare、Off-deck及Shelf Deregistration完整闭环。当前精确状态为`MOVIE COLLECTION LIFECYCLE READY THROUGH SHELF DEREGISTRATION`。当前生产镜像为 `markmahoro/shelfdeck:helix-beta-20260829-4c8b965b6`（无损升级，无 `--helix-clean-init`），health `ok` / `helix-clean-v3`。Intake 席位 3，Workspace `/transcode` rev 2。Helix-beta 验收行见现行基线，尚未把任何 `HB-*` 标为验收 `PASS`。
+Status: Helix-beta 范围已收窄为仅 Movie 全链路。Movie Procurement与Movie Libra封口保持有效；Movie Arca已完成Handoff B Acceptance、On-deck、Shelf Entry、Deck Fact、Beta Aftercare、Off-deck及Shelf Deregistration完整闭环。当前精确状态为`MOVIE COLLECTION LIFECYCLE READY THROUGH SHELF DEREGISTRATION`。当前生产镜像为 `markmahoro/shelfdeck:helix-beta-20260829-bd5cc15b4`（无损升级，无 `--helix-clean-init`），health `ok` / `helix-clean-v3`。Intake 席位 3，Workspace `/transcode` rev 2。Helix-beta 验收行见现行基线，尚未把任何 `HB-*` 标为验收 `PASS`。
 
 Last updated: 2026-08-29
 
-## 0. Local fix ready — PROD-019 Handoff B reject discard
+## 0. Production lossless upgrade — PROD-019
 
-2026-08-29 本地已改：Handoff B 拒收后页面直接放出「放弃整理」，不必先冻。专项测试通过。未部署。
+2026-08-29 已部署 `helix-beta-20260829-bd5cc15b4`（git `bd5cc15b4`，tar SHA-256 `1be2010ff441bcf0721dbae866991361df65cb802c30a7bacd096ed9eaf3e610`），未 `--helix-clean-init`。readiness `helix-clean-v3` / 184 tables / findings []。Handoff B 拒收后可直接放弃。《影子写手》刷新后可点「放弃整理」。Field/Shelf/`/transcode`/集成未改。
 
 ## 0. Production lossless upgrade — PROD-017/018
 
