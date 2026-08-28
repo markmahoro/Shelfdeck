@@ -1,4 +1,5 @@
 import { newOpaqueId } from './id';
+import { sha256Hex } from './sha256';
 
 export type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };
 
@@ -499,8 +500,11 @@ function canonicalJson(value: JsonValue): string {
 
 export async function canonicalDigest(value: JsonValue): Promise<string> {
   const bytes = new TextEncoder().encode(canonicalJson(value));
-  const digest = await crypto.subtle.digest('SHA-256', bytes);
-  return Array.from(new Uint8Array(digest), (item) => item.toString(16).padStart(2, '0')).join('');
+  if (typeof crypto.subtle?.digest === 'function') {
+    const digest = await crypto.subtle.digest('SHA-256', bytes);
+    return Array.from(new Uint8Array(digest), (item) => item.toString(16).padStart(2, '0')).join('');
+  }
+  return sha256Hex(bytes);
 }
 
 async function responseJson<T>(response: Response): Promise<T> {
