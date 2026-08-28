@@ -163,6 +163,32 @@ function definitions(schemaManifest) {
             'fence_digest', 'state',
           ],
         },
+        list_materials: {
+          kind: 'select-all',
+          tableId: 'fx_workspace_materials',
+          columns: [
+            'workspace_id', 'material_handle_id', 'material_key', 'endpoint_id',
+            'mount_scope_id', 'inode', 'fingerprint_algorithm', 'fingerprint_version', 'content_fingerprint',
+            'relative_path', 'digest_algorithm', 'digest_hex', 'size_bytes',
+            'reference_revision', 'owner_domain', 'process_id', 'root_handle_ref',
+            'access_scope', 'handle_schema_ref', 'handle_json', 'handle_digest',
+            'fence_digest', 'state',
+          ],
+          safeIntegers: true,
+        },
+        restamp_material_root: {
+          kind: 'update',
+          tableId: 'fx_workspace_materials',
+          setColumns: [
+            'root_handle_ref', 'handle_json', 'handle_digest', 'fence_digest',
+          ],
+          keyColumns: ['workspace_id', 'material_handle_id'],
+          compareColumns: [
+            { column: 'state', parameter: 'expected_state' },
+            { column: 'handle_digest', parameter: 'expected_handle_digest' },
+            { column: 'fence_digest', parameter: 'expected_fence_digest' },
+          ],
+        },
         find_artifact: {
           kind: 'select-one',
           tableId: 'fx_artifact_registry',
@@ -217,6 +243,49 @@ function mapMaterial(row) {
     fail('CLEAN_WORKSPACE_MATERIAL_CORRUPT', 'Stored Workspace Material Handle digest drifted.');
   }
   return Object.freeze(handle);
+}
+
+function materialHandleFenceDigest(handle) {
+  return canonicalDigest({
+    schema: 'foundation.workspace-material-handle-fence@1',
+    handleId: handle.handleId,
+    workspaceId: handle.workspaceId,
+    ownerDomain: handle.ownerDomain,
+    processId: handle.processId,
+    endpointId: handle.endpointId,
+    materialKey: handle.materialKey,
+    physicalIdentity: handle.physicalIdentity,
+    rootHandleRef: handle.rootHandleRef,
+    relativePath: handle.relativePath,
+    digestAlgorithm: handle.digestAlgorithm,
+    digestHex: handle.digestHex,
+    sizeBytes: handle.sizeBytes,
+    referenceRevision: handle.referenceRevision,
+    accessScope: handle.accessScope,
+  });
+}
+
+function restampHandleRoot(handle, rootHandleRef) {
+  const next = {
+    schemaRef: handle.schemaRef,
+    schemaVersion: handle.schemaVersion,
+    handleId: handle.handleId,
+    workspaceId: handle.workspaceId,
+    ownerDomain: handle.ownerDomain,
+    processId: handle.processId,
+    endpointId: handle.endpointId,
+    materialKey: handle.materialKey,
+    physicalIdentity: handle.physicalIdentity,
+    rootHandleRef,
+    relativePath: handle.relativePath,
+    digestAlgorithm: handle.digestAlgorithm,
+    digestHex: handle.digestHex,
+    sizeBytes: handle.sizeBytes,
+    referenceRevision: handle.referenceRevision,
+    accessScope: handle.accessScope,
+  };
+  next.fenceDigest = materialHandleFenceDigest(next);
+  return Object.freeze(next);
 }
 
 function mapArtifact(row) {
@@ -287,28 +356,75 @@ function createCleanWorkspaceProductPort(options) {
       execute: body,
     }])[participantId];
 
+  let materialRootRestampCompleted = false;
+
+  function restampMismatchedMaterialRoots(root) {
+    if (materialRootRestampCompleted) return;
+    const restamped = execute(
+      'clean_workspace_material_root_restamp',
+      'execution-foundation',
+      repositories.foundation,
+      (context) => {
+        const repo = context.repository(repositories.foundation.repositoryId);
+        const rows = repo.invoke('list_materials', {});
+        let count = 0;
+        for (const row of rows) {
+          if (row.state !== 'active' || row.root_handle_ref === root.rootHandleRef) continue;
+          const next = restampHandleRoot(mapMaterial(row), root.rootHandleRef);
+          const changed = repo.invoke('restamp_material_root', {
+            root_handle_ref: next.rootHandleRef,
+            handle_json: canonicalJson(next),
+            handle_digest: canonicalDigest(next),
+            fence_digest: next.fenceDigest,
+            workspace_id: row.workspace_id,
+            material_handle_id: row.material_handle_id,
+            expected_state: 'active',
+            expected_handle_digest: row.handle_digest,
+            expected_fence_digest: row.fence_digest,
+          });
+          if (changed.changes !== 1) {
+            fail('CLEAN_WORKSPACE_MATERIAL_ROOT_RESTAMP',
+              'Workspace material root restamp lost its CAS.', {
+                workspaceId: row.workspace_id,
+                materialHandleId: row.material_handle_id,
+              });
+          }
+          count += 1;
+        }
+        return count;
+      },
+    );
+    materialRootRestampCompleted = true;
+    if (restamped > 0) {
+      console.log('[shelfdeck] restamped workspace material handles to durable root', {
+        restamped,
+        durableRootHandleRef: root.rootHandleRef,
+      });
+    }
+  }
+
   function ensureRoot() {
     fs.mkdirSync(absoluteRoot, { recursive: true });
-    return execute('clean_workspace_root_ensure', 'platform-settings', repositories.platform, (context) => {
+    const current = execute('clean_workspace_root_ensure', 'platform-settings', repositories.platform, (context) => {
       const repo = context.repository(repositories.platform.repositoryId);
       const existing = repo.invoke('find_root', { root_id: rootId });
       if (existing) {
-        const current=rootSnapshot({rootId:existing.root_id,endpointId:existing.endpoint_id,
+        const snapshotNow=rootSnapshot({rootId:existing.root_id,endpointId:existing.endpoint_id,
           mountScopeId:existing.mount_scope_id,mountScopeRevision:Number(existing.mount_scope_revision),
           configRevision:Number(existing.config_revision),capabilityDigest:existing.capability_digest,
           rootHandleRef:existing.root_handle_ref});
         if (path.resolve(existing.resolved_root) !== absoluteRoot ||
-            existing.snapshot_digest !== current.snapshotDigest || existing.state !== 'active') {
+            existing.snapshot_digest !== snapshotNow.snapshotDigest || existing.state !== 'active') {
           fail('CLEAN_WORKSPACE_ROOT_CONFLICT',
             'Configured Workspace root conflicts with its durable Platform snapshot.',
             {
               configuredRoot: absoluteRoot,
               durableRoot: existing.resolved_root,
               durableState: existing.state,
-              snapshotMatches: existing.snapshot_digest === current.snapshotDigest,
+              snapshotMatches: existing.snapshot_digest === snapshotNow.snapshotDigest,
             });
         }
-        return current;
+        return snapshotNow;
       }
       repo.invoke('insert_root', {
         root_id: rootId,
@@ -327,6 +443,8 @@ function createCleanWorkspaceProductPort(options) {
       });
       return snapshot;
     });
+    restampMismatchedMaterialRoots(current);
+    return current;
   }
 
   function observeSpace(request) {
@@ -518,6 +636,7 @@ function createCleanWorkspaceProductPort(options) {
 
   function materializeArtifact(request) {
     const identity = artifactEffectIdentity(request);
+    const root = ensureRoot();
     const runtimeAuthority = runtimeEffectAuthority(request);
     const bytes = Buffer.isBuffer(request?.bytes)
       ? request.bytes
@@ -598,7 +717,7 @@ function createCleanWorkspaceProductPort(options) {
       endpointId,
       materialKey,
       physicalIdentity,
-      rootHandleRef,
+      rootHandleRef: root.rootHandleRef,
       relativePath: identity.relativePath,
       digestAlgorithm: 'sha256',
       digestHex,
@@ -615,7 +734,7 @@ function createCleanWorkspaceProductPort(options) {
       endpointId,
       materialKey,
       physicalIdentity,
-      rootHandleRef,
+      rootHandleRef: root.rootHandleRef,
       relativePath: identity.relativePath,
       digestAlgorithm: 'sha256',
       digestHex,
@@ -738,7 +857,7 @@ function createCleanWorkspaceProductPort(options) {
           reference_revision: 1,
           owner_domain: 'libra',
           process_id: request.libraRunId,
-          root_handle_ref: rootHandleRef,
+          root_handle_ref: root.rootHandleRef,
           access_scope: 'workspace_material_read',
           handle_schema_ref: workspaceMaterialHandle.schemaRef,
           handle_json: canonicalJson(workspaceMaterialHandle),
@@ -1516,13 +1635,13 @@ function createCleanWorkspaceProductPort(options) {
       workspaceId:request.workspaceId, materialKey, relativePath, referenceRevision:1 });
     const handleBasis = { schemaRef:'helix://contracts/types/WorkspaceMaterialHandle/v1', schemaVersion:1,
       handleId, workspaceId:request.workspaceId, ownerDomain:'libra', processId:request.libraRunId,
-      endpointId, materialKey, physicalIdentity, rootHandleRef, relativePath,
+      endpointId, materialKey, physicalIdentity, rootHandleRef:root.rootHandleRef, relativePath,
       digestAlgorithm:'middle-256k-sha256', digestHex, sizeBytes, referenceRevision:1,
       accessScope:'workspace_material_read' };
     const workspaceMaterialHandle = Object.freeze({ ...handleBasis,
       fenceDigest:canonicalDigest({ schema:'foundation.workspace-material-handle-fence@1',
         handleId, workspaceId:request.workspaceId, ownerDomain:'libra', processId:request.libraRunId,
-        endpointId, materialKey, physicalIdentity, rootHandleRef, relativePath,
+        endpointId, materialKey, physicalIdentity, rootHandleRef:root.rootHandleRef, relativePath,
         digestAlgorithm:'middle-256k-sha256', digestHex, sizeBytes, referenceRevision:1,
         accessScope:'workspace_material_read' }) });
     const committed = execute('clean_workspace_media_effect_commit', 'execution-foundation', repositories.foundation, (context) => {
@@ -1548,7 +1667,7 @@ function createCleanWorkspaceProductPort(options) {
         fingerprint_algorithm:bounded.fingerprintAlgorithm, fingerprint_version:bounded.fingerprintVersion,
         content_fingerprint:bounded.contentFingerprint, relative_path:relativePath, digest_algorithm:'middle-256k-sha256',
         digest_hex:digestHex, size_bytes:sizeBytes, reference_revision:1, owner_domain:'libra',
-        process_id:request.libraRunId, root_handle_ref:rootHandleRef, access_scope:'workspace_material_read',
+        process_id:request.libraRunId, root_handle_ref:root.rootHandleRef, access_scope:'workspace_material_read',
         handle_schema_ref:workspaceMaterialHandle.schemaRef, handle_json:canonicalJson(workspaceMaterialHandle),
         handle_digest:canonicalDigest(workspaceMaterialHandle), fence_digest:workspaceMaterialHandle.fenceDigest,
         state:'active' });

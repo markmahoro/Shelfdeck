@@ -26,6 +26,7 @@
 | PROD-004 | 文件来源与收藏架都指向容器路径 `/media/Film` | 配置选择 / 后续 Settlement 风险 | 文件来源配置、收藏架配置 | Medium | **OPEN / 先不修**（SSOT 允许同根，不是当前空工作区的原因） |
 | PROD-005 | 一部都没上架；整理工作区数量看起来卡住 | 配置 / Workspace 根未生效 | 系统设置 Workspace、媒体整理工作区 | Critical | **FIXED by restart on upgrade**。`/transcode` 就是本机 Production Workspace；升级重启后按 durable `/transcode` 生效。冲突错误现带 configured/durable 路径。配置不变。 |
 | PROD-006 | 打开媒体整理工作区卡在「正在读取媒体整理工作区…」 | `USER_EXPERIENCE` / 全量分页 | 媒体整理工作区 | Critical | **FIXED**。页面原先等 897 条全部拉完才渲染；现先画第一页，其余后台补齐，轮询只刷新首页。 |
+| PROD-007 | 整理协调器 `P9_REFERENCE_MATERIAL_CORRUPT`，海报/NFO 写得出却挂不上工作区 | `EXECUTION` / Workspace root handle | 媒体整理工作区 | Critical | **FIXED**。写材料时误用 `configRevision:1` 的 root handle，与 durable `config_revision=2` 的工作区身份不一致。启动时无损重盖章，不改字节、不清库。 |
 
 PROD-001、PROD-002 的共同环境前提：生产管理台是 `http://192.168.12.230`，浏览器不提供 `crypto.randomUUID` / `crypto.subtle`。这不是传输加密设计，只是浏览器 API 限制。未改成 HTTPS。
 
@@ -96,3 +97,13 @@ Product Owner 随后确认 `/transcode` 就是 Production Workspace，要求记�
 随后用户点「需要处理」看到空表。库内仍有 41 条 `attention_required`（身份冲突/待确认/冻结），但首页按 `added_at_ms` 倒序全是新进的整理中条目；10 秒轮询还会打断后台全量续拉。已改为点筛选时按 classification 向服务取数，且轮询不再取消续拉。
 
 冻结根因已核对：Related NFO `<actor>` 超过 `MetadataObservation.peopleHints` 上限 64，补资料结果被 P4 拒绝。实现改为 NFO 解析与观察组装都截到 64。已冻结的 Run 仍须用户放弃后重新采购，代码不会自动解冻。
+
+## 8. PROD-007 — Workspace 材料 root handle 与 durable 根身份不一致（FIXED）
+
+发现：2026-08-28，服务 health `ok`、FFmpeg 仍在 remux，但 `ready-libra-runs` / `active-libra-runs` 进入 `attention`，日志刷 `P9_REFERENCE_MATERIAL_CORRUPT`（Foundation Handle and hot columns do not match the Decision），并夹 `P9_MEDIA_OUTPUT_CONTINUITY`。
+
+现场只读：`platform_workspace_roots.config_revision=2`，`root_handle_ref=de6dabd2…`。`fx_workspace_materials` 全部盖的是 genesis `configRevision:1` 摘要 `d8bcebf2…`。部署前材料约 179 条、Libra `libra_workspace_material_refs` 为 0（挂账从未成功），工作区目录与海报/NFO/remux 字节都在。
+
+根因：保存 `/transcode` 把 Platform 根推到 revision 2；开 Workspace / 验收目标用这份 durable 快照，写材料却用端口里写死的 revision 1 `rootHandleRef`。文件是真的，印章对不上。
+
+修复：写材料改盖 `ensureRoot()` 的 durable `rootHandleRef`。启动时对 `root_handle_ref` 不一致的 active 材料做 CAS 重盖章（只改 `root_handle_ref` / `handle_json` / `handle_digest` / `fence_digest`），`handleId`、指纹、inode、相对路径和磁盘字节不变。未 `--helix-clean-init`，未放弃进行中的 Run。

@@ -264,3 +264,76 @@ test('frame sink journals stable target identity before accepting real member by
       }),
     );
   }));
+
+function durableRootAfterRevision(first, configRevision) {
+  const rootHandleRef = canonicalDigest({
+    schema: 'platform.workspace-root-handle@1',
+    rootId: first.rootId,
+    endpointId: first.endpointId,
+    mountScopeId: first.mountScopeId,
+    mountScopeRevision: first.mountScopeRevision,
+    configRevision,
+    capabilityDigest: first.capabilityDigest,
+  });
+  const snapshotDigest = canonicalDigest({
+    rootId: first.rootId,
+    ownerScope: 'libra',
+    rootKind: 'production-workspace',
+    endpointId: first.endpointId,
+    mountScopeId: first.mountScopeId,
+    mountScopeRevision: first.mountScopeRevision,
+    configRevision,
+    capabilityDigest: first.capabilityDigest,
+    state: 'active',
+    rootHandleRef,
+  });
+  return { rootHandleRef, snapshotDigest };
+}
+
+test('durable config revision 2 stamps and losslessly restamps Workspace material handles', () =>
+  fixture(({ databasePath, workspaceRoot, dependencies }) => {
+    const port = createCleanWorkspaceProductPort({ ...dependencies, rootPath: workspaceRoot });
+    const firstRoot = port.rootSnapshot();
+    const first = port.materializeArtifact(request());
+    assert.equal(first.workspaceMaterialHandle.rootHandleRef, firstRoot.rootHandleRef);
+    const target = path.join(workspaceRoot, request().workspaceId, 'artifacts', 'movie.nfo');
+    const originalBytes = fs.readFileSync(target);
+    const originalHandleId = first.workspaceMaterialHandle.handleId;
+    const originalDigest = first.workspaceMaterialHandle.digestHex;
+    const bumped = durableRootAfterRevision(firstRoot, 2);
+    const seed = new Database(databasePath);
+    seed.prepare(`UPDATE platform_workspace_roots
+      SET config_revision=2, root_handle_ref=?, snapshot_digest=?
+      WHERE root_id=?`).run(bumped.rootHandleRef, bumped.snapshotDigest, firstRoot.rootId);
+    seed.close();
+    const restarted = createCleanWorkspaceProductPort({ ...dependencies, rootPath: workspaceRoot });
+    const durable = restarted.rootSnapshot();
+    assert.equal(durable.configRevision, 2);
+    assert.equal(durable.rootHandleRef, bumped.rootHandleRef);
+    const database = new Database(databasePath, { readonly: true });
+    try {
+      const row = database.prepare(
+        'SELECT root_handle_ref, handle_digest, material_handle_id, digest_hex FROM fx_workspace_materials',
+      ).get();
+      assert.equal(row.root_handle_ref, durable.rootHandleRef);
+      assert.equal(row.material_handle_id, originalHandleId);
+      assert.equal(row.digest_hex, originalDigest);
+    } finally {
+      database.close();
+    }
+    assert.deepEqual(fs.readFileSync(target), originalBytes);
+    const replay = restarted.materializeArtifact(request());
+    assert.equal(replay.replayed, true);
+    assert.equal(replay.workspaceMaterialHandle.rootHandleRef, durable.rootHandleRef);
+    assert.equal(replay.workspaceMaterialHandle.handleId, originalHandleId);
+    const extra = restarted.materializeArtifact({
+      ...request(),
+      relativePath: 'artifacts/poster.jpg',
+      artifactKind: 'poster',
+      mediaType: 'image/jpeg',
+      bytes: Buffer.from('poster-bytes'),
+    });
+    assert.equal(extra.replayed, false);
+    assert.equal(extra.workspaceMaterialHandle.rootHandleRef, durable.rootHandleRef);
+  }));
+
