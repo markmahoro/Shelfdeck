@@ -1,8 +1,20 @@
 # ShelfDeck Clean Helix Current Status
 
-Status: Helix-beta 范围已收窄为仅 Movie 全链路。Movie Procurement与Movie Libra封口保持有效；Movie Arca已完成Handoff B Acceptance、On-deck、Shelf Entry、Deck Fact、Beta Aftercare、Off-deck及Shelf Deregistration完整闭环。当前精确状态为`MOVIE COLLECTION LIFECYCLE READY THROUGH SHELF DEREGISTRATION`；Helix-beta 验收行见现行基线，尚未把任何 `HB-*` 标为验收 `PASS`。生产部署尚未开始。
+Status: Helix-beta 范围已收窄为仅 Movie 全链路。Movie Procurement与Movie Libra封口保持有效；Movie Arca已完成Handoff B Acceptance、On-deck、Shelf Entry、Deck Fact、Beta Aftercare、Off-deck及Shelf Deregistration完整闭环。当前精确状态为`MOVIE COLLECTION LIFECYCLE READY THROUGH SHELF DEREGISTRATION`。Product Owner 已于 2026-08-28 授权从干净本地 `main@bdafe1869` 开始 Helix-beta 生产打包与 NAS 部署准备；构建、上传与 `--apply` 尚未执行。Helix-beta 验收行见现行基线，尚未把任何 `HB-*` 标为验收 `PASS`。当前生产仍运行 2026-07-10 镜像 `helix-maintenance-state-20260710-1af2afee`。
 
-Last updated: 2026-08-27
+Last updated: 2026-08-28
+
+## 0. Helix-beta deployment preparation authorized
+
+2026-08-28 Product Owner 确认：保留 `main` 与 `emby_third_party-mirex-baseline`，清理其余本地 worktree 与主题分支，远程仓库不动。正式工作区现为 `E:\my_project\emby_third_party-helix`，工作树干净，冻结 SHA：
+
+`bdafe186974e3fe4467f8b4c483f96bf578f9dce`
+
+该 SHA 含 UAT-139 Off-deck batch Review 修复及此前 UAT-131–UAT-138 的本地修复。Product Owner 授权以此 SHA 进入 Helix-beta NAS 打包部署，不再把新的全量 Canary 重跑当作开工门禁。这不把任何失败资格运行标为 `PASS`，也不把 `HB-*` 标为验收 `PASS`。
+
+下一步只走 `docs/v2/PRODUCTION_DEPLOYMENT.md`：本机构建镜像 tarball → 计算 SHA-256 → `upload-nas-image.js` → `deploy-nas.js` dry run → 首次 Helix clean cutover 使用 `--helix-clean-init`，通过后再 `--apply`。镜像 tag 在构建时按 `docs/v3/VERSIONING.md` 分配，构建前不记为已部署。`media-desktop` 不在范围。
+
+当前尚未构建镜像、未上传 NAS、未改生产容器。生产 URL 仍为 `http://192.168.12.230:18080`。已知不阻断本次开工、但仍须记录：最后一轮 Movie Canary `6ed28d6841` 因 UAT-139 固定失败，该轮 Evidence 不得拼入发布结论；`UAT-125` 仍为 `OPEN / IMPLEMENTATION NOT STARTED`。
 
 ## 0. TMDB proxy configuration — code and regression passed
 
@@ -143,7 +155,7 @@ Destruction Scope审阅和High-volume二次确认。Review、Authorization、Cas
 UAT-139修复只补Admin Web的当前收藏选择清单、全选/清空、数量/空间汇总和batch Review提交；既有Arca Scope冻结、High-volume
 重算、二次确认、逐Entry Authorization与Destruction合同不变。Admin Web `30/30`、production build、Admin Contract/P16专项
 `26/26`及完整Service `358 total / 340 pass / 18 explicit environment skip / 0 fail`均通过。当前状态为
-`UAT-139 QUALIFICATION FAILED / LOCAL FULL REGRESSION PASSED / NEW CLEAN MAIN SHA FULL RERUN REQUIRED`；不得继承
+`UAT-139 QUALIFICATION FAILED / LOCAL FULL REGRESSION PASSED / FIX IN main@bdafe1869 / PRODUCT OWNER AUTHORIZED DEPLOYMENT PREP WITHOUT NEW FULL CANARY GATE`；不得继承
 `6ed28d6841`的23/23、Aftercare、UAT-127、UAT-128、UAT-129或其他部分资格Evidence。
 
 为建立下一轮全量Canary，已在保留9f924运行的data、evidence、monitoring、private与Recovery事实后，仅回收其可从不可变Baseline

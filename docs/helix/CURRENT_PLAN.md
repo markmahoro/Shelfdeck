@@ -1,10 +1,26 @@
 # ShelfDeck Clean Helix Master Plan
 
-Status: Helix-beta 已由 Product Owner 收窄为 **仅 Movie 的全功能版本**（旅程 A–I，含退出收藏与 Shelf 注销）。Movie Procurement保持`CLOSED FOR MOVIE`；Movie Libra保持`MOVIE LIBRA CLOSED AT HANDOFF B READY`；Movie Arca已经接通Handoff B Acceptance、On-deck、Shelf Entry、Deck Fact、Beta Aftercare、完整Off-deck及非破坏性Shelf Deregistration。当前实现状态为`MOVIE COLLECTION LIFECYCLE READY THROUGH SHELF DEREGISTRATION`；Helix-beta 验收权威为现行 `docs/helix/BETA_FEATURE_ACCEPTANCE_BASELINE.md`。Docker/NAS与生产部署仍是独立后续工作。
+Status: Helix-beta 已由 Product Owner 收窄为 **仅 Movie 的全功能版本**（旅程 A–I，含退出收藏与 Shelf 注销）。Movie Procurement保持`CLOSED FOR MOVIE`；Movie Libra保持`MOVIE LIBRA CLOSED AT HANDOFF B READY`；Movie Arca已经接通Handoff B Acceptance、On-deck、Shelf Entry、Deck Fact、Beta Aftercare、完整Off-deck及非破坏性Shelf Deregistration。当前实现状态为`MOVIE COLLECTION LIFECYCLE READY THROUGH SHELF DEREGISTRATION`。Product Owner 已授权从干净 `main@bdafe1869` 开始 Helix-beta NAS 打包部署；构建、上传与 `--apply` 尚未执行。Helix-beta 验收权威仍为现行 `docs/helix/BETA_FEATURE_ACCEPTANCE_BASELINE.md`，不因此把任何 `HB-*` 标为验收 `PASS`。
 
-Last updated: 2026-08-27
+Last updated: 2026-08-28
 
-## 0. Current UAT plan — UAT-127/UAT-138 repair and clean rerun required
+## 0. Current plan — Helix-beta NAS deployment preparation
+
+正式工作区：`E:\my_project\emby_third_party-helix`，干净 `main`。
+冻结 SHA：`bdafe186974e3fe4467f8b4c483f96bf578f9dce`（短 SHA `bdafe1869`）。
+`emby_third_party-mirex-baseline` 作为历史 v2 基线 worktree 保留；其余本地 worktree 与主题分支已清理。远程仓库不动。
+
+这是生产打包授权，不是新的 Implementation Phase 包，也不新开并行计划文件。下一步只允许 `docs/v2/PRODUCTION_DEPLOYMENT.md` 的标准发布流程：
+
+1. 本机从仓库根目录 `node scripts/build-image.js <tag>`，输出 `dist-image/shelfdeck-<tag>.tar`。
+2. 计算本地 tarball SHA-256。
+3. `node scripts/upload-nas-image.js dist-image\shelfdeck-<tag>.tar`。
+4. `node scripts/deploy-nas.js /vol1/1000/docker/shelfdeck/shelfdeck-<tag>.tar --sha256 <local-sha256>` dry run。
+5. 首次 Helix clean cutover 必须带 `--helix-clean-init`；dry run 通过后再 `--helix-clean-init --apply`。
+
+镜像 tag 在构建时按 `docs/v3/VERSIONING.md` 分配 `<milestone-slug>-<YYYYMMDD>-<git-short-sha>`，milestone-slug 使用 `helix-beta`，日期使用构建日，SHA 使用 `bdafe1869`。构建前不把该 tag 写入已部署记录，也不打 Git release tag。`media-desktop` 不在本次范围。NAS `192.168.12.230:18080` 始终视为生产；`--helix-clean-init` 不是原地兼容升级。已封存失败 Canary Evidence 不得拼入 HB 结论。不可变 Baseline `F:\shelfdeck_test_zone\test_film` 继续保留。
+
+## 0. Previous UAT plan — UAT-131–UAT-139 qualification failed; fix landed
 
 `fb28e360467766b666a3d021e1668c6f09d255da`资格运行已因UAT-131固定为失败并保留现场。经Product Owner授权，SSOT §8.6.20
 有界补全、Libra授权瑕疵连续性、Arca独立Source/Product探测及Gap复核已完成本地实现与0失败回归。下一步只允许把该修复形成
@@ -78,12 +94,11 @@ Aftercare、受控Artifact修复、UAT-128、全量Off-deck、Shelf Deregistrati
 UAT-127与UAT-129，但在全量Off-deck前置页面门禁发现UAT-139：Admin Web没有将全部当前收藏多选/全选为一个batch Review的
 入口，因而无法执行统一Scope核对和High-volume二次确认。该SHA资格已固定失败，Review、Authorization、Case、Off-deck和
 Deregistration均未发生。修复只补现有Off-deck页面的选择清单、全选/清空、数量/空间汇总与batch Review动作，继续复用Arca
-既有Scope、High-volume、Authorization与删除合同；Admin Web、build、Off-deck专项及完整Service回归均0失败。下一步形成新的
-clean local main SHA，再从不可变基线创建此前不存在的新Canary、data、runtime、Workspace、External Landing与Evidence，完整
-重跑A–I、UAT-127、UAT-129、23/23、豆瓣Aftercare、受控Artifact修复、UAT-128、全量Off-deck、Shelf Deregistration及至少
-24小时观察；不得复用`6ed28d6841`的任何资格通过结论。
+既有Scope、High-volume、Authorization与删除合同；Admin Web、build、Off-deck专项及完整Service回归均0失败。修复已落入
+干净 `main@bdafe1869`。2026-08-28 Product Owner 授权不再以新的全量 Canary 重跑作为部署开工门禁；后续动作见上方
+Helix-beta NAS 部署准备。不得复用`6ed28d6841`的任何资格通过结论。
 
-## 0. Current UAT plan — UAT-094–UAT-105 Aftercare internal hardening
+## 0. Previous UAT plan — UAT-094–UAT-105 Aftercare internal hardening
 
 Product Owner已明确：不调整SSOT、不改变Domain/Owner/Handoff、不把Aftercare退回Libra，也不抽取共享生产核心；只在Arca Aftercare及其既有Platform/Foundation端口内修复本域缺陷。已完成三路只读深审计，并在UAT台账登记`UAT-094`–`UAT-105`。
 

@@ -6,16 +6,17 @@ Kairox release line 已关闭。当前架构和 Beta 状态以 `docs/helix/` 为
 
 ## Current Version State
 
-Last updated: 2026-07-10
+Last updated: 2026-08-28
 
 | 项 | 当前值 | 说明 |
 | --- | --- | --- |
-| Product line | `Helix = Libra + Nexora + Kairox` | 当前模块化单体架构；Kairox 是 Helix 内的 maintenance capability |
-| Current release goal | `Helix Beta (media-service) in progress` | 需要通过新建全自动库到 maintenanceComplete 的 E2E；`media-desktop` 不在本次范围 |
-| Latest deployed image | `markmahoro/shelfdeck:helix-maintenance-state-20260710-1af2afee` | 当前生产运行镜像 |
+| Product line | Helix modular monolith in `media-service` | 架构权威为 `docs/helix/`；Helix-beta 仅为 Movie 全链路 |
+| Current release goal | `Helix Beta` deployment preparation | Product Owner 已授权从本地干净 `main@bdafe1869` 开始 NAS 打包；构建与 `--apply` 尚未执行；`media-desktop` 不在本次范围 |
+| Deployment candidate commit | `bdafe186974e3fe4467f8b4c483f96bf578f9dce` | 尚未建成镜像，不是已部署身份 |
+| Latest deployed image | `markmahoro/shelfdeck:helix-maintenance-state-20260710-1af2afee` | 当前生产仍运行此镜像，直到 Helix-beta cutover apply |
 | Latest deployed commit | `1af2afee` | 当前生产代码来源 |
 | Latest deployed image SHA256 | `dd728cd6d725b9cf25c6a4c640632468e5cc543d160a9bb8a87bfe25f28819bb` | 本地构建 tar 与 NAS 上传校验 hash |
-| Latest Git release tag | `v2.0.0` | 历史 release tag，不代表当前 Helix 生产镜像 |
+| Latest Git release tag | `v2.0.0` | 历史 release tag，不代表当前 Helix 生产镜像，本次部署不打 Git tag |
 | package versions | `1.0.0` | 当前不作为 Helix 阶段版本来源 |
 
 ## Version Layers
@@ -43,7 +44,7 @@ Kairox Beta
 
 `Kairox Beta` is achieved. `Kairox Usable` / `Kairox Performance` / `Kairox GA Candidate` / `Kairox GA` are cancelled.
 
-`Helix Beta` is in progress for the `media-service` scope. The deployed image is production canary evidence, not an accepted Beta release point.
+`Helix Beta` packaging is authorized for the `media-service` scope from local `main@bdafe1869`. The currently deployed NAS image remains the 2026-07-10 maintenance-state build until Helix-beta cutover apply. That old image is not an accepted Helix-beta release point.
 
 不推荐：
 

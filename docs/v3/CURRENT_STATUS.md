@@ -1,19 +1,20 @@
 # ShelfDeck v3 Current Status
 
-Last updated: 2026-07-10
+Last updated: 2026-08-28
 
 ## Production
 
-- Current release goal: `Helix Beta (media-service) in progress`
+- Current release goal: `Helix Beta` NAS packaging authorized; apply not started
+- Authoritative Helix status: `docs/helix/CURRENT_STATUS.md`
+- Deployment candidate: local clean `main@bdafe186974e3fe4467f8b4c483f96bf578f9dce`
 - Kairox status: `Kairox Beta achieved`; Kairox release line is closed
-- Current architecture: `Helix = Libra + Nexora + Kairox`; authoritative current status is `docs/helix/CURRENT_STATUS.md`
 - Production URL: `http://192.168.12.230:18080`
 - Latest deployed image: `markmahoro/shelfdeck:helix-maintenance-state-20260710-1af2afee`
 - Latest deployed commit: `1af2afee Clarify Helix maintenance state ownership`
 - Latest deployed image SHA256: `dd728cd6d725b9cf25c6a4c640632468e5cc543d160a9bb8a87bfe25f28819bb`
 - Latest deployment time: `2026-07-10 15:13 Asia/Shanghai`
 - Versioning source: `docs/v3/VERSIONING.md`
-- Deployment status: Helix Service image is running and health is green. Nexora observation and Libra Reconciler are healthy.
+- Deployment status: Production still runs the 2026-07-10 image. Helix-beta tarball has not been built, uploaded, or applied. First Helix cutover requires `--helix-clean-init`.
 - Production E2E status: controlled non-destructive canary passed on `公共_国产剧`; it is retained as Service-boundary evidence but does not prove the rebaselined full-auto Beta chain.
 - Refresh cutover blocker status: deployed and production-validated for post-optimize ingest -> metadata refresh on the canary.
 - Automation model closure status: deployed; public run-scan APIs return `410 KAIROX_RUN_SCAN_REMOVED`.
