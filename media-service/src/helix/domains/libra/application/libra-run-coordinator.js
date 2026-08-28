@@ -217,35 +217,6 @@ function createLibraRunCoordinator(options){
     }
     return null;
   }
-  function freezePersistedHandoffBRejection(snapshot) {
-    const head = Number(snapshot.run.packageRevisionHead);
-    if (!Number.isSafeInteger(head) || head < 1) return null;
-    if (typeof options.movieProductionReader.readPublishedDeliveryRef !== 'function' ||
-        typeof options.movieProductionReader.readDeliveryReceipt !== 'function' ||
-        typeof options.workResultReader.listWorks !== 'function') return null;
-    const published = options.movieProductionReader.readPublishedDeliveryRef(
-      snapshot.run.libraRunId, head);
-    if (!published?.offerId) return null;
-    const delivery = options.movieProductionReader.readDeliveryReceipt(published.offerId);
-    if (delivery?.result !== 'rejected') return null;
-    const works = options.workResultReader.listWorks({
-      ownerDomain: 'libra',
-      processType: 'libra_run',
-      processId: snapshot.run.libraRunId,
-      workKind: 'deliverable_promotion',
-    }).filter((item) => item.state === 'succeeded')
-      .sort((left, right) => Number(right.updated_at_ms) - Number(left.updated_at_ms));
-    for (const work of works) {
-      const record = options.workResultReader.read(work.work_id).find((item) =>
-        item.outcomeKind === 'succeeded' &&
-        item.capabilityRef === 'libra.product_package.publish@1');
-      if (record?.result?.offerId === published.offerId) {
-        return freezeBusinessTerminal(snapshot, { workId: work.work_id }, record,
-          'handoff_b_rejected');
-      }
-    }
-    return null;
-  }
   function mediaVerification(work) {
     const values = options.workResultReader.read(work.workId).filter((item) =>
       item.outcomeKind === 'succeeded' &&
@@ -478,8 +449,6 @@ function createLibraRunCoordinator(options){
       return Object.freeze({kind:'terminal',libraRunId,state:snapshot.run.state});
     const persistedConformanceFailure = freezePersistedConformanceFailure(snapshot);
     if (persistedConformanceFailure) return persistedConformanceFailure;
-    const persistedHandoffBRejection = freezePersistedHandoffBRejection(snapshot);
-    if (persistedHandoffBRejection) return persistedHandoffBRejection;
     const lifecycle = options.libraRunLifecycleService?.reconcile(libraRunId);
     if (lifecycle && lifecycle.kind !== 'ready') {
       if (['freshness_confirmed', 'resume'].includes(lifecycle.kind)) {

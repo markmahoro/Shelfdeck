@@ -86,6 +86,10 @@ function libraDefinition(schemaManifest) {
         'recovery_policy_ref','recovery_policy_digest','suspension_started_at_ms','recovery_attempt_ordinal',
         'recovery_next_due_at_ms','latest_freshness_assessment_id','latest_freshness_assessment_digest','terminal_at_ms'],
         keyColumns:['libra_run_id'], safeIntegers:true },
+      list_packages: { kind:'select-all', tableId:'libra_product_packages',
+        columns:['on_deck_package_id','offer_id','state'], keyColumns:['libra_run_id'] },
+      find_delivery_receipt: { kind:'select-one', tableId:'libra_delivery_receipts',
+        columns:['offer_id','result'], keyColumns:['offer_id'] },
       list_runs: { kind:'select-all', tableId:'libra_runs', columns:[
         'libra_run_id','run_scope_digest','state','state_revision','state_digest'], keyColumns:['subject_id'], safeIntegers:true },
       update_run: { kind:'update', tableId:'libra_runs', setColumns:['state','state_revision','state_digest','terminal_at_ms'],
@@ -334,7 +338,9 @@ function createRunDiscardStore(options) {
       if(!run){owner={run:null};return;}
       const manifest=reconstructManifest(repo,run),head=repo.invoke('find_head',{subject_id:run.subject_id});
       const workspace=readWorkspace(repo,run);
-      owner={run,manifest,head,workspace,runHistoryValid:runRevisionIntegrity(repo,run)};
+      const rejectedHandoffB=(repo.invoke('list_packages',{libra_run_id:run.libra_run_id})||[])
+        .some((pkg)=>pkg.state==='published' && repo.invoke('find_delivery_receipt',{offer_id:pkg.offer_id})?.result==='rejected');
+      owner={run,manifest,head,workspace,runHistoryValid:runRevisionIntegrity(repo,run),rejectedHandoffB};
     }},{participantId:'discard_snapshot_control',owner:'material-control-authority',boundBusinessOwner:'libra',repositories:[controlRead],execute(context){
       if(!owner?.run||owner.existing)return;
       const materialKeys=[...(owner.manifest?.members||[]).map((item)=>item.materialKey),
@@ -412,7 +418,8 @@ function createRunDiscardStore(options) {
     if(number(run.state_revision)!==command.expectedRunStateRevision||run.state_digest!==command.expectedRunStateDigest)
       return failure(command,'stale',{expectedRunStateRevision:command.expectedRunStateRevision,
         expectedRunStateDigest:command.expectedRunStateDigest,actualRunStateRevision:number(run.state_revision),actualRunStateDigest:run.state_digest});
-    if(run.state!=='frozen')return failure(command,'invalid_state',{reasonCode:'run_not_frozen',
+    if(run.state!=='frozen' && !(run.state==='active' && snap.owner.rejectedHandoffB))
+      return failure(command,'invalid_state',{reasonCode:'run_not_frozen',
       actualRunStateRevision:number(run.state_revision),actualRunStateDigest:run.state_digest});
     const workspaceControls=(snap.owner.workspace.references||[]).map((reference)=>{
       const current=snap.controls.get(reference.materialKey);return controlItem(reference.materialKey,current.projection);});
@@ -440,7 +447,10 @@ function createRunDiscardStore(options) {
       const repo=context.repository(libra.repositoryId),existing=repo.invoke('find_decision_by_key',{actor_id:command.actorId,
         idempotency_key:command.idempotencyKey});if(existing)throw new Replay(reconstructReplayWithRepo(command,existing,repo));
       const current=repo.invoke('find_run',{libra_run_id:command.libraRunId});
-      if(!current||current.state!=='frozen'||number(current.state_revision)!==decision.expectedRunStateRevision||
+      const rejectedHandoffB=(repo.invoke('list_packages',{libra_run_id:command.libraRunId})||[])
+        .some((pkg)=>pkg.state==='published' && repo.invoke('find_delivery_receipt',{offer_id:pkg.offer_id})?.result==='rejected');
+      if(!current||(current.state!=='frozen' && !(current.state==='active' && rejectedHandoffB))||
+        number(current.state_revision)!==decision.expectedRunStateRevision||
         current.state_digest!==decision.expectedRunStateDigest)fail('P9_DISCARD_STALE','Discard snapshot changed before commit.');
     }},{...rawControl,execute(context){controlResults=rawControl.execute(context);return controlResults;}},
     {participantId:'libra_run_discard_write',owner:'libra',repositories:[libra],execute(context){
@@ -491,7 +501,7 @@ function createRunDiscardStore(options) {
       const nextHeadRevision=number(head.head_revision)+1,nextScopeDigest=activeRunScopeSetDigest(run.subject_id,otherRuns);
       if(repo.invoke('update_run',{state:'discarded',state_revision:nextStateRevision,state_digest:nextState.stateDigest,
         terminal_at_ms:context.commitTimeMs,libra_run_id:run.libra_run_id,expected_state_revision:number(run.state_revision),
-        expected_state_digest:run.state_digest,expected_state:'frozen'}).changes!==1)fail('P9_DISCARD_RUN_CAS','Discard Run CAS failed.');
+        expected_state_digest:run.state_digest,expected_state:run.state}).changes!==1)fail('P9_DISCARD_RUN_CAS','Discard Run CAS failed.');
       if(repo.invoke('update_head',{head_revision:nextHeadRevision,active_scope_set_digest:nextScopeDigest,
         updated_at_ms:context.commitTimeMs,subject_id:run.subject_id,expected_head_revision:number(head.head_revision),
         expected_scope_digest:head.active_scope_set_digest}).changes!==1)fail('P9_DISCARD_HEAD_CAS','Discard admission head CAS failed.');

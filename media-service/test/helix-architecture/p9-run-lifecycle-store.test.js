@@ -143,3 +143,24 @@ test('discard is a frozen-only atomic exit that releases original input Control 
   assert.equal(check.prepare("SELECT consumer_domain FROM fx_outbox_deliveries WHERE message_id=(SELECT message_id FROM fx_outbox WHERE message_kind='libra.workspace-cleanup.requested@1')").get().consumer_domain,'libra');
   check.close();
 }));
+
+test('discard accepts an active Run whose Handoff B Delivery Receipt is already rejected',()=>fixture((input)=>{
+  const packageDigest=D('rejected-package'),onDeckPackageId='package-rejected',
+    offerId=canonicalDigest({schema:'libra.product-offer-id@1',onDeckPackageId,packageDigest}),
+    db=new Database(input.databasePath);
+  db.prepare('INSERT INTO libra_product_packages (on_deck_package_id,offer_id,package_revision,libra_run_id,package_digest,state,published_at_ms) VALUES (?,?,?,?,?,?,?)')
+    .run(onDeckPackageId,offerId,1,input.libraRunId,packageDigest,'published',2);
+  db.prepare('INSERT INTO libra_delivery_receipts (receipt_id,offer_id,on_deck_package_id,package_digest,result,rejection_digest,closure_digest,received_at_ms) VALUES (?,?,?,?,?,?,?,?)')
+    .run(D('delivery-receipt'),offerId,onDeckPackageId,packageDigest,'rejected',D('rejection'),D('closure'),2);
+  db.close();
+  const store=createRunDiscardStore({schemaManifest,unitOfWork:input.unitOfWork});
+  const command=buildRunDiscardCommand({libraRunId:input.libraRunId,expectedRunStateRevision:input.admitted.stateRevision,
+    expectedRunStateDigest:input.admitted.stateDigest,actorId:'admin',idempotencyKey:'discard-rejected'});
+  const inspected=store.inspect(command);
+  assert.equal(inspected.kind,'ready', inspected.resultKind || inspected.kind);
+  const result=store.commit(inspected);
+  assert.equal(result.resultKind,'discarded');
+  const check=new Database(input.databasePath,{readonly:true});
+  assert.equal(check.prepare('SELECT state FROM libra_runs').get().state,'discarded');
+  check.close();
+}));

@@ -38,7 +38,7 @@
 | PROD-016 | 放弃整理后 Workspace remux 没删，`/transcode` 空间未释放 | `EXECUTION` / Discard 只清已挂的 Libra 引用 | 媒体整理工作区、Workspace | High | **FIXED** 无损升级 `helix-beta-20260829-83d3c4424`。两份 orphan 目录升级前已删。 |
 | PROD-017 | 《影子写手》转码成功，收藏架因原片 5%/50% 解帧拒收 | `EXECUTION` / Arca 把原片抽检绑进成品 Gap | 媒体整理工作区 | High | **FIXED** 无损升级 `helix-beta-20260829-904c415f7`。已拒收的需放弃后重新进整理。 |
 | PROD-018 | 《国际市场》寻源耗尽冻结后没有「接受瑕疵」 | `EXECUTION` / 跳过直通验收就去寻源 | 媒体整理工作区 | High | **FIXED** 无损升级 `helix-beta-20260829-904c415f7`。已冻结的需放弃后重新进整理。 |
-| PROD-019 | 收藏架拒收后没法放弃《影子写手》 | `USER_EXPERIENCE` / Handoff B 拒收后 Run 仍 active | 媒体整理工作区 | High | **LOCAL FIX READY / 待无损升级**。拒收后冻结，页面出现「放弃整理」。 |
+| PROD-019 | 收藏架拒收后没法放弃《影子写手》 | `USER_EXPERIENCE` / Handoff B 拒收后 Run 仍 active | 媒体整理工作区 | High | **LOCAL FIX READY / 待无损升级**。拒收后可直接放弃。 |
 
 PROD-001、PROD-002 的共同环境前提：生产管理台是 `http://192.168.12.230`，浏览器不提供 `crypto.randomUUID` / `crypto.subtle`。这不是传输加密设计，只是浏览器 API 限制。未改成 HTTPS。
 
@@ -267,4 +267,4 @@ P4 对 journaled `material_commit` 的 Executor throw 仍会把 Attempt 留在 `
 
 发现：2026-08-29。升级后《影子写手》仍占着整理席位，页面没有「放弃整理」。Handoff B 已 `rejected / playback_decode_failed`，但 Libra Run 还是 `active`。放弃入口只给 `frozen` Run；验收拒收既不冻结也不返工，动作列是空的。
 
-修复：调和时若当前 Package 的 Delivery Receipt 已是 rejected，把该 Run 冻结为 `handoff_b_rejected`。页面文案「收藏架验收未通过，需要放弃后重新整理」，现有放弃入口可用。不改 Discard 合同。待无损升级。
+修复：Handoff B 业务拒收后，整理工作区直接放出「放弃整理」，Discard 允许 `active` + rejected Delivery Receipt。已发布 Package 里的工作区产物从未进 Material Control，不能先冻。待随下一镜像无损升级。

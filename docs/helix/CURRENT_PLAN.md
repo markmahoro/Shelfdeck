@@ -6,7 +6,7 @@ Last updated: 2026-08-29
 
 ## 0. Local fix ready — Handoff B reject can be discarded
 
-收藏架拒收后同一 Run 冻结为 `handoff_b_rejected`，整理工作区出现「放弃整理」。不改 Discard 合同（仍是 frozen → discarded）。未部署。
+收藏架拒收后整理工作区直接放出「放弃整理」。Discard 允许 `active` + rejected Delivery Receipt。未部署。
 
 ## 0. Deployed — PROD-017/018 lossless NAS upgrade
 

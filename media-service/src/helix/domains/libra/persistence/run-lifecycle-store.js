@@ -1346,6 +1346,15 @@ function assertPackageFence(repo, run, decision, controls) {
   for (const key of keys) {
     const control = byKey.get(key);
     if (
+      decision.transitionKind === "freeze" &&
+      control &&
+      control.resultKind === "available" &&
+      control.controlState === "uncontrolled" &&
+      Number(control.controlRevision) === 0
+    ) {
+      continue;
+    }
+    if (
       !control ||
       control.resultKind !== "available" ||
       control.controlState !== "controlled" ||
