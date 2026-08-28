@@ -337,3 +337,62 @@ test('durable config revision 2 stamps and losslessly restamps Workspace materia
     assert.equal(extra.workspaceMaterialHandle.rootHandleRef, durable.rootHandleRef);
   }));
 
+test('durable filesystem bind restamps endpoint and mount without rewriting bytes', () =>
+  fixture(({ databasePath, workspaceRoot, dependencies }) => {
+    const port = createCleanWorkspaceProductPort({ ...dependencies, rootPath: workspaceRoot });
+    const firstRoot = port.rootSnapshot();
+    const first = port.materializeArtifact(request());
+    const target = path.join(workspaceRoot, request().workspaceId, 'artifacts', 'movie.nfo');
+    const originalBytes = fs.readFileSync(target);
+    const reboundEndpoint = 'local-filesystem-linux';
+    const reboundMount = 'local-mount-test-bind';
+    const rootHandleRef = canonicalDigest({
+      schema: 'platform.workspace-root-handle@1',
+      rootId: firstRoot.rootId,
+      endpointId: reboundEndpoint,
+      mountScopeId: reboundMount,
+      mountScopeRevision: firstRoot.mountScopeRevision,
+      configRevision: 2,
+      capabilityDigest: firstRoot.capabilityDigest,
+    });
+    const snapshotDigest = canonicalDigest({
+      rootId: firstRoot.rootId,
+      ownerScope: 'libra',
+      rootKind: 'production-workspace',
+      endpointId: reboundEndpoint,
+      mountScopeId: reboundMount,
+      mountScopeRevision: firstRoot.mountScopeRevision,
+      configRevision: 2,
+      capabilityDigest: firstRoot.capabilityDigest,
+      state: 'active',
+      rootHandleRef,
+    });
+    const seed = new Database(databasePath);
+    seed.prepare(`UPDATE platform_workspace_roots
+      SET config_revision=2, endpoint_id=?, mount_scope_id=?, root_handle_ref=?, snapshot_digest=?
+      WHERE root_id=?`).run(
+      reboundEndpoint, reboundMount, rootHandleRef, snapshotDigest, firstRoot.rootId,
+    );
+    seed.close();
+    const restarted = createCleanWorkspaceProductPort({ ...dependencies, rootPath: workspaceRoot });
+    const durable = restarted.rootSnapshot();
+    assert.equal(durable.endpointId, reboundEndpoint);
+    assert.equal(durable.mountScopeId, reboundMount);
+    const row = new Database(databasePath, { readonly: true });
+    try {
+      const material = row.prepare(
+        'SELECT endpoint_id, mount_scope_id, digest_hex FROM fx_workspace_materials',
+      ).get();
+      assert.equal(material.endpoint_id, reboundEndpoint);
+      assert.equal(material.mount_scope_id, reboundMount);
+      assert.equal(material.digest_hex, first.workspaceMaterialHandle.digestHex);
+    } finally {
+      row.close();
+    }
+    assert.deepEqual(fs.readFileSync(target), originalBytes);
+    const replay = restarted.materializeArtifact(request());
+    assert.equal(replay.replayed, true);
+    assert.equal(replay.workspaceMaterialHandle.endpointId, reboundEndpoint);
+    assert.equal(replay.workspaceMaterialHandle.physicalIdentity.mountScopeId, reboundMount);
+  }));
+

@@ -274,6 +274,59 @@ test('crash-before-intent recovery is deferred until after ordinary supply is en
   await host.stop();
 });
 
+test('workspace-write continue_forward recovery is deferred until after ordinary supply is enabled', async () => {
+  const calls = [];
+  const host = createExecutionRuntimeHost({
+    tickIntervalMs: 60000, maxActionsPerTick: 1, recoveryRetryMs: 10,
+    startupRecovery: { async recover() {
+      return { state: 'recovering', normalSupplyAllowed: false, findings: [],
+        actions: [{ eventId: 'event-remux', effectId: 'effect-remux', decision: 'continue_forward', action: 'reuse_existing' }] };
+    } },
+    scheduler: { acquire() { calls.push('ordinary-supply'); return { kind: 'idle' }; }, release() {} },
+    plannerRegistry: { resolve() {} }, planPublisher: { publish() {} },
+    workLifecycle: { ensurePlanningAttempt() {}, startPlanned() {}, aggregateEvent() {
+      return { attemptTerminal: false, workTerminal: false, replayed: false };
+    }, settleWork() {} },
+    eventRuntime: { async recover(action) { calls.push('recover:' + action.decision + ':' + action.action); return { kind: 'succeeded' }; }, async run() {} },
+    domainReconciler: { reconcile() {} }, fallbackReconciler: { async start() { calls.push('fallback-start'); }, async stop() {} },
+  });
+  const started = await host.start();
+  assert.equal(started.state, 'ready');
+  assert.ok(calls.includes('fallback-start'));
+  assert.equal(calls.includes('recover:continue_forward:reuse_existing'), false,
+    'workspace-write continue_forward must not run inside start()');
+  const fallbackAt = calls.indexOf('fallback-start');
+  await host.drainOnce();
+  const recoverAt = calls.indexOf('recover:continue_forward:reuse_existing');
+  assert.ok(recoverAt > fallbackAt, 'workspace-write continue_forward recover must run after ordinary readiness');
+  await host.stop();
+});
+
+test('workspace-write rebuild recovery is deferred until after ordinary supply is enabled', async () => {
+  const calls = [];
+  const host = createExecutionRuntimeHost({
+    tickIntervalMs: 60000, maxActionsPerTick: 1, recoveryRetryMs: 10,
+    startupRecovery: { async recover() {
+      return { state: 'recovering', normalSupplyAllowed: false, findings: [],
+        actions: [{ eventId: 'event-remux', effectId: 'effect-remux', decision: 'safe_retry', action: 'rebuild_workspace_output' }] };
+    } },
+    scheduler: { acquire() { calls.push('ordinary-supply'); return { kind: 'idle' }; }, release() {} },
+    plannerRegistry: { resolve() {} }, planPublisher: { publish() {} },
+    workLifecycle: { ensurePlanningAttempt() {}, startPlanned() {}, aggregateEvent() {
+      return { attemptTerminal: false, workTerminal: false, replayed: false };
+    }, settleWork() {} },
+    eventRuntime: { async recover(action) { calls.push('recover:' + action.decision + ':' + action.action); return { kind: 'succeeded' }; }, async run() {} },
+    domainReconciler: { reconcile() {} }, fallbackReconciler: { async start() { calls.push('fallback-start'); }, async stop() {} },
+  });
+  const started = await host.start();
+  assert.equal(started.state, 'ready');
+  assert.equal(calls.includes('recover:safe_retry:rebuild_workspace_output'), false,
+    'workspace-write rebuild must not run inside start()');
+  await host.drainOnce();
+  assert.ok(calls.includes('recover:safe_retry:rebuild_workspace_output'));
+  await host.stop();
+});
+
 test('a long crash-before-intent recovery does not block ordinary Event supply', async () => {
   let eventAvailable=true;
   let releaseRecovery;

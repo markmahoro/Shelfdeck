@@ -3,9 +3,14 @@
 const { canonicalDigest, canonicalJson } = require('../../../contracts/canonical-json');
 
 class MediaProductionContractError extends Error {
-  constructor(code, message) { super(message); this.name = 'MediaProductionContractError'; this.code = code; }
+  constructor(code, message, details = {}) {
+    super(message);
+    this.name = 'MediaProductionContractError';
+    this.code = code;
+    this.details = details;
+  }
 }
-const fail = (code, message) => { throw new MediaProductionContractError(code, message); };
+const fail = (code, message, details) => { throw new MediaProductionContractError(code, message, details); };
 const DIGEST = /^[a-f0-9]{64}$/;
 const text = (value, name) => { if (typeof value !== 'string' || !value) fail('P9_MEDIA_VALUE', name + ' is required.'); return value; };
 const digest = (value, name) => { if (!DIGEST.test(value || '')) fail('P9_MEDIA_DIGEST', name + ' is invalid.'); return value; };
@@ -331,11 +336,28 @@ function buildWorkspaceMediaOutputTarget(value) {
 function buildWorkspaceMediaHandle(value) {
   const target = value.outputTarget, handle = value.workspaceMaterialHandle, intent = value.productionIntent,
     sourceMaterialHandleDigest = canonicalDigest(value.sourceHandle);
-  if (!target || target.productionIntentDigest !== intent?.intentDigest || handle?.workspaceId !== target.workspaceId ||
-      handle?.ownerDomain!=='libra'||handle?.processId!==target.libraRunId||handle?.endpointId!==target.rootSnapshot?.endpointId||
-      handle?.physicalIdentity?.mountScopeId!==target.rootSnapshot?.mountScopeId||handle?.relativePath !== target.targetRelativePath ||
-      value.effectReceipt?.effectScopeDigest !== target.effectScopeDigest)
-    fail('P9_MEDIA_OUTPUT_CONTINUITY', 'Workspace output does not match its frozen target and Effect scope.');
+  const mismatches = [];
+  if (!target) mismatches.push('target_missing');
+  else {
+    if (target.productionIntentDigest !== intent?.intentDigest) mismatches.push('production_intent_digest');
+    if (handle?.workspaceId !== target.workspaceId) mismatches.push('workspace_id');
+    if (handle?.ownerDomain !== 'libra') mismatches.push('owner_domain');
+    if (handle?.processId !== target.libraRunId) mismatches.push('process_id');
+    if (handle?.endpointId !== target.rootSnapshot?.endpointId) mismatches.push('endpoint_id');
+    if (handle?.physicalIdentity?.mountScopeId !== target.rootSnapshot?.mountScopeId) mismatches.push('mount_scope_id');
+    if (handle?.relativePath !== target.targetRelativePath) mismatches.push('relative_path');
+    if (value.effectReceipt?.effectScopeDigest !== target.effectScopeDigest) mismatches.push('effect_scope_digest');
+  }
+  if (mismatches.length)
+    fail('P9_MEDIA_OUTPUT_CONTINUITY', 'Workspace output does not match its frozen target and Effect scope.', {
+      mismatches,
+      handleEndpointId: handle?.endpointId || null,
+      targetEndpointId: target?.rootSnapshot?.endpointId || null,
+      handleMountScopeId: handle?.physicalIdentity?.mountScopeId || null,
+      targetMountScopeId: target?.rootSnapshot?.mountScopeId || null,
+      handleRelativePath: handle?.relativePath || null,
+      targetRelativePath: target?.targetRelativePath || null,
+    });
   const kind = value.productionIntentKind;
   if (!['remux','encode'].includes(kind) || (kind === 'encode') !== Boolean(value.deviceSnapshot)) fail('P9_MEDIA_OUTPUT_KIND', 'Production intent kind is invalid.');
   const executionDeviceRef = kind === 'encode' ? { deviceId:value.deviceSnapshot.deviceId, deviceClass:value.deviceSnapshot.deviceClass,

@@ -13,6 +13,17 @@ function fail(code, message, details) {
   throw new ExecutionRuntimeHostError(code, message, details);
 }
 
+function deferRecoveryUntilReady(action) {
+  if (!action || typeof action.decision !== 'string') return false;
+  if (action.decision === 'safe_retry_before_intent') return true;
+  if (action.decision === 'continue_forward' && action.action === 'reuse_existing') return true;
+  if (action.decision === 'safe_retry' &&
+      (action.action === 'rebuild_workspace_output' || action.action === 'cleanup_then_rebuild')) {
+    return true;
+  }
+  return false;
+}
+
 function createExecutionRuntimeHost(options) {
   const required = ['startupRecovery', 'scheduler', 'plannerRegistry', 'planPublisher', 'workLifecycle', 'eventRuntime', 'domainReconciler','fallbackReconciler'];
   if (!options || required.some((name) => !options[name]) ||
@@ -398,10 +409,10 @@ function createExecutionRuntimeHost(options) {
         );
         let deferred = false;
         for (const action of lastRecovery.actions) {
-          // Crash-before-intent recovery may re-dispatch a hours-long
-          // workspace write. Do that in the ordinary drain lane after
-          // readiness, not inside start().
-          if (action.decision === 'safe_retry_before_intent') {
+          // Hours-long workspace writes (remux/transcode) must not run inside
+          // start(); HTTP listen waits on start(). Recover them in the ordinary
+          // drain lane after readiness.
+          if (deferRecoveryUntilReady(action)) {
             deferredRecoveries.set(action.eventId, { action, retryAtMs: Date.now() });
             deferred = true;
             continue;

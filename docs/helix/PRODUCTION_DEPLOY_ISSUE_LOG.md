@@ -26,7 +26,7 @@
 | PROD-004 | 文件来源与收藏架都指向容器路径 `/media/Film` | 配置选择 / 后续 Settlement 风险 | 文件来源配置、收藏架配置 | Medium | **OPEN / 先不修**（SSOT 允许同根，不是当前空工作区的原因） |
 | PROD-005 | 一部都没上架；整理工作区数量看起来卡住 | 配置 / Workspace 根未生效 | 系统设置 Workspace、媒体整理工作区 | Critical | **FIXED by restart on upgrade**。`/transcode` 就是本机 Production Workspace；升级重启后按 durable `/transcode` 生效。冲突错误现带 configured/durable 路径。配置不变。 |
 | PROD-006 | 打开媒体整理工作区卡在「正在读取媒体整理工作区…」 | `USER_EXPERIENCE` / 全量分页 | 媒体整理工作区 | Critical | **FIXED**。页面原先等 897 条全部拉完才渲染；现先画第一页，其余后台补齐，轮询只刷新首页。 |
-| PROD-007 | 整理协调器 `P9_REFERENCE_MATERIAL_CORRUPT`，海报/NFO 写得出却挂不上工作区 | `EXECUTION` / Workspace root handle | 媒体整理工作区 | Critical | **FIXED**。写材料时误用 `configRevision:1` 的 root handle，与 durable `config_revision=2` 的工作区身份不一致。启动时无损重盖章，不改字节、不清库。 |
+| PROD-007 | 整理协调器 `P9_REFERENCE_MATERIAL_CORRUPT` / remux `P9_MEDIA_OUTPUT_CONTINUITY`，升级后管理端口起不来 | `EXECUTION` / Workspace root identity + startup recovery | 媒体整理工作区 | Critical | **FIXED**。材料句柄用内部 `service-local-workspace`，durable 根是 `local-filesystem-linux`；启动恢复还在 `listen()` 前续跑长时间 remux。句柄按 durable 根无损重盖章；workspace-write 恢复推迟到就绪之后。 |
 
 PROD-001、PROD-002 的共同环境前提：生产管理台是 `http://192.168.12.230`，浏览器不提供 `crypto.randomUUID` / `crypto.subtle`。这不是传输加密设计，只是浏览器 API 限制。未改成 HTTPS。
 
@@ -104,6 +104,6 @@ Product Owner 随后确认 `/transcode` 就是 Production Workspace，要求记�
 
 现场只读：`platform_workspace_roots.config_revision=2`，`root_handle_ref=de6dabd2…`。`fx_workspace_materials` 全部盖的是 genesis `configRevision:1` 摘要 `d8bcebf2…`。部署前材料约 179 条、Libra `libra_workspace_material_refs` 为 0（挂账从未成功），工作区目录与海报/NFO/remux 字节都在。
 
-根因：保存 `/transcode` 把 Platform 根推到 revision 2；开 Workspace / 验收目标用这份 durable 快照，写材料却用端口里写死的 revision 1 `rootHandleRef`。文件是真的，印章对不上。
+根因：保存 `/transcode` 把 Platform 根绑到 `local-filesystem-linux` / `local-mount-…` 且 `config_revision=2`。开 Workspace 和 Remux 验收目标用这份 durable 快照；写海报/NFO/remux 却盖内部 `service-local-workspace` 印章。`rootHandleRef` 对不上时挂账报 `P9_REFERENCE_MATERIAL_CORRUPT`；endpoint/mount 对不上时 remux 登记报 `P9_MEDIA_OUTPUT_CONTINUITY`。升级杀 FFmpeg 后，启动恢复在 `listen()` 之前续跑长时间 workspace write，管理端口起不来。
 
-修复：写材料改盖 `ensureRoot()` 的 durable `rootHandleRef`。启动时对 `root_handle_ref` 不一致的 active 材料做 CAS 重盖章（只改 `root_handle_ref` / `handle_json` / `handle_digest` / `fence_digest`），`handleId`、指纹、inode、相对路径和磁盘字节不变。未 `--helix-clean-init`，未放弃进行中的 Run。
+修复：写材料使用 `ensureRoot()` 的 durable `endpointId` / `mountScopeId` / `rootHandleRef`。启动时对不一致的 active 材料按路径 CAS 重盖章（字节、相对路径、inode、指纹不变）。`safe_retry_before_intent`、`continue_forward/reuse_existing` 和 workspace-write `safe_retry` 重建都推迟到就绪之后再恢复。未 `--helix-clean-init`。

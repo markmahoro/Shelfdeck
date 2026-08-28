@@ -176,13 +176,14 @@ function definitions(schemaManifest) {
           ],
           safeIntegers: true,
         },
-        restamp_material_root: {
+        restamp_material_identity: {
           kind: 'update',
           tableId: 'fx_workspace_materials',
           setColumns: [
+            'material_handle_id', 'material_key', 'endpoint_id', 'mount_scope_id',
             'root_handle_ref', 'handle_json', 'handle_digest', 'fence_digest',
           ],
-          keyColumns: ['workspace_id', 'material_handle_id'],
+          keyColumns: ['workspace_id', 'relative_path'],
           compareColumns: [
             { column: 'state', parameter: 'expected_state' },
             { column: 'handle_digest', parameter: 'expected_handle_digest' },
@@ -265,18 +266,47 @@ function materialHandleFenceDigest(handle) {
   });
 }
 
-function restampHandleRoot(handle, rootHandleRef) {
+function materialIdentityKey(mountScopeId, identity) {
+  return canonicalDigest({
+    schema: 'physical-material-identity@2',
+    mountScopeId,
+    inode: identity.inode,
+    sizeBytes: identity.sizeBytes,
+    fingerprintAlgorithm: identity.fingerprintAlgorithm,
+    fingerprintVersion: identity.fingerprintVersion,
+    contentFingerprint: identity.contentFingerprint,
+  });
+}
+
+function workspaceHandleId(workspaceId, materialKey, relativePath, referenceRevision) {
+  return canonicalDigest({
+    schema: 'foundation.workspace-material-handle-id@1',
+    workspaceId,
+    materialKey,
+    relativePath,
+    referenceRevision,
+  });
+}
+
+function restampHandleToDurableRoot(handle, root) {
+  const physicalIdentity = Object.freeze({
+    ...handle.physicalIdentity,
+    mountScopeId: root.mountScopeId,
+  });
+  const materialKey = materialIdentityKey(root.mountScopeId, physicalIdentity);
   const next = {
     schemaRef: handle.schemaRef,
     schemaVersion: handle.schemaVersion,
-    handleId: handle.handleId,
+    handleId: workspaceHandleId(
+      handle.workspaceId, materialKey, handle.relativePath, handle.referenceRevision,
+    ),
     workspaceId: handle.workspaceId,
     ownerDomain: handle.ownerDomain,
     processId: handle.processId,
-    endpointId: handle.endpointId,
-    materialKey: handle.materialKey,
-    physicalIdentity: handle.physicalIdentity,
-    rootHandleRef,
+    endpointId: root.endpointId,
+    materialKey,
+    physicalIdentity,
+    rootHandleRef: root.rootHandleRef,
     relativePath: handle.relativePath,
     digestAlgorithm: handle.digestAlgorithm,
     digestHex: handle.digestHex,
@@ -369,15 +399,22 @@ function createCleanWorkspaceProductPort(options) {
         const rows = repo.invoke('list_materials', {});
         let count = 0;
         for (const row of rows) {
-          if (row.state !== 'active' || row.root_handle_ref === root.rootHandleRef) continue;
-          const next = restampHandleRoot(mapMaterial(row), root.rootHandleRef);
-          const changed = repo.invoke('restamp_material_root', {
+          if (row.state !== 'active') continue;
+          if (row.endpoint_id === root.endpointId &&
+              row.mount_scope_id === root.mountScopeId &&
+              row.root_handle_ref === root.rootHandleRef) continue;
+          const next = restampHandleToDurableRoot(mapMaterial(row), root);
+          const changed = repo.invoke('restamp_material_identity', {
+            material_handle_id: next.handleId,
+            material_key: next.materialKey,
+            endpoint_id: next.endpointId,
+            mount_scope_id: next.physicalIdentity.mountScopeId,
             root_handle_ref: next.rootHandleRef,
             handle_json: canonicalJson(next),
             handle_digest: canonicalDigest(next),
             fence_digest: next.fenceDigest,
             workspace_id: row.workspace_id,
-            material_handle_id: row.material_handle_id,
+            relative_path: row.relative_path,
             expected_state: 'active',
             expected_handle_digest: row.handle_digest,
             expected_fence_digest: row.fence_digest,
@@ -688,7 +725,7 @@ function createCleanWorkspaceProductPort(options) {
     const inode = stat.ino.toString();
     const bounded = fingerprintBuffer(bytes);
     const physicalIdentity = Object.freeze({
-      mountScopeId,
+      mountScopeId: root.mountScopeId,
       inode,
       sizeBytes: bytes.length,
       fingerprintAlgorithm: bounded.fingerprintAlgorithm,
@@ -696,7 +733,7 @@ function createCleanWorkspaceProductPort(options) {
       contentFingerprint: bounded.contentFingerprint,
     });
     const materialKey = canonicalDigest({
-      schema: 'physical-material-identity@2', mountScopeId, inode, sizeBytes:bytes.length,
+      schema: 'physical-material-identity@2', mountScopeId: root.mountScopeId, inode, sizeBytes:bytes.length,
       fingerprintAlgorithm:bounded.fingerprintAlgorithm, fingerprintVersion:bounded.fingerprintVersion,
       contentFingerprint:bounded.contentFingerprint,
     });
@@ -714,7 +751,7 @@ function createCleanWorkspaceProductPort(options) {
       workspaceId: request.workspaceId,
       ownerDomain: 'libra',
       processId: request.libraRunId,
-      endpointId,
+      endpointId: root.endpointId,
       materialKey,
       physicalIdentity,
       rootHandleRef: root.rootHandleRef,
@@ -731,7 +768,7 @@ function createCleanWorkspaceProductPort(options) {
       workspaceId: request.workspaceId,
       ownerDomain: 'libra',
       processId: request.libraRunId,
-      endpointId,
+      endpointId: root.endpointId,
       materialKey,
       physicalIdentity,
       rootHandleRef: root.rootHandleRef,
@@ -844,8 +881,8 @@ function createCleanWorkspaceProductPort(options) {
           workspace_id: request.workspaceId,
           material_handle_id: handleId,
           material_key: materialKey,
-          endpoint_id: endpointId,
-          mount_scope_id: mountScopeId,
+          endpoint_id: root.endpointId,
+          mount_scope_id: root.mountScopeId,
           inode,
           fingerprint_algorithm: bounded.fingerprintAlgorithm,
           fingerprint_version: bounded.fingerprintVersion,
@@ -1624,24 +1661,24 @@ function createCleanWorkspaceProductPort(options) {
       fail('CLEAN_WORKSPACE_MEDIA_REALITY_DRIFT', 'Committed Workspace media bytes drifted.');
     }
     const physicalIdentity = Object.freeze({
-      mountScopeId, inode:String(stat.ino), sizeBytes,
+      mountScopeId:root.mountScopeId, inode:String(stat.ino), sizeBytes,
       fingerprintAlgorithm:bounded.fingerprintAlgorithm, fingerprintVersion:bounded.fingerprintVersion,
       contentFingerprint:bounded.contentFingerprint,
     });
-    const materialKey = canonicalDigest({ schema:'physical-material-identity@2', mountScopeId,
+    const materialKey = canonicalDigest({ schema:'physical-material-identity@2', mountScopeId:root.mountScopeId,
       inode:physicalIdentity.inode, sizeBytes, fingerprintAlgorithm:bounded.fingerprintAlgorithm,
       fingerprintVersion:bounded.fingerprintVersion, contentFingerprint:bounded.contentFingerprint });
     const handleId = canonicalDigest({ schema:'foundation.workspace-material-handle-id@1',
       workspaceId:request.workspaceId, materialKey, relativePath, referenceRevision:1 });
     const handleBasis = { schemaRef:'helix://contracts/types/WorkspaceMaterialHandle/v1', schemaVersion:1,
       handleId, workspaceId:request.workspaceId, ownerDomain:'libra', processId:request.libraRunId,
-      endpointId, materialKey, physicalIdentity, rootHandleRef:root.rootHandleRef, relativePath,
+      endpointId:root.endpointId, materialKey, physicalIdentity, rootHandleRef:root.rootHandleRef, relativePath,
       digestAlgorithm:'middle-256k-sha256', digestHex, sizeBytes, referenceRevision:1,
       accessScope:'workspace_material_read' };
     const workspaceMaterialHandle = Object.freeze({ ...handleBasis,
       fenceDigest:canonicalDigest({ schema:'foundation.workspace-material-handle-fence@1',
         handleId, workspaceId:request.workspaceId, ownerDomain:'libra', processId:request.libraRunId,
-        endpointId, materialKey, physicalIdentity, rootHandleRef:root.rootHandleRef, relativePath,
+        endpointId:root.endpointId, materialKey, physicalIdentity, rootHandleRef:root.rootHandleRef, relativePath,
         digestAlgorithm:'middle-256k-sha256', digestHex, sizeBytes, referenceRevision:1,
         accessScope:'workspace_material_read' }) });
     const committed = execute('clean_workspace_media_effect_commit', 'execution-foundation', repositories.foundation, (context) => {
@@ -1663,7 +1700,7 @@ function createCleanWorkspaceProductPort(options) {
         return Object.freeze({ replayed:true, workspaceMaterialHandle:stored });
       }
       repo.invoke('insert_material', { workspace_id:request.workspaceId, material_handle_id:handleId,
-        material_key:materialKey, endpoint_id:endpointId, mount_scope_id:mountScopeId, inode:physicalIdentity.inode,
+        material_key:materialKey, endpoint_id:root.endpointId, mount_scope_id:root.mountScopeId, inode:physicalIdentity.inode,
         fingerprint_algorithm:bounded.fingerprintAlgorithm, fingerprint_version:bounded.fingerprintVersion,
         content_fingerprint:bounded.contentFingerprint, relative_path:relativePath, digest_algorithm:'middle-256k-sha256',
         digest_hex:digestHex, size_bytes:sizeBytes, reference_revision:1, owner_domain:'libra',
