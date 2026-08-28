@@ -1,12 +1,12 @@
 # ShelfDeck Clean Helix Current Status
 
-Status: Helix-beta 范围已收窄为仅 Movie 全链路。Movie Procurement与Movie Libra封口保持有效；Movie Arca已完成Handoff B Acceptance、On-deck、Shelf Entry、Deck Fact、Beta Aftercare、Off-deck及Shelf Deregistration完整闭环。当前精确状态为`MOVIE COLLECTION LIFECYCLE READY THROUGH SHELF DEREGISTRATION`。Product Owner 已于 2026-08-28 授权并完成 Helix-beta 首次 NAS 部署，随后以不改配置的方式升级。当前生产镜像为 `markmahoro/shelfdeck:helix-beta-20260828-f0a08d9a4`，health `ok` / `helix-clean-v3`。Helix-beta 验收行见现行基线，尚未把任何 `HB-*` 标为验收 `PASS`。
+Status: Helix-beta 范围已收窄为仅 Movie 全链路。Movie Procurement与Movie Libra封口保持有效；Movie Arca已完成Handoff B Acceptance、On-deck、Shelf Entry、Deck Fact、Beta Aftercare、Off-deck及Shelf Deregistration完整闭环。当前精确状态为`MOVIE COLLECTION LIFECYCLE READY THROUGH SHELF DEREGISTRATION`。Product Owner 已于 2026-08-28 授权并完成 Helix-beta 首次 NAS 部署，随后以不改配置的方式升级。当前生产镜像为 `markmahoro/shelfdeck:helix-beta-20260828-90476efa0`（`--helix-clean-init`），health `ok` / `helix-clean-v3`。Intake 席位 3，Workspace `/transcode` rev 2。TMDB 需在设置里重新保存密钥与代理。Helix-beta 验收行见现行基线，尚未把任何 `HB-*` 标为验收 `PASS`。
 
 Last updated: 2026-08-28
 
 ## 0. Intake 3 席位与 Off-load 后立即回收 Workspace
 
-Helix-beta 试运行未出第一部 Arca：Intake 把全部 Offer 接成 Run，Workspace 回收还有 24h grace。已实现 Pre-deck 席位 3 与 Completion 后立即回收。下一步干净部署（`--helix-clean-init`），配置取值不变。
+Helix-beta 试运行未出第一部 Arca：Intake 把全部 Offer 接成 Run，Workspace 回收还有 24h grace。已实现 Pre-deck 席位 3 与 Completion 后立即回收，并于 2026-08-28 干净部署 `helix-beta-20260828-90476efa0`（tar SHA-256 `95933cff804b4fd467d1ef18635d37c819ac6405078b0720432de995262ab87d`）。Field `/media/Film`、Shelf `/media/Film`、Workspace `/transcode` 已写回。文件来源正在扫描。TMDB 凭据需在设置中重新保存（代理仍为 `http://192.168.12.230:7890`）。
 
 ## 0. Production upgrade — `/transcode` is Workspace; PROD-003/005 fixed
 
