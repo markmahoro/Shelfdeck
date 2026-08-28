@@ -279,6 +279,53 @@ describe('Helix primary copy and workbench structure', () => {
     expect(await screen.findByText('第二部电影')).toBeInTheDocument();
   });
 
+  it('loads attention-required movies when that filter is selected', async () => {
+    const newest: FormationSubject = {
+      ...completedSubject(),
+      classification: 'in_progress',
+      displayIdentity: '最新电影',
+      nextAction: { label: '继续整理媒体', state: 'running', progress: null },
+      currentRun: {
+        libraRunId: 'run-new', state: 'active', stateRevision: 1, stateDigest: 'd',
+        priorityClass: 'normal', packageRevisionHead: 0, currentIdentityRevision: 1,
+      },
+      completedAtMs: null,
+    };
+    const attention: FormationSubject = {
+      ...completedSubject(),
+      formationViewId: 'subject-attention',
+      subjectId: 'subject-attention',
+      classification: 'attention_required',
+      displayIdentity: '需要确认的电影',
+      productIdentityIssue: {
+        result: 'ambiguous', reasonCode: 'provider_identity_ambiguous', candidateSetDigest: 'c',
+        candidates: [{ providerKey: 'tmdb:movie:1', displayTitle: '需要确认的电影', originalTitle: null, releaseYear: 2004 }],
+      },
+      nextAction: { label: '需要确认媒体身份', state: 'attention_required', progress: null },
+      currentRun: {
+        libraRunId: 'run-attention', state: 'active', stateRevision: 1, stateDigest: 'd',
+        priorityClass: 'normal', packageRevisionHead: 0, currentIdentityRevision: 1,
+      },
+      completedAtMs: null,
+    };
+    const summary = { totalCount: 2, pendingCount: 0, inProgressCount: 1, attentionRequiredCount: 1, completedCount: 0 };
+    vi.spyOn(helixAdminApi, 'listFormation').mockImplementation(async (section, cursor, filters) => {
+      if (section === 'active' && filters?.classification === 'attention_required') {
+        return { items: [attention], summary, nextCursor: null, projection: { status: 'ready', asOfMs: 1 } };
+      }
+      if (section === 'active' && !cursor) {
+        return { items: [newest], summary, nextCursor: null, projection: { status: 'ready', asOfMs: 1 } };
+      }
+      return { items: [], summary, nextCursor: null, projection: { status: 'ready', asOfMs: 1 } };
+    });
+    vi.spyOn(helixAdminApi, 'listFormationHistory').mockResolvedValue({ items: [], summary, nextCursor: null, projection: { status: 'ready', asOfMs: 1 } });
+    vi.spyOn(helixAdminApi, 'listShelves').mockResolvedValue({ items: [] });
+    render(<MemoryRouter initialEntries={['/formation']}><App /></MemoryRouter>);
+    expect(await screen.findByText('最新电影')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /需要处理/ }));
+    expect(await screen.findByText('需要确认的电影')).toBeInTheDocument();
+  });
+
   it('does not keep banned slogans on the default chrome', () => {
     render(<MemoryRouter><App /></MemoryRouter>);
     for (const phrase of banned) {

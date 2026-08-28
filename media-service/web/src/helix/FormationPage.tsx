@@ -45,14 +45,18 @@ function mergeById<T>(previous:T[], fresh:T[], idOf:(item:T)=>string): T[] {
   });
   return [...fresh.filter((item)=>!seen.has(idOf(item))), ...merged];
 }
-async function remainingFormation(first:{items:FormationSubject[];summary:FormationSummary;nextCursor:string|null}, section:'active'|'completed') {
+type FormationFilters = {
+  classification?:'pending'|'in_progress'|'attention_required';
+  shelfId?:string; needsUserAction?:boolean; expedited?:boolean; q?:string;
+};
+async function remainingFormation(first:{items:FormationSubject[];summary:FormationSummary;nextCursor:string|null}, section:'active'|'completed', filters?:FormationFilters) {
   const items = [...first.items];
   let cursor = first.nextCursor, summary = first.summary;
   const seen = new Set<string>();
   while (cursor) {
     if (seen.has(cursor) || seen.size >= 399) throw new Error('媒体整理分页游标异常，已停止读取。');
     seen.add(cursor);
-    const page = await helixAdminApi.listFormation(section, cursor);
+    const page = await helixAdminApi.listFormation(section, cursor, filters);
     items.push(...page.items);
     summary = page.summary;
     cursor = page.nextCursor;
@@ -93,9 +97,25 @@ export default function FormationPage() {
   const [filter,setFilter]=useState<Filter>('all'),[q,setQ]=useState(''),[shelfFilter,setShelfFilter]=useState(''),[needsActionOnly,setNeedsActionOnly]=useState(false),[expeditedOnly,setExpeditedOnly]=useState(false),[loading,setLoading]=useState(false),[filling,setFilling]=useState(false),[error,setError]=useState('');
   const [selected,setSelected]=useState<FormationSubject|null>(null),closeRef=useRef<HTMLButtonElement>(null),triggerRef=useRef<HTMLButtonElement|null>(null),loadGeneration=useRef(0);
   const load=useCallback(async(background=false)=>{
+    if(background){
+      try{
+        const [firstActive,firstCompleted,firstEnded,sync]=await Promise.all([
+          helixAdminApi.listFormation('active'),
+          helixAdminApi.listFormation('completed'),
+          helixAdminApi.listFormationHistory(),
+          helixAdminApi.getPerceptionSyncState().catch(()=>null),
+        ]);
+        setActive((current)=>mergeById(current,firstActive.items,(item)=>item.subjectId));
+        setCompleted((current)=>mergeById(current,firstCompleted.items,(item)=>item.subjectId));
+        setEnded((current)=>mergeById(current,firstEnded.items,(item)=>item.historyId));
+        setSummary(firstActive.summary);
+        if(sync)setPerceptionSync(sync);
+      }catch(cause){if(isUnauthorized(cause))expire();}
+      return;
+    }
     const generation=loadGeneration.current+1;loadGeneration.current=generation;
     const live=()=>generation===loadGeneration.current;
-    if(!background){setLoading(true);setError('');}
+    setLoading(true);setError('');
     try{
       const [firstActive,firstCompleted,firstEnded,shelvesPage,sync]=await Promise.all([
         helixAdminApi.listFormation('active'),
@@ -105,14 +125,6 @@ export default function FormationPage() {
         helixAdminApi.getPerceptionSyncState().catch(()=>null),
       ]);
       if(!live())return;
-      if(background){
-        setActive((current)=>mergeById(current,firstActive.items,(item)=>item.subjectId));
-        setCompleted((current)=>mergeById(current,firstCompleted.items,(item)=>item.subjectId));
-        setEnded((current)=>mergeById(current,firstEnded.items,(item)=>item.historyId));
-        setSummary(firstActive.summary);
-        if(sync)setPerceptionSync(sync);
-        return;
-      }
       setActive(firstActive.items);setCompleted(firstCompleted.items);setEnded(firstEnded.items);setSummary(firstActive.summary);
       setShelves(shelvesPage.items.filter((item)=>item.status==='active'));
       if(sync)setPerceptionSync(sync);
@@ -126,11 +138,30 @@ export default function FormationPage() {
       ]);
       if(!live())return;
       setActive(allActive.items);setCompleted(allCompleted.items);setEnded(allEnded);setSummary(allActive.summary);
-    }catch(cause){if(isUnauthorized(cause))expire();else if(!background)setError(cause instanceof Error?cause.message:'媒体整理工作区读取失败。');}
-    finally{if(live()){if(!background)setLoading(false);setFilling(false);}}
+    }catch(cause){if(isUnauthorized(cause))expire();else setError(cause instanceof Error?cause.message:'媒体整理工作区读取失败。');}
+    finally{if(live()){setLoading(false);setFilling(false);}}
   },[expire]);
   useEffect(()=>{void load();},[load]);
   useEffect(()=>{if(!active.some((item)=>item.classification==='in_progress'))return;const timer=window.setInterval(()=>{void load(true);},10_000);return()=>window.clearInterval(timer);},[active,load]);
+  useEffect(()=>{
+    const classification = filter==='pending'||filter==='in_progress'||filter==='attention_required' ? filter : null;
+    if(!classification)return;
+    let cancelled=false;
+    void (async()=>{
+      try{
+        const first=await helixAdminApi.listFormation('active',undefined,{classification});
+        if(cancelled)return;
+        setActive((current)=>mergeById(current,first.items,(item)=>item.subjectId));
+        setSummary(first.summary);
+        if(!first.nextCursor)return;
+        const rest=await remainingFormation(first,'active',{classification});
+        if(cancelled)return;
+        setActive((current)=>mergeById(current,rest.items,(item)=>item.subjectId));
+        setSummary(rest.summary);
+      }catch(cause){if(isUnauthorized(cause))expire();}
+    })();
+    return()=>{cancelled=true;};
+  },[expire,filter]);
   const rows=useMemo<LedgerRow[]>(()=>[...active.map((item)=>({kind:'formation' as const,item})),...completed.map((item)=>({kind:'formation' as const,item})),...ended.map((item)=>({kind:'ended' as const,item}))].filter((row)=>{
     if(q.trim()&&!row.item.displayIdentity.toLowerCase().includes(q.trim().toLowerCase()))return false;
     if(row.kind==='formation'&&shelfFilter&&row.item.targetShelfId!==shelfFilter)return false;
