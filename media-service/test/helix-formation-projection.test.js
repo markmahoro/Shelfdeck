@@ -77,6 +77,14 @@ test('Formation extracts Product Identity issues from the business result contra
   });
 });
 
+test('Formation explains a frozen Handoff B rejection so the user can discard',()=>{
+  assert.equal(frozenRunLabel([], { blockedWorks:[{ failureCode:'handoff_b_rejected' }] }),
+    '收藏架验收未通过，需要放弃后重新整理');
+  assert.equal(nextAction([], 'attention_required', null, 'frozen', null, null, null, null, false,
+    { blockedWorks:[{ failureCode:'handoff_b_rejected' }] }).label,
+    '收藏架验收未通过，需要放弃后重新整理');
+});
+
 test('Formation explains a frozen external search that found no requirement-eligible candidate',()=>{
   const works=[{events:[{
     capabilityRef:'libra.external_material.candidate.select@1',

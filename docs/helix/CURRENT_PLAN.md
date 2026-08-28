@@ -4,6 +4,10 @@ Status: Helix-beta 已由 Product Owner 收窄为 **仅 Movie 的全功能版本
 
 Last updated: 2026-08-29
 
+## 0. Local fix ready — Handoff B reject can be discarded
+
+收藏架拒收后同一 Run 冻结为 `handoff_b_rejected`，整理工作区出现「放弃整理」。不改 Discard 合同（仍是 frozen → discarded）。未部署。
+
 ## 0. Deployed — PROD-017/018 lossless NAS upgrade
 
 已部署 `markmahoro/shelfdeck:helix-beta-20260829-904c415f7`，未 `--helix-clean-init`：

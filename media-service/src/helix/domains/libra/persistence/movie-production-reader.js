@@ -185,6 +185,12 @@ function definition(schemaManifest) {
         keyColumns: ['on_deck_package_id'],
         safeIntegers: true,
       },
+      find_delivery_receipt: {
+        kind: 'select-one',
+        tableId: 'libra_delivery_receipts',
+        columns: ['offer_id', 'result', 'rejection_digest'],
+        keyColumns: ['offer_id'],
+      },
       list_references: {
         kind: 'select-all',
         tableId: 'libra_workspace_material_refs',
@@ -791,10 +797,27 @@ function createMovieProductionReader(options) {
     });
   }
 
+  function readDeliveryReceipt(offerId) {
+    if (typeof offerId !== 'string' || !offerId) return null;
+    return exact((context) => {
+      const row = context.repository(repository.repositoryId).invoke(
+        'find_delivery_receipt',
+        { offer_id: offerId },
+      );
+      if (!row) return null;
+      return Object.freeze({
+        offerId: row.offer_id,
+        result: row.result,
+        rejectionDigest: row.rejection_digest || null,
+      });
+    });
+  }
+
   return Object.freeze({
     readDecisionEvidence,
     readFact,
     readPublishedDeliveryRef,
+    readDeliveryReceipt,
     readRun,
     readRunSnapshot,
     readWorkspace,

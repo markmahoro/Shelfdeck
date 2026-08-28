@@ -4,6 +4,10 @@ Status: Helix-beta 范围已收窄为仅 Movie 全链路。Movie Procurement与M
 
 Last updated: 2026-08-29
 
+## 0. Local fix ready — PROD-019 Handoff B reject discard
+
+2026-08-29 本地已改：Handoff B 业务拒收后把仍 active 的 Libra Run 冻结，页面出现「放弃整理」。专项测试通过。未部署。《影子写手》升级后会冻结，再点放弃。
+
 ## 0. Production lossless upgrade — PROD-017/018
 
 2026-08-29 已部署 `helix-beta-20260829-904c415f7`（git `904c415f7`，tar SHA-256 `54d318e3c94fe809144cac377f0d79ea25bd981efecf68d552c0918cf48c2217`），未 `--helix-clean-init`。readiness `helix-clean-v3` / 184 tables / findings []。上架只拿成品解帧否决；stream_file 寻源前先记直通验收缺口。已拒收的《影子写手》和已冻结的《国际市场》需放弃后重新进整理。Field/Shelf/`/transcode`/集成未改。

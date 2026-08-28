@@ -31,6 +31,7 @@ test('Libra Run Coordinator remains a Work issuer and terminal Result reconciler
   assert.match(value, /productStaging\.ensureWorking/);
   assert.match(value, /sourceRequiresExternalSearch[\s\S]*ensureOriginalMediaThenExternal/);
   assert.match(value, /ensureOriginalMediaThenExternal[\s\S]*directMediaSelectionWork/);
+  assert.match(value, /freezePersistedHandoffBRejection[\s\S]*handoff_b_rejected/);
 });
 
 test('Libra Run Coordinator replays an admitted Work with its frozen priority only', () => {

@@ -307,6 +307,9 @@ function frozenRunLabel(works, terminalEvidence = null) {
   if (terminalFailureCode(terminalEvidence) === 'product_metadata_required_cast_missing') {
     return '媒体资料中缺少验收要求的演员信息，本次整理已冻结';
   }
+  if (terminalFailureCode(terminalEvidence) === 'handoff_b_rejected') {
+    return '收藏架验收未通过，需要放弃后重新整理';
+  }
   const terminal = extractAcquisitionTerminal(works);
   if (terminal?.result === 'not_selected' && terminal.selectionReasonCode === 'no_requirement_eligible_candidate') {
     return '没有符合整理要求的外部候选，本次整理已冻结';
