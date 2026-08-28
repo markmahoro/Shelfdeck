@@ -4,6 +4,10 @@ Status: Helix-beta 范围已收窄为仅 Movie 全链路。Movie Procurement与M
 
 Last updated: 2026-08-29
 
+## 0. Local fix ready — PROD-013 encode-device probe
+
+2026-08-29 现场：三部整理中停在「需要转码，编码设备未就绪」。`platform_compute_devices` 全 `failed`；容器内 QSV/CPU 一帧编码成功，ffprobe 缺 primaries/trc。本地已放宽普通 SDR 探测，并让 blocked 转码评估在有就绪设备时重规划。未部署，生产镜像仍为 `helix-beta-20260829-e4d601cd9`。
+
 ## 0. Production lossless upgrade — PROD-010/011/012
 
 2026-08-29 已部署 `helix-beta-20260829-e4d601cd9`（git `e4d601cd9`，tar SHA-256 `18279cfa9017b8c87e6c9205d123cd4cbe6926d2840f4766b3f544ac0ffd92f5`），未 `--helix-clean-init`。readiness `helix-clean-v3` / 184 tables / findings []。现网 Formation：3 部整理中，当前进展均为「需要转码，编码设备未就绪」，checklist 含 transcode:blocked；《女性瘾者》只在已结束。Field/Shelf/`/transcode`/集成未改。

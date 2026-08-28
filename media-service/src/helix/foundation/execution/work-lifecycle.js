@@ -252,6 +252,17 @@ function createWorkLifecycle(options) {
       }
       const desired = request.disposition === 'replan' ? 'ready' : request.disposition;
       if (work.state === desired) return Object.freeze({ workId: request.workId, state: desired, replayed: true });
+      if (request.disposition === 'replan' && work.state === 'blocked') {
+        if (latestAttempt && latestAttempt.state === 'blocked' && attempts.invoke('transition', {
+          attempt_id: latestAttempt.attempt_id, state: 'cancelled', started_at_ms: latestAttempt.started_at_ms,
+          finished_at_ms: context.commitTimeMs, failure_code: latestAttempt.failure_code,
+          expected_state: 'blocked',
+        }).changes !== 1) fail('P4_WORK_REPLAN_CAS', 'Work replan fence changed.');
+        if (works.invoke('transition', {
+          work_id: request.workId, state: 'ready', updated_at_ms: context.commitTimeMs, expected_state: 'blocked',
+        }).changes !== 1) fail('P4_WORK_REPLAN_CAS', 'Work replan fence changed.');
+        return Object.freeze({ workId: request.workId, state: 'ready', replayed: false });
+      }
       if (work.state !== 'running') fail('P4_WORK_DISPOSITION_FENCE', 'Only a running Work can accept an Owner disposition.', {
         workId: request.workId, state: work.state,
       });

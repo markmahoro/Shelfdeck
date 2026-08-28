@@ -718,7 +718,35 @@ function createProcurementExecutionRuntime(options) {
     completedWorkspaceSweepNotBeforeMs = now() + (pendingAudit ? 60_000 : WORKSPACE_RECLAIMER_FALLBACK_MS);
     return Object.freeze({ kind: 'wake_recorded', pendingAudit });
   }
+  function hasReadyEncodeDevice() {
+    const runtime = libraOptions.platformComputeRuntime;
+    if (!runtime || typeof runtime.listReadyDeviceRefs !== 'function') return false;
+    const listQuery = { queryContract: 'platform.compute-ready-device-refs@1', limit: 64 };
+    listQuery.queryDigest = canonicalDigest(listQuery);
+    try {
+      const listed = runtime.listReadyDeviceRefs(listQuery);
+      return listed?.resultKind === 'available' && Array.isArray(listed.items) && listed.items.length > 0;
+    } catch {
+      return false;
+    }
+  }
+  function resumeBlockedTranscodeAssessments(libraRunId) {
+    if (!hasReadyEncodeDevice()) return false;
+    const works = workResultReader.listWorks({
+      ownerDomain: 'libra', processType: 'libra_run', processId: libraRunId, workKind: 'workspace_media_production',
+    });
+    let resumed = false;
+    for (const work of works) {
+      if (work.state !== 'blocked') continue;
+      if (!/^libra-workspace-media-transcode_\d+_assessment-work-/.test(work.work_id)) continue;
+      workLifecycle.settleWork({ workId: work.work_id, disposition: 'replan' });
+      resumed = true;
+    }
+    if (resumed) host?.wake();
+    return resumed;
+  }
   function reconcileLibraRun(libraRunId) {
+    resumeBlockedTranscodeAssessments(libraRunId);
     const result = libraProcessServices.libraRunCoordinator.reconcile(libraRunId);
     if (result?.kind === 'replacement_required') {
       const replacement = libraProcessServices.libraRunCreator.replace(

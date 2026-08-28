@@ -126,6 +126,27 @@ test('contract-unplannable Work persists its stable Planner diagnostic on the te
     { state:'failed', failure_code:'candidate_disposition_scope_unrepresentable' });
 }));
 
+test('Owner can replan a blocked Work onto a new Attempt without changing identity or Basis', () => fixture(({ lifecycle, databasePath }) => {
+  const first = lifecycle.ensurePlanningAttempt('work-1');
+  const database = new Database(databasePath);
+  database.prepare(`INSERT INTO fx_workflow_plans
+    (plan_id,attempt_id,planner_ref,planner_version,catalog_digest,basis_digest,graph_digest,state,created_at_ms)
+    VALUES (?,?,?,?,?,?,?,?,?)`).run('plan-1', first.attempt.attempt_id, 'planner@1', 1, 'b'.repeat(64), 'a'.repeat(64),
+    'c'.repeat(64), 'temporarily_unplannable', 2);
+  database.close();
+  const started = lifecycle.startPlanned('work-1', first.attempt.attempt_id, 'media_device_strategies_unavailable');
+  assert.equal(started.state, 'blocked');
+  assert.equal(started.attemptState, 'blocked');
+  assert.equal(lifecycle.settleWork({ workId: 'work-1', disposition: 'replan' }).state, 'ready');
+  assert.deepEqual(read(databasePath, 'SELECT state FROM fx_supporting_works WHERE work_id=?', 'work-1'), { state: 'ready' });
+  assert.deepEqual(read(databasePath, 'SELECT state FROM fx_work_attempts WHERE attempt_id=?', first.attempt.attempt_id),
+    { state: 'cancelled' });
+  const second = lifecycle.ensurePlanningAttempt('work-1');
+  assert.equal(second.attempt.ordinal, 2);
+  assert.notEqual(second.attempt.attempt_id, first.attempt.attempt_id);
+  assert.equal(second.attempt.basis_digest, first.attempt.basis_digest);
+}));
+
 test('Owner can request a new bounded Attempt without changing Work identity or Basis', () => fixture(({ lifecycle, databasePath }) => {
   const first = lifecycle.ensurePlanningAttempt('work-1');
   const database = new Database(databasePath);

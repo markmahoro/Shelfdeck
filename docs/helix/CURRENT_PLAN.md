@@ -4,6 +4,10 @@ Status: Helix-beta 已由 Product Owner 收窄为 **仅 Movie 的全功能版本
 
 Last updated: 2026-08-29
 
+## 0. Local fix ready — PROD-013 encode-device probe / blocked replan
+
+三部「转码失败」不是编码失败：探测要求普通 SDR 输出带齐 `color_primaries`/`color_trc`，libx265/QSV 默认不写，设备全判 `unavailable`，评估停在 `blocked`。本地已修：普通 SDR 探测与已发布 `outputColorProfile: source` 对齐；设备就绪后 blocked `transcode_*_assessment` 重新规划。未部署。下一步只允许用户明确要求的无损 NAS 升级；不 `--helix-clean-init`，不改 Field/Shelf/`/transcode`/代理。
+
 ## 0. Deployed — PROD-010/011/012 lossless NAS upgrade
 
 已部署 `markmahoro/shelfdeck:helix-beta-20260829-e4d601cd9`，未 `--helix-clean-init`：

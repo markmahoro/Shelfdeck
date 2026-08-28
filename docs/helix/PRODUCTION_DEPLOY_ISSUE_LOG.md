@@ -32,6 +32,7 @@
 | PROD-010 | 整理路径不能提前当 checklist 勾选；转码未规划出来时页面仍像「封装完了等验收」 | `USER_EXPERIENCE` / Formation 投影只回放已有 Event | 媒体整理工作区 | Medium | **FIXED** 无损升级 `helix-beta-20260829-e4d601cd9`。 |
 | PROD-011 | 片源探测已能判定本地加工补不上时，仍先整盘 remux 再寻源 | `EXECUTION` / Libra 媒体阶段顺序 | 媒体整理工作区 | Medium | **FIXED** 无损升级 `helix-beta-20260829-e4d601cd9`。 |
 | PROD-012 | 用户放弃后，工作区仍留「等待重新入库」待整理行 | `USER_EXPERIENCE` / Formation 当前 Subject 与结束历史叠在一起 | 媒体整理工作区 | Medium | **FIXED** 无损升级 `helix-beta-20260829-e4d601cd9`。 |
+| PROD-013 | 三部转码停在「编码设备未就绪」；QSV/CPU 能编码但自检全失败 | `EXECUTION` / 编码设备探测校验过严 | 媒体整理工作区 | High | **LOCAL FIX READY / 待无损升级**。普通 SDR 探测不再要求输出带齐 `color_primaries`/`color_trc`；设备就绪后 blocked 转码评估会重新规划。 |
 
 PROD-001、PROD-002 的共同环境前提：生产管理台是 `http://192.168.12.230`，浏览器不提供 `crypto.randomUUID` / `crypto.subtle`。这不是传输加密设计，只是浏览器 API 限制。未改成 HTTPS。
 
@@ -183,3 +184,25 @@ Product Owner 随后确认 `/transcode` 就是 Production Workspace，要求记�
 根因：UAT-005 把 Discarded Run 做成结束历史，同时让仍 eligible 的 Subject 以一条 `pending` 回到待整理，文案就是「等待重新入库」。后台事实没错，用户放弃后的工作区却像还有一件待办。
 
 实现：active Formation 列表与统计去掉 `currentRun` 为空且进展为「等待重新入库」的行。结束历史仍保留「用户放弃」。Subject 不删。待无损升级。
+
+## 14. PROD-013 — 编码器能转，探测把缺色标的正常 HEVC 判失败（LOCAL FIX READY）
+
+发现：2026-08-29，无损升级 `e4d601cd9` 之后。Product Owner 看到《影子写手》《宇航员》《怦然心动》三部「转码失败」，要求查原因并修复。
+
+现场（只读）：
+
+- 三部都不是 `libra.media.transcode@1` 编码失败。`workspace_media_production` 的 `transcode_1_assessment` 为 `blocked` / `temporarily_unplannable` / `media_device_strategies_unavailable`，`failure_code` 为空。库内仍 **0** 条真转码 Event。
+- `platform_compute_devices` 四条全部 `unavailable` / `probe_result=failed`（NVENC rev3，QSV/VAAPI rev1，CPU rev3）。
+- 容器内同一 FFmpeg：`hevc_qsv` 与 `libx265` 一帧编码 exit 0；NVENC 无 libcuda；VAAPI HEVC 需要 hwupload。Helix 风格 SDR mkv 再编码，QSV hwaccel / QSV 软解 / CPU CRF 均 exit 0。
+- 探测输出 ffprobe 只有 `codec_name=hevc,pix_fmt=yuv420p,color_range=tv,color_space=bt709`，**缺 `color_primaries` 和 `color_transfer`**。旧 `validateProbeOutput` 对普通 SDR 也强制 bt709 primaries+transfer，于是 `pipeline_output_profile_failed`。
+- 已发布普通管线 `outputColorProfile` 是 `source`，不是强制写 bt709 标签。自检比生产编码更严。
+
+根因：能力探测把「编码器没把可选色标写进容器」当成设备不可用。Work 进入 `blocked` 后调度器只收 `admitted`/`ready`，设备以后即使就绪也不会自动重规划。
+
+修复（本地，未部署）：
+
+- 普通 SDR 探测：HEVC、非 Dolby Vision、像素格式 `yuv420p`/`yuv420p10le` 即通过；色域标签缺省不再失败。Dolby Vision→SDR 自检仍要求完整 bt709。
+- `settleWork(replan)` 允许 `blocked → ready`（取消 blocked Attempt）。
+- 活动 Libra Run 调和：一旦 `listReadyDeviceRefs` 非空，把 blocked 的 `transcode_*_assessment` 重新规划并 `host.wake()`。无就绪设备时不重规划，避免空转。
+
+升级后预期：启动探测把 QSV 和/或 CPU 标 ready；三部评估从 blocked 回到 ready，规划出 `libra.media.transcode@1`。NVENC 仍不可用（无 CUDA）。不自动解冻其余影片。不 `--helix-clean-init`。待无损升级。

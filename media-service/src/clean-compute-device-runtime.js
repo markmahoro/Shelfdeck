@@ -97,17 +97,26 @@ async function encodeProbeMode(executable,input,output,deviceClass,mode,profileI
   }finally{for(const suffix of ['', '.log', '.log.mbtree', '-0.log', '-0.log.mbtree']){const item=passlog+suffix;if(fs.existsSync(item))fs.rmSync(item,{force:true});}}
 }
 
+function noDolbyVision(stream) {
+  return !(stream?.side_data_list || []).some((item) => /dovi/i.test(String(item.side_data_type || '')));
+}
+function probeStreamMatchesProfile(profileId, inputKind, stream) {
+  if (!stream || stream.codec_name !== 'hevc' || !noDolbyVision(stream)) return false;
+  const toneMapped = profileId === DV_SDR_PROFILE_ID;
+  if (toneMapped) {
+    return stream.pix_fmt === 'yuv420p' && ['tv', 'mpeg'].includes(stream.color_range) &&
+      stream.color_primaries === 'bt709' && stream.color_transfer === 'bt709' && stream.color_space === 'bt709';
+  }
+  if (!['yuv420p', 'yuv420p10le'].includes(stream.pix_fmt)) return false;
+  if (stream.color_range && !['tv', 'mpeg', 'unknown', 'pc', 'jpeg'].includes(stream.color_range)) return false;
+  return true;
+}
 async function validateProbeOutput(executable,output,profileId,inputKind,timeoutMs){
   const metadata=await runJsonCommand(resolveFfprobePath(),['-v','fatal','-of','json=compact=1','-select_streams','v:0',
     '-show_entries','stream=codec_name,pix_fmt,color_range,color_primaries,color_transfer,color_space:stream_side_data',output],timeoutMs),
-    stream=metadata.value?.streams?.[0],toneMapped=profileId===DV_SDR_PROFILE_ID,hdr=!toneMapped&&inputKind==='hdr10_compatible',
-    unknown=!toneMapped&&inputKind==='unknown',noDovi=!(stream?.side_data_list||[]).some((item)=>/dovi/i.test(String(item.side_data_type||''))),
-    unknownProfileSafe=unknown&&stream?.pix_fmt==='yuv420p'&&!['smpte2084','arib-std-b67'].includes(stream?.color_transfer),
-    knownProfileSafe=!unknown&&((toneMapped||!hdr)?stream?.pix_fmt==='yuv420p':stream?.pix_fmt==='yuv420p10le')&&['tv','mpeg'].includes(stream?.color_range)&&
-      stream?.color_primaries===((toneMapped||!hdr)?'bt709':'bt2020')&&stream?.color_transfer===((toneMapped||!hdr)?'bt709':'smpte2084')&&
-      stream?.color_space===((toneMapped||!hdr)?'bt709':'bt2020nc'),
-    metadataPassed=metadata.passed&&stream?.codec_name==='hevc'&&(unknownProfileSafe||knownProfileSafe)&&noDovi;
-  if(!metadataPassed)return Object.freeze({passed:false,reasonCode:'pipeline_output_profile_failed',metadata});
+    stream=metadata.value?.streams?.[0];
+  if(!metadata.passed||!probeStreamMatchesProfile(profileId,inputKind,stream))
+    return Object.freeze({passed:false,reasonCode:'pipeline_output_profile_failed',metadata});
   const decoded=await runCommand(executable,['-hide_banner','-nostdin','-loglevel','error','-i',output,'-map','0:v:0','-frames:v','1',
     '-f','null',process.platform==='win32'?'NUL':'/dev/null'],timeoutMs);
   return Object.freeze({passed:decoded.passed,reasonCode:decoded.passed?null:'pipeline_decode_failed',metadata,decoded});
@@ -183,4 +192,4 @@ async function createCleanComputeDeviceRuntime(options) {
 }
 
 module.exports=Object.freeze({PROBES,DEVICE_PROBE_LAVFI_SOURCE,DV_SDR_FILTER,SDR_PROFILE_ID,DV_SDR_PROFILE_ID,
-  runValidatedPipelineProbe,runValidatedDeviceProfileProbe,createCleanComputeDeviceRuntime});
+  probeStreamMatchesProfile,runValidatedPipelineProbe,runValidatedDeviceProfileProbe,createCleanComputeDeviceRuntime});
