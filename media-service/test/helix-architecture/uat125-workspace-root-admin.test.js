@@ -66,7 +66,12 @@ test('Production Workspace custom root is probed, staged, and becomes effective 
     assert.equal(staged.pending.rootPath,path.resolve(next));
     assert.deepEqual(admin.configure({rootPath:next,expectedConfigRevision:1}),staged);
     assert.equal(fs.readFileSync(path.join(current,'keep-me.txt'),'utf8'),'old root remains user-owned');
-    assert.throws(()=>port.rootSnapshot(),(error)=>error.code==='CLEAN_WORKSPACE_ROOT_CONFLICT');
+    assert.throws(()=>port.rootSnapshot(),(error)=>{
+      assert.equal(error.code,'CLEAN_WORKSPACE_ROOT_CONFLICT');
+      assert.equal(error.details.configuredRoot,path.resolve(current));
+      assert.equal(error.details.durableRoot,path.resolve(next));
+      return true;
+    });
     const restarted=createCleanWorkspaceProductPort({schemaManifest,unitOfWork,rootPath:next,now:()=>1_700_100_000_300});
     assert.equal(restarted.rootSnapshot().configRevision,2);
   }finally{kernel.close();fs.rmSync(root,{recursive:true,force:true});}

@@ -31,6 +31,16 @@ function scanProgress(field: MaterialField) {
   }
   return '系统会自动扫描这个目录，也可以立即扫描新文件。';
 }
+function procurementFollowUp(field: MaterialField) {
+  const status = field.procurementStatus;
+  if (status.activeRunCount > 0 || status.stage === 'procurement_run_active') {
+    return `目录扫完不等于整理结束。采购还在分拣：${status.activeRunCount} 个进行中批次，${status.candidateCount} 个候选，${status.openOfferCount} 个待交接。请到媒体整理工作区看条目。`;
+  }
+  if (status.candidateCount > 0 || status.openOfferCount > 0) {
+    return `已形成 ${status.candidateCount} 个候选，待交接 ${status.openOfferCount}。请到媒体整理工作区看条目。`;
+  }
+  return '';
+}
 
 export default function MaterialFieldsPage() {
   const { expire } = useSession();
@@ -178,6 +188,7 @@ export default function MaterialFieldsPage() {
             <div><dt>目录位置</dt><dd>已绑定</dd></div>
             <div><dt>扫描状态</dt><dd>{scanLabel(field)}</dd></div>
             <div><dt>扫描进度</dt><dd>{scan.pageCount > 0 ? `${scan.pageCount} 页` : '尚未开始'}</dd></div>
+            <div><dt>采购进度</dt><dd>{field.procurementStatus.activeRunCount > 0 ? `${field.procurementStatus.activeRunCount} 个批次进行中` : field.procurementStatus.candidateCount > 0 ? `${field.procurementStatus.candidateCount} 个候选` : '尚未形成候选'}</dd></div>
           </dl>
         </div>
         <div className="source-record-action">
@@ -196,6 +207,7 @@ export default function MaterialFieldsPage() {
         {field.status === 'active' && <div className="source-journey" role="status">
           <strong>{operations[field.fieldId] && scan.state !== 'completed' ? '扫描已开始' : scanLabel(field)}</strong>
           <span>{scanProgress(field)}</span>
+          {procurementFollowUp(field) ? <span>{procurementFollowUp(field)}</span> : null}
         </div>}
         {field.status === 'active' && <RoutingPolicyPanel field={field} shelves={shelves} />}
         <details><summary>技术标识</summary><code>{field.fieldId}</code><code>{field.access.endpointId}</code><code>{field.access.mountScopeId}</code></details>

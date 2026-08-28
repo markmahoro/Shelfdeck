@@ -54,6 +54,8 @@ test('Material Fields admits background Observation and projects scan progress, 
   assert.match(page, /保存时会检查目录是否存在、可读/);
   assert.match(labels, /已扫描完成/);
   assert.match(labels, /扫描失败/);
+  assert.match(page, /采购进度/);
+  assert.match(page, /目录扫完不等于整理结束/);
   assert.match(page, /注销文件来源/);
   assert.match(api, /actions\/deregister/);
   assert.match(api, /observationScan/);
@@ -121,6 +123,7 @@ test('Media organization workspace uses user-facing stages after Procurement han
   assert.match(page, />加急</);
   assert.match(page, /organizingSteps/);
   assert.match(page, /全部媒体/);
+  assert.match(page, /还没有进入整理的电影/);
   assert.match(page, /仅需用户处理/);
   assert.match(page, /按片名筛选/);
   assert.match(page, /function shelfName\(item:FormationSubject, shelves:Shelf\[\]\)/);

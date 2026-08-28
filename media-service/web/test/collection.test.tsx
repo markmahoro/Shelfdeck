@@ -46,7 +46,7 @@ describe('Arca collection poster wall', () => {
     vi.spyOn(helixAdminApi, 'listCollection').mockResolvedValue({ items:[] });
     renderCollection();
     expect(await screen.findByText('还没有正式上架的电影')).toBeInTheDocument();
-    expect(screen.getByText('整理完成后会显示在这里。')).toBeInTheDocument();
+    expect(screen.getByText('只有收藏架验收并提交之后才会出现在这里。媒体整理工作区里的条目还不算上架。')).toBeInTheDocument();
     expect(screen.queryByText(/Handoff B/)).not.toBeInTheDocument();
     expect(screen.queryByText(/Shelf Entry/)).not.toBeInTheDocument();
     expect(screen.getByRole('navigation', { name: '收藏架' })).toBeInTheDocument();

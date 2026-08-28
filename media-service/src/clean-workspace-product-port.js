@@ -300,7 +300,13 @@ function createCleanWorkspaceProductPort(options) {
         if (path.resolve(existing.resolved_root) !== absoluteRoot ||
             existing.snapshot_digest !== current.snapshotDigest || existing.state !== 'active') {
           fail('CLEAN_WORKSPACE_ROOT_CONFLICT',
-            'Configured Workspace root conflicts with its durable Platform snapshot.');
+            'Configured Workspace root conflicts with its durable Platform snapshot.',
+            {
+              configuredRoot: absoluteRoot,
+              durableRoot: existing.resolved_root,
+              durableState: existing.state,
+              snapshotMatches: existing.snapshot_digest === current.snapshotDigest,
+            });
         }
         return current;
       }

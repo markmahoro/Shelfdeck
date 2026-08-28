@@ -4,22 +4,39 @@
 
 ## 当前生产环境
 
+Helix-beta 已于 2026-08-28 在飞牛 NAS 上线。下列是 **当前生产配置快照**（不含凭据）。升级必须保留这些绑定，禁止 `--helix-clean-init`，除非 Product Owner 明确要求清库。
+
 | 项 | 固定值 |
 | --- | --- |
-| 生产形态 | 飞牛 fnOS 1.1.19 Docker 单容器 `shelfdeck`；2026-08-28 起容器已停止，历史镜像与库文件已清 |
-| 生产地址 | `http://192.168.12.230:18080`（当前未监听） |
+| 生产形态 | 飞牛 fnOS 1.1.19 Docker 单容器 `shelfdeck` |
+| 生产地址 | `http://192.168.12.230:18080` |
 | NAS SSH | `192.168.12.230:22`，用户 `gezhu`；优先私钥，见下方 SSH |
 | NAS compose 目录 | `/vol1/1000/docker/shelfdeck` |
 | NAS compose 文件 | `/vol1/1000/docker/shelfdeck/docker-compose.yml` |
-| NAS 数据目录 | `/vol1/1000/docker/shelfdeck/data`（Helix-beta 前已清空） |
+| NAS 数据目录 | `/vol1/1000/docker/shelfdeck/data` |
 | 镜像名 | `markmahoro/shelfdeck:<tag>`，同时打 `latest`，但生产不从 DockerHub pull |
 | 容器内 service 端口 | `18080` |
 | 容器内数据目录 | `/app/data` |
-| 普通媒体挂载 | NAS `/vol02/1000-0-c5b736af` -> 容器 `/media`（CIFS `192.168.12.45`） |
+| 普通媒体挂载 | NAS `/vol02/1000-0-c5b736af` -> 容器 `/media` |
 | 洗版/外部落地 | NAS `/vol2/1000/shelfdeck_upgrade` -> 容器 `/upgrade` |
-| 转码临时目录 | NAS `/vol2/1000/shelfdeck_transcode` -> 容器 `/transcode` |
+| Production Workspace / 转码目录 | NAS `/vol2/1000/shelfdeck_transcode` -> 容器 `/transcode`。**`/transcode` 就是本机 Production Workspace 根**，不是额外再挂一个 workspace |
 | 成人库挂载 | NAS `/vol02/1000-0-24018892` -> 容器 `/adult_media` |
 | QSV 核显 | 宿主机 `/dev/dri` -> 容器 `/dev/dri`，`LIBVA_DRIVER_NAME=iHD` |
+
+### 当前业务对象（2026-08-28 只读快照）
+
+| 项 | 值 |
+| --- | --- |
+| 文件来源 | `movie-field-52f6c848-af1b-4bdd-8655-d15bfdf30b5a`，名称「电影文件来源」，容器路径 `/media/Film`，status `active` |
+| 收藏架 | `movie-shelf-2ba8e387-4cd7-4702-942a-a246da15d421`，名称「电影」，目标 `/media/Film`，status `active` |
+| 路由策略 | 该来源 `direct`，始终指向上述收藏架 |
+| Production Workspace | `platform_workspace_roots.resolved_root=/transcode`，`config_revision=2`，`state=active`。保存后须重启容器才生效 |
+| TMDB | `tmdb-main` `active`，endpoint `https://api.themoviedb.org/3`，`proxyServer=http://192.168.12.230:7890`，language `zh-CN` |
+| 豆瓣 | `douban-main` `active`，endpoint `https://movie.douban.com` |
+| MoviePilot | `moviepilot-main` `active`，endpoint `http://192.168.12.230:3000` |
+| Clash 代理 | 宿主机容器 `clash`（`metacubex/mihomo`）监听 `*:7890` |
+
+SSOT 允许 Field 与 Shelf Target 同根；本机两者都是 `/media/Film`。Workspace 与转码共用 `/transcode` 是本机明确配置，不是疏忽。凭据只在 NAS `secret.env` 与本机 ignored 文件，不写入本文。
 
 `media-service/docker-compose.example.yml` 只是新环境模板，不是当前 NAS 生产 compose 的来源。不要根据模板推断当前生产挂载；以 NAS 上的 `/vol1/1000/docker/shelfdeck/docker-compose.yml` 和本文件为准。
 

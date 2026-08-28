@@ -7,8 +7,10 @@
  *   node scripts/deploy-nas.js /vol1/1000/docker/shelfdeck/shelfdeck-<tag>.tar --sha256 <hash>
  *   node scripts/deploy-nas.js /vol1/1000/docker/shelfdeck/shelfdeck-<tag>.tar --sha256 <hash> --helix-clean-init --apply
  *
- * Helix-beta always uses --helix-clean-init on this NAS. The script preserves
- * the media, upgrade, transcode, adult, and QSV mounts.
+ * Helix-beta first cutover uses --helix-clean-init. Later upgrades omit it so
+ * live data and Admin configuration stay in place. The script preserves the
+ * media, upgrade, transcode, adult, and QSV mounts. /transcode is also this
+ * NAS Production Workspace root.
  */
 
 const crypto = require('crypto');
@@ -270,7 +272,10 @@ async function main() {
     for (const [label, cmd] of steps) {
       console.log(`\n${label}\n  ${redact(cmd)}`);
     }
-    console.log('\nDry run only. Re-run with --helix-clean-init --apply to execute these checks and deploy.');
+    console.log('\nDry run only. Re-run with --apply to execute these checks and deploy.');
+    if (helixCleanInit) {
+      console.log('This dry run includes --helix-clean-init; apply will reinitialize data.');
+    }
     return;
   }
 
