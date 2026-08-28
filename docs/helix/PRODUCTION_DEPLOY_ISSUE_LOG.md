@@ -25,6 +25,7 @@
 | PROD-003 | 采购显示「已扫描完成 72 页」，媒体整理工作区当时一条都没有 | `USER_EXPERIENCE` | 文件来源配置、媒体整理工作区 | High | **FIXED in next image**（来源页增加采购进度；空工作区说明目录扫完不等于整理结束） |
 | PROD-004 | 文件来源与收藏架都指向容器路径 `/media/Film` | 配置选择 / 后续 Settlement 风险 | 文件来源配置、收藏架配置 | Medium | **OPEN / 先不修**（SSOT 允许同根，不是当前空工作区的原因） |
 | PROD-005 | 一部都没上架；整理工作区数量看起来卡住 | 配置 / Workspace 根未生效 | 系统设置 Workspace、媒体整理工作区 | Critical | **FIXED by restart on upgrade**。`/transcode` 就是本机 Production Workspace；升级重启后按 durable `/transcode` 生效。冲突错误现带 configured/durable 路径。配置不变。 |
+| PROD-006 | 打开媒体整理工作区卡在「正在读取媒体整理工作区…」 | `USER_EXPERIENCE` / 全量分页 | 媒体整理工作区 | Critical | **FIXED**。页面原先等 897 条全部拉完才渲染；现先画第一页，其余后台补齐，轮询只刷新首页。 |
 
 PROD-001、PROD-002 的共同环境前提：生产管理台是 `http://192.168.12.230`，浏览器不提供 `crypto.randomUUID` / `crypto.subtle`。这不是传输加密设计，只是浏览器 API 限制。未改成 HTTPS。
 
@@ -83,3 +84,11 @@ PROD-001、PROD-002 的共同环境前提：生产管理台是 `http://192.168.1
 - 次要：7 条 Libra Run `frozen`（资料观察 `P4_CAPABILITY_SCHEMA_REJECTED` ×6、`P5_SECRET_LEASE_INVOCATION_FAILED` ×1），页面「本次整理已冻结，需要放弃后重新采购」。这解释不了「全部没上架」。
 
 Product Owner 随后确认 `/transcode` 就是 Production Workspace，要求记录现网配置、修复后重启、配置不变。处理：冲突错误带上 configured/durable 路径；升级镜像不含 `--helix-clean-init`，重启后按 durable `/transcode` 生效。不改 Field、Shelf、Workspace、代理或集成。
+
+## 7. PROD-006 — 媒体整理工作区卡在「正在读取」（FIXED）
+
+发现：2026-08-28，用户打开「媒体整理工作区」整页停在「正在读取媒体整理工作区…」，响应极长。
+
+现场：`GET /v1/admin/formation?limit=25` 约 1.2s 返回 25 条；库内 897 条、`nextCursor` 仍有。页面却在首屏前串行拉完全部分页（约 36 页），且有 `in_progress` 时每 5 秒再全量重拉。容器 CPU 约 100%。SQLite 单页查询本身是毫秒级，卡死是前端全量门闩。
+
+修复：第一页到达即渲染表格；其余页后台续拉；轮询只合并首页进展，不再把整表当门闩。

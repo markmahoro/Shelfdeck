@@ -242,6 +242,43 @@ describe('Helix primary copy and workbench structure', () => {
     await waitFor(() => expect(screen.queryByText('示例电影 (2024)')).not.toBeInTheDocument());
   });
 
+  it('shows the first formation page before remaining pages finish', async () => {
+    let releaseRest = () => {};
+    const rest = new Promise<void>((resolve) => { releaseRest = resolve; });
+    const first: FormationSubject = {
+      ...completedSubject(),
+      classification: 'in_progress',
+      displayIdentity: '第一部电影',
+      nextAction: { label: '继续整理媒体', state: 'running', progress: null },
+      currentRun: {
+        libraRunId: 'run-1', state: 'active', stateRevision: 1, stateDigest: 'd',
+        priorityClass: 'normal', packageRevisionHead: 0, currentIdentityRevision: 1,
+      },
+      completedAtMs: null,
+    };
+    const second: FormationSubject = { ...first, formationViewId: 'subject-2', subjectId: 'subject-2', displayIdentity: '第二部电影' };
+    const summary = { totalCount: 2, pendingCount: 0, inProgressCount: 2, attentionRequiredCount: 0, completedCount: 0 };
+    vi.spyOn(helixAdminApi, 'listFormation').mockImplementation(async (section, cursor) => {
+      if (section === 'active' && !cursor) {
+        return { items: [first], summary, nextCursor: 'page-2', projection: { status: 'ready', asOfMs: 1 } };
+      }
+      if (section === 'active' && cursor === 'page-2') {
+        await rest;
+        return { items: [second], summary, nextCursor: null, projection: { status: 'ready', asOfMs: 1 } };
+      }
+      return { items: [], summary, nextCursor: null, projection: { status: 'ready', asOfMs: 1 } };
+    });
+    vi.spyOn(helixAdminApi, 'listFormationHistory').mockResolvedValue({ items: [], summary, nextCursor: null, projection: { status: 'ready', asOfMs: 1 } });
+    vi.spyOn(helixAdminApi, 'listShelves').mockResolvedValue({ items: [] });
+    render(<MemoryRouter initialEntries={['/formation']}><App /></MemoryRouter>);
+    expect(await screen.findByText('第一部电影')).toBeInTheDocument();
+    expect(screen.queryByText('正在读取媒体整理工作区…')).not.toBeInTheDocument();
+    expect(screen.queryByText('第二部电影')).not.toBeInTheDocument();
+    expect(screen.getByText(/其余继续载入/)).toBeInTheDocument();
+    releaseRest();
+    expect(await screen.findByText('第二部电影')).toBeInTheDocument();
+  });
+
   it('does not keep banned slogans on the default chrome', () => {
     render(<MemoryRouter><App /></MemoryRouter>);
     for (const phrase of banned) {

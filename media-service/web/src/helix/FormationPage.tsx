@@ -33,6 +33,46 @@ function ratingText(item:FormationSubject, acquisitionIncomplete:boolean) {
 function StageState({ state }:{ state:'completed'|'attention'|'pending' }) {
   return <span className="formation-stub-stage-state" data-state={state}>{state==='completed'?'已完成':state==='attention'?'需要处理':'尚未完成'}</span>;
 }
+function mergeById<T>(previous:T[], fresh:T[], idOf:(item:T)=>string): T[] {
+  const incoming = new Map(fresh.map((item)=>[idOf(item), item]));
+  const seen = new Set<string>();
+  const merged = previous.map((item)=>{
+    const id = idOf(item);
+    const next = incoming.get(id);
+    if (!next) return item;
+    seen.add(id);
+    return next;
+  });
+  return [...fresh.filter((item)=>!seen.has(idOf(item))), ...merged];
+}
+async function remainingFormation(first:{items:FormationSubject[];summary:FormationSummary;nextCursor:string|null}, section:'active'|'completed') {
+  const items = [...first.items];
+  let cursor = first.nextCursor, summary = first.summary;
+  const seen = new Set<string>();
+  while (cursor) {
+    if (seen.has(cursor) || seen.size >= 399) throw new Error('媒体整理分页游标异常，已停止读取。');
+    seen.add(cursor);
+    const page = await helixAdminApi.listFormation(section, cursor);
+    items.push(...page.items);
+    summary = page.summary;
+    cursor = page.nextCursor;
+  }
+  return { items, summary };
+}
+async function remainingHistory(first:{items:FormationRunHistory[];nextCursor:string|null}) {
+  const items = [...first.items];
+  let cursor = first.nextCursor;
+  const seen = new Set<string>();
+  while (cursor) {
+    if (seen.has(cursor) || seen.size >= 399) throw new Error('整理历史分页游标异常，已停止读取。');
+    seen.add(cursor);
+    const page = await helixAdminApi.listFormationHistory(cursor);
+    items.push(...page.items);
+    cursor = page.nextCursor;
+  }
+  return items;
+}
+
 function ProcessDetail({ item }:{ item:FormationSubject }) {
   const detail=item.processDetail,mediaSteps=detail?.mediaOrganization.steps || item.organizingSteps;
   return <article className="formation-process-card" aria-label={`${item.displayIdentity}的上架过程详情`}>
@@ -50,18 +90,47 @@ export default function FormationPage() {
   const { expire }=useSession();
   const [active,setActive]=useState<FormationSubject[]>([]),[completed,setCompleted]=useState<FormationSubject[]>([]),[ended,setEnded]=useState<FormationRunHistory[]>([]),[summary,setSummary]=useState(emptySummary),[shelves,setShelves]=useState<Shelf[]>([]);
   const [perceptionSync,setPerceptionSync]=useState<PerceptionSyncState|null>(null);
-  const [filter,setFilter]=useState<Filter>('all'),[q,setQ]=useState(''),[shelfFilter,setShelfFilter]=useState(''),[needsActionOnly,setNeedsActionOnly]=useState(false),[expeditedOnly,setExpeditedOnly]=useState(false),[loading,setLoading]=useState(false),[error,setError]=useState('');
-  const [selected,setSelected]=useState<FormationSubject|null>(null),closeRef=useRef<HTMLButtonElement>(null),triggerRef=useRef<HTMLButtonElement|null>(null);
-  const load=useCallback(async(background=false)=>{if(!background){setLoading(true);setError('');}try{
-    const loadAllFormation=async(section:'active'|'completed')=>{let cursor: string|undefined,summary=emptySummary;const items:FormationSubject[]=[];const seen=new Set<string>();do{const page=await helixAdminApi.listFormation(section,cursor);items.push(...page.items);summary=page.summary;if(!page.nextCursor)break;if(seen.has(page.nextCursor)||seen.size>=399)throw new Error('媒体整理分页游标异常，已停止读取。');seen.add(page.nextCursor);cursor=page.nextCursor;}while(cursor);return{items,summary};};
-    const loadAllHistory=async()=>{let cursor: string|undefined;const items:FormationRunHistory[]=[];const seen=new Set<string>();do{const page=await helixAdminApi.listFormationHistory(cursor);items.push(...page.items);if(!page.nextCursor)break;if(seen.has(page.nextCursor)||seen.size>=399)throw new Error('整理历史分页游标异常，已停止读取。');seen.add(page.nextCursor);cursor=page.nextCursor;}while(cursor);return items;};
-    const [a,c,e,s,detail,sync]=await Promise.all([loadAllFormation('active'),loadAllFormation('completed'),loadAllHistory(),helixAdminApi.listShelves(),selected?helixAdminApi.getFormation(selected.formationViewId):Promise.resolve(null),helixAdminApi.getPerceptionSyncState().catch(()=>null)]);
-    setActive(a.items);setCompleted(c.items);setEnded(e);setSummary(a.summary);setShelves(s.items.filter((item)=>item.status==='active'));
-    if(sync)setPerceptionSync(sync);
-    if(detail)setSelected(detail);
-  }catch(cause){if(isUnauthorized(cause))expire();else if(!background)setError(cause instanceof Error?cause.message:'媒体整理工作区读取失败。');}finally{if(!background)setLoading(false);}},[expire,selected?.formationViewId]);
+  const [filter,setFilter]=useState<Filter>('all'),[q,setQ]=useState(''),[shelfFilter,setShelfFilter]=useState(''),[needsActionOnly,setNeedsActionOnly]=useState(false),[expeditedOnly,setExpeditedOnly]=useState(false),[loading,setLoading]=useState(false),[filling,setFilling]=useState(false),[error,setError]=useState('');
+  const [selected,setSelected]=useState<FormationSubject|null>(null),closeRef=useRef<HTMLButtonElement>(null),triggerRef=useRef<HTMLButtonElement|null>(null),loadGeneration=useRef(0);
+  const load=useCallback(async(background=false)=>{
+    const generation=loadGeneration.current+1;loadGeneration.current=generation;
+    const live=()=>generation===loadGeneration.current;
+    if(!background){setLoading(true);setError('');}
+    try{
+      const [firstActive,firstCompleted,firstEnded,shelvesPage,sync]=await Promise.all([
+        helixAdminApi.listFormation('active'),
+        helixAdminApi.listFormation('completed'),
+        helixAdminApi.listFormationHistory(),
+        helixAdminApi.listShelves(),
+        helixAdminApi.getPerceptionSyncState().catch(()=>null),
+      ]);
+      if(!live())return;
+      if(background){
+        setActive((current)=>mergeById(current,firstActive.items,(item)=>item.subjectId));
+        setCompleted((current)=>mergeById(current,firstCompleted.items,(item)=>item.subjectId));
+        setEnded((current)=>mergeById(current,firstEnded.items,(item)=>item.historyId));
+        setSummary(firstActive.summary);
+        if(sync)setPerceptionSync(sync);
+        return;
+      }
+      setActive(firstActive.items);setCompleted(firstCompleted.items);setEnded(firstEnded.items);setSummary(firstActive.summary);
+      setShelves(shelvesPage.items.filter((item)=>item.status==='active'));
+      if(sync)setPerceptionSync(sync);
+      setLoading(false);
+      if(!firstActive.nextCursor&&!firstCompleted.nextCursor&&!firstEnded.nextCursor)return;
+      setFilling(true);
+      const [allActive,allCompleted,allEnded]=await Promise.all([
+        remainingFormation(firstActive,'active'),
+        remainingFormation(firstCompleted,'completed'),
+        remainingHistory(firstEnded),
+      ]);
+      if(!live())return;
+      setActive(allActive.items);setCompleted(allCompleted.items);setEnded(allEnded);setSummary(allActive.summary);
+    }catch(cause){if(isUnauthorized(cause))expire();else if(!background)setError(cause instanceof Error?cause.message:'媒体整理工作区读取失败。');}
+    finally{if(live()){if(!background)setLoading(false);setFilling(false);}}
+  },[expire]);
   useEffect(()=>{void load();},[load]);
-  useEffect(()=>{if(!active.some((item)=>item.classification==='in_progress'))return;const timer=window.setInterval(()=>{void load(true);},5000);return()=>window.clearInterval(timer);},[active,load]);
+  useEffect(()=>{if(!active.some((item)=>item.classification==='in_progress'))return;const timer=window.setInterval(()=>{void load(true);},10_000);return()=>window.clearInterval(timer);},[active,load]);
   const rows=useMemo<LedgerRow[]>(()=>[...active.map((item)=>({kind:'formation' as const,item})),...completed.map((item)=>({kind:'formation' as const,item})),...ended.map((item)=>({kind:'ended' as const,item}))].filter((row)=>{
     if(q.trim()&&!row.item.displayIdentity.toLowerCase().includes(q.trim().toLowerCase()))return false;
     if(row.kind==='formation'&&shelfFilter&&row.item.targetShelfId!==shelfFilter)return false;
@@ -95,7 +164,7 @@ export default function FormationPage() {
   return <section className="source-page workbench formation-page"><PageHeader title="媒体整理工作区" description="一张表查看全部媒体；列表显示当前进展，完整上架过程在屏幕中央查看。" actions={<Button type="button" onClick={()=>void load()} disabled={loading}>{loading?'正在刷新…':'刷新'}</Button>} />
     {error&&<p className="form-error" role="alert">{error}</p>}
     {perceptionSync?.completionState==='incomplete'&&<p className="form-notice" role="status">豆瓣评分同步尚未完整结束，已保存 {perceptionSync.recordCount} 条；再次同步会从上次成功位置继续。列表中的“暂不能确认”不是影片匹配失败。</p>}
-    <section className="formation-ledger"><div className="source-registry-heading"><div><h2>全部媒体</h2></div><span>当前显示 {rows.length} 条</span></div>
+    <section className="formation-ledger"><div className="source-registry-heading"><div><h2>全部媒体</h2></div><span>{filling?`已加载 ${active.length+completed.length+ended.length} 条，其余继续载入`:`当前显示 ${rows.length} 条`}</span></div>
       <div className="formation-chips" role="group" aria-label="媒体整理状态">{([{id:'all',label:'全部'},{id:'pending',label:'待整理'},{id:'in_progress',label:'整理中'},{id:'attention_required',label:'需要处理'},{id:'completed',label:'已完成'},{id:'ended',label:'已结束'}] as Array<{id:Filter;label:string}>).map((entry)=><Button key={entry.id} type="button" aria-pressed={filter===entry.id} onClick={()=>setFilter(entry.id)}>{entry.label} {counts[entry.id]}</Button>)}</div>
       <div className="formation-secondary"><label>片名<input type="search" aria-label="按片名筛选" value={q} placeholder="搜索片名" onChange={(event)=>setQ(event.target.value)} /></label><label>目标收藏架<select aria-label="按目标收藏架筛选" value={shelfFilter} onChange={(event)=>setShelfFilter(event.target.value)}><option value="">全部收藏架</option>{shelves.map((shelf)=><option key={shelf.shelfId} value={shelf.shelfId}>{shelf.name}</option>)}</select></label><label className="formation-check"><input type="checkbox" checked={needsActionOnly} onChange={(event)=>setNeedsActionOnly(event.target.checked)} />仅需用户处理</label><label className="formation-check"><input type="checkbox" checked={expeditedOnly} onChange={(event)=>setExpeditedOnly(event.target.checked)} />仅看加急</label></div>
       <div className="formation-table-wrap"><table className="formation-table formation-stub-table"><thead><tr><th>媒体名称</th><th>评分</th><th>目标收藏架</th><th>整理要求</th><th>当前进展</th><th>详情</th><th>用户操作</th><th>加急</th></tr></thead><tbody>{rows.length===0?<tr className="formation-stub-media-row"><td colSpan={8}><div className="source-empty"><strong>{summary.totalCount===0?'还没有进入整理的电影':'当前筛选没有条目'}</strong><p>{summary.totalCount===0?'文件来源目录扫完之后，采购还要分拣和交接，条目才会出现在这里。不是扫描结束就等于没有电影。':'试试其他状态或筛选。'}</p></div></td></tr>:rows.map((row)=>row.kind==='ended'?<tr key={row.item.historyId} className="formation-stub-media-row"><td><strong>{row.item.displayIdentity}</strong><small>已结束</small></td><td>—</td><td>—</td><td>—</td><td><strong className="formation-stub-current">{row.item.label}</strong><small>{formatTime(row.item.endedAtMs)}</small></td><td>—</td><td>—</td><td><button type="button" className="formation-expedite-toggle" disabled>加急</button></td></tr>:<MediaRow key={row.item.subjectId} item={row.item} shelves={shelves} loading={loading} acquisitionIncomplete={perceptionSync?.completionState==='incomplete'} onOpen={open} onAction={action} />)}</tbody></table></div>
