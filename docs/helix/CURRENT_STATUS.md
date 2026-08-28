@@ -4,6 +4,10 @@ Status: Helix-beta 范围已收窄为仅 Movie 全链路。Movie Procurement与M
 
 Last updated: 2026-08-28
 
+## 0. Production deploy issue log opened — no new fixes authorized
+
+2026-08-28 Product Owner 要求单独记录部署到飞牛生产后的问题，并明确先不修。台账为 `docs/helix/PRODUCTION_DEPLOY_ISSUE_LOG.md`。当前 OPEN 项为 `PROD-003`（观察「已扫描完成」被读成整理已结束，工作区当时为空）和 `PROD-004`（来源与收藏架同为 `/media/Film`）。`PROD-001`/`PROD-002` 仅为已热修的 HTTP 安全上下文崩溃记录。
+
 ## 0. NAS SSH restored; historical images and databases cleared
 
 2026-08-28 用本机 `~/.ssh/gezhu_nas_health_it_ed25519` 以用户 `gezhu` 恢复 NAS SSH。`tools/nas-ssh-config.js` 改为优先私钥；`tests/TEST_ENV_CHECKLIST.md` 只保存在本机且保持 gitignore。`node tools/ssh-exec.js "id; hostname"` 已通。
