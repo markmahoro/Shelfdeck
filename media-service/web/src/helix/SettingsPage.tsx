@@ -1,5 +1,6 @@
 import { FormEvent, useCallback, useEffect, useState } from 'react';
 import { helixAdminApi, type IntegrationState, type PerceptionRecord, type PerceptionSyncState, type WorkspaceRootSettings } from './api';
+import { newOpaqueId } from './id';
 import AutomaticOperationPanel from './AutomaticOperationPanel';
 import { Button, LoadingState, PageHeader } from './chrome';
 import { labelOf, recordKindLabels, resolutionLabels } from './labels';
@@ -116,7 +117,7 @@ export default function SettingsPage() {
   async function connect(event: FormEvent) {
     event.preventDefault(); setLoading(true); setError(''); setNotice('');
     try {
-      const proof = await helixAdminApi.testIntegration('douban', { kind: 'douban', idempotencyKey: `douban-test:${crypto.randomUUID()}`, endpoint: 'https://movie.douban.com', credential: { kind: 'cookie', value: cookie }, settings: { userId }, timeoutMs: 20_000 });
+      const proof = await helixAdminApi.testIntegration('douban', { kind: 'douban', idempotencyKey: `douban-test:${newOpaqueId()}`, endpoint: 'https://movie.douban.com', credential: { kind: 'cookie', value: cookie }, settings: { userId }, timeoutMs: 20_000 });
       await helixAdminApi.configureIntegration('douban', { kind: 'douban', idempotencyKey: `douban-configure:${proof.connectionProofId}`, expectedConfigRevision: integration?.configRevision || 0, connectionProofId: proof.connectionProofId });
       setCookie(''); setNotice('豆瓣连接已通过真实页面验证并保存。'); await loadIntegrations();
     } catch (cause) { fail(cause, '豆瓣连接失败。'); }
@@ -142,7 +143,7 @@ export default function SettingsPage() {
   async function connectTmdb(event: FormEvent) {
     event.preventDefault(); setLoading(true); setError(''); setNotice('');
     try {
-      const proof = await helixAdminApi.testIntegration('tmdb', { kind: 'tmdb', idempotencyKey: `tmdb-test:${crypto.randomUUID()}`, endpoint: 'https://api.themoviedb.org/3', credential: { kind: tmdbCredentialKind, value: tmdbCredential }, settings: { language: tmdbLanguage, proxyServer: tmdbProxyServer.trim() }, timeoutMs: 20_000 });
+      const proof = await helixAdminApi.testIntegration('tmdb', { kind: 'tmdb', idempotencyKey: `tmdb-test:${newOpaqueId()}`, endpoint: 'https://api.themoviedb.org/3', credential: { kind: tmdbCredentialKind, value: tmdbCredential }, settings: { language: tmdbLanguage, proxyServer: tmdbProxyServer.trim() }, timeoutMs: 20_000 });
       await helixAdminApi.configureIntegration('tmdb', { kind: 'tmdb', idempotencyKey: `tmdb-configure:${proof.connectionProofId}`, expectedConfigRevision: tmdb?.configRevision || 0, connectionProofId: proof.connectionProofId });
       setTmdbCredential(''); setNotice('TMDB 已验证并保存。'); await loadIntegrations();
     } catch (cause) { fail(cause, 'TMDB 连接失败。'); }
@@ -159,7 +160,7 @@ export default function SettingsPage() {
   async function updateTmdbSettings() {
     if (!tmdb) return; setLoading(true); setError('');
     try {
-      await helixAdminApi.configureIntegration('tmdb', { kind: 'tmdb', idempotencyKey: `tmdb-settings:${tmdb.configRevision}:${crypto.randomUUID()}`, expectedConfigRevision: tmdb.configRevision, settings: { language: tmdbLanguage, proxyServer: tmdbProxyServer.trim() } });
+      await helixAdminApi.configureIntegration('tmdb', { kind: 'tmdb', idempotencyKey: `tmdb-settings:${tmdb.configRevision}:${newOpaqueId()}`, expectedConfigRevision: tmdb.configRevision, settings: { language: tmdbLanguage, proxyServer: tmdbProxyServer.trim() } });
       setNotice('TMDB 设置已更新。'); await loadIntegrations();
     } catch (cause) { fail(cause, 'TMDB 设置更新失败。'); }
     finally { setLoading(false); }
@@ -167,7 +168,7 @@ export default function SettingsPage() {
   async function connectMoviePilot(event: FormEvent) {
     event.preventDefault(); setLoading(true); setError(''); setNotice('');
     try {
-      const proof = await helixAdminApi.testIntegration('moviepilot', { kind: 'moviepilot', idempotencyKey: `moviepilot-test:${crypto.randomUUID()}`, endpoint: moviePilotEndpoint, credential: { kind: 'api_key', value: moviePilotKey }, settings: { providerRequestSaveRoot: providerRequestRoot, providerOrganizedRoot, shelfDeckVisibleRoot: visibleLandingRoot, maxDownloadAttempts }, timeoutMs: 20_000 });
+      const proof = await helixAdminApi.testIntegration('moviepilot', { kind: 'moviepilot', idempotencyKey: `moviepilot-test:${newOpaqueId()}`, endpoint: moviePilotEndpoint, credential: { kind: 'api_key', value: moviePilotKey }, settings: { providerRequestSaveRoot: providerRequestRoot, providerOrganizedRoot, shelfDeckVisibleRoot: visibleLandingRoot, maxDownloadAttempts }, timeoutMs: 20_000 });
       await helixAdminApi.configureIntegration('moviepilot', { kind: 'moviepilot', idempotencyKey: `moviepilot-configure:${proof.connectionProofId}`, expectedConfigRevision: moviePilot?.configRevision || 0, connectionProofId: proof.connectionProofId });
       setMoviePilotKey(''); setNotice('MoviePilot 已验证并保存。'); await loadIntegrations();
     } catch (cause) { fail(cause, 'MoviePilot 连接失败。'); }
@@ -187,7 +188,7 @@ export default function SettingsPage() {
     try {
       await helixAdminApi.configureIntegration('moviepilot', {
         kind: 'moviepilot',
-        idempotencyKey: `moviepilot-settings:${moviePilot.configRevision}:${crypto.randomUUID()}`,
+        idempotencyKey: `moviepilot-settings:${moviePilot.configRevision}:${newOpaqueId()}`,
         expectedConfigRevision: moviePilot.configRevision,
         settings: {
           providerRequestSaveRoot: providerRequestRoot,

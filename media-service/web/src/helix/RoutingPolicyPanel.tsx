@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { canonicalDigest, helixAdminApi, type JsonValue, type MaterialField, type RoutingExpression, type RoutingPolicy, type Shelf } from './api';
+import { newOpaqueId } from './id';
 
 type DraftTarget = { shelfId: string; rank: number; matchExpression: RoutingExpression };
 type FactKind = 'content_profile' | 'structure_kind' | 'material_field' | 'release_year' | 'region' | 'genre' | 'resolved_provider_identity';
@@ -143,7 +144,7 @@ export default function RoutingPolicyPanel({ field, shelves }: { field: Material
   async function preview() {
     setError(''); setMessage('');
     try {
-      const result = await helixAdminApi.previewRoutingPolicy(field.fieldId, { idempotencyKey: crypto.randomUUID(), fieldId: field.fieldId,
+      const result = await helixAdminApi.previewRoutingPolicy(field.fieldId, { idempotencyKey: newOpaqueId(), fieldId: field.fieldId,
         policy: await draft(), facts: JSON.parse(factsJson) as JsonValue });
       setMessage(result.result === 'resolved' ? `预览：将进入 ${activeShelves.find((item) => item.shelfId === result.targetShelfId)?.name || '选定收藏架'}` : '预览：条件未能匹配到收藏架');
     } catch (cause) { setError(cause instanceof Error ? cause.message : '分拣预览失败。'); }
@@ -151,7 +152,7 @@ export default function RoutingPolicyPanel({ field, shelves }: { field: Material
   async function publish() {
     setError(''); setMessage('');
     try {
-      const result = await helixAdminApi.publishRoutingPolicy(field.fieldId, { idempotencyKey: crypto.randomUUID(), fieldId: field.fieldId,
+      const result = await helixAdminApi.publishRoutingPolicy(field.fieldId, { idempotencyKey: newOpaqueId(), fieldId: field.fieldId,
         expectedPolicyId: current?.routingPolicyId || null, expectedRevision: current?.revision || 0, policy: await draft() });
       setCurrent(result.policy); setMessage(`分拣策略已发布，后台会按新规则重新分配该来源中尚未完成的电影。`);
     } catch (cause) { setError(cause instanceof Error ? cause.message : '分拣策略发布失败。'); }

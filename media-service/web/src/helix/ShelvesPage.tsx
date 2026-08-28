@@ -1,4 +1,5 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
+import { newOpaqueId } from './id';
 import {
   AdminApiError,
   canonicalDigest,
@@ -42,7 +43,7 @@ type StandardEditor =
   | { kind: 'shelf'; shelf: Shelf };
 
 function newShelfId() {
-  return `movie-shelf-${crypto.randomUUID()}`;
+  return newOpaqueId('movie-shelf-');
 }
 function branchLabel(branch: { conditionKind: MovieRuleBranch['conditionKind']; rating?: number }) {
   return branch.conditionKind === 'no_rating' ? '未评分' : `${branch.rating}星`;

@@ -218,13 +218,15 @@ async function main() {
           '--confirm',
           CLEAN_INIT_CONFIRM,
         ].join(' ')]]
-      : [['Helix data preflight', [
+      : [['Helix runtime readiness', [
           'docker run --rm',
           `--env-file ${shellQuote(SECRET_FILE)}`,
           `-v ${shellQuote(`${DATA_DIR}:/app/data:ro`)}`,
           shellQuote(targetImage),
-          'node scripts/helix-data-preflight.js',
-          '--data-dir=/app/data',
+          'node scripts/helix-clean-init.js',
+          '--data-dir',
+          '/app/data',
+          '--readiness',
         ].join(' ')]]),
     ['Recreate through compose', `cd ${shellQuote(COMPOSE_DIR)} && docker compose up -d --force-recreate`],
     ['Wait for boot', 'sleep 8'],

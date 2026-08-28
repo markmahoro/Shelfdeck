@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { helixAdminApi, type CareDetail, type CollectionEntry, type HealthState } from './api';
+import { newOpaqueId } from './id';
 import { Button, LoadingState, PageHeader } from './chrome';
 import { healthLabels } from './labels';
 import RatingControl from './RatingControl';
@@ -106,7 +107,7 @@ export default function CollectionPage() {
     if (!selected) return;
     setExiting(true); setError('');
     try {
-      const review = await helixAdminApi.createOffdeckReview({ shelfEntryId: selected.shelfEntryId, originKind: 'direct_intent', originRef: selected.shelfEntryId, actorId: 'admin', idempotencyKey: `offdeck-direct:${selected.shelfEntryId}:${crypto.randomUUID()}` });
+      const review = await helixAdminApi.createOffdeckReview({ shelfEntryId: selected.shelfEntryId, originKind: 'direct_intent', originRef: selected.shelfEntryId, actorId: 'admin', idempotencyKey: `offdeck-direct:${selected.shelfEntryId}:${newOpaqueId()}` });
       window.location.assign(`/offdeck?review=${encodeURIComponent(review.reviewId)}`);
     } catch (cause) {
       if (isUnauthorized(cause)) expire();

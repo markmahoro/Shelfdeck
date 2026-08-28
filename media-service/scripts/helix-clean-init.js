@@ -4,6 +4,8 @@ const path = require('node:path');
 const { initializeCleanData, inspectReadiness } = require('./helix-operational-safety');
 
 function valueAfter(args, flag) {
+  const assigned = args.find((arg) => arg.startsWith(`${flag}=`));
+  if (assigned) return assigned.slice(flag.length + 1);
   const index = args.indexOf(flag);
   return index >= 0 ? args[index + 1] : undefined;
 }

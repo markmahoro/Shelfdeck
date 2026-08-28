@@ -1,12 +1,13 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { helixAdminApi, materialFieldRegistration, type MaterialField, type ProcurementJourneyResult, type Shelf } from './api';
+import { newOpaqueId } from './id';
 import { Button, LoadingState, PageHeader } from './chrome';
 import { observationScanLabels } from './labels';
 import RoutingPolicyPanel from './RoutingPolicyPanel';
 import { isUnauthorized, useSession } from './session';
 
 function newFieldId() {
-  return `movie-field-${crypto.randomUUID()}`;
+  return newOpaqueId('movie-field-');
 }
 function directorySet(value: string) {
   return [...new Set(value.split(/[\n,]/).map((item) => item.trim().replace(/\\/g, '/')).filter(Boolean))].sort();

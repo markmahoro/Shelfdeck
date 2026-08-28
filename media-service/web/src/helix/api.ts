@@ -1,3 +1,5 @@
+import { newOpaqueId } from './id';
+
 export type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };
 
 export type ExtractionPolicyValue = {
@@ -542,7 +544,7 @@ export const helixAdminApi = {
     return request<AutomaticOperationCommandResult>('/v1/admin/settings/automatic-operation/actions/enable-full', {
       method: 'POST',
       body: JSON.stringify({
-        idempotencyKey: `automatic-operation:enable-full:${expectedRevision}:${crypto.randomUUID()}`,
+        idempotencyKey: `automatic-operation:enable-full:${expectedRevision}:${newOpaqueId()}`,
         expectedRevision,
         coverExclusiveRelatedInput: true,
       }),
@@ -552,7 +554,7 @@ export const helixAdminApi = {
     return request<AutomaticOperationCommandResult>('/v1/admin/settings/automatic-operation/actions/require-settlement-confirmation', {
       method: 'POST',
       body: JSON.stringify({
-        idempotencyKey: `automatic-operation:require-settlement:${expectedRevision}:${crypto.randomUUID()}`,
+        idempotencyKey: `automatic-operation:require-settlement:${expectedRevision}:${newOpaqueId()}`,
         expectedRevision,
       }),
     });
@@ -569,17 +571,17 @@ export const helixAdminApi = {
   },
   registerPerson(body:{ canonicalName:string; aliases?:string[]; providerIdentities?:Array<{provider?:string;namespace?:string;providerKey:string}> }) {
     return request<{ person: { personId:string; revision?:{canonicalName:string} } }>('/v1/admin/people/actions/register', {
-      method:'POST', body:JSON.stringify({ ...body, idempotencyKey:`people-register:${body.canonicalName}:${crypto.randomUUID()}` }),
+      method:'POST', body:JSON.stringify({ ...body, idempotencyKey:`people-register:${body.canonicalName}:${newOpaqueId()}` }),
     });
   },
   acceptPeopleCandidate(candidateId:string) {
     return request<{ person: { personId:string } }>('/v1/admin/people', {
-      method:'POST', body:JSON.stringify({ candidateId, idempotencyKey:`people-accept:${candidateId}:${crypto.randomUUID()}` }),
+      method:'POST', body:JSON.stringify({ candidateId, idempotencyKey:`people-accept:${candidateId}:${newOpaqueId()}` }),
     });
   },
   dismissPeopleCandidate(candidateId:string) {
     return request<{ candidate: { candidateId:string } }>('/v1/admin/people/actions/dismiss-candidate', {
-      method:'POST', body:JSON.stringify({ candidateId, idempotencyKey:`people-dismiss:${candidateId}:${crypto.randomUUID()}` }),
+      method:'POST', body:JSON.stringify({ candidateId, idempotencyKey:`people-dismiss:${candidateId}:${newOpaqueId()}` }),
     });
   },
   listMaterialFields() {
@@ -625,20 +627,20 @@ export const helixAdminApi = {
     return `/v1/admin/collection/${encodeURIComponent(shelfEntryId)}/poster`;
   },
   getCare(shelfEntryId:string){return request<CareDetail>(`/v1/admin/care/${encodeURIComponent(shelfEntryId)}`);},
-  checkCare(shelfEntryId:string){return request<{operationRef:string;state:string;shelfEntryId:string}>(`/v1/admin/care/${encodeURIComponent(shelfEntryId)}/actions/check`,{method:'POST',body:JSON.stringify({idempotencyKey:`care-check:${shelfEntryId}:${crypto.randomUUID()}`})});},
+  checkCare(shelfEntryId:string){return request<{operationRef:string;state:string;shelfEntryId:string}>(`/v1/admin/care/${encodeURIComponent(shelfEntryId)}/actions/check`,{method:'POST',body:JSON.stringify({idempotencyKey:`care-check:${shelfEntryId}:${newOpaqueId()}`})});},
   getOffdeckPolicy(){return request<OffdeckPolicy>('/v1/admin/offdeck/policies');},
   publishOffdeckPolicy(body:JsonValue){return request<OffdeckPolicy>('/v1/admin/offdeck/policies',{method:'PATCH',body:JSON.stringify(body)});},
   listOffdeckCandidates(){return request<{candidates:OffdeckCandidate[];duplicateGroups:OffdeckDuplicateGroup[];suppressions:JsonValue[];whitelists:JsonValue[]}>('/v1/admin/offdeck/candidates');},
-  evaluateOffdeck(){return request<{operations:JsonValue[];matchedCount:number}>('/v1/admin/offdeck/actions/evaluate',{method:'POST',body:JSON.stringify({idempotencyKey:`offdeck-evaluate:${crypto.randomUUID()}`})});},
-  detectOffdeckDuplicates(){return request<JsonValue>('/v1/admin/offdeck/actions/detect-duplicates',{method:'POST',body:JSON.stringify({idempotencyKey:`offdeck-duplicates:${crypto.randomUUID()}`})});},
-  suppressOffdeckCandidate(candidateId:string){return request<JsonValue>(`/v1/admin/offdeck/candidates/${encodeURIComponent(candidateId)}/actions/suppress`,{method:'POST',body:JSON.stringify({actorId:'admin',idempotencyKey:`offdeck-suppress:${candidateId}:${crypto.randomUUID()}`})});},
-  whitelistOffdeckDuplicate(groupId:string){return request<JsonValue>(`/v1/admin/offdeck/duplicate-groups/${encodeURIComponent(groupId)}/actions/whitelist`,{method:'POST',body:JSON.stringify({actorId:'admin',idempotencyKey:`offdeck-whitelist:${groupId}:${crypto.randomUUID()}`})});},
+  evaluateOffdeck(){return request<{operations:JsonValue[];matchedCount:number}>('/v1/admin/offdeck/actions/evaluate',{method:'POST',body:JSON.stringify({idempotencyKey:`offdeck-evaluate:${newOpaqueId()}`})});},
+  detectOffdeckDuplicates(){return request<JsonValue>('/v1/admin/offdeck/actions/detect-duplicates',{method:'POST',body:JSON.stringify({idempotencyKey:`offdeck-duplicates:${newOpaqueId()}`})});},
+  suppressOffdeckCandidate(candidateId:string){return request<JsonValue>(`/v1/admin/offdeck/candidates/${encodeURIComponent(candidateId)}/actions/suppress`,{method:'POST',body:JSON.stringify({actorId:'admin',idempotencyKey:`offdeck-suppress:${candidateId}:${newOpaqueId()}`})});},
+  whitelistOffdeckDuplicate(groupId:string){return request<JsonValue>(`/v1/admin/offdeck/duplicate-groups/${encodeURIComponent(groupId)}/actions/whitelist`,{method:'POST',body:JSON.stringify({actorId:'admin',idempotencyKey:`offdeck-whitelist:${groupId}:${newOpaqueId()}`})});},
   createOffdeckReview(body:JsonValue){return request<OffdeckReview>('/v1/admin/offdeck/reviews',{method:'POST',body:JSON.stringify(body)});},
   getOffdeckReview(reviewId:string){return request<OffdeckReview>(`/v1/admin/offdeck/reviews/${encodeURIComponent(reviewId)}`);},
-  cancelOffdeckReview(reviewId:string){return request<OffdeckReview>(`/v1/admin/offdeck/reviews/${encodeURIComponent(reviewId)}`,{method:'DELETE',body:JSON.stringify({idempotencyKey:`offdeck-cancel:${reviewId}:${crypto.randomUUID()}`})});},
-  confirmOffdeckSelection(reviewId:string,body:JsonValue){return request<OffdeckReview>(`/v1/admin/offdeck/reviews/${encodeURIComponent(reviewId)}/actions/confirm-selection`,{method:'POST',body:JSON.stringify({...body as Record<string,JsonValue>,idempotencyKey:`offdeck-selection:${reviewId}:${crypto.randomUUID()}`})});},
-  confirmOffdeckHighVolume(reviewId:string,body:JsonValue){return request<OffdeckReview>(`/v1/admin/offdeck/reviews/${encodeURIComponent(reviewId)}/actions/confirm-high-volume`,{method:'POST',body:JSON.stringify({...body as Record<string,JsonValue>,idempotencyKey:`offdeck-escalation:${reviewId}:${crypto.randomUUID()}`})});},
-  authorizeOffdeck(reviewId:string){return request<{batchId:string;cases:string[]}>('/v1/admin/offdeck/authorizations',{method:'POST',body:JSON.stringify({reviewId,actorId:'admin',idempotencyKey:`offdeck-authorize:${reviewId}:${crypto.randomUUID()}`})});},
+  cancelOffdeckReview(reviewId:string){return request<OffdeckReview>(`/v1/admin/offdeck/reviews/${encodeURIComponent(reviewId)}`,{method:'DELETE',body:JSON.stringify({idempotencyKey:`offdeck-cancel:${reviewId}:${newOpaqueId()}`})});},
+  confirmOffdeckSelection(reviewId:string,body:JsonValue){return request<OffdeckReview>(`/v1/admin/offdeck/reviews/${encodeURIComponent(reviewId)}/actions/confirm-selection`,{method:'POST',body:JSON.stringify({...body as Record<string,JsonValue>,idempotencyKey:`offdeck-selection:${reviewId}:${newOpaqueId()}`})});},
+  confirmOffdeckHighVolume(reviewId:string,body:JsonValue){return request<OffdeckReview>(`/v1/admin/offdeck/reviews/${encodeURIComponent(reviewId)}/actions/confirm-high-volume`,{method:'POST',body:JSON.stringify({...body as Record<string,JsonValue>,idempotencyKey:`offdeck-escalation:${reviewId}:${newOpaqueId()}`})});},
+  authorizeOffdeck(reviewId:string){return request<{batchId:string;cases:string[]}>('/v1/admin/offdeck/authorizations',{method:'POST',body:JSON.stringify({reviewId,actorId:'admin',idempotencyKey:`offdeck-authorize:${reviewId}:${newOpaqueId()}`})});},
   listOffdeckCases(){return request<{items:OffdeckCase[]}>('/v1/admin/offdeck/cases');},
   getOffdeckCase(caseId:string){return request<JsonValue>(`/v1/admin/offdeck/cases/${encodeURIComponent(caseId)}`);},
   listPerceptionRecords(filters: { cursor?: string; limit?: number; sourceKind?: string; rating?: number; resolutionStatus?: string; targetType?: string; targetId?: string } = {}) {
@@ -649,7 +651,7 @@ export const helixAdminApi = {
   rate(targetType: 'subject' | 'shelf_entry', targetId: string, expectedRevision: number, rating: number | null) {
     return request<{ operationRef: string; state: string; expectedResultRevision: number }>('/v1/admin/perception/records', {
       method:'POST', body:JSON.stringify({ targetType, targetId, expectedRevision, rating,
-        idempotencyKey:`rating:${targetType}:${targetId}:${expectedRevision + 1}:${rating===null?'clear':rating}:${crypto.randomUUID()}` }),
+        idempotencyKey:`rating:${targetType}:${targetId}:${expectedRevision + 1}:${rating===null?'clear':rating}:${newOpaqueId()}` }),
     });
   },
   getIntegration(kind: string) {
@@ -657,10 +659,10 @@ export const helixAdminApi = {
   },
   getWorkspaceRootSettings(){return request<WorkspaceRootSettings>('/v1/admin/settings/workspaces');},
   probeWorkspaceRoot(rootPath:string){return request<{rootPath:string;validation:'passed';availableBytes:number}>(
-    '/v1/admin/settings/workspaces/actions/probe',{method:'POST',body:JSON.stringify({rootPath,idempotencyKey:`workspace-probe:${crypto.randomUUID()}`})});},
+    '/v1/admin/settings/workspaces/actions/probe',{method:'POST',body:JSON.stringify({rootPath,idempotencyKey:`workspace-probe:${newOpaqueId()}`})});},
   configureWorkspaceRoot(rootPath:string,expectedConfigRevision:number){return request<WorkspaceRootSettings>(
     '/v1/admin/settings/workspaces',{method:'PATCH',body:JSON.stringify({rootPath,expectedConfigRevision,
-      idempotencyKey:`workspace-configure:${expectedConfigRevision + 1}:${crypto.randomUUID()}`})});},
+      idempotencyKey:`workspace-configure:${expectedConfigRevision + 1}:${newOpaqueId()}`})});},
   testIntegration(kind: string, body: JsonValue) {
     return request<{ connectionProofId: string; identityProviderKey: string; expiresAtMs: number }>(`/v1/admin/settings/integrations/${encodeURIComponent(kind)}/actions/test`, { method:'POST', body:JSON.stringify(body) });
   },
@@ -707,14 +709,14 @@ export const helixAdminApi = {
         body:JSON.stringify({
           expectedRunStateRevision:run.stateRevision,
           expectedRunStateDigest:run.stateDigest,
-          idempotencyKey:`${action}:${run.libraRunId}:${run.stateRevision}:${crypto.randomUUID()}`,
+          idempotencyKey:`${action}:${run.libraRunId}:${run.stateRevision}:${newOpaqueId()}`,
         }),
       });
   },
-  discardRun(subject:FormationSubject){if(!subject.currentRun)throw new Error('当前媒体没有可放弃的整理任务。');const run=subject.currentRun;return request<{resultKind:string;libraRunId:string;replayed?:boolean}>(`/v1/admin/formation/runs/${encodeURIComponent(run.libraRunId)}/actions/discard`,{method:'POST',body:JSON.stringify({expectedRunStateRevision:run.stateRevision,expectedRunStateDigest:run.stateDigest,idempotencyKey:`discard:${run.libraRunId}:${run.stateRevision}:${crypto.randomUUID()}`})});},
+  discardRun(subject:FormationSubject){if(!subject.currentRun)throw new Error('当前媒体没有可放弃的整理任务。');const run=subject.currentRun;return request<{resultKind:string;libraRunId:string;replayed?:boolean}>(`/v1/admin/formation/runs/${encodeURIComponent(run.libraRunId)}/actions/discard`,{method:'POST',body:JSON.stringify({expectedRunStateRevision:run.stateRevision,expectedRunStateDigest:run.stateDigest,idempotencyKey:`discard:${run.libraRunId}:${run.stateRevision}:${newOpaqueId()}`})});},
   previewDefectAdmission(subject:FormationSubject){if(!subject.currentRun)throw new Error('当前媒体没有可操作的整理任务。');return request<DefectAdmissionCandidate>(`/v1/admin/formation/runs/${encodeURIComponent(subject.currentRun.libraRunId)}/defect-admission-candidate`);},
-  admitWithDefects(subject:FormationSubject,candidate:DefectAdmissionCandidate){if(!subject.currentRun)throw new Error('当前媒体没有可操作的整理任务。');const run=subject.currentRun;return request<{resultKind:string;libraRunId:string;replayed:boolean}>(`/v1/admin/formation/runs/${encodeURIComponent(run.libraRunId)}/actions/admit-with-defects`,{method:'POST',body:JSON.stringify({expectedRunStateRevision:run.stateRevision,expectedRunStateDigest:run.stateDigest,expectedDefectCandidateDigest:candidate.candidateDigest,acknowledged:true,idempotencyKey:`admit-with-defects:${run.libraRunId}:${run.stateRevision}:${crypto.randomUUID()}`})});},
-  chooseProductIdentity(subject:FormationSubject,tmdbMovieId:string){if(!subject.currentRun)throw new Error('当前媒体没有可恢复的整理任务。');const run=subject.currentRun;return request<{selectionIntentId:string;libraRunId:string;providerKey:string;intentRevision:number;replayed:boolean}>(`/v1/admin/formation/runs/${encodeURIComponent(run.libraRunId)}/actions/choose-product-identity`,{method:'POST',body:JSON.stringify({tmdbMovieId,expectedRunStateRevision:run.stateRevision,expectedIdentityRevision:run.currentIdentityRevision,candidateSetDigest:subject.productIdentityIssue?.candidateSetDigest||null,idempotencyKey:`choose-product-identity:${run.libraRunId}:${run.stateRevision}:${tmdbMovieId}:${crypto.randomUUID()}`})});},
+  admitWithDefects(subject:FormationSubject,candidate:DefectAdmissionCandidate){if(!subject.currentRun)throw new Error('当前媒体没有可操作的整理任务。');const run=subject.currentRun;return request<{resultKind:string;libraRunId:string;replayed:boolean}>(`/v1/admin/formation/runs/${encodeURIComponent(run.libraRunId)}/actions/admit-with-defects`,{method:'POST',body:JSON.stringify({expectedRunStateRevision:run.stateRevision,expectedRunStateDigest:run.stateDigest,expectedDefectCandidateDigest:candidate.candidateDigest,acknowledged:true,idempotencyKey:`admit-with-defects:${run.libraRunId}:${run.stateRevision}:${newOpaqueId()}`})});},
+  chooseProductIdentity(subject:FormationSubject,tmdbMovieId:string){if(!subject.currentRun)throw new Error('当前媒体没有可恢复的整理任务。');const run=subject.currentRun;return request<{selectionIntentId:string;libraRunId:string;providerKey:string;intentRevision:number;replayed:boolean}>(`/v1/admin/formation/runs/${encodeURIComponent(run.libraRunId)}/actions/choose-product-identity`,{method:'POST',body:JSON.stringify({tmdbMovieId,expectedRunStateRevision:run.stateRevision,expectedIdentityRevision:run.currentIdentityRevision,candidateSetDigest:subject.productIdentityIssue?.candidateSetDigest||null,idempotencyKey:`choose-product-identity:${run.libraRunId}:${run.stateRevision}:${tmdbMovieId}:${newOpaqueId()}`})});},
   retryAcceptance(subject:FormationSubject){if(!subject.executorIssue?.canRetry)throw new Error('当前接纳故障不能重试。');return request(`/v1/admin/formation/acceptance/${encodeURIComponent(subject.executorIssue.offerId)}/actions/retry`,{method:'POST',body:JSON.stringify({})});},
   createShelf(body: JsonValue) {
     return request<{ shelf: Shelf; replayed: boolean }>('/v1/admin/shelves', {
@@ -745,7 +747,7 @@ export const helixAdminApi = {
       {
         method: 'POST',
         body: JSON.stringify({
-          idempotencyKey: `shelf:${shelf.shelfId}:placement-preview:${shelf.currentPlacementRevision}:${crypto.randomUUID()}`,
+          idempotencyKey: `shelf:${shelf.shelfId}:placement-preview:${shelf.currentPlacementRevision}:${newOpaqueId()}`,
           shelfId: shelf.shelfId,
           expectedPlacementRevision: shelf.currentPlacementRevision,
           target: { ...shelf.target, rootLocation: targetRootLocation.trim() },
@@ -782,7 +784,7 @@ export const helixAdminApi = {
     );
   },
   copyRuleTemplate(source: Pick<RuleTemplate, 'templateId' | 'currentRevision'>, name: string) {
-    const newTemplateId = `movie-rule-${crypto.randomUUID()}`;
+    const newTemplateId = `movie-rule-${newOpaqueId()}`;
     return request<{ template: RuleTemplate; draft: { templateId: string; draftRevision: number; basePublishedRevision: number; rulesDigest: string }; replayed: boolean }>(
       `/v1/admin/rule-templates/${encodeURIComponent(source.templateId)}/actions/copy`,
       {
@@ -826,7 +828,7 @@ export const helixAdminApi = {
       {
         method: 'POST',
         body: JSON.stringify({
-          idempotencyKey: `rule-template:preview:${template.templateId}:${draft.draftRevision}:${crypto.randomUUID()}`,
+          idempotencyKey: `rule-template:preview:${template.templateId}:${draft.draftRevision}:${newOpaqueId()}`,
           templateId: template.templateId,
           expectedCurrentRevision: template.currentRevision,
           expectedDraftRevision: draft.draftRevision,

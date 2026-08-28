@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { helixAdminApi, type CollectionEntry, type JsonValue, type OffdeckCase, type OffdeckCandidate, type OffdeckDuplicateGroup, type OffdeckPolicy, type OffdeckReview, type Shelf } from './api';
+import { newOpaqueId } from './id';
 import { Button, LoadingState, PageHeader } from './chrome';
 import { caseStateLabels, labelOf, reviewStateLabels } from './labels';
 import { isUnauthorized, useSession } from './session';
@@ -30,7 +31,7 @@ function formatGiB(bytes: number) {
 
 function emptyRule(kind: RuleKind): RuleDraft {
   return {
-    ruleId: `rule-${crypto.randomUUID()}`,
+    ruleId: `rule-${newOpaqueId()}`,
     shelfScope: 'all',
     shelfIds: '',
     kind,
@@ -173,7 +174,7 @@ export default function OffdeckPage() {
   async function openBulkReview() {
     const shelfEntryIds = [...new Set(bulkSelection)].sort();
     if (shelfEntryIds.length === 0) throw new Error('请先选择需要退出的收藏。');
-    const idempotencyKey = `offdeck-batch:${shelfEntryIds.join(',')}:${crypto.randomUUID()}`;
+    const idempotencyKey = `offdeck-batch:${shelfEntryIds.join(',')}:${newOpaqueId()}`;
     const value = await helixAdminApi.createOffdeckReview({ shelfEntryIds, actorId: 'admin', idempotencyKey });
     setReview(value);
     history.replaceState(null, '', `/offdeck?review=${encodeURIComponent(value.reviewId)}`);
@@ -186,7 +187,7 @@ export default function OffdeckPage() {
       shelfIds: draft.shelfScope === 'selected' ? draft.shelfIds.split(',').map((value) => value.trim()).filter(Boolean) : [],
       condition: toCondition(draft),
     }));
-    await helixAdminApi.publishOffdeckPolicy({ expectedRevision: policy.revision, status: policyStatus, duplicateScheduleEnabled, entryRules, idempotencyKey: `offdeck-policy:${crypto.randomUUID()}` });
+    await helixAdminApi.publishOffdeckPolicy({ expectedRevision: policy.revision, status: policyStatus, duplicateScheduleEnabled, entryRules, idempotencyKey: `offdeck-policy:${newOpaqueId()}` });
   }
   function updateRule(index: number, patch: Partial<RuleDraft>) {
     setRuleDrafts((items) => items.map((item, i) => i === index ? { ...item, ...patch } : item));
