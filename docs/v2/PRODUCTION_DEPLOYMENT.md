@@ -6,16 +6,17 @@
 
 | 项 | 固定值 |
 | --- | --- |
-| 生产形态 | NAS Docker 单容器 `shelfdeck` |
-| 生产地址 | `http://192.168.12.230:18080` |
-| NAS SSH | `192.168.12.230:22`，凭据见 `tests/TEST_ENV_CHECKLIST.md` |
+| 生产形态 | 飞牛 fnOS 1.1.19 Docker 单容器 `shelfdeck`；2026-08-28 起容器已停止，历史镜像与库文件已清 |
+| 生产地址 | `http://192.168.12.230:18080`（当前未监听） |
+| NAS SSH | `192.168.12.230:22`，用户 `gezhu`；优先私钥，见下方 SSH |
 | NAS compose 目录 | `/vol1/1000/docker/shelfdeck` |
 | NAS compose 文件 | `/vol1/1000/docker/shelfdeck/docker-compose.yml` |
-| NAS 数据目录 | `/vol1/1000/docker/shelfdeck/data` |
+| NAS 数据目录 | `/vol1/1000/docker/shelfdeck/data`（Helix-beta 前已清空） |
 | 镜像名 | `markmahoro/shelfdeck:<tag>`，同时打 `latest`，但生产不从 DockerHub pull |
 | 容器内 service 端口 | `18080` |
 | 容器内数据目录 | `/app/data` |
 | 成人库挂载 | NAS `/vol02/1000-0-24018892` -> 容器 `/adult_media` |
+| 普通媒体挂载 | NAS `/vol02/1000-0-c5b736af` -> 容器 `/media`（CIFS `192.168.12.45`） |
 
 `media-service/docker-compose.example.yml` 只是新环境模板，不是当前 NAS 生产 compose 的来源。不要根据模板推断当前生产挂载；以 NAS 上的 `/vol1/1000/docker/shelfdeck/docker-compose.yml` 和本文件为准。
 
@@ -57,7 +58,13 @@ Get-FileHash dist-image\shelfdeck-<tag>.tar -Algorithm SHA256
 node scripts/upload-nas-image.js dist-image\shelfdeck-<tag>.tar
 ```
 
-上传脚本使用项目固定 NAS SSH 配置走 SFTP，不使用交互式 `scp`。SSH 配置由 `tools/nas-ssh-config.js` 统一读取：优先使用 `SHELFDECK_NAS_HOST`、`SHELFDECK_NAS_PORT`、`SHELFDECK_NAS_USER`、`SHELFDECK_NAS_PASSWORD` 环境变量；未设置时读取本机 ignored 的 `tests/TEST_ENV_CHECKLIST.md`。脚本会先上传到 `.uploading-*` 临时文件，完成后 rename 为目标 tarball，并在 NAS 上校验 SHA-256。校验不通过不得部署。
+上传脚本使用项目固定 NAS SSH 配置走 SFTP，不使用交互式 `scp`。SSH 由 `tools/nas-ssh-config.js` 统一读取，**优先私钥、密码仅作回退**：
+
+1. 环境变量 `SHELFDECK_NAS_HOST` / `SHELFDECK_NAS_PORT` / `SHELFDECK_NAS_USER` / `SHELFDECK_NAS_KEY`（可选 `SHELFDECK_NAS_PASSWORD`）。
+2. 本机 ignored 的 `tests/TEST_ENV_CHECKLIST.md` 表项：`飞牛 NAS IP`、`SSH 端口`、`SSH 用户名`、`SSH 私钥`（或 `SSH 密码`）。
+3. 若仍未给出私钥路径，则尝试 `~/.ssh/gezhu_nas_health_it_ed25519` 与 `~/.ssh/id_rsa_shelfdeck`。
+
+私钥文件只留在本机，不得提交。`tools/` 需要先 `npm install` 以提供 `ssh2`。脚本会先上传到 `.uploading-*` 临时文件，完成后 rename 为目标 tarball，并在 NAS 上校验 SHA-256。校验不通过不得部署。
 
 4. 先 dry run 部署脚本，检查将要执行的生产步骤：
 

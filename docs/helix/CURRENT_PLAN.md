@@ -1,6 +1,6 @@
 # ShelfDeck Clean Helix Master Plan
 
-Status: Helix-beta 已由 Product Owner 收窄为 **仅 Movie 的全功能版本**（旅程 A–I，含退出收藏与 Shelf 注销）。Movie Procurement保持`CLOSED FOR MOVIE`；Movie Libra保持`MOVIE LIBRA CLOSED AT HANDOFF B READY`；Movie Arca已经接通Handoff B Acceptance、On-deck、Shelf Entry、Deck Fact、Beta Aftercare、完整Off-deck及非破坏性Shelf Deregistration。当前实现状态为`MOVIE COLLECTION LIFECYCLE READY THROUGH SHELF DEREGISTRATION`。Product Owner 已授权从干净 `main@bdafe1869` 开始 Helix-beta NAS 打包部署；构建、上传与 `--apply` 尚未执行。Helix-beta 验收权威仍为现行 `docs/helix/BETA_FEATURE_ACCEPTANCE_BASELINE.md`，不因此把任何 `HB-*` 标为验收 `PASS`。
+Status: Helix-beta 已由 Product Owner 收窄为 **仅 Movie 的全功能版本**（旅程 A–I，含退出收藏与 Shelf 注销）。Movie Procurement保持`CLOSED FOR MOVIE`；Movie Libra保持`MOVIE LIBRA CLOSED AT HANDOFF B READY`；Movie Arca已经接通Handoff B Acceptance、On-deck、Shelf Entry、Deck Fact、Beta Aftercare、完整Off-deck及非破坏性Shelf Deregistration。当前实现状态为`MOVIE COLLECTION LIFECYCLE READY THROUGH SHELF DEREGISTRATION`。Product Owner 已授权从干净 `main` 开始 Helix-beta NAS 打包部署；构建、上传与 `--apply` 尚未执行。2026-08-28 已恢复私钥 SSH，并清空 NAS 历史镜像与库文件。Helix-beta 验收权威仍为现行 `docs/helix/BETA_FEATURE_ACCEPTANCE_BASELINE.md`，不因此把任何 `HB-*` 标为验收 `PASS`。
 
 Last updated: 2026-08-28
 
@@ -10,7 +10,7 @@ Last updated: 2026-08-28
 冻结 SHA：`bdafe186974e3fe4467f8b4c483f96bf578f9dce`（短 SHA `bdafe1869`）。
 `emby_third_party-mirex-baseline` 作为历史 v2 基线 worktree 保留；其余本地 worktree 与主题分支已清理。远程仓库不动。
 
-这是生产打包授权，不是新的 Implementation Phase 包，也不新开并行计划文件。下一步只允许 `docs/v2/PRODUCTION_DEPLOYMENT.md` 的标准发布流程：
+这是生产打包授权，不是新的 Implementation Phase 包，也不新开并行计划文件。NAS SSH 已改为私钥；历史镜像/tar/库文件已清，活数据只留一份 75 MiB 归档。下一步只允许 `docs/v2/PRODUCTION_DEPLOYMENT.md` 的标准发布流程；现网 compose 在新镜像 load 之前禁止 GUI 启动，且新容器必须注入 `SHELFDECK_SECRET_ROOT`：
 
 1. 本机从仓库根目录 `node scripts/build-image.js <tag>`，输出 `dist-image/shelfdeck-<tag>.tar`。
 2. 计算本地 tarball SHA-256。

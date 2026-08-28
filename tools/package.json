@@ -1,0 +1,8 @@
+{
+  "name": "shelfdeck-tools",
+  "private": true,
+  "description": "Local NAS SSH/SFTP helpers. Not part of the service runtime.",
+  "dependencies": {
+    "ssh2": "^1.16.0"
+  }
+}

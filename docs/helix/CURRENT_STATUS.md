@@ -1,8 +1,22 @@
 # ShelfDeck Clean Helix Current Status
 
-Status: Helix-beta 范围已收窄为仅 Movie 全链路。Movie Procurement与Movie Libra封口保持有效；Movie Arca已完成Handoff B Acceptance、On-deck、Shelf Entry、Deck Fact、Beta Aftercare、Off-deck及Shelf Deregistration完整闭环。当前精确状态为`MOVIE COLLECTION LIFECYCLE READY THROUGH SHELF DEREGISTRATION`。Product Owner 已于 2026-08-28 授权从干净本地 `main@bdafe1869` 开始 Helix-beta 生产打包与 NAS 部署准备；构建、上传与 `--apply` 尚未执行。Helix-beta 验收行见现行基线，尚未把任何 `HB-*` 标为验收 `PASS`。当前生产仍运行 2026-07-10 镜像 `helix-maintenance-state-20260710-1af2afee`。
+Status: Helix-beta 范围已收窄为仅 Movie 全链路。Movie Procurement与Movie Libra封口保持有效；Movie Arca已完成Handoff B Acceptance、On-deck、Shelf Entry、Deck Fact、Beta Aftercare、Off-deck及Shelf Deregistration完整闭环。当前精确状态为`MOVIE COLLECTION LIFECYCLE READY THROUGH SHELF DEREGISTRATION`。Product Owner 已于 2026-08-28 授权从干净本地 `main` 开始 Helix-beta 生产打包与 NAS 部署准备；构建、上传与 `--apply` 尚未执行。Helix-beta 验收行见现行基线，尚未把任何 `HB-*` 标为验收 `PASS`。NAS 上的 ShelfDeck 容器已停止；2026-08-28 已清理全部历史 `markmahoro/shelfdeck` 镜像、tar 与库文件。
 
 Last updated: 2026-08-28
+
+## 0. NAS SSH restored; historical images and databases cleared
+
+2026-08-28 用本机 `~/.ssh/gezhu_nas_health_it_ed25519` 以用户 `gezhu` 恢复 NAS SSH。`tools/nas-ssh-config.js` 改为优先私钥；`tests/TEST_ENV_CHECKLIST.md` 只保存在本机且保持 gitignore。`node tools/ssh-exec.js "id; hostname"` 已通。
+
+同日只读确认后清理生产历史产物，未动其他飞牛容器、CIFS 媒体挂载或 compose 挂载定义：
+
+- 活数据一次性归档：`/vol1/1000/docker/shelfdeck-backups/pre-helix-beta-clean-20260828-135443/live-data.tgz`（75 MiB，SHA-256 `9d069866b0dd35d7f78a6cde780d748e4748471926176934adaacf3495c0ea34`）
+- 删除已停止容器 `shelfdeck` 与全部 `markmahoro/shelfdeck:*`、`shelfdeck:backup-20260626-174746`
+- 删除项目目录内全部 `shelfdeck-*.tar` 与 compose `.bak`
+- 删除 `data/` 内 live `library.db` / `tasks.db` / `config.json` / `helix-state.json`、全部 `.bak`、Kairox cutover 清单，以及 face-models / OpenVINO / western-ai 历史目录
+- `/vol1` 可用空间约 61 GiB → 73 GiB；`data/` 现为空目录；`docker-compose.yml` 保留
+
+下一步仍是本机构建 Helix-beta 镜像。现网 compose 仍写着已删除的 `helix-library-defaults-20260711-fd3136b0`，在新 tar `docker load` 并改 image 之前，不得从飞牛 GUI 启动该项目。新容器还需要 `SHELFDECK_SECRET_ROOT`（现 compose 没有）。
 
 ## 0. Helix-beta deployment preparation authorized
 
@@ -14,7 +28,7 @@ Last updated: 2026-08-28
 
 下一步只走 `docs/v2/PRODUCTION_DEPLOYMENT.md`：本机构建镜像 tarball → 计算 SHA-256 → `upload-nas-image.js` → `deploy-nas.js` dry run → 首次 Helix clean cutover 使用 `--helix-clean-init`，通过后再 `--apply`。镜像 tag 在构建时按 `docs/v3/VERSIONING.md` 分配，构建前不记为已部署。`media-desktop` 不在范围。
 
-当前尚未构建镜像、未上传 NAS、未改生产容器。生产 URL 仍为 `http://192.168.12.230:18080`。已知不阻断本次开工、但仍须记录：最后一轮 Movie Canary `6ed28d6841` 因 UAT-139 固定失败，该轮 Evidence 不得拼入发布结论；`UAT-125` 仍为 `OPEN / IMPLEMENTATION NOT STARTED`。
+当前尚未构建镜像、未上传 NAS、未 `--apply`。生产 URL `http://192.168.12.230:18080` 目前不可达。已知不阻断本次开工、但仍须记录：最后一轮 Movie Canary `6ed28d6841` 因 UAT-139 固定失败，该轮 Evidence 不得拼入发布结论；`UAT-125` 仍为 `OPEN / IMPLEMENTATION NOT STARTED`。
 
 ## 0. TMDB proxy configuration — code and regression passed
 
