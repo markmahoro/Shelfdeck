@@ -32,7 +32,7 @@
 | PROD-010 | 整理路径不能提前当 checklist 勾选；转码未规划出来时页面仍像「封装完了等验收」 | `USER_EXPERIENCE` / Formation 投影只回放已有 Event | 媒体整理工作区 | Medium | **FIXED** 无损升级 `helix-beta-20260829-e4d601cd9`。 |
 | PROD-011 | 片源探测已能判定本地加工补不上时，仍先整盘 remux 再寻源 | `EXECUTION` / Libra 媒体阶段顺序 | 媒体整理工作区 | Medium | **FIXED** 无损升级 `helix-beta-20260829-e4d601cd9`。 |
 | PROD-012 | 用户放弃后，工作区仍留「等待重新入库」待整理行 | `USER_EXPERIENCE` / Formation 当前 Subject 与结束历史叠在一起 | 媒体整理工作区 | Medium | **FIXED** 无损升级 `helix-beta-20260829-e4d601cd9`。 |
-| PROD-013 | 三部转码停在「编码设备未就绪」；QSV/CPU 能编码但自检全失败 | `EXECUTION` / 编码设备探测校验过严 | 媒体整理工作区 | High | **LOCAL FIX READY / 待无损升级**。普通 SDR 探测不再要求输出带齐 `color_primaries`/`color_trc`；设备就绪后 blocked 转码评估会重新规划。 |
+| PROD-013 | 三部转码停在「编码设备未就绪」；QSV/CPU 能编码但自检全失败 | `EXECUTION` / 编码设备探测校验过严 | 媒体整理工作区 | High | **FIXED** 无损升级 `helix-beta-20260829-0eb39ed97`。 |
 
 PROD-001、PROD-002 的共同环境前提：生产管理台是 `http://192.168.12.230`，浏览器不提供 `crypto.randomUUID` / `crypto.subtle`。这不是传输加密设计，只是浏览器 API 限制。未改成 HTTPS。
 
@@ -185,7 +185,7 @@ Product Owner 随后确认 `/transcode` 就是 Production Workspace，要求记�
 
 实现：active Formation 列表与统计去掉 `currentRun` 为空且进展为「等待重新入库」的行。结束历史仍保留「用户放弃」。Subject 不删。待无损升级。
 
-## 14. PROD-013 — 编码器能转，探测把缺色标的正常 HEVC 判失败（LOCAL FIX READY）
+## 14. PROD-013 — 编码器能转，探测把缺色标的正常 HEVC 判失败（FIXED）
 
 发现：2026-08-29，无损升级 `e4d601cd9` 之后。Product Owner 看到《影子写手》《宇航员》《怦然心动》三部「转码失败」，要求查原因并修复。
 
@@ -206,3 +206,5 @@ Product Owner 随后确认 `/transcode` 就是 Production Workspace，要求记�
 - 活动 Libra Run 调和：一旦 `listReadyDeviceRefs` 非空，把 blocked 的 `transcode_*_assessment` 重新规划并 `host.wake()`。无就绪设备时不重规划，避免空转。
 
 升级后预期：启动探测把 QSV 和/或 CPU 标 ready；三部评估从 blocked 回到 ready，规划出 `libra.media.transcode@1`。NVENC 仍不可用（无 CUDA）。不自动解冻其余影片。不 `--helix-clean-init`。待无损升级。
+
+部署：`helix-beta-20260829-0eb39ed97`，tar SHA-256 `e95c8bfdad460770064c5a66138813d1e1da5dae8985063719a5c798369d43ea`，无 `--helix-clean-init`。升级后 QSV/VAAPI/CPU `ready`；《怦然心动》GPU 转码执行中，《影子写手》等写槽；《宇航员》输入校验 `LIBRA_MEDIA_FFMPEG_TIMEOUT` 后冻结，不在本项范围内自动解冻。

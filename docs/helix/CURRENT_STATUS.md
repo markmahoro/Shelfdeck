@@ -1,12 +1,12 @@
 # ShelfDeck Clean Helix Current Status
 
-Status: Helix-beta 范围已收窄为仅 Movie 全链路。Movie Procurement与Movie Libra封口保持有效；Movie Arca已完成Handoff B Acceptance、On-deck、Shelf Entry、Deck Fact、Beta Aftercare、Off-deck及Shelf Deregistration完整闭环。当前精确状态为`MOVIE COLLECTION LIFECYCLE READY THROUGH SHELF DEREGISTRATION`。当前生产镜像为 `markmahoro/shelfdeck:helix-beta-20260829-e4d601cd9`（无损升级，无 `--helix-clean-init`），health `ok` / `helix-clean-v3`。Intake 席位 3，Workspace `/transcode` rev 2。Helix-beta 验收行见现行基线，尚未把任何 `HB-*` 标为验收 `PASS`。
+Status: Helix-beta 范围已收窄为仅 Movie 全链路。Movie Procurement与Movie Libra封口保持有效；Movie Arca已完成Handoff B Acceptance、On-deck、Shelf Entry、Deck Fact、Beta Aftercare、Off-deck及Shelf Deregistration完整闭环。当前精确状态为`MOVIE COLLECTION LIFECYCLE READY THROUGH SHELF DEREGISTRATION`。当前生产镜像为 `markmahoro/shelfdeck:helix-beta-20260829-0eb39ed97`（无损升级，无 `--helix-clean-init`），health `ok` / `helix-clean-v3`。Intake 席位 3，Workspace `/transcode` rev 2。Helix-beta 验收行见现行基线，尚未把任何 `HB-*` 标为验收 `PASS`。
 
 Last updated: 2026-08-29
 
-## 0. Local fix ready — PROD-013 encode-device probe
+## 0. Production lossless upgrade — PROD-013 encode-device probe
 
-2026-08-29 现场：三部整理中停在「需要转码，编码设备未就绪」。`platform_compute_devices` 全 `failed`；容器内 QSV/CPU 一帧编码成功，ffprobe 缺 primaries/trc。本地已放宽普通 SDR 探测，并让 blocked 转码评估在有就绪设备时重规划。未部署，生产镜像仍为 `helix-beta-20260829-e4d601cd9`。
+2026-08-29 已部署 `helix-beta-20260829-0eb39ed97`（git `0eb39ed97`，tar SHA-256 `e95c8bfdad460770064c5a66138813d1e1da5dae8985063719a5c798369d43ea`），未 `--helix-clean-init`。readiness `helix-clean-v3` / 184 tables / findings []。QSV/VAAPI/CPU `probe_result=passed` / `ready`，NVENC 仍 `failed`。现网：《怦然心动》`libra.media.transcode@1` executing（约 2%），《影子写手》同一 capability `waiting_for_resource`，《宇航员》`libra.transcode.input.verify@1` 因 `LIBRA_MEDIA_FFMPEG_TIMEOUT` 失败后 Run frozen。Field/Shelf/`/transcode`/集成未改。
 
 ## 0. Production lossless upgrade — PROD-010/011/012
 
