@@ -232,6 +232,25 @@ function createLibraRunCoordinator(options){
       reasons.has('system_upscale_forbidden') ||
       reasons.has('primary_audio_unmet');
   }
+  function ensureOriginalMediaThenExternal(snapshot, workspace) {
+    const authorized = snapshot.run.authorizedDefectManifest?.defects?.some(
+      (item) => item.defectCode === 'external_source_exhausted');
+    if (snapshot.materialInputForm !== 'stream_file') {
+      return authorized
+        ? continueExternalOrAuthorizedDirectInput(snapshot, workspace)
+        : ensureExternalSelection(snapshot, workspace);
+    }
+    const direct = directMediaSelectionWork(snapshot), submitted = submit(direct),
+      status = options.workResultReader.status(direct.workId);
+    if (!workSucceeded(status)) {
+      if (workFailed(status)) return terminalWork(snapshot, direct, status);
+      return Object.freeze({kind:'pending',phase:'workspace_media_direct_selection',libraRunId:snapshot.run.libraRunId,
+        workId:direct.workId,replayed:submitted.replayed,workspaceId:workspace.workspaceId,
+        workspaceRevision:workspace.currentRevision});
+    }
+    if (authorized) return ensureDelivery(snapshot, workspace, direct);
+    return ensureExternalSelection(snapshot, workspace);
+  }
   function ensureExternalSelection(snapshot, workspace) {
     const integrationHandle = options.resolveExternalMaterialIntegrationHandle?.({
       operationId: 'libra.external_material.search@1',
@@ -544,7 +563,7 @@ function createLibraRunCoordinator(options){
       item.capabilityRef==='shared.material.media.probe@1');
     if(sourceResults.length!==1)throw new Error('Terminal source media Observation Work lacks one durable Probe Result.');
     if(sourceRequiresExternalSearch(sourceResults[0].result,snapshot.spec?.requirements?.mandatoryMedia)){
-      return ensureExternalSelection(snapshot,workspace);
+      return ensureOriginalMediaThenExternal(snapshot,workspace);
     }
     if(snapshot.materialInputForm!=='stream_file'){
       const remux=remuxMediaSelectionWork(snapshot),remuxSubmitted=submit(remux),remuxStatus=options.workResultReader.status(remux.workId);

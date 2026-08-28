@@ -391,8 +391,7 @@ function requirementGaps(requirement, item, sourceProbe, productProbe,
   } else if (!requirement.acceptedOutputDynamicRangeKinds.includes(outputDynamic)) {
     gaps.push('dynamic_range_conversion_unmet');
   }
-  if (sourceDecode.passedSamplePointsPercent.length !== SAMPLE_POINTS.length ||
-      productDecode.passedSamplePointsPercent.length !== SAMPLE_POINTS.length) {
+  if (productDecode.passedSamplePointsPercent.length !== SAMPLE_POINTS.length) {
     gaps.push('playback_decode_failed');
   }
   return Object.freeze({
@@ -466,7 +465,6 @@ async function observeMandatoryMedia(value) {
         !realityMatches(item.productReadHandle, productReality)) return staleResult();
     let sourceProbe = await mediaProbe.probe(item.sourceReadHandle);
     const productProbe = await mediaProbe.probe(item.productReadHandle);
-    let sourceDecode;
     if (sourceProbe.discTopology?.discKind === 'iso') {
       if (typeof mediaEffectPort.observeDiscPlayback !== 'function') {
         invalid('Proven ISO Source requires the topology-aware playback observation port.');
@@ -478,14 +476,6 @@ async function observeMandatoryMedia(value) {
         shouldContinue,
       });
       sourceProbe = observedDisc.probeEvidence;
-      sourceDecode = decodeSummary(observedDisc);
-    } else {
-      sourceDecode = decodeSummary(await mediaEffectPort.verifyPlayback({
-        physicalMaterialReadHandle: item.sourceReadHandle,
-        outputProbeEvidence: sourceProbe,
-        deadlineAtMs: value.deadlineAtMs,
-        shouldContinue,
-      }));
     }
     const productDecode = decodeSummary(await mediaEffectPort.verifyPlayback({
       physicalMaterialReadHandle: item.productReadHandle,
@@ -493,6 +483,7 @@ async function observeMandatoryMedia(value) {
       deadlineAtMs: value.deadlineAtMs,
       shouldContinue,
     }));
+    const sourceDecode = item.samePhysicalMaterial ? productDecode : decodeSummary(null);
     const evaluated = requirementGaps(requirement, item, sourceProbe, productProbe,
       sourceDecode, productDecode, Number(productReality.stat.size));
     const body = {

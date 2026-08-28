@@ -202,7 +202,7 @@ test('UAT-135 proven ISO Source uses one topology-aware selected-payload observa
   assert.deepEqual(observed.actualGapCodes,[]);
   assert.deepEqual(calls,['probe-source-container','probe-product','observe-selected-payload','verify-product']);
   assert.equal(observed.primaryMediaObservations[0].dynamicRangeSummary.sourceDynamicRangeKind,'sdr');
-  assert.deepEqual(observed.primaryMediaObservations[0].sourceDecodeSummary.passedSamplePointsPercent,[5,50,95]);
+  assert.deepEqual(observed.primaryMediaObservations[0].sourceDecodeSummary.passedSamplePointsPercent,[]);
 });
 
 test('UAT-135 proven ISO Source fails contract when topology-aware observation is absent', async () => {
@@ -232,8 +232,27 @@ test('UAT-135 an undecodable selected payload does not manufacture a dynamic-ran
     mediaEffectPort:{async observeDiscPlayback({physicalMaterialReadHandle}){return Object.freeze({probeEvidence:Object.freeze({...notMedia,
       sourceHandleDigest:canonicalDigest(physicalMaterialReadHandle),payloadDigest:canonicalDigest(notMedia)}),samplePointsPercent:Object.freeze([5,50,95]),
       passedSamplePointsPercent:Object.freeze([]),decodeDigest:D('iso-decode-failed')});},verifyPlayback:base.mediaEffectPort.verifyPlayback}});
-  assert.deepEqual(observed.actualGapCodes,['playback_decode_failed']);
+  assert.deepEqual(observed.actualGapCodes,[]);
   assert.equal(observed.primaryMediaObservations[0].dynamicRangeSummary.sourceDynamicRangeKind,'unknown');
+});
+
+test('workspace Product playback Gap ignores Source decode samples', async () => {
+  const value=fixture({workspace:true,conversionOperation:'preserve',sourceDynamicRangeKind:'sdr',outputDynamicRangeKind:'sdr'});
+  const calls=[];
+  const runtime=ports(value.identity,'hevc','sdr','sdr');
+  runtime.mediaEffectPort={
+    async verifyPlayback({physicalMaterialReadHandle}){
+      const isProduct=physicalMaterialReadHandle.identity.materialKey===value.identity.materialKey;
+      calls.push(isProduct?'product':'source');
+      return Object.freeze({samplePointsPercent:Object.freeze([5,50,95]),
+        passedSamplePointsPercent:Object.freeze(isProduct?[5,50,95]:[95]),decodeDigest:D('decode')});
+    },
+  };
+  const observed=await observeMandatoryMedia({...value,...runtime,observedAtMs:NOW});
+  assert.deepEqual(calls,['product']);
+  assert.deepEqual(observed.actualGapCodes,[]);
+  assert.deepEqual(observed.primaryMediaObservations[0].productDecodeSummary.passedSamplePointsPercent,[5,50,95]);
+  assert.deepEqual(observed.primaryMediaObservations[0].sourceDecodeSummary.passedSamplePointsPercent,[]);
 });
 
 test('UAT-131 formal mandatory Capability executes independent observation on ordinary and defect Packages', async () => {

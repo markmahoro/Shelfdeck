@@ -4,6 +4,10 @@ Status: Helix-beta 范围已收窄为仅 Movie 全链路。Movie Procurement与M
 
 Last updated: 2026-08-29
 
+## 0. Local fix ready — Arca product playback + defect-admission original verify
+
+2026-08-29 本地已改：Arca mandatory media 只把成品解帧记入 `playback_decode_failed`；跳过 remux/转码去寻源前先记下直通验收缺口。专项测试通过。未部署。已拒收的《影子写手》和已冻结的《国际市场》不会自动重跑，需放弃后重新进整理。
+
 ## 0. Production lossless upgrade — PROD-014/015/016
 
 2026-08-29 已部署 `helix-beta-20260829-83d3c4424`（git `83d3c4424`，tar SHA-256 `1265a473e7d4966610e547b9b530e24d407584ffdea2ba3fe8cfc1cc34c4de4f`），未 `--helix-clean-init`。readiness `helix-clean-v3` / 184 tables / findings []。含转码预检 24 帧、指纹忽略 mtime/ctime、discard leftover 回收、上架 checklist。两份 orphan remux 目录已在升级前删除。Field/Shelf/`/transcode`/集成未改。

@@ -29,6 +29,8 @@ test('Libra Run Coordinator remains a Work issuer and terminal Result reconciler
   assert.match(value, /attachWorkspaceOutputs\(snapshot,workspace,remux\)/);
   assert.match(value, /attachArtifactOutputs\(snapshot,workspace\)/);
   assert.match(value, /productStaging\.ensureWorking/);
+  assert.match(value, /sourceRequiresExternalSearch[\s\S]*ensureOriginalMediaThenExternal/);
+  assert.match(value, /ensureOriginalMediaThenExternal[\s\S]*directMediaSelectionWork/);
 });
 
 test('Libra Run Coordinator replays an admitted Work with its frozen priority only', () => {
