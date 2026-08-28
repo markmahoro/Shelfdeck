@@ -465,6 +465,18 @@ function primaryDynamicRangeKind(probe){const kinds=[...new Set(primaryStreams(p
 function primaryAudioClasses(probe) { return sortedUnique([...new Set(primaryStreams(probe?.audioStreams).map((item) => item.normalizedAudioClass))]
   .sort((a,b)=>Buffer.from(a).compare(Buffer.from(b))), 'primaryAudioClasses'); }
 
+function sourceRequiresExternalSearch(probe, mandatoryMedia) {
+  const mandatory = mandatoryMedia || {};
+  const raster = rasterClass(probe);
+  if (mandatory.minimumRasterClass === '4k' && raster !== '4k') return true;
+  const accepted = mandatory.acceptedPrimaryAudioClasses || [];
+  if (accepted.length) {
+    const audio = primaryAudioClasses(probe);
+    if (!audio.some((item) => accepted.includes(item))) return true;
+  }
+  return false;
+}
+
 function buildProductMediaVerification(value) {
   const input = value.input;let requirementIntegrity=true;try{assertExactMediaRequirement(input.mediaRequirement);}catch{requirementIntegrity=false;}
   const requirement = input.mediaRequirement, mandatory = requirement.mandatoryMedia, outputProbe =
@@ -576,4 +588,5 @@ module.exports=Object.freeze({MediaProductionContractError,LIBRA_MEDIA_PLANNING_
   buildEncodeIntent,buildRemuxIntent,buildTranscodeInputVerification,
   buildWorkspaceMediaOutputTarget,buildWorkspaceMediaHandle,buildProductMediaCandidateInput,
   buildPlannedProductCandidateReference,buildProductMediaVerification,
-  buildProductOutputSelectionInput,selectProductOutput,assertExactMediaRequirement,assertProbeEvidence});
+  buildProductOutputSelectionInput,selectProductOutput,assertExactMediaRequirement,assertProbeEvidence,
+  sourceRequiresExternalSearch});

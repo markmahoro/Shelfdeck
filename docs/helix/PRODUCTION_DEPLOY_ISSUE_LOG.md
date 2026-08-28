@@ -29,6 +29,9 @@
 | PROD-007 | 整理协调器 `P9_REFERENCE_MATERIAL_CORRUPT` / remux `P9_MEDIA_OUTPUT_CONTINUITY`，升级后管理端口起不来 | `EXECUTION` / Workspace root identity + startup recovery | 媒体整理工作区 | Critical | **FIXED**。材料句柄用内部 `service-local-workspace`，durable 根是 `local-filesystem-linux`；启动恢复还在 `listen()` 前续跑长时间 remux。句柄按 durable 根无损重盖章；workspace-write 恢复推迟到就绪之后。 |
 | PROD-008 | 确认影片身份后仍停在「媒体身份信息冲突」 | `EXECUTION` / 工作准入硬顶 + 展示用旧观察 | 媒体整理工作区 | High | **FIXED**。选择意图已写入，但开放 Work 正好 256，后续 exact TMDB 观察进不了队；页面仍读旧冲突观察。Libra Run 准入放到 1000；有更新的选择意图时不再把旧冲突当待办。 |
 | PROD-009 | 试运行长时间没有第一部 Arca 上架；`/transcode` 写满 | `EXECUTION` / Intake 无席位 + Workspace 24h grace | 媒体整理工作区、Workspace | Critical | **FIXED**。Intake 同时只接 3 个未完成 Pre-deck；Off-load Completion 后立即开始回收 Workspace，不再等 24 小时。干净部署后按同一套 Field/Shelf/Workspace/TMDB 取值重建。 |
+| PROD-010 | 整理路径不能提前当 checklist 勾选；转码未规划出来时页面仍像「封装完了等验收」 | `USER_EXPERIENCE` / Formation 投影只回放已有 Event | 媒体整理工作区 | Medium | **FIXED locally**。等待无损升级。路径模板提前铺开，当前进展跟人话。 |
+| PROD-011 | 片源探测已能判定本地加工补不上时，仍先整盘 remux 再寻源 | `EXECUTION` / Libra 媒体阶段顺序 | 媒体整理工作区 | Medium | **FIXED locally**。等待无损升级。source probe 后栅格/音轨补不上则直接寻源。 |
+| PROD-012 | 用户放弃后，工作区仍留「等待重新入库」待整理行 | `USER_EXPERIENCE` / Formation 当前 Subject 与结束历史叠在一起 | 媒体整理工作区 | Medium | **FIXED locally**。等待无损升级。放弃后当前列表不再挂 pending 行。 |
 
 PROD-001、PROD-002 的共同环境前提：生产管理台是 `http://192.168.12.230`，浏览器不提供 `crypto.randomUUID` / `crypto.subtle`。这不是传输加密设计，只是浏览器 API 限制。未改成 HTTPS。
 
@@ -130,3 +133,53 @@ Product Owner 随后确认 `/transcode` 就是 Production Workspace，要求记�
 根因：Libra Intake 不限制未完成 Pre-deck 数量；completed Workspace 回收还要等 Off-load Completion 之后 24 小时 grace，Signal 叫醒也清不掉盘。
 
 修复：Intake 席位 3（占用 active/suspended/frozen Subject，Handoff B Accepted 或放弃才释放，席位满只排队不 Reject）。去掉 completed+Off-load 路径的 24h grace，Completion wake 当场开始两轮引用审计并回收。Product Owner 要求无视已有 Libra Run，干净部署后按原 Field/Shelf/`/transcode`/TMDB 代理/豆瓣取值重建。
+
+## 11. PROD-010 — Formation 路径应提前铺成 checklist（OPEN / 先记不修）
+
+发现：2026-08-28 干净部署后的现场。Product Owner 问为何前端不显示下一步是 transcode；随后要求整理过程有「路径提前展示、一步一步勾上」的感觉，并明确先记下、不授权实现。
+
+现场（只读）：
+
+- 《宇航员》《怦然心动》remux / probe / verify / select 已成功；后续 `workspace_media_production`（transcode 策略评估）为 `blocked` / `temporarily_unplannable` / `media_device_strategies_unavailable`。库内 **0** 条 `libra.media.transcode@1`。
+- Formation `nextAction` 仍是「处理视频文件 / blocked」。`organizingSteps` 为封装整理 `done` → 验证整理结果 `pending`，没有转码行。收藏要求已写 HEVC（有的还带 4k / 体积上限）。
+- 编码设备探测在服务启动时写入 Platform 登记；每次 transcode 规划只读就绪设备，不会再探。Helix 登记与设置页旧设备池不是同一条链。
+
+根因（展示层，不是生产链停了）：
+
+- `organizingSteps()` 按已出现的 Event 回放。没有 transcode Event 就没有转码格子。
+- 所有 `workspace_media_production`（探测、remux、transcode 评估、真转码）在 `nextAction` 里都叫「处理视频文件」。
+- 详情页 ○ / ✓ / × 已经是 checklist，缺的是还没发生的格子。
+- Libra Run 是决策树：封装达标就验收；不达标才转码；策略耗尽才寻源。不能把未发生的转码画成已存在的 Event。
+
+实现：`formation-query.js` 用 Acceptance Spec + 已有 Event 铺 checklist；transcode 评估 blocked 且无转码 Event 时当前进展为「需要转码，编码设备未就绪」。投影 contract revision 4。未伪造 transcode Event。待无损升级。
+
+## 12. PROD-011 — 注定过不了验收的容器源仍先整盘 remux（OPEN / 先记不修）
+
+发现：2026-08-29，《女性瘾者：第二部 (2013) - 1080p AVC DTS》。豆瓣 5 星，Acceptance Spec 为 HEVC · 4K · 不超过 50 GiB，且禁止系统拉升。Product Owner 问为何触发寻源，随后认为 remux 这一步浪费，要求先记下。
+
+现场（只读）：
+
+- 片源探测已成功；随后 `remux_selection` 整盘 `-c copy` 完成。
+- `libra.product_media.verify@1`：`video_codec_unmet` + `minimum_raster_unmet`（h264 / `below_4k`）。`product_output.select` 为 `not_selected`。
+- 协调器见 `minimum_raster_unmet` 即 `requiresExternalSource`，**跳过 transcode**，直接 MoviePilot 寻源；候选 `not_selected` / `no_available_candidate`，Run 冻成「没有找到可获取的外部候选」。
+- 库内该 Run 无 `libra.transcode.input.verify@1`、无 `libra.media.transcode@1`。
+
+根因：容器源（BDMV）固定「先 remux，再用 remux 产物验收，再决定转码或寻源」。Remux 是 copy，改不了分辨率和编码。五星 4K 缺口在 **source probe 之后** 已能判定本地加工补不上（尤其禁止拉升），整盘封装只占 `volume_write` 和磁盘，不能改变后续寻源。
+
+不是所有 remux 都废：源已是 HEVC 4K、只差装成 mkv 时，封装是正步。仅编码不够、分辨率已够时，现行设计用 remux 产物当转码输入，属于另一笔账，不在本项。
+
+实现：`sourceRequiresExternalSearch` 在 source probe 之后判定 4K/主音轨缺口，容器源与直通源都跳过本地 remux/direct 入选，直接 `ensureExternalSelection`。不改五星标准。待无损升级。
+
+## 13. PROD-012 — 放弃整理后仍占着「等待重新入库」（OPEN / 先记不修）
+
+发现：2026-08-29，Product Owner 对《女性瘾者：第二部》点了放弃整理，随后看到媒体整理工作区仍有一条「等待重新入库」，认为不符合体验。
+
+现场（只读）：
+
+- 结束历史已有一行：`outcome=user_abandoned`，文案「已结束 · 用户放弃」。
+- 同一 Subject 仍在 active Formation：`classification=pending`，`currentRun=null`，`nextAction=等待重新入库`。默认「全部」会把当前行和结束历史叠在同一张表里。
+- Subject 仍 `active`，材料还在 Field；席位已释放（无 active/frozen Run）。确认框也写了「之后系统仍可能重新发现该媒体并开始新的整理」。
+
+根因：UAT-005 把 Discarded Run 做成结束历史，同时让仍 eligible 的 Subject 以一条 `pending` 回到待整理，文案就是「等待重新入库」。后台事实没错，用户放弃后的工作区却像还有一件待办。
+
+实现：active Formation 列表与统计去掉 `currentRun` 为空且进展为「等待重新入库」的行。结束历史仍保留「用户放弃」。Subject 不删。待无损升级。

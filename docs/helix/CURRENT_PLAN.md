@@ -2,9 +2,19 @@
 
 Status: Helix-beta 已由 Product Owner 收窄为 **仅 Movie 的全功能版本**（旅程 A–I，含退出收藏与 Shelf 注销）。Movie Procurement保持`CLOSED FOR MOVIE`；Movie Libra保持`MOVIE LIBRA CLOSED AT HANDOFF B READY`；Movie Arca已经接通Handoff B Acceptance、On-deck、Shelf Entry、Deck Fact、Beta Aftercare、完整Off-deck及非破坏性Shelf Deregistration。当前实现状态为`MOVIE COLLECTION LIFECYCLE READY THROUGH SHELF DEREGISTRATION`。Product Owner 已授权并完成 Helix-beta 首次 NAS 部署：`markmahoro/shelfdeck:helix-beta-20260828-a3e07a1e1`。Helix-beta 验收权威仍为现行 `docs/helix/BETA_FEATURE_ACCEPTANCE_BASELINE.md`，不因此把任何 `HB-*` 标为验收 `PASS`。
 
-Last updated: 2026-08-28
+Last updated: 2026-08-29
 
-## 0. Current plan — Intake 3 席位 + Off-load 后立即回收 Workspace
+## 0. Current local implementation — PROD-010/011/012（待无损升级）
+
+本地已实现三件，未部署 NAS、不用 `--helix-clean-init`：
+
+1. Formation checklist 提前铺开，转码未规划出来时显示「需要转码，编码设备未就绪」。
+2. source probe 后 4K/主音轨补不上则跳过 remux，直接寻源。
+3. 用户放弃后当前工作区不再挂「等待重新入库」。
+
+升级方式：标准镜像替换并重启，保留 Field/Shelf/`/transcode`/集成。在途 FFmpeg 会被重启打断后按恢复续跑。台账 `PROD-010`/`PROD-011`/`PROD-012`。
+
+## 0. Previous plan — Intake 3 席位 + Off-load 后立即回收 Workspace
 
 Product Owner 确认上次试运行失败后，做完全干净的生产部署；已有 Libra Run 可无视。本轮只做两件事，不改 SSOT：
 

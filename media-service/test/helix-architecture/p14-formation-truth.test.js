@@ -15,9 +15,8 @@ test('Formation reports business failure as blocked even when the executor commi
     unmetRequirementCodes:['metadata_field_unmet'],
   })]);
   const steps = organizingSteps(works, null, {});
-  assert.deepEqual(steps.map((item)=>({label:item.label,state:item.state})), [
-    { label:'验证整理结果', state:'blocked' },
-  ]);
+  assert.equal(steps.find((item)=>item.key==='verify')?.state, 'blocked');
+  assert.equal(steps.find((item)=>item.key==='verify')?.label, '验证整理结果');
   assert.equal(classifyFormation({run:{state:'active'},works,issue:null,recovery:null,arcaStatus:null,productPackage:null}),
     'attention_required');
 });
@@ -79,7 +78,8 @@ test('Formation transmits exact NFO and related poster dispositions', () => {
     event('libra.product_sidecar.render@1', { artifactKind:'nfo',
       provenanceRef:{objectType:'related_nfo_update'} }),
   ]), null, {});
-  assert.deepEqual(steps.map((item)=>item.label), ['复用现有海报', '更新 NFO']);
+  assert.equal(steps.find((item)=>item.key==='poster')?.label, '复用现有海报');
+  assert.equal(steps.find((item)=>item.key==='nfo')?.label, '更新 NFO');
 });
 
 test('Formation summarizes repeated Related Material roles without hiding their count', () => {

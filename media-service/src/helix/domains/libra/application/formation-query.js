@@ -64,50 +64,79 @@ function transcodeLabel(works, spec) {
   if (space.maxSizeGiB !== null && space.maxSizeGiB !== undefined) parts.push('不超过 ' + space.maxSizeGiB + ' GiB');
   return parts.join(' · ');
 }
+function overlayStep(key, defaultLabel, event, labelFromEvent) {
+  const label = event && typeof labelFromEvent === 'function' ? labelFromEvent(event) : defaultLabel;
+  return Object.freeze({
+    key, label, state: event ? eventState(event) : 'pending', progress: event?.progress || null,
+  });
+}
+function transcodeAssessmentBlocked(works) {
+  return (works || []).some((work) => work.state === 'blocked' && typeof work.workId === 'string'
+    && /transcode_\d+_assessment/.test(work.workId));
+}
+function mediaReasons(works) {
+  const event = latestEvent(works, (item) => item.capabilityRef === 'libra.product_media.verify@1');
+  const value = event?.result?.result || event?.result || {};
+  return new Set(value.reasonCodes || []);
+}
 function organizingSteps(works, spec, options) {
-  const step = (key, label, predicate, resultLabel) => {
-    const event = latestEvent(works, predicate);
-    if (!event) return null;
-    return Object.freeze({
-      key, label: typeof resultLabel === 'function' ? resultLabel(event) : label, state: eventState(event),
-      progress: event.progress || null,
-    });
-  };
-  const refs = (prefix) => (event) => event.capabilityRef === prefix || event.capabilityRef.startsWith(prefix);
-  const remux = step('remux', '封装整理', (event) => event.capabilityRef === 'libra.media.remux@1');
-  const transcode = (() => {
-    const event = latestEvent(works, (item) => item.capabilityRef === 'libra.media.transcode@1');
-    return event ? Object.freeze({ key: 'transcode', label: transcodeLabel(works, spec), state: eventState(event), progress: event.progress || null }) : null;
-  })();
-  const conformance = step('verify', '验证整理结果',
-    (event) => event.capabilityRef === 'libra.product.conformance.verify@1');
-  const nfo = step('nfo', '生成整理后的 NFO',
-    (event) => event.capabilityRef === 'libra.product_sidecar.render@1',
-    (event) => ({ related_nfo_update:'更新 NFO', product_metadata_draft_rebuild:'重建 NFO',
-      product_metadata_draft_create:'创建 NFO' }[event.result?.result?.provenanceRef?.objectType] ||
-      (event.result?.result ? '生成整理后的 NFO（历史记录未区分更新或重建）' : '生成整理后的 NFO')));
-  const poster = step('poster', '取得海报',
-    (event) => event.capabilityRef === 'libra.product_artifact.acquire@1' &&
-      (event.result?.result?.artifactHandle?.artifactKind === 'poster' || !event.result?.result),
-    (event) => event.result?.result?.artifactHandle?.provenanceRef?.objectType === 'related_material_reference'
-      ? '复用现有海报' : '下载海报');
-  const planned = [
-    step('identity', '核对影片身份', refs('libra.product_identity.')),
-    step('metadata', '读取并补充媒体资料', (event) => event.capabilityRef === 'libra.product_metadata.fetch@1' || event.capabilityRef === 'libra.product_metadata.commit@1'),
-    poster,
-    nfo,
-    step('acquire', '外部寻源', (event) => event.capabilityRef.startsWith('libra.external_material.')),
-    remux,
-    transcode,
-    conformance || (remux || transcode ? Object.freeze({ key:'verify', label:'验证整理结果', state:'pending', progress:null }) : null),
-    step('shelf', '提交收藏架验收', (event) => event.capabilityRef === 'libra.product_package.publish@1'),
-  ].filter(Boolean);
-  if (!planned.length) {
-    if (options?.latestRunState === 'discarded') {
-      return Object.freeze([Object.freeze({ key: 'reintake', label: '等待重新入库', state: 'pending', progress: null })]);
-    }
+  if (options?.latestRunState === 'discarded' && !(works && works.length)) {
+    return Object.freeze([Object.freeze({ key: 'reintake', label: '等待重新入库', state: 'pending', progress: null })]);
+  }
+  const hasRunWorks = Array.isArray(works) && works.length > 0;
+  if (!hasRunWorks && !spec) {
     return Object.freeze([Object.freeze({ key: 'assessing', label: '正在评估整理方案', state: 'pending', progress: null })]);
   }
+  const media = parse(spec?.spec_json)?.requirements?.mandatoryMedia || {};
+  const needsCodec = Boolean(media.videoCodec && media.videoCodec !== 'any');
+  const needs4k = media.minimumRasterClass === '4k';
+  const identityEvent = latestEvent(works, (event) => String(event.capabilityRef || '').startsWith('libra.product_identity.'));
+  const metadataEvent = latestEvent(works, (event) => event.capabilityRef === 'libra.product_metadata.fetch@1'
+    || event.capabilityRef === 'libra.product_metadata.commit@1');
+  const posterEvent = latestEvent(works, (event) => event.capabilityRef === 'libra.product_artifact.acquire@1' &&
+    (event.result?.result?.artifactHandle?.artifactKind === 'poster' || !event.result?.result));
+  const nfoEvent = latestEvent(works, (event) => event.capabilityRef === 'libra.product_sidecar.render@1');
+  const remuxEvent = latestEvent(works, (event) => event.capabilityRef === 'libra.media.remux@1');
+  const transcodeEvent = latestEvent(works, (event) => event.capabilityRef === 'libra.media.transcode@1');
+  const assessEvent = latestEvent(works, (event) => event.capabilityRef === 'libra.transcode.input.verify@1');
+  const acquireEvent = latestEvent(works, (event) => String(event.capabilityRef || '').startsWith('libra.external_material.'));
+  const verifyEvent = latestEvent(works, (event) => event.capabilityRef === 'libra.product.conformance.verify@1');
+  const shelfEvent = latestEvent(works, (event) => event.capabilityRef === 'libra.product_package.publish@1');
+  const probeEvent = latestEvent(works, (event) => event.capabilityRef === 'shared.material.media.probe@1');
+  const reasons = mediaReasons(works);
+  const rasterUnmet = reasons.has('minimum_raster_unmet') || reasons.has('system_upscale_forbidden')
+    || reasons.has('primary_audio_unmet');
+  const codecUnmet = reasons.has('video_codec_unmet');
+  const isDisc = Boolean(remuxEvent || probeEvent?.result?.result?.discTopology || probeEvent?.result?.discTopology);
+  const skippedRemux = Boolean(acquireEvent) && !remuxEvent;
+  const showRemux = Boolean(remuxEvent) || (isDisc && !needs4k && !skippedRemux && !rasterUnmet);
+  const transcodeBlocked = transcodeAssessmentBlocked(works);
+  const onExternalPath = Boolean(acquireEvent) || rasterUnmet || (needs4k && !remuxEvent && !transcodeEvent && !assessEvent && !transcodeBlocked);
+  const showTranscode = Boolean(transcodeEvent || assessEvent || transcodeBlocked)
+    || (needsCodec && !onExternalPath)
+    || (codecUnmet && !rasterUnmet);
+  const showAcquire = Boolean(acquireEvent) || needs4k || rasterUnmet;
+  const transcodeState = transcodeEvent ? eventState(transcodeEvent)
+    : (transcodeBlocked ? 'blocked' : (assessEvent ? eventState(assessEvent) : 'pending'));
+  const planned = [
+    overlayStep('identity', '核对影片身份', identityEvent),
+    overlayStep('metadata', '读取并补充媒体资料', metadataEvent),
+    overlayStep('poster', '取得海报', posterEvent, (event) => event.result?.result?.artifactHandle?.provenanceRef?.objectType === 'related_material_reference'
+      ? '复用现有海报' : '下载海报'),
+    overlayStep('nfo', '生成整理后的 NFO', nfoEvent, (event) => ({ related_nfo_update:'更新 NFO', product_metadata_draft_rebuild:'重建 NFO',
+      product_metadata_draft_create:'创建 NFO' }[event.result?.result?.provenanceRef?.objectType] ||
+      (event.result?.result ? '生成整理后的 NFO（历史记录未区分更新或重建）' : '生成整理后的 NFO'))),
+    showRemux ? overlayStep('remux', '封装整理', remuxEvent) : null,
+    showTranscode ? Object.freeze({
+      key: 'transcode',
+      label: transcodeLabel(works, spec),
+      state: transcodeState,
+      progress: transcodeEvent?.progress || null,
+    }) : null,
+    showAcquire ? overlayStep('acquire', '外部寻源', acquireEvent) : null,
+    overlayStep('verify', '验证整理结果', verifyEvent),
+    overlayStep('shelf', '提交收藏架验收', shelfEvent),
+  ].filter(Boolean);
   return Object.freeze(planned);
 }
 function actionLabel(works, spec, options) {
@@ -220,7 +249,7 @@ function frozenRunLabel(works, terminalEvidence = null) {
   return '本次整理已冻结，需要放弃后重新采购';
 }
 function nextAction(works, classification, issue, runState, recovery, arcaStatus, productPackage, latestRunState,
-  waitingExternalIntegration = false, terminalEvidence = null) {
+  waitingExternalIntegration = false, terminalEvidence = null, spec = null) {
   if (classification === 'completed') return Object.freeze({ label: '已进入收藏架', state: 'completed', progress: null });
   if (!runState && latestRunState === 'discarded') {
     return Object.freeze({ label: '等待重新入库', state: 'pending', progress: null });
@@ -230,20 +259,6 @@ function nextAction(works, classification, issue, runState, recovery, arcaStatus
   if (recovery?.recoveryState === 'attention_required') return Object.freeze({ label: '接纳执行异常，需要处理', state: 'attention_required', progress: null });
   if (arcaStatus?.stage === 'attention_required') return Object.freeze({ label: '收藏架接纳或上架需要处理', state: 'attention_required', progress: null });
   if (issue) return Object.freeze({ label: issue.result === 'ambiguous' ? '需要确认媒体身份' : issue.result === 'conflicting' ? '媒体身份信息冲突' : '暂未找到匹配的媒体身份', state: 'attention_required', progress: null });
-  const open = works.filter((work) => !['succeeded', 'failed', 'cancelled'].includes(work.state)).sort((a, b) => a.createdAtMs - b.createdAtMs)[0];
-  if (open) {
-    const event = open.events.find((item) => ['executing', 'ready', 'waiting_resource', 'waiting_external'].includes(item.state)) || open.events[0];
-    const acquisitionSelection = extractAcquisitionSelection(works);
-    const labels = { product_identity: '确认媒体身份', product_metadata_observation: '补齐媒体资料', artifact_production: '生成或获取海报与 NFO', workspace_media_production: '处理视频文件', product_conformance: '验证整理结果', deliverable_promotion: '发布整理结果' };
-    const label = open.workKind.startsWith('external_')
-      ? acquisitionSelection?.requirementAssessment === 'unknown'
-        ? '候选发布信息不完整，下载后验证真实媒体'
-        : acquisitionSelection?.requirementAssessment === 'compliant'
-          ? '正在获取预筛符合要求的候选'
-          : '正在按整理要求筛选外部候选'
-      : labels[open.workKind] || '继续整理媒体';
-    return Object.freeze({ label, state: event?.state || open.state, progress: event?.progress || null });
-  }
   if (waitingExternalIntegration) return Object.freeze({
     label: '等待配置外部获取服务后继续整理', state: 'waiting_external', progress: null,
   });
@@ -256,11 +271,42 @@ function nextAction(works, classification, issue, runState, recovery, arcaStatus
   if (businessFailure?.capabilityRef === 'libra.product_artifact.acquire@1') {
     return Object.freeze({ label:'没有取得要求的海报', state:'blocked', progress:null });
   }
-  if (hasBlockingExecution(works) || businessFailure) return Object.freeze({ label: '媒体整理执行失败，需要处理', state: 'blocked', progress: null });
-  if (!open && productPackage) return Object.freeze({ label: arcaStatus ? '正在完成收藏架上架' : '等待收藏架验收', state: 'running', progress: null });
-  if (!open) return Object.freeze({ label: runState === 'active' ? '准备下一项整理工作' :
+  if ((hasBlockingExecution(works) && !transcodeAssessmentBlocked(works) && !hasOpenExecution(works))
+      || businessFailure) {
+    return Object.freeze({ label: '媒体整理执行失败，需要处理', state: 'blocked', progress: null });
+  }
+  const steps = organizingSteps(works, spec, { latestRunState, runState });
+  const current = steps.find((item) => item.state === 'running' || item.state === 'blocked')
+    || steps.find((item) => item.state === 'pending');
+  if (current?.key === 'transcode' && (current.state === 'blocked' || transcodeAssessmentBlocked(works))
+      && !latestEvent(works, (event) => event.capabilityRef === 'libra.media.transcode@1')) {
+    return Object.freeze({ label: '需要转码，编码设备未就绪', state: 'blocked', progress: null });
+  }
+  if (current && current.key !== 'assessing' && current.key !== 'reintake') {
+    const open = (works || []).filter((work) => !['succeeded', 'failed', 'cancelled'].includes(work.state))
+      .sort((a, b) => a.createdAtMs - b.createdAtMs)[0];
+    if (!open && current.state === 'pending') {
+      /* Between succeeded stages the coordinator has not issued the next Work yet. */
+    } else {
+    const event = open?.events?.find((item) => ['executing', 'ready', 'waiting_resource', 'waiting_external',
+      'waiting_for_resource', 'waiting_for_external'].includes(item.state)) || open?.events?.[0];
+    const acquisitionSelection = extractAcquisitionSelection(works);
+    let label = current.label;
+    if (current.key === 'acquire' && acquisitionSelection) {
+      label = acquisitionSelection.requirementAssessment === 'unknown'
+        ? '候选发布信息不完整，下载后验证真实媒体'
+        : acquisitionSelection.requirementAssessment === 'compliant'
+          ? '正在获取预筛符合要求的候选'
+          : '正在按整理要求筛选外部候选';
+    }
+    const state = current.state === 'blocked' ? 'blocked'
+      : (event?.state && event.state !== 'succeeded' ? event.state : (current.state === 'running' ? 'executing' : current.state));
+    return Object.freeze({ label, state, progress: current.progress || event?.progress || null });
+    }
+  }
+  if (productPackage) return Object.freeze({ label: arcaStatus ? '正在完成收藏架上架' : '等待收藏架验收', state: 'running', progress: null });
+  return Object.freeze({ label: runState === 'active' ? '准备下一项整理工作' :
     classification === 'pending' ? '正在确认目标、评分、要求或身份' : '准备下一项整理工作', state: 'pending', progress: null });
-  throw new Error('Formation next action reached an impossible open-work branch.');
 }
 
 function createFormationProjectionSource(options) {
@@ -361,7 +407,8 @@ function createFormationProjectionSource(options) {
       const classification = classifyFormation({ run, works, issue, recovery, arcaStatus, productPackage: pkg,
         waitingExternalIntegration });
       const rating = ratings.get(subject.subject_id) || null;
-      const stepOptions = Object.freeze({ latestRunState: latestRun?.state || null, waitingExternalIntegration });
+      const stepOptions = Object.freeze({ latestRunState: latestRun?.state || null, waitingExternalIntegration,
+        runState: run?.state || null });
       const steps = organizingSteps(actionWorks, spec, stepOptions);
       const primaryCount = snapshot?.primaryInputManifest?.members?.length ||
         bindings.filter((item) => item.authority_kind === 'primary_control').length;
@@ -379,7 +426,7 @@ function createFormationProjectionSource(options) {
             arcaStatus?.stage === 'attention_required' ? '收藏架验收或上架失败，需要处理' :
               pkg ? '媒体产品已提交，等待收藏架验收与上架' : '媒体产品尚未提交收藏架' }),
       });
-      return Object.freeze({ formationViewId: subject.subject_id, subjectId: subject.subject_id, displayIdentity, contentProfile: subject.content_profile, structureKind: subject.structure_kind, status: subject.status, classification, myRating: rating?.rating ?? null, myRatingSource: rating?.sourceKind || null, myRatingRevision: (rating?.expectedRevision || 0) > 0 ? rating.expectedRevision : null, ratingState:rating?.state || 'pending', ratingResolutionStatus:rating?.resolutionStatus || null, ratingReasonCode:rating?.reasonCode || null, productIdentityIssue: issue, acceptanceRecovery: recovery, arcaStatus, processDetail:detail, targetShelfId: routing?.shelf_id || null, targetShelfName: shelfNames.get(routing?.shelf_id) || null, routingState: routing?.decision || 'preparing', unresolvedReasonCode: routing?.unresolved_reason_code || null, routingPolicyMode: policy?.mode || null, routingPolicyRevision: routing?.routing_policy_revision == null ? null : Number(routing.routing_policy_revision), routingDecisionRevision: routing ? Number(routing.decision_revision) : null, routingDecisionDigest: routing?.decision_digest || null, routingDecisionHeadRevision: head ? Number(head.head_revision) : null, routingDecisionHeadDigest: head?.head_digest || null, acceptanceSpecId: spec?.acceptance_spec_id || null, acceptanceSpecRevision: spec ? Number(spec.spec_revision) : null, acceptanceSpecDigest: spec?.spec_digest || null, acceptanceSpecPublishedAtMs: spec ? Number(spec.published_at_ms) : null, primaryMaterialCount: primaryCount, addedAtMs: Number(subject.created_at_ms), organizingRequirement: requirementLabel(spec), organizingAction: actionLabel(actionWorks, spec, stepOptions), organizingSteps: steps, nextAction: nextAction(works, classification, issue, run?.state, recovery, arcaStatus, pkg, latestRun?.state || null, waitingExternalIntegration, terminalEvidence), currentRun: run ? Object.freeze({ libraRunId: run.libra_run_id, state: run.state, stateRevision: Number(run.state_revision), stateDigest: run.state_digest, priorityClass: run.priority_class, packageRevisionHead: Number(run.package_revision_head), currentIdentityRevision: subject.current_identity_revision === null ? null : Number(subject.current_identity_revision) }) : null, handoffB: pkg ? Object.freeze({ onDeckPackageId: pkg.on_deck_package_id, offerId: pkg.offer_id, packageRevision: Number(pkg.package_revision), packageDigest: pkg.package_digest, state: pkg.state, publishedAtMs: Number(pkg.published_at_ms) }) : null, completedAtMs: arcaStatus?.stage === 'completed' ? arcaStatus.completedAtMs : null });
+      return Object.freeze({ formationViewId: subject.subject_id, subjectId: subject.subject_id, displayIdentity, contentProfile: subject.content_profile, structureKind: subject.structure_kind, status: subject.status, classification, myRating: rating?.rating ?? null, myRatingSource: rating?.sourceKind || null, myRatingRevision: (rating?.expectedRevision || 0) > 0 ? rating.expectedRevision : null, ratingState:rating?.state || 'pending', ratingResolutionStatus:rating?.resolutionStatus || null, ratingReasonCode:rating?.reasonCode || null, productIdentityIssue: issue, acceptanceRecovery: recovery, arcaStatus, processDetail:detail, targetShelfId: routing?.shelf_id || null, targetShelfName: shelfNames.get(routing?.shelf_id) || null, routingState: routing?.decision || 'preparing', unresolvedReasonCode: routing?.unresolved_reason_code || null, routingPolicyMode: policy?.mode || null, routingPolicyRevision: routing?.routing_policy_revision == null ? null : Number(routing.routing_policy_revision), routingDecisionRevision: routing ? Number(routing.decision_revision) : null, routingDecisionDigest: routing?.decision_digest || null, routingDecisionHeadRevision: head ? Number(head.head_revision) : null, routingDecisionHeadDigest: head?.head_digest || null, acceptanceSpecId: spec?.acceptance_spec_id || null, acceptanceSpecRevision: spec ? Number(spec.spec_revision) : null, acceptanceSpecDigest: spec?.spec_digest || null, acceptanceSpecPublishedAtMs: spec ? Number(spec.published_at_ms) : null, primaryMaterialCount: primaryCount, addedAtMs: Number(subject.created_at_ms), organizingRequirement: requirementLabel(spec), organizingAction: actionLabel(actionWorks, spec, stepOptions), organizingSteps: steps, nextAction: nextAction(works, classification, issue, run?.state, recovery, arcaStatus, pkg, latestRun?.state || null, waitingExternalIntegration, terminalEvidence, spec), currentRun: run ? Object.freeze({ libraRunId: run.libra_run_id, state: run.state, stateRevision: Number(run.state_revision), stateDigest: run.state_digest, priorityClass: run.priority_class, packageRevisionHead: Number(run.package_revision_head), currentIdentityRevision: subject.current_identity_revision === null ? null : Number(subject.current_identity_revision) }) : null, handoffB: pkg ? Object.freeze({ onDeckPackageId: pkg.on_deck_package_id, offerId: pkg.offer_id, packageRevision: Number(pkg.package_revision), packageDigest: pkg.package_digest, state: pkg.state, publishedAtMs: Number(pkg.published_at_ms) }) : null, completedAtMs: arcaStatus?.stage === 'completed' ? arcaStatus.completedAtMs : null });
     });
   }
   function scan(visitor) {
@@ -401,6 +448,12 @@ function createFormationProjectionSource(options) {
   return Object.freeze({ readPage, readSubject, findSubjectByRun, buildBatch, scan, get, getMany });
 }
 
+function isIdleAfterUserAbandon(item) {
+  return !item.currentRun && item.nextAction?.label === '等待重新入库';
+}
+function isIdleAfterUserAbandonRow(row) {
+  return !row.current_libra_run_id && row.next_action_label === '等待重新入库';
+}
 function attentionFor(item) {
   if (item.classification === 'attention_required') {
     if (['frozen', 'suspended', 'blocked'].includes(item.nextAction?.state)) return item.nextAction.state;
@@ -419,7 +472,7 @@ function buildFormationProjectionRow(item, nowMs) {
   const identityDigest = item.productIdentityIssue ? canonicalDigest(item.productIdentityIssue) : null;
   const attentionPriority = item.classification === 'attention_required' ? 0 : item.classification === 'in_progress' ? 1 : item.classification === 'pending' ? 2 : 3;
   const basis = {
-    projectionContractRevision: 3,
+    projectionContractRevision: 4,
     subjectId: item.subjectId, displayIdentity: item.displayIdentity, contentProfile: item.contentProfile,
     structureKind: item.structureKind, subjectStatus: item.status, classification: item.classification,
     rating: [item.myRating, item.myRatingSource, item.myRatingRevision], targetShelf: [item.targetShelfId, item.targetShelfName],
@@ -544,6 +597,21 @@ function createFormationQuery(options) {
       myRating:value.myRating,myRatingSource:value.myRatingSource,myRatingRevision:value.myRatingRevision,
       ratingState:value.ratingState,ratingResolutionStatus:value.ratingResolutionStatus,ratingReasonCode:value.ratingReasonCode }) : item;});
   }
+  function countIdleAfterUserAbandon() {
+    if (typeof options.store.listActiveScan !== 'function' && typeof options.store.listActive !== 'function') return 0;
+    let idle = 0, offset = 0;
+    const reader = typeof options.store.listActiveScan === 'function'
+      ? options.store.listActiveScan.bind(options.store) : options.store.listActive.bind(options.store);
+    const chunk = typeof options.store.listActiveScan === 'function' ? 500 : 26;
+    for (;;) {
+      const page = reader(offset, chunk);
+      if (!page.length) break;
+      idle += page.filter(isIdleAfterUserAbandonRow).length;
+      if (page.length < chunk) break;
+      offset += page.length;
+    }
+    return idle;
+  }
   function summary(attentionRows = []) {
     const result = { totalCount: 0, pendingCount: 0, inProgressCount: 0, attentionRequiredCount: 0, completedCount: 0 };
     for (const row of options.store.counts()) {
@@ -553,6 +621,9 @@ function createFormationQuery(options) {
       else if (row.group_value === 'attention_required') result.attentionRequiredCount = count;
       else if (row.group_value === 'completed') result.completedCount = count;
     }
+    const idle = countIdleAfterUserAbandon();
+    result.pendingCount = Math.max(0, result.pendingCount - idle);
+    result.totalCount = Math.max(0, result.totalCount - idle);
     for (const row of attentionRows) {
       if (row.classification === 'attention_required') continue;
       if (row.classification === 'pending') result.pendingCount -= 1;
@@ -644,10 +715,11 @@ function createFormationQuery(options) {
     let items;
     const requiresFullScan = hasActiveFilters(filters) || attention.length > 0;
     if (requiresFullScan) {
-      items = mergeAttention(scanActiveRows(), attention).map(projectionItem).map(technicalIssue).filter((item) => matchesActiveItem(item, filters));
+      items = mergeAttention(scanActiveRows(), attention).map(projectionItem).map(technicalIssue)
+        .filter((item) => !isIdleAfterUserAbandon(item) && matchesActiveItem(item, filters));
     } else {
       const rows = options.store.listActive(offset, limit + 1);
-      items = rows.map(projectionItem).map(technicalIssue);
+      items = rows.map(projectionItem).map(technicalIssue).filter((item) => !isIdleAfterUserAbandon(item));
     }
     const windowed = requiresFullScan ? items.slice(offset) : items;
     const hasMore = windowed.length > limit, selected = hasMore ? windowed.slice(0, limit) : windowed;

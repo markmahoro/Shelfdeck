@@ -24,6 +24,7 @@ const {
   nextMetadataStage,
 } = require('../planning/product-metadata-work');
 const { coversRequirementGaps } = require('../model/defect-admission-contracts');
+const { sourceRequiresExternalSearch } = require('../model/media-production-contracts');
 
 // Shared fx_supporting_works hard cap. 256 saturates a Movie Helix-beta Field
 // (~300 active Runs) and starves later user identity confirmation.
@@ -515,6 +516,9 @@ function createLibraRunCoordinator(options){
     const sourceResults=options.workResultReader.read(sourceMedia.workId).filter((item)=>item.outcomeKind==='succeeded'&&
       item.capabilityRef==='shared.material.media.probe@1');
     if(sourceResults.length!==1)throw new Error('Terminal source media Observation Work lacks one durable Probe Result.');
+    if(sourceRequiresExternalSearch(sourceResults[0].result,snapshot.spec?.requirements?.mandatoryMedia)){
+      return ensureExternalSelection(snapshot,workspace);
+    }
     if(snapshot.materialInputForm!=='stream_file'){
       const remux=remuxMediaSelectionWork(snapshot),remuxSubmitted=submit(remux),remuxStatus=options.workResultReader.status(remux.workId);
       if(!workSucceeded(remuxStatus)){

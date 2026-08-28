@@ -419,3 +419,18 @@ test('restart replays one journaled media effect without producing a second Work
   const recovered=await coordinator.executeRemux(command),replayed=await coordinator.executeRemux(command);
   assert.equal(physicalWrites,1);assert.deepEqual(recovered,replayed);assert.equal(recovered.outputTargetId,target.targetId);
 });
+
+test('source probe requiring 4k or listed audio skips local remux in favor of external search',()=>{
+  const hdVideo={streamIndex:0,dispositionDefault:true,codec:'h264',codecProfile:'high',pixelFormat:'yuv420p',bitDepth:8,
+    chroma:'4:2:0',colorRange:'limited',colorPrimaries:'bt709',colorTransfer:'bt709',colorMatrix:'bt709',dynamicRangeKind:'sdr',
+    codedWidth:1920,codedHeight:1080,sampleAspectRatio:'1:1',rotation:0,displayWidth:1920,displayHeight:1080,longEdge:1920,shortEdge:1080};
+  const fourK=probe(source());
+  const hd=probe(source(),'probe-hd',{videoStreams:[hdVideo]});
+  const hdDts=probe(source(),'probe-hd-dts',{videoStreams:[hdVideo],audioStreams:[{streamIndex:1,dispositionDefault:true,
+    codec:'dts',profile:'dts-hd-ma',channels:6,channelLayout:'5.1',formatTags:[],normalizedAudioClass:'dts_hd_ma',language:'eng'}]});
+  assert.equal(media.sourceRequiresExternalSearch(fourK,{minimumRasterClass:'4k',acceptedPrimaryAudioClasses:[]}),false);
+  assert.equal(media.sourceRequiresExternalSearch(hd,{minimumRasterClass:'4k',acceptedPrimaryAudioClasses:[]}),true);
+  assert.equal(media.sourceRequiresExternalSearch(fourK,{minimumRasterClass:'none',acceptedPrimaryAudioClasses:['truehd']}),false);
+  assert.equal(media.sourceRequiresExternalSearch(hdDts,{minimumRasterClass:'none',acceptedPrimaryAudioClasses:['truehd']}),true);
+  assert.equal(media.sourceRequiresExternalSearch(hd,{minimumRasterClass:'none',videoCodec:'hevc',acceptedPrimaryAudioClasses:[]}),false);
+});
