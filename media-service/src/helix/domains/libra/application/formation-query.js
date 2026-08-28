@@ -128,12 +128,14 @@ function organizingWorks(run, latestRun, progressByRun) {
   if (latestRun && latestRun.state === 'completed') return progressByRun.get(latestRun.libra_run_id) || [];
   return [];
 }
-function extractProductIdentityIssue(works) {
-  const result = works.flatMap((work) => work.events)
+function extractProductIdentityIssue(works, selectionIntent = null) {
+  const latest = works.flatMap((work) => work.events)
     .filter((event) => event.capabilityRef === 'libra.product_identity.evidence.observe@1'
       && event.result?.result?.schemaRef === 'helix://contracts/types/ProductIdentityEvidenceObservation/v1')
-    .sort((a, b) => (b.result?.committedAtMs || 0) - (a.result?.committedAtMs || 0))[0]?.result?.result;
+    .sort((a, b) => (b.result?.committedAtMs || 0) - (a.result?.committedAtMs || 0))[0];
+  const result = latest?.result?.result;
   if (!result || result.result === 'resolved') return null;
+  if (selectionIntent && Number(selectionIntent.created_at_ms) >= Number(latest.result?.committedAtMs || 0)) return null;
   return Object.freeze({ result: result.result, reasonCode: result.reasonCode, candidateSetDigest: result.evidenceDigest, candidates: Object.freeze(result.candidates || []) });
 }
 function hasOpenExecution(works) {
@@ -275,6 +277,7 @@ function createFormationProjectionSource(options) {
     find_run_revisions: { kind: 'select-in', tableId: 'libra_run_revisions', keyColumn: 'libra_run_id', maxItems: PAGE_SIZE, columns: ['libra_run_id', 'state_revision', 'transition_evidence_json'], safeIntegers: true },
     find_run_subject: { kind: 'select-one', tableId: 'libra_runs', keyColumns: ['libra_run_id'], columns: ['subject_id'] },
     find_packages: { kind: 'select-in', tableId: 'libra_product_packages', keyColumn: 'libra_run_id', maxItems: 500, columns: ['on_deck_package_id', 'offer_id', 'libra_run_id', 'package_revision', 'package_digest', 'state', 'published_at_ms'], safeIntegers: true },
+    find_identity_intents: { kind: 'select-in', tableId: 'libra_product_identity_selection_intents', keyColumn: 'libra_run_id', maxItems: 500, columns: ['selection_intent_id', 'libra_run_id', 'intent_revision', 'provider_key', 'created_at_ms'], safeIntegers: true },
   } });
 
   function readPage(cursor, limit = PAGE_SIZE) {
@@ -310,7 +313,8 @@ function createFormationProjectionSource(options) {
       const runIds = unique(runs.map((row) => row.libra_run_id));
       const runRevisions = runIds.length ? chunks(runIds).flatMap((values) => repo.invoke('find_run_revisions', { values })) : [];
       const packages = runIds.length ? chunks(runIds).flatMap((values) => repo.invoke('find_packages', { values })) : [];
-      return { decisions, bindings, routingDecisions, routingPolicies, decisionHeads, acceptanceSpecs, runs, runRevisions, packages };
+      const identityIntents = runIds.length ? chunks(runIds).flatMap((values) => repo.invoke('find_identity_intents', { values })) : [];
+      return { decisions, bindings, routingDecisions, routingPolicies, decisionHeads, acceptanceSpecs, runs, runRevisions, packages, identityIntents };
     } }]).libra_formation_batch;
   }
   function buildBatch(subjects) {
@@ -349,7 +353,8 @@ function createFormationProjectionSource(options) {
       const pkg = packageRun ? latest(value.packages.filter((item) => item.libra_run_id === packageRun.libra_run_id), 'package_revision') : null;
       const works = run ? progressByRun.get(run.libra_run_id) || [] : [];
       const actionWorks = organizingWorks(run, latestRun, progressByRun);
-      const issue = extractProductIdentityIssue(works);
+      const selectionIntent = run ? latest((value.identityIntents || []).filter((item) => item.libra_run_id === run.libra_run_id), 'intent_revision') : null;
+      const issue = extractProductIdentityIssue(works, selectionIntent);
       const waitingExternalIntegration = waitsForExternalIntegration(works, externalIntegrationReady);
       const recovery = pkg ? recoveries.get(pkg.offer_id) || null : null;
       const arcaStatus = pkg ? arcaStatuses.get(pkg.offer_id) || null : null;

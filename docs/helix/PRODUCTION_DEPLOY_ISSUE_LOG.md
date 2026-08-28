@@ -27,6 +27,7 @@
 | PROD-005 | 一部都没上架；整理工作区数量看起来卡住 | 配置 / Workspace 根未生效 | 系统设置 Workspace、媒体整理工作区 | Critical | **FIXED by restart on upgrade**。`/transcode` 就是本机 Production Workspace；升级重启后按 durable `/transcode` 生效。冲突错误现带 configured/durable 路径。配置不变。 |
 | PROD-006 | 打开媒体整理工作区卡在「正在读取媒体整理工作区…」 | `USER_EXPERIENCE` / 全量分页 | 媒体整理工作区 | Critical | **FIXED**。页面原先等 897 条全部拉完才渲染；现先画第一页，其余后台补齐，轮询只刷新首页。 |
 | PROD-007 | 整理协调器 `P9_REFERENCE_MATERIAL_CORRUPT` / remux `P9_MEDIA_OUTPUT_CONTINUITY`，升级后管理端口起不来 | `EXECUTION` / Workspace root identity + startup recovery | 媒体整理工作区 | Critical | **FIXED**。材料句柄用内部 `service-local-workspace`，durable 根是 `local-filesystem-linux`；启动恢复还在 `listen()` 前续跑长时间 remux。句柄按 durable 根无损重盖章；workspace-write 恢复推迟到就绪之后。 |
+| PROD-008 | 确认影片身份后仍停在「媒体身份信息冲突」 | `EXECUTION` / 工作准入硬顶 + 展示用旧观察 | 媒体整理工作区 | High | **FIXED**。选择意图已写入，但开放 Work 正好 256，后续 exact TMDB 观察进不了队；页面仍读旧冲突观察。Libra Run 准入放到 1000；有更新的选择意图时不再把旧冲突当待办。 |
 
 PROD-001、PROD-002 的共同环境前提：生产管理台是 `http://192.168.12.230`，浏览器不提供 `crypto.randomUUID` / `crypto.subtle`。这不是传输加密设计，只是浏览器 API 限制。未改成 HTTPS。
 
@@ -107,3 +108,16 @@ Product Owner 随后确认 `/transcode` 就是 Production Workspace，要求记�
 根因：保存 `/transcode` 把 Platform 根绑到 `local-filesystem-linux` / `local-mount-…` 且 `config_revision=2`。开 Workspace 和 Remux 验收目标用这份 durable 快照；写海报/NFO/remux 却盖内部 `service-local-workspace` 印章。`rootHandleRef` 对不上时挂账报 `P9_REFERENCE_MATERIAL_CORRUPT`；endpoint/mount 对不上时 remux 登记报 `P9_MEDIA_OUTPUT_CONTINUITY`。升级杀 FFmpeg 后，启动恢复在 `listen()` 之前续跑长时间 workspace write，管理端口起不来。
 
 修复：写材料使用 `ensureRoot()` 的 durable `endpointId` / `mountScopeId` / `rootHandleRef`。启动时对不一致的 active 材料按路径 CAS 重盖章（字节、相对路径、inode、指纹不变）。`safe_retry_before_intent`、`continue_forward/reuse_existing` 和 workspace-write `safe_retry` 重建都推迟到就绪之后再恢复。未 `--helix-clean-init`。
+
+## 9. PROD-008 — 确认影片身份后页面仍显示冲突（FIXED）
+
+发现：2026-08-28，用户给《凶降喜讯 (2025)》选择 TMDB `1218681`《Good News》并确认，页面仍是「需要处理 / 媒体身份信息冲突」。
+
+现场只读：
+
+- `libra.choose-product-identity@1` 收据和 `libra_product_identity_selection_intents` 都有，`provider_key=1218681`，`created_at_ms=1787923511001`。
+- 该 Run 只有两条早已成功的身份观察（related NFO 与 NFO exact），没有以选择意图为源的新 `observation_provider_exact` Work；`current_identity_revision` 仍为 null。
+- 全库开放 Work 正好 256（admitted 208 + running 41 + blocked 7），Libra 开放 253。Libra Run Coordinator 准入硬顶是 256，后续确认身份的观察被 `WORK_HARD_CAP` 推迟且不落库。
+- Formation 仍取最新一条未 resolved 的身份观察，所以 UI 继续展示确认之前的冲突。
+
+修复：Libra Run 准入 `globalOpenWorks` / `ownerOpenWorks` 放到 1000（与 Movie production coordinator 同档；真正并发仍受 event in-flight 限制）。有比该观察更新的 Product Identity 选择意图时，不再把旧冲突当成待用户处理。未 `--helix-clean-init`，不改 Field / Shelf / Workspace / 代理。

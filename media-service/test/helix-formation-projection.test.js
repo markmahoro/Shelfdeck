@@ -67,6 +67,13 @@ test('Formation extracts Product Identity issues from the business result contra
     capabilityRef:'libra.product_identity.evidence.observe@1',
     result:{committedAtMs:300,result:{schemaRef:'helix://contracts/types/ProductIdentityEvidenceObservation/v1',result:'resolved'}},
   }]}]),null);
+  assert.equal(extractProductIdentityIssue(works,{created_at_ms:200}),null,
+    'A later or concurrent Product Identity selection intent retires the stale observation issue.');
+  assert.equal(extractProductIdentityIssue(works,{created_at_ms:201}),null);
+  assert.deepEqual(extractProductIdentityIssue(works,{created_at_ms:199}),{
+    result:'conflicting',reasonCode:'provider_identity_conflicting',candidateSetDigest:hex(900),
+    candidates:conflicting.candidates,
+  });
 });
 
 test('Formation explains a frozen external search that found no requirement-eligible candidate',()=>{

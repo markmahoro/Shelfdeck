@@ -25,7 +25,9 @@ const {
 } = require('../planning/product-metadata-work');
 const { coversRequirementGaps } = require('../model/defect-admission-contracts');
 
-const LIMITS=Object.freeze({globalOpenWorks:256,ownerOpenWorks:256,openEvents:256});
+// Shared fx_supporting_works hard cap. 256 saturates a Movie Helix-beta Field
+// (~300 active Runs) and starves later user identity confirmation.
+const LIMITS=Object.freeze({globalOpenWorks:1000,ownerOpenWorks:1000,openEvents:256});
 const ARTIFACT_RESULT='helix://contracts/capabilities/shared.artifact.manifest.verify/v1/result';
 const PRODUCT_METADATA_RESULT='helix://contracts/capabilities/libra.product_metadata.commit/v1/result';
 function stable(prefix,value){return prefix+canonicalDigest(value).slice(0,40);}
