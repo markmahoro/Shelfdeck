@@ -46,8 +46,8 @@ RUN rm -f /usr/bin/python /usr/bin/python3 /usr/bin/python3.* \
 COPY media-service/package.json media-service/package-lock.json ./
 COPY --from=service-dependencies /app/node_modules ./node_modules
 COPY media-service/src/server.js ./src/server.js
-COPY media-service/src/clean-service-host.js ./src/clean-service-host.js
 COPY media-service/src/admin-credential-secret-store.js ./src/admin-credential-secret-store.js
+COPY media-service/src/clean-*.js ./src/
 COPY media-service/src/helix ./src/helix
 COPY media-service/scripts/helix-clean-init.js ./scripts/helix-clean-init.js
 COPY media-service/scripts/helix-operational-safety.js ./scripts/helix-operational-safety.js
