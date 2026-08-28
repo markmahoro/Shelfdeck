@@ -3,7 +3,9 @@
 const { canonicalDigest } = require('../../../contracts/canonical-json');
 const { createWorkAdmission } = require('../../../foundation/execution/work-admission');
 
+const { PREDECK_INTAKE_SEATS } = require('./predeck-intake-occupancy');
 const LIMITS=Object.freeze({globalOpenWorks:256,ownerOpenWorks:256,openEvents:256,reservedOpenWorks:16});
+const SEAT_WAIT=Object.freeze({kind:'seat_wait',reasonCode:'PREDECK_INTAKE_SEATS_FULL'});
 function stable(prefix,value){return prefix+canonicalDigest(value).slice(0,40);}
 function definition(kind,processId,basis,dependencyRefs=[]){return Object.freeze({schemaRef:'helix://foundation/types/SupportingWorkDefinition/v1',schemaVersion:1,
   workId:stable('libra-intake-'+kind+'-work-',{processId,basis}),ownerDomain:'libra',processType:'libra_intake',processId,workKind:kind,
@@ -31,11 +33,25 @@ function createIntakeProcessCoordinator(options){
     return definition('evidence',processId,canonicalDigest({schema:'libra.intake-evidence-basis@1',offerId:source.offer.offerId,
       snapshotDigest:source.snapshot.deliverySnapshotDigest}));}
   function succeeded(status){return status?.state==='succeeded'||status?.latestAttempt?.state==='succeeded';}
+  function freeSeats(){
+    if(typeof options.occupancyProvider?.snapshot!=='function')return Number.POSITIVE_INFINITY;
+    return options.occupancyProvider.snapshot().freeSeats;
+  }
+  function existingEvidence(processId){
+    const work=evidence(processId);if(!work)return null;
+    return options.workResultReader.status(work.workId)||admission.replay(work)?work:null;
+  }
+  function mayStartNewIntake(processId){
+    if(existingEvidence(processId))return true;
+    return freeSeats()>0;
+  }
   return Object.freeze({
     admitOffer(offer){const source=options.offerReader.remember?.(offer),processId=source?.processId||options.offerReader.decisionId(offer.offerId),work=evidence(processId);if(!work)throw new Error('Offered Candidate Snapshot is unavailable.');
+      if(!mayStartNewIntake(processId)){deferredProcesses.add(processId);return Object.freeze({processId,work,result:SEAT_WAIT});}
       const result=submit(work);if(result?.kind==='deferred')deferredProcesses.add(processId);else deferredProcesses.delete(processId);
       return Object.freeze({processId,work,result});},
     reconcile(processId){const source=options.offerReader.read(processId);if(!source)return Object.freeze({kind:'not_found',processId});
+      if(!mayStartNewIntake(processId)){deferredProcesses.add(processId);return Object.freeze({kind:'seat_wait',processId,reasonCode:SEAT_WAIT.reasonCode,seats:PREDECK_INTAKE_SEATS});}
       const evidenceWork=evidence(processId),evidenceAdmission=submit(evidenceWork),status=options.workResultReader.status(evidenceWork.workId);
       if(!succeeded(status))return Object.freeze({kind:'evidence_pending',processId,workId:evidenceWork.workId,replayed:evidenceAdmission.replayed});
       const results=options.workResultReader.read(evidenceWork.workId).filter((item)=>item.outcomeKind==='succeeded').map((item)=>item.result);
@@ -55,6 +71,7 @@ function createIntakeProcessCoordinator(options){
       return Object.freeze({kind:succeeded(nextStatus)?'terminal':kind+'_pending',processId,evidenceWorkId:evidenceWork.workId,
         workId:next.workId,outcome:accepted?'accepted':'rejected',replayed:nextResult.replayed});}
     ,reconcilePending({ignoreAcceptanceProcessId=null,limit=100,admissionLimit=32}={}){let visited=0;const admitted=[];
+      const newAdmitLimit=Math.min(admissionLimit,freeSeats());
       const processIds=[...deferredProcesses].slice(0,limit),known=new Set(processIds);
       let durablePage=null;
       if(processIds.length<limit&&typeof options.offerReader.listProcessPage==='function'){
@@ -63,8 +80,11 @@ function createIntakeProcessCoordinator(options){
       }
       let lastDurableVisited=null;
       for(const processId of processIds){visited+=1;if(processId===ignoreAcceptanceProcessId)continue;
+        if(!existingEvidence(processId)&&admitted.length>=newAdmitLimit){
+          deferredProcesses.add(processId);continue;}
         const result=this.reconcile(processId);
         if(durablePage?.items?.some((item)=>item.processId===processId))lastDurableVisited=processId;
+        if(result.kind==='seat_wait'){deferredProcesses.add(processId);continue;}
         if(!String(result.kind).endsWith('_deferred'))deferredProcesses.delete(processId);
         if(['evidence_pending','acceptance_pending','rejection_pending'].includes(result.kind)&&result.replayed===false)admitted.push(result);
         if(admitted.length>=admissionLimit)break;}

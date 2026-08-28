@@ -8,6 +8,7 @@ const { createIntakeCapabilityRegistrations } = require('../capabilities/intake-
 const { createIntakeOfferReader } = require('../persistence/intake-offer-reader');
 const { createIntakeDecisionResolver } = require('../application/intake-decision-resolver');
 const { createIntakeProcessCoordinator } = require('../application/intake-process-coordinator');
+const { createPredeckIntakeOccupancy } = require('../application/predeck-intake-occupancy');
 const { createEvidencePlanner,createAcceptancePlanner,createRejectionPlanner,createIntakeProjections } = require('../planning/intake-planners');
 const { createRoutingCapabilityPorts } = require('../capabilities/routing-capability-ports');
 const { createRoutingCapabilityRegistrations, EFFECTS: ROUTING_EFFECTS } = require('../capabilities/routing-capability-registrations');
@@ -190,7 +191,8 @@ function createExecutionRegistration() {
     createProcessServices(options) {
       const offerReader=options.offerReader || createIntakeOfferReader(options);
       const decisionResolver=createIntakeDecisionResolver(options);
-      const coordinator=createIntakeProcessCoordinator({...options,offerReader,decisionResolver});
+      const occupancyProvider=options.occupancyProvider||(options.workResultReader?createPredeckIntakeOccupancy(options):null);
+      const coordinator=createIntakeProcessCoordinator({...options,offerReader,decisionResolver,occupancyProvider});
       const routingContextReader=createRoutingContextReader(options);
       const routingCoordinator=createRoutingProcessCoordinator({...options,contextReader:routingContextReader});
       const acceptanceSpecContextReader=createAcceptanceSpecContextReader({...options,routingContextReader});
@@ -204,7 +206,7 @@ function createExecutionRegistration() {
       const libraRunCoordinator=createLibraRunCoordinator({...options,movieProductionReader,libraRunLifecycleService,productIdentitySelection});
       return Object.freeze({offerReader,decisionResolver,coordinator,routingContextReader,routingCoordinator,acceptanceSpecContextReader,
         acceptanceSpecCoordinator,libraRunContextReader,libraRunCreator,movieProductionReader,libraRunCoordinator,
-        libraRunExecutionProjection,libraRunLifecycleService,productIdentitySelection});
+        libraRunExecutionProjection,libraRunLifecycleService,productIdentitySelection,predeckIntakeOccupancy:occupancyProvider});
     },
     createPlanningRegistration(options) {
       const productDeliveryAssembler=options.productDeliveryAssembler||createProductDeliveryAssembler(options);

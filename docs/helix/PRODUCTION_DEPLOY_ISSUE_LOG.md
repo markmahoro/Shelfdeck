@@ -28,6 +28,7 @@
 | PROD-006 | 打开媒体整理工作区卡在「正在读取媒体整理工作区…」 | `USER_EXPERIENCE` / 全量分页 | 媒体整理工作区 | Critical | **FIXED**。页面原先等 897 条全部拉完才渲染；现先画第一页，其余后台补齐，轮询只刷新首页。 |
 | PROD-007 | 整理协调器 `P9_REFERENCE_MATERIAL_CORRUPT` / remux `P9_MEDIA_OUTPUT_CONTINUITY`，升级后管理端口起不来 | `EXECUTION` / Workspace root identity + startup recovery | 媒体整理工作区 | Critical | **FIXED**。材料句柄用内部 `service-local-workspace`，durable 根是 `local-filesystem-linux`；启动恢复还在 `listen()` 前续跑长时间 remux。句柄按 durable 根无损重盖章；workspace-write 恢复推迟到就绪之后。 |
 | PROD-008 | 确认影片身份后仍停在「媒体身份信息冲突」 | `EXECUTION` / 工作准入硬顶 + 展示用旧观察 | 媒体整理工作区 | High | **FIXED**。选择意图已写入，但开放 Work 正好 256，后续 exact TMDB 观察进不了队；页面仍读旧冲突观察。Libra Run 准入放到 1000；有更新的选择意图时不再把旧冲突当待办。 |
+| PROD-009 | 试运行长时间没有第一部 Arca 上架；`/transcode` 写满 | `EXECUTION` / Intake 无席位 + Workspace 24h grace | 媒体整理工作区、Workspace | Critical | **FIXED**。Intake 同时只接 3 个未完成 Pre-deck；Off-load Completion 后立即开始回收 Workspace，不再等 24 小时。干净部署后按同一套 Field/Shelf/Workspace/TMDB 取值重建。 |
 
 PROD-001、PROD-002 的共同环境前提：生产管理台是 `http://192.168.12.230`，浏览器不提供 `crypto.randomUUID` / `crypto.subtle`。这不是传输加密设计，只是浏览器 API 限制。未改成 HTTPS。
 
@@ -121,3 +122,11 @@ Product Owner 随后确认 `/transcode` 就是 Production Workspace，要求记�
 - Formation 仍取最新一条未 resolved 的身份观察，所以 UI 继续展示确认之前的冲突。
 
 修复：Libra Run 准入 `globalOpenWorks` / `ownerOpenWorks` 放到 1000（与 Movie production coordinator 同档；真正并发仍受 event in-flight 限制）。有比该观察更新的 Product Identity 选择意图时，不再把旧冲突当成待用户处理。未 `--helix-clean-init`，不改 Field / Shelf / Workspace / 代理。
+
+## 10. PROD-009 — Intake 铺开与 Workspace 懒回收（FIXED）
+
+发现：2026-08-28 Helix-beta 试运行。几百个 Subject 全部 Intake，Foundation 在全局队列里铺开 remux，`/vol2` 的 `/transcode` 被中间文件写满，一路 FFmpeg 做不完第一部，Arca On-deck 一直为 0。
+
+根因：Libra Intake 不限制未完成 Pre-deck 数量；completed Workspace 回收还要等 Off-load Completion 之后 24 小时 grace，Signal 叫醒也清不掉盘。
+
+修复：Intake 席位 3（占用 active/suspended/frozen Subject，Handoff B Accepted 或放弃才释放，席位满只排队不 Reject）。去掉 completed+Off-load 路径的 24h grace，Completion wake 当场开始两轮引用审计并回收。Product Owner 要求无视已有 Libra Run，干净部署后按原 Field/Shelf/`/transcode`/TMDB 代理/豆瓣取值重建。

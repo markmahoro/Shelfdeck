@@ -4,6 +4,10 @@ Status: Helix-beta 范围已收窄为仅 Movie 全链路。Movie Procurement与M
 
 Last updated: 2026-08-28
 
+## 0. Intake 3 席位与 Off-load 后立即回收 Workspace
+
+Helix-beta 试运行未出第一部 Arca：Intake 把全部 Offer 接成 Run，Workspace 回收还有 24h grace。已实现 Pre-deck 席位 3 与 Completion 后立即回收。下一步干净部署（`--helix-clean-init`），配置取值不变。
+
 ## 0. Production upgrade — `/transcode` is Workspace; PROD-003/005 fixed
 
 2026-08-28 Product Owner 确认 `/transcode` 就是 Production Workspace，要求记录现网配置后修复并重启，配置不变。已升级到 `markmahoro/shelfdeck:helix-beta-20260828-0b3a268ef`（tar SHA-256 `82abcc12fd890583ac6b4fd712aa6795f8702828dfc4a55363d9554b55c9663f`），未 `--helix-clean-init`。重启后 `CLEAN_WORKSPACE_ROOT_CONFLICT` 为 0，durable Workspace 仍是 `/transcode` `config_revision=2`，来源 `/media/Film`、收藏架 `/media/Film`、TMDB 代理 `http://192.168.12.230:7890` 均未改。重启约 1 分钟后已出现 `artifact_production` admitted。现网配置写在 `docs/v2/PRODUCTION_DEPLOYMENT.md`。OPEN 只剩 `PROD-004`（同根 Field/Shelf，明确保留）。

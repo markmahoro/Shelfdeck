@@ -131,6 +131,7 @@ test('cleanup source uses two invocations, optional wake, and in-UoW fences', ()
     '../../src/helix/domains/libra/persistence/workspace-cleanup-store.js',
   ), 'utf8');
   assert.doesNotMatch(coordinator, /nowMs\s*-\s*CYCLE_MS/);
+  assert.doesNotMatch(coordinator, /offloadCompletionFact\.committedAtMs \+ DAY_MS/);
   assert.match(coordinator, /workspace_cleanup_audit_pending/);
   assert.match(coordinator, /offloadWakeVisible === false/);
   const cleanupBody = coordinator.slice(

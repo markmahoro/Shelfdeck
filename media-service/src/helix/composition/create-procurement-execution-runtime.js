@@ -696,18 +696,46 @@ function createProcurementExecutionRuntime(options) {
       snapshot, catalogDigest, registry, policyRegistry, bindingProjectionRegistry,
     ) },
     effectReconciler, effectJournal });
+  function fillPredeckIntakeSeats() {
+    libraProcessServices.coordinator.reconcilePending({ admissionLimit: 3 });
+  }
+  function drainCompletedWorkspaces() {
+    completedWorkspaceSweepNotBeforeMs = 0;
+    activeCleanupSweepNotBeforeMs = 0;
+    let cursor = null;
+    let pendingAudit = false;
+    for (;;) {
+      const page = workspaceReclaimer.listCompletedWorkspacePage(cursor, 100);
+      if (!page.length) break;
+      for (const item of page) {
+        if (item.scope?.skipped) continue;
+        const result = workspaceReclaimer.reconcileCompletedWorkspace(item.scope);
+        if (result?.stage === 'workspace_cleanup_audit_pending') pendingAudit = true;
+      }
+      if (page.length < 100) break;
+      cursor = page.at(-1).cursor;
+    }
+    completedWorkspaceSweepNotBeforeMs = now() + (pendingAudit ? 60_000 : WORKSPACE_RECLAIMER_FALLBACK_MS);
+    return Object.freeze({ kind: 'wake_recorded', pendingAudit });
+  }
   function reconcileLibraRun(libraRunId) {
     const result = libraProcessServices.libraRunCoordinator.reconcile(libraRunId);
-    if (result?.kind !== 'replacement_required') return result;
-    const replacement = libraProcessServices.libraRunCreator.replace(
-      result.subjectId,
-      libraRunId,
-    );
-    if (replacement.libraRunId)
-      return libraProcessServices.libraRunCoordinator.reconcile(
-        replacement.libraRunId,
+    if (result?.kind === 'replacement_required') {
+      const replacement = libraProcessServices.libraRunCreator.replace(
+        result.subjectId,
+        libraRunId,
       );
-    return replacement;
+      if (replacement.libraRunId)
+        return libraProcessServices.libraRunCoordinator.reconcile(
+          replacement.libraRunId,
+        );
+      fillPredeckIntakeSeats();
+      return replacement;
+    }
+    if (result?.kind === 'terminal' || result?.state === 'completed' || result?.state === 'discarded') {
+      fillPredeckIntakeSeats();
+    }
+    return result;
   }
   const domainReconciler = { async reconcile(request) {
     if(request.reconcilePhase==='attempt_terminal'){
@@ -1020,8 +1048,7 @@ function createProcurementExecutionRuntime(options) {
     arcaOffdeckAutomationCoordinator:arcaProcessServices.offdeckAutomationCoordinator,
     arcaShelfDeregistrationCoordinator:arcaProcessServices.shelfDeregistrationCoordinator,
     arcaShelfDeregistrationContextReader:arcaProcessServices.shelfDeregistrationContextReader,
-    wakeWorkspaceReclaimer(){completedWorkspaceSweepNotBeforeMs=0;activeCleanupSweepNotBeforeMs=0;
-      return Object.freeze({kind:'wake_recorded'});},workspaceReclaimer,
+    wakeWorkspaceReclaimer(){return drainCompletedWorkspaces();},workspaceReclaimer,
     cancelProcessWorks:(scope)=>workLifecycle.cancelProcess(scope),
     perception:perceptionProcessServices, people:peopleProcessServices });
 }

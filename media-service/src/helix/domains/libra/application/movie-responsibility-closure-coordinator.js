@@ -9,7 +9,6 @@ const {
 } = require('../model/run-lifecycle-contracts');
 const {
   CYCLE_MS,
-  DAY_MS,
   buildCommitDecision,
   buildEffectIntent,
   buildObservation,
@@ -451,12 +450,6 @@ function createMovieResponsibilityClosureCoordinator(options) {
       });
     } else {
       const nowMs = options.now();
-      const graceDeadlineMs =
-        triggerSnapshot.offloadCompletionFact.committedAtMs + DAY_MS;
-      if (nowMs < graceDeadlineMs) {
-        fail('P14_CLEANUP_GRACE_ACTIVE',
-          'Workspace cleanup grace has not elapsed.', { graceDeadlineMs });
-      }
       const auditKey = canonicalDigest({
         schema: 'libra.workspace-cleanup-audit-key@1',
         onDeckPackageId: packageValue.onDeckPackageId,

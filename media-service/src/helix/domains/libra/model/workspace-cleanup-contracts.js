@@ -89,11 +89,6 @@ function buildOffloadAdmission(value) {
     fail('P14_CLEANUP_TRIGGER_INVALID',
       'Cleanup admission requires the exact found Off-load Completion projection.');
   }
-  const graceDeadlineMs = found.offloadCompletionFact.committedAtMs + DAY_MS;
-  if (!Number.isSafeInteger(graceDeadlineMs) || value.nowMs < graceDeadlineMs) {
-    fail('P14_CLEANUP_GRACE_ACTIVE',
-      'Workspace cleanup grace has not elapsed.', { graceDeadlineMs });
-  }
   if (value.observation2.observedAtMs - value.observation1.observedAtMs < CYCLE_MS ||
       value.observation1.activeReferenceCount !== 0 ||
       value.observation2.activeReferenceCount !== 0) {
@@ -116,6 +111,7 @@ function buildOffloadAdmission(value) {
     items: members,
   });
   const fact = found.offloadCompletionFact;
+  const graceDeadlineMs = fact.committedAtMs;
   const triggerRef = fact.factId;
   const triggerRevision = found.projectionRevision;
   const triggerDigest = found.projectionDigest;

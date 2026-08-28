@@ -4,7 +4,16 @@ Status: Helix-beta 已由 Product Owner 收窄为 **仅 Movie 的全功能版本
 
 Last updated: 2026-08-28
 
-## 0. Current plan — Helix-beta NAS deployment preparation
+## 0. Current plan — Intake 3 席位 + Off-load 后立即回收 Workspace
+
+Product Owner 确认上次试运行失败后，做完全干净的生产部署；已有 Libra Run 可无视。本轮只做两件事，不改 SSOT：
+
+1. Libra Intake 门口最多 3 个未完成 Pre-deck Subject 席位；Offer 排队，席位满不 Reject。Handoff B Accepted 或放弃整理才释放。加急只作用于已占席位的 Run。
+2. Arca Off-load Completion 后 Libra 立即开始 Workspace 回收（去掉 24h grace，保留约 60s 两轮无引用审计）。Signal 丢失仍靠周期兜底。
+
+本地测试后提交，再 `--helix-clean-init` 部署；compose 挂载与 TMDB/豆瓣/目录/Shelf/Field 取值按现网快照写回。清空 `/transcode` 中间目录，不动 `/media/Film`。
+
+## 0. Previous plan — Helix-beta NAS deployment preparation
 
 正式工作区：`E:\my_project\emby_third_party-helix`，干净 `main`。
 冻结 SHA：`bdafe186974e3fe4467f8b4c483f96bf578f9dce`（短 SHA `bdafe1869`）。
