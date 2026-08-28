@@ -1,6 +1,6 @@
 # ShelfDeck Clean Helix Current Status
 
-Status: Helix-beta 范围已收窄为仅 Movie 全链路。Movie Procurement与Movie Libra封口保持有效；Movie Arca已完成Handoff B Acceptance、On-deck、Shelf Entry、Deck Fact、Beta Aftercare、Off-deck及Shelf Deregistration完整闭环。当前精确状态为`MOVIE COLLECTION LIFECYCLE READY THROUGH SHELF DEREGISTRATION`。Product Owner 已于 2026-08-28 授权从干净本地 `main` 开始 Helix-beta 生产打包与 NAS 部署准备；构建、上传与 `--apply` 尚未执行。Helix-beta 验收行见现行基线，尚未把任何 `HB-*` 标为验收 `PASS`。NAS 上的 ShelfDeck 容器已停止；2026-08-28 已清理全部历史 `markmahoro/shelfdeck` 镜像、tar 与库文件。
+Status: Helix-beta 范围已收窄为仅 Movie 全链路。Movie Procurement与Movie Libra封口保持有效；Movie Arca已完成Handoff B Acceptance、On-deck、Shelf Entry、Deck Fact、Beta Aftercare、Off-deck及Shelf Deregistration完整闭环。当前精确状态为`MOVIE COLLECTION LIFECYCLE READY THROUGH SHELF DEREGISTRATION`。Product Owner 已于 2026-08-28 授权并完成 Helix-beta 首次 NAS 部署。当前生产镜像为 `markmahoro/shelfdeck:helix-beta-20260828-a3e07a1e1`，health `ok` / `helix-clean-v3`。Helix-beta 验收行见现行基线，尚未把任何 `HB-*` 标为验收 `PASS`。
 
 Last updated: 2026-08-28
 
@@ -16,7 +16,7 @@ Last updated: 2026-08-28
 - 删除 `data/` 内 live `library.db` / `tasks.db` / `config.json` / `helix-state.json`、全部 `.bak`、Kairox cutover 清单，以及 face-models / OpenVINO / western-ai 历史目录
 - `/vol1` 可用空间约 61 GiB → 73 GiB；`data/` 现为空目录；`docker-compose.yml` 保留
 
-下一步仍是本机构建 Helix-beta 镜像。现网 compose 仍写着已删除的 `helix-library-defaults-20260711-fd3136b0`，在新 tar `docker load` 并改 image 之前，不得从飞牛 GUI 启动该项目。新容器还需要 `SHELFDECK_SECRET_ROOT`（现 compose 没有）。
+2026-08-28 已本机构建并部署 `helix-beta-20260828-a3e07a1e1`（tar SHA-256 `a97718db4207355e5a9dab72956c36057603881da41810aa8bd14aff3fe37e01`）。compose 挂载 `/vol02/1000-0-c5b736af:/media`、`/vol2/1000/shelfdeck_upgrade:/upgrade`、`/vol2/1000/shelfdeck_transcode:/transcode`、`/vol02/1000-0-24018892:/adult_media` 以及 `/dev/dri`（QSV）。`SHELFDECK_SECRET_ROOT` 在 NAS `secret.env`；Admin API key 只在本机 `tests/.env.nas-admin`。
 
 ## 0. Helix-beta deployment preparation authorized
 
@@ -26,9 +26,7 @@ Last updated: 2026-08-28
 
 该 SHA 含 UAT-139 Off-deck batch Review 修复及此前 UAT-131–UAT-138 的本地修复。Product Owner 授权以此 SHA 进入 Helix-beta NAS 打包部署，不再把新的全量 Canary 重跑当作开工门禁。这不把任何失败资格运行标为 `PASS`，也不把 `HB-*` 标为验收 `PASS`。
 
-下一步只走 `docs/v2/PRODUCTION_DEPLOYMENT.md`：本机构建镜像 tarball → 计算 SHA-256 → `upload-nas-image.js` → `deploy-nas.js` dry run → 首次 Helix clean cutover 使用 `--helix-clean-init`，通过后再 `--apply`。镜像 tag 在构建时按 `docs/v3/VERSIONING.md` 分配，构建前不记为已部署。`media-desktop` 不在范围。
-
-当前尚未构建镜像、未上传 NAS、未 `--apply`。生产 URL `http://192.168.12.230:18080` 目前不可达。已知不阻断本次开工、但仍须记录：最后一轮 Movie Canary `6ed28d6841` 因 UAT-139 固定失败，该轮 Evidence 不得拼入发布结论；`UAT-125` 仍为 `OPEN / IMPLEMENTATION NOT STARTED`。
+该授权已执行：本机构建 → 上传 → `--helix-clean-init --apply`。当前生产 URL `http://192.168.12.230:18080` health `ok`。`media-desktop` 不在范围。已知不阻断本次开工、但仍须记录：最后一轮 Movie Canary `6ed28d6841` 因 UAT-139 固定失败，该轮 Evidence 不得拼入发布结论；`UAT-125` 仍为 `OPEN / IMPLEMENTATION NOT STARTED`。
 
 ## 0. TMDB proxy configuration — code and regression passed
 

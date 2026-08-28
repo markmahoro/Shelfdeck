@@ -9,13 +9,13 @@ Last updated: 2026-08-28
 - Deployment candidate: local clean `main@bdafe186974e3fe4467f8b4c483f96bf578f9dce`
 - Kairox status: `Kairox Beta achieved`; Kairox release line is closed
 - Production URL: `http://192.168.12.230:18080`
-- Latest deployed image: none on NAS; all historical `markmahoro/shelfdeck` tags removed 2026-08-28
-- Latest deployed commit: historical 2026-07 line only
-- Latest deployed image SHA256: n/a (previous tarballs deleted)
-- Latest deployment time: container stopped 2026-07-10 18:17 UTC; images/data cleared 2026-08-28
+- Latest deployed image: `markmahoro/shelfdeck:helix-beta-20260828-a3e07a1e1`
+- Latest deployed commit: `a3e07a1e1`
+- Latest deployed image SHA256: `a97718db4207355e5a9dab72956c36057603881da41810aa8bd14aff3fe37e01`
+- Latest deployment time: `2026-08-28` Helix-beta clean-init cutover
 - Live-data archive: `/vol1/1000/docker/shelfdeck-backups/pre-helix-beta-clean-20260828-135443/live-data.tgz`
 - Versioning source: `docs/v3/VERSIONING.md`
-- Deployment status: ShelfDeck is not running. Helix-beta tarball has not been built, uploaded, or applied. Next cutover requires `--helix-clean-init` and `SHELFDECK_SECRET_ROOT`.
+- Deployment status: Container running. Health `ok` / `helix-clean-v3`. Mounts include media, upgrade, transcode, adult, and `/dev/dri`.
 - Production E2E status: controlled non-destructive canary passed on `公共_国产剧`; it is retained as Service-boundary evidence but does not prove the rebaselined full-auto Beta chain.
 - Refresh cutover blocker status: deployed and production-validated for post-optimize ingest -> metadata refresh on the canary.
 - Automation model closure status: deployed; public run-scan APIs return `410 KAIROX_RUN_SCAN_REMOVED`.

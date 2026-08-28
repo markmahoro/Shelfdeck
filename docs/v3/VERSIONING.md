@@ -13,9 +13,9 @@ Last updated: 2026-08-28
 | Product line | Helix modular monolith in `media-service` | 架构权威为 `docs/helix/`；Helix-beta 仅为 Movie 全链路 |
 | Current release goal | `Helix Beta` deployment preparation | Product Owner 已授权从本地干净 `main@bdafe1869` 开始 NAS 打包；构建与 `--apply` 尚未执行；`media-desktop` 不在本次范围 |
 | Deployment candidate commit | `bdafe186974e3fe4467f8b4c483f96bf578f9dce` | 尚未建成镜像，不是已部署身份 |
-| Latest deployed image | （NAS 上已无 ShelfDeck 镜像） | 2026-08-28 已删除全部历史 `markmahoro/shelfdeck` tag；容器未运行 |
-| Latest deployed commit | `1af2afee` 起的 2026-07 线 | 仅作历史记录，不是当前可启动身份 |
-| Latest deployed image SHA256 | `dd728cd6d725b9cf25c6a4c640632468e5cc543d160a9bb8a87bfe25f28819bb` | 原 maintenance-state tar 校验；该 tar 已从 NAS 删除 |
+| Latest deployed image | `markmahoro/shelfdeck:helix-beta-20260828-a3e07a1e1` | 2026-08-28 Helix-beta 首次 NAS cutover |
+| Latest deployed commit | `a3e07a1e1` | 镜像内代码；随后 `8632fbdaf` 只修部署脚本 |
+| Latest deployed image SHA256 | `a97718db4207355e5a9dab72956c36057603881da41810aa8bd14aff3fe37e01` | 本地 tar 与 NAS 上传校验 hash |
 | Latest Git release tag | `v2.0.0` | 历史 release tag，不代表当前 Helix 生产镜像，本次部署不打 Git tag |
 | package versions | `1.0.0` | 当前不作为 Helix 阶段版本来源 |
 

@@ -1,6 +1,6 @@
 # ShelfDeck Clean Helix Master Plan
 
-Status: Helix-beta 已由 Product Owner 收窄为 **仅 Movie 的全功能版本**（旅程 A–I，含退出收藏与 Shelf 注销）。Movie Procurement保持`CLOSED FOR MOVIE`；Movie Libra保持`MOVIE LIBRA CLOSED AT HANDOFF B READY`；Movie Arca已经接通Handoff B Acceptance、On-deck、Shelf Entry、Deck Fact、Beta Aftercare、完整Off-deck及非破坏性Shelf Deregistration。当前实现状态为`MOVIE COLLECTION LIFECYCLE READY THROUGH SHELF DEREGISTRATION`。Product Owner 已授权从干净 `main` 开始 Helix-beta NAS 打包部署；构建、上传与 `--apply` 尚未执行。2026-08-28 已恢复私钥 SSH，并清空 NAS 历史镜像与库文件。Helix-beta 验收权威仍为现行 `docs/helix/BETA_FEATURE_ACCEPTANCE_BASELINE.md`，不因此把任何 `HB-*` 标为验收 `PASS`。
+Status: Helix-beta 已由 Product Owner 收窄为 **仅 Movie 的全功能版本**（旅程 A–I，含退出收藏与 Shelf 注销）。Movie Procurement保持`CLOSED FOR MOVIE`；Movie Libra保持`MOVIE LIBRA CLOSED AT HANDOFF B READY`；Movie Arca已经接通Handoff B Acceptance、On-deck、Shelf Entry、Deck Fact、Beta Aftercare、完整Off-deck及非破坏性Shelf Deregistration。当前实现状态为`MOVIE COLLECTION LIFECYCLE READY THROUGH SHELF DEREGISTRATION`。Product Owner 已授权并完成 Helix-beta 首次 NAS 部署：`markmahoro/shelfdeck:helix-beta-20260828-a3e07a1e1`。Helix-beta 验收权威仍为现行 `docs/helix/BETA_FEATURE_ACCEPTANCE_BASELINE.md`，不因此把任何 `HB-*` 标为验收 `PASS`。
 
 Last updated: 2026-08-28
 
