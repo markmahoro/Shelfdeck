@@ -176,6 +176,15 @@ function definitions(schemaManifest) {
           ],
           safeIntegers: true,
         },
+        purge_unreferenced_material: {
+          kind: 'update',
+          tableId: 'fx_workspace_materials',
+          setColumns: ['state', 'reclaimed_at_ms'],
+          keyColumns: ['workspace_id', 'material_handle_id'],
+          compareColumns: [
+            { column: 'state', parameter: 'expected_state' },
+          ],
+        },
         restamp_material_identity: {
           kind: 'update',
           tableId: 'fx_workspace_materials',
@@ -1580,6 +1589,66 @@ function createCleanWorkspaceProductPort(options) {
     });
   }
 
+  function reclaimUnreferencedWorkspace(workspaceId) {
+    if (typeof workspaceId !== 'string' || !workspaceId) {
+      fail('CLEAN_WORKSPACE_RECLAIM_WORKSPACE_ID', 'Workspace identity is required for unreferenced leftover cleanup.');
+    }
+    const workspaceRoot = path.resolve(absoluteRoot, workspaceId);
+    if (workspaceRoot === absoluteRoot || !workspaceRoot.startsWith(absoluteRoot + path.sep)) {
+      fail('CLEAN_WORKSPACE_RECLAIM_ESCAPE', 'Workspace leftover cleanup escaped the configured root.');
+    }
+    const rows = execute(
+      'clean_workspace_unreferenced_list',
+      'execution-foundation',
+      repositories.foundation,
+      (context) => context.repository(repositories.foundation.repositoryId).invoke('list_materials', {}),
+    ) || [];
+    const active = rows.filter((row) => row.workspace_id === workspaceId && row.state === 'active');
+    const nowMs = Number.isSafeInteger(options.now?.()) ? options.now() : Date.now();
+    const reclaimed = [];
+    for (const row of active) {
+      const relativePath = relative(row.relative_path);
+      const target = path.resolve(workspaceRoot, ...relativePath.split('/'));
+      if (target !== workspaceRoot && !target.startsWith(workspaceRoot + path.sep)) {
+        fail('CLEAN_WORKSPACE_PATH_ESCAPE', 'Workspace leftover member escaped its controlled root.');
+      }
+      if (fs.existsSync(target)) {
+        if (fs.lstatSync(target).isDirectory() || fs.lstatSync(target).isSymbolicLink()) {
+          fail('CLEAN_WORKSPACE_RECLAIM_REALITY', 'Workspace leftover member is not a regular file.');
+        }
+        fs.rmSync(target, { force: false });
+      }
+      const changed = execute(
+        'clean_workspace_unreferenced_purge',
+        'execution-foundation',
+        repositories.foundation,
+        (context) => context.repository(repositories.foundation.repositoryId).invoke('purge_unreferenced_material', {
+          state: 'reclaimed',
+          reclaimed_at_ms: nowMs,
+          workspace_id: workspaceId,
+          material_handle_id: row.material_handle_id,
+          expected_state: 'active',
+        }),
+      );
+      if (changed.changes !== 1) {
+        fail('CLEAN_WORKSPACE_RECLAIM_MATERIAL_CAS',
+          'Unreferenced Workspace leftover reclaim CAS failed.');
+      }
+      reclaimed.push(Object.freeze({
+        materialHandleId: row.material_handle_id,
+        relativePath,
+        sizeBytes: Number(row.size_bytes),
+      }));
+    }
+    const empty = reclaimEmptyWorkspace(workspaceId);
+    return Object.freeze({
+      workspaceId,
+      reclaimedCount: reclaimed.length,
+      reclaimed: Object.freeze(reclaimed),
+      directoryRemoved: empty.removed === true,
+    });
+  }
+
   function reclaimEmptyWorkspace(workspaceId) {
     if (typeof workspaceId !== 'string' || !workspaceId) {
       fail('CLEAN_WORKSPACE_RECLAIM_WORKSPACE_ID', 'Workspace identity is required for empty-directory cleanup.');
@@ -1871,6 +1940,7 @@ function createCleanWorkspaceProductPort(options) {
     resolveMaterialLocation,
     observeSpace,
     reclaimEmptyWorkspace,
+    reclaimUnreferencedWorkspace,
     reclaimMaterial,
   });
 }

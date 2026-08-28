@@ -81,13 +81,27 @@ test('bytes outside the middle sample do not change the accepted fingerprint', a
   assert.equal(leftResult.contentFingerprint, rightResult.contentFingerprint);
 });
 
-test('stat drift invalidates the sample instead of returning evidence', async () => {
+test('mtime or ctime drift alone does not invalidate the sample', async () => {
   const bytes = Buffer.alloc(1024, 1);
-  const fixture = instrumentedFile(bytes, { after:stat(bytes.length, { mtimeNs:2001n }) });
-  await assert.rejects(
-    computeBoundedMaterialFingerprint('/virtual/changing.mkv', { fsPromises:fixture.fsPromises }),
-    (error) => error.code === 'PHYSICAL_MATERIAL_STAT_FENCE_CHANGED',
-  );
+  const fixture = instrumentedFile(bytes, { after:stat(bytes.length, { mtimeNs:2001n, ctimeNs:2002n }) });
+  const result = await computeBoundedMaterialFingerprint('/virtual/touched.mkv', { fsPromises:fixture.fsPromises });
+  assert.equal(result.bytesSampled, bytes.length);
+  assert.equal(result.contentFingerprint,
+    crypto.createHash('sha256').update(bytes).digest('hex'));
+});
+
+test('inode or size drift invalidates the sample instead of returning evidence', async () => {
+  const bytes = Buffer.alloc(1024, 1);
+  for (const after of [
+    stat(bytes.length, { ino: 99n }),
+    stat(bytes.length + 1),
+  ]) {
+    const fixture = instrumentedFile(bytes, { after });
+    await assert.rejects(
+      computeBoundedMaterialFingerprint('/virtual/changing.mkv', { fsPromises:fixture.fsPromises }),
+      (error) => error.code === 'PHYSICAL_MATERIAL_STAT_FENCE_CHANGED',
+    );
+  }
 });
 
 test('N files never request more than N times 256 KiB', async () => {

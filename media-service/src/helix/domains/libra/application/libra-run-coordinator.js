@@ -25,6 +25,7 @@ const {
 } = require('../planning/product-metadata-work');
 const { coversRequirementGaps } = require('../model/defect-admission-contracts');
 const { sourceRequiresExternalSearch } = require('../model/media-production-contracts');
+const { artifactVerificationContext } = require('../planning/libra-production-planners');
 
 // Shared fx_supporting_works hard cap. 256 saturates a Movie Helix-beta Field
 // (~300 active Runs) and starves later user identity confirmation.
@@ -110,6 +111,29 @@ function createLibraRunCoordinator(options){
     const existing=options.workResultReader.readDefinition?.(work.workId)||null;
     const replayDefinition=definitionForReplay(work,existing);
     return admission.replay(replayDefinition)||admission.submit(work);
+  }
+  function attachWorkingHandle(snapshot, workspace, handle) {
+    if (!handle?.handleId) return;
+    productStaging.ensureWorking(snapshot, workspace.workspaceId, handle,
+      Object.freeze(snapshot.episodeClaims || []));
+  }
+  function attachWorkspaceOutputs(snapshot, workspace, work) {
+    const results = options.workResultReader.read(work.workId)
+      .filter((item) => item.outcomeKind === 'succeeded');
+    for (const item of results) {
+      attachWorkingHandle(snapshot, workspace,
+        item.result?.workspaceMaterialHandle ||
+        item.result?.workspaceMediaHandle?.workspaceMaterialHandle);
+    }
+  }
+  function attachArtifactOutputs(snapshot, workspace) {
+    const context = artifactVerificationContext(options, snapshot.run.libraRunId);
+    for (const item of context.artifactMaterials) {
+      const materialized = options.workspaceProductPort
+        .readMaterializedArtifact(item.artifactHandle);
+      productStaging.ensureWorking(snapshot, workspace.workspaceId,
+        materialized.workspaceMaterialHandle, Object.freeze([]));
+    }
   }
   function selectedOutput(work) {
     const selections=options.workResultReader.read(work.workId).filter((item)=>item.outcomeKind==='succeeded'&&
@@ -253,6 +277,7 @@ function createLibraRunCoordinator(options){
         return Object.freeze({kind:'pending',phase:'external_import_selection',acquisitionAttempt,
           libraRunId:snapshot.run.libraRunId,workId:imported.workId,replayed:importSubmitted.replayed,workspaceId:workspace.workspaceId});
       }
+      attachWorkspaceOutputs(snapshot,workspace,imported);
       const selectionRecord=options.workResultReader.read(imported.workId).find((item)=>item.outcomeKind==='succeeded'&&
         item.capabilityRef==='libra.product_output.select@1'),selection=selectedOutput(imported);
       if(selection.result!=='selected'){
@@ -313,6 +338,7 @@ function createLibraRunCoordinator(options){
       if(compatibility.disposition!=='compatible')throw new Error('Transcode Assessment disposition is invalid.');
       const work=transcodeMediaSelectionWork(snapshot,ordinal),submitted=submit(work),status=options.workResultReader.status(work.workId);
       if(workSucceeded(status)){
+        attachWorkspaceOutputs(snapshot,workspace,work);
         const selection=selectedOutput(work);
         if(selection.result==='selected')return ensureDelivery(snapshot,workspace,work);
         if(requiresExternalSource(work))return continueExternalOrAuthorizedDirectInput(snapshot,workspace,context);
@@ -488,6 +514,7 @@ function createLibraRunCoordinator(options){
         replayed:artifactSubmitted.replayed,identityDigest:committed.factValue.identityDigest,
         workspaceId:workspace.workspaceId,workspaceRevision:workspace.currentRevision});
     }
+    attachArtifactOutputs(snapshot,workspace);
     const artifactResults=options.workResultReader.read(artifact.workId).filter((item)=>item.outcomeKind==='succeeded'&&
       item.capabilityRef==='shared.artifact.manifest.verify@1');
     const expected=snapshot.spec.requirements.metadata.requiredArtifactKinds.length;
@@ -527,6 +554,7 @@ function createLibraRunCoordinator(options){
           workId:remux.workId,replayed:remuxSubmitted.replayed,materialInputForm:snapshot.materialInputForm,
           workspaceId:workspace.workspaceId,workspaceRevision:workspace.currentRevision});
       }
+      attachWorkspaceOutputs(snapshot,workspace,remux);
       const selection=selectedOutput(remux);
       if(selection.result!=='selected')return requiresExternalSource(remux)
         ?ensureExternalSelection(snapshot,workspace)

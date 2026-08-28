@@ -396,3 +396,31 @@ test('durable filesystem bind restamps endpoint and mount without rewriting byte
     assert.equal(replay.workspaceMaterialHandle.physicalIdentity.mountScopeId, reboundMount);
   }));
 
+test('unreferenced leftover Workspace materials are deleted and marked reclaimed', () =>
+  fixture(({ databasePath, workspaceRoot, dependencies }) => {
+    const port = createCleanWorkspaceProductPort({
+      ...dependencies, rootPath: workspaceRoot, now: () => 1_700_000_100_000,
+    });
+    const first = port.materializeArtifact(request());
+    const target = path.join(workspaceRoot, request().workspaceId, 'artifacts', 'movie.nfo');
+    assert.equal(fs.existsSync(target), true);
+    const result = port.reclaimUnreferencedWorkspace(request().workspaceId);
+    assert.equal(result.reclaimedCount, 1);
+    assert.equal(result.directoryRemoved, true);
+    assert.equal(fs.existsSync(target), false);
+    assert.equal(fs.existsSync(path.join(workspaceRoot, request().workspaceId)), false);
+    const database = new Database(databasePath, { readonly: true });
+    try {
+      const row = database.prepare(
+        'SELECT state, reclaimed_at_ms FROM fx_workspace_materials WHERE material_handle_id=?',
+      ).get(first.workspaceMaterialHandle.handleId);
+      assert.equal(row.state, 'reclaimed');
+      assert.equal(Number(row.reclaimed_at_ms), 1_700_000_100_000);
+    } finally {
+      database.close();
+    }
+    const replay = port.reclaimUnreferencedWorkspace(request().workspaceId);
+    assert.equal(replay.reclaimedCount, 0);
+    assert.equal(replay.directoryRemoved, false);
+  }));
+

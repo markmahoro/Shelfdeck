@@ -4,6 +4,22 @@ Status: Helix-beta 已由 Product Owner 收窄为 **仅 Movie 的全功能版本
 
 Last updated: 2026-08-29
 
+## 0. Local fix ready — PROD-016 discard leftover Workspace reclaim
+
+remux/transcode/artifact 产出后立刻挂 working 引用，放弃时 Discard 能列入 cleanup。已放弃且没有引用的工作区由 leftover 回收器清 Foundation 材料。不改 SSOT：空引用仍不建空 cleanup Scope。未部署。
+
+## 0. Local fix ready — PROD-015 fingerprint identity ignores mtime/ctime
+
+有界指纹身份门禁不再把 mtime/ctime 当「材料被换」。仍比对 inode+size，拷贝后仍核 Package 内容指纹。现场《怦然心动》`product.stage` 卡在 executing 需无损升级重启走 startup recovery。未部署。
+
+## 0. Local fix ready — Formation 上架 checklist
+
+验收与上架拆成提交验收 / 写入收藏架 / 完成上架。On-deck 正在 `product.stage` 时详情展开并显示「正在写入收藏架」。未部署。
+
+## 0. Local fix ready — transcode preflight matches the real encode
+
+预检改为从头用正式转码同一条管线编 24 帧；FFmpeg 失败或超时返回 `encoder_rejected_source_pipeline`（换下一条设备），不再当执行器崩溃冻 Run。不测偏色、不测整片可播。已冻结的《宇航员》不能从 terminal freeze 恢复，升级后需放弃并重新进整理（会再 remux）。未部署。
+
 ## 0. Deployed — PROD-013 encode-device probe / blocked replan
 
 已部署 `markmahoro/shelfdeck:helix-beta-20260829-0eb39ed97`，未 `--helix-clean-init`。普通 SDR 探测不再因缺 `color_primaries`/`color_trc` 判失败；blocked 转码评估在设备就绪后重新规划。现场 QSV/VAAPI/CPU `ready`，NVENC 仍失败（无 CUDA）。《怦然心动》GPU 转码执行中，《影子写手》排队等写槽；《宇航员》转码输入校验超时后冻结。不改 Field/Shelf/`/transcode`/代理。

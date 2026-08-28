@@ -248,7 +248,7 @@ export type FormationSubject = {
   processDetail?: {
     receivedMaterials: { primaryCount:number; relatedCount:number; relatedRoles:string[]; state:'completed'; summary:string };
     mediaOrganization: { state:'completed'|'attention'|'pending'; summary:string; steps:FormationSubject['organizingSteps'] };
-    acceptanceAndShelving: { state:'completed'|'attention'|'pending'; summary:string; reasonCode:string|null };
+    acceptanceAndShelving: { state:'completed'|'attention'|'pending'; summary:string; reasonCode:string|null; steps?:FormationSubject['organizingSteps'] };
   };
   nextAction: { label:string; state:string; progress:null | { mode:'determinate'|'indeterminate'; currentValue:number|null; totalValue:number|null; unit:string|null; rate:number|null; etaMs:number|null; bucket:string } };
   routingState: 'preparing' | 'unresolved' | 'resolved';

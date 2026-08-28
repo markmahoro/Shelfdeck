@@ -15,8 +15,9 @@ class BoundedMaterialFingerprintError extends Error {
 }
 
 function fail(code, message, details) { throw new BoundedMaterialFingerprintError(code, message, details); }
-function sameStat(left, right) {
-  return left.ino === right.ino && left.size === right.size && left.mtimeNs === right.mtimeNs && left.ctimeNs === right.ctimeNs;
+function sameIdentity(left, right) {
+  // inode+size only: a scanner or NAS can touch mtime/ctime without replacing bytes.
+  return left.ino === right.ino && left.size === right.size;
 }
 function sampleBounds(sizeBytes) {
   const sampleLength = Math.min(sizeBytes, FINGERPRINT_SAMPLE_BYTES);
@@ -43,7 +44,7 @@ async function computeAsyncCore(location, options = {}) {
   const handle = await fsPromises.open(location, 'r');
   try {
     const before = await handle.stat({ bigint:true });
-    if (!sameStat(pathBefore, before)) fail('PHYSICAL_MATERIAL_STAT_FENCE_CHANGED', 'Physical Material changed before fingerprint sampling.', { location });
+    if (!sameIdentity(pathBefore, before)) fail('PHYSICAL_MATERIAL_STAT_FENCE_CHANGED', 'Physical Material changed before fingerprint sampling.', { location });
     const sizeBytes = Number(before.size);
     const { sampleLength, sampleOffset } = sampleBounds(sizeBytes);
     const sample = Buffer.allocUnsafe(sampleLength);
@@ -61,7 +62,7 @@ async function computeAsyncCore(location, options = {}) {
     }
     const after = await handle.stat({ bigint:true });
     const pathAfter = await fsPromises.lstat(location, { bigint:true });
-    if (!sameStat(before, after) || pathAfter.isSymbolicLink() || !sameStat(after, pathAfter)) fail('PHYSICAL_MATERIAL_STAT_FENCE_CHANGED', 'Physical Material changed during fingerprint sampling.', { location });
+    if (!sameIdentity(before, after) || pathAfter.isSymbolicLink() || !sameIdentity(after, pathAfter)) fail('PHYSICAL_MATERIAL_STAT_FENCE_CHANGED', 'Physical Material changed during fingerprint sampling.', { location });
     return Object.freeze({ stat:after, ...fingerprintBuffer(sample), sampleOffset, sampleLength, bytesSampled });
   } finally { await handle.close(); }
 }
@@ -73,7 +74,7 @@ function computeSyncCore(location, options = {}) {
   const descriptor = fileSystem.openSync(location, 'r');
   try {
     const before = fileSystem.fstatSync(descriptor, { bigint:true });
-    if (!sameStat(pathBefore, before)) fail('PHYSICAL_MATERIAL_STAT_FENCE_CHANGED', 'Physical Material changed before fingerprint sampling.', { location });
+    if (!sameIdentity(pathBefore, before)) fail('PHYSICAL_MATERIAL_STAT_FENCE_CHANGED', 'Physical Material changed before fingerprint sampling.', { location });
     const sizeBytes = Number(before.size);
     const { sampleLength, sampleOffset } = sampleBounds(sizeBytes);
     const sample = Buffer.allocUnsafe(sampleLength);
@@ -91,7 +92,7 @@ function computeSyncCore(location, options = {}) {
     }
     const after = fileSystem.fstatSync(descriptor, { bigint:true });
     const pathAfter = fileSystem.lstatSync(location, { bigint:true });
-    if (!sameStat(before, after) || pathAfter.isSymbolicLink() || !sameStat(after, pathAfter)) fail('PHYSICAL_MATERIAL_STAT_FENCE_CHANGED', 'Physical Material changed during fingerprint sampling.', { location });
+    if (!sameIdentity(before, after) || pathAfter.isSymbolicLink() || !sameIdentity(after, pathAfter)) fail('PHYSICAL_MATERIAL_STAT_FENCE_CHANGED', 'Physical Material changed during fingerprint sampling.', { location });
     return Object.freeze({ stat:after, ...fingerprintBuffer(sample), sampleOffset, sampleLength, bytesSampled });
   } finally { fileSystem.closeSync(descriptor); }
 }

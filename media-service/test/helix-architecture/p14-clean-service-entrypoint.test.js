@@ -403,6 +403,8 @@ test('clean host serves public health and Admin UI, then requires API key or Htt
       item.ownerDomain === 'people' && item.reconcilerKey === 'ondeck-person-evidence'));
     assert.ok(overview.json().backgroundOperations.registrations.some((item) =>
       item.ownerDomain === 'libra' && item.reconcilerKey === 'completed-workspace-reclamation'));
+    assert.ok(overview.json().backgroundOperations.registrations.some((item) =>
+      item.ownerDomain === 'libra' && item.reconcilerKey === 'discarded-workspace-leftovers'));
 
     const workspaceSettings=await host.inject({method:'GET',url:'/v1/admin/settings/workspaces',headers:{cookie}});
     assert.equal(workspaceSettings.statusCode,200);

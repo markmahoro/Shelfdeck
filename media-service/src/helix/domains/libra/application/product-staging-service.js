@@ -87,6 +87,35 @@ function createProductStagingService(options) {
     });
   }
 
+  function ensureWorking(snapshot, workspaceId, handle, claims = Object.freeze([])) {
+    if (!handle?.handleId) return null;
+    let workspace = options.movieProductionReader.readWorkspace(workspaceId);
+    if (!workspace || workspace.libraRunId !== snapshot.run.libraRunId) {
+      throw new Error('Active Libra Workspace is unavailable for Working Reference.');
+    }
+    const existing = workspace.references.find((item) =>
+      item.materialHandleId === handle.handleId);
+    if (existing) return workspace;
+    const attach = buildReferenceDecision({
+      operation: 'attach_working',
+      libraRunId: snapshot.run.libraRunId,
+      workspaceId,
+      expectedWorkspaceRevision: workspace.currentRevision,
+      expectedWorkspaceStateDigest: workspace.stateDigest,
+      expectedReference: {
+        state: 'absent',
+        revision: 0,
+        digest: absentReferenceDigest(workspaceId, handle.handleId),
+      },
+      workspaceMaterialHandle: handle,
+      episodeClaims: claims,
+      episodeScopeDigest: episodeScopeDigest(claims),
+      productVerificationRef: null,
+    });
+    commit(attach);
+    return options.movieProductionReader.readWorkspace(workspaceId);
+  }
+
   function ensureReference(snapshot, workspaceId, handle, claims, verification) {
     let workspace = options.movieProductionReader.readWorkspace(workspaceId);
     let reference = workspace.references.find((item) =>
@@ -245,7 +274,7 @@ function createProductStagingService(options) {
     });
   }
 
-  return Object.freeze({ ensure });
+  return Object.freeze({ ensure, ensureWorking });
 }
 
 module.exports = Object.freeze({

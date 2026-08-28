@@ -20,6 +20,7 @@ const {
 } = require('../src/clean-media-production-effect-port');
 const { createFfmpegProcessRegistry } = require('../src/clean-ffmpeg-process-registry');
 const { createCleanMediaProbe } = require('../src/clean-media-probe');
+const { SDR_PROFILE_ID } = require('../src/clean-ffmpeg-pipeline');
 const { canonicalDigest } = require('../src/helix/contracts/canonical-json');
 const { computeBoundedMaterialFingerprintSync } =
   require('../src/helix/integrations/bounded-material-fingerprint');
@@ -466,4 +467,53 @@ test('remux still opens an ordinary stream file without ISO extraction', async (
   assert.ok(fs.existsSync(output));
   assert.ok(fs.statSync(output).size > 0);
   assert.equal(fs.existsSync(output + '.iso-clip-00000.m2ts'), false);
+});
+
+test('transcode input preflight uses the real encode argv for 24 frames from the start', () => {
+  const source = fs.readFileSync(path.resolve(__dirname, '../src/clean-media-production-effect-port.js'), 'utf8');
+  const fn = source.slice(source.indexOf('async function verifyTranscodeInput'),
+    source.indexOf('async function verifyPlayback'));
+  assert.match(fn, /'-frames:v',String\(frames\)/);
+  assert.doesNotMatch(fn, /'-ss'/);
+  assert.match(fn, /reasonCode:'encoder_rejected_source_pipeline'/);
+  assert.doesNotMatch(fn, /points=\[5,50,95\]/);
+});
+
+test('transcode input preflight encodes 24 frames with the production pipeline and rejects encoder failure', {
+  timeout: 30_000,
+}, async (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'shelfdeck-preflight-'));
+  t.after(() => fs.rmSync(root, { recursive:true, force:true }));
+  const source = path.join(root, 'title.mkv');
+  writeTinyMkv(source);
+  const port = createCleanMediaProductionEffectPort({
+    ffmpegPath,
+    workspaceProductPort: workspacePort(path.join(root, 'workspace')),
+  });
+  const intent = Object.freeze({
+    intentDigest: 'preflight-intent',
+    video: Object.freeze({
+      rateControlMode: 'quality_bound', qualityBound: 28, targetVideoBitrateBps: null,
+      dynamicRangeOperation: 'preserve', pipelineProfileId: SDR_PROFILE_ID,
+    }),
+    audio: Object.freeze({ mode: 'copy' }),
+  });
+  const device = Object.freeze({ deviceClass: 'software_cpu', snapshotDigest: 'a'.repeat(64) });
+  const passed = await port.verifyTranscodeInput({
+    sourceHandle: { location: source },
+    sourceProbeEvidence: { durationMs: 1000 },
+    productionIntent: intent,
+    deviceSnapshot: device,
+  });
+  assert.equal(passed.reasonCode, null);
+  assert.equal(passed.sampleCount, 24);
+  assert.equal(passed.passedSampleCount, 24);
+  const rejected = await port.verifyTranscodeInput({
+    sourceHandle: { location: path.join(root, 'missing.mkv') },
+    sourceProbeEvidence: { durationMs: 1000 },
+    productionIntent: intent,
+    deviceSnapshot: device,
+  });
+  assert.equal(rejected.reasonCode, 'encoder_rejected_source_pipeline');
+  assert.equal(rejected.passedSampleCount, 0);
 });

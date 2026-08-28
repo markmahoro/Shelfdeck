@@ -143,6 +143,74 @@ function actionLabel(works, spec, options) {
   return organizingSteps(works, spec, options).map((item) => item.label).join(' / ');
 }
 
+function shelvingStep(key, label, state, progress = null) {
+  return Object.freeze({ key, label, state, progress: progress || null });
+}
+function latestShelvingEvent(works, capabilityRefs) {
+  const refs = new Set(capabilityRefs);
+  return latestEvent(works, (event) => refs.has(event.capabilityRef));
+}
+function groupState(events, fallback) {
+  const list = (events || []).filter(Boolean);
+  if (list.some((event) => eventState(event) === 'blocked')) return 'blocked';
+  if (list.some((event) => eventState(event) === 'running')) return 'running';
+  if (list.length && list.every((event) => eventState(event) === 'done')) return 'done';
+  return fallback;
+}
+function shelvingSteps(pkg, arcaStatus, recovery, onDeckWorks) {
+  const works = onDeckWorks || [];
+  const completed = arcaStatus?.stage === 'completed';
+  const attention = arcaStatus?.stage === 'attention_required' || recovery?.recoveryState === 'attention_required';
+  const accepted = Boolean(arcaStatus?.onDeckRunId) || completed;
+  const slotEvent = latestShelvingEvent(works, ['arca.inventory.target_slot.prepare@1']);
+  const stageEvent = latestShelvingEvent(works, ['arca.inventory.product.stage@1']);
+  const finishEvent = latestShelvingEvent(works, [
+    'arca.inventory.staged.verify@1', 'arca.inventory.final_product.verify@1',
+    'arca.inventory.placement.switch@1', 'arca.ondeck.fulfillment.verify@1',
+    'arca.ondeck.commit@1', 'arca.ondeck.input_settlement.delete@1',
+  ]);
+  let acceptState = 'pending';
+  if (completed || accepted) acceptState = 'done';
+  else if (attention) acceptState = 'blocked';
+  else if (pkg) acceptState = 'running';
+  let writeState = 'pending';
+  if (completed || eventState(stageEvent) === 'done') writeState = 'done';
+  else if (attention && accepted) writeState = groupState([slotEvent, stageEvent], 'blocked');
+  else writeState = groupState([slotEvent, stageEvent], 'pending');
+  let finishState = 'pending';
+  if (completed) finishState = 'done';
+  else if (attention && (eventState(stageEvent) === 'done' || eventState(finishEvent) === 'blocked')) {
+    finishState = groupState([finishEvent], 'blocked');
+  } else finishState = groupState([finishEvent], 'pending');
+  return Object.freeze([
+    shelvingStep('accept', '提交收藏架验收', acceptState),
+    shelvingStep('write', '写入收藏架', writeState, stageEvent?.progress || slotEvent?.progress || null),
+    shelvingStep('finish', '完成上架', finishState, finishEvent?.progress || null),
+  ]);
+}
+function shelvingAction(steps) {
+  const current = (steps || []).find((item) => item.state === 'running' || item.state === 'blocked')
+    || (steps || []).find((item) => item.state === 'pending');
+  if (!current) return null;
+  if (current.key === 'accept') {
+    return current.state === 'blocked'
+      ? Object.freeze({ label: '收藏架接纳或上架需要处理', state: 'attention_required', progress: null })
+      : Object.freeze({ label: '等待收藏架验收', state: 'running', progress: null });
+  }
+  if (current.key === 'write') {
+    return Object.freeze({
+      label: current.state === 'blocked' ? '写入收藏架失败，需要处理' : '正在写入收藏架',
+      state: current.state === 'blocked' ? 'blocked' : 'running',
+      progress: current.progress || null,
+    });
+  }
+  return Object.freeze({
+    label: current.state === 'blocked' ? '收藏架上架失败，需要处理' : '正在完成收藏架上架',
+    state: current.state === 'blocked' ? 'blocked' : 'running',
+    progress: current.progress || null,
+  });
+}
+
 const RELATED_ROLE_LABELS = Object.freeze({ fanart:'背景图', nfo:'NFO', poster:'海报', sidecar:'附属资料', subtitle:'字幕' });
 function relatedMaterialsSummary(primaryCount, relatedRoles) {
   if (!relatedRoles.length) return `已接收 ${primaryCount} 个主媒体`;
@@ -249,7 +317,7 @@ function frozenRunLabel(works, terminalEvidence = null) {
   return '本次整理已冻结，需要放弃后重新采购';
 }
 function nextAction(works, classification, issue, runState, recovery, arcaStatus, productPackage, latestRunState,
-  waitingExternalIntegration = false, terminalEvidence = null, spec = null) {
+  waitingExternalIntegration = false, terminalEvidence = null, spec = null, onDeckWorks = []) {
   if (classification === 'completed') return Object.freeze({ label: '已进入收藏架', state: 'completed', progress: null });
   if (!runState && latestRunState === 'discarded') {
     return Object.freeze({ label: '等待重新入库', state: 'pending', progress: null });
@@ -304,7 +372,10 @@ function nextAction(works, classification, issue, runState, recovery, arcaStatus
     return Object.freeze({ label, state, progress: current.progress || event?.progress || null });
     }
   }
-  if (productPackage) return Object.freeze({ label: arcaStatus ? '正在完成收藏架上架' : '等待收藏架验收', state: 'running', progress: null });
+  if (productPackage) {
+    const action = shelvingAction(shelvingSteps(productPackage, arcaStatus, recovery, onDeckWorks));
+    return action || Object.freeze({ label: arcaStatus ? '正在完成收藏架上架' : '等待收藏架验收', state: 'running', progress: null });
+  }
   return Object.freeze({ label: runState === 'active' ? '准备下一项整理工作' :
     classification === 'pending' ? '正在确认目标、评分、要求或身份' : '准备下一项整理工作', state: 'pending', progress: null });
 }
@@ -370,6 +441,10 @@ function createFormationProjectionSource(options) {
     const offerIds = unique(value.packages.map((row) => row.offer_id));
     const arcaStatuses = new Map(offerIds.length ? chunks(offerIds, 100).flatMap((ids) =>
       [...(options.readArcaFormationStatuses?.(ids) || new Map()).entries()]) : []);
+    const onDeckRunIds = unique([...arcaStatuses.values()].map((item) => item.onDeckRunId).filter(Boolean));
+    const onDeckProgress = onDeckRunIds.length
+      ? chunks(onDeckRunIds).flatMap((ids) => options.progressProjectionReader?.read(ids) || []) : [];
+    const onDeckByRun = new Map(onDeckRunIds.map((id) => [id, onDeckProgress.filter((item) => item.processId === id)]));
     const recoveries = new Map(offerIds.length ? chunks(offerIds, 100).flatMap((ids) =>
       [...(options.readAcceptanceRecoveries?.(ids) || new Map()).entries()]) : []);
     const prepared = subjects.map((subject) => {
@@ -410,6 +485,10 @@ function createFormationProjectionSource(options) {
       const stepOptions = Object.freeze({ latestRunState: latestRun?.state || null, waitingExternalIntegration,
         runState: run?.state || null });
       const steps = organizingSteps(actionWorks, spec, stepOptions);
+      const onDeckWorks = arcaStatus?.onDeckRunId ? onDeckByRun.get(arcaStatus.onDeckRunId) || [] : [];
+      const shelfSteps = shelvingSteps(pkg, arcaStatus, recovery, onDeckWorks);
+      const shelfCurrent = shelfSteps.find((item) => item.state === 'running' || item.state === 'blocked')
+        || (pkg && !['completed','attention_required'].includes(arcaStatus?.stage) ? shelfSteps.find((item) => item.state === 'pending') : null);
       const primaryCount = snapshot?.primaryInputManifest?.members?.length ||
         bindings.filter((item) => item.authority_kind === 'primary_control').length;
       const relatedRoles = Object.freeze((snapshot?.candidatePackage?.relatedReferences || [])
@@ -420,13 +499,15 @@ function createFormationProjectionSource(options) {
         mediaOrganization:Object.freeze({ state:classification === 'attention_required' && !arcaStatus ? 'attention' :
           pkg ? 'completed' : 'pending', steps, summary:steps.map((item)=>item.label).join(' → ') || '等待形成媒体整理方案' }),
         acceptanceAndShelving:Object.freeze({ state:arcaStatus?.stage === 'completed' ? 'completed' :
-          arcaStatus?.stage === 'attention_required' || recovery?.recoveryState === 'attention_required' ? 'attention' : 'pending',
+          arcaStatus?.stage === 'attention_required' || recovery?.recoveryState === 'attention_required' ? 'attention' :
+            shelfCurrent?.state === 'running' ? 'pending' : 'pending',
           reasonCode:arcaStatus?.reasonCode || recovery?.errorCode || null,
           summary:arcaStatus?.stage === 'completed' ? '收藏架验收通过，已正式上架' :
             arcaStatus?.stage === 'attention_required' ? '收藏架验收或上架失败，需要处理' :
-              pkg ? '媒体产品已提交，等待收藏架验收与上架' : '媒体产品尚未提交收藏架' }),
+              shelfCurrent ? shelfCurrent.label : (pkg ? '媒体产品已提交，等待收藏架验收与上架' : '媒体产品尚未提交收藏架'),
+          steps: shelfSteps }),
       });
-      return Object.freeze({ formationViewId: subject.subject_id, subjectId: subject.subject_id, displayIdentity, contentProfile: subject.content_profile, structureKind: subject.structure_kind, status: subject.status, classification, myRating: rating?.rating ?? null, myRatingSource: rating?.sourceKind || null, myRatingRevision: (rating?.expectedRevision || 0) > 0 ? rating.expectedRevision : null, ratingState:rating?.state || 'pending', ratingResolutionStatus:rating?.resolutionStatus || null, ratingReasonCode:rating?.reasonCode || null, productIdentityIssue: issue, acceptanceRecovery: recovery, arcaStatus, processDetail:detail, targetShelfId: routing?.shelf_id || null, targetShelfName: shelfNames.get(routing?.shelf_id) || null, routingState: routing?.decision || 'preparing', unresolvedReasonCode: routing?.unresolved_reason_code || null, routingPolicyMode: policy?.mode || null, routingPolicyRevision: routing?.routing_policy_revision == null ? null : Number(routing.routing_policy_revision), routingDecisionRevision: routing ? Number(routing.decision_revision) : null, routingDecisionDigest: routing?.decision_digest || null, routingDecisionHeadRevision: head ? Number(head.head_revision) : null, routingDecisionHeadDigest: head?.head_digest || null, acceptanceSpecId: spec?.acceptance_spec_id || null, acceptanceSpecRevision: spec ? Number(spec.spec_revision) : null, acceptanceSpecDigest: spec?.spec_digest || null, acceptanceSpecPublishedAtMs: spec ? Number(spec.published_at_ms) : null, primaryMaterialCount: primaryCount, addedAtMs: Number(subject.created_at_ms), organizingRequirement: requirementLabel(spec), organizingAction: actionLabel(actionWorks, spec, stepOptions), organizingSteps: steps, nextAction: nextAction(works, classification, issue, run?.state, recovery, arcaStatus, pkg, latestRun?.state || null, waitingExternalIntegration, terminalEvidence, spec), currentRun: run ? Object.freeze({ libraRunId: run.libra_run_id, state: run.state, stateRevision: Number(run.state_revision), stateDigest: run.state_digest, priorityClass: run.priority_class, packageRevisionHead: Number(run.package_revision_head), currentIdentityRevision: subject.current_identity_revision === null ? null : Number(subject.current_identity_revision) }) : null, handoffB: pkg ? Object.freeze({ onDeckPackageId: pkg.on_deck_package_id, offerId: pkg.offer_id, packageRevision: Number(pkg.package_revision), packageDigest: pkg.package_digest, state: pkg.state, publishedAtMs: Number(pkg.published_at_ms) }) : null, completedAtMs: arcaStatus?.stage === 'completed' ? arcaStatus.completedAtMs : null });
+      return Object.freeze({ formationViewId: subject.subject_id, subjectId: subject.subject_id, displayIdentity, contentProfile: subject.content_profile, structureKind: subject.structure_kind, status: subject.status, classification, myRating: rating?.rating ?? null, myRatingSource: rating?.sourceKind || null, myRatingRevision: (rating?.expectedRevision || 0) > 0 ? rating.expectedRevision : null, ratingState:rating?.state || 'pending', ratingResolutionStatus:rating?.resolutionStatus || null, ratingReasonCode:rating?.reasonCode || null, productIdentityIssue: issue, acceptanceRecovery: recovery, arcaStatus, processDetail:detail, targetShelfId: routing?.shelf_id || null, targetShelfName: shelfNames.get(routing?.shelf_id) || null, routingState: routing?.decision || 'preparing', unresolvedReasonCode: routing?.unresolved_reason_code || null, routingPolicyMode: policy?.mode || null, routingPolicyRevision: routing?.routing_policy_revision == null ? null : Number(routing.routing_policy_revision), routingDecisionRevision: routing ? Number(routing.decision_revision) : null, routingDecisionDigest: routing?.decision_digest || null, routingDecisionHeadRevision: head ? Number(head.head_revision) : null, routingDecisionHeadDigest: head?.head_digest || null, acceptanceSpecId: spec?.acceptance_spec_id || null, acceptanceSpecRevision: spec ? Number(spec.spec_revision) : null, acceptanceSpecDigest: spec?.spec_digest || null, acceptanceSpecPublishedAtMs: spec ? Number(spec.published_at_ms) : null, primaryMaterialCount: primaryCount, addedAtMs: Number(subject.created_at_ms), organizingRequirement: requirementLabel(spec), organizingAction: actionLabel(actionWorks, spec, stepOptions), organizingSteps: steps, nextAction: nextAction(works, classification, issue, run?.state, recovery, arcaStatus, pkg, latestRun?.state || null, waitingExternalIntegration, terminalEvidence, spec, onDeckWorks), currentRun: run ? Object.freeze({ libraRunId: run.libra_run_id, state: run.state, stateRevision: Number(run.state_revision), stateDigest: run.state_digest, priorityClass: run.priority_class, packageRevisionHead: Number(run.package_revision_head), currentIdentityRevision: subject.current_identity_revision === null ? null : Number(subject.current_identity_revision) }) : null, handoffB: pkg ? Object.freeze({ onDeckPackageId: pkg.on_deck_package_id, offerId: pkg.offer_id, packageRevision: Number(pkg.package_revision), packageDigest: pkg.package_digest, state: pkg.state, publishedAtMs: Number(pkg.published_at_ms) }) : null, completedAtMs: arcaStatus?.stage === 'completed' ? arcaStatus.completedAtMs : null });
     });
   }
   function scan(visitor) {
@@ -472,7 +553,7 @@ function buildFormationProjectionRow(item, nowMs) {
   const identityDigest = item.productIdentityIssue ? canonicalDigest(item.productIdentityIssue) : null;
   const attentionPriority = item.classification === 'attention_required' ? 0 : item.classification === 'in_progress' ? 1 : item.classification === 'pending' ? 2 : 3;
   const basis = {
-    projectionContractRevision: 4,
+    projectionContractRevision: 5,
     subjectId: item.subjectId, displayIdentity: item.displayIdentity, contentProfile: item.contentProfile,
     structureKind: item.structureKind, subjectStatus: item.status, classification: item.classification,
     rating: [item.myRating, item.myRatingSource, item.myRatingRevision], targetShelf: [item.targetShelfId, item.targetShelfName],
@@ -751,6 +832,8 @@ module.exports = Object.freeze({
   organizingSteps,
   organizingWorks,
   projectionItem,
+  shelvingAction,
+  shelvingSteps,
   relatedMaterialsSummary,
   waitsForExternalIntegration,
 });

@@ -130,6 +130,18 @@ function stateDefinition(schemaManifest) {
         fixedKeyColumns:['state'], maxItems:100, safeIntegers:true,
         columns:['cleanup_scope_id','libra_run_id','workspace_id','state'],
       },
+      list_run_cleanup_scopes: {
+        kind: 'select-all', tableId: 'libra_workspace_cleanup_scopes',
+        columns: ['cleanup_scope_id', 'libra_run_id', 'workspace_id', 'state'],
+        keyColumns: ['libra_run_id'], safeIntegers: true,
+      },
+      list_workspace_references: {
+        kind: 'select-all', tableId: 'libra_workspace_material_refs',
+        columns: [
+          'workspace_id', 'material_handle_id', 'reference_revision', 'reference_state',
+        ],
+        keyColumns: ['workspace_id'], safeIntegers: true,
+      },
     },
   });
 }
@@ -622,6 +634,52 @@ function createMovieResponsibilityClosureCoordinator(options) {
     }]).movie_active_cleanup_scope_page;
   }
 
+  function listDiscardedLeftoverWorkspacePage(cursor, limit) {
+    return options.unitOfWork.execute([{
+      participantId:'movie_discarded_workspace_page',owner:'libra',repositories:[stateRepository],execute(context){
+        const repo=context.repository(stateRepository.repositoryId);
+        return Object.freeze(repo.invoke('page_active_workspaces',{state:'active',cursor:cursor||null,limit}).map((workspace)=>{
+          const run=repo.invoke('find_run',{libra_run_id:workspace.libra_run_id});
+          if(!run||!['discarded','superseded'].includes(run.state))
+            return Object.freeze({cursor:workspace.workspace_id,scope:Object.freeze({skipped:true})});
+          return Object.freeze({cursor:workspace.workspace_id,scope:Object.freeze({
+            workspaceId:workspace.workspace_id,libraRunId:workspace.libra_run_id,runState:run.state})});
+        }));
+      },
+    }]).movie_discarded_workspace_page;
+  }
+
+  function currentNonReleasedReferences(rows) {
+    const byHandle=new Map();
+    for(const row of rows||[]){
+      const current=byHandle.get(row.material_handle_id);
+      if(!current||Number(row.reference_revision)>Number(current.reference_revision))
+        byHandle.set(row.material_handle_id,row);
+    }
+    return [...byHandle.values()].filter((row)=>row.reference_state!=='released');
+  }
+
+  function reconcileDiscardedLeftoverWorkspace(scope) {
+    if(scope?.skipped)return Object.freeze({stage:'skipped'});
+    const snapshot=options.unitOfWork.execute([{
+      participantId:'movie_discarded_workspace_read',owner:'libra',repositories:[stateRepository],execute(context){
+        const repo=context.repository(stateRepository.repositoryId);
+        return Object.freeze({
+          scopes:repo.invoke('list_run_cleanup_scopes',{libra_run_id:scope.libraRunId})||[],
+          references:repo.invoke('list_workspace_references',{workspace_id:scope.workspaceId})||[],
+        });
+      },
+    }]).movie_discarded_workspace_read;
+    const activeScope=(snapshot.scopes||[]).find((item)=>item.state==='active');
+    if(activeScope)return drainCleanupScope(activeScope.cleanup_scope_id,1);
+    if(currentNonReleasedReferences(snapshot.references).length)
+      return Object.freeze({stage:'has_workspace_references',workspaceId:scope.workspaceId});
+    if(typeof options.workspaceProductPort?.reclaimUnreferencedWorkspace!=='function')
+      return Object.freeze({stage:'unreferenced_reclaim_unavailable',workspaceId:scope.workspaceId});
+    const reclaimed=options.workspaceProductPort.reclaimUnreferencedWorkspace(scope.workspaceId);
+    return Object.freeze({stage:'unreferenced_reclaimed',...reclaimed});
+  }
+
   function reconcileCompletedWorkspace(scope) {
     if(scope?.skipped)return Object.freeze({stage:'skipped'});
     try{return cleanupWorkspace(scope.libraRunId,scope.onDeckProductPackage,1);}
@@ -630,6 +688,7 @@ function createMovieResponsibilityClosureCoordinator(options) {
   }
 
   return Object.freeze({ advance, findCompletedRun, listCompletedWorkspacePage, listActiveCleanupScopePage,
+    listDiscardedLeftoverWorkspacePage, reconcileDiscardedLeftoverWorkspace,
     reconcileCompletedWorkspace, reconcileCleanupScope:({cleanupScopeId})=>drainCleanupScope(cleanupScopeId,1) });
 }
 

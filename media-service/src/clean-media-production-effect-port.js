@@ -327,22 +327,24 @@ function createCleanMediaProductionEffectPort(options) {
 
   async function verifyTranscodeInput(request){
     const source=sourceLocation(request.sourceHandle),intent=request.productionIntent,device=request.deviceSnapshot,
-      durationMs=Math.max(1,Number(request.sourceProbeEvidence.durationMs||1)),points=[5,50,95],pipeline=ffmpegPipeline(intent,device),passed=[];
-    for(const point of points){const seconds=Math.max(0,durationMs/1000*point/100);
-      try{await runProcess(ffmpegPath,['-hide_banner','-nostdin','-loglevel','error','-y','-ss',seconds.toFixed(3),...pipeline.inputArgs,'-i',source,
-        ...productStreamMap(intent),'-frames:v','8',...pipeline.videoArgs,'-c:a','copy','-c:s','copy','-f','matroska',
-        process.platform==='win32'?'NUL':'/dev/null'],30_000,null,
+      pipeline=ffmpegPipeline(intent,device),frames=24,nullTarget=process.platform==='win32'?'NUL':'/dev/null';
+    const argv=['-hide_banner','-nostdin','-loglevel','error','-y',...pipeline.inputArgs,'-i',source,
+      ...productStreamMap(intent),'-frames:v',String(frames),...pipeline.videoArgs,'-c:a','copy','-c:s','copy','-f','matroska',nullTarget];
+    try{
+      await runProcess(ffmpegPath,argv,30_000,null,
         {processRegistry,deadlineAtMs:request.deadlineAtMs,shouldContinue:request.shouldContinue});
-        passed.push(point);
-      }catch(error){if(error?.code==='LIBRA_MEDIA_FFMPEG_TIMEOUT'||error?.code==='ENOENT'||error?.code==='EACCES')throw error;
-        return Object.freeze({sampleCount:24,passedSampleCount:passed.length*8,reasonCode:'encoder_rejected_source_pipeline',
-          samplePointsPercent:Object.freeze(points),passedSamplePointsPercent:Object.freeze(passed),
-          preflightDigest:canonicalDigest({schema:'libra.transcode-preflight@1',sourceHandleDigest:canonicalDigest(request.sourceHandle),
-            intentDigest:intent.intentDigest,deviceSnapshotDigest:device.snapshotDigest,points,passed,errorCode:error?.code||'unknown'})});}
+      return Object.freeze({sampleCount:frames,passedSampleCount:frames,reasonCode:null,
+        samplePointsPercent:Object.freeze([0]),passedSamplePointsPercent:Object.freeze([0]),
+        preflightDigest:canonicalDigest({schema:'libra.transcode-preflight@1',sourceHandleDigest:canonicalDigest(request.sourceHandle),
+          intentDigest:intent.intentDigest,deviceSnapshotDigest:device.snapshotDigest,frames,passed:true})});
+    }catch(error){
+      if(error?.code==='ENOENT'||error?.code==='EACCES'||error?.code==='LIBRA_MEDIA_FFMPEG_CANCELLED')throw error;
+      return Object.freeze({sampleCount:frames,passedSampleCount:0,reasonCode:'encoder_rejected_source_pipeline',
+        samplePointsPercent:Object.freeze([0]),passedSamplePointsPercent:Object.freeze([]),
+        preflightDigest:canonicalDigest({schema:'libra.transcode-preflight@1',sourceHandleDigest:canonicalDigest(request.sourceHandle),
+          intentDigest:intent.intentDigest,deviceSnapshotDigest:device.snapshotDigest,frames,passed:false,
+          errorCode:error?.code||'unknown'})});
     }
-    return Object.freeze({sampleCount:24,passedSampleCount:24,reasonCode:null,samplePointsPercent:Object.freeze(points),
-      passedSamplePointsPercent:Object.freeze(passed),preflightDigest:canonicalDigest({schema:'libra.transcode-preflight@1',
-        sourceHandleDigest:canonicalDigest(request.sourceHandle),intentDigest:intent.intentDigest,deviceSnapshotDigest:device.snapshotDigest,points,passed})});
   }
 
   async function verifyPlayback(request){

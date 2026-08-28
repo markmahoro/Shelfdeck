@@ -702,6 +702,7 @@ function createProcurementExecutionRuntime(options) {
   function drainCompletedWorkspaces() {
     completedWorkspaceSweepNotBeforeMs = 0;
     activeCleanupSweepNotBeforeMs = 0;
+    discardedLeftoverSweepNotBeforeMs = 0;
     let cursor = null;
     let pendingAudit = false;
     for (;;) {
@@ -715,7 +716,19 @@ function createProcurementExecutionRuntime(options) {
       if (page.length < 100) break;
       cursor = page.at(-1).cursor;
     }
+    cursor = null;
+    for (;;) {
+      const page = workspaceReclaimer.listDiscardedLeftoverWorkspacePage(cursor, 100);
+      if (!page.length) break;
+      for (const item of page) {
+        if (item.scope?.skipped) continue;
+        workspaceReclaimer.reconcileDiscardedLeftoverWorkspace(item.scope);
+      }
+      if (page.length < 100) break;
+      cursor = page.at(-1).cursor;
+    }
     completedWorkspaceSweepNotBeforeMs = now() + (pendingAudit ? 60_000 : WORKSPACE_RECLAIMER_FALLBACK_MS);
+    discardedLeftoverSweepNotBeforeMs = now() + WORKSPACE_RECLAIMER_FALLBACK_MS;
     return Object.freeze({ kind: 'wake_recorded', pendingAudit });
   }
   function hasReadyEncodeDevice() {
@@ -931,7 +944,7 @@ function createProcurementExecutionRuntime(options) {
     offloadCompletionPort:createOffloadCompletionPort(options),workspaceProductPort:libraOptions.workspaceProductPort,
     offloadWakeVisible:false});
   const WORKSPACE_RECLAIMER_FALLBACK_MS=15*60*1000;
-  let completedWorkspaceSweepNotBeforeMs=0,activeCleanupSweepNotBeforeMs=0;
+  let completedWorkspaceSweepNotBeforeMs=0,activeCleanupSweepNotBeforeMs=0,discardedLeftoverSweepNotBeforeMs=0;
   let offdeckPolicySweepNotBeforeMs=0,offdeckDuplicateSweepNotBeforeMs=0;
   const fallbackReconciler=createDomainReconcileRunner({cursorStore,now,onError:options.onError,registrations:[Object.freeze({
     ownerDomain:'procurement',reconcilerKey:'active-procurement-runs',
@@ -1031,6 +1044,14 @@ function createProcurementExecutionRuntime(options) {
         return page;},
       nextDueAtMs:()=>activeCleanupSweepNotBeforeMs||null,
       reconcile:(scope)=>workspaceReclaimer.reconcileCleanupScope(scope),
+    }),Object.freeze({
+      ownerDomain:'libra',reconcilerKey:'discarded-workspace-leftovers',
+      listPage:({cursor,limit})=>{if(cursor===null&&now()<discardedLeftoverSweepNotBeforeMs)return [];
+        const page=workspaceReclaimer.listDiscardedLeftoverWorkspacePage(cursor,limit);
+        if(page.length===0)discardedLeftoverSweepNotBeforeMs=now()+WORKSPACE_RECLAIMER_FALLBACK_MS;
+        return page;},
+      nextDueAtMs:()=>discardedLeftoverSweepNotBeforeMs||null,
+      reconcile:(scope)=>workspaceReclaimer.reconcileDiscardedLeftoverWorkspace(scope),
     }),Object.freeze({
       ownerDomain:'arca',reconcilerKey:'preparing-offdeck-reviews',
       listPage:({cursor,limit})=>arcaProcessServices.offdeckContextReader.store.listReviews().filter((item)=>item.state==='preparing'&&

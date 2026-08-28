@@ -21,6 +21,7 @@ const {
   organizingSteps,
   organizingWorks,
   projectionItem,
+  shelvingSteps,
 } = require('../src/helix/domains/libra/application/formation-query');
 const { createFormationProjectionStore } = require('../src/helix/domains/libra/persistence/formation-projection-store');
 const { createFormationProjectionHost } = require('../src/helix/domains/libra/application/formation-projection-host');
@@ -381,6 +382,32 @@ test('Formation does not forecast remux when the spec already requires 4k',()=>{
   assert.equal(steps.some((item)=>item.key==='remux'),false);
   assert.equal(steps.some((item)=>item.key==='acquire'),true);
   assert.equal(steps.some((item)=>item.key==='transcode'),false);
+});
+
+test('Formation shelves as a checklist and names the write step while On-deck is staging',()=>{
+  const pkg={offerId:'offer-1'};
+  const seeded=shelvingSteps(null,null,null,[]);
+  assert.deepEqual(seeded.map((item)=>item.key),['accept','write','finish']);
+  assert.ok(seeded.every((item)=>item.state==='pending'));
+  const waiting=shelvingSteps(pkg,null,null,[]);
+  assert.equal(waiting.find((item)=>item.key==='accept').state,'running');
+  assert.equal(waiting.find((item)=>item.key==='write').state,'pending');
+  assert.equal(nextAction([],'in_progress',null,null,null,null,pkg,'completed').label,'等待收藏架验收');
+  const writing=shelvingSteps(pkg,{stage:'in_progress',onDeckRunId:'ondeck-1'},null,[{
+    workId:'on-deck-work',workKind:'on_deck_execution',state:'running',createdAtMs:10,events:[{
+      capabilityRef:'arca.inventory.product.stage@1',state:'executing',progress:{mode:'determinate',currentValue:40,totalValue:100,unit:'percent',rate:null,etaMs:null,bucket:'percent-40'},
+    }],
+  }]);
+  assert.equal(writing.find((item)=>item.key==='accept').state,'done');
+  assert.equal(writing.find((item)=>item.key==='write').state,'running');
+  assert.equal(writing.find((item)=>item.key==='write').progress.currentValue,40);
+  assert.equal(nextAction([],'in_progress',null,null,null,{stage:'in_progress',onDeckRunId:'ondeck-1'},pkg,'completed',false,null,null,[{
+    workId:'on-deck-work',workKind:'on_deck_execution',state:'running',createdAtMs:10,events:[{
+      capabilityRef:'arca.inventory.product.stage@1',state:'executing',progress:{mode:'determinate',currentValue:40,totalValue:100,unit:'percent',rate:null,etaMs:null,bucket:'percent-40'},
+    }],
+  }]).label,'正在写入收藏架');
+  const done=shelvingSteps(pkg,{stage:'completed',onDeckRunId:'ondeck-1'},null,[]);
+  assert.ok(done.every((item)=>item.state==='done'));
 });
 
 test('Formation hides discarded Subjects waiting for re-intake from the active list',()=>{
