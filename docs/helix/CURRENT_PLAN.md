@@ -4,9 +4,9 @@ Status: Helix-beta 已由 Product Owner 收窄为 **仅 Movie 的全功能版本
 
 Last updated: 2026-08-29
 
-## 0. Current local implementation — PROD-010/011/012（待无损升级）
+## 0. Deployed — PROD-010/011/012 lossless NAS upgrade
 
-本地已实现三件，未部署 NAS、不用 `--helix-clean-init`：
+已部署 `markmahoro/shelfdeck:helix-beta-20260829-e4d601cd9`，未 `--helix-clean-init`：
 
 1. Formation checklist 提前铺开，转码未规划出来时显示「需要转码，编码设备未就绪」。
 2. source probe 后 4K/主音轨补不上则跳过 remux，直接寻源。

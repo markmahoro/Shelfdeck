@@ -29,9 +29,9 @@
 | PROD-007 | 整理协调器 `P9_REFERENCE_MATERIAL_CORRUPT` / remux `P9_MEDIA_OUTPUT_CONTINUITY`，升级后管理端口起不来 | `EXECUTION` / Workspace root identity + startup recovery | 媒体整理工作区 | Critical | **FIXED**。材料句柄用内部 `service-local-workspace`，durable 根是 `local-filesystem-linux`；启动恢复还在 `listen()` 前续跑长时间 remux。句柄按 durable 根无损重盖章；workspace-write 恢复推迟到就绪之后。 |
 | PROD-008 | 确认影片身份后仍停在「媒体身份信息冲突」 | `EXECUTION` / 工作准入硬顶 + 展示用旧观察 | 媒体整理工作区 | High | **FIXED**。选择意图已写入，但开放 Work 正好 256，后续 exact TMDB 观察进不了队；页面仍读旧冲突观察。Libra Run 准入放到 1000；有更新的选择意图时不再把旧冲突当待办。 |
 | PROD-009 | 试运行长时间没有第一部 Arca 上架；`/transcode` 写满 | `EXECUTION` / Intake 无席位 + Workspace 24h grace | 媒体整理工作区、Workspace | Critical | **FIXED**。Intake 同时只接 3 个未完成 Pre-deck；Off-load Completion 后立即开始回收 Workspace，不再等 24 小时。干净部署后按同一套 Field/Shelf/Workspace/TMDB 取值重建。 |
-| PROD-010 | 整理路径不能提前当 checklist 勾选；转码未规划出来时页面仍像「封装完了等验收」 | `USER_EXPERIENCE` / Formation 投影只回放已有 Event | 媒体整理工作区 | Medium | **FIXED locally**。等待无损升级。路径模板提前铺开，当前进展跟人话。 |
-| PROD-011 | 片源探测已能判定本地加工补不上时，仍先整盘 remux 再寻源 | `EXECUTION` / Libra 媒体阶段顺序 | 媒体整理工作区 | Medium | **FIXED locally**。等待无损升级。source probe 后栅格/音轨补不上则直接寻源。 |
-| PROD-012 | 用户放弃后，工作区仍留「等待重新入库」待整理行 | `USER_EXPERIENCE` / Formation 当前 Subject 与结束历史叠在一起 | 媒体整理工作区 | Medium | **FIXED locally**。等待无损升级。放弃后当前列表不再挂 pending 行。 |
+| PROD-010 | 整理路径不能提前当 checklist 勾选；转码未规划出来时页面仍像「封装完了等验收」 | `USER_EXPERIENCE` / Formation 投影只回放已有 Event | 媒体整理工作区 | Medium | **FIXED** 无损升级 `helix-beta-20260829-e4d601cd9`。 |
+| PROD-011 | 片源探测已能判定本地加工补不上时，仍先整盘 remux 再寻源 | `EXECUTION` / Libra 媒体阶段顺序 | 媒体整理工作区 | Medium | **FIXED** 无损升级 `helix-beta-20260829-e4d601cd9`。 |
+| PROD-012 | 用户放弃后，工作区仍留「等待重新入库」待整理行 | `USER_EXPERIENCE` / Formation 当前 Subject 与结束历史叠在一起 | 媒体整理工作区 | Medium | **FIXED** 无损升级 `helix-beta-20260829-e4d601cd9`。 |
 
 PROD-001、PROD-002 的共同环境前提：生产管理台是 `http://192.168.12.230`，浏览器不提供 `crypto.randomUUID` / `crypto.subtle`。这不是传输加密设计，只是浏览器 API 限制。未改成 HTTPS。
 

@@ -58,8 +58,8 @@
 | UX-024 | 按钮至少八种互不相干的形态 | `BUTTON` | 全站 | High | 已实现 |
 | UX-025 | 退出收藏与整理表内按钮退回浏览器默认样式 | `BUTTON` | 退出收藏 / 整理 | High | 已实现 |
 | UX-026 | 收藏墙逐张拉海报，详情再打健康与评分接口 | `PERFORMANCE` | 我的收藏 | High | 已实现 |
-| UX-030 | 整理路径不能提前当 checklist 勾选；无 transcode Event 时看不到「下一步转码」 | `COPY_CONFLICT` | 媒体整理工作区 | Medium | **FIXED locally**。见 `PROD-010`。 |
-| UX-031 | 放弃整理后工作区仍显示「等待重新入库」 | `COPY_CONFLICT` | 媒体整理工作区 | Medium | **FIXED locally**。见 `PROD-012`。 |
+| UX-030 | 整理路径不能提前当 checklist 勾选；无 transcode Event 时看不到「下一步转码」 | `COPY_CONFLICT` | 媒体整理工作区 | Medium | **FIXED**。见 `PROD-010`。 |
+| UX-031 | 放弃整理后工作区仍显示「等待重新入库」 | `COPY_CONFLICT` | 媒体整理工作区 | Medium | **FIXED**。见 `PROD-012`。 |
 | UX-027 | 文件来源按 Field 再打 Routing Policy，观察期间 1s 轮询整表 | `PERFORMANCE` | 文件来源 | High | 已实现 |
 | UX-028 | 设置页切到连接 Tab 仍拉取 100 条评分日志 | `PERFORMANCE` | 系统设置 | Medium | 已实现 |
 | UX-029 | 概览所谓 Projection 是请求内五路拼账 | `PERFORMANCE` | 概览 | High | 已实现 |

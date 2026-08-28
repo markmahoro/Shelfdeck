@@ -1,24 +1,24 @@
 # ShelfDeck Clean Helix Current Status
 
-Status: Helix-beta 范围已收窄为仅 Movie 全链路。Movie Procurement与Movie Libra封口保持有效；Movie Arca已完成Handoff B Acceptance、On-deck、Shelf Entry、Deck Fact、Beta Aftercare、Off-deck及Shelf Deregistration完整闭环。当前精确状态为`MOVIE COLLECTION LIFECYCLE READY THROUGH SHELF DEREGISTRATION`。Product Owner 已于 2026-08-28 授权并完成 Helix-beta 首次 NAS 部署，随后以不改配置的方式升级。当前生产镜像为 `markmahoro/shelfdeck:helix-beta-20260828-90476efa0`（`--helix-clean-init`），health `ok` / `helix-clean-v3`。Intake 席位 3，Workspace `/transcode` rev 2。TMDB 需在设置里重新保存密钥与代理。Helix-beta 验收行见现行基线，尚未把任何 `HB-*` 标为验收 `PASS`。
+Status: Helix-beta 范围已收窄为仅 Movie 全链路。Movie Procurement与Movie Libra封口保持有效；Movie Arca已完成Handoff B Acceptance、On-deck、Shelf Entry、Deck Fact、Beta Aftercare、Off-deck及Shelf Deregistration完整闭环。当前精确状态为`MOVIE COLLECTION LIFECYCLE READY THROUGH SHELF DEREGISTRATION`。当前生产镜像为 `markmahoro/shelfdeck:helix-beta-20260829-e4d601cd9`（无损升级，无 `--helix-clean-init`），health `ok` / `helix-clean-v3`。Intake 席位 3，Workspace `/transcode` rev 2。Helix-beta 验收行见现行基线，尚未把任何 `HB-*` 标为验收 `PASS`。
 
 Last updated: 2026-08-29
 
-## 0. Local implementation — PROD-010/011/012 ready for lossless upgrade
+## 0. Production lossless upgrade — PROD-010/011/012
 
-2026-08-29 已实现：Formation 路径 checklist、probe 后跳过无效 remux、放弃后不再显示「等待重新入库」。专项测试 `helix-formation-projection` / `p14-formation-truth` / `p9-media-production-contracts` 42/42。未部署 NAS。
+2026-08-29 已部署 `helix-beta-20260829-e4d601cd9`（git `e4d601cd9`，tar SHA-256 `18279cfa9017b8c87e6c9205d123cd4cbe6926d2840f4766b3f544ac0ffd92f5`），未 `--helix-clean-init`。readiness `helix-clean-v3` / 184 tables / findings []。现网 Formation：3 部整理中，当前进展均为「需要转码，编码设备未就绪」，checklist 含 transcode:blocked；《女性瘾者》只在已结束。Field/Shelf/`/transcode`/集成未改。
 
 ## 0. Parked — Formation checklist 展示（PROD-010）
 
-2026-08-29 Product Owner 确认：整理路径应提前展示、逐步勾选；先记下、不修。现网 `organizingSteps` 只回放已有 Event，transcode 评估 blocked 时页面仍像「封装完了等验收」。台账 `PROD-010`。不是结构性改动，未授权实现。
+已随 `e4d601cd9` 无损升级。现网 checklist 含转码格；无设备时显示「需要转码，编码设备未就绪」。
 
 ## 0. Parked — 注定过不了验收的 remux（PROD-011）
 
-2026-08-29 Product Owner 确认：《女性瘾者：第二部》五星要 4K，1080p 源先整盘 remux 再寻源是浪费；先记下、不修。台账 `PROD-011`。未授权实现。
+已随 `e4d601cd9` 无损升级。source probe 后 4K/主音轨补不上则跳过 remux。
 
 ## 0. Parked — 放弃后的「等待重新入库」（PROD-012）
 
-2026-08-29 Product Owner 确认：放弃整理后工作区不应再留「等待重新入库」；只留「已结束 · 用户放弃」，新 Run 开始再进表。台账 `PROD-012`。未授权实现。
+已随 `e4d601cd9` 无损升级。放弃后当前工作区不再挂「等待重新入库」。
 
 ## 0. Intake 3 席位与 Off-load 后立即回收 Workspace
 
