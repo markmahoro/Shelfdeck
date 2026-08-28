@@ -4,9 +4,14 @@ Status: Helix-beta 已由 Product Owner 收窄为 **仅 Movie 的全功能版本
 
 Last updated: 2026-08-29
 
-## 0. Local fix ready — Arca product-only playback Gap + original-media verify before external search
+## 0. Deployed — PROD-017/018 lossless NAS upgrade
 
-上架强制媒体检查只拿成品 5/50/95 解帧否决；workspace 原片不再三点抽检（仍 probe 对照分辨率/动态范围）。探测后跳过本地加工去寻源前，stream_file 仍做一次直通 `product_media.verify`，记下原片缺口，寻源耗尽后「接受瑕疵」可亮。未部署。
+已部署 `markmahoro/shelfdeck:helix-beta-20260829-904c415f7`，未 `--helix-clean-init`：
+
+1. 上架强制媒体只拿成品 5/50/95 解帧否决；workspace 原片仍 probe 对照分辨率/动态范围，不再三点抽检。
+2. 探测后跳过本地加工去寻源前，stream_file 先记一次直通 `product_media.verify`；寻源耗尽后「接受瑕疵」可亮。
+
+升级方式：标准镜像替换并重启，保留 Field/Shelf/`/transcode`/集成。已拒收的《影子写手》和已冻结的《国际市场》不会自动重跑，需放弃后重新进整理。台账 `PROD-017`/`PROD-018`。
 
 ## 0. Deployed — PROD-014/015/016 lossless NAS upgrade
 

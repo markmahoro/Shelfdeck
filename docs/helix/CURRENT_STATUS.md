@@ -1,12 +1,12 @@
 # ShelfDeck Clean Helix Current Status
 
-Status: Helix-beta 范围已收窄为仅 Movie 全链路。Movie Procurement与Movie Libra封口保持有效；Movie Arca已完成Handoff B Acceptance、On-deck、Shelf Entry、Deck Fact、Beta Aftercare、Off-deck及Shelf Deregistration完整闭环。当前精确状态为`MOVIE COLLECTION LIFECYCLE READY THROUGH SHELF DEREGISTRATION`。当前生产镜像为 `markmahoro/shelfdeck:helix-beta-20260829-83d3c4424`（无损升级，无 `--helix-clean-init`），health `ok` / `helix-clean-v3`。Intake 席位 3，Workspace `/transcode` rev 2。Helix-beta 验收行见现行基线，尚未把任何 `HB-*` 标为验收 `PASS`。
+Status: Helix-beta 范围已收窄为仅 Movie 全链路。Movie Procurement与Movie Libra封口保持有效；Movie Arca已完成Handoff B Acceptance、On-deck、Shelf Entry、Deck Fact、Beta Aftercare、Off-deck及Shelf Deregistration完整闭环。当前精确状态为`MOVIE COLLECTION LIFECYCLE READY THROUGH SHELF DEREGISTRATION`。当前生产镜像为 `markmahoro/shelfdeck:helix-beta-20260829-904c415f7`（无损升级，无 `--helix-clean-init`），health `ok` / `helix-clean-v3`。Intake 席位 3，Workspace `/transcode` rev 2。Helix-beta 验收行见现行基线，尚未把任何 `HB-*` 标为验收 `PASS`。
 
 Last updated: 2026-08-29
 
-## 0. Local fix ready — Arca product playback + defect-admission original verify
+## 0. Production lossless upgrade — PROD-017/018
 
-2026-08-29 本地已改：Arca mandatory media 只把成品解帧记入 `playback_decode_failed`；跳过 remux/转码去寻源前先记下直通验收缺口。专项测试通过。未部署。已拒收的《影子写手》和已冻结的《国际市场》不会自动重跑，需放弃后重新进整理。
+2026-08-29 已部署 `helix-beta-20260829-904c415f7`（git `904c415f7`，tar SHA-256 `54d318e3c94fe809144cac377f0d79ea25bd981efecf68d552c0918cf48c2217`），未 `--helix-clean-init`。readiness `helix-clean-v3` / 184 tables / findings []。上架只拿成品解帧否决；stream_file 寻源前先记直通验收缺口。已拒收的《影子写手》和已冻结的《国际市场》需放弃后重新进整理。Field/Shelf/`/transcode`/集成未改。
 
 ## 0. Production lossless upgrade — PROD-014/015/016
 

@@ -36,8 +36,8 @@
 | PROD-014 | 转码输入预检用跳转硬解，与正式转码命令不同；超时冻《宇航员》 | `EXECUTION` / 预检命令不是真转码缩小版 | 媒体整理工作区 | High | **FIXED** 无损升级 `helix-beta-20260829-83d3c4424`。已冻结片子需放弃后重新进整理。 |
 | PROD-015 | 《怦然心动》上架拷贝后卡在 `product.stage` executing | `EXECUTION` / 指纹门禁把 mtime 当换材料 | 媒体整理工作区 | High | **FIXED** 无损升级 `helix-beta-20260829-83d3c4424`。重启走 startup recovery。 |
 | PROD-016 | 放弃整理后 Workspace remux 没删，`/transcode` 空间未释放 | `EXECUTION` / Discard 只清已挂的 Libra 引用 | 媒体整理工作区、Workspace | High | **FIXED** 无损升级 `helix-beta-20260829-83d3c4424`。两份 orphan 目录升级前已删。 |
-| PROD-017 | 《影子写手》转码成功，收藏架因原片 5%/50% 解帧拒收 | `EXECUTION` / Arca 把原片抽检绑进成品 Gap | 媒体整理工作区 | High | **LOCAL FIX READY / 待无损升级**。上架只拿成品解帧否决。已拒收的需放弃后重新进整理。 |
-| PROD-018 | 《国际市场》寻源耗尽冻结后没有「接受瑕疵」 | `EXECUTION` / 跳过直通验收就去寻源 | 媒体整理工作区 | High | **LOCAL FIX READY / 待无损升级**。stream_file 寻源前先记下原片缺口。已冻结的需放弃后重新进整理。 |
+| PROD-017 | 《影子写手》转码成功，收藏架因原片 5%/50% 解帧拒收 | `EXECUTION` / Arca 把原片抽检绑进成品 Gap | 媒体整理工作区 | High | **FIXED** 无损升级 `helix-beta-20260829-904c415f7`。已拒收的需放弃后重新进整理。 |
+| PROD-018 | 《国际市场》寻源耗尽冻结后没有「接受瑕疵」 | `EXECUTION` / 跳过直通验收就去寻源 | 媒体整理工作区 | High | **FIXED** 无损升级 `helix-beta-20260829-904c415f7`。已冻结的需放弃后重新进整理。 |
 
 PROD-001、PROD-002 的共同环境前提：生产管理台是 `http://192.168.12.230`，浏览器不提供 `crypto.randomUUID` / `crypto.subtle`。这不是传输加密设计，只是浏览器 API 限制。未改成 HTTPS。
 
@@ -250,14 +250,14 @@ P4 对 journaled `material_commit` 的 Executor throw 仍会把 Attempt 留在 `
 
 现场两份 orphan（宇航员约 32.3 GiB、女性瘾者约 35.5 GiB）在升级前按授权清掉 `/transcode` 下对应工作区目录，不碰 `/media/Film`。已无损升级 `helix-beta-20260829-83d3c4424`。
 
-## 18. PROD-017 — 上架把原片抽检失败当成成品不可播（LOCAL FIX READY）
+## 18. PROD-017 — 上架把原片抽检失败当成成品不可播（FIXED）
 
 发现：2026-08-29。《影子写手》转码成功（HEVC mkv 约 8.3 GiB，5/50/95 全过）。Arca mandatory media 同时抽检 BDMV 原片，5% 和 50% 解帧失败，只过 95%。实现把原片失败并入 `playback_decode_failed`，Handoff B 拒收。
 
-修复：workspace 成品只拿成品解帧否决；原片仍 probe 对照分辨率/动态范围，不再三点抽检。已拒收的需放弃后重新进整理。待无损升级。
+修复：workspace 成品只拿成品解帧否决；原片仍 probe 对照分辨率/动态范围，不再三点抽检。已拒收的需放弃后重新进整理。已无损升级 `helix-beta-20260829-904c415f7`。
 
-## 19. PROD-018 — 跳过直通验收去寻源后「接受瑕疵」不亮（LOCAL FIX READY）
+## 19. PROD-018 — 跳过直通验收去寻源后「接受瑕疵」不亮（FIXED）
 
 发现：2026-08-29。《国际市场》要求 HEVC·4K，片源 1080p H.264。PROD-011 跳过 remux/转码直接寻源，MoviePilot 无候选冻结。`接受瑕疵` 需要失败的直通 `product_media.verify` 才能列出豁免缺口；这次没有做过，预览失败，按钮被藏。
 
-修复：stream_file 在 `sourceRequiresExternalSearch` 之后先跑直通验收再寻源。已冻结的需放弃后重新进整理。待无损升级。
+修复：stream_file 在 `sourceRequiresExternalSearch` 之后先跑直通验收再寻源。已冻结的需放弃后重新进整理。已无损升级 `helix-beta-20260829-904c415f7`。
