@@ -4,13 +4,9 @@ Status: Helix-beta 已由 Product Owner 收窄为 **仅 Movie 的全功能版本
 
 Last updated: 2026-08-29
 
-## 0. Local fix ready — Formation list shows discard after Handoff B reject
-
-列表页没有 `processDetail`，放弃按钮不能靠验收详情判断。改为：active Run + 已提交 Package + `attention_required` 即显示「放弃整理」。未部署。
-
 ## 0. Deployed — PROD-019 lossless NAS upgrade
 
-已部署 `markmahoro/shelfdeck:helix-beta-20260829-bd5cc15b4`，未 `--helix-clean-init`。Handoff B 业务拒收后整理工作区直接放出「放弃整理」。Discard 允许 `active` + rejected Delivery Receipt。《影子写手》刷新页面后可点放弃。Field/Shelf/`/transcode`/集成未改。
+已部署 `markmahoro/shelfdeck:helix-beta-20260829-c547a2f93`，未 `--helix-clean-init`。Handoff B 拒收后列表页「用户操作」直接显示「放弃整理」（用列表已有字段，不依赖详情 `processDetail`）。Discard 允许 `active` + rejected Delivery Receipt。《影子写手》请 Ctrl+F5 后点放弃。Field/Shelf/`/transcode`/集成未改。
 
 ## 0. Deployed — PROD-017/018 lossless NAS upgrade
 
