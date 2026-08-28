@@ -18,8 +18,11 @@ function statusLabel(item:FormationSubject) { return ({ pending:'待整理', in_
 function stageState(item:FormationSubject) { return item.classification === 'completed' ? 'completed' : item.classification === 'attention_required' ? 'attention' : 'pending'; }
 function canExpedite(item:FormationSubject) { return item.currentRun?.state === 'active' && !item.handoffB; }
 function canDiscardRejectedHandoff(item:FormationSubject) {
-  return item.currentRun?.state === 'active' && !item.executorIssue?.canRetry && !item.productIdentityIssue
-    && item.processDetail?.acceptanceAndShelving.state === 'attention';
+  return item.currentRun?.state === 'active'
+    && item.classification === 'attention_required'
+    && Boolean(item.handoffB)
+    && !item.executorIssue?.canRetry
+    && !item.productIdentityIssue;
 }
 function canChooseShelf(item:FormationSubject) { return item.routingState==='unresolved' && Number.isSafeInteger(item.routingDecisionHeadRevision) && Boolean(item.routingDecisionHeadDigest); }
 function shelfName(item:FormationSubject, shelves:Shelf[]) { return item.targetShelfName || shelves.find((shelf)=>shelf.shelfId===item.targetShelfId)?.name || '尚未选定'; }
