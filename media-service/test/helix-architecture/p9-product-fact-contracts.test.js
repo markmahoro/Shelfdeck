@@ -3,12 +3,12 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
 const { canonicalDigest } = require('../../src/helix/contracts/canonical-json');
-const { buildArtifactManifestVerification, buildMediaCastDraft, buildMetadataMediaCastRelations, buildMediaCastFact, buildMetadataFetchIntent, buildMetadataObservationBasis, buildProductFactEvidence,
+const { buildArtifactManifestVerification, buildMediaCastDraft, buildMetadataMediaCastRelations, buildMediaCastFact, buildMetadataFetchIntent, buildMetadataObservation, buildMetadataObservationBasis, buildProductFactEvidence,
   buildProductFactHandle, buildProductMetadataDraft, buildProductMetadataFact, metadataObservationWorkIdempotencyKey, selectMetadataObservations,
   buildProductFactSourceRefs, buildWesternProductMetadataDraft,
   validateVerifiedArtifactManifest } =
   require('../../src/helix/domains/libra/model/product-fact-contracts');
-const { parseRelatedNfoPeopleHints } =
+const { METADATA_PEOPLE_HINTS_MAX, parseRelatedNfoPeopleHints } =
   require('../../src/clean-product-production-port');
 
 const d = (value) => canonicalDigest({ value });
@@ -341,6 +341,25 @@ test('preserves NFO TMDB Person identities and deduplicates Media Cast by stable
     (identity) => identity.providerKey === '66717')).displayName, 'Anthony Wong');
   assert.equal(relations.find((item) => item.displayName === 'Anthony Wong').source, 'ref-nfo');
   assert.equal(relations.some((item) => item.displayName === 'Needs Confirmation'), true);
+});
+
+test('keeps Related NFO peopleHints within the MetadataObservation bound', () => {
+  const xml = '<movie>' + Array.from({ length: METADATA_PEOPLE_HINTS_MAX + 6 }, (_item, index) =>
+    `<actor><name>Actor ${String(index).padStart(2, '0')}</name><tmdbid>${1000 + index}</tmdbid></actor>`).join('')
+    + '</movie>';
+  const parsed = parseRelatedNfoPeopleHints(xml);
+  assert.equal(parsed.length, METADATA_PEOPLE_HINTS_MAX);
+  assert.equal(parsed[0].displayName, 'Actor 00');
+  assert.equal(parsed[METADATA_PEOPLE_HINTS_MAX - 1].displayName, 'Actor 63');
+  const overflow = parsed.concat([{ displayName:'Extra', role:'actor', providerIdentities:[] }]);
+  const observationResult = buildMetadataObservation({
+    intent: intents()[0],
+    descriptiveEntries: [{ key:'title', value:'Fight Club' }],
+    providerIdentities: [],
+    peopleHints: overflow,
+    observedAtMs: 10,
+  });
+  assert.equal(observationResult.peopleHints.length, METADATA_PEOPLE_HINTS_MAX);
 });
 
 test('verifies artifact handles without embedding bytes or reading a second owner', () => {

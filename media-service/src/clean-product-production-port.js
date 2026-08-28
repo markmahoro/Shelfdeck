@@ -29,11 +29,14 @@ function normalizedLocation(value) {
   return path.resolve(value.replace(/\//g, path.sep));
 }
 
+const METADATA_PEOPLE_HINTS_MAX = 64;
+
 function parseRelatedNfoPeopleHints(xml) {
   const peopleHints = [];
   for (const actorMatch of String(xml || '').matchAll(
     /<actor(?:\s[^>]*)?>([\s\S]*?)<\/actor>/gi,
   )) {
+    if (peopleHints.length >= METADATA_PEOPLE_HINTS_MAX) break;
     const actorXml = actorMatch[1];
     const displayName = actorXml.match(
       /<name(?:\s[^>]*)?>([^<]+)<\/name>/i,
@@ -985,5 +988,6 @@ module.exports = Object.freeze({
   CleanProductProductionPortError,
   createCleanProductProductionPort,
   parseRelatedNfoMovieIdentity,
+  METADATA_PEOPLE_HINTS_MAX,
   parseRelatedNfoPeopleHints,
 });

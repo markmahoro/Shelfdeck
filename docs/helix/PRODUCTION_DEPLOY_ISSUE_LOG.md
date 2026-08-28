@@ -94,3 +94,5 @@ Product Owner 随后确认 `/transcode` 就是 Production Workspace，要求记�
 修复：第一页到达即渲染表格；其余页后台续拉；轮询只合并首页进展，不再把整表当门闩。
 
 随后用户点「需要处理」看到空表。库内仍有 41 条 `attention_required`（身份冲突/待确认/冻结），但首页按 `added_at_ms` 倒序全是新进的整理中条目；10 秒轮询还会打断后台全量续拉。已改为点筛选时按 classification 向服务取数，且轮询不再取消续拉。
+
+冻结根因已核对：Related NFO `<actor>` 超过 `MetadataObservation.peopleHints` 上限 64，补资料结果被 P4 拒绝。实现改为 NFO 解析与观察组装都截到 64。已冻结的 Run 仍须用户放弃后重新采购，代码不会自动解冻。

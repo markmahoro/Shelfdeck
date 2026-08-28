@@ -179,7 +179,7 @@ function buildMetadataObservation(value) {
     fetchIntentDigest:intent.intentDigest, sourceKind:intent.sourceKind, sourceRef:metadataSourceRef(intent),
     sourcePriority:intent.sourcePriority, identityDigest:intent.resolvedIdentityDigest, contentProfile:intent.contentProfile,
     descriptiveFacts:Object.freeze(descriptiveFacts), providerIdentitySet:Object.freeze(providerIdentitySet),
-    peopleHints:Object.freeze([...(value?.peopleHints || [])]), artifactHints:Object.freeze([]) };
+    peopleHints:Object.freeze([...(value?.peopleHints || [])].slice(0, 64)), artifactHints:Object.freeze([]) };
   result.evidenceId = canonicalDigest({ schema:'libra.metadata-observation-evidence-id@1',
     fetchIntentDigest:result.fetchIntentDigest, descriptiveFactsDigest:descriptiveFacts.recordDigest,
     providerIdentitySetDigest:providerIdentitySet.recordDigest });
