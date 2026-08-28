@@ -54,6 +54,7 @@ worktrees/
 # 测试环境凭据（不提交）
 tests/env/docker-fn.env
 tests/TEST_ENV_CHECKLIST.md
+tests/.env.nas-*
 
 # E2E run state contains production response fragments; keep the committed report only.
 docs/v3/acceptance/.kairox_frontend_api_e2e_state.json

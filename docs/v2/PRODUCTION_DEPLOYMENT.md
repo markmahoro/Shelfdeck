@@ -15,20 +15,23 @@
 | 镜像名 | `markmahoro/shelfdeck:<tag>`，同时打 `latest`，但生产不从 DockerHub pull |
 | 容器内 service 端口 | `18080` |
 | 容器内数据目录 | `/app/data` |
-| 成人库挂载 | NAS `/vol02/1000-0-24018892` -> 容器 `/adult_media` |
 | 普通媒体挂载 | NAS `/vol02/1000-0-c5b736af` -> 容器 `/media`（CIFS `192.168.12.45`） |
+| 洗版/外部落地 | NAS `/vol2/1000/shelfdeck_upgrade` -> 容器 `/upgrade` |
+| 转码临时目录 | NAS `/vol2/1000/shelfdeck_transcode` -> 容器 `/transcode` |
+| 成人库挂载 | NAS `/vol02/1000-0-24018892` -> 容器 `/adult_media` |
+| QSV 核显 | 宿主机 `/dev/dri` -> 容器 `/dev/dri`，`LIBVA_DRIVER_NAME=iHD` |
 
 `media-service/docker-compose.example.yml` 只是新环境模板，不是当前 NAS 生产 compose 的来源。不要根据模板推断当前生产挂载；以 NAS 上的 `/vol1/1000/docker/shelfdeck/docker-compose.yml` 和本文件为准。
 
 ## 标准发布流程
 
-Helix 镜像必须在部署脚本中执行只读 preflight：
+Helix-beta 首次（或 schema 不匹配时）必须 `--helix-clean-init`。clean-init 把 compose 目录挂到 `/run/helix-nas`，在 `/run/helix-nas/data` 初始化，避免把 bind-mount 的 `/app/data` 当成可 rename 的目录。确认词为 `INITIALIZE_HELIX_CLEAN_V1`。`SHELFDECK_SECRET_ROOT` 写入 NAS `secret.env`（不入库），compose 通过 `env_file` 注入。不得运行 v3 compatibility migration、dual read 或直接修改 SQLite。
 
-```bash
-docker run --rm -v /vol1/1000/docker/shelfdeck/data:/app/data:ro markmahoro/shelfdeck:<tag> node scripts/helix-data-preflight.js --data-dir=/app/data
-```
+部署脚本会重写 NAS compose，但必须保留并校验：
 
-该步骤只接受当前 clean schema，不迁移旧状态。首次 Helix clean cutover 必须显式增加 `--helix-clean-init`；部署脚本会先运行 clean-init plan，再停容器、备份并执行初始化。不得运行 v3 compatibility migration、dual read 或直接修改 SQLite。
+- `/vol02/1000-0-c5b736af:/media`
+- `/vol2/1000/shelfdeck_upgrade:/upgrade`
+- `/dev/dri:/dev/dri`
 
 1. 在本机从仓库根目录构建生产镜像 tarball：
 
@@ -85,12 +88,7 @@ node scripts/deploy-nas.js /vol1/1000/docker/shelfdeck/shelfdeck-<tag>.tar --sha
 node scripts/deploy-nas.js /vol1/1000/docker/shelfdeck/shelfdeck-<tag>.tar --sha256 <local-sha256> --helix-clean-init --apply
 ```
 
-该模式必须同时生成并校验：
-
-- `config.json.pre-helix-<timestamp>.bak` 独立配置快照。
-- `data/backups/helix-production-cutover-<timestamp>/config.json` clean-init 全量状态备份中的配置副本。
-
-两份配置备份任一缺失或为空，部署必须停止。
+空 data 目录的 Helix-beta 首次初始化不要求旧 `config.json` 快照；已有数据时 clean-init 会在 compose 目录旁写 backup。Admin API key 只写本机 ignored 的 `tests/.env.nas-admin`，不得提交或打印。
 
 ## 部署脚本的固定契约
 

@@ -16,7 +16,7 @@ Last updated: 2026-08-28
 2. 计算本地 tarball SHA-256。
 3. `node scripts/upload-nas-image.js dist-image\shelfdeck-<tag>.tar`。
 4. `node scripts/deploy-nas.js /vol1/1000/docker/shelfdeck/shelfdeck-<tag>.tar --sha256 <local-sha256>` dry run。
-5. 首次 Helix clean cutover 必须带 `--helix-clean-init`；dry run 通过后再 `--helix-clean-init --apply`。
+5. 首次 Helix clean cutover 必须带 `--helix-clean-init`；dry run 通过后再 `--helix-clean-init --apply`。compose 必须挂载 `/vol02/1000-0-c5b736af:/media`、`/vol2/1000/shelfdeck_upgrade:/upgrade` 和 `/dev/dri`（QSV）。
 
 镜像 tag 在构建时按 `docs/v3/VERSIONING.md` 分配 `<milestone-slug>-<YYYYMMDD>-<git-short-sha>`，milestone-slug 使用 `helix-beta`，日期使用构建日，SHA 使用 `bdafe1869`。构建前不把该 tag 写入已部署记录，也不打 Git release tag。`media-desktop` 不在本次范围。NAS `192.168.12.230:18080` 始终视为生产；`--helix-clean-init` 不是原地兼容升级。已封存失败 Canary Evidence 不得拼入 HB 结论。不可变 Baseline `F:\shelfdeck_test_zone\test_film` 继续保留。
 
