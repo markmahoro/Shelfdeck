@@ -214,6 +214,10 @@ User Perception全面取消year关联校验，year仅作为资料保存/展示�
 | UAT-137 | Arca把历史Product Verification动态范围标签当成现场事实，误拒绝fresh SDR到SDR preserve成品 | `PRODUCT_CONFORMANCE` | `HANDOFF_B_ACCEPTANCE`、`CONTRACT_PROPAGATION`、`FRESH_REALITY` | Arca Mandatory Media Acceptance | 成品正确性、独立验收、ISO上架活性 | Critical | `QUALIFICATION FAILED / LOCAL FULL REGRESSION PASSED / NEW CANARY REQUIRED` |
 | UAT-138 | 单Movie目录中的Windows `Thumbs.db`已被Field观察却未进入Related处置，形成Final Inventory外孤儿文件 | `MATERIAL_CONTROL` | `RELATED_MATERIAL`、`INVENTORY_INTEGRITY`、`SAME_ROOT` | Procurement Related Material Association + Libra/Arca Disposition continuity | 逐文件可追溯性、上架正确性、删除安全 | Critical | `QUALIFICATION FAILED / LOCAL FULL REGRESSION PASSED / NEW CANARY REQUIRED` |
 | UAT-139 | Off-deck Admin Web没有将全部当前收藏多选/全选为一个batch Review的入口，无法执行统一Scope核对和High-volume二次确认 | `USER_EXPERIENCE` | `DESTRUCTIVE_AUTHORIZATION`、`HIGH_VOLUME_FENCE` | Arca Off-deck Admin Web + existing batch Review command | 删除授权完整性、大批量安全、全Shelf退出可达性 | Critical | `QUALIFICATION FAILED / LOCAL FULL REGRESSION PASSED / NEW CANARY REQUIRED` |
+| UAT-140 | 收藏详情健康区把 Finding / 三维 / 技术标识铺给用户；应收成三态灯 + 修复中写正在修什么 | `USER_EXPERIENCE` | `PROJECTION_FRESHNESS` | Admin Web Collection 详情展示 | 可理解性 | Medium | **FIXED**（本地；未部署） |
+| UAT-141 | 概览通栏堆叠，首屏报平安；应收成一行状态 + 两列工作面 | `USER_EXPERIENCE` | `LAYOUT` | Admin Web Overview | 可扫读性、行动优先级 | Medium | `RECORDED / NOT AUTHORIZED` |
+| UAT-142 | 八页标题下导语、安全声明与指标附注重复同一语义 | `USER_EXPERIENCE` | `COPY_REDUNDANT` | Admin Web 全站 | 可理解性、信息层级 | Medium | `RECORDED / NOT AUTHORIZED` |
+| UAT-143 | 退出收藏规则应进设置 Tab；页面只留系统建议与手动搜索退出，确认用弹出详情 | `USER_EXPERIENCE` | `LAYOUT`、`DESTRUCTIVE_AUTHORIZATION` | Admin Web Off-deck + Settings | 决断焦点、可扫读性 | High | `RECORDED / NOT AUTHORIZED` |
 
 ### 2.0.1 UAT-074–UAT-084必须保护的历史修复
 
@@ -4272,7 +4276,105 @@ Admin Web完整`30/30 PASS`，生产build PASS；Admin Contract与P16 Off-deck�
 UI/FACT/FS/监控Evidence原样保留。UAT-139为
 `QUALIFICATION FAILED / LOCAL FULL REGRESSION PASSED / NEW CLEAN MAIN SHA FULL RERUN REQUIRED`。
 
-## 137. 后续问题模板
+## 137. UAT-140：收藏详情健康区收成三态灯，修复中只写正在修什么
+
+问题分类：`USER_EXPERIENCE / PROJECTION_FRESHNESS`
+
+用户侧现象：点开「我的收藏」详情后，健康区使用内部检查语言。「当前发现」下列 `findingKind` 代码（如 `presentation:nfo_missing`），再叠保管/呈现/合规三维，底部「技术标识」只展开 `shelfEntryId`。用户读不懂，也做不了决策。
+
+现场证据：`media-service/web/src/helix/CollectionPage.tsx` 健康块；重叠仍 OPEN 的 `UX-006`。`UAT-052` 已收口按架导航与占用空间等第一批详情事实，未收口健康展示。
+
+初步诊断：Aftercare 三维、Finding、Case 已是正式事实。缺口是详情翻译过重。用户不要 Finding 列表，只要综合状态。
+
+业务影响：健康结论在海报章和筛选里已有，详情却用检查台账把同一事实再说一遍，降低可信度和可操作性。
+
+修复边界（确认口径，**未授权实现**）：
+
+- 详情健康区只保留一个综合状态：**健康 / 修复中 / 不健康**，对应绿 / 黄 / 红；
+- **修复中**时再写正在修什么（用户语言，不写 stage / capability 代码）；
+- 不展示「当前发现」、`findingKind`、三维卡片、「技术标识」、失败修复原因主文案；
+- 展示折叠：内部 `healthy` → 健康，`repairing` → 修复中，其余（`attention_required` / `observing` / `never_assessed`）→ 不健康；
+- 「立即检查健康」按 `HB-D.02` 可保留；
+- 不改 Aftercare 状态机、Finding 合同、Care Query、海报墙五态筛选；不改 SSOT Owner/Handoff；文件来源/收藏架页的「技术标识」折叠不在本项。
+
+验收证据：详情主表面只有三态灯；修复中可见正在修什么；健康/不健康不出现 Finding 代码或 Entry ID。
+
+当前处理决定：2026-08-30 已实现详情展示折叠。内部 `healthy` → 健康，`repairing` → 修复中，其余 → 不健康。修复中写 stage 用户语言（及可翻译的修复对象）。不改 Aftercare 状态机、Finding 合同、海报墙五态筛选。`web/test/collection.test.tsx` PASS。未部署。
+
+## 138. UAT-141：概览排版收成一行状态 + 两列工作面
+
+问题分类：`USER_EXPERIENCE / LAYOUT`
+
+用户侧现象：概览是 1320px 通栏单列：页头导语 → 系统状态大色块 → 后台检查条 → 三指标 → 待办卡片 → 「正在整理」脚注 → 最近进展卡片。系统没事时首屏在报平安；有事时色块和待办说同一句。正在整理被降成灰字脚注。
+
+现场证据：`media-service/web/src/helix/OverviewPage.tsx`、`helix.css` `.system-state` / `.background-status` / `.metric-strip` / `.ledger-panel`。内容合同已由 `UAT-057` 收口，本项只改版面层级。
+
+初步诊断：三件事被做成同等重量的通栏堆叠，没有主工作。横轴空、纵轴碎。
+
+修复边界（确认口径，**未授权实现**）：
+
+- 内容不变：系统是否就绪、可点待办、带片名最近进展；不与「我的收藏」合并；不做第二面海报墙；
+- 页头收系统态：正常运行用状态词，尚未配置 / 故障 / 目录不可用才展开色条；
+- 后台检查默认一行，点开才看七项明细；
+- 三指标变薄，去掉同义附注；
+- 左列待办 + 正在整理（片名），右列最近进展（去掉 `01/02` 装饰编号）；
+- 空待办一行，不要大空卡片；删掉页头导语；
+- 不改 Overview Query 口径、不改配色字体、不补尚无稳定事实的格子。
+
+现网「后台检查 / 需要留意 / 待处理 5」与系统「正常运行」并排，待处理数不是五部电影：这是本项的表面层级问题（检查条与待办抢语义），**不另开 PROD**。展开后的内部 registration 码（如 `P9_RUN_LIFECYCLE_TERMINAL`）仍属检查明细，不改 Query 口径。
+
+验收证据：首屏能同时看到行动（待办/正在整理）与履历（最近进展）；正常运行不再占整条绿底；导语消失；后台检查默认一行，不与待办抢「要你处理」。
+
+当前处理决定：2026-08-30 Product Owner 确认该排版方向，并明确先记下、不改代码。同日确认现网后台检查「需要留意」归本项，不另立案。UAT-141 为 `RECORDED / NOT AUTHORIZED`。
+
+## 139. UAT-142：Admin Web 八页重复语义
+
+问题分类：`USER_EXPERIENCE / COPY_REDUNDANT`
+
+用户侧现象：各页标题下常驻一句解释，复述导航已经说清的事。用户点名「我的收藏」标题下「只显示已经上架的电影」像脚注，但切到「历史」时这句话还是错的。同页安全声明、指标附注、小节标题再把同一句说两到四遍。
+
+现场证据：八页 `PageHeader description` 均来自 `surface-model.ts` 或页面内硬编码；对照 `CollectionPage.tsx`、`OffdeckPage.tsx`、`MaterialFieldsPage.tsx`、`PeoplePage.tsx`、`ShelvesPage.tsx`、`FormationPage.tsx`、`SettingsPage.tsx`、`OverviewPage.tsx`。SSOT §9.9.4：页面 Header 保持紧凑，不在标题下常驻解释段落。与已关闭的 `UX-001`/`UX-002` 同类，但是 2026-08-22 口号清掉之后换上的说明性导语，不是旧口号回潮。
+
+初步诊断：每个页面都在教用户「本页是什么」，而导航、h1、筛选和空状态已经承担这件事。安全承诺本应只出现在不可逆确认上，却做成了页头口头禅。
+
+修复边界（建议口径，**未授权实现**）：
+
+- 八页默认去掉标题下常驻导语；例外只留给当前筛选会改变页面含义、且控件本身说不清的情况；
+- 「不会删除 / 不会移动文件」只留在注销、退出授权、放弃整理等确认动作上，不在页头和列表脚注再写一遍；
+- 指标附注若只是复述标签则删除；
+- 小节 h2 若只是复述页名（如「收藏条目」「全部媒体」「当前文件来源」）则去掉或改成有筛选信息的一行；
+- 不改路由、不减一级入口、不改 Owner/Handoff；不把 `UAT-140` 健康三态或 `UAT-141` 概览栅格并进本项。
+
+验收证据：打开任一运营页，标题下不再有复述导航的句子；「我的收藏」在「当前收藏 / 历史」之间切换时没有过时导语；危险操作确认框仍明确说文件命运。
+
+当前处理决定：2026-08-30 Product Owner 要求整体排查后先记下。UAT-142 为 `RECORDED / NOT AUTHORIZED`。细项见 `ADMIN_WEB_UX_ISSUE_LOG.md` `UX-034`–`UX-037`。
+
+## 140. UAT-143：退出收藏页把整库多选做成常驻主表面
+
+问题分类：`USER_EXPERIENCE / LAYOUT / DESTRUCTIVE_AUTHORIZATION`
+
+用户侧现象：退出收藏页看起来乱。打开先是一句「没有授权不会删除」，再是可折叠规则，然后是整份当前收藏的勾选清单（全选 / 已选 N 部 / 审阅已选），下面才是常常为空的「建议退出」和「正在退出」。从「我的收藏」点退出进来时，刚建立的审阅还压在整库清单下面。
+
+现场证据：`media-service/web/src/helix/OffdeckPage.tsx` 区块顺序为规则 → `offdeck-bulk-task`（UAT-139）→ 建议 → 当前审阅 → 正在退出。`helix.css` `.offdeck-bulk-list` `max-height: 420px`。SSOT §9.4.8 五个视图是「审阅建议 | 重复收藏 | 处理中 | 历史 | 规则」，批量选择「只合并用户确认体验」。`UAT-054` 把主路径收成规则（折叠）→ 建议 → 当前审阅 → 正在退出；空态指引去「我的收藏」直接退出。`UAT-139` 为全量 Off-deck 资格补了整库多选，但做成了常驻第一块可见工作面。
+
+初步诊断：不是销毁链缺入口，是两轮正确修复叠在同一滚动页上。日常主工作应是「有没有要你决断的退出」；整库勾选是偶尔才做的批量确认。审阅作为第四张卡片，无法「保障决断」（§9.9.1）。
+
+业务影响：默认 Policy 关闭、建议为 0 时，页面仍像第二面收藏墙。危险授权与挑选清单同时可见，阶段词「审阅」用在选片和真正审阅两处。
+
+修复边界（Product Owner 确认口径，**未授权实现、未改 SSOT**）：
+
+- 不改 Off-deck Owner、Destruction Scope、High-volume 二次确认、授权前可取消、授权后不可反悔；`UAT-139` 全选当前收藏并一次确认 **必须仍可达**；
+- 退出规则从退出页挪到系统设置一个 Tab。Policy Owner 仍是 Arca Off-deck，不新增一级入口；
+- 退出页只有两条流：**系统建议退出**（列表展现建议条目，含重复组）和 **手动退出**（搜索后选择，不是打开就铺整库）；
+- 将删文件、大批量二次确认、授权删除用页面弹出详情卡片（与收藏详情同类），不在主表面再堆确认块；从「我的收藏」点退出也进同一张卡片；
+- 界面不用「审阅」。内部对象仍是 Review。用户语言用退出 / 将删除的文件 / 取消这次退出 / 确认删除；
+- 不重做销毁主链，不把本页做成第三面海报墙。落地前需 Architecture 把 SSOT §9.4.8 规则视图改到 §9.4.10 设置；实施线程不得自己改 SSOT。
+
+验收证据：退出页无规则编辑；设置有退出规则 Tab；系统建议与手动搜索是两个入口；确认只出现在弹出详情；无「审阅」；仍能全选当前收藏并走 High-volume 二次确认。
+
+当前处理决定：2026-08-30 Product Owner 确认上述方向并要求先记下、不改代码。UAT-143 为 `RECORDED / NOT AUTHORIZED`。细项见 `ADMIN_WEB_UX_ISSUE_LOG.md` `UX-038`。
+
+## 141. 后续问题模板
 
 后续发现的问题按以下结构追加：
 

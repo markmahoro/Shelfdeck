@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import CollectionPage from '../src/helix/CollectionPage';
 import { helixAdminApi, type CollectionEntry } from '../src/helix/api';
@@ -99,6 +99,12 @@ describe('Arca collection poster wall', () => {
     expect(screen.getByText('HEVC · 2160p')).toBeInTheDocument();
     expect(screen.getByText('有海报 · 有 NFO')).toBeInTheDocument();
     expect(screen.getByLabelText('The Shawshank Redemption评分')).toBeInTheDocument();
+    expect(screen.getByText('健康')).toBeInTheDocument();
+    expect(screen.queryByText('当前发现')).not.toBeInTheDocument();
+    expect(screen.queryByText('技术标识')).not.toBeInTheDocument();
+    expect(screen.queryByText('保管')).not.toBeInTheDocument();
+    expect(screen.queryByText('呈现')).not.toBeInTheDocument();
+    expect(screen.queryByText('合规')).not.toBeInTheDocument();
     fireEvent.keyDown(document, { key:'Escape' });
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
   });
@@ -123,6 +129,37 @@ describe('Arca collection poster wall', () => {
       name:/查看 The Shawshank Redemption 详情/,
     }));
     expect(await screen.findByText('正在验证媒体')).toBeInTheDocument();
+    expect(within(screen.getByRole('dialog')).getByText('修复中')).toBeInTheDocument();
     expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
+    expect(screen.queryByText('当前发现')).not.toBeInTheDocument();
+  });
+
+  it('folds attention and unassessed care into one unhealthy lamp without finding codes', async () => {
+    vi.spyOn(helixAdminApi, 'listCollection').mockResolvedValue({ items:[entry] });
+    vi.spyOn(helixAdminApi, 'listPerceptionRecords').mockResolvedValue({
+      items:[], nextCursor:null, currentRating:null,
+    });
+    vi.spyOn(helixAdminApi, 'getCare').mockResolvedValue({
+      shelfEntryId:entry.shelfEntryId,
+      health:{
+        state:'attention_required',
+        dimensions:{
+          presentation:{ state:'attention_required', findings:[{ findingId:'f1', findingKind:'presentation:nfo_missing', severity:'warning', repairability:'auto_repair', state:'open', createdAtMs:1 }] },
+        },
+      },
+      basis:{ inventoryRevision:1, standardRevision:1, placementRevision:1, careBasisDigest:'d' },
+      activeCaseProgress:null,
+      history:{ assessments:[], findings:[], cases:[{ aftercareCaseId:'old', state:'unresolved', careBasisDigest:'d', terminalAtMs:2, terminalReasonCode:'reassessment_not_healthy' }], commits:[] },
+    });
+    renderCollection();
+    fireEvent.click(await screen.findByRole('button', {
+      name:/查看 The Shawshank Redemption 详情/,
+    }));
+    const dialog = await screen.findByRole('dialog', { name:'The Shawshank Redemption' });
+    expect(within(dialog).getByText('不健康')).toBeInTheDocument();
+    expect(within(dialog).queryByText('需要处理')).not.toBeInTheDocument();
+    expect(within(dialog).queryByText('presentation:nfo_missing')).not.toBeInTheDocument();
+    expect(within(dialog).queryByText('entry-1')).not.toBeInTheDocument();
+    expect(within(dialog).queryByText('最近一次自动修复未完成')).not.toBeInTheDocument();
   });
 });

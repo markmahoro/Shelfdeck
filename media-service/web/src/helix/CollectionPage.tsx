@@ -8,15 +8,30 @@ import { isUnauthorized, useSession } from './session';
 import './collection.css';
 
 const healthFilters: [HealthState | 'all', string][] = [['all', '全部'], ['healthy', '健康'], ['observing', '观察中'], ['repairing', '修复中'], ['attention_required', '需要处理'], ['never_assessed', '尚未检查']];
-const dimensionLabels = { custody: '保管', presentation: '呈现', conformance: '合规' };
+const foldedHealthLabels = { healthy: '健康', repairing: '修复中', unhealthy: '不健康' } as const;
 const careStageLabels: Record<string, string> = { preparing: '正在准备修复', preparing_media: '正在处理媒体', verifying_media: '正在验证媒体', committing_inventory: '正在更新收藏', reassessing: '正在复核结果', waiting_for_recovery: '等待自动恢复' };
-const terminalReasonLabels: Record<string, string> = {
-  care_basis_changed: '收藏依据已变化，本次修复已停止', modification_fenced: '条目正在执行其他变更，本次修复已停止',
-  provider_artifact_not_available: '所需资料暂时无法取得', media_verification_failed: '处理后的媒体未通过复核',
-  repair_preparation_exhausted: '材料准备多次失败', repair_commit_exhausted: '收藏更新多次失败',
-  settlement_or_commit_failed: '收藏更新或原材料收尾失败', reassessment_exhausted: '结果复核多次失败',
-  reassessment_not_healthy: '修复完成后仍未达到收藏要求', case_closure_exhausted: '修复结果未能完成登记',
+const repairSubjectLabels: Record<string, string> = {
+  nfo_missing: '说明书', nfo_corrupt: '说明书', nfo_update_required: '说明书',
+  poster_missing: '海报', poster_corrupt: '海报', artifact_missing: '缺失资料',
+  video_codec_unmet: '视频编码', container_unmet: '封装格式', file_extension_unmet: '文件格式',
+  max_size_exceeded: '体积', placement_unmet: '收藏位置',
 };
+
+function foldedHealth(state: HealthState | undefined) {
+  if (state === 'healthy') return 'healthy';
+  if (state === 'repairing') return 'repairing';
+  return 'unhealthy';
+}
+
+function repairCopy(progress: CareDetail['activeCaseProgress']) {
+  if (!progress) return '正在自动修复';
+  const subjects = [...new Set((progress.goals || []).flatMap((goal) => {
+    const token = String(goal).split(/[/:]/).find((part) => repairSubjectLabels[part]);
+    return token ? [repairSubjectLabels[token]] : [];
+  }))];
+  const stage = careStageLabels[progress.stage] || '正在自动修复';
+  return subjects.length ? `${stage}：${subjects.join('、')}` : stage;
+}
 
 function formatBytes(value: number | null | undefined) {
   if (value == null || !Number.isFinite(value)) return '—';
@@ -93,9 +108,6 @@ export default function CollectionPage() {
   const selectedShelf = shelves.find((item) => item.shelfId === shelfId);
   const currentCount = selectedShelf ? selectedShelf.currentCount : summary.currentCount;
   const historyCount = selectedShelf ? selectedShelf.historyCount : summary.historyCount;
-  const latestTerminalCase = care?.history.cases.filter((item) => item.careBasisDigest === care.basis.careBasisDigest && ['invalidated', 'unresolved'].includes(item.state) && item.terminalAtMs != null)
-    .sort((left, right) => Number(right.terminalAtMs) - Number(left.terminalAtMs))[0] || null;
-  const currentFindings = care ? Object.values(care.health.dimensions || {}).flatMap((dimension) => dimension.findings || []) : [];
   async function checkHealth() {
     if (!selected) return;
     setChecking(true); setError('');
@@ -157,16 +169,23 @@ export default function CollectionPage() {
           </dl>
           <div className="collection-rating"><span>我的评分</span><RatingControl targetType="shelf_entry" targetId={selected.shelfEntryId} label={selected.displayIdentity} /></div>
           <section className="collection-health" aria-labelledby="collection-health-heading">
-            <div className="collection-health-heading"><div><h3 id="collection-health-heading">收藏健康 · {healthLabels[care?.health.state || selected.health.state]}</h3></div>
+            <div className="collection-health-heading"><div><h3 id="collection-health-heading">收藏健康</h3></div>
               <Button type="button" onClick={() => void checkHealth()} disabled={checking}>{checking ? '已开始检查…' : '立即检查健康'}</Button>
             </div>
-            {!care ? <p className="health-loading">正在读取健康详情…</p> : <>
-              <div className="health-dimensions">{(['custody', 'presentation', 'conformance'] as const).map((kind) => <article key={kind}><strong>{dimensionLabels[kind]}</strong><span>{healthLabels[care.health.dimensions?.[kind]?.state || 'never_assessed']}</span><small>{care.health.dimensions?.[kind]?.assessedAtMs ? new Date(care.health.dimensions[kind].assessedAtMs!).toLocaleString() : '尚未检查'}</small></article>)}</div>
-               {care.activeCaseProgress && <div className="health-case-progress"><div><strong>自动修复进行中</strong><span>{care.activeCaseProgress.progressPercent == null ? (careStageLabels[care.activeCaseProgress.stage] || '处理中') : `${care.activeCaseProgress.progressPercent}%`}</span></div>{care.activeCaseProgress.progressPercent != null && <progress max="100" value={care.activeCaseProgress.progressPercent} aria-label={`自动修复进度 ${care.activeCaseProgress.progressPercent}%`} />}</div>}
-               {!care.activeCaseProgress && latestTerminalCase?.terminalReasonCode && <div className="health-findings"><strong>最近一次自动修复未完成</strong><p>{terminalReasonLabels[latestTerminalCase.terminalReasonCode] || `原因：${latestTerminalCase.terminalReasonCode}`}</p></div>}
-              {currentFindings.length > 0 && <div className="health-findings"><strong>当前发现</strong>{currentFindings.map((item) => <p key={item.findingId}>{item.findingKind}</p>)}</div>}
-              <details><summary>技术标识</summary><p className="health-basis">条目 {selected.shelfEntryId}</p></details>
-            </>}
+            {!care ? <p className="health-loading">正在读取健康详情…</p> : (() => {
+              const lamp = foldedHealth(care.health.state);
+              return <>
+                <p className={`health-lamp ${lamp}`}>
+                  <span className="health-lamp-dot" aria-hidden="true" />
+                  <span className="health-lamp-copy">
+                    <strong>{foldedHealthLabels[lamp]}</strong>
+                    {lamp === 'repairing' && <small>{repairCopy(care.activeCaseProgress)}</small>}
+                  </span>
+                </p>
+                {lamp === 'repairing' && care.activeCaseProgress?.progressPercent != null &&
+                  <progress className="health-repair-progress" max="100" value={care.activeCaseProgress.progressPercent} aria-label={`自动修复进度 ${care.activeCaseProgress.progressPercent}%`} />}
+              </>;
+            })()}
           </section>
           <div className="collection-exit">
             <Button variant="danger" type="button" onClick={() => void exitCollection()} disabled={exiting}>{exiting ? '正在建立审阅…' : '退出收藏'}</Button>

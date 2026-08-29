@@ -36,9 +36,9 @@ SSOT §9.4.8 目前把规则写在退出页五个视图里；落地前需 Archit
 
 2026-08-30 代码已修、未部署。Aftercare Presentation 按 TMDB 身份与 owned 字段/演员语义比较，不再整份字节全等；Custody 忽略仍存在的 NFO sidecar 指纹漂移。现网《网络谜踪》需无损升级后下一次评估才放行。未改 SSOT。记入 `docs/helix/PRODUCTION_DEPLOY_ISSUE_LOG.md`。
 
-## 0. Parked — 收藏详情健康三态（UAT-140 / UX-006）
+## 0. Code fix — 收藏详情健康三态（UAT-140 / UX-006）
 
-2026-08-30 Product Owner 确认：我的收藏详情健康区只要一个综合状态 **健康 / 修复中 / 不健康**（绿 / 黄 / 红）；修复中再写正在修什么。不展示「当前发现」、三维卡片、「技术标识」。只登记，先不改代码、不改 Aftercare 合同、不改海报墙筛选。见 `USER_ACCEPTANCE_TEST_ISSUE_LOG.md` `UAT-140`。
+2026-08-30 代码已修、未部署。我的收藏详情健康区只保留 **健康 / 修复中 / 不健康**；修复中写正在修什么。不展示「当前发现」、三维卡片、「技术标识」。海报墙五态筛选未改。见 `USER_ACCEPTANCE_TEST_ISSUE_LOG.md` `UAT-140`。
 
 ## 0. Code fix — 长转码进度采样顶满后页面冻住（PROD-027）
 
