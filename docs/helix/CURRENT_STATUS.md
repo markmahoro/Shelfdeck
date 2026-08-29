@@ -1,8 +1,12 @@
 # ShelfDeck Clean Helix Current Status
 
-Status: Helix-beta 范围已收窄为仅 Movie 全链路。Movie Procurement与Movie Libra封口保持有效；Movie Arca已完成Handoff B Acceptance、On-deck、Shelf Entry、Deck Fact、Beta Aftercare、Off-deck及Shelf Deregistration完整闭环。当前精确状态为`MOVIE COLLECTION LIFECYCLE READY THROUGH SHELF DEREGISTRATION`。当前生产镜像为 `markmahoro/shelfdeck:helix-beta-20260830-06d0cc63b`（无损升级，无 `--helix-clean-init`），health `ok` / `helix-clean-v3`。Intake 席位 3，Workspace `/transcode` rev 2。Helix-beta 验收行见现行基线，尚未把任何 `HB-*` 标为验收 `PASS`。
+Status: Helix-beta 范围已收窄为仅 Movie 全链路。Movie Procurement与Movie Libra封口保持有效；Movie Arca已完成Handoff B Acceptance、On-deck、Shelf Entry、Deck Fact、Beta Aftercare、Off-deck及Shelf Deregistration完整闭环。当前精确状态为`MOVIE COLLECTION LIFECYCLE READY THROUGH SHELF DEREGISTRATION`。当前生产镜像为 `markmahoro/shelfdeck:helix-beta-20260830-999a94fa8`（git `999a94fa8`，tar SHA-256 `7162fb8d1a6b5adb7406e4bad2d30928d54c845a11b07571737359adfe95c312`；无损升级 2026-08-30），health `ok` / `helix-clean-v3`。Intake 席位 3，Workspace `/transcode` rev 2。Helix-beta 验收行见现行基线，尚未把任何 `HB-*` 标为验收 `PASS`。
 
 Last updated: 2026-08-30
+
+## 0. Deployed — PROD-027/028/029 + UAT-140–143 batch（2026-08-30）
+
+2026-08-30 无损升级至 `helix-beta-20260830-999a94fa8`（git `999a94fa8`）。部署后 health `ok`；Overview `setup` 无 `productChoice`；收藏架/设置无自动运营控件；概览一行状态 + 两列 + 后台检查折叠；收藏详情三态健康；退出规则在设置 Tab。后台：6 部正式收藏、3 部整理中、ffmpeg 在跑（里斯本丸沉没）。唐人街探案转码历史多次 TIMEOUT/FAILED 为升级前既有项，Attempt 25 升级后已重新 executing；Searching Aftercare 仍为 `never_assessed`，待下一次评估吃到 PROD-028。
 
 ## 0. Code fix — 退出收藏页信息架构（UAT-143 / UX-038）
 
