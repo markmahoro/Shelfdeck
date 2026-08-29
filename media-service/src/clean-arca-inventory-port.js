@@ -49,6 +49,33 @@ function isManagedSourceLocation(request, location) {
   return managedSourceLocations(request).has(path.resolve(location));
 }
 
+function isLibraryPresentationRole(role) {
+  return role === 'metadata_sidecar' || role === 'poster' || role === 'fanart'
+    || role === 'sidecar' || role === 'subtitle';
+}
+
+function hiddenStageSlotDirectory(targetDirectory, suffix) {
+  return path.join(path.dirname(targetDirectory), '.shelfdeck-stage-' + suffix);
+}
+
+function legacyStageSlotDirectory(targetDirectory, suffix) {
+  return targetDirectory + '.shelfdeck-stage-' + suffix;
+}
+
+function resolveStageSlotDirectory(targetDirectory, suffix) {
+  const hidden = hiddenStageSlotDirectory(targetDirectory, suffix);
+  const legacy = legacyStageSlotDirectory(targetDirectory, suffix);
+  // Prefer the in-flight legacy sibling so a 26 GiB copy is not abandoned
+  // after the hidden-slot naming change. New Runs create the hidden form.
+  if (fs.existsSync(legacy)) return legacy;
+  return hidden;
+}
+
+function fingerprintsMatchPlan(observed, plan) {
+  return Number(observed.stat.size) === plan.sizeBytes &&
+    observed.contentFingerprint === plan.contentFingerprint;
+}
+
 function isBluRayDiscTreeName(name) {
   const upper = String(name || '').toUpperCase();
   return upper === 'BDMV' || upper === 'CERTIFICATE';
@@ -332,6 +359,35 @@ function createCleanArcaInventoryPort(options) {
   const copyFile = options.copyFile || cooperativeCopyFile;
   const computeFingerprint = options.computeFingerprint ||
     computeBoundedMaterialFingerprint;
+
+  async function restorePresentationMember(request, plan, stagedLocation) {
+    if (!isLibraryPresentationRole(plan.member.role) ||
+        !fs.existsSync(stagedLocation) || !fs.existsSync(plan.source)) {
+      return false;
+    }
+    const staged = await computeFingerprint(stagedLocation);
+    if (fingerprintsMatchPlan(staged, plan)) return false;
+    const source = await computeFingerprint(plan.source);
+    if (!fingerprintsMatchPlan(source, plan)) return false;
+    const temporary = stagedLocation + '.restore-' +
+      canonicalDigest({ run:request.onDeckRunId, key:plan.member.materialKey })
+        .slice(0, 16);
+    await fs.promises.rm(temporary, { force:true });
+    try {
+      await copyFile(plan.source, temporary, fs.constants.COPYFILE_EXCL);
+      const observed = await computeFingerprint(temporary);
+      if (!fingerprintsMatchPlan(observed, plan)) {
+        fail('CLEAN_ARCA_STAGE_COPY_VERIFY',
+          'Staged Inventory bytes failed verification.');
+      }
+      await fs.promises.rm(stagedLocation, { force:true });
+      await fs.promises.rename(temporary, stagedLocation);
+    } catch (error) {
+      await fs.promises.rm(temporary, { force:true }).catch(() => undefined);
+      throw error;
+    }
+    return true;
+  }
 
   function execute(participantId, body) {
     return options.unitOfWork.execute([{
@@ -984,7 +1040,7 @@ function createCleanArcaInventoryPort(options) {
       onDeckRunId: request.onDeckRunId,
       finalInventoryDecisionDigest: decision.decisionDigest,
     }).slice(0, 16);
-    const slotDirectory = built.targetDirectory + '.shelfdeck-stage-' + suffix;
+    const slotDirectory = resolveStageSlotDirectory(built.targetDirectory, suffix);
     if (!contained(built.targetRoot, slotDirectory) ||
         slotDirectory === built.targetDirectory) {
       fail('CLEAN_ARCA_TARGET_ESCAPE',
@@ -1065,11 +1121,15 @@ function createCleanArcaInventoryPort(options) {
       const existing = fs.existsSync(target)
         ? await computeFingerprint(target)
         : null;
-      const exact = existing && Number(existing.stat.size) === plan.sizeBytes &&
+      let exact = existing && Number(existing.stat.size) === plan.sizeBytes &&
         existing.contentFingerprint === plan.contentFingerprint;
       if (existing && !exact) {
-        fail('CLEAN_ARCA_STAGE_CONFLICT',
-          'Target Commit Slot contains conflicting staged bytes.');
+        const restored = await restorePresentationMember(request, plan, target);
+        if (!restored) {
+          fail('CLEAN_ARCA_STAGE_CONFLICT',
+            'Target Commit Slot contains conflicting staged bytes.');
+        }
+        exact = true;
       }
       if (request.replayCommitted && !finalExact && !exact) {
         fail('CLEAN_ARCA_COMMITTED_REALITY_DRIFT',
@@ -1167,6 +1227,9 @@ function createCleanArcaInventoryPort(options) {
       fail('CLEAN_ARCA_STAGED_MANIFEST_DRIFT',
         'Staged Inventory Manifest is stale.');
     }
+    const built = await buildPlanAsync(request);
+    const planBySource = new Map(built.plans.map((item) =>
+      [item.member.materialKey, item]));
     const observed = [];
     for (const member of manifest.stagedMembers) {
       requireContinuation(request);
@@ -1179,6 +1242,10 @@ function createCleanArcaInventoryPort(options) {
         path.basename(finalLocation));
       const location = fs.existsSync(stagedLocation)
         ? stagedLocation : finalLocation;
+      const plan = planBySource.get(member.sourceMaterialKey);
+      if (plan && fs.existsSync(stagedLocation)) {
+        await restorePresentationMember(request, plan, stagedLocation);
+      }
       const fingerprint = await computeFingerprint(location);
       if (Number(fingerprint.stat.size) !== member.physicalIdentity.sizeBytes ||
           fingerprint.contentFingerprint !==
@@ -1253,6 +1320,7 @@ function createCleanArcaInventoryPort(options) {
         fail('CLEAN_ARCA_STAGE_SLOT_MISSING',
           'Verified staged member disappeared before placement.');
       }
+      await restorePresentationMember(request, plan, stagedLocation);
       const staged = await computeFingerprint(stagedLocation);
       if (Number(staged.stat.size) !== plan.sizeBytes ||
           staged.contentFingerprint !== plan.contentFingerprint) {
@@ -1267,6 +1335,16 @@ function createCleanArcaInventoryPort(options) {
           'Target Commit Slot contains an unplanned member.');
       }
       fs.rmdirSync(handle.slotDirectory);
+    }
+    const slotSuffix = path.basename(handle.slotDirectory)
+      .replace(/^.*?shelfdeck-stage-/, '');
+    const unusedSlot = handle.slotDirectory ===
+      hiddenStageSlotDirectory(handle.targetDirectory, slotSuffix)
+      ? legacyStageSlotDirectory(handle.targetDirectory, slotSuffix)
+      : hiddenStageSlotDirectory(handle.targetDirectory, slotSuffix);
+    if (unusedSlot !== handle.slotDirectory && fs.existsSync(unusedSlot) &&
+        fs.readdirSync(unusedSlot).length === 0) {
+      fs.rmdirSync(unusedSlot);
     }
     const base = {
       schemaRef: 'helix://contracts/types/PlacementSwitchReceipt/v1',

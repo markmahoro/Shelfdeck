@@ -7,6 +7,9 @@ const { canonicalDigest } = require('./helix/contracts/canonical-json');
 const {
   identityBasis,
 } = require('./helix/domains/procurement/model/field-observation-contracts');
+const {
+  isArcaTargetCommitSlotName,
+} = require('./clean-arca-target-commit-slot');
 
 const MAX_FILES_PER_SCAN = 100_000;
 const MAX_FINGERPRINTED_FILES_PER_PAGE = 256;
@@ -96,6 +99,7 @@ async function collectFiles(rootLocation) {
       const location = path.join(directory, entry.name);
       if (entry.isSymbolicLink()) continue;
       if (entry.isDirectory()) {
+        if (isArcaTargetCommitSlotName(entry.name)) continue;
         pending.push(location);
         continue;
       }

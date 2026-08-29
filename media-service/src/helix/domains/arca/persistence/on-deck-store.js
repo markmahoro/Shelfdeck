@@ -10,6 +10,7 @@ const {
 const {
   controlScopeDigest,
   createMaterialControlParticipant,
+  createMaterialControlProjectionPort,
 } = require('../../../foundation/persistence/material-control');
 const {
   SCHEMA_REF: EPISODE_CLAIMS_SCHEMA,
@@ -98,8 +99,26 @@ function deriveOnDeckControlChanges(options) {
   for (const member of stagedMembers) {
     if (oldMaterials.has(member.materialKey)) continue;
     const control = targetByKey.get(member.materialKey);
-    if (!control || control.resultKind !== 'available' ||
-        control.controlState !== 'uncontrolled') {
+    if (!control || control.resultKind !== 'available') {
+      fail('P14_ONDECK_TARGET_CONTROL_CONFLICT',
+        'Final Inventory target Material is already controlled.');
+    }
+    const alreadyInCustody = control.controlState === 'controlled' &&
+      control.ownerDomain === 'arca' &&
+      control.ownerScopeType === 'on_deck_custody' &&
+      control.ownerScopeId === options.custodyId;
+    if (alreadyInCustody) {
+      changes.push(Object.freeze({
+        identity: member.physicalIdentity,
+        action: 'transfer',
+        expectedRevision: control.controlRevision,
+        expectedProjectionDigest: control.projectionDigest,
+        fromScope: custodyScope,
+        toScope: shelfEntryScope,
+      }));
+      continue;
+    }
+    if (control.controlState !== 'uncontrolled') {
       fail('P14_ONDECK_TARGET_CONTROL_CONFLICT',
         'Final Inventory target Material is already controlled.');
     }
@@ -1338,9 +1357,100 @@ function createOnDeckStore(options) {
     }]).arca_ondeck_package_committed_read;
   }
 
+  function acquireStagedCustody(request) {
+    const members = request.stagedInventoryManifest?.stagedMembers || [];
+    const keys = [...new Set(members.map((item) =>
+      item.physicalIdentity.materialKey))].sort();
+    if (keys.length === 0) return Object.freeze({ acquired: 0 });
+    const projections = createMaterialControlProjectionPort(options)
+      .getMaterialControlProjections(keys);
+    const byKey = new Map(projections.map((item) => [item.materialKey, item]));
+    const custodyScope = Object.freeze({
+      ownerDomain: 'arca',
+      scopeType: 'on_deck_custody',
+      scopeId: request.custodyId,
+    });
+    const changes = [];
+    for (const member of members) {
+      const control = byKey.get(member.physicalIdentity.materialKey);
+      if (control?.controlState === 'controlled' &&
+          control.ownerDomain === 'arca' &&
+          control.ownerScopeType === 'on_deck_custody' &&
+          control.ownerScopeId === request.custodyId) {
+        continue;
+      }
+      if (!control || control.resultKind !== 'available' ||
+          control.controlState !== 'uncontrolled') {
+        fail('P14_ONDECK_STAGED_CONTROL_CONFLICT',
+          'Staged Inventory Material is already controlled.',
+          { materialKey: member.physicalIdentity.materialKey });
+      }
+      changes.push(Object.freeze({
+        identity: member.physicalIdentity,
+        action: 'acquire',
+        expectedRevision: control.controlRevision,
+        expectedProjectionDigest: control.projectionDigest,
+        fromScope: null,
+        toScope: custodyScope,
+      }));
+    }
+    if (changes.length === 0) return Object.freeze({ acquired: 0 });
+    const authorizedControlScopeDigest = controlScopeDigest(changes);
+    const basisDigest = request.stagedInventoryManifest.manifestDigest;
+    const controlHandle = Object.freeze({
+      schemaRef: 'helix://contracts/types/ResponsibilityControlCommitHandle/v1',
+      schemaVersion: 1,
+      handleId: stable('arca.staged-custody-control-handle@1', {
+        onDeckRunId: request.onDeckRunId,
+        manifestDigest: basisDigest,
+      }),
+      operationKind: 'acquire',
+      ownerDomain: 'arca',
+      processType: 'arca_on_deck_run',
+      processId: request.onDeckRunId,
+      basisRef: Object.freeze({
+        objectType: 'staged_inventory_manifest',
+        objectId: request.stagedInventoryManifest.manifestId,
+        revision: 1,
+        digest: basisDigest,
+      }),
+      basisDigest,
+      canonicalFactSetDigest: basisDigest,
+      bindingSetDigest: request.stagedInventoryManifest.membersDigest,
+      controlScopeDigest: authorizedControlScopeDigest,
+      expectedControlRevisions: Object.freeze(changes.map((item) =>
+        Object.freeze({
+          materialKey: item.identity.materialKey,
+          revision: item.expectedRevision,
+        }))),
+      receiptContract: Object.freeze({
+        receiptSchemaRef: 'helix://contracts/types/StagedInventoryManifest/v1',
+        controlRevisionSetSchemaRef: 'arca.staged-custody-control-set@1',
+      }),
+      eventFenceDigest: canonicalDigest({
+        schema: 'arca.staged-custody-event-fence@1',
+        onDeckRunId: request.onDeckRunId,
+        manifestDigest: basisDigest,
+      }),
+    });
+    options.unitOfWork.execute([createMaterialControlParticipant({
+      schemaManifest: options.schemaManifest,
+      participantId: 'arca_staged_custody_control',
+      handle: controlHandle,
+      changes,
+      authorizedScopeDigest: authorizedControlScopeDigest,
+      commitMarker: stable('arca.staged-custody-control-marker@1', {
+        onDeckRunId: request.onDeckRunId,
+        manifestDigest: basisDigest,
+      }),
+    })]);
+    return Object.freeze({ acquired: changes.length });
+  }
+
   return Object.freeze({
     verifyAcceptedResponsibility,
     setOffloading,
+    acquireStagedCustody,
     commit,
     readCommitted,
     readCommittedByPackage,

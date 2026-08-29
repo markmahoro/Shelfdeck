@@ -85,6 +85,35 @@ test('UAT-112 replacement releases old Material and acquires a released target a
   assert.equal(changes[1].expectedRevision, 7);
 });
 
+test('UAT-112 staged copy already in On-deck Custody transfers to Shelf Entry', () => {
+  const oldMember = material('a');
+  const stagedCopy = material('b');
+  const oldControl = control(oldMember);
+  const stagedControl = control(stagedCopy, { controlRevision: 1 });
+  const changes = deriveOnDeckControlChanges({
+    oldMaterials: new Map([[oldMember.materialKey, oldMember]]),
+    stagedMembers: [stagedCopy],
+    custodyControls: [oldControl],
+    targetControls: [stagedControl],
+    custodyId: 'custody-1',
+    shelfEntryId: 'entry-1',
+  });
+
+  assert.equal(changes[0].action, 'release');
+  assert.equal(changes[1].action, 'transfer');
+  assert.equal(changes[1].identity.materialKey, stagedCopy.materialKey);
+  assert.deepEqual(changes[1].fromScope, {
+    ownerDomain: 'arca',
+    scopeType: 'on_deck_custody',
+    scopeId: 'custody-1',
+  });
+  assert.deepEqual(changes[1].toScope, {
+    ownerDomain: 'arca',
+    scopeType: 'shelf_entry',
+    scopeId: 'entry-1',
+  });
+});
+
 test('UAT-112 retained Material rejects divergent Control projections', () => {
   const retained = material('a');
   const custodyControl = control(retained);

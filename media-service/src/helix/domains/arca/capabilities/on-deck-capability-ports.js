@@ -244,6 +244,9 @@ function createOnDeckCapabilityPorts(options){const now=options.now||Date.now,ac
     finalInventoryDecision:c.finalInventoryDecision,observedAtMs:at,replayCommitted:execution.recoveryDecision==='already_committed'}),targetCommitSlotHandle:execution.namedInputs.targetCommitSlotHandle,
     ...(aftercare?{shouldContinue:aftercareShouldContinue(execution,aftercare.aftercareCaseId)}:{})});
     if(aftercare)readAftercarePlacementAuthority(options,execution,aftercare.aftercareCaseId);
+    else onDeck.acquireStagedCustody({
+      onDeckRunId:c.responsibility.onDeckRunId,custodyId:c.responsibility.custodyId,
+      stagedInventoryManifest:staged});
     return committedOutcome(execution,C.stage,staged,at,'material_commit');},
     validateResult(_c,o){if(!o?.result?.manifestDigest)throw new TypeError('Staged Inventory Manifest is invalid.');}});
   ports[C.stagedVerify]=Object.freeze({validateInputs(c){requireNamed(c,['stagedManifest','finalInventoryDecision']);},async execute(execution){

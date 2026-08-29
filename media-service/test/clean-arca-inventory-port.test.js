@@ -370,6 +370,9 @@ test('same-root Stage/Switch preserves exact final members, merges new members, 
     };
     const finalInventoryDecision = port.prepare(request);
     const targetCommitSlotHandle = port.prepareSlot({ ...request, finalInventoryDecision });
+    assert.match(path.basename(targetCommitSlotHandle.slotDirectory),
+      /^\.shelfdeck-stage-[0-9a-f]{16}$/);
+    assert.equal(path.dirname(targetCommitSlotHandle.slotDirectory), root);
     const staging = port.stage({ ...request, finalInventoryDecision, targetCommitSlotHandle });
     assert.equal(typeof staging.then, 'function');
     await copyStartedPromise;
@@ -1011,5 +1014,133 @@ test('unknown old-directory members stop settlement before any managed source is
     assert.equal(fs.existsSync(path.join(fixture.sourceDirectory, 'notes.txt')), true);
   } finally {
     fs.rmSync(fixture.root, { recursive:true, force:true });
+  }
+});
+
+test('Target Commit Slot is a hidden sibling and restores Emby-mutated presentation from Package source', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'clean-arca-hidden-slot-'));
+  try {
+    const workspaceRoot = path.join(root, '.workspace');
+    const workspaceId = 'run-workspace';
+    fs.mkdirSync(path.join(workspaceRoot, workspaceId, 'product'), { recursive:true });
+    const productPrimary = path.join(workspaceRoot, workspaceId, 'product', 'movie.mkv');
+    const productNfo = path.join(workspaceRoot, workspaceId, 'product', 'movie.nfo');
+    fs.writeFileSync(productPrimary, Buffer.from('movie-bytes'));
+    fs.writeFileSync(productNfo, Buffer.from('package-nfo-bytes'));
+    const mountScopeId = 'canary-mount';
+    const productMembers = [
+      member(productPrimary, 'primary_payload', mountScopeId,
+        { workspaceId, relativePath:'product/movie.mkv' }),
+      member(productNfo, 'metadata_sidecar', mountScopeId,
+        { workspaceId, relativePath:'product/movie.nfo' }),
+    ];
+    const packageValue = Object.freeze({
+      onDeckPackageId:'package-1', shelfId:'shelf-1',
+      resolvedIdentitySnapshot:{ factValue:{ title:'Example Movie' } },
+      productStructureSnapshot:{ structureKind:'single' },
+      productMaterialManifest:{ members:Object.freeze(productMembers), manifestDigest:'manifest-1' },
+      offloadContextManifest:{ manifestDigest:'offload-1', members:Object.freeze([]) },
+    });
+    const shelf = Object.freeze({
+      shelfId:'shelf-1', status:'active', currentPlacementRevision:1,
+      target:{ endpointId:'canary', rootLocation:root, mountScopeId, mountScopeRevision:1 },
+      placement:{ value:{ folderTemplate:'{title}' } },
+    });
+    const port = createCleanArcaInventoryPort({
+      schemaManifest, unitOfWork:{}, workspaceRoot,
+    });
+    const request = {
+      onDeckRunId:'on-deck-1', custodyId:'custody-1', shelf,
+      onDeckProductPackage:packageValue, observedAtMs:1, replayCommitted:false,
+    };
+    const finalInventoryDecision = port.prepare(request);
+    const targetCommitSlotHandle = port.prepareSlot({ ...request, finalInventoryDecision });
+    assert.match(path.basename(targetCommitSlotHandle.slotDirectory),
+      /^\.shelfdeck-stage-[0-9a-f]{16}$/);
+    assert.equal(path.dirname(targetCommitSlotHandle.slotDirectory), root);
+    const stagedManifest = await port.stage({
+      ...request, finalInventoryDecision, targetCommitSlotHandle,
+    });
+    const stagedNfo = path.join(targetCommitSlotHandle.slotDirectory, 'Example Movie.nfo');
+    fs.writeFileSync(stagedNfo, Buffer.from('emby-rewrote-nfo'));
+    const stagedInventoryVerification = await port.verifyStaged({
+      ...request, finalInventoryDecision, stagedInventoryManifest:stagedManifest,
+    });
+    assert.equal(fs.readFileSync(stagedNfo, 'utf8'), 'package-nfo-bytes');
+    await port.switchPlacement({
+      ...request, finalInventoryDecision, stagedInventoryVerification,
+      targetBindings:{ bindingSetDigest:'bindings-1' }, replacedInputSetDigest:'inputs-1',
+    });
+    assert.equal(fs.existsSync(targetCommitSlotHandle.slotDirectory), false);
+    assert.equal(
+      fs.readFileSync(path.join(root, 'Example Movie', 'Example Movie.nfo'), 'utf8'),
+      'package-nfo-bytes',
+    );
+  } finally {
+    fs.rmSync(root, { recursive:true, force:true });
+  }
+});
+
+test('in-flight legacy Target Commit Slot remains addressable until Switch', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'clean-arca-legacy-slot-'));
+  try {
+    const workspaceRoot = path.join(root, '.workspace');
+    const workspaceId = 'run-workspace';
+    fs.mkdirSync(path.join(workspaceRoot, workspaceId, 'product'), { recursive:true });
+    const productPrimary = path.join(workspaceRoot, workspaceId, 'product', 'movie.mkv');
+    const productNfo = path.join(workspaceRoot, workspaceId, 'product', 'movie.nfo');
+    fs.writeFileSync(productPrimary, Buffer.from('movie-bytes'));
+    fs.writeFileSync(productNfo, Buffer.from('package-nfo-bytes'));
+    const mountScopeId = 'canary-mount';
+    const productMembers = [
+      member(productPrimary, 'primary_payload', mountScopeId,
+        { workspaceId, relativePath:'product/movie.mkv' }),
+      member(productNfo, 'metadata_sidecar', mountScopeId,
+        { workspaceId, relativePath:'product/movie.nfo' }),
+    ];
+    const packageValue = Object.freeze({
+      onDeckPackageId:'package-1', shelfId:'shelf-1',
+      resolvedIdentitySnapshot:{ factValue:{ title:'Example Movie' } },
+      productStructureSnapshot:{ structureKind:'single' },
+      productMaterialManifest:{ members:Object.freeze(productMembers), manifestDigest:'manifest-1' },
+      offloadContextManifest:{ manifestDigest:'offload-1', members:Object.freeze([]) },
+    });
+    const shelf = Object.freeze({
+      shelfId:'shelf-1', status:'active', currentPlacementRevision:1,
+      target:{ endpointId:'canary', rootLocation:root, mountScopeId, mountScopeRevision:1 },
+      placement:{ value:{ folderTemplate:'{title}' } },
+    });
+    const port = createCleanArcaInventoryPort({
+      schemaManifest, unitOfWork:{}, workspaceRoot,
+    });
+    const request = {
+      onDeckRunId:'on-deck-1', custodyId:'custody-1', shelf,
+      onDeckProductPackage:packageValue, observedAtMs:1, replayCommitted:false,
+    };
+    const finalInventoryDecision = port.prepare(request);
+    const hiddenHandle = port.slotHandle({ ...request, finalInventoryDecision });
+    const suffix = path.basename(hiddenHandle.slotDirectory).replace(/^\.shelfdeck-stage-/, '');
+    const legacyDirectory = hiddenHandle.targetDirectory + '.shelfdeck-stage-' + suffix;
+    fs.mkdirSync(legacyDirectory, { recursive:true });
+    const liveHandle = port.slotHandle({ ...request, finalInventoryDecision });
+    assert.equal(liveHandle.slotDirectory, legacyDirectory);
+    const stagedManifest = await port.stage({
+      ...request, finalInventoryDecision, targetCommitSlotHandle:liveHandle,
+    });
+    fs.writeFileSync(path.join(legacyDirectory, 'Example Movie.nfo'), Buffer.from('emby-rewrote-nfo'));
+    const stagedInventoryVerification = await port.verifyStaged({
+      ...request, finalInventoryDecision, stagedInventoryManifest:stagedManifest,
+    });
+    await port.switchPlacement({
+      ...request, finalInventoryDecision, stagedInventoryVerification,
+      targetBindings:{ bindingSetDigest:'bindings-1' }, replacedInputSetDigest:'inputs-1',
+    });
+    assert.equal(fs.existsSync(legacyDirectory), false);
+    assert.equal(
+      fs.readFileSync(path.join(root, 'Example Movie', 'Example Movie.nfo'), 'utf8'),
+      'package-nfo-bytes',
+    );
+  } finally {
+    fs.rmSync(root, { recursive:true, force:true });
   }
 });

@@ -59,3 +59,26 @@ test('Field enumerator never exposes a cursor that advances past an uncommitted 
   assert.equal(locations.length,20);
   assert.equal(new Set(locations).size,20);
 });
+
+test('Field enumerator skips unpublished Arca Target Commit Slot trees', async (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'helix-enumerator-slot-'));
+  t.after(() => fs.rmSync(root, { recursive:true, force:true }));
+  const visible = path.join(root, 'Real Movie (1968)');
+  const hiddenSlot = path.join(root, '.shelfdeck-stage-0123456789abcdef');
+  const legacySlot = path.join(root, 'Real Movie (1968).shelfdeck-stage-fedcba9876543210');
+  fs.mkdirSync(visible);
+  fs.mkdirSync(hiddenSlot);
+  fs.mkdirSync(legacySlot);
+  fs.writeFileSync(path.join(visible, 'Real Movie (1968).mkv'), 'visible-bytes');
+  fs.writeFileSync(path.join(hiddenSlot, 'Real Movie (1968).nfo'), 'hidden-slot-bytes');
+  fs.writeFileSync(path.join(legacySlot, 'Real Movie (1968).mkv'), 'legacy-slot-bytes');
+  const enumerator = createCleanFieldObservationEnumerator({ now:() => 1000 });
+  const page = await enumerator.enumeratePage({
+    fieldAccessHandle:{ handleId:'handle-1', accessDigest:'a'.repeat(64), rootLocation:root, mountScopeId:'mount-1' },
+    pageRequest:{ cursorIn:null, pageBudget:100 },
+  });
+  const locations = page.items.map((item) => item.material.location);
+  assert.equal(locations.length, 1);
+  assert.equal(locations[0].includes('Real Movie (1968).mkv'), true);
+  assert.equal(locations.some((location) => location.includes('shelfdeck-stage-')), false);
+});
