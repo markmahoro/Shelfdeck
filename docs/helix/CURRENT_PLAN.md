@@ -4,6 +4,10 @@ Status: Helix-beta 已由 Product Owner 收窄为 **仅 Movie 的全功能版本
 
 Last updated: 2026-08-29
 
+## 0. Deployed — PROD-025 lossless NAS upgrade
+
+已部署 `markmahoro/shelfdeck:helix-beta-20260829-d1dd611d4`，未 `--helix-clean-init`。MoviePilot `search/title` 用片名和英文原名，不再把 TMDB 编号当 keyword。已冻结的《007：大破天幕杀机》需放弃后重新进整理。Field/Shelf/`/transcode`/集成未改。
+
 ## 0. Deployed — PROD-024 lossless NAS upgrade
 
 已部署 `markmahoro/shelfdeck:helix-beta-20260829-2fe558b95`，未 `--helix-clean-init`。Pre-deck 3 席位覆盖 Intake 成功到 Run 建立之间的路由/验收规格；补位 `admissionLimit` 收成 3。已在整理的片子继续跑，门口不再继续灌。同镜像默认写槽 2、编码器仍 1。Field/Shelf/`/transcode`/集成未改。

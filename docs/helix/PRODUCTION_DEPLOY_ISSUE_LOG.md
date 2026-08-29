@@ -44,6 +44,7 @@
 | PROD-022 | 无损升级后容器起不来；启动恢复把旧转码超时残留当硬故障 | `EXECUTION` / 超时重试留下 superseded `reconcile_required` Effect | 服务启动 | Critical | **FIXED** 无损升级 `helix-beta-20260829-6ad8bc999`。 |
 | PROD-023 | 放弃整理仍弹出浏览器自带确认框 | `USER_EXPERIENCE` / 只改了接受瑕疵 Dialog | 媒体整理工作区 | Medium | **FIXED** 无损升级 `helix-beta-20260829-79fc055d1`。请 Ctrl+F5。 |
 | PROD-024 | 门口 3 席位失效，一次灌进 8 部 Libra Run | `EXECUTION` / Intake 成功到 Run 建立不占席位 | 媒体整理工作区 | High | **FIXED** 无损升级 `helix-beta-20260829-2fe558b95`。已进来的继续跑，不再继续灌。 |
+| PROD-025 | 《007：大破天幕杀机》寻源报没有外部候选 | `EXECUTION` / MoviePilot 把 TMDB ID 当标题搜 | 媒体整理工作区 | High | **FIXED** 无损升级 `helix-beta-20260829-d1dd611d4`。已冻结片子需放弃后重新进整理。 |
 
 PROD-001、PROD-002 的共同环境前提：生产管理台是 `http://192.168.12.230`，浏览器不提供 `crypto.randomUUID` / `crypto.subtle`。这不是传输加密设计，只是浏览器 API 限制。未改成 HTTPS。
 
@@ -309,3 +310,9 @@ P4 对 journaled `material_commit` 的 Executor throw 仍会把 Attempt 留在 `
 发现：2026-08-29。整理工作区同时 8 部 `active` Run。其中 6 部在约 8 秒内新建。席位只数已有 Run 和还在跑的 Intake Work；Intake 一成功、Run 还没建时，路由和验收规格不占座。入库成功后的补位还用默认 `admissionLimit` 32。
 
 修复：占用把 `libra_routing` / `libra_acceptance_spec` 进行中的 Subject 算进去；入库成功先占路由再补位，补位最多 3。已进来的 8 部不踢出，门口不再继续灌。已无损升级 `helix-beta-20260829-2fe558b95`。
+
+## 26. PROD-025 — MoviePilot 把 TMDB 编号当片名搜（FIXED）
+
+发现：2026-08-29。《007：大破天幕杀机》本地 1080p，规格要 4K，跳过转码去 MoviePilot。查询词里有 TMDB `37724` 和中文名，搜索接口却优先拿 `provider_key` 当 `search/title` keyword，等于搜「37724」，候选 0，冻成 `no_available_candidate`。
+
+修复：title 搜索用中文名和英文原名，TMDB ID 只核对搜回的候选。已冻结的需放弃后重新进整理。已无损升级 `helix-beta-20260829-d1dd611d4`。

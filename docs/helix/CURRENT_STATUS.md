@@ -1,8 +1,12 @@
 # ShelfDeck Clean Helix Current Status
 
-Status: Helix-beta 范围已收窄为仅 Movie 全链路。Movie Procurement与Movie Libra封口保持有效；Movie Arca已完成Handoff B Acceptance、On-deck、Shelf Entry、Deck Fact、Beta Aftercare、Off-deck及Shelf Deregistration完整闭环。当前精确状态为`MOVIE COLLECTION LIFECYCLE READY THROUGH SHELF DEREGISTRATION`。当前生产镜像为 `markmahoro/shelfdeck:helix-beta-20260829-2fe558b95`（无损升级，无 `--helix-clean-init`），health `ok` / `helix-clean-v3`。Intake 席位 3，Workspace `/transcode` rev 2。Helix-beta 验收行见现行基线，尚未把任何 `HB-*` 标为验收 `PASS`。
+Status: Helix-beta 范围已收窄为仅 Movie 全链路。Movie Procurement与Movie Libra封口保持有效；Movie Arca已完成Handoff B Acceptance、On-deck、Shelf Entry、Deck Fact、Beta Aftercare、Off-deck及Shelf Deregistration完整闭环。当前精确状态为`MOVIE COLLECTION LIFECYCLE READY THROUGH SHELF DEREGISTRATION`。当前生产镜像为 `markmahoro/shelfdeck:helix-beta-20260829-d1dd611d4`（无损升级，无 `--helix-clean-init`），health `ok` / `helix-clean-v3`。Intake 席位 3，Workspace `/transcode` rev 2。Helix-beta 验收行见现行基线，尚未把任何 `HB-*` 标为验收 `PASS`。
 
 Last updated: 2026-08-29
+
+## 0. Production lossless upgrade — PROD-025
+
+2026-08-29 已部署 `helix-beta-20260829-d1dd611d4`（git `d1dd611d4`，tar SHA-256 `582449a703271b35f933f39d48edf9e86c6b8aefacc70c87c561b888e9d5192f`），未 `--helix-clean-init`。readiness `helix-clean-v3` / 184 tables / findings []。health `ok`。MoviePilot 用中文片名和英文原名搜，TMDB ID 只核对候选。已冻结的《007：大破天幕杀机》需放弃后重新进整理。Field/Shelf/`/transcode`/集成未改。
 
 ## 0. Production lossless upgrade — PROD-024
 
