@@ -68,8 +68,9 @@ describe('Helix primary copy and workbench structure', () => {
     vi.spyOn(helixAdminApi, 'listPeopleRegistrationCandidates').mockResolvedValue({ items: [] });
     render(<MemoryRouter initialEntries={['/people']}><App /></MemoryRouter>);
     expect(await screen.findByRole('heading', { level: 1, name: '人物' })).toBeInTheDocument();
-    expect(screen.getByText(/名录是已经登记的人，不是某部电影的演员表/)).toBeInTheDocument();
+    expect(screen.queryByText(/名录是已经登记的人，不是某部电影的演员表/)).not.toBeInTheDocument();
     expect(screen.queryByText('维护人物身份，而不是改写媒体演职员事实')).not.toBeInTheDocument();
+    expect(screen.queryByText('本页暂不处理合并')).not.toBeInTheDocument();
   });
 
   it('describes settings as connections plus rating log', async () => {
@@ -80,7 +81,7 @@ describe('Helix primary copy and workbench structure', () => {
     const ratings = vi.spyOn(helixAdminApi, 'listPerceptionRecords');
     render(<MemoryRouter initialEntries={['/settings']}><App /></MemoryRouter>);
     expect(await screen.findByRole('heading', { level: 1, name: '系统设置' })).toBeInTheDocument();
-    expect(screen.getByText(/管理连接、自动运营与评分日志/)).toBeInTheDocument();
+    expect(screen.queryByText(/管理连接、自动运营与评分日志/)).not.toBeInTheDocument();
     expect(screen.getByRole('heading', { level: 2, name: '豆瓣' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { level: 2, name: 'TMDB' })).toBeInTheDocument();
     expect(screen.getByRole('textbox', { name: /^代理服务器/ })).toHaveAttribute(
@@ -91,10 +92,11 @@ describe('Helix primary copy and workbench structure', () => {
     expect(screen.getByRole('tab', { name: '自动运营' })).toBeInTheDocument();
     vi.spyOn(helixAdminApi,'getWorkspaceRootSettings').mockResolvedValue({current:{rootPath:'D:\\ShelfDeck\\workspace',configRevision:1},
       pending:null,restartRequired:false});
-    fireEvent.click(screen.getByRole('tab',{name:'Workspace'}));
-    expect(await screen.findByRole('heading',{level:2,name:'Production Workspace'})).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('tab',{name:'整理空间'}));
+    expect(await screen.findByRole('heading',{level:2,name:'整理工作目录'})).toBeInTheDocument();
     expect(screen.getByDisplayValue('D:\\ShelfDeck\\workspace')).toBeInTheDocument();
-    expect(screen.getByText(/不会搬动或删除旧目录/)).toBeInTheDocument();
+    expect(screen.getByText(/保存会检查读写/)).toBeInTheDocument();
+    expect(screen.queryByText(/不会搬动或删除旧目录/)).not.toBeInTheDocument();
     expect(document.querySelectorAll('.settings-card')).toHaveLength(1);
     expect(screen.queryByText('连接、空间、资源与安全')).not.toBeInTheDocument();
     expect(ratings).not.toHaveBeenCalled();
@@ -128,7 +130,7 @@ describe('Helix primary copy and workbench structure', () => {
     fireEvent.change(screen.getByRole('textbox',{name:/ShelfDeck 可见目录/}),{
       target:{value:'F:\\new-landing'},
     });
-    fireEvent.click(screen.getByRole('button',{name:'验证并保存 Landing'}));
+    fireEvent.click(screen.getByRole('button',{name:'验证并保存目录'}));
     await waitFor(()=>expect(configure).toHaveBeenCalledTimes(1));
     const [kind,body]=configure.mock.calls[0];
     expect(kind).toBe('moviepilot');

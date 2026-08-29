@@ -128,7 +128,7 @@ describe('Helix Overview product semantics', () => {
     vi.spyOn(helixAdminApi, 'listShelves').mockResolvedValue({ items: [] });
     render(<MemoryRouter initialEntries={['/offdeck']}><App /></MemoryRouter>);
     expect(await screen.findByRole('heading', { level: 1, name: '退出收藏' })).toBeInTheDocument();
-    expect(screen.getByText('先审阅建议，确认后再授权删除。没有授权不会删除文件。')).toBeInTheDocument();
+    expect(screen.queryByText('先审阅建议，确认后再授权删除。没有授权不会删除文件。')).not.toBeInTheDocument();
     expect(screen.queryByText(/Closed Condition AST/)).not.toBeInTheDocument();
     expect(screen.queryByText(/建议可以自动生成，销毁必须由你授权/)).not.toBeInTheDocument();
     await waitFor(() => expect(screen.queryByRole('textbox')).toBeNull());

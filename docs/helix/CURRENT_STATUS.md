@@ -28,9 +28,9 @@ SSOT §9.4.8 目前把规则写在退出页五个视图里；落地前需 Archit
 
 2026-08-30 代码已修、未部署。概览内容合同不变：系统是否就绪 + 要你处理的事 + 最近上架。版面改为：正常运行用状态词；尚未配置 / 故障 / 目录不可用仍用色条；后台检查默认一行（展开看七项）；三指标去掉同义附注；左列待办+正在整理片名，右列最近进展（无装饰编号）；空待办一行。不改 Overview Query 口径。见 `USER_ACCEPTANCE_TEST_ISSUE_LOG.md` `UAT-141`。
 
-## 0. Parked — Admin Web 重复语义二次审视（UAT-142 / UX-034–037）
+## 0. Code fix — Admin Web 八页重复语义（UAT-142 / UX-034–037）
 
-2026-08-30 Product Owner 要求先记下概览排版，并排查全站重复语义。已完成 Helix 八页只读审视：标题下常驻导语复述导航、安全声明同页重复、「不会删除文件」跨页口头禅、指标附注同义反复、以及仍泄漏的内部口径。只登记，**未授权改代码或改 SSOT**。见 `USER_ACCEPTANCE_TEST_ISSUE_LOG.md` `UAT-142` 与 `ADMIN_WEB_UX_ISSUE_LOG.md` `UX-034`–`UX-037`。
+2026-08-30 代码已修、未部署。八页去掉标题下常驻导语；「不会删除/移动」只留在不可逆确认；指标同义附注删除；复述页名的 h2 改为筛选信息或计数。未改 SSOT、路由、Owner。见 `USER_ACCEPTANCE_TEST_ISSUE_LOG.md` `UAT-142`。
 
 ## 0. Code fix — NFO 按语义验呈现（PROD-028）
 

@@ -8,9 +8,13 @@ Last updated: 2026-08-30
 
 Product Owner 确认该开关当前无用户可见效果，后续删除；只登记，**不是当前实施 Phase，未授权删界面/API 或改 SSOT**。详见 `PRODUCTION_DEPLOY_ISSUE_LOG.md` `PROD-029`。
 
-## 0. Parked — 重复语义与退出收藏页（UAT-142 / UAT-143）
+## 0. Parked — 退出收藏页（UAT-143）
 
-Product Owner 已确认全站重复语义与退出收藏表面方向。退出收藏：规则进系统设置 Tab；页面只留系统建议退出与手动退出（搜索）；确认用弹出详情卡片；不用「审阅」。两项均只登记，**不是当前实施 Phase 的 SSOT 变更**。详见 `CURRENT_STATUS.md`、`USER_ACCEPTANCE_TEST_ISSUE_LOG.md` `UAT-142`–`UAT-143` 与 `ADMIN_WEB_UX_ISSUE_LOG.md` `UX-034`–`UX-038`。
+退出收藏：规则进系统设置 Tab；页面只留系统建议退出与手动退出（搜索）；确认用弹出详情卡片；不用「审阅」。只登记，**不是当前实施 Phase 的 SSOT 变更**。详见 `CURRENT_STATUS.md`、`USER_ACCEPTANCE_TEST_ISSUE_LOG.md` `UAT-143` 与 `ADMIN_WEB_UX_ISSUE_LOG.md` `UX-038`。
+
+## 0. Code fix — Admin Web 八页重复语义（UAT-142）
+
+八页去掉常驻导语、同义附注和页头安全口头禅。确认动作仍说明文件命运。代码已修、未部署。
 
 ## 0. Code fix — 概览排版一行状态 + 两列工作面（UAT-141）
 

@@ -197,8 +197,8 @@ export default function SettingsPage() {
           maxDownloadAttempts,
         },
       });
-      setNotice('MoviePilot Landing 与下载尝试上限已更新；当前 API Key 保持不变。'); await loadIntegrations();
-    } catch (cause) { fail(cause, 'MoviePilot Landing 设置更新失败。'); }
+      setNotice('MoviePilot 可见目录与下载尝试上限已更新；当前 API Key 保持不变。'); await loadIntegrations();
+    } catch (cause) { fail(cause, 'MoviePilot 设置更新失败。'); }
     finally { setLoading(false); }
   }
   async function loadMore() {
@@ -214,24 +214,24 @@ export default function SettingsPage() {
 
   if (!integration && !tmdb && !moviePilot && loading && !error) return <LoadingState>正在读取系统设置…</LoadingState>;
   return <section className="source-page settings-page">
-    <PageHeader title="系统设置" description="管理连接、自动运营与评分日志。" />
+    <PageHeader title="系统设置" />
     <div className="settings-tabs" role="tablist">
       <button type="button" role="tab" aria-selected={tab === 'integrations'} onClick={() => setTab('integrations')}>连接</button>
       <button type="button" role="tab" aria-selected={tab === 'automation'} onClick={() => setTab('automation')}>自动运营</button>
-      <button type="button" role="tab" aria-selected={tab === 'workspace'} onClick={() => setTab('workspace')}>Workspace</button>
+      <button type="button" role="tab" aria-selected={tab === 'workspace'} onClick={() => setTab('workspace')}>整理空间</button>
       <button type="button" role="tab" aria-selected={tab === 'ratings'} onClick={() => setTab('ratings')}>评分日志</button>
     </div>
     {error && <p className="form-error" role="alert">{error}</p>}
     {notice && <p className="form-notice" role="status">{notice}</p>}
     {tab === 'automation' ? <div className="settings-stack"><AutomaticOperationPanel /></div> : tab === 'workspace' ? <div className="settings-stack">
       <section className="settings-card" aria-labelledby="workspace-title">
-        <header className="settings-card-head"><div><h2 id="workspace-title">Production Workspace</h2><p>整理媒体时使用的临时工作目录</p></div>
+        <header className="settings-card-head"><div><h2 id="workspace-title">整理工作目录</h2><p>整理媒体时使用的临时工作目录</p></div>
           <span className={`integration-state ${workspace?.restartRequired?'':'active'}`}>{workspace?.restartRequired?'等待重启':'当前生效'}</span></header>
         <div className="settings-card-body">{workspace?<form className="source-form" onSubmit={saveWorkspace}>
           <dl className="settings-facts"><div><dt>当前目录</dt><dd>{workspace.current.rootPath}</dd></div>
             {workspace.pending&&<div><dt>重启后目录</dt><dd>{workspace.pending.rootPath}</dd></div>}</dl>
           <label className="settings-inline-field"><span>自定义目录</span><input value={workspaceRoot} onChange={(event)=>setWorkspaceRoot(event.target.value)} required /></label>
-          <small>保存会检查读写、删除、原子改名、可用空间和目录冲突；不会搬动或删除旧目录。</small>
+          <small>保存会检查读写、删除、原子改名、可用空间和目录冲突。</small>
           <div className="settings-card-actions"><Button variant="primary" disabled={loading||!workspaceRoot||workspaceRoot===(workspace.pending?.rootPath||workspace.current.rootPath)}>验证并保存</Button></div>
         </form>:<LoadingState>正在读取 Workspace 设置…</LoadingState>}</div>
       </section>
@@ -290,7 +290,7 @@ export default function SettingsPage() {
               <label className="wide"><span>ShelfDeck 可见目录</span><input value={visibleLandingRoot} onChange={(event) => setVisibleLandingRoot(event.target.value)} required /><small>保存时验证本地可读性与受控目录冲突；不会回显或要求重新输入 API Key。</small></label>
               <label><span>下载尝试上限</span><input type="number" min={1} max={5} value={maxDownloadAttempts} onChange={(event) => setMaxDownloadAttempts(Number(event.target.value))} /></label>
             </div>
-            <div className="settings-card-actions"><Button variant="primary" disabled={loading || !providerRequestRoot || !providerOrganizedRoot || !visibleLandingRoot || maxDownloadAttempts < 1 || maxDownloadAttempts > 5 || (providerRequestRoot === moviePilot.landingBinding.providerRequestSaveRoot && providerOrganizedRoot === moviePilot.landingBinding.providerOrganizedRoot && visibleLandingRoot === moviePilot.landingBinding.shelfDeckVisibleRoot && maxDownloadAttempts === (moviePilot.settings?.maxDownloadAttempts || 3))}>验证并保存 Landing</Button><Button variant="danger" type="button" onClick={() => void disconnectMoviePilot()} disabled={loading}>断开</Button></div>
+            <div className="settings-card-actions"><Button variant="primary" disabled={loading || !providerRequestRoot || !providerOrganizedRoot || !visibleLandingRoot || maxDownloadAttempts < 1 || maxDownloadAttempts > 5 || (providerRequestRoot === moviePilot.landingBinding.providerRequestSaveRoot && providerOrganizedRoot === moviePilot.landingBinding.providerOrganizedRoot && visibleLandingRoot === moviePilot.landingBinding.shelfDeckVisibleRoot && maxDownloadAttempts === (moviePilot.settings?.maxDownloadAttempts || 3))}>验证并保存目录</Button><Button variant="danger" type="button" onClick={() => void disconnectMoviePilot()} disabled={loading}>断开</Button></div>
           </form> : <form className="source-form" onSubmit={connectMoviePilot}>
             <div className="source-form-grid">
               <label><span>服务地址</span><input value={moviePilotEndpoint} onChange={(event) => setMoviePilotEndpoint(event.target.value)} placeholder="http://nas:3000" required /></label>

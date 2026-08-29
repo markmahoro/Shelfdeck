@@ -1,6 +1,6 @@
 # Admin Web 用户体验问题台账
 
-状态：`ADMIN WEB UX OVERHAUL IMPLEMENTED / UAT-005/050–058 IMPLEMENTED / UX-006, UX-033 FIXED / UX-023, UX-034–038 REMAIN OPEN / UAT-142–143 RECORDED`
+状态：`ADMIN WEB UX OVERHAUL IMPLEMENTED / UAT-005/050–058 IMPLEMENTED / UX-006, UX-033–037 FIXED / UX-023, UX-038 REMAIN OPEN / UAT-143 RECORDED`
 
 建立日期：2026-08-22
 
@@ -67,10 +67,10 @@
 | UX-031 | Helix 页未使用已引入的 QueryClient，切页无共享缓存 | `PERFORMANCE` | 全站 | Medium | 已实现 |
 | UX-032 | 整体仍是「内部台账皮肤」，缺少统一的媒体产品视觉 | `AESTHETICS` | 全站 | High | 已实现 |
 | UX-033 | 概览通栏堆叠，首屏报平安，正在整理被降成脚注 | `LAYOUT` | 概览 | High | **FIXED**（本地；未部署） |
-| UX-034 | 八页标题下导语与小节 h2 复述导航 | `COPY_REDUNDANT` | 全站 | High | OPEN；口径见 `UAT-142`，未授权 |
-| UX-035 | 「不会删除/移动文件」在页头、列表、确认框重复 | `COPY_REDUNDANT` | 来源 / 退出 / 收藏 | Medium | OPEN；口径见 `UAT-142`，未授权 |
-| UX-036 | 指标附注同义反复；收藏导语与「历史」冲突；未做的合并能力被画出 | `COPY_CONFLICT` | 概览 / 收藏 / 人物 / 配置 | Medium | OPEN；口径见 `UAT-142`，未授权 |
-| UX-037 | 仍泄漏 Owner、Workspace、Libra Intake；自动运营控件出现两次 | `COPY_INTERNAL` | 设置 / 收藏架 / 整理 | Medium | OPEN；未授权 |
+| UX-034 | 八页标题下导语与小节 h2 复述导航 | `COPY_REDUNDANT` | 全站 | High | **FIXED**（本地；未部署） |
+| UX-035 | 「不会删除/移动文件」在页头、列表、确认框重复 | `COPY_REDUNDANT` | 来源 / 退出 / 收藏 | Medium | **FIXED**（确认动作仍保留） |
+| UX-036 | 指标附注同义反复；收藏导语与「历史」冲突；未做的合并能力被画出 | `COPY_CONFLICT` | 概览 / 收藏 / 人物 / 配置 | Medium | **FIXED** |
+| UX-037 | 仍泄漏 Owner、Workspace、Libra Intake；自动运营控件出现两次 | `COPY_INTERNAL` | 设置 / 收藏架 / 整理 | Medium | **FIXED**（用户可见标签；收藏架仍有自动运营控件，见 PROD-029） |
 | UX-038 | 退出收藏把 UAT-139 整库多选做成常驻主表面，审阅失焦 | `LAYOUT` | 退出收藏 | High | OPEN；口径见 `UAT-143`，未授权 |
 
 ## 3. `COPY_REDUNDANT`：冗余或非用户友好文案
@@ -439,11 +439,11 @@ Helix 壳层（`web/src/helix/helix.css`、`chrome.tsx`、`session.tsx`、`App.t
 | UX-031 | Helix `App` 包 `QueryClientProvider`，概览与侧栏共享 `['overview']` | `App.tsx`、`OverviewPage.tsx` |
 | UX-032 | 不增加口号 Hero，保持工作台信息架构 | `helix.css`、`OverviewPage.tsx` |
 
-仍 OPEN：UX-023（收藏详情部分 uppercase 标签）、UX-034–037（2026-08-30 重复语义二次审视，见 `UAT-142`）、UX-038（退出收藏信息架构，见 `UAT-143`）。
+仍 OPEN：UX-023（收藏详情部分 uppercase 标签）、UX-038（退出收藏信息架构，见 `UAT-143`）。
 
-## 13. 2026-08-30 二次审视：重复语义与排版（只登记）
+## 13. 2026-08-30 二次审视：重复语义与排版
 
-审视范围仍是 Helix 八页。本轮没有改代码。用户先确认概览排版方向，再要求排查「整体 UI 还有不少重复语义」，并以「我的收藏」标题下「只显示已经上架的电影」为例。
+审视范围仍是 Helix 八页。UAT-141 / UAT-142 已实现（未部署）；UAT-143 仍待实现。用户先确认概览排版方向，再要求排查「整体 UI 还有不少重复语义」，并以「我的收藏」标题下「只显示已经上架的电影」为例。
 
 ### UX-033 概览通栏堆叠
 
@@ -485,7 +485,7 @@ Helix 壳层（`web/src/helix/helix.css`、`chrome.tsx`、`session.tsx`、`App.t
 - 人物卡片默认展开 TMDB Person ID（「外部编号」）；登记表「参考图不是前置条件」对用户无操作含义。
 - `FormationStubPage` 仍可通过 `?stub=1` 打开，与正式整理页两套表面。
 
-建议实现顺序（仍不授权）：先 UX-034 删导语（用户点名的那类问题，改动面小）；再 UX-035/036 收安全句和附注；UX-033 按已确认概览栅格改；UX-038 按 `UAT-143` 收退出收藏主表面；UX-037 与已 OPEN 的 UX-006 一并清内部词。不改 SSOT，不新增一级页面。
+建议实现顺序：UX-034–037 已落地；UX-038 按 `UAT-143` 收退出收藏主表面。不改 SSOT，不新增一级页面。
 
 ### UX-038 退出收藏整库多选做成常驻主表面
 

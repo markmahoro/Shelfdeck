@@ -415,11 +415,11 @@ export default function ShelvesPage() {
   if (!shelves.length && loading && !error) return <LoadingState>正在读取收藏架…</LoadingState>;
 
   return <section className="source-page shelf-page">
-    <PageHeader title="收藏架配置" description="指定上架后的目录和命名规则。创建后仍可更换电影整理标准和目录布局；已上架电影会按新规则重新评估，不会重新入库。" actions={<Button variant="primary" type="button" onClick={() => setShowCreate((value) => !value)}>{showCreate ? '收起' : '新建收藏架'}</Button>} />
+    <PageHeader title="收藏架配置" actions={<Button variant="primary" type="button" onClick={() => setShowCreate((value) => !value)}>{showCreate ? '收起' : '新建收藏架'}</Button>} />
     <div className="source-facts facts-3" aria-label="收藏架摘要">
-      <div><span>活动收藏架</span><strong>{activeShelves.length}</strong><small>可接收整理结果</small></div>
-      <div><span>可用规则模板</span><strong>{activeTemplates.length}</strong><small>系统推荐模板只读</small></div>
-      <div><span>媒体类型</span><strong>电影</strong><small>其他类型暂不开放</small></div>
+      <div><span>活动收藏架</span><strong>{activeShelves.length}</strong></div>
+      <div><span>可用规则模板</span><strong>{activeTemplates.length}</strong></div>
+      <div><span>媒体类型</span><strong>电影</strong></div>
     </div>
     <AutomaticOperationPanel heading="全自动或关键步骤确认" />
     {showCreate && <form className="source-create" onSubmit={createShelf}>
@@ -444,7 +444,7 @@ export default function ShelvesPage() {
     {notice && <p className="form-notice" role="status">{notice}</p>}
     {error && <p className="form-error" role="alert">{error}</p>}
     <div className="source-registry">
-      <div className="source-registry-heading"><div><h2>当前收藏架</h2></div><Button type="button" onClick={() => void load()} disabled={loading}>刷新</Button></div>
+      <div className="source-registry-heading"><span>{shelves.length} 个收藏架</span><Button type="button" onClick={() => void load()} disabled={loading}>刷新</Button></div>
       {shelves.length === 0 ? <div className="source-empty"><strong>还没有收藏架</strong><p>先选择一个目标目录，并绑定系统推荐规则模板，或复制后发布自己的电影整理标准。</p></div> : shelves.map((shelf) => <article className="source-record shelf-record" key={shelf.shelfId}>
         <div className="source-record-main">
           <div className="source-record-title"><span className={`status-dot ${shelf.status}`} /><div><h3>{shelf.name}</h3><p>{shelf.target.rootLocation}</p><span className="source-state">{shelfStatusLabel(shelf.status)}</span></div></div>

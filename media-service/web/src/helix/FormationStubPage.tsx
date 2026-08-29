@@ -157,7 +157,7 @@ function GhostStoryDetail() {
             <ResultLine title="确认输入形态" result="识别为单部电影 ISO。" />
             <ResultLine title="确认主媒体" result="1 个 ISO 文件作为本次媒体整理的主媒体。" />
             <ResultLine title="确认相关材料" result="发现现有 NFO、poster、fanart、logo 和多份字幕。" />
-            <ResultLine title="接收候选材料" result="材料范围完整，Libra Intake 已接受。" />
+            <ResultLine title="接收候选材料" result="材料范围完整，已接受候选材料。" />
           </ol>
         </div>
       </details>
@@ -250,11 +250,11 @@ export default function FormationStubPage() {
   }, [selectedRow]);
 
   return <section className="source-page workbench formation-page formation-stub-page">
-    <PageHeader title="媒体整理工作区" description="一张表查看全部媒体；列表只显示当前进展，完整上架过程在屏幕中央查看。" />
+    <PageHeader title="媒体整理工作区" />
     <p className="formation-stub-notice"><strong>界面 Stub</strong>静态数据仅用于确认信息结构和交互，不读取或修改当前 UAT 环境。</p>
 
     <section className="formation-ledger">
-      <div className="source-registry-heading"><div><h2>全部媒体</h2></div><span>当前显示 {visibleRows.length} 条</span></div>
+      <div className="source-registry-heading"><h2>当前显示 {visibleRows.length} 条</h2></div>
       <div className="formation-chips" role="group" aria-label="媒体整理状态">
         {filterLabels.map((item) => <Button key={item.id} type="button" aria-pressed={filter === item.id} onClick={() => setFilter(item.id)}>{item.label} {count(item.id)}</Button>)}
       </div>

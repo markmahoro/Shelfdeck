@@ -157,11 +157,11 @@ export default function MaterialFieldsPage() {
   if (!fields.length && loading && !error) return <LoadingState>正在读取文件来源…</LoadingState>;
 
   return <section className="source-page">
-    <PageHeader title="文件来源配置" description="指定本机电影目录。登记不会移动、改名或删除任何文件。" actions={<Button variant="primary" type="button" onClick={() => setShowCreate((value) => !value)}>{showCreate ? '收起' : '添加电影来源'}</Button>} />
+    <PageHeader title="文件来源配置" actions={<Button variant="primary" type="button" onClick={() => setShowCreate((value) => !value)}>{showCreate ? '收起' : '添加电影来源'}</Button>} />
     <div className="source-facts facts-3" aria-label="文件来源摘要">
-      <div><span>活动来源</span><strong>{activeFields.length}</strong><small>可扫描的电影目录</small></div>
-      <div><span>已扫描</span><strong>{observedFields}</strong><small>已经看过目录内容</small></div>
-      <div><span>媒体类型</span><strong>电影</strong><small>其他类型暂不开放</small></div>
+      <div><span>活动来源</span><strong>{activeFields.length}</strong></div>
+      <div><span>已扫描</span><strong>{observedFields}</strong></div>
+      <div><span>媒体类型</span><strong>电影</strong></div>
     </div>
     {showCreate && <form className="source-create" onSubmit={createField}>
       <div className="source-create-heading"><div><h2>添加电影文件来源</h2></div><span>不会立即扫描</span></div>
@@ -175,7 +175,7 @@ export default function MaterialFieldsPage() {
     </form>}
     {error && <p className="form-error" role="alert">{error}</p>}
     <div className="source-registry">
-      <div className="source-registry-heading"><div><h2>当前文件来源</h2></div><Button type="button" onClick={() => void loadFields()} disabled={loading}>刷新</Button></div>
+      <div className="source-registry-heading"><span>{fields.length} 个来源</span><Button type="button" onClick={() => void loadFields()} disabled={loading}>刷新</Button></div>
       {fields.length === 0 ? <div className="source-empty"><strong>还没有文件来源</strong><p>先登记一个本机可读取的电影目录。保存时会检查目录是否可达。</p></div> : fields.map((field) => {
         const scan = scanOf(field);
         const observing = observingFieldId === field.fieldId;
@@ -195,7 +195,7 @@ export default function MaterialFieldsPage() {
           {field.status === 'active' && confirmDeregisterFieldId !== field.fieldId && <>
             <Button variant="primary" type="button" disabled={observingFieldId.length > 0 || deregisteringFieldId.length > 0 || scanBusy} onClick={() => void observeField(field)}>{observing ? '正在扫描…' : '扫描新文件'}</Button>
             <Button type="button" disabled={observingFieldId.length > 0 || deregisteringFieldId.length > 0} onClick={() => setConfirmDeregisterFieldId(field.fieldId)}>注销文件来源</Button>
-            <small>扫描只读取目录，不会移动或删除文件。进行中时不能再点；完成后可随时扫描新文件。</small>
+            <small>进行中时不能再点；完成后可随时扫描新文件。</small>
           </>}
           {field.status === 'active' && confirmDeregisterFieldId === field.fieldId && <div className="source-stop-confirm" role="alert">
             <strong>注销这个文件来源？</strong>

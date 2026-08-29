@@ -205,11 +205,11 @@ export default function OffdeckPage() {
     : review?.state === 'preparing' ? '正在准备将删除的文件'
     : null;
   return <section className="source-page offdeck-page">
-    <PageHeader title="退出收藏" description="先审阅建议，确认后再授权删除。没有授权不会删除文件。" actions={<Button type="button" onClick={() => void load()} disabled={busy}>刷新</Button>} />
+    <PageHeader title="退出收藏" actions={<Button type="button" onClick={() => void load()} disabled={busy}>刷新</Button>} />
     {error && <p className="form-error" role="alert">{error}</p>}
     <details className="offdeck-task">
       <summary><strong>退出规则</strong><small>{policyStatus === 'active' ? '自动建议已启用' : '自动建议默认关闭'}</small></summary>
-      <p className="page-lede">规则少见，默认关闭。信息不完整时不会产生建议。可从我的收藏直接退出。</p>
+      <p className="page-lede">信息不完整时不会产生建议。</p>
       <div className="form-grid">
         <label><span>自动建议</span><select value={policyStatus} onChange={(event) => setPolicyStatus(event.target.value as 'active' | 'disabled')}><option value="disabled">关闭</option><option value="active">启用</option></select></label>
         <label><span>定期查重复</span><select value={duplicateScheduleEnabled ? 'on' : 'off'} onChange={(event) => setDuplicateScheduleEnabled(event.target.value === 'on')}><option value="off">关闭</option><option value="on">启用</option></select></label>
@@ -237,7 +237,7 @@ export default function OffdeckPage() {
       </div>
     </details>
     <section className="offdeck-task offdeck-bulk-task">
-      <div className="source-card-heading"><div><h2>选择退出收藏</h2><p>从当前收藏中建立一次完整审阅；这里只选择范围，不会删除文件。</p></div><span>{bulkSelection.length} / {collectionEntries.length} 部</span></div>
+      <div className="source-card-heading"><div><h2>选择退出收藏</h2></div><span>{bulkSelection.length} / {collectionEntries.length} 部</span></div>
       {collectionEntries.length === 0 ? <div className="source-empty"><strong>当前没有可退出的收藏</strong></div> : <>
         <div className="offdeck-bulk-toolbar">
           <div><strong>已选择 {bulkSelection.length} 部</strong><small>{bulkSelection.length ? ` · ${formatGiB(selectedBytes)}` : ' · 尚未选择'}</small></div>

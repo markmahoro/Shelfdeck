@@ -216,7 +216,7 @@ User Perception全面取消year关联校验，year仅作为资料保存/展示�
 | UAT-139 | Off-deck Admin Web没有将全部当前收藏多选/全选为一个batch Review的入口，无法执行统一Scope核对和High-volume二次确认 | `USER_EXPERIENCE` | `DESTRUCTIVE_AUTHORIZATION`、`HIGH_VOLUME_FENCE` | Arca Off-deck Admin Web + existing batch Review command | 删除授权完整性、大批量安全、全Shelf退出可达性 | Critical | `QUALIFICATION FAILED / LOCAL FULL REGRESSION PASSED / NEW CANARY REQUIRED` |
 | UAT-140 | 收藏详情健康区把 Finding / 三维 / 技术标识铺给用户；应收成三态灯 + 修复中写正在修什么 | `USER_EXPERIENCE` | `PROJECTION_FRESHNESS` | Admin Web Collection 详情展示 | 可理解性 | Medium | **FIXED**（本地；未部署） |
 | UAT-141 | 概览通栏堆叠，首屏报平安；应收成一行状态 + 两列工作面 | `USER_EXPERIENCE` | `LAYOUT` | Admin Web Overview | 可扫读性、行动优先级 | Medium | **FIXED**（本地；未部署） |
-| UAT-142 | 八页标题下导语、安全声明与指标附注重复同一语义 | `USER_EXPERIENCE` | `COPY_REDUNDANT` | Admin Web 全站 | 可理解性、信息层级 | Medium | `RECORDED / NOT AUTHORIZED` |
+| UAT-142 | 八页标题下导语、安全声明与指标附注重复同一语义 | `USER_EXPERIENCE` | `COPY_REDUNDANT` | Admin Web 全站 | 可理解性、信息层级 | Medium | **FIXED**（本地；未部署） |
 | UAT-143 | 退出收藏规则应进设置 Tab；页面只留系统建议与手动搜索退出，确认用弹出详情 | `USER_EXPERIENCE` | `LAYOUT`、`DESTRUCTIVE_AUTHORIZATION` | Admin Web Off-deck + Settings | 决断焦点、可扫读性 | High | `RECORDED / NOT AUTHORIZED` |
 
 ### 2.0.1 UAT-074–UAT-084必须保护的历史修复
@@ -4347,7 +4347,7 @@ UI/FACT/FS/监控Evidence原样保留。UAT-139为
 
 验收证据：打开任一运营页，标题下不再有复述导航的句子；「我的收藏」在「当前收藏 / 历史」之间切换时没有过时导语；危险操作确认框仍明确说文件命运。
 
-当前处理决定：2026-08-30 Product Owner 要求整体排查后先记下。UAT-142 为 `RECORDED / NOT AUTHORIZED`。细项见 `ADMIN_WEB_UX_ISSUE_LOG.md` `UX-034`–`UX-037`。
+当前处理决定：2026-08-30 已去掉八页标题下常驻导语、复述页名的 h2、同义指标附注，以及页头/列表旁的「不会删除/移动」口头禅。注销、退出授权、放弃整理确认仍说明文件命运。未改路由与 Owner。`web/test/helix-copy.test.tsx` 等 PASS。未部署。
 
 ## 140. UAT-143：退出收藏页把整库多选做成常驻主表面
 

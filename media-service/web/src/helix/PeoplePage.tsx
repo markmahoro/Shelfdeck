@@ -96,7 +96,7 @@ export default function PeoplePage() {
         providerIdentities: providerKey.trim() ? [{ provider: 'tmdb', namespace: 'tmdb_person', providerKey: providerKey.trim() }] : [],
       });
       setCanonicalName(''); setAliases(''); setProviderKey('');
-      setNotice('已登记这个人。收藏详情里的演职员不会被改写。');
+      setNotice('已登记这个人。');
       await load();
     } catch (cause) {
       if (isUnauthorized(cause)) expire();
@@ -120,22 +120,21 @@ export default function PeoplePage() {
   if (!projection && !error) return <LoadingState>正在读取人物名录…</LoadingState>;
   const summary = projection?.summary;
   return <section className="source-page">
-    <PageHeader title="人物" description="名录是已经登记的人，不是某部电影的演员表。演员表仍在收藏详情里。" actions={<Button type="button" onClick={() => void load()} disabled={loading}>{loading ? '刷新中…' : '刷新'}</Button>} />
+    <PageHeader title="人物" actions={<Button type="button" onClick={() => void load()} disabled={loading}>{loading ? '刷新中…' : '刷新'}</Button>} />
     {error && <p className="form-error" role="alert">{error}</p>}
     {notice && <p className="form-notice" role="status">{notice}</p>}
-    <div className="source-facts facts-3" aria-label="人物摘要">
-      <div><span>已登记</span><strong>{summary?.activePersonCount ?? 0}</strong><small>正式名录</small></div>
-      <div><span>待确认</span><strong>{candidates.length}</strong><small>可接受或忽略</small></div>
-      <div><span>待确认合并</span><strong>{summary?.openMergeCandidateCount ?? 0}</strong><small>本页暂不处理合并</small></div>
+    <div className="source-facts facts-2" aria-label="人物摘要">
+      <div><span>已登记</span><strong>{summary?.activePersonCount ?? 0}</strong></div>
+      <div><span>待确认</span><strong>{candidates.length}</strong></div>
     </div>
     <form className="source-create" onSubmit={register}>
-      <div className="source-create-heading"><div><h2>登记一个人</h2></div><span>参考图不是前置条件</span></div>
+      <div className="source-create-heading"><h2>登记一个人</h2></div>
       <div className="source-form-grid">
         <label><span>姓名</span><input value={canonicalName} onChange={(event) => setCanonicalName(event.target.value)} required /></label>
         <label><span>别名</span><input value={aliases} onChange={(event) => setAliases(event.target.value)} placeholder="可选，逗号分隔" /></label>
         <label><span>外部编号</span><input value={providerKey} onChange={(event) => setProviderKey(event.target.value)} placeholder="可选，例如 TMDB Person ID" /></label>
       </div>
-      <div className="source-create-footer"><p>登记只写入人物名录，不会改任何收藏的演职员。</p><Button variant="primary" type="submit" disabled={loading}>{loading ? '正在登记…' : '登记'}</Button></div>
+      <div className="source-create-footer"><Button variant="primary" type="submit" disabled={loading}>{loading ? '正在登记…' : '登记'}</Button></div>
     </form>
     <section className="source-registry">
       <div className="source-registry-heading"><div><h2>待确认登记</h2></div></div>

@@ -60,7 +60,7 @@ export default function AutomaticOperationPanel({ heading = '自动运营' }: { 
     <header className="settings-card-head">
       <div>
         <h2 id="automatic-operation-title">{heading}</h2>
-        <p>全自动只是各 Owner 可消费的预设，不是第六个引擎。退出收藏的物理销毁保持独立关闭。</p>
+        <p>退出收藏的物理销毁保持独立关闭。</p>
       </div>
       <span className={`integration-state ${choice === 'full_auto' ? 'active' : ''}`}>
         {projection?.data.productChoiceLabel || '关键步骤确认'}

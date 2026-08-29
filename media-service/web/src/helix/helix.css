@@ -96,6 +96,7 @@ button, input, select, textarea { font: inherit; }
 .metric-strip a { color: inherit; text-decoration: none; }
 .source-facts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border-top: 1px solid var(--ink); border-bottom: 1px solid var(--line); background: #f4f7f3; }
 .source-facts.facts-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.source-facts.facts-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .metric-strip article, .source-facts > div { min-height: 96px; padding: 16px 18px; border-right: 1px solid var(--line); }
 .metric-strip a:last-child article, .source-facts > div:last-child { border-right: 0; }
 .metric-strip span, .metric-strip small, .source-facts span, .source-facts small { display: block; color: var(--muted); font-size: 12px; }
