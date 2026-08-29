@@ -124,6 +124,7 @@ export default function FormationPage() {
   const [filter,setFilter]=useState<Filter>('all'),[q,setQ]=useState(''),[shelfFilter,setShelfFilter]=useState(''),[needsActionOnly,setNeedsActionOnly]=useState(false),[expeditedOnly,setExpeditedOnly]=useState(false),[loading,setLoading]=useState(false),[filling,setFilling]=useState(false),[error,setError]=useState('');
   const [selected,setSelected]=useState<FormationSubject|null>(null),closeRef=useRef<HTMLButtonElement>(null),triggerRef=useRef<HTMLButtonElement|null>(null),loadGeneration=useRef(0);
   const [defectDialog,setDefectDialog]=useState<{item:FormationSubject;candidate:DefectAdmissionCandidate}|null>(null);
+  const [discardDialog,setDiscardDialog]=useState<FormationSubject|null>(null);
   const load=useCallback(async(background=false)=>{
     if(background){
       try{
@@ -201,11 +202,10 @@ export default function FormationPage() {
   useEffect(()=>{if(!selected)return;const key=(event:KeyboardEvent)=>{if(event.key==='Escape')close();};document.body.classList.add('formation-process-modal-open');document.addEventListener('keydown',key);closeRef.current?.focus();return()=>{document.body.classList.remove('formation-process-modal-open');document.removeEventListener('keydown',key);};},[selected]);
   const open=async(item:FormationSubject,button:HTMLButtonElement)=>{triggerRef.current=button;setLoading(true);try{setSelected(await helixAdminApi.getFormation(item.formationViewId));}catch(cause){setError(cause instanceof Error?cause.message:'上架过程详情读取失败。');}finally{setLoading(false);}};
   const action=async(item:FormationSubject,kind:'expedite'|'discard'|'admitDefects'|'retry'|'chooseShelf'|'chooseIdentity',value?:boolean|string)=>{
-    if(kind==='discard'&&!window.confirm('确认放弃整理？\n\n本次整理将结束，已产生的临时文件会被清理，原始媒体不会被删除。之后系统仍可能重新发现该媒体并开始新的整理。'))return;
+    if(kind==='discard'){setDiscardDialog(item);return;}
     setLoading(true);setError('');
     try{
       if(kind==='expedite')await helixAdminApi.setRunExpedited(item,Boolean(value));
-      else if(kind==='discard')await helixAdminApi.discardRun(item);
       else if(kind==='admitDefects'){
         const candidate=await helixAdminApi.previewDefectAdmission(item);
         setLoading(false);
@@ -229,6 +229,23 @@ export default function FormationPage() {
       <div className="formation-table-wrap"><table className="formation-table formation-stub-table"><thead><tr><th>媒体名称</th><th>评分</th><th>目标收藏架</th><th>整理要求</th><th>当前进展</th><th>详情</th><th>用户操作</th><th>加急</th></tr></thead><tbody>{rows.length===0?<tr className="formation-stub-media-row"><td colSpan={8}><div className="source-empty"><strong>{summary.totalCount===0?'还没有进入整理的电影':'当前筛选没有条目'}</strong><p>{summary.totalCount===0?'文件来源目录扫完之后，采购还要分拣。整理门口同时只接 3 部，其余待交接不会出现在这张表里。':'试试其他状态或筛选。'}</p></div></td></tr>:rows.map((row)=>row.kind==='ended'?<tr key={row.item.historyId} className="formation-stub-media-row"><td><strong>{row.item.displayIdentity}</strong><small>已结束</small></td><td>—</td><td>—</td><td>—</td><td><strong className="formation-stub-current">{row.item.label}</strong><small>{formatTime(row.item.endedAtMs)}</small></td><td>—</td><td>—</td><td><button type="button" className="formation-expedite-toggle" disabled>加急</button></td></tr>:<MediaRow key={row.item.subjectId} item={row.item} shelves={shelves} loading={loading} acquisitionIncomplete={perceptionSync?.completionState==='incomplete'} onOpen={open} onAction={action} />)}</tbody></table></div>
     </section>
     {selected&&<div className="formation-process-backdrop" role="presentation" onMouseDown={(event)=>{if(event.target===event.currentTarget)close();}}><section className="formation-process-dialog" role="dialog" aria-modal="true" aria-labelledby="formation-process-dialog-title"><button ref={closeRef} className="formation-process-dialog-close" type="button" aria-label="关闭上架过程详情" onClick={close}>×</button><h2 id="formation-process-dialog-title" className="formation-process-dialog-title">{selected.displayIdentity}的上架过程详情</h2><ProcessDetail item={selected} /></section></div>}
+    <Dialog open={!!discardDialog} title="确认放弃整理" onClose={()=>setDiscardDialog(null)} actions={<>
+      <Button type="button" disabled={loading} onClick={()=>setDiscardDialog(null)}>取消</Button>
+      <Button type="button" variant="danger" disabled={loading} onClick={()=>{void (async()=>{
+        if(!discardDialog)return;
+        setLoading(true);setError('');
+        try{
+          await helixAdminApi.discardRun(discardDialog);
+          setDiscardDialog(null);
+          await load();
+        }catch(cause){setError(cause instanceof Error?cause.message:'操作失败。');setLoading(false);}
+      })();}}>确认放弃</Button>
+    </>}>
+      {discardDialog&&<div className="stack">
+        <p>{discardDialog.displayIdentity}</p>
+        <p>本次整理将结束，已产生的临时文件会被清理，原始媒体不会被删除。之后系统仍可能重新发现该媒体并开始新的整理。</p>
+      </div>}
+    </Dialog>
     <Dialog open={!!defectDialog} title="确认接受瑕疵入库" onClose={()=>setDefectDialog(null)} actions={<>
       <Button type="button" disabled={loading} onClick={()=>setDefectDialog(null)}>取消</Button>
       <Button type="button" variant="primary" disabled={loading} onClick={()=>{void (async()=>{
