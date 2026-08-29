@@ -252,7 +252,13 @@ function createStartupRecovery(options) {
         if (processedEffectIds.has(effect.effect_id)) continue;
         const attempt = facts.attempts.find((row) => row.event_attempt_id === effect.event_attempt_id);
         const event = attempt ? events.get(attempt.event_id) : null;
-        if (event && ['failed', 'cancelled'].includes(event.state) &&
+        // Recovery inspects only the latest Attempt of a live Event. Timeout
+        // retries leave reconcile_required Effects on superseded completed
+        // Attempts; those are uncommitted leftovers, not a host invariant break.
+        const eventAbandoned = event && ['failed', 'cancelled'].includes(event.state);
+        const attemptAbandoned = attempt && attempt.state === 'completed' &&
+          ['failed', 'cancelled'].includes(attempt.outcome_kind);
+        if ((eventAbandoned || attemptAbandoned) &&
             typeof options.effectJournal?.abandonUncommitted === 'function') {
           options.effectJournal.abandonUncommitted(effect.effect_id);
           continue;

@@ -43,6 +43,11 @@ function fixture(run, settings = {}) {
       .run(effectClass, HASH, settings.effectState || 'intended');
     if (settings.secondJournal) transaction.prepare("INSERT INTO fx_effect_journal(effect_id,event_attempt_id,effect_class,idempotency_key,intent_digest,state,updated_at_ms) VALUES('effect-2','event-attempt',?,'key-2',?,'intended',1)")
       .run(effectClass, HASH);
+    if (settings.supersededFailedJournal) {
+      transaction.prepare("INSERT INTO fx_event_attempts(event_attempt_id,event_id,ordinal,state,outcome_kind,started_at_ms) VALUES('event-attempt-old','event',0,'completed','failed',1)").run();
+      transaction.prepare("INSERT INTO fx_effect_journal(effect_id,event_attempt_id,effect_class,idempotency_key,intent_digest,state,updated_at_ms) VALUES('effect-old','event-attempt-old',?,'key-old',?,'reconcile_required',1)")
+        .run(effectClass, HASH);
+    }
     if (settings.defer) transaction.prepare("INSERT INTO fx_resource_defer(event_id,resource_key,queue_class,local_priority,enqueued_at_ms,retry_at_ms,state) VALUES('event','cpu','normal_foreground',0,1,2,'waiting')").run();
     if (settings.circuit) transaction.prepare("INSERT INTO fx_circuit_states(circuit_key,state,reason_code,evidence_digest,opened_at_ms) VALUES(?, 'open','FAULT',?,1)")
       .run(settings.circuit, 'b'.repeat(64));
@@ -69,6 +74,7 @@ function fixture(run, settings = {}) {
       return settings.catalog !== false;
     } },
     standaloneEffectClasses: settings.standaloneEffectClasses || [],
+    effectJournal: settings.effectJournal,
     effectReconciler: { async reconcile() {
       if (settings.reconcilerUnavailable) throw new Error('unavailable');
       return { decision: 'continue_forward', evidenceDigest: 'c'.repeat(64) };
@@ -321,6 +327,30 @@ test('multiple effects, unavailable reconciler, unknown contract, global Circuit
   await fixture(async (recovery) => assert.equal(
     (await recovery.recover()).findings.includes('NONTERMINAL_EFFECT_WITHOUT_RECOVERY_EVENT:effect'), true),
   { eventState: 'failed', effectClass: 'material_commit', journal: true });
+});
+
+test('startup abandons leftover Effects on superseded failed Attempts of a live Event', async () => {
+  const liveSettings = {
+    eventState: 'waiting_for_external',
+    effectClass: 'workspace_write',
+    journal: true,
+    supersededFailedJournal: true,
+  };
+  await fixture(async (recovery) => {
+    const result = await recovery.recover();
+    assert.equal(result.findings.includes('NONTERMINAL_EFFECT_WITHOUT_RECOVERY_EVENT:effect-old'), true);
+    assert.equal(result.state, 'faulted');
+  }, liveSettings);
+  const abandoned = [];
+  await fixture(async (recovery) => {
+    const result = await recovery.recover();
+    assert.equal(result.findings.includes('NONTERMINAL_EFFECT_WITHOUT_RECOVERY_EVENT:effect-old'), false);
+    assert.equal(result.state, 'recovering');
+    assert.deepEqual(abandoned, ['effect-old']);
+  }, {
+    ...liveSettings,
+    effectJournal: { abandonUncommitted(id) { abandoned.push(id); return { state: 'failed' }; } },
+  });
 });
 
 test('scoped Circuit yields degraded fail-closed readiness and no in-memory guard resurrection', async () => fixture(async (recovery) => {
