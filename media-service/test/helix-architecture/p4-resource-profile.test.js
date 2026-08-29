@@ -44,6 +44,14 @@ test('unknown or unvalidated resources have zero capacity and unknown kinds fail
   assert.throws(() => mapper.capacityFor('mystery:thing'), { code: 'P4_RESOURCE_KEY_KIND_UNKNOWN' });
 });
 
+test('production default volume write capacity is two without switching to the full Profile', () => {
+  const source = fs.readFileSync(path.resolve(__dirname,
+    '../../src/helix/composition/create-procurement-execution-runtime.js'), 'utf8');
+  assert.match(source, /profileKey: 'default'/);
+  assert.match(source, /startsWith\('volume_write:'\)\)return validatedVolumeKeys.has\(resourceKey.slice\('volume_write:'\.length\)\)\?2:0/);
+  assert.doesNotMatch(source, /profileKey: 'full'/);
+});
+
 test('Transcode input preflight reserves the full default volume read capacity', () => {
   assert.equal(volumeReadUnitsForCapability('libra.transcode.input.verify@1'), 2);
   assert.equal(volumeReadUnitsForCapability('libra.product_media.verify@1'), 1);
