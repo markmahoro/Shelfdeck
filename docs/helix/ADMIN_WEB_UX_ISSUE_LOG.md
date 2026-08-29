@@ -1,6 +1,6 @@
 # Admin Web 用户体验问题台账
 
-状态：`ADMIN WEB UX OVERHAUL IMPLEMENTED / UAT-005/050–058 IMPLEMENTED / UX-006 FIXED / UX-023, UX-033–038 REMAIN OPEN / UAT-141–143 RECORDED`
+状态：`ADMIN WEB UX OVERHAUL IMPLEMENTED / UAT-005/050–058 IMPLEMENTED / UX-006, UX-033 FIXED / UX-023, UX-034–038 REMAIN OPEN / UAT-142–143 RECORDED`
 
 建立日期：2026-08-22
 
@@ -66,7 +66,7 @@
 | UX-030 | 退出收藏 3～4 路拼装，preparing 每 500ms 重拉 | `PERFORMANCE` | 退出收藏 | Medium | 已实现 |
 | UX-031 | Helix 页未使用已引入的 QueryClient，切页无共享缓存 | `PERFORMANCE` | 全站 | Medium | 已实现 |
 | UX-032 | 整体仍是「内部台账皮肤」，缺少统一的媒体产品视觉 | `AESTHETICS` | 全站 | High | 已实现 |
-| UX-033 | 概览通栏堆叠，首屏报平安，正在整理被降成脚注 | `LAYOUT` | 概览 | High | OPEN；口径见 `UAT-141`，未授权 |
+| UX-033 | 概览通栏堆叠，首屏报平安，正在整理被降成脚注 | `LAYOUT` | 概览 | High | **FIXED**（本地；未部署） |
 | UX-034 | 八页标题下导语与小节 h2 复述导航 | `COPY_REDUNDANT` | 全站 | High | OPEN；口径见 `UAT-142`，未授权 |
 | UX-035 | 「不会删除/移动文件」在页头、列表、确认框重复 | `COPY_REDUNDANT` | 来源 / 退出 / 收藏 | Medium | OPEN；口径见 `UAT-142`，未授权 |
 | UX-036 | 指标附注同义反复；收藏导语与「历史」冲突；未做的合并能力被画出 | `COPY_CONFLICT` | 概览 / 收藏 / 人物 / 配置 | Medium | OPEN；口径见 `UAT-142`，未授权 |
@@ -439,7 +439,7 @@ Helix 壳层（`web/src/helix/helix.css`、`chrome.tsx`、`session.tsx`、`App.t
 | UX-031 | Helix `App` 包 `QueryClientProvider`，概览与侧栏共享 `['overview']` | `App.tsx`、`OverviewPage.tsx` |
 | UX-032 | 不增加口号 Hero，保持工作台信息架构 | `helix.css`、`OverviewPage.tsx` |
 
-仍 OPEN：UX-023（收藏详情部分 uppercase 标签）、UX-033（概览排版，见 `UAT-141`）、UX-034–037（2026-08-30 重复语义二次审视，见 `UAT-142`）、UX-038（退出收藏信息架构，见 `UAT-143`）。
+仍 OPEN：UX-023（收藏详情部分 uppercase 标签）、UX-034–037（2026-08-30 重复语义二次审视，见 `UAT-142`）、UX-038（退出收藏信息架构，见 `UAT-143`）。
 
 ## 13. 2026-08-30 二次审视：重复语义与排版（只登记）
 
@@ -447,7 +447,7 @@ Helix 壳层（`web/src/helix/helix.css`、`chrome.tsx`、`session.tsx`、`App.t
 
 ### UX-033 概览通栏堆叠
 
-页面：概览。详见 `UAT-141`。当前结构是单列等权卡片。已确认方向：一行状态 + 薄指标 + 左行动/右履历。现网后台检查「需要留意 / 待处理 5」与「正常运行」并排，归本项，不另开 PROD。未授权实现。
+页面：概览。详见 `UAT-141`。2026-08-30 已改为：一行状态 + 薄指标 + 左行动/右履历。正常运行用状态词；后台检查默认一行，不与待办抢「待处理」。未部署。
 
 ### UX-034 标题下导语复述导航
 

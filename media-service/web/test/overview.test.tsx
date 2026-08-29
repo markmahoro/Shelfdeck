@@ -28,9 +28,12 @@ describe('Helix Overview product semantics', () => {
     render(<MemoryRouter initialEntries={['/']}><App /></MemoryRouter>);
     expect(await screen.findByRole('heading', { level: 1, name: '概览' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /尚未配置/ })).toBeInTheDocument();
+    expect(document.querySelector('.system-state')).toHaveAttribute('data-kind', 'unconfigured');
     expect(document.querySelector('.rail-status')).toHaveTextContent('尚未配置');
     expect(screen.getByText('正式收藏')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /还没有文件来源/ })).toBeInTheDocument();
+    expect(screen.queryByText('看系统是否就绪、有没有要你处理的事，以及最近上架了什么。')).not.toBeInTheDocument();
+    expect(screen.queryByText('当前在收藏架上')).not.toBeInTheDocument();
     expect(screen.queryByText('已发现的电影')).not.toBeInTheDocument();
     expect(screen.queryByText('已检查健康')).not.toBeInTheDocument();
     expect(screen.queryByText('你的收藏，正在被认真照料')).not.toBeInTheDocument();
@@ -38,9 +41,8 @@ describe('Helix Overview product semantics', () => {
     expect(screen.queryByText('任务中心')).not.toBeInTheDocument();
     expect(screen.queryByText('收藏运营台')).not.toBeInTheDocument();
     expect(screen.queryByText('本地 Projection')).not.toBeInTheDocument();
-    expect(screen.getByText('后台检查')).toBeInTheDocument();
-    expect(screen.getByText('正常', { selector:'.background-status strong' })).toBeInTheDocument();
-    expect(screen.getByText('待处理')).toBeInTheDocument();
+    expect(screen.getByText(/后台检查 · 正常/)).toBeInTheDocument();
+    expect(screen.queryByText('待处理')).not.toBeInTheDocument();
     expect(screen.getByText('人物信息')).toBeInTheDocument();
     expect(screen.getByText('没有待处理项')).toBeInTheDocument();
   });
@@ -72,6 +74,48 @@ describe('Helix Overview product semantics', () => {
     expect(screen.queryByText('现在没有需要你处理的事项')).not.toBeInTheDocument();
     expect(screen.queryByText('正常运行')).not.toBeInTheDocument();
     expect(screen.getByText(/待整理/).closest('a')).toHaveAttribute('href', '/formation');
+    expect(document.querySelector('.overview-workbench')).not.toBeNull();
+  });
+
+  it('keeps running as a status word and puts organizing titles in the left column', async () => {
+    vi.spyOn(helixAdminApi, 'getOverview').mockResolvedValue({
+      generatedAt: new Date().toISOString(),
+      systemState: { kind: 'running', label: '正常运行', href: '/collection' },
+      metrics: [
+        { key: 'active_collection', label: '正式收藏', value: 12, note: '当前在收藏架上', href: '/collection' },
+        { key: 'new_this_month', label: '本月新上架', value: 1, note: '本月完成上架', href: '/collection' },
+        { key: 'healthy_collection', label: '健康收藏', value: 11, note: '检查结果为健康', href: '/collection' },
+      ],
+      todos: [],
+      inProgress: { count: 1, label: '正在整理', href: '/formation' },
+      setup: { activeMaterialFieldCount: 1, activeShelfCount: 1 },
+      ledger: [
+        { key: 'ondeck:1', label: '新上架 · Skyfall', href: '/collection' },
+        { key: 'progress:2', label: '正在整理 · Lisbon', href: '/formation' },
+      ],
+      backgroundOperations: {state:'attention',cadenceMs:30000,lastStartedAtMs:1700000000000,lastCompletedAtMs:1700000000100,
+        pendingCount:5,registrations:[{ownerDomain:'libra',reconcilerKey:'completed-workspace-reclamation',state:'attention',
+          lastStartedAtMs:1700000000000,lastCompletedAtMs:1700000000100,processed:0,pendingCount:5,errorCode:'P9_RUN_LIFECYCLE_TERMINAL',
+          lastResultKind:'failed',nextDueAtMs:null}]},
+    });
+    render(<MemoryRouter initialEntries={['/']}><App /></MemoryRouter>);
+    expect(await screen.findByRole('heading', { level: 1, name: '概览' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: '正常运行' })).toHaveClass('system-state-word');
+    expect(document.querySelector('.system-state')).toBeNull();
+    expect(screen.getByText(/后台检查 · 需要留意/)).toBeInTheDocument();
+    expect(screen.queryByText('待处理')).not.toBeInTheDocument();
+    expect(screen.queryByText('当前在收藏架上')).not.toBeInTheDocument();
+    expect(screen.getByText('现在没有需要你处理的事项')).toBeInTheDocument();
+    expect(document.querySelector('.source-empty')).toBeNull();
+    expect(screen.getByRole('link', { name: /正在整理 1 部/ })).toHaveAttribute('href', '/formation');
+    const actionColumn = screen.getByRole('heading', { name: '需要你处理' }).closest('section');
+    expect(actionColumn).toHaveTextContent('Lisbon');
+    expect(actionColumn).not.toHaveTextContent('新上架 · Skyfall');
+    const ledgerColumn = screen.getByRole('heading', { name: '最近进展' }).closest('section');
+    expect(ledgerColumn).toHaveTextContent('新上架 · Skyfall');
+    expect(ledgerColumn).not.toHaveTextContent('Lisbon');
+    expect(screen.queryByText('01')).not.toBeInTheDocument();
+    expect(screen.queryByText('P9_RUN_LIFECYCLE_TERMINAL')).not.toBeInTheDocument();
   });
 
   it('presents offdeck as a titled workbench instead of a JSON AST editor', async () => {

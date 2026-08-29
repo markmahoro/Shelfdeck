@@ -215,7 +215,7 @@ User Perception全面取消year关联校验，year仅作为资料保存/展示�
 | UAT-138 | 单Movie目录中的Windows `Thumbs.db`已被Field观察却未进入Related处置，形成Final Inventory外孤儿文件 | `MATERIAL_CONTROL` | `RELATED_MATERIAL`、`INVENTORY_INTEGRITY`、`SAME_ROOT` | Procurement Related Material Association + Libra/Arca Disposition continuity | 逐文件可追溯性、上架正确性、删除安全 | Critical | `QUALIFICATION FAILED / LOCAL FULL REGRESSION PASSED / NEW CANARY REQUIRED` |
 | UAT-139 | Off-deck Admin Web没有将全部当前收藏多选/全选为一个batch Review的入口，无法执行统一Scope核对和High-volume二次确认 | `USER_EXPERIENCE` | `DESTRUCTIVE_AUTHORIZATION`、`HIGH_VOLUME_FENCE` | Arca Off-deck Admin Web + existing batch Review command | 删除授权完整性、大批量安全、全Shelf退出可达性 | Critical | `QUALIFICATION FAILED / LOCAL FULL REGRESSION PASSED / NEW CANARY REQUIRED` |
 | UAT-140 | 收藏详情健康区把 Finding / 三维 / 技术标识铺给用户；应收成三态灯 + 修复中写正在修什么 | `USER_EXPERIENCE` | `PROJECTION_FRESHNESS` | Admin Web Collection 详情展示 | 可理解性 | Medium | **FIXED**（本地；未部署） |
-| UAT-141 | 概览通栏堆叠，首屏报平安；应收成一行状态 + 两列工作面 | `USER_EXPERIENCE` | `LAYOUT` | Admin Web Overview | 可扫读性、行动优先级 | Medium | `RECORDED / NOT AUTHORIZED` |
+| UAT-141 | 概览通栏堆叠，首屏报平安；应收成一行状态 + 两列工作面 | `USER_EXPERIENCE` | `LAYOUT` | Admin Web Overview | 可扫读性、行动优先级 | Medium | **FIXED**（本地；未部署） |
 | UAT-142 | 八页标题下导语、安全声明与指标附注重复同一语义 | `USER_EXPERIENCE` | `COPY_REDUNDANT` | Admin Web 全站 | 可理解性、信息层级 | Medium | `RECORDED / NOT AUTHORIZED` |
 | UAT-143 | 退出收藏规则应进设置 Tab；页面只留系统建议与手动搜索退出，确认用弹出详情 | `USER_EXPERIENCE` | `LAYOUT`、`DESTRUCTIVE_AUTHORIZATION` | Admin Web Off-deck + Settings | 决断焦点、可扫读性 | High | `RECORDED / NOT AUTHORIZED` |
 
@@ -4325,7 +4325,7 @@ UI/FACT/FS/监控Evidence原样保留。UAT-139为
 
 验收证据：首屏能同时看到行动（待办/正在整理）与履历（最近进展）；正常运行不再占整条绿底；导语消失；后台检查默认一行，不与待办抢「要你处理」。
 
-当前处理决定：2026-08-30 Product Owner 确认该排版方向，并明确先记下、不改代码。同日确认现网后台检查「需要留意」归本项，不另立案。UAT-141 为 `RECORDED / NOT AUTHORIZED`。
+当前处理决定：2026-08-30 已实现该排版。不改 Overview Query 口径。`web/test/overview.test.tsx` PASS。未部署。
 
 ## 139. UAT-142：Admin Web 八页重复语义
 
