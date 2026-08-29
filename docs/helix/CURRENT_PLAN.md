@@ -4,6 +4,18 @@ Status: Helix-beta 已由 Product Owner 收窄为 **仅 Movie 的全功能版本
 
 Last updated: 2026-08-30
 
+## 0. Parked — 「全自动或关键步骤确认」后续删除（PROD-029）
+
+Product Owner 确认该开关当前无用户可见效果，后续删除；只登记，**不是当前实施 Phase，未授权删界面/API 或改 SSOT**。详见 `PRODUCTION_DEPLOY_ISSUE_LOG.md` `PROD-029`。
+
+## 0. Parked — 概览排版、重复语义与退出收藏页（UAT-141 / UAT-142 / UAT-143）
+
+Product Owner 已确认概览排版方向（一行状态 + 两列工作面），并要求排查全站重复语义。退出收藏：规则进系统设置 Tab；页面只留系统建议退出与手动退出（搜索）；确认用弹出详情卡片；不用「审阅」。三项均只登记，**不是当前实施 Phase，未授权改代码或改 SSOT**。详见 `CURRENT_STATUS.md`、`USER_ACCEPTANCE_TEST_ISSUE_LOG.md` `UAT-141`–`UAT-143` 与 `ADMIN_WEB_UX_ISSUE_LOG.md` `UX-033`–`UX-038`。
+
+## 0. Code fix — NFO 按语义验呈现（PROD-028）
+
+Aftercare Presentation 按身份与 owned 语义比较，不再整份字节全等；Custody 不再因 NFO sidecar 指纹漂移自动修。Libra 首次写入路径未合并（Domain 边界）。未改 SSOT。代码已修、未部署。详见 `PRODUCTION_DEPLOY_ISSUE_LOG.md` `PROD-028`。
+
 ## 0. Deployed — PROD-026 lossless NAS upgrade
 
 已部署 `markmahoro/shelfdeck:helix-beta-20260830-06d0cc63b`，未 `--helix-clean-init`。Libra/Aftercare remux+transcode 48 小时硬上限、10 分钟停滞；上架暂存槽躲开 Emby 刮削；启动恢复放行旧 Catalog 上已终止的零节点 unplannable Plan。现场《2001太空漫游》已上架，《里斯本丸沉没》QSV 在编，《教父2》排队。Field/Shelf/`/transcode`/集成未改。

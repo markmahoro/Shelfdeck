@@ -59,6 +59,10 @@ test('Aftercare assessment and rendering share the same existing NFO and poster 
   assert.match(render, /selectedNfoMaterial\(c\.raw\.materials\)/);
   assert.doesNotMatch(render, /role===['"]metadata_sidecar['"]/);
   assert.match(planner, /custody:nfo_identity_changed/);
+  assert.match(presentation, /compareMovieNfoPresentation/);
+  assert.doesNotMatch(presentation, /existingBytes\.equals/);
+  assert.doesNotMatch(presentation, /renderAftercareMovieNfo/);
+  assert.match(source, /if\(identityChanged\)\{if\(isNfoMaterial\(item\)\)continue;/);
 });
 
 test('Aftercare progress samples use the exact Foundation determinate shape', () => {
@@ -105,11 +109,11 @@ test('Aftercare Provider Artifact accepts bytes only behind the frozen response 
   assert.ok((acquire.match(/revalidateCaseAuthority\(execution,care\)/g) || []).length >= 2);
 });
 
-test('Aftercare treats exact NFO drift as repairable but keeps non-NFO drift behind attention', () => {
+test('Aftercare does not treat NFO sidecar fingerprint drift as automatic custody repair', () => {
   const nfo=custodyIdentityChangedFinding({role:'metadata_sidecar',location:'F:/shelf/movie.nfo',material_key:canonicalDigest('old-nfo')}),
     subtitle=custodyIdentityChangedFinding({role:'subtitle',location:'F:/shelf/movie.srt',material_key:canonicalDigest('old-subtitle')}),
     primary=custodyIdentityChangedFinding({role:'primary_payload',location:'F:/shelf/movie.mkv',material_key:canonicalDigest('old-primary')});
-  assert.match(nfo.schemaRef,/\/custody\/nfo_identity_changed\/critical\/auto_repair\//);
+  assert.match(nfo.schemaRef,/\/custody\/nfo_identity_changed\/critical\/attention_required\//);
   assert.match(subtitle.schemaRef,/\/custody\/material_identity_changed\/critical\/attention_required\//);
   assert.match(primary.schemaRef,/\/custody\/primary_identity_changed\/critical\/attention_required\//);
 });

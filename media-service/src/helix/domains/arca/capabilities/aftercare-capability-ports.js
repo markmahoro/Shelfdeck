@@ -21,6 +21,7 @@ const { SCHEMA_REF:EPISODE_CLAIMS_SCHEMA,
   emptyArcaMaterialEpisodeClaims } = require('../model/material-episode-claims');
 const { isKnownOldOffloadBinding, observeKnownOldBindings } = require('../model/known-old-binding');
 const {
+  compareMovieNfoPresentation,
   inspectAftercareMovieNfo,
   renderAftercareMovieNfo,
 } = require('../model/aftercare-nfo');
@@ -199,7 +200,7 @@ function artifactHandle(context,caseId,kind,location,at,mediaType=null,provenanc
 function isPrimaryMaterial(item){return String(item.role||'').toLowerCase().includes('primary');}
 function isNfoMaterial(item){return isAftercareArtifactMaterial(item,'nfo');}
 function isPosterMaterial(item){return isAftercareArtifactMaterial(item,'poster');}
-function custodyIdentityChangedFinding(item){const nfo=isNfoMaterial(item);return finding('custody',isPrimaryMaterial(item)?'primary_identity_changed':nfo?'nfo_identity_changed':'material_identity_changed','critical',nfo?'auto_repair':'attention_required',item.material_key);}
+function custodyIdentityChangedFinding(item){const nfo=isNfoMaterial(item);return finding('custody',isPrimaryMaterial(item)?'primary_identity_changed':nfo?'nfo_identity_changed':'material_identity_changed','critical','attention_required',item.material_key);}
 function nfoSourceGuard(contextValue,current,fingerprint){const sourceMaterialIdentity=current&&fs.existsSync(current.location)?physicalIdentity(current.location,current.mount_scope_id,fingerprint):null;return Object.freeze({sourceMaterialIdentity,digest:canonicalDigest({schema:'arca.aftercare-nfo-source-guard@1',careBasisDigest:contextValue.basis.digest,sourceMaterialIdentity})});}
 function inventoryRowForIdentity(template,identity){return Object.freeze({...template,material_key:identity.materialKey,mount_scope_id:identity.mountScopeId,inode:identity.inode,size_bytes:identity.sizeBytes,fingerprint_algorithm:identity.fingerprintAlgorithm,fingerprint_version:identity.fingerprintVersion,content_fingerprint:identity.contentFingerprint});}
 function nfoCommitSource(contextValue,output,location,inventoryMaterial,mountScopeId,fingerprint){const currentIdentity=fs.existsSync(location)?physicalIdentity(location,mountScopeId,fingerprint):null,expectedGuard=canonicalDigest({schema:'arca.aftercare-nfo-source-guard@1',careBasisDigest:contextValue.basis.digest,sourceMaterialIdentity:currentIdentity});if(output.provenanceRef?.digest!==expectedGuard)throw Object.assign(new Error('Aftercare NFO source changed after preparation.'),{code:'ARCA_AFTERCARE_NFO_SOURCE_STALE'});const exactInventory=inventoryMaterial&&exactInventoryMaterial(location,inventoryMaterial,mountScopeId,fingerprint);return Object.freeze({material:currentIdentity&&!exactInventory?inventoryRowForIdentity(inventoryMaterial||{},currentIdentity):inventoryMaterial,supersededMaterialIdentity:currentIdentity&&!exactInventory?currentIdentity:null});}
@@ -377,7 +378,7 @@ function createAftercareCapabilityPorts(options){const now=options.now||Date.now
           String(observed.stat.ino)!==String(item.inode)||Number(observed.stat.size)!==Number(item.size_bytes)||
           observed.fingerprintAlgorithm!==item.fingerprint_algorithm||Number(observed.fingerprintVersion)!==Number(item.fingerprint_version)||
           observed.contentFingerprint!==item.content_fingerprint;
-        if(identityChanged){findings.push(custodyIdentityChangedFinding(item));continue;}
+        if(identityChanged){if(isNfoMaterial(item))continue;findings.push(custodyIdentityChangedFinding(item));continue;}
       }catch(error){const causeCode=error?.details?.causeCode||error?.code;if(['ENOENT'].includes(causeCode)){findings.push(finding('custody',isPrimaryMaterial(item)?'primary_missing':'artifact_missing','critical',!isPrimaryMaterial(item)&&isRepairablePresentationArtifact(item)?'auto_repair':'attention_required',item.material_key));}
         else if(['EACCES','EPERM','ENOTCONN','EHOSTDOWN','ENODEV','EIO'].includes(causeCode)){endpointUnavailable=true;break;}
         else findings.push(finding('custody',isPrimaryMaterial(item)?'primary_unreadable':'artifact_unreadable','critical',!isPrimaryMaterial(item)&&isRepairablePresentationArtifact(item)?'auto_repair':'attention_required',item.material_key));}
@@ -390,7 +391,7 @@ function createAftercareCapabilityPorts(options){const now=options.now||Date.now
     const nfoRows=c.raw.materials.filter(isNfoMaterial),posterRows=c.raw.materials.filter(isPosterMaterial),nfos=existingMaterials(c.raw.materials,isNfoMaterial),posters=existingMaterials(c.raw.materials,isPosterMaterial),findings=[];
     if(nfos.length===0)findings.push(finding('presentation','nfo_missing','warning','auto_repair',c.shelfEntryId));
     else if(!nfos.some((item)=>validNfo(item.location)))findings.push(finding('presentation','nfo_corrupt','warning','auto_repair',c.shelfEntryId));
-    else {const current=nfos.find((item)=>validNfo(item.location)),metadata=c.raw.facts.find((item)=>item.fact_kind==='product_metadata')?.value,cast=c.raw.facts.find((item)=>item.fact_kind==='media_cast')?.value;try{const existingBytes=boundedBytes(current.location,256*1024),rendered=renderAftercareMovieNfo({existingBytes,metadata,cast,identity:{provider:c.raw.identity.provider,providerKey:c.raw.identity.provider_key}});if(!existingBytes.equals(rendered.bytes))findings.push(finding('presentation','nfo_update_required','warning','auto_repair',c.shelfEntryId));}catch{findings.push(finding('presentation','nfo_content_unverifiable','warning','attention_required',c.shelfEntryId));}}
+    else {const current=nfos.find((item)=>validNfo(item.location)),metadata=c.raw.facts.find((item)=>item.fact_kind==='product_metadata')?.value,cast=c.raw.facts.find((item)=>item.fact_kind==='media_cast')?.value;try{const existingBytes=boundedBytes(current.location,256*1024),compared=compareMovieNfoPresentation({existingBytes,metadata,cast,identity:{provider:c.raw.identity.provider,providerKey:c.raw.identity.provider_key}});if(!compared.matches)findings.push(finding('presentation','nfo_update_required','warning','auto_repair',c.shelfEntryId));}catch{findings.push(finding('presentation','nfo_content_unverifiable','warning','attention_required',c.shelfEntryId));}}
     let hasValidPoster=false;for(const poster of posters){if(await validImage(poster.location)){hasValidPoster=true;break;}}
     if(posters.length===0)findings.push(finding('presentation','poster_missing','warning',
       c.raw.identity.provider&&c.raw.identity.provider_key&&providerHandle(c)?'auto_repair':'attention_required',c.shelfEntryId));

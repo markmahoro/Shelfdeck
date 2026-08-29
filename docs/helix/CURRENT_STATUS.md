@@ -32,9 +32,9 @@ SSOT §9.4.8 目前把规则写在退出页五个视图里；落地前需 Archit
 
 2026-08-30 Product Owner 要求先记下概览排版，并排查全站重复语义。已完成 Helix 八页只读审视：标题下常驻导语复述导航、安全声明同页重复、「不会删除文件」跨页口头禅、指标附注同义反复、以及仍泄漏的内部口径。只登记，**未授权改代码或改 SSOT**。见 `USER_ACCEPTANCE_TEST_ISSUE_LOG.md` `UAT-142` 与 `ADMIN_WEB_UX_ISSUE_LOG.md` `UX-034`–`UX-037`。
 
-## 0. Parked — NFO 全链路合同（PROD-028）
+## 0. Code fix — NFO 按语义验呈现（PROD-028）
 
-2026-08-30 Product Owner 确认核心理念并要求先记下、不授权实现。NFO 是片子旁边的呈现说明书，不是户口本。户口本已在上架时写入 Canonical Identity、Product Metadata、Media Cast，不新建存储。Aftercare 对 NFO 的职责应从「整份必须等于再渲结果 / 指纹变了就修」改为「说明书呈现的信息是否仍与内部身份和资料一致」。Libra 首次 create/update/rebuild 不变；不把 Emby 当权威，不把 Emby XML 当产品格式。现网《网络谜踪》为 `presentation:nfo_update_required`。记入 `docs/helix/PRODUCTION_DEPLOY_ISSUE_LOG.md`。**OPEN / 先不修**。
+2026-08-30 代码已修、未部署。Aftercare Presentation 按 TMDB 身份与 owned 字段/演员语义比较，不再整份字节全等；Custody 忽略仍存在的 NFO sidecar 指纹漂移。现网《网络谜踪》需无损升级后下一次评估才放行。未改 SSOT。记入 `docs/helix/PRODUCTION_DEPLOY_ISSUE_LOG.md`。
 
 ## 0. Parked — 收藏详情健康三态（UAT-140 / UX-006）
 

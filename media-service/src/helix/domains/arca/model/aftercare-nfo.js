@@ -222,11 +222,23 @@ function directText(document, tag, predicate = () => true) {
   return childText(document, child);
 }
 
+function decodeXmlEntities(value) {
+  return String(value).replace(/&#x([\da-f]+);/gi, (_, hex) => String.fromCodePoint(parseInt(hex, 16)))
+    .replace(/&#(\d+);/g, (_, dec) => String.fromCodePoint(Number(dec)))
+    .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'").replace(/&amp;/g, '&');
+}
+
+function xmlCharacterData(raw) {
+  if (raw == null) return null;
+  const unwrapped = String(raw).replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1');
+  if (unwrapped.includes('<')) return null;
+  return decodeXmlEntities(unwrapped).trim() || null;
+}
+
 function childText(document, child) {
   if (!child || child.selfClosing) return null;
-  const raw = document.xml.slice(child.openEnd, child.closeStart);
-  if (raw.includes('<')) return null;
-  return raw.trim() || null;
+  return xmlCharacterData(document.xml.slice(child.openEnd, child.closeStart));
 }
 
 function inspectAftercareMovieNfo(value) {
@@ -377,9 +389,9 @@ function parseActor(xml, child) {
   const actor = analyzed.directChildren[0];
   const actorXml = analyzed.xml;
   const nested = actorXml.slice(actor.openEnd, actor.closeStart);
-  const name = nested.match(/<name(?:\s[^<>]*?)?>([^<>]*)<\/name>/i)?.[1]?.trim() || '';
-  const personId = nested.match(/<tmdbid(?:\s[^<>]*?)?>([^<>]*)<\/tmdbid>/i)?.[1]?.trim() ||
-    nested.match(/<uniqueid\b[^<>]*\btype\s*=\s*["']tmdb["'][^<>]*>([^<>]*)<\/uniqueid>/i)?.[1]?.trim() || null;
+  const name = xmlCharacterData(nested.match(/<name(?:\s[^<>]*?)?>([\s\S]*?)<\/name>/i)?.[1] || '') || '';
+  const personId = xmlCharacterData(nested.match(/<tmdbid(?:\s[^<>]*?)?>([\s\S]*?)<\/tmdbid>/i)?.[1] || '') ||
+    xmlCharacterData(nested.match(/<uniqueid\b[^<>]*\btype\s*=\s*["']tmdb["'][^<>]*>([\s\S]*?)<\/uniqueid>/i)?.[1] || '') || null;
   return Object.freeze({ raw, name, normalizedName:normalizedName(name), personId,
     closeStart:actor.closeStart - actor.openStart });
 }
@@ -453,11 +465,118 @@ function renderAftercareMovieNfo(input) {
   return updateAftercareMovieNfo(input);
 }
 
+function comparableText(value) {
+  return normalizedName(scalar(value) || '');
+}
+
+function yearToken(value) {
+  const text = scalar(value);
+  if (!text) return null;
+  return text.match(/(?:^|\D)((?:19|20)\d{2})(?:\D|$)/)?.[1] || comparableText(text);
+}
+
+function listTokens(value) {
+  if (Array.isArray(value)) return Object.freeze(value.map((item) => comparableText(item)).filter(Boolean));
+  const text = scalar(value);
+  if (!text) return Object.freeze([]);
+  return Object.freeze(text.split(/\s*\/\s*|\s*,\s*/).map((item) => comparableText(item)).filter(Boolean));
+}
+
+function sameTokenSet(left, right) {
+  if (left.length !== right.length) return false;
+  const remaining = [...right];
+  for (const item of left) {
+    const index = remaining.indexOf(item);
+    if (index === -1) return false;
+    remaining.splice(index, 1);
+  }
+  return remaining.length === 0;
+}
+
+function collectDirectTexts(document, tag, predicate = () => true) {
+  return Object.freeze(document.directChildren
+    .filter((item) => item.name === tag && predicate(item))
+    .map((item) => childText(document, item))
+    .filter(Boolean));
+}
+
+function ownedFieldMatches(tag, expected, observed) {
+  if (observed.length === 0) return false;
+  if (tag === 'year' || tag === 'releasedate') {
+    const expectedYear = yearToken(expected);
+    return observed.every((item) => yearToken(item) === expectedYear);
+  }
+  if (tag === 'genre' || tag === 'director' || tag === 'studio') {
+    return sameTokenSet(listTokens(expected), observed.flatMap((item) => [...listTokens(item)]));
+  }
+  const wanted = comparableText(expected);
+  return observed.every((item) => comparableText(item) === wanted);
+}
+
+function actorPresent(document, relation) {
+  const personId = tmdbPersonId(relation);
+  const name = normalizedName(relation.displayName);
+  const actors = document.directChildren.filter((child) => child.name === 'actor')
+    .map((child) => parseActor(document.xml, child));
+  if (personId && actors.some((item) => item.personId === personId)) return true;
+  return Boolean(name) && actors.some((item) => item.normalizedName === name);
+}
+
+function projectMovieNfoSemantics(value) {
+  const inspected = inspectAftercareMovieNfo(value);
+  if (!inspected.usable) return inspected;
+  const fields = Object.freeze(Object.fromEntries(OWNED_FIELDS.map((field) => [
+    field.tag, collectDirectTexts(inspected, field.tag),
+  ])));
+  return Object.freeze({
+    usable:true,
+    reasonCode:null,
+    movieIdentity:inspected.movieIdentity,
+    fields,
+    actors:Object.freeze(inspected.directChildren.filter((child) => child.name === 'actor')
+      .map((child) => parseActor(inspected.xml, child)).map((item) => Object.freeze({
+        name:item.name, normalizedName:item.normalizedName, personId:item.personId,
+      }))),
+  });
+}
+
+function compareMovieNfoPresentation(input) {
+  if (input?.existingBytes === null || input?.existingBytes === undefined) {
+    return Object.freeze({ matches:false, reasonCode:'source_missing' });
+  }
+  const prepared = prepareInputs(input);
+  const inspected = inspectAftercareMovieNfo(input.existingBytes);
+  if (!inspected.usable) return Object.freeze({ matches:false, reasonCode:inspected.reasonCode });
+  if (prepared.identity.provider === 'tmdb') {
+    if (!inspected.movieIdentity.providerKey) {
+      return Object.freeze({ matches:false, reasonCode:'movie_identity_missing' });
+    }
+    if (inspected.movieIdentity.providerKey !== prepared.identity.providerKey) {
+      return Object.freeze({ matches:false, reasonCode:'movie_identity_conflict' });
+    }
+  }
+  for (const item of ownedValues(prepared.metadata, prepared.identity)) {
+    if (item.tag === 'tmdbid') continue;
+    const observed = collectDirectTexts(inspected, item.tag);
+    if (!ownedFieldMatches(item.tag, item.value, observed)) {
+      return Object.freeze({ matches:false, reasonCode:'owned_field_mismatch', field:item.tag });
+    }
+  }
+  for (const relation of prepared.cast) {
+    if (!actorPresent(inspected, relation)) {
+      return Object.freeze({ matches:false, reasonCode:'actor_missing' });
+    }
+  }
+  return Object.freeze({ matches:true, reasonCode:null });
+}
+
 module.exports = Object.freeze({
   AftercareNfoError,
   MAX_NFO_BYTES,
+  compareMovieNfoPresentation,
   createAftercareMovieNfo,
   inspectAftercareMovieNfo,
+  projectMovieNfoSemantics,
   rebuildAftercareMovieNfo,
   renderAftercareMovieNfo,
   updateAftercareMovieNfo,

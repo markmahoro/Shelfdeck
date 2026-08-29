@@ -5,8 +5,10 @@ const test = require('node:test');
 const {
   AftercareNfoError,
   MAX_NFO_BYTES,
+  compareMovieNfoPresentation,
   createAftercareMovieNfo,
   inspectAftercareMovieNfo,
+  projectMovieNfoSemantics,
   renderAftercareMovieNfo,
   updateAftercareMovieNfo,
 } = require('../../src/helix/domains/arca/model/aftercare-nfo');
@@ -152,4 +154,73 @@ test('rendering fails closed when owned metadata would exceed the NFO byte bound
     (error) => error instanceof AftercareNfoError && error.code === 'ARCA_AFTERCARE_NFO_OUTPUT_TOO_LARGE');
   assert.throws(() => createAftercareMovieNfo(input({ identity:{ provider:'tmdb', providerKey:'  ' } })),
     (error) => error instanceof AftercareNfoError && error.code === 'ARCA_AFTERCARE_NFO_IDENTITY_INVALID');
+});
+
+function embyShapedMovieNfo() {
+  return Buffer.from(`<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<movie>
+  <plot><![CDATA[更新后的简介 & 说明]]></plot>
+  <lockdata>true</lockdata>
+  <dateadded>2024-03-01 12:00:00</dateadded>
+  <title>倩女幽魂</title>
+  <originaltitle>A Chinese Ghost Story</originaltitle>
+  <year>1987</year>
+  <genre>爱情</genre>
+  <genre>奇幻</genre>
+  <uniqueid type="tmdb">12345</uniqueid>
+  <uniqueid type="tvdb">67890</uniqueid>
+  <tmdbid>12345</tmdbid>
+  <actor>
+    <name>张国荣</name>
+    <role>Ning Choi-san</role>
+    <tmdbid>123</tmdbid>
+  </actor>
+  <actor>
+    <name><![CDATA[王祖贤]]></name>
+    <tmdbid>124</tmdbid>
+  </actor>
+</movie>
+`);
+}
+
+test('presentation health matches Emby-shaped NFO by identity and owned semantics, not bytes', () => {
+  const existingBytes = embyShapedMovieNfo();
+  const rendered = renderAftercareMovieNfo(input({ existingBytes }));
+  assert.equal(existingBytes.equals(rendered.bytes), false);
+  assert.deepEqual(compareMovieNfoPresentation(input({ existingBytes })), { matches:true, reasonCode:null });
+  const projected = projectMovieNfoSemantics(existingBytes);
+  assert.equal(projected.usable, true);
+  assert.deepEqual(projected.movieIdentity, { provider:'tmdb', providerKey:'12345' });
+  assert.ok(projected.fields.plot.includes('更新后的简介 & 说明'));
+  assert.equal(inspectAftercareMovieNfo(existingBytes).usable, true);
+});
+
+test('presentation health rebuilds identity conflict and creates a missing NFO', () => {
+  assert.deepEqual(
+    compareMovieNfoPresentation(input({ existingBytes:Buffer.from(
+      '<movie><title>倩女幽魂</title><tmdbid>99</tmdbid></movie>',
+    ) })),
+    { matches:false, reasonCode:'movie_identity_conflict' }
+  );
+  assert.equal(renderAftercareMovieNfo(input({ existingBytes:Buffer.from(
+    '<movie><title>wrong</title><tmdbid>99</tmdbid></movie>',
+  ) })).disposition, 'rebuild');
+  assert.deepEqual(compareMovieNfoPresentation(input({ existingBytes:null })), { matches:false, reasonCode:'source_missing' });
+  assert.equal(renderAftercareMovieNfo(input({ existingBytes:null })).disposition, 'create');
+});
+
+test('presentation health requires owned title, year, plot, genre, and actors against accepted Facts', () => {
+  const source = embyShapedMovieNfo();
+  assert.equal(compareMovieNfoPresentation(input({
+    existingBytes:source,
+    metadata:{ descriptiveFacts:{ entries:[
+      { key:'title', value:'别的电影' },
+      { key:'year_or_release_date', value:1987 },
+      { key:'plot', value:'更新后的简介 & 说明' },
+      { key:'genres', value:['爱情', '奇幻'] },
+    ] } },
+  })).reasonCode, 'owned_field_mismatch');
+  assert.equal(compareMovieNfoPresentation(input({
+    existingBytes:Buffer.from('<movie><title>倩女幽魂</title><year>1987</year><plot>更新后的简介 &amp; 说明</plot><genre>爱情</genre><genre>奇幻</genre><tmdbid>12345</tmdbid></movie>'),
+  })).reasonCode, 'actor_missing');
 });

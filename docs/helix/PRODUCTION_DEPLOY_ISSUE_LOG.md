@@ -47,7 +47,7 @@
 | PROD-025 | 《007：大破天幕杀机》寻源报没有外部候选 | `EXECUTION` / MoviePilot 把 TMDB ID 当标题搜 | 媒体整理工作区 | High | **FIXED** 无损升级 `helix-beta-20260829-d1dd611d4`。已冻结片子需放弃后重新进整理。 |
 | PROD-026 | 《教父2》GPU 转码每小时被掐，永远编不完 | `EXECUTION` / Libra remux/transcode 误用 1 小时观察时限 | 媒体整理工作区 | High | **FIXED** 无损升级 `helix-beta-20260830-06d0cc63b`。在途转码按新 Attempt 使用 48 小时时限。 |
 | PROD-027 | 长转码页面进度写满后冻住，编码器仍在跑 | `EXECUTION` / ProgressReporter 历史上限连 current sample 一并停写 | 媒体整理工作区 | Medium | **FIXED in next image**（current 就地覆盖；未部署） |
-| PROD-028 | Aftercare 按整份 NFO 字节/指纹修文件，与 Emby 抢同一张说明书 | `EXECUTION` / Presentation 字节全等 + Custody 把 sidecar 指纹当身份变化 | 我的收藏 / Aftercare | Medium | **OPEN / 先不修**（合同已确认，未授权实现） |
+| PROD-028 | Aftercare 按整份 NFO 字节/指纹修文件，与 Emby 抢同一张说明书 | `EXECUTION` / Presentation 字节全等 + Custody 把 sidecar 指纹当身份变化 | 我的收藏 / Aftercare | Medium | **FIXED in next image**（语义比较；未部署） |
 | PROD-029 | 收藏架「全自动 / 关键步骤确认」开关不改变实际上架行为 | `USER_EXPERIENCE` / standing Authorization 未接入 On-deck | 收藏架配置 | Low | **OPEN / 先不修**（后续删除，本文不授权删） |
 
 PROD-001、PROD-002 的共同环境前提：生产管理台是 `http://192.168.12.230`，浏览器不提供 `crypto.randomUUID` / `crypto.subtle`。这不是传输加密设计，只是浏览器 API 限制。未改成 HTTPS。
@@ -346,28 +346,27 @@ SSOT 10.3.5：本地 transcode/remux 是「10 分钟无进展判 Attempt timeout
 
 修复：非 terminal 历史顶满后 **就地覆盖** 当前 sample（同一 `revision` / Event 指针），继续发布 current；行数仍 ≤256 条非 terminal + 1 条 terminal。5 秒同 bucket 间隔、回归否决、terminal 独占槽、编码器停滞判定均不变。未改 SSOT、表合同或 Domain。本地 `p4-progress-reporter` / `p4-event-runtime` / `p4-foundation-public` PASS。现网在途转码仍冻在旧镜像，需无损升级后新 Attempt 才按覆盖合同走。
 
-## 29. PROD-028 — Aftercare NFO 按整份字节修，而不是按内部事实验呈现（OPEN / 先不修）
+## 29. PROD-028 — Aftercare NFO 按整份字节修，而不是按内部事实验呈现（FIXED in next image）
 
-发现：2026-08-30。只读现网《Searching / 网络谜踪》上架后 Aftercare Case 目标 `presentation:nfo_update_required`。盘上 NFO 是可用的 Emby 形 movie XML（`lockdata`、`dateadded`、CDATA、tvdbid），不是损坏文件。Product Owner 确认核心理念后要求先记下方案、不授权实现。
+发现：2026-08-30。只读现网《Searching / 网络谜踪》上架后 Aftercare Case 目标 `presentation:nfo_update_required`。盘上 NFO 是可用的 Emby 形 movie XML（`lockdata`、`dateadded`、CDATA、tvdbid），不是损坏文件。Product Owner 确认核心理念后授权逐项深修。
 
-核心理念（已确认，未实施）：
+核心理念：
 
 - NFO 是视频旁边的说明书（Shelf 上的 `.nfo`），不是户口本。
 - 户口本已在 On-deck 写入：Canonical Identity、Product Metadata、Media Cast。不新建存储或 Domain。
-- Aftercare 对 NFO 的职责，从「整份必须等于系统再渲的那一份 / 指纹变了就修」改为「说明书呈现的信息是否仍与内部身份和资料一致」。
+- Aftercare 对 NFO 的职责是「说明书呈现的信息是否仍与内部身份和资料一致」。
 - 文件还在不在、能不能读，仍归 Custody；「被改过」本身不再等于要修。
 - Libra 仍负责第一次 create / 可用则 update / 损坏或身份冲突则 rebuild。
-- 不把 Emby 修改当权威，不把 Emby XML 方言做成产品格式。同源同目录（PROD-004）会放大抢写，但不替代本条合同。
+- 不把 Emby 修改当权威，不把 Emby XML 方言做成产品格式。
 
-现在实际在验：
+修复：
 
-- Presentation：`existingBytes.equals(rendered.bytes)`（`aftercare-capability-ports.js`）。合法 Emby NFO 也会 `nfo_update_required`。
-- Custody：NFO 指纹/size 变化记 `nfo_identity_changed` 并 `auto_repair`。
-- Libra 与 Aftercare 各有一套 NFO 写入器。Emby 在文件 mtime 变后常按自己的模板整份写回；普通扫库、文件没动，一般不重写。
+- Presentation 用 `compareMovieNfoPresentation`：可解析 movie NFO、TMDB 仍是这部片、title/year/plot/genre 与 accepted Facts 一致、Facts 中的演员仍在。不验整份字节、排版、CDATA/`lockdata`/`dateadded`/tvdbid。
+- Custody 对仍存在且可读的 NFO sidecar 忽略 inode/size/指纹漂移，不再 `nfo_identity_changed` + `auto_repair`。缺失/不可读仍按 Artifact 修。
+- Aftercare 写入路径仍走 `renderAftercareMovieNfo`（create/update/rebuild）。Libra 首次写入仍在 `clean-product-production-port.js`；Helix Domain 边界不允许 Libra 引用 Arca model，本项不把两套写入器硬合并。
+- 未改 SSOT：`5.5.5` / `5.8.2.3` 已要求语义可解析、已存在且符合 Standard 的 NFO 保持不变。未改 Domain、Handoff、Emby 角色。
 
-应按合同验：能解析的 movie NFO；TMDB 仍是这部片；Standard 要求字段仍在且与 accepted Facts 一致。不验整份字节、排版、Emby 附加字段、作者是谁。
-
-实施未授权。若日后实施：共用一套 Movie NFO inspect/语义投影/create·update·rebuild；Presentation 改语义比较；Custody 不再因 sidecar 指纹变化单独 auto_repair；SSOT 最多澄清「受控 Renderer」约束写入路径，健康条件是 renderable + 必要语义。不改 Domain、Handoff、Emby 角色。未改代码。
+本地 `p15-aftercare-nfo` / `p15-aftercare-effects-safety` 及相关 Aftercare 合同测试 PASS。现网《网络谜踪》需无损升级后下一次 Presentation 评估才会按语义放行。
 
 ## 30. PROD-029 — 「全自动或关键步骤确认」对用户旅程无效果（OPEN / 先不修，后续删除）
 
