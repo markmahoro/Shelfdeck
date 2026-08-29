@@ -4,9 +4,9 @@ Status: Helix-beta 已由 Product Owner 收窄为 **仅 Movie 的全功能版本
 
 Last updated: 2026-08-30
 
-## 0. Parked — Libra transcode 1-hour Event timeout (PROD-026)
+## 0. Deployed — PROD-026 lossless NAS upgrade
 
-Libra remux/transcode 误绑 1 小时 field-observation，4K 长片会被掐掉后空转重试。代码已改为 SSOT：10 分钟无进展、48 小时硬上限；Aftercare 同步 48 小时；FFmpeg 不再用 12 小时进程默认值截断 Event 时限。未部署。现场《教父2》需无损升级后按新 Attempt 跑完。Field/Shelf/`/transcode`/集成未改。
+已部署 `markmahoro/shelfdeck:helix-beta-20260830-06d0cc63b`，未 `--helix-clean-init`。Libra/Aftercare remux+transcode 48 小时硬上限、10 分钟停滞；上架暂存槽躲开 Emby 刮削；启动恢复放行旧 Catalog 上已终止的零节点 unplannable Plan。现场《2001太空漫游》已上架，《里斯本丸沉没》QSV 在编，《教父2》排队。Field/Shelf/`/transcode`/集成未改。
 
 ## 0. Deployed — PROD-025 lossless NAS upgrade
 

@@ -6,16 +6,16 @@ Kairox release line 已关闭。当前架构和 Beta 状态以 `docs/helix/` 为
 
 ## Current Version State
 
-Last updated: 2026-08-29
+Last updated: 2026-08-30
 
 | 项 | 当前值 | 说明 |
 | --- | --- | --- |
 | Product line | Helix modular monolith in `media-service` | 架构权威为 `docs/helix/`；Helix-beta 仅为 Movie 全链路 |
 | Current release goal | `Helix Beta` NAS production | Movie-only 全链路已部署；`media-desktop` 不在本次范围 |
-| Deployment candidate commit | `d1dd611d4` | 当前生产镜像内代码 |
-| Latest deployed image | `markmahoro/shelfdeck:helix-beta-20260829-d1dd611d4` | 2026-08-29 无损升级：MoviePilot 按片名搜索 |
-| Latest deployed commit | `d1dd611d4` | PROD-025 |
-| Latest deployed image SHA256 | `582449a703271b35f933f39d48edf9e86c6b8aefacc70c87c561b888e9d5192f` | 本地 tar 与 NAS 上传校验 hash |
+| Deployment candidate commit | `06d0cc63b` | 当前生产镜像内代码 |
+| Latest deployed image | `markmahoro/shelfdeck:helix-beta-20260830-06d0cc63b` | 2026-08-30 无损升级：转码 48h 时限 + 上架槽 + Catalog 恢复 |
+| Latest deployed commit | `06d0cc63b` | PROD-026 |
+| Latest deployed image SHA256 | `8f6c0bb030e8be666d3db5658456e669e25684bd0fa53c89dab7281094eed65d` | 本地 tar 与 NAS 上传校验 hash |
 | Latest Git release tag | `v2.0.0` | 历史 release tag，不代表当前 Helix 生产镜像，本次部署不打 Git tag |
 | package versions | `1.0.0` | 当前不作为 Helix 阶段版本来源 |
 

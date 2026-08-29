@@ -1,12 +1,12 @@
 # ShelfDeck Clean Helix Current Status
 
-Status: Helix-beta 范围已收窄为仅 Movie 全链路。Movie Procurement与Movie Libra封口保持有效；Movie Arca已完成Handoff B Acceptance、On-deck、Shelf Entry、Deck Fact、Beta Aftercare、Off-deck及Shelf Deregistration完整闭环。当前精确状态为`MOVIE COLLECTION LIFECYCLE READY THROUGH SHELF DEREGISTRATION`。当前生产镜像为 `markmahoro/shelfdeck:helix-beta-20260829-d1dd611d4`（无损升级，无 `--helix-clean-init`），health `ok` / `helix-clean-v3`。Intake 席位 3，Workspace `/transcode` rev 2。Helix-beta 验收行见现行基线，尚未把任何 `HB-*` 标为验收 `PASS`。
+Status: Helix-beta 范围已收窄为仅 Movie 全链路。Movie Procurement与Movie Libra封口保持有效；Movie Arca已完成Handoff B Acceptance、On-deck、Shelf Entry、Deck Fact、Beta Aftercare、Off-deck及Shelf Deregistration完整闭环。当前精确状态为`MOVIE COLLECTION LIFECYCLE READY THROUGH SHELF DEREGISTRATION`。当前生产镜像为 `markmahoro/shelfdeck:helix-beta-20260830-06d0cc63b`（无损升级，无 `--helix-clean-init`），health `ok` / `helix-clean-v3`。Intake 席位 3，Workspace `/transcode` rev 2。Helix-beta 验收行见现行基线，尚未把任何 `HB-*` 标为验收 `PASS`。
 
 Last updated: 2026-08-30
 
-## 0. Parked — Libra transcode 1-hour Event timeout (PROD-026)
+## 0. Production lossless upgrade — PROD-026
 
-代码已修：Libra/Aftercare remux+transcode 硬上限 48 小时，10 分钟无进展停掉停滞进程。生产仍是 `helix-beta-20260829-d1dd611d4`，未部署。现场《教父2》QSV 在跑，但当前 Attempt 仍受旧 1 小时时限约束。
+2026-08-30 已部署 `helix-beta-20260830-06d0cc63b`（git `06d0cc63b`，tar SHA-256 `8f6c0bb030e8be666d3db5658456e669e25684bd0fa53c89dab7281094eed65d`），未 `--helix-clean-init`。health `ok` / `helix-clean-v3` / `normalSupplyAllowed` true。含：Libra/Aftercare remux+transcode 48 小时硬上限与 10 分钟停滞；Arca Target Commit Slot 避开 Emby/Field；启动恢复接受旧 Catalog 上已终止的零节点 unplannable Plan。第一次带新 Catalog 的镜像因 4 条 `temporarily_unplannable`/`contract_unplannable` 空图被拒启，本镜像修好后无损替换。现场：《2001太空漫游》已进入收藏架；《里斯本丸沉没》QSV 转码执行中；《教父2》等编码器；《唐人街探案》等读槽。Field/Shelf/`/transcode`/集成未改。
 
 ## 0. Production lossless upgrade — PROD-025
 
