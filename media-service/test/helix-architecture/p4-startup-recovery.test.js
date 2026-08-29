@@ -11,6 +11,7 @@ const {
   UAT_SOURCE_EXECUTION_CATALOG_DIGEST,
   PRE_PROJECTION_EXECUTION_CATALOG_DIGEST,
   PRE_ACTOR_COMPLETION_EXECUTION_CATALOG_DIGEST,
+  PRE_LOCAL_ENCODE_TIMEOUT_EXECUTION_CATALOG_DIGEST,
   verifyStartupPlanCatalog,
 } = require('../../src/helix/composition/create-procurement-execution-runtime');
 const { openSqliteKernel } = require('../../src/helix/foundation/persistence/sqlite-kernel');
@@ -147,6 +148,24 @@ test('the exact UAT source Catalog continues only when every immutable node stil
   assert.equal(verifyStartupPlanCatalog({ ...base, events: [] }, current, registry, policyRegistry,projections), false);
   assert.equal(verifyStartupPlanCatalog({ ...base, nodes:[{...node,input_bindings_json:JSON.stringify({bindings:[{
     projectionRef:'helix://libra/input-projections/Missing/v1'}]})}]},current,registry,policyRegistry,projections),false);
+});
+
+test('the pre-local-encode-timeout Catalog continues when every immutable node still resolves exactly', () => {
+  const current = 'c'.repeat(64);
+  const node = Object.freeze({ plan_id: 'plan', node_id: 'node', capability_ref: 'libra.media.transcode@1',
+    contract_version: 1, effect_class: 'workspace_write', input_bindings_json: JSON.stringify({bindings:[]}) });
+  const event = Object.freeze({ plan_id: 'plan', node_id: 'node', owner_domain: 'libra', capability_ref: 'libra.media.transcode@1' });
+  const base = Object.freeze({ plan: Object.freeze({ catalog_digest: PRE_LOCAL_ENCODE_TIMEOUT_EXECUTION_CATALOG_DIGEST }),
+    work: Object.freeze({ owner_domain: 'libra' }), nodes: Object.freeze([node]), events: Object.freeze([event]) });
+  const registry = { resolve(ref, owner) {
+    assert.equal(ref, 'libra.media.transcode@1'); assert.equal(owner, 'libra');
+    return { manifest: { contractVersion: 1, effectClass: 'workspace_write' } };
+  } };
+  const policyRegistry = { bindingFor: () => ({ retryPolicyRef: 'retry', timeoutPolicyRef: 'timeout' }) };
+  const projections = { resolve: () => ({}) };
+  assert.equal(verifyStartupPlanCatalog(base, current, registry, policyRegistry, projections), true);
+  assert.equal(verifyStartupPlanCatalog({ ...base, nodes: [{ ...node, effect_class: 'pure_observation' }] },
+    current, registry, policyRegistry, projections), false);
 });
 
 test('the externally managed failed-preparation retry Catalog is accepted only for its exact Owner-local graph', () => {

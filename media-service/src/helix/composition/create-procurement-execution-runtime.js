@@ -101,6 +101,11 @@ const ENABLED = Object.freeze([...PROCUREMENT_ENABLED, ...SHARED_ENABLED, ...LIB
 const UAT_SOURCE_EXECUTION_CATALOG_DIGEST = 'b0371a6d2793c1e381a4c2e7fc421d312a1a1e90d2de5e47f61a45022f09793b';
 const PRE_PROJECTION_EXECUTION_CATALOG_DIGEST = '13315cdbdf6ab5cbe30b32075f89bd76ae1a873d84034dc572824f4fbc3886e6';
 const PRE_ACTOR_COMPLETION_EXECUTION_CATALOG_DIGEST = '9e0e24c88512973e16d601c79c362d01844af0853bc1c2c37442041acda1821d';
+const PRE_LOCAL_ENCODE_TIMEOUT_EXECUTION_CATALOG_DIGEST = 'b39d36350b09fbc0236fd47f7d0ea6c43125c82260b9740d6b4cc5737c091e74';
+const COMPATIBLE_PREVIOUS_EXECUTION_CATALOG_DIGESTS = new Set([
+  UAT_SOURCE_EXECUTION_CATALOG_DIGEST,
+  PRE_LOCAL_ENCODE_TIMEOUT_EXECUTION_CATALOG_DIGEST,
+]);
 const TERMINAL_EVENT_STATES = new Set(['succeeded', 'skipped', 'failed', 'cancelled']);
 const TERMINAL_ATTEMPT_STATES = new Set(['succeeded', 'failed', 'cancelled']);
 const LOCAL_MEDIA_ENCODE_TIMEOUT_MS = 48 * 60 * 60 * 1000;
@@ -147,7 +152,7 @@ function verifyStartupPlanCatalog(snapshot, currentCatalogDigest, registry, poli
     PRE_ACTOR_COMPLETION_EXECUTION_CATALOG_DIGEST].includes(snapshot.plan.catalog_digest) &&
       TERMINAL_ATTEMPT_STATES.has(snapshot.workAttempt?.state) &&
       Array.isArray(snapshot.events) && snapshot.events.every((event) => TERMINAL_EVENT_STATES.has(event.state))) return true;
-  if (snapshot.plan.catalog_digest !== UAT_SOURCE_EXECUTION_CATALOG_DIGEST ||
+  if (!COMPATIBLE_PREVIOUS_EXECUTION_CATALOG_DIGESTS.has(snapshot.plan.catalog_digest) ||
       !snapshot.work || !Array.isArray(snapshot.nodes) || !Array.isArray(snapshot.events) ||
       snapshot.nodes.length === 0 || snapshot.nodes.length !== snapshot.events.length) return false;
   const events = new Map();
@@ -1108,6 +1113,7 @@ module.exports = Object.freeze({
   UAT_SOURCE_EXECUTION_CATALOG_DIGEST,
   PRE_PROJECTION_EXECUTION_CATALOG_DIGEST,
   PRE_ACTOR_COMPLETION_EXECUTION_CATALOG_DIGEST,
+  PRE_LOCAL_ENCODE_TIMEOUT_EXECUTION_CATALOG_DIGEST,
   createProcurementExecutionRuntime,
   createHelixExecutionRuntime:createProcurementExecutionRuntime,
   volumeReadUnitsForCapability,
