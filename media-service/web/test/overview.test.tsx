@@ -131,6 +131,9 @@ describe('Helix Overview product semantics', () => {
     expect(screen.queryByText('先审阅建议，确认后再授权删除。没有授权不会删除文件。')).not.toBeInTheDocument();
     expect(screen.queryByText(/Closed Condition AST/)).not.toBeInTheDocument();
     expect(screen.queryByText(/建议可以自动生成，销毁必须由你授权/)).not.toBeInTheDocument();
-    await waitFor(() => expect(screen.queryByRole('textbox')).toBeNull());
+    expect(screen.getByRole('heading', { name: '系统建议退出' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '手动退出' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: '退出规则' })).not.toBeInTheDocument();
+    expect(screen.queryByText('审阅')).not.toBeInTheDocument();
   });
 });

@@ -123,7 +123,7 @@ export default function CollectionPage() {
       window.location.assign(`/offdeck?review=${encodeURIComponent(review.reviewId)}`);
     } catch (cause) {
       if (isUnauthorized(cause)) expire();
-      else setError(cause instanceof Error ? cause.message : '退出审阅未能建立。');
+      else setError(cause instanceof Error ? cause.message : '未能开始退出收藏。');
       setExiting(false);
     }
   }
@@ -188,7 +188,7 @@ export default function CollectionPage() {
             })()}
           </section>
           <div className="collection-exit">
-            <Button variant="danger" type="button" onClick={() => void exitCollection()} disabled={exiting}>{exiting ? '正在建立审阅…' : '退出收藏'}</Button>
+            <Button variant="danger" type="button" onClick={() => void exitCollection()} disabled={exiting}>{exiting ? '正在准备退出…' : '退出收藏'}</Button>
           </div>
         </div>
       </section>

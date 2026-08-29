@@ -4,17 +4,9 @@ Status: Helix-beta 范围已收窄为仅 Movie 全链路。Movie Procurement与M
 
 Last updated: 2026-08-30
 
-## 0. Parked — 退出收藏页信息架构（UAT-143 / UX-038）
+## 0. Code fix — 退出收藏页信息架构（UAT-143 / UX-038）
 
-2026-08-30 Product Owner 确认退出收藏表面方向，只登记，**未授权改代码或改 SSOT**：
-
-1. 退出规则不在退出页，放到系统设置一个 Tab。Owner 仍是 Arca Off-deck。
-2. 退出页只有两条流：系统建议退出（列表）和手动退出（搜索后选择）。
-3. 将删文件、大批量二次确认、授权删除用页面弹出详情卡片，不在主表面再堆一块。
-4. 界面不用「审阅」；内部仍可叫 Review。
-5. 不改销毁合同；`UAT-139` 全选当前收藏并一次确认仍须可达。
-
-SSOT §9.4.8 目前把规则写在退出页五个视图里；落地前需 Architecture 改该表面行。见 `USER_ACCEPTANCE_TEST_ISSUE_LOG.md` `UAT-143`。
+2026-08-30 代码已修、未部署。退出规则放到系统设置 Tab；退出页只留系统建议退出与手动搜索/全选；确认用弹出详情；界面不用「审阅」。未改销毁合同；`UAT-139` 全选仍可达。未改 SSOT。见 `USER_ACCEPTANCE_TEST_ISSUE_LOG.md` `UAT-143`。
 
 ## 0. Closed as topology — 同根 Field/Shelf（PROD-004）
 

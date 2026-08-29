@@ -217,7 +217,7 @@ User Perception全面取消year关联校验，year仅作为资料保存/展示�
 | UAT-140 | 收藏详情健康区把 Finding / 三维 / 技术标识铺给用户；应收成三态灯 + 修复中写正在修什么 | `USER_EXPERIENCE` | `PROJECTION_FRESHNESS` | Admin Web Collection 详情展示 | 可理解性 | Medium | **FIXED**（本地；未部署） |
 | UAT-141 | 概览通栏堆叠，首屏报平安；应收成一行状态 + 两列工作面 | `USER_EXPERIENCE` | `LAYOUT` | Admin Web Overview | 可扫读性、行动优先级 | Medium | **FIXED**（本地；未部署） |
 | UAT-142 | 八页标题下导语、安全声明与指标附注重复同一语义 | `USER_EXPERIENCE` | `COPY_REDUNDANT` | Admin Web 全站 | 可理解性、信息层级 | Medium | **FIXED**（本地；未部署） |
-| UAT-143 | 退出收藏规则应进设置 Tab；页面只留系统建议与手动搜索退出，确认用弹出详情 | `USER_EXPERIENCE` | `LAYOUT`、`DESTRUCTIVE_AUTHORIZATION` | Admin Web Off-deck + Settings | 决断焦点、可扫读性 | High | `RECORDED / NOT AUTHORIZED` |
+| UAT-143 | 退出收藏规则应进设置 Tab；页面只留系统建议与手动搜索退出，确认用弹出详情 | `USER_EXPERIENCE` | `LAYOUT`、`DESTRUCTIVE_AUTHORIZATION` | Admin Web Off-deck + Settings | 决断焦点、可扫读性 | High | **FIXED**（本地；未部署；未改 SSOT） |
 
 ### 2.0.1 UAT-074–UAT-084必须保护的历史修复
 
@@ -4372,7 +4372,7 @@ UI/FACT/FS/监控Evidence原样保留。UAT-139为
 
 验收证据：退出页无规则编辑；设置有退出规则 Tab；系统建议与手动搜索是两个入口；确认只出现在弹出详情；无「审阅」；仍能全选当前收藏并走 High-volume 二次确认。
 
-当前处理决定：2026-08-30 Product Owner 确认上述方向并要求先记下、不改代码。UAT-143 为 `RECORDED / NOT AUTHORIZED`。细项见 `ADMIN_WEB_UX_ISSUE_LOG.md` `UX-038`。
+当前处理决定：2026-08-30 已实现该表面。未改 Off-deck Owner、Destruction Scope、High-volume 二次确认。未改 SSOT §9.4.8（规则视图仍写在退出页，属 Architecture 后续）。`web/test/offdeck.test.tsx` PASS。未部署。
 
 ## 141. 后续问题模板
 

@@ -2,6 +2,7 @@ import { FormEvent, useCallback, useEffect, useState } from 'react';
 import { helixAdminApi, type IntegrationState, type PerceptionRecord, type PerceptionSyncState, type WorkspaceRootSettings } from './api';
 import { newOpaqueId } from './id';
 import AutomaticOperationPanel from './AutomaticOperationPanel';
+import OffdeckRulesPanel from './OffdeckRulesPanel';
 import { Button, LoadingState, PageHeader } from './chrome';
 import { labelOf, recordKindLabels, resolutionLabels } from './labels';
 import { isUnauthorized, useSession } from './session';
@@ -23,7 +24,7 @@ function stars(value: number | null) {
 
 export default function SettingsPage() {
   const { expire } = useSession();
-  const [tab, setTab] = useState<'integrations' | 'automation' | 'workspace' | 'ratings'>('integrations');
+  const [tab, setTab] = useState<'integrations' | 'automation' | 'workspace' | 'ratings' | 'offdeck'>('integrations');
   const [integration, setIntegration] = useState<IntegrationState | null>(null);
   const [tmdb, setTmdb] = useState<IntegrationState | null>(null);
   const [moviePilot, setMoviePilot] = useState<IntegrationState | null>(null);
@@ -219,11 +220,12 @@ export default function SettingsPage() {
       <button type="button" role="tab" aria-selected={tab === 'integrations'} onClick={() => setTab('integrations')}>连接</button>
       <button type="button" role="tab" aria-selected={tab === 'automation'} onClick={() => setTab('automation')}>自动运营</button>
       <button type="button" role="tab" aria-selected={tab === 'workspace'} onClick={() => setTab('workspace')}>整理空间</button>
+      <button type="button" role="tab" aria-selected={tab === 'offdeck'} onClick={() => setTab('offdeck')}>退出规则</button>
       <button type="button" role="tab" aria-selected={tab === 'ratings'} onClick={() => setTab('ratings')}>评分日志</button>
     </div>
     {error && <p className="form-error" role="alert">{error}</p>}
     {notice && <p className="form-notice" role="status">{notice}</p>}
-    {tab === 'automation' ? <div className="settings-stack"><AutomaticOperationPanel /></div> : tab === 'workspace' ? <div className="settings-stack">
+    {tab === 'automation' ? <div className="settings-stack"><AutomaticOperationPanel /></div> : tab === 'offdeck' ? <div className="settings-stack"><OffdeckRulesPanel /></div> : tab === 'workspace' ? <div className="settings-stack">
       <section className="settings-card" aria-labelledby="workspace-title">
         <header className="settings-card-head"><div><h2 id="workspace-title">整理工作目录</h2><p>整理媒体时使用的临时工作目录</p></div>
           <span className={`integration-state ${workspace?.restartRequired?'':'active'}`}>{workspace?.restartRequired?'等待重启':'当前生效'}</span></header>

@@ -402,6 +402,9 @@ button, input, select, textarea { font: inherit; }
 .offdeck-bulk-list small { color: var(--muted); }
 .offdeck-bulk-action { align-items: center; }
 .offdeck-bulk-action > small { color: var(--muted); }
+.offdeck-confirm-dialog { grid-template-columns: 1fr; width: min(720px, 100%); }
+.offdeck-search { flex: 1; min-width: 180px; }
+.offdeck-search input { width: 100%; }
 @media (max-width: 720px) {
   .offdeck-bulk-toolbar { align-items: stretch; flex-direction: column; }
   .offdeck-bulk-toolbar .button-row { justify-content: flex-start; }

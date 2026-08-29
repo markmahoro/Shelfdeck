@@ -90,6 +90,7 @@ describe('Helix primary copy and workbench structure', () => {
     );
     expect(screen.getByRole('heading', { level: 2, name: 'MoviePilot' })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: '自动运营' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: '退出规则' })).toBeInTheDocument();
     vi.spyOn(helixAdminApi,'getWorkspaceRootSettings').mockResolvedValue({current:{rootPath:'D:\\ShelfDeck\\workspace',configRevision:1},
       pending:null,restartRequired:false});
     fireEvent.click(screen.getByRole('tab',{name:'整理空间'}));

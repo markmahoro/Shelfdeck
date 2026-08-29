@@ -1,6 +1,6 @@
 # Admin Web 用户体验问题台账
 
-状态：`ADMIN WEB UX OVERHAUL IMPLEMENTED / UAT-005/050–058 IMPLEMENTED / UX-006, UX-033–037 FIXED / UX-023, UX-038 REMAIN OPEN / UAT-143 RECORDED`
+状态：`ADMIN WEB UX OVERHAUL IMPLEMENTED / UAT-005/050–058 IMPLEMENTED / UX-006, UX-033–038 FIXED / UX-023 REMAIN OPEN`
 
 建立日期：2026-08-22
 
@@ -71,7 +71,7 @@
 | UX-035 | 「不会删除/移动文件」在页头、列表、确认框重复 | `COPY_REDUNDANT` | 来源 / 退出 / 收藏 | Medium | **FIXED**（确认动作仍保留） |
 | UX-036 | 指标附注同义反复；收藏导语与「历史」冲突；未做的合并能力被画出 | `COPY_CONFLICT` | 概览 / 收藏 / 人物 / 配置 | Medium | **FIXED** |
 | UX-037 | 仍泄漏 Owner、Workspace、Libra Intake；自动运营控件出现两次 | `COPY_INTERNAL` | 设置 / 收藏架 / 整理 | Medium | **FIXED**（用户可见标签；收藏架仍有自动运营控件，见 PROD-029） |
-| UX-038 | 退出收藏把 UAT-139 整库多选做成常驻主表面，审阅失焦 | `LAYOUT` | 退出收藏 | High | OPEN；口径见 `UAT-143`，未授权 |
+| UX-038 | 退出收藏把 UAT-139 整库多选做成常驻主表面，审阅失焦 | `LAYOUT` | 退出收藏 | High | **FIXED**（本地；未部署；未改 SSOT） |
 
 ## 3. `COPY_REDUNDANT`：冗余或非用户友好文案
 
@@ -439,7 +439,7 @@ Helix 壳层（`web/src/helix/helix.css`、`chrome.tsx`、`session.tsx`、`App.t
 | UX-031 | Helix `App` 包 `QueryClientProvider`，概览与侧栏共享 `['overview']` | `App.tsx`、`OverviewPage.tsx` |
 | UX-032 | 不增加口号 Hero，保持工作台信息架构 | `helix.css`、`OverviewPage.tsx` |
 
-仍 OPEN：UX-023（收藏详情部分 uppercase 标签）、UX-038（退出收藏信息架构，见 `UAT-143`）。
+仍 OPEN：UX-023（收藏详情部分 uppercase 标签）。
 
 ## 13. 2026-08-30 二次审视：重复语义与排版
 
@@ -485,11 +485,11 @@ Helix 壳层（`web/src/helix/helix.css`、`chrome.tsx`、`session.tsx`、`App.t
 - 人物卡片默认展开 TMDB Person ID（「外部编号」）；登记表「参考图不是前置条件」对用户无操作含义。
 - `FormationStubPage` 仍可通过 `?stub=1` 打开，与正式整理页两套表面。
 
-建议实现顺序：UX-034–037 已落地；UX-038 按 `UAT-143` 收退出收藏主表面。不改 SSOT，不新增一级页面。
+建议实现顺序：UX-034–038 已落地。不改 SSOT，不新增一级页面。
 
 ### UX-038 退出收藏整库多选做成常驻主表面
 
-页面：退出收藏。详见 `UAT-143`。
+页面：退出收藏。详见 `UAT-143`。2026-08-30 已改为：规则在系统设置 Tab；退出页为系统建议 + 手动搜索/全选；确认在弹出详情；无「审阅」。未改 SSOT。未部署。
 
 当前滚动顺序：页头导语 → 折叠规则 → **整库勾选清单（UAT-139）** → 建议退出 → 当前审阅（有 `?review=` 才出现）→ 正在退出。`.offdeck-bulk-list` 最高 420px，已选数量在标题、工具条、主按钮上写三遍。「审阅」同时表示选片和真正核对文件。从收藏详情进来时，要决断的那一单被压在整库清单下面。
 

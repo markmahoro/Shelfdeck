@@ -1,5 +1,7 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import App from '../src/App';
 import OffdeckPage from '../src/helix/OffdeckPage';
 import { helixAdminApi, type CollectionEntry, type OffdeckCase, type OffdeckPolicy, type OffdeckReview } from '../src/helix/api';
 import { SessionProvider } from '../src/helix/session';
@@ -86,18 +88,38 @@ describe('Off-deck progress', () => {
 
     render(<SessionProvider><OffdeckPage /></SessionProvider>);
 
-    await screen.findByRole('heading', { name: '选择退出收藏' });
+    await screen.findByRole('heading', { name: '手动退出' });
+    expect(screen.queryByText('退出规则')).not.toBeInTheDocument();
+    expect(screen.queryByText('审阅')).not.toBeInTheDocument();
+    expect(screen.queryAllByRole('checkbox')).toHaveLength(0);
     fireEvent.click(screen.getByRole('button', { name: '全选当前收藏' }));
     expect(screen.getByText('3 / 3 部')).toBeInTheDocument();
     expect(screen.getAllByRole('checkbox')).toHaveLength(3);
     expect(screen.getAllByRole('checkbox').every((item) => (item as HTMLInputElement).checked)).toBe(true);
 
-    fireEvent.click(screen.getByRole('button', { name: '审阅已选 3 部' }));
+    fireEvent.click(screen.getByRole('button', { name: '确认退出 3 部' }));
     await waitFor(() => expect(createReview).toHaveBeenCalledTimes(1));
     expect(createReview).toHaveBeenCalledWith(expect.objectContaining({
       shelfEntryIds: ['entry-a', 'entry-b', 'entry-c'], actorId: 'admin',
       idempotencyKey: expect.stringMatching(/^offdeck-batch:/),
     }));
     expect(await screen.findByRole('button', { name: '再次确认大批量' })).toBeInTheDocument();
+  });
+});
+
+describe('Off-deck rules live in settings', () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it('edits rules on the settings tab, not the off-deck page', async () => {
+    vi.spyOn(helixAdminApi, 'getIntegration').mockResolvedValue({
+      kind: 'douban', supported: true, configured: false, state: 'idle', configRevision: 0,
+      endpoint: null, configDigest: null, capabilityCodes: [], lastTestSummary: null, landingBinding: null,
+    });
+    vi.spyOn(helixAdminApi, 'getOffdeckPolicy').mockResolvedValue(policy);
+    vi.spyOn(helixAdminApi, 'listShelves').mockResolvedValue({ items: [] });
+    render(<MemoryRouter initialEntries={['/settings']}><App /></MemoryRouter>);
+    fireEvent.click(await screen.findByRole('tab', { name: '退出规则' }));
+    expect(await screen.findByRole('heading', { level: 2, name: '退出规则' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '保存规则' })).toBeInTheDocument();
   });
 });
