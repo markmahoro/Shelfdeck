@@ -168,6 +168,28 @@ test('the pre-local-encode-timeout Catalog continues when every immutable node s
     current, registry, policyRegistry, projections), false);
 });
 
+test('the pre-local-encode-timeout Catalog accepts terminal zero-node unplannable Plans', () => {
+  const current = 'c'.repeat(64);
+  const empty = Object.freeze([]);
+  const base = Object.freeze({
+    plan: Object.freeze({
+      catalog_digest: PRE_LOCAL_ENCODE_TIMEOUT_EXECUTION_CATALOG_DIGEST,
+      state: 'temporarily_unplannable',
+    }),
+    workAttempt: Object.freeze({ state: 'cancelled' }),
+    work: Object.freeze({ owner_domain: 'libra' }),
+    nodes: empty,
+    events: empty,
+  });
+  assert.equal(verifyStartupPlanCatalog(base, current, {}, {}), true);
+  assert.equal(verifyStartupPlanCatalog({
+    ...base,
+    plan: { catalog_digest: PRE_LOCAL_ENCODE_TIMEOUT_EXECUTION_CATALOG_DIGEST, state: 'contract_unplannable' },
+    workAttempt: { state: 'failed' },
+  }, current, {}, {}), true);
+  assert.equal(verifyStartupPlanCatalog({ ...base, workAttempt: { state: 'running' } }, current, {}, {}), false);
+});
+
 test('the externally managed failed-preparation retry Catalog is accepted only for its exact Owner-local graph', () => {
   const current = 'c'.repeat(64);
   const catalogDigest = canonicalDigest({

@@ -441,7 +441,11 @@ function createExecutionRuntimeHost(options) {
       }
       if (!lastRecovery || lastRecovery.normalSupplyAllowed !== true) {
         state = 'faulted';
-        fail('P4_EXECUTION_HOST_RECOVERY_BLOCKED', 'Startup Recovery did not permit normal Work supply.', { recovery: lastRecovery });
+        fail('P4_EXECUTION_HOST_RECOVERY_BLOCKED', 'Startup Recovery did not permit normal Work supply.', {
+          recoveryState: lastRecovery?.state,
+          findings: [...(lastRecovery?.findings || [])],
+          recovery: lastRecovery,
+        });
       }
       state = 'ready';
       await options.fallbackReconciler.start();

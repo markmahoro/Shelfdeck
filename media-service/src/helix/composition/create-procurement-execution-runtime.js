@@ -148,9 +148,10 @@ function verifyStartupPlanCatalog(snapshot, currentCatalogDigest, registry, poli
   if (!snapshot || !snapshot.plan) return false;
   if (verifyFailedPreparationRetryPlan(snapshot)) return true;
   if (snapshot.plan.catalog_digest === currentCatalogDigest) return true;
-  if ([PRE_PROJECTION_EXECUTION_CATALOG_DIGEST,
-    PRE_ACTOR_COMPLETION_EXECUTION_CATALOG_DIGEST].includes(snapshot.plan.catalog_digest) &&
-      TERMINAL_ATTEMPT_STATES.has(snapshot.workAttempt?.state) &&
+  const previousCatalog = [PRE_PROJECTION_EXECUTION_CATALOG_DIGEST,
+    PRE_ACTOR_COMPLETION_EXECUTION_CATALOG_DIGEST].includes(snapshot.plan.catalog_digest) ||
+    COMPATIBLE_PREVIOUS_EXECUTION_CATALOG_DIGESTS.has(snapshot.plan.catalog_digest);
+  if (previousCatalog && TERMINAL_ATTEMPT_STATES.has(snapshot.workAttempt?.state) &&
       Array.isArray(snapshot.events) && snapshot.events.every((event) => TERMINAL_EVENT_STATES.has(event.state))) return true;
   if (!COMPATIBLE_PREVIOUS_EXECUTION_CATALOG_DIGESTS.has(snapshot.plan.catalog_digest) ||
       !snapshot.work || !Array.isArray(snapshot.nodes) || !Array.isArray(snapshot.events) ||
