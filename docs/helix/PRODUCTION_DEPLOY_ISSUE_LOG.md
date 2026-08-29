@@ -42,6 +42,7 @@
 | PROD-020 | 放弃/上架后工作区 remux 与转码 `.partial` 清不掉 | `EXECUTION` / Drain 先删后记账 + 清理名单不含无引用材料 | 工作区 `/transcode` | High | **FIXED** 无损升级 `helix-beta-20260829-6ad8bc999`。 |
 | PROD-021 | 《露梁海战》DTS-HD MA 触发寻源且不能瑕疵入库 | `EXECUTION` / 音轨 copy 估满后 infeasible 去 MoviePilot | 媒体整理工作区 | High | **FIXED** 无损升级 `helix-beta-20260829-6ad8bc999`。已冻结片子需放弃后重新进整理。 |
 | PROD-022 | 无损升级后容器起不来；启动恢复把旧转码超时残留当硬故障 | `EXECUTION` / 超时重试留下 superseded `reconcile_required` Effect | 服务启动 | Critical | **FIXED** 无损升级 `helix-beta-20260829-6ad8bc999`。 |
+| PROD-023 | 放弃整理仍弹出浏览器自带确认框 | `USER_EXPERIENCE` / 只改了接受瑕疵 Dialog | 媒体整理工作区 | Medium | **FIXED** 无损升级 `helix-beta-20260829-79fc055d1`。请 Ctrl+F5。 |
 
 PROD-001、PROD-002 的共同环境前提：生产管理台是 `http://192.168.12.230`，浏览器不提供 `crypto.randomUUID` / `crypto.subtle`。这不是传输加密设计，只是浏览器 API 限制。未改成 HTTPS。
 
@@ -295,3 +296,9 @@ P4 对 journaled `material_commit` 的 Executor throw 仍会把 Attempt 留在 `
 发现：2026-08-29。`helix-beta-20260829-f68c3f346` 镜像替换后容器反复重启，health 连不上。启动恢复报 `P4_EXECUTION_HOST_RECOVERY_BLOCKED`。现场一条仍活的转码 Event 多次超时重试，旧 Attempt 留下 `workspace_write` `reconcile_required` Effect；恢复只看最新 Attempt，把这些残留当成 `NONTERMINAL_EFFECT_WITHOUT_RECOVERY_EVENT` 硬故障。
 
 修复：启动恢复对已完成且 outcome 为 failed/cancelled 的 Attempt，放弃其上未提交 Effect，不再拒启。专项测试覆盖 live Event 上被 supersede 的残留。已无损升级 `helix-beta-20260829-6ad8bc999`。
+
+## 24. PROD-023 — 放弃整理仍用浏览器弹窗（FIXED）
+
+发现：2026-08-29。上一张镜像把「接受瑕疵」改成页面 Dialog，但「放弃整理」仍走 `window.confirm`。用户点放弃《露梁海战》时看到的还是浏览器自带框。
+
+修复：放弃整理改为同一套页面 Dialog，标题「确认放弃整理」。已无损升级 `helix-beta-20260829-79fc055d1`。请 Ctrl+F5。

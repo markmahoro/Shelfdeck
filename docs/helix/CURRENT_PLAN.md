@@ -4,6 +4,10 @@ Status: Helix-beta 已由 Product Owner 收窄为 **仅 Movie 的全功能版本
 
 Last updated: 2026-08-29
 
+## 0. Deployed — PROD-023 lossless NAS upgrade
+
+已部署 `markmahoro/shelfdeck:helix-beta-20260829-79fc055d1`，未 `--helix-clean-init`。放弃整理改为页面 Dialog（「确认放弃整理」），与接受瑕疵同一套页内弹窗。请 Ctrl+F5。Field/Shelf/`/transcode`/集成未改。
+
 ## 0. Deployed — PROD-020/021/022 lossless NAS upgrade
 
 已部署 `markmahoro/shelfdeck:helix-beta-20260829-6ad8bc999`，未 `--helix-clean-init`：
