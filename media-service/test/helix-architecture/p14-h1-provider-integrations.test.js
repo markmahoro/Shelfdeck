@@ -508,6 +508,10 @@ function acquisitionQuery() {
     ordinal: 1,
     termKind: 'title',
     value: 'Movie',
+  }, {
+    ordinal: 2,
+    termKind: 'title',
+    value: 'Original Movie',
   }].map((term) => {
     term.termDigest = canonicalDigest({
       schema: 'libra.external-acquisition-query-term@1',
@@ -924,8 +928,12 @@ test('H1.2 provider operations execute through exact P5 ports and revision-fence
     assert.equal(moviepilot.result.candidates[0].identityAnchors[0].providerKey,
       '100');
     assert.ok(state.calls.some((call) =>
-      call.path === '/api/v1/search/title' && call.searchKeyword === '100'),
-    'MoviePilot must search by the frozen TMDB Provider key when that identity term is present.');
+      call.path === '/api/v1/search/title' && call.searchKeyword === 'Movie'),
+    'MoviePilot must search by the frozen title, not the TMDB Provider key.');
+    assert.ok(state.calls.some((call) =>
+      call.path === '/api/v1/search/title' && call.searchKeyword === 'Original Movie'));
+    assert.equal(state.calls.some((call) =>
+      call.path === '/api/v1/search/title' && call.searchKeyword === '100'), false);
 
     state.moviepilotTmdbId = 999;
     const mismatchedMoviepilot = await opened.services.executeProvider(

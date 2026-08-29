@@ -49,6 +49,8 @@ function buildProductIdentityCommitBundle(value) {
   if(!displayTitle)fail('Resolved Product Identity does not carry a provider display title.');
   const displayEntries=[{key:'title',value:displayTitle},
     {key:'tmdb_movie_id',value:fact.providerKey}];
+  const originalTitle=typeof fact.originalTitle==='string'?fact.originalTitle.trim():'';
+  if(originalTitle&&originalTitle!==displayTitle)displayEntries.push({key:'original_title',value:originalTitle});
   if(Number.isSafeInteger(fact.releaseYear))displayEntries.push({key:'year',value:String(fact.releaseYear)});
   else if(identityClaim.claimedYear)displayEntries.push({key:'year',value:identityClaim.claimedYear});
   const editionYear=Number.isSafeInteger(fact.releaseYear)?fact.releaseYear:identityClaim.claimedYear;

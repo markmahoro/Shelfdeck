@@ -40,6 +40,15 @@ function observation(){const snapshot=output();return c.buildAcquisitionObservat
 function stable(){const handle=c.buildExternalMaterialHandle({acquisitionObservation:observation(),productStructure:structure()});return c.buildStableEvidence({externalMaterialHandle:handle,providerSnapshot:{sourceExternalMaterialHandleId:handle.handleId,providerObservationRevision:2,outputSnapshot:output(),snapshotDigest:hex('stability')},quietWindowMs:60_000,productStructure:structure(),verifiedAtMs:NOW});}
 function root(){const body={rootId:'root-1',ownerScope:'libra',rootKind:'production_workspace',endpointId:'workspace-endpoint',mountScopeId:'mount-1',mountScopeRevision:1,configRevision:1,capabilityDigest:hex('capability'),state:'active',rootHandleRef:hex('root')};return {...body,snapshotDigest:d(body)};}
 
+test('acquisition query keeps TMDB key for identity and adds localized plus original titles',()=>{
+  const q=c.buildAcquisitionQuery({resolvedProductIdentity:{...identity,title:'007：大破天幕杀机',originalTitle:'Skyfall'},
+    productStructure:structure(),mediaRequirement:mediaRequirement(),
+    acquisitionPolicy:c.buildAcquisitionPolicy({integrationId:'integration-1',configRevision:3,maxDownloadAttempts:3}),
+    executionContext:{libraRunId:'run-1',runExecutionBasisDigest:hex('run')},producedAtMs:NOW});
+  assert.deepEqual(q.queryTerms.map((term)=>[term.termKind,term.value]),
+    [['provider_key','550'],['title','007：大破天幕杀机'],['title','Skyfall']]);
+});
+
 test('query and deterministic candidate selection conserve complete frozen basis',()=>{
   const q=query(),criteria=c.buildSelectionCriteria({revision:1,queryDigest:q.queryDigest}),selected=c.selectCandidate({candidates:candidates(),selectionCriteria:criteria,producedAtMs:NOW});
   assert.equal(q.libraRunId,'run-1');assert.equal(selected.result,'selected');assert.equal(selected.selectedCandidateId,candidate().candidateId);

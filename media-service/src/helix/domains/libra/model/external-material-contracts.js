@@ -84,6 +84,12 @@ function buildAcquisitionQuery(value) {
   if (typeof displayTitle === 'string' && displayTitle.trim()) {
     terms.push({ termKind:'title', value:displayTitle.trim() });
   }
+  const originalTitle = identity.originalTitle || identity.displayIdentity?.entries
+    ?.find((item) => item.key === 'original_title')?.value || null;
+  if (typeof originalTitle === 'string' && originalTitle.trim() &&
+      originalTitle.trim() !== (typeof displayTitle === 'string' ? displayTitle.trim() : '')) {
+    terms.push({ termKind:'title', value:originalTitle.trim() });
+  }
   if (structure.structureKind === 'season') terms.push({ termKind:'season', value:String(anchors[0].seasonNumber) });
   const dedup=[]; for (const item of terms) if (!dedup.some((existing) => existing.termKind === item.termKind && existing.value === item.value)) dedup.push(item);
   const queryTerms=dedup.slice(0,32).map((item,ordinal)=>freeze({ ordinal,...item,

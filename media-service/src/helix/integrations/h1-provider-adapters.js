@@ -991,32 +991,52 @@ function createProtocolTransport(profile, options) {
     return protocolResponse({ resultRefs: refs, nextCursor: null });
   }
 
+  function moviepilotSearchKeywords(query) {
+    const titles = [];
+    for (const term of query.queryTerms || []) {
+      if (term.termKind !== 'title' || typeof term.value !== 'string') continue;
+      const value = term.value.trim();
+      if (!value) continue;
+      if (titles.some((item) => item.toLowerCase() === value.toLowerCase())) continue;
+      titles.push(value);
+    }
+    return titles;
+  }
+
   async function moviepilotSearchRows(request, state) {
     const query = request.input.acquisitionQuery;
-    const searchTerm = query.queryTerms.find((item) =>
-      item.termKind === 'provider_key') || query.queryTerms.find((item) =>
-      item.termKind === 'title');
-    if (!searchTerm) {
+    const keywords = moviepilotSearchKeywords(query);
+    if (!keywords.length) {
       fail(PROVIDER_ERROR,
-        'MoviePilot search requires a frozen title or Provider key term.');
+        'MoviePilot search requires a frozen title term.');
     }
-    const url = endpointUrl(state.endpoint, 'api/v1/search/title');
-    url.searchParams.set('token', request.secretBytes.toString('utf8'));
-    url.searchParams.set('keyword', searchTerm.value);
-    url.searchParams.set('mtype', query.contentProfile ===
-      'series' ? 'tv' : 'movie');
-    const found = await fetchJson(fetchImpl, url, {
-      headers: { accept: 'application/json' },
-      signal: AbortSignal.timeout(request.timeoutMs),
-    }, EXTERNAL_JSON_LIMIT);
-    if (found?.success === false) return Object.freeze([]);
-    const rows = (Array.isArray(found)
-      ? found
-      : Array.isArray(found?.data)
-        ? found.data
-        : []).filter((row) => row && typeof row === 'object' &&
-          !Array.isArray(row) && row.torrent_info &&
-          typeof row.torrent_info === 'object');
+    const seen = new Set();
+    const rows = [];
+    for (const keyword of keywords) {
+      const url = endpointUrl(state.endpoint, 'api/v1/search/title');
+      url.searchParams.set('token', request.secretBytes.toString('utf8'));
+      url.searchParams.set('keyword', keyword);
+      url.searchParams.set('mtype', query.contentProfile ===
+        'series' ? 'tv' : 'movie');
+      const found = await fetchJson(fetchImpl, url, {
+        headers: { accept: 'application/json' },
+        signal: AbortSignal.timeout(request.timeoutMs),
+      }, EXTERNAL_JSON_LIMIT);
+      if (found?.success === false) continue;
+      const page = (Array.isArray(found)
+        ? found
+        : Array.isArray(found?.data)
+          ? found.data
+          : []).filter((row) => row && typeof row === 'object' &&
+            !Array.isArray(row) && row.torrent_info &&
+            typeof row.torrent_info === 'object');
+      for (const row of page) {
+        const rowKey = digest(canonicalJson(row));
+        if (seen.has(rowKey)) continue;
+        seen.add(rowKey);
+        rows.push(row);
+      }
+    }
     return Object.freeze(rows);
   }
 
