@@ -4,13 +4,15 @@ Status: Helix-beta 已由 Product Owner 收窄为 **仅 Movie 的全功能版本
 
 Last updated: 2026-08-29
 
-## 0. Local fix ready — Size-cap defect + HEVC floor
+## 0. Deployed — PROD-020/021/022 lossless NAS upgrade
 
-保留无损音轨；扣完音轨后视频码率低于该星级×画幅下限时，不再判 infeasible 去寻源，而是冻结并走接受瑕疵。瑕疵只豁免 `max_size_exceeded`，确认后按下限转 HEVC。弹窗改为页面 Dialog，写清上限 / 预计 / 超出多少。未部署。
+已部署 `markmahoro/shelfdeck:helix-beta-20260829-6ad8bc999`，未 `--helix-clean-init`：
 
-## 0. Local fix ready — Workspace cleanup holes
+1. Drain 先提交再 leftover；已完成无引用工作区也 leftover；产出端口清 `.partial-*`。
+2. 保留无损音轨；视频按星级×画幅下限编码；压不进档位则冻结走体积瑕疵，页面 Dialog。
+3. 启动恢复放弃被超时重试 supersede 的未提交 Effect，不再因此拒启。
 
-Drain 先提交 Libra member，Scope 完成后（含已完成 Scope 重放）再收没挂引用的 Foundation 材料；已完成且没有 Libra 引用的工作区走 leftover，不要求先有 cleanup member。已 reclaimed 的材料可重放。转码 `.partial-*` 由 Workspace 端口在产出/回收时清掉，不靠扫目录补 cleanup member。未部署。
+升级方式：标准镜像替换并重启，保留 Field/Shelf/`/transcode`/集成。已冻结的《露梁海战》需放弃后重新进整理。台账 `PROD-020`/`PROD-021`/`PROD-022`。
 
 ## 0. Deployed — PROD-019 lossless NAS upgrade
 

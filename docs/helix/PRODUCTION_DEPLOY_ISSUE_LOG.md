@@ -39,8 +39,9 @@
 | PROD-017 | 《影子写手》转码成功，收藏架因原片 5%/50% 解帧拒收 | `EXECUTION` / Arca 把原片抽检绑进成品 Gap | 媒体整理工作区 | High | **FIXED** 无损升级 `helix-beta-20260829-904c415f7`。已拒收的需放弃后重新进整理。 |
 | PROD-018 | 《国际市场》寻源耗尽冻结后没有「接受瑕疵」 | `EXECUTION` / 跳过直通验收就去寻源 | 媒体整理工作区 | High | **FIXED** 无损升级 `helix-beta-20260829-904c415f7`。已冻结的需放弃后重新进整理。 |
 | PROD-019 | 收藏架拒收后没法放弃《影子写手》 | `USER_EXPERIENCE` / Handoff B 拒收后 Run 仍 active | 媒体整理工作区 | High | **FIXED** 无损升级 `helix-beta-20260829-c547a2f93`。列表页可点放弃。 |
-| PROD-020 | 放弃/上架后工作区 remux 与转码 `.partial` 清不掉 | `EXECUTION` / Drain 先删后记账 + 清理名单不含无引用材料 | 工作区 `/transcode` | High | **LOCAL FIX READY / 待无损升级**。Drain 先提交再 leftover；产出端口清 `.partial-*`。 |
-| PROD-021 | 《露梁海战》DTS-HD MA 触发寻源且不能瑕疵入库 | `EXECUTION` / 音轨 copy 估满后 infeasible 去 MoviePilot | 媒体整理工作区 | High | **LOCAL FIX READY / 待无损升级**。星级×画幅视频下限；体积超标走接受瑕疵并转 HEVC。 |
+| PROD-020 | 放弃/上架后工作区 remux 与转码 `.partial` 清不掉 | `EXECUTION` / Drain 先删后记账 + 清理名单不含无引用材料 | 工作区 `/transcode` | High | **FIXED** 无损升级 `helix-beta-20260829-6ad8bc999`。 |
+| PROD-021 | 《露梁海战》DTS-HD MA 触发寻源且不能瑕疵入库 | `EXECUTION` / 音轨 copy 估满后 infeasible 去 MoviePilot | 媒体整理工作区 | High | **FIXED** 无损升级 `helix-beta-20260829-6ad8bc999`。已冻结片子需放弃后重新进整理。 |
+| PROD-022 | 无损升级后容器起不来；启动恢复把旧转码超时残留当硬故障 | `EXECUTION` / 超时重试留下 superseded `reconcile_required` Effect | 服务启动 | Critical | **FIXED** 无损升级 `helix-beta-20260829-6ad8bc999`。 |
 
 PROD-001、PROD-002 的共同环境前提：生产管理台是 `http://192.168.12.230`，浏览器不提供 `crypto.randomUUID` / `crypto.subtle`。这不是传输加密设计，只是浏览器 API 限制。未改成 HTTPS。
 
@@ -271,7 +272,7 @@ P4 对 journaled `material_commit` 的 Executor throw 仍会把 Attempt 留在 `
 
 修复：Handoff B 业务拒收后，整理工作区直接放出「放弃整理」，Discard 允许 `active` + rejected Delivery Receipt。列表页没有 `processDetail`，按钮条件改为 active Run + 已提交 Package + `attention_required`。已无损升级 `helix-beta-20260829-c547a2f93`。请 Ctrl+F5。
 
-## 21. PROD-020 — 工作区中间文件清理卡住（LOCAL FIX READY）
+## 21. PROD-020 — 工作区中间文件清理卡住（FIXED）
 
 发现：2026-08-29。`/transcode` 仍占约 45 GiB。《影子写手》放弃后 remux 30.6 GiB 还在；《怦然心动》已上架 remux 15 GiB 还在；《里斯本丸沉没》有升级打断留下的 `.partial-*`。
 
@@ -281,10 +282,16 @@ P4 对 journaled `material_commit` 的 Executor throw 仍会把 Attempt 留在 `
 2. Cleanup 名单只拍当时未 released 的 Libra 引用。《怦然心动》remux 从未挂引用，Off-load 名单没有它；completed+reclaiming 也不走 leftover。
 3. 转码先写 `目标.partial-{effectId}` 再 rename。升级杀掉 ffmpeg 后半成品不入账，清理看不见。
 
-修复：Drain 先 `cleanup.commit`，Scope `completed` 后再 leftover（含已完成 Scope 重放）。没有 cleanup member 的已完成工作区也会 leftover 没挂引用的 Foundation 材料。已 reclaimed 的材料允许重放。产出端口在写出/回收时清同目标的 `.partial-*`。不扫目录编造 cleanup member。专项测试 14/14 通过。待无损升级。
+修复：Drain 先 `cleanup.commit`，Scope `completed` 后再 leftover（含已完成 Scope 重放）。没有 cleanup member 的已完成工作区也会 leftover 没挂引用的 Foundation 材料。已 reclaimed 的材料允许重放。产出端口在写出/回收时清同目标的 `.partial-*`。不扫目录编造 cleanup member。专项测试 14/14 通过。已无损升级 `helix-beta-20260829-6ad8bc999`。
 
-## 22. PROD-021 — 无损音轨撑破体积上限后去寻源（LOCAL FIX READY）
+## 22. PROD-021 — 无损音轨撑破体积上限后去寻源（FIXED）
 
 发现：2026-08-29。《露梁海战》三星要求 HEVC · 8 GiB。片源 1080p H.264 + DTS-HD MA。Remux 后转码评估 `media_size_budget_infeasible`（DTS-HD MA 按 8 Mbps 估满），跳过转码去 MoviePilot，无候选冻结。接受瑕疵要的是原片直通失败，所以按钮不亮。
 
-修复：保留无损主音轨。视频按星级×画幅下限（三星 1080p 2.5 Mbps、三星 4K 10 Mbps 等）编码。扣完音轨后低于下限则冻结，接受瑕疵只豁免 `max_size_exceeded`，弹窗写清上限 / 预计 / 超出多少，确认后再转 HEVC。不再因此去寻源。页面 Dialog 替换 `window.confirm`。待无损升级。
+修复：保留无损主音轨。视频按星级×画幅下限（三星 1080p 2.5 Mbps、三星 4K 10 Mbps 等）编码。扣完音轨后低于下限则冻结，接受瑕疵只豁免 `max_size_exceeded`，弹窗写清上限 / 预计 / 超出多少，确认后再转 HEVC。不再因此去寻源。页面 Dialog 替换 `window.confirm`。已冻结的《露梁海战》不会自动重跑，需放弃后重新进整理。已无损升级 `helix-beta-20260829-6ad8bc999`。
+
+## 23. PROD-022 — 升级后启动恢复把旧转码超时残留当硬故障（FIXED）
+
+发现：2026-08-29。`helix-beta-20260829-f68c3f346` 镜像替换后容器反复重启，health 连不上。启动恢复报 `P4_EXECUTION_HOST_RECOVERY_BLOCKED`。现场一条仍活的转码 Event 多次超时重试，旧 Attempt 留下 `workspace_write` `reconcile_required` Effect；恢复只看最新 Attempt，把这些残留当成 `NONTERMINAL_EFFECT_WITHOUT_RECOVERY_EVENT` 硬故障。
+
+修复：启动恢复对已完成且 outcome 为 failed/cancelled 的 Attempt，放弃其上未提交 Effect，不再拒启。专项测试覆盖 live Event 上被 supersede 的残留。已无损升级 `helix-beta-20260829-6ad8bc999`。

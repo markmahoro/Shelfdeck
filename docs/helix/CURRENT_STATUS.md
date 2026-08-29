@@ -1,16 +1,12 @@
 # ShelfDeck Clean Helix Current Status
 
-Status: Helix-beta 范围已收窄为仅 Movie 全链路。Movie Procurement与Movie Libra封口保持有效；Movie Arca已完成Handoff B Acceptance、On-deck、Shelf Entry、Deck Fact、Beta Aftercare、Off-deck及Shelf Deregistration完整闭环。当前精确状态为`MOVIE COLLECTION LIFECYCLE READY THROUGH SHELF DEREGISTRATION`。当前生产镜像为 `markmahoro/shelfdeck:helix-beta-20260829-c547a2f93`（无损升级，无 `--helix-clean-init`），health `ok` / `helix-clean-v3`。Intake 席位 3，Workspace `/transcode` rev 2。Helix-beta 验收行见现行基线，尚未把任何 `HB-*` 标为验收 `PASS`。
+Status: Helix-beta 范围已收窄为仅 Movie 全链路。Movie Procurement与Movie Libra封口保持有效；Movie Arca已完成Handoff B Acceptance、On-deck、Shelf Entry、Deck Fact、Beta Aftercare、Off-deck及Shelf Deregistration完整闭环。当前精确状态为`MOVIE COLLECTION LIFECYCLE READY THROUGH SHELF DEREGISTRATION`。当前生产镜像为 `markmahoro/shelfdeck:helix-beta-20260829-6ad8bc999`（无损升级，无 `--helix-clean-init`），health `ok` / `helix-clean-v3`。Intake 席位 3，Workspace `/transcode` rev 2。Helix-beta 验收行见现行基线，尚未把任何 `HB-*` 标为验收 `PASS`。
 
 Last updated: 2026-08-29
 
-## 0. Local fix ready — PROD-021 size-cap HEVC floor
+## 0. Production lossless upgrade — PROD-020/021/022
 
-2026-08-29 本地已改：无损音轨保留；视频按星级×画幅下限编码；压不进档位体积时冻结，接受瑕疵只声明「大了多少」，确认后再转 HEVC。接受瑕疵改为页面 Dialog。专项测试已通过。未部署。
-
-## 0. Local fix ready — PROD-020 workspace leftover cleanup
-
-2026-08-29 本地已改：Cleanup Drain 先提交 Libra member，再 leftover；已完成且没有 cleanup member 的工作区也会 leftover 没挂引用的 remux；`.partial-*` 由产出端口清理。专项测试 14/14 通过。未部署。
+2026-08-29 已部署 `helix-beta-20260829-6ad8bc999`（git `6ad8bc999`，tar SHA-256 `30aab6cd552e3e9bfe74cd95cf04767d2feac7595f59b4253bd2cd3a898c8584`），未 `--helix-clean-init`。health `ok` / `helix-clean-v3` / `normalSupplyAllowed` true。含工作区 leftover 回收、星级×画幅 HEVC 下限与体积瑕疵 Dialog，以及启动恢复对超时重试残留 Effect 的放弃。先一次 `f68c3f346` 镜像因旧转码超时残留被启动恢复判硬故障起不来，本镜像修好后无损替换。已冻结的《露梁海战》不会自动重跑，需放弃后重新进整理。Field/Shelf/`/transcode`/集成未改。
 
 ## 0. Production lossless upgrade — PROD-019
 
