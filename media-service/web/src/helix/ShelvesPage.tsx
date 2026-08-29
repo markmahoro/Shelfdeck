@@ -13,7 +13,6 @@ import {
   type Shelf,
   type ShelfPlacementPolicy,
 } from './api';
-import AutomaticOperationPanel from './AutomaticOperationPanel';
 import { Button, LoadingState, PageHeader } from './chrome';
 import { isUnauthorized, useSession } from './session';
 
@@ -421,7 +420,6 @@ export default function ShelvesPage() {
       <div><span>可用规则模板</span><strong>{activeTemplates.length}</strong></div>
       <div><span>媒体类型</span><strong>电影</strong></div>
     </div>
-    <AutomaticOperationPanel heading="全自动或关键步骤确认" />
     {showCreate && <form className="source-create" onSubmit={createShelf}>
       <div className="source-create-heading"><div><h2>创建电影收藏架</h2></div></div>
       <div className="source-form-grid">

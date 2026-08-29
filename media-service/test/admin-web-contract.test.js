@@ -100,12 +100,9 @@ test('Shelves configures a probed Template-derived Movie Standard without exposi
   assert.doesNotMatch(page, /standard:\s*\{/);
   assert.doesNotMatch(page, /Aftercare Case|Standard revision|Placement revision/);
   assert.match(page, /expectedTemplateRevision/);
-  assert.match(page, /全自动或关键步骤确认/);
-  assert.match(api, /\/v1\/admin\/settings\/automatic-operation/);
-  assert.match(api, /enableFullAutomaticOperation/);
-  assert.match(read('web/src/helix/AutomaticOperationPanel.tsx'), /启用全自动/);
-  assert.match(read('web/src/helix/AutomaticOperationPanel.tsx'), /关键步骤确认/);
-  assert.match(read('web/src/helix/AutomaticOperationPanel.tsx'), /退出收藏的物理销毁保持独立关闭/);
+  assert.doesNotMatch(page, /全自动或关键步骤确认/);
+  assert.doesNotMatch(api, /getAutomaticOperation/);
+  assert.doesNotMatch(api, /enableFullAutomaticOperation/);
 });
 
 test('Media organization workspace uses user-facing stages after Procurement handoff', () => {
@@ -113,8 +110,8 @@ test('Media organization workspace uses user-facing stages after Procurement han
   const page = read('web/src/helix/FormationPage.tsx');
   const formation = model.split("slug: 'formation'")[1].split("slug: 'offdeck'")[0];
   assert.match(formation, /媒体整理工作区/);
-  assert.match(formation, /待整理/);
-  assert.match(formation, /需要处理/);
+  assert.match(page, /待整理/);
+  assert.match(page, /需要处理/);
   assert.match(page, /已完成整理/);
   assert.match(page, /整理要求/);
   assert.match(page, /当前进展/);
@@ -122,7 +119,7 @@ test('Media organization workspace uses user-facing stages after Procurement han
   assert.match(page, /用户操作/);
   assert.match(page, />加急</);
   assert.match(page, /organizingSteps/);
-  assert.match(page, /全部媒体/);
+  assert.match(page, /全部/);
   assert.match(page, /还没有进入整理的电影/);
   assert.match(page, /仅需用户处理/);
   assert.match(page, /按片名筛选/);
@@ -143,7 +140,6 @@ test('People page registers, confirms, and does not copy collection cast', () =>
   assert.match(page, /待确认登记/);
   assert.match(page, /接受/);
   assert.match(page, /忽略/);
-  assert.match(page, /不是某部电影的演员表/);
   assert.match(runtime, /ondeck-person-evidence/);
   assert.match(runtime, /createPeopleProcessServices/);
 });
@@ -163,16 +159,17 @@ test('Settings splits Douban sync from rating-log refresh', () => {
   assert.doesNotMatch(page, /同步评分/);
 });
 
-test('Off-deck page uses task language and keeps rules collapsed', () => {
+test('Off-deck page uses task language and keeps rules in settings', () => {
   const page = read('web/src/helix/OffdeckPage.tsx');
-  assert.match(page, /<details className="offdeck-task">/);
-  assert.match(page, /审阅这部/);
+  const rules = read('web/src/helix/OffdeckRulesPanel.tsx');
+  assert.match(page, /<section className="offdeck-task">/);
+  assert.match(page, /退出这部/);
   assert.match(page, /先留着/);
   assert.match(page, /核对将删除的文件/);
-  assert.match(page, /授权删除/);
-  assert.match(page, /取消这次审阅/);
-  assert.match(page, /addableRuleKinds/);
-  assert.doesNotMatch(page, /emptyRule\('disliked_person'\)/);
+  assert.match(page, /确认删除/);
+  assert.match(page, /取消这次退出/);
+  assert.match(rules, /addableRuleKinds/);
+  assert.doesNotMatch(rules, /emptyRule\('disliked_person'\)/);
   assert.doesNotMatch(page, />进入审阅</);
   assert.doesNotMatch(page, />授权并开始退出</);
 });

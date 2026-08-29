@@ -68,22 +68,6 @@ describe('Shelf Standard and Placement publish', () => {
   function mockCatalog() {
     vi.spyOn(helixAdminApi, 'listShelves').mockResolvedValue({ items: [shelf] });
     vi.spyOn(helixAdminApi, 'listRuleTemplates').mockResolvedValue({ items: [template] });
-    vi.spyOn(helixAdminApi, 'getAutomaticOperation').mockResolvedValue({
-      projectionVersion: 1,
-      asOf: '2026-08-22T00:00:00.000Z',
-      freshness: 'fresh',
-      data: {
-        productChoice: 'key_step_confirmation',
-        fullAutoReady: false,
-        productChoiceLabel: '关键步骤确认',
-        fullAutoReadyLabel: '全自动尚未就绪',
-        standingInputSettlement: null,
-        offdeckDestruction: { independentlyDisabled: true, grantedByFullAuto: false, label: '退出收藏销毁保持独立关闭' },
-        items: [],
-        consequences: [],
-      },
-      availableActions: [],
-    });
   }
 
   it('lets an existing Movie shelf preview and publish Placement', async () => {
@@ -129,22 +113,6 @@ describe('Shelf Standard and Placement publish', () => {
     const catalog = { shelves: [] as Shelf[], templates: [template] };
     vi.spyOn(helixAdminApi, 'listShelves').mockImplementation(async () => ({ items: catalog.shelves }));
     vi.spyOn(helixAdminApi, 'listRuleTemplates').mockImplementation(async () => ({ items: catalog.templates }));
-    vi.spyOn(helixAdminApi, 'getAutomaticOperation').mockResolvedValue({
-      projectionVersion: 1,
-      asOf: '2026-08-22T00:00:00.000Z',
-      freshness: 'fresh',
-      data: {
-        productChoice: 'key_step_confirmation',
-        fullAutoReady: false,
-        productChoiceLabel: '关键步骤确认',
-        fullAutoReadyLabel: '全自动尚未就绪',
-        standingInputSettlement: null,
-        offdeckDestruction: { independentlyDisabled: true, grantedByFullAuto: false, label: '退出收藏销毁保持独立关闭' },
-        items: [],
-        consequences: [],
-      },
-      availableActions: [],
-    });
     const copied: RuleTemplate = { ...template, templateId: 'movie-rule-user', name: '电影收藏架 整理标准', ownerKind: 'user', currentRevision: 1 };
     const copy = vi.spyOn(helixAdminApi, 'copyRuleTemplate').mockResolvedValue({
       template: copied,

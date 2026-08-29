@@ -395,7 +395,6 @@ test('clean host serves public health and Admin UI, then requires API key or Htt
     assert.deepEqual(overview.json().setup, {
       activeMaterialFieldCount: 0,
       activeShelfCount: 0,
-      productChoice: 'key_step_confirmation',
     });
     assert.ok(['normal','running'].includes(overview.json().backgroundOperations.state));
     assert.equal(overview.json().backgroundOperations.cadenceMs, 30000);

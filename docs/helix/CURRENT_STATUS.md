@@ -12,9 +12,9 @@ Last updated: 2026-08-30
 
 2026-08-30 Product Owner 锁定：来源与收藏架同为 `/media/Film` 是 **必须接收的场景**，不是缺陷、不是待改配置。后续不得再建议拆目录。同根下的文件行为（NFO、Settlement、二次 Observation）按各专项收口。见 `PRODUCTION_DEPLOY_ISSUE_LOG.md` `PROD-004`。
 
-## 0. Parked — 「全自动或关键步骤确认」后续删除（PROD-029）
+## 0. Code fix — 移除「全自动或关键步骤确认」Admin Web 表面（PROD-029）
 
-2026-08-30 Product Owner 确认：该配置项当前不改变整理/上架/售后行为（只写 standing Authorization，On-deck 不读、也没有确认入口）。先记下，**后续删除**；未授权现在改代码或 SSOT。见 `PRODUCTION_DEPLOY_ISSUE_LOG.md` `PROD-029`。
+2026-08-30 代码已修、待部署。收藏架配置页与系统设置「自动运营」Tab 已删除；Overview `setup.productChoice` 已移除；前端不再调用 automatic-operation API。后端路由与 standing Authorization 表保留，On-deck 行为不变。见 `PRODUCTION_DEPLOY_ISSUE_LOG.md` `PROD-029`。
 
 ## 0. Code fix — 概览排版一行状态 + 两列工作面（UAT-141 / UX-033）
 

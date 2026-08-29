@@ -4,9 +4,9 @@ Status: Helix-beta 已由 Product Owner 收窄为 **仅 Movie 的全功能版本
 
 Last updated: 2026-08-30
 
-## 0. Parked — 「全自动或关键步骤确认」后续删除（PROD-029）
+## 0. Code fix — 移除「全自动或关键步骤确认」Admin Web 表面（PROD-029）
 
-Product Owner 确认该开关当前无用户可见效果，后续删除；只登记，**不是当前实施 Phase，未授权删界面/API 或改 SSOT**。详见 `PRODUCTION_DEPLOY_ISSUE_LOG.md` `PROD-029`。
+Admin Web 已删除收藏架/设置中的自动运营控件；Overview 不再暴露 `productChoice`。后端 API 保留。代码已修、待部署。详见 `PRODUCTION_DEPLOY_ISSUE_LOG.md` `PROD-029`。
 
 ## 0. Code fix — 退出收藏页（UAT-143）
 

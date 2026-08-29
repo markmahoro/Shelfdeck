@@ -115,7 +115,9 @@ test('Librarian can choose 全自动 or 关键步骤确认 without granting Off-
 
   const overview = await host.inject({ method: 'GET', url: '/v1/admin/overview', headers: { cookie } });
   assert.equal(overview.statusCode, 200, overview.body);
-  assert.equal(overview.json().setup.productChoice, 'key_step_confirmation');
+  assert.equal(overview.json().setup.activeMaterialFieldCount, 0);
+  assert.equal(overview.json().setup.activeShelfCount, 0);
+  assert.equal(overview.json().setup.productChoice, undefined);
 
   const offdeck = await host.inject({ method: 'GET', url: '/v1/admin/offdeck/policies', headers: { cookie } });
   assert.equal(offdeck.statusCode, 200, offdeck.body);

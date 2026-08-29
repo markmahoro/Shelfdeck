@@ -89,7 +89,6 @@ describe('Helix primary copy and workbench structure', () => {
       'http://127.0.0.1:7890',
     );
     expect(screen.getByRole('heading', { level: 2, name: 'MoviePilot' })).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: '自动运营' })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: '退出规则' })).toBeInTheDocument();
     vi.spyOn(helixAdminApi,'getWorkspaceRootSettings').mockResolvedValue({current:{rootPath:'D:\\ShelfDeck\\workspace',configRevision:1},
       pending:null,restartRequired:false});
@@ -141,40 +140,6 @@ describe('Helix primary copy and workbench structure', () => {
     }});
     expect(body).not.toHaveProperty('credential');
     expect(body).not.toHaveProperty('connectionProofId');
-  });
-
-  it('lets the librarian choose 全自动 or 关键步骤确认 and keeps Off-deck independently disabled', async () => {
-    vi.spyOn(helixAdminApi, 'getIntegration').mockResolvedValue({
-      kind: 'douban', supported: true, configured: false, state: 'idle', configRevision: 0,
-      endpoint: null, configDigest: null, capabilityCodes: [], lastTestSummary: null, landingBinding: null,
-    });
-    vi.spyOn(helixAdminApi, 'getAutomaticOperation').mockResolvedValue({
-      projectionVersion: 1,
-      asOf: '2026-08-22T00:00:00.000Z',
-      freshness: 'fresh',
-      data: {
-        productChoice: 'key_step_confirmation',
-        fullAutoReady: false,
-        productChoiceLabel: '关键步骤确认',
-        fullAutoReadyLabel: '全自动尚未就绪',
-        standingInputSettlement: null,
-        offdeckDestruction: { independentlyDisabled: true, grantedByFullAuto: false, label: '退出收藏销毁保持独立关闭' },
-        items: [{ key: 'standing_authorization', owner: 'arca', ready: false, label: '上架旧输入仍需每次确认', href: '/settings' }],
-        consequences: [
-          { owner: 'arca', topic: 'input_settlement', text: '其余自动化保持不变，但每次上架处理旧输入文件前都要确认当前冻结范围。' },
-          { owner: 'arca_offdeck', topic: 'offdeck_destruction', text: '退出收藏的物理销毁保持独立关闭，与此选择无关。' },
-        ],
-      },
-      availableActions: [{ actionCode: 'enable_full_automatic_operation', label: '启用全自动', expectedRevision: 0, requiresConfirmation: false }],
-    });
-    render(<MemoryRouter initialEntries={['/settings']}><App /></MemoryRouter>);
-    fireEvent.click(await screen.findByRole('tab', { name: '自动运营' }));
-    expect(await screen.findByRole('heading', { level: 2, name: '自动运营' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /全自动（推荐）/ })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /关键步骤确认/ })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '启用全自动' })).toBeInTheDocument();
-    expect(screen.getByText(/每次上架处理旧输入文件前都要确认/)).toBeInTheDocument();
-    expect(screen.getByText('退出收藏销毁保持独立关闭')).toBeInTheDocument();
   });
 
   it('renders completed history as read-only organizing results', async () => {
