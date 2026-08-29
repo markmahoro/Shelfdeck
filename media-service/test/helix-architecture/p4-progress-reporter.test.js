@@ -6,7 +6,7 @@ const os = require('node:os');
 const path = require('node:path');
 const test = require('node:test');
 const Database = require('better-sqlite3');
-const { createProgressReporter } = require('../../src/helix/foundation/execution/progress-reporter');
+const { createProgressReporter, MAX_SAMPLES_PER_ATTEMPT } = require('../../src/helix/foundation/execution/progress-reporter');
 const { createRepositoryDefinition } = require('../../src/helix/foundation/persistence/owner-repository');
 const { openSqliteKernel } = require('../../src/helix/foundation/persistence/sqlite-kernel');
 const { createSqliteUnitOfWork } = require('../../src/helix/foundation/persistence/sqlite-unit-of-work');
@@ -125,6 +125,90 @@ test('invalid, non-finite, regressing, or fake indeterminate progress fails clos
     assert.throws(() => reporter.report(sample({ currentValue: 4, sourceSequence: 'seq-2' })), { code: 'P4_PROGRESS_REGRESSION' });
     assert.throws(() => reporter.report(sample({ currentValue: Infinity })), { code: 'P4_PROGRESS_SAMPLE_INVALID' });
     assert.throws(() => reporter.report(sample({ mode: 'indeterminate' })), { code: 'P4_PROGRESS_INDETERMINATE_INVALID' });
+  });
+});
+
+test('bounded history keeps publishing the current sample and still admits one terminal', () => {
+  fixture(({ reporter, databasePath, setNow }) => {
+    const historyCap = MAX_SAMPLES_PER_ATTEMPT - 1;
+    for (let index = 1; index <= historyCap; index += 1) {
+      setNow(10000 + (index - 1) * 5000);
+      const reported = reporter.report(sample({
+        currentValue: index, totalValue: 1000, sourceSequence: `seq-${index}`, progressBucket: 'running',
+      }));
+      assert.equal(reported.sampled, true);
+      assert.equal(reported.revision, index);
+      assert.equal(reported.reasonCode, undefined);
+    }
+    setNow(10000 + historyCap * 5000);
+    assert.deepEqual(
+      reporter.report(sample({
+        currentValue: historyCap + 1, totalValue: 1000, sourceSequence: `seq-${historyCap + 1}`, progressBucket: 'running',
+      })),
+      { sampled: true, replayed: false, revision: historyCap, reasonCode: 'HISTORY_BOUND' }
+    );
+    assert.deepEqual(reporter.current(), {
+      revision: historyCap, mode: 'determinate', currentValue: historyCap + 1, totalValue: 1000, unit: 'items',
+      rate: 1, etaMs: 9000, sourceSequence: `seq-${historyCap + 1}`, progressBucket: 'running',
+      sampledAtMs: 10000 + historyCap * 5000,
+    });
+    assert.equal(reporter.floor().currentValue, historyCap + 1);
+    setNow(10000 + (historyCap + 1) * 5000);
+    assert.deepEqual(
+      reporter.report(sample({
+        currentValue: 1000, totalValue: 1000, sourceSequence: 'seq-terminal', progressBucket: 'complete', terminal: true,
+      })),
+      { sampled: true, replayed: false, revision: historyCap + 1 }
+    );
+    const database = new Database(databasePath, { readonly: true });
+    try {
+      assert.equal(database.prepare('SELECT COUNT(*) count FROM fx_event_progress').get().count, MAX_SAMPLES_PER_ATTEMPT);
+      assert.equal(
+        database.prepare('SELECT current_progress_revision value FROM fx_workflow_events WHERE event_id=?').get('event').value,
+        historyCap + 1
+      );
+    } finally { database.close(); }
+    setNow(10000 + (historyCap + 2) * 5000);
+    assert.deepEqual(
+      reporter.report(sample({
+        currentValue: 1000, totalValue: 1000, sourceSequence: 'seq-after-terminal', progressBucket: 'running',
+      })),
+      { sampled: false, replayed: false, revision: historyCap + 1, reasonCode: 'HISTORY_BOUND' }
+    );
+    setNow(10000 + (historyCap + 3) * 5000);
+    assert.throws(
+      () => reporter.report(sample({
+        currentValue: 1000, totalValue: 1000, sourceSequence: 'seq-terminal-2', progressBucket: 'complete', terminal: true,
+      })),
+      { code: 'P4_PROGRESS_TERMINAL_ALREADY_BOUNDED' }
+    );
+  });
+});
+
+test('history overwrite still obeys the five-second same-bucket interval', () => {
+  fixture(({ reporter, setNow }) => {
+    const historyCap = MAX_SAMPLES_PER_ATTEMPT - 1;
+    for (let index = 1; index <= historyCap; index += 1) {
+      setNow(10000 + (index - 1) * 5000);
+      reporter.report(sample({
+        currentValue: index, totalValue: 1000, sourceSequence: `seq-${index}`, progressBucket: 'running',
+      }));
+    }
+    setNow(10000 + (historyCap - 1) * 5000 + 1000);
+    assert.equal(
+      reporter.report(sample({
+        currentValue: historyCap + 1, totalValue: 1000, sourceSequence: `seq-${historyCap + 1}`, progressBucket: 'running',
+      })).reasonCode,
+      'SAMPLE_INTERVAL'
+    );
+    setNow(10000 + historyCap * 5000);
+    assert.equal(
+      reporter.report(sample({
+        currentValue: historyCap + 1, totalValue: 1000, sourceSequence: `seq-${historyCap + 1}`, progressBucket: 'running',
+      })).reasonCode,
+      'HISTORY_BOUND'
+    );
+    assert.equal(reporter.current().currentValue, historyCap + 1);
   });
 });
 

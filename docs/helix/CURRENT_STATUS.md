@@ -4,6 +4,46 @@ Status: Helix-beta 范围已收窄为仅 Movie 全链路。Movie Procurement与M
 
 Last updated: 2026-08-30
 
+## 0. Parked — 退出收藏页信息架构（UAT-143 / UX-038）
+
+2026-08-30 Product Owner 确认退出收藏表面方向，只登记，**未授权改代码或改 SSOT**：
+
+1. 退出规则不在退出页，放到系统设置一个 Tab。Owner 仍是 Arca Off-deck。
+2. 退出页只有两条流：系统建议退出（列表）和手动退出（搜索后选择）。
+3. 将删文件、大批量二次确认、授权删除用页面弹出详情卡片，不在主表面再堆一块。
+4. 界面不用「审阅」；内部仍可叫 Review。
+5. 不改销毁合同；`UAT-139` 全选当前收藏并一次确认仍须可达。
+
+SSOT §9.4.8 目前把规则写在退出页五个视图里；落地前需 Architecture 改该表面行。见 `USER_ACCEPTANCE_TEST_ISSUE_LOG.md` `UAT-143`。
+
+## 0. Closed as topology — 同根 Field/Shelf（PROD-004）
+
+2026-08-30 Product Owner 锁定：来源与收藏架同为 `/media/Film` 是 **必须接收的场景**，不是缺陷、不是待改配置。后续不得再建议拆目录。同根下的文件行为（NFO、Settlement、二次 Observation）按各专项收口。见 `PRODUCTION_DEPLOY_ISSUE_LOG.md` `PROD-004`。
+
+## 0. Parked — 「全自动或关键步骤确认」后续删除（PROD-029）
+
+2026-08-30 Product Owner 确认：该配置项当前不改变整理/上架/售后行为（只写 standing Authorization，On-deck 不读、也没有确认入口）。先记下，**后续删除**；未授权现在改代码或 SSOT。见 `PRODUCTION_DEPLOY_ISSUE_LOG.md` `PROD-029`。
+
+## 0. Parked — 概览排版收成一行状态 + 两列工作面（UAT-141 / UX-033）
+
+2026-08-30 Product Owner 确认概览排版方向，只登记、**未授权实现**。内容合同不变：系统是否就绪 + 要你处理的事 + 最近上架，不与「我的收藏」合并，不做第二面海报墙。版面改为：页头收系统态（正常运行用状态词，异常才展开色条）；后台检查挂在状态后默认一行；三指标变薄、去掉同义附注；左列待办+正在整理（片名），右列最近进展（去掉装饰编号）；空待办一行即可；删掉页头导语。现网后台检查「需要留意 / 待处理 5」归本项表面，不另开 PROD。不改 Overview 口径、不改配色字体。见 `USER_ACCEPTANCE_TEST_ISSUE_LOG.md` `UAT-141` 与 `ADMIN_WEB_UX_ISSUE_LOG.md` `UX-033`。
+
+## 0. Parked — Admin Web 重复语义二次审视（UAT-142 / UX-034–037）
+
+2026-08-30 Product Owner 要求先记下概览排版，并排查全站重复语义。已完成 Helix 八页只读审视：标题下常驻导语复述导航、安全声明同页重复、「不会删除文件」跨页口头禅、指标附注同义反复、以及仍泄漏的内部口径。只登记，**未授权改代码或改 SSOT**。见 `USER_ACCEPTANCE_TEST_ISSUE_LOG.md` `UAT-142` 与 `ADMIN_WEB_UX_ISSUE_LOG.md` `UX-034`–`UX-037`。
+
+## 0. Parked — NFO 全链路合同（PROD-028）
+
+2026-08-30 Product Owner 确认核心理念并要求先记下、不授权实现。NFO 是片子旁边的呈现说明书，不是户口本。户口本已在上架时写入 Canonical Identity、Product Metadata、Media Cast，不新建存储。Aftercare 对 NFO 的职责应从「整份必须等于再渲结果 / 指纹变了就修」改为「说明书呈现的信息是否仍与内部身份和资料一致」。Libra 首次 create/update/rebuild 不变；不把 Emby 当权威，不把 Emby XML 当产品格式。现网《网络谜踪》为 `presentation:nfo_update_required`。记入 `docs/helix/PRODUCTION_DEPLOY_ISSUE_LOG.md`。**OPEN / 先不修**。
+
+## 0. Parked — 收藏详情健康三态（UAT-140 / UX-006）
+
+2026-08-30 Product Owner 确认：我的收藏详情健康区只要一个综合状态 **健康 / 修复中 / 不健康**（绿 / 黄 / 红）；修复中再写正在修什么。不展示「当前发现」、三维卡片、「技术标识」。只登记，先不改代码、不改 Aftercare 合同、不改海报墙筛选。见 `USER_ACCEPTANCE_TEST_ISSUE_LOG.md` `UAT-140`。
+
+## 0. Code fix — 长转码进度采样顶满后页面冻住（PROD-027）
+
+2026-08-30 代码已修、未部署。`ProgressReporter` 非 terminal 历史顶满后就地覆盖 current sample，不再停写；5 秒间隔与 terminal 槽不变。现网《里斯本丸沉没》仍在旧镜像上冻进度，无损升级后新 Attempt 才生效。记入 `docs/helix/PRODUCTION_DEPLOY_ISSUE_LOG.md`。
+
 ## 0. Production lossless upgrade — PROD-026
 
 2026-08-30 已部署 `helix-beta-20260830-06d0cc63b`（git `06d0cc63b`，tar SHA-256 `8f6c0bb030e8be666d3db5658456e669e25684bd0fa53c89dab7281094eed65d`），未 `--helix-clean-init`。health `ok` / `helix-clean-v3` / `normalSupplyAllowed` true。含：Libra/Aftercare remux+transcode 48 小时硬上限与 10 分钟停滞；Arca Target Commit Slot 避开 Emby/Field；启动恢复接受旧 Catalog 上已终止的零节点 unplannable Plan。第一次带新 Catalog 的镜像因 4 条 `temporarily_unplannable`/`contract_unplannable` 空图被拒启，本镜像修好后无损替换。现场：《2001太空漫游》已进入收藏架；《里斯本丸沉没》QSV 转码执行中；《教父2》等编码器；《唐人街探案》等读槽。Field/Shelf/`/transcode`/集成未改。

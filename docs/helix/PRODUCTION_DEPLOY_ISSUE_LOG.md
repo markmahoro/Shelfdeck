@@ -23,7 +23,7 @@
 | PROD-001 | 打开「文件来源配置」整页白屏 | `USER_EXPERIENCE` / 浏览器安全上下文 | 文件来源配置（收藏架配置同样会中招） | Critical | 已热修并部署 `helix-beta-20260828-ef8eec0dc` |
 | PROD-002 | 保存文件来源时报 `Cannot read properties of undefined (reading 'digest')` | `USER_EXPERIENCE` / 浏览器安全上下文 | 文件来源配置 | Critical | 已热修并部署 `helix-beta-20260828-c71149f17` |
 | PROD-003 | 采购显示「已扫描完成 72 页」，媒体整理工作区当时一条都没有 | `USER_EXPERIENCE` | 文件来源配置、媒体整理工作区 | High | **FIXED in next image**（来源页增加采购进度；空工作区说明目录扫完不等于整理结束） |
-| PROD-004 | 文件来源与收藏架都指向容器路径 `/media/Film` | 配置选择 / 后续 Settlement 风险 | 文件来源配置、收藏架配置 | Medium | **OPEN / 先不修**（SSOT 允许同根，不是当前空工作区的原因） |
+| PROD-004 | 文件来源与收藏架都指向容器路径 `/media/Film` | 已确认拓扑 / 同根是必须支持的场景 | 文件来源配置、收藏架配置 | — | **ACCEPTED / 不是缺陷**（2026-08-30 锁定；不得改成拆目录） |
 | PROD-005 | 一部都没上架；整理工作区数量看起来卡住 | 配置 / Workspace 根未生效 | 系统设置 Workspace、媒体整理工作区 | Critical | **FIXED by restart on upgrade**。`/transcode` 就是本机 Production Workspace；升级重启后按 durable `/transcode` 生效。冲突错误现带 configured/durable 路径。配置不变。 |
 | PROD-006 | 打开媒体整理工作区卡在「正在读取媒体整理工作区…」 | `USER_EXPERIENCE` / 全量分页 | 媒体整理工作区 | Critical | **FIXED**。页面原先等 897 条全部拉完才渲染；现先画第一页，其余后台补齐，轮询只刷新首页。 |
 | PROD-007 | 整理协调器 `P9_REFERENCE_MATERIAL_CORRUPT` / remux `P9_MEDIA_OUTPUT_CONTINUITY`，升级后管理端口起不来 | `EXECUTION` / Workspace root identity + startup recovery | 媒体整理工作区 | Critical | **FIXED**。材料句柄用内部 `service-local-workspace`，durable 根是 `local-filesystem-linux`；启动恢复还在 `listen()` 前续跑长时间 remux。句柄按 durable 根无损重盖章；workspace-write 恢复推迟到就绪之后。 |
@@ -46,6 +46,9 @@
 | PROD-024 | 门口 3 席位失效，一次灌进 8 部 Libra Run | `EXECUTION` / Intake 成功到 Run 建立不占席位 | 媒体整理工作区 | High | **FIXED** 无损升级 `helix-beta-20260829-2fe558b95`。已进来的继续跑，不再继续灌。 |
 | PROD-025 | 《007：大破天幕杀机》寻源报没有外部候选 | `EXECUTION` / MoviePilot 把 TMDB ID 当标题搜 | 媒体整理工作区 | High | **FIXED** 无损升级 `helix-beta-20260829-d1dd611d4`。已冻结片子需放弃后重新进整理。 |
 | PROD-026 | 《教父2》GPU 转码每小时被掐，永远编不完 | `EXECUTION` / Libra remux/transcode 误用 1 小时观察时限 | 媒体整理工作区 | High | **FIXED** 无损升级 `helix-beta-20260830-06d0cc63b`。在途转码按新 Attempt 使用 48 小时时限。 |
+| PROD-027 | 长转码页面进度写满后冻住，编码器仍在跑 | `EXECUTION` / ProgressReporter 历史上限连 current sample 一并停写 | 媒体整理工作区 | Medium | **FIXED in next image**（current 就地覆盖；未部署） |
+| PROD-028 | Aftercare 按整份 NFO 字节/指纹修文件，与 Emby 抢同一张说明书 | `EXECUTION` / Presentation 字节全等 + Custody 把 sidecar 指纹当身份变化 | 我的收藏 / Aftercare | Medium | **OPEN / 先不修**（合同已确认，未授权实现） |
+| PROD-029 | 收藏架「全自动 / 关键步骤确认」开关不改变实际上架行为 | `USER_EXPERIENCE` / standing Authorization 未接入 On-deck | 收藏架配置 | Low | **OPEN / 先不修**（后续删除，本文不授权删） |
 
 PROD-001、PROD-002 的共同环境前提：生产管理台是 `http://192.168.12.230`，浏览器不提供 `crypto.randomUUID` / `crypto.subtle`。这不是传输加密设计，只是浏览器 API 限制。未改成 HTTPS。
 
@@ -87,9 +90,11 @@ PROD-001、PROD-002 的共同环境前提：生产管理台是 `http://192.168.1
 
 修复：来源页增加「采购进度」，并在目录已扫完时说明采购仍在分拣；整理工作区空表区分「还没进入整理」和「当前筛选没有条目」；收藏页说明工作区条目还不算上架。不改采购合同。
 
-## 5. PROD-004 — 来源与收藏架同为 `/media/Film`（OPEN）
+## 5. PROD-004 — 来源与收藏架同为 `/media/Film`（ACCEPTED / 不是缺陷）
 
-用户把文件来源和收藏架目标都配成容器路径 `/media/Film`（NAS `/vol02/1000-0-c5b736af/Film`）。SSOT 允许 Field 与 Shelf Target 同根，这不是 PROD-003 空工作区的原因。风险在后面：成品也写回同一棵树，Settlement /「磁盘有、Inventory 无」会对账更绕。页面没有强提示「源目录和成品目录现在是同一个」。先不改配置、不改合同。
+用户把文件来源和收藏架目标都配成容器路径 `/media/Film`（NAS `/vol02/1000-0-c5b736af/Film`）。SSOT `HB-A.05` 允许 Field 与同一 Shelf Target 同根或重叠。这不是 PROD-003 空工作区的原因。
+
+2026-08-30 Product Owner 锁定：**同根是 ShelfDeck 必须接收的场景，不是待改配置，不得再建议拆成两个目录。** 同根上的 NFO/Emby、Settlement、二次 Observation 等，只能按同根正确行为收口（例如 PROD-028、已关闭的 UAT 同根项），不能用改路径回避。未改配置、未改合同。
 
 ## 6. PROD-005 — 工作区看似卡住、一部都未上架（FIXED）
 
@@ -325,3 +330,57 @@ P4 对 journaled `material_commit` 的 Executor throw 仍会把 Attempt 留在 `
 SSOT 10.3.5：本地 transcode/remux 是「10 分钟无进展判 Attempt timeout，48 小时 hard timeout」，不能用持续 progress 无限延长 hard timeout。Aftercare 原先只有 12 小时，同样短于该合同。
 
 修复：Libra remux/transcode 与 Aftercare remux/transcode 共用 48 小时硬上限；FFmpeg 服从 Event `deadlineAtMs`，不再用更短的进程默认值截断；编码进度管道 10 分钟无 stdout/stderr 活动视为停滞。未改 SSOT。同镜像还带上架暂存槽躲开 Emby，以及启动恢复对旧 Catalog 零节点 unplannable Plan 的放行。已无损升级 `helix-beta-20260830-06d0cc63b`。在途转码按新 Attempt 使用新时限。
+
+## 28. PROD-027 — 长转码进度采样顶满后页面冻住（FIXED in next image）
+
+发现：2026-08-30。只读核对现网 Libra Run。服务 health `ok`，镜像 `helix-beta-20260830-06d0cc63b`。《里斯本丸沉没 (2024)》`libra.media.transcode@1` 正在 QSV 执行，partial 仍在增长（约 2.9 GiB，8 秒内 +5 MB），FFmpeg 已跑约 1 小时 50 分。Formation 进度却停在约 25.7%，最后一条 durable sample 约 27 分钟未更新。Product Owner 后授权逐项深修。
+
+现场（只读，未改库、未改配置、未重启）：
+
+- 当前 Attempt 第 24 轮，`fx_event_progress` **256** 条，最新 `25.7%` / `rate=0.382`，revision 987；下一条非 terminal 不再入库。
+- 25.7% 不是阈值。`ProgressReporter` `MAX_SAMPLES_PER_ATTEMPT=257`（256 条历史 + 1 条 terminal）。非 terminal 写满 256 后静默 `HISTORY_BOUND`，**current 指针也不再前进**。
+- 编码器不受影响：停滞看的是 FFmpeg stdout/stderr 活动，不是库内 sample，因此不会因为采样停写而被杀掉。
+- 同场另外两部（《教父2》《唐人街探案》）在等 QSV，与本项无关。
+
+根因：SSOT `7.9.4` 要求长耗时 Capability 持续发布 current progress sample，历史按 bucket 有界；`10.4.3` 允许最多每 5 秒写一次 durable sample。实现把有界历史做成 append-only 硬顶，顶满后连 current 也停写。P4 测试原先覆盖了 5 秒间隔，没有覆盖 `HISTORY_BOUND`。
+
+修复：非 terminal 历史顶满后 **就地覆盖** 当前 sample（同一 `revision` / Event 指针），继续发布 current；行数仍 ≤256 条非 terminal + 1 条 terminal。5 秒同 bucket 间隔、回归否决、terminal 独占槽、编码器停滞判定均不变。未改 SSOT、表合同或 Domain。本地 `p4-progress-reporter` / `p4-event-runtime` / `p4-foundation-public` PASS。现网在途转码仍冻在旧镜像，需无损升级后新 Attempt 才按覆盖合同走。
+
+## 29. PROD-028 — Aftercare NFO 按整份字节修，而不是按内部事实验呈现（OPEN / 先不修）
+
+发现：2026-08-30。只读现网《Searching / 网络谜踪》上架后 Aftercare Case 目标 `presentation:nfo_update_required`。盘上 NFO 是可用的 Emby 形 movie XML（`lockdata`、`dateadded`、CDATA、tvdbid），不是损坏文件。Product Owner 确认核心理念后要求先记下方案、不授权实现。
+
+核心理念（已确认，未实施）：
+
+- NFO 是视频旁边的说明书（Shelf 上的 `.nfo`），不是户口本。
+- 户口本已在 On-deck 写入：Canonical Identity、Product Metadata、Media Cast。不新建存储或 Domain。
+- Aftercare 对 NFO 的职责，从「整份必须等于系统再渲的那一份 / 指纹变了就修」改为「说明书呈现的信息是否仍与内部身份和资料一致」。
+- 文件还在不在、能不能读，仍归 Custody；「被改过」本身不再等于要修。
+- Libra 仍负责第一次 create / 可用则 update / 损坏或身份冲突则 rebuild。
+- 不把 Emby 修改当权威，不把 Emby XML 方言做成产品格式。同源同目录（PROD-004）会放大抢写，但不替代本条合同。
+
+现在实际在验：
+
+- Presentation：`existingBytes.equals(rendered.bytes)`（`aftercare-capability-ports.js`）。合法 Emby NFO 也会 `nfo_update_required`。
+- Custody：NFO 指纹/size 变化记 `nfo_identity_changed` 并 `auto_repair`。
+- Libra 与 Aftercare 各有一套 NFO 写入器。Emby 在文件 mtime 变后常按自己的模板整份写回；普通扫库、文件没动，一般不重写。
+
+应按合同验：能解析的 movie NFO；TMDB 仍是这部片；Standard 要求字段仍在且与 accepted Facts 一致。不验整份字节、排版、Emby 附加字段、作者是谁。
+
+实施未授权。若日后实施：共用一套 Movie NFO inspect/语义投影/create·update·rebuild；Presentation 改语义比较；Custody 不再因 sidecar 指纹变化单独 auto_repair；SSOT 最多澄清「受控 Renderer」约束写入路径，健康条件是 renderable + 必要语义。不改 Domain、Handoff、Emby 角色。未改代码。
+
+## 30. PROD-029 — 「全自动或关键步骤确认」对用户旅程无效果（OPEN / 先不修，后续删除）
+
+发现：2026-08-30。收藏架配置页有「全自动（推荐） / 关键步骤确认」。Product Owner 确认该开关当前没有用户可见意义，要求先记下，**后续删除**；本文不授权现在删界面、API、表或 SSOT。
+
+它本来只想管一件事：上架后要不要自动处理旧输入文件（来源里的正片/独占附属）。不是整理总开关。全自动不授予退出收藏销毁，弱人物仍要确认。这些在 SSOT `9.6.5` 和 Beta `HB-A.07` 里仍写着。
+
+现在实际：
+
+- 点选会写入 `arca_input_settlement_authorizations`，Readiness/概览标签会变。
+- On-deck 结算批准由投影直接生成，`actorId` 固定 `system-policy`，不读这份授权。
+- `settleInputAsync` 不用 `approval`。媒体整理工作区没有「确认本次旧输入范围」入口。
+- 采购、整理、验收、Aftercare 自动修两边一样。
+- 现网 Field/Shelf 同为 `/media/Film`（PROD-004）时，旧输入和成品常是同一路径，结算往往不另删文件，开关更看不见。
+
+后续删除（未授权）需一并收口：收藏架配置该卡片、automatic-operation API、Setup/Overview 的 productChoice 展示，以及 `HB-A.07` / SSOT `9.6.5` 的产品选择表面。不在本次改代码。

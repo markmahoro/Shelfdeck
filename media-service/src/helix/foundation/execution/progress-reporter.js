@@ -60,6 +60,9 @@ function definitions(schemaManifest) {
       insert: { kind: 'insert', tableId: 'fx_event_progress', columns: [
         'event_id', 'event_attempt_id', 'revision', 'mode', 'current_value', 'total_value', 'unit', 'rate', 'eta_ms',
         'source_sequence', 'progress_bucket', 'sampled_at_ms'
+      ] },
+      overwrite: { kind: 'update', tableId: 'fx_event_progress', keyColumns: ['event_id', 'revision'], setColumns: [
+        'mode', 'current_value', 'total_value', 'unit', 'rate', 'eta_ms', 'source_sequence', 'progress_bucket', 'sampled_at_ms'
       ] }
     } })
   });
@@ -159,9 +162,20 @@ function createProgressReporter(options) {
           if (latest && sampledAtMs - latest.sampled_at_ms < SAMPLE_INTERVAL_MS && !changedBucket && !sample.terminal) {
             return Object.freeze({ sampled: false, replayed: false, revision: latest.revision, reasonCode: 'SAMPLE_INTERVAL' });
           }
-          if (all.length >= MAX_SAMPLES_PER_ATTEMPT - (sample.terminal ? 0 : 1)) {
-            if (!sample.terminal) return Object.freeze({ sampled: false, replayed: false, revision: latest.revision, reasonCode: 'HISTORY_BOUND' });
-            if (all.length >= MAX_SAMPLES_PER_ATTEMPT) fail('P4_PROGRESS_TERMINAL_ALREADY_BOUNDED', 'Progress history already contains its bounded terminal allowance.');
+          const historyCap = MAX_SAMPLES_PER_ATTEMPT - 1;
+          if (!sample.terminal && all.length >= historyCap) {
+            if (all.length >= MAX_SAMPLES_PER_ATTEMPT) {
+              return Object.freeze({ sampled: false, replayed: false, revision: latest.revision, reasonCode: 'HISTORY_BOUND' });
+            }
+            context.repository('progress_samples').invoke('overwrite', {
+              event_id: options.eventId, revision: latest.revision, mode: sample.mode,
+              current_value: sample.currentValue, total_value: sample.totalValue, unit: sample.unit, rate: sample.rate,
+              eta_ms: sample.etaMs, source_sequence: sample.sourceSequence, progress_bucket: sample.progressBucket, sampled_at_ms: sampledAtMs
+            });
+            return Object.freeze({ sampled: true, replayed: false, revision: latest.revision, reasonCode: 'HISTORY_BOUND' });
+          }
+          if (sample.terminal && all.length >= MAX_SAMPLES_PER_ATTEMPT) {
+            fail('P4_PROGRESS_TERMINAL_ALREADY_BOUNDED', 'Progress history already contains its bounded terminal allowance.');
           }
           const revision = event.current_progress_revision === null ? 1 : event.current_progress_revision + 1;
           context.repository('progress_samples').invoke('insert', {
