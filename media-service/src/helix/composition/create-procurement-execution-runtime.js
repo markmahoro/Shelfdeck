@@ -33,6 +33,7 @@ const { createMaterialControlProjectionPort, controlScopeDigest } = require('../
 const { createDomainReconcileRunner } = require('../foundation/execution/domain-reconcile-runner');
 const { createWorkflowPlanPublisher, executionCatalogDigest } = require('../foundation/execution/workflow-plan');
 const { PRE_PROJECTION_PLAN_REPLAN_CODE } = require('../foundation/persistence/uat-identity-selection-migration');
+const { PREDECK_INTAKE_SEATS } = require('../domains/libra/application/predeck-intake-occupancy');
 
 function volumeReadUnitsForCapability(capability) {
   return capability === 'libra.transcode.input.verify@1' ? 2 : 1;
@@ -697,7 +698,7 @@ function createProcurementExecutionRuntime(options) {
     ) },
     effectReconciler, effectJournal });
   function fillPredeckIntakeSeats() {
-    libraProcessServices.coordinator.reconcilePending({ admissionLimit: 3 });
+    libraProcessServices.coordinator.reconcilePending({ admissionLimit: PREDECK_INTAKE_SEATS });
   }
   function drainCompletedWorkspaces() {
     completedWorkspaceSweepNotBeforeMs = 0;
@@ -805,12 +806,13 @@ function createProcurementExecutionRuntime(options) {
     if(request.reconcilePhase!=='work_terminal')return null;
     if(request.ownerDomain==='libra'&&request.processType==='libra_intake'){
       const intake=libraProcessServices.coordinator.reconcile(request.processId);
-      if(['acceptance','rejection'].includes(request.workKind)&&request.workAttemptState==='succeeded'){
-        libraProcessServices.coordinator.reconcilePending({ignoreAcceptanceProcessId:request.processId,limit:100});
-      }
       if(request.workKind==='acceptance'&&request.workAttemptState==='succeeded'){
         const receipt=workResultReader.read(request.workId).find((item)=>item.outcomeKind==='succeeded'&&item.result?.subjectId)?.result;
         if(receipt?.subjectId){libraProcessServices.routingCoordinator.reconcile(receipt.subjectId);options.onFormationSubjectChanged?.(receipt.subjectId);}
+      }
+      if(['acceptance','rejection'].includes(request.workKind)&&request.workAttemptState==='succeeded'){
+        libraProcessServices.coordinator.reconcilePending({ignoreAcceptanceProcessId:request.processId,limit:100,
+          admissionLimit:PREDECK_INTAKE_SEATS});
       }
       return {workId:request.workId,disposition:request.workAttemptState};
     }
