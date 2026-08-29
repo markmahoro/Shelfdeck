@@ -132,7 +132,7 @@ export default function CollectionPage() {
       <div className="collection-library-heading"><div><h2 id="collection-heading">收藏条目</h2></div><span>{filtered.length} 部</span></div>
       {filtered.length === 0 ? <div className="source-empty"><strong>{items.length === 0 ? '还没有正式上架的电影' : '当前筛选没有收藏'}</strong><p>{items.length === 0 ? '只有收藏架验收并提交之后才会出现在这里。媒体整理工作区里的条目还不算上架。' : '试试其他健康筛选。'}</p></div> : <div className="poster-wall">{filtered.map((item) => <button className="poster-tile" key={item.shelfEntryId} onClick={() => setSelected(item)} aria-label={`查看 ${item.displayIdentity} 详情，收藏健康：${healthLabels[item.health.state]}`}>
         <span className="poster-frame">{item.hasPoster ? <img src={helixAdminApi.collectionPosterUrl(item.shelfEntryId)} alt="" loading="lazy" /> : <span className="poster-fallback" aria-hidden="true"><b>{item.displayIdentity.slice(0, 2)}</b><small>ShelfDeck</small></span>}<span className={`health-seal ${item.health.state}`} title={healthLabels[item.health.state]} aria-hidden="true">{healthLabels[item.health.state].slice(0, 1)}</span></span>
-        <span className="poster-caption"><strong>{item.displayIdentity}</strong><small>{item.year || '年份未知'} · {item.shelfName}</small>{item.defectAdmission&&<small>瑕疵入库 · {item.defectAdmission.defectCount}项</small>}</span>
+        <span className="poster-caption"><strong>{item.displayIdentity}</strong><small>{item.year || '年份未知'} · {item.shelfName}</small>{item.defectAdmission&&<small>瑕疵入库 · {item.defectAdmission.defects.some((defect)=>defect.defectCode==='size_cap_exceeded')?'体积超过档位上限':`${item.defectAdmission.defectCount}项`}</small>}</span>
       </button>)}</div>}
     </section>
     {selected && <div className="collection-dialog-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setSelected(null); }}>
@@ -144,7 +144,7 @@ export default function CollectionPage() {
           <h2 id="collection-dialog-title">{selected.displayIdentity}</h2>
           <p className="collection-dialog-meta">{selected.year || '年份未知'} · {selected.genres.length ? selected.genres.join(' / ') : '类型未记录'}</p>
           <p className="collection-dialog-overview">{selected.overview || '暂无剧情简介。'}</p>
-          {selected.defectAdmission&&<p className="form-notice">瑕疵入库 · {selected.defectAdmission.defectCount}项</p>}
+          {selected.defectAdmission&&<p className="form-notice">瑕疵入库 · {selected.defectAdmission.defects.map((defect)=>defect.defectCode==='size_cap_exceeded'?'体积超过档位上限':defect.defectCode==='actor_unavailable'?'演员资料缺失':'寻源耗尽保留原片').join('、')}</p>}
           {selected.people.length > 0 && <dl className="collection-people"><dt>演职人员</dt><dd>{selected.people.slice(0, 12).map((person) => person.displayName).join('、')}</dd></dl>}
           <dl className="collection-facts">
             <div><dt>收藏架</dt><dd>{selected.shelfName}</dd></div>

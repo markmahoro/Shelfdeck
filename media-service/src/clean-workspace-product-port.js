@@ -34,6 +34,35 @@ function digestBytes(bytes) {
   return crypto.createHash('sha256').update(bytes).digest('hex');
 }
 
+const PRODUCER_PARTIAL = /\.partial-[0-9a-f]{16}$/;
+
+function isProducerPartialName(name) {
+  return typeof name === 'string' && PRODUCER_PARTIAL.test(name);
+}
+
+function removeProducerPartials(target) {
+  const directory = path.dirname(target);
+  const base = path.basename(target);
+  if (!fs.existsSync(directory)) return;
+  for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+    if (!entry.isFile() || !entry.name.startsWith(base + '.partial-') ||
+        !isProducerPartialName(entry.name.slice(base.length))) continue;
+    fs.unlinkSync(path.join(directory, entry.name));
+  }
+}
+
+function removeProducerPartialsUnder(directory) {
+  if (!fs.existsSync(directory)) return;
+  for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+    const full = path.join(directory, entry.name);
+    if (entry.isDirectory() && !entry.isSymbolicLink()) {
+      removeProducerPartialsUnder(full);
+      continue;
+    }
+    if (entry.isFile() && isProducerPartialName(entry.name)) fs.unlinkSync(full);
+  }
+}
+
 const ARTIFACT_KINDS = Object.freeze([
   'nfo',
   'poster',
@@ -1476,6 +1505,7 @@ function createCleanWorkspaceProductPort(options) {
       fail('CLEAN_WORKSPACE_RECLAIM_ABSENCE',
         'Workspace cleanup did not establish physical absence.');
     }
+    removeProducerPartials(target);
     let result = existed ? 'deleted' : 'already_absent';
     const postDeleteContainmentProbeDigest = canonicalDigest({
       schema: 'libra.workspace-cleanup-absence-probe@1',
@@ -1552,20 +1582,22 @@ function createCleanWorkspaceProductPort(options) {
           }
           return;
         }
-        if (material.state !== 'active' ||
-            repo.invoke('reclaim_material', {
-              state: 'reclaimed',
-              reclaimed_effect_id: effectId,
-              reclaimed_effect_receipt_digest: deletionEvidence.evidenceDigest,
-              reclaimed_at_ms: context.commitTimeMs,
-              workspace_id: intent.workspaceId,
-              material_handle_id: intent.materialHandleId,
-              expected_state: 'active',
-              expected_handle_digest: intent.expectedWorkspaceHandleDigest,
-              expected_fence_digest: handle.fenceDigest,
-            }).changes !== 1) {
-          fail('CLEAN_WORKSPACE_RECLAIM_MATERIAL_CAS',
-            'Workspace material reclaim CAS failed.');
+        if (material.state !== 'reclaimed') {
+          if (material.state !== 'active' ||
+              repo.invoke('reclaim_material', {
+                state: 'reclaimed',
+                reclaimed_effect_id: effectId,
+                reclaimed_effect_receipt_digest: deletionEvidence.evidenceDigest,
+                reclaimed_at_ms: context.commitTimeMs,
+                workspace_id: intent.workspaceId,
+                material_handle_id: intent.materialHandleId,
+                expected_state: 'active',
+                expected_handle_digest: intent.expectedWorkspaceHandleDigest,
+                expected_fence_digest: handle.fenceDigest,
+              }).changes !== 1) {
+            fail('CLEAN_WORKSPACE_RECLAIM_MATERIAL_CAS',
+              'Workspace material reclaim CAS failed.');
+          }
         }
         if (repo.invoke('commit_effect', {
           state: 'committed',
@@ -1640,6 +1672,7 @@ function createCleanWorkspaceProductPort(options) {
         sizeBytes: Number(row.size_bytes),
       }));
     }
+    removeProducerPartialsUnder(workspaceRoot);
     const empty = reclaimEmptyWorkspace(workspaceId);
     return Object.freeze({
       workspaceId,
@@ -1661,6 +1694,7 @@ function createCleanWorkspaceProductPort(options) {
     if(!fs.statSync(workspaceRoot).isDirectory()){
       fail('CLEAN_WORKSPACE_RECLAIM_REALITY','Workspace root is not a directory.');
     }
+    removeProducerPartialsUnder(workspaceRoot);
     function removeEmpty(directory){
       for(const entry of fs.readdirSync(directory,{withFileTypes:true})){
         if(entry.isDirectory()&&!entry.isSymbolicLink())removeEmpty(path.join(directory,entry.name));
@@ -1703,6 +1737,7 @@ function createCleanWorkspaceProductPort(options) {
         workspace_id:request.workspaceId, relative_path:relativePath,
       })));
     fs.mkdirSync(path.dirname(target), { recursive:true });
+    removeProducerPartials(target);
     if (!existingBefore && !fs.existsSync(target)) {
       const temporary = target + '.partial-' + effectId.slice(0, 16);
       await request.produce(temporary);
@@ -1710,6 +1745,7 @@ function createCleanWorkspaceProductPort(options) {
         fail('CLEAN_WORKSPACE_MEDIA_OUTPUT_MISSING', 'Media Effect did not produce its bounded target.');
       }
       fs.renameSync(temporary, target);
+      removeProducerPartials(target);
       if (typeof options.afterPhysicalEffect === 'function') options.afterPhysicalEffect(Object.freeze({
         effectId, target, intentDigest:journalIntentDigest,
       }));

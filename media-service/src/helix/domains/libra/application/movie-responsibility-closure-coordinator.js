@@ -385,6 +385,13 @@ function createMovieResponsibilityClosureCoordinator(options) {
     });
   }
 
+  function reclaimLeftoverWorkspace(workspaceId) {
+    if (typeof options.workspaceProductPort?.reclaimUnreferencedWorkspace !== 'function') {
+      return;
+    }
+    options.workspaceProductPort.reclaimUnreferencedWorkspace(workspaceId);
+  }
+
   function drainCleanupScope(cleanupScopeId, maxMembers = Number.POSITIVE_INFINITY) {
     let scope = cleanup.readScope(cleanupScopeId);
     const receipts = [];
@@ -402,12 +409,6 @@ function createMovieResponsibilityClosureCoordinator(options) {
       const freshScope = cleanup.readScope(scope.cleanupScopeId);
       const freshMember = freshScope.members.find((item) =>
         item.materialHandleId === member.materialHandleId);
-      const pendingMembers = freshScope.members.filter((item) =>
-        item.state === 'pending');
-      if (pendingMembers.length === 1 &&
-          pendingMembers[0].materialHandleId === member.materialHandleId) {
-        options.workspaceProductPort.reclaimEmptyWorkspace?.(scope.workspaceId);
-      }
       const commitDecision = buildCommitDecision({
         scope: freshScope,
         member: freshMember,
@@ -434,6 +435,9 @@ function createMovieResponsibilityClosureCoordinator(options) {
         options.afterCleanupCommit(committed.result);
       }
       scope = cleanup.readScope(scope.cleanupScopeId);
+    }
+    if (scope.state === 'completed') {
+      reclaimLeftoverWorkspace(scope.workspaceId);
     }
     return Object.freeze({
       stage: scope.state === 'completed'
@@ -476,6 +480,7 @@ function createMovieResponsibilityClosureCoordinator(options) {
       }
       const inspected = cleanup.inspect(libraRunId);
       if (inspected.references.length === 0) {
+        reclaimLeftoverWorkspace(inspected.workspace.workspaceId);
         return Object.freeze({ stage: 'cleanup_no_op' });
       }
       if (!firstAudit) {

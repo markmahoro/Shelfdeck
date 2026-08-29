@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { helixAdminApi, type FormationRunHistory, type FormationSubject, type FormationSummary, type PerceptionSyncState, type Shelf } from './api';
+import { helixAdminApi, type DefectAdmissionCandidate, type FormationRunHistory, type FormationSubject, type FormationSummary, type PerceptionSyncState, type Shelf } from './api';
 import { Button, LoadingState, PageHeader } from './chrome';
+import { Dialog } from '../components/ui';
 import RatingControl from './RatingControl';
 import { isUnauthorized, useSession } from './session';
 
@@ -25,6 +26,17 @@ function canDiscardRejectedHandoff(item:FormationSubject) {
     && !item.productIdentityIssue;
 }
 function canChooseShelf(item:FormationSubject) { return item.routingState==='unresolved' && Number.isSafeInteger(item.routingDecisionHeadRevision) && Boolean(item.routingDecisionHeadDigest); }
+function formatGiB(bytes:number) { return `${(Number(bytes)/1073741824).toFixed(1)} GiB`; }
+function defectLabel(defect:DefectAdmissionCandidate['defects'][number], forecast:DefectAdmissionCandidate['sizeForecast']) {
+  if (defect.defectCode==='actor_unavailable') return '演员资料确实无法取得';
+  if (defect.defectCode==='size_cap_exceeded') {
+    if (forecast?.maxSizeBytes && forecast.predictedBytes) {
+      return `上限 ${formatGiB(forecast.maxSizeBytes)}，预计 ${formatGiB(forecast.predictedBytes)}，大约超出 ${formatGiB(forecast.overshootBytes)}。将保留无损音轨并转成 HEVC。`;
+    }
+    return '成品将超过本档体积上限。将保留无损音轨并转成 HEVC。';
+  }
+  return '外部寻源已耗尽，将保留原始媒体';
+}
 function shelfName(item:FormationSubject, shelves:Shelf[]) { return item.targetShelfName || shelves.find((shelf)=>shelf.shelfId===item.targetShelfId)?.name || '尚未选定'; }
 function ratingText(item:FormationSubject, acquisitionIncomplete:boolean) {
   if (item.myRating) return `${item.myRating} 星 · ${item.myRatingSource === 'douban' ? '豆瓣' : 'ShelfDeck'}`;
@@ -111,6 +123,7 @@ export default function FormationPage() {
   const [perceptionSync,setPerceptionSync]=useState<PerceptionSyncState|null>(null);
   const [filter,setFilter]=useState<Filter>('all'),[q,setQ]=useState(''),[shelfFilter,setShelfFilter]=useState(''),[needsActionOnly,setNeedsActionOnly]=useState(false),[expeditedOnly,setExpeditedOnly]=useState(false),[loading,setLoading]=useState(false),[filling,setFilling]=useState(false),[error,setError]=useState('');
   const [selected,setSelected]=useState<FormationSubject|null>(null),closeRef=useRef<HTMLButtonElement>(null),triggerRef=useRef<HTMLButtonElement|null>(null),loadGeneration=useRef(0);
+  const [defectDialog,setDefectDialog]=useState<{item:FormationSubject;candidate:DefectAdmissionCandidate}|null>(null);
   const load=useCallback(async(background=false)=>{
     if(background){
       try{
@@ -195,9 +208,9 @@ export default function FormationPage() {
       else if(kind==='discard')await helixAdminApi.discardRun(item);
       else if(kind==='admitDefects'){
         const candidate=await helixAdminApi.previewDefectAdmission(item);
-        const labels=candidate.defects.map((defect)=>defect.defectCode==='actor_unavailable'?'演员资料确实无法取得':'外部寻源已耗尽，将保留原始媒体');
-        if(!window.confirm(`确认接受瑕疵入库？\n\n${labels.map((label,index)=>`${index+1}. ${label}`).join('\n')}\n\n这些已列明瑕疵入库后不会由售后继续补齐；其他新问题仍会正常检查。`)){setLoading(false);return;}
-        await helixAdminApi.admitWithDefects(item,candidate);
+        setLoading(false);
+        setDefectDialog({item,candidate});
+        return;
       }
       else if(kind==='retry')await helixAdminApi.retryAcceptance(item);
       else if(kind==='chooseShelf')await helixAdminApi.chooseShelf(item,String(value));
@@ -216,6 +229,24 @@ export default function FormationPage() {
       <div className="formation-table-wrap"><table className="formation-table formation-stub-table"><thead><tr><th>媒体名称</th><th>评分</th><th>目标收藏架</th><th>整理要求</th><th>当前进展</th><th>详情</th><th>用户操作</th><th>加急</th></tr></thead><tbody>{rows.length===0?<tr className="formation-stub-media-row"><td colSpan={8}><div className="source-empty"><strong>{summary.totalCount===0?'还没有进入整理的电影':'当前筛选没有条目'}</strong><p>{summary.totalCount===0?'文件来源目录扫完之后，采购还要分拣。整理门口同时只接 3 部，其余待交接不会出现在这张表里。':'试试其他状态或筛选。'}</p></div></td></tr>:rows.map((row)=>row.kind==='ended'?<tr key={row.item.historyId} className="formation-stub-media-row"><td><strong>{row.item.displayIdentity}</strong><small>已结束</small></td><td>—</td><td>—</td><td>—</td><td><strong className="formation-stub-current">{row.item.label}</strong><small>{formatTime(row.item.endedAtMs)}</small></td><td>—</td><td>—</td><td><button type="button" className="formation-expedite-toggle" disabled>加急</button></td></tr>:<MediaRow key={row.item.subjectId} item={row.item} shelves={shelves} loading={loading} acquisitionIncomplete={perceptionSync?.completionState==='incomplete'} onOpen={open} onAction={action} />)}</tbody></table></div>
     </section>
     {selected&&<div className="formation-process-backdrop" role="presentation" onMouseDown={(event)=>{if(event.target===event.currentTarget)close();}}><section className="formation-process-dialog" role="dialog" aria-modal="true" aria-labelledby="formation-process-dialog-title"><button ref={closeRef} className="formation-process-dialog-close" type="button" aria-label="关闭上架过程详情" onClick={close}>×</button><h2 id="formation-process-dialog-title" className="formation-process-dialog-title">{selected.displayIdentity}的上架过程详情</h2><ProcessDetail item={selected} /></section></div>}
+    <Dialog open={!!defectDialog} title="确认接受瑕疵入库" onClose={()=>setDefectDialog(null)} actions={<>
+      <Button type="button" disabled={loading} onClick={()=>setDefectDialog(null)}>取消</Button>
+      <Button type="button" variant="primary" disabled={loading} onClick={()=>{void (async()=>{
+        if(!defectDialog)return;
+        setLoading(true);setError('');
+        try{
+          await helixAdminApi.admitWithDefects(defectDialog.item,defectDialog.candidate);
+          setDefectDialog(null);
+          await load();
+        }catch(cause){setError(cause instanceof Error?cause.message:'操作失败。');setLoading(false);}
+      })();}}>确认接受</Button>
+    </>}>
+      {defectDialog&&<div className="stack">
+        <p>{defectDialog.item.displayIdentity}</p>
+        <ol>{defectDialog.candidate.defects.map((defect,index)=><li key={defect.defectCode}>{index+1}. {defectLabel(defect,defectDialog.candidate.sizeForecast)}</li>)}</ol>
+        <p>这些已列明瑕疵入库后不会由售后继续补齐；其他新问题仍会正常检查。</p>
+      </div>}
+    </Dialog>
   </section>;
 }
 

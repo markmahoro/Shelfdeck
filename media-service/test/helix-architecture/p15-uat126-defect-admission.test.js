@@ -91,6 +91,17 @@ test('UAT-126 admits exhausted sourcing only for the exact safe original verific
   (error) => error.code === 'P9_DEFECT_ADMISSION_ORIGINAL_MEDIA');
 });
 
+test('size-cap admission waives only max_size_exceeded after transcode assessment freeze', () => {
+  const candidate = buildDefectAdmissionCandidate({ run:frozen(),
+    terminalEvidence:terminal('size_cap_requires_admission',
+      'libra.transcode.input.verify@1') });
+  assert.equal(candidate.defects[0].defectCode, 'size_cap_exceeded');
+  assert.deepEqual(candidate.waivedRequirementCodes, ['max_size_exceeded']);
+  const manifest = authorize(candidate);
+  assert.equal(coversRequirementGaps(manifest, ['max_size_exceeded']), true);
+  assert.equal(coversRequirementGaps(manifest, ['video_codec_unmet']), false);
+});
+
 test('UAT-126 rejects provider outages and Arca rejects stale or broader attestations', () => {
   assert.throws(() => buildDefectAdmissionCandidate({ run:frozen(),
     terminalEvidence:terminal('provider_timeout', 'libra.external.search@1') }),

@@ -1683,7 +1683,8 @@ function productConformanceInputSnapshotSchema() {
     artifactVerificationSnapshots: arrayOf(domainRef('ArtifactConformanceVerificationSnapshot'), 256),
     inventorySnapshot: domainRef('ProductInventoryConformanceSnapshot'),
     selectedProducts: { ...arrayOf({ oneOf:[selected('ordinary_selected'),
-      selected('authorized_defect_direct_input')] }, 32), minItems: 1 }, productFactSetDigest: digest(),
+      selected('authorized_defect_direct_input'),
+      selected('authorized_defect_workspace_output')] }, 32), minItems: 1 }, productFactSetDigest: digest(),
     artifactVerificationSetDigest: digest(), selectedProductSetDigest: digest(), productSnapshotDigest: digest(), snapshotDigest: digest()
   }), 'x-helix-maxCanonicalBytes': 8 * 1024 * 1024 };
 }

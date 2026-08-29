@@ -590,6 +590,39 @@
               "verification",
               "workspaceHandleDigest"
             ]
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "selectionKind": {
+                "const": "authorized_defect_workspace_output"
+              },
+              "selectedProduct": {
+                "$ref": "helix://contracts/types/SelectedProductOutput/v1"
+              },
+              "verification": {
+                "$ref": "helix://contracts/types/ProductMediaVerification/v1"
+              },
+              "workspaceHandleDigest": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "selectionKind",
+              "selectedProduct",
+              "verification",
+              "workspaceHandleDigest"
+            ]
           }
         ]
       },

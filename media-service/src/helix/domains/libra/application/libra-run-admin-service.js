@@ -12,6 +12,7 @@ const {
 const { createRunDiscardStore } = require('../persistence/run-discard-store');
 const { createRunLifecycleStore } = require('../persistence/run-lifecycle-store');
 const { createWorkResultReader } = require('../../../foundation/execution/work-result-reader');
+const { sizeCapAdmissionForecast } = require('../model/media-production-contracts');
 
 class LibraRunAdminError extends Error {
   constructor(code, message, details = {}) {
@@ -46,6 +47,7 @@ function createLibraRunAdminService(options) {
         columns: [
           'libra_run_id', 'subject_id', 'state', 'state_revision',
           'state_digest', 'priority_class', 'priority_intent_digest',
+          'acceptance_spec_id',
         ],
         keyColumns: ['libra_run_id'],
         safeIntegers: true,
@@ -64,6 +66,12 @@ function createLibraRunAdminService(options) {
           'transition_evidence_json'],
         keyColumns: ['libra_run_id'],
         safeIntegers: true,
+      },
+      find_spec: {
+        kind: 'select-one',
+        tableId: 'libra_acceptance_specs',
+        columns: ['acceptance_spec_id', 'spec_json'],
+        keyColumns: ['acceptance_spec_id'],
       },
     },
   });
@@ -191,13 +199,51 @@ function createLibraRunAdminService(options) {
         item.result?.candidateKind === 'direct_input');
       if (found) directMediaVerification = found.result;
     }
-    return buildDefectAdmissionCandidate({
+    const candidate = buildDefectAdmissionCandidate({
       run:Object.freeze({ libraRunId, state:'frozen',
         stateRevision:Number(snapshot.run.state_revision), stateDigest:snapshot.run.state_digest }),
       terminalEvidence,
       directMediaVerification,
       priorAuthorizedManifest:latestDefect,
     });
+    if (!candidate.defects.some((item) => item.defectCode === 'size_cap_exceeded')) {
+      return candidate;
+    }
+    const sizeForecast = sizeForecastForRun(libraRunId, snapshot.run.acceptance_spec_id);
+    return sizeForecast ? Object.freeze({ ...candidate, sizeForecast }) : candidate;
+  }
+
+  function sizeForecastForRun(libraRunId, acceptanceSpecId) {
+    try {
+      const specRow = options.unitOfWork.execute([{
+        participantId: 'libra_run_admin_spec_read',
+        owner: 'libra',
+        repositories: [repository],
+        execute(context) {
+          return context.repository(repository.repositoryId).invoke('find_spec', {
+            acceptance_spec_id: acceptanceSpecId,
+          });
+        },
+      }]).libra_run_admin_spec_read;
+      const spec = specRow?.spec_json ? JSON.parse(specRow.spec_json) : null;
+      const maxSizeBytes = spec?.requirements?.space?.maxSizeBytes;
+      const works = workResultReader.listWorks({
+        ownerDomain: 'libra', processType: 'libra_run', processId: libraRunId,
+        workKind: 'workspace_media_production',
+      }) || [];
+      const assessment = [...works].reverse().find((work) =>
+        String(work.work_id).includes('_assessment-work-'));
+      if (!assessment) return null;
+      const record = workResultReader.read(assessment.work_id).find((item) =>
+        item.capabilityRef === 'libra.transcode.input.verify@1');
+      const intent = record?.inputBindings?.bindings?.find((item) =>
+        item.portName === 'encodeIntent')?.value;
+      const probe = record?.inputBindings?.bindings?.find((item) =>
+        item.portName === 'mediaProbeEvidence')?.value;
+      return sizeCapAdmissionForecast({ maxSizeBytes, probe, intent });
+    } catch {
+      return null;
+    }
   }
 
   return Object.freeze({

@@ -106,7 +106,8 @@ function selectedContext(options, snapshot, selectedWorkId) {
   const selected = resolvedSelection.effectiveSelection;
   const verification = resolvedSelection.verification;
   const verificationAuthorized = selected?.selectionKind ===
-    'authorized_defect_direct_input';
+    'authorized_defect_direct_input' ||
+    selected?.selectionKind === 'authorized_defect_workspace_output';
   if (!selectedProduct || !selected || !verification ||
       (verification.result !== 'passed' && !verificationAuthorized)) {
     throw new Error('Selected Product output and verification are unavailable.');

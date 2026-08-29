@@ -3,7 +3,7 @@
 const { canonicalDigest, canonicalJson } = require('../../../contracts/canonical-json');
 
 const SCHEMA_REF = 'helix://contracts/application-types/AuthorizedDefectManifest/v1';
-const CODES = new Set(['actor_unavailable', 'external_source_exhausted']);
+const CODES = new Set(['actor_unavailable', 'external_source_exhausted', 'size_cap_exceeded']);
 const DIGEST = /^[a-f0-9]{64}$/;
 
 function ordered(values) {

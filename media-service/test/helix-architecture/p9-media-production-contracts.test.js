@@ -130,6 +130,22 @@ test('derives a conservative size budget and freezes retry attempts as new inten
     acceptedPrimaryAudioClasses:[]});
   assert.equal(extraLossless.feasible,true);
   assert.deepEqual(extraLossless.audioStreams.map((item)=>item.streamIndex),[1]);
+  assert.equal(media.videoBitrateFloorBps(8*1073741824,'below_4k'),2_500_000);
+  assert.equal(media.videoBitrateFloorBps(8*1073741824,'4k'),10_000_000);
+  const noryang=media.deriveTargetSizeBudget({maxSizeBytes:8*1073741824,durationMs:9_168_448,
+    audioStreams:[{normalizedAudioClass:'dts_hd_ma'}],subtitleStreams:[{},{},{},{}],rasterClass:'below_4k'});
+  assert.equal(noryang.exceedsSizeCap,true);
+  assert.equal(noryang.targetVideoBitrateBps,2_500_000);
+  assert.ok(noryang.predictedBytes>8*1073741824);
+  const forecast=media.sizeCapAdmissionForecast({maxSizeBytes:8*1073741824,probe:{
+    durationMs:9_168_448,sizeBytes:43_550_478_765,
+    videoStreams:[{streamIndex:0,dispositionDefault:true,longEdge:1920,shortEdge:1080}],
+    audioStreams:[{streamIndex:1,normalizedAudioClass:'dts_hd_ma'}],
+    subtitleStreams:[{},{},{},{}],
+  },intent:{audio:{streamIndexes:[1]}}});
+  assert.ok(forecast);
+  assert.equal(forecast.rasterClass,'below_4k');
+  assert.ok(forecast.overshootBytes>0);
   const silverton=media.deriveTargetSizeBudget({maxSizeBytes:planningLimit,sourceSizeBytes:2_077_884_000,durationMs:6_062_624,
     audioStreams:[{normalizedAudioClass:'other'},{normalizedAudioClass:'other'}],subtitleStreams:[]});
   const fillCap=media.deriveTargetSizeBudget({maxSizeBytes:planningLimit,durationMs:6_062_624,

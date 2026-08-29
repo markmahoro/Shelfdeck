@@ -430,7 +430,7 @@ function authorizedDefectManifest() {
     'output_color_profile_unmet', 'dolby_vision_metadata_not_removed'
   ] };
   const defect = object({
-    defectCode: { type: 'string', enum: ['actor_unavailable', 'external_source_exhausted'] },
+    defectCode: { type: 'string', enum: ['actor_unavailable', 'external_source_exhausted', 'size_cap_exceeded'] },
     sourceFailureCode: id(), sourceWorkId: id(), sourceEvidenceDigest: digest(),
     originalMediaVerificationId: digest(), originalMediaVerificationDigest: digest(),
     waivedRequirementCodes: { type: 'array', minItems: 1, maxItems: 11,

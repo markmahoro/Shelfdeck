@@ -79,7 +79,8 @@
             "type": "string",
             "enum": [
               "actor_unavailable",
-              "external_source_exhausted"
+              "external_source_exhausted",
+              "size_cap_exceeded"
             ]
           },
           "sourceFailureCode": {

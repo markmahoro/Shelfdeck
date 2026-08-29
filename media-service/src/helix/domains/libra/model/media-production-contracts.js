@@ -125,6 +125,36 @@ function buildProductionSourceScopeReference(value) {
 }
 
 const SIZE_BUDGET_HIGH_BITRATE_AUDIO = Object.freeze(['dts_hd_ma', 'dts_x', 'truehd', 'truehd_atmos']);
+const STAR_SIZE_GIB = Object.freeze([2, 4, 8, 14, 50]);
+const VIDEO_BITRATE_FLOOR_BELOW_4K_BPS = Object.freeze([
+  1_500_000, 2_000_000, 2_500_000, 4_000_000, 15_000_000,
+]);
+const VIDEO_BITRATE_FLOOR_4K_BPS = Object.freeze([
+  8_000_000, 8_000_000, 10_000_000, 12_000_000, 15_000_000,
+]);
+
+function starIndexFromMaxSizeBytes(maxSizeBytes) {
+  const gib = Number(maxSizeBytes) / 1073741824;
+  const index = STAR_SIZE_GIB.findIndex((item) => Math.abs(item - gib) < 1e-9);
+  return index >= 0 ? index : 2;
+}
+
+function videoBitrateFloorBps(maxSizeBytes, rasterClassValue) {
+  const index = starIndexFromMaxSizeBytes(maxSizeBytes);
+  return rasterClassValue === '4k'
+    ? VIDEO_BITRATE_FLOOR_4K_BPS[index]
+    : VIDEO_BITRATE_FLOOR_BELOW_4K_BPS[index];
+}
+
+function predictedProductBytes(value) {
+  const durationSeconds = Number(value?.durationMs) / 1000;
+  const video = Number(value?.targetVideoBitrateBps);
+  const nonVideo = Number(value?.nonVideoBitrateBps);
+  const reserve = Number(value?.containerReserveBytes) || 0;
+  if (!(durationSeconds > 0) || !Number.isSafeInteger(video) || video < 1 ||
+      !Number.isSafeInteger(nonVideo) || nonVideo < 0) return null;
+  return Math.ceil(((video + nonVideo) * durationSeconds) / 8) + reserve;
+}
 
 function estimatedAudioBitrateBps(stream) {
   if (Number.isSafeInteger(stream?.bitRateBps) && stream.bitRateBps > 0) return stream.bitRateBps;
@@ -177,7 +207,17 @@ function deriveTargetSizeBudget(value) {
   let targetVideoBitrateBps=Math.floor(((fillBytes-fillReserveBytes)*8/durationSeconds)-nonVideoBitrateBps);
   if(targetVideoBitrateBps<100000)targetVideoBitrateBps=Math.max(100000,Math.floor(fillBytes*8/durationSeconds*0.7));
   if(capVideoBitrateBps>=100000)targetVideoBitrateBps=Math.min(targetVideoBitrateBps,capVideoBitrateBps);
+  const raster = value.rasterClass === '4k' ? '4k' : 'below_4k';
+  const floorBps = Number.isSafeInteger(value.videoBitrateFloorBps) && value.videoBitrateFloorBps > 0
+    ? value.videoBitrateFloorBps
+    : videoBitrateFloorBps(maxSizeBytes, raster);
+  const exceedsSizeCap = capVideoBitrateBps < floorBps;
+  if (exceedsSizeCap) targetVideoBitrateBps = floorBps;
+  const predictedBytes = predictedProductBytes({
+    durationMs, targetVideoBitrateBps, nonVideoBitrateBps, containerReserveBytes,
+  });
   return freeze({sizeBudgetRevision:1,maxSizeBytes,containerReserveBytes,nonVideoBitrateBps,targetVideoBitrateBps,
+    capVideoBitrateBps, videoBitrateFloorBps:floorBps, rasterClass:raster, predictedBytes, exceedsSizeCap,
     feasible:capVideoBitrateBps>=100000,sourceSizeBytes,budgetDigest:canonicalDigest({schema:'libra.target-size-budget@1',maxSizeBytes,
       containerReserveBytes,nonVideoBitrateBps,targetVideoBitrateBps,sourceSizeBytes})});
 }
@@ -189,6 +229,7 @@ function selectCopyAudioStreamsForSizeBudget(value) {
   const evaluate=(streams)=>{
     const selected=[...streams].sort((a,b)=>a.streamIndex-b.streamIndex);
     return {audioStreams:Object.freeze(selected),budget:deriveTargetSizeBudget({maxSizeBytes,durationMs,audioStreams:selected,subtitleStreams,
+      rasterClass:value?.rasterClass,
       ...(Number.isSafeInteger(value?.sourceSizeBytes)&&value.sourceSizeBytes>0?{sourceSizeBytes:value.sourceSizeBytes}:{})})};
   };
   const ladder=[];
@@ -459,6 +500,35 @@ function rasterClass(probe) {
   const streams=primaryStreams(probe?.videoStreams);
   return streams.length&&streams.every((item)=>item.longEdge>=3800&&item.shortEdge>=1600)?'4k':streams.length?'below_4k':'none';
 }
+
+function sizeCapAdmissionForecast(value) {
+  const maxSizeBytes = value?.maxSizeBytes;
+  const probe = value?.probe;
+  if (!Number.isSafeInteger(maxSizeBytes) || maxSizeBytes < 1 || !probe) return null;
+  const raster = rasterClass(probe);
+  const indexes = Array.isArray(value?.intent?.audio?.streamIndexes)
+    ? new Set(value.intent.audio.streamIndexes) : null;
+  const audioStreams = (probe.audioStreams || []).filter((item) =>
+    !indexes || indexes.has(item.streamIndex));
+  const budget = deriveTargetSizeBudget({
+    maxSizeBytes,
+    durationMs: probe.durationMs,
+    audioStreams,
+    subtitleStreams: probe.subtitleStreams,
+    rasterClass: raster,
+    ...(Number.isSafeInteger(probe.sizeBytes) && probe.sizeBytes > 0
+      ? { sourceSizeBytes: probe.sizeBytes } : {}),
+  });
+  if (!budget.exceedsSizeCap) return null;
+  return freeze({
+    maxSizeBytes,
+    predictedBytes: budget.predictedBytes,
+    overshootBytes: Math.max(0, (budget.predictedBytes || 0) - maxSizeBytes),
+    videoBitrateFloorBps: budget.videoBitrateFloorBps,
+    targetVideoBitrateBps: budget.targetVideoBitrateBps,
+    rasterClass: raster,
+  });
+}
 function primaryVideoCodec(probe){const codecs=[...new Set(primaryStreams(probe?.videoStreams).map((item)=>item.codec))];return codecs.length===1?codecs[0]:codecs.length?'mixed':'none';}
 function primaryDynamicRangeKind(probe){const kinds=[...new Set(primaryStreams(probe?.videoStreams).map((item)=>item.dynamicRangeKind||'unknown'))];
   return kinds.length===1?kinds[0]:kinds.length?'unknown':'unknown';}
@@ -584,7 +654,7 @@ function selectProductOutput(value) {
 
 module.exports=Object.freeze({MediaProductionContractError,LIBRA_MEDIA_PLANNING_POLICY,LIBRA_MEDIA_PLANNING_POLICY_DIGEST,
   buildMediaRequirement,buildProductionSourceScopeReference,deriveTargetSizeBudget,selectCopyAudioStreamsForSizeBudget,
-  deriveRetryTargetVideoBitrate,
+  deriveRetryTargetVideoBitrate,videoBitrateFloorBps,sizeCapAdmissionForecast,rasterClass,predictedProductBytes,
   buildEncodeIntent,buildRemuxIntent,buildTranscodeInputVerification,
   buildWorkspaceMediaOutputTarget,buildWorkspaceMediaHandle,buildProductMediaCandidateInput,
   buildPlannedProductCandidateReference,buildProductMediaVerification,

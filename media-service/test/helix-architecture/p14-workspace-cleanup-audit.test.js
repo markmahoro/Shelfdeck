@@ -150,4 +150,29 @@ test('cleanup source uses two invocations, optional wake, and in-UoW fences', ()
     write > controlAudit);
   assert.match(store,
     /assertAdmissionAudit\(decision, admissionSnapshot, admissionControls\)/);
+  const drainBody = coordinator.slice(
+    coordinator.indexOf('function drainCleanupScope'),
+    coordinator.indexOf('function cleanupWorkspace'));
+  assert.match(drainBody, /cleanup\.commit\(/);
+  assert.match(drainBody, /reclaimLeftoverWorkspace/);
+  assert.ok(
+    drainBody.indexOf('cleanup.commit') <
+      drainBody.indexOf('reclaimLeftoverWorkspace'),
+    'Drain must commit the Libra member before leftover Foundation reclaim.',
+  );
+  assert.ok(
+    drainBody.lastIndexOf('reclaimLeftoverWorkspace') >
+      drainBody.lastIndexOf('while (scope.state === \'active\''),
+    'Already-completed cleanup Scopes must still leftover unreferenced materials.',
+  );
+  assert.doesNotMatch(
+    drainBody.slice(0, drainBody.indexOf('cleanup.commit')),
+    /reclaimEmptyWorkspace/,
+  );
+  const noOpSlice = cleanupBody.slice(
+    cleanupBody.indexOf('inspected.references.length === 0'),
+    cleanupBody.indexOf('if (!firstAudit)'),
+  );
+  assert.match(noOpSlice, /reclaimLeftoverWorkspace/,
+    'Completed Workspace with no remaining Libra refs must leftover Foundation materials.');
 });

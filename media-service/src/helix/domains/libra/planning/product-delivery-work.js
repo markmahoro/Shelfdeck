@@ -111,9 +111,12 @@ function findSelectedMediaWork(options, snapshot) {
       item.capabilityRef === 'libra.product_output.select@1' &&
       item.result?.result === 'selected')) return true;
     if (!snapshot.run.authorizedDefectManifest) return false;
-    try { return resolveProductSelection(results,
-      snapshot.run.authorizedDefectManifest).effectiveSelection?.selectionKind ===
-      'authorized_defect_direct_input'; } catch { return false; }
+    try {
+      const kind = resolveProductSelection(results,
+        snapshot.run.authorizedDefectManifest).effectiveSelection?.selectionKind;
+      return kind === 'authorized_defect_direct_input' ||
+        kind === 'authorized_defect_workspace_output';
+    } catch { return false; }
   });
   if (candidates.length !== 1) {
     throw new Error(

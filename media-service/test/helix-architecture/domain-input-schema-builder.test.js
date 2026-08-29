@@ -171,7 +171,7 @@ test('legacy bounded inputs stay generic while media intents are exact and typed
     { anyOf:[{ $ref:'helix://contracts/application-types/AuthorizedDefectManifest/v1' },{ type:'null' }] });
   assert.deepEqual(schemas.ProductConformanceInputSnapshot.properties.selectedProducts.items.oneOf
     .map((branch)=>branch.properties.selectionKind.const),
-  ['ordinary_selected','authorized_defect_direct_input']);
+  ['ordinary_selected','authorized_defect_direct_input','authorized_defect_workspace_output']);
   const productionManifest = schemas.ProductionMaterialManifest;
   assert.deepEqual(productionManifest.oneOf.map((branch) => branch.properties.manifestRole.const), ['run_input', 'product_delivery']);
   for (const branch of productionManifest.oneOf) {

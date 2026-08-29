@@ -33,7 +33,7 @@ const WAIVABLE_MEDIA_CODES = new Set([
   'output_color_profile_unmet',
   'dolby_vision_metadata_not_removed',
 ]);
-const DEFECT_CODES = new Set(['actor_unavailable', 'external_source_exhausted']);
+const DEFECT_CODES = new Set(['actor_unavailable', 'external_source_exhausted', 'size_cap_exceeded']);
 const DIGEST = /^[a-f0-9]{64}$/;
 
 class DefectAdmissionContractError extends Error {
@@ -78,6 +78,18 @@ function blocker(terminalEvidence) {
   text(item.failureCode, 'blockedWork.failureCode');
   digest(item.terminalEvidenceDigest, 'blockedWork.terminalEvidenceDigest');
   return item;
+}
+function sizeCapDefect(item) {
+  if (item.failureCode !== 'size_cap_requires_admission' ||
+      item.capabilityRef !== 'libra.transcode.input.verify@1' ||
+      item.failureClass !== 'business_unachievable') return null;
+  return Object.freeze({
+    defectCode: 'size_cap_exceeded',
+    sourceFailureCode: item.failureCode,
+    sourceWorkId: item.workId,
+    sourceEvidenceDigest: item.terminalEvidenceDigest,
+    waivedRequirementCodes: Object.freeze(['max_size_exceeded']),
+  });
 }
 function actorDefect(item) {
   if (item.failureCode !== ACTOR_FAILURE ||
@@ -124,7 +136,8 @@ function buildDefectAdmissionCandidate(value) {
     fail('P9_DEFECT_ADMISSION_STATE', 'Only the current frozen Run can form a defect candidate.');
   }
   const item = blocker(value.terminalEvidence);
-  const defect = actorDefect(item) || externalDefect(item, value.directMediaVerification, run);
+  const defect = actorDefect(item) || sizeCapDefect(item) ||
+    externalDefect(item, value.directMediaVerification, run);
   if (!defect) {
     fail('P9_DEFECT_ADMISSION_INELIGIBLE',
       'The frozen terminal reason is outside the V1 defect-admission closed set.',
@@ -287,6 +300,33 @@ function resolveProductSelection(results, manifestValue) {
   if (!manifestValue) return Object.freeze({ selection, effectiveSelection:null,
     verification:null, admittedDefect:null });
   const manifest = assertAuthorizedDefectManifest(manifestValue);
+  const sizeDefect = manifest.defects.find((item) =>
+    item.defectCode === 'size_cap_exceeded');
+  if (sizeDefect) {
+    const verification = (results || []).find((item) =>
+      item.outcomeKind === 'succeeded' &&
+      item.capabilityRef === 'libra.product_media.verify@1' &&
+      item.result?.candidateKind === 'workspace_output' &&
+      item.result?.result === 'failed' &&
+      Array.isArray(item.result.reasonCodes) &&
+      item.result.reasonCodes.includes('max_size_exceeded'))?.result || null;
+    const reasons = ordered(verification?.reasonCodes || []);
+    const waived = ordered(sizeDefect.waivedRequirementCodes || []);
+    if (!verification || canonicalJson(reasons) !== canonicalJson(waived)) {
+      fail('P9_DEFECT_ADMISSION_SIZE_STALE',
+        'Authorized size-cap verification is absent or changed.');
+    }
+    const effectiveSelection = Object.freeze({
+      selectionKind: 'authorized_defect_workspace_output',
+      selectedCandidateKind: 'workspace_output',
+      selectedHandleId: verification.productMaterialHandleId,
+      selectedWorkspaceMediaHandleId: verification.workspaceMediaHandleId,
+      selectedVerificationId: verification.verificationId,
+      selectedVerificationDigest: canonicalDigest(verification),
+    });
+    return Object.freeze({ selection, effectiveSelection, verification,
+      admittedDefect:sizeDefect });
+  }
   const defect = manifest.defects.find((item) =>
     item.defectCode === 'external_source_exhausted');
   if (!defect) return Object.freeze({ selection, effectiveSelection:null,

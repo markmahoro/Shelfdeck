@@ -218,6 +218,8 @@ function buildProductConformanceInputSnapshot(value) {
       'Authorized Defect Manifest belongs to another Libra Run.');
   const externalDefect = manifest?.defects.find((item) =>
     item.defectCode === 'external_source_exhausted') || null;
+  const sizeDefect = manifest?.defects.find((item) =>
+    item.defectCode === 'size_cap_exceeded') || null;
   const mediaRequirement=buildMediaRequirement(acceptanceSpec),selectedProducts = value.selectedProducts.map((item) => clone(item));
   assertSorted(selectedProducts, (a, b) => utf8(a.selectionKind, b.selectionKind) ||
     utf8(a.verification.verificationId, b.verification.verificationId), 'P9_CONFORMANCE_SELECTED_ORDER');
@@ -243,6 +245,19 @@ function buildProductConformanceInputSnapshot(value) {
           selected.selectedHandleId !== verification.productMaterialHandleId || verification.reasonCodes.length!==0||
           (verification.candidateKind === 'workspace_output') !== Boolean(item.workspaceHandleDigest))
         fail('P9_CONFORMANCE_SELECTED_CONTINUITY', 'Ordinary Selected Product and passed verification continuity failed.');
+    } else if (item.selectionKind === 'authorized_defect_workspace_output') {
+      const reasons = [...new Set(verification.reasonCodes || [])].sort(utf8);
+      const waived = [...new Set(sizeDefect?.waivedRequirementCodes || [])].sort(utf8);
+      if (!manifest || !sizeDefect || selected.result !== 'not_selected' ||
+          selected.selectionReasonCode !== 'no_passed_candidate' ||
+          verification.result !== 'failed' || verification.candidateKind !== 'workspace_output' ||
+          !item.workspaceHandleDigest ||
+          selected.selectedHandleId !== null || selected.selectedWorkspaceMediaHandleId !== null ||
+          selected.selectedVerificationId !== null || selected.selectedVerificationDigest !== null ||
+          canonicalJson(reasons) !== canonicalJson(waived) ||
+          !reasons.includes('max_size_exceeded'))
+        fail('P9_CONFORMANCE_AUTHORIZED_DEFECT_CONTINUITY',
+          'Authorized workspace size-cap defect selection continuity failed.');
     } else if (item.selectionKind === 'authorized_defect_direct_input') {
       const reasons = [...new Set(verification.reasonCodes || [])].sort(utf8);
       const waived = [...new Set(externalDefect?.waivedRequirementCodes || [])].sort(utf8);

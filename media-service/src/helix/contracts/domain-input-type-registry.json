@@ -1693,7 +1693,7 @@
       "relativePath": "domain-types/ProductConformanceInputSnapshot/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "3d91b0bb90d576a590754ec90a345b3baf47f13d491d3241ac1cf985477eabef"
+        "value": "bdabd7c57c1a2cefa9c55a013337bdbd846473e944d5a15bfcfc80737effb01c"
       },
       "usedBy": [
         {

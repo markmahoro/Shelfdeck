@@ -4,6 +4,14 @@ Status: Helix-beta 范围已收窄为仅 Movie 全链路。Movie Procurement与M
 
 Last updated: 2026-08-29
 
+## 0. Local fix ready — PROD-021 size-cap HEVC floor
+
+2026-08-29 本地已改：无损音轨保留；视频按星级×画幅下限编码；压不进档位体积时冻结，接受瑕疵只声明「大了多少」，确认后再转 HEVC。接受瑕疵改为页面 Dialog。专项测试已通过。未部署。
+
+## 0. Local fix ready — PROD-020 workspace leftover cleanup
+
+2026-08-29 本地已改：Cleanup Drain 先提交 Libra member，再 leftover；已完成且没有 cleanup member 的工作区也会 leftover 没挂引用的 remux；`.partial-*` 由产出端口清理。专项测试 14/14 通过。未部署。
+
 ## 0. Production lossless upgrade — PROD-019
 
 2026-08-29 已部署 `helix-beta-20260829-c547a2f93`（git `c547a2f93`，tar SHA-256 `87c3f858baa6de492a0a8ff1d636441210516ebe753b72acc1d5959b8856f56f`），未 `--helix-clean-init`。readiness `helix-clean-v3` / 184 tables / findings []。Handoff B 拒收后列表页显示「放弃整理」。《影子写手》请 Ctrl+F5。Field/Shelf/`/transcode`/集成未改。

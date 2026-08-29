@@ -24,7 +24,7 @@ const {
   nextMetadataStage,
 } = require('../planning/product-metadata-work');
 const { coversRequirementGaps } = require('../model/defect-admission-contracts');
-const { sourceRequiresExternalSearch } = require('../model/media-production-contracts');
+const { sourceRequiresExternalSearch, sizeCapAdmissionForecast } = require('../model/media-production-contracts');
 const { artifactVerificationContext } = require('../planning/libra-production-planners');
 
 // Shared fx_supporting_works hard cap. 256 saturates a Movie Helix-beta Field
@@ -232,6 +232,21 @@ function createLibraRunCoordinator(options){
       reasons.has('system_upscale_forbidden') ||
       reasons.has('primary_audio_unmet');
   }
+  function sizeCapWaived(snapshot) {
+    const codes = snapshot.run.authorizedDefectManifest?.waivedRequirementCodes || [];
+    return codes.includes('max_size_exceeded');
+  }
+  function literalBinding(record, portName) {
+    return record?.inputBindings?.bindings?.find((item) =>
+      item.portName === portName && item.bindingKind === 'literal')?.value || null;
+  }
+  function onlyWaivedSizeGap(work, snapshot) {
+    if (!sizeCapWaived(snapshot)) return false;
+    const reasons = mediaVerification(work).reasonCodes || [];
+    const waived = new Set(snapshot.run.authorizedDefectManifest.waivedRequirementCodes || []);
+    return reasons.includes('max_size_exceeded') &&
+      reasons.every((code) => waived.has(code));
+  }
   function ensureOriginalMediaThenExternal(snapshot, workspace) {
     const authorized = snapshot.run.authorizedDefectManifest?.defects?.some(
       (item) => item.defectCode === 'external_source_exhausted');
@@ -355,11 +370,31 @@ function createLibraRunCoordinator(options){
           reasonCodes:compatibility.reasonCodes});
       if(compatibility.disposition==='strategy_rejected')continue;
       if(compatibility.disposition!=='compatible')throw new Error('Transcode Assessment disposition is invalid.');
+      if(!sizeCapWaived(snapshot) && options.libraRunLifecycleService?.freezeTerminalResult){
+        const intent=literalBinding(assessmentResults[0],'encodeIntent');
+        const probe=literalBinding(assessmentResults[0],'mediaProbeEvidence');
+        const forecast=sizeCapAdmissionForecast({
+          maxSizeBytes:snapshot.spec?.requirements?.space?.maxSizeBytes,
+          probe, intent,
+        });
+        if(forecast){
+          return options.libraRunLifecycleService.freezeTerminalResult(
+            snapshot.run.libraRunId, assessment.workId, 'product_unachievable',
+            Object.freeze({
+              eventId:assessmentResults[0].eventId,
+              failureClass:'business_unachievable',
+              failureCode:'size_cap_requires_admission',
+              resultDigest:assessmentResults[0].resultDigest,
+            }),
+          );
+        }
+      }
       const work=transcodeMediaSelectionWork(snapshot,ordinal),submitted=submit(work),status=options.workResultReader.status(work.workId);
       if(workSucceeded(status)){
         attachWorkspaceOutputs(snapshot,workspace,work);
         const selection=selectedOutput(work);
-        if(selection.result==='selected')return ensureDelivery(snapshot,workspace,work);
+        if(selection.result==='selected' || onlyWaivedSizeGap(work,snapshot))
+          return ensureDelivery(snapshot,workspace,work);
         if(requiresExternalSource(work))return continueExternalOrAuthorizedDirectInput(snapshot,workspace,context);
         continue;
       }

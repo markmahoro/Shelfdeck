@@ -327,14 +327,14 @@ export type CollectionEntry = {
   primaryContainer: string | null;
   videoCodec: string | null;
   videoRaster: string | null;
-  defectAdmission: { defectCount:number; defects:Array<{defectCode:'actor_unavailable'|'external_source_exhausted';waivedRequirementCodes:string[]}> } | null;
+  defectAdmission: { defectCount:number; defects:Array<{defectCode:'actor_unavailable'|'external_source_exhausted'|'size_cap_exceeded';waivedRequirementCodes:string[]}> } | null;
   health: HealthSummary;
   currentInventoryRevision: number;
   currentDeckFactRevision: number;
   createdAtMs: number;
   terminalAtMs: number | null;
 };
-export type DefectAdmissionCandidate={candidateRevision:number;libraRunId:string;frozenRunStateRevision:number;frozenRunStateDigest:string;terminalEvidenceDigest:string;defects:Array<{defectCode:'actor_unavailable'|'external_source_exhausted';sourceFailureCode:string;waivedRequirementCodes:string[]}>;waivedRequirementCodes:string[];candidateDigest:string};
+export type DefectAdmissionCandidate={candidateRevision:number;libraRunId:string;frozenRunStateRevision:number;frozenRunStateDigest:string;terminalEvidenceDigest:string;defects:Array<{defectCode:'actor_unavailable'|'external_source_exhausted'|'size_cap_exceeded';sourceFailureCode:string;waivedRequirementCodes:string[]}>;waivedRequirementCodes:string[];candidateDigest:string;sizeForecast?:{maxSizeBytes:number;predictedBytes:number;overshootBytes:number;videoBitrateFloorBps:number;targetVideoBitrateBps:number;rasterClass:string}|null};
 export type HealthState = 'never_assessed'|'healthy'|'observing'|'repairing'|'attention_required';
 export type HealthSummary = { shelfEntryId?:string; state:HealthState; careBasisDigest?:string; basisCurrent?:boolean;
   dimensions?:Record<'custody'|'presentation'|'conformance',{state:string;assessedAtMs:number|null;evidenceDigest:string|null;findings:CareFinding[]}>;

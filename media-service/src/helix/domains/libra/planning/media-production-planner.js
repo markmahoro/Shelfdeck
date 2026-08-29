@@ -13,6 +13,7 @@ const {
   deriveRetryTargetVideoBitrate,
   deriveTargetSizeBudget,
   selectCopyAudioStreamsForSizeBudget,
+  rasterClass,
   buildWorkspaceMediaOutputTarget,
   LIBRA_MEDIA_PLANNING_POLICY,
 } = require('../model/media-production-contracts');
@@ -167,20 +168,25 @@ function transcodePlanning(options,snapshot,ordinal) {
     ?Object.freeze({kind:'contract_unplannable',diagnosticClassification:'media_device_strategies_exhausted'})
     :Object.freeze({kind:'temporarily_unplannable',diagnosticClassification:'media_device_strategies_unavailable'});
   const audioStreams=source.inputProbe.audioStreams||[];
+  const displayRaster=rasterClass(source.inputProbe);
   const selectedAudio=requirement.space.maxSizeBytes===null
     ?Object.freeze({audioStreams,budget:null,feasible:true})
     :selectCopyAudioStreamsForSizeBudget({maxSizeBytes:requirement.space.maxSizeBytes,durationMs:source.inputProbe.durationMs,
       audioStreams,subtitleStreams:source.inputProbe.subtitleStreams,
       acceptedPrimaryAudioClasses:requirement.mandatoryMedia.acceptedPrimaryAudioClasses,
+      rasterClass:displayRaster,
       ...(Number.isSafeInteger(source.inputProbe.sizeBytes)&&source.inputProbe.sizeBytes>0?{sourceSizeBytes:source.inputProbe.sizeBytes}:{})});
   const budget=selectedAudio.budget;
-  if(budget&&!budget.feasible)return Object.freeze({kind:'contract_unplannable',diagnosticClassification:'media_size_budget_infeasible'});
+  const sizeWaived=Array.isArray(snapshot.run.authorizedDefectManifest?.waivedRequirementCodes)
+    && snapshot.run.authorizedDefectManifest.waivedRequirementCodes.includes('max_size_exceeded');
   const previous=prior.at(-1)||null,previousSelection=previous?options.workResultReader.read(
     transcodeMediaSelectionWork(snapshot,ordinal-1).workId):[],previousVerification=previousSelection.find((item)=>item.capabilityRef===VERIFY)?.result||null;
   let targetVideoBitrateBps=budget?.targetVideoBitrateBps||null;
   if(previous&&previousVerification?.reasonCodes?.includes('max_size_exceeded')&&previous.intent.video.targetVideoBitrateBps){
-    targetVideoBitrateBps=deriveRetryTargetVideoBitrate({previousTargetVideoBitrateBps:previous.intent.video.targetVideoBitrateBps,
+    const retried=deriveRetryTargetVideoBitrate({previousTargetVideoBitrateBps:previous.intent.video.targetVideoBitrateBps,
       maxSizeBytes:requirement.space.maxSizeBytes,actualSizeBytes:previousVerification.spaceSummary.actualSizeBytes});
+    const floorBps=budget?.videoBitrateFloorBps||0;
+    targetVideoBitrateBps=sizeWaived&&retried<floorBps?floorBps:retried;
   }
   const intent=buildEncodeIntent({revision:1,libraRunId:snapshot.run.libraRunId,sourceHandleDigest:canonicalDigest(source.handle),
     mediaRequirementDigest:requirement.requirementDigest,strategyOrdinal:ordinal,rateControlMode:strategy.mode,

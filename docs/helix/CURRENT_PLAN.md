@@ -4,6 +4,14 @@ Status: Helix-beta 已由 Product Owner 收窄为 **仅 Movie 的全功能版本
 
 Last updated: 2026-08-29
 
+## 0. Local fix ready — Size-cap defect + HEVC floor
+
+保留无损音轨；扣完音轨后视频码率低于该星级×画幅下限时，不再判 infeasible 去寻源，而是冻结并走接受瑕疵。瑕疵只豁免 `max_size_exceeded`，确认后按下限转 HEVC。弹窗改为页面 Dialog，写清上限 / 预计 / 超出多少。未部署。
+
+## 0. Local fix ready — Workspace cleanup holes
+
+Drain 先提交 Libra member，Scope 完成后（含已完成 Scope 重放）再收没挂引用的 Foundation 材料；已完成且没有 Libra 引用的工作区走 leftover，不要求先有 cleanup member。已 reclaimed 的材料可重放。转码 `.partial-*` 由 Workspace 端口在产出/回收时清掉，不靠扫目录补 cleanup member。未部署。
+
 ## 0. Deployed — PROD-019 lossless NAS upgrade
 
 已部署 `markmahoro/shelfdeck:helix-beta-20260829-c547a2f93`，未 `--helix-clean-init`。Handoff B 拒收后列表页「用户操作」直接显示「放弃整理」（用列表已有字段，不依赖详情 `processDetail`）。Discard 允许 `active` + rejected Delivery Receipt。《影子写手》请 Ctrl+F5 后点放弃。Field/Shelf/`/transcode`/集成未改。

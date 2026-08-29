@@ -310,6 +310,9 @@ function frozenRunLabel(works, terminalEvidence = null) {
   if (terminalFailureCode(terminalEvidence) === 'handoff_b_rejected') {
     return '收藏架验收未通过，需要放弃后重新整理';
   }
+  if (terminalFailureCode(terminalEvidence) === 'size_cap_requires_admission') {
+    return '保留无损音轨后无法压进体积上限，需要接受瑕疵后再转 HEVC';
+  }
   const terminal = extractAcquisitionTerminal(works);
   if (terminal?.result === 'not_selected' && terminal.selectionReasonCode === 'no_requirement_eligible_candidate') {
     return '没有符合整理要求的外部候选，本次整理已冻结';
