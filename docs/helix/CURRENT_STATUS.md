@@ -2,7 +2,11 @@
 
 Status: Helix-beta 范围已收窄为仅 Movie 全链路。Movie Procurement与Movie Libra封口保持有效；Movie Arca已完成Handoff B Acceptance、On-deck、Shelf Entry、Deck Fact、Beta Aftercare、Off-deck及Shelf Deregistration完整闭环。当前精确状态为`MOVIE COLLECTION LIFECYCLE READY THROUGH SHELF DEREGISTRATION`。当前生产镜像为 `markmahoro/shelfdeck:helix-beta-20260829-d1dd611d4`（无损升级，无 `--helix-clean-init`），health `ok` / `helix-clean-v3`。Intake 席位 3，Workspace `/transcode` rev 2。Helix-beta 验收行见现行基线，尚未把任何 `HB-*` 标为验收 `PASS`。
 
-Last updated: 2026-08-29
+Last updated: 2026-08-30
+
+## 0. Parked — Libra transcode 1-hour Event timeout (PROD-026)
+
+代码已修：Libra/Aftercare remux+transcode 硬上限 48 小时，10 分钟无进展停掉停滞进程。生产仍是 `helix-beta-20260829-d1dd611d4`，未部署。现场《教父2》QSV 在跑，但当前 Attempt 仍受旧 1 小时时限约束。
 
 ## 0. Production lossless upgrade — PROD-025
 

@@ -2,7 +2,11 @@
 
 Status: Helix-beta 已由 Product Owner 收窄为 **仅 Movie 的全功能版本**（旅程 A–I，含退出收藏与 Shelf 注销）。Movie Procurement保持`CLOSED FOR MOVIE`；Movie Libra保持`MOVIE LIBRA CLOSED AT HANDOFF B READY`；Movie Arca已经接通Handoff B Acceptance、On-deck、Shelf Entry、Deck Fact、Beta Aftercare、完整Off-deck及非破坏性Shelf Deregistration。当前实现状态为`MOVIE COLLECTION LIFECYCLE READY THROUGH SHELF DEREGISTRATION`。Product Owner 已授权并完成 Helix-beta 首次 NAS 部署：`markmahoro/shelfdeck:helix-beta-20260828-a3e07a1e1`。Helix-beta 验收权威仍为现行 `docs/helix/BETA_FEATURE_ACCEPTANCE_BASELINE.md`，不因此把任何 `HB-*` 标为验收 `PASS`。
 
-Last updated: 2026-08-29
+Last updated: 2026-08-30
+
+## 0. Parked — Libra transcode 1-hour Event timeout (PROD-026)
+
+Libra remux/transcode 误绑 1 小时 field-observation，4K 长片会被掐掉后空转重试。代码已改为 SSOT：10 分钟无进展、48 小时硬上限；Aftercare 同步 48 小时；FFmpeg 不再用 12 小时进程默认值截断 Event 时限。未部署。现场《教父2》需无损升级后按新 Attempt 跑完。Field/Shelf/`/transcode`/集成未改。
 
 ## 0. Deployed — PROD-025 lossless NAS upgrade
 

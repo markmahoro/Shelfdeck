@@ -45,6 +45,7 @@
 | PROD-023 | 放弃整理仍弹出浏览器自带确认框 | `USER_EXPERIENCE` / 只改了接受瑕疵 Dialog | 媒体整理工作区 | Medium | **FIXED** 无损升级 `helix-beta-20260829-79fc055d1`。请 Ctrl+F5。 |
 | PROD-024 | 门口 3 席位失效，一次灌进 8 部 Libra Run | `EXECUTION` / Intake 成功到 Run 建立不占席位 | 媒体整理工作区 | High | **FIXED** 无损升级 `helix-beta-20260829-2fe558b95`。已进来的继续跑，不再继续灌。 |
 | PROD-025 | 《007：大破天幕杀机》寻源报没有外部候选 | `EXECUTION` / MoviePilot 把 TMDB ID 当标题搜 | 媒体整理工作区 | High | **FIXED** 无损升级 `helix-beta-20260829-d1dd611d4`。已冻结片子需放弃后重新进整理。 |
+| PROD-026 | 《教父2》GPU 转码每小时被掐，永远编不完 | `EXECUTION` / Libra remux/transcode 误用 1 小时观察时限 | 媒体整理工作区 | High | **FIXED in code / 未部署**。按 SSOT：10 分钟无进展、48 小时硬上限。 |
 
 PROD-001、PROD-002 的共同环境前提：生产管理台是 `http://192.168.12.230`，浏览器不提供 `crypto.randomUUID` / `crypto.subtle`。这不是传输加密设计，只是浏览器 API 限制。未改成 HTTPS。
 
@@ -316,3 +317,11 @@ P4 对 journaled `material_commit` 的 Executor throw 仍会把 Attempt 留在 `
 发现：2026-08-29。《007：大破天幕杀机》本地 1080p，规格要 4K，跳过转码去 MoviePilot。查询词里有 TMDB `37724` 和中文名，搜索接口却优先拿 `provider_key` 当 `search/title` keyword，等于搜「37724」，候选 0，冻成 `no_available_candidate`。
 
 修复：title 搜索用中文名和英文原名，TMDB ID 只核对搜回的候选。已冻结的需放弃后重新进整理。已无损升级 `helix-beta-20260829-d1dd611d4`。
+
+## 27. PROD-026 — Libra 转码 1 小时事件时限掐死长片（FIXED in code / 未部署）
+
+发现：2026-08-30。《教父2 (1974)》2160p Remux 走 Intel QSV，`libra.media.transcode@1` 正在执行，输出在涨。但 Event 时限是 1 小时（`helix://foundation/timeout/field-observation/v1`）。片长约 202 分钟、速度约 1.1x，整部要约 3 小时。已失败 5 次：2 次 `LIBRA_MEDIA_FFMPEG_FAILED`，3 次刚好 1 小时 `LIBRA_MEDIA_FFMPEG_TIMEOUT`。页面 32.8% 是上次超时残留。FFmpeg 端口默认 12 小时还会把 Aftercare 的长媒体预算再截短。
+
+SSOT 10.3.5：本地 transcode/remux 是「10 分钟无进展判 Attempt timeout，48 小时 hard timeout」，不能用持续 progress 无限延长 hard timeout。Aftercare 原先只有 12 小时，同样短于该合同。
+
+修复：Libra remux/transcode 与 Aftercare remux/transcode 共用 48 小时硬上限；FFmpeg 服从 Event `deadlineAtMs`，不再用更短的进程默认值截断；编码进度管道 10 分钟无 stdout/stderr 活动视为停滞。未改 SSOT。代码已落地，生产镜像仍是 `helix-beta-20260829-d1dd611d4`，需无损升级后，在途转码按下一次 Attempt 使用新时限。

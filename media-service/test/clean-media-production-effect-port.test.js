@@ -11,6 +11,8 @@ const { createUdfBluRay, writeMpls } = require('../scripts/build-helix-movie-tes
 const {
   runProcess,
   createCleanMediaProductionEffectPort,
+  LOCAL_MEDIA_ENCODE_TIMEOUT_MS,
+  LOCAL_MEDIA_STALL_TIMEOUT_MS,
   durationUsFromFfmpeg,
   progressGroup,
   progressPhase,
@@ -219,6 +221,32 @@ test('FFmpeg failures retain the actual stderr tail after a long diagnostic stre
   await assert.rejects(runProcess(process.execPath,['-e',
     "process.stderr.write('x'.repeat(300*1024));process.stderr.write('FINAL_FFMPEG_DIAGNOSTIC');process.exit(2)"],10_000),
   (error)=>error.code==='LIBRA_MEDIA_FFMPEG_FAILED'&&error.details.stderr.includes('FINAL_FFMPEG_DIAGNOSTIC'));
+});
+
+test('local transcode hard timeout matches the SSOT 48-hour budget', () => {
+  assert.equal(LOCAL_MEDIA_ENCODE_TIMEOUT_MS, 48 * 60 * 60 * 1000);
+  assert.equal(LOCAL_MEDIA_STALL_TIMEOUT_MS, 10 * 60 * 1000);
+});
+
+test('FFmpeg honors the Event deadline instead of a shorter process timeout', async () => {
+  const result = await runProcess(process.execPath, ['-e', 'setTimeout(() => process.exit(0), 80)'], 1, null, {
+    deadlineAtMs: Date.now() + 10_000,
+  });
+  assert.equal(result.exitCode, 0);
+});
+
+test('FFmpeg times out after a stall even when the hard deadline is still far away', async () => {
+  await assert.rejects(
+    runProcess(process.execPath, ['-e', 'setTimeout(() => {}, 30_000)'], 30_000, null, { stallTimeoutMs: 200 }),
+    (error) => error.code === 'LIBRA_MEDIA_FFMPEG_TIMEOUT',
+  );
+});
+
+test('FFmpeg stall watchdog stays quiet while the process still emits output', async () => {
+  const result = await runProcess(process.execPath, ['-e',
+    "const t=setInterval(()=>process.stderr.write('x'),40);setTimeout(()=>{clearInterval(t);process.exit(0);},500);"],
+    10_000, null, { stallTimeoutMs: 200 });
+  assert.equal(result.exitCode, 0);
 });
 
 test('service process registry terminates an active FFmpeg child during shutdown', async () => {

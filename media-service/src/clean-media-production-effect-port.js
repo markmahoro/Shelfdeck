@@ -17,6 +17,8 @@ const ISO_SECTOR_BYTES = 2048;
 const VIDEO_TIMESTAMP_FILL_BSF =
   "setts=pts='if(eq(PTS\\,NOPTS)\\,PREV_OUTPTS\\,PTS)':dts='if(eq(DTS\\,NOPTS)\\,PREV_OUTDTS\\,DTS)'";
 const MATROSKA_UNCOPYABLE_AUDIO = new Set(['pcm_bluray', 'pcm_dvd']);
+const LOCAL_MEDIA_ENCODE_TIMEOUT_MS = 48 * 60 * 60 * 1000;
+const LOCAL_MEDIA_STALL_TIMEOUT_MS = 10 * 60 * 1000;
 
 function productStreamMap(intent, audioInput = '0') {
   const indexes = intent?.audio?.streamIndexes;
@@ -120,14 +122,23 @@ function runProcess(executable, argv, timeoutMs, progress = null, control = {}) 
     const progressArgv=progress?[...argv.slice(0,-1),'-progress','pipe:1','-nostats',argv.at(-1)]:argv;
     const child = spawn(executable, progressArgv, { windowsHide:true, stdio:['ignore', progress?'pipe':'ignore', 'pipe'] });
     const chunks = []; let retained = 0; let total = 0; let timedOut = false; let cancelled = false; let settled = false;
-    let progressBuffer='',durationBuffer='',lastReportedAt=0,lastOutTime='0';
+    let progressBuffer='',durationBuffer='',lastReportedAt=0,lastOutTime='0',lastActivityAt=Date.now();
     const boundedTimeout=Number.isSafeInteger(control.deadlineAtMs)
-      ?Math.max(1,Math.min(timeoutMs,control.deadlineAtMs-Date.now())):timeoutMs;
+      ?Math.max(1,control.deadlineAtMs-Date.now()):timeoutMs;
+    const stallTimeoutMs=Number.isSafeInteger(control.stallTimeoutMs)&&control.stallTimeoutMs>0
+      ?control.stallTimeoutMs:LOCAL_MEDIA_STALL_TIMEOUT_MS;
+    const stallEnabled=Boolean(progress)||Number.isSafeInteger(control.stallTimeoutMs);
+    const noteActivity=()=>{lastActivityAt=Date.now();};
     const timer = setTimeout(() => { timedOut = true; child.kill('SIGKILL'); }, boundedTimeout);
+    const stallWatch=stallEnabled?setInterval(()=>{
+      if(settled||Date.now()-lastActivityAt<stallTimeoutMs)return;
+      timedOut=true;child.kill('SIGKILL');
+    },Math.max(50,Math.min(5000,Math.floor(stallTimeoutMs/2)))):null;
     const fence=typeof control.shouldContinue==='function'?setInterval(()=>{try{if(control.shouldContinue()===false){cancelled=true;child.kill('SIGKILL');}}catch{cancelled=true;child.kill('SIGKILL');}},1000):null;
     control.processRegistry?.register(child);
-    const cleanup=()=>{clearTimeout(timer);if(fence)clearInterval(fence);control.processRegistry?.unregister(child);};
+    const cleanup=()=>{clearTimeout(timer);if(stallWatch)clearInterval(stallWatch);if(fence)clearInterval(fence);control.processRegistry?.unregister(child);};
     child.stderr.on('data', (chunk) => {
+      noteActivity();
       total += chunk.length;
       chunks.push(Buffer.from(chunk));retained+=chunk.length;
       while(retained>256*1024&&chunks.length){const first=chunks[0],excess=retained-256*1024;if(first.length<=excess){chunks.shift();retained-=first.length;}else{chunks[0]=first.subarray(excess);retained-=excess;}}
@@ -136,7 +147,7 @@ function runProcess(executable, argv, timeoutMs, progress = null, control = {}) 
         progress.group.durationUs = durationUsFromFfmpeg(durationBuffer);
       }
     });
-    if(progress)child.stdout.on('data',(chunk)=>{progressBuffer+=chunk.toString('utf8');const lines=progressBuffer.split(/\r?\n/u);progressBuffer=lines.pop()||'';let speed=null,terminal=false;
+    if(progress)child.stdout.on('data',(chunk)=>{noteActivity();progressBuffer+=chunk.toString('utf8');const lines=progressBuffer.split(/\r?\n/u);progressBuffer=lines.pop()||'';let speed=null,terminal=false;
       for(const line of lines){const at=line.indexOf('=');if(at<1)continue;const key=line.slice(0,at),value=line.slice(at+1);if(key==='out_time_us')lastOutTime=value;if(key==='speed')speed=Number.parseFloat(value)||null;if(key==='progress'&&value==='end')terminal=true;}
       const observedAt=Date.now();if(terminal||observedAt-lastReportedAt>=5000){lastReportedAt=observedAt;try{reportProcessProgress(progress,lastOutTime,speed,terminal);}catch(error){if(!settled){settled=true;cleanup();child.kill('SIGKILL');reject(error);}}}});
     child.once('error', (error) => { if(settled)return;settled=true;cleanup();reject(error); });
@@ -160,7 +171,7 @@ function createCleanMediaProductionEffectPort(options) {
     fail('LIBRA_MEDIA_WORKSPACE_REQUIRED', 'Media Effect port requires the clean Workspace media sink.');
   }
   const ffmpegPath = resolveFfmpegPath(options.ffmpegPath);
-  const timeoutMs = options.timeoutMs || 12 * 60 * 60 * 1000;
+  const timeoutMs = options.timeoutMs || LOCAL_MEDIA_ENCODE_TIMEOUT_MS;
   const processRegistry = options.ffmpegProcessRegistry || createFfmpegProcessRegistry();
   function sourceLocation(handle) {
     if (handle?.schemaRef === 'helix://contracts/types/WorkspaceMaterialHandle/v1') {
@@ -575,6 +586,8 @@ function createCleanMediaProductionEffectPort(options) {
 
 module.exports = Object.freeze({
   CleanMediaProductionEffectPortError,
+  LOCAL_MEDIA_ENCODE_TIMEOUT_MS,
+  LOCAL_MEDIA_STALL_TIMEOUT_MS,
   createCleanMediaProductionEffectPort,
   runProcess,
   durationUsFromFfmpeg,

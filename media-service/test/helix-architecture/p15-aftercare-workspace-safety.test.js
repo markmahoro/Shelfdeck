@@ -67,15 +67,17 @@ test('Aftercare filesystem capabilities declare every workspace and target mount
   assert.match(reclaim, /volume_mutation:'\+workspaceMount/);
 });
 
-test('Aftercare remux and transcode freeze the same twelve-hour deadline used by local FFmpeg', () => {
+test('Aftercare remux and transcode freeze the same forty-eight-hour hard timeout as Libra local encode', () => {
   const composition = fs.readFileSync(path.resolve(__dirname,
     '../../src/helix/composition/create-procurement-execution-runtime.js'), 'utf8');
-  assert.match(composition, /AFTERCARE_LONG_MEDIA_TIMEOUT_MS = 12 \* 60 \* 60 \* 1000/);
+  assert.match(composition, /LOCAL_MEDIA_ENCODE_TIMEOUT_MS = 48 \* 60 \* 60 \* 1000/);
   assert.match(composition, /timeout\/aftercare-long-media\/v1/);
   const policy = composition.slice(composition.indexOf('const timeoutPolicyFor'),
     composition.indexOf('const policyRegistry'));
   assert.match(policy, /arca\.aftercare\.media\.remux@1/);
   assert.match(policy, /arca\.aftercare\.media\.transcode@1/);
+  assert.match(policy, /libra\.media\.remux@1/);
+  assert.match(policy, /libra\.media\.transcode@1/);
   assert.match(policy, /timeoutPolicies\[3\]\.ref/);
   const capability = fs.readFileSync(path.resolve(__dirname,
     '../../src/helix/domains/arca/capabilities/aftercare-capability-ports.js'), 'utf8');
@@ -84,5 +86,6 @@ test('Aftercare remux and transcode freeze the same twelve-hour deadline used by
   const media = capability.slice(capability.indexOf('async function mediaEffect'),
     capability.indexOf('ports[C.remux]'));
   assert.match(ffmpeg, /deadlineAtMs/);
+  assert.match(ffmpeg, /stallTimeoutMs/);
   assert.match(media, /execution\.deadlineAtMs/);
 });

@@ -71,7 +71,7 @@ test('Aftercare progress samples use the exact Foundation determinate shape', ()
 });
 
 test('Aftercare FFmpeg derives one bounded timer from the frozen Foundation deadline', () => {
-  assert.equal(AFTERCARE_LONG_MEDIA_TIMEOUT_MS, 12 * 60 * 60 * 1000);
+  assert.equal(AFTERCARE_LONG_MEDIA_TIMEOUT_MS, 48 * 60 * 60 * 1000);
   assert.equal(remainingDeadlineMs(undefined, 1_000), AFTERCARE_LONG_MEDIA_TIMEOUT_MS);
   assert.equal(remainingDeadlineMs(5_000, 1_000), 4_000);
   assert.equal(remainingDeadlineMs(999, 1_000), 1);

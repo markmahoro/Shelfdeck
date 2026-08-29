@@ -103,7 +103,7 @@ const PRE_PROJECTION_EXECUTION_CATALOG_DIGEST = '13315cdbdf6ab5cbe30b32075f89bd7
 const PRE_ACTOR_COMPLETION_EXECUTION_CATALOG_DIGEST = '9e0e24c88512973e16d601c79c362d01844af0853bc1c2c37442041acda1821d';
 const TERMINAL_EVENT_STATES = new Set(['succeeded', 'skipped', 'failed', 'cancelled']);
 const TERMINAL_ATTEMPT_STATES = new Set(['succeeded', 'failed', 'cancelled']);
-const AFTERCARE_LONG_MEDIA_TIMEOUT_MS = 12 * 60 * 60 * 1000;
+const LOCAL_MEDIA_ENCODE_TIMEOUT_MS = 48 * 60 * 60 * 1000;
 const FAILED_PREPARATION_RETRY_CATALOG_DIGEST = canonicalDigest({
   schema: 'procurement.failed-preparation-retry-catalog@1',
   capabilities: [
@@ -315,11 +315,11 @@ function createProcurementExecutionRuntime(options) {
       minObservationCadenceMs: 5_000, maxObservationElapsedMs: 300_000, maxObservationCount: 16 },
     { ref: 'helix://foundation/timeout/external-job-observation/v1', timeoutMs: 1_800_000,
       minObservationCadenceMs: 15_000, maxObservationElapsedMs: 86_400_000, maxObservationCount: 1_024 },
-    { ref: 'helix://foundation/timeout/aftercare-long-media/v1', timeoutMs: AFTERCARE_LONG_MEDIA_TIMEOUT_MS,
+    { ref: 'helix://foundation/timeout/aftercare-long-media/v1', timeoutMs: LOCAL_MEDIA_ENCODE_TIMEOUT_MS,
       minObservationCadenceMs: null, maxObservationElapsedMs: null, maxObservationCount: null },
   ];
   const timeoutPolicyFor = (capabilityRef) => ['arca.aftercare.media.remux@1',
-    'arca.aftercare.media.transcode@1'].includes(capabilityRef)
+    'arca.aftercare.media.transcode@1', 'libra.media.remux@1', 'libra.media.transcode@1'].includes(capabilityRef)
     ? timeoutPolicies[3].ref
     : capabilityRef === 'libra.external_material.acquire.observe@1'
       ? timeoutPolicies[2].ref
