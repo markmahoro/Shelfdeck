@@ -11,7 +11,15 @@ const { createCanonicalTransactionRegistry, createDomainCommitCoordinator, creat
 const { openSqliteKernel } = require('../../src/helix/foundation/persistence/sqlite-kernel');
 const { createSqliteUnitOfWork } = require('../../src/helix/foundation/persistence/sqlite-unit-of-work');
 const { createMaterialControlProjectionPort } = require('../../src/helix/foundation/persistence/material-control');
+const { createEffectJournal } = require('../../src/helix/foundation/effects/effect-journal');
+const { createEventRuntime } = require('../../src/helix/foundation/execution/event-runtime');
+const { createStartupRecovery } = require('../../src/helix/foundation/execution/startup-recovery');
+const { createTimeoutController } = require('../../src/helix/foundation/execution/timeout-controller');
+const { createCooperativeExecutionIsolation } = require('../../src/helix/foundation/execution/cooperative-execution-isolation');
+const { CooperativeDeadlineError } = require('../../src/helix/integrations/cooperative-deadline');
+const { createWorkLifecycle } = require('../../src/helix/foundation/execution/work-lifecycle');
 const { createFieldPageObserver } = require('../../src/helix/domains/procurement/capabilities/field-page-observer');
+const { createFieldObservationCapabilityPorts } = require('../../src/helix/domains/procurement/capabilities/field-observation-capability-ports');
 const { identityBasis, requestBasis } = require('../../src/helix/domains/procurement/model/field-observation-contracts');
 const { evaluateExtractionEligibility } = require('../../src/helix/domains/procurement/model/extraction-eligibility');
 const { createEligibilityReconcileStore } = require('../../src/helix/domains/procurement/persistence/eligibility-reconcile-store');
@@ -249,4 +257,142 @@ test('does not rewrite Eligibility when a later Observation has identical materi
   const afterEntries=inspect.prepare('SELECT COUNT(*) count FROM proc_field_observation_entries').get().count; inspect.close();
   assert.deepEqual(after,before);
   assert.equal(Number(afterEntries),Number(beforeEntries)+1);
+}));
+
+test('Observation deadline closes before domain commit and cannot create a late page fact', async () => fixture(async ({databasePath,field,unitOfWork}) => {
+  seedRuntime(databasePath,'deadline-work','deadline-event');
+  const ports=createFieldObservationCapabilityPorts({schemaManifest,unitOfWork,now:()=>NOW,
+    enumerator:{enumeratePage:async()=>{throw new CooperativeDeadlineError({stage:'file_sample_read',location:'/media/field-1/hung.mkv',deadlineAtMs:NOW});}},
+    pageObserverFactory:createFieldPageObserver});
+  const outcome=await ports['procurement.field.observation.page.commit@1'].execute({workId:'deadline-work',eventId:'deadline-event',
+    eventAttemptId:'deadline-event-attempt',idempotencyKey:'deadline-idempotency',deadlineAtMs:NOW,
+    namedInputs:{fieldAccessHandle:accessHandle(field.access),fieldObservationPageRequest:pageRequest('deadline-work','deadline-observation',0)},
+    assertExecutionActive:()=>{}});
+  assert.equal(outcome.kind,'failed');assert.equal(outcome.code,'FIELD_OBSERVATION_IO_DEADLINE_EXCEEDED');
+  assert.equal(outcome.retryDirective,'never');
+  const inspect=new Database(databasePath,{readonly:true});
+  assert.equal(inspect.prepare('SELECT COUNT(*) count FROM proc_field_observations').get().count,0);
+  assert.equal(inspect.prepare('SELECT COUNT(*) count FROM proc_field_observation_entries').get().count,0);
+  assert.equal(inspect.prepare('SELECT COUNT(*) count FROM fx_commit_markers').get().count,0);
+  assert.equal(inspect.prepare('SELECT COUNT(*) count FROM fx_event_result_bindings').get().count,0);
+  inspect.close();
+}));
+
+test('restart recovers the exact 68-page success plus 69th executing Observation shape without duplicate Entry or active Attempt', async () => fixture(async ({databasePath,field,coordinator,unitOfWork}) => {
+  const workId='field-observation-work-production-shape';
+  const capabilityRef='procurement.field.observation.page.commit@1';
+  const inputSchema='helix://test/field-observation-input/v1';
+  const fenceDigest=canonicalDigest({fieldId:'field-1',accessRevision:1});
+  const catalogDigest=hash('production-shape-catalog');
+  const database=new Database(databasePath);
+  database.prepare(`INSERT INTO fx_supporting_works
+    (work_id,owner_domain,process_type,process_id,work_kind,basis_digest,priority_class,state,idempotency_key,created_at_ms,updated_at_ms)
+    VALUES(?,?,?,?,?,?,?,?,?,?,?)`).run(workId,'procurement','material_field','field-1','field_observation',hash('production-shape-basis'),
+      'background_observation','running','production-shape-work-key',1,1);
+  database.close();
+  let cursorIn=null;
+  for(let pageOrdinal=0;pageOrdinal<68;pageOrdinal+=1){
+    const ordinal=pageOrdinal+1,eventId=`production-page-event-${ordinal}`,attemptId=`production-work-attempt-${ordinal}`,
+      planId=`production-plan-${ordinal}`,nodeId=`production-node-${ordinal}`,eventAttemptId=`production-event-attempt-${ordinal}`;
+    const db=new Database(databasePath);
+    db.prepare(`INSERT INTO fx_work_attempts(attempt_id,work_id,ordinal,basis_digest,state,started_at_ms)
+      VALUES(?,?,?,?,?,?)`).run(attemptId,workId,ordinal,hash('production-shape-basis'),'running',ordinal);
+    db.prepare(`INSERT INTO fx_workflow_plans(plan_id,attempt_id,planner_ref,planner_version,catalog_digest,basis_digest,graph_digest,state,created_at_ms)
+      VALUES(?,?,?,?,?,?,?,?,?)`).run(planId,attemptId,'procurement.field-observation@1',1,catalogDigest,hash('production-shape-basis'),hash(planId),'planned',ordinal);
+    db.prepare(`INSERT INTO fx_plan_nodes
+      (plan_id,node_id,capability_ref,contract_version,input_binding_schema_ref,input_bindings_json,parameter_schema_ref,parameters_json,
+       when_schema_ref,when_json,effect_class,fence_schema_ref,fence_basis_json,resource_demand_schema_ref,resource_demand_json)
+      VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(planId,nodeId,capabilityRef,1,inputSchema,'{}','helix://test/parameters','{}',null,null,
+        'domain_fact_commit','helix://test/fence',JSON.stringify({fieldId:'field-1',accessRevision:1}),'helix://test/resources','{}');
+    db.prepare(`INSERT INTO fx_workflow_events
+      (event_id,plan_id,node_id,work_id,attempt_id,owner_domain,capability_ref,contract_version,state,priority_class,ready_at_ms)
+      VALUES(?,?,?,?,?,?,?,?,?,?,?)`).run(eventId,planId,nodeId,workId,attemptId,'procurement',capabilityRef,1,'executing','background_observation',ordinal);
+    db.close();
+    const materials=Array.from({length:256},(_,entryOrdinal)=>{const identityOrdinal=pageOrdinal*256+entryOrdinal;
+      return raw(`page-${pageOrdinal}-entry-${entryOrdinal}`,{inode:String(100000+identityOrdinal),
+        contentFingerprint:hash('production-content-'+identityOrdinal),location:`/media/field-1/${String(identityOrdinal).padStart(6,'0')}.mkv`});});
+    const request=pageRequest(workId,`production-observation-${ordinal}`,pageOrdinal,pageOrdinal,cursorIn,256);
+    const page=await observe(field,request,materials,true);
+    coordinator.execute(commitRequest(page,eventId));cursorIn=page.cursorOut;
+    const settled=new Database(databasePath);
+    settled.prepare(`INSERT INTO fx_event_attempts
+      (event_attempt_id,event_id,ordinal,executor_ref,executor_version,input_snapshot_schema_ref,input_snapshot_digest,
+       fence_snapshot_digest,state,outcome_kind,evidence_digest,started_at_ms,finished_at_ms)
+      VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(eventAttemptId,eventId,1,capabilityRef,1,inputSchema,hash('prior-input-'+ordinal),
+        fenceDigest,'completed','succeeded',hash('prior-evidence-'+ordinal),ordinal,ordinal+1);
+    settled.prepare("UPDATE fx_workflow_events SET state='succeeded',result_id=? WHERE event_id=?")
+      .run(`result-production-observation-${ordinal}`,eventId);
+    settled.prepare("UPDATE fx_work_attempts SET state='succeeded',finished_at_ms=? WHERE attempt_id=?").run(ordinal+1,attemptId);
+    settled.close();
+  }
+  const ordinal=69,eventId='production-page-event-69',attemptId='production-work-attempt-69',planId='production-plan-69',
+    nodeId='production-node-69',eventAttemptId='production-event-attempt-69',idempotencyKey='production-page-69-idempotency';
+  const request=pageRequest(workId,'production-observation-69',68,68,cursorIn,256);
+  const namedInputs={fieldAccessHandle:accessHandle(field.access),fieldObservationPageRequest:request};
+  const inputDigest=canonicalDigest(namedInputs);
+  const seed=new Database(databasePath);
+  seed.prepare(`INSERT INTO fx_work_attempts(attempt_id,work_id,ordinal,basis_digest,state,started_at_ms)
+    VALUES(?,?,?,?,?,?)`).run(attemptId,workId,ordinal,hash('production-shape-basis'),'running',ordinal);
+  seed.prepare(`INSERT INTO fx_workflow_plans(plan_id,attempt_id,planner_ref,planner_version,catalog_digest,basis_digest,graph_digest,state,created_at_ms)
+    VALUES(?,?,?,?,?,?,?,?,?)`).run(planId,attemptId,'procurement.field-observation@1',1,catalogDigest,hash('production-shape-basis'),hash(planId),'planned',ordinal);
+  seed.prepare(`INSERT INTO fx_plan_nodes
+    (plan_id,node_id,capability_ref,contract_version,input_binding_schema_ref,input_bindings_json,parameter_schema_ref,parameters_json,
+     when_schema_ref,when_json,effect_class,fence_schema_ref,fence_basis_json,resource_demand_schema_ref,resource_demand_json)
+    VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(planId,nodeId,capabilityRef,1,inputSchema,'{}','helix://test/parameters','{}',null,null,
+      'domain_fact_commit','helix://test/fence',JSON.stringify({fieldId:'field-1',accessRevision:1}),'helix://test/resources','{}');
+  seed.prepare(`INSERT INTO fx_workflow_events
+    (event_id,plan_id,node_id,work_id,attempt_id,owner_domain,capability_ref,contract_version,state,priority_class,ready_at_ms)
+    VALUES(?,?,?,?,?,?,?,?,?,?,?)`).run(eventId,planId,nodeId,workId,attemptId,'procurement',capabilityRef,1,'executing','background_observation',ordinal);
+  seed.prepare(`INSERT INTO fx_event_attempts
+    (event_attempt_id,event_id,ordinal,executor_ref,executor_version,input_snapshot_schema_ref,input_snapshot_digest,fence_snapshot_digest,state,started_at_ms)
+    VALUES(?,?,?,?,?,?,?,?,?,?)`).run(eventAttemptId,eventId,1,capabilityRef,1,inputSchema,inputDigest,fenceDigest,'executing',ordinal);
+  seed.close();
+  const verifier={verify:async({receipt})=>({verified:true,evidenceDigest:receipt.verificationEvidenceDigest})};
+  const effectJournal=createEffectJournal({schemaManifest,unitOfWork,now:()=>NOW,realityVerifiers:{
+    workspace_write:verifier,external_request:verifier,domain_fact_commit:verifier,responsibility_control_commit:verifier,
+    material_commit:verifier,destructive_commit:verifier}});
+  const intentDigest=canonicalDigest({eventId,capabilityRef,contractVersion:1,inputSnapshotDigest:inputDigest,fenceSnapshotDigest:fenceDigest});
+  const effect=effectJournal.intend({eventAttemptId,effectClass:'domain_fact_commit',idempotencyKey,intentDigest});
+  const manifest={capabilityRef,ownerScope:'procurement',contractVersion:1,effectClass:'domain_fact_commit',
+    resultSchemaRef:'helix://contracts/capabilities/procurement.field.observation.page.commit/v1/result',
+    evidenceSchemaRef:'helix://contracts/capabilities/procurement.field.observation.page.commit/v1/evidence'};
+  const registry={resolve:()=>({manifest,executor:{version:1}})};
+  const policyRegistry={bindingFor:()=>({retryPolicyRef:'retry-domain-fact',timeoutPolicyRef:'timeout-field-observation'})};
+  const startup=createStartupRecovery({schemaManifest,unitOfWork,registry,policyRegistry,integrityVerifier:{verify:()=>({ok:true})},
+    catalogVerifier:{verify:()=>true},effectReconciler:{reconcile:async()=>({decision:'safe_retry',evidenceDigest:hash('effect-absent')})}});
+  const classified=await startup.recover();
+  assert.equal(classified.state,'recovering');assert.deepEqual(classified.actions,[{eventId,effectId:effect.effect_id,
+    decision:'safe_retry',evidenceDigest:hash('effect-absent')}]);
+  const page69Material=raw('page-69-entry-0',{inode:'117409',contentFingerprint:hash('production-content-17408'),
+    location:'/media/field-1/017408.mkv'});
+  const ports=createFieldObservationCapabilityPorts({schemaManifest,unitOfWork,now:()=>NOW,
+    enumerator:{enumeratePage:async()=>({items:sortedEntries([page69Material]),hasMore:false})},pageObserverFactory:createFieldPageObserver});
+  const isolation=createCooperativeExecutionIsolation({now:()=>NOW});
+  const runtime=createEventRuntime({schemaManifest,unitOfWork,registry,
+    dispatcher:{dispatch:({context})=>ports[capabilityRef].execute(context)},contractValidator:{validate:(_ref,value)=>value},effectJournal,
+    attemptPolicy:{bindingFor:()=>policyRegistry.bindingFor(),prepare:()=>({deadlineAtMs:NOW+60_000}),
+      decideFailure:()=>({decision:'terminal_failure'}),decideDeferred:()=>({decision:'terminal_failure'})},
+    timeoutController:createTimeoutController({now:()=>NOW,isolation}),scheduler:{},
+    governor:{acquire:()=>{throw new Error('ordinary dispatch is forbidden');},
+      acquireRecovery:()=>({kind:'permitted',permit:{permitId:'recovery-permit',resources:[],issuedAtMs:NOW}}),release:()=>({grants:[]})},
+    circuitBreaker:{allows:()=>({allowed:true})},whenEvaluator:{evaluate:()=> 'run'},executionInputProvider:{prepare:()=>({ownerScope:{domain:'procurement',processType:'material_field',
+      processId:'field-1',objectRefs:[]},basisRefs:[],namedInputs,idempotencyKey,traceContext:{traceId:'trace',spanId:'span'}})},
+    fenceValidator:{validate:()=>({valid:true,digest:fenceDigest,snapshot:{fieldId:'field-1',accessRevision:1}})},
+    resourceDemandResolver:{resolve:()=>({eventId,queueClass:'background_observation',localPriority:0,priorityRevision:1,resources:[]})},
+    nextExecutionId:()=> 'production-recovery-execution',nextEventAttemptId:()=>{throw new Error('recovery must reuse attempt');},
+    nextResultId:()=>{throw new Error('atomic result is pre-bound');},now:()=>NOW});
+  const recovered=await runtime.recover(classified.actions[0]);
+  assert.equal(recovered.eventState,'succeeded');
+  const lifecycle=createWorkLifecycle({schemaManifest,unitOfWork,nextWorkAttemptId:()=>{throw new Error('not used');}});
+  assert.equal(lifecycle.aggregateEvent(eventId).attemptState,'succeeded');
+  const afterRestart=await startup.recover();
+  assert.equal(afterRestart.state,'ready');assert.deepEqual(afterRestart.actions,[]);
+  const inspect=new Database(databasePath,{readonly:true});
+  assert.equal(inspect.prepare('SELECT COUNT(*) count FROM proc_field_observation_entries').get().count,17409);
+  assert.equal(inspect.prepare('SELECT COUNT(*) count FROM proc_field_observations').get().count,69);
+  assert.equal(inspect.prepare('SELECT COUNT(*) count FROM proc_field_observations WHERE completed=0').get().count,68);
+  assert.equal(inspect.prepare("SELECT COUNT(*) count FROM fx_work_attempts WHERE work_id=? AND state IN ('ready','running','blocked')").get(workId).count,0);
+  assert.equal(inspect.prepare("SELECT COUNT(*) count FROM fx_event_attempts WHERE event_id=? AND state='executing'").get(eventId).count,0);
+  assert.equal(inspect.prepare('SELECT COUNT(*) count FROM proc_field_observation_entries WHERE observation_id=?').get('production-observation-69').count,1);
+  inspect.close();
 }));

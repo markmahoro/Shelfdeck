@@ -60,6 +60,28 @@ test('Field enumerator never exposes a cursor that advances past an uncommitted 
   assert.equal(new Set(locations).size,20);
 });
 
+test('Field enumerator bounds a hung file read and cannot return a committable page after deadline', async (t) => {
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'helix-enumerator-deadline-'));
+  t.after(()=>fs.rmSync(root,{recursive:true,force:true}));
+  fs.writeFileSync(path.join(root,'hung.mkv'),'bytes');
+  let closeCalled=false;
+  const fsPromises={...fs.promises,async open(...args){
+    const handle=await fs.promises.open(...args);
+    return new Proxy(handle,{get(target,property){
+      if(property==='read')return async()=>new Promise(()=>{});
+      if(property==='close')return async()=>{closeCalled=true;return target.close();};
+      const value=Reflect.get(target,property,target);return typeof value==='function'?value.bind(target):value;
+    }});
+  }};
+  const enumerator=createCleanFieldObservationEnumerator({now:Date.now,fsPromises});
+  await assert.rejects(enumerator.enumeratePage({
+    fieldAccessHandle:{handleId:'handle-deadline',accessDigest:'a'.repeat(64),rootLocation:root,mountScopeId:'mount-1'},
+    pageRequest:{cursorIn:null,pageBudget:1},deadlineAtMs:Date.now()+20,
+  }),(error)=>error.code==='P4_COOPERATIVE_DEADLINE_EXCEEDED'&&error.details.stage==='file_sample_read');
+  await new Promise((resolve)=>setImmediate(resolve));
+  assert.equal(closeCalled,true);
+});
+
 test('Field enumerator skips unpublished Arca Target Commit Slot trees', async (t) => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'helix-enumerator-slot-'));
   t.after(() => fs.rmSync(root, { recursive:true, force:true }));

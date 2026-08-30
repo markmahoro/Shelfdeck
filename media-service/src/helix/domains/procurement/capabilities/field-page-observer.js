@@ -60,9 +60,9 @@ function createFieldPageObserver(options) {
   if (!options || typeof options.enumeratePage !== 'function' || typeof options.now !== 'function') fail('P7_FIELD_OBSERVER_DEPENDENCIES', 'Bounded Field enumerator and clock are required.');
   const producerRef = options.producerRef || 'procurement.field.observation.page.commit@1';
   return Object.freeze({
-    async observe({ fieldAccessHandle, pageRequest }) {
+    async observe({ fieldAccessHandle, pageRequest, deadlineAtMs, abortSignal }) {
       const observedAtMs = options.now(); validateAccessHandle(fieldAccessHandle, observedAtMs); validateRequest(pageRequest);
-      const enumeration = await options.enumeratePage(Object.freeze({ fieldAccessHandle, pageRequest }));
+      const enumeration = await options.enumeratePage(Object.freeze({ fieldAccessHandle, pageRequest, deadlineAtMs, abortSignal }));
       if (!enumeration || !Array.isArray(enumeration.items) || typeof enumeration.hasMore !== 'boolean') fail('P7_FIELD_ENUMERATION_INVALID', 'Enumerator result is invalid.');
       const candidates = enumeration.items.map((entry) => {
         if (!entry || typeof entry.cursor !== 'string' || entry.cursor.length === 0 || !entry.material) fail('P7_FIELD_ENUMERATION_INVALID', 'Every enumerated material requires its post-item cursor.');

@@ -609,6 +609,7 @@ function createEventRuntime(options) {
         resourceLease: { leaseId: permit.permitId, resourceKeys: permit.resources.map((resource) => resource.resourceKey), issuedAtMs: permit.issuedAtMs },
         idempotencyKey: inputs.idempotencyKey, traceContext: inputs.traceContext, deadlineAtMs: attemptContract.deadlineAtMs
       };
+      const executionGuard = { signal:null };
       const progressReporter = createProgressReporter({ schemaManifest: options.schemaManifest, unitOfWork: options.unitOfWork,
         eventId: request.eventId, eventAttemptId: attempt.event_attempt_id, now: clock });
       Object.defineProperty(context, 'reportProgress', {
@@ -621,15 +622,22 @@ function createEventRuntime(options) {
         effectOccurredAtMs:{ configurable:false, enumerable:false, writable:false, value:attempt.started_at_ms },
         recoveryDecision:{ configurable:false, enumerable:false, writable:false, value:request.decision },
         progressFloor:{ configurable:false, enumerable:false, writable:false, value:progressReporter.floor() },
+        abortSignal:{ configurable:false, enumerable:false, get:()=>executionGuard.signal },
+        assertExecutionActive:{ configurable:false, enumerable:false, writable:false, value:()=>{
+          if(executionGuard.signal?.aborted)throw executionGuard.signal.reason||Object.assign(
+            new Error('Capability execution is no longer active.'),{code:'P4_COOPERATIVE_DEADLINE_EXCEEDED'});
+        } },
       });
       if (inputs.approvalHandle !== undefined) context.approvalHandle = inputs.approvalHandle;
       if (inputs.authorizationHandle !== undefined) context.authorizationHandle = inputs.authorizationHandle;
       let outcome;
       try {
         outcome = await options.timeoutController.execute(Object.freeze({ executionHandleId: attempt.event_attempt_id,
-          deadlineAtMs: attemptContract.deadlineAtMs, operation: () => options.dispatcher.dispatch({
-            capabilityRef: snapshot.event.capability_ref, context: Object.freeze(context), ownerDomain: snapshot.event.owner_domain
-          }) }));
+          deadlineAtMs: attemptContract.deadlineAtMs, operation: (signal) => {
+            executionGuard.signal=signal||null;
+            return options.dispatcher.dispatch({ capabilityRef: snapshot.event.capability_ref,
+              context: Object.freeze(context), ownerDomain: snapshot.event.owner_domain });
+          } }));
       } catch (error) {
         if (entry.manifest.effectClass !== 'pure_observation') throw error;
         outcome = Object.freeze({ kind:'failed', failureClass:observationFailureClass(error),
@@ -809,6 +817,7 @@ function createEventRuntime(options) {
           resourceLease: { leaseId: permit.permitId, resourceKeys: permit.resources.map((resource) => resource.resourceKey), issuedAtMs: permit.issuedAtMs },
           idempotencyKey: inputs.idempotencyKey, traceContext: inputs.traceContext
         };
+        const executionGuard = { signal:null };
         const progressReporter = createProgressReporter({ schemaManifest: options.schemaManifest, unitOfWork: options.unitOfWork,
           eventId, eventAttemptId: attemptId, now: clock });
         // Runtime-only ports remain non-enumerable so the exact serializable
@@ -823,6 +832,11 @@ function createEventRuntime(options) {
           effectOccurredAtMs:{ configurable:false, enumerable:false, writable:false, value:startedAtMs },
           recoveryDecision:{ configurable:false, enumerable:false, writable:false, value:null },
           progressFloor:{ configurable:false, enumerable:false, writable:false, value:progressReporter.floor() },
+          abortSignal:{ configurable:false, enumerable:false, get:()=>executionGuard.signal },
+          assertExecutionActive:{ configurable:false, enumerable:false, writable:false, value:()=>{
+            if(executionGuard.signal?.aborted)throw executionGuard.signal.reason||Object.assign(
+              new Error('Capability execution is no longer active.'),{code:'P4_COOPERATIVE_DEADLINE_EXCEEDED'});
+          } },
         });
         if (inputs.approvalHandle !== undefined) context.approvalHandle = inputs.approvalHandle;
         if (inputs.authorizationHandle !== undefined) context.authorizationHandle = inputs.authorizationHandle;
@@ -831,8 +845,8 @@ function createEventRuntime(options) {
         try {
           outcome = await options.timeoutController.execute(Object.freeze({
             executionHandleId: attemptId, deadlineAtMs: attemptContract.deadlineAtMs,
-            operation: () => options.dispatcher.dispatch({ capabilityRef: snapshot.event.capability_ref,
-              context: Object.freeze(context), ownerDomain: snapshot.event.owner_domain })
+            operation: (signal) => { executionGuard.signal=signal||null;return options.dispatcher.dispatch({ capabilityRef: snapshot.event.capability_ref,
+              context: Object.freeze(context), ownerDomain: snapshot.event.owner_domain }); }
           }));
         } catch (error) {
           if (error?.code === 'P4_EXECUTION_TIMEOUT') {

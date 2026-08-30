@@ -6,7 +6,9 @@ Last updated: 2026-08-31
 
 ## PROD-036 Local Fix
 
-Field Observation 容量与崩溃恢复已完成本地实现，尚未部署。生产只读证据对应的崩溃窗口为：Observation Page Event 与 Owner 写入已提交，进程在 `aggregateEvent()` 前中断，留下 terminal Event + running Attempt + running Work。Runtime 现在有界重发现并聚合该状态，再由原 Procurement Owner 正常收口。
+Field Observation 容量与崩溃恢复已完成本地实现，尚未部署。生产只读证据已排除先前判断的 terminal Event 聚合窗口：同一 Work 的 Attempt 1–68 及各自 Event 均为 `succeeded`，共写入 `68 × 256 = 17,408` 条 Entry；Attempt 69 与 Event 仍为 `executing`，Effect 只有 intent，没有 Result、commit marker 或第 69 页 header，`runningAttemptWithOnlyTerminalEvents.count=0`。精确故障点位于领域提交前的 Observation executor I/O。冻结的 1 小时 Timeout Policy 此前接到 no-op isolator，只做执行前检查；页内任一 CIFS `stat/open/read` 不 settle 都会无限占住 Attempt。现有证据不能进一步归因到某个具体 syscall。
+
+Runtime 现在把冻结 deadline 作为协作式 abort signal 传入目录枚举和每个 fingerprint I/O await，并在原子 Page commit 前再次检查执行资格。deadline 到期且尚无领域提交时，未提交 Effect 被 abandon，Event Attempt 明确收口并阻止迟到提交。旧生产 Attempt 69 在新 Runtime 启动时由通用 `domain_fact_commit` recovery 复用原 Attempt、Effect 和幂等键执行 `safe_retry`；成功只提交缺失页，继续阻塞则按新 deadline 收口。terminal Event + running Attempt 自动聚合仍作为另一种通用崩溃窗口保护保留，但不是本次生产 Work 卡住的根因。
 
 Observation cadence 已由 30 分钟改为 12 小时。`proc_field_observation_entries` 仅保留 7 天，并保护 non-terminal Work、current Field Work、`active|waiting` Run、open Retry 与 current Material exact pointer；每事务最多删除 1,000 行。新库启用 incremental auto-vacuum；旧库使用默认 dry-run、显式 `--apply` 的离线 `VACUUM INTO` 原子替换工具。按生产测得 39.5 MiB/完整轮估算，7 天正常稳态约 553 MiB；30 天 gross churn 约 2.31 GiB，365 天约 28.16 GiB，但窗口外仅活动引用会增加 retained size。
 

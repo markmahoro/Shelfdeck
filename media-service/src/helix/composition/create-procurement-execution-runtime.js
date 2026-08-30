@@ -25,6 +25,7 @@ const { createResourceGovernor } = require('../foundation/execution/resource-gov
 const { createResourceProfileMapper } = require('../foundation/execution/resource-profile-mapper');
 const { createStartupRecovery } = require('../foundation/execution/startup-recovery');
 const { createTimeoutController } = require('../foundation/execution/timeout-controller');
+const { createCooperativeExecutionIsolation } = require('../foundation/execution/cooperative-execution-isolation');
 const { createWorkLifecycle } = require('../foundation/execution/work-lifecycle');
 const { createWorkScheduler } = require('../foundation/execution/work-scheduler');
 const { createWorkSupplyController } = require('../foundation/execution/work-supply-controller');
@@ -495,9 +496,8 @@ function createProcurementExecutionRuntime(options) {
   const executionInputProvider = createEventExecutionInputProvider({ schemaManifest: options.schemaManifest,
     unitOfWork: options.unitOfWork, contractValidator, bindingProjectionRegistry, workResultReader });
   const attemptPolicy = createAttemptPolicyController({ registry: policyRegistry, now });
-  const timeoutController = createTimeoutController({ now, isolation: {
-    run: ({ operation }) => operation(), terminateAndIsolate: async () => {},
-  } });
+  const timeoutController = createTimeoutController({ now,
+    isolation:createCooperativeExecutionIsolation({ now }) });
   const dispatcher = createExecutorDispatcher({ registry, contractValidator });
   const eventRuntime = createEventRuntime({ schemaManifest: options.schemaManifest, unitOfWork: options.unitOfWork,contractValidator,
     scheduler, governor, registry, dispatcher, effectJournal, attemptPolicy, timeoutController, circuitBreaker: breaker,

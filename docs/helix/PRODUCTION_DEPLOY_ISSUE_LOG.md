@@ -53,7 +53,7 @@
 | PROD-031 | PROD-024 全局 3 席仍是 derived occupancy；无法按来源暂停/限流 | `EXECUTION` / Libra per-field pipeline token | 文件来源配置、媒体整理工作区 | High | **DEPLOYED** `helix-beta-20260830-5189f5f79c`（2026-08-30；migration + full libra reset；186 tables） |
 | PROD-032 | token=0 时历史 Subject 仍批量生成 routing/spec/rating Work，Formation 保持 700+ 条 | `EXECUTION` / Intake replay 与下游 reconciler 绕过 token，Run Admission 过早释放 | 媒体整理工作区 | Critical | **FIXED / DEPLOYED** `helix-beta-20260831-710aa1b65a`（3 seats / 3 tokens / 3 active Works；Formation active 5） |
 | PROD-035 | Emby 在 On-deck 检查点之间改写 NFO，检查失败后同一 Run 可无限停在中间态 | `EXECUTION` / Final Verify 在 Placement 前 + 无耗尽后的业务稳态 | 媒体整理工作区 / 上架 | Critical | **FIXED LOCALLY**（post-Placement semantic verify + bounded attention + same-Run retry；未部署） |
-| PROD-036 | Field Observation 每 30 分钟全量写入导致 SQLite 膨胀，且 terminal Event 后 Work 不收口 | `CAPACITY` / retention 缺失 + terminal Event 崩溃窗口 | 文件来源、`shelfdeck.db` | Critical | **FIXED LOCALLY**（12 小时 cadence、7 天引用保护 GC、崩溃恢复及离线 compact；未部署） |
+| PROD-036 | Field Observation 每 30 分钟全量写入导致 SQLite 膨胀，且第 69 页 Event Attempt 长期 `executing` | `CAPACITY` / retention 缺失 + Observation I/O deadline 未生效 | 文件来源、`shelfdeck.db` | Critical | **FIXED LOCALLY**（12 小时 cadence、7 天引用保护 GC、协作式 I/O deadline/启动恢复及离线 compact；未部署） |
 
 PROD-001、PROD-002 的共同环境前提：生产管理台是 `http://192.168.12.230`，浏览器不提供 `crypto.randomUUID` / `crypto.subtle`。这不是传输加密设计，只是浏览器 API 限制。未改成 HTTPS。
 

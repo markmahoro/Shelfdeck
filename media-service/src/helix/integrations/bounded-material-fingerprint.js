@@ -2,6 +2,7 @@
 
 const crypto = require('node:crypto');
 const fs = require('node:fs');
+const { CooperativeDeadlineError, awaitWithinDeadline } = require('./cooperative-deadline');
 
 const FINGERPRINT_SAMPLE_BYTES = 256 * 1024;
 
@@ -43,18 +44,29 @@ function validatePathStat(stat, location) {
 
 async function computeAsyncCore(location, options = {}) {
   const fsPromises = options.fsPromises || fs.promises;
-  const pathBefore = await fsPromises.lstat(location, { bigint:true });
+  const bounded = (stage, operation) => awaitWithinDeadline(operation, {
+    signal:options.signal, deadlineAtMs:options.deadlineAtMs, now:options.now,
+    setTimeout:options.setTimeout, clearTimeout:options.clearTimeout, stage, location,
+  });
+  const pathBefore = await bounded('path_lstat_before', () => fsPromises.lstat(location, { bigint:true }));
   validatePathStat(pathBefore, location);
-  const handle = await fsPromises.open(location, 'r');
+  const opening = Promise.resolve().then(() => fsPromises.open(location, 'r'));
+  let handle;
+  try { handle = await bounded('file_open', () => opening); }
+  catch (error) {
+    opening.then((lateHandle) => lateHandle.close()).catch(() => {});
+    throw error;
+  }
   try {
-    const before = await handle.stat({ bigint:true });
+    const before = await bounded('file_stat_before', () => handle.stat({ bigint:true }));
     if (!sameIdentity(pathBefore, before)) fail('PHYSICAL_MATERIAL_STAT_FENCE_CHANGED', 'Physical Material changed before fingerprint sampling.', { location });
     const sizeBytes = Number(before.size);
     const { sampleLength, sampleOffset } = sampleBounds(sizeBytes);
     const sample = Buffer.allocUnsafe(sampleLength);
     let bytesSampled = 0;
     while (bytesSampled < sampleLength) {
-      const read = await handle.read(sample, bytesSampled, sampleLength - bytesSampled, sampleOffset + bytesSampled);
+      const read = await bounded('file_sample_read', () => handle.read(
+        sample, bytesSampled, sampleLength - bytesSampled, sampleOffset + bytesSampled));
       if (typeof options.onRead === 'function') options.onRead(Object.freeze({
         location,
         requestedBytes:sampleLength - bytesSampled,
@@ -64,11 +76,17 @@ async function computeAsyncCore(location, options = {}) {
       if (read.bytesRead === 0) fail('PHYSICAL_MATERIAL_FINGERPRINT_SHORT_READ', 'Physical Material fingerprint sampling ended early.', { location, sampleOffset, sampleLength, bytesSampled });
       bytesSampled += read.bytesRead;
     }
-    const after = await handle.stat({ bigint:true });
-    const pathAfter = await fsPromises.lstat(location, { bigint:true });
+    const after = await bounded('file_stat_after', () => handle.stat({ bigint:true }));
+    const pathAfter = await bounded('path_lstat_after', () => fsPromises.lstat(location, { bigint:true }));
     if (!sameIdentity(before, after) || pathAfter.isSymbolicLink() || !sameIdentity(after, pathAfter)) fail('PHYSICAL_MATERIAL_STAT_FENCE_CHANGED', 'Physical Material changed during fingerprint sampling.', { location });
     return Object.freeze({ stat:after, ...fingerprintBuffer(sample), sampleOffset, sampleLength, bytesSampled });
-  } finally { await handle.close(); }
+  } finally {
+    if (options.signal?.aborted || options.deadlineAtMs !== undefined && (options.now || Date.now)() >= options.deadlineAtMs) {
+      Promise.resolve().then(() => handle.close()).catch(() => {});
+    } else {
+      await bounded('file_close', () => handle.close());
+    }
+  }
 }
 
 function computeSyncCore(location, options = {}) {
@@ -176,7 +194,7 @@ function readBoundedFileSnapshotSyncCore(location, maxBytes, options = {}) {
 async function computeBoundedMaterialFingerprint(location, options = {}) {
   try { return await computeAsyncCore(location, options); }
   catch (error) {
-    if (error instanceof BoundedMaterialFingerprintError) throw error;
+    if (error instanceof BoundedMaterialFingerprintError || error instanceof CooperativeDeadlineError) throw error;
     fail('PHYSICAL_MATERIAL_FINGERPRINT_IO_FAILED', 'Physical Material fingerprint I/O failed.', {
       location, causeCode:error?.code || 'UNKNOWN_IO_ERROR',
     });

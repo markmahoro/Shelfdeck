@@ -3,6 +3,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { FINGERPRINT_SAMPLE_BYTES, computeBoundedMaterialFingerprint } = require('./helix/integrations/bounded-material-fingerprint');
+const { CooperativeDeadlineError, assertWithinDeadline, awaitWithinDeadline } = require('./helix/integrations/cooperative-deadline');
 const { canonicalDigest } = require('./helix/contracts/canonical-json');
 const {
   identityBasis,
@@ -65,13 +66,18 @@ function inspectObservationRootSync(rootLocation) {
   return resolved;
 }
 
-async function inspectObservationRoot(rootLocation) {
+async function inspectObservationRoot(rootLocation, execution = {}, fsPromises = fs.promises) {
   const resolved = path.resolve(rootLocation);
   let root;
   try {
-    root = await fs.promises.stat(resolved, { bigint: true });
-    await fs.promises.access(resolved, fs.constants.R_OK);
+    root = await awaitWithinDeadline(() => fsPromises.stat(resolved, { bigint:true }), {
+      ...execution, stage:'observation_root_stat', location:resolved,
+    });
+    await awaitWithinDeadline(() => fsPromises.access(resolved, fs.constants.R_OK), {
+      ...execution, stage:'observation_root_access', location:resolved,
+    });
   } catch (error) {
+    if (error instanceof CooperativeDeadlineError) throw error;
     fail('FIELD_OBSERVATION_ROOT_UNAVAILABLE', 'Material Field当前物理访问位置不可读。', {
       rootLocation,
       cause: error.code || 'READ_FAILED',
@@ -85,12 +91,14 @@ async function inspectObservationRoot(rootLocation) {
   return resolved;
 }
 
-async function collectFiles(rootLocation) {
+async function collectFiles(rootLocation, execution = {}, fsPromises = fs.promises) {
   const pending = [path.resolve(rootLocation)];
   const files = [];
   while (pending.length) {
     const directory = pending.pop();
-    const entries = await fs.promises.readdir(directory, { withFileTypes: true });
+    const entries = await awaitWithinDeadline(() => fsPromises.readdir(directory, { withFileTypes:true }), {
+      ...execution, stage:'observation_directory_read', location:directory,
+    });
     entries.sort((left, right) => Buffer.compare(
       Buffer.from(left.name, 'utf8'),
       Buffer.from(right.name, 'utf8'),
@@ -148,7 +156,7 @@ async function observeFile(location, fieldAccessHandle, now, fingerprintOptions)
 
 function createCleanFieldObservationEnumerator(options = {}) {
   const now = options.now || Date.now;
-  const fingerprintOptions = Object.freeze({ onRead:options.onFingerprintRead });
+  const fsPromises = options.fsPromises || fs.promises;
   const batchLimit = options.batchLimit || DEFAULT_FINGERPRINTED_FILES_PER_BATCH;
   if (!Number.isInteger(batchLimit) || batchLimit < 1 || batchLimit > MAX_FINGERPRINTED_FILES_PER_PAGE) {
     fail('FIELD_OBSERVATION_BATCH_LIMIT_INVALID', 'Field Observation batch limit is invalid.', {
@@ -156,20 +164,23 @@ function createCleanFieldObservationEnumerator(options = {}) {
     });
   }
   const locationSnapshots = new Map();
-  async function locations(fieldAccessHandle) {
+  async function locations(fieldAccessHandle, execution = {}) {
     const rootLocation=path.resolve(fieldAccessHandle.rootLocation);
     const key=fieldAccessHandle.handleId+'\u0000'+fieldAccessHandle.accessDigest;
     if(!locationSnapshots.has(key)){
-      locationSnapshots.set(key,(async()=>{
-        await inspectObservationRoot(rootLocation);
-        return collectFiles(rootLocation);
-      })());
+      const pending=(async()=>{
+        await inspectObservationRoot(rootLocation, execution, fsPromises);
+        return collectFiles(rootLocation, execution, fsPromises);
+      })();
+      locationSnapshots.set(key,pending);
+      pending.catch(()=>{if(locationSnapshots.get(key)===pending)locationSnapshots.delete(key);});
     }
     return Object.freeze({rootLocation,items:await locationSnapshots.get(key)});
   }
   return Object.freeze({
-    async enumeratePage({ fieldAccessHandle, pageRequest }) {
-      const inventory=await locations(fieldAccessHandle);const cursorRelative=decodePathCursor(pageRequest.cursorIn);
+    async enumeratePage({ fieldAccessHandle, pageRequest, deadlineAtMs, abortSignal }) {
+      const execution={signal:abortSignal,deadlineAtMs,now};
+      const inventory=await locations(fieldAccessHandle,execution);const cursorRelative=decodePathCursor(pageRequest.cursorIn);
       const start=cursorRelative===null?0:inventory.items.findIndex((location)=>Buffer.compare(
         Buffer.from(normalizedLocation(path.relative(inventory.rootLocation,location)),'utf8'),Buffer.from(cursorRelative,'utf8'))>0);
       const startIndex=start<0?inventory.items.length:start;
@@ -178,7 +189,9 @@ function createCleanFieldObservationEnumerator(options = {}) {
         MAX_FINGERPRINTED_FILES_PER_PAGE,
         batchLimit,
       ));
+      const fingerprintOptions={onRead:options.onFingerprintRead,fsPromises,signal:abortSignal,deadlineAtMs,now};
       const observed=(await Promise.all(selected.map((location)=>observeFile(location,fieldAccessHandle,now,fingerprintOptions)))).filter(Boolean);
+      assertWithinDeadline({...execution,stage:'observation_page_before_return',location:inventory.rootLocation});
       observed.sort((left,right)=>Buffer.compare(Buffer.from(left.materialKey),Buffer.from(right.materialKey)));
       const boundary=selected.length?pathCursor(inventory.rootLocation,selected.at(-1)):null;
       const items=observed.map((item)=>Object.freeze({cursor:boundary,material:item.material}));
@@ -186,11 +199,11 @@ function createCleanFieldObservationEnumerator(options = {}) {
         sourceFileCount:inventory.items.length});
     },
     async scan(fieldAccessHandle) {
-      const rootLocation = await inspectObservationRoot(fieldAccessHandle.rootLocation);
-      const locations = await collectFiles(rootLocation);
+      const rootLocation = await inspectObservationRoot(fieldAccessHandle.rootLocation, {}, fsPromises);
+      const locations = await collectFiles(rootLocation, {}, fsPromises);
       const items = [];
       for (const location of locations) {
-        const observed=await observeFile(location,fieldAccessHandle,now,fingerprintOptions);if(observed)items.push(Object.freeze({cursor:observed.materialKey,material:observed.material}));
+        const observed=await observeFile(location,fieldAccessHandle,now,{onRead:options.onFingerprintRead,fsPromises});if(observed)items.push(Object.freeze({cursor:observed.materialKey,material:observed.material}));
       }
       items.sort((left, right) => Buffer.compare(
         Buffer.from(left.cursor, 'utf8'),

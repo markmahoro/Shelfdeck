@@ -22,6 +22,17 @@ function effectReceipt(context, committed, result, commitDigest) {
     outputDigest: canonicalDigest(result), verificationEvidenceDigest: commitDigest, committedAtMs: result.committedAtMs });
 }
 
+function deadlineFailure(error) {
+  if (!['P4_COOPERATIVE_DEADLINE_EXCEEDED','P4_ISOLATION_DEADLINE_EXCEEDED'].includes(error?.code)) return null;
+  return Object.freeze({
+    kind:'failed', failureClass:'integration', code:'FIELD_OBSERVATION_IO_DEADLINE_EXCEEDED',
+    message:'Material Field observation I/O exceeded the frozen execution deadline.', retryDirective:'never',
+    evidence:Object.freeze({ errorName:String(error.name || 'Error'), errorCode:error.code,
+      stage:error.details?.stage || null, location:error.details?.location || null,
+      deadlineAtMs:error.details?.deadlineAtMs ?? null }),
+  });
+}
+
 function createFieldObservationCapabilityPorts(options) {
   if (!options?.schemaManifest || !options.unitOfWork || !options.enumerator || typeof options.enumerator.enumeratePage !== 'function' ||
       typeof options.pageObserverFactory !== 'function' || typeof options.now !== 'function') throw new TypeError('Field Observation Capability ports require exact integrations and persistence.');
@@ -38,8 +49,12 @@ function createFieldObservationCapabilityPorts(options) {
       async execute(context) {
         let draft;
         try {
-          draft = await observer.observe({ fieldAccessHandle: context.namedInputs.fieldAccessHandle, pageRequest: context.namedInputs.fieldObservationPageRequest });
+          draft = await observer.observe({ fieldAccessHandle: context.namedInputs.fieldAccessHandle,
+            pageRequest: context.namedInputs.fieldObservationPageRequest, deadlineAtMs:context.deadlineAtMs,
+            abortSignal:context.abortSignal });
+          context.assertExecutionActive?.();
         } catch (error) {
+          const deadline = deadlineFailure(error); if (deadline) return deadline;
           if (error?.code === 'FIELD_OBSERVATION_ROOT_UNAVAILABLE' ||
               error?.code === 'FIELD_OBSERVATION_ROOT_NOT_DIRECTORY') {
             return Object.freeze({
@@ -71,6 +86,8 @@ function createFieldObservationCapabilityPorts(options) {
         // one deterministic envelope avoids a result/evidence conflict at the
         // crash-window boundary.
         const resultEvidence = envelope({ ...page, factDigest:commitDigest, committedAtMs:page.observedAtMs }, OBSERVATION_PAGE_COMMIT);
+        try { context.assertExecutionActive?.(); }
+        catch (error) { const deadline=deadlineFailure(error);if(deadline)return deadline;throw error; }
         const committed = coordinator.execute({ transactionId:'helix.transaction.field-observation-page-commit', supportingWorkId:context.workId,
           handle, payload:draft, commitMarker:{ commitMarker:marker, effectId:canonicalDigest(['domain_fact_commit', context.idempotencyKey]), commitDigest },
           resultBinding:{ resultId:'field-observation-result-' + canonicalDigest({ eventId:context.eventId }).slice(0, 40), eventId:context.eventId,

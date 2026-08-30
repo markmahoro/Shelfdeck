@@ -5,6 +5,7 @@ const test = require('node:test');
 const { createAttemptPolicyController, createExecutionPolicyRegistry,
   createWorkAttemptPolicyController } = require('../../src/helix/foundation/execution/execution-policy');
 const { createTimeoutController } = require('../../src/helix/foundation/execution/timeout-controller');
+const { createCooperativeExecutionIsolation } = require('../../src/helix/foundation/execution/cooperative-execution-isolation');
 
 const OBSERVE = 'libra.fixture.observe@1';
 const REQUEST = 'libra.fixture.request@1';
@@ -152,4 +153,14 @@ test('timeout controller passes success and does not convert executor crash into
   assert.equal(await controllerValue.execute({ executionHandleId: 'attempt', deadlineAtMs: 200, operation: async () => 'ok' }), 'ok');
   await assert.rejects(controllerValue.execute({ executionHandleId: 'attempt', deadlineAtMs: 200,
     operation: async () => { throw new Error('executor crash'); } }), /executor crash/);
+});
+
+test('cooperative execution isolation delivers the frozen deadline to an in-process executor', async () => {
+  const isolation=createCooperativeExecutionIsolation();
+  const controllerValue=createTimeoutController({now:Date.now,isolation});
+  const started=Date.now();
+  const outcome=await controllerValue.execute({executionHandleId:'field-observation-attempt',deadlineAtMs:started+20,
+    operation:async(signal)=>new Promise((resolve)=>signal.addEventListener('abort',()=>resolve({kind:'closed'}),{once:true}))});
+  assert.deepEqual(outcome,{kind:'closed'});
+  assert.ok(Date.now()-started<1000);
 });

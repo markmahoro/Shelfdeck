@@ -15,7 +15,7 @@
 5. Primary 与其他普通成员继续严格校验 Package identity；NFO 按 Movie Identity、title/year/plot/genre/cast 做语义验收，并记录盘上实际 physical identity；Final Verify、Fulfillment、Commit 均重读最新现实；
 6. Accepted 后失败的唯一 Arca On-deck Run 保持 Owner/Control，自动恢复最多生成 3 代 Supporting Work；仍失败则停止执行并稳定投影为 `attention_required`，用户可用「重试上架」继续同一 Run，不创建第二个 Run、Shelf Entry 或兼容双路径；
 7. Aftercare 遇到语义等价的 NFO 指纹漂移时不写文件，只提交新的 Inventory Representation revision 并原子切换 Material Control；语义错误才 update/rebuild。
-8. PROD-036 将 Field Observation 调整为 12 小时 cadence，对可重建 Entry 明细执行 7 天引用保护 GC，并补齐 terminal Event 已提交但 Attempt/Work 未聚合的通用恢复；永久审计事实不删除。
+8. PROD-036 将 Field Observation 调整为 12 小时 cadence，对可重建 Entry 明细执行 7 天引用保护 GC；冻结 deadline 贯穿目录枚举和 fingerprint I/O，Page commit 前执行协作式 abort 栅栏；启动恢复复用原 Attempt、Effect 与幂等键，永久审计事实不删除。terminal Event/Attempt 聚合保护作为独立通用恢复保留。
 
 ## 边界
 
