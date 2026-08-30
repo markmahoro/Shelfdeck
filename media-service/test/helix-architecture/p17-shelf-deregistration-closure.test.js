@@ -85,7 +85,7 @@ function seedNonEmptyShelf(databasePath, referenceCount = 10_001) {
     (shelf_entry_id,inventory_revision,ordinal,material_key,role,episode_claims_schema_ref,episode_claims_json,
      episode_claim_set_digest,endpoint_id,location,binding_revision,mount_scope_id,inode,fingerprint_algorithm,
      fingerprint_version,content_fingerprint,digest_hex,size_bytes,active_guard)
-    VALUES (?,?,?,?,?,NULL,NULL,NULL,?,?,?,?,?,?,?,?,?,?,1)`);
+    VALUES (?,?,?,?,?,NULL,NULL,NULL,?,?,?,?,?,?,?,?,?,?,?)`);
   const insertControl = database.prepare(`INSERT INTO fx_material_controls
     (material_key,mount_scope_id,inode,size_bytes,fingerprint_algorithm,fingerprint_version,content_fingerprint,
      owner_domain,owner_scope_type,owner_scope_id,control_revision,state,updated_at_ms)
@@ -113,7 +113,7 @@ function seedNonEmptyShelf(databasePath, referenceCount = 10_001) {
       insertMaterial.run(entryId, 1, ordinal, identity.materialKey, ordinal === 0 ? 'primary_payload' : 'metadata_sidecar',
         'test-endpoint', `movie/member-${ordinal}`, 1, identity.mountScopeId, identity.inode,
         identity.fingerprintAlgorithm, identity.fingerprintVersion, identity.contentFingerprint,
-        digest({ identity, ordinal }), identity.sizeBytes);
+        digest({ identity, ordinal }), identity.sizeBytes, ordinal === 0 ? 1 : 0);
       insertControl.run(identity.materialKey, identity.mountScopeId, identity.inode, identity.sizeBytes,
         identity.fingerprintAlgorithm, identity.fingerprintVersion, identity.contentFingerprint,
         'arca', 'shelf_entry', entryId, 1, 'controlled', 1);

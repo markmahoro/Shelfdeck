@@ -21,6 +21,7 @@ const familyTargets = Object.freeze({
   PlatformAdminFacade: 'platform.public',
   ProcurementAdminFacade: 'procurement.public',
   LibraFormationFacade: 'libra.public',
+  LibraAdminFacade: 'libra.public',
   ArcaShelfAdminFacade: 'arca.public',
   ArcaCollectionFacade: 'arca.public',
   ArcaCareFacade: 'arca.public',
@@ -48,9 +49,11 @@ for (const route of entries) {
   }
   const target = familyTargets[route.facade];
   assert.ok(target, `missing construction assignment: ${route.routeId}`);
-  const batch = route.facade === 'LibraFormationFacade'
+  const batch = route.facade === 'LibraAdminFacade'
+    ? 'setup-foundation'
+    : route.facade === 'LibraFormationFacade'
     ? (libraRoutingRouteIds.has(route.routeId) ? 'setup-foundation' : 'formation-product')
-    : ['OverviewQueryFacade', 'PlatformAdminFacade', 'ProcurementAdminFacade', 'ArcaShelfAdminFacade'].includes(route.facade)
+    : ['OverviewQueryFacade', 'PlatformAdminFacade', 'ProcurementAdminFacade', 'ArcaShelfAdminFacade', 'LibraAdminFacade'].includes(route.facade)
       ? 'setup-foundation'
       : 'collection-postdeck';
   assert.doesNotMatch(target, forbiddenTarget, `forbidden route target: ${route.routeId}`);
@@ -58,13 +61,13 @@ for (const route of entries) {
 }
 const workers = entries.filter(workerRoute);
 assert.equal(workers.length, 6);
-assert.equal(entries.length, 114);
+assert.equal(entries.length, 123);
 assert.equal(assignments.size, entries.length);
 assert.equal([...assignments.values()].filter((item) => item.batch === 'implemented-core').length, 4);
 assert.equal([...assignments.values()].filter((item) => item.batch === 'beta-404').length, 6);
-assert.equal([...assignments.values()].filter((item) => item.batch === 'setup-foundation').length, 59);
-assert.equal([...assignments.values()].filter((item) => item.batch === 'formation-product').length, 7);
-assert.equal([...assignments.values()].filter((item) => item.batch === 'collection-postdeck').length, 38);
+assert.equal([...assignments.values()].filter((item) => item.batch === 'setup-foundation').length, 62);
+assert.equal([...assignments.values()].filter((item) => item.batch === 'formation-product').length, 10);
+assert.equal([...assignments.values()].filter((item) => item.batch === 'collection-postdeck').length, 41);
 process.stdout.write(`${JSON.stringify({
   ok: true,
   routeCount: entries.length,

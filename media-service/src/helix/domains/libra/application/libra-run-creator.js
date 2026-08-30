@@ -91,6 +91,9 @@ function createLibraRunCreator(options){
       if(currentSpec?.specDigest===context.spec.specDigest)return Object.freeze({kind:'current',subjectId,
         libraRunId:current.libra_run_id,state:current.state,executionBasisDigest:current.execution_basis_digest,
         semanticSpecReplay:true,currentAcceptanceSpecId:context.spec.acceptanceSpecId});}
+    if(!current&&!forceReplacementOf&&options.pipelineAdmission&&!options.pipelineAdmission.hasToken(subjectId)){
+      return Object.freeze({kind:'pipeline_token_required',subjectId,reasonCode:'PREDECK_PIPELINE_TOKEN_REQUIRED'});
+    }
     const head=options.contextReader.headSnapshot(subjectId,context.runHead),admissionRevision=head.headRevision+1,
       libraRunId=canonicalDigest({schema:'libra.run-id@1',subjectId,admissionRevision}),productionMaterialManifest=manifest(context,libraRunId);
     const basis=buildRunExecutionBasis({subjectSnapshot:{subjectId,intakeRevision:Number(context.subject.intake_revision),

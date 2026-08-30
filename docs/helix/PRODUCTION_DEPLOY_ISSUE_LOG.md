@@ -49,6 +49,9 @@
 | PROD-027 | 长转码页面进度写满后冻住，编码器仍在跑 | `EXECUTION` / ProgressReporter 历史上限连 current sample 一并停写 | 媒体整理工作区 | Medium | **FIXED in next image**（current 就地覆盖；未部署） |
 | PROD-028 | Aftercare 按整份 NFO 字节/指纹修文件，与 Emby 抢同一张说明书 | `EXECUTION` / Presentation 字节全等 + Custody 把 sidecar 指纹当身份变化 | 我的收藏 / Aftercare | Medium | **FIXED in next image**（语义比较；未部署） |
 | PROD-029 | 收藏架「全自动 / 关键步骤确认」开关不改变实际上架行为 | `USER_EXPERIENCE` / standing Authorization 未接入 On-deck | 收藏架配置 | Low | **FIXED in next image**（Admin Web 表面已移除；后端 API 保留供后续收口） |
+| PROD-030 | 转码前体积预测 freeze 卡死 Run；寻源/转码编排割裂；详情步骤靠 Spec 猜测 | `EXECUTION` / Libra 协调器 + Formation 投影 | 媒体整理工作区 | Critical | **FIXED in next image**（双工具穷尽编排 + 实测瑕疵 + 真实步骤；未部署） |
+| PROD-031 | PROD-024 全局 3 席仍是 derived occupancy；无法按来源暂停/限流 | `EXECUTION` / Libra per-field pipeline token | 文件来源配置、媒体整理工作区 | High | **DEPLOYED** `helix-beta-20260830-5189f5f79c`（2026-08-30；migration + full libra reset；186 tables） |
+| PROD-032 | token=0 时历史 Subject 仍批量生成 routing/spec/rating Work，Formation 保持 700+ 条 | `EXECUTION` / Intake replay 与下游 reconciler 绕过 token，Run Admission 过早释放 | 媒体整理工作区 | Critical | **FIXED LOCALLY / DEPLOYMENT PENDING**（完整 pipeline token lifetime + bounded Formation view + destructive reset） |
 
 PROD-001、PROD-002 的共同环境前提：生产管理台是 `http://192.168.12.230`，浏览器不提供 `crypto.randomUUID` / `crypto.subtle`。这不是传输加密设计，只是浏览器 API 限制。未改成 HTTPS。
 
@@ -368,7 +371,20 @@ SSOT 10.3.5：本地 transcode/remux 是「10 分钟无进展判 Attempt timeout
 
 本地 `p15-aftercare-nfo` / `p15-aftercare-effects-safety` 及相关 Aftercare 合同测试 PASS。现网《网络谜踪》需无损升级后下一次 Presentation 评估才会按语义放行。
 
-## 30. PROD-029 — 「全自动或关键步骤确认」对用户旅程无效果（OPEN / 先不修，后续删除）
+## 30. PROD-030 — 媒体制作编排：预测 freeze、过早寻源、步骤猜测（FIXED in next image）
+
+发现：2026-08-30。《里斯本丸沉没》转码实测 8.3 GiB 已通过，但转码前 `sizeCapAdmissionForecast` 触发 freeze → P9，`product_conformance` 永不提交。另：《露梁海战》因 `media_size_budget_infeasible` 跳过本地转码去寻源；规格寻源后体积超标无转码兜底；Formation 详情步骤按 Spec 猜测 remux/转码/寻源，与实际 Work 不一致。
+
+修复（L7-DP-02）：
+
+- 删除转码前体积预测 freeze；`media_size_budget_infeasible` 不再短路到寻源，继续下一转码策略。
+- 本地转码策略穷尽后再寻源；external import 仅体积/可转码 gap 时继续转码该素材。
+- `size_cap_exceeded` 绑定 **实测** `product_media.verify` workspace 失败；Admin 预览读实测体积。
+- Formation `buildMediaOrganizationSteps` 按 Work/Event 回放真实步骤，Frozen 时插入瑕疵确认步骤。
+
+本地 targeted tests PASS。部署后《里斯本丸沉没》应 reconcile 续跑；旧形态 frozen Run 仍须放弃重进。
+
+## 31. PROD-029 — 「全自动或关键步骤确认」对用户旅程无效果（FIXED）
 
 发现：2026-08-30。收藏架配置页有「全自动（推荐） / 关键步骤确认」。Product Owner 确认该开关当前没有用户可见意义，要求先记下，**后续删除**；本文不授权现在删界面、API、表或 SSOT。
 
@@ -382,4 +398,20 @@ SSOT 10.3.5：本地 transcode/remux 是「10 分钟无进展判 Attempt timeout
 - 采购、整理、验收、Aftercare 自动修两边一样。
 - 现网 Field/Shelf 同为 `/media/Film`（PROD-004）时，旧输入和成品常是同一路径，结算往往不另删文件，开关更看不见。
 
-后续删除（未授权）需一并收口：收藏架配置该卡片、automatic-operation API、Setup/Overview 的 productChoice 展示，以及 `HB-A.07` / SSOT `9.6.5` 的产品选择表面。不在本次改代码。
+处理：Admin Web 已移除该表面与 Overview `productChoice`；后端 API 暂保留，不改变 On-deck 行为。本项不宣称修改 `HB-A.07` 的产品验收结论。
+
+## 32. PROD-032 — Pre-deck token 存在但生产重建完全绕过（FIXED LOCALLY / DEPLOYMENT PENDING）
+
+发现：2026-08-31 对 NAS 只读盘点。现网 720 个 active Subject、0 个 active Libra Run、0 个 pipeline token；Formation 仍有 712 pending、2 in progress，Foundation 同时有 Libra 183 admitted、17 running 和 Perception 48 admitted。
+
+根因：
+
+1. 历史 succeeded Intake Evidence 被当作无需 token 的 replay；真正新 Offer 又必须先有 acceptance receipt 才能解析 Subject ID，形成首进死锁。
+2. routing、Subject rating、acceptance spec、ready-run fallback 直接扫描所有 active Subject，不读取 token。
+3. token 在 Run Admission 成功时释放，无法限制完整 Pre-deck 在途数量。
+4. Formation 把所有 active Subject 投影都当当前工作；旧 full reset 只终止 Run/Work，没有收敛视图。
+5. policy GET 会写默认行，重复 PATCH 更新时间戳；production build 允许 dirty worktree，导致镜像 tag 的 commit 无法重建镜像内容。
+
+修复：Intake 提交前先占 token，历史 replay 同样占用；Subject ID 可由当前 continuity decision 确定性解析；下游 fallback 只推进 token holder；token 保持到 Handoff B Accepted、用户 Discard或 Intake Rejection；Formation active queue 只展示 token holder 或已有 Run/Handoff B 的 Subject。GET 改为纯读、重复 PATCH no-op，production build 强制 clean + exact commit tag。reset 同步取消 Work/Event/Attempt/resource wait，并对 `/transcode` 路径做 fail-closed 防护。
+
+部署必须先创建唯一 data 备份并校验数据库副本，再 migration/reset/标准 deploy；不碰 `/media`、Field、Shelf、集成、Arca、People、Perception 或 Platform 事实。部署证据完成后再把本项改为 `FIXED/DEPLOYED`。

@@ -81,8 +81,10 @@ function blocker(terminalEvidence) {
 }
 function sizeCapDefect(item) {
   if (item.failureCode !== 'size_cap_requires_admission' ||
-      item.capabilityRef !== 'libra.transcode.input.verify@1' ||
       item.failureClass !== 'business_unachievable') return null;
+  const capabilityRef = item.capabilityRef;
+  if (capabilityRef !== 'libra.transcode.input.verify@1' &&
+      capabilityRef !== 'libra.product_media.verify@1') return null;
   return Object.freeze({
     defectCode: 'size_cap_exceeded',
     sourceFailureCode: item.failureCode,

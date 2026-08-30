@@ -8,7 +8,15 @@ const { createIntakeCapabilityRegistrations } = require('../capabilities/intake-
 const { createIntakeOfferReader } = require('../persistence/intake-offer-reader');
 const { createIntakeDecisionResolver } = require('../application/intake-decision-resolver');
 const { createIntakeProcessCoordinator } = require('../application/intake-process-coordinator');
-const { createPredeckIntakeOccupancy } = require('../application/predeck-intake-occupancy');
+const {
+  createLibraPipelineAdmission,
+  fieldIdFromOfferSource,
+  DEFAULT_PREDECK_PIPELINE_SEATS,
+} = require('../application/libra-pipeline-admission');
+const { createMovieResponsibilityClosureCoordinator } =
+  require('../application/movie-responsibility-closure-coordinator');
+const { buildRatingTargetIdentity } = require('../model/decision-identity-evidence-contracts');
+const { createLibraIntakeStore } = require('../persistence/libra-intake-store');
 const { createEvidencePlanner,createAcceptancePlanner,createRejectionPlanner,createIntakeProjections } = require('../planning/intake-planners');
 const { createRoutingCapabilityPorts } = require('../capabilities/routing-capability-ports');
 const { createRoutingCapabilityRegistrations, EFFECTS: ROUTING_EFFECTS } = require('../capabilities/routing-capability-registrations');
@@ -191,14 +199,29 @@ function createExecutionRegistration() {
     createProcessServices(options) {
       const offerReader=options.offerReader || createIntakeOfferReader(options);
       const decisionResolver=createIntakeDecisionResolver(options);
-      const occupancyProvider=options.occupancyProvider||(options.workResultReader?createPredeckIntakeOccupancy(options):null);
-      const coordinator=createIntakeProcessCoordinator({...options,offerReader,decisionResolver,occupancyProvider});
+      const intakeStore=options.intakeStore || createLibraIntakeStore(options);
+      const subjectIdForProcess=(processId)=>{
+        const accepted=intakeStore.getReceipt(processId)?.subject_id;
+        if(accepted)return accepted;
+        const source=offerReader.read(processId);
+        if(!source?.snapshot)return null;
+        const decision=decisionResolver.resolve(source.snapshot);
+        return decision.result==='season_extension'?decision.targetSubjectId:decision.allocatedSubjectId;
+      };
+      const pipelineAdmission=options.pipelineAdmission || createLibraPipelineAdmission({
+        ...options,
+        fieldIdForProcess:(processId)=>fieldIdFromOfferSource(offerReader.read(processId)),
+        subjectResolver:{subjectIdForProcess},
+      });
+      const coordinator=createIntakeProcessCoordinator({
+        ...options,offerReader,decisionResolver,pipelineAdmission,subjectIdForProcess,
+      });
       const routingContextReader=createRoutingContextReader(options);
       const routingCoordinator=createRoutingProcessCoordinator({...options,contextReader:routingContextReader});
       const acceptanceSpecContextReader=createAcceptanceSpecContextReader({...options,routingContextReader});
       const acceptanceSpecCoordinator=createAcceptanceSpecCoordinator({...options,contextReader:acceptanceSpecContextReader});
       const libraRunContextReader=createLibraRunContextReader(options);
-      const libraRunCreator=createLibraRunCreator({...options,contextReader:libraRunContextReader});
+      const libraRunCreator=createLibraRunCreator({...options,contextReader:libraRunContextReader,pipelineAdmission});
       const libraRunExecutionProjection=createLibraRunExecutionProjection(options);
       const productIdentitySelection=createProductIdentitySelectionService(options);
       const libraRunLifecycleService=createLibraRunLifecycleService({...options,libraRunExecutionProjection});
@@ -206,7 +229,7 @@ function createExecutionRegistration() {
       const libraRunCoordinator=createLibraRunCoordinator({...options,movieProductionReader,libraRunLifecycleService,productIdentitySelection});
       return Object.freeze({offerReader,decisionResolver,coordinator,routingContextReader,routingCoordinator,acceptanceSpecContextReader,
         acceptanceSpecCoordinator,libraRunContextReader,libraRunCreator,movieProductionReader,libraRunCoordinator,
-        libraRunExecutionProjection,libraRunLifecycleService,productIdentitySelection,predeckIntakeOccupancy:occupancyProvider});
+        libraRunExecutionProjection,libraRunLifecycleService,productIdentitySelection,pipelineAdmission,intakeStore});
     },
     createPlanningRegistration(options) {
       const productDeliveryAssembler=options.productDeliveryAssembler||createProductDeliveryAssembler(options);
@@ -241,10 +264,16 @@ function createExecutionRegistration() {
   return Object.freeze(implementation);
 }
 
+Object.defineProperties(createExecutionRegistration, {
+  DEFAULT_PREDECK_PIPELINE_SEATS: { value: DEFAULT_PREDECK_PIPELINE_SEATS },
+  createMovieResponsibilityClosureCoordinator: { value: createMovieResponsibilityClosureCoordinator },
+  buildRatingTargetIdentity: { value: buildRatingTargetIdentity },
+});
+
 module.exports = Object.freeze({
   PACKAGE_ID:packageId,
   LibraIntakeFacade:bind,
   ProductDeliveryPort:bindProductDelivery,
   WorkspaceReclamationPort:bindWorkspaceReclamation,
-  LibraExecutionRegistration:createExecutionRegistration
+  LibraExecutionRegistration:createExecutionRegistration,
 });

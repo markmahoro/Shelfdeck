@@ -15,7 +15,7 @@ Helix-beta 已于 2026-08-28 在飞牛 NAS 上线。下列是 **当前生产配�
 | NAS compose 文件 | `/vol1/1000/docker/shelfdeck/docker-compose.yml` |
 | NAS 数据目录 | `/vol1/1000/docker/shelfdeck/data` |
 | 镜像名 | `markmahoro/shelfdeck:<tag>`，同时打 `latest`，但生产不从 DockerHub pull |
-| 当前运行镜像 | `markmahoro/shelfdeck:helix-beta-20260830-999a94fa8`（git `999a94fa8`，tar SHA-256 `7162fb8d1a6b5adb7406e4bad2d30928d54c845a11b07571737359adfe95c312`） |
+| 当前运行镜像 | `markmahoro/shelfdeck:helix-beta-20260830-5189f5f79c`（tar SHA-256 `8c9f3afa484bd56c2df92e7e1b07c569da4fd78d106b3d24379225926ef1d779`；该历史镜像来自 dirty worktree，commit 只能标识 tag，不能完整重建内容；PROD-032 将替换） |
 | 容器内 service 端口 | `18080` |
 | 容器内数据目录 | `/app/data` |
 | 普通媒体挂载 | NAS `/vol02/1000-0-c5b736af` -> 容器 `/media` |
@@ -43,7 +43,7 @@ SSOT 允许 Field 与 Shelf Target 同根；本机两者都是 `/media/Film`。W
 
 ## 标准发布流程
 
-Helix-beta 首次（或 schema 不匹配时）必须 `--helix-clean-init`。clean-init 把 compose 目录挂到 `/run/helix-nas`，在 `/run/helix-nas/data` 初始化，避免把 bind-mount 的 `/app/data` 当成可 rename 的目录。确认词为 `INITIALIZE_HELIX_CLEAN_V1`。`SHELFDECK_SECRET_ROOT` 写入 NAS `secret.env`（不入库），compose 通过 `env_file` 注入。不得运行 v3 compatibility migration、dual read 或直接修改 SQLite。
+Helix-beta 首次（或 schema 不匹配且 Product Owner 明确授权清库时）才使用 `--helix-clean-init`。clean-init 把 compose 目录挂到 `/run/helix-nas`，在 `/run/helix-nas/data` 初始化，避免把 bind-mount 的 `/app/data` 当成可 rename 的目录。确认词为 `INITIALIZE_HELIX_CLEAN_V1`。`SHELFDECK_SECRET_ROOT` 写入 NAS `secret.env`（不入库），compose 通过 `env_file` 注入。不得运行 v3 compatibility migration或dual read。只有 Product Owner 明确授权的 bounded destructive incident procedure 才可在停服、完整备份、plan/confirm、integrity check 和标准 deploy 包装下修改 SQLite；PROD-032 固定入口为 `scripts/predeck-pipeline-upgrade-nas.js`，不允许手工 SQL。
 
 部署脚本会重写 NAS compose，但必须保留并校验：
 

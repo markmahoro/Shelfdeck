@@ -237,6 +237,14 @@ function createCleanFacades(options) {
       body: options.arcaRuleTemplateAdmin.history(input.params.templateId),
     });
   }
+  if (options.libraFieldIntakeAdmissionAdmin) {
+    facades.LibraAdminFacade.get_libra_material_fields_fieldid_intake_admission = async (input) => ({
+      body: options.libraFieldIntakeAdmissionAdmin.getFieldIntakeAdmission(input.params.fieldId),
+    });
+    facades.LibraAdminFacade.patch_libra_material_fields_fieldid_intake_admission = async (input) => ({
+      body: options.libraFieldIntakeAdmissionAdmin.reviseFieldIntakeAdmission(input.params.fieldId, input.body),
+    });
+  }
   if (options.libraRoutingAdmin) {
     facades.LibraFormationFacade.get_routing_material_fields_fieldid = async (input) => ({ body: options.libraRoutingAdmin.get(input.params.fieldId) });
     facades.LibraFormationFacade.post_routing_material_fields_fieldid_actions_preview = async (input) => ({ body: options.libraRoutingAdmin.preview(input.params.fieldId, input.body) });

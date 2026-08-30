@@ -10,7 +10,8 @@ const INTERMEDIATE_SCHEMA_DIGEST = 'fee80cf21719481a83274c3b9021918571ed8e5a5102
 const PRE_EXECUTOR_CLOSURE_SCHEMA_DIGEST = '998b673af4d2f0a6ed4f96bcb7f34c56b8dad3ffc562f40a69a335b948a7cab0';
 const PRE_AFTERCARE_HARDENING_SCHEMA_DIGEST = '2347c196743124bbb2e768c7b829012049310484b7cd4e49a00182c9d45f09d5';
 const PRE_DEFECT_ADMISSION_SCHEMA_DIGEST = '6172e70c94c31091005b19b4eefaf7567b195d04dc9cb3b4bee7099a070383f3';
-const TARGET_SCHEMA_DIGEST = '411b6c0e2f350d3f5a9374738f56d51a0304df2772c813f2b3009e6526daa889';
+const PRE_PREDECK_PIPELINE_SCHEMA_DIGEST = '411b6c0e2f350d3f5a9374738f56d51a0304df2772c813f2b3009e6526daa889';
+const TARGET_SCHEMA_DIGEST = '3be2dad9b3615053681dfc2721974657fc3995ccf60a044e17dfb5131f0f8199';
 const PRE_UAT_EXECUTION_CATALOG_DIGEST = 'b0371a6d2793c1e381a4c2e7fc421d312a1a1e90d2de5e47f61a45022f09793b';
 const PRE_PROJECTION_EXECUTION_CATALOG_DIGEST = '13315cdbdf6ab5cbe30b32075f89bd76ae1a873d84034dc572824f4fbc3886e6';
 const INTAKE_BINDING_REPLAN_CODE = 'P4_UAT_INTAKE_BINDING_RESULT_REPLAN_REQUIRED';
@@ -342,11 +343,30 @@ INSERT INTO "libra_run_revisions" SELECT * FROM "libra_run_revisions_pre_defect_
 DROP TABLE "libra_run_revisions_pre_defect_admission";`);
 }
 
+const PREDECK_PIPELINE_DDL = `CREATE TABLE IF NOT EXISTS "libra_field_intake_admission_policies" (
+  "field_id" TEXT PRIMARY KEY,
+  "predeck_pipeline_seats" INTEGER,
+  "policy_revision" INTEGER CHECK ("policy_revision" >= 1),
+  "updated_at_ms" INTEGER CHECK ("updated_at_ms" >= 0)
+);
+CREATE TABLE IF NOT EXISTS "libra_predeck_pipeline_tokens" (
+  "subject_id" TEXT PRIMARY KEY,
+  "source_field_id" TEXT,
+  "source_process_id" TEXT,
+  "acquired_at_ms" INTEGER CHECK ("acquired_at_ms" >= 0)
+);
+CREATE INDEX IF NOT EXISTS "idx_libra_predeck_pipeline_tokens_hot_01"
+  ON "libra_predeck_pipeline_tokens" ("source_field_id", "subject_id");`;
+
+function migratePredeckPipelineTables(database) {
+  database.exec(PREDECK_PIPELINE_DDL);
+}
+
 function migrateUatIdentitySelectionSchema(options) {
   if (!options || typeof options.Database !== 'function' || typeof options.databasePath !== 'string' || !options.schemaManifest) {
     throw new TypeError('The UAT identity-selection migration requires a database driver, path, and target manifest.');
   }
-  if (options.schemaManifest.ddlDigest !== TARGET_SCHEMA_DIGEST || options.schemaManifest.tableCount !== 184) {
+  if (options.schemaManifest.ddlDigest !== TARGET_SCHEMA_DIGEST || options.schemaManifest.tableCount !== 186) {
     throw new UatIdentitySelectionMigrationError('UAT_MIGRATION_TARGET_SCHEMA_UNSUPPORTED',
       'The runtime schema is not the single approved UAT migration target.');
   }
@@ -364,6 +384,8 @@ function migrateUatIdentitySelectionSchema(options) {
         'The source database does not contain the expected ShelfDeck schema marker.');
     }
     const alreadyCurrent = marker.generation === TARGET_GENERATION && marker.schema_digest === TARGET_SCHEMA_DIGEST;
+    const predeckPipelineSource = marker.generation === TARGET_GENERATION &&
+      marker.schema_digest === PRE_PREDECK_PIPELINE_SCHEMA_DIGEST;
     const defectAdmissionSource = marker.generation === TARGET_GENERATION &&
       marker.schema_digest === PRE_DEFECT_ADMISSION_SCHEMA_DIGEST;
     const aftercareHardeningSource = marker.generation === TARGET_GENERATION &&
@@ -372,7 +394,7 @@ function migrateUatIdentitySelectionSchema(options) {
       marker.schema_digest === PRE_EXECUTOR_CLOSURE_SCHEMA_DIGEST;
     const legacySource = marker.generation === SOURCE_GENERATION && marker.schema_digest === SOURCE_SCHEMA_DIGEST;
     const v2Source = marker.generation === INTERMEDIATE_GENERATION && marker.schema_digest === INTERMEDIATE_SCHEMA_DIGEST;
-    if (!alreadyCurrent && !defectAdmissionSource && !aftercareHardeningSource && !executorClosureSource && !legacySource && !v2Source) {
+    if (!alreadyCurrent && !predeckPipelineSource && !defectAdmissionSource && !aftercareHardeningSource && !executorClosureSource && !legacySource && !v2Source) {
       throw new UatIdentitySelectionMigrationError('UAT_MIGRATION_SOURCE_SCHEMA_UNSUPPORTED',
         'Only the exact pre-UAT live schema can be upgraded in place.', {
           generation: marker.generation, schemaDigest: marker.schema_digest,
@@ -407,7 +429,8 @@ function migrateUatIdentitySelectionSchema(options) {
       if (legacySource || v2Source) database.exec(FORMATION_PROJECTION_DDL);
       if (legacySource || v2Source || executorClosureSource) database.exec(EXECUTOR_CLOSURE_DDL);
       if (!alreadyCurrent) ensureAftercareCaseTerminalEvidence(database);
-      if (!alreadyCurrent) migrateDefectAdmissionRevisionKind(database);
+      if (defectAdmissionSource) migrateDefectAdmissionRevisionKind(database);
+      if (!alreadyCurrent) migratePredeckPipelineTables(database);
       const appliedAtMs = now();
       if (!Number.isSafeInteger(appliedAtMs) || appliedAtMs < 0) {
         throw new UatIdentitySelectionMigrationError('UAT_MIGRATION_INVALID_TIME', 'Migration time must be a non-negative safe integer.');
@@ -449,6 +472,7 @@ module.exports = Object.freeze({
   PRE_PROJECTION_PLAN_REPLAN_CODE,
   PRE_AFTERCARE_HARDENING_SCHEMA_DIGEST,
   PRE_DEFECT_ADMISSION_SCHEMA_DIGEST,
+  PRE_PREDECK_PIPELINE_SCHEMA_DIGEST,
   TARGET_GENERATION,
   TARGET_SCHEMA_DIGEST,
   UatIdentitySelectionMigrationError,

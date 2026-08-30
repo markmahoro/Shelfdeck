@@ -391,7 +391,7 @@ function parseActor(xml, child) {
   const nested = actorXml.slice(actor.openEnd, actor.closeStart);
   const name = xmlCharacterData(nested.match(/<name(?:\s[^<>]*?)?>([\s\S]*?)<\/name>/i)?.[1] || '') || '';
   const personId = xmlCharacterData(nested.match(/<tmdbid(?:\s[^<>]*?)?>([\s\S]*?)<\/tmdbid>/i)?.[1] || '') ||
-    xmlCharacterData(nested.match(/<uniqueid\b[^<>]*\btype\s*=\s*["']tmdb["'][^<>]*>([\s\S]*?)<\/uniqueid>/i)?.[1] || '') || null;
+    xmlCharacterData(nested.match(/<uniqueid\b[^<>]*\btype\s*=\s*[\x22\x27]tmdb[\x22\x27][^<>]*>([\s\S]*?)<\/uniqueid>/i)?.[1] || '') || null;
   return Object.freeze({ raw, name, normalizedName:normalizedName(name), personId,
     closeStart:actor.closeStart - actor.openStart });
 }

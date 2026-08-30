@@ -18,6 +18,10 @@ const {
   LIBRA_MEDIA_PLANNING_POLICY,
 } = require('../model/media-production-contracts');
 const {
+  externalImportSelectionWork,
+} = require('./external-material-work');
+const { classifyVerifyGap } = require('../model/media-production-routing');
+const {
   directMediaSelectionWork,
   remuxMediaSelectionWork,
   sourceMediaObservationWork,
@@ -33,6 +37,7 @@ const SELECT = 'libra.product_output.select@1';
 const REMUX = 'libra.media.remux@1';
 const TRANSCODE_INPUT_VERIFY = 'libra.transcode.input.verify@1';
 const TRANSCODE = 'libra.media.transcode@1';
+const IMPORT = 'libra.workspace.material.import@1';
 const SOURCE_HANDLE = 'helix://libra/input-projections/ProductionSourcePrimaryReadHandle/v1';
 const DIRECT_CANDIDATE = 'helix://libra/input-projections/DirectProductMediaCandidateInput/v1';
 const OUTPUT_SELECTION = 'helix://libra/input-projections/ProductOutputSelectionInput/v1';
@@ -142,7 +147,31 @@ function readyDeviceStrategies(options,requirement,attempted,pipelineProfileId) 
   return Object.freeze(strategies);
 }
 
+function transcodeSourceFromExternalImport(options,snapshot) {
+  const sourceWork=sourceMediaObservationWork(snapshot);
+  const sourceResults=options.workResultReader.read(sourceWork.workId).filter((item)=>item.outcomeKind==='succeeded'&&item.capabilityRef===PROBE);
+  const originalProbe=sourceResults[0]?.result||null;
+  for(let attempt=5;attempt>=1;attempt-=1){
+    const importWork=externalImportSelectionWork(snapshot,attempt);
+    const status=options.workResultReader.status?.(importWork.workId);
+    if(status?.state!=='succeeded')continue;
+    const results=options.workResultReader.read(importWork.workId);
+    const media=results.find((item)=>item.outcomeKind==='succeeded'&&item.capabilityRef===IMPORT)?.result;
+    const probe=results.find((item)=>item.outcomeKind==='succeeded'&&item.capabilityRef===PROBE)?.result;
+    const verify=results.find((item)=>item.outcomeKind==='succeeded'&&item.capabilityRef===VERIFY)?.result;
+    const handle=media?.workspaceMaterialHandle||media?.workspaceMediaHandle?.workspaceMaterialHandle;
+    if(!handle||!probe||!verify)continue;
+    const gap=classifyVerifyGap(verify);
+    if(gap==='volume_only'||gap==='transcode_fixable'){
+      return Object.freeze({handle,inputProbe:probe,originalProbe:originalProbe||probe,sourceKind:'external_workspace'});
+    }
+  }
+  return null;
+}
+
 function transcodeSource(options,snapshot) {
+  const external=transcodeSourceFromExternalImport(options,snapshot);
+  if(external)return external;
   const sourceScopeResolver=createProductionSourceScopeResolver({movieProductionReader:options.movieProductionReader,
     productionPort:options.productProductionPort});
   const original=sourceScopeResolver.resolve(sourceScopeResolver.referenceFor(snapshot)),sourceWork=sourceMediaObservationWork(snapshot);

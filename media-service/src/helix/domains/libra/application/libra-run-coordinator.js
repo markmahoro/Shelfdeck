@@ -24,7 +24,12 @@ const {
   nextMetadataStage,
 } = require('../planning/product-metadata-work');
 const { coversRequirementGaps } = require('../model/defect-admission-contracts');
-const { sourceRequiresExternalSearch, sizeCapAdmissionForecast } = require('../model/media-production-contracts');
+const { sourceRequiresExternalSearch } = require('../model/media-production-contracts');
+const {
+  classifyVerifyGap,
+  shouldRetryExternalCandidate,
+  shouldTranscodeExternalImport,
+} = require('../model/media-production-routing');
 const { artifactVerificationContext } = require('../planning/libra-production-planners');
 
 // Shared fx_supporting_works hard cap. 256 saturates a Movie Helix-beta Field
@@ -227,18 +232,56 @@ function createLibraRunCoordinator(options){
     return values[0].result;
   }
   function requiresExternalSource(work) {
-    const reasons = new Set(mediaVerification(work).reasonCodes || []);
-    return reasons.has('minimum_raster_unmet') ||
-      reasons.has('system_upscale_forbidden') ||
-      reasons.has('primary_audio_unmet');
+    return classifyVerifyGap(mediaVerification(work)) === 'spec_external';
+  }
+  function mediaVerificationRecord(work) {
+    const values = options.workResultReader.read(work.workId).filter((item) =>
+      item.outcomeKind === 'succeeded' &&
+      item.capabilityRef === 'libra.product_media.verify@1');
+    if (values.length !== 1) {
+      throw new Error('Terminal media selection Work lacks one durable Product Media Verification.');
+    }
+    return values[0];
+  }
+  function findLastVolumeOnlyWorkspaceVerify(snapshot) {
+    if (typeof options.workResultReader.listWorks !== 'function') return null;
+    const works = options.workResultReader.listWorks({
+      ownerDomain: 'libra',
+      processType: 'libra_run',
+      processId: snapshot.run.libraRunId,
+      workKind: 'workspace_media_production',
+    }).filter((item) => /transcode_\d+_selection-work-/.test(item.work_id));
+    const candidates = works.flatMap((row) => {
+      const record = options.workResultReader.read(row.work_id).find((item) =>
+        item.outcomeKind === 'succeeded' &&
+        item.capabilityRef === 'libra.product_media.verify@1' &&
+        item.result?.candidateKind === 'workspace_output');
+      if (!record || classifyVerifyGap(record.result) !== 'volume_only') return [];
+      return [{ work: { workId: row.work_id }, record }];
+    }).sort((left, right) => {
+      const leftOrdinal = Number(/transcode_(\d+)_selection/.exec(left.work.workId)?.[1] || 0);
+      const rightOrdinal = Number(/transcode_(\d+)_selection/.exec(right.work.workId)?.[1] || 0);
+      return rightOrdinal - leftOrdinal;
+    });
+    return candidates[0] || null;
+  }
+  function tryFreezeMeasuredSizeCap(snapshot, work, verifyRecord) {
+    if (sizeCapWaived(snapshot) || !options.libraRunLifecycleService?.freezeTerminalResult) return null;
+    const verification = verifyRecord?.result;
+    if (classifyVerifyGap(verification) !== 'volume_only') return null;
+    return options.libraRunLifecycleService.freezeTerminalResult(
+      snapshot.run.libraRunId, work.workId, 'product_unachievable',
+      Object.freeze({
+        eventId: verifyRecord.eventId,
+        failureClass: 'business_unachievable',
+        failureCode: 'size_cap_requires_admission',
+        resultDigest: verifyRecord.resultDigest,
+      }),
+    );
   }
   function sizeCapWaived(snapshot) {
     const codes = snapshot.run.authorizedDefectManifest?.waivedRequirementCodes || [];
     return codes.includes('max_size_exceeded');
-  }
-  function literalBinding(record, portName) {
-    return record?.inputBindings?.bindings?.find((item) =>
-      item.portName === portName && item.bindingKind === 'literal')?.value || null;
   }
   function onlyWaivedSizeGap(work, snapshot) {
     if (!sizeCapWaived(snapshot)) return false;
@@ -247,13 +290,13 @@ function createLibraRunCoordinator(options){
     return reasons.includes('max_size_exceeded') &&
       reasons.every((code) => waived.has(code));
   }
-  function ensureOriginalMediaThenExternal(snapshot, workspace) {
+  function ensureOriginalMediaThenExternal(snapshot, workspace, context = {}) {
     const authorized = snapshot.run.authorizedDefectManifest?.defects?.some(
       (item) => item.defectCode === 'external_source_exhausted');
     if (snapshot.materialInputForm !== 'stream_file') {
       return authorized
-        ? continueExternalOrAuthorizedDirectInput(snapshot, workspace)
-        : ensureExternalSelection(snapshot, workspace);
+        ? continueExternalOrAuthorizedDirectInput(snapshot, workspace, context)
+        : ensureExternalSelection(snapshot, workspace, context);
     }
     const direct = directMediaSelectionWork(snapshot), submitted = submit(direct),
       status = options.workResultReader.status(direct.workId);
@@ -264,9 +307,12 @@ function createLibraRunCoordinator(options){
         workspaceRevision:workspace.currentRevision});
     }
     if (authorized) return ensureDelivery(snapshot, workspace, direct);
-    return ensureExternalSelection(snapshot, workspace);
+    return ensureExternalSelection(snapshot, workspace, Object.freeze({
+      ...context,
+      priorSelectionWorkId: direct.workId,
+    }));
   }
-  function ensureExternalSelection(snapshot, workspace) {
+  function ensureExternalSelection(snapshot, workspace, context = {}) {
     const integrationHandle = options.resolveExternalMaterialIntegrationHandle?.({
       operationId: 'libra.external_material.search@1',
     });
@@ -315,6 +361,15 @@ function createLibraRunCoordinator(options){
       const selectionRecord=options.workResultReader.read(imported.workId).find((item)=>item.outcomeKind==='succeeded'&&
         item.capabilityRef==='libra.product_output.select@1'),selection=selectedOutput(imported);
       if(selection.result!=='selected'){
+        const verifyRecord=mediaVerificationRecord(imported);
+        if(shouldTranscodeExternalImport(verifyRecord.result)){
+          return ensureTranscodeSelection(snapshot,workspace,Object.freeze({
+            ...context,
+            externalImportWorkId:imported.workId,
+            sourceKind:'external_workspace',
+          }));
+        }
+        if(shouldRetryExternalCandidate(verifyRecord.result) && acquisitionAttempt<maximum)continue;
         if(acquisitionAttempt<maximum)continue;
         return freezeBusinessTerminal(snapshot,imported,selectionRecord,
           selection.reasonCodes?.[0]||selection.selectionReasonCode||'external_output_rejected');
@@ -343,17 +398,17 @@ function createLibraRunCoordinator(options){
         executionBasisDigest:persisted.executionBasisDigest,
       }));
     }
-    return ensureExternalSelection(snapshot, workspace);
+    return ensureExternalSelection(snapshot, workspace, context);
   }
-  function ensureTranscodeSelection(snapshot,workspace,context) {
+  function ensureTranscodeSelection(snapshot,workspace,context={}) {
     for(let ordinal=1;ordinal<=64;ordinal+=1){
       const assessment=transcodeStrategyAssessmentWork(snapshot,ordinal),assessmentSubmitted=submit(assessment),
         assessmentStatus=options.workResultReader.status(assessment.workId);
       if(!workSucceeded(assessmentStatus)){
         if(workFailed(assessmentStatus)){
           const reasonCode=assessmentStatus?.latestAttempt?.failure_code||'transcode_assessment_failed';
-          if(['media_device_strategies_exhausted','media_size_budget_infeasible'].includes(reasonCode))
-            return continueExternalOrAuthorizedDirectInput(snapshot,workspace,context);
+          if(reasonCode==='media_device_strategies_exhausted')break;
+          if(reasonCode==='media_size_budget_infeasible')continue;
           return terminalWork(snapshot,assessment,assessmentStatus);
         }
         return Object.freeze({kind:'pending',phase:'transcode_strategy_assessment',libraRunId:snapshot.run.libraRunId,
@@ -370,25 +425,6 @@ function createLibraRunCoordinator(options){
           reasonCodes:compatibility.reasonCodes});
       if(compatibility.disposition==='strategy_rejected')continue;
       if(compatibility.disposition!=='compatible')throw new Error('Transcode Assessment disposition is invalid.');
-      if(!sizeCapWaived(snapshot) && options.libraRunLifecycleService?.freezeTerminalResult){
-        const intent=literalBinding(assessmentResults[0],'encodeIntent');
-        const probe=literalBinding(assessmentResults[0],'mediaProbeEvidence');
-        const forecast=sizeCapAdmissionForecast({
-          maxSizeBytes:snapshot.spec?.requirements?.space?.maxSizeBytes,
-          probe, intent,
-        });
-        if(forecast){
-          return options.libraRunLifecycleService.freezeTerminalResult(
-            snapshot.run.libraRunId, assessment.workId, 'product_unachievable',
-            Object.freeze({
-              eventId:assessmentResults[0].eventId,
-              failureClass:'business_unachievable',
-              failureCode:'size_cap_requires_admission',
-              resultDigest:assessmentResults[0].resultDigest,
-            }),
-          );
-        }
-      }
       const work=transcodeMediaSelectionWork(snapshot,ordinal),submitted=submit(work),status=options.workResultReader.status(work.workId);
       if(workSucceeded(status)){
         attachWorkspaceOutputs(snapshot,workspace,work);
@@ -400,13 +436,20 @@ function createLibraRunCoordinator(options){
       }
       if(workFailed(status)){
         const reasonCode=status?.latestAttempt?.failure_code||'transcode_work_failed';
-        if(['media_device_strategies_exhausted','media_size_budget_infeasible'].includes(reasonCode))
-          return continueExternalOrAuthorizedDirectInput(snapshot,workspace,context);
+        if(reasonCode==='media_device_strategies_exhausted')break;
+        if(reasonCode==='media_size_budget_infeasible')continue;
         return terminalWork(snapshot,work,status);
       }
       return Object.freeze({kind:'pending',phase:'workspace_media_transcode_selection',libraRunId:snapshot.run.libraRunId,
         workId:work.workId,replayed:submitted.replayed,transcodeStrategyOrdinal:ordinal,
         workspaceId:workspace.workspaceId,workspaceRevision:workspace.currentRevision});
+    }
+    if(context.sourceKind==='external_workspace'){
+      const measured=findLastVolumeOnlyWorkspaceVerify(snapshot);
+      if(measured){
+        const frozen=tryFreezeMeasuredSizeCap(snapshot,measured.work,measured.record);
+        if(frozen)return frozen;
+      }
     }
     return continueExternalOrAuthorizedDirectInput(snapshot,workspace,context);
   }
@@ -611,7 +654,7 @@ function createLibraRunCoordinator(options){
       attachWorkspaceOutputs(snapshot,workspace,remux);
       const selection=selectedOutput(remux);
       if(selection.result!=='selected')return requiresExternalSource(remux)
-        ?ensureExternalSelection(snapshot,workspace)
+        ?ensureExternalSelection(snapshot,workspace,{priorSelectionWorkId:remux.workId})
         :ensureTranscodeSelection(snapshot,workspace,
           {sourceWorkId:sourceMedia.workId,priorSelectionWorkId:remux.workId});
       return ensureDelivery(snapshot,workspace,remux);
@@ -627,7 +670,7 @@ function createLibraRunCoordinator(options){
     if(selection.result!=='selected')return requiresExternalSource(direct)
       ?snapshot.run.authorizedDefectManifest?.defects?.some((item)=>item.defectCode==='external_source_exhausted')
         ?ensureDelivery(snapshot,workspace,direct)
-        :ensureExternalSelection(snapshot,workspace)
+        :ensureExternalSelection(snapshot,workspace,{priorSelectionWorkId:direct.workId})
       :ensureTranscodeSelection(snapshot,workspace,
         {sourceWorkId:sourceMedia.workId,priorSelectionWorkId:direct.workId});
     return ensureDelivery(snapshot,workspace,direct);

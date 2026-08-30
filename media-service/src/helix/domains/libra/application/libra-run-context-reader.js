@@ -79,9 +79,17 @@ function createLibraRunContextReader(options) {
         spec.productScope?.scopeDigest!==row.product_scope_digest)throw new Error('Libra Acceptance Spec record is corrupt.');
     return Object.freeze({...spec,shelfId:row.shelf_id,productScopeDigest:row.product_scope_digest});});}
   function listReadySubjectPage(cursor=null,limit=100){if(!Number.isSafeInteger(limit)||limit<1||limit>100)throw new TypeError('Libra Run Subject page limit must be 1..100.');
-    const rows=exact((context)=>context.repository(repository.repositoryId).invoke('page_active_subjects',{status:'active',cursor,limit}));
-    const items=Object.freeze(rows.map((row)=>Object.freeze({subjectId:row.subject_id})));
-    return Object.freeze({items,nextCursor:items.length===limit?items.at(-1).subjectId:null});}
+    const rows=exact((context)=>context.repository(repository.repositoryId).invoke('page_active_subjects',{status:'active',cursor,limit:Math.max(limit,100)}));
+    const items=[];
+    for(const row of rows){
+      if(items.length>=limit)break;
+      const context=read(row.subject_id);
+      if(context.kind!=='ready')continue;
+      const eligible=context.runs.filter((run)=>['active','suspended','frozen'].includes(run.state));
+      if(eligible.length>0)continue;
+      items.push(Object.freeze({subjectId:row.subject_id}));
+    }
+    return Object.freeze({items:Object.freeze(items),nextCursor:items.length?items.at(-1).subjectId:null});}
   function listActiveRunPage(cursor=null,limit=100){if(!Number.isSafeInteger(limit)||limit<1||limit>100)throw new TypeError('Active Libra Run page limit must be 1..100.');
     const rows=exact((context)=>context.repository(repository.repositoryId).invoke('page_active_runs',{state:'active',cursor,limit}));
     const items=Object.freeze(rows.map((row)=>Object.freeze({libraRunId:row.libra_run_id})));

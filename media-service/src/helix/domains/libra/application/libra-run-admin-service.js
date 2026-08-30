@@ -12,7 +12,6 @@ const {
 const { createRunDiscardStore } = require('../persistence/run-discard-store');
 const { createRunLifecycleStore } = require('../persistence/run-lifecycle-store');
 const { createWorkResultReader } = require('../../../foundation/execution/work-result-reader');
-const { sizeCapAdmissionForecast } = require('../model/media-production-contracts');
 
 class LibraRunAdminError extends Error {
   constructor(code, message, details = {}) {
@@ -227,20 +226,31 @@ function createLibraRunAdminService(options) {
       }]).libra_run_admin_spec_read;
       const spec = specRow?.spec_json ? JSON.parse(specRow.spec_json) : null;
       const maxSizeBytes = spec?.requirements?.space?.maxSizeBytes;
+      if (!Number.isSafeInteger(maxSizeBytes) || maxSizeBytes < 1) return null;
       const works = workResultReader.listWorks({
         ownerDomain: 'libra', processType: 'libra_run', processId: libraRunId,
         workKind: 'workspace_media_production',
       }) || [];
-      const assessment = [...works].reverse().find((work) =>
-        String(work.work_id).includes('_assessment-work-'));
-      if (!assessment) return null;
-      const record = workResultReader.read(assessment.work_id).find((item) =>
-        item.capabilityRef === 'libra.transcode.input.verify@1');
-      const intent = record?.inputBindings?.bindings?.find((item) =>
-        item.portName === 'encodeIntent')?.value;
-      const probe = record?.inputBindings?.bindings?.find((item) =>
-        item.portName === 'mediaProbeEvidence')?.value;
-      return sizeCapAdmissionForecast({ maxSizeBytes, probe, intent });
+      const verifyRecord = works.flatMap((work) => workResultReader.read(work.work_id).filter((item) =>
+        item.outcomeKind === 'succeeded' &&
+        item.capabilityRef === 'libra.product_media.verify@1' &&
+        item.result?.candidateKind === 'workspace_output' &&
+        item.result?.result === 'failed' &&
+        Array.isArray(item.result.reasonCodes) &&
+        item.result.reasonCodes.includes('max_size_exceeded'))).sort((left, right) =>
+        String(right.result?.verifiedAtMs || 0).localeCompare(String(left.result?.verifiedAtMs || 0)))[0];
+      const verification = verifyRecord?.result;
+      if (!verification?.spaceSummary) return null;
+      const actualBytes = verification.spaceSummary.actualSizeBytes;
+      const predictedBytes = actualBytes;
+      return Object.freeze({
+        maxSizeBytes,
+        predictedBytes,
+        overshootBytes: Math.max(0, (actualBytes || 0) - maxSizeBytes),
+        measured: true,
+        actualSizeBytes: actualBytes,
+        withinLimit: verification.spaceSummary.withinLimit === true,
+      });
     } catch {
       return null;
     }
@@ -268,10 +278,13 @@ function createLibraRunAdminService(options) {
         actorId: 'admin',
         idempotencyKey: body.idempotencyKey,
       });
+      const subjectId = current(libraRunId).run.subject_id;
       const inspected = discardStore.inspect(command);
       const result = inspected.kind === 'ready'
         ? discardStore.commit(inspected) : inspected;
       if (result.resultKind === 'discarded') {
+        const released = options.pipelineAdmission?.releaseForSubject(subjectId) || null;
+        if (released?.released) options.onPipelineSeatReleased?.(released);
         options.libraRunExecutionProjection.invalidate(libraRunId);
         options.wake?.();
       }

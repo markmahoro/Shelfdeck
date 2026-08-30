@@ -95,6 +95,7 @@ const { createFormationRunHistoryStore } = require('./helix/domains/libra/persis
 const { createExecutionProgressProjectionReader } = require('./helix/foundation/execution/progress-projection-reader');
 const { createRoutingManualSelectionService } = require('./helix/domains/libra/application/routing-manual-selection-service');
 const { createLibraRunAdminService } = require('./helix/domains/libra/application/libra-run-admin-service');
+const { createFieldIntakeAdmissionAdminService } = require('./helix/domains/libra/application/field-intake-admission-admin-service');
 const {
   buildRatingTargetIdentity,
 } = require('./helix/domains/libra/model/decision-identity-evidence-contracts');
@@ -1122,7 +1123,7 @@ function createRuntime(options) {
   if (!fs.existsSync(path.join(options.adminDistDir, 'index.html'))) {
     findings.push('ADMIN_WEB_BUILD_MISSING');
   }
-  if (routeManifest.status !== 'active' || routeManifest.entries.length !== 121) {
+  if (routeManifest.status !== 'active' || routeManifest.entries.length !== 123) {
     findings.push('ROUTE_INVENTORY_INCOMPLETE');
   }
   if (uiManifest.status !== 'active' || uiManifest.entries.length !== 17) {
@@ -1452,8 +1453,13 @@ async function createCleanServiceHost(options) {
     readArcaShelfStandard: arcaRoutingTargets.getStandard,
     onPolicyPublished(policy) { routingExecution?.routingCoordinator.reconcileField(policy.fieldId, 100); routingExecution?.host.wake(); },
   });
+  const libraFieldIntakeAdmissionAdmin = createFieldIntakeAdmissionAdminService({
+    ...constructed.applicationDependencies,
+    now: options.now || Date.now,
+  });
   let formationRatingReader = () => new Map(), formationAcceptanceReader = () => null,
-    formationAcceptanceAttention = () => [], formationArcaStatusReader = () => new Map(), formationProjectionHost = null;
+    formationAcceptanceAttention = () => [], formationArcaStatusReader = () => new Map(), formationProjectionHost = null,
+    procurementExecution = null;
   const formationProjectionStore = createFormationProjectionStore(constructed.applicationDependencies);
   const formationRunHistoryStore = createFormationRunHistoryStore(constructed.applicationDependencies);
   const executionProgressProjectionReader = createExecutionProgressProjectionReader(constructed.applicationDependencies);
@@ -1472,11 +1478,12 @@ async function createCleanServiceHost(options) {
     now: options.now || Date.now,
     readAcceptanceRecovery:(offerId)=>formationAcceptanceReader(offerId),
     listAcceptanceAttention:(limit)=>formationAcceptanceAttention(limit),
+    readPipelineSubjectIds:()=>procurementExecution?.pipelineAdmission.tokenSubjectIds() || new Set(),
     state: () => formationProjectionHost?.state() || Object.freeze({ status: 'rebuilding', asOfMs: (options.now || Date.now)() }) });
   const fieldEnumerator = options.fieldObservationEnumerator || createCleanFieldObservationEnumerator({
     onFingerprintRead: options.onPhysicalMaterialFingerprintRead,
   });
-  const procurementExecution = createHelixExecutionRuntime({
+  procurementExecution = createHelixExecutionRuntime({
     ...constructed.applicationDependencies,
     materialFieldStore,
     pageObserverFactory: createFieldPageObserver,
@@ -1574,6 +1581,11 @@ async function createCleanServiceHost(options) {
     ...constructed.applicationDependencies,
     libraRunExecutionProjection:
       procurementExecution.libraRunExecutionProjection,
+    pipelineAdmission: procurementExecution.pipelineAdmission,
+    onPipelineSeatReleased: () => {
+      procurementExecution.intakeCoordinator.reconcilePending({ admissionLimit:3 });
+      procurementExecution.host.wake();
+    },
   });
   const failedPreparationRetryWorkRuntime = createSynchronousDomainWork(
     constructed.applicationDependencies,
@@ -1636,6 +1648,10 @@ async function createCleanServiceHost(options) {
   const libraRunAdminService = createLibraRunAdminService({
     ...constructed.applicationDependencies,
     libraRunExecutionProjection: procurementExecution.libraRunExecutionProjection,
+    pipelineAdmission: procurementExecution.pipelineAdmission,
+    onPipelineSeatReleased: () => {
+      procurementExecution.intakeCoordinator.reconcilePending({ admissionLimit:3 });
+    },
     wake: () => executionRuntimeHost.wake(),
     now: options.now || Date.now,
   });
@@ -1787,6 +1803,7 @@ async function createCleanServiceHost(options) {
     arcaShelfAdmin,
     arcaRuleTemplateAdmin,
     libraRoutingAdmin,
+    libraFieldIntakeAdmissionAdmin,
     formationQuery,
     arcaCollectionQuery,
     arcaCare,
@@ -1812,9 +1829,9 @@ async function createCleanServiceHost(options) {
     prefix: '/',
     wildcard: false,
     cacheControl: false,
-    setHeaders(response, filePath) {
+    setHeaders(reply, filePath) {
       if (path.basename(filePath) === 'index.html') {
-        response.setHeader('Cache-Control', 'no-store');
+        reply.header('Cache-Control', 'no-store');
       }
     },
   });

@@ -2,7 +2,8 @@
 
 const { canonicalDigest } = require('../../../contracts/canonical-json');
 const { createRepositoryDefinition } = require('../../../foundation/persistence/owner-repository');
-const { buildRatingTargetIdentity } = require('../../libra/model/decision-identity-evidence-contracts');
+const { LibraExecutionRegistration } = require('../../libra/public');
+const buildRatingTargetIdentity = LibraExecutionRegistration.buildRatingTargetIdentity;
 
 function containerFromLocation(location) {
   const basename = String(location || '').split(/[\\/]/).pop().split(/[?#]/)[0];

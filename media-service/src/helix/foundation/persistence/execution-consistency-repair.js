@@ -71,7 +71,7 @@ function repairTerminalResourceDefers(options) {
         database.prepare(`INSERT INTO fx_audit_records
           (audit_id,owner_domain,actor_type,actor_id,action,scope_type,scope_id,work_id,event_id,evidence_digest,occurred_at_ms)
           VALUES(?,?,?,?,?,?,?,?,?,?,?)`).run(
-          `execution-terminal-defer-repair:${evidenceDigest}`,
+          'execution-terminal-defer-repair:' + evidenceDigest,
           event.owner_domain,
           'system',
           'execution-consistency-repair@1',

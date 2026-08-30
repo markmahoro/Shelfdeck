@@ -82,6 +82,44 @@ Handoff B独立验证并把Manifest保存为Accepted Inventory Fact。事实不�
 
 **回写：** SSOT §5.6.7、§5.7.2、§5.8.2、§6.5.2、§8.5.11、§9.5.3；Beta HB-B.25–26、HB-D.05；UAT-126。
 
+### L7-DP-02 媒体制作双工具穷尽顺序与第三瑕疵
+
+确认日期：2026-08-30
+确认人：Product Owner
+
+**分叉：** 体积/规格缺口出现时，系统应如何编排转码与外部寻源？`size_cap_exceeded` 是否正式纳入 V1 瑕疵 closed set？外部 import 能否成为后续转码输入？
+
+**用户确认：**
+
+- 除非源本身不可由转码补齐（缺 4K、缺主音轨等），否则 **先穷尽本地 remux/转码**，再寻源。
+- `maxSizeBytes` 以 **probe + product_media.verify 实测** 为准；不在转码开始前因预测 freeze。
+- 规格寻源成功但实测体积超标时，对 **该 external 素材继续转码**；仍超标且策略穷尽后，才 offer `size_cap_exceeded`。
+- `接受瑕疵` 只在自动化手段穷尽后出现；`external_source_exhausted` 仍只回退 **本地原片** direct verify。
+- `size_cap_exceeded` 正式纳入 V1 closed set（与代码/UI 对齐）。
+
+**Owner/Handoff影响：** 不新增 Domain 或 Handoff；仅 Libra Workspace 内 lineage 与协调顺序调整。
+
+**回写：** `CURRENT_PLAN.md` PROD-030；`PRODUCTION_DEPLOY_ISSUE_LOG.md` PROD-030；Formation 步骤投影；bounded 待 SSOT §5.6.7 增补。
+
+### L7-DP-03 Per-field Pre-deck pipeline seats（Libra-owned）
+
+确认日期：2026-08-30
+确认人：Product Owner（via implementation plan v3）
+
+**分叉：** Pre-deck 门口并发由谁拥有？是否按 Material Field 分池？默认席位数与 Admin 配置入口？
+
+**用户确认（工程计划 v3）：**
+
+- Pre-deck pipeline 并发控制归 **Libra**；Procurement 只提供 Material Field 事实，不参与 token 或席位存储。
+- 每个 Material Field 独立 token 池；默认 **3** 席，Admin 可在文件来源页配置 **0–8**（0 = 暂停该 field 进入 pipeline）。
+- 持久化：`libra_field_intake_admission_policies` + `libra_predeck_pipeline_tokens`（schema 186）；Admin API 为 `GET/PATCH /v1/admin/libra/material-fields/:fieldId/intake-admission`。
+- 生产 Cutover：有损 full libra reset（全部 Run/Workspace/transcode/token），**保留** field 席位策略行。
+- 2026-08-31 生产复核后确认 token 必须覆盖完整 Pre-deck 在途责任：历史 Intake Evidence replay 也要重新占席；Routing、Rating、Acceptance Spec、Run Creation 不得绕过；Handoff B Accepted、用户 Discard 或 Intake Rejection才释放。Formation active queue 不展示尚未占席且没有 Run/Handoff B 的历史 Subject。
+
+**Owner/Handoff影响：** 不新增 Handoff；不写入 `proc_*`；`field_id` 仅为 Procurement Material Field 标识引用。
+
+**回写：** `CURRENT_PLAN.md` PROD-031；`PRODUCTION_DEPLOY_ISSUE_LOG.md` PROD-031；SSOT §9.7.4 intake-admission routes。
+
 ## Deferred product decisions
 
 以下问题尚未确定，但不阻断Level 7 Foundation合同，并且不在本层要求用户决策：

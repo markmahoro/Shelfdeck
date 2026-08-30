@@ -8,7 +8,8 @@ const { spawn } = require('node:child_process');
 const { canonicalDigest } = require('./helix/contracts/canonical-json');
 const { createResourceWorkerRegistry } = require('./helix/platform/application/resource-worker-registry');
 const { createResourceWorkerRepository } = require('./helix/platform/persistence/resource-worker-repository');
-const { compileFfmpegPipeline, DV_SDR_FILTER, SDR_PROFILE_ID, DV_SDR_PROFILE_ID } = require('./clean-ffmpeg-pipeline');
+const { compileFfmpegPipeline, DV_SDR_FILTER, SDR_PROFILE_ID, DV_SDR_PROFILE_ID } =
+  require('./helix/integrations/ffmpeg-pipeline');
 
 const PROBES = Object.freeze([
   Object.freeze({ deviceId:'local-nvidia-nvenc-0', deviceKind:'nvidia_nvenc', encoder:'hevc_nvenc',

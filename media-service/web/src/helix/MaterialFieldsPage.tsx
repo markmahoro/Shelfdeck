@@ -1,5 +1,5 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
-import { helixAdminApi, materialFieldRegistration, type MaterialField, type ProcurementJourneyResult, type Shelf } from './api';
+import { helixAdminApi, materialFieldRegistration, type FieldIntakeAdmission, type MaterialField, type ProcurementJourneyResult, type Shelf } from './api';
 import { newOpaqueId } from './id';
 import { Button, LoadingState, PageHeader } from './chrome';
 import { observationScanLabels } from './labels';
@@ -58,6 +58,9 @@ export default function MaterialFieldsPage() {
   const [deregisteringFieldId, setDeregisteringFieldId] = useState('');
   const [confirmDeregisterFieldId, setConfirmDeregisterFieldId] = useState('');
   const [operations, setOperations] = useState<Record<string, ProcurementJourneyResult>>({});
+  const [intakeAdmission, setIntakeAdmission] = useState<Record<string, FieldIntakeAdmission>>({});
+  const [seatDrafts, setSeatDrafts] = useState<Record<string, string>>({});
+  const [savingSeatsFieldId, setSavingSeatsFieldId] = useState('');
 
   const loadFields = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
@@ -66,6 +69,23 @@ export default function MaterialFieldsPage() {
       const [result, shelfResult] = await Promise.all([helixAdminApi.listMaterialFields(), helixAdminApi.listShelves()]);
       setFields(result.items);
       setShelves(shelfResult.items);
+      const active = result.items.filter((field) => field.status === 'active');
+      const admissions = await Promise.all(active.map(async (field) => {
+        try {
+          return [field.fieldId, await helixAdminApi.getFieldIntakeAdmission(field.fieldId)] as const;
+        } catch {
+          return [field.fieldId, null] as const;
+        }
+      }));
+      const nextAdmission: Record<string, FieldIntakeAdmission> = {};
+      const nextDrafts: Record<string, string> = {};
+      for (const [fieldId, admission] of admissions) {
+        if (!admission) continue;
+        nextAdmission[fieldId] = admission;
+        nextDrafts[fieldId] = String(admission.predeckPipelineSeats);
+      }
+      setIntakeAdmission(nextAdmission);
+      setSeatDrafts(nextDrafts);
       if (result.items.length === 0) setShowCreate(true);
     } catch (cause) {
       if (isUnauthorized(cause)) expire();
@@ -139,6 +159,27 @@ export default function MaterialFieldsPage() {
     }
   }
 
+  async function saveIntakeSeats(field: MaterialField) {
+    const raw = seatDrafts[field.fieldId] ?? '3';
+    const seats = Number(raw);
+    if (!Number.isInteger(seats) || seats < 0 || seats > 8) {
+      setError('整理门口席位必须是 0 到 8 的整数。');
+      return;
+    }
+    setSavingSeatsFieldId(field.fieldId);
+    setError('');
+    try {
+      const admission = await helixAdminApi.patchFieldIntakeAdmission(field.fieldId, { predeckPipelineSeats: seats });
+      setIntakeAdmission((current) => ({ ...current, [field.fieldId]: admission }));
+      setSeatDrafts((current) => ({ ...current, [field.fieldId]: String(admission.predeckPipelineSeats) }));
+    } catch (cause) {
+      if (isUnauthorized(cause)) expire();
+      else setError(cause instanceof Error ? cause.message : '整理门口席位保存失败。');
+    } finally {
+      setSavingSeatsFieldId('');
+    }
+  }
+
   async function deregisterField(field: MaterialField) {
     setDeregisteringFieldId(field.fieldId);
     setError('');
@@ -189,8 +230,31 @@ export default function MaterialFieldsPage() {
             <div><dt>扫描状态</dt><dd>{scanLabel(field)}</dd></div>
             <div><dt>扫描进度</dt><dd>{scan.pageCount > 0 ? `${scan.pageCount} 页` : '尚未开始'}</dd></div>
             <div><dt>采购进度</dt><dd>{field.procurementStatus.activeRunCount > 0 ? `${field.procurementStatus.activeRunCount} 个批次进行中` : field.procurementStatus.candidateCount > 0 ? `${field.procurementStatus.candidateCount} 个候选` : '尚未形成候选'}</dd></div>
+            {field.status === 'active' && intakeAdmission[field.fieldId] ? <>
+              <div><dt>整理门口席位</dt><dd>{intakeAdmission[field.fieldId].pipelineTokensHeld} / {intakeAdmission[field.fieldId].predeckPipelineSeats} 占用</dd></div>
+              <div><dt>门口空位</dt><dd>{intakeAdmission[field.fieldId].pipelineSeatsFree}</dd></div>
+            </> : null}
           </dl>
         </div>
+        {field.status === 'active' && intakeAdmission[field.fieldId] ? <div className="source-record-intake">
+          <label>
+            <span>Pre-deck 并发席位（0=暂停该来源进入整理）</span>
+            <input
+              type="number"
+              min={0}
+              max={8}
+              value={seatDrafts[field.fieldId] ?? String(intakeAdmission[field.fieldId].predeckPipelineSeats)}
+              onChange={(event) => setSeatDrafts((current) => ({ ...current, [field.fieldId]: event.target.value }))}
+            />
+          </label>
+          <Button
+            type="button"
+            disabled={savingSeatsFieldId.length > 0}
+            onClick={() => void saveIntakeSeats(field)}
+          >
+            {savingSeatsFieldId === field.fieldId ? '正在保存…' : '保存门口席位'}
+          </Button>
+        </div> : null}
         <div className="source-record-action">
           {field.status === 'active' && confirmDeregisterFieldId !== field.fieldId && <>
             <Button variant="primary" type="button" disabled={observingFieldId.length > 0 || deregisteringFieldId.length > 0 || scanBusy} onClick={() => void observeField(field)}>{observing ? '正在扫描…' : '扫描新文件'}</Button>

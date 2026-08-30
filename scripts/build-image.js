@@ -4,6 +4,7 @@ const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const { spawn } = require('child_process');
+const { execFileSync } = require('child_process');
 
 const IMAGE_NAME = 'markmahoro/shelfdeck';
 
@@ -55,6 +56,20 @@ async function main(argv = process.argv.slice(2)) {
   }
 
   const root = path.resolve(__dirname, '..');
+  const status = execFileSync('git', ['status', '--porcelain', '--untracked-files=all'], {
+    cwd: root,
+    encoding: 'utf8',
+  });
+  if (status.trim()) {
+    throw new Error('Refusing to build a production image from a dirty worktree. Commit or remove every change first.');
+  }
+  const commit = execFileSync('git', ['rev-parse', '--short=10', 'HEAD'], {
+    cwd: root,
+    encoding: 'utf8',
+  }).trim();
+  if (tag.startsWith('helix-beta-') && !tag.endsWith(`-${commit}`)) {
+    throw new Error(`Helix beta image tag must end with the exact git commit ${commit}.`);
+  }
   const outputDir = path.join(root, 'dist-image');
   const tarPath = path.join(outputDir, `shelfdeck-${tag}.tar`);
   if (fs.existsSync(tarPath))

@@ -295,8 +295,11 @@ function createHandoffBOutcomeConsumer(options) {
       fail('P14_HANDOFF_B_ACCEPTED_INBOX_FENCE',
         'Completed Libra Run lacks its atomic Accepted Inbox receipt.');
     }
+    const released = options.pipelineAdmission?.releaseForSubject(state.run.subject_id) || null;
+    if (released?.released) options.onPipelineSeatReleased?.(released);
     return Object.freeze({
       libraRunId: message.libraRunId,
+      subjectId: state.run.subject_id,
       resultDigest: state.inbox.result_digest,
       replayed: transition?.replayed ?? true,
     });

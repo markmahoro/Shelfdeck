@@ -79,7 +79,28 @@ function mediaReasons(works) {
   const value = event?.result?.result || event?.result || {};
   return new Set(value.reasonCodes || []);
 }
-function organizingSteps(works, spec, options) {
+function transcodeOrdinalFromWork(work) {
+  const match = typeof work?.workId === 'string'
+    ? /transcode_(\d+)_(assessment|selection)-work-/.exec(work.workId) : null;
+  return match ? Number(match[1]) : null;
+}
+function hasExternalImportVerify(works) {
+  return (works || []).some((work) => (work.events || []).some((event) =>
+    event.capabilityRef === 'libra.product_media.verify@1' &&
+    event.result?.result?.candidateKind === 'workspace_output' &&
+    String(work.workId || '').includes('import_selection')));
+}
+function transcodeWorks(works) {
+  return (works || []).filter((work) => (work.events || []).some((event) =>
+    event.capabilityRef === 'libra.media.transcode@1' ||
+    event.capabilityRef === 'libra.transcode.input.verify@1') ||
+    (work.state === 'blocked' && /transcode_\d+_assessment/.test(work.workId || '')));
+}
+function externalWorks(works) {
+  return (works || []).some((work) => (work.events || []).some((event) =>
+    String(event.capabilityRef || '').startsWith('libra.external_material.')));
+}
+function buildMediaOrganizationSteps(works, spec, options) {
   if (options?.latestRunState === 'discarded' && !(works && works.length)) {
     return Object.freeze([Object.freeze({ key: 'reintake', label: '等待重新入库', state: 'pending', progress: null })]);
   }
@@ -87,37 +108,32 @@ function organizingSteps(works, spec, options) {
   if (!hasRunWorks && !spec) {
     return Object.freeze([Object.freeze({ key: 'assessing', label: '正在评估整理方案', state: 'pending', progress: null })]);
   }
-  const media = parse(spec?.spec_json)?.requirements?.mandatoryMedia || {};
-  const needsCodec = Boolean(media.videoCodec && media.videoCodec !== 'any');
-  const needs4k = media.minimumRasterClass === '4k';
   const identityEvent = latestEvent(works, (event) => String(event.capabilityRef || '').startsWith('libra.product_identity.'));
   const metadataEvent = latestEvent(works, (event) => event.capabilityRef === 'libra.product_metadata.fetch@1'
     || event.capabilityRef === 'libra.product_metadata.commit@1');
   const posterEvent = latestEvent(works, (event) => event.capabilityRef === 'libra.product_artifact.acquire@1' &&
     (event.result?.result?.artifactHandle?.artifactKind === 'poster' || !event.result?.result));
   const nfoEvent = latestEvent(works, (event) => event.capabilityRef === 'libra.product_sidecar.render@1');
+  const sourceProbeEvent = latestEvent(works, (event) => event.capabilityRef === 'shared.material.media.probe@1');
+  const directVerifyEvent = latestEvent(works, (event) => event.capabilityRef === 'libra.product_media.verify@1' &&
+    event.result?.result?.candidateKind === 'direct_input');
   const remuxEvent = latestEvent(works, (event) => event.capabilityRef === 'libra.media.remux@1');
   const transcodeEvent = latestEvent(works, (event) => event.capabilityRef === 'libra.media.transcode@1');
-  const assessEvent = latestEvent(works, (event) => event.capabilityRef === 'libra.transcode.input.verify@1');
   const acquireEvent = latestEvent(works, (event) => String(event.capabilityRef || '').startsWith('libra.external_material.'));
   const verifyEvent = latestEvent(works, (event) => event.capabilityRef === 'libra.product.conformance.verify@1');
   const shelfEvent = latestEvent(works, (event) => event.capabilityRef === 'libra.product_package.publish@1');
-  const probeEvent = latestEvent(works, (event) => event.capabilityRef === 'shared.material.media.probe@1');
-  const reasons = mediaReasons(works);
-  const rasterUnmet = reasons.has('minimum_raster_unmet') || reasons.has('system_upscale_forbidden')
-    || reasons.has('primary_audio_unmet');
-  const codecUnmet = reasons.has('video_codec_unmet');
-  const isDisc = Boolean(remuxEvent || probeEvent?.result?.result?.discTopology || probeEvent?.result?.discTopology);
-  const skippedRemux = Boolean(acquireEvent) && !remuxEvent;
-  const showRemux = Boolean(remuxEvent) || (isDisc && !needs4k && !skippedRemux && !rasterUnmet);
   const transcodeBlocked = transcodeAssessmentBlocked(works);
-  const onExternalPath = Boolean(acquireEvent) || rasterUnmet || (needs4k && !remuxEvent && !transcodeEvent && !assessEvent && !transcodeBlocked);
-  const showTranscode = Boolean(transcodeEvent || assessEvent || transcodeBlocked)
-    || (needsCodec && !onExternalPath)
-    || (codecUnmet && !rasterUnmet);
-  const showAcquire = Boolean(acquireEvent) || needs4k || rasterUnmet;
   const transcodeState = transcodeEvent ? eventState(transcodeEvent)
-    : (transcodeBlocked ? 'blocked' : (assessEvent ? eventState(assessEvent) : 'pending'));
+    : (transcodeBlocked ? 'blocked' : (latestEvent(works, (event) =>
+      event.capabilityRef === 'libra.transcode.input.verify@1') ? eventState(latestEvent(works, (event) =>
+      event.capabilityRef === 'libra.transcode.input.verify@1')) : 'pending'));
+  const transcodeOrdinalValues = transcodeWorks(works).map(transcodeOrdinalFromWork).filter(Number.isFinite);
+  const transcodeOrdinal = transcodeOrdinalValues.length ? Math.max(...transcodeOrdinalValues) : null;
+  const transcodeLabelText = transcodeOrdinal && transcodeOrdinalValues.length > 1
+    ? transcodeLabel(works, spec).replace(/^转码|^GPU转码|^CPU转码|^远程转码/,
+      (prefix) => prefix + '（第 ' + transcodeOrdinal + ' 次策略）')
+    : transcodeLabel(works, spec);
+  const externalImportPendingTranscode = hasExternalImportVerify(works) && transcodeWorks(works).length > 0;
   const planned = [
     overlayStep('identity', '核对影片身份', identityEvent),
     overlayStep('metadata', '读取并补充媒体资料', metadataEvent),
@@ -126,18 +142,31 @@ function organizingSteps(works, spec, options) {
     overlayStep('nfo', '生成整理后的 NFO', nfoEvent, (event) => ({ related_nfo_update:'更新 NFO', product_metadata_draft_rebuild:'重建 NFO',
       product_metadata_draft_create:'创建 NFO' }[event.result?.result?.provenanceRef?.objectType] ||
       (event.result?.result ? '生成整理后的 NFO（历史记录未区分更新或重建）' : '生成整理后的 NFO'))),
-    showRemux ? overlayStep('remux', '封装整理', remuxEvent) : null,
-    showTranscode ? Object.freeze({
-      key: 'transcode',
-      label: transcodeLabel(works, spec),
+    sourceProbeEvent ? overlayStep('source_probe', '探测源媒体', sourceProbeEvent) : null,
+    directVerifyEvent ? overlayStep('direct_verify', '验证原片', directVerifyEvent) : null,
+    remuxEvent ? overlayStep('remux', '封装整理', remuxEvent) : null,
+    transcodeWorks(works).length ? Object.freeze({
+      key: externalImportPendingTranscode ? 'transcode_external' : 'transcode',
+      label: externalImportPendingTranscode ? '压缩外部素材 · ' + transcodeLabel(works, spec) : transcodeLabelText,
       state: transcodeState,
       progress: transcodeEvent?.progress || null,
     }) : null,
-    showAcquire ? overlayStep('acquire', '外部寻源', acquireEvent) : null,
+    externalWorks(works) ? overlayStep('acquire', acquireEvent ? '外部寻源' : '外部寻源', acquireEvent) : null,
     overlayStep('verify', '验证整理结果', verifyEvent),
     overlayStep('shelf', '提交收藏架验收', shelfEvent),
   ].filter(Boolean);
+  if (options?.runState === 'frozen') {
+    planned.push(Object.freeze({
+      key: 'defect_admission',
+      label: frozenRunLabel(works, options.terminalEvidence || null),
+      state: 'blocked',
+      progress: null,
+    }));
+  }
   return Object.freeze(planned);
+}
+function organizingSteps(works, spec, options) {
+  return buildMediaOrganizationSteps(works, spec, options);
 }
 function actionLabel(works, spec, options) {
   return organizingSteps(works, spec, options).map((item) => item.label).join(' / ');
@@ -213,12 +242,13 @@ function shelvingAction(steps) {
 
 const RELATED_ROLE_LABELS = Object.freeze({ fanart:'背景图', nfo:'NFO', poster:'海报', sidecar:'附属资料', subtitle:'字幕' });
 function relatedMaterialsSummary(primaryCount, relatedRoles) {
-  if (!relatedRoles.length) return `已接收 ${primaryCount} 个主媒体`;
+  if (!relatedRoles.length) return '已接收 ' + primaryCount + ' 个主媒体';
   const counts = new Map();
   for (const role of relatedRoles) counts.set(role, (counts.get(role) || 0) + 1);
   const breakdown = [...counts.entries()].sort(([left],[right])=>Buffer.from(left).compare(Buffer.from(right)))
-    .map(([role,count])=>`${RELATED_ROLE_LABELS[role] || role} ${count}`).join('、');
-  return `已接收 ${primaryCount} 个主媒体，以及 ${relatedRoles.length} 个相关材料（${breakdown}）`;
+    .map(([role,count])=>(RELATED_ROLE_LABELS[role] || role) + ' ' + count).join('、');
+  return '已接收 ' + primaryCount + ' 个主媒体，以及 ' + relatedRoles.length +
+    ' 个相关材料（' + breakdown + '）';
 }
 function organizingWorks(run, latestRun, progressByRun) {
   if (run) return progressByRun.get(run.libra_run_id) || [];
@@ -311,7 +341,7 @@ function frozenRunLabel(works, terminalEvidence = null) {
     return '收藏架验收未通过，需要放弃后重新整理';
   }
   if (terminalFailureCode(terminalEvidence) === 'size_cap_requires_admission') {
-    return '保留无损音轨后无法压进体积上限，需要接受瑕疵后再转 HEVC';
+    return '转码策略已穷尽，实测成品仍超过体积上限，需要确认是否接受体积瑕疵';
   }
   const terminal = extractAcquisitionTerminal(works);
   if (terminal?.result === 'not_selected' && terminal.selectionReasonCode === 'no_requirement_eligible_candidate') {
@@ -489,7 +519,7 @@ function createFormationProjectionSource(options) {
         waitingExternalIntegration });
       const rating = ratings.get(subject.subject_id) || null;
       const stepOptions = Object.freeze({ latestRunState: latestRun?.state || null, waitingExternalIntegration,
-        runState: run?.state || null });
+        runState: run?.state || null, terminalEvidence });
       const steps = organizingSteps(actionWorks, spec, stepOptions);
       const onDeckWorks = arcaStatus?.onDeckRunId ? onDeckByRun.get(arcaStatus.onDeckRunId) || [] : [];
       const shelfSteps = shelvingSteps(pkg, arcaStatus, recovery, onDeckWorks);
@@ -684,20 +714,26 @@ function createFormationQuery(options) {
       myRating:value.myRating,myRatingSource:value.myRatingSource,myRatingRevision:value.myRatingRevision,
       ratingState:value.ratingState,ratingResolutionStatus:value.ratingResolutionStatus,ratingReasonCode:value.ratingReasonCode }) : item;});
   }
-  function countIdleAfterUserAbandon() {
-    if (typeof options.store.listActiveScan !== 'function' && typeof options.store.listActive !== 'function') return 0;
-    let idle = 0, offset = 0;
+  function countHiddenActive() {
+    const hidden = { pending:0, in_progress:0, attention_required:0, total:0 };
+    if (typeof options.store.listActiveScan !== 'function' && typeof options.store.listActive !== 'function') return hidden;
+    let offset = 0;
+    const admitted = options.readPipelineSubjectIds?.() || new Set();
     const reader = typeof options.store.listActiveScan === 'function'
       ? options.store.listActiveScan.bind(options.store) : options.store.listActive.bind(options.store);
     const chunk = typeof options.store.listActiveScan === 'function' ? 500 : 26;
     for (;;) {
       const page = reader(offset, chunk);
       if (!page.length) break;
-      idle += page.filter(isIdleAfterUserAbandonRow).length;
+      for (const row of page) {
+        if (isVisibleActiveItem(projectionItem(row), admitted)) continue;
+        hidden.total += 1;
+        if (Object.hasOwn(hidden, row.classification)) hidden[row.classification] += 1;
+      }
       if (page.length < chunk) break;
       offset += page.length;
     }
-    return idle;
+    return hidden;
   }
   function summary(attentionRows = []) {
     const result = { totalCount: 0, pendingCount: 0, inProgressCount: 0, attentionRequiredCount: 0, completedCount: 0 };
@@ -708,9 +744,11 @@ function createFormationQuery(options) {
       else if (row.group_value === 'attention_required') result.attentionRequiredCount = count;
       else if (row.group_value === 'completed') result.completedCount = count;
     }
-    const idle = countIdleAfterUserAbandon();
-    result.pendingCount = Math.max(0, result.pendingCount - idle);
-    result.totalCount = Math.max(0, result.totalCount - idle);
+    const hidden = countHiddenActive();
+    result.pendingCount = Math.max(0, result.pendingCount - hidden.pending);
+    result.inProgressCount = Math.max(0, result.inProgressCount - hidden.in_progress);
+    result.attentionRequiredCount = Math.max(0, result.attentionRequiredCount - hidden.attention_required);
+    result.totalCount = Math.max(0, result.totalCount - hidden.total);
     for (const row of attentionRows) {
       if (row.classification === 'attention_required') continue;
       if (row.classification === 'pending') result.pendingCount -= 1;
@@ -742,6 +780,11 @@ function createFormationQuery(options) {
       || Boolean(item.executorIssue)
       || ['frozen', 'suspended'].includes(item.currentRun?.state)
       || ['attention_required', 'frozen', 'suspended', 'blocked'].includes(item.nextAction?.state);
+  }
+  function isVisibleActiveItem(item, admitted) {
+    if (isIdleAfterUserAbandon(item)) return false;
+    if (admitted.has(item.subjectId)) return true;
+    return Boolean(item.currentRun || item.handoffB);
   }
   function matchesActiveItem(item, filters) {
     if (filters.classification && item.classification !== filters.classification) return false;
@@ -799,11 +842,12 @@ function createFormationQuery(options) {
         nextCursor: hasMore ? cursorFor(offset + limit) : null, projection: Object.freeze({ status: state.status, asOfMs: state.asOfMs }) });
     }
     const filters = activeFilters(query);
+    const admitted = options.readPipelineSubjectIds?.() || new Set();
     let items;
-    const requiresFullScan = hasActiveFilters(filters) || attention.length > 0;
+    const requiresFullScan = Boolean(options.readPipelineSubjectIds) || hasActiveFilters(filters) || attention.length > 0;
     if (requiresFullScan) {
       items = mergeAttention(scanActiveRows(), attention).map(projectionItem).map(technicalIssue)
-        .filter((item) => !isIdleAfterUserAbandon(item) && matchesActiveItem(item, filters));
+        .filter((item) => isVisibleActiveItem(item, admitted) && matchesActiveItem(item, filters));
     } else {
       const rows = options.store.listActive(offset, limit + 1);
       items = rows.map(projectionItem).map(technicalIssue).filter((item) => !isIdleAfterUserAbandon(item));
@@ -835,6 +879,7 @@ module.exports = Object.freeze({
   hasBusinessFailure,
   hasOpenExecution,
   nextAction,
+  buildMediaOrganizationSteps,
   organizingSteps,
   organizingWorks,
   projectionItem,

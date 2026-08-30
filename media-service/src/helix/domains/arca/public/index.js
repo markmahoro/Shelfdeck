@@ -33,6 +33,7 @@ const { createShelfDeregistrationCapabilityPorts } = require('../capabilities/sh
 const { createShelfDeregistrationCapabilityRegistrations } = require('../capabilities/shelf-deregistration-execution-registrations');
 const { createManifestVerificationPlanner,createDeregistrationCommitPlanner } = require('../planning/shelf-deregistration-planners');
 const { createShelfDeregistrationProjections } = require('../planning/shelf-deregistration-projections');
+const { createOffloadCompletionPort } = require('./offload-completion-port');
 
 const AFTERCARE_REFS = Object.freeze([
   'arca.aftercare.custody.observe@1','arca.aftercare.presentation.observe@1',
@@ -120,5 +121,9 @@ function createArcaExecutionRegistration() {
     },
   });
 }
+
+Object.defineProperty(createArcaExecutionRegistration, 'createOffloadCompletionPort', {
+  value: createOffloadCompletionPort,
+});
 
 module.exports = Object.freeze({ PACKAGE_ID:packageId, ArcaExecutionRegistration:createArcaExecutionRegistration });

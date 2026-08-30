@@ -21,10 +21,13 @@ function offer(index) {
     acceptanceBasisDigest:digest(index + 1001),
   });
 }
-function durableOfferReader(offers) {
+function durableOfferReader(offers, fieldId = 'field-1') {
   const sources = new Map(offers.map((value) => {
     const processId=`process-${value.offerId}`;
-    return [processId,Object.freeze({processId,offer:value,snapshot:Object.freeze({deliverySnapshotDigest:digest(Number(value.offerId.slice(6)) + 2001)})})];
+    return [processId,Object.freeze({processId,offer:value,snapshot:Object.freeze({
+      deliverySnapshotDigest:digest(Number(value.offerId.slice(6)) + 2001),
+      candidatePackage:Object.freeze({materialFieldContextRef:Object.freeze({fieldId})}),
+    })})];
   }));
   const ids=[...sources.keys()].sort();
   return Object.freeze({
@@ -38,6 +41,29 @@ function durableOfferReader(offers) {
     },
   });
 }
+function mockPipelineAdmission(seats = 32) {
+  const held = new Set();
+  return Object.freeze({
+    readPolicy:(id)=>Object.freeze({fieldId:id,predeckPipelineSeats:seats,held:held.size,free:Math.max(0,seats-held.size)}),
+    freeSeats:()=>Math.max(0,seats-held.size),
+    hasToken:(subjectId)=>held.has(subjectId),
+    tryAcquireForProcess:(processId)=>{
+      const subjectId=`subject-${processId}`;
+      if (held.has(subjectId)) return Object.freeze({kind:'acquired',processId,replayed:true});
+      held.add(subjectId);
+      return Object.freeze({kind:'acquired',processId,fieldId:'field-1',subjectId,replayed:false});
+    },
+  });
+}
+function coordinatorDependencies(offerReader, mode, seats = 32) {
+  return {
+    offerReader,
+    pipelineAdmission:mockPipelineAdmission(seats),
+    subjectIdForProcess:(processId)=>`subject-${processId}`,
+    workAdmission:fakeAdmission(mode),
+    workResultReader:{status:()=>null,read:()=>[]},
+  };
+}
 function fakeAdmission(mode) {
   return Object.freeze({
     replay:()=>null,
@@ -50,12 +76,12 @@ function fakeAdmission(mode) {
 test('hundreds of deferred Intake Candidates are rediscovered after restart and admitted in bounded batches', () => {
   const offers=Array.from({length:400},(_,index)=>offer(index));
   const offerReader=durableOfferReader(offers),mode={value:'defer'};
-  const dependencies={offerReader,workAdmission:fakeAdmission(mode),workResultReader:{status:()=>null,read:()=>[]}};
+  const dependencies=coordinatorDependencies(offerReader, mode, 512);
   const beforeRestart=createIntakeProcessCoordinator(dependencies);
   for(const value of offers)assert.equal(beforeRestart.admitOffer(value).result.kind,'deferred');
 
   mode.value='admit';
-  const afterRestart=createIntakeProcessCoordinator(dependencies);
+  const afterRestart=createIntakeProcessCoordinator(coordinatorDependencies(offerReader, mode, 512));
   let admitted=0,calls=0;
   while(admitted<offers.length&&calls<20){
     const result=afterRestart.reconcilePending({limit:100,admissionLimit:32});

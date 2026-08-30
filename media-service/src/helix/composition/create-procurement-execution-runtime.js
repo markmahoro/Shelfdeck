@@ -33,7 +33,7 @@ const { createMaterialControlProjectionPort, controlScopeDigest } = require('../
 const { createDomainReconcileRunner } = require('../foundation/execution/domain-reconcile-runner');
 const { createWorkflowPlanPublisher, executionCatalogDigest } = require('../foundation/execution/workflow-plan');
 const { PRE_PROJECTION_PLAN_REPLAN_CODE } = require('../foundation/persistence/uat-identity-selection-migration');
-const { PREDECK_INTAKE_SEATS } = require('../domains/libra/application/predeck-intake-occupancy');
+const { compileFfmpegPipeline } = require('../integrations/ffmpeg-pipeline');
 
 function volumeReadUnitsForCapability(capability) {
   return capability === 'libra.transcode.input.verify@1' ? 2 : 1;
@@ -50,11 +50,13 @@ function mergeResourceDemands(resources) {
 }
 const { ProcurementExecutionRegistration } = require('../domains/procurement/public');
 const { LibraExecutionRegistration } = require('../domains/libra/public');
+const DEFAULT_PREDECK_PIPELINE_SEATS = LibraExecutionRegistration.DEFAULT_PREDECK_PIPELINE_SEATS;
+const createMovieResponsibilityClosureCoordinator =
+  LibraExecutionRegistration.createMovieResponsibilityClosureCoordinator;
 const { PerceptionExecutionRegistration } = require('../domains/perception/public');
 const { ArcaExecutionRegistration } = require('../domains/arca/public');
+const createOffloadCompletionPort = ArcaExecutionRegistration.createOffloadCompletionPort;
 const { createPeopleProcessServices } = require('../domains/people/public');
-const { createOffloadCompletionPort } = require('../domains/arca/public/offload-completion-port');
-const { createMovieResponsibilityClosureCoordinator } = require('../domains/libra/application/movie-responsibility-closure-coordinator');
 
 const PROCUREMENT_ENABLED = Object.freeze(['procurement.field.observation.page.commit@1',
   'procurement.triage.playability.inspect@1','procurement.triage.bdmv.assess@1','procurement.triage.structure.inspect@1',
@@ -102,9 +104,11 @@ const UAT_SOURCE_EXECUTION_CATALOG_DIGEST = 'b0371a6d2793c1e381a4c2e7fc421d312a1
 const PRE_PROJECTION_EXECUTION_CATALOG_DIGEST = '13315cdbdf6ab5cbe30b32075f89bd76ae1a873d84034dc572824f4fbc3886e6';
 const PRE_ACTOR_COMPLETION_EXECUTION_CATALOG_DIGEST = '9e0e24c88512973e16d601c79c362d01844af0853bc1c2c37442041acda1821d';
 const PRE_LOCAL_ENCODE_TIMEOUT_EXECUTION_CATALOG_DIGEST = 'b39d36350b09fbc0236fd47f7d0ea6c43125c82260b9740d6b4cc5737c091e74';
+const PRE_PREDECK_PIPELINE_EXECUTION_CATALOG_DIGEST = 'a30cf21aebd17902cc977490388a2ef15849e422519ff0f5f653ae03065815ba';
 const COMPATIBLE_PREVIOUS_EXECUTION_CATALOG_DIGESTS = new Set([
   UAT_SOURCE_EXECUTION_CATALOG_DIGEST,
   PRE_LOCAL_ENCODE_TIMEOUT_EXECUTION_CATALOG_DIGEST,
+  PRE_PREDECK_PIPELINE_EXECUTION_CATALOG_DIGEST,
 ]);
 const TERMINAL_EVENT_STATES = new Set(['succeeded', 'skipped', 'failed', 'cancelled']);
 const TERMINAL_ATTEMPT_STATES = new Set(['succeeded', 'failed', 'cancelled']);
@@ -289,6 +293,7 @@ function createProcurementExecutionRuntime(options) {
     :Object.freeze({kind:'pending'});
   const arcaCapabilityRegistration=arcaConstruction.createCapabilityRegistration({...options,now,workResultReader,contractValidator,
     registry:currentServiceCatalog,
+    compileFfmpegPipeline,
     computeBoundedMaterialFingerprint:options.computeBoundedMaterialFingerprint || computeBoundedMaterialFingerprint,
     computeBoundedMaterialFingerprintSync,
     readPerceptionRating:readShelfEntryRating,readPerceptionRatings:readShelfEntryRatings});
@@ -704,7 +709,7 @@ function createProcurementExecutionRuntime(options) {
     ) },
     effectReconciler, effectJournal });
   function fillPredeckIntakeSeats() {
-    libraProcessServices.coordinator.reconcilePending({ admissionLimit: PREDECK_INTAKE_SEATS });
+    libraProcessServices.coordinator.reconcilePending({ admissionLimit: DEFAULT_PREDECK_PIPELINE_SEATS });
   }
   function drainCompletedWorkspaces() {
     completedWorkspaceSweepNotBeforeMs = 0;
@@ -818,7 +823,7 @@ function createProcurementExecutionRuntime(options) {
       }
       if(['acceptance','rejection'].includes(request.workKind)&&request.workAttemptState==='succeeded'){
         libraProcessServices.coordinator.reconcilePending({ignoreAcceptanceProcessId:request.processId,limit:100,
-          admissionLimit:PREDECK_INTAKE_SEATS});
+          admissionLimit:DEFAULT_PREDECK_PIPELINE_SEATS});
       }
       return {workId:request.workId,disposition:request.workAttemptState};
     }
@@ -954,6 +959,9 @@ function createProcurementExecutionRuntime(options) {
   const WORKSPACE_RECLAIMER_FALLBACK_MS=15*60*1000;
   let completedWorkspaceSweepNotBeforeMs=0,activeCleanupSweepNotBeforeMs=0,discardedLeftoverSweepNotBeforeMs=0;
   let offdeckPolicySweepNotBeforeMs=0,offdeckDuplicateSweepNotBeforeMs=0;
+  const pipelineSubjectPage=(cursor,limit)=>libraProcessServices.pipelineAdmission.listTokens()
+    .filter((item)=>(cursor===null||item.subjectId>cursor)&&Boolean(libraProcessServices.routingContextReader.read(item.subjectId))).slice(0,limit)
+    .map((item)=>Object.freeze({cursor:item.subjectId,scope:Object.freeze({subjectId:item.subjectId})}));
   const fallbackReconciler=createDomainReconcileRunner({cursorStore,now,onError:options.onError,registrations:[Object.freeze({
     ownerDomain:'procurement',reconcilerKey:'active-procurement-runs',
     listPage:({cursor,limit})=>triageReader.listActiveRunPage(cursor,limit),
@@ -969,7 +977,7 @@ function createProcurementExecutionRuntime(options) {
   }),Object.freeze({ownerDomain:'libra',reconcilerKey:'pending-intake-offers',
     listPage:({cursor,limit})=>libraProcessServices.offerReader.listProcessPage(cursor,limit).items.map((item)=>Object.freeze({cursor:item.processId,scope:item})),
     reconcile:({processId})=>libraProcessServices.coordinator.reconcile(processId)}),Object.freeze({ownerDomain:'libra',reconcilerKey:'active-routing-subjects',
-    listPage:({cursor,limit})=>libraProcessServices.routingContextReader.listActiveSubjectPage(cursor,limit).items.map((item)=>Object.freeze({cursor:item.subjectId,scope:item})),
+    listPage:({cursor,limit})=>pipelineSubjectPage(cursor,limit),
     reconcile:({subjectId})=>libraProcessServices.routingCoordinator.reconcile(subjectId)}),Object.freeze({ownerDomain:'perception',reconcilerKey:'active-acquisitions',
     listPage:({cursor,limit})=>perceptionProcessServices.listAcquisitions().filter((item)=>item.state==='active')
       .sort((a,b)=>a.perceptionAcquisitionId.localeCompare(b.perceptionAcquisitionId)).filter((item)=>cursor===null||item.perceptionAcquisitionId>cursor)
@@ -992,8 +1000,7 @@ function createProcurementExecutionRuntime(options) {
         : Object.freeze({kind:'unavailable'}),
     }),Object.freeze({
       ownerDomain:'perception',reconcilerKey:'active-subject-rating-resolutions',
-      listPage:({cursor,limit})=>libraProcessServices.routingContextReader.listActiveSubjectPage(cursor,limit).items
-        .map((item)=>Object.freeze({cursor:item.subjectId,scope:item})),
+      listPage:({cursor,limit})=>pipelineSubjectPage(cursor,limit),
       reconcile:({subjectId})=>perceptionProcessServices.ensureResolution('subject',subjectId),
     }),Object.freeze({
       ownerDomain:'perception',reconcilerKey:'active-shelf-entry-rating-resolutions',
@@ -1014,13 +1021,11 @@ function createProcurementExecutionRuntime(options) {
       reconcile:()=>arcaProcessServices.coordinator.recoverAttentionCases(1),
     }),Object.freeze({
       ownerDomain:'libra',reconcilerKey:'active-acceptance-spec-subjects',
-      listPage:({cursor,limit})=>libraProcessServices.routingContextReader.listActiveSubjectPage(cursor,limit).items
-        .map((item)=>Object.freeze({cursor:item.subjectId,scope:item})),
+      listPage:({cursor,limit})=>pipelineSubjectPage(cursor,limit),
       reconcile:({subjectId})=>libraProcessServices.acceptanceSpecCoordinator.reconcile(subjectId),
     }),Object.freeze({
       ownerDomain:'libra',reconcilerKey:'ready-libra-runs',
-      listPage:({cursor,limit})=>libraProcessServices.libraRunContextReader.listReadySubjectPage(cursor,limit).items
-        .map((item)=>Object.freeze({cursor:item.subjectId,scope:item})),
+      listPage:({cursor,limit})=>pipelineSubjectPage(cursor,limit),
       reconcile:({subjectId})=>{const run=libraProcessServices.libraRunCreator.reconcile(subjectId);
         return run.libraRunId?reconcileLibraRun(run.libraRunId):run;},
     }),Object.freeze({
@@ -1096,6 +1101,7 @@ function createProcurementExecutionRuntime(options) {
     libraRunCoordinator:libraProcessServices.libraRunCoordinator,movieProductionReader:libraProcessServices.movieProductionReader,
     libraRunExecutionProjection:libraProcessServices.libraRunExecutionProjection,
     productIdentitySelection:libraProcessServices.productIdentitySelection,
+    pipelineAdmission:libraProcessServices.pipelineAdmission,
     arcaCoordinator:arcaProcessServices.coordinator,arcaContextReader:arcaProcessServices.contextReader,
     arcaFormationStatusProjection:arcaProcessServices.formationStatusProjection,
     arcaAcceptanceRecovery:arcaProcessServices.coordinator,

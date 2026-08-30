@@ -171,6 +171,28 @@ test('rejects raw SQL, unknown columns, cross-Owner tables, and immutable UPDATE
   }), (error) => error.code === 'P3_REPOSITORY_IMMUTABLE_UPDATE');
 });
 
+test('allows a Material Control-only transaction bound to one Business Owner', () => {
+  temporaryKernel(({ kernel, databasePath }) => {
+    const unitOfWork = createSqliteUnitOfWork({ kernel });
+    unitOfWork.execute([{
+      participantId: 'arca_staged_custody_control',
+      owner: 'material-control-authority',
+      boundBusinessOwner: 'arca',
+      repositories: [materialControl],
+      execute(context) {
+        context.repository('material_control').invoke('insert_control', {
+          material_key: 'material-arca-1', owner_domain: 'arca', control_revision: 1, state: 'controlled',
+          updated_at_ms: context.commitTimeMs,
+        });
+      },
+    }]);
+    kernel.close();
+    const inspected = new Database(databasePath, { readonly: true });
+    assert.equal(inspected.prepare('SELECT COUNT(*) count FROM fx_material_controls').get().count, 1);
+    inspected.close();
+  });
+});
+
 test('rejects cross-Domain authority, Foundation obtaining Domain Repository, and undeclared Repository lookup', () => {
   temporaryKernel(({ kernel }) => {
     const unitOfWork = createSqliteUnitOfWork({ kernel });

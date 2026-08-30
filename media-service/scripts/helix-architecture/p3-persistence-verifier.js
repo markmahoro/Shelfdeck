@@ -10,6 +10,7 @@ const EXPECTED_MODULES = Object.freeze([
   'commit-foundation.js',
   'ddl-compiler.js',
   'domain-commit-registry.js',
+  'execution-consistency-repair.js',
   'material-control.js',
   'outbox-inbox.js',
   'owner-repository.js',

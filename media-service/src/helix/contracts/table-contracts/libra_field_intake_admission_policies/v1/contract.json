@@ -1,0 +1,97 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/libra_field_intake_admission_policies/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "libra_field_intake_admission_policies",
+    "owner": "libra",
+    "prefix": "libra_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "field_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": true,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 2,
+        "name": "predeck_pipeline_seats",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 3,
+        "name": "policy_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 4,
+        "name": "updated_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      }
+    ],
+    "primaryKey": [
+      "field_id"
+    ],
+    "declaredForeignKeyColumns": [],
+    "uniqueConstraints": [],
+    "hotIndexes": [],
+    "partialUniqueRules": [],
+    "checkRules": [
+      {
+        "rule": "`predeck_pipeline_seats`范围0..8，默认3，0表示暂停该Field进入Pre-deck pipeline"
+      }
+    ],
+    "revisionContract": {
+      "revisionColumns": [
+        "policy_revision"
+      ],
+      "currentPointerColumns": [],
+      "pointerTargets": [],
+      "pointerRules": []
+    },
+    "jsonContracts": [],
+    "immutability": {
+      "immutable": false,
+      "rules": []
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "Field ID是Procurement Material Field opaque ref、不建跨Domain FK",
+      "Libra-owned Pre-deck pipeline admission配置",
+      "`predeck_pipeline_seats`范围0..8，默认3，0表示暂停该Field进入Pre-deck pipeline",
+      "`policy_revision`从1递增"
+    ],
+    "rawContract": {
+      "columns": "`field_id PK, predeck_pipeline_seats INTEGER, policy_revision INTEGER, updated_at_ms`",
+      "constraints": "Field ID是Procurement Material Field opaque ref、不建跨Domain FK；Libra-owned Pre-deck pipeline admission配置；`predeck_pipeline_seats`范围0..8，默认3，0表示暂停该Field进入Pre-deck pipeline；`policy_revision`从1递增"
+    },
+    "source": {
+      "section": "8.5.11",
+      "line": 9363,
+      "lineDigest": "0963d1c08642241e06688d25ecf5e5d2f56d2100cbed0eb80580b3380f9b570d"
+    },
+    "foreignKeys": []
+  }
+}

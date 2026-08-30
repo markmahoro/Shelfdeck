@@ -35,12 +35,28 @@
       "allow": ["node:path"]
     },
     {
+      "source": "domains.arca.application",
+      "allow": ["node:path"]
+    },
+    {
       "source": "domains.arca.capabilities",
-      "allow": ["node:fs", "node:os", "node:path", "node:crypto", "node:child_process"]
+      "allow": ["node:fs", "node:os", "node:path", "node:crypto", "node:child_process", "ffmpeg-static", "sharp"]
+    },
+    {
+      "source": "domains.arca.model",
+      "allow": ["node:path", "node:util"]
+    },
+    {
+      "source": "domains.arca.persistence",
+      "allow": ["node:fs", "node:os", "node:path"]
     },
     {
       "source": "integrations",
-      "allow": ["node:crypto", "node:fs", "node:path", "cheerio"]
+      "allow": ["node:crypto", "node:fs", "node:path", "cheerio", "undici"]
+    },
+    {
+      "source": "projections",
+      "allow": ["node:fs"]
     }
   ],
   "externalDomainImport": "domains/{owner}/public/index.js",

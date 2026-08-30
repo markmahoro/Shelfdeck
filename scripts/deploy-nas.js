@@ -83,11 +83,14 @@ function readEnvFile(filePath, key) {
   }
 }
 
-function loadOrCreateSecretRoot() {
+function loadOrCreateSecretRoot({ allowCreate = false } = {}) {
   const fromEnv = String(process.env.SHELFDECK_SECRET_ROOT || '').trim();
   if (Buffer.byteLength(fromEnv, 'utf8') >= 32) return fromEnv;
   const fromFile = readEnvFile(LOCAL_SECRET_FILE, 'SHELFDECK_SECRET_ROOT');
   if (Buffer.byteLength(fromFile, 'utf8') >= 32) return fromFile;
+  if (!allowCreate) {
+    throw new Error('SHELFDECK_SECRET_ROOT is unavailable locally; refusing to rotate the production secret during an upgrade.');
+  }
   const generated = crypto.randomBytes(32).toString('hex');
   fs.mkdirSync(path.dirname(LOCAL_SECRET_FILE), { recursive: true });
   fs.writeFileSync(LOCAL_SECRET_FILE, `SHELFDECK_SECRET_ROOT=${generated}\n`, { encoding: 'utf8', mode: 0o600 });
@@ -188,7 +191,7 @@ async function main() {
     process.exit(2);
   }
   const targetImage = imageFromTarball(tarball);
-  const secretRoot = loadOrCreateSecretRoot();
+  const secretRoot = loadOrCreateSecretRoot({ allowCreate: helixCleanInit });
   const yaml = composeYaml(targetImage);
   const secretEnv = `SHELFDECK_SECRET_ROOT=${secretRoot}\n`;
 

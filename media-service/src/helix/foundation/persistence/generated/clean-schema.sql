@@ -1412,6 +1412,13 @@ CREATE TABLE "libra_delivery_receipts" (
 );
 CREATE INDEX "idx_libra_delivery_receipts_hot_01" ON "libra_delivery_receipts" ("result", "received_at_ms");
 
+CREATE TABLE "libra_field_intake_admission_policies" (
+  "field_id" TEXT PRIMARY KEY,
+  "predeck_pipeline_seats" INTEGER,
+  "policy_revision" INTEGER CHECK ("policy_revision" >= 1),
+  "updated_at_ms" INTEGER CHECK ("updated_at_ms" >= 0)
+);
+
 CREATE TABLE "libra_field_routing_heads" (
   "field_id" TEXT PRIMARY KEY,
   "current_routing_policy_id" TEXT,
@@ -1683,6 +1690,14 @@ CREATE TABLE "libra_offload_context_materials" (
   UNIQUE ("on_deck_package_id", "material_key", "context_role"),
   FOREIGN KEY ("on_deck_package_id") REFERENCES "libra_product_packages" ("on_deck_package_id") ON DELETE RESTRICT
 );
+
+CREATE TABLE "libra_predeck_pipeline_tokens" (
+  "subject_id" TEXT PRIMARY KEY,
+  "source_field_id" TEXT,
+  "source_process_id" TEXT,
+  "acquired_at_ms" INTEGER CHECK ("acquired_at_ms" >= 0)
+);
+CREATE INDEX "idx_libra_predeck_pipeline_tokens_hot_01" ON "libra_predeck_pipeline_tokens" ("source_field_id", "subject_id");
 
 CREATE TABLE "libra_product_fact_revisions" (
   "product_fact_id" TEXT PRIMARY KEY,

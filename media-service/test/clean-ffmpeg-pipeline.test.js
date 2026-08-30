@@ -2,7 +2,8 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { compileFfmpegPipeline, DV_SDR_PROFILE_ID, SDR_PROFILE_ID } = require('../src/clean-ffmpeg-pipeline');
+const { compileFfmpegPipeline, DV_SDR_PROFILE_ID, SDR_PROFILE_ID } =
+  require('../src/helix/integrations/ffmpeg-pipeline');
 const { runValidatedDeviceProfileProbe } = require('../src/clean-compute-device-runtime');
 
 function video(overrides = {}) {

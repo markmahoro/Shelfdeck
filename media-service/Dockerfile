@@ -47,10 +47,28 @@ COPY media-service/package.json media-service/package-lock.json ./
 COPY --from=service-dependencies /app/node_modules ./node_modules
 COPY media-service/src/server.js ./src/server.js
 COPY media-service/src/admin-credential-secret-store.js ./src/admin-credential-secret-store.js
-COPY media-service/src/clean-*.js ./src/
+COPY media-service/src/clean-service-host.js ./src/clean-service-host.js
+COPY media-service/src/clean-arca-inventory-port.js ./src/clean-arca-inventory-port.js
+COPY media-service/src/clean-arca-target-commit-slot.js ./src/clean-arca-target-commit-slot.js
+COPY media-service/src/clean-compute-device-runtime.js ./src/clean-compute-device-runtime.js
+COPY media-service/src/clean-ffmpeg-process-registry.js ./src/clean-ffmpeg-process-registry.js
+COPY media-service/src/clean-field-access-binding-probe.js ./src/clean-field-access-binding-probe.js
+COPY media-service/src/clean-field-observation-enumerator.js ./src/clean-field-observation-enumerator.js
+COPY media-service/src/clean-layout-observer.js ./src/clean-layout-observer.js
+COPY media-service/src/clean-local-filesystem-mount-probe.js ./src/clean-local-filesystem-mount-probe.js
+COPY media-service/src/clean-media-probe.js ./src/clean-media-probe.js
+COPY media-service/src/clean-media-production-effect-port.js ./src/clean-media-production-effect-port.js
+COPY media-service/src/clean-offdeck-deletion-port.js ./src/clean-offdeck-deletion-port.js
+COPY media-service/src/clean-product-production-port.js ./src/clean-product-production-port.js
+COPY media-service/src/clean-shelf-target-folder-probe.js ./src/clean-shelf-target-folder-probe.js
+COPY media-service/src/clean-western-analysis-port.js ./src/clean-western-analysis-port.js
+COPY media-service/src/clean-workspace-product-port.js ./src/clean-workspace-product-port.js
+COPY media-service/src/clean-workspace-root-admin.js ./src/clean-workspace-root-admin.js
 COPY media-service/src/helix ./src/helix
 COPY media-service/scripts/helix-clean-init.js ./scripts/helix-clean-init.js
 COPY media-service/scripts/helix-operational-safety.js ./scripts/helix-operational-safety.js
+COPY media-service/scripts/helix-predeck-pipeline-migration.js ./scripts/helix-predeck-pipeline-migration.js
+COPY media-service/scripts/helix-full-libra-reset.js ./scripts/helix-full-libra-reset.js
 COPY --from=web-builder /build/dist/admin ./dist/admin
 
 RUN mkdir -p /app/data

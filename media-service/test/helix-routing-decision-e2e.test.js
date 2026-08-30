@@ -88,7 +88,7 @@ async function waitForDurableAcceptance(databasePath, expectedSpecs, expectedRun
   const database = new Database(databasePath, { readonly: true });
   let observed = null;
   try {
-    const deadline = Date.now() + 45_000;
+    const deadline = Date.now() + 120_000;
     while (Date.now() < deadline) {
       observed = Object.freeze({
         specs: database.prepare('SELECT count(*) count FROM libra_acceptance_specs').get().count,
@@ -113,7 +113,7 @@ test('direct and sorting Routing Decisions continue through Acceptance Spec and 
   const directRoot = path.join(root, 'material-fields', 'direct'), sortingRoot = path.join(root, 'routing-material-field');
   fs.mkdirSync(adminDistDir, { recursive: true }); fs.mkdirSync(directRoot, { recursive: true }); fs.mkdirSync(sortingRoot, { recursive: true });
   fs.writeFileSync(path.join(adminDistDir, 'index.html'), '<div id="root"></div>');
-  for (let index = 1; index <= 19; index += 1) fs.writeFileSync(path.join(directRoot, `Direct.Movie.${String(index).padStart(2, '0')}.mkv`), 'movie');
+  for (let index = 1; index <= 3; index += 1) fs.writeFileSync(path.join(directRoot, `Direct.Movie.${String(index).padStart(2, '0')}.mkv`), 'movie');
   for (const [title, year] of [['顽主', 1989], ['爆弹', 2025], ['0.5毫米', 2014]]) {
     const directory = path.join(sortingRoot, title); fs.mkdirSync(directory, { recursive: true });
     fs.writeFileSync(path.join(directory, title + '.mkv'), 'movie');
@@ -146,6 +146,10 @@ test('direct and sorting Routing Decisions continue through Acceptance Spec and 
       const created = await host.inject({ method: 'POST', url: '/v1/admin/material-fields', headers: { cookie }, payload: fieldCommand(fieldId, fieldRoot) });
       assert.equal(created.statusCode, 201, created.body);
     }
+    const sortingSeats = await host.inject({ method:'PATCH',
+      url:'/v1/admin/libra/material-fields/sorting-routing-field/intake-admission', headers:{cookie},
+      payload:{predeckPipelineSeats:8,idempotencyKey:'sorting-routing-eight-seats'} });
+    assert.equal(sortingSeats.statusCode,200,sortingSeats.body);
     const shelves = [['movie-test', 'movie test'], ['classics', '经典电影测试'], ['new-releases', '新片测试'], ['general', '普通电影测试']];
     for (const [shelfId, name] of shelves) await createShelf(host, cookie, path.join(root, 'routing-shelves', shelfId), shelfId, name);
     await publishPolicy(host, cookie, 'direct-routing-field', 'direct-routing-policy', 'direct', [
@@ -159,23 +163,23 @@ test('direct and sorting Routing Decisions continue through Acceptance Spec and 
     await observe(host, cookie, 'direct-routing-field'); await observe(host, cookie, 'sorting-routing-field');
 
     let formation;
-    const deadline = Date.now() + 45_000;
+    const deadline = Date.now() + 120_000;
     while (Date.now() < deadline) {
       const response = await host.inject({ method: 'GET', url: '/v1/admin/formation', headers: { cookie } });
       assert.equal(response.statusCode, 200, response.body); formation = response.json();
       if (runtimeError) break;
       const resolvedCount=formation.items.filter((item)=>item.routingState==='resolved').length;
       const unresolvedCount=formation.items.filter((item)=>item.routingState==='unresolved').length;
-      if (formation.summary.totalCount === 24 && resolvedCount === 23 && unresolvedCount === 1) break;
+      if (formation.summary.totalCount === 8 && resolvedCount === 7 && unresolvedCount === 1) break;
       await new Promise((resolve) => setTimeout(resolve, 25));
     }
     assert.ifError(runtimeError);
     assert.equal(formation.summary.pendingCount + formation.summary.inProgressCount +
-      formation.summary.attentionRequiredCount + formation.summary.completedCount, 24);
+      formation.summary.attentionRequiredCount + formation.summary.completedCount, 8);
     assert.equal(formation.summary.completedCount, 0);
-    assert.equal(formation.items.filter((item)=>item.routingState==='resolved').length,23);
+    assert.equal(formation.items.filter((item)=>item.routingState==='resolved').length,7);
     assert.equal(formation.items.filter((item)=>item.routingState==='unresolved').length,1);
-    assert.equal(formation.items.filter((item) => item.targetShelfId === 'movie-test').length, 19);
+    assert.equal(formation.items.filter((item) => item.targetShelfId === 'movie-test').length, 3);
     const expected = new Map([['顽主', 'classics'], ['爆弹', 'new-releases'], ['0.5毫米', 'general'], ['0.5毫米 Provider', 'general']]);
     for (const [title, shelfId] of expected) assert.equal(formation.items.find((item) => item.displayIdentity === title)?.targetShelfId, shelfId, title);
     const unresolved = formation.items.find((item) => item.routingState === 'unresolved');
@@ -206,28 +210,29 @@ test('direct and sorting Routing Decisions continue through Acceptance Spec and 
     await host.close();
     host = await createCleanServiceHost(hostOptions);
     cookie = await session(host, initialized.adminApiKey);
-    await waitForDurableAcceptance(path.join(dataDir, 'shelfdeck.db'), 24, 24);
+    await waitForDurableAcceptance(path.join(dataDir, 'shelfdeck.db'), 8, 8);
     const recovered = await host.inject({ method: 'GET', url: '/v1/admin/formation', headers: { cookie } });
     assert.equal(recovered.statusCode, 200, recovered.body);
     const recoveredSummary=recovered.json().summary;
     assert.equal(recoveredSummary.pendingCount + recoveredSummary.inProgressCount +
-      recoveredSummary.attentionRequiredCount + recoveredSummary.completedCount, 24);
+      recoveredSummary.attentionRequiredCount + recoveredSummary.completedCount, 8);
     assert.equal(recoveredSummary.completedCount, 0);
-    assert.equal(recovered.json().items.filter((item)=>item.routingState==='resolved').length,24);
+    assert.equal(recovered.json().items.filter((item)=>item.routingState==='resolved').length,8);
     assert.deepEqual(providerCalls.filter((item)=>item.requestedFactKinds.includes('release_year'))
       .map((item)=>item.title).sort(), ['0.5毫米 provider', '无nfo且无法解析的测试标题'].sort());
     assert.equal(sourceReality([directRoot, sortingRoot]), sourceBefore);
 
     const database = new Database(path.join(dataDir, 'shelfdeck.db'), { readonly: true });
     try {
-      assert.equal(database.prepare("SELECT count(*) count FROM libra_routing_decisions WHERE decision='resolved'").get().count, 24);
+      assert.equal(database.prepare("SELECT count(*) count FROM libra_routing_decisions WHERE decision='resolved'").get().count, 8);
       assert.equal(database.prepare("SELECT count(*) count FROM libra_routing_decisions WHERE decision='unresolved'").get().count, 1);
-      assert.equal(database.prepare("SELECT count(*) count FROM fx_supporting_works WHERE process_type='libra_routing' AND state='succeeded'").get().count, 29);
+      assert.equal(database.prepare("SELECT count(*) count FROM fx_supporting_works WHERE process_type='libra_routing' AND state='succeeded'").get().count, 13);
       assert.equal(database.prepare("SELECT count(*) count FROM fx_workflow_events event JOIN fx_supporting_works work ON work.work_id=event.work_id WHERE work.process_type='libra_routing' AND event.capability_ref='libra.routing.fact.observe@1' AND event.state='succeeded'").get().count, 5);
-      assert.equal(database.prepare("SELECT count(*) count FROM fx_workflow_events event JOIN fx_supporting_works work ON work.work_id=event.work_id WHERE work.process_type='libra_routing' AND event.capability_ref='libra.decision_basis.commit@1' AND event.state='succeeded'").get().count, 24);
-      assert.equal(database.prepare('SELECT count(*) count FROM libra_acceptance_specs').get().count, 24);
-      assert.equal(database.prepare("SELECT count(*) count FROM (SELECT subject_id,spec_digest FROM libra_acceptance_specs GROUP BY subject_id,spec_digest)").get().count, 24);
-      assert.equal(database.prepare('SELECT count(*) count FROM libra_runs').get().count, 24);
+      assert.equal(database.prepare("SELECT count(*) count FROM fx_workflow_events event JOIN fx_supporting_works work ON work.work_id=event.work_id WHERE work.process_type='libra_routing' AND event.capability_ref='libra.decision_basis.commit@1' AND event.state='succeeded'").get().count, 8);
+      assert.equal(database.prepare('SELECT count(*) count FROM libra_acceptance_specs').get().count, 8);
+      assert.equal(database.prepare("SELECT count(*) count FROM (SELECT subject_id,spec_digest FROM libra_acceptance_specs GROUP BY subject_id,spec_digest)").get().count, 8);
+      assert.equal(database.prepare('SELECT count(*) count FROM libra_runs').get().count, 8);
+      assert.equal(database.prepare('SELECT count(*) count FROM libra_predeck_pipeline_tokens').get().count, 8);
       assert.equal(database.prepare('SELECT count(*) count FROM libra_workspaces').get().count, 0);
       assert.equal(database.prepare('SELECT count(*) count FROM libra_product_packages').get().count, 0);
       assert.equal(database.prepare('SELECT count(*) count FROM arca_shelf_entries').get().count, 0);

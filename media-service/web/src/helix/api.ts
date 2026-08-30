@@ -11,6 +11,15 @@ export type ExtractionPolicyValue = {
   excludedMaterialKeys: string[];
 };
 
+export type FieldIntakeAdmission = {
+  fieldId: string;
+  predeckPipelineSeats: number;
+  policyRevision: number;
+  updatedAtMs: number;
+  pipelineTokensHeld: number;
+  pipelineSeatsFree: number;
+};
+
 export type MaterialField = {
   fieldId: string;
   name: string;
@@ -553,6 +562,15 @@ export const helixAdminApi = {
   },
   listMaterialFields() {
     return request<{ items: MaterialField[] }>('/v1/admin/material-fields');
+  },
+  getFieldIntakeAdmission(fieldId: string) {
+    return request<FieldIntakeAdmission>(`/v1/admin/libra/material-fields/${encodeURIComponent(fieldId)}/intake-admission`);
+  },
+  patchFieldIntakeAdmission(fieldId: string, body: { predeckPipelineSeats: number }) {
+    return request<FieldIntakeAdmission>(`/v1/admin/libra/material-fields/${encodeURIComponent(fieldId)}/intake-admission`, {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    });
   },
   listShelves() {
     return request<{ items: Shelf[] }>('/v1/admin/shelves');

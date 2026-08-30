@@ -105,13 +105,35 @@
       }
     },
     {
+      "id": "libra_field_intake_admission_policies",
+      "owner": "libra",
+      "columnsContract": "`field_id PK, predeck_pipeline_seats INTEGER, policy_revision INTEGER, updated_at_ms`",
+      "constraintsContract": "Field ID是Procurement Material Field opaque ref、不建跨Domain FK；Libra-owned Pre-deck pipeline admission配置；`predeck_pipeline_seats`范围0..8，默认3，0表示暂停该Field进入Pre-deck pipeline；`policy_revision`从1递增",
+      "source": {
+        "section": "8.5.11",
+        "line": 9363,
+        "lineDigest": "0963d1c08642241e06688d25ecf5e5d2f56d2100cbed0eb80580b3380f9b570d"
+      }
+    },
+    {
+      "id": "libra_predeck_pipeline_tokens",
+      "owner": "libra",
+      "columnsContract": "`subject_id PK, source_field_id, source_process_id, acquired_at_ms`",
+      "constraintsContract": "`source_field_id`是Procurement Material Field opaque ref、不建跨Domain FK；每个Subject至多持有一个active Pre-deck pipeline token；Intake Evidence首次admit或历史Evidence replay恢复推进前acquire，Handoff B Accepted、用户Discard或Intake Rejection时release并DELETE row；Routing、Subject Rating、Acceptance Spec与initial Run Creation的周期reconciler只推进token holder；`acquired_at_ms`为UTC epoch ms；`INDEX(source_field_id,subject_id)`",
+      "source": {
+        "section": "8.5.11",
+        "line": 9364,
+        "lineDigest": "02854c090effd643ae3a39a103add999129992fb47012f8e1de392653c4ce883"
+      }
+    },
+    {
       "id": "libra_routing_policy_revisions",
       "owner": "libra",
       "columnsContract": "`routing_policy_id, revision, field_id, mode(direct|sorting), policy_schema_ref, policy_json, policy_digest, effective_at_ms`",
       "constraintsContract": "Policy JSON上限`64 KiB`；`PK(routing_policy_id,revision)`；immutable；`INDEX(field_id,effective_at_ms)`；同一revision只属于一片Field",
       "source": {
         "section": "8.5.11",
-        "line": 9363,
+        "line": 9365,
         "lineDigest": "f1d288d4b709ef019d295af7576074e514b1ff4a568b230461b1168aee26bec8"
       }
     },
@@ -122,30 +144,8 @@
       "constraintsContract": "`PK(routing_policy_id,policy_revision,shelf_id)`及`UNIQUE(routing_policy_id,policy_revision,rank)`；Rule固定`RoutingMatchExpression@1`，JSON≤`16 KiB`、AST深度≤4、节点≤64；Shelf ID为Arca公开Projection中的opaque ref",
       "source": {
         "section": "8.5.11",
-        "line": 9364,
-        "lineDigest": "c8d677a64b58754a2abd5ccba0071c8b049a56f01a597124c2f304630ab578bf"
-      }
-    },
-    {
-      "id": "libra_routing_assessments",
-      "owner": "libra",
-      "columnsContract": "`routing_assessment_id PK, subject_id FK, decision_basis_id FK, routing_authority_kind(policy|manual_selection), routing_policy_id NULL, routing_policy_revision NULL, manual_selection_digest NULL, routing_input_digest, assessment_schema_ref, assessment_json, assessment_digest, created_at_ms`",
-      "constraintsContract": "policy与manual列variant互斥；JSON≤`64 KiB`并完整重建`RoutingAssessmentEvidence@1`；`UNIQUE(subject_id,decision_basis_id,routing_input_digest)`；immutable",
-      "source": {
-        "section": "8.5.11",
-        "line": 9365,
-        "lineDigest": "85c68ee54029d863bb07647404c1d4bd8a21f6620ee23df9a8f858c724e19bcf"
-      }
-    },
-    {
-      "id": "libra_routing_decisions",
-      "owner": "libra",
-      "columnsContract": "`routing_decision_id PK, subject_id FK, assessment_id FK, decision_revision, decision(resolved|unresolved), shelf_id NULL, unresolved_reason_code NULL, routing_authority_kind(policy|manual_selection), routing_policy_id NULL, routing_policy_revision NULL, manual_selection_digest NULL, routing_input_digest, shelf_priority_set_digest, decision_digest, decided_at_ms`",
-      "constraintsContract": "authority列variant互斥；resolved要求shelf非NULL/reason NULL，unresolved相反；同一assessment只有一个Decision；`UNIQUE(subject_id,decision_revision)`；immutable；`INDEX(shelf_id,decided_at_ms)`",
-      "source": {
-        "section": "8.5.11",
         "line": 9366,
-        "lineDigest": "4d81260004fcd8848c270f5bd695c3467f193875693611044b90f24ef8cdce94"
+        "lineDigest": "c8d677a64b58754a2abd5ccba0071c8b049a56f01a597124c2f304630ab578bf"
       }
     }
   ]

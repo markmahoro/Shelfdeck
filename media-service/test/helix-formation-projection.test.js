@@ -346,6 +346,23 @@ test('Formation position timestamp remains the Subject creation time when mutabl
   }finally{kernel.close();fs.rmSync(root,{recursive:true,force:true,maxRetries:5,retryDelay:50});}
 });
 
+test('Formation active queue shows only pipeline-admitted Subjects without a Run',()=>{
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'helix-formation-admission-')),databasePath=path.join(root,'shelfdeck.db');
+  const kernel=openSqliteKernel({Database,databasePath,schemaDdl,schemaManifest,now:()=>100});
+  try{
+    kernel.runPrimitive(({prepare})=>{const insert=prepare(`INSERT INTO libra_subjects(subject_id,structure_kind,content_profile,routing_anchor_intake_decision_id,status,intake_revision,current_identity_revision,created_at_ms,updated_at_ms) VALUES(?,?,?,?,?,?,?,?,?)`);
+      insert.run('subject-000','single','movie',null,'active',1,null,1000,1000);
+      insert.run('subject-001','single','movie',null,'active',1,null,1001,1001);});
+    const unitOfWork=createSqliteUnitOfWork({kernel}),store=createFormationProjectionStore({schemaManifest,unitOfWork});
+    store.upsert(buildFormationProjectionRow({...item(0,'pending'),currentRun:null},3000));
+    store.upsert(buildFormationProjectionRow({...item(1,'pending'),currentRun:null},3001));
+    const query=createFormationQuery({store,readPipelineSubjectIds:()=>new Set(['subject-001']),now:()=>4000,state:()=>({status:'ready',asOfMs:3999})});
+    const active=query.list({section:'active',limit:25});
+    assert.deepEqual(active.items.map((row)=>row.subjectId),['subject-001']);
+    assert.deepEqual(active.summary,{totalCount:1,pendingCount:1,inProgressCount:0,attentionRequiredCount:0,completedCount:0});
+  }finally{kernel.close();fs.rmSync(root,{recursive:true,force:true,maxRetries:5,retryDelay:50});}
+});
+
 test('Formation query filters shelf, expedite, and needs-user-action on the projection',()=>{
   const root=fs.mkdtempSync(path.join(os.tmpdir(),'helix-formation-filter-')),databasePath=path.join(root,'shelfdeck.db');
   const kernel=openSqliteKernel({Database,databasePath,schemaDdl,schemaManifest,now:()=>100});
@@ -371,7 +388,7 @@ test('Formation query filters shelf, expedite, and needs-user-action on the proj
   }finally{kernel.close();fs.rmSync(root,{recursive:true,force:true,maxRetries:5,retryDelay:50});}
 });
 
-test('Formation checklist seeds transcode before an Event exists and names a missing encoder',()=>{
+test('Formation shows blocked transcode assessment without inventing remux from spec',()=>{
   const works=[{workId:'libra-workspace-media-transcode_1_assessment-work-abc',workKind:'workspace_media_production',
     state:'blocked',createdAtMs:10,events:[]}];
   const spec={spec_json:JSON.stringify({requirements:{mandatoryMedia:{videoCodec:'hevc',minimumRasterClass:'none'},space:{maxSizeGiB:14}}})};
@@ -382,13 +399,13 @@ test('Formation checklist seeds transcode before an Event exists and names a mis
     '需要转码，编码设备未就绪');
 });
 
-test('Formation does not forecast remux when the spec already requires 4k',()=>{
+test('Formation does not forecast remux or external sourcing before durable Work events exist',()=>{
   const works=[{workId:'identity-work',workKind:'product_identity',state:'succeeded',createdAtMs:1,
     events:[{capabilityRef:'libra.product_identity.resolve@1',state:'succeeded',progress:null,result:null}]}];
   const spec={spec_json:JSON.stringify({requirements:{mandatoryMedia:{videoCodec:'hevc',minimumRasterClass:'4k'}}})};
   const steps=organizingSteps(works,spec);
   assert.equal(steps.some((item)=>item.key==='remux'),false);
-  assert.equal(steps.some((item)=>item.key==='acquire'),true);
+  assert.equal(steps.some((item)=>item.key==='acquire'),false);
   assert.equal(steps.some((item)=>item.key==='transcode'),false);
 });
 

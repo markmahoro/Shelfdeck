@@ -52,7 +52,7 @@ async function session(host, apiKey) {
   return response.headers['set-cookie'];
 }
 
-test('one bad Material is released while a bounded Movie Candidate set crosses Handoff A through durable Libra Intake Work', async (t) => {
+test('one bad Material is released while a bounded Movie Candidate set queues behind durable Libra Intake seats', async (t) => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'helix-procurement-only-'));
   t.after(() => {
     if (process.env.HELIX_KEEP_TEST_DATA === '1') process.stderr.write(`preserved=${root}\n`);
@@ -66,6 +66,7 @@ test('one bad Material is released while a bounded Movie Candidate set crosses H
   fs.writeFileSync(path.join(adminDistDir, 'index.html'), '<div id="root"></div>');
   const sourceBytes = Buffer.from('read-only-procurement-fixture');
   const movieCount = Number(process.env.HELIX_PROCUREMENT_MOVIE_COUNT || 65);
+  const intakeSeats = Math.min(movieCount, 3);
   assert.ok(Number.isSafeInteger(movieCount) && movieCount >= 2 && movieCount <= 1024);
   const sourcePaths = Array.from({ length: movieCount }, (_unused, ordinal) => path.join(sourceRoot,
     `Example.Movie.${String(ordinal + 1).padStart(3, '0')}.2024.mkv`));
@@ -191,9 +192,9 @@ test('one bad Material is released while a bounded Movie Candidate set crosses H
       subjectCount=current.prepare('SELECT count(*) count FROM libra_subjects').get().count;
       runState=current.prepare('SELECT state FROM proc_procurement_runs').get()?.state||null;
       observationState=current.prepare('SELECT state FROM fx_supporting_works WHERE work_id=?').get(observationWorkId)?.state||null;current.close();
-      if(runtimeError||candidateCount===movieCount&&subjectCount===movieCount&&runState==='sealed'&&observationState==='succeeded')break;
+      if(runtimeError||candidateCount===movieCount&&subjectCount===intakeSeats&&runState==='sealed'&&observationState==='succeeded')break;
       await new Promise((resolve)=>setTimeout(resolve,25));}
-    assert.ifError(runtimeError);assert.equal(candidateCount,movieCount);assert.equal(subjectCount,movieCount);assert.equal(runState,'sealed');assert.equal(observationState,'succeeded');
+    assert.ifError(runtimeError);assert.equal(candidateCount,movieCount);assert.equal(subjectCount,intakeSeats);assert.equal(runState,'sealed');assert.equal(observationState,'succeeded');
     const cookie = await session(host, initialized.adminApiKey);
     const replay = await host.inject({
       method: 'POST',
@@ -219,10 +220,10 @@ test('one bad Material is released while a bounded Movie Candidate set crosses H
       formationItems.push(...page.json().items);
       formationCursor = page.json().nextCursor;
     } while (formationCursor);
-    assert.equal(formation.json().summary.totalCount,movieCount);
-    assert.equal(formation.json().summary.pendingCount,movieCount);
-    assert.equal(formationItems.length,movieCount);
-    assert.equal(new Set(formationItems.map((item)=>item.subjectId)).size,movieCount);
+    assert.equal(formation.json().summary.totalCount,intakeSeats);
+    assert.equal(formation.json().summary.pendingCount,intakeSeats);
+    assert.equal(formationItems.length,intakeSeats);
+    assert.equal(new Set(formationItems.map((item)=>item.subjectId)).size,intakeSeats);
     const invalidFormationItem=formationItems.find((item)=>item.classification!=='pending'||item.primaryMaterialCount!==1);
     assert.equal(invalidFormationItem,undefined,JSON.stringify(invalidFormationItem));
     const deregistered=await host.inject({method:'POST',url:`/v1/admin/material-fields/${accessBasis.fieldId}/actions/deregister`,headers:{cookie},payload:{
@@ -243,16 +244,18 @@ test('one bad Material is released while a bounded Movie Candidate set crosses H
   assert.equal(database.prepare("SELECT count(*) count FROM fx_command_receipts WHERE command_contract='helix://procurement/commands/ProcurementRunSeal/v1'").get().count, 1);
   assert.equal(database.prepare("SELECT count(*) count FROM fx_supporting_works WHERE work_kind='candidate_assembly' AND state='succeeded'").get().count, movieCount);
   assert.equal(database.prepare('SELECT count(*) count FROM proc_candidate_packages').get().count, movieCount);
-  assert.equal(database.prepare("SELECT count(*) count FROM proc_candidate_deliveries WHERE state='accepted'").get().count, movieCount);
-  assert.equal(database.prepare("SELECT count(*) count FROM libra_intake_decisions WHERE decision_kind='accepted_resolution'").get().count, movieCount);
-  assert.equal(database.prepare('SELECT count(*) count FROM libra_subjects').get().count, movieCount);
-  assert.equal(database.prepare("SELECT count(*) count FROM proc_field_materials material JOIN fx_material_controls control ON control.material_key=material.material_key WHERE material.eligibility_state='ineligible' AND control.owner_domain='libra'").get().count, movieCount);
+  assert.equal(database.prepare("SELECT count(*) count FROM proc_candidate_deliveries WHERE state='accepted'").get().count, intakeSeats);
+  assert.equal(database.prepare("SELECT count(*) count FROM proc_candidate_deliveries WHERE state='open'").get().count, movieCount - intakeSeats);
+  assert.equal(database.prepare('SELECT count(*) count FROM libra_predeck_pipeline_tokens').get().count, intakeSeats);
+  assert.equal(database.prepare("SELECT count(*) count FROM libra_intake_decisions WHERE decision_kind='accepted_resolution'").get().count, intakeSeats);
+  assert.equal(database.prepare('SELECT count(*) count FROM libra_subjects').get().count, intakeSeats);
+  assert.equal(database.prepare("SELECT count(*) count FROM proc_field_materials material JOIN fx_material_controls control ON control.material_key=material.material_key WHERE material.eligibility_state='ineligible' AND control.owner_domain='libra'").get().count, intakeSeats);
   assert.equal(database.prepare('SELECT count(*) count FROM libra_runs').get().count, 0);
   assert.equal(database.prepare('SELECT count(*) count FROM arca_shelf_entries').get().count, 0);
   assert.ok(database.prepare('SELECT count(*) count FROM fx_event_result_bindings').get().count>preRestartResultCount);
   assert.equal(database.prepare('SELECT count(*) count FROM proc_candidate_packages').get().count, movieCount);
   assert.equal(database.prepare('SELECT count(*) count FROM proc_procurement_runs').get().count, 1);
-  assert.equal(database.prepare('SELECT count(*) count FROM libra_intake_decisions').get().count, movieCount);
+  assert.equal(database.prepare('SELECT count(*) count FROM libra_intake_decisions').get().count, intakeSeats);
   assert.equal(database.prepare("SELECT status FROM proc_material_fields WHERE field_id=?").get(accessBasis.fieldId).status, 'deregistered');
   database.close();
   for (const sourcePath of sourcePaths) assert.deepEqual(fs.readFileSync(sourcePath), sourceBytes);

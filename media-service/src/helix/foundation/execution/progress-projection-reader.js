@@ -78,14 +78,14 @@ function createExecutionProgressProjectionReader(options) {
         for (let offset = 0; offset < events.length; offset += 500) { const eventIds=events.slice(offset, offset + 500).map((item) => item.event_id); samples.push(...r.invoke('progress', { values: eventIds })); results.push(...r.invoke('results', { values: eventIds })); }
         const latest = new Map();
         for (const sample of samples) if (!latest.has(sample.event_id) || latest.get(sample.event_id).revision < sample.revision) latest.set(sample.event_id, sample);
-        const nodeByKey = new Map(nodes.map((node) => [`${node.plan_id}\0${node.node_id}`, node]));
+        const nodeByKey = new Map(nodes.map((node) => [node.plan_id + '\0' + node.node_id, node]));
         const resultByEvent=new Map(results.map((row)=>{let value;try{value=JSON.parse(row.result_json);}catch{throw Object.assign(new Error('Durable execution Result is not valid JSON.'),{code:'EXECUTION_PROGRESS_RESULT_INVALID'});}if(canonicalJson(value)!==row.result_json||canonicalDigest(value)!==row.result_digest)throw Object.assign(new Error('Durable execution Result failed its digest fence.'),{code:'EXECUTION_PROGRESS_RESULT_INVALID'});return [row.event_id,Object.freeze({outcomeKind:row.outcome_kind,resultSchemaRef:row.result_schema_ref,result:value,resultDigest:row.result_digest,committedAtMs:Number(row.committed_at_ms)})];}));
         return Object.freeze(works.map((work) => Object.freeze({
           workId: work.work_id, processId: work.process_id, workKind: work.work_kind, state: work.state,
           createdAtMs: Number(work.created_at_ms), terminalAtMs: ['succeeded','failed','cancelled'].includes(work.state)?Number(work.updated_at_ms):null,
           events: Object.freeze(events.filter((event) => event.work_id === work.work_id).map((event) => Object.freeze({
             eventId: event.event_id, capabilityRef: event.capability_ref, state: event.state,
-            executionDeviceClass: plannedExecutionDeviceClass(nodeByKey.get(`${event.plan_id}\0${event.node_id}`)),
+            executionDeviceClass: plannedExecutionDeviceClass(nodeByKey.get(event.plan_id + '\0' + event.node_id)),
             progress: projectedProgress(latest.get(event.event_id)), result: resultByEvent.get(event.event_id)||null,
           }))),
         })));

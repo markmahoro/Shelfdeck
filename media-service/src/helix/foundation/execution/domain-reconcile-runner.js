@@ -16,12 +16,12 @@ function createDomainReconcileRunner(options){
       !Number.isSafeInteger(cadenceMs)||cadenceMs<1000)fail('P4_DOMAIN_RECONCILE_RUNNER_LIMITS_INVALID','Domain reconcile limits are invalid.');
   let state='created',timer=null,running=null,lastStartedAtMs=null,lastCompletedAtMs=null;
   const registrationStatus=new Map(options.registrations.map((registration)=>[
-    `${registration.ownerDomain}:${registration.reconcilerKey}`,
+    registration.ownerDomain + ':' + registration.reconcilerKey,
     {ownerDomain:registration.ownerDomain,reconcilerKey:registration.reconcilerKey,state:'waiting_first_check',
       lastStartedAtMs:null,lastCompletedAtMs:null,processed:0,pendingCount:0,errorCode:null,
       lastResultKind:null,nextDueAtMs:null},
   ]));
-  function statusFor(registration){return registrationStatus.get(`${registration.ownerDomain}:${registration.reconcilerKey}`);}
+  function statusFor(registration){return registrationStatus.get(registration.ownerDomain + ':' + registration.reconcilerKey);}
   function errorCodeOf(error){return typeof error?.code==='string'?error.code:'DOMAIN_RECONCILE_FAILED';}
   async function runRegistration(registration){
     const status=statusFor(registration);const started=options.now();

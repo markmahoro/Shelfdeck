@@ -47,16 +47,19 @@ function validateParticipants(participants) {
     }
   }
   const businessOwners = [...owners].filter((owner) => BUSINESS_OWNERS.has(owner));
+  const transactionBusinessOwners = businessOwners.length > 0 ? businessOwners
+    : (boundBusinessOwners.size === 1 ? [...boundBusinessOwners] : []);
   if (businessOwners.length > 1) fail('P3_UOW_CROSS_DOMAIN_WRITE', 'One transaction cannot hold two Business Domain Repositories.', { businessOwners });
-  if (boundBusinessOwners.size > 0 && (businessOwners.length !== 1 || [...boundBusinessOwners].some((owner) => owner !== businessOwners[0]))) {
+  if (boundBusinessOwners.size > 0 && (transactionBusinessOwners.length !== 1 ||
+      [...boundBusinessOwners].some((owner) => owner !== transactionBusinessOwners[0]))) {
     fail('P3_UOW_BOUND_OWNER_MISMATCH', 'Foundation participant is not bound to the transaction Business Owner.', {
-      businessOwners, boundBusinessOwners: [...boundBusinessOwners]
+      businessOwners, boundBusinessOwners: [...boundBusinessOwners], transactionBusinessOwners
     });
   }
   if (owners.has('platform-settings') && owners.size > 1) {
     const platformParticipants = participants.filter((participant) => participant.owner === 'platform-settings');
-    const platformReadsAreBound = businessOwners.length === 1 && platformParticipants.every((participant) =>
-      participant.boundBusinessOwner === businessOwners[0] && participant.repositories.every((repository) => repository.readOnly === true));
+    const platformReadsAreBound = transactionBusinessOwners.length === 1 && platformParticipants.every((participant) =>
+      participant.boundBusinessOwner === transactionBusinessOwners[0] && participant.repositories.every((repository) => repository.readOnly === true));
     if (!platformReadsAreBound) fail('P3_UOW_PLATFORM_OWNER_MIX',
       'Only read-only Platform repositories bound to the transaction Business Owner may join a Domain unit of work.');
   }

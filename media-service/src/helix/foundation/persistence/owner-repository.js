@@ -67,6 +67,15 @@ function compileStatement(statementId, statement, table) {
             : quote(comparison.column) + '=@' + comparison.parameter)].join(' AND ')
     };
   }
+  if (statement.kind === 'delete') {
+    if (table.immutable) fail('P3_REPOSITORY_UNSUPPORTED_STATEMENT',
+      'Immutable owner tables cannot register delete statements.', { statementId, tableId:table.tableId });
+    requireColumns(table, statement.keyColumns, statementId);
+    return {
+      statementId, kind: statement.kind, tableId: table.tableId, parameters: [...statement.keyColumns],
+      sql: 'DELETE FROM ' + tableName + ' WHERE ' + statement.keyColumns.map((column) => quote(column) + '=@' + column).join(' AND ')
+    };
+  }
   if (statement.kind === 'select-one' || statement.kind === 'select-all') {
     requireColumns(table, statement.columns, statementId);
     const keyColumns = statement.keyColumns || [];

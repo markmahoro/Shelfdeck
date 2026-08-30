@@ -22,7 +22,7 @@ const {
 } = require('../src/clean-media-production-effect-port');
 const { createFfmpegProcessRegistry } = require('../src/clean-ffmpeg-process-registry');
 const { createCleanMediaProbe } = require('../src/clean-media-probe');
-const { SDR_PROFILE_ID } = require('../src/clean-ffmpeg-pipeline');
+const { SDR_PROFILE_ID } = require('../src/helix/integrations/ffmpeg-pipeline');
 const { canonicalDigest } = require('../src/helix/contracts/canonical-json');
 const { computeBoundedMaterialFingerprintSync } =
   require('../src/helix/integrations/bounded-material-fingerprint');

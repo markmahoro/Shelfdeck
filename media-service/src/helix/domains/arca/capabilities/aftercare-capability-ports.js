@@ -30,7 +30,6 @@ const {
   evaluateAftercareConformance,
   verifyOutputContinuity,
 } = require('../model/aftercare-media-policy');
-const { compileFfmpegPipeline } = require('../../../../clean-ffmpeg-pipeline');
 
 const BASE='helix://contracts/capabilities/';
 const AFTERCARE_LONG_MEDIA_TIMEOUT_MS=48*60*60*1000;
@@ -350,7 +349,7 @@ async function assessMediaRepairStrategy(options,context,probe,sourceProbeEviden
   }return null;}
 async function verifyPlaybackBounded(options,store,workspaceMediaHandle,probe,run=runFfmpeg){const handle=workspaceMediaHandle.workspaceMaterialHandle,location=workspaceLocation(store,handle),duration=Math.max(1,Number(probe.durationMs||1))/1000,points=[5,50,95],passed=[];for(const point of points){try{await run(resolveAftercareFfmpegPath(options.ffmpegPath),['-hide_banner','-nostdin','-loglevel','error','-ss',(duration*point/100).toFixed(3),'-i',location,'-map','0:v:0','-frames:v','1','-f','null',process.platform==='win32'?'NUL':'/dev/null'],30_000);passed.push(point);}catch{}}return Object.freeze({samplePointsPercent:Object.freeze(points),passedSamplePointsPercent:Object.freeze(passed),decodeDigest:canonicalDigest({schema:'arca.aftercare-playback-decode@1',handleDigest:canonicalDigest(handle),points,passed})});}
 
-function createAftercareCapabilityPorts(options){const now=options.now||Date.now,contextReader=options.contextReader,store=contextReader.store,controls=createMaterialControlProjectionPort(options),fingerprint=options.computeBoundedMaterialFingerprintSync;
+function createAftercareCapabilityPorts(options){const now=options.now||Date.now,contextReader=options.contextReader,store=contextReader.store,controls=createMaterialControlProjectionPort(options),fingerprint=options.computeBoundedMaterialFingerprintSync,compileFfmpegPipeline=options.compileFfmpegPipeline;
   if(typeof fingerprint!=='function')throw new TypeError('Arca Aftercare requires the bounded Physical Material fingerprint port.');
   function context(execution){const value=contextReader.read(execution.ownerScope.processId);if(!value)throw new Error('Arca Aftercare Shelf Entry is unavailable.');return value;}
   function activeCase(c){const value=store.history(c.shelfEntryId).cases.find((item)=>item.state==='active');if(!value)throw new Error('Arca Aftercare active Case is unavailable.');if(value.careBasisDigest!==c.basis.digest)throw Object.assign(new Error('Arca Aftercare Case Basis is stale.'),{code:'ARCA_AFTERCARE_CASE_BASIS_STALE'});if(c.raw.shelf.status!=='active'||c.raw.reservations.some((item)=>item.state==='active'))throw Object.assign(new Error('Arca Aftercare modification authority is fenced.'),{code:'ARCA_AFTERCARE_MODIFICATION_FENCED'});return value;}
@@ -480,6 +479,7 @@ function createAftercareCapabilityPorts(options){const now=options.now||Date.now
     revalidateCaseAuthority(execution,care);
     if(strategy){const unsigned=Object.fromEntries(Object.entries(strategy).filter(([key])=>!['strategyDigest','digest'].includes(key)));if(strategy.careBasisDigest!==care.careBasisDigest||strategy.digest!==strategy.strategyDigest||strategy.strategyDigest!==canonicalDigest(unsigned)||strategy.sourceHandleDigest!==canonicalDigest(primaryReadHandle(c,primary))||!strategy.sourceProbeEvidenceId||!strategy.sourceProbeEvidenceDigest||!strategy.sourceVideoProfileDigest||strategy.selectedDeviceSnapshotDigest!==strategy.selectedDeviceSnapshot.snapshotDigest)throw new Error('Aftercare media repair Strategy fence is invalid.');}
     const root=workspaceRoot(options,store,care.aftercareCaseId),relative='media/'+kind+(strategy?'-'+strategy.strategyId.slice(-16):'')+'.mkv',target=path.join(root,relative);fs.mkdirSync(path.dirname(target),{recursive:true});if(!fs.existsSync(target)){const temporary=target+'.tmp',binary=resolveAftercareFfmpegPath(options.ffmpegPath);if(kind==='remux'){await runFfmpeg(binary,['-hide_banner','-nostdin','-y','-fflags','+genpts','-i',source,'-map','0','-c','copy','-f','matroska',temporary],progress(0,durationUs));revalidateCaseAuthority(execution,care);}else {
+        if(typeof compileFfmpegPipeline!=='function')throw new Error('Arca Aftercare FFmpeg compiler is unavailable.');
         const video=strategy.video,pipeline=compileFfmpegPipeline({deviceClass:strategy.selectedDeviceClass,video}),
           normalizeDolbyVision=video.dynamicRangeOperation==='tone_map_to_sdr_bt709',normalizedVideoTarget=temporary+'.normalized-video.ts';
         const muxNormalizedVideo=async()=>{await runFfmpeg(binary,['-hide_banner','-nostdin','-y','-i',normalizedVideoTarget,'-i',source,
