@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * Pre-deck pipeline migration + full Libra reset + standard NAS upgrade (no --helix-clean-init).
+ * Pre-deck pipeline migration + Nuclear Formation Reset + standard NAS upgrade (no --helix-clean-init).
  *
  * Usage:
  *   node scripts/predeck-pipeline-upgrade-nas.js <local-tar-path> --sha256 <hash> [--apply]
@@ -16,7 +16,7 @@ const COMPOSE_DIR = '/vol1/1000/docker/shelfdeck';
 const DATA_DIR = `${COMPOSE_DIR}/data`;
 const TRANSCODE_HOST = '/vol2/1000/shelfdeck_transcode';
 const MIGRATION_CONFIRM = 'PREDECK_PIPELINE_MIGRATION_V1';
-const RESET_CONFIRM = 'FULL_LIBRA_RESET_V1';
+const RESET_CONFIRM = 'FORMATION_RESET_NUCLEAR_V1';
 
 function shellQuote(value) {
   return `'${String(value).replace(/'/g, `'\\''`)}'`;
@@ -131,9 +131,9 @@ async function main() {
     ['Apply Pre-deck pipeline migration', dockerRun(targetImage, secretFile, 'helix-predeck-pipeline-migration.js', [
       '--apply', '--confirm', MIGRATION_CONFIRM,
     ])],
-    ['Plan full Libra reset', dockerRun(targetImage, secretFile, 'helix-full-libra-reset.js', ['--plan'])],
-    ['Apply full Libra reset', dockerRun(targetImage, secretFile, 'helix-full-libra-reset.js', [
-      '--apply', '--confirm', RESET_CONFIRM,
+    ['Plan Nuclear Formation Reset', dockerRun(targetImage, secretFile, 'helix-formation-reset.js', ['--mode', 'nuclear'])],
+    ['Apply Nuclear Formation Reset', dockerRun(targetImage, secretFile, 'helix-formation-reset.js', [
+      '--mode', 'nuclear', '--apply', '--offline-confirmed', '--confirm', RESET_CONFIRM,
     ])],
   ];
 

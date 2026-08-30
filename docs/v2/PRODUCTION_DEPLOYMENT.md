@@ -43,7 +43,7 @@ SSOT 允许 Field 与 Shelf Target 同根；本机两者都是 `/media/Film`。W
 
 ## 标准发布流程
 
-Helix-beta 首次（或 schema 不匹配且 Product Owner 明确授权清库时）才使用 `--helix-clean-init`。clean-init 把 compose 目录挂到 `/run/helix-nas`，在 `/run/helix-nas/data` 初始化，避免把 bind-mount 的 `/app/data` 当成可 rename 的目录。确认词为 `INITIALIZE_HELIX_CLEAN_V1`。`SHELFDECK_SECRET_ROOT` 写入 NAS `secret.env`（不入库），compose 通过 `env_file` 注入。不得运行 v3 compatibility migration或dual read。只有 Product Owner 明确授权的 bounded destructive incident procedure 才可在停服、完整备份、plan/confirm、integrity check 和标准 deploy 包装下修改 SQLite；PROD-032 固定入口为 `scripts/predeck-pipeline-upgrade-nas.js`，不允许手工 SQL。
+Helix-beta 首次（或 schema 不匹配且 Product Owner 明确授权清库时）才使用 `--helix-clean-init`。clean-init 把 compose 目录挂到 `/run/helix-nas`，在 `/run/helix-nas/data` 初始化，避免把 bind-mount 的 `/app/data` 当成可 rename 的目录。确认词为 `INITIALIZE_HELIX_CLEAN_V1`。`SHELFDECK_SECRET_ROOT` 写入 NAS `secret.env`（不入库），compose 通过 `env_file` 注入。不得运行 v3 compatibility migration或dual read。只有 Product Owner 明确授权的 bounded destructive incident procedure 才可在停服、完整备份、plan/confirm、integrity check 和标准deploy或专用offline operator包装下修改 SQLite；历史PROD-032入口为`scripts/predeck-pipeline-upgrade-nas.js`，当前Formation清场固定入口为`scripts/formation-reset-nas.js`，不允许手工SQL。
 
 部署脚本会重写 NAS compose，但必须保留并校验：
 
@@ -107,6 +107,20 @@ node scripts/deploy-nas.js /vol1/1000/docker/shelfdeck/shelfdeck-<tag>.tar --sha
 ```
 
 空 data 目录的 Helix-beta 首次初始化不要求旧 `config.json` 快照；已有数据时 clean-init 会在 compose 目录旁写 backup。Admin API key 只写本机 ignored 的 `tests/.env.nas-admin`，不得提交或打印。
+
+### Formation Reset 不是部署
+
+Normal/Nuclear Formation Reset是当前开发期的offline调试能力，不发布新镜像、不替代标准部署，也不主动重新Intake。默认命令只读取
+当前生产数据库并输出plan：
+
+```powershell
+node scripts/formation-reset-nas.js --mode normal
+node scripts/formation-reset-nas.js --mode nuclear
+```
+
+只有用户明确授权该次生产Reset后才执行对应apply与确认词。包装脚本只停止`shelfdeck` Compose service，在
+`/vol1/1000/docker/shelfdeck/backups/formation-reset-*/data`创建并校验完整备份，使用当前精确镜像离线执行Reset，然后恢复服务并检查
+`GET /v1/health`。Reset不挂载`/media`；失败时禁止继续部署或手工改库，应保留停止状态和备份路径先查明原因。
 
 ## 部署脚本的固定契约
 

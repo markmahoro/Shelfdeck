@@ -28,6 +28,14 @@ PROD-034 已按 Product Owner 授权对“唐人街探案 (2015)”和“赤壁�
 - 为这两个 Run 引入的通用 Arca 恢复兼容路径已经撤除；
 - 未删除、移动或改写 `/media`、`/transcode` 文件。
 
+## Formation Reset Debug Capability
+
+- 当前工作区已经实现统一的 Formation Reset 离线调试能力，提供 `normal` 与 `nuclear` 两种模式；focused tests 14/14 通过。
+- `normal` 终止并清理 On-deck Commit 前的活动整理现场，同时保留明确终态的过程记录；`nuclear` 物理删除该范围内的过程记录，使其在当前运行数据库中视同未发生。
+- 两种模式都以 Arca On-deck Commit 为保护线，不触碰已入架事实和 `/media`，也不主动触发 Observation 或 Intake。
+- **该能力尚未部署到生产 NAS。** 当前 Running image `markmahoro/shelfdeck:helix-beta-20260831-82861681ce` 不包含 Reset 核心；计划随后续 ShelfDeck 标准升级进入生产镜像。在此之前不得对生产执行 `scripts/formation-reset-nas.js --apply`。
+- 截至本状态记录，生产环境没有执行过 Normal Reset 或 Nuclear Reset。
+
 ## Current Runtime
 
 - Formation：0 pending、4 in progress、0 attention、8 completed；active section 共 4 条。

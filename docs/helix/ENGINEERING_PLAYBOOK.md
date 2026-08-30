@@ -2,7 +2,7 @@
 
 Status: active non-Canonical engineering governance; Design-only until Implementation Gate is explicitly opened.
 
-Last updated: 2026-07-17
+Last updated: 2026-08-31
 
 ## 1. Purpose and authority
 
@@ -86,6 +86,24 @@ Implementation Gate只有用户明确授权才能打开。当前Gate状态只以
 如果Architecture Agent修正仍有冲突或传播不完整，实施线程继续保持fail closed并再次上报，不以兼容层、豁免、旧结构、
 silent fallback或“测试先过”为理由自行选择架构。Phase Exit Audit必须能区分Architecture Agent提交的SSOT变更与实施线程
 的派生变更，并证明实施线程没有产生额外SSOT diff。
+
+### 3.4 Current-stage runtime continuity discipline
+
+当前Helix迭代阶段采用clean-cut运行数据纪律：除非用户明确指定必须保留的**精确Libra/Formation条目**，所有尚未完成
+Arca On-deck Commit的既有整理条目均不享有跨迭代兼容权利。Schema、contract、runtime或执行语义变化后，实施不得为这些
+既有条目增加migration、dual-read/write、fallback、resume、repair或其他兼容性代码；应使用经授权的Formation Reset调试工具
+清理，再由后续正常Observation/Intake自然产生新运行。Reset本身不得主动触发Observation或Intake。
+
+Formation Reset固定提供两种语义：
+
+- **Normal Reset**：终止并清理未提交整理现场，使其不再参与运行或活动Projection，同时保留明确终态的过程审计记录；
+- **Nuclear Reset**：物理删除未完成Arca On-deck Commit的整理过程记录，使其在当前运行数据库中视同从未发生。
+
+两种模式都必须保护已经Arca On-deck Commit的Shelf Entry与Deck Fact，不得触碰`/media`，生产执行仍需用户对该次生产数据操作
+作出明确授权。用户只指定保留某个条目时，授权范围仅限该精确条目的有界迁移或恢复方案，不自动授权通用兼容层。
+
+Reset只解决旧运行数据与新版本合同不再一致的问题。若同一缺陷会在Reset后由新建条目再次产生，必须修复根因并补回归验证，
+禁止以反复Reset替代实现修复。
 
 ## 4. Workspace, branch and change isolation
 

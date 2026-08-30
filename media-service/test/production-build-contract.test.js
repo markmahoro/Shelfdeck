@@ -29,3 +29,10 @@ test('production image includes the bounded PROD-034 one-time correction', () =>
   assert.match(dockerfile,
     /COPY media-service\/scripts\/helix-prod034-one-time-correction\.js \.\/scripts\/helix-prod034-one-time-correction\.js/);
 });
+
+test('production image includes the unified Formation Reset and excludes the obsolete full Libra reset', () => {
+  const dockerfile = fs.readFileSync(path.join(root, 'media-service', 'Dockerfile'), 'utf8');
+  assert.match(dockerfile,
+    /COPY media-service\/scripts\/helix-formation-reset\.js \.\/scripts\/helix-formation-reset\.js/);
+  assert.doesNotMatch(dockerfile, /helix-full-libra-reset/);
+});
