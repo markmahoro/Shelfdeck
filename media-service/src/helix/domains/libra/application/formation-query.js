@@ -33,10 +33,24 @@ function eventState(event) {
   return 'pending';
 }
 function latestEvent(works, predicate) {
-  return works.flatMap((work) => work.events.map((event) => ({ work, event }))).filter(({ event }) => predicate(event))
+  return works.flatMap((work) => work.events.map((event) => ({ work, event }))).filter(({ work, event }) => predicate(event, work))
     .sort((left, right) => (right.work.createdAtMs || 0) - (left.work.createdAtMs || 0) ||
       (right.event.result?.committedAtMs || 0) - (left.event.result?.committedAtMs || 0) ||
       String(right.event.eventId || '').localeCompare(String(left.event.eventId || '')))[0]?.event || null;
+}
+function directVerifyStep(event) {
+  const value = event?.result?.result || {};
+  const executed = event?.state === 'succeeded' || event?.result?.outcomeKind === 'succeeded';
+  if (executed && value.result === 'failed') {
+    const reasons = new Set(value.reasonCodes || []);
+    return Object.freeze({
+      key:'direct_verify',
+      label:reasons.has('max_size_exceeded') ? '原片超出体积上限，转入转码' : '原片不符合收藏要求，继续整理',
+      state:'done',
+      progress:null,
+    });
+  }
+  return overlayStep('direct_verify', '验证原片', event);
 }
 function transcodeDeviceClass(event) {
   const planned = String(event?.executionDeviceClass || '');
@@ -114,7 +128,8 @@ function buildMediaOrganizationSteps(works, spec, options) {
   const posterEvent = latestEvent(works, (event) => event.capabilityRef === 'libra.product_artifact.acquire@1' &&
     (event.result?.result?.artifactHandle?.artifactKind === 'poster' || !event.result?.result));
   const nfoEvent = latestEvent(works, (event) => event.capabilityRef === 'libra.product_sidecar.render@1');
-  const sourceProbeEvent = latestEvent(works, (event) => event.capabilityRef === 'shared.material.media.probe@1');
+  const sourceProbeEvent = latestEvent(works, (event, work) => event.capabilityRef === 'shared.material.media.probe@1' &&
+    String(work?.workId || '').includes('source_observation'));
   const directVerifyEvent = latestEvent(works, (event) => event.capabilityRef === 'libra.product_media.verify@1' &&
     event.result?.result?.candidateKind === 'direct_input');
   const remuxEvent = latestEvent(works, (event) => event.capabilityRef === 'libra.media.remux@1');
@@ -134,6 +149,8 @@ function buildMediaOrganizationSteps(works, spec, options) {
       (prefix) => prefix + '（第 ' + transcodeOrdinal + ' 次策略）')
     : transcodeLabel(works, spec);
   const externalImportPendingTranscode = hasExternalImportVerify(works) && transcodeWorks(works).length > 0;
+  const transcodeWaiting = ['waiting_resource', 'waiting_external', 'waiting_for_resource', 'waiting_for_external']
+    .includes(transcodeEvent?.state);
   const planned = [
     overlayStep('identity', '核对影片身份', identityEvent),
     overlayStep('metadata', '读取并补充媒体资料', metadataEvent),
@@ -143,11 +160,12 @@ function buildMediaOrganizationSteps(works, spec, options) {
       product_metadata_draft_create:'创建 NFO' }[event.result?.result?.provenanceRef?.objectType] ||
       (event.result?.result ? '生成整理后的 NFO（历史记录未区分更新或重建）' : '生成整理后的 NFO'))),
     sourceProbeEvent ? overlayStep('source_probe', '探测源媒体', sourceProbeEvent) : null,
-    directVerifyEvent ? overlayStep('direct_verify', '验证原片', directVerifyEvent) : null,
+    directVerifyEvent ? directVerifyStep(directVerifyEvent) : null,
     remuxEvent ? overlayStep('remux', '封装整理', remuxEvent) : null,
     transcodeWorks(works).length ? Object.freeze({
       key: externalImportPendingTranscode ? 'transcode_external' : 'transcode',
-      label: externalImportPendingTranscode ? '压缩外部素材 · ' + transcodeLabel(works, spec) : transcodeLabelText,
+      label: (transcodeWaiting ? '等待转码资源 · ' : '') +
+        (externalImportPendingTranscode ? '压缩外部素材 · ' + transcodeLabel(works, spec) : transcodeLabelText),
       state: transcodeState,
       progress: transcodeEvent?.progress || null,
     }) : null,
@@ -380,7 +398,8 @@ function nextAction(works, classification, issue, runState, recovery, arcaStatus
     return Object.freeze({ label: '媒体整理执行失败，需要处理', state: 'blocked', progress: null });
   }
   const steps = organizingSteps(works, spec, { latestRunState, runState });
-  const current = steps.find((item) => item.state === 'running' || item.state === 'blocked')
+  const current = steps.find((item) => item.state === 'running')
+    || steps.find((item) => item.state === 'blocked')
     || steps.find((item) => item.state === 'pending');
   if (current?.key === 'transcode' && (current.state === 'blocked' || transcodeAssessmentBlocked(works))
       && !latestEvent(works, (event) => event.capabilityRef === 'libra.media.transcode@1')) {
@@ -707,12 +726,10 @@ function createFormationQuery(options) {
         recoveryState:value.recoveryState, recoveryGeneration:value.recoveryGeneration,
         automaticRecoveryUsed:value.automaticRecoveryUsed, canRetry:true, offerId:value.offerId }) });
   }
-  function currentRatingFacts(items) {
+  function currentFacts(items) {
     if (!options.detailSource?.getMany || !items.length) return items;
     const fresh = new Map(options.detailSource.getMany(items.map((item)=>item.subjectId)).map((item)=>[item.subjectId,item]));
-    return items.map((item)=>{const value=fresh.get(item.subjectId);return value ? Object.freeze({ ...item,
-      myRating:value.myRating,myRatingSource:value.myRatingSource,myRatingRevision:value.myRatingRevision,
-      ratingState:value.ratingState,ratingResolutionStatus:value.ratingResolutionStatus,ratingReasonCode:value.ratingReasonCode }) : item;});
+    return items.map((item)=>{const value=fresh.get(item.subjectId);return value ? Object.freeze({ ...item, ...value }) : item;});
   }
   function countHiddenActive() {
     const hidden = { pending:0, in_progress:0, attention_required:0, total:0 };
@@ -735,7 +752,7 @@ function createFormationQuery(options) {
     }
     return hidden;
   }
-  function summary(attentionRows = []) {
+  function summary(classificationChanges = []) {
     const result = { totalCount: 0, pendingCount: 0, inProgressCount: 0, attentionRequiredCount: 0, completedCount: 0 };
     for (const row of options.store.counts()) {
       const count = Number(row.row_count); result.totalCount += count;
@@ -749,14 +766,23 @@ function createFormationQuery(options) {
     result.inProgressCount = Math.max(0, result.inProgressCount - hidden.in_progress);
     result.attentionRequiredCount = Math.max(0, result.attentionRequiredCount - hidden.attention_required);
     result.totalCount = Math.max(0, result.totalCount - hidden.total);
-    for (const row of attentionRows) {
-      if (row.classification === 'attention_required') continue;
-      if (row.classification === 'pending') result.pendingCount -= 1;
-      else if (row.classification === 'in_progress') result.inProgressCount -= 1;
-      else if (row.classification === 'completed') result.completedCount -= 1;
-      result.attentionRequiredCount += 1;
+    for (const change of classificationChanges) {
+      if (!change || change.from === change.to) continue;
+      if (change.from === 'pending') result.pendingCount -= 1;
+      else if (change.from === 'in_progress') result.inProgressCount -= 1;
+      else if (change.from === 'attention_required') result.attentionRequiredCount -= 1;
+      else if (change.from === 'completed') result.completedCount -= 1;
+      if (change.to === 'pending') result.pendingCount += 1;
+      else if (change.to === 'in_progress') result.inProgressCount += 1;
+      else if (change.to === 'attention_required') result.attentionRequiredCount += 1;
+      else if (change.to === 'completed') result.completedCount += 1;
     }
     return Object.freeze(result);
+  }
+  function classificationChanges(projected, fresh) {
+    const previous = new Map(projected.map((item)=>[item.subjectId,item.classification]));
+    return fresh.map((item)=>Object.freeze({ subjectId:item.subjectId, from:previous.get(item.subjectId), to:item.classification }))
+      .filter((item)=>item.from && item.to && item.from !== item.to);
   }
   function truthy(value) { return value === true || value === 1 || value === '1' || value === 'true'; }
   function activeFilters(query) {
@@ -838,23 +864,35 @@ function createFormationQuery(options) {
     if (section === 'completed') {
       let rows = options.store.listCompleted(offset, limit + 1).filter((item)=>!attentionOffers.has(item.current_offer_id));
       const hasMore = rows.length > limit, selected = hasMore ? rows.slice(0, limit) : rows;
-      return Object.freeze({ items: Object.freeze(currentRatingFacts(selected.map(projectionItem).map(technicalIssue))), summary: summary(attention),
+      const projected = selected.map(projectionItem);
+      const fresh = currentFacts(projected).map(technicalIssue);
+      const changes = classificationChanges(projected, fresh);
+      for (const row of attention) {
+        if (!changes.some((item)=>item.subjectId===row.subject_id) && row.classification !== 'attention_required') {
+          changes.push(Object.freeze({subjectId:row.subject_id,from:row.classification,to:'attention_required'}));
+        }
+      }
+      return Object.freeze({ items: Object.freeze(fresh.filter((item)=>item.classification === 'completed')), summary: summary(changes),
         nextCursor: hasMore ? cursorFor(offset + limit) : null, projection: Object.freeze({ status: state.status, asOfMs: state.asOfMs }) });
     }
     const filters = activeFilters(query);
     const admitted = options.readPipelineSubjectIds?.() || new Set();
     let items;
+    let changes = [];
     const requiresFullScan = Boolean(options.readPipelineSubjectIds) || hasActiveFilters(filters) || attention.length > 0;
     if (requiresFullScan) {
-      items = mergeAttention(scanActiveRows(), attention).map(projectionItem).map(technicalIssue)
-        .filter((item) => isVisibleActiveItem(item, admitted) && matchesActiveItem(item, filters));
+      const projected = mergeAttention(scanActiveRows(), attention).map(projectionItem)
+        .filter((item) => isVisibleActiveItem(item, admitted));
+      items = currentFacts(projected).map(technicalIssue);
+      changes = classificationChanges(projected, items);
+      items = items.filter((item) => matchesActiveItem(item, filters));
     } else {
       const rows = options.store.listActive(offset, limit + 1);
       items = rows.map(projectionItem).map(technicalIssue).filter((item) => !isIdleAfterUserAbandon(item));
     }
     const windowed = requiresFullScan ? items.slice(offset) : items;
     const hasMore = windowed.length > limit, selected = hasMore ? windowed.slice(0, limit) : windowed;
-    return Object.freeze({ items: Object.freeze(currentRatingFacts(selected)), summary: summary(attention),
+    return Object.freeze({ items: Object.freeze(requiresFullScan ? selected : currentFacts(selected)), summary: summary(changes),
       nextCursor: hasMore ? cursorFor(offset + limit) : null, projection: Object.freeze({ status: state.status, asOfMs: state.asOfMs }) });
   }
   function get(subjectId) {

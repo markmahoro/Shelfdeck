@@ -130,9 +130,12 @@ function createOnDeckProcessCoordinator(options) {
     if(checks.length!==5||feasibility.length!==1)throw new Error('Arca Acceptance Assessment terminal Result set is incomplete.');
     return checks.some((item)=>item.result!=='passed')||feasibility[0].availableBytes<feasibility[0].requiredBytes?'rejected':'accepted';
   }
-  function onDeckWork(onDeckRunId, dependencyRefs, acceptanceWork) {
-    const basisDigest = canonicalDigest({ schema:'arca.on-deck-execution-basis@1',
-      onDeckRunId, dependencyRefs, acceptanceWorkId:acceptanceWork.workId });
+  function onDeckWork(onDeckRunId, dependencyRefs, acceptanceWork, recoveryGeneration = 1) {
+    const basisDigest = recoveryGeneration === 1
+      ? canonicalDigest({ schema:'arca.on-deck-execution-basis@1', onDeckRunId, dependencyRefs,
+        acceptanceWorkId:acceptanceWork.workId })
+      : canonicalDigest({ schema:'arca.on-deck-execution-basis@2', onDeckRunId, dependencyRefs,
+        acceptanceWorkId:acceptanceWork.workId, recoveryGeneration });
     return workDefinition({ processType:'arca_ondeck_run', processId:onDeckRunId,
       workKind:'on_deck_execution', basisDigest, dependencyRefs,
       dependsOn:[Object.freeze({ ownerDomain:'arca', objectType:'supporting_work',
@@ -146,6 +149,23 @@ function createOnDeckProcessCoordinator(options) {
       throw new Error('Arca Work lost its immutable Handoff B dependency references.');
     }
     return Object.freeze(parameters.dependencyRefs);
+  }
+  function orderedOnDeckWorks(onDeckRunId) {
+    return options.workResultReader.listWorks({ ownerDomain:'arca', processType:'arca_ondeck_run',
+      processId:onDeckRunId, workKind:'on_deck_execution' })
+      .slice().sort((left,right)=>Number(left.created_at_ms)-Number(right.created_at_ms) ||
+        String(left.work_id).localeCompare(String(right.work_id)));
+  }
+  function acceptedWorkForRecovery(workId) {
+    const definition = options.workResultReader.readDefinition?.(workId)?.definition;
+    const ref = definition?.dependencyRefs?.find((item)=>item.ownerDomain === 'arca' &&
+      item.objectType === 'supporting_work');
+    if (!ref?.objectId || !ref.digest) {
+      throw Object.assign(new Error('On-deck recovery lost its accepted Handoff B Work reference.'), {
+        code:'ARCA_ONDECK_RECOVERY_ACCEPTANCE_REF_MISSING',
+      });
+    }
+    return Object.freeze({ workId:ref.objectId, executionBasisDigest:ref.digest });
   }
   function recordTerminalFailure(request) {
     const status = options.workResultReader.status(request.workId);
@@ -240,17 +260,45 @@ function createOnDeckProcessCoordinator(options) {
     listAcceptanceAttention: recovery.listAttention,
     reconcileAcceptance,
     reconcileOnDeck(onDeckRunId) {
-      const rows = options.workResultReader.listWorks({ ownerDomain:'arca', processType:'arca_ondeck_run',
-        processId:onDeckRunId, workKind:'on_deck_execution' });
-      if (rows.length !== 1) return Object.freeze({ kind:'not_found', onDeckRunId });
-      const status = options.workResultReader.status(rows[0].work_id);
-      if (!succeeded(status)) return Object.freeze({ kind:'pending', onDeckRunId, workId:rows[0].work_id });
-      const results = options.workResultReader.read(rows[0].work_id);
+      const rows = orderedOnDeckWorks(onDeckRunId);
+      if (!rows.length) return Object.freeze({ kind:'not_found', onDeckRunId });
+      const row = rows.slice().reverse().find((item)=>succeeded(options.workResultReader.status(item.work_id)));
+      if (!row) return Object.freeze({ kind:'pending', onDeckRunId, workId:rows.at(-1).work_id });
+      const results = options.workResultReader.read(row.work_id);
       const commit = results.find((item)=>item.capabilityRef === 'arca.ondeck.commit@1' && item.outcomeKind === 'succeeded');
       if (!commit) return Object.freeze({ kind:'invalid_terminal_result', onDeckRunId });
-      const context = options.contextReader.readAccepted(onDeckRunId, refsFromWorkResult(rows[0].work_id));
+      const context = options.contextReader.readAccepted(onDeckRunId, refsFromWorkResult(row.work_id));
       options.contextReader.onDeck.finalize(onDeckRunId, context.finalInventoryDecision.decisionDigest);
-      return Object.freeze({ kind:'terminal', onDeckRunId, result:commit.result });
+      return Object.freeze({ kind:'terminal', onDeckRunId, subjectId:context.offer.subjectId, result:commit.result });
+    },
+    blockOnDeck(onDeckRunId) {
+      const rows = orderedOnDeckWorks(onDeckRunId);
+      if (!rows.length) return Object.freeze({ kind:'not_found', onDeckRunId });
+      const latest = rows.at(-1), refs = refsFromWorkResult(latest.work_id);
+      const context = options.contextReader.readAccepted(onDeckRunId, refs);
+      const blocked = options.contextReader.onDeck.block(onDeckRunId,
+        context.finalInventoryDecision.decisionDigest);
+      return Object.freeze({ kind:'blocked', onDeckRunId, subjectId:context.offer.subjectId,
+        workId:latest.work_id, replayed:blocked.replayed });
+    },
+    recoverOnDeck(onDeckRunId, maxGenerations = 3) {
+      const rows = orderedOnDeckWorks(onDeckRunId);
+      if (!rows.length) return Object.freeze({ kind:'not_found', onDeckRunId });
+      const latest = rows.at(-1);
+      if (!['failed','cancelled'].includes(latest.state)) {
+        return Object.freeze({ kind:'not_recoverable', onDeckRunId, workId:latest.work_id, state:latest.state });
+      }
+      const refs = refsFromWorkResult(latest.work_id);
+      const context = options.contextReader.readAccepted(onDeckRunId, refs);
+      if (rows.length >= maxGenerations) {
+        return Object.freeze({ kind:'recovery_exhausted', onDeckRunId, subjectId:context.offer.subjectId,
+          workId:latest.work_id, recoveryGeneration:rows.length });
+      }
+      const acceptedWork = acceptedWorkForRecovery(latest.work_id);
+      options.contextReader.onDeck.resume(onDeckRunId, context.finalInventoryDecision.decisionDigest);
+      const work = onDeckWork(onDeckRunId, refs, acceptedWork, rows.length + 1);
+      return Object.freeze({ kind:'recovering', onDeckRunId, subjectId:context.offer.subjectId,
+        recoveryGeneration:rows.length + 1, work, result:submit(work) });
     },
   });
 }

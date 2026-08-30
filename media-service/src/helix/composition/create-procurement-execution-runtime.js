@@ -870,6 +870,9 @@ function createProcurementExecutionRuntime(options) {
         const shelfEntryId=terminal?.result?.onDeckCommitReceipt?.shelfEntryId;
         if(terminal?.kind==='terminal'&&shelfEntryId)
           arcaProcessServices.aftercareCoordinator.reconcile(shelfEntryId);
+      }else if(['failed','cancelled'].includes(request.workAttemptState)){
+        const blocked=arcaProcessServices.coordinator.blockOnDeck(request.processId);
+        if(blocked?.subjectId)options.onFormationSubjectChanged?.(blocked.subjectId);
       }
       return {workId:request.workId,disposition:request.workAttemptState};
     }
@@ -1019,6 +1022,16 @@ function createProcurementExecutionRuntime(options) {
       listPage:({cursor,limit})=>arcaProcessServices.coordinator.listAcceptanceAttention(limit,cursor)
         .map((item)=>Object.freeze({cursor:item.offerId,scope:item})),
       reconcile:()=>arcaProcessServices.coordinator.recoverAttentionCases(1),
+    }),Object.freeze({
+      ownerDomain:'arca',reconcilerKey:'blocked-ondeck-recovery',
+      listPage:({cursor,limit})=>workResultReader.listOwnerWorks({ownerDomain:'arca',workKind:'on_deck_execution'})
+        .filter((item)=>['failed','cancelled'].includes(item.state))
+        .sort((left,right)=>String(left.work_id).localeCompare(String(right.work_id)))
+        .filter((item)=>cursor===null||item.work_id>cursor).slice(0,limit)
+        .map((item)=>Object.freeze({cursor:item.work_id,scope:Object.freeze({onDeckRunId:item.process_id})})),
+      reconcile:({onDeckRunId})=>{const result=arcaProcessServices.coordinator.recoverOnDeck(onDeckRunId);
+        if(result?.subjectId)options.onFormationSubjectChanged?.(result.subjectId);
+        return result;},
     }),Object.freeze({
       ownerDomain:'libra',reconcilerKey:'active-acceptance-spec-subjects',
       listPage:({cursor,limit})=>pipelineSubjectPage(cursor,limit),

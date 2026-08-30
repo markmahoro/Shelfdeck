@@ -1,6 +1,6 @@
 # ShelfDeck Clean Helix Master Plan
 
-Status: **Helix-beta Movie-only full chain；PROD-034 已关闭，等待下一项明确工作。**
+Status: **Helix-beta Movie-only full chain；PROD-035 正在修复 Formation runtime truth 与同一 On-deck Run 恢复。**
 
 Last updated: 2026-08-31
 
@@ -21,10 +21,13 @@ Last updated: 2026-08-31
 
 ## 下一步规则
 
-- 当前没有活动 Phase；不得继续恢复或扩展 PROD-034 的两个目标 Run。
+- PROD-035 当前只覆盖 4 条生产 active records 的事实展示，以及 Accepted 后失败的同一 Arca On-deck Run 的 bounded owner-local recovery。
+- Formation active list 必须在有界范围内合成 current detail facts；延迟 durable Projection 不得造成列表、summary 和详情互相矛盾。
+- On-deck 恢复沿用 immutable Final Inventory Decision 和同一 Run，最多 3 代 Supporting Work；不得重开 Libra、改判 Rejected 或创建第二个 On-deck Run。
+- 不得继续恢复或扩展 PROD-034 的两个目标 Run。
 - 其余 active records 只按各自事实诊断；未经新授权，不把本次一次性纠正扩大到其他记录。
 - 恢复 Helix-beta acceptance evidence 工作时，仍以 `BETA_FEATURE_ACCEPTANCE_BASELINE.md` 为准；生产 health 不能折算为 `HB-*` PASS。
 - 架构唯一 SSOT 仍为 `TOP_DOWN_ARCHITECTURE_CONFIRMATION.md`；生产修复不得移动 Owner、Handoff 或 Canonical Transaction。
 - 生产继续使用 `scripts/build-image.js` → `scripts/upload-nas-image.js` → `scripts/deploy-nas.js`；不删除、移动或改写 `/media` 正式媒体。
 
-当前没有活动 Local Implementation Phase；状态见 `docs/helix/implementation/CURRENT_PHASE.md`。
+唯一活动 Phase 为 PROD-035；状态见 `docs/helix/implementation/CURRENT_PHASE.md`。

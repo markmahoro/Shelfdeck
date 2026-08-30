@@ -164,7 +164,7 @@ test('Formation organizingSteps use closed user language and persist GPU transco
   }]}];
   const waitingSteps=organizingSteps(waitingGpuWorks,spec);
   assert.deepEqual(waitingSteps.find((item)=>item.key==='transcode'),{
-    key:'transcode',label:'GPU转码 · HEVC · 4k · 不超过 20 GiB',state:'running',progress:null,
+    key:'transcode',label:'等待转码资源 · GPU转码 · HEVC · 4k · 不超过 20 GiB',state:'running',progress:null,
   });
   assert.equal(waitingSteps.find((item)=>item.key==='verify').state,'pending');
   const directSourceVerify=[{state:'succeeded',events:[{
@@ -199,6 +199,31 @@ test('Formation organizingSteps use closed user language and persist GPU transco
   assert.equal(legacy.organizingAction,'封装整理');
   assert.equal(legacy.organizingSteps[0].key,'legacy');
   assert.equal(legacy.organizingSteps[0].label,'封装整理');
+});
+
+test('Formation presents a failed direct-input verification as a completed branch while transcode waits',()=>{
+  const works=[
+    {workId:'libra-workspace-media-source_observation-work-1',state:'succeeded',createdAtMs:10,events:[{
+      capabilityRef:'shared.material.media.probe@1',state:'succeeded',result:{outcomeKind:'succeeded',result:{result:'observed'}},
+    }]},
+    {workId:'libra-workspace-media-direct_assessment-work-1',state:'succeeded',createdAtMs:20,events:[{
+      capabilityRef:'libra.product_media.verify@1',state:'succeeded',
+      result:{outcomeKind:'succeeded',result:{candidateKind:'direct_input',result:'failed',reasonCodes:['max_size_exceeded']}},
+    }]},
+    {workId:'libra-workspace-media-transcode_1_selection-work-1',state:'running',createdAtMs:30,events:[{
+      capabilityRef:'shared.material.media.probe@1',state:'succeeded',result:{outcomeKind:'succeeded',result:{result:'observed'}},
+    },{
+      capabilityRef:'libra.media.transcode@1',state:'waiting_resource',executionDeviceClass:'intel_qsv',result:null,
+    }]},
+  ];
+  const steps=organizingSteps(works);
+  assert.equal(steps.find((item)=>item.key==='source_probe').state,'done');
+  assert.equal(steps.find((item)=>item.key==='direct_verify').state,'done');
+  assert.equal(steps.find((item)=>item.key==='direct_verify').label,'原片超出体积上限，转入转码');
+  assert.equal(steps.filter((item)=>item.key==='source_probe').length,1,
+    'The output probe inside Transcode selection must not replace the source observation.');
+  assert.equal(nextAction(works,'in_progress',null,'active',null,null,null,'active').label,
+    '等待转码资源 · GPU转码');
 });
 
 test('execution progress derives the Transcode device class from immutable planned inputs',()=>{
@@ -327,6 +352,29 @@ test('durable Formation projection pages active rows in stable Subject intake or
     assert.equal(new Set([...attentionFirstPage.items,...attentionSecondPage.items].map((row)=>row.subjectId)).size,30);
     const endedQuery=createFormationQuery({store,historyStore:{listDiscarded:()=>[{historyId:'discard-1',libraRunId:'old-run',subjectId:'subject-000',outcome:'user_abandoned',label:'已结束 · 用户放弃',endedAtMs:5000,stateRevision:3,stateDigest:hex(900),evidenceDigest:hex(901)}]},now:()=>5001,state:()=>({status:'ready',asOfMs:5000})});
     const ended=endedQuery.list({section:'ended',limit:25});assert.equal(ended.items.length,1);assert.equal(ended.items[0].displayIdentity,'影片 0');assert.equal(ended.items[0].label,'已结束 · 用户放弃');
+  }finally{kernel.close();fs.rmSync(root,{recursive:true,force:true,maxRetries:5,retryDelay:50});}
+});
+
+test('Formation active list and summary overlay current Arca truth before filtering',()=>{
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'helix-formation-current-truth-')),databasePath=path.join(root,'shelfdeck.db');
+  const kernel=openSqliteKernel({Database,databasePath,schemaDdl,schemaManifest,now:()=>100});
+  try{
+    kernel.runPrimitive(({prepare})=>{const insert=prepare(`INSERT INTO libra_subjects(subject_id,structure_kind,content_profile,routing_anchor_intake_decision_id,status,intake_revision,current_identity_revision,created_at_ms,updated_at_ms) VALUES(?,?,?,?,?,?,?,?,?)`);
+      insert.run('subject-000','single','movie',null,'active',1,null,1000,1000);
+      insert.run('subject-001','single','movie',null,'active',1,null,1001,1001);});
+    const unitOfWork=createSqliteUnitOfWork({kernel}),store=createFormationProjectionStore({schemaManifest,unitOfWork});
+    store.upsert(buildFormationProjectionRow(item(0,'in_progress'),3000));
+    store.upsert(buildFormationProjectionRow(item(1,'in_progress'),3001));
+    const freshAttention=Object.freeze({...item(0,'attention_required'),arcaStatus:Object.freeze({
+      stage:'attention_required',reasonCode:'ARCA_ONDECK_BLOCKED',onDeckRunId:'ondeck-0',
+    }),nextAction:Object.freeze({label:'收藏架接纳或上架需要处理',state:'attention_required',progress:null})});
+    const query=createFormationQuery({store,readPipelineSubjectIds:()=>new Set(['subject-000','subject-001']),
+      detailSource:{getMany:(ids)=>ids.map((id)=>id==='subject-000'?freshAttention:item(1,'in_progress'))},
+      now:()=>4000,state:()=>({status:'ready',asOfMs:3999})});
+    const active=query.list({section:'active'});
+    assert.equal(active.items.find((row)=>row.subjectId==='subject-000').classification,'attention_required');
+    assert.deepEqual(active.summary,{totalCount:2,pendingCount:0,inProgressCount:1,attentionRequiredCount:1,completedCount:0});
+    assert.deepEqual(query.list({section:'active',classification:'attention_required'}).items.map((row)=>row.subjectId),['subject-000']);
   }finally{kernel.close();fs.rmSync(root,{recursive:true,force:true,maxRetries:5,retryDelay:50});}
 });
 

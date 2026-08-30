@@ -7,6 +7,7 @@ const path = require('node:path');
 const test = require('node:test');
 const Database = require('better-sqlite3');
 const { createAcceptanceRecoveryStore } = require('../../src/helix/domains/arca/persistence/acceptance-recovery-store');
+const { createOnDeckProcessCoordinator } = require('../../src/helix/domains/arca/application/on-deck-process-coordinator');
 const { createExecutorIncidentRegistry, OPEN_THRESHOLD } = require('../../src/helix/foundation/execution/executor-incident-registry');
 const { createCircuitBreaker } = require('../../src/helix/foundation/diagnostics/pressure-guard');
 const { createOutboxDispatcherHost } = require('../../src/helix/foundation/execution/outbox-dispatcher-host');
@@ -70,6 +71,37 @@ test('revision change creates one automatic generation and later failures wait f
     recoveryTriggerDigest:hex('f') }).recoveryGeneration, 2);
   const user = recovery.startGeneration('offer-2', { mode:'user', workId:'work-generation-3', recoveryTriggerDigest:hex('f') });
   assert.deepEqual({ generation:user.recoveryGeneration, state:user.recoveryState }, { generation:3, state:'user_retrying' });
+}));
+
+test('a failed accepted On-deck Work resumes the same Run with one bounded successor Work', () => fixture(({ unitOfWork }) => {
+  const refs=Object.freeze([{ownerDomain:'libra',objectType:'on_deck_package',objectId:'package-recovery',revision:1,digest:hex('a')}]);
+  const acceptedRef=Object.freeze({ownerDomain:'arca',objectType:'supporting_work',objectId:'acceptance-commit-work',revision:1,digest:hex('b')});
+  const rows=[Object.freeze({work_id:'ondeck-work-generation-1',state:'failed',created_at_ms:10,updated_at_ms:20})];
+  const calls=[];
+  const coordinator=createOnDeckProcessCoordinator({schemaManifest,unitOfWork,
+    workResultReader:{
+      listWorks:()=>rows,
+      read:()=>[{inputBindings:{bindings:[{bindingKind:'projected_owner_facts',parameters:{dependencyRefs:refs}}]}}],
+      readBindings:()=>[{inputBindings:{bindings:[{bindingKind:'projected_owner_facts',parameters:{dependencyRefs:refs}}]}}],
+      readDefinition:()=>({definition:{dependencyRefs:[...refs,acceptedRef]}}),
+    },
+    contextReader:{
+      readAccepted:()=>({offer:{subjectId:'subject-recovery'},finalInventoryDecision:{decisionDigest:hex('c')}}),
+      onDeck:{
+        block:()=>{calls.push('block');return {replayed:false};},
+        resume:()=>{calls.push('resume');return {replayed:false};},
+      },
+    },
+  });
+  const blocked=coordinator.blockOnDeck('ondeck-run-recovery');
+  assert.deepEqual({kind:blocked.kind,subjectId:blocked.subjectId},{kind:'blocked',subjectId:'subject-recovery'});
+  const recovered=coordinator.recoverOnDeck('ondeck-run-recovery');
+  assert.equal(recovered.kind,'recovering');
+  assert.equal(recovered.recoveryGeneration,2);
+  assert.equal(recovered.work.processId,'ondeck-run-recovery');
+  assert.notEqual(recovered.work.workId,'ondeck-work-generation-1');
+  assert.deepEqual(calls,['block','resume']);
+  assert.equal(coordinator.recoverOnDeck('ondeck-run-recovery',1).kind,'recovery_exhausted');
 }));
 
 test('equal deterministic failures aggregate and open then close one process-local Circuit', () => fixture(({ breaker, incidents }) => {
