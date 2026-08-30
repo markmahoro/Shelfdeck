@@ -148,7 +148,7 @@ function controlHandle(c,processType,processId,eventId,operationKind='transfer')
     eventFenceDigest:canonicalDigest({schema:'arca.control-event-fence@1',eventId,processId})}); }
 const finalDecision=(c)=>c.finalInventoryDecision||c.accepted?.finalInventoryDecision;
 function targetHandle(c) { return c.inventoryPort?.slotHandle?.({onDeckRunId:c.responsibility.onDeckRunId,custodyId:c.responsibility.custodyId,shelf:c.shelf,
-  onDeckProductPackage:c.packageValue,finalInventoryDecision:finalDecision(c),observedAtMs:0,replayCommitted:false})||Object.freeze({}); }
+  onDeckProductPackage:c.packageValue,finalInventoryDecision:finalDecision(c),observedAtMs:0,replayCommitted:false,replaySettledSources:true})||Object.freeze({}); }
 function productHandles(c) { return Object.freeze(c.packageValue.productMaterialManifest.members.map((item)=>item.workspaceMaterialHandle||Object.freeze({
   schemaRef:'helix://contracts/types/PhysicalMaterialReadHandle/v1',schemaVersion:1,handleId:stable('arca-read-',{run:c.responsibility.onDeckRunId,key:item.materialKey}),
   identity:item.physicalIdentity,ownerDomain:'arca',ownerScope:Object.freeze({scopeType:'on_deck_custody',scopeId:c.responsibility.custodyId}),bindingRevision:item.bindingRevision||1,
@@ -215,7 +215,8 @@ function createOnDeckProjections(options) { const definitions=[
   [P.acceptedPayload,(c)=>acceptedPayload(options,c)],[P.acceptanceControl,(c,_s,p)=>controlHandle(c,'arca_acceptance',c.offer.offerId,p.eventId)],
   [P.rejectionDecision,(c)=>rejectionDecision(options,c)],[P.rejectionCommit,(c,_s,p)=>rejectionCommitHandle(options,c,p.eventId)],
   [P.finalDecision,(c)=>finalDecision(c)],[P.targetHandle,(c,source)=>source||options.inventoryPort.slotHandle({onDeckRunId:c.responsibility.onDeckRunId,
-    custodyId:c.responsibility.custodyId,shelf:c.shelf,onDeckProductPackage:c.packageValue,finalInventoryDecision:c.finalInventoryDecision,observedAtMs:0,replayCommitted:false})],
+    custodyId:c.responsibility.custodyId,shelf:c.shelf,onDeckProductPackage:c.packageValue,finalInventoryDecision:c.finalInventoryDecision,observedAtMs:0,
+    replayCommitted:false,replaySettledSources:true})],
   [P.productHandles,(c)=>productHandles(c)],[P.finalBindings,(c,source)=>finalBindings(c,source)],[P.disposition,(c)=>disposition(c)],
   [P.targetBindings,(c,source)=>targetBindings(c,source)],[P.settlementHandles,(c,_s,p)=>settlementHandles(c,p.materialKey)],
   [P.settlementApproval,(c,_s,p)=>{const scope=settlementHandles(c,p.materialKey);return Object.freeze({schemaRef:'helix://contracts/types/ApprovalHandle/v1',schemaVersion:1,

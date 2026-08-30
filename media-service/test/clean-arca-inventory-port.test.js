@@ -426,6 +426,72 @@ test('same-root Stage/Switch preserves exact final members, merges new members, 
   }
 });
 
+test('On-deck recovery reuses exact settled final members while repairing a drifted presentation member', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'clean-arca-ondeck-repair-'));
+  try {
+    const targetRoot = path.join(root, 'shelf');
+    const sourceRoot = path.join(root, 'input');
+    const workspaceRoot = path.join(root, '.workspace');
+    const workspaceId = 'run-workspace';
+    fs.mkdirSync(targetRoot, { recursive:true });
+    fs.mkdirSync(sourceRoot, { recursive:true });
+    fs.mkdirSync(path.join(workspaceRoot, workspaceId, 'product'), { recursive:true });
+    const primarySource = path.join(sourceRoot, 'old-primary.mkv');
+    const nfoSource = path.join(workspaceRoot, workspaceId, 'product', 'movie.nfo');
+    const targetDirectory = path.join(targetRoot, 'Example Movie');
+    const primaryTarget = path.join(targetDirectory, 'Example Movie.mkv');
+    const nfoTarget = path.join(targetDirectory, 'Example Movie.nfo');
+    fs.writeFileSync(primarySource, Buffer.from('movie-bytes'));
+    fs.writeFileSync(nfoSource, Buffer.from('canonical-nfo'));
+    const mountScopeId = 'canary-mount';
+    const productMembers = [
+      member(primarySource, 'primary_payload', mountScopeId),
+      member(nfoSource, 'metadata_sidecar', mountScopeId,
+        { workspaceId, relativePath:'product/movie.nfo' }),
+    ];
+    const packageValue = Object.freeze({
+      onDeckPackageId:'package-recovery', shelfId:'shelf-1',
+      resolvedIdentitySnapshot:{ factValue:{ title:'Example Movie' } },
+      productStructureSnapshot:{ structureKind:'single' },
+      productMaterialManifest:{ members:Object.freeze(productMembers), manifestDigest:'manifest-recovery' },
+      offloadContextManifest:{ manifestDigest:'offload-recovery', members:Object.freeze([
+        Object.freeze({ materialKey:'old-nfo', location:nfoTarget }),
+      ]) },
+    });
+    const shelf = Object.freeze({
+      shelfId:'shelf-1', status:'active', currentPlacementRevision:1,
+      target:{ endpointId:'canary', rootLocation:targetRoot, mountScopeId, mountScopeRevision:1 },
+      placement:{ value:{ folderTemplate:'{title}' } },
+    });
+    const port = createCleanArcaInventoryPort({ schemaManifest, unitOfWork:{}, workspaceRoot });
+    const request = { onDeckRunId:'on-deck-recovery', custodyId:'custody-recovery', shelf,
+      onDeckProductPackage:packageValue, observedAtMs:1, replayCommitted:false };
+    const finalInventoryDecision = port.prepare(request);
+    fs.mkdirSync(targetDirectory, { recursive:true });
+    fs.copyFileSync(primarySource, primaryTarget);
+    fs.writeFileSync(nfoTarget, Buffer.from('externally-rewritten-nfo'));
+    fs.rmSync(primarySource);
+
+    const recoveryRequest = { ...request, finalInventoryDecision, replaySettledSources:true };
+    const targetCommitSlotHandle = port.prepareSlot(recoveryRequest);
+    const stagedInventoryManifest = await port.stage({ ...recoveryRequest, targetCommitSlotHandle });
+    const stagedInventoryVerification = await port.verifyStaged({
+      ...recoveryRequest, stagedInventoryManifest,
+    });
+    await port.switchPlacement({
+      ...recoveryRequest, stagedInventoryVerification,
+      targetBindings:{ bindingSetDigest:'bindings-recovery' },
+      replacedInputSetDigest:'inputs-recovery',
+    });
+
+    assert.equal(fs.readFileSync(primaryTarget, 'utf8'), 'movie-bytes');
+    assert.equal(fs.readFileSync(nfoTarget, 'utf8'), 'canonical-nfo');
+    assert.equal(fs.existsSync(primarySource), false);
+  } finally {
+    fs.rmSync(root, { recursive:true, force:true });
+  }
+});
+
 test('same-root Stage/Switch replaces managed source bytes occupying the final name', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'clean-arca-same-root-replace-'));
   try {
