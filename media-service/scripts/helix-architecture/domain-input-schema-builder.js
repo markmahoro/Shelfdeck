@@ -50,6 +50,12 @@ const ACCEPTANCE_ACTUAL_GAP_CODES = Object.freeze([
 const object = (properties, required = Object.keys(properties), options = {}) => ({
   type: 'object', additionalProperties: false, properties, required, ...options
 });
+const finalMaterialEvidence = () => object({
+  sourceProductMaterialKey:id(), role:text(),
+  verificationKind:enumText('exact_package_identity','semantic_presentation'),
+  actualPhysicalIdentity:typeRef('PhysicalMaterialIdentity'), observedAtMs:nonNegativeInteger(),
+  semanticEvidenceDigest:nullable(digest()),
+});
 
 function snapshot(kind) {
   return object({ objectId: id(), revision: positiveInteger(), schemaRef: text(), digest: digest(), objectKind: { const: kind } });
@@ -88,6 +94,7 @@ const special = {
   'AcceptedPayload.onDeckProductPackage': typeRef('OnDeckProductPackage'),
   'ActiveShelfEntryIdentityProjection.entries': arrayOf(snapshot('active-shelf-entry-identity'), 4096),
   'CareBasis.assessments': arrayOf(snapshot('professional-assessment'), 1024),
+  'FinalReality.memberEvidence': arrayOf(finalMaterialEvidence(), 4096),
   'CareBasis.canonicalIdentityDigest': digest(),
   'CareBasis.acceptedProductFactSetDigest': digest(),
   'CurrentInventoryControl.materials': arrayOf(object({ materialKey: digest(), inventoryRevision: positiveInteger(), controlRevision: positiveInteger() }), 4096),
@@ -206,7 +213,7 @@ const dtoContracts = {
   ProductDispositionManifest: '',
   OldPrimaryStructuralExclusiveRelatedHandles: '',
   FinalInventoryDecision: 'onDeckRunId,shelfId,members,placementRevision,decisionDigest',
-  FinalReality: 'shelfEntryId,inventoryRevision,realityDigest',
+  FinalReality: 'shelfEntryId,inventoryRevision,realityDigest,observedAtMs,memberEvidence',
   InventoryMetadataArtifactRefs: 'shelfEntryId,inventoryRevision,metadataFactRefs,artifactHandles',
   InventoryRevision: 'shelfEntryId,inventoryRevision,inventoryDigest',
   KnownBindings: 'shelfEntryId,bindings,bindingSetDigest',

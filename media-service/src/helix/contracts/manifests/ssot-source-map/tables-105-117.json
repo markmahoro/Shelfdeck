@@ -30,12 +30,12 @@
     {
       "id": "arca_ondeck_runs",
       "owner": "arca",
-      "columnsContract": "`on_deck_run_id PK, custody_id FK, final_inventory_decision_digest, state, created_at_ms, terminal_at_ms`",
-      "constraintsContract": "只允许Handoff B Accepted transaction与immutable Final Inventory Decision同事务首次建立；同一Custody一个non-terminal Run；Supporting Work通过Foundation反向关联；`INDEX(state,created_at_ms)`",
+      "columnsContract": "`on_deck_run_id PK, custody_id FK, final_inventory_decision_digest, state(ready|offloading|blocked|committed), created_at_ms, terminal_at_ms`",
+      "constraintsContract": "只允许Handoff B Accepted transaction与immutable Final Inventory Decision同事务首次建立；同一Custody一个non-terminal Run；`blocked`在自动预算未耗尽时可恢复，耗尽后是零资源且投影为`attention_required`的稳定业务暂停态，只有显式用户Retry可把同一Run恢复为`offloading`；只有`committed`为terminal且写`terminal_at_ms`；Supporting Work通过Foundation反向关联；`INDEX(state,created_at_ms)`",
       "source": {
         "section": "8.5.12",
         "line": 9413,
-        "lineDigest": "852ec18b2788d167ec3ecf9d1acb83680faeec4c069c4b1d6cd07c4d790c27ea"
+        "lineDigest": "9c4a3d87b0a9abf9d81b28663148133c8358bbfe72268603f8e394e5c7a0d2ea"
       }
     },
     {

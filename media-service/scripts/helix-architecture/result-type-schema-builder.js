@@ -26,6 +26,12 @@ const nullable = (schema) => ({ anyOf: [schema, { type: 'null' }] });
 const object = (properties, required = Object.keys(properties), options = {}) => ({
   type: 'object', additionalProperties: false, properties, required, ...options
 });
+const finalMaterialEvidence = () => object({
+  sourceProductMaterialKey:id(), role:text(),
+  verificationKind:enumText('exact_package_identity','semantic_presentation'),
+  actualPhysicalIdentity:ref('PhysicalMaterialIdentity'), observedAtMs:nonNegativeInteger(),
+  semanticEvidenceDigest:nullable(digest()),
+});
 
 const envelopeFields = {
   EvidenceEnvelope: {
@@ -646,10 +652,10 @@ const contracts = {
   StagedInventoryManifest: ['ManifestEnvelope', 'targetCommitSlotId,stagedMembers,sourceProductManifestDigest'],
   StagedInventoryVerification: ['VerificationEnvelope', 'stagedInventoryManifestDigest,finalInventoryDecisionDigest'],
   PlacementSwitchReceipt: ['ReceiptEnvelope', 'targetCommitSlotId,finalBindingSetDigest,replacedInputSetDigest,transactionRevision'],
-  FinalProductVerification: ['VerificationEnvelope', 'finalBindingSetDigest,productManifestDigest,relatedDispositionSetDigest,verifiedMaterialKeys,targetContainmentDigest'],
+  FinalProductVerification: ['VerificationEnvelope', 'finalBindingSetDigest,productManifestDigest,relatedDispositionSetDigest,verifiedMaterialKeys,targetContainmentDigest,finalRealityDigest,memberEvidence'],
   SettlementDeletionEvidence: ['EvidenceEnvelope', 'authorizationOrApprovalRef,materialKey,preDeleteIdentityDigest,postDeleteReality,effectReceiptId'],
   DeletionEvidence: ['EvidenceEnvelope', 'authorizationOrApprovalRef,materialKey,preDeleteIdentityDigest,disposition,postDeleteReality,referenceReleaseResultDigest,effectReceiptId'],
-  FulfillmentVerification: ['VerificationEnvelope', 'finalInventoryDecisionDigest,shelfStandardRevision,finalRealityDigest'],
+  FulfillmentVerification: ['VerificationEnvelope', 'finalInventoryDecisionDigest,shelfStandardRevision,finalRealityDigest,memberEvidence'],
   OnDeckCommitResult: [null, 'onDeckCommitReceipt,offloadCompletionFact'],
   OnDeckCommitReceipt: ['ReceiptEnvelope', 'shelfEntryId,inventoryRevision,deckFactRevision,controlRevisionSetDigest,relatedDispositionCompletionDigest'],
   OffloadCompletionFact: ['DomainFactEnvelope', 'onDeckRunId,shelfEntryId,inventoryRevision,packageId,completionDigest'],
@@ -686,6 +692,8 @@ const contracts = {
 
 special['OnDeckCommitResult.onDeckCommitReceipt'] = ref('OnDeckCommitReceipt');
 special['OnDeckCommitResult.offloadCompletionFact'] = ref('OffloadCompletionFact');
+special['FinalProductVerification.memberEvidence'] = arrayOf(finalMaterialEvidence(),4096);
+special['FulfillmentVerification.memberEvidence'] = arrayOf(finalMaterialEvidence(),4096);
 special['MaterialEffectReceipt.finalMaterialIdentity'] = ref('PhysicalMaterialIdentity');
 special['MaterialEffectReceipt.targetEndpointId'] = id();
 special['MaterialEffectReceipt.targetLocation'] = text();

@@ -202,10 +202,10 @@ function settlementHandles(c,materialKey) { const source=(c.packageValue.offload
     objectId:c.responsibility.onDeckRunId+':settlement:'+materialKey,revision:1,onDeckRunId:c.responsibility.onDeckRunId,
     approvalScopeDigest:canonicalDigest({schema:'arca.settlement-approval-scope@1',onDeckRunId:c.responsibility.onDeckRunId,materialKey,memberSetDigest}),
     members,memberSetDigest,handleSetDigest:canonicalDigest({schema:'arca.settlement-handles@1',items:[handle.fenceDigest]})};return withDigest(body); }
-function finalReality(options,c) { const reality=options.inventoryPort.readFinal({onDeckRunId:c.responsibility.onDeckRunId,custodyId:c.responsibility.custodyId,
-  shelf:c.shelf,onDeckProductPackage:c.packageValue,finalInventoryDecision:c.finalInventoryDecision,observedAtMs:0,replayCommitted:true});
+function finalReality(_options,c,source) { if(!source?.finalRealityDigest||!Array.isArray(source.memberEvidence))throw new Error('Final Reality requires post-Placement Final Product Verification evidence.');
   return withDigest({schemaRef:'helix://contracts/domain-types/FinalReality/v1',schemaVersion:1,objectId:c.responsibility.onDeckRunId+':reality',revision:1,
-    shelfEntryId:stable('arca-entry-preview-',{run:c.responsibility.onDeckRunId}),inventoryRevision:1,realityDigest:reality.realityDigest}); }
+    shelfEntryId:stable('arca-entry-preview-',{run:c.responsibility.onDeckRunId}),inventoryRevision:1,realityDigest:source.finalRealityDigest,
+    observedAtMs:source.verifiedAtMs,memberEvidence:source.memberEvidence}); }
 
 function createOnDeckProjections(options) { const definitions=[
   [P.packageIdentity,(c)=>packageIdentity(c)],[P.shelfStandard,(c)=>standard(c)],[P.productMetadata,(c)=>productMetadata(c)],
@@ -223,7 +223,8 @@ function createOnDeckProjections(options) { const definitions=[
     approvalId:stable('arca-settlement-approval-',{run:c.responsibility.onDeckRunId,key:p.materialKey}),ownerDomain:'arca',processType:'arca_ondeck_run',
     processId:c.responsibility.onDeckRunId,eventId:p.eventId,exactEffectScopeDigest:scope.approvalScopeDigest,approvalRevision:1,actorId:'system-policy',
     invalidatingFactDigests:Object.freeze([c.finalInventoryDecisionRef.decisionDigest]),approvedAtMs:0});}],
-  [P.finalReality,(c,source)=>source||finalReality(options,c)],[P.onDeckControl,(c,_s,p)=>controlHandle(c,'arca_ondeck_run',c.responsibility.onDeckRunId,p.eventId,'replace_control_set')],
+  [P.finalReality,(c,source)=>source?.schemaRef==='helix://contracts/types/FulfillmentVerification/v1'?source:finalReality(options,c,source)],
+  [P.onDeckControl,(c,_s,p)=>controlHandle(c,'arca_ondeck_run',c.responsibility.onDeckRunId,p.eventId,'replace_control_set')],
   ];
   return Object.freeze(definitions.map(([projectionRef,build])=>Object.freeze({projectionRef,projection:Object.freeze({project({ownerScope,sourceResult,parameters}){
     return build(contextFor(options,ownerScope,parameters,projectionRef),sourceResult,parameters||{});}})})));

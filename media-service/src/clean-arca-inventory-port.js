@@ -15,7 +15,14 @@ const {
 const {
   computeBoundedMaterialFingerprint,
   computeBoundedMaterialFingerprintSync,
+  readBoundedFileSnapshot,
+  readBoundedFileSnapshotSync,
 } = require('./helix/integrations/bounded-material-fingerprint');
+const {
+  MAX_NFO_BYTES,
+  compareMovieNfoPresentation,
+  projectMovieNfoSemantics,
+} = require('./helix/domains/arca/model/aftercare-nfo');
 const {
   DEFAULT_SHELF_PLACEMENT_POLICY,
 } = require('./helix/domains/arca/model/shelf-placement-policy-contracts');
@@ -74,6 +81,31 @@ function resolveStageSlotDirectory(targetDirectory, suffix) {
 function fingerprintsMatchPlan(observed, plan) {
   return Number(observed.stat.size) === plan.sizeBytes &&
     observed.contentFingerprint === plan.contentFingerprint;
+}
+
+function isMovieNfoPlan(plan) {
+  return plan.member.role === 'metadata_sidecar' &&
+    path.extname(plan.target).toLowerCase() === '.nfo';
+}
+
+function packageObservation(member) {
+  return Object.freeze({
+    sizeBytes:Number(member.sizeBytes),
+    contentFingerprint:member.physicalIdentity.contentFingerprint,
+    digestHex:canonicalDigest({
+      schema:'physical-material-bounded-fingerprint-evidence@1',
+      sizeBytes:Number(member.sizeBytes),
+      fingerprintAlgorithm:member.physicalIdentity.fingerprintAlgorithm,
+      fingerprintVersion:member.physicalIdentity.fingerprintVersion,
+      contentFingerprint:member.physicalIdentity.contentFingerprint,
+    }),
+  });
+}
+
+function observationDigest(observed) {
+  return canonicalDigest({schema:'physical-material-bounded-fingerprint-evidence@1',
+    sizeBytes:Number(observed.stat.size),fingerprintAlgorithm:observed.fingerprintAlgorithm,
+    fingerprintVersion:observed.fingerprintVersion,contentFingerprint:observed.contentFingerprint});
 }
 
 function isBluRayDiscTreeName(name) {
@@ -552,7 +584,9 @@ function createCleanArcaInventoryPort(options) {
         fail('CLEAN_ARCA_TARGET_ESCAPE',
           'Final Inventory member escaped the Shelf Target.');
       }
-      const observed = (request.replayCommitted || request.replaySettledSources) &&
+      const observed = request.finalRealityRead
+        ? packageObservation(member)
+        : (request.replayCommitted || request.replaySettledSources) &&
         (!fs.existsSync(source) || !fs.statSync(source).isFile())
         ? observe(target, member)
         : observe(source, member);
@@ -621,7 +655,8 @@ function createCleanArcaInventoryPort(options) {
           'Final Inventory member escaped the Shelf Target.');
       }
       let observed;
-      try {
+      if (request.finalRealityRead) observed = packageObservation(member);
+      else try {
         observed = await observeAsync(source, member);
       } catch (error) {
         if (!(request.replayCommitted || request.replaySettledSources) ||
@@ -1369,7 +1404,7 @@ function createCleanArcaInventoryPort(options) {
     return Object.freeze(base);
   }
 
-  function finalRealityMember(request, plan, observed) {
+  function finalRealityMember(request, plan, observed, verification) {
       const identityBase = {schemaRef:'helix://contracts/types/PhysicalMaterialIdentity/v2',schemaVersion:2,
         mountScopeId:request.shelf.target.mountScopeId,inode:observed.stat.ino.toString(),sizeBytes:Number(observed.stat.size),
         fingerprintAlgorithm:observed.fingerprintAlgorithm,fingerprintVersion:observed.fingerprintVersion,
@@ -1385,9 +1420,12 @@ function createCleanArcaInventoryPort(options) {
         endpointId:request.shelf.target.endpointId,
         location: plan.target,
         bindingRevision:1,
-        digestHex:plan.digestHex,
-        sizeBytes: plan.sizeBytes,
+        digestHex:observationDigest(observed),
+        sizeBytes:Number(observed.stat.size),
         contentFingerprint: observed.contentFingerprint,
+        verificationKind:verification.verificationKind,
+        semanticEvidenceDigest:verification.semanticEvidenceDigest,
+        observedAtMs:Number.isSafeInteger(request.observedAtMs)?request.observedAtMs:0,
         episodeClaims:plan.episodeClaims,
       });
   }
@@ -1407,6 +1445,15 @@ function createCleanArcaInventoryPort(options) {
       targetDirectory: built.targetDirectory,
       members: Object.freeze(members),
       manifest,
+      observedAtMs:Number.isSafeInteger(request.observedAtMs)?request.observedAtMs:0,
+      memberEvidence:Object.freeze(members.map((item)=>Object.freeze({
+        sourceProductMaterialKey:item.sourceMaterialKey,
+        role:item.role,
+        verificationKind:item.verificationKind,
+        actualPhysicalIdentity:item.physicalIdentity,
+        observedAtMs:item.observedAtMs,
+        semanticEvidenceDigest:item.semanticEvidenceDigest,
+      }))),
       realityDigest: canonicalDigest({
         schema: 'arca.final-inventory-reality@1',
         targetDirectory: built.targetDirectory,
@@ -1423,23 +1470,76 @@ function createCleanArcaInventoryPort(options) {
     }
   }
 
+  function verifyFinalObservation(request, plan, observed) {
+    if (!isMovieNfoPlan(plan)) {
+      assertFinalFingerprint(plan, observed);
+      return Object.freeze({verificationKind:'exact_package_identity',semanticEvidenceDigest:null});
+    }
+    const basis=request.nfoPresentationBasis;
+    if (!basis?.metadata || !basis?.cast || !basis?.identity) {
+      fail('CLEAN_ARCA_FINAL_NFO_BASIS_MISSING',
+        'Final Inventory NFO verification requires accepted Movie presentation Facts.');
+    }
+    const compared=compareMovieNfoPresentation({existingBytes:observed.bytes,...basis});
+    if (!compared.matches) {
+      fail('CLEAN_ARCA_FINAL_NFO_SEMANTIC_DRIFT',
+        'Final Inventory NFO conflicts with accepted Movie presentation Facts.', {
+          reasonCode:compared.reasonCode,
+          field:compared.field || null,
+          materialKey:plan.member.materialKey,
+        });
+    }
+    return Object.freeze({verificationKind:'semantic_presentation',
+      semanticEvidenceDigest:canonicalDigest(projectMovieNfoSemantics(observed.bytes))});
+  }
+
+  function assertFinalVerificationContext(request) {
+    if (!['on_deck','aftercare'].includes(request?.verificationContext)) {
+      fail('CLEAN_ARCA_FINAL_VERIFICATION_CONTEXT_REQUIRED',
+        'Final Inventory reads require an explicit On-deck or Aftercare verification context.');
+    }
+  }
+
+  function readStableNfoSync(location) {
+    let lastError;
+    for (let attempt=0;attempt<3;attempt+=1) {
+      try{return readBoundedFileSnapshotSync(location,MAX_NFO_BYTES);}
+      catch(error){lastError=error;if(error?.code!=='PHYSICAL_MATERIAL_STAT_FENCE_CHANGED')throw error;}
+    }
+    throw lastError;
+  }
+
+  async function readStableNfo(location) {
+    let lastError;
+    for (let attempt=0;attempt<3;attempt+=1) {
+      try{return await readBoundedFileSnapshot(location,MAX_NFO_BYTES);}
+      catch(error){lastError=error;if(error?.code!=='PHYSICAL_MATERIAL_STAT_FENCE_CHANGED')throw error;
+        await new Promise((resolve)=>setImmediate(resolve));}
+    }
+    throw lastError;
+  }
+
   function readFinal(request) {
-    const built = buildPlan({ ...request, replayCommitted:true });
+    assertFinalVerificationContext(request);
+    const built = buildPlan({ ...request, finalRealityRead:true });
     if (!fs.existsSync(built.targetDirectory) ||
         !fs.statSync(built.targetDirectory).isDirectory()) {
       fail('CLEAN_ARCA_FINAL_REALITY_MISSING',
         'Final Inventory target is absent after placement.');
     }
     const members = built.plans.map((plan) => {
-      const observed = computeBoundedMaterialFingerprintSync(plan.target);
-      assertFinalFingerprint(plan, observed);
-      return finalRealityMember(request, plan, observed);
+      const observed = isMovieNfoPlan(plan)
+        ? readStableNfoSync(plan.target)
+        : computeBoundedMaterialFingerprintSync(plan.target);
+      return finalRealityMember(request, plan, observed,
+        verifyFinalObservation(request,plan,observed));
     });
     return finalRealityResult(request, built, members);
   }
 
   async function readFinalAsync(request) {
-    const built = await buildPlanAsync({ ...request, replayCommitted:true });
+    assertFinalVerificationContext(request);
+    const built = await buildPlanAsync({ ...request, finalRealityRead:true });
     let targetStat;
     try {
       targetStat = await fs.promises.stat(built.targetDirectory);
@@ -1452,9 +1552,11 @@ function createCleanArcaInventoryPort(options) {
     }
     const members = [];
     for (const plan of built.plans) {
-      const observed = await computeFingerprint(plan.target);
-      assertFinalFingerprint(plan, observed);
-      members.push(finalRealityMember(request, plan, observed));
+      const observed = isMovieNfoPlan(plan)
+        ? await readStableNfo(plan.target)
+        : await computeFingerprint(plan.target);
+      members.push(finalRealityMember(request, plan, observed,
+        verifyFinalObservation(request,plan,observed)));
     }
     return finalRealityResult(request, built, members);
   }
@@ -1476,7 +1578,7 @@ function createCleanArcaInventoryPort(options) {
       fail('CLEAN_ARCA_SETTLEMENT_MAPPING_INVALID',
         'Input settlement requires its frozen source-to-final mapping.');
     }
-    const built = buildPlan({ ...finalRequest, replayCommitted:true });
+    const built = buildPlan({ ...finalRequest, finalRealityRead:true });
     const finalPlan = built.plans.find((item) =>
       item.member.materialKey === request.finalMaterialKey);
     const finalTarget = path.resolve(request.finalTargetLocation);
@@ -1484,7 +1586,10 @@ function createCleanArcaInventoryPort(options) {
       fail('CLEAN_ARCA_SETTLEMENT_MAPPING_DRIFT',
         'Settlement mapping drifted from the Final Inventory Decision.');
     }
-    const finalObserved = observe(finalTarget, finalPlan.member);
+    const finalObserved = isMovieNfoPlan(finalPlan)
+      ? readStableNfoSync(finalTarget)
+      : computeBoundedMaterialFingerprintSync(finalTarget);
+    verifyFinalObservation(finalRequest,finalPlan,finalObserved);
     const sameLocation = source === finalTarget;
     const sourceDirectory = path.dirname(source);
     const managedLocations = [
@@ -1531,12 +1636,8 @@ function createCleanArcaInventoryPort(options) {
       const observed = computeBoundedMaterialFingerprintSync(source);
       if (sameLocation) {
         // Same-root Switch already replaced this path with product bytes.
-        // Settlement must prove the final identity, not the consumed source.
-        if (Number(observed.stat.size) !== Number(finalPlan.sizeBytes) ||
-            observed.contentFingerprint !== finalPlan.contentFingerprint) {
-          fail('CLEAN_ARCA_SETTLEMENT_REALITY_DRIFT',
-            'Settlement final location drifted from the approved product identity.');
-        }
+        // The final target was role-verified above; NFO may have a different
+        // physical identity while preserving its accepted presentation.
       } else if (Number(observed.stat.size) !== handle.expectedSizeBytes ||
           observed.contentFingerprint !== handle.identity.contentFingerprint) {
         fail('CLEAN_ARCA_SETTLEMENT_REALITY_DRIFT',
@@ -1604,7 +1705,7 @@ function createCleanArcaInventoryPort(options) {
       sourceToFinalMappingDigest:request.sourceToFinalMappingDigest,
       finalMaterialKey:request.finalMaterialKey,
       finalTargetLocation:finalTarget,
-      finalRealityDigest:finalObserved.digestHex,
+      finalRealityDigest:observationDigest(finalObserved),
       finalVerified:true,
       oldDirectoryDisposition });
   }
@@ -1638,7 +1739,12 @@ function createCleanArcaInventoryPort(options) {
       fail('CLEAN_ARCA_SETTLEMENT_MAPPING_DRIFT',
         'Settlement mapping drifted from the Final Inventory Decision.');
     }
-    const finalObserved = await observeAsync(finalTarget, productMember);
+    const finalPlan=Object.freeze({member:productMember,target:finalTarget,
+      sizeBytes:Number(productMember.sizeBytes),contentFingerprint:productMember.physicalIdentity.contentFingerprint});
+    const finalObserved = isMovieNfoPlan(finalPlan)
+      ? await readStableNfo(finalTarget)
+      : await computeFingerprint(finalTarget);
+    verifyFinalObservation(finalRequest,finalPlan,finalObserved);
     const sameLocation = source === finalTarget;
     const sourceDirectory = path.dirname(source);
     const managedLocations = (request.managedLocations || [
@@ -1689,11 +1795,7 @@ function createCleanArcaInventoryPort(options) {
     let sourceAbsent = !await exists(source);
     if (!sourceAbsent) {
       if (sameLocation) {
-        if (finalObserved.sizeBytes !== productMember.sizeBytes ||
-            finalObserved.contentFingerprint !== productMember.physicalIdentity.contentFingerprint) {
-          fail('CLEAN_ARCA_SETTLEMENT_REALITY_DRIFT',
-            'Settlement final location drifted from the approved product identity.');
-        }
+        // The final target was role-verified above.
       } else {
         const observed = await computeFingerprint(source);
         if (Number(observed.stat.size) !== handle.expectedSizeBytes ||
@@ -1765,7 +1867,7 @@ function createCleanArcaInventoryPort(options) {
       sourceToFinalMappingDigest:request.sourceToFinalMappingDigest,
       finalMaterialKey:request.finalMaterialKey,
       finalTargetLocation:finalTarget,
-      finalRealityDigest:finalObserved.digestHex,
+      finalRealityDigest:observationDigest(finalObserved),
       finalVerified:true,
       oldDirectoryDisposition });
   }

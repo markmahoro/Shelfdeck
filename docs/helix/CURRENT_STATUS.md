@@ -1,6 +1,6 @@
 # ShelfDeck Clean Helix Current Status
 
-Status: **MOVIE COLLECTION LIFECYCLE READY THROUGH SHELF DEREGISTRATION；PROD-034 已部署并完成一次性数据纠正。**
+Status: **MOVIE COLLECTION LIFECYCLE READY THROUGH SHELF DEREGISTRATION；PROD-035 本地修复完成、生产仍运行 PROD-034 后基线。**
 
 Last updated: 2026-08-31
 
@@ -43,11 +43,21 @@ PROD-034 已按 Product Owner 授权对“唐人街探案 (2015)”和“赤壁�
 - 全局 active Attempt：13/64；execution residual：0。
 - 其余 active records 是当前真实业务状态，不在本次一次性纠正授权范围内。
 
+## PROD-035 Local Fix
+
+- Product Owner 已仅针对 Emby 并发改写 NFO 授权 SSOT 变化；未授权修改 Emby 配置或部署生产。
+- On-deck 顺序改为 Placement 后 Final Verify；NFO 用 accepted Movie facts 做语义验收，同时保存 Shelf 上实际 physical identity。Primary 与其他普通成员仍严格校验 Package identity。
+- Final Verify、Fulfillment、Commit 各自重读最新现实；Commit 用最后一次实际 Final Reality 建立 Inventory Representation 与 Material Control。
+- Aftercare 对语义等价 NFO 漂移不改文件，只新增 Inventory Representation revision 并原子切换 Control；语义错误仍走带 CAS source guard 的 update/rebuild。
+- Accepted 后失败继续由 Arca 持有同一 On-deck Run。自动恢复最多 3 代；耗尽后进入零执行资源的稳定 `attention_required`，停止周期性 Supporting Work 与错误日志，用户可「重试上架」继续同一 Run。
+- 检查点审计确认：「接受瑕疵」和「放弃整理」属于 Handoff B Accepted 前的 Libra 旅程；Accepted 后不得用它们改判、回退或释放 Arca custody/control。
+
 ## Verification
 
 - PROD-034 focused：2/2；Arca focused：24/24；Admin Web：37/37，build 通过。
-- Helix Architecture：113 capabilities、99 result families、186 tables、44 transactions，全部通过；contract aggregate `dfe37fde6047adeb8526241f77d51fc45cebec691168b9eccc01208b8787f391`。
-- Service full：381 项，362 pass、18 skip、1 个负载敏感的 FFmpeg stall-watchdog timing failure；对应测试文件单独复跑为 20 pass、1 skip、0 fail。
+- Helix Architecture full gate 通过；P2 contract aggregate 更新为 `549e136626021ed6f7f437e173775c06b59e82fc3cea73e189bdafeb0792404b`。DDL digest 保持 `3be2dad9b3615053681dfc2721974657fc3995ccf60a044e17dfb5131f0f8199`，无需 schema migration。
+- PROD-035 targeted 覆盖 NFO 五个并发改写窗口、Primary 漂移、坏 XML/身份冲突/缺字段、Aftercare revision convergence、连续冲突聚合、同根与阶段恢复；UAT-131 四个场景通过。
+- Service full：386 项，368 pass、18 skip、0 fail；Admin Web：37/37，production build 通过。
 - Service 与 Web 的 official npm registry audit 均为 0；image checksum、deploy gates、SQLite integrity 和 production health 通过。
 
 现行产品验收权威仍为 `BETA_FEATURE_ACCEPTANCE_BASELINE.md`。这些生产修复不把任何 `HB-*` 自动标为 PASS。

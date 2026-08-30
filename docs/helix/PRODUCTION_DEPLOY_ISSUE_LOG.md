@@ -47,11 +47,12 @@
 | PROD-025 | 《007：大破天幕杀机》寻源报没有外部候选 | `EXECUTION` / MoviePilot 把 TMDB ID 当标题搜 | 媒体整理工作区 | High | **FIXED** 无损升级 `helix-beta-20260829-d1dd611d4`。已冻结片子需放弃后重新进整理。 |
 | PROD-026 | 《教父2》GPU 转码每小时被掐，永远编不完 | `EXECUTION` / Libra remux/transcode 误用 1 小时观察时限 | 媒体整理工作区 | High | **FIXED** 无损升级 `helix-beta-20260830-06d0cc63b`。在途转码按新 Attempt 使用 48 小时时限。 |
 | PROD-027 | 长转码页面进度写满后冻住，编码器仍在跑 | `EXECUTION` / ProgressReporter 历史上限连 current sample 一并停写 | 媒体整理工作区 | Medium | **FIXED in next image**（current 就地覆盖；未部署） |
-| PROD-028 | Aftercare 按整份 NFO 字节/指纹修文件，与 Emby 抢同一张说明书 | `EXECUTION` / Presentation 字节全等 + Custody 把 sidecar 指纹当身份变化 | 我的收藏 / Aftercare | Medium | **FIXED in next image**（语义比较；未部署） |
+| PROD-028 | Aftercare 按整份 NFO 字节/指纹修文件，与 Emby 抢同一张说明书 | `EXECUTION` / Presentation 字节全等 + Inventory revision 未随实际 NFO 收敛 | 我的收藏 / Aftercare | Medium | **FIXED LOCALLY**（语义比较 + Inventory revision convergence；未部署） |
 | PROD-029 | 收藏架「全自动 / 关键步骤确认」开关不改变实际上架行为 | `USER_EXPERIENCE` / standing Authorization 未接入 On-deck | 收藏架配置 | Low | **FIXED in next image**（Admin Web 表面已移除；后端 API 保留供后续收口） |
 | PROD-030 | 转码前体积预测 freeze 卡死 Run；寻源/转码编排割裂；详情步骤靠 Spec 猜测 | `EXECUTION` / Libra 协调器 + Formation 投影 | 媒体整理工作区 | Critical | **FIXED in next image**（双工具穷尽编排 + 实测瑕疵 + 真实步骤；未部署） |
 | PROD-031 | PROD-024 全局 3 席仍是 derived occupancy；无法按来源暂停/限流 | `EXECUTION` / Libra per-field pipeline token | 文件来源配置、媒体整理工作区 | High | **DEPLOYED** `helix-beta-20260830-5189f5f79c`（2026-08-30；migration + full libra reset；186 tables） |
 | PROD-032 | token=0 时历史 Subject 仍批量生成 routing/spec/rating Work，Formation 保持 700+ 条 | `EXECUTION` / Intake replay 与下游 reconciler 绕过 token，Run Admission 过早释放 | 媒体整理工作区 | Critical | **FIXED / DEPLOYED** `helix-beta-20260831-710aa1b65a`（3 seats / 3 tokens / 3 active Works；Formation active 5） |
+| PROD-035 | Emby 在 On-deck 检查点之间改写 NFO，检查失败后同一 Run 可无限停在中间态 | `EXECUTION` / Final Verify 在 Placement 前 + 无耗尽后的业务稳态 | 媒体整理工作区 / 上架 | Critical | **FIXED LOCALLY**（post-Placement semantic verify + bounded attention + same-Run retry；未部署） |
 
 PROD-001、PROD-002 的共同环境前提：生产管理台是 `http://192.168.12.230`，浏览器不提供 `crypto.randomUUID` / `crypto.subtle`。这不是传输加密设计，只是浏览器 API 限制。未改成 HTTPS。
 
@@ -259,7 +260,7 @@ P4 对 journaled `material_commit` 的 Executor throw 仍会把 Attempt 留在 `
 
 根因：Discard 只把已挂到 Libra Workspace Reference 的材料列入 cleanup。转码输入校验冻住时 remux 已写入 Foundation Workspace，但还没 `attach_working`，所以放弃时当成「工作区是空的」。SSOT 禁止用目录扫描补 cleanup member，所以不能在 Discard 事务里从 Foundation 材料编造 Scope。
 
-修复：
+第一次修复：
 
 1. remux / transcode / artifact / import 产出后立刻 `attach_working`。以后再放弃，Discard 能看到引用并建立 cleanup Scope。
 2. 已放弃或已被替代、工作区仍 active、当前没有未释放引用时，leftover 回收器删除 Foundation 材料并收空目录。不新建空 cleanup Scope，不改 Discard 合同。
@@ -367,9 +368,16 @@ SSOT 10.3.5：本地 transcode/remux 是「10 分钟无进展判 Attempt timeout
 - Presentation 用 `compareMovieNfoPresentation`：可解析 movie NFO、TMDB 仍是这部片、title/year/plot/genre 与 accepted Facts 一致、Facts 中的演员仍在。不验整份字节、排版、CDATA/`lockdata`/`dateadded`/tvdbid。
 - Custody 对仍存在且可读的 NFO sidecar 忽略 inode/size/指纹漂移，不再 `nfo_identity_changed` + `auto_repair`。缺失/不可读仍按 Artifact 修。
 - Aftercare 写入路径仍走 `renderAftercareMovieNfo`（create/update/rebuild）。Libra 首次写入仍在 `clean-product-production-port.js`；Helix Domain 边界不允许 Libra 引用 Arca model，本项不把两套写入器硬合并。
-- 未改 SSOT：`5.5.5` / `5.8.2.3` 已要求语义可解析、已存在且符合 Standard 的 NFO 保持不变。未改 Domain、Handoff、Emby 角色。
+- 当时没有覆盖 On-deck Placement 之后到 Commit 之前的并发改写窗口，也没有在盘上 NFO 语义等价但 physical identity 已变化时提交新的 Inventory Representation revision；因此「不抢写文件」已修，但库存仍可能长期记着旧指纹。
 
-本地 `p15-aftercare-nfo` / `p15-aftercare-effects-safety` 及相关 Aftercare 合同测试 PASS。现网《网络谜踪》需无损升级后下一次 Presentation 评估才会按语义放行。
+本次完整修复：
+
+- Final Verify 移到 Placement 后，并与 Fulfillment、Commit 一样重新读取 Shelf 最新现实；NFO 按语义放行且保存当次实际 physical identity，Primary 等材料仍 exact package identity。
+- Aftercare 对语义等价的 NFO 漂移不写文件，提交新的 Inventory Representation revision 并原子切换 Material Control；来源再次变化时废止旧输入并重新评估。
+- 坏 XML、错误 Movie Identity 或缺少拥有字段仍 fail closed。连续外部写入有界重试并聚合为一个 `external_writer_conflict` attention，不再无限建 Case/Work 或刷日志。
+- Product Owner 已明确授权这次 NFO Final Reality SSOT 变化；未改变 Domain、Handoff、Final Inventory Decision 或 Emby 的 External Provider 角色，也不要求修改 Emby 配置。
+
+本地 On-deck、Aftercare、recovery 与 Service full 测试 PASS。现网《网络谜踪》仍需另行授权部署后，下一次 Presentation 评估才会按语义放行并收敛 Inventory revision。
 
 ## 30. PROD-030 — 媒体制作编排：预测 freeze、过早寻源、步骤猜测（FIXED in next image）
 
@@ -417,3 +425,21 @@ SSOT 10.3.5：本地 transcode/remux 是「10 分钟无进展判 Attempt timeout
 2026-08-31 已按 stop → 完整 data backup → migration → bounded Libra reset → standard deploy 执行。备份为 `/vol1/1000/docker/shelfdeck/data.backup-20260830T170231Z-predeck-pipeline`；reset 时无 active/suspended/frozen Run，终止 200 条遗留 Libra Work，未删除 Subject、未触碰 `/media`。
 
 部署镜像 `markmahoro/shelfdeck:helix-beta-20260831-710aa1b65a`，tar SHA-256 `19292cef75f10eb5216f52c41cdb8fc8f50ab156e6dcc27cf7c6c4c4809c8733`。部署后 health `ok`、schema 186、SQLite integrity `ok`；唯一 Field 为 3 seats / 3 tokens / 3 active Work / 0 active Run。Formation 汇总 3 pending、2 in progress、6 completed，active section 仅 5 条且无分页。
+
+## 35. PROD-035 — On-deck NFO 并发改写与失败 Run 无业务终态（FIXED LOCALLY）
+
+发现：2026-08-31。前一轮 PROD-035 只修了 Accepted 后同一 On-deck Run 的执行恢复，但 Final Product Verify 仍发生在 Placement 前。Emby 可以在 Placement 后、Final Verify 后、Settlement 后或 Fulfillment 后改写 Shelf NFO；严格 Package 指纹会把语义仍正确的说明书当成产品变化。若 Supporting Work 一直失败，Reconciler 又会周期性重建，Run 对用户看起来永久卡在中间态。
+
+业务处理审计：
+
+- 「接受瑕疵」只用于 Libra 对已明确、可授权偏离的产品结果做冻结决策；「放弃整理」用于 Handoff B Accepted 前终止 Libra Run，或在 Handoff B Rejected 后放弃该次整理。
+- Handoff B Accepted 后 Arca 已接管 custody/control，不能把检查失败改判 Rejected、退回 Libra，或再使用「接受瑕疵 / 放弃整理」结束；否则会伪造已经发生的 Handoff 事实。
+- 因此检查失败仍必须阻止 Commit，但恢复必须收敛：自动尝试有界，耗尽后进入可解释、零执行资源的 `attention_required` 稳态；用户可继续同一 On-deck Run 重试。
+
+修复：
+
+- On-deck 顺序改为 `Stage → Staged Verify → Placement → Final Product Verify → Settlement → Fulfillment → Commit`。
+- NFO 以 Movie Identity、title/year/plot/genre/cast 验语义，记录 `sourceProductMaterialKey`、实际 `physicalIdentity`、`observedAtMs` 和语义证据摘要；不保存原始 NFO 字节。其他成员保持 exact package identity。
+- 文件读取、指纹和前后状态检查使用同一 handle；读取期间变化则有界重读，避免混合快照。
+- 自动恢复最多 3 代 Supporting Work；耗尽后 Reconciler 不再扫描该 Run，Formation 显示「重试上架」。用户重试恢复同一 Run，不创建第二个 Run 或 Shelf Entry。
+- 未新建 Domain、Store、表或兼容路径；DDL digest 不变。本轮未改 Emby 配置、未部署生产、未直接编辑 SQLite。

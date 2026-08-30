@@ -4,7 +4,8 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { randomUUID } = require('node:crypto');
-const { computeBoundedMaterialFingerprint, computeBoundedMaterialFingerprintSync } = require('../integrations/bounded-material-fingerprint');
+const { computeBoundedMaterialFingerprint, computeBoundedMaterialFingerprintSync,
+  readBoundedFileSnapshotSync } = require('../integrations/bounded-material-fingerprint');
 const { canonicalDigest } = require('../contracts/canonical-json');
 const { createCapabilityContractValidator } = require('../foundation/capability/contract-validator');
 const { createCapabilityRegistry } = require('../foundation/capability/capability-registry');
@@ -296,6 +297,7 @@ function createProcurementExecutionRuntime(options) {
     compileFfmpegPipeline,
     computeBoundedMaterialFingerprint:options.computeBoundedMaterialFingerprint || computeBoundedMaterialFingerprint,
     computeBoundedMaterialFingerprintSync,
+    readBoundedFileSnapshotSync,
     readPerceptionRating:readShelfEntryRating,readPerceptionRatings:readShelfEntryRatings});
   const arcaRegistrations=arcaCapabilityRegistration.createRegistrations({enabledCapabilityRefs:ARCA_ALL_ENABLED,
     manifests:Object.fromEntries(ARCA_ALL_ENABLED.map((ref)=>[ref,manifests[ref]]))});
@@ -1024,11 +1026,7 @@ function createProcurementExecutionRuntime(options) {
       reconcile:()=>arcaProcessServices.coordinator.recoverAttentionCases(1),
     }),Object.freeze({
       ownerDomain:'arca',reconcilerKey:'blocked-ondeck-recovery',
-      listPage:({cursor,limit})=>workResultReader.listOwnerWorks({ownerDomain:'arca',workKind:'on_deck_execution'})
-        .filter((item)=>['failed','cancelled'].includes(item.state))
-        .sort((left,right)=>String(left.work_id).localeCompare(String(right.work_id)))
-        .filter((item)=>cursor===null||item.work_id>cursor).slice(0,limit)
-        .map((item)=>Object.freeze({cursor:item.work_id,scope:Object.freeze({onDeckRunId:item.process_id})})),
+      listPage:({cursor,limit})=>arcaProcessServices.coordinator.listRecoverableOnDeck(limit,cursor),
       reconcile:({onDeckRunId})=>{const result=arcaProcessServices.coordinator.recoverOnDeck(onDeckRunId);
         if(result?.subjectId)options.onFormationSubjectChanged?.(result.subjectId);
         return result;},

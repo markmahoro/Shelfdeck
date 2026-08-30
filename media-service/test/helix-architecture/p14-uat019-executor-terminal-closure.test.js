@@ -90,7 +90,9 @@ test('a failed accepted On-deck Work resumes the same Run with one bounded succe
       onDeck:{
         block:()=>{calls.push('block');return {replayed:false};},
         recoveryEligibility:()=>({eligible:true,state:'blocked'}),
-        resume:()=>{calls.push('resume');return {replayed:false};},
+        attentionRetryEligibility:()=>({eligible:true,state:'blocked'}),
+        requireAttention:()=>{calls.push('attention');return {replayed:false};},
+        resume:(_run,_digest,expectedState)=>{calls.push('resume:'+expectedState);return {replayed:false};},
       },
     },
   });
@@ -101,8 +103,43 @@ test('a failed accepted On-deck Work resumes the same Run with one bounded succe
   assert.equal(recovered.recoveryGeneration,2);
   assert.equal(recovered.work.processId,'ondeck-run-recovery');
   assert.notEqual(recovered.work.workId,'ondeck-work-generation-1');
+  assert.deepEqual(calls,['block','resume:blocked']);
+  const exhausted=coordinator.recoverOnDeck('ondeck-run-recovery',1);
+  assert.deepEqual({kind:exhausted.kind,reasonCode:exhausted.reasonCode},
+    {kind:'attention_required',reasonCode:'ARCA_ONDECK_RECOVERY_EXHAUSTED'});
+  const user=coordinator.recoverOnDeck('ondeck-run-recovery',1,'user');
+  assert.equal(user.kind,'recovering');
+  assert.equal(user.mode,'user');
+  assert.deepEqual(calls,['block','resume:blocked','attention','resume:blocked']);
+}));
+
+test('fallback recovery closes the planning-failure callback gap before resuming the same On-deck Run', () => fixture(({ unitOfWork }) => {
+  const refs=Object.freeze([{ownerDomain:'libra',objectType:'on_deck_package',objectId:'package-planning-gap',revision:1,digest:hex('a')}]);
+  const acceptedRef=Object.freeze({ownerDomain:'arca',objectType:'supporting_work',objectId:'acceptance-commit-work',revision:1,digest:hex('b')});
+  const calls=[];
+  let eligibilityChecks=0;
+  const coordinator=createOnDeckProcessCoordinator({schemaManifest,unitOfWork,
+    workResultReader:{
+      listWorks:()=>[{work_id:'ondeck-planning-failure',state:'failed',created_at_ms:10,updated_at_ms:20}],
+      read:()=>[{inputBindings:{bindings:[{bindingKind:'projected_owner_facts',parameters:{dependencyRefs:refs}}]}}],
+      readDefinition:()=>({definition:{dependencyRefs:[...refs,acceptedRef]}}),
+    },
+    contextReader:{
+      readAccepted:()=>({offer:{subjectId:'subject-planning-gap'},finalInventoryDecision:{decisionDigest:hex('c')}}),
+      onDeck:{
+        recoveryEligibility:()=>++eligibilityChecks===1
+          ?{eligible:false,reasonCode:'on_deck_run_not_blocked',state:'offloading'}
+          :{eligible:true,reasonCode:null,state:'blocked'},
+        block:()=>{calls.push('block');return {replayed:false};},
+        resume:()=>{calls.push('resume');return {replayed:false};},
+      },
+    },
+  });
+  const recovered=coordinator.recoverOnDeck('ondeck-planning-gap');
+  assert.equal(recovered.kind,'recovering');
+  assert.equal(recovered.recoveryGeneration,2);
   assert.deepEqual(calls,['block','resume']);
-  assert.equal(coordinator.recoverOnDeck('ondeck-run-recovery',1).kind,'recovery_exhausted');
+  assert.equal(eligibilityChecks,2);
 }));
 
 test('On-deck recovery ignores retained audit Work after its Custody was explicitly released', () => fixture(({ unitOfWork }) => {
@@ -113,6 +150,24 @@ test('On-deck recovery ignores retained audit Work after its Custody was explici
   assert.deepEqual(coordinator.recoverOnDeck('retired-run'),{
     kind:'not_recoverable',onDeckRunId:'retired-run',workId:'retired-work',reasonCode:'custody_not_active',state:null,
   });
+}));
+
+test('automatic On-deck reconciliation stops polling attention Runs but still closes planning-failure gaps', () => fixture(({ unitOfWork }) => {
+  const states=new Map([
+    ['exhausted-run',{eligible:true,reasonCode:null,state:'blocked'}],
+    ['blocked-run',{eligible:true,reasonCode:null,state:'blocked'}],
+    ['planning-gap-run',{eligible:false,reasonCode:'on_deck_run_not_blocked',state:'offloading'}],
+  ]);
+  const coordinator=createOnDeckProcessCoordinator({schemaManifest,unitOfWork,
+    workResultReader:{
+      listOwnerWorks:()=>[...states.keys()].map((process_id)=>({process_id})),
+      listWorks:({processId})=>Array.from({length:processId==='exhausted-run'?3:1},(_value,index)=>
+        ({work_id:processId+'-work-'+index,state:'failed',created_at_ms:index+1,updated_at_ms:index+2})),
+    },
+    contextReader:{onDeck:{recoveryEligibility:(runId)=>states.get(runId)}},
+  });
+  assert.deepEqual(coordinator.listRecoverableOnDeck(10).map((item)=>item.scope.onDeckRunId),
+    ['blocked-run','planning-gap-run']);
 }));
 
 test('equal deterministic failures aggregate and open then close one process-local Circuit', () => fixture(({ breaker, incidents }) => {

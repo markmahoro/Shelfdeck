@@ -242,8 +242,8 @@ export type FormationSubject = {
   ratingResolutionStatus?: 'found'|'not_found'|null;
   ratingReasonCode?: string|null;
   productIdentityIssue: null | { result:'not_found'|'ambiguous'|'conflicting'; reasonCode:string; candidateSetDigest:string; candidates:Array<{ providerKey:string; displayTitle:string; originalTitle:string|null; releaseYear:number|null }> };
-  executorIssue: null | { phase:string; errorCode:string; attemptCount:number; owner:string; recoveryState:string;
-    recoveryGeneration:number; automaticRecoveryUsed:boolean; canRetry:boolean; offerId:string };
+  executorIssue: null | { phase:string; errorCode:string; attemptCount:number|null; owner:string; recoveryState:string;
+    recoveryGeneration:number|null; automaticRecoveryUsed:boolean; canRetry:boolean; offerId:string; onDeckRunId?:string };
   primaryMaterialCount: number;
   addedAtMs: number;
   organizingRequirement: string;
@@ -702,7 +702,7 @@ export const helixAdminApi = {
   previewDefectAdmission(subject:FormationSubject){if(!subject.currentRun)throw new Error('当前媒体没有可操作的整理任务。');return request<DefectAdmissionCandidate>(`/v1/admin/formation/runs/${encodeURIComponent(subject.currentRun.libraRunId)}/defect-admission-candidate`);},
   admitWithDefects(subject:FormationSubject,candidate:DefectAdmissionCandidate){if(!subject.currentRun)throw new Error('当前媒体没有可操作的整理任务。');const run=subject.currentRun;return request<{resultKind:string;libraRunId:string;replayed:boolean}>(`/v1/admin/formation/runs/${encodeURIComponent(run.libraRunId)}/actions/admit-with-defects`,{method:'POST',body:JSON.stringify({expectedRunStateRevision:run.stateRevision,expectedRunStateDigest:run.stateDigest,expectedDefectCandidateDigest:candidate.candidateDigest,acknowledged:true,idempotencyKey:`admit-with-defects:${run.libraRunId}:${run.stateRevision}:${newOpaqueId()}`})});},
   chooseProductIdentity(subject:FormationSubject,tmdbMovieId:string){if(!subject.currentRun)throw new Error('当前媒体没有可恢复的整理任务。');const run=subject.currentRun;return request<{selectionIntentId:string;libraRunId:string;providerKey:string;intentRevision:number;replayed:boolean}>(`/v1/admin/formation/runs/${encodeURIComponent(run.libraRunId)}/actions/choose-product-identity`,{method:'POST',body:JSON.stringify({tmdbMovieId,expectedRunStateRevision:run.stateRevision,expectedIdentityRevision:run.currentIdentityRevision,candidateSetDigest:subject.productIdentityIssue?.candidateSetDigest||null,idempotencyKey:`choose-product-identity:${run.libraRunId}:${run.stateRevision}:${tmdbMovieId}:${newOpaqueId()}`})});},
-  retryAcceptance(subject:FormationSubject){if(!subject.executorIssue?.canRetry)throw new Error('当前接纳故障不能重试。');return request(`/v1/admin/formation/acceptance/${encodeURIComponent(subject.executorIssue.offerId)}/actions/retry`,{method:'POST',body:JSON.stringify({})});},
+  retryAcceptance(subject:FormationSubject){if(!subject.executorIssue?.canRetry)throw new Error('当前接纳或上架故障不能重试。');return request(`/v1/admin/formation/acceptance/${encodeURIComponent(subject.executorIssue.offerId)}/actions/retry`,{method:'POST',body:JSON.stringify({})});},
   createShelf(body: JsonValue) {
     return request<{ shelf: Shelf; replayed: boolean }>('/v1/admin/shelves', {
       method: 'POST',

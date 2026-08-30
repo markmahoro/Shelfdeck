@@ -224,6 +224,66 @@ function createOnDeckProcessCoordinator(options) {
     return Object.freeze({ kind:succeeded(options.workResultReader.status(onDeck.workId)) ? 'terminal' : 'on_deck_pending',
       processId, onDeckRunId:responsibility.onDeckRunId, workId:onDeck.workId });
   }
+  function recoverOnDeck(onDeckRunId, maxGenerations = 3, mode = 'automatic') {
+    if (!['automatic','user'].includes(mode)) throw new TypeError('On-deck recovery mode is invalid.');
+    const rows = orderedOnDeckWorks(onDeckRunId);
+    if (!rows.length) return Object.freeze({ kind:'not_found', onDeckRunId });
+    const latest = rows.at(-1);
+    if (!['failed','cancelled'].includes(latest.state)) {
+      return Object.freeze({ kind:'not_recoverable', onDeckRunId, workId:latest.work_id, state:latest.state });
+    }
+    let eligibility = mode === 'user'
+      ? options.contextReader.onDeck.attentionRetryEligibility(onDeckRunId)
+      : options.contextReader.onDeck.recoveryEligibility(onDeckRunId);
+    if (mode === 'automatic' && !eligibility.eligible && eligibility.reasonCode === 'on_deck_run_not_blocked' &&
+        ['ready','offloading'].includes(eligibility.state)) {
+      // A Work can fail while its input projections or Plan are being built,
+      // before an Event terminal callback exists to block the Run.  The
+      // durable failed Work is still the exact recovery trigger, so close
+      // that callback gap here before evaluating the same Run again.
+      const context = options.contextReader.readAccepted(onDeckRunId,
+        refsFromWorkResult(latest.work_id));
+      options.contextReader.onDeck.block(onDeckRunId,
+        context.finalInventoryDecision.decisionDigest);
+      eligibility = options.contextReader.onDeck.recoveryEligibility(onDeckRunId);
+    }
+    if (!eligibility.eligible) {
+      return Object.freeze({ kind:'not_recoverable', onDeckRunId, workId:latest.work_id,
+        reasonCode:eligibility.reasonCode, state:eligibility.state || null });
+    }
+    const refs = refsFromWorkResult(latest.work_id);
+    const context = options.contextReader.readAccepted(onDeckRunId, refs);
+    if (mode === 'automatic' && rows.length >= maxGenerations) {
+      const attention=options.contextReader.onDeck.requireAttention(onDeckRunId,
+        context.finalInventoryDecision.decisionDigest);
+      return Object.freeze({ kind:'attention_required', reasonCode:'ARCA_ONDECK_RECOVERY_EXHAUSTED',
+        onDeckRunId, subjectId:context.offer.subjectId, workId:latest.work_id,
+        recoveryGeneration:rows.length, replayed:attention.replayed });
+    }
+    const acceptedWork = acceptedWorkForRecovery(latest.work_id);
+    options.contextReader.onDeck.resume(onDeckRunId, context.finalInventoryDecision.decisionDigest,'blocked');
+    const work = onDeckWork(onDeckRunId, refs, acceptedWork, rows.length + 1);
+    return Object.freeze({ kind:'recovering', mode, onDeckRunId, subjectId:context.offer.subjectId,
+      recoveryGeneration:rows.length + 1, work, result:submit(work) });
+  }
+  function listRecoverableOnDeck(limit = 100, cursor = null) {
+    if (typeof options.workResultReader.listOwnerWorks !== 'function') return Object.freeze([]);
+    const processIds=[...new Set(options.workResultReader.listOwnerWorks({ownerDomain:'arca',workKind:'on_deck_execution'})
+      .map((item)=>item.process_id).filter((item)=>typeof item==='string'&&item&&(cursor===null||item>cursor)))].sort();
+    const result=[];
+    for(const onDeckRunId of processIds){
+      const rows=orderedOnDeckWorks(onDeckRunId),latest=rows.at(-1);
+      if(!latest||!['failed','cancelled'].includes(latest.state))continue;
+      if(rows.length>=3)continue;
+      const eligibility=options.contextReader.onDeck.recoveryEligibility(onDeckRunId);
+      const closesPlanningGap=!eligibility.eligible&&eligibility.reasonCode==='on_deck_run_not_blocked'&&
+        ['ready','offloading'].includes(eligibility.state);
+      if(!eligibility.eligible&&!closesPlanningGap)continue;
+      result.push(Object.freeze({cursor:onDeckRunId,scope:Object.freeze({onDeckRunId})}));
+      if(result.length>=limit)break;
+    }
+    return Object.freeze(result);
+  }
   return Object.freeze({
     admitOffer(message) {
       const offer = exactOffer(message), refs = refsFromOffer(offer);
@@ -251,6 +311,11 @@ function createOnDeckProcessCoordinator(options) {
     retryAcceptance(offerId) {
       const item = recovery.read(offerId);
       if (!item) throw Object.assign(new Error('Acceptance Recovery Case was not found.'), { code:'ARCA_ACCEPTANCE_RECOVERY_NOT_FOUND' });
+      if (item.recoveryState === 'resolved') {
+        const run=options.contextReader.onDeck.findRunByOffer(offerId);
+        if(!run)throw Object.assign(new Error('Accepted On-deck Run was not found.'),{code:'ARCA_ONDECK_RUN_NOT_FOUND'});
+        return recoverOnDeck(run.onDeckRunId,3,'user');
+      }
       const refs = refsFromWorkResult(item.activeWorkId), triggerDigest = recoveryTriggerDigest();
       const nextWork = assessmentWork(offerId, refs, item.recoveryGeneration + 1, triggerDigest);
       const next = recovery.startGeneration(offerId, { mode:'user', workId:nextWork.workId, recoveryTriggerDigest:triggerDigest });
@@ -258,6 +323,7 @@ function createOnDeckProcessCoordinator(options) {
     },
     readAcceptanceRecovery: recovery.read,
     listAcceptanceAttention: recovery.listAttention,
+    listRecoverableOnDeck,
     reconcileAcceptance,
     reconcileOnDeck(onDeckRunId) {
       const rows = orderedOnDeckWorks(onDeckRunId);
@@ -281,30 +347,7 @@ function createOnDeckProcessCoordinator(options) {
       return Object.freeze({ kind:'blocked', onDeckRunId, subjectId:context.offer.subjectId,
         workId:latest.work_id, replayed:blocked.replayed });
     },
-    recoverOnDeck(onDeckRunId, maxGenerations = 3) {
-      const rows = orderedOnDeckWorks(onDeckRunId);
-      if (!rows.length) return Object.freeze({ kind:'not_found', onDeckRunId });
-      const latest = rows.at(-1);
-      if (!['failed','cancelled'].includes(latest.state)) {
-        return Object.freeze({ kind:'not_recoverable', onDeckRunId, workId:latest.work_id, state:latest.state });
-      }
-      const eligibility = options.contextReader.onDeck.recoveryEligibility(onDeckRunId);
-      if (!eligibility.eligible) {
-        return Object.freeze({ kind:'not_recoverable', onDeckRunId, workId:latest.work_id,
-          reasonCode:eligibility.reasonCode, state:eligibility.state || null });
-      }
-      const refs = refsFromWorkResult(latest.work_id);
-      const context = options.contextReader.readAccepted(onDeckRunId, refs);
-      if (rows.length >= maxGenerations) {
-        return Object.freeze({ kind:'recovery_exhausted', onDeckRunId, subjectId:context.offer.subjectId,
-          workId:latest.work_id, recoveryGeneration:rows.length });
-      }
-      const acceptedWork = acceptedWorkForRecovery(latest.work_id);
-      options.contextReader.onDeck.resume(onDeckRunId, context.finalInventoryDecision.decisionDigest);
-      const work = onDeckWork(onDeckRunId, refs, acceptedWork, rows.length + 1);
-      return Object.freeze({ kind:'recovering', onDeckRunId, subjectId:context.offer.subjectId,
-        recoveryGeneration:rows.length + 1, work, result:submit(work) });
-    },
+    recoverOnDeck,
   });
 }
 

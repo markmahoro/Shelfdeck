@@ -19,6 +19,10 @@ function sameIdentity(left, right) {
   // inode+size only: a scanner or NAS can touch mtime/ctime without replacing bytes.
   return left.ino === right.ino && left.size === right.size;
 }
+function sameStableSnapshot(left, right) {
+  return sameIdentity(left, right) && left.mtimeNs === right.mtimeNs &&
+    left.ctimeNs === right.ctimeNs;
+}
 function sampleBounds(sizeBytes) {
   const sampleLength = Math.min(sizeBytes, FINGERPRINT_SAMPLE_BYTES);
   return Object.freeze({ sampleLength, sampleOffset:Math.floor((sizeBytes - sampleLength) / 2) });
@@ -97,6 +101,78 @@ function computeSyncCore(location, options = {}) {
   } finally { fileSystem.closeSync(descriptor); }
 }
 
+async function readBoundedFileSnapshotCore(location, maxBytes, options = {}) {
+  const fsPromises = options.fsPromises || fs.promises;
+  const pathBefore = await fsPromises.lstat(location, { bigint:true });
+  validatePathStat(pathBefore, location);
+  if (pathBefore.size > BigInt(maxBytes)) {
+    fail('PHYSICAL_MATERIAL_FILE_TOO_LARGE', 'Physical Material exceeds the bounded snapshot contract.', {
+      location, maxBytes,
+    });
+  }
+  const handle = await fsPromises.open(location, 'r');
+  try {
+    const before = await handle.stat({ bigint:true });
+    if (!sameStableSnapshot(pathBefore, before)) {
+      fail('PHYSICAL_MATERIAL_STAT_FENCE_CHANGED', 'Physical Material changed before bounded snapshot read.', { location });
+    }
+    const bytes = Buffer.allocUnsafe(Number(before.size));
+    let offset = 0;
+    while (offset < bytes.length) {
+      const read = await handle.read(bytes, offset, bytes.length - offset, offset);
+      if (read.bytesRead === 0) {
+        fail('PHYSICAL_MATERIAL_FINGERPRINT_SHORT_READ', 'Physical Material bounded snapshot ended early.', {
+          location, expectedBytes:bytes.length, bytesRead:offset,
+        });
+      }
+      offset += read.bytesRead;
+    }
+    const after = await handle.stat({ bigint:true });
+    const pathAfter = await fsPromises.lstat(location, { bigint:true });
+    if (!sameStableSnapshot(before, after) || pathAfter.isSymbolicLink() ||
+        !sameStableSnapshot(after, pathAfter)) {
+      fail('PHYSICAL_MATERIAL_STAT_FENCE_CHANGED', 'Physical Material changed during bounded snapshot read.', { location });
+    }
+    return Object.freeze({ bytes, stat:after, ...fingerprintBuffer(bytes), bytesSampled:bytes.length });
+  } finally { await handle.close(); }
+}
+
+function readBoundedFileSnapshotSyncCore(location, maxBytes, options = {}) {
+  const fileSystem = options.fs || fs;
+  const pathBefore = fileSystem.lstatSync(location, { bigint:true });
+  validatePathStat(pathBefore, location);
+  if (pathBefore.size > BigInt(maxBytes)) {
+    fail('PHYSICAL_MATERIAL_FILE_TOO_LARGE', 'Physical Material exceeds the bounded snapshot contract.', {
+      location, maxBytes,
+    });
+  }
+  const descriptor = fileSystem.openSync(location, 'r');
+  try {
+    const before = fileSystem.fstatSync(descriptor, { bigint:true });
+    if (!sameStableSnapshot(pathBefore, before)) {
+      fail('PHYSICAL_MATERIAL_STAT_FENCE_CHANGED', 'Physical Material changed before bounded snapshot read.', { location });
+    }
+    const bytes = Buffer.allocUnsafe(Number(before.size));
+    let offset = 0;
+    while (offset < bytes.length) {
+      const bytesRead = fileSystem.readSync(descriptor, bytes, offset, bytes.length - offset, offset);
+      if (bytesRead === 0) {
+        fail('PHYSICAL_MATERIAL_FINGERPRINT_SHORT_READ', 'Physical Material bounded snapshot ended early.', {
+          location, expectedBytes:bytes.length, bytesRead:offset,
+        });
+      }
+      offset += bytesRead;
+    }
+    const after = fileSystem.fstatSync(descriptor, { bigint:true });
+    const pathAfter = fileSystem.lstatSync(location, { bigint:true });
+    if (!sameStableSnapshot(before, after) || pathAfter.isSymbolicLink() ||
+        !sameStableSnapshot(after, pathAfter)) {
+      fail('PHYSICAL_MATERIAL_STAT_FENCE_CHANGED', 'Physical Material changed during bounded snapshot read.', { location });
+    }
+    return Object.freeze({ bytes, stat:after, ...fingerprintBuffer(bytes), bytesSampled:bytes.length });
+  } finally { fileSystem.closeSync(descriptor); }
+}
+
 async function computeBoundedMaterialFingerprint(location, options = {}) {
   try { return await computeAsyncCore(location, options); }
   catch (error) {
@@ -117,7 +193,30 @@ function computeBoundedMaterialFingerprintSync(location, options = {}) {
   }
 }
 
+async function readBoundedFileSnapshot(location, maxBytes, options = {}) {
+  if (!Number.isSafeInteger(maxBytes) || maxBytes < 0) throw new TypeError('Bounded snapshot maxBytes is invalid.');
+  try { return await readBoundedFileSnapshotCore(location, maxBytes, options); }
+  catch (error) {
+    if (error instanceof BoundedMaterialFingerprintError) throw error;
+    fail('PHYSICAL_MATERIAL_FINGERPRINT_IO_FAILED', 'Physical Material bounded snapshot I/O failed.', {
+      location, causeCode:error?.code || 'UNKNOWN_IO_ERROR',
+    });
+  }
+}
+
+function readBoundedFileSnapshotSync(location, maxBytes, options = {}) {
+  if (!Number.isSafeInteger(maxBytes) || maxBytes < 0) throw new TypeError('Bounded snapshot maxBytes is invalid.');
+  try { return readBoundedFileSnapshotSyncCore(location, maxBytes, options); }
+  catch (error) {
+    if (error instanceof BoundedMaterialFingerprintError) throw error;
+    fail('PHYSICAL_MATERIAL_FINGERPRINT_IO_FAILED', 'Physical Material bounded snapshot I/O failed.', {
+      location, causeCode:error?.code || 'UNKNOWN_IO_ERROR',
+    });
+  }
+}
+
 module.exports = Object.freeze({
   BoundedMaterialFingerprintError, FINGERPRINT_SAMPLE_BYTES,
   computeBoundedMaterialFingerprint, computeBoundedMaterialFingerprintSync, fingerprintBuffer,
+  readBoundedFileSnapshot, readBoundedFileSnapshotSync,
 });

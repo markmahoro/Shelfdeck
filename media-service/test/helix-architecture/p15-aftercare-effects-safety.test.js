@@ -7,6 +7,7 @@ const os = require('node:os');
 const path = require('node:path');
 const test = require('node:test');
 const sharp = require('sharp');
+const { readBoundedFileSnapshotSync } = require('../../src/helix/integrations/bounded-material-fingerprint');
 const {
   AFTERCARE_LONG_MEDIA_TIMEOUT_MS,
   aftercareMediaProbeEvidence,
@@ -16,6 +17,7 @@ const {
   materializeArtifactWithRollback,
   materializeMediaWithRollback,
   nfoCommitSource,
+  observeSemanticNfoReconciliation,
   custodyIdentityChangedFinding,
   permitsMissingArtifactReplacement,
 } = require('../../src/helix/domains/arca/capabilities/aftercare-capability-ports');
@@ -62,7 +64,9 @@ test('Aftercare assessment and rendering share the same existing NFO and poster 
   assert.match(presentation, /compareMovieNfoPresentation/);
   assert.doesNotMatch(presentation, /existingBytes\.equals/);
   assert.doesNotMatch(presentation, /renderAftercareMovieNfo/);
-  assert.match(source, /if\(identityChanged\)\{if\(isNfoMaterial\(item\)\)continue;/);
+  assert.match(source, /if\(identityChanged\)\{findings\.push\(custodyIdentityChangedFinding\(item\)\)/);
+  assert.match(render, /aftercare_nfo_reconcile/);
+  assert.match(source, /materialEffectKind:isMedia\?'primary_replace':reconcileNfo\?'artifact_reconcile'/);
 });
 
 test('Aftercare progress samples use the exact Foundation determinate shape', () => {
@@ -109,13 +113,40 @@ test('Aftercare Provider Artifact accepts bytes only behind the frozen response 
   assert.ok((acquire.match(/revalidateCaseAuthority\(execution,care\)/g) || []).length >= 2);
 });
 
-test('Aftercare does not treat NFO sidecar fingerprint drift as automatic custody repair', () => {
+test('Aftercare routes NFO fingerprint drift to automatic representation reconciliation', () => {
   const nfo=custodyIdentityChangedFinding({role:'metadata_sidecar',location:'F:/shelf/movie.nfo',material_key:canonicalDigest('old-nfo')}),
     subtitle=custodyIdentityChangedFinding({role:'subtitle',location:'F:/shelf/movie.srt',material_key:canonicalDigest('old-subtitle')}),
     primary=custodyIdentityChangedFinding({role:'primary_payload',location:'F:/shelf/movie.mkv',material_key:canonicalDigest('old-primary')});
-  assert.match(nfo.schemaRef,/\/custody\/nfo_identity_changed\/critical\/attention_required\//);
+  assert.match(nfo.schemaRef,/\/custody\/nfo_identity_changed\/critical\/auto_repair\//);
   assert.match(subtitle.schemaRef,/\/custody\/material_identity_changed\/critical\/attention_required\//);
   assert.match(primary.schemaRef,/\/custody\/primary_identity_changed\/critical\/attention_required\//);
+});
+
+test('Aftercare semantic NFO reconciliation adopts current bytes as a new Inventory identity without writing the file', () => {
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'aftercare-nfo-reconcile-'));
+  const location=path.join(root,'movie.nfo'),metadata={descriptiveFacts:{entries:[
+    {key:'title',value:'Example Movie'},{key:'year',value:'2025'},
+    {key:'plot',value:'Plot'},{key:'genre',value:'Drama'},
+  ]}},cast=[{role:'actor',displayName:'Actor One',providerIdentities:[]}],movieIdentity={provider:'tmdb',providerKey:'123'};
+  try {
+    fs.writeFileSync(location,'<movie><title>Example Movie</title><year>2025</year><plot>Plot</plot><genre>Drama</genre><tmdbid>123</tmdbid><actor><name>Actor One</name></actor></movie>');
+    const first=observeSemanticNfoReconciliation({location,metadata,cast,identity:movieIdentity,mountScopeId:'mount-1',readSnapshot:readBoundedFileSnapshotSync});
+    const embyBytes=Buffer.from('<?xml version="1.0"?><movie><title>Example Movie</title><year>2025</year><plot>Plot</plot><genre>Drama</genre><tmdbid>123</tmdbid><actor><name>Actor One</name></actor><dateadded>2026-08-31</dateadded><fileinfo><streamdetails><video><codec>hevc</codec></video></streamdetails></fileinfo></movie>');
+    fs.writeFileSync(location,embyBytes);
+    const before=fs.readFileSync(location),reconciled=observeSemanticNfoReconciliation({location,metadata,cast,identity:movieIdentity,mountScopeId:'mount-1',readSnapshot:readBoundedFileSnapshotSync});
+    assert.deepEqual(fs.readFileSync(location),before);
+    assert.notEqual(reconciled.identity.materialKey,first.identity.materialKey);
+    assert.equal(typeof reconciled.semanticEvidenceDigest,'string');
+    const old=first.identity,materials=[{material_key:old.materialKey,mount_scope_id:old.mountScopeId,inode:old.inode,
+      size_bytes:old.sizeBytes,fingerprint_algorithm:old.fingerprintAlgorithm,fingerprint_version:old.fingerprintVersion,
+      content_fingerprint:old.contentFingerprint,location:location.replace(/\\/g,'/')}],receipt={finalMaterialIdentity:reconciled.identity,
+      targetLocation:location.replace(/\\/g,'/'),retiredMaterials:[{identity:old,location:location.replace(/\\/g,'/'),requiresSettlement:false}]};
+    assert.deepEqual(deriveInventoryMaterialChanges(materials,[receipt]).map((item)=>[item.action,item.identity.materialKey]).sort(),
+      [['acquire',reconciled.identity.materialKey],['release',old.materialKey]].sort());
+    fs.writeFileSync(location,Buffer.from(embyBytes.toString('utf8').replaceAll('123','999')));
+    assert.throws(()=>observeSemanticNfoReconciliation({location,metadata,cast,identity:movieIdentity,mountScopeId:'mount-1',readSnapshot:readBoundedFileSnapshotSync}),
+      (error)=>error.code==='ARCA_AFTERCARE_NFO_SOURCE_STALE'&&error.details.reasonCode==='movie_identity_conflict');
+  } finally {fs.rmSync(root,{recursive:true,force:true});}
 });
 
 test('Aftercare NFO commit accepts only the exact source observed during preparation', () => {

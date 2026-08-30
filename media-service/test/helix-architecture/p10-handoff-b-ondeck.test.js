@@ -32,9 +32,20 @@ test('On-deck Planner preserves the settlement Capability approval contract',()=
     assert.equal(settlement.approvalRequirementRef,manifests.get(C.settlement).approvalRequirementRef);
     assert.equal(settlement.authorizationRequirementRef,manifests.get(C.settlement).authorizationRequirementRef||null);
   }
+  const stage=result.nodes.find((node)=>node.capabilityRef===C.stage);
+  const stagedVerify=result.nodes.find((node)=>node.capabilityRef===C.stagedVerify);
+  const placement=result.nodes.find((node)=>node.capabilityRef===C.placement);
+  const finalVerify=result.nodes.find((node)=>node.capabilityRef===C.finalVerify);
+  assert.deepEqual(stagedVerify.dependsOn,[{eventId:stage.eventId,satisfaction:'success'}]);
+  assert.deepEqual(placement.dependsOn.map((item)=>item.eventId).sort(),[stage.eventId,stagedVerify.eventId].sort());
+  assert.deepEqual(finalVerify.dependsOn.map((item)=>item.eventId).sort(),[stage.eventId,placement.eventId].sort());
+  assert.ok(settlements.every((node)=>node.dependsOn.length===1&&node.dependsOn[0].eventId===finalVerify.eventId));
   const fulfillment=result.nodes.find((node)=>node.capabilityRef===C.fulfillment);
-  assert.deepEqual(fulfillment.dependsOn.map((item)=>item.eventId).sort(),settlements.map((item)=>item.eventId).sort());
+  assert.deepEqual(fulfillment.dependsOn.map((item)=>item.eventId).sort(),
+    [finalVerify.eventId,...settlements.map((item)=>item.eventId)].sort());
   const commit=result.nodes.find((node)=>node.capabilityRef===C.commit);
   assert.deepEqual(commit.dependsOn,[{eventId:fulfillment.eventId,satisfaction:'success'}]);
+  assert.equal(commit.inputBindings.bindings.find((item)=>item.portName==='fulfillmentResult').projectionRef,
+    'helix://arca/input-projections/FinalReality/v1');
 });
 test('Arca runtime has no Libra Store import, compatibility or direct effect',()=>{const root=path.join(__dirname,'../../src/helix/domains/arca');for(const file of ['model/on-deck-contracts.js','persistence/on-deck-ledger.js','capabilities/on-deck-capability-registrations.js']){const source=fs.readFileSync(path.join(root,file),'utf8');assert.doesNotMatch(source,/domains\/libra|legacy runtime fallback|dual[-_ ]?(read|write|run)|node:child_process|https?:\/\//i);}});

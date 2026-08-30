@@ -206,6 +206,22 @@ test('terminal failed Repair Works receive at most two durable replacements and 
   } finally { value.close(); }
 });
 
+test('repeated NFO external-writer conflicts aggregate into one bounded Case attention outcome', () => {
+  const value=fixture({statusForKind:(_kind,_workId,row)=>row.state==='failed'?Object.freeze({state:'failed',
+    latestAttempt:Object.freeze({state:'failed',failure_code:'ARCA_AFTERCARE_NFO_SOURCE_STALE'})}):'pending'});
+  try {
+    for(let ordinal=0;ordinal<3;ordinal+=1){
+      assert.equal(value.coordinator.reconcile('entry-1').kind,'repair_preparation_pending');
+      value.database.prepare("UPDATE fx_supporting_works SET state='failed' WHERE work_kind='care_repair_prepare' AND state!='failed'").run();
+    }
+    const terminal=value.coordinator.reconcile('entry-1');
+    assert.equal(terminal.kind,'case_unresolved');
+    assert.equal(terminal.reasonCode,'external_writer_conflict');
+    assert.equal(value.history.cases.filter((item)=>item.state==='active').length,1);
+    assert.equal(value.database.prepare("SELECT count(*) count FROM fx_supporting_works WHERE work_kind='care_repair_prepare'").get().count,3);
+  } finally {value.close();}
+});
+
 test('Arca reconciliation does not control Incidents and Foundation observation is durable and idempotent', () => {
   const value=fixture({statusForKind:(_kind,workId,row)=>row.state==='failed'?Object.freeze({state:'failed',
     latestAttempt:Object.freeze({attempt_id:workId+':attempt:1',failure_code:'PLATFORM_INTEGRATION_NETWORK_FAILED'})}):'pending'});

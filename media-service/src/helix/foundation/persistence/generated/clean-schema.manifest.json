@@ -3,7 +3,7 @@
   "compilerContract": "helix-p3-deterministic-sqlite-ddl/v1",
   "digestAlgorithm": "sha256",
   "tableCount": 186,
-  "tableContractAggregateDigest": "8cd7cb38af3134a1e6ef95715c93343bbd77d1b80a0b594949e6843065258329",
+  "tableContractAggregateDigest": "bc8bd15000e1ef0635f6db954a37ebb09592bd00bf1e2155f3d027a4b855af7e",
   "ddlDigest": "3be2dad9b3615053681dfc2721974657fc3995ccf60a044e17dfb5131f0f8199",
   "tables": [
     {
@@ -1121,7 +1121,7 @@
       "tableId": "arca_ondeck_runs",
       "owner": "arca",
       "contractId": "helix://contracts/tables/arca_ondeck_runs/v1",
-      "contractDigest": "82d7a9dec59f2abc579a56159e31ddf6cf42cfa78bec2058d21787f574268a7c",
+      "contractDigest": "15f663d03c8f7ee5e3e64e5328a38000379c37c3a4e34190e2701a020fa9a686",
       "sqlDigest": "106873649d8f094eef562df0b023540d13126f0eccd7b39784e1b67f7577bbfc",
       "columns": [
         "on_deck_run_id",

@@ -327,7 +327,8 @@ test('same-root Stage/Switch preserves exact final members, merges new members, 
     fs.writeFileSync(oldPoster, Buffer.from('same-poster-bytes'));
     fs.writeFileSync(productPoster, Buffer.from('same-poster-bytes'));
     fs.writeFileSync(oldNfo, Buffer.from('old-nfo'));
-    fs.writeFileSync(productNfo, Buffer.from('new-nfo'));
+    const productNfoBytes = '<movie><title>Example Movie</title><year>2025</year><plot>Plot</plot><genre>Drama</genre><tmdbid>123</tmdbid><actor><name>Actor One</name></actor></movie>';
+    fs.writeFileSync(productNfo, Buffer.from(productNfoBytes));
 
     const mountScopeId = 'canary-mount';
     const productMembers = [
@@ -391,11 +392,24 @@ test('same-root Stage/Switch preserves exact final members, merges new members, 
 
     assert.equal(fs.readFileSync(primary, 'utf8'), 'movie-bytes');
     assert.equal(fs.readFileSync(oldPoster, 'utf8'), 'same-poster-bytes');
-    assert.equal(fs.readFileSync(path.join(targetDirectory, 'Example Movie.nfo'), 'utf8'), 'new-nfo');
+    assert.equal(fs.readFileSync(path.join(targetDirectory, 'Example Movie.nfo'), 'utf8'), productNfoBytes);
     assert.equal(fs.existsSync(targetCommitSlotHandle.slotDirectory), false);
-    assert.equal(port.readFinal({ ...request, finalInventoryDecision, replayCommitted:true }).members.length, 3);
+    assert.throws(() => port.readFinal({ ...request, finalInventoryDecision, replayCommitted:true }),
+      (error) => error.code === 'CLEAN_ARCA_FINAL_VERIFICATION_CONTEXT_REQUIRED');
+    assert.throws(() => port.readFinal({ ...request, finalInventoryDecision, replayCommitted:true,
+      verificationContext:'on_deck' }),
+    (error) => error.code === 'CLEAN_ARCA_FINAL_NFO_BASIS_MISSING');
 
-    const finalInventoryRequest = { ...request, finalInventoryDecision };
+    const finalInventoryRequest = { ...request, finalInventoryDecision, verificationContext:'on_deck',
+      nfoPresentationBasis:{
+        metadata:{ descriptiveFacts:{ entries:[
+          { key:'title', value:'Example Movie' }, { key:'year', value:'2025' },
+          { key:'plot', value:'Plot' }, { key:'genre', value:'Drama' },
+        ] } },
+        cast:[{ role:'actor', displayName:'Actor One', providerIdentities:[] }],
+        identity:{ provider:'tmdb', providerKey:'123' },
+      } };
+    assert.equal(port.readFinal({ ...finalInventoryRequest, replayCommitted:true }).members.length, 3);
     const posterFinal = finalInventoryDecision.members.find((item) => item.role === 'poster');
     const nfoFinal = finalInventoryDecision.members.find((item) => item.role === 'metadata_sidecar');
     const retained = await port.settleInputAsync({
@@ -487,6 +501,108 @@ test('On-deck recovery reuses exact settled final members while repairing a drif
     assert.equal(fs.readFileSync(primaryTarget, 'utf8'), 'movie-bytes');
     assert.equal(fs.readFileSync(nfoTarget, 'utf8'), 'canonical-nfo');
     assert.equal(fs.existsSync(primarySource), false);
+  } finally {
+    fs.rmSync(root, { recursive:true, force:true });
+  }
+});
+
+test('post-Placement NFO verification accepts semantic Emby rewrites while exact members remain byte-strict', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'clean-arca-semantic-nfo-'));
+  try {
+    const targetRoot = path.join(root, 'shelf');
+    const sourceRoot = path.join(root, 'input');
+    const workspaceRoot = path.join(root, '.workspace');
+    const workspaceId = 'semantic-workspace';
+    fs.mkdirSync(targetRoot, { recursive:true });
+    fs.mkdirSync(sourceRoot, { recursive:true });
+    fs.mkdirSync(path.join(workspaceRoot, workspaceId, 'product'), { recursive:true });
+    const primarySource = path.join(sourceRoot, 'movie.mkv');
+    const nfoSource = path.join(workspaceRoot, workspaceId, 'product', 'movie.nfo');
+    fs.writeFileSync(primarySource, Buffer.from('immutable-primary-bytes'));
+    fs.writeFileSync(nfoSource, Buffer.from('<movie><title>Example Movie</title><year>2025</year><plot>Plot</plot><genre>Drama</genre><tmdbid>123</tmdbid><actor><name>Actor One</name></actor></movie>'));
+    const mountScopeId = 'canary-mount';
+    const packageNfoIdentity = identity(nfoSource, mountScopeId);
+    const packageValue = Object.freeze({
+      onDeckPackageId:'package-semantic-nfo', shelfId:'shelf-1',
+      resolvedIdentitySnapshot:{ factValue:{ title:'Example Movie' } },
+      productStructureSnapshot:{ structureKind:'single' },
+      productMaterialManifest:{ manifestDigest:'manifest-semantic-nfo', members:Object.freeze([
+        member(primarySource, 'primary_payload', mountScopeId),
+        member(nfoSource, 'metadata_sidecar', mountScopeId, { workspaceId, relativePath:'product/movie.nfo' }),
+      ]) },
+      offloadContextManifest:{ manifestDigest:'offload-semantic-nfo', members:Object.freeze([]) },
+    });
+    const shelf = Object.freeze({
+      shelfId:'shelf-1', status:'active', currentPlacementRevision:1,
+      target:{ endpointId:'canary', rootLocation:targetRoot, mountScopeId, mountScopeRevision:1 },
+      placement:{ value:{ folderTemplate:'{title}' } },
+    });
+    const port = createCleanArcaInventoryPort({ schemaManifest, unitOfWork:{}, workspaceRoot });
+    const request = { onDeckRunId:'on-deck-semantic-nfo', custodyId:'custody-semantic-nfo', shelf,
+      onDeckProductPackage:packageValue, observedAtMs:10, replayCommitted:false,
+      verificationContext:'on_deck' };
+    const finalInventoryDecision = port.prepare(request);
+    const targetCommitSlotHandle = port.prepareSlot({ ...request, finalInventoryDecision });
+    const stagedInventoryManifest = await port.stage({ ...request, finalInventoryDecision, targetCommitSlotHandle });
+    const stagedInventoryVerification = await port.verifyStaged({ ...request, finalInventoryDecision, stagedInventoryManifest });
+    await port.switchPlacement({ ...request, finalInventoryDecision, stagedInventoryVerification,
+      targetBindings:{ bindingSetDigest:'semantic-target-bindings' }, replacedInputSetDigest:'semantic-replaced-inputs' });
+
+    const nfoTarget = finalInventoryDecision.members.find((item) => item.role === 'metadata_sidecar').targetLocation;
+    const primaryTarget = finalInventoryDecision.members.find((item) => item.role === 'primary_payload').targetLocation;
+    const embyRewrite = Buffer.from(`<?xml version="1.0" encoding="utf-8"?>\n<movie>\n  <title>Example Movie</title>\n  <year>2025</year>\n  <plot>Plot</plot>\n  <genre>Drama</genre>\n  <tmdbid>123</tmdbid>\n  <uniqueid type="tmdb">123</uniqueid>\n  <actor><name>Actor One</name></actor>\n  <dateadded>2026-08-31</dateadded>\n  <fileinfo><streamdetails><video><codec>hevc</codec></video></streamdetails></fileinfo>\n</movie>\n`);
+    fs.writeFileSync(nfoTarget, embyRewrite);
+    const nfoPresentationBasis = Object.freeze({
+      metadata:Object.freeze({ descriptiveFacts:Object.freeze({ entries:Object.freeze([
+        Object.freeze({ key:'title', value:'Example Movie' }),
+        Object.freeze({ key:'year', value:'2025' }),
+        Object.freeze({ key:'plot', value:'Plot' }),
+        Object.freeze({ key:'genre', value:'Drama' }),
+      ]) }) }),
+      cast:Object.freeze([Object.freeze({ role:'actor', displayName:'Actor One', providerIdentities:Object.freeze([]) })]),
+      identity:Object.freeze({ provider:'tmdb', providerKey:'123' }),
+    });
+    const finalReality = await port.readFinalAsync({ ...request, finalInventoryDecision,
+      replaySettledSources:true, nfoPresentationBasis, observedAtMs:20 });
+    const nfoReality = finalReality.members.find((item) => item.role === 'metadata_sidecar');
+    assert.equal(nfoReality.verificationKind, 'semantic_presentation');
+    assert.notEqual(nfoReality.physicalIdentity.contentFingerprint, packageNfoIdentity.contentFingerprint);
+    assert.equal(nfoReality.physicalIdentity.contentFingerprint, identity(nfoTarget, mountScopeId).contentFingerprint);
+    assert.equal(finalReality.memberEvidence.find((item) => item.role === 'primary_payload').verificationKind,
+      'exact_package_identity');
+
+    const checkpointFingerprints = new Set([nfoReality.physicalIdentity.contentFingerprint]);
+    for (const [checkpoint, observedAtMs] of [
+      ['after_final_verify', 21],
+      ['after_settlement', 22],
+      ['after_fulfillment', 23],
+    ]) {
+      const checkpointBytes = Buffer.from(embyRewrite.toString('utf8')
+        .replace('</movie>', `<shelfdeck_external_checkpoint>${checkpoint}</shelfdeck_external_checkpoint></movie>`));
+      fs.writeFileSync(nfoTarget, checkpointBytes);
+      const checkpointReality = await port.readFinalAsync({ ...request, finalInventoryDecision,
+        replaySettledSources:true, nfoPresentationBasis, observedAtMs });
+      const checkpointNfo = checkpointReality.members.find((item) => item.role === 'metadata_sidecar');
+      assert.equal(checkpointNfo.physicalIdentity.contentFingerprint,
+        identity(nfoTarget, mountScopeId).contentFingerprint);
+      assert.equal(checkpointReality.memberEvidence.find((item) => item.role === 'metadata_sidecar').observedAtMs,
+        observedAtMs);
+      checkpointFingerprints.add(checkpointNfo.physicalIdentity.contentFingerprint);
+    }
+    assert.equal(checkpointFingerprints.size, 4);
+
+    fs.writeFileSync(nfoTarget, Buffer.from(embyRewrite.toString('utf8').replaceAll('123', '999')));
+    await assert.rejects(port.readFinalAsync({ ...request, finalInventoryDecision, replaySettledSources:true,
+      nfoPresentationBasis, observedAtMs:24 }), (error) => error.code === 'CLEAN_ARCA_FINAL_NFO_SEMANTIC_DRIFT' &&
+      error.details.reasonCode === 'movie_identity_conflict');
+    fs.writeFileSync(nfoTarget, Buffer.from('<movie><title>Example Movie</title><year>2025</year><genre>Drama</genre><tmdbid>123</tmdbid><actor><name>Actor One</name></actor></movie>'));
+    await assert.rejects(port.readFinalAsync({ ...request, finalInventoryDecision, replaySettledSources:true,
+      nfoPresentationBasis, observedAtMs:25 }), (error) => error.code === 'CLEAN_ARCA_FINAL_NFO_SEMANTIC_DRIFT' &&
+      error.details.field === 'plot');
+    fs.writeFileSync(nfoTarget, embyRewrite);
+    fs.writeFileSync(primaryTarget, Buffer.from('changed-primary-bytes'));
+    await assert.rejects(port.readFinalAsync({ ...request, finalInventoryDecision, replaySettledSources:true,
+      nfoPresentationBasis, observedAtMs:26 }), (error) => error.code === 'CLEAN_ARCA_FINAL_REALITY_DRIFT');
   } finally {
     fs.rmSync(root, { recursive:true, force:true });
   }

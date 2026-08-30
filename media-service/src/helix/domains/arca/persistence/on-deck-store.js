@@ -159,6 +159,22 @@ function arcaDefinition(schemaManifest) {
         columns: ['custody_id', 'state'],
         keyColumns: ['custody_id'],
       },
+      find_receipt_by_offer: {
+        kind: 'select-one',
+        tableId: 'arca_handoff_b_receipts',
+        columns: ['offer_id', 'outcome', 'custody_id'],
+        keyColumns: ['offer_id'],
+      },
+      find_run_by_custody: {
+        kind: 'select-one',
+        tableId: 'arca_ondeck_runs',
+        columns: [
+          'on_deck_run_id', 'custody_id', 'final_inventory_decision_digest',
+          'state', 'created_at_ms', 'terminal_at_ms',
+        ],
+        keyColumns: ['custody_id'],
+        safeIntegers: true,
+      },
       advance_run: {
         kind: 'update',
         tableId: 'arca_ondeck_runs',
@@ -626,6 +642,34 @@ function createOnDeckStore(options) {
     }]).arca_ondeck_recovery_eligibility;
   }
 
+  function attentionRetryEligibility(onDeckRunId) {
+    return options.unitOfWork.execute([{
+      participantId: 'arca_ondeck_attention_retry_eligibility', owner: 'arca', repositories: [arca],
+      execute(context) {
+        const repo=context.repository(arca.repositoryId),run=repo.invoke('find_run',{on_deck_run_id:onDeckRunId});
+        if(!run)return Object.freeze({eligible:false,reasonCode:'on_deck_run_missing'});
+        const custody=repo.invoke('find_custody',{custody_id:run.custody_id});
+        if(!custody||custody.state!=='active')return Object.freeze({eligible:false,reasonCode:'custody_not_active'});
+        if(run.state!=='blocked')return Object.freeze({eligible:false,reasonCode:'on_deck_run_not_blocked',state:run.state});
+        return Object.freeze({eligible:true,reasonCode:null,state:run.state,custodyId:run.custody_id,
+          decisionDigest:run.final_inventory_decision_digest});
+      },
+    }]).arca_ondeck_attention_retry_eligibility;
+  }
+
+  function findRunByOffer(offerId) {
+    return options.unitOfWork.execute([{
+      participantId:'arca_ondeck_find_by_offer',owner:'arca',repositories:[arca],execute(context){
+        const repo=context.repository(arca.repositoryId),receipt=repo.invoke('find_receipt_by_offer',{offer_id:offerId});
+        if(!receipt||receipt.outcome!=='accepted'||!receipt.custody_id)return null;
+        const run=repo.invoke('find_run_by_custody',{custody_id:receipt.custody_id});
+        return run?Object.freeze({onDeckRunId:run.on_deck_run_id,custodyId:run.custody_id,
+          finalInventoryDecisionDigest:run.final_inventory_decision_digest,state:run.state,
+          createdAtMs:Number(run.created_at_ms),terminalAtMs:run.terminal_at_ms===null?null:Number(run.terminal_at_ms)}):null;
+      },
+    }]).arca_ondeck_find_by_offer;
+  }
+
   function block(onDeckRunId, decisionDigest) {
     return options.unitOfWork.execute([{
       participantId: 'arca_ondeck_block', owner: 'arca', repositories: [arca],
@@ -647,7 +691,19 @@ function createOnDeckStore(options) {
     }]).arca_ondeck_block;
   }
 
-  function resume(onDeckRunId, decisionDigest) {
+  function requireAttention(onDeckRunId, decisionDigest) {
+    return options.unitOfWork.execute([{
+      participantId:'arca_ondeck_require_attention',owner:'arca',repositories:[arca],execute(context){
+        const repo=context.repository(arca.repositoryId),run=repo.invoke('find_run',{on_deck_run_id:onDeckRunId});
+        if(!run||run.final_inventory_decision_digest!==decisionDigest)
+          fail('P14_ONDECK_RUN_MISSING','On-deck Run does not match its immutable Decision.');
+        if(run.state!=='blocked')fail('P14_ONDECK_ATTENTION_STATE','Only a blocked On-deck Run can exhaust recovery.');
+        return Object.freeze({state:'blocked',replayed:true});
+      },
+    }]).arca_ondeck_require_attention;
+  }
+
+  function resume(onDeckRunId, decisionDigest, expectedState = 'blocked') {
     return options.unitOfWork.execute([{
       participantId: 'arca_ondeck_resume', owner: 'arca', repositories: [arca],
       execute(context) {
@@ -657,9 +713,9 @@ function createOnDeckStore(options) {
           fail('P14_ONDECK_RUN_MISSING', 'On-deck Run does not match its immutable Decision.');
         }
         if (run.state === 'offloading') return Object.freeze({ state:'offloading', replayed:true });
-        if (run.state !== 'blocked' || repo.invoke('advance_run', {
+        if (run.state !== expectedState || repo.invoke('advance_run', {
           state:'offloading', terminal_at_ms:null, on_deck_run_id:onDeckRunId,
-          expected_state:'blocked', expected_final_inventory_decision_digest:decisionDigest,
+          expected_state:expectedState, expected_final_inventory_decision_digest:decisionDigest,
         }).changes !== 1) {
           fail('P14_ONDECK_RESUME_CAS', 'On-deck Run lost its recovery CAS.');
         }
@@ -1515,7 +1571,10 @@ function createOnDeckStore(options) {
     verifyAcceptedResponsibility,
     setOffloading,
     recoveryEligibility,
+    attentionRetryEligibility,
+    findRunByOffer,
     block,
+    requireAttention,
     resume,
     acquireStagedCustody,
     commit,

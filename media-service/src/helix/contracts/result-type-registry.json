@@ -430,7 +430,7 @@
       "relativePath": "types/FinalProductVerification/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "5ce94c44f52285497c938adc994909a9687fd55955db282eb7ac8c29492640ca"
+        "value": "75e7ef89391db34891a7852b4c3440b395738ed44f83b77a7fbd732b5e25dc38"
       },
       "source": {
         "section": "8.6.19",
@@ -462,7 +462,7 @@
       "relativePath": "types/FulfillmentVerification/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "a9648d975812494791cc2cc4e5476d1fa3794ccf811c05103c801f406f97ac11"
+        "value": "64f7186b3f98b111733e486cb7c6861240c66b5d3c80c3bb7937a4b628ac609f"
       },
       "source": {
         "section": "8.6.19",

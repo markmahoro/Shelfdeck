@@ -91,7 +91,7 @@ function createFormationStatusProjection(options) {
           if (run.state === 'blocked') {
             result.set(receipt.offer_id, Object.freeze({
               stage: 'attention_required', reasonCode: 'ARCA_ONDECK_BLOCKED',
-              completedAtMs: null, shelfEntryId: null,
+              completedAtMs: null, shelfEntryId: null, onDeckRunId:run.on_deck_run_id,
             }));
             continue;
           }

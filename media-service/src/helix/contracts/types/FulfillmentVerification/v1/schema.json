@@ -71,6 +71,59 @@
       "type": "string",
       "minLength": 1,
       "pattern": "^[a-f0-9]{64}$"
+    },
+    "memberEvidence": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "sourceProductMaterialKey": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "role": {
+            "type": "string",
+            "minLength": 1
+          },
+          "verificationKind": {
+            "type": "string",
+            "enum": [
+              "exact_package_identity",
+              "semantic_presentation"
+            ]
+          },
+          "actualPhysicalIdentity": {
+            "$ref": "helix://contracts/types/PhysicalMaterialIdentity/v2"
+          },
+          "observedAtMs": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "semanticEvidenceDigest": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "sourceProductMaterialKey",
+          "role",
+          "verificationKind",
+          "actualPhysicalIdentity",
+          "observedAtMs",
+          "semanticEvidenceDigest"
+        ]
+      },
+      "maxItems": 4096
     }
   },
   "required": [
@@ -85,6 +138,7 @@
     "verifiedAtMs",
     "finalInventoryDecisionDigest",
     "shelfStandardRevision",
-    "finalRealityDigest"
+    "finalRealityDigest",
+    "memberEvidence"
   ]
 }

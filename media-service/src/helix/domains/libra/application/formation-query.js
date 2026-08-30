@@ -718,6 +718,13 @@ function createFormationQuery(options) {
   }
   function technicalIssue(item) {
     const value = item.handoffB?.offerId ? options.readAcceptanceRecovery?.(item.handoffB.offerId) : null;
+    if (item.handoffB?.offerId && item.arcaStatus?.reasonCode === 'ARCA_ONDECK_BLOCKED' && item.arcaStatus.onDeckRunId) {
+      return Object.freeze({ ...item, classification:'attention_required',
+        nextAction:Object.freeze({label:'上架自动恢复已停止，需要处理',state:'attention_required',progress:null}),
+        executorIssue:Object.freeze({phase:'on_deck_execution',errorCode:'ARCA_ONDECK_BLOCKED',
+          attemptCount:null,owner:'arca',recoveryState:'attention_required',recoveryGeneration:null,
+          automaticRecoveryUsed:true,canRetry:true,offerId:item.handoffB.offerId,onDeckRunId:item.arcaStatus.onDeckRunId})});
+    }
     if (!value || value.recoveryState !== 'attention_required') return Object.freeze({ ...item, executorIssue:null });
     return Object.freeze({ ...item, classification:'attention_required',
       nextAction:Object.freeze({ label:acceptanceIssueLabel(value), state:'attention_required', progress:null }),

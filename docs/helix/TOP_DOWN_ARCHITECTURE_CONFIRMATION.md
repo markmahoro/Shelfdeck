@@ -417,8 +417,8 @@ rejection Decision/Receipt and Handoff B Rejected message. Acceptance never crea
 Target Commit Slot Prepare
   → Product Stage
   → Staged Verify
-  → Final Product Verify
   → Placement Switch
+  → Final Product Verify
   → exact Input Settlement
   → Fulfillment Verify
   → On-deck Commit
@@ -430,12 +430,12 @@ Resource Governor. The immutable Planner may use compact Owner Scope References,
 independent Event with an Attempt, complete Permit bundle, Effect Journal evidence and typed Result. Waiting for a
 Permit, process restart or a lost wake signal cannot authorize a hidden fallback or duplicate a file effect.
 
-Input Settlement is ordered after verified final placement and before On-deck Commit. It is limited to exact members
-covered by the current Run-local Approval and immutable Product disposition mapping. A directory, shared material,
-ambiguous Related item or future material can never be inferred into the destructive scope. If an input already is
-the exact verified final Shelf location, placement and settlement are a typed no-op; current Control and Finished
-Goods projection still exclude it from Procurement. Any unresolved disposition keeps the Run in Arca and blocks
-Shelf Entry creation.
+Final Product Verify reads the actual Shelf files after Placement Switch: Primary and other exact members require exact
+package identity; an NFO presentation member requires the same Movie Identity and owned presentation semantics and
+records its observed physical identity as final reality. Input Settlement then precedes On-deck Commit and is limited
+to exact members covered by the Run-local Approval and Product disposition mapping; directories, shared or future
+material cannot be inferred into scope. An input already at the exact verified Shelf location is a typed no-op, while
+current Control still excludes it from Procurement; unresolved disposition blocks Shelf Entry creation.
 
 On-deck Commit is the single canonical transaction that establishes Canonical Content Identity, the current
 Inventory Representation and member relations, Shelf Entry, Deck Fact, On-deck Commit Receipt and Off-load Completion
@@ -2758,12 +2758,12 @@ Planner或Task。Libra自行决定如何返工：
 
 #### 4.5.6 Accepted后的On-deck与收藏问题均归Arca闭环
 
-Accepted后、Shelf Entry建立前的Placement、目标冲突、文件系统提交与恢复问题由Arca的On-deck Run闭环，
-不能退回Libra。Shelf Entry建立后发现Binding不健康、Metadata过期、Standard变化、重复媒体或其他质量问题，均由Arca
-通过Aftercare或Off-deck Management处理；重复媒体由Off-deck Policy内部Duplicate Detection提供Evidence，
-并由Aftercare派生Shelf Health Projection。Arca
-不能把Shelf Entry退回Libra，
-也不能要求Libra恢复旧Subject的生产状态。
+Accepted后、Shelf Entry建立前的Placement、目标冲突、文件系统提交与恢复问题由Arca的唯一On-deck Run闭环，
+不能退回Libra。自动恢复预算耗尽时，同一Run必须停止自动执行并把durable `blocked`责任投影为用户可见的`attention_required`；
+此时`blocked`是零执行资源占用的稳定业务暂停态，不是仍在运行的中间态；只有显式用户Retry可为同一Run签发下一代Supporting Work，
+不得创建第二个Run，也不得把它解释为Rejected、Libra frozen、`接受瑕疵`或`放弃整理`。Shelf Entry后的问题由Aftercare或Off-deck处理；Arca
+不能把Shelf Entry退回Libra，不能在该暂停态释放Accepted Custody或Material Control，
+也不能要求Libra恢复旧Subject的生产状态；相同失败不得继续产生自动Work、重复Incident或日志热循环。
 
 Arca可以形成新的Intent或业务需求，但这只会启动新的独立价值流，不会逆转原Handoff或修改历史
 Acceptance Decision。
@@ -9410,7 +9410,7 @@ Plan node input/parameter/Fence/Resource Demand的具体JSON不直接重复存�
 | `arca_ondeck_custodies` | `custody_id PK, acceptance_decision_id FK, on_deck_package_id, package_digest, control_scope_digest, related_disposition_set_digest, state, accepted_at_ms` | `UNIQUE(on_deck_package_id,package_digest)`；只有Accepted Decision可建立；`control_scope_digest`只覆盖正式Product Control transfer，`related_disposition_set_digest`逐字节冻结Package中全部exclusive Related的source-to-final义务，两者不得合并为一个Control Scope |
 | `arca_handoff_b_receipts` | `receipt_id PK, acceptance_decision_id FK, outcome(accepted|rejected), offer_id, custody_id NULL, on_deck_package_id, package_digest, arca_binding_set_digest NULL, control_revision_set_digest NULL, related_disposition_set_digest, rejection_code NULL, acceptance_evidence_set_digest, rejection_digest NULL, receipt_digest, committed_at_ms` | `UNIQUE(acceptance_decision_id)`及`UNIQUE(offer_id)`；Offer/Package/Related disposition set逐字节等于Decision；accepted要求Custody/Binding/Control列非NULL、全部rejection列为NULL，receipt digest按`CustodyAndTransferReceipt@1`公式重建，其中Related set不进入Control digest；rejected要求Custody/Binding/Control列NULL且rejection列非NULL，receipt digest按`RejectionReceipt@1`公式重建；两种终态都必须有receipt digest并作为各自typed Outbox的durable source，相同marker不新增Receipt或相反终态 |
 | `arca_material_bindings` | `owner_object_type, owner_object_id, material_key, role, authority_kind(product_control|related_derived), primary_material_key NULL, source_related_reference_id NULL, derived_authority_digest NULL, episode_claims_schema_ref, episode_claims_json, episode_claim_set_digest, endpoint_id, location, mount_scope_id, inode, size_bytes, fingerprint_algorithm, fingerprint_version, content_fingerprint, binding_revision, health_state, evidence_digest, current` | `PK(owner_object_type,owner_object_id,material_key,role,binding_revision)`；每个物理Material/role/revision只有一row且每个关系只有一个current row。每行冻结可重建`material_key`的完整Physical Material Identity tuple，Aftercare或历史重放不得用当前Shelf mount scope猜测旧Identity。`product_control`逐项命中Handoff B Product member及Control transfer，三个Related authority列全NULL；`related_derived`只用于Off-load Context中仍为原Physical Identity的exclusive Related，必须命中同Package source reference、Primary及derived authority且不声明独立Control。两种variant严格互斥。Episode JSON固定`helix://contracts/application-types/ArcaMaterialEpisodeClaims/v1`、canonical JCS≤`16 KiB`，schema/json/digest均非NULL并逐字节满足8.6.19公式；Series Primary为`1..32`项，single Primary及非Primary/Off-load Context-only Binding为空Set；`evidence_digest`与`arcaBindingSetDigest`覆盖完整typed Set、Physical Identity和authority variant，禁止只取第一项、复制member row或旁读Libra补值 |
-| `arca_ondeck_runs` | `on_deck_run_id PK, custody_id FK, final_inventory_decision_digest, state, created_at_ms, terminal_at_ms` | 只允许Handoff B Accepted transaction与immutable Final Inventory Decision同事务首次建立；同一Custody一个non-terminal Run；Supporting Work通过Foundation反向关联；`INDEX(state,created_at_ms)` |
+| `arca_ondeck_runs` | `on_deck_run_id PK, custody_id FK, final_inventory_decision_digest, state(ready|offloading|blocked|committed), created_at_ms, terminal_at_ms` | 只允许Handoff B Accepted transaction与immutable Final Inventory Decision同事务首次建立；同一Custody一个non-terminal Run；`blocked`在自动预算未耗尽时可恢复，耗尽后是零资源且投影为`attention_required`的稳定业务暂停态，只有显式用户Retry可把同一Run恢复为`offloading`；只有`committed`为terminal且写`terminal_at_ms`；Supporting Work通过Foundation反向关联；`INDEX(state,created_at_ms)` |
 | `arca_final_inventory_decisions` | `final_inventory_decision_id PK, on_deck_run_id FK, shelf_id FK, placement_revision, target_endpoint_id, target_location, product_manifest_digest, offload_context_digest, related_disposition_set_digest, decision_schema_ref, decision_json, decision_digest, decided_at_ms` | Decision JSON上限`64 KiB`；`UNIQUE(on_deck_run_id)`；immutable；必须逐项覆盖Package Product member及全部Related source-to-final mapping，不允许active Shelf Entry依赖Field中的exclusive Related；不保存adopt/replace/relocate动作类型 |
 | `arca_input_settlement_authorizations` | `authorization_id, revision, state(enabled|revoked), authorization_scope_kind(old_primary_input|exclusive_related_input|old_primary_and_exclusive_related), actor_id, authorization_digest, effective_at_ms, revoked_at_ms` | `PK(authorization_id,revision)`；immutable；只授权为精确On-deck Scope派生Approval，不授权目录范围。Authorization revision必须显式覆盖`exclusive_related_input`才可派生该类Approval；合同修订前或scope-kind不含该值的旧revision不得静默扩大 |
 | `arca_input_settlement_authorization_head` | `singleton_key PK, current_authorization_id, current_revision, updated_at_ms` | singleton key固定；current pair显式FK；启用/撤销均发布新revision，不物理删除历史 |

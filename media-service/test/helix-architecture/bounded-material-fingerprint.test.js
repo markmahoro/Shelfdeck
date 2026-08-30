@@ -11,6 +11,8 @@ const {
   FINGERPRINT_SAMPLE_BYTES,
   computeBoundedMaterialFingerprint,
   computeBoundedMaterialFingerprintSync,
+  readBoundedFileSnapshot,
+  readBoundedFileSnapshotSync,
 } = require('../../src/helix/integrations/bounded-material-fingerprint');
 
 function stat(size, overrides = {}) {
@@ -102,6 +104,34 @@ test('inode or size drift invalidates the sample instead of returning evidence',
       (error) => error.code === 'PHYSICAL_MATERIAL_STAT_FENCE_CHANGED',
     );
   }
+});
+
+test('bounded NFO snapshot returns bytes and fingerprint from one stable file-handle observation', async () => {
+  const bytes = Buffer.from('<movie><title>Example</title></movie>');
+  const fixture = instrumentedFile(bytes);
+  const snapshot = await readBoundedFileSnapshot('/virtual/movie.nfo', 256 * 1024,
+    { fsPromises:fixture.fsPromises });
+  assert.deepEqual(snapshot.bytes, bytes);
+  assert.equal(snapshot.bytesSampled, bytes.length);
+  assert.equal(snapshot.contentFingerprint, crypto.createHash('sha256').update(bytes).digest('hex'));
+  assert.deepEqual(fixture.reads, [{ length:bytes.length, position:0 }]);
+});
+
+test('bounded NFO snapshot fails its stat fence when an external writer changes the open file', async () => {
+  const bytes = Buffer.from('<movie><title>Example</title></movie>');
+  const fixture = instrumentedFile(bytes, { after:stat(bytes.length, { mtimeNs:2001n, ctimeNs:2002n }) });
+  await assert.rejects(readBoundedFileSnapshot('/virtual/movie.nfo', 256 * 1024,
+    { fsPromises:fixture.fsPromises }), (error) => error.code === 'PHYSICAL_MATERIAL_STAT_FENCE_CHANGED');
+});
+
+test('bounded sync snapshot rejects oversized NFO input before reading it', () => {
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'helix-bounded-nfo-'));
+  const location=path.join(root,'movie.nfo');
+  try {
+    fs.writeFileSync(location,Buffer.alloc(33,0x20));
+    assert.throws(()=>readBoundedFileSnapshotSync(location,32),
+      (error)=>error.code==='PHYSICAL_MATERIAL_FILE_TOO_LARGE');
+  } finally {fs.rmSync(root,{recursive:true,force:true});}
 });
 
 test('N files never request more than N times 256 KiB', async () => {
