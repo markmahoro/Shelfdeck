@@ -69,6 +69,7 @@ COPY media-service/scripts/helix-clean-init.js ./scripts/helix-clean-init.js
 COPY media-service/scripts/helix-operational-safety.js ./scripts/helix-operational-safety.js
 COPY media-service/scripts/helix-predeck-pipeline-migration.js ./scripts/helix-predeck-pipeline-migration.js
 COPY media-service/scripts/helix-full-libra-reset.js ./scripts/helix-full-libra-reset.js
+COPY media-service/scripts/helix-prod033-execution-residual-repair.js ./scripts/helix-prod033-execution-residual-repair.js
 COPY --from=web-builder /build/dist/admin ./dist/admin
 
 RUN mkdir -p /app/data

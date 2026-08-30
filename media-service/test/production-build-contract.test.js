@@ -17,3 +17,9 @@ test('production image build has a cross-platform Node entry and a thin shell wr
   assert.match(shellSource, /exec node .*build-image\.js/);
   assert.doesNotMatch(shellSource, /docker build|docker save/);
 });
+
+test('production image includes the bounded PROD-033 residual repair', () => {
+  const dockerfile = fs.readFileSync(path.join(root, 'media-service', 'Dockerfile'), 'utf8');
+  assert.match(dockerfile,
+    /COPY media-service\/scripts\/helix-prod033-execution-residual-repair\.js \.\/scripts\/helix-prod033-execution-residual-repair\.js/);
+});
