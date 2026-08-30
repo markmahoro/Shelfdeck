@@ -159,6 +159,50 @@ node scripts/production-readonly-diagnostics.js
 
 该脚本不得支持 `--apply`，不得写生产数据，不得输出凭据或媒体标题。
 
+## PROD-036 Observation retention一次性迁移
+
+本节是新镜像部署后的**一次性维护流程**，不是普通每次升级步骤。只有Product Owner明确授权生产迁移时才执行；
+代码合并或本地测试本身不授权连接NAS。迁移不使用`--helix-clean-init`，不清空业务数据。
+
+1. 按本文标准流程build、upload、`deploy-nas.js` dry run及`--apply`部署包含PROD-036的镜像，保留部署脚本生成的数据库备份。
+2. 服务启动后确认health/readiness正常，让`field-observation-entry-retention`以每批最多1,000行清理；满批backlog按30秒继续，
+   直到连续两次只读诊断的`gcEligible.rows=0`且`olderThanSevenDays`只剩引用保护行，Entry总数不再快速下降。不得因想缩文件而提前跳过引用安全清理。
+3. 运行`node scripts/production-readonly-diagnostics.js`并保存输出；确认没有新增running Observation、没有FFmpeg/其他关键操作需要保护，
+   且NAS数据目录旁可用空间至少为`1.2 × shelfdeck.db`。
+4. 在NAS compose目录停止`shelfdeck`服务。使用**刚部署的新镜像**和同一`/app/data`挂载先执行dry run：
+
+   ```bash
+   docker compose run --rm --no-deps shelfdeck node scripts/helix-observation-storage-compact.js --database /app/data/shelfdeck.db
+   ```
+
+   输出必须为`mode=dry_run`、`enoughFreeSpace=true`、marker为`shelfdeck/helix-clean-v3`。任一条件不满足就停止。
+5. 显式执行一次apply；脚本获取exclusive lock、TRUNCATE checkpoint、`VACUUM INTO`临时库，验证integrity/FK、Entry行数和
+   `auto_vacuum=2`后才同卷rename。原库保留为`.pre-observation-compact-<timestamp>.bak`：
+
+   ```bash
+   docker compose run --rm --no-deps shelfdeck node scripts/helix-observation-storage-compact.js --database /app/data/shelfdeck.db --apply
+   ```
+
+6. 启动`shelfdeck`，检查health/readiness、`foreign_key_check`空、`integrity_check=ok`、`autoVacuum=2`，并再次保存只读诊断。
+   至少观察两个12小时Observation周期后，才把PROD-036标为生产FIXED；备份在该观察期结束前不得删除。
+
+如果apply后服务不能通过启动门禁：保持服务停止，把当前`shelfdeck.db`复制为带时间戳的事故现场；从脚本输出的精确backup path
+复制回`/app/data/shelfdeck.db`，确认不存在未checkpoint的sidecar，再按标准流程恢复上一已知可用镜像。不要修改Work/Attempt/Event行，
+不要手工DELETE Entry，也不要覆盖唯一备份。
+
+### PROD-036监控清单
+
+- Observation cadence：同一active Field相邻完整Work应约12小时；连续两轮小于11小时或超过13小时需调查。
+- 开放Work年龄：`admitted|ready|running|blocked`的Field Observation数量和最老`created_at_ms`；超过一次12小时周期仍不终结报警。
+- 崩溃窗口：`runningAttemptWithOnlyTerminalEvents.count`在新Runtime启动后应收敛到0；不得人工改状态。
+- Entry容量：总行数、窗口外行数、最老/最新`observed_at_ms`及distinct Work；窗口外行只允许由保护集合解释。
+- 清理批次：Admin Overview的`field-observation-entry-retention` registration应为`normal|waiting_business_time`，无`errorCode`；
+  backlog期间应持续processed，稳定后为not_due。每批上限1,000，Entry count差值不得超过已报告批次上限总和。
+- SQLite：记录`pageCount`、`freelistCount`、`autoVacuum`、`shelfdeck.db/-wal/-shm`字节；迁移后`autoVacuum=2`，
+  freelist应被有界回收，WAL不应持续单调增长。文件大小短时不降不等于GC失败，应同时看Entry数与freelist。
+- 容量阈值：39.5 MiB/轮时7天base约553 MiB；每个窗口外受保护Work另加约39.5 MiB。超过该模型时先查保护Work/backlog，
+  不得通过缩短retention、删header或绕过FK来压库。
+
 ## 部署后的最小验收
 
 ```bash

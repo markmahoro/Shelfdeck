@@ -539,7 +539,10 @@ function parseTableRows(entries) {
       },
       deletion: {
         foreignKeyPolicy: 'ON DELETE RESTRICT',
-        rules: clauses.filter((clause) => /不能.*删除|不可.*删除|不物理删除|禁止.*删除|GC只处理/.test(clause))
+        ...(clauses.some((clause) => /Retention GC允许删除|retention GC may delete/i.test(clause))
+          ? { retentionGcAllowed: true }
+          : {}),
+        rules: clauses.filter((clause) => /不能.*删除|不可.*删除|不物理删除|禁止.*删除|GC只处理|Retention GC允许删除|retention GC may delete/i.test(clause))
       },
       semanticRules: clauses,
       rawContract: { columns: entry.columnsContract, constraints: entry.constraintsContract },

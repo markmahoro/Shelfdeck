@@ -15,10 +15,12 @@
 5. Primary 与其他普通成员继续严格校验 Package identity；NFO 按 Movie Identity、title/year/plot/genre/cast 做语义验收，并记录盘上实际 physical identity；Final Verify、Fulfillment、Commit 均重读最新现实；
 6. Accepted 后失败的唯一 Arca On-deck Run 保持 Owner/Control，自动恢复最多生成 3 代 Supporting Work；仍失败则停止执行并稳定投影为 `attention_required`，用户可用「重试上架」继续同一 Run，不创建第二个 Run、Shelf Entry 或兼容双路径；
 7. Aftercare 遇到语义等价的 NFO 指纹漂移时不写文件，只提交新的 Inventory Representation revision 并原子切换 Material Control；语义错误才 update/rebuild。
+8. PROD-036 将 Field Observation 调整为 12 小时 cadence，对可重建 Entry 明细执行 7 天引用保护 GC，并补齐 terminal Event 已提交但 Attempt/Work 未聚合的通用恢复；永久审计事实不删除。
 
 ## 边界
 
 - Product Owner 已针对 Emby 并发改写 NFO 明确授权本次 SSOT 变化；授权只把 NFO 的 Final Reality 验收从 Package 字节全等改为「业务语义合格 + 保存实际物理指纹」，不改变 Owner、Handoff、Acceptance Basis、Final Inventory Decision 或 Handoff B Accepted 事实。
+- Product Owner 已明确授权 PROD-036 的 12 小时 cadence 与 7 天历史保留；删除能力只授予 Procurement-owned Observation Entry detail，Execution Foundation 只聚合自身终态 Event，不接管 Procurement 决策。
 - Primary 与其他精确成员的 Final Reality fingerprint 校验不弱化；NFO 损坏、Movie Identity 冲突或缺少拥有字段仍 fail closed，Commit 前不得建立 Shelf Entry。
 - 「接受瑕疵」与「放弃整理」只适用于 Handoff B Accepted 以前的 Libra Run；Accepted 以后失败不得改判 Rejected、退回 Libra 或借这两个动作终结。此时 Arca 只允许有界自动恢复、稳定 attention 和同一 On-deck Run 的用户重试。
 - 不恢复 PROD-034 已纠正的两个中止 Run。

@@ -3,7 +3,7 @@
   "compilerContract": "helix-p3-deterministic-sqlite-ddl/v1",
   "digestAlgorithm": "sha256",
   "tableCount": 186,
-  "tableContractAggregateDigest": "bc8bd15000e1ef0635f6db954a37ebb09592bd00bf1e2155f3d027a4b855af7e",
+  "tableContractAggregateDigest": "dd98f6b17e72e9d443ea48258446cdde03b229c3d8d54f5bd53b613a2d0ed835",
   "ddlDigest": "3be2dad9b3615053681dfc2721974657fc3995ccf60a044e17dfb5131f0f8199",
   "tables": [
     {
@@ -4678,7 +4678,7 @@
       "tableId": "proc_field_observation_entries",
       "owner": "procurement",
       "contractId": "helix://contracts/tables/proc_field_observation_entries/v1",
-      "contractDigest": "dca82ef8744cd453ebcc07905d51821b3524d27603770c8ed784687ac42f6e0d",
+      "contractDigest": "25bba8952c2d023bd9e829273ba90c3f40eca37fe9545925d8d3d72af504d944",
       "sqlDigest": "9645f3aba14fbe579cc9c98100ed1c8b741a85ae49e8a4f4d9ca30f19b7761a8",
       "columns": [
         "field_id",
@@ -4711,6 +4711,9 @@
         "entry_digest"
       ],
       "immutable": true,
+      "deletion": {
+        "retentionGcAllowed": true
+      },
       "supportColumns": [],
       "indexes": [
         {
@@ -4734,7 +4737,7 @@
       "tableId": "proc_field_observations",
       "owner": "procurement",
       "contractId": "helix://contracts/tables/proc_field_observations/v1",
-      "contractDigest": "45346e1d296f419ea52b507aecb509933eeff52b07a9d30429876e5c2d6e8a9e",
+      "contractDigest": "2fd32436325fee30f9c02674f9696132b5c862da47ea5de707540bd9539c4c66",
       "sqlDigest": "e2e8e6f33515376bd4e3eaa78967ab2ea939bf3fbcd8e431ce0d4778229f85e1",
       "columns": [
         "field_id",

@@ -71,6 +71,10 @@ function definitions(schemaManifest) {
         'work_id', 'owner_domain', 'process_type', 'process_id', 'work_kind', 'basis_digest', 'priority_class', 'state',
         'definition_schema_ref', 'definition_json', 'definition_digest', 'idempotency_key'
       ], keyColumns: [] },
+      list_running: { kind: 'select-all', tableId: 'fx_supporting_works', columns: [
+        'work_id', 'owner_domain', 'process_type', 'process_id', 'work_kind', 'basis_digest', 'priority_class', 'state',
+        'definition_schema_ref', 'definition_json', 'definition_digest', 'idempotency_key'
+      ], keyColumns: ['state'] },
       transition: { kind: 'update', tableId: 'fx_supporting_works', setColumns: ['state', 'updated_at_ms'], keyColumns: ['work_id'],
         compareColumns: [{ column: 'state', parameter: 'expected_state' }] }
     } }),
@@ -298,8 +302,7 @@ function createWorkLifecycle(options) {
     }
     return execute('work_lifecycle_pending_owner_reconcile', (context) => {
       const attempts = context.repository('work_lifecycle_attempts');
-      return context.repository('work_lifecycle_works').invoke('list', {})
-        .filter((work) => work.state === 'running')
+      return context.repository('work_lifecycle_works').invoke('list_running', { state:'running' })
         .map((work) => {
           const rows = attempts.invoke('list', { work_id: work.work_id })
             .sort((left, right) => right.ordinal - left.ordinal);
@@ -309,6 +312,30 @@ function createWorkLifecycle(options) {
         })
         .filter(Boolean)
         .sort((left, right) => left.work.work_id.localeCompare(right.work.work_id))
+        .slice(0, limit);
+    });
+  }
+
+  function pendingTerminalEventAggregations(limit = 16) {
+    if (!Number.isSafeInteger(limit) || limit < 1 || limit > 256) {
+      fail('P4_WORK_AGGREGATION_SCAN_LIMIT_INVALID', 'Terminal Event aggregation scan limit is invalid.');
+    }
+    return execute('work_lifecycle_pending_event_aggregation', (context) => {
+      const attempts = context.repository('work_lifecycle_attempts');
+      const events = context.repository('work_lifecycle_events');
+      return context.repository('work_lifecycle_works').invoke('list_running', { state:'running' })
+        .map((work) => {
+          const active = attempts.invoke('list', { work_id:work.work_id })
+            .filter((attempt) => attempt.state === 'running');
+          if (active.length !== 1) return null;
+          const rows = events.invoke('list_work', { work_id:work.work_id })
+            .filter((event) => event.attempt_id === active[0].attempt_id);
+          if (rows.length < 1 || rows.some((event) => !TERMINAL_EVENTS.has(event.state))) return null;
+          return Object.freeze({ workId:work.work_id, attemptId:active[0].attempt_id,
+            eventId:[...rows].sort((left, right) => left.event_id.localeCompare(right.event_id))[0].event_id });
+        })
+        .filter(Boolean)
+        .sort((left, right) => left.workId.localeCompare(right.workId))
         .slice(0, limit);
     });
   }
@@ -449,7 +476,7 @@ function createWorkLifecycle(options) {
   }
 
   return Object.freeze({ aggregate, aggregateEvent, cancelProcess, ensurePlanningAttempt, pendingOwnerReconciliations,
-    repairCancelledWorkAttempt, settleWork, startPlanned });
+    pendingTerminalEventAggregations, repairCancelledWorkAttempt, settleWork, startPlanned });
 }
 
 module.exports = Object.freeze({ WorkLifecycleError, createWorkLifecycle });

@@ -63,7 +63,7 @@ function createHarness(overrides = {}) {
   });
 }
 
-test('first sweep issues Observation for active Movie Fields immediately, then waits 30 minutes', () => {
+test('first sweep issues Observation for active Movie Fields immediately, then waits 12 hours', () => {
   const harness = createHarness({
     fields: [field({ currentObservationRevision: 1 })],
   });
@@ -82,7 +82,7 @@ test('first sweep issues Observation for active Movie Fields immediately, then w
   assert.equal(STARTUP_FIRST_SWEEP_DEADLINE_MS, 2 * 60 * 1000);
 });
 
-test('never-observed Fields still enter the first sweep while the 30-minute gate is closed', () => {
+test('never-observed Fields still enter the first sweep while the 12-hour gate is closed', () => {
   const observed = field({ fieldId: 'field-old', currentObservationRevision: 2 });
   const fresh = field({ fieldId: 'field-new' });
   const harness = createHarness({ fields: [observed, fresh] });

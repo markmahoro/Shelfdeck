@@ -91,6 +91,27 @@ test('terminal Event aggregation closes only Work Attempt until Domain Owner set
   assert.deepEqual(read(databasePath, 'SELECT state FROM fx_supporting_works WHERE work_id=?', 'work-1'), { state: 'succeeded' });
 }));
 
+test('startup scan rediscovers a terminal Event whose running Attempt missed aggregation', () => fixture(({ lifecycle, databasePath }) => {
+  const activation = lifecycle.ensurePlanningAttempt('work-1');
+  const database = new Database(databasePath);
+  database.prepare(`INSERT INTO fx_workflow_plans
+    (plan_id,attempt_id,planner_ref,planner_version,catalog_digest,basis_digest,graph_digest,state,created_at_ms)
+    VALUES (?,?,?,?,?,?,?,?,?)`).run('plan-crash', activation.attempt.attempt_id, 'planner@1', 1,
+      'b'.repeat(64), 'a'.repeat(64), 'c'.repeat(64), 'planned', 2);
+  database.prepare(`INSERT INTO fx_workflow_events
+    (event_id,plan_id,node_id,work_id,attempt_id,owner_domain,capability_ref,contract_version,state,priority_class,ready_at_ms)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?)`).run('event-crash', 'plan-crash', 'node-crash', 'work-1', activation.attempt.attempt_id,
+      'procurement', 'procurement.field.observation.page.commit@1', 1, 'succeeded', 'background_observation', 2);
+  database.close();
+  lifecycle.startPlanned('work-1', activation.attempt.attempt_id);
+  assert.deepEqual(lifecycle.pendingTerminalEventAggregations(1), [{
+    workId:'work-1', attemptId:activation.attempt.attempt_id, eventId:'event-crash',
+  }]);
+  const aggregation = lifecycle.aggregateEvent('event-crash');
+  assert.equal(aggregation.attemptState, 'succeeded');
+  assert.deepEqual(lifecycle.pendingTerminalEventAggregations(1), []);
+}));
+
 test('failed Event reports failed Attempt and Domain Owner explicitly fails its Work', () => fixture(({ lifecycle, databasePath }) => {
   const activation = lifecycle.ensurePlanningAttempt('work-1');
   const database = new Database(databasePath);

@@ -72,8 +72,9 @@ Acceptance Spec之后的Libra Run至Handoff B Offer链已经接通。隔离P14�
 Physical Material不再计算全文件Hash。当前唯一合同读取文件正中间最多262,144 bytes并执行前后stat fence；NAS负责bit rot和底层
 完整性。Artifact、Canonical JSON与事务Evidence digest仍使用SHA-256，这些digest不得作为Physical Material Identity。
 
-Observation是Procurement后续流程的物理事实起点：每个已观察文件永久写入`proc_field_observation_entries`，
-`proc_field_observations`只保存Page/Observation头和compact receipt。Page最多256个文件、64 MiB物理读取；
+Observation是Procurement后续流程的物理事实起点：每个已观察文件写入`proc_field_observation_entries`；未被开放Work、
+current Field、non-terminal Run、Retry或current Material exact pointer引用的明细保留7天，header/Result/marker永久保留。
+active Movie Field每12小时观察一次。`proc_field_observations`保存Page/Observation头和compact receipt。Page最多256个文件、64 MiB物理读取；
 Eligibility保留在`proc_field_materials`，但只对有界Material-local Change Set重算，完全不变的每日Observation不写Eligibility列。
 
 Observation完成后，Layout只作为Observation entries上的冻结技术Projection供Procurement Triage复用；不再有独立Layout Capability/Event/Result，

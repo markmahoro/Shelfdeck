@@ -71,6 +71,7 @@ COPY media-service/scripts/helix-predeck-pipeline-migration.js ./scripts/helix-p
 COPY media-service/scripts/helix-formation-reset.js ./scripts/helix-formation-reset.js
 COPY media-service/scripts/helix-prod033-execution-residual-repair.js ./scripts/helix-prod033-execution-residual-repair.js
 COPY media-service/scripts/helix-prod034-one-time-correction.js ./scripts/helix-prod034-one-time-correction.js
+COPY media-service/scripts/helix-observation-storage-compact.js ./scripts/helix-observation-storage-compact.js
 COPY --from=web-builder /build/dist/admin ./dist/admin
 
 RUN mkdir -p /app/data

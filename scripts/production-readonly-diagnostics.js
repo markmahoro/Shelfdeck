@@ -92,6 +92,9 @@ function adultSubLibraryIds() {
 
 const library = openDb('/app/data/library.db');
 const tasks = openDb('/app/data/tasks.db');
+const helixPath = '/app/data/shelfdeck.db';
+const helix = fs.existsSync(helixPath) ? openDb(helixPath) : null;
+const observationCutoffMs = Date.now() - 7 * 24 * 60 * 60 * 1000;
 const adultIds = adultSubLibraryIds();
 const adultPlaceholders = adultIds.map(() => '?').join(',');
 const adultWhere = adultIds.length > 0 ? 'WHERE sub_library_id IN (' + adultPlaceholders + ')' : 'WHERE 1 = 0';
@@ -148,6 +151,50 @@ const result = {
     ].join(' ')),
     eventRows: one(tasks, 'SELECT COUNT(*) AS count FROM task_events'),
   },
+  helixObservation: helix ? {
+    storage: {
+      pageSize: helix.pragma('page_size', { simple: true }),
+      pageCount: helix.pragma('page_count', { simple: true }),
+      freelistCount: helix.pragma('freelist_count', { simple: true }),
+      autoVacuum: helix.pragma('auto_vacuum', { simple: true }),
+    },
+    entries: one(helix, [
+      'SELECT COUNT(*) AS totalRows,',
+      'SUM(CASE WHEN observed_at_ms < ? THEN 1 ELSE 0 END) AS olderThanSevenDays,',
+      'COUNT(DISTINCT field_observation_work_id) AS workCount,',
+      'MIN(observed_at_ms) AS oldestObservedAtMs, MAX(observed_at_ms) AS newestObservedAtMs',
+      'FROM proc_field_observation_entries',
+    ].join(' '), [observationCutoffMs]),
+    gcEligible: one(helix, [
+      'SELECT COUNT(*) AS rows FROM proc_field_observation_entries e',
+      'WHERE e.observed_at_ms < ?',
+      "AND NOT EXISTS (SELECT 1 FROM fx_supporting_works w WHERE w.work_id=e.field_observation_work_id AND w.state IN ('admitted','ready','running','blocked'))",
+      'AND NOT EXISTS (SELECT 1 FROM proc_material_fields f WHERE f.field_id=e.field_id AND f.current_observation_revision=e.observation_revision)',
+      "AND NOT EXISTS (SELECT 1 FROM proc_procurement_runs r WHERE r.field_observation_work_id=e.field_observation_work_id AND r.state IN ('active','waiting'))",
+      "AND NOT EXISTS (SELECT 1 FROM proc_procurement_retry_intents i WHERE i.retry_field_observation_work_id=e.field_observation_work_id AND i.state='open')",
+      'AND NOT EXISTS (SELECT 1 FROM proc_field_materials m WHERE m.field_id=e.field_id AND m.material_key=e.material_key AND m.last_observation_id=e.observation_id)',
+    ].join(' '), [observationCutoffMs]),
+    headers: one(helix, [
+      'SELECT COUNT(*) AS totalRows,',
+      'SUM(CASE WHEN completed = 1 THEN 1 ELSE 0 END) AS terminalPages,',
+      'MAX(observed_at_ms) AS newestObservedAtMs',
+      'FROM proc_field_observations',
+    ].join(' ')),
+    worksByState: rows(helix, [
+      'SELECT state, COUNT(*) AS count, MIN(created_at_ms) AS oldestCreatedAtMs',
+      'FROM fx_supporting_works',
+      "WHERE owner_domain='procurement' AND process_type='material_field' AND work_kind='field_observation'",
+      'GROUP BY state ORDER BY state',
+    ].join(' ')),
+    runningAttemptWithOnlyTerminalEvents: one(helix, [
+      'SELECT COUNT(*) AS count FROM fx_work_attempts a',
+      'JOIN fx_supporting_works w ON w.work_id=a.work_id',
+      "WHERE a.state='running' AND w.state='running'",
+      "AND w.owner_domain='procurement' AND w.process_type='material_field' AND w.work_kind='field_observation'",
+      'AND EXISTS (SELECT 1 FROM fx_workflow_events e WHERE e.attempt_id=a.attempt_id)',
+      "AND NOT EXISTS (SELECT 1 FROM fx_workflow_events e WHERE e.attempt_id=a.attempt_id AND e.state NOT IN ('succeeded','skipped','failed','cancelled'))",
+    ].join(' ')),
+  } : { present: false },
 };
 
 console.log(JSON.stringify(result, null, 2));
@@ -162,7 +209,7 @@ function commandPlan() {
     ['compose image', `grep -n '^[[:space:]]*image:' ${shellQuote(COMPOSE_FILE)} || true`],
     ['public health', 'curl -fsS http://127.0.0.1:18080/v1/health'],
     ['data file sizes', [
-      'for f in config.json library.json library.db library.db-wal library.db-shm tasks.json tasks.db tasks.db-wal tasks.db-shm; do',
+      'for f in config.json library.json library.db library.db-wal library.db-shm tasks.json tasks.db tasks.db-wal tasks.db-shm shelfdeck.db shelfdeck.db-wal shelfdeck.db-shm; do',
       `p=${shellQuote(DATA_DIR)}"/$f";`,
       'if [ -f "$p" ]; then stat -c "%n %s %y" "$p"; fi;',
       'done',

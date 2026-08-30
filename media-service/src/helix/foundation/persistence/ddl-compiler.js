@@ -397,6 +397,9 @@ function compileSchema(inputContracts) {
         ...compiled.supportColumns.map((column) => column.name)
       ],
       immutable: contract.immutability.immutable,
+      ...(contract.deletion?.retentionGcAllowed === true
+        ? { deletion: Object.freeze({ retentionGcAllowed: true }) }
+        : {}),
       supportColumns: compiled.supportColumns.map((column) => ({ name: column.name, ruleOrdinal: column.ruleOrdinal })),
       indexes,
       sql: compiled.sql

@@ -65,6 +65,35 @@ test('creates and reopens the only clean 186-table WAL generation with hard star
   });
 });
 
+test('new databases use incremental auto-vacuum and legacy page mode is reported without unbounded work', () => {
+  temporaryDatabase((databasePath) => {
+    let kernel = open(databasePath);
+    assert.equal(kernel.storageMaintenance.diagnostics().autoVacuum, 2);
+    assert.equal(kernel.storageMaintenance.reclaimFreePages(1024).status, 'no_free_pages');
+    kernel.runPrimitive(({ prepare }) => prepare(`WITH RECURSIVE seq(n) AS (
+      SELECT 1 UNION ALL SELECT n+1 FROM seq WHERE n<4000
+    ) INSERT INTO fx_audit_records(audit_id,action,occurred_at_ms)
+      SELECT printf('audit-%05d',n),hex(zeroblob(400)),0 FROM seq`).run());
+    kernel.runPrimitive(({ prepare }) => prepare('DELETE FROM fx_audit_records').run());
+    const freeBefore = kernel.storageMaintenance.diagnostics();
+    assert.ok(freeBefore.freelistCount > 0);
+    const reclaimed = kernel.storageMaintenance.reclaimFreePages(4096);
+    assert.equal(reclaimed.status, 'reclaimed');
+    assert.ok(reclaimed.reclaimedPages > 0);
+    assert.ok(reclaimed.freelistCountAfter < reclaimed.freelistCountBefore);
+    kernel.close();
+    const legacyMode = new Database(databasePath);
+    legacyMode.pragma('auto_vacuum=NONE');
+    legacyMode.exec('VACUUM');
+    legacyMode.close();
+    kernel = open(databasePath);
+    const result = kernel.storageMaintenance.reclaimFreePages(1024);
+    assert.equal(result.status, 'conversion_required');
+    assert.equal(result.autoVacuum, 0);
+    kernel.close();
+  });
+});
+
 test('injects one commit time, commits atomically, rolls back failures, and rejects nesting', () => {
   temporaryDatabase((databasePath) => {
     let clock = 1700000000100;

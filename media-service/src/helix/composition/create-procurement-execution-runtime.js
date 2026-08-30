@@ -444,7 +444,7 @@ function createProcurementExecutionRuntime(options) {
     executionRuntimeHost: { wake() { host?.wake(); } },
   });
   const { triageReader, triageRuleRegistry: triageRegistry, progressReader, procurementAutomation, runCoordinator,
-    evidenceIndex, candidateContextReader, fieldObservationAutomation } = processServices;
+    evidenceIndex, candidateContextReader, fieldObservationAutomation, fieldObservationRetention } = processServices;
   const planningRegistration = procurementConstruction.createPlanningRegistration({ registry, policyRegistry,
     contractValidator, progressReader, triageReader, triageRuleRegistry: triageRegistry, workResultReader,
     evidenceIndex, candidateContextReader, materialFieldStore: options.materialFieldStore, now,
@@ -979,6 +979,15 @@ function createProcurementExecutionRuntime(options) {
     reconcile:({fieldId})=>fieldObservationAutomation
       ? fieldObservationAutomation.reconcile({fieldId})
       : Object.freeze({kind:'unavailable',fieldId}),
+  }),Object.freeze({
+    ownerDomain:'procurement',reconcilerKey:'field-observation-entry-retention',
+    listPage:({cursor,limit})=>fieldObservationRetention
+      ? fieldObservationRetention.listPage({cursor,limit})
+      : [],
+    reconcile:()=>fieldObservationRetention
+      ? fieldObservationRetention.reconcile()
+      : Object.freeze({kind:'unavailable'}),
+    nextDueAtMs:()=>fieldObservationRetention?.nextDueAtMs() || null,
   }),Object.freeze({ownerDomain:'libra',reconcilerKey:'pending-intake-offers',
     listPage:({cursor,limit})=>libraProcessServices.offerReader.listProcessPage(cursor,limit).items.map((item)=>Object.freeze({cursor:item.processId,scope:item})),
     reconcile:({processId})=>libraProcessServices.coordinator.reconcile(processId)}),Object.freeze({ownerDomain:'libra',reconcilerKey:'active-routing-subjects',

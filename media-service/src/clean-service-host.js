@@ -1184,6 +1184,7 @@ function createRuntime(options) {
       applicationDependencies: Object.freeze({
         schemaManifest,
         unitOfWork,
+        storageMaintenance: kernel.storageMaintenance,
         procurementMetrics: options.procurementMetrics || null,
       }),
       findings: Object.freeze([]),

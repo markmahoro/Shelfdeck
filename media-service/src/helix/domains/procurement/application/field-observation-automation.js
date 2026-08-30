@@ -2,7 +2,7 @@
 
 const OPEN_WORK_STATES = new Set(['admitted', 'ready', 'running', 'blocked']);
 const PAGE_BUDGET = 256;
-const PERIOD_MS = 30 * 60 * 1000;
+const PERIOD_MS = 12 * 60 * 60 * 1000;
 const STARTUP_FIRST_SWEEP_DEADLINE_MS = 2 * 60 * 1000;
 
 class FieldObservationAutomationError extends Error {

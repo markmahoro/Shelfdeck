@@ -223,6 +223,20 @@ function createExecutionRuntimeHost(options) {
   }
 
   async function drainOneOwnerReconciliation() {
+    if (typeof options.workLifecycle.pendingTerminalEventAggregations === 'function') {
+      const pending = options.workLifecycle.pendingTerminalEventAggregations(1)[0];
+      if (pending) {
+        try {
+          const aggregation = options.workLifecycle.aggregateEvent(pending.eventId);
+          await reconcileTerminal(aggregation);
+          return Object.freeze({ kind:'terminal_event_aggregated', workId:pending.workId, eventId:pending.eventId });
+        } catch (error) {
+          if (typeof options.onError === 'function') options.onError(error);
+          return Object.freeze({ kind:'terminal_event_aggregation_faulted', workId:pending.workId,
+            eventId:pending.eventId, error });
+        }
+      }
+    }
     if (typeof options.workLifecycle.pendingOwnerReconciliations === 'function') {
       const pending = options.workLifecycle.pendingOwnerReconciliations(1)[0];
       if (pending) {
@@ -315,7 +329,8 @@ function createExecutionRuntimeHost(options) {
       if (typeof options.onError === 'function') options.onError(error);
       owner = Object.freeze({ kind: 'owner_faulted', error });
     }
-    const advanced=recovery.kind==='recovery_launched'||work.kind==='work_planned'||event.kind==='event_launched'||owner.kind==='owner_reconciled';
+    const advanced=recovery.kind==='recovery_launched'||work.kind==='work_planned'||event.kind==='event_launched'||
+      ['owner_reconciled','terminal_event_aggregated'].includes(owner.kind);
     return Object.freeze({ kind:advanced?'advanced':'idle',
       recovery, work, event, owner });
   }

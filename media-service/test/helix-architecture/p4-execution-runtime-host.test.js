@@ -151,6 +151,34 @@ test('Execution Runtime Host persists terminal Work before notifying its exact D
     workState:'succeeded'}]);
 });
 
+test('Execution Runtime Host aggregates terminal Events left behind by a crash before Owner reconciliation', async () => {
+  const calls=[]; let scanPending=true; let attemptTerminal=false; let workTerminal=false;
+  const host=createExecutionRuntimeHost({tickIntervalMs:60000,maxActionsPerTick:4,
+    startupRecovery:{recover:async()=>({state:'ready',normalSupplyAllowed:true})},
+    scheduler:{acquire(){return {kind:'idle'};},release(){}},
+    plannerRegistry:{resolve(){}},planPublisher:{publish(){}},
+    workLifecycle:{ensurePlanningAttempt(){},startPlanned(){},
+      pendingTerminalEventAggregations(){if(!scanPending)return [];scanPending=false;
+        return [{workId:'observation-work',attemptId:'attempt-68',eventId:'page-event-68'}];},
+      aggregateEvent(eventId){calls.push('aggregate:'+eventId);attemptTerminal=true;return {attemptTerminal:true,replayed:false,
+        attemptId:'attempt-68',attemptState:'succeeded',work:{work_id:'observation-work',owner_domain:'procurement',
+          process_type:'material_field',process_id:'field-1',work_kind:'field_observation',state:'running'}};},
+      pendingOwnerReconciliations(){return attemptTerminal&&!workTerminal?[{attempt:{attempt_id:'attempt-68',state:'succeeded',failure_code:null},
+        work:{work_id:'observation-work',owner_domain:'procurement',process_type:'material_field',process_id:'field-1',
+          work_kind:'field_observation',state:'running'}}]:[];},
+      settleWork(request){calls.push('settle:'+request.disposition);workTerminal=true;
+        return {workId:request.workId,state:'succeeded',replayed:false};}},
+    eventRuntime:{run(){}},
+    domainReconciler:{async reconcile(request){calls.push('reconcile:'+request.reconcilePhase);
+      return request.reconcilePhase==='attempt_terminal'?{workId:request.workId,disposition:'succeeded'}:null;}},
+    fallbackReconciler:{async start(){},async stop(){}},
+  });
+  await host.start();
+  await new Promise((resolve)=>setImmediate(resolve));
+  await host.stop();
+  assert.deepEqual(calls,['aggregate:page-event-68','reconcile:attempt_terminal','settle:succeeded','reconcile:work_terminal']);
+});
+
 test('Execution Runtime Host renews a Work lease while an asynchronous Planner is still building its plan', async () => {
   let available = true;
   let renewals = 0;

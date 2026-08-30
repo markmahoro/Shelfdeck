@@ -340,22 +340,29 @@
       ],
       "currentPointerColumns": [],
       "pointerTargets": [],
-      "pointerRules": []
+      "pointerRules": [
+        "Retention GC允许删除严格早于7天cutoff且不属于non-terminal Work、current Field Work、任一`active|waiting` Run、open Retry Intent或current Material exact pointer保护集合的行，每事务最多1,000行"
+      ]
     },
     "jsonContracts": [],
     "immutability": {
       "immutable": true,
       "rules": [
-        "每页/Entry只允许一次写入，历史行append-only且永久保留"
+        "每页/Entry只允许一次写入且在保留期间append-only"
       ]
     },
     "deletion": {
       "foreignKeyPolicy": "ON DELETE RESTRICT",
-      "rules": []
+      "retentionGcAllowed": true,
+      "rules": [
+        "Retention GC允许删除严格早于7天cutoff且不属于non-terminal Work、current Field Work、任一`active|waiting` Run、open Retry Intent或current Material exact pointer保护集合的行，每事务最多1,000行"
+      ]
     },
     "semanticRules": [
       "`PK(field_id,field_observation_work_id,page_ordinal,entry_ordinal)`",
-      "每页/Entry只允许一次写入，历史行append-only且永久保留",
+      "每页/Entry只允许一次写入且在保留期间append-only",
+      "Retention GC允许删除严格早于7天cutoff且不属于non-terminal Work、current Field Work、任一`active|waiting` Run、open Retry Intent或current Material exact pointer保护集合的行，每事务最多1,000行",
+      "sealed Run已冻结完整Run Material/Candidate/Handoff provenance，不形成Entry保护",
       "`UNIQUE(field_id,observation_id,entry_ordinal)`及`UNIQUE(field_id,observation_id,material_observation_id)`",
       "Entry Identity/size/path/stat/fingerprint逐字节复制Observation事实",
       "`INDEX(field_id,field_observation_work_id,observation_revision,relative_location)`、`INDEX(field_id,field_observation_work_id,material_key)`、`INDEX(field_id,field_observation_work_id,page_ordinal,entry_ordinal)`",
@@ -363,12 +370,12 @@
     ],
     "rawContract": {
       "columns": "`field_id FK, field_observation_work_id FK, observation_id FK, observation_revision, page_ordinal, entry_ordinal, material_observation_id, material_key, mount_scope_id, inode, size_bytes, fingerprint_algorithm, fingerprint_version, content_fingerprint, endpoint_id, access_revision, mount_scope_revision, current_location, relative_location, mtime_ns, ctime_ns, fingerprint_verified_at_ms, observed_at_ms, containment_digest, reality_digest, provenance_digest, snapshot_digest, entry_digest`",
-      "constraints": "`PK(field_id,field_observation_work_id,page_ordinal,entry_ordinal)`；每页/Entry只允许一次写入，历史行append-only且永久保留；`UNIQUE(field_id,observation_id,entry_ordinal)`及`UNIQUE(field_id,observation_id,material_observation_id)`；Entry Identity/size/path/stat/fingerprint逐字节复制Observation事实；`INDEX(field_id,field_observation_work_id,observation_revision,relative_location)`、`INDEX(field_id,field_observation_work_id,material_key)`、`INDEX(field_id,field_observation_work_id,page_ordinal,entry_ordinal)`；不保存媒体Profile、BDMV语义、Primary/Related角色或Layout Result JSON`"
+      "constraints": "`PK(field_id,field_observation_work_id,page_ordinal,entry_ordinal)`；每页/Entry只允许一次写入且在保留期间append-only；Retention GC允许删除严格早于7天cutoff且不属于non-terminal Work、current Field Work、任一`active|waiting` Run、open Retry Intent或current Material exact pointer保护集合的行，每事务最多1,000行；sealed Run已冻结完整Run Material/Candidate/Handoff provenance，不形成Entry保护；`UNIQUE(field_id,observation_id,entry_ordinal)`及`UNIQUE(field_id,observation_id,material_observation_id)`；Entry Identity/size/path/stat/fingerprint逐字节复制Observation事实；`INDEX(field_id,field_observation_work_id,observation_revision,relative_location)`、`INDEX(field_id,field_observation_work_id,material_key)`、`INDEX(field_id,field_observation_work_id,page_ordinal,entry_ordinal)`；不保存媒体Profile、BDMV语义、Primary/Related角色或Layout Result JSON`"
     },
     "source": {
       "section": "8.5.10",
       "line": 9294,
-      "lineDigest": "51cd83a04736a62256f5531e871652b59b85ed66a4ca28d9178050dd37f0935e"
+      "lineDigest": "843dd34b52c4349e9af620a05761f5c3e73459eb1a8b22eb229cf1612e880f17"
     },
     "foreignKeys": [
       {

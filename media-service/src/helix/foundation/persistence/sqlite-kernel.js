@@ -244,8 +244,12 @@ function openSqliteKernel(options) {
   let database;
   try {
     database = new options.Database(options.databasePath);
-    assertPragmas(database);
     const existing = catalogRows(database);
+    // auto_vacuum changes the database header and therefore must be selected
+    // before WAL mode or the first table is created. Existing databases are
+    // intentionally left untouched and require the controlled offline rebuild.
+    if (existing.length === 0) database.pragma('auto_vacuum = INCREMENTAL');
+    assertPragmas(database);
     if (existing.length === 0) initialize(database, options.schemaDdl, options.schemaManifest, now);
     else if (!existing.some((row) => row.type === 'table' && row.name === 'platform_schema_marker')) {
       fail('P3_SQLITE_MIXED_OR_LEGACY_SCHEMA', 'A non-empty database without the clean schema marker cannot be opened writable.');
@@ -258,6 +262,39 @@ function openSqliteKernel(options) {
     };
     return Object.freeze({
       generation,
+      storageMaintenance: Object.freeze({
+        diagnostics() {
+          ensureOpen();
+          const pageSize = database.pragma('page_size', { simple:true });
+          const pageCount = database.pragma('page_count', { simple:true });
+          const freelistCount = database.pragma('freelist_count', { simple:true });
+          const autoVacuum = database.pragma('auto_vacuum', { simple:true });
+          return Object.freeze({ pageSize, pageCount, freelistCount, autoVacuum,
+            databaseBytes:pageSize * pageCount, freeBytes:pageSize * freelistCount });
+        },
+        reclaimFreePages(maxPages) {
+          ensureOpen();
+          if (transactionActive) fail('P3_SQLITE_MAINTENANCE_DURING_TRANSACTION', 'SQLite page reclamation cannot overlap a transaction.');
+          if (!Number.isSafeInteger(maxPages) || maxPages < 1 || maxPages > 4096) {
+            fail('P3_SQLITE_MAINTENANCE_LIMIT_INVALID', 'SQLite incremental reclamation page limit is invalid.');
+          }
+          const before = this.diagnostics();
+          if (before.autoVacuum !== 2) return Object.freeze({ status:'conversion_required', maxPages,
+            autoVacuum:before.autoVacuum, freelistCountBefore:before.freelistCount,
+            freelistCountAfter:before.freelistCount, reclaimedPages:0, databaseBytes:before.databaseBytes });
+          if (before.freelistCount === 0) return Object.freeze({ status:'no_free_pages', maxPages,
+            autoVacuum:before.autoVacuum, freelistCountBefore:0, freelistCountAfter:0,
+            reclaimedPages:0, databaseBytes:before.databaseBytes });
+          database.pragma('incremental_vacuum(' + Math.min(maxPages, before.freelistCount) + ')');
+          const checkpoint = database.pragma('wal_checkpoint(PASSIVE)')[0] || {};
+          const after = this.diagnostics();
+          return Object.freeze({ status:'reclaimed', maxPages, autoVacuum:after.autoVacuum,
+            freelistCountBefore:before.freelistCount, freelistCountAfter:after.freelistCount,
+            reclaimedPages:Math.max(0, before.pageCount - after.pageCount), databaseBytes:after.databaseBytes,
+            walCheckpoint:Object.freeze({ busy:Number(checkpoint.busy || 0), log:Number(checkpoint.log || 0),
+              checkpointed:Number(checkpoint.checkpointed || 0) }) });
+        },
+      }),
       diagnostics() {
         ensureOpen();
         return Object.freeze({

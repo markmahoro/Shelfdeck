@@ -4,6 +4,12 @@ Status: **MOVIE COLLECTION LIFECYCLE READY THROUGH SHELF DEREGISTRATION；PROD-0
 
 Last updated: 2026-08-31
 
+## PROD-036 Local Fix
+
+Field Observation 容量与崩溃恢复已完成本地实现，尚未部署。生产只读证据对应的崩溃窗口为：Observation Page Event 与 Owner 写入已提交，进程在 `aggregateEvent()` 前中断，留下 terminal Event + running Attempt + running Work。Runtime 现在有界重发现并聚合该状态，再由原 Procurement Owner 正常收口。
+
+Observation cadence 已由 30 分钟改为 12 小时。`proc_field_observation_entries` 仅保留 7 天，并保护 non-terminal Work、current Field Work、`active|waiting` Run、open Retry 与 current Material exact pointer；每事务最多删除 1,000 行。新库启用 incremental auto-vacuum；旧库使用默认 dry-run、显式 `--apply` 的离线 `VACUUM INTO` 原子替换工具。按生产测得 39.5 MiB/完整轮估算，7 天正常稳态约 553 MiB；30 天 gross churn 约 2.31 GiB，365 天约 28.16 GiB，但窗口外仅活动引用会增加 retained size。
+
 ## Production
 
 - Host：`192.168.12.230:18080`。
