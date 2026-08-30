@@ -1,6 +1,5 @@
 'use strict';
 
-const fs = require('node:fs');
 const { canonicalDigest, canonicalJson } = require('../../../contracts/canonical-json');
 const { createInboxCoordinator } = require('../../../foundation/persistence/outbox-inbox');
 const { createMaterialControlProjectionPort } = require('../../../foundation/persistence/material-control');
@@ -248,8 +247,8 @@ function createOnDeckCapabilityPorts(options){const now=options.now||Date.now,ac
     allowFinalRealityRecovery:Boolean(execution.recoveryDecision)}),targetCommitSlotHandle:execution.namedInputs.targetCommitSlotHandle,
     ...(aftercare?{shouldContinue:aftercareShouldContinue(execution,aftercare.aftercareCaseId)}:{})};let staged;try{
       staged=await options.inventoryPort.stage(request);
-    }catch(error){const slot=execution.namedInputs.targetCommitSlotHandle?.slotDirectory;
-      if(!aftercare&&error?.code==='CLEAN_ARCA_PRODUCT_SOURCE_MISSING'&&typeof slot==='string'&&!fs.existsSync(slot)){
+    }catch(error){
+      if(!aftercare&&error?.code==='CLEAN_ARCA_PRODUCT_SOURCE_MISSING'){
         return failedOutcome('ARCA_ONDECK_PRODUCT_SOURCE_LOST',
           'Accepted Product Material is unavailable and no staged material reality remains.',{
             errorName:String(error.name||'Error'),errorCode:error.code,onDeckRunId:c.responsibility.onDeckRunId,

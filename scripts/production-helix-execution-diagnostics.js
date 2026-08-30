@@ -119,6 +119,15 @@ try {
     "WHERE a.state IN ('ready','running','blocked') GROUP BY w.owner_domain,w.state,a.state " +
     "ORDER BY w.owner_domain,w.state,a.state"
   );
+  const activeLibraWorks = all(
+    "SELECT w.process_type AS processType,w.process_id AS processId,w.work_kind AS workKind," +
+      "w.work_id AS workId,w.state AS workState,a.attempt_id AS attemptId,a.state AS attemptState," +
+      "r.subject_id AS subjectId,r.state AS libraRunState " +
+    "FROM fx_supporting_works w LEFT JOIN fx_work_attempts a ON a.work_id=w.work_id " +
+      "LEFT JOIN libra_runs r ON r.libra_run_id=w.process_id " +
+    "WHERE w.owner_domain='libra' AND w.state IN ('admitted','ready','running','blocked') " +
+    "ORDER BY w.process_type,w.process_id,w.work_kind,w.work_id"
+  );
   const arcaExecuting = all(
     "SELECT w.work_id AS workId,w.process_id AS processId,w.work_kind AS workKind,e.event_id AS eventId," +
       "e.capability_ref AS capabilityRef,e.state AS eventState,ea.event_attempt_id AS eventAttemptId," +
@@ -164,7 +173,7 @@ try {
     inventoryCandidates.push({ onDeckRunId:run.onDeckRunId, packageId:run.packageId, candidates });
   }
   console.log(JSON.stringify({ generatedAt:new Date().toISOString(), residuals, unsafeResiduals, residualChildren,
-    activeAttempts, arcaExecuting, offloading, materialReads, inventoryCandidates }, null, 2));
+    activeAttempts, activeLibraWorks, arcaExecuting, offloading, materialReads, inventoryCandidates }, null, 2));
 } finally {
   database.close();
 }
