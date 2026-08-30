@@ -179,6 +179,11 @@ try {
   }));
   console.log(JSON.stringify({ generatedAt:new Date(nowMs).toISOString(), items:compactItems, processes:processes.split(/\\r?\\n/).filter(Boolean),
     activeAttemptCount:one("SELECT COUNT(*) AS count FROM fx_work_attempts WHERE state IN ('ready','running','blocked')"),
+    onDeckRecovery:Object.freeze({
+      cursor:one("SELECT owner_domain,reconciler_key,revision,opaque_cursor,updated_at_ms FROM fx_reconcile_cursors WHERE owner_domain='arca' AND reconciler_key='blocked-ondeck-recovery'"),
+      failedWorks:all("SELECT work_id,process_id,state,created_at_ms,updated_at_ms FROM fx_supporting_works WHERE owner_domain='arca' AND work_kind='on_deck_execution' AND state IN ('failed','cancelled') ORDER BY work_id"),
+      allWorks:all("SELECT work_id,process_id,state,created_at_ms,updated_at_ms FROM fx_supporting_works WHERE owner_domain='arca' AND work_kind='on_deck_execution' ORDER BY process_id,created_at_ms"),
+    }),
     integrity:one('PRAGMA integrity_check') }, null, 2));
 } finally { database.close(); }
 `;

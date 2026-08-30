@@ -89,6 +89,7 @@ test('a failed accepted On-deck Work resumes the same Run with one bounded succe
       readAccepted:()=>({offer:{subjectId:'subject-recovery'},finalInventoryDecision:{decisionDigest:hex('c')}}),
       onDeck:{
         block:()=>{calls.push('block');return {replayed:false};},
+        recoveryEligibility:()=>({eligible:true,state:'blocked'}),
         resume:()=>{calls.push('resume');return {replayed:false};},
       },
     },
@@ -102,6 +103,16 @@ test('a failed accepted On-deck Work resumes the same Run with one bounded succe
   assert.notEqual(recovered.work.workId,'ondeck-work-generation-1');
   assert.deepEqual(calls,['block','resume']);
   assert.equal(coordinator.recoverOnDeck('ondeck-run-recovery',1).kind,'recovery_exhausted');
+}));
+
+test('On-deck recovery ignores retained audit Work after its Custody was explicitly released', () => fixture(({ unitOfWork }) => {
+  const coordinator=createOnDeckProcessCoordinator({schemaManifest,unitOfWork,
+    workResultReader:{listWorks:()=>[{work_id:'retired-work',state:'failed',created_at_ms:1,updated_at_ms:2}]},
+    contextReader:{onDeck:{recoveryEligibility:()=>({eligible:false,reasonCode:'custody_not_active'})}},
+  });
+  assert.deepEqual(coordinator.recoverOnDeck('retired-run'),{
+    kind:'not_recoverable',onDeckRunId:'retired-run',workId:'retired-work',reasonCode:'custody_not_active',state:null,
+  });
 }));
 
 test('equal deterministic failures aggregate and open then close one process-local Circuit', () => fixture(({ breaker, incidents }) => {

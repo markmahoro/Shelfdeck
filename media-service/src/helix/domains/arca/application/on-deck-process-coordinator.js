@@ -288,6 +288,11 @@ function createOnDeckProcessCoordinator(options) {
       if (!['failed','cancelled'].includes(latest.state)) {
         return Object.freeze({ kind:'not_recoverable', onDeckRunId, workId:latest.work_id, state:latest.state });
       }
+      const eligibility = options.contextReader.onDeck.recoveryEligibility(onDeckRunId);
+      if (!eligibility.eligible) {
+        return Object.freeze({ kind:'not_recoverable', onDeckRunId, workId:latest.work_id,
+          reasonCode:eligibility.reasonCode, state:eligibility.state || null });
+      }
       const refs = refsFromWorkResult(latest.work_id);
       const context = options.contextReader.readAccepted(onDeckRunId, refs);
       if (rows.length >= maxGenerations) {

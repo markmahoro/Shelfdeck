@@ -153,6 +153,12 @@ function arcaDefinition(schemaManifest) {
         keyColumns: ['on_deck_run_id'],
         safeIntegers: true,
       },
+      find_custody: {
+        kind: 'select-one',
+        tableId: 'arca_ondeck_custodies',
+        columns: ['custody_id', 'state'],
+        keyColumns: ['custody_id'],
+      },
       advance_run: {
         kind: 'update',
         tableId: 'arca_ondeck_runs',
@@ -549,7 +555,7 @@ function createOnDeckStore(options) {
             existingRun.custody_id !== request.custodyId ||
             existingRun.final_inventory_decision_digest !==
               decision.decisionDigest ||
-            !['ready', 'offloading', 'committed'].includes(existingRun.state) ||
+            !['ready', 'offloading', 'blocked', 'committed'].includes(existingRun.state) ||
             canonicalJson(parseDecision(existingDecision)) !==
               canonicalJson(decision) ||
             existingDecision.shelf_id !== request.shelf.shelfId ||
@@ -602,6 +608,22 @@ function createOnDeckStore(options) {
         return 'offloading';
       },
     }]).arca_ondeck_start;
+  }
+
+  function recoveryEligibility(onDeckRunId) {
+    return options.unitOfWork.execute([{
+      participantId:'arca_ondeck_recovery_eligibility', owner:'arca', repositories:[arca],
+      execute(context) {
+        const repo=context.repository(arca.repositoryId);
+        const run=repo.invoke('find_run',{on_deck_run_id:onDeckRunId});
+        if(!run)return Object.freeze({eligible:false,reasonCode:'on_deck_run_absent'});
+        const custody=repo.invoke('find_custody',{custody_id:run.custody_id});
+        if(!custody||custody.state!=='active')return Object.freeze({eligible:false,reasonCode:'custody_not_active'});
+        if(run.state!=='blocked')return Object.freeze({eligible:false,reasonCode:'on_deck_run_not_blocked',state:run.state});
+        return Object.freeze({eligible:true,reasonCode:null,state:run.state,custodyId:run.custody_id,
+          decisionDigest:run.final_inventory_decision_digest});
+      },
+    }]).arca_ondeck_recovery_eligibility;
   }
 
   function block(onDeckRunId, decisionDigest) {
@@ -1492,6 +1514,7 @@ function createOnDeckStore(options) {
   return Object.freeze({
     verifyAcceptedResponsibility,
     setOffloading,
+    recoveryEligibility,
     block,
     resume,
     acquireStagedCustody,
