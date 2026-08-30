@@ -46,18 +46,23 @@ function messageFromRefs(dependencyRefs) {
 }
 
 function assessAcceptedInventory(inventoryPort, onDeckRunId, responsibility, context) {
-  return inventoryPort.assess({
-    onDeckRunId,
-    custodyId: responsibility.custodyId,
-    shelf: context.shelf,
-    onDeckProductPackage: context.packageValue,
-    observedAtMs: 0,
-    // After Handoff B Acceptance, Placement and per-member Settlement advance
-    // the physical reality legitimately.  Later Event input projections must
-    // therefore replay an exact final member when its approved source has
-    // already been settled; initial Acceptance still assesses with replay off.
-    replayCommitted: true,
-  });
+  try {
+    return inventoryPort.assess({
+      onDeckRunId,
+      custodyId: responsibility.custodyId,
+      shelf: context.shelf,
+      onDeckProductPackage: context.packageValue,
+      observedAtMs: 0,
+      // After Handoff B Acceptance, Placement and per-member Settlement advance
+      // the physical reality legitimately. Later Event input projections may
+      // observe exact final bytes, but cannot re-decide accepted feasibility.
+      replayCommitted: true,
+    });
+  } catch (error) {
+    if (!['CLEAN_ARCA_PRODUCT_SOURCE_MISSING', 'CLEAN_ARCA_PRODUCT_SOURCE_DRIFT']
+      .includes(error?.code)) throw error;
+    return null;
+  }
 }
 
 function boundedSettlementContext(context, responsibility, verified, materialKey) {

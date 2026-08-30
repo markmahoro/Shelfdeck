@@ -248,9 +248,9 @@ function createOnDeckCapabilityPorts(options){const now=options.now||Date.now,ac
     ...(aftercare?{shouldContinue:aftercareShouldContinue(execution,aftercare.aftercareCaseId)}:{})};let staged;try{
       staged=await options.inventoryPort.stage(request);
     }catch(error){
-      if(!aftercare&&error?.code==='CLEAN_ARCA_PRODUCT_SOURCE_MISSING'){
+      if(!aftercare&&['CLEAN_ARCA_PRODUCT_SOURCE_MISSING','CLEAN_ARCA_PRODUCT_SOURCE_DRIFT'].includes(error?.code)){
         return failedOutcome('ARCA_ONDECK_PRODUCT_SOURCE_LOST',
-          'Accepted Product Material is unavailable and no staged material reality remains.',{
+          'Accepted Product Material has no exact recoverable material reality.',{
             errorName:String(error.name||'Error'),errorCode:error.code,onDeckRunId:c.responsibility.onDeckRunId,
             targetCommitSlotState:'absent',
           });
