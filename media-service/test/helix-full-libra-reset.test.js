@@ -33,6 +33,7 @@ test('full Libra reset is import-safe and preserves an empty clean database', ()
       tokens: [],
       policies: [],
       libraWorks: [],
+      executionResiduals: [],
     });
     const result = applyReset({ database, dataDir, transcodeDir, nowMs: 1000 });
     assert.equal(result.discardedRuns, 0);
@@ -61,5 +62,30 @@ test('full Libra reset rejects broad or data-containing transcode roots', () => 
       /UNSAFE_TRANSCODE_ROOT/);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('full Libra reset never reclaims a completed Run Workspace before Arca Off-load Completion', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'helix-full-libra-workspace-fence-'));
+  const dataDir = path.join(root, 'data');
+  fs.mkdirSync(dataDir);
+  const database = new Database(path.join(dataDir, 'shelfdeck.db'));
+  try {
+    database.exec(schemaDdl);
+    database.pragma('foreign_keys = OFF');
+    database.prepare("INSERT INTO libra_runs(libra_run_id,state,state_revision) VALUES('run-active','active',1)").run();
+    database.prepare("INSERT INTO libra_runs(libra_run_id,state,state_revision) VALUES('run-completed','completed',1)").run();
+    database.prepare("INSERT INTO libra_workspaces(workspace_id,libra_run_id,state,current_revision) VALUES('workspace-active','run-active','active',1)").run();
+    database.prepare("INSERT INTO libra_workspaces(workspace_id,libra_run_id,state,current_revision) VALUES('workspace-completed','run-completed','active',1)").run();
+    const plan = inspectPlan(database);
+    assert.deepEqual(plan.workspaces.map((item) => item.workspace_id), ['workspace-active']);
+    const result = applyReset({ database, dataDir, transcodeDir:null, nowMs:1000 });
+    assert.equal(result.reclaimedWorkspaces, 1);
+    assert.deepEqual(database.prepare('SELECT workspace_id,state FROM libra_workspaces ORDER BY workspace_id').all(), [
+      { workspace_id:'workspace-active', state:'reclaimed' },
+      { workspace_id:'workspace-completed', state:'active' },
+    ]);
+  } finally {
+    database.close(); fs.rmSync(root, { recursive:true, force:true });
   }
 });

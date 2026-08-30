@@ -30,8 +30,10 @@ function fixture(run, settings = {}) {
   if (settings.seedEvent !== false) kernel.runPrimitive((transaction) => {
     const effectClass = settings.effectClass || 'pure_observation';
     const eventState = settings.eventState || 'executing';
-    transaction.prepare("INSERT INTO fx_supporting_works(work_id,state) VALUES('work','running')").run();
-    transaction.prepare("INSERT INTO fx_work_attempts(attempt_id,work_id,state) VALUES('work-attempt','work','running')").run();
+    transaction.prepare("INSERT INTO fx_supporting_works(work_id,state) VALUES('work',?)")
+      .run(settings.workState || 'running');
+    transaction.prepare("INSERT INTO fx_work_attempts(attempt_id,work_id,state) VALUES('work-attempt','work',?)")
+      .run(settings.workAttemptState || 'running');
     transaction.prepare("INSERT INTO fx_workflow_plans(plan_id,attempt_id,state) VALUES('plan','work-attempt','planned')").run();
     transaction.prepare("INSERT INTO fx_plan_nodes(plan_id,node_id,effect_class) VALUES('plan','node',?)")
       .run(effectClass);
@@ -284,6 +286,25 @@ test('non-pure recovery uses exact Effect reconciler and committed Effect is nev
     assert.equal(action.decision, 'already_committed');
     assert.equal(action.effectId, 'effect');
   }, { effectClass: 'domain_fact_commit', journal: true, effectState: 'committed' });
+});
+
+test('startup classifies only a safely terminal cancelled-Work Attempt for lifecycle repair', async () => {
+  await fixture(async (recovery) => {
+    const result = await recovery.recover();
+    assert.equal(result.state, 'recovering');
+    assert.equal(result.normalSupplyAllowed, false);
+    assert.deepEqual(result.findings, []);
+    assert.deepEqual(result.actions, []);
+    assert.deepEqual(result.workAttemptRepairs, [{
+      workId:'work', attemptId:'work-attempt', reasonCode:'P4_CANCELLED_WORK_ATTEMPT_RECOVERED',
+    }]);
+  }, { workState:'cancelled', workAttemptState:'running', eventState:'cancelled' });
+
+  await fixture(async (recovery) => {
+    const result = await recovery.recover();
+    assert.equal(result.state, 'faulted');
+    assert.equal(result.findings.includes('CANCELLED_WORK_ACTIVE_ATTEMPT_UNSAFE:work-attempt'), true);
+  }, { workState:'cancelled', workAttemptState:'running', eventState:'executing' });
 });
 
 test('waiting Event after an abandoned Effect remains recoverable ordinary supply', async () => fixture(async (recovery) => {

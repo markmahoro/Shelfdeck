@@ -5,6 +5,8 @@ const { createRepositoryDefinition } = require('../persistence/owner-repository'
 const { validateSupportingWorkDefinition } = require('./runtime-contracts');
 
 const TERMINAL_EVENTS = new Set(['succeeded', 'skipped', 'failed', 'cancelled']);
+const ACTIVE_ATTEMPTS = new Set(['ready', 'running', 'blocked']);
+const NONTERMINAL_EFFECTS = new Set(['intended', 'effect_observed', 'reconcile_required']);
 
 class WorkLifecycleError extends Error {
   constructor(code, message, details = {}) {
@@ -107,6 +109,9 @@ function definitions(schemaManifest) {
       } }),
     eventAttempts: createRepositoryDefinition({ repositoryId:'work_lifecycle_event_attempts', owner:'execution-foundation', schemaManifest, statements:{
       list:{kind:'select-all',tableId:'fx_event_attempts',columns:['event_attempt_id','event_id','ordinal','state','outcome_kind','failure_code'],keyColumns:['event_id'],safeIntegers:true}
+    } }),
+    effects: createRepositoryDefinition({ repositoryId:'work_lifecycle_effects', owner:'execution-foundation', schemaManifest, statements:{
+      list:{kind:'select-all',tableId:'fx_effect_journal',columns:['effect_id','event_attempt_id','state'],keyColumns:['event_attempt_id']}
     } }),
   });
 }
@@ -371,8 +376,80 @@ function createWorkLifecycle(options) {
     });
   }
 
+  function repairCancelledWorkAttempt(request) {
+    if (!request || typeof request.workId !== 'string' || !request.workId ||
+        typeof request.attemptId !== 'string' || !request.attemptId ||
+        typeof request.reasonCode !== 'string' || !request.reasonCode) {
+      fail('P4_WORK_ATTEMPT_REPAIR_SCOPE_INVALID',
+        'Cancelled Work Attempt repair requires an exact Work, Attempt, and reason.');
+    }
+    return execute('work_lifecycle_repair_cancelled_attempt', (context) => {
+      const work = context.repository('work_lifecycle_works').invoke('find', { work_id:request.workId });
+      const attempt = context.repository('work_lifecycle_attempts').invoke('find', { attempt_id:request.attemptId });
+      if (!work || !attempt || attempt.work_id !== request.workId) {
+        fail('P4_WORK_ATTEMPT_REPAIR_FACT_MISSING',
+          'Cancelled Work Attempt repair requires the exact durable facts.', request);
+      }
+      if (work.state !== 'cancelled') {
+        fail('P4_WORK_ATTEMPT_REPAIR_WORK_NOT_CANCELLED',
+          'Only an already-cancelled Work can close a residual active Attempt.', {
+            workId:request.workId, workState:work.state,
+          });
+      }
+      if (attempt.state === 'cancelled') {
+        return Object.freeze({ workId:request.workId, attemptId:request.attemptId,
+          state:'cancelled', replayed:true });
+      }
+      if (!ACTIVE_ATTEMPTS.has(attempt.state)) {
+        fail('P4_WORK_ATTEMPT_REPAIR_ATTEMPT_NOT_ACTIVE',
+          'Cancelled Work Attempt repair cannot rewrite another terminal disposition.', {
+            attemptId:request.attemptId, attemptState:attempt.state,
+          });
+      }
+      const events = context.repository('work_lifecycle_events').invoke('list_work', { work_id:request.workId })
+        .filter((event) => event.attempt_id === request.attemptId);
+      if (events.some((event) => !TERMINAL_EVENTS.has(event.state))) {
+        fail('P4_WORK_ATTEMPT_REPAIR_EVENT_NONTERMINAL',
+          'Cancelled Work Attempt repair found a nonterminal child Event.', { attemptId:request.attemptId });
+      }
+      const waitingDefers = context.repository('work_lifecycle_resource_defers').invoke('list')
+        .filter((defer) => defer.state === 'waiting' && events.some((event) => event.event_id === defer.event_id));
+      if (waitingDefers.length > 0) {
+        fail('P4_WORK_ATTEMPT_REPAIR_DEFER_NONTERMINAL',
+          'Cancelled Work Attempt repair found a live Resource Defer.', { attemptId:request.attemptId });
+      }
+      for (const event of events) {
+        const eventAttempts = context.repository('work_lifecycle_event_attempts').invoke('list', { event_id:event.event_id });
+        if (eventAttempts.some((eventAttempt) => eventAttempt.state !== 'completed')) {
+          fail('P4_WORK_ATTEMPT_REPAIR_EVENT_ATTEMPT_NONTERMINAL',
+            'Cancelled Work Attempt repair found an executing Event Attempt.', { attemptId:request.attemptId });
+        }
+        for (const eventAttempt of eventAttempts) {
+          const effects = context.repository('work_lifecycle_effects').invoke('list', {
+            event_attempt_id:eventAttempt.event_attempt_id,
+          });
+          if (effects.some((effect) => NONTERMINAL_EFFECTS.has(effect.state))) {
+            fail('P4_WORK_ATTEMPT_REPAIR_EFFECT_NONTERMINAL',
+              'Cancelled Work Attempt repair found an unresolved Effect.', { attemptId:request.attemptId });
+          }
+        }
+      }
+      if (context.repository('work_lifecycle_attempts').invoke('transition', {
+        attempt_id:request.attemptId, state:'cancelled', started_at_ms:attempt.started_at_ms,
+        finished_at_ms:context.commitTimeMs, failure_code:request.reasonCode,
+        expected_state:attempt.state,
+      }).changes !== 1) {
+        fail('P4_WORK_ATTEMPT_REPAIR_CAS', 'Cancelled Work Attempt repair fence changed.', {
+          attemptId:request.attemptId,
+        });
+      }
+      return Object.freeze({ workId:request.workId, attemptId:request.attemptId,
+        state:'cancelled', replayed:false });
+    });
+  }
+
   return Object.freeze({ aggregate, aggregateEvent, cancelProcess, ensurePlanningAttempt, pendingOwnerReconciliations,
-    settleWork, startPlanned });
+    repairCancelledWorkAttempt, settleWork, startPlanned });
 }
 
 module.exports = Object.freeze({ WorkLifecycleError, createWorkLifecycle });

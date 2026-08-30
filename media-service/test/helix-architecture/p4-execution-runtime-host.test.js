@@ -84,6 +84,30 @@ test('Execution Runtime Host plans Work, delegates Event execution, aggregates t
   ]);
 });
 
+test('Execution Runtime Host repairs classified cancelled-Work Attempt residuals before normal supply', async () => {
+  const calls=[];
+  let pass=0;
+  const host=createExecutionRuntimeHost({
+    tickIntervalMs:60000,
+    startupRecovery:{async recover(){calls.push('recover');return pass++===0
+      ? {state:'recovering',normalSupplyAllowed:false,findings:[],actions:[],workAttemptRepairs:[{
+        workId:'work-old',attemptId:'attempt-old',reasonCode:'P4_CANCELLED_WORK_ATTEMPT_RECOVERED',
+      }]}
+      : {state:'ready',normalSupplyAllowed:true,findings:[],actions:[]};}},
+    scheduler:{acquire(){return {kind:'idle'};},release(){}},
+    plannerRegistry:{resolve(){}},planPublisher:{publish(){}},
+    workLifecycle:{ensurePlanningAttempt(){},startPlanned(){},aggregateEvent(){},settleWork(){},
+      repairCancelledWorkAttempt(repair){calls.push('repair:'+repair.attemptId);}},
+    eventRuntime:{async run(){}},
+    domainReconciler:{async reconcile(){}},
+    fallbackReconciler:{async start(){calls.push('fallback:start');},async stop(){}},
+  });
+  await host.start();
+  await new Promise((resolve)=>setImmediate(resolve));
+  await host.stop();
+  assert.deepEqual(calls,['recover','repair:attempt-old','recover','fallback:start']);
+});
+
 test('Execution Runtime Host persists terminal Work before notifying its exact Domain Process scope', async () => {
   let eventAvailable=true;
   let persistedState='running';

@@ -197,3 +197,34 @@ test('Process cancellation atomically cancels durable Resource Defers and clears
     { state:'cancelled', failure_code:'TEST_PROCESS_CANCELLED' });
   assert.deepEqual(read(databasePath, 'SELECT state FROM fx_supporting_works WHERE work_id=?', 'work-1'), { state:'cancelled' });
 }));
+
+test('startup repair closes only an active Attempt whose cancelled Work has fully terminal children', () => fixture(({ lifecycle, databasePath }) => {
+  const activation = lifecycle.ensurePlanningAttempt('work-1');
+  const database = new Database(databasePath);
+  database.prepare(`INSERT INTO fx_workflow_plans
+    (plan_id,attempt_id,planner_ref,planner_version,catalog_digest,basis_digest,graph_digest,state,created_at_ms)
+    VALUES (?,?,?,?,?,?,?,?,?)`).run('plan-1', activation.attempt.attempt_id, 'planner@1', 1,
+      'b'.repeat(64), 'a'.repeat(64), 'c'.repeat(64), 'planned', 2);
+  database.prepare(`INSERT INTO fx_workflow_events
+    (event_id,plan_id,node_id,work_id,attempt_id,owner_domain,capability_ref,contract_version,state,priority_class)
+    VALUES (?,?,?,?,?,?,?,?,?,?)`).run('event-1', 'plan-1', 'node-1', 'work-1', activation.attempt.attempt_id,
+    'procurement', 'procurement.test@1', 1, 'cancelled', 'normal_foreground');
+  database.prepare(`INSERT INTO fx_event_attempts
+    (event_attempt_id,event_id,ordinal,state,outcome_kind,started_at_ms,finished_at_ms)
+    VALUES (?,?,?,?,?,?,?)`).run('event-attempt-1', 'event-1', 1, 'completed', 'cancelled', 2, 3);
+  database.prepare("UPDATE fx_work_attempts SET state='running',started_at_ms=2 WHERE attempt_id=?")
+    .run(activation.attempt.attempt_id);
+  database.prepare("UPDATE fx_supporting_works SET state='cancelled' WHERE work_id='work-1'").run();
+  database.close();
+
+  assert.deepEqual(lifecycle.repairCancelledWorkAttempt({
+    workId:'work-1', attemptId:activation.attempt.attempt_id, reasonCode:'TEST_RESIDUAL_RECOVERY',
+  }), { workId:'work-1', attemptId:activation.attempt.attempt_id, state:'cancelled', replayed:false });
+  assert.deepEqual(read(databasePath,
+    'SELECT state,finished_at_ms,failure_code FROM fx_work_attempts WHERE attempt_id=?', activation.attempt.attempt_id), {
+    state:'cancelled', finished_at_ms:1700000000000, failure_code:'TEST_RESIDUAL_RECOVERY',
+  });
+  assert.equal(lifecycle.repairCancelledWorkAttempt({
+    workId:'work-1', attemptId:activation.attempt.attempt_id, reasonCode:'TEST_RESIDUAL_RECOVERY',
+  }).replayed, true);
+}));

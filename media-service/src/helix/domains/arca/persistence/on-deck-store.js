@@ -604,6 +604,33 @@ function createOnDeckStore(options) {
     }]).arca_ondeck_start;
   }
 
+  function block(onDeckRunId, decisionDigest) {
+    return options.unitOfWork.execute([{
+      participantId: 'arca_ondeck_block',
+      owner: 'arca',
+      repositories: [arca],
+      execute(context) {
+        const repo = context.repository(arca.repositoryId);
+        const run = repo.invoke('find_run', { on_deck_run_id:onDeckRunId });
+        if (!run || run.final_inventory_decision_digest !== decisionDigest) {
+          fail('P14_ONDECK_RUN_MISSING',
+            'On-deck Run does not match its immutable Decision.');
+        }
+        if (run.state === 'blocked') {
+          return Object.freeze({ state:'blocked', replayed:true });
+        }
+        if (!['ready', 'offloading'].includes(run.state) || repo.invoke('advance_run', {
+          state:'blocked', terminal_at_ms:null, on_deck_run_id:onDeckRunId,
+          expected_state:run.state,
+          expected_final_inventory_decision_digest:decisionDigest,
+        }).changes !== 1) {
+          fail('P14_ONDECK_BLOCK_CAS', 'On-deck Run lost its blocking CAS.');
+        }
+        return Object.freeze({ state:'blocked', replayed:false });
+      },
+    }]).arca_ondeck_block;
+  }
+
   function commit(request) {
     const packageValue = request.package;
     if (request.fulfillmentVerificationDigest !==
@@ -1450,6 +1477,7 @@ function createOnDeckStore(options) {
   return Object.freeze({
     verifyAcceptedResponsibility,
     setOffloading,
+    block,
     acquireStagedCustody,
     commit,
     readCommitted,

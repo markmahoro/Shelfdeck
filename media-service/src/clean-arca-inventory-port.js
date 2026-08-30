@@ -552,7 +552,7 @@ function createCleanArcaInventoryPort(options) {
         fail('CLEAN_ARCA_TARGET_ESCAPE',
           'Final Inventory member escaped the Shelf Target.');
       }
-      const observed = request.replayCommitted &&
+      const observed = (request.replayCommitted || request.allowFinalRealityRecovery) &&
         (!fs.existsSync(source) || !fs.statSync(source).isFile())
         ? observe(target, member)
         : observe(source, member);
@@ -624,7 +624,7 @@ function createCleanArcaInventoryPort(options) {
       try {
         observed = await observeAsync(source, member);
       } catch (error) {
-        if (!request.replayCommitted ||
+        if (!(request.replayCommitted || request.allowFinalRealityRecovery) ||
             error?.code !== 'CLEAN_ARCA_PRODUCT_SOURCE_MISSING') throw error;
         observed = await observeAsync(target, member);
       }

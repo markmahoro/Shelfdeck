@@ -402,10 +402,26 @@ function createExecutionRuntimeHost(options) {
       state = 'recovering';
       lastRecovery = await options.startupRecovery.recover();
       let recoveryPass = 0;
-      while (lastRecovery && lastRecovery.findings?.length === 0 && lastRecovery.actions?.length > 0) {
-        if (typeof options.eventRuntime.recover !== 'function' || recoveryPass++ >= 100) fail(
+      while (lastRecovery && lastRecovery.findings?.length === 0 &&
+          ((lastRecovery.actions?.length || 0) > 0 || (lastRecovery.workAttemptRepairs?.length || 0) > 0)) {
+        if (recoveryPass++ >= 100) fail(
           'P4_EXECUTION_HOST_RECOVERY_ACTION_BLOCKED', 'Startup recovery actions did not converge within the bounded recovery sweep.',
           { recovery: lastRecovery, recoveryPass }
+        );
+        if ((lastRecovery.workAttemptRepairs?.length || 0) > 0) {
+          if (typeof options.workLifecycle.repairCancelledWorkAttempt !== 'function') fail(
+            'P4_EXECUTION_HOST_WORK_ATTEMPT_REPAIR_UNAVAILABLE',
+            'Startup Recovery classified a cancelled Work Attempt repair without its lifecycle authority.'
+          );
+          for (const repair of lastRecovery.workAttemptRepairs) {
+            options.workLifecycle.repairCancelledWorkAttempt(repair);
+          }
+          lastRecovery = await options.startupRecovery.recover();
+          continue;
+        }
+        if (typeof options.eventRuntime.recover !== 'function') fail(
+          'P4_EXECUTION_HOST_RECOVERY_ACTION_BLOCKED', 'Event recovery authority is unavailable.',
+          { recovery:lastRecovery, recoveryPass }
         );
         let deferred = false;
         for (const action of lastRecovery.actions) {

@@ -6,6 +6,8 @@ const { EFFECT_CLASSES } = require('./runtime-contracts');
 const HASH = /^[0-9a-f]{64}$/;
 const RECOVERY_EVENT_STATES = new Set(['executing', 'waiting_for_external', 'waiting_for_resource']);
 const NONTERMINAL_EFFECT_STATES = new Set(['intended', 'effect_observed', 'reconcile_required']);
+const ACTIVE_WORK_ATTEMPT_STATES = new Set(['ready', 'running', 'blocked']);
+const TERMINAL_EVENT_STATES = new Set(['succeeded', 'skipped', 'failed', 'cancelled']);
 
 class StartupRecoveryError extends Error {
   constructor(code, message, details = {}) {
@@ -118,6 +120,38 @@ function createStartupRecovery(options) {
       const effectsByAttempt = groupBy(facts.effects, 'event_attempt_id');
       const defersByEvent = groupBy(facts.defers.filter((row) => row.state === 'waiting'), 'event_id');
       const processedEffectIds = new Set();
+      const workAttemptRepairs = [];
+      const safeRepairAttemptIds = new Set();
+
+      for (const attempt of facts.workAttempts.filter((row) => ACTIVE_WORK_ATTEMPT_STATES.has(row.state))) {
+        const work = works.get(attempt.work_id);
+        if (!work || work.state !== 'cancelled') {
+          if (work && ['succeeded', 'failed'].includes(work.state)) {
+            findings.push('TERMINAL_WORK_ACTIVE_ATTEMPT:' + attempt.attempt_id);
+          }
+          continue;
+        }
+        const childEvents = facts.events.filter((event) => event.attempt_id === attempt.attempt_id);
+        const childEventIds = new Set(childEvents.map((event) => event.event_id));
+        const childEventAttempts = facts.attempts.filter((eventAttempt) => childEventIds.has(eventAttempt.event_id));
+        const childEventAttemptIds = new Set(childEventAttempts.map((eventAttempt) => eventAttempt.event_attempt_id));
+        const unresolvedEffects = facts.effects.filter((effect) => childEventAttemptIds.has(effect.event_attempt_id) &&
+          NONTERMINAL_EFFECT_STATES.has(effect.state));
+        const unsafe = childEvents.some((event) => !TERMINAL_EVENT_STATES.has(event.state)) ||
+          childEventAttempts.some((eventAttempt) => eventAttempt.state !== 'completed') ||
+          facts.defers.some((defer) => childEventIds.has(defer.event_id) && defer.state === 'waiting') ||
+          unresolvedEffects.length > 0;
+        if (unsafe) {
+          findings.push('CANCELLED_WORK_ACTIVE_ATTEMPT_UNSAFE:' + attempt.attempt_id);
+          continue;
+        }
+        safeRepairAttemptIds.add(attempt.attempt_id);
+        workAttemptRepairs.push(Object.freeze({
+          workId:attempt.work_id,
+          attemptId:attempt.attempt_id,
+          reasonCode:'P4_CANCELLED_WORK_ATTEMPT_RECOVERED',
+        }));
+      }
 
       for (const attempt of facts.workAttempts) {
         if (!workIds.has(attempt.work_id)) findings.push('ORPHAN_WORK_ATTEMPT:' + attempt.attempt_id);
@@ -126,7 +160,7 @@ function createStartupRecovery(options) {
         const workAttempt = workAttempts.get(plan.attempt_id);
         const work = workAttempt && works.get(workAttempt.work_id);
         if (!workAttempt || !work) findings.push('ORPHAN_PLAN:' + plan.plan_id);
-        else if (!options.catalogVerifier.verify(Object.freeze({
+        else if (!safeRepairAttemptIds.has(plan.attempt_id) && !options.catalogVerifier.verify(Object.freeze({
           plan: Object.freeze(plan),
           workAttempt: Object.freeze(workAttempt),
           work: Object.freeze(work),
@@ -272,12 +306,17 @@ function createStartupRecovery(options) {
       const hardFinding = findings.some((finding) => !finding.startsWith('RECONCILER_UNAVAILABLE:'));
       const state = findings.length > 0
         ? (globalCircuit || hardFinding ? 'faulted' : 'recovering')
-        : (actions.length > 0 ? 'recovering' : (activeCircuits.length > 0 ? 'degraded' : 'ready'));
+        : (actions.length > 0 || workAttemptRepairs.length > 0
+          ? 'recovering' : (activeCircuits.length > 0 ? 'degraded' : 'ready'));
+      const repairProjection = workAttemptRepairs.length > 0
+        ? { workAttemptRepairs:Object.freeze(workAttemptRepairs) }
+        : {};
       readiness = Object.freeze({
         state,
         normalSupplyAllowed: state === 'ready',
         findings: Object.freeze(findings),
         actions: Object.freeze(actions),
+        ...repairProjection,
         durableDefers: facts.defers.filter((row) => row.state === 'waiting').length,
         nonterminalWorks: facts.works.filter((row) => !['succeeded', 'failed', 'cancelled'].includes(row.state)).length,
         nonterminalEvents: facts.events.filter((row) => !['succeeded', 'skipped', 'failed', 'cancelled'].includes(row.state)).length,

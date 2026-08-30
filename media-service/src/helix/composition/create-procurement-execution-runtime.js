@@ -870,7 +870,8 @@ function createProcurementExecutionRuntime(options) {
         const shelfEntryId=terminal?.result?.onDeckCommitReceipt?.shelfEntryId;
         if(terminal?.kind==='terminal'&&shelfEntryId)
           arcaProcessServices.aftercareCoordinator.reconcile(shelfEntryId);
-      }
+      }else if(['failed','cancelled'].includes(request.workAttemptState))
+        arcaProcessServices.coordinator.blockOnDeck(request.processId);
       return {workId:request.workId,disposition:request.workAttemptState};
     }
     if(request.ownerDomain==='arca'&&request.processType==='arca_shelf_entry'){

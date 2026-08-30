@@ -41,11 +41,13 @@ function inspectPlan(database) {
      ORDER BY created_at_ms
   `).all(...RESETTABLE_RUN_STATES);
   const workspaces = database.prepare(`
-    SELECT workspace_id, libra_run_id, state, current_revision
-      FROM libra_workspaces
-     WHERE state IN ('active', 'reclaiming', 'completed')
-     ORDER BY workspace_id
-  `).all();
+    SELECT w.workspace_id, w.libra_run_id, w.state, w.current_revision
+      FROM libra_workspaces w
+      JOIN libra_runs r ON r.libra_run_id = w.libra_run_id
+     WHERE w.state IN ('active', 'reclaiming')
+       AND r.state IN (${RESETTABLE_RUN_STATES.map(() => '?').join(',')})
+     ORDER BY w.workspace_id
+  `).all(...RESETTABLE_RUN_STATES);
   const tokens = database.prepare('SELECT subject_id, source_field_id FROM libra_predeck_pipeline_tokens ORDER BY subject_id').all();
   const policies = database.prepare('SELECT field_id, predeck_pipeline_seats, policy_revision FROM libra_field_intake_admission_policies ORDER BY field_id').all();
   const libraWorks = database.prepare(`
@@ -55,7 +57,16 @@ function inspectPlan(database) {
        AND state IN (${NON_TERMINAL_WORK_STATES.map(() => '?').join(',')})
      ORDER BY work_id
   `).all(...NON_TERMINAL_WORK_STATES);
-  return Object.freeze({ resetRuns, workspaces, tokens, policies, libraWorks });
+  const executionResiduals = database.prepare(`
+    SELECT a.attempt_id, a.work_id, a.state AS attempt_state
+      FROM fx_work_attempts a
+      JOIN fx_supporting_works w ON w.work_id = a.work_id
+     WHERE w.owner_domain = 'libra'
+       AND w.state = 'cancelled'
+       AND a.state IN ('ready', 'running', 'blocked')
+     ORDER BY a.attempt_id
+  `).all();
+  return Object.freeze({ resetRuns, workspaces, tokens, policies, libraWorks, executionResiduals });
 }
 
 function assertSafeTranscodeRoot(transcodeDir, dataDir) {
@@ -84,6 +95,9 @@ function clearTranscodeRoot(transcodeDir, dataDir) {
 
 function applyReset({ database, dataDir, transcodeDir, nowMs }) {
   const plan = inspectPlan(database);
+  if (plan.executionResiduals.length > 0) {
+    throw new Error('P13_FULL_LIBRA_RESET_EXECUTION_RESIDUAL_REPAIR_REQUIRED');
+  }
   const evidenceDigest = canonicalDigest({
     schema: 'helix.full-libra-reset-evidence@1',
     failureCode: FAILURE_CODE,
