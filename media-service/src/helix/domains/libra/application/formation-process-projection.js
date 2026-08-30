@@ -1,0 +1,269 @@
+'use strict';
+
+const CAPABILITY_COPY = Object.freeze({
+  'procurement.triage.bdmv.assess@1':['检查光盘结构','已完成光盘结构检查。'],
+  'procurement.triage.playability.inspect@1':['检查媒体是否可播放','已确认媒体可以进入后续整理。'],
+  'procurement.triage.structure.inspect@1':['检查材料结构','已确认材料结构可以进入后续整理。'],
+  'shared.material.media.probe@1':['读取媒体信息','已读取视频、音轨、字幕和文件信息。'],
+  'procurement.triage.identity_claim.resolve@1':['确认材料中的影片身份','已从材料中确认影片身份线索。'],
+  'procurement.triage.primary_manifest.build@1':['生成材料清单','已记录主媒体及相关材料。'],
+  'procurement.candidate.publish@1':['将材料交给媒体整理','媒体整理已经接收这批材料。'],
+  'libra.intake.candidate.verify@1':['核对材料包','材料包的内容和来源已经核对。'],
+  'libra.intake.material.verify@1':['核对实际材料','实际媒体材料已经核对。'],
+  'libra.intake.binding.resolve@1':['建立整理材料记录','材料已经纳入本次媒体整理。'],
+  'libra.intake.accept.commit@1':['接收整理材料','媒体整理已经正式接收材料。'],
+  'libra.routing.fact.observe@1':['核对现有影片信息','已读取材料中现有的影片信息。'],
+  'libra.decision_basis.commit@1':['保存本次整理决定','本次目标收藏架或整理要求已经确定。'],
+  'libra.product_identity.evidence.observe@1':['查询影片资料','已获得可用于确认影片身份的查询结果。'],
+  'libra.product_identity.resolve@1':['确认影片身份','已经确定本次媒体产品的影片身份。'],
+  'libra.product_metadata.fetch@1':['获取影片资料','已经取得本次媒体产品需要的影片资料。'],
+  'libra.product_artifact.acquire@1':['取得影片图片','已经取得本次媒体产品需要的图片。'],
+  'libra.product_sidecar.render@1':['制作影片资料文件','影片资料文件已经生成。'],
+  'shared.artifact.manifest.verify@1':['检查影片资料文件','影片资料文件已经通过检查。'],
+  'libra.media_cast.resolve@1':['整理演职员信息','已经整理本片的演职员信息。'],
+  'libra.media_cast.commit@1':['保存演职员信息','演职员信息已经保存到媒体产品。'],
+  'libra.product_metadata.commit@1':['保存影片信息','影片资料已经保存到媒体产品。'],
+  'libra.product_media.verify@1':['检查媒体是否符合要求','已经逐项核对媒体与收藏要求。'],
+  'libra.product_output.select@1':['选定最终媒体文件','已经记录本次选用的最终媒体文件。'],
+  'libra.transcode.input.verify@1':['确认视频处理方式','已确认本次视频处理方式可以执行。'],
+  'libra.media.transcode@1':['处理视频文件','已经生成符合本次处理要求的新版本。'],
+  'libra.media.remux@1':['重新封装媒体文件','已经生成整理后的封装版本。'],
+  'libra.product.conformance.verify@1':['检查最终媒体产品','已完成媒体、资料和图片的最终检查。'],
+  'libra.product_package.publish@1':['将媒体产品交给收藏架','收藏架已经收到待验收的媒体产品。'],
+  'arca.acceptance.identity.verify@1':['核对影片身份','媒体产品身份与本次上架目标一致。'],
+  'arca.acceptance.metadata.verify@1':['检查影片资料','影片资料符合收藏架要求。'],
+  'arca.acceptance.structure.verify@1':['检查媒体产品结构','媒体产品结构符合收藏架要求。'],
+  'arca.acceptance.mandatory_media.verify@1':['检查必需媒体','必需媒体完整且可以读取。'],
+  'arca.acceptance.space.verify@1':['检查收藏架空间','已核对本次上架需要的空间。'],
+  'arca.acceptance.inventory_feasibility.observe@1':['检查上架可行性','已确认收藏架能够接收本次媒体产品。'],
+  'arca.acceptance.accept.commit@1':['接收媒体产品','收藏架已经承担本次上架责任。'],
+  'arca.acceptance.rejection.commit@1':['记录验收未通过','收藏架已经记录本次验收结果。'],
+  'arca.inventory.target_slot.prepare@1':['准备目标位置','正式目标位置已经准备完成。'],
+  'arca.inventory.product.stage@1':['写入媒体产品','媒体产品已经写入收藏架的暂存位置。'],
+  'arca.inventory.staged.verify@1':['检查暂存文件','暂存文件与本次媒体产品一致。'],
+  'arca.inventory.final_product.verify@1':['检查最终媒体产品','写入后的媒体产品已经完成检查。'],
+  'arca.inventory.placement.switch@1':['切换到正式位置','媒体产品已经切换到正式位置。'],
+  'arca.ondeck.input_settlement.delete@1':['处理原有输入','原有输入已经按本次上架决定处理。'],
+  'arca.ondeck.fulfillment.verify@1':['确认收藏架中的最终状态','已核对收藏架中的最终文件状态。'],
+  'arca.ondeck.commit@1':['完成上架','已经建立正式收藏记录。'],
+});
+
+const WORK_TITLES = Object.freeze({
+  evidence_assessment:'检查材料结构', candidate_assembly:'准备整理材料',
+  evidence:'接收整理材料', acceptance:'确认接收整理材料', rejection:'记录材料未接收',
+  routing_nfo_facts:'核对现有影片信息', routing_provider_facts:'查询影片资料',
+  routing_basis:'确定目标收藏架', acceptance_spec_basis:'确定整理要求',
+  product_identity:'核对并确认影片身份', product_metadata_observation:'获取影片资料',
+  artifact_production:'制作影片资料文件', product_sidecar_render:'制作影片资料文件',
+  product_artifact_acquisition:'取得影片图片', artifact_verification:'检查影片资料文件',
+  product_fact_assembly:'整理演职员和影片信息', source_media_observation:'检查原始媒体',
+  workspace_media_production:'处理媒体文件', product_conformance:'检查最终媒体产品',
+  deliverable_promotion:'将媒体产品交给收藏架', acceptance_assessment:'检查媒体产品是否可以上架',
+  acceptance_commit:'接收媒体产品', acceptance_rejection:'记录验收未通过',
+  on_deck_execution:'将媒体写入收藏架',
+});
+
+function readableToken(value) {
+  return String(value || '').replace(/@\d+$/,'').split(/[./_-]+/).filter(Boolean).slice(-3).join(' ');
+}
+function valueAt(root, paths) {
+  for (const path of paths) {
+    let value = root;
+    for (const key of path.split('.')) value = value?.[key];
+    if (value !== undefined && value !== null && value !== '') return value;
+  }
+  return null;
+}
+function formatBytes(value) {
+  const bytes=Number(value); if (!Number.isFinite(bytes) || bytes < 0) return null;
+  return bytes >= 1073741824 ? `${(bytes / 1073741824).toFixed(bytes >= 10737418240 ? 1 : 2)} GiB`
+    : bytes >= 1048576 ? `${(bytes / 1048576).toFixed(1)} MiB` : `${bytes} B`;
+}
+function formatDuration(value) {
+  const ms=Number(value); if (!Number.isFinite(ms) || ms <= 0) return null;
+  const minutes=Math.round(ms / 60000), hours=Math.floor(minutes / 60), rest=minutes % 60;
+  return hours ? `${hours} 小时 ${rest} 分` : `${minutes} 分钟`;
+}
+function formatBitrate(value) {
+  if (value === null || value === undefined || value === '') return null;
+  const numeric=Number(value); if (!Number.isFinite(numeric)) return String(value);
+  return numeric >= 1000000 ? `${(numeric / 1000000).toFixed(numeric % 1000000 ? 1 : 0)} Mbps` : `${Math.round(numeric / 1000)} Kbps`;
+}
+function humanValue(value) {
+  if (value === true) return '是'; if (value === false) return '否';
+  const map={passed:'通过',failed:'未通过',resolved:'已确认',selected:'已选定',not_selected:'未选定',
+    available:'可用',not_available:'不可用',accepted:'已接收',rejected:'未接收',succeeded:'已完成',
+    handoff_b_accepted:'收藏架已接收',handoff_b_rejected:'收藏架未接收',placement_switched:'已进入正式位置'};
+  return map[value] || String(value).replaceAll('_',' ');
+}
+function humanReason(value) {
+  const reason=String(value || '');
+  const exact={size_cap_exceeded:'文件超过收藏架允许的大小',minimum_raster_unmet:'画面清晰度未达到要求',
+    video_codec_unmet:'视频格式未达到要求',metadata_field_unmet:'缺少收藏要求中的影片资料',
+    primary_audio_unmet:'主要音轨未达到要求',product_metadata_required_cast_missing:'缺少收藏要求中的演员资料',
+    CLEAN_ARCA_FINAL_REALITY_DRIFT:'最终文件状态与本次计划记录不一致',
+    CLEAN_ARCA_PRODUCT_SOURCE_MISSING:'没有找到本次上架使用的媒体产品'};
+  if (exact[reason]) return exact[reason];
+  if (/size|too_large/i.test(reason)) return '文件大小未达到收藏要求';
+  if (/identity/i.test(reason)) return '影片身份未能通过核对';
+  if (/metadata|artifact|nfo|poster/i.test(reason)) return '影片资料或图片未能通过核对';
+  if (/space/i.test(reason)) return '收藏架可用空间不足';
+  return reason ? '运行未通过，详细原因已由系统记录' : null;
+}
+function addFact(facts, label, value) {
+  if (value === null || value === undefined || value === '' || facts.some((item)=>item.label===label)) return;
+  facts.push(Object.freeze({ label, value:String(value) }));
+}
+function resultFacts(event) {
+  const value=event.result?.result; if (!value || typeof value !== 'object') return Object.freeze([]);
+  const facts=[];
+  const title=valueAt(value,['displayIdentity','claimedDisplayIdentity','title','metadata.title','identity.title','candidate.displayTitle']);
+  const year=valueAt(value,['releaseYear','year','metadata.releaseYear','identity.releaseYear']);
+  const result=valueAt(value,['result','resultKind','outcome','decision','receiptKind']);
+  const reason=valueAt(value,['reasonCode','selectionReasonCode','failureCode','code']);
+  const count=valueAt(value,['memberCount','primaryCount','candidateMatchCount','matchedCount']);
+  const size=valueAt(value,['sizeBytes','physicalIdentity.sizeBytes','workspaceMaterialHandle.sizeBytes','mediaSummary.sizeBytes']);
+  const duration=valueAt(value,['durationMs','mediaSummary.durationMs']);
+  const video=(value.videoStreams || value.mediaSummary?.videoStreams || [])[0];
+  const audio=(value.audioStreams || value.mediaSummary?.audioStreams || [])[0];
+  addFact(facts,'获得的信息',title && year ? `${title}（${year}）` : title);
+  addFact(facts,'运行结果',result === null ? null : humanValue(result));
+  addFact(facts,'数量',count);
+  addFact(facts,'文件大小',formatBytes(size));
+  addFact(facts,'时长',formatDuration(duration));
+  if (video) {
+    const codec=valueAt(video,['codecName','codec','codec_name']), width=valueAt(video,['displayWidth','width','codedWidth']), height=valueAt(video,['displayHeight','height','codedHeight']);
+    addFact(facts,'视频',[codec && String(codec).toUpperCase(),width&&height&&`${width} × ${height}`].filter(Boolean).join(' · '));
+    addFact(facts,'画面',valueAt(video,['dynamicRangeKind','hdrFormat','colorTransfer']));
+  }
+  addFact(facts,'主要音轨',audio && [valueAt(audio,['codecName','codec']),valueAt(audio,['channelLayout','audioClass'])].filter(Boolean).join(' · '));
+  if (Array.isArray(value.reasonCodes) && value.reasonCodes.length) addFact(facts,'核对说明',value.reasonCodes.map(humanReason).join('、'));
+  addFact(facts,'未通过原因',humanReason(reason));
+  if (!facts.length) addFact(facts,'保存结果','本步骤的实际运行结果已保存');
+  return Object.freeze(facts.slice(0,6));
+}
+function literalBindings(event) {
+  return new Map((event.inputBindings?.bindings || []).filter((item)=>item.bindingKind==='literal')
+    .map((item)=>[item.portName,item.value]));
+}
+function transcodeDetails(event) {
+  if (event.capabilityRef !== 'libra.media.transcode@1') return null;
+  const bindings=literalBindings(event), intent=bindings.get('encodeIntent') || {}, device=bindings.get('mediaExecutionDeviceSnapshot') || {};
+  const video=intent.video || {}, audio=intent.audio || {}, subtitle=intent.subtitle || {}, container=intent.container || intent.output || {};
+  const classLabels={intel_qsv:'Intel QSV',nvidia_nvenc:'NVIDIA NVENC',amd_vaapi:'AMD VAAPI',software_cpu:'CPU 软件编码',remote_worker:'远程处理节点'};
+  const operationLabels={preserve:'保留原画面',preserve_hdr:'保留 HDR',copy:'保留原始内容',tone_map_to_sdr_bt709:'转换为 SDR'};
+  const fields=[];
+  addFact(fields,'转码工具','FFmpeg');
+  addFact(fields,'处理方式',classLabels[device.deviceClass || event.executionDeviceClass] || device.deviceClass || event.executionDeviceClass);
+  addFact(fields,'视频格式',valueAt(video,['codec','codecName','outputCodec'])?.toString().toUpperCase());
+  addFact(fields,'文件格式',valueAt(container,['format','container','name']) || valueAt(intent,['containerFormat','outputContainer']));
+  addFact(fields,'目标码率',formatBitrate(valueAt(video,['targetBitrate','bitrate','targetBitrateBps'])));
+  const dynamicRange=valueAt(video,['dynamicRangeOperation','hdrMode']), audioMode=valueAt(audio,['mode','operation']), subtitleMode=valueAt(subtitle,['mode','operation']);
+  addFact(fields,'画面处理',operationLabels[dynamicRange] || dynamicRange);
+  addFact(fields,'音轨',operationLabels[audioMode] || audioMode);
+  addFact(fields,'字幕',operationLabels[subtitleMode] || subtitleMode);
+  const parameters=[];
+  for (const [key,value] of Object.entries({
+    hardware_accel:device.deviceClass || event.executionDeviceClass,
+    pipeline_profile:video.pipelineProfileId, rate_control:video.rateControlMode,
+    target_bitrate:valueAt(video,['targetBitrate','bitrate','targetBitrateBps']),
+    hdr_mode:valueAt(video,['dynamicRangeOperation','hdrMode']), audio_mode:valueAt(audio,['mode','operation']),
+    subtitle_mode:valueAt(subtitle,['mode','operation']), output_container:valueAt(container,['format','container','name']) || valueAt(intent,['containerFormat','outputContainer']),
+  })) if (value !== undefined && value !== null && value !== '') parameters.push(Object.freeze({ label:key, value:String(value) }));
+  return Object.freeze({ summary:'仅显示本次真实计划中已经冻结的处理方式；内部路径和运行标识已隐藏。',
+    fields:Object.freeze(fields), parameters:Object.freeze(parameters) });
+}
+function nodeState(event) {
+  const value=event.result?.result;
+  if (event.result?.outcomeKind==='failed' || event.state==='failed' || value?.result==='failed' || value?.resultKind==='not_available') return 'failed';
+  if (event.state==='cancelled') return 'cancelled';
+  if (event.state==='skipped') return 'skipped';
+  if (event.state==='succeeded' || event.result?.outcomeKind==='succeeded') return 'completed';
+  if (['ready','executing','waiting_for_resource','waiting_for_external','waiting_for_approval'].includes(event.state)) return 'running';
+  return 'pending';
+}
+function topologicalEvents(events, edges) {
+  const byId=new Map(events.map((event)=>[event.nodeId,event])), indegree=new Map(events.map((event)=>[event.nodeId,0])), next=new Map();
+  for (const edge of edges || []) if (byId.has(edge.fromNodeId) && byId.has(edge.toNodeId)) {
+    indegree.set(edge.toNodeId,(indegree.get(edge.toNodeId)||0)+1);
+    next.set(edge.fromNodeId,[...(next.get(edge.fromNodeId)||[]),edge.toNodeId]);
+  }
+  const queue=[...events.filter((event)=>indegree.get(event.nodeId)===0)].sort((a,b)=>a.nodeId.localeCompare(b.nodeId)), ordered=[];
+  while (queue.length) { const event=queue.shift(); ordered.push(event); for (const id of next.get(event.nodeId)||[]) {
+    indegree.set(id,indegree.get(id)-1); if (indegree.get(id)===0) queue.push(byId.get(id));
+    queue.sort((a,b)=>a.nodeId.localeCompare(b.nodeId));
+  } }
+  return ordered.length===events.length ? ordered : events.slice().sort((a,b)=>a.nodeId.localeCompare(b.nodeId));
+}
+function planState(nodes, resolution='planned') {
+  if (resolution==='no_effect_required') return 'completed';
+  if (resolution==='contract_unplannable') return 'attention';
+  if (resolution==='temporarily_unplannable') return 'pending';
+  if (nodes.some((node)=>node.state==='failed')) return 'attention';
+  if (nodes.some((node)=>node.state==='running')) return 'running';
+  if (nodes.length && nodes.every((node)=>['completed','skipped'].includes(node.state))) return 'completed';
+  if (nodes.some((node)=>node.state==='cancelled')) return 'attention';
+  return 'pending';
+}
+function description(event, state, copy) {
+  if (state==='completed') return copy[1];
+  if (state==='failed') return '这一步没有完成；实际原因见下方运行结果。';
+  if (state==='cancelled') return '前置步骤未完成，因此这一步没有执行。';
+  if (state==='skipped') return '本次计划确认不需要执行这一步。';
+  if (state==='running') return event.capabilityRef==='libra.media.transcode@1' ? '正在生成符合收藏要求的新版本。' : 'ShelfDeck 正在执行这一步。';
+  return '等待前置步骤完成后执行。';
+}
+function projectPlans(works) {
+  const groups=new Map();
+  for (const work of works) {
+    for (const plan of work.plans || []) groups.set(plan.planId,{work,plan,events:[]});
+    for (const event of work.events || []) {
+      const current=groups.get(event.planId) || { work, plan:event.plan, events:[] }; current.events.push(event); groups.set(event.planId,current);
+    }
+  }
+  return Object.freeze([...groups.values()].sort((a,b)=>a.plan.createdAtMs-b.plan.createdAtMs || a.plan.planId.localeCompare(b.plan.planId)).map((group)=>{
+    const nodes=topologicalEvents(group.events,group.plan.edges).map((event)=>{
+      const state=nodeState(event), copy=CAPABILITY_COPY[event.capabilityRef] || [readableToken(event.capabilityRef),'该步骤的实际运行结果已保存。'];
+      return Object.freeze({ nodeId:event.nodeId, label:copy[0], description:description(event,state,copy), state,
+        progress:event.progress || null, results:resultFacts(event), technicalDetail:transcodeDetails(event) });
+    });
+    const state=planState(nodes,group.plan.state);
+    return Object.freeze({ planId:group.plan.planId, title:WORK_TITLES[group.work.workKind] || nodes[0]?.label || readableToken(group.work.workKind),
+      state, createdAtMs:group.plan.createdAtMs, nodes:Object.freeze(nodes) });
+  }));
+}
+function stageState(plans, works=[]) {
+  if (works.some((work)=>['failed','blocked'].includes(work.state))) return 'attention';
+  if (works.some((work)=>['admitted','ready','running'].includes(work.state))) return 'running';
+  const terminal=works.filter((work)=>work.state!=='cancelled');
+  if (terminal.length && terminal.every((work)=>work.state==='succeeded')) return 'completed';
+  if (plans.some((plan)=>plan.state==='attention')) return 'attention';
+  if (plans.some((plan)=>plan.state==='running')) return 'running';
+  if (plans.length && plans.every((plan)=>plan.state==='completed')) return 'completed';
+  return 'pending';
+}
+function stageSummary(label, plans, works) {
+  const state=stageState(plans,works); let current=-1;
+  for (let index=plans.length-1;index>=0;index-=1) if (plans[index].state===state) { current=index; break; }
+  if (!plans.length) return label==='验收与上架' ? '等待媒体整理完成；当前还没有形成这一阶段的计划' : '当前还没有形成可展示的计划';
+  if (state==='completed') return `共 ${plans.length} 个实际计划，本阶段已完成`;
+  if (current>=0) return `计划${current+1}${state==='attention'?'需要处理':'正在进行'}`;
+  return `${plans.length} 个真实计划，等待继续执行`;
+}
+function stage(key, label, descriptionText, works) {
+  const plans=projectPlans(works); return Object.freeze({ key,label,description:descriptionText,state:stageState(plans,works),summary:stageSummary(label,plans,works),plans });
+}
+function buildFormationProcessDetail(input) {
+  const exact=(works,ownerDomain,scopes)=>works.filter((work)=>work.ownerDomain===ownerDomain && scopes.some((scope)=>
+    work.processType===scope.processType && work.processId===scope.processId));
+  const procurement=exact(input.works,'procurement',input.procurementScopes || []);
+  const libra=exact(input.works,'libra',input.libraScopes || []);
+  const arca=exact(input.works,'arca',input.arcaScopes || []);
+  return Object.freeze({ contract:'formation_process_actual_plans@1', stages:Object.freeze([
+    stage('material_preparation','材料准备',`发现并准备《${input.displayIdentity}》的原始媒体材料`,procurement),
+    stage('media_organization','媒体整理',input.targetShelfName ? `按“${input.targetShelfName}”收藏架的要求制作媒体产品` : '确定收藏目标并制作媒体产品',libra),
+    stage('acceptance_shelving','验收与上架','由收藏架检查并接收最终媒体产品',arca),
+  ]) });
+}
+
+module.exports=Object.freeze({ buildFormationProcessDetail, nodeState, projectPlans, resultFacts, transcodeDetails });

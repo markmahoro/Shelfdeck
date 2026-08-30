@@ -210,6 +210,35 @@ describe('Helix primary copy and workbench structure', () => {
     await waitFor(() => expect(screen.queryByText('示例电影 (2024)')).not.toBeInTheDocument());
   });
 
+  it('renders the media process card from backend actual Plans and Nodes', async () => {
+    const current:FormationSubject={...completedSubject(),classification:'in_progress',completedAtMs:null,
+      nextAction:{label:'正在处理视频文件',state:'executing',progress:null},
+      currentRun:{libraRunId:'run-1',state:'active',stateRevision:1,stateDigest:'d',priorityClass:'normal',packageRevisionHead:0,currentIdentityRevision:1},
+      processDetail:{contract:'formation_process_actual_plans@1',stages:[
+        {key:'material_preparation',label:'材料准备',description:'发现并准备原始材料',state:'completed',summary:'1 个计划已完成',plans:[
+          {planId:'proc-plan',title:'检查材料结构',state:'completed',createdAtMs:1,nodes:[{nodeId:'inspect',label:'检查材料结构',description:'材料结构可以进入后续整理。',state:'completed',progress:null,results:[{label:'结构结果',value:'单个主媒体文件'}],technicalDetail:null}]},
+        ]},
+        {key:'media_organization',label:'媒体整理',description:'按收藏要求制作媒体产品',state:'running',summary:'计划1正在进行',plans:[
+          {planId:'libra-plan',title:'处理媒体文件',state:'running',createdAtMs:2,nodes:[{nodeId:'transcode',label:'处理视频文件',description:'正在生成符合收藏要求的新版本。',state:'running',progress:{mode:'determinate',currentValue:16,totalValue:100,unit:'percent',rate:null,etaMs:null,bucket:'transcode'},results:[],technicalDetail:{summary:'只显示真实计划参数。',fields:[{label:'处理方式',value:'Intel QSV'}],parameters:[{label:'target_bitrate',value:'12M'}]}}]},
+        ]},
+        {key:'acceptance_shelving',label:'验收与上架',description:'由收藏架检查最终产品',state:'pending',summary:'等待媒体整理完成；当前还没有形成这一阶段的计划',plans:[]},
+      ]}};
+    const summary={totalCount:1,pendingCount:0,inProgressCount:1,attentionRequiredCount:0,completedCount:0};
+    vi.spyOn(helixAdminApi,'listFormation').mockImplementation(async(section)=>({items:section==='active'?[current]:[],summary,nextCursor:null,projection:{status:'ready',asOfMs:1}}));
+    vi.spyOn(helixAdminApi,'listFormationHistory').mockResolvedValue({items:[],summary,nextCursor:null,projection:{status:'ready',asOfMs:1}});
+    vi.spyOn(helixAdminApi,'listShelves').mockResolvedValue({items:[]});
+    vi.spyOn(helixAdminApi,'getFormation').mockResolvedValue(current);
+    render(<MemoryRouter initialEntries={['/formation']}><App /></MemoryRouter>);
+    fireEvent.click(await screen.findByRole('button',{name:'查看过程'}));
+    expect(await screen.findByRole('dialog',{name:'示例电影 (2024)的媒体整理过程'})).toBeInTheDocument();
+    expect(screen.getByText('计划1正在进行')).toBeInTheDocument();
+    expect(screen.getByText('正在生成符合收藏要求的新版本。')).toBeInTheDocument();
+    fireEvent.click(screen.getByText('查看处理详情'));
+    expect(screen.getByText('Intel QSV')).toBeInTheDocument();
+    expect(screen.getByText('target_bitrate')).toBeInTheDocument();
+    expect(screen.getByText(/这里只展示已经由系统形成并保存的真实计划/)).toBeInTheDocument();
+  });
+
   it('shows the first formation page before remaining pages finish', async () => {
     let releaseRest = () => {};
     const rest = new Promise<void>((resolve) => { releaseRest = resolve; });

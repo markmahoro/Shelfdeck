@@ -255,9 +255,33 @@ export type FormationSubject = {
     progress: null | { mode:'determinate'|'indeterminate'; currentValue:number|null; totalValue:number|null; unit:string|null; rate:number|null; etaMs:number|null; bucket:string };
   }>;
   processDetail?: {
-    receivedMaterials: { primaryCount:number; relatedCount:number; relatedRoles:string[]; state:'completed'; summary:string };
-    mediaOrganization: { state:'completed'|'attention'|'pending'; summary:string; steps:FormationSubject['organizingSteps'] };
-    acceptanceAndShelving: { state:'completed'|'attention'|'pending'; summary:string; reasonCode:string|null; steps?:FormationSubject['organizingSteps'] };
+    contract: 'formation_process_actual_plans@1';
+    stages: Array<{
+      key:'material_preparation'|'media_organization'|'acceptance_shelving';
+      label:string;
+      description:string;
+      state:'completed'|'running'|'attention'|'pending';
+      summary:string;
+      plans:Array<{
+        planId:string;
+        title:string;
+        state:'completed'|'running'|'attention'|'pending';
+        createdAtMs:number;
+        nodes:Array<{
+          nodeId:string;
+          label:string;
+          description:string;
+          state:'completed'|'running'|'failed'|'cancelled'|'skipped'|'pending';
+          progress:FormationSubject['organizingSteps'][number]['progress'];
+          results:Array<{label:string;value:string}>;
+          technicalDetail:null|{
+            summary:string;
+            fields:Array<{label:string;value:string}>;
+            parameters:Array<{label:string;value:string}>;
+          };
+        }>;
+      }>;
+    }>;
   };
   nextAction: { label:string; state:string; progress:null | { mode:'determinate'|'indeterminate'; currentValue:number|null; totalValue:number|null; unit:string|null; rate:number|null; etaMs:number|null; bucket:string } };
   routingState: 'preparing' | 'unresolved' | 'resolved';

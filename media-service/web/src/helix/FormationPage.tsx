@@ -49,8 +49,8 @@ function ratingText(item:FormationSubject, acquisitionIncomplete:boolean) {
   return '正在匹配豆瓣评分';
 }
 
-function StageState({ state }:{ state:'completed'|'attention'|'pending' }) {
-  return <span className="formation-stub-stage-state" data-state={state}>{state==='completed'?'已完成':state==='attention'?'需要处理':'尚未完成'}</span>;
+function StageState({ state }:{ state:'completed'|'running'|'attention'|'pending' }) {
+  return <span className="formation-stub-stage-state" data-state={state}>{state==='completed'?'已完成':state==='running'?'进行中':state==='attention'?'需要处理':'尚未开始'}</span>;
 }
 function mergeById<T>(previous:T[], fresh:T[], idOf:(item:T)=>string): T[] {
   const incoming = new Map(fresh.map((item)=>[idOf(item), item]));
@@ -96,24 +96,32 @@ async function remainingHistory(first:{items:FormationRunHistory[];nextCursor:st
   return items;
 }
 
-function stepCopy(step:FormationSubject['organizingSteps'][number]) {
-  return step.state==='done'?'已完成。':step.state==='blocked'?'执行或业务验收失败，无法继续。':step.state==='running'?'正在执行。':'尚未开始。';
+type ProcessStage=NonNullable<FormationSubject['processDetail']>['stages'][number];
+type ProcessPlan=ProcessStage['plans'][number];
+type ProcessNode=ProcessPlan['nodes'][number];
+function processPlanState(state:ProcessPlan['state']) { return state==='completed'?'已完成':state==='running'?'进行中':state==='attention'?'需要处理':'等待中'; }
+function processNodeState(state:ProcessNode['state']) { return state==='completed'?'已完成':state==='running'?'进行中':state==='failed'?'失败':state==='cancelled'?'未执行':state==='skipped'?'无需执行':'等待中'; }
+function ProcessNodeRow({node}:{node:ProcessNode}) {
+  const mark=node.state==='completed'?'✓':node.state==='failed'?'×':node.state==='running'?'●':'○';
+  return <li className="formation-plan-node" data-state={node.state}><span className="formation-plan-node-mark" aria-hidden="true">{mark}</span><div className="formation-plan-node-main"><strong>{node.label}</strong><p>{node.description}</p>
+    {node.results.length>0&&<dl className="formation-plan-results">{node.results.map((fact)=><div key={`${fact.label}:${fact.value}`}><dt>{fact.label}</dt><dd>{fact.value}</dd></div>)}</dl>}
+    {node.progress?.mode==='determinate'&&node.progress.totalValue?<div className="formation-stub-progress"><progress max={node.progress.totalValue} value={node.progress.currentValue||0} aria-label={`${node.label}进度`} /><small>{progressText(node.progress)}</small></div>:null}
+    {node.technicalDetail&&<details className="formation-transcode-detail"><summary>查看处理详情</summary><div className="formation-transcode-detail-body"><p>{node.technicalDetail.summary}</p>{node.technicalDetail.fields.length>0&&<dl className="formation-transcode-grid">{node.technicalDetail.fields.map((fact)=><div key={fact.label}><dt>{fact.label}</dt><dd>{fact.value}</dd></div>)}</dl>}{node.technicalDetail.parameters.length>0&&<details className="formation-transcode-parameters"><summary>查看执行参数</summary><dl>{node.technicalDetail.parameters.map((fact)=><div key={fact.label}><dt>{fact.label}</dt><dd>{fact.value}</dd></div>)}</dl></details>}</div></details>}
+  </div><span className="formation-plan-node-state">{processNodeState(node.state)}</span></li>;
 }
-function ChecklistSteps({ steps }:{ steps:FormationSubject['organizingSteps'] }) {
-  return <ol>{steps.map((step)=><li key={step.key} className="formation-stub-result" data-state={step.state==='done'?'completed':step.state==='blocked'?'attention':'pending'}><span className="formation-stub-result-mark" aria-hidden="true">{step.state==='done'?'✓':step.state==='blocked'?'×':'○'}</span><div><strong>{step.label}</strong><p>{stepCopy(step)}</p>{step.progress?.mode==='determinate' && step.progress.totalValue ? <div className="formation-stub-progress"><progress max={step.progress.totalValue} value={step.progress.currentValue || 0} aria-label={`${step.label}进度`} /><small>{progressText(step.progress)}</small></div>:null}</div></li>)}</ol>;
+function ProcessPlanView({plan,index}:{plan:ProcessPlan;index:number}) {
+  return <details className="formation-actual-plan" data-state={plan.state} open={plan.state==='running'||plan.state==='attention'}><summary><span className="formation-actual-plan-label">计划{index+1}</span><strong>{plan.title}</strong><span className="formation-actual-plan-status">{processPlanState(plan.state)}</span><span className="formation-actual-plan-chevron" aria-hidden="true">›</span></summary><div className="formation-actual-plan-body">{plan.nodes.length?<ol>{plan.nodes.map((node)=><ProcessNodeRow key={node.nodeId} node={node} />)}</ol>:<p className="formation-plan-no-nodes">本次真实计划没有需要执行的步骤。</p>}</div></details>;
+}
+function ProcessStageView({stage,index}:{stage:ProcessStage;index:number}) {
+  const open=stage.state==='running'||stage.state==='attention';
+  return <details className="formation-process-stage" data-state={stage.state} open={open}><summary><span className="formation-stage-index" aria-hidden="true">{stage.state==='completed'?'✓':index+1}</span><span><strong>{stage.label}</strong><small>{stage.summary}</small></span><StageState state={stage.state} /></summary><div className="formation-stage-body"><p className="formation-stage-description">{stage.description}</p>{stage.plans.length?<div className="formation-actual-plans">{stage.plans.map((plan,planIndex)=><ProcessPlanView key={plan.planId} plan={plan} index={planIndex} />)}</div>:<div className="formation-empty-stage"><strong>{stage.summary}</strong><p>这里只展示已经由系统形成并保存的真实计划，不预先展示尚未发生的工作。</p></div>}</div></details>;
 }
 function ProcessDetail({ item }:{ item:FormationSubject }) {
-  const detail=item.processDetail,mediaSteps=detail?.mediaOrganization.steps || item.organizingSteps;
-  const shelfSteps=detail?.acceptanceAndShelving.steps;
-  const shelvingOpen=detail?.acceptanceAndShelving.state==='attention' || Boolean(shelfSteps?.some((step)=>step.state==='running'||step.state==='blocked'));
-  return <article className="formation-process-card" aria-label={`${item.displayIdentity}的上架过程详情`}>
-    <header className="formation-process-head"><div><span className="formation-process-eyebrow">上架过程详情</span><h3>{item.displayIdentity}</h3><p>{item.nextAction.label}</p></div><span className="formation-process-status" data-state={stageState(item)}>{statusLabel(item)}</span></header>
+  const detail=item.processDetail;
+  return <article className="formation-process-card" aria-label={`${item.displayIdentity}的媒体整理过程`}>
+    <header className="formation-process-head"><div><span className="formation-process-eyebrow">媒体整理过程</span><h3>{item.displayIdentity}</h3><p>{item.nextAction.label}</p></div><span className="formation-process-status" data-state={stageState(item)}>{statusLabel(item)}</span></header>
     <dl className="formation-process-facts"><div><dt>目标收藏架</dt><dd>{item.targetShelfName || '尚未选定'}</dd></div><div><dt>收藏要求</dt><dd>{item.organizingRequirement}</dd></div><div><dt>当前进展</dt><dd>{item.nextAction.label}</dd></div></dl>
-    <div className="formation-process-stages">
-      <details className="formation-process-stage"><summary><span className="formation-stage-index" aria-hidden="true">1</span><span><strong>已接收的材料</strong><small>{detail?.receivedMaterials.summary || `已接收 ${item.primaryMaterialCount} 个主媒体`}</small></span><StageState state="completed" /></summary><div className="formation-stage-body"><ol><li className="formation-stub-result" data-state="completed"><span className="formation-stub-result-mark" aria-hidden="true">✓</span><div><strong>已接收候选材料</strong><p>{detail?.receivedMaterials.summary || `主媒体 ${item.primaryMaterialCount} 个；候选材料范围已经冻结。`}</p></div></li></ol></div></details>
-      <details className="formation-process-stage" open><summary><span className="formation-stage-index" aria-hidden="true">2</span><span><strong>媒体整理</strong><small>{detail?.mediaOrganization.summary || item.organizingAction}</small></span><StageState state={detail?.mediaOrganization.state || stageState(item)} /></summary><div className="formation-stage-body"><ChecklistSteps steps={mediaSteps} /></div></details>
-      <details className="formation-process-stage" open={shelvingOpen}><summary><span className="formation-stage-index" aria-hidden="true">3</span><span><strong>验收与上架</strong><small>{detail?.acceptanceAndShelving.summary || (item.handoffB?'等待收藏架验收与上架':'媒体产品尚未提交收藏架')}</small></span><StageState state={detail?.acceptanceAndShelving.state || (item.classification==='completed'?'completed':'pending')} /></summary><div className="formation-stage-body">{shelfSteps?.length ? <ChecklistSteps steps={shelfSteps} /> : <ol><li className="formation-stub-result" data-state={detail?.acceptanceAndShelving.state==='completed'?'completed':detail?.acceptanceAndShelving.state==='attention'?'attention':'pending'}><span className="formation-stub-result-mark" aria-hidden="true">{detail?.acceptanceAndShelving.state==='completed'?'✓':detail?.acceptanceAndShelving.state==='attention'?'×':'○'}</span><div><strong>收藏架验收与上架</strong><p>{detail?.acceptanceAndShelving.summary || '等待媒体产品提交。'}</p></div></li></ol>}{detail?.acceptanceAndShelving.reasonCode && <details className="formation-diagnostic"><summary>技术诊断</summary><code>{detail.acceptanceAndShelving.reasonCode}</code></details>}</div></details>
-    </div>
+    {detail?.contract==='formation_process_actual_plans@1'?<div className="formation-process-stages">{detail.stages.map((stage,index)=><ProcessStageView key={stage.key} stage={stage} index={index} />)}</div>:<div className="formation-process-unavailable"><strong>暂时无法读取真实计划</strong><p>当前没有可供展示的计划记录。页面不会根据状态推测或补造计划。</p></div>}
   </article>;
 }
 
@@ -228,7 +236,7 @@ export default function FormationPage() {
       <div className="formation-secondary"><label>片名<input type="search" aria-label="按片名筛选" value={q} placeholder="搜索片名" onChange={(event)=>setQ(event.target.value)} /></label><label>目标收藏架<select aria-label="按目标收藏架筛选" value={shelfFilter} onChange={(event)=>setShelfFilter(event.target.value)}><option value="">全部收藏架</option>{shelves.map((shelf)=><option key={shelf.shelfId} value={shelf.shelfId}>{shelf.name}</option>)}</select></label><label className="formation-check"><input type="checkbox" checked={needsActionOnly} onChange={(event)=>setNeedsActionOnly(event.target.checked)} />仅需用户处理</label><label className="formation-check"><input type="checkbox" checked={expeditedOnly} onChange={(event)=>setExpeditedOnly(event.target.checked)} />仅看加急</label></div>
       <div className="formation-table-wrap"><table className="formation-table formation-stub-table"><thead><tr><th>媒体名称</th><th>评分</th><th>目标收藏架</th><th>整理要求</th><th>当前进展</th><th>详情</th><th>用户操作</th><th>加急</th></tr></thead><tbody>{rows.length===0?<tr className="formation-stub-media-row"><td colSpan={8}><div className="source-empty"><strong>{summary.totalCount===0?'还没有进入整理的电影':'当前筛选没有条目'}</strong><p>{summary.totalCount===0?'文件来源目录扫完之后，采购还要分拣。整理门口同时只接 3 部，其余待交接不会出现在这张表里。':'试试其他状态或筛选。'}</p></div></td></tr>:rows.map((row)=>row.kind==='ended'?<tr key={row.item.historyId} className="formation-stub-media-row"><td><strong>{row.item.displayIdentity}</strong><small>已结束</small></td><td>—</td><td>—</td><td>—</td><td><strong className="formation-stub-current">{row.item.label}</strong><small>{formatTime(row.item.endedAtMs)}</small></td><td>—</td><td>—</td><td><button type="button" className="formation-expedite-toggle" disabled>加急</button></td></tr>:<MediaRow key={row.item.subjectId} item={row.item} shelves={shelves} loading={loading} acquisitionIncomplete={perceptionSync?.completionState==='incomplete'} onOpen={open} onAction={action} />)}</tbody></table></div>
     </section>
-    {selected&&<div className="formation-process-backdrop" role="presentation" onMouseDown={(event)=>{if(event.target===event.currentTarget)close();}}><section className="formation-process-dialog" role="dialog" aria-modal="true" aria-labelledby="formation-process-dialog-title"><button ref={closeRef} className="formation-process-dialog-close" type="button" aria-label="关闭上架过程详情" onClick={close}>×</button><h2 id="formation-process-dialog-title" className="formation-process-dialog-title">{selected.displayIdentity}的上架过程详情</h2><ProcessDetail item={selected} /></section></div>}
+    {selected&&<div className="formation-process-backdrop" role="presentation" onMouseDown={(event)=>{if(event.target===event.currentTarget)close();}}><section className="formation-process-dialog" role="dialog" aria-modal="true" aria-labelledby="formation-process-dialog-title"><button ref={closeRef} className="formation-process-dialog-close" type="button" aria-label="关闭媒体整理过程卡片" onClick={close}>×</button><h2 id="formation-process-dialog-title" className="formation-process-dialog-title">{selected.displayIdentity}的媒体整理过程</h2><ProcessDetail item={selected} /></section></div>}
     <Dialog open={!!discardDialog} title="确认放弃整理" onClose={()=>setDiscardDialog(null)} actions={<>
       <Button type="button" disabled={loading} onClick={()=>setDiscardDialog(null)}>取消</Button>
       <Button type="button" variant="danger" disabled={loading} onClick={()=>{void (async()=>{

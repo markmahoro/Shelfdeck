@@ -2,6 +2,7 @@
 
 const { canonicalDigest, canonicalJson } = require('../../../contracts/canonical-json');
 const { createRepositoryDefinition } = require('../../../foundation/persistence/owner-repository');
+const { buildFormationProcessDetail } = require('./formation-process-projection');
 
 const PAGE_SIZE = 100;
 function parse(value) { try { return value ? JSON.parse(value) : null; } catch { return null; } }
@@ -489,7 +490,7 @@ function createFormationProjectionSource(options) {
       return { decisions, bindings, routingDecisions, routingPolicies, decisionHeads, acceptanceSpecs, runs, runRevisions, packages, identityIntents };
     } }]).libra_formation_batch;
   }
-  function buildBatch(subjects) {
+  function buildBatch(subjects, buildOptions = {}) {
     const value = readBatch(subjects), runIds = unique(value.runs.map((row) => row.libra_run_id));
     const progress = runIds.length ? chunks(runIds).flatMap((ids) => options.progressProjectionReader?.read(ids) || []) : [];
     const progressByRun = new Map(runIds.map((id) => [id, progress.filter((item) => item.processId === id)]));
@@ -513,6 +514,13 @@ function createFormationProjectionSource(options) {
     const shelfNames = new Map((options.readShelfTargets?.() || []).map((item) => [item.shelfId, item.name]));
     const externalIntegrationReady = typeof options.isExternalMaterialIntegrationReady === 'function'
       ? options.isExternalMaterialIntegrationReady() === true : null;
+    const actualPlanProcessIds = buildOptions.includeProcessDetail === true ? unique([
+      ...prepared.map((item)=>item.snapshot?.candidatePackage?.procurementRunId),
+      ...value.decisions.map((item)=>item.intake_decision_id), ...subjects.map((item)=>item.subject_id),
+      ...runIds, ...offerIds, ...onDeckRunIds,
+    ]) : [];
+    const actualPlanWorks = actualPlanProcessIds.length
+      ? chunks(actualPlanProcessIds).flatMap((ids)=>options.progressProjectionReader?.read(ids, { includePlans:true }) || []) : [];
     return prepared.map(({ subject, decisions, displayIdentity, snapshot }) => {
       const bindings = value.bindings.filter((item) => item.subject_id === subject.subject_id && Number(item.current) === 1);
       const routing = latest(value.routingDecisions.filter((item) => item.subject_id === subject.subject_id), 'decision_revision');
@@ -541,27 +549,24 @@ function createFormationProjectionSource(options) {
         runState: run?.state || null, terminalEvidence });
       const steps = organizingSteps(actionWorks, spec, stepOptions);
       const onDeckWorks = arcaStatus?.onDeckRunId ? onDeckByRun.get(arcaStatus.onDeckRunId) || [] : [];
-      const shelfSteps = shelvingSteps(pkg, arcaStatus, recovery, onDeckWorks);
-      const shelfCurrent = shelfSteps.find((item) => item.state === 'running' || item.state === 'blocked')
-        || (pkg && !['completed','attention_required'].includes(arcaStatus?.stage) ? shelfSteps.find((item) => item.state === 'pending') : null);
       const primaryCount = snapshot?.primaryInputManifest?.members?.length ||
         bindings.filter((item) => item.authority_kind === 'primary_control').length;
-      const relatedRoles = Object.freeze((snapshot?.candidatePackage?.relatedReferences || [])
-        .map((item) => item.role).sort());
-      const detail = Object.freeze({
-        receivedMaterials:Object.freeze({ primaryCount, relatedCount:relatedRoles.length, relatedRoles,
-          state:'completed', summary:relatedMaterialsSummary(primaryCount,relatedRoles) }),
-        mediaOrganization:Object.freeze({ state:classification === 'attention_required' && !arcaStatus ? 'attention' :
-          pkg ? 'completed' : 'pending', steps, summary:steps.map((item)=>item.label).join(' → ') || '等待形成媒体整理方案' }),
-        acceptanceAndShelving:Object.freeze({ state:arcaStatus?.stage === 'completed' ? 'completed' :
-          arcaStatus?.stage === 'attention_required' || recovery?.recoveryState === 'attention_required' ? 'attention' :
-            shelfCurrent?.state === 'running' ? 'pending' : 'pending',
-          reasonCode:arcaStatus?.reasonCode || recovery?.errorCode || null,
-          summary:arcaStatus?.stage === 'completed' ? '收藏架验收通过，已正式上架' :
-            arcaStatus?.stage === 'attention_required' ? '收藏架验收或上架失败，需要处理' :
-              shelfCurrent ? shelfCurrent.label : (pkg ? '媒体产品已提交，等待收藏架验收与上架' : '媒体产品尚未提交收藏架'),
-          steps: shelfSteps }),
-      });
+      const detail = buildOptions.includeProcessDetail === true ? buildFormationProcessDetail({ displayIdentity,
+        targetShelfName:shelfNames.get(routing?.shelf_id) || null, works:actualPlanWorks,
+        procurementScopes:snapshot?.candidatePackage?.procurementRunId ? [
+          { processType:'procurement_run', processId:snapshot.candidatePackage.procurementRunId },
+        ] : [],
+        libraScopes:[
+          ...decisions.map((item)=>({ processType:'libra_intake', processId:item.intake_decision_id })),
+          { processType:'libra_routing', processId:subject.subject_id },
+          { processType:'libra_acceptance_spec', processId:subject.subject_id },
+          ...(packageRun ? [{ processType:'libra_run', processId:packageRun.libra_run_id }] : []),
+        ],
+        arcaScopes:[
+          ...(pkg ? [{ processType:'arca_acceptance', processId:pkg.offer_id }] : []),
+          ...(arcaStatus?.onDeckRunId ? [{ processType:'arca_ondeck_run', processId:arcaStatus.onDeckRunId }] : []),
+        ],
+      }) : undefined;
       return Object.freeze({ formationViewId: subject.subject_id, subjectId: subject.subject_id, displayIdentity, contentProfile: subject.content_profile, structureKind: subject.structure_kind, status: subject.status, classification, myRating: rating?.rating ?? null, myRatingSource: rating?.sourceKind || null, myRatingRevision: (rating?.expectedRevision || 0) > 0 ? rating.expectedRevision : null, ratingState:rating?.state || 'pending', ratingResolutionStatus:rating?.resolutionStatus || null, ratingReasonCode:rating?.reasonCode || null, productIdentityIssue: issue, acceptanceRecovery: recovery, arcaStatus, processDetail:detail, targetShelfId: routing?.shelf_id || null, targetShelfName: shelfNames.get(routing?.shelf_id) || null, routingState: routing?.decision || 'preparing', unresolvedReasonCode: routing?.unresolved_reason_code || null, routingPolicyMode: policy?.mode || null, routingPolicyRevision: routing?.routing_policy_revision == null ? null : Number(routing.routing_policy_revision), routingDecisionRevision: routing ? Number(routing.decision_revision) : null, routingDecisionDigest: routing?.decision_digest || null, routingDecisionHeadRevision: head ? Number(head.head_revision) : null, routingDecisionHeadDigest: head?.head_digest || null, acceptanceSpecId: spec?.acceptance_spec_id || null, acceptanceSpecRevision: spec ? Number(spec.spec_revision) : null, acceptanceSpecDigest: spec?.spec_digest || null, acceptanceSpecPublishedAtMs: spec ? Number(spec.published_at_ms) : null, primaryMaterialCount: primaryCount, addedAtMs: Number(subject.created_at_ms), organizingRequirement: requirementLabel(spec), organizingAction: actionLabel(actionWorks, spec, stepOptions), organizingSteps: steps, nextAction: nextAction(works, classification, issue, run?.state, recovery, arcaStatus, pkg, latestRun?.state || null, waitingExternalIntegration, terminalEvidence, spec, onDeckWorks), currentRun: run ? Object.freeze({ libraRunId: run.libra_run_id, state: run.state, stateRevision: Number(run.state_revision), stateDigest: run.state_digest, priorityClass: run.priority_class, packageRevisionHead: Number(run.package_revision_head), currentIdentityRevision: subject.current_identity_revision === null ? null : Number(subject.current_identity_revision) }) : null, handoffB: pkg ? Object.freeze({ onDeckPackageId: pkg.on_deck_package_id, offerId: pkg.offer_id, packageRevision: Number(pkg.package_revision), packageDigest: pkg.package_digest, state: pkg.state, publishedAtMs: Number(pkg.published_at_ms) }) : null, completedAtMs: arcaStatus?.stage === 'completed' ? arcaStatus.completedAtMs : null });
     });
   }
@@ -576,7 +581,7 @@ function createFormationProjectionSource(options) {
     }
   }
   function get(subjectId) {
-    const subject = readSubject(subjectId), found = subject ? buildBatch([subject])[0] : null;
+    const subject = readSubject(subjectId), found = subject ? buildBatch([subject], { includeProcessDetail:true })[0] : null;
     if (!found) { const error = new Error('Media organization item was not found.'); error.code = 'FORMATION_SUBJECT_NOT_FOUND'; throw error; }
     return found;
   }
