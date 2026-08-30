@@ -23,3 +23,9 @@ test('production image includes the bounded PROD-033 residual repair', () => {
   assert.match(dockerfile,
     /COPY media-service\/scripts\/helix-prod033-execution-residual-repair\.js \.\/scripts\/helix-prod033-execution-residual-repair\.js/);
 });
+
+test('production image includes the bounded PROD-034 one-time correction', () => {
+  const dockerfile = fs.readFileSync(path.join(root, 'media-service', 'Dockerfile'), 'utf8');
+  assert.match(dockerfile,
+    /COPY media-service\/scripts\/helix-prod034-one-time-correction\.js \.\/scripts\/helix-prod034-one-time-correction\.js/);
+});

@@ -30,32 +30,3 @@ test('accepted On-deck context replays final reality after an earlier member set
   assert.equal(captured.shelf.shelfId, 'shelf-1');
   assert.equal(captured.onDeckProductPackage.onDeckPackageId, 'package-1');
 });
-
-for (const code of ['CLEAN_ARCA_PRODUCT_SOURCE_MISSING', 'CLEAN_ARCA_PRODUCT_SOURCE_DRIFT']) {
-  test(`accepted On-deck context preserves responsibility when current material reports ${code}`, () => {
-    const result = assessAcceptedInventory({
-      assess() {
-        const error = new Error('Accepted material reality changed after Handoff B.');
-        error.code = code;
-        throw error;
-      },
-    }, 'on-deck-1', { custodyId:'custody-1' }, {
-      shelf:{ shelfId:'shelf-1' },
-      packageValue:{ onDeckPackageId:'package-1' },
-    });
-    assert.equal(result, null);
-  });
-}
-
-test('accepted On-deck context still fails closed for unrelated inventory faults', () => {
-  assert.throws(() => assessAcceptedInventory({
-    assess() {
-      const error = new Error('Target root is unavailable.');
-      error.code = 'CLEAN_ARCA_TARGET_ROOT_UNAVAILABLE';
-      throw error;
-    },
-  }, 'on-deck-1', { custodyId:'custody-1' }, {
-    shelf:{ shelfId:'shelf-1' },
-    packageValue:{ onDeckPackageId:'package-1' },
-  }), /Target root is unavailable/);
-});

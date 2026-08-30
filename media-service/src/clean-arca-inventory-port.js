@@ -552,26 +552,10 @@ function createCleanArcaInventoryPort(options) {
         fail('CLEAN_ARCA_TARGET_ESCAPE',
           'Final Inventory member escaped the Shelf Target.');
       }
-      let observed;
-      try {
-        observed = observe(source, member);
-      } catch (error) {
-        if (!(request.replayCommitted || request.allowFinalRealityRecovery) ||
-            error?.code !== 'CLEAN_ARCA_PRODUCT_SOURCE_MISSING') throw error;
-        try {
-          observed = observe(target, member);
-        } catch (targetError) {
-          if (targetError?.code !== 'CLEAN_ARCA_PRODUCT_SOURCE_MISSING') throw targetError;
-          const slotDirectory = request.targetCommitSlotHandle?.slotDirectory;
-          if (typeof slotDirectory !== 'string') throw targetError;
-          const stagedTarget = path.resolve(slotDirectory, name);
-          if (!contained(slotDirectory, stagedTarget)) {
-            fail('CLEAN_ARCA_TARGET_ESCAPE',
-              'Recovery member escaped the Target Commit Slot.');
-          }
-          observed = observe(stagedTarget, member);
-        }
-      }
+      const observed = request.replayCommitted &&
+        (!fs.existsSync(source) || !fs.statSync(source).isFile())
+        ? observe(target, member)
+        : observe(source, member);
       const episodeClaims = fromProductMember(member, contentProfile);
       return Object.freeze({
         member,
@@ -640,21 +624,9 @@ function createCleanArcaInventoryPort(options) {
       try {
         observed = await observeAsync(source, member);
       } catch (error) {
-        if (!(request.replayCommitted || request.allowFinalRealityRecovery) ||
+        if (!request.replayCommitted ||
             error?.code !== 'CLEAN_ARCA_PRODUCT_SOURCE_MISSING') throw error;
-        try {
-          observed = await observeAsync(target, member);
-        } catch (targetError) {
-          if (targetError?.code !== 'CLEAN_ARCA_PRODUCT_SOURCE_MISSING') throw targetError;
-          const slotDirectory = request.targetCommitSlotHandle?.slotDirectory;
-          if (typeof slotDirectory !== 'string') throw targetError;
-          const stagedTarget = path.resolve(slotDirectory, name);
-          if (!contained(slotDirectory, stagedTarget)) {
-            fail('CLEAN_ARCA_TARGET_ESCAPE',
-              'Recovery member escaped the Target Commit Slot.');
-          }
-          observed = await observeAsync(stagedTarget, member);
-        }
+        observed = await observeAsync(target, member);
       }
       plans.push(Object.freeze({
         member,

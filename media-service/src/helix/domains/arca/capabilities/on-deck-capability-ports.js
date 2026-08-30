@@ -25,8 +25,6 @@ function outcome(ref,result,at,effectClass=null){const value={kind:'succeeded',r
   return Object.freeze(effectClass?{...value,effectReceipt:effectReceipt(value.__context||{},effectClass,result,at)}:value);}
 function committedOutcome(context,ref,result,at,effectClass){return Object.freeze({kind:'succeeded',resultSchemaRef:BASE+ref.replace('@1','/v1/result'),result,
   evidenceSchemaRef:BASE+ref.replace('@1','/v1/evidence'),evidence:evidence(ref,result,at),effectReceipt:effectReceipt(context,effectClass,result,at)});}
-function failedOutcome(code,message,evidenceValue){return Object.freeze({kind:'failed',failureClass:'executor',code,message,
-  retryDirective:'never',evidence:Object.freeze(evidenceValue)});}
 function requireNamed(context,names){for(const name of names)if(!Object.hasOwn(context?.namedInputs||{},name))throw new TypeError('Arca Capability input is absent: '+name);}
 function actualGapDigest(kind,items){return canonicalDigest({schema:'arca.acceptance-check-actual-gap-set@1',checkKind:kind,items});}
 function emptyObservationDigest(){return canonicalDigest({schema:'arca.mandatory-media-primary-observation-set@1',items:[]});}
@@ -240,23 +238,11 @@ function createOnDeckCapabilityPorts(options){const now=options.now||Date.now,ac
     const result=options.inventoryPort.prepareSlot({onDeckRunId:c.responsibility.onDeckRunId,custodyId:c.responsibility.custodyId,shelf:c.shelf,
       onDeckProductPackage:c.packageValue,finalInventoryDecision:c.finalInventoryDecision,targetCommitSlotHandle:n.targetHandle,observedAtMs:at,replayCommitted:execution.recoveryDecision==='already_committed'});
     return committedOutcome(execution,C.slot,result,at,'material_commit');},validateResult(_c,o){if(!o?.result?.slotId)throw new TypeError('Target Commit Slot Handle is invalid.');}});
-  ports[C.stage]=Object.freeze({validateInputs(c){requireNamed(c,['productMaterialHandleList','targetCommitSlotHandle']);},async execute(execution){const c=ctx(execution),at=effectAt(execution),aftercare=aftercareRequest(execution,c,at),request={
+  ports[C.stage]=Object.freeze({validateInputs(c){requireNamed(c,['productMaterialHandleList','targetCommitSlotHandle']);},async execute(execution){const c=ctx(execution),at=effectAt(execution),aftercare=aftercareRequest(execution,c,at),staged=await options.inventoryPort.stage({
     ...(aftercare||{
     onDeckRunId:c.responsibility.onDeckRunId,custodyId:c.responsibility.custodyId,shelf:c.shelf,onDeckProductPackage:c.packageValue,
-    finalInventoryDecision:c.finalInventoryDecision,observedAtMs:at,replayCommitted:execution.recoveryDecision==='already_committed',
-    allowFinalRealityRecovery:Boolean(execution.recoveryDecision)}),targetCommitSlotHandle:execution.namedInputs.targetCommitSlotHandle,
-    ...(aftercare?{shouldContinue:aftercareShouldContinue(execution,aftercare.aftercareCaseId)}:{})};let staged;try{
-      staged=await options.inventoryPort.stage(request);
-    }catch(error){
-      if(!aftercare&&['CLEAN_ARCA_PRODUCT_SOURCE_MISSING','CLEAN_ARCA_PRODUCT_SOURCE_DRIFT'].includes(error?.code)){
-        return failedOutcome('ARCA_ONDECK_PRODUCT_SOURCE_LOST',
-          'Accepted Product Material has no exact recoverable material reality.',{
-            errorName:String(error.name||'Error'),errorCode:error.code,onDeckRunId:c.responsibility.onDeckRunId,
-            targetCommitSlotState:'absent',
-          });
-      }
-      throw error;
-    }
+    finalInventoryDecision:c.finalInventoryDecision,observedAtMs:at,replayCommitted:execution.recoveryDecision==='already_committed'}),targetCommitSlotHandle:execution.namedInputs.targetCommitSlotHandle,
+    ...(aftercare?{shouldContinue:aftercareShouldContinue(execution,aftercare.aftercareCaseId)}:{})});
     if(aftercare)readAftercarePlacementAuthority(options,execution,aftercare.aftercareCaseId);
     else onDeck.acquireStagedCustody({
       onDeckRunId:c.responsibility.onDeckRunId,custodyId:c.responsibility.custodyId,

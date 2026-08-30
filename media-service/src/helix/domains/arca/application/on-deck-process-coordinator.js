@@ -252,15 +252,6 @@ function createOnDeckProcessCoordinator(options) {
       options.contextReader.onDeck.finalize(onDeckRunId, context.finalInventoryDecision.decisionDigest);
       return Object.freeze({ kind:'terminal', onDeckRunId, result:commit.result });
     },
-    blockOnDeck(onDeckRunId) {
-      const rows = options.workResultReader.listWorks({ ownerDomain:'arca', processType:'arca_ondeck_run',
-        processId:onDeckRunId, workKind:'on_deck_execution' });
-      if (rows.length !== 1) return Object.freeze({ kind:'not_found', onDeckRunId });
-      const context = options.contextReader.readAccepted(onDeckRunId, refsFromWorkResult(rows[0].work_id));
-      const blocked = options.contextReader.onDeck.block(onDeckRunId,
-        context.finalInventoryDecision.decisionDigest);
-      return Object.freeze({ kind:'blocked', onDeckRunId, workId:rows[0].work_id, replayed:blocked.replayed });
-    },
   });
 }
 
