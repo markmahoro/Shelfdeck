@@ -1,39 +1,27 @@
 # ShelfDeck Clean Helix Master Plan
 
-Status: **Helix-beta Movie-only full chain；当前进入 PROD-032 生产稳定化。**
+Status: **Helix-beta Movie-only full chain；PROD-032 已关闭，等待下一项明确工作。**
 
 Last updated: 2026-08-31
 
-## 当前目标
+## 当前基线
 
-完成一次可回滚的 Libra 有损升级：
+- NAS production：`192.168.12.230:18080`。
+- Image：`markmahoro/shelfdeck:helix-beta-20260831-710aa1b65a`。
+- Health：`ok` / `helix-clean-v3` / `normalSupplyAllowed:true`；schema 186；SQLite integrity `ok`。
+- Libra Pre-deck：唯一 Field policy 为 3 seats；生产复查为 3 tokens、3 active Works、0 active Runs。
+- Formation：3 pending、2 in progress、6 completed；active section 仅 5 条。
+- Rollback backup：`/vol1/1000/docker/shelfdeck/data.backup-20260830T170231Z-predeck-pipeline`。
 
-1. 收敛并提交当前正式改动，删除一次性排障文件，保证 production image 可由唯一 clean commit 重建。
-2. 修复 per-field Pre-deck token 的所有旁路：Intake replay、Routing、Subject Rating、Acceptance Spec、Run Creation、Formation 可见性。
-3. 运行完整测试与安全检查；任何 Architecture/Contract gate 失败都阻止部署。
-4. 使用标准 build → upload → deploy 流程；部署前停服务并备份完整 data，另执行 bounded Libra reset，清空 `/transcode`，不触碰正式媒体。
-5. 部署后验证 health、schema、token occupancy、Formation active queue、旧 Run 终态以及非 ShelfDeck 容器。
+## 已完成
 
-详细实施边界和 Exit Gate 只在 `docs/helix/implementation/CURRENT_PHASE.md` 维护。
+PROD-032 已修复 Intake replay、Routing、Subject Rating、Acceptance Spec、Run Creation 和 Formation visibility 的 token 旁路；token 生命周期延长到 Handoff B Accepted / Discard，Intake Rejection 释放。生产有损升级终止了 200 条遗留 Libra Work，并让现存 Handoff A Package 重新按 Field seats 进入 Libra。
 
-## 当前生产基线
+## 下一步规则
 
-- NAS：`192.168.12.230:18080`（production）。
-- 现网镜像：`markmahoro/shelfdeck:helix-beta-20260830-5189f5f79c`。
-- 现网 schema：186 tables；health `ok` / `helix-clean-v3` / `normalSupplyAllowed:true`。
-- 现网只读盘点：720 active Subject；0 active Libra Run；Formation 712 pending + 2 in progress；pipeline token 0。
-- 上一轮备份仍在 NAS；本轮必须创建新的唯一时间戳备份，禁止覆盖。
+- 恢复 Helix-beta 现行 acceptance baseline 的证据工作时，仍以 `BETA_FEATURE_ACCEPTANCE_BASELINE.md` 为准；本次 health 与稳定性检查不能折算为 `HB-*` PASS。
+- 架构唯一 SSOT 仍为 `TOP_DOWN_ARCHITECTURE_CONFIRMATION.md`；不因生产修复移动 Owner、Handoff 或 Canonical Transaction。
+- 生产继续使用 `scripts/build-image.js` → `scripts/upload-nas-image.js` → `scripts/deploy-nas.js`；有界 Pre-deck reset 仅使用 `scripts/predeck-pipeline-upgrade-nas.js`。
+- 不删除、移动或改写 `/media` 正式媒体；不做 `--helix-clean-init`，除非 Product Owner 明确授权。
 
-## 产品和架构边界
-
-- Helix-beta 仍是 Movie-only journeys A–I；Series/JAV/Western Adult 是后续范围。
-- 架构唯一 SSOT 是 `TOP_DOWN_ARCHITECTURE_CONFIRMATION.md`；本轮不移动 Owner/Handoff/Canonical Transaction。
-- Procurement 只交付 Handoff A；Pre-deck admission 与生产节流归 Libra。
-- Token 从 Intake admission 持有到 Handoff B Accepted 或用户 Discard；rejection 释放。0 席表示暂停该 Field。
-- Formation 是当前工作视图，不等于所有历史 Subject 的数据库浏览器；tokenless、无 Run/Handoff B 的历史 Subject 不进入 active queue。
-- 不删除、移动或改写 `/media` 正式媒体；不做 `--helix-clean-init`；不改 `media-desktop`。
-- 通过测试只是部署门禁，不自动把任何 `HB-*` 标为 PASS。
-
-## 后续
-
-PROD-032 关闭后，恢复 Helix-beta 现行 acceptance baseline 的证据运行；不得把本次生产健康检查折算为产品验收。
+当前没有活动 Local Implementation Phase；状态见 `docs/helix/implementation/CURRENT_PHASE.md`。

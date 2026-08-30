@@ -1,45 +1,39 @@
 # ShelfDeck Clean Helix Current Status
 
-Status: **MOVIE COLLECTION LIFECYCLE READY THROUGH SHELF DEREGISTRATION；PROD-032 修复与有损升级进行中。**
+Status: **MOVIE COLLECTION LIFECYCLE READY THROUGH SHELF DEREGISTRATION；PROD-032 已部署并通过生产稳定性核验。**
 
 Last updated: 2026-08-31
 
 ## Production
 
 - Host：`192.168.12.230:18080`。
-- Running image：`markmahoro/shelfdeck:helix-beta-20260830-5189f5f79c`。
-- Image tar SHA-256：`8c9f3afa484bd56c2df92e7e1b07c569da4fd78d106b3d24379225926ef1d779`。
-- Health：`ok`；generation `helix-clean-v3`；schema 186；`normalSupplyAllowed:true`。
+- Running image：`markmahoro/shelfdeck:helix-beta-20260831-710aa1b65a`；source commit `710aa1b65a`。
+- Image tar SHA-256：`19292cef75f10eb5216f52c41cdb8fc8f50ab156e6dcc27cf7c6c4c4809c8733`。
+- Health：`ok`；generation `helix-clean-v3`；schema 186；`normalSupplyAllowed:true`；SQLite `integrity_check=ok`。
 - Compose：`/vol1/1000/docker/shelfdeck`；data：`/vol1/1000/docker/shelfdeck/data`；Workspace mount：`/transcode`。
-- 当前备份：`data.backup-20260830-partial-libra-reset`、`data.backup-20260830-predeck-pipeline`。本轮尚未创建新备份。
-- 其他 NAS Docker 服务在只读预检时正常。
+- PROD-032 rollback backup：`/vol1/1000/docker/shelfdeck/data.backup-20260830T170231Z-predeck-pipeline`。
+- 其他 NAS Docker 服务在部署后只读检查时仍运行正常。
 
-## 2026-08-31 只读现场
+## PROD-032 生产结果
 
-- Libra Run：99 discarded、6 superseded、0 active/suspended/frozen/completed。
-- Libra Subject：720 active。
-- Formation：712 pending、2 in progress、6 completed；其中 91 条“等待重新入库”，621 条“正在确认目标、评分、要求或身份”。
-- Pipeline policy：1；token：0。
-- Supporting Work：Libra 183 admitted、17 running；Perception 48 admitted。
-- Procurement Candidate Package：952。
+部署前现场为 720 active Subject、0 active Libra Run、0 token、200 条非终态 Libra Work，Formation 显示 712 pending、2 in progress、6 completed。根因是 Intake replay 和多个 fallback reconciler 绕过 per-field token，且 Run Admission 过早释放 token。
 
-结论：上一轮重置终止了 Run，却没有把历史 Subject 的 routing/spec/rating 重建纳入 token gate；“token=0 但数百条工作继续生成”证明 PROD-031 未达到用户可见目标。
+2026-08-31 有损升级按 stop → full data backup → migration → bounded Libra reset → standard deploy 执行：
 
-## Local remediation
+- reset 时已没有 active/suspended/frozen Run，因此 discarded Run 为 0；
+- 终止 200 条遗留 Libra Work，并同步取消其非终态 Event、Attempt 和 Resource Defer；
+- 保留 1 条 Field policy（3 seats）、全部 Subject 和其他 Domain 事实；
+- `/transcode` 当时无残留条目；没有删除、移动或改写 `/media` 正式媒体；
+- 重启后同一 Field 稳定持有 3 个 token，仅有 3 条 admitted `routing_basis` Work，0 active Run；
+- Formation Admin API 汇总为 3 pending、2 in progress、6 completed；active section 仅 5 条且无分页，不再展示数百条 tokenless 历史 Subject。
 
-已完成：
+数据库中的 723 active Subject 继续作为业务连续性事实保留；Formation 是当前工作视图，不是历史 Subject 数据库浏览器。
 
-- Intake replay 必须先取得 per-field token；
-- 下游 fallback reconcilers 只扫描 token holder；
-- token 生命周期延长到 Handoff B Accepted / Discard，rejection 释放；
-- Formation active queue 隐藏 tokenless 且无 Run/Handoff B 的历史 Subject；
-- Admin GET 无写入、重复 PATCH no-op；
-- reset 增加 event/attempt/resource cancellation 与 `/transcode` 路径防护；
-- production image build 拒绝 dirty worktree，并校验 tag 的 exact 10-char commit suffix；
-- 一次性 NAS 排障脚本已从工作区删除；历史 SAFE PAUSE Phase 已归档。
+## Verification
 
-本地门禁已完成：Service 375 项（357 pass、18 skip、0 fail）、Helix Architecture、Product Surface Matrix、Admin Web build/37 tests、reset/部署脚本语法与 `git diff --check` 均通过；Service 与 Web 的官方 npm registry audit 均为 0。生产部署尚未执行。
+- Service：375 项（357 pass、18 skip、0 fail）。
+- Helix Architecture：113 capabilities、99 result families、186 tables、44 transactions，全部通过；contract aggregate `dfe37fde6047adeb8526241f77d51fc45cebec691168b9eccc01208b8787f391`。
+- Product Surface Matrix：123 routes；Admin Web build 与 37 tests 通过。
+- Service 与 Web 的 official npm registry audit 均为 0；`git diff --check`、reset/部署脚本检查均通过。
 
-## Acceptance
-
-现行产品验收权威仍为 `BETA_FEATURE_ACCEPTANCE_BASELINE.md`。本次修复、部署和 health 检查不把任何 `HB-*` 标为 PASS。
+现行产品验收权威仍为 `BETA_FEATURE_ACCEPTANCE_BASELINE.md`。本次生产修复不把任何 `HB-*` 自动标为 PASS。

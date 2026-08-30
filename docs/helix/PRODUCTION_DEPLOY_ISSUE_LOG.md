@@ -4,7 +4,7 @@
 
 建立日期：2026-08-28
 
-环境：飞牛 NAS `http://192.168.12.230:18080`，容器 `shelfdeck`。首次 cutover 镜像 `helix-beta-20260828-a3e07a1e1`；当前运行镜像以 `docs/v3/CURRENT_STATUS.md` 为准。Admin Web 走 HTTP，不是 localhost，也不是 HTTPS。
+环境：飞牛 NAS `http://192.168.12.230:18080`，容器 `shelfdeck`。首次 cutover 镜像 `helix-beta-20260828-a3e07a1e1`；当前运行镜像以 `docs/helix/CURRENT_STATUS.md` 为准。Admin Web 走 HTTP，不是 localhost，也不是 HTTPS。
 
 本文记录 **Helix-beta 部署到该生产环境之后** 用户实际碰到的问题。它不是 Architecture SSOT，不替代 `CURRENT_PLAN.md`、`USER_ACCEPTANCE_TEST_ISSUE_LOG.md` 或 `ADMIN_WEB_UX_ISSUE_LOG.md`。Canary/UAT 历史缺陷继续记在原台账；本文只收生产现场。
 
@@ -51,7 +51,7 @@
 | PROD-029 | 收藏架「全自动 / 关键步骤确认」开关不改变实际上架行为 | `USER_EXPERIENCE` / standing Authorization 未接入 On-deck | 收藏架配置 | Low | **FIXED in next image**（Admin Web 表面已移除；后端 API 保留供后续收口） |
 | PROD-030 | 转码前体积预测 freeze 卡死 Run；寻源/转码编排割裂；详情步骤靠 Spec 猜测 | `EXECUTION` / Libra 协调器 + Formation 投影 | 媒体整理工作区 | Critical | **FIXED in next image**（双工具穷尽编排 + 实测瑕疵 + 真实步骤；未部署） |
 | PROD-031 | PROD-024 全局 3 席仍是 derived occupancy；无法按来源暂停/限流 | `EXECUTION` / Libra per-field pipeline token | 文件来源配置、媒体整理工作区 | High | **DEPLOYED** `helix-beta-20260830-5189f5f79c`（2026-08-30；migration + full libra reset；186 tables） |
-| PROD-032 | token=0 时历史 Subject 仍批量生成 routing/spec/rating Work，Formation 保持 700+ 条 | `EXECUTION` / Intake replay 与下游 reconciler 绕过 token，Run Admission 过早释放 | 媒体整理工作区 | Critical | **FIXED LOCALLY / DEPLOYMENT PENDING**（完整 pipeline token lifetime + bounded Formation view + destructive reset） |
+| PROD-032 | token=0 时历史 Subject 仍批量生成 routing/spec/rating Work，Formation 保持 700+ 条 | `EXECUTION` / Intake replay 与下游 reconciler 绕过 token，Run Admission 过早释放 | 媒体整理工作区 | Critical | **FIXED / DEPLOYED** `helix-beta-20260831-710aa1b65a`（3 seats / 3 tokens / 3 active Works；Formation active 5） |
 
 PROD-001、PROD-002 的共同环境前提：生产管理台是 `http://192.168.12.230`，浏览器不提供 `crypto.randomUUID` / `crypto.subtle`。这不是传输加密设计，只是浏览器 API 限制。未改成 HTTPS。
 
@@ -400,7 +400,7 @@ SSOT 10.3.5：本地 transcode/remux 是「10 分钟无进展判 Attempt timeout
 
 处理：Admin Web 已移除该表面与 Overview `productChoice`；后端 API 暂保留，不改变 On-deck 行为。本项不宣称修改 `HB-A.07` 的产品验收结论。
 
-## 32. PROD-032 — Pre-deck token 存在但生产重建完全绕过（FIXED LOCALLY / DEPLOYMENT PENDING）
+## 32. PROD-032 — Pre-deck token 存在但生产重建完全绕过（FIXED / DEPLOYED）
 
 发现：2026-08-31 对 NAS 只读盘点。现网 720 个 active Subject、0 个 active Libra Run、0 个 pipeline token；Formation 仍有 712 pending、2 in progress，Foundation 同时有 Libra 183 admitted、17 running 和 Perception 48 admitted。
 
@@ -414,4 +414,6 @@ SSOT 10.3.5：本地 transcode/remux 是「10 分钟无进展判 Attempt timeout
 
 修复：Intake 提交前先占 token，历史 replay 同样占用；Subject ID 可由当前 continuity decision 确定性解析；下游 fallback 只推进 token holder；token 保持到 Handoff B Accepted、用户 Discard或 Intake Rejection；Formation active queue 只展示 token holder 或已有 Run/Handoff B 的 Subject。GET 改为纯读、重复 PATCH no-op，production build 强制 clean + exact commit tag。reset 同步取消 Work/Event/Attempt/resource wait，并对 `/transcode` 路径做 fail-closed 防护。
 
-部署必须先创建唯一 data 备份并校验数据库副本，再 migration/reset/标准 deploy；不碰 `/media`、Field、Shelf、集成、Arca、People、Perception 或 Platform 事实。部署证据完成后再把本项改为 `FIXED/DEPLOYED`。
+2026-08-31 已按 stop → 完整 data backup → migration → bounded Libra reset → standard deploy 执行。备份为 `/vol1/1000/docker/shelfdeck/data.backup-20260830T170231Z-predeck-pipeline`；reset 时无 active/suspended/frozen Run，终止 200 条遗留 Libra Work，未删除 Subject、未触碰 `/media`。
+
+部署镜像 `markmahoro/shelfdeck:helix-beta-20260831-710aa1b65a`，tar SHA-256 `19292cef75f10eb5216f52c41cdb8fc8f50ab156e6dcc27cf7c6c4c4809c8733`。部署后 health `ok`、schema 186、SQLite integrity `ok`；唯一 Field 为 3 seats / 3 tokens / 3 active Work / 0 active Run。Formation 汇总 3 pending、2 in progress、6 completed，active section 仅 5 条且无分页。
