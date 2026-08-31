@@ -100,6 +100,44 @@ function seedExecution(database, ownerDomain, processType, processId, suffix) {
   return { workId, attemptId, planId, eventId, eventAttemptId };
 }
 
+function seedAcceptedOrphan(database, suffix) {
+  const subjectId = `subject-orphan-${suffix}`;
+  const intakeDecisionId = `intake-orphan-${suffix}`;
+  const materialKey = `material-orphan-${suffix}`;
+  database.transaction(() => {
+    database.pragma('defer_foreign_keys = ON');
+    database.prepare(`INSERT INTO libra_subjects
+      (subject_id,structure_kind,content_profile,status,intake_revision,current_continuity_set_digest,
+       current_episode_scope_digest,routing_anchor_intake_decision_id,created_at_ms,updated_at_ms)
+      VALUES (?,'single','movie','active',1,?,?,?,1,1)`).run(subjectId,DIGEST,DIGEST,intakeDecisionId);
+    database.prepare(`INSERT INTO libra_intake_decisions
+      (intake_decision_id,decision_revision,decision_kind,offer_id,candidate_package_id,package_revision,
+       package_digest,target_subject_id,accepted_result,decision_digest,decided_at_ms,
+       candidate_delivery_snapshot_schema_ref,candidate_delivery_snapshot_json,
+       decision_identity_evidence_schema_ref,decision_identity_evidence_json,decision_identity_evidence_digest)
+      VALUES (?,1,'accepted_resolution',?, ?,1,?,?,'new_subject',?,1,'snapshot','{}','identity','{}',?)`)
+      .run(intakeDecisionId,`offer-${suffix}`,`candidate-${suffix}`,DIGEST,subjectId,DIGEST,DIGEST);
+    database.prepare(`INSERT INTO libra_handoff_a_receipts
+      (receipt_id,intake_decision_id,outcome,offer_id,candidate_package_id,package_revision,package_digest,
+       subject_id,subject_intake_revision,subject_continuity_head_revision,committed_at_ms)
+      VALUES (?,?, 'accepted',?,?,1,?,?,1,1,1)`)
+      .run(`receipt-${suffix}`,intakeDecisionId,`offer-${suffix}`,`candidate-${suffix}`,DIGEST,subjectId);
+    database.prepare(`INSERT INTO libra_material_bindings
+      (subject_id,material_key,role,authority_kind,binding_revision,health_state,origin_intake_decision_id,current)
+      VALUES (?,?,'primary_payload','primary_control',1,'active',?,1)`)
+      .run(subjectId,materialKey,intakeDecisionId);
+  })();
+  database.prepare(`INSERT INTO fx_material_controls(material_key,mount_scope_id,inode,size_bytes,
+    fingerprint_algorithm,fingerprint_version,content_fingerprint,owner_domain,owner_scope_type,owner_scope_id,
+    control_revision,state,updated_at_ms) VALUES (?, 'mount',?,1,'middle','1',?,'procurement','procurement_run',?,1,'controlled',1)`)
+    .run(materialKey,`inode-${suffix}`,`fp-${suffix}`,`proc-run-${suffix}`);
+  database.prepare(`INSERT INTO fx_material_control_revisions(material_key,revision,operation_kind,
+    to_owner_domain,to_scope_type,to_scope_id,basis_digest,commit_marker,committed_at_ms)
+    VALUES (?,1,'acquire','procurement','procurement_run',?,?,'procurement',1)`)
+    .run(materialKey,`proc-run-${suffix}`,DIGEST);
+  return { subjectId, intakeDecisionId, materialKey };
+}
+
 test('Formation Reset is an exact no-op on an empty database and preserves unrelated transcode entries', () => {
   const value = fixture('helix-formation-reset-empty');
   try {
@@ -162,6 +200,92 @@ test('Normal Reset terminalizes active Formation, releases Control, and only rem
       transcodeDir:value.transcodeDir, nowMs:3000 });
     assert.equal(value.database.prepare('SELECT COUNT(*) count FROM fx_material_control_revisions').get().count, revisionCount);
     assert.equal(value.database.prepare('SELECT state_revision FROM libra_runs WHERE libra_run_id=?').get(seeded.runId).state_revision, 2);
+  } finally { close(value); }
+});
+
+test('both Reset modes clear Accepted Subjects without a token while preserving Procurement Control', () => {
+  for (const mode of ['normal','nuclear']) {
+    const value = fixture(`helix-formation-reset-orphan-${mode}`);
+    try {
+      const seeded = seedAcceptedOrphan(value.database, mode);
+      const plan = inspectPlan(value.database, mode);
+      assert.equal(plan.ready, true);
+      assert.equal(plan.counts.orphanAcceptedSubjects, 1);
+      assert.equal(plan.counts.preservedProcurementControls, 1);
+      const result = applyReset({ database:value.database, mode, dataDir:value.dataDir,
+        transcodeDir:value.transcodeDir, nowMs:3500 });
+      assert.equal(result.verification.plan.counts.orphanAcceptedSubjects, 0);
+      assert.deepEqual(value.database.prepare(`SELECT owner_domain,owner_scope_type,control_revision,state
+        FROM fx_material_controls WHERE material_key=?`).get(seeded.materialKey), {
+        owner_domain:'procurement', owner_scope_type:'procurement_run', control_revision:1, state:'controlled',
+      });
+      assert.equal(value.database.prepare('SELECT COUNT(*) count FROM fx_material_control_revisions WHERE material_key=?')
+        .get(seeded.materialKey).count, 1);
+      if (mode === 'normal') {
+        assert.deepEqual(value.database.prepare('SELECT status FROM libra_subjects WHERE subject_id=?').get(seeded.subjectId),
+          { status:'abandoned' });
+      } else {
+        assert.equal(value.database.prepare('SELECT COUNT(*) count FROM libra_subjects WHERE subject_id=?')
+          .get(seeded.subjectId).count, 0);
+      }
+    } finally { close(value); }
+  }
+});
+
+test('Normal Reset reconstructs a missing admission head only to terminalize the orphan Run', () => {
+  const value = fixture('helix-formation-reset-orphan-run-head');
+  try {
+    const seeded = seedSubjectRun(value.database, 'missing-head');
+    value.database.prepare('DELETE FROM libra_run_admission_heads WHERE subject_id=?').run(seeded.subjectId);
+    const plan = inspectPlan(value.database, 'normal');
+    assert.equal(plan.ready, true);
+    assert.equal(plan.counts.orphanActiveRuns, 1);
+    const result = applyReset({ database:value.database, mode:'normal', dataDir:value.dataDir,
+      transcodeDir:value.transcodeDir, nowMs:3600 });
+    assert.equal(result.result.createdAdmissionHeads, 1);
+    assert.equal(result.verification.plan.counts.orphanActiveRuns, 0);
+    assert.deepEqual(value.database.prepare('SELECT state FROM libra_runs WHERE libra_run_id=?').get(seeded.runId),
+      { state:'discarded' });
+  } finally { close(value); }
+});
+
+test('Nuclear Reset rolls a package-owned Control back to its Procurement boundary', () => {
+  const value = fixture('helix-formation-reset-package-control');
+  try {
+    const seeded = seedSubjectRun(value.database, 'package-control');
+    const packageId = 'package-control';
+    const materialKey = 'material-package-control';
+    value.database.prepare(`INSERT INTO libra_product_packages
+      (on_deck_package_id,offer_id,package_revision,libra_run_id,run_state_revision,subject_id,
+       product_structure_json,production_provenance_json,attestation_json,package_digest,state,published_at_ms)
+      VALUES (?,'offer-control',1,?,1,?,'{}','{}','{}',?,'published',1)`)
+      .run(packageId,seeded.runId,seeded.subjectId,DIGEST);
+    value.database.prepare(`INSERT INTO libra_product_package_materials
+      (on_deck_package_id,ordinal,material_key,committed_control_revision,committed_control_projection_digest,member_digest)
+      VALUES (?,0,?,2,?,?)`).run(packageId,materialKey,DIGEST,DIGEST);
+    value.database.prepare(`INSERT INTO fx_material_controls(material_key,mount_scope_id,inode,size_bytes,
+      fingerprint_algorithm,fingerprint_version,content_fingerprint,owner_domain,owner_scope_type,owner_scope_id,
+      control_revision,state,updated_at_ms) VALUES (?,'mount','inode-control',1,'middle','1','fp-control','libra','on_deck_package',?,2,'controlled',2)`)
+      .run(materialKey,packageId);
+    value.database.prepare(`INSERT INTO fx_material_control_revisions(material_key,revision,operation_kind,
+      to_owner_domain,to_scope_type,to_scope_id,basis_digest,commit_marker,committed_at_ms)
+      VALUES (?,1,'acquire','procurement','procurement_run','proc-run-control',?,'control-1',1),
+             (?,2,'transfer','libra','on_deck_package',?,?, 'control-2',2)`)
+      .run(materialKey,DIGEST,materialKey,packageId,DIGEST);
+
+    const plan = inspectPlan(value.database, 'nuclear');
+    assert.equal(plan.ready, true);
+    assert.equal(plan.counts.controlledMaterials, 1);
+    const result = applyReset({ database:value.database, mode:'nuclear', dataDir:value.dataDir,
+      transcodeDir:value.transcodeDir, nowMs:3700 });
+    assert.equal(result.result.restoredProcurementControls, 1);
+    assert.deepEqual(value.database.prepare(`SELECT owner_domain,owner_scope_type,owner_scope_id,control_revision,state
+      FROM fx_material_controls WHERE material_key=?`).get(materialKey), {
+      owner_domain:'procurement', owner_scope_type:'procurement_run', owner_scope_id:'proc-run-control',
+      control_revision:1, state:'controlled',
+    });
+    assert.equal(value.database.prepare('SELECT COUNT(*) count FROM fx_material_control_revisions WHERE material_key=?')
+      .get(materialKey).count, 1);
   } finally { close(value); }
 });
 

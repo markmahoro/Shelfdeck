@@ -1,16 +1,18 @@
 # ShelfDeck Clean Helix Master Plan
 
-Status: **Per-Field Libra 顶部节流与 Formation 用户语义修正已在本地完成并验证；尚未部署生产。**
+Status: **统一升级候选已合并；Formation Nuclear Reset 与生产升级待最终门禁。**
 
 Last updated: 2026-08-31
 
-## 当前设计修正
+## 当前统一升级
 
 - 保持既有五域、两次单向 Handoff 与 modular monolith 边界；不新增全局媒体对象、队列、反向 Handoff 或跨域写入。
 - Libra 为每个 Material Field 保留固定 0–8 席；0 只阻止新 Handoff A 接收，Procurement 继续形成待整理媒体包，既有 Accepted 责任继续推进。
 - 文件来源 API/UI 按 Field 显示已生成、Libra 已接收、等待 Libra 接收和 Structured Rejection；容量不足保持 open Offer，不伪造 rejection。
 - 媒体整理当前分类收敛为整理中、需要处理、已完成；删除“待整理”筛选。总览分别展示 Procurement 等待接收与 Libra 正在整理。
-- 本轮只做本地 SSOT、schema/read projection、Admin API/UI 与测试；不处理 621 个历史 Accepted 无 token Subject，不执行生产部署或数据纠正。
+- 合并文件来源/Per-Field Handoff A 账本、Formation 三态表达、Formation 详情排版、我的收藏成品库一级页，以及 PROD-042 Rejection token 释放修复。
+- 生产 621 个 Accepted 但无 token 的 Subject 是旧合同残留，不增加 migration、resume 或兼容路径；本次在新镜像离线加载后、服务启动前执行 Nuclear Formation Reset，使未完成 Libra→Arca 过程图视同未发生。
+- Normal 与 Nuclear Reset 都必须清理 Accepted/no-token Subject 和 missing-admission-head Run；保留 Procurement Candidate/Delivery/Control 与已经 Arca On-deck Commit 的 Shelf/Deck 事实，不触碰 `/media`。
 
 ## 当前基线
 
@@ -56,4 +58,4 @@ Last updated: 2026-08-31
 - 架构唯一 SSOT 仍为 `TOP_DOWN_ARCHITECTURE_CONFIRMATION.md`；生产修复不得移动 Owner、Handoff 或 Canonical Transaction。
 - 生产继续使用 `scripts/build-image.js` → `scripts/upload-nas-image.js` → `scripts/deploy-nas.js`；不删除、移动或改写 `/media` 正式媒体。
 
-唯一活动 Phase 为 PROD-035；状态见 `docs/helix/implementation/CURRENT_PHASE.md`。
+唯一活动 Phase 为本次统一生产升级与 Nuclear Formation Reset；状态见 `docs/helix/implementation/CURRENT_PHASE.md`。

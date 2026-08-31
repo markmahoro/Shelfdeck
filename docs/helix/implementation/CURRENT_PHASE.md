@@ -1,18 +1,20 @@
 # ShelfDeck Helix 当前实施阶段
 
-状态：**PER-FIELD LIBRA TOP THROTTLING USER MODEL — LOCAL IMPLEMENTATION COMPLETE / NOT DEPLOYED**
+状态：**UNIFIED PRODUCTION UPGRADE + NUCLEAR FORMATION RESET — GATE IN PROGRESS**
 
 日期：2026-08-31
 
 ## 目标
 
-本轮优先完成不改变Owner/Handoff边界的用户模型修正：
+本轮在不改变Owner/Handoff边界的前提下完成统一升级与旧Formation数据清场：
 
 1. Field固定席位允许0；0不接受新包，但不停止Procurement或既有Accepted责任；
 2. Procurement按Field形成generated/accepted/waiting/rejected交接账；
 3. Formation取消“待整理”current分类与筛选，Accepted条目从整理中或需要处理开始；
 4. 文件来源页重排为Procurement交接账本与Libra席位两列，总览同时表达两段数量；
-5. 更新SSOT、Beta baseline、Level 7 decision、schema/read model、Admin Web与自动化测试；不部署生产、不修复621个历史无token Subject。
+5. 合并我的收藏成品库一级页、Formation详情排版与PROD-042 Rejection token释放修复；
+6. 新镜像离线加载后、服务启动前执行Nuclear Formation Reset，删除未完成Arca Commit的过程图，保留Procurement和已入架事实；
+7. 部署后验证Per-Field generated/accepted/waiting/rejected、Formation三态、Libra/Arca运行与收藏页关键表面。
 
 ## 已部署基线（保留）
 
@@ -41,7 +43,7 @@
 - Primary 与其他精确成员的 Final Reality fingerprint 校验不弱化；NFO 损坏、Movie Identity 冲突或缺少拥有字段仍 fail closed，Commit 前不得建立 Shelf Entry。
 - 「接受瑕疵」与「放弃整理」只适用于 Handoff B Accepted 以前的 Libra Run；Accepted 以后失败不得改判 Rejected、退回 Libra 或借这两个动作终结。此时 Arca 只允许有界自动恢复、稳定 attention 和同一 On-deck Run 的用户重试。
 - 不恢复 PROD-034 已纠正的两个中止 Run。
-- 不直接编辑生产 SQLite；恢复只能由 Arca 正式 Work、Capability、Effect 与 On-deck Commit 合同执行。
+- 不直接编辑生产 SQLite；本次只允许经统一 Formation Reset 工具、完整备份与离线事务执行已授权的 Nuclear Reset。
 - 不修改 Emby 配置。本轮生产部署仅使用标准无损 replacement，不执行 clean init、Reset 或生产数据库编辑。
 - 不为现有生产影片、固定 ID、路径、Run/Work/Effect 编写兼容或 fallback。若正式事实已经不可自洽，只能整理 Reset 证据并另行申请授权，不能由本修复掩盖。
 

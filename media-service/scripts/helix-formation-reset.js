@@ -243,9 +243,49 @@ function discoverScope(database) {
 
 function controlBelongsToScope(row, scope) {
   if (!row || row.state !== 'controlled') return false;
-  if (row.owner_domain === 'libra') return scope.resetSubjectIds.includes(row.owner_scope_id);
-  if (row.owner_domain === 'arca') return scope.custodyIds.includes(row.owner_scope_id);
+  if (row.owner_domain === 'libra') {
+    if (row.owner_scope_type === 'subject') return scope.resetSubjectIds.includes(row.owner_scope_id);
+    if (row.owner_scope_type === 'on_deck_package') return scope.packageIds.includes(row.owner_scope_id);
+    if (row.owner_scope_type === 'libra_run') return scope.runIds.includes(row.owner_scope_id);
+    if (row.owner_scope_type === 'workspace') return scope.workspaceIds.includes(row.owner_scope_id);
+    return false;
+  }
+  if (row.owner_domain === 'arca') {
+    return row.owner_scope_type === 'on_deck_custody' && scope.custodyIds.includes(row.owner_scope_id);
+  }
   return false;
+}
+
+function controlIsPreservedProcurement(row) {
+  return Boolean(row && row.state === 'controlled' && row.owner_domain === 'procurement');
+}
+
+function discoverOrphans(database, scope) {
+  const acceptedSubjectIds = oneColumn(database, `
+    SELECT DISTINCT s.subject_id
+      FROM libra_subjects s
+      JOIN libra_handoff_a_receipts receipt
+        ON receipt.subject_id=s.subject_id AND receipt.outcome='accepted'
+      LEFT JOIN libra_predeck_pipeline_tokens token ON token.subject_id=s.subject_id
+     WHERE s.status='active' AND token.subject_id IS NULL
+       AND NOT EXISTS (
+         SELECT 1 FROM libra_product_packages package
+         JOIN arca_ondeck_custodies custody ON custody.on_deck_package_id=package.on_deck_package_id
+         JOIN arca_ondeck_runs ondeck ON ondeck.custody_id=custody.custody_id
+         JOIN arca_ondeck_commit_receipts commit_receipt ON commit_receipt.on_deck_run_id=ondeck.on_deck_run_id
+         WHERE package.subject_id=s.subject_id
+       )
+     ORDER BY s.subject_id
+  `);
+  const activeRunsWithoutHead = scope.runIds.length
+    ? rowsByIds(database, `SELECT r.libra_run_id,r.subject_id FROM libra_runs r
+        LEFT JOIN libra_run_admission_heads h ON h.subject_id=r.subject_id
+        WHERE r.libra_run_id IN`, scope.runIds, `AND r.state IN ('active','suspended','frozen') AND h.subject_id IS NULL`)
+    : [];
+  return Object.freeze({
+    acceptedSubjectIds:Object.freeze(acceptedSubjectIds),
+    activeRunsWithoutHead:Object.freeze(activeRunsWithoutHead),
+  });
 }
 
 function inspectBlockers(database, scope) {
@@ -257,7 +297,8 @@ function inspectBlockers(database, scope) {
   };
   if (Object.values(protectedOverlap).some((items) => items.length)) blockers.push({ code:'COMMITTED_SCOPE_OVERLAP', ...protectedOverlap });
   const controls = rowsByIds(database, 'SELECT * FROM fx_material_controls WHERE material_key IN', scope.materialKeys);
-  const foreignControls = controls.filter((row) => row.state === 'controlled' && !controlBelongsToScope(row, scope));
+  const foreignControls = controls.filter((row) => row.state === 'controlled' &&
+    !controlBelongsToScope(row, scope) && !controlIsPreservedProcurement(row));
   if (foreignControls.length) blockers.push({ code:'MATERIAL_CONTROL_OWNED_BY_NON_TARGET', rows:foreignControls });
   if (scope.artifactIds.length) {
     const allowedConsumers = new Set(scope.allScopeIds);
@@ -269,12 +310,6 @@ function inspectBlockers(database, scope) {
       scope.artifactIds).filter((row) => !scope.packageIds.includes(row.on_deck_package_id));
     if (packageReferences.length) blockers.push({ code:'ARTIFACT_USED_BY_PROTECTED_PACKAGE', rows:packageReferences });
   }
-  const activeRunsWithoutHead = scope.runIds.length
-    ? rowsByIds(database, `SELECT r.libra_run_id,r.subject_id FROM libra_runs r
-        LEFT JOIN libra_run_admission_heads h ON h.subject_id=r.subject_id
-        WHERE r.libra_run_id IN`, scope.runIds, `AND r.state IN ('active','suspended','frozen') AND h.subject_id IS NULL`)
-    : [];
-  if (activeRunsWithoutHead.length) blockers.push({ code:'ACTIVE_RUN_ADMISSION_HEAD_MISSING', rows:activeRunsWithoutHead });
   return Object.freeze(blockers);
 }
 
@@ -282,6 +317,7 @@ function inspectPlan(database, mode) {
   if (!MODES.includes(mode)) throw new Error('FORMATION_RESET_MODE_REQUIRED');
   const scope = discoverScope(database);
   const blockers = inspectBlockers(database, scope);
+  const orphans = discoverOrphans(database, scope);
   const activeWorks = scope.works.filter((row) => ACTIVE_WORK_STATES.includes(row.state));
   const activeAttempts = scope.works.length
     ? rowsByIds(database, 'SELECT attempt_id,work_id,state FROM fx_work_attempts WHERE work_id IN', scope.works.map((row) => row.work_id),
@@ -289,6 +325,8 @@ function inspectPlan(database, mode) {
     : [];
   const controlledMaterials = rowsByIds(database, 'SELECT material_key,owner_domain,owner_scope_type,owner_scope_id,state FROM fx_material_controls WHERE material_key IN', scope.materialKeys)
     .filter((row) => controlBelongsToScope(row, scope));
+  const preservedProcurementControls = rowsByIds(database, 'SELECT material_key,owner_domain,owner_scope_type,owner_scope_id,state FROM fx_material_controls WHERE material_key IN', scope.materialKeys)
+    .filter(controlIsPreservedProcurement);
   const actionableRuns = rowsByIds(database, 'SELECT libra_run_id,state FROM libra_runs WHERE libra_run_id IN', scope.runIds)
     .filter((row) => ACTIVE_RUN_STATES.includes(row.state));
   const activeCustodies = rowsByIds(database, 'SELECT custody_id,state FROM arca_ondeck_custodies WHERE custody_id IN', scope.custodyIds)
@@ -300,9 +338,12 @@ function inspectPlan(database, mode) {
     custodies:scope.custodyIds.length, activeCustodies:activeCustodies.length, onDeckRuns:scope.onDeckRunIds.length,
     works:scope.works.length, activeWorks:activeWorks.length, activeAttempts:activeAttempts.length,
     controlledMaterials:controlledMaterials.length, artifacts:scope.artifactIds.length,
+    orphanAcceptedSubjects:orphans.acceptedSubjectIds.length,
+    orphanActiveRuns:orphans.activeRunsWithoutHead.length,
+    preservedProcurementControls:preservedProcurementControls.length,
   });
   return Object.freeze({ mode, confirmationRequired:CONFIRMATIONS[mode], ready:blockers.length === 0,
-    blockers, counts, scope, activeWorks:Object.freeze(activeWorks), activeAttempts:Object.freeze(activeAttempts) });
+    blockers, counts, scope, orphans, activeWorks:Object.freeze(activeWorks), activeAttempts:Object.freeze(activeAttempts) });
 }
 
 function assertSafeTranscodeRoot(transcodeDir, dataDir) {
@@ -380,6 +421,26 @@ function retireWorksNormal(database, works, nowMs) {
     workIds, `AND state IN ('${ACTIVE_ATTEMPT_STATES.join("','")}')`, [nowMs, RESET_FAILURE_CODE]);
   return executeByIds(database, "UPDATE fx_supporting_works SET state='cancelled',updated_at_ms=? WHERE work_id IN", workIds,
     `AND state IN ('${ACTIVE_WORK_STATES.join("','")}')`, [nowMs]);
+}
+
+function ensureRunAdmissionHeadsNormal(database, scope, nowMs) {
+  const subjectIds = unique(rowsByIds(database, `
+    SELECT subject_id FROM libra_runs WHERE libra_run_id IN`, scope.runIds,
+    `AND state IN ('active','suspended','frozen') ORDER BY subject_id`).map((row) => row.subject_id));
+  let created = 0;
+  for (const subjectId of subjectIds) {
+    if (database.prepare('SELECT 1 FROM libra_run_admission_heads WHERE subject_id=?').get(subjectId)) continue;
+    const active = database.prepare(`
+      SELECT libra_run_id,run_scope_digest,state_revision,state_digest FROM libra_runs
+       WHERE subject_id=? AND state IN ('active','suspended','frozen') ORDER BY libra_run_id
+    `).all(subjectId).map((row) => ({ libraRunId:row.libra_run_id,runScopeDigest:row.run_scope_digest,
+      stateRevision:Number(row.state_revision),stateDigest:row.state_digest }));
+    database.prepare(`INSERT INTO libra_run_admission_heads
+      (subject_id,head_revision,active_scope_set_digest,updated_at_ms) VALUES (?,1,?,?)`)
+      .run(subjectId, activeRunScopeSetDigest(subjectId, active), nowMs);
+    created += 1;
+  }
+  return created;
 }
 
 function discardRunsNormal(database, scope, nowMs, evidence) {
@@ -505,6 +566,7 @@ function applyNormal(database, plan, nowMs) {
   const evidence = { id:`formation-reset-normal-${nowMs}`, record, digest:canonicalDigest(record) };
   const transaction = database.transaction(() => {
     const retiredWorks = retireWorksNormal(database, scope.works, nowMs);
+    const createdAdmissionHeads = ensureRunAdmissionHeadsNormal(database, scope, nowMs);
     const discardedRuns = discardRunsNormal(database, scope, nowMs, evidence);
     const reclaimedWorkspaces = reclaimWorkspacesNormal(database, scope, nowMs, evidence.digest);
     const releasedControls = releaseControlsNormal(database, scope, nowMs, evidence.digest);
@@ -531,7 +593,7 @@ function applyNormal(database, plan, nowMs) {
       error.details = foreignKeys;
       throw error;
     }
-    return { retiredWorks, discardedRuns, reclaimedWorkspaces, releasedControls };
+    return { retiredWorks, createdAdmissionHeads, discardedRuns, reclaimedWorkspaces, releasedControls };
   });
   return Object.freeze({ ...transaction(), evidenceDigest:evidence.digest });
 }
@@ -664,6 +726,43 @@ function deleteNuclearBusinessGraph(database, scope, nowMs) {
   executeByIds(database, 'DELETE FROM libra_intake_decisions WHERE intake_decision_id IN', scope.intakeDecisionIds);
 }
 
+function rollbackControlsNuclear(database, scope) {
+  const controls = rowsByIds(database, 'SELECT * FROM fx_material_controls WHERE material_key IN', scope.materialKeys)
+    .filter((row) => controlBelongsToScope(row, scope));
+  let restoredProcurementControls = 0;
+  let deletedMaterialControls = 0;
+  let deletedControlRevisions = 0;
+  for (const control of controls) {
+    const revisions = database.prepare(`SELECT * FROM fx_material_control_revisions
+      WHERE material_key=? ORDER BY revision`).all(control.material_key);
+    const boundaryIndex = revisions.findIndex((revision) => controlBelongsToScope({
+      state:'controlled', owner_domain:revision.to_owner_domain,
+      owner_scope_type:revision.to_scope_type, owner_scope_id:revision.to_scope_id,
+    }, scope));
+    if (boundaryIndex < 0) throw new Error('FORMATION_RESET_CONTROL_BOUNDARY_MISSING');
+    const previous = boundaryIndex > 0 ? revisions[boundaryIndex - 1] : null;
+    if (previous && previous.to_owner_domain && previous.to_owner_domain !== 'procurement') {
+      throw Object.assign(new Error('FORMATION_RESET_CONTROL_BOUNDARY_UNSAFE'), {
+        details:{ materialKey:control.material_key, previousOwnerDomain:previous.to_owner_domain },
+      });
+    }
+    deletedControlRevisions += database.prepare(`DELETE FROM fx_material_control_revisions
+      WHERE material_key=? AND revision>=?`).run(control.material_key, revisions[boundaryIndex].revision).changes;
+    if (!previous) {
+      deletedMaterialControls += database.prepare('DELETE FROM fx_material_controls WHERE material_key=?')
+        .run(control.material_key).changes;
+      continue;
+    }
+    database.prepare(`UPDATE fx_material_controls
+      SET owner_domain=?,owner_scope_type=?,owner_scope_id=?,control_revision=?,state=?,updated_at_ms=?
+      WHERE material_key=?`).run(previous.to_owner_domain, previous.to_scope_type, previous.to_scope_id,
+      previous.revision, previous.to_owner_domain ? 'controlled' : 'released', previous.committed_at_ms,
+      control.material_key);
+    if (previous.to_owner_domain === 'procurement') restoredProcurementControls += 1;
+  }
+  return Object.freeze({ restoredProcurementControls, deletedMaterialControls, deletedControlRevisions });
+}
+
 function applyNuclear(database, plan, nowMs) {
   const scope = plan.scope;
   const graph = captureExecutionGraph(database, scope.works.map((row) => row.work_id), scope.allScopeIds);
@@ -673,18 +772,12 @@ function applyNuclear(database, plan, nowMs) {
     const deletedWorks = deleteExecutionGraph(database, graph, scope.allScopeIds);
     executeByIds(database, 'DELETE FROM fx_artifact_references WHERE artifact_handle_id IN', scope.artifactIds);
     executeByIds(database, 'DELETE FROM fx_artifact_registry WHERE artifact_handle_id IN', scope.artifactIds);
-    if (scope.materialKeys.length) {
-      const controls = rowsByIds(database, 'SELECT * FROM fx_material_controls WHERE material_key IN', scope.materialKeys);
-      const unsafe = controls.filter((row) => row.state === 'controlled' && !controlBelongsToScope(row, scope));
-      if (unsafe.length) throw Object.assign(new Error('FORMATION_RESET_MATERIAL_CONTROL_CHANGED'), { details:unsafe });
-      executeByIds(database, 'DELETE FROM fx_material_control_revisions WHERE material_key IN', scope.materialKeys);
-      executeByIds(database, 'DELETE FROM fx_material_controls WHERE material_key IN', scope.materialKeys);
-    }
+    const controlRollback = rollbackControlsNuclear(database, scope);
     const foreignKeys = database.pragma('foreign_key_check');
     if (foreignKeys.length) throw Object.assign(new Error('FORMATION_RESET_FOREIGN_KEY_CHECK_FAILED'), { details:foreignKeys });
     return Object.freeze({ deletedWorks, deletedSubjects:scope.disposableSubjectIds.length,
       deletedRuns:scope.runIds.length, deletedPackages:scope.packageIds.length,
-      deletedOnDeckRuns:scope.onDeckRunIds.length, deletedMaterialControls:scope.materialKeys.length });
+      deletedOnDeckRuns:scope.onDeckRunIds.length, ...controlRollback });
   });
   try { return transaction(); }
   finally { database.pragma('foreign_keys = ON'); }
@@ -695,13 +788,17 @@ function verifyPostconditions(database, mode) {
   if (mode === 'normal') {
     const residual = { actionableRuns:plan.counts.actionableRuns, activeWorks:plan.counts.activeWorks,
       activeAttempts:plan.counts.activeAttempts, activeCustodies:plan.counts.activeCustodies,
-      controlledMaterials:plan.counts.controlledMaterials };
+      controlledMaterials:plan.counts.controlledMaterials,
+      orphanAcceptedSubjects:plan.counts.orphanAcceptedSubjects,
+      orphanActiveRuns:plan.counts.orphanActiveRuns };
     if (Object.values(residual).some((value) => value !== 0)) {
       throw Object.assign(new Error('FORMATION_RESET_NORMAL_RESIDUAL'), { details:residual });
     }
   } else {
     const residual = { subjects:plan.counts.disposableSubjects, runs:plan.counts.runs,
-      packages:plan.counts.packages, onDeckRuns:plan.counts.onDeckRuns, works:plan.counts.works };
+      packages:plan.counts.packages, onDeckRuns:plan.counts.onDeckRuns, works:plan.counts.works,
+      orphanAcceptedSubjects:plan.counts.orphanAcceptedSubjects,
+      orphanActiveRuns:plan.counts.orphanActiveRuns };
     if (Object.values(residual).some((value) => value !== 0)) {
       throw Object.assign(new Error('FORMATION_RESET_NUCLEAR_RESIDUAL'), { details:residual });
     }

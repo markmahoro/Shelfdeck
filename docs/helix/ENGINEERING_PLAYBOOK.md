@@ -99,6 +99,12 @@ Formation Reset固定提供两种语义：
 - **Normal Reset**：终止并清理未提交整理现场，使其不再参与运行或活动Projection，同时保留明确终态的过程审计记录；
 - **Nuclear Reset**：物理删除未完成Arca On-deck Commit的整理过程记录，使其在当前运行数据库中视同从未发生。
 
+两种模式的同一scope都从Handoff A Accepted延伸到Arca On-deck Commit之前，必须显式覆盖Accepted但无
+Pre-deck token的Subject、active但缺少Admission Head的Libra Run，以及Subject、Run、Workspace、On-deck
+Package与Custody持有的Material Control。Reset可以终结或删除这些孤儿责任，但不得把仍由Procurement持有的
+Control误判成阻塞，也不得删除Procurement事实；Nuclear Reset只回卷首次进入Formation之后的Control revision
+后缀，并恢复最后一个Procurement边界。两种模式的postcondition必须证明上述孤儿集合归零。
+
 两种模式都必须保护已经Arca On-deck Commit的Shelf Entry与Deck Fact，不得触碰`/media`，生产执行仍需用户对该次生产数据操作
 作出明确授权。用户只指定保留某个条目时，授权范围仅限该精确条目的有界迁移或恢复方案，不自动授权通用兼容层。
 

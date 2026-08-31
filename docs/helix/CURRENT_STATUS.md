@@ -1,6 +1,6 @@
 # ShelfDeck Clean Helix Current Status
 
-Status: **生产基线保持不变；Per-Field Libra 顶部节流用户语义修正已在本地完成并验证，未部署。**
+Status: **统一升级候选已合并；Reset 孤儿清理合同本地验证完成，生产尚未执行。**
 
 Last updated: 2026-08-31
 
@@ -10,7 +10,10 @@ Last updated: 2026-08-31
 - Field API 已改为 generated/accepted/waiting/rejected；Formation 当前业务分类已收敛为 in_progress/attention_required/completed；Admin Web 已删除“待整理”筛选并把文件来源页重排为 Procurement 交接账本与 Libra 席位。
 - 旧四态 Formation 表升级时只重建可派生 Projection，不改 Subject、Token、Handoff、Run 或其他 Owner 事实；本地目标 DDL digest 为 `6a2246c39bebcd1f6f80264bac793c7a3119636a791683e426e4c30aa6fdc651`。
 - 验证：Service 407 项为 389 pass、18 skip、0 fail；Admin Web 40/40 且 production build 通过。Architecture fixture、semantic、manifest、contract 均通过，contract aggregate 为 `ab70c205efa3f8d8dd399d352690497918e3489ae9118bf067ea58b281accf75`；总 gate 仍仅被未改动的 `formation-process-projection.js` 与 `progress-projection-reader.js` 18 个既有 dynamic-template scanner findings 阻断。
-- 生产现状、镜像与数据均未改变。621 个 Accepted 但无 token 的历史 Subject 仍是独立调试事项，不属于本轮兼容或数据修复。
+- 文件来源/Formation 新语义、Formation 详情排版、我的收藏成品库一级页与 PROD-042 已合并到 main；生产现状、镜像与数据尚未改变。
+- 生产所谓“600 多个假死 Libra Run”实际以 621 个 Accepted 但无 token 的历史 Subject 为主；生产现有真实 `libra_runs` 仅 101 个，其中此前 dry-run 识别 2 个 actionable Run。它们不获得兼容权利。
+- Formation Reset 已修复 Control scope：Procurement-owned Control 保留；Libra `subject|on_deck_package` 与 Arca custody Control 属于可清理范围；Nuclear 只回卷 Formation Control revision 后缀并恢复 Procurement 边界。
+- 两种 Reset 均报告并清零 Accepted/no-token Subject 与 active/no-admission-head Run；Normal 可建立一次 reset-only Admission Head 后正式 discard，Nuclear 删除整个未 Commit 图。Service 411 项为 393 pass、18 skip、0 fail；Admin Web 42/42 且 production build 通过。Architecture fixture、semantic、manifest、contract 均通过，总 gate 仍仅受 18 个既有 dynamic-template scanner findings 阻断。
 
 ## PROD-036 Production Monitoring
 
@@ -50,7 +53,7 @@ PROD-034 已按 Product Owner 授权对“唐人街探案 (2015)”和“赤壁�
 
 ## Formation Reset Debug Capability
 
-- 当前工作区已经实现统一的 Formation Reset 离线调试能力，提供 `normal` 与 `nuclear` 两种模式；focused tests 14/14 通过。
+- 当前工作区已经实现统一的 Formation Reset 离线调试能力，提供 `normal` 与 `nuclear` 两种模式；最新 focused tests 17/17 通过。
 - `normal` 终止并清理 On-deck Commit 前的活动整理现场，同时保留明确终态的过程记录；`nuclear` 物理删除该范围内的过程记录，使其在当前运行数据库中视同未发生。
 - 两种模式都以 Arca On-deck Commit 为保护线，不触碰已入架事实和 `/media`，也不主动触发 Observation 或 Intake。
 - **该能力核心已随当前生产镜像部署到 NAS，但没有执行。** 调用仍必须显式指定 `normal|nuclear`、先 dry-run，再使用模式专属确认串 `--apply`；部署本身不触发 Reset。
