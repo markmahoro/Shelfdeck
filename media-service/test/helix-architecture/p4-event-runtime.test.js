@@ -487,7 +487,7 @@ test('non-pure Executor crash leaves durable executing Attempt for effect-specif
   }, { effectClass:'external_request', dispatchError: new Error('executor crash') });
 });
 
-test('abort-safe recovery hard-closes an operation that never settles after its frozen deadline', async () => {
+test('abort-safe non-pure recovery hard-closes after its one durable recovery deadline', async () => {
   const timers=manualTimers(1000);
   const timeoutController=createTimeoutController({now:timers.now,isolation:createCooperativeExecutionIsolation({
     now:timers.now,setTimeout:timers.setTimeout,clearTimeout:timers.clearTimeout,settlementGraceMs:10})});
@@ -502,10 +502,11 @@ test('abort-safe recovery hard-closes an operation that never settles after its 
     assert.deepEqual(databaseFacts(databasePath),{event:{state:'failed',retry_at_ms:null,result_id:null},
       attempt:{state:'completed',outcome_kind:'failed',retry_after_ms:null,failure_class:'integration',
         failure_code:'COOPERATIVE_EXECUTION_DEADLINE_EXCEEDED'},attempts:1,results:0});
-    assert.deepEqual(state().journalCalls,['read','abandon']);
+    assert.deepEqual(state().journalCalls,['read','begin-recovery','abandon']);
   },{effectClass:'domain_fact_commit',initialEventState:'executing',seedExecutingAttempt:true,
     cooperativeAbortSafe:true,timeoutController,dispatchError:null,
-    onAttemptPrepare:(request)=>assert.equal(request.startedAtMs,1),
+    recoveryStartedAtMs:1000,
+    onAttemptPrepare:(request)=>assert.equal(request.startedAtMs,1000),
     outcome:new Promise(()=>{}),effectJournalRead:{event_attempt_id:'event-attempt',effect_class:'domain_fact_commit',
       idempotency_key:'event-attempt',intent_digest:require('node:crypto').createHash('sha256').update(JSON.stringify({
         capabilityRef:'libra.test.observe@1',contractVersion:1,eventId:'event',fenceSnapshotDigest:HASH_A,
@@ -534,6 +535,34 @@ test('expired Attempt deadline does not prevent classified continue-forward Effe
       return request.operation();
     } },
     effectJournalRead:{ event_attempt_id:'event-attempt', effect_class:'material_commit',
+      idempotency_key:'event-attempt', intent_digest:require('node:crypto').createHash('sha256').update(JSON.stringify({
+        capabilityRef:'libra.test.observe@1', contractVersion:1, eventId:'event', fenceSnapshotDigest:HASH_A,
+        inputSnapshotDigest:EMPTY_INPUT_DIGEST,
+      })).digest('hex'), state:'intended' },
+  });
+});
+
+test('expired Attempt deadline does not prevent classified safe-retry Effect recovery', async () => {
+  await fixture(async ({ runtime, databasePath, state }) => {
+    const recovered = await runtime.recover({
+      eventId:'event', effectId:'effect', decision:'safe_retry',
+    });
+    assert.equal(recovered.kind, 'succeeded');
+    assert.equal(databaseFacts(databasePath).event.state, 'succeeded');
+    assert.equal(state().dispatchContext.eventAttemptId, 'event-attempt');
+    assert.equal(state().dispatchContext.deadlineAtMs, 2000);
+    assert.equal(state().dispatchContext.effectOccurredAtMs, 1);
+    assert.equal(state().dispatchContext.recoveryDecision, 'safe_retry');
+    assert.deepEqual(state().journalCalls, ['read', 'begin-recovery', 'settle']);
+  }, {
+    effectClass:'workspace_write', initialEventState:'executing', seedExecutingAttempt:true,
+    recoveryStartedAtMs:1000,
+    onAttemptPrepare:(request)=>assert.equal(request.startedAtMs, 1000),
+    timeoutController:{ async execute(request) {
+      assert.equal(request.deadlineAtMs, 2000);
+      return request.operation();
+    } },
+    effectJournalRead:{ event_attempt_id:'event-attempt', effect_class:'workspace_write',
       idempotency_key:'event-attempt', intent_digest:require('node:crypto').createHash('sha256').update(JSON.stringify({
         capabilityRef:'libra.test.observe@1', contractVersion:1, eventId:'event', fenceSnapshotDigest:HASH_A,
         inputSnapshotDigest:EMPTY_INPUT_DIGEST,

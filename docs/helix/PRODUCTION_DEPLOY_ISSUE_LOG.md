@@ -528,3 +528,16 @@ Capability `sourceLocator`（包含 SSOT 行号）纳入执行目录摘要，所
 只更新根节点，嵌套 actor ID 保持不变；Related NFO observation 同样保留完整多值 genre。Arca 在
 Staged Verify 已持有 Presentation Basis 时即做同一语义校验，失败不得创建或占用目标目录，Placement 后的
 Final Verify 继续作为现实重读门禁。实现没有影片 ID、路径或旧 Run 特例；现有失败 Run不获得兼容恢复。
+
+## 46. PROD-046 — 非纯 safe-retry 恢复误用已经过期的原 Attempt deadline（FIXED LOCALLY）
+
+第一轮统一升级后，三个 `arca.aftercare.workspace.reclaim@1` Work 仍保持 running。Reality Observer 已证明
+对应 `workspace_write` Effect 不存在并分类为 `safe_retry`，但 Event Runtime 继续使用原 Event Attempt 的
+`started_at_ms` 计算 deadline；该时间早已过期，Capability 尚未 dispatch 就抛出 `P4_EXECUTION_TIMEOUT`，
+后续启动恢复重复同一失败。
+
+这是 Foundation 的一般缺口：已有非纯 Effect 且现实明确证明可安全重做时，恢复句柄与 `continue_forward`
+一样需要一次实际执行预算。修正让这两类 classified non-pure recovery 共用 Effect Journal 的 durable
+recovery execution start；同一 Effect 只原子冻结一次时间，重启不会刷新，预算耗尽后仍 fail closed。
+普通 retry、`safe_retry_before_intent` 与 pure observation 继续使用原 Attempt deadline。没有 Arca、路径、
+Work ID 或生产数据特例，也没有直接编辑生产 SQLite。

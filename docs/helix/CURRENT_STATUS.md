@@ -121,7 +121,13 @@ PROD-034 已按 Product Owner 授权对“唐人街探案 (2015)”和“赤壁�
 
 - PROD-040 随生产镜像 `e16ff04ebf` 部署后，现有 On-deck Run 的 Stage 仍未进入 Inventory Port：Startup Recovery 已把 Effect 分类为 `continue_forward`，但 Event Runtime 用原 Event Attempt `started_at_ms + timeoutMs` 重建 deadline；原 deadline 已过，Timeout Controller 在 Capability dispatch 前立即抛出 `P4_EXECUTION_TIMEOUT`。
 - 这是所有长时间停机后 `continue_forward` 非纯 Effect 都可能触发的 Foundation 缺口，不是 NFO、影片或 Arca 专属问题。现为同一 Effect 在首次恢复执行前原子写入一次 durable recovery execution start；Attempt Policy 仍使用原 Capability/Effect Class 的冻结 Timeout Policy，只把这次恢复句柄的计时起点改为该 durable 时间。
-- 后续进程重启不会更新该时间，因此真实 recovery hard timeout 不会无限重置。原 Event Attempt identity、Input Snapshot、Fence Snapshot、Effect identity/intent/idempotency key、`effectOccurredAtMs` 和 Result/Receipt 收口合同均保持不变。`safe_retry` 与 pure observation 仍沿用原 Attempt deadline，PROD-036 hard-close 行为未放宽。
+- 后续进程重启不会更新该时间，因此真实 recovery hard timeout 不会无限重置。原 Event Attempt identity、Input Snapshot、Fence Snapshot、Effect identity/intent/idempotency key、`effectOccurredAtMs` 和 Result/Receipt 收口合同均保持不变。当现实探测已证明一个非纯 Effect 不存在时，`safe_retry` 也复用这一单次 durable recovery budget；`safe_retry_before_intent`、普通 retry 与 pure observation 仍沿用原 Attempt deadline，PROD-036 hard-close 行为未放宽。
+
+## PROD-046 Local Fix Ready
+
+- `arca.aftercare.workspace.reclaim@1` 的三个生产恢复动作被 Reality Observer 分类为 `safe_retry`，但原 Event Attempt deadline 已过；旧 Event Runtime 在 Capability dispatch 前持续抛出 `P4_EXECUTION_TIMEOUT`，使同一 Work/Attempt/Effect 永久保持 executing/intended。
+- 根因是 Foundation 只给 `continue_forward` 建立 durable recovery execution budget，遗漏了“Effect 已持久化、现实已证明 Effect 不存在”的非纯 `safe_retry`。修正后两类 classified non-pure recovery 共享同一机制：Effect Journal 原子冻结一次 `verified_at_ms`，重启不能续期，超时后仍 fail closed。
+- 该修正不包含影片、路径或生产 ID 特例，不编辑生产数据，不改变 Owner/Handoff；普通 retry、`safe_retry_before_intent` 与 pure observation 的 deadline 语义不变。
 - 本地测试覆盖：原 Attempt deadline 已过时，classified `continue_forward` 仍实际 dispatch 并成功收口；同一 Effect 在时钟前进一小时和再次启动时仍返回第一次冻结时间。修正随 `e655d6d66f` 部署后，《罪人》同一 Effect/Run 获得一次有界恢复预算并完成 On-deck Commit；未修改生产数据。
 
 ## Verification

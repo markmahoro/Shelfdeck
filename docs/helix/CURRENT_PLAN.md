@@ -50,7 +50,7 @@ Last updated: 2026-09-01
 - Handoff B Accepted 前，Libra 才能「接受瑕疵」或「放弃整理」；Accepted 后 Arca 已接管，检查失败不能借这两个动作退回或结束。
 - NFO 允许 Emby 改写排版、`streamdetails` 和附加字段，但 Movie Identity、title/year/plot/genre/cast 必须与 accepted facts 一致；其他材料继续 exact package identity。
 - post-Placement 恢复授权不得从路径、文件名或特定生产记录推断；只能读取同一 Run 的 durable Placement Result，并在 Stage、Staged Verify、Placement 三处重新核对 Run/Slot fence。
-- Forward Recovery 的执行预算只用于已经分类为 `continue_forward` 的同一非纯 Effect；普通 Attempt、pure observation 与 `safe_retry` 继续使用原冻结 deadline，不能借恢复重置普通 hard timeout。
+- Effect Recovery 的执行预算只用于已经分类为 `continue_forward`，或现实探测已证明 Effect 不存在的非纯 `safe_retry`；同一 Effect 只冻结一次恢复起点，重启不得刷新。普通 Attempt、`safe_retry_before_intent` 与 pure observation 继续使用原冻结 deadline，不能借恢复重置普通 hard timeout。
 - Aftercare 的 source/stat fence 冲突属于预期外部写入竞争：单个 Event 必须形成 `external_writer_conflict` failed Outcome；同一 Case 仍遵守最多 3 代 Work，耗尽后形成一个稳定 attention。后续重新评估读取最新现实，语义等价时只提交 Inventory revision，不写 NFO。
 - 不修改 Emby 配置，也不直接编辑生产 SQLite。当前 NFO semantic drift、Formation projection digest 与 Aftercare reclaim schema 异常已分别打回原任务；后续修复仍须标准 build/upload/deploy。
 - 不得继续恢复或扩展 PROD-034 的两个目标 Run。

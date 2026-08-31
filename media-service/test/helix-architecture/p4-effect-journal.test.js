@@ -60,7 +60,7 @@ test('durable intent is idempotent only for the exact Event Attempt, class, key,
   assert.throws(() => journal.intend({ ...request, effectClass: 'pure_observation' }), { code: 'P4_EFFECT_PURE_JOURNAL_FORBIDDEN' });
 }));
 
-test('continue-forward recovery freezes one durable execution budget without restart renewal', () => {
+test('classified non-pure Effect recovery freezes one durable execution budget without restart renewal', () => {
   const clock = { value:1700000002000 };
   return fixture(async ({ journal, databasePath }) => {
     const effect = journal.intend({ eventAttemptId:'event-attempt', effectClass:'material_commit',

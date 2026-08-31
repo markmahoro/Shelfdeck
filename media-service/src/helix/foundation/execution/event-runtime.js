@@ -606,10 +606,12 @@ function createEventRuntime(options) {
       if(!Number.isSafeInteger(startedAtMs)||startedAtMs<0)fail('P4_EVENT_RECOVERY_ATTEMPT_TIME_INVALID',
         'Recovery requires the original durable Event Attempt start time.');
       let timeoutStartedAtMs = startedAtMs;
-      if (request.decision === 'continue_forward') {
+      const requiresEffectRecoveryBudget = request.decision === 'continue_forward' ||
+        (request.decision === 'safe_retry' && effect && entry.manifest.effectClass !== 'pure_observation');
+      if (requiresEffectRecoveryBudget) {
         if (!effect || typeof options.effectJournal.beginRecoveryExecution !== 'function') fail(
           'P4_EVENT_RECOVERY_BUDGET_UNAVAILABLE',
-          'Continue-forward Effect recovery requires one durable recovery execution budget.'
+          'Classified non-pure Effect recovery requires one durable recovery execution budget.'
         );
         const recoveryEffect = options.effectJournal.beginRecoveryExecution(effect.effect_id);
         const recoveryStartedAtMs = Number(recoveryEffect?.verified_at_ms);
@@ -618,7 +620,7 @@ function createEventRuntime(options) {
             recoveryEffect.effect_class !== entry.manifest.effectClass ||
             !Number.isSafeInteger(recoveryStartedAtMs) || recoveryStartedAtMs < 0) fail(
           'P4_EVENT_RECOVERY_BUDGET_DRIFT',
-          'Continue-forward recovery budget does not bind the exact durable Effect and Event Attempt.'
+          'Effect recovery budget does not bind the exact durable Effect and Event Attempt.'
         );
         timeoutStartedAtMs = recoveryStartedAtMs;
       }
