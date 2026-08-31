@@ -224,6 +224,8 @@ export default function ShelvesPage() {
   const activeTemplates = useMemo(() => templates.filter((item) => item.status === 'active'), [templates]);
   const selectedTemplate = activeTemplates.find((item) => item.templateId === templateId);
   const activeShelves = shelves.filter((item) => item.status === 'active');
+  const managedShelves = shelves.filter((item) => item.status !== 'deregistered');
+  const deregisteredShelves = shelves.filter((item) => item.status === 'deregistered');
   const editorShelf = standardEditor?.kind === 'shelf' ? standardEditor.shelf : null;
   const editorSource = preparedDraft?.template
     || (standardEditor?.kind === 'create'
@@ -442,8 +444,8 @@ export default function ShelvesPage() {
     {notice && <p className="form-notice" role="status">{notice}</p>}
     {error && <p className="form-error" role="alert">{error}</p>}
     <div className="source-registry">
-      <div className="source-registry-heading"><span>{shelves.length} 个收藏架</span><Button type="button" onClick={() => void load()} disabled={loading}>刷新</Button></div>
-      {shelves.length === 0 ? <div className="source-empty"><strong>还没有收藏架</strong><p>先选择一个目标目录，并绑定系统推荐规则模板，或复制后发布自己的电影整理标准。</p></div> : shelves.map((shelf) => <article className="source-record shelf-record" key={shelf.shelfId}>
+      <div className="source-registry-heading"><div><h2>当前收藏架</h2></div><Button type="button" onClick={() => void load()} disabled={loading}>刷新</Button></div>
+      {managedShelves.length === 0 ? <div className="source-empty"><strong>还没有当前收藏架</strong><p>先选择一个目标目录，并绑定系统推荐规则模板，或复制后发布自己的电影整理标准。</p></div> : managedShelves.map((shelf) => <article className="source-record shelf-record" key={shelf.shelfId}>
         <div className="source-record-main">
           <div className="source-record-title"><span className={`status-dot ${shelf.status}`} /><div><h3>{shelf.name}</h3><p>{shelf.target.rootLocation}</p><span className="source-state">{shelfStatusLabel(shelf.status)}</span></div></div>
           <dl>
@@ -468,6 +470,15 @@ export default function ShelvesPage() {
         {shelf.status === 'deregistered' && <small>此收藏架只读保留。目标目录和文件保持原样。</small>}
       </article>)}
     </div>
+    {deregisteredShelves.length > 0 && <details className="source-registry shelf-history">
+      <summary><strong>已注销收藏架</strong><span>{deregisteredShelves.length} 座</span></summary>
+      <p className="page-lede">这是收藏架管理记录，不代表电影已执行退出收藏；原目标目录和文件保持不变。</p>
+      {deregisteredShelves.map((shelf) => <article className="source-row" key={shelf.shelfId}>
+        <div><strong>{shelf.name}</strong><small>{shelf.target.rootLocation}</small></div>
+        <div><span>{shelfStatusLabel(shelf.status)}</span><small>{shelf.deregistrationSummary.entryCount} 条原收藏记录</small></div>
+        <details><summary>技术标识</summary><code>{shelf.shelfId}</code></details>
+      </article>)}
+    </details>}
     {placementShelf && <div className="dialog-scrim" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setPlacementShelf(null); }}>
       <div className="dialog dialog-wide" role="dialog" aria-modal="true" aria-labelledby="shelf-placement-title">
         <div className="dialog-head"><h2 id="shelf-placement-title">调整“{placementShelf.name}”的目录布局</h2></div>

@@ -636,16 +636,24 @@ export const helixAdminApi = {
     const query=new URLSearchParams({section:'ended',limit:'25'});if(cursor)query.set('cursor',cursor);
     return request<{ items: FormationRunHistory[]; summary: FormationSummary; nextCursor:string|null; projection:{status:'ready'|'rebuilding'|'stale';asOfMs:number} }>(`/v1/admin/formation?${query}`);
   },
-  listCollection(filters?:{ shelfId?:string; status?:'current'|'history'; health?:HealthState|'all' }) {
+  listCollection(filters?:{ shelfId?:string; status?:'current'|'history'; health?:HealthState|'all'; q?:string; sort?:'title'|'recent'|'year_desc'; cursor?:string; limit?:number }) {
     const query=new URLSearchParams();
     if(filters?.shelfId)query.set('shelfId',filters.shelfId);
     if(filters?.status)query.set('status',filters.status);
     if(filters?.health && filters.health !== 'all')query.set('health',filters.health);
+    if(filters?.q)query.set('q',filters.q);
+    if(filters?.sort)query.set('sort',filters.sort);
+    if(filters?.cursor)query.set('cursor',filters.cursor);
+    if(filters?.limit)query.set('limit',String(filters.limit));
     const suffix=query.toString()?`?${query}`:'';
-    return request<{ items: CollectionEntry[]; shelves?: Array<{shelfId:string;name:string;currentCount:number;historyCount:number}>; summary?:{currentCount:number;historyCount:number} }>(`/v1/admin/collection${suffix}`);
+    return request<{ items: CollectionEntry[]; shelves?: Array<{shelfId:string;name:string;currentCount:number;historyCount:number}>; summary?:{currentCount:number;historyCount:number}; resultCount?:number; nextCursor?:string|null }>(`/v1/admin/collection${suffix}`);
   },
-  collectionPosterUrl(shelfEntryId: string) {
-    return `/v1/admin/collection/${encodeURIComponent(shelfEntryId)}/poster`;
+  collectionPosterUrl(shelfEntryId: string, inventoryRevision?:number, size?:'wall'|'detail') {
+    const query=new URLSearchParams();
+    if(inventoryRevision)query.set('revision',String(inventoryRevision));
+    if(size)query.set('size',size);
+    const suffix=query.toString()?`?${query}`:'';
+    return `/v1/admin/collection/${encodeURIComponent(shelfEntryId)}/poster${suffix}`;
   },
   getCare(shelfEntryId:string){return request<CareDetail>(`/v1/admin/care/${encodeURIComponent(shelfEntryId)}`);},
   checkCare(shelfEntryId:string){return request<{operationRef:string;state:string;shelfEntryId:string}>(`/v1/admin/care/${encodeURIComponent(shelfEntryId)}/actions/check`,{method:'POST',body:JSON.stringify({idempotencyKey:`care-check:${shelfEntryId}:${newOpaqueId()}`})});},

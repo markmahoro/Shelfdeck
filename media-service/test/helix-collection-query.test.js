@@ -4,6 +4,8 @@ const assert = require('node:assert/strict');
 const test = require('node:test');
 const {
   containerFromLocation,
+  collectionPage,
+  collectionSort,
   filterCollectionIndex,
   occupancyFromMaterials,
   yearFromDescriptiveFacts,
@@ -26,6 +28,18 @@ test('Collection occupancy sums Inventory members and names primary container fr
   assert.equal(containerFromLocation('/canary/Movie.TrueHD5.1/movie.release.final.m2ts?revision=1'), 'M2TS');
   assert.equal(containerFromLocation('F:\\canary\\Movie.TrueHD5.1\\no-extension'), null);
   assert.equal(containerFromLocation('no-extension'), null);
+});
+
+test('Collection large-shelf browse sorts and paginates with a bounded cursor', () => {
+  const items = [
+    { shelfEntryId:'b', displayIdentity:'Bravo', createdAtMs:2, year:1990 },
+    { shelfEntryId:'a', displayIdentity:'Alpha', createdAtMs:3, year:2020 },
+    { shelfEntryId:'c', displayIdentity:'Charlie', createdAtMs:1, year:null },
+  ];
+  const sorted = collectionSort([...items], 'recent');
+  assert.deepEqual(sorted.map((item) => item.shelfEntryId), ['a', 'b', 'c']);
+  assert.deepEqual(collectionPage(sorted, { limit:'2' }), { items:sorted.slice(0, 2), nextCursor:'2' });
+  assert.deepEqual(collectionPage(sorted, { limit:'2', cursor:'2' }), { items:sorted.slice(2), nextCursor:null });
 });
 
 test('Collection video spec uses Inventory probe facts and does not invent codec', () => {

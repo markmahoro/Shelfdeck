@@ -46,12 +46,13 @@ describe('Arca collection poster wall', () => {
     vi.spyOn(helixAdminApi, 'listCollection').mockResolvedValue({ items:[] });
     renderCollection();
     expect(await screen.findByText('还没有正式上架的电影')).toBeInTheDocument();
-    expect(screen.queryByText('只有收藏架验收并提交之后才会出现在这里。媒体整理工作区里的条目还不算上架。')).not.toBeInTheDocument();
+    expect(screen.getByText('只有收藏架验收并提交之后才会出现在这里。媒体整理工作区里的条目还不算上架。')).toBeInTheDocument();
     expect(screen.queryByText('只显示已经上架的电影。')).not.toBeInTheDocument();
     expect(screen.queryByText(/Handoff B/)).not.toBeInTheDocument();
     expect(screen.queryByText(/Shelf Entry/)).not.toBeInTheDocument();
-    expect(screen.getByRole('navigation', { name: '收藏架' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '全部 0' })).toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: '收藏架' })).toHaveValue('');
+    expect(screen.getByText('0 部珍藏')).toBeInTheDocument();
+    expect(screen.queryByText('历史')).not.toBeInTheDocument();
   });
 
   it('asks the collection query for the selected shelf instead of filtering the wall locally', async () => {
@@ -61,11 +62,21 @@ describe('Arca collection poster wall', () => {
       summary:{ currentCount:1, historyCount:0 },
     });
     renderCollection();
-    expect(await screen.findByRole('button', { name: /movie test/ })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: /movie test/ }));
+    const shelf = await screen.findByRole('combobox', { name: '收藏架' });
+    fireEvent.change(shelf, { target: { value: 'shelf-1' } });
     await waitFor(() => {
-      expect(list).toHaveBeenLastCalledWith(expect.objectContaining({ shelfId:'shelf-1', status:'current' }));
+      expect(list).toHaveBeenLastCalledWith(expect.objectContaining({ shelfId:'shelf-1', status:'current', limit:48 }));
     });
+  });
+
+  it('sends search and sort to the bounded Collection query', async () => {
+    const list = vi.spyOn(helixAdminApi, 'listCollection').mockResolvedValue({ items:[entry], resultCount:1, nextCursor:null });
+    renderCollection();
+    await screen.findByText('The Shawshank Redemption');
+    fireEvent.change(screen.getByRole('textbox', { name:'搜索收藏' }), { target:{ value:'1994' } });
+    fireEvent.click(screen.getByRole('button', { name:'搜索' }));
+    fireEvent.change(screen.getByRole('combobox', { name:'排序' }), { target:{ value:'title' } });
+    await waitFor(() => expect(list).toHaveBeenLastCalledWith(expect.objectContaining({ status:'current', q:'1994', sort:'title', limit:48 })));
   });
 
   it('opens one Shelf Entry detail from the poster wall and closes it with Escape', async () => {
@@ -86,7 +97,8 @@ describe('Arca collection poster wall', () => {
     const tile = await screen.findByRole('button', {
       name: /查看 The Shawshank Redemption 详情/,
     });
-    expect(screen.getByRole('heading', { name: /当前收藏 1 部/ })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '收藏陈列' })).toBeInTheDocument();
+    expect(screen.getByText('1 部', { selector:'.collection-library-heading > span' })).toBeInTheDocument();
     expect(screen.queryByText('只显示已经上架的电影。')).not.toBeInTheDocument();
     fireEvent.click(tile);
     const dialog = screen.getByRole('dialog', {

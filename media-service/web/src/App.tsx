@@ -1,4 +1,4 @@
-import { useState, type ReactElement } from 'react';
+import { useEffect, useState, type ReactElement } from 'react';
 import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query';
 import { NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { pages } from './helix/surface-model';
@@ -44,7 +44,12 @@ function railKind(data: { systemState:{ kind:string }; todos?: Array<{ key:strin
 }
 
 function RailStatus() {
-  const { data } = useQuery({ queryKey: ['overview'], queryFn: () => helixAdminApi.getOverview() });
+  const [ready, setReady] = useState(false);
+  useEffect(() => {
+    const timer = window.setTimeout(() => setReady(true), 300);
+    return () => window.clearTimeout(timer);
+  }, []);
+  const { data } = useQuery({ queryKey: ['overview'], queryFn: () => helixAdminApi.getOverview(), enabled: ready });
   if (!data?.systemState) return null;
   const kind = railKind(data);
   return <p className="rail-status" data-kind={kind}>{kind === 'attention' ? '需要你处理' : data.systemState.label}</p>;

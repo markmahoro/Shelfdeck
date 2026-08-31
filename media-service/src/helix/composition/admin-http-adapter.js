@@ -67,6 +67,7 @@ function createAdminHttpAdapter(options) {
         status: result.status || 200,
         body: result.body,
         contentType: result.contentType,
+        headers: result.headers,
         sessionToken: result.sessionToken,
         clearSession: result.clearSession === true,
       };

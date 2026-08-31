@@ -358,6 +358,8 @@ Formation 已有 durable `libra_formation_projections`，这是正确方向。�
 
 `listCollection()` 一次取回全部条目，前端再按当前/历史和健康筛选。每张有海报的片子再请求 `GET /v1/admin/collection/:id/poster`。点开详情：`getCare`；收藏评分控件没有 initialRating，再打 `listPerceptionRecords`。墙面规模上去后，这是典型的「一个列表页打出 N+2 类请求」。缺少：服务端筛选/分页的收藏墙 Projection、有界海报（或雪碧/定宽衍生）、详情健康字段随列表走。
 
+2026-08-31 实现补充：用户确认「我的收藏」是成品库，海报墙是主表面；多座架改为顶部单选，Collection 只请求 active Entry，搜索/排序/健康筛选进入服务端 Query，首批每页 48 部并提供 cursor。墙面与详情分别请求 360×540 / 720×1080 的 WebP 衍生，URL 绑定 Inventory revision，并返回 immutable private cache；文件读取改为异步且保留前后 stat fence。侧栏 Overview 冷查询延后 300ms，避免与首屏 Collection 争用。已完成 Off-deck 记录移到「退出收藏」列表，已注销 Shelf 留在「收藏架配置」，不再在 Collection 里提供笼统「历史」。仍未解决详情打开时的 Care / Rating 二次请求，因此 UX-026 只按“大墙首屏”收口，不宣称消灭全部详情请求。
+
 ### UX-027 文件来源：Field 列表 × Routing Policy，外加 1 秒整表刷新
 
 `listMaterialFields` + `listShelves` 之后，每个活动来源的 `RoutingPolicyPanel` 再 `getRoutingPolicy(fieldId)`。观察开始后 `setInterval(loadFields, 1000)` 重拉整表。来源数一多就是 N+1；观察期间则是每秒全量。应有「来源登记簿」Projection：来源、扫描状态、当前分拣策略摘要一行返回；观察进度用单条状态或短轮询，不要重拉全部 Field。
@@ -381,7 +383,7 @@ Formation 已有 durable `libra_formation_projections`，这是正确方向。�
 其它：
 
 - 人物 `limit:50` 无搜索、无下一页按钮，但 API 有 cursor。
-- 收藏海报 URL 无尺寸参数，详情和缩略图打同一资源。
+- 收藏海报已区分 wall / detail 尺寸并绑定 Inventory revision；详情 Care / Rating 仍按需独立请求。
 - 整理完成/历史展开会再打独立 section，这是对的；当前区刷新却会在展开时顺带重拉完成与历史。
 
 ---

@@ -53,23 +53,40 @@ export default function CollectionPage() {
   const [checking, setChecking] = useState(false);
   const [exiting, setExiting] = useState(false);
   const [shelfId, setShelfId] = useState<string | undefined>(undefined);
-  const [collectionMode, setCollectionMode] = useState<'current' | 'history'>('current');
+  const [searchDraft, setSearchDraft] = useState('');
+  const [search, setSearch] = useState('');
+  const [sort, setSort] = useState<'title' | 'recent' | 'year_desc'>('recent');
+  const [resultCount, setResultCount] = useState(0);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const loadVersion = useRef(0);
   const closeButton = useRef<HTMLButtonElement>(null);
-  const load = useCallback(async () => {
+  const load = useCallback(async (cursor?: string) => {
+    const append = Boolean(cursor);
+    const version = append ? loadVersion.current : ++loadVersion.current;
     setLoading(true); setError('');
     try {
       const result = await helixAdminApi.listCollection({
         shelfId,
-        status: collectionMode,
-        health: collectionMode === 'current' ? healthFilter : undefined,
+        status: 'current',
+        health: healthFilter,
+        q: search || undefined,
+        sort,
+        cursor,
+        limit: 48,
       });
-      setItems(result.items);
+      if (version !== loadVersion.current) return;
+      setItems((current) => append ? [...current, ...result.items] : result.items);
       setShelves(result.shelves || []);
       setSummary(result.summary || { currentCount: result.items.filter((item) => item.status === 'active').length, historyCount: result.items.filter((item) => item.status !== 'active').length });
+      setResultCount(result.resultCount ?? result.items.length);
+      setNextCursor(result.nextCursor || null);
     }
-    catch (cause) { if (isUnauthorized(cause)) expire(); else setError(cause instanceof Error ? cause.message : '收藏读取失败。'); }
-    finally { setLoading(false); }
-  }, [expire, shelfId, collectionMode, healthFilter]);
+    catch (cause) {
+      if (version !== loadVersion.current) return;
+      if (isUnauthorized(cause)) expire(); else setError(cause instanceof Error ? cause.message : '收藏读取失败。');
+    }
+    finally { if (version === loadVersion.current) setLoading(false); }
+  }, [expire, shelfId, healthFilter, search, sort]);
   useEffect(() => { void load(); }, [load]);
   useEffect(() => {
     if (!selected) return;
@@ -104,10 +121,7 @@ export default function CollectionPage() {
     void refresh();
     return () => { cancelled = true; if (timer) clearTimeout(timer); };
   }, [expire, selected]);
-  const filtered = items;
   const selectedShelf = shelves.find((item) => item.shelfId === shelfId);
-  const currentCount = selectedShelf ? selectedShelf.currentCount : summary.currentCount;
-  const historyCount = selectedShelf ? selectedShelf.historyCount : summary.historyCount;
   async function checkHealth() {
     if (!selected) return;
     setChecking(true); setError('');
@@ -127,30 +141,38 @@ export default function CollectionPage() {
       setExiting(false);
     }
   }
-  if (!items.length && loading && !error) return <LoadingState>正在读取我的收藏…</LoadingState>;
   return <section className="source-page collection-page">
     <PageHeader title="我的收藏" actions={<Button type="button" onClick={() => void load()} disabled={loading}>{loading ? '刷新中…' : '刷新'}</Button>} />
     {error && <p className="form-error" role="alert">{error}</p>}
-    <nav className="health-filters" aria-label="收藏架">
-      <button type="button" aria-pressed={!shelfId} onClick={() => setShelfId(undefined)}>全部<span>{collectionMode === 'current' ? summary.currentCount : summary.historyCount}</span></button>
-      {shelves.map((shelf) => <button type="button" key={shelf.shelfId} aria-pressed={shelfId === shelf.shelfId} onClick={() => setShelfId(shelf.shelfId)}>{shelf.name}<span>{collectionMode === 'current' ? shelf.currentCount : shelf.historyCount}</span></button>)}
-    </nav>
-    <nav className="health-filters" aria-label="收藏范围">
-      <button type="button" aria-pressed={collectionMode === 'current'} onClick={() => setCollectionMode('current')}>当前收藏<span>{currentCount}</span></button>
-      <button type="button" aria-pressed={collectionMode === 'history'} onClick={() => setCollectionMode('history')}>历史<span>{historyCount}</span></button>
-    </nav>
-    {collectionMode === 'current' && <nav className="health-filters" aria-label="收藏健康筛选">{healthFilters.map(([state, label]) => <button type="button" key={state} aria-pressed={healthFilter === state} onClick={() => setHealthFilter(state)}>{label}</button>)}</nav>}
+    <section className="collection-shelf-stage" aria-labelledby="collection-shelf-name">
+      <div className="collection-shelf-primary">
+        <label><span>正在浏览的收藏架</span><select aria-label="收藏架" value={shelfId || ''} onChange={(event) => setShelfId(event.target.value || undefined)}>
+          <option value="">全部收藏</option>
+          {shelves.map((shelf) => <option key={shelf.shelfId} value={shelf.shelfId}>{shelf.name} · {shelf.currentCount} 部</option>)}
+        </select></label>
+        <div><p id="collection-shelf-name">{selectedShelf?.name || '全部收藏'}</p><strong>{selectedShelf?.currentCount ?? summary.currentCount} 部珍藏</strong></div>
+      </div>
+      <div className="collection-tools">
+        <form className="collection-search" role="search" onSubmit={(event) => { event.preventDefault(); const value = searchDraft.trim(); if (value === search) void load(); else setSearch(value); }}>
+          <input aria-label="搜索收藏" value={searchDraft} onChange={(event) => setSearchDraft(event.target.value)} placeholder="搜索片名或年份" />
+          <Button type="submit">搜索</Button>
+        </form>
+        <label className="collection-sort"><span>排序</span><select value={sort} onChange={(event) => setSort(event.target.value as typeof sort)}><option value="recent">最近上架</option><option value="title">片名</option><option value="year_desc">年份（新到旧）</option></select></label>
+        <details className="collection-filter"><summary>筛选{healthFilter === 'all' ? '' : ` · ${healthLabels[healthFilter]}`}</summary><nav aria-label="收藏健康筛选">{healthFilters.map(([state, label]) => <button type="button" key={state} aria-pressed={healthFilter === state} onClick={() => setHealthFilter(state)}>{label}</button>)}</nav></details>
+      </div>
+    </section>
     <section className="collection-library" aria-labelledby="collection-heading">
-      <div className="collection-library-heading"><h2 id="collection-heading">{collectionMode === 'current' ? '当前收藏' : '历史'} {filtered.length} 部</h2></div>
-      {filtered.length === 0 ? <div className="source-empty"><strong>{items.length === 0 ? '还没有正式上架的电影' : '当前筛选没有收藏'}</strong>{items.length > 0 ? <p>试试其他健康筛选。</p> : null}</div> : <div className="poster-wall">{filtered.map((item) => <button className="poster-tile" key={item.shelfEntryId} onClick={() => setSelected(item)} aria-label={`查看 ${item.displayIdentity} 详情，收藏健康：${healthLabels[item.health.state]}`}>
-        <span className="poster-frame">{item.hasPoster ? <img src={helixAdminApi.collectionPosterUrl(item.shelfEntryId)} alt="" loading="lazy" /> : <span className="poster-fallback" aria-hidden="true"><b>{item.displayIdentity.slice(0, 2)}</b><small>ShelfDeck</small></span>}<span className={`health-seal ${item.health.state}`} title={healthLabels[item.health.state]} aria-hidden="true">{healthLabels[item.health.state].slice(0, 1)}</span></span>
+      <div className="collection-library-heading"><div><h2 id="collection-heading">收藏陈列</h2></div><span>{resultCount} 部</span></div>
+      {loading && items.length === 0 ? <LoadingState>正在打开收藏架…</LoadingState> : items.length === 0 ? <div className="source-empty"><strong>{summary.currentCount === 0 ? '还没有正式上架的电影' : '没有找到符合条件的收藏'}</strong><p>{summary.currentCount === 0 ? '只有收藏架验收并提交之后才会出现在这里。媒体整理工作区里的条目还不算上架。' : '试试清空搜索或换一个筛选。'}</p></div> : <div className="poster-wall">{items.map((item) => <button className="poster-tile" key={item.shelfEntryId} onClick={() => setSelected(item)} aria-label={`查看 ${item.displayIdentity} 详情，收藏健康：${healthLabels[item.health.state]}`}>
+        <span className="poster-frame">{item.hasPoster ? <img src={helixAdminApi.collectionPosterUrl(item.shelfEntryId, item.currentInventoryRevision, 'wall')} alt="" loading="lazy" decoding="async" /> : <span className="poster-fallback" aria-hidden="true"><b>{item.displayIdentity.slice(0, 2)}</b><small>ShelfDeck</small></span>}{item.health.state !== 'healthy' && <span className={`health-seal ${item.health.state}`} title={healthLabels[item.health.state]} aria-hidden="true">{healthLabels[item.health.state].slice(0, 1)}</span>}</span>
         <span className="poster-caption"><strong>{item.displayIdentity}</strong><small>{item.year || '年份未知'} · {item.shelfName}</small>{item.defectAdmission&&<small>瑕疵入库 · {item.defectAdmission.defects.some((defect)=>defect.defectCode==='size_cap_exceeded')?'体积超过档位上限':`${item.defectAdmission.defectCount}项`}</small>}</span>
       </button>)}</div>}
+      {nextCursor && <div className="collection-more"><Button type="button" onClick={() => void load(nextCursor)} disabled={loading}>{loading ? '正在取下一层…' : `继续浏览（已显示 ${items.length} / ${resultCount}）`}</Button></div>}
     </section>
     {selected && <div className="collection-dialog-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setSelected(null); }}>
       <section className="collection-dialog" role="dialog" aria-modal="true" aria-labelledby="collection-dialog-title">
         <button ref={closeButton} className="collection-dialog-close" onClick={() => setSelected(null)} aria-label="关闭详情">×</button>
-        <div className="collection-dialog-poster">{selected.hasPoster ? <img src={helixAdminApi.collectionPosterUrl(selected.shelfEntryId)} alt={`${selected.displayIdentity} 海报`} /> : <span className="poster-fallback"><b>{selected.displayIdentity.slice(0, 2)}</b><small>ShelfDeck</small></span>}</div>
+        <div className="collection-dialog-poster">{selected.hasPoster ? <img src={helixAdminApi.collectionPosterUrl(selected.shelfEntryId, selected.currentInventoryRevision, 'detail')} alt={`${selected.displayIdentity} 海报`} /> : <span className="poster-fallback"><b>{selected.displayIdentity.slice(0, 2)}</b><small>ShelfDeck</small></span>}</div>
         <div className="collection-dialog-copy">
           <p className="eyebrow">{selected.shelfName}</p>
           <h2 id="collection-dialog-title">{selected.displayIdentity}</h2>
@@ -165,7 +187,7 @@ export default function CollectionPage() {
             {(selected.videoCodec || selected.videoRaster) && <div><dt>编码与清晰度</dt><dd>{[selected.videoCodec, selected.videoRaster].filter(Boolean).join(' · ')}</dd></div>}
             <div><dt>海报 / NFO</dt><dd>{selected.hasPoster ? '有海报' : '无海报'} · {selected.hasNfo ? '有 NFO' : '无 NFO'}</dd></div>
             <div><dt>资料来源</dt><dd>{selected.provider === 'tmdb' ? 'TMDB' : selected.provider}</dd></div>
-            <div><dt>状态</dt><dd>{selected.status === 'active' ? '当前收藏' : '历史收藏'}</dd></div>
+            <div><dt>状态</dt><dd>已上架</dd></div>
           </dl>
           <div className="collection-rating"><span>我的评分</span><RatingControl targetType="shelf_entry" targetId={selected.shelfEntryId} label={selected.displayIdentity} /></div>
           <section className="collection-health" aria-labelledby="collection-health-heading">

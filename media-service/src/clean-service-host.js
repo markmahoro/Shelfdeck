@@ -6,6 +6,7 @@ const path = require('node:path');
 const Database = require('better-sqlite3');
 const Fastify = require('fastify');
 const fastifyStatic = require('@fastify/static');
+const sharp = require('sharp');
 const routeRegistry = require('./helix/composition/admin-route-registry');
 const { canonicalDigest } = require('./helix/contracts/canonical-json');
 const { createHelixApplication } = require('./helix/composition/createHelixApplication');
@@ -1343,24 +1344,33 @@ async function createCleanServiceHost(options) {
   let arcaCare = null;
   const arcaCollectionQuery = createArcaCollectionQuery({
     ...constructed.applicationDependencies,
-    posterReader: options.arcaPosterReader || ((reference) => {
+    posterReader: options.arcaPosterReader || (async (reference, query = {}) => {
       const root = path.resolve(reference.shelfTargetRoot);
       const target = path.resolve(reference.location);
       if (target !== root && !target.startsWith(root + path.sep)) {
         throw new Error('Shelf Entry poster escaped its Shelf Target.');
       }
-      const before = fs.statSync(target);
+      const before = await fs.promises.stat(target);
       if (!before.isFile() || before.size !== reference.sizeBytes || before.size > 16 * 1024 * 1024) {
         throw new Error('Shelf Entry poster violates its bounded Inventory read contract.');
       }
-      const bytes = fs.readFileSync(target);
-      const after = fs.statSync(target);
-      if (after.size !== before.size || after.mtimeMs !== before.mtimeMs || bytes.length !== before.size) {
+      const originalBytes = await fs.promises.readFile(target);
+      const after = await fs.promises.stat(target);
+      if (after.size !== before.size || after.mtimeMs !== before.mtimeMs || originalBytes.length !== before.size) {
         throw new Error('Shelf Entry poster changed during its bounded read.');
       }
       const extension = path.extname(target).toLowerCase();
-      const contentType = extension === '.png' ? 'image/png' : extension === '.webp' ? 'image/webp' : 'image/jpeg';
-      return Object.freeze({ contentType, bytes });
+      const variant = query.size === 'wall' ? Object.freeze({ width: 360, height: 540 })
+        : query.size === 'detail' ? Object.freeze({ width: 720, height: 1080 }) : null;
+      const bytes = variant
+        ? await sharp(originalBytes).rotate().resize(variant.width, variant.height, { fit: 'cover', position: 'centre', withoutEnlargement: true }).webp({ quality: 82 }).toBuffer()
+        : originalBytes;
+      const contentType = variant ? 'image/webp' : extension === '.png' ? 'image/png' : extension === '.webp' ? 'image/webp' : 'image/jpeg';
+      const etag = `\"${crypto.createHash('sha256').update(`${reference.materialKey}:${query.size || 'original'}`).digest('hex')}\"`;
+      return Object.freeze({ contentType, bytes, headers: Object.freeze({
+        'Cache-Control': query.revision ? 'private, max-age=31536000, immutable' : 'private, max-age=300',
+        ETag: etag,
+      }) });
     }),
     healthReader:(shelfEntryId)=>arcaCare?.detail(shelfEntryId)?.health||Object.freeze({state:'never_assessed'}),
     healthReaderMany:(shelfEntryIds)=>arcaCare?.summaries(shelfEntryIds)||new Map(),
@@ -1873,6 +1883,9 @@ async function createCleanServiceHost(options) {
         if (response.sessionToken) reply.header('set-cookie', sessionCookie(response.sessionToken));
         if (response.clearSession) reply.header('set-cookie', clearSessionCookie());
         if (response.contentType) reply.type(response.contentType);
+        if (response.headers) {
+          for (const [name, value] of Object.entries(response.headers)) reply.header(name, value);
+        }
         reply.code(response.status);
         return response.status === 204 ? reply.send() : response.body;
       },

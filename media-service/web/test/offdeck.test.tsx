@@ -70,6 +70,29 @@ describe('Off-deck progress', () => {
     expect(within(section!).queryByText('已完成')).not.toBeInTheDocument();
   });
 
+  it('shows completed Off-deck history as a list and never offers historical entries for selection', async () => {
+    vi.spyOn(helixAdminApi, 'getOffdeckPolicy').mockResolvedValue(policy);
+    vi.spyOn(helixAdminApi, 'listOffdeckCandidates').mockResolvedValue({ candidates:[], duplicateGroups:[], suppressions:[], whitelists:[] });
+    vi.spyOn(helixAdminApi, 'listOffdeckCases').mockResolvedValue({ items:[offdeckCase('done', 'completed')] });
+    const current = collectionEntry('entry-current', 'Current Movie', 1_000);
+    const historical = { ...collectionEntry('entry-done', 'Finished Movie', 2_000), status:'off_deck', terminalAtMs:2 };
+    const list = vi.spyOn(helixAdminApi, 'listCollection').mockImplementation(async (filters) => ({
+      items: filters?.status === 'history' ? [historical] : [current],
+    }));
+    vi.spyOn(helixAdminApi, 'listShelves').mockResolvedValue({ items:[] });
+
+    render(<SessionProvider><OffdeckPage /></SessionProvider>);
+
+    expect(await screen.findByText('Finished Movie')).toBeInTheDocument();
+    expect(screen.getByText('这里只记录已经完成的退出收藏，不包含收藏架注销。')).toBeInTheDocument();
+    const selection = screen.getByRole('heading', { name:'手动退出' }).closest('section')!;
+    fireEvent.click(within(selection).getByRole('button', { name:'全选当前收藏' }));
+    expect(within(selection).getByText('Current Movie')).toBeInTheDocument();
+    expect(within(selection).queryByText('Finished Movie')).not.toBeInTheDocument();
+    expect(list).toHaveBeenCalledWith({ status:'current' });
+    expect(list).toHaveBeenCalledWith({ status:'history' });
+  });
+
   it('selects every current Entry into one batch Review and exposes High-volume confirmation', async () => {
     const entries = [
       collectionEntry('entry-c', 'Movie C', 3_000),

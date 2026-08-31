@@ -139,7 +139,7 @@ SSOT: §9.1.3, §9.4.5
 | HB-C.02 | 一级按收藏架浏览（保留「全部」） | UI, VISUAL |
 | HB-C.03 | 可按健康、评分、空间、编码、On-deck 时间筛选 | UI, API |
 | HB-C.04 | 详情显示标题、封面、TMDB 身份、物理位置、占用空间、主视频容器/编码/清晰度、海报/NFO 是否齐全；不把内部 Handle 当用户身份 | UI, API, FS, NEG |
-| HB-C.05 | 历史筛选可看 offdecked / deregistered 记录，但不计入当前 Own | UI, API, NEG |
+| HB-C.05 | 「我的收藏」不混入历史；已完成 Off-deck 在「退出收藏」一级页以列表查看，已注销 Shelf 在「收藏架配置」查看；两者均不计入当前 Own，且不得把 Shelf 注销伪装成 Off-deck | UI, API, NEG |
 
 ### HB-D / HB-E — 收藏健康与标准变化后改善
 

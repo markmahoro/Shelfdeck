@@ -69,6 +69,34 @@ function filterCollectionIndex(index, query = {}) {
   });
 }
 
+function collectionSort(items, sort) {
+  const titleOrder = (a, b) => a.displayIdentity.localeCompare(b.displayIdentity, 'zh-CN')
+    || a.shelfEntryId.localeCompare(b.shelfEntryId);
+  if (sort === 'recent') {
+    return items.sort((a, b) => b.createdAtMs - a.createdAtMs || titleOrder(a, b));
+  }
+  if (sort === 'year_desc') {
+    return items.sort((a, b) => Number(b.year || 0) - Number(a.year || 0) || titleOrder(a, b));
+  }
+  return items.sort(titleOrder);
+}
+
+function collectionPage(items, query) {
+  const requestedLimit = Number(query.limit);
+  if (!Number.isInteger(requestedLimit) || requestedLimit <= 0) {
+    return Object.freeze({ items, nextCursor: null });
+  }
+  const limit = Math.min(requestedLimit, 100);
+  const requestedOffset = Number(query.cursor || 0);
+  const offset = Number.isInteger(requestedOffset) && requestedOffset >= 0 ? requestedOffset : 0;
+  const page = items.slice(offset, offset + limit);
+  const nextOffset = offset + page.length;
+  return Object.freeze({
+    items: page,
+    nextCursor: nextOffset < items.length ? String(nextOffset) : null,
+  });
+}
+
 function createArcaCollectionQuery(options) {
   if (!options?.schemaManifest || !options.unitOfWork || typeof options.posterReader !== 'function') {
     throw new TypeError('Arca Collection Query requires persistence and a bounded poster reader.');
@@ -136,17 +164,26 @@ function createArcaCollectionQuery(options) {
       const selected=filterCollectionIndex(index,query);
       const wanted=new Set(selected.map((row)=>row.shelf_entry_id));
       const source=query.shelfId?repo.invoke('list_entries_by_shelf',{shelf_id:query.shelfId}):repo.invoke('list_entries',{});
-      const rows=source.filter((row)=>wanted.has(row.shelf_entry_id)),caches=collectionCaches(repo,rows);
+      let rows=source.filter((row)=>wanted.has(row.shelf_entry_id));
+      let prePaged=null;
+      if(query.sort==='recent'&&!String(query.q||'').trim()&&(!query.health||query.health==='all')){
+        rows.sort((a,b)=>Number(b.created_at_ms)-Number(a.created_at_ms)||a.shelf_entry_id.localeCompare(b.shelf_entry_id));
+        const result=collectionPage(rows,query);
+        if(result.items!==rows){prePaged=Object.freeze({resultCount:rows.length,nextCursor:result.nextCursor});rows=result.items;}
+      }
+      const caches=collectionCaches(repo,rows);
       return Object.freeze({
         rows:rows.map((row)=>map(repo,row,caches)),
-        index, shelfRows,
+        index, shelfRows, prePaged,
       });
     });
     const health=options.healthReaderMany?.(packed.rows.map((row)=>row.shelfEntryId))||new Map();
     const healthState=query.health && query.health !== 'all' ? query.health : null;
-    const items=packed.rows.map((row)=>withHealth(row,health.get(row.shelfEntryId)))
+    const search=String(query.q||'').trim().toLocaleLowerCase('zh-CN');
+    const items=collectionSort(packed.rows.map((row)=>withHealth(row,health.get(row.shelfEntryId)))
       .filter((item)=>query.status==='history'||!healthState||item.health.state===healthState)
-      .sort((a,b)=>a.displayIdentity.localeCompare(b.displayIdentity,'zh-CN')||a.shelfEntryId.localeCompare(b.shelfEntryId));
+      .filter((item)=>!search||item.displayIdentity.toLocaleLowerCase('zh-CN').includes(search)||String(item.year||'').includes(search)),query.sort);
+    const page=packed.prePaged?Object.freeze({items,nextCursor:packed.prePaged.nextCursor}):collectionPage(items,query);
     const shelves=packed.shelfRows.filter((row)=>row.status==='active').map((shelf)=>{
       const members=packed.index.filter((row)=>row.shelf_id===shelf.shelf_id);
       return Object.freeze({
@@ -159,7 +196,7 @@ function createArcaCollectionQuery(options) {
       currentCount:packed.index.filter((row)=>row.status==='active').length,
       historyCount:packed.index.filter((row)=>row.status!=='active').length,
     });
-    return Object.freeze({items:Object.freeze(items),shelves:Object.freeze(shelves),summary});},
+    return Object.freeze({items:Object.freeze(page.items),shelves:Object.freeze(shelves),summary,resultCount:packed.prePaged?.resultCount??items.length,nextCursor:page.nextCursor});},
     overviewStats(nowMs){
       const monthStartMs=Date.UTC(new Date(nowMs).getUTCFullYear(), new Date(nowMs).getUTCMonth(), 1);
       const packed=execute('arca_collection_overview',(context)=>{
@@ -193,12 +230,13 @@ function createArcaCollectionQuery(options) {
       });
     },
     get,
-    getPoster(shelfEntryId){const reference=execute('arca_collection_poster_reference_read',(context)=>{const repo=context.repository(repository.repositoryId),row=repo.invoke('find_entry',{shelf_entry_id:shelfEntryId});
+    async getPoster(shelfEntryId,query={}){const reference=execute('arca_collection_poster_reference_read',(context)=>{const repo=context.repository(repository.repositoryId),row=repo.invoke('find_entry',{shelf_entry_id:shelfEntryId});
       if(!row||row.status!=='active')return null;const shelf=repo.invoke('find_shelf',{shelf_id:row.shelf_id}),poster=repo.invoke('list_materials',{
         shelf_entry_id:shelfEntryId,inventory_revision:Number(row.current_inventory_revision)}).find((item)=>item.role==='poster');
       if(!poster)return null;return Object.freeze({shelfEntryId,inventoryRevision:Number(row.current_inventory_revision),
         shelfTargetRoot:shelf.target_root_location,location:poster.location,materialKey:poster.material_key,sizeBytes:Number(poster.size_bytes)});});
-      return reference?options.posterReader(reference):null;},
+      if(!reference||query.revision&&Number(query.revision)!==reference.inventoryRevision)return null;
+      return options.posterReader(reference,query);},
     targetProjection(shelfEntryId){const item=getBase(shelfEntryId);if(!item)return null;
       const identity=buildRatingTargetIdentity({
         title:item.displayIdentity,year:item.year,
@@ -211,6 +249,8 @@ function createArcaCollectionQuery(options) {
 }
 
 module.exports=Object.freeze({
+  collectionPage,
+  collectionSort,
   containerFromLocation,
   createArcaCollectionQuery,
   filterCollectionIndex,

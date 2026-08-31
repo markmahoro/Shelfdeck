@@ -19,9 +19,10 @@ export default function OffdeckPage() {
   const [cases, setCases] = useState<OffdeckCase[]>([]);
   const [review, setReview] = useState<OffdeckReview | null>(null);
   const [collectionEntries, setCollectionEntries] = useState<CollectionEntry[]>([]);
+  const [historicalEntries, setHistoricalEntries] = useState<CollectionEntry[]>([]);
   const [bulkSelection, setBulkSelection] = useState<string[]>([]);
   const [search, setSearch] = useState('');
-  const [titles, setTitles] = useState<Record<string, { title: string; occupancyBytes: number | null }>>({});
+  const [titles, setTitles] = useState<Record<string, { title: string; occupancyBytes: number | null; shelfName: string }>>({});
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [loaded, setLoaded] = useState(false);
@@ -34,20 +35,22 @@ export default function OffdeckPage() {
   const load = useCallback(async () => {
     setBusy(true); setError('');
     try {
-      const [candidateResult, caseResult, collection] = await Promise.all([
+      const [candidateResult, caseResult, collection, historyCollection] = await Promise.all([
         helixAdminApi.listOffdeckCandidates(),
         helixAdminApi.listOffdeckCases(),
-        helixAdminApi.listCollection(),
+        helixAdminApi.listCollection({ status: 'current' }),
+        helixAdminApi.listCollection({ status: 'history' }),
       ]);
       setCandidates(candidateResult.candidates);
       setGroups(candidateResult.duplicateGroups);
       setCases(caseResult.items);
       setCollectionEntries(collection.items);
+      setHistoricalEntries(historyCollection.items);
       setBulkSelection((current) => {
         const activeIds = new Set(collection.items.map((item) => item.shelfEntryId));
         return current.filter((id) => activeIds.has(id));
       });
-      setTitles(Object.fromEntries(collection.items.map((item) => [item.shelfEntryId, { title: item.displayIdentity, occupancyBytes: item.occupancyBytes ?? null }])));
+      setTitles(Object.fromEntries([...collection.items, ...historyCollection.items].map((item) => [item.shelfEntryId, { title: item.displayIdentity, occupancyBytes: item.occupancyBytes ?? null, shelfName: item.shelfName }])));
       const id = new URLSearchParams(location.search).get('review');
       if (id) setReview(await helixAdminApi.getOffdeckReview(id));
       else setReview(null);
@@ -125,6 +128,8 @@ export default function OffdeckPage() {
 
   const openCandidates = candidates.filter((item) => item.state === 'open');
   const activeCases = cases.filter((item) => item.state !== 'completed');
+  const completedCases = cases.filter((item) => item.state === 'completed')
+    .sort((left, right) => Number(right.terminalAtMs) - Number(left.terminalAtMs));
   const selectedBytes = bulkSelection.reduce((total, id) => total + Number(titles[id]?.occupancyBytes || 0), 0);
   const needle = search.trim().toLowerCase();
   const searchHits = useMemo(() => {
@@ -200,6 +205,16 @@ export default function OffdeckPage() {
           setReview(value); history.replaceState(null, '', `/offdeck?review=${encodeURIComponent(value.reviewId)}`);
         })}>重新授权</Button>}
       </article>)}
+    </section>
+    <section className="offdeck-task offdeck-history-task">
+      <div className="source-card-heading"><div><h2>已退出记录</h2><p>这里只记录已经完成的退出收藏，不包含收藏架注销。</p></div><span>{completedCases.length} 条</span></div>
+      {completedCases.length === 0 ? <div className="source-empty"><strong>还没有已完成的退出记录</strong></div> : <div className="offdeck-history-list" role="list">{completedCases.map((item) => {
+        const entry = historicalEntries.find((value) => value.shelfEntryId === item.shelfEntryId);
+        return <article className="source-row" role="listitem" key={item.offdeckCaseId}>
+          <div><strong>{titleOf(item.shelfEntryId)}</strong><small>{entry?.shelfName || titles[item.shelfEntryId]?.shelfName || '原收藏架'} · 已完成退出</small></div>
+          <time dateTime={item.terminalAtMs ? new Date(item.terminalAtMs).toISOString() : undefined}>{item.terminalAtMs ? new Date(item.terminalAtMs).toLocaleString() : '完成时间未记录'}</time>
+        </article>;
+      })}</div>}
     </section>
     {review && <div className="collection-dialog-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget && !['preparing', 'open', 'selection_confirmed', 'awaiting_escalation'].includes(review.state)) void closeReview(); }}>
       <section className="collection-dialog offdeck-confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="offdeck-confirm-title">

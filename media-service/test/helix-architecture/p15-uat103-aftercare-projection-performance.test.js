@@ -204,6 +204,26 @@ test('Collection list scopes identity, facts, people, and materials to the selec
   });
 });
 
+test('Collection recent browse maps and assesses only the bounded first page', () => {
+  sqliteFixture('uat103-collection-page-', ({ unitOfWork, seed }) => {
+    insertShelf(seed);
+    insertEntries(seed, 17);
+    let requestedIds = [];
+    const collection = createArcaCollectionQuery({ schemaManifest, unitOfWork,
+      posterReader:() => null,
+      healthReaderMany:(requested) => {
+        requestedIds = [...requested];
+        return new Map(requested.map((id) => [id, Object.freeze({ state:'healthy' })]));
+      },
+    });
+    const result = collection.list({ status:'current', sort:'recent', limit:'5' });
+    assert.equal(result.items.length, 5);
+    assert.equal(result.resultCount, 17);
+    assert.equal(result.nextCursor, '5');
+    assert.equal(requestedIds.length, 5);
+  });
+});
+
 test('Douban terminal completion leaves fan-out to durable Subject and Shelf Entry reconcile cursors', () => {
   const source = fs.readFileSync(path.resolve(__dirname,
     '../../src/helix/composition/create-procurement-execution-runtime.js'), 'utf8');
