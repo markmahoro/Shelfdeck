@@ -18,10 +18,11 @@ const NON_PURE = [
   'workspace_write', 'external_request', 'domain_fact_commit', 'responsibility_control_commit', 'material_commit', 'destructive_commit'
 ];
 
-function fixture(run, verify = async () => ({ verified: true, evidenceDigest: REALITY })) {
+function fixture(run, verify = async () => ({ verified: true, evidenceDigest: REALITY }),
+  clock = { value:1700000002000 }) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'helix-effect-journal-'));
   const databasePath = path.join(root, 'shelfdeck.db');
-  const kernel = openSqliteKernel({ Database, databasePath, schemaDdl, schemaManifest, now: () => 1700000002000 });
+  const kernel = openSqliteKernel({ Database, databasePath, schemaDdl, schemaManifest, now: () => clock.value });
   kernel.runPrimitive((transaction) => {
     transaction.prepare("INSERT INTO fx_supporting_works(work_id,state) VALUES('work','running')").run();
     transaction.prepare("INSERT INTO fx_work_attempts(attempt_id,work_id,state) VALUES('work-attempt','work','running')").run();
@@ -32,7 +33,7 @@ function fixture(run, verify = async () => ({ verified: true, evidenceDigest: RE
     transaction.prepare("INSERT INTO fx_event_attempts(event_attempt_id,event_id,ordinal,state) VALUES('event-attempt-2','event',2,'executing')").run();
   });
   const unitOfWork = createSqliteUnitOfWork({ kernel });
-  const journal = createEffectJournal({ schemaManifest, unitOfWork, now: () => 1700000002001,
+  const journal = createEffectJournal({ schemaManifest, unitOfWork, now: () => clock.value + 1,
     realityVerifiers: Object.fromEntries(NON_PURE.map((effectClass) => [effectClass, { verify }])) });
   const cleanup = () => { kernel.close(); fs.rmSync(root, { recursive: true, force: true }); };
   try {
@@ -58,6 +59,32 @@ test('durable intent is idempotent only for the exact Event Attempt, class, key,
   assert.throws(() => journal.intend({ ...request, intentDigest: OUTPUT }), { code: 'P4_EFFECT_IDEMPOTENCY_CONFLICT' });
   assert.throws(() => journal.intend({ ...request, effectClass: 'pure_observation' }), { code: 'P4_EFFECT_PURE_JOURNAL_FORBIDDEN' });
 }));
+
+test('continue-forward recovery freezes one durable execution budget without restart renewal', () => {
+  const clock = { value:1700000002000 };
+  return fixture(async ({ journal, databasePath }) => {
+    const effect = journal.intend({ eventAttemptId:'event-attempt', effectClass:'material_commit',
+      idempotencyKey:'recovery-key', intentDigest:INTENT });
+    const first = journal.beginRecoveryExecution(effect.effect_id);
+    assert.equal(first.verified_at_ms, 1700000002000);
+    clock.value += 3_600_000;
+    const replay = journal.beginRecoveryExecution(effect.effect_id);
+    assert.equal(replay.verified_at_ms, first.verified_at_ms);
+    const database = new Database(databasePath, { readonly:true });
+    try {
+      assert.deepEqual(database.prepare(
+        'SELECT state,verified_at_ms,updated_at_ms FROM fx_effect_journal WHERE effect_id=?',
+      ).get(effect.effect_id), {
+        state:'intended', verified_at_ms:1700000002000, updated_at_ms:1700000002000,
+      });
+    } finally { database.close(); }
+    const classified = await journal.reconcile(effect.effect_id, { reconcile:async () => ({
+      decision:'continue_forward', action:'finish_material_commit', evidenceDigest:REALITY,
+    }) });
+    assert.equal(classified.effect.state, 'reconcile_required');
+    assert.equal(classified.effect.verified_at_ms, first.verified_at_ms);
+  }, async () => ({ verified:true, evidenceDigest:REALITY }), clock);
+});
 
 test('settle persists observation, verifies reality, and atomically commits marker plus journal', async () => fixture(async ({ journal, databasePath }) => {
   journal.intend({ eventAttemptId: 'event-attempt', effectClass: 'external_request', idempotencyKey: 'request-key', intentDigest: INTENT });

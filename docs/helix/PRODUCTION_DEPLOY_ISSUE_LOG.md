@@ -57,7 +57,8 @@
 | PROD-037 | PROD-035 部署后仍误报 director drift，Aftercare source fence 继续刷日志 | `EXECUTION` / Presentation gate 误复用 renderer 字段 + expected CAS conflict 被抛成未知 Effect | 上架 / Aftercare | Critical | **DEPLOYED / MONITORING** `helix-beta-20260831-ae7a567cde`；初始窗口未复发，既有《罪人》未兼容恢复。 |
 | PROD-038 | 《罪人》详情吸入 Field-wide 867 个 Plan，attention 显示为 `in_progress` 且无重试动作 | `USER_EXPERIENCE` / Process Plan 因果范围过宽 + Arca attention 投影缺失 | 媒体整理详情 | Critical | **CONFIRMED / RETURNED**。详情响应约 1.65 MB；已打回原详情任务，禁止前端补造 Plan 或旧数据兼容。 |
 | PROD-039 | 部署 readiness 在 WAL 只读挂载下返回 `SQLITE_CANTOPEN`，脚本仍继续 | `DEPLOYMENT_SAFETY` / 未强制匹配 ready | 生产部署 | High | **FIXED LOCALLY**。只读源复制到临时目录验证，输出非 ready 即阻断；尚未随镜像部署。 |
-| PROD-040 | 同一 On-deck Run 已 Placement 的 NFO 被 Emby 等价改写后，恢复 Stage 报 target occupied | `EXECUTION` / Stage 只认原始 offloadContext，遗漏 durable prior Placement provenance | 媒体整理详情 / 上架 | Critical | **FIXED LOCALLY / NOT DEPLOYED**。仅同 Run、同 Slot typed Placement Receipt 可授权 NFO 语义恢复；无影片/路径/旧 Work 特例，Primary 仍严格。 |
+| PROD-040 | 同一 On-deck Run 已 Placement 的 NFO 被 Emby 等价改写后，恢复 Stage 报 target occupied | `EXECUTION` / Stage 只认原始 offloadContext，遗漏 durable prior Placement provenance | 媒体整理详情 / 上架 | Critical | **DEPLOYED / EXECUTION BLOCKED** `e16ff04ebf`。NFO 修复已进入镜像，但现有 `continue_forward` 在 dispatch 前被旧 deadline 阻断，见 PROD-041。 |
+| PROD-041 | Startup Recovery 已分类 `continue_forward`，却因原 Attempt deadline 过期而永远进不了 Capability | `EXECUTION_FOUNDATION` / 恢复执行误复用原 wall-clock deadline，且没有 durable one-shot recovery budget | 全部非纯 Effect Forward Recovery | Critical | **FIXED LOCALLY / NOT DEPLOYED**。同一 Effect 一次冻结 recovery execution start；按原 Timeout Policy 有界执行，重启不续期。 |
 
 PROD-001、PROD-002 的共同环境前提：生产管理台是 `http://192.168.12.230`，浏览器不提供 `crypto.randomUUID` / `crypto.subtle`。这不是传输加密设计，只是浏览器 API 限制。未改成 HTTPS。
 
@@ -458,7 +459,7 @@ SSOT 10.3.5：本地 transcode/remux 是「10 分钟无进展判 Attempt timeout
 
 后续生产复现补充：上述修复解决了 post-Placement Final Verify 和有界业务稳态，但恢复 Work 重新从 Stage 开始时，collision gate 仍只认 Package 的原始 `offloadContext`。同一 Run 先前 Placement 新建、随后被 Emby 等价改写的 NFO 因而在进入 semantic verification 之前就被拒绝。此遗漏不改变 PROD-035 的业务处理结论；它作为 PROD-040 的来源证明缺口单独收口。
 
-## 40. PROD-040 — prior Placement NFO 在恢复 Stage 被误判为陌生冲突（FIXED LOCALLY）
+## 40. PROD-040 — prior Placement NFO 在恢复 Stage 被误判为陌生冲突（DEPLOYED / EXECUTION BLOCKED）
 
 发现：2026-08-31。精确复现为正常新 On-deck Run 完成 Placement 后，Emby 将 final NFO 改写为语义等价字节；后续同 Run 的 Forward Recovery 从 Stage 重新进入时，Target Commit Slot 为空、Primary 等成员与 Package 全等，只有 final NFO 指纹变化。因为该 final 路径由 Placement 创建，不在 Package 原始 `offloadContext` 中，旧 Stage 抛出 `CLEAN_ARCA_TARGET_OCCUPIED`。
 
@@ -470,4 +471,19 @@ SSOT 10.3.5：本地 transcode/remux 是「10 分钟无进展判 Attempt timeout
 - Primary、poster、subtitle 及其他成员完全不使用 prior Placement 语义授权；任何字节漂移仍 fail closed。没有 Receipt、错 Run、错 Slot 或缺 accepted presentation basis 也继续拒绝。
 - 实现没有影片、TMDB、路径、旧 Run/Work/Effect 特例，没有 migration、fallback、生产数据编辑或 Reset；它只修正常新条目同样会触发的 Forward Recovery 规则。
 
-本地精确测试覆盖空 `offloadContext`、先 Placement、Emby 等价改写、同 Run Stage/Staged Verify/Placement 恢复且 NFO 字节保持不变；同时覆盖无 Receipt 拒绝、错 Slot 拒绝与 Primary 漂移拒绝。尚未部署，也未据此判断当前生产样本是否仍具备完整可恢复事实。
+本地精确测试覆盖空 `offloadContext`、先 Placement、Emby 等价改写、同 Run Stage/Staged Verify/Placement 恢复且 NFO 字节保持不变；同时覆盖无 Receipt 拒绝、错 Slot 拒绝与 Primary 漂移拒绝。本项已随 `e16ff04ebf` 部署，但尚未获得实际 Capability 执行机会，也未据此判断当前生产样本是否仍具备完整可恢复事实。
+
+部署后补充：`e16ff04ebf` 已包含本项，但生产样本的恢复 Runtime 在进入 Stage Capability 前即因原 Attempt deadline 过期而失败，所以该代码没有执行机会。PROD-040 的业务规则保持成立；新的 Foundation 阻断记录为 PROD-041。
+
+## 41. PROD-041 — continue-forward 恢复误用已经过期的原 Attempt deadline（FIXED LOCALLY）
+
+发现：2026-08-31。Startup Recovery 正确识别一个 `material_commit` Effect 需要 `continue_forward`，但 Event Runtime 仍用原 Event Attempt 的 `started_at_ms` 调用 Attempt Policy。长时间停机后计算出的 `deadlineAtMs` 已在过去，Timeout Controller 在调用 Capability 前直接拒绝；Host 随后按 recovery cadence 再次调用，同一个过期 deadline 永远不可能收敛。
+
+修正依据与实现：
+
+- SSOT 7.9.2/10.3.1 要求不可逆点后的 Effect 先分类并进入 Forward Recovery；7.9.4/10.3.5 又要求每个执行句柄受 hard timeout 约束。原 Attempt deadline 不能给新恢复句柄零预算，也不能在每次重启时重新给满预算。
+- Effect Journal 在第一次执行 classified `continue_forward` 前，为同一非终态 Effect 原子冻结 `verified_at_ms` 作为 recovery execution start；该列此前已承载 Effect recovery observation 时间，不新增表或 migration。
+- Event Runtime 先重验原 Input Snapshot、Fence、Effect intent 与 idempotency identity，再以 frozen recovery start 调用同一 Attempt Policy；Context 仍保留原 `eventAttemptId`、`effectOccurredAtMs` 与 `recoveryDecision`。
+- 再次崩溃或 Host 重试只读原时间，不能刷新 deadline。普通执行、pure observation、`safe_retry` 与 PROD-036 的原 Attempt hard-close 路径完全不变。
+
+本地单测证明旧 Attempt deadline 已过仍能进入并完成 `continue_forward`；同时把时钟推进一小时后重复开始，Journal 时间与 `updated_at_ms` 均保持第一次值。没有生产 ID、路径、影片、NFO 或旧 Run 特例；未部署、未改生产数据。

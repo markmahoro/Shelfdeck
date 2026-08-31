@@ -21,6 +21,7 @@
 11. Scheduler 对已到期的 Resource waiter 使用 scheduling-round fairness，而不是依赖 100ms wall-clock cooldown；过程卡片在当前后继 Work 运行时显示进行中，同时保留旧失败 Plan 的真实结果。
 12. PROD-040 修复同一 On-deck Run 的 post-Placement 恢复窗口：先前成功 Placement 必须以同 Run、同 Target Commit Slot 的 typed Receipt 授权；NFO 可按语义继续并记录实际指纹，Primary/其他材料仍严格按 Package bytes，任何生产影片或旧 Work 不得拥有特殊分支。
 13. Formation 的 Plan 状态只表达真实执行是否完成，不把成功提交的业务检查结论 `failed|not_available` 投影成执行失败；一级页“当前进展”与过程卡片使用同一真实 Plan 摘要，前端不得从 `organizingSteps` 再拼一套 Plan。`workspace_media_production` 的相邻 Plan 必须按其实际工作区分标题。
+14. PROD-041 修复 `continue_forward` Effect Recovery 的执行时限：恢复执行拥有一次 durable、不可重置、仍受原 Timeout Policy 约束的预算；不得改写原 Attempt/Input/Fence/Effect 身份，也不得放宽 pure observation 或 ordinary retry hard deadline。
 
 ## 边界
 
@@ -47,3 +48,5 @@
 - PROD-040 本地验证：相关 focused 68/68；Service full 385 pass、18 skip、0 fail；Admin Web 38/38 与 production build 通过；官方 npm registry audit 为 0。Architecture semantic/manifest/contract PASS，总 gate 仍仅受 main 既有两个 dynamic-template scanner findings 阻断。
 - 生产只读证据确认《冰血暴 (1996)》计划12的 Work、Work Attempt、两个 Event 与 Result Outcome 均为 `succeeded`；业务检查结论为 `max_size_exceeded`，原片 `10,773,491,271 bytes`，收藏上限 `8,589,934,592 bytes`。本地过程投影现把该计划显示为已完成并列明“未通过 / 文件大小 / 收藏上限”，计划11–14分别命名为“读取原始媒体信息 / 判断原片是否可以直接使用 / 确认视频处理方式 / 处理媒体文件”；一级页由后端同源返回“计划14 处理媒体文件 / 等待处理资源”，React不再读取`organizingSteps`生成副文案。
 - 本项 focused 42/42、Admin Web 38/38、production build通过。Service full为403项：384 pass、18 skip、1个FFmpeg stall-watchdog时序测试在全量并发下失败，单独重跑1/1通过；Helix Architecture aggregate仍被既有Entry HTTP临时目录/静态回复环境失败和既有`formation-process-projection.js`、`progress-projection-reader.js` dynamic-template scanner findings阻断。本项未部署、未改生产数据。
+- PROD-041 必须覆盖：原 Attempt deadline 已过但 Effect Reconciler 已给出 `continue_forward` 时，Capability 能获得一次按原 Timeout Policy 计算的恢复预算并实际收敛；恢复期间再次崩溃后 deadline 不得刷新；`safe_retry` / pure observation 的既有 deadline 行为保持不变。
+- PROD-041 本地验证：P4 focused 96/96；Service full 385 pass、18 skip、0 fail。P4 Runtime gate 仍只受 main 既有 dynamic-template scanner findings 阻断；未部署、未编辑生产数据。

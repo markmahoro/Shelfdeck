@@ -215,6 +215,10 @@ function fixture(run, settings = {}) {
       read(effectId) { journalCalls.push('read'); return settings.effectJournalRead
         ? { ...settings.effectJournalRead, effect_id: effectId || settings.effectJournalRead.effect_id }
         : null; },
+      beginRecoveryExecution(effectId) { journalCalls.push('begin-recovery'); return {
+        ...settings.effectJournalRead, effect_id:effectId,
+        verified_at_ms:settings.recoveryStartedAtMs ?? 1000,
+      }; },
       async settle() { journalCalls.push('settle'); },
       noteExternalPending() { journalCalls.push('external-receipt'); },
       requireReconcile() { journalCalls.push('reconcile'); },
@@ -507,6 +511,34 @@ test('abort-safe recovery hard-closes an operation that never settles after its 
         capabilityRef:'libra.test.observe@1',contractVersion:1,eventId:'event',fenceSnapshotDigest:HASH_A,
         inputSnapshotDigest:EMPTY_INPUT_DIGEST})).digest('hex'),state:'intended'},
     failurePolicyDecision:{decision:'terminal_failure'}});
+});
+
+test('expired Attempt deadline does not prevent classified continue-forward Effect recovery', async () => {
+  await fixture(async ({ runtime, databasePath, state }) => {
+    const recovered = await runtime.recover({
+      eventId:'event', effectId:'effect', decision:'continue_forward',
+    });
+    assert.equal(recovered.kind, 'succeeded');
+    assert.equal(databaseFacts(databasePath).event.state, 'succeeded');
+    assert.equal(state().dispatchContext.eventAttemptId, 'event-attempt');
+    assert.equal(state().dispatchContext.deadlineAtMs, 2000);
+    assert.equal(state().dispatchContext.effectOccurredAtMs, 1);
+    assert.equal(state().dispatchContext.recoveryDecision, 'continue_forward');
+    assert.deepEqual(state().journalCalls, ['read', 'begin-recovery', 'settle']);
+  }, {
+    effectClass:'material_commit', initialEventState:'executing', seedExecutingAttempt:true,
+    recoveryStartedAtMs:1000,
+    onAttemptPrepare:(request)=>assert.equal(request.startedAtMs, 1000),
+    timeoutController:{ async execute(request) {
+      assert.equal(request.deadlineAtMs, 2000);
+      return request.operation();
+    } },
+    effectJournalRead:{ event_attempt_id:'event-attempt', effect_class:'material_commit',
+      idempotency_key:'event-attempt', intent_digest:require('node:crypto').createHash('sha256').update(JSON.stringify({
+        capabilityRef:'libra.test.observe@1', contractVersion:1, eventId:'event', fenceSnapshotDigest:HASH_A,
+        inputSnapshotDigest:EMPTY_INPUT_DIGEST,
+      })).digest('hex'), state:'intended' },
+  });
 });
 
 test('abandoned non-pure failed Outcome with retryDirective never fail-closes the Event', async () => {

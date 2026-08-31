@@ -83,12 +83,19 @@ PROD-034 已按 Product Owner 授权对“唐人街探案 (2015)”和“赤壁�
 - 本地修正把 Presentation gate 限定到已授权字段，并将同一演员的弱名称/强 TMDB identity 合并验收；source/stat fence 冲突在文件回滚后返回 `retryDirective=never` 的 typed `external_writer_conflict`，使未提交 Effect 可 abandon、Event/Work 有界终结。
 - 没有生产 DB 编辑、Emby 配置修改、Work ID 特例或旧条目兼容路径。修正已随当前镜像无损部署；初始监控窗口未见两类旧错误复发，仍需等待新的正式 Aftercare/On-deck 行为验证。
 
-## PROD-040 Local Correction
+## PROD-040 Production Blocked
 
 - 生产只读复现证明，恢复 Stage 遇到的非 Package NFO 是同一 On-deck Run 早先 Placement 后由 Emby 等价改写的 final 文件；原 `offloadContext` 不包含这个由 Placement 新建的路径，因此旧门禁把它误判为陌生冲突文件并抛出 `CLEAN_ARCA_TARGET_OCCUPIED`。
 - 本地修正从 Execution Foundation 读取同一 Arca On-deck Run 的 durable Placement Result；只有 typed `PlacementSwitchReceipt/v1` 同时匹配 `scopeId=onDeckRunId` 与当前 `targetCommitSlotId`，Stage、Staged Verify、Placement 才允许 NFO 进入 semantic presentation 分支。
 - 语义等价 NFO 不被重写，Staged Manifest 记录其盘上实际 physical identity；没有正式回执、错 Run/错 Slot、缺 presentation basis、语义冲突或任何非 NFO 成员漂移继续 fail closed。不存在影片 ID、路径、Work ID 特例，也没有 migration、旧条目兼容、生产数据编辑或 Reset。
-- 精确回归覆盖空 `offloadContext`、先 Placement、Emby 改写、同 Run 恢复 Stage；同时覆盖无回执拒绝与 Primary 严格拒绝。修正尚未部署，未对当前生产 Run 作可恢复性结论。
+- 精确回归覆盖空 `offloadContext`、先 Placement、Emby 改写、同 Run 恢复 Stage；同时覆盖无回执拒绝与 Primary 严格拒绝。修正已随 `e16ff04ebf` 部署，但被 PROD-041 的 dispatch 前 timeout 阻断，尚未形成生产行为验收。
+
+## PROD-041 Local Correction
+
+- PROD-040 随生产镜像 `e16ff04ebf` 部署后，现有 On-deck Run 的 Stage 仍未进入 Inventory Port：Startup Recovery 已把 Effect 分类为 `continue_forward`，但 Event Runtime 用原 Event Attempt `started_at_ms + timeoutMs` 重建 deadline；原 deadline 已过，Timeout Controller 在 Capability dispatch 前立即抛出 `P4_EXECUTION_TIMEOUT`。
+- 这是所有长时间停机后 `continue_forward` 非纯 Effect 都可能触发的 Foundation 缺口，不是 NFO、影片或 Arca 专属问题。现为同一 Effect 在首次恢复执行前原子写入一次 durable recovery execution start；Attempt Policy 仍使用原 Capability/Effect Class 的冻结 Timeout Policy，只把这次恢复句柄的计时起点改为该 durable 时间。
+- 后续进程重启不会更新该时间，因此真实 recovery hard timeout 不会无限重置。原 Event Attempt identity、Input Snapshot、Fence Snapshot、Effect identity/intent/idempotency key、`effectOccurredAtMs` 和 Result/Receipt 收口合同均保持不变。`safe_retry` 与 pure observation 仍沿用原 Attempt deadline，PROD-036 hard-close 行为未放宽。
+- 本地测试覆盖：原 Attempt deadline 已过时，classified `continue_forward` 仍实际 dispatch 并成功收口；同一 Effect 在时钟前进一小时和再次启动时仍返回第一次冻结时间。尚未部署，未修改生产数据。
 
 ## Verification
 
@@ -98,6 +105,7 @@ PROD-034 已按 Product Owner 授权对“唐人街探案 (2015)”和“赤壁�
 - 标准 build/upload/deploy dry-run/apply 完成，未使用 `--helix-clean-init`。部署脚本原只读 WAL readiness 返回 `SQLITE_CANTOPEN` 却未阻断；部署后 health/SQLite 校验通过。脚本已在本地修为“只读源复制到临时目录后校验，并强制匹配 ready”，对当前生产数据副本复验为 186 tables、123 routes、17 UI surfaces、findings []，尚未随镜像部署。
 - PROD-035 targeted 覆盖 NFO 五个并发改写窗口、Primary 漂移、坏 XML/身份冲突/缺字段、Aftercare revision convergence、连续冲突聚合、同根与阶段恢复；UAT-131 四个场景通过。
 - PROD-040 focused：相关 Arca/Aftercare/On-deck 68/68；Service full 403 项为 385 pass、18 skip、0 fail；Admin Web 38/38，production build 通过；Service 与 Web 官方 npm registry audit 均为 0。Helix Architecture gate 的 semantic、manifest、contract 均通过，总 gate 仅被 main 既有 `formation-process-projection.js` / `progress-projection-reader.js` dynamic-template scanner findings 阻断，本轮未改这两个文件。
+- PROD-041 focused：P4 Effect Journal/Event Runtime/Startup Recovery/Runtime Host 96/96；Service full 403 项为 385 pass、18 skip、0 fail。正式 P4 Runtime gate 仍只被 main 既有两个 dynamic-template scanner findings 阻断；本轮 Foundation tests 与运行时语义没有新增 finding。
 - Service full：386 项，368 pass、18 skip、0 fail；Admin Web：37/37，production build 通过。
 - Service 与 Web 的 official npm registry audit 均为 0；image checksum、deploy gates、SQLite integrity 和 production health 通过。
 

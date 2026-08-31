@@ -255,6 +255,35 @@ function createEffectJournal(options) {
     return Object.freeze(transition(effect, 'reconcile_required'));
   }
 
+  function beginRecoveryExecution(effectId) {
+    const id = text(effectId, 'effectId');
+    const result = options.unitOfWork.execute([{
+      participantId: 'effect_recovery_execution_begin',
+      owner: 'execution-foundation',
+      repositories: [repositories.effects],
+      execute(context) {
+        const effect = context.repository('effect_journal').invoke('find', { effect_id:id });
+        if (!effect) fail('P4_EFFECT_NOT_FOUND', 'Effect intent does not exist.');
+        if (!['intended', 'effect_observed', 'reconcile_required'].includes(effect.state)) fail(
+          'P4_EFFECT_RECOVERY_EXECUTION_STATE_INVALID',
+          'Only a classified nonterminal Effect can begin recovery execution.'
+        );
+        if (effect.verified_at_ms !== null && effect.verified_at_ms !== undefined) return effect;
+        const updated = context.repository('effect_journal').invoke('transition', {
+          effect_id:effect.effect_id, expected_state:effect.state, state:effect.state,
+          external_receipt_ref:effect.external_receipt_ref, output_digest:effect.output_digest,
+          verified_at_ms:context.commitTimeMs, updated_at_ms:context.commitTimeMs,
+        });
+        if (updated.changes !== 1) fail(
+          'P4_EFFECT_RECOVERY_EXECUTION_RACE',
+          'Effect state changed before its recovery execution budget was frozen.'
+        );
+        return context.repository('effect_journal').invoke('find', { effect_id:id });
+      },
+    }]).effect_recovery_execution_begin;
+    return Object.freeze(result);
+  }
+
   function abandonUncommitted(effectId) {
     const effect = read(text(effectId, 'effectId'));
     if (!effect) fail('P4_EFFECT_NOT_FOUND', 'Effect intent does not exist.');
@@ -305,11 +334,14 @@ function createEffectJournal(options) {
     else if (result.decision === 'continue_forward' || result.decision === 'compensate') state = 'reconcile_required';
     else fail('P4_EFFECT_RECOVERY_DECISION_INVALID', 'Reconciler returned an unsupported recovery decision.');
     let current = effect;
-    if (current.state !== state) current = transition(current, state, { verifiedAtMs: now() });
+    if (current.state !== state) current = transition(current, state, {
+      verifiedAtMs:current.verified_at_ms ?? now(),
+    });
     return Object.freeze({ effect: Object.freeze(current), recovery: result });
   }
 
-  return Object.freeze({ intend, noteExternalPending, observeRecovery, read, reconcile, requireReconcile, abandonUncommitted, settle });
+  return Object.freeze({ intend, noteExternalPending, observeRecovery, read, reconcile, requireReconcile,
+    beginRecoveryExecution, abandonUncommitted, settle });
 }
 
 module.exports = Object.freeze({ EffectJournalError, createEffectJournal, effectIdentity });

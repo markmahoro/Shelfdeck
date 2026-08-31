@@ -605,9 +605,26 @@ function createEventRuntime(options) {
       const startedAtMs = Number(attempt.started_at_ms);
       if(!Number.isSafeInteger(startedAtMs)||startedAtMs<0)fail('P4_EVENT_RECOVERY_ATTEMPT_TIME_INVALID',
         'Recovery requires the original durable Event Attempt start time.');
+      let timeoutStartedAtMs = startedAtMs;
+      if (request.decision === 'continue_forward') {
+        if (!effect || typeof options.effectJournal.beginRecoveryExecution !== 'function') fail(
+          'P4_EVENT_RECOVERY_BUDGET_UNAVAILABLE',
+          'Continue-forward Effect recovery requires one durable recovery execution budget.'
+        );
+        const recoveryEffect = options.effectJournal.beginRecoveryExecution(effect.effect_id);
+        const recoveryStartedAtMs = Number(recoveryEffect?.verified_at_ms);
+        if (recoveryEffect?.effect_id !== effect.effect_id ||
+            recoveryEffect.event_attempt_id !== attempt.event_attempt_id ||
+            recoveryEffect.effect_class !== entry.manifest.effectClass ||
+            !Number.isSafeInteger(recoveryStartedAtMs) || recoveryStartedAtMs < 0) fail(
+          'P4_EVENT_RECOVERY_BUDGET_DRIFT',
+          'Continue-forward recovery budget does not bind the exact durable Effect and Event Attempt.'
+        );
+        timeoutStartedAtMs = recoveryStartedAtMs;
+      }
       const attemptContract = options.attemptPolicy.prepare(Object.freeze({ capabilityRef: snapshot.event.capability_ref,
         effectClass: snapshot.node.effect_class, retryPolicyRef: policyBinding.retryPolicyRef,
-        timeoutPolicyRef: policyBinding.timeoutPolicyRef, startedAtMs }));
+        timeoutPolicyRef: policyBinding.timeoutPolicyRef, startedAtMs:timeoutStartedAtMs }));
       const context = {
         executionId: assertId(options.nextExecutionId(), 'recovery-execution'), workId: snapshot.work.work_id,
         workAttemptId: snapshot.workAttempt.attempt_id, planId: snapshot.plan.plan_id, eventId: request.eventId,
