@@ -1,6 +1,6 @@
 # ShelfDeck Clean Helix Current Status
 
-Status: **MOVIE COLLECTION LIFECYCLE READY THROUGH SHELF DEREGISTRATION；PROD-035/036 已无损部署，生产验收未完成。**
+Status: **MOVIE COLLECTION LIFECYCLE READY THROUGH SHELF DEREGISTRATION；PROD-035/036 已无损部署，PROD-037 NFO 修正已合并未部署，生产验收未完成。**
 
 Last updated: 2026-08-31
 
@@ -50,7 +50,7 @@ PROD-034 已按 Product Owner 授权对“唐人街探案 (2015)”和“赤壁�
 
 - 7 个 Event Attempt 正在 executing，13 个 Work Attempt 正在 running；其中 Observation 各占 1 个，没有重新占满 64 hard cap。
 - Libra 有 3 个 running Work；Arca On-deck 1 个、Aftercare 8 个 running Work。服务 health、SQLite quick check 与无关容器均正常。
-- 业务验收未通过：Aftercare 重复出现 NFO source stale / `director` semantic drift；Formation 重复出现 projection digest invalid；Aftercare workspace reclaim Result 缺 `scopeDigest`。已分别打回 NFO 与媒体整理详情任务。
+- 业务验收未通过：Aftercare 重复出现 NFO source stale / `director` semantic drift；Formation 重复出现 projection digest invalid；Aftercare workspace reclaim Result 缺 `scopeDigest`。已分别打回 NFO 与媒体整理详情任务；NFO 修正已返回并合并，详情修正因兼容性路径与现存 Receipt 无法收敛被退回重做。
 
 ## PROD-035 Production Monitoring
 
@@ -61,6 +61,13 @@ PROD-034 已按 Product Owner 授权对“唐人街探案 (2015)”和“赤壁�
 - Accepted 后失败继续由 Arca 持有同一 On-deck Run。自动恢复最多 3 代；耗尽后进入零执行资源的稳定 `attention_required`，停止周期性 Supporting Work 与错误日志，用户可「重试上架」继续同一 Run。
 - 检查点审计确认：「接受瑕疵」和「放弃整理」属于 Handoff B Accepted 前的 Libra 旅程；Accepted 后不得用它们改判、回退或释放 Arca custody/control。
 - 生产仍重复报 `ARCA_AFTERCARE_NFO_SOURCE_STALE` 与 `CLEAN_ARCA_FINAL_NFO_SEMANTIC_DRIFT`（owned field `director`）；因此 PROD-035 不能标记生产 FIXED，已打回原 NFO 任务继续修正。
+
+## PROD-037 Local Correction
+
+- 生产只读核对确认，`director` semantic drift 的目标是《老枪 (2024)》，不是《罪人》。盘上 NFO 的 TMDB `1184222`、title/year/plot/genre/cast 与 accepted facts 一致；Emby 增加的 director 属于可维护附加内容，不是 Final Reality gate。
+- `ARCA_AFTERCARE_NFO_SOURCE_STALE` 属于另一条 Aftercare Case。source CAS 在 `material_commit` intent 后抛异常，旧 Runtime 将其视为未知副作用并持续恢复。
+- 本地修正把 Presentation gate 限定到已授权字段，并将同一演员的弱名称/强 TMDB identity 合并验收；source/stat fence 冲突在文件回滚后返回 `retryDirective=never` 的 typed `external_writer_conflict`，使未提交 Effect 可 abandon、Event/Work 有界终结。
+- 没有生产 DB 编辑、Emby 配置修改、Work ID 特例或旧条目兼容路径。Targeted 70/70、Service full 380 pass/18 skip/0 fail；尚未再次部署。
 
 ## Verification
 

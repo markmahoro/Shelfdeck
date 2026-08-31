@@ -1,6 +1,6 @@
 # ShelfDeck Clean Helix Master Plan
 
-Status: **Helix-beta Movie-only full chain；PROD-035/036 已无损部署，生产验收仍有未闭合项。**
+Status: **Helix-beta Movie-only full chain；PROD-035/036 已无损部署，PROD-037 NFO 修正已合并但尚未再次部署。**
 
 Last updated: 2026-08-31
 
@@ -20,6 +20,7 @@ Last updated: 2026-08-31
 - PROD-035 本地实现：Final Verify 移到 Placement 后；NFO 按业务语义验收并保存盘上实际指纹，Primary 等材料仍严格字节校验；Final Verify、Fulfillment、Commit 三次读取最新现实。
 - PROD-035 本地收敛：Aftercare 对语义等价 NFO 漂移只提交新的 Inventory Representation revision；On-deck 自动恢复有界，耗尽后稳定进入 `attention_required`，用户继续同一 Run 重试，不再无限停留在活动中间态。
 - PROD-036 已无损部署：Field Observation cadence 从 30 分钟改为 12 小时；Entry 保留 7 天并按活动引用保护、每事务最多清理 1,000 行；Observation 目录枚举和 fingerprint I/O 使用冻结 deadline，Page commit 前有协作式 abort 栅栏；旧库提供默认 dry-run 的离线 compact 工具。通用 terminal Event + running Attempt/Work 聚合保护独立保留。旧第 69 页已进入原 Attempt/Effect 的 `safe_retry`，仍在等待本轮有界 I/O 结果。
+- PROD-037 本地修正：NFO Presentation gate 严格限定为 Movie Identity、title/year/plot/genre/cast，不再把 renderer 可维护的 director 当作验收字段；同一演员的弱名称关系与 TMDB 强身份关系按强身份合并验收。Aftercare material commit 的 source/stat fence 冲突形成 typed terminal failure，使回滚后的未提交 Effect 可 abandon、Work 有界结束。
 
 ## 下一步规则
 
@@ -29,6 +30,7 @@ Last updated: 2026-08-31
 - On-deck 恢复沿用 immutable Final Inventory Decision 和同一 Run，自动恢复最多 3 代 Supporting Work；耗尽后必须停止自动执行并投影为 `attention_required`，用户重试仍复用同一 Run。不得重开 Libra、改判 Rejected 或创建第二个 On-deck Run。
 - Handoff B Accepted 前，Libra 才能「接受瑕疵」或「放弃整理」；Accepted 后 Arca 已接管，检查失败不能借这两个动作退回或结束。
 - NFO 允许 Emby 改写排版、`streamdetails` 和附加字段，但 Movie Identity、title/year/plot/genre/cast 必须与 accepted facts 一致；其他材料继续 exact package identity。
+- Aftercare 的 source/stat fence 冲突属于预期外部写入竞争：单个 Event 必须形成 `external_writer_conflict` failed Outcome；同一 Case 仍遵守最多 3 代 Work，耗尽后形成一个稳定 attention。后续重新评估读取最新现实，语义等价时只提交 Inventory revision，不写 NFO。
 - 不修改 Emby 配置，也不直接编辑生产 SQLite。当前 NFO semantic drift、Formation projection digest 与 Aftercare reclaim schema 异常已分别打回原任务；后续修复仍须标准 build/upload/deploy。
 - 不得继续恢复或扩展 PROD-034 的两个目标 Run。
 - 其余 active records 只按各自事实诊断；未经新授权，不把本次一次性纠正扩大到其他记录。

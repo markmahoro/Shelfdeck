@@ -17,6 +17,7 @@ const OWNED_FIELDS = Object.freeze([
   Object.freeze({ keys:['genre', 'genres'], tag:'genre' }),
   Object.freeze({ keys:['director'], tag:'director' }),
 ]);
+const PRESENTATION_GATE_TAGS = new Set(['title', 'year', 'plot', 'genre']);
 
 class AftercareNfoError extends Error {
   constructor(code, message, details = {}) {
@@ -522,6 +523,15 @@ function actorPresent(document, relation) {
   return Boolean(name) && actors.some((item) => item.normalizedName === name);
 }
 
+function requiredActorRelations(relations) {
+  return Object.freeze(relations.filter((relation) => {
+    if (tmdbPersonId(relation)) return true;
+    const name = normalizedName(relation.displayName);
+    return !name || !relations.some((candidate) =>
+      candidate !== relation && normalizedName(candidate.displayName) === name && tmdbPersonId(candidate));
+  }));
+}
+
 function projectMovieNfoSemantics(value) {
   const inspected = inspectAftercareMovieNfo(value);
   if (!inspected.usable) return inspected;
@@ -555,14 +565,15 @@ function compareMovieNfoPresentation(input) {
       return Object.freeze({ matches:false, reasonCode:'movie_identity_conflict' });
     }
   }
-  for (const item of ownedValues(prepared.metadata, prepared.identity)) {
+  for (const item of ownedValues(prepared.metadata, prepared.identity)
+    .filter((field) => PRESENTATION_GATE_TAGS.has(field.tag))) {
     if (item.tag === 'tmdbid') continue;
     const observed = collectDirectTexts(inspected, item.tag);
     if (!ownedFieldMatches(item.tag, item.value, observed)) {
       return Object.freeze({ matches:false, reasonCode:'owned_field_mismatch', field:item.tag });
     }
   }
-  for (const relation of prepared.cast) {
+  for (const relation of requiredActorRelations(prepared.cast)) {
     if (!actorPresent(inspected, relation)) {
       return Object.freeze({ matches:false, reasonCode:'actor_missing' });
     }

@@ -54,6 +54,7 @@
 | PROD-032 | token=0 时历史 Subject 仍批量生成 routing/spec/rating Work，Formation 保持 700+ 条 | `EXECUTION` / Intake replay 与下游 reconciler 绕过 token，Run Admission 过早释放 | 媒体整理工作区 | Critical | **FIXED / DEPLOYED** `helix-beta-20260831-710aa1b65a`（3 seats / 3 tokens / 3 active Works；Formation active 5） |
 | PROD-035 | Emby 在 On-deck 检查点之间改写 NFO，检查失败后同一 Run 可无限停在中间态 | `EXECUTION` / Final Verify 在 Placement 前 + 无耗尽后的业务稳态 | 媒体整理工作区 / 上架 | Critical | **DEPLOYED / MONITORING FAILED** `helix-beta-20260831-29efa3a229`；仍有 NFO source stale / director semantic drift，已打回原任务。 |
 | PROD-036 | Field Observation 每 30 分钟全量写入导致 SQLite 膨胀，且第 69 页 Event Attempt 长期 `executing` | `CAPACITY` / retention 缺失 + Observation I/O deadline 未生效 | 文件来源、`shelfdeck.db` | Critical | **DEPLOYED / MONITORING** `helix-beta-20260831-29efa3a229`；12 小时 cadence、7 天 GC 与 I/O deadline 已上线，旧第 69 页正在原 Attempt/Effect 上执行有界恢复。 |
+| PROD-037 | PROD-035 部署后仍误报 director drift，Aftercare source fence 继续刷日志 | `EXECUTION` / Presentation gate 误复用 renderer 字段 + expected CAS conflict 被抛成未知 Effect | 上架 / Aftercare | Critical | **FIXED LOCALLY**（精确 semantic gate + typed conflict terminalization；已合并、未部署） |
 
 PROD-001、PROD-002 的共同环境前提：生产管理台是 `http://192.168.12.230`，浏览器不提供 `crypto.randomUUID` / `crypto.subtle`。这不是传输加密设计，只是浏览器 API 限制。未改成 HTTPS。
 

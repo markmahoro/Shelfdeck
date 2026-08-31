@@ -17,6 +17,7 @@ const {
   materializeArtifactWithRollback,
   materializeMediaWithRollback,
   nfoCommitSource,
+  externalWriterConflictOutcome,
   observeSemanticNfoReconciliation,
   custodyIdentityChangedFinding,
   permitsMissingArtifactReplacement,
@@ -164,6 +165,26 @@ test('Aftercare NFO commit accepts only the exact source observed during prepara
     assert.throws(()=>nfoCommitSource(context,output,location,frozen,'mount-1',boundedFingerprint),
       (error)=>error.code==='ARCA_AFTERCARE_NFO_SOURCE_STALE');
   } finally { fs.rmSync(root,{recursive:true,force:true}); }
+});
+
+test('Aftercare source-fence conflicts return a terminal failed Outcome for Effect abandonment', () => {
+  const outcome=externalWriterConflictOutcome(Object.assign(new Error('source changed'),{
+    code:'ARCA_AFTERCARE_NFO_SOURCE_STALE',details:{reasonCode:'owned_field_mismatch',field:'title'},
+  }));
+  assert.deepEqual(outcome,{
+    kind:'failed',failureClass:'external_writer_conflict',code:'ARCA_AFTERCARE_NFO_SOURCE_STALE',
+    message:'source changed',retryDirective:'never',evidence:{errorName:'Error',
+      errorCode:'ARCA_AFTERCARE_NFO_SOURCE_STALE',reasonCode:'owned_field_mismatch',field:'title'},
+  });
+  assert.equal(externalWriterConflictOutcome(Object.assign(new Error('stat changed'),{
+    code:'PHYSICAL_MATERIAL_STAT_FENCE_CHANGED',
+  })).code,'PHYSICAL_MATERIAL_STAT_FENCE_CHANGED');
+  assert.equal(externalWriterConflictOutcome(new Error('ordinary failure')),null);
+  const source = fs.readFileSync(path.join(sourceRoot,
+    'domains/arca/capabilities/aftercare-capability-ports.js'), 'utf8');
+  assert.match(source,/catch\(error\)\{const conflict=externalWriterConflictOutcome\(error\);if\(conflict\)return conflict;throw error;\}/);
+  assert.match(source,/if\(isExternalWriterConflictOutcome\(o\)\)return;/);
+  assert.match(source,/if\(o\?\.kind==='failed'\|\|o\?\.result\?\.receiptKind!==/);
 });
 
 test('Aftercare media materialization is async and FFmpeg reports durable progress', () => {

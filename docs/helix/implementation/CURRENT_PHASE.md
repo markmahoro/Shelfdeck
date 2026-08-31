@@ -1,6 +1,6 @@
 # ShelfDeck Helix 当前实施阶段
 
-状态：**PROD-035 LOCAL FIX COMPLETE — PRODUCTION NOT DEPLOYED**
+状态：**PROD-035/036 DEPLOYED；PROD-037 NFO CORRECTION MERGED / NOT DEPLOYED；PRODUCTION ACCEPTANCE OPEN**
 
 日期：2026-08-31
 
@@ -16,6 +16,7 @@
 6. Accepted 后失败的唯一 Arca On-deck Run 保持 Owner/Control，自动恢复最多生成 3 代 Supporting Work；仍失败则停止执行并稳定投影为 `attention_required`，用户可用「重试上架」继续同一 Run，不创建第二个 Run、Shelf Entry 或兼容双路径；
 7. Aftercare 遇到语义等价的 NFO 指纹漂移时不写文件，只提交新的 Inventory Representation revision 并原子切换 Material Control；语义错误才 update/rebuild。
 8. PROD-036 将 Field Observation 调整为 12 小时 cadence，对可重建 Entry 明细执行 7 天引用保护 GC；冻结 deadline 贯穿目录枚举和 fingerprint I/O，Page commit 前执行协作式 abort 栅栏；启动恢复复用原 Attempt、Effect 与幂等键，永久审计事实不删除。terminal Event/Attempt 聚合保护作为独立通用恢复保留。
+9. PROD-037 将 NFO Presentation gate 收回 Movie Identity、title/year/plot/genre/cast；Aftercare source/stat fence 竞争在回滚完成后形成 typed terminal failure，不再留下未知 `material_commit` Effect。
 
 ## 边界
 
@@ -34,3 +35,4 @@
 - 测试覆盖 Placement 后、Final Verify 后、Settlement 后、Fulfillment 后及 Commit 后的 NFO 改写：语义等价继续并保存最新实际指纹；错误 TMDB、缺拥有字段、坏 XML fail closed；Primary 漂移继续失败。
 - 连续外部改写只保留一个活动 Case/Incident；自动恢复耗尽后不再周期重建 Work 或刷日志，并能由用户继续同一 Run。
 - Product Owner 已授权并完成本次标准 build/upload/deploy、备份和 ShelfDeck Compose 无损重建；未使用 clean init/reset。生产验收仍未闭合：NFO/《罪人》与 Formation 详情异常已分别打回原任务，PROD-036 旧第 69 页仍在新 deadline 的有界恢复窗口内。
+- PROD-037 仅完成本地合并，尚未再次部署；详情任务的首个 follow-up 因旧 Projection repair 兼容路径与现存 reclaim Receipt 不能收敛而被退回。

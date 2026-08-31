@@ -195,6 +195,27 @@ test('presentation health matches Emby-shaped NFO by identity and owned semantic
   assert.equal(inspectAftercareMovieNfo(existingBytes).usable, true);
 });
 
+test('presentation gate ignores Emby-added director fields and joins duplicate cast by strong identity', () => {
+  const existingBytes = Buffer.from(`<movie>
+    <title>老枪</title><year>2024</year><plot>Plot</plot><genre>剧情</genre><genre>犯罪</genre>
+    <tmdbid>1184222</tmdbid><director>Liu Xiaozhao</director><director>Emby Added</director>
+    <actor><name>Zu Feng</name><tmdbid>1161019</tmdbid></actor>
+  </movie>`);
+  assert.deepEqual(compareMovieNfoPresentation({
+    existingBytes,
+    metadata:{descriptiveFacts:{entries:[
+      {key:'title',value:'老枪'},{key:'year_or_release_date',value:'2024'},
+      {key:'plot',value:'Plot'},{key:'genre',value:'剧情, 犯罪'},
+      {key:'director',value:'Liu Xiaozhao'},
+    ]}},
+    cast:{relations:[
+      {role:'actor',displayName:'祖峰',providerIdentities:[]},
+      {role:'actor',displayName:'祖峰',providerIdentities:[{provider:'tmdb',namespace:'tmdb_person',providerKey:'1161019'}]},
+    ]},
+    identity:{provider:'tmdb',providerKey:'1184222'},
+  }), {matches:true,reasonCode:null});
+});
+
 test('presentation health rebuilds identity conflict and creates a missing NFO', () => {
   assert.deepEqual(
     compareMovieNfoPresentation(input({ existingBytes:Buffer.from(
