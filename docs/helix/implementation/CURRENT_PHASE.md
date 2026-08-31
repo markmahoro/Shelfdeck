@@ -22,6 +22,7 @@
 12. PROD-040 修复同一 On-deck Run 的 post-Placement 恢复窗口：先前成功 Placement 必须以同 Run、同 Target Commit Slot 的 typed Receipt 授权；NFO 可按语义继续并记录实际指纹，Primary/其他材料仍严格按 Package bytes，任何生产影片或旧 Work 不得拥有特殊分支。
 13. Formation 的 Plan 状态只表达真实执行是否完成，不把成功提交的业务检查结论 `failed|not_available` 投影成执行失败；一级页“当前进展”与过程卡片使用同一真实 Plan 摘要，前端不得从 `organizingSteps` 再拼一套 Plan。`workspace_media_production` 的相邻 Plan 必须按其实际工作区分标题。
 14. PROD-041 修复 `continue_forward` Effect Recovery 的执行时限：恢复执行拥有一次 durable、不可重置、仍受原 Timeout Policy 约束的预算；不得改写原 Attempt/Input/Fence/Effect 身份，也不得放宽 pure observation 或 ordinary retry hard deadline。
+15. 同一 Owner/Process/Work kind 责任链由最新 Supporting Work 决定当前阶段状态；整体 On-deck 已完成时，`currentPlan` 必须指向完成提交的 successor，历史失败 Plan 只保留在过程卡片中。没有 successor 的真实失败仍保持 `attention`。
 
 ## 边界
 
@@ -50,3 +51,4 @@
 - 本项 focused 42/42、Admin Web 38/38、production build通过。Service full为403项：384 pass、18 skip、1个FFmpeg stall-watchdog时序测试在全量并发下失败，单独重跑1/1通过；Helix Architecture aggregate仍被既有Entry HTTP临时目录/静态回复环境失败和既有`formation-process-projection.js`、`progress-projection-reader.js` dynamic-template scanner findings阻断。本项未部署、未改生产数据。
 - PROD-041 必须覆盖：原 Attempt deadline 已过但 Effect Reconciler 已给出 `continue_forward` 时，Capability 能获得一次按原 Timeout Policy 计算的恢复预算并实际收敛；恢复期间再次崩溃后 deadline 不得刷新；`safe_retry` / pure observation 的既有 deadline 行为保持不变。
 - PROD-041 本地验证：P4 focused 96/96；Service full 385 pass、18 skip、0 fail。P4 Runtime gate 仍只受 main 既有 dynamic-template scanner findings 阻断；未部署、未编辑生产数据。
+- 生产完成态验收暴露出 `currentPlan` 仍回捞同一 On-deck Run 的早期失败 Plan；本地修正现以同责任链最新 Work 聚合阶段状态，并在最终上架阶段完成时返回最后完成 Plan 摘要。历史失败仍在过程卡片内，未完成且没有 successor 时仍投影 `attention`。Formation focused 44/44，Service full 405 项为 387 pass、18 skip、0 fail；Admin Web 39/39，production build通过。本项不部署、不改生产数据。

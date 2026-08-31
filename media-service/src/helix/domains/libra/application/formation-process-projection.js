@@ -261,10 +261,23 @@ function projectPlans(works) {
       state, createdAtMs:group.plan.createdAtMs, nodes:Object.freeze(nodes) });
   }));
 }
+function currentResponsibilityWorks(works) {
+  const current=new Map();
+  for (const work of works) {
+    const key=[work.ownerDomain,work.processType,work.processId,work.workKind].join('\0');
+    const previous=current.get(key);
+    if (!previous || Number(work.createdAtMs)>Number(previous.createdAtMs) ||
+      (Number(work.createdAtMs)===Number(previous.createdAtMs) && String(work.workId).localeCompare(String(previous.workId))>0)) {
+      current.set(key,work);
+    }
+  }
+  return [...current.values()];
+}
 function stageState(plans, works=[]) {
-  if (works.some((work)=>['admitted','ready','running'].includes(work.state))) return 'running';
-  if (works.some((work)=>['failed','blocked'].includes(work.state))) return 'attention';
-  const terminal=works.filter((work)=>work.state!=='cancelled');
+  const currentWorks=currentResponsibilityWorks(works);
+  if (currentWorks.some((work)=>['admitted','ready','running'].includes(work.state))) return 'running';
+  if (currentWorks.some((work)=>['failed','blocked'].includes(work.state))) return 'attention';
+  const terminal=currentWorks.filter((work)=>work.state!=='cancelled');
   if (terminal.length && terminal.every((work)=>work.state==='succeeded')) return 'completed';
   if (plans.some((plan)=>plan.state==='attention')) return 'attention';
   if (plans.some((plan)=>plan.state==='running')) return 'running';
@@ -316,7 +329,9 @@ function buildFormationProcessDetail(input) {
 
 function currentPlanSummary(detail) {
   const stages=detail?.stages || [];
-  const stage=stages.find((item)=>item.state==='running') || stages.find((item)=>item.state==='attention');
+  const finalStage=stages.at(-1);
+  const stage=finalStage?.state==='completed' ? finalStage :
+    stages.find((item)=>item.state==='running') || stages.find((item)=>item.state==='attention');
   if (!stage) return null;
   let planIndex=-1;
   for (let index=stage.plans.length-1;index>=0;index-=1) {

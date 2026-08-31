@@ -134,6 +134,43 @@ test('Formation process stage follows the active successor instead of an earlier
   assert.deepEqual(shelving.plans.map((plan)=>plan.state),['attention','running']);
 });
 
+test('Formation current Plan follows a completed successor while preserving an earlier failed Plan',()=>{
+  const failed=work('arca','arca_ondeck_run','on-deck-completed','on_deck_execution',[
+    event('arca-plan-failed','slot-failed','arca.inventory.product.stage@1','failed',10),
+  ]);
+  failed.workId='work-on-deck-failed'; failed.state='failed'; failed.createdAtMs=10;
+  const succeeded=work('arca','arca_ondeck_run','on-deck-completed','on_deck_execution',[
+    event('arca-plan-succeeded','commit','arca.ondeck.commit@1','succeeded',20,[],{
+      result:{outcomeKind:'succeeded',result:{result:'succeeded'}},
+    }),
+  ]);
+  succeeded.workId='work-on-deck-succeeded'; succeeded.state='succeeded'; succeeded.createdAtMs=20;
+  const detail=buildFormationProcessDetail({displayIdentity:'完成示例',works:[failed,succeeded],
+    procurementScopes:[],libraScopes:[],arcaScopes:[{processType:'arca_ondeck_run',processId:'on-deck-completed'}]});
+  const shelving=detail.stages.find((stage)=>stage.key==='acceptance_shelving');
+  assert.equal(shelving.state,'completed');
+  assert.deepEqual(shelving.plans.map((plan)=>plan.state),['attention','completed']);
+  assert.deepEqual(currentPlanSummary(detail),{
+    stageKey:'acceptance_shelving',planId:'arca-plan-succeeded',planNumber:2,title:'将媒体写入收藏架',
+    label:'计划2 将媒体写入收藏架',state:'completed',statusText:'已完成',progress:null,
+  });
+});
+
+test('Formation current Plan keeps an unresolved failed Work as attention when no successor exists',()=>{
+  const failed=work('arca','arca_ondeck_run','on-deck-attention','on_deck_execution',[
+    event('arca-plan-attention','stage','arca.inventory.product.stage@1','failed',10),
+  ]);
+  failed.workId='work-on-deck-attention'; failed.state='failed'; failed.createdAtMs=10;
+  const detail=buildFormationProcessDetail({displayIdentity:'待处理示例',works:[failed],
+    procurementScopes:[],libraScopes:[],arcaScopes:[{processType:'arca_ondeck_run',processId:'on-deck-attention'}]});
+  const shelving=detail.stages.find((stage)=>stage.key==='acceptance_shelving');
+  assert.equal(shelving.state,'attention');
+  assert.deepEqual(currentPlanSummary(detail),{
+    stageKey:'acceptance_shelving',planId:'arca-plan-attention',planNumber:1,title:'将媒体写入收藏架',
+    label:'计划1 将媒体写入收藏架',state:'attention',statusText:'执行失败',progress:null,
+  });
+});
+
 test('Formation process card excludes hundreds of Field-wide Plans outside the accepted Candidate binding',()=>{
   const runId='procurement-run-shared',unitId='a'.repeat(64),candidatePackageId='candidate-package-subject';
   const works=Array.from({length:1000},(_value,index)=>work('procurement','procurement_run',runId,
