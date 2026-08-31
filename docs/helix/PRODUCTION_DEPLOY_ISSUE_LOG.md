@@ -46,19 +46,19 @@
 | PROD-024 | 门口 3 席位失效，一次灌进 8 部 Libra Run | `EXECUTION` / Intake 成功到 Run 建立不占席位 | 媒体整理工作区 | High | **FIXED** 无损升级 `helix-beta-20260829-2fe558b95`。已进来的继续跑，不再继续灌。 |
 | PROD-025 | 《007：大破天幕杀机》寻源报没有外部候选 | `EXECUTION` / MoviePilot 把 TMDB ID 当标题搜 | 媒体整理工作区 | High | **FIXED** 无损升级 `helix-beta-20260829-d1dd611d4`。已冻结片子需放弃后重新进整理。 |
 | PROD-026 | 《教父2》GPU 转码每小时被掐，永远编不完 | `EXECUTION` / Libra remux/transcode 误用 1 小时观察时限 | 媒体整理工作区 | High | **FIXED** 无损升级 `helix-beta-20260830-06d0cc63b`。在途转码按新 Attempt 使用 48 小时时限。 |
-| PROD-027 | 长转码页面进度写满后冻住，编码器仍在跑 | `EXECUTION` / ProgressReporter 历史上限连 current sample 一并停写 | 媒体整理工作区 | Medium | **FIXED in next image**（current 就地覆盖；未部署） |
+| PROD-027 | 长转码页面进度写满后冻住，编码器仍在跑 | `EXECUTION` / ProgressReporter 历史上限连 current sample 一并停写 | 媒体整理工作区 | Medium | **FIXED / DEPLOYED**（current 就地覆盖） |
 | PROD-028 | Aftercare 按整份 NFO 字节/指纹修文件，与 Emby 抢同一张说明书 | `EXECUTION` / Presentation 字节全等 + Inventory revision 未随实际 NFO 收敛 | 我的收藏 / Aftercare | Medium | **FIXED / FOLLOW-UP REQUIRED**。语义比较与 Inventory revision convergence 已进入后续镜像；首次修复未覆盖 On-deck post-Placement 后重新 Stage 的来源证明窗口，见 PROD-040。 |
 | PROD-029 | 收藏架「全自动 / 关键步骤确认」开关不改变实际上架行为 | `USER_EXPERIENCE` / standing Authorization 未接入 On-deck | 收藏架配置 | Low | **FIXED in next image**（Admin Web 表面已移除；后端 API 保留供后续收口） |
-| PROD-030 | 转码前体积预测 freeze 卡死 Run；寻源/转码编排割裂；详情步骤靠 Spec 猜测 | `EXECUTION` / Libra 协调器 + Formation 投影 | 媒体整理工作区 | Critical | **FIXED in next image**（双工具穷尽编排 + 实测瑕疵 + 真实步骤；未部署） |
+| PROD-030 | 转码前体积预测 freeze 卡死 Run；寻源/转码编排割裂；详情步骤靠 Spec 猜测 | `EXECUTION` / Libra 协调器 + Formation 投影 | 媒体整理工作区 | Critical | **FIXED / DEPLOYED**（双工具穷尽编排 + 实测瑕疵 + 真实步骤） |
 | PROD-031 | PROD-024 全局 3 席仍是 derived occupancy；无法按来源暂停/限流 | `EXECUTION` / Libra per-field pipeline token | 文件来源配置、媒体整理工作区 | High | **DEPLOYED** `helix-beta-20260830-5189f5f79c`（2026-08-30；migration + full libra reset；186 tables） |
 | PROD-032 | token=0 时历史 Subject 仍批量生成 routing/spec/rating Work，Formation 保持 700+ 条 | `EXECUTION` / Intake replay 与下游 reconciler 绕过 token，Run Admission 过早释放 | 媒体整理工作区 | Critical | **FIXED / DEPLOYED** `helix-beta-20260831-710aa1b65a`（3 seats / 3 tokens / 3 active Works；Formation active 5） |
 | PROD-035 | Emby 在 On-deck 检查点之间改写 NFO，检查失败后同一 Run 可无限停在中间态 | `EXECUTION` / Final Verify 在 Placement 前 + 无耗尽后的业务稳态 | 媒体整理工作区 / 上架 | Critical | **DEPLOYED / MONITORING FAILED** `helix-beta-20260831-29efa3a229`；仍有 NFO source stale / director semantic drift，已打回原任务。 |
 | PROD-036 | Field Observation 每 30 分钟全量写入导致 SQLite 膨胀，且第 69 页 Event Attempt 长期 `executing` | `CAPACITY` / retention 缺失 + recovery hard deadline 未收口 | 文件来源、`shelfdeck.db` | Critical | **REPLACEMENT DEPLOYED / RECOVERY PASS** `helix-beta-20260831-ae7a567cde`；旧 Work/Attempt/Event/Effect terminal failed，68 页/17,408 Entries 不变；12 小时 cadence 与 7 天稳态继续监控。 |
 | PROD-037 | PROD-035 部署后仍误报 director drift，Aftercare source fence 继续刷日志 | `EXECUTION` / Presentation gate 误复用 renderer 字段 + expected CAS conflict 被抛成未知 Effect | 上架 / Aftercare | Critical | **DEPLOYED / MONITORING** `helix-beta-20260831-ae7a567cde`；初始窗口未复发，既有《罪人》未兼容恢复。 |
-| PROD-038 | 《罪人》详情吸入 Field-wide 867 个 Plan，attention 显示为 `in_progress` 且无重试动作 | `USER_EXPERIENCE` / Process Plan 因果范围过宽 + Arca attention 投影缺失 | 媒体整理详情 | Critical | **CONFIRMED / RETURNED**。详情响应约 1.65 MB；已打回原详情任务，禁止前端补造 Plan 或旧数据兼容。 |
-| PROD-039 | 部署 readiness 在 WAL 只读挂载下返回 `SQLITE_CANTOPEN`，脚本仍继续 | `DEPLOYMENT_SAFETY` / 未强制匹配 ready | 生产部署 | High | **FIXED LOCALLY**。只读源复制到临时目录验证，输出非 ready 即阻断；尚未随镜像部署。 |
-| PROD-040 | 同一 On-deck Run 已 Placement 的 NFO 被 Emby 等价改写后，恢复 Stage 报 target occupied | `EXECUTION` / Stage 只认原始 offloadContext，遗漏 durable prior Placement provenance | 媒体整理详情 / 上架 | Critical | **DEPLOYED / EXECUTION BLOCKED** `e16ff04ebf`。NFO 修复已进入镜像，但现有 `continue_forward` 在 dispatch 前被旧 deadline 阻断，见 PROD-041。 |
-| PROD-041 | Startup Recovery 已分类 `continue_forward`，却因原 Attempt deadline 过期而永远进不了 Capability | `EXECUTION_FOUNDATION` / 恢复执行误复用原 wall-clock deadline，且没有 durable one-shot recovery budget | 全部非纯 Effect Forward Recovery | Critical | **FIXED LOCALLY / NOT DEPLOYED**。同一 Effect 一次冻结 recovery execution start；按原 Timeout Policy 有界执行，重启不续期。 |
+| PROD-038 | 《罪人》详情吸入 Field-wide 867 个 Plan，attention 显示为 `in_progress` 且无重试动作 | `USER_EXPERIENCE` / Process Plan 因果范围过宽 + Arca attention 投影缺失 | 媒体整理详情 | Critical | **FIXED / PRODUCTION ACCEPTED**。详情使用精确 Candidate Plan scope；完成态显示最新成功 successor。 |
+| PROD-039 | 部署 readiness 在 WAL 只读挂载下返回 `SQLITE_CANTOPEN`，脚本仍继续 | `DEPLOYMENT_SAFETY` / 未强制匹配 ready | 生产部署 | High | **FIXED / DEPLOYED**。只读源复制到临时目录验证，输出非 ready 即阻断；最终部署 readiness PASS。 |
+| PROD-040 | 同一 On-deck Run 已 Placement 的 NFO 被 Emby 等价改写后，恢复 Stage 报 target occupied | `EXECUTION` / Stage 只认原始 offloadContext，遗漏 durable prior Placement provenance | 媒体整理详情 / 上架 | Critical | **FIXED / PRODUCTION ACCEPTED**。《罪人》同一 Run 已完成 Stage 至 Commit。 |
+| PROD-041 | Startup Recovery 已分类 `continue_forward`，却因原 Attempt deadline 过期而永远进不了 Capability | `EXECUTION_FOUNDATION` / 恢复执行误复用原 wall-clock deadline，且没有 durable one-shot recovery budget | 全部非纯 Effect Forward Recovery | Critical | **FIXED / PRODUCTION ACCEPTED**。同一 Effect 一次冻结有界 recovery execution start，重启不续期。 |
 
 PROD-001、PROD-002 的共同环境前提：生产管理台是 `http://192.168.12.230`，浏览器不提供 `crypto.randomUUID` / `crypto.subtle`。这不是传输加密设计，只是浏览器 API 限制。未改成 HTTPS。
 
@@ -459,7 +459,7 @@ SSOT 10.3.5：本地 transcode/remux 是「10 分钟无进展判 Attempt timeout
 
 后续生产复现补充：上述修复解决了 post-Placement Final Verify 和有界业务稳态，但恢复 Work 重新从 Stage 开始时，collision gate 仍只认 Package 的原始 `offloadContext`。同一 Run 先前 Placement 新建、随后被 Emby 等价改写的 NFO 因而在进入 semantic verification 之前就被拒绝。此遗漏不改变 PROD-035 的业务处理结论；它作为 PROD-040 的来源证明缺口单独收口。
 
-## 40. PROD-040 — prior Placement NFO 在恢复 Stage 被误判为陌生冲突（DEPLOYED / EXECUTION BLOCKED）
+## 40. PROD-040 — prior Placement NFO 在恢复 Stage 被误判为陌生冲突（FIXED / PRODUCTION ACCEPTED）
 
 发现：2026-08-31。精确复现为正常新 On-deck Run 完成 Placement 后，Emby 将 final NFO 改写为语义等价字节；后续同 Run 的 Forward Recovery 从 Stage 重新进入时，Target Commit Slot 为空、Primary 等成员与 Package 全等，只有 final NFO 指纹变化。因为该 final 路径由 Placement 创建，不在 Package 原始 `offloadContext` 中，旧 Stage 抛出 `CLEAN_ARCA_TARGET_OCCUPIED`。
 
@@ -475,7 +475,7 @@ SSOT 10.3.5：本地 transcode/remux 是「10 分钟无进展判 Attempt timeout
 
 部署后补充：`e16ff04ebf` 已包含本项，但生产样本的恢复 Runtime 在进入 Stage Capability 前即因原 Attempt deadline 过期而失败，所以该代码没有执行机会。PROD-040 的业务规则保持成立；新的 Foundation 阻断记录为 PROD-041。
 
-## 41. PROD-041 — continue-forward 恢复误用已经过期的原 Attempt deadline（FIXED LOCALLY）
+## 41. PROD-041 — continue-forward 恢复误用已经过期的原 Attempt deadline（FIXED / PRODUCTION ACCEPTED）
 
 发现：2026-08-31。Startup Recovery 正确识别一个 `material_commit` Effect 需要 `continue_forward`，但 Event Runtime 仍用原 Event Attempt 的 `started_at_ms` 调用 Attempt Policy。长时间停机后计算出的 `deadlineAtMs` 已在过去，Timeout Controller 在调用 Capability 前直接拒绝；Host 随后按 recovery cadence 再次调用，同一个过期 deadline 永远不可能收敛。
 
@@ -486,4 +486,8 @@ SSOT 10.3.5：本地 transcode/remux 是「10 分钟无进展判 Attempt timeout
 - Event Runtime 先重验原 Input Snapshot、Fence、Effect intent 与 idempotency identity，再以 frozen recovery start 调用同一 Attempt Policy；Context 仍保留原 `eventAttemptId`、`effectOccurredAtMs` 与 `recoveryDecision`。
 - 再次崩溃或 Host 重试只读原时间，不能刷新 deadline。普通执行、pure observation、`safe_retry` 与 PROD-036 的原 Attempt hard-close 路径完全不变。
 
-本地单测证明旧 Attempt deadline 已过仍能进入并完成 `continue_forward`；同时把时钟推进一小时后重复开始，Journal 时间与 `updated_at_ms` 均保持第一次值。没有生产 ID、路径、影片、NFO 或旧 Run 特例；未部署、未改生产数据。
+本地单测证明旧 Attempt deadline 已过仍能进入并完成 `continue_forward`；同时把时钟推进一小时后重复开始，Journal 时间与 `updated_at_ms` 均保持第一次值。没有生产 ID、路径、影片、NFO 或旧 Run 特例。
+
+生产验收：修正随 `helix-beta-20260831-e655d6d66f` 部署后，《罪人 (2025)》沿用 On-deck Run `6934758bf6a97208e0e2bc024d6bfb19bf6f36993a2a223bee5a7ba23125ca2a`，同一恢复链实际执行 Stage、Staged Verify、Placement、Final Verify、Settlement、Fulfillment 与 Commit，建立 Shelf Entry `f04a4f09b2b64d957392425ca6eb7d70dde5126bf4f07424777df08c84f11347`。这同时完成 PROD-040 的生产行为验收；没有 Reset 或生产数据编辑。
+
+完成态详情随后暴露旧 failed Work 抢占 `currentPlan` 的独立投影问题。最终镜像 `helix-beta-20260831-b06b70ba10`（tar SHA-256 `1389e07734d1de51262ef947d0345f095c5f50c59d9c2acbd97cd951b51f9543`）已无损部署；《罪人》现显示 `计划5 将媒体写入收藏架 / 已完成`，Formation 汇总为 3 条进行中、9 条已完成、0 条待整理或需处理。部署窗口未见该条目的 target occupied、NFO semantic drift 或 source stale。

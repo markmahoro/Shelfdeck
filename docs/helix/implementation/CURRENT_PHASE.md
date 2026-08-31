@@ -1,6 +1,6 @@
 # ShelfDeck Helix 当前实施阶段
 
-状态：**FORMATION EXACT PLAN SCOPE DEPLOYED；RESOURCE-WAIT FAIRNESS AND SUCCESSOR AGGREGATION READY / NOT DEPLOYED；PRODUCTION ACCEPTANCE OPEN**
+状态：**FORMATION EXACT PLAN SCOPE、RESOURCE-WAIT FAIRNESS、FORWARD RECOVERY 与 SUCCESSOR AGGREGATION 已部署；PRODUCTION ACCEPTANCE PASS**
 
 日期：2026-08-31
 
@@ -32,7 +32,7 @@
 - 「接受瑕疵」与「放弃整理」只适用于 Handoff B Accepted 以前的 Libra Run；Accepted 以后失败不得改判 Rejected、退回 Libra 或借这两个动作终结。此时 Arca 只允许有界自动恢复、稳定 attention 和同一 On-deck Run 的用户重试。
 - 不恢复 PROD-034 已纠正的两个中止 Run。
 - 不直接编辑生产 SQLite；恢复只能由 Arca 正式 Work、Capability、Effect 与 On-deck Commit 合同执行。
-- 不修改 Emby 配置。本轮只授权本地代码、测试与文档，不部署生产。
+- 不修改 Emby 配置。本轮生产部署仅使用标准无损 replacement，不执行 clean init、Reset 或生产数据库编辑。
 - 不为现有生产影片、固定 ID、路径、Run/Work/Effect 编写兼容或 fallback。若正式事实已经不可自洽，只能整理 Reset 证据并另行申请授权，不能由本修复掩盖。
 
 ## Exit Gate
@@ -44,11 +44,11 @@
 - Product Owner 已授权并完成 replacement 标准 build/upload/deploy、备份和 ShelfDeck Compose 无损重建；未使用 clean init/reset。PROD-036 旧第 69 页已按原 durable deadline terminal fail，68 页/17,408 Entries 不变、无迟到提交。
 - PROD-037 已部署，初始窗口未见旧 NFO 错误复发。Formation 详情验收失败：《罪人》吸入 Field-wide 867 个 Plan，attention 仍显示为 `in_progress` 且无重试动作，已打回原任务；既有坏 Projection/Receipt 未获一次性纠正授权，继续 fail closed。
 - Formation 精确 Candidate Plan Scope 与 On-deck Work Definition Recovery 已随 `91f990609c` 部署；生产详情收敛到约 14–25 KiB，并为《罪人》的同一 On-deck Run 建立第三代 Work。
-- 第三代 Work 的首个 Event 被两个长期 Resource waiter 饿死；本地修正以 scheduling round 保证后续 eligible Event 获得机会，并让过程卡片以当前 running successor 作为阶段状态、保留旧失败 Plan。focused 109/109，Service full 384 pass/18 skip/0 fail；P4 Runtime gate 仍仅受 main 既有 dynamic-template scanner findings 阻断。该 follow-up 未部署、未改生产数据。
+- 第三代 Work 的首个 Event 被两个长期 Resource waiter 饿死；scheduling round 已部署并让后续 eligible Event 获得机会，过程卡片以当前 successor 作为阶段状态并保留旧失败 Plan。生产《罪人》同一 On-deck Run 已完成至 Commit。
 - PROD-040 精确回归必须证明：原始 `offloadContext` 为空时，同 Run 先 Placement、Emby 后改写的语义等价 NFO 可通过恢复 Stage/Staged Verify/Placement 且字节不被覆盖；缺少或错配 Placement Receipt 仍报 target occupied；Primary 漂移仍失败。只允许正常新条目复现路径，不测试旧数据兼容。
 - PROD-040 本地验证：相关 focused 68/68；Service full 385 pass、18 skip、0 fail；Admin Web 38/38 与 production build 通过；官方 npm registry audit 为 0。Architecture semantic/manifest/contract PASS，总 gate 仍仅受 main 既有两个 dynamic-template scanner findings 阻断。
 - 生产只读证据确认《冰血暴 (1996)》计划12的 Work、Work Attempt、两个 Event 与 Result Outcome 均为 `succeeded`；业务检查结论为 `max_size_exceeded`，原片 `10,773,491,271 bytes`，收藏上限 `8,589,934,592 bytes`。本地过程投影现把该计划显示为已完成并列明“未通过 / 文件大小 / 收藏上限”，计划11–14分别命名为“读取原始媒体信息 / 判断原片是否可以直接使用 / 确认视频处理方式 / 处理媒体文件”；一级页由后端同源返回“计划14 处理媒体文件 / 等待处理资源”，React不再读取`organizingSteps`生成副文案。
-- 本项 focused 42/42、Admin Web 38/38、production build通过。Service full为403项：384 pass、18 skip、1个FFmpeg stall-watchdog时序测试在全量并发下失败，单独重跑1/1通过；Helix Architecture aggregate仍被既有Entry HTTP临时目录/静态回复环境失败和既有`formation-process-projection.js`、`progress-projection-reader.js` dynamic-template scanner findings阻断。本项未部署、未改生产数据。
+- 本项 focused 42/42、Admin Web 38/38、production build通过。Service full当时为403项：384 pass、18 skip、1个FFmpeg stall-watchdog时序测试在全量并发下失败，单独重跑1/1通过；最终合并后 Service full 406项为388 pass、18 skip、0 fail。本项已部署，未改生产数据。
 - PROD-041 必须覆盖：原 Attempt deadline 已过但 Effect Reconciler 已给出 `continue_forward` 时，Capability 能获得一次按原 Timeout Policy 计算的恢复预算并实际收敛；恢复期间再次崩溃后 deadline 不得刷新；`safe_retry` / pure observation 的既有 deadline 行为保持不变。
-- PROD-041 本地验证：P4 focused 96/96；Service full 385 pass、18 skip、0 fail。P4 Runtime gate 仍只受 main 既有 dynamic-template scanner findings 阻断；未部署、未编辑生产数据。
-- 生产完成态验收暴露出 `currentPlan` 仍回捞同一 On-deck Run 的早期失败 Plan；本地修正现以同责任链最新 Work 聚合阶段状态，并在最终上架阶段完成时返回最后完成 Plan 摘要。历史失败仍在过程卡片内，未完成且没有 successor 时仍投影 `attention`。Formation focused 44/44，Service full 405 项为 387 pass、18 skip、0 fail；Admin Web 39/39，production build通过。本项不部署、不改生产数据。
+- PROD-041 本地验证：P4 focused 96/96；Service full 385 pass、18 skip、0 fail。部署后《罪人》同一 Effect/Run 获得一次有界恢复预算并完成 Commit；未编辑生产数据。
+- 生产完成态验收曾暴露 `currentPlan` 回捞同一 On-deck Run 的早期失败 Plan；现以同责任链最新 Work 聚合阶段状态，并在最终上架阶段完成时返回最后完成 Plan 摘要。历史失败仍在过程卡片内，未完成且没有 successor 时仍投影 `attention`。最终 targeted 10/10，Service full 406 项为 388 pass、18 skip、0 fail；生产《罪人》已显示 `计划5 将媒体写入收藏架 / 已完成`。

@@ -1,6 +1,6 @@
 # ShelfDeck Clean Helix Current Status
 
-Status: **MOVIE COLLECTION LIFECYCLE READY THROUGH SHELF DEREGISTRATION；Formation 精确 Plan Scope 与 On-deck Recovery 已部署；资源等待公平调度与过程卡片后继 Work 聚合已完成本地修正、未部署。**
+Status: **MOVIE COLLECTION LIFECYCLE READY THROUGH SHELF DEREGISTRATION；Formation 精确 Plan Scope、On-deck Recovery、资源等待公平调度与过程卡片后继 Work 聚合均已部署并通过生产验收。**
 
 Last updated: 2026-08-31
 
@@ -19,11 +19,11 @@ hard-deadline replacement 已随 `helix-beta-20260831-ae7a567cde` 无损部署�
 ## Production
 
 - Host：`192.168.12.230:18080`。
-- Running image：`markmahoro/shelfdeck:helix-beta-20260831-91f990609c`；source commit `91f990609c`。
-- Running image ID：`sha256:00fe45e0de9c87e45eed6f0c157b40802ce5fd2ce9c7c16c99990b24b2a5d07c`。
+- Running image：`markmahoro/shelfdeck:helix-beta-20260831-b06b70ba10`；source commit `b06b70ba10df836d04cb05483df574a976433df4`；tar SHA-256 `1389e07734d1de51262ef947d0345f095c5f50c59d9c2acbd97cd951b51f9543`。
+- Running image ID：`sha256:5d3fc8ebab0d8e29283bc4426f5db29396a4eebce49d7d2799e8eccb9dc9380c`。
 - Health：`ok`；generation `helix-clean-v3`；schema 186；`normalSupplyAllowed:true`；SQLite `integrity_check=ok`。
 - Compose：`/vol1/1000/docker/shelfdeck`；data：`/vol1/1000/docker/shelfdeck/data`；Workspace mount：`/transcode`。
-- Current rollback backup：`/vol1/1000/docker/shelfdeck/backups/deploy-20260831T024938Z-91f990609c`。
+- Latest retained rollback backup：`/vol1/1000/docker/shelfdeck/backups/deploy-20260831T040047Z-03e85b8e46`。
 - 其他 NAS Docker 服务在部署后只读检查时仍运行正常。
 
 ## Production Corrections
@@ -50,22 +50,23 @@ PROD-034 已按 Product Owner 授权对“唐人街探案 (2015)”和“赤壁�
 
 ## Current Runtime
 
-- 6 个 Event Attempt 正在 executing，13 个 Work Attempt 处于 active；服务 health、SQLite integrity 与无关容器均正常。
-- 新镜像初始窗口没有再出现 NFO source stale / `director` semantic drift。Formation API 当前返回 4 条 active；《罪人》详情已由约 1.65 MiB 收敛到约 14–25 KiB，材料准备只返回当前 Candidate 的一个真实 Plan。
-- 《罪人》同一 On-deck Run 的第三代 Work 为 `running`，首个 `arca.inventory.target_slot.prepare@1` Event 为 `ready` 且没有 Event Attempt；全局仅 6 个 Event Attempt executing。生产未做兼容修复或数据编辑，当前 follow-up 只在本地修正 Scheduler fairness 与过程卡片聚合。
+- Formation API 当前为 3 条 `in_progress`、9 条 `completed`、0 条 `pending|attention_required`；全局 active Attempt 6 个，其中 Observation active Attempt 为 0。服务 health 与 SQLite integrity 正常。
+- 《罪人 (2025)》沿用 On-deck Run `6934758bf6a97208e0e2bc024d6bfb19bf6f36993a2a223bee5a7ba23125ca2a`，已完成 Stage → Verify → Placement → Settlement → Fulfillment → Commit，并建立 Shelf Entry `f04a4f09b2b64d957392425ca6eb7d70dde5126bf4f07424777df08c84f11347`。
+- 《罪人》详情当前显示 `计划5 将媒体写入收藏架 / 已完成`；旧 failed Plan 仅留在过程历史。最终启动窗口未再出现该条目的 `CLEAN_ARCA_TARGET_OCCUPIED`、`CLEAN_ARCA_FINAL_NFO_SEMANTIC_DRIFT` 或 `ARCA_AFTERCARE_NFO_SOURCE_STALE`。
+- 《千寻小姐 (2023)》仍沿用同一转码 Work，FFmpeg 已在最终部署后重新启动，持久化进度为 49.9%；《冰血暴 (1996)》等待计划14转码资源，《异形2》等待计划15处理策略。
 
-## Formation Detail Local Correction
+## Formation Detail Production Acceptance
 
 - 根因一是详情投影只按共享 `procurement_run_id` 收集 Plan，把同一 Field Run 下全部 Candidate Work 都带入一个 Subject。现在 Procurement 阶段必须同时匹配 Accepted Candidate Package 与其冻结 `structureUnitId`；Field-wide Evidence Plan、其他 Candidate Plan 以及只匹配其中一项的漂移数据全部排除，前端仍只渲染后端返回的真实 Plan。
 - 根因二是 Accepted On-deck 的 Plan/Input Projection 失败没有 Result，恢复却从 Result 读取 Handoff B 引用；生产《罪人》的同一 On-deck Run 因此停在 `offloading`，已有两代 failed Work。恢复现只读 immutable Work Definition，继续同一 Run；第三代失败后的 callback gap 会先把该 Run 收口为 `blocked`，再稳定投影 `attention_required` 与「重试上架」，不会重开 Libra 或创建第二个 On-deck Run。
 - 上述两项已随 `91f990609c` 无损部署。生产详情已收敛到约 14–25 KiB，材料准备只保留当前 Candidate 的一个真实 Plan；同一 On-deck Run 已产生第三代 running Work，没有重开 Libra 或第二个 Run。
 - 第三代 Work 的首个 Event 随后持续停在 `ready`。只读诊断确认不是 16 个 Event 并发上限：仅 6 个 Event Attempt executing。真正原因是两个更早的 `waiting_for_resource` 转码 Event 持续排在队首；Scheduler 用 100ms wall-clock cooldown 防重复，而生产一次 SQLite 调度扫描可超过 100ms，于是同一 waiter 每轮重新获选并饿死后续 Event。现改为 scheduling-round fairness：一个资源 waiter 每轮只尝试一次，其他 eligible Event 必须获得机会；整轮耗尽后再由 bounded fallback 开启下一轮。
 - 过程卡片另有独立聚合错误：旧 failed Work 先于当前 running successor 判定，导致阶段显示 `attention` 而整体仍为 `in_progress`。现在当前 `admitted|ready|running` 后继 Work 决定阶段为进行中；旧失败 Plan 仍原样保留在展开结果中，不被覆盖或删除。
-- 完成态进一步暴露同一缺口：成功 successor 已完成 On-deck Commit 后，历史 failed Work 仍会把阶段和 `currentPlan` 拉回 `attention`。本地现按同一 Owner/Process/Work kind 的最新 Work 判定责任链状态；最终上架阶段完成时，列表摘要指向完成 Commit 的 successor，早期失败 Plan 继续只作为过程历史展示。没有 successor 的真实失败仍保持 `attention`。Formation focused 44/44，Service full 387 pass/18 skip/0 fail，Admin Web 39/39且production build通过；本项未部署、未改生产数据。
+- 完成态进一步暴露同一缺口：成功 successor 已完成 On-deck Commit 后，历史 failed Work 仍会把阶段和 `currentPlan` 拉回 `attention`。现按同一 Owner/Process/Work kind 的最新 Work 判定责任链状态；最终上架阶段完成时，列表摘要指向完成 Commit 的 successor，早期失败 Plan 继续只作为过程历史展示。没有 successor 的真实失败仍保持 `attention`。该修正已随 `b06b70ba10` 部署，并由《罪人》的完成态详情形成生产验收。
 - 《冰血暴 (1996)》生产只读证据进一步确认：计划12执行链全部 `succeeded`，只是媒体合规检查返回`max_size_exceeded`（原片约10.03 GiB、收藏上限8 GiB），随后真实计划13确认处理方式、计划14等待转码资源。旧过程投影把Result payload中的`result:"failed"`误当成Runtime失败；本地现只按Event/Outcome执行事实确定Plan状态，计划12显示已完成并保留“不符合要求”的真实检查结论。
 - 一级页“当前进展”此前虽不是React生成Plan，但仍由`nextAction + organizingSteps`这套旧后端表达驱动，与过程卡片的真实Plan分离。现在列表只为当前页有界读取同一真实Plan投影的编号、标题、状态和进度摘要；前端只渲染`currentPlan`，没有第二套Plan生成或`organizingSteps`回退。媒体生产计划标题按真实工作区分，冰血暴计划11–14依次为“读取原始媒体信息 / 判断原片是否可以直接使用 / 确认视频处理方式 / 处理媒体文件”。
-- 本地 focused 109/109；Service full 402 项为 384 pass、18 skip、0 fail。P4 Runtime gate 仍只被 main 既有 `formation-process-projection.js` 与 `progress-projection-reader.js` dynamic-template scanner findings 阻断。本轮 follow-up 未部署、未编辑生产数据库、未 Reset、未创建新 On-deck Run 或重开 Libra。
-- 本次Plan语义/列表同源增量 focused 42/42、Admin Web 38/38、production build通过。Service full 403项为384 pass、18 skip、1个与本改动无关的FFmpeg stall-watchdog并发时序失败，单独重跑1/1通过；Architecture aggregate仍有既有Entry HTTP环境失败与既有dynamic-template scanner findings。本增量未部署，也未写生产数据库。
+- 历史 focused 109/109；当时 Service full 402 项为 384 pass、18 skip、0 fail。P4 Runtime gate 仅受既有 dynamic-template scanner findings 阻断。该 follow-up 后续已部署，未编辑生产数据库、未 Reset、未创建新 On-deck Run 或重开 Libra。
+- Plan语义/列表同源增量 focused 42/42、Admin Web 38/38、production build通过；最终 successor 聚合合并后 Service full 406 项为 388 pass、18 skip、0 fail。上述增量均已部署，未写生产数据库。
 
 ## PROD-035 Production Monitoring
 
@@ -84,19 +85,19 @@ PROD-034 已按 Product Owner 授权对“唐人街探案 (2015)”和“赤壁�
 - 本地修正把 Presentation gate 限定到已授权字段，并将同一演员的弱名称/强 TMDB identity 合并验收；source/stat fence 冲突在文件回滚后返回 `retryDirective=never` 的 typed `external_writer_conflict`，使未提交 Effect 可 abandon、Event/Work 有界终结。
 - 没有生产 DB 编辑、Emby 配置修改、Work ID 特例或旧条目兼容路径。修正已随当前镜像无损部署；初始监控窗口未见两类旧错误复发，仍需等待新的正式 Aftercare/On-deck 行为验证。
 
-## PROD-040 Production Blocked
+## PROD-040 Production Accepted
 
 - 生产只读复现证明，恢复 Stage 遇到的非 Package NFO 是同一 On-deck Run 早先 Placement 后由 Emby 等价改写的 final 文件；原 `offloadContext` 不包含这个由 Placement 新建的路径，因此旧门禁把它误判为陌生冲突文件并抛出 `CLEAN_ARCA_TARGET_OCCUPIED`。
 - 本地修正从 Execution Foundation 读取同一 Arca On-deck Run 的 durable Placement Result；只有 typed `PlacementSwitchReceipt/v1` 同时匹配 `scopeId=onDeckRunId` 与当前 `targetCommitSlotId`，Stage、Staged Verify、Placement 才允许 NFO 进入 semantic presentation 分支。
 - 语义等价 NFO 不被重写，Staged Manifest 记录其盘上实际 physical identity；没有正式回执、错 Run/错 Slot、缺 presentation basis、语义冲突或任何非 NFO 成员漂移继续 fail closed。不存在影片 ID、路径、Work ID 特例，也没有 migration、旧条目兼容、生产数据编辑或 Reset。
-- 精确回归覆盖空 `offloadContext`、先 Placement、Emby 改写、同 Run 恢复 Stage；同时覆盖无回执拒绝与 Primary 严格拒绝。修正已随 `e16ff04ebf` 部署，但被 PROD-041 的 dispatch 前 timeout 阻断，尚未形成生产行为验收。
+- 精确回归覆盖空 `offloadContext`、先 Placement、Emby 改写、同 Run 恢复 Stage；同时覆盖无回执拒绝与 Primary 严格拒绝。修正先随 `e16ff04ebf` 部署，并在 PROD-041 部署后由《罪人》同一 Run 完成 Stage 至 Commit 的生产链路正式验收。
 
-## PROD-041 Local Correction
+## PROD-041 Production Accepted
 
 - PROD-040 随生产镜像 `e16ff04ebf` 部署后，现有 On-deck Run 的 Stage 仍未进入 Inventory Port：Startup Recovery 已把 Effect 分类为 `continue_forward`，但 Event Runtime 用原 Event Attempt `started_at_ms + timeoutMs` 重建 deadline；原 deadline 已过，Timeout Controller 在 Capability dispatch 前立即抛出 `P4_EXECUTION_TIMEOUT`。
 - 这是所有长时间停机后 `continue_forward` 非纯 Effect 都可能触发的 Foundation 缺口，不是 NFO、影片或 Arca 专属问题。现为同一 Effect 在首次恢复执行前原子写入一次 durable recovery execution start；Attempt Policy 仍使用原 Capability/Effect Class 的冻结 Timeout Policy，只把这次恢复句柄的计时起点改为该 durable 时间。
 - 后续进程重启不会更新该时间，因此真实 recovery hard timeout 不会无限重置。原 Event Attempt identity、Input Snapshot、Fence Snapshot、Effect identity/intent/idempotency key、`effectOccurredAtMs` 和 Result/Receipt 收口合同均保持不变。`safe_retry` 与 pure observation 仍沿用原 Attempt deadline，PROD-036 hard-close 行为未放宽。
-- 本地测试覆盖：原 Attempt deadline 已过时，classified `continue_forward` 仍实际 dispatch 并成功收口；同一 Effect 在时钟前进一小时和再次启动时仍返回第一次冻结时间。尚未部署，未修改生产数据。
+- 本地测试覆盖：原 Attempt deadline 已过时，classified `continue_forward` 仍实际 dispatch 并成功收口；同一 Effect 在时钟前进一小时和再次启动时仍返回第一次冻结时间。修正随 `e655d6d66f` 部署后，《罪人》同一 Effect/Run 获得一次有界恢复预算并完成 On-deck Commit；未修改生产数据。
 
 ## Verification
 
@@ -107,6 +108,7 @@ PROD-034 已按 Product Owner 授权对“唐人街探案 (2015)”和“赤壁�
 - PROD-035 targeted 覆盖 NFO 五个并发改写窗口、Primary 漂移、坏 XML/身份冲突/缺字段、Aftercare revision convergence、连续冲突聚合、同根与阶段恢复；UAT-131 四个场景通过。
 - PROD-040 focused：相关 Arca/Aftercare/On-deck 68/68；Service full 403 项为 385 pass、18 skip、0 fail；Admin Web 38/38，production build 通过；Service 与 Web 官方 npm registry audit 均为 0。Helix Architecture gate 的 semantic、manifest、contract 均通过，总 gate 仅被 main 既有 `formation-process-projection.js` / `progress-projection-reader.js` dynamic-template scanner findings 阻断，本轮未改这两个文件。
 - PROD-041 focused：P4 Effect Journal/Event Runtime/Startup Recovery/Runtime Host 96/96；Service full 403 项为 385 pass、18 skip、0 fail。正式 P4 Runtime gate 仍只被 main 既有两个 dynamic-template scanner findings 阻断；本轮 Foundation tests 与运行时语义没有新增 finding。
+- 最终 Formation successor 聚合合并后 targeted 10/10；Service full 406 项为 388 pass、18 skip、0 fail。最终镜像 build/upload/checksum/dry-run/apply、readiness、health、Admin Web、媒体/QSV mount 和 running-image 校验全部通过。
 - Service full：386 项，368 pass、18 skip、0 fail；Admin Web：37/37，production build 通过。
 - Service 与 Web 的 official npm registry audit 均为 0；image checksum、deploy gates、SQLite integrity 和 production health 通过。
 
