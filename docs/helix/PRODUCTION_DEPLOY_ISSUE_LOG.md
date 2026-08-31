@@ -59,6 +59,7 @@
 | PROD-039 | 部署 readiness 在 WAL 只读挂载下返回 `SQLITE_CANTOPEN`，脚本仍继续 | `DEPLOYMENT_SAFETY` / 未强制匹配 ready | 生产部署 | High | **FIXED / DEPLOYED**。只读源复制到临时目录验证，输出非 ready 即阻断；最终部署 readiness PASS。 |
 | PROD-040 | 同一 On-deck Run 已 Placement 的 NFO 被 Emby 等价改写后，恢复 Stage 报 target occupied | `EXECUTION` / Stage 只认原始 offloadContext，遗漏 durable prior Placement provenance | 媒体整理详情 / 上架 | Critical | **FIXED / PRODUCTION ACCEPTED**。《罪人》同一 Run 已完成 Stage 至 Commit。 |
 | PROD-041 | Startup Recovery 已分类 `continue_forward`，却因原 Attempt deadline 过期而永远进不了 Capability | `EXECUTION_FOUNDATION` / 恢复执行误复用原 wall-clock deadline，且没有 durable one-shot recovery budget | 全部非纯 Effect Forward Recovery | Critical | **FIXED / PRODUCTION ACCEPTED**。同一 Effect 一次冻结有界 recovery execution start，重启不续期。 |
+| PROD-042 | 3 个 Pre-deck token 均被占用，但只有 2 条 Formation 活动记录，后续 Libra Run 不再进入 | `EXECUTION` / Rejection Planner 把整个 dependency ref 当成 Evidence Work ID | Handoff A Intake / 媒体整理工作区 | Critical | **FIXED LOCALLY / NOT DEPLOYED**。正常新拒绝链会提交 Decision 并释放 token；旧失败条目不做兼容恢复。 |
 
 PROD-001、PROD-002 的共同环境前提：生产管理台是 `http://192.168.12.230`，浏览器不提供 `crypto.randomUUID` / `crypto.subtle`。这不是传输加密设计，只是浏览器 API 限制。未改成 HTTPS。
 
@@ -491,3 +492,13 @@ SSOT 10.3.5：本地 transcode/remux 是「10 分钟无进展判 Attempt timeout
 生产验收：修正随 `helix-beta-20260831-e655d6d66f` 部署后，《罪人 (2025)》沿用 On-deck Run `6934758bf6a97208e0e2bc024d6bfb19bf6f36993a2a223bee5a7ba23125ca2a`，同一恢复链实际执行 Stage、Staged Verify、Placement、Final Verify、Settlement、Fulfillment 与 Commit，建立 Shelf Entry `f04a4f09b2b64d957392425ca6eb7d70dde5126bf4f07424777df08c84f11347`。这同时完成 PROD-040 的生产行为验收；没有 Reset 或生产数据编辑。
 
 完成态详情随后暴露旧 failed Work 抢占 `currentPlan` 的独立投影问题。最终镜像 `helix-beta-20260831-b06b70ba10`（tar SHA-256 `1389e07734d1de51262ef947d0345f095c5f50c59d9c2acbd97cd951b51f9543`）已无损部署；《罪人》现显示 `计划5 将媒体写入收藏架 / 已完成`，Formation 汇总为 3 条进行中、9 条已完成、0 条待整理或需处理。部署窗口未见该条目的 target occupied、NFO semantic drift 或 source stale。
+
+## 42. PROD-042 — Intake Rejection 输入绑定把引用对象当成 Work ID（FIXED LOCALLY / NOT DEPLOYED）
+
+发现：2026-08-31 生产只读诊断。唯一 Field 为 3 seats / 3 held / 0 free，但 Formation 只有 2 条活动记录。第三个 token 对应的 Candidate 已通过合同校验，物理材料校验返回 `candidate_material_unavailable`；随后的 Rejection Work 因 `P4_EVENT_INPUT_PREPARATION_FAILED` 失败，token 未释放，后续 Handoff A Intake 因而无法补位。
+
+根因：Intake Coordinator 正确把 Evidence Supporting Work 作为一个 typed `dependencyRef` 传给 Rejection Work；Rejection Planner 却把整个对象写入 `parameters.evidenceWorkId`。Input Projection 再以该值调用 `workResultReader.read()`，于是本应为字符串的 Work ID 变成对象。由于 Rejection Decision 从未提交，Coordinator 按合同不能释放 Pre-deck token。
+
+本地修复：Rejection Planner 现在只接受唯一的 `ownerDomain=libra / objectType=supporting_work` 依赖，并只把其 `objectId` 传入两个 Rejection input projection。缺失、多个或错误类型的依赖直接以 typed planning error fail closed。回归测试实际穿过 Planner、两项 Input Projection、Rejection Store 原子提交与 Coordinator token release，并证明查询始终使用 exact Evidence Work ID。
+
+本项没有 migration、dual-read、旧 Work fallback 或生产 ID 特例。现有失败 Rejection Work 不会被兼容重规划；代码部署后应按既定开发纪律用 Formation Reset 清除该未完成条目，再让后续 Observation/Intake 自然发生。当前未部署、未 Reset、未编辑生产 SQLite。

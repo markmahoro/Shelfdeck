@@ -48,6 +48,12 @@ PROD-034 已按 Product Owner 授权对“唐人街探案 (2015)”和“赤壁�
 - **该能力核心已随当前生产镜像部署到 NAS，但没有执行。** 调用仍必须显式指定 `normal|nuclear`、先 dry-run，再使用模式专属确认串 `--apply`；部署本身不触发 Reset。
 - 截至本状态记录，生产环境没有执行过 Normal Reset 或 Nuclear Reset。
 
+## PROD-042 Local Fix
+
+- 生产只读诊断确认：3 个 Pre-deck token 中有 1 个停在 Intake Rejection。Evidence Work 已正式返回 `candidate_material_unavailable`，但 Rejection Planner 把整个 `dependencyRef` 对象写进 `evidenceWorkId`，Input Projection 因此无法按字符串 Work ID 读取 Evidence Result；Rejection Decision 未提交，token 也不能释放。
+- 本地已将 Rejection Planner 收紧为只接受唯一的 Libra Supporting Work 依赖，并只投影其 `objectId`。focused 回归实际覆盖 Planner → Input Projection → Rejection Store commit → Coordinator token release，2/2 通过。
+- 修复没有为现有失败 Work 增加重规划、fallback 或兼容读取。当前代码尚未部署，生产旧条目尚未 Reset；因此现网后续 Libra Run 仍可能被该 token 阻塞。
+
 ## Current Runtime
 
 - Formation API 当前为 3 条 `in_progress`、9 条 `completed`、0 条 `pending|attention_required`；全局 active Attempt 6 个，其中 Observation active Attempt 为 0。服务 health 与 SQLite integrity 正常。
@@ -109,6 +115,7 @@ PROD-034 已按 Product Owner 授权对“唐人街探案 (2015)”和“赤壁�
 - PROD-040 focused：相关 Arca/Aftercare/On-deck 68/68；Service full 403 项为 385 pass、18 skip、0 fail；Admin Web 38/38，production build 通过；Service 与 Web 官方 npm registry audit 均为 0。Helix Architecture gate 的 semantic、manifest、contract 均通过，总 gate 仅被 main 既有 `formation-process-projection.js` / `progress-projection-reader.js` dynamic-template scanner findings 阻断，本轮未改这两个文件。
 - PROD-041 focused：P4 Effect Journal/Event Runtime/Startup Recovery/Runtime Host 96/96；Service full 403 项为 385 pass、18 skip、0 fail。正式 P4 Runtime gate 仍只被 main 既有两个 dynamic-template scanner findings 阻断；本轮 Foundation tests 与运行时语义没有新增 finding。
 - 最终 Formation successor 聚合合并后 targeted 10/10；Service full 406 项为 388 pass、18 skip、0 fail。最终镜像 build/upload/checksum/dry-run/apply、readiness、health、Admin Web、媒体/QSV mount 和 running-image 校验全部通过。
+- PROD-042 targeted 11/11；新增 Planner/Projection/commit/token-release 精确回归 2/2；Service full 406 项为 388 pass、18 skip、0 fail。P8 fixture/semantic/manifest/contract 均通过，总 Gate 仍只受 main 既有 `formation-process-projection.js` / `progress-projection-reader.js` dynamic-template scanner findings 阻断，本轮没有新增 finding。
 - Service full：386 项，368 pass、18 skip、0 fail；Admin Web：37/37，production build 通过。
 - Service 与 Web 的 official npm registry audit 均为 0；image checksum、deploy gates、SQLite integrity 和 production health 通过。
 

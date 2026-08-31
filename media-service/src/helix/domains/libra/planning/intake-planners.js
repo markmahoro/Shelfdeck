@@ -53,11 +53,18 @@ function createAcceptancePlanner(options){const catalogDigest=executionCatalogDi
       node(common,ACCEPT,'acceptance_commit',acceptEvent,[projected('acceptedIntakePayload',bindingEvent,bindingResult,PAYLOAD,{processId:request.processId,evidenceWorkId:''}),
         projected('responsibilityControlCommitHandle',bindingEvent,bindingResult,CONTROL,{processId:request.processId,evidenceWorkId:'',acceptEventId:acceptEvent})],
       [{eventId:bindingEvent,satisfaction:'success'}],['cpu'])]);}});}
+function rejectionEvidenceWorkId(request){const refs=request.dependencyRefs||[],ref=refs[0];
+  if(refs.length!==1||ref?.ownerDomain!=='libra'||ref?.objectType!=='supporting_work'||typeof ref?.objectId!=='string'||!ref.objectId){
+    const error=new TypeError('Intake Rejection requires exactly one Libra Evidence Work dependency.');
+    error.code='P8_INTAKE_REJECTION_EVIDENCE_DEPENDENCY_INVALID';throw error;
+  }
+  return ref.objectId;}
 function createRejectionPlanner(options){const catalogDigest=executionCatalogDigest(options.registry,options.policyRegistry);return Object.freeze({
   plannerContractRef:'helix://libra/planners/IntakeRejection/v1',plannerVersion:1,plan(request){const eventId='intake-reject-'+canonicalDigest(request.workAttemptId).slice(0,20),common={...options,request};
+    const evidenceWorkId=rejectionEvidenceWorkId(request);
     return plan({request,plannerContractRef:this.plannerContractRef,catalogDigest},'IntakeRejection',[
-      node(common,REJECT,'rejection_commit',eventId,[owner('intakeRejectionDecision',request,REJECTION,{evidenceWorkId:request.dependencyRefs?.[0]||''}),
-        owner('domainFactCommitHandle',request,REJECTION_HANDLE,{evidenceWorkId:request.dependencyRefs?.[0]||'',eventId})],[],['cpu'])]);}});}
+      node(common,REJECT,'rejection_commit',eventId,[owner('intakeRejectionDecision',request,REJECTION,{evidenceWorkId}),
+        owner('domainFactCommitHandle',request,REJECTION_HANDLE,{evidenceWorkId,eventId})],[],['cpu'])]);}});}
 
 function createIntakeProjections(options){
   function read(ownerScope){const value=options.offerReader.read(ownerScope.processId);if(!value)throw new Error('Intake Offer is unavailable.');return value;}
