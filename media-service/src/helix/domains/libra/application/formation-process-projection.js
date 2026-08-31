@@ -233,8 +233,8 @@ function projectPlans(works) {
   }));
 }
 function stageState(plans, works=[]) {
-  if (works.some((work)=>['failed','blocked'].includes(work.state))) return 'attention';
   if (works.some((work)=>['admitted','ready','running'].includes(work.state))) return 'running';
+  if (works.some((work)=>['failed','blocked'].includes(work.state))) return 'attention';
   const terminal=works.filter((work)=>work.state!=='cancelled');
   if (terminal.length && terminal.every((work)=>work.state==='succeeded')) return 'completed';
   if (plans.some((plan)=>plan.state==='attention')) return 'attention';

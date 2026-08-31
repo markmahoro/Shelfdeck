@@ -1,6 +1,6 @@
 # ShelfDeck Clean Helix Current Status
 
-Status: **MOVIE COLLECTION LIFECYCLE READY THROUGH SHELF DEREGISTRATION；Observation replacement、PROD-037 NFO 与 Formation 合同修正已无损部署；Observation 恢复通过，Formation 详情本地修正完成、未部署。**
+Status: **MOVIE COLLECTION LIFECYCLE READY THROUGH SHELF DEREGISTRATION；Formation 精确 Plan Scope 与 On-deck Recovery 已部署；资源等待公平调度与过程卡片后继 Work 聚合已完成本地修正、未部署。**
 
 Last updated: 2026-08-31
 
@@ -19,11 +19,11 @@ hard-deadline replacement 已随 `helix-beta-20260831-ae7a567cde` 无损部署�
 ## Production
 
 - Host：`192.168.12.230:18080`。
-- Running image：`markmahoro/shelfdeck:helix-beta-20260831-ae7a567cde`；source commit `ae7a567cde`。
-- Image tar SHA-256：`7d7f06831329d4e025ba80020be96e3846a953f70b6f204dc8176e17b33d4543`。
+- Running image：`markmahoro/shelfdeck:helix-beta-20260831-91f990609c`；source commit `91f990609c`。
+- Running image ID：`sha256:00fe45e0de9c87e45eed6f0c157b40802ce5fd2ce9c7c16c99990b24b2a5d07c`。
 - Health：`ok`；generation `helix-clean-v3`；schema 186；`normalSupplyAllowed:true`；SQLite `integrity_check=ok`。
 - Compose：`/vol1/1000/docker/shelfdeck`；data：`/vol1/1000/docker/shelfdeck/data`；Workspace mount：`/transcode`。
-- Current rollback backup：`/vol1/1000/docker/shelfdeck/backups/deploy-20260831T015047Z-ae7a567cde`；源/备份数据库字节一致，SQLite integrity `ok`、FK error 0。
+- Current rollback backup：`/vol1/1000/docker/shelfdeck/backups/deploy-20260831T024938Z-91f990609c`。
 - 其他 NAS Docker 服务在部署后只读检查时仍运行正常。
 
 ## Production Corrections
@@ -50,15 +50,18 @@ PROD-034 已按 Product Owner 授权对“唐人街探案 (2015)”和“赤壁�
 
 ## Current Runtime
 
-- 6 个 Event Attempt 正在 executing，12 个 Work Attempt 处于 active；Observation 已释放其 1 个 active Attempt。Libra 3 个 running Work、Arca 9 个 running Work；服务 health、SQLite quick check 与无关容器均正常。
-- 新镜像初始窗口没有再出现 NFO source stale / `director` semantic drift，但既有《罪人》仍停在历史 On-deck attention，未做兼容恢复。
-- Formation API 当前返回 4 条 active；Projection 为 `stale`，启动后出现 6 次 `FORMATION_PROJECTION_DIGEST_INVALID`。更严重的是《罪人》详情约 1.65 MB，材料准备错误吸入 Field-wide 867 个真实 Plan，并把 attention 显示为 `in_progress`、`executorIssue=null`。已按约定打回媒体整理详情任务；未编辑生产数据库。
+- 6 个 Event Attempt 正在 executing，13 个 Work Attempt 处于 active；服务 health、SQLite integrity 与无关容器均正常。
+- 新镜像初始窗口没有再出现 NFO source stale / `director` semantic drift。Formation API 当前返回 4 条 active；《罪人》详情已由约 1.65 MiB 收敛到约 14–25 KiB，材料准备只返回当前 Candidate 的一个真实 Plan。
+- 《罪人》同一 On-deck Run 的第三代 Work 为 `running`，首个 `arca.inventory.target_slot.prepare@1` Event 为 `ready` 且没有 Event Attempt；全局仅 6 个 Event Attempt executing。生产未做兼容修复或数据编辑，当前 follow-up 只在本地修正 Scheduler fairness 与过程卡片聚合。
 
 ## Formation Detail Local Correction
 
 - 根因一是详情投影只按共享 `procurement_run_id` 收集 Plan，把同一 Field Run 下全部 Candidate Work 都带入一个 Subject。现在 Procurement 阶段必须同时匹配 Accepted Candidate Package 与其冻结 `structureUnitId`；Field-wide Evidence Plan、其他 Candidate Plan 以及只匹配其中一项的漂移数据全部排除，前端仍只渲染后端返回的真实 Plan。
 - 根因二是 Accepted On-deck 的 Plan/Input Projection 失败没有 Result，恢复却从 Result 读取 Handoff B 引用；生产《罪人》的同一 On-deck Run 因此停在 `offloading`，已有两代 failed Work。恢复现只读 immutable Work Definition，继续同一 Run；第三代失败后的 callback gap 会先把该 Run 收口为 `blocked`，再稳定投影 `attention_required` 与「重试上架」，不会重开 Libra 或创建第二个 On-deck Run。
-- 本地 focused 52/52；Service full 400 项为 382 pass、18 skip、0 fail。Architecture contracts/manifests/semantic 均通过；full gate 仍被当前 main 已存在的 3 个 Windows/Fastify entrypoint failures 与既有 dynamic-template scanner findings 阻断。本轮未部署、未修复坏 Projection/Receipt、未改生产数据。
+- 上述两项已随 `91f990609c` 无损部署。生产详情已收敛到约 14–25 KiB，材料准备只保留当前 Candidate 的一个真实 Plan；同一 On-deck Run 已产生第三代 running Work，没有重开 Libra 或第二个 Run。
+- 第三代 Work 的首个 Event 随后持续停在 `ready`。只读诊断确认不是 16 个 Event 并发上限：仅 6 个 Event Attempt executing。真正原因是两个更早的 `waiting_for_resource` 转码 Event 持续排在队首；Scheduler 用 100ms wall-clock cooldown 防重复，而生产一次 SQLite 调度扫描可超过 100ms，于是同一 waiter 每轮重新获选并饿死后续 Event。现改为 scheduling-round fairness：一个资源 waiter 每轮只尝试一次，其他 eligible Event 必须获得机会；整轮耗尽后再由 bounded fallback 开启下一轮。
+- 过程卡片另有独立聚合错误：旧 failed Work 先于当前 running successor 判定，导致阶段显示 `attention` 而整体仍为 `in_progress`。现在当前 `admitted|ready|running` 后继 Work 决定阶段为进行中；旧失败 Plan 仍原样保留在展开结果中，不被覆盖或删除。
+- 本地 focused 109/109；Service full 402 项为 384 pass、18 skip、0 fail。P4 Runtime gate 仍只被 main 既有 `formation-process-projection.js` 与 `progress-projection-reader.js` dynamic-template scanner findings 阻断。本轮 follow-up 未部署、未编辑生产数据库、未 Reset、未创建新 On-deck Run 或重开 Libra。
 
 ## PROD-035 Production Monitoring
 

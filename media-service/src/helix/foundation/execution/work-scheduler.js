@@ -116,16 +116,13 @@ function createWorkScheduler(options) {
   const definitions = repositories(options.schemaManifest);
   const activeLeases = new Map();
   const minimumBackgroundLeases = new Set();
-  const resourceWaitNotBeforeByTarget = new Map();
+  const resourceWaitDeferredTargets = new Set();
   let minimumBackgroundNotBeforeMs = 0;
 
   function purgeExpired(nowMs) {
     for (const [targetKey, lease] of activeLeases) if (lease.expiresAtMs <= nowMs) {
       activeLeases.delete(targetKey);
       minimumBackgroundLeases.delete(lease.leaseId);
-    }
-    for (const [targetId, notBeforeMs] of resourceWaitNotBeforeByTarget) {
-      if (notBeforeMs <= nowMs) resourceWaitNotBeforeByTarget.delete(targetId);
     }
   }
 
@@ -195,10 +192,7 @@ function createWorkScheduler(options) {
       const targetId = request.targetType === 'work' ? target.work_id : target.event_id;
       const targetKey = request.targetType + ':' + targetId;
       if (activeLeases.has(targetKey)) continue;
-      if (request.targetType === 'event') {
-        const resourceWaitNotBeforeMs = resourceWaitNotBeforeByTarget.get(targetId);
-        if (resourceWaitNotBeforeMs !== undefined && resourceWaitNotBeforeMs > nowMs) continue;
-      }
+      if (request.targetType === 'event' && resourceWaitDeferredTargets.has(targetId)) continue;
       const queuedAtMs = request.targetType === 'work' ? target.created_at_ms : target.ready_at_ms;
       if (!Number.isSafeInteger(queuedAtMs) || queuedAtMs < 0 || queuedAtMs > nowMs) fail(
         'P4_SCHEDULER_QUEUE_TIME_INVALID', 'Eligible target requires a valid non-future queue timestamp.', { targetId }
@@ -231,7 +225,18 @@ function createWorkScheduler(options) {
         : null;
       if (minimumBackground) { selected = minimumBackground; minimumBackgroundSelected = true; }
     }
-    if (!selected) return Object.freeze({ kind: 'idle', reasonCode: 'NO_ELIGIBLE_TARGET' });
+    if (!selected) {
+      if (request.targetType === 'event' && resourceWaitDeferredTargets.size > 0) {
+        // A resource-blocked Event gets one scheduling chance per round. Clear
+        // the process-local round only after every other eligible Event has had
+        // a chance, then let the Host's bounded fallback poll begin the next
+        // round. Wall-clock cooldowns cannot provide this guarantee when one
+        // production scheduling scan itself takes longer than the cooldown.
+        resourceWaitDeferredTargets.clear();
+        return Object.freeze({ kind:'idle', reasonCode:'RESOURCE_WAIT_ROUND_EXHAUSTED' });
+      }
+      return Object.freeze({ kind: 'idle', reasonCode: 'NO_ELIGIBLE_TARGET' });
+    }
     const supply = options.supplyController.evaluate({
       supplyKind: request.targetType === 'work' ? 'work_attempt' : 'event_dispatch', targetId: selected.targetId
     });
@@ -262,14 +267,9 @@ function createWorkScheduler(options) {
       fail('P4_SCHEDULER_DISPATCH_OUTCOME_INVALID', 'Dispatch outcome must be an exact started or resource_wait value.');
     }
     if (outcome.kind === 'resource_wait') {
-      // The durable retry fence may already be elapsed when a waiter is
-      // reconstructed after restart. Keep one short process-local dispatch
-      // cooldown so the same waiter cannot consume every action in a tick and
-      // starve the remaining eligible Events. Capacity release still wakes the
-      // Host, and the bounded fallback retry remains within 100ms.
-      resourceWaitNotBeforeByTarget.set(current.targetId, options.now() + MINIMUM_BACKGROUND_RETRY_MS);
+      resourceWaitDeferredTargets.add(current.targetId);
     } else {
-      resourceWaitNotBeforeByTarget.delete(current.targetId);
+      resourceWaitDeferredTargets.delete(current.targetId);
     }
     if (!minimumBackgroundLeases.has(current.leaseId)) return Object.freeze({ recorded:false });
     minimumBackgroundNotBeforeMs = options.now() + (outcome.kind === 'started' ? AGING_INTERVAL_MS : MINIMUM_BACKGROUND_RETRY_MS);

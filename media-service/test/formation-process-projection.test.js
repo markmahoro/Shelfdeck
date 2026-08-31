@@ -60,6 +60,23 @@ test('Formation process card receives only actual Plans from exact domain proces
   assert.ok(!JSON.stringify(detail).includes('wrong-plan'));
 });
 
+test('Formation process stage follows the active successor instead of an earlier failed Work',()=>{
+  const failed=work('arca','arca_ondeck_run','on-deck-1','on_deck_execution',[
+    event('arca-plan-1','slot-old','arca.inventory.target_slot.prepare@1','failed',10),
+  ]);
+  failed.workId='work-on-deck-old'; failed.state='failed'; failed.createdAtMs=10;
+  const running=work('arca','arca_ondeck_run','on-deck-1','on_deck_execution',[
+    event('arca-plan-2','slot-current','arca.inventory.target_slot.prepare@1','executing',20),
+  ]);
+  running.workId='work-on-deck-current'; running.state='running'; running.createdAtMs=20;
+  const detail=buildFormationProcessDetail({displayIdentity:'罪人 (2025)',works:[failed,running],
+    procurementScopes:[],libraScopes:[],arcaScopes:[{processType:'arca_ondeck_run',processId:'on-deck-1'}]});
+  const shelving=detail.stages.find((stage)=>stage.key==='acceptance_shelving');
+  assert.equal(shelving.state,'running');
+  assert.equal(shelving.summary,'计划2正在进行');
+  assert.deepEqual(shelving.plans.map((plan)=>plan.state),['attention','running']);
+});
+
 test('Formation process card excludes hundreds of Field-wide Plans outside the accepted Candidate binding',()=>{
   const runId='procurement-run-shared',unitId='a'.repeat(64),candidatePackageId='candidate-package-subject';
   const works=Array.from({length:1000},(_value,index)=>work('procurement','procurement_run',runId,

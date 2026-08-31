@@ -147,10 +147,26 @@ test('an elapsed resource waiter cannot monopolize one scheduling tick', () => {
     assert.equal(waiting.lease.targetId,'event-waiting');
     assert.equal(scheduler.noteDispatchOutcome(waiting.lease,{kind:'resource_wait'}).recorded,false);
     scheduler.release(waiting.lease);
+    // A production SQLite scan may itself exceed the old 100ms cooldown.
+    // Fairness must therefore be scheduling-round based, not clock based.
+    setNow(180500);
     const peer=scheduler.acquire({targetType:'event'});
     assert.equal(peer.lease.targetId,'event-peer');
     scheduler.release(peer.lease);
-    setNow(180100);
+  });
+});
+
+test('a completed resource-wait round yields before retrying its head Event', () => {
+  fixture(({ scheduler, seedRows, projections }) => {
+    seedRows((repository) => addEventGraph(repository, projections, 'waiting', {
+      localPriority:100,eventState:'waiting_for_resource',retryAtMs:179999,readyAtMs:100000,
+    }));
+    const waiting=scheduler.acquire({targetType:'event'});
+    scheduler.noteDispatchOutcome(waiting.lease,{kind:'resource_wait'});
+    scheduler.release(waiting.lease);
+    assert.deepEqual(scheduler.acquire({targetType:'event'}),{
+      kind:'idle',reasonCode:'RESOURCE_WAIT_ROUND_EXHAUSTED',
+    });
     assert.equal(scheduler.acquire({targetType:'event'}).lease.targetId,'event-waiting');
   });
 });
