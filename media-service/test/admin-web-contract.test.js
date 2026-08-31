@@ -121,8 +121,9 @@ test('Media organization workspace uses user-facing stages after Procurement han
   assert.match(page, /organizingSteps/);
   assert.match(page, /全部/);
   assert.match(page, /还没有进入整理的电影/);
-  assert.match(page, /仅需用户处理/);
   assert.match(page, /按片名筛选/);
+  assert.match(page, /按目标收藏架筛选/);
+  assert.doesNotMatch(page, /仅需用户处理|仅看加急|当前显示/);
   assert.match(page, /function shelfName\(item:FormationSubject, shelves:Shelf\[\]\)/);
   assert.match(page, /formation-table formation-stub-table/);
   assert.match(page, /确认放弃整理/);
