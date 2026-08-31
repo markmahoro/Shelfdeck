@@ -348,11 +348,11 @@ button, input, select, textarea { font: inherit; }
 .formation-actual-plan[data-state="completed"]::before { border-color: var(--accent); background: var(--accent); box-shadow: inset 0 0 0 2px var(--paper); }
 .formation-actual-plan[data-state="running"]::before { border-color: var(--accent); box-shadow: 0 0 0 4px #e4eee9; }
 .formation-actual-plan[data-state="attention"]::before { border-color: var(--fault); background: var(--fault); box-shadow: inset 0 0 0 2px var(--paper); }
-.formation-actual-plan > summary { display: grid; grid-template-columns: 70px minmax(0,1fr) auto 16px; align-items: center; gap: 10px; min-height: 50px; list-style: none; cursor: pointer; }
+.formation-actual-plan > summary { display: grid; grid-template-columns: 56px minmax(0,1fr) auto 16px; align-items: center; gap: 10px; min-height: 50px; list-style: none; cursor: pointer; }
 .formation-actual-plan > summary::-webkit-details-marker { display: none; }
 .formation-actual-plan > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.formation-actual-plan-label { color: var(--muted); font-size: 10px; font-weight: 800; letter-spacing: .08em; }
-.formation-actual-plan > summary strong { font-size: 13px; }
+.formation-actual-plan-label { color: var(--muted); font-size: 9px; font-weight: 600; letter-spacing: .02em; }
+.formation-actual-plan > summary strong { color: var(--ink); font-size: 14px; font-weight: 700; }
 .formation-actual-plan-status { color: var(--muted); font-size: 11px; font-weight: 750; }
 .formation-actual-plan[data-state="completed"] .formation-actual-plan-status, .formation-actual-plan[data-state="running"] .formation-actual-plan-status { color: var(--accent); }
 .formation-actual-plan[data-state="attention"] .formation-actual-plan-status { color: var(--fault); }
@@ -421,7 +421,7 @@ button, input, select, textarea { font: inherit; }
   .formation-actual-plans { padding-left: 24px; }
   .formation-actual-plan::before { left: -20px; }
   .formation-actual-plan::after { left: -15px; }
-  .formation-actual-plan > summary { grid-template-columns: 56px minmax(0,1fr) 16px; }
+  .formation-actual-plan > summary { grid-template-columns: 50px minmax(0,1fr) 16px; }
   .formation-actual-plan-status { display: none; }
   .formation-actual-plan-body { padding-left: 0; }
   .formation-plan-results, .formation-transcode-grid, .formation-transcode-parameters dl { grid-template-columns: 1fr; }
