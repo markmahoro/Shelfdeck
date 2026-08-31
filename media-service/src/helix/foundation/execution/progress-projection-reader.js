@@ -70,6 +70,8 @@ function createExecutionProgressProjectionReader(options) {
         columns: ['attempt_id','work_id','ordinal','state','failure_code'], safeIntegers: true },
       events: { kind: 'select-in', tableId: 'fx_workflow_events', keyColumn: 'work_id', maxItems: 500,
         columns: ['event_id','plan_id','node_id','work_id','capability_ref','state','current_progress_revision'], safeIntegers: true },
+      event_attempts: { kind: 'select-in', tableId: 'fx_event_attempts', keyColumn: 'event_id', maxItems: 500,
+        columns: ['event_attempt_id','event_id','ordinal','outcome_kind','failure_class','failure_code'], safeIntegers: true },
       plans: { kind: 'select-in', tableId: 'fx_workflow_plans', keyColumn: 'attempt_id', maxItems: 500,
         columns: ['plan_id','attempt_id','planner_ref','planner_version','state','created_at_ms'], safeIntegers: true },
       nodes: { kind: 'select-in', tableId: 'fx_plan_nodes', keyColumn: 'plan_id', maxItems: 500,
@@ -88,7 +90,7 @@ function createExecutionProgressProjectionReader(options) {
       if (!ids.length) return Object.freeze([]);
       const includePlans = readOptions.includePlans === true;
       return options.unitOfWork.execute([{ participantId: 'execution_progress_projection', owner: 'execution-foundation', repositories: [repository], execute(context) {
-        const r = context.repository(repository.repositoryId), works = [], attempts = [], events = [], plans = [], nodes = [], edges = [], samples = [], results = [];
+        const r = context.repository(repository.repositoryId), works = [], attempts = [], events = [], eventAttempts = [], plans = [], nodes = [], edges = [], samples = [], results = [];
         for (let offset = 0; offset < ids.length; offset += 500) works.push(...r.invoke('works', { values: ids.slice(offset, offset + 500) }));
         for (let offset = 0; offset < works.length; offset += 500) {
           const values=works.slice(offset, offset + 500).map((item) => item.work_id);
@@ -104,9 +106,19 @@ function createExecutionProgressProjectionReader(options) {
           nodes.push(...r.invoke('nodes', { values }));
           if (includePlans) edges.push(...r.invoke('edges', { values }));
         }
-        for (let offset = 0; offset < events.length; offset += 500) { const eventIds=events.slice(offset, offset + 500).map((item) => item.event_id); samples.push(...r.invoke('progress', { values: eventIds })); results.push(...r.invoke('results', { values: eventIds })); }
+        for (let offset = 0; offset < events.length; offset += 500) {
+          const eventIds=events.slice(offset, offset + 500).map((item) => item.event_id);
+          samples.push(...r.invoke('progress', { values: eventIds }));
+          results.push(...r.invoke('results', { values: eventIds }));
+          if (includePlans) eventAttempts.push(...r.invoke('event_attempts', { values: eventIds }));
+        }
         const latest = new Map();
         for (const sample of samples) if (!latest.has(sample.event_id) || latest.get(sample.event_id).revision < sample.revision) latest.set(sample.event_id, sample);
+        const latestAttemptByEvent = new Map();
+        for (const attempt of eventAttempts) if (!latestAttemptByEvent.has(attempt.event_id) ||
+          Number(latestAttemptByEvent.get(attempt.event_id).ordinal) < Number(attempt.ordinal)) {
+          latestAttemptByEvent.set(attempt.event_id, attempt);
+        }
         const nodeByKey = new Map(nodes.map((node) => [`${node.plan_id}\0${node.node_id}`, node]));
         const planById = new Map(plans.map((plan) => [plan.plan_id, plan]));
         const attemptById = new Map(attempts.map((attempt)=>[attempt.attempt_id,attempt]));
@@ -137,10 +149,14 @@ function createExecutionProgressProjectionReader(options) {
               parameters:Object.freeze(parseDurableJson(node.parameters_json,
                 'EXECUTION_PROGRESS_PARAMETERS_INVALID', 'execution parameters')),
             } : {};
+            const latestAttempt=latestAttemptByEvent.get(event.event_id), failure=latestAttempt?.failure_code
+              ? Object.freeze({ outcomeKind:latestAttempt.outcome_kind, failureClass:latestAttempt.failure_class,
+                failureCode:latestAttempt.failure_code, attemptOrdinal:Number(latestAttempt.ordinal) }) : null;
             return Object.freeze({
             eventId: event.event_id, capabilityRef: event.capability_ref, state: event.state, ...detail,
             executionDeviceClass: plannedExecutionDeviceClass(node),
             progress: projectedProgress(latest.get(event.event_id)), result: resultByEvent.get(event.event_id)||null,
+            ...(includePlans ? { failure } : {}),
           });})),
         })));
       } }]).execution_progress_projection;

@@ -8,6 +8,7 @@ const test=require('node:test');
 const Database=require('better-sqlite3');
 const {buildFormationProcessDetail,currentPlanSummary,projectPlans}=require('../src/helix/domains/libra/application/formation-process-projection');
 const {createExecutionProgressProjectionReader}=require('../src/helix/foundation/execution/progress-projection-reader');
+const {canonicalDigest,canonicalJson}=require('../src/helix/contracts/canonical-json');
 const {openSqliteKernel}=require('../src/helix/foundation/persistence/sqlite-kernel');
 const {createSqliteUnitOfWork}=require('../src/helix/foundation/persistence/sqlite-unit-of-work');
 
@@ -42,6 +43,54 @@ test('Formation process projection preserves durable Plan boundaries and depende
   assert.deepEqual(plans.map((plan)=>plan.planId),['plan-a','plan-b']);
   assert.deepEqual(plans[1].nodes.map((node)=>node.nodeId),['first','second']);
   assert.equal(plans[1].state,'running');
+});
+
+test('Formation process projection omits absent zero-valued media size facts',()=>{
+  const plans=projectPlans([work('libra','libra_run','run-zero','workspace_media_production',[
+    event('plan-zero','verify','libra.product_media.verify@1','succeeded',1,[],{
+      result:{outcomeKind:'succeeded',result:{result:'passed',sizeBytes:0,
+        spaceSummary:{actualSizeBytes:0,maxSizeBytes:0,withinLimit:true}}},
+    }),
+  ])]);
+  assert.deepEqual(plans[0].nodes[0].results,[{label:'检查结果',value:'通过'}]);
+});
+
+test('Formation process projection distinguishes repeated Plan nodes without inventing media identity',()=>{
+  const settlements=Array.from({length:5},(_value,index)=>event('plan-settlement',
+    `input_settlement_${String(index).padStart(4,'0')}`,'arca.ondeck.input_settlement.delete@1','pending',1,[],{
+      inputBindings:{bindings:[{bindingKind:'projected_owner_facts',parameters:{materialKey:`opaque-material-${index}`}}]},
+    }));
+  const plans=projectPlans([work('arca','arca_ondeck_run','on-deck-repeat','on_deck_execution',settlements)]);
+  assert.deepEqual(plans[0].nodes.map((node)=>node.label),[
+    '处理原有输入（第 1 项）','处理原有输入（第 2 项）','处理原有输入（第 3 项）',
+    '处理原有输入（第 4 项）','处理原有输入（第 5 项）',
+  ]);
+  assert.equal(JSON.stringify(plans).includes('opaque-material-'),false);
+});
+
+test('Formation process projection explains persisted settlement action and failed Attempt evidence',()=>{
+  const completed=event('plan-settlement-result','settled','arca.ondeck.input_settlement.delete@1','succeeded',1,[],{
+    result:{outcomeKind:'succeeded',result:{postDeleteReality:{entries:[
+      {key:'absent',value:true},{key:'disposition',value:'settled_to_final'},
+      {key:'old_directory_disposition',value:'removed_empty'},
+    ]}}},
+  });
+  const failed=event('plan-settlement-failed','failed','arca.ondeck.input_settlement.delete@1','failed',2,[],{
+    failure:{outcomeKind:'failed',failureClass:'permanent',
+      failureCode:'CLEAN_ARCA_SETTLEMENT_UNKNOWN_MEMBER',attemptOrdinal:1},
+  });
+  const completedNode=projectPlans([work('arca','arca_ondeck_run','on-deck-result','on_deck_execution',[completed])])[0].nodes[0];
+  assert.equal(completedNode.label,'移除已完成替换的原有输入');
+  assert.deepEqual(completedNode.results,[
+    {label:'处理结果',value:'原有输入已移除，最终文件已确认'},
+    {label:'原目录',value:'原目录为空，已经一并移除'},
+  ]);
+  const failedNode=projectPlans([work('arca','arca_ondeck_run','on-deck-failed','on_deck_execution',[failed])])[0].nodes[0];
+  assert.equal(failedNode.description,'这一步没有完成：原文件所在目录中出现了本次计划没有包含的文件。');
+  assert.deepEqual(failedNode.results,[
+    {label:'失败原因',value:'原文件所在目录中出现了本次计划没有包含的文件'},
+    {label:'失败代码',value:'CLEAN_ARCA_SETTLEMENT_UNKNOWN_MEMBER'},
+  ]);
 });
 
 test('Formation process projection treats a completed compliance check as completed and names each media Plan by its work',()=>{
@@ -249,5 +298,41 @@ test('execution progress reader exposes persisted Plan envelopes, including an e
     assert.equal(projectPlans(rows)[0].state,'completed');
     const lightweight=reader.read(['run-1']);
     assert.equal(Object.hasOwn(lightweight[0],'plans'),false);
+  } finally { kernel.close(); fs.rmSync(root,{recursive:true,force:true,maxRetries:5,retryDelay:50}); }
+});
+
+test('execution progress reader exposes the latest persisted failed Event Attempt',()=>{
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'formation-failure-reader-')),databasePath=path.join(root,'shelfdeck.db');
+  const kernel=openSqliteKernel({Database,databasePath,schemaDdl,schemaManifest,now:()=>100});
+  try {
+    const inputBindings=canonicalJson({schemaRef:'helix://foundation/types/EventInputBindingSet/v1',bindings:[]});
+    const parameters=canonicalJson({});
+    kernel.runPrimitive(({prepare})=>{
+      prepare('INSERT INTO fx_supporting_works(work_id,owner_domain,process_type,process_id,work_kind,basis_digest,priority_class,definition_schema_ref,definition_json,definition_digest,state,idempotency_key,created_at_ms,updated_at_ms) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
+        .run('work-failed','arca','arca_ondeck_run','on-deck-failed','on_deck_execution',hex,'normal','work','{}',hex,'failed','key-failed',10,20);
+      prepare('INSERT INTO fx_work_attempts(attempt_id,work_id,ordinal,basis_digest,state,started_at_ms,finished_at_ms,failure_code) VALUES(?,?,?,?,?,?,?,?)')
+        .run('attempt-failed','work-failed',1,hex,'failed',10,20,'CLEAN_ARCA_SETTLEMENT_UNKNOWN_MEMBER');
+      prepare('INSERT INTO fx_workflow_plans(plan_id,attempt_id,planner_ref,planner_version,catalog_digest,basis_digest,graph_digest,state,created_at_ms) VALUES(?,?,?,?,?,?,?,?,?)')
+        .run('plan-failed','attempt-failed','planner',1,hex,hex,hex,'planned',11);
+      prepare('INSERT INTO fx_plan_nodes(plan_id,node_id,capability_ref,contract_version,input_bindings_json,parameters_json) VALUES(?,?,?,?,?,?)')
+        .run('plan-failed','settlement','arca.ondeck.input_settlement.delete@1',1,inputBindings,parameters);
+      prepare('INSERT INTO fx_workflow_events(event_id,plan_id,node_id,work_id,attempt_id,owner_domain,capability_ref,contract_version,state,priority_class) VALUES(?,?,?,?,?,?,?,?,?,?)')
+        .run('event-failed','plan-failed','settlement','work-failed','attempt-failed','arca','arca.ondeck.input_settlement.delete@1',1,'failed','normal');
+      prepare('INSERT INTO fx_event_attempts(event_attempt_id,event_id,ordinal,state,outcome_kind,failure_class,failure_code,evidence_digest,started_at_ms,finished_at_ms) VALUES(?,?,?,?,?,?,?,?,?,?)')
+        .run('event-attempt-old','event-failed',1,'completed','failed','transient','OLD_FAILURE',canonicalDigest({failureCode:'OLD_FAILURE'}),12,13);
+      prepare('INSERT INTO fx_event_attempts(event_attempt_id,event_id,ordinal,state,outcome_kind,failure_class,failure_code,evidence_digest,started_at_ms,finished_at_ms) VALUES(?,?,?,?,?,?,?,?,?,?)')
+        .run('event-attempt-latest','event-failed',2,'completed','failed','permanent','CLEAN_ARCA_SETTLEMENT_UNKNOWN_MEMBER',canonicalDigest({failureCode:'CLEAN_ARCA_SETTLEMENT_UNKNOWN_MEMBER'}),14,15);
+    });
+    const reader=createExecutionProgressProjectionReader({schemaManifest,unitOfWork:createSqliteUnitOfWork({kernel})});
+    const rows=reader.read(['on-deck-failed'],{includePlans:true});
+    assert.deepEqual(rows[0].events[0].failure,{
+      outcomeKind:'failed',failureClass:'permanent',failureCode:'CLEAN_ARCA_SETTLEMENT_UNKNOWN_MEMBER',attemptOrdinal:2,
+    });
+    const projected=projectPlans(rows)[0].nodes[0];
+    assert.equal(projected.description,'这一步没有完成：原文件所在目录中出现了本次计划没有包含的文件。');
+    assert.deepEqual(projected.results.slice(-2),[
+      {label:'失败原因',value:'原文件所在目录中出现了本次计划没有包含的文件'},
+      {label:'失败代码',value:'CLEAN_ARCA_SETTLEMENT_UNKNOWN_MEMBER'},
+    ]);
   } finally { kernel.close(); fs.rmSync(root,{recursive:true,force:true,maxRetries:5,retryDelay:50}); }
 });

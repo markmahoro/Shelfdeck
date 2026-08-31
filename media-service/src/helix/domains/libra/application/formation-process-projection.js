@@ -63,6 +63,22 @@ const WORK_TITLES = Object.freeze({
   on_deck_execution:'将媒体写入收藏架',
 });
 
+const FAILURE_COPY = Object.freeze({
+  CLEAN_ARCA_SETTLEMENT_HANDLE_INVALID:'无法确认这项原文件属于本次上架授权的处理范围',
+  CLEAN_ARCA_SETTLEMENT_MAPPING_INVALID:'本次计划没有保存完整的原文件与最终文件对应关系',
+  CLEAN_ARCA_SETTLEMENT_MAPPING_DRIFT:'原文件与最终文件的对应关系已经发生变化',
+  CLEAN_ARCA_SETTLEMENT_UNKNOWN_MEMBER:'原文件所在目录中出现了本次计划没有包含的文件',
+  CLEAN_ARCA_SETTLEMENT_REALITY_DRIFT:'原文件内容与计划核对时已经不一致',
+  CLEAN_ARCA_SETTLEMENT_DELETE_FAILED:'原文件在完成替换后仍未能移除',
+  CLEAN_ARCA_FINAL_REALITY_MISSING:'正式位置中没有找到本次写入的媒体产品',
+  CLEAN_ARCA_FINAL_REALITY_DRIFT:'最终文件状态与本次计划记录不一致',
+  CLEAN_ARCA_PRODUCT_SOURCE_MISSING:'没有找到本次上架使用的媒体产品',
+  CLEAN_ARCA_TARGET_ROOT_UNAVAILABLE:'目标收藏架当前无法访问',
+  CLEAN_ARCA_TARGET_OCCUPIED:'目标位置已经存在其他媒体文件',
+  CLEAN_ARCA_TARGET_COLLISION:'本次写入会与目标位置中的现有文件冲突',
+  FENCE_REJECTED:'执行前核对发现文件或计划状态已经发生变化',
+});
+
 function readableToken(value) {
   return String(value || '').replace(/@\d+$/,'').split(/[./_-]+/).filter(Boolean).slice(-3).join(' ');
 }
@@ -75,7 +91,7 @@ function valueAt(root, paths) {
   return null;
 }
 function formatBytes(value) {
-  const bytes=Number(value); if (!Number.isFinite(bytes) || bytes < 0) return null;
+  const bytes=Number(value); if (!Number.isFinite(bytes) || bytes <= 0) return null;
   return bytes >= 1073741824 ? `${(bytes / 1073741824).toFixed(bytes >= 10737418240 ? 1 : 2)} GiB`
     : bytes >= 1048576 ? `${(bytes / 1048576).toFixed(1)} MiB` : `${bytes} B`;
 }
@@ -110,38 +126,79 @@ function humanReason(value) {
   if (/space/i.test(reason)) return '收藏架可用空间不足';
   return reason ? '运行未通过，详细原因已由系统记录' : null;
 }
+function failureMessage(value) {
+  const code=String(value || ''); if (!code) return null;
+  if (FAILURE_COPY[code]) return FAILURE_COPY[code];
+  if (/REALITY_DRIFT|MAPPING_DRIFT|DECISION_DRIFT|MANIFEST_DRIFT|SLOT_DRIFT/.test(code)) return '执行时发现文件或计划状态已经发生变化';
+  if (/SOURCE_MISSING|PRIMARY_MISSING|SLOT_MISSING/.test(code)) return '没有找到本步骤需要处理的文件';
+  if (/TARGET_ROOT_UNAVAILABLE/.test(code)) return '目标收藏架当前无法访问';
+  if (/TARGET_OCCUPIED|TARGET_COLLISION|STAGE_CONFLICT/.test(code)) return '目标位置与现有文件发生冲突';
+  if (/DELETE_FAILED/.test(code)) return '计划要求移除的文件仍然存在';
+  if (/PERMISSION|ACCESS_DENIED/.test(code)) return 'ShelfDeck 没有权限处理目标文件';
+  if (/TIMEOUT|DEADLINE/.test(code)) return '这一步在允许时间内没有完成';
+  return null;
+}
 function addFact(facts, label, value) {
   if (value === null || value === undefined || value === '' || facts.some((item)=>item.label===label)) return;
   facts.push(Object.freeze({ label, value:String(value) }));
 }
+function resultEntryMap(value) {
+  return new Map(Array.isArray(value?.postDeleteReality?.entries)
+    ? value.postDeleteReality.entries.map((entry)=>[entry.key,entry.value]) : []);
+}
+function settlementAction(event) {
+  if (event.capabilityRef!=='arca.ondeck.input_settlement.delete@1') return null;
+  const entries=resultEntryMap(event.result?.result), disposition=entries.get('disposition');
+  if (disposition==='retained_as_final') return '保留原有输入作为最终文件';
+  if (disposition==='settled_to_final') return '移除已完成替换的原有输入';
+  return null;
+}
+function addSettlementFacts(facts, event, value) {
+  if (event.capabilityRef!=='arca.ondeck.input_settlement.delete@1') return;
+  const entries=resultEntryMap(value), disposition=entries.get('disposition'), directory=entries.get('old_directory_disposition');
+  const dispositionCopy={retained_as_final:'原有输入已保留为最终文件',
+    settled_to_final:entries.get('absent')===true?'原有输入已移除，最终文件已确认':'原有输入已经完成替换'};
+  const directoryCopy={removed_empty:'原目录为空，已经一并移除',retained_as_final:'原目录就是最终位置，继续保留',
+    retained_with_final_inventory:'原目录仍包含最终媒体文件，继续保留',
+    awaiting_managed_settlement:'原目录中仍有后续计划需要处理的内容',not_present:'原目录已经不存在'};
+  addFact(facts,'处理结果',dispositionCopy[disposition]);
+  addFact(facts,'原目录',directoryCopy[directory]);
+}
 function resultFacts(event) {
-  const value=event.result?.result; if (!value || typeof value !== 'object') return Object.freeze([]);
-  const facts=[];
-  const title=valueAt(value,['displayIdentity','claimedDisplayIdentity','title','metadata.title','identity.title','candidate.displayTitle']);
-  const year=valueAt(value,['releaseYear','year','metadata.releaseYear','identity.releaseYear']);
-  const result=valueAt(value,['result','resultKind','outcome','decision','receiptKind']);
-  const reason=valueAt(value,['reasonCode','selectionReasonCode','failureCode','code']);
-  const count=valueAt(value,['memberCount','primaryCount','candidateMatchCount','matchedCount']);
-  const size=valueAt(value,['spaceSummary.actualSizeBytes','sizeBytes','physicalIdentity.sizeBytes','workspaceMaterialHandle.sizeBytes','mediaSummary.sizeBytes']);
-  const maxSize=valueAt(value,['spaceSummary.maxSizeBytes']);
-  const duration=valueAt(value,['durationMs','mediaSummary.durationMs']);
-  const video=(value.videoStreams || value.mediaSummary?.videoStreams || [])[0];
-  const audio=(value.audioStreams || value.mediaSummary?.audioStreams || [])[0];
-  addFact(facts,'获得的信息',title && year ? `${title}（${year}）` : title);
-  addFact(facts,/verify|inspect|assess/.test(event.capabilityRef) ? '检查结果' : '运行结果',result === null ? null : humanValue(result));
-  addFact(facts,'数量',count);
-  addFact(facts,'文件大小',formatBytes(size));
-  addFact(facts,'收藏上限',formatBytes(maxSize));
-  addFact(facts,'时长',formatDuration(duration));
-  if (video) {
-    const codec=valueAt(video,['codecName','codec','codec_name']), width=valueAt(video,['displayWidth','width','codedWidth']), height=valueAt(video,['displayHeight','height','codedHeight']);
-    addFact(facts,'视频',[codec && String(codec).toUpperCase(),width&&height&&`${width} × ${height}`].filter(Boolean).join(' · '));
-    addFact(facts,'画面',valueAt(video,['dynamicRangeKind','hdrFormat','colorTransfer']));
+  const value=event.result?.result, facts=[];
+  const failureCode=event.failure?.failureCode;
+  if (failureCode) {
+    addFact(facts,'失败原因',event.failure.message || failureMessage(failureCode) || '系统没有保存可展示的文字原因');
+    addFact(facts,'失败代码',failureCode);
   }
-  addFact(facts,'主要音轨',audio && [valueAt(audio,['codecName','codec']),valueAt(audio,['channelLayout','audioClass'])].filter(Boolean).join(' · '));
-  if (Array.isArray(value.reasonCodes) && value.reasonCodes.length) addFact(facts,'核对说明',value.reasonCodes.map(humanReason).join('、'));
-  addFact(facts,'未通过原因',humanReason(reason));
-  if (!facts.length) addFact(facts,'保存结果','本步骤的实际运行结果已保存');
+  if (value && typeof value === 'object') {
+    const title=valueAt(value,['displayIdentity','claimedDisplayIdentity','title','metadata.title','identity.title','candidate.displayTitle']);
+    const year=valueAt(value,['releaseYear','year','metadata.releaseYear','identity.releaseYear']);
+    const result=valueAt(value,['result','resultKind','outcome','decision','receiptKind']);
+    const reason=valueAt(value,['reasonCode','selectionReasonCode','failureCode','code']);
+    const count=valueAt(value,['memberCount','primaryCount','candidateMatchCount','matchedCount']);
+    const size=valueAt(value,['spaceSummary.actualSizeBytes','sizeBytes','physicalIdentity.sizeBytes','workspaceMaterialHandle.sizeBytes','mediaSummary.sizeBytes']);
+    const maxSize=valueAt(value,['spaceSummary.maxSizeBytes']);
+    const duration=valueAt(value,['durationMs','mediaSummary.durationMs']);
+    const video=(value.videoStreams || value.mediaSummary?.videoStreams || [])[0];
+    const audio=(value.audioStreams || value.mediaSummary?.audioStreams || [])[0];
+    addFact(facts,'获得的信息',title && year ? `${title}（${year}）` : title);
+    addFact(facts,/verify|inspect|assess/.test(event.capabilityRef) ? '检查结果' : '运行结果',result === null ? null : humanValue(result));
+    addFact(facts,'数量',count);
+    addFact(facts,'文件大小',formatBytes(size));
+    addFact(facts,'收藏上限',formatBytes(maxSize));
+    addFact(facts,'时长',formatDuration(duration));
+    if (video) {
+      const codec=valueAt(video,['codecName','codec','codec_name']), width=valueAt(video,['displayWidth','width','codedWidth']), height=valueAt(video,['displayHeight','height','codedHeight']);
+      addFact(facts,'视频',[codec && String(codec).toUpperCase(),width&&height&&`${width} × ${height}`].filter(Boolean).join(' · '));
+      addFact(facts,'画面',valueAt(video,['dynamicRangeKind','hdrFormat','colorTransfer']));
+    }
+    addFact(facts,'主要音轨',audio && [valueAt(audio,['codecName','codec']),valueAt(audio,['channelLayout','audioClass'])].filter(Boolean).join(' · '));
+    addSettlementFacts(facts,event,value);
+    if (Array.isArray(value.reasonCodes) && value.reasonCodes.length) addFact(facts,'核对说明',value.reasonCodes.map(humanReason).join('、'));
+    addFact(facts,'未通过原因',humanReason(reason));
+  }
+  if (!facts.length && value && typeof value === 'object') addFact(facts,'保存结果','本步骤的实际运行结果已保存');
   return Object.freeze(facts.slice(0,6));
 }
 function literalBindings(event) {
@@ -219,8 +276,13 @@ function planState(nodes, resolution='planned') {
   return 'pending';
 }
 function description(event, state, copy) {
-  if (state==='completed') return copy[1];
-  if (state==='failed') return '这一步没有完成；实际原因见下方运行结果。';
+  if (state==='completed') return settlementAction(event) ? settlementAction(event)+'。' : copy[1];
+  if (state==='failed') {
+    const message=event.failure?.message || failureMessage(event.failure?.failureCode);
+    if (message) return '这一步没有完成：'+message+'。';
+    if (event.failure?.failureCode) return '这一步没有完成；ShelfDeck 记录的失败代码是 '+event.failure.failureCode+'。';
+    return '这一步没有完成；系统没有保存可展示的失败原因。';
+  }
   if (state==='cancelled') return '前置步骤未完成，因此这一步没有执行。';
   if (state==='skipped') return '本次计划确认不需要执行这一步。';
   if (state==='running') return event.capabilityRef==='libra.media.transcode@1' ? '正在生成符合收藏要求的新版本。' : 'ShelfDeck 正在执行这一步。';
@@ -250,9 +312,16 @@ function projectPlans(works) {
     }
   }
   return Object.freeze([...groups.values()].sort((a,b)=>a.plan.createdAtMs-b.plan.createdAtMs || a.plan.planId.localeCompare(b.plan.planId)).map((group)=>{
-    const nodes=topologicalEvents(group.events,group.plan.edges).map((event)=>{
+    const ordered=topologicalEvents(group.events,group.plan.edges);
+    const baseLabels=ordered.map((event)=>settlementAction(event) || (CAPABILITY_COPY[event.capabilityRef] || [readableToken(event.capabilityRef)])[0]);
+    const labelTotals=new Map(); for (const label of baseLabels) labelTotals.set(label,(labelTotals.get(label)||0)+1);
+    const labelOrdinals=new Map();
+    const nodes=ordered.map((event,index)=>{
       const state=nodeState(event), copy=CAPABILITY_COPY[event.capabilityRef] || [readableToken(event.capabilityRef),'该步骤的实际运行结果已保存。'];
-      return Object.freeze({ nodeId:event.nodeId, label:copy[0], description:description(event,state,copy), state,
+      const baseLabel=baseLabels[index], ordinal=(labelOrdinals.get(baseLabel)||0)+1; labelOrdinals.set(baseLabel,ordinal);
+      // A pending settlement freezes only an opaque materialKey. Use its real Plan order instead of leaking or guessing identity.
+      const label=labelTotals.get(baseLabel)>1 ? baseLabel+'（第 '+ordinal+' 项）' : baseLabel;
+      return Object.freeze({ nodeId:event.nodeId, label, description:description(event,state,copy), state,
         statusText:nodeStatusText(event,state),
         progress:event.progress || null, results:resultFacts(event), technicalDetail:transcodeDetails(event) });
     });
