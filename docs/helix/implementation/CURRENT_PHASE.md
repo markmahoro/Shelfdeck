@@ -33,4 +33,4 @@
 - Admin Web 37/37、production build、Helix Architecture full gate 通过；Service 与 Web 官方 npm registry audit 均为 0。
 - 测试覆盖 Placement 后、Final Verify 后、Settlement 后、Fulfillment 后及 Commit 后的 NFO 改写：语义等价继续并保存最新实际指纹；错误 TMDB、缺拥有字段、坏 XML fail closed；Primary 漂移继续失败。
 - 连续外部改写只保留一个活动 Case/Incident；自动恢复耗尽后不再周期重建 Work 或刷日志，并能由用户继续同一 Run。
-- 生产发布、现场恢复《罪人》和生产验收尚未授权；发布时必须另行执行标准 build/upload/deploy、备份和只重建 ShelfDeck Compose 项目。
+- Product Owner 已授权并完成本次标准 build/upload/deploy、备份和 ShelfDeck Compose 无损重建；未使用 clean init/reset。生产验收仍未闭合：NFO/《罪人》与 Formation 详情异常已分别打回原任务，PROD-036 旧第 69 页仍在新 deadline 的有界恢复窗口内。
