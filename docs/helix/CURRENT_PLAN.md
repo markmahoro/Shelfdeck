@@ -1,8 +1,8 @@
 # ShelfDeck Clean Helix Master Plan
 
-Status: **统一升级候选已合并；Formation Nuclear Reset 与生产升级待最终门禁。**
+Status: **Formation Nuclear Reset 已完成；统一无损升级待最终门禁。**
 
-Last updated: 2026-08-31
+Last updated: 2026-09-01
 
 ## 当前统一升级
 
@@ -10,8 +10,8 @@ Last updated: 2026-08-31
 - Libra 为每个 Material Field 保留固定 0–8 席；0 只阻止新 Handoff A 接收，Procurement 继续形成待整理媒体包，既有 Accepted 责任继续推进。
 - 文件来源 API/UI 按 Field 显示已生成、Libra 已接收、等待 Libra 接收和 Structured Rejection；容量不足保持 open Offer，不伪造 rejection。
 - 媒体整理当前分类收敛为整理中、需要处理、已完成；删除“待整理”筛选。总览分别展示 Procurement 等待接收与 Libra 正在整理。
-- 合并文件来源/Per-Field Handoff A 账本、Formation 三态表达、Formation 详情排版、我的收藏成品库一级页，以及 PROD-042 Rejection token 释放修复。
-- 生产 621 个 Accepted 但无 token 的 Subject 是旧合同残留，不增加 migration、resume 或兼容路径；本次在新镜像离线加载后、服务启动前执行 Nuclear Formation Reset，使未完成 Libra→Arca 过程图视同未发生。
+- 合并文件来源/Per-Field Handoff A 账本、Formation 三态表达、Formation 详情排版、我的收藏成品库一级页、PROD-042 Rejection token 释放、PROD-044 semantic Execution Catalog 与 PROD-045 NFO 根节点生成/上架前门禁修复。
+- 生产 621 个 Accepted 但无 token 的 Subject 是旧合同残留，不增加 migration、resume 或兼容路径；获授权 Nuclear Formation Reset 已完成，未 Commit 过程图已清除。本次镜像部署不再执行 Reset。
 - Normal 与 Nuclear Reset 都必须清理 Accepted/no-token Subject 和 missing-admission-head Run；保留 Procurement Candidate/Delivery/Control 与已经 Arca On-deck Commit 的 Shelf/Deck 事实，不触碰 `/media`。
 
 ## 当前基线
@@ -36,7 +36,9 @@ Last updated: 2026-08-31
 - Formation 详情本地修正：材料准备只接受当前 Subject 的 Candidate Package + Structure Unit 双重正式绑定；Accepted On-deck planning failure 从 immutable Work Definition 恢复并继续同一 Run，第三代失败后稳定进入可重试 attention。没有前端 Plan、兼容读取或生产数据修改。
 - Formation Plan语义与列表同源本地修正：成功执行的合规检查即使结论不符合也显示为已完成；媒体生产Plan按真实工作命名；一级页当前进展只消费过程卡片同源的后端`currentPlan`摘要，不再读取`organizingSteps`拼第二套表述。生产《冰血暴》对应显示为“计划14 处理媒体文件 / 等待处理资源”。
 - Formation 完成态 Plan 聚合已部署并生产验收：同一责任链的成功 successor 覆盖旧 failed Work 的当前状态，最终 On-deck 完成时 `currentPlan` 返回完成 successor；历史失败仍保留在过程卡片，没有 successor 的失败仍为 attention。《罪人》当前显示 `计划5 将媒体写入收藏架 / 已完成`。
-- PROD-042 本地修复：Intake Rejection Planner 不再把整个 Supporting Work dependency ref 当成 `evidenceWorkId`，而是 fail-closed 提取唯一 `objectId`；回归覆盖 Rejection Decision 原子提交与 Pre-deck token 释放。尚未部署，现有失败条目不做兼容恢复。
+- PROD-042 本地修复：Intake Rejection Planner 不再把整个 Supporting Work dependency ref 当成 `evidenceWorkId`，而是 fail-closed 提取唯一 `objectId`；回归覆盖 Rejection Decision 原子提交与 Pre-deck token 释放。旧失败条目已由 Nuclear Reset 清除，修复待统一部署。
+- PROD-044 本地修复：Execution Catalog 只哈希可执行语义，完整 manifest digest 继续覆盖 traceability；精确 `37264ba7…` 旧摘要仅允许 Attempt 与全部 Event 已终态的历史 Plan。生产 846 个该摘要 Plan 全终态，3 个活动 Arca Work 使用既有兼容 `a30cf21a…`。
+- PROD-045 本地修复：Libra NFO 只编辑根节点直接子元素，重复 genre 与 Product Fact 使用同一规范集合，演员 TMDB ID 不再被 movie ID 覆盖；Arca Staged Verify 在 Placement 前校验 NFO Presentation。现有失败影片不兼容恢复。
 
 ## 下一步规则
 
@@ -58,4 +60,4 @@ Last updated: 2026-08-31
 - 架构唯一 SSOT 仍为 `TOP_DOWN_ARCHITECTURE_CONFIRMATION.md`；生产修复不得移动 Owner、Handoff 或 Canonical Transaction。
 - 生产继续使用 `scripts/build-image.js` → `scripts/upload-nas-image.js` → `scripts/deploy-nas.js`；不删除、移动或改写 `/media` 正式媒体。
 
-唯一活动 Phase 为本次统一生产升级与 Nuclear Formation Reset；状态见 `docs/helix/implementation/CURRENT_PHASE.md`。
+唯一活动 Phase 为 Nuclear Reset 完成后的本次统一生产升级；状态见 `docs/helix/implementation/CURRENT_PHASE.md`。

@@ -1,19 +1,20 @@
 # ShelfDeck Clean Helix Current Status
 
-Status: **统一升级候选已合并；Reset 孤儿清理合同本地验证完成，生产尚未执行。**
+Status: **Nuclear Formation Reset 已完成；统一无损升级候选正在最终验证。**
 
-Last updated: 2026-08-31
+Last updated: 2026-09-01
 
 ## Local implementation completed
 
 - 已确认 SSOT 边界：Procurement 继续生成 Candidate Package；Field 席位满或为0时，open Handoff A Offer、责任和 Control 留在 Procurement。
 - Field API 已改为 generated/accepted/waiting/rejected；Formation 当前业务分类已收敛为 in_progress/attention_required/completed；Admin Web 已删除“待整理”筛选并把文件来源页重排为 Procurement 交接账本与 Libra 席位。
 - 旧四态 Formation 表升级时只重建可派生 Projection，不改 Subject、Token、Handoff、Run 或其他 Owner 事实；本地目标 DDL digest 为 `6a2246c39bebcd1f6f80264bac793c7a3119636a791683e426e4c30aa6fdc651`。
-- 验证：Service 407 项为 389 pass、18 skip、0 fail；Admin Web 40/40 且 production build 通过。Architecture fixture、semantic、manifest、contract 均通过，contract aggregate 为 `ab70c205efa3f8d8dd399d352690497918e3489ae9118bf067ea58b281accf75`；总 gate 仍仅被未改动的 `formation-process-projection.js` 与 `progress-projection-reader.js` 18 个既有 dynamic-template scanner findings 阻断。
-- 文件来源/Formation 新语义、Formation 详情排版、我的收藏成品库一级页与 PROD-042 已合并到 main；生产现状、镜像与数据尚未改变。
+- 最终合并验证：Service 412 项为 394 pass、18 skip、0 fail；Admin Web 42/42 且 production build 通过；NFO/Catalog focused 66/66。Architecture fixture、semantic、manifest、contract 均通过，contract aggregate 为 `ab70c205efa3f8d8dd399d352690497918e3489ae9118bf067ea58b281accf75`；总 gate 仍仅被未改动的 `formation-process-projection.js` 与 `progress-projection-reader.js` 18 个既有 dynamic-template scanner findings 阻断。Service production dependencies 与 Admin Web 全依赖经 npm 官方 registry 审计均为 0 vulnerability。
+- 文件来源/Formation 新语义、Formation 详情排版、我的收藏成品库一级页与 PROD-042 已合并到 main；这些代码及本轮 NFO/Catalog 修复尚待统一部署。
 - 生产所谓“600 多个假死 Libra Run”实际以 621 个 Accepted 但无 token 的历史 Subject 为主；生产现有真实 `libra_runs` 仅 101 个，其中此前 dry-run 识别 2 个 actionable Run。它们不获得兼容权利。
 - Formation Reset 已修复 Control scope：Procurement-owned Control 保留；Libra `subject|on_deck_package` 与 Arca custody Control 属于可清理范围；Nuclear 只回卷 Formation Control revision 后缀并恢复 Procurement 边界。
 - 首次生产 Nuclear apply 在事务提交前由 `foreign_key_check` 阻断并完整回滚：2 条受保护的已 Commit Run 仍以 `supersedes_run_id` 指向待删除旧 Run。Nuclear 现同步清空保留 Run 上指向被删除 Run 的 supersession pointer；回归覆盖保护 Run、Shelf Entry 与 Commit Receipt继续保留。
+- 修正后的生产 Nuclear Reset 已完成：删除 716 个未 Commit Subject、101 个 Libra Run 和 3,275 个过程 Work；保留 10 条已 Commit 责任链、全部 Procurement 事实与 `/media`。事务后 Accepted/no-token Subject、active/no-admission-head Run 和孤儿引用均为 0；随后新 Observation/Intake 只按正常链路自然形成新条目。
 - 两种 Reset 均报告并清零 Accepted/no-token Subject 与 active/no-admission-head Run；Normal 可建立一次 reset-only Admission Head 后正式 discard，Nuclear 删除整个未 Commit 图。Service 411 项为 393 pass、18 skip、0 fail；Admin Web 42/42 且 production build 通过。Architecture fixture、semantic、manifest、contract 均通过，总 gate 仍仅受 18 个既有 dynamic-template scanner findings 阻断。
 
 ## PROD-036 Production Monitoring
@@ -57,14 +58,20 @@ PROD-034 已按 Product Owner 授权对“唐人街探案 (2015)”和“赤壁�
 - 当前工作区已经实现统一的 Formation Reset 离线调试能力，提供 `normal` 与 `nuclear` 两种模式；最新 focused tests 17/17 通过。
 - `normal` 终止并清理 On-deck Commit 前的活动整理现场，同时保留明确终态的过程记录；`nuclear` 物理删除该范围内的过程记录，使其在当前运行数据库中视同未发生。
 - 两种模式都以 Arca On-deck Commit 为保护线，不触碰已入架事实和 `/media`，也不主动触发 Observation 或 Intake。
-- **该能力核心已随当前生产镜像部署到 NAS，但没有执行。** 调用仍必须显式指定 `normal|nuclear`、先 dry-run，再使用模式专属确认串 `--apply`；部署本身不触发 Reset。
-- 截至本状态记录，生产环境没有执行过 Normal Reset 或 Nuclear Reset。
+- **该能力核心已随当前生产镜像部署到 NAS，并已完成一次获授权的 Nuclear Reset。** 后续调用仍必须逐次获得明确生产授权、显式指定 `normal|nuclear`、先 dry-run，再使用模式专属确认串 `--apply`；部署本身不触发 Reset。
+- 本轮统一无损升级不再执行 Reset，也不使用 clean init。
 
 ## PROD-042 Local Fix
 
 - 生产只读诊断确认：3 个 Pre-deck token 中有 1 个停在 Intake Rejection。Evidence Work 已正式返回 `candidate_material_unavailable`，但 Rejection Planner 把整个 `dependencyRef` 对象写进 `evidenceWorkId`，Input Projection 因此无法按字符串 Work ID 读取 Evidence Result；Rejection Decision 未提交，token 也不能释放。
 - 本地已将 Rejection Planner 收紧为只接受唯一的 Libra Supporting Work 依赖，并只投影其 `objectId`。focused 回归实际覆盖 Planner → Input Projection → Rejection Store commit → Coordinator token release，2/2 通过。
-- 修复没有为现有失败 Work 增加重规划、fallback 或兼容读取。当前代码尚未部署，生产旧条目尚未 Reset；因此现网后续 Libra Run 仍可能被该 token 阻塞。
+- 修复没有为现有失败 Work 增加重规划、fallback 或兼容读取。旧失败条目已随获授权 Nuclear Reset 清除；修复代码尚待本轮统一部署。
+
+## PROD-044 / PROD-045 Local Fixes
+
+- 前一次候选镜像 readiness 因 846 个旧执行目录摘要 Plan 阻断启动，部署未继续；原镜像与健康数据已恢复。生产只读审计确认这些 Plan 全部终态，当前 3 个活动 Arca Work 均使用既有兼容摘要。执行摘要现排除纯追踪 `sourceLocator`，精确旧摘要只允许全终态历史退役。
+- 《人生密密缝》的根因是 Libra NFO renderer 只替换首个根级 genre，且无层级正则把 actor 的 TMDB ID 当作 movie ID；Workspace NFO 在进入 Arca 前已与 Product Fact 不一致。现改为只编辑根节点直接子元素、整体规范化多值 genre，并在 Arca Placement 前执行 staged NFO 语义门禁。
+- 两项均为通用合同修复，没有影片、路径、Run 或生产 ID 特例；现有失败《人生密密缝》不做兼容恢复。
 
 ## Current Runtime
 

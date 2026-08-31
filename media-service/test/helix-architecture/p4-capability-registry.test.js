@@ -5,6 +5,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const test = require('node:test');
 const { createCapabilityRegistry } = require('../../src/helix/foundation/capability/capability-registry');
+const { executionCatalogDigest } = require('../../src/helix/foundation/execution/workflow-plan');
 
 const serviceRoot = path.resolve(__dirname, '../..');
 const capabilityRoot = path.join(serviceRoot, 'src/helix/contracts/capabilities');
@@ -41,6 +42,33 @@ test('Registry closes exactly all 113 frozen Capability refs with deterministic 
   assert.equal(first.size, 113);
   assert.deepEqual(first.snapshot, second.snapshot);
   assert.equal(first.snapshot.every((entry) => /^[0-9a-f]{64}$/.test(entry.contractDigest)), true);
+  assert.equal(first.snapshot.every((entry) => /^[0-9a-f]{64}$/.test(entry.executionContractDigest)), true);
+});
+
+test('Registry separates traceability digest from the semantic execution contract', () => {
+  const manifest = manifests().find((item) => item.sourceLocator);
+  const traceabilityChanged = JSON.parse(JSON.stringify(manifest));
+  traceabilityChanged.sourceLocator.line += 100;
+  const originalRegistry = createCapabilityRegistry({
+    registrations:[registration(manifest)], expectedCapabilityRefs:[manifest.capabilityRef],
+  });
+  const traceabilityRegistry = createCapabilityRegistry({
+    registrations:[registration(traceabilityChanged)], expectedCapabilityRefs:[manifest.capabilityRef],
+  });
+  const original = originalRegistry.snapshot[0];
+  const traceability = traceabilityRegistry.snapshot[0];
+  assert.notEqual(original.contractDigest, traceability.contractDigest);
+  assert.equal(original.executionContractDigest, traceability.executionContractDigest);
+  const policyRegistry = Object.freeze({ digest:'a'.repeat(64) });
+  assert.equal(executionCatalogDigest(originalRegistry, policyRegistry),
+    executionCatalogDigest(traceabilityRegistry, policyRegistry));
+
+  const semanticChanged = JSON.parse(JSON.stringify(manifest));
+  semanticChanged.resultSchemaRef += '-changed';
+  const semantic = createCapabilityRegistry({
+    registrations:[registration(semanticChanged)], expectedCapabilityRefs:[manifest.capabilityRef],
+  }).snapshot[0];
+  assert.notEqual(original.executionContractDigest, semantic.executionContractDigest);
 });
 
 test('Domain Catalog view contains only own and Shared contracts', () => {

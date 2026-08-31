@@ -666,6 +666,66 @@ test('post-Placement NFO verification accepts semantic Emby rewrites while exact
   }
 });
 
+test('staged NFO semantic drift is rejected before Placement', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'clean-arca-staged-nfo-semantic-'));
+  try {
+    const targetRoot = path.join(root, 'shelf');
+    const workspaceRoot = path.join(root, '.workspace');
+    const workspaceId = 'semantic-drift-workspace';
+    fs.mkdirSync(targetRoot, { recursive:true });
+    fs.mkdirSync(path.join(workspaceRoot, workspaceId, 'product'), { recursive:true });
+    const primarySource = path.join(workspaceRoot, workspaceId, 'product', 'movie.mkv');
+    const nfoSource = path.join(workspaceRoot, workspaceId, 'product', 'movie.nfo');
+    fs.writeFileSync(primarySource, Buffer.from('movie-bytes'));
+    fs.writeFileSync(nfoSource, Buffer.from(
+      '<movie><title>人生密密缝</title><year>2017</year><plot>Plot</plot><genre>Family</genre><genre>Drama</genre><tmdbid>428733</tmdbid><actor><name>Toma Ikuta</name><tmdbid>228072</tmdbid></actor></movie>'));
+    const mountScopeId = 'canary-mount';
+    const packageValue = Object.freeze({
+      onDeckPackageId:'package-staged-semantic-drift', shelfId:'shelf-1',
+      resolvedIdentitySnapshot:{ factValue:{ title:'人生密密缝' } },
+      productStructureSnapshot:{ structureKind:'single' },
+      productMaterialManifest:{ manifestDigest:'manifest-staged-semantic-drift', members:Object.freeze([
+        member(primarySource, 'primary_payload', mountScopeId,
+          { workspaceId, relativePath:'product/movie.mkv' }),
+        member(nfoSource, 'metadata_sidecar', mountScopeId,
+          { workspaceId, relativePath:'product/movie.nfo' }),
+      ]) },
+      offloadContextManifest:{ manifestDigest:'offload-staged-semantic-drift', members:Object.freeze([]) },
+    });
+    const shelf = Object.freeze({
+      shelfId:'shelf-1', status:'active', currentPlacementRevision:1,
+      target:{ endpointId:'canary', rootLocation:targetRoot, mountScopeId, mountScopeRevision:1 },
+      placement:{ value:{ folderTemplate:'{title}' } },
+    });
+    const nfoPresentationBasis = Object.freeze({
+      metadata:Object.freeze({ descriptiveFacts:Object.freeze({ entries:Object.freeze([
+        Object.freeze({ key:'title', value:'人生密密缝' }),
+        Object.freeze({ key:'year', value:'2017' }),
+        Object.freeze({ key:'plot', value:'Plot' }),
+        Object.freeze({ key:'genre', value:'Family' }),
+      ]) }) }),
+      cast:Object.freeze([Object.freeze({ role:'actor', displayName:'Toma Ikuta',
+        providerIdentities:Object.freeze([{ provider:'tmdb', namespace:'tmdb_person', providerKey:'228072' }]) })]),
+      identity:Object.freeze({ provider:'tmdb', providerKey:'428733' }),
+    });
+    const port = createCleanArcaInventoryPort({ schemaManifest, unitOfWork:{}, workspaceRoot });
+    const request = { onDeckRunId:'on-deck-staged-semantic-drift', custodyId:'custody-staged-semantic-drift',
+      shelf, onDeckProductPackage:packageValue, observedAtMs:1, replayCommitted:false,
+      nfoPresentationBasis };
+    const finalInventoryDecision = port.prepare(request);
+    const targetCommitSlotHandle = port.prepareSlot({ ...request, finalInventoryDecision });
+    const stagedInventoryManifest = await port.stage({ ...request, finalInventoryDecision, targetCommitSlotHandle });
+    await assert.rejects(port.verifyStaged({ ...request, finalInventoryDecision, stagedInventoryManifest }),
+      (error) => error.code === 'CLEAN_ARCA_FINAL_NFO_SEMANTIC_DRIFT' &&
+        error.details.reasonCode === 'owned_field_mismatch' && error.details.field === 'genre');
+    assert.equal(fs.existsSync(targetCommitSlotHandle.targetDirectory), false,
+      'semantic drift must be rejected before Placement creates the final target');
+    assert.equal(fs.existsSync(targetCommitSlotHandle.slotDirectory), true);
+  } finally {
+    fs.rmSync(root, { recursive:true, force:true });
+  }
+});
+
 test('same-root Stage/Switch replaces managed source bytes occupying the final name', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'clean-arca-same-root-replace-'));
   try {

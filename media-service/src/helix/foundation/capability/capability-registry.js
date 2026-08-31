@@ -61,13 +61,15 @@ function createCapabilityRegistry(options) {
   });
   const snapshot = actual.map((capabilityRef) => {
     const entry = entries.get(capabilityRef);
+    const { sourceLocator: _sourceLocator, ...executionContract } = entry.manifest;
     return Object.freeze({
       capabilityRef,
       contractVersion: entry.manifest.contractVersion,
       ownerScope: entry.manifest.ownerScope,
       effectClass: entry.manifest.effectClass,
       executorVersion: entry.executor.version,
-      contractDigest: digest(JSON.stringify(canonical(entry.manifest)))
+      contractDigest: digest(JSON.stringify(canonical(entry.manifest))),
+      executionContractDigest: digest(JSON.stringify(canonical(executionContract)))
     });
   });
   return Object.freeze({

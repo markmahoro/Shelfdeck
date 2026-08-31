@@ -15243,6 +15243,13 @@ invisible Capability or absent policy binding remains `PLAN_CATALOG_DRIFT` and b
 must always bind the current full Catalog digest; this narrow startup continuity is not a second active Catalog,
 dual-read contract or authority to translate old Plans.
 
+An Execution Catalog digest represents executable semantics, not documentation location. It includes every
+Capability contract field except the traceability-only `sourceLocator`, plus executor version and the exact Execution
+Policy Registry digest. The full Capability manifest digest still includes `sourceLocator` and remains independently
+validated by architecture baselines. A line-number or source-location move therefore cannot invalidate durable Plans,
+while any typed contract, Owner visibility, Effect Class, executor version or policy change must change their
+Execution Catalog digest.
+
 The exact pre-UAT Product Identity Observation Plans that were already `executing` may resolve their two frozen
 `ProductionIdentityRouting*` input Projection refs solely to finish those existing Work Attempts. No current Planner
 may publish either ref. Their old `RoutingFactObservation` Results remain immutable historical Evidence and cannot
@@ -15280,3 +15287,9 @@ Startup Recovery may accept this historical Catalog only when its Attempt is ter
 terminal. Any active Event, Effect, cardinality mismatch or other Catalog is still a global `PLAN_CATALOG_DRIFT`
 blocker. Newly published Plans always use the current full Catalog digest, and this is a bounded cutover retirement,
 not a generic old-Plan compatibility path.
+
+The exact pre-semantic-digest Catalog `37264ba7abffb70a9d44264856816e992d0f05674a471fd4496d2bf3cc06ecca`
+may likewise be recognized only for an already terminal Work Attempt whose every Event is terminal. It cannot
+authorize active recovery, Plan publication, contract translation or dual reads. This exact retirement lets completed
+history survive the switch from full-manifest hashing to the semantic Execution Catalog digest without granting old
+unfinished work compatibility.

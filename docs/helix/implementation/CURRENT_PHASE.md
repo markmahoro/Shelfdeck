@@ -1,8 +1,8 @@
 # ShelfDeck Helix 当前实施阶段
 
-状态：**UNIFIED PRODUCTION UPGRADE + NUCLEAR FORMATION RESET — GATE IN PROGRESS**
+状态：**UNIFIED PRODUCTION UPGRADE AFTER COMPLETED NUCLEAR RESET — GATE IN PROGRESS**
 
-日期：2026-08-31
+日期：2026-09-01
 
 ## 目标
 
@@ -13,8 +13,9 @@
 3. Formation取消“待整理”current分类与筛选，Accepted条目从整理中或需要处理开始；
 4. 文件来源页重排为Procurement交接账本与Libra席位两列，总览同时表达两段数量；
 5. 合并我的收藏成品库一级页、Formation详情排版与PROD-042 Rejection token释放修复；
-6. 新镜像离线加载后、服务启动前执行Nuclear Formation Reset，删除未完成Arca Commit的过程图，保留Procurement和已入架事实；
-7. 部署后验证Per-Field generated/accepted/waiting/rejected、Formation三态、Libra/Arca运行与收藏页关键表面。
+6. 已通过统一工具完成获授权Nuclear Formation Reset，删除未完成Arca Commit的过程图，保留Procurement和已入架事实；本次部署不重复Reset；
+7. 修复PROD-044执行目录摘要与PROD-045 NFO根节点生成/上架前语义门禁；
+8. 部署后验证Per-Field generated/accepted/waiting/rejected、Formation三态、Libra/Arca运行、NFO链路与收藏页关键表面。
 
 ## 已部署基线（保留）
 
@@ -43,9 +44,10 @@
 - Primary 与其他精确成员的 Final Reality fingerprint 校验不弱化；NFO 损坏、Movie Identity 冲突或缺少拥有字段仍 fail closed，Commit 前不得建立 Shelf Entry。
 - 「接受瑕疵」与「放弃整理」只适用于 Handoff B Accepted 以前的 Libra Run；Accepted 以后失败不得改判 Rejected、退回 Libra 或借这两个动作终结。此时 Arca 只允许有界自动恢复、稳定 attention 和同一 On-deck Run 的用户重试。
 - 不恢复 PROD-034 已纠正的两个中止 Run。
-- 不直接编辑生产 SQLite；本次只允许经统一 Formation Reset 工具、完整备份与离线事务执行已授权的 Nuclear Reset。
+- 不直接编辑生产 SQLite；获授权 Nuclear Reset 已通过统一工具、完整备份与离线事务完成。本次部署不再执行数据纠正。
 - 不修改 Emby 配置。本轮生产部署仅使用标准无损 replacement，不执行 clean init、Reset 或生产数据库编辑。
 - 不为现有生产影片、固定 ID、路径、Run/Work/Effect 编写兼容或 fallback。若正式事实已经不可自洽，只能整理 Reset 证据并另行申请授权，不能由本修复掩盖。
+- Execution Catalog 摘要只排除追踪位置，不排除任何可执行合同语义；精确旧摘要只能在 Attempt 与全部 Event 终态时退役。NFO 修复必须同时证明多值根字段完整、嵌套 actor identity 不变，且 staged semantic drift 在 Placement 前失败。
 
 ## Exit Gate
 

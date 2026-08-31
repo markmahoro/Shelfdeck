@@ -1313,9 +1313,11 @@ function createCleanArcaInventoryPort(options) {
       const packageMember = request.onDeckProductPackage.productMaterialManifest.members.find(
         (item) => item.materialKey === member.sourceMaterialKey,
       );
-      const semanticFinal = !stagedExists && plan &&
+      const semanticPresentation = plan && isMovieNfoPlan(plan) &&
+        request.nfoPresentationBasis;
+      const semanticFinal = !stagedExists && semanticPresentation &&
         priorPlacementCoversTarget(request, plan, handle);
-      const fingerprint = semanticFinal
+      const fingerprint = semanticPresentation
         ? await readStableNfo(location) : await computeFingerprint(location);
       const identityChanged = Number(fingerprint.stat.size) !==
         member.physicalIdentity.sizeBytes || fingerprint.contentFingerprint !==
@@ -1326,7 +1328,7 @@ function createCleanArcaInventoryPort(options) {
         fail('CLEAN_ARCA_STAGED_REALITY_DRIFT',
           'Staged member bytes drifted before placement.');
       }
-      if (semanticFinal) verifyFinalObservation(request, plan, fingerprint);
+      if (semanticPresentation) verifyFinalObservation(request, plan, fingerprint);
       requireContinuation(request);
       observed.push(member);
     }

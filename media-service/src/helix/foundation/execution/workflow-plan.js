@@ -36,7 +36,18 @@ function executionCatalogDigest(registry, policyRegistry) {
   if (!registry || !Array.isArray(registry.snapshot) || !policyRegistry || !SHA256.test(policyRegistry.digest || '')) fail(
     'P4_PLAN_CATALOG_SNAPSHOT_REQUIRED', 'Plan requires exact Capability and execution policy snapshots.'
   );
-  return digest(canonicalJson({ capabilities: registry.snapshot, executionPolicyDigest: policyRegistry.digest }));
+  const capabilities = registry.snapshot.map((entry) => {
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) fail(
+      'P4_PLAN_CATALOG_SNAPSHOT_REQUIRED', 'Plan requires exact Capability and execution policy snapshots.'
+    );
+    const semantic = { ...entry };
+    if (semantic.executionContractDigest !== undefined) {
+      semantic.contractDigest = semantic.executionContractDigest;
+      delete semantic.executionContractDigest;
+    }
+    return semantic;
+  });
+  return digest(canonicalJson({ capabilities, executionPolicyDigest: policyRegistry.digest }));
 }
 
 function exactObject(value, required, optional, code) {

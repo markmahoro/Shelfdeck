@@ -66,7 +66,8 @@ function directNfoChildren(xml, expectedRoot) {
   const open = new RegExp('<' + expectedRoot + '(?:\\s[^<>]*?)?>', 'i').exec(value);
   const closeIndex = value.toLowerCase().lastIndexOf('</' + expectedRoot.toLowerCase() + '>');
   if (!open || closeIndex < open.index + open[0].length) return Object.freeze([]);
-  const body = value.slice(open.index + open[0].length, closeIndex);
+  const bodyStart = open.index + open[0].length;
+  const body = value.slice(bodyStart, closeIndex);
   const tokenPattern = /<!--[\s\S]*?-->|<!\[CDATA\[[\s\S]*?\]\]>|<\?[^>]*\?>|<\/?[a-z][^>]*>/gi;
   const children = [];
   let depth = 0;
@@ -82,15 +83,21 @@ function directNfoChildren(xml, expectedRoot) {
       depth -= 1;
       if (active && depth === 0 && name === active.name) {
         const raw = body.slice(active.start, token.index).trim();
-        children.push(Object.freeze({ name, attributes:active.attributes, raw }));
+        children.push(Object.freeze({ name, attributes:active.attributes, raw,
+          openStart:bodyStart + active.openStart, openEnd:bodyStart + active.start,
+          closeStart:bodyStart + token.index, closeEnd:bodyStart + token.index + markup.length,
+          selfClosing:false }));
         active = null;
       }
       continue;
     }
     if (depth === 0) {
       const attributes = markup.slice(1 + name.length, markup.length - 1).replace(/\/\s*$/, '').trim();
-      if (selfClosing) children.push(Object.freeze({ name, attributes, raw:'' }));
-      else active = { name, attributes, start:token.index + markup.length };
+      if (selfClosing) children.push(Object.freeze({ name, attributes, raw:'',
+        openStart:bodyStart + token.index, openEnd:bodyStart + token.index + markup.length,
+        closeStart:bodyStart + token.index, closeEnd:bodyStart + token.index + markup.length,
+        selfClosing:true }));
+      else active = { name, attributes, openStart:token.index, start:token.index + markup.length };
     }
     if (!selfClosing) depth += 1;
   }
@@ -101,6 +108,11 @@ function directNfoText(children, tag, predicate = () => true) {
   const node = children.find((item) => item.name === tag && predicate(item));
   if (!node || /<(?!\!\[CDATA\[)/.test(node.raw)) return undefined;
   return node.raw.replace(/^<!\[CDATA\[([\s\S]*)\]\]>$/, '$1').trim() || undefined;
+}
+
+function directNfoTexts(children, tag, predicate = () => true) {
+  return Object.freeze(children.filter((item) => item.name === tag && predicate(item))
+    .map((item) => directNfoText([item], tag)).filter(Boolean));
 }
 
 function parseRelatedNfoMovieIdentity(xml) {
@@ -209,6 +221,55 @@ function mergeNfoActors(xml, rootName, relations) {
   return output;
 }
 
+function replaceRanges(value, replacements) {
+  let output = value;
+  for (const item of [...replacements].sort((left, right) => right.start - left.start)) {
+    output = output.slice(0, item.start) + item.value + output.slice(item.end);
+  }
+  return output;
+}
+
+function insertDirectElements(xml, rootName, elements) {
+  const closeIndex = xml.toLowerCase().lastIndexOf('</' + rootName.toLowerCase() + '>');
+  if (closeIndex === -1) return xml;
+  return xml.slice(0, closeIndex) + '\n' + elements.map((item) => '  ' + item).join('\n') + xml.slice(closeIndex);
+}
+
+function replaceDirectScalar(xml, rootName, tag, value, predicate = () => true, element = null) {
+  const matches = directNfoChildren(xml, rootName).filter((item) => item.name === tag && predicate(item));
+  const encoded = escapeXml(value);
+  const markup = element || ('<' + tag + '>' + encoded + '</' + tag + '>');
+  if (!matches.length) return insertDirectElements(xml, rootName, [markup]);
+  const first = matches[0];
+  const replacements = matches.slice(1).map((item) => ({ start:item.openStart, end:item.closeEnd, value:'' }));
+  replacements.push(first.selfClosing
+    ? { start:first.openStart, end:first.closeEnd, value:markup }
+    : { start:first.openEnd, end:first.closeStart, value:encoded });
+  return replaceRanges(xml, replacements);
+}
+
+function listFieldValues(value) {
+  const seen = new Set();
+  return Object.freeze(String(value ?? '').split(/\s*(?:\/|,|;|\|)\s*/).map((item) => item.trim()).filter((item) => {
+    if (!item) return false;
+    const key = item.normalize('NFKC').toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  }));
+}
+
+function replaceDirectList(xml, rootName, tag, values) {
+  const matches = directNfoChildren(xml, rootName).filter((item) => item.name === tag);
+  const elements = values.map((value) => '<' + tag + '>' + escapeXml(value) + '</' + tag + '>');
+  if (!elements.length) return xml;
+  if (!matches.length) return insertDirectElements(xml, rootName, elements);
+  const replacements = matches.slice(1).map((item) => ({ start:item.openStart, end:item.closeEnd, value:'' }));
+  replacements.push({ start:matches[0].openStart, end:matches[0].closeEnd,
+    value:elements.join('\n  ') });
+  return replaceRanges(xml, replacements);
+}
+
 function updateNfoDocument(xml, rootName, entries, relations) {
   let output = String(xml).replace(/^\uFEFF/, '');
   const managed = [
@@ -228,19 +289,16 @@ function updateNfoDocument(xml, rootName, entries, relations) {
   ];
   for (const [key, tag] of managed) {
     if (!entries.has(key)) continue;
-    const encoded = escapeXml(entries.get(key));
-    const existing = new RegExp('(<'+tag+'(?:\\s[^>]*)?>)[\\s\\S]*?(</'+tag+'>)', 'i');
-    if (existing.test(output)) output = output.replace(existing, '$1' + encoded + '$2');
-    else output = output.replace(new RegExp('(\\s*</'+rootName+'>\\s*)$', 'i'),
-      '\n  <' + tag + '>' + encoded + '</' + tag + '>$1');
+    output = tag === 'genre'
+      ? replaceDirectList(output, rootName, tag, listFieldValues(entries.get(key)))
+      : replaceDirectScalar(output, rootName, tag, entries.get(key));
   }
   const tmdbKey = rootName === 'tvshow' ? 'tmdb_series_id' : 'tmdb_movie_id';
   if (entries.has(tmdbKey)) {
-    const encoded = escapeXml(entries.get(tmdbKey));
-    const uniqueId = /(<uniqueid\b[^>]*\btype=["']tmdb["'][^>]*>)[\s\S]*?(<\/uniqueid>)/i;
-    if (uniqueId.test(output)) output = output.replace(uniqueId, '$1' + encoded + '$2');
-    else output = output.replace(new RegExp('(\\s*</'+rootName+'>\\s*)$', 'i'),
-      '\n  <uniqueid type="tmdb">' + encoded + '</uniqueid>$1');
+    const value = entries.get(tmdbKey);
+    output = replaceDirectScalar(output, rootName, 'uniqueid', value,
+      (item) => /\btype\s*=\s*["']tmdb["']/i.test(item.attributes),
+      '<uniqueid type="tmdb">' + escapeXml(value) + '</uniqueid>');
   }
   output = mergeNfoActors(output, rootName, relations);
   return output.endsWith('\n') ? output : output + '\n';
@@ -528,12 +586,14 @@ function createCleanProductProductionPort(options = {}) {
       ['episode_plot', 'plot'],
       ['season_number', 'season'],
       ['episode_number', 'episode'],
-      ['genre', 'genre'],
+      ['genre', 'genre', true],
       ['director', 'director'],
       ['actor', 'name'],
     ];
-    for (const [key, tag] of fields) {
-      const value = directNfoText(directChildren, tag);
+    for (const [key, tag, repeatable] of fields) {
+      const value = repeatable
+        ? directNfoTexts(directChildren, tag).flatMap(listFieldValues).join(' / ')
+        : directNfoText(directChildren, tag);
       if (value) entries.push({ key, value });
     }
     const tagValue = (tag) => directNfoText(directChildren, tag);

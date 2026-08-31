@@ -107,6 +107,7 @@ const PRE_PROJECTION_EXECUTION_CATALOG_DIGEST = '13315cdbdf6ab5cbe30b32075f89bd7
 const PRE_ACTOR_COMPLETION_EXECUTION_CATALOG_DIGEST = '9e0e24c88512973e16d601c79c362d01844af0853bc1c2c37442041acda1821d';
 const PRE_LOCAL_ENCODE_TIMEOUT_EXECUTION_CATALOG_DIGEST = 'b39d36350b09fbc0236fd47f7d0ea6c43125c82260b9740d6b4cc5737c091e74';
 const PRE_PREDECK_PIPELINE_EXECUTION_CATALOG_DIGEST = 'a30cf21aebd17902cc977490388a2ef15849e422519ff0f5f653ae03065815ba';
+const PRE_SEMANTIC_EXECUTION_CATALOG_DIGEST = '37264ba7abffb70a9d44264856816e992d0f05674a471fd4496d2bf3cc06ecca';
 const COMPATIBLE_PREVIOUS_EXECUTION_CATALOG_DIGESTS = new Set([
   UAT_SOURCE_EXECUTION_CATALOG_DIGEST,
   PRE_LOCAL_ENCODE_TIMEOUT_EXECUTION_CATALOG_DIGEST,
@@ -155,7 +156,8 @@ function verifyStartupPlanCatalog(snapshot, currentCatalogDigest, registry, poli
   if (verifyFailedPreparationRetryPlan(snapshot)) return true;
   if (snapshot.plan.catalog_digest === currentCatalogDigest) return true;
   const previousCatalog = [PRE_PROJECTION_EXECUTION_CATALOG_DIGEST,
-    PRE_ACTOR_COMPLETION_EXECUTION_CATALOG_DIGEST].includes(snapshot.plan.catalog_digest) ||
+    PRE_ACTOR_COMPLETION_EXECUTION_CATALOG_DIGEST,
+    PRE_SEMANTIC_EXECUTION_CATALOG_DIGEST].includes(snapshot.plan.catalog_digest) ||
     COMPATIBLE_PREVIOUS_EXECUTION_CATALOG_DIGESTS.has(snapshot.plan.catalog_digest);
   if (previousCatalog && TERMINAL_ATTEMPT_STATES.has(snapshot.workAttempt?.state) &&
       Array.isArray(snapshot.events) && snapshot.events.every((event) => TERMINAL_EVENT_STATES.has(event.state))) return true;
@@ -1141,6 +1143,7 @@ module.exports = Object.freeze({
   PRE_PROJECTION_EXECUTION_CATALOG_DIGEST,
   PRE_ACTOR_COMPLETION_EXECUTION_CATALOG_DIGEST,
   PRE_LOCAL_ENCODE_TIMEOUT_EXECUTION_CATALOG_DIGEST,
+  PRE_SEMANTIC_EXECUTION_CATALOG_DIGEST,
   createProcurementExecutionRuntime,
   createHelixExecutionRuntime:createProcurementExecutionRuntime,
   volumeReadUnitsForCapability,

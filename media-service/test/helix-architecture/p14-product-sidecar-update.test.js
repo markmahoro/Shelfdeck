@@ -11,18 +11,18 @@ const { canonicalDigest } = require('../../src/helix/contracts/canonical-json');
 const { computeBoundedMaterialFingerprintSync } =
   require('../../src/helix/integrations/bounded-material-fingerprint');
 
-function draft() {
+function draft(entries = [
+  Object.freeze({ key:'title', value:'倩女幽魂' }),
+  Object.freeze({ key:'tmdb_movie_id', value:'12345' }),
+  Object.freeze({ key:'year_or_release_date', value:1987 }),
+  Object.freeze({ key:'plot', value:'更新后的简介' }),
+]) {
   return Object.freeze({
     draftId:'draft-1',
     draftDigest:'d'.repeat(64),
     basisDigest:'b'.repeat(64),
     metadataObservationSetDigest:'c'.repeat(64),
-    descriptiveFacts:Object.freeze({ entries:Object.freeze([
-      Object.freeze({ key:'title', value:'倩女幽魂' }),
-      Object.freeze({ key:'tmdb_movie_id', value:'12345' }),
-      Object.freeze({ key:'year_or_release_date', value:1987 }),
-      Object.freeze({ key:'plot', value:'更新后的简介' }),
-    ]) }),
+    descriptiveFacts:Object.freeze({ entries:Object.freeze(entries) }),
   });
 }
 
@@ -83,7 +83,7 @@ function relatedReference(location, primaryMaterialKey = 'primary-1') {
   });
 }
 
-function render(sourceBytes) {
+function render(sourceBytes, overrides = {}) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'helix-sidecar-update-'));
   const source = path.join(root, 'movie.nfo');
   if (sourceBytes !== null) fs.writeFileSync(source, sourceBytes);
@@ -110,7 +110,8 @@ function render(sourceBytes) {
     const reference = sourceBytes === null ? null : relatedReference(source);
     const before = sourceBytes === null ? null : fs.readFileSync(source);
     const handle = port.renderProductSidecar({
-      productMetadataDraft:draft(), mediaCastDraft:mediaCastDraft(),
+      productMetadataDraft:overrides.productMetadataDraft || draft(),
+      mediaCastDraft:overrides.mediaCastDraft || mediaCastDraft(),
       sidecarProfile:profile(), libraRunId:'run-1',
       workspaceId:'workspace-1', relativePath:'product/movie.nfo', contentProfile:'movie',
       relatedReference:reference,
@@ -129,6 +130,31 @@ test('movie identity ignores actor tmdb ids and reads only the root-level movie 
     <uniqueid type="tmdb">37724</uniqueid>
   </movie>`);
   assert.deepEqual(identity, { title:'007：大破天幕杀机', releaseYear:'2012', tmdbMovieId:'37724' });
+});
+
+test('related NFO observation preserves the complete repeated genre set', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'helix-sidecar-genres-'));
+  const source = path.join(root, 'movie.nfo');
+  fs.writeFileSync(source, Buffer.from(
+    '<movie><title>人生密密缝</title><genre>Family</genre><genre>Drama</genre><tmdbid>428733</tmdbid></movie>',
+    'utf8'));
+  try {
+    const port = createCleanProductProductionPort({
+      mediaProbe:{ probe() { throw new Error('not used'); } },
+      workspaceProductPort:{
+        materializeArtifact() { throw new Error('not used'); },
+        acquireArtifact() { throw new Error('not used'); },
+      },
+    });
+    const observed = port.readRelatedNfo({
+      primaryMaterialKey:'primary-1',
+      reference:relatedReference(source),
+    });
+    assert.equal(observed.entries.find((item) => item.key === 'genre')?.value,
+      'Family / Drama');
+  } finally {
+    fs.rmSync(root, { recursive:true, force:true });
+  }
 });
 
 test('Shelf Acceptance read Handle closes Package, Spec, role, and 24-hour reality', () => {
@@ -211,6 +237,36 @@ test('usable related NFO is updated without losing rich or custom fields', () =>
   assert.equal((result.output.match(/<name>张国荣<\/name>/g) || []).length, 1,
     'the strong existing actor is not duplicated');
   assert.match(result.output, /<name>王祖贤<\/name>[\s\S]*?<tmdbid>124<\/tmdbid>/);
+});
+
+test('related NFO update canonicalizes repeated root genres without overwriting nested actor ids', () => {
+  const source = Buffer.from(`<movie>
+  <title>旧标题</title>
+  <genre>Family</genre>
+  <genre>Drama</genre>
+  <actor><name>Toma Ikuta</name><tmdbid>228072</tmdbid></actor>
+  <tmdbid>428733</tmdbid>
+  <uniqueid type="tmdb">428733</uniqueid>
+</movie>\n`, 'utf8');
+  const productMetadataDraft = draft([
+    Object.freeze({ key:'title', value:'人生密密缝' }),
+    Object.freeze({ key:'tmdb_movie_id', value:'428733' }),
+    Object.freeze({ key:'year_or_release_date', value:2017 }),
+    Object.freeze({ key:'plot', value:'Plot' }),
+    Object.freeze({ key:'genre', value:'Family / Drama' }),
+  ]);
+  const result = render(source, { productMetadataDraft });
+  assert.equal(result.handle.provenanceRef.objectType, 'related_nfo_update');
+  assert.deepEqual(result.after, result.before, 'the Material Field source must remain read-only');
+  assert.deepEqual([...result.output.matchAll(/<genre>([^<]+)<\/genre>/g)].map((item) => item[1]),
+    ['Family', 'Drama']);
+  assert.match(result.output,
+    /<actor><name>Toma Ikuta<\/name><tmdbid>228072<\/tmdbid><\/actor>/);
+  assert.doesNotMatch(result.output,
+    /<actor><name>Toma Ikuta<\/name><tmdbid>428733<\/tmdbid><\/actor>/);
+  assert.deepEqual(parseRelatedNfoMovieIdentity(result.output), {
+    title:'人生密密缝', releaseYear:'2017', tmdbMovieId:'428733',
+  });
 });
 
 test('damaged related NFO is rebuilt and absent NFO is created', () => {
