@@ -60,7 +60,7 @@
 | PROD-040 | 同一 On-deck Run 已 Placement 的 NFO 被 Emby 等价改写后，恢复 Stage 报 target occupied | `EXECUTION` / Stage 只认原始 offloadContext，遗漏 durable prior Placement provenance | 媒体整理详情 / 上架 | Critical | **FIXED / PRODUCTION ACCEPTED**。《罪人》同一 Run 已完成 Stage 至 Commit。 |
 | PROD-041 | Startup Recovery 已分类 `continue_forward`，却因原 Attempt deadline 过期而永远进不了 Capability | `EXECUTION_FOUNDATION` / 恢复执行误复用原 wall-clock deadline，且没有 durable one-shot recovery budget | 全部非纯 Effect Forward Recovery | Critical | **FIXED / PRODUCTION ACCEPTED**。同一 Effect 一次冻结有界 recovery execution start，重启不续期。 |
 | PROD-042 | 3 个 Pre-deck token 均被占用，但只有 2 条 Formation 活动记录，后续 Libra Run 不再进入 | `EXECUTION` / Rejection Planner 把整个 dependency ref 当成 Evidence Work ID | Handoff A Intake / 媒体整理工作区 | Critical | **FIXED LOCALLY / NOT DEPLOYED**。正常新拒绝链会提交 Decision 并释放 token；旧失败条目不做兼容恢复。 |
-| PROD-043 | 新三态 SSOT 下约 621 个 Accepted/no-token Subject 表现为“假死 Libra Run”，Reset dry-run 又被 Procurement 与 package Control 误阻塞 | `DATA_CORRECTION` / Reset scope 缺口 | Formation Reset / 媒体整理工作区 | Critical | **FIXED LOCALLY / RESET NOT RUN**。两种 Reset 覆盖孤儿 Subject/Run；Procurement Control 保留，Nuclear 只回卷 Formation revision 后缀。 |
+| PROD-043 | 新三态 SSOT 下约 621 个 Accepted/no-token Subject 表现为“假死 Libra Run”，Reset dry-run 又被 Procurement/package Control 与保留 Run 反向指针阻塞 | `DATA_CORRECTION` / Reset scope 缺口 | Formation Reset / 媒体整理工作区 | Critical | **FIRST APPLY FK-BLOCKED + ROLLED BACK / FIXED LOCALLY**。两种 Reset 覆盖孤儿 Subject/Run；Procurement Control 保留，Nuclear 回卷 Formation revision 后缀并清除指向被删除 Run 的 supersession pointer。 |
 
 PROD-001、PROD-002 的共同环境前提：生产管理台是 `http://192.168.12.230`，浏览器不提供 `crypto.randomUUID` / `crypto.subtle`。这不是传输加密设计，只是浏览器 API 限制。未改成 HTTPS。
 

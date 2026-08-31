@@ -13,6 +13,7 @@ Last updated: 2026-08-31
 - 文件来源/Formation 新语义、Formation 详情排版、我的收藏成品库一级页与 PROD-042 已合并到 main；生产现状、镜像与数据尚未改变。
 - 生产所谓“600 多个假死 Libra Run”实际以 621 个 Accepted 但无 token 的历史 Subject 为主；生产现有真实 `libra_runs` 仅 101 个，其中此前 dry-run 识别 2 个 actionable Run。它们不获得兼容权利。
 - Formation Reset 已修复 Control scope：Procurement-owned Control 保留；Libra `subject|on_deck_package` 与 Arca custody Control 属于可清理范围；Nuclear 只回卷 Formation Control revision 后缀并恢复 Procurement 边界。
+- 首次生产 Nuclear apply 在事务提交前由 `foreign_key_check` 阻断并完整回滚：2 条受保护的已 Commit Run 仍以 `supersedes_run_id` 指向待删除旧 Run。Nuclear 现同步清空保留 Run 上指向被删除 Run 的 supersession pointer；回归覆盖保护 Run、Shelf Entry 与 Commit Receipt继续保留。
 - 两种 Reset 均报告并清零 Accepted/no-token Subject 与 active/no-admission-head Run；Normal 可建立一次 reset-only Admission Head 后正式 discard，Nuclear 删除整个未 Commit 图。Service 411 项为 393 pass、18 skip、0 fail；Admin Web 42/42 且 production build 通过。Architecture fixture、semantic、manifest、contract 均通过，总 gate 仍仅受 18 个既有 dynamic-template scanner findings 阻断。
 
 ## PROD-036 Production Monitoring

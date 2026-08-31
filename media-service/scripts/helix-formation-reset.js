@@ -680,6 +680,8 @@ function deleteNuclearBusinessGraph(database, scope, nowMs) {
     .map((row) => row.run_material_manifest_id);
   executeByIds(database, 'DELETE FROM libra_run_material_episode_claims WHERE run_material_manifest_id IN', manifestIds);
   executeByIds(database, 'DELETE FROM libra_run_material_members WHERE run_material_manifest_id IN', manifestIds);
+  executeByIds(database, 'UPDATE libra_runs SET supersedes_run_id=NULL WHERE supersedes_run_id IN', scope.runIds);
+  executeByIds(database, 'UPDATE libra_runs SET superseded_by_run_id=NULL WHERE superseded_by_run_id IN', scope.runIds);
   executeByIds(database, 'UPDATE libra_runs SET run_material_manifest_id=NULL,supersedes_run_id=NULL,superseded_by_run_id=NULL WHERE libra_run_id IN', scope.runIds);
   executeByIds(database, 'DELETE FROM libra_run_material_manifests WHERE run_material_manifest_id IN', manifestIds);
   executeByIds(database, 'DELETE FROM libra_run_revisions WHERE libra_run_id IN', scope.runIds);

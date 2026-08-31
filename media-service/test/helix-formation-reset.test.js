@@ -365,6 +365,10 @@ test('Nuclear Reset deletes an uncommitted Libra-to-Arca graph but preserves com
     value.database.prepare(`INSERT INTO arca_ondeck_commit_receipts
       (receipt_id,on_deck_run_id,shelf_entry_id,inventory_revision,deck_fact_revision,commit_digest,committed_at_ms)
       VALUES ('commit-kept',?,'entry-kept',1,1,?,2)`).run(keptOnDeck,DIGEST);
+    value.database.prepare('UPDATE libra_runs SET supersedes_run_id=? WHERE libra_run_id=?')
+      .run(target.runId,kept.runId);
+    value.database.prepare('UPDATE libra_runs SET superseded_by_run_id=? WHERE libra_run_id=?')
+      .run(kept.runId,target.runId);
 
     fs.mkdirSync(path.join(value.transcodeDir, target.workspaceId));
     fs.mkdirSync(path.join(value.transcodeDir, kept.workspaceId));
@@ -382,6 +386,8 @@ test('Nuclear Reset deletes an uncommitted Libra-to-Arca graph but preserves com
     assert.equal(value.database.prepare('SELECT COUNT(*) count FROM fx_supporting_works WHERE work_id=?').get(targetExecution.workId).count, 0);
     assert.equal(value.database.prepare('SELECT COUNT(*) count FROM fx_material_controls WHERE material_key=?').get('material-target').count, 0);
     assert.equal(value.database.prepare('SELECT COUNT(*) count FROM libra_subjects WHERE subject_id=?').get(kept.subjectId).count, 1);
+    assert.deepEqual(value.database.prepare('SELECT supersedes_run_id,superseded_by_run_id FROM libra_runs WHERE libra_run_id=?')
+      .get(kept.runId), { supersedes_run_id:null, superseded_by_run_id:null });
     assert.equal(value.database.prepare('SELECT COUNT(*) count FROM arca_ondeck_commit_receipts WHERE on_deck_run_id=?').get(keptOnDeck).count, 1);
     assert.equal(fs.existsSync(path.join(value.transcodeDir, target.workspaceId)), false);
     assert.equal(fs.existsSync(path.join(value.transcodeDir, kept.workspaceId)), true);
