@@ -212,6 +212,12 @@ describe('Helix primary copy and workbench structure', () => {
     expect(screen.getByRole('button', { name: /全部/ })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /待整理/ })).toBeInTheDocument();
     expect(screen.getByLabelText('按片名筛选')).toBeInTheDocument();
+    const toolbar = document.querySelector('.formation-toolbar');
+    expect(toolbar).toContainElement(screen.getByRole('group', { name: '媒体整理状态' }));
+    expect(toolbar).toContainElement(screen.getByLabelText('按片名筛选'));
+    expect(toolbar).toContainElement(screen.getByLabelText('按目标收藏架筛选'));
+    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
+    expect(screen.queryByText(/当前显示/)).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: /待整理/ }));
     await waitFor(() => expect(screen.queryByText('示例电影 (2024)')).not.toBeInTheDocument());
   });
@@ -277,7 +283,7 @@ describe('Helix primary copy and workbench structure', () => {
     expect(await screen.findByText('第一部电影')).toBeInTheDocument();
     expect(screen.queryByText('正在读取媒体整理工作区…')).not.toBeInTheDocument();
     expect(screen.queryByText('第二部电影')).not.toBeInTheDocument();
-    expect(screen.getByText(/其余继续载入/)).toBeInTheDocument();
+    expect(screen.queryByText(/当前显示|其余继续载入/)).not.toBeInTheDocument();
     releaseRest();
     expect(await screen.findByText('第二部电影')).toBeInTheDocument();
   });

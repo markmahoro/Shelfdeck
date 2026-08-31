@@ -206,13 +206,13 @@ button, input, select, textarea { font: inherit; }
 .movie-rule-editor input[type="checkbox"] { width: auto; min-height: 0; }
 .dialog.dialog-wide { width: min(840px, 96vw); }
 
-.formation-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 18px 0 12px; }
+.formation-toolbar { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px 20px; padding-bottom: 14px; border-bottom: 1px solid var(--ink); }
+.formation-chips { display: flex; flex: 1 1 auto; flex-wrap: wrap; gap: 6px; margin: 0; }
 .formation-chips .btn { min-height: 30px; padding: 0 10px; border-color: var(--line); background: transparent; color: var(--muted); font-size: 11px; font-weight: 600; }
 .formation-chips .btn[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
-.formation-secondary { display: flex; flex-wrap: wrap; gap: 12px 16px; align-items: end; margin-bottom: 16px; }
+.formation-secondary { display: flex; flex: 0 1 auto; flex-wrap: wrap; gap: 12px 16px; align-items: end; margin: 0; }
 .formation-secondary label { display: grid; gap: 4px; color: var(--muted); font-size: 12px; font-weight: 700; }
 .formation-secondary select, .formation-secondary input[type="search"] { min-width: 180px; min-height: var(--btn-height); padding: 0 10px; border: 1px solid var(--line); background: #fff; }
-.formation-check { display: flex !important; grid-template-columns: none; flex-direction: row; align-items: center; gap: 6px; min-height: var(--btn-height); }
 .formation-ledger { margin-top: 28px; }
 .formation-table-wrap { overflow-x: auto; border-bottom: 1px solid var(--line); }
 .formation-table { width: 100%; table-layout: auto; border-collapse: collapse; background: #f8faf7; font-size: 13px; }

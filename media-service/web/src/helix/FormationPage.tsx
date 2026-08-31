@@ -135,7 +135,7 @@ export default function FormationPage() {
   const { expire }=useSession();
   const [active,setActive]=useState<FormationSubject[]>([]),[completed,setCompleted]=useState<FormationSubject[]>([]),[ended,setEnded]=useState<FormationRunHistory[]>([]),[summary,setSummary]=useState(emptySummary),[shelves,setShelves]=useState<Shelf[]>([]);
   const [perceptionSync,setPerceptionSync]=useState<PerceptionSyncState|null>(null);
-  const [filter,setFilter]=useState<Filter>('all'),[q,setQ]=useState(''),[shelfFilter,setShelfFilter]=useState(''),[needsActionOnly,setNeedsActionOnly]=useState(false),[expeditedOnly,setExpeditedOnly]=useState(false),[loading,setLoading]=useState(false),[filling,setFilling]=useState(false),[error,setError]=useState('');
+  const [filter,setFilter]=useState<Filter>('all'),[q,setQ]=useState(''),[shelfFilter,setShelfFilter]=useState(''),[loading,setLoading]=useState(false),[error,setError]=useState('');
   const [selected,setSelected]=useState<FormationSubject|null>(null),closeRef=useRef<HTMLButtonElement>(null),triggerRef=useRef<HTMLButtonElement|null>(null),loadGeneration=useRef(0);
   const [defectDialog,setDefectDialog]=useState<{item:FormationSubject;candidate:DefectAdmissionCandidate}|null>(null);
   const [discardDialog,setDiscardDialog]=useState<FormationSubject|null>(null);
@@ -173,7 +173,6 @@ export default function FormationPage() {
       if(sync)setPerceptionSync(sync);
       setLoading(false);
       if(!firstActive.nextCursor&&!firstCompleted.nextCursor&&!firstEnded.nextCursor)return;
-      setFilling(true);
       const [allActive,allCompleted,allEnded]=await Promise.all([
         remainingFormation(firstActive,'active'),
         remainingFormation(firstCompleted,'completed'),
@@ -182,7 +181,7 @@ export default function FormationPage() {
       if(!live())return;
       setActive(allActive.items);setCompleted(allCompleted.items);setEnded(allEnded);setSummary(allActive.summary);
     }catch(cause){if(isUnauthorized(cause))expire();else setError(cause instanceof Error?cause.message:'媒体整理工作区读取失败。');}
-    finally{if(live()){setLoading(false);setFilling(false);}}
+    finally{if(live())setLoading(false);}
   },[expire]);
   useEffect(()=>{void load();},[load]);
   useEffect(()=>{if(!active.some((item)=>item.classification==='in_progress'))return;const timer=window.setInterval(()=>{void load(true);},10_000);return()=>window.clearInterval(timer);},[active,load]);
@@ -208,10 +207,8 @@ export default function FormationPage() {
   const rows=useMemo<LedgerRow[]>(()=>[...active.map((item)=>({kind:'formation' as const,item})),...completed.map((item)=>({kind:'formation' as const,item})),...ended.map((item)=>({kind:'ended' as const,item}))].filter((row)=>{
     if(q.trim()&&!row.item.displayIdentity.toLowerCase().includes(q.trim().toLowerCase()))return false;
     if(row.kind==='formation'&&shelfFilter&&row.item.targetShelfId!==shelfFilter)return false;
-    if(needsActionOnly&&(row.kind==='ended'||!(row.item.productIdentityIssue||row.item.executorIssue?.canRetry||row.item.currentRun?.state==='frozen'||canDiscardRejectedHandoff(row.item)||canChooseShelf(row.item))))return false;
-    if(expeditedOnly&&(row.kind==='ended'||row.item.currentRun?.priorityClass!=='expedited'))return false;
     if(filter==='all')return true;if(filter==='ended')return row.kind==='ended';return row.kind==='formation'&&row.item.classification===filter;
-  }),[active,completed,ended,expeditedOnly,filter,needsActionOnly,q,shelfFilter]);
+  }),[active,completed,ended,filter,q,shelfFilter]);
   const close=()=>{setSelected(null);window.setTimeout(()=>triggerRef.current?.focus(),0);};
   useEffect(()=>{if(!selected)return;const key=(event:KeyboardEvent)=>{if(event.key==='Escape')close();};document.body.classList.add('formation-process-modal-open');document.addEventListener('keydown',key);closeRef.current?.focus();return()=>{document.body.classList.remove('formation-process-modal-open');document.removeEventListener('keydown',key);};},[selected]);
   const open=async(item:FormationSubject,button:HTMLButtonElement)=>{triggerRef.current=button;setLoading(true);try{setSelected(await helixAdminApi.getFormation(item.formationViewId));}catch(cause){setError(cause instanceof Error?cause.message:'上架过程详情读取失败。');}finally{setLoading(false);}};
@@ -237,9 +234,10 @@ export default function FormationPage() {
   return <section className="source-page workbench formation-page"><PageHeader title="媒体整理工作区" actions={<Button type="button" onClick={()=>void load()} disabled={loading}>{loading?'正在刷新…':'刷新'}</Button>} />
     {error&&<p className="form-error" role="alert">{error}</p>}
     {perceptionSync?.completionState==='incomplete'&&<p className="form-notice" role="status">豆瓣评分同步尚未完整结束，已保存 {perceptionSync.recordCount} 条；再次同步会从上次成功位置继续。列表中的“暂不能确认”不是影片匹配失败。</p>}
-    <section className="formation-ledger"><div className="source-registry-heading"><h2>{filling?`已加载 ${active.length+completed.length+ended.length} 条，其余继续载入`:`当前显示 ${rows.length} 条`}</h2></div>
+    <section className="formation-ledger"><div className="formation-toolbar">
       <div className="formation-chips" role="group" aria-label="媒体整理状态">{([{id:'all',label:'全部'},{id:'pending',label:'待整理'},{id:'in_progress',label:'整理中'},{id:'attention_required',label:'需要处理'},{id:'completed',label:'已完成'},{id:'ended',label:'已结束'}] as Array<{id:Filter;label:string}>).map((entry)=><Button key={entry.id} type="button" aria-pressed={filter===entry.id} onClick={()=>setFilter(entry.id)}>{entry.label} {counts[entry.id]}</Button>)}</div>
-      <div className="formation-secondary"><label>片名<input type="search" aria-label="按片名筛选" value={q} placeholder="搜索片名" onChange={(event)=>setQ(event.target.value)} /></label><label>目标收藏架<select aria-label="按目标收藏架筛选" value={shelfFilter} onChange={(event)=>setShelfFilter(event.target.value)}><option value="">全部收藏架</option>{shelves.map((shelf)=><option key={shelf.shelfId} value={shelf.shelfId}>{shelf.name}</option>)}</select></label><label className="formation-check"><input type="checkbox" checked={needsActionOnly} onChange={(event)=>setNeedsActionOnly(event.target.checked)} />仅需用户处理</label><label className="formation-check"><input type="checkbox" checked={expeditedOnly} onChange={(event)=>setExpeditedOnly(event.target.checked)} />仅看加急</label></div>
+      <div className="formation-secondary"><label>片名<input type="search" aria-label="按片名筛选" value={q} placeholder="搜索片名" onChange={(event)=>setQ(event.target.value)} /></label><label>目标收藏架<select aria-label="按目标收藏架筛选" value={shelfFilter} onChange={(event)=>setShelfFilter(event.target.value)}><option value="">全部收藏架</option>{shelves.map((shelf)=><option key={shelf.shelfId} value={shelf.shelfId}>{shelf.name}</option>)}</select></label></div>
+    </div>
       <div className="formation-table-wrap"><table className="formation-table formation-stub-table"><thead><tr><th>媒体名称</th><th>评分</th><th>目标收藏架</th><th>整理要求</th><th>当前进展</th><th>详情</th><th>用户操作</th><th>加急</th></tr></thead><tbody>{rows.length===0?<tr className="formation-stub-media-row"><td colSpan={8}><div className="source-empty"><strong>{summary.totalCount===0?'还没有进入整理的电影':'当前筛选没有条目'}</strong><p>{summary.totalCount===0?'文件来源目录扫完之后，采购还要分拣。整理门口同时只接 3 部，其余待交接不会出现在这张表里。':'试试其他状态或筛选。'}</p></div></td></tr>:rows.map((row)=>row.kind==='ended'?<tr key={row.item.historyId} className="formation-stub-media-row"><td><strong>{row.item.displayIdentity}</strong><small>已结束</small></td><td>—</td><td>—</td><td>—</td><td><strong className="formation-stub-current">{row.item.label}</strong><small>{formatTime(row.item.endedAtMs)}</small></td><td>—</td><td>—</td><td><button type="button" className="formation-expedite-toggle" disabled>加急</button></td></tr>:<MediaRow key={row.item.subjectId} item={row.item} shelves={shelves} loading={loading} acquisitionIncomplete={perceptionSync?.completionState==='incomplete'} onOpen={open} onAction={action} />)}</tbody></table></div>
     </section>
     {selected&&<div className="formation-process-backdrop" role="presentation" onMouseDown={(event)=>{if(event.target===event.currentTarget)close();}}><section className="formation-process-dialog" role="dialog" aria-modal="true" aria-labelledby="formation-process-dialog-title"><button ref={closeRef} className="formation-process-dialog-close" type="button" aria-label="关闭媒体整理过程卡片" onClick={close}>×</button><h2 id="formation-process-dialog-title" className="formation-process-dialog-title">{selected.displayIdentity}的媒体整理过程</h2><ProcessDetail item={selected} /></section></div>}

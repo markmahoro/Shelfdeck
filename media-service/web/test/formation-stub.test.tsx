@@ -42,7 +42,18 @@ describe('Formation interaction stub', () => {
     fireEvent.click(screen.getByRole('button', { name: '已完成 1' }));
     expect(screen.getByText('锡尔弗顿之围 (2022)')).toBeInTheDocument();
     expect(screen.queryByText('倩女幽魂2：人间道 (1990)')).not.toBeInTheDocument();
-    expect(screen.getByText('当前显示 1 条')).toBeInTheDocument();
+    expect(screen.queryByText(/当前显示/)).not.toBeInTheDocument();
+  });
+
+  it('keeps status, title, and shelf filters in one toolbar without secondary checkboxes or a row count', () => {
+    render(<FormationStubPage />);
+
+    const toolbar = document.querySelector('.formation-toolbar');
+    expect(toolbar).toContainElement(screen.getByRole('group', { name: '媒体整理状态' }));
+    expect(toolbar).toContainElement(screen.getByLabelText('按片名筛选'));
+    expect(toolbar).toContainElement(screen.getByLabelText('按目标收藏架筛选'));
+    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
+    expect(screen.queryByText(/当前显示/)).not.toBeInTheDocument();
   });
 
   it('keeps ended media in the same table and gives each row an independent expedite control', () => {

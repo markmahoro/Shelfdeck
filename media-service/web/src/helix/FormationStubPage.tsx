@@ -222,11 +222,18 @@ function CompactDetail({ row }: { row: StubRow }) {
 
 export default function FormationStubPage() {
   const [filter, setFilter] = useState<StubFilter>('all');
+  const [query, setQuery] = useState('');
+  const [shelfFilter, setShelfFilter] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [expeditedIds, setExpeditedIds] = useState(() => new Set(['venice']));
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const detailTriggerRef = useRef<HTMLButtonElement | null>(null);
-  const visibleRows = filter === 'all' ? rows : rows.filter((row) => row.classification === filter);
+  const shelves = [...new Set(rows.map((row) => row.shelf))];
+  const visibleRows = rows.filter((row) => {
+    if (filter !== 'all' && row.classification !== filter) return false;
+    if (query.trim() && !row.title.toLowerCase().includes(query.trim().toLowerCase())) return false;
+    return !shelfFilter || row.shelf === shelfFilter;
+  });
   const selectedRow = rows.find((row) => row.id === selectedId) || null;
   const count = (id: StubFilter) => id === 'all' ? rows.length : rows.filter((row) => row.classification === id).length;
 
@@ -254,9 +261,14 @@ export default function FormationStubPage() {
     <p className="formation-stub-notice"><strong>界面 Stub</strong>静态数据仅用于确认信息结构和交互，不读取或修改当前 UAT 环境。</p>
 
     <section className="formation-ledger">
-      <div className="source-registry-heading"><h2>当前显示 {visibleRows.length} 条</h2></div>
-      <div className="formation-chips" role="group" aria-label="媒体整理状态">
-        {filterLabels.map((item) => <Button key={item.id} type="button" aria-pressed={filter === item.id} onClick={() => setFilter(item.id)}>{item.label} {count(item.id)}</Button>)}
+      <div className="formation-toolbar">
+        <div className="formation-chips" role="group" aria-label="媒体整理状态">
+          {filterLabels.map((item) => <Button key={item.id} type="button" aria-pressed={filter === item.id} onClick={() => setFilter(item.id)}>{item.label} {count(item.id)}</Button>)}
+        </div>
+        <div className="formation-secondary">
+          <label>片名<input type="search" aria-label="按片名筛选" value={query} placeholder="搜索片名" onChange={(event) => setQuery(event.target.value)} /></label>
+          <label>目标收藏架<select aria-label="按目标收藏架筛选" value={shelfFilter} onChange={(event) => setShelfFilter(event.target.value)}><option value="">全部收藏架</option>{shelves.map((shelf) => <option key={shelf} value={shelf}>{shelf}</option>)}</select></label>
+        </div>
       </div>
 
       <div className="formation-table-wrap">
