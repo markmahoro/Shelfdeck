@@ -72,6 +72,8 @@ const FAILURE_COPY = Object.freeze({
   CLEAN_ARCA_SETTLEMENT_DELETE_FAILED:'原文件在完成替换后仍未能移除',
   CLEAN_ARCA_FINAL_REALITY_MISSING:'正式位置中没有找到本次写入的媒体产品',
   CLEAN_ARCA_FINAL_REALITY_DRIFT:'最终文件状态与本次计划记录不一致',
+  CLEAN_ARCA_STAGED_NFO_SEMANTIC_DRIFT:'暂存位置中的 NFO 内容与本次已接受的媒体信息不一致',
+  CLEAN_ARCA_FINAL_NFO_SEMANTIC_DRIFT:'正式位置中的 NFO 内容与本次已接受的媒体信息不一致',
   CLEAN_ARCA_PRODUCT_SOURCE_MISSING:'没有找到本次上架使用的媒体产品',
   CLEAN_ARCA_TARGET_ROOT_UNAVAILABLE:'目标收藏架当前无法访问',
   CLEAN_ARCA_TARGET_OCCUPIED:'目标位置已经存在其他媒体文件',

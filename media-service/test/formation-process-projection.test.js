@@ -93,6 +93,25 @@ test('Formation process projection explains persisted settlement action and fail
   ]);
 });
 
+test('Formation process projection explains staged and final NFO semantic drift without inventing field differences',()=>{
+  for (const [code,message] of [
+    ['CLEAN_ARCA_STAGED_NFO_SEMANTIC_DRIFT','暂存位置中的 NFO 内容与本次已接受的媒体信息不一致'],
+    ['CLEAN_ARCA_FINAL_NFO_SEMANTIC_DRIFT','正式位置中的 NFO 内容与本次已接受的媒体信息不一致'],
+  ]) {
+    const failed=event('plan-nfo-failed',code,'arca.inventory.final_product.verify@1','failed',1,[],{
+      failure:{outcomeKind:'failed',failureClass:'permanent',failureCode:code,attemptOrdinal:1},
+    });
+    const node=projectPlans([work('arca','arca_ondeck_run','on-deck-nfo','on_deck_execution',[failed])])[0].nodes[0];
+    assert.equal(node.description,'这一步没有完成：'+message+'。');
+    assert.deepEqual(node.results,[
+      {label:'失败原因',value:message},
+      {label:'失败代码',value:code},
+    ]);
+    assert.equal(JSON.stringify(node).includes('director'),false);
+    assert.equal(JSON.stringify(node).includes('plot'),false);
+  }
+});
+
 test('Formation process projection treats a completed compliance check as completed and names each media Plan by its work',()=>{
   const earlier=Array.from({length:10},(_value,index)=>{
     const item=work('libra','libra_run','run-1','product_identity',[
