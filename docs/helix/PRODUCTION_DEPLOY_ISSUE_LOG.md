@@ -53,10 +53,16 @@
 | PROD-031 | PROD-024 全局 3 席仍是 derived occupancy；无法按来源暂停/限流 | `EXECUTION` / Libra per-field pipeline token | 文件来源配置、媒体整理工作区 | High | **DEPLOYED** `helix-beta-20260830-5189f5f79c`（2026-08-30；migration + full libra reset；186 tables） |
 | PROD-032 | token=0 时历史 Subject 仍批量生成 routing/spec/rating Work，Formation 保持 700+ 条 | `EXECUTION` / Intake replay 与下游 reconciler 绕过 token，Run Admission 过早释放 | 媒体整理工作区 | Critical | **FIXED / DEPLOYED** `helix-beta-20260831-710aa1b65a`（3 seats / 3 tokens / 3 active Works；Formation active 5） |
 | PROD-035 | Emby 在 On-deck 检查点之间改写 NFO，检查失败后同一 Run 可无限停在中间态 | `EXECUTION` / Final Verify 在 Placement 前 + 无耗尽后的业务稳态 | 媒体整理工作区 / 上架 | Critical | **DEPLOYED / MONITORING FAILED** `helix-beta-20260831-29efa3a229`；仍有 NFO source stale / director semantic drift，已打回原任务。 |
-| PROD-036 | Field Observation 每 30 分钟全量写入导致 SQLite 膨胀，且第 69 页 Event Attempt 长期 `executing` | `CAPACITY` / retention 缺失 + Observation I/O deadline 未生效 | 文件来源、`shelfdeck.db` | Critical | **DEPLOYED / MONITORING** `helix-beta-20260831-29efa3a229`；12 小时 cadence、7 天 GC 与 I/O deadline 已上线，旧第 69 页正在原 Attempt/Effect 上执行有界恢复。 |
+| PROD-036 | Field Observation 每 30 分钟全量写入导致 SQLite 膨胀，且第 69 页 Event Attempt 长期 `executing` | `CAPACITY` / retention 缺失 + recovery hard deadline 未收口 | 文件来源、`shelfdeck.db` | Critical | **PRODUCTION VALIDATION FAILED / REPLACEMENT MERGED**。`helix-beta-20260831-29efa3a229` 运行 68 分钟仍卡住；hard abort-safe recovery replacement 已合并、未部署。 |
 | PROD-037 | PROD-035 部署后仍误报 director drift，Aftercare source fence 继续刷日志 | `EXECUTION` / Presentation gate 误复用 renderer 字段 + expected CAS conflict 被抛成未知 Effect | 上架 / Aftercare | Critical | **FIXED LOCALLY**（精确 semantic gate + typed conflict terminalization；已合并、未部署） |
 
 PROD-001、PROD-002 的共同环境前提：生产管理台是 `http://192.168.12.230`，浏览器不提供 `crypto.randomUUID` / `crypto.subtle`。这不是传输加密设计，只是浏览器 API 限制。未改成 HTTPS。
+
+### PROD-036 — Observation 容量失控与 Work 不收口（REPLACEMENT MERGED）
+
+生产只读证据显示完整 Observation 约 39.5 MiB，旧 30 分钟 cadence 相当于约 1.85 GiB/天；SQLite 没有 Entry retention，且普通 DELETE 不会自动缩小文件。卡住 Work 的前 68 个 Attempt/Event 均成功，17,408 条 Entry 恰为 `68 × 256`；第 69 个 Attempt/Event 为 `executing`，没有 Result、marker 或 page header。证据把故障限定在 Page commit 前的 Observation I/O，不能臆测为某个具体 syscall。
+
+首次 replacement `helix-beta-20260831-29efa3a229` 运行超过一小时仍保持同一第 69 个 `executing` Attempt，证明单独传递 abort signal 不构成有界终止。精确实现缺口是 isolation 在 abort 后仍无限等待 operation，且 non-pure recovery timeout 重新抛出后只被 Host 重新排队。新 replacement 只对 Executor 显式声明的 abort-safe Capability 在 deadline 后给 1 秒 settlement grace，随后硬结束 Runtime 等待；Event Runtime 把该 pre-commit timeout 作为 `retryDirective=never` 失败，abandon intent 并终结 Event/Attempt。迟到执行仍须通过已 abort Context 的 commit 门禁。Recovery 沿用原 Attempt durable 开始时间，已超过一小时的旧 Attempt 升级后立即收口。12 小时 cadence、7 天 retention、incremental auto-vacuum 与离线 compact 保持不变；没有 Work ID 特例或数据修正。本 replacement 尚未部署。
 
 ## 2. PROD-001 — 文件来源配置白屏
 

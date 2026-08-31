@@ -1,6 +1,6 @@
 # ShelfDeck Clean Helix Current Status
 
-Status: **MOVIE COLLECTION LIFECYCLE READY THROUGH SHELF DEREGISTRATION；PROD-035/036 已无损部署，PROD-037 NFO 修正已合并未部署，生产验收未完成。**
+Status: **MOVIE COLLECTION LIFECYCLE READY THROUGH SHELF DEREGISTRATION；PROD-035/036 首次部署验收失败，Observation replacement、PROD-037 NFO 与 Formation 合同修正已合并未部署。**
 
 Last updated: 2026-08-31
 
@@ -8,11 +8,13 @@ Last updated: 2026-08-31
 
 Field Observation 容量与崩溃恢复已随 `helix-beta-20260831-29efa3a229` 无损部署。生产只读证据已排除先前判断的 terminal Event 聚合窗口：同一 Work 的 Attempt 1–68 及各自 Event 均为 `succeeded`，共写入 `68 × 256 = 17,408` 条 Entry；Attempt 69 与 Event 仍为 `executing`，Effect 只有 intent，没有 Result、commit marker 或第 69 页 header，`runningAttemptWithOnlyTerminalEvents.count=0`。精确故障点位于领域提交前的 Observation executor I/O。冻结的 1 小时 Timeout Policy 此前接到 no-op isolator，只做执行前检查；页内任一 CIFS `stat/open/read` 不 settle 都会无限占住 Attempt。现有证据不能进一步归因到某个具体 syscall。
 
-Runtime 现在把冻结 deadline 作为协作式 abort signal 传入目录枚举和每个 fingerprint I/O await，并在原子 Page commit 前再次检查执行资格。deadline 到期且尚无领域提交时，未提交 Effect 被 abandon，Event Attempt 明确收口并阻止迟到提交。旧生产 Attempt 69 在新 Runtime 启动时由通用 `domain_fact_commit` recovery 复用原 Attempt、Effect 和幂等键执行 `safe_retry`；成功只提交缺失页，继续阻塞则按新 deadline 收口。terminal Event + running Attempt 自动聚合仍作为另一种通用崩溃窗口保护保留，但不是本次生产 Work 卡住的根因。
+首次 replacement `helix-beta-20260831-29efa3a229` 运行约 68 分钟后，第 69 个 Event Attempt 仍为 `executing`、Effect 仍为 `intended`，header/Entry 完全不变。代码审计确认两个缺口：cooperative isolator 发送 abort 后仍无限等待不 settle 的 operation；non-pure recovery 抛出的 timeout 被 Host 重新排队并保留原 Attempt。replacement 现仅允许显式 abort-safe 的 Field Observation Executor 在 deadline 后经过 1 秒 settlement grace 硬结束 Runtime 等待，并让 ordinary/recovery 统一写 terminal failed、abandon 未提交 intent。迟到 operation 仍持有已 abort 的 Context，Page commit 前的执行资格门禁会拒绝它。
+
+Recovery deadline 改为使用原 Event Attempt 的 durable `started_at_ms`，所以已超时的生产 Attempt 69 在 replacement 启动时直接收口，不会因重启重新获得一小时预算。该行为没有生产 Work ID 特例或人工数据补丁；通用 terminal Event 聚合保护继续独立保留。
 
 Observation cadence 已由 30 分钟改为 12 小时。`proc_field_observation_entries` 仅保留 7 天，并保护 non-terminal Work、current Field Work、`active|waiting` Run、open Retry 与 current Material exact pointer；每事务最多删除 1,000 行。新库启用 incremental auto-vacuum；旧库使用默认 dry-run、显式 `--apply` 的离线 `VACUUM INTO` 原子替换工具。按生产测得 39.5 MiB/完整轮估算，7 天正常稳态约 553 MiB；30 天 gross churn 约 2.31 GiB，365 天约 28.16 GiB，但窗口外仅活动引用会增加 retained size。
 
-部署后旧第 69 页已由新 Runtime 接管并复用原 Event Attempt、intended Effect 和幂等键；当前仍在本轮有界 I/O 中，尚未新增第 69 页 header。现库 275,972 Entry、15 个 Observation Work、7 天以前 0、GC eligible 0、freelist 0；因此本次没有立即执行离线 compact。该项须等本轮成功唯一提交或在新 deadline 下明确收口后才能标记生产验收通过。
+当前生产仍运行首次 replacement。旧第 69 页没有在一小时内收口，因此 PROD-036 生产验收失败；hard-deadline replacement 已合并但尚未部署。现库 275,972 Entry、15 个 Observation Work、7 天以前 0、GC eligible 0、freelist 0；本次没有立即执行离线 compact。只有再次无损部署并确认原 Attempt/Event/Work terminal、无第 69 页迟到提交后，才能标记生产验收通过。
 
 ## Production
 

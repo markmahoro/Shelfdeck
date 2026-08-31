@@ -21,9 +21,10 @@ function createTimeoutController(options) {
   return Object.freeze({
     async execute(request) {
       if (!request || typeof request !== 'object' || Array.isArray(request) ||
-          JSON.stringify(Object.keys(request).sort()) !== JSON.stringify(['deadlineAtMs', 'executionHandleId', 'operation']) ||
+          JSON.stringify(Object.keys(request).sort()) !== JSON.stringify(['cooperativeAbortSafe','deadlineAtMs', 'executionHandleId', 'operation']) ||
           !Number.isSafeInteger(request.deadlineAtMs) || request.deadlineAtMs < 0 ||
-          typeof request.executionHandleId !== 'string' || !request.executionHandleId || typeof request.operation !== 'function') fail(
+          typeof request.executionHandleId !== 'string' || !request.executionHandleId ||
+          typeof request.cooperativeAbortSafe !== 'boolean' || typeof request.operation !== 'function') fail(
         'P4_TIMEOUT_REQUEST_INVALID', 'Timeout execution request is invalid.'
       );
       if (options.now() >= request.deadlineAtMs) {
@@ -32,7 +33,8 @@ function createTimeoutController(options) {
       }
       try {
         return await options.isolation.run(Object.freeze({
-          executionHandleId: request.executionHandleId, deadlineAtMs: request.deadlineAtMs, operation: request.operation
+          executionHandleId: request.executionHandleId, deadlineAtMs: request.deadlineAtMs,
+          cooperativeAbortSafe:request.cooperativeAbortSafe, operation: request.operation
         }));
       } catch (error) {
         if (!error || error.code !== 'P4_ISOLATION_DEADLINE_EXCEEDED') throw error;

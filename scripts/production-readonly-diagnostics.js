@@ -95,6 +95,7 @@ const tasks = openDb('/app/data/tasks.db');
 const helixPath = '/app/data/shelfdeck.db';
 const helix = fs.existsSync(helixPath) ? openDb(helixPath) : null;
 const observationCutoffMs = Date.now() - 7 * 24 * 60 * 60 * 1000;
+const observationDeadlineMs = Date.now() - 60 * 60 * 1000;
 const adultIds = adultSubLibraryIds();
 const adultPlaceholders = adultIds.map(() => '?').join(',');
 const adultWhere = adultIds.length > 0 ? 'WHERE sub_library_id IN (' + adultPlaceholders + ')' : 'WHERE 1 = 0';
@@ -188,6 +189,7 @@ const result = {
     ].join(' ')),
     executingObservationAttempts: one(helix, [
       'SELECT COUNT(*) AS count, MIN(ea.started_at_ms) AS oldestStartedAtMs,',
+      'SUM(CASE WHEN ea.started_at_ms <= ? THEN 1 ELSE 0 END) AS expiredFrozenDeadline,',
       'SUM(CASE WHEN j.state IN (\'intended\',\'effect_observed\',\'reconcile_required\')',
       'AND rb.result_id IS NULL AND cm.commit_marker IS NULL THEN 1 ELSE 0 END) AS intendedWithoutResultOrMarker',
       'FROM fx_event_attempts ea',
@@ -198,7 +200,7 @@ const result = {
       'LEFT JOIN fx_commit_markers cm ON cm.effect_id=j.effect_id',
       "WHERE ea.state='executing' AND e.state='executing'",
       "AND w.owner_domain='procurement' AND w.process_type='material_field' AND w.work_kind='field_observation'",
-    ].join(' ')),
+    ].join(' '), [observationDeadlineMs]),
     runningAttemptWithOnlyTerminalEvents: one(helix, [
       'SELECT COUNT(*) AS count FROM fx_work_attempts a',
       'JOIN fx_supporting_works w ON w.work_id=a.work_id',

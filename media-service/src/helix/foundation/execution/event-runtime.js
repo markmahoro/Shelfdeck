@@ -19,6 +19,13 @@ function observationFailureClass(error) {
   return 'executor';
 }
 
+function cooperativeDeadlineOutcome(entry, error, deadlineAtMs) {
+  if (error?.code !== 'P4_EXECUTION_TIMEOUT' || entry?.executor?.cooperativeAbortSafe !== true) return null;
+  return Object.freeze({ kind:'failed', failureClass:'integration', code:'COOPERATIVE_EXECUTION_DEADLINE_EXCEEDED',
+    message:'Abort-safe Capability execution did not settle within its frozen deadline.', retryDirective:'never',
+    evidence:Object.freeze({ deadlineAtMs, cooperativeAbortSafe:true }) });
+}
+
 function canonical(value) {
   if (Array.isArray(value)) return value.map(canonical);
   if (value && typeof value === 'object') return Object.keys(value).sort().reduce((result, key) => {
@@ -595,7 +602,9 @@ function createEventRuntime(options) {
           'P4_EVENT_RECOVERY_EFFECT_DRIFT', 'Recovery Effect does not match the exact durable intent and Event Attempt.'
         );
       }
-      const startedAtMs = clock();
+      const startedAtMs = Number(attempt.started_at_ms);
+      if(!Number.isSafeInteger(startedAtMs)||startedAtMs<0)fail('P4_EVENT_RECOVERY_ATTEMPT_TIME_INVALID',
+        'Recovery requires the original durable Event Attempt start time.');
       const attemptContract = options.attemptPolicy.prepare(Object.freeze({ capabilityRef: snapshot.event.capability_ref,
         effectClass: snapshot.node.effect_class, retryPolicyRef: policyBinding.retryPolicyRef,
         timeoutPolicyRef: policyBinding.timeoutPolicyRef, startedAtMs }));
@@ -633,14 +642,16 @@ function createEventRuntime(options) {
       let outcome;
       try {
         outcome = await options.timeoutController.execute(Object.freeze({ executionHandleId: attempt.event_attempt_id,
-          deadlineAtMs: attemptContract.deadlineAtMs, operation: (signal) => {
+          deadlineAtMs: attemptContract.deadlineAtMs, cooperativeAbortSafe:entry.executor.cooperativeAbortSafe===true,
+          operation: (signal) => {
             executionGuard.signal=signal||null;
             return options.dispatcher.dispatch({ capabilityRef: snapshot.event.capability_ref,
               context: Object.freeze(context), ownerDomain: snapshot.event.owner_domain });
           } }));
       } catch (error) {
-        if (entry.manifest.effectClass !== 'pure_observation') throw error;
-        outcome = Object.freeze({ kind:'failed', failureClass:observationFailureClass(error),
+        outcome=cooperativeDeadlineOutcome(entry,error,attemptContract.deadlineAtMs);
+        if (!outcome && entry.manifest.effectClass !== 'pure_observation') throw error;
+        if(!outcome)outcome = Object.freeze({ kind:'failed', failureClass:observationFailureClass(error),
           code:error?.code === 'P4_EXECUTION_TIMEOUT'?'EXECUTION_TIMEOUT':
             (typeof error?.code === 'string' && error.code ? error.code : 'EXECUTOR_ERROR'),
           message:String(error?.message || 'Pure observation recovery failed.'), retryDirective:'contract_policy',
@@ -845,27 +856,31 @@ function createEventRuntime(options) {
         try {
           outcome = await options.timeoutController.execute(Object.freeze({
             executionHandleId: attemptId, deadlineAtMs: attemptContract.deadlineAtMs,
+            cooperativeAbortSafe:entry.executor.cooperativeAbortSafe===true,
             operation: (signal) => { executionGuard.signal=signal||null;return options.dispatcher.dispatch({ capabilityRef: snapshot.event.capability_ref,
               context: Object.freeze(context), ownerDomain: snapshot.event.owner_domain }); }
           }));
         } catch (error) {
-          if (error?.code === 'P4_EXECUTION_TIMEOUT') {
-            outcome = Object.freeze({ kind: 'failed', failureClass: 'timeout', code: 'EXECUTION_TIMEOUT',
-              message: 'Capability execution exceeded its frozen timeout.', retryDirective: 'contract_policy',
-              evidence: Object.freeze({ deadlineAtMs: attemptContract.deadlineAtMs }) });
-          } else if (!requiresJournal) {
-            // A pure observation has no external effect to reconcile.  Leaving
-            // its durable Attempt in `executing` would manufacture an
-            // unrecoverable crash window, so preserve the failure as an
-            // ordinary policy-controlled Capability outcome.
-            outcome = Object.freeze({ kind:'failed', failureClass:observationFailureClass(error),
-              code:typeof error?.code === 'string' && error.code ? error.code : 'EXECUTOR_ERROR',
-              message:String(error?.message || 'Pure observation executor failed.'),
-              retryDirective:'contract_policy', evidence:Object.freeze({
-                errorName:String(error?.name || 'Error'),
-                errorCode:typeof error?.code === 'string' && error.code ? error.code : 'EXECUTOR_ERROR',
-              }) });
-          } else throw error;
+          outcome=cooperativeDeadlineOutcome(entry,error,attemptContract.deadlineAtMs);
+          if(!outcome){
+            if (error?.code === 'P4_EXECUTION_TIMEOUT') {
+              outcome = Object.freeze({ kind: 'failed', failureClass: 'timeout', code: 'EXECUTION_TIMEOUT',
+                message: 'Capability execution exceeded its frozen timeout.', retryDirective: 'contract_policy',
+                evidence: Object.freeze({ deadlineAtMs: attemptContract.deadlineAtMs }) });
+            } else if (!requiresJournal) {
+              // A pure observation has no external effect to reconcile.  Leaving
+              // its durable Attempt in `executing` would manufacture an
+              // unrecoverable crash window, so preserve the failure as an
+              // ordinary policy-controlled Capability outcome.
+              outcome = Object.freeze({ kind:'failed', failureClass:observationFailureClass(error),
+                code:typeof error?.code === 'string' && error.code ? error.code : 'EXECUTOR_ERROR',
+                message:String(error?.message || 'Pure observation executor failed.'),
+                retryDirective:'contract_policy', evidence:Object.freeze({
+                  errorName:String(error?.name || 'Error'),
+                  errorCode:typeof error?.code === 'string' && error.code ? error.code : 'EXECUTOR_ERROR',
+                }) });
+            } else throw error;
+          }
         }
         let abandonedUncommitted = false;
         if (effect) {

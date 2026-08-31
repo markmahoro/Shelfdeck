@@ -195,7 +195,8 @@ node scripts/production-readonly-diagnostics.js
 - Observation cadence：同一active Field相邻完整Work应约12小时；连续两轮小于11小时或超过13小时需调查。
 - 开放Work年龄：`admitted|ready|running|blocked`的Field Observation数量和最老`created_at_ms`；超过一次12小时周期仍不终结报警。
 - 执行中Observation：`executingObservationAttempts.count`及`oldestStartedAtMs`；任一Attempt超过冻结的1小时deadline报警。
-  `intendedWithoutResultOrMarker`表示仍停在领域提交前；新Runtime启动后旧第69个Attempt应通过同一幂等恢复收敛到0，不得人工改状态。
+  `intendedWithoutResultOrMarker`表示仍停在领域提交前；replacement保留原Attempt deadline，已过期的旧第69个Attempt应在启动恢复中直接
+  失败收口并使该值归零。不得把重启当作刷新一小时预算，不得人工改状态。
 - 独立聚合崩溃窗口：`runningAttemptWithOnlyTerminalEvents.count`仍应为0；该指标不是本次第69页卡住的根因。
 - Entry容量：总行数、窗口外行数、最老/最新`observed_at_ms`及distinct Work；窗口外行只允许由保护集合解释。
 - 清理批次：Admin Overview的`field-observation-entry-retention` registration应为`normal|waiting_business_time`，无`errorCode`；

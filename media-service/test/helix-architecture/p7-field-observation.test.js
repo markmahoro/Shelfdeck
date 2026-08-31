@@ -13,6 +13,7 @@ const { createSqliteUnitOfWork } = require('../../src/helix/foundation/persisten
 const { createMaterialControlProjectionPort } = require('../../src/helix/foundation/persistence/material-control');
 const { createEffectJournal } = require('../../src/helix/foundation/effects/effect-journal');
 const { createEventRuntime } = require('../../src/helix/foundation/execution/event-runtime');
+const { createExecutionRuntimeHost } = require('../../src/helix/foundation/execution/execution-runtime-host');
 const { createStartupRecovery } = require('../../src/helix/foundation/execution/startup-recovery');
 const { createTimeoutController } = require('../../src/helix/foundation/execution/timeout-controller');
 const { createCooperativeExecutionIsolation } = require('../../src/helix/foundation/execution/cooperative-execution-isolation');
@@ -32,6 +33,10 @@ const schemaDdl = fs.readFileSync(path.join(generatedRoot, 'clean-schema.sql'), 
 const schemaManifest = JSON.parse(fs.readFileSync(path.join(generatedRoot, 'clean-schema.manifest.json'), 'utf8'));
 const NOW = 1_700_040_000_000;
 const hash = (value) => canonicalDigest({ value });
+function manualTimers(startedAtMs){let current=startedAtMs,sequence=0;const pending=new Map();return Object.freeze({now:()=>current,
+  setTimeout(callback,delay){const id=++sequence;pending.set(id,{at:current+delay,callback});return id;},clearTimeout(id){pending.delete(id);},
+  advanceBy(elapsedMs){current+=elapsedMs;let found=true;while(found){found=false;for(const [id,item] of [...pending]
+    .sort((left,right)=>left[1].at-right[1].at)){if(item.at<=current){pending.delete(id);item.callback();found=true;break;}}}},pending:()=>pending.size});}
 const profileHintSnapshot = Object.freeze({
   fieldId:'field-1',
   revision:1,
@@ -278,7 +283,7 @@ test('Observation deadline closes before domain commit and cannot create a late 
   inspect.close();
 }));
 
-test('restart recovers the exact 68-page success plus 69th executing Observation shape without duplicate Entry or active Attempt', async () => fixture(async ({databasePath,field,coordinator,unitOfWork}) => {
+test('restart hard-closes the exact 68-page success plus 69th never-settling Observation shape after one hour', async () => fixture(async ({databasePath,field,coordinator,unitOfWork}) => {
   const workId='field-observation-work-production-shape';
   const capabilityRef='procurement.field.observation.page.commit@1';
   const inputSchema='helix://test/field-observation-input/v1';
@@ -345,10 +350,11 @@ test('restart recovers the exact 68-page success plus 69th executing Observation
     VALUES(?,?,?,?,?,?,?,?,?,?,?)`).run(eventId,planId,nodeId,workId,attemptId,'procurement',capabilityRef,1,'executing','background_observation',ordinal);
   seed.prepare(`INSERT INTO fx_event_attempts
     (event_attempt_id,event_id,ordinal,executor_ref,executor_version,input_snapshot_schema_ref,input_snapshot_digest,fence_snapshot_digest,state,started_at_ms)
-    VALUES(?,?,?,?,?,?,?,?,?,?)`).run(eventAttemptId,eventId,1,capabilityRef,1,inputSchema,inputDigest,fenceDigest,'executing',ordinal);
+    VALUES(?,?,?,?,?,?,?,?,?,?)`).run(eventAttemptId,eventId,1,capabilityRef,1,inputSchema,inputDigest,fenceDigest,'executing',NOW);
   seed.close();
+  const timers=manualTimers(NOW);
   const verifier={verify:async({receipt})=>({verified:true,evidenceDigest:receipt.verificationEvidenceDigest})};
-  const effectJournal=createEffectJournal({schemaManifest,unitOfWork,now:()=>NOW,realityVerifiers:{
+  const effectJournal=createEffectJournal({schemaManifest,unitOfWork,now:timers.now,realityVerifiers:{
     workspace_write:verifier,external_request:verifier,domain_fact_commit:verifier,responsibility_control_commit:verifier,
     material_commit:verifier,destructive_commit:verifier}});
   const intentDigest=canonicalDigest({eventId,capabilityRef,contractVersion:1,inputSnapshotDigest:inputDigest,fenceSnapshotDigest:fenceDigest});
@@ -356,7 +362,7 @@ test('restart recovers the exact 68-page success plus 69th executing Observation
   const manifest={capabilityRef,ownerScope:'procurement',contractVersion:1,effectClass:'domain_fact_commit',
     resultSchemaRef:'helix://contracts/capabilities/procurement.field.observation.page.commit/v1/result',
     evidenceSchemaRef:'helix://contracts/capabilities/procurement.field.observation.page.commit/v1/evidence'};
-  const registry={resolve:()=>({manifest,executor:{version:1}})};
+  const registry={resolve:()=>({manifest,executor:{version:1,cooperativeAbortSafe:true}})};
   const policyRegistry={bindingFor:()=>({retryPolicyRef:'retry-domain-fact',timeoutPolicyRef:'timeout-field-observation'})};
   const startup=createStartupRecovery({schemaManifest,unitOfWork,registry,policyRegistry,integrityVerifier:{verify:()=>({ok:true})},
     catalogVerifier:{verify:()=>true},effectReconciler:{reconcile:async()=>({decision:'safe_retry',evidenceDigest:hash('effect-absent')})}});
@@ -365,14 +371,17 @@ test('restart recovers the exact 68-page success plus 69th executing Observation
     decision:'safe_retry',evidenceDigest:hash('effect-absent')}]);
   const page69Material=raw('page-69-entry-0',{inode:'117409',contentFingerprint:hash('production-content-17408'),
     location:'/media/field-1/017408.mkv'});
-  const ports=createFieldObservationCapabilityPorts({schemaManifest,unitOfWork,now:()=>NOW,
-    enumerator:{enumeratePage:async()=>({items:sortedEntries([page69Material]),hasMore:false})},pageObserverFactory:createFieldPageObserver});
-  const isolation=createCooperativeExecutionIsolation({now:()=>NOW});
+  let releaseObservation;
+  const neverSettling=new Promise((resolve)=>{releaseObservation=()=>resolve({items:sortedEntries([page69Material]),hasMore:false});});
+  const ports=createFieldObservationCapabilityPorts({schemaManifest,unitOfWork,now:timers.now,
+    enumerator:{enumeratePage:async()=>neverSettling},pageObserverFactory:createFieldPageObserver});
+  const isolation=createCooperativeExecutionIsolation({now:timers.now,setTimeout:timers.setTimeout,clearTimeout:timers.clearTimeout,
+    settlementGraceMs:10});
   const runtime=createEventRuntime({schemaManifest,unitOfWork,registry,
     dispatcher:{dispatch:({context})=>ports[capabilityRef].execute(context)},contractValidator:{validate:(_ref,value)=>value},effectJournal,
-    attemptPolicy:{bindingFor:()=>policyRegistry.bindingFor(),prepare:()=>({deadlineAtMs:NOW+60_000}),
+    attemptPolicy:{bindingFor:()=>policyRegistry.bindingFor(),prepare:()=>({deadlineAtMs:NOW+3_600_000}),
       decideFailure:()=>({decision:'terminal_failure'}),decideDeferred:()=>({decision:'terminal_failure'})},
-    timeoutController:createTimeoutController({now:()=>NOW,isolation}),scheduler:{},
+    timeoutController:createTimeoutController({now:timers.now,isolation}),scheduler:{},
     governor:{acquire:()=>{throw new Error('ordinary dispatch is forbidden');},
       acquireRecovery:()=>({kind:'permitted',permit:{permitId:'recovery-permit',resources:[],issuedAtMs:NOW}}),release:()=>({grants:[]})},
     circuitBreaker:{allows:()=>({allowed:true})},whenEvaluator:{evaluate:()=> 'run'},executionInputProvider:{prepare:()=>({ownerScope:{domain:'procurement',processType:'material_field',
@@ -380,19 +389,38 @@ test('restart recovers the exact 68-page success plus 69th executing Observation
     fenceValidator:{validate:()=>({valid:true,digest:fenceDigest,snapshot:{fieldId:'field-1',accessRevision:1}})},
     resourceDemandResolver:{resolve:()=>({eventId,queueClass:'background_observation',localPriority:0,priorityRevision:1,resources:[]})},
     nextExecutionId:()=> 'production-recovery-execution',nextEventAttemptId:()=>{throw new Error('recovery must reuse attempt');},
-    nextResultId:()=>{throw new Error('atomic result is pre-bound');},now:()=>NOW});
-  const recovered=await runtime.recover(classified.actions[0]);
-  assert.equal(recovered.eventState,'succeeded');
+    nextResultId:()=>{throw new Error('timed-out recovery cannot bind a Result');},now:timers.now});
   const lifecycle=createWorkLifecycle({schemaManifest,unitOfWork,nextWorkAttemptId:()=>{throw new Error('not used');}});
-  assert.equal(lifecycle.aggregateEvent(eventId).attemptState,'succeeded');
+  const host=createExecutionRuntimeHost({startupRecovery:startup,
+    scheduler:{acquire:()=>({kind:'idle'}),release:()=>{}},
+    plannerRegistry:{resolve:()=>{throw new Error('planning is forbidden during startup recovery');}},
+    planPublisher:{publish:()=>{throw new Error('plan publication is forbidden during startup recovery');}},
+    workLifecycle:lifecycle,eventRuntime:runtime,
+    domainReconciler:{reconcile:async(request)=>request.reconcilePhase==='attempt_terminal'
+      ?{workId:request.workId,disposition:'failed'}:null},
+    fallbackReconciler:{start:async()=>{},stop:async()=>{},snapshot:()=>({})}});
+  const recovery=host.start();
+  await new Promise((resolve)=>setImmediate(resolve));assert.equal(timers.pending()>0,true);
+  timers.advanceBy(3_600_000);await new Promise((resolve)=>setImmediate(resolve));timers.advanceBy(10);
+  const recovered=await recovery;
+  assert.equal(recovered.state,'ready');
+  releaseObservation();await new Promise((resolve)=>setImmediate(resolve));
+  await host.stop();
   const afterRestart=await startup.recover();
   assert.equal(afterRestart.state,'ready');assert.deepEqual(afterRestart.actions,[]);
   const inspect=new Database(databasePath,{readonly:true});
-  assert.equal(inspect.prepare('SELECT COUNT(*) count FROM proc_field_observation_entries').get().count,17409);
-  assert.equal(inspect.prepare('SELECT COUNT(*) count FROM proc_field_observations').get().count,69);
+  assert.equal(inspect.prepare('SELECT COUNT(*) count FROM proc_field_observation_entries').get().count,17408);
+  assert.equal(inspect.prepare('SELECT COUNT(*) count FROM proc_field_observations').get().count,68);
   assert.equal(inspect.prepare('SELECT COUNT(*) count FROM proc_field_observations WHERE completed=0').get().count,68);
+  assert.equal(inspect.prepare('SELECT state FROM fx_supporting_works WHERE work_id=?').get(workId).state,'failed');
+  assert.equal(inspect.prepare('SELECT state FROM fx_work_attempts WHERE attempt_id=?').get(attemptId).state,'failed');
+  assert.equal(inspect.prepare('SELECT state FROM fx_workflow_events WHERE event_id=?').get(eventId).state,'failed');
+  assert.deepEqual(inspect.prepare('SELECT state,outcome_kind,failure_code FROM fx_event_attempts WHERE event_attempt_id=?').get(eventAttemptId),
+    {state:'completed',outcome_kind:'failed',failure_code:'COOPERATIVE_EXECUTION_DEADLINE_EXCEEDED'});
   assert.equal(inspect.prepare("SELECT COUNT(*) count FROM fx_work_attempts WHERE work_id=? AND state IN ('ready','running','blocked')").get(workId).count,0);
   assert.equal(inspect.prepare("SELECT COUNT(*) count FROM fx_event_attempts WHERE event_id=? AND state='executing'").get(eventId).count,0);
-  assert.equal(inspect.prepare('SELECT COUNT(*) count FROM proc_field_observation_entries WHERE observation_id=?').get('production-observation-69').count,1);
+  assert.equal(inspect.prepare('SELECT COUNT(*) count FROM proc_field_observation_entries WHERE observation_id=?').get('production-observation-69').count,0);
+  assert.equal(inspect.prepare('SELECT COUNT(*) count FROM fx_event_result_bindings WHERE event_id=?').get(eventId).count,0);
+  assert.equal(inspect.prepare('SELECT state FROM fx_effect_journal WHERE effect_id=?').get(effect.effect_id).state,'failed');
   inspect.close();
 }));

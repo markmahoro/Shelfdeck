@@ -50,7 +50,9 @@ function createProcurementCapabilityRegistrations(options) {
     }
     return Object.freeze({
       manifest,
-      executor:Object.freeze({ version:1, execute:(context) => port.execute(context) }),
+      executor:Object.freeze({ version:1,
+        cooperativeAbortSafe:capabilityRef==='procurement.field.observation.page.commit@1',
+        execute:(context) => port.execute(context) }),
       semanticValidator:Object.freeze({
         ref:manifest.semanticValidatorRef,
         validateInputs:(context) => port.validateInputs(context),

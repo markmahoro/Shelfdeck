@@ -142,7 +142,8 @@ test('timeout controller requires isolator termination before surfacing timeout'
   const controllerValue = createTimeoutController({ now: () => 100,
     isolation: { async run() { throw Object.assign(new Error('deadline'), { code: 'P4_ISOLATION_DEADLINE_EXCEEDED' }); },
       async terminateAndIsolate(handle) { calls.push(handle); } } });
-  await assert.rejects(controllerValue.execute({ executionHandleId: 'attempt', deadlineAtMs: 200, operation: async () => 'never' }),
+  await assert.rejects(controllerValue.execute({ executionHandleId: 'attempt', deadlineAtMs: 200, cooperativeAbortSafe:false,
+    operation: async () => 'never' }),
     { code: 'P4_EXECUTION_TIMEOUT' });
   assert.deepEqual(calls, ['attempt']);
 });
@@ -150,8 +151,10 @@ test('timeout controller requires isolator termination before surfacing timeout'
 test('timeout controller passes success and does not convert executor crash into timeout', async () => {
   const controllerValue = createTimeoutController({ now: () => 100,
     isolation: { async run(request) { return request.operation(); }, async terminateAndIsolate() { throw new Error('unexpected'); } } });
-  assert.equal(await controllerValue.execute({ executionHandleId: 'attempt', deadlineAtMs: 200, operation: async () => 'ok' }), 'ok');
+  assert.equal(await controllerValue.execute({ executionHandleId: 'attempt', deadlineAtMs: 200, cooperativeAbortSafe:false,
+    operation: async () => 'ok' }), 'ok');
   await assert.rejects(controllerValue.execute({ executionHandleId: 'attempt', deadlineAtMs: 200,
+    cooperativeAbortSafe:false,
     operation: async () => { throw new Error('executor crash'); } }), /executor crash/);
 });
 
@@ -159,7 +162,7 @@ test('cooperative execution isolation delivers the frozen deadline to an in-proc
   const isolation=createCooperativeExecutionIsolation();
   const controllerValue=createTimeoutController({now:Date.now,isolation});
   const started=Date.now();
-  const outcome=await controllerValue.execute({executionHandleId:'field-observation-attempt',deadlineAtMs:started+20,
+  const outcome=await controllerValue.execute({executionHandleId:'field-observation-attempt',deadlineAtMs:started+20,cooperativeAbortSafe:true,
     operation:async(signal)=>new Promise((resolve)=>signal.addEventListener('abort',()=>resolve({kind:'closed'}),{once:true}))});
   assert.deepEqual(outcome,{kind:'closed'});
   assert.ok(Date.now()-started<1000);

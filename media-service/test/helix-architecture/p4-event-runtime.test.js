@@ -7,6 +7,8 @@ const path = require('node:path');
 const test = require('node:test');
 const Database = require('better-sqlite3');
 const { createEventRuntime, observationFailureClass } = require('../../src/helix/foundation/execution/event-runtime');
+const { createTimeoutController } = require('../../src/helix/foundation/execution/timeout-controller');
+const { createCooperativeExecutionIsolation } = require('../../src/helix/foundation/execution/cooperative-execution-isolation');
 const {
   executionInputUnavailable,
 } = require('../../src/helix/foundation/execution/execution-input-readiness');
@@ -18,6 +20,14 @@ const generatedRoot = path.resolve(__dirname, '../../src/helix/foundation/persis
 const schemaDdl = fs.readFileSync(path.join(generatedRoot, 'clean-schema.sql'), 'utf8');
 const schemaManifest = JSON.parse(fs.readFileSync(path.join(generatedRoot, 'clean-schema.manifest.json'), 'utf8'));
 const HASH_A = 'a'.repeat(64); const HASH_B = 'b'.repeat(64);
+
+function manualTimers(startedAtMs) {
+  let current=startedAtMs,sequence=0;const pending=new Map();
+  return Object.freeze({now:()=>current,setTimeout(callback,delay){const id=++sequence;pending.set(id,{at:current+delay,callback});return id;},
+    clearTimeout(id){pending.delete(id);},advanceBy(elapsedMs){current+=elapsedMs;let found=true;while(found){found=false;
+      for(const [id,item] of [...pending].sort((left,right)=>left[1].at-right[1].at)){if(item.at<=current){pending.delete(id);item.callback();found=true;break;}}}},
+    pending:()=>pending.size});
+}
 
 test('maps Douban page transport failure to a retryable integration class', () => {
   assert.equal(observationFailureClass({ code: 'P5_PROVIDER_TRANSPORT_FAILED' }), 'integration');
@@ -195,7 +205,8 @@ function fixture(run, settings = {}) {
   const runtime = createEventRuntime({ schemaManifest, unitOfWork, scheduler, governor,
     ...(settings.incidentObserver ? { incidentObserver:settings.incidentObserver } : {}),
     registry: { resolve: () => ({ manifest: { capabilityRef: 'libra.test.observe@1',ownerScope:'libra',resultSchemaRef: 'helix://test/result',evidenceSchemaRef:'helix://test/evidence',
-      effectClass: settings.effectClass || 'pure_observation', approvalRequirementRef: settings.approvalRequirementRef }, executor: { version: 1 } }) }, dispatcher,
+      effectClass: settings.effectClass || 'pure_observation', approvalRequirementRef: settings.approvalRequirementRef },
+      executor: { version: 1, cooperativeAbortSafe:settings.cooperativeAbortSafe===true } }) }, dispatcher,
     contractValidator:settings.contractValidator||{validate:(_schemaRef,value)=>value},
     ...(settings.effectJournal === false ? {} : { effectJournal: {
       intend(request) { journalCalls.push('intend'); return { effect_id: request.eventAttemptId,
@@ -212,12 +223,12 @@ function fixture(run, settings = {}) {
     attemptPolicy: {
       bindingFor: () => ({ retryPolicyRef: 'helix://foundation/retry-policies/pure_observation/v1',
         timeoutPolicyRef: 'helix://foundation/timeout-policies/test/v1' }),
-      prepare: () => ({ deadlineAtMs: 2000 }),
+      prepare: (request) => { settings.onAttemptPrepare?.(request);return { deadlineAtMs: 2000 }; },
       decideFailure: () => settings.failurePolicyDecision || ({ decision: settings.effectClass && settings.effectClass !== 'pure_observation'
         ? 'reconcile_required' : 'terminal_failure' }),
       decideDeferred: () => settings.deferredPolicyDecision || ({ decision: 'observe', retryAtMs: 1700000031700 })
     },
-    timeoutController: { async execute(request) {
+    timeoutController: settings.timeoutController || { async execute(request) {
       if (settings.timeout) throw Object.assign(new Error('timeout'), { code: 'P4_EXECUTION_TIMEOUT' });
       return request.operation();
     } },
@@ -470,6 +481,32 @@ test('non-pure Executor crash leaves durable executing Attempt for effect-specif
     assert.equal(facts.event.state, 'executing'); assert.equal(facts.attempt.state, 'executing'); assert.equal(facts.results, 0);
     assert.deepEqual({ schedulerReleased: state().schedulerReleased, governorReleased: state().governorReleased }, { schedulerReleased: 1, governorReleased: 1 });
   }, { effectClass:'external_request', dispatchError: new Error('executor crash') });
+});
+
+test('abort-safe recovery hard-closes an operation that never settles after its frozen deadline', async () => {
+  const timers=manualTimers(1000);
+  const timeoutController=createTimeoutController({now:timers.now,isolation:createCooperativeExecutionIsolation({
+    now:timers.now,setTimeout:timers.setTimeout,clearTimeout:timers.clearTimeout,settlementGraceMs:10})});
+  await fixture(async({runtime,databasePath,state})=>{
+    const recovery=runtime.recover({eventId:'event',effectId:'effect',decision:'safe_retry'});
+    await new Promise((resolve)=>setImmediate(resolve));
+    assert.equal(timers.pending()>0,true);
+    timers.advanceBy(1000);await new Promise((resolve)=>setImmediate(resolve));
+    timers.advanceBy(10);
+    const completed=await recovery;
+    assert.equal(completed.eventState,'failed');
+    assert.deepEqual(databaseFacts(databasePath),{event:{state:'failed',retry_at_ms:null,result_id:null},
+      attempt:{state:'completed',outcome_kind:'failed',retry_after_ms:null,failure_class:'integration',
+        failure_code:'COOPERATIVE_EXECUTION_DEADLINE_EXCEEDED'},attempts:1,results:0});
+    assert.deepEqual(state().journalCalls,['read','abandon']);
+  },{effectClass:'domain_fact_commit',initialEventState:'executing',seedExecutingAttempt:true,
+    cooperativeAbortSafe:true,timeoutController,dispatchError:null,
+    onAttemptPrepare:(request)=>assert.equal(request.startedAtMs,1),
+    outcome:new Promise(()=>{}),effectJournalRead:{event_attempt_id:'event-attempt',effect_class:'domain_fact_commit',
+      idempotency_key:'event-attempt',intent_digest:require('node:crypto').createHash('sha256').update(JSON.stringify({
+        capabilityRef:'libra.test.observe@1',contractVersion:1,eventId:'event',fenceSnapshotDigest:HASH_A,
+        inputSnapshotDigest:EMPTY_INPUT_DIGEST})).digest('hex'),state:'intended'},
+    failurePolicyDecision:{decision:'terminal_failure'}});
 });
 
 test('abandoned non-pure failed Outcome with retryDirective never fail-closes the Event', async () => {

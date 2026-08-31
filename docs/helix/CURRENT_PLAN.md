@@ -1,6 +1,6 @@
 # ShelfDeck Clean Helix Master Plan
 
-Status: **Helix-beta Movie-only full chain；PROD-035/036 已无损部署，PROD-037 NFO 修正已合并但尚未再次部署。**
+Status: **Helix-beta Movie-only full chain；PROD-035/036 首次部署验收失败，Observation hard-deadline replacement、PROD-037 NFO 与 Formation 合同修正已合并但尚未再次部署。**
 
 Last updated: 2026-08-31
 
@@ -19,13 +19,13 @@ Last updated: 2026-08-31
 - PROD-034：对两个已中止 Run 完成一次性纠正，释放 Custody、Material Control 和 Binding，移除陈旧 Formation Projection，并撤除通用恢复兼容路径。
 - PROD-035 本地实现：Final Verify 移到 Placement 后；NFO 按业务语义验收并保存盘上实际指纹，Primary 等材料仍严格字节校验；Final Verify、Fulfillment、Commit 三次读取最新现实。
 - PROD-035 本地收敛：Aftercare 对语义等价 NFO 漂移只提交新的 Inventory Representation revision；On-deck 自动恢复有界，耗尽后稳定进入 `attention_required`，用户继续同一 Run 重试，不再无限停留在活动中间态。
-- PROD-036 已无损部署：Field Observation cadence 从 30 分钟改为 12 小时；Entry 保留 7 天并按活动引用保护、每事务最多清理 1,000 行；Observation 目录枚举和 fingerprint I/O 使用冻结 deadline，Page commit 前有协作式 abort 栅栏；旧库提供默认 dry-run 的离线 compact 工具。通用 terminal Event + running Attempt/Work 聚合保护独立保留。旧第 69 页已进入原 Attempt/Effect 的 `safe_retry`，仍在等待本轮有界 I/O 结果。
+- PROD-036 首次无损部署已验证 12 小时 cadence 与 7 天引用保护 GC，但旧第 69 页运行超过冻结的一小时仍未收口。replacement 已合并：只有显式 abort-safe 的 Field Observation Executor 可在 deadline 后 1 秒 settlement grace 到期时硬结束 Runtime 等待；recovery 沿用原 Event Attempt 的 durable `started_at_ms`，超时统一 terminal fail、abandon 未提交 intent，迟到 Page commit 由执行资格门禁拒绝。没有 Work ID 特例或数据修正逻辑。
 - PROD-037 本地修正：NFO Presentation gate 严格限定为 Movie Identity、title/year/plot/genre/cast，不再把 renderer 可维护的 director 当作验收字段；同一演员的弱名称关系与 TMDB 强身份关系按强身份合并验收。Aftercare material commit 的 source/stat fence 冲突形成 typed terminal failure，使回滚后的未提交 Effect 可 abandon、Work 有界结束。
 
 ## 下一步规则
 
 - PROD-035 仍只覆盖 Formation runtime truth、Emby 并发改写 NFO，以及 Accepted 后失败的同一 Arca On-deck Run 的 owner-local convergence。
-- PROD-036 只改变 Observation cadence、可重建 Entry 明细保留、Observation I/O deadline 与既有 Effect 的通用启动恢复；永久 header、Result/Evidence、Commit Marker、执行图及 Run/Retry/Candidate/Handoff 事实不删除，也不写生产 Work ID 特例。
+- PROD-036 只改变 Observation cadence、可重建 Entry 明细保留、Observation I/O deadline 与既有 Effect 的通用启动恢复；永久 header、Result/Evidence、Commit Marker、执行图及 Run/Retry/Candidate/Handoff 事实不删除，也不写生产 Work ID 特例。replacement 尚未部署，不能将卡住 Work 的恢复标为通过。
 - Formation active list 必须在有界范围内合成 current detail facts；延迟 durable Projection 不得造成列表、summary 和详情互相矛盾。
 - On-deck 恢复沿用 immutable Final Inventory Decision 和同一 Run，自动恢复最多 3 代 Supporting Work；耗尽后必须停止自动执行并投影为 `attention_required`，用户重试仍复用同一 Run。不得重开 Libra、改判 Rejected 或创建第二个 On-deck Run。
 - Handoff B Accepted 前，Libra 才能「接受瑕疵」或「放弃整理」；Accepted 后 Arca 已接管，检查失败不能借这两个动作退回或结束。

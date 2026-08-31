@@ -13,6 +13,10 @@ function createCooperativeExecutionIsolation(options = {}) {
   const now = options.now || Date.now;
   const setTimer = options.setTimeout || setTimeout;
   const clearTimer = options.clearTimeout || clearTimeout;
+  const settlementGraceMs = options.settlementGraceMs === undefined ? 1000 : options.settlementGraceMs;
+  if (!Number.isSafeInteger(settlementGraceMs) || settlementGraceMs < 0 || settlementGraceMs > 30000) {
+    throw new TypeError('Cooperative execution isolation settlement grace is invalid.');
+  }
   const active = new Map();
   function abort(handle, reason) {
     const current = active.get(handle);
@@ -24,6 +28,7 @@ function createCooperativeExecutionIsolation(options = {}) {
     async run(request) {
       if (!request || typeof request.executionHandleId !== 'string' || !request.executionHandleId ||
           !Number.isSafeInteger(request.deadlineAtMs) || request.deadlineAtMs < 0 ||
+          typeof request.cooperativeAbortSafe !== 'boolean' ||
           typeof request.operation !== 'function') throw new TypeError('Cooperative execution isolation request is invalid.');
       if (active.has(request.executionHandleId)) throw new Error('Execution isolation handle is already active.');
       const controller = new AbortController();
@@ -32,9 +37,18 @@ function createCooperativeExecutionIsolation(options = {}) {
         executionHandleId:request.executionHandleId,
         deadlineAtMs:request.deadlineAtMs,
       }));
-      const timer = setTimer(() => controller.abort(deadlineError), Math.max(0, request.deadlineAtMs - now()));
+      let graceTimer = null;
+      let rejectDeadline;
+      const forcedDeadline = new Promise((resolve, reject) => { rejectDeadline=reject; });
+      const timer = setTimer(() => {
+        controller.abort(deadlineError);
+        if (request.cooperativeAbortSafe) {
+          graceTimer=setTimer(() => rejectDeadline(deadlineError), settlementGraceMs);
+        }
+      }, Math.max(0, request.deadlineAtMs - now()));
       try {
-        return await request.operation(controller.signal);
+        const operation=Promise.resolve().then(()=>request.operation(controller.signal));
+        return await (request.cooperativeAbortSafe ? Promise.race([operation,forcedDeadline]) : operation);
       } catch (error) {
         if (controller.signal.aborted && controller.signal.reason instanceof IsolationDeadlineError) {
           throw controller.signal.reason;
@@ -42,6 +56,7 @@ function createCooperativeExecutionIsolation(options = {}) {
         throw error;
       } finally {
         clearTimer(timer);
+        if(graceTimer!==null)clearTimer(graceTimer);
         active.delete(request.executionHandleId);
       }
     },
