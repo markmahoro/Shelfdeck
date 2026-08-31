@@ -1,6 +1,6 @@
 # ShelfDeck Helix 当前实施阶段
 
-状态：**PROD-035/036 DEPLOYED；PROD-037 NFO CORRECTION MERGED / NOT DEPLOYED；PRODUCTION ACCEPTANCE OPEN**
+状态：**PROD-035/036/037 DEPLOYED；OBSERVATION RECOVERY PASS；FORMATION DETAIL FAILED / RETURNED；PRODUCTION ACCEPTANCE OPEN**
 
 日期：2026-08-31
 
@@ -34,5 +34,5 @@
 - Admin Web 37/37、production build、Helix Architecture full gate 通过；Service 与 Web 官方 npm registry audit 均为 0。
 - 测试覆盖 Placement 后、Final Verify 后、Settlement 后、Fulfillment 后及 Commit 后的 NFO 改写：语义等价继续并保存最新实际指纹；错误 TMDB、缺拥有字段、坏 XML fail closed；Primary 漂移继续失败。
 - 连续外部改写只保留一个活动 Case/Incident；自动恢复耗尽后不再周期重建 Work 或刷日志，并能由用户继续同一 Run。
-- Product Owner 已授权并完成首次标准 build/upload/deploy、备份和 ShelfDeck Compose 无损重建；未使用 clean init/reset。生产验收仍未闭合：NFO/《罪人》与 Formation 详情异常已分别打回原任务，PROD-036 旧第 69 页超过一小时仍未收口。hard-deadline replacement 已合并，尚待再次无损部署与验收。
-- PROD-037 仅完成本地合并，尚未再次部署；详情任务的首个 follow-up 因旧 Projection repair 兼容路径与现存 reclaim Receipt 不能收敛而被退回。
+- Product Owner 已授权并完成 replacement 标准 build/upload/deploy、备份和 ShelfDeck Compose 无损重建；未使用 clean init/reset。PROD-036 旧第 69 页已按原 durable deadline terminal fail，68 页/17,408 Entries 不变、无迟到提交。
+- PROD-037 已部署，初始窗口未见旧 NFO 错误复发。Formation 详情验收失败：《罪人》吸入 Field-wide 867 个 Plan，attention 仍显示为 `in_progress` 且无重试动作，已打回原任务；既有坏 Projection/Receipt 未获一次性纠正授权，继续 fail closed。

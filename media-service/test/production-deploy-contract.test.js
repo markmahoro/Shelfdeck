@@ -12,6 +12,9 @@ test('production deploy owns the Helix clean initialization contract', () => {
   assert.match(deploySource, /--helix-clean-init/);
   assert.match(deploySource, /Helix clean initialization/);
   assert.match(deploySource, /Helix runtime readiness/);
+  assert.match(deploySource, /shelfdeck-readiness-source:ro/);
+  assert.match(deploySource, /cp -a \/run\/shelfdeck-readiness-source\/\./);
+  assert.match(deploySource, /grep -q.*state.*ready/);
   assert.match(deploySource, /INITIALIZE_HELIX_CLEAN_V1/);
   assert.match(deploySource, /helix-clean-init\.js/);
   assert.match(deploySource, /persistAdminApiKey/);
