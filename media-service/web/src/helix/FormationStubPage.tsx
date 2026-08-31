@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Button, PageHeader } from './chrome';
 
-type StubFilter = 'all' | 'pending' | 'in_progress' | 'attention_required' | 'completed' | 'ended';
+type StubFilter = 'all' | 'in_progress' | 'attention_required' | 'completed' | 'ended';
 type StubRow = {
   id: string;
   title: string;
@@ -92,7 +92,6 @@ const rows: StubRow[] = [
 
 const filterLabels: Array<{ id: StubFilter; label: string }> = [
   { id: 'all', label: '全部' },
-  { id: 'pending', label: '待整理' },
   { id: 'in_progress', label: '整理中' },
   { id: 'attention_required', label: '需要处理' },
   { id: 'completed', label: '已完成' },
@@ -304,7 +303,7 @@ export default function FormationStubPage() {
 }
 
 function MediaRow({ row, selected, expedited, onToggleExpedite, onOpen }: { row: StubRow; selected: boolean; expedited: boolean; onToggleExpedite: () => void; onOpen: (trigger: HTMLButtonElement) => void }) {
-  const rowState = row.classification === 'completed' ? '已完成整理' : row.classification === 'ended' ? '已结束' : row.classification === 'attention_required' ? '需要处理' : row.classification === 'in_progress' ? '整理中' : '待整理';
+  const rowState = row.classification === 'completed' ? '已完成整理' : row.classification === 'ended' ? '已结束' : row.classification === 'attention_required' ? '需要处理' : '整理中';
   const expediteLabel = expedited ? `取消加急 ${row.title}` : `加急 ${row.title}`;
   return <tr className="formation-stub-media-row" data-classification={row.classification} data-selected={selected || undefined} data-expedited={expedited || undefined}>
       <td><strong>{row.title}</strong><small>{rowState}</small></td>

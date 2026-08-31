@@ -5,8 +5,8 @@ import { Dialog } from '../components/ui';
 import RatingControl from './RatingControl';
 import { isUnauthorized, useSession } from './session';
 
-const emptySummary: FormationSummary = { totalCount:0, pendingCount:0, inProgressCount:0, attentionRequiredCount:0, completedCount:0 };
-type Filter = 'all'|'pending'|'in_progress'|'attention_required'|'completed'|'ended';
+const emptySummary: FormationSummary = { totalCount:0, inProgressCount:0, attentionRequiredCount:0, completedCount:0 };
+type Filter = 'all'|'in_progress'|'attention_required'|'completed'|'ended';
 type LedgerRow = { kind:'formation'; item:FormationSubject } | { kind:'ended'; item:FormationRunHistory };
 
 function formatTime(value:number) { return value > 0 ? new Intl.DateTimeFormat('zh-CN', { dateStyle:'medium', timeStyle:'short' }).format(new Date(value)) : '—'; }
@@ -21,7 +21,7 @@ function currentProgressDetail(item:FormationSubject) {
   const progress=item.currentPlan.progress ? progressText(item.currentPlan.progress) : '';
   return [item.currentPlan.statusText,progress].filter(Boolean).join(' · ') || null;
 }
-function statusLabel(item:FormationSubject) { return ({ pending:'待整理', in_progress:'整理中', attention_required:'需要处理', completed:'已完成整理' } as const)[item.classification]; }
+function statusLabel(item:FormationSubject) { return ({ in_progress:'整理中', attention_required:'需要处理', completed:'已完成整理' } as const)[item.classification]; }
 function stageState(item:FormationSubject) { return item.classification === 'completed' ? 'completed' : item.classification === 'attention_required' ? 'attention' : 'pending'; }
 function canExpedite(item:FormationSubject) { return item.currentRun?.state === 'active' && !item.handoffB; }
 function canDiscardRejectedHandoff(item:FormationSubject) {
@@ -71,7 +71,7 @@ function mergeById<T>(previous:T[], fresh:T[], idOf:(item:T)=>string): T[] {
   return [...fresh.filter((item)=>!seen.has(idOf(item))), ...merged];
 }
 type FormationFilters = {
-  classification?:'pending'|'in_progress'|'attention_required';
+  classification?:'in_progress'|'attention_required';
   shelfId?:string; needsUserAction?:boolean; expedited?:boolean; q?:string;
 };
 async function remainingFormation(first:{items:FormationSubject[];summary:FormationSummary;nextCursor:string|null}, section:'active'|'completed', filters?:FormationFilters) {
@@ -186,7 +186,7 @@ export default function FormationPage() {
   useEffect(()=>{void load();},[load]);
   useEffect(()=>{if(!active.some((item)=>item.classification==='in_progress'))return;const timer=window.setInterval(()=>{void load(true);},10_000);return()=>window.clearInterval(timer);},[active,load]);
   useEffect(()=>{
-    const classification = filter==='pending'||filter==='in_progress'||filter==='attention_required' ? filter : null;
+    const classification = filter==='in_progress'||filter==='attention_required' ? filter : null;
     if(!classification)return;
     let cancelled=false;
     void (async()=>{
@@ -230,15 +230,15 @@ export default function FormationPage() {
     }catch(cause){setError(cause instanceof Error?cause.message:'操作失败。');setLoading(false);}
   };
   if(!active.length&&!completed.length&&!ended.length&&loading&&!error)return <LoadingState>正在读取媒体整理工作区…</LoadingState>;
-  const counts:Record<Filter,number>={all:summary.totalCount+ended.length,pending:summary.pendingCount,in_progress:summary.inProgressCount,attention_required:summary.attentionRequiredCount,completed:summary.completedCount,ended:ended.length};
+  const counts:Record<Filter,number>={all:summary.totalCount+ended.length,in_progress:summary.inProgressCount,attention_required:summary.attentionRequiredCount,completed:summary.completedCount,ended:ended.length};
   return <section className="source-page workbench formation-page"><PageHeader title="媒体整理工作区" actions={<Button type="button" onClick={()=>void load()} disabled={loading}>{loading?'正在刷新…':'刷新'}</Button>} />
     {error&&<p className="form-error" role="alert">{error}</p>}
     {perceptionSync?.completionState==='incomplete'&&<p className="form-notice" role="status">豆瓣评分同步尚未完整结束，已保存 {perceptionSync.recordCount} 条；再次同步会从上次成功位置继续。列表中的“暂不能确认”不是影片匹配失败。</p>}
     <section className="formation-ledger"><div className="formation-toolbar">
-      <div className="formation-chips" role="group" aria-label="媒体整理状态">{([{id:'all',label:'全部'},{id:'pending',label:'待整理'},{id:'in_progress',label:'整理中'},{id:'attention_required',label:'需要处理'},{id:'completed',label:'已完成'},{id:'ended',label:'已结束'}] as Array<{id:Filter;label:string}>).map((entry)=><Button key={entry.id} type="button" aria-pressed={filter===entry.id} onClick={()=>setFilter(entry.id)}>{entry.label} {counts[entry.id]}</Button>)}</div>
+      <div className="formation-chips" role="group" aria-label="媒体整理状态">{([{id:'all',label:'全部'},{id:'in_progress',label:'整理中'},{id:'attention_required',label:'需要处理'},{id:'completed',label:'已完成'},{id:'ended',label:'已结束'}] as Array<{id:Filter;label:string}>).map((entry)=><Button key={entry.id} type="button" aria-pressed={filter===entry.id} onClick={()=>setFilter(entry.id)}>{entry.label} {counts[entry.id]}</Button>)}</div>
       <div className="formation-secondary"><label>片名<input type="search" aria-label="按片名筛选" value={q} placeholder="搜索片名" onChange={(event)=>setQ(event.target.value)} /></label><label>目标收藏架<select aria-label="按目标收藏架筛选" value={shelfFilter} onChange={(event)=>setShelfFilter(event.target.value)}><option value="">全部收藏架</option>{shelves.map((shelf)=><option key={shelf.shelfId} value={shelf.shelfId}>{shelf.name}</option>)}</select></label></div>
     </div>
-      <div className="formation-table-wrap"><table className="formation-table formation-stub-table"><thead><tr><th>媒体名称</th><th>评分</th><th>目标收藏架</th><th>整理要求</th><th>当前进展</th><th>详情</th><th>用户操作</th><th>加急</th></tr></thead><tbody>{rows.length===0?<tr className="formation-stub-media-row"><td colSpan={8}><div className="source-empty"><strong>{summary.totalCount===0?'还没有进入整理的电影':'当前筛选没有条目'}</strong><p>{summary.totalCount===0?'文件来源目录扫完之后，采购还要分拣。整理门口同时只接 3 部，其余待交接不会出现在这张表里。':'试试其他状态或筛选。'}</p></div></td></tr>:rows.map((row)=>row.kind==='ended'?<tr key={row.item.historyId} className="formation-stub-media-row"><td><strong>{row.item.displayIdentity}</strong><small>已结束</small></td><td>—</td><td>—</td><td>—</td><td><strong className="formation-stub-current">{row.item.label}</strong><small>{formatTime(row.item.endedAtMs)}</small></td><td>—</td><td>—</td><td><button type="button" className="formation-expedite-toggle" disabled>加急</button></td></tr>:<MediaRow key={row.item.subjectId} item={row.item} shelves={shelves} loading={loading} acquisitionIncomplete={perceptionSync?.completionState==='incomplete'} onOpen={open} onAction={action} />)}</tbody></table></div>
+      <div className="formation-table-wrap"><table className="formation-table formation-stub-table"><thead><tr><th>媒体名称</th><th>评分</th><th>目标收藏架</th><th>整理要求</th><th>当前进展</th><th>详情</th><th>用户操作</th><th>加急</th></tr></thead><tbody>{rows.length===0?<tr className="formation-stub-media-row"><td colSpan={8}><div className="source-empty"><strong>{summary.totalCount===0?'还没有进入整理的电影':'当前筛选没有条目'}</strong><p>{summary.totalCount===0?'Libra 接收媒体包后，条目会从“整理中”开始出现在这里；仍在等待接收的媒体包请到“文件来源”查看。':'试试其他状态或筛选。'}</p></div></td></tr>:rows.map((row)=>row.kind==='ended'?<tr key={row.item.historyId} className="formation-stub-media-row"><td><strong>{row.item.displayIdentity}</strong><small>已结束</small></td><td>—</td><td>—</td><td>—</td><td><strong className="formation-stub-current">{row.item.label}</strong><small>{formatTime(row.item.endedAtMs)}</small></td><td>—</td><td>—</td><td><button type="button" className="formation-expedite-toggle" disabled>加急</button></td></tr>:<MediaRow key={row.item.subjectId} item={row.item} shelves={shelves} loading={loading} acquisitionIncomplete={perceptionSync?.completionState==='incomplete'} onOpen={open} onAction={action} />)}</tbody></table></div>
     </section>
     {selected&&<div className="formation-process-backdrop" role="presentation" onMouseDown={(event)=>{if(event.target===event.currentTarget)close();}}><section className="formation-process-dialog" role="dialog" aria-modal="true" aria-labelledby="formation-process-dialog-title"><button ref={closeRef} className="formation-process-dialog-close" type="button" aria-label="关闭媒体整理过程卡片" onClick={close}>×</button><h2 id="formation-process-dialog-title" className="formation-process-dialog-title">{selected.displayIdentity}的媒体整理过程</h2><ProcessDetail item={selected} /></section></div>}
     <Dialog open={!!discardDialog} title="确认放弃整理" onClose={()=>setDiscardDialog(null)} actions={<>

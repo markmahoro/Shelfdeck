@@ -174,7 +174,7 @@ test('direct and sorting Routing Decisions continue through Acceptance Spec and 
       await new Promise((resolve) => setTimeout(resolve, 25));
     }
     assert.ifError(runtimeError);
-    assert.equal(formation.summary.pendingCount + formation.summary.inProgressCount +
+    assert.equal(formation.summary.inProgressCount +
       formation.summary.attentionRequiredCount + formation.summary.completedCount, 8);
     assert.equal(formation.summary.completedCount, 0);
     assert.equal(formation.items.filter((item)=>item.routingState==='resolved').length,7);
@@ -214,7 +214,7 @@ test('direct and sorting Routing Decisions continue through Acceptance Spec and 
     const recovered = await host.inject({ method: 'GET', url: '/v1/admin/formation', headers: { cookie } });
     assert.equal(recovered.statusCode, 200, recovered.body);
     const recoveredSummary=recovered.json().summary;
-    assert.equal(recoveredSummary.pendingCount + recoveredSummary.inProgressCount +
+    assert.equal(recoveredSummary.inProgressCount +
       recoveredSummary.attentionRequiredCount + recoveredSummary.completedCount, 8);
     assert.equal(recoveredSummary.completedCount, 0);
     assert.equal(recovered.json().items.filter((item)=>item.routingState==='resolved').length,8);

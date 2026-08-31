@@ -5156,12 +5156,13 @@ Arca-owned execution
 不存在一个能够越过三个Domain直接推进所有步骤的Collection Formation Coordinator。端到端加速依靠明确
 Receipt、优先交接、durable Reconcile与Level 7共享执行底座，不依靠共享一个全局Media状态。
 
-#### 6.2.2 两次Handoff是高优先级短责任窗口
+#### 6.2.2 两次Handoff是高优先级、有界准入的短责任窗口
 
 当Deliverable已经发布并等待Acceptance时，Delivery Owner仍承担Material与业务责任，但已经无法单方面
 结束这段责任。为避免责任长时间悬停：
 
-- Handoff A的Libra Intake Acceptance与Handoff B的Arca Shelf Acceptance都属于业务高优先级工作；
+- Handoff A的Libra Intake Acceptance与Handoff B的Arca Shelf Acceptance都属于业务高优先级工作；其中Handoff A只有在该Candidate所属Material Field仍有Libra Intake席位时才进入Acceptance窗口；
+- 该Field席位已满或配置为0时，Offer保持open，Candidate Package、交付责任与Material Control继续归Procurement；这是顶部背压，不是Rejected、Accepted或新的跨域队列；
 - Acceptance所需的最小Evidence取得、Decision提交与Receipt发布不能被长耗时生产工作长期饿死；
 - 高优先级不降低Acceptance标准，也不允许在Evidence未ready时伪造Rejected或Accepted；
 - Delivery Owner必须在Receipt丢失、重复或进程重启时幂等重投/重读，而不是发布重复业务对象；
@@ -5414,11 +5415,11 @@ Work/Plan/Event/Event Result，也不申请Resource Permit。其职责只限于�
 
 #### 6.3.4 Handoff A执行
 
-Candidate Package发布后，Procurement建立幂等Handoff Offer。Libra Intake在短责任窗口内验证Level 4
-规定的结构、Manifest、Claim、Provenance和Control transfer readiness：
+Candidate Package发布后，Procurement建立幂等Handoff Offer。Libra先按Candidate所属Material Field检查并原子保留固定Intake席位；有席位后，Intake才在短责任窗口内验证Level 4规定的结构、Manifest、Claim、Provenance和Control transfer readiness。无席位只保持同一open Offer并由Procurement继续承担交付责任：
 
 - 技术投递失败只重投同一Offer，不创建新Package；
 - Libra对同一Offer的并发处理必须以短期Reservation收束为一个Decision；
+- Accepted Decision与Subject建立必须能证明对应Field席位已经保留；不存在“先Accepted、以后再补席位”的正常路径；
 - Accepted时，Candidate、Subject/Season Episode范围、Binding与Control transfer作为一个业务原子结果；
 - Rejected时，Libra保存Structured Rejection/Decision/Receipt，Procurement消费typed terminal message后保留
   Control并冻结同一Receipt Evidence；原Package不修改；
@@ -5498,6 +5499,8 @@ Accepted commit先CAS全局head，再CAS唯一目标（new Subject无目标row C
 match与Episode overlap；任一结果变化都使旧Decision失效并重新装配，不能把竞态转成模糊选择。Rejected不创建任何
 长期Libra对象。
 
+每个Material Field拥有独立、不可借用的固定Intake席位（默认3，可配置0–8）。0只表示Libra暂不从该Field接收新Candidate Package；不停止Field Observation、Procurement Run或Package形成，也不暂停已经Accepted的Subject、Run或Arca责任。席位从Intake Evidence首次admit前开始占用，贯穿Routing、Acceptance Spec、Libra Run和Handoff B，直到Handoff B Accepted、Intake Rejection或用户合法终结对应Pre-deck责任才释放。
+
 #### 6.4.3 Shelf Routing Assessment可等待，但不回流Procurement
 
 Subject建立后，Libra按`5.4`执行Decision Preparation和Shelf Routing Assessment。执行结论有三类：
@@ -5508,7 +5511,7 @@ Subject建立后，Libra按`5.4`执行Decision Preparation和Shelf Routing Asses
 | unresolved | Subject保持Libra责任，等待缺失Decision Input、Policy变化或用户一次性选择Shelf |
 | superseded by newer assessment | 旧Assessment保留Provenance，不再产生Routing效果 |
 
-unresolved不占用生产执行资源，不自动超时、释放Control或回流Procurement。Reconcile只在相关Fact、Policy、
+unresolved不占用生产执行资源，但继续占用该Subject的Field Intake席位；它不自动超时、释放Control或回流Procurement。Reconcile只在相关Fact、Policy、
 Query Result revision变化、用户Intent或启动恢复时重评；不能忙轮询或反复抓取相同外部Evidence。
 
 没有Libra Run的未决Subject可以由用户显式放弃当前Pre-deck范围。该Decision持久终结对应Subject责任并
@@ -9358,10 +9361,10 @@ Plan node input/parameter/Fence/Resource Demand的具体JSON不直接重复存�
 | `libra_material_binding_episode_claims` | `subject_id FK, material_key, binding_revision, episode_key, season_claim_digest, claim_digest` | `PK(subject_id,material_key,binding_revision,episode_key)`并以复合FK指向`libra_material_bindings`；逐项无损复制同一Manifest member的Episode Claim；single与无Episode structural dependency为0 row；Binding set digest包含这些relation，不允许只取第一项 |
 | `libra_product_identity_revisions` | `subject_id FK, revision, structure_kind, content_profile, identity_kind, provider_identity_set_digest, exact_season_continuity_set_digest, display_identity, identity_digest, evidence_digest, committed_at_ms` | `PK(subject_id,revision)`；immutable；`libra_subjects.current_identity_revision`正整数时显式指向本表；Series的exact Season Claim完整值保存在`libra_subject_season_continuity_claims`并与本revision同事务成立，digest只用于一致性校验而不是可枚举事实替代品 |
 | `libra_product_identity_selection_intents` | `selection_intent_id PK, libra_run_id FK, intent_revision, selection_kind(candidate|provider_id), provider, namespace, provider_key, candidate_set_digest NULL, expected_run_state_revision, expected_identity_revision NULL, idempotency_key, intent_digest, created_at_ms` | append-only；`UNIQUE(libra_run_id,intent_revision)`、`UNIQUE(libra_run_id,idempotency_key)`；用户选择只形成Libra-owned immutable Intent，后续仍须由`provider_exact` Evidence Work验证，不能直接发布Resolved Identity |
-| `libra_formation_projections` | `subject_id PK FK, projection_revision, classification(pending|in_progress|attention_required|completed), attention_state(none|attention_required|blocked|suspended|frozen), attention_priority, display_identity, content_profile, structure_kind, subject_status, my_rating NULL, my_rating_source NULL, my_rating_revision NULL, target_shelf_id NULL, target_shelf_name NULL, routing_state, unresolved_reason_code NULL, routing_policy_mode NULL, routing_policy_revision NULL, routing_decision_revision NULL, routing_decision_digest NULL, routing_decision_head_revision NULL, routing_decision_head_digest NULL, primary_material_count, organizing_requirement, organizing_action, added_at_ms, next_action_label, next_action_state, progress_mode NULL, progress_current_value NULL, progress_total_value NULL, progress_unit NULL, progress_rate NULL, progress_eta_ms NULL, progress_bucket NULL, identity_issue_schema_ref NULL, identity_issue_json NULL, identity_issue_digest NULL, current_acceptance_spec_id NULL, current_acceptance_spec_revision NULL, current_acceptance_spec_digest NULL, current_libra_run_id NULL, current_libra_run_state NULL, current_libra_run_state_revision NULL, current_libra_run_state_digest NULL, current_priority_class NULL, current_identity_revision NULL, current_package_id NULL, current_package_revision NULL, current_package_digest NULL, current_offer_id NULL, completed_at_ms NULL, basis_digest, projection_digest, updated_at_ms` | current technical Read Projection；每个Subject恰好至多一行且可由Libra正式事实、User Perception/Arca公开Projection及Foundation Progress Projection重建；四类current状态互斥，`completed`必须由Arca公开Projection逐项证明On-deck Commit Receipt、Shelf Entry与对应active Deck Fact均成立，Product Package published或Handoff B Accepted单独都不构成完成；`attention_required`优先覆盖technical failure、blocked、suspended、frozen及需要用户确认的合法状态；`in_progress`必须有当前开放可推进的Libra/Arca执行责任；Discarded Run只进入immutable历史且当前eligible Subject回到`pending`，不得重复计数；`projection_revision>=1`且相同`basis_digest`必须no-op，不递增revision、不执行UPDATE；nullable rating、identity issue、Spec、Run、Package/Offer及progress字段各自按closed bundle同时成立；`identity_issue_json`为JCS且≤`16 KiB`并由digest保护；`projection_digest=SHA-256(JCS(完整用户行 excluding projectionDigest))`；`INDEX(attention_priority,classification,updated_at_ms,subject_id)`供active排序，`INDEX(classification,completed_at_ms,subject_id)`供completed cursor，`INDEX(classification,subject_id)`供统计；本表不授权任何命令，损坏或缺失时必须重建，不能回填或改写Owner业务事实 |
+| `libra_formation_projections` | `subject_id PK FK, projection_revision, classification(in_progress|attention_required|completed), attention_state(none|attention_required|blocked|suspended|frozen), attention_priority, display_identity, content_profile, structure_kind, subject_status, my_rating NULL, my_rating_source NULL, my_rating_revision NULL, target_shelf_id NULL, target_shelf_name NULL, routing_state, unresolved_reason_code NULL, routing_policy_mode NULL, routing_policy_revision NULL, routing_decision_revision NULL, routing_decision_digest NULL, routing_decision_head_revision NULL, routing_decision_head_digest NULL, primary_material_count, organizing_requirement, organizing_action, added_at_ms, next_action_label, next_action_state, progress_mode NULL, progress_current_value NULL, progress_total_value NULL, progress_unit NULL, progress_rate NULL, progress_eta_ms NULL, progress_bucket NULL, identity_issue_schema_ref NULL, identity_issue_json NULL, identity_issue_digest NULL, current_acceptance_spec_id NULL, current_acceptance_spec_revision NULL, current_acceptance_spec_digest NULL, current_libra_run_id NULL, current_libra_run_state NULL, current_libra_run_state_revision NULL, current_libra_run_state_digest NULL, current_priority_class NULL, current_identity_revision NULL, current_package_id NULL, current_package_revision NULL, current_package_digest NULL, current_offer_id NULL, completed_at_ms NULL, basis_digest, projection_digest, updated_at_ms` | current technical Read Projection；每个Subject恰好至多一行且可由Libra正式事实、User Perception/Arca公开Projection及Foundation Progress Projection重建；三类current状态互斥，`completed`必须由Arca公开Projection逐项证明On-deck Commit Receipt、Shelf Entry与对应active Deck Fact均成立，Product Package published或Handoff B Accepted单独都不构成完成；`attention_required`优先覆盖technical failure、blocked、suspended、frozen及需要用户确认的合法状态；Handoff A Accepted后即为`in_progress`，直到attention或completed条件取代；Discarded Run只进入immutable历史，不得重复计数；`projection_revision>=1`且相同`basis_digest`必须no-op，不递增revision、不执行UPDATE；nullable rating、identity issue、Spec、Run、Package/Offer及progress字段各自按closed bundle同时成立；`identity_issue_json`为JCS且≤`16 KiB`并由digest保护；`projection_digest=SHA-256(JCS(完整用户行 excluding projectionDigest))`；`INDEX(attention_priority,classification,updated_at_ms,subject_id)`供active排序，`INDEX(classification,completed_at_ms,subject_id)`供completed cursor，`INDEX(classification,subject_id)`供统计；本表不授权任何命令，损坏或缺失时必须重建，不能回填或改写Owner业务事实 |
 | `libra_field_routing_heads` | `field_id PK, current_routing_policy_id, current_policy_revision, updated_at_ms` | Field ID是Procurement公开opaque ref、不建跨Domain FK；current pair显式FK到Policy revision；一片Field恰好至多一份current去向方案 |
-| `libra_field_intake_admission_policies` | `field_id PK, predeck_pipeline_seats INTEGER, policy_revision INTEGER, updated_at_ms` | Field ID是Procurement Material Field opaque ref、不建跨Domain FK；Libra-owned Pre-deck pipeline admission配置；`predeck_pipeline_seats`范围0..8，默认3，0表示暂停该Field进入Pre-deck pipeline；`policy_revision`从1递增 |
-| `libra_predeck_pipeline_tokens` | `subject_id PK, source_field_id, source_process_id, acquired_at_ms` | `source_field_id`是Procurement Material Field opaque ref、不建跨Domain FK；每个Subject至多持有一个active Pre-deck pipeline token；Intake Evidence首次admit或历史Evidence replay恢复推进前acquire，Handoff B Accepted、用户Discard或Intake Rejection时release并DELETE row；Routing、Subject Rating、Acceptance Spec与initial Run Creation的周期reconciler只推进token holder；`acquired_at_ms`为UTC epoch ms；`INDEX(source_field_id,subject_id)` |
+| `libra_field_intake_admission_policies` | `field_id PK, predeck_pipeline_seats INTEGER, policy_revision INTEGER, updated_at_ms` | Field ID是Procurement Material Field opaque ref、不建跨Domain FK；Libra-owned Pre-deck pipeline admission配置；`predeck_pipeline_seats`范围0..8，默认3，0表示不从该Field接收新的Handoff A Offer，既有Accepted责任继续推进；各Field席位不可借用；`policy_revision`从1递增 |
+| `libra_predeck_pipeline_tokens` | `subject_id PK, source_field_id, source_process_id, acquired_at_ms` | `source_field_id`是Procurement Material Field opaque ref、不建跨Domain FK；每个Subject至多持有一个active Pre-deck pipeline token，且每个Handoff A Accepted Subject必须有匹配token；Intake Evidence首次admit或历史Evidence replay恢复推进前acquire，Handoff B Accepted、用户合法终结对应Pre-deck责任或Intake Rejection时release并DELETE row；Routing、Subject Rating、Acceptance Spec与initial Run Creation的周期reconciler只推进token holder；注意态继续持有token；`acquired_at_ms`为UTC epoch ms；`INDEX(source_field_id,subject_id)` |
 | `libra_routing_policy_revisions` | `routing_policy_id, revision, field_id, mode(direct|sorting), policy_schema_ref, policy_json, policy_digest, effective_at_ms` | Policy JSON上限`64 KiB`；`PK(routing_policy_id,revision)`；immutable；`INDEX(field_id,effective_at_ms)`；同一revision只属于一片Field |
 | `libra_routing_policy_targets` | `routing_policy_id, policy_revision, shelf_id, rank, match_rule_schema_ref, match_rule_json, match_rule_digest` | `PK(routing_policy_id,policy_revision,shelf_id)`及`UNIQUE(routing_policy_id,policy_revision,rank)`；Rule固定`RoutingMatchExpression@1`，JSON≤`16 KiB`、AST深度≤4、节点≤64；Shelf ID为Arca公开Projection中的opaque ref |
 | `libra_routing_assessments` | `routing_assessment_id PK, subject_id FK, decision_basis_id FK, routing_authority_kind(policy|manual_selection), routing_policy_id NULL, routing_policy_revision NULL, manual_selection_digest NULL, routing_input_digest, assessment_schema_ref, assessment_json, assessment_digest, created_at_ms` | policy与manual列variant互斥；JSON≤`64 KiB`并完整重建`RoutingAssessmentEvidence@1`；`UNIQUE(subject_id,decision_basis_id,routing_input_digest)`；immutable |
@@ -12878,13 +12881,11 @@ expected Perception revision、星级与idempotency key，Identity Anchor由服�
 收藏详情不提供“重新跑Metadata”“执行下一步”“指定转码”“选择Flow”或Task retry。需要改善时由Aftercare
 依据当前Standard决定；用户只表达Outcome、感知或退出Intent。
 
-#### 9.4.6 上架进度
+#### 9.4.6 文件来源与媒体整理进度
 
-上架进度覆盖从Material Field发现到Arca On-deck Commit的完整Collection Formation旅程。列表按用户化阶段
-显示`已发现|正在准备|待选择去向|正在生产|正在验收|正在上架|需要处理|已完成`；这些是跨域Read-model，
-不是新的全局Process状态机。
+Collection Formation的用户旅程由两个连续页面表达，不建立新的全局Process状态机。`文件来源`页覆盖Material Field发现、Procurement Triage、待整理媒体包形成和Handoff A等待接收；按Field展示`已生成 = Libra已接收 + 等待Libra接收 + Structured Rejection`，正常无拒绝场景即为用户所见的简单差额账。`媒体整理工作区`只从Handoff A Accepted开始，展示`整理中|需要处理|已完成整理`及已结束历史；其中不存在业务筛选“待整理”。
 
-详情以Activity Ledger为核心，显示当前具体动作、真实进度、完成履历、等待原因、目标Shelf和预计产品结果。
+媒体整理详情以Activity Ledger为核心，显示当前具体动作、真实进度、完成履历、等待原因、目标Shelf和预计产品结果。
 Series以Season为收藏主体，同时显示本次Episode Delivery Manifest的Episode范围；不同非重叠Run保持独立
 Activity，不伪装成一条可动态扩写的Season巨型任务。
 
@@ -13366,7 +13367,7 @@ GET        /v1/admin/routing/material-fields/:fieldId/revisions
 GET/PATCH  /v1/admin/libra/material-fields/:fieldId/intake-admission
 ~~~
 
-Per Material Field Pre-deck pipeline seats（0–8，默认 3）由 **LibraAdminFacade** 读写 `libra_field_intake_admission_policies`；Admin 文件来源页聚合展示，但不得写入 `proc_*` 或 Procurement Store。`fieldId` 仅为 Procurement Material Field 标识引用，Libra 不做 cross-domain FK。
+Per Material Field Pre-deck pipeline seats（0–8，默认 3）由 **LibraAdminFacade** 读写 `libra_field_intake_admission_policies`；0表示该Field不接受新的Handoff A Offer，不暂停既有Accepted责任。Admin文件来源页把Libra席位与Procurement-owned Package交接统计组合成Read Model，但Libra不得写入`proc_*`，Procurement也不得写Libra政策/token Store。`fieldId`仅为Procurement Material Field标识引用，Libra不做cross-domain FK。
 
 Material Field `POST`的closed registration body允许可选`contentProfileHint`；缺失时Host必须在Command schema
 验证及`requestDigest`计算前规范化为显式`mixed`，并原子建立Profile Hint revision 1。Material Field `PATCH`
@@ -15199,11 +15200,13 @@ following rules replace the affected active contracts and are part of the sole A
 
 - The Admin surface is named `媒体整理工作区`. It translates internal Subject, Routing, Acceptance Spec, Libra Run,
   Work and Event facts and does not expose those implementation terms as primary user language.
-- Its mutually exclusive current counts are: `待整理` while no current executable responsibility exists; `整理中` only
-  while current Libra or Arca work can advance; `需要处理` for attention-required, blocked, suspended, frozen or technical
-  failure states; and `已完成整理` only after Arca On-deck Commit has established the exact Shelf Entry and Deck Fact.
-  Product Package publication and Handoff B Acceptance alone are never completion. A discarded Run is immutable history
-  labelled `已结束 · 用户放弃`; it never becomes a second current media row, and an eligible Subject returns to `待整理`.
+- Its mutually exclusive current counts are `整理中`, `需要处理` and `已完成整理`. Handoff A Accepted establishes an
+  organizing responsibility, so an accepted Subject is `整理中` unless an attention condition takes precedence. Routing
+  unresolved, blocked, suspended, frozen, required user input and technical failure are `需要处理`. `已完成整理` exists
+  only after Arca On-deck Commit has established the exact Shelf Entry and Deck Fact. Product Package publication and
+  Handoff B Acceptance alone are never completion. A discarded Run is immutable history labelled `已结束 · 用户放弃`;
+  it never becomes a second current media row. Open Candidate Packages that have not been accepted remain on the
+  `文件来源` Procurement ledger and never appear as Formation rows or a `待整理` filter.
 - The active query is bounded. Completed rows are cursor-paged and fetched only when the default-collapsed history is
   opened. Every row shows media name, user rating, target Shelf, primary media count, translated requirement, selected
   production action, accepted time and the next durable action/progress.
@@ -15215,7 +15218,7 @@ following rules replace the affected active contracts and are part of the sole A
   commits. The queue is a lossy wake only. Startup recovery and a 30-second `fx_reconcile_cursors` sweep process at
   most 100 Subjects or five seconds per page and compare the complete Projection Basis digest before an idempotent
   upsert. Projection failure or staleness is visible to Admin but cannot block Libra execution.
-- The active page is limited to 25 rows and ordered by attention-required first, then active production, then waiting,
+- The active page is limited to 25 rows and ordered by attention-required first, then active production,
   with the most recently updated rows first inside each class. Completed history is newest-first and cursor-paged.
   The browser performs manual refresh only, preserves the previous rows while refreshing, and never issues one Rating
   query per row. User commands always re-read canonical Owner facts and their revision fences.

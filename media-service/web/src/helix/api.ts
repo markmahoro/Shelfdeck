@@ -54,8 +54,10 @@ export type MaterialField = {
     runCount: number;
     activeRunCount: number;
     sealedRunCount: number;
-    candidateCount: number;
-    openOfferCount: number;
+    generatedPackageCount: number;
+    acceptedPackageCount: number;
+    waitingAcceptanceCount: number;
+    rejectedPackageCount: number;
     candidatePackage?: {
       candidatePackageId: string;
       packageRevision: number;
@@ -234,7 +236,7 @@ export type FormationSubject = {
   contentProfile: string;
   structureKind: string;
   status: string;
-  classification: 'pending' | 'in_progress' | 'attention_required' | 'completed';
+  classification: 'in_progress' | 'attention_required' | 'completed';
   myRating: number | null;
   myRatingSource: string | null;
   myRatingRevision: number | null;
@@ -435,7 +437,7 @@ export type OverviewProjection = {
   systemState: { kind:'unconfigured'|'running'|'faulted'; label:string; href:string };
   metrics: Array<{ key:string; label:string; value:number; note:string; href?:string }>;
   todos: Array<{ key:string; label:string; count:number; href:string }>;
-  inProgress: { count:number; label:string; href:string } | null;
+  pipeline: { waitingAcceptanceCount:number; organizingCount:number };
   setup: { activeMaterialFieldCount:number; activeShelfCount:number };
   ledger: Array<{ key:string; label:string; href?:string; value?:number }>;
   backgroundOperations: {
@@ -488,7 +490,6 @@ export type PeopleProjection = {
 
 export type FormationSummary = {
   totalCount: number;
-  pendingCount: number;
   inProgressCount: number;
   attentionRequiredCount: number;
   completedCount: number;
@@ -614,7 +615,7 @@ export const helixAdminApi = {
     return request<{ items: RuleTemplate[] }>('/v1/admin/rule-templates');
   },
   listFormation(section:'active'|'completed'='active', cursor?:string, filters?:{
-    classification?:'pending'|'in_progress'|'attention_required';
+    classification?:'in_progress'|'attention_required';
     shelfId?:string; needsUserAction?:boolean; expedited?:boolean; q?:string;
   }) {
     const query=new URLSearchParams({section,limit:'25'});

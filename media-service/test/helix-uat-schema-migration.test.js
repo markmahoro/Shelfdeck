@@ -17,6 +17,7 @@ const {
   TARGET_SCHEMA_DIGEST,
   PRE_UAT_EXECUTION_CATALOG_DIGEST,
   PRE_PROJECTION_EXECUTION_CATALOG_DIGEST,
+  PRE_FORMATION_THREE_STATE_SCHEMA_DIGEST,
   INTAKE_BINDING_REPLAN_CODE,
   PRE_PROJECTION_PLAN_REPLAN_CODE,
   migrateUatIdentitySelectionSchema,
@@ -74,6 +75,31 @@ test('the exact live v1 catalog upgrades once to v3 without changing durable bus
     { migrated:false, reason:'already_current' },
   );
 }));
+
+test('the prior four-state Formation projection is rebuilt without changing Owner facts', () => {
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'helix-three-state-formation-migration-'));
+  const databasePath=path.join(root,'shelfdeck.db');
+  const kernel=openSqliteKernel({Database,databasePath,schemaDdl,schemaManifest,now:()=>100});kernel.close();
+  try{
+    const database=new Database(databasePath);
+    database.prepare('INSERT INTO fx_audit_records(audit_id,occurred_at_ms) VALUES(?,?)').run('owner-fact',101);
+    const sourceCatalogDigest=digest(catalogRows(database));
+    database.prepare('UPDATE platform_schema_marker SET generation=?,schema_digest=?,catalog_digest=?,applied_at_ms=? WHERE schema_name=?')
+      .run(TARGET_GENERATION,PRE_FORMATION_THREE_STATE_SCHEMA_DIGEST,sourceCatalogDigest,102,'shelfdeck');
+    database.close();
+    assert.deepEqual(migrateUatIdentitySelectionSchema({Database,databasePath,schemaManifest,now:()=>200}),{
+      migrated:true,sourceSchemaDigest:PRE_FORMATION_THREE_STATE_SCHEMA_DIGEST,targetSchemaDigest:TARGET_SCHEMA_DIGEST,
+    });
+    const check=new Database(databasePath,{readonly:true});
+    try {
+      assert.equal(check.prepare('SELECT COUNT(*) count FROM libra_formation_projections').get().count,0);
+      assert.equal(check.prepare('SELECT COUNT(*) count FROM fx_audit_records WHERE audit_id=?').get('owner-fact').count,1);
+      const tableSql=check.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='libra_formation_projections'").get().sql;
+      assert.match(tableSql,/"classification" TEXT CHECK \("classification" IN \('in_progress', 'attention_required', 'completed'\)\)/);
+      assert.equal(check.pragma('integrity_check',{simple:true}),'ok');
+    } finally { check.close(); }
+  }finally{fs.rmSync(root,{recursive:true,force:true,maxRetries:5,retryDelay:50});}
+});
 
 test('the exact live v2 catalog adds the empty formation projection and executor closure stores before advancing to v3', () => {
   const root=fs.mkdtempSync(path.join(os.tmpdir(),'helix-formation-schema-migration-'));

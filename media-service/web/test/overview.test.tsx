@@ -17,7 +17,7 @@ describe('Helix Overview product semantics', () => {
         { key: 'healthy_collection', label: '健康收藏', value: 0, note: '检查结果为健康', href: '/collection' },
       ],
       todos: [{ key: 'fields', label: '还没有文件来源', count: 1, href: '/material-fields' }],
-      inProgress: null,
+      pipeline: { waitingAcceptanceCount: 0, organizingCount: 0 },
       setup: { activeMaterialFieldCount: 0, activeShelfCount: 0 },
       ledger: [],
       backgroundOperations: {state:'normal',cadenceMs:30000,lastStartedAtMs:1700000000000,lastCompletedAtMs:1700000000100,
@@ -57,7 +57,7 @@ describe('Helix Overview product semantics', () => {
         { key: 'healthy_collection', label: '健康收藏', value: 0, note: '检查结果为健康', href: '/collection' },
       ],
       todos: [{ key: 'field_access', label: '文件来源目录不可用', count: 1, href: '/material-fields' }],
-      inProgress: { count: 23, label: '待整理', href: '/formation' },
+      pipeline: { waitingAcceptanceCount: 23, organizingCount: 0 },
       setup: { activeMaterialFieldCount: 2, activeShelfCount: 1 },
       ledger: [],
       backgroundOperations: null,
@@ -73,7 +73,7 @@ describe('Helix Overview product semantics', () => {
     expect(screen.getByText('有文件来源目录不可用，先到来源配置处理')).toBeInTheDocument();
     expect(screen.queryByText('现在没有需要你处理的事项')).not.toBeInTheDocument();
     expect(screen.queryByText('正常运行')).not.toBeInTheDocument();
-    expect(screen.getByText(/待整理/).closest('a')).toHaveAttribute('href', '/formation');
+    expect(screen.getByText(/等待 Libra 接收 23 包/).closest('a')).toHaveAttribute('href', '/material-fields');
     expect(document.querySelector('.overview-workbench')).not.toBeNull();
   });
 
@@ -87,7 +87,7 @@ describe('Helix Overview product semantics', () => {
         { key: 'healthy_collection', label: '健康收藏', value: 11, note: '检查结果为健康', href: '/collection' },
       ],
       todos: [],
-      inProgress: { count: 1, label: '正在整理', href: '/formation' },
+      pipeline: { waitingAcceptanceCount: 0, organizingCount: 1 },
       setup: { activeMaterialFieldCount: 1, activeShelfCount: 1 },
       ledger: [
         { key: 'ondeck:1', label: '新上架 · Skyfall', href: '/collection' },

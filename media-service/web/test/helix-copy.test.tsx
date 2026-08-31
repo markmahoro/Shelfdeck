@@ -59,6 +59,30 @@ function completedSubject(): FormationSubject {
 describe('Helix primary copy and workbench structure', () => {
   afterEach(() => vi.restoreAllMocks());
 
+  it('keeps pending packages on the File Sources handoff ledger and explains zero seats', async () => {
+    vi.spyOn(helixAdminApi, 'listMaterialFields').mockResolvedValue({ items: [{
+      fieldId:'field-1', name:'电影来源', status:'active', extractionPolicyId:'policy-1', extractionPolicyRevision:1,
+      currentAccessRevision:1, currentObservationRevision:1,
+      currentProfileHintSnapshot:{revision:1,contentProfileHint:'movie'},
+      access:{endpointId:'endpoint-1',rootLocation:'D:\\Movies',mountScopeId:'mount-1',mountScopeRevision:1},
+      policy:{policy:{includedDirectories:[],excludedDirectories:[],allowedExtensions:['.mkv'],minimumSizeBytes:0,excludedMaterialKeys:[]}},
+      procurementStatus:{stage:'handoff_a_ready',observationScan:{state:'completed',pageCount:4,observationRevision:1,inProgress:false},
+        runCount:1,activeRunCount:0,sealedRunCount:1,generatedPackageCount:952,acceptedPackageCount:726,
+        waitingAcceptanceCount:226,rejectedPackageCount:0},
+    }] });
+    vi.spyOn(helixAdminApi, 'listShelves').mockResolvedValue({items:[]});
+    vi.spyOn(helixAdminApi, 'getFieldIntakeAdmission').mockResolvedValue({fieldId:'field-1',predeckPipelineSeats:0,
+      policyRevision:2,updatedAtMs:1,pipelineTokensHeld:3,pipelineSeatsFree:0});
+    vi.spyOn(helixAdminApi, 'getRoutingPolicy').mockResolvedValue({policy:null});
+    render(<MemoryRouter initialEntries={['/material-fields']}><App /></MemoryRouter>);
+    expect(await screen.findByRole('heading', { level: 1, name: '文件来源' })).toBeInTheDocument();
+    expect(screen.getAllByText('952').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('726').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('226').length).toBeGreaterThan(0);
+    expect(screen.getByText(/当前不接收这个来源的新媒体包；已经接收的媒体会继续整理/)).toBeInTheDocument();
+    expect(screen.queryByText(/暂停该来源进入整理/)).not.toBeInTheDocument();
+  });
+
   it('uses honest people and settings claims', async () => {
     vi.spyOn(helixAdminApi, 'listPeople').mockResolvedValue({
       items: [],
@@ -147,19 +171,19 @@ describe('Helix primary copy and workbench structure', () => {
       if (section === 'completed') {
         return {
           items: [completedSubject()],
-          summary: { totalCount: 1, pendingCount: 0, inProgressCount: 0, attentionRequiredCount: 0, completedCount: 1 },
+          summary: { totalCount: 1, inProgressCount: 0, attentionRequiredCount: 0, completedCount: 1 },
           nextCursor: null,
           projection: { status: 'ready', asOfMs: 1 },
         };
       }
       return {
         items: [],
-        summary: { totalCount: 1, pendingCount: 0, inProgressCount: 0, attentionRequiredCount: 0, completedCount: 1 },
+        summary: { totalCount: 1, inProgressCount: 0, attentionRequiredCount: 0, completedCount: 1 },
         nextCursor: null,
         projection: { status: 'ready', asOfMs: 1 },
       };
     });
-    vi.spyOn(helixAdminApi, 'listFormationHistory').mockResolvedValue({ items: [], summary: { totalCount:1, pendingCount:0, inProgressCount:0, attentionRequiredCount:0, completedCount:1 }, nextCursor:null, projection:{status:'ready',asOfMs:1} });
+    vi.spyOn(helixAdminApi, 'listFormationHistory').mockResolvedValue({ items: [], summary: { totalCount:1, inProgressCount:0, attentionRequiredCount:0, completedCount:1 }, nextCursor:null, projection:{status:'ready',asOfMs:1} });
     vi.spyOn(helixAdminApi, 'listShelves').mockResolvedValue({ items: [] });
     render(<MemoryRouter initialEntries={['/formation']}><App /></MemoryRouter>);
     expect(await screen.findByRole('heading', { level: 1, name: '媒体整理工作区' })).toBeInTheDocument();
@@ -195,10 +219,10 @@ describe('Helix primary copy and workbench structure', () => {
       completedAtMs: null,
     };
     vi.spyOn(helixAdminApi, 'listFormation').mockImplementation(async(section)=>({
-      items: section==='active'?[current]:[], summary: { totalCount:1,pendingCount:0,inProgressCount:1,attentionRequiredCount:0,completedCount:0 },
+      items: section==='active'?[current]:[], summary: { totalCount:1,inProgressCount:1,attentionRequiredCount:0,completedCount:0 },
       nextCursor:null,projection:{status:'ready',asOfMs:1},
     }));
-    vi.spyOn(helixAdminApi, 'listFormationHistory').mockResolvedValue({ items:[],summary:{totalCount:1,pendingCount:0,inProgressCount:1,attentionRequiredCount:0,completedCount:0},nextCursor:null,projection:{status:'ready',asOfMs:1} });
+    vi.spyOn(helixAdminApi, 'listFormationHistory').mockResolvedValue({ items:[],summary:{totalCount:1,inProgressCount:1,attentionRequiredCount:0,completedCount:0},nextCursor:null,projection:{status:'ready',asOfMs:1} });
     vi.spyOn(helixAdminApi, 'listShelves').mockResolvedValue({ items: [] });
     render(<MemoryRouter initialEntries={['/formation']}><App /></MemoryRouter>);
     expect(await screen.findByRole('columnheader', { name: '媒体名称' })).toBeInTheDocument();
@@ -210,7 +234,7 @@ describe('Helix primary copy and workbench structure', () => {
     expect(screen.queryByText('GPU转码 · HEVC · 4k · 不超过 20 GiB')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: '加急 示例电影 (2024)' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /全部/ })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /待整理/ })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /待整理/ })).not.toBeInTheDocument();
     expect(screen.getByLabelText('按片名筛选')).toBeInTheDocument();
     const toolbar = document.querySelector('.formation-toolbar');
     expect(toolbar).toContainElement(screen.getByRole('group', { name: '媒体整理状态' }));
@@ -218,7 +242,7 @@ describe('Helix primary copy and workbench structure', () => {
     expect(toolbar).toContainElement(screen.getByLabelText('按目标收藏架筛选'));
     expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
     expect(screen.queryByText(/当前显示/)).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: /待整理/ }));
+    fireEvent.click(screen.getByRole('button', { name: /需要处理/ }));
     await waitFor(() => expect(screen.queryByText('示例电影 (2024)')).not.toBeInTheDocument());
   });
 
@@ -235,7 +259,7 @@ describe('Helix primary copy and workbench structure', () => {
         ]},
         {key:'acceptance_shelving',label:'验收与上架',description:'由收藏架检查最终产品',state:'pending',summary:'等待媒体整理完成；当前还没有形成这一阶段的计划',plans:[]},
       ]}};
-    const summary={totalCount:1,pendingCount:0,inProgressCount:1,attentionRequiredCount:0,completedCount:0};
+    const summary={totalCount:1,inProgressCount:1,attentionRequiredCount:0,completedCount:0};
     vi.spyOn(helixAdminApi,'listFormation').mockImplementation(async(section)=>({items:section==='active'?[current]:[],summary,nextCursor:null,projection:{status:'ready',asOfMs:1}}));
     vi.spyOn(helixAdminApi,'listFormationHistory').mockResolvedValue({items:[],summary,nextCursor:null,projection:{status:'ready',asOfMs:1}});
     vi.spyOn(helixAdminApi,'listShelves').mockResolvedValue({items:[]});
@@ -266,7 +290,7 @@ describe('Helix primary copy and workbench structure', () => {
       completedAtMs: null,
     };
     const second: FormationSubject = { ...first, formationViewId: 'subject-2', subjectId: 'subject-2', displayIdentity: '第二部电影' };
-    const summary = { totalCount: 2, pendingCount: 0, inProgressCount: 2, attentionRequiredCount: 0, completedCount: 0 };
+    const summary = { totalCount: 2, inProgressCount: 2, attentionRequiredCount: 0, completedCount: 0 };
     vi.spyOn(helixAdminApi, 'listFormation').mockImplementation(async (section, cursor) => {
       if (section === 'active' && !cursor) {
         return { items: [first], summary, nextCursor: 'page-2', projection: { status: 'ready', asOfMs: 1 } };
@@ -317,7 +341,7 @@ describe('Helix primary copy and workbench structure', () => {
       },
       completedAtMs: null,
     };
-    const summary = { totalCount: 2, pendingCount: 0, inProgressCount: 1, attentionRequiredCount: 1, completedCount: 0 };
+    const summary = { totalCount: 2, inProgressCount: 1, attentionRequiredCount: 1, completedCount: 0 };
     vi.spyOn(helixAdminApi, 'listFormation').mockImplementation(async (section, cursor, filters) => {
       if (section === 'active' && filters?.classification === 'attention_required') {
         return { items: [attention], summary, nextCursor: null, projection: { status: 'ready', asOfMs: 1 } };

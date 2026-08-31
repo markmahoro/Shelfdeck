@@ -11,7 +11,8 @@ const PRE_EXECUTOR_CLOSURE_SCHEMA_DIGEST = '998b673af4d2f0a6ed4f96bcb7f34c56b8da
 const PRE_AFTERCARE_HARDENING_SCHEMA_DIGEST = '2347c196743124bbb2e768c7b829012049310484b7cd4e49a00182c9d45f09d5';
 const PRE_DEFECT_ADMISSION_SCHEMA_DIGEST = '6172e70c94c31091005b19b4eefaf7567b195d04dc9cb3b4bee7099a070383f3';
 const PRE_PREDECK_PIPELINE_SCHEMA_DIGEST = '411b6c0e2f350d3f5a9374738f56d51a0304df2772c813f2b3009e6526daa889';
-const TARGET_SCHEMA_DIGEST = '3be2dad9b3615053681dfc2721974657fc3995ccf60a044e17dfb5131f0f8199';
+const PRE_FORMATION_THREE_STATE_SCHEMA_DIGEST = '3be2dad9b3615053681dfc2721974657fc3995ccf60a044e17dfb5131f0f8199';
+const TARGET_SCHEMA_DIGEST = '6a2246c39bebcd1f6f80264bac793c7a3119636a791683e426e4c30aa6fdc651';
 const PRE_UAT_EXECUTION_CATALOG_DIGEST = 'b0371a6d2793c1e381a4c2e7fc421d312a1a1e90d2de5e47f61a45022f09793b';
 const PRE_PROJECTION_EXECUTION_CATALOG_DIGEST = '13315cdbdf6ab5cbe30b32075f89bd76ae1a873d84034dc572824f4fbc3886e6';
 const INTAKE_BINDING_REPLAN_CODE = 'P4_UAT_INTAKE_BINDING_RESULT_REPLAN_REQUIRED';
@@ -19,7 +20,7 @@ const PRE_PROJECTION_PLAN_REPLAN_CODE = 'P4_UAT_PRE_PROJECTION_PLAN_REPLAN_REQUI
 const FORMATION_PROJECTION_DDL = `CREATE TABLE "libra_formation_projections" (
   "subject_id" TEXT PRIMARY KEY,
   "projection_revision" INTEGER CHECK ("projection_revision" >= 1),
-  "classification" TEXT CHECK ("classification" IN ('pending', 'in_progress', 'attention_required', 'completed')),
+  "classification" TEXT CHECK ("classification" IN ('in_progress', 'attention_required', 'completed')),
   "attention_state" TEXT CHECK ("attention_state" IN ('none', 'attention_required', 'blocked', 'suspended', 'frozen')),
   "attention_priority" INTEGER,
   "display_identity" TEXT,
@@ -362,6 +363,11 @@ function migratePredeckPipelineTables(database) {
   database.exec(PREDECK_PIPELINE_DDL);
 }
 
+function migrateFormationThreeStateProjection(database) {
+  database.exec('DROP TABLE "libra_formation_projections";');
+  database.exec(FORMATION_PROJECTION_DDL);
+}
+
 function migrateUatIdentitySelectionSchema(options) {
   if (!options || typeof options.Database !== 'function' || typeof options.databasePath !== 'string' || !options.schemaManifest) {
     throw new TypeError('The UAT identity-selection migration requires a database driver, path, and target manifest.');
@@ -384,6 +390,8 @@ function migrateUatIdentitySelectionSchema(options) {
         'The source database does not contain the expected ShelfDeck schema marker.');
     }
     const alreadyCurrent = marker.generation === TARGET_GENERATION && marker.schema_digest === TARGET_SCHEMA_DIGEST;
+    const formationThreeStateSource = marker.generation === TARGET_GENERATION &&
+      marker.schema_digest === PRE_FORMATION_THREE_STATE_SCHEMA_DIGEST;
     const predeckPipelineSource = marker.generation === TARGET_GENERATION &&
       marker.schema_digest === PRE_PREDECK_PIPELINE_SCHEMA_DIGEST;
     const defectAdmissionSource = marker.generation === TARGET_GENERATION &&
@@ -394,7 +402,7 @@ function migrateUatIdentitySelectionSchema(options) {
       marker.schema_digest === PRE_EXECUTOR_CLOSURE_SCHEMA_DIGEST;
     const legacySource = marker.generation === SOURCE_GENERATION && marker.schema_digest === SOURCE_SCHEMA_DIGEST;
     const v2Source = marker.generation === INTERMEDIATE_GENERATION && marker.schema_digest === INTERMEDIATE_SCHEMA_DIGEST;
-    if (!alreadyCurrent && !predeckPipelineSource && !defectAdmissionSource && !aftercareHardeningSource && !executorClosureSource && !legacySource && !v2Source) {
+    if (!alreadyCurrent && !formationThreeStateSource && !predeckPipelineSource && !defectAdmissionSource && !aftercareHardeningSource && !executorClosureSource && !legacySource && !v2Source) {
       throw new UatIdentitySelectionMigrationError('UAT_MIGRATION_SOURCE_SCHEMA_UNSUPPORTED',
         'Only the exact pre-UAT live schema can be upgraded in place.', {
           generation: marker.generation, schemaDigest: marker.schema_digest,
@@ -431,6 +439,7 @@ function migrateUatIdentitySelectionSchema(options) {
       if (!alreadyCurrent) ensureAftercareCaseTerminalEvidence(database);
       if (defectAdmissionSource) migrateDefectAdmissionRevisionKind(database);
       if (!alreadyCurrent) migratePredeckPipelineTables(database);
+      if (formationThreeStateSource) migrateFormationThreeStateProjection(database);
       const appliedAtMs = now();
       if (!Number.isSafeInteger(appliedAtMs) || appliedAtMs < 0) {
         throw new UatIdentitySelectionMigrationError('UAT_MIGRATION_INVALID_TIME', 'Migration time must be a non-negative safe integer.');
@@ -473,6 +482,7 @@ module.exports = Object.freeze({
   PRE_AFTERCARE_HARDENING_SCHEMA_DIGEST,
   PRE_DEFECT_ADMISSION_SCHEMA_DIGEST,
   PRE_PREDECK_PIPELINE_SCHEMA_DIGEST,
+  PRE_FORMATION_THREE_STATE_SCHEMA_DIGEST,
   TARGET_GENERATION,
   TARGET_SCHEMA_DIGEST,
   UatIdentitySelectionMigrationError,

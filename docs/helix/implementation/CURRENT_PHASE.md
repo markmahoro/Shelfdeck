@@ -1,10 +1,20 @@
 # ShelfDeck Helix 当前实施阶段
 
-状态：**FORMATION EXACT PLAN SCOPE、RESOURCE-WAIT FAIRNESS、FORWARD RECOVERY 与 SUCCESSOR AGGREGATION 已部署；PRODUCTION ACCEPTANCE PASS**
+状态：**PER-FIELD LIBRA TOP THROTTLING USER MODEL — LOCAL IMPLEMENTATION COMPLETE / NOT DEPLOYED**
 
 日期：2026-08-31
 
 ## 目标
+
+本轮优先完成不改变Owner/Handoff边界的用户模型修正：
+
+1. Field固定席位允许0；0不接受新包，但不停止Procurement或既有Accepted责任；
+2. Procurement按Field形成generated/accepted/waiting/rejected交接账；
+3. Formation取消“待整理”current分类与筛选，Accepted条目从整理中或需要处理开始；
+4. 文件来源页重排为Procurement交接账本与Libra席位两列，总览同时表达两段数量；
+5. 更新SSOT、Beta baseline、Level 7 decision、schema/read model、Admin Web与自动化测试；不部署生产、不修复621个历史无token Subject。
+
+## 已部署基线（保留）
 
 对 Formation 的活动记录逐项核对持久化事实、执行器、文件现实与 Admin Web 展示，并修复已证实的不一致：
 

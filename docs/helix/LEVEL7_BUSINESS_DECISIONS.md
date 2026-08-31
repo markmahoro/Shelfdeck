@@ -101,7 +101,7 @@ Handoff B独立验证并把Manifest保存为Accepted Inventory Fact。事实不�
 
 **回写：** `CURRENT_PLAN.md` PROD-030；`PRODUCTION_DEPLOY_ISSUE_LOG.md` PROD-030；Formation 步骤投影；bounded 待 SSOT §5.6.7 增补。
 
-### L7-DP-03 Per-field Pre-deck pipeline seats（Libra-owned）
+### L7-DP-03 Per-field Pre-deck pipeline seats（Libra-owned，顶部节流）
 
 确认日期：2026-08-30
 确认人：Product Owner（via implementation plan v3）
@@ -111,10 +111,12 @@ Handoff B独立验证并把Manifest保存为Accepted Inventory Fact。事实不�
 **用户确认（工程计划 v3）：**
 
 - Pre-deck pipeline 并发控制归 **Libra**；Procurement 只提供 Material Field 事实，不参与 token 或席位存储。
-- 每个 Material Field 独立 token 池；默认 **3** 席，Admin 可在文件来源页配置 **0–8**（0 = 暂停该 field 进入 pipeline）。
+- 每个 Material Field 独立、不可借用的 token 池；默认 **3** 席，Admin 可在文件来源页配置 **0–8**。0 = Libra 不从该 Field 接收新的 Handoff A Offer；既有 Accepted Subject/Run 继续推进，不是“暂停整理”。
+- Procurement 不因 Libra 拥塞停止 Observation、Triage 或 Candidate Package 形成。无席位时同一 Offer 保持 open，Package、责任与 Control 留在 Procurement；用户账本为“已生成、Libra 已接收、等待 Libra 接收”，容量不足绝不伪造 Rejected。
 - 持久化：`libra_field_intake_admission_policies` + `libra_predeck_pipeline_tokens`（schema 186）；Admin API 为 `GET/PATCH /v1/admin/libra/material-fields/:fieldId/intake-admission`。
 - 生产 Cutover：有损 full libra reset（全部 Run/Workspace/transcode/token），**保留** field 席位策略行。
-- 2026-08-31 生产复核后确认 token 必须覆盖完整 Pre-deck 在途责任：历史 Intake Evidence replay 也要重新占席；Routing、Rating、Acceptance Spec、Run Creation 不得绕过；Handoff B Accepted、用户 Discard 或 Intake Rejection才释放。Formation active queue 不展示尚未占席且没有 Run/Handoff B 的历史 Subject。
+- 2026-08-31 生产复核后确认 token 必须覆盖完整 Pre-deck 在途责任：Intake Evidence replay 也要占席；Handoff A Accepted 必须已有对应 token；Routing、Rating、Acceptance Spec、Run Creation 不得绕过；attention 继续占席；Handoff B Accepted、用户合法终结对应 Pre-deck 责任或 Intake Rejection 才释放。
+- Candidate Package 的用户名称为“待整理媒体包”，但“等待 Libra 接收”才是未交接状态。Formation 从 Handoff A Accepted 开始，当前桶只有“整理中 / 需要处理 / 已完成整理”，不再设置“待整理”筛选。历史 621 个 Accepted 但无 token 的 Subject 属于独立数据调试问题，不由本决策兼容或修复。
 
 **Owner/Handoff影响：** 不新增 Handoff；不写入 `proc_*`；`field_id` 仅为 Procurement Material Field 标识引用。
 

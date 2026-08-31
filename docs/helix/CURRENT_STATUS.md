@@ -1,8 +1,16 @@
 # ShelfDeck Clean Helix Current Status
 
-Status: **MOVIE COLLECTION LIFECYCLE READY THROUGH SHELF DEREGISTRATION；Formation 精确 Plan Scope、On-deck Recovery、资源等待公平调度与过程卡片后继 Work 聚合均已部署并通过生产验收。**
+Status: **生产基线保持不变；Per-Field Libra 顶部节流用户语义修正已在本地完成并验证，未部署。**
 
 Last updated: 2026-08-31
+
+## Local implementation completed
+
+- 已确认 SSOT 边界：Procurement 继续生成 Candidate Package；Field 席位满或为0时，open Handoff A Offer、责任和 Control 留在 Procurement。
+- Field API 已改为 generated/accepted/waiting/rejected；Formation 当前业务分类已收敛为 in_progress/attention_required/completed；Admin Web 已删除“待整理”筛选并把文件来源页重排为 Procurement 交接账本与 Libra 席位。
+- 旧四态 Formation 表升级时只重建可派生 Projection，不改 Subject、Token、Handoff、Run 或其他 Owner 事实；本地目标 DDL digest 为 `6a2246c39bebcd1f6f80264bac793c7a3119636a791683e426e4c30aa6fdc651`。
+- 验证：Service 407 项为 389 pass、18 skip、0 fail；Admin Web 40/40 且 production build 通过。Architecture fixture、semantic、manifest、contract 均通过，contract aggregate 为 `ab70c205efa3f8d8dd399d352690497918e3489ae9118bf067ea58b281accf75`；总 gate 仍仅被未改动的 `formation-process-projection.js` 与 `progress-projection-reader.js` 18 个既有 dynamic-template scanner findings 阻断。
+- 生产现状、镜像与数据均未改变。621 个 Accepted 但无 token 的历史 Subject 仍是独立调试事项，不属于本轮兼容或数据修复。
 
 ## PROD-036 Production Monitoring
 
@@ -108,7 +116,7 @@ PROD-034 已按 Product Owner 授权对“唐人街探案 (2015)”和“赤壁�
 ## Verification
 
 - PROD-034 focused：2/2；Arca focused：24/24；Admin Web：37/37，build 通过。
-- Helix Architecture full gate 通过；P2 contract aggregate 更新为 `549e136626021ed6f7f437e173775c06b59e82fc3cea73e189bdafeb0792404b`。DDL digest 保持 `3be2dad9b3615053681dfc2721974657fc3995ccf60a044e17dfb5131f0f8199`，无需 schema migration。
+- 当时 Helix Architecture full gate 通过；P2 contract aggregate 更新为 `549e136626021ed6f7f437e173775c06b59e82fc3cea73e189bdafeb0792404b`，DDL digest 为 `3be2dad9b3615053681dfc2721974657fc3995ccf60a044e17dfb5131f0f8199`。本轮三态 Formation Projection 的本地目标 DDL digest 已更新为 `6a2246c39bebcd1f6f80264bac793c7a3119636a791683e426e4c30aa6fdc651`，仅迁移可重建 Projection；尚未部署生产。
 - 本次最终合并后 focused 135/135；完整 Service 399 项为 381 pass、18 skip、0 fail；Admin Web 38/38；production build 通过。
 - 标准 build/upload/deploy dry-run/apply 完成，未使用 `--helix-clean-init`。部署脚本原只读 WAL readiness 返回 `SQLITE_CANTOPEN` 却未阻断；部署后 health/SQLite 校验通过。脚本已在本地修为“只读源复制到临时目录后校验，并强制匹配 ready”，对当前生产数据副本复验为 186 tables、123 routes、17 UI surfaces、findings []，尚未随镜像部署。
 - PROD-035 targeted 覆盖 NFO 五个并发改写窗口、Primary 漂移、坏 XML/身份冲突/缺字段、Aftercare revision convergence、连续冲突聚合、同根与阶段恢复；UAT-131 四个场景通过。

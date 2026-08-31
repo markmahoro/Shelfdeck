@@ -207,7 +207,14 @@ test('one bad Material is released while a bounded Movie Candidate set queues be
     assert.equal(replay.json().observation.replayed, true);
     const fields = await host.inject({ method:'GET',url:'/v1/admin/material-fields',headers:{cookie} });
     assert.equal(fields.statusCode,200,fields.body);
-    assert.ok(fields.json().items.find((item)=>item.fieldId===accessBasis.fieldId).currentObservationRevision>=1);
+    const fieldProjection=fields.json().items.find((item)=>item.fieldId===accessBasis.fieldId);
+    assert.ok(fieldProjection.currentObservationRevision>=1);
+    assert.deepEqual({
+      generated:fieldProjection.procurementStatus.generatedPackageCount,
+      accepted:fieldProjection.procurementStatus.acceptedPackageCount,
+      waiting:fieldProjection.procurementStatus.waitingAcceptanceCount,
+      rejected:fieldProjection.procurementStatus.rejectedPackageCount,
+    },{generated:movieCount,accepted:intakeSeats,waiting:movieCount-intakeSeats,rejected:0});
     const formationItems = [];
     let formationCursor = null;
     let formation = null;
@@ -221,10 +228,10 @@ test('one bad Material is released while a bounded Movie Candidate set queues be
       formationCursor = page.json().nextCursor;
     } while (formationCursor);
     assert.equal(formation.json().summary.totalCount,intakeSeats);
-    assert.equal(formation.json().summary.pendingCount,intakeSeats);
+    assert.equal(formation.json().summary.inProgressCount,intakeSeats);
     assert.equal(formationItems.length,intakeSeats);
     assert.equal(new Set(formationItems.map((item)=>item.subjectId)).size,intakeSeats);
-    const invalidFormationItem=formationItems.find((item)=>item.classification!=='pending'||item.primaryMaterialCount!==1);
+    const invalidFormationItem=formationItems.find((item)=>item.classification!=='in_progress'||item.primaryMaterialCount!==1);
     assert.equal(invalidFormationItem,undefined,JSON.stringify(invalidFormationItem));
     const deregistered=await host.inject({method:'POST',url:`/v1/admin/material-fields/${accessBasis.fieldId}/actions/deregister`,headers:{cookie},payload:{
       idempotencyKey:'procurement-only-deregister',fieldId:accessBasis.fieldId,expectedAccessRevision:1,expectedPolicyRevision:1}});

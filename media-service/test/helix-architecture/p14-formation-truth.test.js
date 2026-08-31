@@ -40,7 +40,7 @@ test('Formation explains a zero-cast business freeze without presenting an execu
   assert.doesNotMatch(action.label, /执行失败/);
 });
 
-test('Formation keeps an active Run visibly waiting when external media is required but MoviePilot is absent', () => {
+test('Formation requires attention when external media is required but MoviePilot is absent', () => {
   const works = work([
     event('libra.product_media.verify@1', {
       schemaRef:'helix://contracts/types/ProductMediaVerification/v1', result:'failed',
@@ -54,8 +54,8 @@ test('Formation keeps an active Run visibly waiting when external media is requi
   assert.equal(waitsForExternalIntegration(works, false), true);
   assert.equal(waitsForExternalIntegration(works, true), false);
   assert.equal(classifyFormation({ run:{state:'active'}, works, issue:null, recovery:null,
-    arcaStatus:null, productPackage:null, waitingExternalIntegration:true }), 'pending');
-  assert.deepEqual(nextAction(works, 'pending', null, 'active', null, null, null, 'active', true), {
+    arcaStatus:null, productPackage:null, waitingExternalIntegration:true }), 'attention_required');
+  assert.deepEqual(nextAction(works, 'attention_required', null, 'active', null, null, null, 'active', true), {
     label:'等待配置外部获取服务后继续整理', state:'waiting_external', progress:null,
   });
 });

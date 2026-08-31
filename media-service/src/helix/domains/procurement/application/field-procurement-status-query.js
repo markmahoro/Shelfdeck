@@ -140,8 +140,8 @@ function createProcurementFieldStatusQuery(options) {
         ],
         keyColumns: ['field_id'],
       },
-      find_delivery: {
-        kind: 'select-one',
+      list_deliveries: {
+        kind: 'select-in',
         tableId: 'proc_candidate_deliveries',
         safeIntegers: true,
         columns: [
@@ -153,7 +153,8 @@ function createProcurementFieldStatusQuery(options) {
           'offered_at_ms',
           'closed_at_ms',
         ],
-        keyColumns: ['candidate_package_id'],
+        keyColumn: 'candidate_package_id',
+        maxItems: 500,
       },
     },
   });
@@ -204,20 +205,29 @@ function createProcurementFieldStatusQuery(options) {
             Number(right.published_at_ms) - Number(left.published_at_ms) ||
             Number(right.package_revision) - Number(left.package_revision) ||
             right.candidate_package_id.localeCompare(left.candidate_package_id));
+        const deliveries = [];
+        for (let index = 0; index < candidates.length; index += 500) {
+          deliveries.push(...store.invoke('list_deliveries', {
+            values: candidates.slice(index, index + 500).map((candidate) => candidate.candidate_package_id),
+          }));
+        }
+        const deliveryByCandidateId = new Map(deliveries.map((delivery) => [delivery.candidate_package_id, delivery]));
+        const acceptedPackageCount = deliveries.filter((delivery) => delivery.state === 'accepted').length;
+        const rejectedPackageCount = deliveries.filter((delivery) => delivery.state === 'rejected').length;
+        const waitingAcceptanceCount = candidates.length - acceptedPackageCount - rejectedPackageCount;
         const runSummary = Object.freeze({
           observationScan: scan,
           runCount: runs.length,
           activeRunCount: runs.filter((run) => ['active', 'waiting'].includes(run.state)).length,
           sealedRunCount: runs.filter((run) => run.state === 'sealed').length,
-          candidateCount: candidates.length,
-          openOfferCount: candidates.reduce((count, candidate) => count +
-            (store.invoke('find_delivery', { candidate_package_id: candidate.candidate_package_id })?.state === 'open' ? 1 : 0), 0),
+          generatedPackageCount: candidates.length,
+          acceptedPackageCount,
+          waitingAcceptanceCount,
+          rejectedPackageCount,
         });
         if (candidates.length > 0) {
           const candidate = candidates[0];
-          const delivery = store.invoke('find_delivery', {
-            candidate_package_id: candidate.candidate_package_id,
-          });
+          const delivery = deliveryByCandidateId.get(candidate.candidate_package_id) || null;
           const stage = delivery?.state === 'open'
             ? 'handoff_a_ready'
             : delivery?.state === 'accepted'

@@ -316,18 +316,16 @@ function waitsForExternalIntegration(works, integrationReady) {
     !externalWorkExists;
 }
 function classifyFormation({ run, works, issue, recovery, arcaStatus, productPackage,
-  waitingExternalIntegration = false }) {
+  routingUnresolved = false, waitingExternalIntegration = false }) {
   if (arcaStatus?.stage === 'completed') return 'completed';
-  if ((run && ['frozen', 'suspended'].includes(run.state)) || issue ||
+  if ((run && ['frozen', 'suspended'].includes(run.state)) || issue || routingUnresolved || waitingExternalIntegration ||
       recovery?.recoveryState === 'attention_required' ||
       arcaStatus?.stage === 'attention_required') {
     return 'attention_required';
   }
   if (productPackage || arcaStatus?.stage === 'in_progress' || hasOpenExecution(works)) return 'in_progress';
-  if (waitingExternalIntegration) return 'pending';
   if (hasBlockingExecution(works) || hasBusinessFailure(works)) return 'attention_required';
-  if (run?.state === 'active') return 'in_progress';
-  return 'pending';
+  return 'in_progress';
 }
 function extractAcquisitionSelection(works) {
   const selected = works.flatMap((work) => work.events)
@@ -433,8 +431,7 @@ function nextAction(works, classification, issue, runState, recovery, arcaStatus
     const action = shelvingAction(shelvingSteps(productPackage, arcaStatus, recovery, onDeckWorks));
     return action || Object.freeze({ label: arcaStatus ? '正在完成收藏架上架' : '等待收藏架验收', state: 'running', progress: null });
   }
-  return Object.freeze({ label: runState === 'active' ? '准备下一项整理工作' :
-    classification === 'pending' ? '正在确认目标、评分、要求或身份' : '准备下一项整理工作', state: 'pending', progress: null });
+  return Object.freeze({ label: '准备下一项整理工作', state: 'pending', progress: null });
 }
 
 function createFormationProjectionSource(options) {
@@ -545,7 +542,7 @@ function createFormationProjectionSource(options) {
       const recovery = pkg ? recoveries.get(pkg.offer_id) || null : null;
       const arcaStatus = pkg ? arcaStatuses.get(pkg.offer_id) || null : null;
       const classification = classifyFormation({ run, works, issue, recovery, arcaStatus, productPackage: pkg,
-        waitingExternalIntegration });
+        routingUnresolved: routing?.decision === 'unresolved', waitingExternalIntegration });
       const rating = ratings.get(subject.subject_id) || null;
       const stepOptions = Object.freeze({ latestRunState: latestRun?.state || null, waitingExternalIntegration,
         runState: run?.state || null, terminalEvidence });
@@ -621,9 +618,9 @@ function buildFormationProjectionRow(item, nowMs) {
   const attentionState = attentionFor(item), progress = item.nextAction?.progress || null;
   const identityJson = item.productIdentityIssue ? canonicalJson(item.productIdentityIssue) : null;
   const identityDigest = item.productIdentityIssue ? canonicalDigest(item.productIdentityIssue) : null;
-  const attentionPriority = item.classification === 'attention_required' ? 0 : item.classification === 'in_progress' ? 1 : item.classification === 'pending' ? 2 : 3;
+  const attentionPriority = item.classification === 'attention_required' ? 0 : item.classification === 'in_progress' ? 1 : 2;
   const basis = {
-    projectionContractRevision: 5,
+    projectionContractRevision: 6,
     subjectId: item.subjectId, displayIdentity: item.displayIdentity, contentProfile: item.contentProfile,
     structureKind: item.structureKind, subjectStatus: item.status, classification: item.classification,
     rating: [item.myRating, item.myRatingSource, item.myRatingRevision], targetShelf: [item.targetShelfId, item.targetShelfName],
@@ -761,7 +758,7 @@ function createFormationQuery(options) {
       ? Object.freeze({ ...item, currentPlan:fresh.get(item.subjectId) }) : item);
   }
   function countHiddenActive() {
-    const hidden = { pending:0, in_progress:0, attention_required:0, total:0 };
+    const hidden = { in_progress:0, attention_required:0, total:0 };
     if (typeof options.store.listActiveScan !== 'function' && typeof options.store.listActive !== 'function') return hidden;
     let offset = 0;
     const admitted = options.readPipelineSubjectIds?.() || new Set();
@@ -782,30 +779,26 @@ function createFormationQuery(options) {
     return hidden;
   }
   function summary(classificationChanges = []) {
-    const result = { totalCount: 0, pendingCount: 0, inProgressCount: 0, attentionRequiredCount: 0, completedCount: 0 };
+    const result = { totalCount: 0, inProgressCount: 0, attentionRequiredCount: 0, completedCount: 0 };
     for (const row of options.store.counts()) {
-      const count = Number(row.row_count); result.totalCount += count;
-      if (row.group_value === 'pending') result.pendingCount = count;
-      else if (row.group_value === 'in_progress') result.inProgressCount = count;
+      const count = Number(row.row_count);
+      if (row.group_value === 'in_progress') result.inProgressCount = count;
       else if (row.group_value === 'attention_required') result.attentionRequiredCount = count;
       else if (row.group_value === 'completed') result.completedCount = count;
     }
     const hidden = countHiddenActive();
-    result.pendingCount = Math.max(0, result.pendingCount - hidden.pending);
     result.inProgressCount = Math.max(0, result.inProgressCount - hidden.in_progress);
     result.attentionRequiredCount = Math.max(0, result.attentionRequiredCount - hidden.attention_required);
-    result.totalCount = Math.max(0, result.totalCount - hidden.total);
     for (const change of classificationChanges) {
       if (!change || change.from === change.to) continue;
-      if (change.from === 'pending') result.pendingCount -= 1;
-      else if (change.from === 'in_progress') result.inProgressCount -= 1;
+      if (change.from === 'in_progress') result.inProgressCount -= 1;
       else if (change.from === 'attention_required') result.attentionRequiredCount -= 1;
       else if (change.from === 'completed') result.completedCount -= 1;
-      if (change.to === 'pending') result.pendingCount += 1;
-      else if (change.to === 'in_progress') result.inProgressCount += 1;
+      if (change.to === 'in_progress') result.inProgressCount += 1;
       else if (change.to === 'attention_required') result.attentionRequiredCount += 1;
       else if (change.to === 'completed') result.completedCount += 1;
     }
+    result.totalCount = Math.max(0, result.inProgressCount) + Math.max(0, result.attentionRequiredCount) + Math.max(0, result.completedCount);
     return Object.freeze(result);
   }
   function classificationChanges(projected, fresh) {
@@ -815,7 +808,7 @@ function createFormationQuery(options) {
   }
   function truthy(value) { return value === true || value === 1 || value === '1' || value === 'true'; }
   function activeFilters(query) {
-    const classification = ['pending', 'in_progress', 'attention_required'].includes(query.classification) ? query.classification : null;
+    const classification = ['in_progress', 'attention_required'].includes(query.classification) ? query.classification : null;
     const shelfId = typeof query.shelfId === 'string' ? query.shelfId : null;
     const title = typeof query.q === 'string' ? query.q.trim().toLowerCase() : '';
     return Object.freeze({

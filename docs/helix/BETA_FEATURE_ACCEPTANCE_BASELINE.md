@@ -101,6 +101,7 @@ SSOT: §9.1.2, §9.4.3, §9.4.6, §5.5.3–§5.5.7, §6.3–§6.6
 | HB-B.03 | **同一顶层目录内，独立 stream 文件与嵌套盘包是两部 Movie**；BDMV 内部 M2TS/playlist 不得再拆；ISO 是一部 Movie。内容去重属于退出收藏 Duplicate，不是 Formation 拦截 | E2E, FS, NEG |
 | HB-B.04 | Movie Field 默认允许的媒体扩展名包含 ISO 等盘镜像；缺 NFO 走补齐路径，不静默失败 | UI, API, E2E, FS |
 | HB-B.05 | 已处于 Production / Finished Goods 的同根文件不再被采购 | E2E, FS, NEG |
+| HB-B.05A | 每个 Field 的待整理媒体包账本满足`已生成 = Libra已接收 + 等待Libra接收 + Structured Rejection`；正常无拒绝时差值就是仍阻塞在 Procurement 的包。0 席位仍形成包，但不接受新 Offer；既有 Accepted 媒体继续整理 | UI, API, E2E, NEG |
 | HB-B.06 | Libra 解析唯一目标 Shelf，或明确 unresolved；用户可一次性选架，不改长期 Policy | UI, API, E2E, NEG |
 | HB-B.07 | Acceptance Spec 由当前 Movie Shelf Standard 与评分事实确定性计算 | E2E, NEG |
 | HB-B.08 | 变更产品只在 Libra Workspace 生产；已合规输入真实 no-op；容器不合规真实 Remux；编码或大小不合规真实 Transcode | E2E, FS, PROBE |
@@ -120,8 +121,8 @@ SSOT: §9.1.2, §9.4.3, §9.4.6, §5.5.3–§5.5.7, §6.3–§6.6
 | ID | 用户结果 | 主要验证 |
 | --- | --- | --- |
 | HB-B.19 | 行级旅程标签使用 SSOT 稳定阶段：`已发现\|正在准备\|待选择去向\|正在生产\|正在验收\|正在上架\|需要处理\|已完成` | UI, API, VISUAL |
-| HB-B.20 | 当前工作台四桶互斥：`待整理\|整理中\|需要处理\|已完成整理`。完成必须同时证明 On-deck Commit、Shelf Entry、对应 active Deck Fact；Package published 仍是整理中；Frozen/blocked/身份确认/技术失败进需要处理 | UI, API, E2E |
-| HB-B.21 | 当前媒体筛选走公开 Query（状态/架/要我处理/加急/片名），禁止只筛当前页 | UI, API |
+| HB-B.20 | 当前工作台三桶互斥：`整理中\|需要处理\|已完成整理`，没有`待整理`筛选。Handoff A Accepted 即进入整理中；Routing unresolved、Frozen/blocked/身份确认/技术失败进需要处理；完成必须同时证明 On-deck Commit、Shelf Entry、对应 active Deck Fact | UI, API, E2E |
+| HB-B.21 | 当前媒体筛选走公开 Query（整理中/需要处理/已完成/架/要我处理/加急/片名），禁止只筛当前页；未 Accepted 包只在文件来源账本展示 | UI, API |
 | HB-B.22 | 整理动作是步骤清单（含「怎么转」），每步进度、用户操作、加急分列；完成区只读同一套动作 | UI, API, VISUAL |
 | HB-B.23 | 可量化转码/下载才显示真实百分比；不能计算时不编造 ETA；等待原因必须是资源/Provider/Approval 等真实原因 | UI, E2E, NEG |
 | HB-B.24 | 普通 UI 不暴露 Task、Gate、Capability、Flow | UI, NEG, AUDIT |

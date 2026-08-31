@@ -22,7 +22,7 @@ test('Admin Web exposes eight Helix pages and keeps health in Collection', () =>
   assert.match(read('web/src/helix/PeoplePage.tsx'), /listPeople/);
   assert.doesNotMatch(read('web/src/helix/PeoplePage.tsx'), />416<|>3<|>1</);
   for (const slug of ['overview', 'material-fields', 'shelves', 'collection', 'formation', 'offdeck', 'people', 'settings']) assert.match(model, new RegExp(`slug:\\s*'${slug}'`));
-  assert.match(model, /文件来源配置/);
+  assert.match(model, /文件来源/);
   assert.match(model, /收藏架配置/);
   assert.match(read('web/src/App.tsx'), /nav-separator/);
   assert.match(read('web/src/App.tsx'), /QueryClientProvider/);
@@ -36,7 +36,7 @@ test('Admin Web exposes eight Helix pages and keeps health in Collection', () =>
   assert.doesNotMatch(app, /TasksPage|LibrariesPage|CleanupPage|PoliciesPage/);
 });
 
-test('Material Fields admits background Observation and projects scan progress, not Candidate Handoff', () => {
+test('Material Fields shows Procurement handoff accounting beside Libra admission seats', () => {
   const app = read('web/src/App.tsx');
   const page = read('web/src/helix/MaterialFieldsPage.tsx');
   const labels = read('web/src/helix/labels.ts');
@@ -54,8 +54,10 @@ test('Material Fields admits background Observation and projects scan progress, 
   assert.match(page, /保存时会检查目录是否存在、可读/);
   assert.match(labels, /已扫描完成/);
   assert.match(labels, /扫描失败/);
-  assert.match(page, /采购进度/);
-  assert.match(page, /目录扫完不等于整理结束/);
+  assert.match(page, /Procurement 交接账本/);
+  assert.match(page, /已生成媒体包/);
+  assert.match(page, /等待 Libra 接收/);
+  assert.match(page, /已经接收的媒体会继续整理/);
   assert.match(page, /注销文件来源/);
   assert.match(api, /actions\/deregister/);
   assert.match(api, /observationScan/);
@@ -110,7 +112,7 @@ test('Media organization workspace uses user-facing stages after Procurement han
   const page = read('web/src/helix/FormationPage.tsx');
   const formation = model.split("slug: 'formation'")[1].split("slug: 'offdeck'")[0];
   assert.match(formation, /媒体整理工作区/);
-  assert.match(page, /待整理/);
+  assert.doesNotMatch(page, /id:'pending',label:'待整理'/);
   assert.match(page, /需要处理/);
   assert.match(page, /已完成整理/);
   assert.match(page, /整理要求/);

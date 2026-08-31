@@ -57,7 +57,7 @@
     "partialUniqueRules": [],
     "checkRules": [
       {
-        "rule": "`predeck_pipeline_seats`范围0..8，默认3，0表示暂停该Field进入Pre-deck pipeline"
+        "rule": "`predeck_pipeline_seats`范围0..8，默认3，0表示不从该Field接收新的Handoff A Offer，既有Accepted责任继续推进"
       }
     ],
     "revisionContract": {
@@ -80,17 +80,18 @@
     "semanticRules": [
       "Field ID是Procurement Material Field opaque ref、不建跨Domain FK",
       "Libra-owned Pre-deck pipeline admission配置",
-      "`predeck_pipeline_seats`范围0..8，默认3，0表示暂停该Field进入Pre-deck pipeline",
+      "`predeck_pipeline_seats`范围0..8，默认3，0表示不从该Field接收新的Handoff A Offer，既有Accepted责任继续推进",
+      "各Field席位不可借用",
       "`policy_revision`从1递增"
     ],
     "rawContract": {
       "columns": "`field_id PK, predeck_pipeline_seats INTEGER, policy_revision INTEGER, updated_at_ms`",
-      "constraints": "Field ID是Procurement Material Field opaque ref、不建跨Domain FK；Libra-owned Pre-deck pipeline admission配置；`predeck_pipeline_seats`范围0..8，默认3，0表示暂停该Field进入Pre-deck pipeline；`policy_revision`从1递增"
+      "constraints": "Field ID是Procurement Material Field opaque ref、不建跨Domain FK；Libra-owned Pre-deck pipeline admission配置；`predeck_pipeline_seats`范围0..8，默认3，0表示不从该Field接收新的Handoff A Offer，既有Accepted责任继续推进；各Field席位不可借用；`policy_revision`从1递增"
     },
     "source": {
       "section": "8.5.11",
-      "line": 9363,
-      "lineDigest": "0963d1c08642241e06688d25ecf5e5d2f56d2100cbed0eb80580b3380f9b570d"
+      "line": 9366,
+      "lineDigest": "7645a3675fedf5e688edcf38e72cbe66371942305c4800361c1e5134326e9b8c"
     },
     "foreignKeys": []
   }

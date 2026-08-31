@@ -13,7 +13,7 @@ export const pages: SurfacePage[] = [
   { slug: 'formation', path: '/formation', label: '媒体整理工作区', title: '媒体整理工作区', group: 'ops' },
   { slug: 'offdeck', path: '/offdeck', label: '退出收藏', title: '退出收藏', group: 'ops' },
   { slug: 'people', path: '/people', label: '人物', title: '人物', group: 'ops' },
-  { slug: 'material-fields', path: '/material-fields', label: '文件来源配置', title: '文件来源配置', group: 'config' },
+  { slug: 'material-fields', path: '/material-fields', label: '文件来源', title: '文件来源', group: 'config' },
   { slug: 'shelves', path: '/shelves', label: '收藏架配置', title: '收藏架配置', group: 'config' },
   { slug: 'settings', path: '/settings', label: '系统设置', title: '系统设置', group: 'config' },
 ];

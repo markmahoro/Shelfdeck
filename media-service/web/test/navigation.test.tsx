@@ -11,7 +11,7 @@ describe('Helix Admin navigation', () => {
       return href !== '#main' && link.closest('nav');
     });
     expect(links.map((link) => link.textContent)).toEqual([
-      '概览', '我的收藏', '媒体整理工作区', '退出收藏', '人物', '文件来源配置', '收藏架配置', '系统设置',
+      '概览', '我的收藏', '媒体整理工作区', '退出收藏', '人物', '文件来源', '收藏架配置', '系统设置',
     ]);
     expect(links.map((link) => link.getAttribute('href'))).toEqual([
       '/', '/collection', '/formation', '/offdeck', '/people', '/material-fields', '/shelves', '/settings',

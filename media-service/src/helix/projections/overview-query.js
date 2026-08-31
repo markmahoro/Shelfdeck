@@ -117,7 +117,8 @@ function createOverviewQuery(options) {
       ledger.push(Object.freeze({ key:'progress:'+item.subjectId, label:'正在整理 · ' + item.displayIdentity, href:'/formation' }));
     }
     const inProgressCount = integer(formation.summary?.inProgressCount);
-    const pendingCount = integer(formation.summary?.pendingCount);
+    const waitingAcceptanceCount = fields.reduce((sum, field) =>
+      sum + integer(field.procurementStatus?.waitingAcceptanceCount), 0);
     const backgroundOperations = typeof options.readBackgroundOperations === 'function'
       ? options.readBackgroundOperations()
       : null;
@@ -136,11 +137,10 @@ function createOverviewQuery(options) {
           note:'检查结果为健康', href:'/collection' }),
       ]),
       todos: Object.freeze(todos),
-      inProgress: inProgressCount ? Object.freeze({
-        count: inProgressCount, label:'正在整理', href:'/formation',
-      }) : pendingCount ? Object.freeze({
-        count: pendingCount, label:'待整理', href:'/formation',
-      }) : null,
+      pipeline: Object.freeze({
+        waitingAcceptanceCount,
+        organizingCount: inProgressCount,
+      }),
       setup: Object.freeze({
         activeMaterialFieldCount: activeFields.length,
         activeShelfCount: activeShelves.length,

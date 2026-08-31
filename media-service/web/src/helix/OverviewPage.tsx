@@ -72,8 +72,9 @@ export default function OverviewPage() {
           {projection.todos.length
             ? <div className="todo-list">{projection.todos.map((item) => <Link key={item.key} to={item.href}><span>{item.label}</span><em>{item.count}</em></Link>)}</div>
             : <p className="overview-empty-line">现在没有需要你处理的事项</p>}
-          {projection.inProgress && <div className="overview-in-progress">
-            <h3><Link to={projection.inProgress.href}>{projection.inProgress.label} {projection.inProgress.count} 部</Link></h3>
+          {(projection.pipeline.waitingAcceptanceCount > 0 || projection.pipeline.organizingCount > 0) && <div className="overview-in-progress">
+            {projection.pipeline.waitingAcceptanceCount > 0 && <h3><Link to="/material-fields">等待 Libra 接收 {projection.pipeline.waitingAcceptanceCount} 包</Link></h3>}
+            {projection.pipeline.organizingCount > 0 && <h3><Link to="/formation">正在整理 {projection.pipeline.organizingCount} 部</Link></h3>}
             {organizing.length ? <ul>{organizing.map((item) => <li key={item.key}>{item.href
               ? <Link to={item.href}>{item.label.slice(ORGANIZING_PREFIX.length)}</Link>
               : item.label.slice(ORGANIZING_PREFIX.length)}</li>)}</ul> : null}

@@ -1,8 +1,16 @@
 # ShelfDeck Clean Helix Master Plan
 
-Status: **Helix-beta Movie-only full chain；PROD-040/041 与 Formation 当前 Plan 聚合已部署并通过生产验收。**
+Status: **Per-Field Libra 顶部节流与 Formation 用户语义修正已在本地完成并验证；尚未部署生产。**
 
 Last updated: 2026-08-31
+
+## 当前设计修正
+
+- 保持既有五域、两次单向 Handoff 与 modular monolith 边界；不新增全局媒体对象、队列、反向 Handoff 或跨域写入。
+- Libra 为每个 Material Field 保留固定 0–8 席；0 只阻止新 Handoff A 接收，Procurement 继续形成待整理媒体包，既有 Accepted 责任继续推进。
+- 文件来源 API/UI 按 Field 显示已生成、Libra 已接收、等待 Libra 接收和 Structured Rejection；容量不足保持 open Offer，不伪造 rejection。
+- 媒体整理当前分类收敛为整理中、需要处理、已完成；删除“待整理”筛选。总览分别展示 Procurement 等待接收与 Libra 正在整理。
+- 本轮只做本地 SSOT、schema/read projection、Admin API/UI 与测试；不处理 621 个历史 Accepted 无 token Subject，不执行生产部署或数据纠正。
 
 ## 当前基线
 

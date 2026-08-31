@@ -106,6 +106,12 @@ test('Field status projects waiting, scanning, and completed Observation, not la
   assert.equal(waiting.observationScan.inProgress, false);
   assert.equal(waiting.observationScan.pageCount, 0);
   assert.equal(waiting.stage, 'not_started');
+  assert.deepEqual({
+    generated: waiting.generatedPackageCount,
+    accepted: waiting.acceptedPackageCount,
+    waiting: waiting.waitingAcceptanceCount,
+    rejected: waiting.rejectedPackageCount,
+  }, { generated: 0, accepted: 0, waiting: 0, rejected: 0 });
 
   insertWork(kernel, 'work-scan', 'running');
   const scanning = query.read('field-1');

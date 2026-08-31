@@ -33,7 +33,7 @@ const generatedRoot=path.resolve(__dirname,'../src/helix/foundation/persistence/
 const schemaDdl=fs.readFileSync(path.join(generatedRoot,'clean-schema.sql'),'utf8');
 const schemaManifest=JSON.parse(fs.readFileSync(path.join(generatedRoot,'clean-schema.manifest.json'),'utf8'));
 const hex=(value)=>String(value).padStart(64,'0').slice(-64);
-function item(index,classification='pending',attention=false){return Object.freeze({
+function item(index,classification='in_progress',attention=false){return Object.freeze({
   formationViewId:`subject-${String(index).padStart(3,'0')}`,subjectId:`subject-${String(index).padStart(3,'0')}`,
   displayIdentity:`影片 ${index}`,contentProfile:'movie',structureKind:'single',status:'active',classification,
   myRating:index%5+1,myRatingSource:'douban',myRatingRevision:null,productIdentityIssue:attention?Object.freeze({result:'ambiguous',reasonCode:'multiple_matches',candidateSetDigest:hex(700+index),candidates:[]}):null,acceptanceRecovery:null,arcaStatus:classification==='completed'?Object.freeze({stage:'completed',completedAtMs:2500+index,shelfEntryId:`entry-${index}`}):null,
@@ -180,7 +180,7 @@ test('Formation organizingSteps use closed user language and persist GPU transco
   assert.deepEqual(organizingSteps([],spec,{latestRunState:'discarded'}),
     [{key:'reintake',label:'等待重新入库',state:'pending',progress:null}]);
   assert.equal(actionLabel([],spec,{latestRunState:'discarded'}),'等待重新入库');
-  assert.equal(nextAction([],'pending',null,null,null,null,null,'discarded').label,'等待重新入库');
+  assert.equal(nextAction([],'in_progress',null,null,null,null,null,'discarded').label,'等待重新入库');
   const nfoWorks=[{state:'succeeded',events:[{capabilityRef:'libra.product_sidecar.render@1',state:'succeeded',
     result:{result:{provenanceRef:{objectType:'related_nfo_update'}}}}]}];
   assert.equal(organizingSteps(nfoWorks).find((item)=>item.key==='nfo').label,'更新 NFO');
@@ -271,12 +271,12 @@ test('Formation projection uses one digest contract for new writes and fails clo
   }finally{kernel.close();fs.rmSync(root,{recursive:true,force:true,maxRetries:5,retryDelay:50});}
 });
 
-test('Formation four-bucket classification requires Arca commit and keeps an active Run in progress between stages',()=>{
+test('Formation three-state classification requires Arca commit and keeps an active Run in progress between stages',()=>{
   const historicalSuccess=[{state:'succeeded',events:[{state:'succeeded'}]}];
   assert.equal(classifyFormation({run:{state:'frozen'},works:historicalSuccess,issue:null,recovery:null,arcaStatus:null,productPackage:null}),'attention_required');
   assert.equal(classifyFormation({run:{state:'active'},works:[{state:'running',events:[{state:'executing'}]}],issue:null,recovery:null,arcaStatus:null,productPackage:null}),'in_progress');
   assert.equal(classifyFormation({run:{state:'active'},works:[{state:'succeeded',events:[{state:'failed'},{state:'succeeded'}]}],issue:null,recovery:null,arcaStatus:null,productPackage:null}),'in_progress');
-  assert.equal(classifyFormation({run:null,works:[],issue:null,recovery:null,arcaStatus:null,productPackage:null}),'pending');
+  assert.equal(classifyFormation({run:null,works:[],issue:null,recovery:null,arcaStatus:null,productPackage:null}),'in_progress');
   assert.equal(classifyFormation({run:null,works:[],issue:null,recovery:null,arcaStatus:null,productPackage:{offerId:'offer'}}),'in_progress');
   assert.equal(classifyFormation({run:null,works:[],issue:null,recovery:null,arcaStatus:{stage:'completed'},productPackage:{offerId:'offer'}}),'completed');
 });
@@ -338,12 +338,12 @@ test('durable Formation projection pages active rows in stable Subject intake or
     kernel.runPrimitive(({prepare})=>{const insert=prepare(`INSERT INTO libra_subjects(subject_id,structure_kind,content_profile,routing_anchor_intake_decision_id,status,intake_revision,current_identity_revision,created_at_ms,updated_at_ms) VALUES(?,?,?,?,?,?,?,?,?)`);
       for(let index=0;index<31;index+=1)insert.run(`subject-${String(index).padStart(3,'0')}`,'single','movie',null,'active',1,null,1000+index,1000+index);});
     const unitOfWork=createSqliteUnitOfWork({kernel}),store=createFormationProjectionStore({schemaManifest,unitOfWork});
-    for(let index=0;index<31;index+=1)store.upsert(buildFormationProjectionRow(item(index,index===30?'completed':index===29?'attention_required':'pending',index===29),3000+index));
+    for(let index=0;index<31;index+=1)store.upsert(buildFormationProjectionRow(item(index,index===30?'completed':index===29?'attention_required':'in_progress',index===29),3000+index));
     const unchanged=store.upsert(buildFormationProjectionRow(item(0),3000));assert.equal(unchanged.kind,'no_op');assert.equal(unchanged.revision,1);
     assert.equal(kernel.runPrimitive(({prepare})=>prepare('SELECT update_count FROM formation_projection_update_probe').get().update_count),0);
     const query=createFormationQuery({store,now:()=>4000,state:()=>({status:'ready',asOfMs:3999})}),active=query.list({section:'active',limit:25});
     assert.equal(active.items.length,25);assert.deepEqual(active.items.slice(0,3).map((row)=>row.subjectId),['subject-029','subject-028','subject-027']);assert.ok(active.nextCursor);
-    assert.deepEqual(active.summary,{totalCount:31,pendingCount:29,inProgressCount:0,attentionRequiredCount:1,completedCount:1});assert.deepEqual(active.projection,{status:'ready',asOfMs:3999});
+    assert.deepEqual(active.summary,{totalCount:31,inProgressCount:29,attentionRequiredCount:1,completedCount:1});assert.deepEqual(active.projection,{status:'ready',asOfMs:3999});
     const remainder=query.list({section:'active',limit:25,cursor:active.nextCursor});assert.equal(remainder.items.length,5);
     const completed=query.list({section:'completed',limit:25});assert.equal(completed.items.length,1);assert.equal(completed.items[0].subjectId,'subject-030');
     const byTitle=query.list({section:'active',q:'影片 0'});
@@ -405,7 +405,7 @@ test('Formation active list and summary overlay current Arca truth before filter
     assert.equal(active.items.find((row)=>row.subjectId==='subject-000').classification,'attention_required');
     assert.equal(active.items.find((row)=>row.subjectId==='subject-001').currentPlan.label,'计划14 处理媒体文件');
     assert.deepEqual(summaryReads[0],active.items.map((row)=>row.subjectId));
-    assert.deepEqual(active.summary,{totalCount:2,pendingCount:0,inProgressCount:1,attentionRequiredCount:1,completedCount:0});
+    assert.deepEqual(active.summary,{totalCount:2,inProgressCount:1,attentionRequiredCount:1,completedCount:0});
     assert.deepEqual(query.list({section:'active',classification:'attention_required'}).items.map((row)=>row.subjectId),['subject-000']);
   }finally{kernel.close();fs.rmSync(root,{recursive:true,force:true,maxRetries:5,retryDelay:50});}
 });
@@ -434,12 +434,12 @@ test('Formation active queue shows only pipeline-admitted Subjects without a Run
       insert.run('subject-000','single','movie',null,'active',1,null,1000,1000);
       insert.run('subject-001','single','movie',null,'active',1,null,1001,1001);});
     const unitOfWork=createSqliteUnitOfWork({kernel}),store=createFormationProjectionStore({schemaManifest,unitOfWork});
-    store.upsert(buildFormationProjectionRow({...item(0,'pending'),currentRun:null},3000));
-    store.upsert(buildFormationProjectionRow({...item(1,'pending'),currentRun:null},3001));
+    store.upsert(buildFormationProjectionRow({...item(0,'in_progress'),currentRun:null},3000));
+    store.upsert(buildFormationProjectionRow({...item(1,'in_progress'),currentRun:null},3001));
     const query=createFormationQuery({store,readPipelineSubjectIds:()=>new Set(['subject-001']),now:()=>4000,state:()=>({status:'ready',asOfMs:3999})});
     const active=query.list({section:'active',limit:25});
     assert.deepEqual(active.items.map((row)=>row.subjectId),['subject-001']);
-    assert.deepEqual(active.summary,{totalCount:1,pendingCount:1,inProgressCount:0,attentionRequiredCount:0,completedCount:0});
+    assert.deepEqual(active.summary,{totalCount:1,inProgressCount:1,attentionRequiredCount:0,completedCount:0});
   }finally{kernel.close();fs.rmSync(root,{recursive:true,force:true,maxRetries:5,retryDelay:50});}
 });
 
@@ -450,9 +450,9 @@ test('Formation query filters shelf, expedite, and needs-user-action on the proj
     kernel.runPrimitive(({prepare})=>{const insert=prepare(`INSERT INTO libra_subjects(subject_id,structure_kind,content_profile,routing_anchor_intake_decision_id,status,intake_revision,current_identity_revision,created_at_ms,updated_at_ms) VALUES(?,?,?,?,?,?,?,?,?)`);
       for(let index=0;index<7;index+=1)insert.run(`subject-${String(index).padStart(3,'0')}`,'single','movie',null,'active',1,null,1000+index,1000+index);});
     const unitOfWork=createSqliteUnitOfWork({kernel}),store=createFormationProjectionStore({schemaManifest,unitOfWork});
-    for(let index=0;index<4;index+=1)store.upsert(buildFormationProjectionRow(item(index,'pending'),3000+index));
-    store.upsert(buildFormationProjectionRow({...item(4,'pending'),displayIdentity:'加急片',currentRun:{...item(4).currentRun,priorityClass:'expedited'}},4000));
-    store.upsert(buildFormationProjectionRow({...item(5,'pending'),displayIdentity:'未分架片',targetShelfId:null,targetShelfName:null,routingState:'unresolved'},4001));
+    for(let index=0;index<4;index+=1)store.upsert(buildFormationProjectionRow(item(index,'in_progress'),3000+index));
+    store.upsert(buildFormationProjectionRow({...item(4,'in_progress'),displayIdentity:'加急片',currentRun:{...item(4).currentRun,priorityClass:'expedited'}},4000));
+    store.upsert(buildFormationProjectionRow({...item(5,'attention_required'),displayIdentity:'未分架片',targetShelfId:null,targetShelfName:null,routingState:'unresolved'},4001));
     store.upsert(buildFormationProjectionRow(item(6,'attention_required',true),4002));
     const query=createFormationQuery({store,now:()=>5000,state:()=>({status:'ready',asOfMs:4999})});
     const expedited=query.list({section:'active',expedited:'1'});
@@ -461,10 +461,10 @@ test('Formation query filters shelf, expedite, and needs-user-action on the proj
     assert.equal(unset.items.length,1);assert.equal(unset.items[0].displayIdentity,'未分架片');
     const mine=query.list({section:'active',needsUserAction:'1'});
     assert.deepEqual(mine.items.map((row)=>row.displayIdentity).sort(),['未分架片','影片 6'].sort());
-    const shelf=query.list({section:'active',shelfId:'shelf-1',classification:'pending'});
+    const shelf=query.list({section:'active',shelfId:'shelf-1',classification:'in_progress'});
     assert.equal(shelf.items.length,5);
-    assert.ok(shelf.items.every((row)=>row.targetShelfId==='shelf-1' && row.classification==='pending'));
-    assert.equal(shelf.summary.pendingCount,6);
+    assert.ok(shelf.items.every((row)=>row.targetShelfId==='shelf-1' && row.classification==='in_progress'));
+    assert.equal(shelf.summary.inProgressCount,5);
   }finally{kernel.close();fs.rmSync(root,{recursive:true,force:true,maxRetries:5,retryDelay:50});}
 });
 
@@ -524,16 +524,16 @@ test('Formation hides discarded Subjects waiting for re-intake from the active l
       insert.run('subject-001','single','movie',null,'active',1,null,1001,1001);});
     const unitOfWork=createSqliteUnitOfWork({kernel}),store=createFormationProjectionStore({schemaManifest,unitOfWork});
     store.upsert(buildFormationProjectionRow({
-      ...item(0,'pending'), currentRun:null,
+      ...item(0,'in_progress'), currentRun:null,
       nextAction:Object.freeze({label:'等待重新入库',state:'pending',progress:null}),
       organizingAction:'等待重新入库',
       organizingSteps:Object.freeze([{key:'reintake',label:'等待重新入库',state:'pending',progress:null}]),
     },3000));
-    store.upsert(buildFormationProjectionRow(item(1,'pending'),3001));
+    store.upsert(buildFormationProjectionRow(item(1,'in_progress'),3001));
     const query=createFormationQuery({store,now:()=>4000,state:()=>({status:'ready',asOfMs:3999})});
     const active=query.list({section:'active'});
     assert.deepEqual(active.items.map((row)=>row.subjectId),['subject-001']);
-    assert.equal(active.summary.pendingCount,1);
+    assert.equal(active.summary.inProgressCount,1);
     assert.equal(active.summary.totalCount,1);
   }finally{kernel.close();fs.rmSync(root,{recursive:true,force:true,maxRetries:5,retryDelay:50});}
 });
@@ -546,7 +546,7 @@ test('exact Formation wake drains more than one bounded batch without waiting fo
     readPage:(_cursor,limit)=>{fallbackLimits.push(limit);return [];},
     readSubject:(subjectId)=>ids.includes(subjectId)?{subject_id:subjectId}:null,
     buildBatch:(subjects)=>{batchSizes.push(subjects.length);return subjects.map(({subject_id:subjectId})=>({
-      formationViewId:subjectId,subjectId,displayIdentity:subjectId,contentProfile:'movie',structureKind:'single',status:'active',classification:'pending',
+      formationViewId:subjectId,subjectId,displayIdentity:subjectId,contentProfile:'movie',structureKind:'single',status:'active',classification:'in_progress',
       myRating:null,myRatingSource:null,myRatingRevision:null,productIdentityIssue:null,targetShelfId:null,targetShelfName:null,
       routingState:'preparing',unresolvedReasonCode:null,routingPolicyMode:null,routingPolicyRevision:null,routingDecisionRevision:null,
       routingDecisionDigest:null,routingDecisionHeadRevision:null,routingDecisionHeadDigest:null,acceptanceSpecId:null,
@@ -577,7 +577,7 @@ test('Formation projection freshness recovers after a transient rebuild failure'
   const unitOfWork=createSqliteUnitOfWork({kernel});let failNext=false,writes=0;const errors=[];
   const source={readPage:()=>[],readSubject:()=>({subject_id:'subject-recovery'}),buildBatch:()=>{
     if(failNext){failNext=false;throw Object.assign(new Error('transient projection input'),{code:'TRANSIENT_PROJECTION_INPUT'});}
-    return [item(1,'pending')];
+    return [item(1,'in_progress')];
   }};
   const host=createFormationProjectionHost({schemaManifest,unitOfWork,source,store:{upsert:()=>{writes+=1;return {kind:'inserted'};}},
     now:()=>100,onError:(error)=>errors.push(error)});

@@ -10,7 +10,7 @@ test('Overview uses system three-state, clickable todos, and titled ledger inste
     readMaterialFields: () => ({ items: [] }),
     readShelves: () => ({ items: [] }),
     readFormation: () => ({
-      summary: { totalCount: 2, pendingCount: 0, inProgressCount: 1, attentionRequiredCount: 1, completedCount: 1 },
+      summary: { totalCount: 3, inProgressCount: 1, attentionRequiredCount: 1, completedCount: 1 },
       attentionItems: [{ subjectId: 's-att', displayIdentity: '待处理片' }],
       inProgressItems: [{ subjectId: 's-run', displayIdentity: '整理中片' }],
       completedItems: [{ subjectId: 's-done', displayIdentity: '已上架片' }],
@@ -35,6 +35,7 @@ test('Overview uses system three-state, clickable todos, and titled ledger inste
   assert.ok(value.ledger.some((item) => item.label === '正在整理 · 整理中片'));
   assert.ok(!value.ledger.some((item) => item.label === '已经上架'));
   assert.ok(!value.ledger.some((item) => item.label === '已发现的电影'));
+  assert.deepEqual(value.pipeline, { waitingAcceptanceCount: 0, organizingCount: 1 });
 });
 
 function idleReaders(overrides = {}) {
@@ -66,16 +67,16 @@ test('Overview surfaces unreachable Field access as a clickable todo, not as a s
       {
         status: 'active',
         access: { rootLocation: 'E:\\reachable-canary' },
-        procurementStatus: { observationScan: { state: 'completed', inProgress: false, pageCount: 3 } },
+        procurementStatus: { waitingAcceptanceCount: 11, observationScan: { state: 'completed', inProgress: false, pageCount: 3 } },
       },
       {
         status: 'active',
         access: { rootLocation: 'F:\\helix-j02-missing-field-root-does-not-exist' },
-        procurementStatus: { observationScan: { state: 'scanning', inProgress: true, pageCount: 0 } },
+        procurementStatus: { waitingAcceptanceCount: 12, observationScan: { state: 'scanning', inProgress: true, pageCount: 0 } },
       },
     ] }),
     readFormation: () => ({
-      summary: { pendingCount: 23, inProgressCount: 0, attentionRequiredCount: 0 },
+      summary: { inProgressCount: 0, attentionRequiredCount: 0 },
       attentionItems: [], inProgressItems: [], completedItems: [],
     }),
     readCollectionStats: () => ({ currentCount: 0, monthNewCount: 0, healthyCount: 0, healthAttentionCount: 0, recentOnDeck: [] }),
@@ -85,9 +86,7 @@ test('Overview surfaces unreachable Field access as a clickable todo, not as a s
   assert.equal(value.systemState.kind, 'running');
   assert.equal(value.systemState.href, '/material-fields');
   assert.ok(value.todos.some((item) => item.key === 'field_access' && item.count === 1 && item.href === '/material-fields'));
-  assert.equal(value.inProgress.label, '待整理');
-  assert.equal(value.inProgress.count, 23);
-  assert.equal(value.inProgress.href, '/formation');
+  assert.deepEqual(value.pipeline, { waitingAcceptanceCount: 23, organizingCount: 0 });
 });
 
 test('Overview does not treat a healthy in-progress Observation as Field attention', () => {
