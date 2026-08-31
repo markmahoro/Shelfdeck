@@ -9,6 +9,7 @@ const Database = require('better-sqlite3');
 const { canonicalDigest, canonicalJson } = require('../../src/helix/contracts/canonical-json');
 const { openSqliteKernel } = require('../../src/helix/foundation/persistence/sqlite-kernel');
 const { createSqliteUnitOfWork } = require('../../src/helix/foundation/persistence/sqlite-unit-of-work');
+const { createCapabilityContractValidator } = require('../../src/helix/foundation/capability/contract-validator');
 const { computeBoundedMaterialFingerprintSync } = require('../../src/helix/integrations/bounded-material-fingerprint');
 const { createAftercareStore } = require('../../src/helix/domains/arca/persistence/aftercare-store');
 const { createAftercareProcessCoordinator } = require('../../src/helix/domains/arca/application/aftercare-process-coordinator');
@@ -17,6 +18,9 @@ const { RETENTION_MS } = require('../../src/helix/domains/arca/persistence/after
 const generated = path.resolve(__dirname, '../../src/helix/foundation/persistence/generated');
 const schemaDdl = fs.readFileSync(path.join(generated, 'clean-schema.sql'), 'utf8');
 const schemaManifest = JSON.parse(fs.readFileSync(path.join(generated, 'clean-schema.manifest.json'), 'utf8'));
+const reclamationReceiptSchema = JSON.parse(fs.readFileSync(path.resolve(__dirname,
+  '../../src/helix/contracts/types/ReclamationReceipt/v1/schema.json'), 'utf8'));
+const reclamationReceiptValidator = createCapabilityContractValidator({schemas:[reclamationReceiptSchema]});
 const digest = (value) => canonicalDigest({ value });
 
 function fixture(storeOptions={}) {
@@ -81,9 +85,31 @@ test('resolved Aftercare Workspace observes 24h retention, Inventory commit, exa
     assert.equal(fs.existsSync(member.location),true);fs.rmSync(unknown);
     const reclaimed=await value.store.reconcileAftercareWorkspaceLifecycle('case-1');assert.equal(reclaimed.kind,'reclaimed');assert.equal(fs.existsSync(member.location),false);
     assert.equal(reclaimed.receipt.receiptKind,'aftercare_workspace_reclaimed');assert.deepEqual(reclaimed.receipt.reclaimedHandleIds,[member.handle.handleId]);
+    const expectedScopeDigest=canonicalDigest({schema:'arca.aftercare-workspace-reclaim-intent@1',aftercareCaseId:'case-1',members:[{
+      handleId:member.handle.handleId,handleDigest:canonicalDigest(member.handle),fenceDigest:member.handle.fenceDigest,
+    }]});
+    assert.equal(reclaimed.receipt.scopeDigest,expectedScopeDigest);
+    assert.equal(reclamationReceiptValidator.validate(reclamationReceiptSchema.$id,reclaimed.receipt),reclaimed.receipt);
     state=value.store.inspectAftercareWorkspaceLifecycle('case-1');assert.equal(state.registry.state,'reclaimed');assert.equal(state.materials[0].state,'reclaimed');
+    assert.equal(state.materials[0].reclaimed_effect_receipt_digest,canonicalDigest(reclaimed.receipt));
     assert.equal(value.database.prepare(`SELECT COUNT(*) AS count FROM fx_effect_journal WHERE effect_class='arca_aftercare_workspace_reclaim'`).get().count,0);
     const replay=await value.store.reconcileAftercareWorkspaceLifecycle('case-1');assert.equal(replay.kind,'reclaimed');assert.equal(replay.receipt.receiptId,reclaimed.receipt.receiptId);
+  } finally {value.close();}
+});
+
+test('pre-fix Aftercare Receipt digest stays fail-closed instead of being upgraded by runtime replay', async () => {
+  const value=fixture();try{const member=value.registerMember('contract-drift.bin');value.store.terminateCase('case-1','unresolved','test_unresolved',digest('terminal-unresolved'));
+    value.setTime(10_000+RETENTION_MS);const reclaimed=await value.store.reconcileAftercareWorkspaceLifecycle('case-1');assert.equal(reclaimed.kind,'reclaimed');
+    const legacyReceipt=Object.freeze(Object.fromEntries(Object.entries(reclaimed.receipt).filter(([key])=>key!=='scopeDigest')));
+    assert.throws(()=>reclamationReceiptValidator.validate(reclamationReceiptSchema.$id,legacyReceipt),
+      (error)=>error.code==='P4_CAPABILITY_SCHEMA_REJECTED');
+    value.database.prepare('UPDATE fx_workspace_materials SET reclaimed_effect_receipt_digest=? WHERE workspace_id=? AND material_handle_id=?')
+      .run(canonicalDigest(legacyReceipt),'case-1',member.handle.handleId);
+    const persisted=value.store.inspectAftercareWorkspaceLifecycle('case-1');
+    assert.equal(persisted.registry.state,'reclaimed');assert.equal(persisted.materials[0].state,'reclaimed');
+    assert.equal(persisted.materials[0].reclaimed_effect_receipt_digest,canonicalDigest(legacyReceipt));
+    await assert.rejects(value.store.reconcileAftercareWorkspaceLifecycle('case-1'),
+      (error)=>error.code==='ARCA_AFTERCARE_WORKSPACE_RECLAIM_RECEIPT_DRIFT');
   } finally {value.close();}
 });
 

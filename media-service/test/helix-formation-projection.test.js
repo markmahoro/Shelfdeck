@@ -24,9 +24,10 @@ const {
   shelvingSteps,
 } = require('../src/helix/domains/libra/application/formation-query');
 const { createFormationProjectionStore } = require('../src/helix/domains/libra/persistence/formation-projection-store');
+const { formationProjectionDigest } = require('../src/helix/domains/libra/model/formation-projection-contract');
 const { createFormationProjectionHost } = require('../src/helix/domains/libra/application/formation-projection-host');
 const { plannedExecutionDeviceClass, projectedProgress } = require('../src/helix/foundation/execution/progress-projection-reader');
-const { canonicalJson } = require('../src/helix/contracts/canonical-json');
+const { canonicalDigest, canonicalJson } = require('../src/helix/contracts/canonical-json');
 
 const generatedRoot=path.resolve(__dirname,'../src/helix/foundation/persistence/generated');
 const schemaDdl=fs.readFileSync(path.join(generatedRoot,'clean-schema.sql'),'utf8');
@@ -246,6 +247,28 @@ test('execution progress converts SQLite safe integers before Formation JSON pro
   assert.deepEqual(progress,{mode:'determinate',currentValue:34,totalValue:100,unit:'percent',rate:2.5,
     etaMs:12000,bucket:'percent-34'});
   assert.doesNotThrow(()=>canonicalJson(progress));
+});
+
+test('Formation projection uses one digest contract for new writes and fails closed on persisted drift',()=>{
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'helix-formation-projection-digest-')),databasePath=path.join(root,'shelfdeck.db');
+  const kernel=openSqliteKernel({Database,databasePath,schemaDdl,schemaManifest,now:()=>100});
+  try{
+    kernel.runPrimitive(({prepare})=>{const insert=prepare(`INSERT INTO libra_subjects(subject_id,structure_kind,content_profile,routing_anchor_intake_decision_id,status,intake_revision,current_identity_revision,created_at_ms,updated_at_ms) VALUES(?,?,?,?,?,?,?,?,?)`);
+      insert.run('subject-000','single','movie',null,'active',1,null,1000,1000);
+      insert.run('subject-001','single','movie',null,'active',1,null,1001,1001);});
+    const store=createFormationProjectionStore({schemaManifest,unitOfWork:createSqliteUnitOfWork({kernel})});
+    const row=buildFormationProjectionRow(item(0,'in_progress'),3000);
+    assert.equal(row.projection_digest,formationProjectionDigest(row));
+    assert.throws(()=>store.upsert({...buildFormationProjectionRow(item(1,'in_progress'),3001),projection_digest:hex(999)}),
+      (error)=>error.code==='FORMATION_PROJECTION_WRITE_DIGEST_INVALID');
+    store.upsert(row);
+    kernel.runPrimitive(({prepare})=>prepare('UPDATE libra_formation_projections SET display_identity=? WHERE subject_id=?')
+      .run('drifted display value','subject-000'));
+    assert.throws(()=>store.upsert(row),(error)=>error.code==='FORMATION_PROJECTION_DIGEST_INVALID');
+    const persisted=store.find('subject-000');
+    assert.equal(persisted.display_identity,'drifted display value');
+    assert.notEqual(persisted.projection_digest,formationProjectionDigest(persisted));
+  }finally{kernel.close();fs.rmSync(root,{recursive:true,force:true,maxRetries:5,retryDelay:50});}
 });
 
 test('Formation four-bucket classification requires Arca commit and keeps an active Run in progress between stages',()=>{

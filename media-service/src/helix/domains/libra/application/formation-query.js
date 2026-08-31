@@ -2,6 +2,7 @@
 
 const { canonicalDigest, canonicalJson } = require('../../../contracts/canonical-json');
 const { createRepositoryDefinition } = require('../../../foundation/persistence/owner-repository');
+const { formationProjectionDigest } = require('../model/formation-projection-contract');
 const { buildFormationProcessDetail } = require('./formation-process-projection');
 
 const PAGE_SIZE = 100;
@@ -655,7 +656,7 @@ function buildFormationProjectionRow(item, nowMs) {
     current_offer_id: item.handoffB?.offerId || null, completed_at_ms: item.classification === 'completed' ? item.completedAtMs : null,
     basis_digest: canonicalDigest(basis), projection_digest: '', updated_at_ms: nowMs
   };
-  row.projection_digest = canonicalDigest(Object.fromEntries(Object.entries(row).filter(([key]) => !['projection_revision','projection_digest'].includes(key))));
+  row.projection_digest = formationProjectionDigest(row);
   return Object.freeze(row);
 }
 

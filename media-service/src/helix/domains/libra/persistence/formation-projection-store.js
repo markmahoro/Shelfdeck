@@ -1,30 +1,14 @@
 'use strict';
 
-const { canonicalDigest } = require('../../../contracts/canonical-json');
 const { createRepositoryDefinition } = require('../../../foundation/persistence/owner-repository');
+const {
+  FORMATION_PROJECTION_COLUMNS,
+  formationProjectionDigest,
+} = require('../model/formation-projection-contract');
 
 const TABLE_ID = 'libra_formation_projections';
-const COLUMNS = Object.freeze([
-  'subject_id', 'projection_revision', 'classification', 'attention_state', 'attention_priority', 'display_identity',
-  'content_profile', 'structure_kind', 'subject_status', 'my_rating', 'my_rating_source', 'my_rating_revision',
-  'target_shelf_id', 'target_shelf_name', 'routing_state', 'unresolved_reason_code', 'routing_policy_mode',
-  'routing_policy_revision', 'routing_decision_revision', 'routing_decision_digest', 'routing_decision_head_revision',
-  'routing_decision_head_digest', 'primary_material_count',
-  'organizing_requirement', 'organizing_action', 'added_at_ms', 'next_action_label', 'next_action_state',
-  'progress_mode', 'progress_current_value', 'progress_total_value', 'progress_unit', 'progress_rate', 'progress_eta_ms',
-  'progress_bucket', 'identity_issue_schema_ref', 'identity_issue_json', 'identity_issue_digest',
-  'current_acceptance_spec_id', 'current_acceptance_spec_revision', 'current_acceptance_spec_digest',
-  'current_libra_run_id', 'current_libra_run_state', 'current_libra_run_state_revision', 'current_libra_run_state_digest',
-  'current_priority_class', 'current_identity_revision', 'current_package_id', 'current_package_revision',
-  'current_package_digest', 'current_offer_id', 'completed_at_ms', 'basis_digest', 'projection_digest', 'updated_at_ms'
-]);
+const COLUMNS = FORMATION_PROJECTION_COLUMNS;
 const SET_COLUMNS = Object.freeze(COLUMNS.filter((column) => column !== 'subject_id'));
-
-function projectionDigest(row) {
-  return canonicalDigest(Object.fromEntries(COLUMNS
-    .filter((column) => !['projection_revision', 'projection_digest'].includes(column))
-    .map((column) => [column, typeof row[column] === 'bigint' ? Number(row[column]) : row[column] ?? null])));
-}
 
 function createFormationProjectionStore(options) {
   if (!options?.schemaManifest || !options.unitOfWork) throw new TypeError('Formation projection store requires persistence.');
@@ -59,7 +43,12 @@ function createFormationProjectionStore(options) {
   function upsert(row) {
     return options.unitOfWork.execute([{ participantId: 'libra_formation_projection_write', owner: 'libra', repositories: [repository], execute(context) {
       const repo = context.repository(repository.repositoryId), current = repo.invoke('find', { subject_id: row.subject_id });
-      if (current && current.projection_digest !== projectionDigest(current)) {
+      if (row.projection_digest !== formationProjectionDigest(row)) {
+        throw Object.assign(new Error('Formation projection write digest is invalid.'), {
+          code: 'FORMATION_PROJECTION_WRITE_DIGEST_INVALID', subjectId: row.subject_id
+        });
+      }
+      if (current && current.projection_digest !== formationProjectionDigest(current)) {
         throw Object.assign(new Error('Formation projection digest is invalid.'), {
           code: 'FORMATION_PROJECTION_DIGEST_INVALID', subjectId: row.subject_id
         });
