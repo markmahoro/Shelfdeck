@@ -3,7 +3,7 @@
 const { canonicalDigest, canonicalJson } = require('../../../contracts/canonical-json');
 const { createRepositoryDefinition } = require('../../../foundation/persistence/owner-repository');
 const { formationProjectionDigest } = require('../model/formation-projection-contract');
-const { buildFormationProcessDetail } = require('./formation-process-projection');
+const { buildFormationProcessDetail, currentPlanSummary } = require('./formation-process-projection');
 
 const PAGE_SIZE = 100;
 function parse(value) { try { return value ? JSON.parse(value) : null; } catch { return null; } }
@@ -515,7 +515,8 @@ function createFormationProjectionSource(options) {
     const shelfNames = new Map((options.readShelfTargets?.() || []).map((item) => [item.shelfId, item.name]));
     const externalIntegrationReady = typeof options.isExternalMaterialIntegrationReady === 'function'
       ? options.isExternalMaterialIntegrationReady() === true : null;
-    const actualPlanProcessIds = buildOptions.includeProcessDetail === true ? unique([
+    const includeActualPlans = buildOptions.includeProcessDetail === true || buildOptions.includeProcessSummary === true;
+    const actualPlanProcessIds = includeActualPlans ? unique([
       ...prepared.map((item)=>item.snapshot?.candidatePackage?.procurementRunId),
       ...value.decisions.map((item)=>item.intake_decision_id), ...subjects.map((item)=>item.subject_id),
       ...runIds, ...offerIds, ...onDeckRunIds,
@@ -552,7 +553,7 @@ function createFormationProjectionSource(options) {
       const onDeckWorks = arcaStatus?.onDeckRunId ? onDeckByRun.get(arcaStatus.onDeckRunId) || [] : [];
       const primaryCount = snapshot?.primaryInputManifest?.members?.length ||
         bindings.filter((item) => item.authority_kind === 'primary_control').length;
-      const detail = buildOptions.includeProcessDetail === true ? buildFormationProcessDetail({ displayIdentity,
+      const detail = includeActualPlans ? buildFormationProcessDetail({ displayIdentity,
         targetShelfName:shelfNames.get(routing?.shelf_id) || null, works:actualPlanWorks,
         procurementScopes:snapshot?.candidatePackage?.procurementRunId ? [
           { processType:'procurement_run', processId:snapshot.candidatePackage.procurementRunId,
@@ -570,7 +571,10 @@ function createFormationProjectionSource(options) {
           ...(arcaStatus?.onDeckRunId ? [{ processType:'arca_ondeck_run', processId:arcaStatus.onDeckRunId }] : []),
         ],
       }) : undefined;
-      return Object.freeze({ formationViewId: subject.subject_id, subjectId: subject.subject_id, displayIdentity, contentProfile: subject.content_profile, structureKind: subject.structure_kind, status: subject.status, classification, myRating: rating?.rating ?? null, myRatingSource: rating?.sourceKind || null, myRatingRevision: (rating?.expectedRevision || 0) > 0 ? rating.expectedRevision : null, ratingState:rating?.state || 'pending', ratingResolutionStatus:rating?.resolutionStatus || null, ratingReasonCode:rating?.reasonCode || null, productIdentityIssue: issue, acceptanceRecovery: recovery, arcaStatus, processDetail:detail, targetShelfId: routing?.shelf_id || null, targetShelfName: shelfNames.get(routing?.shelf_id) || null, routingState: routing?.decision || 'preparing', unresolvedReasonCode: routing?.unresolved_reason_code || null, routingPolicyMode: policy?.mode || null, routingPolicyRevision: routing?.routing_policy_revision == null ? null : Number(routing.routing_policy_revision), routingDecisionRevision: routing ? Number(routing.decision_revision) : null, routingDecisionDigest: routing?.decision_digest || null, routingDecisionHeadRevision: head ? Number(head.head_revision) : null, routingDecisionHeadDigest: head?.head_digest || null, acceptanceSpecId: spec?.acceptance_spec_id || null, acceptanceSpecRevision: spec ? Number(spec.spec_revision) : null, acceptanceSpecDigest: spec?.spec_digest || null, acceptanceSpecPublishedAtMs: spec ? Number(spec.published_at_ms) : null, primaryMaterialCount: primaryCount, addedAtMs: Number(subject.created_at_ms), organizingRequirement: requirementLabel(spec), organizingAction: actionLabel(actionWorks, spec, stepOptions), organizingSteps: steps, nextAction: nextAction(works, classification, issue, run?.state, recovery, arcaStatus, pkg, latestRun?.state || null, waitingExternalIntegration, terminalEvidence, spec, onDeckWorks), currentRun: run ? Object.freeze({ libraRunId: run.libra_run_id, state: run.state, stateRevision: Number(run.state_revision), stateDigest: run.state_digest, priorityClass: run.priority_class, packageRevisionHead: Number(run.package_revision_head), currentIdentityRevision: subject.current_identity_revision === null ? null : Number(subject.current_identity_revision) }) : null, handoffB: pkg ? Object.freeze({ onDeckPackageId: pkg.on_deck_package_id, offerId: pkg.offer_id, packageRevision: Number(pkg.package_revision), packageDigest: pkg.package_digest, state: pkg.state, publishedAtMs: Number(pkg.published_at_ms) }) : null, completedAtMs: arcaStatus?.stage === 'completed' ? arcaStatus.completedAtMs : null });
+      return Object.freeze({ formationViewId: subject.subject_id, subjectId: subject.subject_id, displayIdentity, contentProfile: subject.content_profile, structureKind: subject.structure_kind, status: subject.status, classification, myRating: rating?.rating ?? null, myRatingSource: rating?.sourceKind || null, myRatingRevision: (rating?.expectedRevision || 0) > 0 ? rating.expectedRevision : null, ratingState:rating?.state || 'pending', ratingResolutionStatus:rating?.resolutionStatus || null, ratingReasonCode:rating?.reasonCode || null, productIdentityIssue: issue, acceptanceRecovery: recovery, arcaStatus,
+        processDetail:buildOptions.includeProcessDetail === true ? detail : undefined,
+        currentPlan:detail ? currentPlanSummary(detail) : undefined,
+        targetShelfId: routing?.shelf_id || null, targetShelfName: shelfNames.get(routing?.shelf_id) || null, routingState: routing?.decision || 'preparing', unresolvedReasonCode: routing?.unresolved_reason_code || null, routingPolicyMode: policy?.mode || null, routingPolicyRevision: routing?.routing_policy_revision == null ? null : Number(routing.routing_policy_revision), routingDecisionRevision: routing ? Number(routing.decision_revision) : null, routingDecisionDigest: routing?.decision_digest || null, routingDecisionHeadRevision: head ? Number(head.head_revision) : null, routingDecisionHeadDigest: head?.head_digest || null, acceptanceSpecId: spec?.acceptance_spec_id || null, acceptanceSpecRevision: spec ? Number(spec.spec_revision) : null, acceptanceSpecDigest: spec?.spec_digest || null, acceptanceSpecPublishedAtMs: spec ? Number(spec.published_at_ms) : null, primaryMaterialCount: primaryCount, addedAtMs: Number(subject.created_at_ms), organizingRequirement: requirementLabel(spec), organizingAction: actionLabel(actionWorks, spec, stepOptions), organizingSteps: steps, nextAction: nextAction(works, classification, issue, run?.state, recovery, arcaStatus, pkg, latestRun?.state || null, waitingExternalIntegration, terminalEvidence, spec, onDeckWorks), currentRun: run ? Object.freeze({ libraRunId: run.libra_run_id, state: run.state, stateRevision: Number(run.state_revision), stateDigest: run.state_digest, priorityClass: run.priority_class, packageRevisionHead: Number(run.package_revision_head), currentIdentityRevision: subject.current_identity_revision === null ? null : Number(subject.current_identity_revision) }) : null, handoffB: pkg ? Object.freeze({ onDeckPackageId: pkg.on_deck_package_id, offerId: pkg.offer_id, packageRevision: Number(pkg.package_revision), packageDigest: pkg.package_digest, state: pkg.state, publishedAtMs: Number(pkg.published_at_ms) }) : null, completedAtMs: arcaStatus?.stage === 'completed' ? arcaStatus.completedAtMs : null });
     });
   }
   function scan(visitor) {
@@ -589,7 +593,10 @@ function createFormationProjectionSource(options) {
     return found;
   }
   function getMany(subjectIds) { return buildBatch(subjectIds.map(readSubject).filter(Boolean)); }
-  return Object.freeze({ readPage, readSubject, findSubjectByRun, buildBatch, scan, get, getMany });
+  function getManyWithProcessSummary(subjectIds) {
+    return buildBatch(subjectIds.map(readSubject).filter(Boolean), { includeProcessSummary:true });
+  }
+  return Object.freeze({ readPage, readSubject, findSubjectByRun, buildBatch, scan, get, getMany, getManyWithProcessSummary });
 }
 
 function isIdleAfterUserAbandon(item) {
@@ -746,6 +753,13 @@ function createFormationQuery(options) {
     const fresh = new Map(options.detailSource.getMany(items.map((item)=>item.subjectId)).map((item)=>[item.subjectId,item]));
     return items.map((item)=>{const value=fresh.get(item.subjectId);return value ? Object.freeze({ ...item, ...value }) : item;});
   }
+  function currentProcessFacts(items) {
+    if (!options.detailSource?.getManyWithProcessSummary || !items.length) return items;
+    const fresh = new Map(options.detailSource.getManyWithProcessSummary(items.map((item)=>item.subjectId))
+      .map((item)=>[item.subjectId,item.currentPlan || null]));
+    return items.map((item)=>fresh.has(item.subjectId)
+      ? Object.freeze({ ...item, currentPlan:fresh.get(item.subjectId) }) : item);
+  }
   function countHiddenActive() {
     const hidden = { pending:0, in_progress:0, attention_required:0, total:0 };
     if (typeof options.store.listActiveScan !== 'function' && typeof options.store.listActive !== 'function') return hidden;
@@ -887,7 +901,7 @@ function createFormationQuery(options) {
           changes.push(Object.freeze({subjectId:row.subject_id,from:row.classification,to:'attention_required'}));
         }
       }
-      return Object.freeze({ items: Object.freeze(fresh.filter((item)=>item.classification === 'completed')), summary: summary(changes),
+      return Object.freeze({ items: Object.freeze(currentProcessFacts(fresh.filter((item)=>item.classification === 'completed'))), summary: summary(changes),
         nextCursor: hasMore ? cursorFor(offset + limit) : null, projection: Object.freeze({ status: state.status, asOfMs: state.asOfMs }) });
     }
     const filters = activeFilters(query);
@@ -907,7 +921,8 @@ function createFormationQuery(options) {
     }
     const windowed = requiresFullScan ? items.slice(offset) : items;
     const hasMore = windowed.length > limit, selected = hasMore ? windowed.slice(0, limit) : windowed;
-    return Object.freeze({ items: Object.freeze(requiresFullScan ? selected : currentFacts(selected)), summary: summary(changes),
+    const selectedWithCurrentFacts=requiresFullScan ? selected : currentFacts(selected);
+    return Object.freeze({ items: Object.freeze(currentProcessFacts(selectedWithCurrentFacts)), summary: summary(changes),
       nextCursor: hasMore ? cursorFor(offset + limit) : null, projection: Object.freeze({ status: state.status, asOfMs: state.asOfMs }) });
   }
   function get(subjectId) {

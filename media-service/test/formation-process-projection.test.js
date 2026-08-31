@@ -6,7 +6,7 @@ const os=require('node:os');
 const path=require('node:path');
 const test=require('node:test');
 const Database=require('better-sqlite3');
-const {buildFormationProcessDetail,projectPlans}=require('../src/helix/domains/libra/application/formation-process-projection');
+const {buildFormationProcessDetail,currentPlanSummary,projectPlans}=require('../src/helix/domains/libra/application/formation-process-projection');
 const {createExecutionProgressProjectionReader}=require('../src/helix/foundation/execution/progress-projection-reader');
 const {openSqliteKernel}=require('../src/helix/foundation/persistence/sqlite-kernel');
 const {createSqliteUnitOfWork}=require('../src/helix/foundation/persistence/sqlite-unit-of-work');
@@ -42,6 +42,63 @@ test('Formation process projection preserves durable Plan boundaries and depende
   assert.deepEqual(plans.map((plan)=>plan.planId),['plan-a','plan-b']);
   assert.deepEqual(plans[1].nodes.map((node)=>node.nodeId),['first','second']);
   assert.equal(plans[1].state,'running');
+});
+
+test('Formation process projection treats a completed compliance check as completed and names each media Plan by its work',()=>{
+  const earlier=Array.from({length:10},(_value,index)=>{
+    const item=work('libra','libra_run','run-1','product_identity',[
+      event(`plan-${index+1}`,'identity','libra.product_identity.resolve@1','succeeded',index+1,[],{
+        result:{outcomeKind:'succeeded',result:{result:'resolved'}},
+      }),
+    ]);
+    item.workId=`work-${index+1}`; item.state='succeeded'; return item;
+  });
+  const media=[
+    work('libra','libra_run','run-1','workspace_media_production',[
+      event('plan-11','probe','shared.material.media.probe@1','succeeded',11,[],{
+        result:{outcomeKind:'succeeded',result:{resultKind:'probed',sizeBytes:10773491271}},
+      }),
+    ]),
+    work('libra','libra_run','run-1','workspace_media_production',[
+      event('plan-12','verify','libra.product_media.verify@1','succeeded',12,[],{
+        result:{outcomeKind:'succeeded',result:{result:'failed',reasonCodes:['max_size_exceeded'],
+          spaceSummary:{actualSizeBytes:10773491271,maxSizeBytes:8589934592,withinLimit:false}}},
+      }),
+      event('plan-12','select','libra.product_output.select@1','succeeded',12,[],{
+        result:{outcomeKind:'succeeded',result:{result:'not_selected'}},
+      }),
+    ]),
+    work('libra','libra_run','run-1','workspace_media_production',[
+      event('plan-13','verify-input','libra.transcode.input.verify@1','succeeded',13,[],{
+        result:{outcomeKind:'succeeded',result:{result:'passed'}},
+      }),
+    ]),
+    work('libra','libra_run','run-1','workspace_media_production',[
+      event('plan-14','transcode','libra.media.transcode@1','waiting_for_resource',14),
+      event('plan-14','probe-output','shared.material.media.probe@1','pending',14),
+      event('plan-14','verify-output','libra.product_media.verify@1','pending',14),
+      event('plan-14','select-output','libra.product_output.select@1','pending',14),
+    ]),
+  ];
+  media.forEach((item,index)=>{item.workId=`media-work-${index+11}`;item.state=index===3?'running':'succeeded';});
+  const detail=buildFormationProcessDetail({displayIdentity:'冰血暴 (1996)',works:[...earlier,...media],
+    procurementScopes:[],libraScopes:[{processType:'libra_run',processId:'run-1'}],arcaScopes:[]});
+  const plans=detail.stages[1].plans;
+  assert.deepEqual(plans.slice(10).map((plan)=>plan.title),[
+    '读取原始媒体信息','判断原片是否可以直接使用','确认视频处理方式','处理媒体文件',
+  ]);
+  assert.equal(plans[11].state,'completed');
+  assert.ok(plans[11].nodes.every((node)=>node.state==='completed'));
+  assert.deepEqual(plans[11].nodes.find((node)=>node.nodeId==='verify').results.slice(0,4),[
+    {label:'检查结果',value:'未通过'},
+    {label:'文件大小',value:'10.0 GiB'},
+    {label:'收藏上限',value:'8.00 GiB'},
+    {label:'核对说明',value:'文件超过收藏架允许的大小'},
+  ]);
+  assert.deepEqual(currentPlanSummary(detail),{
+    stageKey:'media_organization',planId:'plan-14',planNumber:14,title:'处理媒体文件',
+    label:'计划14 处理媒体文件',state:'running',statusText:'等待处理资源',progress:null,
+  });
 });
 
 test('Formation process card receives only actual Plans from exact domain process scopes',()=>{
@@ -127,9 +184,12 @@ test('Formation Candidate scope keeps strict single-field matching on the publis
 test('Formation frontend renders backend Plans without an organizingSteps Plan fallback',()=>{
   const source=fs.readFileSync(path.resolve(__dirname,'../web/src/helix/FormationPage.tsx'),'utf8');
   const processDetail=source.slice(source.indexOf('function ProcessDetail'),source.indexOf('export default function FormationPage'));
+  const mediaRow=source.slice(source.indexOf('function MediaRow'));
   assert.match(processDetail,/detail\.stages\.map/);
   assert.doesNotMatch(processDetail,/organizingSteps|mediaOrganization\.steps|ChecklistSteps/);
   assert.match(processDetail,/页面不会根据状态推测或补造计划/);
+  assert.match(mediaRow,/currentProgressLabel\(item\)/);
+  assert.doesNotMatch(mediaRow,/organizingSteps/);
 });
 
 test('execution progress reader exposes persisted Plan envelopes, including an empty no-effect Plan',()=>{

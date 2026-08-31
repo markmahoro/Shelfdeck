@@ -183,6 +183,10 @@ describe('Helix primary copy and workbench structure', () => {
         state: 'running',
         progress: { mode: 'determinate', currentValue: 40, totalValue: 100, unit: 'percent', rate: null, etaMs: null, bucket: 'transcode' },
       }],
+      currentPlan: {
+        stageKey:'media_organization',planId:'plan-14',planNumber:14,title:'处理媒体文件',
+        label:'计划14 处理媒体文件',state:'running',statusText:'等待处理资源',progress:null,
+      },
       nextAction: { label: '继续整理媒体', state: 'running', progress: null },
       currentRun: {
         libraRunId: 'run-1', state: 'active', stateRevision: 1, stateDigest: 'd',
@@ -201,7 +205,9 @@ describe('Helix primary copy and workbench structure', () => {
     expect(screen.getByRole('columnheader', { name: '当前进展' })).toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: '用户操作' })).toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: '加急' })).toBeInTheDocument();
-    expect(screen.getByText('GPU转码 · HEVC · 4k · 不超过 20 GiB')).toBeInTheDocument();
+    expect(screen.getByText('计划14 处理媒体文件')).toBeInTheDocument();
+    expect(screen.getByText('等待处理资源')).toBeInTheDocument();
+    expect(screen.queryByText('GPU转码 · HEVC · 4k · 不超过 20 GiB')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: '加急 示例电影 (2024)' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /全部/ })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /待整理/ })).toBeInTheDocument();

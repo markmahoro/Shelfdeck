@@ -57,7 +57,7 @@ const WORK_TITLES = Object.freeze({
   artifact_production:'制作影片资料文件', product_sidecar_render:'制作影片资料文件',
   product_artifact_acquisition:'取得影片图片', artifact_verification:'检查影片资料文件',
   product_fact_assembly:'整理演职员和影片信息', source_media_observation:'检查原始媒体',
-  workspace_media_production:'处理媒体文件', product_conformance:'检查最终媒体产品',
+  product_conformance:'检查最终媒体产品',
   deliverable_promotion:'将媒体产品交给收藏架', acceptance_assessment:'检查媒体产品是否可以上架',
   acceptance_commit:'接收媒体产品', acceptance_rejection:'记录验收未通过',
   on_deck_execution:'将媒体写入收藏架',
@@ -98,7 +98,7 @@ function humanValue(value) {
 }
 function humanReason(value) {
   const reason=String(value || '');
-  const exact={size_cap_exceeded:'文件超过收藏架允许的大小',minimum_raster_unmet:'画面清晰度未达到要求',
+  const exact={size_cap_exceeded:'文件超过收藏架允许的大小',max_size_exceeded:'文件超过收藏架允许的大小',minimum_raster_unmet:'画面清晰度未达到要求',
     video_codec_unmet:'视频格式未达到要求',metadata_field_unmet:'缺少收藏要求中的影片资料',
     primary_audio_unmet:'主要音轨未达到要求',product_metadata_required_cast_missing:'缺少收藏要求中的演员资料',
     CLEAN_ARCA_FINAL_REALITY_DRIFT:'最终文件状态与本次计划记录不一致',
@@ -122,14 +122,16 @@ function resultFacts(event) {
   const result=valueAt(value,['result','resultKind','outcome','decision','receiptKind']);
   const reason=valueAt(value,['reasonCode','selectionReasonCode','failureCode','code']);
   const count=valueAt(value,['memberCount','primaryCount','candidateMatchCount','matchedCount']);
-  const size=valueAt(value,['sizeBytes','physicalIdentity.sizeBytes','workspaceMaterialHandle.sizeBytes','mediaSummary.sizeBytes']);
+  const size=valueAt(value,['spaceSummary.actualSizeBytes','sizeBytes','physicalIdentity.sizeBytes','workspaceMaterialHandle.sizeBytes','mediaSummary.sizeBytes']);
+  const maxSize=valueAt(value,['spaceSummary.maxSizeBytes']);
   const duration=valueAt(value,['durationMs','mediaSummary.durationMs']);
   const video=(value.videoStreams || value.mediaSummary?.videoStreams || [])[0];
   const audio=(value.audioStreams || value.mediaSummary?.audioStreams || [])[0];
   addFact(facts,'获得的信息',title && year ? `${title}（${year}）` : title);
-  addFact(facts,'运行结果',result === null ? null : humanValue(result));
+  addFact(facts,/verify|inspect|assess/.test(event.capabilityRef) ? '检查结果' : '运行结果',result === null ? null : humanValue(result));
   addFact(facts,'数量',count);
   addFact(facts,'文件大小',formatBytes(size));
+  addFact(facts,'收藏上限',formatBytes(maxSize));
   addFact(facts,'时长',formatDuration(duration));
   if (video) {
     const codec=valueAt(video,['codecName','codec','codec_name']), width=valueAt(video,['displayWidth','width','codedWidth']), height=valueAt(video,['displayHeight','height','codedHeight']);
@@ -174,13 +176,24 @@ function transcodeDetails(event) {
     fields:Object.freeze(fields), parameters:Object.freeze(parameters) });
 }
 function nodeState(event) {
-  const value=event.result?.result;
-  if (event.result?.outcomeKind==='failed' || event.state==='failed' || value?.result==='failed' || value?.resultKind==='not_available') return 'failed';
+  if (event.result?.outcomeKind==='failed' || event.state==='failed') return 'failed';
   if (event.state==='cancelled') return 'cancelled';
   if (event.state==='skipped') return 'skipped';
   if (event.state==='succeeded' || event.result?.outcomeKind==='succeeded') return 'completed';
   if (['ready','executing','waiting_for_resource','waiting_for_external','waiting_for_approval'].includes(event.state)) return 'running';
   return 'pending';
+}
+function nodeStatusText(event, state) {
+  if (state==='completed') return '已完成';
+  if (state==='failed') return '执行失败';
+  if (state==='cancelled') return '未执行';
+  if (state==='skipped') return '无需执行';
+  if (event.state==='waiting_for_resource') return '等待处理资源';
+  if (event.state==='waiting_for_external') return '等待外部服务';
+  if (event.state==='waiting_for_approval') return '等待确认';
+  if (event.state==='executing') return '正在执行';
+  if (event.state==='ready') return '准备执行';
+  return state==='running' ? '进行中' : '等待前序步骤';
 }
 function topologicalEvents(events, edges) {
   const byId=new Map(events.map((event)=>[event.nodeId,event])), indegree=new Map(events.map((event)=>[event.nodeId,0])), next=new Map();
@@ -213,6 +226,21 @@ function description(event, state, copy) {
   if (state==='running') return event.capabilityRef==='libra.media.transcode@1' ? '正在生成符合收藏要求的新版本。' : 'ShelfDeck 正在执行这一步。';
   return '等待前置步骤完成后执行。';
 }
+function workspaceMediaPlanTitle(events, nodes) {
+  const capabilities=new Set(events.map((event)=>event.capabilityRef));
+  if (capabilities.has('libra.media.transcode@1')) return '处理媒体文件';
+  if (capabilities.has('libra.media.remux@1')) return '重新封装媒体文件';
+  if (capabilities.has('libra.transcode.input.verify@1')) return '确认视频处理方式';
+  if (capabilities.has('libra.product_media.verify@1') && capabilities.has('libra.product_output.select@1')) {
+    return '判断原片是否可以直接使用';
+  }
+  if (capabilities.has('shared.material.media.probe@1')) return '读取原始媒体信息';
+  return nodes[0]?.label || '处理媒体文件';
+}
+function planTitle(work, events, nodes) {
+  if (work.workKind==='workspace_media_production') return workspaceMediaPlanTitle(events,nodes);
+  return WORK_TITLES[work.workKind] || nodes[0]?.label || readableToken(work.workKind);
+}
 function projectPlans(works) {
   const groups=new Map();
   for (const work of works) {
@@ -225,10 +253,11 @@ function projectPlans(works) {
     const nodes=topologicalEvents(group.events,group.plan.edges).map((event)=>{
       const state=nodeState(event), copy=CAPABILITY_COPY[event.capabilityRef] || [readableToken(event.capabilityRef),'该步骤的实际运行结果已保存。'];
       return Object.freeze({ nodeId:event.nodeId, label:copy[0], description:description(event,state,copy), state,
+        statusText:nodeStatusText(event,state),
         progress:event.progress || null, results:resultFacts(event), technicalDetail:transcodeDetails(event) });
     });
     const state=planState(nodes,group.plan.state);
-    return Object.freeze({ planId:group.plan.planId, title:WORK_TITLES[group.work.workKind] || nodes[0]?.label || readableToken(group.work.workKind),
+    return Object.freeze({ planId:group.plan.planId, title:planTitle(group.work,group.events,nodes),
       state, createdAtMs:group.plan.createdAtMs, nodes:Object.freeze(nodes) });
   }));
 }
@@ -285,4 +314,20 @@ function buildFormationProcessDetail(input) {
   ]) });
 }
 
-module.exports=Object.freeze({ buildFormationProcessDetail, nodeState, projectPlans, resultFacts, transcodeDetails });
+function currentPlanSummary(detail) {
+  const stages=detail?.stages || [];
+  const stage=stages.find((item)=>item.state==='running') || stages.find((item)=>item.state==='attention');
+  if (!stage) return null;
+  let planIndex=-1;
+  for (let index=stage.plans.length-1;index>=0;index-=1) {
+    if (stage.plans[index].state===stage.state) { planIndex=index; break; }
+  }
+  if (planIndex<0) return null;
+  const plan=stage.plans[planIndex];
+  const node=plan.nodes.find((item)=>item.state==='running'||item.state==='failed') || plan.nodes.at(-1) || null;
+  return Object.freeze({ stageKey:stage.key, planId:plan.planId, planNumber:planIndex+1, title:plan.title,
+    label:'计划'+(planIndex+1)+' '+plan.title, state:plan.state, statusText:node?.statusText || null,
+    progress:node?.progress || null });
+}
+
+module.exports=Object.freeze({ buildFormationProcessDetail, currentPlanSummary, nodeState, projectPlans, resultFacts, transcodeDetails });

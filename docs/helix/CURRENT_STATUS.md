@@ -61,7 +61,10 @@ PROD-034 已按 Product Owner 授权对“唐人街探案 (2015)”和“赤壁�
 - 上述两项已随 `91f990609c` 无损部署。生产详情已收敛到约 14–25 KiB，材料准备只保留当前 Candidate 的一个真实 Plan；同一 On-deck Run 已产生第三代 running Work，没有重开 Libra 或第二个 Run。
 - 第三代 Work 的首个 Event 随后持续停在 `ready`。只读诊断确认不是 16 个 Event 并发上限：仅 6 个 Event Attempt executing。真正原因是两个更早的 `waiting_for_resource` 转码 Event 持续排在队首；Scheduler 用 100ms wall-clock cooldown 防重复，而生产一次 SQLite 调度扫描可超过 100ms，于是同一 waiter 每轮重新获选并饿死后续 Event。现改为 scheduling-round fairness：一个资源 waiter 每轮只尝试一次，其他 eligible Event 必须获得机会；整轮耗尽后再由 bounded fallback 开启下一轮。
 - 过程卡片另有独立聚合错误：旧 failed Work 先于当前 running successor 判定，导致阶段显示 `attention` 而整体仍为 `in_progress`。现在当前 `admitted|ready|running` 后继 Work 决定阶段为进行中；旧失败 Plan 仍原样保留在展开结果中，不被覆盖或删除。
+- 《冰血暴 (1996)》生产只读证据进一步确认：计划12执行链全部 `succeeded`，只是媒体合规检查返回`max_size_exceeded`（原片约10.03 GiB、收藏上限8 GiB），随后真实计划13确认处理方式、计划14等待转码资源。旧过程投影把Result payload中的`result:"failed"`误当成Runtime失败；本地现只按Event/Outcome执行事实确定Plan状态，计划12显示已完成并保留“不符合要求”的真实检查结论。
+- 一级页“当前进展”此前虽不是React生成Plan，但仍由`nextAction + organizingSteps`这套旧后端表达驱动，与过程卡片的真实Plan分离。现在列表只为当前页有界读取同一真实Plan投影的编号、标题、状态和进度摘要；前端只渲染`currentPlan`，没有第二套Plan生成或`organizingSteps`回退。媒体生产计划标题按真实工作区分，冰血暴计划11–14依次为“读取原始媒体信息 / 判断原片是否可以直接使用 / 确认视频处理方式 / 处理媒体文件”。
 - 本地 focused 109/109；Service full 402 项为 384 pass、18 skip、0 fail。P4 Runtime gate 仍只被 main 既有 `formation-process-projection.js` 与 `progress-projection-reader.js` dynamic-template scanner findings 阻断。本轮 follow-up 未部署、未编辑生产数据库、未 Reset、未创建新 On-deck Run 或重开 Libra。
+- 本次Plan语义/列表同源增量 focused 42/42、Admin Web 38/38、production build通过。Service full 403项为384 pass、18 skip、1个与本改动无关的FFmpeg stall-watchdog并发时序失败，单独重跑1/1通过；Architecture aggregate仍有既有Entry HTTP环境失败与既有dynamic-template scanner findings。本增量未部署，也未写生产数据库。
 
 ## PROD-035 Production Monitoring
 

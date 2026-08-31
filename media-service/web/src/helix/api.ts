@@ -254,6 +254,16 @@ export type FormationSubject = {
     state: 'pending' | 'running' | 'done' | 'blocked';
     progress: null | { mode:'determinate'|'indeterminate'; currentValue:number|null; totalValue:number|null; unit:string|null; rate:number|null; etaMs:number|null; bucket:string };
   }>;
+  currentPlan?: null | {
+    stageKey:'material_preparation'|'media_organization'|'acceptance_shelving';
+    planId:string;
+    planNumber:number;
+    title:string;
+    label:string;
+    state:'completed'|'running'|'attention'|'pending';
+    statusText:string|null;
+    progress:FormationSubject['organizingSteps'][number]['progress'];
+  };
   processDetail?: {
     contract: 'formation_process_actual_plans@1';
     stages: Array<{
@@ -272,6 +282,7 @@ export type FormationSubject = {
           label:string;
           description:string;
           state:'completed'|'running'|'failed'|'cancelled'|'skipped'|'pending';
+          statusText?:string;
           progress:FormationSubject['organizingSteps'][number]['progress'];
           results:Array<{label:string;value:string}>;
           technicalDetail:null|{
