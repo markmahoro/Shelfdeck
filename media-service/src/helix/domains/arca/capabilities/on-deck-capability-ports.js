@@ -102,6 +102,21 @@ function nfoPresentationBasis(c){
       (metadata.providerIdentities||[]).find((item)=>item.namespace==='tmdb_movie');
   return Object.freeze({metadata,cast,identity:providerIdentity?Object.freeze({provider:'tmdb',providerKey:String(providerIdentity.providerKey)}):null});
 }
+function priorOnDeckPlacementReceipt(options,execution,targetCommitSlotId=null){
+  if(execution?.ownerScope?.processType!=='arca_ondeck_run')return null;
+  const processId=execution.ownerScope.processId,works=options.workResultReader.listWorks({ownerDomain:'arca',processType:'arca_ondeck_run',
+    processId,workKind:'on_deck_execution'}).slice().sort((left,right)=>Number(right.updated_at_ms)-Number(left.updated_at_ms)||
+      String(right.work_id).localeCompare(String(left.work_id)));
+  for(const work of works){
+    const result=options.workResultReader.read(work.work_id).find((item)=>item.capabilityRef===C.placement&&item.outcomeKind==='succeeded'&&
+      item.result?.schemaRef==='helix://contracts/types/PlacementSwitchReceipt/v1'&&item.result.schemaVersion===1&&
+      item.result.receiptKind==='placement_switched'&&item.result.ownerDomain==='arca'&&item.result.scopeType==='on_deck_run'&&
+      item.result.scopeId===processId&&item.result.transactionRevision===1&&
+      (!targetCommitSlotId||item.result.targetCommitSlotId===targetCommitSlotId));
+    if(result)return result.result;
+  }
+  return null;
+}
 function finalMemberEvidence(reality){return Object.freeze(reality.memberEvidence.map((item)=>Object.freeze({...item})));}
 function spaceGaps(c,requirement){const maximum=requirement.maxSizeBytes,total=(c.packageValue.productMaterialManifest?.members||[])
   .filter((item)=>item.role==='primary_payload').reduce((sum,item)=>sum+Number(item.sizeBytes||0),0);
@@ -261,7 +276,8 @@ function createOnDeckCapabilityPorts(options){const now=options.now||Date.now,ac
   ports[C.stage]=Object.freeze({validateInputs(c){requireNamed(c,['productMaterialHandleList','targetCommitSlotHandle']);},async execute(execution){const c=ctx(execution),at=effectAt(execution),aftercare=aftercareRequest(execution,c,at),staged=await options.inventoryPort.stage({
     ...(aftercare||{
     onDeckRunId:c.responsibility.onDeckRunId,custodyId:c.responsibility.custodyId,shelf:c.shelf,onDeckProductPackage:c.packageValue,
-    finalInventoryDecision:c.finalInventoryDecision,observedAtMs:at,replayCommitted:execution.recoveryDecision==='already_committed',replaySettledSources:true}),targetCommitSlotHandle:execution.namedInputs.targetCommitSlotHandle,
+    finalInventoryDecision:c.finalInventoryDecision,observedAtMs:at,replayCommitted:execution.recoveryDecision==='already_committed',replaySettledSources:true,
+    nfoPresentationBasis:nfoPresentationBasis(c),priorPlacementReceipt:priorOnDeckPlacementReceipt(options,execution,execution.namedInputs.targetCommitSlotHandle.slotId)}),targetCommitSlotHandle:execution.namedInputs.targetCommitSlotHandle,
     ...(aftercare?{shouldContinue:aftercareShouldContinue(execution,aftercare.aftercareCaseId)}:{})});
     if(aftercare)readAftercarePlacementAuthority(options,execution,aftercare.aftercareCaseId);
     else onDeck.acquireStagedCustody({
@@ -272,7 +288,8 @@ function createOnDeckCapabilityPorts(options){const now=options.now||Date.now,ac
   ports[C.stagedVerify]=Object.freeze({validateInputs(c){requireNamed(c,['stagedManifest','finalInventoryDecision']);},async execute(execution){
     const c=ctx(execution),n=execution.namedInputs,request=aftercareRequest(execution,c)||{onDeckRunId:c.responsibility.onDeckRunId,
       custodyId:c.responsibility.custodyId,shelf:c.shelf,onDeckProductPackage:c.packageValue,finalInventoryDecision:c.finalInventoryDecision,
-      observedAtMs:now(),replayCommitted:false,replaySettledSources:true};
+      observedAtMs:now(),replayCommitted:false,replaySettledSources:true,nfoPresentationBasis:nfoPresentationBasis(c),
+      priorPlacementReceipt:priorOnDeckPlacementReceipt(options,execution,n.stagedManifest.targetCommitSlotId)};
     const aftercare=execution.ownerScope.processType==='arca_shelf_entry',result=await options.inventoryPort.verifyStaged({...request,finalInventoryDecision:n.finalInventoryDecision,
       stagedInventoryManifest:n.stagedManifest,...(aftercare?{shouldContinue:aftercareShouldContinue(execution,request.aftercareCaseId)}:{})});
     if(aftercare)readAftercarePlacementAuthority(options,execution,request.aftercareCaseId);
@@ -298,7 +315,8 @@ function createOnDeckCapabilityPorts(options){const now=options.now||Date.now,ac
     const body=await options.inventoryPort.switchPlacement({onDeckRunId:c.responsibility.onDeckRunId,custodyId:c.responsibility.custodyId,shelf:c.shelf,
       onDeckProductPackage:c.packageValue,finalInventoryDecision:c.finalInventoryDecision,stagedInventoryVerification:n.verifiedStagedManifest,
       targetBindings:n.targetBindings,replacedInputSetDigest:canonicalDigest(c.packageValue.offloadContextManifest.members),observedAtMs:at,
-      replayCommitted:execution.recoveryDecision==='already_committed',replaySettledSources:true});
+      replayCommitted:execution.recoveryDecision==='already_committed',replaySettledSources:true,nfoPresentationBasis:nfoPresentationBasis(c),
+      priorPlacementReceipt:priorOnDeckPlacementReceipt(options,execution)});
     return committedOutcome(execution,C.placement,body,at,'material_commit');},
     validateResult(_c,o){if(o?.result?.receiptKind!=='placement_switched')throw new TypeError('Placement Switch Receipt is invalid.');}});
   ports[C.settlement]=Object.freeze({validateInputs(c){requireNamed(c,['oldPrimaryStructuralExclusiveRelatedHandleList','inputSettlementApproval']);},async execute(execution){const n=execution.namedInputs,m=n.oldPrimaryStructuralExclusiveRelatedHandleList.members[0],at=effectAt(execution),c=settlementCtx(execution,m.materialKey),
@@ -359,4 +377,4 @@ function createOnDeckCapabilityPorts(options){const now=options.now||Date.now,ac
   return Object.freeze(ports);
 }
 
-module.exports=Object.freeze({createOnDeckCapabilityPorts,readAftercarePlacementAuthority,nfoPresentationBasis});
+module.exports=Object.freeze({createOnDeckCapabilityPorts,readAftercarePlacementAuthority,nfoPresentationBasis,priorOnDeckPlacementReceipt});

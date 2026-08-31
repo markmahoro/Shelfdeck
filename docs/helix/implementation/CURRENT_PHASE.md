@@ -19,6 +19,7 @@
 9. PROD-037 将 NFO Presentation gate 收回 Movie Identity、title/year/plot/genre/cast；Aftercare source/stat fence 竞争在回滚完成后形成 typed terminal failure，不再留下未知 `material_commit` Effect。
 10. Formation 详情只投影与当前 Subject 的 Candidate Package、Structure Unit、Libra Run、Offer 和 Arca On-deck Run 正式绑定的 immutable Workflow Plan；Accepted On-deck planning failure 从 Work Definition 恢复并继续同一 Run，耗尽后投影可重试 attention。
 11. Scheduler 对已到期的 Resource waiter 使用 scheduling-round fairness，而不是依赖 100ms wall-clock cooldown；过程卡片在当前后继 Work 运行时显示进行中，同时保留旧失败 Plan 的真实结果。
+12. PROD-040 修复同一 On-deck Run 的 post-Placement 恢复窗口：先前成功 Placement 必须以同 Run、同 Target Commit Slot 的 typed Receipt 授权；NFO 可按语义继续并记录实际指纹，Primary/其他材料仍严格按 Package bytes，任何生产影片或旧 Work 不得拥有特殊分支。
 
 ## 边界
 
@@ -29,6 +30,7 @@
 - 不恢复 PROD-034 已纠正的两个中止 Run。
 - 不直接编辑生产 SQLite；恢复只能由 Arca 正式 Work、Capability、Effect 与 On-deck Commit 合同执行。
 - 不修改 Emby 配置。本轮只授权本地代码、测试与文档，不部署生产。
+- 不为现有生产影片、固定 ID、路径、Run/Work/Effect 编写兼容或 fallback。若正式事实已经不可自洽，只能整理 Reset 证据并另行申请授权，不能由本修复掩盖。
 
 ## Exit Gate
 
@@ -40,3 +42,5 @@
 - PROD-037 已部署，初始窗口未见旧 NFO 错误复发。Formation 详情验收失败：《罪人》吸入 Field-wide 867 个 Plan，attention 仍显示为 `in_progress` 且无重试动作，已打回原任务；既有坏 Projection/Receipt 未获一次性纠正授权，继续 fail closed。
 - Formation 精确 Candidate Plan Scope 与 On-deck Work Definition Recovery 已随 `91f990609c` 部署；生产详情收敛到约 14–25 KiB，并为《罪人》的同一 On-deck Run 建立第三代 Work。
 - 第三代 Work 的首个 Event 被两个长期 Resource waiter 饿死；本地修正以 scheduling round 保证后续 eligible Event 获得机会，并让过程卡片以当前 running successor 作为阶段状态、保留旧失败 Plan。focused 109/109，Service full 384 pass/18 skip/0 fail；P4 Runtime gate 仍仅受 main 既有 dynamic-template scanner findings 阻断。该 follow-up 未部署、未改生产数据。
+- PROD-040 精确回归必须证明：原始 `offloadContext` 为空时，同 Run 先 Placement、Emby 后改写的语义等价 NFO 可通过恢复 Stage/Staged Verify/Placement 且字节不被覆盖；缺少或错配 Placement Receipt 仍报 target occupied；Primary 漂移仍失败。只允许正常新条目复现路径，不测试旧数据兼容。
+- PROD-040 本地验证：相关 focused 68/68；Service full 385 pass、18 skip、0 fail；Admin Web 38/38 与 production build 通过；官方 npm registry audit 为 0。Architecture semantic/manifest/contract PASS，总 gate 仍仅受 main 既有两个 dynamic-template scanner findings 阻断。

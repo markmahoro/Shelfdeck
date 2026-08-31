@@ -26,6 +26,8 @@ test('large Inventory copies yield once and use the native asynchronous copy pat
 const { canonicalDigest } = require('../src/helix/contracts/canonical-json');
 const { editionFromSourceDisplay } = require('../src/helix/domains/libra/model/product-identity-commit-contracts');
 const { computeBoundedMaterialFingerprintSync } = require('../src/helix/integrations/bounded-material-fingerprint');
+const { CAPABILITY_REFS } = require('../src/helix/domains/arca/model/on-deck-contract');
+const { priorOnDeckPlacementReceipt } = require('../src/helix/domains/arca/capabilities/on-deck-capability-ports');
 const schemaManifest = require('../src/helix/foundation/persistence/generated/clean-schema.manifest.json');
 
 const EMPTY_CLAIMS = Object.freeze([]);
@@ -68,6 +70,32 @@ function member(location, role, mountScopeId, workspace = null) {
     episodeClaimSetDigest:EMPTY_CLAIMS_DIGEST,
   });
 }
+
+test('prior Placement evidence is accepted only from the same On-deck Run and commit slot', () => {
+  const receipt = Object.freeze({
+    schemaRef:'helix://contracts/types/PlacementSwitchReceipt/v1', schemaVersion:1,
+    receiptKind:'placement_switched', ownerDomain:'arca', scopeType:'on_deck_run',
+    scopeId:'run-1', targetCommitSlotId:'slot-1', transactionRevision:1,
+  });
+  const options = { workResultReader:{
+    listWorks:()=>Object.freeze([
+      Object.freeze({ work_id:'work-1', updated_at_ms:1 }),
+      Object.freeze({ work_id:'work-2', updated_at_ms:2 }),
+    ]),
+    read:(workId)=>Object.freeze([Object.freeze({
+      capabilityRef:CAPABILITY_REFS.placement, outcomeKind:'succeeded',
+      result:workId==='work-2'?receipt:{ ...receipt, scopeId:'another-run' },
+    })]),
+  } };
+  const execution = Object.freeze({ ownerScope:Object.freeze({
+    processType:'arca_ondeck_run', processId:'run-1',
+  }) });
+  assert.equal(priorOnDeckPlacementReceipt(options, execution, 'slot-1'), receipt);
+  assert.equal(priorOnDeckPlacementReceipt(options, execution, 'another-slot'), null);
+  assert.equal(priorOnDeckPlacementReceipt(options, {
+    ownerScope:{ processType:'arca_shelf_entry', processId:'run-1' },
+  }, 'slot-1'), null);
+});
 
 test('target folder uses the resolved display title and derives its year without opaque or zero fallbacks', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'clean-arca-display-identity-'));
@@ -545,7 +573,7 @@ test('post-Placement NFO verification accepts semantic Emby rewrites while exact
     const targetCommitSlotHandle = port.prepareSlot({ ...request, finalInventoryDecision });
     const stagedInventoryManifest = await port.stage({ ...request, finalInventoryDecision, targetCommitSlotHandle });
     const stagedInventoryVerification = await port.verifyStaged({ ...request, finalInventoryDecision, stagedInventoryManifest });
-    await port.switchPlacement({ ...request, finalInventoryDecision, stagedInventoryVerification,
+    const placementReceipt = await port.switchPlacement({ ...request, finalInventoryDecision, stagedInventoryVerification,
       targetBindings:{ bindingSetDigest:'semantic-target-bindings' }, replacedInputSetDigest:'semantic-replaced-inputs' });
 
     const nfoTarget = finalInventoryDecision.members.find((item) => item.role === 'metadata_sidecar').targetLocation;
@@ -562,6 +590,32 @@ test('post-Placement NFO verification accepts semantic Emby rewrites while exact
       cast:Object.freeze([Object.freeze({ role:'actor', displayName:'Actor One', providerIdentities:Object.freeze([]) })]),
       identity:Object.freeze({ provider:'tmdb', providerKey:'123' }),
     });
+    const recoveryRequest = { ...request, finalInventoryDecision,
+      replaySettledSources:true, nfoPresentationBasis, observedAtMs:19 };
+    const unauthorizedSlot = port.prepareSlot(recoveryRequest);
+    await assert.rejects(port.stage({ ...recoveryRequest,
+      targetCommitSlotHandle:unauthorizedSlot }),
+    (error) => error.code === 'CLEAN_ARCA_TARGET_OCCUPIED');
+
+    const recoveredRequest = { ...recoveryRequest,
+      priorPlacementReceipt:placementReceipt };
+    const recoveredSlot = port.prepareSlot(recoveredRequest);
+    const recoveredManifest = await port.stage({ ...recoveredRequest,
+      targetCommitSlotHandle:recoveredSlot });
+    const recoveredNfo = recoveredManifest.stagedMembers.find(
+      (item) => item.role === 'metadata_sidecar');
+    assert.equal(fs.existsSync(path.join(recoveredSlot.slotDirectory,
+      path.basename(nfoTarget))), false);
+    assert.equal(recoveredNfo.physicalIdentity.contentFingerprint,
+      identity(nfoTarget, mountScopeId).contentFingerprint);
+    const recoveredVerification = await port.verifyStaged({ ...recoveredRequest,
+      stagedInventoryManifest:recoveredManifest });
+    await port.switchPlacement({ ...recoveredRequest,
+      stagedInventoryVerification:recoveredVerification,
+      targetBindings:{ bindingSetDigest:'semantic-target-bindings' },
+      replacedInputSetDigest:'semantic-replaced-inputs' });
+    assert.deepEqual(fs.readFileSync(nfoTarget), embyRewrite);
+
     const finalReality = await port.readFinalAsync({ ...request, finalInventoryDecision,
       replaySettledSources:true, nfoPresentationBasis, observedAtMs:20 });
     const nfoReality = finalReality.members.find((item) => item.role === 'metadata_sidecar');
@@ -603,6 +657,10 @@ test('post-Placement NFO verification accepts semantic Emby rewrites while exact
     fs.writeFileSync(primaryTarget, Buffer.from('changed-primary-bytes'));
     await assert.rejects(port.readFinalAsync({ ...request, finalInventoryDecision, replaySettledSources:true,
       nfoPresentationBasis, observedAtMs:26 }), (error) => error.code === 'CLEAN_ARCA_FINAL_REALITY_DRIFT');
+    const strictPrimarySlot = port.prepareSlot(recoveredRequest);
+    await assert.rejects(port.stage({ ...recoveredRequest,
+      targetCommitSlotHandle:strictPrimarySlot }),
+    (error) => error.code === 'CLEAN_ARCA_TARGET_OCCUPIED');
   } finally {
     fs.rmSync(root, { recursive:true, force:true });
   }

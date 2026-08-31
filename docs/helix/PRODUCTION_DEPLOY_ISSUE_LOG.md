@@ -47,7 +47,7 @@
 | PROD-025 | 《007：大破天幕杀机》寻源报没有外部候选 | `EXECUTION` / MoviePilot 把 TMDB ID 当标题搜 | 媒体整理工作区 | High | **FIXED** 无损升级 `helix-beta-20260829-d1dd611d4`。已冻结片子需放弃后重新进整理。 |
 | PROD-026 | 《教父2》GPU 转码每小时被掐，永远编不完 | `EXECUTION` / Libra remux/transcode 误用 1 小时观察时限 | 媒体整理工作区 | High | **FIXED** 无损升级 `helix-beta-20260830-06d0cc63b`。在途转码按新 Attempt 使用 48 小时时限。 |
 | PROD-027 | 长转码页面进度写满后冻住，编码器仍在跑 | `EXECUTION` / ProgressReporter 历史上限连 current sample 一并停写 | 媒体整理工作区 | Medium | **FIXED in next image**（current 就地覆盖；未部署） |
-| PROD-028 | Aftercare 按整份 NFO 字节/指纹修文件，与 Emby 抢同一张说明书 | `EXECUTION` / Presentation 字节全等 + Inventory revision 未随实际 NFO 收敛 | 我的收藏 / Aftercare | Medium | **FIXED LOCALLY**（语义比较 + Inventory revision convergence；未部署） |
+| PROD-028 | Aftercare 按整份 NFO 字节/指纹修文件，与 Emby 抢同一张说明书 | `EXECUTION` / Presentation 字节全等 + Inventory revision 未随实际 NFO 收敛 | 我的收藏 / Aftercare | Medium | **FIXED / FOLLOW-UP REQUIRED**。语义比较与 Inventory revision convergence 已进入后续镜像；首次修复未覆盖 On-deck post-Placement 后重新 Stage 的来源证明窗口，见 PROD-040。 |
 | PROD-029 | 收藏架「全自动 / 关键步骤确认」开关不改变实际上架行为 | `USER_EXPERIENCE` / standing Authorization 未接入 On-deck | 收藏架配置 | Low | **FIXED in next image**（Admin Web 表面已移除；后端 API 保留供后续收口） |
 | PROD-030 | 转码前体积预测 freeze 卡死 Run；寻源/转码编排割裂；详情步骤靠 Spec 猜测 | `EXECUTION` / Libra 协调器 + Formation 投影 | 媒体整理工作区 | Critical | **FIXED in next image**（双工具穷尽编排 + 实测瑕疵 + 真实步骤；未部署） |
 | PROD-031 | PROD-024 全局 3 席仍是 derived occupancy；无法按来源暂停/限流 | `EXECUTION` / Libra per-field pipeline token | 文件来源配置、媒体整理工作区 | High | **DEPLOYED** `helix-beta-20260830-5189f5f79c`（2026-08-30；migration + full libra reset；186 tables） |
@@ -57,6 +57,7 @@
 | PROD-037 | PROD-035 部署后仍误报 director drift，Aftercare source fence 继续刷日志 | `EXECUTION` / Presentation gate 误复用 renderer 字段 + expected CAS conflict 被抛成未知 Effect | 上架 / Aftercare | Critical | **DEPLOYED / MONITORING** `helix-beta-20260831-ae7a567cde`；初始窗口未复发，既有《罪人》未兼容恢复。 |
 | PROD-038 | 《罪人》详情吸入 Field-wide 867 个 Plan，attention 显示为 `in_progress` 且无重试动作 | `USER_EXPERIENCE` / Process Plan 因果范围过宽 + Arca attention 投影缺失 | 媒体整理详情 | Critical | **CONFIRMED / RETURNED**。详情响应约 1.65 MB；已打回原详情任务，禁止前端补造 Plan 或旧数据兼容。 |
 | PROD-039 | 部署 readiness 在 WAL 只读挂载下返回 `SQLITE_CANTOPEN`，脚本仍继续 | `DEPLOYMENT_SAFETY` / 未强制匹配 ready | 生产部署 | High | **FIXED LOCALLY**。只读源复制到临时目录验证，输出非 ready 即阻断；尚未随镜像部署。 |
+| PROD-040 | 同一 On-deck Run 已 Placement 的 NFO 被 Emby 等价改写后，恢复 Stage 报 target occupied | `EXECUTION` / Stage 只认原始 offloadContext，遗漏 durable prior Placement provenance | 媒体整理详情 / 上架 | Critical | **FIXED LOCALLY / NOT DEPLOYED**。仅同 Run、同 Slot typed Placement Receipt 可授权 NFO 语义恢复；无影片/路径/旧 Work 特例，Primary 仍严格。 |
 
 PROD-001、PROD-002 的共同环境前提：生产管理台是 `http://192.168.12.230`，浏览器不提供 `crypto.randomUUID` / `crypto.subtle`。这不是传输加密设计，只是浏览器 API 限制。未改成 HTTPS。
 
@@ -379,6 +380,7 @@ SSOT 10.3.5：本地 transcode/remux 是「10 分钟无进展判 Attempt timeout
 - Custody 对仍存在且可读的 NFO sidecar 忽略 inode/size/指纹漂移，不再 `nfo_identity_changed` + `auto_repair`。缺失/不可读仍按 Artifact 修。
 - Aftercare 写入路径仍走 `renderAftercareMovieNfo`（create/update/rebuild）。Libra 首次写入仍在 `clean-product-production-port.js`；Helix Domain 边界不允许 Libra 引用 Arca model，本项不把两套写入器硬合并。
 - 当时没有覆盖 On-deck Placement 之后到 Commit 之前的并发改写窗口，也没有在盘上 NFO 语义等价但 physical identity 已变化时提交新的 Inventory Representation revision；因此「不抢写文件」已修，但库存仍可能长期记着旧指纹。
+- 后续 PROD-035/037 补上 Final Reality 与 Inventory revision 收敛后，仍遗漏了一层更早的恢复来源证明：同 Run 已 Placement 的 final NFO 不是原始 `offloadContext` 成员，重新执行 Stage 会在语义检查前被 target occupied 门禁拒绝。该独立缺口由 PROD-040 修复，不能用放宽所有 NFO 冲突来掩盖。
 
 本次完整修复：
 
@@ -453,3 +455,19 @@ SSOT 10.3.5：本地 transcode/remux 是「10 分钟无进展判 Attempt timeout
 - 文件读取、指纹和前后状态检查使用同一 handle；读取期间变化则有界重读，避免混合快照。
 - 自动恢复最多 3 代 Supporting Work；耗尽后 Reconciler 不再扫描该 Run，Formation 显示「重试上架」。用户重试恢复同一 Run，不创建第二个 Run 或 Shelf Entry。
 - 未新建 Domain、Store、表或兼容路径；DDL digest 不变。本轮未改 Emby 配置、未部署生产、未直接编辑 SQLite。
+
+后续生产复现补充：上述修复解决了 post-Placement Final Verify 和有界业务稳态，但恢复 Work 重新从 Stage 开始时，collision gate 仍只认 Package 的原始 `offloadContext`。同一 Run 先前 Placement 新建、随后被 Emby 等价改写的 NFO 因而在进入 semantic verification 之前就被拒绝。此遗漏不改变 PROD-035 的业务处理结论；它作为 PROD-040 的来源证明缺口单独收口。
+
+## 40. PROD-040 — prior Placement NFO 在恢复 Stage 被误判为陌生冲突（FIXED LOCALLY）
+
+发现：2026-08-31。精确复现为正常新 On-deck Run 完成 Placement 后，Emby 将 final NFO 改写为语义等价字节；后续同 Run 的 Forward Recovery 从 Stage 重新进入时，Target Commit Slot 为空、Primary 等成员与 Package 全等，只有 final NFO 指纹变化。因为该 final 路径由 Placement 创建，不在 Package 原始 `offloadContext` 中，旧 Stage 抛出 `CLEAN_ARCA_TARGET_OCCUPIED`。
+
+通用根因与修正：
+
+- `offloadContext` 只能证明进入 On-deck 前已有的受管来源，不能证明同一 Run 已经完成的 Placement；后者的正式证据是 Execution Foundation 中 durable succeeded Placement Result。
+- Capability 从同一 `arca_ondeck_run` 的 `on_deck_execution` Works 读取 typed `PlacementSwitchReceipt/v1`。Inventory Port 再核对 `ownerDomain=arca`、`scopeType=on_deck_run`、同 `scopeId`、同 `targetCommitSlotId` 与 transaction revision。
+- 只有 `.nfo` metadata sidecar 可使用该授权：Stage 读取同一文件快照做 semantic presentation 检查；等价时不写文件并把实际 physical identity 写入 Staged Manifest，错误时从 Package 重新 Stage。Staged Verify 与 Placement 重复核对 Receipt、实际身份和语义。
+- Primary、poster、subtitle 及其他成员完全不使用 prior Placement 语义授权；任何字节漂移仍 fail closed。没有 Receipt、错 Run、错 Slot 或缺 accepted presentation basis 也继续拒绝。
+- 实现没有影片、TMDB、路径、旧 Run/Work/Effect 特例，没有 migration、fallback、生产数据编辑或 Reset；它只修正常新条目同样会触发的 Forward Recovery 规则。
+
+本地精确测试覆盖空 `offloadContext`、先 Placement、Emby 等价改写、同 Run Stage/Staged Verify/Placement 恢复且 NFO 字节保持不变；同时覆盖无 Receipt 拒绝、错 Slot 拒绝与 Primary 漂移拒绝。尚未部署，也未据此判断当前生产样本是否仍具备完整可恢复事实。

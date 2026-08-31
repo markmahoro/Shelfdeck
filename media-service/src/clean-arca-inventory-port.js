@@ -88,6 +88,19 @@ function isMovieNfoPlan(plan) {
     path.extname(plan.target).toLowerCase() === '.nfo';
 }
 
+function priorPlacementCoversTarget(request, plan, handle) {
+  const receipt = request?.priorPlacementReceipt;
+  return isMovieNfoPlan(plan) &&
+    receipt?.schemaRef === 'helix://contracts/types/PlacementSwitchReceipt/v1' &&
+    receipt.schemaVersion === 1 &&
+    receipt.receiptKind === 'placement_switched' &&
+    receipt.ownerDomain === 'arca' &&
+    receipt.scopeType === 'on_deck_run' &&
+    receipt.scopeId === request.onDeckRunId &&
+    receipt.targetCommitSlotId === handle.slotId &&
+    receipt.transactionRevision === 1;
+}
+
 function packageObservation(member) {
   return Object.freeze({
     sizeBytes:Number(member.sizeBytes),
@@ -1149,7 +1162,21 @@ function createCleanArcaInventoryPort(options) {
       const finalExact = finalExisting &&
         Number(finalExisting.stat.size) === plan.sizeBytes &&
         finalExisting.contentFingerprint === plan.contentFingerprint;
-      if (finalExisting && !finalExact && !isManagedSourceLocation(request, plan.target)) {
+      const priorPlacementTarget = finalExisting && !finalExact &&
+        priorPlacementCoversTarget(request, plan, handle);
+      let finalSemantic = false;
+      let finalObserved = finalExisting;
+      if (priorPlacementTarget) {
+        try {
+          finalObserved = await readStableNfo(plan.target);
+          verifyFinalObservation(request, plan, finalObserved);
+          finalSemantic = true;
+        } catch (error) {
+          if (error?.code !== 'CLEAN_ARCA_FINAL_NFO_SEMANTIC_DRIFT') throw error;
+        }
+      }
+      if (finalExisting && !finalExact && !priorPlacementTarget &&
+          !isManagedSourceLocation(request, plan.target)) {
         fail('CLEAN_ARCA_TARGET_OCCUPIED',
           'Final Inventory target contains conflicting bytes.');
       }
@@ -1166,11 +1193,11 @@ function createCleanArcaInventoryPort(options) {
         }
         exact = true;
       }
-      if (request.replayCommitted && !finalExact && !exact) {
+      if (request.replayCommitted && !finalExact && !finalSemantic && !exact) {
         fail('CLEAN_ARCA_COMMITTED_REALITY_DRIFT',
           'Committed Inventory Effect no longer matches physical reality.');
       }
-      if (!finalExact && !exact) {
+      if (!finalExact && !finalSemantic && !exact) {
         const temporary = target + '.tmp-' +
           canonicalDigest({ run:request.onDeckRunId, key:plan.member.materialKey })
             .slice(0, 16);
@@ -1191,7 +1218,8 @@ function createCleanArcaInventoryPort(options) {
       }
       requireContinuation(request);
       const observed = finalExact
-        ? finalExisting : await computeFingerprint(target);
+        ? finalExisting : finalSemantic
+          ? finalObserved : await computeFingerprint(target);
       const identityBase = {
         schemaRef: 'helix://contracts/types/PhysicalMaterialIdentity/v2',
         schemaVersion: 2,
@@ -1278,18 +1306,27 @@ function createCleanArcaInventoryPort(options) {
       const location = fs.existsSync(stagedLocation)
         ? stagedLocation : finalLocation;
       const plan = planBySource.get(member.sourceMaterialKey);
-      if (plan && fs.existsSync(stagedLocation)) {
+      const stagedExists = fs.existsSync(stagedLocation);
+      if (plan && stagedExists) {
         await restorePresentationMember(request, plan, stagedLocation);
       }
-      const fingerprint = await computeFingerprint(location);
-      if (Number(fingerprint.stat.size) !== member.physicalIdentity.sizeBytes ||
-          fingerprint.contentFingerprint !==
-            request.onDeckProductPackage.productMaterialManifest.members.find(
-              (item) => item.materialKey === member.sourceMaterialKey,
-            )?.physicalIdentity.contentFingerprint) {
+      const packageMember = request.onDeckProductPackage.productMaterialManifest.members.find(
+        (item) => item.materialKey === member.sourceMaterialKey,
+      );
+      const semanticFinal = !stagedExists && plan &&
+        priorPlacementCoversTarget(request, plan, handle);
+      const fingerprint = semanticFinal
+        ? await readStableNfo(location) : await computeFingerprint(location);
+      const identityChanged = Number(fingerprint.stat.size) !==
+        member.physicalIdentity.sizeBytes || fingerprint.contentFingerprint !==
+        member.physicalIdentity.contentFingerprint;
+      const packageChanged = Number(fingerprint.stat.size) !== Number(packageMember?.sizeBytes) ||
+        fingerprint.contentFingerprint !== packageMember?.physicalIdentity.contentFingerprint;
+      if (identityChanged || (!semanticFinal && packageChanged)) {
         fail('CLEAN_ARCA_STAGED_REALITY_DRIFT',
           'Staged member bytes drifted before placement.');
       }
+      if (semanticFinal) verifyFinalObservation(request, plan, fingerprint);
       requireContinuation(request);
       observed.push(member);
     }
@@ -1340,15 +1377,29 @@ function createCleanArcaInventoryPort(options) {
         ? await computeFingerprint(plan.target) : null;
       const finalExact = final && Number(final.stat.size) === plan.sizeBytes &&
         final.contentFingerprint === plan.contentFingerprint;
-      if (final && !finalExact && !isManagedSourceLocation(request, plan.target)) {
+      const priorPlacementTarget = final && !finalExact &&
+        priorPlacementCoversTarget(request, plan, handle);
+      let finalSemantic = false;
+      if (priorPlacementTarget) {
+        try {
+          const observed = await readStableNfo(plan.target);
+          verifyFinalObservation(request, plan, observed);
+          finalSemantic = true;
+        } catch (error) {
+          if (error?.code !== 'CLEAN_ARCA_FINAL_NFO_SEMANTIC_DRIFT') throw error;
+        }
+      }
+      if (final && !finalExact && !priorPlacementTarget &&
+          !isManagedSourceLocation(request, plan.target)) {
         fail('CLEAN_ARCA_TARGET_OCCUPIED',
           'Final Inventory target contains conflicting bytes.');
       }
-      if (finalExact) {
+      if (finalExact || finalSemantic) {
         if (fs.existsSync(stagedLocation)) fs.rmSync(stagedLocation, { force:true });
         continue;
       }
-      if (final && !finalExact && isManagedSourceLocation(request, plan.target)) {
+      if (final && !finalExact && (priorPlacementTarget ||
+          isManagedSourceLocation(request, plan.target))) {
         fs.rmSync(plan.target, { force:false });
       }
       if (!fs.existsSync(stagedLocation)) {
