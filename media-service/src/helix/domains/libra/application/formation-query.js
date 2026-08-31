@@ -555,7 +555,9 @@ function createFormationProjectionSource(options) {
       const detail = buildOptions.includeProcessDetail === true ? buildFormationProcessDetail({ displayIdentity,
         targetShelfName:shelfNames.get(routing?.shelf_id) || null, works:actualPlanWorks,
         procurementScopes:snapshot?.candidatePackage?.procurementRunId ? [
-          { processType:'procurement_run', processId:snapshot.candidatePackage.procurementRunId },
+          { processType:'procurement_run', processId:snapshot.candidatePackage.procurementRunId,
+            candidatePackageId:snapshot.candidatePackage.candidatePackageId,
+            structureUnitId:snapshot.candidatePackage.structureEvidenceRef?.unitId },
         ] : [],
         libraScopes:[
           ...decisions.map((item)=>({ processType:'libra_intake', processId:item.intake_decision_id })),

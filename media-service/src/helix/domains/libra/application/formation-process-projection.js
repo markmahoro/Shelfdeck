@@ -253,9 +253,28 @@ function stageSummary(label, plans, works) {
 function stage(key, label, descriptionText, works) {
   const plans=projectPlans(works); return Object.freeze({ key,label,description:descriptionText,state:stageState(plans,works),summary:stageSummary(label,plans,works),plans });
 }
+function workBindsCandidate(work, scope) {
+  return (work.events || []).some((event)=>{
+    if (event.capabilityRef!=='procurement.candidate.publish@1') return false;
+    const packageBound=!scope.candidatePackageId ||
+      event.result?.result?.candidatePackageId===scope.candidatePackageId;
+    const unitBound=!scope.structureUnitId || (event.inputBindings?.bindings || [])
+      .some((binding)=>binding?.parameters?.unitId===scope.structureUnitId);
+    return packageBound && unitBound;
+  });
+}
+function workMatchesScope(work, scope) {
+  if (work.processType!==scope.processType || work.processId!==scope.processId) return false;
+  if (work.ownerDomain==='procurement' && work.processType==='procurement_run') {
+    if (!scope.candidatePackageId && !scope.structureUnitId) return false;
+    return work.workKind==='candidate_assembly' && workBindsCandidate(work,scope);
+  }
+  if (!scope.candidatePackageId && !scope.structureUnitId) return true;
+  return workBindsCandidate(work,scope);
+}
 function buildFormationProcessDetail(input) {
   const exact=(works,ownerDomain,scopes)=>works.filter((work)=>work.ownerDomain===ownerDomain && scopes.some((scope)=>
-    work.processType===scope.processType && work.processId===scope.processId));
+    workMatchesScope(work,scope)));
   const procurement=exact(input.works,'procurement',input.procurementScopes || []);
   const libra=exact(input.works,'libra',input.libraScopes || []);
   const arca=exact(input.works,'arca',input.arcaScopes || []);

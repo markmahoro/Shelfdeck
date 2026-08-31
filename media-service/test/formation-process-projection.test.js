@@ -23,6 +23,12 @@ function event(planId,nodeId,capabilityRef,state,createdAtMs,edges=[],extra={}) 
 function work(ownerDomain,processType,processId,workKind,events) {
   return {workId:`work-${processId}-${workKind}`,ownerDomain,processType,processId,workKind,state:'running',createdAtMs:1,events};
 }
+function candidateEvent(planId,unitId,candidatePackageId,createdAtMs=1) {
+  return event(planId,'publication','procurement.candidate.publish@1','succeeded',createdAtMs,[],{
+    inputBindings:{bindings:[{bindingKind:'projected_owner_facts',parameters:{unitId}}]},
+    result:{outcomeKind:'succeeded',result:{candidatePackageId}},
+  });
+}
 
 test('Formation process projection preserves durable Plan boundaries and dependency order',()=>{
   const edges=[{fromNodeId:'first',toNodeId:'second',dependencyKind:'success'}];
@@ -40,18 +46,65 @@ test('Formation process projection preserves durable Plan boundaries and depende
 
 test('Formation process card receives only actual Plans from exact domain process scopes',()=>{
   const works=[
-    work('procurement','procurement_run','proc-1','evidence_assessment',[event('proc-plan','inspect','procurement.triage.structure.inspect@1','succeeded',1)]),
+    work('procurement','procurement_run','proc-1','candidate_assembly',[candidateEvent('proc-plan','unit-1','candidate-1',1)]),
     work('procurement','procurement_run','another-run','candidate_assembly',[event('wrong-plan','publish','procurement.candidate.publish@1','succeeded',2)]),
     work('libra','libra_routing','subject-1','routing_basis',[event('libra-plan','route','libra.decision_basis.commit@1','succeeded',3)]),
     work('arca','arca_acceptance','offer-1','acceptance_assessment',[event('arca-plan','identity','arca.acceptance.identity.verify@1','pending',4)]),
   ];
   const detail=buildFormationProcessDetail({displayIdentity:'示例电影',targetShelfName:'电影',works,
-    procurementScopes:[{processType:'procurement_run',processId:'proc-1'}],
+    procurementScopes:[{processType:'procurement_run',processId:'proc-1',structureUnitId:'unit-1',candidatePackageId:'candidate-1'}],
     libraScopes:[{processType:'libra_routing',processId:'subject-1'}],
     arcaScopes:[{processType:'arca_acceptance',processId:'offer-1'}]});
   assert.equal(detail.contract,'formation_process_actual_plans@1');
   assert.deepEqual(detail.stages.map((stage)=>stage.plans.map((plan)=>plan.planId)),[['proc-plan'],['libra-plan'],['arca-plan']]);
   assert.ok(!JSON.stringify(detail).includes('wrong-plan'));
+});
+
+test('Formation process card excludes hundreds of Field-wide Plans outside the accepted Candidate binding',()=>{
+  const runId='procurement-run-shared',unitId='a'.repeat(64),candidatePackageId='candidate-package-subject';
+  const works=Array.from({length:1000},(_value,index)=>work('procurement','procurement_run',runId,
+    'candidate_assembly',[candidateEvent(`unrelated-plan-${index}`,String(index).padStart(64,'0'),`candidate-${index}`,index+1)]));
+  works.push(work('procurement','procurement_run',runId,'candidate_assembly',[
+    candidateEvent('subject-plan',unitId,candidatePackageId,2000),
+  ]));
+  works.push(work('procurement','procurement_run',runId,'candidate_assembly',[
+    candidateEvent('package-only-match','b'.repeat(64),candidatePackageId,2001),
+  ]));
+  works.push(work('procurement','procurement_run',runId,'candidate_assembly',[
+    candidateEvent('unit-only-match',unitId,'another-candidate-package',2002),
+  ]));
+  const splitPackage=candidateEvent('cross-event-match','c'.repeat(64),candidatePackageId,2003);
+  const splitUnit=event('cross-event-match','identity','procurement.triage.identity_claim.resolve@1','succeeded',2003,[],{
+    inputBindings:{bindings:[{bindingKind:'projected_owner_facts',parameters:{unitId}}]},
+  });
+  works.push(work('procurement','procurement_run',runId,'candidate_assembly',[splitPackage,splitUnit]));
+  works.push(work('procurement','procurement_run',runId,'evidence_assessment',[
+    event('field-evidence-plan','probe','shared.material.media.probe@1','succeeded',0),
+  ]));
+  const detail=buildFormationProcessDetail({displayIdentity:'罪人 (2025)',works,
+    procurementScopes:[{processType:'procurement_run',processId:runId,structureUnitId:unitId,candidatePackageId}],
+    libraScopes:[],arcaScopes:[]});
+  assert.deepEqual(detail.stages[0].plans.map((plan)=>plan.planId),['subject-plan']);
+  assert.ok(Buffer.byteLength(JSON.stringify(detail))<10_000);
+  assert.ok(!JSON.stringify(detail).includes('field-evidence-plan'));
+  assert.ok(!JSON.stringify(detail).includes('unrelated-plan-'));
+  assert.ok(!JSON.stringify(detail).includes('package-only-match'));
+  assert.ok(!JSON.stringify(detail).includes('unit-only-match'));
+  assert.ok(!JSON.stringify(detail).includes('cross-event-match'));
+});
+
+test('Formation Candidate scope keeps strict single-field matching on the publish Event',()=>{
+  const workItem=work('procurement','procurement_run','run-single','candidate_assembly',[
+    candidateEvent('single-field-plan','unit-single','candidate-single',1),
+  ]);
+  const byPackage=buildFormationProcessDetail({displayIdentity:'示例',works:[workItem],
+    procurementScopes:[{processType:'procurement_run',processId:'run-single',candidatePackageId:'candidate-single'}],
+    libraScopes:[],arcaScopes:[]});
+  const byUnit=buildFormationProcessDetail({displayIdentity:'示例',works:[workItem],
+    procurementScopes:[{processType:'procurement_run',processId:'run-single',structureUnitId:'unit-single'}],
+    libraScopes:[],arcaScopes:[]});
+  assert.deepEqual(byPackage.stages[0].plans.map((plan)=>plan.planId),['single-field-plan']);
+  assert.deepEqual(byUnit.stages[0].plans.map((plan)=>plan.planId),['single-field-plan']);
 });
 
 test('Formation frontend renders backend Plans without an organizingSteps Plan fallback',()=>{

@@ -1,6 +1,6 @@
 # ShelfDeck Clean Helix Current Status
 
-Status: **MOVIE COLLECTION LIFECYCLE READY THROUGH SHELF DEREGISTRATION；Observation replacement、PROD-037 NFO 与 Formation 合同修正已无损部署；Observation 恢复通过，Formation 详情验收失败。**
+Status: **MOVIE COLLECTION LIFECYCLE READY THROUGH SHELF DEREGISTRATION；Observation replacement、PROD-037 NFO 与 Formation 合同修正已无损部署；Observation 恢复通过，Formation 详情本地修正完成、未部署。**
 
 Last updated: 2026-08-31
 
@@ -53,6 +53,12 @@ PROD-034 已按 Product Owner 授权对“唐人街探案 (2015)”和“赤壁�
 - 6 个 Event Attempt 正在 executing，12 个 Work Attempt 处于 active；Observation 已释放其 1 个 active Attempt。Libra 3 个 running Work、Arca 9 个 running Work；服务 health、SQLite quick check 与无关容器均正常。
 - 新镜像初始窗口没有再出现 NFO source stale / `director` semantic drift，但既有《罪人》仍停在历史 On-deck attention，未做兼容恢复。
 - Formation API 当前返回 4 条 active；Projection 为 `stale`，启动后出现 6 次 `FORMATION_PROJECTION_DIGEST_INVALID`。更严重的是《罪人》详情约 1.65 MB，材料准备错误吸入 Field-wide 867 个真实 Plan，并把 attention 显示为 `in_progress`、`executorIssue=null`。已按约定打回媒体整理详情任务；未编辑生产数据库。
+
+## Formation Detail Local Correction
+
+- 根因一是详情投影只按共享 `procurement_run_id` 收集 Plan，把同一 Field Run 下全部 Candidate Work 都带入一个 Subject。现在 Procurement 阶段必须同时匹配 Accepted Candidate Package 与其冻结 `structureUnitId`；Field-wide Evidence Plan、其他 Candidate Plan 以及只匹配其中一项的漂移数据全部排除，前端仍只渲染后端返回的真实 Plan。
+- 根因二是 Accepted On-deck 的 Plan/Input Projection 失败没有 Result，恢复却从 Result 读取 Handoff B 引用；生产《罪人》的同一 On-deck Run 因此停在 `offloading`，已有两代 failed Work。恢复现只读 immutable Work Definition，继续同一 Run；第三代失败后的 callback gap 会先把该 Run 收口为 `blocked`，再稳定投影 `attention_required` 与「重试上架」，不会重开 Libra 或创建第二个 On-deck Run。
+- 本地 focused 52/52；Service full 400 项为 382 pass、18 skip、0 fail。Architecture contracts/manifests/semantic 均通过；full gate 仍被当前 main 已存在的 3 个 Windows/Fastify entrypoint failures 与既有 dynamic-template scanner findings 阻断。本轮未部署、未修复坏 Projection/Receipt、未改生产数据。
 
 ## PROD-035 Production Monitoring
 

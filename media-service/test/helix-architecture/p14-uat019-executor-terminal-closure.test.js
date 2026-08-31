@@ -113,7 +113,7 @@ test('a failed accepted On-deck Work resumes the same Run with one bounded succe
   assert.deepEqual(calls,['block','resume:blocked','attention','resume:blocked']);
 }));
 
-test('fallback recovery closes the planning-failure callback gap before resuming the same On-deck Run', () => fixture(({ unitOfWork }) => {
+test('recovery closes the planning-failure callback gap from the immutable Work definition', () => fixture(({ unitOfWork }) => {
   const refs=Object.freeze([{ownerDomain:'libra',objectType:'on_deck_package',objectId:'package-planning-gap',revision:1,digest:hex('a')}]);
   const acceptedRef=Object.freeze({ownerDomain:'arca',objectType:'supporting_work',objectId:'acceptance-commit-work',revision:1,digest:hex('b')});
   const calls=[];
@@ -121,7 +121,6 @@ test('fallback recovery closes the planning-failure callback gap before resuming
   const coordinator=createOnDeckProcessCoordinator({schemaManifest,unitOfWork,
     workResultReader:{
       listWorks:()=>[{work_id:'ondeck-planning-failure',state:'failed',created_at_ms:10,updated_at_ms:20}],
-      read:()=>[{inputBindings:{bindings:[{bindingKind:'projected_owner_facts',parameters:{dependencyRefs:refs}}]}}],
       readDefinition:()=>({definition:{dependencyRefs:[...refs,acceptedRef]}}),
     },
     contextReader:{
@@ -168,6 +167,24 @@ test('automatic On-deck reconciliation stops polling attention Runs but still cl
   });
   assert.deepEqual(coordinator.listRecoverableOnDeck(10).map((item)=>item.scope.onDeckRunId),
     ['blocked-run','planning-gap-run']);
+}));
+
+test('a third planning failure is selected once to close the Run into stable attention', () => fixture(({ unitOfWork }) => {
+  const states=new Map([
+    ['already-attention',{eligible:true,reasonCode:null,state:'blocked'}],
+    ['third-planning-gap',{eligible:false,reasonCode:'on_deck_run_not_blocked',state:'offloading'}],
+  ]);
+  const coordinator=createOnDeckProcessCoordinator({schemaManifest,unitOfWork,
+    workResultReader:{
+      listOwnerWorks:()=>[...states.keys()].map((process_id)=>({process_id})),
+      listWorks:({processId})=>Array.from({length:3},(_value,index)=>({
+        work_id:processId+'-work-'+index,state:'failed',created_at_ms:index+1,updated_at_ms:index+2,
+      })),
+    },
+    contextReader:{onDeck:{recoveryEligibility:(runId)=>states.get(runId)}},
+  });
+  assert.deepEqual(coordinator.listRecoverableOnDeck(10).map((item)=>item.scope.onDeckRunId),
+    ['third-planning-gap']);
 }));
 
 test('equal deterministic failures aggregate and open then close one process-local Circuit', () => fixture(({ breaker, incidents }) => {

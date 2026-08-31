@@ -141,14 +141,12 @@ function createOnDeckProcessCoordinator(options) {
       dependsOn:[Object.freeze({ ownerDomain:'arca', objectType:'supporting_work',
         objectId:acceptanceWork.workId, revision:1, digest:acceptanceWork.executionBasisDigest })] });
   }
-  function refsFromWorkResult(workId) {
-    const first = options.workResultReader.read(workId)[0];
-    const parameters = first?.inputBindings?.bindings?.find((item)=>
-      item.bindingKind === 'projected_owner_facts')?.parameters;
-    if (!Array.isArray(parameters?.dependencyRefs)) {
+  function refsFromWorkDefinition(workId) {
+    const definition = options.workResultReader.readDefinition?.(workId)?.definition;
+    if (!Array.isArray(definition?.dependencyRefs)) {
       throw new Error('Arca Work lost its immutable Handoff B dependency references.');
     }
-    return Object.freeze(parameters.dependencyRefs);
+    return Object.freeze(definition.dependencyRefs.filter((item)=>item.ownerDomain==='libra'));
   }
   function orderedOnDeckWorks(onDeckRunId) {
     return options.workResultReader.listWorks({ ownerDomain:'arca', processType:'arca_ondeck_run',
@@ -185,7 +183,7 @@ function createOnDeckProcessCoordinator(options) {
     if (!assessment) {
       const activeWorkId = recoveryCase?.activeWorkId;
       if (!activeWorkId) return Object.freeze({ kind:'not_found', processId });
-      refs = refsFromWorkResult(activeWorkId);
+      refs = refsFromWorkDefinition(activeWorkId);
       assessment = assessmentWork(processId, refs, recoveryCase.recoveryGeneration, recoveryCase.recoveryTriggerDigest);
     }
     submit(assessment);
@@ -242,7 +240,7 @@ function createOnDeckProcessCoordinator(options) {
       // durable failed Work is still the exact recovery trigger, so close
       // that callback gap here before evaluating the same Run again.
       const context = options.contextReader.readAccepted(onDeckRunId,
-        refsFromWorkResult(latest.work_id));
+        refsFromWorkDefinition(latest.work_id));
       options.contextReader.onDeck.block(onDeckRunId,
         context.finalInventoryDecision.decisionDigest);
       eligibility = options.contextReader.onDeck.recoveryEligibility(onDeckRunId);
@@ -251,7 +249,7 @@ function createOnDeckProcessCoordinator(options) {
       return Object.freeze({ kind:'not_recoverable', onDeckRunId, workId:latest.work_id,
         reasonCode:eligibility.reasonCode, state:eligibility.state || null });
     }
-    const refs = refsFromWorkResult(latest.work_id);
+    const refs = refsFromWorkDefinition(latest.work_id);
     const context = options.contextReader.readAccepted(onDeckRunId, refs);
     if (mode === 'automatic' && rows.length >= maxGenerations) {
       const attention=options.contextReader.onDeck.requireAttention(onDeckRunId,
@@ -274,10 +272,10 @@ function createOnDeckProcessCoordinator(options) {
     for(const onDeckRunId of processIds){
       const rows=orderedOnDeckWorks(onDeckRunId),latest=rows.at(-1);
       if(!latest||!['failed','cancelled'].includes(latest.state))continue;
-      if(rows.length>=3)continue;
       const eligibility=options.contextReader.onDeck.recoveryEligibility(onDeckRunId);
       const closesPlanningGap=!eligibility.eligible&&eligibility.reasonCode==='on_deck_run_not_blocked'&&
         ['ready','offloading'].includes(eligibility.state);
+      if(rows.length>=3&&eligibility.eligible)continue;
       if(!eligibility.eligible&&!closesPlanningGap)continue;
       result.push(Object.freeze({cursor:onDeckRunId,scope:Object.freeze({onDeckRunId})}));
       if(result.length>=limit)break;
@@ -301,7 +299,7 @@ function createOnDeckProcessCoordinator(options) {
       const triggerDigest = recoveryTriggerDigest(), results = [];
       for (const item of recovery.listAttention(limit)) {
         if (item.automaticRecoveryUsed || item.failedTriggerDigest === triggerDigest) continue;
-        const refs = refsFromWorkResult(item.activeWorkId);
+        const refs = refsFromWorkDefinition(item.activeWorkId);
         const nextWork = assessmentWork(item.offerId, refs, item.recoveryGeneration + 1, triggerDigest);
         const next = recovery.startGeneration(item.offerId, { mode:'automatic', workId:nextWork.workId, recoveryTriggerDigest:triggerDigest });
         if (next.activeWorkId === nextWork.workId) results.push(Object.freeze({ offerId:item.offerId, work:nextWork, result:submit(nextWork) }));
@@ -316,7 +314,7 @@ function createOnDeckProcessCoordinator(options) {
         if(!run)throw Object.assign(new Error('Accepted On-deck Run was not found.'),{code:'ARCA_ONDECK_RUN_NOT_FOUND'});
         return recoverOnDeck(run.onDeckRunId,3,'user');
       }
-      const refs = refsFromWorkResult(item.activeWorkId), triggerDigest = recoveryTriggerDigest();
+      const refs = refsFromWorkDefinition(item.activeWorkId), triggerDigest = recoveryTriggerDigest();
       const nextWork = assessmentWork(offerId, refs, item.recoveryGeneration + 1, triggerDigest);
       const next = recovery.startGeneration(offerId, { mode:'user', workId:nextWork.workId, recoveryTriggerDigest:triggerDigest });
       return Object.freeze({ recovery:next, work:nextWork, result:submit(nextWork) });
@@ -333,14 +331,14 @@ function createOnDeckProcessCoordinator(options) {
       const results = options.workResultReader.read(row.work_id);
       const commit = results.find((item)=>item.capabilityRef === 'arca.ondeck.commit@1' && item.outcomeKind === 'succeeded');
       if (!commit) return Object.freeze({ kind:'invalid_terminal_result', onDeckRunId });
-      const context = options.contextReader.readAccepted(onDeckRunId, refsFromWorkResult(row.work_id));
+      const context = options.contextReader.readAccepted(onDeckRunId, refsFromWorkDefinition(row.work_id));
       options.contextReader.onDeck.finalize(onDeckRunId, context.finalInventoryDecision.decisionDigest);
       return Object.freeze({ kind:'terminal', onDeckRunId, subjectId:context.offer.subjectId, result:commit.result });
     },
     blockOnDeck(onDeckRunId) {
       const rows = orderedOnDeckWorks(onDeckRunId);
       if (!rows.length) return Object.freeze({ kind:'not_found', onDeckRunId });
-      const latest = rows.at(-1), refs = refsFromWorkResult(latest.work_id);
+      const latest = rows.at(-1), refs = refsFromWorkDefinition(latest.work_id);
       const context = options.contextReader.readAccepted(onDeckRunId, refs);
       const blocked = options.contextReader.onDeck.block(onDeckRunId,
         context.finalInventoryDecision.decisionDigest);

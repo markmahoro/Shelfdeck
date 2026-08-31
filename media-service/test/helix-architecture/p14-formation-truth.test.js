@@ -101,3 +101,21 @@ test('Formation explains an Arca target failure instead of showing a stalled han
   assert.equal(item.nextAction.label, '媒体整理完成，目标收藏架目录不可用，上架失败');
   assert.equal(item.executorIssue.canRetry, true);
 });
+
+test('Accepted On-deck attention exposes retry for the same Arca Run', () => {
+  const query = createFormationQuery({
+    store:{},
+    detailSource:{ get:()=>({ subjectId:'subject-ondeck', classification:'attention_required',
+      handoffB:{offerId:'offer-ondeck'}, arcaStatus:{stage:'attention_required',
+        reasonCode:'ARCA_ONDECK_BLOCKED',onDeckRunId:'ondeck-same-run'},
+      processDetail:{stages:[{key:'acceptance_shelving',state:'attention'}]},
+      nextAction:{label:'收藏架接纳或上架需要处理',state:'attention_required',progress:null} }) },
+    readAcceptanceRecovery:()=>({ recoveryState:'resolved', offerId:'offer-ondeck' }),
+  });
+  const item=query.get('subject-ondeck');
+  assert.equal(item.classification,'attention_required');
+  assert.equal(item.nextAction.label,'上架自动恢复已停止，需要处理');
+  assert.deepEqual({canRetry:item.executorIssue.canRetry,owner:item.executorIssue.owner,
+    offerId:item.executorIssue.offerId,onDeckRunId:item.executorIssue.onDeckRunId},
+  {canRetry:true,owner:'arca',offerId:'offer-ondeck',onDeckRunId:'ondeck-same-run'});
+});

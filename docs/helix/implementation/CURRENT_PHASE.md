@@ -1,6 +1,6 @@
 # ShelfDeck Helix 当前实施阶段
 
-状态：**PROD-035/036/037 DEPLOYED；OBSERVATION RECOVERY PASS；FORMATION DETAIL FAILED / RETURNED；PRODUCTION ACCEPTANCE OPEN**
+状态：**PROD-035/036/037 DEPLOYED；OBSERVATION RECOVERY PASS；FORMATION DETAIL LOCAL CORRECTION READY / NOT DEPLOYED；PRODUCTION ACCEPTANCE OPEN**
 
 日期：2026-08-31
 
@@ -17,6 +17,7 @@
 7. Aftercare 遇到语义等价的 NFO 指纹漂移时不写文件，只提交新的 Inventory Representation revision 并原子切换 Material Control；语义错误才 update/rebuild。
 8. PROD-036 将 Field Observation 调整为 12 小时 cadence，对可重建 Entry 明细执行 7 天引用保护 GC；冻结 deadline 贯穿目录枚举和 fingerprint I/O，Page commit 前执行协作式 abort 栅栏。首次 replacement 生产运行超过一小时仍不收口；现仅对显式 abort-safe Executor 执行 deadline + 1 秒 settlement grace 的 hard race，ordinary/recovery 统一 terminal fail 并 abandon intent，迟到提交由 Context 门禁拒绝；recovery 保持原 Attempt deadline。永久审计事实不删除，terminal Event/Attempt 聚合保护独立保留。
 9. PROD-037 将 NFO Presentation gate 收回 Movie Identity、title/year/plot/genre/cast；Aftercare source/stat fence 竞争在回滚完成后形成 typed terminal failure，不再留下未知 `material_commit` Effect。
+10. Formation 详情只投影与当前 Subject 的 Candidate Package、Structure Unit、Libra Run、Offer 和 Arca On-deck Run 正式绑定的 immutable Workflow Plan；Accepted On-deck planning failure 从 Work Definition 恢复并继续同一 Run，耗尽后投影可重试 attention。
 
 ## 边界
 
@@ -36,3 +37,4 @@
 - 连续外部改写只保留一个活动 Case/Incident；自动恢复耗尽后不再周期重建 Work 或刷日志，并能由用户继续同一 Run。
 - Product Owner 已授权并完成 replacement 标准 build/upload/deploy、备份和 ShelfDeck Compose 无损重建；未使用 clean init/reset。PROD-036 旧第 69 页已按原 durable deadline terminal fail，68 页/17,408 Entries 不变、无迟到提交。
 - PROD-037 已部署，初始窗口未见旧 NFO 错误复发。Formation 详情验收失败：《罪人》吸入 Field-wide 867 个 Plan，attention 仍显示为 `in_progress` 且无重试动作，已打回原任务；既有坏 Projection/Receipt 未获一次性纠正授权，继续 fail closed。
+- Formation 详情本地 focused 52/52、Service full 382 pass/18 skip/0 fail；生产未部署，因此《罪人》当前页面和既有坏 Projection/Receipt 不视为已纠正。Architecture contracts/manifests/semantic 通过，full gate 仍受 main 既有 3 个 Windows/Fastify entrypoint failures 与 dynamic-template scanner findings 阻断。
