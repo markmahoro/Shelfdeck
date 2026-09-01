@@ -1,6 +1,8 @@
 'use strict';
 
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
 const test = require('node:test');
 const {
   BACKUP_ROOT,
@@ -44,4 +46,9 @@ test('NAS Formation Reset pins the exact image ID of the running container', () 
   assert.match(command, /docker compose ps -q shelfdeck/);
   assert.match(command, /\{\{\.Image\}\}/);
   assert.doesNotMatch(command, /Config\.Image/);
+});
+
+test('NAS Formation Reset retries transient connection resets during post-reset health verification', () => {
+  const source = fs.readFileSync(path.join(__dirname, '../../scripts/formation-reset-nas.js'), 'utf8');
+  assert.match(source, /--retry-all-errors/);
 });

@@ -108,6 +108,10 @@ Reset以`arca_ondeck_commit_receipts`为保护线，不删除已Commit的Shelf E
 触发Observation/Intake。目标Workspace先在同一`/transcode`文件系统内原子staging；数据库事务和独立postcondition通过后
 才删除，失败则恢复原目录。其他目录保留。
 
+Discovery必须同时从Formation领域根向下闭包，并反向查找“Procurement Delivery已经accepted/rejected、但不存在完全匹配的
+Libra Handoff A Receipt”的闭环残留。未与任何Arca Commit物料链重叠的残留Delivery/Reservation进入Reset并重新打开；存在
+已Commit物料重叠的闭环必须报告并保护。禁止仅因Libra领域根已被旧Reset删除就把Procurement闭环误判为正常。
+
 本地或disposable fixture先执行plan：
 
 ```powershell
@@ -134,7 +138,7 @@ node scripts/formation-reset-nas.js --apply --confirm FORMATION_RESET_V2
 ```
 
 NAS包装会解析当前精确镜像、只停止ShelfDeck服务、在应用目录下创建并校验完整data备份、离线执行Reset、重复plan验证幂等，
-然后启动服务并检查health。任一步骤失败都停止继续执行；apply失败时ShelfDeck可能保持停止，必须先保留现场并按脚本输出的
+然后启动服务并对连接重置等瞬时启动错误进行有界health重试。任一步骤失败都停止继续执行；apply失败时ShelfDeck可能保持停止，必须先保留现场并按脚本输出的
 `/vol1/1000/docker/shelfdeck/backups/formation-reset-*/data`恢复，禁止手工补SQL。
 
 ## 5. 排查后必须产出

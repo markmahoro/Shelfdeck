@@ -158,6 +158,38 @@ function discoverEventlessFactMarkerOrphans(database) {
   `).all(source.ownerDomain, source.scopeType).map((row) => Object.freeze({ ...row }))));
 }
 
+function discoverReverseHandoffAClosures(database) {
+  return database.prepare(`
+    SELECT delivery.offer_id,delivery.candidate_package_id,delivery.state,
+           delivery.handoff_decision_id,delivery.handoff_receipt_id,
+           CASE WHEN EXISTS (
+             SELECT 1
+               FROM proc_run_materials material
+               JOIN libra_run_material_members member ON member.material_key=material.material_key
+               JOIN libra_run_material_manifests manifest
+                 ON manifest.run_material_manifest_id=member.run_material_manifest_id
+               JOIN libra_product_packages package ON package.libra_run_id=manifest.libra_run_id
+               JOIN arca_ondeck_custodies custody ON custody.on_deck_package_id=package.on_deck_package_id
+               JOIN arca_ondeck_runs ondeck ON ondeck.custody_id=custody.custody_id
+               JOIN arca_ondeck_commit_receipts receipt ON receipt.on_deck_run_id=ondeck.on_deck_run_id
+              WHERE material.candidate_package_id=delivery.candidate_package_id
+           ) THEN 1 ELSE 0 END AS committed_material_overlap
+      FROM proc_candidate_deliveries delivery
+     WHERE delivery.state IN ('accepted','rejected')
+       AND NOT EXISTS (
+         SELECT 1 FROM libra_handoff_a_receipts receipt
+          WHERE receipt.offer_id=delivery.offer_id
+            AND receipt.candidate_package_id=delivery.candidate_package_id
+            AND receipt.package_revision=delivery.package_revision
+            AND receipt.package_digest=delivery.package_digest
+            AND receipt.intake_decision_id=delivery.handoff_decision_id
+            AND receipt.receipt_id=delivery.handoff_receipt_id
+            AND receipt.outcome=delivery.state
+       )
+     ORDER BY delivery.offer_id
+  `).all().map((row) => Object.freeze({ ...row }));
+}
+
 function discoverScope(database) {
   assertRequiredSchema(database);
   const orphanPipelineTokens = database.prepare(`
@@ -357,12 +389,18 @@ function discoverScope(database) {
     : [];
   intakeDecisionIds.push(...runOriginIntakeDecisionIds, ...pipelineSourceProcessIds);
   const finalIntakeDecisionIds = unique(intakeDecisionIds);
+  const reverseHandoffAClosures = discoverReverseHandoffAClosures(database);
+  const orphanProcurementHandoffAClosures = reverseHandoffAClosures
+    .filter((row) => row.committed_material_overlap === 0);
+  const preservedCommittedHandoffAClosures = reverseHandoffAClosures
+    .filter((row) => row.committed_material_overlap === 1);
   const handoffAOfferIds = unique([
     ...rowsByIds(database, 'SELECT offer_id FROM libra_intake_decisions WHERE intake_decision_id IN', finalIntakeDecisionIds)
       .map((row) => row.offer_id).filter(Boolean),
     ...rowsByIds(database, `SELECT offer_id FROM proc_candidate_deliveries WHERE handoff_decision_id IN`,
       pipelineSourceProcessIds, "AND state IN ('accepted','rejected')")
       .map((row) => row.offer_id).filter(Boolean),
+    ...orphanProcurementHandoffAClosures.map((row) => row.offer_id),
   ]);
   const handoffACandidatePackageIds = handoffAOfferIds.length
     ? rowsByIds(database, 'SELECT candidate_package_id FROM proc_candidate_deliveries WHERE offer_id IN', handoffAOfferIds)
@@ -425,14 +463,16 @@ function discoverScope(database) {
   const runMaterialKeys = rowsByIds(database,
     'SELECT material_key FROM libra_run_material_members WHERE run_material_manifest_id IN', runManifestIds)
     .map((row) => row.material_key);
+  const handoffAMaterialKeys = unique(rowsByIds(database,
+    'SELECT material_key FROM proc_run_materials WHERE candidate_package_id IN', handoffACandidatePackageIds)
+    .map((row) => row.material_key));
   const subjectControlMaterialKeys = unique([
     ...rowsByIds(database, 'SELECT material_key FROM libra_material_bindings WHERE subject_id IN', disposableSubjectIds)
       .map((row) => row.material_key),
     ...rowsByIds(database, 'SELECT material_key FROM libra_material_bindings WHERE origin_intake_decision_id IN',
       retainedSubjectIds.length ? finalIntakeDecisionIds : []).map((row) => row.material_key),
     ...runMaterialKeys,
-    ...rowsByIds(database, 'SELECT material_key FROM proc_run_materials WHERE candidate_package_id IN',
-      handoffACandidatePackageIds).map((row) => row.material_key),
+    ...handoffAMaterialKeys,
   ]);
   const materialKeys = unique([
     ...subjectControlMaterialKeys,
@@ -443,8 +483,7 @@ function discoverScope(database) {
       .map((row) => row.material_key),
     ...rowsByIds(database, 'SELECT material_key FROM fx_workspace_materials WHERE workspace_id IN', workspaceIds)
       .map((row) => row.material_key),
-    ...rowsByIds(database, 'SELECT material_key FROM proc_run_materials WHERE candidate_package_id IN', handoffACandidatePackageIds)
-      .map((row) => row.material_key),
+    ...handoffAMaterialKeys,
   ]);
   const factScopes = Object.freeze([
     ...typedScope('libra', 'subject', resetSubjectIds),
@@ -489,6 +528,9 @@ function discoverScope(database) {
     packageIds:Object.freeze(packageIds), offerIds:Object.freeze(offerIds), intakeDecisionIds:Object.freeze(finalIntakeDecisionIds),
     handoffAOfferIds:Object.freeze(handoffAOfferIds),
     handoffACandidatePackageIds:Object.freeze(unique(handoffACandidatePackageIds)),
+    handoffAMaterialKeys:Object.freeze(handoffAMaterialKeys),
+    orphanProcurementHandoffAClosures:Object.freeze(orphanProcurementHandoffAClosures),
+    preservedCommittedHandoffAClosures:Object.freeze(preservedCommittedHandoffAClosures),
     acceptanceAttemptIds:Object.freeze(acceptanceAttemptIds), acceptanceDecisionIds:Object.freeze(acceptanceDecisionIds),
     custodyIds:Object.freeze(custodyIds), onDeckRunIds:Object.freeze(onDeckRunIds), artifactIds:Object.freeze(artifactIds),
     decisionBasisIds:Object.freeze(unique(decisionBasisIds)), routingAssessmentIds:Object.freeze(unique(routingAssessmentIds)),
@@ -508,8 +550,8 @@ function discoverScope(database) {
 function controlBelongsToScope(row, scope) {
   if (!row || row.state !== 'controlled') return false;
   if (row.owner_domain === 'libra') {
-    if (row.owner_scope_type === 'subject') return scope.pipelineTokenSubjectIds.includes(row.owner_scope_id) &&
-      scope.subjectControlMaterialKeys.includes(row.material_key);
+    if (row.owner_scope_type === 'subject') return (scope.pipelineTokenSubjectIds.includes(row.owner_scope_id) &&
+      scope.subjectControlMaterialKeys.includes(row.material_key)) || scope.handoffAMaterialKeys.includes(row.material_key);
     if (row.owner_scope_type === 'on_deck_package') return scope.packageIds.includes(row.owner_scope_id);
     if (row.owner_scope_type === 'libra_run') return scope.runIds.includes(row.owner_scope_id);
     if (row.owner_scope_type === 'workspace') return scope.workspaceIds.includes(row.owner_scope_id);
@@ -615,6 +657,8 @@ function inspectPlan(database) {
     phantomLibraAdmissionReceipts:scope.phantomLibraAdmissionReceiptIds.length,
     preservedProcurementControls:preservedProcurementControls.length,
     procurementHandoffAClosures:scope.handoffAOfferIds.length,
+    orphanProcurementHandoffAClosures:scope.orphanProcurementHandoffAClosures.length,
+    preservedCommittedHandoffAClosures:scope.preservedCommittedHandoffAClosures.length,
     eventlessFactMarkerOrphans:scope.eventlessFactMarkerOrphans.length,
     orphanRoutingDecisionMarkers:scope.eventlessFactMarkerOrphans.filter((row) => row.scope_type === 'routing_decision').length,
     orphanAcceptanceSpecMarkers:scope.eventlessFactMarkerOrphans.filter((row) => row.scope_type === 'acceptance_spec').length,
@@ -994,6 +1038,8 @@ function verifyFrozenManifest(database, manifest) {
     scope.handoffAOfferIds).filter((row) => row.state !== 'open' || row.handoff_decision_id !== null || row.handoff_receipt_id !== null);
   if (closedDeliveries.length) residual.handoffADeliveries = closedDeliveries;
   const globalResiduals = {
+    orphanProcurementHandoffAClosures:discoverReverseHandoffAClosures(database)
+      .filter((row) => row.committed_material_overlap === 0),
     uncommittedRuns:database.prepare(`SELECT run.libra_run_id FROM libra_runs run WHERE NOT EXISTS (
       SELECT 1 FROM libra_product_packages package
       JOIN arca_ondeck_custodies custody ON custody.on_deck_package_id=package.on_deck_package_id
@@ -1069,7 +1115,7 @@ function applyFormationReset(database, plan, nowMs) {
     schema:'helix.formation-reset-manifest@2',
     business:{ subjects:scope.disposableSubjectIds, intakes:scope.intakeDecisionIds, runs:scope.runIds,
       workspaces:scope.workspaceIds, packages:scope.packageIds, onDeckRuns:scope.onDeckRunIds,
-      artifacts:scope.artifactIds },
+      artifacts:scope.artifactIds, handoffAOffers:scope.handoffAOfferIds },
     execution:graph,
   }) });
   database.pragma('foreign_keys = OFF');

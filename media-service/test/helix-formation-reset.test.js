@@ -257,6 +257,16 @@ function seedClosedHandoffABoundary(database, suffix) {
   return { subjectId, processId, offerId, candidatePackageId, procurementRunId, materialKey, messageId, dedupKey };
 }
 
+function makeClosedHandoffALatent(database, seeded) {
+  database.prepare('DELETE FROM libra_predeck_pipeline_tokens WHERE subject_id=?').run(seeded.subjectId);
+  database.prepare('DELETE FROM fx_material_control_revisions WHERE material_key=? AND revision=3')
+    .run(seeded.materialKey);
+  database.prepare(`UPDATE fx_material_controls
+    SET owner_domain='libra',owner_scope_type='subject',owner_scope_id=?,control_revision=2,state='controlled',updated_at_ms=2
+    WHERE material_key=?`).run(seeded.subjectId,seeded.materialKey);
+  return seeded;
+}
+
 test('Formation Reset is an exact no-op on an empty database and preserves unrelated transcode entries', () => {
   const value = fixture('helix-formation-reset-empty');
   try {
@@ -405,6 +415,83 @@ test('Formation Reset reopens the exact Handoff A boundary and rolls released Co
     applyReset({ database:value.database, dataDir:value.dataDir,
       transcodeDir:value.transcodeDir, nowMs:3610 });
     assert.equal(inspectPlan(value.database).counts.procurementHandoffAClosures, 0);
+  } finally { close(value); }
+});
+
+test('Formation Reset discovers a latent Procurement-only closed Handoff A boundary', () => {
+  const value = fixture('helix-formation-reset-latent-handoff-a');
+  try {
+    const seeded = makeClosedHandoffALatent(value.database,
+      seedClosedHandoffABoundary(value.database, 'latent'));
+    const plan = inspectPlan(value.database);
+    assert.equal(plan.ready, true);
+    assert.equal(plan.counts.orphanProcurementHandoffAClosures, 1);
+    assert.equal(plan.counts.preservedCommittedHandoffAClosures, 0);
+    assert.deepEqual(plan.scope.handoffAOfferIds, [seeded.offerId]);
+    assert.equal(plan.counts.controlledMaterials, 1);
+
+    const result = applyReset({ database:value.database, dataDir:value.dataDir,
+      transcodeDir:value.transcodeDir, nowMs:3620 });
+    assert.equal(result.result.reopenedDeliveries, 1);
+    assert.equal(result.result.reopenedReservations, 1);
+    assert.equal(result.result.restoredProcurementControls, 1);
+    assert.deepEqual(value.database.prepare(`SELECT owner_domain,owner_scope_type,owner_scope_id,control_revision,state
+      FROM fx_material_controls WHERE material_key=?`).get(seeded.materialKey), {
+      owner_domain:'procurement', owner_scope_type:'material_field', owner_scope_id:'field-handoff-reset',
+      control_revision:1, state:'controlled',
+    });
+    assert.equal(inspectPlan(value.database).counts.orphanProcurementHandoffAClosures, 0);
+  } finally { close(value); }
+});
+
+test('Formation Reset preserves a closed Handoff A boundary whose material belongs to a committed Shelf chain', () => {
+  const value = fixture('helix-formation-reset-protected-handoff-a');
+  try {
+    const latent = makeClosedHandoffALatent(value.database,
+      seedClosedHandoffABoundary(value.database, 'protected'));
+    const kept = seedSubjectRun(value.database, 'protected-handoff', 'completed');
+    const manifestId = 'manifest-protected-handoff';
+    const packageId = 'package-protected-handoff';
+    const custodyId = 'custody-protected-handoff';
+    const onDeckRunId = 'ondeck-protected-handoff';
+    value.database.prepare(`INSERT INTO libra_run_material_manifests
+      (run_material_manifest_id,libra_run_id,manifest_role,scope_kind,manifest_revision,member_count,
+       member_set_digest,manifest_digest,published_at_ms)
+      VALUES (?,?,'run_input','single',1,1,?,?,1)`).run(manifestId,kept.runId,DIGEST,DIGEST);
+    value.database.prepare(`INSERT INTO libra_run_material_members
+      (run_material_manifest_id,ordinal,material_key,role,size_bytes,member_digest)
+      VALUES (?,0,?,'primary_payload',1,?)`).run(manifestId,latent.materialKey,DIGEST);
+    value.database.prepare(`INSERT INTO libra_product_packages
+      (on_deck_package_id,offer_id,package_revision,libra_run_id,run_state_revision,subject_id,
+       run_material_manifest_id,product_structure_json,production_provenance_json,attestation_json,
+       package_digest,state,published_at_ms)
+      VALUES (?,'offer-protected-package',1,?,1,?,?,'{}','{}','{}',?,'published',1)`)
+      .run(packageId,kept.runId,kept.subjectId,manifestId,DIGEST);
+    value.database.prepare(`INSERT INTO arca_acceptance_decisions
+      (acceptance_decision_id,result,offer_id,on_deck_package_id,package_digest,decided_at_ms)
+      VALUES ('decision-protected-handoff','accepted','offer-protected-package',?,?,1)`)
+      .run(packageId,DIGEST);
+    value.database.prepare(`INSERT INTO arca_ondeck_custodies
+      (custody_id,acceptance_decision_id,on_deck_package_id,package_digest,state,accepted_at_ms)
+      VALUES (?,'decision-protected-handoff',?,?,'committed',1)`).run(custodyId,packageId,DIGEST);
+    value.database.prepare(`INSERT INTO arca_ondeck_runs(on_deck_run_id,custody_id,state,created_at_ms,terminal_at_ms)
+      VALUES (?,?,'committed',1,2)`).run(onDeckRunId,custodyId);
+    value.database.prepare("INSERT INTO arca_shelf_entries(shelf_entry_id,status,created_at_ms) VALUES ('entry-protected-handoff','active',1)").run();
+    value.database.prepare(`INSERT INTO arca_ondeck_commit_receipts
+      (receipt_id,on_deck_run_id,shelf_entry_id,inventory_revision,deck_fact_revision,commit_digest,committed_at_ms)
+      VALUES ('commit-protected-handoff',?,'entry-protected-handoff',1,1,?,2)`).run(onDeckRunId,DIGEST);
+
+    const plan = inspectPlan(value.database);
+    assert.equal(plan.ready, true);
+    assert.equal(plan.counts.orphanProcurementHandoffAClosures, 0);
+    assert.equal(plan.counts.preservedCommittedHandoffAClosures, 1);
+    assert.equal(plan.scope.handoffAOfferIds.includes(latent.offerId), false);
+
+    const result = applyReset({ database:value.database, dataDir:value.dataDir,
+      transcodeDir:value.transcodeDir, nowMs:3630 });
+    assert.equal(result.verification.integrity, 'ok');
+    assert.equal(value.database.prepare('SELECT state FROM proc_candidate_deliveries WHERE offer_id=?')
+      .get(latent.offerId).state, 'accepted');
   } finally { close(value); }
 });
 

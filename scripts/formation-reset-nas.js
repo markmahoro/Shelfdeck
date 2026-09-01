@@ -139,7 +139,7 @@ async function main(argv = process.argv.slice(2)) {
     await step(connection, 'Verify the reset is idempotent', resetCommand(image, false));
     await step(connection, 'Start only the ShelfDeck service', `cd ${shellQuote(COMPOSE_DIR)} && docker compose up -d ${SERVICE}`);
     await step(connection, 'Verify ShelfDeck Compose status', `cd ${shellQuote(COMPOSE_DIR)} && test -n "$(docker compose ps -q --status running ${SERVICE})"`);
-    await step(connection, 'Verify ShelfDeck health', `curl --fail --silent --show-error --retry 12 --retry-delay 5 ${shellQuote(HEALTH_URL)}`);
+    await step(connection, 'Verify ShelfDeck health', `curl --fail --silent --show-error --retry 12 --retry-delay 5 --retry-all-errors ${shellQuote(HEALTH_URL)}`);
     process.stdout.write(`\nFormation Reset complete. Rollback data: ${backupDir}/data\n`);
     return Object.freeze({ applied:true, image, backupDir, healthUrl:HEALTH_URL });
   } catch (error) {
