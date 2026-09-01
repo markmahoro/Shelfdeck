@@ -1,6 +1,6 @@
 # ShelfDeck Clean Helix Current Status
 
-Status: **PROD-049/050 已部署并完成生产验收；3 条自然 Intake 正常通过 Handoff A。**
+Status: **Nuclear Reset Foundation 清理闭包已部署并完成生产纠正；自然 Intake 已恢复。**
 
 Last updated: 2026-09-01
 
@@ -18,6 +18,9 @@ Last updated: 2026-09-01
 - 两种 Reset 均报告并清零 Accepted/no-token Subject 与 active/no-admission-head Run；Normal 可建立一次 reset-only Admission Head 后正式 discard，Nuclear 删除整个未 Commit 图。Service 411 项为 393 pass、18 skip、0 fail；Admin Web 42/42 且 production build 通过。Architecture fixture、semantic、manifest、contract 均通过，总 gate 仍仅受 18 个既有 dynamic-template scanner findings 阻断。
 - PROD-049 已部署并生产验收：Plan 全终态不再代替 Handoff A、Handoff B Accepted/Libra Run completed 与 On-deck Commit 三段正式业务边界；Result 采用封闭中文映射，结构化 Product Identity 显示标题与年份，未知对象/内部枚举不再进入用户界面。生产《赤焰战场2》详情为材料准备 completed、媒体整理 running、验收与上架 pending，身份结果为“赤焰战场2（2013）”，全文无 `[object Object]`。
 - PROD-050 已部署并完成获授权的一次性 Nuclear 数据纠正：重新打开 exact Delivery/Reservation、删除 exact Offer 跨域 dedup 闭包，并回卷目标 Control revision 后缀；不放宽 Runtime 校验、不增加条目兼容或生产 ID 特例。纠正后 3 个自然 token 全部对应 active Subject 与真实 Admission target Work，Handoff A terminal conflict 和 Libra phantom Receipt 均为 0。
+- Nuclear Reset 已补齐被删除领域 Fact 的 Foundation 清理闭包：Routing Decision、Acceptance Spec、Decision Basis、Run、Workspace、Package、Product Fact 与 Arca 未 Commit Fact 的 ID 均进入同一 execution graph；同时只清理“领域 Fact 已不存在且 Result 无 Event”的封闭孤儿 Marker/Result 集合。生产 dry-run 命中 1,255 条旧孤儿 Marker（Routing Decision 717、Acceptance Spec 535、其他封闭 Formation Fact 3），apply 后全部为 0；postcondition 与二次 dry-run 均为 0。
+- 本轮获授权 Nuclear Reset 删除 3 个未 Commit Subject、1 个 Run、1 个 Workspace、20 个 Work，恢复 3 个 Delivery/Reservation 与 3 个 Procurement Control；保留 10 条已 Commit 收藏链和 `/media`。服务自然 Intake 后，《007：大破天幕杀机》《唐人街探案》均建立了新的 active Run，已越过原先缺失 Routing Decision/Acceptance Spec 的静默重放点；第三个席位由《浪客剑心：京都大火篇》进入。
+- 本轮 Reset focused 14/14；Service full 432 项为 414 pass、18 skip、0 fail；Admin Web production build 通过。Architecture fixture、semantic、manifest、contract 通过，总 gate 仍只受未改文件中的 18 个既有 dynamic-template scanner findings 阻断。
 
 ## PROD-036 Production Monitoring
 
@@ -34,13 +37,14 @@ hard-deadline replacement 已随 `helix-beta-20260831-ae7a567cde` 无损部署�
 ## Production
 
 - Host：`192.168.12.230:18080`。
-- Running image：`markmahoro/shelfdeck:helix-beta-20260901-237d0fb7b0`；source commit `237d0fb7b0`；tar SHA-256 `f4e35d2f2222e1265dcd078f3c14d4df6e9386ee70031d986536aab3b90aab89`。
-- Running image ID：`sha256:ac7048c09c13869ef96c6c8eac84d0684890e3a0ea63c2a9a0a3cac061213528`。
+- Running image：`markmahoro/shelfdeck:helix-beta-20260901-510abb2e40`；source commit `510abb2e40`；tar SHA-256 `006607519d401cfd1e04d0ac97016ef232c670ded28298ce0cc09a1932cfd6f5`。
+- Running image ID：`sha256:cb1337771ba0f2100853a9906688a48c49611adc393fd9a9f981158242e8f97b`。
 - Health：`ok`；generation `helix-clean-v3`；schema 186；`normalSupplyAllowed:true`；SQLite `integrity_check=ok`。
 - Compose：`/vol1/1000/docker/shelfdeck`；data：`/vol1/1000/docker/shelfdeck/data`；Workspace mount：`/transcode`。
 - PROD-047 离线纠正备份：`/vol1/1000/docker/shelfdeck/data.backup-20260901T082544Z-prod047-aftercare-reclaim`（约 898 MiB）。
 - PROD-048 最终 Nuclear Reset 备份：`/vol1/1000/docker/shelfdeck/backups/formation-reset-20260901T092339Z-nuclear/data`。
 - PROD-050 Handoff A 边界纠正备份：`/vol1/1000/docker/shelfdeck/backups/formation-reset-20260901T094823Z-nuclear/data`。
+- 本轮 Nuclear Reset 备份：`/vol1/1000/docker/shelfdeck/backups/formation-reset-20260901T105240Z-nuclear/data`。
 - 其他 NAS Docker 服务在部署后只读检查时仍运行正常。
 
 ## Production Corrections
@@ -62,8 +66,8 @@ PROD-034 已按 Product Owner 授权对“唐人街探案 (2015)”和“赤壁�
 - 当前工作区已经实现统一的 Formation Reset 离线调试能力，提供 `normal` 与 `nuclear` 两种模式。
 - `normal` 终止并清理 On-deck Commit 前的活动整理现场，同时保留明确终态的过程记录；`nuclear` 物理删除该范围内的过程记录，使其在当前运行数据库中视同未发生。
 - 两种模式都以 Arca On-deck Commit 为保护线，不触碰已入架事实和 `/media`，也不主动触发 Observation 或 Intake。
-- **该能力核心已随当前生产镜像部署到 NAS，并已完成一次获授权的 Nuclear Reset。** 后续调用仍必须逐次获得明确生产授权、显式指定 `normal|nuclear`、先 dry-run，再使用模式专属确认串 `--apply`；部署本身不触发 Reset。
-- 本轮统一无损升级不再执行 Reset，也不使用 clean init。
+- **该能力核心已随当前生产镜像部署到 NAS，并已再次完成获授权的 Nuclear Reset。** 后续调用仍必须逐次获得明确生产授权、显式指定 `normal|nuclear`、先 dry-run，再使用模式专属确认串 `--apply`；部署本身不触发 Reset。
+- 本轮先无损升级 Reset 实现，再单独执行获授权 Nuclear Reset；未使用 clean init。
 - Reset 发现范围现补齐无 Subject 的 orphan pipeline token：以 token 自身与 `source_process_id` 为独立范围根，
   同时纳入其 Libra Intake Work。Normal 删除 token、终止活动执行但保留终态审计；Nuclear 删除 token 与对应执行图。
   两种模式的 postcondition 都要求 orphan token 为 0。

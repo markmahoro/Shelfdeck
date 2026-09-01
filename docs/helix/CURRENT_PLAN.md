@@ -1,6 +1,6 @@
 # ShelfDeck Clean Helix Master Plan
 
-Status: **PROD-049/050 已部署并完成生产验收；Formation Reset/Handoff A 边界已收口。**
+Status: **Nuclear Reset Foundation 清理闭包已部署并完成生产纠正。**
 
 Last updated: 2026-09-01
 
@@ -13,14 +13,15 @@ Last updated: 2026-09-01
 - 合并文件来源/Per-Field Handoff A 账本、Formation 三态表达、Formation 详情排版、我的收藏成品库一级页、PROD-042 Rejection token 释放、PROD-044 semantic Execution Catalog 与 PROD-045 NFO 根节点生成/上架前门禁修复。
 - 生产 621 个 Accepted 但无 token 的 Subject 是旧合同残留，不增加 migration、resume 或兼容路径；获授权 Nuclear Formation Reset 已完成，未 Commit 过程图已清除。
 - Normal 与 Nuclear Reset 都必须清理 Accepted/no-token Subject 和 missing-admission-head Run。Nuclear 还必须把未 Commit 链精确回卷到 Handoff A 前：保留 immutable Candidate Package/Delivery identity，重新打开 Delivery/Reservation 与 Procurement Control 边界；已经 Arca On-deck Commit 的 Shelf/Deck 事实和 `/media` 始终受保护。
+- Nuclear 删除领域 Fact 时，必须同步清理其 eventless Foundation Marker/Result；任何领域 Fact 已不存在但 Marker 仍可重放的状态都属于 reset residual，postcondition 必须使事务失败。不得用兼容读取或影片特例绕过。
 
 ## 当前基线
 
 - NAS production：`192.168.12.230:18080`。
-- Image：`markmahoro/shelfdeck:helix-beta-20260901-237d0fb7b0`；source commit `237d0fb7b0`；tar SHA-256 `f4e35d2f2222e1265dcd078f3c14d4df6e9386ee70031d986536aab3b90aab89`。
+- Image：`markmahoro/shelfdeck:helix-beta-20260901-510abb2e40`；source commit `510abb2e40`；tar SHA-256 `006607519d401cfd1e04d0ac97016ef232c670ded28298ce0cc09a1932cfd6f5`。
 - Health：`ok` / `helix-clean-v3` / `normalSupplyAllowed:true`；schema 186；SQLite integrity `ok`。
 - Execution：PROD-047 exact 3 条遗留执行图已收口；另有 2 条 active Aftercare reclaim Work 只发生 inode drift，未获授权处理。
-- Formation：PROD-050 Nuclear 纠正后自然形成 3 个有效 token/Subject，每张 Admission Receipt 都命中真实 Work，Handoff A terminal conflict 为 0、Libra phantom Receipt 为 0；《赤焰战场2》已进入真实 GPU 转码。
+- Formation：本轮 Nuclear 清除了 1,255 条旧 eventless Fact Marker/Result residual，并删除当时 3 个未 Commit Subject/1 个 Run/20 个 Work；自然 Intake 后《007：大破天幕杀机》《唐人街探案》《浪客剑心：京都大火篇》均已建立新的 active Run。
 
 ## 已完成
 
@@ -44,6 +45,7 @@ Last updated: 2026-09-01
   与二次 dry-run 均通过。未改 Receipt、Aftercare/Inventory/Material 事实或媒体文件，也未形成 Runtime 兼容路径。
 - PROD-049 已部署并生产验收：Formation 三段详情以正式业务交付边界判定完成，不能用当前 Plan 全终态代替；用户结果只允许稳定中文映射，结构化 Product Identity 显示为标题与年份，未知对象/内部枚举不进入用户界面。新自然条目适用，不增加影片或旧数据特例。
 - PROD-050 已部署并完成一次性生产纠正：Nuclear Reset 识别 orphan token 对应的旧 terminal Candidate Delivery，删除该 Offer 的 Libra→Procurement outbox/inbox dedup 闭包，重新打开 Delivery/Reservation，并把当前已 `released` 但历史曾进入目标 Libra/Arca 链的 Material Control revision 后缀回滚到 Procurement 边界。纠正后 3 个自然 Intake 全部通过正式 Handoff A。
+- Nuclear Reset Foundation 闭包已部署：当前 Fact ID 与旧 eventless orphan Fact Marker 都进入精确删除范围；生产 apply、foreign key、integrity 与二次幂等 dry-run 全部通过，Routing/Acceptance Spec orphan 均为 0。
 
 ## 下一步规则
 
