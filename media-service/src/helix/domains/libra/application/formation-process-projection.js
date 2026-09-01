@@ -144,8 +144,25 @@ function failureMessage(value) {
   return null;
 }
 function addFact(facts, label, value) {
-  if (value === null || value === undefined || value === '' || facts.some((item)=>item.label===label)) return;
+  if (!['string','number','bigint','boolean'].includes(typeof value) || value === '' || facts.some((item)=>item.label===label)) return;
   facts.push(Object.freeze({ label, value:String(value) }));
+}
+function displayIdentityEntries(value) {
+  if (!value || typeof value!=='object' || !Array.isArray(value.entries)) return new Map();
+  return new Map(value.entries.filter((item)=>item && typeof item.key==='string' &&
+    ['string','number','bigint','boolean'].includes(typeof item.value)).map((item)=>[item.key,item.value]));
+}
+function identityDisplayScalar(value) {
+  return ['string','number','bigint'].includes(typeof value) && String(value).trim() ? value : null;
+}
+function identityPresentation(value) {
+  const display=value?.displayIdentity, entries=displayIdentityEntries(display);
+  const directTitle=valueAt(value,['claimedDisplayIdentity','title','metadata.title','identity.title','candidate.displayTitle']);
+  const directYear=valueAt(value,['releaseYear','year','metadata.releaseYear','identity.releaseYear']);
+  const title=identityDisplayScalar(display) ?? identityDisplayScalar(directTitle) ??
+    identityDisplayScalar(entries.get('title')) ?? identityDisplayScalar(entries.get('display_title'));
+  const year=identityDisplayScalar(directYear) ?? identityDisplayScalar(entries.get('year'));
+  return Object.freeze({ title, year });
 }
 function resultEntryMap(value) {
   return new Map(Array.isArray(value?.postDeleteReality?.entries)
@@ -177,8 +194,7 @@ function resultFacts(event) {
     addFact(facts,'失败代码',failureCode);
   }
   if (value && typeof value === 'object') {
-    const title=valueAt(value,['displayIdentity','claimedDisplayIdentity','title','metadata.title','identity.title','candidate.displayTitle']);
-    const year=valueAt(value,['releaseYear','year','metadata.releaseYear','identity.releaseYear']);
+    const {title,year}=identityPresentation(value);
     const result=valueAt(value,['result','resultKind','outcome','decision','receiptKind']);
     const reason=valueAt(value,['reasonCode','selectionReasonCode','failureCode','code']);
     const count=valueAt(value,['memberCount','primaryCount','candidateMatchCount','matchedCount']);

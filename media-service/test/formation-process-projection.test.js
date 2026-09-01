@@ -83,6 +83,29 @@ test('Formation process projection keeps internal receipt enums behind stable us
   assert.equal(JSON.stringify(unknown).includes('internal future receipt'),false);
 });
 
+test('Formation process projection renders structured resolved identity as title and year',()=>{
+  const resolved=projectPlans([work('libra','libra_run','identity-structured','product_identity',[
+    event('plan-identity-structured','product_identity_resolution','libra.product_identity.resolve@1','succeeded',1,[],{
+      result:{outcomeKind:'succeeded',result:{
+        schemaRef:'helix://contracts/types/ResolvedProductIdentity/v1',
+        displayIdentity:{recordKind:'display-identity',entries:[
+          {key:'original_title',value:'RED 2'},{key:'title',value:'赤焰战场2'},{key:'year',value:'2013'},
+        ]},
+      }},
+    }),
+  ])]);
+  assert.deepEqual(resolved[0].nodes[0].results,[{label:'获得的信息',value:'赤焰战场2（2013）'}]);
+  assert.equal(JSON.stringify(resolved).includes('[object Object]'),false);
+
+  const opaque=projectPlans([work('libra','libra_run','identity-opaque','product_identity',[
+    event('plan-identity-opaque','product_identity_resolution','libra.product_identity.resolve@1','succeeded',1,[],{
+      result:{outcomeKind:'succeeded',result:{displayIdentity:{unexpected:'opaque'},result:'resolved'}},
+    }),
+  ])]);
+  assert.deepEqual(opaque[0].nodes[0].results,[{label:'运行结果',value:'已确认'}]);
+  assert.equal(JSON.stringify(opaque).includes('[object Object]'),false);
+});
+
 test('Formation process projection distinguishes repeated Plan nodes without inventing media identity',()=>{
   const settlements=Array.from({length:5},(_value,index)=>event('plan-settlement',
     `input_settlement_${String(index).padStart(4,'0')}`,'arca.ondeck.input_settlement.delete@1','pending',1,[],{
