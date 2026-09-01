@@ -100,6 +100,20 @@ function discoverScope(database) {
   `).all();
   const orphanPipelineTokenSubjectIds = unique(orphanPipelineTokens.map((row) => row.subject_id));
   const orphanPipelineSourceProcessIds = unique(orphanPipelineTokens.map((row) => row.source_process_id));
+  const orphanPipelineAdmissionReceipts = database.prepare(`
+    SELECT receipt.command_receipt_id,receipt.target_id,token.source_process_id
+      FROM libra_predeck_pipeline_tokens token
+      LEFT JOIN libra_subjects subject ON subject.subject_id=token.subject_id
+      JOIN fx_command_receipts receipt
+        ON receipt.owner_domain='libra'
+       AND receipt.command_contract='helix.foundation.work.submit@1'
+       AND receipt.caller_scope='libra:' || token.source_process_id || '/evidence'
+      LEFT JOIN fx_supporting_works target_work ON target_work.work_id=receipt.target_id
+     WHERE subject.subject_id IS NULL AND target_work.work_id IS NULL
+     ORDER BY receipt.command_receipt_id
+  `).all();
+  const orphanPipelineAdmissionReceiptIds = unique(orphanPipelineAdmissionReceipts.map((row) => row.command_receipt_id));
+  const orphanPipelineAdmissionTargetIds = unique(orphanPipelineAdmissionReceipts.map((row) => row.target_id));
   const committedOnDeckRunIds = oneColumn(database, `
     SELECT DISTINCT on_deck_run_id FROM arca_ondeck_commit_receipts ORDER BY on_deck_run_id
   `);
@@ -227,6 +241,7 @@ function discoverScope(database) {
     ...resetSubjectIds, ...runIds, ...workspaceIds, ...cleanupScopeIds, ...packageIds,
     ...offerIds, ...intakeDecisionIds, ...acceptanceAttemptIds, ...acceptanceDecisionIds,
     ...custodyIds, ...onDeckRunIds, ...orphanPipelineTokenSubjectIds, ...orphanPipelineSourceProcessIds,
+    ...orphanPipelineAdmissionTargetIds,
   ]);
   const works = [];
   if (allScopeIds.length) {
@@ -246,6 +261,9 @@ function discoverScope(database) {
     pipelineTokenSubjectIds:Object.freeze(pipelineTokenSubjectIds),
     orphanPipelineTokens:Object.freeze(orphanPipelineTokens.map((row) => Object.freeze({ ...row }))),
     orphanPipelineSourceProcessIds:Object.freeze(orphanPipelineSourceProcessIds),
+    orphanPipelineAdmissionReceipts:Object.freeze(orphanPipelineAdmissionReceipts.map((row) => Object.freeze({ ...row }))),
+    orphanPipelineAdmissionReceiptIds:Object.freeze(orphanPipelineAdmissionReceiptIds),
+    orphanPipelineAdmissionTargetIds:Object.freeze(orphanPipelineAdmissionTargetIds),
     runIds:Object.freeze(runIds), workspaceIds:Object.freeze(workspaceIds), cleanupScopeIds:Object.freeze(cleanupScopeIds),
     packageIds:Object.freeze(packageIds), offerIds:Object.freeze(offerIds), intakeDecisionIds:Object.freeze(intakeDecisionIds),
     acceptanceAttemptIds:Object.freeze(acceptanceAttemptIds), acceptanceDecisionIds:Object.freeze(acceptanceDecisionIds),
@@ -355,6 +373,7 @@ function inspectPlan(database, mode) {
     orphanAcceptedSubjects:orphans.acceptedSubjectIds.length,
     orphanActiveRuns:orphans.activeRunsWithoutHead.length,
     orphanPipelineTokens:orphans.pipelineTokens.length,
+    orphanPipelineAdmissionReceipts:scope.orphanPipelineAdmissionReceiptIds.length,
     preservedProcurementControls:preservedProcurementControls.length,
   });
   return Object.freeze({ mode, confirmationRequired:CONFIRMATIONS[mode], ready:blockers.length === 0,
@@ -587,6 +606,7 @@ function applyNormal(database, plan, nowMs) {
     const reclaimedWorkspaces = reclaimWorkspacesNormal(database, scope, nowMs, evidence.digest);
     const releasedControls = releaseControlsNormal(database, scope, nowMs, evidence.digest);
     executeByIds(database, "DELETE FROM libra_predeck_pipeline_tokens WHERE subject_id IN", scope.pipelineTokenSubjectIds);
+    executeByIds(database, 'DELETE FROM fx_command_receipts WHERE command_receipt_id IN', scope.orphanPipelineAdmissionReceiptIds);
     executeByIds(database, "DELETE FROM libra_formation_projections WHERE subject_id IN", scope.resetSubjectIds);
     executeByIds(database, "UPDATE libra_subjects SET status='abandoned',updated_at_ms=?,terminal_at_ms=COALESCE(terminal_at_ms,?) WHERE subject_id IN",
       scope.disposableSubjectIds, "AND status='active'", [nowMs,nowMs]);
@@ -639,7 +659,7 @@ function deleteExecutionGraph(database, graph, scopeIds) {
   executeByIds(database, 'DELETE FROM fx_audit_records WHERE work_id IN', graph.workIds);
   executeByIds(database, 'DELETE FROM fx_audit_records WHERE event_id IN', graph.eventIds);
   executeByIds(database, 'DELETE FROM fx_audit_records WHERE scope_id IN', scopeIds);
-  executeByIds(database, 'DELETE FROM fx_command_receipts WHERE target_id IN', scopeIds);
+  executeByIds(database, 'DELETE FROM fx_command_receipts WHERE target_id IN', unique([...scopeIds, ...graph.workIds]));
   executeByIds(database, 'DELETE FROM fx_effect_journal WHERE event_attempt_id IN', graph.eventAttemptIds);
   executeByIds(database, 'DELETE FROM fx_event_resource_timings WHERE event_attempt_id IN', graph.eventAttemptIds);
   executeByIds(database, 'DELETE FROM fx_event_progress WHERE event_id IN', graph.eventIds);

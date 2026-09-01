@@ -128,6 +128,31 @@ try {
     "WHERE w.owner_domain='libra' AND w.state IN ('admitted','ready','running','blocked') " +
     "ORDER BY w.process_type,w.process_id,w.work_kind,w.work_id"
   );
+  const admissionCapacity = {
+    openWorks: get("SELECT COUNT(*) AS count FROM fx_supporting_works WHERE state IN ('admitted','ready','running','blocked')"),
+    openWorksByOwner: all("SELECT owner_domain AS ownerDomain,state,COUNT(*) AS count FROM fx_supporting_works WHERE state IN ('admitted','ready','running','blocked') GROUP BY owner_domain,state ORDER BY owner_domain,state"),
+    openEvents: get("SELECT COUNT(*) AS count FROM fx_workflow_events WHERE state IN ('pending','ready','waiting_for_resource','waiting_for_external','waiting_for_approval','executing')"),
+    circuits: all("SELECT circuit_key AS circuitKey,state,reason_code AS reasonCode,opened_at_ms AS openedAtMs,reviewed_at_ms AS reviewedAtMs FROM fx_circuit_states WHERE circuit_key IN ('foundation/work-admission','owner/libra/work-admission') ORDER BY circuit_key"),
+  };
+  const pipelineTokens = all(
+    "SELECT token.subject_id AS subjectId,token.source_process_id AS sourceProcessId,token.acquired_at_ms AS acquiredAtMs," +
+      "subject.status AS subjectStatus,COUNT(DISTINCT work.work_id) AS sourceWorkCount," +
+      "COUNT(DISTINCT receipt.command_receipt_id) AS admissionReceiptCount," +
+      "GROUP_CONCAT(DISTINCT receipt.target_id) AS admissionReceiptTargets," +
+      "COUNT(DISTINCT receipt_work.work_id) AS admissionReceiptTargetWorkCount " +
+    "FROM libra_predeck_pipeline_tokens token " +
+      "LEFT JOIN libra_subjects subject ON subject.subject_id=token.subject_id " +
+      "LEFT JOIN fx_supporting_works work ON work.owner_domain='libra' AND work.process_id=token.source_process_id " +
+      "LEFT JOIN fx_command_receipts receipt ON receipt.owner_domain='libra' " +
+        "AND receipt.command_contract='helix.foundation.work.submit@1' " +
+        "AND receipt.caller_scope='libra:' || token.source_process_id || '/evidence' " +
+      "LEFT JOIN fx_supporting_works receipt_work ON receipt_work.work_id=receipt.target_id " +
+    "GROUP BY token.subject_id,token.source_process_id,token.acquired_at_ms,subject.status ORDER BY token.acquired_at_ms"
+  );
+  const intakeReconcileCursor = get(
+    "SELECT revision,opaque_cursor AS opaqueCursor,updated_at_ms AS updatedAtMs FROM fx_reconcile_cursors " +
+    "WHERE owner_domain='libra' AND reconciler_key='pending-intake-offers'"
+  ) || null;
   const arcaExecuting = all(
     "SELECT w.work_id AS workId,w.process_id AS processId,w.work_kind AS workKind,e.event_id AS eventId," +
       "e.capability_ref AS capabilityRef,e.state AS eventState,ea.event_attempt_id AS eventAttemptId," +
@@ -173,7 +198,8 @@ try {
     inventoryCandidates.push({ onDeckRunId:run.onDeckRunId, packageId:run.packageId, candidates });
   }
   console.log(JSON.stringify({ generatedAt:new Date().toISOString(), residuals, unsafeResiduals, residualChildren,
-    activeAttempts, activeLibraWorks, arcaExecuting, offloading, materialReads, inventoryCandidates }, null, 2));
+    activeAttempts, activeLibraWorks, admissionCapacity, pipelineTokens, intakeReconcileCursor,
+    arcaExecuting, offloading, materialReads, inventoryCandidates }, null, 2));
 } finally {
   database.close();
 }

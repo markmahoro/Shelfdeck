@@ -145,7 +145,29 @@ function seedOrphanPipelineToken(database, suffix) {
     (subject_id,source_field_id,source_process_id,acquired_at_ms) VALUES (?,'field-orphan',?,1)`)
     .run(subjectId,processId);
   const execution = seedExecution(database, 'libra', 'libra_intake', processId, `token-orphan-${suffix}`);
+  database.prepare(`INSERT INTO fx_command_receipts
+    (command_receipt_id,owner_domain,command_contract,caller_scope,idempotency_key,request_digest,
+     target_type,target_id,result_schema_ref,result_ref_json,result_digest,committed_at_ms)
+    VALUES (?,'libra','helix.foundation.work.submit@1',?,?,?,'supporting_work',?,'result','{}',?,1)`)
+    .run(`admission-receipt-work-${suffix}`,`libra:${processId}/evidence`,`key-work-${suffix}`,
+      DIGEST,execution.workId,DIGEST);
   return { subjectId, processId, ...execution };
+}
+
+function seedPhantomAdmissionReceipt(database, suffix) {
+  const subjectId = `subject-token-receipt-orphan-${suffix}`;
+  const processId = `intake-process-token-receipt-orphan-${suffix}`;
+  const targetWorkId = `missing-intake-work-${suffix}`;
+  const receiptId = `admission-receipt-${suffix}`;
+  database.prepare(`INSERT INTO libra_predeck_pipeline_tokens
+    (subject_id,source_field_id,source_process_id,acquired_at_ms) VALUES (?,'field-orphan',?,1)`)
+    .run(subjectId,processId);
+  database.prepare(`INSERT INTO fx_command_receipts
+    (command_receipt_id,owner_domain,command_contract,caller_scope,idempotency_key,request_digest,
+     target_type,target_id,result_schema_ref,result_ref_json,result_digest,committed_at_ms)
+    VALUES (?,'libra','helix.foundation.work.submit@1',?,? ,?,'supporting_work',?,'result','{}',?,1)`)
+    .run(receiptId,`libra:${processId}/evidence`,`key-${suffix}`,DIGEST,targetWorkId,DIGEST);
+  return { subjectId, processId, targetWorkId, receiptId };
 }
 
 test('Formation Reset is an exact no-op on an empty database and preserves unrelated transcode entries', () => {
@@ -265,11 +287,35 @@ test('both Reset modes clear orphan pipeline tokens and their Intake execution r
       } else {
         assert.equal(value.database.prepare('SELECT COUNT(*) count FROM fx_supporting_works WHERE work_id=?')
           .get(seeded.workId).count, 0);
+        assert.equal(value.database.prepare('SELECT COUNT(*) count FROM fx_command_receipts WHERE target_id=?')
+          .get(seeded.workId).count, 0);
       }
 
       applyReset({ database:value.database, mode, dataDir:value.dataDir,
         transcodeDir:value.transcodeDir, nowMs:3560 });
       assert.equal(inspectPlan(value.database, mode).counts.orphanPipelineTokens, 0);
+    } finally { close(value); }
+  }
+});
+
+test('both Reset modes remove phantom Work Admission receipts that would replay a missing Intake Work', () => {
+  for (const mode of ['normal','nuclear']) {
+    const value = fixture(`helix-formation-reset-phantom-admission-${mode}`);
+    try {
+      const seeded = seedPhantomAdmissionReceipt(value.database, mode);
+      const plan = inspectPlan(value.database, mode);
+      assert.equal(plan.ready, true);
+      assert.equal(plan.counts.orphanPipelineTokens, 1);
+      assert.equal(plan.counts.orphanPipelineAdmissionReceipts, 1);
+      assert.deepEqual(plan.scope.orphanPipelineAdmissionTargetIds, [seeded.targetWorkId]);
+
+      const result = applyReset({ database:value.database, mode, dataDir:value.dataDir,
+        transcodeDir:value.transcodeDir, nowMs:3570 });
+      assert.equal(result.verification.plan.counts.orphanPipelineTokens, 0);
+      assert.equal(value.database.prepare('SELECT COUNT(*) count FROM fx_command_receipts WHERE command_receipt_id=?')
+        .get(seeded.receiptId).count, 0);
+      assert.equal(value.database.prepare('SELECT COUNT(*) count FROM libra_predeck_pipeline_tokens WHERE subject_id=?')
+        .get(seeded.subjectId).count, 0);
     } finally { close(value); }
   }
 });
