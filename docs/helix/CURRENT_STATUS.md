@@ -1,6 +1,6 @@
 # ShelfDeck Clean Helix Current Status
 
-Status: **统一无损升级与获授权 PROD-047 纠正已完成；生产监控发现两类未授权历史残留。**
+Status: **PROD-048 根因修复与获授权 Libra 数据纠正已完成；自然 Intake 已恢复真实 Work。**
 
 Last updated: 2026-09-01
 
@@ -32,11 +32,12 @@ hard-deadline replacement 已随 `helix-beta-20260831-ae7a567cde` 无损部署�
 ## Production
 
 - Host：`192.168.12.230:18080`。
-- Running image：`markmahoro/shelfdeck:helix-beta-20260901-84b8d313e0`；source commit `84b8d313e098e96f9e0e0f5fbdf16a85b31b16e2`；tar SHA-256 `438437bb32cae59a06ba4b9d1d7dab0f538638f61da796f86c639307012e2c45`。
-- Running image ID：`sha256:f20ba121f07bdbef6a3400168b2cf81ad3c3d7f8a48b077292f2c719cb876291`。
+- Running image：`markmahoro/shelfdeck:helix-beta-20260901-0813ae2991`；source commit `0813ae2991`；tar SHA-256 `a4139eec4b9944f39345d68b5f24c179eeb780971667edae92ee25c7f2f8cdb1`。
+- Running image ID：`sha256:4eaba2c3bb0a937b789752f62ce254c696a92921622da641bbf8071b3423f4d0`。
 - Health：`ok`；generation `helix-clean-v3`；schema 186；`normalSupplyAllowed:true`；SQLite `integrity_check=ok`。
 - Compose：`/vol1/1000/docker/shelfdeck`；data：`/vol1/1000/docker/shelfdeck/data`；Workspace mount：`/transcode`。
 - PROD-047 离线纠正备份：`/vol1/1000/docker/shelfdeck/data.backup-20260901T082544Z-prod047-aftercare-reclaim`（约 898 MiB）。
+- PROD-048 最终 Nuclear Reset 备份：`/vol1/1000/docker/shelfdeck/backups/formation-reset-20260901T092339Z-nuclear/data`。
 - 其他 NAS Docker 服务在部署后只读检查时仍运行正常。
 
 ## Production Corrections
@@ -115,6 +116,12 @@ PROD-034 已按 Product Owner 授权对“唐人街探案 (2015)”和“赤壁�
   新 token 早约 43 小时，并非新 Admission 原子性失败；全库只读审计发现 3,274 张 Libra phantom Receipt
   （Intake 1,433、Acceptance 726、其他 Libra 1,115）。本地修复现清理完整 Libra 潜伏池；19 张 Arca phantom
   Receipt、2 条 active Aftercare reclaim Work 仍明确不在本次范围。
+- 最终 `0813ae2991` 镜像已部署并执行获授权 Nuclear 数据纠正：3 条 orphan token、3 张直接关联 Receipt 和
+  3,274 张 Libra phantom Receipt 全部清零，postcondition、幂等复验、`integrity_check` 与外键检查均通过。
+  服务恢复后自然形成 3 个新 token；每个 token 都有 2 条同 process Intake Work，Admission Receipt target Work
+  存在，当前 2 条 Acceptance Work 正在运行，另 1 条已形成 active Subject《地狱为何恶劣 (2013)》。
+- 新 Subject 的详情结构已使用真实 Plan，但生产验收发现“媒体整理”阶段过早显示完成，且结果仍暴露内部英文
+  outcome；已按约定打回原 Formation 详情任务。该展示缺口不影响当前 Intake Work/Receipt 一致性。
 - PROD-047 之外另有 2 条正常 active Aftercare reclaim Work。它们的文件 size 与 content fingerprint 与记录完全
   一致，仅 inode 已变化，持续形成 `ARCA_AFTERCARE_WORKSPACE_MEMBER_CHANGED`；它们不属于已 reclaimed 的
   legacy Receipt residual，未纳入本次授权纠正。

@@ -1,6 +1,6 @@
 # ShelfDeck Helix 当前实施阶段
 
-状态：**UNIFIED PRODUCTION UPGRADE DEPLOYED — RESIDUAL MONITORING OPEN**
+状态：**PROD-048 DEPLOYED AND CORRECTED — FORMATION DETAIL FOLLOW-UP OPEN**
 
 日期：2026-09-01
 
@@ -85,3 +85,8 @@
   全库只读审计确认 Libra 有 3,274 张 target Work 已不存在的 phantom WorkAdmission Receipt；它们不是新 Admission
   原子性失败，而是早先 Nuclear 删除图时遗留的未绑定历史池。Reset 现全局清理 Libra 潜伏池，并在未来删除图时
   同步删除 Work-target Receipt；聚焦 12/12，Service full 426 项为 408 pass、18 skip、0 fail。
+- 最终镜像 `helix-beta-20260901-0813ae2991` 已通过 186 tables、123 routes、17 UI surfaces readiness 与标准
+  build/upload/deploy。获授权 Nuclear dry-run 精确命中 3 条 token、3 张直接关联 Receipt、3,274 张 Libra
+  phantom Receipt，其他业务对象/Work 均为 0；apply 后三项均为 0，幂等、SQLite integrity 与外键全部通过。
+- 自然 Intake 随后持有 3 个 token，每个 Receipt 都命中真实 target Work；2 条 Acceptance Work 运行中，1 条
+  Subject 已进入 Formation。详情生产验收仍发现阶段完成语义与内部英文 outcome 两项缺口，已打回原任务。

@@ -65,7 +65,7 @@
 | PROD-045 | 《人生密密缝》Libra 生成 NFO 与自身 Product Fact 不一致，Arca 又在 Placement 后才发现 | `EXECUTION` / 根节点编辑范围与验收顺序 | Libra NFO / Arca 上架 | Critical | **FIXED / DEPLOYED**。根节点多值字段完整规范化，嵌套演员 ID 不再被覆盖；Staged Verify 在 Placement 前执行 NFO 语义门禁。 |
 | PROD-046 | 非纯 safe-retry 恢复沿用已过期原 Attempt deadline | `EXECUTION` / recovery budget | Execution Foundation | Critical | **FIXED / DEPLOYED**。分类后的非纯 recovery 冻结一次 durable recovery start；普通 retry 不变。 |
 | PROD-047 | 旧 Aftercare reclaim 已提交领域事实，但执行图仍活跃 | `PRODUCTION_DATA` / legacy Receipt residual | Arca Aftercare / Execution Foundation | High | **CORRECTION COMPLETED**。exact 3 条执行图已终止并通过幂等复核；Receipt、领域事实和文件未改。 |
-| PROD-048 | Nuclear Reset 删除 Intake Work 后遗留 WorkAdmission Receipt，重入只占 token 不建 Work | `DATA_CORRECTION` / execution receipt scope | Formation Reset / Handoff A Intake | Critical | **ROOT CAUSE FIXED LOCALLY / REPLACEMENT PENDING**。删除 Work-target Receipt，并清理完整 Libra phantom Receipt 潜伏池。 |
+| PROD-048 | Nuclear Reset 删除 Intake Work 后遗留 WorkAdmission Receipt，重入只占 token 不建 Work | `DATA_CORRECTION` / execution receipt scope | Formation Reset / Handoff A Intake | Critical | **FIXED / DEPLOYED / CORRECTION COMPLETED** `0813ae2991`。3,274 张 Libra phantom Receipt 与 3 条 token 已清零；自然 Intake Receipt 全部命中真实 Work。 |
 
 PROD-001、PROD-002 的共同环境前提：生产管理台是 `http://192.168.12.230`，浏览器不提供 `crypto.randomUUID` / `crypto.subtle`。这不是传输加密设计，只是浏览器 API 限制。未改成 HTTPS。
 
@@ -577,7 +577,7 @@ exact 3 条 Work/Attempt/Event 收口为 cancelled，3 条 Event Attempt 完成 
 `integrity_check=ok`，再次 plan 返回候选 0、unsafe 0。生产监控中的另外 2 条 active Aftercare reclaim Work
 只有 inode drift 且领域 Workspace 仍 active，不属于本项候选或授权范围。
 
-## 48. PROD-048 — Nuclear Reset 遗留 WorkAdmission Receipt 导致新 Intake 再次占满席位（ROOT CAUSE FIXED LOCALLY）
+## 48. PROD-048 — Nuclear Reset 遗留 WorkAdmission Receipt 导致新 Intake 再次占满席位（FIXED / DEPLOYED）
 
 发现：2026-09-01。首次补齐 orphan token 范围的获授权 Nuclear Reset 成功清零全部 postcondition，但服务恢复后
 不到一分钟又形成 3 条新 token，且没有 Subject、Run 或 Intake Work。生产只读联表排除 Work/Event hard cap 与
@@ -594,3 +594,10 @@ Result，却无法恢复已删除的 Work；Intake 因此持有 token 并永久�
 Libra 中 target Work 不存在的 phantom WorkAdmission Receipt，在新 Offer 获得 token 前清空整个潜伏池。没有
 Admission fallback、Receipt 兼容读取、生产 ID 或 Offer 特例；19 张 Arca phantom Receipt 不纳入本项。生产再次
 apply 前仍要求完整备份、精确 dry-run、零 blocker 与逐项 postcondition。
+
+生产验收：`helix-beta-20260901-0813ae2991` 部署后，Nuclear dry-run 精确报告 3 条 orphan token、3 张直接
+关联 Receipt、3,274 张 Libra phantom Receipt，且 Subject/Run/Workspace/Package/On-deck/Work 全为 0、blocker
+为空。离线 apply、幂等复验、SQLite integrity 与外键检查全部通过。服务恢复后 3 个自然 token 的 Receipt target
+Work 均存在，每个 process 已形成 2 条 Intake Work；没有再次出现 Libra phantom Receipt。备份位于
+`/vol1/1000/docker/shelfdeck/backups/formation-reset-20260901T092339Z-nuclear/data`。19 张 Arca phantom Receipt 与
+2 条 active Aftercare reclaim Work 未被修改。
