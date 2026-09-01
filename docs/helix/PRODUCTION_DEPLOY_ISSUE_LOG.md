@@ -59,12 +59,12 @@
 | PROD-039 | 部署 readiness 在 WAL 只读挂载下返回 `SQLITE_CANTOPEN`，脚本仍继续 | `DEPLOYMENT_SAFETY` / 未强制匹配 ready | 生产部署 | High | **FIXED / DEPLOYED**。只读源复制到临时目录验证，输出非 ready 即阻断；最终部署 readiness PASS。 |
 | PROD-040 | 同一 On-deck Run 已 Placement 的 NFO 被 Emby 等价改写后，恢复 Stage 报 target occupied | `EXECUTION` / Stage 只认原始 offloadContext，遗漏 durable prior Placement provenance | 媒体整理详情 / 上架 | Critical | **FIXED / PRODUCTION ACCEPTED**。《罪人》同一 Run 已完成 Stage 至 Commit。 |
 | PROD-041 | Startup Recovery 已分类 `continue_forward`，却因原 Attempt deadline 过期而永远进不了 Capability | `EXECUTION_FOUNDATION` / 恢复执行误复用原 wall-clock deadline，且没有 durable one-shot recovery budget | 全部非纯 Effect Forward Recovery | Critical | **FIXED / PRODUCTION ACCEPTED**。同一 Effect 一次冻结有界 recovery execution start，重启不续期。 |
-| PROD-042 | 3 个 Pre-deck token 均被占用，但只有 2 条 Formation 活动记录，后续 Libra Run 不再进入 | `EXECUTION` / Rejection Planner 把整个 dependency ref 当成 Evidence Work ID | Handoff A Intake / 媒体整理工作区 | Critical | **FIXED LOCALLY / NOT DEPLOYED**。正常新拒绝链会提交 Decision 并释放 token；旧失败条目不做兼容恢复。 |
-| PROD-043 | 新三态 SSOT 下约 621 个 Accepted/no-token Subject 表现为“假死 Libra Run”，Reset dry-run 又被 Procurement/package Control 与保留 Run 反向指针阻塞 | `DATA_CORRECTION` / Reset scope 缺口 | Formation Reset / 媒体整理工作区 | Critical | **FIRST APPLY FK-BLOCKED + ROLLED BACK / FIXED LOCALLY**。两种 Reset 覆盖孤儿 Subject/Run；Procurement Control 保留，Nuclear 回卷 Formation revision 后缀并清除指向被删除 Run 的 supersession pointer。 |
-| PROD-044 | 统一升级 readiness 因 846 个已终态 Plan 的旧 Catalog digest 阻断启动 | `DEPLOYMENT_SAFETY` / digest 混入 sourceLocator | 启动恢复 / 部署 | Critical | **FIXED LOCALLY**。执行摘要排除纯追踪字段；精确旧摘要仅允许全终态历史退役，任何活动执行仍 fail closed。 |
-| PROD-045 | 《人生密密缝》Libra 生成 NFO 与自身 Product Fact 不一致，Arca 又在 Placement 后才发现 | `EXECUTION` / 根节点编辑范围与验收顺序 | Libra NFO / Arca 上架 | Critical | **FIXED LOCALLY**。根节点多值字段完整规范化，嵌套演员 ID 不再被覆盖；Staged Verify 在 Placement 前执行 NFO 语义门禁。 |
+| PROD-042 | 3 个 Pre-deck token 均被占用，但只有 2 条 Formation 活动记录，后续 Libra Run 不再进入 | `EXECUTION` / Rejection Planner 把整个 dependency ref 当成 Evidence Work ID | Handoff A Intake / 媒体整理工作区 | Critical | **FIXED / DEPLOYED**。正常新拒绝链会提交 Decision 并释放 token；旧失败条目不做兼容恢复。 |
+| PROD-043 | 新三态 SSOT 下约 621 个 Accepted/no-token Subject 表现为“假死 Libra Run”，Reset dry-run 又被 Procurement/package Control 与保留 Run 反向指针阻塞 | `DATA_CORRECTION` / Reset scope 缺口 | Formation Reset / 媒体整理工作区 | Critical | **CORRECTION COMPLETED**。两种 Reset 覆盖孤儿 Subject/Run；获授权 Nuclear apply 已清场，Procurement 与已 Commit 事实保留。 |
+| PROD-044 | 统一升级 readiness 因 846 个已终态 Plan 的旧 Catalog digest 阻断启动 | `DEPLOYMENT_SAFETY` / digest 混入 sourceLocator | 启动恢复 / 部署 | Critical | **FIXED / DEPLOYED**。执行摘要排除纯追踪字段；精确旧摘要仅允许全终态历史退役，任何活动执行仍 fail closed。 |
+| PROD-045 | 《人生密密缝》Libra 生成 NFO 与自身 Product Fact 不一致，Arca 又在 Placement 后才发现 | `EXECUTION` / 根节点编辑范围与验收顺序 | Libra NFO / Arca 上架 | Critical | **FIXED / DEPLOYED**。根节点多值字段完整规范化，嵌套演员 ID 不再被覆盖；Staged Verify 在 Placement 前执行 NFO 语义门禁。 |
 | PROD-046 | 非纯 safe-retry 恢复沿用已过期原 Attempt deadline | `EXECUTION` / recovery budget | Execution Foundation | Critical | **FIXED / DEPLOYED**。分类后的非纯 recovery 冻结一次 durable recovery start；普通 retry 不变。 |
-| PROD-047 | 旧 Aftercare reclaim 已提交领域事实，但执行图仍活跃 | `PRODUCTION_DATA` / legacy Receipt residual | Arca Aftercare / Execution Foundation | High | **CORRECTION AUTHORIZED / PENDING**。只终止 exact 3 条执行图，不改 Receipt、领域事实或文件。 |
+| PROD-047 | 旧 Aftercare reclaim 已提交领域事实，但执行图仍活跃 | `PRODUCTION_DATA` / legacy Receipt residual | Arca Aftercare / Execution Foundation | High | **CORRECTION COMPLETED**。exact 3 条执行图已终止并通过幂等复核；Receipt、领域事实和文件未改。 |
 
 PROD-001、PROD-002 的共同环境前提：生产管理台是 `http://192.168.12.230`，浏览器不提供 `crypto.randomUUID` / `crypto.subtle`。这不是传输加密设计，只是浏览器 API 限制。未改成 HTTPS。
 
@@ -498,7 +498,7 @@ SSOT 10.3.5：本地 transcode/remux 是「10 分钟无进展判 Attempt timeout
 
 完成态详情随后暴露旧 failed Work 抢占 `currentPlan` 的独立投影问题。最终镜像 `helix-beta-20260831-b06b70ba10`（tar SHA-256 `1389e07734d1de51262ef947d0345f095c5f50c59d9c2acbd97cd951b51f9543`）已无损部署；《罪人》现显示 `计划5 将媒体写入收藏架 / 已完成`，Formation 汇总为 3 条进行中、9 条已完成、0 条待整理或需处理。部署窗口未见该条目的 target occupied、NFO semantic drift 或 source stale。
 
-## 42. PROD-042 — Intake Rejection 输入绑定把引用对象当成 Work ID（FIXED LOCALLY / NOT DEPLOYED）
+## 42. PROD-042 — Intake Rejection 输入绑定把引用对象当成 Work ID（FIXED / DEPLOYED）
 
 发现：2026-08-31 生产只读诊断。唯一 Field 为 3 seats / 3 held / 0 free，但 Formation 只有 2 条活动记录。第三个 token 对应的 Candidate 已通过合同校验，物理材料校验返回 `candidate_material_unavailable`；随后的 Rejection Work 因 `P4_EVENT_INPUT_PREPARATION_FAILED` 失败，token 未释放，后续 Handoff A Intake 因而无法补位。
 
@@ -506,9 +506,11 @@ SSOT 10.3.5：本地 transcode/remux 是「10 分钟无进展判 Attempt timeout
 
 本地修复：Rejection Planner 现在只接受唯一的 `ownerDomain=libra / objectType=supporting_work` 依赖，并只把其 `objectId` 传入两个 Rejection input projection。缺失、多个或错误类型的依赖直接以 typed planning error fail closed。回归测试实际穿过 Planner、两项 Input Projection、Rejection Store 原子提交与 Coordinator token release，并证明查询始终使用 exact Evidence Work ID。
 
-本项没有 migration、dual-read、旧 Work fallback 或生产 ID 特例。现有失败 Rejection Work 不会被兼容重规划；代码部署后应按既定开发纪律用 Formation Reset 清除该未完成条目，再让后续 Observation/Intake 自然发生。当前未部署、未 Reset、未编辑生产 SQLite。
+本项没有 migration、dual-read、旧 Work fallback 或生产 ID 特例。修复已随统一镜像部署；现有失败 Rejection
+Work 不会被兼容重规划。生产仍有一条旧失败 Work 关联无 Subject provisional token，当前 Formation Reset
+不覆盖该 orphan token，未经新授权未直接清理。
 
-## 44. PROD-044 — 追踪位置变化导致终态 Plan 阻断启动（FIXED LOCALLY）
+## 44. PROD-044 — 追踪位置变化导致终态 Plan 阻断启动（FIXED / DEPLOYED）
 
 2026-08-31 的统一升级 readiness 发现 846 个 Plan 使用摘要
 `37264ba7abffb70a9d44264856816e992d0f05674a471fd4496d2bf3cc06ecca`。只读审计证明这些 Plan 的 Work
@@ -518,8 +520,9 @@ Capability `sourceLocator`（包含 SSOT 行号）纳入执行目录摘要，所
 修复保留包含 `sourceLocator` 的完整 manifest digest 供架构追踪，另以排除该字段的 semantic contract digest
 形成 Execution Catalog。typed schema、Owner、Effect Class、executor version 或 policy 任一变化仍会改变摘要。
 上述精确旧摘要只在 Attempt 与所有 Event 全终态时接受；活动 Plan、未知摘要和新 Plan 一律不得使用它。
+修复已随统一镜像部署，最终 readiness findings 为空。
 
-## 45. PROD-045 — Libra NFO 自身语义漂移且 Arca 检查过晚（FIXED LOCALLY）
+## 45. PROD-045 — Libra NFO 自身语义漂移且 Arca 检查过晚（FIXED / DEPLOYED）
 
 《人生密密缝》的 Accepted Product Fact 为 `genre=Family`，但 Libra Workspace NFO 已包含 `Family` 与
 `Drama`；演员生田斗真的 person TMDB ID 还被根级 movie ID 覆盖。源 NFO 同时含多个根级 `genre`，且
@@ -530,6 +533,7 @@ Capability `sourceLocator`（包含 SSOT 行号）纳入执行目录摘要，所
 只更新根节点，嵌套 actor ID 保持不变；Related NFO observation 同样保留完整多值 genre。Arca 在
 Staged Verify 已持有 Presentation Basis 时即做同一语义校验，失败不得创建或占用目标目录，Placement 后的
 Final Verify 继续作为现实重读门禁。实现没有影片 ID、路径或旧 Run 特例；现有失败 Run不获得兼容恢复。
+修复已随统一镜像部署；《人生密密缝》旧失败条目保持 attention，不做兼容修复。
 
 ## 46. PROD-046 — 非纯 safe-retry 恢复误用已经过期的原 Attempt deadline（FIXED LOCALLY）
 
@@ -544,7 +548,7 @@ recovery execution start；同一 Effect 只原子冻结一次时间，重启不
 普通 retry、`safe_retry_before_intent` 与 pure observation 继续使用原 Attempt deadline。没有 Arca、路径、
 Work ID 或生产数据特例，也没有直接编辑生产 SQLite。
 
-## 47. PROD-047 — 旧 Aftercare Reclaim Receipt 已提交，但执行图仍活跃（CORRECTION AUTHORIZED / PENDING）
+## 47. PROD-047 — 旧 Aftercare Reclaim Receipt 已提交，但执行图仍活跃（CORRECTION COMPLETED）
 
 发现：2026-09-01。PROD-041/046 让 3 条历史 `care_workspace_reclaim` Attempt 获得真实恢复机会后，
 它们稳定失败为 `ARCA_AFTERCARE_WORKSPACE_RECLAIM_RECEIPT_DRIFT`。只读审计证明对应 Aftercare Case
@@ -564,3 +568,10 @@ CAS 或不变量失败都会阻断并重启未改变的服务。
 
 本项是有界生产事故纠正，不是 migration、兼容读取、Receipt 升级或 Runtime fallback；脚本不得包含影片、
 路径或生产 Work ID 常量。
+
+执行：统一镜像 `helix-beta-20260901-84b8d313e0` 部署后，以
+`/vol1/1000/docker/shelfdeck/data.backup-20260901T082544Z-prod047-aftercare-reclaim` 为离线备份执行纠正。
+exact 3 条 Work/Attempt/Event 收口为 cancelled，3 条 Event Attempt 完成 cancelled Outcome，3 条未提交 Effect
+收口为 failed，统一错误码为 `P4_LEGACY_AFTERCARE_RECLAIM_EXECUTION_RETIRED_PROD047`。事务后
+`integrity_check=ok`，再次 plan 返回候选 0、unsafe 0。生产监控中的另外 2 条 active Aftercare reclaim Work
+只有 inode drift 且领域 Workspace 仍 active，不属于本项候选或授权范围。

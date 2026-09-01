@@ -1,6 +1,6 @@
 # ShelfDeck Helix 当前实施阶段
 
-状态：**UNIFIED PRODUCTION UPGRADE AFTER COMPLETED NUCLEAR RESET — GATE IN PROGRESS**
+状态：**UNIFIED PRODUCTION UPGRADE DEPLOYED — RESIDUAL MONITORING OPEN**
 
 日期：2026-09-01
 
@@ -70,3 +70,12 @@
 - PROD-041/046 必须覆盖：原 Attempt deadline 已过但 Effect Reconciler 已给出 `continue_forward`，或已证明非纯 Effect 不存在并给出 `safe_retry` 时，Capability 能获得一次按原 Timeout Policy 计算的恢复预算并实际收敛；恢复期间再次崩溃后 deadline 不得刷新；`safe_retry_before_intent` / ordinary retry / pure observation 的既有 deadline 行为保持不变。
 - PROD-041 本地验证：P4 focused 96/96；Service full 385 pass、18 skip、0 fail。部署后《罪人》同一 Effect/Run 获得一次有界恢复预算并完成 Commit；未编辑生产数据。
 - 生产完成态验收曾暴露 `currentPlan` 回捞同一 On-deck Run 的早期失败 Plan；现以同责任链最新 Work 聚合阶段状态，并在最终上架阶段完成时返回最后完成 Plan 摘要。历史失败仍在过程卡片内，未完成且没有 successor 时仍投影 `attention`。最终 targeted 10/10，Service full 406 项为 388 pass、18 skip、0 fail；生产《罪人》已显示 `计划5 将媒体写入收藏架 / 已完成`。
+- 最终统一镜像 `helix-beta-20260901-84b8d313e0` 已无损部署：readiness 186 tables、123 routes、17 UI surfaces，
+  findings 为空；Service full 422 项为 404 pass、18 skip、0 fail，Admin Web 42/42 与 production build 通过。
+- PROD-047 exact 3 条旧 Aftercare reclaim 执行图已在约 898 MiB 离线备份后收口；二次 dry-run 候选 0、
+  unsafe 0，SQLite integrity 正常。Receipt、领域事实与媒体文件未改。
+- 生产 UI 验收为 Formation 0 in-progress、1 attention、4 completed；《千寻小姐》与《罪人》完成，
+  《人生密密缝》按真实旧 NFO drift 保持 attention。列表、过程卡片与 current Plan 表达一致。
+- 监控发现但未处理：3 条无有效 Subject/Run 的旧 Pre-deck token 占满 Libra 3 个席位；2 条正常 active
+  Aftercare reclaim Work 仅发生 inode drift。两者均不在 PROD-047 授权内；当前 Reset dry-run 也不覆盖前者，
+  因此本 Phase 保持 monitoring open，不扩大生产纠正。

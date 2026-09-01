@@ -1,6 +1,6 @@
 # ShelfDeck Clean Helix Master Plan
 
-Status: **Formation Nuclear Reset 已完成；统一无损升级待最终门禁。**
+Status: **统一无损升级与 PROD-047 已完成；历史残留监控待决。**
 
 Last updated: 2026-09-01
 
@@ -17,10 +17,10 @@ Last updated: 2026-09-01
 ## 当前基线
 
 - NAS production：`192.168.12.230:18080`。
-- Image：`markmahoro/shelfdeck:helix-beta-20260831-b06b70ba10`；source commit `b06b70ba10df836d04cb05483df574a976433df4`；tar SHA-256 `1389e07734d1de51262ef947d0345f095c5f50c59d9c2acbd97cd951b51f9543`。
+- Image：`markmahoro/shelfdeck:helix-beta-20260901-84b8d313e0`；source commit `84b8d313e098e96f9e0e0f5fbdf16a85b31b16e2`；tar SHA-256 `438437bb32cae59a06ba4b9d1d7dab0f538638f61da796f86c639307012e2c45`。
 - Health：`ok` / `helix-clean-v3` / `normalSupplyAllowed:true`；schema 186；SQLite integrity `ok`。
-- Execution：全局 active Attempt 6 个，Observation active Attempt 0；未触及 64 hard cap。
-- Formation：3 `in_progress`、9 `completed`、0 `pending|attention_required`；《罪人》已在同一 On-deck Run 完成并建立 Shelf Entry。
+- Execution：PROD-047 exact 3 条遗留执行图已收口；另有 2 条 active Aftercare reclaim Work 只发生 inode drift，未获授权处理。
+- Formation：0 `in_progress`、1 `attention_required`、4 `completed`；《千寻小姐》与《罪人》已完成，《人生密密缝》保持旧 NFO drift attention。
 
 ## 已完成
 
@@ -36,12 +36,12 @@ Last updated: 2026-09-01
 - Formation 详情本地修正：材料准备只接受当前 Subject 的 Candidate Package + Structure Unit 双重正式绑定；Accepted On-deck planning failure 从 immutable Work Definition 恢复并继续同一 Run，第三代失败后稳定进入可重试 attention。没有前端 Plan、兼容读取或生产数据修改。
 - Formation Plan语义与列表同源本地修正：成功执行的合规检查即使结论不符合也显示为已完成；媒体生产Plan按真实工作命名；一级页当前进展只消费过程卡片同源的后端`currentPlan`摘要，不再读取`organizingSteps`拼第二套表述。生产《冰血暴》对应显示为“计划14 处理媒体文件 / 等待处理资源”。
 - Formation 完成态 Plan 聚合已部署并生产验收：同一责任链的成功 successor 覆盖旧 failed Work 的当前状态，最终 On-deck 完成时 `currentPlan` 返回完成 successor；历史失败仍保留在过程卡片，没有 successor 的失败仍为 attention。《罪人》当前显示 `计划5 将媒体写入收藏架 / 已完成`。
-- PROD-042 本地修复：Intake Rejection Planner 不再把整个 Supporting Work dependency ref 当成 `evidenceWorkId`，而是 fail-closed 提取唯一 `objectId`；回归覆盖 Rejection Decision 原子提交与 Pre-deck token 释放。旧失败条目已由 Nuclear Reset 清除，修复待统一部署。
-- PROD-044 本地修复：Execution Catalog 只哈希可执行语义，完整 manifest digest 继续覆盖 traceability；精确 `37264ba7…` 旧摘要仅允许 Attempt 与全部 Event 已终态的历史 Plan。生产 846 个该摘要 Plan 全终态，3 个活动 Arca Work 使用既有兼容 `a30cf21a…`。
-- PROD-045 本地修复：Libra NFO 只编辑根节点直接子元素，重复 genre 与 Product Fact 使用同一规范集合，演员 TMDB ID 不再被 movie ID 覆盖；Arca Staged Verify 在 Placement 前校验 NFO Presentation。现有失败影片不兼容恢复。
-- PROD-047 已获一次性生产纠正授权：只对操作员显式列出的 3 条旧 Aftercare reclaim Work，在旧 Receipt、
-  reclaimed 领域现实与无 Result/Marker 执行残留全部精确吻合时终止执行图；先完整备份，任何范围漂移整批
-  拒绝。不得改 Receipt、Aftercare/Inventory/Material 事实或媒体文件，也不得形成 Runtime 兼容路径。
+- PROD-042 已部署：Intake Rejection Planner 不再把整个 Supporting Work dependency ref 当成 `evidenceWorkId`，而是 fail-closed 提取唯一 `objectId`；回归覆盖 Rejection Decision 原子提交与 Pre-deck token 释放。旧失败条目不做兼容恢复。
+- PROD-044 已部署：Execution Catalog 只哈希可执行语义，完整 manifest digest 继续覆盖 traceability；精确 `37264ba7…` 旧摘要仅允许 Attempt 与全部 Event 已终态的历史 Plan。生产 846 个该摘要 Plan 全终态。
+- PROD-045 已部署：Libra NFO 只编辑根节点直接子元素，重复 genre 与 Product Fact 使用同一规范集合，演员 TMDB ID 不再被 movie ID 覆盖；Arca Staged Verify 在 Placement 前校验 NFO Presentation。现有失败影片不兼容恢复。
+- PROD-047 一次性生产纠正已完成：只对操作员显式列出的 3 条旧 Aftercare reclaim Work，在旧 Receipt、
+  reclaimed 领域现实与无 Result/Marker 执行残留全部精确吻合时终止执行图；完整备份、离线事务、完整性检查
+  与二次 dry-run 均通过。未改 Receipt、Aftercare/Inventory/Material 事实或媒体文件，也未形成 Runtime 兼容路径。
 
 ## 下一步规则
 
@@ -58,6 +58,9 @@ Last updated: 2026-09-01
 - 不修改 Emby 配置，也不直接编辑生产 SQLite。当前 NFO semantic drift、Formation projection digest 与 Aftercare reclaim schema 异常已分别打回原任务；后续修复仍须标准 build/upload/deploy。
 - 不得继续恢复或扩展 PROD-034 的两个目标 Run。
 - 其余 active records 只按各自事实诊断；未经新授权，不把本次一次性纠正扩大到其他记录。
+- 生产监控新增两个待决事实：3 条 orphan provisional pipeline token 占住全部 Libra 席位，但当前 Formation Reset
+  不覆盖无 Subject 的 token；另有 2 条 active Aftercare reclaim Work 只发生 inode drift。先完善通用 Reset 诊断
+  与边界，再提交新的 dry-run 计划；不得把它们并入已结束的 PROD-047 授权。
 - PROD-042 部署后，现有失败 Rejection Work 只能通过已授权的 Formation Reset 调试能力清除；不得为它增加 migration、replan、dual-read 或旧 Input Binding fallback。Reset 后的新 Intake 必须用正常链路重新验证 token 能在 Rejection terminal 后释放。
 - 恢复 Helix-beta acceptance evidence 工作时，仍以 `BETA_FEATURE_ACCEPTANCE_BASELINE.md` 为准；生产 health 不能折算为 `HB-*` PASS。
 - 架构唯一 SSOT 仍为 `TOP_DOWN_ARCHITECTURE_CONFIRMATION.md`；生产修复不得移动 Owner、Handoff 或 Canonical Transaction。

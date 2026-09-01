@@ -1,6 +1,6 @@
 # ShelfDeck Clean Helix Current Status
 
-Status: **Nuclear Formation Reset 已完成；统一无损升级候选正在最终验证。**
+Status: **统一无损升级与获授权 PROD-047 纠正已完成；生产监控发现两类未授权历史残留。**
 
 Last updated: 2026-09-01
 
@@ -10,7 +10,7 @@ Last updated: 2026-09-01
 - Field API 已改为 generated/accepted/waiting/rejected；Formation 当前业务分类已收敛为 in_progress/attention_required/completed；Admin Web 已删除“待整理”筛选并把文件来源页重排为 Procurement 交接账本与 Libra 席位。
 - 旧四态 Formation 表升级时只重建可派生 Projection，不改 Subject、Token、Handoff、Run 或其他 Owner 事实；本地目标 DDL digest 为 `6a2246c39bebcd1f6f80264bac793c7a3119636a791683e426e4c30aa6fdc651`。
 - 最终合并验证：Service 412 项为 394 pass、18 skip、0 fail；Admin Web 42/42 且 production build 通过；NFO/Catalog focused 66/66。Architecture fixture、semantic、manifest、contract 均通过，contract aggregate 为 `ab70c205efa3f8d8dd399d352690497918e3489ae9118bf067ea58b281accf75`；总 gate 仍仅被未改动的 `formation-process-projection.js` 与 `progress-projection-reader.js` 18 个既有 dynamic-template scanner findings 阻断。Service production dependencies 与 Admin Web 全依赖经 npm 官方 registry 审计均为 0 vulnerability。
-- 文件来源/Formation 新语义、Formation 详情排版、我的收藏成品库一级页与 PROD-042 已合并到 main；这些代码及本轮 NFO/Catalog 修复尚待统一部署。
+- 文件来源/Formation 新语义、Formation 详情排版、我的收藏成品库一级页、PROD-042、NFO 与 Catalog 修复均已合并并随当前统一镜像部署。
 - 生产所谓“600 多个假死 Libra Run”实际以 621 个 Accepted 但无 token 的历史 Subject 为主；生产现有真实 `libra_runs` 仅 101 个，其中此前 dry-run 识别 2 个 actionable Run。它们不获得兼容权利。
 - Formation Reset 已修复 Control scope：Procurement-owned Control 保留；Libra `subject|on_deck_package` 与 Arca custody Control 属于可清理范围；Nuclear 只回卷 Formation Control revision 后缀并恢复 Procurement 边界。
 - 首次生产 Nuclear apply 在事务提交前由 `foreign_key_check` 阻断并完整回滚：2 条受保护的已 Commit Run 仍以 `supersedes_run_id` 指向待删除旧 Run。Nuclear 现同步清空保留 Run 上指向被删除 Run 的 supersession pointer；回归覆盖保护 Run、Shelf Entry 与 Commit Receipt继续保留。
@@ -32,11 +32,11 @@ hard-deadline replacement 已随 `helix-beta-20260831-ae7a567cde` 无损部署�
 ## Production
 
 - Host：`192.168.12.230:18080`。
-- Running image：`markmahoro/shelfdeck:helix-beta-20260831-b06b70ba10`；source commit `b06b70ba10df836d04cb05483df574a976433df4`；tar SHA-256 `1389e07734d1de51262ef947d0345f095c5f50c59d9c2acbd97cd951b51f9543`。
-- Running image ID：`sha256:5d3fc8ebab0d8e29283bc4426f5db29396a4eebce49d7d2799e8eccb9dc9380c`。
+- Running image：`markmahoro/shelfdeck:helix-beta-20260901-84b8d313e0`；source commit `84b8d313e098e96f9e0e0f5fbdf16a85b31b16e2`；tar SHA-256 `438437bb32cae59a06ba4b9d1d7dab0f538638f61da796f86c639307012e2c45`。
+- Running image ID：`sha256:f20ba121f07bdbef6a3400168b2cf81ad3c3d7f8a48b077292f2c719cb876291`。
 - Health：`ok`；generation `helix-clean-v3`；schema 186；`normalSupplyAllowed:true`；SQLite `integrity_check=ok`。
 - Compose：`/vol1/1000/docker/shelfdeck`；data：`/vol1/1000/docker/shelfdeck/data`；Workspace mount：`/transcode`。
-- Latest retained rollback backup：`/vol1/1000/docker/shelfdeck/backups/deploy-20260831T040047Z-03e85b8e46`。
+- PROD-047 离线纠正备份：`/vol1/1000/docker/shelfdeck/data.backup-20260901T082544Z-prod047-aftercare-reclaim`（约 898 MiB）。
 - 其他 NAS Docker 服务在部署后只读检查时仍运行正常。
 
 ## Production Corrections
@@ -65,7 +65,8 @@ PROD-034 已按 Product Owner 授权对“唐人街探案 (2015)”和“赤壁�
 
 - 生产只读诊断确认：3 个 Pre-deck token 中有 1 个停在 Intake Rejection。Evidence Work 已正式返回 `candidate_material_unavailable`，但 Rejection Planner 把整个 `dependencyRef` 对象写进 `evidenceWorkId`，Input Projection 因此无法按字符串 Work ID 读取 Evidence Result；Rejection Decision 未提交，token 也不能释放。
 - 本地已将 Rejection Planner 收紧为只接受唯一的 Libra Supporting Work 依赖，并只投影其 `objectId`。focused 回归实际覆盖 Planner → Input Projection → Rejection Store commit → Coordinator token release，2/2 通过。
-- 修复没有为现有失败 Work 增加重规划、fallback 或兼容读取。旧失败条目已随获授权 Nuclear Reset 清除；修复代码尚待本轮统一部署。
+- 修复没有为现有失败 Work 增加重规划、fallback 或兼容读取，已随当前统一镜像部署。生产监控发现的
+  1 条旧失败 Rejection Work 关联的是无 Subject 的 provisional token，不做兼容恢复。
 
 ## PROD-044 / PROD-045 Local Fixes
 
@@ -73,7 +74,7 @@ PROD-034 已按 Product Owner 授权对“唐人街探案 (2015)”和“赤壁�
 - 《人生密密缝》的根因是 Libra NFO renderer 只替换首个根级 genre，且无层级正则把 actor 的 TMDB ID 当作 movie ID；Workspace NFO 在进入 Arca 前已与 Product Fact 不一致。现改为只编辑根节点直接子元素、整体规范化多值 genre，并在 Arca Placement 前执行 staged NFO 语义门禁。
 - 两项均为通用合同修复，没有影片、路径、Run 或生产 ID 特例；现有失败《人生密密缝》不做兼容恢复。
 
-## PROD-047 Authorized One-time Correction
+## PROD-047 Completed One-time Correction
 
 - 生产 3 条 `care_workspace_reclaim` 遗留执行图的领域现实已经完成 reclaimed，但 Material 保存的是缺少
   `scopeDigest` 的旧 `ReclamationReceipt/v1` digest；当前执行图没有 Result/Commit Marker，因此通用恢复
@@ -84,15 +85,31 @@ PROD-034 已按 Product Owner 授权对“唐人街探案 (2015)”和“赤壁�
 - 首次生产 plan 额外观察到 1 条 Workspace 仍 active 且有活动引用的正常 reclaim Work；exact Work 集合门禁
   在事务前阻断，自动重启原服务，数据库未纠正。工具现明确只把领域 Registry 已 reclaimed 的执行残留纳入
   PROD-047 候选，正常 active Workspace 只列为 excluded 诊断。
-- 纠正不改 Receipt、Aftercare Case、Inventory、Workspace/Material reclaimed 事实或任何媒体文件，也不向
-  Runtime 增加 migration、fallback 或旧条目兼容。当前为本地实现与测试通过，尚未对生产 apply。
+- 生产 apply 已在完整离线备份后完成：exact 3 条 Work、3 条 Work Attempt、3 条 Event 和 3 条 Effect
+  分别收口为 `cancelled/cancelled/cancelled/failed`，3 条 Event Attempt 形成完成的 cancelled Outcome；统一错误码为
+  `P4_LEGACY_AFTERCARE_RECLAIM_EXECUTION_RETIRED_PROD047`。事务后 `integrity_check=ok`。
+- 二次 dry-run 返回候选 0、unsafe 0，证明纠正幂等；正常 active Workspace Work 继续只列为 excluded。
+  纠正没有改 Receipt、Aftercare Case、Inventory、Workspace/Material reclaimed 事实或任何媒体文件，也没有向
+  Runtime 增加 migration、fallback 或旧条目兼容。
 
 ## Current Runtime
 
-- Formation API 当前为 3 条 `in_progress`、9 条 `completed`、0 条 `pending|attention_required`；全局 active Attempt 6 个，其中 Observation active Attempt 为 0。服务 health 与 SQLite integrity 正常。
+- Formation 当前为 5 条：0 条 `in_progress`、1 条 `attention_required`、4 条 `completed`、0 条 `ended`；服务
+  health、readiness、SQLite integrity、容器 restart count 与浏览器 console 均正常。
+- 《人生密密缝 (2017)》保持真实 attention：旧条目在 Arca 上架前报告
+  `CLEAN_ARCA_FINAL_NFO_SEMANTIC_DRIFT`，没有为该影片增加兼容恢复；《千寻小姐 (2023)》与《罪人》均已完成。
+- Formation 详情卡片已生产验收：列表与详情使用同源 current Plan，完成 successor 不再被历史失败 Plan 覆盖，
+  NFO 失败文案明确表达“正式位置中的 NFO 内容与本次已接受的媒体信息不一致”。
+- Field 页面显示 generated 952、Libra accepted 727、waiting 225、席位 3/3；但数据库没有 active Libra Run/Work。
+  3 条旧 provisional pipeline token 占住席位，其中 1 条关联 PROD-042 之前已失败的 Intake Rejection Work，另外
+  2 条没有 Subject/Run/Work。现有 Formation Reset dry-run 不会纳入这 3 条 orphan token，因此未经新授权未清理，
+  也未执行会同时清除《人生密密缝》未 Commit 链的 Nuclear Reset。
+- PROD-047 之外另有 2 条正常 active Aftercare reclaim Work。它们的文件 size 与 content fingerprint 与记录完全
+  一致，仅 inode 已变化，持续形成 `ARCA_AFTERCARE_WORKSPACE_MEMBER_CHANGED`；它们不属于已 reclaimed 的
+  legacy Receipt residual，未纳入本次授权纠正。
 - 《罪人 (2025)》沿用 On-deck Run `6934758bf6a97208e0e2bc024d6bfb19bf6f36993a2a223bee5a7ba23125ca2a`，已完成 Stage → Verify → Placement → Settlement → Fulfillment → Commit，并建立 Shelf Entry `f04a4f09b2b64d957392425ca6eb7d70dde5126bf4f07424777df08c84f11347`。
 - 《罪人》详情当前显示 `计划5 将媒体写入收藏架 / 已完成`；旧 failed Plan 仅留在过程历史。最终启动窗口未再出现该条目的 `CLEAN_ARCA_TARGET_OCCUPIED`、`CLEAN_ARCA_FINAL_NFO_SEMANTIC_DRIFT` 或 `ARCA_AFTERCARE_NFO_SOURCE_STALE`。
-- 《千寻小姐 (2023)》仍沿用同一转码 Work，FFmpeg 已在最终部署后重新启动，持久化进度为 49.9%；《冰血暴 (1996)》等待计划14转码资源，《异形2》等待计划15处理策略。
+- 《千寻小姐 (2023)》已完成；此前长期 49.9% 是部署重启窗口中的持久化转码进度，不再是当前状态。
 
 ## Formation Detail Production Acceptance
 
