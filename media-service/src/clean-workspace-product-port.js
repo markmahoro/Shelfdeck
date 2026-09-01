@@ -239,6 +239,17 @@ function definitions(schemaManifest) {
           keyColumns: ['artifact_handle_id'],
           safeIntegers: true,
         },
+        list_artifacts: {
+          kind: 'select-all',
+          tableId: 'fx_artifact_registry',
+          columns: [
+            'artifact_handle_id', 'artifact_kind', 'owner_domain', 'owner_scope_type',
+            'owner_scope_id', 'storage_ref', 'digest_algorithm', 'digest_hex',
+            'size_bytes', 'media_type', 'provenance_ref', 'reference_revision', 'state',
+          ],
+          keyColumns: ['owner_domain', 'owner_scope_type', 'owner_scope_id', 'artifact_kind', 'storage_ref'],
+          safeIntegers: true,
+        },
         insert_artifact: {
           kind: 'insert',
           tableId: 'fx_artifact_registry',
@@ -684,9 +695,12 @@ function createCleanWorkspaceProductPort(options) {
   function runtimeEffectAuthority(request) {
     const authority = request?.runtimeEffectAuthority;
     if (authority === undefined) return null;
+    const recoveryDecision = authority?.recoveryDecision ?? null;
+    const recoveryAllowed = ['safe_retry', 'safe_retry_before_intent', 'continue_forward'].includes(recoveryDecision);
     if (!authority || authority.effectClass !== 'workspace_write' ||
         typeof authority.eventAttemptId !== 'string' || !authority.eventAttemptId ||
-        typeof authority.idempotencyKey !== 'string' || !authority.idempotencyKey) {
+        typeof authority.idempotencyKey !== 'string' || !authority.idempotencyKey ||
+        (recoveryDecision !== null && !recoveryAllowed)) {
       fail('CLEAN_WORKSPACE_RUNTIME_EFFECT_AUTHORITY_INVALID',
         'Runtime-managed Workspace effects require the exact Event Attempt authority.');
     }
@@ -701,12 +715,64 @@ function createCleanWorkspaceProductPort(options) {
         idempotency_key: authority.idempotencyKey,
       }),
     );
-    if (!effect || effect.event_attempt_id !== authority.eventAttemptId ||
-        effect.state !== 'intended') {
+    const stateAllowed = effect?.state === 'intended' ||
+      (effect?.state === 'reconcile_required' && recoveryAllowed && recoveryDecision !== 'safe_retry_before_intent');
+    if (!effect || effect.event_attempt_id !== authority.eventAttemptId || !stateAllowed) {
       fail('CLEAN_WORKSPACE_RUNTIME_EFFECT_AUTHORITY_MISSING',
         'Workspace effect is not bound to the active Event Attempt intent.');
     }
     return Object.freeze({ authority:Object.freeze({ ...authority }), effect:Object.freeze(effect) });
+  }
+
+  function observeArtifactReality(request) {
+    const workspaceId = request?.workspaceId;
+    const libraRunId = request?.libraRunId;
+    const relativePath = relative(request?.relativePath);
+    const artifactKind = request?.artifactKind;
+    if (typeof workspaceId !== 'string' || !workspaceId || typeof libraRunId !== 'string' || !libraRunId ||
+        !ARTIFACT_KINDS.includes(artifactKind)) {
+      fail('CLEAN_WORKSPACE_REALITY_INPUT_INVALID',
+        'Workspace Artifact reality observation requires one exact typed target.');
+    }
+    const workspaceRoot = path.resolve(absoluteRoot, workspaceId);
+    const target = path.resolve(workspaceRoot, ...relativePath.split('/'));
+    if (workspaceRoot === absoluteRoot || !workspaceRoot.startsWith(absoluteRoot + path.sep) ||
+        !target.startsWith(workspaceRoot + path.sep)) {
+      fail('CLEAN_WORKSPACE_PATH_ESCAPE', 'Workspace Artifact reality observation escaped its controlled root.');
+    }
+    const storageRef = 'workspace://' + workspaceId + '/' + relativePath;
+    const rows = execute('clean_workspace_artifact_reality_observe', 'execution-foundation', repositories.foundation,
+      (context) => {
+        const repo = context.repository(repositories.foundation.repositoryId);
+        return Object.freeze({
+          material:repo.invoke('find_material_by_path', { workspace_id:workspaceId, relative_path:relativePath }),
+          artifacts:Object.freeze(repo.invoke('list_artifacts', {
+            owner_domain:'libra', owner_scope_type:'libra_run', owner_scope_id:libraRunId,
+            artifact_kind:artifactKind, storage_ref:storageRef,
+          })),
+        });
+      });
+    const fileExists = fs.existsSync(target);
+    const fileIsRegular = fileExists && fs.statSync(target).isFile();
+    const material = rows.material;
+    const artifact = rows.artifacts.length === 1 ? rows.artifacts[0] : null;
+    const matching = fileIsRegular && material && artifact && rows.artifacts.length === 1 &&
+      material.owner_domain === 'libra' && material.process_id === libraRunId && material.state === 'active' &&
+      artifact.state === 'active' && material.digest_algorithm === artifact.digest_algorithm &&
+      material.digest_hex === artifact.digest_hex && Number(material.size_bytes) === Number(artifact.size_bytes) &&
+      Number(artifact.size_bytes) === fs.statSync(target).size && digestBytes(fs.readFileSync(target)) === artifact.digest_hex;
+    const absent = !fileExists && !material && rows.artifacts.length === 0;
+    const evidence = Object.freeze({
+      schema:'libra.workspace-artifact-reality@1', workspaceId, libraRunId, relativePath, artifactKind,
+      fileExists, fileIsRegular, materialHandleId:material?.material_handle_id||null,
+      artifactHandleIds:Object.freeze(rows.artifacts.map((row) => row.artifact_handle_id).sort()),
+      materialDigest:material?.digest_hex||null, artifactDigest:artifact?.digest_hex||null,
+    });
+    return Object.freeze({
+      status:matching ? 'matching' : (absent ? 'absent' : 'conflict'),
+      evidenceDigest:canonicalDigest(evidence),
+      cleanupDeclared:false,
+    });
   }
 
   function materializeArtifact(request) {
@@ -865,7 +931,8 @@ function createCleanWorkspaceProductPort(options) {
             idempotency_key: identity.idempotencyKey,
           });
         if (!effect || (runtimeAuthority
-          ? effect.event_attempt_id !== runtimeAuthority.authority.eventAttemptId || effect.state !== 'intended'
+          ? effect.event_attempt_id !== runtimeAuthority.authority.eventAttemptId ||
+            effect.state !== runtimeAuthority.effect.state
           : effect.effect_id !== identity.effectId || effect.intent_digest !== identity.intentDigest)) {
           fail('CLEAN_WORKSPACE_EFFECT_MISSING',
             'Workspace Artifact intent is absent.');
@@ -894,7 +961,8 @@ function createCleanWorkspaceProductPort(options) {
             artifactHandle: storedArtifact,
           });
         }
-        if (effect.state !== 'intended' ||
+        if (!['intended', 'reconcile_required'].includes(effect.state) ||
+            (!runtimeAuthority && effect.state !== 'intended') ||
             (existingMaterial && !existingArtifact) || (!existingMaterial && existingArtifact)) {
           fail('CLEAN_WORKSPACE_EFFECT_STATE_CONFLICT',
             'Workspace Artifact effect state is inconsistent.');
@@ -1970,6 +2038,7 @@ function createCleanWorkspaceProductPort(options) {
     materializeMedia,
     importExternalMaterial,
     openFrameCompositeSink,
+    observeArtifactReality,
     recoverMaterializedArtifact,
     readArtifactBytes,
     readMaterializedArtifact,

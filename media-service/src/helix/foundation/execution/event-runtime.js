@@ -530,6 +530,40 @@ function createEventRuntime(options) {
     return completeCommittedEffect(pending.snapshot, pending.attemptId, pending.outcome);
   }
 
+  async function classifyRecovery(request) {
+    if (!request || typeof request !== 'object' || Array.isArray(request) ||
+        JSON.stringify(Object.keys(request).sort()) !== JSON.stringify(['effectId', 'eventId'])) fail(
+      'P4_EVENT_RECOVERY_CLASSIFICATION_REQUEST_INVALID',
+      'Online Effect recovery classification requires the exact Event and Effect identities.'
+    );
+    if (!options.effectJournal || typeof options.effectJournal.requireReconcile !== 'function' ||
+        !options.effectReconciler || typeof options.effectReconciler.reconcile !== 'function') fail(
+      'P4_EVENT_RECOVERY_CLASSIFIER_UNAVAILABLE',
+      'Online Effect recovery requires the durable Effect Journal and exact reality reconciler.'
+    );
+    const snapshot = readRecoverySnapshot(request.eventId);
+    const attempt = snapshot.activeAttempt;
+    const entry = options.registry.resolve(snapshot.event.capability_ref, snapshot.event.owner_domain);
+    if (snapshot.node.effect_class === 'pure_observation' || snapshot.node.effect_class !== entry.manifest.effectClass) fail(
+      'P4_EVENT_RECOVERY_CLASSIFICATION_CONTRACT_MISMATCH',
+      'Online Effect recovery must preserve the frozen non-pure Capability contract.'
+    );
+    const effect = options.effectJournal.requireReconcile(request.effectId);
+    if (!effect || effect.effect_id !== request.effectId || effect.event_attempt_id !== attempt.event_attempt_id ||
+        effect.effect_class !== snapshot.node.effect_class) fail(
+      'P4_EVENT_RECOVERY_EFFECT_DRIFT',
+      'Online Effect recovery does not bind the exact durable Effect and Event Attempt.'
+    );
+    const recovery = await options.effectReconciler.reconcile(effect.effect_class, {
+      effect, event:snapshot.event, node:snapshot.node, work:snapshot.work, attempt,
+    });
+    if (!recovery || typeof recovery.decision !== 'string') fail(
+      'P4_EVENT_RECOVERY_CLASSIFICATION_INVALID',
+      'Online Effect recovery classification did not return one typed decision.'
+    );
+    return Object.freeze({ eventId: request.eventId, effectId: request.effectId, ...recovery });
+  }
+
   async function recover(request) {
     const allowed = new Set(['safe_retry', 'safe_retry_before_intent', 'continue_forward', 'already_committed', 'already_failed']);
     if (!request || typeof request !== 'object' || Array.isArray(request) ||
@@ -732,6 +766,7 @@ function createEventRuntime(options) {
   }
 
   return Object.freeze({
+    classifyRecovery,
     recover,
     retryPendingCompletion,
     async run(request) {
@@ -898,7 +933,15 @@ function createEventRuntime(options) {
                   errorName:String(error?.name || 'Error'),
                   errorCode:typeof error?.code === 'string' && error.code ? error.code : 'EXECUTOR_ERROR',
                 }) });
-            } else throw error;
+            } else {
+              const uncertain = options.effectJournal.requireReconcile(effect.effect_id);
+              resourceOutcome = 'reconcile_required';
+              return Object.freeze({
+                kind:'effect_recovery_required', eventId, effectId:uncertain.effect_id,
+                failureCode:typeof error?.code === 'string' && error.code ? error.code : 'EXECUTOR_ERROR',
+                failureMessage:String(error?.message || 'Non-pure Capability execution became uncertain.'),
+              });
+            }
           }
         }
         let abandonedUncommitted = false;

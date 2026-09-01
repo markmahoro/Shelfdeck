@@ -34,7 +34,7 @@ function listRepository(schemaManifest, repositoryId, tableId, columns) {
 function definitions(schemaManifest) {
   return Object.freeze({
     works: listRepository(schemaManifest, 'startup_works', 'fx_supporting_works', [
-      'work_id', 'owner_domain', 'work_kind', 'state'
+      'work_id', 'owner_domain', 'process_type', 'process_id', 'work_kind', 'state'
     ]),
     workAttempts: listRepository(schemaManifest, 'startup_work_attempts', 'fx_work_attempts', ['attempt_id', 'work_id', 'state']),
     plans: listRepository(schemaManifest, 'startup_plans', 'fx_workflow_plans', ['plan_id', 'attempt_id', 'catalog_digest', 'state']),
@@ -42,7 +42,7 @@ function definitions(schemaManifest) {
       'event_id', 'plan_id', 'node_id', 'work_id', 'attempt_id', 'owner_domain', 'capability_ref', 'state', 'retry_at_ms'
     ]),
     nodes: listRepository(schemaManifest, 'startup_nodes', 'fx_plan_nodes', [
-      'plan_id', 'node_id', 'capability_ref', 'contract_version', 'effect_class', 'input_bindings_json'
+      'plan_id', 'node_id', 'capability_ref', 'contract_version', 'effect_class', 'input_bindings_json', 'parameters_json'
     ]),
     attempts: listRepository(schemaManifest, 'startup_attempts', 'fx_event_attempts', [
       'event_attempt_id', 'event_id', 'ordinal', 'state', 'outcome_kind', 'failure_class', 'failure_code', 'started_at_ms'
@@ -273,7 +273,10 @@ function createStartupRecovery(options) {
           continue;
         }
         try {
-          const recovery = await options.effectReconciler.reconcile(node.effect_class, { effect: Object.freeze(effect) });
+          const recovery = await options.effectReconciler.reconcile(node.effect_class, {
+            effect:Object.freeze(effect), event:Object.freeze(event), node:Object.freeze(node),
+            work:Object.freeze(works.get(event.work_id)), attempt:Object.freeze(attempt),
+          });
           actions.push(Object.freeze({ eventId: event.event_id, effectId: effect.effect_id, ...recovery }));
         } catch (error) {
           findings.push('RECONCILER_UNAVAILABLE:' + event.event_id);

@@ -181,6 +181,18 @@ function createExecutionRuntimeHost(options) {
     let wakeAfterCompletion=false;
     const operation=(async()=>{
       const outcome=await options.eventRuntime.run({schedulerLease:scheduled.lease});
+      if(outcome?.kind==='effect_recovery_required'){
+        deferredRecoveries.set(eventId,{
+          eventId,effectId:outcome.effectId,action:null,retryAtMs:Date.now(),
+        });
+        wakeAfterCompletion=true;
+        if(typeof options.onError==='function')options.onError(new ExecutionRuntimeHostError(
+          outcome.failureCode||'P4_EVENT_EFFECT_RECOVERY_REQUIRED',
+          outcome.failureMessage||'Non-pure Event execution requires exact Effect recovery.',
+          {eventId,effectId:outcome.effectId}
+        ));
+        return Object.freeze({kind:'event_recovery_queued',eventId,outcome});
+      }
       if(outcome?.kind==='input_failed'&&outcome.failureCode!=='P8_ACCEPTANCE_CONTINUITY_BASIS_STALE'&&typeof options.onError==='function'){
         options.onError(new ExecutionRuntimeHostError(
           outcome.failureCode||'P4_EVENT_INPUT_PREPARATION_FAILED',
@@ -216,7 +228,7 @@ function createExecutionRuntimeHost(options) {
       return Object.freeze({kind:'event_faulted',eventId,error});
     }).finally(()=>{
       inFlightEvents.delete(eventId);
-      if(state==='ready'&&wakeAfterCompletion)wake();
+      if(wakeAfterCompletion&&['ready','draining'].includes(state))wake();
     });
     inFlightEvents.set(eventId,operation);
     return Object.freeze({kind:'event_launched',eventId,inFlight:inFlightEvents.size});
@@ -276,17 +288,29 @@ function createExecutionRuntimeHost(options) {
         return Object.freeze({kind:'recovery_deferred',eventId:completion.eventId,error});
       }).finally(()=>{
         inFlightRecoveries.delete(completion.eventId);
-        if(state==='ready')wake();
+        if(['ready','draining'].includes(state))wake();
       });
       inFlightRecoveries.set(completion.eventId,operation);
       return Object.freeze({kind:'recovery_launched',eventId:completion.eventId,inFlight:inFlightRecoveries.size});
     }
     const pending = [...deferredRecoveries.values()]
-      .sort((left, right) => left.retryAtMs - right.retryAtMs || left.action.eventId.localeCompare(right.action.eventId))
-      .find((item) => item.retryAtMs <= current&&!inFlightRecoveries.has(item.action.eventId));
+      .sort((left, right) => left.retryAtMs - right.retryAtMs ||
+        (left.action?.eventId||left.eventId).localeCompare(right.action?.eventId||right.eventId))
+      .find((item) => item.retryAtMs <= current&&
+        !inFlightRecoveries.has(item.action?.eventId||item.eventId));
     if (!pending) return Object.freeze({ kind:'idle' });
     pending.retryAtMs = current + recoveryRetryMs;
+    const pendingEventId=pending.action?.eventId||pending.eventId;
     const operation=(async()=>{
+      if(!pending.action){
+        if(typeof options.eventRuntime.classifyRecovery!=='function')fail(
+          'P4_EXECUTION_HOST_RECOVERY_CLASSIFIER_UNAVAILABLE',
+          'An online Effect recovery item requires exact reality classification.'
+        );
+        pending.action=await options.eventRuntime.classifyRecovery({
+          eventId:pending.eventId,effectId:pending.effectId,
+        });
+      }
       const recovered = await options.eventRuntime.recover(pending.action);
       if (!recovered || recovered.kind === 'recovery_deferred') return Object.freeze({
         kind:'recovery_deferred', eventId:pending.action.eventId,
@@ -297,13 +321,13 @@ function createExecutionRuntimeHost(options) {
       return Object.freeze({ kind:'recovery_advanced', eventId:pending.action.eventId });
     })().catch((error)=>{
       if (typeof options.onError === 'function') options.onError(error);
-      return Object.freeze({ kind:'recovery_deferred', eventId:pending.action.eventId, error });
+      return Object.freeze({ kind:'recovery_deferred', eventId:pendingEventId, error });
     }).finally(()=>{
-      inFlightRecoveries.delete(pending.action.eventId);
-      if(state==='ready')wake();
+      inFlightRecoveries.delete(pendingEventId);
+      if(['ready','draining'].includes(state))wake();
     });
-    inFlightRecoveries.set(pending.action.eventId,operation);
-    return Object.freeze({kind:'recovery_launched',eventId:pending.action.eventId,inFlight:inFlightRecoveries.size});
+    inFlightRecoveries.set(pendingEventId,operation);
+    return Object.freeze({kind:'recovery_launched',eventId:pendingEventId,inFlight:inFlightRecoveries.size});
   }
 
   async function drainOnce() {

@@ -415,6 +415,24 @@ function createProcurementExecutionRuntime(options) {
   function recoveryReality(effectClass) {
     const observed = (context) => effectJournal.observeRecovery(context.effect.effect_id);
     if (effectClass === 'workspace_write') return { async observe(context) {
+      if (context.event?.capability_ref === 'libra.product_artifact.acquire@1' &&
+          context.work?.process_type === 'libra_run' && typeof context.work.process_id === 'string') {
+        let parameters;
+        try { parameters = JSON.parse(context.node?.parameters_json || '{}'); } catch { parameters = null; }
+        if (!parameters || typeof parameters.artifactKind !== 'string' ||
+            typeof libraOptions.workspaceProductPort.observeArtifactReality !== 'function') {
+          return { status:'conflict', evidenceDigest:canonicalDigest({
+            schema:'libra.workspace-artifact-recovery-context-invalid@1', effectId:context.effect.effect_id,
+          }), cleanupDeclared:false };
+        }
+        const libraRunId=context.work.process_id;
+        return libraOptions.workspaceProductPort.observeArtifactReality({
+          libraRunId,
+          workspaceId:canonicalDigest({schema:'libra.workspace-id@1',libraRunId}),
+          relativePath:'product/'+parameters.artifactKind+'.jpg',
+          artifactKind:parameters.artifactKind,
+        });
+      }
       const value = observed(context), committed = value.markers.length === 1;
       return { status: committed ? 'matching' : 'absent', evidenceDigest: canonicalDigest(value), cleanupDeclared: false };
     } };
@@ -502,7 +520,7 @@ function createProcurementExecutionRuntime(options) {
     isolation:createCooperativeExecutionIsolation({ now }) });
   const dispatcher = createExecutorDispatcher({ registry, contractValidator });
   const eventRuntime = createEventRuntime({ schemaManifest: options.schemaManifest, unitOfWork: options.unitOfWork,contractValidator,
-    scheduler, governor, registry, dispatcher, effectJournal, attemptPolicy, timeoutController, circuitBreaker: breaker,
+    scheduler, governor, registry, dispatcher, effectJournal, effectReconciler, attemptPolicy, timeoutController, circuitBreaker: breaker,
     incidentObserver:executorIncidentObserver,
     onProgress: (sample) => { if(sample.ownerDomain==='libra'&&sample.processType==='libra_run')options.onFormationRunChanged?.(sample.processId); },
     executionInputProvider, whenEvaluator: { evaluate: () => 'run' },

@@ -144,7 +144,7 @@ function fixture(run, settings = {}) {
       repository.invoke('edge', { plan_id: 'plan', from_node_id: 'node', to_node_id: 'node-dependent', dependency_kind: 'success' });
     }
   } }]);
-  let schedulerReleased = 0; let governorReleased = 0; let recoveryAcquireCount = 0;
+  let schedulerReleased = 0; let governorReleased = 0; let recoveryAcquireCount = 0; let journalEffect = null;
   let dispatchContext; const journalCalls = [];
   const lease = Object.freeze({ leaseId: 'lease', targetType: 'event', targetId: 'event', issuedAtMs: 1, expiresAtMs: 999999, fenceDigest: HASH_A });
   const scheduler = {
@@ -209,21 +209,32 @@ function fixture(run, settings = {}) {
       executor: { version: 1, cooperativeAbortSafe:settings.cooperativeAbortSafe===true } }) }, dispatcher,
     contractValidator:settings.contractValidator||{validate:(_schemaRef,value)=>value},
     ...(settings.effectJournal === false ? {} : { effectJournal: {
-      intend(request) { journalCalls.push('intend'); return { effect_id: request.eventAttemptId,
+      intend(request) { journalCalls.push('intend'); journalEffect = { effect_id: request.eventAttemptId,
         state: settings.effectIntentState || 'intended', event_attempt_id: settings.effectIntentAttemptId || request.eventAttemptId,
-        effect_class: request.effectClass, idempotency_key: request.idempotencyKey, intent_digest: request.intentDigest }; },
+        effect_class: request.effectClass, idempotency_key: request.idempotencyKey, intent_digest: request.intentDigest };
+        return journalEffect; },
       read(effectId) { journalCalls.push('read'); return settings.effectJournalRead
         ? { ...settings.effectJournalRead, effect_id: effectId || settings.effectJournalRead.effect_id }
-        : null; },
+        : (journalEffect?.effect_id === effectId ? journalEffect : null); },
       beginRecoveryExecution(effectId) { journalCalls.push('begin-recovery'); return {
         ...settings.effectJournalRead, effect_id:effectId,
         verified_at_ms:settings.recoveryStartedAtMs ?? 1000,
       }; },
       async settle() { journalCalls.push('settle'); },
       noteExternalPending() { journalCalls.push('external-receipt'); },
-      requireReconcile() { journalCalls.push('reconcile'); },
+      requireReconcile(effectId) { journalCalls.push('reconcile');
+        const current = settings.effectJournalRead
+          ? { ...settings.effectJournalRead, effect_id:effectId || settings.effectJournalRead.effect_id }
+          : journalEffect;
+        if (!current || current.effect_id !== effectId) return null;
+        journalEffect = { ...current, state:'reconcile_required' };
+        return journalEffect; },
       abandonUncommitted() { journalCalls.push('abandon'); }
     } }),
+    effectReconciler:settings.effectReconciler||{async reconcile(effectClass,{effect}){
+      return {decision:'safe_retry',action:effectClass === 'workspace_write'
+        ? 'rebuild_workspace_output':'submit_once_after_proven_absent',evidenceDigest:HASH_B,effectState:effect.state};
+    }},
     attemptPolicy: {
       bindingFor: () => ({ retryPolicyRef: 'helix://foundation/retry-policies/pure_observation/v1',
         timeoutPolicyRef: 'helix://foundation/timeout-policies/test/v1' }),
@@ -478,11 +489,17 @@ test('pure observation executor error completes its Attempt under failure policy
   }, { dispatchError: new Error('executor crash') });
 });
 
-test('non-pure Executor crash leaves durable executing Attempt for effect-specific recovery while releasing in-memory guards', async () => {
+test('non-pure Executor crash enters exact online Effect recovery while releasing in-memory guards', async () => {
   await fixture(async ({ runtime, lease, databasePath, state }) => {
-    await assert.rejects(runtime.run({ schedulerLease: lease }), /executor crash/);
+    const outcome = await runtime.run({ schedulerLease: lease });
+    assert.deepEqual(outcome, {kind:'effect_recovery_required',eventId:'event',effectId:'event-attempt',
+      failureCode:'EXECUTOR_ERROR',failureMessage:'executor crash'});
     const facts = databaseFacts(databasePath);
     assert.equal(facts.event.state, 'executing'); assert.equal(facts.attempt.state, 'executing'); assert.equal(facts.results, 0);
+    const action=await runtime.classifyRecovery({eventId:'event',effectId:'event-attempt'});
+    assert.deepEqual(action,{eventId:'event',effectId:'event-attempt',decision:'safe_retry',
+      action:'submit_once_after_proven_absent',evidenceDigest:HASH_B,effectState:'reconcile_required'});
+    assert.deepEqual(state().journalCalls,['intend','reconcile','reconcile']);
     assert.deepEqual({ schedulerReleased: state().schedulerReleased, governorReleased: state().governorReleased }, { schedulerReleased: 1, governorReleased: 1 });
   }, { effectClass:'external_request', dispatchError: new Error('executor crash') });
 });

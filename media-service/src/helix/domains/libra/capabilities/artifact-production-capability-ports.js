@@ -74,6 +74,7 @@ function createArtifactProductionCapabilityPorts(options) {
           effectClass:'workspace_write',
           eventAttemptId:context.eventAttemptId,
           idempotencyKey:context.idempotencyKey,
+          recoveryDecision:context.recoveryDecision,
         });
         if (related) {
           const result = options.productProductionPort.materializeRelatedArtifact({
@@ -136,6 +137,7 @@ function createArtifactProductionCapabilityPorts(options) {
             effectClass:'workspace_write',
             eventAttemptId:context.eventAttemptId,
             idempotencyKey:context.idempotencyKey,
+            recoveryDecision:context.recoveryDecision,
           }),
         });
         return succeeded(SIDECAR, result, now, effectReceipt(context, result, now));

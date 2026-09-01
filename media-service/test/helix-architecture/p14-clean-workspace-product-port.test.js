@@ -90,6 +90,51 @@ function frameRequest() {
   });
 }
 
+function seedRuntimeWorkspaceEffect(databasePath, state = 'reconcile_required') {
+  const database = new Database(databasePath);
+  const eventAttemptId = 'runtime-event-attempt';
+  const idempotencyKey = 'runtime-workspace-effect';
+  try {
+    database.prepare(`INSERT INTO fx_supporting_works
+      (work_id,owner_domain,process_type,process_id,work_kind,basis_digest,priority_class,state,idempotency_key)
+      VALUES(?,?,?,?,?,?,?,?,?)`).run('runtime-work','libra','libra_run','run-1','artifact_production',
+        'a'.repeat(64),'normal_foreground','running','runtime-work');
+    database.prepare(`INSERT INTO fx_work_attempts
+      (attempt_id,work_id,basis_digest,state) VALUES(?,?,?,?)`)
+      .run('runtime-work-attempt','runtime-work','a'.repeat(64),'running');
+    database.prepare(`INSERT INTO fx_workflow_plans
+      (plan_id,attempt_id,basis_digest,state) VALUES(?,?,?,?)`)
+      .run('runtime-plan','runtime-work-attempt','a'.repeat(64),'planned');
+    database.prepare(`INSERT INTO fx_plan_nodes
+      (plan_id,node_id,capability_ref,contract_version,input_binding_schema_ref,input_bindings_json,
+       parameter_schema_ref,parameters_json,when_schema_ref,when_json,effect_class,fence_schema_ref,
+       fence_basis_json,resource_demand_schema_ref,resource_demand_json)
+      VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run('runtime-plan','runtime-node','libra.product_artifact.acquire@1',1,
+        'helix://test/inputs','{}','helix://test/parameters','{"artifactKind":"poster"}',null,null,'workspace_write',
+        'helix://test/fence','{}','helix://test/resources','{}');
+    database.prepare(`INSERT INTO fx_workflow_events
+      (event_id,plan_id,node_id,work_id,attempt_id,owner_domain,capability_ref,contract_version,
+       priority_class,state,ready_at_ms,retry_at_ms,result_id,current_progress_revision)
+      VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run('runtime-event','runtime-plan','runtime-node','runtime-work',
+        'runtime-work-attempt','libra','libra.product_artifact.acquire@1',1,'normal_foreground','executing',1,null,null,null);
+    database.prepare(`INSERT INTO fx_event_attempts
+      (event_attempt_id,event_id,ordinal,executor_ref,executor_version,input_snapshot_schema_ref,
+       input_snapshot_digest,fence_snapshot_digest,state,outcome_kind,retry_after_ms,failure_class,failure_code,
+       evidence_digest,started_at_ms,finished_at_ms)
+      VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(eventAttemptId,'runtime-event',1,
+        'libra.product_artifact.acquire@1',1,'helix://test/inputs','b'.repeat(64),'c'.repeat(64),
+        'executing',null,null,null,null,null,1,null);
+    database.prepare(`INSERT INTO fx_effect_journal
+      (effect_id,event_attempt_id,effect_class,idempotency_key,intent_digest,state,external_receipt_ref,
+       output_digest,verified_at_ms,updated_at_ms) VALUES(?,?,?,?,?,?,?,?,?,?)`).run(
+        canonicalDigest(['workspace_write',idempotencyKey]),eventAttemptId,'workspace_write',idempotencyKey,
+        'd'.repeat(64),state,null,null,2,2);
+  } finally {
+    database.close();
+  }
+  return Object.freeze({effectClass:'workspace_write',eventAttemptId,idempotencyKey,recoveryDecision:'safe_retry'});
+}
+
 test('materializes one service-owned Workspace Artifact and replays exact handles', () =>
   fixture(({ databasePath, workspaceRoot, dependencies }) => {
     const port = createCleanWorkspaceProductPort({ ...dependencies, rootPath: workspaceRoot });
@@ -109,6 +154,52 @@ test('materializes one service-owned Workspace Artifact and replays exact handle
       assert.equal(database.prepare('SELECT count(*) count FROM fx_workspace_materials').get().count, 1);
       assert.equal(database.prepare('SELECT count(*) count FROM fx_artifact_registry').get().count, 1);
       assert.equal(database.prepare('SELECT count(*) count FROM platform_workspace_roots').get().count, 1);
+    } finally {
+      database.close();
+    }
+  }));
+
+test('Artifact reality observer proves absence, exact matching reality, and partial-row conflict', () =>
+  fixture(({ databasePath, workspaceRoot, dependencies }) => {
+    const port = createCleanWorkspaceProductPort({ ...dependencies, rootPath: workspaceRoot });
+    const target = request();
+    const observation = {
+      libraRunId:target.libraRunId,
+      workspaceId:target.workspaceId,
+      relativePath:target.relativePath,
+      artifactKind:target.artifactKind,
+    };
+    assert.equal(port.observeArtifactReality(observation).status, 'absent');
+    port.materializeArtifact(target);
+    assert.equal(port.observeArtifactReality(observation).status, 'matching');
+    const database = new Database(databasePath);
+    try {
+      database.prepare('DELETE FROM fx_workspace_materials WHERE workspace_id=? AND relative_path=?')
+        .run(target.workspaceId, target.relativePath);
+    } finally {
+      database.close();
+    }
+    const conflicted = port.observeArtifactReality(observation);
+    assert.equal(conflicted.status, 'conflict');
+    assert.equal(conflicted.cleanupDeclared, false);
+  }));
+
+test('classified runtime recovery may materialize through the same reconcile-required Effect', () =>
+  fixture(({ databasePath, workspaceRoot, dependencies }) => {
+    const runtimeEffectAuthority = seedRuntimeWorkspaceEffect(databasePath);
+    const port = createCleanWorkspaceProductPort({ ...dependencies, rootPath: workspaceRoot });
+    const recovered = port.materializeArtifact({ ...request(), runtimeEffectAuthority });
+    assert.equal(recovered.replayed, false);
+    assert.equal(port.observeArtifactReality({
+      libraRunId:request().libraRunId,
+      workspaceId:request().workspaceId,
+      relativePath:request().relativePath,
+      artifactKind:request().artifactKind,
+    }).status, 'matching');
+    const database = new Database(databasePath, { readonly:true });
+    try {
+      assert.equal(database.prepare('SELECT state FROM fx_effect_journal WHERE effect_class=?')
+        .get('workspace_write').state, 'reconcile_required');
     } finally {
       database.close();
     }
@@ -454,4 +545,3 @@ test('empty Workspace reclaim drops producer partials and still rejects unknown 
     assert.throws(() => port.reclaimEmptyWorkspace(workspaceId),
       (error) => error.code === 'CLEAN_WORKSPACE_RECLAIM_UNKNOWN_MEMBER');
   }));
-

@@ -479,6 +479,48 @@ test('an in-process Event crash after Effect commit enters recovery without requ
   await host.stop();
 });
 
+test('an in-process non-pure dispatch failure is classified and recovered without service restart', async () => {
+  let eventAvailable=true;
+  let classifications=0;
+  let recoveries=0;
+  let aggregations=0;
+  const errors=[];
+  const host=createExecutionRuntimeHost({
+    tickIntervalMs:60000,maxActionsPerTick:1,recoveryRetryMs:10,
+    startupRecovery:{async recover(){return {state:'ready',normalSupplyAllowed:true,findings:[],actions:[]};}},
+    scheduler:{acquire({targetType}){
+      if(targetType==='event'&&eventAvailable){eventAvailable=false;return {kind:'leased',lease:{
+        targetType:'event',targetId:'event-online-recovery',leaseId:'lease-online-recovery',
+      }};}
+      return {kind:'idle'};
+    },release(){}},
+    plannerRegistry:{resolve(){}},planPublisher:{publish(){}},
+    workLifecycle:{ensurePlanningAttempt(){},startPlanned(){},aggregateEvent(eventId){
+      aggregations+=1;assert.equal(eventId,'event-online-recovery');return {
+        attemptTerminal:false,workTerminal:false,replayed:false,
+      };
+    },settleWork(){},pendingOwnerReconciliations(){return [];}},
+    eventRuntime:{async run(){return {kind:'effect_recovery_required',eventId:'event-online-recovery',
+      effectId:'effect-online-recovery',failureCode:'PLATFORM_INTEGRATION_NETWORK_FAILED',
+      failureMessage:'TMDB connection reset'};},async classifyRecovery(request){
+      classifications+=1;assert.deepEqual(request,{eventId:'event-online-recovery',effectId:'effect-online-recovery'});
+      return {eventId:request.eventId,effectId:request.effectId,decision:'safe_retry',
+        action:'rebuild_workspace_output',evidenceDigest:'a'.repeat(64)};
+    },async recover(action){recoveries+=1;assert.equal(action.decision,'safe_retry');return {kind:'succeeded'};}},
+    domainReconciler:{reconcile(){}},fallbackReconciler:{async start(){},async stop(){}},
+    onError(error){errors.push(error);},
+  });
+  await host.start();
+  const deadline=Date.now()+1000;
+  while(recoveries===0&&Date.now()<deadline)await new Promise((resolve)=>setImmediate(resolve));
+  assert.equal(classifications,1);
+  assert.equal(recoveries,1);
+  assert.equal(aggregations,1,'Event aggregation must occur only after Effect recovery converges');
+  assert.equal(errors[0].code,'PLATFORM_INTEGRATION_NETWORK_FAILED');
+  assert.equal(host.activity().deferredRecoveryActions,0);
+  await host.stop();
+});
+
 test('planner throw stays Work-local and does not fault the Runtime Host', async () => {
   const errors = [];
   let workAvailable = true;
