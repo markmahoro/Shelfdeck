@@ -1,6 +1,6 @@
 # ShelfDeck Clean Helix Master Plan
 
-Status: **PROD-049/050 已合并验证；待 replacement 部署与获授权 Nuclear 数据纠正。**
+Status: **PROD-049/050 已部署并完成生产验收；Formation Reset/Handoff A 边界已收口。**
 
 Last updated: 2026-09-01
 
@@ -17,10 +17,10 @@ Last updated: 2026-09-01
 ## 当前基线
 
 - NAS production：`192.168.12.230:18080`。
-- Image：`markmahoro/shelfdeck:helix-beta-20260901-0813ae2991`；source commit `0813ae2991`；tar SHA-256 `a4139eec4b9944f39345d68b5f24c179eeb780971667edae92ee25c7f2f8cdb1`。
+- Image：`markmahoro/shelfdeck:helix-beta-20260901-237d0fb7b0`；source commit `237d0fb7b0`；tar SHA-256 `f4e35d2f2222e1265dcd078f3c14d4df6e9386ee70031d986536aab3b90aab89`。
 - Health：`ok` / `helix-clean-v3` / `normalSupplyAllowed:true`；schema 186；SQLite integrity `ok`。
 - Execution：PROD-047 exact 3 条遗留执行图已收口；另有 2 条 active Aftercare reclaim Work 只发生 inode drift，未获授权处理。
-- Formation：Reset 后自然形成 3 个 token；1 个 Subject 已成立，另外 2 个 Acceptance 因旧 Handoff A/Control 边界未回卷而停在通用 CAS/terminal conflict，待 PROD-050 Nuclear 纠正后重新自然 Intake。
+- Formation：PROD-050 Nuclear 纠正后自然形成 3 个有效 token/Subject，每张 Admission Receipt 都命中真实 Work，Handoff A terminal conflict 为 0、Libra phantom Receipt 为 0；《赤焰战场2》已进入真实 GPU 转码。
 
 ## 已完成
 
@@ -42,8 +42,8 @@ Last updated: 2026-09-01
 - PROD-047 一次性生产纠正已完成：只对操作员显式列出的 3 条旧 Aftercare reclaim Work，在旧 Receipt、
   reclaimed 领域现实与无 Result/Marker 执行残留全部精确吻合时终止执行图；完整备份、离线事务、完整性检查
   与二次 dry-run 均通过。未改 Receipt、Aftercare/Inventory/Material 事实或媒体文件，也未形成 Runtime 兼容路径。
-- PROD-049 本地修复：Formation 三段详情必须以正式业务交付边界判定完成，不能用当前 Plan 全终态代替；用户结果只允许稳定中文映射，未知内部 Receipt/Result 枚举省略。新自然条目适用，不增加影片或旧数据特例。
-- PROD-050 本地修复：Nuclear Reset 现在识别 orphan token 对应的旧 terminal Candidate Delivery，删除该 Offer 的 Libra→Procurement outbox/inbox dedup 闭包，重新打开 Delivery/Reservation，并把当前已 `released` 但历史曾进入目标 Libra/Arca 链的 Material Control revision 后缀回滚到 Procurement 边界。聚焦 57/57；合并后 Service full 430 项为 412 pass、18 skip、0 fail，Admin Web production build 通过。
+- PROD-049 已部署并生产验收：Formation 三段详情以正式业务交付边界判定完成，不能用当前 Plan 全终态代替；用户结果只允许稳定中文映射，结构化 Product Identity 显示为标题与年份，未知对象/内部枚举不进入用户界面。新自然条目适用，不增加影片或旧数据特例。
+- PROD-050 已部署并完成一次性生产纠正：Nuclear Reset 识别 orphan token 对应的旧 terminal Candidate Delivery，删除该 Offer 的 Libra→Procurement outbox/inbox dedup 闭包，重新打开 Delivery/Reservation，并把当前已 `released` 但历史曾进入目标 Libra/Arca 链的 Material Control revision 后缀回滚到 Procurement 边界。纠正后 3 个自然 Intake 全部通过正式 Handoff A。
 
 ## 下一步规则
 
@@ -61,13 +61,12 @@ Last updated: 2026-09-01
 - 不修改 Emby 配置，也不直接编辑生产 SQLite。当前 NFO semantic drift、Formation projection digest 与 Aftercare reclaim schema 异常已分别打回原任务；后续修复仍须标准 build/upload/deploy。
 - 不得继续恢复或扩展 PROD-034 的两个目标 Run。
 - 其余 active records 只按各自事实诊断；未经新授权，不把本次一次性纠正扩大到其他记录。
-- 生产监控待决：3 个自然 token 中 1 个已形成 Subject，2 个 Acceptance 分别因旧 Control revision 3/4 已
-  `released` 而触发 `P3_CONTROL_CAS_CONFLICT`；已成立 Subject 的新 Receipt 又与 Procurement 保留的旧 Receipt
-  触发 `P8_ACCEPTANCE_TERMINAL_CONFLICT`。Product Owner 的授权覆盖 PROD-050 镜像、精确 Nuclear dry-run 与
-  数据纠正；19 张 Arca phantom Receipt 和 2 条 Aftercare inode drift Work 仍不在范围。
+- PROD-050 部署后监控：3 个自然 token 全部对应 active Subject 和真实 Admission target Work；Control 为
+  Procurement revision 1 → Libra revision 2，未再出现 `P3_CONTROL_CAS_CONFLICT` 或
+  `P8_ACCEPTANCE_TERMINAL_CONFLICT`。19 张 Arca phantom Receipt 和 2 条 Aftercare inode drift Work 仍不在范围。
 - PROD-042 部署后，现有失败 Rejection Work 只能通过已授权的 Formation Reset 调试能力清除；不得为它增加 migration、replan、dual-read 或旧 Input Binding fallback。Reset 后的新 Intake 必须用正常链路重新验证 token 能在 Rejection terminal 后释放。
 - 恢复 Helix-beta acceptance evidence 工作时，仍以 `BETA_FEATURE_ACCEPTANCE_BASELINE.md` 为准；生产 health 不能折算为 `HB-*` PASS。
 - 架构唯一 SSOT 仍为 `TOP_DOWN_ARCHITECTURE_CONFIRMATION.md`；生产修复不得移动 Owner、Handoff 或 Canonical Transaction。
 - 生产继续使用 `scripts/build-image.js` → `scripts/upload-nas-image.js` → `scripts/deploy-nas.js`；不删除、移动或改写 `/media` 正式媒体。
 
-唯一活动 Phase 为 Nuclear Reset 完成后的本次统一生产升级；状态见 `docs/helix/implementation/CURRENT_PHASE.md`。
+唯一活动 Phase 已完成本次统一生产升级与部署后验收；状态见 `docs/helix/implementation/CURRENT_PHASE.md`。

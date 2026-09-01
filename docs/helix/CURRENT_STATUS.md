@@ -1,6 +1,6 @@
 # ShelfDeck Clean Helix Current Status
 
-Status: **PROD-049/050 已合并验证；生产 Handoff A Reset 边界待获授权纠正。**
+Status: **PROD-049/050 已部署并完成生产验收；3 条自然 Intake 正常通过 Handoff A。**
 
 Last updated: 2026-09-01
 
@@ -16,8 +16,8 @@ Last updated: 2026-09-01
 - 首次生产 Nuclear apply 在事务提交前由 `foreign_key_check` 阻断并完整回滚：2 条受保护的已 Commit Run 仍以 `supersedes_run_id` 指向待删除旧 Run。Nuclear 现同步清空保留 Run 上指向被删除 Run 的 supersession pointer；回归覆盖保护 Run、Shelf Entry 与 Commit Receipt继续保留。
 - 修正后的生产 Nuclear Reset 已完成：删除 716 个未 Commit Subject、101 个 Libra Run 和 3,275 个过程 Work；保留 10 条已 Commit 责任链、全部 Procurement 事实与 `/media`。事务后 Accepted/no-token Subject、active/no-admission-head Run 和孤儿引用均为 0；随后新 Observation/Intake 只按正常链路自然形成新条目。
 - 两种 Reset 均报告并清零 Accepted/no-token Subject 与 active/no-admission-head Run；Normal 可建立一次 reset-only Admission Head 后正式 discard，Nuclear 删除整个未 Commit 图。Service 411 项为 393 pass、18 skip、0 fail；Admin Web 42/42 且 production build 通过。Architecture fixture、semantic、manifest、contract 均通过，总 gate 仍仅受 18 个既有 dynamic-template scanner findings 阻断。
-- PROD-049 已在本地修复 Formation 详情的阶段完成语义：Plan 全终态不再代替 Handoff A、Handoff B Accepted/Libra Run completed 与 On-deck Commit 三段正式业务边界；Result 采用封闭中文映射，未知内部枚举不再进入用户界面。实现不含影片、Subject ID 或旧条目兼容。Formation focused 44/44、P14 truth 8/8、Service full 411 pass / 18 skip / 0 fail、Admin Web 42/42 与 production build 通过；Architecture 非 dependency 门禁全过，dependency 仍为 main 既有 18 项；两侧 npm 官方 registry audit 均为 0 vulnerability。
-- PROD-050 本地根因确认：Nuclear Reset 虽删除 Intake→Arca 图，却保留 Procurement Candidate Delivery 的旧 terminal receipt；同时 Control rollback 只处理当前 `controlled` 行，漏掉曾进入目标 Libra/Arca 链后已经 `released` 的 revision 3/4。新 Intake 因而分别触发 `P8_ACCEPTANCE_TERMINAL_CONFLICT` 与 `P3_CONTROL_CAS_CONFLICT`。修复只在 Nuclear 调试事务中重新打开 exact Delivery/Reservation、删除 exact Offer 跨域 dedup 闭包，并回卷目标 Control revision 后缀；不放宽 Runtime 校验、不增加条目兼容或生产 ID 特例。Reset 13/13、合并 focused 57/57；Service full 430 项为 412 pass、18 skip、0 fail，Admin Web production build 通过。
+- PROD-049 已部署并生产验收：Plan 全终态不再代替 Handoff A、Handoff B Accepted/Libra Run completed 与 On-deck Commit 三段正式业务边界；Result 采用封闭中文映射，结构化 Product Identity 显示标题与年份，未知对象/内部枚举不再进入用户界面。生产《赤焰战场2》详情为材料准备 completed、媒体整理 running、验收与上架 pending，身份结果为“赤焰战场2（2013）”，全文无 `[object Object]`。
+- PROD-050 已部署并完成获授权的一次性 Nuclear 数据纠正：重新打开 exact Delivery/Reservation、删除 exact Offer 跨域 dedup 闭包，并回卷目标 Control revision 后缀；不放宽 Runtime 校验、不增加条目兼容或生产 ID 特例。纠正后 3 个自然 token 全部对应 active Subject 与真实 Admission target Work，Handoff A terminal conflict 和 Libra phantom Receipt 均为 0。
 
 ## PROD-036 Production Monitoring
 
@@ -34,12 +34,13 @@ hard-deadline replacement 已随 `helix-beta-20260831-ae7a567cde` 无损部署�
 ## Production
 
 - Host：`192.168.12.230:18080`。
-- Running image：`markmahoro/shelfdeck:helix-beta-20260901-0813ae2991`；source commit `0813ae2991`；tar SHA-256 `a4139eec4b9944f39345d68b5f24c179eeb780971667edae92ee25c7f2f8cdb1`。
-- Running image ID：`sha256:4eaba2c3bb0a937b789752f62ce254c696a92921622da641bbf8071b3423f4d0`。
+- Running image：`markmahoro/shelfdeck:helix-beta-20260901-237d0fb7b0`；source commit `237d0fb7b0`；tar SHA-256 `f4e35d2f2222e1265dcd078f3c14d4df6e9386ee70031d986536aab3b90aab89`。
+- Running image ID：`sha256:ac7048c09c13869ef96c6c8eac84d0684890e3a0ea63c2a9a0a3cac061213528`。
 - Health：`ok`；generation `helix-clean-v3`；schema 186；`normalSupplyAllowed:true`；SQLite `integrity_check=ok`。
 - Compose：`/vol1/1000/docker/shelfdeck`；data：`/vol1/1000/docker/shelfdeck/data`；Workspace mount：`/transcode`。
 - PROD-047 离线纠正备份：`/vol1/1000/docker/shelfdeck/data.backup-20260901T082544Z-prod047-aftercare-reclaim`（约 898 MiB）。
 - PROD-048 最终 Nuclear Reset 备份：`/vol1/1000/docker/shelfdeck/backups/formation-reset-20260901T092339Z-nuclear/data`。
+- PROD-050 Handoff A 边界纠正备份：`/vol1/1000/docker/shelfdeck/backups/formation-reset-20260901T094823Z-nuclear/data`。
 - 其他 NAS Docker 服务在部署后只读检查时仍运行正常。
 
 ## Production Corrections
@@ -77,6 +78,10 @@ PROD-034 已按 Product Owner 授权对“唐人街探案 (2015)”和“赤壁�
   Delivery 与 Reservation 重新变为 open/candidate_delivery，accepted/rejected outbox/inbox dedup 删除；即使 Control
   当前已 released，只要其 revision 历史首次进入本次 token/Subject 范围，也会删除该后缀并恢复此前 Procurement
   revision。已 Commit Shelf/Deck 与 `/media` 不进入范围。
+- 获授权的 PROD-050 Nuclear dry-run 精确命中 1 个 disposable Subject、2 条 orphan token、3 个 Handoff A closure、
+  7 个 Work（其中 2 个 active），且没有 Run/Workspace/Package/Arca On-deck；apply 删除 7 个 Work 和 1 个 Subject，
+  重开 3 个 Delivery/Reservation、删除 1 条 Libra outbox、恢复 3 个 Procurement Control 并删除其 6 条后续 revision。
+  postcondition、幂等、SQLite integrity 与外键检查均通过；10 条已 Commit 链和 `/media` 保持不变。
 
 ## PROD-042 Local Fix
 
@@ -126,8 +131,11 @@ PROD-034 已按 Product Owner 授权对“唐人街探案 (2015)”和“赤壁�
   3,274 张 Libra phantom Receipt 全部清零，postcondition、幂等复验、`integrity_check` 与外键检查均通过。
   服务恢复后自然形成 3 个新 token；每个 token 都有 2 条同 process Intake Work，Admission Receipt target Work
   存在，当前 2 条 Acceptance Work 正在运行，另 1 条已形成 active Subject《地狱为何恶劣 (2013)》。
-- 新 Subject 的详情结构已使用真实 Plan，但生产验收发现“媒体整理”阶段过早显示完成，且结果仍暴露内部英文
-  outcome；已按约定打回原 Formation 详情任务。该展示缺口不影响当前 Intake Work/Receipt 一致性。
+- PROD-050 纠正后 3 个自然 Intake 均形成 active Subject；每个 token 的 Admission Receipt 都命中真实 Work，
+  Control 均为 Procurement revision 1 → Libra revision 2，Handoff A terminal conflict 与 Libra phantom Receipt 为 0。
+  《赤焰战场2》已进入真实 `libra.media.transcode@1`，部署重启后继续从持久化进度推进。
+- Formation 详情生产验收通过：材料准备 completed、媒体整理 running、验收与上架 pending；三类 Receipt 使用稳定中文，
+  结构化身份显示为“赤焰战场2（2013）”，全文不含 `[object Object]` 或旧内部 outcome。
 - PROD-047 之外另有 2 条正常 active Aftercare reclaim Work。它们的文件 size 与 content fingerprint 与记录完全
   一致，仅 inode 已变化，持续形成 `ARCA_AFTERCARE_WORKSPACE_MEMBER_CHANGED`；它们不属于已 reclaimed 的
   legacy Receipt residual，未纳入本次授权纠正。

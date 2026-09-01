@@ -1,6 +1,6 @@
 # ShelfDeck Helix 当前实施阶段
 
-状态：**PROD-048 DEPLOYED AND CORRECTED — FORMATION DETAIL FOLLOW-UP OPEN**
+状态：**PROD-049/050 DEPLOYED AND PRODUCTION ACCEPTED**
 
 日期：2026-09-01
 
@@ -86,11 +86,19 @@
   全库只读审计确认 Libra 有 3,274 张 target Work 已不存在的 phantom WorkAdmission Receipt；它们不是新 Admission
   原子性失败，而是早先 Nuclear 删除图时遗留的未绑定历史池。Reset 现全局清理 Libra 潜伏池，并在未来删除图时
   同步删除 Work-target Receipt；聚焦 12/12，Service full 426 项为 408 pass、18 skip、0 fail。
-- 最终镜像 `helix-beta-20260901-0813ae2991` 已通过 186 tables、123 routes、17 UI surfaces readiness 与标准
+- 中间镜像 `helix-beta-20260901-0813ae2991` 已通过 186 tables、123 routes、17 UI surfaces readiness 与标准
   build/upload/deploy。获授权 Nuclear dry-run 精确命中 3 条 token、3 张直接关联 Receipt、3,274 张 Libra
   phantom Receipt，其他业务对象/Work 均为 0；apply 后三项均为 0，幂等、SQLite integrity 与外键全部通过。
-- 自然 Intake 随后持有 3 个 token，每个 Receipt 都命中真实 target Work；2 条 Acceptance Work 运行中，1 条
-  Subject 已进入 Formation。详情生产验收仍发现阶段完成语义与内部英文 outcome 两项缺口，已打回原任务。
+- PROD-050 获授权 Nuclear dry-run 精确命中 1 个 disposable Subject、2 条 orphan token、3 个 Handoff A closure、
+  7 个 Work（2 active），无 Run/Workspace/Package/Arca On-deck。apply 重开 3 个 Delivery/Reservation、恢复 3 个
+  Procurement Control 并删除 6 条后续 revision；备份为
+  `/vol1/1000/docker/shelfdeck/backups/formation-reset-20260901T094823Z-nuclear/data`，postcondition、幂等、integrity 与外键通过。
+- 最终镜像 `helix-beta-20260901-237d0fb7b0`（tar SHA-256
+  `f4e35d2f2222e1265dcd078f3c14d4df6e9386ee70031d986536aab3b90aab89`）已无损部署；readiness 186 tables、
+  123 routes、17 UI surfaces、findings 为空，health/Admin Web/mount/QSV/image 均通过。本次 replacement 未再次 Reset。
+- 自然 Intake 当前持有 3 个有效 token/Subject，每个 Receipt 都命中真实 target Work，Handoff A conflict 与 Libra
+  phantom Receipt 为 0；《赤焰战场2》真实 GPU 转码执行中。Formation 详情三阶段、稳定中文 Result 与结构化身份
+  “赤焰战场2（2013）”已在生产验收，全文不再出现 `[object Object]`。
 - PROD-049 本地验证：新自然 Intake 在 Routing preparing、无 Acceptance Spec/Libra Run 时，即使现有 Intake Plan
   全部成功，“媒体整理”仍保持 running；三类已知 Receipt 使用稳定中文，未知机器枚举省略。Formation focused
   44/44、P14 truth 8/8、Service full 429 项为 411 pass、18 skip、0 fail、Admin Web 42/42 与 production build

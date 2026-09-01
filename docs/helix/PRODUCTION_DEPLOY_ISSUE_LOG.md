@@ -66,6 +66,8 @@
 | PROD-046 | 非纯 safe-retry 恢复沿用已过期原 Attempt deadline | `EXECUTION` / recovery budget | Execution Foundation | Critical | **FIXED / DEPLOYED**。分类后的非纯 recovery 冻结一次 durable recovery start；普通 retry 不变。 |
 | PROD-047 | 旧 Aftercare reclaim 已提交领域事实，但执行图仍活跃 | `PRODUCTION_DATA` / legacy Receipt residual | Arca Aftercare / Execution Foundation | High | **CORRECTION COMPLETED**。exact 3 条执行图已终止并通过幂等复核；Receipt、领域事实和文件未改。 |
 | PROD-048 | Nuclear Reset 删除 Intake Work 后遗留 WorkAdmission Receipt，重入只占 token 不建 Work | `DATA_CORRECTION` / execution receipt scope | Formation Reset / Handoff A Intake | Critical | **FIXED / DEPLOYED / CORRECTION COMPLETED** `0813ae2991`。3,274 张 Libra phantom Receipt 与 3 条 token 已清零；自然 Intake Receipt 全部命中真实 Work。 |
+| PROD-049 | Formation 用 Plan 终态冒充业务阶段完成，并泄露机器枚举/结构化对象 | `USER_EXPERIENCE` / business boundary + Fact projection | 媒体整理详情 | High | **FIXED / DEPLOYED / PRODUCTION ACCEPTED** `237d0fb7b0`。三阶段按正式 Handoff/Commit，身份显示标题年份，无 `[object Object]`。 |
+| PROD-050 | Nuclear Reset 未重开旧 Handoff A terminal closure，也漏回卷 released Control | `DATA_CORRECTION` / Reset Handoff A boundary | Formation Reset / Handoff A Intake | Critical | **FIXED / DEPLOYED / CORRECTION COMPLETED**。3 个自然 Intake 全部正常，CAS/terminal conflict 为 0。 |
 
 PROD-001、PROD-002 的共同环境前提：生产管理台是 `http://192.168.12.230`，浏览器不提供 `crypto.randomUUID` / `crypto.subtle`。这不是传输加密设计，只是浏览器 API 限制。未改成 HTTPS。
 
@@ -602,7 +604,7 @@ Work 均存在，每个 process 已形成 2 条 Intake Work；没有再次出现
 `/vol1/1000/docker/shelfdeck/backups/formation-reset-20260901T092339Z-nuclear/data`。19 张 Arca phantom Receipt 与
 2 条 active Aftercare reclaim Work 未被修改。
 
-## 49. PROD-049 — Formation 用现有 Plan 终态冒充业务阶段完成，并泄露内部 Result 枚举（FIXED LOCALLY）
+## 49. PROD-049 — Formation 用现有 Plan 终态冒充业务阶段完成，并泄露内部 Result 枚举（FIXED / DEPLOYED / ACCEPTED）
 
 发现：2026-09-01。生产新自然 Intake 条目《地狱为何恶劣 (2013)》整体仍为 `in_progress`、Routing 仍为
 `preparing`、Acceptance Spec 与 Libra Run 尚未形成，但详情把“媒体整理”阶段显示为“本阶段已完成”。同一详情
@@ -623,7 +625,12 @@ Libra 已经接收。本项没有影片、Subject ID、旧条目兼容、SSOT �
 dynamic-template scanner findings 阻断。Service production dependencies 与 Admin Web 全依赖经 npm 官方
 registry 审计均为 0 vulnerability。
 
-## 50. PROD-050 — Nuclear Reset 未回卷 Handoff A 终态与 released Control，导致自然 Intake 冲突（FIXED LOCALLY）
+生产验收：最终镜像 `helix-beta-20260901-237d0fb7b0` 部署后，《赤焰战场2》详情按正式边界显示材料准备
+`completed`、媒体整理 `running`、验收与上架 `pending`；Candidate Publication、Binding 与 Handoff A Result 均为
+稳定中文。补充发现结构化 `ResolvedProductIdentity.displayIdentity` 曾被直接字符串化为 `[object Object]`，现通用
+提取 title/year 为“赤焰战场2（2013）”，Fact 边界拒绝对象值；全文复验不再含对象泄漏。没有影片/Subject 特例。
+
+## 50. PROD-050 — Nuclear Reset 未回卷 Handoff A 终态与 released Control，导致自然 Intake 冲突（FIXED / DEPLOYED / CORRECTION COMPLETED）
 
 发现：2026-09-01。PROD-048 Nuclear Reset 后 3 个 token 均有真实 Intake Work，但只有 1 个形成 Subject；另外
 2 个 Acceptance 长期处于 `executing/intended`。日志持续出现两个 `P3_CONTROL_CAS_CONFLICT`，已成立 Subject 的
@@ -642,3 +649,15 @@ revision 历史，即使当前 released，也从首次进入目标 Libra/Arca �
 Arca On-deck Commit 保护线、Shelf/Deck facts、`/media`、19 张 Arca phantom Receipt 与 2 条 Aftercare Work 均不受
 影响；没有放宽 CAS/terminal 校验，也没有影片 ID、迁移、resume 或兼容路径。Reset 13/13、合并 focused 57/57；
 Service full 430 项为 412 pass、18 skip、0 fail，Admin Web production build 通过。
+
+生产纠正：镜像 `helix-beta-20260901-59be1f3eca` 部署后，Nuclear dry-run 精确命中 1 个 disposable Subject、
+2 条 orphan token、3 个 Handoff A closure、7 个 Work（2 active），无 Run/Workspace/Package/Arca On-deck；blocker
+为空。获授权 apply 删除 7 个 Work 和 1 个 Subject，重开 3 个 Delivery/Reservation、删除 1 条 Libra outbox、恢复
+3 个 Procurement Control 并删除其 6 条后续 revision。备份为
+`/vol1/1000/docker/shelfdeck/backups/formation-reset-20260901T094823Z-nuclear/data`；postcondition、幂等、SQLite
+integrity 与外键均通过，10 条已 Commit 链及 `/media` 保持不变。
+
+生产验收：服务自然形成 3 个 active token/Subject，每张 Admission Receipt 都命中真实 Work，Control 为 Procurement
+revision 1 → Libra revision 2；Handoff A terminal conflict、Libra phantom Receipt、unsafe residual 均为 0。重启后
+日志未再出现 `P3_CONTROL_CAS_CONFLICT` 或 `P8_ACCEPTANCE_TERMINAL_CONFLICT`；《赤焰战场2》已进入真实 GPU 转码。
+19 张 Arca phantom Receipt 与 2 条既有 Aftercare inode-drift Work 仍按授权边界保持不动。
