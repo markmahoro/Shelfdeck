@@ -100,6 +100,20 @@ function seedExecution(database, ownerDomain, processType, processId, suffix) {
   return { workId, attemptId, planId, eventId, eventAttemptId };
 }
 
+function seedEventlessMarker(database, { marker, ownerDomain = 'libra', scopeType, scopeId, resultId }) {
+  const result = { scopeType, scopeId };
+  const resultDigest = canonicalDigest(result);
+  database.prepare(`INSERT INTO fx_event_result_bindings
+    (result_id,event_id,outcome_kind,result_schema_ref,result_json,result_digest,committed_at_ms)
+    VALUES (?,NULL,'succeeded','test-result',?,?,1)`)
+    .run(resultId,JSON.stringify(result),resultDigest);
+  database.prepare(`INSERT INTO fx_commit_markers
+    (commit_marker,effect_id,owner_domain,scope_type,scope_id,commit_digest,result_id,
+     result_schema_ref,result_digest,committed_at_ms)
+    VALUES (?,NULL,?,?,?,?,?,'test-result',?,1)`)
+    .run(marker,ownerDomain,scopeType,scopeId,DIGEST,resultId,resultDigest);
+}
+
 function seedAcceptedOrphan(database, suffix) {
   const subjectId = `subject-orphan-${suffix}`;
   const intakeDecisionId = `intake-orphan-${suffix}`;
@@ -619,6 +633,61 @@ test('Nuclear Reset deletes an uncommitted Libra-to-Arca graph but preserves com
     assert.equal(fs.existsSync(path.join(value.transcodeDir, target.workspaceId)), false);
     assert.equal(fs.existsSync(path.join(value.transcodeDir, kept.workspaceId)), true);
     assert.equal(value.database.pragma('foreign_key_check').length, 0);
+  } finally { close(value); }
+});
+
+test('Nuclear Reset deletes current and previously orphaned eventless Formation Fact markers and Results', () => {
+  const value = fixture('helix-formation-reset-eventless-facts');
+  try {
+    const seeded = seedSubjectRun(value.database, 'eventless-facts');
+    const basisId = 'basis-eventless-facts';
+    const assessmentId = 'assessment-eventless-facts';
+    const routingDecisionId = 'routing-decision-eventless-facts';
+    const acceptanceSpecId = 'acceptance-spec-eventless-facts';
+    value.database.prepare(`INSERT INTO libra_decision_basis_revisions
+      (decision_basis_id,subject_id,basis_kind,basis_revision,expected_head_revision,
+       expected_head_snapshot_digest,input_set_digest,status,basis_digest,committed_at_ms)
+      VALUES (?,?,'routing',1,0,?,?,'ready',?,1)`)
+      .run(basisId,seeded.subjectId,DIGEST,DIGEST,DIGEST);
+    value.database.prepare(`INSERT INTO libra_routing_assessments
+      (routing_assessment_id,subject_id,decision_basis_id,routing_authority_kind,
+       routing_input_digest,assessment_schema_ref,assessment_json,assessment_digest,created_at_ms)
+      VALUES (?,?,?,'policy',?,'test-assessment','{}',?,1)`)
+      .run(assessmentId,seeded.subjectId,basisId,DIGEST,DIGEST);
+    value.database.prepare(`INSERT INTO libra_routing_decisions
+      (routing_decision_id,subject_id,assessment_id,decision_revision,decision,
+       routing_authority_kind,routing_input_digest,shelf_priority_set_digest,decision_digest,decided_at_ms)
+      VALUES (?,?,?,1,'unresolved','policy',?,?,?,1)`)
+      .run(routingDecisionId,seeded.subjectId,assessmentId,DIGEST,DIGEST,DIGEST);
+    value.database.prepare(`INSERT INTO libra_acceptance_specs
+      (acceptance_spec_id,subject_id,decision_basis_id,product_scope_digest,spec_revision,
+       spec_schema_ref,spec_json,spec_digest,record_digest,structure_kind,content_profile,published_at_ms)
+      VALUES (?,?,?,?,1,'test-spec','{}',?,?,'single','movie',1)`)
+      .run(acceptanceSpecId,seeded.subjectId,basisId,DIGEST,DIGEST,DIGEST);
+
+    seedEventlessMarker(value.database, { marker:'marker-current-routing', scopeType:'routing_decision',
+      scopeId:routingDecisionId, resultId:'result-current-routing' });
+    seedEventlessMarker(value.database, { marker:'marker-current-spec', scopeType:'acceptance_spec',
+      scopeId:acceptanceSpecId, resultId:'result-current-spec' });
+    seedEventlessMarker(value.database, { marker:'marker-orphan-routing', scopeType:'routing_decision',
+      scopeId:'routing-decision-from-prior-reset', resultId:'result-orphan-routing' });
+    seedEventlessMarker(value.database, { marker:'marker-orphan-spec', scopeType:'acceptance_spec',
+      scopeId:'acceptance-spec-from-prior-reset', resultId:'result-orphan-spec' });
+
+    const plan = inspectPlan(value.database, 'nuclear');
+    assert.equal(plan.counts.eventlessFactMarkerOrphans, 2);
+    assert.equal(plan.counts.orphanRoutingDecisionMarkers, 1);
+    assert.equal(plan.counts.orphanAcceptanceSpecMarkers, 1);
+    assert.equal(plan.scope.routingDecisionIds.includes(routingDecisionId), true);
+    assert.equal(plan.scope.acceptanceSpecIds.includes(acceptanceSpecId), true);
+
+    const result = applyReset({ database:value.database, mode:'nuclear', dataDir:value.dataDir,
+      transcodeDir:value.transcodeDir, nowMs:4250 });
+    assert.equal(result.verification.plan.counts.eventlessFactMarkerOrphans, 0);
+    assert.equal(value.database.prepare(`SELECT COUNT(*) count FROM fx_commit_markers
+      WHERE commit_marker LIKE 'marker-%-routing' OR commit_marker LIKE 'marker-%-spec'`).get().count, 0);
+    assert.equal(value.database.prepare(`SELECT COUNT(*) count FROM fx_event_result_bindings
+      WHERE result_id LIKE 'result-%-routing' OR result_id LIKE 'result-%-spec'`).get().count, 0);
   } finally { close(value); }
 });
 

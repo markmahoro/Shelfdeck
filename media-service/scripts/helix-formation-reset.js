@@ -22,6 +22,21 @@ const ACTIVE_EVENT_STATES = Object.freeze([
   'pending', 'ready', 'waiting_for_resource', 'waiting_for_external',
   'waiting_for_approval', 'executing',
 ]);
+const NUCLEAR_EVENTLESS_FACT_MARKERS = Object.freeze([
+  Object.freeze({ ownerDomain:'libra', scopeType:'acceptance_spec', table:'libra_acceptance_specs', key:'acceptance_spec_id' }),
+  Object.freeze({ ownerDomain:'libra', scopeType:'intake_decision', table:'libra_intake_decisions', key:'intake_decision_id' }),
+  Object.freeze({ ownerDomain:'libra', scopeType:'libra_product_fact', table:'libra_product_fact_revisions', key:'product_fact_id' }),
+  Object.freeze({ ownerDomain:'libra', scopeType:'libra_run', table:'libra_runs', key:'libra_run_id' }),
+  Object.freeze({ ownerDomain:'libra', scopeType:'libra_workspace', table:'libra_workspaces', key:'workspace_id' }),
+  Object.freeze({ ownerDomain:'libra', scopeType:'libra_workspace_reference', table:'libra_workspaces', key:'workspace_id' }),
+  Object.freeze({ ownerDomain:'libra', scopeType:'on_deck_package', table:'libra_product_packages', key:'on_deck_package_id' }),
+  Object.freeze({ ownerDomain:'libra', scopeType:'routing_decision', table:'libra_routing_decisions', key:'routing_decision_id' }),
+  Object.freeze({ ownerDomain:'libra', scopeType:'subject_decision_basis', table:'libra_decision_basis_revisions', key:'decision_basis_id' }),
+  Object.freeze({ ownerDomain:'libra', scopeType:'workspace_cleanup_member', table:'libra_workspace_cleanup_members', key:'material_handle_id' }),
+  Object.freeze({ ownerDomain:'libra', scopeType:'workspace_cleanup_scope', table:'libra_workspace_cleanup_scopes', key:'cleanup_scope_id' }),
+  Object.freeze({ ownerDomain:'arca', scopeType:'acceptance_decision', table:'arca_acceptance_decisions', key:'acceptance_decision_id' }),
+  Object.freeze({ ownerDomain:'arca', scopeType:'on_deck_run', table:'arca_ondeck_runs', key:'on_deck_run_id' }),
+]);
 
 function valueAfter(args, flag) {
   const assigned = args.find((arg) => arg.startsWith(`${flag}=`));
@@ -81,6 +96,7 @@ function assertRequiredSchema(database) {
     'arca_ondeck_commit_receipts', 'fx_supporting_works', 'fx_work_attempts',
     'fx_workflow_events', 'fx_material_controls', 'fx_material_control_revisions',
     'proc_candidate_deliveries', 'proc_run_materials', 'fx_inbox', 'fx_outbox', 'fx_outbox_deliveries',
+    'fx_commit_markers', 'fx_event_result_bindings', 'libra_routing_decisions', 'libra_acceptance_specs',
   ];
   const missing = required.filter((table) => !tableExists(database, table));
   if (missing.length) {
@@ -88,6 +104,19 @@ function assertRequiredSchema(database) {
     error.details = { missingTables: missing };
     throw error;
   }
+}
+
+function discoverEventlessFactMarkerOrphans(database) {
+  return Object.freeze(NUCLEAR_EVENTLESS_FACT_MARKERS.flatMap((source) => database.prepare(`
+    SELECT marker.commit_marker,marker.owner_domain,marker.scope_type,marker.scope_id,marker.result_id
+      FROM fx_commit_markers marker
+      LEFT JOIN fx_event_result_bindings result ON result.result_id=marker.result_id
+      LEFT JOIN ${source.table} fact ON fact.${source.key}=marker.scope_id
+     WHERE marker.owner_domain=? AND marker.scope_type=?
+       AND fact.${source.key} IS NULL
+       AND (marker.result_id IS NULL OR result.event_id IS NULL)
+     ORDER BY marker.commit_marker
+  `).all(source.ownerDomain, source.scopeType).map((row) => Object.freeze({ ...row }))));
 }
 
 function discoverScope(database) {
@@ -197,6 +226,10 @@ function discoverScope(database) {
     ? rowsByIds(database, 'SELECT cleanup_scope_id FROM libra_workspace_cleanup_scopes WHERE libra_run_id IN', runIds, 'ORDER BY cleanup_scope_id')
       .map((row) => row.cleanup_scope_id)
     : [];
+  const workspaceMaterialHandleIds = cleanupScopeIds.length
+    ? rowsByIds(database, 'SELECT DISTINCT material_handle_id FROM libra_workspace_cleanup_members WHERE cleanup_scope_id IN', cleanupScopeIds)
+      .map((row) => row.material_handle_id).filter(Boolean)
+    : [];
   const onDeckRunIds = oneColumn(database, `
     SELECT r.on_deck_run_id FROM arca_ondeck_runs r
      WHERE NOT EXISTS (SELECT 1 FROM arca_ondeck_commit_receipts cr WHERE cr.on_deck_run_id=r.on_deck_run_id)
@@ -232,6 +265,28 @@ function discoverScope(database) {
       .map((row) => row.intake_decision_id),
     ...oneColumn(database, "SELECT intake_decision_id FROM libra_intake_decisions WHERE decision_kind='rejected_acceptance' ORDER BY intake_decision_id"),
   ]);
+  const decisionBasisIds = disposableSubjectIds.length
+    ? rowsByIds(database, 'SELECT decision_basis_id FROM libra_decision_basis_revisions WHERE subject_id IN', disposableSubjectIds)
+      .map((row) => row.decision_basis_id)
+    : [];
+  const routingAssessmentIds = disposableSubjectIds.length
+    ? rowsByIds(database, 'SELECT routing_assessment_id FROM libra_routing_assessments WHERE subject_id IN', disposableSubjectIds)
+      .map((row) => row.routing_assessment_id)
+    : [];
+  const routingDecisionIds = disposableSubjectIds.length
+    ? rowsByIds(database, 'SELECT routing_decision_id FROM libra_routing_decisions WHERE subject_id IN', disposableSubjectIds)
+      .map((row) => row.routing_decision_id)
+    : [];
+  const acceptanceSpecIds = disposableSubjectIds.length
+    ? rowsByIds(database, 'SELECT acceptance_spec_id FROM libra_acceptance_specs WHERE subject_id IN', disposableSubjectIds)
+      .map((row) => row.acceptance_spec_id)
+    : [];
+  const productFactIds = runIds.length
+    ? rowsByIds(database, 'SELECT product_fact_id FROM libra_product_fact_revisions WHERE libra_run_id IN', runIds)
+      .map((row) => row.product_fact_id)
+    : [];
+  const eventlessFactMarkerOrphans = discoverEventlessFactMarkerOrphans(database);
+  const orphanFactMarkerScopeIds = unique(eventlessFactMarkerOrphans.map((row) => row.scope_id));
   const handoffAOfferIds = unique([
     ...rowsByIds(database, 'SELECT offer_id FROM libra_intake_decisions WHERE intake_decision_id IN', intakeDecisionIds)
       .map((row) => row.offer_id).filter(Boolean),
@@ -266,6 +321,8 @@ function discoverScope(database) {
     ...offerIds, ...intakeDecisionIds, ...acceptanceAttemptIds, ...acceptanceDecisionIds,
     ...custodyIds, ...onDeckRunIds, ...orphanPipelineTokenSubjectIds, ...orphanPipelineSourceProcessIds,
     ...orphanPipelineAdmissionTargetIds, ...handoffAOfferIds, ...handoffACandidatePackageIds,
+    ...decisionBasisIds, ...routingAssessmentIds, ...routingDecisionIds, ...acceptanceSpecIds,
+    ...productFactIds, ...workspaceMaterialHandleIds, ...orphanFactMarkerScopeIds,
   ]);
   const works = [];
   if (allScopeIds.length) {
@@ -296,6 +353,10 @@ function discoverScope(database) {
     handoffACandidatePackageIds:Object.freeze(unique(handoffACandidatePackageIds)),
     acceptanceAttemptIds:Object.freeze(acceptanceAttemptIds), acceptanceDecisionIds:Object.freeze(acceptanceDecisionIds),
     custodyIds:Object.freeze(custodyIds), onDeckRunIds:Object.freeze(onDeckRunIds), artifactIds:Object.freeze(artifactIds),
+    decisionBasisIds:Object.freeze(unique(decisionBasisIds)), routingAssessmentIds:Object.freeze(unique(routingAssessmentIds)),
+    routingDecisionIds:Object.freeze(unique(routingDecisionIds)), acceptanceSpecIds:Object.freeze(unique(acceptanceSpecIds)),
+    productFactIds:Object.freeze(unique(productFactIds)), workspaceMaterialHandleIds:Object.freeze(unique(workspaceMaterialHandleIds)),
+    eventlessFactMarkerOrphans,
     materialKeys:Object.freeze(materialKeys), allScopeIds:Object.freeze(allScopeIds), works:Object.freeze(works),
   });
 }
@@ -405,6 +466,9 @@ function inspectPlan(database, mode) {
     phantomLibraAdmissionReceipts:scope.phantomLibraAdmissionReceiptIds.length,
     preservedProcurementControls:preservedProcurementControls.length,
     procurementHandoffAClosures:scope.handoffAOfferIds.length,
+    eventlessFactMarkerOrphans:scope.eventlessFactMarkerOrphans.length,
+    orphanRoutingDecisionMarkers:scope.eventlessFactMarkerOrphans.filter((row) => row.scope_type === 'routing_decision').length,
+    orphanAcceptanceSpecMarkers:scope.eventlessFactMarkerOrphans.filter((row) => row.scope_type === 'acceptance_spec').length,
   });
   return Object.freeze({ mode, confirmationRequired:CONFIRMATIONS[mode], ready:blockers.length === 0,
     blockers, counts, scope, orphans, activeWorks:Object.freeze(activeWorks), activeAttempts:Object.freeze(activeAttempts) });
@@ -912,7 +976,8 @@ function verifyPostconditions(database, mode) {
       orphanAcceptedSubjects:plan.counts.orphanAcceptedSubjects,
       orphanActiveRuns:plan.counts.orphanActiveRuns,
       orphanPipelineTokens:plan.counts.orphanPipelineTokens,
-      phantomLibraAdmissionReceipts:plan.counts.phantomLibraAdmissionReceipts };
+      phantomLibraAdmissionReceipts:plan.counts.phantomLibraAdmissionReceipts,
+      eventlessFactMarkerOrphans:plan.counts.eventlessFactMarkerOrphans };
     if (Object.values(residual).some((value) => value !== 0)) {
       throw Object.assign(new Error('FORMATION_RESET_NUCLEAR_RESIDUAL'), { details:residual });
     }
