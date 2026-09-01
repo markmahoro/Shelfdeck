@@ -1,8 +1,8 @@
 # ShelfDeck Clean Helix Current Status
 
-Status: **Nuclear Reset Foundation 清理闭包已部署并完成生产纠正；自然 Intake 已恢复。**
+Status: **PROD-051 与 PROD-052 已分别在本地修复并通过回归；尚未部署，未执行新的生产 Reset。**
 
-Last updated: 2026-09-01
+Last updated: 2026-09-02
 
 ## Local implementation completed
 
@@ -18,9 +18,28 @@ Last updated: 2026-09-01
 - 两种 Reset 均报告并清零 Accepted/no-token Subject 与 active/no-admission-head Run；Normal 可建立一次 reset-only Admission Head 后正式 discard，Nuclear 删除整个未 Commit 图。Service 411 项为 393 pass、18 skip、0 fail；Admin Web 42/42 且 production build 通过。Architecture fixture、semantic、manifest、contract 均通过，总 gate 仍仅受 18 个既有 dynamic-template scanner findings 阻断。
 - PROD-049 已部署并生产验收：Plan 全终态不再代替 Handoff A、Handoff B Accepted/Libra Run completed 与 On-deck Commit 三段正式业务边界；Result 采用封闭中文映射，结构化 Product Identity 显示标题与年份，未知对象/内部枚举不再进入用户界面。生产《赤焰战场2》详情为材料准备 completed、媒体整理 running、验收与上架 pending，身份结果为“赤焰战场2（2013）”，全文无 `[object Object]`。
 - PROD-050 已部署并完成获授权的一次性 Nuclear 数据纠正：重新打开 exact Delivery/Reservation、删除 exact Offer 跨域 dedup 闭包，并回卷目标 Control revision 后缀；不放宽 Runtime 校验、不增加条目兼容或生产 ID 特例。纠正后 3 个自然 token 全部对应 active Subject 与真实 Admission target Work，Handoff A terminal conflict 和 Libra phantom Receipt 均为 0。
-- Nuclear Reset 已补齐被删除领域 Fact 的 Foundation 清理闭包：Routing Decision、Acceptance Spec、Decision Basis、Run、Workspace、Package、Product Fact 与 Arca 未 Commit Fact 的 ID 均进入同一 execution graph；同时只清理“领域 Fact 已不存在且 Result 无 Event”的封闭孤儿 Marker/Result 集合。生产 dry-run 命中 1,255 条旧孤儿 Marker（Routing Decision 717、Acceptance Spec 535、其他封闭 Formation Fact 3），apply 后全部为 0；postcondition 与二次 dry-run 均为 0。
+- 2026-09-01 Nuclear Reset 的旧 discovery 曾命中并删除 1,255 条 eventless Fact Marker（Routing Decision 717、Acceptance Spec 535、其他 3），当时 postcondition 与二次 dry-run 均为 0。PROD-052 后续证明 postcondition 复用了同一 discovery，无法发现 discovery 本身遗漏的 run-owned Artifact 等残留，因此“Foundation 清理闭包已完成”结论已经撤销；上述数字仅保留为当次执行事实。
 - 本轮获授权 Nuclear Reset 删除 3 个未 Commit Subject、1 个 Run、1 个 Workspace、20 个 Work，恢复 3 个 Delivery/Reservation 与 3 个 Procurement Control；保留 10 条已 Commit 收藏链和 `/media`。服务自然 Intake 后，《007：大破天幕杀机》《唐人街探案》均建立了新的 active Run，已越过原先缺失 Routing Decision/Acceptance Spec 的静默重放点；第三个席位由《浪客剑心：京都大火篇》进入。
 - 本轮 Reset focused 14/14；Service full 432 项为 414 pass、18 skip、0 fail；Admin Web production build 通过。Architecture fixture、semantic、manifest、contract 通过，总 gate 仍只受未改文件中的 18 个既有 dynamic-template scanner findings 阻断。
+- PROD-051 已在本地完成通用在线 Effect 恢复：非纯 Capability 在 intent 后抛出异常时，Event Runtime 将 Effect 持久化为 `reconcile_required`，Execution Host 针对 exact Event/Effect 调用与 Startup Recovery 相同的 reality reconciler，并在独立恢复 lane 中复用原 Event Attempt/Effect 与一次 durable recovery execution budget；恢复收敛前不聚合 Event。同步修复快速失败发生于 Host `draining` 时的 wake 丢失窗口。未增加旧条目兼容或影片特例，尚未部署。
+- PROD-051 验证：Event Runtime/Host focused 66/66；全部 P4 Runtime 文件 230/230；Service full 432 项为 414 pass、18 skip、0 fail。`npm run test:helix-runtime` 仍在运行用例前被两个未修改文件的 18 个既有 dynamic-template scanner findings 阻断。
+
+## PROD-051 / PROD-052 Local Implementation Completed
+
+- Product Owner 已确认不再区分 Normal/Nuclear：调试合同收敛为唯一 `Formation Reset`。其目标是物理删除 Intake Accepted 后至 Arca On-deck Commit 前的全部业务与执行过程，使本次整理在运行数据库中视同未发生；Procurement immutable Candidate/Delivery、重新打开的 Handoff A、已 Commit Shelf/Deck 与 `/media` 保留。旧 `normal|nuclear` 名称只作为历史执行记录，不提供兼容入口。
+- 《浪客剑心：京都大火篇》的海报取得在 `workspace_write` Effect intent 后遇到 TMDB 网络失败；文件、Artifact Registry 与 Workspace Material 均未形成。PROD-051 已补上通用在线桥接：该异常会进入 exact Effect reality reconciliation，并在 absent 证据下复用同一 Effect 有界重试；这是 Runtime 通用修复，不是影片数据修补。现有生产条目不会被本地代码自动修复，部署与 Formation Reset 另行授权。
+- 《007：大破天幕杀机》与《守望者》的 Workspace 中已有海报文件和 `fx_artifact_registry` 行，但缺少原子要求的 `fx_workspace_materials` 行，后续执行以 `CLEAN_WORKSPACE_EFFECT_STATE_CONFLICT` fail closed。
+- Nuclear scope 在 `helix-formation-reset.js` 中只按 Package/Workspace owner ID 查 Artifact，遗漏正式使用的 `owner_domain='libra' / owner_scope_type='libra_run' / owner_scope_id=libra_run_id`。生产 Nuclear dry-run 因而报告 `artifacts: 0`，但同一数据库可按活动 Run ID 查到残留 Artifact；这是已证实的直接漏删。
+- Reset 把 Subject、Run、Workspace、Package、Offer、Decision 等不同类型 ID 合并为无类型 `allScopeIds`，再据此选择 Work、Marker、Audit、Command Receipt 与 Outbox；该做法既可能漏掉正式关联，也不满足 SSOT 的 domain-local typed identity 约束。
+- 已有 committed Subject 上的新未 Commit 链存在第二个 scope 缺口：Pre-deck token 的 `source_process_id` 是当前 Intake process/decision 的正式锚点，但 Reset 只收集 orphan token 的 source process；对保留 Subject，仅删除未 Commit Run，可能留下本次 Intake Decision、Handoff A Receipt、Work 与 dedup 闭包。
+- Workspace 目录在数据库事务之前由 `fs.rmSync` 删除。若后续数据库删除失败，SQLite 会回滚而 Workspace 文件不会恢复；NAS 包装器只备份 `data`，不备份 `/transcode`。现有 rollback 测试没有创建目标 Workspace 目录，未覆盖该失败现实。
+- `verifyPostconditions()` 重新调用 `inspectPlan()`，没有针对冻结的 pre-reset manifest 做独立反查；scope discovery 漏掉的对象会在验收中再次漏掉。`assertRequiredSchema()` 只声明 29 个表，而脚本实际读取或修改约 82 个业务/Foundation 表，无法在任何文件删除前完整阻断 schema drift。
+- discovery 主要从仍存在的 Subject/Run/Workspace/Package 等领域根向下找 Foundation 图；如果前一次 Reset 已删领域根却漏下 Workspace Registry、Artifact、Control、Supporting Work、Command Receipt、Outbox 或 Marker，下一次 Reset 通常没有反向孤儿扫描可再找到它们。`foreign_key_check` 与 `integrity_check` 只能证明已声明 FK 和 SQLite 结构，不能证明这些无 FK typed logical references 已闭合。
+- 当前 14/14 Reset focused 仍通过；它们没有 run-owned Artifact、retained Subject 新 Intake、typed ID collision、Workspace 文件回滚或独立 residual verifier 夹具。因此 PASS 只能证明已列举场景，不再作为 Nuclear closure 证据。
+- PROD-052 已删除旧 `normal|nuclear` 分支、mode 参数和确认串；唯一 Formation Reset 使用 `FORMATION_RESET_V2`。NAS wrapper 与旧 pre-deck upgrade 入口均已切换到唯一合同，旧 CLI 明确拒绝，不提供兼容入口。
+- Reset scope 已改为 domain/type/ID typed manifest；run-owned Artifact、retained Subject 新 Intake/Run、Work/Attempt/Plan/Event/Effect、Result/Marker、Receipt、Outbox/Inbox、Audit、Workspace registry/material 与 Control revision 后缀进入同一冻结闭包。独立 verifier 直接反查冻结 ID 和 typed owner scope，并增加全局反向孤儿扫描，不再调用 `inspectPlan()` 自证。
+- Workspace 文件不再在数据库事务前 `rmSync`：先在 `/transcode` 同文件系统原子 rename 到精确 staging 路径；数据库删除、外键、integrity 或独立 residual verifier 任一失败均回滚 SQLite 并 rename 恢复原目录；提交和验收通过后才删除 staging。`/media` 从未挂载给 Reset 容器。
+- Formation Reset focused 与 NAS wrapper 共 22/22；Service full 436 项为 418 pass、18 skip、0 fail。新增五个核心负向夹具覆盖 run-owned Artifact、已 Commit Subject 的新未 Commit Intake/Run、数据库失败时 Workspace 保持、typed ID collision 与 verifier 捕获 discovery omission，并补充领域根已消失时对 orphan Work/Workspace/Artifact 的反向清理。未部署、未执行生产 dry-run/apply、未直改 SQLite 或媒体文件；生产旧工具继续暂停使用。
 
 ## PROD-036 Production Monitoring
 
@@ -63,11 +82,10 @@ PROD-034 已按 Product Owner 授权对“唐人街探案 (2015)”和“赤壁�
 
 ## Formation Reset Debug Capability
 
-- 当前工作区已经实现统一的 Formation Reset 离线调试能力，提供 `normal` 与 `nuclear` 两种模式。
-- `normal` 终止并清理 On-deck Commit 前的活动整理现场，同时保留明确终态的过程记录；`nuclear` 物理删除该范围内的过程记录，使其在当前运行数据库中视同未发生。
-- 两种模式都以 Arca On-deck Commit 为保护线，不触碰已入架事实和 `/media`，也不主动触发 Observation 或 Intake。
-- **该能力核心已随当前生产镜像部署到 NAS，并已再次完成获授权的 Nuclear Reset。** 后续调用仍必须逐次获得明确生产授权、显式指定 `normal|nuclear`、先 dry-run，再使用模式专属确认串 `--apply`；部署本身不触发 Reset。
-- 本轮先无损升级 Reset 实现，再单独执行获授权 Nuclear Reset；未使用 clean init。
+- 当前生产镜像仍包含已暂停使用的旧双模式工具；本地 PROD-052 已完成其替代实现：唯一 Formation Reset 不保留终态过程记录，也不再维护 `normal|nuclear` 分支。
+- 唯一 Formation Reset 物理删除 On-deck Commit 前的整理过程，使其在当前运行数据库中视同未发生；若未来需要“保留历史并批量放弃”，应作为独立正式领域操作设计，不属于 Reset。
+- 唯一 Reset 以 Arca On-deck Commit 为保护线，不触碰已入架事实和 `/media`，也不主动触发 Observation 或 Intake。
+- **旧双模式能力已随当前生产镜像部署到 NAS，并曾完成历史获授权的 Nuclear Reset；但已暂停再次生产使用。** 本地唯一 Formation Reset 尚未部署；后续调用仍必须逐次获得明确生产授权、先 dry-run，再使用唯一确认串显式 `--apply`，部署本身不触发 Reset。
 - Reset 发现范围现补齐无 Subject 的 orphan pipeline token：以 token 自身与 `source_process_id` 为独立范围根，
   同时纳入其 Libra Intake Work。Normal 删除 token、终止活动执行但保留终态审计；Nuclear 删除 token 与对应执行图。
   两种模式的 postcondition 都要求 orphan token 为 0。

@@ -4,8 +4,8 @@
  * Offline Formation Reset for the fnOS ShelfDeck production project.
  *
  * Usage:
- *   node scripts/formation-reset-nas.js --mode normal
- *   node scripts/formation-reset-nas.js --mode nuclear --apply --confirm FORMATION_RESET_NUCLEAR_V1
+ *   node scripts/formation-reset-nas.js
+ *   node scripts/formation-reset-nas.js --apply --confirm FORMATION_RESET_V2
  *
  * Dry-run connects read-only to print the live plan. Apply stops only the ShelfDeck
  * Compose service, creates and verifies a full data backup, runs the reset with the
@@ -22,26 +22,23 @@ const BACKUP_ROOT = `${COMPOSE_DIR}/backups`;
 const TRANSCODE_HOST = '/vol2/1000/shelfdeck_transcode';
 const SERVICE = 'shelfdeck';
 const HEALTH_URL = 'http://127.0.0.1:18080/v1/health';
-const CONFIRMATIONS = Object.freeze({ normal:'FORMATION_RESET_NORMAL_V1', nuclear:'FORMATION_RESET_NUCLEAR_V1' });
+const CONFIRMATION = 'FORMATION_RESET_V2';
 
 function shellQuote(value) {
   return `'${String(value).replace(/'/g, `'\\''`)}'`;
 }
 
 function parseArgs(argv) {
-  const parsed = { mode:'', apply:false, confirm:'' };
+  const parsed = { apply:false, confirm:'' };
   for (let index = 0; index < argv.length; index += 1) {
     const argument = argv[index];
     if (argument === '--apply') parsed.apply = true;
-    else if (argument === '--mode') { parsed.mode = argv[index + 1] || ''; index += 1; }
-    else if (argument.startsWith('--mode=')) parsed.mode = argument.slice('--mode='.length);
     else if (argument === '--confirm') { parsed.confirm = argv[index + 1] || ''; index += 1; }
     else if (argument.startsWith('--confirm=')) parsed.confirm = argument.slice('--confirm='.length);
     else throw new Error(`Unknown argument: ${argument}`);
   }
-  if (!Object.hasOwn(CONFIRMATIONS, parsed.mode)) throw new Error('Mode must be normal or nuclear.');
-  if (parsed.apply && parsed.confirm !== CONFIRMATIONS[parsed.mode]) {
-    throw new Error(`Apply requires --confirm ${CONFIRMATIONS[parsed.mode]}`);
+  if (parsed.apply && parsed.confirm !== CONFIRMATION) {
+    throw new Error(`Apply requires --confirm ${CONFIRMATION}`);
   }
   return Object.freeze(parsed);
 }
@@ -76,7 +73,7 @@ async function step(connection, label, command) {
   return result.output.trim();
 }
 
-function resetCommand(image, mode, apply) {
+function resetCommand(image, apply) {
   const args = [
     'docker run --rm',
     `--env-file ${shellQuote(`${COMPOSE_DIR}/secret.env`)}`,
@@ -84,11 +81,10 @@ function resetCommand(image, mode, apply) {
     `-v ${shellQuote(`${TRANSCODE_HOST}:/transcode`)}`,
     shellQuote(image),
     'node scripts/helix-formation-reset.js',
-    `--mode ${shellQuote(mode)}`,
     '--data-dir /app/data',
     '--transcode-dir /transcode',
   ];
-  if (apply) args.push('--apply', '--offline-confirmed', '--confirm', shellQuote(CONFIRMATIONS[mode]));
+  if (apply) args.push('--apply', '--offline-confirmed', '--confirm', shellQuote(CONFIRMATION));
   return args.join(' ');
 }
 
@@ -117,7 +113,7 @@ async function main(argv = process.argv.slice(2)) {
   const parsed = parseArgs(argv);
   const connection = await connect();
   const timestamp = new Date().toISOString().replace(/[-:]/g, '').replace(/\..+$/, 'Z');
-  const backupDir = `${BACKUP_ROOT}/formation-reset-${timestamp}-${parsed.mode}`;
+  const backupDir = `${BACKUP_ROOT}/formation-reset-${timestamp}`;
   let image = '';
   try {
     await step(connection, 'Verify ShelfDeck application paths', [
@@ -129,23 +125,23 @@ async function main(argv = process.argv.slice(2)) {
     ].join(' && '));
     image = await step(connection, 'Resolve the exact deployed image', imageCommand());
     if (!image || /\s/.test(image)) throw new Error('Deployed image identity is invalid.');
-    process.stdout.write(`\nmode   : ${parsed.mode}\nimage  : ${image}\nbackup : ${backupDir}\n`);
+    process.stdout.write(`\nimage  : ${image}\nbackup : ${backupDir}\n`);
     if (!parsed.apply) {
-      await step(connection, 'Inspect live Formation Reset plan', resetCommand(image, parsed.mode, false));
-      process.stdout.write(`\nDry run only. Apply with --apply --confirm ${CONFIRMATIONS[parsed.mode]}.\n`);
-      return Object.freeze({ mode:parsed.mode, applied:false, image, backupDir });
+      await step(connection, 'Inspect live Formation Reset plan', resetCommand(image, false));
+      process.stdout.write(`\nDry run only. Apply with --apply --confirm ${CONFIRMATION}.\n`);
+      return Object.freeze({ applied:false, image, backupDir });
     }
     await step(connection, 'Stop only the ShelfDeck service', `cd ${shellQuote(COMPOSE_DIR)} && docker compose stop ${SERVICE}`);
     await step(connection, 'Verify ShelfDeck is stopped', `cd ${shellQuote(COMPOSE_DIR)} && test -z "$(docker compose ps -q --status running ${SERVICE})"`);
     await step(connection, 'Create and verify the full data backup', backupCommand(backupDir));
-    await step(connection, 'Inspect the offline Formation Reset plan', resetCommand(image, parsed.mode, false));
-    await step(connection, `Apply ${parsed.mode} Formation Reset`, resetCommand(image, parsed.mode, true));
-    await step(connection, 'Verify the reset is idempotent', resetCommand(image, parsed.mode, false));
+    await step(connection, 'Inspect the offline Formation Reset plan', resetCommand(image, false));
+    await step(connection, 'Apply Formation Reset', resetCommand(image, true));
+    await step(connection, 'Verify the reset is idempotent', resetCommand(image, false));
     await step(connection, 'Start only the ShelfDeck service', `cd ${shellQuote(COMPOSE_DIR)} && docker compose up -d ${SERVICE}`);
     await step(connection, 'Verify ShelfDeck Compose status', `cd ${shellQuote(COMPOSE_DIR)} && test -n "$(docker compose ps -q --status running ${SERVICE})"`);
     await step(connection, 'Verify ShelfDeck health', `curl --fail --silent --show-error --retry 12 --retry-delay 5 ${shellQuote(HEALTH_URL)}`);
     process.stdout.write(`\nFormation Reset complete. Rollback data: ${backupDir}/data\n`);
-    return Object.freeze({ mode:parsed.mode, applied:true, image, backupDir, healthUrl:HEALTH_URL });
+    return Object.freeze({ applied:true, image, backupDir, healthUrl:HEALTH_URL });
   } catch (error) {
     if (parsed.apply) {
       process.stderr.write(`\nShelfDeck may remain stopped. Verified backup path (if created): ${backupDir}/data\n`);
@@ -161,5 +157,5 @@ if (require.main === module) {
   });
 }
 
-module.exports = Object.freeze({ BACKUP_ROOT, COMPOSE_DIR, CONFIRMATIONS, DATA_DIR, HEALTH_URL,
+module.exports = Object.freeze({ BACKUP_ROOT, COMPOSE_DIR, CONFIRMATION, DATA_DIR, HEALTH_URL,
   SERVICE, TRANSCODE_HOST, backupCommand, imageCommand, main, parseArgs, resetCommand, shellQuote });

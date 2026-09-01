@@ -100,41 +100,37 @@ docker exec shelfdeck ls /media/test/
 ## 4. Formation Reset 调试能力
 
 当前Helix迭代阶段不为既有、未完成Arca On-deck Commit的Formation条目增加兼容、迁移、恢复或fallback代码。
-版本迭代需要清理旧整理现场时，使用统一脚本`media-service/scripts/helix-formation-reset.js`：
+版本迭代需要清理旧整理现场时，使用唯一脚本`media-service/scripts/helix-formation-reset.js`。Formation Reset物理删除
+未完成On-deck Commit的Intake→Libra→Arca业务图和Execution Foundation执行图，使其在当前数据库中视同未发生；
+不保留`normal|nuclear`模式或旧确认串。
 
-- `normal`：终止活动Run/Work/Attempt/Event，释放Control、回收精确Workspace、移除活动Projection，保留明确终态的过程审计；
-- `nuclear`：删除未完成On-deck Commit的Intake→Libra→Arca业务图和Execution Foundation执行图，使其在当前数据库中视同未发生。
-
-两种模式都以`arca_ondeck_commit_receipts`为保护线，不删除已Commit的Shelf Entry或Deck Fact，不挂载或修改`/media`，
-也不主动触发Observation/Intake。只删除数据库中目标`workspaceId`对应的`/transcode/<workspaceId>`目录；其他目录保留。
+Reset以`arca_ondeck_commit_receipts`为保护线，不删除已Commit的Shelf Entry或Deck Fact，不挂载或修改`/media`，也不主动
+触发Observation/Intake。目标Workspace先在同一`/transcode`文件系统内原子staging；数据库事务和独立postcondition通过后
+才删除，失败则恢复原目录。其他目录保留。
 
 本地或disposable fixture先执行plan：
 
 ```powershell
-node media-service/scripts/helix-formation-reset.js --mode normal --data-dir <data-dir> --transcode-dir <transcode-root>
-node media-service/scripts/helix-formation-reset.js --mode nuclear --data-dir <data-dir> --transcode-dir <transcode-root>
+node media-service/scripts/helix-formation-reset.js --data-dir <data-dir> --transcode-dir <transcode-root>
 ```
 
-直接apply要求服务已经停止，并显式提供offline确认和模式确认词：
+直接apply要求服务已经停止，并显式提供offline确认和唯一确认词：
 
 ```powershell
-node media-service/scripts/helix-formation-reset.js --mode normal --data-dir <data-dir> --transcode-dir <transcode-root> --apply --offline-confirmed --confirm FORMATION_RESET_NORMAL_V1
-node media-service/scripts/helix-formation-reset.js --mode nuclear --data-dir <data-dir> --transcode-dir <transcode-root> --apply --offline-confirmed --confirm FORMATION_RESET_NUCLEAR_V1
+node media-service/scripts/helix-formation-reset.js --data-dir <data-dir> --transcode-dir <transcode-root> --apply --offline-confirmed --confirm FORMATION_RESET_V2
 ```
 
 生产NAS只允许使用`scripts/formation-reset-nas.js`，且当前Running image必须已经包含
 `media-service/scripts/helix-formation-reset.js`；实际部署状态以`docs/helix/CURRENT_STATUS.md`为准。默认命令是只读plan：
 
 ```powershell
-node scripts/formation-reset-nas.js --mode normal
-node scripts/formation-reset-nas.js --mode nuclear
+node scripts/formation-reset-nas.js
 ```
 
 用户明确授权该次生产Reset后才允许apply：
 
 ```powershell
-node scripts/formation-reset-nas.js --mode normal --apply --confirm FORMATION_RESET_NORMAL_V1
-node scripts/formation-reset-nas.js --mode nuclear --apply --confirm FORMATION_RESET_NUCLEAR_V1
+node scripts/formation-reset-nas.js --apply --confirm FORMATION_RESET_V2
 ```
 
 NAS包装会解析当前精确镜像、只停止ShelfDeck服务、在应用目录下创建并校验完整data备份、离线执行Reset、重复plan验证幂等，

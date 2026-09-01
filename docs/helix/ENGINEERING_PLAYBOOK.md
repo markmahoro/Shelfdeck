@@ -94,18 +94,19 @@ Arca On-deck Commit的既有整理条目均不享有跨迭代兼容权利。Sche
 既有条目增加migration、dual-read/write、fallback、resume、repair或其他兼容性代码；应使用经授权的Formation Reset调试工具
 清理，再由后续正常Observation/Intake自然产生新运行。Reset本身不得主动触发Observation或Intake。
 
-Formation Reset固定提供两种语义：
+Formation Reset只有一种语义：物理删除未完成Arca On-deck Commit的整理过程记录，使其在当前运行数据库中
+视同从未发生。工具不得保留`normal|nuclear`模式、旧确认串或兼容入口；若产品未来需要“保留过程审计并批量
+终止”，必须作为独立正式领域能力设计，不得复用Reset语义。
 
-- **Normal Reset**：终止并清理未提交整理现场，使其不再参与运行或活动Projection，同时保留明确终态的过程审计记录；
-- **Nuclear Reset**：物理删除未完成Arca On-deck Commit的整理过程记录，使其在当前运行数据库中视同从未发生。
-
-两种模式的同一scope都从Handoff A Accepted延伸到Arca On-deck Commit之前，必须显式覆盖Accepted但无
+Reset scope从Handoff A Accepted延伸到Arca On-deck Commit之前，必须显式覆盖Accepted但无
 Pre-deck token的Subject、active但缺少Admission Head的Libra Run，以及Subject、Run、Workspace、On-deck
 Package与Custody持有的Material Control。Reset可以终结或删除这些孤儿责任，但不得把仍由Procurement持有的
-Control误判成阻塞，也不得删除Procurement事实；Nuclear Reset只回卷首次进入Formation之后的Control revision
-后缀，并恢复最后一个Procurement边界。两种模式的postcondition必须证明上述孤儿集合归零。
+Control误判成阻塞，也不得删除Procurement事实；Reset只回卷首次进入Formation之后的Control revision后缀，
+并恢复最后一个Procurement边界。删除范围必须使用`owner_domain + scope/process type + ID` typed identity，不能把
+不同类型ID合并成无类型集合。Postcondition必须根据冻结的pre-reset manifest独立反查业务、Execution、Artifact、
+Workspace、消息、Receipt、Marker/Result与Control闭包，不能复用scope discovery证明自己完整。
 
-两种模式都必须保护已经Arca On-deck Commit的Shelf Entry与Deck Fact，不得触碰`/media`，生产执行仍需用户对该次生产数据操作
+Reset必须保护已经Arca On-deck Commit的Shelf Entry与Deck Fact，不得触碰`/media`，生产执行仍需用户对该次生产数据操作
 作出明确授权。用户只指定保留某个条目时，授权范围仅限该精确条目的有界迁移或恢复方案，不自动授权通用兼容层。
 
 Reset只解决旧运行数据与新版本合同不再一致的问题。若同一缺陷会在Reset后由新建条目再次产生，必须修复根因并补回归验证，

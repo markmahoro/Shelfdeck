@@ -108,3 +108,6 @@
   当前为 released revision 3/4、旧 Handoff A snapshot 只接受 Procurement revision 1。Nuclear Reset 现原子重开
   exact Delivery/Reservation、删除 exact Offer 跨域 dedup，并回卷 released Control 历史到 Procurement 边界；
   regression 13/13、合并 focused 57/57，Service full 430 项为 412 pass、18 skip、0 fail，production build 通过。
+- PROD-052 已在本地把上述历史双模式实现替换为唯一 Formation Reset：旧 mode/确认串无兼容入口，冻结 scope 使用
+  typed identity，Workspace 文件先 staging，SQLite 事务内由独立 verifier 验证 Artifact、Execution、消息、Control
+  与领域闭包。五类核心负向夹具、反向 orphan cleanup 及 NAS wrapper 共 22/22；尚未部署或执行新的生产 Reset。

@@ -10,7 +10,7 @@ const { canonicalDigest } = require('../src/helix/contracts/canonical-json');
 const { activeRunScopeSetDigest } = require('../src/helix/domains/libra/model/run-admission-contracts');
 const { runStateDigest } = require('../src/helix/domains/libra/model/run-lifecycle-contracts');
 const { emptyReferenceSetDigest, workspaceStateDigest } = require('../src/helix/domains/libra/model/workspace-admission-contracts');
-const { applyReset, assertSafeTranscodeRoot, inspectPlan } = require('../scripts/helix-formation-reset');
+const { applyReset, assertSafeTranscodeRoot, inspectPlan, verifyFrozenManifest } = require('../scripts/helix-formation-reset');
 
 const schemaDdl = fs.readFileSync(path.join(
   __dirname, '../src/helix/foundation/persistence/generated/clean-schema.sql',
@@ -261,189 +261,124 @@ test('Formation Reset is an exact no-op on an empty database and preserves unrel
   const value = fixture('helix-formation-reset-empty');
   try {
     fs.writeFileSync(path.join(value.transcodeDir, 'unrelated.part'), 'keep');
-    for (const mode of ['normal','nuclear']) {
-      const plan = inspectPlan(value.database, mode);
-      assert.equal(plan.ready, true);
-      assert.equal(plan.counts.runs, 0);
-      const result = applyReset({ database:value.database, mode, dataDir:value.dataDir,
-        transcodeDir:value.transcodeDir, nowMs:1000 });
-      assert.equal(result.verification.integrity, 'ok');
-      assert.equal(fs.existsSync(path.join(value.transcodeDir, 'unrelated.part')), true);
-    }
+    const plan = inspectPlan(value.database);
+    assert.equal(plan.ready, true);
+    assert.equal(plan.counts.runs, 0);
+    const result = applyReset({ database:value.database, dataDir:value.dataDir,
+      transcodeDir:value.transcodeDir, nowMs:1000 });
+    assert.equal(result.verification.integrity, 'ok');
+    assert.equal(fs.existsSync(path.join(value.transcodeDir, 'unrelated.part')), true);
   } finally { close(value); }
 });
 
-test('Normal Reset terminalizes active Formation, releases Control, and only removes the exact Workspace', () => {
-  const value = fixture('helix-formation-reset-normal');
-  try {
-    const seeded = seedSubjectRun(value.database, 'normal');
-    const execution = seedExecution(value.database, 'libra', 'libra_run', seeded.runId, 'normal');
-    value.database.prepare(`INSERT INTO libra_formation_projections(subject_id,classification,subject_status,
-      display_identity,next_action_label,next_action_state,attention_state,added_at_ms,updated_at_ms)
-      VALUES (?,'in_progress','active','Normal','整理中','running','none',1,1)`).run(seeded.subjectId);
-    value.database.prepare(`INSERT INTO libra_predeck_pipeline_tokens(subject_id,source_field_id,source_process_id,acquired_at_ms)
-      VALUES (?,'field','process',1)`).run(seeded.subjectId);
-    value.database.prepare(`INSERT INTO fx_material_controls(material_key,mount_scope_id,inode,size_bytes,
-      fingerprint_algorithm,fingerprint_version,content_fingerprint,owner_domain,owner_scope_type,owner_scope_id,
-      control_revision,state,updated_at_ms) VALUES ('material-normal','mount','inode',1,'middle', '1','fp','libra','subject',?,1,'controlled',1)`)
-      .run(seeded.subjectId);
-    value.database.prepare(`INSERT INTO fx_material_control_revisions(material_key,revision,operation_kind,
-      to_owner_domain,to_scope_type,to_scope_id,basis_digest,commit_marker,committed_at_ms)
-      VALUES ('material-normal',1,'acquire','libra','subject',?,?,'initial',1)`).run(seeded.subjectId,DIGEST);
-    value.database.prepare(`INSERT INTO libra_material_bindings(subject_id,material_key,role,authority_kind,
-      binding_revision,health_state,origin_intake_decision_id,current)
-      VALUES (?,'material-normal','primary_payload','primary_control',1,'active',NULL,1)`).run(seeded.subjectId);
-    fs.mkdirSync(path.join(value.transcodeDir, seeded.workspaceId));
-    fs.writeFileSync(path.join(value.transcodeDir, seeded.workspaceId, 'output.part'), 'partial');
-    fs.mkdirSync(path.join(value.transcodeDir, 'unrelated-workspace'));
-
-    const result = applyReset({ database:value.database, mode:'normal', dataDir:value.dataDir,
-      transcodeDir:value.transcodeDir, nowMs:2000 });
-    assert.equal(result.result.discardedRuns, 1);
-    assert.equal(result.result.releasedControls, 1);
-    assert.equal(fs.existsSync(path.join(value.transcodeDir, seeded.workspaceId)), false);
-    assert.equal(fs.existsSync(path.join(value.transcodeDir, 'unrelated-workspace')), true);
-    assert.deepEqual(value.database.prepare('SELECT status FROM libra_subjects WHERE subject_id=?').get(seeded.subjectId), { status:'abandoned' });
-    assert.deepEqual(value.database.prepare('SELECT state,state_revision FROM libra_runs WHERE libra_run_id=?').get(seeded.runId),
-      { state:'discarded', state_revision:2 });
-    assert.equal(value.database.prepare('SELECT COUNT(*) count FROM libra_run_revisions WHERE libra_run_id=?').get(seeded.runId).count, 1);
-    assert.deepEqual(value.database.prepare('SELECT state FROM fx_supporting_works WHERE work_id=?').get(execution.workId), { state:'cancelled' });
-    assert.deepEqual(value.database.prepare('SELECT state FROM fx_event_attempts WHERE event_attempt_id=?').get(execution.eventAttemptId), { state:'completed' });
-    assert.deepEqual(value.database.prepare('SELECT state,owner_domain FROM fx_material_controls WHERE material_key=?').get('material-normal'),
-      { state:'released', owner_domain:null });
-    assert.equal(value.database.prepare('SELECT COUNT(*) count FROM libra_formation_projections').get().count, 0);
-    assert.equal(value.database.prepare('SELECT COUNT(*) count FROM libra_predeck_pipeline_tokens').get().count, 0);
-
-    const revisionCount = value.database.prepare('SELECT COUNT(*) count FROM fx_material_control_revisions').get().count;
-    applyReset({ database:value.database, mode:'normal', dataDir:value.dataDir,
-      transcodeDir:value.transcodeDir, nowMs:3000 });
-    assert.equal(value.database.prepare('SELECT COUNT(*) count FROM fx_material_control_revisions').get().count, revisionCount);
-    assert.equal(value.database.prepare('SELECT state_revision FROM libra_runs WHERE libra_run_id=?').get(seeded.runId).state_revision, 2);
-  } finally { close(value); }
-});
-
-test('both Reset modes clear Accepted Subjects without a token while preserving Procurement Control', () => {
-  for (const mode of ['normal','nuclear']) {
-    const value = fixture(`helix-formation-reset-orphan-${mode}`);
+test('Formation Reset clears Accepted Subjects without a token while preserving Procurement Control', () => {
+    const value = fixture('helix-formation-reset-orphan');
     try {
-      const seeded = seedAcceptedOrphan(value.database, mode);
-      const plan = inspectPlan(value.database, mode);
+      const seeded = seedAcceptedOrphan(value.database, 'formation');
+      const plan = inspectPlan(value.database);
       assert.equal(plan.ready, true);
       assert.equal(plan.counts.orphanAcceptedSubjects, 1);
       assert.equal(plan.counts.preservedProcurementControls, 1);
-      const result = applyReset({ database:value.database, mode, dataDir:value.dataDir,
+      const result = applyReset({ database:value.database, dataDir:value.dataDir,
         transcodeDir:value.transcodeDir, nowMs:3500 });
-      assert.equal(result.verification.plan.counts.orphanAcceptedSubjects, 0);
+      assert.equal(result.verification.integrity, 'ok');
+      assert.equal(inspectPlan(value.database).counts.orphanAcceptedSubjects, 0);
       assert.deepEqual(value.database.prepare(`SELECT owner_domain,owner_scope_type,control_revision,state
         FROM fx_material_controls WHERE material_key=?`).get(seeded.materialKey), {
         owner_domain:'procurement', owner_scope_type:'procurement_run', control_revision:1, state:'controlled',
       });
       assert.equal(value.database.prepare('SELECT COUNT(*) count FROM fx_material_control_revisions WHERE material_key=?')
         .get(seeded.materialKey).count, 1);
-      if (mode === 'normal') {
-        assert.deepEqual(value.database.prepare('SELECT status FROM libra_subjects WHERE subject_id=?').get(seeded.subjectId),
-          { status:'abandoned' });
-      } else {
-        assert.equal(value.database.prepare('SELECT COUNT(*) count FROM libra_subjects WHERE subject_id=?')
-          .get(seeded.subjectId).count, 0);
-      }
+      assert.equal(value.database.prepare('SELECT COUNT(*) count FROM libra_subjects WHERE subject_id=?')
+        .get(seeded.subjectId).count, 0);
     } finally { close(value); }
-  }
 });
 
-test('both Reset modes clear orphan pipeline tokens and their Intake execution responsibility', () => {
-  for (const mode of ['normal','nuclear']) {
-    const value = fixture(`helix-formation-reset-orphan-token-${mode}`);
+test('Formation Reset clears orphan pipeline tokens and their Intake execution responsibility', () => {
+    const value = fixture('helix-formation-reset-orphan-token');
     try {
-      const seeded = seedOrphanPipelineToken(value.database, mode);
-      const plan = inspectPlan(value.database, mode);
+      const seeded = seedOrphanPipelineToken(value.database, 'formation');
+      const plan = inspectPlan(value.database);
       assert.equal(plan.ready, true);
       assert.equal(plan.counts.orphanPipelineTokens, 1);
       assert.equal(plan.counts.works, 1);
       assert.deepEqual(plan.orphans.pipelineTokens.map((row) => row.subject_id), [seeded.subjectId]);
       assert.equal(plan.scope.orphanPipelineSourceProcessIds.includes(seeded.processId), true);
 
-      const result = applyReset({ database:value.database, mode, dataDir:value.dataDir,
+      const result = applyReset({ database:value.database, dataDir:value.dataDir,
         transcodeDir:value.transcodeDir, nowMs:3550 });
-      assert.equal(result.verification.plan.counts.orphanPipelineTokens, 0);
+      assert.equal(result.verification.integrity, 'ok');
+      assert.equal(inspectPlan(value.database).counts.orphanPipelineTokens, 0);
       assert.equal(value.database.prepare('SELECT COUNT(*) count FROM libra_predeck_pipeline_tokens WHERE subject_id=?')
         .get(seeded.subjectId).count, 0);
-      if (mode === 'normal') {
-        assert.deepEqual(value.database.prepare('SELECT state FROM fx_supporting_works WHERE work_id=?').get(seeded.workId),
-          { state:'cancelled' });
-      } else {
-        assert.equal(value.database.prepare('SELECT COUNT(*) count FROM fx_supporting_works WHERE work_id=?')
-          .get(seeded.workId).count, 0);
-        assert.equal(value.database.prepare('SELECT COUNT(*) count FROM fx_command_receipts WHERE target_id=?')
-          .get(seeded.workId).count, 0);
-      }
+      assert.equal(value.database.prepare('SELECT COUNT(*) count FROM fx_supporting_works WHERE work_id=?')
+        .get(seeded.workId).count, 0);
+      assert.equal(value.database.prepare('SELECT COUNT(*) count FROM fx_command_receipts WHERE target_id=?')
+        .get(seeded.workId).count, 0);
 
-      applyReset({ database:value.database, mode, dataDir:value.dataDir,
+      applyReset({ database:value.database, dataDir:value.dataDir,
         transcodeDir:value.transcodeDir, nowMs:3560 });
-      assert.equal(inspectPlan(value.database, mode).counts.orphanPipelineTokens, 0);
+      assert.equal(inspectPlan(value.database).counts.orphanPipelineTokens, 0);
     } finally { close(value); }
-  }
 });
 
-test('both Reset modes remove phantom Work Admission receipts that would replay a missing Intake Work', () => {
-  for (const mode of ['normal','nuclear']) {
-    const value = fixture(`helix-formation-reset-phantom-admission-${mode}`);
+test('Formation Reset removes phantom Work Admission receipts that would replay a missing Intake Work', () => {
+    const value = fixture('helix-formation-reset-phantom-admission');
     try {
-      const seeded = seedPhantomAdmissionReceipt(value.database, mode);
-      const plan = inspectPlan(value.database, mode);
+      const seeded = seedPhantomAdmissionReceipt(value.database, 'formation');
+      const plan = inspectPlan(value.database);
       assert.equal(plan.ready, true);
       assert.equal(plan.counts.orphanPipelineTokens, 1);
       assert.equal(plan.counts.orphanPipelineAdmissionReceipts, 1);
       assert.deepEqual(plan.scope.orphanPipelineAdmissionTargetIds, [seeded.targetWorkId]);
 
-      const result = applyReset({ database:value.database, mode, dataDir:value.dataDir,
+      const result = applyReset({ database:value.database, dataDir:value.dataDir,
         transcodeDir:value.transcodeDir, nowMs:3570 });
-      assert.equal(result.verification.plan.counts.orphanPipelineTokens, 0);
+      assert.equal(result.verification.integrity, 'ok');
+      assert.equal(inspectPlan(value.database).counts.orphanPipelineTokens, 0);
       assert.equal(value.database.prepare('SELECT COUNT(*) count FROM fx_command_receipts WHERE command_receipt_id=?')
         .get(seeded.receiptId).count, 0);
       assert.equal(value.database.prepare('SELECT COUNT(*) count FROM libra_predeck_pipeline_tokens WHERE subject_id=?')
         .get(seeded.subjectId).count, 0);
     } finally { close(value); }
-  }
 });
 
-test('both Reset modes remove the complete latent Libra phantom receipt pool before another Offer acquires a seat', () => {
-  for (const mode of ['normal','nuclear']) {
-    const value = fixture(`helix-formation-reset-latent-admission-${mode}`);
+test('Formation Reset removes the complete latent Libra phantom receipt pool before another Offer acquires a seat', () => {
+    const value = fixture('helix-formation-reset-latent-admission');
     try {
-      const seeded = seedLatentPhantomAdmissionReceipt(value.database, mode);
-      const plan = inspectPlan(value.database, mode);
+      const seeded = seedLatentPhantomAdmissionReceipt(value.database, 'formation');
+      const plan = inspectPlan(value.database);
       assert.equal(plan.ready, true);
       assert.equal(plan.counts.orphanPipelineTokens, 0);
       assert.equal(plan.counts.orphanPipelineAdmissionReceipts, 0);
       assert.equal(plan.counts.phantomLibraAdmissionReceipts, 1);
       assert.deepEqual(plan.scope.phantomLibraAdmissionReceiptIds, [seeded.receiptId]);
 
-      const result = applyReset({ database:value.database, mode, dataDir:value.dataDir,
+      const result = applyReset({ database:value.database, dataDir:value.dataDir,
         transcodeDir:value.transcodeDir, nowMs:3580 });
-      assert.equal(result.verification.plan.counts.phantomLibraAdmissionReceipts, 0);
+      assert.equal(result.verification.integrity, 'ok');
+      assert.equal(inspectPlan(value.database).counts.phantomLibraAdmissionReceipts, 0);
       assert.equal(value.database.prepare('SELECT COUNT(*) count FROM fx_command_receipts WHERE command_receipt_id=?')
         .get(seeded.receiptId).count, 0);
 
-      applyReset({ database:value.database, mode, dataDir:value.dataDir,
+      applyReset({ database:value.database, dataDir:value.dataDir,
         transcodeDir:value.transcodeDir, nowMs:3590 });
-      assert.equal(inspectPlan(value.database, mode).counts.phantomLibraAdmissionReceipts, 0);
+      assert.equal(inspectPlan(value.database).counts.phantomLibraAdmissionReceipts, 0);
     } finally { close(value); }
-  }
 });
 
-test('Nuclear Reset reopens the exact Handoff A boundary and rolls released Control history back to Procurement', () => {
+test('Formation Reset reopens the exact Handoff A boundary and rolls released Control history back to Procurement', () => {
   const value = fixture('helix-formation-reset-handoff-a-boundary');
   try {
-    const seeded = seedClosedHandoffABoundary(value.database, 'nuclear');
-    const plan = inspectPlan(value.database, 'nuclear');
+    const seeded = seedClosedHandoffABoundary(value.database, 'formation');
+    const plan = inspectPlan(value.database);
     assert.equal(plan.ready, true);
     assert.equal(plan.counts.procurementHandoffAClosures, 1);
     assert.deepEqual(plan.scope.handoffAOfferIds, [seeded.offerId]);
     assert.deepEqual(plan.scope.handoffACandidatePackageIds, [seeded.candidatePackageId]);
     assert.equal(plan.scope.materialKeys.includes(seeded.materialKey), true);
 
-    const result = applyReset({ database:value.database, mode:'nuclear', dataDir:value.dataDir,
+    const result = applyReset({ database:value.database, dataDir:value.dataDir,
       transcodeDir:value.transcodeDir, nowMs:3600 });
     assert.equal(result.result.reopenedDeliveries, 1);
     assert.equal(result.result.reopenedReservations, 1);
@@ -467,30 +402,28 @@ test('Nuclear Reset reopens the exact Handoff A boundary and rolls released Cont
     assert.equal(value.database.prepare('SELECT COUNT(*) count FROM fx_inbox WHERE dedup_key=?').get(seeded.dedupKey).count, 0);
     assert.equal(value.database.prepare('SELECT COUNT(*) count FROM fx_outbox WHERE message_id=?').get(seeded.messageId).count, 0);
 
-    applyReset({ database:value.database, mode:'nuclear', dataDir:value.dataDir,
+    applyReset({ database:value.database, dataDir:value.dataDir,
       transcodeDir:value.transcodeDir, nowMs:3610 });
-    assert.equal(inspectPlan(value.database, 'nuclear').counts.procurementHandoffAClosures, 0);
+    assert.equal(inspectPlan(value.database).counts.procurementHandoffAClosures, 0);
   } finally { close(value); }
 });
 
-test('Normal Reset reconstructs a missing admission head only to terminalize the orphan Run', () => {
+test('Formation Reset deletes an orphan Run even when its admission head is missing', () => {
   const value = fixture('helix-formation-reset-orphan-run-head');
   try {
     const seeded = seedSubjectRun(value.database, 'missing-head');
     value.database.prepare('DELETE FROM libra_run_admission_heads WHERE subject_id=?').run(seeded.subjectId);
-    const plan = inspectPlan(value.database, 'normal');
+    const plan = inspectPlan(value.database);
     assert.equal(plan.ready, true);
     assert.equal(plan.counts.orphanActiveRuns, 1);
-    const result = applyReset({ database:value.database, mode:'normal', dataDir:value.dataDir,
+    const result = applyReset({ database:value.database, dataDir:value.dataDir,
       transcodeDir:value.transcodeDir, nowMs:3600 });
-    assert.equal(result.result.createdAdmissionHeads, 1);
-    assert.equal(result.verification.plan.counts.orphanActiveRuns, 0);
-    assert.deepEqual(value.database.prepare('SELECT state FROM libra_runs WHERE libra_run_id=?').get(seeded.runId),
-      { state:'discarded' });
+    assert.equal(result.result.deletedRuns, 1);
+    assert.equal(value.database.prepare('SELECT COUNT(*) count FROM libra_runs WHERE libra_run_id=?').get(seeded.runId).count, 0);
   } finally { close(value); }
 });
 
-test('Nuclear Reset rolls a package-owned Control back to its Procurement boundary', () => {
+test('Formation Reset rolls a package-owned Control back to its Procurement boundary', () => {
   const value = fixture('helix-formation-reset-package-control');
   try {
     const seeded = seedSubjectRun(value.database, 'package-control');
@@ -514,10 +447,10 @@ test('Nuclear Reset rolls a package-owned Control back to its Procurement bounda
              (?,2,'transfer','libra','on_deck_package',?,?, 'control-2',2)`)
       .run(materialKey,DIGEST,materialKey,packageId,DIGEST);
 
-    const plan = inspectPlan(value.database, 'nuclear');
+    const plan = inspectPlan(value.database);
     assert.equal(plan.ready, true);
     assert.equal(plan.counts.controlledMaterials, 1);
-    const result = applyReset({ database:value.database, mode:'nuclear', dataDir:value.dataDir,
+    const result = applyReset({ database:value.database, dataDir:value.dataDir,
       transcodeDir:value.transcodeDir, nowMs:3700 });
     assert.equal(result.result.restoredProcurementControls, 1);
     assert.deepEqual(value.database.prepare(`SELECT owner_domain,owner_scope_type,owner_scope_id,control_revision,state
@@ -530,7 +463,7 @@ test('Nuclear Reset rolls a package-owned Control back to its Procurement bounda
   } finally { close(value); }
 });
 
-test('Nuclear Reset deletes an uncommitted Libra-to-Arca graph but preserves committed collection facts', () => {
+test('Formation Reset deletes an uncommitted Libra-to-Arca graph but preserves committed collection facts', () => {
   const value = fixture('helix-formation-reset-nuclear');
   try {
     const target = seedSubjectRun(value.database, 'target');
@@ -613,12 +546,12 @@ test('Nuclear Reset deletes an uncommitted Libra-to-Arca graph but preserves com
 
     fs.mkdirSync(path.join(value.transcodeDir, target.workspaceId));
     fs.mkdirSync(path.join(value.transcodeDir, kept.workspaceId));
-    const before = inspectPlan(value.database, 'nuclear');
+    const before = inspectPlan(value.database);
     assert.equal(before.ready, true);
     assert.equal(before.scope.runIds.includes(target.runId), true);
     assert.equal(before.scope.runIds.includes(kept.runId), false);
 
-    const result = applyReset({ database:value.database, mode:'nuclear', dataDir:value.dataDir,
+    const result = applyReset({ database:value.database, dataDir:value.dataDir,
       transcodeDir:value.transcodeDir, nowMs:4000 });
     assert.equal(result.result.deletedRuns, 1);
     assert.equal(value.database.prepare('SELECT COUNT(*) count FROM libra_subjects WHERE subject_id=?').get(target.subjectId).count, 0);
@@ -636,7 +569,7 @@ test('Nuclear Reset deletes an uncommitted Libra-to-Arca graph but preserves com
   } finally { close(value); }
 });
 
-test('Nuclear Reset deletes current and previously orphaned eventless Formation Fact markers and Results', () => {
+test('Formation Reset deletes current and previously orphaned eventless Formation Fact markers and Results', () => {
   const value = fixture('helix-formation-reset-eventless-facts');
   try {
     const seeded = seedSubjectRun(value.database, 'eventless-facts');
@@ -664,6 +597,11 @@ test('Nuclear Reset deletes current and previously orphaned eventless Formation 
        spec_schema_ref,spec_json,spec_digest,record_digest,structure_kind,content_profile,published_at_ms)
       VALUES (?,?,?,?,1,'test-spec','{}',?,?,'single','movie',1)`)
       .run(acceptanceSpecId,seeded.subjectId,basisId,DIGEST,DIGEST,DIGEST);
+    value.database.prepare(`INSERT INTO fx_command_receipts
+      (command_receipt_id,owner_domain,command_contract,caller_scope,idempotency_key,request_digest,
+       target_type,target_id,result_schema_ref,result_ref_json,result_digest,committed_at_ms)
+      VALUES ('receipt-eventless-basis','libra','test.decision-basis','test','basis-key',?,
+       'decision_basis',?,'result','{}',?,1)`).run(DIGEST,basisId,DIGEST);
 
     seedEventlessMarker(value.database, { marker:'marker-current-routing', scopeType:'routing_decision',
       scopeId:routingDecisionId, resultId:'result-current-routing' });
@@ -674,24 +612,27 @@ test('Nuclear Reset deletes current and previously orphaned eventless Formation 
     seedEventlessMarker(value.database, { marker:'marker-orphan-spec', scopeType:'acceptance_spec',
       scopeId:'acceptance-spec-from-prior-reset', resultId:'result-orphan-spec' });
 
-    const plan = inspectPlan(value.database, 'nuclear');
+    const plan = inspectPlan(value.database);
     assert.equal(plan.counts.eventlessFactMarkerOrphans, 2);
     assert.equal(plan.counts.orphanRoutingDecisionMarkers, 1);
     assert.equal(plan.counts.orphanAcceptanceSpecMarkers, 1);
     assert.equal(plan.scope.routingDecisionIds.includes(routingDecisionId), true);
     assert.equal(plan.scope.acceptanceSpecIds.includes(acceptanceSpecId), true);
 
-    const result = applyReset({ database:value.database, mode:'nuclear', dataDir:value.dataDir,
+    const result = applyReset({ database:value.database, dataDir:value.dataDir,
       transcodeDir:value.transcodeDir, nowMs:4250 });
-    assert.equal(result.verification.plan.counts.eventlessFactMarkerOrphans, 0);
+    assert.equal(result.verification.integrity, 'ok');
+    assert.equal(inspectPlan(value.database).counts.eventlessFactMarkerOrphans, 0);
     assert.equal(value.database.prepare(`SELECT COUNT(*) count FROM fx_commit_markers
       WHERE commit_marker LIKE 'marker-%-routing' OR commit_marker LIKE 'marker-%-spec'`).get().count, 0);
     assert.equal(value.database.prepare(`SELECT COUNT(*) count FROM fx_event_result_bindings
       WHERE result_id LIKE 'result-%-routing' OR result_id LIKE 'result-%-spec'`).get().count, 0);
+    assert.equal(value.database.prepare(`SELECT COUNT(*) count FROM fx_command_receipts
+      WHERE command_receipt_id='receipt-eventless-basis'`).get().count, 0);
   } finally { close(value); }
 });
 
-test('Normal Reset retires an Accepted but uncommitted Arca On-deck responsibility', () => {
+test('Formation Reset removes an Accepted but uncommitted Arca On-deck responsibility', () => {
   const value = fixture('helix-formation-reset-normal-ondeck');
   try {
     const seeded = seedSubjectRun(value.database, 'normal-ondeck');
@@ -733,14 +674,12 @@ test('Normal Reset retires an Accepted but uncommitted Arca On-deck responsibili
       VALUES (?,'in_progress','active','Accepted','整理中','running','none',?,?,1,1)`)
       .run(seeded.subjectId,packageId,offerId);
 
-    applyReset({ database:value.database, mode:'normal', dataDir:value.dataDir,
+    applyReset({ database:value.database, dataDir:value.dataDir,
       transcodeDir:value.transcodeDir, nowMs:4500 });
-    assert.deepEqual(value.database.prepare('SELECT state FROM arca_ondeck_custodies WHERE custody_id=?').get(custodyId), { state:'released' });
-    assert.deepEqual(value.database.prepare('SELECT state,terminal_at_ms FROM arca_ondeck_runs WHERE on_deck_run_id=?').get(onDeckRunId),
-      { state:'blocked', terminal_at_ms:4500 });
-    assert.deepEqual(value.database.prepare('SELECT state FROM fx_supporting_works WHERE work_id=?').get(work.workId), { state:'cancelled' });
-    assert.deepEqual(value.database.prepare('SELECT state,owner_domain FROM fx_material_controls WHERE material_key=?').get('material-normal-ondeck'),
-      { state:'released', owner_domain:null });
+    assert.equal(value.database.prepare('SELECT COUNT(*) count FROM arca_ondeck_custodies WHERE custody_id=?').get(custodyId).count, 0);
+    assert.equal(value.database.prepare('SELECT COUNT(*) count FROM arca_ondeck_runs WHERE on_deck_run_id=?').get(onDeckRunId).count, 0);
+    assert.equal(value.database.prepare('SELECT COUNT(*) count FROM fx_supporting_works WHERE work_id=?').get(work.workId).count, 0);
+    assert.equal(value.database.prepare('SELECT COUNT(*) count FROM fx_material_controls WHERE material_key=?').get('material-normal-ondeck').count, 0);
     assert.equal(value.database.prepare('SELECT COUNT(*) count FROM libra_formation_projections WHERE subject_id=?').get(seeded.subjectId).count, 0);
   } finally { close(value); }
 });
@@ -756,19 +695,171 @@ test('Formation Reset rejects broad transcode roots', () => {
   } finally { fs.rmSync(root, { recursive:true, force:true }); }
 });
 
-test('Nuclear Reset rolls the whole database graph back when a delete fails', () => {
+test('Formation Reset rolls the whole database graph and Workspace back when a delete fails', () => {
   const value = fixture('helix-formation-reset-rollback');
   try {
     const seeded = seedSubjectRun(value.database, 'rollback');
     seedExecution(value.database, 'libra', 'libra_run', seeded.runId, 'rollback');
-    value.database.exec(`CREATE TRIGGER block_nuclear_run_delete BEFORE DELETE ON libra_runs
+    fs.mkdirSync(path.join(value.transcodeDir, seeded.workspaceId));
+    fs.writeFileSync(path.join(value.transcodeDir, seeded.workspaceId, 'partial.bin'), 'preserve-on-failure');
+    value.database.exec(`CREATE TRIGGER block_formation_run_delete BEFORE DELETE ON libra_runs
       BEGIN SELECT RAISE(ABORT, 'forced reset failure'); END`);
-    assert.throws(() => applyReset({ database:value.database, mode:'nuclear', dataDir:value.dataDir,
+    assert.throws(() => applyReset({ database:value.database, dataDir:value.dataDir,
       transcodeDir:value.transcodeDir, nowMs:5000 }), /forced reset failure/);
     assert.equal(value.database.prepare('SELECT COUNT(*) count FROM libra_subjects WHERE subject_id=?').get(seeded.subjectId).count, 1);
     assert.equal(value.database.prepare('SELECT COUNT(*) count FROM libra_runs WHERE libra_run_id=?').get(seeded.runId).count, 1);
     assert.equal(value.database.prepare('SELECT COUNT(*) count FROM fx_supporting_works WHERE process_id=?').get(seeded.runId).count, 1);
     assert.equal(value.database.pragma('foreign_keys', { simple:true }), 1);
     assert.equal(value.database.pragma('foreign_key_check').length, 0);
+    assert.equal(fs.readFileSync(path.join(value.transcodeDir, seeded.workspaceId, 'partial.bin'), 'utf8'),
+      'preserve-on-failure');
+  } finally { close(value); }
+});
+
+test('Formation Reset deletes an Artifact owned directly by the unfinished Libra Run', () => {
+  const value = fixture('helix-formation-reset-run-artifact');
+  try {
+    const seeded = seedSubjectRun(value.database, 'run-artifact');
+    value.database.prepare(`INSERT INTO fx_artifact_registry
+      (artifact_handle_id,artifact_kind,owner_domain,owner_scope_type,owner_scope_id,storage_ref,
+       digest_algorithm,digest_hex,size_bytes,media_type,provenance_ref,reference_revision,state,created_at_ms)
+      VALUES ('artifact-run-owned','nfo','libra','libra_run',?,'workspace:nfo','sha256',?,10,
+        'application/xml','test',1,'active',1)`).run(seeded.runId,DIGEST);
+    const plan = inspectPlan(value.database);
+    assert.deepEqual(plan.scope.artifactIds, ['artifact-run-owned']);
+    applyReset({ database:value.database, dataDir:value.dataDir, transcodeDir:value.transcodeDir, nowMs:5100 });
+    assert.equal(value.database.prepare(`SELECT COUNT(*) count FROM fx_artifact_registry
+      WHERE artifact_handle_id='artifact-run-owned'`).get().count, 0);
+  } finally { close(value); }
+});
+
+test('Formation Reset reverse-discovers orphan Foundation Work, Workspace, and Artifact after the business root is gone', () => {
+  const value = fixture('helix-formation-reset-reverse-orphans');
+  try {
+    const workspaceId = canonicalDigest({ workspace:'reverse-orphan' });
+    const work = seedExecution(value.database, 'libra', 'libra_run', 'missing-run-reverse-orphan', 'reverse-orphan');
+    value.database.prepare(`INSERT INTO fx_workspace_registry
+      (workspace_id,owner_domain,process_type,process_id,state,created_at_ms)
+      VALUES (?,'libra','libra_run','missing-run-reverse-orphan','active',1)`).run(workspaceId);
+    value.database.prepare(`INSERT INTO fx_artifact_registry
+      (artifact_handle_id,artifact_kind,owner_domain,owner_scope_type,owner_scope_id,digest_algorithm,
+       digest_hex,size_bytes,reference_revision,state,created_at_ms)
+      VALUES ('artifact-reverse-orphan','nfo','libra','libra_run','missing-run-reverse-orphan','sha256',?,1,1,'active',1)`)
+      .run(DIGEST);
+    fs.mkdirSync(path.join(value.transcodeDir, workspaceId));
+    const plan = inspectPlan(value.database);
+    assert.equal(plan.scope.works.some((row) => row.work_id === work.workId), true);
+    assert.equal(plan.scope.workspaceIds.includes(workspaceId), true);
+    assert.equal(plan.scope.artifactIds.includes('artifact-reverse-orphan'), true);
+    applyReset({ database:value.database, dataDir:value.dataDir, transcodeDir:value.transcodeDir, nowMs:5150 });
+    assert.equal(value.database.prepare('SELECT COUNT(*) count FROM fx_supporting_works WHERE work_id=?').get(work.workId).count, 0);
+    assert.equal(value.database.prepare('SELECT COUNT(*) count FROM fx_workspace_registry WHERE workspace_id=?').get(workspaceId).count, 0);
+    assert.equal(value.database.prepare(`SELECT COUNT(*) count FROM fx_artifact_registry
+      WHERE artifact_handle_id='artifact-reverse-orphan'`).get().count, 0);
+    assert.equal(fs.existsSync(path.join(value.transcodeDir, workspaceId)), false);
+  } finally { close(value); }
+});
+
+test('Formation Reset removes a new unfinished Intake and Run without deleting the Subject older committed chain', () => {
+  const value = fixture('helix-formation-reset-retained-subject');
+  try {
+    const kept = seedSubjectRun(value.database, 'retained-subject', 'completed');
+    const keptPackage = 'package-retained-subject', keptCustody = 'custody-retained-subject';
+    const keptOnDeck = 'on-deck-retained-subject';
+    value.database.prepare(`INSERT INTO libra_product_packages
+      (on_deck_package_id,offer_id,package_revision,libra_run_id,run_state_revision,subject_id,
+       product_structure_json,production_provenance_json,attestation_json,package_digest,state,published_at_ms)
+      VALUES (?,'offer-retained-old',1,?,1,?,'{}','{}','{}',?,'published',1)`)
+      .run(keptPackage,kept.runId,kept.subjectId,DIGEST);
+    value.database.prepare(`INSERT INTO arca_ondeck_custodies
+      (custody_id,on_deck_package_id,package_digest,state,accepted_at_ms)
+      VALUES (?,?,?,'committed',1)`).run(keptCustody,keptPackage,DIGEST);
+    value.database.prepare(`INSERT INTO arca_ondeck_runs(on_deck_run_id,custody_id,state,created_at_ms,terminal_at_ms)
+      VALUES (?,?,'committed',1,2)`).run(keptOnDeck,keptCustody);
+    value.database.prepare(`INSERT INTO arca_shelf_entries(shelf_entry_id,status,created_at_ms)
+      VALUES ('entry-retained-subject','active',1)`).run();
+    value.database.prepare(`INSERT INTO arca_ondeck_commit_receipts
+      (receipt_id,on_deck_run_id,shelf_entry_id,inventory_revision,deck_fact_revision,commit_digest,committed_at_ms)
+      VALUES ('commit-retained-subject',?,'entry-retained-subject',1,1,?,2)`).run(keptOnDeck,DIGEST);
+
+    const intakeDecisionId = 'intake-retained-new';
+    const oldContinuity = DIGEST;
+    const newContinuity = 'b'.repeat(64), newEpisode = 'c'.repeat(64);
+    value.database.prepare(`INSERT INTO libra_intake_decisions
+      (intake_decision_id,decision_revision,decision_kind,offer_id,candidate_package_id,package_revision,
+       package_digest,target_subject_id,accepted_result,expected_target_status,expected_target_intake_revision,
+       expected_target_continuity_set_digest,expected_target_episode_scope_digest,committed_target_intake_revision,
+       committed_subject_continuity_set_digest,committed_subject_episode_scope_digest,decision_digest,decided_at_ms,
+       candidate_delivery_snapshot_schema_ref,candidate_delivery_snapshot_json,
+       decision_identity_evidence_schema_ref,decision_identity_evidence_json,decision_identity_evidence_digest)
+      VALUES (?,1,'accepted_resolution','offer-retained-new','candidate-retained-new',1,?,?,'season_extension',
+       'active',1,?,?,2,?,?,?,3,'snapshot','{}','identity','{}',?)`)
+      .run(intakeDecisionId,DIGEST,kept.subjectId,oldContinuity,DIGEST,newContinuity,newEpisode,DIGEST,DIGEST);
+    value.database.prepare(`UPDATE libra_subjects SET intake_revision=2,current_continuity_set_digest=?,
+      current_episode_scope_digest=? WHERE subject_id=?`).run(newContinuity,newEpisode,kept.subjectId);
+    value.database.prepare(`INSERT INTO libra_handoff_a_receipts
+      (receipt_id,intake_decision_id,outcome,offer_id,candidate_package_id,package_revision,package_digest,
+       subject_id,subject_intake_revision,subject_continuity_head_revision,committed_at_ms)
+      VALUES ('receipt-retained-new',?,'accepted','offer-retained-new','candidate-retained-new',1,?,?,2,2,3)`)
+      .run(intakeDecisionId,DIGEST,kept.subjectId);
+    const newRunId = 'run-retained-new';
+    const newState = { libraRunId:newRunId,stateRevision:1,state:'active',acceptanceSpecId:null,
+      executionBasisDigest:DIGEST,runScopeDigest:DIGEST,priorityClass:'normal',priorityIntentDigest:DIGEST,
+      transitionKind:'admitted',transitionEvidenceDigest:DIGEST };
+    value.database.prepare(`INSERT INTO libra_runs
+      (libra_run_id,subject_id,admission_revision,execution_basis_record_json,execution_basis_digest,
+       run_scope_digest,state,state_revision,state_digest,priority_class,priority_intent_digest,recovery_attempt_ordinal,created_at_ms)
+      VALUES (?,?,2,'{}',?,?,'active',1,?,'normal',?,0,3)`)
+      .run(newRunId,kept.subjectId,DIGEST,DIGEST,runStateDigest(newState),DIGEST);
+    value.database.prepare(`INSERT INTO libra_predeck_pipeline_tokens
+      (subject_id,source_field_id,source_process_id,acquired_at_ms)
+      VALUES (?,'field-retained-new',?,3)`).run(kept.subjectId,intakeDecisionId);
+    seedExecution(value.database, 'libra', 'libra_run', newRunId, 'retained-new');
+
+    const plan = inspectPlan(value.database);
+    assert.deepEqual(plan.scope.runIds, [newRunId]);
+    assert.equal(plan.scope.intakeDecisionIds.includes(intakeDecisionId), true);
+    applyReset({ database:value.database, dataDir:value.dataDir, transcodeDir:value.transcodeDir, nowMs:5200 });
+    assert.equal(value.database.prepare('SELECT COUNT(*) count FROM libra_runs WHERE libra_run_id=?').get(newRunId).count, 0);
+    assert.equal(value.database.prepare('SELECT COUNT(*) count FROM libra_intake_decisions WHERE intake_decision_id=?')
+      .get(intakeDecisionId).count, 0);
+    assert.deepEqual(value.database.prepare(`SELECT intake_revision,current_continuity_set_digest,
+      current_episode_scope_digest FROM libra_subjects WHERE subject_id=?`).get(kept.subjectId), {
+      intake_revision:1, current_continuity_set_digest:oldContinuity, current_episode_scope_digest:DIGEST,
+    });
+    assert.equal(value.database.prepare('SELECT COUNT(*) count FROM arca_ondeck_commit_receipts WHERE on_deck_run_id=?')
+      .get(keptOnDeck).count, 1);
+  } finally { close(value); }
+});
+
+test('Formation Reset process scoping does not delete a Work with a colliding ID in another typed scope', () => {
+  const value = fixture('helix-formation-reset-typed-collision');
+  try {
+    const seeded = seedSubjectRun(value.database, 'typed-collision');
+    const target = seedExecution(value.database, 'libra', 'libra_run', seeded.runId, 'typed-target');
+    const unrelated = seedExecution(value.database, 'arca', 'arca_shelf_entry', seeded.runId, 'typed-unrelated');
+    applyReset({ database:value.database, dataDir:value.dataDir, transcodeDir:value.transcodeDir, nowMs:5300 });
+    assert.equal(value.database.prepare('SELECT COUNT(*) count FROM fx_supporting_works WHERE work_id=?').get(target.workId).count, 0);
+    assert.equal(value.database.prepare('SELECT COUNT(*) count FROM fx_supporting_works WHERE work_id=?').get(unrelated.workId).count, 1);
+  } finally { close(value); }
+});
+
+test('the frozen-manifest verifier catches an Artifact omitted by discovery', () => {
+  const value = fixture('helix-formation-reset-independent-verifier');
+  try {
+    value.database.prepare(`INSERT INTO fx_artifact_registry
+      (artifact_handle_id,artifact_kind,owner_domain,owner_scope_type,owner_scope_id,digest_algorithm,
+       digest_hex,size_bytes,reference_revision,state,created_at_ms)
+      VALUES ('artifact-verifier-omission','nfo','libra','libra_run','run-verifier-omission','sha256',?,1,1,'active',1)`)
+      .run(DIGEST);
+    const emptyGraph = { workIds:[],attemptIds:[],planIds:[],eventIds:[],eventAttemptIds:[],resultIds:[],
+      markerIds:[],messageIds:[],auditIds:[],commandReceiptIds:[] };
+    const scope = { disposableSubjectIds:[],intakeDecisionIds:[],runIds:[],workspaceIds:[],packageIds:[],
+      acceptanceAttemptIds:[],acceptanceDecisionIds:[],custodyIds:[],onDeckRunIds:[],artifactIds:[],
+      processScopes:[],factScopes:[],materialKeys:[],handoffAOfferIds:[],
+      phantomLibraAdmissionReceiptIds:[],
+      ownerScopes:[{ ownerDomain:'libra',scopeType:'libra_run',scopeId:'run-verifier-omission' }] };
+    assert.throws(() => verifyFrozenManifest(value.database, { scope, graph:emptyGraph }), (error) =>
+      error.message === 'FORMATION_RESET_RESIDUAL' && error.details.typedOwnerArtifacts.length === 1);
   } finally { close(value); }
 });

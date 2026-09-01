@@ -115,15 +115,14 @@ node scripts/deploy-nas.js /vol1/1000/docker/shelfdeck/shelfdeck-<tag>.tar --sha
 
 ### Formation Reset 不是部署
 
-Normal/Nuclear Formation Reset是当前开发期的offline调试能力，不发布新镜像、不替代标准部署，也不主动重新Intake。默认命令只读取
+Formation Reset是当前开发期的唯一offline调试能力，不发布新镜像、不替代标准部署，也不主动重新Intake。默认命令只读取
 当前生产数据库并输出plan：
 
 ```powershell
-node scripts/formation-reset-nas.js --mode normal
-node scripts/formation-reset-nas.js --mode nuclear
+node scripts/formation-reset-nas.js
 ```
 
-只有用户明确授权该次生产Reset后才执行对应apply与确认词。包装脚本只停止`shelfdeck` Compose service，在
+只有用户明确授权该次生产Reset后才执行`--apply --confirm FORMATION_RESET_V2`。包装脚本只停止`shelfdeck` Compose service，在
 `/vol1/1000/docker/shelfdeck/backups/formation-reset-*/data`创建并校验完整备份，使用当前精确镜像离线执行Reset，然后恢复服务并检查
 `GET /v1/health`。Reset不挂载`/media`；失败时禁止继续部署或手工改库，应保留停止状态和备份路径先查明原因。
 

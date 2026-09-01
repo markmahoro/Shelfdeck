@@ -68,6 +68,8 @@
 | PROD-048 | Nuclear Reset 删除 Intake Work 后遗留 WorkAdmission Receipt，重入只占 token 不建 Work | `DATA_CORRECTION` / execution receipt scope | Formation Reset / Handoff A Intake | Critical | **FIXED / DEPLOYED / CORRECTION COMPLETED** `0813ae2991`。3,274 张 Libra phantom Receipt 与 3 条 token 已清零；自然 Intake Receipt 全部命中真实 Work。 |
 | PROD-049 | Formation 用 Plan 终态冒充业务阶段完成，并泄露机器枚举/结构化对象 | `USER_EXPERIENCE` / business boundary + Fact projection | 媒体整理详情 | High | **FIXED / DEPLOYED / PRODUCTION ACCEPTED** `237d0fb7b0`。三阶段按正式 Handoff/Commit，身份显示标题年份，无 `[object Object]`。 |
 | PROD-050 | Nuclear Reset 未重开旧 Handoff A terminal closure，也漏回卷 released Control | `DATA_CORRECTION` / Reset Handoff A boundary | Formation Reset / Handoff A Intake | Critical | **FIXED / DEPLOYED / CORRECTION COMPLETED**。3 个自然 Intake 全部正常，CAS/terminal conflict 为 0。 |
+| PROD-051 | TMDB 抖动发生在 Workspace Write intent 后，在线 Host 未进入 Effect reality reconciliation | `EXECUTION_FOUNDATION` / online non-pure recovery bridge | Libra Artifact / Execution Foundation | Critical | **FIXED LOCALLY / NOT DEPLOYED** `3c09b99cd`。复用同一 Event Attempt/Effect 和有界 recovery budget；无影片特例。 |
+| PROD-052 | 旧 Nuclear Reset 漏删 run-owned Artifact、使用无类型 scope、文件删除不随 DB 回滚，postcondition 又复用 discovery | `DATA_CORRECTION_TOOLING` / Reset closure | Formation Reset | Critical | **FIXED LOCALLY / NOT DEPLOYED OR APPLIED**。唯一 `FORMATION_RESET_V2`、typed manifest、Workspace staging rollback、反向 orphan cleanup 与独立 verifier；focused/NAS 22/22。 |
 
 PROD-001、PROD-002 的共同环境前提：生产管理台是 `http://192.168.12.230`，浏览器不提供 `crypto.randomUUID` / `crypto.subtle`。这不是传输加密设计，只是浏览器 API 限制。未改成 HTTPS。
 
