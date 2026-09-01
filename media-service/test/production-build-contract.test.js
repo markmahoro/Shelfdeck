@@ -30,6 +30,19 @@ test('production image includes the bounded PROD-034 one-time correction', () =>
     /COPY media-service\/scripts\/helix-prod034-one-time-correction\.js \.\/scripts\/helix-prod034-one-time-correction\.js/);
 });
 
+test('production image includes the bounded PROD-047 Aftercare reclaim residual correction', () => {
+  const dockerfile = fs.readFileSync(path.join(root, 'media-service', 'Dockerfile'), 'utf8');
+  assert.match(dockerfile,
+    /COPY media-service\/scripts\/helix-prod047-aftercare-reclaim-residual-correction\.js \.\/scripts\/helix-prod047-aftercare-reclaim-residual-correction\.js/);
+  const operator = fs.readFileSync(path.join(root, 'scripts',
+    'prod047-aftercare-reclaim-correction-nas.js'), 'utf8');
+  assert.match(operator, /--expected-work-id/);
+  assert.match(operator, /data\.backup-.*-prod047-aftercare-reclaim/);
+  assert.match(operator, /docker compose stop shelfdeck/);
+  assert.match(operator, /helix-prod047-aftercare-reclaim-residual-correction\.js/);
+  assert.match(operator, /deploy-nas\.js/);
+});
+
 test('production image includes the unified Formation Reset and excludes the obsolete full Libra reset', () => {
   const dockerfile = fs.readFileSync(path.join(root, 'media-service', 'Dockerfile'), 'utf8');
   assert.match(dockerfile,

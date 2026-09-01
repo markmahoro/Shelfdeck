@@ -44,8 +44,12 @@
 - Primary 与其他精确成员的 Final Reality fingerprint 校验不弱化；NFO 损坏、Movie Identity 冲突或缺少拥有字段仍 fail closed，Commit 前不得建立 Shelf Entry。
 - 「接受瑕疵」与「放弃整理」只适用于 Handoff B Accepted 以前的 Libra Run；Accepted 以后失败不得改判 Rejected、退回 Libra 或借这两个动作终结。此时 Arca 只允许有界自动恢复、稳定 attention 和同一 On-deck Run 的用户重试。
 - 不恢复 PROD-034 已纠正的两个中止 Run。
-- 不直接编辑生产 SQLite；获授权 Nuclear Reset 已通过统一工具、完整备份与离线事务完成。本次部署不再执行数据纠正。
-- 不修改 Emby 配置。本轮生产部署仅使用标准无损 replacement，不执行 clean init、Reset 或生产数据库编辑。
+- 不手工编辑生产 SQLite。获授权 Nuclear Reset 已通过统一工具完成；本轮另获授权的 PROD-047 只允许通过
+  默认 dry-run、exact Work 集合、完整备份、离线事务和 integrity check 终止 3 条已完成领域回收的旧执行图。
+  它不得修改 Receipt、Aftercare、Inventory、Workspace/Material reclaimed 事实或媒体文件，也不得扩大到
+  其他记录。
+- 不修改 Emby 配置。本轮不执行 clean init 或 Reset；除上条封闭的 PROD-047 离线执行图纠正外，标准无损
+  replacement 不执行其他生产数据库编辑。
 - 不为现有生产影片、固定 ID、路径、Run/Work/Effect 编写兼容或 fallback。若正式事实已经不可自洽，只能整理 Reset 证据并另行申请授权，不能由本修复掩盖。
 - Execution Catalog 摘要只排除追踪位置，不排除任何可执行合同语义；精确旧摘要只能在 Attempt 与全部 Event 终态时退役。NFO 修复必须同时证明多值根字段完整、嵌套 actor identity 不变，且 staged semantic drift 在 Placement 前失败。
 

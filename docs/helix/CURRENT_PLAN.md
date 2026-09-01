@@ -39,6 +39,9 @@ Last updated: 2026-09-01
 - PROD-042 本地修复：Intake Rejection Planner 不再把整个 Supporting Work dependency ref 当成 `evidenceWorkId`，而是 fail-closed 提取唯一 `objectId`；回归覆盖 Rejection Decision 原子提交与 Pre-deck token 释放。旧失败条目已由 Nuclear Reset 清除，修复待统一部署。
 - PROD-044 本地修复：Execution Catalog 只哈希可执行语义，完整 manifest digest 继续覆盖 traceability；精确 `37264ba7…` 旧摘要仅允许 Attempt 与全部 Event 已终态的历史 Plan。生产 846 个该摘要 Plan 全终态，3 个活动 Arca Work 使用既有兼容 `a30cf21a…`。
 - PROD-045 本地修复：Libra NFO 只编辑根节点直接子元素，重复 genre 与 Product Fact 使用同一规范集合，演员 TMDB ID 不再被 movie ID 覆盖；Arca Staged Verify 在 Placement 前校验 NFO Presentation。现有失败影片不兼容恢复。
+- PROD-047 已获一次性生产纠正授权：只对操作员显式列出的 3 条旧 Aftercare reclaim Work，在旧 Receipt、
+  reclaimed 领域现实与无 Result/Marker 执行残留全部精确吻合时终止执行图；先完整备份，任何范围漂移整批
+  拒绝。不得改 Receipt、Aftercare/Inventory/Material 事实或媒体文件，也不得形成 Runtime 兼容路径。
 
 ## 下一步规则
 

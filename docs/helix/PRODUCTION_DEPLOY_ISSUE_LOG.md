@@ -63,6 +63,8 @@
 | PROD-043 | 新三态 SSOT 下约 621 个 Accepted/no-token Subject 表现为“假死 Libra Run”，Reset dry-run 又被 Procurement/package Control 与保留 Run 反向指针阻塞 | `DATA_CORRECTION` / Reset scope 缺口 | Formation Reset / 媒体整理工作区 | Critical | **FIRST APPLY FK-BLOCKED + ROLLED BACK / FIXED LOCALLY**。两种 Reset 覆盖孤儿 Subject/Run；Procurement Control 保留，Nuclear 回卷 Formation revision 后缀并清除指向被删除 Run 的 supersession pointer。 |
 | PROD-044 | 统一升级 readiness 因 846 个已终态 Plan 的旧 Catalog digest 阻断启动 | `DEPLOYMENT_SAFETY` / digest 混入 sourceLocator | 启动恢复 / 部署 | Critical | **FIXED LOCALLY**。执行摘要排除纯追踪字段；精确旧摘要仅允许全终态历史退役，任何活动执行仍 fail closed。 |
 | PROD-045 | 《人生密密缝》Libra 生成 NFO 与自身 Product Fact 不一致，Arca 又在 Placement 后才发现 | `EXECUTION` / 根节点编辑范围与验收顺序 | Libra NFO / Arca 上架 | Critical | **FIXED LOCALLY**。根节点多值字段完整规范化，嵌套演员 ID 不再被覆盖；Staged Verify 在 Placement 前执行 NFO 语义门禁。 |
+| PROD-046 | 非纯 safe-retry 恢复沿用已过期原 Attempt deadline | `EXECUTION` / recovery budget | Execution Foundation | Critical | **FIXED / DEPLOYED**。分类后的非纯 recovery 冻结一次 durable recovery start；普通 retry 不变。 |
+| PROD-047 | 旧 Aftercare reclaim 已提交领域事实，但执行图仍活跃 | `PRODUCTION_DATA` / legacy Receipt residual | Arca Aftercare / Execution Foundation | High | **CORRECTION AUTHORIZED / PENDING**。只终止 exact 3 条执行图，不改 Receipt、领域事实或文件。 |
 
 PROD-001、PROD-002 的共同环境前提：生产管理台是 `http://192.168.12.230`，浏览器不提供 `crypto.randomUUID` / `crypto.subtle`。这不是传输加密设计，只是浏览器 API 限制。未改成 HTTPS。
 
@@ -541,3 +543,23 @@ Final Verify 继续作为现实重读门禁。实现没有影片 ID、路径或�
 recovery execution start；同一 Effect 只原子冻结一次时间，重启不会刷新，预算耗尽后仍 fail closed。
 普通 retry、`safe_retry_before_intent` 与 pure observation 继续使用原 Attempt deadline。没有 Arca、路径、
 Work ID 或生产数据特例，也没有直接编辑生产 SQLite。
+
+## 47. PROD-047 — 旧 Aftercare Reclaim Receipt 已提交，但执行图仍活跃（CORRECTION AUTHORIZED / PENDING）
+
+发现：2026-09-01。PROD-041/046 让 3 条历史 `care_workspace_reclaim` Attempt 获得真实恢复机会后，
+它们稳定失败为 `ARCA_AFTERCARE_WORKSPACE_RECLAIM_RECEIPT_DRIFT`。只读审计证明对应 Aftercare Case
+均已终态，Workspace Registry 和全部 Material 已于旧版本中完成 reclaimed，Artifact 不再活动，文件也已经
+回收；但当时写入 Material 的 `ReclamationReceipt/v1` digest 不含后来新增的 `scopeDigest`。Execution
+Foundation 又没有该旧领域提交的 Result/Commit Marker，所以当前 Runtime 只能 fail closed，不能把它升级为
+成功，也不能安全重放。
+
+处理边界：Product Owner 已授权一次性数据纠正，只终止这 3 条旧 Arca Work/Event/Attempt/Effect 执行图；
+不伪造成功 Result，不重写旧 Receipt，不改 Aftercare Case、Inventory、Workspace Registry、Material reclaimed
+事实或媒体文件。实现为默认 dry-run 的 `helix-prod047-aftercare-reclaim-residual-correction.js`：它以旧/新
+Receipt 的精确 digest 差异、终态 Case、完整 reclaimed scope、零 Result、零 Commit Marker、零活动引用和
+单一 reclaim 执行图共同证明候选；apply 还要求操作员逐条传入 exact Work ID，集合不完全相等即整批拒绝。
+NAS 包装固定执行标准部署 dry-run、停服、完整 data backup、离线事务、`integrity_check` 和标准 deploy；任何
+CAS 或不变量失败都会阻断并重启未改变的服务。
+
+本项是有界生产事故纠正，不是 migration、兼容读取、Receipt 升级或 Runtime fallback；脚本不得包含影片、
+路径或生产 Work ID 常量。

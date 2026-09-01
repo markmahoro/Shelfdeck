@@ -45,6 +45,11 @@ SSOT 允许 Field 与 Shelf Target 同根；本机两者都是 `/media/Film`。W
 
 Helix-beta 首次（或 schema 不匹配且 Product Owner 明确授权清库时）才使用 `--helix-clean-init`。clean-init 把 compose 目录挂到 `/run/helix-nas`，在 `/run/helix-nas/data` 初始化，避免把 bind-mount 的 `/app/data` 当成可 rename 的目录。确认词为 `INITIALIZE_HELIX_CLEAN_V1`。`SHELFDECK_SECRET_ROOT` 写入 NAS `secret.env`（不入库），compose 通过 `env_file` 注入。不得运行 v3 compatibility migration或dual read。只有 Product Owner 明确授权的 bounded destructive incident procedure 才可在停服、完整备份、plan/confirm、integrity check 和标准deploy或专用offline operator包装下修改 SQLite；历史PROD-032入口为`scripts/predeck-pipeline-upgrade-nas.js`，当前Formation清场固定入口为`scripts/formation-reset-nas.js`，不允许手工SQL。
 
+PROD-047 的获授权旧 Aftercare reclaim 执行残留纠正只能使用
+`scripts/prod047-aftercare-reclaim-correction-nas.js`。该包装要求逐条 `--expected-work-id`，执行标准 deploy
+dry-run、停服、完整 data backup、离线 plan/apply/plan 与 integrity check，再进入标准 deploy；不得手工 SQL，
+也不得把该事故纠正变成常驻 Runtime 兼容。
+
 部署脚本会重写 NAS compose，但必须保留并校验：
 
 - `/vol02/1000-0-c5b736af:/media`

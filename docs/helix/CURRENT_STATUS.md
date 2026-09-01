@@ -73,6 +73,17 @@ PROD-034 已按 Product Owner 授权对“唐人街探案 (2015)”和“赤壁�
 - 《人生密密缝》的根因是 Libra NFO renderer 只替换首个根级 genre，且无层级正则把 actor 的 TMDB ID 当作 movie ID；Workspace NFO 在进入 Arca 前已与 Product Fact 不一致。现改为只编辑根节点直接子元素、整体规范化多值 genre，并在 Arca Placement 前执行 staged NFO 语义门禁。
 - 两项均为通用合同修复，没有影片、路径、Run 或生产 ID 特例；现有失败《人生密密缝》不做兼容恢复。
 
+## PROD-047 Authorized One-time Correction
+
+- 生产 3 条 `care_workspace_reclaim` 遗留执行图的领域现实已经完成 reclaimed，但 Material 保存的是缺少
+  `scopeDigest` 的旧 `ReclamationReceipt/v1` digest；当前执行图没有 Result/Commit Marker，因此通用恢复
+  必须持续 fail closed，不能把旧事实伪造为当前成功。
+- Product Owner 已授权只终止这 3 条旧 Work/Event/Attempt/Effect。默认 dry-run 的 PROD-047 工具以
+  终态 Case、完整 reclaimed scope、旧/新 Receipt 精确 digest、零 Result/Marker/活动引用和单链结构共同
+  证明范围；apply 还要求外部逐条传入 exact Work ID，集合漂移或任一不变量不符即整批拒绝。
+- 纠正不改 Receipt、Aftercare Case、Inventory、Workspace/Material reclaimed 事实或任何媒体文件，也不向
+  Runtime 增加 migration、fallback 或旧条目兼容。当前为本地实现与测试通过，尚未对生产 apply。
+
 ## Current Runtime
 
 - Formation API 当前为 3 条 `in_progress`、9 条 `completed`、0 条 `pending|attention_required`；全局 active Attempt 6 个，其中 Observation active Attempt 为 0。服务 health 与 SQLite integrity 正常。
