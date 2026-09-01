@@ -80,6 +80,7 @@ function assertRequiredSchema(database) {
     'arca_acceptance_decisions', 'arca_ondeck_custodies', 'arca_ondeck_runs',
     'arca_ondeck_commit_receipts', 'fx_supporting_works', 'fx_work_attempts',
     'fx_workflow_events', 'fx_material_controls', 'fx_material_control_revisions',
+    'proc_candidate_deliveries', 'proc_run_materials', 'fx_inbox', 'fx_outbox', 'fx_outbox_deliveries',
   ];
   const missing = required.filter((table) => !tableExists(database, table));
   if (missing.length) {
@@ -231,6 +232,17 @@ function discoverScope(database) {
       .map((row) => row.intake_decision_id),
     ...oneColumn(database, "SELECT intake_decision_id FROM libra_intake_decisions WHERE decision_kind='rejected_acceptance' ORDER BY intake_decision_id"),
   ]);
+  const handoffAOfferIds = unique([
+    ...rowsByIds(database, 'SELECT offer_id FROM libra_intake_decisions WHERE intake_decision_id IN', intakeDecisionIds)
+      .map((row) => row.offer_id).filter(Boolean),
+    ...rowsByIds(database, `SELECT offer_id FROM proc_candidate_deliveries WHERE handoff_decision_id IN`,
+      orphanPipelineSourceProcessIds, "AND state IN ('accepted','rejected')")
+      .map((row) => row.offer_id).filter(Boolean),
+  ]);
+  const handoffACandidatePackageIds = handoffAOfferIds.length
+    ? rowsByIds(database, 'SELECT candidate_package_id FROM proc_candidate_deliveries WHERE offer_id IN', handoffAOfferIds)
+      .map((row) => row.candidate_package_id).filter(Boolean)
+    : [];
   const artifactIds = unique([
     ...rowsByIds(database, 'SELECT artifact_handle_id FROM libra_product_package_artifact_refs WHERE on_deck_package_id IN', packageIds)
       .map((row) => row.artifact_handle_id),
@@ -246,12 +258,14 @@ function discoverScope(database) {
       .map((row) => row.material_key),
     ...rowsByIds(database, 'SELECT material_key FROM fx_workspace_materials WHERE workspace_id IN', workspaceIds)
       .map((row) => row.material_key),
+    ...rowsByIds(database, 'SELECT material_key FROM proc_run_materials WHERE candidate_package_id IN', handoffACandidatePackageIds)
+      .map((row) => row.material_key),
   ]);
   const allScopeIds = unique([
     ...resetSubjectIds, ...runIds, ...workspaceIds, ...cleanupScopeIds, ...packageIds,
     ...offerIds, ...intakeDecisionIds, ...acceptanceAttemptIds, ...acceptanceDecisionIds,
     ...custodyIds, ...onDeckRunIds, ...orphanPipelineTokenSubjectIds, ...orphanPipelineSourceProcessIds,
-    ...orphanPipelineAdmissionTargetIds,
+    ...orphanPipelineAdmissionTargetIds, ...handoffAOfferIds, ...handoffACandidatePackageIds,
   ]);
   const works = [];
   if (allScopeIds.length) {
@@ -278,6 +292,8 @@ function discoverScope(database) {
     phantomLibraAdmissionReceiptIds:Object.freeze(phantomLibraAdmissionReceiptIds),
     runIds:Object.freeze(runIds), workspaceIds:Object.freeze(workspaceIds), cleanupScopeIds:Object.freeze(cleanupScopeIds),
     packageIds:Object.freeze(packageIds), offerIds:Object.freeze(offerIds), intakeDecisionIds:Object.freeze(intakeDecisionIds),
+    handoffAOfferIds:Object.freeze(handoffAOfferIds),
+    handoffACandidatePackageIds:Object.freeze(unique(handoffACandidatePackageIds)),
     acceptanceAttemptIds:Object.freeze(acceptanceAttemptIds), acceptanceDecisionIds:Object.freeze(acceptanceDecisionIds),
     custodyIds:Object.freeze(custodyIds), onDeckRunIds:Object.freeze(onDeckRunIds), artifactIds:Object.freeze(artifactIds),
     materialKeys:Object.freeze(materialKeys), allScopeIds:Object.freeze(allScopeIds), works:Object.freeze(works),
@@ -287,7 +303,7 @@ function discoverScope(database) {
 function controlBelongsToScope(row, scope) {
   if (!row || row.state !== 'controlled') return false;
   if (row.owner_domain === 'libra') {
-    if (row.owner_scope_type === 'subject') return scope.resetSubjectIds.includes(row.owner_scope_id);
+    if (row.owner_scope_type === 'subject') return scope.pipelineTokenSubjectIds.includes(row.owner_scope_id);
     if (row.owner_scope_type === 'on_deck_package') return scope.packageIds.includes(row.owner_scope_id);
     if (row.owner_scope_type === 'libra_run') return scope.runIds.includes(row.owner_scope_id);
     if (row.owner_scope_type === 'workspace') return scope.workspaceIds.includes(row.owner_scope_id);
@@ -388,6 +404,7 @@ function inspectPlan(database, mode) {
     orphanPipelineAdmissionReceipts:scope.orphanPipelineAdmissionReceiptIds.length,
     phantomLibraAdmissionReceipts:scope.phantomLibraAdmissionReceiptIds.length,
     preservedProcurementControls:preservedProcurementControls.length,
+    procurementHandoffAClosures:scope.handoffAOfferIds.length,
   });
   return Object.freeze({ mode, confirmationRequired:CONFIRMATIONS[mode], ready:blockers.length === 0,
     blockers, counts, scope, orphans, activeWorks:Object.freeze(activeWorks), activeAttempts:Object.freeze(activeAttempts) });
@@ -778,8 +795,7 @@ function deleteNuclearBusinessGraph(database, scope, nowMs) {
 }
 
 function rollbackControlsNuclear(database, scope) {
-  const controls = rowsByIds(database, 'SELECT * FROM fx_material_controls WHERE material_key IN', scope.materialKeys)
-    .filter((row) => controlBelongsToScope(row, scope));
+  const controls = rowsByIds(database, 'SELECT * FROM fx_material_controls WHERE material_key IN', scope.materialKeys);
   let restoredProcurementControls = 0;
   let deletedMaterialControls = 0;
   let deletedControlRevisions = 0;
@@ -790,7 +806,7 @@ function rollbackControlsNuclear(database, scope) {
       state:'controlled', owner_domain:revision.to_owner_domain,
       owner_scope_type:revision.to_scope_type, owner_scope_id:revision.to_scope_id,
     }, scope));
-    if (boundaryIndex < 0) throw new Error('FORMATION_RESET_CONTROL_BOUNDARY_MISSING');
+    if (boundaryIndex < 0) continue;
     const previous = boundaryIndex > 0 ? revisions[boundaryIndex - 1] : null;
     if (previous && previous.to_owner_domain && previous.to_owner_domain !== 'procurement') {
       throw Object.assign(new Error('FORMATION_RESET_CONTROL_BOUNDARY_UNSAFE'), {
@@ -814,11 +830,53 @@ function rollbackControlsNuclear(database, scope) {
   return Object.freeze({ restoredProcurementControls, deletedMaterialControls, deletedControlRevisions });
 }
 
+function reopenProcurementHandoffANuclear(database, scope, nowMs) {
+  const offerIds = scope.handoffAOfferIds;
+  const candidatePackageIds = scope.handoffACandidatePackageIds;
+  if (!offerIds.length) return Object.freeze({ reopenedDeliveries:0, reopenedReservations:0,
+    deletedInboxClosures:0, deletedOutboxMessages:0 });
+  const dedupKeys = offerIds.flatMap((offerId) => [
+    `libra_candidate_accepted:${offerId}`,
+    `libra_candidate_rejected:${offerId}`,
+  ]);
+  const messageIds = rowsByIds(database,
+    "SELECT message_id FROM fx_outbox WHERE dedup_key IN", dedupKeys, "AND producer_domain='libra'")
+    .map((row) => row.message_id);
+  executeByIds(database, 'DELETE FROM fx_outbox_deliveries WHERE message_id IN', messageIds);
+  const deletedOutboxMessages = executeByIds(database, 'DELETE FROM fx_outbox WHERE message_id IN', messageIds);
+  const deletedInboxClosures = executeByIds(database, 'DELETE FROM fx_inbox WHERE dedup_key IN', dedupKeys,
+    "AND consumer_domain='procurement'");
+  const reopenedReservations = executeByIds(database, `UPDATE proc_run_materials
+    SET selection_state='candidate_delivery',terminal_disposition=NULL,terminal_evidence_digest=NULL,reservation_updated_at_ms=?
+    WHERE candidate_package_id IN`, candidatePackageIds, "AND selection_state IN ('transferred','released')", [nowMs]);
+  const reopenedDeliveries = executeByIds(database, `UPDATE proc_candidate_deliveries
+    SET state='open',handoff_decision_id=NULL,handoff_decision_digest=NULL,handoff_receipt_id=NULL,
+        handoff_receipt_digest=NULL,terminal_evidence_digest=NULL,closed_at_ms=NULL
+    WHERE offer_id IN`, offerIds, "AND state IN ('accepted','rejected')");
+  const residualDeliveries = rowsByIds(database,
+    "SELECT offer_id,state FROM proc_candidate_deliveries WHERE offer_id IN", offerIds,
+    "AND (state!='open' OR handoff_decision_id IS NOT NULL OR handoff_receipt_id IS NOT NULL OR terminal_evidence_digest IS NOT NULL)");
+  const residualReservations = rowsByIds(database,
+    'SELECT procurement_run_id,ordinal,selection_state FROM proc_run_materials WHERE candidate_package_id IN',
+    candidatePackageIds, "AND (selection_state!='candidate_delivery' OR terminal_disposition IS NOT NULL OR terminal_evidence_digest IS NOT NULL)");
+  const residualInbox = rowsByIds(database,
+    "SELECT message_id FROM fx_inbox WHERE dedup_key IN", dedupKeys, "AND consumer_domain='procurement'");
+  const residualOutbox = rowsByIds(database,
+    "SELECT message_id FROM fx_outbox WHERE dedup_key IN", dedupKeys, "AND producer_domain='libra'");
+  if (residualDeliveries.length || residualReservations.length || residualInbox.length || residualOutbox.length) {
+    throw Object.assign(new Error('FORMATION_RESET_HANDOFF_A_REOPEN_FAILED'), {
+      details:{ residualDeliveries, residualReservations, residualInbox, residualOutbox },
+    });
+  }
+  return Object.freeze({ reopenedDeliveries, reopenedReservations, deletedInboxClosures, deletedOutboxMessages });
+}
+
 function applyNuclear(database, plan, nowMs) {
   const scope = plan.scope;
   const graph = captureExecutionGraph(database, scope.works.map((row) => row.work_id), scope.allScopeIds);
   database.pragma('foreign_keys = OFF');
   const transaction = database.transaction(() => {
+    const procurementHandoffA = reopenProcurementHandoffANuclear(database, scope, nowMs);
     deleteNuclearBusinessGraph(database, scope, nowMs);
     const deletedWorks = deleteExecutionGraph(database, graph, scope.allScopeIds);
     executeByIds(database, 'DELETE FROM fx_command_receipts WHERE command_receipt_id IN', scope.phantomLibraAdmissionReceiptIds);
@@ -829,7 +887,7 @@ function applyNuclear(database, plan, nowMs) {
     if (foreignKeys.length) throw Object.assign(new Error('FORMATION_RESET_FOREIGN_KEY_CHECK_FAILED'), { details:foreignKeys });
     return Object.freeze({ deletedWorks, deletedSubjects:scope.disposableSubjectIds.length,
       deletedRuns:scope.runIds.length, deletedPackages:scope.packageIds.length,
-      deletedOnDeckRuns:scope.onDeckRunIds.length, ...controlRollback });
+      deletedOnDeckRuns:scope.onDeckRunIds.length, ...procurementHandoffA, ...controlRollback });
   });
   try { return transaction(); }
   finally { database.pragma('foreign_keys = ON'); }

@@ -128,6 +128,33 @@ try {
     "WHERE w.owner_domain='libra' AND w.state IN ('admitted','ready','running','blocked') " +
     "ORDER BY w.process_type,w.process_id,w.work_kind,w.work_id"
   );
+  const activeLibraEvents = all(
+    "SELECT w.process_type AS processType,w.process_id AS processId,w.work_kind AS workKind,w.work_id AS workId," +
+      "e.event_id AS eventId,e.capability_ref AS capabilityRef,e.state AS eventState," +
+      "ea.event_attempt_id AS eventAttemptId,ea.state AS eventAttemptState,ea.started_at_ms AS startedAtMs," +
+      "x.effect_id AS effectId,x.state AS effectState,x.updated_at_ms AS effectUpdatedAtMs " +
+    "FROM fx_supporting_works w JOIN fx_workflow_events e ON e.work_id=w.work_id " +
+      "LEFT JOIN fx_event_attempts ea ON ea.event_id=e.event_id AND ea.state='executing' " +
+      "LEFT JOIN fx_effect_journal x ON x.event_attempt_id=ea.event_attempt_id " +
+    "WHERE w.owner_domain='libra' AND w.state IN ('admitted','ready','running','blocked') " +
+      "AND e.state NOT IN ('succeeded','skipped','failed','cancelled') ORDER BY w.work_id,e.event_id"
+  );
+  const activeLibraInputBindings = all(
+    "SELECT w.process_id AS processId,e.event_id AS eventId,e.capability_ref AS capabilityRef," +
+      "node.input_bindings_json AS inputBindingsJson " +
+    "FROM fx_supporting_works w JOIN fx_workflow_events e ON e.work_id=w.work_id " +
+      "JOIN fx_plan_nodes node ON node.plan_id=e.plan_id AND node.node_id=e.node_id " +
+    "WHERE w.owner_domain='libra' AND w.state IN ('admitted','ready','running','blocked') " +
+      "AND e.state NOT IN ('succeeded','skipped','failed','cancelled') ORDER BY w.work_id,e.event_id"
+  ).map((row) => ({ ...row, inputBindings:JSON.parse(row.inputBindingsJson) }));
+  const activeIntakePayloads = all(
+    "SELECT w.process_id AS processId,e.event_id AS eventId,result.result_json AS resultJson " +
+    "FROM fx_supporting_works w JOIN fx_workflow_events e ON e.work_id=w.work_id " +
+      "JOIN fx_event_result_bindings result ON result.event_id=e.event_id " +
+    "WHERE w.owner_domain='libra' AND w.process_type='libra_intake' " +
+      "AND w.process_id IN (SELECT process_id FROM fx_supporting_works WHERE owner_domain='libra' AND state IN ('admitted','ready','running','blocked')) " +
+      "AND e.capability_ref='libra.intake.binding.resolve@1' ORDER BY w.process_id,e.event_id"
+  ).map((row) => ({ ...row, result:JSON.parse(row.resultJson) }));
   const admissionCapacity = {
     openWorks: get("SELECT COUNT(*) AS count FROM fx_supporting_works WHERE state IN ('admitted','ready','running','blocked')"),
     openWorksByOwner: all("SELECT owner_domain AS ownerDomain,state,COUNT(*) AS count FROM fx_supporting_works WHERE state IN ('admitted','ready','running','blocked') GROUP BY owner_domain,state ORDER BY owner_domain,state"),
@@ -149,6 +176,52 @@ try {
         "AND receipt.caller_scope='libra:' || token.source_process_id || '/evidence' " +
       "LEFT JOIN fx_supporting_works receipt_work ON receipt_work.work_id=receipt.target_id " +
     "GROUP BY token.subject_id,token.source_process_id,token.acquired_at_ms,subject.status ORDER BY token.acquired_at_ms"
+  );
+  const handoffATerminalConflicts = all(
+    "SELECT token.source_process_id AS intakeDecisionId,decision.offer_id AS offerId," +
+      "delivery.state AS procurementDeliveryState,delivery.handoff_decision_id AS procurementDecisionId," +
+      "delivery.handoff_receipt_id AS procurementReceiptId,delivery.handoff_receipt_digest AS procurementReceiptDigest," +
+      "receipt.receipt_id AS libraReceiptId,receipt.receipt_digest AS libraReceiptDigest," +
+      "inbox.message_id AS procurementInboxMessageId,inbox.dedup_key AS procurementInboxDedupKey," +
+      "inbox.result_digest AS procurementInboxResultDigest " +
+    "FROM libra_predeck_pipeline_tokens token " +
+      "LEFT JOIN libra_intake_decisions decision ON decision.intake_decision_id=token.source_process_id " +
+      "LEFT JOIN libra_handoff_a_receipts receipt ON receipt.intake_decision_id=decision.intake_decision_id " +
+      "LEFT JOIN proc_candidate_deliveries delivery ON delivery.offer_id=decision.offer_id " +
+      "LEFT JOIN fx_inbox inbox ON inbox.consumer_domain='procurement' AND inbox.dedup_key IN (" +
+        "'libra_candidate_accepted:' || decision.offer_id,'libra_candidate_rejected:' || decision.offer_id) " +
+    "WHERE delivery.state IN ('accepted','rejected') AND (" +
+      "delivery.handoff_decision_id IS NOT receipt.intake_decision_id OR " +
+      "delivery.handoff_receipt_id IS NOT receipt.receipt_id OR " +
+      "delivery.handoff_receipt_digest IS NOT receipt.receipt_digest) " +
+    "ORDER BY decision.offer_id"
+  );
+  const intakeControlFences = all(
+    "SELECT token.source_process_id AS intakeDecisionId,delivery.offer_id AS offerId," +
+      "member.candidate_package_id AS candidatePackageId,member.material_key AS materialKey," +
+      "member.selection_state AS procurementSelectionState,member.terminal_disposition AS procurementTerminalDisposition," +
+      "member.admitted_control_revision AS admittedControlRevision," +
+      "member.admitted_control_projection_digest AS admittedControlProjectionDigest," +
+      "member.expected_control_revision AS expectedControlRevision," +
+      "member.expected_control_projection_digest AS expectedControlProjectionDigest," +
+      "control.control_revision AS currentControlRevision,control.owner_domain AS currentOwnerDomain," +
+      "control.owner_scope_type AS currentOwnerScopeType,control.owner_scope_id AS currentOwnerScopeId " +
+    "FROM libra_predeck_pipeline_tokens token " +
+      "JOIN proc_candidate_deliveries delivery ON delivery.handoff_decision_id=token.source_process_id " +
+      "JOIN proc_run_materials member ON member.candidate_package_id=delivery.candidate_package_id " +
+      "LEFT JOIN fx_material_controls control ON control.material_key=member.material_key " +
+    "ORDER BY delivery.offer_id,member.ordinal"
+  );
+  const intakeControlRevisionHistory = all(
+    "SELECT revision.material_key AS materialKey,revision.revision,revision.operation_kind AS operationKind," +
+      "revision.from_owner_domain AS fromOwnerDomain,revision.from_scope_type AS fromScopeType,revision.from_scope_id AS fromScopeId," +
+      "revision.to_owner_domain AS toOwnerDomain,revision.to_scope_type AS toScopeType,revision.to_scope_id AS toScopeId," +
+      "revision.committed_at_ms AS committedAtMs " +
+    "FROM fx_material_control_revisions revision WHERE revision.material_key IN (" +
+      "SELECT member.material_key FROM libra_predeck_pipeline_tokens token " +
+        "JOIN proc_candidate_deliveries delivery ON delivery.handoff_decision_id=token.source_process_id " +
+        "JOIN proc_run_materials member ON member.candidate_package_id=delivery.candidate_package_id) " +
+    "ORDER BY revision.material_key,revision.revision"
   );
   const phantomAdmissionReceipts = all(
     "SELECT receipt.owner_domain AS ownerDomain,COUNT(*) AS count," +
@@ -218,7 +291,7 @@ try {
     inventoryCandidates.push({ onDeckRunId:run.onDeckRunId, packageId:run.packageId, candidates });
   }
   console.log(JSON.stringify({ generatedAt:new Date().toISOString(), residuals, unsafeResiduals, residualChildren,
-    activeAttempts, activeLibraWorks, admissionCapacity, pipelineTokens, phantomAdmissionReceipts,
+    activeAttempts, activeLibraWorks, activeLibraEvents, activeLibraInputBindings, activeIntakePayloads, admissionCapacity, pipelineTokens, handoffATerminalConflicts, intakeControlFences, intakeControlRevisionHistory, phantomAdmissionReceipts,
     phantomAdmissionReceiptKinds, intakeReconcileCursor,
     arcaExecuting, offloading, materialReads, inventoryCandidates }, null, 2));
 } finally {

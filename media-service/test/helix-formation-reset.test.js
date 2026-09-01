@@ -182,6 +182,67 @@ function seedLatentPhantomAdmissionReceipt(database, suffix) {
   return { processId, targetWorkId, receiptId };
 }
 
+function seedClosedHandoffABoundary(database, suffix) {
+  const subjectId = `subject-handoff-reset-${suffix}`;
+  const processId = `intake-handoff-reset-${suffix}`;
+  const offerId = `offer-handoff-reset-${suffix}`;
+  const candidatePackageId = `candidate-handoff-reset-${suffix}`;
+  const procurementRunId = `proc-run-handoff-reset-${suffix}`;
+  const materialKey = `material-handoff-reset-${suffix}`;
+  const messageId = `message-handoff-reset-${suffix}`;
+  const dedupKey = `libra_candidate_accepted:${offerId}`;
+  database.prepare(`INSERT INTO libra_predeck_pipeline_tokens
+    (subject_id,source_field_id,source_process_id,acquired_at_ms) VALUES (?,'field-handoff-reset',?,1)`)
+    .run(subjectId,processId);
+  database.prepare(`INSERT INTO proc_procurement_runs
+    (procurement_run_id,state,state_revision,created_at_ms) VALUES (?,'sealed',1,1)`).run(procurementRunId);
+  database.prepare(`INSERT INTO proc_candidate_packages
+    (candidate_package_id,procurement_run_id,package_revision,package_digest,state,published_at_ms)
+    VALUES (?,?,1,?,'published',1)`).run(candidatePackageId,procurementRunId,DIGEST);
+  database.prepare(`INSERT INTO proc_candidate_deliveries
+    (offer_id,candidate_package_id,package_revision,package_digest,acceptance_basis_digest,state,
+     handoff_decision_id,handoff_receipt_id,handoff_receipt_digest,terminal_evidence_digest,offered_at_ms,closed_at_ms)
+    VALUES (?,?,1,?,?,'accepted',?,'old-receipt',?,?,1,2)`)
+    .run(offerId,candidatePackageId,DIGEST,DIGEST,processId,DIGEST,DIGEST);
+  database.prepare(`INSERT INTO proc_run_materials
+    (procurement_run_id,ordinal,material_key,selection_state,candidate_package_id,terminal_disposition,
+     terminal_evidence_digest,reservation_updated_at_ms)
+    VALUES (?,0,?,'transferred',?,'handoff_accepted',?,2)`)
+    .run(procurementRunId,materialKey,candidatePackageId,DIGEST);
+  database.prepare(`INSERT INTO fx_material_controls
+    (material_key,mount_scope_id,inode,size_bytes,fingerprint_algorithm,fingerprint_version,content_fingerprint,
+     owner_domain,owner_scope_type,owner_scope_id,control_revision,state,updated_at_ms)
+    VALUES (?,'mount-handoff-reset',?,1,'middle','1',?,NULL,NULL,NULL,3,'released',3)`)
+    .run(materialKey,`inode-${suffix}`,`fingerprint-${suffix}`);
+  database.prepare(`INSERT INTO fx_material_control_revisions
+    (material_key,revision,operation_kind,to_owner_domain,to_scope_type,to_scope_id,basis_digest,commit_marker,committed_at_ms)
+    VALUES (?,1,'acquire','procurement','material_field','field-handoff-reset',?,'acquire-marker',1)`)
+    .run(materialKey,DIGEST);
+  database.prepare(`INSERT INTO fx_material_control_revisions
+    (material_key,revision,operation_kind,from_owner_domain,from_scope_type,from_scope_id,
+     to_owner_domain,to_scope_type,to_scope_id,basis_digest,commit_marker,committed_at_ms)
+    VALUES (?,2,'transfer','procurement','material_field','field-handoff-reset','libra','subject',?,?,'transfer-marker',2)`)
+    .run(materialKey,subjectId,DIGEST);
+  database.prepare(`INSERT INTO fx_material_control_revisions
+    (material_key,revision,operation_kind,from_owner_domain,from_scope_type,from_scope_id,
+     basis_digest,commit_marker,committed_at_ms)
+    VALUES (?,3,'release','libra','subject',?,?, 'release-marker',3)`)
+    .run(materialKey,subjectId,DIGEST);
+  database.prepare(`INSERT INTO fx_outbox
+    (message_id,producer_domain,message_kind,aggregate_type,aggregate_id,aggregate_revision,dedup_key,
+     consumer_set_digest,intended_consumer_count,payload_schema_ref,payload_json,payload_digest,state,
+     available_at_ms,created_at_ms,all_acked_at_ms)
+    VALUES (?,'libra','libra_candidate_accepted','intake_decision',?,1,?,?,1,'message','{}',?,'fully_acked',1,1,2)`)
+    .run(messageId,processId,dedupKey,DIGEST,DIGEST);
+  database.prepare(`INSERT INTO fx_outbox_deliveries
+    (message_id,consumer_domain,state,attempt_count,next_attempt_at_ms,acked_at_ms)
+    VALUES (?,'procurement','acked',1,1,2)`).run(messageId);
+  database.prepare(`INSERT INTO fx_inbox
+    (consumer_domain,message_id,dedup_key,received_at_ms,consumed_at_ms,result_digest)
+    VALUES ('procurement',?,?,1,1,?)`).run(messageId,dedupKey,DIGEST);
+  return { subjectId, processId, offerId, candidatePackageId, procurementRunId, materialKey, messageId, dedupKey };
+}
+
 test('Formation Reset is an exact no-op on an empty database and preserves unrelated transcode entries', () => {
   const value = fixture('helix-formation-reset-empty');
   try {
@@ -355,6 +416,47 @@ test('both Reset modes remove the complete latent Libra phantom receipt pool bef
       assert.equal(inspectPlan(value.database, mode).counts.phantomLibraAdmissionReceipts, 0);
     } finally { close(value); }
   }
+});
+
+test('Nuclear Reset reopens the exact Handoff A boundary and rolls released Control history back to Procurement', () => {
+  const value = fixture('helix-formation-reset-handoff-a-boundary');
+  try {
+    const seeded = seedClosedHandoffABoundary(value.database, 'nuclear');
+    const plan = inspectPlan(value.database, 'nuclear');
+    assert.equal(plan.ready, true);
+    assert.equal(plan.counts.procurementHandoffAClosures, 1);
+    assert.deepEqual(plan.scope.handoffAOfferIds, [seeded.offerId]);
+    assert.deepEqual(plan.scope.handoffACandidatePackageIds, [seeded.candidatePackageId]);
+    assert.equal(plan.scope.materialKeys.includes(seeded.materialKey), true);
+
+    const result = applyReset({ database:value.database, mode:'nuclear', dataDir:value.dataDir,
+      transcodeDir:value.transcodeDir, nowMs:3600 });
+    assert.equal(result.result.reopenedDeliveries, 1);
+    assert.equal(result.result.reopenedReservations, 1);
+    assert.equal(result.result.deletedInboxClosures, 1);
+    assert.equal(result.result.deletedOutboxMessages, 1);
+    assert.equal(result.result.restoredProcurementControls, 1);
+    assert.deepEqual(value.database.prepare(`SELECT state,handoff_decision_id,handoff_receipt_id,
+      handoff_receipt_digest,terminal_evidence_digest,closed_at_ms FROM proc_candidate_deliveries WHERE offer_id=?`)
+      .get(seeded.offerId), { state:'open', handoff_decision_id:null, handoff_receipt_id:null,
+        handoff_receipt_digest:null, terminal_evidence_digest:null, closed_at_ms:null });
+    assert.deepEqual(value.database.prepare(`SELECT selection_state,terminal_disposition,terminal_evidence_digest
+      FROM proc_run_materials WHERE procurement_run_id=? AND ordinal=0`).get(seeded.procurementRunId),
+      { selection_state:'candidate_delivery', terminal_disposition:null, terminal_evidence_digest:null });
+    assert.deepEqual(value.database.prepare(`SELECT owner_domain,owner_scope_type,owner_scope_id,control_revision,state
+      FROM fx_material_controls WHERE material_key=?`).get(seeded.materialKey), {
+      owner_domain:'procurement', owner_scope_type:'material_field', owner_scope_id:'field-handoff-reset',
+      control_revision:1, state:'controlled',
+    });
+    assert.equal(value.database.prepare('SELECT COUNT(*) count FROM fx_material_control_revisions WHERE material_key=?')
+      .get(seeded.materialKey).count, 1);
+    assert.equal(value.database.prepare('SELECT COUNT(*) count FROM fx_inbox WHERE dedup_key=?').get(seeded.dedupKey).count, 0);
+    assert.equal(value.database.prepare('SELECT COUNT(*) count FROM fx_outbox WHERE message_id=?').get(seeded.messageId).count, 0);
+
+    applyReset({ database:value.database, mode:'nuclear', dataDir:value.dataDir,
+      transcodeDir:value.transcodeDir, nowMs:3610 });
+    assert.equal(inspectPlan(value.database, 'nuclear').counts.procurementHandoffAClosures, 0);
+  } finally { close(value); }
 });
 
 test('Normal Reset reconstructs a missing admission head only to terminalize the orphan Run', () => {
