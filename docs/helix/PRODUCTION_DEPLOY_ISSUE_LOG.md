@@ -622,3 +622,23 @@ Libra 已经接收。本项没有影片、Subject ID、旧条目兼容、SSOT �
 通过；Architecture fixture、semantic、manifest 与 contract 均通过，总 gate 仍只受 main 既有 18 个
 dynamic-template scanner findings 阻断。Service production dependencies 与 Admin Web 全依赖经 npm 官方
 registry 审计均为 0 vulnerability。
+
+## 50. PROD-050 — Nuclear Reset 未回卷 Handoff A 终态与 released Control，导致自然 Intake 冲突（FIXED LOCALLY）
+
+发现：2026-09-01。PROD-048 Nuclear Reset 后 3 个 token 均有真实 Intake Work，但只有 1 个形成 Subject；另外
+2 个 Acceptance 长期处于 `executing/intended`。日志持续出现两个 `P3_CONTROL_CAS_CONFLICT`，已成立 Subject 的
+Libra accepted message 又持续出现 `P8_ACCEPTANCE_TERMINAL_CONFLICT`。
+
+根因：Reset 删除了 Libra Intake 决策/Receipt，却保留 Procurement Candidate Delivery 的旧 accepted 终态；同一
+immutable Offer 重新 Intake 时会形成新 Handoff A receipt，Procurement 正确拒绝与旧 terminal receipt 不一致的
+消息。另两项 Material Control 在旧链中已从 Procurement 转给 Libra/Arca，后来释放为 revision 3/4；Nuclear
+rollback 只扫描当前仍 `controlled` 的行，漏掉 `released` 行，因而没有恢复 Candidate snapshot 所要求的
+Procurement revision 1。
+
+修复：Nuclear Reset 以当前 disposable Intake 决策和 orphan token `source_process_id` 精确找到 Handoff A Offer，
+保留 Candidate Package/Delivery identity，但把 Delivery/Reservation 重开，删除该 Offer 的 accepted/rejected
+Libra outbox 与 Procurement inbox dedup 闭包；Material Control rollback 改为扫描 exact Candidate member 的完整
+revision 历史，即使当前 released，也从首次进入目标 Libra/Arca 范围处删除后缀并恢复此前 Procurement 边界。
+Arca On-deck Commit 保护线、Shelf/Deck facts、`/media`、19 张 Arca phantom Receipt 与 2 条 Aftercare Work 均不受
+影响；没有放宽 CAS/terminal 校验，也没有影片 ID、迁移、resume 或兼容路径。Reset 13/13、合并 focused 57/57；
+Service full 430 项为 412 pass、18 skip、0 fail，Admin Web production build 通过。

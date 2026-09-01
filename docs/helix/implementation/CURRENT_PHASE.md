@@ -96,3 +96,7 @@
   44/44、P14 truth 8/8、Service full 429 项为 411 pass、18 skip、0 fail、Admin Web 42/42 与 production build
   通过；Architecture fixture、semantic、manifest、contract 通过，总 gate 仍仅受 main 既有 18 个
   dynamic-template scanner findings 阻断。
+- PROD-050 本地验证：生产只读联表证明 1 条新 Receipt 与旧 Procurement terminal Receipt 冲突，另 2 条 Control
+  当前为 released revision 3/4、旧 Handoff A snapshot 只接受 Procurement revision 1。Nuclear Reset 现原子重开
+  exact Delivery/Reservation、删除 exact Offer 跨域 dedup，并回卷 released Control 历史到 Procurement 边界；
+  regression 13/13、合并 focused 57/57，Service full 430 项为 412 pass、18 skip、0 fail，production build 通过。

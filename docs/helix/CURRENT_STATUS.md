@@ -1,6 +1,6 @@
 # ShelfDeck Clean Helix Current Status
 
-Status: **PROD-048 根因修复与获授权 Libra 数据纠正已完成；自然 Intake 已恢复真实 Work。**
+Status: **PROD-049/050 已合并验证；生产 Handoff A Reset 边界待获授权纠正。**
 
 Last updated: 2026-09-01
 
@@ -17,6 +17,7 @@ Last updated: 2026-09-01
 - 修正后的生产 Nuclear Reset 已完成：删除 716 个未 Commit Subject、101 个 Libra Run 和 3,275 个过程 Work；保留 10 条已 Commit 责任链、全部 Procurement 事实与 `/media`。事务后 Accepted/no-token Subject、active/no-admission-head Run 和孤儿引用均为 0；随后新 Observation/Intake 只按正常链路自然形成新条目。
 - 两种 Reset 均报告并清零 Accepted/no-token Subject 与 active/no-admission-head Run；Normal 可建立一次 reset-only Admission Head 后正式 discard，Nuclear 删除整个未 Commit 图。Service 411 项为 393 pass、18 skip、0 fail；Admin Web 42/42 且 production build 通过。Architecture fixture、semantic、manifest、contract 均通过，总 gate 仍仅受 18 个既有 dynamic-template scanner findings 阻断。
 - PROD-049 已在本地修复 Formation 详情的阶段完成语义：Plan 全终态不再代替 Handoff A、Handoff B Accepted/Libra Run completed 与 On-deck Commit 三段正式业务边界；Result 采用封闭中文映射，未知内部枚举不再进入用户界面。实现不含影片、Subject ID 或旧条目兼容。Formation focused 44/44、P14 truth 8/8、Service full 411 pass / 18 skip / 0 fail、Admin Web 42/42 与 production build 通过；Architecture 非 dependency 门禁全过，dependency 仍为 main 既有 18 项；两侧 npm 官方 registry audit 均为 0 vulnerability。
+- PROD-050 本地根因确认：Nuclear Reset 虽删除 Intake→Arca 图，却保留 Procurement Candidate Delivery 的旧 terminal receipt；同时 Control rollback 只处理当前 `controlled` 行，漏掉曾进入目标 Libra/Arca 链后已经 `released` 的 revision 3/4。新 Intake 因而分别触发 `P8_ACCEPTANCE_TERMINAL_CONFLICT` 与 `P3_CONTROL_CAS_CONFLICT`。修复只在 Nuclear 调试事务中重新打开 exact Delivery/Reservation、删除 exact Offer 跨域 dedup 闭包，并回卷目标 Control revision 后缀；不放宽 Runtime 校验、不增加条目兼容或生产 ID 特例。Reset 13/13、合并 focused 57/57；Service full 430 项为 412 pass、18 skip、0 fail，Admin Web production build 通过。
 
 ## PROD-036 Production Monitoring
 
@@ -72,6 +73,10 @@ PROD-034 已按 Product Owner 授权对“唐人街探案 (2015)”和“赤壁�
   已不存在的 phantom WorkAdmission Receipt；两种模式都会先删除这种不自洽 Receipt，Nuclear 再删除完整图。
   这覆盖尚未取得 token 的潜伏 Receipt，避免调度游标继续逐批撞上历史回放。最新聚焦 12/12，Service full
   426 项为 408 pass、18 skip、0 fail。
+- Nuclear 现额外把 exact 未 Commit Handoff A 闭包回卷到 Procurement：Candidate Package/Delivery identity 保留，
+  Delivery 与 Reservation 重新变为 open/candidate_delivery，accepted/rejected outbox/inbox dedup 删除；即使 Control
+  当前已 released，只要其 revision 历史首次进入本次 token/Subject 范围，也会删除该后缀并恢复此前 Procurement
+  revision。已 Commit Shelf/Deck 与 `/media` 不进入范围。
 
 ## PROD-042 Local Fix
 

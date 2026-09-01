@@ -1,6 +1,6 @@
 # ShelfDeck Clean Helix Master Plan
 
-Status: **统一无损升级与 PROD-047 已完成；历史残留监控待决。**
+Status: **PROD-049/050 已合并验证；待 replacement 部署与获授权 Nuclear 数据纠正。**
 
 Last updated: 2026-09-01
 
@@ -11,16 +11,16 @@ Last updated: 2026-09-01
 - 文件来源 API/UI 按 Field 显示已生成、Libra 已接收、等待 Libra 接收和 Structured Rejection；容量不足保持 open Offer，不伪造 rejection。
 - 媒体整理当前分类收敛为整理中、需要处理、已完成；删除“待整理”筛选。总览分别展示 Procurement 等待接收与 Libra 正在整理。
 - 合并文件来源/Per-Field Handoff A 账本、Formation 三态表达、Formation 详情排版、我的收藏成品库一级页、PROD-042 Rejection token 释放、PROD-044 semantic Execution Catalog 与 PROD-045 NFO 根节点生成/上架前门禁修复。
-- 生产 621 个 Accepted 但无 token 的 Subject 是旧合同残留，不增加 migration、resume 或兼容路径；获授权 Nuclear Formation Reset 已完成，未 Commit 过程图已清除。本次镜像部署不再执行 Reset。
-- Normal 与 Nuclear Reset 都必须清理 Accepted/no-token Subject 和 missing-admission-head Run；保留 Procurement Candidate/Delivery/Control 与已经 Arca On-deck Commit 的 Shelf/Deck 事实，不触碰 `/media`。
+- 生产 621 个 Accepted 但无 token 的 Subject 是旧合同残留，不增加 migration、resume 或兼容路径；获授权 Nuclear Formation Reset 已完成，未 Commit 过程图已清除。
+- Normal 与 Nuclear Reset 都必须清理 Accepted/no-token Subject 和 missing-admission-head Run。Nuclear 还必须把未 Commit 链精确回卷到 Handoff A 前：保留 immutable Candidate Package/Delivery identity，重新打开 Delivery/Reservation 与 Procurement Control 边界；已经 Arca On-deck Commit 的 Shelf/Deck 事实和 `/media` 始终受保护。
 
 ## 当前基线
 
 - NAS production：`192.168.12.230:18080`。
-- Image：`markmahoro/shelfdeck:helix-beta-20260901-84b8d313e0`；source commit `84b8d313e098e96f9e0e0f5fbdf16a85b31b16e2`；tar SHA-256 `438437bb32cae59a06ba4b9d1d7dab0f538638f61da796f86c639307012e2c45`。
+- Image：`markmahoro/shelfdeck:helix-beta-20260901-0813ae2991`；source commit `0813ae2991`；tar SHA-256 `a4139eec4b9944f39345d68b5f24c179eeb780971667edae92ee25c7f2f8cdb1`。
 - Health：`ok` / `helix-clean-v3` / `normalSupplyAllowed:true`；schema 186；SQLite integrity `ok`。
 - Execution：PROD-047 exact 3 条遗留执行图已收口；另有 2 条 active Aftercare reclaim Work 只发生 inode drift，未获授权处理。
-- Formation：0 `in_progress`、1 `attention_required`、4 `completed`；《千寻小姐》与《罪人》已完成，《人生密密缝》保持旧 NFO drift attention。
+- Formation：Reset 后自然形成 3 个 token；1 个 Subject 已成立，另外 2 个 Acceptance 因旧 Handoff A/Control 边界未回卷而停在通用 CAS/terminal conflict，待 PROD-050 Nuclear 纠正后重新自然 Intake。
 
 ## 已完成
 
@@ -43,6 +43,7 @@ Last updated: 2026-09-01
   reclaimed 领域现实与无 Result/Marker 执行残留全部精确吻合时终止执行图；完整备份、离线事务、完整性检查
   与二次 dry-run 均通过。未改 Receipt、Aftercare/Inventory/Material 事实或媒体文件，也未形成 Runtime 兼容路径。
 - PROD-049 本地修复：Formation 三段详情必须以正式业务交付边界判定完成，不能用当前 Plan 全终态代替；用户结果只允许稳定中文映射，未知内部 Receipt/Result 枚举省略。新自然条目适用，不增加影片或旧数据特例。
+- PROD-050 本地修复：Nuclear Reset 现在识别 orphan token 对应的旧 terminal Candidate Delivery，删除该 Offer 的 Libra→Procurement outbox/inbox dedup 闭包，重新打开 Delivery/Reservation，并把当前已 `released` 但历史曾进入目标 Libra/Arca 链的 Material Control revision 后缀回滚到 Procurement 边界。聚焦 57/57；合并后 Service full 430 项为 412 pass、18 skip、0 fail，Admin Web production build 通过。
 
 ## 下一步规则
 
@@ -60,10 +61,10 @@ Last updated: 2026-09-01
 - 不修改 Emby 配置，也不直接编辑生产 SQLite。当前 NFO semantic drift、Formation projection digest 与 Aftercare reclaim schema 异常已分别打回原任务；后续修复仍须标准 build/upload/deploy。
 - 不得继续恢复或扩展 PROD-034 的两个目标 Run。
 - 其余 active records 只按各自事实诊断；未经新授权，不把本次一次性纠正扩大到其他记录。
-- 生产监控新增两个待决事实：3 条 orphan provisional pipeline token 占住全部 Libra 席位；另有 2 条 active
-  Aftercare reclaim Work 只发生 inode drift。第二次 Reset 证明当前 token 只是 3,274 张 Libra 潜伏 phantom
-  WorkAdmission Receipt 的首批命中；本地现同时清理未来被删 Work 的 Receipt 与完整 Libra 潜伏池。Product Owner
-  的授权继续覆盖该修复镜像、精确 dry-run 与数据纠正；19 张 Arca phantom Receipt 和 Aftercare inode drift 不在范围。
+- 生产监控待决：3 个自然 token 中 1 个已形成 Subject，2 个 Acceptance 分别因旧 Control revision 3/4 已
+  `released` 而触发 `P3_CONTROL_CAS_CONFLICT`；已成立 Subject 的新 Receipt 又与 Procurement 保留的旧 Receipt
+  触发 `P8_ACCEPTANCE_TERMINAL_CONFLICT`。Product Owner 的授权覆盖 PROD-050 镜像、精确 Nuclear dry-run 与
+  数据纠正；19 张 Arca phantom Receipt 和 2 条 Aftercare inode drift Work 仍不在范围。
 - PROD-042 部署后，现有失败 Rejection Work 只能通过已授权的 Formation Reset 调试能力清除；不得为它增加 migration、replan、dual-read 或旧 Input Binding fallback。Reset 后的新 Intake 必须用正常链路重新验证 token 能在 Rejection terminal 后释放。
 - 恢复 Helix-beta acceptance evidence 工作时，仍以 `BETA_FEATURE_ACCEPTANCE_BASELINE.md` 为准；生产 health 不能折算为 `HB-*` PASS。
 - 架构唯一 SSOT 仍为 `TOP_DOWN_ARCHITECTURE_CONFIRMATION.md`；生产修复不得移动 Owner、Handoff 或 Canonical Transaction。
