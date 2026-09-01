@@ -75,7 +75,7 @@ function tableExists(database, tableName) {
 
 function assertRequiredSchema(database) {
   const required = [
-    'libra_subjects', 'libra_intake_decisions', 'libra_runs', 'libra_workspaces',
+    'libra_subjects', 'libra_intake_decisions', 'libra_predeck_pipeline_tokens', 'libra_runs', 'libra_workspaces',
     'libra_product_packages', 'libra_formation_projections', 'arca_acceptance_attempts',
     'arca_acceptance_decisions', 'arca_ondeck_custodies', 'arca_ondeck_runs',
     'arca_ondeck_commit_receipts', 'fx_supporting_works', 'fx_work_attempts',
@@ -91,6 +91,15 @@ function assertRequiredSchema(database) {
 
 function discoverScope(database) {
   assertRequiredSchema(database);
+  const orphanPipelineTokens = database.prepare(`
+    SELECT token.subject_id,token.source_field_id,token.source_process_id,token.acquired_at_ms
+      FROM libra_predeck_pipeline_tokens token
+      LEFT JOIN libra_subjects subject ON subject.subject_id=token.subject_id
+     WHERE subject.subject_id IS NULL
+     ORDER BY token.subject_id
+  `).all();
+  const orphanPipelineTokenSubjectIds = unique(orphanPipelineTokens.map((row) => row.subject_id));
+  const orphanPipelineSourceProcessIds = unique(orphanPipelineTokens.map((row) => row.source_process_id));
   const committedOnDeckRunIds = oneColumn(database, `
     SELECT DISTINCT on_deck_run_id FROM arca_ondeck_commit_receipts ORDER BY on_deck_run_id
   `);
@@ -154,6 +163,7 @@ function discoverScope(database) {
       .map((row) => row.subject_id).filter(Boolean)
     : [];
   const resetSubjectIds = unique([...disposableSubjectIds, ...runSubjectIds]);
+  const pipelineTokenSubjectIds = unique([...resetSubjectIds, ...orphanPipelineTokenSubjectIds]);
   const workspaceIds = runIds.length
     ? rowsByIds(database, 'SELECT workspace_id FROM libra_workspaces WHERE libra_run_id IN', runIds, 'ORDER BY workspace_id')
       .map((row) => row.workspace_id)
@@ -216,7 +226,7 @@ function discoverScope(database) {
   const allScopeIds = unique([
     ...resetSubjectIds, ...runIds, ...workspaceIds, ...cleanupScopeIds, ...packageIds,
     ...offerIds, ...intakeDecisionIds, ...acceptanceAttemptIds, ...acceptanceDecisionIds,
-    ...custodyIds, ...onDeckRunIds,
+    ...custodyIds, ...onDeckRunIds, ...orphanPipelineTokenSubjectIds, ...orphanPipelineSourceProcessIds,
   ]);
   const works = [];
   if (allScopeIds.length) {
@@ -233,6 +243,9 @@ function discoverScope(database) {
     committed: Object.freeze({ onDeckRunIds:committedOnDeckRunIds, packageIds:committedPackageIds,
       runIds:committedRunIds, subjectIds:committedSubjectIds }),
     disposableSubjectIds:Object.freeze(disposableSubjectIds), resetSubjectIds:Object.freeze(resetSubjectIds),
+    pipelineTokenSubjectIds:Object.freeze(pipelineTokenSubjectIds),
+    orphanPipelineTokens:Object.freeze(orphanPipelineTokens.map((row) => Object.freeze({ ...row }))),
+    orphanPipelineSourceProcessIds:Object.freeze(orphanPipelineSourceProcessIds),
     runIds:Object.freeze(runIds), workspaceIds:Object.freeze(workspaceIds), cleanupScopeIds:Object.freeze(cleanupScopeIds),
     packageIds:Object.freeze(packageIds), offerIds:Object.freeze(offerIds), intakeDecisionIds:Object.freeze(intakeDecisionIds),
     acceptanceAttemptIds:Object.freeze(acceptanceAttemptIds), acceptanceDecisionIds:Object.freeze(acceptanceDecisionIds),
@@ -285,6 +298,7 @@ function discoverOrphans(database, scope) {
   return Object.freeze({
     acceptedSubjectIds:Object.freeze(acceptedSubjectIds),
     activeRunsWithoutHead:Object.freeze(activeRunsWithoutHead),
+    pipelineTokens:scope.orphanPipelineTokens,
   });
 }
 
@@ -340,6 +354,7 @@ function inspectPlan(database, mode) {
     controlledMaterials:controlledMaterials.length, artifacts:scope.artifactIds.length,
     orphanAcceptedSubjects:orphans.acceptedSubjectIds.length,
     orphanActiveRuns:orphans.activeRunsWithoutHead.length,
+    orphanPipelineTokens:orphans.pipelineTokens.length,
     preservedProcurementControls:preservedProcurementControls.length,
   });
   return Object.freeze({ mode, confirmationRequired:CONFIRMATIONS[mode], ready:blockers.length === 0,
@@ -562,7 +577,8 @@ function reclaimWorkspacesNormal(database, scope, nowMs, evidenceDigest) {
 function applyNormal(database, plan, nowMs) {
   const scope = plan.scope;
   const record = { schema:RESET_SCHEMA, mode:'normal', atMs:nowMs, subjectIds:scope.resetSubjectIds,
-    runIds:scope.runIds, packageIds:scope.packageIds, onDeckRunIds:scope.onDeckRunIds };
+    pipelineTokenSubjectIds:scope.pipelineTokenSubjectIds, runIds:scope.runIds,
+    packageIds:scope.packageIds, onDeckRunIds:scope.onDeckRunIds };
   const evidence = { id:`formation-reset-normal-${nowMs}`, record, digest:canonicalDigest(record) };
   const transaction = database.transaction(() => {
     const retiredWorks = retireWorksNormal(database, scope.works, nowMs);
@@ -570,7 +586,7 @@ function applyNormal(database, plan, nowMs) {
     const discardedRuns = discardRunsNormal(database, scope, nowMs, evidence);
     const reclaimedWorkspaces = reclaimWorkspacesNormal(database, scope, nowMs, evidence.digest);
     const releasedControls = releaseControlsNormal(database, scope, nowMs, evidence.digest);
-    executeByIds(database, "DELETE FROM libra_predeck_pipeline_tokens WHERE subject_id IN", scope.resetSubjectIds);
+    executeByIds(database, "DELETE FROM libra_predeck_pipeline_tokens WHERE subject_id IN", scope.pipelineTokenSubjectIds);
     executeByIds(database, "DELETE FROM libra_formation_projections WHERE subject_id IN", scope.resetSubjectIds);
     executeByIds(database, "UPDATE libra_subjects SET status='abandoned',updated_at_ms=?,terminal_at_ms=COALESCE(terminal_at_ms,?) WHERE subject_id IN",
       scope.disposableSubjectIds, "AND status='active'", [nowMs,nowMs]);
@@ -701,7 +717,7 @@ function deleteNuclearBusinessGraph(database, scope, nowMs) {
       .run(Number(head.head_revision) + 1, activeRunScopeSetDigest(subjectId, remaining), nowMs, subjectId);
   }
 
-  executeByIds(database, 'DELETE FROM libra_predeck_pipeline_tokens WHERE subject_id IN', scope.resetSubjectIds);
+  executeByIds(database, 'DELETE FROM libra_predeck_pipeline_tokens WHERE subject_id IN', scope.pipelineTokenSubjectIds);
   executeByIds(database, 'DELETE FROM libra_formation_projections WHERE subject_id IN', scope.resetSubjectIds);
   executeByIds(database, 'DELETE FROM libra_run_admission_heads WHERE subject_id IN', scope.disposableSubjectIds);
   executeByIds(database, 'DELETE FROM libra_subject_decision_heads WHERE subject_id IN', scope.disposableSubjectIds);
@@ -792,7 +808,8 @@ function verifyPostconditions(database, mode) {
       activeAttempts:plan.counts.activeAttempts, activeCustodies:plan.counts.activeCustodies,
       controlledMaterials:plan.counts.controlledMaterials,
       orphanAcceptedSubjects:plan.counts.orphanAcceptedSubjects,
-      orphanActiveRuns:plan.counts.orphanActiveRuns };
+      orphanActiveRuns:plan.counts.orphanActiveRuns,
+      orphanPipelineTokens:plan.counts.orphanPipelineTokens };
     if (Object.values(residual).some((value) => value !== 0)) {
       throw Object.assign(new Error('FORMATION_RESET_NORMAL_RESIDUAL'), { details:residual });
     }
@@ -800,7 +817,8 @@ function verifyPostconditions(database, mode) {
     const residual = { subjects:plan.counts.disposableSubjects, runs:plan.counts.runs,
       packages:plan.counts.packages, onDeckRuns:plan.counts.onDeckRuns, works:plan.counts.works,
       orphanAcceptedSubjects:plan.counts.orphanAcceptedSubjects,
-      orphanActiveRuns:plan.counts.orphanActiveRuns };
+      orphanActiveRuns:plan.counts.orphanActiveRuns,
+      orphanPipelineTokens:plan.counts.orphanPipelineTokens };
     if (Object.values(residual).some((value) => value !== 0)) {
       throw Object.assign(new Error('FORMATION_RESET_NUCLEAR_RESIDUAL'), { details:residual });
     }

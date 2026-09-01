@@ -138,6 +138,16 @@ function seedAcceptedOrphan(database, suffix) {
   return { subjectId, intakeDecisionId, materialKey };
 }
 
+function seedOrphanPipelineToken(database, suffix) {
+  const subjectId = `subject-token-orphan-${suffix}`;
+  const processId = `intake-process-token-orphan-${suffix}`;
+  database.prepare(`INSERT INTO libra_predeck_pipeline_tokens
+    (subject_id,source_field_id,source_process_id,acquired_at_ms) VALUES (?,'field-orphan',?,1)`)
+    .run(subjectId,processId);
+  const execution = seedExecution(database, 'libra', 'libra_intake', processId, `token-orphan-${suffix}`);
+  return { subjectId, processId, ...execution };
+}
+
 test('Formation Reset is an exact no-op on an empty database and preserves unrelated transcode entries', () => {
   const value = fixture('helix-formation-reset-empty');
   try {
@@ -228,6 +238,38 @@ test('both Reset modes clear Accepted Subjects without a token while preserving 
         assert.equal(value.database.prepare('SELECT COUNT(*) count FROM libra_subjects WHERE subject_id=?')
           .get(seeded.subjectId).count, 0);
       }
+    } finally { close(value); }
+  }
+});
+
+test('both Reset modes clear orphan pipeline tokens and their Intake execution responsibility', () => {
+  for (const mode of ['normal','nuclear']) {
+    const value = fixture(`helix-formation-reset-orphan-token-${mode}`);
+    try {
+      const seeded = seedOrphanPipelineToken(value.database, mode);
+      const plan = inspectPlan(value.database, mode);
+      assert.equal(plan.ready, true);
+      assert.equal(plan.counts.orphanPipelineTokens, 1);
+      assert.equal(plan.counts.works, 1);
+      assert.deepEqual(plan.orphans.pipelineTokens.map((row) => row.subject_id), [seeded.subjectId]);
+      assert.equal(plan.scope.orphanPipelineSourceProcessIds.includes(seeded.processId), true);
+
+      const result = applyReset({ database:value.database, mode, dataDir:value.dataDir,
+        transcodeDir:value.transcodeDir, nowMs:3550 });
+      assert.equal(result.verification.plan.counts.orphanPipelineTokens, 0);
+      assert.equal(value.database.prepare('SELECT COUNT(*) count FROM libra_predeck_pipeline_tokens WHERE subject_id=?')
+        .get(seeded.subjectId).count, 0);
+      if (mode === 'normal') {
+        assert.deepEqual(value.database.prepare('SELECT state FROM fx_supporting_works WHERE work_id=?').get(seeded.workId),
+          { state:'cancelled' });
+      } else {
+        assert.equal(value.database.prepare('SELECT COUNT(*) count FROM fx_supporting_works WHERE work_id=?')
+          .get(seeded.workId).count, 0);
+      }
+
+      applyReset({ database:value.database, mode, dataDir:value.dataDir,
+        transcodeDir:value.transcodeDir, nowMs:3560 });
+      assert.equal(inspectPlan(value.database, mode).counts.orphanPipelineTokens, 0);
     } finally { close(value); }
   }
 });

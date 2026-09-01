@@ -55,11 +55,14 @@ PROD-034 已按 Product Owner 授权对“唐人街探案 (2015)”和“赤壁�
 
 ## Formation Reset Debug Capability
 
-- 当前工作区已经实现统一的 Formation Reset 离线调试能力，提供 `normal` 与 `nuclear` 两种模式；最新 focused tests 17/17 通过。
+- 当前工作区已经实现统一的 Formation Reset 离线调试能力，提供 `normal` 与 `nuclear` 两种模式。
 - `normal` 终止并清理 On-deck Commit 前的活动整理现场，同时保留明确终态的过程记录；`nuclear` 物理删除该范围内的过程记录，使其在当前运行数据库中视同未发生。
 - 两种模式都以 Arca On-deck Commit 为保护线，不触碰已入架事实和 `/media`，也不主动触发 Observation 或 Intake。
 - **该能力核心已随当前生产镜像部署到 NAS，并已完成一次获授权的 Nuclear Reset。** 后续调用仍必须逐次获得明确生产授权、显式指定 `normal|nuclear`、先 dry-run，再使用模式专属确认串 `--apply`；部署本身不触发 Reset。
 - 本轮统一无损升级不再执行 Reset，也不使用 clean init。
+- Reset 发现范围现补齐无 Subject 的 orphan pipeline token：以 token 自身与 `source_process_id` 为独立范围根，
+  同时纳入其 Libra Intake Work。Normal 删除 token、终止活动执行但保留终态审计；Nuclear 删除 token 与对应执行图。
+  两种模式的 postcondition 都要求 orphan token 为 0；聚焦 10/10，Service full 424 项为 406 pass、18 skip、0 fail。
 
 ## PROD-042 Local Fix
 
@@ -102,8 +105,8 @@ PROD-034 已按 Product Owner 授权对“唐人街探案 (2015)”和“赤壁�
   NFO 失败文案明确表达“正式位置中的 NFO 内容与本次已接受的媒体信息不一致”。
 - Field 页面显示 generated 952、Libra accepted 727、waiting 225、席位 3/3；但数据库没有 active Libra Run/Work。
   3 条旧 provisional pipeline token 占住席位，其中 1 条关联 PROD-042 之前已失败的 Intake Rejection Work，另外
-  2 条没有 Subject/Run/Work。现有 Formation Reset dry-run 不会纳入这 3 条 orphan token，因此未经新授权未清理，
-  也未执行会同时清除《人生密密缝》未 Commit 链的 Nuclear Reset。
+  2 条没有 Subject/Run/Work。Reset 范围缺口已在本地通用修复；Product Owner 已明确授权在新镜像部署、精确
+  dry-run 与所有保护门禁通过后执行 Nuclear Reset，并已知该范围会同时清除《人生密密缝》未 Commit 链。
 - PROD-047 之外另有 2 条正常 active Aftercare reclaim Work。它们的文件 size 与 content fingerprint 与记录完全
   一致，仅 inode 已变化，持续形成 `ARCA_AFTERCARE_WORKSPACE_MEMBER_CHANGED`；它们不属于已 reclaimed 的
   legacy Receipt residual，未纳入本次授权纠正。

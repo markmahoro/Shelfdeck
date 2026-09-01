@@ -58,9 +58,9 @@ Last updated: 2026-09-01
 - 不修改 Emby 配置，也不直接编辑生产 SQLite。当前 NFO semantic drift、Formation projection digest 与 Aftercare reclaim schema 异常已分别打回原任务；后续修复仍须标准 build/upload/deploy。
 - 不得继续恢复或扩展 PROD-034 的两个目标 Run。
 - 其余 active records 只按各自事实诊断；未经新授权，不把本次一次性纠正扩大到其他记录。
-- 生产监控新增两个待决事实：3 条 orphan provisional pipeline token 占住全部 Libra 席位，但当前 Formation Reset
-  不覆盖无 Subject 的 token；另有 2 条 active Aftercare reclaim Work 只发生 inode drift。先完善通用 Reset 诊断
-  与边界，再提交新的 dry-run 计划；不得把它们并入已结束的 PROD-047 授权。
+- 生产监控新增两个待决事实：3 条 orphan provisional pipeline token 占住全部 Libra 席位；另有 2 条 active
+  Aftercare reclaim Work 只发生 inode drift。Reset 已在本地补齐无 Subject token 与其 Intake Work 的范围，
+  Product Owner 已授权在新镜像 dry-run 精确吻合后执行 Nuclear Reset；Aftercare inode drift 仍不在该授权内。
 - PROD-042 部署后，现有失败 Rejection Work 只能通过已授权的 Formation Reset 调试能力清除；不得为它增加 migration、replan、dual-read 或旧 Input Binding fallback。Reset 后的新 Intake 必须用正常链路重新验证 token 能在 Rejection terminal 后释放。
 - 恢复 Helix-beta acceptance evidence 工作时，仍以 `BETA_FEATURE_ACCEPTANCE_BASELINE.md` 为准；生产 health 不能折算为 `HB-*` PASS。
 - 架构唯一 SSOT 仍为 `TOP_DOWN_ARCHITECTURE_CONFIRMATION.md`；生产修复不得移动 Owner、Handoff 或 Canonical Transaction。

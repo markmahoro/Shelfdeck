@@ -76,6 +76,8 @@
   unsafe 0，SQLite integrity 正常。Receipt、领域事实与媒体文件未改。
 - 生产 UI 验收为 Formation 0 in-progress、1 attention、4 completed；《千寻小姐》与《罪人》完成，
   《人生密密缝》按真实旧 NFO drift 保持 attention。列表、过程卡片与 current Plan 表达一致。
-- 监控发现但未处理：3 条无有效 Subject/Run 的旧 Pre-deck token 占满 Libra 3 个席位；2 条正常 active
-  Aftercare reclaim Work 仅发生 inode drift。两者均不在 PROD-047 授权内；当前 Reset dry-run 也不覆盖前者，
-  因此本 Phase 保持 monitoring open，不扩大生产纠正。
+- 监控发现 3 条无有效 Subject/Run 的旧 Pre-deck token 占满 Libra 3 个席位。两种 Reset 已以 token 与
+  `source_process_id` 为独立范围根，Normal 保留终态审计，Nuclear 删除对应 Intake 执行图；postcondition 明确
+  要求 orphan token 为 0。聚焦 10/10，Service full 424 项为 406 pass、18 skip、0 fail。
+- Product Owner 已授权在该修复部署、生产 dry-run 精确吻合且所有门禁通过后执行 Nuclear Reset，并已知范围
+  同时包括《人生密密缝》的未 Commit 链。另 2 条仅 inode drift 的 active Aftercare reclaim Work 不在授权内。
