@@ -601,3 +601,24 @@ apply 前仍要求完整备份、精确 dry-run、零 blocker 与逐项 postcond
 Work 均存在，每个 process 已形成 2 条 Intake Work；没有再次出现 Libra phantom Receipt。备份位于
 `/vol1/1000/docker/shelfdeck/backups/formation-reset-20260901T092339Z-nuclear/data`。19 张 Arca phantom Receipt 与
 2 条 active Aftercare reclaim Work 未被修改。
+
+## 49. PROD-049 — Formation 用现有 Plan 终态冒充业务阶段完成，并泄露内部 Result 枚举（FIXED LOCALLY）
+
+发现：2026-09-01。生产新自然 Intake 条目《地狱为何恶劣 (2013)》整体仍为 `in_progress`、Routing 仍为
+`preparing`、Acceptance Spec 与 Libra Run 尚未形成，但详情把“媒体整理”阶段显示为“本阶段已完成”。同一详情
+还把 `procurement_candidate_published`、`libra_binding_draft_resolved`、`handoff_a_accepted` 直接拆成
+英文词组展示。
+
+根因：阶段投影把“当前已经存在的 Supporting Work/Plan 都成功”当作阶段完成；这只能说明已执行工作终态，
+不能证明该业务域的交付边界已经成立。结果投影对未知枚举使用下划线拆词兜底，又把内部 Receipt kind 当成
+用户文案。
+
+修复：Formation 详情调用方必须显式提供三段业务状态。材料准备只以 Handoff A Accepted 后成立的 Subject
+责任为完成边界；媒体整理只在 Handoff B Accepted 使 Libra Run completed 后完成；验收与上架只在 Arca
+On-deck Commit 后完成。已存在 Plan 全终态但边界未成立时继续显示进行中，正式边界成立则不会被历史失败
+Plan 拉回。Result 只使用封闭的稳定中文映射，未知机器枚举不展示；Candidate Publication 文案也不再误称
+Libra 已经接收。本项没有影片、Subject ID、旧条目兼容、SSOT 改动或生产数据修改。Formation focused
+44/44、P14 Formation truth 8/8、Service full 411 pass / 18 skip / 0 fail、Admin Web 42/42 与 production build
+通过；Architecture fixture、semantic、manifest 与 contract 均通过，总 gate 仍只受 main 既有 18 个
+dynamic-template scanner findings 阻断。Service production dependencies 与 Admin Web 全依赖经 npm 官方
+registry 审计均为 0 vulnerability。

@@ -36,6 +36,7 @@
 13. Formation 的 Plan 状态只表达真实执行是否完成，不把成功提交的业务检查结论 `failed|not_available` 投影成执行失败；一级页“当前进展”与过程卡片使用同一真实 Plan 摘要，前端不得从 `organizingSteps` 再拼一套 Plan。`workspace_media_production` 的相邻 Plan 必须按其实际工作区分标题。
 14. PROD-041 修复 `continue_forward` Effect Recovery 的执行时限：恢复执行拥有一次 durable、不可重置、仍受原 Timeout Policy 约束的预算；不得改写原 Attempt/Input/Fence/Effect 身份，也不得放宽 pure observation 或 ordinary retry hard deadline。
 15. 同一 Owner/Process/Work kind 责任链由最新 Supporting Work 决定当前阶段状态；整体 On-deck 已完成时，`currentPlan` 必须指向完成提交的 successor，历史失败 Plan 只保留在过程卡片中。没有 successor 的真实失败仍保持 `attention`。
+16. Formation 阶段完成只认正式业务边界：Handoff A Accepted、Handoff B Accepted 后的 Libra Run completed、On-deck Commit；当前 Plan 全终态不能提前完成阶段。Result 文案采用封闭中文映射，未知内部枚举不展示。
 
 ## 边界
 
@@ -90,3 +91,8 @@
   phantom Receipt，其他业务对象/Work 均为 0；apply 后三项均为 0，幂等、SQLite integrity 与外键全部通过。
 - 自然 Intake 随后持有 3 个 token，每个 Receipt 都命中真实 target Work；2 条 Acceptance Work 运行中，1 条
   Subject 已进入 Formation。详情生产验收仍发现阶段完成语义与内部英文 outcome 两项缺口，已打回原任务。
+- PROD-049 本地验证：新自然 Intake 在 Routing preparing、无 Acceptance Spec/Libra Run 时，即使现有 Intake Plan
+  全部成功，“媒体整理”仍保持 running；三类已知 Receipt 使用稳定中文，未知机器枚举省略。Formation focused
+  44/44、P14 truth 8/8、Service full 429 项为 411 pass、18 skip、0 fail、Admin Web 42/42 与 production build
+  通过；Architecture fixture、semantic、manifest、contract 通过，总 gate 仍仅受 main 既有 18 个
+  dynamic-template scanner findings 阻断。

@@ -7,7 +7,7 @@ const CAPABILITY_COPY = Object.freeze({
   'shared.material.media.probe@1':['读取媒体信息','已读取视频、音轨、字幕和文件信息。'],
   'procurement.triage.identity_claim.resolve@1':['确认材料中的影片身份','已从材料中确认影片身份线索。'],
   'procurement.triage.primary_manifest.build@1':['生成材料清单','已记录主媒体及相关材料。'],
-  'procurement.candidate.publish@1':['将材料交给媒体整理','媒体整理已经接收这批材料。'],
+  'procurement.candidate.publish@1':['将材料交给媒体整理','这批材料已经发布，等待媒体整理正式接收。'],
   'libra.intake.candidate.verify@1':['核对材料包','材料包的内容和来源已经核对。'],
   'libra.intake.material.verify@1':['核对实际材料','实际媒体材料已经核对。'],
   'libra.intake.binding.resolve@1':['建立整理材料记录','材料已经纳入本次媒体整理。'],
@@ -111,8 +111,11 @@ function humanValue(value) {
   if (value === true) return '是'; if (value === false) return '否';
   const map={passed:'通过',failed:'未通过',resolved:'已确认',selected:'已选定',not_selected:'未选定',
     available:'可用',not_available:'不可用',accepted:'已接收',rejected:'未接收',succeeded:'已完成',
-    handoff_b_accepted:'收藏架已接收',handoff_b_rejected:'收藏架未接收',placement_switched:'已进入正式位置'};
-  return map[value] || String(value).replaceAll('_',' ');
+    procurement_candidate_published:'待整理材料包已发布',libra_binding_draft_resolved:'整理材料已确认',
+    handoff_a_accepted:'媒体整理已正式接收',libra_product_package_published:'媒体产品已交给收藏架',
+    handoff_b_accepted:'收藏架已接收',handoff_b_rejected:'收藏架未接收',placement_switched:'已进入正式位置',
+    on_deck_committed:'已完成上架'};
+  return map[value] || null;
 }
 function humanReason(value) {
   const reason=String(value || '');
@@ -344,27 +347,34 @@ function currentResponsibilityWorks(works) {
   }
   return [...current.values()];
 }
-function stageState(plans, works=[]) {
+const BUSINESS_STAGE_STATES = new Set(['not_started','in_progress','attention','completed']);
+function stageState(plans, works=[], businessState) {
+  if (!BUSINESS_STAGE_STATES.has(businessState)) throw new TypeError('Formation process stage requires a business completion state.');
+  if (businessState==='completed') return 'completed';
   const currentWorks=currentResponsibilityWorks(works);
   if (currentWorks.some((work)=>['admitted','ready','running'].includes(work.state))) return 'running';
   if (currentWorks.some((work)=>['failed','blocked'].includes(work.state))) return 'attention';
-  const terminal=currentWorks.filter((work)=>work.state!=='cancelled');
-  if (terminal.length && terminal.every((work)=>work.state==='succeeded')) return 'completed';
   if (plans.some((plan)=>plan.state==='attention')) return 'attention';
   if (plans.some((plan)=>plan.state==='running')) return 'running';
-  if (plans.length && plans.every((plan)=>plan.state==='completed')) return 'completed';
+  if (businessState==='attention') return 'attention';
+  if (businessState==='in_progress') return 'running';
   return 'pending';
 }
-function stageSummary(label, plans, works) {
-  const state=stageState(plans,works); let current=-1;
+function stageSummary(label, plans, works, businessState) {
+  const state=stageState(plans,works,businessState); let current=-1;
   for (let index=plans.length-1;index>=0;index-=1) if (plans[index].state===state) { current=index; break; }
-  if (!plans.length) return label==='验收与上架' ? '等待媒体整理完成；当前还没有形成这一阶段的计划' : '当前还没有形成可展示的计划';
-  if (state==='completed') return `共 ${plans.length} 个实际计划，本阶段已完成`;
+  if (!plans.length) {
+    if (state==='completed') return '本阶段的业务结果已经成立；当前没有可展示的实际计划';
+    return label==='验收与上架' ? '等待媒体整理完成；当前还没有形成这一阶段的计划' : '当前还没有形成可展示的计划';
+  }
+  if (state==='completed') return `共 ${plans.length} 个实际计划，本阶段业务结果已完成`;
   if (current>=0) return `计划${current+1}${state==='attention'?'需要处理':'正在进行'}`;
+  if (state==='running' && plans.every((plan)=>plan.state==='completed')) return '已有 '+plans.length+' 个实际计划完成，等待本阶段继续推进';
   return `${plans.length} 个真实计划，等待继续执行`;
 }
-function stage(key, label, descriptionText, works) {
-  const plans=projectPlans(works); return Object.freeze({ key,label,description:descriptionText,state:stageState(plans,works),summary:stageSummary(label,plans,works),plans });
+function stage(key, label, descriptionText, works, businessState) {
+  const plans=projectPlans(works); return Object.freeze({ key,label,description:descriptionText,
+    state:stageState(plans,works,businessState),summary:stageSummary(label,plans,works,businessState),plans });
 }
 function workBindsCandidate(work, scope) {
   return (work.events || []).some((event)=>{
@@ -386,15 +396,21 @@ function workMatchesScope(work, scope) {
   return workBindsCandidate(work,scope);
 }
 function buildFormationProcessDetail(input) {
+  const businessStates=input.businessStageStates;
+  if (!businessStates || !BUSINESS_STAGE_STATES.has(businessStates.materialPreparation) ||
+      !BUSINESS_STAGE_STATES.has(businessStates.mediaOrganization) ||
+      !BUSINESS_STAGE_STATES.has(businessStates.acceptanceShelving)) {
+    throw new TypeError('Formation process detail requires explicit business stage states.');
+  }
   const exact=(works,ownerDomain,scopes)=>works.filter((work)=>work.ownerDomain===ownerDomain && scopes.some((scope)=>
     workMatchesScope(work,scope)));
   const procurement=exact(input.works,'procurement',input.procurementScopes || []);
   const libra=exact(input.works,'libra',input.libraScopes || []);
   const arca=exact(input.works,'arca',input.arcaScopes || []);
   return Object.freeze({ contract:'formation_process_actual_plans@1', stages:Object.freeze([
-    stage('material_preparation','材料准备',`发现并准备《${input.displayIdentity}》的原始媒体材料`,procurement),
-    stage('media_organization','媒体整理',input.targetShelfName ? `按“${input.targetShelfName}”收藏架的要求制作媒体产品` : '确定收藏目标并制作媒体产品',libra),
-    stage('acceptance_shelving','验收与上架','由收藏架检查并接收最终媒体产品',arca),
+    stage('material_preparation','材料准备',`发现并准备《${input.displayIdentity}》的原始媒体材料`,procurement,businessStates.materialPreparation),
+    stage('media_organization','媒体整理',input.targetShelfName ? `按“${input.targetShelfName}”收藏架的要求制作媒体产品` : '确定收藏目标并制作媒体产品',libra,businessStates.mediaOrganization),
+    stage('acceptance_shelving','验收与上架','由收藏架检查并接收最终媒体产品',arca,businessStates.acceptanceShelving),
   ]) });
 }
 

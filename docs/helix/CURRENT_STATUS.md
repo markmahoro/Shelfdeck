@@ -16,6 +16,7 @@ Last updated: 2026-09-01
 - 首次生产 Nuclear apply 在事务提交前由 `foreign_key_check` 阻断并完整回滚：2 条受保护的已 Commit Run 仍以 `supersedes_run_id` 指向待删除旧 Run。Nuclear 现同步清空保留 Run 上指向被删除 Run 的 supersession pointer；回归覆盖保护 Run、Shelf Entry 与 Commit Receipt继续保留。
 - 修正后的生产 Nuclear Reset 已完成：删除 716 个未 Commit Subject、101 个 Libra Run 和 3,275 个过程 Work；保留 10 条已 Commit 责任链、全部 Procurement 事实与 `/media`。事务后 Accepted/no-token Subject、active/no-admission-head Run 和孤儿引用均为 0；随后新 Observation/Intake 只按正常链路自然形成新条目。
 - 两种 Reset 均报告并清零 Accepted/no-token Subject 与 active/no-admission-head Run；Normal 可建立一次 reset-only Admission Head 后正式 discard，Nuclear 删除整个未 Commit 图。Service 411 项为 393 pass、18 skip、0 fail；Admin Web 42/42 且 production build 通过。Architecture fixture、semantic、manifest、contract 均通过，总 gate 仍仅受 18 个既有 dynamic-template scanner findings 阻断。
+- PROD-049 已在本地修复 Formation 详情的阶段完成语义：Plan 全终态不再代替 Handoff A、Handoff B Accepted/Libra Run completed 与 On-deck Commit 三段正式业务边界；Result 采用封闭中文映射，未知内部枚举不再进入用户界面。实现不含影片、Subject ID 或旧条目兼容。Formation focused 44/44、P14 truth 8/8、Service full 411 pass / 18 skip / 0 fail、Admin Web 42/42 与 production build 通过；Architecture 非 dependency 门禁全过，dependency 仍为 main 既有 18 项；两侧 npm 官方 registry audit 均为 0 vulnerability。
 
 ## PROD-036 Production Monitoring
 

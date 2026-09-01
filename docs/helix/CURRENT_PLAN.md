@@ -42,6 +42,7 @@ Last updated: 2026-09-01
 - PROD-047 一次性生产纠正已完成：只对操作员显式列出的 3 条旧 Aftercare reclaim Work，在旧 Receipt、
   reclaimed 领域现实与无 Result/Marker 执行残留全部精确吻合时终止执行图；完整备份、离线事务、完整性检查
   与二次 dry-run 均通过。未改 Receipt、Aftercare/Inventory/Material 事实或媒体文件，也未形成 Runtime 兼容路径。
+- PROD-049 本地修复：Formation 三段详情必须以正式业务交付边界判定完成，不能用当前 Plan 全终态代替；用户结果只允许稳定中文映射，未知内部 Receipt/Result 枚举省略。新自然条目适用，不增加影片或旧数据特例。
 
 ## 下一步规则
 
@@ -49,6 +50,7 @@ Last updated: 2026-09-01
 - PROD-036 只改变 Observation cadence、可重建 Entry 明细保留、Observation I/O deadline 与既有 Effect 的通用启动恢复；永久 header、Result/Evidence、Commit Marker、执行图及 Run/Retry/Candidate/Handoff 事实不删除，也不写生产 Work ID 特例。12 小时实际签发间隔与 7 天 GC 稳态仍需跨时间窗口继续观测。
 - Formation active list 必须在有界范围内合成 current detail facts；延迟 durable Projection 不得造成列表、summary 和详情互相矛盾。Candidate Package + Structure Unit 双重绑定、同 Run 重试与 successor 聚合均已部署；后续继续以新条目验证，不为旧残留增加兼容路径。
 - 列表“当前进展”与详情过程卡片必须引用同一持久化Workflow Plan顺序、标题和执行状态；业务检查“未通过”是该检查的真实结果，不得提升为Runtime失败或“需要处理”。只有真实技术失败、无后继可推进责任或明确用户动作才进入attention表达。前端不得恢复`organizingSteps` Plan回退。
+- 过程卡片中的 Plan 终态只回答“已经执行的工作是否结束”；阶段完成必须分别读取 Handoff A Accepted、Handoff B Accepted/Libra Run completed 与 On-deck Commit 的 Owner 事实。任何未知机器枚举不得通过通用英文兜底进入用户表面。
 - On-deck 恢复沿用 immutable Final Inventory Decision 和同一 Run，自动恢复最多 3 代 Supporting Work；耗尽后必须停止自动执行并投影为 `attention_required`，用户重试仍复用同一 Run。不得重开 Libra、改判 Rejected 或创建第二个 On-deck Run。
 - Handoff B Accepted 前，Libra 才能「接受瑕疵」或「放弃整理」；Accepted 后 Arca 已接管，检查失败不能借这两个动作退回或结束。
 - NFO 允许 Emby 改写排版、`streamdetails` 和附加字段，但 Movie Identity、title/year/plot/genre/cast 必须与 accepted facts 一致；其他材料继续 exact package identity。

@@ -426,6 +426,32 @@ test('Formation position timestamp remains the Subject creation time when mutabl
   }finally{kernel.close();fs.rmSync(root,{recursive:true,force:true,maxRetries:5,retryDelay:50});}
 });
 
+test('Formation detail source uses business boundaries while Routing is still preparing',()=>{
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'helix-formation-stage-boundary-')),databasePath=path.join(root,'shelfdeck.db');
+  const kernel=openSqliteKernel({Database,databasePath,schemaDdl,schemaManifest,now:()=>100});
+  try{
+    kernel.runPrimitive(({prepare})=>prepare(`INSERT INTO libra_subjects(subject_id,structure_kind,content_profile,routing_anchor_intake_decision_id,status,intake_revision,current_identity_revision,created_at_ms,updated_at_ms) VALUES(?,?,?,?,?,?,?,?,?)`)
+      .run('subject-preparing','single','movie',null,'active',1,null,1000,1000));
+    const plan={planId:'plan-routing-complete',plannerRef:'planner',plannerVersion:1,state:'planned',createdAtMs:10,edges:[]};
+    const progressProjectionReader={read:(_ids,options)=>options?.includePlans?[{
+      workId:'work-routing-complete',ownerDomain:'libra',processType:'libra_routing',processId:'subject-preparing',
+      workKind:'routing_basis',state:'succeeded',createdAtMs:10,plans:[plan],events:[{
+        eventId:'event-routing-complete',planId:plan.planId,nodeId:'basis',capabilityRef:'libra.decision_basis.commit@1',
+        state:'succeeded',progress:null,result:{outcomeKind:'succeeded',result:{result:'resolved'}},
+        inputBindings:{bindings:[]},parameters:{},plan,
+      }],
+    }]:[]};
+    const source=createFormationProjectionSource({schemaManifest,unitOfWork:createSqliteUnitOfWork({kernel}),progressProjectionReader});
+    const item=source.get('subject-preparing'),organization=item.processDetail.stages.find((stage)=>stage.key==='media_organization');
+    assert.equal(item.routingState,'preparing');
+    assert.equal(item.acceptanceSpecId,null);
+    assert.equal(item.currentRun,null);
+    assert.equal(organization.state,'running');
+    assert.equal(organization.summary,'已有 1 个实际计划完成，等待本阶段继续推进');
+    assert.equal(item.currentPlan,null);
+  }finally{kernel.close();fs.rmSync(root,{recursive:true,force:true,maxRetries:5,retryDelay:50});}
+});
+
 test('Formation active queue shows only pipeline-admitted Subjects without a Run',()=>{
   const root=fs.mkdtempSync(path.join(os.tmpdir(),'helix-formation-admission-')),databasePath=path.join(root,'shelfdeck.db');
   const kernel=openSqliteKernel({Database,databasePath,schemaDdl,schemaManifest,now:()=>100});

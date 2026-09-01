@@ -30,6 +30,9 @@ function candidateEvent(planId,unitId,candidatePackageId,createdAtMs=1) {
     result:{outcomeKind:'succeeded',result:{candidatePackageId}},
   });
 }
+function businessStageStates(overrides={}) {
+  return {materialPreparation:'completed',mediaOrganization:'in_progress',acceptanceShelving:'not_started',...overrides};
+}
 
 test('Formation process projection preserves durable Plan boundaries and dependency order',()=>{
   const edges=[{fromNodeId:'first',toNodeId:'second',dependencyKind:'success'}];
@@ -53,6 +56,31 @@ test('Formation process projection omits absent zero-valued media size facts',()
     }),
   ])]);
   assert.deepEqual(plans[0].nodes[0].results,[{label:'检查结果',value:'通过'}]);
+});
+
+test('Formation process projection keeps internal receipt enums behind stable user language',()=>{
+  const receipts=[
+    ['procurement.candidate.publish@1','procurement_candidate_published','待整理材料包已发布'],
+    ['libra.intake.binding.resolve@1','libra_binding_draft_resolved','整理材料已确认'],
+    ['libra.intake.accept.commit@1','handoff_a_accepted','媒体整理已正式接收'],
+  ];
+  for (const [capabilityRef,receiptKind,copy] of receipts) {
+    const plans=projectPlans([work('libra','libra_intake','intake-user-copy',capabilityRef,[
+      event('plan-user-copy','commit',capabilityRef,'succeeded',1,[],{
+        result:{outcomeKind:'succeeded',result:{receiptKind}},
+      }),
+    ])]);
+    assert.deepEqual(plans[0].nodes[0].results,[{label:'运行结果',value:copy}]);
+    assert.equal(JSON.stringify(plans).includes(receiptKind),false);
+    assert.equal(JSON.stringify(plans).includes(receiptKind.replaceAll('_',' ')),false);
+  }
+  const unknown=projectPlans([work('libra','libra_intake','intake-opaque','evidence',[
+    event('plan-opaque','commit','libra.intake.accept.commit@1','succeeded',1,[],{
+      result:{outcomeKind:'succeeded',result:{receiptKind:'internal_future_receipt'}},
+    }),
+  ])]);
+  assert.deepEqual(unknown[0].nodes[0].results,[{label:'保存结果',value:'本步骤的实际运行结果已保存'}]);
+  assert.equal(JSON.stringify(unknown).includes('internal future receipt'),false);
 });
 
 test('Formation process projection distinguishes repeated Plan nodes without inventing media identity',()=>{
@@ -150,6 +178,7 @@ test('Formation process projection treats a completed compliance check as comple
   ];
   media.forEach((item,index)=>{item.workId=`media-work-${index+11}`;item.state=index===3?'running':'succeeded';});
   const detail=buildFormationProcessDetail({displayIdentity:'冰血暴 (1996)',works:[...earlier,...media],
+    businessStageStates:businessStageStates(),
     procurementScopes:[],libraScopes:[{processType:'libra_run',processId:'run-1'}],arcaScopes:[]});
   const plans=detail.stages[1].plans;
   assert.deepEqual(plans.slice(10).map((plan)=>plan.title),[
@@ -177,12 +206,32 @@ test('Formation process card receives only actual Plans from exact domain proces
     work('arca','arca_acceptance','offer-1','acceptance_assessment',[event('arca-plan','identity','arca.acceptance.identity.verify@1','pending',4)]),
   ];
   const detail=buildFormationProcessDetail({displayIdentity:'示例电影',targetShelfName:'电影',works,
+    businessStageStates:businessStageStates({acceptanceShelving:'in_progress'}),
     procurementScopes:[{processType:'procurement_run',processId:'proc-1',structureUnitId:'unit-1',candidatePackageId:'candidate-1'}],
     libraScopes:[{processType:'libra_routing',processId:'subject-1'}],
     arcaScopes:[{processType:'arca_acceptance',processId:'offer-1'}]});
   assert.equal(detail.contract,'formation_process_actual_plans@1');
   assert.deepEqual(detail.stages.map((stage)=>stage.plans.map((plan)=>plan.planId)),[['proc-plan'],['libra-plan'],['arca-plan']]);
   assert.ok(!JSON.stringify(detail).includes('wrong-plan'));
+});
+
+test('Formation business stage does not complete merely because every currently existing Plan is terminal',()=>{
+  const intake=work('libra','libra_intake','intake-preparing','acceptance',[
+    event('intake-plan','accept','libra.intake.accept.commit@1','succeeded',1,[],{
+      result:{outcomeKind:'succeeded',result:{receiptKind:'handoff_a_accepted'}},
+    }),
+  ]);
+  intake.state='succeeded';
+  const input={displayIdentity:'地狱为何恶劣 (2013)',works:[intake],
+    procurementScopes:[],libraScopes:[{processType:'libra_intake',processId:'intake-preparing'}],arcaScopes:[]};
+  const preparing=buildFormationProcessDetail({...input,businessStageStates:businessStageStates()});
+  const organization=preparing.stages.find((stage)=>stage.key==='media_organization');
+  assert.equal(organization.state,'running');
+  assert.equal(organization.summary,'已有 1 个实际计划完成，等待本阶段继续推进');
+  assert.equal(currentPlanSummary(preparing),null);
+
+  const accepted=buildFormationProcessDetail({...input,businessStageStates:businessStageStates({mediaOrganization:'completed'})});
+  assert.equal(accepted.stages.find((stage)=>stage.key==='media_organization').state,'completed');
 });
 
 test('Formation process stage follows the active successor instead of an earlier failed Work',()=>{
@@ -195,6 +244,7 @@ test('Formation process stage follows the active successor instead of an earlier
   ]);
   running.workId='work-on-deck-current'; running.state='running'; running.createdAtMs=20;
   const detail=buildFormationProcessDetail({displayIdentity:'罪人 (2025)',works:[failed,running],
+    businessStageStates:businessStageStates({mediaOrganization:'completed',acceptanceShelving:'in_progress'}),
     procurementScopes:[],libraScopes:[],arcaScopes:[{processType:'arca_ondeck_run',processId:'on-deck-1'}]});
   const shelving=detail.stages.find((stage)=>stage.key==='acceptance_shelving');
   assert.equal(shelving.state,'running');
@@ -214,6 +264,7 @@ test('Formation current Plan follows a completed successor while preserving an e
   ]);
   succeeded.workId='work-on-deck-succeeded'; succeeded.state='succeeded'; succeeded.createdAtMs=20;
   const detail=buildFormationProcessDetail({displayIdentity:'完成示例',works:[failed,succeeded],
+    businessStageStates:businessStageStates({mediaOrganization:'completed',acceptanceShelving:'completed'}),
     procurementScopes:[],libraScopes:[],arcaScopes:[{processType:'arca_ondeck_run',processId:'on-deck-completed'}]});
   const shelving=detail.stages.find((stage)=>stage.key==='acceptance_shelving');
   assert.equal(shelving.state,'completed');
@@ -230,6 +281,7 @@ test('Formation current Plan keeps an unresolved failed Work as attention when n
   ]);
   failed.workId='work-on-deck-attention'; failed.state='failed'; failed.createdAtMs=10;
   const detail=buildFormationProcessDetail({displayIdentity:'待处理示例',works:[failed],
+    businessStageStates:businessStageStates({mediaOrganization:'completed',acceptanceShelving:'attention'}),
     procurementScopes:[],libraScopes:[],arcaScopes:[{processType:'arca_ondeck_run',processId:'on-deck-attention'}]});
   const shelving=detail.stages.find((stage)=>stage.key==='acceptance_shelving');
   assert.equal(shelving.state,'attention');
@@ -261,6 +313,7 @@ test('Formation process card excludes hundreds of Field-wide Plans outside the a
     event('field-evidence-plan','probe','shared.material.media.probe@1','succeeded',0),
   ]));
   const detail=buildFormationProcessDetail({displayIdentity:'罪人 (2025)',works,
+    businessStageStates:businessStageStates(),
     procurementScopes:[{processType:'procurement_run',processId:runId,structureUnitId:unitId,candidatePackageId}],
     libraScopes:[],arcaScopes:[]});
   assert.deepEqual(detail.stages[0].plans.map((plan)=>plan.planId),['subject-plan']);
@@ -277,9 +330,11 @@ test('Formation Candidate scope keeps strict single-field matching on the publis
     candidateEvent('single-field-plan','unit-single','candidate-single',1),
   ]);
   const byPackage=buildFormationProcessDetail({displayIdentity:'示例',works:[workItem],
+    businessStageStates:businessStageStates(),
     procurementScopes:[{processType:'procurement_run',processId:'run-single',candidatePackageId:'candidate-single'}],
     libraScopes:[],arcaScopes:[]});
   const byUnit=buildFormationProcessDetail({displayIdentity:'示例',works:[workItem],
+    businessStageStates:businessStageStates(),
     procurementScopes:[{processType:'procurement_run',processId:'run-single',structureUnitId:'unit-single'}],
     libraScopes:[],arcaScopes:[]});
   assert.deepEqual(byPackage.stages[0].plans.map((plan)=>plan.planId),['single-field-plan']);

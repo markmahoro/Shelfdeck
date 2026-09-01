@@ -550,8 +550,14 @@ function createFormationProjectionSource(options) {
       const onDeckWorks = arcaStatus?.onDeckRunId ? onDeckByRun.get(arcaStatus.onDeckRunId) || [] : [];
       const primaryCount = snapshot?.primaryInputManifest?.members?.length ||
         bindings.filter((item) => item.authority_kind === 'primary_control').length;
+      const mediaOrganizationState = latestRun?.state === 'completed' ? 'completed'
+        : classification === 'attention_required' && !pkg ? 'attention' : 'in_progress';
+      const acceptanceShelvingState = arcaStatus?.stage === 'completed' ? 'completed'
+        : arcaStatus?.stage === 'attention_required' ? 'attention' : pkg ? 'in_progress' : 'not_started';
       const detail = includeActualPlans ? buildFormationProcessDetail({ displayIdentity,
         targetShelfName:shelfNames.get(routing?.shelf_id) || null, works:actualPlanWorks,
+        businessStageStates:Object.freeze({ materialPreparation:'completed',
+          mediaOrganization:mediaOrganizationState, acceptanceShelving:acceptanceShelvingState }),
         procurementScopes:snapshot?.candidatePackage?.procurementRunId ? [
           { processType:'procurement_run', processId:snapshot.candidatePackage.procurementRunId,
             candidatePackageId:snapshot.candidatePackage.candidatePackageId,
