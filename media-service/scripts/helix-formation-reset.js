@@ -162,6 +162,7 @@ function discoverReverseHandoffAClosures(database) {
   return database.prepare(`
     SELECT delivery.offer_id,delivery.candidate_package_id,delivery.state,
            delivery.handoff_decision_id,delivery.handoff_receipt_id,
+           delivery.offered_at_ms,
            CASE WHEN EXISTS (
              SELECT 1
                FROM proc_run_materials material
@@ -188,6 +189,55 @@ function discoverReverseHandoffAClosures(database) {
        )
      ORDER BY delivery.offer_id
   `).all().map((row) => Object.freeze({ ...row }));
+}
+
+function partitionReverseHandoffAClosures(database, closures, reservedCandidatePackageIds = []) {
+  const candidatePackageIds = unique(closures.map((row) => row.candidate_package_id).filter(Boolean));
+  const materialRows = rowsByIds(database,
+    'SELECT candidate_package_id,material_key FROM proc_run_materials WHERE candidate_package_id IN',
+    unique([...candidatePackageIds, ...reservedCandidatePackageIds]));
+  const materialsByCandidate = new Map();
+  for (const row of materialRows) {
+    const values = materialsByCandidate.get(row.candidate_package_id) || [];
+    values.push(row.material_key);
+    materialsByCandidate.set(row.candidate_package_id, values);
+  }
+  const activeCandidatesByMaterial = new Map();
+  for (const row of database.prepare(`SELECT candidate_package_id,material_key FROM proc_run_materials
+    WHERE selection_state IN ('run_selection','candidate_delivery')`).all()) {
+    const values = activeCandidatesByMaterial.get(row.material_key) || new Set();
+    values.add(row.candidate_package_id);
+    activeCandidatesByMaterial.set(row.material_key, values);
+  }
+  const selectedCandidateIds = new Set(reservedCandidatePackageIds);
+  const selectedMaterialOwners = new Map();
+  for (const candidatePackageId of reservedCandidatePackageIds) {
+    for (const materialKey of materialsByCandidate.get(candidatePackageId) || []) {
+      selectedMaterialOwners.set(materialKey, candidatePackageId);
+    }
+  }
+  const actionable = [], superseded = [];
+  const candidates = closures.filter((row) => row.committed_material_overlap === 0)
+    .sort((left, right) => Number(right.offered_at_ms || 0) - Number(left.offered_at_ms || 0)
+      || right.offer_id.localeCompare(left.offer_id));
+  for (const closure of candidates) {
+    if (selectedCandidateIds.has(closure.candidate_package_id)) continue;
+    const materialKeys = materialsByCandidate.get(closure.candidate_package_id) || [];
+    const conflicts = materialKeys.some((materialKey) => {
+      const activeCandidates = activeCandidatesByMaterial.get(materialKey) || new Set();
+      if ([...activeCandidates].some((candidatePackageId) => candidatePackageId !== closure.candidate_package_id)) return true;
+      const selectedOwner = selectedMaterialOwners.get(materialKey);
+      return Boolean(selectedOwner && selectedOwner !== closure.candidate_package_id);
+    });
+    if (conflicts) {
+      superseded.push(closure);
+      continue;
+    }
+    actionable.push(closure);
+    selectedCandidateIds.add(closure.candidate_package_id);
+    for (const materialKey of materialKeys) selectedMaterialOwners.set(materialKey, closure.candidate_package_id);
+  }
+  return Object.freeze({ actionable:Object.freeze(actionable), superseded:Object.freeze(superseded) });
 }
 
 function discoverScope(database) {
@@ -389,17 +439,26 @@ function discoverScope(database) {
     : [];
   intakeDecisionIds.push(...runOriginIntakeDecisionIds, ...pipelineSourceProcessIds);
   const finalIntakeDecisionIds = unique(intakeDecisionIds);
-  const reverseHandoffAClosures = discoverReverseHandoffAClosures(database);
-  const orphanProcurementHandoffAClosures = reverseHandoffAClosures
-    .filter((row) => row.committed_material_overlap === 0);
-  const preservedCommittedHandoffAClosures = reverseHandoffAClosures
-    .filter((row) => row.committed_material_overlap === 1);
-  const handoffAOfferIds = unique([
+  const scopedHandoffAOfferIds = unique([
     ...rowsByIds(database, 'SELECT offer_id FROM libra_intake_decisions WHERE intake_decision_id IN', finalIntakeDecisionIds)
       .map((row) => row.offer_id).filter(Boolean),
     ...rowsByIds(database, `SELECT offer_id FROM proc_candidate_deliveries WHERE handoff_decision_id IN`,
       pipelineSourceProcessIds, "AND state IN ('accepted','rejected')")
       .map((row) => row.offer_id).filter(Boolean),
+  ]);
+  const scopedHandoffACandidatePackageIds = scopedHandoffAOfferIds.length
+    ? rowsByIds(database, 'SELECT candidate_package_id FROM proc_candidate_deliveries WHERE offer_id IN', scopedHandoffAOfferIds)
+      .map((row) => row.candidate_package_id).filter(Boolean)
+    : [];
+  const reverseHandoffAClosures = discoverReverseHandoffAClosures(database);
+  const reversePartition = partitionReverseHandoffAClosures(database, reverseHandoffAClosures,
+    scopedHandoffACandidatePackageIds);
+  const orphanProcurementHandoffAClosures = reversePartition.actionable;
+  const preservedCommittedHandoffAClosures = reverseHandoffAClosures
+    .filter((row) => row.committed_material_overlap === 1);
+  const preservedSupersededHandoffAClosures = reversePartition.superseded;
+  const handoffAOfferIds = unique([
+    ...scopedHandoffAOfferIds,
     ...orphanProcurementHandoffAClosures.map((row) => row.offer_id),
   ]);
   const handoffACandidatePackageIds = handoffAOfferIds.length
@@ -531,6 +590,7 @@ function discoverScope(database) {
     handoffAMaterialKeys:Object.freeze(handoffAMaterialKeys),
     orphanProcurementHandoffAClosures:Object.freeze(orphanProcurementHandoffAClosures),
     preservedCommittedHandoffAClosures:Object.freeze(preservedCommittedHandoffAClosures),
+    preservedSupersededHandoffAClosures:Object.freeze(preservedSupersededHandoffAClosures),
     acceptanceAttemptIds:Object.freeze(acceptanceAttemptIds), acceptanceDecisionIds:Object.freeze(acceptanceDecisionIds),
     custodyIds:Object.freeze(custodyIds), onDeckRunIds:Object.freeze(onDeckRunIds), artifactIds:Object.freeze(artifactIds),
     decisionBasisIds:Object.freeze(unique(decisionBasisIds)), routingAssessmentIds:Object.freeze(unique(routingAssessmentIds)),
@@ -659,6 +719,7 @@ function inspectPlan(database) {
     procurementHandoffAClosures:scope.handoffAOfferIds.length,
     orphanProcurementHandoffAClosures:scope.orphanProcurementHandoffAClosures.length,
     preservedCommittedHandoffAClosures:scope.preservedCommittedHandoffAClosures.length,
+    preservedSupersededHandoffAClosures:scope.preservedSupersededHandoffAClosures.length,
     eventlessFactMarkerOrphans:scope.eventlessFactMarkerOrphans.length,
     orphanRoutingDecisionMarkers:scope.eventlessFactMarkerOrphans.filter((row) => row.scope_type === 'routing_decision').length,
     orphanAcceptanceSpecMarkers:scope.eventlessFactMarkerOrphans.filter((row) => row.scope_type === 'acceptance_spec').length,
@@ -1038,8 +1099,8 @@ function verifyFrozenManifest(database, manifest) {
     scope.handoffAOfferIds).filter((row) => row.state !== 'open' || row.handoff_decision_id !== null || row.handoff_receipt_id !== null);
   if (closedDeliveries.length) residual.handoffADeliveries = closedDeliveries;
   const globalResiduals = {
-    orphanProcurementHandoffAClosures:discoverReverseHandoffAClosures(database)
-      .filter((row) => row.committed_material_overlap === 0),
+    orphanProcurementHandoffAClosures:partitionReverseHandoffAClosures(database,
+      discoverReverseHandoffAClosures(database)).actionable,
     uncommittedRuns:database.prepare(`SELECT run.libra_run_id FROM libra_runs run WHERE NOT EXISTS (
       SELECT 1 FROM libra_product_packages package
       JOIN arca_ondeck_custodies custody ON custody.on_deck_package_id=package.on_deck_package_id

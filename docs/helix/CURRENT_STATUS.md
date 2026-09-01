@@ -42,6 +42,7 @@ Last updated: 2026-09-02
 - Formation Reset focused 与 NAS wrapper 共 22/22；Service full 436 项为 418 pass、18 skip、0 fail。新增五个核心负向夹具覆盖 run-owned Artifact、已 Commit Subject 的新未 Commit Intake/Run、数据库失败时 Workspace 保持、typed ID collision 与 verifier 捕获 discovery omission，并补充领域根已消失时对 orphan Work/Workspace/Artifact 的反向清理。未部署、未执行生产 dry-run/apply、未直改 SQLite 或媒体文件；生产旧工具继续暂停使用。
 - 2026-09-02 首轮 PROD-052 生产 Reset 后，自然 Intake 暴露反向闭包缺口：Procurement Delivery 已记录旧 Handoff A accepted，但对应 Libra Receipt 已被更早 Reset 删除；新 Intake 为同一 Decision 形成新 Receipt 后，Procurement 因旧 receipt/digest 终态证据拒绝更新并周期性报告 `P8_ACCEPTANCE_TERMINAL_CONFLICT`。这不是影片特例，也不是新 Intake 本身失败。
 - Formation Reset 现全局反向发现 Procurement-only accepted/rejected Delivery；仅在 Candidate 物料与任何 Arca Commit 链零重叠时重新打开 Delivery/Reservation、清理精确 dedup 闭包并回卷 Control。命中已 Commit 物料的闭环单独计数并保护。冻结 manifest 与独立 verifier 均包含该边界；NAS health 检查补充 `--retry-all-errors`，避免服务启动瞬间的 connection reset 被误报为 Reset 失败。新增两项正/负夹具后 focused 25/25；Service full 439 项为 421 pass、18 skip、0 fail。
+- 首次反向闭包生产 apply 在事务内被 `proc_run_materials.material_key` 唯一约束阻断并完整回滚；备份为 `/vol1/1000/docker/shelfdeck/backups/formation-reset-20260901T193429Z/data`，服务随后恢复健康。只读审计证明 712 个反向残留中有 1 个被当前 active Candidate Reservation 覆盖，另有 13 组双代闭环共享 Material。修正现按 `offered_at_ms + offer_id` 确定每个重叠 Material 集合的最新可重开代，保护被现行 Reservation 或更新闭环取代的旧代；不修改其历史终态、不制造并行 active Reservation。新增两项碰撞夹具后 Reset/NAS focused 27/27。
 
 ## PROD-036 Production Monitoring
 

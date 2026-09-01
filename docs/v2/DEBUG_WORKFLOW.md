@@ -110,7 +110,9 @@ Reset以`arca_ondeck_commit_receipts`为保护线，不删除已Commit的Shelf E
 
 Discovery必须同时从Formation领域根向下闭包，并反向查找“Procurement Delivery已经accepted/rejected、但不存在完全匹配的
 Libra Handoff A Receipt”的闭环残留。未与任何Arca Commit物料链重叠的残留Delivery/Reservation进入Reset并重新打开；存在
-已Commit物料重叠的闭环必须报告并保护。禁止仅因Libra领域根已被旧Reset删除就把Procurement闭环误判为正常。
+已Commit物料重叠的闭环必须报告并保护。同一Material存在多代闭环时，只重新打开最新且不与现有active Procurement
+Reservation重叠的一代；旧代作为被新Reservation取代的Procurement历史保留，禁止同时恢复为多个active Reservation。
+禁止仅因Libra领域根已被旧Reset删除就把Procurement闭环误判为正常。
 
 本地或disposable fixture先执行plan：
 

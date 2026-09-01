@@ -495,6 +495,63 @@ test('Formation Reset preserves a closed Handoff A boundary whose material belon
   } finally { close(value); }
 });
 
+test('Formation Reset reopens only the newest non-overlapping Handoff A generation per Material', () => {
+  const value = fixture('helix-formation-reset-overlapping-handoff-a');
+  try {
+    const older = seedClosedHandoffABoundary(value.database, 'overlap-older');
+    const newer = seedClosedHandoffABoundary(value.database, 'overlap-newer');
+    value.database.prepare('DELETE FROM libra_predeck_pipeline_tokens WHERE subject_id IN (?,?)')
+      .run(older.subjectId,newer.subjectId);
+    value.database.prepare('UPDATE proc_candidate_deliveries SET offered_at_ms=2,closed_at_ms=3 WHERE offer_id=?')
+      .run(newer.offerId);
+    value.database.prepare('UPDATE proc_run_materials SET material_key=? WHERE candidate_package_id=?')
+      .run(older.materialKey,newer.candidatePackageId);
+
+    const plan = inspectPlan(value.database);
+    assert.equal(plan.ready, true);
+    assert.equal(plan.counts.orphanProcurementHandoffAClosures, 1);
+    assert.equal(plan.counts.preservedSupersededHandoffAClosures, 1);
+    assert.deepEqual(plan.scope.handoffAOfferIds, [newer.offerId]);
+
+    const result = applyReset({ database:value.database, dataDir:value.dataDir,
+      transcodeDir:value.transcodeDir, nowMs:3640 });
+    assert.equal(result.verification.integrity, 'ok');
+    assert.equal(value.database.prepare('SELECT state FROM proc_candidate_deliveries WHERE offer_id=?')
+      .get(newer.offerId).state, 'open');
+    assert.equal(value.database.prepare('SELECT state FROM proc_candidate_deliveries WHERE offer_id=?')
+      .get(older.offerId).state, 'accepted');
+    assert.equal(inspectPlan(value.database).counts.orphanProcurementHandoffAClosures, 0);
+  } finally { close(value); }
+});
+
+test('Formation Reset preserves a historical closure shadowed by a current active Procurement reservation', () => {
+  const value = fixture('helix-formation-reset-shadowed-handoff-a');
+  try {
+    const historical = seedClosedHandoffABoundary(value.database, 'shadowed-old');
+    const current = seedClosedHandoffABoundary(value.database, 'shadowed-current');
+    value.database.prepare('DELETE FROM libra_predeck_pipeline_tokens WHERE subject_id IN (?,?)')
+      .run(historical.subjectId,current.subjectId);
+    value.database.prepare(`UPDATE proc_candidate_deliveries
+      SET state='open',handoff_decision_id=NULL,handoff_receipt_id=NULL,handoff_receipt_digest=NULL,
+          terminal_evidence_digest=NULL,closed_at_ms=NULL WHERE offer_id=?`).run(current.offerId);
+    value.database.prepare(`UPDATE proc_run_materials
+      SET material_key=?,selection_state='candidate_delivery',terminal_disposition=NULL,terminal_evidence_digest=NULL
+      WHERE candidate_package_id=?`).run(historical.materialKey,current.candidatePackageId);
+
+    const plan = inspectPlan(value.database);
+    assert.equal(plan.ready, true);
+    assert.equal(plan.counts.orphanProcurementHandoffAClosures, 0);
+    assert.equal(plan.counts.preservedSupersededHandoffAClosures, 1);
+    assert.equal(plan.scope.handoffAOfferIds.includes(historical.offerId), false);
+
+    const result = applyReset({ database:value.database, dataDir:value.dataDir,
+      transcodeDir:value.transcodeDir, nowMs:3650 });
+    assert.equal(result.verification.integrity, 'ok');
+    assert.equal(value.database.prepare('SELECT state FROM proc_candidate_deliveries WHERE offer_id=?')
+      .get(historical.offerId).state, 'accepted');
+  } finally { close(value); }
+});
+
 test('Formation Reset deletes an orphan Run even when its admission head is missing', () => {
   const value = fixture('helix-formation-reset-orphan-run-head');
   try {
