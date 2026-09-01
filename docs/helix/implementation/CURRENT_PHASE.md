@@ -81,7 +81,7 @@
   要求 orphan token 为 0。聚焦 10/10，Service full 424 项为 406 pass、18 skip、0 fail。
 - Product Owner 已授权在该修复部署、生产 dry-run 精确吻合且所有门禁通过后执行 Nuclear Reset，并已知范围
   同时包括《人生密密缝》的未 Commit 链。另 2 条仅 inode drift 的 active Aftercare reclaim Work 不在授权内。
-- 首次 apply 的事务与 postcondition 均通过，但正常 Intake 随即形成 3 条新 orphan token。只读联表证明每条
-  token 都命中一张 `helix.foundation.work.submit@1` Receipt，Receipt target Work 已被历史 Nuclear Reset 删除。
-  新修复让 Nuclear execution graph 删除 Work-target Receipt，并让两种模式精确删除无 Work 的 phantom Receipt；
-  聚焦 11/11，Service full 425 项为 407 pass、18 skip、0 fail。不得用重复 Reset 掩盖该复现。
+- 第二次 apply 的事务与 postcondition 均通过，但正常 Intake 又命中 3 张提交于约 43 小时前的潜伏 Receipt。
+  全库只读审计确认 Libra 有 3,274 张 target Work 已不存在的 phantom WorkAdmission Receipt；它们不是新 Admission
+  原子性失败，而是早先 Nuclear 删除图时遗留的未绑定历史池。Reset 现全局清理 Libra 潜伏池，并在未来删除图时
+  同步删除 Work-target Receipt；聚焦 12/12，Service full 426 项为 408 pass、18 skip、0 fail。

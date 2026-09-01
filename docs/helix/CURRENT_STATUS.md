@@ -66,9 +66,10 @@ PROD-034 已按 Product Owner 授权对“唐人街探案 (2015)”和“赤壁�
 - 首次获授权 Nuclear apply 清除了 3 条旧 orphan token 与《人生密密缝》未 Commit 链，但自然 Intake 立即又形成
   3 条新 orphan token。生产联表证明每条都有 1 张 WorkAdmission Command Receipt，Receipt 的 `target_id` 指向
   已被早先 Nuclear Reset 删除、当前不存在的 Intake Evidence Work；Admission 因而回放“已 admit”却没有 Work。
-- Reset 现同时删除 Nuclear execution graph 对应的 Work-target Command Receipt，并对无 Work 的 orphan token
-  精确识别、删除 phantom Admission Receipt。Normal 只删除这种不自洽 phantom Receipt，Nuclear 同时删除完整图。
-  最新聚焦 11/11，Service full 425 项为 407 pass、18 skip、0 fail。
+- Reset 现同时删除 Nuclear execution graph 对应的 Work-target Command Receipt，并全局识别 Libra 中 target Work
+  已不存在的 phantom WorkAdmission Receipt；两种模式都会先删除这种不自洽 Receipt，Nuclear 再删除完整图。
+  这覆盖尚未取得 token 的潜伏 Receipt，避免调度游标继续逐批撞上历史回放。最新聚焦 12/12，Service full
+  426 项为 408 pass、18 skip、0 fail。
 
 ## PROD-042 Local Fix
 
@@ -109,10 +110,11 @@ PROD-034 已按 Product Owner 授权对“唐人街探案 (2015)”和“赤壁�
   `CLEAN_ARCA_FINAL_NFO_SEMANTIC_DRIFT`，没有为该影片增加兼容恢复；《千寻小姐 (2023)》与《罪人》均已完成。
 - Formation 详情卡片已生产验收：列表与详情使用同源 current Plan，完成 successor 不再被历史失败 Plan 覆盖，
   NFO 失败文案明确表达“正式位置中的 NFO 内容与本次已接受的媒体信息不一致”。
-- Field 页面显示 generated 952、Libra accepted 727、waiting 225、席位 3/3；但数据库没有 active Libra Run/Work。
-  首次授权 Reset 已删除原 3 条 token 与《人生密密缝》链；现有 3 条新 token 是 phantom WorkAdmission Receipt
-  在正常 Intake 中复现的同一根因。Receipt 修复已完成本地门禁，Product Owner 的本轮授权继续覆盖修复镜像部署、
-  精确 dry-run 与再次 Nuclear Reset；未把授权扩大到其他生产事实。
+- Field 页面显示 generated 952、Libra accepted 727、waiting 225。第二次获授权 Reset 已删除当时 3 条 token 与
+  3 张直接关联的 phantom Receipt，但自然 Intake 又选中 3 张更早的潜伏 Receipt。提交时间证明这些 Receipt 比
+  新 token 早约 43 小时，并非新 Admission 原子性失败；全库只读审计发现 3,274 张 Libra phantom Receipt
+  （Intake 1,433、Acceptance 726、其他 Libra 1,115）。本地修复现清理完整 Libra 潜伏池；19 张 Arca phantom
+  Receipt、2 条 active Aftercare reclaim Work 仍明确不在本次范围。
 - PROD-047 之外另有 2 条正常 active Aftercare reclaim Work。它们的文件 size 与 content fingerprint 与记录完全
   一致，仅 inode 已变化，持续形成 `ARCA_AFTERCARE_WORKSPACE_MEMBER_CHANGED`；它们不属于已 reclaimed 的
   legacy Receipt residual，未纳入本次授权纠正。

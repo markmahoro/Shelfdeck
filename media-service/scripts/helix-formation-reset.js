@@ -114,6 +114,16 @@ function discoverScope(database) {
   `).all();
   const orphanPipelineAdmissionReceiptIds = unique(orphanPipelineAdmissionReceipts.map((row) => row.command_receipt_id));
   const orphanPipelineAdmissionTargetIds = unique(orphanPipelineAdmissionReceipts.map((row) => row.target_id));
+  const phantomLibraAdmissionReceipts = database.prepare(`
+    SELECT receipt.command_receipt_id,receipt.caller_scope,receipt.target_id,receipt.committed_at_ms
+      FROM fx_command_receipts receipt
+      LEFT JOIN fx_supporting_works target_work ON target_work.work_id=receipt.target_id
+     WHERE receipt.owner_domain='libra'
+       AND receipt.command_contract='helix.foundation.work.submit@1'
+       AND target_work.work_id IS NULL
+     ORDER BY receipt.command_receipt_id
+  `).all();
+  const phantomLibraAdmissionReceiptIds = unique(phantomLibraAdmissionReceipts.map((row) => row.command_receipt_id));
   const committedOnDeckRunIds = oneColumn(database, `
     SELECT DISTINCT on_deck_run_id FROM arca_ondeck_commit_receipts ORDER BY on_deck_run_id
   `);
@@ -264,6 +274,8 @@ function discoverScope(database) {
     orphanPipelineAdmissionReceipts:Object.freeze(orphanPipelineAdmissionReceipts.map((row) => Object.freeze({ ...row }))),
     orphanPipelineAdmissionReceiptIds:Object.freeze(orphanPipelineAdmissionReceiptIds),
     orphanPipelineAdmissionTargetIds:Object.freeze(orphanPipelineAdmissionTargetIds),
+    phantomLibraAdmissionReceipts:Object.freeze(phantomLibraAdmissionReceipts.map((row) => Object.freeze({ ...row }))),
+    phantomLibraAdmissionReceiptIds:Object.freeze(phantomLibraAdmissionReceiptIds),
     runIds:Object.freeze(runIds), workspaceIds:Object.freeze(workspaceIds), cleanupScopeIds:Object.freeze(cleanupScopeIds),
     packageIds:Object.freeze(packageIds), offerIds:Object.freeze(offerIds), intakeDecisionIds:Object.freeze(intakeDecisionIds),
     acceptanceAttemptIds:Object.freeze(acceptanceAttemptIds), acceptanceDecisionIds:Object.freeze(acceptanceDecisionIds),
@@ -374,6 +386,7 @@ function inspectPlan(database, mode) {
     orphanActiveRuns:orphans.activeRunsWithoutHead.length,
     orphanPipelineTokens:orphans.pipelineTokens.length,
     orphanPipelineAdmissionReceipts:scope.orphanPipelineAdmissionReceiptIds.length,
+    phantomLibraAdmissionReceipts:scope.phantomLibraAdmissionReceiptIds.length,
     preservedProcurementControls:preservedProcurementControls.length,
   });
   return Object.freeze({ mode, confirmationRequired:CONFIRMATIONS[mode], ready:blockers.length === 0,
@@ -606,7 +619,7 @@ function applyNormal(database, plan, nowMs) {
     const reclaimedWorkspaces = reclaimWorkspacesNormal(database, scope, nowMs, evidence.digest);
     const releasedControls = releaseControlsNormal(database, scope, nowMs, evidence.digest);
     executeByIds(database, "DELETE FROM libra_predeck_pipeline_tokens WHERE subject_id IN", scope.pipelineTokenSubjectIds);
-    executeByIds(database, 'DELETE FROM fx_command_receipts WHERE command_receipt_id IN', scope.orphanPipelineAdmissionReceiptIds);
+    executeByIds(database, 'DELETE FROM fx_command_receipts WHERE command_receipt_id IN', scope.phantomLibraAdmissionReceiptIds);
     executeByIds(database, "DELETE FROM libra_formation_projections WHERE subject_id IN", scope.resetSubjectIds);
     executeByIds(database, "UPDATE libra_subjects SET status='abandoned',updated_at_ms=?,terminal_at_ms=COALESCE(terminal_at_ms,?) WHERE subject_id IN",
       scope.disposableSubjectIds, "AND status='active'", [nowMs,nowMs]);
@@ -808,6 +821,7 @@ function applyNuclear(database, plan, nowMs) {
   const transaction = database.transaction(() => {
     deleteNuclearBusinessGraph(database, scope, nowMs);
     const deletedWorks = deleteExecutionGraph(database, graph, scope.allScopeIds);
+    executeByIds(database, 'DELETE FROM fx_command_receipts WHERE command_receipt_id IN', scope.phantomLibraAdmissionReceiptIds);
     executeByIds(database, 'DELETE FROM fx_artifact_references WHERE artifact_handle_id IN', scope.artifactIds);
     executeByIds(database, 'DELETE FROM fx_artifact_registry WHERE artifact_handle_id IN', scope.artifactIds);
     const controlRollback = rollbackControlsNuclear(database, scope);
@@ -829,7 +843,8 @@ function verifyPostconditions(database, mode) {
       controlledMaterials:plan.counts.controlledMaterials,
       orphanAcceptedSubjects:plan.counts.orphanAcceptedSubjects,
       orphanActiveRuns:plan.counts.orphanActiveRuns,
-      orphanPipelineTokens:plan.counts.orphanPipelineTokens };
+      orphanPipelineTokens:plan.counts.orphanPipelineTokens,
+      phantomLibraAdmissionReceipts:plan.counts.phantomLibraAdmissionReceipts };
     if (Object.values(residual).some((value) => value !== 0)) {
       throw Object.assign(new Error('FORMATION_RESET_NORMAL_RESIDUAL'), { details:residual });
     }
@@ -838,7 +853,8 @@ function verifyPostconditions(database, mode) {
       packages:plan.counts.packages, onDeckRuns:plan.counts.onDeckRuns, works:plan.counts.works,
       orphanAcceptedSubjects:plan.counts.orphanAcceptedSubjects,
       orphanActiveRuns:plan.counts.orphanActiveRuns,
-      orphanPipelineTokens:plan.counts.orphanPipelineTokens };
+      orphanPipelineTokens:plan.counts.orphanPipelineTokens,
+      phantomLibraAdmissionReceipts:plan.counts.phantomLibraAdmissionReceipts };
     if (Object.values(residual).some((value) => value !== 0)) {
       throw Object.assign(new Error('FORMATION_RESET_NUCLEAR_RESIDUAL'), { details:residual });
     }

@@ -139,6 +139,7 @@ try {
       "subject.status AS subjectStatus,COUNT(DISTINCT work.work_id) AS sourceWorkCount," +
       "COUNT(DISTINCT receipt.command_receipt_id) AS admissionReceiptCount," +
       "GROUP_CONCAT(DISTINCT receipt.target_id) AS admissionReceiptTargets," +
+      "MIN(receipt.committed_at_ms) AS admissionReceiptCommittedAtMs," +
       "COUNT(DISTINCT receipt_work.work_id) AS admissionReceiptTargetWorkCount " +
     "FROM libra_predeck_pipeline_tokens token " +
       "LEFT JOIN libra_subjects subject ON subject.subject_id=token.subject_id " +
@@ -148,6 +149,25 @@ try {
         "AND receipt.caller_scope='libra:' || token.source_process_id || '/evidence' " +
       "LEFT JOIN fx_supporting_works receipt_work ON receipt_work.work_id=receipt.target_id " +
     "GROUP BY token.subject_id,token.source_process_id,token.acquired_at_ms,subject.status ORDER BY token.acquired_at_ms"
+  );
+  const phantomAdmissionReceipts = all(
+    "SELECT receipt.owner_domain AS ownerDomain,COUNT(*) AS count," +
+      "MIN(receipt.committed_at_ms) AS oldestCommittedAtMs,MAX(receipt.committed_at_ms) AS newestCommittedAtMs " +
+    "FROM fx_command_receipts receipt LEFT JOIN fx_supporting_works work ON work.work_id=receipt.target_id " +
+    "WHERE receipt.command_contract='helix.foundation.work.submit@1' AND work.work_id IS NULL " +
+    "GROUP BY receipt.owner_domain ORDER BY receipt.owner_domain"
+  );
+  const phantomAdmissionReceiptKinds = all(
+    "SELECT receipt.owner_domain AS ownerDomain," +
+      "CASE WHEN receipt.target_id LIKE 'libra-intake-%' THEN 'libra_intake' " +
+      "WHEN receipt.target_id LIKE 'libra-routing-%' THEN 'libra_routing' " +
+      "WHEN receipt.target_id LIKE 'libra-acceptance-%' THEN 'libra_acceptance' " +
+      "WHEN receipt.target_id LIKE 'libra-%' THEN 'libra_other' " +
+      "WHEN receipt.target_id LIKE 'arca-%' THEN 'arca' ELSE 'other' END AS targetKind," +
+      "COUNT(*) AS count,MIN(receipt.committed_at_ms) AS oldestCommittedAtMs,MAX(receipt.committed_at_ms) AS newestCommittedAtMs " +
+    "FROM fx_command_receipts receipt LEFT JOIN fx_supporting_works work ON work.work_id=receipt.target_id " +
+    "WHERE receipt.command_contract='helix.foundation.work.submit@1' AND work.work_id IS NULL " +
+    "GROUP BY receipt.owner_domain,targetKind ORDER BY receipt.owner_domain,targetKind"
   );
   const intakeReconcileCursor = get(
     "SELECT revision,opaque_cursor AS opaqueCursor,updated_at_ms AS updatedAtMs FROM fx_reconcile_cursors " +
@@ -198,7 +218,8 @@ try {
     inventoryCandidates.push({ onDeckRunId:run.onDeckRunId, packageId:run.packageId, candidates });
   }
   console.log(JSON.stringify({ generatedAt:new Date().toISOString(), residuals, unsafeResiduals, residualChildren,
-    activeAttempts, activeLibraWorks, admissionCapacity, pipelineTokens, intakeReconcileCursor,
+    activeAttempts, activeLibraWorks, admissionCapacity, pipelineTokens, phantomAdmissionReceipts,
+    phantomAdmissionReceiptKinds, intakeReconcileCursor,
     arcaExecuting, offloading, materialReads, inventoryCandidates }, null, 2));
 } finally {
   database.close();

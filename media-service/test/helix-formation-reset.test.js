@@ -170,6 +170,18 @@ function seedPhantomAdmissionReceipt(database, suffix) {
   return { subjectId, processId, targetWorkId, receiptId };
 }
 
+function seedLatentPhantomAdmissionReceipt(database, suffix) {
+  const processId = `intake-process-latent-receipt-${suffix}`;
+  const targetWorkId = `missing-latent-intake-work-${suffix}`;
+  const receiptId = `latent-admission-receipt-${suffix}`;
+  database.prepare(`INSERT INTO fx_command_receipts
+    (command_receipt_id,owner_domain,command_contract,caller_scope,idempotency_key,request_digest,
+     target_type,target_id,result_schema_ref,result_ref_json,result_digest,committed_at_ms)
+    VALUES (?,'libra','helix.foundation.work.submit@1',?,?,?,'supporting_work',?,'result','{}',?,1)`)
+    .run(receiptId,`libra:${processId}/evidence`,`latent-key-${suffix}`,DIGEST,targetWorkId,DIGEST);
+  return { processId, targetWorkId, receiptId };
+}
+
 test('Formation Reset is an exact no-op on an empty database and preserves unrelated transcode entries', () => {
   const value = fixture('helix-formation-reset-empty');
   try {
@@ -316,6 +328,31 @@ test('both Reset modes remove phantom Work Admission receipts that would replay 
         .get(seeded.receiptId).count, 0);
       assert.equal(value.database.prepare('SELECT COUNT(*) count FROM libra_predeck_pipeline_tokens WHERE subject_id=?')
         .get(seeded.subjectId).count, 0);
+    } finally { close(value); }
+  }
+});
+
+test('both Reset modes remove the complete latent Libra phantom receipt pool before another Offer acquires a seat', () => {
+  for (const mode of ['normal','nuclear']) {
+    const value = fixture(`helix-formation-reset-latent-admission-${mode}`);
+    try {
+      const seeded = seedLatentPhantomAdmissionReceipt(value.database, mode);
+      const plan = inspectPlan(value.database, mode);
+      assert.equal(plan.ready, true);
+      assert.equal(plan.counts.orphanPipelineTokens, 0);
+      assert.equal(plan.counts.orphanPipelineAdmissionReceipts, 0);
+      assert.equal(plan.counts.phantomLibraAdmissionReceipts, 1);
+      assert.deepEqual(plan.scope.phantomLibraAdmissionReceiptIds, [seeded.receiptId]);
+
+      const result = applyReset({ database:value.database, mode, dataDir:value.dataDir,
+        transcodeDir:value.transcodeDir, nowMs:3580 });
+      assert.equal(result.verification.plan.counts.phantomLibraAdmissionReceipts, 0);
+      assert.equal(value.database.prepare('SELECT COUNT(*) count FROM fx_command_receipts WHERE command_receipt_id=?')
+        .get(seeded.receiptId).count, 0);
+
+      applyReset({ database:value.database, mode, dataDir:value.dataDir,
+        transcodeDir:value.transcodeDir, nowMs:3590 });
+      assert.equal(inspectPlan(value.database, mode).counts.phantomLibraAdmissionReceipts, 0);
     } finally { close(value); }
   }
 });
