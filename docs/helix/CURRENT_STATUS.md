@@ -81,6 +81,9 @@ PROD-034 已按 Product Owner 授权对“唐人街探案 (2015)”和“赤壁�
 - Product Owner 已授权只终止这 3 条旧 Work/Event/Attempt/Effect。默认 dry-run 的 PROD-047 工具以
   终态 Case、完整 reclaimed scope、旧/新 Receipt 精确 digest、零 Result/Marker/活动引用和单链结构共同
   证明范围；apply 还要求外部逐条传入 exact Work ID，集合漂移或任一不变量不符即整批拒绝。
+- 首次生产 plan 额外观察到 1 条 Workspace 仍 active 且有活动引用的正常 reclaim Work；exact Work 集合门禁
+  在事务前阻断，自动重启原服务，数据库未纠正。工具现明确只把领域 Registry 已 reclaimed 的执行残留纳入
+  PROD-047 候选，正常 active Workspace 只列为 excluded 诊断。
 - 纠正不改 Receipt、Aftercare Case、Inventory、Workspace/Material reclaimed 事实或任何媒体文件，也不向
   Runtime 增加 migration、fallback 或旧条目兼容。当前为本地实现与测试通过，尚未对生产 apply。
 

@@ -234,9 +234,14 @@ function inspectPlan(database) {
        AND state IN (${placeholders(ACTIVE_WORK_STATES)})
      ORDER BY work_id
   `).all(...ACTIVE_WORK_STATES);
-  const candidates = works.map((work) => inspectCandidate(database, work));
+  const observed = works.map((work) => inspectCandidate(database, work));
+  const candidates = observed.filter((item) => item.workspaceState === 'reclaimed');
+  const excludedActiveWorks = observed.filter((item) => item.workspaceState !== 'reclaimed')
+    .map((item) => Object.freeze({ workId:item.workId, workspaceState:item.workspaceState,
+      unsafeReasons:item.unsafeReasons }));
   return Object.freeze({
     candidates:Object.freeze(candidates),
+    excludedActiveWorks:Object.freeze(excludedActiveWorks),
     repairableCount:candidates.filter((item) => item.unsafeReasons.length === 0).length,
     unsafeCount:candidates.filter((item) => item.unsafeReasons.length > 0).length,
   });

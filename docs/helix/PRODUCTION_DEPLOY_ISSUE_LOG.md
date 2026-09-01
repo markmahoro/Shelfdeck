@@ -558,6 +558,7 @@ Foundation 又没有该旧领域提交的 Result/Commit Marker，所以当前 Ru
 事实或媒体文件。实现为默认 dry-run 的 `helix-prod047-aftercare-reclaim-residual-correction.js`：它以旧/新
 Receipt 的精确 digest 差异、终态 Case、完整 reclaimed scope、零 Result、零 Commit Marker、零活动引用和
 单一 reclaim 执行图共同证明候选；apply 还要求操作员逐条传入 exact Work ID，集合不完全相等即整批拒绝。
+仍为 active、领域回收尚未发生的正常 Aftercare Workspace Work 只列为 excluded 诊断，不进入事故候选。
 NAS 包装固定执行标准部署 dry-run、停服、完整 data backup、离线事务、`integrity_check` 和标准 deploy；任何
 CAS 或不变量失败都会阻断并重启未改变的服务。
 

@@ -169,3 +169,19 @@ test('PROD-047 requires the operator-provided Work set to match exactly', () => 
       { state:'running' });
   } finally { dispose(value); }
 });
+
+test('PROD-047 excludes a normal active Workspace reclaim from the incident scope', () => {
+  const value = fixture();
+  try {
+    value.database.prepare(`UPDATE fx_workspace_registry
+      SET state = 'active', reclaimed_at_ms = NULL`).run();
+    value.database.prepare(`UPDATE fx_workspace_materials
+      SET state = 'active', reclaimed_effect_id = NULL,
+          reclaimed_effect_receipt_digest = NULL, reclaimed_at_ms = NULL`).run();
+    const plan = inspectPlan(value.database);
+    assert.equal(plan.candidates.length, 0);
+    assert.equal(plan.excludedActiveWorks.length, 1);
+    assert.equal(plan.excludedActiveWorks[0].workId, value.workId);
+    assert.equal(plan.excludedActiveWorks[0].workspaceState, 'active');
+  } finally { dispose(value); }
+});
