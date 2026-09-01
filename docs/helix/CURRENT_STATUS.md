@@ -1,6 +1,6 @@
 # ShelfDeck Clean Helix Current Status
 
-Status: **Formation Reset 反向 Handoff A 闭包修复已完成全量本地回归，等待本轮生产部署与 Reset 验收。**
+Status: **Formation Reset 反向 Handoff A 闭包修复已部署并完成生产 Reset；新 Formation/Arca 链正常推进，3 条既有 committed Aftercare timeout residual 仍待独立处理。**
 
 Last updated: 2026-09-02
 
@@ -43,6 +43,10 @@ Last updated: 2026-09-02
 - 2026-09-02 首轮 PROD-052 生产 Reset 后，自然 Intake 暴露反向闭包缺口：Procurement Delivery 已记录旧 Handoff A accepted，但对应 Libra Receipt 已被更早 Reset 删除；新 Intake 为同一 Decision 形成新 Receipt 后，Procurement 因旧 receipt/digest 终态证据拒绝更新并周期性报告 `P8_ACCEPTANCE_TERMINAL_CONFLICT`。这不是影片特例，也不是新 Intake 本身失败。
 - Formation Reset 现全局反向发现 Procurement-only accepted/rejected Delivery；仅在 Candidate 物料与任何 Arca Commit 链零重叠时重新打开 Delivery/Reservation、清理精确 dedup 闭包并回卷 Control。命中已 Commit 物料的闭环单独计数并保护。冻结 manifest 与独立 verifier 均包含该边界；NAS health 检查补充 `--retry-all-errors`，避免服务启动瞬间的 connection reset 被误报为 Reset 失败。新增两项正/负夹具后 focused 25/25；Service full 439 项为 421 pass、18 skip、0 fail。
 - 首次反向闭包生产 apply 在事务内被 `proc_run_materials.material_key` 唯一约束阻断并完整回滚；备份为 `/vol1/1000/docker/shelfdeck/backups/formation-reset-20260901T193429Z/data`，服务随后恢复健康。只读审计证明 712 个反向残留中有 1 个被当前 active Candidate Reservation 覆盖，另有 13 组双代闭环共享 Material。修正现按 `offered_at_ms + offer_id` 确定每个重叠 Material 集合的最新可重开代，保护被现行 Reservation 或更新闭环取代的旧代；不修改其历史终态、不制造并行 active Reservation。新增两项碰撞夹具后 Reset/NAS focused 27/27。
+- 最终生产镜像为 `markmahoro/shelfdeck:helix-beta-20260902-d293c58753`，源提交 `d293c58753babfda1563b5a8534dfaea40fbedce`，镜像 tar SHA-256 `9588d3cc87906c3cb748ba1dca648689f21af7b5ea1d761a9fbf1c48e80e43b1`。readiness 为 186 tables、123 routes、17 UI surfaces、0 findings；Admin Web、媒体/转码/QSV mount、运行镜像与 health 均通过，容器 restart count 为 0。
+- 最终获授权 Formation Reset 备份为 `/vol1/1000/docker/shelfdeck/backups/formation-reset-20260901T194339Z/data`。Reset 删除 3 Subject、3 Run、3 Workspace、43 Work、6 Artifact，重新打开 711 Delivery 与 997 Reservation，恢复 15 个 Procurement Control；独立 verifier、`integrity_check`、外键检查和离线二次 plan 均通过，actionable reverse Handoff A closure 为 0，4 个被更新 Reservation 取代的历史闭环保持受保护。
+- 服务自然 Intake 后维持 3 个 active Formation，0 `attention_required`；《电锯惊魂 (2004)》已完成新 Libra→Arca On-deck Commit，使 completed 从 6 增至 7；《守望者 (2009)》GPU 转码从 0 推进到 0.4%，《因果报应 (2024)》等待转码资源，《007：大破天幕杀机 (2012)》等待外部服务。Reset 后日志中 `P8_ACCEPTANCE_TERMINAL_CONFLICT` 为 0。
+- 生产仍有 3 条 Reset 前已 Commit Arca Aftercare Work 使用过期 deadline，每约 30 秒报告 `P4_EXECUTION_TIMEOUT`；它们不属于 On-deck Commit 前 Formation Reset 边界，且未阻断本轮新 Arca Commit，但当前全局运行不能表述为“完全无异常”。
 
 ## PROD-036 Production Monitoring
 
