@@ -316,7 +316,7 @@ function createStartupRecovery(options) {
         : {};
       readiness = Object.freeze({
         state,
-        normalSupplyAllowed: state === 'ready',
+        normalSupplyAllowed: state === 'ready' || state === 'degraded',
         findings: Object.freeze(findings),
         actions: Object.freeze(actions),
         ...repairProjection,

@@ -108,6 +108,24 @@ test('Execution Runtime Host repairs classified cancelled-Work Attempt residuals
   assert.deepEqual(calls,['recover','repair:attempt-old','recover','fallback:start']);
 });
 
+test('Execution Runtime Host starts when Startup Recovery isolates a scoped degraded Circuit', async () => {
+  const calls = [];
+  const host = createExecutionRuntimeHost({
+    tickIntervalMs:60000,
+    startupRecovery:{recover:async()=>({state:'degraded',normalSupplyAllowed:true,findings:[],actions:[]})},
+    scheduler:{acquire(){return {kind:'idle'};},release(){}},
+    plannerRegistry:{resolve(){}},planPublisher:{publish(){}},
+    workLifecycle:{ensurePlanningAttempt(){},startPlanned(){},aggregateEvent(){},settleWork(){}},
+    eventRuntime:{async run(){}},domainReconciler:{async reconcile(){}},
+    fallbackReconciler:{async start(){calls.push('fallback:start');},async stop(){calls.push('fallback:stop');}},
+  });
+  const started = await host.start();
+  assert.equal(started.state, 'ready');
+  assert.equal(started.recovery.state, 'degraded');
+  await host.stop();
+  assert.deepEqual(calls, ['fallback:start', 'fallback:stop']);
+});
+
 test('Execution Runtime Host persists terminal Work before notifying its exact Domain Process scope', async () => {
   let eventAvailable=true;
   let persistedState='running';

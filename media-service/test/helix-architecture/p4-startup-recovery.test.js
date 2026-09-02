@@ -431,10 +431,10 @@ test('startup abandons leftover Effects on superseded failed Attempts of a live 
   });
 });
 
-test('scoped Circuit yields degraded fail-closed readiness and no in-memory guard resurrection', async () => fixture(async (recovery) => {
+test('scoped Circuit yields isolated degraded readiness and no in-memory guard resurrection', async () => fixture(async (recovery) => {
   const result = await recovery.recover();
   assert.equal(result.state, 'degraded');
-  assert.equal(result.normalSupplyAllowed, false);
+  assert.equal(result.normalSupplyAllowed, true);
   assert.equal(result.recoveredInMemoryLeases + result.recoveredInMemoryPermits + result.recoveredInMemoryWaiters, 0);
 }, { seedEvent: false, circuit: 'owner/libra/event-dispatch' }));
 
