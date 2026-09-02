@@ -1,15 +1,18 @@
 # ShelfDeck Clean Helix Current Status
 
-Status: **PROD-056/057 本地完整修复已通过 Service 回归；待提交、无损部署、Formation Reset 与生产观察。**
+Status: **PROD-056/057 已部署并完成 Formation Reset；007 已取得唯一候选，守望者按 revision 3 执行首次 GPU 转码。**
 
 Last updated: 2026-09-03
 
-## PROD-056/057 Local Implementation Ready
+## PROD-056/057 Deployed And Reset
 
-- 007暴露的候选身份缺口已修复：MoviePilot明确TMDB冲突仍fail closed；缺TMDB时只接受结构化标题与年份精确一致的候选。下载任务恢复接受“精确torrent标题+大小”或“精确torrent标题+TMDB ID”，不接受两项补强都缺失的记录；唯一Job持续零速30分钟即终态失败，不改选其他资源。
+- 007暴露的候选身份缺口已修复：MoviePilot明确TMDB冲突仍fail closed；缺TMDB但有结构化片名时要求片名与年份精确一致；结构化片名也缺失时，只接受发布名开头的精确片名段、独立年份和正做种同时成立。下载任务恢复接受“精确torrent标题+大小”或“精确torrent标题+TMDB ID”，不接受两项补强都缺失的记录；唯一Job持续零速30分钟即终态失败，不改选其他资源。
 - 守望者暴露的制作策略缺口已修复：新`LibraMediaPlanningPolicy@1` revision 3保存源视频码率与有效质量保护下限；低码率源不被向Policy floor灌大。实际成品仅剩体积Gap时，若下一目标低于有效floor，就保留首次成功、画质更好的超限成品，立即freeze并offer`size_cap_exceeded`；不会继续strict ABR/CPU，也不会因体积Gap寻源。
 - `size_cap_exceeded`授权现在精确绑定source Work、Product Media Verification digest、Candidate Basis、Workspace Media Handle与Material Handle/Fence；Staging、Delivery、Conformance和页面体积摘要都只能消费这一份精确产物，不再扫描“最新”超限输出。
-- 验证：针对性39/39；Service full 441项为423 pass、18 skip、0 fail。Helix Architecture fixture/semantic/manifests/contracts均通过，新aggregate baseline为`eff337505bf4a4817eeebec7c0f1ca996ecf813eb53aab89f03a65527912c87d`；总门禁仍只因两个既有文件的18条dynamic-template scanner findings为fail。本轮尚未部署、未执行Reset、未写生产数据。
+- 验证：主修复针对性39/39；发布名补强测试18/18；Service full 441项为423 pass、18 skip、0 fail。Helix Architecture fixture/semantic/manifests/contracts均通过，新aggregate baseline为`eff337505bf4a4817eeebec7c0f1ca996ecf813eb53aab89f03a65527912c87d`；总门禁仍只因两个既有文件的18条dynamic-template scanner findings为fail。
+- 最终镜像为`markmahoro/shelfdeck:helix-beta-20260903-11c71bc009`，source commit `11c71bc009`，tar SHA-256 `c291994cc8c29bc9d1bd82da95ebf51f690ba5c9c8f4001734892929b7cf5577`。标准build/upload/deploy dry-run/apply、readiness（186 tables、123 routes、17 UI surfaces、0 findings）、health、Admin Web、mount与运行镜像检查均通过。
+- 获授权 Formation Reset 删除3个Subject、3个Run、3个Workspace、42个Work和6个Artifact，重开4个Delivery/Reservation并恢复3个Procurement Control；备份为`/vol1/1000/docker/shelfdeck/backups/formation-reset-20260902T165446Z/data`。独立verifier、SQLite integrity、外键和幂等二次plan均通过，二次plan所有可变reset计数为0。
+- Reset后3个自然Formation均为`in_progress`且0 attention：007严格选择一个41,532,333,752-byte、4K HEVC、DTS-HD MA/TrueHD候选，建立唯一MoviePilot Job `f9ea07e126d01eaf98f48d2edbfbf6ad4cb2bffa`，没有候选fallback；守望者以`LibraMediaPlanningPolicy@1` revision 3、strategy ordinal 1、QSV、12 Mbps目标执行首次转码；角斗士2正常等待媒体资源。当前19个既有Arca On-deck Run均为committed，部署后日志未出现新错误。
 
 ## PROD-055 Formation Reset And Isolated Degraded Startup Deployed
 

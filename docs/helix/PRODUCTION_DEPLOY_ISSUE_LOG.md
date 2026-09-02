@@ -73,8 +73,8 @@
 | PROD-053 | External Acquisition 会在同一 Formation 内尝试多个下载候选 | `BUSINESS_SEMANTICS` / candidate fallback | Libra External Acquisition | Critical | **FIXED / DEPLOYED** `713bbc0827`。一次搜索只选择唯一合格首项，取得失败即结束，不再改选其他资源。 |
 | PROD-054 | Arca Aftercare safe-retry 的 durable recovery budget 过期后每 30 秒重复超时 | `EXECUTION_FOUNDATION` / recovery convergence | Arca Aftercare / Execution Foundation | Critical | **FIXED / DEPLOYED / PRODUCTION ACCEPTED** `efe1b91d6e`。仅在最新现实分类仍为 `safe_retry` 且 dispatch 前预算已耗尽时终态失败；异常后强制重新分类。 |
 | PROD-055 | scoped Circuit 被 Startup Recovery 的 ready-only 门禁误当作全局启动阻断 | `EXECUTION_FOUNDATION` / degraded readiness | Startup Recovery / Runtime Host | Critical | **FIXED / DEPLOYED / PRODUCTION ACCEPTED** `0d94f414ac`。degraded 只隔离 exact scope；全局 Circuit 与 hard finding 继续 fail closed。 |
-| PROD-056 | MoviePilot缺TMDB候选被误拒，已有进度但无活动时间的零速Job等待过长 | `BUSINESS_SEMANTICS` / identity and stall evidence | Libra External Acquisition | Critical | **FIXED LOCALLY / DEPLOY PENDING**。缺ID时仅title+year精确匹配；单一Job零速30分钟终态失败，绝不换候选。 |
-| PROD-057 | 仅体积超限仍继续低于质量下限转码，甚至错误转向外部寻源 | `BUSINESS_SEMANTICS` / quality-protected size planning | Libra Media Production | Critical | **FIXED LOCALLY / DEPLOY PENDING**。Policy revision 3保留首次高画质超限成品，精确绑定size defect；低码率源不灌大。 |
+| PROD-056 | MoviePilot缺TMDB候选被误拒，已有进度但无活动时间的零速Job等待过长 | `BUSINESS_SEMANTICS` / identity and stall evidence | Libra External Acquisition | Critical | **FIXED / DEPLOYED / PRODUCTION ACCEPTED** `11c71bc009`。缺结构化ID/title时严格匹配release片名段+独立年份+正做种；007已建立唯一Job，零速30分钟终态失败且绝不换候选。 |
+| PROD-057 | 仅体积超限仍继续低于质量下限转码，甚至错误转向外部寻源 | `BUSINESS_SEMANTICS` / quality-protected size planning | Libra Media Production | Critical | **FIXED / DEPLOYED / MONITORING** `d228dc2488`。Policy revision 3保留首次高画质超限成品，精确绑定size defect；守望者已按新Policy运行首次QSV转码，长任务终态待观察。 |
 
 PROD-001、PROD-002 的共同环境前提：生产管理台是 `http://192.168.12.230`，浏览器不提供 `crypto.randomUUID` / `crypto.subtle`。这不是传输加密设计，只是浏览器 API 限制。未改成 HTTPS。
 

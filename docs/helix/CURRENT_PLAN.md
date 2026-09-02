@@ -1,6 +1,6 @@
 # ShelfDeck Clean Helix Master Plan
 
-Status: **PROD-056/057 完整修复已在本地完成；待标准无损部署、获授权 Formation Reset 与生产观察。**
+Status: **PROD-056/057 已部署并完成 Formation Reset；生产长任务继续按新合同运行。**
 
 Last updated: 2026-09-03
 
@@ -17,13 +17,13 @@ Last updated: 2026-09-03
 - PROD-051 已本地修复：`libra.product_artifact.acquire@1` 在 TMDB 网络抖动发生于 `workspace_write` intent 之后时进入通用 Effect reality reconciliation；只有正式现实观察分类为 absent，才由同一 Event Attempt/Effect 的有界恢复预算执行 `safe_retry`。非纯 Effect 不进入普通 Event retry，也没有《浪客剑心：京都大火篇》影片特例。该修复尚未部署。
 - PROD-052 已本地完成：删除 `normal|nuclear` 双模式与旧确认串，唯一 CLI 使用 `FORMATION_RESET_V2`；scope 使用 domain/type/ID typed identity，补齐 run-owned Artifact、保留 Subject 的新未 Commit Intake/Run、Handoff A/Control 回卷与完整 Execution graph；Workspace 先同文件系统 staging，数据库事务或 verifier 失败时恢复；冻结 manifest 的独立 verifier 不复用 discovery。尚未部署或执行生产 Reset。
 - PROD-053 已本地完成：External Acquisition 收敛为一次搜索、最多选择一个同时具有 exact identity、mandatory media positive claims 与正共享者证据的候选、最多建立一个 Provider Job。`unknown`、明确不合规、无共享者或共享者缺失都不下载；已选 Job 可按同一幂等身份重复观察/恢复，但下载、转移、Landing、真实媒体验证任一终态失败都结束本次 acquisition，不再选择第二个候选。MoviePilot 的候选下载次数设置已从合同、Runtime、Admin API/UI 删除。尚未部署，既有未完成 Formation 不增加兼容路径。
-- PROD-056 本地完成：MoviePilot候选若明确返回TMDB ID仍必须精确匹配；仅当该ID缺失时，才允许用结构化标题全集与年份精确匹配证明候选身份。下载Job可由精确torrent标题+大小认领，或在历史大小缺失时由精确TMDB ID补强，缺少两类补强不得认领。唯一Job在30分钟后持续零速即终态`job_stalled`，无论此前是否已有进度；失败不选择第二候选。
-- PROD-057 本地完成：`LibraMediaPlanningPolicy@1` revision 3把有效质量下限冻结为`min(星级×画幅Policy下限, 源实际视频码率)`，低码率源不会被灌大。仅体积超限时，下一施工目标若低于该下限则不建立第二次转码、不转CPU、不寻源，保留首次成功且画质更高的超限Workspace产品并offer精确`size_cap_exceeded`。Manifest绑定唯一Work、Verification、Workspace Handle与Material Fence；UI不再表达为笼统“策略穷尽”。
+- PROD-056 已部署：MoviePilot候选若明确返回TMDB ID仍必须精确匹配；该ID与结构化片名均缺失时，只接受发布名开头的精确片名段、独立年份与正做种三者同时成立，不能把整条release title误当结构化title。下载Job可由精确torrent标题+大小认领，或在历史大小缺失时由精确TMDB ID补强，缺少两类补强不得认领。唯一Job在30分钟后持续零速即终态`job_stalled`，失败不选择第二候选。
+- PROD-057 已部署：`LibraMediaPlanningPolicy@1` revision 3把有效质量下限冻结为`min(星级×画幅Policy下限, 源实际视频码率)`，低码率源不会被灌大。仅体积超限时，下一施工目标若低于该下限则不建立第二次转码、不转CPU、不寻源，保留首次成功且画质更高的超限Workspace产品并offer精确`size_cap_exceeded`。Manifest绑定唯一Work、Verification、Workspace Handle与Material Fence；UI不再表达为笼统“策略穷尽”。
 
 ## 当前基线
 
 - NAS production：`192.168.12.230:18080`。
-- Image：`markmahoro/shelfdeck:helix-beta-20260902-0d94f414ac`；source commit `0d94f414ac`；tar SHA-256 `8e8224458f2f2de322befcd6f1cff9507650c9ed33d2aaa9dac842811a842d4b`。
+- Image：`markmahoro/shelfdeck:helix-beta-20260903-11c71bc009`；source commit `11c71bc009`；tar SHA-256 `c291994cc8c29bc9d1bd82da95ebf51f690ba5c9c8f4001734892929b7cf5577`。
 - Health：`ok` / `helix-clean-v3` / `normalSupplyAllowed:true`；schema 186；SQLite integrity `ok`。
 - Execution：PROD-047 exact 3 条遗留执行图已收口；另有 2 条 active Aftercare reclaim Work 只发生 inode drift，未获授权处理。
 - Formation：本轮 Nuclear 清除了旧 discovery 能识别的 1,255 条 eventless Fact Marker/Result residual，并删除当时 3 个未 Commit Subject/1 个 Run/20 个 Work；后续自然 Intake 暴露了未删除的 run-owned Artifact 与 Handoff/Execution scope 盲区，因此该次二次 dry-run 的 0 不能再作为完整闭包证据。
