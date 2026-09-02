@@ -1,6 +1,6 @@
 # ShelfDeck Helix 当前实施阶段
 
-状态：**PROD-056/057 DEPLOYED — PROD-058 LOCAL VERIFIED / DEPLOYMENT NOT AUTHORIZED**
+状态：**PROD-056/057/058 DEPLOYED — FORMATION RESET VERIFIED**
 
 ## PROD-056/057 本地增量（2026-09-03）
 
@@ -11,12 +11,12 @@
 
 日期：2026-09-03
 
-## PROD-058 本地增量（2026-09-03）
+## PROD-058 已部署增量（2026-09-03）
 
 - `ProviderAcquisitionCandidateSnapshot`新增digest覆盖的availability Evidence，精确保留`known|unknown`与共享者数量；Candidate identity仍排除动态共享者字段，稳定引用不变。
 - 唯一候选从合规集合按`seederCount DESC, Provider rank, Candidate ID`确定，仍只建立一个Job，终态失败不改选。
 - MoviePilot pending snapshot新增百分比、字节速度与ETA；Libra Observe把它写入exact Event Progress，Formation列表和过程卡片显示下载百分比、速度、预计时间，零速显示“等待下载数据”。
-- focused 87/87、Service full 424 pass/18 skip、Admin Web production build与Helix Architecture full gate已通过；新合同aggregate为`064eb00c4145950de3ebfcb686aef9ba3c8d3d40e4d47c3394159dd910cc4327`。未部署、未Reset，既有007失败Run没有兼容权利。
+- focused 87/87、Service full 424 pass/18 skip、Admin Web production build与Helix Architecture full gate已通过；新合同aggregate为`064eb00c4145950de3ebfcb686aef9ba3c8d3d40e4d47c3394159dd910cc4327`。镜像`helix-beta-20260903-d0bed9af57`已无损部署并完成唯一Formation Reset；007从干净Intake按共享者强度选择唯一候选，生产列表与详情均已显示下载进度。
 
 ## 目标
 

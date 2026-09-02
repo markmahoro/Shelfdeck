@@ -1,19 +1,19 @@
 # ShelfDeck Clean Helix Current Status
 
-Status: **PROD-056/057 已部署；PROD-058候选强度选择与下载进度展示已完成本地验证，尚未部署或Reset。**
+Status: **PROD-056/057/058 已部署；唯一 Formation Reset 已完成且幂等，生产链路正常重新形成。**
 
 Last updated: 2026-09-03
 
-## PROD-056/057 Deployed And Reset
+## PROD-056/057/058 Deployed And Reset
 
 - 007暴露的候选身份缺口已修复：MoviePilot明确TMDB冲突仍fail closed；缺TMDB但有结构化片名时要求片名与年份精确一致；结构化片名也缺失时，只接受发布名开头的精确片名段、独立年份和正做种同时成立。下载任务恢复接受“精确torrent标题+大小”或“精确torrent标题+TMDB ID”，不接受两项补强都缺失的记录；唯一Job持续零速30分钟即终态失败，不改选其他资源。
 - 守望者暴露的制作策略缺口已修复：新`LibraMediaPlanningPolicy@1` revision 3保存源视频码率与有效质量保护下限；低码率源不被向Policy floor灌大。实际成品仅剩体积Gap时，若下一目标低于有效floor，就保留首次成功、画质更好的超限成品，立即freeze并offer`size_cap_exceeded`；不会继续strict ABR/CPU，也不会因体积Gap寻源。
 - `size_cap_exceeded`授权现在精确绑定source Work、Product Media Verification digest、Candidate Basis、Workspace Media Handle与Material Handle/Fence；Staging、Delivery、Conformance和页面体积摘要都只能消费这一份精确产物，不再扫描“最新”超限输出。
-- 007新Run已证明TMDB/title/year修复生效并建立唯一Job，但Provider rank 2的`beAst`只有1个共享者，持续`0% / 0.0B`约30分钟后以`job_stalled`冻结；同次搜索中rank 3的`WiKi`有28个共享者。根因是既有SSOT把所有正共享者压成相同`available`并按Provider rank初选，而single-source禁止失败后改选。PROD-058已把初选改为冻结共享者数量并优先最强可用源，同时让Formation公开真实下载进度；focused 87/87、Service 424 pass/18 skip、Admin Web production build与Helix Architecture full gate均通过，新合同aggregate为`064eb00c4145950de3ebfcb686aef9ba3c8d3d40e4d47c3394159dd910cc4327`。尚未部署或Reset。
-- 验证：主修复针对性39/39；发布名补强测试18/18；Service full 441项为423 pass、18 skip、0 fail。Helix Architecture fixture/semantic/manifests/contracts均通过，新aggregate baseline为`eff337505bf4a4817eeebec7c0f1ca996ecf813eb53aab89f03a65527912c87d`；总门禁仍只因两个既有文件的18条dynamic-template scanner findings为fail。
-- 最终镜像为`markmahoro/shelfdeck:helix-beta-20260903-11c71bc009`，source commit `11c71bc009`，tar SHA-256 `c291994cc8c29bc9d1bd82da95ebf51f690ba5c9c8f4001734892929b7cf5577`。标准build/upload/deploy dry-run/apply、readiness（186 tables、123 routes、17 UI surfaces、0 findings）、health、Admin Web、mount与运行镜像检查均通过。
-- 获授权 Formation Reset 删除3个Subject、3个Run、3个Workspace、42个Work和6个Artifact，重开4个Delivery/Reservation并恢复3个Procurement Control；备份为`/vol1/1000/docker/shelfdeck/backups/formation-reset-20260902T165446Z/data`。独立verifier、SQLite integrity、外键和幂等二次plan均通过，二次plan所有可变reset计数为0。
-- Reset后3个自然Formation均为`in_progress`且0 attention：007严格选择一个41,532,333,752-byte、4K HEVC、DTS-HD MA/TrueHD候选，建立唯一MoviePilot Job `f9ea07e126d01eaf98f48d2edbfbf6ad4cb2bffa`，没有候选fallback；守望者以`LibraMediaPlanningPolicy@1` revision 3、strategy ordinal 1、QSV、12 Mbps目标执行首次转码；角斗士2正常等待媒体资源。当前19个既有Arca On-deck Run均为committed，部署后日志未出现新错误。
+- 007新Run已证明TMDB/title/year修复生效并建立唯一Job，但Provider rank 2的`beAst`只有1个共享者，持续`0% / 0.0B`约30分钟后以`job_stalled`冻结；同次搜索中rank 3的`WiKi`有28个共享者。根因是既有SSOT把所有正共享者压成相同`available`并按Provider rank初选，而single-source禁止失败后改选。PROD-058现冻结共享者数量并按`seederCount DESC, Provider rank, Candidate ID`选择唯一合规候选，同时让Formation公开真实下载百分比、字节速度与ETA，零速明确显示“等待下载数据”。
+- 验证：focused 87/87；Service full 442项为424 pass、18 skip、0 fail；Admin Web production build与Helix Architecture full gate均通过，contract aggregate为`064eb00c4145950de3ebfcb686aef9ba3c8d3d40e4d47c3394159dd910cc4327`。
+- 最终镜像为`markmahoro/shelfdeck:helix-beta-20260903-d0bed9af57`，source commit `d0bed9af57`，tar SHA-256 `c05652ef789332a8d7065bb685191b54517d781a25df210590ccce2a51685625`。标准build/upload/deploy dry-run/apply、readiness（186 tables、123 routes、17 UI surfaces、0 findings）、health、Admin Web、mount与运行镜像检查均通过。
+- 获授权 Formation Reset 删除3个Subject、3个Run、3个Workspace、44个Work和6个Artifact，重开4个Delivery/Reservation并恢复3个Procurement Control；备份为`/vol1/1000/docker/shelfdeck/backups/formation-reset-20260902T183233Z/data`，manifest digest为`1f6012b784a2c711dafbee79f2032b071d3df29ca06a04643814dc10097f06ca`。独立verifier、SQLite integrity、外键和幂等二次plan均通过，二次plan所有可变reset计数为0。
+- Reset后3个自然Formation均为`in_progress`且0 attention：007从合规集合选中共享者数28、Provider rank 3的唯一候选，只建立MoviePilot Job `a5cff5d562944dc94576b038009b8f5b71882731`，没有候选fallback；生产列表和详情卡片均已显示下载百分比及“等待下载数据”。守望者以revision 3首次QSV策略继续转码；角斗士2正常等待媒体资源。监测时仅3个Libra活动Attempt、0个Arca活动Work，容器restart count 0，日志未出现新错误。
 
 ## PROD-055 Formation Reset And Isolated Degraded Startup Deployed
 
@@ -102,8 +102,8 @@ hard-deadline replacement 已随 `helix-beta-20260831-ae7a567cde` 无损部署�
 ## Production
 
 - Host：`192.168.12.230:18080`。
-- Running image：`markmahoro/shelfdeck:helix-beta-20260902-0d94f414ac`；source commit `0d94f414ac`；tar SHA-256 `8e8224458f2f2de322befcd6f1cff9507650c9ed33d2aaa9dac842811a842d4b`。
-- Running image ID：`sha256:9a07426bfc4bcb883c72f417c1bd169a7b2fdbd63f1ac30a50706bcac35264e9`；2026-09-02 19:45 CST 启动，restart count 0。
+- Running image：`markmahoro/shelfdeck:helix-beta-20260903-d0bed9af57`；source commit `d0bed9af57`；tar SHA-256 `c05652ef789332a8d7065bb685191b54517d781a25df210590ccce2a51685625`。
+- Running image ID：`sha256:b24c1d21afccf9e32fc096b7a48b145083579d865c8fd42b17e6adbf0ce1bc3b`；2026-09-03 02:33 CST 启动，restart count 0。
 - Health：`ok`；generation `helix-clean-v3`；schema 186；`normalSupplyAllowed:true`；SQLite `integrity_check=ok`。
 - Compose：`/vol1/1000/docker/shelfdeck`；data：`/vol1/1000/docker/shelfdeck/data`；Workspace mount：`/transcode`。
 - PROD-047 离线纠正备份：`/vol1/1000/docker/shelfdeck/data.backup-20260901T082544Z-prod047-aftercare-reclaim`（约 898 MiB）。
@@ -111,6 +111,7 @@ hard-deadline replacement 已随 `helix-beta-20260831-ae7a567cde` 无损部署�
 - PROD-050 Handoff A 边界纠正备份：`/vol1/1000/docker/shelfdeck/backups/formation-reset-20260901T094823Z-nuclear/data`。
 - 本轮 Nuclear Reset 备份：`/vol1/1000/docker/shelfdeck/backups/formation-reset-20260901T105240Z-nuclear/data`。
 - PROD-055 Formation Reset 备份：`/vol1/1000/docker/shelfdeck/backups/formation-reset-20260902T113345Z/data`。
+- PROD-058 Formation Reset 备份：`/vol1/1000/docker/shelfdeck/backups/formation-reset-20260902T183233Z/data`。
 - 其他 NAS Docker 服务在部署后只读检查时仍运行正常。
 
 ## Production Corrections
@@ -132,7 +133,7 @@ PROD-034 已按 Product Owner 授权对“唐人街探案 (2015)”和“赤壁�
 - 当前生产镜像已包含 PROD-052 唯一 Formation Reset：不保留终态过程记录，也不再维护 `normal|nuclear` 分支。
 - 唯一 Formation Reset 物理删除 On-deck Commit 前的整理过程，使其在当前运行数据库中视同未发生；若未来需要“保留历史并批量放弃”，应作为独立正式领域操作设计，不属于 Reset。
 - 唯一 Reset 以 Arca On-deck Commit 为保护线，不触碰已入架事实和 `/media`，也不主动触发 Observation 或 Intake。
-- **唯一 Formation Reset 已随当前生产镜像部署到 NAS。** 2026-09-02 本次获授权 apply 已完成；后续每次调用仍必须重新获得明确生产授权，再使用唯一确认串显式 `--apply`，部署本身不触发 Reset。
+- **唯一 Formation Reset 已随当前生产镜像部署到 NAS。** 2026-09-03 本次获授权 apply 已完成；后续每次调用仍必须重新获得明确生产授权，再使用唯一确认串显式 `--apply`，部署本身不触发 Reset。
 - Reset 发现范围现补齐无 Subject 的 orphan pipeline token：以 token 自身与 `source_process_id` 为独立范围根，
   同时纳入其 Libra Intake Work。Normal 删除 token、终止活动执行但保留终态审计；Nuclear 删除 token 与对应执行图。
   两种模式的 postcondition 都要求 orphan token 为 0。

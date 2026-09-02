@@ -1,6 +1,6 @@
 # ShelfDeck Clean Helix Master Plan
 
-Status: **PROD-056/057 已部署并完成 Formation Reset；生产长任务继续按新合同运行。**
+Status: **PROD-056/057/058 已部署并完成 Formation Reset；生产长任务继续按新合同运行。**
 
 Last updated: 2026-09-03
 
@@ -14,20 +14,20 @@ Last updated: 2026-09-03
 - 生产 621 个 Accepted 但无 token 的 Subject 是旧合同残留，不增加 migration、resume 或兼容路径；2026-09-01 获授权 Nuclear Formation Reset 清除了当时 discovery 可见的未 Commit 图，但 PROD-052 已证明这不等于完整闭包。
 - Reset 只保留一个合同，正式名称为 `Formation Reset`；不再区分 `normal` 与 `nuclear`。它必须把未 Commit 链精确回卷到 Handoff A 前：物理删除 Intake Accepted 后至 Arca On-deck Commit 前的业务与执行过程，使本次整理在运行数据库中视同未发生；保留 immutable Candidate Package/Delivery identity，重新打开 Delivery/Reservation 与 Procurement Control 边界。已经 Arca On-deck Commit 的 Shelf/Deck 事实和 `/media` 始终受保护。
 - Formation Reset 删除领域 Fact 时，必须同步清理其 Foundation Work/Attempt/Plan/Event/Effect、Workspace、Artifact、Command Receipt、Outbox/Inbox、Audit、Marker/Result 与 Control revision 后缀；任何领域 Fact 已不存在但 Foundation 记录仍可占用资源或参与重放的状态都属于 reset residual，独立 postcondition 必须使操作失败。不得用兼容读取或影片特例绕过。
-- PROD-051 已本地修复：`libra.product_artifact.acquire@1` 在 TMDB 网络抖动发生于 `workspace_write` intent 之后时进入通用 Effect reality reconciliation；只有正式现实观察分类为 absent，才由同一 Event Attempt/Effect 的有界恢复预算执行 `safe_retry`。非纯 Effect 不进入普通 Event retry，也没有《浪客剑心：京都大火篇》影片特例。该修复尚未部署。
-- PROD-052 已本地完成：删除 `normal|nuclear` 双模式与旧确认串，唯一 CLI 使用 `FORMATION_RESET_V2`；scope 使用 domain/type/ID typed identity，补齐 run-owned Artifact、保留 Subject 的新未 Commit Intake/Run、Handoff A/Control 回卷与完整 Execution graph；Workspace 先同文件系统 staging，数据库事务或 verifier 失败时恢复；冻结 manifest 的独立 verifier 不复用 discovery。尚未部署或执行生产 Reset。
-- PROD-053 已本地完成：External Acquisition 收敛为一次搜索、最多选择一个同时具有 exact identity、mandatory media positive claims 与正共享者证据的候选、最多建立一个 Provider Job。`unknown`、明确不合规、无共享者或共享者缺失都不下载；已选 Job 可按同一幂等身份重复观察/恢复，但下载、转移、Landing、真实媒体验证任一终态失败都结束本次 acquisition，不再选择第二个候选。MoviePilot 的候选下载次数设置已从合同、Runtime、Admin API/UI 删除。尚未部署，既有未完成 Formation 不增加兼容路径。
+- PROD-051 已部署：`libra.product_artifact.acquire@1` 在 TMDB 网络抖动发生于 `workspace_write` intent 之后时进入通用 Effect reality reconciliation；只有正式现实观察分类为 absent，才由同一 Event Attempt/Effect 的有界恢复预算执行 `safe_retry`。非纯 Effect 不进入普通 Event retry，也没有《浪客剑心：京都大火篇》影片特例。
+- PROD-052 已部署并多次通过生产Reset验证：删除 `normal|nuclear` 双模式与旧确认串，唯一 CLI 使用 `FORMATION_RESET_V2`；scope 使用 domain/type/ID typed identity，补齐 run-owned Artifact、保留 Subject 的新未 Commit Intake/Run、Handoff A/Control 回卷与完整 Execution graph；Workspace 先同文件系统 staging，数据库事务或 verifier 失败时恢复；冻结 manifest 的独立 verifier 不复用 discovery。
+- PROD-053 已部署：External Acquisition 收敛为一次搜索、最多选择一个同时具有 exact identity、mandatory media positive claims 与正共享者证据的候选、最多建立一个 Provider Job。`unknown`、明确不合规、无共享者或共享者缺失都不下载；已选 Job 可按同一幂等身份重复观察/恢复，但下载、转移、Landing、真实媒体验证任一终态失败都结束本次 acquisition，不再选择第二个候选。MoviePilot 的候选下载次数设置已从合同、Runtime、Admin API/UI 删除，既有未完成 Formation 不增加兼容路径。
 - PROD-056 已部署：MoviePilot候选若明确返回TMDB ID仍必须精确匹配；该ID与结构化片名均缺失时，只接受发布名开头的精确片名段、独立年份与正做种三者同时成立，不能把整条release title误当结构化title。下载Job可由精确torrent标题+大小认领，或在历史大小缺失时由精确TMDB ID补强，缺少两类补强不得认领。唯一Job在30分钟后持续零速即终态`job_stalled`，失败不选择第二候选。
 - PROD-057 已部署：`LibraMediaPlanningPolicy@1` revision 3把有效质量下限冻结为`min(星级×画幅Policy下限, 源实际视频码率)`，低码率源不会被灌大。仅体积超限时，下一施工目标若低于该下限则不建立第二次转码、不转CPU、不寻源，保留首次成功且画质更高的超限Workspace产品并offer精确`size_cap_exceeded`。Manifest绑定唯一Work、Verification、Workspace Handle与Material Fence；UI不再表达为笼统“策略穷尽”。
-- PROD-058 本地已完成并通过门禁：single-source不增加候选重试；一次搜索内把共享者数量冻结进Candidate availability Evidence，只从`available + compliant`集合按`seederCount DESC, Provider rank, Candidate ID`选择唯一源。MoviePilot pending Job把百分比、字节速度和ETA写入同一Event的durable Progress；Formation一级页与详情显示真实下载/零速等待状态。等待部署授权，既有007失败Run不做兼容修复。
+- PROD-058 已部署并完成生产验收：single-source不增加候选重试；一次搜索内把共享者数量冻结进Candidate availability Evidence，只从`available + compliant`集合按`seederCount DESC, Provider rank, Candidate ID`选择唯一源。MoviePilot pending Job把百分比、字节速度和ETA写入同一Event的durable Progress；Formation一级页与详情显示真实下载/零速等待状态。007在Reset后选择共享者数28的唯一候选并建立一个Job，没有兼容旧Run或候选fallback。
 
 ## 当前基线
 
 - NAS production：`192.168.12.230:18080`。
-- Image：`markmahoro/shelfdeck:helix-beta-20260903-11c71bc009`；source commit `11c71bc009`；tar SHA-256 `c291994cc8c29bc9d1bd82da95ebf51f690ba5c9c8f4001734892929b7cf5577`。
+- Image：`markmahoro/shelfdeck:helix-beta-20260903-d0bed9af57`；source commit `d0bed9af57`；tar SHA-256 `c05652ef789332a8d7065bb685191b54517d781a25df210590ccce2a51685625`。
 - Health：`ok` / `helix-clean-v3` / `normalSupplyAllowed:true`；schema 186；SQLite integrity `ok`。
 - Execution：PROD-047 exact 3 条遗留执行图已收口；另有 2 条 active Aftercare reclaim Work 只发生 inode drift，未获授权处理。
-- Formation：本轮 Nuclear 清除了旧 discovery 能识别的 1,255 条 eventless Fact Marker/Result residual，并删除当时 3 个未 Commit Subject/1 个 Run/20 个 Work；后续自然 Intake 暴露了未删除的 run-owned Artifact 与 Handoff/Execution scope 盲区，因此该次二次 dry-run 的 0 不能再作为完整闭包证据。
+- Formation：本轮唯一Reset删除3个未Commit Subject、3个Run、3个Workspace、44个Work和6个Artifact，重开4个Delivery/Reservation并恢复3个Procurement Control；独立verifier、SQLite integrity、外键检查与幂等二次plan全部通过。自然Intake后007、守望者、角斗士2形成3条真实活动链，0 attention。
 
 ## 已完成
 
