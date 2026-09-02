@@ -31,6 +31,12 @@ test('Libra Run Coordinator remains a Work issuer and terminal Result reconciler
   assert.match(value, /productStaging\.ensureWorking/);
   assert.match(value, /sourceRequiresExternalSearch[\s\S]*ensureOriginalMediaThenExternal/);
   assert.match(value, /ensureOriginalMediaThenExternal[\s\S]*directMediaSelectionWork/);
+  assert.match(value,
+    /shouldFreezeMeasuredSizeCap\(work,verifyRecord\)[\s\S]*tryFreezeMeasuredSizeCap\(snapshot,work,verifyRecord\)[\s\S]*if\(frozen\)return frozen;[\s\S]*requiresExternalSource\(work\)/,
+    'A quality-floor size terminal must freeze before any External Acquisition branch.');
+  assert.match(value,
+    /findBestVolumeOnlyWorkspaceVerify[\s\S]*return leftOrdinal - rightOrdinal;/,
+    'Fallback reconciliation must preserve the first, highest-quality successful output.');
 });
 
 test('Libra Run Coordinator replays an admitted Work with its frozen priority only', () => {

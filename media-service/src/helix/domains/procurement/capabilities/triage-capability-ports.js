@@ -44,6 +44,7 @@ function mediaEvidence(raw, handle, nowMs) {
       const displayHeight = Number(stream.displayHeight || (rotated ? width : height));
       return Object.freeze({ streamIndex:Number(stream.streamIndex), dispositionDefault:Boolean(stream.dispositionDefault),
         codec:stream.codec || 'unknown',codecProfile:stream.codecProfile||stream.profile||'unknown',
+        ...(Number.isSafeInteger(stream.bitRateBps)&&stream.bitRateBps>0?{bitRateBps:stream.bitRateBps}:{}),
         pixelFormat:stream.pixelFormat||'unknown',bitDepth:Number(stream.bitDepth||8),chroma:stream.chroma||'unknown',
         colorRange:stream.colorRange||'unknown',colorPrimaries:stream.colorPrimaries||'unknown',
         colorTransfer:stream.colorTransfer||'unknown',colorMatrix:stream.colorMatrix||'unknown',
@@ -58,7 +59,8 @@ function mediaEvidence(raw, handle, nowMs) {
         streamIndex:Number(stream.streamIndex), dispositionDefault:Boolean(stream.dispositionDefault),
         codec:stream.codec || 'unknown', profile:stream.profile || 'unknown',
         channels:Math.max(1, Number(stream.channels || 1)),
-        channelLayout:stream.channelLayout || 'unknown', formatTags,
+        channelLayout:stream.channelLayout || 'unknown',
+        ...(Number.isSafeInteger(stream.bitRateBps)&&stream.bitRateBps>0?{bitRateBps:stream.bitRateBps}:{}),formatTags,
         normalizedAudioClass:normalizeAudioClass({
           codec:stream.codec, profile:stream.profile, formatTags,
         }),

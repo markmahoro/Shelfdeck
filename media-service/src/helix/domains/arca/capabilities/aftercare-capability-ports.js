@@ -268,7 +268,9 @@ function aftercareMediaProbeEvidence(raw,handle,sizeBytes,observedAtMs){
         codecProfile:stream.codecProfile||stream.profile||'unknown',pixelFormat:stream.pixelFormat||'unknown',bitDepth:Math.max(1,Number(stream.bitDepth||8)),
         chroma:stream.chroma||'unknown',colorRange:stream.colorRange||'unknown',colorPrimaries:stream.colorPrimaries||'unknown',
         colorTransfer:stream.colorTransfer||'unknown',colorMatrix:stream.colorMatrix||'unknown',dynamicRangeKind:stream.dynamicRangeKind||'unknown',
-        ...(stream.dolbyVision?{dolbyVision:stream.dolbyVision}:{}),codedWidth,codedHeight,sampleAspectRatio:stream.sampleAspectRatio||'1:1',
+        ...(stream.dolbyVision?{dolbyVision:stream.dolbyVision}:{}),
+        ...(Number.isSafeInteger(stream.bitRateBps)&&stream.bitRateBps>0?{bitRateBps:stream.bitRateBps}:{}),
+        codedWidth,codedHeight,sampleAspectRatio:stream.sampleAspectRatio||'1:1',
         rotation,displayWidth,displayHeight,longEdge:Math.max(displayWidth,displayHeight),shortEdge:Math.min(displayWidth,displayHeight)});
     })),audioStreams:Object.freeze((raw.audioStreams||[]).map((stream)=>Object.freeze({streamIndex:Number(stream.streamIndex),
       dispositionDefault:Boolean(stream.dispositionDefault),codec:stream.codec||'unknown',profile:stream.profile||'unknown',

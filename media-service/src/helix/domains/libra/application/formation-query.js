@@ -359,7 +359,7 @@ function frozenRunLabel(works, terminalEvidence = null) {
     return '收藏架验收未通过，需要放弃后重新整理';
   }
   if (terminalFailureCode(terminalEvidence) === 'size_cap_requires_admission') {
-    return '转码策略已穷尽，实测成品仍超过体积上限，需要确认是否接受体积瑕疵';
+    return '已保留画质更好的超限成品；继续压缩无法在质量保护下满足体积上限，请确认是否接受体积瑕疵';
   }
   const terminal = extractAcquisitionTerminal(works);
   if (terminal?.result === 'not_selected' && terminal.selectionReasonCode === 'no_requirement_eligible_candidate') {

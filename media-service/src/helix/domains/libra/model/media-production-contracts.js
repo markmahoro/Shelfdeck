@@ -31,11 +31,25 @@ const limited = (value, maximum, code) => {
   return freeze(value);
 };
 
+const SIZE_BUDGET_HIGH_BITRATE_AUDIO = Object.freeze(['dts_hd_ma', 'dts_x', 'truehd', 'truehd_atmos']);
+const STAR_SIZE_GIB = Object.freeze([2, 4, 8, 14, 50]);
+const VIDEO_BITRATE_FLOOR_BELOW_4K_BPS = Object.freeze([
+  1_500_000, 2_000_000, 2_500_000, 4_000_000, 15_000_000,
+]);
+const VIDEO_BITRATE_FLOOR_4K_BPS = Object.freeze([
+  8_000_000, 8_000_000, 10_000_000, 12_000_000, 15_000_000,
+]);
+
 const LIBRA_MEDIA_PLANNING_POLICY = freeze({
-  schemaRef:'LibraMediaPlanningPolicy@1', revision:2,
+  schemaRef:'LibraMediaPlanningPolicy@1', revision:3,
   ordinaryDeviceOrder:Object.freeze(['nvidia_nvenc','intel_qsv','amd_vaapi','remote_worker']),
-  cpuPolicy:'backup_only', sizeBudgetRevision:1,
+  cpuPolicy:'backup_only', sizeBudgetRevision:2,
   strategyLadder:Object.freeze(['controlled_vbr','device_cbr','cpu_two_pass_abr','cpu_strict_abr']),
+  starSizeGiB:STAR_SIZE_GIB,
+  videoBitrateFloorBelow4kBps:VIDEO_BITRATE_FLOOR_BELOW_4K_BPS,
+  videoBitrateFloor4kBps:VIDEO_BITRATE_FLOOR_4K_BPS,
+  sourceQualityFloorPolicy:'min_policy_floor_and_observed_source_video_bitrate',
+  sizeRetryPolicy:'retry_only_when_predicted_target_preserves_quality_floor',
   dolbyVisionTranscodePolicy:'compatible_bl_to_sdr_bt709_8bit_hevc'
 });
 const LIBRA_MEDIA_PLANNING_POLICY_DIGEST = canonicalDigest(LIBRA_MEDIA_PLANNING_POLICY);
@@ -124,15 +138,6 @@ function buildProductionSourceScopeReference(value) {
   return limited(result,16*1024,'P9_MEDIA_SOURCE_SCOPE_SIZE');
 }
 
-const SIZE_BUDGET_HIGH_BITRATE_AUDIO = Object.freeze(['dts_hd_ma', 'dts_x', 'truehd', 'truehd_atmos']);
-const STAR_SIZE_GIB = Object.freeze([2, 4, 8, 14, 50]);
-const VIDEO_BITRATE_FLOOR_BELOW_4K_BPS = Object.freeze([
-  1_500_000, 2_000_000, 2_500_000, 4_000_000, 15_000_000,
-]);
-const VIDEO_BITRATE_FLOOR_4K_BPS = Object.freeze([
-  8_000_000, 8_000_000, 10_000_000, 12_000_000, 15_000_000,
-]);
-
 function starIndexFromMaxSizeBytes(maxSizeBytes) {
   const gib = Number(maxSizeBytes) / 1073741824;
   const index = STAR_SIZE_GIB.findIndex((item) => Math.abs(item - gib) < 1e-9);
@@ -159,6 +164,22 @@ function predictedProductBytes(value) {
 function estimatedAudioBitrateBps(stream) {
   if (Number.isSafeInteger(stream?.bitRateBps) && stream.bitRateBps > 0) return stream.bitRateBps;
   return SIZE_BUDGET_HIGH_BITRATE_AUDIO.includes(stream?.normalizedAudioClass) ? 8000000 : 1536000;
+}
+
+function observedSourceVideoBitrateBps(probe) {
+  const primary = primaryStreams(probe?.videoStreams);
+  const measured = primary.map((item) => item.bitRateBps)
+    .filter((item) => Number.isSafeInteger(item) && item > 0);
+  if (measured.length) return measured.reduce((sum, item) => sum + item, 0);
+  if (!Number.isSafeInteger(probe?.sizeBytes) || probe.sizeBytes < 1 ||
+      !Number.isSafeInteger(probe?.durationMs) || probe.durationMs < 1) return null;
+  const sourceAudio = probe.audioStreams || [];
+  if (sourceAudio.some((item) => !Number.isSafeInteger(item?.bitRateBps) ||
+      item.bitRateBps < 1)) return null;
+  const nonVideo = sourceAudio.reduce((sum, item) => sum + item.bitRateBps, 0) +
+    (probe.subtitleStreams || []).length * 64000;
+  const total = Math.floor(probe.sizeBytes * 8 / (probe.durationMs / 1000));
+  return Math.max(1, total - nonVideo);
 }
 
 function uniqueIncreasingIndexes(values, name) {
@@ -208,18 +229,24 @@ function deriveTargetSizeBudget(value) {
   if(targetVideoBitrateBps<100000)targetVideoBitrateBps=Math.max(100000,Math.floor(fillBytes*8/durationSeconds*0.7));
   if(capVideoBitrateBps>=100000)targetVideoBitrateBps=Math.min(targetVideoBitrateBps,capVideoBitrateBps);
   const raster = value.rasterClass === '4k' ? '4k' : 'below_4k';
-  const floorBps = Number.isSafeInteger(value.videoBitrateFloorBps) && value.videoBitrateFloorBps > 0
+  const policyFloorBps = Number.isSafeInteger(value.videoBitrateFloorBps) && value.videoBitrateFloorBps > 0
     ? value.videoBitrateFloorBps
     : videoBitrateFloorBps(maxSizeBytes, raster);
+  const sourceVideoBitrateBps=Number.isSafeInteger(value.sourceVideoBitrateBps)&&value.sourceVideoBitrateBps>0
+    ?value.sourceVideoBitrateBps:null;
+  const floorBps=sourceVideoBitrateBps===null?policyFloorBps:Math.min(policyFloorBps,sourceVideoBitrateBps);
+  if(sourceVideoBitrateBps!==null)targetVideoBitrateBps=Math.min(targetVideoBitrateBps,sourceVideoBitrateBps);
   const exceedsSizeCap = capVideoBitrateBps < floorBps;
   if (exceedsSizeCap) targetVideoBitrateBps = floorBps;
   const predictedBytes = predictedProductBytes({
     durationMs, targetVideoBitrateBps, nonVideoBitrateBps, containerReserveBytes,
   });
-  return freeze({sizeBudgetRevision:1,maxSizeBytes,containerReserveBytes,nonVideoBitrateBps,targetVideoBitrateBps,
-    capVideoBitrateBps, videoBitrateFloorBps:floorBps, rasterClass:raster, predictedBytes, exceedsSizeCap,
+  return freeze({sizeBudgetRevision:2,maxSizeBytes,containerReserveBytes,nonVideoBitrateBps,targetVideoBitrateBps,
+    capVideoBitrateBps, policyVideoBitrateFloorBps:policyFloorBps,videoBitrateFloorBps:floorBps,
+    sourceVideoBitrateBps,rasterClass:raster,predictedBytes,exceedsSizeCap,
     feasible:capVideoBitrateBps>=100000,sourceSizeBytes,budgetDigest:canonicalDigest({schema:'libra.target-size-budget@1',maxSizeBytes,
-      containerReserveBytes,nonVideoBitrateBps,targetVideoBitrateBps,sourceSizeBytes})});
+      containerReserveBytes,nonVideoBitrateBps,targetVideoBitrateBps,sourceSizeBytes,sourceVideoBitrateBps,
+      policyVideoBitrateFloorBps:policyFloorBps,videoBitrateFloorBps:floorBps})});
 }
 
 function selectCopyAudioStreamsForSizeBudget(value) {
@@ -228,8 +255,10 @@ function selectCopyAudioStreamsForSizeBudget(value) {
   const maxSizeBytes=integer(value?.maxSizeBytes,'maxSizeBytes',1),durationMs=integer(value?.durationMs,'durationMs',1);
   const evaluate=(streams)=>{
     const selected=[...streams].sort((a,b)=>a.streamIndex-b.streamIndex);
+    const sourceVideoBitrateBps=observedSourceVideoBitrateBps(value?.sourceProbe||null);
     return {audioStreams:Object.freeze(selected),budget:deriveTargetSizeBudget({maxSizeBytes,durationMs,audioStreams:selected,subtitleStreams,
       rasterClass:value?.rasterClass,
+      ...(sourceVideoBitrateBps?{sourceVideoBitrateBps}:{}),
       ...(Number.isSafeInteger(value?.sourceSizeBytes)&&value.sourceSizeBytes>0?{sourceSizeBytes:value.sourceSizeBytes}:{})})};
   };
   const ladder=[];
@@ -251,6 +280,14 @@ function deriveRetryTargetVideoBitrate(value) {
   const previousTarget=integer(value?.previousTargetVideoBitrateBps,'previousTargetVideoBitrateBps',1),
     maxSizeBytes=integer(value?.maxSizeBytes,'maxSizeBytes',1),actualSizeBytes=integer(value?.actualSizeBytes,'actualSizeBytes',1);
   return Math.floor(previousTarget*maxSizeBytes/actualSizeBytes*0.98);
+}
+
+function sizeCapRetryDecision(value) {
+  const nextTargetVideoBitrateBps=deriveRetryTargetVideoBitrate(value);
+  const qualityFloorVideoBitrateBps=integer(value?.qualityFloorVideoBitrateBps,
+    'qualityFloorVideoBitrateBps',1);
+  return freeze({nextTargetVideoBitrateBps,qualityFloorVideoBitrateBps,
+    retryAllowed:nextTargetVideoBitrateBps>=qualityFloorVideoBitrateBps});
 }
 
 function buildEncodeIntent(value) {
@@ -277,9 +314,10 @@ function buildEncodeIntent(value) {
   const result={ intentId:'', revision:integer(value.revision, 'revision', 1), schemaRef:'EncodeIntent@1',
     libraRunId:text(value.libraRunId, 'libraRunId'), sourceHandleDigest:digest(value.sourceHandleDigest, 'sourceHandleDigest'),
     mediaRequirementDigest:digest(value.mediaRequirementDigest, 'mediaRequirementDigest'),planningPolicyRef:'LibraMediaPlanningPolicy@1',
-    planningPolicyRevision:2,planningPolicyDigest:LIBRA_MEDIA_PLANNING_POLICY_DIGEST,strategyOrdinal,sizeBudgetRevision:1,
+    planningPolicyRevision:3,planningPolicyDigest:LIBRA_MEDIA_PLANNING_POLICY_DIGEST,strategyOrdinal,sizeBudgetRevision:2,
     outputContainer:'matroska', outputExtension:'mkv',
-    video:{codec:'hevc',rateControlMode:mode,targetVideoBitrateBps,qualityBound,preserveRaster:true,forbidUpscale:true,
+    video:{codec:'hevc',rateControlMode:mode,targetVideoBitrateBps,qualityBound,
+      qualityFloorVideoBitrateBps:integer(value.qualityFloorVideoBitrateBps,'qualityFloorVideoBitrateBps',1),preserveRaster:true,forbidUpscale:true,
       dynamicRangeOperation:operation,pipelineProfileId,outputDynamicRangeKind,outputPixelFormat,outputColorProfile},
     audio:{mode:'copy'},subtitle:{mode:'copy'},deviceClass:text(value.deviceClass, 'deviceClass') };
   if(value.audioStreamIndexes!==undefined)
@@ -510,12 +548,14 @@ function sizeCapAdmissionForecast(value) {
     ? new Set(value.intent.audio.streamIndexes) : null;
   const audioStreams = (probe.audioStreams || []).filter((item) =>
     !indexes || indexes.has(item.streamIndex));
+  const sourceVideoBitrateBps = observedSourceVideoBitrateBps(probe);
   const budget = deriveTargetSizeBudget({
     maxSizeBytes,
     durationMs: probe.durationMs,
     audioStreams,
     subtitleStreams: probe.subtitleStreams,
     rasterClass: raster,
+    ...(sourceVideoBitrateBps ? { sourceVideoBitrateBps } : {}),
     ...(Number.isSafeInteger(probe.sizeBytes) && probe.sizeBytes > 0
       ? { sourceSizeBytes: probe.sizeBytes } : {}),
   });
@@ -654,7 +694,7 @@ function selectProductOutput(value) {
 
 module.exports=Object.freeze({MediaProductionContractError,LIBRA_MEDIA_PLANNING_POLICY,LIBRA_MEDIA_PLANNING_POLICY_DIGEST,
   buildMediaRequirement,buildProductionSourceScopeReference,deriveTargetSizeBudget,selectCopyAudioStreamsForSizeBudget,
-  deriveRetryTargetVideoBitrate,videoBitrateFloorBps,sizeCapAdmissionForecast,rasterClass,predictedProductBytes,
+  deriveRetryTargetVideoBitrate,sizeCapRetryDecision,observedSourceVideoBitrateBps,videoBitrateFloorBps,sizeCapAdmissionForecast,rasterClass,predictedProductBytes,
   buildEncodeIntent,buildRemuxIntent,buildTranscodeInputVerification,
   buildWorkspaceMediaOutputTarget,buildWorkspaceMediaHandle,buildProductMediaCandidateInput,
   buildPlannedProductCandidateReference,buildProductMediaVerification,

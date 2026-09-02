@@ -1,8 +1,15 @@
 # ShelfDeck Helix 当前实施阶段
 
-状态：**PROD-053 LOCAL IMPLEMENTATION COMPLETE — NOT DEPLOYED**
+状态：**PROD-056/057 LOCAL IMPLEMENTATION COMPLETE — DEPLOY/RESET PENDING**
 
-日期：2026-09-02
+## PROD-056/057 本地增量（2026-09-03）
+
+- MoviePilot在候选TMDB ID缺失时使用严格结构化title+year identity，不覆盖明确TMDB冲突；Job恢复使用title+size或title+TMDB的精确组合，唯一Job零速30分钟终态结束，不做候选fallback。
+- `LibraMediaPlanningPolicy@1`升级到revision 3：质量floor不高于源实际视频码率；仅体积Gap的下一策略若低于floor，则保留首次成功成品并直接形成精确size defect，不运行第二次低画质转码或外部寻源。
+- Authorized Defect Manifest补齐Work/Verification/Candidate/Workspace/Material fence绑定；Admin Forecast、Staging、Delivery与Conformance只消费该精确产物。
+- 本地Service全量423 pass、18 skip、0 fail；部署、Formation Reset与生产验收已获Product Owner授权，尚待执行。
+
+日期：2026-09-03
 
 ## 目标
 

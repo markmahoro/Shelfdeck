@@ -433,6 +433,8 @@ function authorizedDefectManifest() {
     defectCode: { type: 'string', enum: ['actor_unavailable', 'external_source_exhausted', 'size_cap_exceeded'] },
     sourceFailureCode: id(), sourceWorkId: id(), sourceEvidenceDigest: digest(),
     originalMediaVerificationId: digest(), originalMediaVerificationDigest: digest(),
+    workspaceMediaVerificationId:digest(),workspaceMediaVerificationDigest:digest(),candidateBasisDigest:digest(),
+    productMaterialHandleId:id(),productMaterialHandleDigest:digest(),productMaterialFenceDigest:digest(),workspaceMediaHandleId:id(),
     waivedRequirementCodes: { type: 'array', minItems: 1, maxItems: 11,
       uniqueItems: true, items: requirementCode }
   }, ['defectCode', 'sourceFailureCode', 'sourceWorkId', 'sourceEvidenceDigest',
@@ -442,6 +444,13 @@ function authorizedDefectManifest() {
       then: { required: ['originalMediaVerificationId', 'originalMediaVerificationDigest'] },
       else: { not: { anyOf: [{ required: ['originalMediaVerificationId'] },
         { required: ['originalMediaVerificationDigest'] }] } }
+    }, {
+      if: { properties: { defectCode: { const: 'size_cap_exceeded' } } },
+      then: { required: ['workspaceMediaVerificationId','workspaceMediaVerificationDigest','candidateBasisDigest',
+        'productMaterialHandleId','productMaterialHandleDigest','productMaterialFenceDigest','workspaceMediaHandleId'] },
+      else: { not: { anyOf: ['workspaceMediaVerificationId','workspaceMediaVerificationDigest','candidateBasisDigest',
+        'productMaterialHandleId','productMaterialHandleDigest','productMaterialFenceDigest','workspaceMediaHandleId']
+        .map((field) => ({ required:[field] })) } }
     }]
   });
   return { $schema: DRAFT, $id: typeId('AuthorizedDefectManifest'),

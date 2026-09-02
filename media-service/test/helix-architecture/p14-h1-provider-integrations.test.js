@@ -262,7 +262,7 @@ function providerFetch(state) {
       if (url.pathname === '/api/v1/search/title') {
         return response(200, { success:true, data:[{
           meta_info: { name:'Movie', year:'2024' },
-          media_info: { title:'Movie', year:'2024',
+          media_info: { title:state.moviepilotMediaTitle || 'Movie', year:'2024',
             tmdb_id:Object.hasOwn(state, 'moviepilotTmdbId')
               ? state.moviepilotTmdbId : 100 },
           torrent_info: {
@@ -518,6 +518,10 @@ function acquisitionQuery() {
     ordinal: 2,
     termKind: 'title',
     value: 'Original Movie',
+  }, {
+    ordinal: 3,
+    termKind: 'year',
+    value: '2024',
   }].map((term) => {
     term.termDigest = canonicalDigest({
       schema: 'libra.external-acquisition-query-term@1',
@@ -966,13 +970,25 @@ test('H1.2 provider operations execute through exact P5 ports and revision-fence
       },
     );
     assert.equal(unanchoredMoviepilot.result.candidates[0].availability,
-      'unavailable');
+      'available');
     assert.deepEqual(
       unanchoredMoviepilot.result.candidates[0].identityAnchors,
       [],
     );
 
+    state.moviepilotTorrentTitle = 'Wrong.Movie.2024.2160p.HEVC.TrueHD';
+    state.moviepilotMediaTitle = 'Wrong Movie';
+    const wrongTitleMoviepilot = await opened.services.executeProvider(
+      'moviepilot', {
+        operationId:'libra.external_material.search@1', effectClass:'pure_observation',
+        idempotencyKey:'moviepilot-search-title-year-mismatch', timeoutMs:5_000,
+        input:{ acquisitionQuery:acquisitionQuery(), limit:25 },
+      });
+    assert.equal(wrongTitleMoviepilot.result.candidates[0].availability,
+      'unavailable');
+
     state.moviepilotTmdbId = 100;
+    state.moviepilotMediaTitle = 'Movie';
     state.moviepilotTorrentTitle =
       'Skyfall 2012 2160p BluRay x265 10bit TrueHD5.1-WiKi';
     state.moviepilotSeeders = 2;
@@ -1112,6 +1128,19 @@ test('H1.2 MoviePilot external request recovers one exact durable job without du
     assert.equal(state.moviepilotDownloadAdds || 0, addCountBeforeRecovery,
       'an exact localized MoviePilot task must be adopted before POST');
 
+    state.moviepilotTasks = [{
+      hash:'job-existing-without-provider-id',
+      title:'Movie.2024.2160p.HEVC.TrueHD',
+      size:1024,
+      type:'电影',
+    }];
+    const recoveredWithoutProviderId = await acquire(
+      'moviepilot-recover-existing-without-provider-id');
+    assert.equal(recoveredWithoutProviderId.result.externalJobReceipt.externalJobId,
+      'job-existing-without-provider-id');
+    assert.equal(state.moviepilotDownloadAdds || 0,addCountBeforeRecovery,
+      'exact torrent title and size must recover the same job when MoviePilot omits TMDB ID');
+
     state.moviepilotTasks = [];
     state.moviepilotHistory = [{
       download_hash: 'job-history',
@@ -1185,6 +1214,32 @@ test('H1.2 MoviePilot terminally rejects the sole job after a bounded zero-progr
     const observed=await opened.services.executeProvider('moviepilot',{
       operationId:'libra.external_material.acquire.observe@1',effectClass:'pure_observation',
       idempotencyKey:'observe-stalled-job',timeoutMs:5_000,
+      input:{externalJobReceipt:receipt,phase:'download'},
+    });
+    assert.equal(observed.result.state,'failed');
+    assert.equal(observed.result.reasonCode,'job_stalled');
+  }finally{opened.kernel.close();}
+});
+
+test('H1.2 MoviePilot terminally rejects a progressed job with zero speed and no activity timestamp', async () => {
+  const value=fixture(),startedAtMs=1_900_000_000_000,
+    observedAtMs=startedAtMs+31*60*1000,state={calls:[],moviepilotTasks:[{
+      hash:'job-stalled-progress',progress:42,state:'downloading',download_speed:0,
+    }]},fetchImpl=providerFetch(state);
+  const host=await createCleanServiceHost({dataDir:value.dataDir,adminDistDir:value.adminDistDir,
+    secretRoot,integrationFetch:fetchImpl,now:()=>startedAtMs});
+  const cookie=await session(host,value.initialized.adminApiKey);
+  await configure(host,cookie,'moviepilot','-stalled-progress-job');
+  await host.close();
+  const opened=openServices(value,fetchImpl,{now:()=>observedAtMs});
+  try{
+    const receipt={schemaRef:'helix://contracts/types/ExternalJobReceipt/v1',schemaVersion:1,
+      receiptId:'stalled-progress-receipt',integrationId:'moviepilot-main',externalJobId:'job-stalled-progress',
+      operationKind:'libra.external_material.acquire.request@1',idempotencyKey:'stalled-progress-request',
+      requestDigest:canonicalDigest({request:'stalled-progress'}),configRevision:1,createdAtMs:startedAtMs};
+    const observed=await opened.services.executeProvider('moviepilot',{
+      operationId:'libra.external_material.acquire.observe@1',effectClass:'pure_observation',
+      idempotencyKey:'observe-stalled-progress-job',timeoutMs:5_000,
       input:{externalJobReceipt:receipt,phase:'download'},
     });
     assert.equal(observed.result.state,'failed');

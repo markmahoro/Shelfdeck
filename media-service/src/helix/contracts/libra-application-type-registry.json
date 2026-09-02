@@ -16,7 +16,7 @@
       "relativePath": "application-types/AuthorizedDefectManifest/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "a0051c14269623dad52792d185cbc4a9025845d2f6e03f22c8dbd935e4c9ef17"
+        "value": "098ad6cfc125f395e0a92ee5e5b2d235a8cf54801bfdc2c40254d2eec3f01465"
       },
       "ssotRefs": [
         "5.6.7",

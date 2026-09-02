@@ -12,6 +12,7 @@ const {
   buildRemuxIntent,
   deriveRetryTargetVideoBitrate,
   deriveTargetSizeBudget,
+  observedSourceVideoBitrateBps,
   selectCopyAudioStreamsForSizeBudget,
   rasterClass,
   buildWorkspaceMediaOutputTarget,
@@ -203,23 +204,23 @@ function transcodePlanning(options,snapshot,ordinal) {
     :selectCopyAudioStreamsForSizeBudget({maxSizeBytes:requirement.space.maxSizeBytes,durationMs:source.inputProbe.durationMs,
       audioStreams,subtitleStreams:source.inputProbe.subtitleStreams,
       acceptedPrimaryAudioClasses:requirement.mandatoryMedia.acceptedPrimaryAudioClasses,
-      rasterClass:displayRaster,
+      rasterClass:displayRaster,sourceProbe:source.inputProbe,
       ...(Number.isSafeInteger(source.inputProbe.sizeBytes)&&source.inputProbe.sizeBytes>0?{sourceSizeBytes:source.inputProbe.sizeBytes}:{})});
   const budget=selectedAudio.budget;
-  const sizeWaived=Array.isArray(snapshot.run.authorizedDefectManifest?.waivedRequirementCodes)
-    && snapshot.run.authorizedDefectManifest.waivedRequirementCodes.includes('max_size_exceeded');
   const previous=prior.at(-1)||null,previousSelection=previous?options.workResultReader.read(
     transcodeMediaSelectionWork(snapshot,ordinal-1).workId):[],previousVerification=previousSelection.find((item)=>item.capabilityRef===VERIFY)?.result||null;
   let targetVideoBitrateBps=budget?.targetVideoBitrateBps||null;
   if(previous&&previousVerification?.reasonCodes?.includes('max_size_exceeded')&&previous.intent.video.targetVideoBitrateBps){
     const retried=deriveRetryTargetVideoBitrate({previousTargetVideoBitrateBps:previous.intent.video.targetVideoBitrateBps,
       maxSizeBytes:requirement.space.maxSizeBytes,actualSizeBytes:previousVerification.spaceSummary.actualSizeBytes});
-    const floorBps=budget?.videoBitrateFloorBps||0;
-    targetVideoBitrateBps=sizeWaived&&retried<floorBps?floorBps:retried;
+    targetVideoBitrateBps=retried;
   }
+  const qualityFloorVideoBitrateBps=budget?.videoBitrateFloorBps||
+    observedSourceVideoBitrateBps(source.inputProbe)||1;
   const intent=buildEncodeIntent({revision:1,libraRunId:snapshot.run.libraRunId,sourceHandleDigest:canonicalDigest(source.handle),
     mediaRequirementDigest:requirement.requirementDigest,strategyOrdinal:ordinal,rateControlMode:strategy.mode,
     ...(strategy.mode==='quality_bound'?{qualityBound:23}:{targetVideoBitrateBps}),deviceClass:strategy.device.deviceClass,
+    qualityFloorVideoBitrateBps,
     dynamicRangeOperation:hasDolbyVision?'tone_map_to_sdr_bt709':'preserve',pipelineProfileId,
     outputDynamicRangeKind:hasDolbyVision?'sdr':(streams[0]?.dynamicRangeKind||'unknown'),
     outputPixelFormat:hasDolbyVision?'yuv420p':(streams[0]?.pixelFormat||'encoder_selected'),

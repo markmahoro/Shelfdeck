@@ -209,7 +209,7 @@ function createProductStagingService(options) {
     const results = options.workResultReader.read(selectedWork.workId)
       .filter((item) => item.outcomeKind === 'succeeded');
     const selection = resolveProductSelection(results,
-      snapshot.run.authorizedDefectManifest).effectiveSelection;
+      snapshot.run.authorizedDefectManifest,{workId:selectedWork.workId}).effectiveSelection;
     if (!selection) {
       throw new Error('Selected media Work lacks its terminal selected output.');
     }
@@ -243,7 +243,9 @@ function createProductStagingService(options) {
           });
         }
       }
-      if (!verification || !media || verification.result !== 'passed' ||
+      const verificationAuthorized=selection.selectionKind==='authorized_defect_workspace_output';
+      if (!verification || !media ||
+          (verification.result !== 'passed' && !verificationAuthorized) ||
           media.workspaceMaterialHandle.handleId !== selection.selectedHandleId) {
         throw new Error(
           'Selected Workspace media cannot be reconstructed from durable Results.',

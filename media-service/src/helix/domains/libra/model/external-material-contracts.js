@@ -88,6 +88,11 @@ function buildAcquisitionQuery(value) {
       originalTitle.trim() !== (typeof displayTitle === 'string' ? displayTitle.trim() : '')) {
     terms.push({ termKind:'title', value:originalTitle.trim() });
   }
+  const releaseYear = identity.releaseYear || identity.year || identity.displayIdentity?.entries
+    ?.find((item) => item.key === 'year')?.value || null;
+  if (/^[0-9]{4}$/.test(String(releaseYear || '').trim())) {
+    terms.push({ termKind:'year', value:String(releaseYear).trim() });
+  }
   if (structure.structureKind === 'season') terms.push({ termKind:'season', value:String(anchors[0].seasonNumber) });
   const dedup=[]; for (const item of terms) if (!dedup.some((existing) => existing.termKind === item.termKind && existing.value === item.value)) dedup.push(item);
   const queryTerms=dedup.slice(0,32).map((item,ordinal)=>freeze({ ordinal,...item,

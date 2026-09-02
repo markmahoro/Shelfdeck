@@ -70,6 +70,10 @@
             "codec": {
               "const": "hevc"
             },
+            "qualityFloorVideoBitrateBps": {
+              "type": "integer",
+              "minimum": 1
+            },
             "preserveRaster": {
               "const": true
             },
@@ -142,6 +146,7 @@
           },
           "required": [
             "codec",
+            "qualityFloorVideoBitrateBps",
             "preserveRaster",
             "forbidUpscale",
             "dynamicRangeOperation",
@@ -160,6 +165,10 @@
           "properties": {
             "codec": {
               "const": "hevc"
+            },
+            "qualityFloorVideoBitrateBps": {
+              "type": "integer",
+              "minimum": 1
             },
             "preserveRaster": {
               "const": true
@@ -233,6 +242,7 @@
           },
           "required": [
             "codec",
+            "qualityFloorVideoBitrateBps",
             "preserveRaster",
             "forbidUpscale",
             "dynamicRangeOperation",
@@ -251,6 +261,10 @@
           "properties": {
             "codec": {
               "const": "hevc"
+            },
+            "qualityFloorVideoBitrateBps": {
+              "type": "integer",
+              "minimum": 1
             },
             "preserveRaster": {
               "const": true
@@ -324,6 +338,7 @@
           },
           "required": [
             "codec",
+            "qualityFloorVideoBitrateBps",
             "preserveRaster",
             "forbidUpscale",
             "dynamicRangeOperation",
@@ -342,6 +357,10 @@
           "properties": {
             "codec": {
               "const": "hevc"
+            },
+            "qualityFloorVideoBitrateBps": {
+              "type": "integer",
+              "minimum": 1
             },
             "preserveRaster": {
               "const": true
@@ -416,6 +435,7 @@
           },
           "required": [
             "codec",
+            "qualityFloorVideoBitrateBps",
             "preserveRaster",
             "forbidUpscale",
             "dynamicRangeOperation",

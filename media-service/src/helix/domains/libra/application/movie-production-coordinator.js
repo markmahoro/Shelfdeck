@@ -500,6 +500,7 @@ function mediaProbeEvidence(raw, handle, observedAtMs) {
       dispositionDefault: item.dispositionDefault === true,
       codec: item.codec,
       codecProfile:item.codecProfile||item.profile||'unknown',pixelFormat:item.pixelFormat||'unknown',bitDepth:Number(item.bitDepth||8),
+      ...(Number.isSafeInteger(item.bitRateBps)&&item.bitRateBps>0?{bitRateBps:item.bitRateBps}:{}),
       chroma:item.chroma||'unknown',colorRange:item.colorRange||'unknown',colorPrimaries:item.colorPrimaries||'unknown',
       colorTransfer:item.colorTransfer||'unknown',colorMatrix:item.colorMatrix||'unknown',dynamicRangeKind:item.dynamicRangeKind||'unknown',
       ...(item.dolbyVision?{dolbyVision:item.dolbyVision}:{}),
@@ -522,6 +523,7 @@ function mediaProbeEvidence(raw, handle, observedAtMs) {
       profile: item.profile || null,
       channels: item.channels || 0,
       channelLayout: item.channelLayout || null,
+      ...(Number.isSafeInteger(item.bitRateBps)&&item.bitRateBps>0?{bitRateBps:item.bitRateBps}:{}),
       formatTags,
       normalizedAudioClass: normalizeAudioClass({
         codec: item.codec,

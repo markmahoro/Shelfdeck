@@ -1,8 +1,15 @@
 # ShelfDeck Clean Helix Current Status
 
-Status: **PROD-055 Formation Reset 已获授权完成；scoped Circuit 启动死锁已修复并部署，生产恢复正常 Formation 流动。**
+Status: **PROD-056/057 本地完整修复已通过 Service 回归；待提交、无损部署、Formation Reset 与生产观察。**
 
-Last updated: 2026-09-02
+Last updated: 2026-09-03
+
+## PROD-056/057 Local Implementation Ready
+
+- 007暴露的候选身份缺口已修复：MoviePilot明确TMDB冲突仍fail closed；缺TMDB时只接受结构化标题与年份精确一致的候选。下载任务恢复接受“精确torrent标题+大小”或“精确torrent标题+TMDB ID”，不接受两项补强都缺失的记录；唯一Job持续零速30分钟即终态失败，不改选其他资源。
+- 守望者暴露的制作策略缺口已修复：新`LibraMediaPlanningPolicy@1` revision 3保存源视频码率与有效质量保护下限；低码率源不被向Policy floor灌大。实际成品仅剩体积Gap时，若下一目标低于有效floor，就保留首次成功、画质更好的超限成品，立即freeze并offer`size_cap_exceeded`；不会继续strict ABR/CPU，也不会因体积Gap寻源。
+- `size_cap_exceeded`授权现在精确绑定source Work、Product Media Verification digest、Candidate Basis、Workspace Media Handle与Material Handle/Fence；Staging、Delivery、Conformance和页面体积摘要都只能消费这一份精确产物，不再扫描“最新”超限输出。
+- 验证：针对性39/39；Service full 441项为423 pass、18 skip、0 fail。Helix Architecture fixture/semantic/manifests/contracts均通过，新aggregate baseline为`eff337505bf4a4817eeebec7c0f1ca996ecf813eb53aab89f03a65527912c87d`；总门禁仍只因两个既有文件的18条dynamic-template scanner findings为fail。本轮尚未部署、未执行Reset、未写生产数据。
 
 ## PROD-055 Formation Reset And Isolated Degraded Startup Deployed
 

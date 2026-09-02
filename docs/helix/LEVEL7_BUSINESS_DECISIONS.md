@@ -101,6 +101,13 @@ Handoff B独立验证并把Manifest保存为Accepted Inventory Fact。事实不�
 
 **回写：** `CURRENT_PLAN.md` PROD-030；`PRODUCTION_DEPLOY_ISSUE_LOG.md` PROD-030；Formation 步骤投影；bounded 待 SSOT §5.6.7 增补。
 
+**2026-09-03 Product Owner修订：** “穷尽自动化手段”不再意味着为了缩小同一个体积瑕疵而无条件运行更低码率策略。
+质量保护下限取Policy下限与源实际视频码率的较小值；若下一策略仍不能跨过`maxSizeBytes`且必须低于该下限，
+它不会产生新的业务结果，系统必须保留首次成功、画质更好的超限产品并直接offer`size_cap_exceeded`。仅
+`max_size_exceeded`不得触发External Acquisition；只有本地媒体无法补齐的Mandatory Media缺口（例如缺4K或
+缺合规主音轨）才能寻源。已下载的唯一external素材适用同一规则。Manifest必须精确绑定被接纳的Work、
+Verification、Workspace Handle与Material Fence，不能从多个超限产物中扫描“最新”或任取一个。
+
 ### L7-DP-03 Per-field Pre-deck pipeline seats（Libra-owned，顶部节流）
 
 确认日期：2026-08-30

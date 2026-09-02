@@ -101,7 +101,7 @@ function selectedContext(options, snapshot, selectedWorkId) {
   const results = options.workResultReader.read(selectedWorkId)
     .filter((item) => item.outcomeKind === 'succeeded');
   const resolvedSelection = resolveProductSelection(results,
-    snapshot.run.authorizedDefectManifest);
+    snapshot.run.authorizedDefectManifest,{workId:selectedWorkId});
   const selectedProduct = resolvedSelection.selection;
   const selected = resolvedSelection.effectiveSelection;
   const verification = resolvedSelection.verification;

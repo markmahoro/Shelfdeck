@@ -1301,7 +1301,8 @@ function acquisitionPolicySchema() {
 function encodeIntentSchema() {
   const outputColorProfile = object({ range:text(), primaries:text(), transfer:text(), matrix:text() });
   const sdrBt709ColorProfile = object({ range:{ const:'limited' }, primaries:{ const:'bt709' }, transfer:{ const:'bt709' }, matrix:{ const:'bt709' } });
-  const videoBase = { codec: { const: 'hevc' }, preserveRaster: { const: true }, forbidUpscale: { const: true },
+  const videoBase = { codec: { const: 'hevc' }, qualityFloorVideoBitrateBps:positiveInteger(),
+    preserveRaster: { const: true }, forbidUpscale: { const: true },
     dynamicRangeOperation: enumText('preserve', 'tone_map_to_sdr_bt709'), pipelineProfileId:text(),
     outputDynamicRangeKind: enumText('sdr', 'hdr10_compatible', 'hlg', 'dolby_vision', 'unknown'),
     outputPixelFormat:text(), outputColorProfile };

@@ -113,7 +113,7 @@ function findSelectedMediaWork(options, snapshot) {
     if (!snapshot.run.authorizedDefectManifest) return false;
     try {
       const kind = resolveProductSelection(results,
-        snapshot.run.authorizedDefectManifest).effectiveSelection?.selectionKind;
+        snapshot.run.authorizedDefectManifest,{workId:work.work_id}).effectiveSelection?.selectionKind;
       return kind === 'authorized_defect_direct_input' ||
         kind === 'authorized_defect_workspace_output';
     } catch { return false; }

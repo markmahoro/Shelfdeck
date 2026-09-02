@@ -120,6 +120,7 @@
             "enum": [
               "provider_key",
               "title",
+              "year",
               "season"
             ]
           },

@@ -79,17 +79,31 @@ function blocker(terminalEvidence) {
   digest(item.terminalEvidenceDigest, 'blockedWork.terminalEvidenceDigest');
   return item;
 }
-function sizeCapDefect(item) {
+function sizeCapDefect(item, verification, run) {
   if (item.failureCode !== 'size_cap_requires_admission' ||
       item.failureClass !== 'business_unachievable') return null;
   const capabilityRef = item.capabilityRef;
-  if (capabilityRef !== 'libra.transcode.input.verify@1' &&
-      capabilityRef !== 'libra.product_media.verify@1') return null;
+  if (capabilityRef !== 'libra.product_media.verify@1') return null;
+  if (!verification || verification.libraRunId !== run.libraRunId ||
+      verification.candidateKind !== 'workspace_output' ||
+      verification.result !== 'failed' ||
+      canonicalJson(ordered(verification.reasonCodes || [])) !==
+        canonicalJson(['max_size_exceeded'])) {
+    fail('P9_DEFECT_ADMISSION_SIZE_VERIFICATION',
+      'Size-cap admission requires the exact failed Workspace verification.');
+  }
   return Object.freeze({
     defectCode: 'size_cap_exceeded',
     sourceFailureCode: item.failureCode,
     sourceWorkId: item.workId,
     sourceEvidenceDigest: item.terminalEvidenceDigest,
+    workspaceMediaVerificationId:digest(verification.verificationId,'sizeVerification.verificationId'),
+    workspaceMediaVerificationDigest:canonicalDigest(verification),
+    candidateBasisDigest:digest(verification.candidateBasisDigest,'sizeVerification.candidateBasisDigest'),
+    productMaterialHandleId:text(verification.productMaterialHandleId,'sizeVerification.productMaterialHandleId'),
+    productMaterialHandleDigest:digest(verification.productMaterialHandleDigest,'sizeVerification.productMaterialHandleDigest'),
+    productMaterialFenceDigest:digest(verification.productMaterialFenceDigest,'sizeVerification.productMaterialFenceDigest'),
+    workspaceMediaHandleId:text(verification.workspaceMediaHandleId,'sizeVerification.workspaceMediaHandleId'),
     waivedRequirementCodes: Object.freeze(['max_size_exceeded']),
   });
 }
@@ -138,7 +152,7 @@ function buildDefectAdmissionCandidate(value) {
     fail('P9_DEFECT_ADMISSION_STATE', 'Only the current frozen Run can form a defect candidate.');
   }
   const item = blocker(value.terminalEvidence);
-  const defect = actorDefect(item) || sizeCapDefect(item) ||
+  const defect = actorDefect(item) || sizeCapDefect(item,value.sizeCapVerification,run) ||
     externalDefect(item, value.directMediaVerification, run);
   if (!defect) {
     fail('P9_DEFECT_ADMISSION_INELIGIBLE',
@@ -281,7 +295,7 @@ function actionableAftercareFindings(manifestValue, findings) {
   }));
 }
 
-function resolveProductSelection(results, manifestValue) {
+function resolveProductSelection(results, manifestValue, context = {}) {
   const selection = (results || []).find((item) =>
     item.capabilityRef === 'libra.product_output.select@1')?.result || null;
   if (selection?.result === 'selected') {
@@ -305,16 +319,25 @@ function resolveProductSelection(results, manifestValue) {
   const sizeDefect = manifest.defects.find((item) =>
     item.defectCode === 'size_cap_exceeded');
   if (sizeDefect) {
+    if (context.workId !== sizeDefect.sourceWorkId) {
+      return Object.freeze({ selection, effectiveSelection:null,
+        verification:null, admittedDefect:null });
+    }
     const verification = (results || []).find((item) =>
       item.outcomeKind === 'succeeded' &&
       item.capabilityRef === 'libra.product_media.verify@1' &&
       item.result?.candidateKind === 'workspace_output' &&
       item.result?.result === 'failed' &&
-      Array.isArray(item.result.reasonCodes) &&
-      item.result.reasonCodes.includes('max_size_exceeded'))?.result || null;
+      item.result?.verificationId === sizeDefect.workspaceMediaVerificationId &&
+      canonicalDigest(item.result) === sizeDefect.workspaceMediaVerificationDigest)?.result || null;
     const reasons = ordered(verification?.reasonCodes || []);
     const waived = ordered(sizeDefect.waivedRequirementCodes || []);
-    if (!verification || canonicalJson(reasons) !== canonicalJson(waived)) {
+    if (!verification || canonicalJson(reasons) !== canonicalJson(waived) ||
+        verification.candidateBasisDigest !== sizeDefect.candidateBasisDigest ||
+        verification.productMaterialHandleId !== sizeDefect.productMaterialHandleId ||
+        verification.productMaterialHandleDigest !== sizeDefect.productMaterialHandleDigest ||
+        verification.productMaterialFenceDigest !== sizeDefect.productMaterialFenceDigest ||
+        verification.workspaceMediaHandleId !== sizeDefect.workspaceMediaHandleId) {
       fail('P9_DEFECT_ADMISSION_SIZE_STALE',
         'Authorized size-cap verification is absent or changed.');
     }

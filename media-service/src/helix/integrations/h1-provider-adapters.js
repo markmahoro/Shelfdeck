@@ -1076,13 +1076,38 @@ function createProtocolTransport(profile, options) {
     return null;
   }
 
+  function normalizedMovieTitle(value) {
+    return String(value || '').normalize('NFKC').trim().toLocaleLowerCase()
+      .replace(/[\p{P}\p{S}\s]+/gu, '');
+  }
+
+  function moviepilotCandidateTitleYearMatches(row, query) {
+    const expectedTitles = query.queryTerms
+      .filter((item) => item.termKind === 'title')
+      .map((item) => normalizedMovieTitle(item.value)).filter(Boolean);
+    const expectedYear = query.queryTerms.find((item) =>
+      item.termKind === 'year')?.value || null;
+    if (!expectedTitles.length || !expectedYear) return false;
+    const media = row?.media_info && typeof row.media_info === 'object'
+      ? row.media_info : {};
+    const meta = row?.meta_info && typeof row.meta_info === 'object'
+      ? row.meta_info : {};
+    const actualTitles = [media.title, media.name, meta.title, meta.name]
+      .map(normalizedMovieTitle).filter(Boolean);
+    const actualYear = media.year ?? media.release_year ?? meta.year ??
+      meta.release_year ?? null;
+    return String(actualYear || '').trim() === expectedYear &&
+      actualTitles.length > 0 &&
+      actualTitles.every((actual) => expectedTitles.includes(actual));
+  }
+
   function moviepilotCandidateAvailable(row, identityAnchors, query) {
-    if (identityAnchors.length === 0 || moviepilotSeederCount(row) <= 0) {
-      return false;
+    if (moviepilotSeederCount(row) <= 0) return false;
+    if (identityAnchors.length === 0) {
+      return moviepilotCandidateTitleYearMatches(row, query);
     }
-    return query.providerIdentityAnchors.some((expected) =>
-      identityAnchors.some((actual) =>
-        actual.provider === expected.provider &&
+    return query.providerIdentityAnchors.some((expected) => identityAnchors.some(
+      (actual) => actual.provider === expected.provider &&
         actual.namespace === expected.namespace &&
         actual.providerKey === expected.providerKey &&
         actual.seasonNumber === expected.seasonNumber));
@@ -1236,20 +1261,20 @@ function createProtocolTransport(profile, options) {
     const expectedSize = Number(selectedRow?.torrent_info?.size);
     const actualSize = Number(value?.size ?? value?.total_size);
     if (!jobId || !expectedTitle || actualTitle !== expectedTitle ||
-        !Number.isSafeInteger(expectedSize) || expectedSize < 0 ||
-        ((!Number.isSafeInteger(actualSize) || actualSize !== expectedSize) &&
-          !(options.allowMissingSize === true &&
-            (value?.size ?? value?.total_size) == null))) {
+        !Number.isSafeInteger(expectedSize) || expectedSize < 0) {
       return false;
     }
     const expectedIdentity = query.providerIdentityAnchors.find((item) =>
       item.provider === 'tmdb' &&
       item.namespace === (query.contentProfile === 'series'
         ? 'tmdb_series' : 'tmdb_movie')) || null;
-    if (expectedIdentity &&
-        moviepilotJobIdentity(value) !== expectedIdentity.providerKey) {
-      return false;
-    }
+    const observedIdentity = moviepilotJobIdentity(value);
+    if (expectedIdentity && observedIdentity &&
+        observedIdentity !== expectedIdentity.providerKey) return false;
+    const hasSize = Number.isSafeInteger(actualSize);
+    if (hasSize && actualSize !== expectedSize) return false;
+    if (!hasSize && !(options.allowMissingSize === true && expectedIdentity &&
+        observedIdentity === expectedIdentity.providerKey)) return false;
     const observedProfile = moviepilotJobContentProfile(value);
     return observedProfile === null || observedProfile === query.contentProfile;
   }
@@ -1563,15 +1588,13 @@ function createProtocolTransport(profile, options) {
       const observedAtMs = now(), stallWindowMs = 30 * 60 * 1000,
         zeroSpeed = Number.isFinite(speed) && speed <= 0,
         explicitStall = taskState.includes('stalled'),
-        noProgress = !Number.isFinite(progress) || progress <= 0,
         receiptWindowElapsed = observedAtMs - receipt.createdAtMs >=
           stallWindowMs,
         activityWindowElapsed = activityAtMs !== null &&
           observedAtMs - activityAtMs >= stallWindowMs,
         terminallyStalled =
           (explicitStall && receiptWindowElapsed) ||
-          (zeroSpeed && (activityWindowElapsed ||
-            (noProgress && receiptWindowElapsed)));
+          (zeroSpeed && (activityWindowElapsed || receiptWindowElapsed));
       if (terminallyStalled) {
         const basis = {
           externalJobReceiptId: receipt.receiptId,

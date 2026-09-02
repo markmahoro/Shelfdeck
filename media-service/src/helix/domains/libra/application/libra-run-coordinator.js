@@ -24,7 +24,7 @@ const {
   nextMetadataStage,
 } = require('../planning/product-metadata-work');
 const { coversRequirementGaps } = require('../model/defect-admission-contracts');
-const { sourceRequiresExternalSearch } = require('../model/media-production-contracts');
+const { sizeCapRetryDecision, sourceRequiresExternalSearch } = require('../model/media-production-contracts');
 const {
   classifyVerifyGap,
   shouldTranscodeExternalImport,
@@ -242,7 +242,7 @@ function createLibraRunCoordinator(options){
     }
     return values[0];
   }
-  function findLastVolumeOnlyWorkspaceVerify(snapshot) {
+  function findBestVolumeOnlyWorkspaceVerify(snapshot) {
     if (typeof options.workResultReader.listWorks !== 'function') return null;
     const works = options.workResultReader.listWorks({
       ownerDomain: 'libra',
@@ -260,7 +260,7 @@ function createLibraRunCoordinator(options){
     }).sort((left, right) => {
       const leftOrdinal = Number(/transcode_(\d+)_selection/.exec(left.work.workId)?.[1] || 0);
       const rightOrdinal = Number(/transcode_(\d+)_selection/.exec(right.work.workId)?.[1] || 0);
-      return rightOrdinal - leftOrdinal;
+      return leftOrdinal - rightOrdinal;
     });
     return candidates[0] || null;
   }
@@ -277,6 +277,26 @@ function createLibraRunCoordinator(options){
         resultDigest: verifyRecord.resultDigest,
       }),
     );
+  }
+  function transcodeIntent(work) {
+    return options.workResultReader.read(work.workId).find((item) =>
+      item.outcomeKind === 'succeeded' &&
+      item.capabilityRef === 'libra.media.transcode@1')?.inputBindings?.bindings
+      ?.find((item) => item.portName === 'encodeIntent' &&
+        item.bindingKind === 'literal')?.value || null;
+  }
+  function shouldFreezeMeasuredSizeCap(work, verifyRecord) {
+    const verification=verifyRecord?.result,intent=transcodeIntent(work);
+    if(classifyVerifyGap(verification)!=='volume_only'||
+        !Number.isSafeInteger(intent?.video?.targetVideoBitrateBps)||
+        !Number.isSafeInteger(intent?.video?.qualityFloorVideoBitrateBps))return false;
+    const decision=sizeCapRetryDecision({
+      previousTargetVideoBitrateBps:intent.video.targetVideoBitrateBps,
+      maxSizeBytes:verification.spaceSummary.maxSizeBytes,
+      actualSizeBytes:verification.spaceSummary.actualSizeBytes,
+      qualityFloorVideoBitrateBps:intent.video.qualityFloorVideoBitrateBps,
+    });
+    return !decision.retryAllowed;
   }
   function sizeCapWaived(snapshot) {
     const codes = snapshot.run.authorizedDefectManifest?.waivedRequirementCodes || [];
@@ -423,6 +443,11 @@ function createLibraRunCoordinator(options){
         const selection=selectedOutput(work);
         if(selection.result==='selected' || onlyWaivedSizeGap(work,snapshot))
           return ensureDelivery(snapshot,workspace,work);
+        const verifyRecord=mediaVerificationRecord(work);
+        if(shouldFreezeMeasuredSizeCap(work,verifyRecord)){
+          const frozen=tryFreezeMeasuredSizeCap(snapshot,work,verifyRecord);
+          if(frozen)return frozen;
+        }
         if(requiresExternalSource(work))return continueExternalOrAuthorizedDirectInput(snapshot,workspace,context);
         continue;
       }
@@ -436,12 +461,10 @@ function createLibraRunCoordinator(options){
         workId:work.workId,replayed:submitted.replayed,transcodeStrategyOrdinal:ordinal,
         workspaceId:workspace.workspaceId,workspaceRevision:workspace.currentRevision});
     }
-    if(context.sourceKind==='external_workspace'){
-      const measured=findLastVolumeOnlyWorkspaceVerify(snapshot);
-      if(measured){
-        const frozen=tryFreezeMeasuredSizeCap(snapshot,measured.work,measured.record);
-        if(frozen)return frozen;
-      }
+    const measured=findBestVolumeOnlyWorkspaceVerify(snapshot);
+    if(measured){
+      const frozen=tryFreezeMeasuredSizeCap(snapshot,measured.work,measured.record);
+      if(frozen)return frozen;
     }
     return continueExternalOrAuthorizedDirectInput(snapshot,workspace,context);
   }

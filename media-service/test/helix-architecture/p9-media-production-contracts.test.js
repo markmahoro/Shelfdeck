@@ -67,13 +67,15 @@ function dvProbe(handle,id='dv-probe',baseLayerKind='pq_bt2020_compatible',profi
     formatTags:[],normalizedAudioClass:'truehd',language:'eng'}]});}
 function dvIntent(handle,requirement,deviceClass='nvidia_nvenc',strategyOrdinal=1,previousIntentDigest=undefined){return media.buildEncodeIntent({
   revision:1,libraRunId:'run-1',sourceHandleDigest:canonicalDigest(handle),mediaRequirementDigest:requirement.requirementDigest,
-  rateControlMode:deviceClass==='software_cpu'?'two_pass_abr':'target_size',targetVideoBitrateBps:4_000_000,deviceClass,strategyOrdinal,
+  rateControlMode:deviceClass==='software_cpu'?'two_pass_abr':'target_size',targetVideoBitrateBps:4_000_000,
+  qualityFloorVideoBitrateBps:4_000_000,deviceClass,strategyOrdinal,
   dynamicRangeOperation:'tone_map_to_sdr_bt709',pipelineProfileId:'pq_bt2020_base_to_sdr_bt709_hevc@1',
   outputDynamicRangeKind:'sdr',outputPixelFormat:'yuv420p',
   outputColorProfile:{range:'limited',primaries:'bt709',transfer:'bt709',matrix:'bt709'},
   ...(previousIntentDigest?{previousIntentDigest}:{})});}
 function encodeIntent(handle,requirement){return media.buildEncodeIntent({revision:1,libraRunId:'run-1',sourceHandleDigest:canonicalDigest(handle),
-  mediaRequirementDigest:requirement.requirementDigest,rateControlMode:'quality_bound',qualityBound:20,deviceClass:'nvidia_nvenc',strategyOrdinal:1,
+  mediaRequirementDigest:requirement.requirementDigest,rateControlMode:'quality_bound',qualityBound:20,
+  qualityFloorVideoBitrateBps:1_000_000,deviceClass:'nvidia_nvenc',strategyOrdinal:1,
   dynamicRangeOperation:'preserve',pipelineProfileId:'ordinary_to_hevc@1',outputDynamicRangeKind:'sdr',outputPixelFormat:'yuv420p',
   outputColorProfile:{range:'source',primaries:'source',transfer:'source',matrix:'source'}});}
 const preflight=()=>({sampleCount:24,passedSampleCount:24,reasonCode:null,preflightDigest:D('preflight')});
@@ -89,7 +91,8 @@ test('compiles exact media requirements and mutually exclusive production intent
   assert.equal(encoded.planningPolicyRef,'LibraMediaPlanningPolicy@1');assert.equal(encoded.strategyOrdinal,1);
   assert.equal(remuxed.schemaRef,'RemuxIntent@1');assert.equal(remuxed.video,undefined);
   assert.throws(()=>media.buildEncodeIntent({revision:1,libraRunId:'run-1',sourceHandleDigest:canonicalDigest(handle),
-    mediaRequirementDigest:requirement.requirementDigest,rateControlMode:'quality_bound',qualityBound:64,deviceClass:'nvidia_nvenc',strategyOrdinal:1}),
+    mediaRequirementDigest:requirement.requirementDigest,rateControlMode:'quality_bound',qualityBound:64,
+    qualityFloorVideoBitrateBps:1_000_000,deviceClass:'nvidia_nvenc',strategyOrdinal:1}),
   (error)=>error.code==='P9_MEDIA_RATE_CONTROL');
 });
 
@@ -132,6 +135,14 @@ test('derives a conservative size budget and freezes retry attempts as new inten
   assert.deepEqual(extraLossless.audioStreams.map((item)=>item.streamIndex),[1]);
   assert.equal(media.videoBitrateFloorBps(8*1073741824,'below_4k'),2_500_000);
   assert.equal(media.videoBitrateFloorBps(8*1073741824,'4k'),10_000_000);
+  const watchmenRetry=media.sizeCapRetryDecision({previousTargetVideoBitrateBps:12_000_000,
+    maxSizeBytes:14*1073741824,actualSizeBytes:Math.round(22.43*1073741824),
+    qualityFloorVideoBitrateBps:12_000_000});
+  assert.equal(watchmenRetry.retryAllowed,false);
+  const lawfulRetry=media.sizeCapRetryDecision({previousTargetVideoBitrateBps:8_000_000,
+    maxSizeBytes:14*1073741824,actualSizeBytes:15*1073741824,
+    qualityFloorVideoBitrateBps:7_000_000});
+  assert.equal(lawfulRetry.retryAllowed,true);
   const noryang=media.deriveTargetSizeBudget({maxSizeBytes:8*1073741824,durationMs:9_168_448,
     audioStreams:[{normalizedAudioClass:'dts_hd_ma'}],subtitleStreams:[{},{},{},{}],rasterClass:'below_4k'});
   assert.equal(noryang.exceedsSizeCap,true);
@@ -147,35 +158,51 @@ test('derives a conservative size budget and freezes retry attempts as new inten
   assert.equal(forecast.rasterClass,'below_4k');
   assert.ok(forecast.overshootBytes>0);
   const silverton=media.deriveTargetSizeBudget({maxSizeBytes:planningLimit,sourceSizeBytes:2_077_884_000,durationMs:6_062_624,
-    audioStreams:[{normalizedAudioClass:'other'},{normalizedAudioClass:'other'}],subtitleStreams:[]});
+    sourceVideoBitrateBps:1_000_000,audioStreams:[{normalizedAudioClass:'other'},{normalizedAudioClass:'other'}],subtitleStreams:[]});
   const fillCap=media.deriveTargetSizeBudget({maxSizeBytes:planningLimit,durationMs:6_062_624,
     audioStreams:[{normalizedAudioClass:'other'},{normalizedAudioClass:'other'}],subtitleStreams:[]});
   assert.equal(silverton.feasible,true);
+  assert.equal(silverton.videoBitrateFloorBps,1_000_000);
+  assert.ok(silverton.targetVideoBitrateBps<=1_000_000);
   assert.ok(silverton.targetVideoBitrateBps<8_000_000);
   assert.ok(silverton.targetVideoBitrateBps<fillCap.targetVideoBitrateBps);
+  const lowBitrateMultiAudioProbe={sizeBytes:1_000_000_000,durationMs:4_000_000,
+    videoStreams:[{streamIndex:0,dispositionDefault:true}],audioStreams:[
+      {streamIndex:1,normalizedAudioClass:'truehd',bitRateBps:750_000},
+      {streamIndex:2,normalizedAudioClass:'truehd',bitRateBps:750_000},
+    ],subtitleStreams:[]};
+  assert.equal(media.observedSourceVideoBitrateBps(lowBitrateMultiAudioProbe),500_000);
+  const lowSource=media.selectCopyAudioStreamsForSizeBudget({maxSizeBytes:8*1073741824,
+    durationMs:lowBitrateMultiAudioProbe.durationMs,audioStreams:lowBitrateMultiAudioProbe.audioStreams,
+    subtitleStreams:[],acceptedPrimaryAudioClasses:['truehd'],rasterClass:'below_4k',
+    sourceProbe:lowBitrateMultiAudioProbe,sourceSizeBytes:lowBitrateMultiAudioProbe.sizeBytes});
+  assert.equal(lowSource.budget.sourceVideoBitrateBps,500_000);
+  assert.equal(lowSource.budget.videoBitrateFloorBps,500_000);
+  assert.ok(lowSource.budget.targetVideoBitrateBps>0);
+  assert.ok(lowSource.budget.targetVideoBitrateBps<=500_000);
   const first=media.buildEncodeIntent({revision:1,libraRunId:'run-1',sourceHandleDigest:canonicalDigest(handle),
     mediaRequirementDigest:requirement.requirementDigest,rateControlMode:'target_size',targetVideoBitrateBps:budget.targetVideoBitrateBps,
-    deviceClass:'nvidia_nvenc',strategyOrdinal:1,dynamicRangeOperation:'preserve',pipelineProfileId:'ordinary_to_hevc@1',
+    qualityFloorVideoBitrateBps:budget.videoBitrateFloorBps,deviceClass:'nvidia_nvenc',strategyOrdinal:1,dynamicRangeOperation:'preserve',pipelineProfileId:'ordinary_to_hevc@1',
     outputDynamicRangeKind:'sdr',outputPixelFormat:'yuv420p',outputColorProfile:{range:'source',primaries:'source',transfer:'source',matrix:'source'}});
   const retryBitrate=media.deriveRetryTargetVideoBitrate({previousTargetVideoBitrateBps:budget.targetVideoBitrateBps,
     maxSizeBytes:requirement.space.maxSizeBytes,actualSizeBytes:requirement.space.maxSizeBytes*2});
   const retry=media.buildEncodeIntent({revision:2,libraRunId:'run-1',sourceHandleDigest:canonicalDigest(handle),
     mediaRequirementDigest:requirement.requirementDigest,rateControlMode:'target_size',targetVideoBitrateBps:retryBitrate,
-    deviceClass:'nvidia_nvenc',strategyOrdinal:2,previousIntentDigest:first.intentDigest,dynamicRangeOperation:'preserve',
+    qualityFloorVideoBitrateBps:budget.videoBitrateFloorBps,deviceClass:'nvidia_nvenc',strategyOrdinal:2,previousIntentDigest:first.intentDigest,dynamicRangeOperation:'preserve',
     pipelineProfileId:'ordinary_to_hevc@1',outputDynamicRangeKind:'sdr',outputPixelFormat:'yuv420p',
     outputColorProfile:{range:'source',primaries:'source',transfer:'source',matrix:'source'}});
   valid('helix://contracts/domain-types/EncodeIntent/v1',first);valid('helix://contracts/domain-types/EncodeIntent/v1',retry);
   assert.notEqual(first.intentDigest,retry.intentDigest);assert.equal(retry.previousIntentDigest,first.intentDigest);
   const indexed=media.buildEncodeIntent({revision:1,libraRunId:'run-1',sourceHandleDigest:canonicalDigest(handle),
     mediaRequirementDigest:requirement.requirementDigest,rateControlMode:'target_size',targetVideoBitrateBps:budget.targetVideoBitrateBps,
-    deviceClass:'nvidia_nvenc',strategyOrdinal:1,dynamicRangeOperation:'preserve',pipelineProfileId:'ordinary_to_hevc@1',
+    qualityFloorVideoBitrateBps:budget.videoBitrateFloorBps,deviceClass:'nvidia_nvenc',strategyOrdinal:1,dynamicRangeOperation:'preserve',pipelineProfileId:'ordinary_to_hevc@1',
     outputDynamicRangeKind:'sdr',outputPixelFormat:'yuv420p',outputColorProfile:{range:'source',primaries:'source',transfer:'source',matrix:'source'},
     audioStreamIndexes:[1,2]});
   valid('helix://contracts/domain-types/EncodeIntent/v1',indexed);
   assert.deepEqual(indexed.audio.streamIndexes,[1,2]);
   assert.throws(()=>media.buildEncodeIntent({revision:1,libraRunId:'run-1',sourceHandleDigest:canonicalDigest(handle),
     mediaRequirementDigest:requirement.requirementDigest,rateControlMode:'target_size',targetVideoBitrateBps:budget.targetVideoBitrateBps,
-    deviceClass:'nvidia_nvenc',strategyOrdinal:1,dynamicRangeOperation:'preserve',pipelineProfileId:'ordinary_to_hevc@1',
+    qualityFloorVideoBitrateBps:budget.videoBitrateFloorBps,deviceClass:'nvidia_nvenc',strategyOrdinal:1,dynamicRangeOperation:'preserve',pipelineProfileId:'ordinary_to_hevc@1',
     outputDynamicRangeKind:'sdr',outputPixelFormat:'yuv420p',outputColorProfile:{range:'source',primaries:'source',transfer:'source',matrix:'source'},
     audioStreamIndexes:[2,1]}),(error)=>error.code==='P9_MEDIA_STREAM_INDEXES');
 });

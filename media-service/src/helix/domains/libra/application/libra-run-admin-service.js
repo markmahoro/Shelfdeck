@@ -203,16 +203,21 @@ function createLibraRunAdminService(options) {
         stateRevision:Number(snapshot.run.state_revision), stateDigest:snapshot.run.state_digest }),
       terminalEvidence,
       directMediaVerification,
+      sizeCapVerification:terminalEvidence.blockedWorks[0]?.failureCode === 'size_cap_requires_admission'
+        ? workResultReader.read(terminalEvidence.blockedWorks[0].workId).find((item) =>
+          item.outcomeKind === 'succeeded' &&
+          item.capabilityRef === 'libra.product_media.verify@1')?.result || null
+        : null,
       priorAuthorizedManifest:latestDefect,
     });
     if (!candidate.defects.some((item) => item.defectCode === 'size_cap_exceeded')) {
       return candidate;
     }
-    const sizeForecast = sizeForecastForRun(libraRunId, snapshot.run.acceptance_spec_id);
+    const sizeForecast = sizeForecastForRun(libraRunId, snapshot.run.acceptance_spec_id,candidate);
     return sizeForecast ? Object.freeze({ ...candidate, sizeForecast }) : candidate;
   }
 
-  function sizeForecastForRun(libraRunId, acceptanceSpecId) {
+  function sizeForecastForRun(libraRunId, acceptanceSpecId, candidate) {
     try {
       const specRow = options.unitOfWork.execute([{
         participantId: 'libra_run_admin_spec_read',
@@ -227,18 +232,12 @@ function createLibraRunAdminService(options) {
       const spec = specRow?.spec_json ? JSON.parse(specRow.spec_json) : null;
       const maxSizeBytes = spec?.requirements?.space?.maxSizeBytes;
       if (!Number.isSafeInteger(maxSizeBytes) || maxSizeBytes < 1) return null;
-      const works = workResultReader.listWorks({
-        ownerDomain: 'libra', processType: 'libra_run', processId: libraRunId,
-        workKind: 'workspace_media_production',
-      }) || [];
-      const verifyRecord = works.flatMap((work) => workResultReader.read(work.work_id).filter((item) =>
+      const defect=candidate?.defects?.find((item)=>item.defectCode==='size_cap_exceeded');
+      const verifyRecord = defect ? workResultReader.read(defect.sourceWorkId).find((item) =>
         item.outcomeKind === 'succeeded' &&
         item.capabilityRef === 'libra.product_media.verify@1' &&
-        item.result?.candidateKind === 'workspace_output' &&
-        item.result?.result === 'failed' &&
-        Array.isArray(item.result.reasonCodes) &&
-        item.result.reasonCodes.includes('max_size_exceeded'))).sort((left, right) =>
-        String(right.result?.verifiedAtMs || 0).localeCompare(String(left.result?.verifiedAtMs || 0)))[0];
+        item.result?.verificationId === defect.workspaceMediaVerificationId &&
+        canonicalDigest(item.result) === defect.workspaceMediaVerificationDigest) : null;
       const verification = verifyRecord?.result;
       if (!verification?.spaceSummary) return null;
       const actualBytes = verification.spaceSummary.actualSizeBytes;

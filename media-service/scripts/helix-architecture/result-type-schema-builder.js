@@ -142,13 +142,15 @@ const dolbyVisionStream = object({ profile: nonNegativeInteger(), level: nonNega
   baseLayerKind: enumText('pq_bt2020_compatible', 'non_compatible', 'unknown') });
 const videoStreamFields = {
   streamIndex: nonNegativeInteger(), dispositionDefault: bool(), codec: text(), codecProfile: text(),
+  bitRateBps: positiveInteger(),
   pixelFormat: text(), bitDepth: positiveInteger(), chroma: text(), colorRange: text(), colorPrimaries: text(),
   colorTransfer: text(), colorMatrix: text(), dynamicRangeKind: enumText('sdr', 'hdr10_compatible', 'hlg', 'dolby_vision', 'unknown'),
   dolbyVision: dolbyVisionStream, codedWidth: positiveInteger(), codedHeight: positiveInteger(),
   sampleAspectRatio: text(), rotation: { type: 'integer', minimum: -359, maximum: 359 }, displayWidth: positiveInteger(),
   displayHeight: positiveInteger(), longEdge: positiveInteger(), shortEdge: positiveInteger()
 };
-const stream = object(videoStreamFields, Object.keys(videoStreamFields).filter((field) => field !== 'dolbyVision'), {
+const stream = object(videoStreamFields, Object.keys(videoStreamFields).filter((field) =>
+  field !== 'dolbyVision' && field !== 'bitRateBps'), {
   allOf:[
     { if:{ properties:{ dynamicRangeKind:{ const:'dolby_vision' } }, required:['dynamicRangeKind'] }, then:{ required:['dolbyVision'] } },
     { if:{ properties:{ dynamicRangeKind:{ not:{ const:'dolby_vision' } } }, required:['dynamicRangeKind'] }, then:{ not:{ required:['dolbyVision'] } } }
@@ -783,7 +785,7 @@ function resultSchema(name, base, properties, options = {}) {
 }
 
 function acquisitionQuerySchema() {
-  const queryTerm=object({ordinal:nonNegativeInteger(),termKind:enumText('provider_key','title','season'),value:text(),termDigest:digest()});
+  const queryTerm=object({ordinal:nonNegativeInteger(),termKind:enumText('provider_key','title','year','season'),value:text(),termDigest:digest()});
   return resultSchema('AcquisitionQuery','DraftEnvelope',{libraRunId:id(),runExecutionBasisDigest:digest(),resolvedIdentityDigest:digest(),
     productStructureDigest:digest(),structureKind:enumText('single','season'),contentProfile:enumText('movie','series','jav','western_adult'),
     providerIdentityAnchors:{...arrayOf(domainRef('ResolvedProviderIdentity'),16),minItems:1},requestedEpisodeKeys:arrayOf(text(),256),

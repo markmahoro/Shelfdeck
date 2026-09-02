@@ -18,6 +18,7 @@ const {
   buildAuthorizedDefectManifest,
   buildDefectAdmissionCandidate,
   coversRequirementGaps,
+  resolveProductSelection,
 } = require('../../src/helix/domains/libra/model/defect-admission-contracts');
 const {
   acceptsProductionAttestation,
@@ -40,6 +41,14 @@ function terminal(failureCode, capabilityRef = 'libra.product_metadata.fetch@1')
 function authorize(candidate) {
   return buildAuthorizedDefectManifest({ candidate, actorId:'admin',
     idempotencyKey:'uat-126', acknowledged:true, decidedAtMs:119 });
+}
+function sizeVerification(overrides = {}) {
+  return Object.freeze({ libraRunId:'run-119',candidateKind:'workspace_output',
+    result:'failed',reasonCodes:Object.freeze(['max_size_exceeded']),
+    verificationId:D('size-verification'),candidateBasisDigest:D('size-candidate'),
+    productMaterialHandleId:'workspace-product-1',productMaterialHandleDigest:D('workspace-product'),
+    productMaterialFenceDigest:D('workspace-fence'),workspaceMediaHandleId:'workspace-media-1',
+    spaceSummary:{actualSizeBytes:22,maxSizeBytes:14,withinLimit:false},...overrides });
 }
 
 test('UAT-126 admits an evidenced actor absence but preserves the unmet fact', () => {
@@ -94,16 +103,33 @@ test('UAT-126 admits exhausted sourcing only for the exact safe original verific
 test('size-cap admission waives only max_size_exceeded after measured workspace verification freeze', () => {
   const candidate = buildDefectAdmissionCandidate({ run:frozen(),
     terminalEvidence:terminal('size_cap_requires_admission',
-      'libra.product_media.verify@1') });
+      'libra.product_media.verify@1'),sizeCapVerification:sizeVerification() });
   assert.equal(candidate.defects[0].defectCode, 'size_cap_exceeded');
   assert.deepEqual(candidate.waivedRequirementCodes, ['max_size_exceeded']);
   const manifest = authorize(candidate);
   assert.equal(coversRequirementGaps(manifest, ['max_size_exceeded']), true);
   assert.equal(coversRequirementGaps(manifest, ['video_codec_unmet']), false);
-  const legacyAssessment = buildDefectAdmissionCandidate({ run:frozen(),
+  assert.equal(candidate.defects[0].workspaceMediaVerificationId,
+    sizeVerification().verificationId);
+  assert.throws(() => buildDefectAdmissionCandidate({ run:frozen(),
     terminalEvidence:terminal('size_cap_requires_admission',
-      'libra.transcode.input.verify@1') });
-  assert.equal(legacyAssessment.defects[0].defectCode, 'size_cap_exceeded');
+      'libra.product_media.verify@1'),sizeCapVerification:sizeVerification({
+      reasonCodes:['max_size_exceeded','video_codec_unmet'] }) }),
+  (error) => error.code === 'P9_DEFECT_ADMISSION_SIZE_VERIFICATION');
+  const verification=sizeVerification(),exactCandidate=buildDefectAdmissionCandidate({run:frozen(),
+    terminalEvidence:terminal('size_cap_requires_admission','libra.product_media.verify@1'),
+    sizeCapVerification:verification}),exactManifest=authorize(exactCandidate),results=[
+      {outcomeKind:'succeeded',capabilityRef:'libra.product_output.select@1',result:{result:'not_selected'}},
+      {outcomeKind:'succeeded',capabilityRef:'libra.product_media.verify@1',result:verification},
+    ];
+  assert.equal(resolveProductSelection(results,exactManifest,{workId:'work-119'})
+    .effectiveSelection.selectionKind,'authorized_defect_workspace_output');
+  assert.equal(resolveProductSelection(results,exactManifest,{workId:'another-work'})
+    .effectiveSelection,null);
+  assert.throws(() => resolveProductSelection([
+    results[0],{...results[1],result:{...verification,productMaterialHandleId:'different-product'}},
+  ],exactManifest,{workId:'work-119'}),
+  (error) => error.code === 'P9_DEFECT_ADMISSION_SIZE_STALE');
 });
 
 test('UAT-126 rejects provider outages and Arca rejects stale or broader attestations', () => {

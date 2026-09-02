@@ -101,7 +101,7 @@ function validateAcquisitionQuery(value, digest) {
   if (!Array.isArray(value.queryTerms) || value.queryTerms.length < 1 || value.queryTerms.length > 32) fail('P5_PROVIDER_ACQUISITION_QUERY_BOUND', 'Acquisition Query terms are invalid.');
   value.queryTerms.forEach((term, index) => {
     exact(term, ['ordinal', 'termKind', 'value', 'termDigest'], 'P5_PROVIDER_ACQUISITION_TERM_SHAPE');
-    if (term.ordinal !== index || !['provider_key', 'title', 'season'].includes(term.termKind) || !String(term.value || '').trim()) fail('P5_PROVIDER_ACQUISITION_TERM', 'Acquisition Query term is invalid.');
+    if (term.ordinal !== index || !['provider_key', 'title', 'year', 'season'].includes(term.termKind) || !String(term.value || '').trim()) fail('P5_PROVIDER_ACQUISITION_TERM', 'Acquisition Query term is invalid.');
     const expected = digest(canonicalJson({ schema: 'libra.external-acquisition-query-term@1', termKind: term.termKind, value: term.value }));
     if (term.termDigest !== expected) fail('P5_PROVIDER_ACQUISITION_TERM_DIGEST', 'Acquisition Query term digest is invalid.');
   });
