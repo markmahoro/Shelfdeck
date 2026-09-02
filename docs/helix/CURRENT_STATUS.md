@@ -1,8 +1,16 @@
 # ShelfDeck Clean Helix Current Status
 
-Status: **PROD-054 Arca Aftercare recovery 收敛修复已无损部署并通过生产验收；Formation Reset dry-run 仍建议执行，但尚未获授权 apply。**
+Status: **PROD-055 Formation Reset 已获授权完成；scoped Circuit 启动死锁已修复并部署，生产恢复正常 Formation 流动。**
 
 Last updated: 2026-09-02
+
+## PROD-055 Formation Reset And Isolated Degraded Startup Deployed
+
+- 获授权的唯一 Formation Reset 已离线完成。完整 data 备份位于 `/vol1/1000/docker/shelfdeck/backups/formation-reset-20260902T113345Z/data`；删除 3 个未 Commit Subject、3 个 Run、3 个 Workspace 与 55 个 Work，重开 4 个 Delivery/Reservation，恢复 3 个 Procurement Control。冻结 manifest digest 为 `9f36f22a9b4fa8b8ccb525f7e81a708fd5340cd70e23bee257731a693d66e88e`；独立 verifier、`integrity_check=ok`、外键检查和离线二次 plan 均通过，二次 plan 的可变 reset 计数及 blocker 均为 0。
+- Reset 后首次启动被一个既有 exact-scope Circuit 拒绝：`owner/arca/arca_shelf_entry/care_workspace_reclaim` 已因 3 条终态失败 Work 达到阈值并记录 `RECOVERY_EXECUTION_BUDGET_EXHAUSTED`。该 Circuit 与 Incident 是真实故障隔离证据，且对应 committed Shelf Entry 的 Aftercare Work 仍存在，不属于 On-deck Commit 前 Reset 图；因此没有把它伪装成脏数据删除。
+- 根因是 Startup Recovery 已正确把非全局 Circuit 分类为 `degraded`，却仍令 `normalSupplyAllowed=false`，Execution Host 因而在任何 exact-scope recovery Work 获得验证机会前全局退出。这与 SSOT 10.1.1“degraded 只隔离受影响 scope”冲突。修复后仅 `ready|degraded` 允许 Host 启动；全局 Circuit、完整性或其他 hard finding 仍 fail closed，具体 Event 继续由 exact Circuit/Incident gate 隔离并由同路径成功证据关闭。
+- 验证：Startup Recovery/Runtime Host/Formation Reset focused 72/72；Service full 441 项为 423 pass、18 skip、0 fail。镜像 `markmahoro/shelfdeck:helix-beta-20260902-0d94f414ac` 由 source commit `0d94f414ac` 构建，tar 本地/远端 SHA-256 均为 `8e8224458f2f2de322befcd6f1cff9507650c9ed33d2aaa9dac842811a842d4b`；标准 deploy dry-run/apply、readiness、Admin Web、mount 与镜像校验全部通过。
+- 部署后 health 为 `ok`、`normalSupplyAllowed:true`，容器 restart count 0，日志只有正常 listening。Reset 后自然链路已形成新 Formation：《第八个嫌疑人 (2023)》完成 Libra→Arca Commit；《守望者 (2009)》正在 QSV GPU 转码；《007：大破天幕杀机 (2012)》搜索 18 个 Candidate、《大风杀 (2025)》搜索 6 个 Candidate，均因可用且合规集合为空而冻结为“没有取得源”，未下载其他候选，符合 single-source 合同。
 
 ## PROD-054 Arca Aftercare Recovery Convergence Deployed
 
@@ -83,14 +91,15 @@ hard-deadline replacement 已随 `helix-beta-20260831-ae7a567cde` 无损部署�
 ## Production
 
 - Host：`192.168.12.230:18080`。
-- Running image：`markmahoro/shelfdeck:helix-beta-20260902-efe1b91d6e`；source commit `efe1b91d6e`；tar SHA-256 `1663b23492cc770fc1992d3a30f8fe105d1c1042f3fc1c1f1daaf85fb9b1ef0f`。
-- Running image ID：`sha256:930a7ea84521cf5df91b0fbc53ddcfa9c8b3785b900938aa2e21258d4164dec0`；2026-09-02 19:24 CST 启动，restart count 0。
+- Running image：`markmahoro/shelfdeck:helix-beta-20260902-0d94f414ac`；source commit `0d94f414ac`；tar SHA-256 `8e8224458f2f2de322befcd6f1cff9507650c9ed33d2aaa9dac842811a842d4b`。
+- Running image ID：`sha256:9a07426bfc4bcb883c72f417c1bd169a7b2fdbd63f1ac30a50706bcac35264e9`；2026-09-02 19:45 CST 启动，restart count 0。
 - Health：`ok`；generation `helix-clean-v3`；schema 186；`normalSupplyAllowed:true`；SQLite `integrity_check=ok`。
 - Compose：`/vol1/1000/docker/shelfdeck`；data：`/vol1/1000/docker/shelfdeck/data`；Workspace mount：`/transcode`。
 - PROD-047 离线纠正备份：`/vol1/1000/docker/shelfdeck/data.backup-20260901T082544Z-prod047-aftercare-reclaim`（约 898 MiB）。
 - PROD-048 最终 Nuclear Reset 备份：`/vol1/1000/docker/shelfdeck/backups/formation-reset-20260901T092339Z-nuclear/data`。
 - PROD-050 Handoff A 边界纠正备份：`/vol1/1000/docker/shelfdeck/backups/formation-reset-20260901T094823Z-nuclear/data`。
 - 本轮 Nuclear Reset 备份：`/vol1/1000/docker/shelfdeck/backups/formation-reset-20260901T105240Z-nuclear/data`。
+- PROD-055 Formation Reset 备份：`/vol1/1000/docker/shelfdeck/backups/formation-reset-20260902T113345Z/data`。
 - 其他 NAS Docker 服务在部署后只读检查时仍运行正常。
 
 ## Production Corrections
@@ -112,7 +121,7 @@ PROD-034 已按 Product Owner 授权对“唐人街探案 (2015)”和“赤壁�
 - 当前生产镜像已包含 PROD-052 唯一 Formation Reset：不保留终态过程记录，也不再维护 `normal|nuclear` 分支。
 - 唯一 Formation Reset 物理删除 On-deck Commit 前的整理过程，使其在当前运行数据库中视同未发生；若未来需要“保留历史并批量放弃”，应作为独立正式领域操作设计，不属于 Reset。
 - 唯一 Reset 以 Arca On-deck Commit 为保护线，不触碰已入架事实和 `/media`，也不主动触发 Observation 或 Intake。
-- **唯一 Formation Reset 已随当前生产镜像部署到 NAS。** 本次已完成只读 dry-run，未执行 apply；后续调用仍必须逐次获得明确生产授权，再使用唯一确认串显式 `--apply`，部署本身不触发 Reset。
+- **唯一 Formation Reset 已随当前生产镜像部署到 NAS。** 2026-09-02 本次获授权 apply 已完成；后续每次调用仍必须重新获得明确生产授权，再使用唯一确认串显式 `--apply`，部署本身不触发 Reset。
 - Reset 发现范围现补齐无 Subject 的 orphan pipeline token：以 token 自身与 `source_process_id` 为独立范围根，
   同时纳入其 Libra Intake Work。Normal 删除 token、终止活动执行但保留终态审计；Nuclear 删除 token 与对应执行图。
   两种模式的 postcondition 都要求 orphan token 为 0。

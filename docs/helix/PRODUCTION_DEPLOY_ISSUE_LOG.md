@@ -69,9 +69,10 @@
 | PROD-049 | Formation 用 Plan 终态冒充业务阶段完成，并泄露机器枚举/结构化对象 | `USER_EXPERIENCE` / business boundary + Fact projection | 媒体整理详情 | High | **FIXED / DEPLOYED / PRODUCTION ACCEPTED** `237d0fb7b0`。三阶段按正式 Handoff/Commit，身份显示标题年份，无 `[object Object]`。 |
 | PROD-050 | Nuclear Reset 未重开旧 Handoff A terminal closure，也漏回卷 released Control | `DATA_CORRECTION` / Reset Handoff A boundary | Formation Reset / Handoff A Intake | Critical | **FIXED / DEPLOYED / CORRECTION COMPLETED**。3 个自然 Intake 全部正常，CAS/terminal conflict 为 0。 |
 | PROD-051 | TMDB 抖动发生在 Workspace Write intent 后，在线 Host 未进入 Effect reality reconciliation | `EXECUTION_FOUNDATION` / online non-pure recovery bridge | Libra Artifact / Execution Foundation | Critical | **FIXED / DEPLOYED**。复用同一 Event Attempt/Effect 和有界 recovery budget；无影片特例。 |
-| PROD-052 | 旧 Nuclear Reset 漏删 run-owned Artifact、使用无类型 scope、文件删除不随 DB 回滚，postcondition 又复用 discovery | `DATA_CORRECTION_TOOLING` / Reset closure | Formation Reset | Critical | **FIXED / DEPLOYED / NOT APPLIED**。唯一 `FORMATION_RESET_V2`、typed manifest、Workspace staging rollback、反向 orphan cleanup 与独立 verifier；focused/NAS 22/22。 |
+| PROD-052 | 旧 Nuclear Reset 漏删 run-owned Artifact、使用无类型 scope、文件删除不随 DB 回滚，postcondition 又复用 discovery | `DATA_CORRECTION_TOOLING` / Reset closure | Formation Reset | Critical | **FIXED / DEPLOYED / CORRECTION COMPLETED**。唯一 `FORMATION_RESET_V2`、typed manifest、Workspace staging rollback、反向 orphan cleanup 与独立 verifier；2026-09-02 获授权 apply 已通过。 |
 | PROD-053 | External Acquisition 会在同一 Formation 内尝试多个下载候选 | `BUSINESS_SEMANTICS` / candidate fallback | Libra External Acquisition | Critical | **FIXED / DEPLOYED** `713bbc0827`。一次搜索只选择唯一合格首项，取得失败即结束，不再改选其他资源。 |
 | PROD-054 | Arca Aftercare safe-retry 的 durable recovery budget 过期后每 30 秒重复超时 | `EXECUTION_FOUNDATION` / recovery convergence | Arca Aftercare / Execution Foundation | Critical | **FIXED / DEPLOYED / PRODUCTION ACCEPTED** `efe1b91d6e`。仅在最新现实分类仍为 `safe_retry` 且 dispatch 前预算已耗尽时终态失败；异常后强制重新分类。 |
+| PROD-055 | scoped Circuit 被 Startup Recovery 的 ready-only 门禁误当作全局启动阻断 | `EXECUTION_FOUNDATION` / degraded readiness | Startup Recovery / Runtime Host | Critical | **FIXED / DEPLOYED / PRODUCTION ACCEPTED** `0d94f414ac`。degraded 只隔离 exact scope；全局 Circuit 与 hard finding 继续 fail closed。 |
 
 PROD-001、PROD-002 的共同环境前提：生产管理台是 `http://192.168.12.230`，浏览器不提供 `crypto.randomUUID` / `crypto.subtle`。这不是传输加密设计，只是浏览器 API 限制。未改成 HTTPS。
 
@@ -688,3 +689,24 @@ Timeout Controller 确认超时时，Event 才以 `RECOVERY_EXECUTION_BUDGET_EXH
 镜像身份均通过，restart count 为 0。原 3 条循环 Work/Event/Attempt/Effect 全部收口为
 `failed/failed/completed/failed`，错误码均为 `RECOVERY_EXECUTION_BUDGET_EXHAUSTED`；多个 recovery cadence
 未再出现超时日志。对应 3 份 inode 漂移 NFO 仍原样存在且 size 不变，证明修复只收敛执行图，没有越权删除文件。
+
+## 55. PROD-055 — scoped Circuit 被 Startup Recovery 误当作全局启动阻断（FIXED / DEPLOYED / PRODUCTION ACCEPTED）
+
+发现：2026-09-02 获授权 Formation Reset 的事务、独立 verifier、SQLite integrity、外键检查及幂等 dry-run 均成功，
+但恢复服务时容器反复退出，报 `P4_EXECUTION_HOST_RECOVERY_BLOCKED`。只读诊断确认唯一 active Circuit 是
+`owner/arca/arca_shelf_entry/care_workspace_reclaim`，对应 PROD-054 收口后 3 条真实终态失败 Work；它不是 Reset
+遗漏的业务根或损坏数据。
+
+根因：Startup Recovery 将非全局 Circuit 正确分类为 `degraded`，但 `normalSupplyAllowed` 只接受 `ready`；Execution
+Host 因而在 exact-scope Event gate 能隔离故障、下一条同路径 Work 能取得 recovery 资格之前直接退出。该行为与
+SSOT 10.1.1 中 degraded 允许 unaffected scopes 运行的合同冲突，并使 scoped Circuit 形成跨重启自锁。
+
+修复：Startup Recovery 只对 `ready|degraded` 放行 Host 启动。全局 `foundation/*` Circuit、数据库完整性和其他 hard
+finding 仍保持 `normalSupplyAllowed=false`；scoped Circuit/Incident 不被删除或伪造关闭，Event Runtime 继续以 exact
+owner/process/work/resource scope 隔离，并且只有同路径成功证据才能关闭。新增 Runtime Host 启动夹具并修正 Startup
+Recovery 的 degraded 合同；focused 72/72，Service full 441 项为 423 pass、18 skip、0 fail。
+
+生产验收：镜像 `helix-beta-20260902-0d94f414ac`、source commit `0d94f414ac`、tar SHA-256
+`8e8224458f2f2de322befcd6f1cff9507650c9ed33d2aaa9dac842811a842d4b` 已经标准 dry-run/apply 部署。health 为 `ok`、
+`normalSupplyAllowed:true`，restart count 0，日志无重复启动/恢复错误；Libra 转码与 Arca On-deck 均继续运行。
+本次 Reset 备份为 `/vol1/1000/docker/shelfdeck/backups/formation-reset-20260902T113345Z/data`，可在停服后恢复。
