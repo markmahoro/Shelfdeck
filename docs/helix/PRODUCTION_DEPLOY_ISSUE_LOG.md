@@ -71,7 +71,7 @@
 | PROD-051 | TMDB 抖动发生在 Workspace Write intent 后，在线 Host 未进入 Effect reality reconciliation | `EXECUTION_FOUNDATION` / online non-pure recovery bridge | Libra Artifact / Execution Foundation | Critical | **FIXED / DEPLOYED**。复用同一 Event Attempt/Effect 和有界 recovery budget；无影片特例。 |
 | PROD-052 | 旧 Nuclear Reset 漏删 run-owned Artifact、使用无类型 scope、文件删除不随 DB 回滚，postcondition 又复用 discovery | `DATA_CORRECTION_TOOLING` / Reset closure | Formation Reset | Critical | **FIXED / DEPLOYED / NOT APPLIED**。唯一 `FORMATION_RESET_V2`、typed manifest、Workspace staging rollback、反向 orphan cleanup 与独立 verifier；focused/NAS 22/22。 |
 | PROD-053 | External Acquisition 会在同一 Formation 内尝试多个下载候选 | `BUSINESS_SEMANTICS` / candidate fallback | Libra External Acquisition | Critical | **FIXED / DEPLOYED** `713bbc0827`。一次搜索只选择唯一合格首项，取得失败即结束，不再改选其他资源。 |
-| PROD-054 | Arca Aftercare safe-retry 的 durable recovery budget 过期后每 30 秒重复超时 | `EXECUTION_FOUNDATION` / recovery convergence | Arca Aftercare / Execution Foundation | Critical | **FIXED LOCALLY / NOT DEPLOYED**。仅在最新现实分类仍为 `safe_retry` 且 dispatch 前预算已耗尽时终态失败；异常后强制重新分类。 |
+| PROD-054 | Arca Aftercare safe-retry 的 durable recovery budget 过期后每 30 秒重复超时 | `EXECUTION_FOUNDATION` / recovery convergence | Arca Aftercare / Execution Foundation | Critical | **FIXED / DEPLOYED / PRODUCTION ACCEPTED** `efe1b91d6e`。仅在最新现实分类仍为 `safe_retry` 且 dispatch 前预算已耗尽时终态失败；异常后强制重新分类。 |
 
 PROD-001、PROD-002 的共同环境前提：生产管理台是 `http://192.168.12.230`，浏览器不提供 `crypto.randomUUID` / `crypto.subtle`。这不是传输加密设计，只是浏览器 API 限制。未改成 HTTPS。
 
@@ -666,7 +666,7 @@ revision 1 → Libra revision 2；Handoff A terminal conflict、Libra phantom Re
 日志未再出现 `P3_CONTROL_CAS_CONFLICT` 或 `P8_ACCEPTANCE_TERMINAL_CONFLICT`；《赤焰战场2》已进入真实 GPU 转码。
 19 张 Arca phantom Receipt 与 2 条既有 Aftercare inode-drift Work 仍按授权边界保持不动。
 
-## 54. PROD-054 — Arca Aftercare safe-retry 预算耗尽后不收敛（FIXED LOCALLY）
+## 54. PROD-054 — Arca Aftercare safe-retry 预算耗尽后不收敛（FIXED / DEPLOYED / PRODUCTION ACCEPTED）
 
 发现：2026-09-02。生产有 3 条 `arca.aftercare.workspace.reclaim@1` Work/Event/Attempt 持续保持
 `running/executing`，日志约每 30 秒重复同一组 `P4_EXECUTION_TIMEOUT`。三条 `workspace_write` Effect 均为
@@ -683,3 +683,8 @@ Timeout Controller 确认超时时，Event 才以 `RECOVERY_EXECUTION_BUDGET_EXH
 终态失败并 abandon 未提交 Effect。`continue_forward` 或 dispatch 后的不确定超时仍不允许这样收口；Host 对任何
 带 Effect 的 recovery 异常清除缓存 action，下一次必须重新观察现实后再决定。Event Runtime/Host focused
 68/68、Service full 441 项为 423 pass、18 skip、0 fail。
+
+生产验收：修复随 `helix-beta-20260902-efe1b91d6e` 无损部署，readiness、health、Admin Web、mount 与
+镜像身份均通过，restart count 为 0。原 3 条循环 Work/Event/Attempt/Effect 全部收口为
+`failed/failed/completed/failed`，错误码均为 `RECOVERY_EXECUTION_BUDGET_EXHAUSTED`；多个 recovery cadence
+未再出现超时日志。对应 3 份 inode 漂移 NFO 仍原样存在且 size 不变，证明修复只收敛执行图，没有越权删除文件。

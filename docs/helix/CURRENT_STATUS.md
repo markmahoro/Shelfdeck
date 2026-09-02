@@ -1,14 +1,16 @@
 # ShelfDeck Clean Helix Current Status
 
-Status: **PROD-054 Arca Aftercare recovery 收敛修复已本地完成，等待与本轮变更统一无损部署；Formation Reset 尚未执行。**
+Status: **PROD-054 Arca Aftercare recovery 收敛修复已无损部署并通过生产验收；Formation Reset dry-run 仍建议执行，但尚未获授权 apply。**
 
 Last updated: 2026-09-02
 
-## PROD-054 Arca Aftercare Recovery Convergence Local Complete
+## PROD-054 Arca Aftercare Recovery Convergence Deployed
 
 - 生产只读证据显示 3 条 `arca.aftercare.workspace.reclaim@1` Event Attempt 使用已耗尽的 durable recovery budget，约每 30 秒重复同一 `P4_EXECUTION_TIMEOUT`。对应 Workspace Material 的 size/fingerprint 相同但 inode 已漂移，因此现行 exact Handle 合同正确拒绝清理；本项不放宽 Handle，也不直接修改 Arca 数据或文件。
 - 根因是 dispatch 前 timeout 没有转为终态，并且 Execution Host 在 recovery 抛错后继续缓存旧 reality classification。修复只在最新分类仍为非纯 `safe_retry` 且 durable deadline 已于 dispatch 前耗尽时，以 `RECOVERY_EXECUTION_BUDGET_EXHAUSTED` 终态失败；`continue_forward` 与 dispatch 后不确定状态继续 fail closed。带 Effect 的 recovery 抛错后，Host 下一轮必须重新调用 exact reality reconciler。
-- 验证：Event Runtime/Host focused 68/68；Service full 441 项为 423 pass、18 skip、0 fail。当前尚未 build/upload/deploy，生产仍运行 `713bbc0827`；Formation Reset 尚未执行。
+- 验证：Event Runtime/Host focused 68/68；Service full 441 项为 423 pass、18 skip、0 fail。修复已随 `markmahoro/shelfdeck:helix-beta-20260902-efe1b91d6e` 无损部署；readiness 为 186 tables、123 routes、17 UI surfaces、0 findings，health、Admin Web、全部 mount 与镜像校验通过，restart count 为 0。
+- 生产中原 3 条重复超时的 Arca Work/Event/Attempt/Effect 已分别收口为 `failed/failed/completed/failed`，统一错误码 `RECOVERY_EXECUTION_BUDGET_EXHAUSTED`；多个 recovery cadence 未再出现 `P4_EXECUTION_TIMEOUT`。3 份 inode 漂移的 NFO 文件仍存在且 size 与记录一致，未被误删。
+- 部署后唯一 Formation Reset dry-run 仍为 ready、0 blocker，命中 3 个 disposable Subject、3 个 Run、3 个 Workspace、55 个 Work、1 个 active Work/Attempt、3 个 Control 与 6 个 Artifact。当前活动项为《守望者 (2009)》第三次 GPU 转码，诊断时进度 57.3%；apply 会中断它，因此本次未执行 Reset，等待 Product Owner 明确授权。
 
 ## PROD-053 Single-source External Acquisition Deployed
 
@@ -81,8 +83,8 @@ hard-deadline replacement 已随 `helix-beta-20260831-ae7a567cde` 无损部署�
 ## Production
 
 - Host：`192.168.12.230:18080`。
-- Running image：`markmahoro/shelfdeck:helix-beta-20260902-713bbc0827`；source commit `713bbc0827`；tar SHA-256 `7d96360e775b9ce057de8cc504b1a9746f4e4e09ff40aaa5599e92f8a7bbb2d4`。
-- Running image ID：`sha256:a9303ae693f92e141587a7d58ab692826e8405363a0e7f5e5f49c99127c640b8`；2026-09-02 18:56 CST 启动，restart count 0。
+- Running image：`markmahoro/shelfdeck:helix-beta-20260902-efe1b91d6e`；source commit `efe1b91d6e`；tar SHA-256 `1663b23492cc770fc1992d3a30f8fe105d1c1042f3fc1c1f1daaf85fb9b1ef0f`。
+- Running image ID：`sha256:930a7ea84521cf5df91b0fbc53ddcfa9c8b3785b900938aa2e21258d4164dec0`；2026-09-02 19:24 CST 启动，restart count 0。
 - Health：`ok`；generation `helix-clean-v3`；schema 186；`normalSupplyAllowed:true`；SQLite `integrity_check=ok`。
 - Compose：`/vol1/1000/docker/shelfdeck`；data：`/vol1/1000/docker/shelfdeck/data`；Workspace mount：`/transcode`。
 - PROD-047 离线纠正备份：`/vol1/1000/docker/shelfdeck/data.backup-20260901T082544Z-prod047-aftercare-reclaim`（约 898 MiB）。
