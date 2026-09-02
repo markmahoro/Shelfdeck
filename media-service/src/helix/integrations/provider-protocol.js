@@ -123,7 +123,7 @@ function validateAcquisitionQuery(value, digest) {
 
 function validateCandidate(value, integrationId, configRevision, digest) {
   exact(value, ['candidateId', 'integrationId', 'configRevision', 'providerCandidateRef', 'providerRank', 'identityAnchors',
-    'structureKind', 'episodeKeys', 'availability','advertisedMedia','requirementAssessment','assessmentReasonCodes', 'candidateDigest'], 'P5_PROVIDER_CANDIDATE_SHAPE');
+    'structureKind', 'episodeKeys', 'availability','availabilityEvidence','advertisedMedia','requirementAssessment','assessmentReasonCodes', 'candidateDigest'], 'P5_PROVIDER_CANDIDATE_SHAPE');
   if (value.integrationId !== integrationId || value.configRevision !== configRevision || !['single', 'season'].includes(value.structureKind) || !['available', 'unavailable'].includes(value.availability)) fail('P5_PROVIDER_CANDIDATE_FENCE', 'Provider candidate fence is invalid.');
   exact(value.providerCandidateRef, ['objectType', 'objectId', 'revision', 'digest'], 'P5_PROVIDER_CANDIDATE_REF_SHAPE');
   if (value.providerCandidateRef.objectType !== 'acquisition_candidate') fail('P5_PROVIDER_CANDIDATE_REF', 'Provider candidate reference is invalid.');
@@ -136,6 +136,12 @@ function validateCandidate(value, integrationId, configRevision, digest) {
     (item) => [item.provider, item.namespace, item.providerKey, String(item.seasonNumber || 0).padStart(10, '0')].join('\u0000'),
     'P5_PROVIDER_CANDIDATE_IDENTITY_ORDER');
   requireSortedUnique(value.episodeKeys, (item) => item, 'P5_PROVIDER_CANDIDATE_EPISODE_ORDER');
+  exact(value.availabilityEvidence,['status','seederCount','evidenceDigest'],'P5_PROVIDER_CANDIDATE_AVAILABILITY_SHAPE');
+  if(!['known','unknown'].includes(value.availabilityEvidence.status)||
+      (value.availabilityEvidence.status==='known' ? !Number.isSafeInteger(value.availabilityEvidence.seederCount)||value.availabilityEvidence.seederCount<0 : value.availabilityEvidence.seederCount!==null)||
+      (value.availability==='available'&&(value.availabilityEvidence.status!=='known'||value.availabilityEvidence.seederCount<1))||
+      value.availabilityEvidence.evidenceDigest!==digest(canonicalJson(Object.fromEntries(Object.entries(value.availabilityEvidence).filter(([key])=>key!=='evidenceDigest')))))
+    fail('P5_PROVIDER_CANDIDATE_AVAILABILITY','Provider candidate availability evidence is invalid.');
   exact(value.advertisedMedia,['resolution','videoCodec','primaryAudioClasses','sizeBytes','source','evidenceDigest'],'P5_PROVIDER_CANDIDATE_MEDIA_SHAPE');
   for(const field of ['resolution','videoCodec','primaryAudioClasses','sizeBytes']){
     if(!value.advertisedMedia[field]||!['known','unknown'].includes(value.advertisedMedia[field].status))
@@ -385,12 +391,21 @@ function validateAcquisitionCandidates(value, request, digest) {
 
 function validateAcquisitionJobSnapshot(value, request, digest) {
   const common = ['externalJobReceiptId', 'requestDigest', 'providerObservationRevision', 'state', 'snapshotDigest'];
+  if (value && value.state === 'pending') common.push('progress');
   if (value && value.state === 'ready') common.push('outputSnapshot');
   else if (value && value.state === 'failed') common.push('reasonCode');
   exact(value, common, 'P5_PROVIDER_ACQUISITION_JOB_SNAPSHOT_SHAPE');
   const receipt = request.input.externalJobReceipt;
   if (value.externalJobReceiptId !== receipt.receiptId || value.requestDigest !== receipt.requestDigest || !['pending', 'ready', 'failed'].includes(value.state)) fail('P5_PROVIDER_ACQUISITION_JOB_FENCE', 'Acquisition job snapshot fence is invalid.');
   positive(value.providerObservationRevision, 'providerObservationRevision');
+  if (value.state === 'pending') {
+    exact(value.progress,['currentValue','totalValue','unit','rateBytesPerSecond','etaMs'],'P5_PROVIDER_ACQUISITION_PROGRESS_SHAPE');
+    if(typeof value.progress.currentValue!=='number'||!Number.isFinite(value.progress.currentValue)||value.progress.currentValue<0||value.progress.currentValue>100||
+        value.progress.totalValue!==100||value.progress.unit!=='percent'||
+        (value.progress.rateBytesPerSecond!==null&&(!Number.isFinite(value.progress.rateBytesPerSecond)||value.progress.rateBytesPerSecond<0))||
+        (value.progress.etaMs!==null&&(!Number.isSafeInteger(value.progress.etaMs)||value.progress.etaMs<0)))
+      fail('P5_PROVIDER_ACQUISITION_PROGRESS','Acquisition job progress is invalid.');
+  }
   if (value.state === 'ready') validateOutputSnapshot(value.outputSnapshot, receipt.integrationId, receipt.configRevision, digest);
   if (value.state === 'failed' && !['job_not_found', 'job_failed', 'job_cancelled', 'job_stalled',
     'transfer_failed', 'transfer_target_conflict', 'provider_observation_invalid'].includes(value.reasonCode)) fail('P5_PROVIDER_ACQUISITION_JOB_REASON', 'Acquisition job failure reason is invalid.');

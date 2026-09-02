@@ -52,13 +52,13 @@ One search may retain a bounded set of Provider candidates as immutable Evidence
 External Acquisition Job for that Formation. Candidate Selection only considers candidates whose identity, mandatory
 media claims and current source availability are all positively proven. An absent mandatory claim or unavailable
 availability Evidence makes the candidate ineligible; `unknown` is never a license to download for discovery.
-Selection is deterministic by Provider rank and Candidate ID among the proven compliant pool.
+The current positive seeder count is frozen in each Candidate availability Evidence; selection is deterministic by descending seeder count, then Provider rank and Candidate ID among the proven compliant pool, so the one allowed Job uses the strongest observed source rather than treating every positive count as equally downloadable.
 
 The final acquisition outcome is binary: one proven source is acquired, or no conforming source is acquired. A selected
 job may be observed repeatedly and the exact same request may be recovered by its stable idempotency identity, but a
 terminal download, transfer, Landing, imported-byte or real-media verification failure ends this acquisition without
 re-searching, selecting or downloading another candidate. `downloading` and other pending states are operational
-progress only, not a third business outcome. The user-visible MoviePilot download-attempt setting, candidate attempt
+progress only, not a third business outcome. Pending Observation must publish its bounded percentage, byte rate and ETA to the exact Foundation Event progress stream so Formation list and detail surfaces expose the real download state. The user-visible MoviePilot download-attempt setting, candidate attempt
 ordinal, unverified selection, and automatic next-candidate fallback do not exist. Downloaded bytes remain authoritative
 and must still pass the frozen real-media Probe requirement before Handoff B can be published.
 
@@ -10017,7 +10017,7 @@ Handoff或Catalog Capability：
   `ProviderAcquisitionCandidateSnapshot`：`{candidateId,integrationId,configRevision,providerCandidateRef{
   objectType:"acquisition_candidate",objectId,revision,digest},providerRank,
   identityAnchors[0..16 ResolvedProviderIdentity@1],structureKind,
-  episodeKeys[0..256],availability(available|unavailable),advertisedMedia{resolution,videoCodec,
+  episodeKeys[0..256],availability(available|unavailable),availabilityEvidence{status(known|unknown),seederCount(non-negative integer|null),evidenceDigest},advertisedMedia{resolution,videoCodec,
   primaryAudioClasses[0..6](eac3_atmos|truehd|truehd_atmos|dts_hd_ma|dts_x|other),sizeBytes,source,evidenceDigest},
   requirementAssessment(compliant|unknown|noncompliant),assessmentReasonCodes[0..8],candidateDigest}`；每个广告声明固定携带`known|unknown`，普通DDP/EAC3等不在Acceptance Spec允许集合内的已知音轨归一化为`other`而不是`unknown`；来源和Evidence digest；`providerRank`为`0..99`且集合内
   从0连续、candidate ID唯一。`candidateId=SHA-256(JCS({schema:
@@ -10029,8 +10029,8 @@ Handoff或Catalog Capability：
 - `AcquisitionPolicy@1`在本链路固定为`{contractId,revision,schemaRef:"AcquisitionPolicy@1",policyDigest}`，只冻结
   Integration配置revision，不携带候选轮换次数或其他用户可调下载尝试参数。
 - `SelectionCriteria@1`在本链路固定为`{contractId,revision,schemaRef:"SelectionCriteria@1",queryDigest,
-  strategy:"single_requirement_compliant_provider_rank",criteriaDigest}`；它不是用户Means Policy。
-  Candidate Select先丢弃`unavailable`、`unknown`和明确`noncompliant`，只按`providerRank,candidateId`从完整
+  strategy:"single_requirement_compliant_seeder_strength",criteriaDigest}`；它不是用户Means Policy。
+  Candidate Select先丢弃`unavailable`、availability Evidence unknown、媒体声明`unknown`和明确`noncompliant`，只按`seederCount DESC,providerRank,candidateId`从完整
   `compliant`集合选择唯一首项；没有该项即为`not_selected`，不得建立External Job。
   `SelectedCandidate@1`为closed `selected|not_selected` union，公共部分为
   `DraftEnvelope + queryDigest + candidateSetDigest + selectionCriteriaDigest + result + selectionReasonCode`；
@@ -10061,8 +10061,8 @@ Handoff或Catalog Capability：
   SHA-256(JCS({schema:"libra.external-acquisition-observation-basis@1",externalJobReceiptId:
   externalJobReceipt.receiptId,requestDigest:externalJobReceipt.requestDigest,phase,integrationId:
   externalJobReceipt.integrationId,configRevision:externalJobReceipt.configRevision}))`。
-  同一Formation只能产生一份Acquire Request及一份External Job Receipt；Provider `pending`可重复Observation，
-  但`failed`或后续验证失败均终结本次External Acquisition，禁止回到Candidate Select建立另一份Receipt。
+  同一Formation只能产生一份Acquire Request及一份External Job Receipt；Provider `pending`可重复Observation，且每次pending snapshot必须携带`progress{currentValue,totalValue:100,unit:"percent",rateBytesPerSecond,etaMs}`并投影到同一Event的durable Progress；但`failed`或后续验证失败均终结本次External Acquisition，
+  禁止回到Candidate Select建立另一份Receipt。
 - `ExternalMaterialHandle@1`固定为`{handleId,integrationId,configRevision,externalObjectRef,endpointId,landingBinding,
   location,
   structureKind,outputSnapshot,manifestDigest,observationRevision,accessFenceDigest}`；Output Resolve逐字节复制ready
@@ -10144,8 +10144,8 @@ P5 External Provider protocol在既有三个typed Port内补齐四项exact opera
 - Job Observe固定为`libra.external_material.acquire.observe@1 → moviepilot.acquisition.observe@1`，input kind
   `acquisition-job-observation`恰为`{externalJobReceipt(ExternalJobReceipt@1),phase(download|transfer)}`；result kind
   `acquisition-job-snapshot`是closed union，公共字段为`{externalJobReceiptId,requestDigest,
-  providerObservationRevision,state(pending|ready|failed),snapshotDigest}`，pending没有payload，ready恰含上述完整
-  `outputSnapshot`，failed恰含`reasonCode(job_not_found|job_failed|job_cancelled|provider_observation_invalid)`；
+  providerObservationRevision,state(pending|ready|failed),snapshotDigest}`，pending恰含上述bounded `progress`，ready恰含上述完整
+  `outputSnapshot`，failed恰含`reasonCode(job_not_found|job_failed|job_cancelled|job_stalled|transfer_failed|transfer_target_conflict|provider_observation_invalid)`；
   `snapshotDigest=SHA-256(JCS(完整result excluding snapshotDigest))`。Capability把pending映射为`deferred`、failed映射
   为Attempt failure，只为ready形成`AcquisitionObservation@1`；input最多`16 KiB`、result最多`65,536` bytes；
 - Material Observe固定为`libra.external_material.stability.observe@1 → moviepilot.external-material.observe@1`，

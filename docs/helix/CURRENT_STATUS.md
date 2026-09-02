@@ -1,6 +1,6 @@
 # ShelfDeck Clean Helix Current Status
 
-Status: **PROD-056/057 已部署并完成 Formation Reset；007 已取得唯一候选，守望者按 revision 3 执行首次 GPU 转码。**
+Status: **PROD-056/057 已部署；PROD-058候选强度选择与下载进度展示已完成本地验证，尚未部署或Reset。**
 
 Last updated: 2026-09-03
 
@@ -9,6 +9,7 @@ Last updated: 2026-09-03
 - 007暴露的候选身份缺口已修复：MoviePilot明确TMDB冲突仍fail closed；缺TMDB但有结构化片名时要求片名与年份精确一致；结构化片名也缺失时，只接受发布名开头的精确片名段、独立年份和正做种同时成立。下载任务恢复接受“精确torrent标题+大小”或“精确torrent标题+TMDB ID”，不接受两项补强都缺失的记录；唯一Job持续零速30分钟即终态失败，不改选其他资源。
 - 守望者暴露的制作策略缺口已修复：新`LibraMediaPlanningPolicy@1` revision 3保存源视频码率与有效质量保护下限；低码率源不被向Policy floor灌大。实际成品仅剩体积Gap时，若下一目标低于有效floor，就保留首次成功、画质更好的超限成品，立即freeze并offer`size_cap_exceeded`；不会继续strict ABR/CPU，也不会因体积Gap寻源。
 - `size_cap_exceeded`授权现在精确绑定source Work、Product Media Verification digest、Candidate Basis、Workspace Media Handle与Material Handle/Fence；Staging、Delivery、Conformance和页面体积摘要都只能消费这一份精确产物，不再扫描“最新”超限输出。
+- 007新Run已证明TMDB/title/year修复生效并建立唯一Job，但Provider rank 2的`beAst`只有1个共享者，持续`0% / 0.0B`约30分钟后以`job_stalled`冻结；同次搜索中rank 3的`WiKi`有28个共享者。根因是既有SSOT把所有正共享者压成相同`available`并按Provider rank初选，而single-source禁止失败后改选。PROD-058已把初选改为冻结共享者数量并优先最强可用源，同时让Formation公开真实下载进度；focused 87/87、Service 424 pass/18 skip、Admin Web production build与Helix Architecture full gate均通过，新合同aggregate为`064eb00c4145950de3ebfcb686aef9ba3c8d3d40e4d47c3394159dd910cc4327`。尚未部署或Reset。
 - 验证：主修复针对性39/39；发布名补强测试18/18；Service full 441项为423 pass、18 skip、0 fail。Helix Architecture fixture/semantic/manifests/contracts均通过，新aggregate baseline为`eff337505bf4a4817eeebec7c0f1ca996ecf813eb53aab89f03a65527912c87d`；总门禁仍只因两个既有文件的18条dynamic-template scanner findings为fail。
 - 最终镜像为`markmahoro/shelfdeck:helix-beta-20260903-11c71bc009`，source commit `11c71bc009`，tar SHA-256 `c291994cc8c29bc9d1bd82da95ebf51f690ba5c9c8f4001734892929b7cf5577`。标准build/upload/deploy dry-run/apply、readiness（186 tables、123 routes、17 UI surfaces、0 findings）、health、Admin Web、mount与运行镜像检查均通过。
 - 获授权 Formation Reset 删除3个Subject、3个Run、3个Workspace、42个Work和6个Artifact，重开4个Delivery/Reservation并恢复3个Procurement Control；备份为`/vol1/1000/docker/shelfdeck/backups/formation-reset-20260902T165446Z/data`。独立verifier、SQLite integrity、外键和幂等二次plan均通过，二次plan所有可变reset计数为0。
@@ -32,7 +33,7 @@ Last updated: 2026-09-03
 
 ## PROD-053 Single-source External Acquisition Deployed
 
-- Product Owner 已确认 External Acquisition 的最终业务结果只有“取得一个源”或“没有取得源”。Libra 可保留一次搜索的 bounded Candidate Evidence，但只从 `available + compliant` 集合按 Provider rank 选择唯一首项；`unknown`、明确不合规、无共享者或共享者证据缺失均不得下载。
+- Product Owner 已确认 External Acquisition 的最终业务结果只有“取得一个源”或“没有取得源”。Libra 可保留一次搜索的 bounded Candidate Evidence，但只从 `available + compliant` 集合按 `seederCount DESC, Provider rank, Candidate ID` 选择唯一首项；`unknown`、明确不合规、无共享者或共享者证据缺失均不得下载。选定后终态失败不得改试其他候选。
 - 每个 Formation 只建立一组 Search/Acquire/Import Work 和最多一份 Acquire Request/External Job Receipt。同一 Provider Job 的幂等恢复与重复 Observation 保留；下载、transfer、Landing、imported bytes 或 real-media verification 的终态失败直接结束本次 acquisition，不再搜索、选择或下载 B/C 候选。
 - MoviePilot 候选 identity 现只由稳定的站点、标题、大小和 locator 形成，seeder 与相对时间等动态字段不会改变引用；真正 POST 前重新搜索并核对 exact candidate identity、TMDB anchor、正 seeder 与仍然符合 frozen media requirement。零进度或 Provider 明确 stalled 达到 30 分钟后返回 `job_stalled`，transfer 失败区分 `transfer_failed|transfer_target_conflict`，不再无限 pending。
 - Release grammar 已补齐 NFKC、`TrueHD5.1`、空格/点/连字符分隔的 `H 265|x265`；普通 `DDP/EAC3` 映射为已知 `other`，因此在当前 TrueHD 类要求下是明确 `primary_audio_unmet`，不再被当作 unknown 下载探测。

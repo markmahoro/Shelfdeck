@@ -103,11 +103,19 @@ function providerAcquisitionCandidateSnapshotSchema() {
       claimBasis: enumText('structured_and_release_fields', 'provider_row') }),
     evidenceDigest: digestHex()
   });
+  const availabilityEvidence = {
+    oneOf: [
+      object({ status: { const: 'known' }, seederCount: nonNegativeInteger(),
+        evidenceDigest: digestHex() }),
+      object({ status: { const: 'unknown' }, seederCount: { type: 'null' },
+        evidenceDigest: digestHex() })
+    ]
+  };
   return object({ candidateId: digestHex(), integrationId: opaqueId(), configRevision: positiveInteger(),
     providerCandidateRef: object({ objectType: { const: 'acquisition_candidate' }, objectId: opaqueId(),
       revision: positiveInteger(), digest: digestHex() }), providerRank: { type: 'integer', minimum: 0, maximum: 99 },
     identityAnchors: arrayOf(domainRef('ResolvedProviderIdentity'), 16), structureKind: enumText('single', 'season'),
-    episodeKeys: arrayOf(text(), 256), availability: enumText('available', 'unavailable'), advertisedMedia,
+    episodeKeys: arrayOf(text(), 256), availability: enumText('available', 'unavailable'), availabilityEvidence, advertisedMedia,
     requirementAssessment: enumText('compliant', 'unknown', 'noncompliant'),
     assessmentReasonCodes: arrayOf(enumText('video_codec_unknown', 'video_codec_unmet', 'resolution_unknown',
       'minimum_raster_unmet', 'primary_audio_unknown', 'primary_audio_unmet', 'size_unknown', 'max_size_exceeded'), 8),

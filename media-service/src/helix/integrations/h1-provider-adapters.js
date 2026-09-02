@@ -1071,9 +1071,20 @@ function createProtocolTransport(profile, options) {
     for (const value of [torrent.seeders, torrent.seeders_count,
       row?.seeders, row?.seeders_count]) {
       const count = Number(value);
-      if (Number.isFinite(count) && count >= 0) return count;
+      if (Number.isSafeInteger(count) && count >= 0) return count;
     }
     return null;
+  }
+
+  function moviepilotAvailabilityEvidence(row) {
+    const seederCount = moviepilotSeederCount(row);
+    const basis = Number.isSafeInteger(seederCount)
+      ? { status: 'known', seederCount }
+      : { status: 'unknown', seederCount: null };
+    return Object.freeze({
+      ...basis,
+      evidenceDigest: digest(canonicalJson(basis)),
+    });
   }
 
   function normalizedMovieTitle(value) {
@@ -1205,6 +1216,7 @@ function createProtocolTransport(profile, options) {
             query.requestedEpisodeKeys,
           availability: moviepilotCandidateAvailable(row, identityAnchors, query)
             ? 'available' : 'unavailable',
+          availabilityEvidence: moviepilotAvailabilityEvidence(row),
           ...advertised,
         };
         const candidateId = digest(canonicalJson({
@@ -1566,12 +1578,42 @@ function createProtocolTransport(profile, options) {
       const history = await moviepilotHistory(request, state,
         receipt.externalJobId);
     const revision = Math.max(1, Math.floor(now()));
+    const byteRate = (value) => {
+      if (typeof value === 'number') {
+        return Number.isFinite(value) && value >= 0 ? value : null;
+      }
+      if (typeof value !== 'string' || !value.trim()) return null;
+      const match = value.trim().match(/^([0-9]+(?:\.[0-9]+)?)\s*([KMGT]?I?B)(?:\/S)?$/i);
+      if (!match) return null;
+      const multipliers = { B:1, KB:1e3, MB:1e6, GB:1e9, TB:1e12,
+        KIB:1024, MIB:1024 ** 2, GIB:1024 ** 3, TIB:1024 ** 4 };
+      const result = Number(match[1]) * multipliers[match[2].toUpperCase()];
+      return Number.isFinite(result) && result >= 0 ? result : null;
+    };
+    const downloadProgress = (value) => {
+      const rawPercent = Number(value?.progress);
+      const currentValue = Number.isFinite(rawPercent)
+        ? Math.max(0, Math.min(100, rawPercent)) : 0;
+      const rateBytesPerSecond = byteRate(value?.download_speed ??
+        value?.downloadSpeed ?? value?.dlspeed ?? value?.dl_speed ??
+        value?.speed);
+      const totalBytes = Number(value?.size ?? value?.total_size);
+      const rawEtaMs = rateBytesPerSecond > 0 && Number.isFinite(totalBytes) &&
+          totalBytes >= 0
+        ? Math.max(0, Math.ceil(totalBytes * (1 - currentValue / 100) /
+          rateBytesPerSecond * 1000))
+        : null;
+      const etaMs = Number.isSafeInteger(rawEtaMs) ? rawEtaMs : null;
+      return Object.freeze({ currentValue, totalValue:100, unit:'percent',
+        rateBytesPerSecond, etaMs });
+    };
     const pending = () => {
       const basis = {
         externalJobReceiptId: receipt.receiptId,
         requestDigest: receipt.requestDigest,
         providerObservationRevision: revision,
         state: 'pending',
+        progress: downloadProgress(task),
       };
       return Object.freeze({
         ...basis,

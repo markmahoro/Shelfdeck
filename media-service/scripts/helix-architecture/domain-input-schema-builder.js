@@ -1364,7 +1364,7 @@ function identityRequirementSchema() {
 
 function selectionCriteriaSchema() {
   return {...exactDomainSchema('SelectionCriteria',{contractId:id(),revision:positiveInteger(),schemaRef:{const:'SelectionCriteria@1'},
-    queryDigest:digest(),strategy:{const:'single_requirement_compliant_provider_rank'},criteriaDigest:digest()},undefined,
+    queryDigest:digest(),strategy:{const:'single_requirement_compliant_seeder_strength'},criteriaDigest:digest()},undefined,
   {'x-helix-role':'bounded-contract'}),'x-helix-maxCanonicalBytes':16*1024};
 }
 

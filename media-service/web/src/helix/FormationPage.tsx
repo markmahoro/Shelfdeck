@@ -15,10 +15,28 @@ function progressText(progress:NonNullable<FormationSubject['organizingSteps'][n
   const percent=Math.max(0,Math.min(100,Math.round(((progress.currentValue||0)/progress.totalValue)*100)));
   return progress.unit==='percent'?`${percent}%`:`${progress.currentValue||0}/${progress.totalValue} ${progress.unit||''}`;
 }
+function progressRate(progress:NonNullable<FormationSubject['organizingSteps'][number]['progress']>) {
+  const rate=progress.rate;
+  if(rate===null||!Number.isFinite(rate)||rate<0)return '';
+  const units=['B/s','KiB/s','MiB/s','GiB/s']; let value=rate,index=0;
+  while(value>=1024&&index<units.length-1){value/=1024;index+=1;}
+  return `${value.toFixed(index===0?0:value>=10?1:2)} ${units[index]}`;
+}
+function progressEta(progress:NonNullable<FormationSubject['organizingSteps'][number]['progress']>) {
+  const milliseconds=progress.etaMs;
+  if(milliseconds===null||!Number.isFinite(milliseconds)||milliseconds<0)return '';
+  const minutes=Math.ceil(milliseconds/60_000);
+  if(minutes<60)return `预计 ${minutes} 分钟`;
+  const hours=Math.floor(minutes/60),remaining=minutes%60;
+  return `预计 ${hours} 小时${remaining?` ${remaining} 分钟`:''}`;
+}
+function progressDetail(progress:NonNullable<FormationSubject['organizingSteps'][number]['progress']>) {
+  return [progressText(progress),progressRate(progress),progressEta(progress)].filter(Boolean).join(' · ');
+}
 function currentProgressLabel(item:FormationSubject) { return item.currentPlan?.label || item.nextAction.label; }
 function currentProgressDetail(item:FormationSubject) {
   if (!item.currentPlan) return null;
-  const progress=item.currentPlan.progress ? progressText(item.currentPlan.progress) : '';
+  const progress=item.currentPlan.progress ? progressDetail(item.currentPlan.progress) : '';
   return [item.currentPlan.statusText,progress].filter(Boolean).join(' · ') || null;
 }
 function statusLabel(item:FormationSubject) { return ({ in_progress:'整理中', attention_required:'需要处理', completed:'已完成整理' } as const)[item.classification]; }
@@ -111,7 +129,7 @@ function ProcessNodeRow({node}:{node:ProcessNode}) {
   const mark=node.state==='completed'?'✓':node.state==='failed'?'×':node.state==='running'?'●':'○';
   return <li className="formation-plan-node" data-state={node.state}><span className="formation-plan-node-mark" aria-hidden="true">{mark}</span><div className="formation-plan-node-main"><strong>{node.label}</strong><p>{node.description}</p>
     {node.results.length>0&&<dl className="formation-plan-results">{node.results.map((fact)=><div key={`${fact.label}:${fact.value}`}><dt>{fact.label}</dt><dd>{fact.value}</dd></div>)}</dl>}
-    {node.progress?.mode==='determinate'&&node.progress.totalValue?<div className="formation-stub-progress"><progress max={node.progress.totalValue} value={node.progress.currentValue||0} aria-label={`${node.label}进度`} /><small>{progressText(node.progress)}</small></div>:null}
+    {node.progress?.mode==='determinate'&&node.progress.totalValue?<div className="formation-stub-progress"><progress max={node.progress.totalValue} value={node.progress.currentValue||0} aria-label={`${node.label}进度`} /><small>{progressDetail(node.progress)}</small></div>:null}
     {node.technicalDetail&&<details className="formation-transcode-detail"><summary>查看处理详情</summary><div className="formation-transcode-detail-body"><p>{node.technicalDetail.summary}</p>{node.technicalDetail.fields.length>0&&<dl className="formation-transcode-grid">{node.technicalDetail.fields.map((fact)=><div key={fact.label}><dt>{fact.label}</dt><dd>{fact.value}</dd></div>)}</dl>}{node.technicalDetail.parameters.length>0&&<details className="formation-transcode-parameters"><summary>查看执行参数</summary><dl>{node.technicalDetail.parameters.map((fact)=><div key={fact.label}><dt>{fact.label}</dt><dd>{fact.value}</dd></div>)}</dl></details>}</div></details>}
   </div><span className="formation-plan-node-state">{node.statusText || processNodeState(node.state)}</span></li>;
 }

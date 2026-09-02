@@ -139,6 +139,55 @@
             "unavailable"
           ]
         },
+        "availabilityEvidence": {
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "status": {
+                  "const": "known"
+                },
+                "seederCount": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "evidenceDigest": {
+                  "type": "string",
+                  "minLength": 1,
+                  "pattern": "^[a-f0-9]{64}$"
+                }
+              },
+              "required": [
+                "status",
+                "seederCount",
+                "evidenceDigest"
+              ]
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "status": {
+                  "const": "unknown"
+                },
+                "seederCount": {
+                  "type": "null"
+                },
+                "evidenceDigest": {
+                  "type": "string",
+                  "minLength": 1,
+                  "pattern": "^[a-f0-9]{64}$"
+                }
+              },
+              "required": [
+                "status",
+                "seederCount",
+                "evidenceDigest"
+              ]
+            }
+          ]
+        },
         "advertisedMedia": {
           "type": "object",
           "additionalProperties": false,
@@ -427,6 +476,7 @@
         "structureKind",
         "episodeKeys",
         "availability",
+        "availabilityEvidence",
         "advertisedMedia",
         "requirementAssessment",
         "assessmentReasonCodes",

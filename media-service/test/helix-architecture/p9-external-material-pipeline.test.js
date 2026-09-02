@@ -6,6 +6,7 @@ const {canonicalDigest}=require('../../src/helix/contracts/canonical-json');
 const c=require('../../src/helix/domains/libra/model/external-material-contracts');
 const {buildMediaRequirement}=require('../../src/helix/domains/libra/model/media-production-contracts');
 const {createExternalMaterialCoordinator}=require('../../src/helix/domains/libra/application/external-material-coordinator');
+const {createExternalMaterialCapabilityPorts}=require('../../src/helix/domains/libra/capabilities/external-material-capability-ports');
 const {CONTRACTS,createExternalMaterialCapabilityRegistrations}=require('../../src/helix/domains/libra/capabilities/external-material-capability-registrations');
 
 const NOW=1_700_000_000_000,d=(value)=>canonicalDigest(value),hex=(value)=>d({value});
@@ -26,10 +27,12 @@ function candidate(options={}){
       primaryAudioClasses:{status:'known',value:['truehd'],sourceField:'torrent.title'},
       sizeBytes:{status:'known',value:42,sourceField:'torrent.size'},
       source:{provider:'moviepilot',providerCandidateDigest:hex('provider-row-'+providerRank),claimBasis:'structured_and_release_fields'}},
-    advertisedMedia={...mediaBasis,evidenceDigest:d(mediaBasis)},body={candidateId:d({schema:'provider-acquisition-candidate-id@1',
+    advertisedMedia={...mediaBasis,evidenceDigest:d(mediaBasis)},availabilityBasis=options.seederCount===null
+      ?{status:'unknown',seederCount:null}:{status:'known',seederCount:options.seederCount??4},
+    availabilityEvidence={...availabilityBasis,evidenceDigest:d(availabilityBasis)},body={candidateId:d({schema:'provider-acquisition-candidate-id@1',
       integrationId:'integration-1',configRevision:3,providerCandidateRef}),integrationId:'integration-1',configRevision:3,
       providerCandidateRef,providerRank,identityAnchors:[anchor],structureKind:'single',episodeKeys:[],
-      availability:options.availability??'available',advertisedMedia,requirementAssessment:assessment,
+      availability:options.availability??'available',availabilityEvidence,advertisedMedia,requirementAssessment:assessment,
       assessmentReasonCodes:assessment==='unknown'?['video_codec_unknown']:assessment==='noncompliant'?['video_codec_unmet']:[]};
   return {...body,candidateDigest:d(body)};
 }
@@ -56,15 +59,16 @@ test('query and deterministic candidate selection conserve complete frozen basis
   assert.equal(c.selectCandidate({candidates:unavailable,selectionCriteria:criteria,producedAtMs:NOW}).result,'not_selected');
 });
 
-test('candidate selection chooses one proven source and never downloads unknown or noncompliant claims',()=>{
+test('candidate selection chooses the strongest proven source once and never downloads unknown or noncompliant claims',()=>{
   const q=query(),mixed=candidates([
     candidate({providerRank:0,requirementAssessment:'noncompliant'}),
     candidate({providerRank:1,requirementAssessment:'unknown'}),
-    candidate({providerRank:2,requirementAssessment:'compliant'}),
-    candidate({providerRank:3,requirementAssessment:'compliant'}),
+    candidate({providerRank:2,requirementAssessment:'compliant',seederCount:1}),
+    candidate({providerRank:3,requirementAssessment:'compliant',seederCount:28}),
   ]),criteria=c.buildSelectionCriteria({revision:1,queryDigest:q.queryDigest}),
   first=c.selectCandidate({candidates:mixed,selectionCriteria:criteria,producedAtMs:NOW});
-  assert.equal(first.selectedCandidate.providerRank,2);
+  assert.equal(first.selectedCandidate.providerRank,3);
+  assert.equal(first.selectedCandidate.availabilityEvidence.seederCount,28);
   assert.equal(first.selectionReasonCode,'selected_compliant_claims');
   assert.equal(Object.hasOwn(criteria,'attemptOrdinal'),false);
   const unknownOnly=candidates([candidate({providerRank:0,requirementAssessment:'noncompliant'}),
@@ -80,6 +84,26 @@ test('candidate selection chooses one proven source and never downloads unknown 
     selectionCriteria:c.buildSelectionCriteria({revision:1,queryDigest:q.queryDigest}),producedAtMs:NOW});
   assert.equal(rejected.result,'not_selected');
   assert.equal(rejected.selectionReasonCode,'no_requirement_eligible_candidate');
+});
+
+test('pending external download reports determinate provider progress to the exact Event',async()=>{
+  const samples=[];
+  const ports=createExternalMaterialCapabilityPorts({now:()=>NOW,executeExternalProvider:async(request)=>({
+    operationId:request.operationId,effectClass:request.effectClass,integrationId:'integration-1',configRevision:3,
+    idempotencyKey:request.idempotencyKey,result:{externalJobReceiptId:'receipt-1',requestDigest:receipt().requestDigest,
+      providerObservationRevision:7,state:'pending',progress:{currentValue:42,totalValue:100,unit:'percent',
+        rateBytesPerSecond:12*1024*1024,etaMs:90_000},snapshotDigest:hex('pending')},
+  })});
+  const outcome=await ports['libra.external_material.acquire.observe@1'].execute({
+    capabilityRef:'libra.external_material.acquire.observe@1',idempotencyKey:'observe-1',
+    ownerScope:{processId:'run-1'},basisRefs:[{digest:hex('run')}],progressFloor:null,
+    reportProgress:(sample)=>samples.push(sample),namedInputs:{externalJobReceipt:receipt(),
+      integrationHandle:{integrationId:'integration-1',configRevision:3}},
+  });
+  assert.equal(outcome.kind,'deferred');
+  assert.deepEqual(samples,[{mode:'determinate',currentValue:42,totalValue:100,unit:'percent',
+    rate:12*1024*1024,etaMs:90_000,sourceSequence:'moviepilot-observation-7',
+    progressBucket:'download-42',terminal:false}]);
 });
 
 test('ready observation, stability, identity and package verification form one exact chain',()=>{

@@ -224,6 +224,24 @@ function createExternalMaterialCapabilityPorts(options) {
           }, context.idempotencyKey,
           EXTERNAL_LANDING_OBSERVATION_TIMEOUT_MS);
         if (response.result.state === 'pending') {
+          const progress = response.result.progress;
+          const floor = context.progressFloor?.mode === 'determinate' &&
+              context.progressFloor.unit === 'percent' &&
+              context.progressFloor.totalValue === 100
+            ? Number(context.progressFloor.currentValue) : 0;
+          const currentValue=Math.max(floor, progress.currentValue);
+          context.reportProgress(Object.freeze({
+            mode:'determinate',
+            currentValue,
+            totalValue:100,
+            unit:'percent',
+            rate:progress.rateBytesPerSecond,
+            etaMs:progress.etaMs,
+            sourceSequence:'moviepilot-observation-' +
+              response.result.providerObservationRevision,
+            progressBucket:'download-' + Math.floor(currentValue),
+            terminal:false,
+          }));
           return Object.freeze({
             kind: 'deferred',
             reasonCode: 'external_job_pending',

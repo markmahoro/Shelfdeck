@@ -2253,7 +2253,7 @@
       "relativePath": "domain-types/SelectedCandidateSelected/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "77e7e22e379fdfe70ff4cebf51f219aaa2a0bce99673cc9ebf39ef648d63928a"
+        "value": "0267544fb5e769e2bfba8a3bf6388c7728202f3b4b22aaa8c26997d98de47d52"
       },
       "usedBy": [
         {
@@ -2306,7 +2306,7 @@
       "relativePath": "domain-types/SelectionCriteria/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "18284666a024d0f97bfb524e4d2855e07ac80539e40d62a6a6e41eeb7a05dfcd"
+        "value": "5e964b28b15e36bb400bb910c91acfec5b2b6c6b66caa8757fa39a32889770cb"
       },
       "usedBy": [
         {

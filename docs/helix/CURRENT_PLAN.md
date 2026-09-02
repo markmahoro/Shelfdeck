@@ -19,6 +19,7 @@ Last updated: 2026-09-03
 - PROD-053 已本地完成：External Acquisition 收敛为一次搜索、最多选择一个同时具有 exact identity、mandatory media positive claims 与正共享者证据的候选、最多建立一个 Provider Job。`unknown`、明确不合规、无共享者或共享者缺失都不下载；已选 Job 可按同一幂等身份重复观察/恢复，但下载、转移、Landing、真实媒体验证任一终态失败都结束本次 acquisition，不再选择第二个候选。MoviePilot 的候选下载次数设置已从合同、Runtime、Admin API/UI 删除。尚未部署，既有未完成 Formation 不增加兼容路径。
 - PROD-056 已部署：MoviePilot候选若明确返回TMDB ID仍必须精确匹配；该ID与结构化片名均缺失时，只接受发布名开头的精确片名段、独立年份与正做种三者同时成立，不能把整条release title误当结构化title。下载Job可由精确torrent标题+大小认领，或在历史大小缺失时由精确TMDB ID补强，缺少两类补强不得认领。唯一Job在30分钟后持续零速即终态`job_stalled`，失败不选择第二候选。
 - PROD-057 已部署：`LibraMediaPlanningPolicy@1` revision 3把有效质量下限冻结为`min(星级×画幅Policy下限, 源实际视频码率)`，低码率源不会被灌大。仅体积超限时，下一施工目标若低于该下限则不建立第二次转码、不转CPU、不寻源，保留首次成功且画质更高的超限Workspace产品并offer精确`size_cap_exceeded`。Manifest绑定唯一Work、Verification、Workspace Handle与Material Fence；UI不再表达为笼统“策略穷尽”。
+- PROD-058 本地已完成并通过门禁：single-source不增加候选重试；一次搜索内把共享者数量冻结进Candidate availability Evidence，只从`available + compliant`集合按`seederCount DESC, Provider rank, Candidate ID`选择唯一源。MoviePilot pending Job把百分比、字节速度和ETA写入同一Event的durable Progress；Formation一级页与详情显示真实下载/零速等待状态。等待部署授权，既有007失败Run不做兼容修复。
 
 ## 当前基线
 

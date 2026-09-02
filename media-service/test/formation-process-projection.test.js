@@ -372,7 +372,24 @@ test('Formation frontend renders backend Plans without an organizingSteps Plan f
   assert.doesNotMatch(processDetail,/organizingSteps|mediaOrganization\.steps|ChecklistSteps/);
   assert.match(processDetail,/页面不会根据状态推测或补造计划/);
   assert.match(mediaRow,/currentProgressLabel\(item\)/);
+  assert.match(source,/progressDetail\(item\.currentPlan\.progress\)/);
+  assert.match(source,/MiB\/s/);
+  assert.match(source,/预计 \$\{minutes\} 分钟/);
   assert.doesNotMatch(mediaRow,/organizingSteps/);
+});
+
+test('Formation download Plan uses real external progress and user-facing zero-speed copy',()=>{
+  const download=work('libra','libra_run','run-download','workspace_media_production',[
+    event('plan-download','observe','libra.external_material.acquire.observe@1','waiting_for_external',1,[],{
+      progress:{mode:'determinate',currentValue:0,totalValue:100,unit:'percent',rate:0,etaMs:null,bucket:'download-0'},
+    }),
+  ]);
+  const plan=projectPlans([download])[0];
+  assert.equal(plan.title,'下载外部媒体');
+  assert.equal(plan.nodes[0].label,'下载媒体文件');
+  assert.equal(plan.nodes[0].statusText,'等待下载数据');
+  assert.equal(plan.nodes[0].description,'下载任务已经提交，正在等待来源提供数据。');
+  assert.equal(plan.nodes[0].progress.currentValue,0);
 });
 
 test('execution progress reader exposes persisted Plan envelopes, including an empty no-effect Plan',()=>{

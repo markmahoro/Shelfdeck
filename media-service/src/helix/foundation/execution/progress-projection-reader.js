@@ -49,10 +49,10 @@ function projectedProgress(sample) {
 function parseDurableJson(value, code, label) {
   let parsed;
   try { parsed = JSON.parse(value); } catch {
-    throw Object.assign(new Error(`Durable ${label} is not valid JSON.`), { code });
+    throw Object.assign(new Error('Durable '+label+' is not valid JSON.'), { code });
   }
   if (canonicalJson(parsed) !== value) {
-    throw Object.assign(new Error(`Durable ${label} failed its canonical shape fence.`), { code });
+    throw Object.assign(new Error('Durable '+label+' failed its canonical shape fence.'), { code });
   }
   return parsed;
 }
@@ -119,7 +119,7 @@ function createExecutionProgressProjectionReader(options) {
           Number(latestAttemptByEvent.get(attempt.event_id).ordinal) < Number(attempt.ordinal)) {
           latestAttemptByEvent.set(attempt.event_id, attempt);
         }
-        const nodeByKey = new Map(nodes.map((node) => [`${node.plan_id}\0${node.node_id}`, node]));
+        const nodeByKey = new Map(nodes.map((node) => [[node.plan_id,node.node_id].join('\0'), node]));
         const planById = new Map(plans.map((plan) => [plan.plan_id, plan]));
         const attemptById = new Map(attempts.map((attempt)=>[attempt.attempt_id,attempt]));
         const edgesByPlan = new Map(planIds.map((planId) => [planId, Object.freeze(edges.filter((edge) => edge.plan_id === planId)
@@ -136,7 +136,7 @@ function createExecutionProgressProjectionReader(options) {
               plannerVersion:Number(plan.planner_version), state:plan.state, createdAtMs:Number(plan.created_at_ms),
               edges:edgesByPlan.get(plan.plan_id)||Object.freeze([]) }))) } : {}),
           events: Object.freeze(events.filter((event) => event.work_id === work.work_id).map((event) => {
-            const node = nodeByKey.get(`${event.plan_id}\0${event.node_id}`), plan = planById.get(event.plan_id);
+            const node = nodeByKey.get([event.plan_id,event.node_id].join('\0')), plan = planById.get(event.plan_id);
             if (!node || (includePlans && !plan)) throw Object.assign(new Error('Durable execution Plan envelope is incomplete.'),
               { code:'EXECUTION_PROGRESS_PLAN_INVALID' });
             const detail=includePlans ? {

@@ -23,6 +23,16 @@ const CAPABILITY_COPY = Object.freeze({
   'libra.media_cast.resolve@1':['整理演职员信息','已经整理本片的演职员信息。'],
   'libra.media_cast.commit@1':['保存演职员信息','演职员信息已经保存到媒体产品。'],
   'libra.product_metadata.commit@1':['保存影片信息','影片资料已经保存到媒体产品。'],
+  'libra.external_material.query.prepare@1':['准备寻源条件','已经冻结本次寻源使用的影片身份和媒体要求。'],
+  'libra.external_material.search@1':['寻找合规媒体源','已经取得本次搜索的候选结果。'],
+  'libra.external_material.candidate.select@1':['选择下载源','已经从合规候选中选出唯一下载源。'],
+  'libra.external_material.acquire.request@1':['提交下载任务','唯一下载任务已经提交给外部下载服务。'],
+  'libra.external_material.acquire.observe@1':['下载媒体文件','外部媒体已经下载并整理完成。'],
+  'libra.external_material.output.resolve@1':['确认下载结果','已经确认外部下载形成的媒体文件。'],
+  'libra.external_material.stability.observe@1':['等待文件稳定','外部媒体文件已经稳定，可以进入工作区。'],
+  'libra.external_material.identity.verify@1':['核对下载影片身份','下载媒体的影片身份已经核对。'],
+  'libra.external_material.package.verify@1':['检查下载媒体包','下载媒体包已经通过完整性检查。'],
+  'libra.workspace.material.import@1':['导入整理工作区','下载媒体已经复制到本次整理工作区。'],
   'libra.product_media.verify@1':['检查媒体是否符合要求','已经逐项核对媒体与收藏要求。'],
   'libra.product_output.select@1':['选定最终媒体文件','已经记录本次选用的最终媒体文件。'],
   'libra.transcode.input.verify@1':['确认视频处理方式','已确认本次视频处理方式可以执行。'],
@@ -94,18 +104,18 @@ function valueAt(root, paths) {
 }
 function formatBytes(value) {
   const bytes=Number(value); if (!Number.isFinite(bytes) || bytes <= 0) return null;
-  return bytes >= 1073741824 ? `${(bytes / 1073741824).toFixed(bytes >= 10737418240 ? 1 : 2)} GiB`
-    : bytes >= 1048576 ? `${(bytes / 1048576).toFixed(1)} MiB` : `${bytes} B`;
+  return bytes >= 1073741824 ? (bytes / 1073741824).toFixed(bytes >= 10737418240 ? 1 : 2)+' GiB'
+    : bytes >= 1048576 ? (bytes / 1048576).toFixed(1)+' MiB' : bytes+' B';
 }
 function formatDuration(value) {
   const ms=Number(value); if (!Number.isFinite(ms) || ms <= 0) return null;
   const minutes=Math.round(ms / 60000), hours=Math.floor(minutes / 60), rest=minutes % 60;
-  return hours ? `${hours} 小时 ${rest} 分` : `${minutes} 分钟`;
+  return hours ? hours+' 小时 '+rest+' 分' : minutes+' 分钟';
 }
 function formatBitrate(value) {
   if (value === null || value === undefined || value === '') return null;
   const numeric=Number(value); if (!Number.isFinite(numeric)) return String(value);
-  return numeric >= 1000000 ? `${(numeric / 1000000).toFixed(numeric % 1000000 ? 1 : 0)} Mbps` : `${Math.round(numeric / 1000)} Kbps`;
+  return numeric >= 1000000 ? (numeric / 1000000).toFixed(numeric % 1000000 ? 1 : 0)+' Mbps' : Math.round(numeric / 1000)+' Kbps';
 }
 function humanValue(value) {
   if (value === true) return '是'; if (value === false) return '否';
@@ -203,7 +213,7 @@ function resultFacts(event) {
     const duration=valueAt(value,['durationMs','mediaSummary.durationMs']);
     const video=(value.videoStreams || value.mediaSummary?.videoStreams || [])[0];
     const audio=(value.audioStreams || value.mediaSummary?.audioStreams || [])[0];
-    addFact(facts,'获得的信息',title && year ? `${title}（${year}）` : title);
+    addFact(facts,'获得的信息',title && year ? title+'（'+year+'）' : title);
     addFact(facts,/verify|inspect|assess/.test(event.capabilityRef) ? '检查结果' : '运行结果',result === null ? null : humanValue(result));
     addFact(facts,'数量',count);
     addFact(facts,'文件大小',formatBytes(size));
@@ -211,7 +221,7 @@ function resultFacts(event) {
     addFact(facts,'时长',formatDuration(duration));
     if (video) {
       const codec=valueAt(video,['codecName','codec','codec_name']), width=valueAt(video,['displayWidth','width','codedWidth']), height=valueAt(video,['displayHeight','height','codedHeight']);
-      addFact(facts,'视频',[codec && String(codec).toUpperCase(),width&&height&&`${width} × ${height}`].filter(Boolean).join(' · '));
+      addFact(facts,'视频',[codec && String(codec).toUpperCase(),width&&height&&(width+' × '+height)].filter(Boolean).join(' · '));
       addFact(facts,'画面',valueAt(video,['dynamicRangeKind','hdrFormat','colorTransfer']));
     }
     addFact(facts,'主要音轨',audio && [valueAt(audio,['codecName','codec']),valueAt(audio,['channelLayout','audioClass'])].filter(Boolean).join(' · '));
@@ -267,7 +277,12 @@ function nodeStatusText(event, state) {
   if (state==='cancelled') return '未执行';
   if (state==='skipped') return '无需执行';
   if (event.state==='waiting_for_resource') return '等待处理资源';
-  if (event.state==='waiting_for_external') return '等待外部服务';
+  if (event.state==='waiting_for_external') {
+    if (event.capabilityRef==='libra.external_material.acquire.observe@1' && event.progress?.mode==='determinate') {
+      return Number(event.progress.rate)>0 ? '正在下载' : '等待下载数据';
+    }
+    return '等待外部服务';
+  }
   if (event.state==='waiting_for_approval') return '等待确认';
   if (event.state==='executing') return '正在执行';
   if (event.state==='ready') return '准备执行';
@@ -306,11 +321,20 @@ function description(event, state, copy) {
   }
   if (state==='cancelled') return '前置步骤未完成，因此这一步没有执行。';
   if (state==='skipped') return '本次计划确认不需要执行这一步。';
-  if (state==='running') return event.capabilityRef==='libra.media.transcode@1' ? '正在生成符合收藏要求的新版本。' : 'ShelfDeck 正在执行这一步。';
+  if (state==='running') {
+    if (event.capabilityRef==='libra.media.transcode@1') return '正在生成符合收藏要求的新版本。';
+    if (event.capabilityRef==='libra.external_material.acquire.observe@1') return Number(event.progress?.rate)>0
+      ? 'MoviePilot 正在下载唯一选定的媒体源。'
+      : '下载任务已经提交，正在等待来源提供数据。';
+    return 'ShelfDeck 正在执行这一步。';
+  }
   return '等待前置步骤完成后执行。';
 }
 function workspaceMediaPlanTitle(events, nodes) {
   const capabilities=new Set(events.map((event)=>event.capabilityRef));
+  if (capabilities.has('libra.external_material.acquire.observe@1')) return '下载外部媒体';
+  if (capabilities.has('libra.external_material.search@1')) return '寻找外部媒体';
+  if (capabilities.has('libra.workspace.material.import@1')) return '导入外部媒体';
   if (capabilities.has('libra.media.transcode@1')) return '处理媒体文件';
   if (capabilities.has('libra.media.remux@1')) return '重新封装媒体文件';
   if (capabilities.has('libra.transcode.input.verify@1')) return '确认视频处理方式';
@@ -383,10 +407,10 @@ function stageSummary(label, plans, works, businessState) {
     if (state==='completed') return '本阶段的业务结果已经成立；当前没有可展示的实际计划';
     return label==='验收与上架' ? '等待媒体整理完成；当前还没有形成这一阶段的计划' : '当前还没有形成可展示的计划';
   }
-  if (state==='completed') return `共 ${plans.length} 个实际计划，本阶段业务结果已完成`;
-  if (current>=0) return `计划${current+1}${state==='attention'?'需要处理':'正在进行'}`;
+  if (state==='completed') return '共 '+plans.length+' 个实际计划，本阶段业务结果已完成';
+  if (current>=0) return '计划'+(current+1)+(state==='attention'?'需要处理':'正在进行');
   if (state==='running' && plans.every((plan)=>plan.state==='completed')) return '已有 '+plans.length+' 个实际计划完成，等待本阶段继续推进';
-  return `${plans.length} 个真实计划，等待继续执行`;
+  return plans.length+' 个真实计划，等待继续执行';
 }
 function stage(key, label, descriptionText, works, businessState) {
   const plans=projectPlans(works); return Object.freeze({ key,label,description:descriptionText,
@@ -424,8 +448,8 @@ function buildFormationProcessDetail(input) {
   const libra=exact(input.works,'libra',input.libraScopes || []);
   const arca=exact(input.works,'arca',input.arcaScopes || []);
   return Object.freeze({ contract:'formation_process_actual_plans@1', stages:Object.freeze([
-    stage('material_preparation','材料准备',`发现并准备《${input.displayIdentity}》的原始媒体材料`,procurement,businessStates.materialPreparation),
-    stage('media_organization','媒体整理',input.targetShelfName ? `按“${input.targetShelfName}”收藏架的要求制作媒体产品` : '确定收藏目标并制作媒体产品',libra,businessStates.mediaOrganization),
+    stage('material_preparation','材料准备','发现并准备《'+input.displayIdentity+'》的原始媒体材料',procurement,businessStates.materialPreparation),
+    stage('media_organization','媒体整理',input.targetShelfName ? '按“'+input.targetShelfName+'”收藏架的要求制作媒体产品' : '确定收藏目标并制作媒体产品',libra,businessStates.mediaOrganization),
     stage('acceptance_shelving','验收与上架','由收藏架检查并接收最终媒体产品',arca,businessStates.acceptanceShelving),
   ]) });
 }

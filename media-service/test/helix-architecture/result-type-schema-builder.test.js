@@ -262,11 +262,12 @@ test('materializes the complete PBF-16 external acquisition Result chain', () =>
   const candidates = schemas.AcquisitionCandidates.properties.candidates;
   assert.equal(candidates.maxItems, 100);
   for (const field of ['candidateId', 'integrationId', 'configRevision', 'providerCandidateRef', 'providerRank',
-    'identityAnchors', 'structureKind', 'episodeKeys', 'availability', 'advertisedMedia', 'requirementAssessment',
+    'identityAnchors', 'structureKind', 'episodeKeys', 'availability', 'availabilityEvidence', 'advertisedMedia', 'requirementAssessment',
     'assessmentReasonCodes', 'candidateDigest']) {
     assert.ok(candidates.items.required.includes(field), field);
   }
   assert.equal(candidates.items.properties.providerCandidateRef.properties.objectType.const, 'acquisition_candidate');
+  assert.equal(candidates.items.properties.availabilityEvidence.oneOf[0].properties.seederCount.minimum, 0);
   assert.deepEqual(schemas.SelectedCandidate.oneOf.map((branch) => branch.properties.result.const), ['selected', 'not_selected']);
   assert.equal(schemas.SelectedCandidate.oneOf[0].properties.selectedCandidate.additionalProperties, false);
   assert.equal(schemas.SelectedCandidate.oneOf[0].properties.selectionReasonCode.const,

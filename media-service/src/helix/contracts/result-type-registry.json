@@ -32,7 +32,7 @@
       "relativePath": "types/AcquisitionCandidates/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "992426b43061a1dd267016f3c77171441a96b4451b1efd84f487ff68067e8f28"
+        "value": "59a2c7b52d2ca6b696ab7eaec17cda733f2e5be2a813699f9f93b1b8935ac203"
       },
       "source": {
         "section": "8.6.19",
@@ -1433,7 +1433,7 @@
       "relativePath": "types/SelectedCandidate/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "bb6d941b87febf81aeb9bf077431f76df01e3be4e3cd0e212987843f918bd55c"
+        "value": "af9d5b3fd866acad78c5428655d89747e538818923ec28faef3b6d26c720a44d"
       },
       "source": {
         "section": "8.6.19",

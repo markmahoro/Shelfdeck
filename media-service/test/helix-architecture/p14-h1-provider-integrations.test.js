@@ -260,7 +260,7 @@ function providerFetch(state) {
         } });
       }
       if (url.pathname === '/api/v1/search/title') {
-        return response(200, { success:true, data:[{
+        const defaultRow={
           meta_info: { name:Object.hasOwn(state, 'moviepilotMetaTitle')
             ? state.moviepilotMetaTitle : 'Movie', year:'2024' },
           media_info: { ...(state.moviepilotOmitMediaTitle
@@ -277,7 +277,9 @@ function providerFetch(state) {
               ? state.moviepilotSeeders : 4,
             date_elapsed: state.moviepilotDateElapsed || '1分钟前',
           },
-        }] });
+        };
+        return response(200, { success:true,
+          data:state.moviepilotSearchRows || [defaultRow] });
       }
       if (url.pathname === '/api/v1/download/add') {
         state.moviepilotDownloadAdds =
@@ -1028,6 +1030,7 @@ test('H1.2 provider operations execute through exact P5 ports and revision-fence
       input:{ acquisitionQuery:acquisitionQuery(), limit:25 },
     });
     assert.equal(skyfall.result.candidates[0].availability,'available');
+    assert.equal(skyfall.result.candidates[0].availabilityEvidence.seederCount,2);
     assert.equal(skyfall.result.candidates[0].advertisedMedia.videoCodec.value,'hevc');
     assert.deepEqual(skyfall.result.candidates[0].advertisedMedia.primaryAudioClasses.value,
       ['truehd']);
@@ -1043,6 +1046,8 @@ test('H1.2 provider operations execute through exact P5 ports and revision-fence
     });
     assert.deepEqual(refreshed.result.candidates[0].providerCandidateRef,stableRef,
       'dynamic availability fields must not change candidate identity');
+    assert.equal(refreshed.result.candidates[0].availabilityEvidence.seederCount,9,
+      'the frozen candidate snapshot must retain current availability strength');
 
     state.moviepilotTorrentTitle =
       'Trapped 2025 2160p WEB-DL H 265 DDP5.1-OurTV';
@@ -1065,6 +1070,7 @@ test('H1.2 provider operations execute through exact P5 ports and revision-fence
       input:{ acquisitionQuery:acquisitionQuery(), limit:25 },
     });
     assert.equal(seedless.result.candidates[0].availability,'unavailable');
+    assert.equal(seedless.result.candidates[0].availabilityEvidence.seederCount,0);
 
     state.moviepilotSeeders = 2;
     state.moviepilotTorrentTitle = 'Movie 2024 2160p HEVC';
@@ -1247,6 +1253,32 @@ test('H1.2 MoviePilot terminally rejects the sole job after a bounded zero-progr
     });
     assert.equal(observed.result.state,'failed');
     assert.equal(observed.result.reasonCode,'job_stalled');
+  }finally{opened.kernel.close();}
+});
+
+test('H1.2 MoviePilot exposes bounded download percent, byte rate, and ETA while the sole job is pending', async () => {
+  const value=fixture(),startedAtMs=1_900_000_000_000,state={calls:[],moviepilotTasks:[{
+    hash:'job-progress',progress:25,state:'downloading',download_speed:'12.5MiB/s',size:100*1024*1024,
+  }]},fetchImpl=providerFetch(state);
+  const host=await createCleanServiceHost({dataDir:value.dataDir,adminDistDir:value.adminDistDir,
+    secretRoot,integrationFetch:fetchImpl,now:()=>startedAtMs});
+  const cookie=await session(host,value.initialized.adminApiKey);
+  await configure(host,cookie,'moviepilot','-pending-progress');
+  await host.close();
+  const opened=openServices(value,fetchImpl,{now:()=>startedAtMs+5*60*1000});
+  try{
+    const receipt={schemaRef:'helix://contracts/types/ExternalJobReceipt/v1',schemaVersion:1,
+      receiptId:'progress-receipt',integrationId:'moviepilot-main',externalJobId:'job-progress',
+      operationKind:'libra.external_material.acquire.request@1',idempotencyKey:'progress-request',
+      requestDigest:canonicalDigest({request:'progress'}),configRevision:1,createdAtMs:startedAtMs};
+    const observed=await opened.services.executeProvider('moviepilot',{
+      operationId:'libra.external_material.acquire.observe@1',effectClass:'pure_observation',
+      idempotencyKey:'observe-progress-job',timeoutMs:5_000,
+      input:{externalJobReceipt:receipt,phase:'download'},
+    });
+    assert.equal(observed.result.state,'pending');
+    assert.deepEqual(observed.result.progress,{currentValue:25,totalValue:100,unit:'percent',
+      rateBytesPerSecond:12.5*1024*1024,etaMs:6_000});
   }finally{opened.kernel.close();}
 });
 

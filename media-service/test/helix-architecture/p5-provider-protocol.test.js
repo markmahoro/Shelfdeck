@@ -51,13 +51,15 @@ function candidate() {
     source:{provider:'moviepilot',providerCandidateDigest:digest('provider-row'),claimBasis:'structured_and_release_fields'}},
     advertisedMedia={...mediaBasis,evidenceDigest:digest(canonicalJson(mediaBasis))};
   const value = { integrationId: 'integration-1', configRevision: 3, providerCandidateRef, providerRank: 0,
-    identityAnchors: [identity], structureKind: 'single', episodeKeys: [], availability: 'available',advertisedMedia,
+    identityAnchors: [identity], structureKind: 'single', episodeKeys: [], availability: 'available',
+    availabilityEvidence:{status:'known',seederCount:4,evidenceDigest:digest(canonicalJson({status:'known',seederCount:4}))},advertisedMedia,
     requirementAssessment:'compliant',assessmentReasonCodes:[] };
   value.candidateId = digest(canonicalJson({ schema: 'provider-acquisition-candidate-id@1', integrationId: value.integrationId,
     configRevision: value.configRevision, providerCandidateRef }));
   const ordered = { candidateId: value.candidateId, integrationId: value.integrationId, configRevision: value.configRevision,
     providerCandidateRef, providerRank: value.providerRank, identityAnchors: value.identityAnchors,
     structureKind: value.structureKind, episodeKeys: value.episodeKeys, availability: value.availability,
+    availabilityEvidence:value.availabilityEvidence,
     advertisedMedia:value.advertisedMedia,requirementAssessment:value.requirementAssessment,assessmentReasonCodes:value.assessmentReasonCodes };
   return Object.freeze({ ...ordered, candidateDigest: digest(canonicalJson(ordered)) });
 }
@@ -420,7 +422,7 @@ test('material observation rejects forged Handle fence and escaping or duplicate
   assert.equal(f.calls.length, 0);
 });
 
-test('job observation closed union rejects payload on pending and unknown terminal reason', async () => {
+test('job observation closed union rejects an output snapshot on pending and an unknown terminal reason', async () => {
   const operation = operationCatalog.operations.find((item) => item.operationId === 'libra.external_material.acquire.observe@1');
   const request = requestFor(operation, 'moviepilot');
   for (const result of [
