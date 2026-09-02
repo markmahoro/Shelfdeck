@@ -1,10 +1,10 @@
 # ShelfDeck Clean Helix Current Status
 
-Status: **PROD-053 单一来源 External Acquisition 已本地完成但未部署；生产数据与现行 Formation 未改动。**
+Status: **PROD-053 单一来源 External Acquisition 已无损部署；建议对 3 条旧语义 Formation 执行获授权的 Formation Reset。**
 
 Last updated: 2026-09-02
 
-## PROD-053 Single-source External Acquisition Local Complete
+## PROD-053 Single-source External Acquisition Deployed
 
 - Product Owner 已确认 External Acquisition 的最终业务结果只有“取得一个源”或“没有取得源”。Libra 可保留一次搜索的 bounded Candidate Evidence，但只从 `available + compliant` 集合按 Provider rank 选择唯一首项；`unknown`、明确不合规、无共享者或共享者证据缺失均不得下载。
 - 每个 Formation 只建立一组 Search/Acquire/Import Work 和最多一份 Acquire Request/External Job Receipt。同一 Provider Job 的幂等恢复与重复 Observation 保留；下载、transfer、Landing、imported bytes 或 real-media verification 的终态失败直接结束本次 acquisition，不再搜索、选择或下载 B/C 候选。
@@ -12,7 +12,9 @@ Last updated: 2026-09-02
 - Release grammar 已补齐 NFKC、`TrueHD5.1`、空格/点/连字符分隔的 `H 265|x265`；普通 `DDP/EAC3` 映射为已知 `other`，因此在当前 TrueHD 类要求下是明确 `primary_audio_unmet`，不再被当作 unknown 下载探测。
 - `maxDownloadAttempts`、attempt ordinal、unverified selection 与 next-candidate fallback 已从 SSOT、派生 contracts、Libra Planner/Coordinator、Platform settings、Admin API/UI 全链删除。既有 Integration 配置读取只投影当前空 settings；新写入仍执行 closed-shape 校验。
 - 验证：external focused 95/95；Provider protocol/H1 28/28；Service full 441 项为 423 pass、18 skip、0 fail；Admin Web 42/42 与 production build 通过；P5 Platform gate PASS。Architecture 210 个 fixture、semantic、manifest、113/99/186/44 contracts 全部 PASS，contract aggregate 为 `eca68576dc2661a885fd039b288536b4dd0cf4818d516a53c775909141c240e2`；总 gate 仍只受两个未改文件的 18 个既有 dynamic-template scanner findings 阻断。
-- 本轮没有 build/upload/deploy、生产数据库写入或 Formation Reset。现有未完成 Formation 不做 migration、resume、fallback 或兼容修复；未来部署后如需清场，必须另行明确授权 Formation Reset。
+- 生产镜像 `markmahoro/shelfdeck:helix-beta-20260902-713bbc0827` 已按标准流程 build、upload、SHA-256 校验、deploy dry-run 与 apply，无 `--helix-clean-init`。readiness 为 186 tables、123 routes、17 UI surfaces、0 findings；health、Admin Web、媒体/Workspace/成人库/QSV mount、运行镜像校验均通过，restart count 为 0。
+- 部署后 Formation Reset 只读 plan 命中 3 个 disposable Subject、3 个 actionable Run、3 个 Workspace、55 个 Work、1 个 active Work/Attempt、3 个 Control 与 6 个 Artifact；0 orphan token、0 phantom Receipt、0 blocker。活动 Work 是旧链上的第三次转码选择，历史运行还包含旧的多次 Search/Acquire Work，因此不能用新单一来源语义继续解释。
+- 结论是建议执行唯一 Formation Reset，让这 3 条未 Commit Formation 从干净 Intake 重新形成；本次只完成 dry-run 判断，尚未 apply。Reset 会中断当前 1 条转码并物理删除这 3 条未 Commit 过程，仍需 Product Owner 对本次生产 Reset 明确授权。
 
 ## Local implementation completed
 
@@ -73,8 +75,8 @@ hard-deadline replacement 已随 `helix-beta-20260831-ae7a567cde` 无损部署�
 ## Production
 
 - Host：`192.168.12.230:18080`。
-- Running image：`markmahoro/shelfdeck:helix-beta-20260901-510abb2e40`；source commit `510abb2e40`；tar SHA-256 `006607519d401cfd1e04d0ac97016ef232c670ded28298ce0cc09a1932cfd6f5`。
-- Running image ID：`sha256:cb1337771ba0f2100853a9906688a48c49611adc393fd9a9f981158242e8f97b`。
+- Running image：`markmahoro/shelfdeck:helix-beta-20260902-713bbc0827`；source commit `713bbc0827`；tar SHA-256 `7d96360e775b9ce057de8cc504b1a9746f4e4e09ff40aaa5599e92f8a7bbb2d4`。
+- Running image ID：`sha256:a9303ae693f92e141587a7d58ab692826e8405363a0e7f5e5f49c99127c640b8`；2026-09-02 18:56 CST 启动，restart count 0。
 - Health：`ok`；generation `helix-clean-v3`；schema 186；`normalSupplyAllowed:true`；SQLite `integrity_check=ok`。
 - Compose：`/vol1/1000/docker/shelfdeck`；data：`/vol1/1000/docker/shelfdeck/data`；Workspace mount：`/transcode`。
 - PROD-047 离线纠正备份：`/vol1/1000/docker/shelfdeck/data.backup-20260901T082544Z-prod047-aftercare-reclaim`（约 898 MiB）。
@@ -99,10 +101,10 @@ PROD-034 已按 Product Owner 授权对“唐人街探案 (2015)”和“赤壁�
 
 ## Formation Reset Debug Capability
 
-- 当前生产镜像仍包含已暂停使用的旧双模式工具；本地 PROD-052 已完成其替代实现：唯一 Formation Reset 不保留终态过程记录，也不再维护 `normal|nuclear` 分支。
+- 当前生产镜像已包含 PROD-052 唯一 Formation Reset：不保留终态过程记录，也不再维护 `normal|nuclear` 分支。
 - 唯一 Formation Reset 物理删除 On-deck Commit 前的整理过程，使其在当前运行数据库中视同未发生；若未来需要“保留历史并批量放弃”，应作为独立正式领域操作设计，不属于 Reset。
 - 唯一 Reset 以 Arca On-deck Commit 为保护线，不触碰已入架事实和 `/media`，也不主动触发 Observation 或 Intake。
-- **旧双模式能力已随当前生产镜像部署到 NAS，并曾完成历史获授权的 Nuclear Reset；但已暂停再次生产使用。** 本地唯一 Formation Reset 尚未部署；后续调用仍必须逐次获得明确生产授权、先 dry-run，再使用唯一确认串显式 `--apply`，部署本身不触发 Reset。
+- **唯一 Formation Reset 已随当前生产镜像部署到 NAS。** 本次已完成只读 dry-run，未执行 apply；后续调用仍必须逐次获得明确生产授权，再使用唯一确认串显式 `--apply`，部署本身不触发 Reset。
 - Reset 发现范围现补齐无 Subject 的 orphan pipeline token：以 token 自身与 `source_process_id` 为独立范围根，
   同时纳入其 Libra Intake Work。Normal 删除 token、终止活动执行但保留终态审计；Nuclear 删除 token 与对应执行图。
   两种模式的 postcondition 都要求 orphan token 为 0。
