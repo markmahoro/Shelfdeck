@@ -426,6 +426,7 @@ test('a long crash-before-intent recovery does not block ordinary Event supply',
 test('a transient recovery invocation failure stays in the safety lane without denying ordinary service supply', async () => {
   const errors=[];
   let recoveryCalls=0;
+  let classifications=0;
   const host=createExecutionRuntimeHost({
     tickIntervalMs:60000,maxActionsPerTick:1,recoveryRetryMs:10,
     startupRecovery:{async recover(){return {state:'recovering',normalSupplyAllowed:false,findings:[],
@@ -435,8 +436,11 @@ test('a transient recovery invocation failure stays in the safety lane without d
     workLifecycle:{ensurePlanningAttempt(){},startPlanned(){},aggregateEvent(){return {
       attemptTerminal:false,workTerminal:false,replayed:false,
     };},settleWork(){}},
-    eventRuntime:{async recover(){recoveryCalls+=1;if(recoveryCalls===1)throw new Error('provider temporarily unavailable');
-      return {kind:'succeeded'};},async run(){}},
+    eventRuntime:{async classifyRecovery(request){classifications+=1;assert.deepEqual(request,
+      {eventId:'event-recovery',effectId:'effect-recovery'});return {
+        ...request,decision:'safe_retry',action:'rebuild_workspace_output'};},
+      async recover(){recoveryCalls+=1;if(recoveryCalls<=2)throw new Error('provider temporarily unavailable');
+        return {kind:'succeeded'};},async run(){}},
     domainReconciler:{reconcile(){}},fallbackReconciler:{async start(){},async stop(){}},
     onError(error){errors.push(error);},
   });
@@ -447,6 +451,11 @@ test('a transient recovery invocation failure stays in the safety lane without d
   await new Promise((resolve)=>setTimeout(resolve,15));
   await host.drainOnce();
   assert.equal(recoveryCalls,2);
+  assert.equal(classifications,1,'startup recovery failure must refresh its reality classification');
+  await new Promise((resolve)=>setTimeout(resolve,15));
+  await host.drainOnce();
+  assert.equal(recoveryCalls,3);
+  assert.equal(classifications,2,'deferred recovery failure must refresh its reality classification again');
   assert.equal(host.activity().deferredRecoveryActions,0);
   await host.stop();
 });

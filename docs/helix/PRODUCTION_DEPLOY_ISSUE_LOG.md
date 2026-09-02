@@ -68,8 +68,10 @@
 | PROD-048 | Nuclear Reset 删除 Intake Work 后遗留 WorkAdmission Receipt，重入只占 token 不建 Work | `DATA_CORRECTION` / execution receipt scope | Formation Reset / Handoff A Intake | Critical | **FIXED / DEPLOYED / CORRECTION COMPLETED** `0813ae2991`。3,274 张 Libra phantom Receipt 与 3 条 token 已清零；自然 Intake Receipt 全部命中真实 Work。 |
 | PROD-049 | Formation 用 Plan 终态冒充业务阶段完成，并泄露机器枚举/结构化对象 | `USER_EXPERIENCE` / business boundary + Fact projection | 媒体整理详情 | High | **FIXED / DEPLOYED / PRODUCTION ACCEPTED** `237d0fb7b0`。三阶段按正式 Handoff/Commit，身份显示标题年份，无 `[object Object]`。 |
 | PROD-050 | Nuclear Reset 未重开旧 Handoff A terminal closure，也漏回卷 released Control | `DATA_CORRECTION` / Reset Handoff A boundary | Formation Reset / Handoff A Intake | Critical | **FIXED / DEPLOYED / CORRECTION COMPLETED**。3 个自然 Intake 全部正常，CAS/terminal conflict 为 0。 |
-| PROD-051 | TMDB 抖动发生在 Workspace Write intent 后，在线 Host 未进入 Effect reality reconciliation | `EXECUTION_FOUNDATION` / online non-pure recovery bridge | Libra Artifact / Execution Foundation | Critical | **FIXED LOCALLY / NOT DEPLOYED** `3c09b99cd`。复用同一 Event Attempt/Effect 和有界 recovery budget；无影片特例。 |
-| PROD-052 | 旧 Nuclear Reset 漏删 run-owned Artifact、使用无类型 scope、文件删除不随 DB 回滚，postcondition 又复用 discovery | `DATA_CORRECTION_TOOLING` / Reset closure | Formation Reset | Critical | **FIXED LOCALLY / NOT DEPLOYED OR APPLIED**。唯一 `FORMATION_RESET_V2`、typed manifest、Workspace staging rollback、反向 orphan cleanup 与独立 verifier；focused/NAS 22/22。 |
+| PROD-051 | TMDB 抖动发生在 Workspace Write intent 后，在线 Host 未进入 Effect reality reconciliation | `EXECUTION_FOUNDATION` / online non-pure recovery bridge | Libra Artifact / Execution Foundation | Critical | **FIXED / DEPLOYED**。复用同一 Event Attempt/Effect 和有界 recovery budget；无影片特例。 |
+| PROD-052 | 旧 Nuclear Reset 漏删 run-owned Artifact、使用无类型 scope、文件删除不随 DB 回滚，postcondition 又复用 discovery | `DATA_CORRECTION_TOOLING` / Reset closure | Formation Reset | Critical | **FIXED / DEPLOYED / NOT APPLIED**。唯一 `FORMATION_RESET_V2`、typed manifest、Workspace staging rollback、反向 orphan cleanup 与独立 verifier；focused/NAS 22/22。 |
+| PROD-053 | External Acquisition 会在同一 Formation 内尝试多个下载候选 | `BUSINESS_SEMANTICS` / candidate fallback | Libra External Acquisition | Critical | **FIXED / DEPLOYED** `713bbc0827`。一次搜索只选择唯一合格首项，取得失败即结束，不再改选其他资源。 |
+| PROD-054 | Arca Aftercare safe-retry 的 durable recovery budget 过期后每 30 秒重复超时 | `EXECUTION_FOUNDATION` / recovery convergence | Arca Aftercare / Execution Foundation | Critical | **FIXED LOCALLY / NOT DEPLOYED**。仅在最新现实分类仍为 `safe_retry` 且 dispatch 前预算已耗尽时终态失败；异常后强制重新分类。 |
 
 PROD-001、PROD-002 的共同环境前提：生产管理台是 `http://192.168.12.230`，浏览器不提供 `crypto.randomUUID` / `crypto.subtle`。这不是传输加密设计，只是浏览器 API 限制。未改成 HTTPS。
 
@@ -663,3 +665,21 @@ integrity 与外键均通过，10 条已 Commit 链及 `/media` 保持不变。
 revision 1 → Libra revision 2；Handoff A terminal conflict、Libra phantom Receipt、unsafe residual 均为 0。重启后
 日志未再出现 `P3_CONTROL_CAS_CONFLICT` 或 `P8_ACCEPTANCE_TERMINAL_CONFLICT`；《赤焰战场2》已进入真实 GPU 转码。
 19 张 Arca phantom Receipt 与 2 条既有 Aftercare inode-drift Work 仍按授权边界保持不动。
+
+## 54. PROD-054 — Arca Aftercare safe-retry 预算耗尽后不收敛（FIXED LOCALLY）
+
+发现：2026-09-02。生产有 3 条 `arca.aftercare.workspace.reclaim@1` Work/Event/Attempt 持续保持
+`running/executing`，日志约每 30 秒重复同一组 `P4_EXECUTION_TIMEOUT`。三条 `workspace_write` Effect 均为
+`intended`，且 durable recovery deadline 已过期。当前 Workspace 文件与不可变 Handle 的 size/fingerprint 相同，
+但 inode 不同；这与此前数据目录复制/恢复造成 inode 漂移的现象一致，但仅凭当前证据不能断言具体发生时点。
+
+根因在 Execution Foundation：Reality Reconciler 已按精确 Handle 证明原 Effect 可 `safe_retry`，Timeout
+Controller 又在过期 deadline 下于 dispatch 前拒绝执行；Host 捕获异常后却保留同一份分类结果，之后每次 cadence
+都重放旧决定。预算正确地没有续期，但执行图也没有终态收口，因此形成永久热循环。
+
+修复保持 Arca 的严格清理授权：不放宽 inode Handle，不删除相同内容但身份不同的文件，也不加入旧 Workspace
+兼容。只有最新现实分类为 `safe_retry`、非纯 Effect 的 durable recovery deadline 已在 dispatch 前耗尽且
+Timeout Controller 确认超时时，Event 才以 `RECOVERY_EXECUTION_BUDGET_EXHAUSTED`、`retryDirective=never`
+终态失败并 abandon 未提交 Effect。`continue_forward` 或 dispatch 后的不确定超时仍不允许这样收口；Host 对任何
+带 Effect 的 recovery 异常清除缓存 action，下一次必须重新观察现实后再决定。Event Runtime/Host focused
+68/68、Service full 441 项为 423 pass、18 skip、0 fail。

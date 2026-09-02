@@ -262,7 +262,7 @@ function fixture(run, settings = {}) {
       localPriority: 0, priorityRevision: 1, resources: [{ resourceKey: 'cpu_heavy', units: 1 }] }) },
     nextEventAttemptId: () => settings.seedDeferredAttempt
       ? 'event-attempt-2' : 'event-attempt',
-    nextExecutionId: () => 'execution', nextResultId: () => 'result', now: () => 1000 });
+    nextExecutionId: () => 'execution', nextResultId: () => 'result', now: () => settings.nowMs ?? 1000 });
   const cleanup = () => { kernel.close(); fs.rmSync(root, { recursive: true, force: true }); };
   try {
     const result = run({ runtime, lease, databasePath, state: () => ({ schedulerReleased,
@@ -584,6 +584,53 @@ test('expired Attempt deadline does not prevent classified safe-retry Effect rec
         capabilityRef:'libra.test.observe@1', contractVersion:1, eventId:'event', fenceSnapshotDigest:HASH_A,
         inputSnapshotDigest:EMPTY_INPUT_DIGEST,
       })).digest('hex'), state:'intended' },
+  });
+});
+
+test('expired safe-retry recovery budget fail-closes before non-pure dispatch', async () => {
+  let dispatched=false;let isolated=0;
+  const timeoutController=createTimeoutController({now:()=>3000,isolation:{
+    async run({operation}){dispatched=true;return operation();},
+    async terminateAndIsolate(){isolated+=1;},
+  }});
+  await fixture(async ({ runtime, databasePath, state }) => {
+    const recovered=await runtime.recover({eventId:'event',effectId:'effect',decision:'safe_retry'});
+    assert.equal(recovered.kind,'failed');
+    assert.equal(recovered.eventState,'failed');
+    assert.equal(dispatched,false);
+    assert.equal(isolated,1);
+    assert.deepEqual(databaseFacts(databasePath),{event:{state:'failed',retry_at_ms:null,result_id:null},
+      attempt:{state:'completed',outcome_kind:'failed',retry_after_ms:null,failure_class:'integration',
+        failure_code:'RECOVERY_EXECUTION_BUDGET_EXHAUSTED'},attempts:1,results:0});
+    assert.deepEqual(state().journalCalls,['read','begin-recovery','abandon']);
+  },{effectClass:'workspace_write',initialEventState:'executing',seedExecutingAttempt:true,
+    recoveryStartedAtMs:1000,nowMs:3000,timeoutController,
+    failurePolicyDecision:{decision:'terminal_failure'},effectJournalRead:{
+      event_attempt_id:'event-attempt',effect_class:'workspace_write',idempotency_key:'event-attempt',
+      intent_digest:require('node:crypto').createHash('sha256').update(JSON.stringify({
+        capabilityRef:'libra.test.observe@1',contractVersion:1,eventId:'event',fenceSnapshotDigest:HASH_A,
+        inputSnapshotDigest:EMPTY_INPUT_DIGEST})).digest('hex'),state:'intended'},
+  });
+});
+
+test('expired continue-forward recovery budget never abandons uncertain Effect reality', async () => {
+  let isolated=0;
+  const timeoutController=createTimeoutController({now:()=>3000,isolation:{
+    async run(){throw new Error('expired recovery must not dispatch');},
+    async terminateAndIsolate(){isolated+=1;},
+  }});
+  await fixture(async ({ runtime, databasePath, state }) => {
+    await assert.rejects(runtime.recover({eventId:'event',effectId:'effect',decision:'continue_forward'}),
+      (error)=>error?.code==='P4_EXECUTION_TIMEOUT');
+    assert.equal(isolated,1);
+    assert.equal(databaseFacts(databasePath).event.state,'executing');
+    assert.deepEqual(state().journalCalls,['read','begin-recovery']);
+  },{effectClass:'workspace_write',initialEventState:'executing',seedExecutingAttempt:true,
+    recoveryStartedAtMs:1000,nowMs:3000,timeoutController,effectJournalRead:{
+      event_attempt_id:'event-attempt',effect_class:'workspace_write',idempotency_key:'event-attempt',
+      intent_digest:require('node:crypto').createHash('sha256').update(JSON.stringify({
+        capabilityRef:'libra.test.observe@1',contractVersion:1,eventId:'event',fenceSnapshotDigest:HASH_A,
+        inputSnapshotDigest:EMPTY_INPUT_DIGEST})).digest('hex'),state:'intended'},
   });
 });
 

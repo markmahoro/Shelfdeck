@@ -1,8 +1,14 @@
 # ShelfDeck Clean Helix Current Status
 
-Status: **PROD-053 单一来源 External Acquisition 已无损部署；建议对 3 条旧语义 Formation 执行获授权的 Formation Reset。**
+Status: **PROD-054 Arca Aftercare recovery 收敛修复已本地完成，等待与本轮变更统一无损部署；Formation Reset 尚未执行。**
 
 Last updated: 2026-09-02
+
+## PROD-054 Arca Aftercare Recovery Convergence Local Complete
+
+- 生产只读证据显示 3 条 `arca.aftercare.workspace.reclaim@1` Event Attempt 使用已耗尽的 durable recovery budget，约每 30 秒重复同一 `P4_EXECUTION_TIMEOUT`。对应 Workspace Material 的 size/fingerprint 相同但 inode 已漂移，因此现行 exact Handle 合同正确拒绝清理；本项不放宽 Handle，也不直接修改 Arca 数据或文件。
+- 根因是 dispatch 前 timeout 没有转为终态，并且 Execution Host 在 recovery 抛错后继续缓存旧 reality classification。修复只在最新分类仍为非纯 `safe_retry` 且 durable deadline 已于 dispatch 前耗尽时，以 `RECOVERY_EXECUTION_BUDGET_EXHAUSTED` 终态失败；`continue_forward` 与 dispatch 后不确定状态继续 fail closed。带 Effect 的 recovery 抛错后，Host 下一轮必须重新调用 exact reality reconciler。
+- 验证：Event Runtime/Host focused 68/68；Service full 441 项为 423 pass、18 skip、0 fail。当前尚未 build/upload/deploy，生产仍运行 `713bbc0827`；Formation Reset 尚未执行。
 
 ## PROD-053 Single-source External Acquisition Deployed
 

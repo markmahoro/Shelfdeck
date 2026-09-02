@@ -693,16 +693,29 @@ function createEventRuntime(options) {
       if (inputs.approvalHandle !== undefined) context.approvalHandle = inputs.approvalHandle;
       if (inputs.authorizationHandle !== undefined) context.authorizationHandle = inputs.authorizationHandle;
       let outcome;
+      let dispatchStarted = false;
+      const recoveryBudgetExpiredBeforeDispatch = request.decision === 'safe_retry' &&
+        entry.manifest.effectClass !== 'pure_observation' && clock() >= attemptContract.deadlineAtMs;
       try {
         outcome = await options.timeoutController.execute(Object.freeze({ executionHandleId: attempt.event_attempt_id,
           deadlineAtMs: attemptContract.deadlineAtMs, cooperativeAbortSafe:entry.executor.cooperativeAbortSafe===true,
           operation: (signal) => {
+            dispatchStarted=true;
             executionGuard.signal=signal||null;
             return options.dispatcher.dispatch({ capabilityRef: snapshot.event.capability_ref,
               context: Object.freeze(context), ownerDomain: snapshot.event.owner_domain });
           } }));
       } catch (error) {
         outcome=cooperativeDeadlineOutcome(entry,error,attemptContract.deadlineAtMs);
+        if (!outcome && error?.code === 'P4_EXECUTION_TIMEOUT' && recoveryBudgetExpiredBeforeDispatch && !dispatchStarted) {
+          outcome = Object.freeze({ kind:'failed', failureClass:'integration',
+            code:'RECOVERY_EXECUTION_BUDGET_EXHAUSTED',
+            message:'Safe-retry Effect recovery exhausted its durable execution budget before dispatch.',
+            retryDirective:'never', evidence:Object.freeze({
+              effectId:effect.effect_id, deadlineAtMs:attemptContract.deadlineAtMs,
+              recoveryDecision:request.decision, dispatchStarted:false,
+            }) });
+        }
         if (!outcome && entry.manifest.effectClass !== 'pure_observation') throw error;
         if(!outcome)outcome = Object.freeze({ kind:'failed', failureClass:observationFailureClass(error),
           code:error?.code === 'P4_EXECUTION_TIMEOUT'?'EXECUTION_TIMEOUT':

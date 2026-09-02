@@ -320,6 +320,9 @@ function createExecutionRuntimeHost(options) {
       await reconcileTerminal(aggregation);
       return Object.freeze({ kind:'recovery_advanced', eventId:pending.action.eventId });
     })().catch((error)=>{
+      // A failed non-pure recovery may have changed physical reality before it
+      // threw. Never replay a cached decision; observe the exact Effect again.
+      if (pending.effectId) pending.action=null;
       if (typeof options.onError === 'function') options.onError(error);
       return Object.freeze({ kind:'recovery_deferred', eventId:pendingEventId, error });
     }).finally(()=>{
@@ -468,21 +471,25 @@ function createExecutionRuntimeHost(options) {
           // start(); HTTP listen waits on start(). Recover them in the ordinary
           // drain lane after readiness.
           if (deferRecoveryUntilReady(action)) {
-            deferredRecoveries.set(action.eventId, { action, retryAtMs: Date.now() });
+            deferredRecoveries.set(action.eventId, { eventId:action.eventId,
+              effectId:action.effectId||null, action, retryAtMs: Date.now() });
             deferred = true;
             continue;
           }
           try {
             const recovered = await options.eventRuntime.recover(action);
             if (!recovered || recovered.kind === 'recovery_deferred') {
-              deferredRecoveries.set(action.eventId, { action, retryAtMs:Date.now() + recoveryRetryMs });
+              deferredRecoveries.set(action.eventId, { eventId:action.eventId,
+                effectId:action.effectId||null, action, retryAtMs:Date.now() + recoveryRetryMs });
               deferred = true;
               continue;
             }
             const aggregation = options.workLifecycle.aggregateEvent(action.eventId);
             await reconcileTerminal(aggregation);
           } catch (error) {
-            deferredRecoveries.set(action.eventId, { action, retryAtMs:Date.now() + recoveryRetryMs });
+            deferredRecoveries.set(action.eventId, { eventId:action.eventId,
+              effectId:action.effectId||null, action:action.effectId?null:action,
+              retryAtMs:Date.now() + recoveryRetryMs });
             deferred = true;
             if (typeof options.onError === 'function') options.onError(error);
           }
