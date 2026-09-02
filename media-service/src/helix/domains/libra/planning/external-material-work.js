@@ -28,13 +28,12 @@ function dependency(work) {
   });
 }
 
-function definition(snapshot, stage, outputContractRef, dependencies = [], acquisitionAttempt = 1) {
+function definition(snapshot, stage, outputContractRef, dependencies = []) {
   const basis = {
     libraRunId: snapshot.run.libraRunId,
     executionBasisDigest: snapshot.run.executionBasisDigest,
     acceptanceSpecId: snapshot.run.acceptanceSpecId,
     stage,
-    acquisitionAttempt,
   };
   return Object.freeze({
     schemaRef: 'helix://foundation/types/SupportingWorkDefinition/v1',
@@ -60,19 +59,18 @@ function definition(snapshot, stage, outputContractRef, dependencies = [], acqui
   });
 }
 
-function externalSearchSelectionWork(snapshot, acquisitionAttempt = 1) {
-  return definition(snapshot, 'search_selection', SELECTED_CANDIDATE_RESULT,
-    acquisitionAttempt === 1 ? [] : [externalSearchSelectionWork(snapshot, 1)], acquisitionAttempt);
+function externalSearchSelectionWork(snapshot) {
+  return definition(snapshot, 'search_selection', SELECTED_CANDIDATE_RESULT);
 }
 
-function externalAcquireVerificationWork(snapshot, acquisitionAttempt = 1) {
+function externalAcquireVerificationWork(snapshot) {
   return definition(snapshot, 'acquire_verification', VERIFIED_PACKAGE_RESULT,
-    [externalSearchSelectionWork(snapshot, acquisitionAttempt)], acquisitionAttempt);
+    [externalSearchSelectionWork(snapshot)]);
 }
 
-function externalImportSelectionWork(snapshot, acquisitionAttempt = 1) {
+function externalImportSelectionWork(snapshot) {
   return definition(snapshot, 'import_selection', SELECTED_OUTPUT_RESULT,
-    [externalAcquireVerificationWork(snapshot, acquisitionAttempt)], acquisitionAttempt);
+    [externalAcquireVerificationWork(snapshot)]);
 }
 
 module.exports = Object.freeze({

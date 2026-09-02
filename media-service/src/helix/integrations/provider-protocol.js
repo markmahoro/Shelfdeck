@@ -81,15 +81,14 @@ function validateAcquisitionQuery(value, digest) {
   exact(value, ['schemaRef', 'schemaVersion', 'draftId', 'draftKind', 'basisDigest', 'draftDigest', 'producedAtMs',
     'libraRunId', 'runExecutionBasisDigest', 'resolvedIdentityDigest', 'productStructureDigest', 'structureKind',
     'contentProfile', 'providerIdentityAnchors', 'requestedEpisodeKeys', 'mediaRequirement','mediaRequirementDigest',
-    'acquisitionPolicyDigest','maxDownloadAttempts','queryTerms', 'hardConstraints', 'queryDigest'], 'P5_PROVIDER_ACQUISITION_QUERY_SHAPE');
+    'acquisitionPolicyDigest','queryTerms', 'hardConstraints', 'queryDigest'], 'P5_PROVIDER_ACQUISITION_QUERY_SHAPE');
   if (value.schemaRef !== 'helix://contracts/types/AcquisitionQuery/v1' || value.schemaVersion !== 1 ||
       !['single', 'season'].includes(value.structureKind) || !['movie', 'series', 'jav', 'western_adult'].includes(value.contentProfile)) fail('P5_PROVIDER_ACQUISITION_QUERY_KIND', 'Acquisition Query type is invalid.');
   ['basisDigest', 'draftDigest', 'runExecutionBasisDigest', 'resolvedIdentityDigest', 'productStructureDigest',
     'mediaRequirementDigest', 'acquisitionPolicyDigest', 'queryDigest'].forEach((field) => sha(value[field], field));
   nonNegative(value.producedAtMs, 'producedAtMs');
-  if(!value.mediaRequirement||value.mediaRequirement.requirementDigest!==value.mediaRequirementDigest||
-      !Number.isSafeInteger(value.maxDownloadAttempts)||value.maxDownloadAttempts<1||value.maxDownloadAttempts>5)
-    fail('P5_PROVIDER_ACQUISITION_REQUIREMENT','Acquisition Query Media Requirement or attempt limit is invalid.');
+  if(!value.mediaRequirement||value.mediaRequirement.requirementDigest!==value.mediaRequirementDigest)
+    fail('P5_PROVIDER_ACQUISITION_REQUIREMENT','Acquisition Query Media Requirement is invalid.');
   [value.draftId, value.draftKind, value.libraRunId].forEach((item, index) => token(item, ['draftId', 'draftKind', 'libraRunId'][index]));
   if (!Array.isArray(value.providerIdentityAnchors) || value.providerIdentityAnchors.length < 1 || value.providerIdentityAnchors.length > 16) fail('P5_PROVIDER_ACQUISITION_QUERY_BOUND', 'Acquisition Query identity anchors are invalid.');
   value.providerIdentityAnchors.forEach((item, index) => validateResolvedIdentity(item, 'providerIdentityAnchors.' + index));
@@ -115,7 +114,7 @@ function validateAcquisitionQuery(value, digest) {
     productStructureDigest: value.productStructureDigest, structureKind: value.structureKind, contentProfile: value.contentProfile,
     providerIdentityAnchors: value.providerIdentityAnchors, requestedEpisodeKeys: value.requestedEpisodeKeys,
     mediaRequirement:value.mediaRequirement,mediaRequirementDigest:value.mediaRequirementDigest,
-    acquisitionPolicyDigest:value.acquisitionPolicyDigest,maxDownloadAttempts:value.maxDownloadAttempts,
+    acquisitionPolicyDigest:value.acquisitionPolicyDigest,
     queryTerms: value.queryTerms, hardConstraints: value.hardConstraints }));
   const { draftDigest, ...draftBasis } = value;
   if (value.queryDigest !== expectedQueryDigest || draftDigest !== digest(canonicalJson(draftBasis))) fail('P5_PROVIDER_ACQUISITION_QUERY_DIGEST', 'Acquisition Query or Draft digest is invalid.');
@@ -155,7 +154,7 @@ function validateSelectedCandidate(value, digest) {
     'queryDigest', 'candidateSetDigest', 'selectionCriteriaDigest', 'result', 'selectedCandidate', 'selectedCandidateId',
     'selectionReasonCode'], 'P5_PROVIDER_SELECTED_CANDIDATE_SHAPE');
   if (value.schemaRef !== 'helix://contracts/types/SelectedCandidate/v1' || value.schemaVersion !== 1 || value.result !== 'selected' ||
-      !['selected_compliant_claims','selected_unverified_claims'].includes(value.selectionReasonCode)) fail('P5_PROVIDER_SELECTED_CANDIDATE_REQUIRED', 'Acquire Request requires the selected candidate variant.');
+      value.selectionReasonCode!=='selected_compliant_claims') fail('P5_PROVIDER_SELECTED_CANDIDATE_REQUIRED', 'Acquire Request requires one proven compliant candidate.');
   validateCandidate(value.selectedCandidate, value.selectedCandidate.integrationId, value.selectedCandidate.configRevision, digest);
   const expectedBasisDigest = digest(canonicalJson({ schema: 'libra.external-candidate-selection-basis@1', queryDigest: value.queryDigest,
     candidateSetDigest: value.candidateSetDigest, selectionCriteriaDigest: value.selectionCriteriaDigest }));
@@ -163,7 +162,7 @@ function validateSelectedCandidate(value, digest) {
     candidateSetDigest: value.candidateSetDigest, selectionCriteriaDigest: value.selectionCriteriaDigest }));
   const { draftDigest, ...draftBasis } = value;
   if (value.selectedCandidateId !== value.selectedCandidate.candidateId || value.selectedCandidate.availability !== 'available' ||
-      value.selectedCandidate.requirementAssessment === 'noncompliant' ||
+      value.selectedCandidate.requirementAssessment !== 'compliant' ||
       value.basisDigest !== expectedBasisDigest || value.draftId !== expectedDraftId || draftDigest !== digest(canonicalJson(draftBasis))) fail('P5_PROVIDER_SELECTED_CANDIDATE_ID', 'Selected candidate identity or Draft digest is invalid.');
   ['basisDigest', 'draftDigest', 'queryDigest', 'candidateSetDigest', 'selectionCriteriaDigest'].forEach((field) => sha(value[field], field));
   return freezeClone(value);
@@ -393,7 +392,8 @@ function validateAcquisitionJobSnapshot(value, request, digest) {
   if (value.externalJobReceiptId !== receipt.receiptId || value.requestDigest !== receipt.requestDigest || !['pending', 'ready', 'failed'].includes(value.state)) fail('P5_PROVIDER_ACQUISITION_JOB_FENCE', 'Acquisition job snapshot fence is invalid.');
   positive(value.providerObservationRevision, 'providerObservationRevision');
   if (value.state === 'ready') validateOutputSnapshot(value.outputSnapshot, receipt.integrationId, receipt.configRevision, digest);
-  if (value.state === 'failed' && !['job_not_found', 'job_failed', 'job_cancelled', 'provider_observation_invalid'].includes(value.reasonCode)) fail('P5_PROVIDER_ACQUISITION_JOB_REASON', 'Acquisition job failure reason is invalid.');
+  if (value.state === 'failed' && !['job_not_found', 'job_failed', 'job_cancelled', 'job_stalled',
+    'transfer_failed', 'transfer_target_conflict', 'provider_observation_invalid'].includes(value.reasonCode)) fail('P5_PROVIDER_ACQUISITION_JOB_REASON', 'Acquisition job failure reason is invalid.');
   const { snapshotDigest, ...basis } = value;
   if (snapshotDigest !== digest(canonicalJson(basis))) fail('P5_PROVIDER_ACQUISITION_JOB_DIGEST', 'Acquisition job snapshot digest is invalid.');
 }

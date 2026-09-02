@@ -30,7 +30,7 @@ function acquisitionQuery() {
     producedAtMs: NOW, libraRunId: 'run-1', runExecutionBasisDigest: digest('run-basis'),
     resolvedIdentityDigest: digest('resolved-identity'), productStructureDigest: digest('product-structure'),
     structureKind: 'single', contentProfile: 'movie', providerIdentityAnchors: [identity], requestedEpisodeKeys: [],
-    mediaRequirement,mediaRequirementDigest:mediaRequirement.requirementDigest,acquisitionPolicyDigest:digest('acquisition-policy'),maxDownloadAttempts:3,
+    mediaRequirement,mediaRequirementDigest:mediaRequirement.requirementDigest,acquisitionPolicyDigest:digest('acquisition-policy'),
     queryTerms: [term], hardConstraints: { requiredStructureKind: 'single', requiredEpisodeKeys: [],mediaRequirementDigest:mediaRequirement.requirementDigest }
   };
   value.queryDigest = digest(canonicalJson({ schema: 'libra.external-acquisition-query@1', libraRunId: value.libraRunId,
@@ -38,7 +38,7 @@ function acquisitionQuery() {
     productStructureDigest: value.productStructureDigest, structureKind: value.structureKind, contentProfile: value.contentProfile,
     providerIdentityAnchors: value.providerIdentityAnchors, requestedEpisodeKeys: value.requestedEpisodeKeys,
     mediaRequirement:value.mediaRequirement,mediaRequirementDigest:value.mediaRequirementDigest,
-    acquisitionPolicyDigest:value.acquisitionPolicyDigest,maxDownloadAttempts:value.maxDownloadAttempts,
+    acquisitionPolicyDigest:value.acquisitionPolicyDigest,
     queryTerms: value.queryTerms, hardConstraints: value.hardConstraints }));
   value.draftDigest = digest(canonicalJson(value));
   return Object.freeze(value);
@@ -335,31 +335,40 @@ test('external job receipt must match exact integration, operation, idempotency,
   await assert.rejects(() => f.adapter.execute(request), (error) => error.code === 'P5_PROVIDER_JOB_MISMATCH');
 });
 
-test('external request rejects an explicitly noncompliant candidate before transport', async () => {
+test('external request rejects noncompliant and unknown candidates before transport', async () => {
   const operation = operationCatalog.operations.find((item) =>
     item.operationId === 'libra.external_material.acquire.request@1');
-  const base = requestFor(operation, 'moviepilot'), selected = structuredClone(base.input.selectedCandidate),
-    advertisedBasis = Object.fromEntries(Object.entries(selected.selectedCandidate.advertisedMedia)
-      .filter(([key]) => key !== 'evidenceDigest'));
-  advertisedBasis.videoCodec = { status:'known', value:'h264', sourceField:'torrent.title' };
-  selected.selectedCandidate.advertisedMedia = { ...advertisedBasis,
-    evidenceDigest:digest(canonicalJson(advertisedBasis)) };
-  selected.selectedCandidate.requirementAssessment = 'noncompliant';
-  selected.selectedCandidate.assessmentReasonCodes = ['video_codec_unmet'];
-  const { candidateDigest:ignoredCandidateDigest, ...candidateBasis } = selected.selectedCandidate;
-  selected.selectedCandidate.candidateDigest = digest(canonicalJson(candidateBasis));
-  const { draftDigest:ignoredDraftDigest, ...selectedBasis } = selected;
-  selected.draftDigest = digest(canonicalJson(selectedBasis));
-  const input = { ...base.input, selectedCandidate:selected };
-  const request = { ...base, input, requestDigest:digest(canonicalJson({
-    integrationId:base.integrationHandle.integrationId, integrationType:base.integrationHandle.integrationType,
-    configRevision:base.integrationHandle.configRevision, operationId:base.operationId,
-    idempotencyKey:base.idempotencyKey, input,
-  })) };
-  const f = fixture(operation, { request });
-  await assert.rejects(() => f.adapter.execute(request),
-    (error) => error.code === 'P5_PROVIDER_SELECTED_CANDIDATE_ID');
-  assert.equal(f.calls.length, 0);
+  for (const assessment of ['noncompliant', 'unknown']) {
+    const base = requestFor(operation, 'moviepilot'),
+      selected = structuredClone(base.input.selectedCandidate),
+      advertisedBasis = Object.fromEntries(Object.entries(
+        selected.selectedCandidate.advertisedMedia)
+        .filter(([key]) => key !== 'evidenceDigest'));
+    advertisedBasis.videoCodec = assessment === 'unknown'
+      ? { status:'unknown', value:null, sourceField:null }
+      : { status:'known', value:'h264', sourceField:'torrent.title' };
+    selected.selectedCandidate.advertisedMedia = { ...advertisedBasis,
+      evidenceDigest:digest(canonicalJson(advertisedBasis)) };
+    selected.selectedCandidate.requirementAssessment = assessment;
+    selected.selectedCandidate.assessmentReasonCodes = [assessment === 'unknown'
+      ? 'video_codec_unknown' : 'video_codec_unmet'];
+    const { candidateDigest:ignoredCandidateDigest, ...candidateBasis } =
+      selected.selectedCandidate;
+    selected.selectedCandidate.candidateDigest = digest(canonicalJson(candidateBasis));
+    const { draftDigest:ignoredDraftDigest, ...selectedBasis } = selected;
+    selected.draftDigest = digest(canonicalJson(selectedBasis));
+    const input = { ...base.input, selectedCandidate:selected };
+    const request = { ...base, input, requestDigest:digest(canonicalJson({
+      integrationId:base.integrationHandle.integrationId,
+      integrationType:base.integrationHandle.integrationType,
+      configRevision:base.integrationHandle.configRevision,
+      operationId:base.operationId, idempotencyKey:base.idempotencyKey, input,
+    })) };
+    const f = fixture(operation, { request });
+    await assert.rejects(() => f.adapter.execute(request),
+      (error) => error.code === 'P5_PROVIDER_SELECTED_CANDIDATE_ID');
+    assert.equal(f.calls.length, 0);
+  }
 });
 
 test('old acquisition refs, forged candidate sets, and foreign material snapshots fail closed', async () => {

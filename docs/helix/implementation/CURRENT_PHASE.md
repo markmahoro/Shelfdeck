@@ -1,8 +1,8 @@
 # ShelfDeck Helix 当前实施阶段
 
-状态：**PROD-049/050 DEPLOYED AND PRODUCTION ACCEPTED**
+状态：**PROD-053 LOCAL IMPLEMENTATION COMPLETE — NOT DEPLOYED**
 
-日期：2026-09-01
+日期：2026-09-02
 
 ## 目标
 
@@ -16,6 +16,14 @@
 6. 已通过统一工具完成获授权Nuclear Formation Reset，删除未完成Arca Commit的过程图，保留Procurement和已入架事实；本次部署不重复Reset；
 7. 修复PROD-044执行目录摘要与PROD-045 NFO根节点生成/上架前语义门禁；
 8. 部署后验证Per-Field generated/accepted/waiting/rejected、Formation三态、Libra/Arca运行、NFO链路与收藏页关键表面。
+
+## PROD-053 本地增量
+
+- External Acquisition 只允许一次搜索、一个 `available + compliant` 候选和一个 Provider Job；同一 Job 可幂等观察/恢复，任何终态失败不得切换候选。
+- MoviePilot 以 exact TMDB anchor、稳定候选引用和正 seeder 作为提交前门禁；补齐 `TrueHD5.1`、`H 265` 与普通 `DDP/EAC3 → other` 解析，并把有界 stall/transfer 失败变成 typed terminal outcome。
+- 删除用户可调下载尝试次数、attempt ordinal、unknown 下载和候选 fallback；Admin API/UI 不再暴露该设置。既有未完成 Formation 无兼容权利，部署后的清场只能另行授权 Formation Reset。
+- 本地验证为 external focused 95/95、Provider/H1 28/28、Service 423 pass + 18 skip、Admin Web 42/42、production build 与 P5 Platform PASS。Architecture fixture/semantic/manifest/contracts PASS；总 gate 只保留未改文件的 18 个既有 scanner finding。
+- 本轮未部署、未写生产数据、未执行 Formation Reset。
 
 ## 已部署基线（保留）
 

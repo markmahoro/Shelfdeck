@@ -23,11 +23,6 @@
     "schemaRef": {
       "const": "AcquisitionPolicy@1"
     },
-    "maxDownloadAttempts": {
-      "type": "integer",
-      "minimum": 1,
-      "maximum": 5
-    },
     "policyDigest": {
       "type": "string",
       "minLength": 1,
@@ -38,7 +33,6 @@
     "contractId",
     "revision",
     "schemaRef",
-    "maxDownloadAttempts",
     "policyDigest"
   ],
   "x-helix-maxCanonicalBytes": 1024

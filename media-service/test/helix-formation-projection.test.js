@@ -108,12 +108,12 @@ test('Formation explains a frozen external search that found no requirement-elig
   }]}]),'没有找到可获取的外部候选，本次整理已冻结');
 });
 
-test('Formation exposes an unverified MoviePilot selection instead of presenting it as compliant',()=>{
+test('Formation exposes only a proven compliant MoviePilot selection',()=>{
   const selection={schemaRef:'helix://contracts/types/SelectedCandidate/v1',result:'selected',
-    selectionReasonCode:'selected_unverified_claims',selectedCandidate:{requirementAssessment:'unknown'}};
+    selectionReasonCode:'selected_compliant_claims',selectedCandidate:{requirementAssessment:'compliant'}};
   assert.deepEqual(extractAcquisitionSelection([{events:[{
     capabilityRef:'libra.external_material.candidate.select@1',result:{committedAtMs:200,result:selection},
-  }]}]),{requirementAssessment:'unknown',selectionReasonCode:'selected_unverified_claims'});
+  }]}]),{requirementAssessment:'compliant',selectionReasonCode:'selected_compliant_claims'});
 });
 
 test('Formation gives a frozen Run precedence over an earlier Product Identity issue',()=>{

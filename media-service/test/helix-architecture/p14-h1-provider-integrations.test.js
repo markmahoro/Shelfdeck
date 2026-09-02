@@ -266,9 +266,14 @@ function providerFetch(state) {
             tmdb_id:Object.hasOwn(state, 'moviepilotTmdbId')
               ? state.moviepilotTmdbId : 100 },
           torrent_info: {
-            title: 'Movie.2024.2160p.HEVC.TrueHD',
+            title: state.moviepilotTorrentTitle || 'Movie.2024.2160p.HEVC.TrueHD',
             enclosure: 'https://tracker.test/download/torrent-1',
             size: 1024,
+            ...(Object.hasOwn(state, 'moviepilotAudioCodec')
+              ? { audio_codec:state.moviepilotAudioCodec } : {}),
+            seeders: Object.hasOwn(state, 'moviepilotSeeders')
+              ? state.moviepilotSeeders : 4,
+            date_elapsed: state.moviepilotDateElapsed || '1分钟前',
           },
         }] });
       }
@@ -461,12 +466,13 @@ function inspect(dataDir) {
 }
 
 function openServices(value, fetchImpl, options = {}) {
+  const now = options.now || (() => 1_900_000_000_000);
   const kernel = openSqliteKernel({
     Database,
     databasePath: path.join(value.dataDir, 'shelfdeck.db'),
     schemaDdl,
     schemaManifest,
-    now: () => 1_900_000_000_000,
+    now,
   });
   return {
     kernel,
@@ -475,7 +481,7 @@ function openServices(value, fetchImpl, options = {}) {
       unitOfWork: createSqliteUnitOfWork({ kernel }),
       dataDir: value.dataDir,
       secretRoot,
-      now: () => 1_900_000_000_000,
+      now,
       fetchImpl,
       doubanRequestPaceMs: options.doubanRequestPaceMs ?? 0,
       doubanDelay: options.doubanDelay,
@@ -543,7 +549,6 @@ function acquisitionQuery() {
     mediaRequirement,
     mediaRequirementDigest:mediaRequirement.requirementDigest,
     acquisitionPolicyDigest:canonicalDigest({ policy: 'moviepilot', revision: 1 }),
-    maxDownloadAttempts:3,
     queryTerms: terms,
     hardConstraints: {
       requiredStructureKind: 'single',
@@ -564,7 +569,6 @@ function acquisitionQuery() {
     mediaRequirement:query.mediaRequirement,
     mediaRequirementDigest:query.mediaRequirementDigest,
     acquisitionPolicyDigest:query.acquisitionPolicyDigest,
-    maxDownloadAttempts:query.maxDownloadAttempts,
     queryTerms: query.queryTerms,
     hardConstraints: query.hardConstraints,
   });
@@ -599,8 +603,7 @@ function selectedCandidateFromSearch(result) {
     result: 'selected',
     selectedCandidate: result.candidates[0],
     selectedCandidateId: result.candidates[0].candidateId,
-    selectionReasonCode: result.candidates[0].requirementAssessment==='compliant'
-      ?'selected_compliant_claims':'selected_unverified_claims',
+    selectionReasonCode: 'selected_compliant_claims',
   };
   return Object.freeze({
     ...value,
@@ -694,25 +697,20 @@ test('H1.2 four providers share test-proof-save-read and never persist operator 
   await host.close();
 });
 
-test('H1.2 MoviePilot attempt limit updates locally without re-entering or retesting credentials', async () => {
+test('H1.2 MoviePilot exposes no candidate-download attempt setting', async () => {
   const value=fixture(),state={calls:[]},host=await createCleanServiceHost({dataDir:value.dataDir,
     adminDistDir:value.adminDistDir,secretRoot,integrationFetch:providerFetch(state),now:()=>1_900_000_000_000});
   try{
     const cookie=await session(host,value.initialized.adminApiKey),saved=await configure(host,cookie,'moviepilot','-settings');
-    assert.equal(saved.settings.maxDownloadAttempts,3);
-    const callsBefore=state.calls.length,updated=await host.inject({method:'PATCH',
+    assert.deepEqual(saved.settings,{});
+    const callsBefore=state.calls.length,rejected=await host.inject({method:'PATCH',
       url:'/v1/admin/settings/integrations/moviepilot',headers:{cookie},payload:{kind:'moviepilot',
-        idempotencyKey:'moviepilot-local-settings-5',expectedConfigRevision:1,settings:{maxDownloadAttempts:5}}});
-    assert.equal(updated.statusCode,200,updated.body);
-    assert.equal(updated.json().configRevision,2);
-    assert.equal(updated.json().settings.maxDownloadAttempts,5);
-    assert.equal(updated.json().landingBinding.bindingRevision,2);
-    assert.equal(state.calls.length,callsBefore,'local policy update must not call MoviePilot');
-    const replay=await host.inject({method:'PATCH',url:'/v1/admin/settings/integrations/moviepilot',headers:{cookie},
-      payload:{kind:'moviepilot',idempotencyKey:'moviepilot-local-settings-5',expectedConfigRevision:1,
-        settings:{maxDownloadAttempts:5}}});
-    assert.equal(replay.statusCode,200,replay.body);
-    assert.deepEqual(replay.json(),updated.json());
+      idempotencyKey:'moviepilot-local-settings-5',expectedConfigRevision:1,settings:{maxDownloadAttempts:5}}});
+    assert.equal(rejected.statusCode,400,rejected.body);
+    assert.equal(rejected.json().error.code,'PLATFORM_INTEGRATION_SETTINGS_UPDATE_SHAPE');
+    const read=await host.inject({method:'GET',url:'/v1/admin/settings/integrations/moviepilot',headers:{cookie}});
+    assert.equal(read.json().configRevision,1);
+    assert.equal(state.calls.length,callsBefore,'removed setting must not call MoviePilot');
   }finally{await host.close();}
 });
 
@@ -729,13 +727,12 @@ test('UAT-130 configured MoviePilot revises External Landing locally while retai
     const updated=await host.inject({method:'PATCH',url:'/v1/admin/settings/integrations/moviepilot',
       headers:{cookie},payload:{kind:'moviepilot',idempotencyKey:'moviepilot-landing-update-2',
         expectedConfigRevision:1,settings:{providerRequestSaveRoot:'/provider/revised-downloads',
-          providerOrganizedRoot:'/provider/revised-organized',shelfDeckVisibleRoot:landing,
-          maxDownloadAttempts:4}}});
+          providerOrganizedRoot:'/provider/revised-organized',shelfDeckVisibleRoot:landing}}});
     assert.equal(updated.statusCode,200,updated.body);
     const result=updated.json();
     assert.equal(result.configRevision,2);
     assert.equal(result.endpoint,saved.endpoint);
-    assert.equal(result.settings.maxDownloadAttempts,4);
+    assert.deepEqual(result.settings,{});
     assert.equal(result.landingBinding.bindingId,saved.landingBinding.bindingId);
     assert.equal(result.landingBinding.bindingRevision,2);
     assert.equal(result.landingBinding.providerRequestSaveRoot,'/provider/revised-downloads');
@@ -747,8 +744,7 @@ test('UAT-130 configured MoviePilot revises External Landing locally while retai
     const replay=await host.inject({method:'PATCH',url:'/v1/admin/settings/integrations/moviepilot',
       headers:{cookie},payload:{kind:'moviepilot',idempotencyKey:'moviepilot-landing-update-2',
         expectedConfigRevision:1,settings:{providerRequestSaveRoot:'/provider/revised-downloads',
-          providerOrganizedRoot:'/provider/revised-organized',shelfDeckVisibleRoot:landing,
-          maxDownloadAttempts:4}}});
+          providerOrganizedRoot:'/provider/revised-organized',shelfDeckVisibleRoot:landing}}});
     assert.equal(replay.statusCode,200,replay.body);
     assert.deepEqual(replay.json(),result);
     fs.mkdirSync(landing);
@@ -775,16 +771,14 @@ test('UAT-130 MoviePilot Landing overlap fails closed without advancing configur
     const saved=await configure(host,cookie,'moviepilot','-landing-overlap');
     const partial=await host.inject({method:'PATCH',url:'/v1/admin/settings/integrations/moviepilot',
       headers:{cookie},payload:{kind:'moviepilot',idempotencyKey:'moviepilot-landing-partial-2',
-        expectedConfigRevision:1,settings:{providerRequestSaveRoot:'/provider/downloads',
-          maxDownloadAttempts:3}}});
+        expectedConfigRevision:1,settings:{providerRequestSaveRoot:'/provider/downloads'}}});
     assert.equal(partial.statusCode,400,partial.body);
     assert.equal(partial.json().error.code,'PLATFORM_MOVIEPILOT_LANDING_SETTINGS_SHAPE');
     const conflict=path.join(value.dataDir,'workspaces','libra');
     const rejected=await host.inject({method:'PATCH',url:'/v1/admin/settings/integrations/moviepilot',
       headers:{cookie},payload:{kind:'moviepilot',idempotencyKey:'moviepilot-landing-overlap-2',
         expectedConfigRevision:1,settings:{providerRequestSaveRoot:'/provider/downloads',
-          providerOrganizedRoot:'/provider/organized',shelfDeckVisibleRoot:conflict,
-          maxDownloadAttempts:3}}});
+          providerOrganizedRoot:'/provider/organized',shelfDeckVisibleRoot:conflict}}});
     assert.equal(rejected.statusCode,400,rejected.body);
     assert.equal(rejected.json().error.code,'PLATFORM_MOVIEPILOT_LANDING_ROOT_OVERLAP');
     const read=await host.inject({method:'GET',url:'/v1/admin/settings/integrations/moviepilot',
@@ -972,11 +966,84 @@ test('H1.2 provider operations execute through exact P5 ports and revision-fence
       },
     );
     assert.equal(unanchoredMoviepilot.result.candidates[0].availability,
-      'available');
+      'unavailable');
     assert.deepEqual(
       unanchoredMoviepilot.result.candidates[0].identityAnchors,
       [],
     );
+
+    state.moviepilotTmdbId = 100;
+    state.moviepilotTorrentTitle =
+      'Skyfall 2012 2160p BluRay x265 10bit TrueHD5.1-WiKi';
+    state.moviepilotSeeders = 2;
+    state.moviepilotDateElapsed = '1分钟前';
+    const skyfall = await opened.services.executeProvider('moviepilot', {
+      operationId:'libra.external_material.search@1', effectClass:'pure_observation',
+      idempotencyKey:'moviepilot-search-skyfall-release-grammar', timeoutMs:5_000,
+      input:{ acquisitionQuery:acquisitionQuery(), limit:25 },
+    });
+    assert.equal(skyfall.result.candidates[0].availability,'available');
+    assert.equal(skyfall.result.candidates[0].advertisedMedia.videoCodec.value,'hevc');
+    assert.deepEqual(skyfall.result.candidates[0].advertisedMedia.primaryAudioClasses.value,
+      ['truehd']);
+    assert.equal(skyfall.result.candidates[0].requirementAssessment,'compliant');
+    const stableRef = skyfall.result.candidates[0].providerCandidateRef;
+
+    state.moviepilotSeeders = 9;
+    state.moviepilotDateElapsed = '2分钟前';
+    const refreshed = await opened.services.executeProvider('moviepilot', {
+      operationId:'libra.external_material.search@1', effectClass:'pure_observation',
+      idempotencyKey:'moviepilot-search-stable-candidate-identity', timeoutMs:5_000,
+      input:{ acquisitionQuery:acquisitionQuery(), limit:25 },
+    });
+    assert.deepEqual(refreshed.result.candidates[0].providerCandidateRef,stableRef,
+      'dynamic availability fields must not change candidate identity');
+
+    state.moviepilotTorrentTitle =
+      'Trapped 2025 2160p WEB-DL H 265 DDP5.1-OurTV';
+    const trapped = await opened.services.executeProvider('moviepilot', {
+      operationId:'libra.external_material.search@1', effectClass:'pure_observation',
+      idempotencyKey:'moviepilot-search-trapped-release-grammar', timeoutMs:5_000,
+      input:{ acquisitionQuery:acquisitionQuery(), limit:25 },
+    });
+    assert.equal(trapped.result.candidates[0].advertisedMedia.videoCodec.value,'hevc');
+    assert.deepEqual(trapped.result.candidates[0].advertisedMedia.primaryAudioClasses.value,
+      ['other']);
+    assert.equal(trapped.result.candidates[0].requirementAssessment,'noncompliant');
+    assert.deepEqual(trapped.result.candidates[0].assessmentReasonCodes,
+      ['primary_audio_unmet']);
+
+    state.moviepilotSeeders = 0;
+    const seedless = await opened.services.executeProvider('moviepilot', {
+      operationId:'libra.external_material.search@1', effectClass:'pure_observation',
+      idempotencyKey:'moviepilot-search-no-seeders', timeoutMs:5_000,
+      input:{ acquisitionQuery:acquisitionQuery(), limit:25 },
+    });
+    assert.equal(seedless.result.candidates[0].availability,'unavailable');
+
+    state.moviepilotSeeders = 2;
+    state.moviepilotTorrentTitle = 'Movie 2024 2160p HEVC';
+    state.moviepilotAudioCodec = 'TrueHD5.1';
+    const beforeDrift = await opened.services.executeProvider('moviepilot', {
+      operationId:'libra.external_material.search@1', effectClass:'pure_observation',
+      idempotencyKey:'moviepilot-search-before-media-claim-drift', timeoutMs:5_000,
+      input:{ acquisitionQuery:acquisitionQuery(), limit:25 },
+    });
+    const selectedBeforeDrift = selectedCandidateFromSearch(beforeDrift.result);
+    state.moviepilotAudioCodec = 'DDP5.1';
+    const downloadAddsBeforeDrift = state.moviepilotDownloadAdds || 0;
+    await assert.rejects(
+      () => opened.services.executeProvider('moviepilot', {
+        operationId:'libra.external_material.acquire.request@1',
+        effectClass:'external_request',
+        idempotencyKey:'moviepilot-reject-media-claim-drift', timeoutMs:5_000,
+        input:{ acquisitionQuery:acquisitionQuery(),
+          selectedCandidate:selectedBeforeDrift },
+      }),
+      (error) => error.code === 'P5_PROVIDER_TRANSPORT_FAILED',
+    );
+    assert.equal(state.moviepilotDownloadAdds || 0,downloadAddsBeforeDrift,
+      'a candidate whose media claims drifted must fail before POST');
   } finally {
     opened.kernel.close();
   }
@@ -1016,6 +1083,17 @@ test('H1.2 MoviePilot external request recovers one exact durable job without du
         timeoutMs: 5_000,
         input: { acquisitionQuery: query, selectedCandidate },
       });
+
+    state.moviepilotSeeders = 0;
+    const addCountBeforeUnavailable = state.moviepilotDownloadAdds || 0;
+    await assert.rejects(
+      () => acquire('moviepilot-reject-no-longer-available'),
+      (error) => error.code === 'P5_PROVIDER_TRANSPORT_FAILED',
+    );
+    assert.equal(state.moviepilotDownloadAdds || 0,
+      addCountBeforeUnavailable,
+      'a candidate that lost positive availability must fail before POST');
+    state.moviepilotSeeders = 4;
 
     const submitted = await acquire('moviepilot-submit-with-receipt');
     assert.equal(submitted.result.externalJobReceipt.externalJobId, 'job-1');
@@ -1085,6 +1163,33 @@ test('H1.2 MoviePilot external request recovers one exact durable job without du
   } finally {
     opened.kernel.close();
   }
+});
+
+test('H1.2 MoviePilot terminally rejects the sole job after a bounded zero-progress stall', async () => {
+  const value=fixture(),startedAtMs=1_900_000_000_000,
+    observedAtMs=startedAtMs+31*60*1000,state={calls:[],moviepilotTasks:[{
+      hash:'job-stalled',progress:0,state:'stalledDL',download_speed:0,
+      last_activity:Math.floor(startedAtMs/1000),
+    }]},fetchImpl=providerFetch(state);
+  const host=await createCleanServiceHost({dataDir:value.dataDir,adminDistDir:value.adminDistDir,
+    secretRoot,integrationFetch:fetchImpl,now:()=>startedAtMs});
+  const cookie=await session(host,value.initialized.adminApiKey);
+  await configure(host,cookie,'moviepilot','-stalled-job');
+  await host.close();
+  const opened=openServices(value,fetchImpl,{now:()=>observedAtMs});
+  try{
+    const receipt={schemaRef:'helix://contracts/types/ExternalJobReceipt/v1',schemaVersion:1,
+      receiptId:'stalled-receipt',integrationId:'moviepilot-main',externalJobId:'job-stalled',
+      operationKind:'libra.external_material.acquire.request@1',idempotencyKey:'stalled-request',
+      requestDigest:canonicalDigest({request:'stalled'}),configRevision:1,createdAtMs:startedAtMs};
+    const observed=await opened.services.executeProvider('moviepilot',{
+      operationId:'libra.external_material.acquire.observe@1',effectClass:'pure_observation',
+      idempotencyKey:'observe-stalled-job',timeoutMs:5_000,
+      input:{externalJobReceipt:receipt,phase:'download'},
+    });
+    assert.equal(observed.result.state,'failed');
+    assert.equal(observed.result.reasonCode,'job_stalled');
+  }finally{opened.kernel.close();}
 });
 
 test('H1.2 Adult Provider supplies the real JAV Product identity, metadata, and artifact seam without a construction fallback', async () => {

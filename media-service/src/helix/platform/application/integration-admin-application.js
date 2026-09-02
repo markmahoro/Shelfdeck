@@ -666,14 +666,14 @@ function createIntegrationAdminApplication(options) {
         'shelfDeckVisibleRoot',
       ].some((field) => Object.hasOwn(body.settings, field));
     if (profile.kind === 'moviepilot' && !moviePilotLandingUpdate) {
-      exact(body.settings, ['maxDownloadAttempts'], [],
+      exact(body.settings, [], [],
         'PLATFORM_INTEGRATION_SETTINGS_UPDATE_SHAPE');
     }
     const requestedLandingSettings = moviePilotLandingUpdate
       ? normalizeMoviePilotLandingSettings(body.settings)
       : null;
     const normalizedSettings=profile.normalizeSettings(requestedLandingSettings
-      ? { maxDownloadAttempts:requestedLandingSettings.maxDownloadAttempts }
+      ? {}
       : body.settings),digest=requestDigest({command:RECEIPT_KIND_SETTINGS_UPDATE,
       kind:body.kind,idempotencyKey:key,expectedConfigRevision:expected,settings:normalizedSettings,
       ...(requestedLandingSettings ? { landingSettings:requestedLandingSettings } : {})});

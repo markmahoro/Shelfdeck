@@ -1,6 +1,6 @@
 # ShelfDeck Clean Helix Master Plan
 
-Status: **PROD-051 与 PROD-052 已分别在本地完成；尚未部署，生产旧 Reset 继续暂停使用。**
+Status: **PROD-053 单一来源 External Acquisition 已在本地完成；尚未部署，未执行 Formation Reset。**
 
 Last updated: 2026-09-02
 
@@ -16,6 +16,7 @@ Last updated: 2026-09-02
 - Formation Reset 删除领域 Fact 时，必须同步清理其 Foundation Work/Attempt/Plan/Event/Effect、Workspace、Artifact、Command Receipt、Outbox/Inbox、Audit、Marker/Result 与 Control revision 后缀；任何领域 Fact 已不存在但 Foundation 记录仍可占用资源或参与重放的状态都属于 reset residual，独立 postcondition 必须使操作失败。不得用兼容读取或影片特例绕过。
 - PROD-051 已本地修复：`libra.product_artifact.acquire@1` 在 TMDB 网络抖动发生于 `workspace_write` intent 之后时进入通用 Effect reality reconciliation；只有正式现实观察分类为 absent，才由同一 Event Attempt/Effect 的有界恢复预算执行 `safe_retry`。非纯 Effect 不进入普通 Event retry，也没有《浪客剑心：京都大火篇》影片特例。该修复尚未部署。
 - PROD-052 已本地完成：删除 `normal|nuclear` 双模式与旧确认串，唯一 CLI 使用 `FORMATION_RESET_V2`；scope 使用 domain/type/ID typed identity，补齐 run-owned Artifact、保留 Subject 的新未 Commit Intake/Run、Handoff A/Control 回卷与完整 Execution graph；Workspace 先同文件系统 staging，数据库事务或 verifier 失败时恢复；冻结 manifest 的独立 verifier 不复用 discovery。尚未部署或执行生产 Reset。
+- PROD-053 已本地完成：External Acquisition 收敛为一次搜索、最多选择一个同时具有 exact identity、mandatory media positive claims 与正共享者证据的候选、最多建立一个 Provider Job。`unknown`、明确不合规、无共享者或共享者缺失都不下载；已选 Job 可按同一幂等身份重复观察/恢复，但下载、转移、Landing、真实媒体验证任一终态失败都结束本次 acquisition，不再选择第二个候选。MoviePilot 的候选下载次数设置已从合同、Runtime、Admin API/UI 删除。尚未部署，既有未完成 Formation 不增加兼容路径。
 
 ## 当前基线
 
@@ -71,6 +72,7 @@ Last updated: 2026-09-02
   `P8_ACCEPTANCE_TERMINAL_CONFLICT`。19 张 Arca phantom Receipt 和 2 条 Aftercare inode drift Work 仍不在范围。
 - PROD-042 部署后，现有失败 Rejection Work 只能通过已授权的 Formation Reset 调试能力清除；不得为它增加 migration、replan、dual-read 或旧 Input Binding fallback。Reset 后的新 Intake 必须用正常链路重新验证 token 能在 Rejection terminal 后释放。
 - PROD-052 已本地通过五类负向夹具，但部署与生产数据操作仍是两个独立动作。后续可随统一镜像无损部署；任何生产 Formation Reset 仍需新的明确授权、先离线 dry-run 核对冻结范围，再用唯一确认串显式 apply。部署本身不得触发 Reset。
+- PROD-053 后续若获授权部署，应先做标准无损 replacement，再以新 Formation 验证：只下载唯一 proven candidate；`TrueHD5.1` 与空格分隔 `H 265` 正确识别；普通 `DDP5.1` 是已知不合规而不是 unknown；零/缺失共享者不提交下载；单一 Job stall/transfer/真实媒体失败后 Run 形成稳定终态且没有第二次候选下载。既有未完成条目只通过另行授权的 Formation Reset 清除。
 - 恢复 Helix-beta acceptance evidence 工作时，仍以 `BETA_FEATURE_ACCEPTANCE_BASELINE.md` 为准；生产 health 不能折算为 `HB-*` PASS。
 - 架构唯一 SSOT 仍为 `TOP_DOWN_ARCHITECTURE_CONFIRMATION.md`；生产修复不得移动 Owner、Handoff 或 Canonical Transaction。
 - 生产继续使用 `scripts/build-image.js` → `scripts/upload-nas-image.js` → `scripts/deploy-nas.js`；不删除、移动或改写 `/media` 正式媒体。

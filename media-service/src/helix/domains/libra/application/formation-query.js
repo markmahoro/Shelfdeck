@@ -334,7 +334,7 @@ function extractAcquisitionSelection(works) {
     .sort((a, b) => (b.result?.committedAtMs || 0) - (a.result?.committedAtMs || 0))[0]?.result?.result;
   if (!selected || selected.result !== 'selected') return null;
   return Object.freeze({
-    requirementAssessment: selected.selectedCandidate?.requirementAssessment || 'unknown',
+    requirementAssessment: selected.selectedCandidate?.requirementAssessment || 'compliant',
     selectionReasonCode: selected.selectionReasonCode,
   });
 }
@@ -416,11 +416,7 @@ function nextAction(works, classification, issue, runState, recovery, arcaStatus
     const acquisitionSelection = extractAcquisitionSelection(works);
     let label = current.label;
     if (current.key === 'acquire' && acquisitionSelection) {
-      label = acquisitionSelection.requirementAssessment === 'unknown'
-        ? '候选发布信息不完整，下载后验证真实媒体'
-        : acquisitionSelection.requirementAssessment === 'compliant'
-          ? '正在获取预筛符合要求的候选'
-          : '正在按整理要求筛选外部候选';
+      label = '正在下载唯一符合要求的外部源';
     }
     const state = current.state === 'blocked' ? 'blocked'
       : (event?.state && event.state !== 'succeeded' ? event.state : (current.state === 'running' ? 'executing' : current.state));

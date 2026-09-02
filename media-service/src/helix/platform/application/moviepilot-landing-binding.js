@@ -35,16 +35,11 @@ function providerRoot(value, field) {
 
 function settings(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value) ||
-      ![[
+      JSON.stringify(Object.keys(value).sort()) !== JSON.stringify([
         'providerOrganizedRoot',
         'providerRequestSaveRoot',
         'shelfDeckVisibleRoot',
-      ],[
-        'maxDownloadAttempts',
-        'providerOrganizedRoot',
-        'providerRequestSaveRoot',
-        'shelfDeckVisibleRoot',
-      ]].some((keys)=>JSON.stringify(Object.keys(value).sort())===JSON.stringify(keys))) {
+      ])) {
     fail('PLATFORM_MOVIEPILOT_LANDING_SETTINGS_SHAPE',
       'MoviePilot Landing settings must match the exact closed shape.');
   }
@@ -55,19 +50,12 @@ function settings(value) {
       'MoviePilot Landing local path is invalid.',
       { field: 'shelfDeckVisibleRoot' });
   }
-  const maxDownloadAttempts=value.maxDownloadAttempts===undefined?3:value.maxDownloadAttempts;
-  if(!Number.isSafeInteger(maxDownloadAttempts)||maxDownloadAttempts<1||maxDownloadAttempts>5){
-    fail('PLATFORM_MOVIEPILOT_DOWNLOAD_ATTEMPTS_INVALID',
-      'MoviePilot download attempt limit must be between 1 and 5.',
-      {field:'maxDownloadAttempts'});
-  }
   return Object.freeze({
     providerRequestSaveRoot: providerRoot(
       value.providerRequestSaveRoot, 'providerRequestSaveRoot'),
     providerOrganizedRoot: providerRoot(
       value.providerOrganizedRoot, 'providerOrganizedRoot'),
     shelfDeckVisibleRoot: value.shelfDeckVisibleRoot,
-    maxDownloadAttempts,
   });
 }
 

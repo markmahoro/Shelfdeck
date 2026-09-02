@@ -28,13 +28,8 @@
       "minLength": 1,
       "pattern": "^[a-f0-9]{64}$"
     },
-    "attemptOrdinal": {
-      "type": "integer",
-      "minimum": 1,
-      "maximum": 5
-    },
     "strategy": {
-      "const": "requirement_compliant_then_unverified_provider_rank"
+      "const": "single_requirement_compliant_provider_rank"
     },
     "criteriaDigest": {
       "type": "string",
@@ -47,7 +42,6 @@
     "revision",
     "schemaRef",
     "queryDigest",
-    "attemptOrdinal",
     "strategy",
     "criteriaDigest"
   ],

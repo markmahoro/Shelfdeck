@@ -1,8 +1,18 @@
 # ShelfDeck Clean Helix Current Status
 
-Status: **Formation Reset 反向 Handoff A 闭包修复已部署并完成生产 Reset；新 Formation/Arca 链正常推进，3 条既有 committed Aftercare timeout residual 仍待独立处理。**
+Status: **PROD-053 单一来源 External Acquisition 已本地完成但未部署；生产数据与现行 Formation 未改动。**
 
 Last updated: 2026-09-02
+
+## PROD-053 Single-source External Acquisition Local Complete
+
+- Product Owner 已确认 External Acquisition 的最终业务结果只有“取得一个源”或“没有取得源”。Libra 可保留一次搜索的 bounded Candidate Evidence，但只从 `available + compliant` 集合按 Provider rank 选择唯一首项；`unknown`、明确不合规、无共享者或共享者证据缺失均不得下载。
+- 每个 Formation 只建立一组 Search/Acquire/Import Work 和最多一份 Acquire Request/External Job Receipt。同一 Provider Job 的幂等恢复与重复 Observation 保留；下载、transfer、Landing、imported bytes 或 real-media verification 的终态失败直接结束本次 acquisition，不再搜索、选择或下载 B/C 候选。
+- MoviePilot 候选 identity 现只由稳定的站点、标题、大小和 locator 形成，seeder 与相对时间等动态字段不会改变引用；真正 POST 前重新搜索并核对 exact candidate identity、TMDB anchor、正 seeder 与仍然符合 frozen media requirement。零进度或 Provider 明确 stalled 达到 30 分钟后返回 `job_stalled`，transfer 失败区分 `transfer_failed|transfer_target_conflict`，不再无限 pending。
+- Release grammar 已补齐 NFKC、`TrueHD5.1`、空格/点/连字符分隔的 `H 265|x265`；普通 `DDP/EAC3` 映射为已知 `other`，因此在当前 TrueHD 类要求下是明确 `primary_audio_unmet`，不再被当作 unknown 下载探测。
+- `maxDownloadAttempts`、attempt ordinal、unverified selection 与 next-candidate fallback 已从 SSOT、派生 contracts、Libra Planner/Coordinator、Platform settings、Admin API/UI 全链删除。既有 Integration 配置读取只投影当前空 settings；新写入仍执行 closed-shape 校验。
+- 验证：external focused 95/95；Provider protocol/H1 28/28；Service full 441 项为 423 pass、18 skip、0 fail；Admin Web 42/42 与 production build 通过；P5 Platform gate PASS。Architecture 210 个 fixture、semantic、manifest、113/99/186/44 contracts 全部 PASS，contract aggregate 为 `eca68576dc2661a885fd039b288536b4dd0cf4818d516a53c775909141c240e2`；总 gate 仍只受两个未改文件的 18 个既有 dynamic-template scanner findings 阻断。
+- 本轮没有 build/upload/deploy、生产数据库写入或 Formation Reset。现有未完成 Formation 不做 migration、resume、fallback 或兼容修复；未来部署后如需清场，必须另行明确授权 Formation Reset。
 
 ## Local implementation completed
 

@@ -15,7 +15,7 @@ function structure(){const x={objectId:'structure-1',revision:1,subjectId:'subje
 function mediaRequirement(){return buildMediaRequirement({schemaRef:'libra.acceptance-spec@1',schemaVersion:1,specRevision:1,
   acceptanceSpecId:'spec-1',recordDigest:hex('spec'),contentProfile:'movie',structureKind:'single',requirements:{mandatoryMedia:{mediaForm:'stream_file',videoCodec:'hevc',container:'matroska',fileExtension:'mkv',minimumRasterClass:'4k',acceptedPrimaryAudioClasses:['truehd'],forbidSystemUpscaleFor4k:true},space:{unit:'product',maxSizeGiB:null,maxSizeBytes:null}}});}
 function query(){return c.buildAcquisitionQuery({resolvedProductIdentity:identity,productStructure:structure(),mediaRequirement:mediaRequirement(),
-  acquisitionPolicy:c.buildAcquisitionPolicy({integrationId:'integration-1',configRevision:3,maxDownloadAttempts:3}),
+  acquisitionPolicy:c.buildAcquisitionPolicy({integrationId:'integration-1',configRevision:3}),
   executionContext:{libraRunId:'run-1',runExecutionBasisDigest:hex('run')},producedAtMs:NOW});}
 function candidate(options={}){
   const providerRank=options.providerRank??0,assessment=options.requirementAssessment??'compliant',
@@ -43,7 +43,7 @@ function root(){const body={rootId:'root-1',ownerScope:'libra',rootKind:'product
 test('acquisition query keeps TMDB key for identity and adds localized plus original titles',()=>{
   const q=c.buildAcquisitionQuery({resolvedProductIdentity:{...identity,title:'007：大破天幕杀机',originalTitle:'Skyfall'},
     productStructure:structure(),mediaRequirement:mediaRequirement(),
-    acquisitionPolicy:c.buildAcquisitionPolicy({integrationId:'integration-1',configRevision:3,maxDownloadAttempts:3}),
+    acquisitionPolicy:c.buildAcquisitionPolicy({integrationId:'integration-1',configRevision:3}),
     executionContext:{libraRunId:'run-1',runExecutionBasisDigest:hex('run')},producedAtMs:NOW});
   assert.deepEqual(q.queryTerms.map((term)=>[term.termKind,term.value]),
     [['provider_key','550'],['title','007：大破天幕杀机'],['title','Skyfall']]);
@@ -56,25 +56,28 @@ test('query and deterministic candidate selection conserve complete frozen basis
   assert.equal(c.selectCandidate({candidates:unavailable,selectionCriteria:criteria,producedAtMs:NOW}).result,'not_selected');
 });
 
-test('candidate prefilter never downloads known noncompliance and only falls back to visible unknown claims',()=>{
+test('candidate selection chooses one proven source and never downloads unknown or noncompliant claims',()=>{
   const q=query(),mixed=candidates([
     candidate({providerRank:0,requirementAssessment:'noncompliant'}),
     candidate({providerRank:1,requirementAssessment:'unknown'}),
     candidate({providerRank:2,requirementAssessment:'compliant'}),
     candidate({providerRank:3,requirementAssessment:'compliant'}),
-  ]),first=c.selectCandidate({candidates:mixed,selectionCriteria:c.buildSelectionCriteria({revision:1,
-    queryDigest:q.queryDigest,attemptOrdinal:1}),producedAtMs:NOW}),second=c.selectCandidate({candidates:mixed,
-    selectionCriteria:c.buildSelectionCriteria({revision:1,queryDigest:q.queryDigest,attemptOrdinal:2}),producedAtMs:NOW});
+  ]),criteria=c.buildSelectionCriteria({revision:1,queryDigest:q.queryDigest}),
+  first=c.selectCandidate({candidates:mixed,selectionCriteria:criteria,producedAtMs:NOW});
   assert.equal(first.selectedCandidate.providerRank,2);
   assert.equal(first.selectionReasonCode,'selected_compliant_claims');
-  assert.equal(second.selectedCandidate.providerRank,3);
+  assert.equal(Object.hasOwn(criteria,'attemptOrdinal'),false);
   const unknownOnly=candidates([candidate({providerRank:0,requirementAssessment:'noncompliant'}),
-    candidate({providerRank:1,requirementAssessment:'unknown'})]),fallback=c.selectCandidate({candidates:unknownOnly,
-    selectionCriteria:c.buildSelectionCriteria({revision:1,queryDigest:q.queryDigest,attemptOrdinal:1}),producedAtMs:NOW});
-  assert.equal(fallback.selectedCandidate.providerRank,1);
-  assert.equal(fallback.selectionReasonCode,'selected_unverified_claims');
+    candidate({providerRank:1,requirementAssessment:'unknown'})]),notSelected=c.selectCandidate({candidates:unknownOnly,
+    selectionCriteria:c.buildSelectionCriteria({revision:1,queryDigest:q.queryDigest}),producedAtMs:NOW});
+  assert.equal(notSelected.result,'not_selected');
+  assert.equal(notSelected.selectedCandidate,null);
+  assert.equal(notSelected.selectionReasonCode,'no_requirement_eligible_candidate');
+  const onlyUnknown=c.selectCandidate({candidates:candidates([candidate({providerRank:0,requirementAssessment:'unknown'})]),
+    selectionCriteria:c.buildSelectionCriteria({revision:1,queryDigest:q.queryDigest}),producedAtMs:NOW});
+  assert.equal(onlyUnknown.selectionReasonCode,'no_requirement_eligible_candidate');
   const rejected=c.selectCandidate({candidates:candidates([candidate({providerRank:0,requirementAssessment:'noncompliant'})]),
-    selectionCriteria:c.buildSelectionCriteria({revision:1,queryDigest:q.queryDigest,attemptOrdinal:1}),producedAtMs:NOW});
+    selectionCriteria:c.buildSelectionCriteria({revision:1,queryDigest:q.queryDigest}),producedAtMs:NOW});
   assert.equal(rejected.result,'not_selected');
   assert.equal(rejected.selectionReasonCode,'no_requirement_eligible_candidate');
 });

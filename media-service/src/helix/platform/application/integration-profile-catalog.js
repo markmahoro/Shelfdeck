@@ -248,14 +248,20 @@ function moviePilotCredential(value, valueSettings) {
 }
 
 function moviePilotSettings(value){
-  if(value===undefined)return Object.freeze({maxDownloadAttempts:3});
+  if(value===undefined)return Object.freeze({});
   if(!value||typeof value!=='object'||Array.isArray(value))
     fail('PLATFORM_INTEGRATION_CREDENTIAL_SHAPE','MoviePilot settings are invalid.');
-  const maxDownloadAttempts=value.maxDownloadAttempts??3;
-  if(!Number.isSafeInteger(maxDownloadAttempts)||maxDownloadAttempts<1||maxDownloadAttempts>5)
-    fail('PLATFORM_INTEGRATION_CREDENTIAL_INVALID','MoviePilot download attempt limit must be between 1 and 5.',
-      {field:'settings.maxDownloadAttempts'});
-  return Object.freeze({maxDownloadAttempts});
+  const known=new Set(['providerRequestSaveRoot','providerOrganizedRoot',
+    'shelfDeckVisibleRoot','maxDownloadAttempts']),keys=Object.keys(value);
+  if(keys.some((key)=>!known.has(key)) ||
+      (Object.hasOwn(value,'maxDownloadAttempts') &&
+       (!Number.isSafeInteger(value.maxDownloadAttempts) ||
+        value.maxDownloadAttempts<1 || value.maxDownloadAttempts>5)))
+    fail('PLATFORM_INTEGRATION_CREDENTIAL_SHAPE','MoviePilot settings are invalid.');
+  // Landing fields arrive here only after their exact proof validation. The
+  // retired attempt field is accepted only for stored integration revisions;
+  // new settings commands are closed to an empty shape upstream.
+  return Object.freeze({});
 }
 
 function embyCredential(value, settings) {

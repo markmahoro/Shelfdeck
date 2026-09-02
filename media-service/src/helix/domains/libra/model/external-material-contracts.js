@@ -60,10 +60,8 @@ function identityAnchors(resolved) {
 function buildAcquisitionPolicy(value) {
   const integrationId = text(value?.integrationId, 'integrationId');
   const revision = integer(value?.configRevision, 'configRevision', 1);
-  const maxDownloadAttempts = integer(value?.maxDownloadAttempts, 'maxDownloadAttempts', 1);
-  if (maxDownloadAttempts > 5) fail('P9_EXTERNAL_ATTEMPT_LIMIT', 'Download attempt limit exceeds five.');
   const body = { contractId:canonicalDigest({ schema:'libra.external-acquisition-policy-id@1', integrationId, revision }),
-    revision, schemaRef:'AcquisitionPolicy@1', maxDownloadAttempts };
+    revision, schemaRef:'AcquisitionPolicy@1' };
   body.policyDigest = canonicalDigest(body);
   return bounded(body, 1024, 'P9_EXTERNAL_POLICY_SIZE');
 }
@@ -100,7 +98,7 @@ function buildAcquisitionQuery(value) {
     resolvedIdentityDigest:digest(identity.resolvedIdentityDigest || identity.identityDigest || identity.digest,'resolvedIdentityDigest'),productStructureDigest:structure.structureDigest,
     structureKind:structure.structureKind,contentProfile:identity.contentProfile,providerIdentityAnchors:anchors,requestedEpisodeKeys:episodes,
     mediaRequirement:requirement,mediaRequirementDigest:requirement.requirementDigest,
-    acquisitionPolicyDigest:policy.policyDigest,maxDownloadAttempts:policy.maxDownloadAttempts,queryTerms,hardConstraints};
+    acquisitionPolicyDigest:policy.policyDigest,queryTerms,hardConstraints};
   const queryDigest=canonicalDigest({schema:'libra.external-acquisition-query@1',...common});
   const result={schemaRef:'helix://contracts/types/AcquisitionQuery/v1',schemaVersion:1,
     draftId:canonicalDigest({schema:'libra.external-acquisition-query-id@1',queryDigest}),draftKind:'external-acquisition-query',
@@ -114,6 +112,7 @@ function assertCandidates(value) {
   if (!value || value.schemaRef !== 'helix://contracts/types/AcquisitionCandidates/v1' || value.schemaVersion !== 1 ||
       !Array.isArray(value.candidates) || value.candidates.length > 100) fail('P9_EXTERNAL_CANDIDATES','Candidate Evidence is invalid.');
   value.candidates.forEach((item,index)=>{ if (item.providerRank !== index || item.candidateDigest !== canonicalDigest(without(item,'candidateDigest')) ||
+      !['available','unavailable'].includes(item.availability) ||
       !['compliant','unknown','noncompliant'].includes(item.requirementAssessment) || !item.advertisedMedia ||
       item.advertisedMedia.evidenceDigest!==canonicalDigest(without(item.advertisedMedia,'evidenceDigest')))
       fail('P9_EXTERNAL_CANDIDATE','Candidate rank, media claims, or digest is invalid.'); });
@@ -127,10 +126,8 @@ function assertCandidates(value) {
 
 function buildSelectionCriteria(value) {
   const body={contractId:'',revision:integer(value?.revision,'revision',1),schemaRef:'SelectionCriteria@1',queryDigest:digest(value?.queryDigest,'queryDigest'),
-    attemptOrdinal:integer(value?.attemptOrdinal??1,'attemptOrdinal',1),strategy:'requirement_compliant_then_unverified_provider_rank'};
-  if(body.attemptOrdinal>5)fail('P9_EXTERNAL_ATTEMPT_LIMIT','Selection attempt exceeds five.');
-  body.contractId=canonicalDigest({schema:'libra.external-selection-criteria-id@1',queryDigest:body.queryDigest,revision:body.revision,
-    attemptOrdinal:body.attemptOrdinal});
+    strategy:'single_requirement_compliant_provider_rank'};
+  body.contractId=canonicalDigest({schema:'libra.external-selection-criteria-id@1',queryDigest:body.queryDigest,revision:body.revision});
   body.criteriaDigest=canonicalDigest(body); return bounded(body,16*1024,'P9_EXTERNAL_SELECTION_SIZE');
 }
 
@@ -138,15 +135,15 @@ function selectCandidate(value) {
   const candidates=assertCandidates(value?.candidates), criteria=value?.selectionCriteria;
   if(!criteria||criteria.schemaRef!=='SelectionCriteria@1'||criteria.queryDigest!==candidates.queryDigest||criteria.criteriaDigest!==canonicalDigest(without(criteria,'criteriaDigest')))
     fail('P9_EXTERNAL_SELECTION_CRITERIA','Selection Criteria continuity is invalid.');
-  const available=candidates.candidates.filter((item)=>item.availability==='available'),compliant=available.filter((item)=>item.requirementAssessment==='compliant'),
-    pool=compliant.length?compliant:available.filter((item)=>item.requirementAssessment==='unknown'),selected=pool[criteria.attemptOrdinal-1]||null;
+  const available=candidates.candidates.filter((item)=>item.availability==='available'),
+    selected=available.find((item)=>item.requirementAssessment==='compliant')||null;
   const common={queryDigest:candidates.queryDigest,candidateSetDigest:candidates.candidateSetDigest,selectionCriteriaDigest:criteria.criteriaDigest};
   const result={schemaRef:'helix://contracts/types/SelectedCandidate/v1',schemaVersion:1,
     draftId:canonicalDigest({schema:'libra.external-selected-candidate-id@1',...common}),draftKind:'external-selected-candidate',
     basisDigest:canonicalDigest({schema:'libra.external-candidate-selection-basis@1',...common}),producedAtMs:integer(value.producedAtMs,'producedAtMs'),...common,
     result:selected?'selected':'not_selected',selectedCandidate:selected,selectedCandidateId:selected?.candidateId||null,
-    selectionReasonCode:selected?(selected.requirementAssessment==='compliant'?'selected_compliant_claims':'selected_unverified_claims'):
-      (available.some((item)=>item.requirementAssessment==='noncompliant')?'no_requirement_eligible_candidate':'no_available_candidate')};
+    selectionReasonCode:selected?'selected_compliant_claims':
+      (available.length?'no_requirement_eligible_candidate':'no_available_candidate')};
   result.draftDigest=canonicalDigest(result); return bounded(result,64*1024,'P9_EXTERNAL_SELECTED_SIZE');
 }
 

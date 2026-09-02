@@ -134,7 +134,7 @@ describe('Helix primary copy and workbench structure', () => {
     const configuredMoviePilot = {
       kind:'moviepilot', supported:true, configured:true, state:'active', configRevision:7,
       endpoint:'http://moviepilot.test', configDigest:'digest', capabilityCodes:['acquisition'],
-      lastTestSummary:{ identityProviderKey:'moviepilot-instance' }, settings:{ maxDownloadAttempts:3 },
+      lastTestSummary:{ identityProviderKey:'moviepilot-instance' }, settings:{},
       landingBinding:{ bindingId:'binding', bindingRevision:7,
         providerRequestSaveRoot:'/provider/downloads', providerOrganizedRoot:'/provider/organized',
         shelfDeckVisibleRoot:'F:\\old-landing', endpointId:'endpoint', mountScopeId:'mount',
@@ -160,7 +160,7 @@ describe('Helix primary copy and workbench structure', () => {
     expect(kind).toBe('moviepilot');
     expect(body).toMatchObject({kind:'moviepilot',expectedConfigRevision:7,settings:{
       providerRequestSaveRoot:'/provider/downloads',providerOrganizedRoot:'/provider/organized',
-      shelfDeckVisibleRoot:'F:\\new-landing',maxDownloadAttempts:3,
+      shelfDeckVisibleRoot:'F:\\new-landing',
     }});
     expect(body).not.toHaveProperty('credential');
     expect(body).not.toHaveProperty('connectionProofId');

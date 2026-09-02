@@ -5,7 +5,6 @@ const test = require('node:test');
 const {
   classifyVerifyGap,
   shouldTranscodeExternalImport,
-  shouldRetryExternalCandidate,
 } = require('../../src/helix/domains/libra/model/media-production-routing');
 
 test('classifyVerifyGap distinguishes volume, spec external, and transcode-fixable gaps', () => {
@@ -20,7 +19,5 @@ test('external import routing hints follow measured verification gaps', () => {
   const volume = { result: 'failed', reasonCodes: ['max_size_exceeded'] };
   const spec = { result: 'failed', reasonCodes: ['minimum_raster_unmet'] };
   assert.equal(shouldTranscodeExternalImport(volume), true);
-  assert.equal(shouldRetryExternalCandidate(volume), false);
   assert.equal(shouldTranscodeExternalImport(spec), false);
-  assert.equal(shouldRetryExternalCandidate(spec), true);
 });

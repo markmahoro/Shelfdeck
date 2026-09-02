@@ -42,7 +42,6 @@ export default function SettingsPage() {
   const [providerRequestRoot, setProviderRequestRoot] = useState('');
   const [providerOrganizedRoot, setProviderOrganizedRoot] = useState('');
   const [visibleLandingRoot, setVisibleLandingRoot] = useState('');
-  const [maxDownloadAttempts, setMaxDownloadAttempts] = useState(3);
   const [ratingFilter, setRatingFilter] = useState('');
   const [targetFilter, setTargetFilter] = useState('');
   const [loading, setLoading] = useState(false);
@@ -78,7 +77,6 @@ export default function SettingsPage() {
       setTmdbLanguage(configuredTmdb.settings?.language || 'zh-CN');
       setTmdbProxyServer(configuredTmdb.settings?.proxyServer || '');
       setMoviePilot(configuredMoviePilot);
-      setMaxDownloadAttempts(configuredMoviePilot.settings?.maxDownloadAttempts || 3);
       if (configuredMoviePilot.landingBinding) {
         setProviderRequestRoot(configuredMoviePilot.landingBinding.providerRequestSaveRoot);
         setProviderOrganizedRoot(configuredMoviePilot.landingBinding.providerOrganizedRoot);
@@ -168,7 +166,7 @@ export default function SettingsPage() {
   async function connectMoviePilot(event: FormEvent) {
     event.preventDefault(); setLoading(true); setError(''); setNotice('');
     try {
-      const proof = await helixAdminApi.testIntegration('moviepilot', { kind: 'moviepilot', idempotencyKey: `moviepilot-test:${newOpaqueId()}`, endpoint: moviePilotEndpoint, credential: { kind: 'api_key', value: moviePilotKey }, settings: { providerRequestSaveRoot: providerRequestRoot, providerOrganizedRoot, shelfDeckVisibleRoot: visibleLandingRoot, maxDownloadAttempts }, timeoutMs: 20_000 });
+      const proof = await helixAdminApi.testIntegration('moviepilot', { kind: 'moviepilot', idempotencyKey: `moviepilot-test:${newOpaqueId()}`, endpoint: moviePilotEndpoint, credential: { kind: 'api_key', value: moviePilotKey }, settings: { providerRequestSaveRoot: providerRequestRoot, providerOrganizedRoot, shelfDeckVisibleRoot: visibleLandingRoot }, timeoutMs: 20_000 });
       await helixAdminApi.configureIntegration('moviepilot', { kind: 'moviepilot', idempotencyKey: `moviepilot-configure:${proof.connectionProofId}`, expectedConfigRevision: moviePilot?.configRevision || 0, connectionProofId: proof.connectionProofId });
       setMoviePilotKey(''); setNotice('MoviePilot 已验证并保存。'); await loadIntegrations();
     } catch (cause) { fail(cause, 'MoviePilot 连接失败。'); }
@@ -194,10 +192,9 @@ export default function SettingsPage() {
           providerRequestSaveRoot: providerRequestRoot,
           providerOrganizedRoot,
           shelfDeckVisibleRoot: visibleLandingRoot,
-          maxDownloadAttempts,
         },
       });
-      setNotice('MoviePilot 可见目录与下载尝试上限已更新；当前 API Key 保持不变。'); await loadIntegrations();
+      setNotice('MoviePilot 可见目录已更新；当前 API Key 保持不变。'); await loadIntegrations();
     } catch (cause) { fail(cause, 'MoviePilot 设置更新失败。'); }
     finally { setLoading(false); }
   }
@@ -288,9 +285,8 @@ export default function SettingsPage() {
               <label className="wide"><span>MoviePilot 下载目录</span><input value={providerRequestRoot} onChange={(event) => setProviderRequestRoot(event.target.value)} required /></label>
               <label className="wide"><span>MoviePilot 整理目录</span><input value={providerOrganizedRoot} onChange={(event) => setProviderOrganizedRoot(event.target.value)} required /></label>
               <label className="wide"><span>ShelfDeck 可见目录</span><input value={visibleLandingRoot} onChange={(event) => setVisibleLandingRoot(event.target.value)} required /><small>保存时验证本地可读性与受控目录冲突；不会回显或要求重新输入 API Key。</small></label>
-              <label><span>下载尝试上限</span><input type="number" min={1} max={5} value={maxDownloadAttempts} onChange={(event) => setMaxDownloadAttempts(Number(event.target.value))} /></label>
             </div>
-            <div className="settings-card-actions"><Button variant="primary" disabled={loading || !providerRequestRoot || !providerOrganizedRoot || !visibleLandingRoot || maxDownloadAttempts < 1 || maxDownloadAttempts > 5 || (providerRequestRoot === moviePilot.landingBinding.providerRequestSaveRoot && providerOrganizedRoot === moviePilot.landingBinding.providerOrganizedRoot && visibleLandingRoot === moviePilot.landingBinding.shelfDeckVisibleRoot && maxDownloadAttempts === (moviePilot.settings?.maxDownloadAttempts || 3))}>验证并保存目录</Button><Button variant="danger" type="button" onClick={() => void disconnectMoviePilot()} disabled={loading}>断开</Button></div>
+            <div className="settings-card-actions"><Button variant="primary" disabled={loading || !providerRequestRoot || !providerOrganizedRoot || !visibleLandingRoot || (providerRequestRoot === moviePilot.landingBinding.providerRequestSaveRoot && providerOrganizedRoot === moviePilot.landingBinding.providerOrganizedRoot && visibleLandingRoot === moviePilot.landingBinding.shelfDeckVisibleRoot)}>验证并保存目录</Button><Button variant="danger" type="button" onClick={() => void disconnectMoviePilot()} disabled={loading}>断开</Button></div>
           </form> : <form className="source-form" onSubmit={connectMoviePilot}>
             <div className="source-form-grid">
               <label><span>服务地址</span><input value={moviePilotEndpoint} onChange={(event) => setMoviePilotEndpoint(event.target.value)} placeholder="http://nas:3000" required /></label>
@@ -298,9 +294,8 @@ export default function SettingsPage() {
               <label className="wide"><span>MoviePilot 下载目录</span><input value={providerRequestRoot} onChange={(event) => setProviderRequestRoot(event.target.value)} required /></label>
               <label className="wide"><span>MoviePilot 整理目录</span><input value={providerOrganizedRoot} onChange={(event) => setProviderOrganizedRoot(event.target.value)} required /></label>
               <label className="wide"><span>ShelfDeck 可见目录</span><input value={visibleLandingRoot} onChange={(event) => setVisibleLandingRoot(event.target.value)} required /><small>必须是同一整理目录的只读视图。</small></label>
-              <label><span>下载尝试上限</span><input type="number" min={1} max={5} value={maxDownloadAttempts} onChange={(event) => setMaxDownloadAttempts(Number(event.target.value))} /></label>
             </div>
-            <div className="settings-card-actions"><Button variant="primary" disabled={loading || moviePilotKey.length < 8 || !moviePilotEndpoint || !providerRequestRoot || !providerOrganizedRoot || !visibleLandingRoot || maxDownloadAttempts < 1 || maxDownloadAttempts > 5}>{loading ? '正在验证…' : '测试并连接'}</Button></div>
+            <div className="settings-card-actions"><Button variant="primary" disabled={loading || moviePilotKey.length < 8 || !moviePilotEndpoint || !providerRequestRoot || !providerOrganizedRoot || !visibleLandingRoot}>{loading ? '正在验证…' : '测试并连接'}</Button></div>
           </form>}
         </div>
       </section>

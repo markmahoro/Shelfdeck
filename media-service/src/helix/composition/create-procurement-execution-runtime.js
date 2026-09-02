@@ -264,7 +264,6 @@ function createProcurementExecutionRuntime(options) {
     resolveRoutingIntegrationHandle: options.resolveRoutingIntegrationHandle || (() => undefined),
     resolveExternalMaterialIntegrationHandle: options.resolveExternalMaterialIntegrationHandle || (() => undefined),
     readExternalMaterialLandingBinding: options.readExternalMaterialLandingBinding || (() => undefined),
-    readExternalAcquisitionSettings: options.readExternalAcquisitionSettings || (() => Object.freeze({maxDownloadAttempts:3})),
     executeExternalProvider: options.executeExternalProvider ||
       (async () => { throw new Error('External Material Provider adapter is unavailable.'); }),
     productProductionPort: options.productProductionPort,

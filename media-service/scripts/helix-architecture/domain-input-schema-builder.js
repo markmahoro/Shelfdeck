@@ -1293,8 +1293,8 @@ function mediaRequirementSchema() {
 
 function acquisitionPolicySchema() {
   return { ...exactDomainSchema('AcquisitionPolicy', { contractId: id(), revision: positiveInteger(),
-    schemaRef: { const: 'AcquisitionPolicy@1' }, maxDownloadAttempts: { type: 'integer', minimum: 1, maximum: 5 },
-    policyDigest: digest() }, undefined, { 'x-helix-role': 'bounded-contract' }),
+    schemaRef: { const: 'AcquisitionPolicy@1' }, policyDigest: digest() }, undefined,
+  { 'x-helix-role': 'bounded-contract' }),
     'x-helix-maxCanonicalBytes': 1024 };
 }
 
@@ -1363,8 +1363,7 @@ function identityRequirementSchema() {
 
 function selectionCriteriaSchema() {
   return {...exactDomainSchema('SelectionCriteria',{contractId:id(),revision:positiveInteger(),schemaRef:{const:'SelectionCriteria@1'},
-    queryDigest:digest(),attemptOrdinal:{type:'integer',minimum:1,maximum:5},
-    strategy:{const:'requirement_compliant_then_unverified_provider_rank'},criteriaDigest:digest()},undefined,
+    queryDigest:digest(),strategy:{const:'single_requirement_compliant_provider_rank'},criteriaDigest:digest()},undefined,
   {'x-helix-role':'bounded-contract'}),'x-helix-maxCanonicalBytes':16*1024};
 }
 

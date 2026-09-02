@@ -259,10 +259,11 @@
                           "truehd",
                           "truehd_atmos",
                           "dts_hd_ma",
-                          "dts_x"
+                          "dts_x",
+                          "other"
                         ]
                       },
-                      "maxItems": 5
+                      "maxItems": 6
                     },
                     "sourceField": {
                       "type": "string",
@@ -438,11 +439,7 @@
       "maxLength": 256
     },
     "selectionReasonCode": {
-      "type": "string",
-      "enum": [
-        "selected_compliant_claims",
-        "selected_unverified_claims"
-      ]
+      "const": "selected_compliant_claims"
     }
   },
   "required": [

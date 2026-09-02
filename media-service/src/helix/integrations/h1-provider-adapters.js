@@ -1031,7 +1031,7 @@ function createProtocolTransport(profile, options) {
             !Array.isArray(row) && row.torrent_info &&
             typeof row.torrent_info === 'object');
       for (const row of page) {
-        const rowKey = digest(canonicalJson(row));
+        const rowKey = moviepilotCandidateReference(row).objectId;
         if (seen.has(rowKey)) continue;
         seen.add(rowKey);
         rows.push(row);
@@ -1065,8 +1065,21 @@ function createProtocolTransport(profile, options) {
     })]);
   }
 
-  function moviepilotCandidateAvailable(identityAnchors, query) {
-    if (identityAnchors.length === 0) return true;
+  function moviepilotSeederCount(row) {
+    const torrent = row?.torrent_info && typeof row.torrent_info === 'object'
+      ? row.torrent_info : {};
+    for (const value of [torrent.seeders, torrent.seeders_count,
+      row?.seeders, row?.seeders_count]) {
+      const count = Number(value);
+      if (Number.isFinite(count) && count >= 0) return count;
+    }
+    return null;
+  }
+
+  function moviepilotCandidateAvailable(row, identityAnchors, query) {
+    if (identityAnchors.length === 0 || moviepilotSeederCount(row) <= 0) {
+      return false;
+    }
     return query.providerIdentityAnchors.some((expected) =>
       identityAnchors.some((actual) =>
         actual.provider === expected.provider &&
@@ -1075,20 +1088,39 @@ function createProtocolTransport(profile, options) {
         actual.seasonNumber === expected.seasonNumber));
   }
 
+  function moviepilotCandidateReference(row) {
+    const torrent = row?.torrent_info && typeof row.torrent_info === 'object'
+      ? row.torrent_info : {};
+    const locator = String(torrent.page_url || torrent.enclosure || '')
+      .normalize('NFKC').trim().replace(/[?#].*$/, '');
+    const basis = Object.freeze({
+      site: String(torrent.site ?? torrent.site_name ?? row?.site ?? '')
+        .normalize('NFKC').trim(),
+      title: String(torrent.title || '').normalize('NFKC').trim(),
+      sizeBytes: Number.isSafeInteger(Number(torrent.size))
+        ? Number(torrent.size) : null,
+      locator,
+    });
+    const identityDigest = digest(canonicalJson(basis));
+    return frozenRef('acquisition_candidate',
+      'moviepilot-' + identityDigest.slice(0, 40), 1, basis);
+  }
+
   function moviepilotAdvertisedMedia(row,query,rowDigest){
     const torrent=row?.torrent_info&&typeof row.torrent_info==='object'?row.torrent_info:{},texts=[];
     for(const [owner,prefix] of [[row,'row'],[torrent,'torrent']])for(const key of ['title','name','description','quality','resolution','video_codec','codec','audio_codec','audio']){
       if(typeof owner?.[key]==='string'&&owner[key].trim())texts.push({field:prefix+'.'+key,value:owner[key].trim()});
     }
-    const joined=texts.map((item)=>item.value).join(' '),claim=(status,value,sourceField)=>Object.freeze({status,value,sourceField});
+    const joined=texts.map((item)=>item.value).join(' ').normalize('NFKC'),claim=(status,value,sourceField)=>Object.freeze({status,value,sourceField});
     const resolution=/\b(?:2160p|4k|uhd)\b/i.test(joined)?claim('known','4k',texts.find((item)=>/\b(?:2160p|4k|uhd)\b/i.test(item.value))?.field||'release'):
       /\b(?:1080[pi]|720p|576p|480p)\b/i.test(joined)?claim('known','below_4k',texts.find((item)=>/\b(?:1080[pi]|720p|576p|480p)\b/i.test(item.value))?.field||'release'):claim('unknown',null,null);
-    const videoCodec=/\b(?:hevc|h\.?265|x265)\b/i.test(joined)?claim('known','hevc',texts.find((item)=>/\b(?:hevc|h\.?265|x265)\b/i.test(item.value))?.field||'release'):
-      /\b(?:avc|h\.?264|x264)\b/i.test(joined)?claim('known','h264',texts.find((item)=>/\b(?:avc|h\.?264|x264)\b/i.test(item.value))?.field||'release'):claim('unknown',null,null);
+    const videoCodec=/\b(?:hevc|h[\s._-]?265|x[\s._-]?265)\b/i.test(joined)?claim('known','hevc',texts.find((item)=>/\b(?:hevc|h[\s._-]?265|x[\s._-]?265)\b/i.test(item.value.normalize('NFKC')))?.field||'release'):
+      /\b(?:avc|h[\s._-]?264|x[\s._-]?264)\b/i.test(joined)?claim('known','h264',texts.find((item)=>/\b(?:avc|h[\s._-]?264|x[\s._-]?264)\b/i.test(item.value.normalize('NFKC')))?.field||'release'):claim('unknown',null,null);
     const audio=[];
-    if(/truehd[^\n]*atmos|atmos[^\n]*truehd/i.test(joined))audio.push('truehd_atmos');else if(/\btruehd\b/i.test(joined))audio.push('truehd');
-    if(/\be-?ac-?3[^\n]*atmos|atmos[^\n]*e-?ac-?3/i.test(joined))audio.push('eac3_atmos');
-    if(/\bdts[- .]?x\b/i.test(joined))audio.push('dts_x');else if(/\bdts[- .]?hd[- .]?ma\b/i.test(joined))audio.push('dts_hd_ma');
+    const trueHd=/true[\s._-]?hd/i,eac3=/(?:\be[\s._-]?ac[\s._-]?3\b|\bddp(?:\d+(?:\.\d+)?)?\b|dd\+)/i,atmos=/\batmos\b/i;
+    if(trueHd.test(joined)&&atmos.test(joined))audio.push('truehd_atmos');else if(trueHd.test(joined))audio.push('truehd');
+    if(eac3.test(joined)&&atmos.test(joined))audio.push('eac3_atmos');else if(eac3.test(joined))audio.push('other');
+    if(/\bdts[\s._-]?x\b/i.test(joined))audio.push('dts_x');else if(/\bdts[\s._-]?hd[\s._-]?ma\b/i.test(joined))audio.push('dts_hd_ma');
     const primaryAudioClasses=audio.length?claim('known',Object.freeze([...new Set(audio)].sort()),'release'):claim('unknown',Object.freeze([]),null),
       rawSize=torrent.size??row.size??null,size=Number(rawSize),sizeBytes=Number.isSafeInteger(size)&&size>=0?claim('known',size,torrent.size!==undefined?'torrent.size':'row.size'):claim('unknown',null,null),
       mediaBasis={resolution,videoCodec,primaryAudioClasses,sizeBytes,
@@ -1117,12 +1149,7 @@ function createProtocolTransport(profile, options) {
     const candidates = rows.slice(0, request.input.limit)
       .map((row, index) => {
         const rowDigest = digest(canonicalJson(row));
-        const providerRef = frozenRef(
-          'acquisition_candidate',
-          'moviepilot-' + rowDigest.slice(0, 40),
-          1,
-          row,
-        );
+        const providerRef = moviepilotCandidateReference(row);
         const identityAnchors =
           moviepilotCandidateIdentityAnchors(row, query);
         const advertised=moviepilotAdvertisedMedia(row,query,rowDigest);
@@ -1136,7 +1163,7 @@ function createProtocolTransport(profile, options) {
             query.structureKind,
           episodeKeys:
             query.requestedEpisodeKeys,
-          availability: moviepilotCandidateAvailable(identityAnchors, query)
+          availability: moviepilotCandidateAvailable(row, identityAnchors, query)
             ? 'available' : 'unavailable',
           ...advertised,
         };
@@ -1305,14 +1332,29 @@ function createProtocolTransport(profile, options) {
       },
     }, state);
     const selectedRow = rows.find((row) => {
-      const reference = frozenRef('acquisition_candidate',
-        'moviepilot-' + digest(canonicalJson(row)).slice(0, 40), 1, row);
+      const reference = moviepilotCandidateReference(row);
       return reference.objectId === selected.providerCandidateRef.objectId &&
         reference.digest === selected.providerCandidateRef.digest;
     });
     if (!selectedRow) {
       fail(PROVIDER_ERROR,
         'Selected MoviePilot candidate is no longer exactly resolvable.');
+    }
+    const currentAnchors = moviepilotCandidateIdentityAnchors(
+      selectedRow, request.input.acquisitionQuery);
+    if (!moviepilotCandidateAvailable(selectedRow, currentAnchors,
+      request.input.acquisitionQuery)) {
+      fail(PROVIDER_ERROR,
+        'Selected MoviePilot candidate is no longer positively available.');
+    }
+    const currentAssessment = moviepilotAdvertisedMedia(
+      selectedRow,
+      request.input.acquisitionQuery,
+      digest(canonicalJson(selectedRow)),
+    );
+    if (currentAssessment.requirementAssessment !== 'compliant') {
+      fail(PROVIDER_ERROR,
+        'Selected MoviePilot candidate no longer proves the frozen media requirement.');
     }
     const recoveredBeforeSubmit = await moviepilotRecoverJob(
       request,
@@ -1499,7 +1541,52 @@ function createProtocolTransport(profile, options) {
     const taskState = String(task?.state || '').toLowerCase();
     const completed = Boolean(task &&
       (Number(task.progress) >= 100 || taskState === 'completed'));
-    if (task && !completed) return protocolResponse(pending());
+    if (task && !completed) {
+      const progress = Number(task.progress);
+      const rawSpeed = task.download_speed ?? task.downloadSpeed ??
+        task.dlspeed ?? task.dl_speed ?? task.speed;
+      const speed = typeof rawSpeed === 'number'
+        ? rawSpeed
+        : typeof rawSpeed === 'string' && rawSpeed.trim()
+          ? Number.parseFloat(rawSpeed)
+          : null;
+      const rawActivity = task.last_activity ?? task.lastActivity ??
+        task.updated_at ?? task.updatedAt ?? task.update_time;
+      let activityAtMs = null;
+      if (typeof rawActivity === 'number' && Number.isFinite(rawActivity)) {
+        activityAtMs = rawActivity < 10_000_000_000
+          ? rawActivity * 1000 : rawActivity;
+      } else if (typeof rawActivity === 'string' && rawActivity.trim()) {
+        const parsed = Date.parse(rawActivity);
+        if (Number.isFinite(parsed)) activityAtMs = parsed;
+      }
+      const observedAtMs = now(), stallWindowMs = 30 * 60 * 1000,
+        zeroSpeed = Number.isFinite(speed) && speed <= 0,
+        explicitStall = taskState.includes('stalled'),
+        noProgress = !Number.isFinite(progress) || progress <= 0,
+        receiptWindowElapsed = observedAtMs - receipt.createdAtMs >=
+          stallWindowMs,
+        activityWindowElapsed = activityAtMs !== null &&
+          observedAtMs - activityAtMs >= stallWindowMs,
+        terminallyStalled =
+          (explicitStall && receiptWindowElapsed) ||
+          (zeroSpeed && (activityWindowElapsed ||
+            (noProgress && receiptWindowElapsed)));
+      if (terminallyStalled) {
+        const basis = {
+          externalJobReceiptId: receipt.receiptId,
+          requestDigest: receipt.requestDigest,
+          providerObservationRevision: revision,
+          state: 'failed',
+          reasonCode: 'job_stalled',
+        };
+        return protocolResponse(Object.freeze({
+          ...basis,
+          snapshotDigest: digest(canonicalJson(basis)),
+        }));
+      }
+      return protocolResponse(pending());
+    }
     if (!task && !history) {
       if (now() - receipt.createdAtMs < 10 * 60 * 1000) {
         return protocolResponse(pending());
@@ -1526,13 +1613,19 @@ function createProtocolTransport(profile, options) {
     const successful = transferRows.filter((row) =>
       moviepilotTransferState(row) === 'succeeded');
     if (successful.length === 0) {
-      if (transferRows.some((row) => moviepilotTransferState(row) === 'failed')) {
+      const failedTransfers = transferRows.filter((row) =>
+        moviepilotTransferState(row) === 'failed');
+      if (failedTransfers.length > 0) {
+        const diagnostic = failedTransfers.map((row) => String(
+          row?.message ?? row?.error ?? row?.reason ?? row?.description ?? '',
+        )).join(' ').normalize('NFKC');
         const basis = {
           externalJobReceiptId: receipt.receiptId,
           requestDigest: receipt.requestDigest,
           providerObservationRevision: revision,
           state: 'failed',
-          reasonCode: 'job_failed',
+          reasonCode: /已存在|already\s+exists|file\s+exists/i.test(diagnostic)
+            ? 'transfer_target_conflict' : 'transfer_failed',
         };
         return protocolResponse(Object.freeze({
           ...basis,

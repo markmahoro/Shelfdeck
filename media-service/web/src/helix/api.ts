@@ -411,7 +411,6 @@ export type IntegrationState = {
   settings?: {
     language?: string;
     proxyServer?: string;
-    maxDownloadAttempts?: number;
   };
   landingBinding: {
     bindingId: string;

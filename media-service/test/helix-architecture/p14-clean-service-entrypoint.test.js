@@ -175,7 +175,7 @@ test('formal server dependency graph reaches only the clean Helix root', () => {
   const source = graph.map((file) => fs.readFileSync(file, 'utf8')).join('\n');
   assert.doesNotMatch(
     source,
-    /services\/transcodeService|helixRuntimePreflight|all-in-one-supervisor|face-service|19110|ollama/i,
+    /services\/transcodeService|helixRuntimePreflight|all-in-one-supervisor|face-service|(?:127\.0\.0\.1|localhost):19110|ollama/i,
   );
 });
 

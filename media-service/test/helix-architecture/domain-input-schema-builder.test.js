@@ -240,10 +240,9 @@ test('materializes the exact PBF-16 acquisition and one-member import inputs', (
   assert.equal(schemas.EpisodeDeliveryManifest.properties.episodeClaims.maxItems, 256);
   assert.equal(schemas.IdentityRequirement.properties.typedParameters, undefined);
   assert.equal(schemas.IdentityRequirement.properties.strengthClass.const, 'exact_provider_identity');
-  assert.equal(schemas.SelectionCriteria.properties.strategy.const, 'requirement_compliant_then_unverified_provider_rank');
-  assert.equal(schemas.SelectionCriteria.properties.attemptOrdinal.maximum, 5);
-  assert.equal(schemas.AcquisitionPolicy.properties.maxDownloadAttempts.default, undefined);
-  assert.equal(schemas.AcquisitionPolicy.properties.maxDownloadAttempts.maximum, 5);
+  assert.equal(schemas.SelectionCriteria.properties.strategy.const, 'single_requirement_compliant_provider_rank');
+  assert.equal(schemas.SelectionCriteria.properties.attemptOrdinal, undefined);
+  assert.equal(schemas.AcquisitionPolicy.properties.maxDownloadAttempts, undefined);
 
   const delivery = schemas.WorkspaceDeliveryContract;
   assert.equal(delivery.properties.typedParameters, undefined);

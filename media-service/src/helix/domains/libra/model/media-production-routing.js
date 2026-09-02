@@ -57,10 +57,6 @@ function shouldTranscodeExternalImport(verification) {
   return transcodeFixableWithoutSpecExternal(verification);
 }
 
-function shouldRetryExternalCandidate(verification) {
-  return classifyVerifyGap(verification) === 'spec_external';
-}
-
 module.exports = Object.freeze({
   HARD_BLOCK_CODES,
   SPEC_EXTERNAL_CODES,
@@ -68,7 +64,6 @@ module.exports = Object.freeze({
   classifyVerifyGap,
   onlyVolumeGapFromVerification,
   requiresExternalSourceFromVerification,
-  shouldRetryExternalCandidate,
   shouldTranscodeExternalImport,
   transcodeFixableWithoutSpecExternal,
 });

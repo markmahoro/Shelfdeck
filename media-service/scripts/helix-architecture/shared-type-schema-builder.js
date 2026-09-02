@@ -95,7 +95,7 @@ function providerAcquisitionCandidateSnapshotSchema() {
     videoCodec: sourcedClaim(enumText('hevc', 'h264')),
     primaryAudioClasses: { oneOf: [
       object({ status: { const: 'known' }, value: arrayOf(enumText(
-        'eac3_atmos', 'truehd', 'truehd_atmos', 'dts_hd_ma', 'dts_x'), 5), sourceField: text() }),
+        'eac3_atmos', 'truehd', 'truehd_atmos', 'dts_hd_ma', 'dts_x', 'other'), 6), sourceField: text() }),
       object({ status: { const: 'unknown' }, value: { type: 'array', maxItems: 0 }, sourceField: { type: 'null' } })
     ] },
     sizeBytes: sourcedClaim(nonNegativeInteger()),

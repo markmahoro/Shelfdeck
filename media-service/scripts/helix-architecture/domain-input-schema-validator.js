@@ -160,8 +160,8 @@ function validateDomainInputSchemas(options) {
       ,ProductStructure: ['objectId', 'revision', 'digest', 'subjectId', 'structureKind', 'episodeClaims', 'structureDigest']
       ,EpisodeDeliveryManifest: ['objectId', 'revision', 'digest', 'libraRunId', 'subjectId', 'structureKind', 'episodeClaims', 'deliveryDigest']
       ,IdentityRequirement: ['requirementId', 'revision', 'schemaRef', 'expectedIdentityDigest', 'strengthClass', 'digest']
-      ,AcquisitionPolicy: ['contractId', 'revision', 'schemaRef', 'maxDownloadAttempts', 'policyDigest']
-      ,SelectionCriteria: ['contractId', 'revision', 'schemaRef', 'queryDigest', 'attemptOrdinal', 'strategy', 'criteriaDigest']
+      ,AcquisitionPolicy: ['contractId', 'revision', 'schemaRef', 'policyDigest']
+      ,SelectionCriteria: ['contractId', 'revision', 'schemaRef', 'queryDigest', 'strategy', 'criteriaDigest']
       ,WorkspaceDeliveryContract: ['contractId', 'revision', 'schemaRef', 'libraRunId', 'workspaceId', 'stableExternalMaterialHandleId',
         'verifiedPackageDigest', 'externalMemberId', 'targetRelativePath', 'digest']
       ,SelectedCandidateSelected: ['schemaRef', 'schemaVersion', 'draftId', 'queryDigest', 'candidateSetDigest', 'result',

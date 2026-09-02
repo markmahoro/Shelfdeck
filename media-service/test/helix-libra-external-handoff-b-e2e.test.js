@@ -59,7 +59,8 @@ function moviePilotFetch(downloadFiles, calls) {
         meta_info:{ name:'External Upgrade Movie', year:'2024' },
         media_info:{ title:'External Upgrade Movie', year:'2024', tmdb_id:990001 },
         torrent_info:{ title:`External.Upgrade.Movie.2024.${kind}.2160p.HEVC.TrueHD`,
-          enclosure:`https://tracker.test/external-upgrade-${kind}.torrent`, size:fs.statSync(downloadFiles[kind]).size },
+          enclosure:`https://tracker.test/external-upgrade-${kind}.torrent`, size:fs.statSync(downloadFiles[kind]).size,
+          seeders:kind === 'bad' ? 5 : 50 },
       })) });
     }
     if (url.pathname === '/api/v1/download/add') {
@@ -206,22 +207,22 @@ async function waitFormation(host, cookie, predicate) {
   assert.fail('Formation did not reach the expected state: ' + JSON.stringify(item));
 }
 
-async function waitActiveOffer(dataDir, runtimeError) {
+async function waitFrozenRun(dataDir, runtimeError) {
   const deadline = Date.now() + 15_000;
   let current;
   while (Date.now() < deadline) {
     if (runtimeError()) throw runtimeError();
     const database = new Database(path.join(dataDir, 'shelfdeck.db'), { readonly:true });
     try {
-      current = database.prepare("SELECT p.libra_run_id,p.on_deck_package_id,p.offer_id FROM libra_product_packages p JOIN libra_runs r ON r.libra_run_id=p.libra_run_id WHERE r.state='active' AND NOT EXISTS (SELECT 1 FROM libra_delivery_receipts d WHERE d.on_deck_package_id=p.on_deck_package_id) ORDER BY p.published_at_ms DESC LIMIT 1").get();
+      current = database.prepare("SELECT libra_run_id,state FROM libra_runs WHERE state='frozen' ORDER BY state_revision DESC LIMIT 1").get();
       if (current) return current;
     } finally { database.close(); }
     await pause(25);
   }
-  assert.fail('Active Libra Run did not publish Handoff B: ' + JSON.stringify(current));
+  assert.fail('Libra Run did not freeze after the sole source failed verification: ' + JSON.stringify(current));
 }
 
-test('5-star 4K gap rejects the first real download, tries the next candidate, and publishes Handoff B', async (t) => {
+test('5-star 4K gap downloads one proven candidate and never falls back after real-media rejection', async (t) => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'helix-external-handoff-b-'));
   t.after(() => { if (process.env.HELIX_KEEP_TEST_ASSETS !== '1') fs.rmSync(root, { recursive:true, force:true }); });
   const dataDir = path.join(root, 'data');
@@ -311,8 +312,8 @@ test('5-star 4K gap rejects the first real download, tries the next candidate, a
         idempotencyKey:'external-rating-five' } });
     assert.equal(result.statusCode, 202, result.body);
     await waitFormation(host, cookie, (item) => item.acceptanceSpecRevision === 2);
-    const offer = await waitActiveOffer(dataDir, () => runtimeError);
-    assert.ok(offer.offer_id);
+    const frozen = await waitFrozenRun(dataDir, () => runtimeError);
+    assert.equal(frozen.state,'frozen');
     assert.ifError(runtimeError);
 
     const database = new Database(path.join(dataDir, 'shelfdeck.db'), { readonly:true });
@@ -330,9 +331,8 @@ test('5-star 4K gap rejects the first real download, tries the next candidate, a
       }
       assert.equal(database.prepare("SELECT count(1) count FROM fx_workflow_events WHERE capability_ref='libra.external_material.search@1' AND state='succeeded'").get().count, 1);
       const selections=database.prepare(`SELECT r.result_json FROM fx_event_result_bindings r JOIN fx_workflow_events e ON e.event_id=r.event_id WHERE e.capability_ref='libra.external_material.candidate.select@1' AND e.state='succeeded' ORDER BY r.committed_at_ms`).all().map((row)=>JSON.parse(row.result_json));
-      assert.equal(selections.length,2);
-      assert.equal(new Set(selections.map((item)=>item.candidateSetDigest)).size,1);
-      assert.equal(new Set(selections.map((item)=>item.selectedCandidateId)).size,2);
+      assert.equal(selections.length,1);
+      assert.equal(selections[0].selectedCandidate.providerRank,0);
       assert.equal(database.prepare('SELECT count(1) count FROM arca_shelf_entries').get().count, 0);
       assert.equal(database.prepare('SELECT count(1) count FROM libra_delivery_receipts').get().count, 0);
       assert.equal(database.prepare("SELECT count(1) count FROM fx_workflow_events WHERE capability_ref='libra.media.transcode@1'").get().count, 0);
@@ -346,14 +346,14 @@ test('5-star 4K gap rejects the first real download, tries the next candidate, a
       const importedPath = path.join(dataDir, 'workspaces', 'libra',
         imported.workspaceId,
         ...imported.relativePath.split('/'));
-      assert.deepEqual(fs.readFileSync(importedPath), fs.readFileSync(downloaded.good));
-      const sourceStat = fs.statSync(downloaded.good, { bigint:true });
+      assert.deepEqual(fs.readFileSync(importedPath), fs.readFileSync(downloaded.bad));
+      const sourceStat = fs.statSync(downloaded.bad, { bigint:true });
       const importedStat = fs.statSync(importedPath, { bigint:true });
       assert.equal(sourceStat.dev === importedStat.dev &&
         sourceStat.ino === importedStat.ino, false);
-      assert.equal(fs.readFileSync(downloaded.good, 'utf8'),
-        'verified isolated moviepilot output');
+      assert.equal(fs.readFileSync(downloaded.bad, 'utf8'),
+        'rejected isolated moviepilot output');
     } finally { database.close(); }
-    assert.equal(calls.filter((item) => item.path === '/api/v1/download/add' && item.method === 'POST').length, 2);
+    assert.equal(calls.filter((item) => item.path === '/api/v1/download/add' && item.method === 'POST').length, 1);
   } finally { await host.close(); }
 });

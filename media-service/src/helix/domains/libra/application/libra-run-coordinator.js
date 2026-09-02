@@ -27,7 +27,6 @@ const { coversRequirementGaps } = require('../model/defect-admission-contracts')
 const { sourceRequiresExternalSearch } = require('../model/media-production-contracts');
 const {
   classifyVerifyGap,
-  shouldRetryExternalCandidate,
   shouldTranscodeExternalImport,
 } = require('../model/media-production-routing');
 const { artifactVerificationContext } = require('../planning/libra-production-planners');
@@ -326,35 +325,32 @@ function createLibraRunCoordinator(options){
         workspaceId: workspace.workspaceId,
       });
     }
-    for(let acquisitionAttempt=1;acquisitionAttempt<=5;acquisitionAttempt+=1){
-      const search=externalSearchSelectionWork(snapshot,acquisitionAttempt),searchSubmitted=submit(search),
+    const search=externalSearchSelectionWork(snapshot),searchSubmitted=submit(search),
         searchStatus=options.workResultReader.status(search.workId);
       if(!workSucceeded(searchStatus)){
         if(workFailed(searchStatus))return terminalWork(snapshot,search,searchStatus,'integration_exhausted');
-        return Object.freeze({kind:'pending',phase:'external_search_selection',acquisitionAttempt,
+        return Object.freeze({kind:'pending',phase:'external_search_selection',
           libraRunId:snapshot.run.libraRunId,workId:search.workId,replayed:searchSubmitted.replayed,workspaceId:workspace.workspaceId});
       }
-      const query=externalResult(externalSearchSelectionWork(snapshot,1),'libra.external_material.query.prepare@1'),maximum=query.maxDownloadAttempts,
-        selectedCandidateRecord=externalResultRecord(search,'libra.external_material.candidate.select@1'),selectedCandidate=selectedCandidateRecord.result;
-      if(acquisitionAttempt>maximum||selectedCandidate.result!=='selected')return freezeBusinessTerminal(snapshot,search,
-        selectedCandidateRecord,selectedCandidate.selectionReasonCode||'download_attempt_limit_exhausted');
-      const acquire=externalAcquireVerificationWork(snapshot,acquisitionAttempt),acquireSubmitted=submit(acquire),
+      const selectedCandidateRecord=externalResultRecord(search,'libra.external_material.candidate.select@1'),selectedCandidate=selectedCandidateRecord.result;
+      if(selectedCandidate.result!=='selected')return freezeBusinessTerminal(snapshot,search,
+        selectedCandidateRecord,selectedCandidate.selectionReasonCode);
+      const acquire=externalAcquireVerificationWork(snapshot),acquireSubmitted=submit(acquire),
         acquireStatus=options.workResultReader.status(acquire.workId);
       if(!workSucceeded(acquireStatus)){
         if(workFailed(acquireStatus))return terminalWork(snapshot,acquire,acquireStatus,'integration_exhausted');
-        return Object.freeze({kind:'pending',phase:'external_acquire_verification',acquisitionAttempt,
+        return Object.freeze({kind:'pending',phase:'external_acquire_verification',
           libraRunId:snapshot.run.libraRunId,workId:acquire.workId,replayed:acquireSubmitted.replayed,workspaceId:workspace.workspaceId});
       }
       const verifiedRecord=externalResultRecord(acquire,'libra.external_material.package.verify@1'),verified=verifiedRecord.result;
       if(verified.result!=='passed'){
-        if(acquisitionAttempt<maximum)continue;
         return freezeBusinessTerminal(snapshot,acquire,verifiedRecord,verified.reasonCodes?.[0]||'external_package_rejected');
       }
-      const imported=externalImportSelectionWork(snapshot,acquisitionAttempt),importSubmitted=submit(imported),
+      const imported=externalImportSelectionWork(snapshot),importSubmitted=submit(imported),
         importStatus=options.workResultReader.status(imported.workId);
       if(!workSucceeded(importStatus)){
         if(workFailed(importStatus))return terminalWork(snapshot,imported,importStatus,'integration_exhausted');
-        return Object.freeze({kind:'pending',phase:'external_import_selection',acquisitionAttempt,
+        return Object.freeze({kind:'pending',phase:'external_import_selection',
           libraRunId:snapshot.run.libraRunId,workId:imported.workId,replayed:importSubmitted.replayed,workspaceId:workspace.workspaceId});
       }
       attachWorkspaceOutputs(snapshot,workspace,imported);
@@ -369,14 +365,10 @@ function createLibraRunCoordinator(options){
             sourceKind:'external_workspace',
           }));
         }
-        if(shouldRetryExternalCandidate(verifyRecord.result) && acquisitionAttempt<maximum)continue;
-        if(acquisitionAttempt<maximum)continue;
         return freezeBusinessTerminal(snapshot,imported,selectionRecord,
           selection.reasonCodes?.[0]||selection.selectionReasonCode||'external_output_rejected');
       }
       return ensureDelivery(snapshot,workspace,imported);
-    }
-    throw new Error('External acquisition attempt loop escaped its configured bound.');
   }
   function continueExternalOrAuthorizedDirectInput(snapshot, workspace, context) {
     const authorized = snapshot.run.authorizedDefectManifest?.defects?.some(
