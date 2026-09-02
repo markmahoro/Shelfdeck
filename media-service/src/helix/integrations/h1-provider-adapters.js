@@ -1092,13 +1092,28 @@ function createProtocolTransport(profile, options) {
       ? row.media_info : {};
     const meta = row?.meta_info && typeof row.meta_info === 'object'
       ? row.meta_info : {};
-    const actualTitles = [media.title, media.name, meta.title, meta.name]
+    const torrent = row?.torrent_info && typeof row.torrent_info === 'object'
+      ? row.torrent_info : {};
+    const actualTitles = [media.title, media.name]
       .map(normalizedMovieTitle).filter(Boolean);
     const actualYear = media.year ?? media.release_year ?? meta.year ??
       meta.release_year ?? null;
-    return String(actualYear || '').trim() === expectedYear &&
-      actualTitles.length > 0 &&
-      actualTitles.every((actual) => expectedTitles.includes(actual));
+    if (String(actualYear || '').trim() !== expectedYear) return false;
+    if (actualTitles.length > 0) {
+      return actualTitles.every((actual) => expectedTitles.includes(actual));
+    }
+    const escapedYear = expectedYear.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const releaseYear = new RegExp(
+      '^(.*?)[^\\p{L}\\p{N}]+' + escapedYear +
+      '(?=$|[^\\p{L}\\p{N}])',
+      'u',
+    );
+    return [torrent.title, meta.title, meta.name]
+      .filter((value) => typeof value === 'string' && value.trim())
+      .some((value) => {
+        const match = value.normalize('NFKC').trim().match(releaseYear);
+        return match && expectedTitles.includes(normalizedMovieTitle(match[1]));
+      });
   }
 
   function moviepilotCandidateAvailable(row, identityAnchors, query) {

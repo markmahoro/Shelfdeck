@@ -261,8 +261,10 @@ function providerFetch(state) {
       }
       if (url.pathname === '/api/v1/search/title') {
         return response(200, { success:true, data:[{
-          meta_info: { name:'Movie', year:'2024' },
-          media_info: { title:state.moviepilotMediaTitle || 'Movie', year:'2024',
+          meta_info: { name:Object.hasOwn(state, 'moviepilotMetaTitle')
+            ? state.moviepilotMetaTitle : 'Movie', year:'2024' },
+          media_info: { ...(state.moviepilotOmitMediaTitle
+            ? {} : { title:state.moviepilotMediaTitle || 'Movie' }), year:'2024',
             tmdb_id:Object.hasOwn(state, 'moviepilotTmdbId')
               ? state.moviepilotTmdbId : 100 },
           torrent_info: {
@@ -975,6 +977,33 @@ test('H1.2 provider operations execute through exact P5 ports and revision-fence
       unanchoredMoviepilot.result.candidates[0].identityAnchors,
       [],
     );
+
+    state.moviepilotOmitMediaTitle = true;
+    state.moviepilotMetaTitle =
+      'Original Movie 2024 2160p BluRay x265 10bit TrueHD5.1-WiKi';
+    state.moviepilotTorrentTitle = state.moviepilotMetaTitle;
+    const releaseNamedMoviepilot = await opened.services.executeProvider(
+      'moviepilot', {
+        operationId:'libra.external_material.search@1', effectClass:'pure_observation',
+        idempotencyKey:'moviepilot-search-release-title-year', timeoutMs:5_000,
+        input:{ acquisitionQuery:acquisitionQuery(), limit:25 },
+      });
+    assert.equal(releaseNamedMoviepilot.result.candidates[0].availability,
+      'available');
+
+    state.moviepilotMetaTitle =
+      'Original Movie Returns 2024 2160p BluRay x265 TrueHD5.1';
+    state.moviepilotTorrentTitle = state.moviepilotMetaTitle;
+    const releasePrefixMismatch = await opened.services.executeProvider(
+      'moviepilot', {
+        operationId:'libra.external_material.search@1', effectClass:'pure_observation',
+        idempotencyKey:'moviepilot-search-release-prefix-mismatch', timeoutMs:5_000,
+        input:{ acquisitionQuery:acquisitionQuery(), limit:25 },
+      });
+    assert.equal(releasePrefixMismatch.result.candidates[0].availability,
+      'unavailable');
+    delete state.moviepilotOmitMediaTitle;
+    delete state.moviepilotMetaTitle;
 
     state.moviepilotTorrentTitle = 'Wrong.Movie.2024.2160p.HEVC.TrueHD';
     state.moviepilotMediaTitle = 'Wrong Movie';
