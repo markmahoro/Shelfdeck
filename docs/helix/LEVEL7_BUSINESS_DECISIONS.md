@@ -108,6 +108,11 @@ Handoff B独立验证并把Manifest保存为Accepted Inventory Fact。事实不�
 缺合规主音轨）才能寻源。已下载的唯一external素材适用同一规则。Manifest必须精确绑定被接纳的Work、
 Verification、Workspace Handle与Material Fence，不能从多个超限产物中扫描“最新”或任取一个。
 
+**2026-09-03 Product Owner音轨语义澄清：** 五星高质量音轨Requirement检查Primary Video容器内全部实际
+Audio Stream；任一音轨命中白名单即满足，`default disposition`与音轨顺序不参与判定。不得为了设置
+`default`而Remux，也不得因合格音轨不是默认/第一条而寻源。MoviePilot发布信息只形成下载前声明，下载后
+由同一白名单对全部Probe音轨实测验收；Libra原片判断、成品验收与Arca独立验收必须使用该同一谓词。
+
 ### L7-DP-03 Per-field Pre-deck pipeline seats（Libra-owned，顶部节流）
 
 确认日期：2026-08-30

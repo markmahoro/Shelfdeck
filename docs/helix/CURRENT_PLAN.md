@@ -1,6 +1,6 @@
 # ShelfDeck Clean Helix Master Plan
 
-Status: **PROD-056/057/058 已部署并完成 Formation Reset；生产长任务继续按新合同运行。**
+Status: **PROD-059 音轨存在性与体积瑕疵终态修复正在统一升级。**
 
 Last updated: 2026-09-03
 
@@ -20,6 +20,7 @@ Last updated: 2026-09-03
 - PROD-056 已部署：MoviePilot候选若明确返回TMDB ID仍必须精确匹配；该ID与结构化片名均缺失时，只接受发布名开头的精确片名段、独立年份与正做种三者同时成立，不能把整条release title误当结构化title。下载Job可由精确torrent标题+大小认领，或在历史大小缺失时由精确TMDB ID补强，缺少两类补强不得认领。唯一Job在30分钟后持续零速即终态`job_stalled`，失败不选择第二候选。
 - PROD-057 已部署：`LibraMediaPlanningPolicy@1` revision 3把有效质量下限冻结为`min(星级×画幅Policy下限, 源实际视频码率)`，低码率源不会被灌大。仅体积超限时，下一施工目标若低于该下限则不建立第二次转码、不转CPU、不寻源，保留首次成功且画质更高的超限Workspace产品并offer精确`size_cap_exceeded`。Manifest绑定唯一Work、Verification、Workspace Handle与Material Fence；UI不再表达为笼统“策略穷尽”。
 - PROD-058 已部署并完成生产验收：single-source不增加候选重试；一次搜索内把共享者数量冻结进Candidate availability Evidence，只从`available + compliant`集合按`seederCount DESC, Provider rank, Candidate ID`选择唯一源。MoviePilot pending Job把百分比、字节速度和ETA写入同一Event的durable Progress；Formation一级页与详情显示真实下载/零速等待状态。007在Reset后选择共享者数28的唯一候选并建立一个Job，没有兼容旧Run或候选fallback。
+- PROD-059 统一五星高质量音轨谓词：Libra原片寻源判断、Libra成品验收和Arca独立验收都检查Primary Video容器内全部Probe Audio Stream，`default disposition`与顺序不参与，不增加Remux。体积瑕疵终态只允许`size_cap_requires_admission`精确映射唯一`max_size_exceeded`实测Result，任何附加Gap继续拒绝。
 
 ## 当前基线
 

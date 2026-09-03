@@ -22,6 +22,27 @@ function fixture(run){const dir=fs.mkdtempSync(path.join(os.tmpdir(),'helix-p9-l
 function policy(){const value={policyRef:'libra.run-recovery.beta@1',policyRevision:1,assessmentOffsetsMs:[60000,300000,900000,1800000,3600000],maxRecoveryAssessments:5,heavyPermitAllowed:false,frozenAutoResumeAllowed:false};value.policyDigest=canonicalDigest(value);return value;}
 function freshness(input,readiness='ready'){const value={libraRunId:input.libraRunId,expectedState:{state:'active',stateRevision:input.admitted.stateRevision,stateDigest:input.admitted.stateDigest},assessmentKind:'active_checkpoint',recoveryPolicy:policy(),recoveryEpisode:{attemptOrdinal:0},assessedAtMs:2000,currentDecisionHead:input.headSnapshot,originalBasis:input.basisSnapshot,readiness,unresolvedReasonCodes:readiness==='ready'?[]:['decision_basis_unresolved'],dimensionResults:['acceptance_spec','product_scope','material_binding','material_control','output_requirement'].map((dimension)=>({dimension,result:readiness==='ready'?'same':'unresolved',evidenceDigest:D(dimension)})),comparison:readiness==='ready'?'same':'unresolved'};if(readiness==='ready')value.currentBasis=input.basisSnapshot;value.assessmentId=canonicalDigest({schema:'libra.run-freshness-assessment-id@1',libraRunId:input.libraRunId,expectedStateRevision:input.admitted.stateRevision,assessmentKind:'active_checkpoint',attemptOrdinal:0,currentDecisionHeadDigest:input.headSnapshot.snapshotDigest});value.assessmentDigest=canonicalDigest(value);return value;}
 function lifecycleDecision(input,evidence,transitionKind){return buildRunLifecycleDecision({libraRunId:input.libraRunId,expectedStateRevision:input.admitted.stateRevision,expectedStateDigest:input.admitted.stateDigest,transitionKind,transitionEvidence:evidence,expectedAdmissionHeadRevision:input.admitted.committedAdmissionHeadRevision,expectedActiveScopeSetDigest:input.admitted.activeScopeSetDigest});}
+function sizeCapTerminal(input,reasonCodes){
+  const capabilityRef='libra.product_media.verify@1',workId='size-cap-work',planId='size-cap-plan',eventId='size-cap-event',
+    workBasisDigest=D('size-cap-basis'),retryPolicyDigest=D('size-cap-retry'),payload={result:'failed',reasonCodes},
+    resultDigest=canonicalDigest(payload),db=new Database(input.databasePath);
+  db.prepare('INSERT INTO fx_supporting_works (work_id,owner_domain,process_type,process_id,work_kind,basis_digest,priority_class,state,idempotency_key,created_at_ms,updated_at_ms) VALUES (?,?,?,?,?,?,?,?,?,?,?)')
+    .run(workId,'libra','libra_run',input.libraRunId,'workspace_media_production',workBasisDigest,'normal','succeeded','size-cap-key',1,2);
+  db.prepare('INSERT INTO fx_workflow_plans (plan_id,attempt_id,planner_ref,planner_version,catalog_digest,basis_digest,graph_digest,state,created_at_ms) VALUES (?,?,?,?,?,?,?,?,?)')
+    .run(planId,null,'planner',1,D('catalog'),workBasisDigest,D('graph'),'planned',1);
+  db.prepare('INSERT INTO fx_workflow_events (event_id,plan_id,node_id,work_id,attempt_id,owner_domain,capability_ref,contract_version,state,priority_class,result_id) VALUES (?,?,?,?,?,?,?,?,?,?,?)')
+    .run(eventId,planId,'node-1',workId,null,'libra',capabilityRef,1,'succeeded','normal','size-cap-result');
+  db.prepare('INSERT INTO fx_event_attempts (event_attempt_id,event_id,ordinal,state,outcome_kind,started_at_ms,finished_at_ms) VALUES (?,?,?,?,?,?,?)')
+    .run('size-cap-attempt',eventId,1,'completed','succeeded',1,2);
+  db.prepare('INSERT INTO fx_event_result_bindings (result_id,event_id,outcome_kind,result_schema_ref,result_json,result_digest,committed_at_ms) VALUES (?,?,?,?,?,?,?)')
+    .run('size-cap-result',eventId,'succeeded','helix://contracts/types/ProductMediaVerification/v1',canonicalJson(payload),resultDigest,2);
+  db.close();
+  const store=createRunLifecycleStore({schemaManifest,unitOfWork:input.unitOfWork,
+    resolveRetryPolicyDigest:(ref)=>ref===capabilityRef?retryPolicyDigest:null}),built=store.buildTerminalEvidence({
+      libraRunId:input.libraRunId,workId,blockerKind:'product_unachievable',assessedAtMs:2000,
+      terminalResult:{eventId,failureClass:'business_unachievable',failureCode:'size_cap_requires_admission',resultDigest}});
+  return {store,built};
+}
 
 test('atomically confirms owner-row freshness and replays the durable lifecycle Result',()=>fixture((input)=>{const store=createRunLifecycleStore({schemaManifest,unitOfWork:input.unitOfWork}),decision=lifecycleDecision(input,freshness(input),'freshness_confirmed'),first=store.transition({decision,commitMarker:'life-marker',resultId:'life-result'}),replay=store.transition({decision,commitMarker:'life-marker',resultId:'life-result'});assert.equal(first.replayed,false);assert.equal(replay.replayed,true);assert.deepEqual(replay.result,first.result);const db=new Database(input.databasePath,{readonly:true}),run=db.prepare('SELECT state,state_revision,latest_freshness_assessment_id FROM libra_runs').get();assert.equal(run.state,'active');assert.equal(run.state_revision,2);assert.equal(run.latest_freshness_assessment_id,decision.transitionEvidence.assessmentId);assert.equal(db.prepare('SELECT COUNT(*) n FROM libra_run_revisions').get().n,2);assert.equal(db.prepare('SELECT COUNT(*) n FROM fx_outbox').get().n,0);db.close();}));
 test('freshness validates Control only for primary_control bindings and preserves related_derived obligations',()=>fixture((input)=>{const db=new Database(input.databasePath),primary=db.prepare("SELECT material_key FROM libra_material_bindings WHERE authority_kind='primary_control'").get().material_key,identity={mountScopeId:'mount-1',inode:'12',sizeBytes:50,fingerprintAlgorithm:'middle-256k-sha256',fingerprintVersion:1,contentFingerprint:D('related-content')},materialKey=canonicalDigest({schema:'physical-material-identity@2',...identity});db.prepare('INSERT INTO libra_material_bindings (subject_id,material_key,role,authority_kind,primary_material_key,association_evidence_digest,disposition_basis_digest,mount_scope_id,inode,fingerprint_algorithm,fingerprint_version,content_fingerprint,size_bytes,endpoint_id,location,binding_revision,health_state,evidence_digest,origin_intake_decision_id,origin_offer_id,origin_candidate_package_id,origin_package_revision,origin_package_digest,origin_candidate_delivery_snapshot_digest,origin_related_reference_set_digest,origin_related_disposition_scope_digest,current) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)').run('subject-1',materialKey,'poster','related_derived',primary,D('association'),D('disposition'),identity.mountScopeId,identity.inode,identity.fingerprintAlgorithm,identity.fingerprintVersion,identity.contentFingerprint,identity.sizeBytes,'endpoint-1','/library/poster.jpg',1,'active',D('related-binding'),'intake-1','offer-1','candidate-1',1,D('package'),D('delivery'),D('related'),D('related-scope'),1);db.close();const assessed=createRunLifecycleStore({schemaManifest,unitOfWork:input.unitOfWork}).assess({libraRunId:input.libraRunId,assessedAtMs:2000});assert.equal(assessed.kind,'assessment');assert.equal(assessed.assessment.readiness,'ready');assert.equal(assessed.assessment.comparison,'same');assert.equal(assessed.assessment.currentBasis.members.length,1);}));
@@ -57,6 +78,21 @@ test('freezes from a terminal succeeded Work only when its durable typed Result 
   const result=store.transition({decision:lifecycleDecision(input,built.evidence,'freeze'),
     commitMarker:'business-terminal-marker',resultId:'business-terminal-result'}).result;
   assert.equal(result.committedState,'frozen');
+}));
+
+test('freezes a measured size-only Product through the exact size-cap admission mapping',()=>fixture((input)=>{
+  const {store,built}=sizeCapTerminal(input,['max_size_exceeded']);
+  const result=store.transition({decision:lifecycleDecision(input,built.evidence,'freeze'),
+    commitMarker:'size-cap-marker',resultId:'size-cap-transition-result'}).result;
+  assert.equal(result.committedState,'frozen');
+  assert.equal(built.evidence.blockedWorks[0].failureCode,'size_cap_requires_admission');
+}));
+
+test('rejects size-cap admission when measured Product has any additional media Gap',()=>fixture((input)=>{
+  const {store,built}=sizeCapTerminal(input,['max_size_exceeded','video_codec_unmet']);
+  assert.throws(()=>store.transition({decision:lifecycleDecision(input,built.evidence,'freeze'),
+    commitMarker:'size-cap-wide-marker',resultId:'size-cap-wide-result'}),
+  (error)=>error.code==='P9_RUN_LIFECYCLE_TERMINAL');
 }));
 
 test('freezes a zero-cast Run from the succeeded Metadata Provider Result without converting it to executor failure',()=>fixture((input)=>{

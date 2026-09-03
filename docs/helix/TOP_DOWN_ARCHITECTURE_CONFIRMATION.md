@@ -3734,6 +3734,12 @@ DTS:X
 来源升级取得的合格主音轨Evidence；音频转码产物不能作为满足该Requirement的Evidence。Level 7不得
 规划一条以音频转码伪造通过的路径。
 
+这里的音轨Requirement判定对象是每个Primary Video Physical Material容器内由正式Probe观察到的全部
+Audio Stream：只要至少一条`normalizedAudioClass`属于上述白名单即满足。音轨顺序、语言和容器
+`default disposition`都不参与该Requirement；系统不得仅为设置`default`而Remux，也不得因合格音轨不是
+默认或第一条而触发External Acquisition。`acceptedPrimaryAudioClasses`字段名中的Primary指当前Primary
+Video产品成员，不把音频流缩窄为播放器默认音轨。
+
 5星Movie的4K Requirement同时要求最终Product具备可验证的4K-class raster，并且ShelfDeck控制的本次
 生产链路没有从低于4K的Input Material放大得到该结果。Beta只接受：
 

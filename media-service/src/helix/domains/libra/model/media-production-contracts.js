@@ -572,7 +572,7 @@ function sizeCapAdmissionForecast(value) {
 function primaryVideoCodec(probe){const codecs=[...new Set(primaryStreams(probe?.videoStreams).map((item)=>item.codec))];return codecs.length===1?codecs[0]:codecs.length?'mixed':'none';}
 function primaryDynamicRangeKind(probe){const kinds=[...new Set(primaryStreams(probe?.videoStreams).map((item)=>item.dynamicRangeKind||'unknown'))];
   return kinds.length===1?kinds[0]:kinds.length?'unknown':'unknown';}
-function primaryAudioClasses(probe) { return sortedUnique([...new Set(primaryStreams(probe?.audioStreams).map((item) => item.normalizedAudioClass))]
+function containedAudioClasses(probe) { return sortedUnique([...new Set((probe?.audioStreams || []).map((item) => item.normalizedAudioClass))]
   .sort((a,b)=>Buffer.from(a).compare(Buffer.from(b))), 'primaryAudioClasses'); }
 
 function sourceRequiresExternalSearch(probe, mandatoryMedia) {
@@ -581,7 +581,7 @@ function sourceRequiresExternalSearch(probe, mandatoryMedia) {
   if (mandatory.minimumRasterClass === '4k' && raster !== '4k') return true;
   const accepted = mandatory.acceptedPrimaryAudioClasses || [];
   if (accepted.length) {
-    const audio = primaryAudioClasses(probe);
+    const audio = containedAudioClasses(probe);
     if (!audio.some((item) => accepted.includes(item))) return true;
   }
   return false;
@@ -613,7 +613,7 @@ function buildProductMediaVerification(value) {
   const outputRaster = rasterClass(outputProbe), sourceRaster = rasterClass(input.sourceProbeEvidence);
   if (mandatory.minimumRasterClass === '4k' && outputRaster !== '4k') reasons.push('minimum_raster_unmet');
   if (mandatory.forbidSystemUpscaleFor4k && outputRaster === '4k' && sourceRaster !== '4k') reasons.push('system_upscale_forbidden');
-  const audio = primaryAudioClasses(outputProbe), accepted = mandatory.acceptedPrimaryAudioClasses || [];
+  const audio = containedAudioClasses(outputProbe), accepted = mandatory.acceptedPrimaryAudioClasses || [];
   if (accepted.length && !audio.some((item) => accepted.includes(item))) reasons.push('primary_audio_unmet');
   const actualSizeBytes=handle.sizeBytes??handle.expectedSizeBytes,maxSizeBytes = requirement.space.maxSizeBytes,
     withinLimit = maxSizeBytes === null || maxSizeBytes === undefined || actualSizeBytes <= maxSizeBytes;

@@ -75,6 +75,7 @@
 | PROD-055 | scoped Circuit 被 Startup Recovery 的 ready-only 门禁误当作全局启动阻断 | `EXECUTION_FOUNDATION` / degraded readiness | Startup Recovery / Runtime Host | Critical | **FIXED / DEPLOYED / PRODUCTION ACCEPTED** `0d94f414ac`。degraded 只隔离 exact scope；全局 Circuit 与 hard finding 继续 fail closed。 |
 | PROD-056 | MoviePilot缺TMDB候选被误拒，已有进度但无活动时间的零速Job等待过长 | `BUSINESS_SEMANTICS` / identity and stall evidence | Libra External Acquisition | Critical | **FIXED / DEPLOYED / PRODUCTION ACCEPTED** `11c71bc009`。缺结构化ID/title时严格匹配release片名段+独立年份+正做种；007已建立唯一Job，零速30分钟终态失败且绝不换候选。 |
 | PROD-057 | 仅体积超限仍继续低于质量下限转码，甚至错误转向外部寻源 | `BUSINESS_SEMANTICS` / quality-protected size planning | Libra Media Production | Critical | **FIXED / DEPLOYED / MONITORING** `d228dc2488`。Policy revision 3保留首次高画质超限成品，精确绑定size defect；守望者已按新Policy运行首次QSV转码，长任务终态待观察。 |
+| PROD-059 | 五星音轨验收只看default/第一条，体积瑕疵终态又拒绝自身映射 | `BUSINESS_SEMANTICS` / all-track audio predicate + terminal evidence mapping | Libra Media Production / Arca Acceptance | Critical | **FIXED LOCALLY / DEPLOY AUTHORIZED**。007下载文件已有TrueHD却误冻结；守望者只有`max_size_exceeded`却无法进入`size_cap_requires_admission`冻结。 |
 
 PROD-001、PROD-002 的共同环境前提：生产管理台是 `http://192.168.12.230`，浏览器不提供 `crypto.randomUUID` / `crypto.subtle`。这不是传输加密设计，只是浏览器 API 限制。未改成 HTTPS。
 

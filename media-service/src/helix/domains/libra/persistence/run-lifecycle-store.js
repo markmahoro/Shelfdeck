@@ -1451,10 +1451,17 @@ function assertTerminalEvidence(repo, decision, run, resolveRetryPolicyDigest) {
           Array.isArray(payload.peopleHints) &&
           !payload.peopleHints.some((item) => item?.role === "actor" &&
             typeof item.displayName === "string" && item.displayName);
+        const exactSizeCapAdmission =
+          member.failureCode === "size_cap_requires_admission" &&
+          member.capabilityRef === "libra.product_media.verify@1" &&
+          payload.result === "failed" &&
+          Array.isArray(payload.reasonCodes) &&
+          payload.reasonCodes.length === 1 &&
+          payload.reasonCodes[0] === "max_size_exceeded";
         businessResultValid = boundResult.outcome_kind === "succeeded" &&
           canonicalDigest(payload) === boundResult.result_digest &&
           boundResult.result_digest === member.terminalEvidenceDigest &&
-          (reasons.includes(member.failureCode) || actorMissing);
+          (reasons.includes(member.failureCode) || actorMissing || exactSizeCapAdmission);
       } catch {
         businessResultValid = false;
       }

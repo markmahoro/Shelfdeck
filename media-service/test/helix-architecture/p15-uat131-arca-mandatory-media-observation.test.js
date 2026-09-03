@@ -51,7 +51,8 @@ function attestation(packageId, runId, specDigest, authorized = null) {
 function fixture({ authorized = false, expired = false, workspace = false,
   conversionOperation = workspace ? 'preserve' : 'none',
   sourceDynamicRangeKind = 'hdr10_compatible',
-  outputDynamicRangeKind = sourceDynamicRangeKind } = {}) {
+  outputDynamicRangeKind = sourceDynamicRangeKind,
+  acceptedPrimaryAudioClasses = [] } = {}) {
   const runId='run-1',packageId=D('package'),specDigest=D('spec'),identity=physicalIdentity(),
     sourceIdentity=workspace?physicalIdentity(D('source-material'),'2',D('source-bytes')):identity,
     location='C:/canary/movie.mkv',sourceLocation=workspace?'C:/canary/source.mkv':location,
@@ -93,7 +94,7 @@ function fixture({ authorized = false, expired = false, workspace = false,
         identity:Object.freeze({identityKind:'tmdb_movie',requiredProvider:'tmdb',requireSeasonNumber:false}),
         structure:Object.freeze({structureKind:'single',primaryModel:'single_primary',requireOnePrimaryPerEpisode:false}),
         metadata:Object.freeze({requiredFieldCodes:Object.freeze([]),requiredArtifactKinds:Object.freeze([]),requireRenderableSidecar:false,requireDecodableImages:false}),
-        mandatoryMedia:Object.freeze({mediaForm:'stream_file',videoCodec:'hevc',container:'matroska',fileExtension:'mkv',minimumRasterClass:'none',acceptedPrimaryAudioClasses:Object.freeze([]),forbidSystemUpscaleFor4k:true}),
+        mandatoryMedia:Object.freeze({mediaForm:'stream_file',videoCodec:'hevc',container:'matroska',fileExtension:'mkv',minimumRasterClass:'none',acceptedPrimaryAudioClasses:Object.freeze([...acceptedPrimaryAudioClasses]),forbidSystemUpscaleFor4k:true}),
         space:Object.freeze({unit:'product',maxSizeGiB:null,maxSizeBytes:null}),
         inventory:Object.freeze({requireDomainBinding:true,requireChecksum:true,requiredMaterializedArtifactKinds:Object.freeze([]),layoutModel:'single'})})},
     acceptanceRequirementSnapshot=Object.freeze({...snapshotBody,snapshotDigest:canonicalDigest(snapshotBody)}),
@@ -110,7 +111,7 @@ function fixture({ authorized = false, expired = false, workspace = false,
     packageValue=Object.freeze({...packageBody,manifestDigest:packageDigest,publishedAtMs:NOW-5,packageDigest}),requirementBody={
       schemaRef:'helix://contracts/domain-types/MandatoryRequirement/v1',schemaVersion:1,requirementId:'requirement-1',revision:1,
       shelfId:'shelf-1',shelfStandardRevision:1,shelfStandardDigest:D('standard'),contentProfile:'movie',mediaForm:'stream_file',
-      videoCodec:'hevc',container:'matroska',fileExtension:'mkv',minimumRasterClass:'none',acceptedPrimaryAudioClasses:Object.freeze([]),
+      videoCodec:'hevc',container:'matroska',fileExtension:'mkv',minimumRasterClass:'none',acceptedPrimaryAudioClasses:Object.freeze([...acceptedPrimaryAudioClasses]),
       maxSizeBytes:null,forbidSystemUpscaleFor4k:true,acceptedOutputDynamicRangeKinds:Object.freeze(['sdr','hdr10_compatible','hlg','dolby_vision','unknown']),
       sdrOutputPixelFormat:'yuv420p',sdrOutputColorProfile:Object.freeze({range:'limited',primaries:'bt709',transfer:'bt709',matrix:'bt709'}),
       forbidDolbyVisionMetadataOnSdr:true,decodeSamplePointsPercent:Object.freeze([5,50,95]),requireAllDecodeSamples:true},
@@ -127,7 +128,7 @@ function ports(identity, codec='h264', outputDynamicRangeKind='hdr10_compatible'
       colorMatrix:badColor?'bt2020nc':dynamicRangeKind==='sdr'?'bt709':'unknown'};
     if(isProduct&&options.outputDolbyVision)stream.dolbyVision={profile:8,rpuPresent:true};
     return Object.freeze({resultKind:'probed',container:'matroska',videoStreams:Object.freeze([Object.freeze(stream)]),
-      audioStreams:Object.freeze([]),subtitleStreams:Object.freeze([]),discTopology:null});};
+      audioStreams:Object.freeze((options.audioStreams || []).map((item) => Object.freeze({...item}))),subtitleStreams:Object.freeze([]),discTopology:null});};
   return {mediaProbe:{async probe(handle){const isProduct=handle.identity.materialKey===identity.materialKey,
     value=probe(isProduct?outputDynamicRangeKind:sourceDynamicRangeKind,isProduct);
     return Object.freeze({...value,sourceHandleDigest:canonicalDigest(handle),payloadDigest:canonicalDigest(value)});}},
@@ -158,6 +159,16 @@ for (const authorized of [false, true]) test(`UAT-131 ${authorized?'defect':'ord
   assert.deepEqual(result.actualGapCodes,['video_codec_unmet']);
   assert.equal(result.primaryMediaObservations.length,1);
   assert.deepEqual(result.primaryMediaObservations[0].sourceDecodeSummary.passedSamplePointsPercent,[5,50,95]);
+});
+
+test('UAT-131 accepts a listed audio class regardless of track order or default disposition', async () => {
+  const acceptedPrimaryAudioClasses=['truehd'],value=fixture({acceptedPrimaryAudioClasses}),runtime=ports(value.identity,'hevc',
+    'hdr10_compatible','hdr10_compatible',{audioStreams:[
+      {streamIndex:1,dispositionDefault:true,codec:'dts',profile:'DTS',channels:6,channelLayout:'5.1',normalizedAudioClass:'other'},
+      {streamIndex:2,dispositionDefault:false,codec:'truehd',profile:'TrueHD',channels:6,channelLayout:'5.1',normalizedAudioClass:'truehd'},
+    ]}),result=await observeMandatoryMedia({...value,...runtime,observedAtMs:NOW});
+  assert.deepEqual(result.actualGapCodes,[]);
+  assert.deepEqual(result.primaryMediaObservations[0].qualitySummary.primaryAudioClasses,['other','truehd']);
 });
 
 test('UAT-131 expired read authority fails as stale basis without manufacturing a media Gap', async () => {

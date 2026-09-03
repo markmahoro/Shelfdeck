@@ -118,7 +118,8 @@ function videoCodec(probe) {
 }
 
 function audioClasses(probe) {
-  return Object.freeze([...new Set(primaryStreams(probe?.audioStreams).map((item) =>
+  const streams = Array.isArray(probe?.audioStreams) ? probe.audioStreams : [];
+  return Object.freeze([...new Set(streams.map((item) =>
     typeof item.normalizedAudioClass === 'string' && item.normalizedAudioClass
       ? item.normalizedAudioClass
       : normalizeAudioClass({ ...item,

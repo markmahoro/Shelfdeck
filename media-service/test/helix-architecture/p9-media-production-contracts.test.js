@@ -389,7 +389,7 @@ test('accepts SSOT 4K-class raster and DTS-HD MA primary audio',()=>{
   assert.deepEqual(failed.reasonCodes,['minimum_raster_unmet']);
 });
 
-test('evaluates only Primary streams and rejects legacy normalizedClass fixtures',()=>{
+test('evaluates Primary video but accepts a listed audio class from any contained track',()=>{
   const specValue=spec();specValue.requirements.mandatoryMedia.minimumRasterClass='4k';
   const requirement=media.buildMediaRequirement(specValue),handle=source(),mixedProbe=probe(handle,'mixed-probe',{
     videoStreams:[
@@ -402,7 +402,8 @@ test('evaluates only Primary streams and rejects legacy normalizedClass fixtures
     mediaRequirement:requirement,sourceMaterialHandle:handle,sourceProbeEvidence:mixedProbe});
   const result=media.buildProductMediaVerification({input,verifiedAtMs:4});
   assert.equal(result.result,'failed');
-  assert.deepEqual(result.reasonCodes,['video_codec_unmet','minimum_raster_unmet','primary_audio_unmet']);
+  assert.deepEqual(result.reasonCodes,['video_codec_unmet','minimum_raster_unmet']);
+  assert.deepEqual(result.qualitySummary.primaryAudioClasses,['other','truehd']);
   const wrong=JSON.parse(JSON.stringify(mixedProbe));wrong.audioStreams[0].normalizedClass=wrong.audioStreams[0].normalizedAudioClass;
   delete wrong.audioStreams[0].normalizedAudioClass;wrong.payloadDigest=canonicalDigest(Object.fromEntries(Object.entries(wrong).filter(([key])=>key!=='payloadDigest')));
   assert.throws(()=>valid('helix://contracts/types/MediaProbeEvidence/v1',wrong),(error)=>error.code==='P4_CAPABILITY_SCHEMA_REJECTED');
@@ -471,9 +472,13 @@ test('source probe requiring 4k or listed audio skips local remux in favor of ex
   const hd=probe(source(),'probe-hd',{videoStreams:[hdVideo]});
   const hdDts=probe(source(),'probe-hd-dts',{videoStreams:[hdVideo],audioStreams:[{streamIndex:1,dispositionDefault:true,
     codec:'dts',profile:'dts-hd-ma',channels:6,channelLayout:'5.1',formatTags:[],normalizedAudioClass:'dts_hd_ma',language:'eng'}]});
+  const hdTrueHdNotDefault=probe(source(),'probe-hd-truehd-not-default',{videoStreams:[hdVideo],audioStreams:[
+    {streamIndex:1,dispositionDefault:false,codec:'dts',profile:'dts',channels:6,channelLayout:'5.1',formatTags:[],normalizedAudioClass:'other',language:'eng'},
+    {streamIndex:2,dispositionDefault:false,codec:'truehd',profile:'truehd',channels:6,channelLayout:'5.1',formatTags:[],normalizedAudioClass:'truehd',language:'chi'}]});
   assert.equal(media.sourceRequiresExternalSearch(fourK,{minimumRasterClass:'4k',acceptedPrimaryAudioClasses:[]}),false);
   assert.equal(media.sourceRequiresExternalSearch(hd,{minimumRasterClass:'4k',acceptedPrimaryAudioClasses:[]}),true);
   assert.equal(media.sourceRequiresExternalSearch(fourK,{minimumRasterClass:'none',acceptedPrimaryAudioClasses:['truehd']}),false);
   assert.equal(media.sourceRequiresExternalSearch(hdDts,{minimumRasterClass:'none',acceptedPrimaryAudioClasses:['truehd']}),true);
+  assert.equal(media.sourceRequiresExternalSearch(hdTrueHdNotDefault,{minimumRasterClass:'none',acceptedPrimaryAudioClasses:['truehd']}),false);
   assert.equal(media.sourceRequiresExternalSearch(hd,{minimumRasterClass:'none',videoCodec:'hevc',acceptedPrimaryAudioClasses:[]}),false);
 });
