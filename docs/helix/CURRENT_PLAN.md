@@ -1,6 +1,6 @@
 # ShelfDeck Clean Helix Master Plan
 
-Status: **PROD-064 已获授权并进入离线恢复；完成 13 条物理/Arca 核验前不得启动生产服务。**
+Status: **PROD-064 已完成 guarded recovery、标准部署与复发观察。**
 
 Last updated: 2026-09-03
 
@@ -25,17 +25,17 @@ Last updated: 2026-09-03
   Shelf Entry 错误迁移，其中 10 条 DB 已 Commit、3 条仅物理 Effect 成功。PROD-064 按用户授权保持停服，
   使用精确白名单工具恢复原有路径、隔离事故副本并追加真实 Arca Inventory/Material Control 事实；不执行
   Formation Reset，不删除 torrent、备份或未纳管字幕，不改变 Deck Fact。
-- PROD-064 顺序固定为：完整测试 → commit-addressed 标准镜像 build/upload → 生产只读 plan → 第二份即时完整备份
+- PROD-064 已按固定顺序完成：完整测试 → commit-addressed 标准镜像 build/upload → 生产只读 plan → 即时完整备份
   → guarded apply → 离线收敛 plan、文件指纹、SQLite/foreign key、Deck Fact/Control 核验 → 标准 deploy →
-  readiness/health/Admin/mount/exact-image 与事故复发检查。任一 gate 失败均保持服务停止。
+  readiness/health/Admin/mount/exact-image 与事故复发检查。没有执行 Formation Reset 或删除媒体。
 
 ## 当前基线
 
 - NAS production：`192.168.12.230:18080`。
-- Image：`markmahoro/shelfdeck:helix-beta-20260903-d8d25a95aa`；source commit `d8d25a95aa`；image ID `sha256:acd91820ee98486cead34b5e8c644ac649296b27ec2ef4931043f4d1a9f6422e`；tar SHA-256 `52907064a51ea297ee3068ce27c802d450beca773654a58ed4b3516490f000b1`。
+- Image：`markmahoro/shelfdeck:helix-beta-20260903-4e31ee914e`；source commit `4e31ee914e`；image ID `sha256:ec8854d5da32ec710432c11b4d6cab012a47791827a51ededc6ce52d2618f2ac`；tar SHA-256 `950eac02a9ee139edb54b501a2334ef27aa5175ab16fc801d76322d2a516cb90`。
 - Health：`ok` / `helix-clean-v3` / `normalSupplyAllowed:true`；schema 186；SQLite integrity `ok`。
-- Execution：0 active Aftercare Case、0 active Arca Work、0 `reconcile_required` Effect；当前仅 Libra 的《落水狗》QSV 转码运行，并有另一条 Libra 媒体工作等待资源。
-- Formation：当前 2 条 `in_progress`（《落水狗》《攻壳机动队》）、1 条 `attention_required`（007）和 16 条 completed；本次 Aftercare 处置不需要 Formation Reset。
+- Execution：0 active Aftercare Case、0 running Arca Work、0 `reconcile_required` Effect；事故工具最终复验为 0 move、0 Inventory advance、0 quarantine action。
+- PROD-064：13 条 Shelf Entry 的 85 个当前材料全部存在；65 个纳管文件恢复路径，4 个事故副本目录共 23 个文件完整隔离；torrent、备份与未纳管字幕未删除。本次处置不需要 Formation Reset。
 
 ## 已完成
 

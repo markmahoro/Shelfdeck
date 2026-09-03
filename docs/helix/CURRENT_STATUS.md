@@ -1,6 +1,6 @@
 # ShelfDeck Clean Helix Current Status
 
-Status: **PROD-064 生产恢复进行中；ShelfDeck 已停服，禁止在物理媒体与 Arca 事实完全核验前启动。**
+Status: **PROD-064 生产恢复、部署与复发观察已完成；ShelfDeck 正常运行。**
 
 ## PROD-064 Aftercare Placement Incident Recovery
 
@@ -8,22 +8,35 @@ Status: **PROD-064 生产恢复进行中；ShelfDeck 已停服，禁止在物理
   `collisionPolicy: reject → suffix` 变化，却让 Aftercare 使用可变 Presentation title/year 重新计算既有接受路径。
   19 次 Placement 尝试中，10 条错误 Inventory revision 已 Commit，另 3 条已发生物理写入但 DB Commit 失败；
   影响精确冻结为 13 个 Shelf Entry。正常 On-deck 的《守望者》《角斗士2》《超脱》不在事故范围。
-- 生产服务已于 2026-09-03 停止。停服后完整备份位于
+- 生产服务于 2026-09-03 停止后，首份完整备份位于
   `/vol1/1000/docker/shelfdeck/backups/aftercare-incident-20260903T175159+0800`；数据库 `quick_check=ok`，
-  foreign key violations 为 0。备份保留 data、compose、secret 与 SHA256SUMS；未修改 `/vol1/docker`。
-- 物理闭包已只读核实：9 条完整错误目录需要恢复带年份路径；《银翼杀手：2022黑暗浩劫》恢复原有冒号路径；
-  《最后的前线》《长空之王》《2001太空漫游》保留已完整的原路径。4 个仅含事故生成副本的目录进入同文件系统
-  quarantine，不删除；《最后的前线》原目录中的 torrent 与未纳管字幕保持原位不动。
+  foreign key violations 为 0。最终 apply 前完整备份位于
+  `/vol1/1000/docker/shelfdeck/backups/prod064-preapply-20260903T111139Z`，保留 data、compose、secret、
+  SHA256SUMS、correction manifest 与 receipt；备份 DB SHA-256 为
+  `7aaebb1b0c66c6cc1f7a115a3658f19a298b27c7dd4b7323169e015252df12f3`。未修改 `/vol1/docker`。
+- 物理闭包已恢复：65 个纳管文件以同文件系统 rename 回到冻结路径；9 条完整错误目录恢复带年份路径，
+  《银翼杀手：2022黑暗浩劫》恢复原有冒号路径，《最后的前线》《长空之王》《2001太空漫游》保留原有完整目录。
+  4 个事故副本目录共 23 个文件已非破坏性移入
+  `/media/.shelfdeck-incidents/prod064-aftercare-placement/Film`。原目录 torrent 与未纳管字幕仍在原位；
+  《守望者》《角斗士2》《超脱》保持存在且未进入事故范围。
 - 通用修复把 Placement policy 分为 layout 字段与 collision 字段：只有模板、Shelf root 或 endpoint 变化才允许
   重算路径；collision-only revision 保持已接受 Inventory，缺失历史 Placement baseline 时 fail closed 为
-  `attention_required`。64 条 blast-radius fixture 与 13 条恢复 fixture 已通过；Service full 446 项为
-  428 pass、18 skip、0 fail。
+  `attention_required`。64 条 blast-radius fixture 与事故恢复负向夹具已通过；最终 Service full 452 项为
+  434 pass、18 skip、0 fail。
 - 一次性恢复只能通过 `helix-prod064-aftercare-placement-incident-correction.js`：操作员集合必须与 13 条白名单
-  精确相等；所有源、目标、quarantine 文件先做 bounded fingerprint/NFO semantic fence；物理 rename 写可逆
-  journal，DB 事务只追加 Inventory revision 并按实际 Physical Material Identity 调整 Material Control。
-  Deck Fact 与历史 `arca_material_bindings` 不变。任何失败均回滚物理 journal 并保持服务离线。
-- 当前尚未执行 PROD-064 apply、镜像部署或生产重启；下述 PROD-063 “无直接数据修订/已稳定”只代表当时的
-  观测窗口，已被本节事故证据取代，不能再作为当前生产结论。
+  精确相等；所有源、目标、quarantine 文件先做 bounded fingerprint。未提交 NFO 还必须绑定同一 Stage path、
+  同一 Plan 的失败 Placement physical Effect 时间窗并通过合法 Movie NFO 解析。物理 rename 写可逆 journal，
+  DB 事务只追加 13 个 Inventory revision 并按实际 Physical Material Identity 调整 Material Control；Deck Fact
+  与历史 `arca_material_bindings` 摘要保持不变。receipt manifest digest 为
+  `3224b27cf20dffb75e864176b18c3234ff50f43f106d809dffdd82ecbbe9b67e`，apply 后 integrity `ok`、外键 0。
+- 最终镜像 `markmahoro/shelfdeck:helix-beta-20260903-4e31ee914e`，source commit `4e31ee914e`，image ID
+  `sha256:ec8854d5da32ec710432c11b4d6cab012a47791827a51ededc6ce52d2618f2ac`，tar SHA-256
+  `950eac02a9ee139edb54b501a2334ef27aa5175ab16fc801d76322d2a516cb90`。标准 build/upload/checksum、deploy dry-run/apply、
+  readiness、health、Admin Web、media/upgrade/QSV mount 与 exact-image gate 全部通过，restart count 0。
+- 启动后 Emby 对两份 NFO 的改写由 Aftercare 以语义等价路径追加 Inventory revision，未重新迁移文件。最终事故工具
+  复验为 `moveCount=0`、`inventoryAdvanceCount=0`、`quarantineCount=0`；13 条 Shelf Entry 的 85 个当前材料全部存在，
+  active Aftercare Case 0、running Arca Work 0、`reconcile_required` Effect 0，health 为 `ok` / `helix-clean-v3` /
+  `normalSupplyAllowed:true`，日志无 runtime error。
 
 Last updated: 2026-09-03
 

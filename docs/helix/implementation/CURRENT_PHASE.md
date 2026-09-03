@@ -1,16 +1,20 @@
 # ShelfDeck Helix 当前实施阶段
 
-状态：**PROD-064 ACTIVE — PRODUCTION OFFLINE FOR GUARDED AFTERCARE PLACEMENT RECOVERY**
+状态：**P4 ACTIVE — PROD-064 GUARDED RECOVERY DEPLOYED AND CONVERGED**
 
 ## PROD-064 当前恢复边界（2026-09-03）
 
 - 已证明 PROD-063 的 collision-only policy publication 被错误解释成 layout migration，并叠加可变
-  Presentation 命名事实，造成 13 条 Shelf Entry 的物理/Inventory 偏移。服务保持停止。
+  Presentation 命名事实，造成 13 条 Shelf Entry 的物理/Inventory 偏移。生产已完成恢复并重新上线。
 - 代码修复只让 folder/member template、Shelf root 或 endpoint 变化触发既有 Inventory 重排；collision-only
   变化不重命名，缺少 accepted Placement baseline 时 fail closed。
 - 恢复工具冻结 13 条 exact ID、4 个 quarantine source，要求 bounded physical evidence、可逆 rename journal、
   单事务 Inventory/Material Control append、Deck Fact 与历史 Binding 不变，以及 apply 后零动作 dry-run。
-- 本地 Service full 446 项：428 pass、18 skip、0 fail。生产只读 plan、apply、部署与重启尚未执行。
+- 本地 Service full 452 项：434 pass、18 skip、0 fail。生产 apply 完成 65 个文件 rename、13 个 Inventory append，
+  4 个事故目录共 23 个文件非破坏性隔离；完整 pre-apply 备份、manifest、receipt、integrity 与 foreign-key gate 通过。
+- 镜像 `helix-beta-20260903-4e31ee914e` 已标准部署，readiness、health、Admin、mount、exact image 均通过。
+  启动后的 2 次 NFO 语义对账未迁移路径；最终为 0 active Case、0 running Arca Work、0 reconcile Effect，
+  correction dry-run 为 0 move、0 Inventory advance、0 quarantine action。
 
 ## PROD-063 已部署增量（2026-09-03）
 
