@@ -9,7 +9,7 @@ const Database = require('better-sqlite3');
 const { canonicalDigest } = require('../src/helix/contracts/canonical-json');
 const { materialKey } = require('../src/helix/foundation/persistence/material-control');
 const { computeBoundedMaterialFingerprintSync } = require('../src/helix/integrations/bounded-material-fingerprint');
-const { INCIDENT_ENTRIES, inspectPlan, applyCorrection } = require('../scripts/helix-prod064-aftercare-placement-incident-correction');
+const { INCIDENT_ENTRIES, inspectPlan, applyCorrection, main } = require('../scripts/helix-prod064-aftercare-placement-incident-correction');
 
 const schema=fs.readFileSync(path.resolve(__dirname,'../src/helix/foundation/persistence/generated/clean-schema.sql'),'utf8');
 const d=(value)=>canonicalDigest(value);
@@ -47,3 +47,5 @@ test('PROD-064 restores the exact 13-entry physical paths and appends Arca Inven
 });
 
 test('PROD-064 refuses any operator scope other than the frozen incident set',()=>{const value=fixture();try{assert.throws(()=>inspectPlan(value.database,{...value.options,expectedShelfEntryIds:INCIDENT_ENTRIES.slice(1)}),/PROD064_EXPECTED_ENTRY_SET_MISMATCH/);}finally{value.database.close();fs.rmSync(value.root,{recursive:true,force:true});}});
+
+test('PROD-064 plan opens the stopped production copy through a read-only SQLite connection',()=>{const value=fixture();try{value.database.close();const args=['--data-dir',value.root,'--media-root',value.mediaRoot,'--quarantine-root',value.options.quarantineRoot,'--journal-dir',value.journalDir,'--incident-start-ms','50',...INCIDENT_ENTRIES.flatMap((id)=>['--expected-shelf-entry-id',id])],result=main(args);assert.equal(result.plan.moveCount,13);assert.equal(result.plan.inventoryAdvanceCount,13);}finally{try{value.database.close();}catch{}fs.rmSync(value.root,{recursive:true,force:true});}});
