@@ -88,11 +88,16 @@ function deriveInventoryMaterialChanges(materials, receipts) {
     }
   }
   for (const materialKey of acquire.keys()) {
-    if (release.has(materialKey)) {
-      throw Object.assign(new Error('Aftercare Inventory cannot acquire and release the same Material.'), {
-        code: 'ARCA_AFTERCARE_CONTROL_SET_OVERLAP',
-      });
+    if (!release.has(materialKey)) continue;
+    if (canonicalDigest(acquire.get(materialKey)) ===
+        canonicalDigest(release.get(materialKey))) {
+      acquire.delete(materialKey);
+      release.delete(materialKey);
+      continue;
     }
+    throw Object.assign(new Error('Aftercare Inventory cannot acquire and release the same Material.'), {
+      code: 'ARCA_AFTERCARE_CONTROL_SET_OVERLAP',
+    });
   }
   return Object.freeze([
     ...[...release.values()].map((identity) =>

@@ -15,7 +15,8 @@ const { createMaterialControlParticipant, controlScopeDigest } = require('../../
 const { createAftercareStore } = require('../../src/helix/domains/arca/persistence/aftercare-store');
 const { createAftercareCapabilityPorts,
   resolveAftercareSettlementTarget,
-  assertAftercareSettlementHandle } = require('../../src/helix/domains/arca/capabilities/aftercare-capability-ports');
+  assertAftercareSettlementHandle,
+  aftercareSettlementPreconditionFailureOutcome } = require('../../src/helix/domains/arca/capabilities/aftercare-capability-ports');
 const { settlementScopeDigest, buildAftercareSettlementHandles, aftercareSettlementEventId,
   aftercareServiceCatalogRevision, aftercareSettlementApprovalId, aftercareInventoryCommitId, deriveInventoryMaterialChanges,
   aftercareInventoryCommitDigest,
@@ -429,6 +430,24 @@ function settlementCapabilityFixture(value,locations,fingerprint=boundedFingerpr
   return { ports,store,approval,files,handles,eventId,approvalHandle,context,care };
 }
 
+test('Settlement unknown-directory members fail terminally before any deletion', async () => {
+  const value=fixture();
+  try {
+    const x=settlementCapabilityFixture(value,['old-a.mkv']);
+    const unknown=path.join(path.dirname(x.files[0].location),'unmanaged.torrent');
+    fs.writeFileSync(unknown,Buffer.from('foreign'));
+    const outcome=await x.ports[C.settlement].execute({eventId:x.eventId,idempotencyKey:'settlement-key',
+      effectOccurredAtMs:12_000,ownerScope:{processId:'entry-1'},namedInputs:{
+        supersededInventoryHandleList:x.handles,aftercareSettlementApproval:x.approvalHandle}});
+    assert.deepEqual(outcome,aftercareSettlementPreconditionFailureOutcome(Object.assign(
+      new Error('Aftercare old Material directory contains an unknown member.'),
+      {code:'ARCA_AFTERCARE_SETTLEMENT_UNKNOWN_MEMBER'})));
+    assert.equal(fs.existsSync(x.files[0].location),true);
+    assert.equal(fs.existsSync(unknown),true);
+    assert.equal(x.approval.state,'active');
+  } finally { value.close(); }
+});
+
 test('consumed Settlement Approval replays only its exact Event with deterministic evidence', async () => {
   const value=fixture();
   try {
@@ -510,10 +529,12 @@ test('Settlement Evidence overflow fails closed before deleting any Material', a
   const value=fixture();
   try {
     const x=settlementCapabilityFixture(value,Array.from({ length:85 },(_,index)=>'old-'+String(index).padStart(3,'0')+'.mkv'));
-    await assert.rejects(() => x.ports[C.settlement].execute({ eventId:x.eventId,idempotencyKey:'settlement-key',
+    const outcome=await x.ports[C.settlement].execute({ eventId:x.eventId,idempotencyKey:'settlement-key',
       effectOccurredAtMs:12_000,ownerScope:{ processId:'entry-1' },namedInputs:{ supersededInventoryHandleList:x.handles,
-        aftercareSettlementApproval:x.approvalHandle } }),
-    (error) => error.code==='ARCA_AFTERCARE_SETTLEMENT_EVIDENCE_BOUND'&&error.details.evidenceEntryCount===257);
+        aftercareSettlementApproval:x.approvalHandle } });
+    assert.equal(outcome.kind,'failed');
+    assert.equal(outcome.code,'ARCA_AFTERCARE_SETTLEMENT_EVIDENCE_BOUND');
+    assert.equal(outcome.retryDirective,'never');
     assert.equal(x.files.every((item)=>fs.existsSync(item.location)),true);
     assert.equal(x.approval.state,'active');
   } finally { value.close(); }

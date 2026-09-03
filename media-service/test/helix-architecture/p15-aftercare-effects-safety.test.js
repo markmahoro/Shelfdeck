@@ -150,6 +150,20 @@ test('Aftercare semantic NFO reconciliation adopts current bytes as a new Invent
   } finally {fs.rmSync(root,{recursive:true,force:true});}
 });
 
+test('Aftercare Placement keeps Control unchanged when the same physical Material only changes Binding location', () => {
+  const identity={schemaRef:'helix://contracts/types/PhysicalMaterialIdentity/v2',schemaVersion:2,
+    materialKey:canonicalDigest('same-material'),mountScopeId:'mount-1',inode:'7',sizeBytes:42,
+    fingerprintAlgorithm:'middle-256k-sha256',fingerprintVersion:1,
+    contentFingerprint:canonicalDigest('same-bytes')};
+  const materials=[{material_key:identity.materialKey,mount_scope_id:identity.mountScopeId,
+    inode:identity.inode,size_bytes:identity.sizeBytes,fingerprint_algorithm:identity.fingerprintAlgorithm,
+    fingerprint_version:identity.fingerprintVersion,content_fingerprint:identity.contentFingerprint,
+    location:'F:/shelf/Old Name/movie.mkv'}];
+  const receipt={finalMaterialIdentity:identity,targetLocation:'F:/shelf/New Name/movie.mkv',
+    retiredMaterials:[{identity,location:'F:/shelf/Old Name/movie.mkv',requiresSettlement:false}]};
+  assert.deepEqual(deriveInventoryMaterialChanges(materials,[receipt]),[]);
+});
+
 test('Aftercare NFO commit accepts only the exact source observed during preparation', () => {
   const root=fs.mkdtempSync(path.join(os.tmpdir(),'aftercare-nfo-source-guard-'));
   try {

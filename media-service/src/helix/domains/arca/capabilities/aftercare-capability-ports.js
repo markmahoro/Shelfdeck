@@ -214,6 +214,22 @@ function nfoCommitSource(contextValue,output,location,inventoryMaterial,mountSco
 const EXTERNAL_WRITER_CONFLICT_CODES=new Set(['ARCA_AFTERCARE_NFO_SOURCE_STALE','PHYSICAL_MATERIAL_STAT_FENCE_CHANGED']);
 function isExternalWriterConflictOutcome(value){return value?.kind==='failed'&&EXTERNAL_WRITER_CONFLICT_CODES.has(value.code)&&value.failureClass==='external_writer_conflict'&&value.retryDirective==='never';}
 function externalWriterConflictOutcome(error){if(!EXTERNAL_WRITER_CONFLICT_CODES.has(error?.code))return null;const evidence={errorName:String(error?.name||'Error'),errorCode:error.code};if(typeof error?.details?.reasonCode==='string')evidence.reasonCode=error.details.reasonCode;if(typeof error?.details?.field==='string')evidence.field=error.details.field;return Object.freeze({kind:'failed',failureClass:'external_writer_conflict',code:error.code,message:String(error?.message||'Aftercare source changed during materialization.'),retryDirective:'never',evidence:Object.freeze(evidence)});}
+const SETTLEMENT_PRECONDITION_FAILURES=new Set([
+  'ARCA_AFTERCARE_SETTLEMENT_BASIS_STALE','ARCA_AFTERCARE_SETTLEMENT_EVIDENCE_BOUND',
+  'ARCA_AFTERCARE_SETTLEMENT_FINAL_MISMATCH','ARCA_AFTERCARE_SETTLEMENT_HANDLE_INVALID',
+  'ARCA_AFTERCARE_SETTLEMENT_IDENTITY_CHANGED','ARCA_AFTERCARE_SETTLEMENT_REPLAY_REALITY_CONFLICT',
+  'ARCA_AFTERCARE_SETTLEMENT_UNKNOWN_MEMBER',
+]);
+function aftercareSettlementPreconditionFailureOutcome(error){
+  if(!SETTLEMENT_PRECONDITION_FAILURES.has(error?.code))return null;
+  return Object.freeze({kind:'failed',failureClass:'settlement_precondition',code:error.code,
+    message:String(error?.message||'Aftercare Settlement precondition failed.'),retryDirective:'never',
+    evidence:Object.freeze({errorName:String(error?.name||'Error'),errorCode:error.code})});
+}
+function isAftercareSettlementPreconditionFailureOutcome(value){
+  return value?.kind==='failed'&&value.failureClass==='settlement_precondition'&&
+    SETTLEMENT_PRECONDITION_FAILURES.has(value.code)&&value.retryDirective==='never';
+}
 function existingMaterials(items,predicate){return [...items].filter(predicate).filter((item)=>{try{return fs.statSync(item.location).isFile();}catch{return false;}}).sort((left,right)=>Number(left.ordinal||0)-Number(right.ordinal||0)||String(left.location).localeCompare(String(right.location)));}
 function selectedNfoMaterial(items){const existing=existingMaterials(items,isNfoMaterial);return existing.find((item)=>validNfo(item.location))||existing[0]||null;}
 function isRepairablePresentationArtifact(item){const role=String(item.role||'').toLowerCase(),extension=path.extname(item.location||'').toLowerCase();return role.includes('poster')||role.includes('fanart')||role.includes('nfo')||role==='metadata_sidecar'||extension==='.nfo';}
@@ -601,6 +617,8 @@ function createAftercareCapabilityPorts(options){const now=options.now||Date.now
   ports[C.settlement]=Object.freeze({
     validateInputs(c){requireNamed(c,['supersededInventoryHandleList','aftercareSettlementApproval']);},
     async execute(execution){
+      let mutationStarted=false;
+      try {
       const c=context(execution),care=store.history(c.shelfEntryId).cases.find((item)=>item.state==='active'),at=effectOccurredAt(execution,now()),n=execution.namedInputs,
         handles=n.supersededInventoryHandleList,scope=settlementScopeDigest(handles);
       const evidenceEntryCount=(handles.length?handles.length*3:1)+2;
@@ -636,6 +654,7 @@ function createAftercareCapabilityPorts(options){const now=options.now||Date.now
         assertSettlementTargetReality(c,target,fingerprint,consumedReplay);
       }
       if(!consumedReplay){
+        mutationStarted=true;
         for(const target of targets){const handle=target.readHandle;settlementAuthority(c.shelfEntryId,care.aftercareCaseId,durableApproval.approvalId,scope);assertSettlementTargetReality(c,target,fingerprint);if(fs.existsSync(handle.location))await fs.promises.unlink(handle.location);if(fs.existsSync(handle.location))throw new Error('Aftercare superseded Material deletion was not durable.');await new Promise((resolve)=>setImmediate(resolve));}
         for(const directory of settlementDirectories){settlementAuthority(c.shelfEntryId,care.aftercareCaseId,durableApproval.approvalId,scope);if(fs.existsSync(directory)&&(await fs.promises.readdir(directory)).length===0)await fs.promises.rmdir(directory);}
         settlementAuthority(c.shelfEntryId,care.aftercareCaseId,durableApproval.approvalId,scope);
@@ -643,8 +662,13 @@ function createAftercareCapabilityPorts(options){const now=options.now||Date.now
       const consumed=consumedReplay?durableApproval:store.consumeSettlementApproval({aftercareCaseId:care.aftercareCaseId,
         settlementScopeDigest:scope,careBasisDigest:care.careBasisDigest,approvalId:durableApproval.approvalId});
       const entries=targets.length?targets.flatMap(({readHandle:handle,finalReplacement})=>[{key:'exists:'+handle.identity.materialKey,value:false},{key:'location:'+handle.identity.materialKey,value:handle.location},{key:'final_verified:'+handle.identity.materialKey,value:finalReplacement?true:null}]):[{key:'settlement_count',value:0}],postBase={schemaRef:'helix://contracts/records/post-delete-reality/v1',schemaVersion:1,recordKind:'post-delete-reality',entries:Object.freeze([...entries,{key:'settlement_directory_set_digest',value:canonicalDigest(settlementDirectories)},{key:'approval_state',value:consumed.state}])},postDeleteReality=Object.freeze({...postBase,recordDigest:canonicalDigest(postBase)}),materialSetDigest=canonicalDigest(targets.map(({readHandle})=>({materialKey:readHandle.identity.materialKey,location:readHandle.location})).sort((a,b)=>(a.location+a.materialKey).localeCompare(b.location+b.materialKey))),base={schemaRef:'helix://contracts/types/SettlementDeletionEvidence/v1',schemaVersion:1,evidenceId:stable('arca-care-settlement-evidence-',{caseId:care.aftercareCaseId,key:materialSetDigest}),evidenceKind:'aftercare_settlement',producerRef:C.settlement,basisDigest:care.careBasisDigest,observedAtMs:at,authorizationOrApprovalRef:consumed.approvalId,materialKey:materialSetDigest,preDeleteIdentityDigest:canonicalDigest(targets.map(({readHandle})=>({identity:readHandle.identity,location:readHandle.location})).sort((a,b)=>(a.location+a.identity.materialKey).localeCompare(b.location+b.identity.materialKey))),postDeleteReality,effectReceiptId:stable('arca-care-effect-receipt-',{eventId:execution.eventId})};const result=Object.freeze({...base,payloadDigest:canonicalDigest(base)});return committed(execution,C.settlement,result,at,'destructive_commit');
+      }catch(error){
+        const failed=mutationStarted?null:aftercareSettlementPreconditionFailureOutcome(error);
+        if(failed)return failed;
+        throw error;
+      }
     },
-    validateResult(_c,o){if(!Array.isArray(o?.result?.postDeleteReality?.entries))throw new TypeError('Aftercare Settlement Evidence is invalid.');},
+    validateResult(_c,o){if(isAftercareSettlementPreconditionFailureOutcome(o))return;if(!Array.isArray(o?.result?.postDeleteReality?.entries))throw new TypeError('Aftercare Settlement Evidence is invalid.');},
   });
   ports[C.caseCommit]=Object.freeze({
     validateInputs(c){requireNamed(c,['reassessedResult','domainFactCommitHandle']);},
@@ -684,4 +708,4 @@ function createAftercareCapabilityPorts(options){const now=options.now||Date.now
   return Object.freeze(ports);
 }
 
-module.exports=Object.freeze({AFTERCARE_LONG_MEDIA_TIMEOUT_MS,createAftercareCapabilityPorts,decodeFinding,validNfo,validImageBytes,progressSample,remainingDeadlineMs,aftercareMediaProbeEvidence,resolveAftercareFfmpegPath,materializeArtifactWithRollback,materializeMediaWithRollback,nfoCommitSource,externalWriterConflictOutcome,observeSemanticNfoReconciliation,custodyIdentityChangedFinding,permitsMissingArtifactReplacement,buildProductionVideoProfile,verifyPlaybackBounded,resolveAftercareSettlementTarget,assertAftercareSettlementHandle,assertSettlementTargetReality});
+module.exports=Object.freeze({AFTERCARE_LONG_MEDIA_TIMEOUT_MS,createAftercareCapabilityPorts,decodeFinding,validNfo,validImageBytes,progressSample,remainingDeadlineMs,aftercareMediaProbeEvidence,resolveAftercareFfmpegPath,materializeArtifactWithRollback,materializeMediaWithRollback,nfoCommitSource,externalWriterConflictOutcome,aftercareSettlementPreconditionFailureOutcome,observeSemanticNfoReconciliation,custodyIdentityChangedFinding,permitsMissingArtifactReplacement,buildProductionVideoProfile,verifyPlaybackBounded,resolveAftercareSettlementTarget,assertAftercareSettlementHandle,assertSettlementTargetReality});
