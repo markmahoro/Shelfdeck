@@ -9,7 +9,8 @@ const Database = require('better-sqlite3');
 const { canonicalDigest } = require('../src/helix/contracts/canonical-json');
 const { materialKey } = require('../src/helix/foundation/persistence/material-control');
 const { computeBoundedMaterialFingerprintSync } = require('../src/helix/integrations/bounded-material-fingerprint');
-const { INCIDENT_ENTRIES, inspectPlan, applyCorrection, main } = require('../scripts/helix-prod064-aftercare-placement-incident-correction');
+const { INCIDENT_ENTRIES, inspectPlan, applyCorrection, main,
+  resolveRestoreRevision } = require('../scripts/helix-prod064-aftercare-placement-incident-correction');
 
 const schema=fs.readFileSync(path.resolve(__dirname,'../src/helix/foundation/persistence/generated/clean-schema.sql'),'utf8');
 const d=(value)=>canonicalDigest(value);
@@ -38,7 +39,7 @@ function fixture(){
     database.prepare('INSERT INTO fx_effect_journal VALUES (?,?,?,?,?,?,?,?,?,?)').run(`effect-${index}`,eventAttempt,'filesystem_mutation',`effect-key-${index}`,d(['intent',index]),'committed',null,d(['output',index]),100,100);
   }
   database.pragma('foreign_keys=ON');
-  return {root,mediaRoot,journalDir,database,options:{mediaRoot,quarantineRoot:path.join(mediaRoot,'.shelfdeck-incidents/prod064-aftercare-placement'),journalDir,incidentStartMs:50,expectedShelfEntryIds:[...INCIDENT_ENTRIES],restoreRevisions:new Map()}};
+  return {root,mediaRoot,journalDir,database,options:{mediaRoot,quarantineRoot:path.join(mediaRoot,'.shelfdeck-incidents/prod064-aftercare-placement'),journalDir,incidentStartMs:50,expectedShelfEntryIds:[...INCIDENT_ENTRIES],restoreRevisions:new Map(INCIDENT_ENTRIES.map((id)=>[id,1]))}};
 }
 
 test('PROD-064 restores the exact 13-entry physical paths and appends Arca Inventory without changing Deck Facts',()=>{
@@ -48,4 +49,6 @@ test('PROD-064 restores the exact 13-entry physical paths and appends Arca Inven
 
 test('PROD-064 refuses any operator scope other than the frozen incident set',()=>{const value=fixture();try{assert.throws(()=>inspectPlan(value.database,{...value.options,expectedShelfEntryIds:INCIDENT_ENTRIES.slice(1)}),/PROD064_EXPECTED_ENTRY_SET_MISMATCH/);}finally{value.database.close();fs.rmSync(value.root,{recursive:true,force:true});}});
 
-test('PROD-064 plan opens the stopped production copy through a read-only SQLite connection',()=>{const value=fixture();try{value.database.close();const args=['--data-dir',value.root,'--media-root',value.mediaRoot,'--quarantine-root',value.options.quarantineRoot,'--journal-dir',value.journalDir,'--incident-start-ms','50',...INCIDENT_ENTRIES.flatMap((id)=>['--expected-shelf-entry-id',id])],result=main(args);assert.equal(result.plan.moveCount,13);assert.equal(result.plan.inventoryAdvanceCount,13);}finally{try{value.database.close();}catch{}fs.rmSync(value.root,{recursive:true,force:true});}});
+test('PROD-064 plan opens the stopped production copy through a read-only SQLite connection',()=>{const value=fixture();try{value.database.close();const args=['--data-dir',value.root,'--media-root',value.mediaRoot,'--quarantine-root',value.options.quarantineRoot,'--journal-dir',value.journalDir,'--incident-start-ms','50',...INCIDENT_ENTRIES.flatMap((id)=>['--restore-inventory-revision',`${id}=1`,'--expected-shelf-entry-id',id])],result=main(args);assert.equal(result.plan.moveCount,13);assert.equal(result.plan.inventoryAdvanceCount,13);}finally{try{value.database.close();}catch{}fs.rmSync(value.root,{recursive:true,force:true});}});
+
+test('PROD-064 derives each restore baseline from the first incident commit unless explicitly overridden',()=>{const database=new Database(':memory:');try{database.exec('CREATE TABLE arca_aftercare_inventory_commits (inventory_commit_id TEXT,shelf_entry_id TEXT,previous_inventory_revision INTEGER,committed_at_ms INTEGER)');database.prepare('INSERT INTO arca_aftercare_inventory_commits VALUES (?,?,?,?)').run('later','entry',4,200);database.prepare('INSERT INTO arca_aftercare_inventory_commits VALUES (?,?,?,?)').run('first','entry',2,100);const options={incidentStartMs:50,restoreRevisions:new Map()};assert.equal(resolveRestoreRevision(database,options,'entry',5),2);assert.equal(resolveRestoreRevision(database,options,'uncommitted',7),7);assert.equal(resolveRestoreRevision(database,{...options,restoreRevisions:new Map([['entry',1]])},'entry',5),1);}finally{database.close();}});
