@@ -52,6 +52,7 @@ test('production image includes the guarded PROD-064 Aftercare placement correct
   assert.match(operator, /INCIDENT_ENTRIES/);
   assert.match(operator, /docker compose stop shelfdeck/);
   assert.match(operator, /prod064-preapply/);
+  assert.match(operator, /cp -a \/app\/data-source\/shelfdeck\.db\*/);
   assert.match(operator, /helix-prod064-aftercare-placement-incident-correction\.js/);
   assert.match(operator, /deploy-nas\.js/);
 });
