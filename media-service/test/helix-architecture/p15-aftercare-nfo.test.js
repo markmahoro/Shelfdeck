@@ -195,6 +195,16 @@ test('presentation health matches Emby-shaped NFO by identity and owned semantic
   assert.equal(inspectAftercareMovieNfo(existingBytes).usable, true);
 });
 
+test('rendering repeated set-like NFO fields converges to presentation health', () => {
+  const existingBytes = embyShapedMovieNfo();
+  const rendered = renderAftercareMovieNfo(input({ existingBytes }));
+  const xml = rendered.bytes.toString('utf8');
+  assert.equal((xml.match(/<genre>/g) || []).length, 1);
+  assert.deepEqual(compareMovieNfoPresentation(input({ existingBytes:rendered.bytes })), {
+    matches:true, reasonCode:null,
+  });
+});
+
 test('presentation gate ignores Emby-added director fields and joins duplicate cast by strong identity', () => {
   const existingBytes = Buffer.from(`<movie>
     <title>老枪</title><year>2024</year><plot>Plot</plot><genre>剧情</genre><genre>犯罪</genre>

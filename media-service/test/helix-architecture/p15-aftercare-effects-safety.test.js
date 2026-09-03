@@ -18,6 +18,7 @@ const {
   materializeMediaWithRollback,
   nfoCommitSource,
   externalWriterConflictOutcome,
+  aftercareInventoryNoChangeOutcome,
   observeSemanticNfoReconciliation,
   custodyIdentityChangedFinding,
   permitsMissingArtifactReplacement,
@@ -84,6 +85,14 @@ test('Aftercare FFmpeg derives one bounded timer from the frozen Foundation dead
   assert.equal(remainingDeadlineMs(undefined, 1_000), AFTERCARE_LONG_MEDIA_TIMEOUT_MS);
   assert.equal(remainingDeadlineMs(5_000, 1_000), 4_000);
   assert.equal(remainingDeadlineMs(999, 1_000), 1);
+});
+
+test('an empty Aftercare Inventory change fails before Material Control dispatch', () => {
+  assert.deepEqual(aftercareInventoryNoChangeOutcome(), {
+    kind:'failed', failureClass:'stale_input', code:'ARCA_AFTERCARE_INVENTORY_NO_CHANGE',
+    message:'Aftercare Inventory change became empty before commit.', retryDirective:'never',
+    evidence:{ reasonCode:'verified_change_empty' },
+  });
 });
 
 test('Aftercare media evidence retains observed audio bitrate for bounded size planning', () => {

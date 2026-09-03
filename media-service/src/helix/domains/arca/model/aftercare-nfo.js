@@ -18,6 +18,7 @@ const OWNED_FIELDS = Object.freeze([
   Object.freeze({ keys:['director'], tag:'director' }),
 ]);
 const PRESENTATION_GATE_TAGS = new Set(['title', 'year', 'plot', 'genre']);
+const SET_LIKE_OWNED_FIELD_TAGS = new Set(['genre', 'director', 'studio']);
 
 class AftercareNfoError extends Error {
   constructor(code, message, details = {}) {
@@ -366,9 +367,15 @@ function updateOwnedFields(document, metadata, identity) {
   for (const item of ownedValues(metadata, identity)) {
     const matches = document.directChildren.filter((child) => child.name === item.tag);
     if (matches.length === 0) missing.push('  <' + item.tag + '>' + escapeXml(item.value) + '</' + item.tag + '>');
-    else for (const child of matches) replacements.push(child.selfClosing
-      ? { start:child.openStart, end:child.closeEnd, value:'<' + item.tag + '>' + escapeXml(item.value) + '</' + item.tag + '>' }
-      : { start:child.openEnd, end:child.closeStart, value:escapeXml(item.value) });
+    else {
+      const retained = SET_LIKE_OWNED_FIELD_TAGS.has(item.tag) ? matches.slice(0, 1) : matches;
+      for (const child of retained) replacements.push(child.selfClosing
+        ? { start:child.openStart, end:child.closeEnd, value:'<' + item.tag + '>' + escapeXml(item.value) + '</' + item.tag + '>' }
+        : { start:child.openEnd, end:child.closeStart, value:escapeXml(item.value) });
+      for (const child of matches.slice(retained.length)) {
+        replacements.push({ start:child.openStart, end:child.closeEnd, value:'' });
+      }
+    }
   }
   if (identity.provider === 'tmdb' && identity.providerKey) {
     const matches = document.directChildren.filter((child) => child.name === 'uniqueid' &&
