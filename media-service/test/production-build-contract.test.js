@@ -57,6 +57,12 @@ test('production image includes the guarded PROD-064 Aftercare placement correct
   assert.match(operator, /deploy-nas\.js/);
 });
 
+test('production image includes the bounded PROD-064 Aftercare settlement residual correction', () => {
+  const dockerfile = fs.readFileSync(path.join(__dirname, '../Dockerfile'), 'utf8');
+  assert.match(dockerfile,
+    /COPY media-service\/scripts\/helix-prod064-aftercare-settlement-residual-correction\.js \.\/scripts\/helix-prod064-aftercare-settlement-residual-correction\.js/);
+});
+
 test('production image includes the unified Formation Reset and excludes the obsolete full Libra reset', () => {
   const dockerfile = fs.readFileSync(path.join(root, 'media-service', 'Dockerfile'), 'utf8');
   assert.match(dockerfile,
