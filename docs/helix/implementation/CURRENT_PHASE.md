@@ -1,6 +1,14 @@
 # ShelfDeck Helix 当前实施阶段
 
-状态：**PROD-062 DEPLOYED — GLADIATOR PLACEMENT AND SCHEDULER RECOVERY VERIFIED**
+状态：**PROD-063 DEPLOYED — AFTERCARE STORM TERMINATED AND UI RESPONSIVENESS VERIFIED**
+
+## PROD-063 已部署增量（2026-09-03）
+
+- Aftercare Placement 现在以已 Commit 的 `resolved_identity.displayIdentity` 为正式命名依据，并补齐 `year_or_release_date|release_date` 年份解析；所有最终目标在首个 mutation 前整体 preflight，确定性目标冲突形成 `retryDirective=never` 的 failed Outcome。
+- Aftercare Settlement 只在物理删除开始前把 handle、basis、identity、final replacement、evidence bound 或未知目录成员等确定性拒绝终态化；mutation 开始后的未知失败仍进入 Effect reconciliation。未知目录成员不会被删除。
+- 纯 Binding 迁移若前后 Physical Identity 完全相同，不再制造 acquire/release Control overlap；同 key 不同 identity 继续拒绝。
+- focused 51/51、Service full 426 pass/18 skip/0 fail、Helix Architecture full PASS。最终镜像 `helix-beta-20260903-d8d25a95aa` 已标准无损部署，readiness、health、Admin Web、mount、exact image 与 SQLite integrity 均通过；restart count 0，未执行 Formation Reset。
+- 生产已从 18 个 active Arca Attempt、48 个 open Event 收敛为 0 active Aftercare Case、0 active Arca Work、0 `reconcile_required` Effect；完整 recovery cadence 内无新 runtime error。health 与首页恢复到十毫秒至百毫秒级，当前高 CPU 来自独立 QSV 转码。
 
 ## PROD-062 已部署增量（2026-09-03）
 

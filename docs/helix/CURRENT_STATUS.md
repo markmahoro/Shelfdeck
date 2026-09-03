@@ -1,8 +1,17 @@
 # ShelfDeck Clean Helix Current Status
 
-Status: **PROD-062 已部署；角斗士2的 Placement 冲突与执行调度饥饿已完成通用修复并在生产 Commit。**
+Status: **PROD-063 已部署；Aftercare 批量重评风暴已终止，Admin Web 响应恢复。**
 
 Last updated: 2026-09-03
+
+## PROD-063 Deployed And Observed
+
+- Shelf Placement Policy revision 2 触发批量 Aftercare 重评后，生产一度出现 18 条 active Arca Attempt、48 条 open Event；其中 3 个 `arca.inventory.placement.switch@1` Effect 因错误目标持续处于 `reconcile_required`，Runtime 每 30 秒重复同一 `CLEAN_ARCA_TARGET_OCCUPIED`。Node 约占一个 CPU core，`/` 响应达到约 3.8–5.3 秒，形成真实 Aftercare storm。
+- 根因一是 Aftercare Placement 只读 `product_metadata` 的非正式 title/year 字段，忽略已 Commit 的 `resolved_identity.displayIdentity` 以及 `year_or_release_date|release_date`，错误地把带年份的正式 Inventory 目录判为应迁往无年份目录。现优先使用 accepted display identity，并在任何目标变更前一次性 preflight 全部目标，后续成员冲突不能再留下部分迁移。
+- 根因二是确定性 Placement/Settlement 前置拒绝从非纯 Capability 抛出后被误判为不确定副作用，进入无限 Effect recovery。现在只把尚未发生物理 mutation 的精确前置拒绝返回为 `retryDirective=never` 的 typed failed Outcome；未知 I/O 或已经开始删除后的失败仍保持 reconcile。旧目录存在未纳管文件时仍拒绝删除，但只失败一次。
+- 同一物理材料仅变更 Binding 位置时，Aftercare Inventory 不再同时生成 acquire/release Control；只有同 material key 但 Physical Identity 不同的真实冲突继续 fail closed。没有影片 ID、路径特例、迁移或旧记录兼容代码。
+- 本地验证：Aftercare focused 51/51；Service full 444 项为 426 pass、18 skip、0 fail；Helix Architecture 210 fixtures、dependency、semantic、manifest 与 113/99/186/44 contracts 全部 PASS。最终镜像 `markmahoro/shelfdeck:helix-beta-20260903-d8d25a95aa`，source commit `d8d25a95aa`（包含前置修复 `b87301717d`），image ID `sha256:acd91820ee98486cead34b5e8c644ac649296b27ec2ef4931043f4d1a9f6422e`，tar SHA-256 `52907064a51ea297ee3068ce27c802d450beca773654a58ed4b3516490f000b1`。标准 build/upload/checksum/dry-run/apply、readiness、health、Admin Web、mount 与 exact image 均通过；restart count 0，未执行 Formation Reset 或直接数据修订。
+- 生产观察跨过完整 recovery cadence 后保持 0 active Aftercare Case、0 active Arca Work、0 `reconcile_required` Effect，最终镜像启动后 0 failed Attempt、日志无 runtime error，SQLite `integrity_check=ok`。health 实测约 0.01–0.16 秒，首页约 0.01–0.03 秒；容器高 CPU 主要来自《落水狗 (1992)》约 288% 的 QSV 转码，不再是 Aftercare。既有未纳管 torrent/字幕目录未被删除，对应 Case 已稳定为 unresolved attention。
 
 ## PROD-062 Deployed And Observed
 

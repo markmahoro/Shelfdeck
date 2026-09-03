@@ -1,6 +1,6 @@
 # ShelfDeck Clean Helix Master Plan
 
-Status: **PROD-059 已部署并完成生产观察；当前不建议全局 Formation Reset。**
+Status: **PROD-063 已部署并完成 Aftercare 风暴收敛观察；当前不需要 Formation Reset。**
 
 Last updated: 2026-09-03
 
@@ -21,14 +21,15 @@ Last updated: 2026-09-03
 - PROD-057 已部署：`LibraMediaPlanningPolicy@1` revision 3把有效质量下限冻结为`min(星级×画幅Policy下限, 源实际视频码率)`，低码率源不会被灌大。仅体积超限时，下一施工目标若低于该下限则不建立第二次转码、不转CPU、不寻源，保留首次成功且画质更高的超限Workspace产品并offer精确`size_cap_exceeded`。Manifest绑定唯一Work、Verification、Workspace Handle与Material Fence；UI不再表达为笼统“策略穷尽”。
 - PROD-058 已部署并完成生产验收：single-source不增加候选重试；一次搜索内把共享者数量冻结进Candidate availability Evidence，只从`available + compliant`集合按`seederCount DESC, Provider rank, Candidate ID`选择唯一源。MoviePilot pending Job把百分比、字节速度和ETA写入同一Event的durable Progress；Formation一级页与详情显示真实下载/零速等待状态。007在Reset后选择共享者数28的唯一候选并建立一个Job，没有兼容旧Run或候选fallback。
 - PROD-059 已部署并完成生产观察：Libra原片寻源判断、Libra成品验收和Arca独立验收都检查Primary Video容器内全部Probe Audio Stream，`default disposition`与顺序不参与，不增加Remux。体积瑕疵终态只允许`size_cap_requires_admission`精确映射唯一`max_size_exceeded`实测Result，任何附加Gap继续拒绝。守望者与角斗士2均已冻结为可接纳的唯一体积瑕疵；007旧Run不兼容复活，是否立即重新形成取决于独立Formation Reset授权。
+- PROD-063 已部署并生产验收：Aftercare Placement 使用 accepted display identity，先整体 preflight 再 mutation；确定性 Placement/Settlement 前置拒绝终态化，未知 I/O 和 mutation 后失败继续 reconcile；纯 Binding 迁移不改 Material Control。生产已稳定为 0 active Aftercare Case、0 active Arca Work、0 `reconcile_required` Effect，未执行 Reset 或直接数据修订。
 
 ## 当前基线
 
 - NAS production：`192.168.12.230:18080`。
-- Image：`markmahoro/shelfdeck:helix-beta-20260903-c77cd99951`；source commit `c77cd99951`；tar SHA-256 `4cda788a8dfcdd5d3c93d4355c4365210bac4db52d03c46bc8fd16a25ad27081`。
+- Image：`markmahoro/shelfdeck:helix-beta-20260903-d8d25a95aa`；source commit `d8d25a95aa`；image ID `sha256:acd91820ee98486cead34b5e8c644ac649296b27ec2ef4931043f4d1a9f6422e`；tar SHA-256 `52907064a51ea297ee3068ce27c802d450beca773654a58ed4b3516490f000b1`。
 - Health：`ok` / `helix-clean-v3` / `normalSupplyAllowed:true`；schema 186；SQLite integrity `ok`。
-- Execution：PROD-047 exact 3 条遗留执行图已收口；另有 2 条 active Aftercare reclaim Work 只发生 inode drift，未获授权处理。
-- Formation：守望者与角斗士2已按唯一体积Gap进入`frozen/attention_required`并生成瑕疵接纳候选；007仍是旧逻辑形成的冻结终态。Formation Reset dry-run会同时清除三者，故当前不建议全局Reset；只让007重新形成应使用正式单Run“放弃整理”，该生产操作仍需独立授权。
+- Execution：0 active Aftercare Case、0 active Arca Work、0 `reconcile_required` Effect；当前仅 Libra 的《落水狗》QSV 转码运行，并有另一条 Libra 媒体工作等待资源。
+- Formation：当前 2 条 `in_progress`（《落水狗》《攻壳机动队》）、1 条 `attention_required`（007）和 16 条 completed；本次 Aftercare 处置不需要 Formation Reset。
 
 ## 已完成
 
