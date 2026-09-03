@@ -1,8 +1,15 @@
 # ShelfDeck Clean Helix Current Status
 
-Status: **PROD-056/057/058 已部署；唯一 Formation Reset 已完成且幂等，生产链路正常重新形成。**
+Status: **PROD-059 已部署；全音轨高质量音频判定与体积瑕疵终态均已在生产生效。**
 
 Last updated: 2026-09-03
+
+## PROD-059 Deployed And Observed
+
+- 五星高质量音轨判定已统一为检查 Primary Video 容器内全部 Probe Audio Stream；`default disposition`、音轨顺序与语言不参与 Libra 原片寻源、Libra 成品验收或 Arca 独立验收，也不会只为设置 default 触发 Remux。007 当前下载成品中的非 default TrueHD 因此会被新链路正确识别。
+- `size_cap_requires_admission` 只接受 `libra.product_media.verify@1` 的唯一实测 Gap `max_size_exceeded`；任何附加 Gap 继续 fail closed。守望者与角斗士2的既有活动 Run 在部署后均已收敛为 `frozen`，前端/API显示“需要处理”，并各自生成唯一 `size_cap_exceeded` 瑕疵接纳候选；0 active Attempt、无重复终态错误。
+- 验证：focused 58/58；Service full 442项为424 pass、18 skip、0 fail。镜像 `markmahoro/shelfdeck:helix-beta-20260903-c77cd99951`，source commit `c77cd99951`，tar SHA-256 `4cda788a8dfcdd5d3c93d4355c4365210bac4db52d03c46bc8fd16a25ad27081`。标准 build/upload/SHA-256/deploy dry-run/apply、readiness（186 tables、123 routes、17 UI surfaces、0 findings）、health、Admin Web、mount与运行镜像检查均通过。
+- 007 的旧 Run 已在旧逻辑下终态冻结；部署不兼容或复活旧条目。若要求它立即按全音轨规则重新形成，需要另行明确授权 Formation Reset；本次部署没有执行 Reset。
 
 ## PROD-056/057/058 Deployed And Reset
 
@@ -102,8 +109,8 @@ hard-deadline replacement 已随 `helix-beta-20260831-ae7a567cde` 无损部署�
 ## Production
 
 - Host：`192.168.12.230:18080`。
-- Running image：`markmahoro/shelfdeck:helix-beta-20260903-d0bed9af57`；source commit `d0bed9af57`；tar SHA-256 `c05652ef789332a8d7065bb685191b54517d781a25df210590ccce2a51685625`。
-- Running image ID：`sha256:b24c1d21afccf9e32fc096b7a48b145083579d865c8fd42b17e6adbf0ce1bc3b`；2026-09-03 02:33 CST 启动，restart count 0。
+- Running image：`markmahoro/shelfdeck:helix-beta-20260903-c77cd99951`；source commit `c77cd99951`；tar SHA-256 `4cda788a8dfcdd5d3c93d4355c4365210bac4db52d03c46bc8fd16a25ad27081`。
+- Running image ID：`sha256:ae11e26fc87b982e500f976528f6f700c3a6d1546379d975ad71ecfa91c3cdba`；2026-09-03 10:46 CST 启动，restart count 0。
 - Health：`ok`；generation `helix-clean-v3`；schema 186；`normalSupplyAllowed:true`；SQLite `integrity_check=ok`。
 - Compose：`/vol1/1000/docker/shelfdeck`；data：`/vol1/1000/docker/shelfdeck/data`；Workspace mount：`/transcode`。
 - PROD-047 离线纠正备份：`/vol1/1000/docker/shelfdeck/data.backup-20260901T082544Z-prod047-aftercare-reclaim`（约 898 MiB）。
