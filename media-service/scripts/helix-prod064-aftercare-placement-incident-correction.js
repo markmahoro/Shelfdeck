@@ -31,6 +31,12 @@ const INCIDENT_QUARANTINE_DIRECTORIES = Object.freeze([
   'Film/2001太空漫游',
   'Film/银翼杀手：2022黑暗浩劫',
 ]);
+const QUARANTINE_ENTRY_BY_DIRECTORY = Object.freeze({
+  'Film/最后的前线':'fb2b5120e05c5abf3b7565f379ec5670fa7933efd2276f40eacaa70075ee0309',
+  'Film/长空之王':'761633ac6d729b3267743eba0a2375e4b28a98fa6b6361dcc6827cb2deaae15b',
+  'Film/2001太空漫游':'e7d83ebbb72b651bf665ce29390ddc71018563f202b4c457e4157973d14d94ac',
+  'Film/银翼杀手：2022黑暗浩劫':'052d55542cdc50ef521932293cccf0ce26fe00d7967b61d388ae7b487f0b2db8',
+});
 const SILVER_BLADE_ENTRY = '052d55542cdc50ef521932293cccf0ce26fe00d7967b61d388ae7b487f0b2db8';
 const SILVER_BLADE_CURRENT_STEM = '银翼杀手2022：黑暗浩劫';
 const SILVER_BLADE_RESTORED_STEM = '银翼杀手：2022黑暗浩劫';
@@ -146,7 +152,8 @@ function inspectPlan(database,options){
     if(fs.existsSync(destination))fail('PROD064_QUARANTINE_DESTINATION_OCCUPIED',{destination});
     const files=listTreeFiles(source);
     if(!files.length||files.some((location)=>selectedSources.has(path.resolve(location))))fail('PROD064_QUARANTINE_SCOPE_CONFLICT',{source});
-    for(const location of files){const observed=computeBoundedMaterialFingerprintSync(location);if(!known.has(`${Number(observed.stat.size)}:${observed.contentFingerprint}`))fail('PROD064_QUARANTINE_UNKNOWN_FILE',{location});}
+    const quarantineEntryId=QUARANTINE_ENTRY_BY_DIRECTORY[relative],quarantineEntry=database.prepare('SELECT current_inventory_revision FROM arca_shelf_entries WHERE shelf_entry_id=?').get(quarantineEntryId),quarantineNfoInput=presentation(database,quarantineEntryId,Number(quarantineEntry.current_inventory_revision));
+    for(const location of files){const observed=computeBoundedMaterialFingerprintSync(location),knownIdentity=known.has(`${Number(observed.stat.size)}:${observed.contentFingerprint}`),acceptedUncommittedNfo=path.extname(location).toLowerCase()==='.nfo'&&nfoMatches(location,quarantineNfoInput);if(!knownIdentity&&!acceptedUncommittedNfo)fail('PROD064_QUARANTINE_UNKNOWN_FILE',{location});}
     quarantines.push(Object.freeze({source,destination,fileCount:files.length}));
   }
   return Object.freeze({entries:Object.freeze(entries),quarantines:Object.freeze(quarantines),moveCount:entries.reduce((sum,item)=>sum+item.moves.length,0),inventoryAdvanceCount:entries.filter((item)=>item.moves.length||item.materials.some((row,index)=>row.material_key!==queryRows(database,'arca_inventory_materials',item.shelfEntryId,item.currentRevision,'ordinal')[index].material_key||row.location!==queryRows(database,'arca_inventory_materials',item.shelfEntryId,item.currentRevision,'ordinal')[index].location)).length});
