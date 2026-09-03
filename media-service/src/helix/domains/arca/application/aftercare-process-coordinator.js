@@ -8,7 +8,10 @@ const { placementMaterialReceipts } = require('../model/aftercare-placement');
 const { observeKnownOldBindings } = require('../model/known-old-binding');
 
 const LIMITS=Object.freeze({globalOpenWorks:256,ownerOpenWorks:256,openEvents:256});
-const ASSESSMENT_EXECUTION_REVISION=3;
+// Revision 4 retires assessment lineages exhausted by the pre-PROD-064
+// placement classifier. Reusing their deterministic Work IDs would prevent
+// the corrected collision-only policy behavior from ever being evaluated.
+const ASSESSMENT_EXECUTION_REVISION=4;
 const MAX_WORK_REPLACEMENTS=2;
 const EXTERNAL_WRITER_FAILURES=new Set(['ARCA_AFTERCARE_NFO_SOURCE_STALE','PHYSICAL_MATERIAL_STAT_FENCE_CHANGED']);
 const stable=(prefix,value)=>prefix+canonicalDigest(value).slice(0,40);

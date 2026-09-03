@@ -175,10 +175,10 @@ test('Aftercare pulls a stale Shelf Entry rating Resolution before applying its 
   }
 });
 
-test('Aftercare assessment identity advances after the conformance executor contract repair', () => {
+test('Aftercare assessment identity advances after the PROD-064 placement classifier repair', () => {
   const coordinator = fs.readFileSync(path.join(__dirname,
     '../../src/helix/domains/arca/application/aftercare-process-coordinator.js'), 'utf8');
-  assert.match(coordinator, /ASSESSMENT_EXECUTION_REVISION=3/);
+  assert.match(coordinator, /ASSESSMENT_EXECUTION_REVISION=4/);
   assert.match(coordinator,
     /assessmentExecutionRevision:ASSESSMENT_EXECUTION_REVISION/);
 });
