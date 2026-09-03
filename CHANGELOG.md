@@ -1,5 +1,8 @@
 # Changelog
 
+> 本文件保留公开发行版历史，不表示当前 NAS 生产状态。当前 Helix-beta 产品与部署身份分别以
+> `docs/helix/CURRENT_STATUS.md` 和 `docs/v3/VERSIONING.md` 为准。
+
 ## v1.0.0 (2026-05-03)
 
 ### 核心体验

@@ -13,9 +13,10 @@ Last updated: 2026-09-03
 | Product line | Helix modular monolith in `media-service` | 架构权威为 `docs/helix/`；Helix-beta 仅为 Movie 全链路 |
 | Current release goal | `Helix Beta` NAS production | Movie-only 全链路已部署；`media-desktop` 不在本次范围 |
 | Deployment candidate commit | none | 当前候选已完成生产部署 |
-| Latest deployed image | `markmahoro/shelfdeck:helix-beta-20260903-d0bed9af57` | 由 clean exact commit 构建并部署 |
-| Latest deployed commit | `d0bed9af57` | 镜像 tag、源码 commit 与构建门禁一致 |
-| Latest deployed image SHA256 | `c05652ef789332a8d7065bb685191b54517d781a25df210590ccce2a51685625` | 本地 tar 与 NAS 上传校验 hash |
+| Latest deployed image | `markmahoro/shelfdeck:helix-beta-20260903-f05d694dfa` | 由 clean exact commit 构建并部署 |
+| Latest deployed commit | `f05d694dfa` | 镜像 tag、源码 commit 与构建门禁一致 |
+| Latest deployed image ID | `sha256:60513d1a56f45cb7be136f1324babf44d6859351513df036ae881c780c0e332a` | 本地镜像与生产 exact-image gate 身份 |
+| Latest deployed tar SHA256 | `a82a4ee2d9b8798cec2137f8e98474facb83e8e30af648dc1dab503525982da5` | 本地 tar 与 NAS 上传校验 hash |
 | Latest Git release tag | `v2.0.0` | 历史 release tag，不代表当前 Helix 生产镜像，本次部署不打 Git tag |
 | package versions | `1.0.0` | 当前不作为 Helix 阶段版本来源 |
 
@@ -44,7 +45,8 @@ Kairox Beta
 
 `Kairox Beta` is achieved. `Kairox Usable` / `Kairox Performance` / `Kairox GA Candidate` / `Kairox GA` are cancelled.
 
-`Helix Beta` packaging is authorized for the `media-service` scope from local clean `main`. NAS no longer has a running ShelfDeck image after the 2026-08-28 historical cleanup. The next image is assigned at build time.
+`Helix Beta` 已在 NAS 生产运行。新的 deployable image 只在一次明确发布中按 clean source commit 构建并分配新 tag；
+不得复用当前或历史 tag。
 
 不推荐：
 
@@ -69,7 +71,7 @@ v3.11
 ```text
 kairox-freshness-20260707-263ef161
 kairox-e2e-fix-20260708-a1b2c3d4
-nexora-architecture-20260715-9f8e7d6c
+helix-beta-20260903-f05d694dfa
 ```
 
 规则：
@@ -124,7 +126,7 @@ Development commit
 当前项目处于：
 
 ```text
-Helix Beta in progress for media-service; controlled production runtime is active
+Helix Beta Movie full-chain deployed; PROD-064 production stabilization closed
 ```
 
 尚未进入：

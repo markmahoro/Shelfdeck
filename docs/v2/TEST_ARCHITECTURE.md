@@ -42,6 +42,7 @@ bash tests/runner.sh all tests/env/docker-fn.env
 - `PriorityEngine`：只计算同一 MediaItem priority class 内的 task-local priority；Run 来源不得形成手工任务加权，用户不得调整 Task priority。
 - `approvalPolicy`：全局/子库/任务级覆盖，以及 `forceConfirm` 不可降级。
 - `TaskStore`：旧 `tasks.json` 迁移到 SQLite 后必须保留历史；调度热路径只能读取 active task；任务中心分页和 summary 不能丢失完成/失败记录。
-- 成人库：Nexora folder observation 建立 SourceBinding，Libra admission 后才允许 Kairox Metadata Run；不得创建 ingest Task。
+- 历史成人库夹具：旧 Nexora/Kairox 名称只标识遗留测试路径，不是 clean Helix Domain 或当前 Beta 合同；
+  后续 Series / JAV / Western Adult 测试必须先由 Helix SSOT 和活动 Phase 明确授权。
 - 启动恢复：Libra durable work、Kairox Run/Task 和 source fencing 必须从持久化事实恢复；Governor permit 不持久化。
 - 前端：`npm run build:web` 验证任务调度页、任务中心和审批字段类型。

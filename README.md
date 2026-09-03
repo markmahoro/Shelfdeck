@@ -1,30 +1,23 @@
 # ShelfDeck 媒体库管家
 
-ShelfDeck 用于管理 Emby 电影媒体库：同步媒体元数据、观看状态和评分，基于策略判断每部影片应该保留、删除、转码或洗版，并通过 service 执行任务。
+ShelfDeck 从用户配置的物理 Material Field 建立并运营个人媒体收藏。Emby、TMDB、豆瓣和 MoviePilot
+都是可选 External Provider；ShelfDeck 自己拥有收藏形成、成品入架、保养、退出收藏和整架注销事实。
 
-## 当前范围
-
-- 支持 Emby 电影媒体库。
-- 支持 service Docker、service Windows、desktop、转码 node 四个模块。
-- service 是任务和数据的 SSOT；desktop 是 HTTP thin client。
-- 转码 node 是被 service 调用的被动计算节点，只负责接收源文件、执行 FFmpeg、返回输出文件。
-- Windows 托盘已经内嵌到 `media-service`，不再有独立托盘进程。
-
-## 2026-08-21 本地Helix现场状态
-
-本地媒体整理工作区已切换为后端持久化 `libra_formation_projections` 展示表；现场数据库已迁移到 `helix-clean-v3`，
-服务已恢复。现场切换不代表生产NAS部署：没有清空现场数据、重扫 `Z:\Film` 或重新同步外部Provider。详细回滚点、验收结果和
-残余UAT问题见 `docs/helix/CURRENT_STATUS.md` 与 `docs/helix/USER_ACCEPTANCE_TEST_ISSUE_LOG.md`。
+当前产品是 Movie-only 的 Helix-beta 全链路版本。架构、当前状态、计划和验收范围分别以
+`docs/helix/TOP_DOWN_ARCHITECTURE_CONFIRMATION.md`、`docs/helix/CURRENT_STATUS.md`、
+`docs/helix/CURRENT_PLAN.md` 和 `docs/helix/BETA_FEATURE_ACCEPTANCE_BASELINE.md` 为准。
 
 ## 主要目录
 
 | 路径 | 说明 |
 | --- | --- |
-| `media-service/` | Fastify service、Admin Web、任务调度、Emby/Douban/MoviePilot/FFmpeg 集成 |
-| `media-desktop/` | Electron + React desktop client |
-| `media-worker/` | 转码 node，提供 `/api/v1/jobs` 等 worker API |
-| `tests/` | E2E shell flow runner 和环境文件 |
-| `docs/v2/` | 只保留架构、开发命令、测试命令、排查入口 |
+| `media-service/` | Fastify service、Admin Web、Helix modular monolith、集成与 Docker/Windows runtime |
+| `media-desktop/` | Electron thin client；通过 service HTTP API 工作 |
+| `media-worker/` | 被 service 调用的被动 FFmpeg/AI compute worker |
+| `tests/` | Shell E2E runner 与本地私密环境文件 |
+| `docs/helix/` | 当前 ShelfDeck / Helix 权威文档 |
+| `docs/v3/` | 已关闭的 Kairox 历史与版本管理入口 |
+| `docs/v2/` | 现存实现图、开发、测试、部署和排错入口；不能覆盖 Helix SSOT |
 
 ## 开发命令
 
@@ -37,23 +30,16 @@ cd media-desktop && npm run dist:win
 
 cd media-worker && npm install && npm start
 
-docker build -t shelfdeck media-service/
-bash tests/runner.sh health-check tests/env/ci.env
+bash tests/runner.sh all tests/env/docker-fn.env
 ```
 
-不要在自动化上下文中直接跑长期阻塞的 `npm run dev`。
+不要在仓库根目录执行 `npm install`，也不要让自动化长期阻塞在 `npm run dev`。
 
-生产 NAS 部署只走 `docs/v2/PRODUCTION_DEPLOYMENT.md`、`scripts/build-image.sh` 和 `scripts/deploy-nas.js`。`media-service/docker-compose.example.yml` 是本地或新环境模板，不代表当前生产环境。
-
-## 文档入口
-
-- `docs/v2/ARCH_OVERVIEW.md` - 当前架构和模块边界
-- `docs/v2/DEVELOPMENT_WORKFLOW.md` - 3-target 开发流程
-- `docs/v2/PRODUCTION_DEPLOYMENT.md` - NAS 生产部署固定入口
-- `docs/v2/TEST_ARCHITECTURE.md` - 测试分层和 flow 目录
-- `docs/v2/DEBUG_WORKFLOW.md` - 排查工作流
-- `tests/TEST_ENV_CHECKLIST.md` - 私有测试环境凭据，已被 `.gitignore` 忽略
+生产 NAS 部署只走 `docs/v2/PRODUCTION_DEPLOYMENT.md` 规定的
+`scripts/build-image.js` → `scripts/upload-nas-image.js` → `scripts/deploy-nas.js`。当前部署身份见
+`docs/helix/CURRENT_STATUS.md` 和 `docs/v3/VERSIONING.md`。
 
 ## 许可
 
-GPL-3.0。ShelfDeck 依赖 FFmpeg 相关二进制，用户需自行确保 Emby、MoviePilot、媒体内容和豆瓣数据使用符合各自授权与服务条款。
+GPL-3.0。用户需自行确保 Emby、MoviePilot、媒体内容、External Provider 数据及 FFmpeg 相关二进制的使用
+符合相应授权和服务条款。

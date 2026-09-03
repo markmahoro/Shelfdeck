@@ -1,6 +1,7 @@
 # ARCH_OVERVIEW - 系统结构总览
 
-Status: Current implementation map, not architecture contract.
+Status: Historical/current code-location map only, not the clean Helix architecture contract. Any Nexora/Kairox service
+names below describe legacy code paths and must not be treated as active top-level domains, owners or new implementation targets.
 
 本文记录 ShelfDeck 当前代码已经落地的系统事实、兼容结构和运行形态。它不是 v3.1 之后的架构契约。
 

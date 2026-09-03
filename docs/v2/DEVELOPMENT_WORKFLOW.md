@@ -82,7 +82,10 @@ npm test
 
 因此本机 profile 用于快速定位业务逻辑、SQL/projection、API、前端状态和大数据规模下的代码路径；涉及设备、容器、NAS I/O 或最终用户视角时，再进入生产环境验证。
 
-## 成人库 / Nexora Observation + Metadata Maintenance 开发
+## 历史成人库 / Nexora Observation + Metadata Maintenance 开发（非当前 Helix 实施入口）
+
+本节只描述遗留代码维护位置。clean Helix 不承认 Nexora/Kairox 为一级 Domain；Series / JAV / Western Adult
+也不属于 Movie-only Helix-beta 当前实施范围。任何后续产品工作必须先回到 Helix SSOT 与当前 Phase。
 
 日本 JAV 成人库使用 ShelfDeck 内置 Node.js scraper。Source discovery 由 Nexora observation adapter 完成，进入 Libra onboarding 后才能获得 Kairox admission；Helix 不创建 `targetGate=ingest` 任务。Metadata maintenance 仍通过 Kairox `targetGate=metadata`、Flow Planner 和统一 TaskAdmission 执行。
 

@@ -1,6 +1,6 @@
 # Helix-beta 生产部署问题台账
 
-状态：`NAS PRODUCTION ISSUES OPEN / NO FIX AUTHORIZED IN THIS DOCUMENT`
+状态：`HISTORICAL PRODUCTION ISSUE LEDGER / CURRENT FACTS IN CURRENT_STATUS.md`
 
 建立日期：2026-08-28
 
@@ -74,8 +74,14 @@
 | PROD-054 | Arca Aftercare safe-retry 的 durable recovery budget 过期后每 30 秒重复超时 | `EXECUTION_FOUNDATION` / recovery convergence | Arca Aftercare / Execution Foundation | Critical | **FIXED / DEPLOYED / PRODUCTION ACCEPTED** `efe1b91d6e`。仅在最新现实分类仍为 `safe_retry` 且 dispatch 前预算已耗尽时终态失败；异常后强制重新分类。 |
 | PROD-055 | scoped Circuit 被 Startup Recovery 的 ready-only 门禁误当作全局启动阻断 | `EXECUTION_FOUNDATION` / degraded readiness | Startup Recovery / Runtime Host | Critical | **FIXED / DEPLOYED / PRODUCTION ACCEPTED** `0d94f414ac`。degraded 只隔离 exact scope；全局 Circuit 与 hard finding 继续 fail closed。 |
 | PROD-056 | MoviePilot缺TMDB候选被误拒，已有进度但无活动时间的零速Job等待过长 | `BUSINESS_SEMANTICS` / identity and stall evidence | Libra External Acquisition | Critical | **FIXED / DEPLOYED / PRODUCTION ACCEPTED** `11c71bc009`。缺结构化ID/title时严格匹配release片名段+独立年份+正做种；007已建立唯一Job，零速30分钟终态失败且绝不换候选。 |
-| PROD-057 | 仅体积超限仍继续低于质量下限转码，甚至错误转向外部寻源 | `BUSINESS_SEMANTICS` / quality-protected size planning | Libra Media Production | Critical | **FIXED / DEPLOYED / MONITORING** `d228dc2488`。Policy revision 3保留首次高画质超限成品，精确绑定size defect；守望者已按新Policy运行首次QSV转码，长任务终态待观察。 |
+| PROD-057 | 仅体积超限仍继续低于质量下限转码，甚至错误转向外部寻源 | `BUSINESS_SEMANTICS` / quality-protected size planning | Libra Media Production | Critical | **FIXED / DEPLOYED / PRODUCTION ACCEPTED** `d228dc2488`。Policy revision 3保留首次高画质超限成品，精确绑定size defect；后续 Run 已完成。 |
+| PROD-058 | 唯一外部候选按 Provider rank 而非共享者强度选择，下载进度又未进入 Formation | `BUSINESS_SEMANTICS` / availability evidence + progress | Libra External Acquisition / Formation | High | **FIXED / DEPLOYED / PRODUCTION ACCEPTED** `d0bed9af57`。按 seeder、Provider rank、Candidate ID 确定唯一源并投影真实进度。 |
 | PROD-059 | 五星音轨验收只看default/第一条，体积瑕疵终态又拒绝自身映射 | `BUSINESS_SEMANTICS` / all-track audio predicate + terminal evidence mapping | Libra Media Production / Arca Acceptance | Critical | **FIXED / DEPLOYED / PRODUCTION OBSERVED** `c77cd99951`。全部音轨参与判定且不因default触发Remux；守望者与角斗士2已精确冻结为唯一`size_cap_exceeded`并可接纳。007旧终态需另行Formation Reset才会重新形成。 |
+| PROD-060 | GET 预览附加的体积预测被误纳入 POST 瑕疵候选身份校验 | `API_CONTRACT` / preview-command boundary | Libra defect admission | High | **FIXED / DEPLOYED** `03ba1191d1`。提交只消费 frozen Run、Candidate digest、acknowledgement 与 idempotency fence。 |
+| PROD-061 | 瑕疵决定已提交，后继 Staging 仍拒绝同一授权成品，前端误报整次失败 | `BUSINESS_SEMANTICS` / authorized defect continuity | Libra Product Staging / Admin Web | Critical | **FIXED / DEPLOYED / PRODUCTION ACCEPTED** `e1b0b7993d`。exact Manifest 贯穿后继，前端对账已提交 revision。 |
+| PROD-062 | 两张 fanart 目标冲突后，Aftercare Plan 依赖缺失且 Circuit 队首饿死健康 Event | `EXECUTION` / placement policy + scheduler fairness | Arca / Execution Foundation | Critical | **FIXED / DEPLOYED / PRODUCTION ACCEPTED** `245cb92336`。正式 policy revision、direct result dependency 与 circuit round fairness 生效。 |
+| PROD-063 | collision-only policy 重评触发 Aftercare placement/settlement 风暴 | `EXECUTION` / deterministic precondition convergence | Arca Aftercare | Critical | **SUPERSEDED BY PROD-064 INCIDENT AUDIT**。Runtime 风暴已终止，但“无需数据纠正”的初判被后续物理核查推翻。 |
+| PROD-064 | collision-only revision 已造成 13 条 Shelf Entry 物理/Inventory 偏移及 settlement 残留 | `PRODUCTION_INCIDENT` / guarded recovery | Arca Aftercare / Collection | Critical | **RECOVERED / DEPLOYED / FULL CLOSURE** `f05d694dfa`。65 个文件恢复路径、23 个事故副本隔离、22/22 收藏健康；完整摘要见 implementation archive。 |
 
 PROD-001、PROD-002 的共同环境前提：生产管理台是 `http://192.168.12.230`，浏览器不提供 `crypto.randomUUID` / `crypto.subtle`。这不是传输加密设计，只是浏览器 API 限制。未改成 HTTPS。
 

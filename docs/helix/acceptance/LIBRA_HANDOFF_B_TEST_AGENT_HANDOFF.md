@@ -276,13 +276,13 @@ $verified.scenarios
 
 ### 8.4 凭据
 
-本机存在私密参考文件：
+本机私密环境与凭据统一记录在：
 
 ~~~text
-E:\my_project\emby_third_party-helix\moviepilot信息.txt
+tests/TEST_ENV_CHECKLIST.md
 ~~~
 
-它被Git exclude排除。测试Agent只可在用户已授权的真实MoviePilot阶段本地读取，并且：
+它被`.gitignore`排除。测试Agent只可在用户已授权的真实MoviePilot阶段本地读取，并且：
 
 - 不得把内容复制到聊天、日志、命令回显、文档、截图、Git或测试Result；
 - 只能通过Admin Web的正式Integration配置入口提交；
