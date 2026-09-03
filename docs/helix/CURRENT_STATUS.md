@@ -1,8 +1,16 @@
 # ShelfDeck Clean Helix Current Status
 
-Status: **PROD-061 已部署；接受体积瑕疵后的完整交付链与前端提交态对账已在生产生效。**
+Status: **PROD-062 已部署；角斗士2的 Placement 冲突与执行调度饥饿已完成通用修复并在生产 Commit。**
 
 Last updated: 2026-09-03
+
+## PROD-062 Deployed And Observed
+
+- 《角斗士2 (2024)》的 Product Package 同时包含 `background.jpg` 与 `backdrop.jpg` 两张不同内容的 fanart；Placement Policy revision 1 的 `fanart{ext}` + `reject` 把两者映射为同一目标并正确拒绝。通过正式 Shelf preview/publish API 将 collision policy 更新为 `suffix`、形成 revision 2；目标目录和 mount 不变，preview 为 `physicalEffect=none`。没有直接编辑 SQLite，也没有丢弃任一 exclusively-related material。
+- Admin Web 的 Arca acceptance retry 现发送唯一 idempotency key，符合 mutation adapter 合同。重试后同一 On-deck Package 通过第二次验收，最终文件使用稳定名称 `fanart-0183d731.jpg` 与 `fanart-5438dfba.jpg`。
+- Placement revision 触发既有 Shelf Entry Aftercare 重评时暴露两个通用执行缺口：Aftercare placement final verify 读取 Stage Result 却未声明 Stage success dependency，导致 `P4_PLAN_RESULT_BINDING_DEPENDENCY_REQUIRED`；恢复中的 executor incident circuit 阻断队首 Event 时未让出 scheduling round，持续饿死健康 peer。现分别补齐直接依赖，并让 `circuit_wait` 与 `resource_wait` 一样获得每轮一次机会，未改变 Owner、Handoff 或业务决策。
+- 验证：Aftercare focused 120/120、P4 Foundation full 234/234、Admin Web 42/42 与 production build PASS。最终镜像 `markmahoro/shelfdeck:helix-beta-20260903-245cb92336`，source commit `245cb92336`，image ID `sha256:abf23b4340021df5396d85e1c225d7470ecbe4d91a37d9a75804e7605c2ad652`，tar SHA-256 `514bf2b83a8bcf58963200fe394eaa62b37e217426a9f3f57a2558ed89229a9b`。标准 build/upload/SHA-256/dry-run/apply、readiness（186 tables、123 routes、17 UI surfaces、0 findings）、health、Admin Web、mount 与 exact image 均通过，restart count 0；未执行 Formation Reset。
+- 生产结果：《角斗士2》7 个最终 Inventory member、7 个 settlement、Fulfillment 与 On-deck Commit 全部成功；Shelf Entry `0ac9b83b4af863b20faba87839f5c3524a06cac93952fa6382e4f45e6618b0d2` 为 active，Formation active 查询不再返回该片。两张 fanart 均在 Inventory；目录中 3 张不属于本次 Product Package 的既有图片保持原样。部署后未再出现 Plan dependency 或 execution runtime error。
 
 ## PROD-061 Deployed And Observed
 

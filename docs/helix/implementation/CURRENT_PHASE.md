@@ -1,6 +1,13 @@
 # ShelfDeck Helix 当前实施阶段
 
-状态：**PROD-061 DEPLOYED — AUTHORIZED DEFECT DELIVERY VERIFIED**
+状态：**PROD-062 DEPLOYED — GLADIATOR PLACEMENT AND SCHEDULER RECOVERY VERIFIED**
+
+## PROD-062 已部署增量（2026-09-03）
+
+- Shelf Placement collision policy 已通过正式 preview/publish API 从 revision 1 `reject` 更新为 revision 2 `suffix`；两张不同 fanart 使用 material-key 前缀形成稳定文件名，未直接改库或丢弃相关材料。
+- Arca retry 前端补齐 mutation idempotency key；Aftercare placement final verify 补齐其 Stage Result 的直接 success dependency；Circuit 阻断的 Event 现在会以 `circuit_wait` 让出本轮调度，避免队首反复拒绝而饿死健康 peer。
+- Aftercare focused 120/120、P4 Foundation full 234/234、Admin Web 42/42 与 production build PASS。镜像 `helix-beta-20260903-245cb92336` 已按标准流程无损部署，readiness、health、mount、Admin Web、exact image 均通过，restart count 0；未执行 Formation Reset。
+- 《角斗士2》同一 On-deck Run 已完成 7 个 settlement、Fulfillment 和 Commit，形成 active Shelf Entry；两个 fanart 均进入 Inventory，未知既有目录成员未删除。部署后未见相关 Plan 或 Runtime 错误复发。
 
 ## PROD-061 已部署增量（2026-09-03）
 

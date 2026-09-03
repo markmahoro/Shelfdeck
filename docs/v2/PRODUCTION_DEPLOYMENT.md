@@ -15,7 +15,7 @@ Helix-beta 已于 2026-08-28 在飞牛 NAS 上线。下列是 **当前生产配�
 | NAS compose 文件 | `/vol1/1000/docker/shelfdeck/docker-compose.yml` |
 | NAS 数据目录 | `/vol1/1000/docker/shelfdeck/data` |
 | 镜像名 | `markmahoro/shelfdeck:<tag>`，同时打 `latest`，但生产不从 DockerHub pull |
-| 当前运行镜像 | `markmahoro/shelfdeck:helix-beta-20260903-e1b0b7993d`（source commit `e1b0b7993d`；image ID `sha256:3cb5fc956700c9e03c5551dd22d2d35ee029d9219602b7f9864b9d1329600e0a`；tar SHA-256 `8bdb89929897a8c1109d1c906c25c25698592aba741cf1521bf01bd03041fc53`；2026-09-03 部署） |
+| 当前运行镜像 | `markmahoro/shelfdeck:helix-beta-20260903-245cb92336`（source commit `245cb92336`；image ID `sha256:abf23b4340021df5396d85e1c225d7470ecbe4d91a37d9a75804e7605c2ad652`；tar SHA-256 `514bf2b83a8bcf58963200fe394eaa62b37e217426a9f3f57a2558ed89229a9b`；2026-09-03 部署） |
 | 容器内 service 端口 | `18080` |
 | 容器内数据目录 | `/app/data` |
 | 普通媒体挂载 | NAS `/vol02/1000-0-c5b736af` -> 容器 `/media` |
