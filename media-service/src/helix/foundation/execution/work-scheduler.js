@@ -227,7 +227,7 @@ function createWorkScheduler(options) {
     }
     if (!selected) {
       if (request.targetType === 'event' && resourceWaitDeferredTargets.size > 0) {
-        // A resource-blocked Event gets one scheduling chance per round. Clear
+        // A resource- or circuit-blocked Event gets one scheduling chance per round. Clear
         // the process-local round only after every other eligible Event has had
         // a chance, then let the Host's bounded fallback poll begin the next
         // round. Wall-clock cooldowns cannot provide this guarantee when one
@@ -263,10 +263,10 @@ function createWorkScheduler(options) {
     const current = assertCurrent(lease);
     if (!outcome || typeof outcome !== 'object' || Array.isArray(outcome) ||
         JSON.stringify(Object.keys(outcome)) !== JSON.stringify(['kind']) ||
-        !['started', 'resource_wait'].includes(outcome.kind)) {
-      fail('P4_SCHEDULER_DISPATCH_OUTCOME_INVALID', 'Dispatch outcome must be an exact started or resource_wait value.');
+        !['started', 'resource_wait', 'circuit_wait'].includes(outcome.kind)) {
+      fail('P4_SCHEDULER_DISPATCH_OUTCOME_INVALID', 'Dispatch outcome must be an exact started, resource_wait, or circuit_wait value.');
     }
-    if (outcome.kind === 'resource_wait') {
+    if (outcome.kind !== 'started') {
       resourceWaitDeferredTargets.add(current.targetId);
     } else {
       resourceWaitDeferredTargets.delete(current.targetId);

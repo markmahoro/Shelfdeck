@@ -171,6 +171,22 @@ test('a completed resource-wait round yields before retrying its head Event', ()
   });
 });
 
+test('a circuit-blocked queue head yields the scheduling round to a healthy peer', () => {
+  fixture(({ scheduler, seedRows, projections }) => {
+    seedRows((repository) => {
+      addEventGraph(repository, projections, 'circuit-blocked', { localPriority:100, readyAtMs:100000 });
+      addEventGraph(repository, projections, 'healthy-peer', { localPriority:0, readyAtMs:130000 });
+    });
+    const blocked = scheduler.acquire({ targetType:'event' });
+    assert.equal(blocked.lease.targetId, 'event-circuit-blocked');
+    assert.equal(scheduler.noteDispatchOutcome(blocked.lease, { kind:'circuit_wait' }).recorded, false);
+    scheduler.release(blocked.lease);
+    const peer = scheduler.acquire({ targetType:'event' });
+    assert.equal(peer.lease.targetId, 'event-healthy-peer');
+    scheduler.release(peer.lease);
+  });
+});
+
 test('one due background Event gets bounded progress without starving ordinary or reserved work', () => {
   fixture(({ scheduler, seedRows, projections, setNow }) => {
     seedRows((repository) => {

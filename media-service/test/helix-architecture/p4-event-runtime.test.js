@@ -145,12 +145,14 @@ function fixture(run, settings = {}) {
     }
   } }]);
   let schedulerReleased = 0; let governorReleased = 0; let recoveryAcquireCount = 0; let journalEffect = null;
+  const dispatchOutcomes = [];
   let dispatchContext; const journalCalls = [];
   const lease = Object.freeze({ leaseId: 'lease', targetType: 'event', targetId: 'event', issuedAtMs: 1, expiresAtMs: 999999, fenceDigest: HASH_A });
   const scheduler = {
     assertCurrent(value) { assert.equal(value, lease); },
     noteDispatchOutcome(value, outcome) {
       assert.equal(value, lease);
+      dispatchOutcomes.push(outcome.kind);
       if (settings.dispatchOutcomeError && outcome.kind === 'started') throw settings.dispatchOutcomeError;
       return { recorded: false };
     },
@@ -266,7 +268,7 @@ function fixture(run, settings = {}) {
   const cleanup = () => { kernel.close(); fs.rmSync(root, { recursive: true, force: true }); };
   try {
     const result = run({ runtime, lease, databasePath, state: () => ({ schedulerReleased,
-      governorReleased, recoveryAcquireCount, dispatchContext, journalCalls }) });
+      governorReleased, recoveryAcquireCount, dispatchContext, journalCalls, dispatchOutcomes }) });
     if (result && typeof result.then === 'function') return result.finally(cleanup);
     cleanup(); return result;
   } catch (error) { cleanup(); throw error; }
@@ -435,6 +437,7 @@ test('caller cannot override deadline derived from immutable Timeout Policy', as
 test('open Circuit blocks unstarted Event before Permit, Attempt, or effect intent', async () => {
   await fixture(async ({ runtime, lease, databasePath, state }) => {
     assert.equal((await runtime.run({ schedulerLease: lease })).kind, 'circuit_deferred');
+    assert.deepEqual(state().dispatchOutcomes, ['circuit_wait']);
     assert.equal(state().governorReleased, 0); assert.deepEqual(state().journalCalls, []);
     const database = new Database(databasePath, { readonly: true });
     try { assert.equal(database.prepare('SELECT COUNT(*) count FROM fx_event_attempts').get().count, 0); }
@@ -446,6 +449,7 @@ test('Foundation Incident gate receives the exact frozen Work scope and typed Re
   const requests=[];
   await fixture(async ({ runtime, lease, databasePath, state }) => {
     assert.equal((await runtime.run({ schedulerLease:lease })).kind,'circuit_deferred');
+    assert.deepEqual(state().dispatchOutcomes,['circuit_wait']);
     assert.deepEqual(requests,[{ownerDomain:'libra',processType:'libra_run',workKind:'test_work',workId:'work',resourceKeys:['cpu_heavy']}]);
     assert.equal(state().governorReleased,0);
     const database=new Database(databasePath,{readonly:true});

@@ -822,6 +822,7 @@ function createEventRuntime(options) {
             priorityClass: snapshot.event.priority_class, effectClass: snapshot.node.effect_class,
             started: false, irreversibleBoundaryCrossed: false }));
           if (!decision || decision.allowed !== true) {
+            options.scheduler.noteDispatchOutcome?.(request.schedulerLease, Object.freeze({ kind:'circuit_wait' }));
             options.scheduler.release(request.schedulerLease); schedulerReleased = true;
             return Object.freeze({ kind: 'circuit_deferred', eventId, circuitKey, reason: decision && decision.reason || 'circuit_fail_closed' });
           }
@@ -846,7 +847,8 @@ function createEventRuntime(options) {
         if(options.incidentObserver){const decision=options.incidentObserver.prepareExecution(Object.freeze({
           ownerDomain:snapshot.work.owner_domain,processType:snapshot.work.process_type,workKind:snapshot.work.work_kind,
           workId:snapshot.work.work_id,resourceKeys:Object.freeze(demand.resources.map((item)=>item.resourceKey))}));
-          if(!decision?.allowed){options.scheduler.release(request.schedulerLease);schedulerReleased=true;return Object.freeze({kind:'circuit_deferred',eventId,
+          if(!decision?.allowed){options.scheduler.noteDispatchOutcome?.(request.schedulerLease,Object.freeze({kind:'circuit_wait'}));
+            options.scheduler.release(request.schedulerLease);schedulerReleased=true;return Object.freeze({kind:'circuit_deferred',eventId,
             circuitKey:decision?.circuitKey||null,reason:decision?.reason||'incident_circuit_open'});}}
         promoteExternalWaitToReady(snapshot);
         resourceRequestedAtMs = clock();
