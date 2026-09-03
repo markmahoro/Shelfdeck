@@ -1,6 +1,6 @@
 # ShelfDeck Clean Helix Master Plan
 
-Status: **PROD-064 已完成 guarded recovery、标准部署与复发观察。**
+Status: **PROD-064 已完成 guarded recovery、Aftercare 收敛与前端健康闭包。**
 
 Last updated: 2026-09-03
 
@@ -27,15 +27,22 @@ Last updated: 2026-09-03
   Formation Reset，不删除 torrent、备份或未纳管字幕，不改变 Deck Fact。
 - PROD-064 已按固定顺序完成：完整测试 → commit-addressed 标准镜像 build/upload → 生产只读 plan → 即时完整备份
   → guarded apply → 离线收敛 plan、文件指纹、SQLite/foreign key、Deck Fact/Control 核验 → 标准 deploy →
-  readiness/health/Admin/mount/exact-image 与事故复发检查。没有执行 Formation Reset 或删除媒体。
+  readiness/health/Admin/mount/exact-image 与事故复发检查。没有执行 Formation Reset，未删除任何当前 Inventory
+  或用户未纳管材料。
+- PROD-064 上线后继续收口了四个尾部缺口：旧 assessment generation 复用已耗尽 Work ID；重复 NFO 集合字段
+  写入不收敛；空 Inventory change 缺少 typed no-op；列表与详情对 rating target 的大小写规范不一致。最终真实浏览器
+  收藏页为 22/22 健康，事故 13 条三维 assessment 全部健康。
+- 两份失败 settlement 遗留的旧 NFO 已由 exact、fail-closed、可幂等的一次性工具移出媒体目录并保存到 data/backups；
+  未编辑生产 SQLite。未知目录成员阻止 settlement 的安全门保持不变。
 
 ## 当前基线
 
 - NAS production：`192.168.12.230:18080`。
-- Image：`markmahoro/shelfdeck:helix-beta-20260903-4e31ee914e`；source commit `4e31ee914e`；image ID `sha256:ec8854d5da32ec710432c11b4d6cab012a47791827a51ededc6ce52d2618f2ac`；tar SHA-256 `950eac02a9ee139edb54b501a2334ef27aa5175ab16fc801d76322d2a516cb90`。
-- Health：`ok` / `helix-clean-v3` / `normalSupplyAllowed:true`；schema 186；SQLite integrity `ok`。
-- Execution：0 active Aftercare Case、0 running Arca Work、0 `reconcile_required` Effect；事故工具最终复验为 0 move、0 Inventory advance、0 quarantine action。
-- PROD-064：13 条 Shelf Entry 的 85 个当前材料全部存在；65 个纳管文件恢复路径，4 个事故副本目录共 23 个文件完整隔离；torrent、备份与未纳管字幕未删除。本次处置不需要 Formation Reset。
+- Image：`markmahoro/shelfdeck:helix-beta-20260903-f05d694dfa`；source commit `f05d694dfa`；tar SHA-256 `a82a4ee2d9b8798cec2137f8e98474facb83e8e30af648dc1dab503525982da5`。
+- Health：`ok` / `helix-clean-v3` / `normalSupplyAllowed:true`；schema 186；SQLite `quick_check=ok`；真实浏览器收藏页 22/22 健康。
+- Execution：0 active Aftercare Case、0 active Arca Work/Event、0 executing Arca Attempt、0 `reconcile_required` Effect；事故工具最终复验为 0 move、0 Inventory advance、0 quarantine action。
+- PROD-064：13 条 Shelf Entry 的 85 个当前材料全部存在且三项最新 assessment 全部健康；65 个纳管文件恢复路径，4 个事故副本目录共 23 个文件完整隔离；两份 settlement 旧 NFO 移入可恢复 data/backups；torrent、备份与未纳管字幕未删除。本次处置不需要 Formation Reset。
+- Verification：Service full 456 项为 438 pass、18 skip、0 fail；Aftercare focused 128/128；restart count 0。
 
 ## 已完成
 

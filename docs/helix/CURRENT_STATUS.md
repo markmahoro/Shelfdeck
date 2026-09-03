@@ -1,6 +1,6 @@
 # ShelfDeck Clean Helix Current Status
 
-Status: **PROD-064 生产恢复、部署与复发观察已完成；ShelfDeck 正常运行。**
+Status: **PROD-064 生产恢复、Aftercare 收敛与前端健康闭包已完成；ShelfDeck 正常运行。**
 
 ## PROD-064 Aftercare Placement Incident Recovery
 
@@ -21,22 +21,37 @@ Status: **PROD-064 生产恢复、部署与复发观察已完成；ShelfDeck 正
   《守望者》《角斗士2》《超脱》保持存在且未进入事故范围。
 - 通用修复把 Placement policy 分为 layout 字段与 collision 字段：只有模板、Shelf root 或 endpoint 变化才允许
   重算路径；collision-only revision 保持已接受 Inventory，缺失历史 Placement baseline 时 fail closed 为
-  `attention_required`。64 条 blast-radius fixture 与事故恢复负向夹具已通过；最终 Service full 452 项为
-  434 pass、18 skip、0 fail。
+  `attention_required`。64 条 blast-radius fixture 与事故恢复负向夹具已通过。
+- 恢复上线后的收藏页曾显示 16 条健康、5 条尚未检查、1 条需要处理。5 条尚未检查不是文件再次异常，而是
+  Aftercare 仍复用了旧 generation 的确定性 Work ID；这些 ID 已在旧逻辑下终态耗尽，调度器因此不会重新执行。
+  Assessment generation 已推进到 revision 5，使修复后的新语义获得新的稳定执行身份。
+- 唯一真实 attention《猎头游戏》暴露 NFO 修复不收敛：重复 `<genre>` 等集合字段被逐节点写入同一组合值，
+  下一轮仍判定不一致；空 Inventory change 又被 Foundation 正确拒绝。现在重复集合字段按节点规范渲染，
+  已验证无变化时返回 typed `ARCA_AFTERCARE_INVENTORY_NO_CHANGE`，不伪造 Inventory revision。
+- 最后一条前端假异常来自列表/详情的 rating target 不同源：列表使用原始 `Searching`，详情使用规范化
+  `searching`，产生不同 Care Basis digest。批量投影现与详情共同使用 canonical target builder；真实浏览器最终
+  22/22 收藏卡片均显示“收藏健康：健康”。
 - 一次性恢复只能通过 `helix-prod064-aftercare-placement-incident-correction.js`：操作员集合必须与 13 条白名单
   精确相等；所有源、目标、quarantine 文件先做 bounded fingerprint。未提交 NFO 还必须绑定同一 Stage path、
   同一 Plan 的失败 Placement physical Effect 时间窗并通过合法 Movie NFO 解析。物理 rename 写可逆 journal，
   DB 事务只追加 13 个 Inventory revision 并按实际 Physical Material Identity 调整 Material Control；Deck Fact
   与历史 `arca_material_bindings` 摘要保持不变。receipt manifest digest 为
   `3224b27cf20dffb75e864176b18c3234ff50f43f106d809dffdd82ecbbe9b67e`，apply 后 integrity `ok`、外键 0。
-- 最终镜像 `markmahoro/shelfdeck:helix-beta-20260903-4e31ee914e`，source commit `4e31ee914e`，image ID
-  `sha256:ec8854d5da32ec710432c11b4d6cab012a47791827a51ededc6ce52d2618f2ac`，tar SHA-256
-  `950eac02a9ee139edb54b501a2334ef27aa5175ab16fc801d76322d2a516cb90`。标准 build/upload/checksum、deploy dry-run/apply、
+- 最终镜像 `markmahoro/shelfdeck:helix-beta-20260903-f05d694dfa`，source commit `f05d694dfa`，tar SHA-256
+  `a82a4ee2d9b8798cec2137f8e98474facb83e8e30af648dc1dab503525982da5`。标准 build/upload/checksum、deploy dry-run/apply、
   readiness、health、Admin Web、media/upgrade/QSV mount 与 exact-image gate 全部通过，restart count 0。
 - 启动后 Emby 对两份 NFO 的改写由 Aftercare 以语义等价路径追加 Inventory revision，未重新迁移文件。最终事故工具
   复验为 `moveCount=0`、`inventoryAdvanceCount=0`、`quarantineCount=0`；13 条 Shelf Entry 的 85 个当前材料全部存在，
   active Aftercare Case 0、running Arca Work 0、`reconcile_required` Effect 0，health 为 `ok` / `helix-clean-v3` /
   `normalSupplyAllowed:true`，日志无 runtime error。
+- 两次失败 settlement 在《网络谜踪》目录留下两份可精确证明的旧 `.superseded-*` NFO；第二次 settlement 因看到
+  第一份未知成员而在删除前 fail closed，未误删任何文件。一次性 bounded 工具在校验 Case、Inventory、当前 NFO
+  size/SHA/inode、运行静止与 SQLite 后，将两份旧文件复制校验并移出媒体目录；未修改数据库。可恢复备份位于
+  `/vol1/1000/docker/shelfdeck/data/backups/prod064-aftercare-settlement-residual-20260903T123000Z`，manifest digest 为
+  `f4ef596a29ab0da4db05f74a4fac3e53e3d2f62ea489f5546592b192c715e4ad`。
+- 最终 Service full 456 项为 438 pass、18 skip、0 fail，Aftercare focused 128/128。生产终验为 SQLite
+  `quick_check=ok`、22 条 active Shelf Entry、事故 13 条均有三项最新 healthy assessment、0 active Case、
+  0 active Arca Work/Event、0 executing Arca Attempt、0 `reconcile_required` Effect。
 
 Last updated: 2026-09-03
 

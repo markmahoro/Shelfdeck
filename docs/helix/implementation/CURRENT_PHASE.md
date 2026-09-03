@@ -1,6 +1,6 @@
 # ShelfDeck Helix 当前实施阶段
 
-状态：**P4 ACTIVE — PROD-064 GUARDED RECOVERY DEPLOYED AND CONVERGED**
+状态：**P4 ACTIVE — PROD-064 FULL INCIDENT CLOSURE VERIFIED**
 
 ## PROD-064 当前恢复边界（2026-09-03）
 
@@ -10,11 +10,18 @@
   变化不重命名，缺少 accepted Placement baseline 时 fail closed。
 - 恢复工具冻结 13 条 exact ID、4 个 quarantine source，要求 bounded physical evidence、可逆 rename journal、
   单事务 Inventory/Material Control append、Deck Fact 与历史 Binding 不变，以及 apply 后零动作 dry-run。
-- 本地 Service full 452 项：434 pass、18 skip、0 fail。生产 apply 完成 65 个文件 rename、13 个 Inventory append，
+- 生产 apply 完成 65 个文件 rename、13 个 Inventory append，
   4 个事故目录共 23 个文件非破坏性隔离；完整 pre-apply 备份、manifest、receipt、integrity 与 foreign-key gate 通过。
-- 镜像 `helix-beta-20260903-4e31ee914e` 已标准部署，readiness、health、Admin、mount、exact image 均通过。
-  启动后的 2 次 NFO 语义对账未迁移路径；最终为 0 active Case、0 running Arca Work、0 reconcile Effect，
-  correction dry-run 为 0 move、0 Inventory advance、0 quarantine action。
+- 初次恢复后的 16 healthy / 5 never-assessed / 1 attention 已继续闭包：assessment generation 推进，重复 NFO
+  set-like 字段按节点规范渲染，空 Inventory change 使用 typed no-op，Collection batch/detail 共用 canonical rating target。
+- 两个 failed settlement 的 exact `.superseded-*` NFO 已由 bounded correction 移出媒体目录并备份；安全工具验证
+  当前 Inventory/NFO identity、Case lineage、运行静止与幂等重放，不编辑数据库、不放宽未知成员拒绝。
+- 镜像 `helix-beta-20260903-f05d694dfa` 已标准部署，tar SHA-256 为
+  `a82a4ee2d9b8798cec2137f8e98474facb83e8e30af648dc1dab503525982da5`；readiness、health、Admin、mount、
+  exact image 均通过，restart count 0。Service full 456 项为 438 pass、18 skip、0 fail，Aftercare 128/128。
+- 最终真实浏览器为 22/22 收藏健康；事故 13 条三项最新 assessment 均 healthy；SQLite `quick_check=ok`；
+  0 active Case、0 active Arca Work/Event、0 executing Arca Attempt、0 reconcile Effect。correction dry-run 为
+  0 move、0 Inventory advance、0 quarantine action，settlement residual source 均不存在且备份存在。
 
 ## PROD-063 已部署增量（2026-09-03）
 
