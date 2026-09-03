@@ -10,4 +10,4 @@ Last updated: 2026-09-03
 - Current version identity: `docs/v3/VERSIONING.md`.
 - No Kairox compatibility migration, dual read, roadmap restart, or new v3.x milestone is authorized.
 
-Latest production identity record: Docker image `markmahoro/shelfdeck:helix-beta-20260903-c77cd99951`, source commit `c77cd99951`, tar SHA-256 `4cda788a8dfcdd5d3c93d4355c4365210bac4db52d03c46bc8fd16a25ad27081`. Service full test: 442 total, 424 pass, 18 skip, 0 fail; PROD-059 focused 58/58. Production readiness, health, Admin Web, mounts, and exact running-image checks passed; no Formation Reset was executed for this deployment.
+Latest production identity record: Docker image `markmahoro/shelfdeck:helix-beta-20260903-03ba1191d1`, source commit `03ba1191d1`, tar SHA-256 `4005b6cf9b6546523054ae60c8665e903f16ccd4f31fdf281e2578490f2172fc`. Service full test: 443 total, 425 pass, 18 skip, 0 fail; PROD-060 focused 7/7. Production readiness, health, Admin Web, mounts, and exact running-image checks passed; no Formation Reset was executed for this deployment.

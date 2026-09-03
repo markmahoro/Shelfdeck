@@ -109,8 +109,8 @@ hard-deadline replacement 已随 `helix-beta-20260831-ae7a567cde` 无损部署�
 ## Production
 
 - Host：`192.168.12.230:18080`。
-- Running image：`markmahoro/shelfdeck:helix-beta-20260903-c77cd99951`；source commit `c77cd99951`；tar SHA-256 `4cda788a8dfcdd5d3c93d4355c4365210bac4db52d03c46bc8fd16a25ad27081`。
-- Running image ID：`sha256:ae11e26fc87b982e500f976528f6f700c3a6d1546379d975ad71ecfa91c3cdba`；2026-09-03 10:46 CST 启动，restart count 0。
+- Running image：`markmahoro/shelfdeck:helix-beta-20260903-03ba1191d1`；source commit `03ba1191d1`；tar SHA-256 `4005b6cf9b6546523054ae60c8665e903f16ccd4f31fdf281e2578490f2172fc`。
+- Running image ID：`sha256:6aca3373202e154443583d17d0fd63376ebdc2b0e5a5e64bff5dd96c408ce0d0`；2026-09-03 14:43 CST 启动，restart count 0。
 - Health：`ok`；generation `helix-clean-v3`；schema 186；`normalSupplyAllowed:true`；SQLite `integrity_check=ok`。
 - Compose：`/vol1/1000/docker/shelfdeck`；data：`/vol1/1000/docker/shelfdeck/data`；Workspace mount：`/transcode`。
 - PROD-047 离线纠正备份：`/vol1/1000/docker/shelfdeck/data.backup-20260901T082544Z-prod047-aftercare-reclaim`（约 898 MiB）。
@@ -122,6 +122,8 @@ hard-deadline replacement 已随 `helix-beta-20260831-ae7a567cde` 无损部署�
 - 其他 NAS Docker 服务在部署后只读检查时仍运行正常。
 
 ## Production Corrections
+
+PROD-060 修复了体积瑕疵接受提交：GET 预览为展示预计体积而附加的 `sizeForecast` 曾被 POST 提交路径误纳入核心 Candidate 身份校验，导致摘要必然不一致并在事务前拒绝。现仅预览模型携带该字段，提交仍以 exact frozen Run、Candidate digest、用户 acknowledgement 和 idempotency fences 构造 `AuthorizedDefectManifest`。没有降低瑕疵范围或摘要门禁，没有 Formation Reset 或生产数据纠正。部署后《守望者 (2009)》保持原 frozen Run revision 3，候选仍只包含 `size_cap_exceeded` / `max_size_exceeded`，等待用户重新确认。
 
 PROD-032 已修复 Libra Pre-deck token 旁路并完成有损升级；保留全部 Subject 和 Field policy，终止 200 条遗留 Libra Work，使 Formation 从数百条活动记录收敛到真实工作集。证据见归档 Phase packet。
 
@@ -271,6 +273,8 @@ PROD-034 已按 Product Owner 授权对“唐人街探案 (2015)”和“赤壁�
 - 本地测试覆盖：原 Attempt deadline 已过时，classified `continue_forward` 仍实际 dispatch 并成功收口；同一 Effect 在时钟前进一小时和再次启动时仍返回第一次冻结时间。修正随 `e655d6d66f` 部署后，《罪人》同一 Effect/Run 获得一次有界恢复预算并完成 On-deck Commit；未修改生产数据。
 
 ## Verification
+
+- PROD-060 focused 7/7；Service full 443 项为 425 pass、18 skip、0 fail。标准 build/upload/checksum/dry-run/apply、readiness（186 tables、123 routes、17 UI surfaces、0 findings）、health、Admin Web、media/QSV mounts 与 exact running image 校验通过；容器 restart count 0。
 
 - PROD-034 focused：2/2；Arca focused：24/24；Admin Web：37/37，build 通过。
 - 当时 Helix Architecture full gate 通过；P2 contract aggregate 更新为 `549e136626021ed6f7f437e173775c06b59e82fc3cea73e189bdafeb0792404b`，DDL digest 为 `3be2dad9b3615053681dfc2721974657fc3995ccf60a044e17dfb5131f0f8199`。本轮三态 Formation Projection 的本地目标 DDL digest 已更新为 `6a2246c39bebcd1f6f80264bac793c7a3119636a791683e426e4c30aa6fdc651`，仅迁移可重建 Projection；尚未部署生产。
