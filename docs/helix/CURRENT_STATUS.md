@@ -9,7 +9,7 @@ Last updated: 2026-09-03
 - 五星高质量音轨判定已统一为检查 Primary Video 容器内全部 Probe Audio Stream；`default disposition`、音轨顺序与语言不参与 Libra 原片寻源、Libra 成品验收或 Arca 独立验收，也不会只为设置 default 触发 Remux。007 当前下载成品中的非 default TrueHD 因此会被新链路正确识别。
 - `size_cap_requires_admission` 只接受 `libra.product_media.verify@1` 的唯一实测 Gap `max_size_exceeded`；任何附加 Gap 继续 fail closed。守望者与角斗士2的既有活动 Run 在部署后均已收敛为 `frozen`，前端/API显示“需要处理”，并各自生成唯一 `size_cap_exceeded` 瑕疵接纳候选；0 active Attempt、无重复终态错误。
 - 验证：focused 58/58；Service full 442项为424 pass、18 skip、0 fail。镜像 `markmahoro/shelfdeck:helix-beta-20260903-c77cd99951`，source commit `c77cd99951`，tar SHA-256 `4cda788a8dfcdd5d3c93d4355c4365210bac4db52d03c46bc8fd16a25ad27081`。标准 build/upload/SHA-256/deploy dry-run/apply、readiness（186 tables、123 routes、17 UI surfaces、0 findings）、health、Admin Web、mount与运行镜像检查均通过。
-- 007 的旧 Run 已在旧逻辑下终态冻结；部署不兼容或复活旧条目。若要求它立即按全音轨规则重新形成，需要另行明确授权 Formation Reset；本次部署没有执行 Reset。
+- 007 的旧 Run 已在旧逻辑下终态冻结；部署不兼容或复活旧条目。生产 Formation Reset 只读 plan 为 ready、0 blocker、0 active Work/Attempt，但会同时删除007、守望者、角斗士2共3个Subject/Run/Workspace、46个Work和6个Artifact，因此当前不建议全局Reset；若只要求007重新形成，应另行授权对该Run执行正式“放弃整理”。本次部署没有执行任何数据纠正。
 
 ## PROD-056/057/058 Deployed And Reset
 

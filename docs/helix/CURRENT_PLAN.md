@@ -1,6 +1,6 @@
 # ShelfDeck Clean Helix Master Plan
 
-Status: **PROD-059 已部署并完成生产观察；007 是否立即重新形成等待独立 Reset 授权。**
+Status: **PROD-059 已部署并完成生产观察；当前不建议全局 Formation Reset。**
 
 Last updated: 2026-09-03
 
@@ -28,7 +28,7 @@ Last updated: 2026-09-03
 - Image：`markmahoro/shelfdeck:helix-beta-20260903-c77cd99951`；source commit `c77cd99951`；tar SHA-256 `4cda788a8dfcdd5d3c93d4355c4365210bac4db52d03c46bc8fd16a25ad27081`。
 - Health：`ok` / `helix-clean-v3` / `normalSupplyAllowed:true`；schema 186；SQLite integrity `ok`。
 - Execution：PROD-047 exact 3 条遗留执行图已收口；另有 2 条 active Aftercare reclaim Work 只发生 inode drift，未获授权处理。
-- Formation：守望者与角斗士2已按唯一体积Gap进入`frozen/attention_required`并生成瑕疵接纳候选；007仍是旧逻辑形成的冻结终态。当前0 active Attempt，是否让007立即重新形成需独立Formation Reset授权。
+- Formation：守望者与角斗士2已按唯一体积Gap进入`frozen/attention_required`并生成瑕疵接纳候选；007仍是旧逻辑形成的冻结终态。Formation Reset dry-run会同时清除三者，故当前不建议全局Reset；只让007重新形成应使用正式单Run“放弃整理”，该生产操作仍需独立授权。
 
 ## 已完成
 
