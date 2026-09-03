@@ -210,11 +210,7 @@ function createLibraRunAdminService(options) {
         : null,
       priorAuthorizedManifest:latestDefect,
     });
-    if (!candidate.defects.some((item) => item.defectCode === 'size_cap_exceeded')) {
-      return candidate;
-    }
-    const sizeForecast = sizeForecastForRun(libraRunId, snapshot.run.acceptance_spec_id,candidate);
-    return sizeForecast ? Object.freeze({ ...candidate, sizeForecast }) : candidate;
+    return candidate;
   }
 
   function sizeForecastForRun(libraRunId, acceptanceSpecId, candidate) {
@@ -290,7 +286,17 @@ function createLibraRunAdminService(options) {
       return result;
     },
     previewDefects(libraRunId) {
-      return defectCandidate(libraRunId);
+      const snapshot = current(libraRunId);
+      const candidate = defectCandidate(libraRunId, snapshot);
+      if (!candidate.defects.some((item) => item.defectCode === 'size_cap_exceeded')) {
+        return candidate;
+      }
+      const sizeForecast = sizeForecastForRun(
+        libraRunId,
+        snapshot.run.acceptance_spec_id,
+        candidate,
+      );
+      return sizeForecast ? Object.freeze({ ...candidate, sizeForecast }) : candidate;
     },
     admitWithDefects(libraRunId, body) {
       if (!body || typeof body.idempotencyKey !== 'string' || !body.idempotencyKey ||
