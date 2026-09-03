@@ -1,8 +1,17 @@
 # ShelfDeck Clean Helix Current Status
 
-Status: **PROD-059 已部署；全音轨高质量音频判定与体积瑕疵终态均已在生产生效。**
+Status: **PROD-061 已部署；接受体积瑕疵后的完整交付链与前端提交态对账已在生产生效。**
 
 Last updated: 2026-09-03
+
+## PROD-061 Deployed And Observed
+
+- 根因不是用户决定未提交：`defect_admitted` 已先把 Libra Run 从 frozen revision 3 推进到 active revision 4，但同步后继 Product Staging 仍一律拒绝 `verification.result=failed`，因而无法消费同一 Run 已精确授权的唯一 `max_size_exceeded` Workspace 产物；Admin API 最终返回 500，前端把后继失败误呈现为整次“接受瑕疵”失败。
+- `WorkspaceProductVerificationSnapshot` 现在只允许 exact `AuthorizedDefectManifest` 绑定的 size-only failed media 进入 Product Staging；Run、Work、Verification、Workspace/Material Handle、digest 与 fence 必须逐项一致，普通 passed media 禁止携带该 Manifest。没有伪造 passed、没有影片特例或旧条目兼容路径。
+- Admin Web 在 POST 异常时会重新读取 exact Formation；若 Run 已由 frozen 推进到更高 active revision，就关闭对话框并明确显示“瑕疵已接受，系统正在继续整理”，而不再要求用户反复点击。若状态未提交，仍保留真实错误。
+- focused 回归 49/49，后续部署核验 21/21，Admin Web production build 与 Helix Architecture full gate PASS；contract aggregate 为 `58416d551dfbfcc742c3f4a5a4ac6437296f5a517b1367f20ab4733917cdb696`。Service full 443 项为 424 pass、18 skip、1 个既有 FFmpeg stall-watchdog 并发时序超时；该用例隔离重跑 1/1 PASS。
+- 当前镜像 `markmahoro/shelfdeck:helix-beta-20260903-e1b0b7993d`，source commit `e1b0b7993d`，image ID `sha256:3cb5fc956700c9e03c5551dd22d2d35ee029d9219602b7f9864b9d1329600e0a`，tar SHA-256 `8bdb89929897a8c1109d1c906c25c25698592aba741cf1521bf01bd03041fc53`。标准 build/upload/SHA-256/dry-run/apply、readiness（186 tables、123 routes、17 UI surfaces、0 findings）、health、Admin Web、mount 与 exact running image 检查均通过；restart count 0，未执行 Formation Reset 或数据清理。
+- 使用原 idempotency key 继续已提交的决定后，《守望者 (2009)》Libra Run 已 completed，Arca On-deck Run 已 committed 并产生 Shelf Entry。《角斗士2 (2024)》也已越过本次 Product Staging 缺口并发布 Handoff B；当前独立阻断为 Arca `CLEAN_ARCA_TARGET_COLLISION`：包内 `background.jpg` 与 `backdrop.jpg` 均为 fanart，而 Shelf Placement Policy revision 1 的固定 `fanart{ext}` + `reject` 会把两者映射到同一 `fanart.jpg`。该结果属于 Placement Policy 的真实拒绝，不再冒充接受瑕疵失败。
 
 ## PROD-059 Deployed And Observed
 

@@ -1,6 +1,13 @@
 # ShelfDeck Helix 当前实施阶段
 
-状态：**PROD-056/057/058 DEPLOYED — FORMATION RESET VERIFIED**
+状态：**PROD-061 DEPLOYED — AUTHORIZED DEFECT DELIVERY VERIFIED**
+
+## PROD-061 已部署增量（2026-09-03）
+
+- 已授权的 size-only Workspace 成品现在以 exact `AuthorizedDefectManifest` 贯穿 Product Staging、Conformance 与 Deliverable Promotion；普通 failed media 继续 fail closed，未加入旧条目兼容或影片特例。
+- Admin Web 对“决定已提交、同步后继暂时失败”的部分成功执行 exact Formation 对账：Run 已从 frozen 推进到更高 active revision 时关闭确认框并显示继续整理，避免重复提交。
+- focused 49/49、部署核验 21/21、Admin Web production build 与 Helix Architecture full gate PASS，contract aggregate 为 `58416d551dfbfcc742c3f4a5a4ac6437296f5a517b1367f20ab4733917cdb696`。Service full 的唯一 FFmpeg watchdog 并发时序失败已隔离重跑通过。
+- 镜像 `helix-beta-20260903-e1b0b7993d` 已标准无损部署，readiness、health、mount、Admin Web 与 exact image 均通过，restart count 0；没有 Formation Reset。《守望者》已完成 Libra 并由 Arca Commit；《角斗士2》已越过本修复，当前因两张 fanart 在 `fanart{ext}` + `reject` Placement Policy 下映射到同一目标而独立进入 Arca attention。
 
 ## PROD-056/057 本地增量（2026-09-03）
 
