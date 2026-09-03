@@ -512,25 +512,34 @@ function workspaceAdmissionResult() {
 }
 
 function workspaceProductVerificationSnapshot() {
-  const common = (verificationKind, materialRole, schemaRef, verificationValue, extra = {}) => object({
-    verificationKind: { const: verificationKind },
-    materialRole: Array.isArray(materialRole) ? { type: 'string', enum: materialRole } : { const: materialRole },
-    libraRunId: id(),
-    workspaceMaterialHandleId: id(),
-    workspaceMaterialHandleDigest: digest(),
-    workspaceMaterialFenceDigest: digest(),
-    schemaRef: { const: schemaRef },
-    verificationId: id(),
-    verificationValue,
-    verificationDigest: digest(),
-    ...extra,
-    snapshotDigest: digest()
-  });
+  const common = (verificationKind, materialRole, schemaRef, verificationValue,
+    extra = {}, optional = []) => {
+    const properties = {
+      verificationKind: { const: verificationKind },
+      materialRole: Array.isArray(materialRole) ? { type: 'string', enum: materialRole } : { const: materialRole },
+      libraRunId: id(),
+      workspaceMaterialHandleId: id(),
+      workspaceMaterialHandleDigest: digest(),
+      workspaceMaterialFenceDigest: digest(),
+      schemaRef: { const: schemaRef },
+      verificationId: id(),
+      verificationValue,
+      verificationDigest: digest(),
+      ...extra,
+      snapshotDigest: digest()
+    };
+    return object(properties, Object.keys(properties).filter((name) =>
+      !optional.includes(name)));
+  };
   return { $schema: DRAFT, $id: typeId('WorkspaceProductVerificationSnapshot'), title: 'WorkspaceProductVerificationSnapshot@1',
     'x-helix-ssotRefs': ['8.6.21'], 'x-helix-maxCanonicalBytes': 128 * 1024,
     oneOf: [
       common('media', 'primary_payload', 'ProductMediaVerification@1',
-        { $ref: 'helix://contracts/types/ProductMediaVerification/v1' }),
+        { $ref: 'helix://contracts/types/ProductMediaVerification/v1' }, {
+          authorizedDefectManifest: {
+            $ref: 'helix://contracts/application-types/AuthorizedDefectManifest/v1'
+          }
+        }, ['authorizedDefectManifest']),
       common('artifact', ['metadata_sidecar', 'poster', 'fanart'], 'ArtifactManifestVerification@1',
         { $ref: 'helix://contracts/types/ArtifactManifestVerification/v1' }, {
           artifactHandle: { $ref: 'helix://contracts/types/ArtifactHandle/v1' },

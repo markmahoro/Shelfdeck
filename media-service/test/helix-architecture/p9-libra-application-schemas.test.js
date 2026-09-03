@@ -79,6 +79,9 @@ test('Workspace Admission schemas freeze the pathless Platform evidence and init
   ]);
   assert.equal(schemas.WorkspaceProductVerificationSnapshot.oneOf[1].properties.artifactHandle.$ref,
     'helix://contracts/types/ArtifactHandle/v1');
+  assert.equal(schemas.WorkspaceProductVerificationSnapshot.oneOf[0]
+    .properties.authorizedDefectManifest.$ref,
+  'helix://contracts/application-types/AuthorizedDefectManifest/v1');
   assert.equal(schemas.WorkspaceProductVerificationSnapshot.oneOf[2].properties.manifestContract.$ref,
     'helix://contracts/domain-types/ManifestContract/v1');
   assert.equal(schemas.LibraWorkspaceMaterialReferenceDecision.properties.workspaceMaterialHandle.$ref,

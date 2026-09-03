@@ -48,7 +48,12 @@ function artifactVerificationSnapshot(runId, role, materialized, value) {
   return Object.freeze({ ...body, snapshotDigest: canonicalDigest(body) });
 }
 
-function mediaVerificationSnapshot(runId, workspaceMediaHandle, verification) {
+function mediaVerificationSnapshot(
+  runId,
+  workspaceMediaHandle,
+  verification,
+  authorizedDefectManifest = null,
+) {
   const material = workspaceMediaHandle.workspaceMaterialHandle;
   const body = {
     verificationKind: 'media',
@@ -61,6 +66,7 @@ function mediaVerificationSnapshot(runId, workspaceMediaHandle, verification) {
     verificationId: verification.verificationId,
     verificationValue: verification,
     verificationDigest: canonicalDigest(verification),
+    ...(authorizedDefectManifest ? { authorizedDefectManifest } : {}),
   };
   return Object.freeze({ ...body, snapshotDigest: canonicalDigest(body) });
 }
@@ -255,6 +261,7 @@ function createProductStagingService(options) {
         snapshot.run.libraRunId,
         media,
         verification,
+        verificationAuthorized ? snapshot.run.authorizedDefectManifest : null,
       );
       const result = ensureReference(
         snapshot,

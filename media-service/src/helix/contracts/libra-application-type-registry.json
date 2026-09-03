@@ -476,7 +476,7 @@
       "relativePath": "application-types/WorkspaceProductVerificationSnapshot/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "44fb6ca6ac7bcb2d2569e70250732e9ca2b9802042390879a4ed475831403b06"
+        "value": "f40eb9dce28bdc0d513ffba6957317b5fed3b1adcf82901b3550147eefd9dc1a"
       },
       "ssotRefs": [
         "8.6.21"

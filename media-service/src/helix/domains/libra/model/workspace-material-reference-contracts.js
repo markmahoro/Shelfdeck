@@ -1,6 +1,10 @@
 'use strict';
 
 const { canonicalDigest, canonicalJson } = require('../../../contracts/canonical-json');
+const {
+  assertAuthorizedDefectManifest,
+  resolveProductSelection,
+} = require('./defect-admission-contracts');
 const { workspaceStateDigest } = require('./workspace-admission-contracts');
 
 class WorkspaceMaterialReferenceContractError extends Error {
@@ -110,11 +114,47 @@ function validateArtifactHandle(value, handle, libraRunId, materialRole) {
 
 function validateMediaVerification(value, handle, libraRunId) {
   const verification = value.verificationValue;
+  let authorizedDefectManifest = null;
+  if (value.authorizedDefectManifest !== undefined) {
+    try {
+      authorizedDefectManifest = assertAuthorizedDefectManifest(
+        value.authorizedDefectManifest,
+      );
+    } catch {
+      fail('P9_REFERENCE_VERIFICATION',
+        'Authorized media defect Manifest is invalid.');
+    }
+  }
+  let authorizedSelection = null;
+  if (verification?.result === 'failed' && authorizedDefectManifest) {
+    const sizeDefect = authorizedDefectManifest.defects.find((item) =>
+      item.defectCode === 'size_cap_exceeded');
+    try {
+      authorizedSelection = sizeDefect ? resolveProductSelection([Object.freeze({
+        outcomeKind: 'succeeded',
+        capabilityRef: 'libra.product_media.verify@1',
+        result: verification,
+      })], authorizedDefectManifest, { workId:sizeDefect.sourceWorkId })
+        .effectiveSelection : null;
+    } catch {
+      authorizedSelection = null;
+    }
+  }
+  const ordinaryPassed = verification?.result === 'passed' &&
+    authorizedDefectManifest === null;
+  const exactAuthorizedSizeDefect =
+    authorizedSelection?.selectionKind === 'authorized_defect_workspace_output' &&
+    authorizedDefectManifest.libraRunId === libraRunId &&
+    authorizedSelection.selectedHandleId === handle.handleId &&
+    authorizedSelection.selectedWorkspaceMediaHandleId ===
+      verification.workspaceMediaHandleId &&
+    authorizedSelection.selectedVerificationId === verification.verificationId;
   if (handle.digestAlgorithm !== 'middle-256k-sha256' ||
       handle.digestHex !== handle.physicalIdentity.contentFingerprint ||
       value.materialRole !== 'primary_payload' || value.schemaRef !== 'ProductMediaVerification@1' || !verification ||
       verification.schemaRef !== 'helix://contracts/types/ProductMediaVerification/v1' || verification.schemaVersion !== 1 ||
-      verification.verificationKind !== 'libra_product_media' || verification.result !== 'passed' ||
+      verification.verificationKind !== 'libra_product_media' ||
+      (!ordinaryPassed && !exactAuthorizedSizeDefect) ||
       verification.candidateKind !== 'workspace_output' || verification.libraRunId !== libraRunId ||
       verification.productMaterialHandleId !== handle.handleId || verification.productMaterialHandleDigest !== canonicalDigest(handle) ||
       verification.productMaterialFenceDigest !== handle.fenceDigest)
@@ -130,7 +170,8 @@ function validateMediaVerification(value, handle, libraRunId) {
     productMaterialFenceDigest:handle.fenceDigest,mediaRequirementDigest:verification.mediaRequirementDigest,
     sourceProbeEvidenceDigest:verification.sourceProbeEvidenceDigest,outputProbeEvidenceDigest:verification.outputProbeEvidenceDigest });
   if (verification.verificationId !== verificationId) fail('P9_REFERENCE_VERIFICATION', 'Media Verification identity is invalid.');
-  return verificationId;
+  return Object.freeze({ verificationId, authorizedDefectManifest:
+    exactAuthorizedSizeDefect ? authorizedDefectManifest : null });
 }
 
 function validateArtifactVerification(value, handle, libraRunId) {
@@ -186,7 +227,13 @@ function validateProductVerification(value, handle, libraRunId) {
       value.workspaceMaterialHandleDigest !== canonicalDigest(handle) || value.workspaceMaterialFenceDigest !== handle.fenceDigest)
     fail('P9_REFERENCE_VERIFICATION', 'Product Verification Snapshot scope is invalid.');
   let verificationId, extras = {};
-  if (value.verificationKind === 'media') verificationId = validateMediaVerification(value, handle, libraRunId);
+  if (value.verificationKind === 'media') {
+    const validated = validateMediaVerification(value, handle, libraRunId);
+    verificationId = validated.verificationId;
+    if (validated.authorizedDefectManifest) {
+      extras = { authorizedDefectManifest:validated.authorizedDefectManifest };
+    }
+  }
   else if (value.verificationKind === 'artifact') {
     const validated = validateArtifactVerification(value, handle, libraRunId);
     verificationId = validated.verificationId;

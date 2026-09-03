@@ -50,6 +50,12 @@ function canDiscardRejectedHandoff(item:FormationSubject) {
     && !item.productIdentityIssue;
 }
 function canChooseShelf(item:FormationSubject) { return item.routingState==='unresolved' && Number.isSafeInteger(item.routingDecisionHeadRevision) && Boolean(item.routingDecisionHeadDigest); }
+function defectAdmissionCommitted(previous:FormationSubject,current:FormationSubject) {
+  return previous.currentRun?.state==='frozen'
+    && current.currentRun?.libraRunId===previous.currentRun.libraRunId
+    && current.currentRun.state==='active'
+    && current.currentRun.stateRevision>previous.currentRun.stateRevision;
+}
 function formatGiB(bytes:number) { return `${(Number(bytes)/1073741824).toFixed(1)} GiB`; }
 function defectLabel(defect:DefectAdmissionCandidate['defects'][number], forecast:DefectAdmissionCandidate['sizeForecast']) {
   if (defect.defectCode==='actor_unavailable') return '演员资料确实无法取得';
@@ -153,7 +159,7 @@ export default function FormationPage() {
   const { expire }=useSession();
   const [active,setActive]=useState<FormationSubject[]>([]),[completed,setCompleted]=useState<FormationSubject[]>([]),[ended,setEnded]=useState<FormationRunHistory[]>([]),[summary,setSummary]=useState(emptySummary),[shelves,setShelves]=useState<Shelf[]>([]);
   const [perceptionSync,setPerceptionSync]=useState<PerceptionSyncState|null>(null);
-  const [filter,setFilter]=useState<Filter>('all'),[q,setQ]=useState(''),[shelfFilter,setShelfFilter]=useState(''),[loading,setLoading]=useState(false),[error,setError]=useState('');
+  const [filter,setFilter]=useState<Filter>('all'),[q,setQ]=useState(''),[shelfFilter,setShelfFilter]=useState(''),[loading,setLoading]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState('');
   const [selected,setSelected]=useState<FormationSubject|null>(null),closeRef=useRef<HTMLButtonElement>(null),triggerRef=useRef<HTMLButtonElement|null>(null),loadGeneration=useRef(0);
   const [defectDialog,setDefectDialog]=useState<{item:FormationSubject;candidate:DefectAdmissionCandidate}|null>(null);
   const [discardDialog,setDiscardDialog]=useState<FormationSubject|null>(null);
@@ -251,6 +257,7 @@ export default function FormationPage() {
   const counts:Record<Filter,number>={all:summary.totalCount+ended.length,in_progress:summary.inProgressCount,attention_required:summary.attentionRequiredCount,completed:summary.completedCount,ended:ended.length};
   return <section className="source-page workbench formation-page"><PageHeader title="媒体整理工作区" actions={<Button type="button" onClick={()=>void load()} disabled={loading}>{loading?'正在刷新…':'刷新'}</Button>} />
     {error&&<p className="form-error" role="alert">{error}</p>}
+    {notice&&<p className="form-notice" role="status">{notice}</p>}
     {perceptionSync?.completionState==='incomplete'&&<p className="form-notice" role="status">豆瓣评分同步尚未完整结束，已保存 {perceptionSync.recordCount} 条；再次同步会从上次成功位置继续。列表中的“暂不能确认”不是影片匹配失败。</p>}
     <section className="formation-ledger"><div className="formation-toolbar">
       <div className="formation-chips" role="group" aria-label="媒体整理状态">{([{id:'all',label:'全部'},{id:'in_progress',label:'整理中'},{id:'attention_required',label:'需要处理'},{id:'completed',label:'已完成'},{id:'ended',label:'已结束'}] as Array<{id:Filter;label:string}>).map((entry)=><Button key={entry.id} type="button" aria-pressed={filter===entry.id} onClick={()=>setFilter(entry.id)}>{entry.label} {counts[entry.id]}</Button>)}</div>
@@ -280,12 +287,27 @@ export default function FormationPage() {
       <Button type="button" disabled={loading} onClick={()=>setDefectDialog(null)}>取消</Button>
       <Button type="button" variant="primary" disabled={loading} onClick={()=>{void (async()=>{
         if(!defectDialog)return;
-        setLoading(true);setError('');
+        const pending=defectDialog;
+        setLoading(true);setError('');setNotice('');
         try{
-          await helixAdminApi.admitWithDefects(defectDialog.item,defectDialog.candidate);
+          await helixAdminApi.admitWithDefects(pending.item,pending.candidate);
           setDefectDialog(null);
           await load();
-        }catch(cause){setError(cause instanceof Error?cause.message:'操作失败。');setLoading(false);}
+        }catch(cause){
+          let committed=false;
+          try{
+            const current=await helixAdminApi.getFormation(pending.item.formationViewId);
+            committed=defectAdmissionCommitted(pending.item,current);
+          }catch(readCause){if(isUnauthorized(readCause))expire();}
+          if(committed){
+            setDefectDialog(null);
+            setNotice('瑕疵已接受，系统正在继续整理；页面已按实际状态更新。');
+            await load();
+          }else{
+            setError(cause instanceof Error?cause.message:'操作失败。');
+            setLoading(false);
+          }
+        }
       })();}}>确认接受</Button>
     </>}>
       {defectDialog&&<div className="stack">

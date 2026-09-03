@@ -9,6 +9,8 @@ const {canonicalDigest,canonicalJson}=require('../../src/helix/contracts/canonic
 const {openSqliteKernel}=require('../../src/helix/foundation/persistence/sqlite-kernel');
 const {createSqliteUnitOfWork}=require('../../src/helix/foundation/persistence/sqlite-unit-of-work');
 const {buildArtifactManifestVerification}=require('../../src/helix/domains/libra/model/product-fact-contracts');
+const {buildAuthorizedDefectManifest,buildDefectAdmissionCandidate}=require('../../src/helix/domains/libra/model/defect-admission-contracts');
+const {mediaVerificationSnapshot}=require('../../src/helix/domains/libra/application/product-staging-service');
 const {buildReferenceDecision,referenceSetDigest,workspaceStateDigest}=require('../../src/helix/domains/libra/model/workspace-material-reference-contracts');
 const {createWorkspaceMaterialReferenceStore}=require('../../src/helix/domains/libra/persistence/workspace-material-reference-store');
 const generated=path.resolve(__dirname,'../../src/helix/foundation/persistence/generated');
@@ -77,6 +79,19 @@ function verification(handle) {
     verificationId:value.verificationId,verificationValue:value,verificationDigest:canonicalDigest(value)};
   snapshot.snapshotDigest=canonicalDigest(snapshot);
   return snapshot;
+}
+
+function authorizedSizeDefectVerification(handle) {
+  const passed=verification(handle),value={...passed.verificationValue,result:'failed',
+    reasonCodes:['max_size_exceeded'],spaceSummary:{unit:'product',actualSizeBytes:120,maxSizeBytes:100,withinLimit:false}};
+  const terminalBody={blockedWorks:[{workId:'size-selection-work',failureCode:'size_cap_requires_admission',
+    capabilityRef:'libra.product_media.verify@1',failureClass:'business_unachievable',
+    terminalEvidenceDigest:D('size-terminal-work')} ]},terminal={...terminalBody,evidenceDigest:canonicalDigest(terminalBody)},
+    run={libraRunId:'run-1',state:'frozen',stateRevision:3,stateDigest:D('size-frozen')},
+    candidate=buildDefectAdmissionCandidate({run,terminalEvidence:terminal,sizeCapVerification:value}),
+    manifest=buildAuthorizedDefectManifest({candidate,actorId:'admin',idempotencyKey:'accept-size',
+      acknowledged:true,decidedAtMs:1700000000000});
+  return mediaVerificationSnapshot('run-1',{workspaceMaterialHandle:handle},value,manifest);
 }
 
 function artifactVerification(handle,materialRole='metadata_sidecar') {
@@ -159,6 +174,27 @@ test('rejects a primary media verification that tries to restore a complete-file
     expectedReference:{state:'present',revision:1,digest:D('reference')},workspaceMaterialHandle:fullDigestHandle,
     episodeClaims:[],episodeScopeDigest:canonicalDigest({schema:'libra.production-episode-scope@1',items:[]}),
     productVerificationRef:proof}),(error)=>error.code==='P9_REFERENCE_VERIFICATION');
+}));
+
+test('promotes an exact authorized size-only failed media verification and rejects an unmanifested failure',()=>fixture((input)=>{
+  const store=createWorkspaceMaterialReferenceStore({schemaManifest,unitOfWork:input.unitOfWork}),
+    attached=store.commit({decision:attachDecision(input),commitMarker:'size-attach',resultId:'size-attach-result'}).result,
+    authorized=authorizedSizeDefectVerification(input.handle),
+    promote=buildReferenceDecision({operation:'promote_to_product_staging',libraRunId:'run-1',
+      workspaceId:input.handle.workspaceId,expectedWorkspaceRevision:2,
+      expectedWorkspaceStateDigest:attached.workspaceStateDigest,
+      expectedReference:{state:'present',revision:1,digest:attached.referenceSnapshot.referenceDigest},
+      workspaceMaterialHandle:input.handle,episodeClaims:[],episodeScopeDigest:attached.referenceSnapshot.episodeScopeDigest,
+      productVerificationRef:authorized}),
+    staged=store.commit({decision:promote,commitMarker:'size-promote',resultId:'size-promote-result'});
+  assert.equal(staged.result.referenceSnapshot.state,'product_staging');
+  assert.equal(staged.result.referenceSnapshot.productVerificationRef
+    .authorizedDefectManifest.manifestDigest,authorized.authorizedDefectManifest.manifestDigest);
+  const unmanifested={...authorized};delete unmanifested.authorizedDefectManifest;
+  unmanifested.snapshotDigest=canonicalDigest(Object.fromEntries(Object.entries(unmanifested)
+    .filter(([key])=>key!=='snapshotDigest')));
+  assert.throws(()=>buildReferenceDecision({...promote,decisionId:undefined,decisionDigest:undefined,
+    productVerificationRef:unmanifested}),(error)=>error.code==='P9_REFERENCE_VERIFICATION');
 }));
 
 test('stages an NFO only with exact Artifact verification, Registry bytes, replay, and role binding',()=>fixture((input)=>{

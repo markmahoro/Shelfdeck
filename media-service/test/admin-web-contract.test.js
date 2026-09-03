@@ -130,6 +130,8 @@ test('Media organization workspace uses user-facing stages after Procurement han
   assert.match(page, /formation-table formation-stub-table/);
   assert.match(page, /确认放弃整理/);
   assert.match(page, /确认接受瑕疵入库/);
+  assert.match(page, /function defectAdmissionCommitted/);
+  assert.match(page, /瑕疵已接受，系统正在继续整理；页面已按实际状态更新。/);
   assert.doesNotMatch(page, /window\.confirm/);
   assert.doesNotMatch(page, /CompletedMediaTable/);
   assert.doesNotMatch(page, /尚未形成整理动作/);

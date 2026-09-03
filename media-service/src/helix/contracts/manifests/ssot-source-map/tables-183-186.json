@@ -12,7 +12,7 @@
       "constraintsContract": "`INDEX(status,worker_id)`；deregister使用terminal state，不物理删除",
       "source": {
         "section": "8.5.13",
-        "line": 9508,
+        "line": 9514,
         "lineDigest": "6bf55b189dbb45cf52eaf48ad372b60ec11d290dd8bd4127fd84ee745604365b"
       }
     },
@@ -23,7 +23,7 @@
       "constraintsContract": "`PK(worker_id,revision)`；Config JSON上限`16 KiB`；current pointer显式FK",
       "source": {
         "section": "8.5.13",
-        "line": 9509,
+        "line": 9515,
         "lineDigest": "ff9849acc3710deb68332088b189dc8e407b71ad9ebc2093d6045b60a50a42fe"
       }
     },
@@ -34,7 +34,7 @@
       "constraintsContract": "`PK(worker_id,worker_revision,device_key)`；只有probe确认的device可enabled",
       "source": {
         "section": "8.5.13",
-        "line": 9510,
+        "line": 9516,
         "lineDigest": "bc0f5d106f86d806a95451a30ad664d4367fd2ef42c0cb6003514196417e2417"
       }
     },
@@ -45,7 +45,7 @@
       "constraintsContract": "`PK(credential_id,revision)`；只有一个active Admin credential revision；Secret明文不入库",
       "source": {
         "section": "8.5.13",
-        "line": 9511,
+        "line": 9517,
         "lineDigest": "c508f77944715e61d0cb76cb13c4bb9a67ecc6e96b21fe744d802ae44636b0b3"
       }
     }

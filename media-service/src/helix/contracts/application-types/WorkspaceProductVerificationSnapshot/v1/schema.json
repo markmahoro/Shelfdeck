@@ -53,6 +53,9 @@
           "minLength": 1,
           "pattern": "^[a-f0-9]{64}$"
         },
+        "authorizedDefectManifest": {
+          "$ref": "helix://contracts/application-types/AuthorizedDefectManifest/v1"
+        },
         "snapshotDigest": {
           "type": "string",
           "minLength": 1,
