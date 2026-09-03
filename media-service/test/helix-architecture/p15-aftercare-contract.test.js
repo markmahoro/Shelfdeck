@@ -16,6 +16,8 @@ const { computeBoundedMaterialFingerprintSync } = require('../../src/helix/integ
 const { observedIdentity, observeKnownOldBindings } = require('../../src/helix/domains/arca/model/known-old-binding');
 const { validNfo, aftercareMediaProbeEvidence, resolveAftercareFfmpegPath } = require('../../src/helix/domains/arca/capabilities/aftercare-capability-ports');
 const { createCareRepairPreparationPlanner } = require('../../src/helix/domains/arca/planning/aftercare-planners');
+const { metadataIdentity } = require('../../src/helix/domains/arca/model/aftercare-placement');
+const { placementPreconditionFailureOutcome } = require('../../src/helix/domains/arca/capabilities/on-deck-capability-ports');
 const { CAPABILITY_REFS: ON_DECK_CAPABILITIES } = require('../../src/helix/domains/arca/model/on-deck-contract');
 const {
   PERIODS,
@@ -42,6 +44,35 @@ const assessment = (kind, at, basisDigest = digest('a'), result = 'healthy') =>
     evidenceDigest:digest(kind === 'custody' ? 'b' : kind === 'presentation' ? 'c' : 'd'),
     assessedAtMs:at,
   });
+
+test('Aftercare Placement uses the committed display identity and formal year field', () => {
+  const value=metadataIdentity({shelfEntryId:'entry-1',raw:{identity:{provider_key:'475946'},facts:[
+    {fact_kind:'product_metadata',value:{descriptiveFacts:{entries:[
+      {key:'title',value:'银翼杀手：2022黑暗浩劫'},
+      {key:'year_or_release_date',value:'2017'},
+    ]}}},
+    {fact_kind:'resolved_identity',value:{displayIdentity:{entries:[
+      {key:'title',value:'银翼杀手2022：黑暗浩劫'},
+      {key:'year',value:'2017'},
+    ]}}},
+  ]}});
+  assert.deepEqual(value,{title:'银翼杀手2022：黑暗浩劫',year:2017});
+  assert.deepEqual(metadataIdentity({shelfEntryId:'entry-2',raw:{identity:{provider_key:'2'},facts:[
+    {fact_kind:'product_metadata',value:{descriptiveFacts:{entries:[
+      {key:'title',value:'长空之王'},
+      {key:'release_date',value:'2023-04-28'},
+    ]}}},
+  ]}}),{title:'长空之王',year:2023});
+});
+
+test('deterministic Placement precondition failures become terminal Capability outcomes', () => {
+  const occupied=Object.assign(new Error('occupied'),{code:'CLEAN_ARCA_TARGET_OCCUPIED'});
+  assert.deepEqual(placementPreconditionFailureOutcome(occupied),{
+    kind:'failed',failureClass:'placement_precondition',code:'CLEAN_ARCA_TARGET_OCCUPIED',
+    message:'occupied',retryDirective:'never',evidence:{errorName:'Error',errorCode:'CLEAN_ARCA_TARGET_OCCUPIED'},
+  });
+  assert.equal(placementPreconditionFailureOutcome(Object.assign(new Error('io'),{code:'EIO'})),null);
+});
 
 test('Aftercare cadence is deterministic, bounded, and split between daily and weekly evidence', () => {
   const jitter = stableJitterMs('entry-1');

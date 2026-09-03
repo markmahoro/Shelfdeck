@@ -1370,9 +1370,7 @@ function createCleanArcaInventoryPort(options) {
       fail('CLEAN_ARCA_TARGET_OCCUPIED',
         'Final Inventory target is not a directory.');
     }
-    if (!fs.existsSync(handle.targetDirectory)) {
-      fs.mkdirSync(handle.targetDirectory, { recursive:true });
-    }
+    const preparedPlans = [];
     for (const plan of built.plans) {
       const stagedLocation = path.resolve(handle.slotDirectory, plan.name);
       const final = fs.existsSync(plan.target)
@@ -1396,13 +1394,19 @@ function createCleanArcaInventoryPort(options) {
         fail('CLEAN_ARCA_TARGET_OCCUPIED',
           'Final Inventory target contains conflicting bytes.');
       }
+      preparedPlans.push(Object.freeze({
+        plan, stagedLocation, final, finalExact, priorPlacementTarget,
+        finalSemantic,
+      }));
+    }
+    // No final target may be changed until every destination has passed the
+    // conflict preflight. A later conflicting member must not leave an earlier
+    // member partially switched and force an otherwise deterministic failure
+    // into Effect recovery.
+    for (const prepared of preparedPlans) {
+      const { plan, stagedLocation, finalExact, finalSemantic } = prepared;
       if (finalExact || finalSemantic) {
-        if (fs.existsSync(stagedLocation)) fs.rmSync(stagedLocation, { force:true });
         continue;
-      }
-      if (final && !finalExact && (priorPlacementTarget ||
-          isManagedSourceLocation(request, plan.target))) {
-        fs.rmSync(plan.target, { force:false });
       }
       if (!fs.existsSync(stagedLocation)) {
         fail('CLEAN_ARCA_STAGE_SLOT_MISSING',
@@ -1414,6 +1418,22 @@ function createCleanArcaInventoryPort(options) {
           staged.contentFingerprint !== plan.contentFingerprint) {
         fail('CLEAN_ARCA_STAGED_REALITY_DRIFT',
           'Verified staged member drifted before placement.');
+      }
+    }
+    requireContinuation(request);
+    if (!fs.existsSync(handle.targetDirectory)) {
+      fs.mkdirSync(handle.targetDirectory, { recursive:true });
+    }
+    for (const prepared of preparedPlans) {
+      const { plan, stagedLocation, final, finalExact, priorPlacementTarget,
+        finalSemantic } = prepared;
+      if (finalExact || finalSemantic) {
+        if (fs.existsSync(stagedLocation)) fs.rmSync(stagedLocation, { force:true });
+        continue;
+      }
+      if (final && !finalExact && (priorPlacementTarget ||
+          isManagedSourceLocation(request, plan.target))) {
+        fs.rmSync(plan.target, { force:false });
       }
       fs.renameSync(stagedLocation, plan.target);
     }

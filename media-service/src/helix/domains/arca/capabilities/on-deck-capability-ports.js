@@ -154,6 +154,17 @@ function readAftercarePlacementAuthority(options,execution,expectedCaseId=null){
   return Object.freeze({context:current,care});
 }
 
+const PLACEMENT_PRECONDITION_FAILURES=new Set([
+  'CLEAN_ARCA_PLACEMENT_UNVERIFIED',
+  'CLEAN_ARCA_TARGET_OCCUPIED',
+]);
+function placementPreconditionFailureOutcome(error){
+  if(!PLACEMENT_PRECONDITION_FAILURES.has(error?.code))return null;
+  return Object.freeze({kind:'failed',failureClass:'placement_precondition',code:error.code,
+    message:String(error?.message||'Arca Placement precondition failed.'),retryDirective:'never',
+    evidence:Object.freeze({errorName:String(error?.name||'Error'),errorCode:error.code})});
+}
+
 function createOnDeckCapabilityPorts(options){const now=options.now||Date.now,acceptance=createHandoffBAcceptanceStore(options),onDeck=createOnDeckStore(options),
   controls=createMaterialControlProjectionPort(options),inbox=createInboxCoordinator(options);
   const effectAt=(execution)=>Number.isSafeInteger(execution.effectOccurredAtMs)?execution.effectOccurredAtMs:now();
@@ -305,7 +316,7 @@ function createOnDeckCapabilityPorts(options){const now=options.now||Date.now,ac
       relatedDispositionSetDigest:n.productDispositionManifest.relatedDispositionSetDigest,verifiedMaterialKeys:Object.freeze(keys),targetContainmentDigest:containment,
       finalRealityDigest:reality.realityDigest,memberEvidence:finalMemberEvidence(reality)});
     return outcome(C.finalVerify,result,at);},validateResult(_c,o){if(o?.result?.result!=='passed'||!o.result.finalRealityDigest)throw new TypeError('Final Product Verification is invalid.');}});
-  ports[C.placement]=Object.freeze({validateInputs(c){requireNamed(c,['verifiedStagedManifest','targetBindings']);},async execute(execution){const c=ctx(execution),n=execution.namedInputs,
+  ports[C.placement]=Object.freeze({validateInputs(c){requireNamed(c,['verifiedStagedManifest','targetBindings']);},async execute(execution){try{const c=ctx(execution),n=execution.namedInputs,
     at=effectAt(execution),aftercare=aftercareRequest(execution,c,at);if(aftercare){readAftercarePlacementAuthority(options,execution,aftercare.aftercareCaseId);const body=await options.inventoryPort.switchPlacement({...aftercare,
       stagedInventoryVerification:n.verifiedStagedManifest,targetBindings:n.targetBindings,
       replacedInputSetDigest:canonicalDigest(c.raw.materials.map((item)=>item.material_key).sort()),
@@ -317,7 +328,7 @@ function createOnDeckCapabilityPorts(options){const now=options.now||Date.now,ac
       targetBindings:n.targetBindings,replacedInputSetDigest:canonicalDigest(c.packageValue.offloadContextManifest.members),observedAtMs:at,
       replayCommitted:execution.recoveryDecision==='already_committed',replaySettledSources:true,nfoPresentationBasis:nfoPresentationBasis(c),
       priorPlacementReceipt:priorOnDeckPlacementReceipt(options,execution)});
-    return committedOutcome(execution,C.placement,body,at,'material_commit');},
+    return committedOutcome(execution,C.placement,body,at,'material_commit');}catch(error){const failed=placementPreconditionFailureOutcome(error);if(failed)return failed;throw error;}},
     validateResult(_c,o){if(o?.result?.receiptKind!=='placement_switched')throw new TypeError('Placement Switch Receipt is invalid.');}});
   ports[C.settlement]=Object.freeze({validateInputs(c){requireNamed(c,['oldPrimaryStructuralExclusiveRelatedHandleList','inputSettlementApproval']);},async execute(execution){const n=execution.namedInputs,m=n.oldPrimaryStructuralExclusiveRelatedHandleList.members[0],at=effectAt(execution),c=settlementCtx(execution,m.materialKey),
     settled=await options.inventoryPort.settleInputAsync({materialHandle:m.materialHandle,approval:n.inputSettlementApproval,
@@ -377,4 +388,5 @@ function createOnDeckCapabilityPorts(options){const now=options.now||Date.now,ac
   return Object.freeze(ports);
 }
 
-module.exports=Object.freeze({createOnDeckCapabilityPorts,readAftercarePlacementAuthority,nfoPresentationBasis,priorOnDeckPlacementReceipt});
+module.exports=Object.freeze({createOnDeckCapabilityPorts,readAftercarePlacementAuthority,nfoPresentationBasis,
+  priorOnDeckPlacementReceipt,placementPreconditionFailureOutcome});

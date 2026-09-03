@@ -125,6 +125,42 @@ test('target folder uses the resolved display title and derives its year without
   }
 });
 
+test('Placement target conflicts are preflighted before any earlier member is switched', async () => {
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'clean-arca-placement-preflight-'));
+  try {
+    const targetRoot=path.join(root,'shelf'),sourceRoot=path.join(root,'source');
+    fs.mkdirSync(targetRoot,{recursive:true});fs.mkdirSync(sourceRoot,{recursive:true});
+    const primary=path.join(sourceRoot,'movie.mkv'),poster=path.join(sourceRoot,'source-poster.jpg');
+    fs.writeFileSync(primary,Buffer.from('primary-bytes'));fs.writeFileSync(poster,Buffer.from('poster-bytes'));
+    const mountScopeId='canary-mount',port=createCleanArcaInventoryPort({schemaManifest,unitOfWork:{},workspaceRoot:path.join(root,'.workspace')});
+    const shelf=Object.freeze({shelfId:'shelf-1',status:'active',currentPlacementRevision:1,
+      target:{endpointId:'canary',rootLocation:targetRoot,mountScopeId,mountScopeRevision:1},
+      placement:{value:{folderTemplate:'{title} ({year})'}}});
+    const packageValue=Object.freeze({onDeckPackageId:'package-preflight',shelfId:'shelf-1',
+      resolvedIdentitySnapshot:{factValue:{displayIdentity:{entries:Object.freeze([
+        Object.freeze({key:'title',value:'Preflight Movie'}),Object.freeze({key:'year',value:'2026'}),
+      ])}}},productStructureSnapshot:{structureKind:'single'},
+      productMaterialManifest:{manifestDigest:'manifest-preflight',members:Object.freeze([
+        member(primary,'primary_payload',mountScopeId),member(poster,'poster',mountScopeId),
+      ])},offloadContextManifest:{manifestDigest:'offload-preflight',members:Object.freeze([])}});
+    const request={onDeckRunId:'run-preflight',custodyId:'custody-preflight',shelf,
+      onDeckProductPackage:packageValue,observedAtMs:10,replayCommitted:false};
+    const finalInventoryDecision=port.prepare(request),slot=port.prepareSlot({...request,finalInventoryDecision}),
+      staged=await port.stage({...request,finalInventoryDecision,targetCommitSlotHandle:slot}),
+      verified=await port.verifyStaged({...request,finalInventoryDecision,stagedInventoryManifest:staged}),
+      ordered=finalInventoryDecision.members;
+    const first=ordered[0],conflicting=ordered[ordered.length-1];
+    fs.mkdirSync(path.dirname(conflicting.targetLocation),{recursive:true});
+    fs.writeFileSync(conflicting.targetLocation,Buffer.from('foreign-conflicting-bytes'));
+    await assert.rejects(port.switchPlacement({...request,finalInventoryDecision,
+      stagedInventoryVerification:verified,targetBindings:{bindingSetDigest:'bindings'},
+      replacedInputSetDigest:'inputs'}),(error)=>error.code==='CLEAN_ARCA_TARGET_OCCUPIED');
+    assert.equal(fs.existsSync(first.targetLocation),false);
+    assert.equal(fs.existsSync(path.join(slot.slotDirectory,path.basename(first.targetLocation))),true);
+    assert.equal(fs.readFileSync(conflicting.targetLocation,'utf8'),'foreign-conflicting-bytes');
+  } finally {fs.rmSync(root,{recursive:true,force:true});}
+});
+
 test('source edition tags distinguish same title-year inventory folders without hash or numeric suffixes', () => {
   assert.equal(editionFromSourceDisplay('养蜂人 (2024) - 2160p HEVC Atmos TrueHD5.1', '养蜂人', 2024),
     '2160p HEVC Atmos TrueHD5.1');

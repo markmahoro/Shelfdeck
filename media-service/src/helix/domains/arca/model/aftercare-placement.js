@@ -4,14 +4,23 @@ const { canonicalDigest } = require('../../../contracts/canonical-json');
 const { physicalIdentityFromInventoryRow } = require('./aftercare-contract');
 
 function metadataIdentity(context) {
+  const resolvedIdentity = context.raw.facts.find((item) =>
+    item.fact_kind === 'resolved_identity')?.value || {};
+  const displayEntries = new Map((resolvedIdentity.displayIdentity?.entries || [])
+    .map((item) => [item.key, item.value]));
   const metadata = context.raw.facts.find((item) =>
     item.fact_kind === 'product_metadata')?.value || {};
   const entries = new Map((metadata.descriptiveFacts?.entries || [])
     .map((item) => [item.key, item.value]));
-  const title = entries.get('title') || entries.get('display_title') ||
+  const title = displayEntries.get('title') || entries.get('title') ||
+    entries.get('display_title') ||
     context.raw.identity.provider_key || context.shelfEntryId;
-  const rawYear = entries.get('year') || entries.get('release_year') || null;
-  const year = Number.isSafeInteger(Number(rawYear)) ? Number(rawYear) : null;
+  const rawYear = displayEntries.get('year') || entries.get('year') ||
+    entries.get('year_or_release_date') || entries.get('release_year') ||
+    entries.get('release_date') || null;
+  const yearMatch = String(rawYear || '').match(/^(\d{4})(?:\D|$)/);
+  const year = yearMatch && Number.isSafeInteger(Number(yearMatch[1]))
+    ? Number(yearMatch[1]) : null;
   return Object.freeze({ title, year });
 }
 
