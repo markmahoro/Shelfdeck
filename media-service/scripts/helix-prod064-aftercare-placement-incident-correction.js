@@ -7,7 +7,8 @@ const { canonicalDigest, canonicalJson } = require('../src/helix/contracts/canon
 const { materialKey } = require('../src/helix/foundation/persistence/material-control');
 const { computeBoundedMaterialFingerprintSync,
   readBoundedFileSnapshotSync } = require('../src/helix/integrations/bounded-material-fingerprint');
-const { compareMovieNfoPresentation } = require('../src/helix/domains/arca/model/aftercare-nfo');
+const { compareMovieNfoPresentation,
+  inspectAftercareMovieNfo } = require('../src/helix/domains/arca/model/aftercare-nfo');
 
 const CONFIRMATION = 'PROD064_AFTERCARE_PLACEMENT_INCIDENT_CORRECTION_V1';
 const INCIDENT_ENTRIES = Object.freeze([
@@ -76,9 +77,9 @@ function incidentEvidenceCount(database,entryId,incidentStartMs){return Number(d
     AND e.capability_ref='arca.inventory.placement.switch@1' AND x.updated_at_ms>=?
 `).get(entryId,incidentStartMs).count);}
 function historicalSignatures(database){return new Set(database.prepare(`SELECT size_bytes,content_fingerprint FROM arca_inventory_materials WHERE shelf_entry_id IN (${INCIDENT_ENTRIES.map(()=>'?').join(',')})`).all(...INCIDENT_ENTRIES).map((row)=>`${row.size_bytes}:${row.content_fingerprint}`));}
-function stagedIncidentSignatures(database,entryId,incidentStartMs){
-  const signatures=new Map(),rows=database.prepare(`
-    SELECT r.result_json FROM fx_event_result_bindings r
+function stagedIncidentEvidence(database,entryId,incidentStartMs){
+  const evidence=new Map(),rows=database.prepare(`
+    SELECT e.plan_id,e.work_id,r.committed_at_ms,r.result_json FROM fx_event_result_bindings r
     JOIN fx_workflow_events e ON e.event_id=r.event_id
     JOIN fx_supporting_works w ON w.work_id=e.work_id
     WHERE w.owner_domain='arca' AND w.process_type='arca_shelf_entry' AND w.process_id=?
@@ -95,15 +96,34 @@ function stagedIncidentSignatures(database,entryId,incidentStartMs){
       &&Number.isSafeInteger(Number(identity.sizeBytes))&&typeof identity.fingerprintAlgorithm==='string'
       &&Number.isSafeInteger(Number(identity.fingerprintVersion))&&typeof identity.contentFingerprint==='string'){
       const key=path.resolve(value.location),signature=`${Number(identity.sizeBytes)}:${identity.fingerprintAlgorithm}:${Number(identity.fingerprintVersion)}:${identity.contentFingerprint}`;
-      if(!signatures.has(key))signatures.set(key,new Set());
-      signatures.get(key).add(signature);
+      if(!evidence.has(key))evidence.set(key,[]);
+      evidence.get(key).push(Object.freeze({signature,stageCommittedAtMs:Number(currentRow.committed_at_ms),planId:currentRow.plan_id,workId:currentRow.work_id}));
     }
     for(const item of Object.values(value))collect(item);
   };
-  for(const row of rows){try{collect(JSON.parse(row.result_json));}catch{fail('PROD064_STAGE_RESULT_INVALID_JSON',{entryId});}}
-  return signatures;
+  let currentRow=null;
+  for(const row of rows){try{currentRow=row;collect(JSON.parse(row.result_json));}catch{fail('PROD064_STAGE_RESULT_INVALID_JSON',{entryId});}}
+  for(const [location,items] of evidence)evidence.set(location,Object.freeze(items.map((item)=>Object.freeze({...item,failedSwitchWindows:Object.freeze(database.prepare(`
+    SELECT ea.started_at_ms AS startedAtMs,x.verified_at_ms AS verifiedAtMs
+    FROM fx_workflow_events e
+    JOIN fx_event_attempts ea ON ea.event_id=e.event_id
+    JOIN fx_effect_journal x ON x.event_attempt_id=ea.event_attempt_id
+    WHERE e.plan_id=? AND e.work_id=? AND e.capability_ref='arca.inventory.placement.switch@1'
+      AND ea.outcome_kind='failed' AND x.effect_class='material_commit' AND x.state='failed'
+      AND ea.started_at_ms>=? AND x.verified_at_ms IS NOT NULL
+    ORDER BY ea.started_at_ms
+  `).all(item.planId,item.workId,item.stageCommittedAtMs).map((window)=>Object.freeze({startedAtMs:Number(window.startedAtMs),verifiedAtMs:Number(window.verifiedAtMs)})))}))));
+  return evidence;
 }
 function stagedSignature(observed){return `${Number(observed.stat.size)}:${observed.fingerprintAlgorithm}:${Number(observed.fingerprintVersion)}:${observed.contentFingerprint}`;}
+function quarantineStageBasis(location,observed,evidence){
+  const rows=evidence.get(path.resolve(location))||[],signature=stagedSignature(observed);
+  if(rows.some((item)=>item.signature===signature))return 'incident_stage_exact';
+  if(path.extname(location).toLowerCase()!=='.nfo')return null;
+  const modifiedAtMs=Number(observed.stat.mtimeMs),insideFailedSwitch=rows.some((item)=>item.failedSwitchWindows.some((window)=>modifiedAtMs>=Math.max(item.stageCommittedAtMs,window.startedAtMs)&&modifiedAtMs<=window.verifiedAtMs));
+  if(!insideFailedSwitch)return null;
+  try{return inspectAftercareMovieNfo(readBoundedFileSnapshotSync(location,256*1024).bytes).usable?'incident_failed_switch_nfo_mutation':null;}catch{return null;}
+}
 function listTreeFiles(directory){
   const result=[];
   for(const entry of fs.readdirSync(directory,{withFileTypes:true})){
@@ -180,9 +200,9 @@ function inspectPlan(database,options){
     if(fs.existsSync(destination))fail('PROD064_QUARANTINE_DESTINATION_OCCUPIED',{destination});
     const files=listTreeFiles(source);
     if(!files.length||files.some((location)=>selectedSources.has(path.resolve(location))))fail('PROD064_QUARANTINE_SCOPE_CONFLICT',{source});
-    const quarantineEntryId=QUARANTINE_ENTRY_BY_DIRECTORY[relative],staged=stagedIncidentSignatures(database,quarantineEntryId,options.incidentStartMs);
-    for(const location of files){const observed=computeBoundedMaterialFingerprintSync(location),knownIdentity=known.has(`${Number(observed.stat.size)}:${observed.contentFingerprint}`),stagedIdentities=staged.get(path.resolve(location)),incidentStageIdentity=stagedIdentities?.has(stagedSignature(observed))||false;if(!knownIdentity&&!incidentStageIdentity)fail('PROD064_QUARANTINE_UNKNOWN_FILE',{location});}
-    quarantines.push(Object.freeze({source,destination,fileCount:files.length}));
+    const quarantineEntryId=QUARANTINE_ENTRY_BY_DIRECTORY[relative],staged=stagedIncidentEvidence(database,quarantineEntryId,options.incidentStartMs),proof=[];
+    for(const location of files){const observed=computeBoundedMaterialFingerprintSync(location),knownIdentity=known.has(`${Number(observed.stat.size)}:${observed.contentFingerprint}`),stageBasis=quarantineStageBasis(location,observed,staged);if(!knownIdentity&&!stageBasis)fail('PROD064_QUARANTINE_UNKNOWN_FILE',{location});proof.push(Object.freeze({location,basis:knownIdentity?'historical_inventory_identity':stageBasis}));}
+    quarantines.push(Object.freeze({source,destination,fileCount:files.length,proof:Object.freeze(proof)}));
   }
   return Object.freeze({entries:Object.freeze(entries),quarantines:Object.freeze(quarantines),moveCount:entries.reduce((sum,item)=>sum+item.moves.length,0),inventoryAdvanceCount:entries.filter((item)=>item.moves.length||item.materials.some((row,index)=>row.material_key!==queryRows(database,'arca_inventory_materials',item.shelfEntryId,item.currentRevision,'ordinal')[index].material_key||row.location!==queryRows(database,'arca_inventory_materials',item.shelfEntryId,item.currentRevision,'ordinal')[index].location)).length});
 }
@@ -225,4 +245,4 @@ function applyCorrection(database,options){
 function parseOptions(argv){const dataDir=path.resolve(valueAfter(argv,'--data-dir')||path.join(__dirname,'..','data')),mediaRoot=path.resolve(valueAfter(argv,'--media-root')||'/media'),quarantineRoot=path.resolve(valueAfter(argv,'--quarantine-root')||path.join(mediaRoot,'.shelfdeck-incidents/prod064-aftercare-placement')),journalDir=path.resolve(valueAfter(argv,'--journal-dir')||path.join(dataDir,'prod064-aftercare-placement')),incidentStartMs=Number(valueAfter(argv,'--incident-start-ms')),expectedShelfEntryIds=valuesAfter(argv,'--expected-shelf-entry-id'),restoreRevisions=new Map(valuesAfter(argv,'--restore-inventory-revision').map((item)=>{const index=item.lastIndexOf('=');return [item.slice(0,index),Number(item.slice(index+1))];}));if(!Number.isSafeInteger(incidentStartMs)||incidentStartMs<0)fail('PROD064_INCIDENT_START_REQUIRED');return {dataDir,mediaRoot,quarantineRoot,journalDir,incidentStartMs,expectedShelfEntryIds,restoreRevisions};}
 function main(argv=process.argv.slice(2)){const options=parseOptions(argv),databasePath=path.join(options.dataDir,'shelfdeck.db'),apply=argv.includes('--apply');if(!fs.existsSync(databasePath))fail('PROD064_DATABASE_NOT_FOUND',{databasePath});const database=new Database(databasePath,apply?{}:{readonly:true,fileMustExist:true});try{database.pragma('foreign_keys=ON');if(apply){if(valueAfter(argv,'--confirm')!==CONFIRMATION)fail('PROD064_CONFIRMATION_REQUIRED');return applyCorrection(database,options);}return {operation:'prod064_aftercare_placement_incident_correction',confirmationRequired:CONFIRMATION,plan:inspectPlan(database,options)};}finally{database.close();}}
 if(require.main===module){try{process.stdout.write(JSON.stringify(main(),null,2)+'\n');}catch(error){process.stderr.write(JSON.stringify({error:{code:error.message,message:error.message,details:error.details||null}},null,2)+'\n');process.exitCode=1;}}
-module.exports=Object.freeze({CONFIRMATION,INCIDENT_ENTRIES,INCIDENT_QUARANTINE_DIRECTORIES,inspectPlan,applyCorrection,main,mapRestoreRows,parseOptions,resolveRestoreRevision,restoredLocation,stagedIncidentSignatures});
+module.exports=Object.freeze({CONFIRMATION,INCIDENT_ENTRIES,INCIDENT_QUARANTINE_DIRECTORIES,inspectPlan,applyCorrection,main,mapRestoreRows,parseOptions,quarantineStageBasis,resolveRestoreRevision,restoredLocation,stagedIncidentEvidence});
