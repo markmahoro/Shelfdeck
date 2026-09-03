@@ -296,6 +296,7 @@ function createProcurementExecutionRuntime(options) {
     :Object.freeze({kind:'pending'});
   const arcaCapabilityRegistration=arcaConstruction.createCapabilityRegistration({...options,now,workResultReader,contractValidator,
     registry:currentServiceCatalog,
+    buildRatingTargetIdentity:LibraExecutionRegistration.buildRatingTargetIdentity,
     compileFfmpegPipeline,
     computeBoundedMaterialFingerprint:options.computeBoundedMaterialFingerprint || computeBoundedMaterialFingerprint,
     computeBoundedMaterialFingerprintSync,

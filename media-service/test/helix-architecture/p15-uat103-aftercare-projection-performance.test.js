@@ -13,6 +13,7 @@ const { createArcaCareApplication } = require('../../src/helix/domains/arca/appl
 const { createArcaCollectionQuery } = require('../../src/helix/domains/arca/application/collection-query');
 const { createAftercareStore } = require('../../src/helix/domains/arca/persistence/aftercare-store');
 const { createAftercareContextReader } = require('../../src/helix/domains/arca/application/aftercare-context-reader');
+const { LibraExecutionRegistration } = require('../../src/helix/domains/libra/public');
 const { createCircuitBreaker } = require('../../src/helix/foundation/diagnostics/pressure-guard');
 const { createExecutorIncidentRegistry } = require('../../src/helix/foundation/execution/executor-incident-registry');
 
@@ -168,12 +169,19 @@ test('Aftercare batch health passes frozen rating targets instead of triggering 
   let calls=0;
   const reader=createAftercareContextReader({aftercareStore:{healthProjectionInputs:(ids)=>{
     assert.deepEqual(ids,items.map((item)=>item.shelfEntryId));return items;
-  }},readPerceptionRatings:(targets)=>{calls+=1;assert.equal(targets.length,501);
+  }},buildRatingTargetIdentity:LibraExecutionRegistration.buildRatingTargetIdentity,
+  readPerceptionRatings:(targets)=>{calls+=1;assert.equal(targets.length,501);
     assert.ok(targets.every((target)=>typeof target==='object'&&target.targetType==='shelf_entry'&&target.targetId));
-    return new Map(targets.map((target)=>[target.targetId,Object.freeze({state:'pending',resolutionDigest:null})]));}});
+    assert.ok(targets.every((target)=>target.title===target.title.toLowerCase()));
+    assert.ok(targets.every((target)=>target.targetDigest===canonicalDigest(Object.fromEntries(
+      Object.entries(target).filter(([key])=>key!=='targetDigest')))));
+    return new Map(targets.map((target)=>[target.targetId,Object.freeze({state:'pending',resolutionDigest:'a'.repeat(64)})]));}});
   const projected=reader.healthProjectionInputs(items.map((item)=>item.shelfEntryId));
   assert.equal(projected.length,501);
   assert.equal(calls,1);
+  assert.ok(projected.every((item)=>item.basis.decisionFactSetDigest===canonicalDigest({
+    schema:'arca.aftercare-decision-facts@1',shelfEntryId:item.shelfEntryId,facts:[],
+  })));
 });
 
 test('Collection list scopes identity, facts, people, and materials to the selected Entry batch', () => {
