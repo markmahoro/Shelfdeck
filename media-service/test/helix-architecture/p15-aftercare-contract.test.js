@@ -8,12 +8,15 @@ const test = require('node:test');
 const Database = require('better-sqlite3');
 const { canonicalDigest } = require('../../src/helix/contracts/canonical-json');
 const { createCapabilityContractValidator } = require('../../src/helix/foundation/capability/contract-validator');
+const { validateWorkflowPlan } = require('../../src/helix/foundation/execution/workflow-plan');
 const { openSqliteKernel } = require('../../src/helix/foundation/persistence/sqlite-kernel');
 const { createSqliteUnitOfWork } = require('../../src/helix/foundation/persistence/sqlite-unit-of-work');
 const { createAftercareProcessCoordinator } = require('../../src/helix/domains/arca/application/aftercare-process-coordinator');
 const { computeBoundedMaterialFingerprintSync } = require('../../src/helix/integrations/bounded-material-fingerprint');
 const { observedIdentity, observeKnownOldBindings } = require('../../src/helix/domains/arca/model/known-old-binding');
 const { validNfo, aftercareMediaProbeEvidence, resolveAftercareFfmpegPath } = require('../../src/helix/domains/arca/capabilities/aftercare-capability-ports');
+const { createCareRepairPreparationPlanner } = require('../../src/helix/domains/arca/planning/aftercare-planners');
+const { CAPABILITY_REFS: ON_DECK_CAPABILITIES } = require('../../src/helix/domains/arca/model/on-deck-contract');
 const {
   PERIODS,
   stableJitterMs,
@@ -193,6 +196,57 @@ test('Aftercare Case closure publishes the terminal Result before any delayed Wo
   const closureOnly = closure.slice(0, closure.indexOf('function createCareDeregistrationSettlementPlanner'));
   assert.match(closureOnly, /C\.caseCommit,'case_commit'/);
   assert.doesNotMatch(closureOnly, /C\.workspaceReclaim/);
+});
+
+test('Aftercare placement repair declares every projected Event Result as a direct success dependency', () => {
+  const refs = [
+    ON_DECK_CAPABILITIES.slot,
+    ON_DECK_CAPABILITIES.stage,
+    ON_DECK_CAPABILITIES.stagedVerify,
+    ON_DECK_CAPABILITIES.placement,
+    ON_DECK_CAPABILITIES.finalVerify,
+  ];
+  const manifests = new Map(refs.map((ref) => [ref, JSON.parse(fs.readFileSync(path.join(__dirname,
+    '../../src/helix/contracts/capabilities', ...ref.replace('@1', '').split('.'), 'v1/manifest.json'), 'utf8'))]));
+  const registry = Object.freeze({
+    snapshot:Object.freeze(refs.map((capabilityRef) => Object.freeze({ capabilityRef, contractVersion:1 }))),
+    resolve(capabilityRef) { return Object.freeze({ manifest:manifests.get(capabilityRef) }); },
+  });
+  const policyRegistry = Object.freeze({
+    digest:digest('e'),
+    bindingFor() { return Object.freeze({ retryPolicyRef:'retry@1', timeoutPolicyRef:'timeout@1' }); },
+  });
+  const basisDigest = digest('f');
+  const planner = createCareRepairPreparationPlanner({
+    registry,
+    policyRegistry,
+    contextReader:Object.freeze({
+      read() { return Object.freeze({ raw:Object.freeze({}) }); },
+      store:Object.freeze({ history() { return Object.freeze({ cases:Object.freeze([Object.freeze({
+        state:'active',
+        careBasisDigest:basisDigest,
+        careRequirement:Object.freeze({ typedParameters:Object.freeze([Object.freeze({ value:'conformance:placement_unmet' })]) }),
+      })]) }); } }),
+    }),
+  });
+  const plan = planner.plan(Object.freeze({
+    workAttemptId:'aftercare-placement-attempt-1',
+    workId:'aftercare-placement-work-1',
+    ownerDomain:'arca',
+    processType:'arca_shelf_entry',
+    processId:'shelf-entry-1',
+    executionBasisDigest:basisDigest,
+    dependencyRefs:Object.freeze([]),
+  }));
+  const validated = validateWorkflowPlan(plan, {
+    registry,
+    policyRegistry,
+    contractValidator:Object.freeze({ validate(_ref, value) { return value; } }),
+  });
+  const stage = validated.plan.nodes.find((node) => node.capabilityRef === ON_DECK_CAPABILITIES.stage);
+  const placement = validated.plan.nodes.find((node) => node.capabilityRef === ON_DECK_CAPABILITIES.placement);
+  const finalVerify = validated.plan.nodes.find((node) => node.capabilityRef === ON_DECK_CAPABILITIES.finalVerify);
+  assert.deepEqual(finalVerify.dependsOn.map((item) => item.eventId).sort(), [stage.eventId, placement.eventId].sort());
 });
 
 test('Planner and Settlement materialization share filename-aware artifact classification', () => {
