@@ -31,6 +31,9 @@ const INCIDENT_QUARANTINE_DIRECTORIES = Object.freeze([
   'Film/2001太空漫游',
   'Film/银翼杀手：2022黑暗浩劫',
 ]);
+const SILVER_BLADE_ENTRY = '052d55542cdc50ef521932293cccf0ce26fe00d7967b61d388ae7b487f0b2db8';
+const SILVER_BLADE_CURRENT_STEM = '银翼杀手2022：黑暗浩劫';
+const SILVER_BLADE_RESTORED_STEM = '银翼杀手：2022黑暗浩劫';
 
 function valueAfter(args, flag) {
   const assigned=args.find((item)=>item.startsWith(flag+'='));
@@ -79,6 +82,21 @@ function listTreeFiles(directory){
 }
 function representationMember(item,ordinal){return {ordinal,materialKey:item.material_key,role:item.role,episodeClaims:JSON.parse(item.episode_claims_json),endpointId:item.endpoint_id,location:item.location,bindingRevision:Number(item.binding_revision),physicalIdentity:{schemaRef:'helix://contracts/types/PhysicalMaterialIdentity/v2',schemaVersion:2,materialKey:item.material_key,mountScopeId:item.mount_scope_id,inode:item.inode,sizeBytes:Number(item.size_bytes),fingerprintAlgorithm:item.fingerprint_algorithm,fingerprintVersion:Number(item.fingerprint_version),contentFingerprint:item.content_fingerprint},digestHex:item.digest_hex,sizeBytes:Number(item.size_bytes)};}
 function queryRows(database,table,entryId,revision,order){return database.prepare(`SELECT * FROM ${table} WHERE shelf_entry_id=? AND ${table==='arca_inventory_representations'?'revision':'inventory_revision'}=? ORDER BY ${order}`).all(entryId,revision);}
+function mapRestoreRows(current,restore,shelfEntryId){
+  if(current.length!==restore.length)fail('PROD064_INVENTORY_MEMBER_COUNT_MISMATCH',{shelfEntryId,currentCount:current.length,restoreCount:restore.length});
+  const unused=new Set(restore.map((_,index)=>index)),mapped=[];
+  for(const row of current){
+    const choose=(predicate)=>[...unused].filter((index)=>predicate(restore[index]));
+    let candidates=choose((item)=>item.material_key===row.material_key);
+    if(candidates.length!==1)candidates=choose((item)=>item.role===row.role&&sameContent(rowIdentity(item),rowIdentity(row)));
+    if(candidates.length!==1)candidates=choose((item)=>item.role===row.role&&path.basename(item.location)===path.basename(row.location));
+    if(candidates.length!==1)candidates=choose((item)=>item.role===row.role);
+    if(candidates.length!==1)fail('PROD064_INVENTORY_MEMBER_MAPPING_AMBIGUOUS',{shelfEntryId,ordinal:row.ordinal,role:row.role,candidateCount:candidates.length});
+    unused.delete(candidates[0]);mapped.push(restore[candidates[0]]);
+  }
+  return Object.freeze(mapped);
+}
+function restoredLocation(shelfEntryId,location){return shelfEntryId===SILVER_BLADE_ENTRY?location.split(SILVER_BLADE_CURRENT_STEM).join(SILVER_BLADE_RESTORED_STEM):location;}
 function resolveRestoreRevision(database,options,shelfEntryId,currentRevision){
   const explicit=options.restoreRevisions.get(shelfEntryId);if(explicit!==undefined)return Number(explicit);
   const firstCommit=database.prepare('SELECT previous_inventory_revision FROM arca_aftercare_inventory_commits WHERE shelf_entry_id=? AND committed_at_ms>=? ORDER BY committed_at_ms,inventory_commit_id LIMIT 1').get(shelfEntryId,options.incidentStartMs);
@@ -97,10 +115,11 @@ function inspectPlan(database,options){
     const currentRevision=Number(entry.current_inventory_revision),restoreRevision=resolveRestoreRevision(database,options,shelfEntryId,currentRevision);
     const current=queryRows(database,'arca_inventory_materials',shelfEntryId,currentRevision,'ordinal');
     const restore=queryRows(database,'arca_inventory_materials',shelfEntryId,restoreRevision,'ordinal');
-    if(!current.length||current.length!==restore.length||current.some((row,index)=>Number(row.ordinal)!==Number(restore[index].ordinal)||row.role!==restore[index].role))fail('PROD064_INVENTORY_SHAPE_MISMATCH',{shelfEntryId,currentRevision,restoreRevision});
+    if(!current.length||!restore.length)fail('PROD064_INVENTORY_SHAPE_MISSING',{shelfEntryId,currentRevision,restoreRevision});
+    const mappedRestore=mapRestoreRows(current,restore,shelfEntryId);
     const nfoInput=presentation(database,shelfEntryId,currentRevision),moves=[],materials=[];
     for(let index=0;index<current.length;index+=1){
-      const sourceRow=current[index],restoreRow=restore[index],destination=ensureInside(options.mediaRoot,restoreRow.location,'destination');
+      const sourceRow=current[index],restoreRow=mappedRestore[index],destination=ensureInside(options.mediaRoot,restoredLocation(shelfEntryId,restoreRow.location),'destination');
       let source=null,actual=null;
       if(fs.existsSync(destination)){
         actual=fingerprint(destination,sourceRow.mount_scope_id);
@@ -171,4 +190,4 @@ function applyCorrection(database,options){
 function parseOptions(argv){const dataDir=path.resolve(valueAfter(argv,'--data-dir')||path.join(__dirname,'..','data')),mediaRoot=path.resolve(valueAfter(argv,'--media-root')||'/media'),quarantineRoot=path.resolve(valueAfter(argv,'--quarantine-root')||path.join(mediaRoot,'.shelfdeck-incidents/prod064-aftercare-placement')),journalDir=path.resolve(valueAfter(argv,'--journal-dir')||path.join(dataDir,'prod064-aftercare-placement')),incidentStartMs=Number(valueAfter(argv,'--incident-start-ms')),expectedShelfEntryIds=valuesAfter(argv,'--expected-shelf-entry-id'),restoreRevisions=new Map(valuesAfter(argv,'--restore-inventory-revision').map((item)=>{const index=item.lastIndexOf('=');return [item.slice(0,index),Number(item.slice(index+1))];}));if(!Number.isSafeInteger(incidentStartMs)||incidentStartMs<0)fail('PROD064_INCIDENT_START_REQUIRED');return {dataDir,mediaRoot,quarantineRoot,journalDir,incidentStartMs,expectedShelfEntryIds,restoreRevisions};}
 function main(argv=process.argv.slice(2)){const options=parseOptions(argv),databasePath=path.join(options.dataDir,'shelfdeck.db'),apply=argv.includes('--apply');if(!fs.existsSync(databasePath))fail('PROD064_DATABASE_NOT_FOUND',{databasePath});const database=new Database(databasePath,apply?{}:{readonly:true,fileMustExist:true});try{database.pragma('foreign_keys=ON');if(apply){if(valueAfter(argv,'--confirm')!==CONFIRMATION)fail('PROD064_CONFIRMATION_REQUIRED');return applyCorrection(database,options);}return {operation:'prod064_aftercare_placement_incident_correction',confirmationRequired:CONFIRMATION,plan:inspectPlan(database,options)};}finally{database.close();}}
 if(require.main===module){try{process.stdout.write(JSON.stringify(main(),null,2)+'\n');}catch(error){process.stderr.write(JSON.stringify({error:{code:error.message,message:error.message,details:error.details||null}},null,2)+'\n');process.exitCode=1;}}
-module.exports=Object.freeze({CONFIRMATION,INCIDENT_ENTRIES,INCIDENT_QUARANTINE_DIRECTORIES,inspectPlan,applyCorrection,main,parseOptions,resolveRestoreRevision});
+module.exports=Object.freeze({CONFIRMATION,INCIDENT_ENTRIES,INCIDENT_QUARANTINE_DIRECTORIES,inspectPlan,applyCorrection,main,mapRestoreRows,parseOptions,resolveRestoreRevision,restoredLocation});
