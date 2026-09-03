@@ -1,6 +1,16 @@
 # ShelfDeck Helix 当前实施阶段
 
-状态：**PROD-063 DEPLOYED — AFTERCARE STORM TERMINATED AND UI RESPONSIVENESS VERIFIED**
+状态：**PROD-064 ACTIVE — PRODUCTION OFFLINE FOR GUARDED AFTERCARE PLACEMENT RECOVERY**
+
+## PROD-064 当前恢复边界（2026-09-03）
+
+- 已证明 PROD-063 的 collision-only policy publication 被错误解释成 layout migration，并叠加可变
+  Presentation 命名事实，造成 13 条 Shelf Entry 的物理/Inventory 偏移。服务保持停止。
+- 代码修复只让 folder/member template、Shelf root 或 endpoint 变化触发既有 Inventory 重排；collision-only
+  变化不重命名，缺少 accepted Placement baseline 时 fail closed。
+- 恢复工具冻结 13 条 exact ID、4 个 quarantine source，要求 bounded physical evidence、可逆 rename journal、
+  单事务 Inventory/Material Control append、Deck Fact 与历史 Binding 不变，以及 apply 后零动作 dry-run。
+- 本地 Service full 446 项：428 pass、18 skip、0 fail。生产只读 plan、apply、部署与重启尚未执行。
 
 ## PROD-063 已部署增量（2026-09-03）
 

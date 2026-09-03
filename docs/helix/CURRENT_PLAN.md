@@ -1,6 +1,6 @@
 # ShelfDeck Clean Helix Master Plan
 
-Status: **PROD-063 已部署并完成 Aftercare 风暴收敛观察；当前不需要 Formation Reset。**
+Status: **PROD-064 已获授权并进入离线恢复；完成 13 条物理/Arca 核验前不得启动生产服务。**
 
 Last updated: 2026-09-03
 
@@ -21,7 +21,13 @@ Last updated: 2026-09-03
 - PROD-057 已部署：`LibraMediaPlanningPolicy@1` revision 3把有效质量下限冻结为`min(星级×画幅Policy下限, 源实际视频码率)`，低码率源不会被灌大。仅体积超限时，下一施工目标若低于该下限则不建立第二次转码、不转CPU、不寻源，保留首次成功且画质更高的超限Workspace产品并offer精确`size_cap_exceeded`。Manifest绑定唯一Work、Verification、Workspace Handle与Material Fence；UI不再表达为笼统“策略穷尽”。
 - PROD-058 已部署并完成生产验收：single-source不增加候选重试；一次搜索内把共享者数量冻结进Candidate availability Evidence，只从`available + compliant`集合按`seederCount DESC, Provider rank, Candidate ID`选择唯一源。MoviePilot pending Job把百分比、字节速度和ETA写入同一Event的durable Progress；Formation一级页与详情显示真实下载/零速等待状态。007在Reset后选择共享者数28的唯一候选并建立一个Job，没有兼容旧Run或候选fallback。
 - PROD-059 已部署并完成生产观察：Libra原片寻源判断、Libra成品验收和Arca独立验收都检查Primary Video容器内全部Probe Audio Stream，`default disposition`与顺序不参与，不增加Remux。体积瑕疵终态只允许`size_cap_requires_admission`精确映射唯一`max_size_exceeded`实测Result，任何附加Gap继续拒绝。守望者与角斗士2均已冻结为可接纳的唯一体积瑕疵；007旧Run不兼容复活，是否立即重新形成取决于独立Formation Reset授权。
-- PROD-063 已部署并生产验收：Aftercare Placement 使用 accepted display identity，先整体 preflight 再 mutation；确定性 Placement/Settlement 前置拒绝终态化，未知 I/O 和 mutation 后失败继续 reconcile；纯 Binding 迁移不改 Material Control。生产已稳定为 0 active Aftercare Case、0 active Arca Work、0 `reconcile_required` Effect，未执行 Reset 或直接数据修订。
+- PROD-063 的初始 runtime 收敛结论已被物理核查修正：collision-only Placement revision 引发 13 条既有
+  Shelf Entry 错误迁移，其中 10 条 DB 已 Commit、3 条仅物理 Effect 成功。PROD-064 按用户授权保持停服，
+  使用精确白名单工具恢复原有路径、隔离事故副本并追加真实 Arca Inventory/Material Control 事实；不执行
+  Formation Reset，不删除 torrent、备份或未纳管字幕，不改变 Deck Fact。
+- PROD-064 顺序固定为：完整测试 → commit-addressed 标准镜像 build/upload → 生产只读 plan → 第二份即时完整备份
+  → guarded apply → 离线收敛 plan、文件指纹、SQLite/foreign key、Deck Fact/Control 核验 → 标准 deploy →
+  readiness/health/Admin/mount/exact-image 与事故复发检查。任一 gate 失败均保持服务停止。
 
 ## 当前基线
 

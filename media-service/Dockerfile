@@ -72,6 +72,7 @@ COPY media-service/scripts/helix-formation-reset.js ./scripts/helix-formation-re
 COPY media-service/scripts/helix-prod033-execution-residual-repair.js ./scripts/helix-prod033-execution-residual-repair.js
 COPY media-service/scripts/helix-prod034-one-time-correction.js ./scripts/helix-prod034-one-time-correction.js
 COPY media-service/scripts/helix-prod047-aftercare-reclaim-residual-correction.js ./scripts/helix-prod047-aftercare-reclaim-residual-correction.js
+COPY media-service/scripts/helix-prod064-aftercare-placement-incident-correction.js ./scripts/helix-prod064-aftercare-placement-incident-correction.js
 COPY media-service/scripts/helix-observation-storage-compact.js ./scripts/helix-observation-storage-compact.js
 COPY --from=web-builder /build/dist/admin ./dist/admin
 

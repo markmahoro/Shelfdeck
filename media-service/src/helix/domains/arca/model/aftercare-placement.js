@@ -1,7 +1,41 @@
 'use strict';
 
+const path = require('node:path');
 const { canonicalDigest } = require('../../../contracts/canonical-json');
 const { physicalIdentityFromInventoryRow } = require('./aftercare-contract');
+
+const PLACEMENT_LAYOUT_FIELDS = Object.freeze([
+  'folderTemplate',
+  'primaryTemplate',
+  'nfoTemplate',
+  'subtitleTemplate',
+  'posterTemplate',
+  'fanartTemplate',
+]);
+
+function classifyAcceptedPlacement(context) {
+  const initial = context?.raw?.initialPlacementDecision;
+  const initialPolicy = context?.raw?.initialPlacement?.value;
+  const currentPolicy = context?.raw?.placement?.value;
+  const shelf = context?.raw?.shelf;
+  if (!initial || !initialPolicy || !currentPolicy || !shelf) {
+    return Object.freeze({ state:'not_assessable', reasonCode:'placement_baseline_unavailable' });
+  }
+  const currentRoot = path.resolve(shelf.target_root_location);
+  const initialTarget = path.resolve(initial.target_location);
+  const endpointChanged = initial.target_endpoint_id !== shelf.target_endpoint_id;
+  const rootChanged = initialTarget !== currentRoot &&
+    !initialTarget.startsWith(currentRoot + path.sep);
+  const layoutChanged = PLACEMENT_LAYOUT_FIELDS.some((field) =>
+    initialPolicy[field] !== currentPolicy[field]);
+  if (endpointChanged || rootChanged || layoutChanged) {
+    return Object.freeze({ state:'recompute', reasonCode:endpointChanged
+      ? 'target_endpoint_changed' : rootChanged ? 'target_root_changed' : 'layout_policy_changed' });
+  }
+  return Object.freeze({ state:'accepted', reasonCode:Number(initial.placement_revision) ===
+    Number(context.basis?.placementRevision) ? 'accepted_revision_current' :
+    'non_layout_policy_change' });
+}
 
 function metadataIdentity(context) {
   const resolvedIdentity = context.raw.facts.find((item) =>
@@ -174,5 +208,5 @@ function placementMaterialReceipts(context, workResultReader, sourceWorkId,
     right.finalMaterialIdentity.materialKey)));
 }
 
-module.exports = Object.freeze({ buildAftercareInventoryRequest, metadataIdentity,
-  placementMaterialReceipts });
+module.exports = Object.freeze({ buildAftercareInventoryRequest, classifyAcceptedPlacement,
+  metadataIdentity, placementMaterialReceipts });

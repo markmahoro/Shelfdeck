@@ -16,7 +16,7 @@ const { computeBoundedMaterialFingerprintSync } = require('../../src/helix/integ
 const { observedIdentity, observeKnownOldBindings } = require('../../src/helix/domains/arca/model/known-old-binding');
 const { validNfo, aftercareMediaProbeEvidence, resolveAftercareFfmpegPath } = require('../../src/helix/domains/arca/capabilities/aftercare-capability-ports');
 const { createCareRepairPreparationPlanner } = require('../../src/helix/domains/arca/planning/aftercare-planners');
-const { metadataIdentity } = require('../../src/helix/domains/arca/model/aftercare-placement');
+const { classifyAcceptedPlacement, metadataIdentity } = require('../../src/helix/domains/arca/model/aftercare-placement');
 const { placementPreconditionFailureOutcome } = require('../../src/helix/domains/arca/capabilities/on-deck-capability-ports');
 const { CAPABILITY_REFS: ON_DECK_CAPABILITIES } = require('../../src/helix/domains/arca/model/on-deck-contract');
 const {
@@ -63,6 +63,33 @@ test('Aftercare Placement uses the committed display identity and formal year fi
       {key:'release_date',value:'2023-04-28'},
     ]}}},
   ]}}),{title:'长空之王',year:2023});
+});
+
+test('a collision-only Placement publication cannot rename accepted inventory after presentation drift', () => {
+  const policy=(collisionPolicy)=>Object.freeze({folderTemplate:'{title} ({year})',primaryTemplate:'{stem}{ext}',
+    nfoTemplate:'{stem}.nfo',subtitleTemplate:'{stem}{language}{forced}{sdh}{ext}',posterTemplate:'poster{ext}',
+    fanartTemplate:'fanart{ext}',collisionPolicy});
+  for(let index=0;index<64;index+=1){
+    const result=classifyAcceptedPlacement({basis:{placementRevision:2},raw:{
+      shelf:{target_endpoint_id:'endpoint-1',target_root_location:'F:/Film'},
+      initialPlacementDecision:{placement_revision:1,target_endpoint_id:'endpoint-1',target_location:`F:/Film/Accepted ${index} (2020)`},
+      initialPlacement:{value:policy('reject')},placement:{value:policy('suffix')},
+      facts:[{fact_kind:'resolved_identity',value:{displayIdentity:{entries:[{key:'title',value:`Renamed ${index}`}]}}}],
+    }});
+    assert.deepEqual(result,{state:'accepted',reasonCode:'non_layout_policy_change'});
+  }
+});
+
+test('Aftercare recomputes only for a changed Placement layout or physical target', () => {
+  const base={folderTemplate:'{title} ({year})',primaryTemplate:'{stem}{ext}',nfoTemplate:'{stem}.nfo',
+    subtitleTemplate:'{stem}{language}{forced}{sdh}{ext}',posterTemplate:'poster{ext}',fanartTemplate:'fanart{ext}',collisionPolicy:'reject'};
+  const context={basis:{placementRevision:2},raw:{shelf:{target_endpoint_id:'endpoint-1',target_root_location:'F:/Film'},
+    initialPlacementDecision:{placement_revision:1,target_endpoint_id:'endpoint-1',target_location:'F:/Film/Accepted (2020)'},
+    initialPlacement:{value:base},placement:{value:{...base,folderTemplate:'{title}'}}}};
+  assert.deepEqual(classifyAcceptedPlacement(context),{state:'recompute',reasonCode:'layout_policy_changed'});
+  assert.deepEqual(classifyAcceptedPlacement({...context,raw:{...context.raw,shelf:{...context.raw.shelf,target_endpoint_id:'endpoint-2'}}}),
+    {state:'recompute',reasonCode:'target_endpoint_changed'});
+  assert.deepEqual(classifyAcceptedPlacement({raw:{}}),{state:'not_assessable',reasonCode:'placement_baseline_unavailable'});
 });
 
 test('deterministic Placement precondition failures become terminal Capability outcomes', () => {

@@ -16,6 +16,7 @@ const { CAPABILITY_REFS:C,
   buildAftercareSettlementHandles,
   projectHealth, isAftercareArtifactMaterial } = require('../model/aftercare-contract');
 const { buildAftercareInventoryRequest,
+  classifyAcceptedPlacement,
   placementMaterialReceipts } = require('../model/aftercare-placement');
 const { SCHEMA_REF:EPISODE_CLAIMS_SCHEMA,
   emptyArcaMaterialEpisodeClaims } = require('../model/material-episode-claims');
@@ -434,7 +435,8 @@ function createAftercareCapabilityPorts(options){const now=options.now||Date.now
         ?await assessMediaRepairStrategy(options,c,probe,sourceProbeEvidence):null;
     if(needsTranscode&&!mediaRepairStrategy)findings=[...findings.filter((item)=>!/\/(video_codec_unmet|max_size_exceeded)\//.test(item.schemaRef)),
       finding('conformance','media_strategy_unavailable','critical','attention_required',canonicalDigest({basis:c.basis.digest,probeDigest:canonicalDigest(probe)}))];
-    const initial=c.raw.initialPlacementDecision,initialStillCurrent=initial&&Number(initial.placement_revision)===Number(c.basis.placementRevision)&&initial.target_endpoint_id===c.raw.shelf.target_endpoint_id&&c.raw.materials.every((item)=>path.resolve(path.dirname(item.location))===path.resolve(initial.target_location)),placementRequest=initialStillCurrent?null:buildAftercareInventoryRequest(c,options.inventoryPort,at,stable('arca-care-assessment-placement-',{entry:c.shelfEntryId,basis:c.basis.digest})),desired=placementRequest?options.inventoryPort.resolveTargetLocation(placementRequest):null,placementUnmet=Boolean(desired)&&c.raw.materials.some((item)=>item.endpoint_id!==c.raw.shelf.target_endpoint_id||path.resolve(path.dirname(item.location))!==path.resolve(desired.targetDirectory));
+    const placementState=classifyAcceptedPlacement(c),placementRequest=placementState.state==='recompute'?buildAftercareInventoryRequest(c,options.inventoryPort,at,stable('arca-care-assessment-placement-',{entry:c.shelfEntryId,basis:c.basis.digest})):null,desired=placementRequest?options.inventoryPort.resolveTargetLocation(placementRequest):null,placementUnmet=Boolean(desired)&&c.raw.materials.some((item)=>item.endpoint_id!==c.raw.shelf.target_endpoint_id||path.resolve(path.dirname(item.location))!==path.resolve(desired.targetDirectory));
+    if(placementState.state==='not_assessable')findings.push(finding('conformance','placement_basis_unavailable','critical','attention_required',canonicalDigest({shelfEntryId:c.shelfEntryId,placementRevision:c.basis.placementRevision,reasonCode:placementState.reasonCode})));
     if(placementUnmet)findings.push(finding('conformance','placement_unmet','critical','auto_repair',canonicalDigest({endpointId:c.raw.shelf.target_endpoint_id,targetDirectory:desired.targetDirectory,placementRevision:c.basis.placementRevision})));
     for(const observed of observeKnownOldBindings(c.raw,fingerprint)){
       if(observed.kind==='absent')continue;
