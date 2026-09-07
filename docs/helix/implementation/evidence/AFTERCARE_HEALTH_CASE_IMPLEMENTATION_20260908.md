@@ -40,4 +40,6 @@
 
 副本SQL采样确认Formation当前计划与任务状态在同一请求重复读取Libra/Arca执行记录。改为复用本请求已取得的完整投影，不增加跨请求缓存；既有47项Formation状态/详情测试通过。副本绑定Windows磁盘的时延不能充当NAS生产性能结论，仍须上线后并发两页实测。
 
+进一步定位到列表摘要读取已完成Procurement Run的全部历史，再从中筛出已完成材料准备计划。Subject的当前计划只会来自媒体整理或上架阶段，列表现不再请求该Procurement历史；点开详情仍保留真实材料准备计划。回归验证列表与详情的currentPlan/currentRun完全一致，并验证列表只读一次执行投影；47项相关测试通过。旧生产03:33实测Formation 2110ms、Collection 775ms，作为上线对照。
+
 AC-09仍是独立能力缺口：已有Arca人物关系Evidence Projection保留；完整新NFO人物观察→People注册→确定性Arca关系记录更新尚未实现。本次记录更新不会猜测演员匹配或改写已接受Cast，也不会为人物记录更新创建维护Case。不能据此宣称People全链路验收通过或全部审计项关闭。后续继续在唯一CURRENT_PHASE下跟踪，不创建平行计划。

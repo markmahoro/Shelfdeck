@@ -504,8 +504,10 @@ function createFormationProjectionSource(options) {
     const externalIntegrationReady = typeof options.isExternalMaterialIntegrationReady === 'function'
       ? options.isExternalMaterialIntegrationReady() === true : null;
     const includeActualPlans = buildOptions.includeProcessDetail === true || buildOptions.includeProcessSummary === true;
+    // Material preparation is already complete for a Subject. Its Procurement
+    // history belongs in the opened detail, not the current-plan list summary.
     const actualPlanProcessIds = includeActualPlans ? unique([
-      ...prepared.map((item)=>item.snapshot?.candidatePackage?.procurementRunId),
+      ...(buildOptions.includeProcessDetail === true ? prepared.map((item)=>item.snapshot?.candidatePackage?.procurementRunId) : []),
       ...value.decisions.map((item)=>item.intake_decision_id), ...subjects.map((item)=>item.subject_id),
       ...runIds, ...offerIds, ...onDeckRunIds,
     ]) : [];

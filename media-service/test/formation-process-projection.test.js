@@ -7,6 +7,7 @@ const path=require('node:path');
 const test=require('node:test');
 const Database=require('better-sqlite3');
 const {buildFormationProcessDetail,currentPlanSummary,projectPlans}=require('../src/helix/domains/libra/application/formation-process-projection');
+const {createFormationProjectionSource}=require('../src/helix/domains/libra/application/formation-query');
 const {createExecutionProgressProjectionReader}=require('../src/helix/foundation/execution/progress-projection-reader');
 const {canonicalDigest,canonicalJson}=require('../src/helix/contracts/canonical-json');
 const {openSqliteKernel}=require('../src/helix/foundation/persistence/sqlite-kernel');
@@ -33,6 +34,29 @@ function candidateEvent(planId,unitId,candidatePackageId,createdAtMs=1) {
 function businessStageStates(overrides={}) {
   return {materialPreparation:'completed',mediaOrganization:'in_progress',acceptanceShelving:'not_started',...overrides};
 }
+
+test('Formation list keeps the same current plan without fetching the completed Procurement history',()=>{
+  const subject={subject_id:'subject-1',status:'active',structure_kind:'single',content_profile:'movie',routing_anchor_intake_decision_id:'intake-1',created_at_ms:1};
+  const rows={find_decisions:[{target_subject_id:'subject-1',intake_decision_id:'intake-1',decided_at_ms:1,
+    candidate_delivery_snapshot_json:canonicalJson({candidatePackage:{procurementRunId:'procurement-heavy',candidatePackageId:'candidate-1',structureEvidenceRef:{unitId:'unit-1'}}})}],
+    find_runs:[{subject_id:'subject-1',libra_run_id:'run-1',state:'active',state_revision:1,created_at_ms:2}]};
+  const unitOfWork={execute(participants){return Object.fromEntries(participants.map(participant=>[participant.participantId,
+    participant.execute({repository:()=>({invoke:name=>rows[name]||[]})})]));}};
+  const works=[work('procurement','procurement_run','procurement-heavy','candidate_assembly',[candidateEvent('candidate-plan','unit-1','candidate-1')]),
+    work('libra','libra_run','run-1','workspace_media_production',[event('current-plan','transcode','libra.media.transcode@1','executing',2)])];
+  const reads=[],source=createFormationProjectionSource({schemaManifest,unitOfWork,progressProjectionReader:{read(ids){reads.push([...ids]);return works.filter(item=>ids.includes(item.processId));}}});
+  const full=source.buildBatch([subject],{includeProcessDetail:true})[0];
+  assert.ok(reads.some(ids=>ids.includes('procurement-heavy')));
+  reads.length=0;
+  const listed=source.buildBatch([subject],{includeProcessSummary:true})[0];
+  assert.ok(reads.every(ids=>!ids.includes('procurement-heavy')));
+  assert.equal(reads.length,1);
+  assert.ok(full.currentPlan);
+  assert.deepEqual(listed.currentPlan,full.currentPlan);
+  assert.deepEqual(listed.currentRun,full.currentRun);
+  assert.equal(listed.processDetail,undefined);
+  assert.equal(full.processDetail.stages[0].plans.length,1);
+});
 
 test('Formation process projection preserves durable Plan boundaries and dependency order',()=>{
   const edges=[{fromNodeId:'first',toNodeId:'second',dependencyKind:'success'}];
