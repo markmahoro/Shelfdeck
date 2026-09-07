@@ -1738,6 +1738,7 @@ function createCleanArcaInventoryPort(options) {
     const sourceBasis = mutableSettlementBasis(request, finalPlan);
     let preDeleteIdentityDigest = null;
     const sourceDirectory = path.dirname(source);
+    const discRoot = findBluRayDiscRoot(source);
     const managedLocations = [
       ...(finalRequest.onDeckProductPackage.offloadContextManifest?.members || [])
         .map((item) => path.resolve(item.location)),
@@ -1755,7 +1756,7 @@ function createCleanArcaInventoryPort(options) {
     }
     const retainedFinalDirectory = sourceDirectory === path.resolve(built.targetDirectory);
     const retainedShelfRoot = sourceDirectory === path.resolve(built.targetRoot);
-    if (!sameLocation && !retainedFinalDirectory && !retainedShelfRoot &&
+    if (discRoot && !sameLocation && !retainedFinalDirectory && !retainedShelfRoot &&
         fs.existsSync(sourceDirectory)) {
       const unknown = fs.readdirSync(sourceDirectory, { withFileTypes:true })
         .map((item) => path.resolve(sourceDirectory, item.name))
@@ -1798,7 +1799,6 @@ function createCleanArcaInventoryPort(options) {
         }
       }
     }
-    const discRoot = findBluRayDiscRoot(source);
     const protectedDirectories = new Set([
       path.resolve(built.targetRoot),
       path.resolve(built.targetDirectory),
@@ -1821,9 +1821,11 @@ function createCleanArcaInventoryPort(options) {
       ? 'retained_as_final'
       : 'not_present';
     if (!sameLocation && fs.existsSync(sourceDirectory)) {
-      const children = fs.readdirSync(sourceDirectory, { withFileTypes:true })
-        .map((item) => path.resolve(sourceDirectory, item.name));
-      if (children.length === 0 && sourceDirectory !== built.targetRoot) {
+      const children = discRoot ? fs.readdirSync(sourceDirectory, { withFileTypes:true })
+        .map((item) => path.resolve(sourceDirectory, item.name)) : [];
+      if (!discRoot) {
+        oldDirectoryDisposition = 'retained_directory';
+      } else if (children.length === 0 && sourceDirectory !== built.targetRoot) {
         fs.rmdirSync(sourceDirectory);
         oldDirectoryDisposition = 'removed_empty';
       } else {
@@ -1895,6 +1897,7 @@ function createCleanArcaInventoryPort(options) {
     const sourceBasis = mutableSettlementBasis(request, finalPlan);
     let preDeleteIdentityDigest = null;
     const sourceDirectory = path.dirname(source);
+    const discRoot = findBluRayDiscRoot(source);
     const managedLocations = (request.managedLocations || [
       ...(finalRequest.onDeckProductPackage.offloadContextManifest?.members || [])
         .map((item) => item.location),
@@ -1917,7 +1920,7 @@ function createCleanArcaInventoryPort(options) {
     };
     const retainedFinalDirectory = sourceDirectory === target.targetDirectory;
     const retainedShelfRoot = sourceDirectory === target.targetRoot;
-    if (!sameLocation && !retainedFinalDirectory && !retainedShelfRoot &&
+    if (discRoot && !sameLocation && !retainedFinalDirectory && !retainedShelfRoot &&
         await exists(sourceDirectory)) {
       const unknown = [];
       for (const item of await fs.promises.readdir(sourceDirectory, { withFileTypes:true })) {
@@ -1959,7 +1962,6 @@ function createCleanArcaInventoryPort(options) {
         }
       }
     }
-    const discRoot = findBluRayDiscRoot(source);
     const protectedDirectories = new Set([
       target.targetRoot,
       target.targetDirectory,
@@ -1983,9 +1985,11 @@ function createCleanArcaInventoryPort(options) {
       ? 'retained_as_final'
       : 'not_present';
     if (!sameLocation && await exists(sourceDirectory)) {
-      const children = (await fs.promises.readdir(sourceDirectory, { withFileTypes:true }))
-        .map((item) => path.resolve(sourceDirectory, item.name));
-      if (children.length === 0 && sourceDirectory !== target.targetRoot) {
+      const children = discRoot ? (await fs.promises.readdir(sourceDirectory, { withFileTypes:true }))
+        .map((item) => path.resolve(sourceDirectory, item.name)) : [];
+      if (!discRoot) {
+        oldDirectoryDisposition = 'retained_directory';
+      } else if (children.length === 0 && sourceDirectory !== target.targetRoot) {
         await fs.promises.rmdir(sourceDirectory);
         oldDirectoryDisposition = 'removed_empty';
       } else {

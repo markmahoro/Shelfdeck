@@ -93,3 +93,7 @@ Inventory adapter 会给出 `details.sourceDirectory/unknownNames`，Final NFO s
 
 《猩球崛起3》追加核验：Package发布于首轮部署前，sourceNfoObservations为空；旧NFO由13323变为10779 bytes，其他仍存在的12项Related文件摘要相同，原Primary已经Settlement迁出。它属于缺少历史语义witness的旧包恢复，不可在当前时刻补造旧witness。
 最新生产补充镜像 `helix-beta-20260907-1125d232c6`（Image ID `sha256:106d999b0e3d2a6bad4650e2603c61469dc70a7dc1c26639407b7c66deb003f5`，tar SHA `a8daa19733d0c11586354500a6e7ad5f7d300dfc6280d56dcdc4494294b9d5e4`）已标准部署；观察版本推进到1119（新Work第30页），已正式观察到007的27506628703-byte合格文件和恋恋笔记本的新canonical正片。尚未完成整轮扫描，未伪称新候选已经上架。
+
+## 8. D3共享目录合同确认与实施
+
+用户2026-09-07明确确认逐文件清理方案，Design commit `2eaa31a46`；后续仅排版收束与source map机械传播，无额外语义变化。四个Movie文件型共享目录不再因范围外成员阻止当前授权文件结算，普通父目录保留，Final/旧Identity/唯一mapping校验不变；BDMV原子容器及Aftercare独立权限不变。生产恢复前只读记录22个范围外文件指纹（Top Gun10、夺宝奇兵5共8、哪啊哪啊3、霍比特人1共1），包括独立1080p候选；恢复后需比较这些文件并核对四份durable On-deck Commit。

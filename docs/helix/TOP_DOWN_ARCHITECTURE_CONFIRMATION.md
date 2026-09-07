@@ -3844,12 +3844,8 @@ Final Decision完全一致时形成有Evidence的no-op；不同路径时必须�
 On-deck Commit只有在全部Disposition成员已有terminal completion且
 `related_disposition_completion_digest`非空并绑定Final Reality时才可建立Shelf Entry与Deck Fact。
 
-PROD-065 D3（2026-09-07，用户确认本任务修订及实施）：Movie文件型On-deck Settlement以当前Candidate冻结的逐文件处置范围为边界。
-Arca在删除每个成员前必须验证该成员的精确授权、旧Identity（NFO遵循已确认的语义连续性）、source-to-final mapping及合格Final替代。
-同目录的范围外文件、其他版本、字幕、种子及子目录必须原地保留；它们的存在不阻止当前已授权成员Settlement，也不产生接管或删除权限。
-Settlement不删除普通父目录，即使目录为空；目录保留是明确的成功处置结果，不冒充仍有本Candidate成员待处理。
-全部本Candidate成员仍须逐项终结，不能把尚未结算的受管成员当成范围外文件。未知成员侵入当前成员路径、Identity不符或替代验证失败仍必须停止。
-本次修订不改变BDMV已冻结的原子容器/结构依赖范围及其独立收口规则，不扩展Aftercare、Off-deck或Workspace清理权限。
+PROD-065 D3（2026-09-07，用户确认本任务修订及实施）：Movie文件型On-deck Settlement以当前Candidate冻结的逐文件处置范围为边界。Arca在删除每个成员前必须验证该成员的精确授权、旧Identity（NFO遵循已确认的语义连续性）、source-to-final mapping及合格Final替代。同目录的范围外文件、其他版本、字幕、种子及子目录必须原地保留；它们的存在不阻止当前已授权成员Settlement，也不产生接管或删除权限。
+Settlement不删除普通父目录，即使目录为空；目录保留是明确的成功处置结果，不冒充仍有本Candidate成员待处理。全部本Candidate成员仍须逐项终结，不能把尚未结算的受管成员当成范围外文件。未知成员侵入当前成员路径、Identity不符或替代验证失败仍必须停止。本次修订不改变BDMV已冻结的原子容器/结构依赖范围及其独立收口规则，不扩展Aftercare、Off-deck或Workspace清理权限。
 Aftercare Conformance除当前Inventory与Placement Decision外，还必须读取已知历史Custody Binding；旧Binding仍存在但能唯一证明为
 当前Final成员的同字节副本时，才可在Placement Case中按同一证据边界结算，否则保持用户可见“需要处理”。
 

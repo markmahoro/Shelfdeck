@@ -188,7 +188,7 @@ test('UAT-111 Settlement executor passes only the bounded member context to asyn
           finalTargetLocation:'T:/Movie/final-8',
           finalRealityDigest:'final-reality-8',
           finalVerified:true,
-          oldDirectoryDisposition:'awaiting_managed_settlement',
+          oldDirectoryDisposition:'retained_directory',
         });
       },
     },

@@ -38,3 +38,5 @@ Field Observation补充验证：关联自动观察/枚举/保留15 PASS；210文
 补充镜像1125d232c6已完成生产apply；Health ok，Admin Web/mount/exact image通过。真实新Observation已经提交第0至12页（revision1089至1101），上一轮partial页不变。D3等待用户确认，四部共享目录均已进入有界attention；原六项恢复等待正式整轮观察及入队，不能宣称全部上架。
 
 2026-09-07 D3用户明确“确认”：本任务获授权修订Movie文件型On-deck逐文件Settlement合同并实施、验证、部署及推进四部共享目录影片。精确成员授权与Final验证保持，范围外文件/子目录及普通父目录保留，BDMV原子容器和其他生命周期不扩权。
+
+D3实施：普通文件源清理只验证当前成员及Final，目录存在不要求closed-world，普通父目录始终保留并返回retained_directory；BDMV分支维持既有行为。同步/异步覆盖独立版本/子目录保留、身份漂移拒绝、重复执行和空目录；真实Admin链路覆盖候选冻结后新增范围外文件、NFO改写及重启到On-deck Commit。服务501项：483 PASS /18条件SKIP /0 FAIL；Settlement专项58 PASS，Projection/有界上下文23 PASS。SSOT source map按确认文本重新生成，P2合同检查PASS。

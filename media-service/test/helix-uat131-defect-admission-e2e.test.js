@@ -800,6 +800,9 @@ test('UAT-131 real Admin HTTP admits exact defects and reaches one On-deck commi
       const location = path.join(harness.paths.field, 'UAT131 Movie (2026).nfo');
       fs.writeFileSync(location + '.tmp', '<movie><tmdbid>913100</tmdbid><title><![CDATA[UAT131 Movie]]></title><year>2026</year><dateadded>2026-09-07</dateadded></movie>');
       fs.renameSync(location + '.tmp',location);
+      fs.writeFileSync(path.join(harness.paths.field,'independent-version.mkv'),'outside-candidate-media');
+      fs.mkdirSync(path.join(harness.paths.field,'unrelated-extras'));
+      fs.writeFileSync(path.join(harness.paths.field,'unrelated-extras','notes.txt'),'outside-candidate-notes');
       await harness.restart();
     }
     const admitted = await admit(harness.host, harness.cookie, runId, finalCandidate,
@@ -854,6 +857,9 @@ test('UAT-131 real Admin HTTP admits exact defects and reaches one On-deck commi
           'Handoff B must carry the original durable NFO witness across restart');
         assert.equal(fs.existsSync(path.join(harness.paths.field,'UAT131 Movie (2026).nfo')),false,
           'Semantically unchanged rewritten source must be settled before On-deck commit');
+        assert.equal(fs.readFileSync(path.join(harness.paths.field,'independent-version.mkv'),'utf8'),'outside-candidate-media');
+        assert.equal(fs.readFileSync(path.join(harness.paths.field,'unrelated-extras','notes.txt'),'utf8'),'outside-candidate-notes');
+        assert.equal(fs.existsSync(harness.paths.field),true);
       }
       stable = sideEffectSnapshot(database);
     } finally {

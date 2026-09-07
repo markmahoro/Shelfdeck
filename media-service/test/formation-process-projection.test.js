@@ -123,7 +123,7 @@ test('Formation process projection explains persisted settlement action and fail
   const completed=event('plan-settlement-result','settled','arca.ondeck.input_settlement.delete@1','succeeded',1,[],{
     result:{outcomeKind:'succeeded',result:{postDeleteReality:{entries:[
       {key:'absent',value:true},{key:'disposition',value:'settled_to_final'},
-      {key:'old_directory_disposition',value:'removed_empty'},
+      {key:'old_directory_disposition',value:'retained_directory'},
     ]}}},
   });
   const failed=event('plan-settlement-failed','failed','arca.ondeck.input_settlement.delete@1','failed',2,[],{
@@ -134,7 +134,7 @@ test('Formation process projection explains persisted settlement action and fail
   assert.equal(completedNode.label,'移除已完成替换的原有输入');
   assert.deepEqual(completedNode.results,[
     {label:'处理结果',value:'原有输入已移除，最终文件已确认'},
-    {label:'原目录',value:'原目录为空，已经一并移除'},
+    {label:'原目录',value:'原目录保留，仅清理本次授权文件'},
   ]);
   const failedNode=projectPlans([work('arca','arca_ondeck_run','on-deck-failed','on_deck_execution',[failed])])[0].nodes[0];
   assert.equal(failedNode.description,'这一步没有完成：原文件所在目录中出现了本次计划没有包含的文件。');

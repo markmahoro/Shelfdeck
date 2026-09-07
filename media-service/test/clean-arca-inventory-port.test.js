@@ -896,40 +896,6 @@ test('Stage Result stays below the Foundation 64 KiB bound with many subtitle me
   }finally{fs.rmSync(root,{recursive:true,force:true});}
 });
 
-test('settlement ignores a sibling movie directory and still rejects unknown files', () => {
-  const sibling = settlementFixture({ siblingDirectory:true });
-  try {
-    const result = sibling.port.settleInput({
-      materialHandle:sibling.materialHandle,
-      approval:{ approvalId:'approval' },
-      finalInventoryRequest:sibling.finalInventoryRequest,
-      finalMaterialKey:sibling.finalMember.sourceMaterialKey,
-      finalTargetLocation:sibling.finalMember.targetLocation,
-      settlementExpectation:'replace_or_move',
-      sourceToFinalMappingDigest:sibling.mappingDigest,
-    });
-    assert.equal(result.disposition, 'settled_to_final');
-    assert.equal(fs.existsSync(path.join(sibling.sourceDirectory, '养蜂人 (2024) - 2160p HEVC Atmos TrueHD5.1')), true);
-  } finally {
-    fs.rmSync(sibling.root, { recursive:true, force:true });
-  }
-
-  const unknown = settlementFixture({ siblingDirectory:true, unknownMember:true });
-  try {
-    assert.throws(() => unknown.port.settleInput({
-      materialHandle:unknown.materialHandle,
-      approval:{ approvalId:'approval' },
-      finalInventoryRequest:unknown.finalInventoryRequest,
-      finalMaterialKey:unknown.finalMember.sourceMaterialKey,
-      finalTargetLocation:unknown.finalMember.targetLocation,
-      settlementExpectation:'replace_or_move',
-      sourceToFinalMappingDigest:unknown.mappingDigest,
-    }), (error) => error.code === 'CLEAN_ARCA_SETTLEMENT_UNKNOWN_MEMBER');
-  } finally {
-    fs.rmSync(unknown.root, { recursive:true, force:true });
-  }
-});
-
 test('same-root settlement removes only the fenced source and retains unrelated shelf members', async () => {
   const syncFixture = settlementFixture({
     sameRoot:true, siblingDirectory:true, unknownMember:true,
@@ -1312,7 +1278,7 @@ test('same-root settlement keeps leftover extras in the retained final directory
   }
 });
 
-test('different-path settlement verifies the final copy before removing only the managed source and empty directory', () => {
+test('different-path settlement verifies the final copy and retains the empty source directory', () => {
   const fixture = settlementFixture();
   try {
     const result = fixture.port.settleInput({
@@ -1326,33 +1292,53 @@ test('different-path settlement verifies the final copy before removing only the
     });
     assert.equal(result.finalVerified, true);
     assert.equal(result.disposition, 'settled_to_final');
-    assert.equal(result.oldDirectoryDisposition, 'removed_empty');
+    assert.equal(result.oldDirectoryDisposition, 'retained_directory');
     assert.equal(fs.existsSync(fixture.source), false);
-    assert.equal(fs.existsSync(fixture.sourceDirectory), false);
+    assert.equal(fs.existsSync(fixture.sourceDirectory), true);
     assert.equal(fs.readFileSync(fixture.finalMember.targetLocation, 'utf8'), 'exact-movie-bytes');
   } finally {
     fs.rmSync(fixture.root, { recursive:true, force:true });
   }
 });
 
-test('unknown old-directory members stop settlement before any managed source is removed', () => {
-  const fixture = settlementFixture({ unknownMember:true });
-  try {
-    assert.throws(() => fixture.port.settleInput({
-      materialHandle:fixture.materialHandle,
-      approval:{ approvalId:'approval' },
-      finalInventoryRequest:fixture.finalInventoryRequest,
-      finalMaterialKey:fixture.finalMember.sourceMaterialKey,
-      finalTargetLocation:fixture.finalMember.targetLocation,
-      settlementExpectation:'replace_or_move',
-      sourceToFinalMappingDigest:fixture.mappingDigest,
-    }), (error) => error.code === 'CLEAN_ARCA_SETTLEMENT_UNKNOWN_MEMBER');
-    assert.equal(fs.existsSync(fixture.source), true);
-    assert.equal(fs.existsSync(path.join(fixture.sourceDirectory, 'notes.txt')), true);
-  } finally {
-    fs.rmSync(fixture.root, { recursive:true, force:true });
-  }
-});
+for (const asynchronous of [false,true]) {
+  test('file-scoped settlement retains unrelated versions and directories ('+(asynchronous?'async':'sync')+')', async () => {
+    const fixture=settlementFixture({unknownMember:true,siblingDirectory:true});
+    try {
+      const other=path.join(fixture.sourceDirectory,'another-version.mkv');
+      fs.writeFileSync(other,'independent procurement candidate');
+      const notes=path.join(fixture.sourceDirectory,'notes.txt');
+      const before=fs.readFileSync(notes);
+      const command={materialHandle:fixture.materialHandle,approval:{approvalId:'approval'},
+        finalInventoryRequest:fixture.finalInventoryRequest,finalMaterialKey:fixture.finalMember.sourceMaterialKey,
+        finalTargetLocation:fixture.finalMember.targetLocation,settlementExpectation:'replace_or_move',
+        sourceToFinalMappingDigest:fixture.mappingDigest};
+      const method=asynchronous?'settleInputAsync':'settleInput';
+      const result=await fixture.port[method](command);
+      assert.equal(result.finalVerified,true);
+      assert.equal(result.oldDirectoryDisposition,'retained_directory');
+      assert.equal(fs.existsSync(fixture.source),false);
+      assert.equal(fs.readFileSync(other,'utf8'),'independent procurement candidate');
+      assert.deepEqual(fs.readFileSync(notes),before);
+      assert.equal(fs.existsSync(path.join(fixture.sourceDirectory,'养蜂人 (2024) - 2160p HEVC Atmos TrueHD5.1')),true);
+      assert.equal((await fixture.port[method](command)).absent,true);
+    } finally { fs.rmSync(fixture.root,{recursive:true,force:true}); }
+  });
+  test('file-scoped settlement still rejects changed source identity ('+(asynchronous?'async':'sync')+')', async () => {
+    const fixture=settlementFixture({unknownMember:true});
+    try {
+      fs.writeFileSync(fixture.source,'different source reality');
+      const command={materialHandle:fixture.materialHandle,approval:{approvalId:'approval'},
+        finalInventoryRequest:fixture.finalInventoryRequest,finalMaterialKey:fixture.finalMember.sourceMaterialKey,
+        finalTargetLocation:fixture.finalMember.targetLocation,settlementExpectation:'replace_or_move',
+        sourceToFinalMappingDigest:fixture.mappingDigest};
+      await assert.rejects(async()=>fixture.port[asynchronous?'settleInputAsync':'settleInput'](command),
+        error=>error.code==='CLEAN_ARCA_SETTLEMENT_REALITY_DRIFT');
+      assert.equal(fs.readFileSync(fixture.source,'utf8'),'different source reality');
+      assert.equal(fs.existsSync(path.join(fixture.sourceDirectory,'notes.txt')),true);
+    } finally { fs.rmSync(fixture.root,{recursive:true,force:true}); }
+  });
+}
 
 test('Target Commit Slot is a hidden sibling and restores Emby-mutated presentation from Package source', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'clean-arca-hidden-slot-'));

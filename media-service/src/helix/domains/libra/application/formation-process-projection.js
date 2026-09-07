@@ -190,7 +190,7 @@ function addSettlementFacts(facts, event, value) {
   const entries=resultEntryMap(value), disposition=entries.get('disposition'), directory=entries.get('old_directory_disposition');
   const dispositionCopy={retained_as_final:'原有输入已保留为最终文件',
     settled_to_final:entries.get('absent')===true?'原有输入已移除，最终文件已确认':'原有输入已经完成替换'};
-  const directoryCopy={removed_empty:'原目录为空，已经一并移除',retained_as_final:'原目录就是最终位置，继续保留',
+  const directoryCopy={retained_directory:'原目录保留，仅清理本次授权文件',removed_empty:'原目录为空，已经一并移除',retained_as_final:'原目录就是最终位置，继续保留',
     retained_with_final_inventory:'原目录仍包含最终媒体文件，继续保留',
     awaiting_managed_settlement:'原目录中仍有后续计划需要处理的内容',not_present:'原目录已经不存在'};
   addFact(facts,'处理结果',dispositionCopy[disposition]);
