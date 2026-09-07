@@ -354,7 +354,7 @@ test('same-root settled offload paths are absent, not unreadable, once the finge
   }
 });
 
-test('Libra product movie NFO without an XML declaration is valid; non-movie NFO stays corrupt', () => {
+test('Existing NFO presence is independent of XML shape and rejects missing or empty files', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'arca-nfo-valid-'));
   try {
     const movie = path.join(root, 'movie.nfo');
@@ -365,7 +365,10 @@ test('Libra product movie NFO without an XML declaration is valid; non-movie NFO
     fs.writeFileSync(series, Buffer.from('<tvshow>\n  <title>Not a movie</title>\n</tvshow>\n'));
     assert.equal(validNfo(movie), true);
     assert.equal(validNfo(declared), true);
-    assert.equal(validNfo(series), false);
+    assert.equal(validNfo(series), true);
+    fs.writeFileSync(series,Buffer.alloc(0));
+    assert.equal(validNfo(series),false);
+    assert.equal(validNfo(path.join(root,'missing.nfo')),false);
   } finally {
     fs.rmSync(root, { recursive:true, force:true });
   }

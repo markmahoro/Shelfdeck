@@ -14,6 +14,10 @@ const fail = (code, message) => { throw new AftercareStoreError(code, message); 
 function createAftercareStore(options) {
   if (!options?.schemaManifest || !options.unitOfWork) throw new TypeError('Aftercare Store requires clean persistence dependencies.');
   const now = options.now || Date.now;
+  const caseCapacity = options.aftercareCaseCapacity ?? 1;
+  if (!Number.isSafeInteger(caseCapacity) || caseCapacity < 1 || caseCapacity > 8) {
+    throw new TypeError('Aftercare Case capacity must be between 1 and 8.');
+  }
   const workspaceStore=createAftercareWorkspaceStore(options);
   const arca = createRepositoryDefinition({ repositoryId:'arca_aftercare_store', owner:'arca', schemaManifest:options.schemaManifest, statements:{
     list_entries:{kind:'select-all',tableId:'arca_shelf_entries',columns:['shelf_entry_id','shelf_id','structure_kind','status','canonical_identity_revision','canonical_identity_key','current_inventory_revision','current_deck_fact_revision','created_at_ms','terminal_at_ms'],keyColumns:[],safeIntegers:true},
@@ -64,10 +68,12 @@ function createAftercareStore(options) {
     update_finding:{kind:'update',tableId:'arca_aftercare_findings',setColumns:['state'],keyColumns:['finding_id'],compareColumns:[{column:'state',parameter:'expected_state'}]},
     list_cases:{kind:'select-all',tableId:'arca_aftercare_cases',columns:['aftercare_case_id','shelf_entry_id','finding_set_digest','care_basis_schema_ref','care_basis_json','care_basis_digest','care_requirement_schema_ref','care_requirement_json','care_requirement_digest','case_generation','trigger_digest','state','terminal_reason_code','terminal_evidence_digest','created_at_ms','terminal_at_ms'],keyColumns:['shelf_entry_id'],safeIntegers:true},
     list_all_cases:{kind:'select-all',tableId:'arca_aftercare_cases',columns:['aftercare_case_id','shelf_entry_id','finding_set_digest','care_basis_schema_ref','care_basis_json','care_basis_digest','care_requirement_schema_ref','care_requirement_json','care_requirement_digest','case_generation','trigger_digest','state','terminal_reason_code','terminal_evidence_digest','created_at_ms','terminal_at_ms'],keyColumns:[],safeIntegers:true},
+    list_case_seats:{kind:'select-all',tableId:'arca_aftercare_cases',columns:['aftercare_case_id','created_at_ms'],keyColumns:['state'],safeIntegers:true},
     find_cases:{kind:'select-in',tableId:'arca_aftercare_cases',keyColumn:'shelf_entry_id',maxItems:500,columns:['aftercare_case_id','shelf_entry_id','finding_set_digest','care_basis_schema_ref','care_basis_json','care_basis_digest','care_requirement_schema_ref','care_requirement_json','care_requirement_digest','case_generation','trigger_digest','state','terminal_reason_code','terminal_evidence_digest','created_at_ms','terminal_at_ms'],safeIntegers:true},
     find_case:{kind:'select-one',tableId:'arca_aftercare_cases',columns:['aftercare_case_id','shelf_entry_id','finding_set_digest','care_basis_schema_ref','care_basis_json','care_basis_digest','care_requirement_schema_ref','care_requirement_json','care_requirement_digest','case_generation','trigger_digest','state','terminal_reason_code','terminal_evidence_digest','created_at_ms','terminal_at_ms'],keyColumns:['aftercare_case_id'],safeIntegers:true},
     insert_case:{kind:'insert',tableId:'arca_aftercare_cases',columns:['aftercare_case_id','shelf_entry_id','finding_set_digest','care_basis_schema_ref','care_basis_json','care_basis_digest','care_requirement_schema_ref','care_requirement_json','care_requirement_digest','case_generation','trigger_digest','state','terminal_reason_code','terminal_evidence_digest','created_at_ms','terminal_at_ms']},
     update_case:{kind:'update',tableId:'arca_aftercare_cases',setColumns:['state','terminal_reason_code','terminal_evidence_digest','terminal_at_ms'],keyColumns:['aftercare_case_id'],compareColumns:[{column:'state',parameter:'expected_state'}]},
+    admit_case:{kind:'update',tableId:'arca_aftercare_cases',setColumns:['state'],keyColumns:['aftercare_case_id'],compareColumns:[{column:'state',parameter:'expected_state'}]},
     insert_basis:{kind:'insert',tableId:'arca_aftercare_case_basis_inputs',columns:['aftercare_case_id','input_kind','owner_domain','aggregate_type','aggregate_id','revision','input_digest']},
     list_basis:{kind:'select-all',tableId:'arca_aftercare_case_basis_inputs',columns:['aftercare_case_id','input_kind','owner_domain','aggregate_type','aggregate_id','revision','input_digest'],keyColumns:['aftercare_case_id'],safeIntegers:true},
     list_commits:{kind:'select-all',tableId:'arca_aftercare_inventory_commits',columns:['inventory_commit_id','aftercare_case_id','shelf_entry_id','previous_inventory_revision','new_inventory_revision','control_change_digest','commit_digest','committed_at_ms'],keyColumns:['shelf_entry_id'],safeIntegers:true},
@@ -98,6 +104,13 @@ function createAftercareStore(options) {
     if(!inventory||!standard||!placement||!identity)fail('ARCA_AFTERCARE_CURRENT_BASIS_BROKEN','Shelf Entry current Aftercare Basis is incomplete.');
     return Object.freeze({entry:Object.freeze({...entry,current_inventory_revision:inventoryRevision,current_deck_fact_revision:Number(entry.current_deck_fact_revision)}),shelf:Object.freeze({...shelf,current_standard_revision:standardRevision,current_placement_revision:placementRevision}),inventory:Object.freeze(inventory),standard:Object.freeze({...standard,value:parse(standard.standard_json,'ARCA_AFTERCARE_STANDARD_CORRUPT')}),placement:Object.freeze({...placement,value:parse(placement.policy_json,'ARCA_AFTERCARE_PLACEMENT_CORRUPT')}),initialPlacement:initialPlacement?Object.freeze({...initialPlacement,value:parse(initialPlacement.policy_json,'ARCA_AFTERCARE_INITIAL_PLACEMENT_CORRUPT')}):null,identity:Object.freeze(identity),initialPlacementDecision:initialPlacementDecision?Object.freeze({...initialPlacementDecision,placement_revision:Number(initialPlacementDecision.placement_revision)}):null,oldBindings:Object.freeze(oldBindings.map((row)=>Object.freeze({...row,binding_revision:Number(row.binding_revision),current:Number(row.current)}))),materials:Object.freeze(repo.invoke('list_materials',{shelf_entry_id:shelfEntryId,inventory_revision:inventoryRevision})),related:Object.freeze(repo.invoke('list_related',{shelf_entry_id:shelfEntryId,inventory_revision:inventoryRevision})),facts:Object.freeze(repo.invoke('list_facts',{shelf_entry_id:shelfEntryId,inventory_revision:inventoryRevision}).map((row)=>Object.freeze({...row,value:parse(row.fact_json,'ARCA_AFTERCARE_FACT_CORRUPT')}))),people:Object.freeze(repo.invoke('list_people',{shelf_entry_id:shelfEntryId,inventory_revision:inventoryRevision})),reservations:Object.freeze(repo.invoke('list_reservations',{shelf_entry_id:shelfEntryId}))});});}
 
+  function recycleProtection(){return read(context=>{
+    const repo=context.repository(arca.repositoryId),entries=repo.invoke('list_entries',{}).filter(row=>['active','offdeck_in_progress'].includes(row.status));
+    const locations=[];
+    for(const row of entries){const params={shelf_entry_id:row.shelf_entry_id,inventory_revision:Number(row.current_inventory_revision)};
+      locations.push(...repo.invoke('list_materials',params).map(item=>item.location),...repo.invoke('list_related',params).map(item=>item.location).filter(Boolean));}
+    return {protectedLocations:locations,scanRoots:repo.invoke('list_shelves',{}).map(row=>row.target_root_location)};
+  });}
   function inventoryMaterials(shelfEntryId, inventoryRevision) {
     if (typeof shelfEntryId !== 'string' || !shelfEntryId ||
         !Number.isSafeInteger(Number(inventoryRevision)) || Number(inventoryRevision) < 1) {
@@ -117,11 +130,11 @@ function createAftercareStore(options) {
       existing.push(mapAssessment(row));}
     return Object.freeze({assessments:Object.freeze(existing),committedAtMs:committedAt});}}]).arca_aftercare_assessment_commit;}
 
-  function createCase(value){const at=now(),triggerInput=(value.basisInputs||[]).find((item)=>item.inputKind==='health_assessment_work'),triggerDigest=value.triggerDigest||canonicalDigest({schema:'arca.aftercare-case-trigger@1',assessmentWorkId:triggerInput?.aggregateId||null,assessmentBasisDigest:triggerInput?.inputDigest||null});if(!/^[a-f0-9]{64}$/.test(triggerDigest))fail('ARCA_AFTERCARE_CASE_TRIGGER_INVALID','Aftercare Case trigger digest is invalid.');const priorCases=read((context)=>context.repository(arca.repositoryId).invoke('list_cases',{shelf_entry_id:value.shelfEntryId}).map(mapCase)),matching=priorCases.filter((item)=>item.careBasisDigest===value.careBasis.digest&&item.findingSetDigest===value.findingSetDigest&&item.careRequirementDigest===value.careRequirement.digest),existing=priorCases.find((item)=>item.state==='active');
+  function createCase(value){const at=now(),triggerInput=(value.basisInputs||[]).find((item)=>item.inputKind==='health_assessment_work'),triggerDigest=value.triggerDigest||canonicalDigest({schema:'arca.aftercare-case-trigger@1',assessmentWorkId:triggerInput?.aggregateId||null,assessmentBasisDigest:triggerInput?.inputDigest||null});if(!/^[a-f0-9]{64}$/.test(triggerDigest))fail('ARCA_AFTERCARE_CASE_TRIGGER_INVALID','Aftercare Case trigger digest is invalid.');const priorCases=read((context)=>context.repository(arca.repositoryId).invoke('list_cases',{shelf_entry_id:value.shelfEntryId}).map(mapCase)),matching=priorCases.filter((item)=>item.careBasisDigest===value.careBasis.digest&&item.findingSetDigest===value.findingSetDigest&&item.careRequirementDigest===value.careRequirement.digest),existing=priorCases.find((item)=>['queued','active'].includes(item.state));
     if(existing){if(existing.careBasisDigest===value.careBasis.digest&&existing.findingSetDigest===value.findingSetDigest)return existing;fail('ARCA_AFTERCARE_ACTIVE_CASE_CONFLICT','Shelf Entry already has another active Aftercare Case.');}
     const triggerReplay=matching.find((item)=>item.triggerDigest===triggerDigest);if(triggerReplay)return triggerReplay;const caseGeneration=Math.max(0,...matching.map((item)=>item.caseGeneration))+1,caseId='arca-care-'+canonicalDigest({shelfEntryId:value.shelfEntryId,careBasisDigest:value.careBasis.digest,findingSetDigest:value.findingSetDigest,careRequirementDigest:value.careRequirement.digest,caseGeneration,triggerDigest}).slice(0,40),marker='arca-aftercare-case-'+caseId;
-    const payload={aftercareCaseId:caseId,shelfEntryId:value.shelfEntryId,careBasisDigest:value.careBasis.digest,careRequirementDigest:value.careRequirement.digest,caseGeneration,triggerDigest,state:'active'},payloadDigest=canonicalDigest(payload),consumers=canonicalDigest([]);
-    options.unitOfWork.execute([{participantId:'arca_aftercare_case_domain',owner:'arca',repositories:[arca],execute(context){const repo=context.repository(arca.repositoryId);if(repo.invoke('list_reservations',{shelf_entry_id:value.shelfEntryId}).some((item)=>item.state==='active'))fail('ARCA_AFTERCARE_MODIFICATION_FENCED','Off-deck Reservation prevents a new Aftercare Case.');repo.invoke('insert_case',{aftercare_case_id:caseId,shelf_entry_id:value.shelfEntryId,finding_set_digest:value.findingSetDigest,care_basis_schema_ref:value.careBasis.schemaRef,care_basis_json:canonicalJson(value.careBasis),care_basis_digest:value.careBasis.digest,care_requirement_schema_ref:value.careRequirement.schemaRef,care_requirement_json:canonicalJson(value.careRequirement),care_requirement_digest:value.careRequirement.digest,case_generation:caseGeneration,trigger_digest:triggerDigest,state:'active',terminal_reason_code:null,terminal_evidence_digest:null,created_at_ms:at,terminal_at_ms:null});for(const input of value.basisInputs)repo.invoke('insert_basis',{aftercare_case_id:caseId,input_kind:input.inputKind,owner_domain:input.ownerDomain,aggregate_type:input.aggregateType,aggregate_id:input.aggregateId,revision:input.revision,input_digest:input.inputDigest});}},
+    const payload={aftercareCaseId:caseId,shelfEntryId:value.shelfEntryId,careBasisDigest:value.careBasis.digest,careRequirementDigest:value.careRequirement.digest,caseGeneration,triggerDigest,state:'queued'},payloadDigest=canonicalDigest(payload),consumers=canonicalDigest([]);
+    options.unitOfWork.execute([{participantId:'arca_aftercare_case_domain',owner:'arca',repositories:[arca],execute(context){const repo=context.repository(arca.repositoryId);if(repo.invoke('list_reservations',{shelf_entry_id:value.shelfEntryId}).some((item)=>item.state==='active'))fail('ARCA_AFTERCARE_MODIFICATION_FENCED','Off-deck Reservation prevents a new Aftercare Case.');repo.invoke('insert_case',{aftercare_case_id:caseId,shelf_entry_id:value.shelfEntryId,finding_set_digest:value.findingSetDigest,care_basis_schema_ref:value.careBasis.schemaRef,care_basis_json:canonicalJson(value.careBasis),care_basis_digest:value.careBasis.digest,care_requirement_schema_ref:value.careRequirement.schemaRef,care_requirement_json:canonicalJson(value.careRequirement),care_requirement_digest:value.careRequirement.digest,case_generation:caseGeneration,trigger_digest:triggerDigest,state:'queued',terminal_reason_code:null,terminal_evidence_digest:null,created_at_ms:at,terminal_at_ms:null});for(const input of value.basisInputs)repo.invoke('insert_basis',{aftercare_case_id:caseId,input_kind:input.inputKind,owner_domain:input.ownerDomain,aggregate_type:input.aggregateType,aggregate_id:input.aggregateId,revision:input.revision,input_digest:input.inputDigest});}},
       {participantId:'arca_aftercare_case_foundation',owner:'execution-foundation',boundBusinessOwner:'arca',repositories:[foundation],execute(context){const repo=context.repository(foundation.repositoryId);repo.invoke('insert_marker',{commit_marker:marker,effect_id:null,owner_domain:'arca',scope_type:'aftercare_case',scope_id:caseId,commit_digest:payloadDigest,result_id:null,result_schema_ref:null,result_digest:null,committed_at_ms:at});repo.invoke('insert_outbox',{message_id:'arca-aftercare-case-message-'+canonicalDigest(caseId).slice(0,32),producer_domain:'arca',message_kind:'arca.aftercare.case.created',aggregate_type:'aftercare_case',aggregate_id:caseId,aggregate_revision:1,dedup_key:marker,consumer_set_digest:consumers,intended_consumer_count:0,payload_schema_ref:'helix://arca/messages/AftercareCaseCreated/v1',payload_json:canonicalJson(payload),payload_digest:payloadDigest,state:'tombstoned',available_at_ms:at,created_at_ms:at,all_acked_at_ms:null});}}]);return getCase(caseId);}
   function terminateCase(caseId,state,reasonCode,evidenceDigest){
     if(!['resolved','invalidated','unresolved'].includes(state))fail('ARCA_AFTERCARE_CASE_STATE','Aftercare terminal state is invalid.');
@@ -129,7 +142,11 @@ function createAftercareStore(options) {
     const terminal=options.unitOfWork.execute([{participantId:'arca_aftercare_case_terminal',owner:'arca',repositories:[arca],execute(context){
       const repo=context.repository(arca.repositoryId),caseRow=repo.invoke('find_case',{aftercare_case_id:caseId});
       if(!caseRow)fail('ARCA_AFTERCARE_CASE_MISSING','Aftercare Case is absent.');
-      const changed=repo.invoke('update_case',{state,terminal_reason_code:reasonCode,terminal_evidence_digest:evidenceDigest,terminal_at_ms:now(),aftercare_case_id:caseId,expected_state:'active'});
+      if(!['queued','active'].includes(caseRow.state)){
+        if(caseRow.state!==state||caseRow.terminal_reason_code!==reasonCode||caseRow.terminal_evidence_digest!==evidenceDigest)fail('ARCA_AFTERCARE_CASE_CAS','A terminal Aftercare Case cannot be rewritten.');
+        return mapCase(caseRow);
+      }
+      const changed=repo.invoke('update_case',{state,terminal_reason_code:reasonCode,terminal_evidence_digest:evidenceDigest,terminal_at_ms:now(),aftercare_case_id:caseId,expected_state:caseRow.state});
       if(changed.changes!==1){const current=repo.invoke('find_case',{aftercare_case_id:caseId});if(!current||current.state!==state||current.terminal_reason_code!==reasonCode||current.terminal_evidence_digest!==evidenceDigest)fail('ARCA_AFTERCARE_CASE_CAS','Aftercare Case terminal CAS failed.');}
       if(state==='resolved'){
         const assessmentIds=repo.invoke('list_assessments',{shelf_entry_id:caseRow.shelf_entry_id}).filter((item)=>item.care_basis_digest===caseRow.care_basis_digest).map((item)=>item.assessment_id);
@@ -142,6 +159,23 @@ function createAftercareStore(options) {
     }}]).arca_aftercare_case_terminal;
     workspaceStore.schedule(caseId,terminal.terminalAtMs);
     return terminal;
+  }
+  function listCases(){return read((context)=>context.repository(arca.repositoryId).invoke('list_all_cases',{}).map(mapCase));}
+  function listShelfEntryIds(shelfId){return read((context)=>context.repository(arca.repositoryId).invoke('list_entries',{}).filter((row)=>row.status==='active'&&row.shelf_id===shelfId).map((row)=>row.shelf_entry_id));}
+  function admitCase(caseId){
+    return options.unitOfWork.execute([{participantId:'arca_aftercare_case_admission',owner:'arca',repositories:[arca],execute(context){
+      const repo=context.repository(arca.repositoryId),current=repo.invoke('find_case',{aftercare_case_id:caseId});
+      if(!current)return null;
+      if(current.state!=='queued')return mapCase(current);
+      const active=repo.invoke('list_case_seats',{state:'active'});
+      const queue=repo.invoke('list_case_seats',{state:'queued'}).sort((a,b)=>Number(a.created_at_ms)-Number(b.created_at_ms)||a.aftercare_case_id.localeCompare(b.aftercare_case_id));
+      const available=Math.max(0,caseCapacity-active.length);
+      if(!queue.slice(0,available).some((row)=>row.aftercare_case_id===caseId))return mapCase(current);
+      if(repo.invoke('list_reservations',{shelf_entry_id:current.shelf_entry_id}).some((row)=>row.state==='active'))return mapCase(current);
+      const changed=repo.invoke('admit_case',{aftercare_case_id:caseId,state:'active',expected_state:'queued'});
+      if(changed.changes!==1)fail('ARCA_AFTERCARE_ADMISSION_CAS','Aftercare Case admission changed concurrently.');
+      return mapCase(repo.invoke('find_case',{aftercare_case_id:caseId}));
+    }}]).arca_aftercare_case_admission;
   }
   function getCase(caseId){return read((context)=>mapCase(context.repository(arca.repositoryId).invoke('find_case',{aftercare_case_id:caseId})));}
   function getSettlementApproval(aftercareCaseId,settlementScopeDigest){return read((context)=>mapSettlementApproval(context.repository(arca.repositoryId).invoke('find_settlement_approval',{aftercare_case_id:aftercareCaseId,settlement_scope_digest:settlementScopeDigest})));}
@@ -207,7 +241,7 @@ function createAftercareStore(options) {
     });
   }
   function listEntryPage(cursor,limit=100){const bounded=Math.max(1,Math.min(500,Number(limit)||100));return read((context)=>context.repository(arca.repositoryId).invoke('page_active_entries',{status:'active',rangeStart:'',rangeEnd:'\uffff',cursor,limit:bounded}).map((x)=>Object.freeze({cursor:x.shelf_entry_id,scope:Object.freeze({shelfEntryId:x.shelf_entry_id})})));}
-  return Object.freeze({currentContext,inventoryMaterials,commitAssessmentSet,createCase,terminateCase,getCase,
+  return Object.freeze({currentContext,recycleProtection,inventoryMaterials,commitAssessmentSet,createCase,admitCase,listCases,listShelfEntryIds,terminateCase,getCase,
     getSettlementApproval,issueSettlementApproval,consumeSettlementApproval,staleSettlementApprovals,
     commitInventory,history,healthProjectionInputs,listEntryPage,
     ensureAftercareWorkspace:(caseId)=>workspaceStore.ensureWorkspace(caseId),

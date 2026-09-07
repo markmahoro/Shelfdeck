@@ -1,0 +1,253 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/arca_recycle_entries/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "arca_recycle_entries",
+    "owner": "arca",
+    "prefix": "arca_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "recycle_entry_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": true,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 2,
+        "name": "shelf_entry_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 3,
+        "name": "source_location",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 4,
+        "name": "archive_location",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 5,
+        "name": "manifest_schema_ref",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 6,
+        "name": "manifest_json",
+        "logicalType": "TEXT_JSON",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 7,
+        "name": "manifest_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 8,
+        "name": "reason_code",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 9,
+        "name": "state",
+        "logicalType": "TEXT",
+        "enumValues": [
+          "pending",
+          "moving",
+          "archived",
+          "restoring",
+          "restored",
+          "purging",
+          "purged"
+        ],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 10,
+        "name": "operation_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 11,
+        "name": "created_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 12,
+        "name": "archived_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 13,
+        "name": "expires_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 14,
+        "name": "updated_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 15,
+        "name": "last_error",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      }
+    ],
+    "primaryKey": [
+      "recycle_entry_id"
+    ],
+    "declaredForeignKeyColumns": [
+      "shelf_entry_id"
+    ],
+    "uniqueConstraints": [],
+    "hotIndexes": [
+      [
+        "state",
+        "expires_at_ms"
+      ]
+    ],
+    "partialUniqueRules": [],
+    "checkRules": [
+      {
+        "column": "state",
+        "enumValues": [
+          "pending",
+          "moving",
+          "archived",
+          "restoring",
+          "restored",
+          "purging",
+          "purged"
+        ]
+      }
+    ],
+    "revisionContract": {
+      "revisionColumns": [
+        "operation_revision"
+      ],
+      "currentPointerColumns": [],
+      "pointerTargets": [],
+      "pointerRules": []
+    },
+    "jsonContracts": [
+      {
+        "column": "manifest_json",
+        "schemaRefColumn": "manifest_schema_ref",
+        "maxBytes": 65536,
+        "source": "table-row",
+        "requiresJsonValidCheck": true
+      }
+    ],
+    "immutability": {
+      "immutable": false,
+      "rules": []
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "manifest JSON上限`64 KiB`，冻结相对目录、文件大小与SHA256，最多256项",
+      "原路径与归档路径不可变",
+      "`INDEX(state,expires_at_ms)`",
+      "修改通过state和operation_revision CAS",
+      "只有archived可请求恢复或到期清理，恢复与清理竞争同一CAS",
+      "归档成功时设30天期限，未完成移动永不进入到期删除"
+    ],
+    "rawContract": {
+      "columns": "`recycle_entry_id PK, shelf_entry_id FK, source_location, archive_location, manifest_schema_ref, manifest_json, manifest_digest, reason_code, state(pending|moving|archived|restoring|restored|purging|purged), operation_revision INTEGER, created_at_ms, archived_at_ms NULL, expires_at_ms NULL, updated_at_ms, last_error NULL`",
+      "constraints": "manifest JSON上限`64 KiB`，冻结相对目录、文件大小与SHA256，最多256项；原路径与归档路径不可变；`INDEX(state,expires_at_ms)`；修改通过state和operation_revision CAS；只有archived可请求恢复或到期清理，恢复与清理竞争同一CAS；归档成功时设30天期限，未完成移动永不进入到期删除"
+    },
+    "source": {
+      "section": "8.5.14",
+      "line": 9532,
+      "lineDigest": "f3fa628b2f9ea205dbefa778d2f6c749f5560f93c6edc8785b79871507b51eb7"
+    },
+    "foreignKeys": [
+      {
+        "columns": [
+          "shelf_entry_id"
+        ],
+        "targetTable": "arca_shelf_entries",
+        "targetColumns": [
+          "shelf_entry_id"
+        ],
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
+      }
+    ]
+  }
+}

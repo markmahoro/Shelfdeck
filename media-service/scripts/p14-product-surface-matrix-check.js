@@ -61,13 +61,13 @@ for (const route of entries) {
 }
 const workers = entries.filter(workerRoute);
 assert.equal(workers.length, 6);
-assert.equal(entries.length, 123);
+assert.equal(entries.length, 127);
 assert.equal(assignments.size, entries.length);
 assert.equal([...assignments.values()].filter((item) => item.batch === 'implemented-core').length, 4);
 assert.equal([...assignments.values()].filter((item) => item.batch === 'beta-404').length, 6);
 assert.equal([...assignments.values()].filter((item) => item.batch === 'setup-foundation').length, 62);
 assert.equal([...assignments.values()].filter((item) => item.batch === 'formation-product').length, 10);
-assert.equal([...assignments.values()].filter((item) => item.batch === 'collection-postdeck').length, 41);
+assert.equal([...assignments.values()].filter((item) => item.batch === 'collection-postdeck').length, 45);
 process.stdout.write(`${JSON.stringify({
   ok: true,
   routeCount: entries.length,

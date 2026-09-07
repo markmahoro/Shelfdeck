@@ -182,7 +182,7 @@
       "sourceLocator": {
         "section": "8.5.12",
         "line": 9450,
-        "lineDigest": "9e153b3235fd29b241237f5a972eeb05bfcd8e357794acb281434b8f9aae0713"
+        "lineDigest": "1462034212665a0473b1359938383607ca7fcd895ffc81959919117e287ee546"
       },
       "targetLocator": {
         "path": "table-contracts/arca_aftercare_cases/v1/contract.json"
@@ -191,11 +191,11 @@
         "tableId": "arca_aftercare_cases",
         "owner": "arca",
         "contractRef": "helix://contracts/tables/arca_aftercare_cases/v1",
-        "contractDigest": "15541d745eb8fa02ec8fc68c4eebe8a236b591f909dd16b0ddc491256d760662"
+        "contractDigest": "767dd2c61c32978d863a77be119948b236cb9a0214e1f64c11f23ab282bdc6f8"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "dc77259405938ed2cd20c63990f90521201b3e4ac7108519f335b39a3bfc1856"
+        "value": "d6bb38946a2770524aa8116224e04c5794314c8951fa683ef4697b2c1bc1870d"
       }
     },
     {

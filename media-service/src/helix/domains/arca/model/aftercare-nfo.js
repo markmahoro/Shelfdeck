@@ -3,6 +3,9 @@
 const { bytesOf, analyzeMovieNfo, attribute, directText, childText, inspectMovieNfo:inspectAftercareMovieNfo } = require('../../../contracts/movie-nfo-document');
 
 const MAX_NFO_BYTES = 256 * 1024;
+function readableNfo(bytes) {
+  return Buffer.isBuffer(bytes) && bytes.length > 0 && bytes.length <= MAX_NFO_BYTES;
+}
 const OWNED_FIELDS = Object.freeze([
   Object.freeze({ keys:['title', 'display_title'], tag:'title' }),
   Object.freeze({ keys:['original_title'], tag:'originaltitle' }),
@@ -362,6 +365,7 @@ function compareMovieNfoPresentation(input) {
 module.exports = Object.freeze({
   AftercareNfoError,
   MAX_NFO_BYTES,
+  readableNfo,
   compareMovieNfoPresentation,
   createAftercareMovieNfo,
   inspectAftercareMovieNfo,

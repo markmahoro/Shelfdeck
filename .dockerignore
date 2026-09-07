@@ -1,4 +1,6 @@
 .git
+.codex
+tests/.env.nas-*
 .tmp
 dist-image
 dist-release

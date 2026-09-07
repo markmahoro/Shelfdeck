@@ -111,7 +111,7 @@
             "type": "string",
             "enum": [
               "exact_package_identity",
-              "semantic_presentation"
+              "readable_nfo"
             ]
           },
           "actualPhysicalIdentity": {

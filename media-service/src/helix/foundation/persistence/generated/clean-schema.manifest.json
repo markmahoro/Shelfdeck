@@ -2,9 +2,9 @@
   "schemaVersion": 1,
   "compilerContract": "helix-p3-deterministic-sqlite-ddl/v1",
   "digestAlgorithm": "sha256",
-  "tableCount": 186,
-  "tableContractAggregateDigest": "22fd202ef5f596fb082560f3466260c581d03247f2b487cf3ddc881310ea8ac1",
-  "ddlDigest": "6a2246c39bebcd1f6f80264bac793c7a3119636a791683e426e4c30aa6fdc651",
+  "tableCount": 187,
+  "tableContractAggregateDigest": "8ab722dddc5c17f8e98d32088c94e7598b7a38e28dd29a378abf449c27f45f56",
+  "ddlDigest": "74bf523b691e4a92c214e6bcd06f5ed5deba5f7d358898f88cfefbe789af9d9b",
   "tables": [
     {
       "tableId": "arca_acceptance_attempts",
@@ -180,8 +180,8 @@
       "tableId": "arca_aftercare_cases",
       "owner": "arca",
       "contractId": "helix://contracts/tables/arca_aftercare_cases/v1",
-      "contractDigest": "15541d745eb8fa02ec8fc68c4eebe8a236b591f909dd16b0ddc491256d760662",
-      "sqlDigest": "2cd4820bad7914afc67cebf4276e62b8905c0d5d2b9b9caaeed588b51b34c82d",
+      "contractDigest": "767dd2c61c32978d863a77be119948b236cb9a0214e1f64c11f23ab282bdc6f8",
+      "sqlDigest": "85fe58f039ee26f2e569fb50d3a13c14bdd2a72973af0686c3d989fd081df92a",
       "columns": [
         "aftercare_case_id",
         "shelf_entry_id",
@@ -1181,6 +1181,39 @@
       "immutable": false,
       "supportColumns": [],
       "indexes": []
+    },
+    {
+      "tableId": "arca_recycle_entries",
+      "owner": "arca",
+      "contractId": "helix://contracts/tables/arca_recycle_entries/v1",
+      "contractDigest": "ad2e0744daf80c1154fe365bc23349c22387ac58363e47df0548a2cc2f57ff24",
+      "sqlDigest": "9ccc767992e295fb0ff642a0a279f414e5c1a28c2cdad5b34099fa41ad924b36",
+      "columns": [
+        "recycle_entry_id",
+        "shelf_entry_id",
+        "source_location",
+        "archive_location",
+        "manifest_schema_ref",
+        "manifest_json",
+        "manifest_digest",
+        "reason_code",
+        "state",
+        "operation_revision",
+        "created_at_ms",
+        "archived_at_ms",
+        "expires_at_ms",
+        "updated_at_ms",
+        "last_error"
+      ],
+      "immutable": false,
+      "supportColumns": [],
+      "indexes": [
+        {
+          "kind": "hot",
+          "name": "idx_arca_recycle_entries_hot_01",
+          "sqlDigest": "6fb5429c99cd386561ee7a7995739e4ff2efa70a58452d3d9b1957faeec72f48"
+        }
+      ]
     },
     {
       "tableId": "arca_rule_template_drafts",

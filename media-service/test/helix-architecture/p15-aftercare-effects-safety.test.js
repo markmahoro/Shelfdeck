@@ -63,7 +63,7 @@ test('Aftercare assessment and rendering share the same existing NFO and poster 
   assert.match(render, /selectedNfoMaterial\(c\.raw\.materials\)/);
   assert.doesNotMatch(render, /role===['"]metadata_sidecar['"]/);
   assert.match(planner, /custody:nfo_identity_changed/);
-  assert.match(presentation, /compareMovieNfoPresentation/);
+  assert.doesNotMatch(presentation, /compareMovieNfoPresentation/);
   assert.doesNotMatch(presentation, /existingBytes\.equals/);
   assert.doesNotMatch(presentation, /renderAftercareMovieNfo/);
   assert.match(source, /if\(identityChanged\)\{findings\.push\(custodyIdentityChangedFinding\(item\)\)/);
@@ -154,8 +154,11 @@ test('Aftercare semantic NFO reconciliation adopts current bytes as a new Invent
     assert.deepEqual(deriveInventoryMaterialChanges(materials,[receipt]).map((item)=>[item.action,item.identity.materialKey]).sort(),
       [['acquire',reconciled.identity.materialKey],['release',old.materialKey]].sort());
     fs.writeFileSync(location,Buffer.from(embyBytes.toString('utf8').replaceAll('123','999')));
-    assert.throws(()=>observeSemanticNfoReconciliation({location,metadata,cast,identity:movieIdentity,mountScopeId:'mount-1',readSnapshot:readBoundedFileSnapshotSync}),
-      (error)=>error.code==='ARCA_AFTERCARE_NFO_SOURCE_STALE'&&error.details.reasonCode==='movie_identity_conflict');
+    const external=fs.readFileSync(location);
+    observeSemanticNfoReconciliation({location,metadata,cast,identity:movieIdentity,mountScopeId:'mount-1',readSnapshot:readBoundedFileSnapshotSync});
+    assert.deepEqual(fs.readFileSync(location),external);
+    fs.writeFileSync(location,Buffer.alloc(0));
+    assert.throws(()=>observeSemanticNfoReconciliation({location,mountScopeId:'mount-1',readSnapshot:readBoundedFileSnapshotSync}),error=>error.code==='ARCA_AFTERCARE_NFO_SOURCE_STALE');
   } finally {fs.rmSync(root,{recursive:true,force:true});}
 });
 

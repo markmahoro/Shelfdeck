@@ -755,12 +755,15 @@ function createFormationQuery(options) {
   }
   function currentFacts(items) {
     if (!options.detailSource?.getMany || !items.length) return items;
-    const fresh = new Map(options.detailSource.getMany(items.map((item)=>item.subjectId)).map((item)=>[item.subjectId,item]));
+    const read = options.detailSource.getManyWithProcessSummary || options.detailSource.getMany;
+    const fresh = new Map(read(items.map((item)=>item.subjectId)).map((item)=>[item.subjectId,item]));
     return items.map((item)=>{const value=fresh.get(item.subjectId);return value ? Object.freeze({ ...item, ...value }) : item;});
   }
   function currentProcessFacts(items) {
     if (!options.detailSource?.getManyWithProcessSummary || !items.length) return items;
-    const fresh = new Map(options.detailSource.getManyWithProcessSummary(items.map((item)=>item.subjectId))
+    const missing = items.filter((item)=>!Object.hasOwn(item,'currentPlan'));
+    if (!missing.length) return items;
+    const fresh = new Map(options.detailSource.getManyWithProcessSummary(missing.map((item)=>item.subjectId))
       .map((item)=>[item.subjectId,item.currentPlan || null]));
     return items.map((item)=>fresh.has(item.subjectId)
       ? Object.freeze({ ...item, currentPlan:fresh.get(item.subjectId) }) : item);

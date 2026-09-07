@@ -260,7 +260,7 @@ function projectHealth(context, history, at = Date.now()) {
   const current = latestForBasis(history, context.basis.digest);
   const currentCases = (history.cases || []).filter((item) =>
     item.careBasisDigest === context.basis.digest);
-  const activeCase = currentCases.find((item) => item.state === 'active') || null;
+  const activeCase = currentCases.find((item) => ['queued','active'].includes(item.state)) || null;
   const latestCase = currentCases[0] || null;
   const findingsByAssessment = new Map();
   for (const finding of history.findings || []) {
@@ -284,7 +284,7 @@ function projectHealth(context, history, at = Date.now()) {
   }));
   let state = 'never_assessed';
   const all = Object.values(dimensions);
-  if (activeCase) state = 'repairing';
+  if (activeCase) state = activeCase.state === 'queued' ? 'observing' : 'repairing';
   else if (latestCase?.state === 'unresolved') state = 'attention_required';
   else if (hasIncompatibleRepairCombination(all.flatMap((item) => item.findings))) state = 'attention_required';
   else if (all.some((item) => item.findings.some((finding) => finding.repairability === 'attention_required'))) state = 'attention_required';

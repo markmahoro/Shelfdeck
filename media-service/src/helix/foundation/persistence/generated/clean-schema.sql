@@ -115,7 +115,7 @@ CREATE TABLE "arca_aftercare_cases" (
   "care_requirement_digest" TEXT CHECK (length("care_requirement_digest") = 64 AND "care_requirement_digest" NOT GLOB '*[^0-9a-f]*'),
   "case_generation" INTEGER,
   "trigger_digest" TEXT CHECK (length("trigger_digest") = 64 AND "trigger_digest" NOT GLOB '*[^0-9a-f]*'),
-  "state" TEXT CHECK ("state" IN ('active', 'resolved', 'invalidated', 'unresolved')),
+  "state" TEXT CHECK ("state" IN ('queued', 'active', 'resolved', 'invalidated', 'unresolved')),
   "terminal_reason_code" TEXT,
   "terminal_evidence_digest" TEXT CHECK (length("terminal_evidence_digest") = 64 AND "terminal_evidence_digest" NOT GLOB '*[^0-9a-f]*'),
   "created_at_ms" INTEGER CHECK ("created_at_ms" >= 0),
@@ -765,6 +765,28 @@ CREATE TABLE "arca_placement_policy_revisions" (
   CHECK (length(CAST("policy_json" AS BLOB)) <= 16384),
   FOREIGN KEY ("shelf_id") REFERENCES "arca_shelves" ("shelf_id") ON DELETE RESTRICT
 );
+
+CREATE TABLE "arca_recycle_entries" (
+  "recycle_entry_id" TEXT PRIMARY KEY,
+  "shelf_entry_id" TEXT,
+  "source_location" TEXT,
+  "archive_location" TEXT,
+  "manifest_schema_ref" TEXT,
+  "manifest_json" TEXT,
+  "manifest_digest" TEXT CHECK (length("manifest_digest") = 64 AND "manifest_digest" NOT GLOB '*[^0-9a-f]*'),
+  "reason_code" TEXT,
+  "state" TEXT CHECK ("state" IN ('pending', 'moving', 'archived', 'restoring', 'restored', 'purging', 'purged')),
+  "operation_revision" INTEGER CHECK ("operation_revision" >= 1),
+  "created_at_ms" INTEGER CHECK ("created_at_ms" >= 0),
+  "archived_at_ms" INTEGER CHECK ("archived_at_ms" >= 0),
+  "expires_at_ms" INTEGER CHECK ("expires_at_ms" >= 0),
+  "updated_at_ms" INTEGER CHECK ("updated_at_ms" >= 0),
+  "last_error" TEXT,
+  CHECK (json_valid("manifest_json")),
+  CHECK (length(CAST("manifest_json" AS BLOB)) <= 65536),
+  FOREIGN KEY ("shelf_entry_id") REFERENCES "arca_shelf_entries" ("shelf_entry_id") ON DELETE RESTRICT
+);
+CREATE INDEX "idx_arca_recycle_entries_hot_01" ON "arca_recycle_entries" ("state", "expires_at_ms");
 
 CREATE TABLE "arca_rule_template_drafts" (
   "rule_template_id" TEXT PRIMARY KEY,

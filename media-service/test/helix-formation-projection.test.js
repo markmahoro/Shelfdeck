@@ -394,8 +394,8 @@ test('Formation active list and summary overlay current Arca truth before filter
     const summaryReads=[];
     const query=createFormationQuery({store,readPipelineSubjectIds:()=>new Set(['subject-000','subject-001']),
       detailSource:{
-        getMany:(ids)=>ids.map((id)=>id==='subject-000'?freshAttention:item(1,'in_progress')),
-        getManyWithProcessSummary:(ids)=>{summaryReads.push(ids);return ids.map((id)=>Object.freeze({subjectId:id,currentPlan:Object.freeze({
+        getMany:()=>{throw new Error('List must not hydrate current facts twice.');},
+        getManyWithProcessSummary:(ids)=>{summaryReads.push(ids);return ids.map((id)=>Object.freeze({...((id==='subject-000')?freshAttention:item(1,'in_progress')),subjectId:id,currentPlan:Object.freeze({
           stageKey:'media_organization',planId:`plan-${id}`,planNumber:14,title:'处理媒体文件',
           label:'计划14 处理媒体文件',state:'running',statusText:'等待处理资源',progress:null,
         })}));},

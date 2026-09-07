@@ -21,8 +21,7 @@ const {
 } = require('./helix/integrations/bounded-material-fingerprint');
 const {
   MAX_NFO_BYTES,
-  compareMovieNfoPresentation,
-  projectMovieNfoSemantics,
+  readableNfo,
 } = require('./helix/domains/arca/model/aftercare-nfo');
 const {
   DEFAULT_SHELF_PLACEMENT_POLICY,
@@ -1619,22 +1618,11 @@ function createCleanArcaInventoryPort(options) {
       assertFinalFingerprint(plan, observed);
       return Object.freeze({verificationKind:'exact_package_identity',semanticEvidenceDigest:null});
     }
-    const basis=request.nfoPresentationBasis;
-    if (!basis?.metadata || !basis?.cast || !basis?.identity) {
-      fail('CLEAN_ARCA_FINAL_NFO_BASIS_MISSING',
-        'Final Inventory NFO verification requires accepted Movie presentation Facts.');
+    if (!readableNfo(observed.bytes)) {
+      fail('CLEAN_ARCA_FINAL_NFO_UNREADABLE', 'Final Inventory requires a nonempty readable NFO.');
     }
-    const compared=compareMovieNfoPresentation({existingBytes:observed.bytes,...basis});
-    if (!compared.matches) {
-      fail('CLEAN_ARCA_FINAL_NFO_SEMANTIC_DRIFT',
-        'Final Inventory NFO conflicts with accepted Movie presentation Facts.', {
-          reasonCode:compared.reasonCode,
-          field:compared.field || null,
-          materialKey:plan.member.materialKey,
-        });
-    }
-    return Object.freeze({verificationKind:'semantic_presentation',
-      semanticEvidenceDigest:canonicalDigest(projectMovieNfoSemantics(observed.bytes))});
+    return Object.freeze({verificationKind:'readable_nfo',
+      semanticEvidenceDigest:canonicalDigest({kind:'readable_nfo',contentFingerprint:observed.contentFingerprint})});
   }
 
   function assertFinalVerificationContext(request) {

@@ -9447,7 +9447,7 @@ Plan node input/parameter/Fence/Resource Demand的具体JSON不直接重复存�
 | `arca_offload_completions` | `offload_completion_id PK, on_deck_run_id FK, shelf_entry_id FK, inventory_revision, package_id, completion_digest, committed_at_ms` | `UNIQUE(on_deck_run_id)`；immutable Outbox source |
 | `arca_aftercare_assessments` | `assessment_id PK, shelf_entry_id FK, inventory_revision, standard_revision, placement_revision, decision_fact_set_digest, care_basis_digest, assessment_kind, result, incident_key NULL, evidence_digest, assessed_at_ms` | `INDEX(shelf_entry_id,care_basis_digest,assessment_kind,assessed_at_ms)`；`INDEX(result,assessed_at_ms)`；同一Care Basis允许每日/每周或用户触发形成多次immutable Assessment history，`assessment_id`必须覆盖确定性cycle identity并承担重放幂等；同Inventory/Standard下Decision Fact或Placement变化仍可形成新Assessment；同一Endpoint或Provider故障以稳定`incident_key`聚合，不复制为大量独立损坏Case |
 | `arca_aftercare_findings` | `finding_id PK, assessment_id FK, finding_kind, severity, repairability, finding_digest, state, created_at_ms` | `INDEX(state,repairability,severity,created_at_ms)` |
-| `arca_aftercare_cases` | `aftercare_case_id PK, shelf_entry_id FK, finding_set_digest, care_basis_schema_ref, care_basis_json, care_basis_digest, care_requirement_schema_ref, care_requirement_json, care_requirement_digest, case_generation INTEGER, trigger_digest, state, terminal_reason_code NULL, terminal_evidence_digest NULL, created_at_ms, terminal_at_ms NULL` | 两个JSON各上限`64 KiB`；同一`care_basis+finding_set+requirement`下`case_generation`从1连续递增，`trigger_digest`冻结实际Health Assessment Work与其Basis，同一trigger重放必须返回同一Case且不得重复产生Work或物理效果；相同`care_basis+finding_set+requirement`至多一个non-terminal Case；同一`shelf_entry_id`至多一个`terminal_at_ms IS NULL`的active Case。active时三个terminal列全NULL；`resolved|invalidated|unresolved`时三个terminal列全非NULL并write-once，必须保存精确reason和Evidence。terminal Case不会因相同trigger静默重开；新的Assessment trigger或显式用户Retry才可在相同Basis建立下一generation。Supporting Work通过Foundation反向关联；`UNIQUE(shelf_entry_id,care_basis_digest,finding_set_digest,care_requirement_digest,case_generation)`；`UNIQUE(shelf_entry_id,trigger_digest)`；`INDEX(state,created_at_ms)` |
+| `arca_aftercare_cases` | `aftercare_case_id PK, shelf_entry_id FK, finding_set_digest, care_basis_schema_ref, care_basis_json, care_basis_digest, care_requirement_schema_ref, care_requirement_json, care_requirement_digest, case_generation INTEGER, trigger_digest, state, terminal_reason_code NULL, terminal_evidence_digest NULL, created_at_ms, terminal_at_ms NULL` | 两个JSON各上限`64 KiB`；同一`care_basis+finding_set+requirement`下`case_generation`从1连续递增，`trigger_digest`冻结实际Health Assessment Work与其Basis，同一trigger重放必须返回同一Case且不得重复产生Work或物理效果；相同`care_basis+finding_set+requirement`至多一个non-terminal Case；同一`shelf_entry_id`至多一个`terminal_at_ms IS NULL`的queued或active Case。queued和active时三个terminal列全NULL；`resolved|invalidated|unresolved`时三个terminal列全非NULL并write-once，必须保存精确reason和Evidence。terminal Case不会因相同trigger静默重开；新的Assessment trigger或显式用户Retry才可在相同Basis建立下一generation。Supporting Work通过Foundation反向关联；`UNIQUE(shelf_entry_id,care_basis_digest,finding_set_digest,care_requirement_digest,case_generation)`；`UNIQUE(shelf_entry_id,trigger_digest)`；`INDEX(state,created_at_ms)` |
 | `arca_aftercare_case_basis_inputs` | `aftercare_case_id FK, input_kind, owner_domain, aggregate_type, aggregate_id, revision, input_digest` | `PK(aftercare_case_id,input_kind,owner_domain,aggregate_type,aggregate_id)`；关系化保存Standard/Placement/Identity/Inventory/Decision Fact/Package provenance；Case创建后immutable |
 | `arca_aftercare_settlement_approvals` | `approval_id PK, aftercare_case_id FK, settlement_scope_digest, service_catalog_revision, shelf_standard_revision, care_basis_digest, derived_at_ms, state` | `UNIQUE(aftercare_case_id,settlement_scope_digest)`；只为`auto_repair`且确定性安全的精确替代Scope派生，不新增用户Authorization |
 | `arca_aftercare_inventory_commits` | `inventory_commit_id PK, aftercare_case_id FK, shelf_entry_id FK, previous_inventory_revision, new_inventory_revision, control_change_digest, commit_digest, committed_at_ms` | `UNIQUE(aftercare_case_id,new_inventory_revision)`；与Inventory revision及Control acquire/release同事务成立 |
@@ -9524,6 +9524,21 @@ Credential不是Integration，因此Secret ref使用owner scope而不是伪造`i
 `read_*`的具体字段由Level 9页面和Query合同决定，因此Level 8不提前虚构页面表；但所有`read_*`表必须有
 `projection_name + projection_version + source_revision_set_digest`，由单一Projection Builder写入，且不得被
 上述任何Canonical表引用。删除全部`read_*`后，系统必须能够只用Canonical Facts与Outbox重建。
+
+#### 8.5.14 Arca回收站持久合同（2026-09-07授权修订）
+
+| Table | Columns | Constraints |
+| --- | --- | --- |
+| `arca_recycle_entries` | `recycle_entry_id PK, shelf_entry_id FK, source_location, archive_location, manifest_schema_ref, manifest_json, manifest_digest, reason_code, state(pending|moving|archived|restoring|restored|purging|purged), operation_revision INTEGER, created_at_ms, archived_at_ms NULL, expires_at_ms NULL, updated_at_ms, last_error NULL` | manifest JSON上限`64 KiB`，冻结相对目录、文件大小与SHA256，最多256项；原路径与归档路径不可变；`INDEX(state,expires_at_ms)`；修改通过state和operation_revision CAS；只有archived可请求恢复或到期清理，恢复与清理竞争同一CAS；归档成功时设30天期限，未完成移动永不进入到期删除 |
+
+回收采用与既有Workspace物理回收相同的standalone Foundation Effect模式：`fx_effect_journal`的
+`arca_recycle_move|arca_recycle_restore|arca_recycle_purge`逐operation revision持久化intent和精确manifest digest；
+event_attempt_id为NULL，由Arca有界reconciler恢复，Foundation不得当成丢失Event重发。Arca只拥有回收条目的状态和范围，
+物理Effect与Receipt仍由Foundation持有。请求不等待物理移动；每次最多执行一个条目，失败保留精确错误与数据。
+自动候选只来自已Commit Entry的已知旧Binding父目录，不能是Field/Shelf根、当前Inventory所在目录或其他有效Entry材料所在目录。
+空目录可自动归档；非空目录须冻结清单并由用户明确确认该范围，未知文件不以扩展名或相似片名自动取得处置权限。
+恢复不能覆盖新出现的原目录。跨盘归档先完整复制及校验，再逐项核验删源；未知新增文件阻断源目录移除。
+到期清理每日扫描一次，仅删除归档成功且到期的精确manifest范围；错误与未完成条目持续可见。
 
 ### 8.6 Clean Capability Catalog与nominal type
 
@@ -13471,6 +13486,10 @@ typed target ID、expected revision与scope digest；Command端仍重新验证Ow
 GET  /v1/admin/care
 GET  /v1/admin/care/:shelfEntryId
 POST /v1/admin/care/:shelfEntryId/actions/check
+GET  /v1/admin/care-recycle
+GET  /v1/admin/care-recycle/:shelfEntryId/preview
+POST /v1/admin/care-recycle/:shelfEntryId/actions/archive
+POST /v1/admin/care-recycle/:recycleEntryId/actions/restore
 
 GET/PATCH /v1/admin/offdeck/policies
 GET       /v1/admin/offdeck/candidates
@@ -15322,3 +15341,25 @@ may likewise be recognized only for an already terminal Work Attempt whose every
 authorize active recovery, Plan publication, contract translation or dual reads. This exact retirement lets completed
 history survive the switch from full-manifest hashing to the semantic Execution Catalog digest without granting old
 unfinished work compatibility.
+
+### User-visible work, bounded Care and file coexistence amendment (2026-09-07)
+
+用户在五项痛点审计后明确确认本修订，并授权本任务同步修改SSOT、实施、本地测试后部署和监控。
+本节优先于既有冲突的§6.6、§7.3.6、§9.4.6及NFO Presentation持续一致性条款，不授权合并Libra与Aftercare。
+
+- 媒体整理工作区沿用现有表格与克制的详情布局，增加Aftercare Case行及真实排队、进度、终结结果；
+  不把Case伪造成Libra Run，不新增全局Business Process。GET只读投影，步骤历史按需读取。
+- Aftercare Case新增`queued`非终态；创建后按创建时间和Case ID稳定排序，通过Arca原子准入取得席位才变为`active`。
+  默认全局一个执行Case，内部配置范围1–8；重试和短暂资源等待保留席位，执行及必要Settlement/复核收口后释放。
+  同一Entry至多一个queued或active Case；queued不建立Repair Work或Workspace，Basis失效可无文件操作终结。
+  既有active Case继续收口但不突破上限接纳新Case；此规则是一般的容量收缩语义，不是历史兼容分支。
+  Foundation CPU/encoder/volume限流继续保留。标准发布只提交新依据并唤醒有界周期重评，不在HTTP请求中同步启动全Shelf流程。
+- NFO默认承担资料文件交付职责。影片身份识别保持明确，生成器负责正确格式；上架与保有不再因演员、剧情等呈现
+  字段与内部资料不一致而拒绝或反复改写。必需NFO须存在、非空、可读；格式验证用于本系统生成与实际解析用途。
+  外部编辑不反向覆盖内部Identity/Media-Cast。文件变化不是删除许可；删除/替换仍验证本次精确物理对象和权限。
+  People证据使用明确观察入口/变化依据，取消维护语义比较不得静默删除人物能力。
+- 成功上架后的源目录收尾允许把具有精确归属/处置依据的残留物理移入ShelfDeck持久回收站。回收站位于所有
+  Material Field、Shelf Target和已配置External Provider扫描根之外，不属于临时生产工作区。保留原路径、影片/流程、
+  原因、移入时间、文件清单和校验；默认30天，每日清理到期条目，到期前可恢复，恢复禁止覆盖。
+  跨文件系统先复制校验再删除源，未完成移动不得到期删除；容量不足不提前删除未到期条目。
+  共享/未知材料不能因同目录而一律归档，不按相似片名扩大范围。具体回收持久事实与Effect合同在本修订范围内逐项闭合。

@@ -110,22 +110,38 @@ function createArcaCollectionQuery(options) {
       find_entry:{kind:'select-one',tableId:'arca_shelf_entries',columns:['shelf_entry_id','shelf_id','structure_kind','status','canonical_identity_revision','canonical_identity_key','current_inventory_revision','current_deck_fact_revision','created_at_ms','terminal_at_ms'],keyColumns:['shelf_entry_id'],safeIntegers:true},
       find_identity:{kind:'select-one',tableId:'arca_canonical_identity_revisions',columns:['shelf_entry_id','revision','structure_kind','identity_kind','provider','provider_key','identity_digest','committed_at_ms'],keyColumns:['shelf_entry_id','revision'],safeIntegers:true},
       list_identities:{kind:'select-all',tableId:'arca_canonical_identity_revisions',columns:['shelf_entry_id','revision','structure_kind','identity_kind','provider','provider_key','identity_digest','committed_at_ms'],keyColumns:[],safeIntegers:true},
-      find_identities:{kind:'select-in',tableId:'arca_canonical_identity_revisions',keyColumn:'shelf_entry_id',maxItems:500,columns:['shelf_entry_id','revision','structure_kind','identity_kind','provider','provider_key','identity_digest','committed_at_ms'],safeIntegers:true},
+      find_identities:{kind:'select-in',tableId:'arca_canonical_identity_revisions',keyColumn:'shelf_entry_id',fixedKeyColumns:['revision'],maxItems:500,columns:['shelf_entry_id','revision','structure_kind','identity_kind','provider','provider_key','identity_digest','committed_at_ms'],safeIntegers:true},
       find_shelf:{kind:'select-one',tableId:'arca_shelves',columns:['shelf_id','name','status','target_root_location'],keyColumns:['shelf_id']},
       list_materials:{kind:'select-all',tableId:'arca_inventory_materials',columns:['shelf_entry_id','inventory_revision','ordinal','material_key','role','endpoint_id','location','size_bytes','active_guard'],keyColumns:['shelf_entry_id','inventory_revision'],safeIntegers:true},
       list_all_materials:{kind:'select-all',tableId:'arca_inventory_materials',columns:['shelf_entry_id','inventory_revision','ordinal','material_key','role','endpoint_id','location','size_bytes','active_guard'],keyColumns:[],safeIntegers:true},
-      find_materials:{kind:'select-in',tableId:'arca_inventory_materials',keyColumn:'shelf_entry_id',maxItems:500,columns:['shelf_entry_id','inventory_revision','ordinal','material_key','role','endpoint_id','location','size_bytes','active_guard'],safeIntegers:true},
+      find_materials:{kind:'select-in',tableId:'arca_inventory_materials',keyColumn:'shelf_entry_id',fixedKeyColumns:['inventory_revision'],maxItems:500,columns:['shelf_entry_id','inventory_revision','ordinal','material_key','role','endpoint_id','location','size_bytes','active_guard'],safeIntegers:true},
       list_facts:{kind:'select-all',tableId:'arca_inventory_product_facts',columns:['shelf_entry_id','inventory_revision','fact_kind','fact_revision','fact_json','fact_digest'],keyColumns:['shelf_entry_id','inventory_revision'],safeIntegers:true},
       list_all_facts:{kind:'select-all',tableId:'arca_inventory_product_facts',columns:['shelf_entry_id','inventory_revision','fact_kind','fact_revision','fact_json','fact_digest'],keyColumns:[],safeIntegers:true},
-      find_facts:{kind:'select-in',tableId:'arca_inventory_product_facts',keyColumn:'shelf_entry_id',maxItems:500,columns:['shelf_entry_id','inventory_revision','fact_kind','fact_revision','fact_json','fact_digest'],safeIntegers:true},
+      find_facts:{kind:'select-in',tableId:'arca_inventory_product_facts',keyColumn:'shelf_entry_id',fixedKeyColumns:['inventory_revision'],maxItems:500,columns:['shelf_entry_id','inventory_revision','fact_kind','fact_revision','fact_json','fact_digest'],safeIntegers:true},
       list_people:{kind:'select-all',tableId:'arca_inventory_person_relations',columns:['shelf_entry_id','inventory_revision','person_id','display_name','role','relation_digest'],keyColumns:['shelf_entry_id','inventory_revision'],safeIntegers:true},
       list_all_people:{kind:'select-all',tableId:'arca_inventory_person_relations',columns:['shelf_entry_id','inventory_revision','person_id','display_name','role','relation_digest'],keyColumns:[],safeIntegers:true},
-      find_people:{kind:'select-in',tableId:'arca_inventory_person_relations',keyColumn:'shelf_entry_id',maxItems:500,columns:['shelf_entry_id','inventory_revision','person_id','display_name','role','relation_digest'],safeIntegers:true},
+      find_people:{kind:'select-in',tableId:'arca_inventory_person_relations',keyColumn:'shelf_entry_id',fixedKeyColumns:['inventory_revision'],maxItems:500,columns:['shelf_entry_id','inventory_revision','person_id','display_name','role','relation_digest'],safeIntegers:true},
     }});
   const execute=(participant,body)=>options.unitOfWork.execute([{participantId:participant,owner:'arca',repositories:[repository],execute:body}])[participant];
   function group(rows,keyOf){const values=new Map();for(const row of rows){const key=keyOf(row),items=values.get(key)||[];items.push(row);values.set(key,items);}return values;}
-  function selectedRows(repo,statement,ids){const rows=[];for(let offset=0;offset<ids.length;offset+=500)rows.push(...repo.invoke(statement,{values:ids.slice(offset,offset+500)}));return rows;}
-  function collectionCaches(repo,entries){const ids=[...new Set(entries.map((row)=>row.shelf_entry_id))].sort();if(!ids.length)return Object.freeze({identities:new Map(),shelves:new Map(),materials:new Map(),facts:new Map(),people:new Map()});return Object.freeze({identities:new Map(selectedRows(repo,'find_identities',ids).map((row)=>[row.shelf_entry_id+':'+Number(row.revision),row])),shelves:new Map(repo.invoke('list_shelves',{}).map((row)=>[row.shelf_id,row])),materials:group(selectedRows(repo,'find_materials',ids),(row)=>row.shelf_entry_id+':'+Number(row.inventory_revision)),facts:group(selectedRows(repo,'find_facts',ids),(row)=>row.shelf_entry_id+':'+Number(row.inventory_revision)),people:group(selectedRows(repo,'find_people',ids),(row)=>row.shelf_entry_id+':'+Number(row.inventory_revision))});}
+  function currentRows(repo,statement,entries,identity=false){
+    const revisions=group(entries,(row)=>Number(identity?row.canonical_identity_revision:row.current_inventory_revision));
+    const result=[],column=identity?'revision':'inventory_revision';
+    for(const [revision,members] of revisions){
+      const ids=[...new Set(members.map((row)=>row.shelf_entry_id))].sort();
+      for(let offset=0;offset<ids.length;offset+=500)result.push(...repo.invoke(statement,{[column]:revision,values:ids.slice(offset,offset+500)}));
+    }
+    return result;
+  }
+  function collectionCaches(repo,entries){
+    return Object.freeze({
+      identities:new Map(currentRows(repo,'find_identities',entries,true).map((row)=>[row.shelf_entry_id+':'+Number(row.revision),row])),
+      shelves:new Map(repo.invoke('list_shelves',{}).map((row)=>[row.shelf_id,row])),
+      materials:group(currentRows(repo,'find_materials',entries),(row)=>row.shelf_entry_id+':'+Number(row.inventory_revision)),
+      facts:group(currentRows(repo,'find_facts',entries),(row)=>row.shelf_entry_id+':'+Number(row.inventory_revision)),
+      people:group(currentRows(repo,'find_people',entries),(row)=>row.shelf_entry_id+':'+Number(row.inventory_revision)),
+    });
+  }
   function map(repo,row,caches=null){if(!row)return null;const identity=caches?caches.identities.get(row.shelf_entry_id+':'+Number(row.canonical_identity_revision)):repo.invoke('find_identity',{shelf_entry_id:row.shelf_entry_id,revision:Number(row.canonical_identity_revision)});
     if(!identity)throw new Error('Shelf Entry current Canonical Identity is absent.');
     const shelf=caches?caches.shelves.get(row.shelf_id):repo.invoke('find_shelf',{shelf_id:row.shelf_id});
@@ -177,13 +193,18 @@ function createArcaCollectionQuery(options) {
         index, shelfRows, prePaged,
       });
     });
-    const health=options.healthReaderMany?.(packed.rows.map((row)=>row.shelfEntryId))||new Map();
+    const filterHealth=query.health&&query.health!=='all'&&query.status!=='history';
+    const health=filterHealth?(options.healthReaderMany?.(packed.rows.map((row)=>row.shelfEntryId))||new Map()):new Map();
     const healthState=query.health && query.health !== 'all' ? query.health : null;
     const search=String(query.q||'').trim().toLocaleLowerCase('zh-CN');
     const items=collectionSort(packed.rows.map((row)=>withHealth(row,health.get(row.shelfEntryId)))
       .filter((item)=>query.status==='history'||!healthState||item.health.state===healthState)
       .filter((item)=>!search||item.displayIdentity.toLocaleLowerCase('zh-CN').includes(search)||String(item.year||'').includes(search)),query.sort);
-    const page=packed.prePaged?Object.freeze({items,nextCursor:packed.prePaged.nextCursor}):collectionPage(items,query);
+    let page=packed.prePaged?Object.freeze({items,nextCursor:packed.prePaged.nextCursor}):collectionPage(items,query);
+    if(!filterHealth){
+      const visibleHealth=options.healthReaderMany?.(page.items.map((row)=>row.shelfEntryId))||new Map();
+      page=Object.freeze({...page,items:page.items.map((row)=>withHealth(row,visibleHealth.get(row.shelfEntryId)))});
+    }
     const shelves=packed.shelfRows.filter((row)=>row.status==='active').map((shelf)=>{
       const members=packed.index.filter((row)=>row.shelf_id===shelf.shelf_id);
       return Object.freeze({

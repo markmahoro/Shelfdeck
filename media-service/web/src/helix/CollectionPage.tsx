@@ -1,3 +1,4 @@
+import RecyclePanel from './RecyclePanel';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { helixAdminApi, type CareDetail, type CollectionEntry, type HealthState } from './api';
 import { newOpaqueId } from './id';
@@ -9,7 +10,7 @@ import './collection.css';
 
 const healthFilters: [HealthState | 'all', string][] = [['all', '全部'], ['healthy', '健康'], ['observing', '观察中'], ['repairing', '修复中'], ['attention_required', '需要处理'], ['never_assessed', '尚未检查']];
 const foldedHealthLabels = { healthy: '健康', repairing: '修复中', unhealthy: '不健康' } as const;
-const careStageLabels: Record<string, string> = { preparing: '正在准备修复', preparing_media: '正在处理媒体', verifying_media: '正在验证媒体', committing_inventory: '正在更新收藏', reassessing: '正在复核结果', waiting_for_recovery: '等待自动恢复' };
+const careStageLabels: Record<string, string> = { queued: '等待改善席位', preparing: '正在准备修复', preparing_media: '正在处理媒体', verifying_media: '正在验证媒体', committing_inventory: '正在更新收藏', reassessing: '正在复核结果', waiting_for_recovery: '等待自动恢复' };
 const repairSubjectLabels: Record<string, string> = {
   nfo_missing: '说明书', nfo_corrupt: '说明书', nfo_update_required: '说明书',
   poster_missing: '海报', poster_corrupt: '海报', artifact_missing: '缺失资料',
@@ -180,6 +181,7 @@ export default function CollectionPage() {
           <p className="collection-dialog-overview">{selected.overview || '暂无剧情简介。'}</p>
           {selected.defectAdmission&&<p className="form-notice">瑕疵入库 · {selected.defectAdmission.defects.map((defect)=>defect.defectCode==='size_cap_exceeded'?'体积超过档位上限':defect.defectCode==='actor_unavailable'?'演员资料缺失':'寻源耗尽保留原片').join('、')}</p>}
           {selected.people.length > 0 && <dl className="collection-people"><dt>演职人员</dt><dd>{selected.people.slice(0, 12).map((person) => person.displayName).join('、')}</dd></dl>}
+          <RecyclePanel shelfEntryId={selected.shelfEntryId}/>
           <dl className="collection-facts">
             <div><dt>收藏架</dt><dd>{selected.shelfName}</dd></div>
             <div><dt>占用空间</dt><dd>{formatBytes(selected.occupancyBytes)}</dd></div>

@@ -149,6 +149,7 @@ test('formal server dependency graph reaches only the clean Helix root', () => {
     assert.ok(
         relative === 'src/server.js' ||
         relative === 'src/clean-service-host.js' ||
+        relative === 'src/clean-arca-recycle-port.js' ||
         relative === 'src/clean-local-filesystem-mount-probe.js' ||
         relative === 'src/clean-shelf-target-folder-probe.js' ||
         relative === 'src/clean-field-access-binding-probe.js' ||
@@ -335,7 +336,7 @@ test('clean host serves public health and Admin UI, then requires API key or Htt
     secretRoot,
   });
   try {
-    assert.equal(host.routeCount, 123);
+    assert.equal(host.routeCount, 127);
     const health = await host.inject({ method: 'GET', url: '/v1/health' });
     assert.equal(health.statusCode, 200);
     assert.deepEqual(Object.keys(health.json()).sort(), ['generation', 'normalSupplyAllowed', 'status']);
@@ -383,6 +384,12 @@ test('clean host serves public health and Admin UI, then requires API key or Htt
     });
     assert.equal(apiClient.statusCode, 200);
     assert.equal(apiClient.json().credentialConfigured, true);
+    const workbenchCare=await host.inject({method:'GET',url:'/v1/admin/care?view=work&limit=25',headers:{cookie}});
+    assert.equal(workbenchCare.statusCode,200);
+    assert.deepEqual(workbenchCare.json(),{items:[],counts:{},nextCursor:null});
+    const recycle=await host.inject({method:'GET',url:'/v1/admin/care-recycle',headers:{cookie}});
+    assert.equal(recycle.statusCode,200);
+    assert.deepEqual(recycle.json(),{items:[]});
 
     const overview = await host.inject({
       method: 'GET',

@@ -122,6 +122,7 @@
         "name": "state",
         "logicalType": "TEXT",
         "enumValues": [
+          "queued",
           "active",
           "resolved",
           "invalidated",
@@ -200,12 +201,13 @@
     ],
     "partialUniqueRules": [
       "相同`care_basis+finding_set+requirement`至多一个non-terminal Case",
-      "同一`shelf_entry_id`至多一个`terminal_at_ms IS NULL`的active Case。active时三个terminal列全NULL"
+      "同一`shelf_entry_id`至多一个`terminal_at_ms IS NULL`的queued或active Case。queued和active时三个terminal列全NULL"
     ],
     "checkRules": [
       {
         "column": "state",
         "enumValues": [
+          "queued",
           "active",
           "resolved",
           "invalidated",
@@ -247,7 +249,7 @@
       "两个JSON各上限`64 KiB`",
       "同一`care_basis+finding_set+requirement`下`case_generation`从1连续递增，`trigger_digest`冻结实际Health Assessment Work与其Basis，同一trigger重放必须返回同一Case且不得重复产生Work或物理效果",
       "相同`care_basis+finding_set+requirement`至多一个non-terminal Case",
-      "同一`shelf_entry_id`至多一个`terminal_at_ms IS NULL`的active Case。active时三个terminal列全NULL",
+      "同一`shelf_entry_id`至多一个`terminal_at_ms IS NULL`的queued或active Case。queued和active时三个terminal列全NULL",
       "`resolved|invalidated|unresolved`时三个terminal列全非NULL并write-once，必须保存精确reason和Evidence。terminal Case不会因相同trigger静默重开",
       "新的Assessment trigger或显式用户Retry才可在相同Basis建立下一generation。Supporting Work通过Foundation反向关联",
       "`UNIQUE(shelf_entry_id,care_basis_digest,finding_set_digest,care_requirement_digest,case_generation)`",
@@ -256,12 +258,12 @@
     ],
     "rawContract": {
       "columns": "`aftercare_case_id PK, shelf_entry_id FK, finding_set_digest, care_basis_schema_ref, care_basis_json, care_basis_digest, care_requirement_schema_ref, care_requirement_json, care_requirement_digest, case_generation INTEGER, trigger_digest, state, terminal_reason_code NULL, terminal_evidence_digest NULL, created_at_ms, terminal_at_ms NULL`",
-      "constraints": "两个JSON各上限`64 KiB`；同一`care_basis+finding_set+requirement`下`case_generation`从1连续递增，`trigger_digest`冻结实际Health Assessment Work与其Basis，同一trigger重放必须返回同一Case且不得重复产生Work或物理效果；相同`care_basis+finding_set+requirement`至多一个non-terminal Case；同一`shelf_entry_id`至多一个`terminal_at_ms IS NULL`的active Case。active时三个terminal列全NULL；`resolved|invalidated|unresolved`时三个terminal列全非NULL并write-once，必须保存精确reason和Evidence。terminal Case不会因相同trigger静默重开；新的Assessment trigger或显式用户Retry才可在相同Basis建立下一generation。Supporting Work通过Foundation反向关联；`UNIQUE(shelf_entry_id,care_basis_digest,finding_set_digest,care_requirement_digest,case_generation)`；`UNIQUE(shelf_entry_id,trigger_digest)`；`INDEX(state,created_at_ms)`"
+      "constraints": "两个JSON各上限`64 KiB`；同一`care_basis+finding_set+requirement`下`case_generation`从1连续递增，`trigger_digest`冻结实际Health Assessment Work与其Basis，同一trigger重放必须返回同一Case且不得重复产生Work或物理效果；相同`care_basis+finding_set+requirement`至多一个non-terminal Case；同一`shelf_entry_id`至多一个`terminal_at_ms IS NULL`的queued或active Case。queued和active时三个terminal列全NULL；`resolved|invalidated|unresolved`时三个terminal列全非NULL并write-once，必须保存精确reason和Evidence。terminal Case不会因相同trigger静默重开；新的Assessment trigger或显式用户Retry才可在相同Basis建立下一generation。Supporting Work通过Foundation反向关联；`UNIQUE(shelf_entry_id,care_basis_digest,finding_set_digest,care_requirement_digest,case_generation)`；`UNIQUE(shelf_entry_id,trigger_digest)`；`INDEX(state,created_at_ms)`"
     },
     "source": {
       "section": "8.5.12",
       "line": 9450,
-      "lineDigest": "9e153b3235fd29b241237f5a972eeb05bfcd8e357794acb281434b8f9aae0713"
+      "lineDigest": "1462034212665a0473b1359938383607ca7fcd895ffc81959919117e287ee546"
     },
     "foreignKeys": [
       {

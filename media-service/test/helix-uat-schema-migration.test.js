@@ -18,6 +18,7 @@ const {
   PRE_UAT_EXECUTION_CATALOG_DIGEST,
   PRE_PROJECTION_EXECUTION_CATALOG_DIGEST,
   PRE_FORMATION_THREE_STATE_SCHEMA_DIGEST,
+  PRE_CASE_ADMISSION_SCHEMA_DIGEST,
   INTAKE_BINDING_REPLAN_CODE,
   PRE_PROJECTION_PLAN_REPLAN_CODE,
   migrateUatIdentitySelectionSchema,
@@ -32,6 +33,32 @@ function catalogRows(database) {
     "SELECT type,name,tbl_name,sql FROM sqlite_master WHERE name NOT LIKE 'sqlite_%' ORDER BY type,name",
   ).all().map((row) => ({ ...row, sql: row.sql && row.sql.replaceAll('\r\n', '\n') }));
 }
+
+test('Case admission upgrades the prior constraint, preserves rows and references, and replays safely', () => {
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'helix-case-admission-upgrade-'));
+  const databasePath=path.join(root,'shelfdeck.db');
+  const oldDdl=schemaDdl.replace("'queued', 'active', 'resolved', 'invalidated', 'unresolved'", "'active', 'resolved', 'invalidated', 'unresolved'");
+  try {
+    const db=new Database(databasePath);
+    db.exec(oldDdl);
+    db.exec('DROP TABLE arca_recycle_entries');
+    db.prepare('INSERT INTO arca_aftercare_cases(aftercare_case_id,state) VALUES(?,?)').run('preserved-case','active');
+    db.prepare('INSERT INTO fx_audit_records(audit_id,occurred_at_ms) VALUES(?,?)').run('preserved-fact',100);
+    db.prepare('INSERT INTO platform_schema_marker(schema_name,generation,schema_digest,catalog_digest,applied_at_ms) VALUES(?,?,?,?,?)')
+      .run('shelfdeck',TARGET_GENERATION,PRE_CASE_ADMISSION_SCHEMA_DIGEST,digest(catalogRows(db)),100);
+    db.close();
+    assert.equal(migrateUatIdentitySelectionSchema({Database,databasePath,schemaManifest}).migrated,true);
+    const check=new Database(databasePath);
+    assert.equal(check.prepare('SELECT COUNT(*) n FROM arca_recycle_entries').get().n,0);
+    assert.equal(check.prepare('SELECT state FROM arca_aftercare_cases WHERE aftercare_case_id=?').get('preserved-case').state,'active');
+    check.prepare('INSERT INTO arca_aftercare_cases(aftercare_case_id,state) VALUES(?,?)').run('new-case','queued');
+    assert.equal(check.prepare('SELECT COUNT(*) n FROM fx_audit_records').get().n,1);
+    assert.deepEqual(check.pragma('foreign_key_check'),[]);
+    assert.equal(check.pragma('integrity_check',{simple:true}),'ok');
+    check.close();
+    assert.equal(migrateUatIdentitySelectionSchema({Database,databasePath,schemaManifest}).migrated,false);
+  } finally { fs.rmSync(root,{recursive:true,force:true}); }
+});
 
 function sourceFixture(run) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'helix-uat-schema-migration-'));

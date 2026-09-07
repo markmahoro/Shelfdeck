@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/application-types/RecycleManifest/v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "entries", "totalBytes"],
+  "properties": {
+    "version": {"const": 1},
+    "totalBytes": {"type": "integer", "minimum": 0, "maximum": 536870912},
+    "entries": {
+      "type": "array", "maxItems": 256,
+      "items": {
+        "oneOf": [
+          {"type": "object", "additionalProperties": false, "required": ["relativePath", "kind"], "properties": {
+            "relativePath": {"type": "string", "minLength": 1, "maxLength": 4096}, "kind": {"const": "directory"}
+          }},
+          {"type": "object", "additionalProperties": false, "required": ["relativePath", "kind", "sizeBytes", "sha256", "inode", "mtimeNs"], "properties": {
+            "relativePath": {"type": "string", "minLength": 1, "maxLength": 4096}, "kind": {"const": "file"},
+            "sizeBytes": {"type": "integer", "minimum": 0, "maximum": 536870912},
+            "sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+            "inode": {"type": "string", "pattern": "^[0-9]+$"}, "mtimeNs": {"type": "string", "pattern": "^[0-9]+$"}
+          }}
+        ]
+      }
+    }
+  }
+}

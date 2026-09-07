@@ -726,7 +726,7 @@ function createProcurementExecutionRuntime(options) {
     registry, contractValidator, policyRegistry });
   const catalogDigest = executionCatalogDigest(registry, policyRegistry);
   const startupRecovery = createStartupRecovery({ schemaManifest: options.schemaManifest, unitOfWork: options.unitOfWork,
-    standaloneEffectClasses:Object.freeze(['libra_workspace_material_reclaim']),
+    standaloneEffectClasses:Object.freeze(['libra_workspace_material_reclaim','arca_recycle_move','arca_recycle_restore','arca_recycle_purge']),
     registry, policyRegistry, integrityVerifier: { verify: () => ({ ok: true }) },
     catalogVerifier: { verify: (snapshot) => verifyStartupPlanCatalog(
       snapshot, catalogDigest, registry, policyRegistry, bindingProjectionRegistry,
@@ -989,7 +989,7 @@ function createProcurementExecutionRuntime(options) {
   const pipelineSubjectPage=(cursor,limit)=>libraProcessServices.pipelineAdmission.listTokens()
     .filter((item)=>(cursor===null||item.subjectId>cursor)&&Boolean(libraProcessServices.routingContextReader.read(item.subjectId))).slice(0,limit)
     .map((item)=>Object.freeze({cursor:item.subjectId,scope:Object.freeze({subjectId:item.subjectId})}));
-  const fallbackReconciler=createDomainReconcileRunner({cursorStore,now,onError:options.onError,registrations:[Object.freeze({
+  const fallbackReconciler=createDomainReconcileRunner({cursorStore,now,onError:options.onError,registrations:[Object.freeze({ownerDomain:'arca',reconcilerKey:'recycle-maintenance',listPage:({cursor})=>cursor===null&&options.recycleTick?[{cursor:'recycle',scope:{}}]:[],reconcile:()=>options.recycleTick()}),Object.freeze({
     ownerDomain:'procurement',reconcilerKey:'active-procurement-runs',
     listPage:({cursor,limit})=>triageReader.listActiveRunPage(cursor,limit),
     reconcile:({procurementRunId})=>runCoordinator.reconcile(procurementRunId),

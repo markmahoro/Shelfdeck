@@ -1,13 +1,16 @@
+import RecyclePanel from './RecyclePanel';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { helixAdminApi, type DefectAdmissionCandidate, type FormationRunHistory, type FormationSubject, type FormationSummary, type PerceptionSyncState, type Shelf } from './api';
 import { Button, LoadingState, PageHeader } from './chrome';
 import { Dialog } from '../components/ui';
 import RatingControl from './RatingControl';
+import { CareWorkRow, CareWorkDetail } from './CareWorkRow';
+import type { CareWorkItem } from './api';
 import { isUnauthorized, useSession } from './session';
 
 const emptySummary: FormationSummary = { totalCount:0, inProgressCount:0, attentionRequiredCount:0, completedCount:0 };
 type Filter = 'all'|'in_progress'|'attention_required'|'completed'|'ended';
-type LedgerRow = { kind:'formation'; item:FormationSubject } | { kind:'ended'; item:FormationRunHistory };
+type LedgerRow = { kind:'formation'; item:FormationSubject } | { kind:'ended'; item:FormationRunHistory } | { kind:'care'; item:CareWorkItem };
 
 function formatTime(value:number) { return value > 0 ? new Intl.DateTimeFormat('zh-CN', { dateStyle:'medium', timeStyle:'short' }).format(new Date(value)) : '—'; }
 function progressText(progress:NonNullable<FormationSubject['organizingSteps'][number]['progress']>) {
@@ -98,11 +101,11 @@ type FormationFilters = {
   classification?:'in_progress'|'attention_required';
   shelfId?:string; needsUserAction?:boolean; expedited?:boolean; q?:string;
 };
-async function remainingFormation(first:{items:FormationSubject[];summary:FormationSummary;nextCursor:string|null}, section:'active'|'completed', filters?:FormationFilters) {
+async function remainingFormation(first:{items:FormationSubject[];summary:FormationSummary;nextCursor:string|null}, section:'active'|'completed', filters?:FormationFilters, live=()=>true) {
   const items = [...first.items];
   let cursor = first.nextCursor, summary = first.summary;
   const seen = new Set<string>();
-  while (cursor) {
+  while (cursor && live()) {
     if (seen.has(cursor) || seen.size >= 399) throw new Error('媒体整理分页游标异常，已停止读取。');
     seen.add(cursor);
     const page = await helixAdminApi.listFormation(section, cursor, filters);
@@ -112,11 +115,11 @@ async function remainingFormation(first:{items:FormationSubject[];summary:Format
   }
   return { items, summary };
 }
-async function remainingHistory(first:{items:FormationRunHistory[];nextCursor:string|null}) {
+async function remainingHistory(first:{items:FormationRunHistory[];nextCursor:string|null}, live=()=>true) {
   const items = [...first.items];
   let cursor = first.nextCursor;
   const seen = new Set<string>();
-  while (cursor) {
+  while (cursor && live()) {
     if (seen.has(cursor) || seen.size >= 399) throw new Error('整理历史分页游标异常，已停止读取。');
     seen.add(cursor);
     const page = await helixAdminApi.listFormationHistory(cursor);
@@ -173,9 +176,56 @@ export default function FormationPage() {
   const [filter,setFilter]=useState<Filter>('all'),[q,setQ]=useState(''),[shelfFilter,setShelfFilter]=useState(''),[loading,setLoading]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState('');
   const [selected,setSelected]=useState<FormationSubject|null>(null),closeRef=useRef<HTMLButtonElement>(null),triggerRef=useRef<HTMLButtonElement|null>(null),loadGeneration=useRef(0);
   const [defectDialog,setDefectDialog]=useState<{item:FormationSubject;candidate:DefectAdmissionCandidate}|null>(null);
+  const [careItems,setCareItems]=useState<CareWorkItem[]>([]),[careCursor,setCareCursor]=useState<string|null>(null),[selectedCare,setSelectedCare]=useState<CareWorkItem|null>(null);
+  const [careCounts,setCareCounts]=useState<Record<string,number>>({});
+  const careLoading=useRef(false),careExpanded=useRef(false),carePageCount=useRef(1),selectedCareId=useRef<string|null>(null);
+  selectedCareId.current=selectedCare?.aftercareCaseId||null;
+  const loadCare=useCallback(async(cursor?:string)=>{
+    if(careLoading.current)return;careLoading.current=true;
+    try{
+      let result=await helixAdminApi.listCareWork(cursor);const items=[...result.items];
+      if(cursor){careExpanded.current=true;carePageCount.current+=1;setCareItems(current=>mergeById(current,items,item=>item.aftercareCaseId));}
+      else{
+        for(let page=1;page<carePageCount.current&&result.nextCursor;page++){
+          result=await helixAdminApi.listCareWork(result.nextCursor);items.push(...result.items);
+        }
+        setCareItems(items);
+      }
+      setCareCursor(result.nextCursor);setCareCounts(result.counts);
+      const selectedId=selectedCareId.current;
+      if(selectedId){
+        const selected=items.find(item=>item.aftercareCaseId===selectedId)||
+          (await helixAdminApi.listCareWork(undefined,selectedId)).items[0];
+        setSelectedCare(current=>current?.aftercareCaseId===selectedId?selected||null:current);
+      }
+    }
+    catch(cause){if(isUnauthorized(cause))expire();else setError(cause instanceof Error?cause.message:'上架后改善读取失败。');}
+    finally{careLoading.current=false;}
+  },[expire]);
+  useEffect(()=>{void loadCare();const timer=window.setInterval(()=>{if(!document.hidden)void loadCare();},10_000);return()=>window.clearInterval(timer);},[loadCare]);
+  const [pageCursors,setPageCursors]=useState<{active:string|null;completed:string|null;ended:string|null}>({active:null,completed:null,ended:null});
+  const [loadingMore,setLoadingMore]=useState(false);
+  const foregroundBusy=useRef(false),backgroundBusy=useRef(false);
+  const loadMore=async()=>{
+    if(loadingMore)return;setLoadingMore(true);
+    try{
+      const [a,c,e]=await Promise.all([
+        pageCursors.active?helixAdminApi.listFormation('active',pageCursors.active):null,
+        pageCursors.completed?helixAdminApi.listFormation('completed',pageCursors.completed):null,
+        pageCursors.ended?helixAdminApi.listFormationHistory(pageCursors.ended):null,
+      ]);
+      if(a){setActive(current=>mergeById(current,a.items,item=>item.subjectId));setSummary(a.summary);}
+      if(c)setCompleted(current=>mergeById(current,c.items,item=>item.subjectId));
+      if(e)setEnded(current=>mergeById(current,e.items,item=>item.historyId));
+      setPageCursors({active:a?.nextCursor||null,completed:c?.nextCursor||null,ended:e?.nextCursor||null});
+    }catch(cause){if(isUnauthorized(cause))expire();else setError(cause instanceof Error?cause.message:'更多记录读取失败。');}
+    finally{setLoadingMore(false);}
+  };
   const [discardDialog,setDiscardDialog]=useState<FormationSubject|null>(null);
   const load=useCallback(async(background=false)=>{
     if(background){
+      if(backgroundBusy.current||foregroundBusy.current||document.hidden)return;
+      backgroundBusy.current=true;
       try{
         const [firstActive,firstCompleted,firstEnded,sync]=await Promise.all([
           helixAdminApi.listFormation('active'),
@@ -188,9 +238,10 @@ export default function FormationPage() {
         setEnded((current)=>mergeById(current,firstEnded.items,(item)=>item.historyId));
         setSummary(firstActive.summary);
         if(sync)setPerceptionSync(sync);
-      }catch(cause){if(isUnauthorized(cause))expire();}
+      }catch(cause){if(isUnauthorized(cause))expire();}finally{backgroundBusy.current=false;}
       return;
     }
+    if(foregroundBusy.current)return;foregroundBusy.current=true;
     const generation=loadGeneration.current+1;loadGeneration.current=generation;
     const live=()=>generation===loadGeneration.current;
     setLoading(true);setError('');
@@ -207,16 +258,9 @@ export default function FormationPage() {
       setShelves(shelvesPage.items.filter((item)=>item.status==='active'));
       if(sync)setPerceptionSync(sync);
       setLoading(false);
-      if(!firstActive.nextCursor&&!firstCompleted.nextCursor&&!firstEnded.nextCursor)return;
-      const [allActive,allCompleted,allEnded]=await Promise.all([
-        remainingFormation(firstActive,'active'),
-        remainingFormation(firstCompleted,'completed'),
-        remainingHistory(firstEnded),
-      ]);
-      if(!live())return;
-      setActive(allActive.items);setCompleted(allCompleted.items);setEnded(allEnded);setSummary(allActive.summary);
+      setPageCursors({active:firstActive.nextCursor,completed:firstCompleted.nextCursor,ended:firstEnded.nextCursor});
     }catch(cause){if(isUnauthorized(cause))expire();else setError(cause instanceof Error?cause.message:'媒体整理工作区读取失败。');}
-    finally{if(live())setLoading(false);}
+    finally{foregroundBusy.current=false;if(live())setLoading(false);}
   },[expire]);
   useEffect(()=>{void load();},[load]);
   useEffect(()=>{if(!active.some((item)=>item.classification==='in_progress'))return;const timer=window.setInterval(()=>{void load(true);},10_000);return()=>window.clearInterval(timer);},[active,load]);
@@ -231,7 +275,7 @@ export default function FormationPage() {
         setActive((current)=>mergeById(current,first.items,(item)=>item.subjectId));
         setSummary(first.summary);
         if(!first.nextCursor)return;
-        const rest=await remainingFormation(first,'active',{classification});
+        const rest=await remainingFormation(first,'active',{classification},()=>!cancelled);
         if(cancelled)return;
         setActive((current)=>mergeById(current,rest.items,(item)=>item.subjectId));
         setSummary(rest.summary);
@@ -239,11 +283,43 @@ export default function FormationPage() {
     })();
     return()=>{cancelled=true;};
   },[expire,filter]);
-  const rows=useMemo<LedgerRow[]>(()=>[...active.map((item)=>({kind:'formation' as const,item})),...completed.map((item)=>({kind:'formation' as const,item})),...ended.map((item)=>({kind:'ended' as const,item}))].filter((row)=>{
+  useEffect(()=>{
+    if(!q.trim()&&!shelfFilter)return;
+    let cancelled=false;
+    const timer=window.setTimeout(()=>{void(async()=>{
+      try{
+        const [a,c,e]=await Promise.all([helixAdminApi.listFormation('active'),helixAdminApi.listFormation('completed'),helixAdminApi.listFormationHistory()]);
+        if(cancelled)return;
+        const [allA,allC,allE]=await Promise.all([remainingFormation(a,'active',undefined,()=>!cancelled),remainingFormation(c,'completed',undefined,()=>!cancelled),remainingHistory(e,()=>!cancelled)]);
+        if(cancelled)return;
+        setActive(allA.items);setCompleted(allC.items);setEnded(allE);setPageCursors({active:null,completed:null,ended:null});
+      }catch(cause){if(isUnauthorized(cause))expire();}
+    })();},350);
+    return()=>{cancelled=true;window.clearTimeout(timer);};
+  },[q,shelfFilter,expire]);
+  useEffect(()=>{
+    if(!q.trim()&&!shelfFilter&&filter==='all')return;
+    let cancelled=false;
+    const timer=window.setTimeout(()=>{void(async()=>{
+      try{
+        let cursor:string|undefined;const seen=new Set<string>();const items:CareWorkItem[]=[];
+        do{
+          const page=await helixAdminApi.listCareWork(cursor);if(cancelled)return;
+          items.push(...page.items);setCareCounts(page.counts);
+          cursor=page.nextCursor||undefined;
+          if(cursor&&(seen.has(cursor)||seen.size>=399))throw new Error('改善记录分页游标异常，已停止读取。');
+          if(cursor)seen.add(cursor);
+        }while(cursor&&!cancelled);
+        if(!cancelled){setCareItems(items);careExpanded.current=true;carePageCount.current=Math.max(1,Math.ceil(items.length/25));setCareCursor(null);}
+      }catch(cause){if(isUnauthorized(cause))expire();else if(!cancelled)setError(cause instanceof Error?cause.message:'改善记录筛选失败。');}
+    })();},350);
+    return()=>{cancelled=true;window.clearTimeout(timer);};
+  },[q,shelfFilter,filter,expire]);
+  const rows=useMemo<LedgerRow[]>(()=>[...careItems.map((item)=>({kind:'care' as const,item})),...active.map((item)=>({kind:'formation' as const,item})),...completed.map((item)=>({kind:'formation' as const,item})),...ended.map((item)=>({kind:'ended' as const,item}))].filter((row)=>{
     if(q.trim()&&!row.item.displayIdentity.toLowerCase().includes(q.trim().toLowerCase()))return false;
-    if(row.kind==='formation'&&shelfFilter&&row.item.targetShelfId!==shelfFilter)return false;
-    if(filter==='all')return true;if(filter==='ended')return row.kind==='ended';return row.kind==='formation'&&row.item.classification===filter;
-  }),[active,completed,ended,filter,q,shelfFilter]);
+    if(row.kind!=='ended'&&shelfFilter&&row.item.targetShelfId!==shelfFilter)return false;
+    if(filter==='all')return true;if(row.kind==='care')return row.item.classification===filter||(filter==='in_progress'&&row.item.classification==='queued');if(filter==='ended')return row.kind==='ended';return row.kind==='formation'&&row.item.classification===filter;
+  }),[active,completed,ended,careItems,filter,q,shelfFilter]);
   const close=()=>{setSelected(null);window.setTimeout(()=>triggerRef.current?.focus(),0);};
   useEffect(()=>{if(!selected)return;const key=(event:KeyboardEvent)=>{if(event.key==='Escape')close();};document.body.classList.add('formation-process-modal-open');document.addEventListener('keydown',key);closeRef.current?.focus();return()=>{document.body.classList.remove('formation-process-modal-open');document.removeEventListener('keydown',key);};},[selected]);
   const open=async(item:FormationSubject,button:HTMLButtonElement)=>{triggerRef.current=button;setLoading(true);try{setSelected(await helixAdminApi.getFormation(item.formationViewId));}catch(cause){setError(cause instanceof Error?cause.message:'上架过程详情读取失败。');}finally{setLoading(false);}};
@@ -264,8 +340,8 @@ export default function FormationPage() {
       await load();
     }catch(cause){setError(cause instanceof Error?cause.message:'操作失败。');setLoading(false);}
   };
-  if(!active.length&&!completed.length&&!ended.length&&loading&&!error)return <LoadingState>正在读取媒体整理工作区…</LoadingState>;
-  const counts:Record<Filter,number>={all:summary.totalCount+ended.length,in_progress:summary.inProgressCount,attention_required:summary.attentionRequiredCount,completed:summary.completedCount,ended:ended.length};
+  if(!active.length&&!completed.length&&!ended.length&&!careItems.length&&loading&&!error)return <LoadingState>正在读取媒体整理工作区…</LoadingState>;
+  const counts:Record<Filter,number>={all:summary.totalCount+ended.length+Object.values(careCounts).reduce((a,b)=>a+b,0),in_progress:summary.inProgressCount+(careCounts.in_progress||0)+(careCounts.queued||0),attention_required:summary.attentionRequiredCount+(careCounts.attention_required||0),completed:summary.completedCount+(careCounts.completed||0),ended:ended.length+(careCounts.ended||0)};
   return <section className="source-page workbench formation-page"><PageHeader title="媒体整理工作区" actions={<Button type="button" onClick={()=>void load()} disabled={loading}>{loading?'正在刷新…':'刷新'}</Button>} />
     {error&&<p className="form-error" role="alert">{error}</p>}
     {notice&&<p className="form-notice" role="status">{notice}</p>}
@@ -274,8 +350,12 @@ export default function FormationPage() {
       <div className="formation-chips" role="group" aria-label="媒体整理状态">{([{id:'all',label:'全部'},{id:'in_progress',label:'整理中'},{id:'attention_required',label:'需要处理'},{id:'completed',label:'已完成'},{id:'ended',label:'已结束'}] as Array<{id:Filter;label:string}>).map((entry)=><Button key={entry.id} type="button" aria-pressed={filter===entry.id} onClick={()=>setFilter(entry.id)}>{entry.label} {counts[entry.id]}</Button>)}</div>
       <div className="formation-secondary"><label>片名<input type="search" aria-label="按片名筛选" value={q} placeholder="搜索片名" onChange={(event)=>setQ(event.target.value)} /></label><label>目标收藏架<select aria-label="按目标收藏架筛选" value={shelfFilter} onChange={(event)=>setShelfFilter(event.target.value)}><option value="">全部收藏架</option>{shelves.map((shelf)=><option key={shelf.shelfId} value={shelf.shelfId}>{shelf.name}</option>)}</select></label></div>
     </div>
-      <div className="formation-table-wrap"><table className="formation-table formation-stub-table"><thead><tr><th>媒体名称</th><th>评分</th><th>目标收藏架</th><th>整理要求</th><th>当前进展</th><th>详情</th><th>用户操作</th><th>加急</th></tr></thead><tbody>{rows.length===0?<tr className="formation-stub-media-row"><td colSpan={8}><div className="source-empty"><strong>{summary.totalCount===0?'还没有进入整理的电影':'当前筛选没有条目'}</strong><p>{summary.totalCount===0?'Libra 接收媒体包后，条目会从“整理中”开始出现在这里；仍在等待接收的媒体包请到“文件来源”查看。':'试试其他状态或筛选。'}</p></div></td></tr>:rows.map((row)=>row.kind==='ended'?<tr key={row.item.historyId} className="formation-stub-media-row"><td><strong>{row.item.displayIdentity}</strong><small>已结束</small></td><td>—</td><td>—</td><td>—</td><td><strong className="formation-stub-current">{row.item.label}</strong><small>{formatTime(row.item.endedAtMs)}</small></td><td>—</td><td>—</td><td><button type="button" className="formation-expedite-toggle" disabled>加急</button></td></tr>:<MediaRow key={row.item.subjectId} item={row.item} shelves={shelves} loading={loading} acquisitionIncomplete={perceptionSync?.completionState==='incomplete'} onOpen={open} onAction={action} />)}</tbody></table></div>
+      <div className="formation-table-wrap"><table className="formation-table formation-stub-table"><thead><tr><th>媒体名称</th><th>评分</th><th>目标收藏架</th><th>整理要求</th><th>当前进展</th><th>详情</th><th>用户操作</th><th>加急</th></tr></thead><tbody>{rows.length===0?<tr className="formation-stub-media-row"><td colSpan={8}><div className="source-empty"><strong>{summary.totalCount===0?'还没有进入整理的电影':'当前筛选没有条目'}</strong><p>{summary.totalCount===0?'Libra 接收媒体包后，条目会从“整理中”开始出现在这里；仍在等待接收的媒体包请到“文件来源”查看。':'试试其他状态或筛选。'}</p></div></td></tr>:rows.map((row)=>row.kind==='care'?<CareWorkRow key={row.item.aftercareCaseId} item={row.item} onOpen={setSelectedCare}/>:row.kind==='ended'?<tr key={row.item.historyId} className="formation-stub-media-row"><td><strong>{row.item.displayIdentity}</strong><small>已结束</small></td><td>—</td><td>—</td><td>—</td><td><strong className="formation-stub-current">{row.item.label}</strong><small>{formatTime(row.item.endedAtMs)}</small></td><td>—</td><td>—</td><td><button type="button" className="formation-expedite-toggle" disabled>加急</button></td></tr>:<MediaRow key={row.item.subjectId} item={row.item} shelves={shelves} loading={loading} acquisitionIncomplete={perceptionSync?.completionState==='incomplete'} onOpen={open} onAction={action} />)}</tbody></table></div>
     </section>
+    {Object.values(pageCursors).some(Boolean)&&<Button type="button" disabled={loadingMore} onClick={()=>void loadMore()}>{loadingMore?'正在读取…':'加载更多整理记录'}</Button>}
+    <RecyclePanel/>
+    {careCursor&&<Button type="button" onClick={()=>void loadCare(careCursor)}>加载更多改善记录</Button>}
+    <Dialog open={!!selectedCare} title={selectedCare?selectedCare.displayIdentity+'的媒体整理过程':''} onClose={()=>setSelectedCare(null)}>{selectedCare&&<CareWorkDetail item={selectedCare}/>}</Dialog>
     {selected&&<div className="formation-process-backdrop" role="presentation" onMouseDown={(event)=>{if(event.target===event.currentTarget)close();}}><section className="formation-process-dialog" role="dialog" aria-modal="true" aria-labelledby="formation-process-dialog-title"><button ref={closeRef} className="formation-process-dialog-close" type="button" aria-label="关闭媒体整理过程卡片" onClick={close}>×</button><h2 id="formation-process-dialog-title" className="formation-process-dialog-title">{selected.displayIdentity}的媒体整理过程</h2><ProcessDetail item={selected} /></section></div>}
     <Dialog open={!!discardDialog} title="确认放弃整理" onClose={()=>setDiscardDialog(null)} actions={<>
       <Button type="button" disabled={loading} onClick={()=>setDiscardDialog(null)}>取消</Button>

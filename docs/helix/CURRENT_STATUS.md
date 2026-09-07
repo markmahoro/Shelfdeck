@@ -4,7 +4,7 @@ Status: **PROD-066 已按用户授权定向恢复 11 部，当前 54 部上架�
 
 Last updated: 2026-09-07
 
-最新工作：用户要求围绕工作可见性、Aftercare节流、两页性能、Top Gun残留和NFO阻塞重新审计。[五项痛点审计](implementation/evidence/USER_PAIN_AUDIT_20260907.md)已完成代码/合同与既有快照核查；未测本次在线延迟、未压测批量改善、未独立读取Emby索引。不以前序架构合并建议为前提，未修改SSOT、代码或生产，下一轮迭代待评审。
+前序审计（历史）：用户要求围绕工作可见性、Aftercare节流、两页性能、Top Gun残留和NFO阻塞重新审计。[五项痛点审计](implementation/evidence/USER_PAIN_AUDIT_20260907.md)已完成代码/合同与既有快照核查；未测本次在线延迟、未压测批量改善、未独立读取Emby索引。不以前序架构合并建议为前提，未修改SSOT、代码或生产，下一轮迭代待评审。
 
 09-07 部署前生产只读复查（历史）：仍运行 09-03 镜像；8 部 Arca Settlement 停滞（4 部旧 NFO 漂移、4 部旧目录未知成员），2 部 Libra frozen，8 条 discarded 等待重新入库，1 部正常转码。恢复建议与逐片证据见 [生产停滞现状](implementation/evidence/PROD-065_PRODUCTION_STALL_STATUS_20260907.md)。未部署或修改生产。
 
@@ -17,8 +17,8 @@ Last updated: 2026-09-07
 - 唯一架构权威为 `TOP_DOWN_ARCHITECTURE_CONFIRMATION.md`；当前验收权威为
   `BETA_FEATURE_ACCEPTANCE_BASELINE.md`。生产 health 或一次事故恢复不能自动把任何 `HB-*` 标为 PASS。
 - P1–P13 Exit 已完成，P13 E2E-ready package 已冻结；Movie P14 资格验收和生产上线已完成。
-- 当前实现机器库存：113 Capability、99 Result family、186 tables、44 Canonical Transactions、
-  123 Admin routes、17 UI surfaces。
+- 当前实现机器库存：113 Capability、99 Result family、187 tables、44 Canonical Transactions、
+  127 Admin routes、17 UI surfaces。
 
 ## PROD-065 中间部署记录（历史，最新状态见文末 PROD-066）
 
@@ -100,3 +100,9 @@ Windows服务489 PASS/18条件SKIP、架构/合同审计PASS、Linux隔离Contro
 独立生产复核：54 部 active，451 个当前文件均存在；原上架/Commit 行及全部当前 Inventory 与清理前一致；文件 inode、大小及采样指纹与原审计一致。SQLite integrity=ok、FK=0，无 Libra/Custody 当前控制。原有 3 个 NFO 绑定漂移仍在，8 个演员 ID 问题也没有在此次数据库恢复中修复，不宣称为全面合格基线。服务继续停止，镜像仍为 5565a03eb2，本地修复未部署。
 
 恢复后数据库 SHA256：`55ce630b1cc024364b1d0febd990e320b0cd99c1330b917305ca1b010ef39e44`。恢复前 43 部数据库新备份：`/vol1/1000/docker/shelfdeck/backups/formation-reset-20260907T124525Z/data`；清理前 54 部备份仍保留在 `formation-reset-20260907T120253Z/data`。本次没有清理备份或改动媒体文件。
+
+## 用户痛点迭代已授权并开始
+
+用户已确认Case级节流、克制的工作区展示、NFO收缩及持久回收站，明确授权本任务同步修改SSOT、逐项实施、本地测试通过后生产部署和监控。codex/user-pain-iteration已开始；尚未部署或启动生产。本记录取代前面未授权实施的阶段描述。
+
+本轮本地实现与验证已完成，详见 [实现证据](implementation/evidence/USER_PAIN_IMPLEMENTATION_20260907.md)。精确合同已回写，生产副本升级保持全部业务表摘要不变；生产部署与监控尚未完成。

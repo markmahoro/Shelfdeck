@@ -83,6 +83,9 @@ const {
 } = require('./helix/domains/arca/public/admin-application');
 const { createShelfRoutingTargetProjection } = require('./helix/domains/arca/public/routing-target-projection');
 const { createArcaCollectionQuery } = require('./helix/domains/arca/application/collection-query');
+const {createRecycleStore}=require('./helix/domains/arca/persistence/recycle-store');
+const {createRecycleApplication}=require('./helix/domains/arca/application/recycle-application');
+const recycleFiles=require('./clean-arca-recycle-port');
 const { createArcaCareApplication } = require('./helix/domains/arca/application/care-query');
 const { createOffdeckAdminApplication } = require('./helix/domains/arca/application/offdeck-admin-application');
 const { ProductDeliveryPort } = require('./helix/domains/libra/public');
@@ -1010,6 +1013,11 @@ function errorResponse(error, correlationId) {
   else if (error.code === 'ADMIN_AUTOMATION_COMMAND_REJECTED' || error.code === 'ADMIN_AUTOMATION_PROJECTION_UNAVAILABLE') status = 400;
   else if (error.code === 'ADMIN_RULE_TEMPLATE_NOT_FOUND') status = 404;
   else if (error.code === 'ARCA_SHELF_ENTRY_NOT_FOUND' || error.code === 'PERCEPTION_TARGET_NOT_FOUND') status = 404;
+  else if (typeof error.code === 'string' && error.code.startsWith('ARCA_RECYCLE_')) {
+    if (error.code.endsWith('_NOT_FOUND')) status = 404;
+    else if (/(?:_STALE|_CONFLICT|_CHANGED|_EXISTS|_IN_USE|_QUEUED|_OVERLAP)$/.test(error.code)) status = 409;
+    else status = 400;
+  }
   else if (error.code === 'PERCEPTION_RATING_COMMAND_INVALID' || error.code === 'PERCEPTION_ACQUISITION_COMMAND_INVALID' || error.code === 'PERCEPTION_DOUBAN_NOT_CONFIGURED') status = 400;
   else if (error.code === 'PERCEPTION_RATING_REVISION_CONFLICT' || error.code === 'PERCEPTION_SOURCE_REVISION_CONFLICT') status = 409;
   else if (
@@ -1100,7 +1108,7 @@ function createRuntime(options) {
   if (!fs.existsSync(path.join(options.adminDistDir, 'index.html'))) {
     findings.push('ADMIN_WEB_BUILD_MISSING');
   }
-  if (routeManifest.status !== 'active' || routeManifest.entries.length !== 123) {
+  if (routeManifest.status !== 'active' || routeManifest.entries.length !== 127) {
     findings.push('ROUTE_INVENTORY_INCOMPLETE');
   }
   if (uiManifest.status !== 'active' || uiManifest.entries.length !== 17) {
@@ -1317,7 +1325,7 @@ async function createCleanServiceHost(options) {
   }));
   const candidateAcceptance = createCandidateAcceptanceConsumer(constructed.applicationDependencies);
   const arcaRoutingTargets = createShelfRoutingTargetProjection(constructed.applicationDependencies);
-  let arcaCare = null;
+  let arcaCare = null, arcaRecycle = null;
   const arcaCollectionQuery = createArcaCollectionQuery({
     ...constructed.applicationDependencies,
     posterReader: options.arcaPosterReader || (async (reference, query = {}) => {
@@ -1472,6 +1480,7 @@ async function createCleanServiceHost(options) {
     onFingerprintRead: options.onPhysicalMaterialFingerprintRead,
   });
   procurementExecution = createHelixExecutionRuntime({
+    recycleTick:()=>arcaRecycle?.tick(),
     failureEvidenceStore:createFailureEvidenceStore(path.join(options.dataDir, 'diagnostics', 'execution-failures')),
     ...constructed.applicationDependencies,
     materialFieldStore,
@@ -1626,6 +1635,20 @@ async function createCleanServiceHost(options) {
   });
   arcaCare=createArcaCareApplication({contextReader:procurementExecution.arcaAftercareContextReader,
     coordinator:procurementExecution.arcaAftercareCoordinator,wake:()=>executionRuntimeHost.wake()});
+  arcaRecycle=createRecycleApplication({
+    root:path.join(options.dataDir,'recycle'),now:options.now||Date.now,
+    listEntryPage:(cursor,limit)=>procurementExecution.arcaAftercareContextReader.listPage(cursor,limit),
+    store:createRecycleStore({...constructed.applicationDependencies,now:options.now||Date.now}),
+    port:recycleFiles.createRecycleEffectPort(constructed.applicationDependencies),files:recycleFiles,
+    wake:()=>executionRuntimeHost.wake(),
+    readScope(shelfEntryId){
+      const store=procurementExecution.arcaAftercareContextReader.store,c=store.currentContext(shelfEntryId);
+      if(!c)return null;
+      const protection=store.recycleProtection();
+      return {...protection,knownSourceDirectories:[...new Set(c.oldBindings.map(row=>path.dirname(row.location)))],
+        scanRoots:[...protection.scanRoots,...materialFieldStore.listMaterialFields().map(field=>field.access.rootLocation),...(options.externalProviderScanRoots||[])]};
+    },
+  });
   const arcaOffdeck=createOffdeckAdminApplication({...constructed.applicationDependencies,
     contextReader:procurementExecution.arcaOffdeckContextReader,
     automationCoordinator:procurementExecution.arcaOffdeckAutomationCoordinator,
@@ -1796,6 +1819,7 @@ async function createCleanServiceHost(options) {
     formationQuery,
     arcaCollectionQuery,
     arcaCare,
+    arcaRecycle,
     arcaOffdeck,
     routingManualSelection,
     libraRunAdmin,

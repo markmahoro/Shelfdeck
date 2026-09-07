@@ -2,6 +2,8 @@ import { newOpaqueId } from './id';
 import { sha256Hex } from './sha256';
 
 export type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };
+export type RecycleEntry={id:string;shelfEntryId:string;sourceLocation:string;state:string;reasonCode:string;createdAtMs:number;archivedAtMs:number|null;expiresAtMs:number|null;fileCount:number;totalBytes:number;errorCode:string|null};
+export type RecyclePreview={shelfEntryId:string;sourceLocation:string;manifestDigest?:string;errorCode?:string;manifest?:{totalBytes:number;entries:Array<{relativePath:string;kind:string;sizeBytes?:number}>}};
 
 export type ExtractionPolicyValue = {
   includedDirectories: string[];
@@ -389,6 +391,9 @@ export type HealthSummary = { shelfEntryId?:string; state:HealthState; careBasis
 export type CareFinding = { findingId:string; findingKind:string; severity:string; repairability:string; state:string; createdAtMs:number };
 export type CareCase = { aftercareCaseId:string; caseGeneration:number; triggerDigest:string; state:string;
   terminalReasonCode:string|null; terminalEvidenceDigest:string|null; createdAtMs:number; terminalAtMs:number|null; careBasisDigest:string };
+export type CareWorkItem = { aftercareCaseId:string;shelfEntryId:string;displayIdentity:string;targetShelfId:string|null;targetShelfName:string|null;
+  state:string;classification:'queued'|'in_progress'|'attention_required'|'completed'|'ended';goals:string[];createdAtMs:number;terminalAtMs:number|null;
+  reasonCode:string|null;progress:CareDetail['activeCaseProgress'] };
 export type CareDetail = { shelfEntryId:string; health:HealthSummary; basis:{inventoryRevision:number;standardRevision:number;placementRevision:number;careBasisDigest:string};
   activeCaseProgress:{aftercareCaseId:string;stage:string;progressPercent:number|null;progress?:{mode:string;currentValue:number;totalValue:number;unit:string;rate:number|null;etaMs:number|null;terminal:boolean}|null;goals:string[]}|null;
   history:{assessments:Array<{assessmentId:string;assessmentKind:string;result:string;assessedAtMs:number}>;findings:CareFinding[];cases:CareCase[];commits:Array<{inventoryCommitId:string;previousInventoryRevision:number;newInventoryRevision:number;committedAtMs:number}>} };
@@ -655,7 +660,12 @@ export const helixAdminApi = {
     const suffix=query.toString()?`?${query}`:'';
     return `/v1/admin/collection/${encodeURIComponent(shelfEntryId)}/poster${suffix}`;
   },
+  listCareWork(cursor?:string,aftercareCaseId?:string){const query=new URLSearchParams({view:'work',limit:'25'});if(cursor)query.set('cursor',cursor);if(aftercareCaseId)query.set('aftercareCaseId',aftercareCaseId);return request<{items:CareWorkItem[];counts:Record<string,number>;nextCursor:string|null}>(`/v1/admin/care?${query}`);},
   getCare(shelfEntryId:string){return request<CareDetail>(`/v1/admin/care/${encodeURIComponent(shelfEntryId)}`);},
+  listRecycle(){return request<{items:RecycleEntry[]}>('/v1/admin/care-recycle');},
+  previewRecycle(shelfEntryId:string){return request<{items:RecyclePreview[]}>(`/v1/admin/care-recycle/${encodeURIComponent(shelfEntryId)}/preview`);},
+  archiveRecycle(value:RecyclePreview){return request<RecycleEntry>(`/v1/admin/care-recycle/${encodeURIComponent(value.shelfEntryId)}/actions/archive`,{method:'POST',body:JSON.stringify({idempotencyKey:newOpaqueId(),sourceLocation:value.sourceLocation,manifestDigest:value.manifestDigest,confirmManifestDigest:value.manifestDigest})});},
+  restoreRecycle(id:string){return request<RecycleEntry>(`/v1/admin/care-recycle/${encodeURIComponent(id)}/actions/restore`,{method:'POST',body:'{}'});},
   checkCare(shelfEntryId:string){return request<{operationRef:string;state:string;shelfEntryId:string}>(`/v1/admin/care/${encodeURIComponent(shelfEntryId)}/actions/check`,{method:'POST',body:JSON.stringify({idempotencyKey:`care-check:${shelfEntryId}:${newOpaqueId()}`})});},
   getOffdeckPolicy(){return request<OffdeckPolicy>('/v1/admin/offdeck/policies');},
   publishOffdeckPolicy(body:JsonValue){return request<OffdeckPolicy>('/v1/admin/offdeck/policies',{method:'PATCH',body:JSON.stringify(body)});},

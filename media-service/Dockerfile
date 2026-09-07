@@ -49,6 +49,7 @@ COPY media-service/src/server.js ./src/server.js
 COPY media-service/src/admin-credential-secret-store.js ./src/admin-credential-secret-store.js
 COPY media-service/src/clean-service-host.js ./src/clean-service-host.js
 COPY media-service/src/clean-arca-inventory-port.js ./src/clean-arca-inventory-port.js
+COPY media-service/src/clean-arca-recycle-port.js ./src/clean-arca-recycle-port.js
 COPY media-service/src/clean-arca-target-commit-slot.js ./src/clean-arca-target-commit-slot.js
 COPY media-service/src/clean-compute-device-runtime.js ./src/clean-compute-device-runtime.js
 COPY media-service/src/clean-ffmpeg-process-registry.js ./src/clean-ffmpeg-process-registry.js

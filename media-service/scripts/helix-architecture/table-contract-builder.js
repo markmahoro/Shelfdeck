@@ -36,6 +36,7 @@ const MUTABLE_LIFECYCLE_TABLES = new Set([
   'libra_workspaces',
   'libra_workspace_cleanup_scopes',
   'libra_workspace_cleanup_members',
+  'arca_recycle_entries',
   'arca_ondeck_runs'
   ,'arca_offdeck_review_candidates','arca_offdeck_duplicate_groups','arca_offdeck_suppressions',
   'arca_offdeck_duplicate_whitelists','arca_offdeck_reviews','arca_offdeck_reservations',
@@ -98,7 +99,7 @@ const ENUM_OVERRIDES = Object.freeze({
   'arca_shelf_entries.status': ['active', 'offdeck_in_progress', 'offdecked', 'deregistered'],
   'arca_deck_fact_revisions.state': ['active', 'offdeck_in_progress', 'offdecked', 'deregistered'],
   'arca_aftercare_findings.state': ['open', 'resolved', 'superseded'],
-  'arca_aftercare_cases.state': ['active', 'resolved', 'invalidated', 'unresolved'],
+  'arca_aftercare_cases.state': ['queued', 'active', 'resolved', 'invalidated', 'unresolved'],
   'arca_aftercare_settlement_approvals.state': ['active', 'consumed', 'stale'],
   'arca_offdeck_policy_heads.status': ['active', 'disabled'],
   'arca_offdeck_review_candidates.candidate_kind': ['entry', 'duplicate_group'],

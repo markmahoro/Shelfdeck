@@ -113,6 +113,34 @@
         "algorithm": "sha256",
         "value": "50051f318dd4a8cc0c7d7b62337778d70ee7340a714c1bd149b8f2abc771be6c"
       }
+    },
+    {
+      "id": "arca_recycle_entries",
+      "version": 1,
+      "owner": "arca",
+      "status": "contracted",
+      "ssotRefs": [
+        "8.5.9",
+        "8.5.14"
+      ],
+      "sourceLocator": {
+        "section": "8.5.14",
+        "line": 9532,
+        "lineDigest": "f3fa628b2f9ea205dbefa778d2f6c749f5560f93c6edc8785b79871507b51eb7"
+      },
+      "targetLocator": {
+        "path": "table-contracts/arca_recycle_entries/v1/contract.json"
+      },
+      "contract": {
+        "tableId": "arca_recycle_entries",
+        "owner": "arca",
+        "contractRef": "helix://contracts/tables/arca_recycle_entries/v1",
+        "contractDigest": "ad2e0744daf80c1154fe365bc23349c22387ac58363e47df0548a2cc2f57ff24"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "08938043ce039cd7e6e5d99b6dc2d4972d6c5ec1803f97e6caf8c3b459b5d4d5"
+      }
     }
   ]
 }

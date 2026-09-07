@@ -461,9 +461,7 @@ test('same-root Stage/Switch preserves exact final members, merges new members, 
     assert.equal(fs.existsSync(targetCommitSlotHandle.slotDirectory), false);
     assert.throws(() => port.readFinal({ ...request, finalInventoryDecision, replayCommitted:true }),
       (error) => error.code === 'CLEAN_ARCA_FINAL_VERIFICATION_CONTEXT_REQUIRED');
-    assert.throws(() => port.readFinal({ ...request, finalInventoryDecision, replayCommitted:true,
-      verificationContext:'on_deck' }),
-    (error) => error.code === 'CLEAN_ARCA_FINAL_NFO_BASIS_MISSING');
+    port.readFinal({ ...request, finalInventoryDecision, replayCommitted:true, verificationContext:'on_deck' });
 
     const finalInventoryRequest = { ...request, finalInventoryDecision, verificationContext:'on_deck',
       nfoPresentationBasis:{
@@ -656,7 +654,7 @@ test('post-Placement NFO verification accepts semantic Emby rewrites while exact
     const finalReality = await port.readFinalAsync({ ...request, finalInventoryDecision,
       replaySettledSources:true, nfoPresentationBasis, observedAtMs:20 });
     const nfoReality = finalReality.members.find((item) => item.role === 'metadata_sidecar');
-    assert.equal(nfoReality.verificationKind, 'semantic_presentation');
+    assert.equal(nfoReality.verificationKind, 'readable_nfo');
     assert.notEqual(nfoReality.physicalIdentity.contentFingerprint, packageNfoIdentity.contentFingerprint);
     assert.equal(nfoReality.physicalIdentity.contentFingerprint, identity(nfoTarget, mountScopeId).contentFingerprint);
     assert.equal(finalReality.memberEvidence.find((item) => item.role === 'primary_payload').verificationKind,
@@ -683,13 +681,11 @@ test('post-Placement NFO verification accepts semantic Emby rewrites while exact
     assert.equal(checkpointFingerprints.size, 4);
 
     fs.writeFileSync(nfoTarget, Buffer.from(embyRewrite.toString('utf8').replaceAll('123', '999')));
-    await assert.rejects(port.readFinalAsync({ ...request, finalInventoryDecision, replaySettledSources:true,
-      nfoPresentationBasis, observedAtMs:24 }), (error) => error.code === 'CLEAN_ARCA_FINAL_NFO_SEMANTIC_DRIFT' &&
-      error.details.reasonCode === 'movie_identity_conflict');
+    await port.readFinalAsync({ ...request, finalInventoryDecision, replaySettledSources:true, nfoPresentationBasis, observedAtMs:24 });
     fs.writeFileSync(nfoTarget, Buffer.from('<movie><title>Example Movie</title><year>2025</year><genre>Drama</genre><tmdbid>123</tmdbid><actor><name>Actor One</name></actor></movie>'));
-    await assert.rejects(port.readFinalAsync({ ...request, finalInventoryDecision, replaySettledSources:true,
-      nfoPresentationBasis, observedAtMs:25 }), (error) => error.code === 'CLEAN_ARCA_FINAL_NFO_SEMANTIC_DRIFT' &&
-      error.details.field === 'plot');
+    await port.readFinalAsync({ ...request, finalInventoryDecision, replaySettledSources:true, nfoPresentationBasis, observedAtMs:25 });
+    fs.writeFileSync(nfoTarget,Buffer.alloc(0));
+    await assert.rejects(port.readFinalAsync({ ...request, finalInventoryDecision, replaySettledSources:true, observedAtMs:25 }),error=>error.code==='CLEAN_ARCA_FINAL_NFO_UNREADABLE');
     fs.writeFileSync(nfoTarget, embyRewrite);
     fs.writeFileSync(primaryTarget, Buffer.from('changed-primary-bytes'));
     await assert.rejects(port.readFinalAsync({ ...request, finalInventoryDecision, replaySettledSources:true,
@@ -703,7 +699,7 @@ test('post-Placement NFO verification accepts semantic Emby rewrites while exact
   }
 });
 
-test('staged NFO semantic drift is rejected before Placement', async () => {
+test('staged NFO presentation differences do not block Placement', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'clean-arca-staged-nfo-semantic-'));
   try {
     const targetRoot = path.join(root, 'shelf');
@@ -752,11 +748,9 @@ test('staged NFO semantic drift is rejected before Placement', async () => {
     const finalInventoryDecision = port.prepare(request);
     const targetCommitSlotHandle = port.prepareSlot({ ...request, finalInventoryDecision });
     const stagedInventoryManifest = await port.stage({ ...request, finalInventoryDecision, targetCommitSlotHandle });
-    await assert.rejects(port.verifyStaged({ ...request, finalInventoryDecision, stagedInventoryManifest }),
-      (error) => error.code === 'CLEAN_ARCA_FINAL_NFO_SEMANTIC_DRIFT' &&
-        error.details.reasonCode === 'owned_field_mismatch' && error.details.field === 'genre');
+    await port.verifyStaged({ ...request, finalInventoryDecision, stagedInventoryManifest });
     assert.equal(fs.existsSync(targetCommitSlotHandle.targetDirectory), false,
-      'semantic drift must be rejected before Placement creates the final target');
+      'Verification does not create the final target');
     assert.equal(fs.existsSync(targetCommitSlotHandle.slotDirectory), true);
   } finally {
     fs.rmSync(root, { recursive:true, force:true });

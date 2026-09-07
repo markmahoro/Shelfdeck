@@ -71,7 +71,7 @@ test('a new Assessment trigger creates the next Case generation on the same Care
     const first=value.store.createCase(value.request('trigger-1'));
     value.store.terminateCase(first.aftercareCaseId,'invalidated','care_basis_changed',digest('terminal-1'));
     const second=value.store.createCase(value.request('trigger-2'));
-    assert.equal(second.state,'active');
+    assert.equal(second.state,'queued');
     assert.equal(second.caseGeneration,2);
     assert.notEqual(second.aftercareCaseId,first.aftercareCaseId);
     assert.notEqual(second.triggerDigest,first.triggerDigest);
@@ -79,3 +79,26 @@ test('a new Assessment trigger creates the next Case generation on the same Care
   } finally { value.close(); }
 });
 
+test('Case admission is FIFO, persists across coordinator restart and holds capacity until terminal', () => {
+  const value=fixture();
+  try {
+    const seed=new Database(path.join(value.root,'shelfdeck.db'));
+    seed.pragma('foreign_keys=OFF');
+    seed.exec("INSERT INTO arca_shelf_entries SELECT 'entry-2',shelf_id,structure_kind,status,canonical_identity_revision,'tmdb:2',current_inventory_revision,current_deck_fact_revision,created_at_ms,terminal_at_ms FROM arca_shelf_entries WHERE shelf_entry_id='entry-1'");
+    seed.close();
+    const first=value.store.createCase(value.request('first'));
+    value.setTime(10_001);
+    const request={...value.request('second'),shelfEntryId:'entry-2',careBasis:{...value.request('second').careBasis,digest:digest('entry-2-basis')}};
+    const second=value.store.createCase(request);
+    assert.equal(first.state,'queued');
+    assert.equal(value.store.admitCase(second.aftercareCaseId).state,'queued');
+    assert.equal(value.store.admitCase(first.aftercareCaseId).state,'active');
+    const reopened=createAftercareStore({schemaManifest,unitOfWork:createSqliteUnitOfWork({kernel:value.kernel}),
+      now:()=>10_002,aftercareWorkspaceRoot:path.join(value.root,'aftercare')});
+    assert.equal(reopened.admitCase(second.aftercareCaseId).state,'queued');
+    assert.equal(reopened.admitCase(first.aftercareCaseId).state,'active');
+    assert.equal(reopened.listCases().filter((item)=>item.state==='active').length,1);
+    reopened.terminateCase(first.aftercareCaseId,'unresolved','execution_exhausted',digest('ended'));
+    assert.equal(reopened.admitCase(second.aftercareCaseId).state,'active');
+  } finally {value.close();}
+});

@@ -308,6 +308,7 @@ describe('Helix primary copy and workbench structure', () => {
     expect(screen.queryByText('正在读取媒体整理工作区…')).not.toBeInTheDocument();
     expect(screen.queryByText('第二部电影')).not.toBeInTheDocument();
     expect(screen.queryByText(/当前显示|其余继续载入/)).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button',{name:'加载更多整理记录'}));
     releaseRest();
     expect(await screen.findByText('第二部电影')).toBeInTheDocument();
   });

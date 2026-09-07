@@ -52,7 +52,7 @@ const object = (properties, required = Object.keys(properties), options = {}) =>
 });
 const finalMaterialEvidence = () => object({
   sourceProductMaterialKey:id(), role:text(),
-  verificationKind:enumText('exact_package_identity','semantic_presentation'),
+  verificationKind:enumText('exact_package_identity','readable_nfo'),
   actualPhysicalIdentity:typeRef('PhysicalMaterialIdentity'), observedAtMs:nonNegativeInteger(),
   semanticEvidenceDigest:nullable(digest()),
 });
