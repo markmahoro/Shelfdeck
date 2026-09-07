@@ -275,6 +275,20 @@ test('known repair gaps are red before admission, yellow while active, and green
   assert.equal(projectHealth(context(),history,20).state,'healthy');
 });
 
+test('a confirmed physical gap remains red while another dimension is unavailable or only observing', () => {
+  for(const uncertain of ['not_assessable','observe']){
+    const assessments=['custody','presentation','conformance'].map(kind=>assessment(kind,10));
+    assessments[1]={...assessments[1],result:'degraded'};
+    const findings=[{assessmentId:assessments[1].assessmentId,state:'open',findingKind:'presentation:nfo_missing',repairability:'auto_repair'}];
+    if(uncertain==='not_assessable')assessments[2]={...assessments[2],result:'not_assessable'};
+    else findings.push({assessmentId:assessments[0].assessmentId,state:'open',findingKind:'custody:nfo_identity_changed',repairability:'observe'});
+    const health=projectHealth(context(),{assessments,findings,cases:[]},10);
+    assert.equal(health.healthState,'unhealthy');
+    assert.equal(health.maintenanceCaseId,null);
+    if(uncertain==='observe')assert.equal(dispositionFromAssessments(Object.values(health.dimensions)),'observe');
+  }
+});
+
 test('only its own Inventory commit preserves an active Case across the new health basis', () => {
   const frozen={inventoryRevision:1,standardRevision:1,placementRevision:1,canonicalIdentityDigest:digest('b'),
     sourcePackageId:'package-1',acceptedProductFactSetDigest:digest('c'),decisionFactSetDigest:digest('d'),digest:digest('a')};

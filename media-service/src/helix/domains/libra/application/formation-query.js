@@ -486,15 +486,10 @@ function createFormationProjectionSource(options) {
   }
   function buildBatch(subjects, buildOptions = {}) {
     const value = readBatch(subjects), runIds = unique(value.runs.map((row) => row.libra_run_id));
-    const progress = runIds.length ? chunks(runIds).flatMap((ids) => options.progressProjectionReader?.read(ids) || []) : [];
-    const progressByRun = new Map(runIds.map((id) => [id, progress.filter((item) => item.processId === id)]));
     const offerIds = unique(value.packages.map((row) => row.offer_id));
     const arcaStatuses = new Map(offerIds.length ? chunks(offerIds, 100).flatMap((ids) =>
       [...(options.readArcaFormationStatuses?.(ids) || new Map()).entries()]) : []);
     const onDeckRunIds = unique([...arcaStatuses.values()].map((item) => item.onDeckRunId).filter(Boolean));
-    const onDeckProgress = onDeckRunIds.length
-      ? chunks(onDeckRunIds).flatMap((ids) => options.progressProjectionReader?.read(ids) || []) : [];
-    const onDeckByRun = new Map(onDeckRunIds.map((id) => [id, onDeckProgress.filter((item) => item.processId === id)]));
     const recoveries = new Map(offerIds.length ? chunks(offerIds, 100).flatMap((ids) =>
       [...(options.readAcceptanceRecoveries?.(ids) || new Map()).entries()]) : []);
     const prepared = subjects.map((subject) => {
@@ -516,6 +511,14 @@ function createFormationProjectionSource(options) {
     ]) : [];
     const actualPlanWorks = actualPlanProcessIds.length
       ? chunks(actualPlanProcessIds).flatMap((ids)=>options.progressProjectionReader?.read(ids, { includePlans:true }) || []) : [];
+    // A detail-bearing response already has these exact durable Works and Results.
+    // Reuse them within the request instead of reading the same history twice.
+    const progress = includeActualPlans ? actualPlanWorks : runIds.length
+      ? chunks(runIds).flatMap((ids) => options.progressProjectionReader?.read(ids) || []) : [];
+    const onDeckProgress = includeActualPlans ? actualPlanWorks : onDeckRunIds.length
+      ? chunks(onDeckRunIds).flatMap((ids) => options.progressProjectionReader?.read(ids) || []) : [];
+    const progressByRun = new Map(runIds.map((id) => [id, progress.filter((item) => item.processId === id)]));
+    const onDeckByRun = new Map(onDeckRunIds.map((id) => [id, onDeckProgress.filter((item) => item.processId === id)]));
     return prepared.map(({ subject, decisions, displayIdentity, snapshot }) => {
       const bindings = value.bindings.filter((item) => item.subject_id === subject.subject_id && Number(item.current) === 1);
       const routing = latest(value.routingDecisions.filter((item) => item.subject_id === subject.subject_id), 'decision_revision');

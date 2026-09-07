@@ -296,6 +296,7 @@ function projectHealth(context, history, at = Date.now()) {
     item.assessedAtMs>Number(latestCase.terminalAtMs??Infinity))) state = 'attention_required';
   else if (hasIncompatibleRepairCombination(all.flatMap((item) => item.findings))) state = 'attention_required';
   else if (all.some((item) => item.findings.some((finding) => finding.repairability === 'attention_required'))) state = 'attention_required';
+  else if (all.some((item) => item.findings.some((finding) => finding.repairability === 'auto_repair'))) state = 'unhealthy';
   else if (all.some((item) => item.state === 'not_assessable' || item.findings.some((finding) => finding.repairability === 'observe'))) state = 'observing';
   else if (all.some((item) => item.state === 'degraded' || item.findings.length > 0)) state = 'unhealthy';
   else if (all.every((item) => item.state === 'healthy')) state = 'healthy';

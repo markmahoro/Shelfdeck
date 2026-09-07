@@ -1,6 +1,6 @@
 # ShelfDeck Clean Helix Master Plan
 
-Status: **ACTIVE：用户确认继续按七步计划推进；已确认合同的后端投影与测试进入本地实施，独立记录更新继续闭合派生合同。已取消5分钟自动轮询，跳过Emby审查。**
+Status: **ACTIVE：健康检查与维护Case合同、独立记录更新及前后端核心实现已通过本地验证，正在准备标准发布。已取消5分钟自动轮询，跳过Emby审查。**
 Last updated: 2026-09-08
 
 唯一活动包：[CURRENT_PHASE](implementation/CURRENT_PHASE.md)。用户已针对ENGINEERING_PLAYBOOK §3.3回复“授权本任务同步修改并继续”，范围限于[精确合同调整包](implementation/evidence/USER_PAIN_CONTRACT_CHANGE_PACKET_20260907.md)。不采用Aftercare→Libra Run方案。

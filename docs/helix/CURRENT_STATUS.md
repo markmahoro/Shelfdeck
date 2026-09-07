@@ -4,7 +4,7 @@ Status: **275923039f已部署，精确历史Offer闭包清理完成；当前按�
 
 Last updated: 2026-09-08
 
-最新授权与实施状态：用户确认“好的 你继续持续推进吧”。健康/Case投影、独立NFO记录更新、真实维护详情、DB分页及当前进度版本查询已本地实现；45个事务的派生合同及214 Fixture文件完整架构Gate通过。正在完成最终服务端/前端与Linux验证，生产仍为275923039f。详细实现、测试竞争中的一次超时及AC-09未关闭能力见[本次实施证据](implementation/evidence/AFTERCARE_HEALTH_CASE_IMPLEMENTATION_20260908.md)。
+最新授权与实施状态：用户确认“好的 你继续持续推进吧”。健康/Case投影、独立NFO记录更新、真实维护详情、DB分页及当前进度版本查询已本地实现；45个事务的派生合同及214 Fixture文件完整架构Gate通过，完整service 500通过/18跳过、web 44通过、Linux副本ready。正在完成混合健康/终态展示边界及整理查询复用修正的最终发布验证，生产仍为275923039f。详细实现、测试竞争中的一次超时及AC-09未关闭能力见[本次实施证据](implementation/evidence/AFTERCARE_HEALTH_CASE_IMPLEMENTATION_20260908.md)。
 
 全链路审计第1—2步已完成，见[Aftercare全链路审计](implementation/evidence/AFTERCARE_FULL_CHAIN_AUDIT_20260908.md)。10项问题有代码或隔离复算依据，AC-09完整人物观察/关联路径仍未实现。02:27已完成生产只读核对：54份NFO均可读、3份指纹漂移、2 active/3 queued Case，只有1个FFmpeg进程，Top Gun约58%；本次尚未修改生产Case或部署，Emby审查继续跳过。
 
@@ -25,7 +25,7 @@ Last updated: 2026-09-08
 - 唯一架构权威为 `TOP_DOWN_ARCHITECTURE_CONFIRMATION.md`；当前验收权威为
   `BETA_FEATURE_ACCEPTANCE_BASELINE.md`。生产 health 或一次事故恢复不能自动把任何 `HB-*` 标为 PASS。
 - P1–P13 Exit 已完成，P13 E2E-ready package 已冻结；Movie P14 资格验收和生产上线已完成。
-- 当前实现机器库存：113 Capability、99 Result family、187 tables、44 Canonical Transactions、
+- 当前本地实现机器库存：113 Capability、99 Result family、187 tables、45 Canonical Transactions、
   127 Admin routes、17 UI surfaces。
 
 ## PROD-065 中间部署记录（历史，最新状态见文末 PROD-066）

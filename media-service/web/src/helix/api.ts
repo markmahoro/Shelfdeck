@@ -275,12 +275,12 @@ export type FormationSubject = {
       key:'material_preparation'|'media_organization'|'acceptance_shelving';
       label:string;
       description:string;
-      state:'completed'|'running'|'attention'|'pending';
+      state:'completed'|'running'|'attention'|'pending'|'cancelled';
       summary:string;
       plans:Array<{
         planId:string;
         title:string;
-        state:'completed'|'running'|'attention'|'pending';
+        state:'completed'|'running'|'attention'|'pending'|'cancelled';
         createdAtMs:number;
         nodes:Array<{
           nodeId:string;

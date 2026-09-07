@@ -43,13 +43,13 @@ function progressEta(progress:NonNullable<FormationSubject['organizingSteps'][nu
 export function progressDetail(progress:NonNullable<FormationSubject['organizingSteps'][number]['progress']>) {
   return [progressText(progress),progressRate(progress),progressEta(progress)].filter(Boolean).join(' · ');
 }
-function StageState({ state }:{ state:'completed'|'running'|'attention'|'pending' }) {
-  return <span className="formation-stub-stage-state" data-state={state}>{state==='completed'?'已完成':state==='running'?'进行中':state==='attention'?'需要处理':'尚未开始'}</span>;
+function StageState({ state }:{ state:'completed'|'running'|'attention'|'pending'|'cancelled' }) {
+  return <span className="formation-stub-stage-state" data-state={state}>{state==='completed'?'已完成':state==='running'?'进行中':state==='attention'?'需要处理':state==='cancelled'?'已终止':'尚未开始'}</span>;
 }
 export type ProcessStage=Omit<NonNullable<FormationSubject['processDetail']>['stages'][number],'key'>&{key:string};
 type ProcessPlan=ProcessStage['plans'][number];
 type ProcessNode=ProcessPlan['nodes'][number];
-function processPlanState(state:ProcessPlan['state']) { return state==='completed'?'已完成':state==='running'?'进行中':state==='attention'?'需要处理':'等待中'; }
+function processPlanState(state:ProcessPlan['state']) { return state==='completed'?'已完成':state==='running'?'进行中':state==='attention'?'需要处理':state==='cancelled'?'已终止':'等待中'; }
 function processNodeState(state:ProcessNode['state']) { return state==='completed'?'已完成':state==='running'?'进行中':state==='failed'?'失败':state==='cancelled'?'未执行':state==='skipped'?'无需执行':'等待中'; }
 function ProcessNodeRow({node}:{node:ProcessNode}) {
   const mark=node.state==='completed'?'✓':node.state==='failed'?'×':node.state==='running'?'●':'○';

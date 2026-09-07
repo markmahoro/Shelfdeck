@@ -20,8 +20,8 @@ const LABELS=Object.freeze({
   [A.placement]:'切换收藏位置',[A.finalVerify]:'验证正式文件',
 });
 function state(value){
-  return value==='succeeded'?'completed':['failed','timed_out'].includes(value)?'attention':
-    ['running','executing','waiting_for_resource','ready','admitted'].includes(value)?'running':'pending';
+  return value==='succeeded'?'completed':value==='cancelled'?'cancelled':['failed','timed_out'].includes(value)?'attention':
+    ['running','executing','waiting_for_resource','waiting_for_external','waiting_for_approval','ready','admitted'].includes(value)?'running':'pending';
 }
 function orderedEvents(events,edges){
   const remaining=[...events],result=[],present=new Set(events.map(item=>item.nodeId));
@@ -34,11 +34,12 @@ function orderedEvents(events,edges){
   return result;
 }
 function node(event,atMs){
-  const status=event.state==='succeeded'?'completed':event.state==='failed'?'failed':
+  const status=event.state==='succeeded'?'completed':['failed','timed_out'].includes(event.state)?'failed':
     ['cancelled','skipped'].includes(event.state)?event.state:state(event.state)==='running'?'running':'pending';
   const label=LABELS[event.capabilityRef]||'执行维护步骤';
   const sample=event.progress,fresh=sample&&Number.isFinite(sample.sampledAtMs)&&atMs-sample.sampledAtMs<=120000;
-  const statusText=event.state==='waiting_for_resource'?'等待资源':status==='running'&&sample&&!fresh?'等待进度更新':undefined;
+  const statusText=event.state==='waiting_for_resource'?'等待资源':event.state==='waiting_for_external'?'等待外部结果':
+    event.state==='waiting_for_approval'?'等待确认':status==='running'&&sample&&!fresh?'等待进度更新':undefined;
   const results=[];
   if(event.result){
     const value=event.result.result;
@@ -62,7 +63,8 @@ function projectAftercareProcess(works,atMs=Date.now()){
     const plans=(work.plans||[]).map(plan=>{
       const events=orderedEvents(work.events.filter(event=>event.planId===plan.planId),plan.edges);
       const nodes=events.map(event=>node(event,atMs)),planState=nodes.some(item=>item.state==='running')?'running':
-        nodes.some(item=>item.state==='failed')?'attention':nodes.length&&nodes.every(item=>['completed','skipped'].includes(item.state))?'completed':'pending';
+        nodes.some(item=>item.state==='failed')?'attention':work.state==='cancelled'?'cancelled':
+          nodes.length&&nodes.every(item=>['completed','skipped'].includes(item.state))?'completed':'pending';
       return Object.freeze({planId:plan.planId,title:copy[1],state:planState,createdAtMs:plan.createdAtMs,
         nodes:Object.freeze(nodes)});
     });

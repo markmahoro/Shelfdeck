@@ -36,4 +36,8 @@
 
 ## 未关闭的审计项
 
+最终发布准备：f0201b2cfe候选完整service 500通过/18跳过、214文件架构Gate通过；exact-image Linux隔离副本的12次关键HTTP请求均200、readiness ready，上传SHA256一致。补充混合维度回归：已确认auto_repair缺口时，即使另一个维度not_assessable或observe，也保持红灯；没有Case时不伪造维护关联。合同及过程详情34项测试通过；终止的Work/Plan明确显示已终止，外部结果等待不再显示尚未开始；前端44项测试及构建通过。该灯色修正将进入最终候选，尚未生产部署。
+
+副本SQL采样确认Formation当前计划与任务状态在同一请求重复读取Libra/Arca执行记录。改为复用本请求已取得的完整投影，不增加跨请求缓存；既有47项Formation状态/详情测试通过。副本绑定Windows磁盘的时延不能充当NAS生产性能结论，仍须上线后并发两页实测。
+
 AC-09仍是独立能力缺口：已有Arca人物关系Evidence Projection保留；完整新NFO人物观察→People注册→确定性Arca关系记录更新尚未实现。本次记录更新不会猜测演员匹配或改写已接受Cast，也不会为人物记录更新创建维护Case。不能据此宣称People全链路验收通过或全部审计项关闭。后续继续在唯一CURRENT_PHASE下跟踪，不创建平行计划。

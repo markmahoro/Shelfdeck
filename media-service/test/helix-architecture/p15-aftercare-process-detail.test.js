@@ -3,6 +3,21 @@ const test=require('node:test');
 const assert=require('node:assert/strict');
 const {projectAftercareProcess}=require('../../src/helix/domains/arca/application/aftercare-process-projection');
 
+test('maintenance details distinguish external waits and terminated work from tasks that have not started',()=>{
+  const work={workId:'repair',workKind:'care_repair_prepare',state:'running',createdAtMs:1,
+    plans:[{planId:'plan',createdAtMs:1,edges:[]}],events:[{eventId:'fetch',nodeId:'fetch',planId:'plan',
+      state:'waiting_for_external',capabilityRef:'arca.aftercare.binary.acquire@1'}]};
+  let stage=projectAftercareProcess([work],10).stages[0];
+  assert.equal(stage.plans[0].nodes[0].state,'running');
+  assert.equal(stage.plans[0].nodes[0].statusText,'等待外部结果');
+  work.state='cancelled';work.events[0].state='cancelled';
+  stage=projectAftercareProcess([work],10).stages[0];
+  assert.equal(stage.state,'cancelled');
+  assert.equal(stage.summary,'已终止');
+  assert.equal(stage.plans[0].state,'cancelled');
+  assert.equal(stage.plans[0].nodes[0].state,'cancelled');
+});
+
 test('maintenance details preserve real plan dependencies, resource waits, and verification results',()=>{
   const detail=projectAftercareProcess([{workId:'repair-1',workKind:'care_repair_prepare',state:'running',createdAtMs:1,
     plans:[{planId:'plan-1',state:'committed',createdAtMs:1,edges:[{fromNodeId:'encode',toNodeId:'verify'}]}],

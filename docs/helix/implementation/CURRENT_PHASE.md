@@ -1,16 +1,16 @@
 # 当前活动包：用户痛点迭代
 
-2026-09-08。状态：ACTIVE；用户确认持续按七步计划推进。已确认的健康—Case边界进入本地实现与测试，独立记录更新仍须先闭合派生事务。自动化已PAUSED，Emby审查已跳过。新合同验证通过前不追加部署。
+2026-09-08。状态：ACTIVE；用户确认持续按七步计划推进。已确认的健康—Case边界、独立记录更新事务及前后端核心实现已经过本地测试和Linux生产副本验证，正在准备标准发布。自动化已PAUSED，Emby审查已跳过；生产仍为275923039f。
 
-当前设计：健康状态检查及更新不创建Case，只更新收藏健康与有Evidence的管理记录；Case仅代表有实际处理目标的上架后处理，并在媒体整理区与Libra Run共用表现规范。SSOT §6.6、§9及2026-09-08修订已落盘。下一步闭合独立记录更新的Command/Receipt、Inventory/Control原子事务、并发Fence及健康—Case投影的Level 8派生合同，再进入实施。下表是此前实现证据，不是新合同验收通过。
+当前设计：健康状态检查及更新不创建Case，只更新收藏健康与有Evidence的管理记录；Case仅代表有实际处理目标的上架后处理，并在媒体整理区与Libra Run共用表现规范。SSOT §6.6、§9及2026-09-08修订及Level 8派生合同已落盘。独立记录更新的Command/Receipt、Inventory/Control原子事务及并发Fence已有实现和回归证据；完整人物观察/关联能力AC-09仍未关闭。
 
-用户确认七步计划后，第1—2步已完成[全链路审计及能力分类](evidence/AFTERCARE_FULL_CHAIN_AUDIT_20260908.md)：覆盖14个原生Capability、7个Planner及18个链路环节，10项已证实问题与待补证风险分开记录；真实projectHealth隔离复算证实缺口/queued/提交后Case关联投影问题。本轮未改实现或生产；原5个未提交源码/测试文件保留。
+用户确认七步计划后，第1—2步已完成[全链路审计及能力分类](evidence/AFTERCARE_FULL_CHAIN_AUDIT_20260908.md)：覆盖14个原生Capability、7个Planner及18个链路环节，10项已证实问题与待补证风险分开记录；真实projectHealth隔离复算证实缺口/queued/提交后Case关联投影问题。审计后已进入本地实施，当前未部署新的健康—Case边界。
 
 后续执行顺序：第3步合同闭合（独立记录更新、健康—Case、准入前后资源、统一过程投影及机器传播）；第4步后端；第5步两页及共用详情；第6步精确旧Case处置；第7步测试、标准部署、生产复验和最后清理。用户灯色/queued不可见/任务类型列/维护详情理念补充以审计报告“已确认用户合同”为准，须传播回SSOT和派生定义，不沿用旧queued可见规则。
 
 09-08本地实施检查点（未部署）：已实现健康/维护状态分离、Inventory Commit后的active Case关联及批量Receipt读取、已提交检查不受下次检查时间阻挡的Case准入；queued不进入工作列表/计数。前端增加任务类型列、四灯色与重复详情灯移除，维护详情接入与Libra共用的真实Plan/Event组件并按精确Case筛选Work。NFO记录更新已拆为Arca内部命令及独立原子事务，Receipt/Inventory/Control/审计全有或全无；首批临时文件与数据库测试覆盖无Case/Work/文件写入、重放、Control冲突回滚。Canonical Transactions因此增为45；113 Capability/99 Result family/187 tables不变，DDL字节摘要不变。
 
-追加检查点：独立记录更新并发/Fence/原样保留Cast测试、queued失效历史排除、无FFmpeg编码的结构检查、DB分页、当前进度版本查询均已本地验证；214 Fixture文件完整架构Gate通过。维护与Libra共用详情弹层和步骤组件，九列宽度已适配。仍未关闭：AC-09人物Observation/确定关联能力、最后完整service/web验证、Linux副本和生产部署验收、精确旧Case收敛、最终清理；不宣称本轮完成。详见[实施证据](evidence/AFTERCARE_HEALTH_CASE_IMPLEMENTATION_20260908.md)。
+追加检查点：独立记录更新并发/Fence/原样保留Cast测试、queued失效历史排除、无FFmpeg编码的结构检查、DB分页、当前进度版本查询均已本地验证；214 Fixture文件完整架构Gate、service 500通过/18跳过、web 44通过及Linux副本通过。维护与Libra共用详情弹层和步骤组件，九列宽度已适配。仍未关闭：AC-09人物Observation/确定关联能力、最终候选生产部署验收、精确旧Case收敛、最终清理；不宣称本轮完成。详见[实施证据](evidence/AFTERCARE_HEALTH_CASE_IMPLEMENTATION_20260908.md)。
 
 基线16ea06173，分支codex/user-pain-iteration。此前54部收藏恢复事实见PROD-066 Evidence。
 
