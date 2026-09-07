@@ -18,7 +18,7 @@
 - Web：13 files / 43 tests 全部通过；Admin 构建通过。
 - 生产停止状态下只读下载数据库，940773376 bytes，SHA256 `55ce630b1cc024364b1d0febd990e320b0cd99c1330b917305ca1b010ef39e44`，下载前后与本地一致。
 - 升级副本逐表内容摘要比对：原 186 张表只有 `platform_schema_marker` 变化，所有业务表记录和摘要一致，54 个 Shelf Entry 保留。新增回收表后 187 张；integrity_check=ok，foreign_key_check=0。
-- 副本 runtime readiness=ready，187 tables / 127 routes / 17 UI surfaces。新 schema digest `1522b30ce14d5ff416df27c6ebf4109dfdd622f41059d28dd95074046b1709ca`。
+- 副本 runtime readiness=ready，187 tables / 127 routes / 17 UI surfaces。新 schema digest `642c62d6d55e95ce31a097435ae7052c26d0ea5b65d049d90c724522db204784`。
 
 ## 发布与回滚边界
 
@@ -33,3 +33,5 @@
 追加定位：Collection 的 withHealth 默认分支在分页前触发逐 Entry 重算；现已显式使用空投影占位，仅对可见页调用批量健康读取。Event Runtime 的 Plan 推进改为按 plan_id 读取 Events/Nodes/Edges，并按该 Plan 的 Event IDs 分批读 Results，避免每次完成节点扫描全历史。执行器/真实转码/恢复 60 项与收藏分页 6 项定向回归通过。
 
 Aftercare 工作列表改为批量读取当前 Entry 展示摘要；queued/terminal 不加载完整 Care Context，active 才读取真实进度。定向 45 tests / 42 pass / 3 skip。4533e54ea2 隔离镜像首屏 Collection 226 ms、Formation 13 ms，Cold Admin 8700 ms、Care 2229 ms；最终展示摘要优化另行复测，不以该初步数据代替生产观测。
+
+剩余后台扫描经 SQL 计时定位到 Work.process_id/state、Event.work_id、RunMaterial.candidate_package_id 四条热路径，追加四个普通索引（共94个显式索引），同步 SSOT/生成合同；Event Attempts 按 Event 读取。76项持久化/执行器回归通过；旧186表副本再演练，仍仅 schema marker 内容改变，所有业务表摘要保持一致。

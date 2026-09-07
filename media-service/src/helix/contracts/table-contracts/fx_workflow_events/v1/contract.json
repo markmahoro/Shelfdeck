@@ -177,6 +177,10 @@
         "priority_class",
         "COALESCE(retry_at_ms,ready_at_ms)",
         "event_id"
+      ],
+      [
+        "work_id",
+        "event_id"
       ]
     ],
     "partialUniqueRules": [],
@@ -237,16 +241,17 @@
       "`UNIQUE(plan_id,node_id)`",
       "`INDEX(state,priority_class,COALESCE(retry_at_ms,ready_at_ms),event_id)`",
       "成功Event不可回退",
-      "current progress pointer显式FK"
+      "current progress pointer显式FK",
+      "`INDEX(work_id,event_id)`"
     ],
     "rawContract": {
       "columns": "`event_id PK, plan_id FK, node_id, work_id, attempt_id, owner_domain, capability_ref, contract_version, state, priority_class, ready_at_ms, retry_at_ms, result_id, current_progress_revision`",
-      "constraints": "`UNIQUE(plan_id,node_id)`；`INDEX(state,priority_class,COALESCE(retry_at_ms,ready_at_ms),event_id)`；成功Event不可回退；current progress pointer显式FK"
+      "constraints": "`UNIQUE(plan_id,node_id)`；`INDEX(state,priority_class,COALESCE(retry_at_ms,ready_at_ms),event_id)`；成功Event不可回退；current progress pointer显式FK；`INDEX(work_id,event_id)`"
     },
     "source": {
       "section": "8.5.10",
       "line": 9321,
-      "lineDigest": "83b0e6dfb2a6878be3e4df2e6aa3a3ec2f425950df361e9bf94338fdb9a55787"
+      "lineDigest": "ce326d61b4b3514ded21b96bc2bc1900d0eb3742ea7c82798dd05740bd78005a"
     },
     "foreignKeys": [
       {

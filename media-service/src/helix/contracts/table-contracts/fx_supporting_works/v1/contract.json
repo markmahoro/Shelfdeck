@@ -173,6 +173,15 @@
         "priority_class",
         "created_at_ms",
         "work_id"
+      ],
+      [
+        "process_id",
+        "work_id"
+      ],
+      [
+        "state",
+        "created_at_ms",
+        "work_id"
       ]
     ],
     "partialUniqueRules": [],
@@ -222,16 +231,17 @@
       "热列必须逐字段等于Definition投影",
       "状态变化不得改写Definition三列",
       "`UNIQUE(owner_domain,idempotency_key)`",
-      "`INDEX(owner_domain,state,priority_class,created_at_ms,work_id)`"
+      "`INDEX(owner_domain,state,priority_class,created_at_ms,work_id)`",
+      "`INDEX(process_id,work_id); INDEX(state,created_at_ms,work_id)`"
     ],
     "rawContract": {
       "columns": "`work_id PK, owner_domain, process_type, process_id, work_kind, basis_digest, priority_class, definition_schema_ref, definition_json, definition_digest, state, idempotency_key, created_at_ms, updated_at_ms`",
-      "constraints": "`definition_schema_ref=helix://foundation/types/SupportingWorkDefinition/v1`；`definition_json`是Admission验证后的完整immutable Definition且UTF-8 JCS bytes≤`256 KiB`；`definition_digest=SHA-256(JCS(definition_json解析值))`；热列必须逐字段等于Definition投影；状态变化不得改写Definition三列；`UNIQUE(owner_domain,idempotency_key)`；`INDEX(owner_domain,state,priority_class,created_at_ms,work_id)`"
+      "constraints": "`definition_schema_ref=helix://foundation/types/SupportingWorkDefinition/v1`；`definition_json`是Admission验证后的完整immutable Definition且UTF-8 JCS bytes≤`256 KiB`；`definition_digest=SHA-256(JCS(definition_json解析值))`；热列必须逐字段等于Definition投影；状态变化不得改写Definition三列；`UNIQUE(owner_domain,idempotency_key)`；`INDEX(owner_domain,state,priority_class,created_at_ms,work_id)`；`INDEX(process_id,work_id); INDEX(state,created_at_ms,work_id)`"
     },
     "source": {
       "section": "8.5.10",
       "line": 9316,
-      "lineDigest": "9cfb52d754af71b0b9dd460b9d15a9576e29f1c7a577de058ae81d312226ba97"
+      "lineDigest": "341f432c790e88589d2fca7a3e03343c9269865f8ce7e679d9ae7060648373f2"
     },
     "foreignKeys": []
   }

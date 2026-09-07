@@ -85,7 +85,7 @@ function definitions(schemaManifest) {
       list: { kind: 'select-all', tableId: 'fx_event_attempts', columns: [
         'event_attempt_id', 'event_id', 'ordinal', 'executor_ref', 'executor_version', 'input_snapshot_schema_ref',
         'input_snapshot_digest', 'fence_snapshot_digest', 'state', 'outcome_kind', 'failure_class', 'started_at_ms'
-      ], keyColumns: [] },
+      ], keyColumns: ['event_id'] },
       insert: { kind: 'insert', tableId: 'fx_event_attempts', columns: [
         'event_attempt_id', 'event_id', 'ordinal', 'executor_ref', 'executor_version', 'input_snapshot_schema_ref', 'input_snapshot_digest',
         'fence_snapshot_digest', 'state', 'outcome_kind', 'retry_after_ms', 'failure_class', 'failure_code', 'evidence_digest',
@@ -215,7 +215,7 @@ function createEventRuntime(options) {
             node.contract_version !== event.contract_version || work.owner_domain !== event.owner_domain || workAttempt.work_id !== work.work_id ||
             plan.attempt_id !== workAttempt.attempt_id || plan.state !== 'planned' || !['ready', 'running'].includes(workAttempt.state) ||
             !['ready', 'running'].includes(work.state)) fail('P4_EVENT_RUNTIME_FACT_MISMATCH', 'Event, Plan, Work, and Capability facts are not mutually consistent.');
-        const attempts = context.repository('runtime_event_attempts').invoke('list').filter((attempt) => attempt.event_id === eventId);
+        const attempts = context.repository('runtime_event_attempts').invoke('list',{event_id:eventId});
         if (attempts.some((attempt) => attempt.state === 'executing')) fail('P4_EVENT_ATTEMPT_ALREADY_EXECUTING', 'Event already has an executing Attempt.');
         return Object.freeze({ event, node, work, workAttempt, plan, attempts: Object.freeze(attempts), nextOrdinal: attempts.length + 1 });
       }
@@ -233,7 +233,7 @@ function createEventRuntime(options) {
         const work = context.repository('runtime_works').invoke('find', { work_id: event.work_id });
         const workAttempt = context.repository('runtime_work_attempts').invoke('find', { attempt_id: event.attempt_id });
         const plan = context.repository('runtime_plans').invoke('find', { plan_id: event.plan_id });
-        const attempts = context.repository('runtime_event_attempts').invoke('list').filter((attempt) => attempt.event_id === eventId);
+        const attempts = context.repository('runtime_event_attempts').invoke('list',{event_id:eventId});
         const active = attempts.filter((attempt) => attempt.state === 'executing');
         if (!node || !work || !workAttempt || !plan || active.length !== 1 ||
             node.capability_ref !== event.capability_ref || node.contract_version !== event.contract_version ||
@@ -357,8 +357,7 @@ function createEventRuntime(options) {
         }
         if (!unavailable) {
           const entry = options.registry.resolve(event.capability_ref, event.owner_domain);
-          const attempts = context.repository('runtime_event_attempts').invoke('list')
-            .filter((attempt) => attempt.event_id === event.event_id);
+          const attempts = context.repository('runtime_event_attempts').invoke('list',{event_id:event.event_id});
           if (attempts.some((attempt) => attempt.state === 'executing') || attempts.length + 1 !== snapshot.nextOrdinal) {
             fail('P4_EVENT_INPUT_FAILURE_ATTEMPT_RACE', 'Input failure Attempt ordinal or active uniqueness changed.');
           }
@@ -434,7 +433,7 @@ function createEventRuntime(options) {
         const event = context.repository('runtime_events').invoke('find', { event_id: snapshot.event.event_id });
         if (!event || !DISPATCHABLE_EVENT_STATES.has(event.state))
           fail('P4_EVENT_BEGIN_STATE_CHANGED', 'Event changed before Attempt creation.');
-        const attempts = context.repository('runtime_event_attempts').invoke('list').filter((attempt) => attempt.event_id === event.event_id);
+        const attempts = context.repository('runtime_event_attempts').invoke('list',{event_id:event.event_id});
         if (attempts.some((attempt) => attempt.state === 'executing') || attempts.length + 1 !== snapshot.nextOrdinal) fail(
           'P4_EVENT_ATTEMPT_RACE', 'Event Attempt ordinal or active uniqueness changed before creation.'
         );

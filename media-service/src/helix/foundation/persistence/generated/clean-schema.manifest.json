@@ -3,8 +3,8 @@
   "compilerContract": "helix-p3-deterministic-sqlite-ddl/v1",
   "digestAlgorithm": "sha256",
   "tableCount": 187,
-  "tableContractAggregateDigest": "8ab722dddc5c17f8e98d32088c94e7598b7a38e28dd29a378abf449c27f45f56",
-  "ddlDigest": "1522b30ce14d5ff416df27c6ebf4109dfdd622f41059d28dd95074046b1709ca",
+  "tableContractAggregateDigest": "85d48fa7cda2ac2b1d36895228a0ff3535b8b44d5a07d0b7b1ef5604e06ffb49",
+  "ddlDigest": "642c62d6d55e95ce31a097435ae7052c26d0ea5b65d049d90c724522db204784",
   "tables": [
     {
       "tableId": "arca_acceptance_attempts",
@@ -1927,8 +1927,8 @@
       "tableId": "fx_supporting_works",
       "owner": "execution-foundation",
       "contractId": "helix://contracts/tables/fx_supporting_works/v1",
-      "contractDigest": "cd405aed9953210a2c90a570104454ba193e068961afe989bdac6faf39a29288",
-      "sqlDigest": "85446049db8d97cd6af9ef3925e06797d7e654107cdafe24fcf67da3c312e043",
+      "contractDigest": "36a0c074e212c992e0a1fe5899b46387e2c920b80c75ec847c06c071fdb1ec77",
+      "sqlDigest": "4cf80fca68f7d191e0b4e08fe02e2dd47dd11cfcb8790123ecc7dcff07994579",
       "columns": [
         "work_id",
         "owner_domain",
@@ -1952,6 +1952,16 @@
           "kind": "hot",
           "name": "idx_fx_supporting_works_hot_01",
           "sqlDigest": "d473b33e442234bcd3ba5479f7230d8b28bcf55ca27b9c4ac4067fa2e0393fab"
+        },
+        {
+          "kind": "hot",
+          "name": "idx_fx_supporting_works_hot_02",
+          "sqlDigest": "722d4f624afac8e4357a515c9f58d3f4f393a88f66ced69086f08d16c9f23657"
+        },
+        {
+          "kind": "hot",
+          "name": "idx_fx_supporting_works_hot_03",
+          "sqlDigest": "26a83cbbf3c31c487170eb662aeebe499a9c01acdedd1201b5a4a8dfd316e54c"
         }
       ]
     },
@@ -1986,8 +1996,8 @@
       "tableId": "fx_workflow_events",
       "owner": "execution-foundation",
       "contractId": "helix://contracts/tables/fx_workflow_events/v1",
-      "contractDigest": "eedabe78f16e1799ac92d851605505362d53e2c9790a44fc10bdc224a2f11322",
-      "sqlDigest": "df37c8382fa9e718a4daf1281ff07c4ec1faec9d16017e5f32a220b32346b5aa",
+      "contractDigest": "4f357d815c0da14ba8ca4ccfaa9d930b7f533cc5cc4d9d3ccd2407f085caa3a0",
+      "sqlDigest": "45d0d3cc26b6f829919b50cada63b01ab1ddaa4fefeb2da56c40c11e2c630264",
       "columns": [
         "event_id",
         "plan_id",
@@ -2011,6 +2021,11 @@
           "kind": "hot",
           "name": "idx_fx_workflow_events_hot_01",
           "sqlDigest": "97b43116d3e4ebe05bc3d4fce83c3603772d84b0621a1f33ca2f62a088290bf3"
+        },
+        {
+          "kind": "hot",
+          "name": "idx_fx_workflow_events_hot_02",
+          "sqlDigest": "72f149ebe281604ed5d293a81e5f8d08a677ec6d04f819fc2a24769d941218f6"
         }
       ]
     },
@@ -5039,8 +5054,8 @@
       "tableId": "proc_run_materials",
       "owner": "procurement",
       "contractId": "helix://contracts/tables/proc_run_materials/v1",
-      "contractDigest": "98c1b9ddfe269a72702aa29a7056727856b0af7aa71dbda74e793d919b95420b",
-      "sqlDigest": "c01e5a0b4cd149caa0e73c2a3b36382661f99bfd2d9514bc7e7561d5e4f6406e",
+      "contractDigest": "6e862cfb67622400cd435d5a0afe813669df0da1c0228c198adf12a6eb46148a",
+      "sqlDigest": "910cd9aea4c11a0cfc7998b0e5ef7dda10e729a7d2e42cfcd0bc1b8b8b9a3539",
       "columns": [
         "procurement_run_id",
         "ordinal",
@@ -5092,6 +5107,11 @@
       "immutable": false,
       "supportColumns": [],
       "indexes": [
+        {
+          "kind": "hot",
+          "name": "idx_proc_run_materials_hot_01",
+          "sqlDigest": "0c532bb46c14d477e8f3860fb0977cde8a9dbd48c9048fc174e125f552685a49"
+        },
         {
           "kind": "partial-unique",
           "name": "uidx_proc_run_materials_partial_01",

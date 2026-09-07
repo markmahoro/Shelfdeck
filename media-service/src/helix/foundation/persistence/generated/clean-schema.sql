@@ -1241,6 +1241,8 @@ CREATE TABLE "fx_supporting_works" (
   CHECK (length(CAST("definition_json" AS BLOB)) <= 262144)
 );
 CREATE INDEX "idx_fx_supporting_works_hot_01" ON "fx_supporting_works" ("owner_domain", "state", "priority_class", "created_at_ms", "work_id");
+CREATE INDEX "idx_fx_supporting_works_hot_02" ON "fx_supporting_works" ("process_id", "work_id");
+CREATE INDEX "idx_fx_supporting_works_hot_03" ON "fx_supporting_works" ("state", "created_at_ms", "work_id");
 
 CREATE TABLE "fx_work_attempts" (
   "attempt_id" TEXT PRIMARY KEY,
@@ -1276,6 +1278,7 @@ CREATE TABLE "fx_workflow_events" (
   FOREIGN KEY ("event_id", "current_progress_revision") REFERENCES "fx_event_progress" ("event_id", "revision") ON DELETE RESTRICT
 );
 CREATE INDEX "idx_fx_workflow_events_hot_01" ON "fx_workflow_events" ("state", "priority_class", COALESCE("retry_at_ms", "ready_at_ms"), "event_id");
+CREATE INDEX "idx_fx_workflow_events_hot_02" ON "fx_workflow_events" ("work_id", "event_id");
 
 CREATE TABLE "fx_workflow_plans" (
   "plan_id" TEXT PRIMARY KEY,
@@ -3498,4 +3501,5 @@ CREATE TABLE "proc_run_materials" (
   FOREIGN KEY ("procurement_run_id") REFERENCES "proc_procurement_runs" ("procurement_run_id") ON DELETE RESTRICT,
   FOREIGN KEY ("candidate_package_id") REFERENCES "proc_candidate_packages" ("candidate_package_id") ON DELETE RESTRICT
 );
+CREATE INDEX "idx_proc_run_materials_hot_01" ON "proc_run_materials" ("candidate_package_id", "procurement_run_id", "ordinal");
 CREATE UNIQUE INDEX "uidx_proc_run_materials_partial_01" ON "proc_run_materials" ("material_key") WHERE "selection_state" IN ('run_selection', 'candidate_delivery');
