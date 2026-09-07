@@ -36,3 +36,5 @@ Design待确认D3：SSOT§5.5.10明确要求目录closed-world，§10.10.2.1允�
 Field Observation补充验证：关联自动观察/枚举/保留15 PASS；210文件架构与合同/依赖检查PASS；最终1125d232c6 Linux镜像3项精确新round/连续性测试PASS（9项按名称未运行）。补充镜像标准上传SHA匹配、deploy dry run通过，apply进行中。
 
 补充镜像1125d232c6已完成生产apply；Health ok，Admin Web/mount/exact image通过。真实新Observation已经提交第0至12页（revision1089至1101），上一轮partial页不变。D3等待用户确认，四部共享目录均已进入有界attention；原六项恢复等待正式整轮观察及入队，不能宣称全部上架。
+
+2026-09-07 D3用户明确“确认”：本任务获授权修订Movie文件型On-deck逐文件Settlement合同并实施、验证、部署及推进四部共享目录影片。精确成员授权与Final验证保持，范围外文件/子目录及普通父目录保留，BDMV原子容器和其他生命周期不扩权。
