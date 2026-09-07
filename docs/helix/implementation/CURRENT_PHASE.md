@@ -1,6 +1,8 @@
 # 当前活动包：用户痛点迭代
 
-2026-09-08。状态：ITERATING；用户要求取消5分钟轮询、持续迭代至痛点解决。自动化已PAUSED，在当前任务继续本地修复、验证与此前授权的标准部署。
+2026-09-08。状态：DESIGN_RETURN；用户要求先统一Aftercare合同并更新SSOT。自动化已PAUSED，Emby审查已跳过。当前暂停实施推进及追加部署，保留尚未发布的进度显示修改。
+
+当前设计：健康状态检查及更新不创建Case，只更新收藏健康与有Evidence的管理记录；Case仅代表有实际处理目标的上架后处理，并在媒体整理区与Libra Run共用表现规范。SSOT §6.6、§9及2026-09-08修订已落盘。下一步闭合独立记录更新的Command/Receipt、Inventory/Control原子事务、并发Fence及健康—Case投影的Level 8派生合同，再进入实施。下表是此前实现证据，不是新合同验收通过。
 
 基线16ea06173，分支codex/user-pain-iteration。此前54部收藏恢复事实见PROD-066 Evidence。
 
@@ -13,11 +15,11 @@
 | 回收站 | Arca源位置收尾 | 精确范围、物理归档、可恢复、30天/每日清理、跨盘与故障恢复 | local_verified |
 | 发布验证 | 标准生产入口 | fd8a8e6f35已标准部署；54 Entry / 451文件存在；历史接纳闭包冲突与扫描凭证过期仍待收敛 | monitoring_attention |
 
-部署身份、验证和未关闭事项见[生产记录](evidence/USER_PAIN_DEPLOYMENT_20260907.md)。不将HTTP健康、本地测试通过等同于运行态全部正常；Top Gun非空残留尚未执行物理归档。
+部署身份、验证和未关闭事项见[生产记录](evidence/USER_PAIN_DEPLOYMENT_20260907.md)及[持续迭代证据](evidence/USER_PAIN_CONTINUATION_20260908.md)。不将HTTP健康、本地测试通过等同于运行态全部正常。
 
-监控后本地准备：Field访问凭证过期的明确失败收敛补丁，19项定向及完整恢复测试通过，尚未部署；历史接纳闭包仍在定位。生产仍为fd8a8e6f35。
+监控后续修：Field访问凭证过期的明确失败收敛补丁，19项定向及完整恢复测试通过；历史接纳闭包已完成根因定位与精确副本演练。275923039f进入标准部署验证。
 
-用户结果复验见[五项痛点验收](evidence/USER_PAIN_OUTCOME_VERIFICATION_20260907.md)：未全数关闭；Top Gun实际转码推进至14%，修正此前按stage不变推断停滞；整页接口组合仍3.2–3.7秒，11文件旧目录尚未归档，3份NFO Binding尚未收敛。
+用户结果前次复验见[五项痛点验收](evidence/USER_PAIN_OUTCOME_VERIFICATION_20260907.md)：未全数关闭；Top Gun实际转码推进至14%，修正此前按stage不变推断停滞；旧版整页接口组合3.2–3.7秒，3份NFO Binding尚未收敛。旧目录此后已归档，见下文。
 
 09-08继续实施：当前工作先于历史/配置加载；过期Field Handle明确失败收敛；Reset精确退役6个superseded历史Offer发布，消除重新intake来源，保留旧终态事实。生产副本演练仅移除1个被错误重建的Subject/Run和13个Work，56个Arca表及4276个其他Work逐行哈希保护，第二次应用零动作。100个独立Entry的Case单席位顺序排队与终结释放通过；详细范围见本轮Evidence。
 

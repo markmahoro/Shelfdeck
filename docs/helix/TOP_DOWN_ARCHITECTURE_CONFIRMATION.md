@@ -5907,7 +5907,10 @@ Aftercare Health Evaluation（无独立Process Root）
       attention_required → Unresolved Care Finding
 ~~~
 
-持续评估负责形成fresh Shelf Health Projection和Disposition；只有`auto_repair`才建立Aftercare Case。
+持续评估负责健康状态检查及更新，包括fresh Shelf Health Projection、Disposition和有证据的记录同步；
+Aftercare Case仅代表真正的上架后处理。记录变化本身不是Care Gap，检查或同步记录不得创建Case。
+只有存在需改变实际交付物/存放结果才能消除的有效Requirement Gap，且通过Service Catalogue的确定性、安全、
+成本和权限检查后，才形成`auto_repair`并建立Case。完整分类与页面映射见本文件2026-09-08合同修订。
 Aftercare不成为万能修复部，不从Procurement或Libra寻找外部来源。
 
 #### 6.6.2 评估Trigger与Incident聚合
@@ -5957,13 +5960,16 @@ person relation snapshot并重新执行Presentation验证。只有姓名、Alias
 
 #### 6.6.3 Aftercare Case进入与状态语义
 
-同一Shelf Entry同一时刻最多一个active Aftercare Case。Case Creator只有在Coordinator已经形成
-`auto_repair`并冻结Care Basis与Care Requirement Set后才能创建Case。
+同一Shelf Entry同一时刻最多一个queued或active Aftercare Case。Case Creator只有在Coordinator已经证明
+实际处理必要性、形成`auto_repair`并冻结Care Basis与非空Care Requirement Set后才能创建Case。
+每个Requirement必须关联当前不满足项、实际处理目标和完成Evidence；检查、健康投影刷新、文件指纹同步或
+确定性人物关系记录更新不能单独成为Requirement，也不能附加到Case来绕过记录更新合同。
 
 最小Case状态为：
 
 | State | Meaning |
 | --- | --- |
+| queued | 真实处理要求已成立，等待Case席位，尚未建立Repair Work或Workspace |
 | active | Basis有效，正在安排或等待有界修复工作 |
 | resolved | 三个相关Assurance维度已重新取得Evidence并全部验证Requirement通过 |
 | invalidated | Care Basis revision变化或出现新的阻断Gap，旧Case永久停止并等待重新评估 |
@@ -5995,7 +6001,8 @@ Shelf Deregistration不会等待Aftercare“修好”媒体，也不会让Afterc
 
 #### 6.6.6 完成与责任收口
 
-Aftercare Health Evaluation完成是形成fresh、可审计的三维Assessment和Shelf Health Projection；
+Aftercare Health Evaluation完成是形成fresh、可审计的三维Assessment、必要记录更新及Shelf Health Projection；
+记录更新的Receipt不是CaseResult，不计为完成整理或完成修复。
 Aftercare Case完成只可能由专业维度重新验收后形成resolved。Capability成功、文件写回或某一维Gap通过
 都不能提前完成Case。
 
@@ -12919,6 +12926,9 @@ deregistered记录，但不计入当前Own和概览指标。列表支持按Shelf
 详情展示Custody、Presentation与Conformance三维Assessment、Evidence freshness、Finding、当前Case进度、
 修复前后Inventory revision和历史结果。健康颜色必须同时具有文字和可访问名称。
 
+健康状态检查及更新直接作用于上述标识和依据，不产生媒体整理行。真实处理Case成立后，收藏标识关联
+媒体整理区同一个Case；排队必须显示“等待处理”，执行时显示真实阶段，不能把健康变坏直接等同于正在修复。
+
 active Shelf Entry详情提供User Perception拥有的1–5星评分控件；提交时只发送`shelf_entry`目标、
 expected Perception revision、星级与idempotency key，Identity Anchor由服务端通过Arca公开Projection冻结。
 
@@ -12930,6 +12940,8 @@ expected Perception revision、星级与idempotency key，Identity Anchor由服�
 Collection Formation的用户旅程由两个连续页面表达，不建立新的全局Process状态机。`文件来源`页覆盖Material Field发现、Procurement Triage、待整理媒体包形成和Handoff A等待接收；按Field展示`已生成 = Libra已接收 + 等待Libra接收 + Structured Rejection`，正常无拒绝场景即为用户所见的简单差额账。`媒体整理工作区`只从Handoff A Accepted开始，展示`整理中|需要处理|已完成整理`及已结束历史；其中不存在业务筛选“待整理”。
 
 媒体整理详情以Activity Ledger为核心，显示当前具体动作、真实进度、完成履历、等待原因、目标Shelf和预计产品结果。
+该工作区同时承载真正的上架后处理Case；它与Libra Run使用同一列表行、详情布局和Activity交互规范，
+区别只来自真实处理来源、目标和适用动作。健康检查及记录同步不进入此列表；统一表现不合并后端Owner或Process。
 Series以Season为收藏主体，同时显示本次Episode Delivery Manifest的Episode范围；不同非重叠Run保持独立
 Activity，不伪装成一条可动态扩写的Season巨型任务。
 
@@ -15363,3 +15375,66 @@ unfinished work compatibility.
   原因、移入时间、文件清单和校验；默认30天，每日清理到期条目，到期前可恢复，恢复禁止覆盖。
   跨文件系统先复制校验再删除源，未完成移动不得到期删除；容量不足不提前删除未到期条目。
   共享/未知材料不能因同目录而一律归档，不按相似片名扩大范围。具体回收持久事实与Effect合同在本修订范围内逐项闭合。
+
+### Aftercare健康检查更新与上架后处理合同统一修订（2026-09-08）
+
+用户明确要求先统一合同并更新SSOT：第一类动作影响“我的收藏”的健康标识；第二类动作才是Aftercare Case，
+在媒体整理区与Libra Run采用一致的工作表现。本修订授权仅覆盖此边界及必要传播；当前先完成Design-return，
+不据此继续发布尚未对齐的实现。本节细化§5.8.2、§6.6、§7.3.6、§8的Assessment/Inventory Effect与§9对应体验；
+与2026-09-07修订冲突时以本节为准，其Case容量与物理文件安全规则继续有效。
+
+#### 两类动作及触发门槛
+
+| 类型 | 目标与允许效果 | 明确不包括 | 用户落点 |
+| --- | --- | --- | --- |
+| 健康状态检查及更新 | 基于已知Inventory与当前要求取得有界Evidence，发布三维Assessment、Finding、健康摘要和必要的Arca记录更新 | 为满足要求而生成、补取、转码、替换、搬移或删除媒体/资料文件；创建处理Workspace | 我的收藏健康标识、检查时间、依据与检查状态 |
+| 上架后处理（Aftercare Case） | 为已证明的实际Gap冻结处理目标，排队准入，执行有界文件/交付结果改变，复验并收口 | 只有检查、记录同步或显示刷新目标的空Case；按每个维度或文件拆出独立Case | 媒体整理区的正式处理行和统一详情，并关联收藏 |
+
+“健康状态检查及更新”不新增Business Process Root；必要Supporting Work仍遵守Foundation执行、资源和审计合同。
+它不因有Supporting Work、事务、耗时或失败就变成Case。异常判断必须有当前要求与实际Evidence，不能从
+字段变更、hash不一致、定时器触发、Provider暂时不可用或“有修复Capability”直接推导Case。
+
+检查结果按以下规则流转：
+
+1. 当前要求满足：发布healthy；必要记录同步完成后仍是健康，不制造先不健康再修好的过程。
+2. Evidence过期或环境暂不可判断：发布检查中/观察中及明确原因，有界复验，不伪造产品损坏或Case。
+3. 实际要求不满足且有确定、安全、有界的执行路径：形成明确Care Requirement并创建或关联同一Entry的
+   queued/active Case。用户可从不健康的依据定位对应处理，重复评估复用该处理责任，不堆积重复任务。
+4. 实际要求不满足但当前无合法执行路径：发布attention_required和真实原因；没有处理任务时明确说明原因，
+   不为追求“一条红标必有一个任务”创建空Case，也不自动寻源、回流Libra或退出收藏。
+
+健康结论与处理进程是两个相关而不等价的维度：queued不是已修复，active不是健康证明，resolved也不能覆盖
+更新Basis后的新Finding。收藏页可用紧凑组合标识表达，但必须区分尚未检查、健康、观察/不可判断、等待处理、
+正在处理、需要人工处理；前端不得从Case列表是否为空自行推断健康。Case只有完成目标、必要Settlement和
+当前Basis复验后才resolved；健康状态随真实新Evidence更新，保持Shelf Entry与Deck Fact连续。
+
+#### 记录更新的Owner、Evidence与安全边界
+
+Arca只更新自己拥有的当前Inventory Binding、Assessment和已接受事实下的确定性关系记录。更新须证明精确
+Shelf Entry、当前Inventory revision、已知Endpoint/location、材料角色、观察Evidence和变更前后值；采用revision
+比较与幂等Receipt，保留旧revision/Evidence。若物理Identity变化涉及Material Control，新Inventory revision与
+Control acquire/release仍须原子成立；必须有独立的记录更新合同，不能借用一个虚构Case来调用Case Commit。
+
+记录更新不得改变Canonical Content Identity、默许Primary被替换、重新选取文件、探索未知目录、扩大控制范围或
+掩盖当前Mandatory Requirement不满足。与Case、Off-deck、Deregistration冲突时遵守原有修改资格及Basis Fence；
+记录更新导致真实Basis变化时重新评估，不静默改写活动Case目标。不能安全证明的变化保留Finding并observe或
+attention_required。实现前须把独立记录更新的Command/Receipt/原子事务及并发测试传播到Level 8派生合同，
+不得暂用直接UPDATE历史行或无审计fallback。
+
+对当前Movie默认NFO要求：已声明位置的NFO存在、非空、可读，且没有另行明确的必要解析要求时，大小、指纹、
+演员或剧情呈现变化本身不是健康缺口。对该已知资料文件有界取证后同步必要Binding记录，保留现有字节，不创建
+“接纳现有NFO”Case。该许可只适用于已证明角色的资料文件，不扩张为自动接纳Primary替换。NFO缺失、空或不可读
+才按真实Requirement Gap分类；具备确定生成依据时可创建补齐处理，否则报告原因。人物观察仍走正式Evidence入口，
+文件呈现变化不反向覆盖已接受Identity/Media-Cast；确定性Person关联记录更新也属于第一类动作。
+
+#### 统一工作区合同与验收
+
+Aftercare Case与Libra Run共享列表、详情骨架、当前动作、真实进度、等待原因、Activity历史、结果和收藏关联的
+展示规范；不另造简陋的售后详情，也不大改既有整理详情。适用的业务动作由各Owner提供，不能把Libra的加快、
+discard、Routing或采购入口复制给Case。来源标识可区分首次整理与上架后处理；健康检查记录不计入整理任务数、
+完成处理数或Case容量。Case默认全局一个执行席位、FIFO、同一Entry至多一个queued/active及Foundation资源限制不变。
+
+合同验收至少覆盖：健康NFO外部呈现变化只更新记录且零Case；新编码要求不满足时健康标识关联一个排队Case；
+Endpoint故障聚合观察且零批量Case；不可修复缺口明确显示无可行处理原因；重复检查不重复创建Case；queued无
+Repair Work/Workspace；记录更新与处理提交冲突时Fence生效；处理终结后健康依据与当前Basis一致；两类真实处理
+使用一致的详情交互。既有错误Case如何退役须另有精确数据处置证据，不以本次文档修改自动清理生产。

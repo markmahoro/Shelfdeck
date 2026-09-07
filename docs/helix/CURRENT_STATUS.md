@@ -1,8 +1,10 @@
 # ShelfDeck Clean Helix Current Status
 
-Status: **用户痛点迭代已部署 fd8a8e6f35，服务运行，54部收藏/451个当前文件存在。运行监控发现历史接纳闭包冲突与Field访问凭证过期，尚未达到生产稳定性关闭条件。**
+Status: **275923039f已部署，精确历史Offer闭包清理完成；当前按用户要求返回Aftercare合同统一。SSOT已区分健康检查更新与真正处理Case，生产尚未实现该新边界。**
 
-Last updated: 2026-09-07
+Last updated: 2026-09-08
+
+本轮最新事实见[持续迭代证据](implementation/evidence/USER_PAIN_CONTINUATION_20260908.md)。54部收藏保留，Top Gun旧目录已归档并校验11文件；3份NFO漂移已由旧规则生成queued Case，不能声称新合同已经落地。用户明确指出Case门槛和Aftercare合同边界问题，已要求先统一SSOT；当前未继续清理这些Case或发布本地进度显示修改。以下为前次时点记录。
 
 当前部署与未关闭事项见[用户痛点迭代生产记录](implementation/evidence/USER_PAIN_DEPLOYMENT_20260907.md)。Case工作区展示、Case准入、列表性能、NFO职责收缩和物理回收站已交付；Top Gun非空残留尚未归档。下文PROD-065/066停机与旧镜像描述均为历史时点。
 

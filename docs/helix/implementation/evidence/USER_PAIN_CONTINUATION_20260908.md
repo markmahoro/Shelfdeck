@@ -22,4 +22,12 @@
 
 ## 未关闭项
 
-生产仍为fd8a8e6f35；上述续修尚未部署。须部署后验证历史接纳冲突与过期访问异常不再循环、3份可读NFO的Inventory漂移收敛及整页主请求延迟。实际Top Gun转码此前持续推进，不能依据Case阶段不变声称卡死，也不能以HTTP健康宣称全部用户痛点解决。
+275923039f已标准部署，tar SHA256 `2a94bbe5074d01aff45b0ae261b072a96fd7372e35d7a743cad5bed6b514b567`，NAS image `sha256:724bad65097988dbe3fe2f767f8dfeea2447c0cfc2d601a934ffd65954b4c3c4`。停服完整备份位于`/vol1/1000/docker/shelfdeck/backups/user-pain-20260908-continuation`，数据库SHA256 `cf3f55595a09862423bd5c3301c036522c8f9b1519119f91dade27e72aad69bb`，配套旧镜像fd8a8e6f35可回滚。
+
+精确Reset已使用标准NAS包装执行，13 Work、1 Subject、1 Run及其1 Workspace已清理，6条superseded Offer发布已退役。integrity=ok、FK=0，重复plan无剩余动作；备份位于`/vol1/1000/docker/shelfdeck/backups/formation-reset-20260907T163348Z/data`。重启后旧Subject不存在，最近异常日志未再出现P7过期/P8接纳冲突循环。
+
+3份可读NFO漂移通过正式check命令分别生成queued Case，未启动额外Work；保留的2个历史active Case中，实际1个FFmpeg执行、另1个等待资源。不能把排队宣称为NFO已同步完毕，也不提高并发绕过验收。
+
+生产3轮首屏主API组合为1450/964/915毫秒（旧版全页3.2–3.7秒）；随后收藏页59/156/147毫秒。此为API组合耗时，不冒充浏览器绘制测量。历史/config请求仍约2秒，但已不阻塞主工作展示。
+
+复验发现等待资源仍显示“准备改善”，且重启重做转码时旧进度样本暂未更新。追加只读展示修复：准确展示waiting_for_resource；带采样时间的进度超过120秒则隐藏旧百分比并显示“等待进度更新”，新样本恢复后正常显示。该规则不判断业务失败、不改Foundation进度单调性、不伪造转码进度。追加修复仍待最终镜像发布。
