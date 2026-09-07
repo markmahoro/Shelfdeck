@@ -245,7 +245,7 @@ function createProductIdentityProjections(options) {
         if(!reference||!binding)throw new Error('Product Identity NFO reference is unavailable.');
         return options.productProductionPort.issuePhysicalReadHandle({libraRunId:value.run.libraRunId,
           runExecutionBasisDigest:value.run.executionBasisDigest,runCreatedAtMs:value.run.createdAtMs,
-          physicalIdentity:reference.identity,sizeBytes:reference.identity.sizeBytes,endpointId:reference.endpointId,
+          nfoReference:reference,physicalIdentity:reference.identity,sizeBytes:reference.identity.sizeBytes,endpointId:reference.endpointId,
           location:reference.location,bindingRevision:binding.bindingRevision||1,mountScopeRevision:1});
       }
       return identitySource(intent);
@@ -378,7 +378,7 @@ function createProductMetadataObservationProjections(options) {
           libraRunId: snapshot.run.libraRunId,
           runExecutionBasisDigest: snapshot.run.executionBasisDigest,
           runCreatedAtMs: snapshot.run.createdAtMs,
-          physicalIdentity: reference.identity,
+          nfoReference:reference,physicalIdentity: reference.identity,
           sizeBytes: reference.identity.sizeBytes,
           endpointId: reference.endpointId,
           location: reference.location,
@@ -409,7 +409,7 @@ function resolvedMetadataInputs(options, source, snapshot) {
   return Object.freeze({metadataFetchIntent:source.intent,
     physicalMaterialReadHandleOrIntegrationHandle:options.productProductionPort.issuePhysicalReadHandle({
       libraRunId:snapshot.run.libraRunId,runExecutionBasisDigest:snapshot.run.executionBasisDigest,
-      runCreatedAtMs:snapshot.run.createdAtMs,physicalIdentity:reference.identity,sizeBytes:reference.identity.sizeBytes,
+      runCreatedAtMs:snapshot.run.createdAtMs,nfoReference:reference,physicalIdentity:reference.identity,sizeBytes:reference.identity.sizeBytes,
       endpointId:reference.endpointId,location:reference.location,bindingRevision:1,mountScopeRevision:1})});
 }
 

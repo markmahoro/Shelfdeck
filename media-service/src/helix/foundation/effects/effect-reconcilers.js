@@ -125,6 +125,7 @@ function createEffectReconcilerRegistry(options) {
           ['status', 'evidenceDigest'], 'P4_DESTRUCTIVE_RECOVERY_EVIDENCE_INVALID');
         if (reality.status === 'complete') return decision('already_committed', 'reuse_deletion_evidence', reality.evidenceDigest);
         if (reality.status === 'remaining') return decision('continue_forward', 'delete_remaining_authorized_scope', reality.evidenceDigest);
+        if (reality.status === 'revalidation_required') return decision('continue_forward', 'revalidate_authorized_scope', reality.evidenceDigest);
         return decision('terminal_failure', 'block_unproven_destruction_scope', reality.evidenceDigest);
       }
     })

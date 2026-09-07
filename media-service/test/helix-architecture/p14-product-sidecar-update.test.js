@@ -132,6 +132,41 @@ test('movie identity ignores actor tmdb ids and reads only the root-level movie 
   assert.deepEqual(identity, { title:'007：大破天幕杀机', releaseYear:'2012', tmdbMovieId:'37724' });
 });
 
+test('source NFO title reads escaped XML and CDATA as identical literal facts', () => {
+  const escaped = parseRelatedNfoMovieIdentity('<movie><title>A &amp; B &lt;C&gt;</title></movie>');
+  const cdata = parseRelatedNfoMovieIdentity('<movie><title><![CDATA[A & B <C>]]></title></movie>');
+  assert.equal(escaped.title, 'A & B <C>');
+  assert.deepEqual(cdata, escaped);
+});
+
+test('Libra renderer restores an accepted actor instead of accepting a same-name different person', () => {
+  const result = render('<movie><title>倩女幽魂</title><tmdbid>12345</tmdbid>' +
+    '<actor><name>张国荣</name><tmdbid>999</tmdbid></actor></movie>');
+  assert.match(result.output, /<tmdbid>123<\/tmdbid>/);
+  assert.match(result.output, /<tmdbid>999<\/tmdbid>/);
+});
+
+test('Related NFO observation consumes the same bounded snapshot whose identity it verifies', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'helix-nfo-snapshot-'));
+  const source = path.join(root, 'movie.nfo');
+  fs.writeFileSync(source, '<movie><title>A &amp; B</title></movie>');
+  const reference = relatedReference(source);
+  const originalReadFile = fs.readFileSync;
+  try {
+    const port = createCleanProductProductionPort({mediaProbe:{probe(){}},
+      workspaceProductPort:{materializeArtifact(){},acquireArtifact(){}}});
+    fs.readFileSync = function(location, ...args) {
+      if (location === source) throw new Error('NFO must not be reopened after its identity was verified.');
+      return originalReadFile.call(fs, location, ...args);
+    };
+    const result = port.readRelatedNfo({primaryMaterialKey:'primary-1',reference});
+    assert.equal(result.entries.find((item) => item.key === 'title').value, 'A & B');
+  } finally {
+    fs.readFileSync = originalReadFile;
+    fs.rmSync(root, {recursive:true,force:true});
+  }
+});
+
 test('related NFO observation preserves the complete repeated genre set', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'helix-sidecar-genres-'));
   const source = path.join(root, 'movie.nfo');
@@ -286,4 +321,27 @@ test('damaged related NFO is rebuilt and absent NFO is created', () => {
   assert.equal(created.handle.provenanceRef.objectType, 'product_metadata_draft_create');
   assert.match(created.output, /<title>倩女幽魂<\/title>/);
   assert.match(created.output, /<name>张国荣<\/name>[\s\S]*?<tmdbid>123<\/tmdbid>/);
+});
+
+test('Related NFO observations use the current stable bytes after an external rewrite', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'nfo-current-snapshot-'));
+  try {
+    const location = path.join(root, 'movie.nfo');
+    fs.writeFileSync(location, '<movie><title>Original</title><year>2025</year><tmdbid>123</tmdbid></movie>');
+    const reference = relatedReference(location);
+    const port = createCleanProductProductionPort({mediaProbe:{probe(){}},workspaceProductPort:{materializeArtifact(){},acquireArtifact(){}}});
+    const input = {libraRunId:'run',runExecutionBasisDigest:'b'.repeat(64),runCreatedAtMs:1,nfoReference:reference,
+      physicalIdentity:reference.identity,sizeBytes:reference.identity.sizeBytes,endpointId:'local',location,
+      bindingRevision:1,mountScopeRevision:1};
+    const planned = port.issuePhysicalReadHandle(input);
+    fs.writeFileSync(location + '.tmp', '<movie><tmdbid>123</tmdbid><year>2025</year><title><![CDATA[Original]]></title><dateadded>today</dateadded></movie>');
+    fs.renameSync(location + '.tmp', location);
+    assert.deepEqual(port.issuePhysicalReadHandle(input),planned,'historical projections must not read changed filesystem facts');
+    assert.throws(() => port.issuePhysicalReadHandle({...input,nfoReference:undefined}),{code:'CLEAN_PRODUCT_REALITY_MISMATCH'});
+    const result = port.readRelatedNfo({reference,primaryMaterialKey:reference.primaryMaterialKey});
+    assert.equal(result.entries.find((item) => item.key === 'title').value,'Original');
+    assert.match(result.sourceNfoSnapshotDigest,/^[a-f0-9]{64}$/);
+    assert.equal(result.sourceNfoSemantics.entries.find((item) => item.key === 'tmdb').value,'123');
+    assert.equal(result.bytes.toString(),fs.readFileSync(location,'utf8'));
+  } finally {fs.rmSync(root,{recursive:true,force:true});}
 });

@@ -403,7 +403,7 @@ test('multiple effects, unavailable reconciler, unknown contract, global Circuit
   await fixture(async (recovery) => assert.equal((await recovery.recover()).findings.includes('ORPHAN_OR_UNKNOWN_EVENT_FACT:event'), true),
     { effectClass: 'unknown_effect' });
   await fixture(async (recovery) => assert.equal(
-    (await recovery.recover()).findings.includes('NONTERMINAL_EFFECT_WITHOUT_RECOVERY_EVENT:effect'), true),
+    (await recovery.recover()).findings.includes('NONTERMINAL_EFFECT_WITHOUT_RECOVERY_EVENT:effect'), false),
   { eventState: 'failed', effectClass: 'material_commit', journal: true });
 });
 

@@ -454,7 +454,8 @@ function createProcurementExecutionRuntime(options) {
     } };
     return { async observe(context) {
       const value = observed(context), committed = value.markers.length === 1;
-      return { status: committed ? 'complete' : 'remaining', evidenceDigest: canonicalDigest(value) };
+      // Missing receipt proves no filesystem state. The scoped executor must revalidate current reality.
+      return { status: committed ? 'complete' : 'revalidation_required', evidenceDigest: canonicalDigest(value) };
     } };
   }
   const effectReconciler = createEffectReconcilerRegistry({ observers: Object.freeze(Object.fromEntries([

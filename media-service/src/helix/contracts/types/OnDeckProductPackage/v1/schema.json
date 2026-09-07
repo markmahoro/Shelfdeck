@@ -780,6 +780,13 @@
           },
           "maxItems": 256
         },
+        "sourceNfoObservations": {
+          "type": "array",
+          "items": {
+            "$ref": "helix://contracts/types/MetadataObservation/v1"
+          },
+          "maxItems": 16
+        },
         "acceptanceRequirementSnapshot": {
           "$ref": "helix://contracts/domain-types/AcceptanceRequirementSnapshot/v1"
         },
@@ -799,6 +806,7 @@
         "workflowPlanRefs",
         "productVerificationRefs",
         "externalRealityObservationRefs",
+        "sourceNfoObservations",
         "acceptanceRequirementSnapshot",
         "shelfAcceptancePrimaryReadSet",
         "provenanceDigest"

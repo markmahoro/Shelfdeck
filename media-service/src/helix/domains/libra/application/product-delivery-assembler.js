@@ -28,6 +28,19 @@ const RECEIPT_CONTRACT = Object.freeze({
   controlRevisionSetSchemaRef: 'libra.product-control-revision-set@1',
 });
 
+
+function sourceNfoObservation(options, libraRunId, referenceId) {
+  const works = options.workResultReader.listWorks({ownerDomain:'libra', processType:'libra_run',
+    processId:libraRunId, workKind:'product_metadata_observation'}).filter((item) => item.state === 'succeeded');
+  const observations = works.flatMap((work) => options.workResultReader.read(work.work_id))
+    .filter((item) => item.capabilityRef === 'libra.product_metadata.fetch@1' &&
+      item.result?.sourceKind === 'related_nfo' && item.result.sourceRef === referenceId)
+    .map((item) => item.result);
+  if (new Set(observations.map((item) => item.payloadDigest)).size > 1)
+    throw new Error('NFO reference has conflicting immutable observations.');
+  return observations[0] || null;
+}
+
 function utf8(left, right) {
   return Buffer.compare(Buffer.from(left), Buffer.from(right));
 }
@@ -936,6 +949,9 @@ function createProductDeliveryAssembler(options) {
       workflowPlanRefs: Object.freeze(planItems),
       productVerificationRefs: Object.freeze(verificationItems),
       externalRealityObservationRefs: Object.freeze(evidenceItems),
+      sourceNfoObservations:Object.freeze(value.related.filter((item) => item.reference.role === 'nfo')
+        .map((item) => sourceNfoObservation(options, libraRunId, item.reference.referenceId)).filter(Boolean)
+        .sort((left, right) => utf8(left.sourceRef, right.sourceRef))),
       acceptanceRequirementSnapshot: acceptanceRequirementSnapshot(snapshot),
       shelfAcceptancePrimaryReadSet: shelfAcceptanceReadSet,
     };

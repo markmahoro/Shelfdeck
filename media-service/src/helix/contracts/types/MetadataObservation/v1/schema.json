@@ -170,6 +170,81 @@
         "entries"
       ]
     },
+    "sourceNfoSemantics": {
+      "anyOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "schemaRef": {
+              "type": "string",
+              "minLength": 1
+            },
+            "schemaVersion": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "recordKind": {
+              "const": "source-nfo-semantics"
+            },
+            "recordDigest": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "entries": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "key": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "value": {
+                    "type": [
+                      "string",
+                      "number",
+                      "integer",
+                      "boolean",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "key",
+                  "value"
+                ]
+              },
+              "maxItems": 256
+            }
+          },
+          "required": [
+            "schemaRef",
+            "schemaVersion",
+            "recordKind",
+            "recordDigest",
+            "entries"
+          ]
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "sourceNfoSnapshotDigest": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "peopleHints": {
       "type": "array",
       "items": {
@@ -281,6 +356,8 @@
     "contentProfile",
     "descriptiveFacts",
     "providerIdentitySet",
+    "sourceNfoSemantics",
+    "sourceNfoSnapshotDigest",
     "peopleHints",
     "artifactHints"
   ]

@@ -2,6 +2,7 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
+const { observeNfoReferenceSemantics, preservesNfoReferenceSemantics } = require('./helix/contracts/nfo-reference-semantics');
 const {
   canonicalDigest,
   canonicalJson,
@@ -113,6 +114,53 @@ function packageObservation(member) {
       contentFingerprint:member.physicalIdentity.contentFingerprint,
     }),
   });
+}
+
+
+function mutableSettlementBasis(request, finalPlan) {
+  if (!isMovieNfoPlan(finalPlan) || path.extname(request.materialHandle.location).toLowerCase() !== '.nfo') return null;
+  const source = request.finalInventoryRequest.onDeckProductPackage.offloadContextManifest?.members?.find((item) =>
+    item.contextRole === 'related_input' && item.sourceRelatedReferenceId &&
+    item.materialKey === request.materialHandle.identity.materialKey &&
+    path.resolve(item.location) === path.resolve(request.materialHandle.location) &&
+    item.finalProductMaterialKey === request.finalMaterialKey &&
+    canonicalDigest(item.physicalIdentity) === canonicalDigest(request.materialHandle.identity));
+  const observations = request.finalInventoryRequest.onDeckProductPackage.productionProvenance?.sourceNfoObservations || [];
+  const matches = observations.filter((item) => source && item.sourceRef === source.sourceRelatedReferenceId);
+  const observation = matches.length === 1 ? matches[0] : null;
+  if (!observation || observation.sourceKind !== 'related_nfo' ||
+      observation.sourceRef !== source.sourceRelatedReferenceId) return null;
+  const { payloadDigest, ...body } = observation;
+  if (canonicalDigest(body) !== payloadDigest) return null;
+  return observation.sourceNfoSemantics;
+}
+function verifySettlementSource(request, observed, basis) {
+  const handle = request.materialHandle;
+  if (Number(observed.stat.size) === handle.expectedSizeBytes &&
+      observed.contentFingerprint === handle.identity.contentFingerprint) return;
+  const current = observed.bytes && observeNfoReferenceSemantics(observed.bytes);
+  const accepted = request.finalInventoryRequest.nfoPresentationBasis?.identity;
+  const currentId = current?.entries.find((item) => item.key === 'tmdb')?.value;
+  if (!preservesNfoReferenceSemantics(basis, current) ||
+      currentId && accepted?.provider === 'tmdb' && currentId !== accepted.providerKey) {
+    fail('CLEAN_ARCA_SETTLEMENT_REALITY_DRIFT',
+      'Settlement source no longer preserves its approved reference facts.');
+  }
+}
+function currentSettlementIdentityDigest(handle, observed) {
+  const body = {mountScopeId:handle.identity.mountScopeId,inode:String(observed.stat.ino),sizeBytes:Number(observed.stat.size),
+    fingerprintAlgorithm:observed.fingerprintAlgorithm,fingerprintVersion:observed.fingerprintVersion,
+    contentFingerprint:observed.contentFingerprint};
+  const materialKey = canonicalDigest({schema:'physical-material-identity@2',mountScopeId:body.mountScopeId,
+    inode:body.inode,sizeBytes:body.sizeBytes,fingerprintAlgorithm:body.fingerprintAlgorithm,fingerprintVersion:body.fingerprintVersion,
+    contentFingerprint:body.contentFingerprint});
+  return canonicalDigest({...handle.identity,...body,materialKey});
+}
+function assertSettlementSnapshot(observed, current) {
+  if (String(observed.stat.ino) !== String(current.stat.ino) ||
+      observed.stat.mtimeNs !== current.stat.mtimeNs || observed.stat.ctimeNs !== current.stat.ctimeNs ||
+      observationDigest(observed) !== observationDigest(current))
+    fail('CLEAN_ARCA_SETTLEMENT_REALITY_DRIFT', 'Settlement source changed after semantic authorization.');
 }
 
 function observationDigest(observed) {
@@ -1394,9 +1442,24 @@ function createCleanArcaInventoryPort(options) {
         fail('CLEAN_ARCA_TARGET_OCCUPIED',
           'Final Inventory target contains conflicting bytes.');
       }
+      let sourceSnapshot = null;
+      if (final && !finalExact && !priorPlacementTarget && !request.aftercareCaseId && isMovieNfoPlan(plan)) {
+        const source = request.onDeckProductPackage.offloadContextManifest?.members?.find((item) =>
+          item.contextRole === 'related_input' && item.sourceRelatedReferenceId &&
+          path.resolve(item.location) === path.resolve(plan.target) && item.finalProductMaterialKey === plan.member.materialKey);
+        if (!source?.physicalIdentity) fail('CLEAN_ARCA_TARGET_OCCUPIED', 'NFO replacement has no exact related source mapping.');
+        const sourceRequest = {materialHandle:{location:source.location,identity:source.physicalIdentity,
+          expectedSizeBytes:source.physicalIdentity.sizeBytes},finalMaterialKey:plan.member.materialKey,finalInventoryRequest:request};
+        sourceSnapshot = await readStableNfo(plan.target);
+        try { verifySettlementSource(sourceRequest, sourceSnapshot, mutableSettlementBasis(sourceRequest, plan)); }
+        catch (error) {
+          if (error.code !== 'CLEAN_ARCA_SETTLEMENT_REALITY_DRIFT') throw error;
+          fail('CLEAN_ARCA_TARGET_OCCUPIED', 'NFO source facts changed before replacement.');
+        }
+      }
       preparedPlans.push(Object.freeze({
         plan, stagedLocation, final, finalExact, priorPlacementTarget,
-        finalSemantic,
+        finalSemantic, sourceSnapshot,
       }));
     }
     // No final target may be changed until every destination has passed the
@@ -1421,6 +1484,14 @@ function createCleanArcaInventoryPort(options) {
       }
     }
     requireContinuation(request);
+    for (const prepared of preparedPlans) {
+      if (!prepared.sourceSnapshot) continue;
+      try { assertSettlementSnapshot(prepared.sourceSnapshot, readStableNfoSync(prepared.plan.target)); }
+      catch (error) {
+        if (error.code !== 'CLEAN_ARCA_SETTLEMENT_REALITY_DRIFT') throw error;
+        fail('CLEAN_ARCA_TARGET_OCCUPIED', 'NFO source changed after replacement preflight.');
+      }
+    }
     if (!fs.existsSync(handle.targetDirectory)) {
       fs.mkdirSync(handle.targetDirectory, { recursive:true });
     }
@@ -1664,6 +1735,8 @@ function createCleanArcaInventoryPort(options) {
       : computeBoundedMaterialFingerprintSync(finalTarget);
     verifyFinalObservation(finalRequest,finalPlan,finalObserved);
     const sameLocation = source === finalTarget;
+    const sourceBasis = mutableSettlementBasis(request, finalPlan);
+    let preDeleteIdentityDigest = null;
     const sourceDirectory = path.dirname(source);
     const managedLocations = [
       ...(finalRequest.onDeckProductPackage.offloadContextManifest?.members || [])
@@ -1706,17 +1779,17 @@ function createCleanArcaInventoryPort(options) {
     }
     let sourceAbsent = !fs.existsSync(source);
     if (!sourceAbsent) {
-      const observed = computeBoundedMaterialFingerprintSync(source);
+      const observed = sourceBasis ? readStableNfoSync(source) : computeBoundedMaterialFingerprintSync(source);
+      if (!sameLocation) preDeleteIdentityDigest = currentSettlementIdentityDigest(handle, observed);
       if (sameLocation) {
         // Same-root Switch already replaced this path with product bytes.
         // The final target was role-verified above; NFO may have a different
         // physical identity while preserving its accepted presentation.
-      } else if (Number(observed.stat.size) !== handle.expectedSizeBytes ||
-          observed.contentFingerprint !== handle.identity.contentFingerprint) {
-        fail('CLEAN_ARCA_SETTLEMENT_REALITY_DRIFT',
-          'Settlement source drifted from the approved Material identity.');
+      } else {
+        verifySettlementSource(request, observed, sourceBasis);
       }
       if (!sameLocation) {
+        if (sourceBasis) assertSettlementSnapshot(observed, readStableNfoSync(source));
         fs.rmSync(source, { force:false });
         sourceAbsent = !fs.existsSync(source);
         if (!sourceAbsent) {
@@ -1772,7 +1845,7 @@ function createCleanArcaInventoryPort(options) {
       }
     }
     return Object.freeze({ materialKey:handle.identity.materialKey,
-      preDeleteIdentityDigest:canonicalDigest(handle.identity),
+      preDeleteIdentityDigest,
       absent:sourceAbsent,
       disposition:sameLocation ? 'retained_as_final' : 'settled_to_final',
       sourceToFinalMappingDigest:request.sourceToFinalMappingDigest,
@@ -1819,6 +1892,8 @@ function createCleanArcaInventoryPort(options) {
       : await computeFingerprint(finalTarget);
     verifyFinalObservation(finalRequest,finalPlan,finalObserved);
     const sameLocation = source === finalTarget;
+    const sourceBasis = mutableSettlementBasis(request, finalPlan);
+    let preDeleteIdentityDigest = null;
     const sourceDirectory = path.dirname(source);
     const managedLocations = (request.managedLocations || [
       ...(finalRequest.onDeckProductPackage.offloadContextManifest?.members || [])
@@ -1870,12 +1945,10 @@ function createCleanArcaInventoryPort(options) {
       if (sameLocation) {
         // The final target was role-verified above.
       } else {
-        const observed = await computeFingerprint(source);
-        if (Number(observed.stat.size) !== handle.expectedSizeBytes ||
-            observed.contentFingerprint !== handle.identity.contentFingerprint) {
-          fail('CLEAN_ARCA_SETTLEMENT_REALITY_DRIFT',
-            'Settlement source drifted from the approved Material identity.');
-        }
+        const observed = sourceBasis ? await readStableNfo(source) : await computeFingerprint(source);
+        verifySettlementSource(request, observed, sourceBasis);
+        preDeleteIdentityDigest = currentSettlementIdentityDigest(handle, observed);
+        if (sourceBasis) assertSettlementSnapshot(observed, readStableNfoSync(source));
       }
       if (!sameLocation) {
         await fs.promises.rm(source, { force:false });
@@ -1934,7 +2007,7 @@ function createCleanArcaInventoryPort(options) {
       }
     }
     return Object.freeze({ materialKey:handle.identity.materialKey,
-      preDeleteIdentityDigest:canonicalDigest(handle.identity),
+      preDeleteIdentityDigest,
       absent:sourceAbsent,
       disposition:sameLocation ? 'retained_as_final' : 'settled_to_final',
       sourceToFinalMappingDigest:request.sourceToFinalMappingDigest,

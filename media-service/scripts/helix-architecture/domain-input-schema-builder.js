@@ -1188,6 +1188,7 @@ function libraDeliverablePromotionDecisionSchema() {
       workflowPlanRefs: arrayOf(object({ planId: id(), planRevision: positiveInteger(), planDigest: digest() }), 256),
       productVerificationRefs: arrayOf(object({ verificationId: id(), verificationDigest: digest() }), 256),
       externalRealityObservationRefs: arrayOf(object({ evidenceId: id(), evidenceDigest: digest() }), 256),
+      sourceNfoObservations:arrayOf(typeRef('MetadataObservation'),16),
       acceptanceRequirementSnapshot:domainRef('AcceptanceRequirementSnapshot'),
       shelfAcceptancePrimaryReadSet:domainRef('ShelfAcceptancePrimaryReadSet'), provenanceDigest: digest() }),
     productionAttestation: object({ attestationId: id(), libraRunId: id(), onDeckPackageId: id(), acceptanceSpecId: id(),

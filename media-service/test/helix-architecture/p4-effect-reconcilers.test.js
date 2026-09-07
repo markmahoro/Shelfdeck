@@ -84,3 +84,9 @@ test('missing, extra, or malformed observer evidence fails closed', async () => 
   await assert.rejects(registry({ external_request: { status: 'pending', evidenceDigest: DIGEST, retry: true } })
     .reconcile('external_request', {}), { code: 'P4_EXTERNAL_RECOVERY_EVIDENCE_INVALID' });
 });
+
+test('missing destructive receipt requires reality revalidation and cannot prove absence', async () => {
+  const result = await registry({destructive_commit:{status:'revalidation_required',evidenceDigest:DIGEST}})
+    .reconcile('destructive_commit',{});
+  assert.deepEqual(result,{decision:'continue_forward',action:'revalidate_authorized_scope',evidenceDigest:DIGEST});
+});

@@ -624,13 +624,14 @@ test('expired continue-forward recovery budget never abandons uncertain Effect r
     async terminateAndIsolate(){isolated+=1;},
   }});
   await fixture(async ({ runtime, databasePath, state }) => {
-    await assert.rejects(runtime.recover({eventId:'event',effectId:'effect',decision:'continue_forward'}),
-      (error)=>error?.code==='P4_EXECUTION_TIMEOUT');
+    const result = await runtime.recover({eventId:'event',effectId:'effect',decision:'continue_forward'});
+    assert.equal(result.kind,'failed');
     assert.equal(isolated,1);
-    assert.equal(databaseFacts(databasePath).event.state,'executing');
-    assert.deepEqual(state().journalCalls,['read','begin-recovery']);
+    assert.equal(databaseFacts(databasePath).event.state,'failed');
+    assert.equal(databaseFacts(databasePath).attempt.failure_code,'RECOVERY_EXECUTION_BUDGET_EXHAUSTED');
+    assert.deepEqual(state().journalCalls,['read','begin-recovery','reconcile']);
   },{effectClass:'workspace_write',initialEventState:'executing',seedExecutingAttempt:true,
-    recoveryStartedAtMs:1000,nowMs:3000,timeoutController,effectJournalRead:{
+    failurePolicyDecision:{decision:'terminal_failure'},recoveryStartedAtMs:1000,nowMs:3000,timeoutController,effectJournalRead:{
       event_attempt_id:'event-attempt',effect_class:'workspace_write',idempotency_key:'event-attempt',
       intent_digest:require('node:crypto').createHash('sha256').update(JSON.stringify({
         capabilityRef:'libra.test.observe@1',contractVersion:1,eventId:'event',fenceSnapshotDigest:HASH_A,

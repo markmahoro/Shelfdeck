@@ -178,6 +178,8 @@ function createAttemptPolicyController(options) {
       if (request.recoveryDecision !== null && !DECISIONS.has(request.recoveryDecision)) fail(
         'P4_ATTEMPT_RECOVERY_DECISION_INVALID', 'Recovery decision is invalid.'
       );
+      if (request.recoveryDecision === 'continue_forward' && outcome.retryDirective === 'never')
+        return Object.freeze({ decision:'terminal_failure' });
       if (request.effectClass !== 'pure_observation' && request.recoveryDecision !== 'safe_retry') return Object.freeze({ decision: 'reconcile_required' });
       if (outcome.retryDirective !== 'contract_policy' || !policy.retryableFailureClasses.includes(outcome.failureClass) ||
           request.failureAttemptCount >= policy.maxFailureAttempts) return Object.freeze({ decision: 'terminal_failure' });

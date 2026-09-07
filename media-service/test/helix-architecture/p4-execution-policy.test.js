@@ -167,3 +167,10 @@ test('cooperative execution isolation delivers the frozen deadline to an in-proc
   assert.deepEqual(outcome,{kind:'closed'});
   assert.ok(Date.now()-started<1000);
 });
+
+test('forward recovery can stop without declaring uncertain effects absent', () => {
+  const external = controller('external_request');
+  assert.deepEqual(external.value.decideFailure({...external.base,failureAttemptCount:1,
+    outcome:{kind:'failed',failureClass:'timeout',retryDirective:'never'},recoveryDecision:'continue_forward'}),
+    {decision:'terminal_failure'});
+});

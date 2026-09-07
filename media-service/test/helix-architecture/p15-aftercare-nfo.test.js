@@ -255,3 +255,45 @@ test('presentation health requires owned title, year, plot, genre, and actors ag
     existingBytes:Buffer.from('<movie><title>倩女幽魂</title><year>1987</year><plot>更新后的简介 &amp; 说明</plot><genre>爱情</genre><genre>奇幻</genre><tmdbid>12345</tmdbid></movie>'),
   })).reasonCode, 'actor_missing');
 });
+
+test('equivalent repeated genre values do not change NFO presentation facts', () => {
+  const source = createAftercareMovieNfo(input()).bytes.toString('utf8');
+  const rewritten = source.replace('</movie>', '<genre>爱情</genre><genre>奇幻</genre></movie>');
+  assert.deepEqual(compareMovieNfoPresentation(input({ existingBytes:rewritten })),
+    { matches:true, reasonCode:null });
+  assert.equal(compareMovieNfoPresentation(input({
+    existingBytes:rewritten.replace('</movie>', '<genre>犯罪</genre></movie>'),
+  })).reasonCode, 'owned_field_mismatch');
+});
+
+test('CDATA and escaped XML preserve the same literal presentation text', () => {
+  const value = 'Text <literal> &amp; &#65;';
+  const basis = input({ metadata:{ descriptiveFacts:{ entries:[{key:'plot',value}] } }, cast:{relations:[]} });
+  const escaped = createAftercareMovieNfo(basis).bytes.toString('utf8');
+  const cdata = escaped.replace(/<plot>[\s\S]*?<\/plot>/, '<plot><![CDATA[' + value + ']]></plot>');
+  assert.deepEqual(compareMovieNfoPresentation({...basis, existingBytes:escaped}), {matches:true,reasonCode:null});
+  assert.deepEqual(compareMovieNfoPresentation({...basis, existingBytes:cdata}), {matches:true,reasonCode:null});
+});
+
+test('an actor name cannot hide changed strong identity and rendering restores the accepted actor', () => {
+  const source = createAftercareMovieNfo(input()).bytes.toString('utf8');
+  const rewritten = source.replace('<tmdbid>123</tmdbid>', '<tmdbid>999</tmdbid>');
+  assert.notEqual(source, rewritten);
+  assert.deepEqual(compareMovieNfoPresentation(input({ existingBytes:rewritten })),
+    { matches:false, reasonCode:'actor_missing' });
+  const repaired = renderAftercareMovieNfo(input({ existingBytes:rewritten }));
+  assert.deepEqual(compareMovieNfoPresentation(input({ existingBytes:repaired.bytes })),
+    { matches:true, reasonCode:null });
+  assert.deepEqual(renderAftercareMovieNfo(input({ existingBytes:repaired.bytes })).bytes, repaired.bytes);
+});
+
+test('contradictory identifiers in one actor cannot satisfy an accepted strong identity', () => {
+  const original = createAftercareMovieNfo(input()).bytes.toString('utf8');
+  const rewritten = original.replace('<tmdbid>123</tmdbid>',
+    '<tmdbid>123</tmdbid><uniqueid type="tmdb">999</uniqueid>');
+  assert.deepEqual(compareMovieNfoPresentation(input({existingBytes:rewritten})),
+    {matches:false,reasonCode:'actor_missing'});
+  const repaired = renderAftercareMovieNfo(input({existingBytes:rewritten}));
+  assert.deepEqual(compareMovieNfoPresentation(input({existingBytes:repaired.bytes})),
+    {matches:true,reasonCode:null});
+});

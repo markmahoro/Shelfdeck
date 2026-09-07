@@ -727,12 +727,12 @@
       "relativePath": "types/MetadataObservation/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "3ded0cb30b6ac48ed7153e7c84e14428a8fb08385ee9a0cb4d5c4f127c3b7568"
+        "value": "7e5dbadd3e40ff2bce57e8ab37034e663a1ddf52250c884d5c25fe553c5f3f6c"
       },
       "source": {
         "section": "8.6.19",
         "line": 10992,
-        "lineDigest": "73686b69c5f214a8f4495c879b7da0dda7da5ef6ce47ae3d97e40cfec5502a9e"
+        "lineDigest": "7ef64efe921f1865ec5a0694bc2c429294dc5a099330179194981d24d13f489a"
       }
     },
     {
@@ -837,7 +837,7 @@
       "relativePath": "types/OnDeckProductPackage/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "c372f19732c599b7f01dec24dec1c4fa3cc1013dc5a975e7e2a1e9efe78e0467"
+        "value": "0f9fcecff5fbb3c97d43d8e5049cff75579f72f5da739ad3811828798d534668"
       },
       "source": {
         "section": "8.6.19",
@@ -1465,7 +1465,7 @@
       "relativePath": "types/SettlementDeletionEvidence/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "5bbe86904b83d088192834377e5e7e9865bb73a4c6fb74cc5b3f55611e9bd87a"
+        "value": "1b29f652958b1b7facaee6f3b08da2cae7d21cfd067b5381b4d731bfffba2986"
       },
       "source": {
         "section": "8.6.19",

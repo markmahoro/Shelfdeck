@@ -481,6 +481,7 @@ const special = {
     bindingRevision: positiveInteger(),
     episodeClaims: applicationRef('ArcaMaterialEpisodeClaims'),
   }), 4096),
+  'SettlementDeletionEvidence.preDeleteIdentityDigest': nullable(digest()),
   'SettlementDeletionEvidence.postDeleteReality': boundedRecord('post-delete-reality'),
   'DeletionEvidence.postDeleteReality': boundedRecord('post-delete-reality'),
   'DeletionEvidence.disposition': enumText('deleted', 'authorized_identity_already_absent', 'retained_due_to_active_reference'),
@@ -982,6 +983,7 @@ function metadataObservationSchema() {
     fetchIntentDigest: digest(), sourceKind: enumText('related_nfo', 'provider'), sourceRef: text(),
     sourcePriority: nonNegativeInteger(), identityDigest: digest(), contentProfile: enumText('movie', 'series', 'jav'),
     descriptiveFacts: boundedRecord('descriptive-facts'), providerIdentitySet: providerIdentitySetRecord(),
+    sourceNfoSemantics:nullable(boundedRecord('source-nfo-semantics')),sourceNfoSnapshotDigest:nullable(digest()),
     peopleHints: metadataPeopleHints(), artifactHints: emptyArtifactHints()
   }, { 'x-helix-maxCanonicalBytes': 64 * 1024 });
 }
@@ -1207,6 +1209,7 @@ function onDeckProductPackageSchema() {
     externalRealityObservationRefs: arrayOf(object({
       evidenceId: id(), evidenceDigest: digest()
     }), 256),
+    sourceNfoObservations:arrayOf(ref('MetadataObservation'),16),
     acceptanceRequirementSnapshot: domainRef('AcceptanceRequirementSnapshot'),
     shelfAcceptancePrimaryReadSet: domainRef('ShelfAcceptancePrimaryReadSet'),
     provenanceDigest: digest()

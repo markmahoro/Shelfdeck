@@ -694,7 +694,7 @@ function createEventRuntime(options) {
       if (inputs.authorizationHandle !== undefined) context.authorizationHandle = inputs.authorizationHandle;
       let outcome;
       let dispatchStarted = false;
-      const recoveryBudgetExpiredBeforeDispatch = request.decision === 'safe_retry' &&
+      const recoveryBudgetExpiredBeforeDispatch = ['safe_retry','continue_forward'].includes(request.decision) &&
         entry.manifest.effectClass !== 'pure_observation' && clock() >= attemptContract.deadlineAtMs;
       try {
         outcome = await options.timeoutController.execute(Object.freeze({ executionHandleId: attempt.event_attempt_id,
@@ -708,9 +708,9 @@ function createEventRuntime(options) {
       } catch (error) {
         outcome=cooperativeDeadlineOutcome(entry,error,attemptContract.deadlineAtMs);
         if (!outcome && error?.code === 'P4_EXECUTION_TIMEOUT' && recoveryBudgetExpiredBeforeDispatch && !dispatchStarted) {
-          outcome = Object.freeze({ kind:'failed', failureClass:'integration',
+          outcome = Object.freeze({ kind:'failed', failureClass:request.decision === 'continue_forward' ? 'timeout' : 'integration',
             code:'RECOVERY_EXECUTION_BUDGET_EXHAUSTED',
-            message:'Safe-retry Effect recovery exhausted its durable execution budget before dispatch.',
+            message:'Effect recovery exhausted its durable execution budget before dispatch; unresolved effects require owner attention.',
             retryDirective:'never', evidence:Object.freeze({
               effectId:effect.effect_id, deadlineAtMs:attemptContract.deadlineAtMs,
               recoveryDecision:request.decision, dispatchStarted:false,
@@ -744,7 +744,7 @@ function createEventRuntime(options) {
       }
       if (outcome?.kind === 'failed') {
         if (effect) {
-          if (outcome.failureClass !== 'timeout' && typeof options.effectJournal.abandonUncommitted === 'function') {
+          if (request.decision !== 'continue_forward' && outcome.failureClass !== 'timeout' && typeof options.effectJournal.abandonUncommitted === 'function') {
             options.effectJournal.abandonUncommitted(effect.effect_id);
           } else {
             options.effectJournal.requireReconcile(effect.effect_id);

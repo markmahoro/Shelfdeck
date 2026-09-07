@@ -1,8 +1,8 @@
 # ShelfDeck Clean Helix Current Status
 
-Status: **PROD-064 已完成生产事故恢复、Aftercare 收敛与前端健康闭包；当前无活动实施 Phase。**
+Status: **PROD-065 NFO合同、审计及本地修复验收完成，未部署。本任务未更新生产；以下 PROD-064 生产指标是 09-03 历史闭包，非当前健康声明。**
 
-Last updated: 2026-09-03
+Last updated: 2026-09-07
 
 ## 当前产品与架构
 
@@ -50,8 +50,10 @@ exact-image gate 验证。容器 restart count 为 0；未执行 Formation Reset
 
 ## Gate、风险与下一动作
 
-- 当前 Implementation Gate 关闭，`implementation/CURRENT_PHASE.md` 不含活动 Work Package。
+- 本次 Local Implementation 已获用户授权，但 NFO 连续性/处置合同触发 Design-return；唯一活动包见 `implementation/CURRENT_PHASE.md`。
 - 未经新的明确授权，不执行生产部署、Formation Reset、直接生产 SQLite 修改或真实媒体副作用。
 - 本地 `main` 已 fast-forward 到 PROD-064 完整闭包提交 `dbf3d2af5`；它高于生产 source commit，仅包含后续闭包记录。
 - 下一项工作必须从已登记 UAT/PROD/UX 问题或新的用户目标建立唯一 Phase；若发现 Owner/Handoff/授权冲突，返回
   Architecture Design，不以兼容层或数据修补绕过。
+
+当前只读取证：静水城/绣春刀 Arca Settlement reconcile_required；寒战2 TMDB 网络失败后 frozen。详见 PROD-065 Evidence，未宣称生产恢复。

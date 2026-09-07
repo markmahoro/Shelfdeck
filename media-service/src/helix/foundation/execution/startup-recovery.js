@@ -296,6 +296,12 @@ function createStartupRecovery(options) {
         const attemptAbandoned = attempt && attempt.state === 'completed' &&
           ['failed', 'cancelled'].includes(attempt.outcome_kind);
         if ((eventAbandoned || attemptAbandoned) &&
+            ['destructive_commit','material_commit'].includes(effect.effect_class)) {
+          // A terminal owner failure does not prove that earlier filesystem effects never happened.
+          // Retain unresolved journal evidence; do not restart a terminal Event or fault the entire host.
+          continue;
+        }
+        if ((eventAbandoned || attemptAbandoned) &&
             typeof options.effectJournal?.abandonUncommitted === 'function') {
           options.effectJournal.abandonUncommitted(effect.effect_id);
           continue;

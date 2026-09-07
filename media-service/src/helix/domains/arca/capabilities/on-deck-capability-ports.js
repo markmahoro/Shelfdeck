@@ -165,6 +165,15 @@ function placementPreconditionFailureOutcome(error){
     evidence:Object.freeze({errorName:String(error?.name||'Error'),errorCode:error.code})});
 }
 
+function settlementPreconditionFailureOutcome(error) {
+  if (!['CLEAN_ARCA_SETTLEMENT_REALITY_DRIFT', 'CLEAN_ARCA_SETTLEMENT_UNKNOWN_MEMBER',
+    'CLEAN_ARCA_SETTLEMENT_MAPPING_INVALID', 'CLEAN_ARCA_SETTLEMENT_MAPPING_DRIFT',
+    'CLEAN_ARCA_SETTLEMENT_HANDLE_INVALID', 'CLEAN_ARCA_FINAL_NFO_SEMANTIC_DRIFT',
+    'CLEAN_ARCA_FINAL_NFO_BASIS_MISSING'].includes(error?.code)) return null;
+  return Object.freeze({kind:'failed',failureClass:'settlement_precondition',code:error.code,
+    message:error.message,retryDirective:'never',evidence:Object.freeze({errorCode:error.code})});
+}
+
 function createOnDeckCapabilityPorts(options){const now=options.now||Date.now,acceptance=createHandoffBAcceptanceStore(options),onDeck=createOnDeckStore(options),
   controls=createMaterialControlProjectionPort(options),inbox=createInboxCoordinator(options);
   const effectAt=(execution)=>Number.isSafeInteger(execution.effectOccurredAtMs)?execution.effectOccurredAtMs:now();
@@ -330,7 +339,7 @@ function createOnDeckCapabilityPorts(options){const now=options.now||Date.now,ac
       priorPlacementReceipt:priorOnDeckPlacementReceipt(options,execution)});
     return committedOutcome(execution,C.placement,body,at,'material_commit');}catch(error){const failed=placementPreconditionFailureOutcome(error);if(failed)return failed;throw error;}},
     validateResult(_c,o){if(o?.result?.receiptKind!=='placement_switched')throw new TypeError('Placement Switch Receipt is invalid.');}});
-  ports[C.settlement]=Object.freeze({validateInputs(c){requireNamed(c,['oldPrimaryStructuralExclusiveRelatedHandleList','inputSettlementApproval']);},async execute(execution){const n=execution.namedInputs,m=n.oldPrimaryStructuralExclusiveRelatedHandleList.members[0],at=effectAt(execution),c=settlementCtx(execution,m.materialKey),
+  ports[C.settlement]=Object.freeze({validateInputs(c){requireNamed(c,['oldPrimaryStructuralExclusiveRelatedHandleList','inputSettlementApproval']);},async execute(execution){try{const n=execution.namedInputs,m=n.oldPrimaryStructuralExclusiveRelatedHandleList.members[0],at=effectAt(execution),c=settlementCtx(execution,m.materialKey),
     settled=await options.inventoryPort.settleInputAsync({materialHandle:m.materialHandle,approval:n.inputSettlementApproval,
       finalMaterialKey:m.finalMaterialKey,finalTargetLocation:m.finalTargetLocation,
       settlementExpectation:m.settlementExpectation,sourceToFinalMappingDigest:m.sourceToFinalMappingDigest,
@@ -350,7 +359,7 @@ function createOnDeckCapabilityPorts(options){const now=options.now||Date.now,ac
       {key:'old_directory_disposition',value:settled.oldDirectoryDisposition}]),postBase={schemaRef:'arca://types/PostDeleteReality/v1',schemaVersion:1,
       recordKind:'post-delete-reality',entries},postDeleteReality=Object.freeze({...postBase,recordDigest:canonicalDigest(postBase)}),
       completed=Object.freeze({...result,postDeleteReality,payloadDigest:canonicalDigest({...base,postDeleteReality})});
-    return committedOutcome(execution,C.settlement,completed,at,'destructive_commit');},validateResult(_c,o){if(!o?.result?.materialKey)throw new TypeError('Settlement Evidence is invalid.');}});
+    return committedOutcome(execution,C.settlement,completed,at,'destructive_commit');}catch(error){const failed=settlementPreconditionFailureOutcome(error);if(failed)return failed;throw error;}},validateResult(_c,o){if(!o?.result?.materialKey)throw new TypeError('Settlement Evidence is invalid.');}});
   ports[C.fulfillment]=Object.freeze({validateInputs(x){requireNamed(x,['finalReality','finalInventoryDecision','shelfStandard']);},async execute(execution){const c=ctx(execution),n=execution.namedInputs,at=now(),
     reality=await options.inventoryPort.readFinalAsync(finalReadRequest(execution,c,at)),finalRealityDigest=reality.realityDigest,
     basisDigest=canonicalDigest({decision:n.finalInventoryDecision,priorFinalRealityDigest:n.finalReality.realityDigest,finalRealityDigest,standard:n.shelfStandard}),
@@ -389,4 +398,4 @@ function createOnDeckCapabilityPorts(options){const now=options.now||Date.now,ac
 }
 
 module.exports=Object.freeze({createOnDeckCapabilityPorts,readAftercarePlacementAuthority,nfoPresentationBasis,
-  priorOnDeckPlacementReceipt,placementPreconditionFailureOutcome});
+  priorOnDeckPlacementReceipt,placementPreconditionFailureOutcome,settlementPreconditionFailureOutcome});

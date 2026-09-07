@@ -178,10 +178,11 @@ function buildMetadataObservation(value) {
     basisDigest:intent.intentDigest, payloadDigest:'', observedAtMs:integer(value?.observedAtMs, 'observedAtMs'),
     fetchIntentDigest:intent.intentDigest, sourceKind:intent.sourceKind, sourceRef:metadataSourceRef(intent),
     sourcePriority:intent.sourcePriority, identityDigest:intent.resolvedIdentityDigest, contentProfile:intent.contentProfile,
+    sourceNfoSemantics:value?.sourceNfoSemantics || null,sourceNfoSnapshotDigest:value?.sourceNfoSnapshotDigest || null,
     descriptiveFacts:Object.freeze(descriptiveFacts), providerIdentitySet:Object.freeze(providerIdentitySet),
     peopleHints:Object.freeze([...(value?.peopleHints || [])].slice(0, 64)), artifactHints:Object.freeze([]) };
   result.evidenceId = canonicalDigest({ schema:'libra.metadata-observation-evidence-id@1',
-    fetchIntentDigest:result.fetchIntentDigest, descriptiveFactsDigest:descriptiveFacts.recordDigest,
+    fetchIntentDigest:result.fetchIntentDigest, sourceNfoSemanticsDigest:result.sourceNfoSemantics?.recordDigest || null, descriptiveFactsDigest:descriptiveFacts.recordDigest,
     providerIdentitySetDigest:providerIdentitySet.recordDigest });
   result.payloadDigest = canonicalDigest(Object.fromEntries(Object.entries(result).filter(([key]) => key !== 'payloadDigest')));
   return Object.freeze(bytes(result, 64 * 1024, 'P9_METADATA_OBSERVATION_SIZE'));

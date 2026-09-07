@@ -635,6 +635,8 @@ async function createScenario(t, scenario) {
   fs.writeFileSync(path.join(paths.admin, 'index.html'), '<div id="root"></div>');
   fs.writeFileSync(path.join(paths.field, 'UAT131 Movie (2026).mkv'),
     Buffer.from('uat-131-disposable-movie'));
+  if (scenario.name === 'actor-only') fs.writeFileSync(path.join(paths.field, 'UAT131 Movie (2026).nfo'),
+    '<movie><title>UAT131 Movie</title><year>2026</year><tmdbid>913100</tmdbid></movie>');
   const initialized = initializeCleanData({
     dataDir:paths.data, confirmation:'INITIALIZE_HELIX_CLEAN_V1', secretRoot:SECRET,
   });
@@ -786,6 +788,20 @@ test('UAT-131 real Admin HTTP admits exact defects and reaches one On-deck commi
       finalCandidate = recovered;
     }
 
+    let frozenNfoObservation = null;
+    if (scenario.name === 'actor-only') {
+      const observed = new Database(harness.databasePath, {readonly:true});
+      try {
+        const rows = observed.prepare("SELECT result_json FROM fx_event_result_bindings WHERE json_extract(result_json,'$.sourceKind')='related_nfo' AND json_extract(result_json,'$.producerRef')='libra.product_metadata.fetch@1'").all();
+        assert.equal(rows.length,1,'NFO source must be observed before external rewrite');
+        frozenNfoObservation = JSON.parse(rows[0].result_json);
+        assert.ok(frozenNfoObservation.sourceNfoSemantics?.recordDigest);
+      } finally {observed.close();}
+      const location = path.join(harness.paths.field, 'UAT131 Movie (2026).nfo');
+      fs.writeFileSync(location + '.tmp', '<movie><tmdbid>913100</tmdbid><title><![CDATA[UAT131 Movie]]></title><year>2026</year><dateadded>2026-09-07</dateadded></movie>');
+      fs.renameSync(location + '.tmp',location);
+      await harness.restart();
+    }
     const admitted = await admit(harness.host, harness.cookie, runId, finalCandidate,
       'uat-131-admit-' + suffix + '-final');
     const finalManifest = admitted.authorizedDefectManifest;
@@ -832,6 +848,13 @@ test('UAT-131 real Admin HTTP admits exact defects and reaches one On-deck commi
     try {
       assertCompletedEvidence(database, scenario.expectedCodes, finalManifest,
         originalSelection);
+      if (frozenNfoObservation) {
+        const provenance = JSON.parse(database.prepare('SELECT production_provenance_json FROM libra_product_packages').get().production_provenance_json);
+        assert.deepEqual(provenance.sourceNfoObservations,[frozenNfoObservation],
+          'Handoff B must carry the original durable NFO witness across restart');
+        assert.equal(fs.existsSync(path.join(harness.paths.field,'UAT131 Movie (2026).nfo')),false,
+          'Semantically unchanged rewritten source must be settled before On-deck commit');
+      }
       stable = sideEffectSnapshot(database);
     } finally {
       database.close();

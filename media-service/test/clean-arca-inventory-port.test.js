@@ -31,6 +31,7 @@ const { priorOnDeckPlacementReceipt } = require('../src/helix/domains/arca/capab
 const schemaManifest = require('../src/helix/foundation/persistence/generated/clean-schema.manifest.json');
 
 const EMPTY_CLAIMS = Object.freeze([]);
+const { observeNfoReferenceSemantics } = require('../src/helix/contracts/nfo-reference-semantics');
 const EMPTY_CLAIMS_DIGEST = canonicalDigest({
   schema:'libra.production-material-episode-claims@1', items:EMPTY_CLAIMS,
 });
@@ -504,7 +505,7 @@ test('same-root Stage/Switch preserves exact final members, merges new members, 
   }
 });
 
-test('On-deck recovery reuses exact settled final members while repairing a drifted presentation member', async () => {
+test('On-deck recovery cannot overwrite an NFO using only a claimed managed pathname', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'clean-arca-ondeck-repair-'));
   try {
     const targetRoot = path.join(root, 'shelf');
@@ -556,14 +557,14 @@ test('On-deck recovery reuses exact settled final members while repairing a drif
     const stagedInventoryVerification = await port.verifyStaged({
       ...recoveryRequest, stagedInventoryManifest,
     });
-    await port.switchPlacement({
+    await assert.rejects(port.switchPlacement({
       ...recoveryRequest, stagedInventoryVerification,
       targetBindings:{ bindingSetDigest:'bindings-recovery' },
       replacedInputSetDigest:'inputs-recovery',
-    });
+    }),{code:'CLEAN_ARCA_TARGET_OCCUPIED'});
 
     assert.equal(fs.readFileSync(primaryTarget, 'utf8'), 'movie-bytes');
-    assert.equal(fs.readFileSync(nfoTarget, 'utf8'), 'canonical-nfo');
+    assert.equal(fs.readFileSync(nfoTarget, 'utf8'), 'externally-rewritten-nfo');
     assert.equal(fs.existsSync(primarySource), false);
   } finally {
     fs.rmSync(root, { recursive:true, force:true });
@@ -1480,3 +1481,94 @@ test('in-flight legacy Target Commit Slot remains addressable until Switch', asy
     fs.rmSync(root, { recursive:true, force:true });
   }
 });
+
+for (const method of ['settleInput', 'settleInputAsync', 'switchPlacement']) for (const sameRoot of (method === 'switchPlacement' ? [true] : [false, true])) {
+  for (const change of ['inplace', 'atomic', 'title', 'identity', 'missing-basis', 'unmapped']) {
+    test(`NFO settlement ${method} sameRoot=${sameRoot} preserves reference facts: ${change}`, async () => {
+      const root = fs.mkdtempSync(path.join(os.tmpdir(), 'nfo-source-continuity-'));
+      try {
+        const targetRoot = path.join(root, 'shelf'), targetDirectory = path.join(targetRoot, 'Example');
+        const sourceDirectory = sameRoot ? targetDirectory : path.join(root, 'source');
+        fs.mkdirSync(sourceDirectory, {recursive:true}); fs.mkdirSync(targetDirectory, {recursive:true});
+        const source = path.join(sourceDirectory, method === 'switchPlacement' ? 'Example.nfo' : 'legacy.nfo');
+        const original = '<movie><title>Example</title><year>2025</year><tmdbid>123</tmdbid><genre>Drama</genre></movie>';
+        fs.writeFileSync(source, original);
+        const sourceIdentity = identity(source, 'mount');
+        const sourceNfoSemantics = observeNfoReferenceSemantics(Buffer.from(original));
+        const observationBody = {sourceKind:'related_nfo',sourceRef:'ref-nfo',sourceNfoSemantics};
+        const sourceNfoObservation = {...observationBody,payloadDigest:canonicalDigest(observationBody)};
+        const workspace = path.join(root, 'product');fs.mkdirSync(workspace);
+        const primary = path.join(workspace, 'Example.mkv'), productNfo = path.join(workspace, 'movie.nfo');
+        fs.writeFileSync(primary, 'video');
+        const finalXml = original.replace('</movie>', '<plot>Enriched plot</plot></movie>');
+        fs.writeFileSync(productNfo, finalXml);
+        const primaryMember = member(primary, 'primary_payload', 'mount');
+        const nfoMember = member(productNfo, 'metadata_sidecar', 'mount');
+        const sourceMember = {materialKey:sourceIdentity.materialKey,physicalIdentity:sourceIdentity,
+          contextRole:'related_input',sourceRelatedReferenceId:'ref-nfo',location:source,
+          finalProductMaterialKey:nfoMember.materialKey,sourceNfoObservation};
+        if (change === 'missing-basis') sourceMember.sourceNfoObservation = null;
+        if (change === 'unmapped') sourceMember.contextRole = 'original_input';
+        const packageValue = {onDeckPackageId:'package',shelfId:'shelf',resolvedIdentitySnapshot:{factValue:{title:'Example'}},
+          productStructureSnapshot:{structureKind:'single'},productMaterialManifest:{members:[primaryMember,nfoMember],manifestDigest:'manifest'},
+          offloadContextManifest:{members:[sourceMember],manifestDigest:'offload'},
+          productionProvenance:{sourceNfoObservations:change === 'missing-basis' ? [] : [sourceNfoObservation]}};
+        const shelf = {shelfId:'shelf',status:'active',currentPlacementRevision:1,
+          target:{endpointId:'local',rootLocation:targetRoot,mountScopeId:'mount',mountScopeRevision:1},
+          placement:{value:{folderTemplate:'{title}'}}};
+        const port = createCleanArcaInventoryPort({schemaManifest,unitOfWork:{},workspaceRoot:workspace});
+        const finalInventoryRequest = {onDeckRunId:'run',custodyId:'custody',shelf,onDeckProductPackage:packageValue,
+          observedAtMs:1,replayCommitted:method !== 'switchPlacement',nfoPresentationBasis:{metadata:{entries:[{key:'title',value:'Example'},
+            {key:'year',value:'2025'},{key:'plot',value:'Enriched plot'},{key:'genre',value:'Drama'}]},cast:{relations:[]},
+            identity:{provider:'tmdb',providerKey:'123'}}};
+        const decision = port.prepare(finalInventoryRequest);finalInventoryRequest.finalInventoryDecision = decision;
+        for (const item of decision.members) {
+          if (method === 'switchPlacement' && item.sourceMaterialKey === nfoMember.materialKey) continue;
+          fs.copyFileSync(item.sourceMaterialKey === nfoMember.materialKey ? productNfo : primary, item.targetLocation);
+        }
+        const target = decision.members.find((item) => item.sourceMaterialKey === nfoMember.materialKey);
+        let placementRequest = null;
+        if (method === 'switchPlacement') {
+          assert.equal(target.targetLocation,source);
+          const targetCommitSlotHandle = port.prepareSlot(finalInventoryRequest);
+          const stagedInventoryManifest = await port.stage({...finalInventoryRequest,targetCommitSlotHandle});
+          const stagedInventoryVerification = await port.verifyStaged({...finalInventoryRequest,stagedInventoryManifest});
+          placementRequest = {...finalInventoryRequest,stagedInventoryVerification,targetBindings:{bindingSetDigest:'bindings'},replacedInputSetDigest:'inputs'};
+        }
+        let rewritten = original.replace('<title>Example</title>', '<title><![CDATA[Example]]></title>')
+          .replace('</movie>', '<genre>Drama</genre><dateadded>2026-09-05</dateadded></movie>');
+        if (change === 'title') rewritten = rewritten.replace('CDATA[Example]', 'CDATA[Wrong movie]');
+        if (change === 'identity') rewritten = rewritten.replace('<tmdbid>123', '<tmdbid>999');
+        if (change === 'atomic') {fs.writeFileSync(source + '.tmp', rewritten);fs.renameSync(source + '.tmp', source);}
+        else fs.writeFileSync(source, rewritten);
+        const currentIdentity = identity(source, 'mount');
+        const request = {materialHandle:{schemaRef:'helix://contracts/types/PhysicalMaterialReadHandle/v1',ownerDomain:'arca',
+          ownerScope:{scopeType:'on_deck_custody',scopeId:'custody'},location:source,identity:sourceIdentity,expectedSizeBytes:sourceIdentity.sizeBytes},
+          approval:{approvalId:'approval'},finalInventoryRequest,finalMaterialKey:nfoMember.materialKey,
+          finalTargetLocation:target.targetLocation,settlementExpectation:'remove_after_place',sourceToFinalMappingDigest:'mapping'};
+        if (placementRequest) {
+          if (['inplace','atomic'].includes(change)) {
+            await port.switchPlacement(placementRequest);
+            assert.equal(fs.readFileSync(source,'utf8'),finalXml);
+          } else {
+            await assert.rejects(port.switchPlacement(placementRequest),{code:'CLEAN_ARCA_TARGET_OCCUPIED'});
+            assert.equal(fs.readFileSync(source,'utf8'),rewritten);
+          }
+          return;
+        }
+        if (['inplace','atomic'].includes(change)) {
+          const result = await port[method](request);
+          assert.equal(result.disposition,'settled_to_final');assert.equal(fs.existsSync(source),false);
+          assert.equal(result.preDeleteIdentityDigest,canonicalDigest(currentIdentity));
+          const recovered = await port[method](request);
+          assert.equal(recovered.disposition,'settled_to_final');
+          assert.equal(recovered.preDeleteIdentityDigest,null,'recovery must not invent the deleted physical version');
+        } else {
+          await assert.rejects(async () => port[method](request), {code:'CLEAN_ARCA_SETTLEMENT_REALITY_DRIFT'});
+          assert.equal(fs.readFileSync(source,'utf8'),rewritten);
+        }
+        assert.equal(fs.readFileSync(target.targetLocation,'utf8'),finalXml);
+      } finally {fs.rmSync(root,{recursive:true,force:true});}
+    });
+  }
+}

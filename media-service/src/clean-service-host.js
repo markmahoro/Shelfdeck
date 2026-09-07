@@ -965,23 +965,9 @@ function createPlatformIntegrationServices(options) {
 
 async function readBoundedRoutingNfo(handle) {
   if (!handle || typeof handle.location !== 'string') throw new CleanServiceHostError('LIBRA_ROUTING_NFO_HANDLE_INVALID', 'Routing NFO Read Handle is invalid.');
-  const opened = await fs.promises.open(handle.location, 'r');
-  try {
-    const before = await opened.stat({ bigint: true });
-    if (!before.isFile() || before.size > 256n * 1024n || Number(before.size) !== Number(handle.expectedSizeBytes)) {
-      throw new CleanServiceHostError('LIBRA_ROUTING_NFO_BOUND', 'Routing NFO must be one bounded regular file.');
-    }
-    const buffer = Buffer.alloc(Number(before.size));
-    const read = await opened.read(buffer, 0, buffer.length, 0);
-    if (read.bytesRead !== buffer.length) throw new CleanServiceHostError('LIBRA_ROUTING_NFO_SHORT_READ', 'Routing NFO changed during bounded read.');
-    const after = await opened.stat({ bigint: true });
-    if (before.ino !== after.ino || before.size !== after.size || before.mtimeNs !== after.mtimeNs || before.ctimeNs !== after.ctimeNs) {
-      throw new CleanServiceHostError('LIBRA_ROUTING_NFO_STAT_FENCE', 'Routing NFO changed during bounded read.');
-    }
-    return buffer.toString('utf8');
-  } finally {
-    await opened.close();
-  }
+  const { readBoundedFileSnapshot } = require('./helix/integrations/bounded-material-fingerprint');
+  const snapshot = await readBoundedFileSnapshot(handle.location, 256 * 1024);
+  return snapshot.bytes.toString('utf8');
 }
 
 function cookieValue(header, name) {

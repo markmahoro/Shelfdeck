@@ -1,9 +1,11 @@
 'use strict';
+const { observeNfoReferenceSemantics } = require('./helix/contracts/nfo-reference-semantics');
+const { nfoXmlText } = require('./helix/contracts/nfo-xml-text');
 
 const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
-const { computeBoundedMaterialFingerprintSync } = require('./helix/integrations/bounded-material-fingerprint');
+const { computeBoundedMaterialFingerprintSync, readBoundedFileSnapshotSync } = require('./helix/integrations/bounded-material-fingerprint');
 const {
   canonicalDigest,
   canonicalJson,
@@ -106,8 +108,7 @@ function directNfoChildren(xml, expectedRoot) {
 
 function directNfoText(children, tag, predicate = () => true) {
   const node = children.find((item) => item.name === tag && predicate(item));
-  if (!node || /<(?!\!\[CDATA\[)/.test(node.raw)) return undefined;
-  return node.raw.replace(/^<!\[CDATA\[([\s\S]*)\]\]>$/, '$1').trim() || undefined;
+  return node ? nfoXmlText(node.raw) || undefined : undefined;
 }
 
 function directNfoTexts(children, tag, predicate = () => true) {
@@ -201,7 +202,8 @@ function mergeNfoActors(xml, rootName, relations) {
     const personId = tmdbPersonId(relation);
     if (personId && records.some((item) => item.personId === personId)) continue;
     const normalizedName = normalizedPersonName(relation.displayName);
-    const sameName = records.find((item) => item.normalizedName === normalizedName);
+    const sameName = records.find((item) => item.normalizedName === normalizedName &&
+      (!personId || !item.personId || item.personId === personId));
     if (sameName) {
       if (personId && !sameName.personId) {
         const updated = sameName.raw.replace(/\s*<\/actor>\s*$/i,
@@ -447,7 +449,16 @@ function createCleanProductProductionPort(options = {}) {
   }
 
   function issuePhysicalReadHandle(value) {
-    const reality = exactPhysicalReality(value);
+    const reference = value.nfoReference;
+    if (reference && (reference.role !== 'nfo' || !reference.primaryMaterialKey || !reference.referenceId ||
+        !reference.referenceDigest || normalizedLocation(reference.location) !== normalizedLocation(value.location) ||
+        canonicalJson(reference.identity) !== canonicalJson(value.physicalIdentity)))
+      fail('CLEAN_PRODUCT_NFO_REFERENCE_INVALID', 'NFO observation authority requires the exact immutable reference.');
+    // The handle binds immutable reference provenance. Current bytes are observed by the executor,
+    // never by replaying a historical Plan projection against a mutable filesystem snapshot.
+    const reality = reference
+      ? {location:normalizedLocation(reference.location),stat:{mtimeNs:0n,ctimeNs:0n}}
+      : exactPhysicalReality(value);
     const identity = Object.freeze({
       schemaRef: 'helix://contracts/types/PhysicalMaterialIdentity/v2',
       schemaVersion: 2,
@@ -467,8 +478,8 @@ function createCleanProductProductionPort(options = {}) {
       expectedSizeBytes: value.sizeBytes,
       expectedMtimeNs: Number(reality.stat.mtimeNs / 1_000_000n),
       expectedCtimeNs: Number(reality.stat.ctimeNs / 1_000_000n),
-      fingerprintVerifiedAtMs: value.runCreatedAtMs,
-      readScope: 'material_read',
+      fingerprintVerifiedAtMs: reference ? 0 : value.runCreatedAtMs,
+      readScope: reference ? 'related_nfo_observation' : 'material_read',
       expiresAtMs: 4_102_444_800_000,
       fenceDigest: '',
     };
@@ -481,6 +492,7 @@ function createCleanProductProductionPort(options = {}) {
     });
     basis.fenceDigest = canonicalDigest({
       schema: 'libra.run-input-read-handle-fence@1',
+      ...(reference ? {relatedReferenceDigest:reference.referenceDigest} : {}),
       ...Object.fromEntries(Object.entries(basis).filter(([key]) => key !== 'fenceDigest')),
       runExecutionBasisDigest: value.runExecutionBasisDigest,
     });
@@ -556,23 +568,9 @@ function createCleanProductProductionPort(options = {}) {
     }
     const location = normalizedLocation(value.reference.location);
     const identity = value.reference.identity;
-    const bounded = computeBoundedMaterialFingerprintSync(location);
-    if (!identity || bounded.contentFingerprint !== identity.contentFingerprint ||
-        bounded.fingerprintAlgorithm !== identity.fingerprintAlgorithm ||
-        bounded.fingerprintVersion !== identity.fingerprintVersion ||
-        Number(bounded.stat.size) !== identity.sizeBytes ||
-        String(bounded.stat.ino) !== identity.inode || identity.sizeBytes > 256 * 1024) {
-      fail('CLEAN_PRODUCT_NFO_REALITY_MISMATCH',
-        'Related NFO bytes do not match the immutable Handoff A reference.');
-    }
-    const before = fs.statSync(location, { bigint:true });
-    const bytes = fs.readFileSync(location);
-    const after = fs.statSync(location, { bigint:true });
-    if (before.ino !== after.ino || before.size !== after.size ||
-        before.mtimeNs !== after.mtimeNs || before.ctimeNs !== after.ctimeNs) {
-      fail('CLEAN_PRODUCT_NFO_STAT_FENCE',
-        'Related NFO changed during its bounded read.');
-    }
+    const bounded = readBoundedFileSnapshotSync(location, 256 * 1024);
+    if (!identity) fail('CLEAN_PRODUCT_NFO_REFERENCE_INVALID', 'Related NFO requires its immutable association evidence.');
+    const bytes = bounded.bytes;
     const xml = bytes.toString('utf8');
     const entries = [];
     const rootName = /<tvshow(?:\s|>)/i.test(xml) ? 'tvshow' : /<episodedetails(?:\s|>)/i.test(xml)
@@ -615,7 +613,9 @@ function createCleanProductProductionPort(options = {}) {
     }
     entries.sort((left, right) => Buffer.compare(Buffer.from(left.key), Buffer.from(right.key)));
     const peopleHints = parseRelatedNfoPeopleHints(xml);
-    return Object.freeze({ bytes, entries: Object.freeze(entries), peopleHints: Object.freeze(peopleHints) });
+    return Object.freeze({ bytes, sourceNfoSnapshotDigest:canonicalDigest({schema:'libra.nfo-source-snapshot@1',location,
+      inode:String(bounded.stat.ino),sizeBytes:Number(bounded.stat.size),mtimeNs:String(bounded.stat.mtimeNs),
+      ctimeNs:String(bounded.stat.ctimeNs),contentFingerprint:bounded.contentFingerprint}), sourceNfoSemantics:observeNfoReferenceSemantics(bytes), entries: Object.freeze(entries), peopleHints: Object.freeze(peopleHints) });
   }
 
   async function fetchProvider(intent, integrationHandle) {

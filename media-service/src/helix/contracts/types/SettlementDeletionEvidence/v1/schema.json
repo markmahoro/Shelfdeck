@@ -53,9 +53,16 @@
       "maxLength": 256
     },
     "preDeleteIdentityDigest": {
-      "type": "string",
-      "minLength": 1,
-      "pattern": "^[a-f0-9]{64}$"
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
     },
     "postDeleteReality": {
       "type": "object",

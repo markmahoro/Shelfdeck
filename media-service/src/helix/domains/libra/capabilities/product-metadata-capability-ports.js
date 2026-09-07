@@ -108,6 +108,7 @@ function createProductMetadataCapabilityPorts(options) {
         });
         source = Object.freeze({
           descriptiveEntries: nfo.entries,
+          sourceNfoSemantics:nfo.sourceNfoSemantics,sourceNfoSnapshotDigest:nfo.sourceNfoSnapshotDigest,
           providerIdentities: Object.freeze([]),
           peopleHints: Object.freeze(nfo.peopleHints || []),
           artifactHints: Object.freeze([]),
@@ -126,6 +127,7 @@ function createProductMetadataCapabilityPorts(options) {
       return outcome(buildMetadataObservation({
         intent,
         descriptiveEntries: source.descriptiveEntries,
+        sourceNfoSemantics:source.sourceNfoSemantics || null,sourceNfoSnapshotDigest:source.sourceNfoSnapshotDigest || null,
         providerIdentities: source.providerIdentities,
         peopleHints: source.peopleHints,
         artifactHints: source.artifactHints,
