@@ -29,7 +29,9 @@
 
 02:27（Asia/Shanghai）生产仍为275923039f；54份NFO均可读，其中3份与存储指纹不同。2个既存active Case中仅1个FFmpeg实际运行，Top Gun约58%，另一个等待资源；3个NFO Case仍queued、没有Work。NAS /vol1约34GiB可用。未访问Emby。
 
-上线前须完成最终service/web校验、Linux镜像及生产副本readiness、标准上传checksum/dry-run/apply；检查现有长转码，避免多轮部署反复丢失其临时进度。上线后必须核对收藏/文件保留、NFO三项收敛、queued不可见、黄灯对应Case、实际分页与进度响应，最后清理本任务临时文件并保留回滚备份。
+02:44补充：提交7c712fc581的Linux镜像在无网络、无媒体挂载的生产副本启动ready，关键HTTP均200。三条真实NFO Observation在独立数据库副本通过Coordinator→记录Command→旧queued Case失效的演练；各自Inventory推进1版，54部收藏和所有主视频标识/Facts/人物关系保留、无新Case/Work，integrity ok、FK 0。副本SHA256为`d6c8537fe43df92125cd57d71a8bf1dd199962f9b7c522593d1d000f981f21d6`。
+
+发布前追加相同terminal时间的分页测试：SQL分页与跨状态合并使用一致的terminal/created/ID顺序，79个可见Case逐页读取无重复/缺失。待发布镜像包含此小修；前一候选只上传、未部署。仍须完成最终exact-image验证及标准apply，检查现有长转码，避免多轮部署反复丢失其临时进度。上线后必须核对收藏/文件保留、NFO三项收敛、queued不可见、黄灯对应Case、实际分页与进度响应，最后清理本任务临时文件并保留回滚备份。
 
 ## 未关闭的审计项
 

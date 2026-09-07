@@ -36,7 +36,8 @@ function createCareWorkStore(options){
         rows.push(...repo.invoke(state==='invalidated'?'invalidated_page':'page',{state,offset:offsets[state],limit,
           ...(state==='invalidated'?{excluded_terminal_reason_code:'queued_basis_changed'}:{})}));}
       rows.sort((a,b)=>(a.state==='active'?0:1)-(b.state==='active'?0:1)||
-        Number(b.terminal_at_ms||b.created_at_ms)-Number(a.terminal_at_ms||a.created_at_ms)||a.aftercare_case_id.localeCompare(b.aftercare_case_id));
+        Number(b.terminal_at_ms||0)-Number(a.terminal_at_ms||0)||Number(b.created_at_ms)-Number(a.created_at_ms)||
+        (a.aftercare_case_id<b.aftercare_case_id?-1:a.aftercare_case_id>b.aftercare_case_id?1:0));
       const selected=rows.slice(0,limit);for(const row of selected)offsets[row.state]++;
       const more=states.some(state=>offsets[state]<(stateCounts[state]||0));
       return Object.freeze({items:Object.freeze(selected.map(map)),counts,nextCursor:more?

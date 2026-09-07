@@ -38,6 +38,13 @@ test('Care work pages prioritize live Cases and read only the requested page',()
   reads.length=0;
   assert.equal(app.list({view:'work',aftercareCaseId:'case-2'}).items[0].aftercareCaseId,'case-2');
   assert.deepEqual(reads,['entry-2']);
+  // A batch may finish several Cases at exactly the same millisecond.
+  // The merge order must match each SQL page before offsets are advanced.
+  seed.prepare("UPDATE arca_aftercare_cases SET terminal_at_ms=500 WHERE state='resolved'").run();
+  const seen=[];let cursor;
+  do{const page=workStore.list({limit:3,cursor});seen.push(...page.items.map(item=>item.aftercareCaseId));cursor=page.nextCursor;}while(cursor);
+  assert.equal(seen.length,79);assert.equal(new Set(seen).size,79);
+  assert.deepEqual(seen.slice(0,4),['case-0','case-79','case-78','case-77']);
   }finally{seed.close();kernel.close();fs.rmSync(root,{recursive:true,force:true});}
 });
 
