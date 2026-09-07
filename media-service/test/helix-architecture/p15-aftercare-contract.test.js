@@ -228,6 +228,17 @@ test('a terminal Case from an obsolete Care Basis remains history but cannot col
   assert.equal(health.activeCase, null);
 });
 
+test('new verified health supersedes a failed Case without rewriting that Case history',()=>{
+  const care={aftercareCaseId:'failed-case',careBasisDigest:digest('a'),state:'unresolved',terminalAtMs:20};
+  const history={cases:[care],findings:[],assessments:['custody','presentation','conformance'].map(kind=>assessment(kind,10))};
+  assert.equal(projectHealth(context(),history,30).state,'attention_required');
+  history.assessments[0]=assessment('custody',30);
+  assert.equal(projectHealth(context(),history,30).state,'attention_required');
+  history.assessments=['custody','presentation','conformance'].map(kind=>assessment(kind,30));
+  assert.equal(projectHealth(context(),history,30).state,'healthy');
+  assert.equal(care.state,'unresolved');
+});
+
 test('Care Disposition permits repair only when every blocking Finding is repairable', () => {
   assert.equal(dispositionFromAssessments([{ findings:[
     { repairability:'auto_repair' }, { repairability:'auto_repair' },

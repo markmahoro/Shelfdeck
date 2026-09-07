@@ -166,13 +166,16 @@ function createAftercareProcessCoordinator(options){
     }
     if(active)return progressCase(c,active);
     const health=projectHealth(c,history,now()),forced=typeof request.idempotencyKey==='string'&&request.idempotencyKey.length>0,
-      deep=forced||health.state==='never_assessed'||health.nextDeepDueAtMs<=now(),
-      cycleId=forced?'manual:'+request.idempotencyKey:(deep?'deep:':'custody:')+Math.floor(now()/(deep?7*24*60*60*1000:24*60*60*1000)),
-      notDue=!forced&&health.state!=='never_assessed'&&Math.min(health.nextCustodyDueAtMs,health.nextDeepDueAtMs)>now();
+      custodyGapNeedsDeep=health.dimensions.custody.findings.some(item=>item.repairability==='auto_repair')&&
+        health.dimensions.custody.assessedAtMs>Math.min(health.dimensions.presentation.assessedAtMs||0,health.dimensions.conformance.assessedAtMs||0),
+      deep=forced||custodyGapNeedsDeep||health.state==='never_assessed'||health.nextDeepDueAtMs<=now(),
+      cycleId=forced?'manual:'+request.idempotencyKey:custodyGapNeedsDeep?'custody-gap:'+health.dimensions.custody.evidenceDigest:
+        (deep?'deep:':'custody:')+Math.floor(now()/(deep?7*24*60*60*1000:24*60*60*1000)),
+      notDue=!forced&&!custodyGapNeedsDeep&&health.state!=='never_assessed'&&Math.min(health.nextCustodyDueAtMs,health.nextDeepDueAtMs)>now();
     let assessment;
     if(notDue){
       const findings=Object.values(health.dimensions).flatMap((item)=>item.findings);
-      if(health.state!=='unhealthy'||dispositionFromAssessments([{findings}])!=='auto_repair')
+      if(dispositionFromAssessments([{findings}])!=='auto_repair')
         return Object.freeze({kind:'not_due',shelfEntryId,health});
       assessment=completedAssessmentForHealth(c,health);
       if(!assessment)return Object.freeze({kind:'assessment_provenance_unavailable',shelfEntryId,health});

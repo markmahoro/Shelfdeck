@@ -133,6 +133,9 @@ test('a committed repair assessment reaches Case admission before its next perio
     assert.equal(value.caseRequests.length,1);
     assert.equal(value.caseRequests[0].basisInputs.find(item=>item.inputKind==='health_assessment_work').aggregateId,workId);
     assert.equal(value.database.prepare('SELECT count(*) count FROM fx_supporting_works').get().count,0);
+    value.history.cases=[{...value.care,state:'unresolved',terminalAtMs:5000}];
+    assert.equal(value.coordinator.reconcile('entry-1').kind,'case_queued');
+    assert.equal(value.caseRequests.length,2,'A fresh assessment is not suppressed by an older failed Case.');
   }finally{value.close();}
 });
 
@@ -152,6 +155,23 @@ test('restored NFO bytes schedule one deduplicated health recheck and never crea
     value.history.findings=[];value.history.assessments[0].result='healthy';
     assert.equal(value.coordinator.project('entry-1').state,'healthy');
     assert.equal(value.coordinator.reconcile('entry-1').kind,'not_due');
+  }finally{value.close();}
+});
+
+test('a fresh daily custody gap obtains concrete repair evidence without waiting for the weekly check',()=>{
+  const value=fixture();
+  try{
+    value.history.cases=[];
+    value.history.assessments=['custody','presentation','conformance'].map(kind=>({
+      assessmentId:kind,assessmentKind:kind,careBasisDigest:value.care.careBasisDigest,
+      result:kind==='custody'?'degraded':'healthy',evidenceDigest:digest(kind),assessedAtMs:kind==='custody'?9000:1000}));
+    value.history.findings=[{assessmentId:'custody',state:'open',findingId:'missing-artifact',
+      findingKind:'custody:artifact_missing',findingDigest:digest('missing-artifact'),repairability:'auto_repair'}];
+    const first=value.coordinator.reconcile('entry-1'),second=value.coordinator.reconcile('entry-1');
+    assert.equal(first.kind,'assessment_pending');assert.equal(second.workId,first.workId);
+    assert.equal(value.database.prepare('SELECT work_kind FROM fx_supporting_works WHERE work_id=?').get(first.workId).work_kind,'health_assessment');
+    assert.equal(value.database.prepare('SELECT count(*) count FROM fx_supporting_works').get().count,1);
+    assert.equal(value.caseRequests.length,0);
   }finally{value.close();}
 });
 

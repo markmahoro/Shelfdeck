@@ -292,7 +292,8 @@ function projectHealth(context, history, at = Date.now()) {
   let state = 'never_assessed';
   const all = Object.values(dimensions);
   if (activeCase) state = activeCase.state === 'queued' ? 'unhealthy' : 'repairing';
-  else if (latestCase?.state === 'unresolved') state = 'attention_required';
+  else if (latestCase?.state === 'unresolved' && !all.every((item)=>item.state==='healthy'&&item.findings.length===0&&
+    item.assessedAtMs>Number(latestCase.terminalAtMs??Infinity))) state = 'attention_required';
   else if (hasIncompatibleRepairCombination(all.flatMap((item) => item.findings))) state = 'attention_required';
   else if (all.some((item) => item.findings.some((finding) => finding.repairability === 'attention_required'))) state = 'attention_required';
   else if (all.some((item) => item.state === 'not_assessable' || item.findings.some((finding) => finding.repairability === 'observe'))) state = 'observing';

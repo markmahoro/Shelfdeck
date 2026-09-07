@@ -7,6 +7,7 @@
 - SSOT直接事务行和新增修订已同步：Case Creation先queued，实际Inventory Commit通过Receipt衔接原Case，独立Inventory Record Refresh Commit不创建Case。45个Canonical Transactions；113 Capability、99 Result family、187 tables不变。
 - 健康投影区分健康事实与维护状态。queued为红灯、active为黄灯；自己的Inventory提交后，结算和复查仍关联同Case；只有重新验证健康并结束维护后转绿。未知状态为灰灯。
 - Case Creator拒绝空目标、仅记录更新和未支持目标。已提交的健康检查可以直接进入Case准入，不因下一次周期未到而卡住；精确Assessment Work及Evidence仍是建单依据。
+- 每日Custody发现新可修复缺口而Presentation/Conformance证据较旧时，按Custody Evidence去重取得一次完整检查，不等七天。过去的unresolved Case不得压住其后新取得的完整健康证据；只有三个维度均在失败之后验证健康才转绿，旧Case历史保留。新完整检查确认仍需处理时，可按新触发建立下一次Case。
 - readable NFO指纹变化走Arca内部RefreshInventoryRecords命令。新Inventory/精确Control变更/Command Receipt/marker/audit原子提交；冻结Source Package/Facts/人物关系保持不变，没有文件写入、Supporting Work、Workspace或Case。
 - 提交重验Entry/Shelf、Inventory/Standard/Placement/Identity、active Case、Off-deck Reservation和文件stat/fingerprint。Control冲突与外部再次写入导致整笔回滚。同输入重放原Receipt，无变化不增加revision。外部恢复原字节但旧Finding尚在时，进行按Basis、Finding kinds和周期去重的健康复查。
 - 三条既存NFO queued Case由新规则的精确记录更新及Basis失效收敛，不新增常驻历史格式兼容。未取得席位的失效记录不进入已维护历史。
