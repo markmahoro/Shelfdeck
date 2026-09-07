@@ -23,10 +23,10 @@ Last updated: 2026-09-07
 | 项 | 当前事实 |
 | --- | --- |
 | 环境 | fnOS NAS `http://192.168.12.230:18080`，单容器 `shelfdeck` |
-| 镜像 | `markmahoro/shelfdeck:helix-beta-20260907-15bee70546` |
-| Source commit | `15bee70546` |
-| Image ID | `sha256:355df0002f6e5b7956008f0e9cee7a1f0a82673496906bc601495912b9312cb2` |
-| Tar SHA-256 | `e9166cb78c645c0c19640a0ebee48c5675e29fd113eaeaf7d944d2736c27d618` |
+| 镜像 | `markmahoro/shelfdeck:helix-beta-20260907-1125d232c6` |
+| Source commit | `1125d232c6` |
+| Image ID | `sha256:106d999b0e3d2a6bad4650e2603c61469dc70a7dc1c26639407b7c66deb003f5` |
+| Tar SHA-256 | `a8daa19733d0c11586354500a6e7ad5f7d300dfc6280d56dcdc4494294b9d5e4` |
 | Readiness | 186 tables、123 routes、17 UI surfaces、0 findings |
 | Health | `ok` / `helix-clean-v3` / `normalSupplyAllowed:true`；SQLite `quick_check=ok` |
 | Execution | 恢复进行中，存在运行中及 attention_required 的 Formation，不能沿用 PROD-064 零活动指标 |
@@ -72,3 +72,5 @@ exact-image gate 验证。已对明确列出的六个 Subject 执行离线有界
 六项精确 Reset 删除6 Subjects/6 Runs/89 Works/5 Workspaces/4 Packages，范围外责任保留；全量离线备份位于 `/vol1/1000/docker/shelfdeck/backups/prod065-20260907-93205bff21/`。007合格27506628703-byte文件独立备份并完整SHA校验，已替换进入正式Field；原媒体和字幕保存在Field外，不删除。
 正式观察已提交，但发现新前序实现缺陷：旧扫描Work已failed、最后提交页completed=0，Store错误拒绝所有新Work的第一页。SSOT§6.3.2允许新Work从null cursor开始并保留历史页；正在修正实现，不改旧事实。
 寒战2已通过身份/资料/NFO阶段，进入转码流程；四部共享目录影片自动恢复后可显示目录和未知成员，D3合同调整仍等待用户确认。老手旧版本生成的NFO与正式演员编号冲突，生成时间早于部署，当前渲染器已有对应修正，旧不可变产品仍需重建。
+
+补充部署 `1125d232c6` 已完成：SHA校验、标准dry run/apply、health、Admin Web及挂载验证通过。Field Observation从1088推进至1101（新Work第12页），证实旧失败扫描不再阻止新一轮。该补充镜像Windows观察与Sidecar22 PASS、关联观察15 PASS、架构210文件PASS；Linux新round与连续性3 PASS。恢复尚在进行。

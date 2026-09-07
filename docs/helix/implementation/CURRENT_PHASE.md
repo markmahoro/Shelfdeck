@@ -32,3 +32,7 @@ Design待确认D3：SSOT§5.5.10明确要求目录closed-world，§10.10.2.1允�
 
 09-07后续生产执行：最终 `15bee70546` 镜像已标准部署；上述“尚未apply/未生产写入”均为此前时间点。六Subject离线精确Reset完成，DB integrity/FK通过，007合格视频完整SHA校验后进入正式Field，原件保留在Field外，哥斯拉独立正常完成。
 恢复追加缺陷：历史失败的68页Field Observation被误当成必须先成功完成的前驱，导致所有新观察第一页回滚。依据现有SSOT§6.3.2，允许已准入的不同Work从null cursor及当前revision开始，不改变历史partial页、不原地重开旧Work。新round与同Work禁止重开两项回归、既有观察/Sidecar专项共22 PASS。
+
+Field Observation补充验证：关联自动观察/枚举/保留15 PASS；210文件架构与合同/依赖检查PASS；最终1125d232c6 Linux镜像3项精确新round/连续性测试PASS（9项按名称未运行）。补充镜像标准上传SHA匹配、deploy dry run通过，apply进行中。
+
+补充镜像1125d232c6已完成生产apply；Health ok，Admin Web/mount/exact image通过。真实新Observation已经提交第0至12页（revision1089至1101），上一轮partial页不变。D3等待用户确认，四部共享目录均已进入有界attention；原六项恢复等待正式整轮观察及入队，不能宣称全部上架。

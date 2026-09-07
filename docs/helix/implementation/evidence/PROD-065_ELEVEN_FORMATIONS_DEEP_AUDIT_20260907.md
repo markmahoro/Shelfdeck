@@ -90,3 +90,6 @@ Inventory adapter 会给出 `details.sourceDirectory/unknownNames`，Final NFO s
 `15bee70546`已部署，六个指定Subject已离线精确Reset，哥斯拉先正常完成On-deck Commit。手动正式观察获202准入后，反复报`P7_FIELD_OBSERVATION_WORK_CONTINUITY`。只读DB证明前一Work最后pageOrdinal=67、revision=1088、completed=0，而Work已于08-31因`COOPERATIVE_EXECUTION_DEADLINE_EXCEEDED`终结failed。新Work首个Page因此永远回滚。
 根因在field-observation-store：把“上一Work已经技术终结”误写成“上一页是成功的末页”。SSOT§6.3.2明确新Work从null cursor及当前revision开始，旧页保留；修复删去成功末页前提、保留新Work和cursor条件，由既有Work admission并发范围及Canonical commit running-Work fence保证执行资格。专项覆盖失败后新round与同Work不能重开，观察/Sidecar22 PASS、自动观察/枚举/保留15 PASS。
 《老手》旧NFO是在部署前生成，当前文件SHA与原Artifact一致；15名演员正式TMDB ID被旧同名合并算法漏写。新代码已有“同名不同ID不得当成同人”的回归，历史Package没有被重写。新发现《猩球崛起3》同样存在旧Package源改写，尚待精确源证据确认，不宣称当前新Run复现。
+
+《猩球崛起3》追加核验：Package发布于首轮部署前，sourceNfoObservations为空；旧NFO由13323变为10779 bytes，其他仍存在的12项Related文件摘要相同，原Primary已经Settlement迁出。它属于缺少历史语义witness的旧包恢复，不可在当前时刻补造旧witness。
+最新生产补充镜像 `helix-beta-20260907-1125d232c6`（Image ID `sha256:106d999b0e3d2a6bad4650e2603c61469dc70a7dc1c26639407b7c66deb003f5`，tar SHA `a8daa19733d0c11586354500a6e7ad5f7d300dfc6280d56dcdc4494294b9d5e4`）已标准部署；观察版本推进到1119（新Work第30页），已正式观察到007的27506628703-byte合格文件和恋恋笔记本的新canonical正片。尚未完成整轮扫描，未伪称新候选已经上架。
