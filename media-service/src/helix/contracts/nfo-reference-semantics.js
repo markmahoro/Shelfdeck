@@ -3,7 +3,7 @@
 const { canonicalDigest, canonicalJson } = require('./canonical-json');
 const { inspectMovieNfo, analyzeMovieNfo, childText, directText, attribute } = require('./movie-nfo-document');
 
-const SCALARS = ['title', 'originaltitle', 'sorttitle', 'year', 'releasedate', 'plot', 'tagline'];
+const SCALARS = ['title', 'originaltitle', 'sorttitle', 'year', 'plot', 'tagline'];
 const SETS = ['genre', 'director', 'studio'];
 const tokens = (values) => [...new Set(values.filter(Boolean).flatMap((value) =>
   value.split(/\s*(?:\/|\||;)\s*/)).map((value) => value.trim()).filter(Boolean))].sort();
@@ -20,6 +20,12 @@ function observeNfoReferenceSemantics(bytes) {
     if (values.length > 1) return null;
     if (values.length) add(tag, values[0]);
   }
+  // Emby may use either release-date tag; conflicting aliases are not a witness.
+  const releaseDates = [...new Set(document.directChildren
+    .filter(item => item.name === 'premiered' || item.name === 'releasedate')
+    .map(item => childText(document, item)).filter(Boolean))];
+  if (releaseDates.length > 1) return null;
+  if (releaseDates.length) add('releasedate', releaseDates[0]);
   for (const tag of SETS) {
     for (const value of tokens(document.directChildren.filter((item) => item.name === tag)
       .map((item) => childText(document, item)))) add(tag + ':' + canonicalDigest(value), value);
@@ -38,7 +44,8 @@ function observeNfoReferenceSemantics(bytes) {
       item.name === 'uniqueid' && String(attribute(item, 'type')).toLowerCase() === 'tmdb')
       .map((item) => childText(actor, item)).filter(Boolean))];
     if (ids.length > 1) return null;
-    if (name) add('actor:' + canonicalDigest(name.trim().toLowerCase()), ids[0] ? 'tmdb:' + ids[0] : 'name:' + name.trim().toLowerCase());
+    if (name || ids[0]) add('actor:' + canonicalDigest(name ? name.trim().toLowerCase() : 'tmdb:' + ids[0]),
+      ids[0] ? 'tmdb:' + ids[0] : 'name:' + name.trim().toLowerCase());
   }
   entries.sort((a, b) => Buffer.compare(Buffer.from(a.key), Buffer.from(b.key)));
   const unique = new Map();

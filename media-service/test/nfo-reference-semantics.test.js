@@ -27,3 +27,21 @@ test('source NFO identity, owned values and actor identity cannot disappear or c
   assert.equal(preserves({...basis,recordDigest:'0'.repeat(64)}, observe(original)), false);
   assert.equal(preserves(null, observe(original)), false);
 });
+
+test('release-date aliases preserve one fact and cannot hide changed or conflicting dates', () => {
+  const dated = original.replace('</movie>', '<premiered>2025-06-12</premiered></movie>');
+  const renamed = dated.replaceAll('premiered', 'releasedate');
+  assert.deepEqual(observe(dated), observe(renamed));
+  assert.equal(preserves(observe(dated), observe(renamed)), true);
+  assert.equal(preserves(observe(dated), observe(original)), false);
+  assert.equal(preserves(observe(dated), observe(renamed.replace('2025-06-12','2025-06-13'))), false);
+  assert.equal(observe(dated.replace('</movie>', '<releasedate>2025-06-13</releasedate></movie>')), null);
+  assert.deepEqual(observe(dated.replace('</movie>', '<releasedate>2025-06-12</releasedate></movie>')), observe(dated));
+});
+
+test('an actor identity remains protected when its source display name is absent', () => {
+  const idOnly = original.replace('<name>Actor</name>', '');
+  assert.equal(preserves(observe(idOnly), observe(original)), true);
+  assert.equal(preserves(observe(idOnly), observe(idOnly.replace('42','99'))), false);
+  assert.equal(preserves(observe(idOnly), observe(idOnly.replace('<tmdbid>42</tmdbid>',''))), false);
+});

@@ -19,3 +19,13 @@
 09-07后续11项只读审计发现D1：typed Settlement failure未保留具体目录/文件和语义冲突详情；D2：网络底层归因丢失。当前补齐白名单、有界、按 Attempt evidence digest 关联的诊断存储和查询；不把诊断当成业务事实、Result 或删除授权。验证后标准部署，再逐片恢复十项异常；哥斯拉不纳入清理。现有全量 Reset 不适用，需验证精确 Subject 范围及范围外数据保留。证据：evidence/PROD-065_ELEVEN_FORMATIONS_DEEP_AUDIT_20260907.md。
 
 后续 Windows 验证：服务497项，479 PASS / 18条件SKIP / 0 FAIL；210个架构测试文件及依赖合同检查PASS；Admin Web构建PASS；Admin HTTP完整整理上架7项PASS；诊断持久化/不可用/读取专项PASS。逐片Reset及NAS参数29项PASS，六个生产目标只读范围检查均通过。Docker镜像验证与生产恢复仍待执行，不宣称完成。
+
+09-07交付准备：代码提交 `93205bff21`，镜像 `helix-beta-20260907-93205bff21` 已构建、上传并通过SHA-256校验，标准deploy dry run通过，尚未apply。
+Linux镜像的诊断和NFO改写/重启/完整On-deck链路通过；原Reset全套fixture使用临时路径，被Linux `/transcode`保护拒绝，未放宽生产保护。
+使用真实`/transcode`临时挂载的逐片fixture通过；生产SQLite在线一致快照已下载校验，在Windows副本及Linux镜像副本上执行六Subject清理，89 Works、5 Workspaces、4 Packages闭包完整清零，51个范围外Run与44份既有Commit保持不变。
+007的27506628703-byte Workspace合格文件已复制到独立保留目录，原件与副本完整SHA-256均为`1d274a41ee12b713535bce364a8ad2b9e2812cec48b6b5ab69af2aab4491677a`；原件仍在原位置。
+
+Design待确认D3：SSOT§5.5.10明确要求目录closed-world，§10.10.2.1允许范围外材料残留且不授权空目录删除；当前实施按前者停机。
+夺宝奇兵5同目录另一1080p具有独立`candidate_delivery`，禁止通过挪走该候选规避检查。已向用户提出具体合同调整：Settlement仅清理本Candidate有授权和替代证明的精确文件，范围外材料原地保留，目录不删除。确认前不改变该合同及其实现；其余已授权恢复继续准备。
+
+交付前语义边界补查：`premiered/releasedate`统一为同一上映日期事实，别名冲突不形成witness；仅有TMDB ID而缺显示名的Actor仍须保护其身份。日期别名、Settlement及完整上架专项64项通过，Actor ID补充用例通过。最终部署镜像需包含该补查修正，先前93205bff21镜像尚未切换生产。
