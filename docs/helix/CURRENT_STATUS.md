@@ -1,6 +1,6 @@
 # ShelfDeck Clean Helix Current Status
 
-Status: **PROD-066 停机基线已应用：43 部合格上架保留，11 部退出且文件保留；未完成 Libra 流程清空，本地修复尚未部署。**
+Status: **PROD-066 已按用户授权定向恢复 11 部，当前 54 部上架；7 条未完成流程及异常控制清理保留。NFO 问题仍待处理，服务停止，本地修复尚未部署。**
 
 Last updated: 2026-09-07
 
@@ -18,7 +18,7 @@ Last updated: 2026-09-07
 - 当前实现机器库存：113 Capability、99 Result family、186 tables、44 Canonical Transactions、
   123 Admin routes、17 UI surfaces。
 
-## 当前生产基线
+## PROD-065 中间部署记录（历史，最新状态见文末 PROD-066）
 
 | 项 | 当前事实 |
 | --- | --- |
@@ -52,7 +52,7 @@ exact-image gate 验证。已对明确列出的六个 Subject 执行离线有界
 完整历史见 `PRODUCTION_DEPLOY_ISSUE_LOG.md`、
 `implementation/archive/PROD-035_TO_PROD-064_PRODUCTION_STABILIZATION_20260903.md` 与 Git 提交历史。
 
-## Gate、风险与下一动作
+## PROD-065 Gate、风险与下一动作（历史，已由 PROD-066 接替）
 
 - NFO 连续性合同已获用户授权并固化；09-07 用户进一步授权逐步修复并推进已排摸的异常影片。唯一活动包见 `implementation/CURRENT_PHASE.md`。
 - 当前允许标准部署及逐片有界恢复；不允许全量 Reset、伪造历史 witness 或直接生产 SQL 修补。
@@ -88,3 +88,13 @@ exact-image gate 验证。已对明确列出的六个 Subject 执行离线有界
 北京时间20:06完成生产停机数据库替换：43部Active Entry、369个当前Inventory文件，全部存在且指纹匹配；退出11部的物理文件保留。18个关联/未完成Libra Subject与Run清空，20个旧Stage控制和9个孤儿控制清理。SQLite integrity=ok、FK=0；范围外43部事实及当前控制逐行未变。33个旧快照与4个无引用Workspace已清理，完整回滚及448个旧非数据库支持文件保留。
 
 Windows服务489 PASS/18条件SKIP、架构/合同审计PASS、Linux隔离Control及UAT-131全链路10 PASS。生产仍为5565a03eb2且停止，本地修复尚未部署，尚未恢复真实Intake。明细及风险边界见[PROD-066审计](implementation/evidence/PROD-066_COLLECTION_CLEAN_BASELINE_20260907.md)。
+
+## 2026-09-07 20:48 定向恢复（当前状态）
+
+用户明确要求“先定向恢复这11部”。原退出判定过宽：8 部为同名演员的 Person ID 被写成 Movie ID，符合 PROD-045 已修复的旧 Libra NFO 写入缺陷；另 3 部呈现语义符合已接受事实，仅字节/Inventory Binding 漂移，不能直接等同于内容不合格。没有进程级写入证据证明 Emby 是改写者。
+
+已从清理前完整备份恢复精确 11 部的 Shelf Entry、原 Commit/Deck/Inventory、Libra 与执行历史及必要采购关联。候选库在保留另外 7 条未完成流程、20 条失效 Stage 控制和 9 条孤儿控制清理的前提下构建；全表逐行比对目标副本一致，既有 43 部记录和 369 条当前控制未变。经新备份、哈希校验、单事务副本验证后替换生产库，未重新生成业务成功凭证。
+
+独立生产复核：54 部 active，451 个当前文件均存在；原上架/Commit 行及全部当前 Inventory 与清理前一致；文件 inode、大小及采样指纹与原审计一致。SQLite integrity=ok、FK=0，无 Libra/Custody 当前控制。原有 3 个 NFO 绑定漂移仍在，8 个演员 ID 问题也没有在此次数据库恢复中修复，不宣称为全面合格基线。服务继续停止，镜像仍为 5565a03eb2，本地修复未部署。
+
+恢复后数据库 SHA256：`55ce630b1cc024364b1d0febd990e320b0cd99c1330b917305ca1b010ef39e44`。恢复前 43 部数据库新备份：`/vol1/1000/docker/shelfdeck/backups/formation-reset-20260907T124525Z/data`；清理前 54 部备份仍保留在 `formation-reset-20260907T120253Z/data`。本次没有清理备份或改动媒体文件。

@@ -4,7 +4,7 @@
 
 ## 结论与边界
 
-生产停机数据库已建立 43 部 Movie / 369 个当前 Inventory 文件的基线，退出 11 部不满足当前一致性验收的记录。54 部原电影均有可读主文件；未发现不可恢复的源清理条目。退出的电影保留在 Field 的物理文件中，待恢复后重新观察/采购/Intake。
+用户复核后确认此前直接退出 11 部的处理过宽，已授权并完成定向恢复，当前为 54 部 Movie / 451 个当前 Inventory 文件。8 部旧演员 ID 错写及 3 部 NFO 字节/绑定漂移仍待处理；恢复上架记录不等于修复这些问题。下文清理记录保留为历史，最新恢复证据见文末。54 部原电影均有可读主文件，未发现不可恢复的源清理条目。
 
 当前镜像仍为 `markmahoro/shelfdeck:helix-beta-20260907-5565a03eb2`，image ID `sha256:804e02a59df72f99c1c20d68630b2902c6fa166315968eae4f2f85a31e539988`。本地修复没有部署，服务没有启动；不能宣称新的 Intake 或运行态闭环已验证。
 
@@ -52,3 +52,22 @@
 - On-deck Control 和 UAT-131 缺陷准入全链路定向验证：10 PASS；Reset 原套件及新增重叠 Intake 回归通过。
 - Linux 生产镜像中的实际数据库副本演练及安装后独立复核通过；补充测试的初次 2 GiB scratch 低于 Workspace 所需 5 GiB，触发正确的等待空间。Windows 临时路径 Reset 单测不满足 Linux 必须 `/transcode` 的保护规则，不能把这类夹具拒绝解释为生产 Reset 回归。
 - Linux 提供 16 GiB 临时空间后，定向 Control 和 UAT-131 四种缺陷准入/重启/正式 Commit 场景合计 10 PASS、0 FAIL，30.2 秒。测试只写隔离临时数据；没有启动 ShelfDeck 或执行新的真实媒体流程。
+
+## 20:48 用户授权定向恢复及根因复核
+
+此前退出 11 部的判定过宽，用户要求“先定向恢复这11部”，已执行完毕。本节为当前事实；上文 43 部及 18 Subject 清理保留为历史执行记录。
+
+- 8 部每部均有一个同名演员 ID 被写成该 Movie ID，匹配 PROD-045 旧 Libra 渲染器全局替换首个 tmdbid 的缺陷特征；该缺陷由 `0ab91e243` 于 09-01 修复。不能将这些文件归因为已证明的 Emby 改写。
+- 旧 Aftercare 的 actorPresent 在 ID 冲突时仍按同名通过，mergeActors 也会跳过已有 ID。对 8 份实际 NFO 内存重放，旧检查 8/8 误报通过、旧修复 8/8 仍不满足当前检查；当前 `8ec6be753` 修正后的修复输出 8/8 通过。此次重放未写实际媒体。
+- 8 部上次 Presentation Assessment 为 09-03 healthy；深检周期 7 天加最多 2 小时抖动，升级不会主动使已有 healthy 失效，09-07 停机时尚未再次深检。这解释了旧文件未被 Aftercare 兜住，不表示当前代码已经在生产完成修复。
+- 另 3 部 NFO 在 Commit 后 18–37 秒发生同 inode 字节变化，但当前语义符合已接受事实；仅绑定漂移不能判为内容不合格。缺少写入者审计，Emby 只是可能来源，尚未证实。
+
+恢复以清理前备份为事实源，在隔离副本重施另外 7 条未完成流程及 20 条 Stage / 9 条孤儿控制清理，构造目标状态；对现有 43 部数据库只插入缺失历史行并更新 11 组必要 Material Control、Candidate Delivery 与 Reservation，不删除现有行。186 表完整逐行比对目标副本，43 部范围外 Entry 和 369 条当前控制逐行保护通过，Reset 复查无活动清理范围。没有合成新的 Commit 或伪造业务成功。
+
+- 恢复后：54 active Shelf Entry、451 当前 Inventory / Arca Control；恢复 11 个原 Subject / Run / Package 及对应原始历史。
+- 独立生产读回：全部 54 部 Entry / Commit 和当前 Inventory 与清理前一致，451 个文件存在，inode / 大小 / 采样指纹相对原审计无变化；仍为原有 3 个 NFO Binding 漂移。SQLite integrity=ok、FK=0，Libra/Custody 当前控制为 0。
+- 安装完成：`2026-09-07T12:48:53.674Z`；恢复后 DB SHA256：`55ce630b1cc024364b1d0febd990e320b0cd99c1330b917305ca1b010ef39e44`。
+- 新的恢复前备份：`/vol1/1000/docker/shelfdeck/backups/formation-reset-20260907T124525Z/data`，保留原 43 部数据库 SHA256 `0fb882495cff216ba0c835afd038395761b2bc9020ddb45f4bd2820377120d4c`；清理前 54 部完整备份继续保留。
+- 先前清理的 4 个 Workspace 均属于另外 7 条未完成流程，没有删除此次 11 部的媒体或 Aftercare 工作区。本次不再清理备份，不修改媒体，不启动服务，不部署代码。
+
+当前是已恢复收藏事实、NFO 问题待处理的停机状态，不是全面合格或 Aftercare 自修复完成。实际恢复脚本、变更范围与独立核验收据保存在忽略目录 `.codex/audit/restore-*.json` / `restore-*.cjs` / `inventory-restored.json`。
