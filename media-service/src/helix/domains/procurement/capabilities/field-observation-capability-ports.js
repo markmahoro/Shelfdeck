@@ -55,7 +55,11 @@ function createFieldObservationCapabilityPorts(options) {
           context.assertExecutionActive?.();
         } catch (error) {
           const deadline = deadlineFailure(error); if (deadline) return deadline;
-          if (error?.code === 'FIELD_OBSERVATION_ROOT_UNAVAILABLE' ||
+          // A frozen access handle cannot become valid by replaying this Event.
+          // Observation has not committed any fact, so return a terminal outcome
+          // instead of leaving a recoverable effect in an endless exception loop.
+          if (error?.code === 'P7_FIELD_ACCESS_EXPIRED' ||
+              error?.code === 'FIELD_OBSERVATION_ROOT_UNAVAILABLE' ||
               error?.code === 'FIELD_OBSERVATION_ROOT_NOT_DIRECTORY') {
             return Object.freeze({
               kind: 'failed',

@@ -293,6 +293,26 @@ test('does not rewrite Eligibility when a later Observation has identical materi
   assert.equal(Number(afterEntries),Number(beforeEntries)+1);
 }));
 
+test('Expired frozen Field access closes without enumeration or a committed page', async () => fixture(async ({databasePath,field,unitOfWork}) => {
+  seedRuntime(databasePath,'expired-work','expired-event');
+  let enumerations=0;
+  const ports=createFieldObservationCapabilityPorts({schemaManifest,unitOfWork,now:()=>NOW,
+    enumerator:{enumeratePage:async()=>{enumerations++;throw new Error('Expired authority must not reach I/O');}},
+    pageObserverFactory:createFieldPageObserver});
+  const outcome=await ports['procurement.field.observation.page.commit@1'].execute({workId:'expired-work',eventId:'expired-event',
+    eventAttemptId:'expired-attempt',idempotencyKey:'expired-idempotency',deadlineAtMs:NOW+1000,
+    namedInputs:{fieldAccessHandle:{...accessHandle(field.access),expiresAtMs:NOW-1},
+      fieldObservationPageRequest:pageRequest('expired-work','expired-observation',0)}});
+  assert.equal(outcome.kind,'failed');assert.equal(outcome.code,'P7_FIELD_ACCESS_EXPIRED');
+  assert.equal(outcome.retryDirective,'never');assert.equal(enumerations,0);
+  const inspect=new Database(databasePath,{readonly:true});
+  try {
+    for(const table of ['proc_field_observations','proc_field_observation_entries','fx_commit_markers','fx_event_result_bindings']) {
+      assert.equal(inspect.prepare('SELECT COUNT(*) count FROM '+table).get().count,0);
+    }
+  } finally { inspect.close(); }
+}));
+
 test('Observation deadline closes before domain commit and cannot create a late page fact', async () => fixture(async ({databasePath,field,unitOfWork}) => {
   seedRuntime(databasePath,'deadline-work','deadline-event');
   const ports=createFieldObservationCapabilityPorts({schemaManifest,unitOfWork,now:()=>NOW,
@@ -312,7 +332,8 @@ test('Observation deadline closes before domain commit and cannot create a late 
   inspect.close();
 }));
 
-test('restart hard-closes the exact 68-page success plus 69th never-settling Observation shape after one hour', async () => fixture(async ({databasePath,field,coordinator,unitOfWork}) => {
+for (const expiredAccess of [false,true]) {
+test('restart closes the 68-page partial scan with '+(expiredAccess?'expired access':'a never-settling final page'), async () => fixture(async ({databasePath,field,coordinator,unitOfWork}) => {
   const workId='field-observation-work-production-shape';
   const capabilityRef='procurement.field.observation.page.commit@1';
   const inputSchema='helix://test/field-observation-input/v1';
@@ -363,6 +384,7 @@ test('restart hard-closes the exact 68-page success plus 69th never-settling Obs
     nodeId='production-node-69',eventAttemptId='production-event-attempt-69',idempotencyKey='production-page-69-idempotency';
   const request=pageRequest(workId,'production-observation-69',68,68,cursorIn,256);
   const namedInputs={fieldAccessHandle:accessHandle(field.access),fieldObservationPageRequest:request};
+  if(expiredAccess)namedInputs.fieldAccessHandle={...namedInputs.fieldAccessHandle,expiresAtMs:NOW-1};
   const inputDigest=canonicalDigest(namedInputs);
   const seed=new Database(databasePath);
   seed.prepare(`INSERT INTO fx_work_attempts(attempt_id,work_id,ordinal,basis_digest,state,started_at_ms)
@@ -429,8 +451,11 @@ test('restart hard-closes the exact 68-page success plus 69th never-settling Obs
       ?{workId:request.workId,disposition:'failed'}:null},
     fallbackReconciler:{start:async()=>{},stop:async()=>{},snapshot:()=>({})}});
   const recovery=host.start();
-  await new Promise((resolve)=>setImmediate(resolve));assert.equal(timers.pending()>0,true);
-  timers.advanceBy(3_600_000);await new Promise((resolve)=>setImmediate(resolve));timers.advanceBy(10);
+  await new Promise((resolve)=>setImmediate(resolve));
+  if(!expiredAccess){
+    assert.equal(timers.pending()>0,true);
+    timers.advanceBy(3_600_000);await new Promise((resolve)=>setImmediate(resolve));timers.advanceBy(10);
+  }
   const recovered=await recovery;
   assert.equal(recovered.state,'ready');
   releaseObservation();await new Promise((resolve)=>setImmediate(resolve));
@@ -445,7 +470,7 @@ test('restart hard-closes the exact 68-page success plus 69th never-settling Obs
   assert.equal(inspect.prepare('SELECT state FROM fx_work_attempts WHERE attempt_id=?').get(attemptId).state,'failed');
   assert.equal(inspect.prepare('SELECT state FROM fx_workflow_events WHERE event_id=?').get(eventId).state,'failed');
   assert.deepEqual(inspect.prepare('SELECT state,outcome_kind,failure_code FROM fx_event_attempts WHERE event_attempt_id=?').get(eventAttemptId),
-    {state:'completed',outcome_kind:'failed',failure_code:'COOPERATIVE_EXECUTION_DEADLINE_EXCEEDED'});
+    {state:'completed',outcome_kind:'failed',failure_code:expiredAccess?'P7_FIELD_ACCESS_EXPIRED':'COOPERATIVE_EXECUTION_DEADLINE_EXCEEDED'});
   assert.equal(inspect.prepare("SELECT COUNT(*) count FROM fx_work_attempts WHERE work_id=? AND state IN ('ready','running','blocked')").get(workId).count,0);
   assert.equal(inspect.prepare("SELECT COUNT(*) count FROM fx_event_attempts WHERE event_id=? AND state='executing'").get(eventId).count,0);
   assert.equal(inspect.prepare('SELECT COUNT(*) count FROM proc_field_observation_entries WHERE observation_id=?').get('production-observation-69').count,0);
@@ -453,3 +478,4 @@ test('restart hard-closes the exact 68-page success plus 69th never-settling Obs
   assert.equal(inspect.prepare('SELECT state FROM fx_effect_journal WHERE effect_id=?').get(effect.effect_id).state,'failed');
   inspect.close();
 }));
+}

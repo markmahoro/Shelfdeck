@@ -39,3 +39,11 @@
 15:46 UTC复查6个HTTP入口均200；Formation 946ms、Collection 544ms，Case状态未变化。已创建当前任务heartbeat `shelfdeck`：每5分钟检查，24次/2小时，未变化不重复通知，期末报告并停止监控。已知恢复错误仍然开放。
 
 本轮最后清理仅删除已淘汰的本地升级副本 `.codex/production-copy/upgraded.db` 和 `upgraded-index.db`，合计1,881,546,752字节（约1.75GiB）。删除前核对绝对路径位于该测试目录且不是链接。保留原始取证库、最终升级副本、验证日志、镜像及NAS完整回滚备份。未清理原始媒体或其他任务工作区。
+
+## 15:51 UTC监控及本地修复准备
+
+HTTP全部200，Formation 895ms、Collection 485ms；54 Entry/451文件存在，restart=0，两个Case阶段未变化，两类已知错误仍重复。没有新的生产数据或文件变更。
+
+已在本地修复Field Observation Capability对`P7_FIELD_ACCESS_EXPIRED`的异常归类：过期发生在enumeration和Commit之前，返回明确failed/never，沿现有Effect安全恢复和Work失败路径收敛，不刷新冻结Handle、不放宽访问保护、不丢弃已有页面。19项Field Observation/Automation测试通过，包含无I/O/无新Commit断言及68页成功+第69页过期的完整Startup→Event→Effect→Work终结→再次重启无残留恢复动作。原超时恢复场景继续通过。
+
+此补丁仅本地准备，未构建或部署；后续新扫描仍受已有Automation连续性规则约束，不能把单次失败收敛称为自动新扫描全链修复。接纳闭包问题尚未修改，生产镜像身份不变。
