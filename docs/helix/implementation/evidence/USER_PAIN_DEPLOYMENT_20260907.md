@@ -47,3 +47,9 @@ HTTP全部200，Formation 895ms、Collection 485ms；54 Entry/451文件存在，
 已在本地修复Field Observation Capability对`P7_FIELD_ACCESS_EXPIRED`的异常归类：过期发生在enumeration和Commit之前，返回明确failed/never，沿现有Effect安全恢复和Work失败路径收敛，不刷新冻结Handle、不放宽访问保护、不丢弃已有页面。19项Field Observation/Automation测试通过，包含无I/O/无新Commit断言及68页成功+第69页过期的完整Startup→Event→Effect→Work终结→再次重启无残留恢复动作。原超时恢复场景继续通过。
 
 此补丁仅本地准备，未构建或部署；后续新扫描仍受已有Automation连续性规则约束，不能把单次失败收敛称为自动新扫描全链修复。接纳闭包问题尚未修改，生产镜像身份不变。
+
+## 16:00 UTC监控与闭包范围核对
+
+54 Entry/451文件存在，restart=0，6个HTTP入口200。Top Gun实际FFmpeg仍运行，最新进度1,217,382,833/7,814,560,000（约15.6%，采样16:00:33 UTC），证明继续推进。NFO仍54份可读、3份Binding差异；两类已知恢复错误仍重复。
+
+在未修改的部署前source.db上调用正式Reset的只读discoverScope，逐Offer ID比较：6条缺Libra Receipt的accepted Delivery与preservedSupersededHandoffAClosures完全一致（6/6），可行动反向闭包0。此前“数量一致但未证明对应”的疑点现已解决：是Reset保留的重叠历史Delivery范围，不是任意6条异常。该结论不授权将它们全部重新开放；须保持重叠Reservation唯一性，并补齐被保留历史闭包的接纳/消息连续性。未执行数据修改。
