@@ -6,11 +6,32 @@ const {
   containerFromLocation,
   collectionPage,
   collectionSort,
+  createArcaCollectionQuery,
   filterCollectionIndex,
   occupancyFromMaterials,
   yearFromDescriptiveFacts,
   videoSpecFromFacts,
 } = require('../src/helix/domains/arca/application/collection-query');
+
+test('Collection computes health only for the visible page and never invokes the per-entry fallback during sorting',()=>{
+  const entries=Array.from({length:12},(_,i)=>({shelf_entry_id:'entry-'+i,shelf_id:'shelf',status:'active',
+    canonical_identity_revision:1,current_inventory_revision:1,current_deck_fact_revision:1,created_at_ms:i,terminal_at_ms:null}));
+  const healthCalls=[];
+  const repo={invoke(name){
+    if(['list_entry_index','list_entries'].includes(name))return entries;
+    if(name==='list_shelves')return [{shelf_id:'shelf',name:'Films',status:'active'}];
+    if(name==='find_identities')return entries.map(row=>({shelf_entry_id:row.shelf_entry_id,revision:1,provider_key:row.shelf_entry_id}));
+    return [];
+  }};
+  const query=createArcaCollectionQuery({schemaManifest:require('../src/helix/foundation/persistence/generated/clean-schema.manifest.json'),
+    unitOfWork:{execute(participants){return Object.fromEntries(participants.map(p=>[p.participantId,p.execute({repository:()=>repo})]));}},
+    posterReader:async()=>null,healthReader(){throw Error('Unpaged health fallback');},
+    healthReaderMany(ids){healthCalls.push(ids);return new Map(ids.map(id=>[id,{state:'healthy'}]));}});
+  const page=query.list({limit:3});
+  assert.equal(page.items.length,3);assert.equal(page.resultCount,12);
+  assert.deepEqual(healthCalls,[page.items.map(item=>item.shelfEntryId)]);
+  assert.ok(page.items.every(item=>item.health.state==='healthy'));
+});
 
 test('Collection occupancy sums Inventory members and names primary container from location', () => {
   const occupancy = occupancyFromMaterials([

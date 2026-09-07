@@ -197,13 +197,13 @@ function createArcaCollectionQuery(options) {
     const health=filterHealth?(options.healthReaderMany?.(packed.rows.map((row)=>row.shelfEntryId))||new Map()):new Map();
     const healthState=query.health && query.health !== 'all' ? query.health : null;
     const search=String(query.q||'').trim().toLocaleLowerCase('zh-CN');
-    const items=collectionSort(packed.rows.map((row)=>withHealth(row,health.get(row.shelfEntryId)))
+    const items=collectionSort(packed.rows.map((row)=>withHealth(row,health.get(row.shelfEntryId)||emptyHealth))
       .filter((item)=>query.status==='history'||!healthState||item.health.state===healthState)
       .filter((item)=>!search||item.displayIdentity.toLocaleLowerCase('zh-CN').includes(search)||String(item.year||'').includes(search)),query.sort);
     let page=packed.prePaged?Object.freeze({items,nextCursor:packed.prePaged.nextCursor}):collectionPage(items,query);
     if(!filterHealth){
       const visibleHealth=options.healthReaderMany?.(page.items.map((row)=>row.shelfEntryId))||new Map();
-      page=Object.freeze({...page,items:page.items.map((row)=>withHealth(row,visibleHealth.get(row.shelfEntryId)))});
+      page=Object.freeze({...page,items:page.items.map((row)=>withHealth(row,visibleHealth.get(row.shelfEntryId)||emptyHealth))});
     }
     const shelves=packed.shelfRows.filter((row)=>row.status==='active').map((shelf)=>{
       const members=packed.index.filter((row)=>row.shelf_id===shelf.shelf_id);

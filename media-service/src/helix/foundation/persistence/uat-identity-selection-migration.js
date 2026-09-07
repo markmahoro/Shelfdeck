@@ -13,7 +13,7 @@ const PRE_DEFECT_ADMISSION_SCHEMA_DIGEST = '6172e70c94c31091005b19b4eefaf7567b19
 const PRE_PREDECK_PIPELINE_SCHEMA_DIGEST = '411b6c0e2f350d3f5a9374738f56d51a0304df2772c813f2b3009e6526daa889';
 const PRE_FORMATION_THREE_STATE_SCHEMA_DIGEST = '3be2dad9b3615053681dfc2721974657fc3995ccf60a044e17dfb5131f0f8199';
 const PRE_CASE_ADMISSION_SCHEMA_DIGEST = '6a2246c39bebcd1f6f80264bac793c7a3119636a791683e426e4c30aa6fdc651';
-const TARGET_SCHEMA_DIGEST = '74bf523b691e4a92c214e6bcd06f5ed5deba5f7d358898f88cfefbe789af9d9b';
+const TARGET_SCHEMA_DIGEST = '1522b30ce14d5ff416df27c6ebf4109dfdd622f41059d28dd95074046b1709ca';
 const PRE_UAT_EXECUTION_CATALOG_DIGEST = 'b0371a6d2793c1e381a4c2e7fc421d312a1a1e90d2de5e47f61a45022f09793b';
 const PRE_PROJECTION_EXECUTION_CATALOG_DIGEST = '13315cdbdf6ab5cbe30b32075f89bd76ae1a873d84034dc572824f4fbc3886e6';
 const INTAKE_BINDING_REPLAN_CODE = 'P4_UAT_INTAKE_BINDING_RESULT_REPLAN_REQUIRED';
@@ -466,7 +466,16 @@ function migrateUatIdentitySelectionSchema(options) {
       if (defectAdmissionSource) migrateDefectAdmissionRevisionKind(database);
       if (!alreadyCurrent) migratePredeckPipelineTables(database);
       if (formationThreeStateSource) migrateFormationThreeStateProjection(database);
-      if (!alreadyCurrent) { migrateAftercareCaseAdmission(database); migrateRecycleTable(database); }
+      if (!alreadyCurrent) {
+        migrateAftercareCaseAdmission(database); migrateRecycleTable(database);
+        for (const name of ['uidx_arca_rule_template_drafts_partial_01','uidx_fx_event_result_bindings_partial_01']) {
+          const index=database.prepare("SELECT sql FROM sqlite_master WHERE type='index' AND name=?").get(name);
+          if(index && / WHERE 1 = 1;?$/.test(index.sql)) {
+            database.exec('DROP INDEX "'+name+'"');
+            database.exec(index.sql.replace(/ WHERE 1 = 1;?$/, ';'));
+          }
+        }
+      }
       if (!alreadyCurrent && database.pragma('foreign_key_check').length) {
         throw new UatIdentitySelectionMigrationError('UAT_MIGRATION_FOREIGN_KEY_VIOLATION',
           'Migration would leave invalid references; all schema changes were rolled back.');

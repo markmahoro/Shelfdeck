@@ -41,6 +41,7 @@ test('Case admission upgrades the prior constraint, preserves rows and reference
   try {
     const db=new Database(databasePath);
     db.exec(oldDdl);
+    db.exec('DROP INDEX uidx_fx_event_result_bindings_partial_01; CREATE UNIQUE INDEX uidx_fx_event_result_bindings_partial_01 ON fx_event_result_bindings(event_id) WHERE 1 = 1');
     db.exec('DROP TABLE arca_recycle_entries');
     db.prepare('INSERT INTO arca_aftercare_cases(aftercare_case_id,state) VALUES(?,?)').run('preserved-case','active');
     db.prepare('INSERT INTO fx_audit_records(audit_id,occurred_at_ms) VALUES(?,?)').run('preserved-fact',100);
@@ -50,6 +51,7 @@ test('Case admission upgrades the prior constraint, preserves rows and reference
     assert.equal(migrateUatIdentitySelectionSchema({Database,databasePath,schemaManifest}).migrated,true);
     const check=new Database(databasePath);
     assert.equal(check.prepare('SELECT COUNT(*) n FROM arca_recycle_entries').get().n,0);
+    assert.match(check.prepare('EXPLAIN QUERY PLAN SELECT result_json FROM fx_event_result_bindings WHERE event_id=?').get('event').detail,/USING INDEX/);
     assert.equal(check.prepare('SELECT state FROM arca_aftercare_cases WHERE aftercare_case_id=?').get('preserved-case').state,'active');
     check.prepare('INSERT INTO arca_aftercare_cases(aftercare_case_id,state) VALUES(?,?)').run('new-case','queued');
     assert.equal(check.prepare('SELECT COUNT(*) n FROM fx_audit_records').get().n,1);

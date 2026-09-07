@@ -107,10 +107,10 @@ function assertCatalog(database, manifest, expected) {
     });
   }
   const partialExpected = manifest.tables.flatMap((table) => table.indexes
-    .filter((index) => index.kind === 'partial-unique').map((index) => ({ tableId: table.tableId, name: index.name })));
+    .filter((index) => index.kind === 'partial-unique').map((index) => ({ tableId: table.tableId, name: index.name, isPartial:index.isPartial })));
   for (const item of partialExpected) {
     const index = database.pragma('index_list(' + item.tableId + ')').find((row) => row.name === item.name);
-    if (!index || index.unique !== 1 || index.partial !== 1) {
+    if (!index || index.unique !== 1 || typeof item.isPartial !== 'boolean' || index.partial !== Number(item.isPartial)) {
       fail('P3_SQLITE_PARTIAL_UNIQUE_MISSING', 'A required partial unique index is absent or weakened.', item);
     }
   }

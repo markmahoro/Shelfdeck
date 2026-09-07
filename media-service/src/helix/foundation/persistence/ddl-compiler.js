@@ -371,8 +371,12 @@ function compileIndexes(contract) {
     const expression = rule.expression || rule.columns.map(quoteIdentifier).join(', ');
     const name = 'uidx_' + contract.tableId + '_partial_' + String(ordinal + 1).padStart(2, '0');
     indexes.push({
-      kind: 'partial-unique', name,
-      sql: 'CREATE UNIQUE INDEX ' + quoteIdentifier(name) + ' ON ' + quoteIdentifier(contract.tableId) + ' (' + expression + ') WHERE ' + rule.where + ';'
+      kind: 'partial-unique', name, isPartial: rule.where !== '1 = 1',
+      // SQLite cannot use a partial WHERE 1 = 1 index for ordinary lookups.
+      // An unconditional uniqueness rule needs a full index, with identical
+      // uniqueness semantics and an indexable equality lookup.
+      sql: 'CREATE UNIQUE INDEX ' + quoteIdentifier(name) + ' ON ' + quoteIdentifier(contract.tableId) + ' (' + expression + ')' +
+        (rule.where === '1 = 1' ? '' : ' WHERE ' + rule.where) + ';'
     });
   });
   return indexes;

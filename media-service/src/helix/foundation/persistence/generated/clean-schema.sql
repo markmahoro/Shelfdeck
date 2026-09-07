@@ -800,7 +800,7 @@ CREATE TABLE "arca_rule_template_drafts" (
   CHECK (length(CAST("rules_json" AS BLOB)) <= 65536),
   FOREIGN KEY ("rule_template_id") REFERENCES "arca_rule_templates" ("rule_template_id") ON DELETE RESTRICT
 );
-CREATE UNIQUE INDEX "uidx_arca_rule_template_drafts_partial_01" ON "arca_rule_template_drafts" ("rule_template_id") WHERE 1 = 1;
+CREATE UNIQUE INDEX "uidx_arca_rule_template_drafts_partial_01" ON "arca_rule_template_drafts" ("rule_template_id");
 
 CREATE TABLE "arca_rule_template_revisions" (
   "rule_template_id" TEXT,
@@ -1061,7 +1061,7 @@ CREATE TABLE "fx_event_result_bindings" (
   CHECK (length(CAST("evidence_json" AS BLOB)) <= 65536),
   FOREIGN KEY ("event_id") REFERENCES "fx_workflow_events" ("event_id") ON DELETE RESTRICT
 );
-CREATE UNIQUE INDEX "uidx_fx_event_result_bindings_partial_01" ON "fx_event_result_bindings" ("event_id") WHERE 1 = 1;
+CREATE UNIQUE INDEX "uidx_fx_event_result_bindings_partial_01" ON "fx_event_result_bindings" ("event_id");
 
 CREATE TABLE "fx_executor_incidents" (
   "incident_key" TEXT PRIMARY KEY,

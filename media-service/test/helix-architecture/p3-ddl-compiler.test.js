@@ -39,6 +39,17 @@ test('keeps checked-in DDL and trace manifest reproducible from frozen inputs', 
   assert.deepEqual(JSON.parse(fs.readFileSync(path.join(generatedRoot, 'clean-schema.manifest.json'), 'utf8')), compiled.manifest);
 });
 
+test('unconditional Event result uniqueness supports indexed lookups without a tautological partial predicate',()=>{
+  const db=new Database(':memory:');try{
+    db.exec(compileSchema(contracts).ddl);
+    const plan=db.prepare('EXPLAIN QUERY PLAN SELECT result_json FROM fx_event_result_bindings WHERE event_id=?').all('event');
+    assert.ok(plan.some(row=>/SEARCH.*USING INDEX.*event_id/.test(row.detail)),JSON.stringify(plan));
+    db.pragma('foreign_keys = OFF');
+    db.prepare('INSERT INTO fx_event_result_bindings(result_id,event_id) VALUES(?,?)').run('one','event');
+    assert.throws(()=>db.prepare('INSERT INTO fx_event_result_bindings(result_id,event_id) VALUES(?,?)').run('two','event'),/UNIQUE/);
+  }finally{db.close();}
+});
+
 test('maps every P2 partial-unique rule and only cross-table predicates use support guards', () => {
   const expected = contracts.reduce((count, contract) => count + contract.partialUniqueRules.length, 0);
   const actual = Object.values(PARTIAL_UNIQUE).reduce((count, rules) => count + rules.length, 0);

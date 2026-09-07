@@ -52,7 +52,7 @@ function definitions(schemaManifest) {
       ], keyColumns: ['event_id'] },
       list: { kind: 'select-all', tableId: 'fx_workflow_events', columns: [
         'event_id', 'plan_id', 'node_id', 'state', 'result_id'
-      ], keyColumns: [] },
+      ], keyColumns: ['plan_id'] },
       update: { kind: 'update', tableId: 'fx_workflow_events', setColumns: ['state', 'ready_at_ms', 'retry_at_ms', 'result_id'], keyColumns: ['event_id'] }
     } }),
     nodes: createRepositoryDefinition({ repositoryId: 'runtime_nodes', owner: 'execution-foundation', schemaManifest, statements: {
@@ -63,10 +63,10 @@ function definitions(schemaManifest) {
       ], keyColumns: ['plan_id', 'node_id'] },
       list: { kind: 'select-all', tableId: 'fx_plan_nodes', columns: [
         'plan_id', 'node_id', 'when_schema_ref', 'when_json'
-      ], keyColumns: [] }
+      ], keyColumns: ['plan_id'] }
     } }),
     edges: createRepositoryDefinition({ repositoryId: 'runtime_edges', owner: 'execution-foundation', schemaManifest, statements: {
-      list: { kind: 'select-all', tableId: 'fx_plan_edges', columns: ['plan_id', 'from_node_id', 'to_node_id', 'dependency_kind'], keyColumns: [] }
+      list: { kind: 'select-all', tableId: 'fx_plan_edges', columns: ['plan_id', 'from_node_id', 'to_node_id', 'dependency_kind'], keyColumns: ['plan_id'] }
     } }),
     works: createRepositoryDefinition({ repositoryId: 'runtime_works', owner: 'execution-foundation', schemaManifest, statements: {
       find: { kind: 'select-one', tableId: 'fx_supporting_works', columns: [
@@ -100,9 +100,9 @@ function definitions(schemaManifest) {
         'result_id', 'event_id', 'outcome_kind', 'result_schema_ref', 'result_json', 'result_digest',
         'evidence_schema_ref', 'evidence_json', 'evidence_digest', 'effect_receipt_id', 'committed_at_ms'
       ], keyColumns: ['event_id'] },
-      list: { kind: 'select-all', tableId: 'fx_event_result_bindings', columns: [
+      list: { kind: 'select-in', tableId: 'fx_event_result_bindings', keyColumn:'event_id', maxItems:500, columns: [
         'event_id', 'outcome_kind', 'result_schema_ref', 'result_json', 'evidence_schema_ref', 'evidence_json', 'effect_receipt_id'
-      ], keyColumns: [] },
+      ] },
       insert: { kind: 'insert', tableId: 'fx_event_result_bindings', columns: [
         'result_id', 'event_id', 'outcome_kind', 'result_schema_ref', 'result_json', 'result_digest', 'evidence_schema_ref',
         'evidence_json', 'evidence_digest', 'effect_receipt_id', 'committed_at_ms'
@@ -140,10 +140,13 @@ function createEventRuntime(options) {
   const pendingCompletions = new Map();
 
   function advancePlan(context, planId) {
-    const events = context.repository('runtime_events').invoke('list').filter((event) => event.plan_id === planId);
-    const nodes = context.repository('runtime_nodes').invoke('list').filter((node) => node.plan_id === planId);
-    const edges = context.repository('runtime_edges').invoke('list').filter((edge) => edge.plan_id === planId);
-    const results = new Map(context.repository('runtime_results').invoke('list').map((result) => [result.event_id, result]));
+    const events = context.repository('runtime_events').invoke('list',{plan_id:planId});
+    const nodes = context.repository('runtime_nodes').invoke('list',{plan_id:planId});
+    const edges = context.repository('runtime_edges').invoke('list',{plan_id:planId});
+    const results = new Map();
+    for(let offset=0;offset<events.length;offset+=500){
+      for(const result of context.repository('runtime_results').invoke('list',{values:events.slice(offset,offset+500).map(event=>event.event_id)}))results.set(result.event_id,result);
+    }
     const eventByNode = new Map(events.map((event) => [event.node_id, event]));
     const nodeById = new Map(nodes.map((node) => [node.node_id, node]));
     const terminal = new Set(['succeeded', 'skipped', 'failed', 'cancelled']);

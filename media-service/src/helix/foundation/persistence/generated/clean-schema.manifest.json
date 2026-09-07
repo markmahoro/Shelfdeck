@@ -4,7 +4,7 @@
   "digestAlgorithm": "sha256",
   "tableCount": 187,
   "tableContractAggregateDigest": "8ab722dddc5c17f8e98d32088c94e7598b7a38e28dd29a378abf449c27f45f56",
-  "ddlDigest": "74bf523b691e4a92c214e6bcd06f5ed5deba5f7d358898f88cfefbe789af9d9b",
+  "ddlDigest": "1522b30ce14d5ff416df27c6ebf4109dfdd622f41059d28dd95074046b1709ca",
   "tables": [
     {
       "tableId": "arca_acceptance_attempts",
@@ -36,6 +36,7 @@
         {
           "kind": "partial-unique",
           "name": "uidx_arca_acceptance_attempts_partial_01",
+          "isPartial": true,
           "sqlDigest": "d537dcc5703c46bd6872176dfb70361e8fce8b6492991397edd583d3fb2e3beb"
         }
       ]
@@ -211,11 +212,13 @@
         {
           "kind": "partial-unique",
           "name": "uidx_arca_aftercare_cases_partial_01",
+          "isPartial": true,
           "sqlDigest": "6cc886e77eb1714e7c152a860e61b2f5546e95c7758b06242f77fb55ae3edf20"
         },
         {
           "kind": "partial-unique",
           "name": "uidx_arca_aftercare_cases_partial_02",
+          "isPartial": true,
           "sqlDigest": "2e5cc01992f15d6aa65612c3d19a1ea3d88d56e5aaa809e1b640ddccafa4e7e0"
         }
       ]
@@ -531,6 +534,7 @@
         {
           "kind": "partial-unique",
           "name": "uidx_arca_inventory_materials_partial_01",
+          "isPartial": true,
           "sqlDigest": "d6fa63d5cffeb091297d7a542a4a30d263c05c90d2700052a4640dce0a46882a"
         }
       ]
@@ -875,6 +879,7 @@
         {
           "kind": "partial-unique",
           "name": "uidx_arca_offdeck_reservations_partial_01",
+          "isPartial": true,
           "sqlDigest": "11b1886207e5345513dd68ed54640f6a84d8c1d7886fd0e46f3675603d8b272c"
         }
       ]
@@ -911,6 +916,7 @@
         {
           "kind": "partial-unique",
           "name": "uidx_arca_offdeck_review_candidates_partial_01",
+          "isPartial": true,
           "sqlDigest": "77be4e055da4b654b0504fedc3ce04c57453e224e22434b32cd4a3710b688c11"
         }
       ]
@@ -1220,7 +1226,7 @@
       "owner": "arca",
       "contractId": "helix://contracts/tables/arca_rule_template_drafts/v1",
       "contractDigest": "e9428bb7bbedcdaed43a9722e700af1035df3ae37d299ba284667a7e362d1aa8",
-      "sqlDigest": "3b32f7639ca9538dae32c5504a6afa2ac20fad82cb9cba589844791a4b435a22",
+      "sqlDigest": "dff00a0e89c7809085e4169463e74ac895e545acc134d3b2f11055397c793736",
       "columns": [
         "rule_template_id",
         "draft_revision",
@@ -1236,7 +1242,8 @@
         {
           "kind": "partial-unique",
           "name": "uidx_arca_rule_template_drafts_partial_01",
-          "sqlDigest": "f9f2777c0ae08dcb3240d444b91625a6446701a53fd20b6c2a0f28b13c09cddd"
+          "isPartial": false,
+          "sqlDigest": "82c6c4b82f84f8f2e5e2cef8a9beb63262f256494147b2ad6e9df07a73e230c2"
         }
       ]
     },
@@ -1312,6 +1319,7 @@
         {
           "kind": "partial-unique",
           "name": "uidx_arca_shelf_entries_partial_01",
+          "isPartial": true,
           "sqlDigest": "86ab342b89ce1f641707cbb741c47e7fafb85e36cde5d3340a3922b92ad93350"
         }
       ]
@@ -1583,6 +1591,7 @@
         {
           "kind": "partial-unique",
           "name": "uidx_fx_event_attempts_partial_01",
+          "isPartial": true,
           "sqlDigest": "4e4b976ec0619fc9cb74480fa4f8cc44cfc7f11a780d6875b751e2022e110121"
         }
       ]
@@ -1643,7 +1652,7 @@
       "owner": "execution-foundation",
       "contractId": "helix://contracts/tables/fx_event_result_bindings/v1",
       "contractDigest": "691e5cd910cbcbfbf4b0d2bd31081af239d3740c11255d0c19b5565d09b1046f",
-      "sqlDigest": "c9df9b8db1771c03fbfd47d20d6f468614dc02e25bcf2624f18eaa0d6d879be5",
+      "sqlDigest": "1511ed57afde50d222cac7bec7f8f07518a345b5421a57ee40d616f832d0db59",
       "columns": [
         "result_id",
         "event_id",
@@ -1663,7 +1672,8 @@
         {
           "kind": "partial-unique",
           "name": "uidx_fx_event_result_bindings_partial_01",
-          "sqlDigest": "4846ca03e4aef2d38752571f64ba9cb0ce93b3f5546ed4b8e5d1783d36387f00"
+          "isPartial": false,
+          "sqlDigest": "9b42cdcb7bfd98d3bfb4b08b6c6507e528b9defddb652e864cb3ade8f879259e"
         }
       ]
     },
@@ -1967,6 +1977,7 @@
         {
           "kind": "partial-unique",
           "name": "uidx_fx_work_attempts_partial_01",
+          "isPartial": true,
           "sqlDigest": "16d152a7b1a3da4feb2e5514ee2d6e55064fca928f01a727370f063f45699311"
         }
       ]
@@ -2365,6 +2376,7 @@
         {
           "kind": "partial-unique",
           "name": "uidx_libra_handoff_a_receipts_partial_01",
+          "isPartial": true,
           "sqlDigest": "c7d28a83451b3f6e3f2e3ebe2ac512ab94b365eec9504bbc115c0483ac821cab"
         }
       ]
@@ -2450,6 +2462,7 @@
         {
           "kind": "partial-unique",
           "name": "uidx_libra_intake_decisions_partial_01",
+          "isPartial": true,
           "sqlDigest": "cef1c790beee19fac61c632eeef24943f2b9f061e427b73df32beae3876fc35c"
         }
       ]
@@ -3639,6 +3652,7 @@
         {
           "kind": "partial-unique",
           "name": "uidx_people_merge_candidates_partial_01",
+          "isPartial": true,
           "sqlDigest": "8abd8bcc9b54283a7a2dfbd74af31cf4dd9f0ac919d22f09230490c4765387a9"
         }
       ]
@@ -3765,6 +3779,7 @@
         {
           "kind": "partial-unique",
           "name": "uidx_people_provider_identities_partial_01",
+          "isPartial": true,
           "sqlDigest": "581a2d29e8703a4549a2517997a8ef59ba0cdb272f70873cf1ae8221cc1eb233"
         }
       ]
@@ -3884,6 +3899,7 @@
         {
           "kind": "partial-unique",
           "name": "uidx_people_registration_candidates_partial_01",
+          "isPartial": true,
           "sqlDigest": "604834e5138e3958070521edf9d860609da295067170894cd69a65a365fb176f"
         }
       ]
@@ -3937,6 +3953,7 @@
         {
           "kind": "partial-unique",
           "name": "uidx_perception_acquisitions_partial_01",
+          "isPartial": true,
           "sqlDigest": "1b3de86c6737e71a028e0897e6395ea3f9cc415e60bac6cbb98efb5fc437ecec"
         }
       ]
@@ -4468,6 +4485,7 @@
         {
           "kind": "partial-unique",
           "name": "uidx_proc_candidate_deliveries_partial_01",
+          "isPartial": true,
           "sqlDigest": "8abc449b54eee863d1e3abf56f6d107aaf337c865cc894c291220b8df98f8cb4"
         }
       ]
@@ -4945,6 +4963,7 @@
         {
           "kind": "partial-unique",
           "name": "uidx_proc_procurement_retry_intents_partial_01",
+          "isPartial": true,
           "sqlDigest": "9daa6a399519018926c1807e668f72bc5c05a739b881fc47922e1edb0c147900"
         }
       ]
@@ -5005,11 +5024,13 @@
         {
           "kind": "partial-unique",
           "name": "uidx_proc_procurement_runs_partial_01",
+          "isPartial": true,
           "sqlDigest": "e7f35d606cd27d8688a2593e833f301bd34a0db568016fa792c5b2457023d9f8"
         },
         {
           "kind": "partial-unique",
           "name": "uidx_proc_procurement_runs_partial_02",
+          "isPartial": true,
           "sqlDigest": "7d650284e461da4606a29feb3371938a60521b188a769c2d68fbca9690af1b67"
         }
       ]
@@ -5074,6 +5095,7 @@
         {
           "kind": "partial-unique",
           "name": "uidx_proc_run_materials_partial_01",
+          "isPartial": true,
           "sqlDigest": "5f1df5dfcd0c610aeabb9839138640bc2043bc533d3c34cfabdb6d05e8b7f88e"
         }
       ]
