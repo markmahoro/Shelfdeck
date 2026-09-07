@@ -97,3 +97,6 @@ Inventory adapter 会给出 `details.sourceDirectory/unknownNames`，Final NFO s
 ## 8. D3共享目录合同确认与实施
 
 用户2026-09-07明确确认逐文件清理方案，Design commit `2eaa31a46`；后续仅排版收束与source map机械传播，无额外语义变化。四个Movie文件型共享目录不再因范围外成员阻止当前授权文件结算，普通父目录保留，Final/旧Identity/唯一mapping校验不变；BDMV原子容器及Aftercare独立权限不变。生产恢复前只读记录22个范围外文件指纹（Top Gun10、夺宝奇兵5共8、哪啊哪啊3、霍比特人1共1），包括独立1080p候选；恢复后需比较这些文件并核对四份durable On-deck Commit。
+
+
+09-07恢复工具闭包修正：原六Subject Reset虽通过DB完整性与业务根清理检查，但遗漏Final复制产生的新Physical Identity控制记录，导致新观察仍判outside_procurement_region。改为同时从选定Arca custody直接枚举控制成员；官方工具新增有界精确orphan custody范围，拒绝仍存在的custody/On-deck Run及任何Inventory引用，不扫描清理其他孤儿。原始快照确认四个已授权Subject对应14条残留控制；生产副本演练只删除这14条及14条revision，0 Subject/Run/Work/Workspace删除，9340条范围外控制、全部Run/Work/Commit逐行不变，integrity/FK通过。Reset与NAS参数32项PASS（含空/非法范围、活跃custody与Inventory保护）；生产清理尚未执行。

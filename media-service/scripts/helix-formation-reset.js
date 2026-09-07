@@ -242,13 +242,24 @@ function partitionReverseHandoffAClosures(database, closures, reservedCandidateP
 
 function discoverScope(database, options = {}) {
   if (options.subjectIds !== undefined && !Array.isArray(options.subjectIds)) throw new Error('FORMATION_RESET_SUBJECT_SCOPE_INVALID');
-  const selected = options.subjectIds === undefined ? null : unique(options.subjectIds);
-  if (selected && (!selected.length || selected.some(id => !/^[a-zA-Z0-9_-]+$/.test(id)))) {
+  const requestedOrphans = options.orphanCustodyIds;
+  if (requestedOrphans !== undefined && (!Array.isArray(requestedOrphans) || !requestedOrphans.length || requestedOrphans.length > 16 ||
+      requestedOrphans.some(id => typeof id !== 'string' || !/^[a-zA-Z0-9_-]+$/.test(id)))) throw new Error('FORMATION_RESET_ORPHAN_CUSTODY_SCOPE_INVALID');
+  const orphanCustodyIds = requestedOrphans === undefined ? null : unique(requestedOrphans);
+  const selected = options.subjectIds === undefined ? (orphanCustodyIds ? [] : null) : unique(options.subjectIds);
+  if (options.subjectIds !== undefined && (!selected.length || selected.some(id => !/^[a-zA-Z0-9_-]+$/.test(id)))) {
     throw new Error('FORMATION_RESET_SUBJECT_SCOPE_INVALID');
   }
   const scoped = selected !== null;
   const globalOnly = rows => scoped ? [] : rows;
   assertRequiredSchema(database);
+  for (const id of orphanCustodyIds || []) {
+    if (database.prepare('SELECT 1 FROM arca_ondeck_custodies WHERE custody_id=?').get(id) ||
+        database.prepare('SELECT 1 FROM arca_ondeck_runs WHERE custody_id=?').get(id))
+      throw new Error('FORMATION_RESET_CUSTODY_NOT_ORPHAN');
+    const inventory = database.prepare("SELECT 1 FROM fx_material_controls c JOIN arca_inventory_materials i USING(material_key) WHERE c.owner_domain='arca' AND c.owner_scope_type='on_deck_custody' AND c.owner_scope_id=? LIMIT 1").get(id);
+    if (inventory) throw new Error('FORMATION_RESET_ORPHAN_CUSTODY_INVENTORY_PROTECTED');
+  }
   const orphanPipelineTokens = globalOnly(database.prepare(`
     SELECT token.subject_id,token.source_field_id,token.source_process_id,token.acquired_at_ms
       FROM libra_predeck_pipeline_tokens token
@@ -383,6 +394,7 @@ function discoverScope(database, options = {}) {
      ORDER BY r.on_deck_run_id
   `).filter(id => !scoped || packageIds.includes(database.prepare(`SELECT custody.on_deck_package_id FROM arca_ondeck_runs run JOIN arca_ondeck_custodies custody ON custody.custody_id=run.custody_id WHERE run.on_deck_run_id=?`).get(id)?.on_deck_package_id));
   const custodyIds = unique([
+    ...(orphanCustodyIds || []),
     ...rowsByIds(database, 'SELECT DISTINCT custody_id FROM arca_ondeck_runs WHERE on_deck_run_id IN', onDeckRunIds)
       .map((row) => row.custody_id).filter(Boolean),
     ...rowsByIds(database, 'SELECT custody_id FROM arca_ondeck_custodies WHERE on_deck_package_id IN', packageIds)
@@ -542,6 +554,8 @@ function discoverScope(database, options = {}) {
     ...handoffAMaterialKeys,
   ]);
   const materialKeys = unique([
+    ...rowsByIds(database, "SELECT material_key FROM fx_material_controls WHERE owner_scope_id IN", custodyIds,
+      "AND owner_domain='arca' AND owner_scope_type='on_deck_custody'").map(row => row.material_key),
     ...subjectControlMaterialKeys,
     ...runMaterialKeys,
     ...rowsByIds(database, "SELECT material_key FROM arca_material_bindings WHERE owner_object_id IN", custodyIds, "AND owner_object_type='on_deck_custody'")
@@ -1222,8 +1236,8 @@ function applyFormationReset(database, plan, nowMs) {
   finally { database.pragma('foreign_keys = ON'); }
 }
 
-function applyReset({ database, dataDir, transcodeDir = null, nowMs = Date.now(), subjectIds }) {
-  const plan = inspectPlan(database, {subjectIds});
+function applyReset({ database, dataDir, transcodeDir = null, nowMs = Date.now(), subjectIds, orphanCustodyIds }) {
+  const plan = inspectPlan(database, {subjectIds, orphanCustodyIds});
   if (!plan.ready) throw Object.assign(new Error('FORMATION_RESET_BLOCKED'), { details:plan.blockers });
   const manifestDigest = canonicalDigest({ schema:'helix.formation-reset-file-manifest@2',
     workspaceIds:plan.scope.workspaceIds });
@@ -1247,6 +1261,8 @@ function main(argv = process.argv.slice(2)) {
   const transcodeDir = transcodeDirValue ? path.resolve(transcodeDirValue) : null;
   const databasePath = path.join(dataDir, 'shelfdeck.db');
   if (!fs.existsSync(databasePath)) throw new Error(`Database not found: ${databasePath}`);
+  const orphanScope = valueAfter(argv, '--orphan-custody-ids');
+  const orphanCustodyIds = orphanScope === undefined ? undefined : orphanScope.split(',');
   const subjectScope = valueAfter(argv, '--subject-ids');
   const subjectIds = subjectScope === undefined ? undefined : subjectScope.split(',');
   const database = new Database(databasePath, { readonly:!argv.includes('--apply') });
@@ -1254,10 +1270,10 @@ function main(argv = process.argv.slice(2)) {
     database.pragma('foreign_keys = ON');
     assertSafeTranscodeRoot(transcodeDir, dataDir);
     if (!argv.includes('--apply')) return Object.freeze({ operation:'formation_reset',
-      dataDir, transcodeDir, plan:inspectPlan(database, {subjectIds}) });
+      dataDir, transcodeDir, plan:inspectPlan(database, {subjectIds, orphanCustodyIds}) });
     if (!argv.includes('--offline-confirmed')) throw new Error('FORMATION_RESET_OFFLINE_CONFIRMATION_REQUIRED');
     if (valueAfter(argv, '--confirm') !== CONFIRMATION) throw new Error('FORMATION_RESET_CONFIRMATION_REQUIRED');
-    const applied = applyReset({ database, dataDir, transcodeDir, nowMs:Date.now(), subjectIds });
+    const applied = applyReset({ database, dataDir, transcodeDir, nowMs:Date.now(), subjectIds, orphanCustodyIds });
     return Object.freeze({ operation:'formation_reset', applied:true, dataDir, transcodeDir, ...applied });
   } finally { database.close(); }
 }

@@ -662,6 +662,7 @@ test('Formation Reset deletes an uncommitted Libra-to-Arca graph but preserves c
     value.database.prepare(`INSERT INTO fx_material_control_revisions(material_key,revision,operation_kind,
       to_owner_domain,to_scope_type,to_scope_id,basis_digest,commit_marker,committed_at_ms)
       VALUES ('material-target',1,'transfer','arca','on_deck_custody',?,?,'target',1)`).run(targetCustody,DIGEST);
+    value.database.prepare("DELETE FROM arca_material_bindings WHERE owner_object_type='on_deck_custody' AND owner_object_id=?").run(targetCustody);
     const targetExecution = seedExecution(value.database, 'arca', 'arca_ondeck_run', targetOnDeck, 'target');
 
     const kept = seedSubjectRun(value.database, 'kept', 'completed');
@@ -1032,4 +1033,51 @@ test('scoped Reset preserves another active run, its execution graph and Workspa
     assert.equal(inspectPlan(value.database,{subjectIds}).counts.runs,0);
     assert.throws(()=>inspectPlan(value.database,{subjectIds:[]}),/SCOPE_INVALID/);
   }finally{close(value);}
+});
+
+function seedOrphanCustodyControl(database, key, custodyId) {
+  database.prepare("INSERT INTO fx_material_controls(material_key,mount_scope_id,inode,size_bytes,fingerprint_algorithm,fingerprint_version,content_fingerprint,owner_domain,owner_scope_type,owner_scope_id,control_revision,state,updated_at_ms) VALUES (?,'mount',?,1,'middle','1','fingerprint','arca','on_deck_custody',?,1,'controlled',1)").run(key,key,custodyId);
+  database.prepare("INSERT INTO fx_material_control_revisions(material_key,revision,operation_kind,to_owner_domain,to_scope_type,to_scope_id,basis_digest,commit_marker,committed_at_ms) VALUES (?,1,'transfer','arca','on_deck_custody',?,?,'orphan-'||?,1)").run(key,custodyId,DIGEST,key);
+}
+
+test('exact orphan custody cleanup removes only detached control and preserves unrelated runs',()=>{
+  const value=fixture('orphan-custody-reset');
+  try {
+    const kept=seedSubjectRun(value.database,'keep-orphan-test');
+    seedOrphanCustodyControl(value.database,'placed-detached','gone-custody');
+    seedOrphanCustodyControl(value.database,'placed-unselected','other-gone-custody');
+    const scope={orphanCustodyIds:['gone-custody']};
+    const plan=inspectPlan(value.database,scope);
+    assert.equal(plan.ready,true);
+    assert.deepEqual(plan.scope.runIds,[]);
+    assert.deepEqual(plan.scope.materialKeys,['placed-detached']);
+    const result=applyReset({database:value.database,dataDir:value.dataDir,
+      transcodeDir:process.platform==='linux'?'/transcode':value.transcodeDir,...scope});
+    assert.equal(result.verification.integrity,'ok');
+    assert.equal(value.database.prepare('SELECT COUNT(*) n FROM fx_material_controls WHERE material_key=?').get('placed-detached').n,0);
+    assert.equal(value.database.prepare('SELECT COUNT(*) n FROM fx_material_controls WHERE material_key=?').get('placed-unselected').n,1);
+    assert.equal(value.database.prepare('SELECT COUNT(*) n FROM libra_runs WHERE libra_run_id=?').get(kept.runId).n,1);
+    assert.equal(inspectPlan(value.database,scope).scope.materialKeys.length,0);
+  } finally {close(value);}
+});
+
+test('orphan custody scope refuses invalid ids and a custody that still exists',()=>{
+  const value=fixture('orphan-custody-guard');
+  try {
+    for(const orphanCustodyIds of [null,false,'gone-custody',[],['../outside'],new Array(17).fill('x')])
+      assert.throws(()=>inspectPlan(value.database,{orphanCustodyIds}),/FORMATION_RESET_ORPHAN_CUSTODY_SCOPE_INVALID/);
+    value.database.pragma('foreign_keys = OFF');
+    value.database.prepare("INSERT INTO arca_ondeck_custodies(custody_id,acceptance_decision_id,on_deck_package_id,package_digest,state,accepted_at_ms) VALUES ('live-custody','decision','package',?,'active',1)").run(DIGEST);
+    assert.throws(()=>inspectPlan(value.database,{orphanCustodyIds:['live-custody']}),/FORMATION_RESET_CUSTODY_NOT_ORPHAN/);
+  } finally {close(value);}
+});
+
+test('orphan cleanup refuses any material already recorded in Shelf Inventory',()=>{
+  const value=fixture('orphan-custody-inventory');
+  try {
+    seedOrphanCustodyControl(value.database,'inventory-material','gone-custody');
+    value.database.pragma('foreign_keys = OFF');
+    value.database.prepare("INSERT INTO arca_inventory_materials(shelf_entry_id,inventory_revision,ordinal,material_key,role,episode_claims_json) VALUES ('entry',1,0,'inventory-material','primary_payload','[]')").run();
+    assert.throws(()=>inspectPlan(value.database,{orphanCustodyIds:['gone-custody']}),/FORMATION_RESET_ORPHAN_CUSTODY_INVENTORY_PROTECTED/);
+  } finally {close(value);}
 });

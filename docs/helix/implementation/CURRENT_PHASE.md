@@ -40,3 +40,6 @@ Field Observation补充验证：关联自动观察/枚举/保留15 PASS；210文
 2026-09-07 D3用户明确“确认”：本任务获授权修订Movie文件型On-deck逐文件Settlement合同并实施、验证、部署及推进四部共享目录影片。精确成员授权与Final验证保持，范围外文件/子目录及普通父目录保留，BDMV原子容器和其他生命周期不扩权。
 
 D3实施：普通文件源清理只验证当前成员及Final，目录存在不要求closed-world，普通父目录始终保留并返回retained_directory；BDMV分支维持既有行为。同步/异步覆盖独立版本/子目录保留、身份漂移拒绝、重复执行和空目录；真实Admin链路覆盖候选冻结后新增范围外文件、NFO改写及重启到On-deck Commit。服务501项：483 PASS /18条件SKIP /0 FAIL；Settlement专项58 PASS，Projection/有界上下文23 PASS。SSOT source map按确认文本重新生成，P2合同检查PASS。
+
+
+09-07恢复工具闭包修正：原六Subject Reset虽通过DB完整性与业务根清理检查，但遗漏Final复制产生的新Physical Identity控制记录，导致新观察仍判outside_procurement_region。改为同时从选定Arca custody直接枚举控制成员；官方工具新增有界精确orphan custody范围，拒绝仍存在的custody/On-deck Run及任何Inventory引用，不扫描清理其他孤儿。原始快照确认四个已授权Subject对应14条残留控制；生产副本演练只删除这14条及14条revision，0 Subject/Run/Work/Workspace删除，9340条范围外控制、全部Run/Work/Commit逐行不变，integrity/FK通过。Reset与NAS参数32项PASS（含空/非法范围、活跃custody与Inventory保护）；生产清理尚未执行。
