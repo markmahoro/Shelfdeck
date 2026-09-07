@@ -42,4 +42,8 @@
 
 进一步定位到列表摘要读取已完成Procurement Run的全部历史，再从中筛出已完成材料准备计划。Subject的当前计划只会来自媒体整理或上架阶段，列表现不再请求该Procurement历史；点开详情仍保留真实材料准备计划。回归验证列表与详情的currentPlan/currentRun完全一致，并验证列表只读一次执行投影；47项相关测试通过。旧生产03:33实测Formation 2110ms、Collection 775ms，作为上线对照。
 
+3653f5a16a exact-image副本中Formation列表两次为165/117ms（前一候选1900/1692ms），三项真实列表/详情currentPlan逐项相等、详情仍含三个阶段；service 501通过/18跳过。该数字是副本环境对照，生产复验仍待执行。
+
+追加NFO边界修正：已存在文件的健康判断仅检查regular/nonempty/readable，读取1字节，不把256KiB解析预算升级为文件损坏条件；已变为可读的NFO使旧textRender目标失效，不产生重写。61项合同及效果安全测试通过，包含300KiB文件。记录同步和源语义取证仍有各自有界预算，超限路径及AC-09人物观察继续开放，不能声称所有尺寸的NFO记录已支持完整自动收敛。
+
 AC-09仍是独立能力缺口：已有Arca人物关系Evidence Projection保留；完整新NFO人物观察→People注册→确定性Arca关系记录更新尚未实现。本次记录更新不会猜测演员匹配或改写已接受Cast，也不会为人物记录更新创建维护Case。不能据此宣称People全链路验收通过或全部审计项关闭。后续继续在唯一CURRENT_PHASE下跟踪，不创建平行计划。

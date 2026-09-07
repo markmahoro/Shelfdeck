@@ -437,6 +437,9 @@ test('Existing NFO presence is independent of XML shape and rejects missing or e
     assert.equal(validNfo(movie), true);
     assert.equal(validNfo(declared), true);
     assert.equal(validNfo(series), true);
+    fs.writeFileSync(series,Buffer.alloc(300*1024,0x61));
+    assert.equal(validNfo(series),true,'The bounded parsing limit is not a product health requirement.');
+    assert.equal(validNfo(root),false);
     fs.writeFileSync(series,Buffer.alloc(0));
     assert.equal(validNfo(series),false);
     assert.equal(validNfo(path.join(root,'missing.nfo')),false);

@@ -241,7 +241,18 @@ function selectedNfoMaterial(items){const existing=existingMaterials(items,isNfo
 function isRepairablePresentationArtifact(item){const role=String(item.role||'').toLowerCase(),extension=path.extname(item.location||'').toLowerCase();return role.includes('poster')||role.includes('fanart')||role.includes('nfo')||role==='metadata_sidecar'||extension==='.nfo';}
 function custodyBlocksDependentAssessment(custody){return custody?.assessmentState==='not_assessable'||custody?.findingDrafts?.some((item)=>/\/(primary_|binding_)/.test(item.schemaRef));}
 function boundedBytes(location,maxBytes=16*1024*1024){const stat=fs.statSync(location);if(!stat.isFile()||stat.size>maxBytes)return null;return fs.readFileSync(location);}
-function validNfo(location){try{const bytes=boundedBytes(location,256*1024);return readableNfo(bytes);}catch{return false;}}
+function validNfo(location){
+  let descriptor;
+  try{
+    const before=fs.lstatSync(location);
+    if(!before.isFile()||before.size===0)return false;
+    descriptor=fs.openSync(location,'r');
+    const opened=fs.fstatSync(descriptor);
+    if(!opened.isFile()||opened.size===0||opened.ino!==before.ino)return false;
+    return fs.readSync(descriptor,Buffer.alloc(1),0,1,0)===1;
+  }catch{return false;}
+  finally{if(descriptor!==undefined)fs.closeSync(descriptor);}
+}
 async function inspectImageBytes(bytes){try{if(!Buffer.isBuffer(bytes)||bytes.length<12||bytes.length>16*1024*1024)return null;const image=sharp(bytes,{failOn:'error',limitInputPixels:100_000_000,sequentialRead:true}),metadata=await image.metadata();if(!['jpeg','png','webp'].includes(metadata.format)||Number(metadata.width)<=0||Number(metadata.height)<=0)return null;await sharp(bytes,{failOn:'error',limitInputPixels:100_000_000,sequentialRead:true}).stats();return Object.freeze({format:metadata.format,width:Number(metadata.width),height:Number(metadata.height),mediaType:'image/'+metadata.format});}catch{return null;}}
 async function validImageBytes(bytes){return Boolean(await inspectImageBytes(bytes));}
 async function validImage(location){try{const bytes=boundedBytes(location);return Boolean(bytes&&await validImageBytes(bytes));}catch{return false;}}
@@ -451,7 +462,7 @@ function createAftercareCapabilityPorts(options){const now=options.now||Date.now
     }
     return outcome(C.conformance,assessment('conformance',c,findings,at,undefined,execution.workId,null,{mediaRepairStrategy}),at);},validateResult(_c,o){if(!o?.result)throw new TypeError('Conformance Assessment Result is absent.');}});
   ports[C.textRender]=Object.freeze({validateInputs(c){requireNamed(c,['acceptedProductFacts','artifactProfile']);},execute(execution){const c=context(execution),care=activeCase(c),at=now(),root=workspaceRoot(options,store,care.aftercareCaseId),metadata=c.raw.facts.find((item)=>item.fact_kind==='product_metadata')?.value,cast=c.raw.facts.find((item)=>item.fact_kind==='media_cast')?.value,current=selectedNfoMaterial(c.raw.materials),guard=nfoSourceGuard(c,current,fingerprint),existingBytes=current&&fs.existsSync(current.location)?boundedBytes(current.location,256*1024):null,
-    presentation={metadata,cast,identity:{provider:c.raw.identity.provider,providerKey:c.raw.identity.provider_key}},readable=readableNfo(existingBytes),
+    presentation={metadata,cast,identity:{provider:c.raw.identity.provider,providerKey:c.raw.identity.provider_key}},readable=Boolean(current&&validNfo(current.location)),
     bytes=readable?null:renderAftercareMovieNfo({existingBytes,...presentation}).bytes;
     if(readable)throw Object.assign(new Error('Aftercare NFO finding no longer matches current reality.'),{code:'ARCA_AFTERCARE_INPUT_STALE'});
     const digest=crypto.createHash('sha256').update(bytes).digest('hex'),location=path.join(root,'artifacts','movie.nfo');
