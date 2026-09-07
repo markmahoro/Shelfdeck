@@ -4,6 +4,8 @@ Status: **PROD-066 已按用户授权定向恢复 11 部，当前 54 部上架�
 
 Last updated: 2026-09-07
 
+最新工作：用户要求围绕工作可见性、Aftercare节流、两页性能、Top Gun残留和NFO阻塞重新审计。[五项痛点审计](implementation/evidence/USER_PAIN_AUDIT_20260907.md)已完成代码/合同与既有快照核查；未测本次在线延迟、未压测批量改善、未独立读取Emby索引。不以前序架构合并建议为前提，未修改SSOT、代码或生产，下一轮迭代待评审。
+
 09-07 部署前生产只读复查（历史）：仍运行 09-03 镜像；8 部 Arca Settlement 停滞（4 部旧 NFO 漂移、4 部旧目录未知成员），2 部 Libra frozen，8 条 discarded 等待重新入库，1 部正常转码。恢复建议与逐片证据见 [生产停滞现状](implementation/evidence/PROD-065_PRODUCTION_STALL_STATUS_20260907.md)。未部署或修改生产。
 
 16:06完成[11项深度审计](implementation/evidence/PROD-065_ELEVEN_FORMATIONS_DEEP_AUDIT_20260907.md)：8部最终NFO两版语义校验与实际媒体Probe未发现新验收阻断；007同一冻结输入在当前算法复算PASS，寒战2当前认证身份GET成功，哥斯拉正常转码45.7%。本轮typed Settlement failure仍丢失目录/文件及语义冲突详情（D1待补齐）；TMDB底层网络错误归因缺失仍待独立修复（D2）。此前本地测试通过不代表这两个可诊断性缺口已闭合。
