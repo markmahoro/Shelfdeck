@@ -43,3 +43,5 @@ D3实施：普通文件源清理只验证当前成员及Final，目录存在不�
 
 
 09-07恢复工具闭包修正：原六Subject Reset虽通过DB完整性与业务根清理检查，但遗漏Final复制产生的新Physical Identity控制记录，导致新观察仍判outside_procurement_region。改为同时从选定Arca custody直接枚举控制成员；官方工具新增有界精确orphan custody范围，拒绝仍存在的custody/On-deck Run及任何Inventory引用，不扫描清理其他孤儿。原始快照确认四个已授权Subject对应14条残留控制；生产副本演练只删除这14条及14条revision，0 Subject/Run/Work/Workspace删除，9340条范围外控制、全部Run/Work/Commit逐行不变，integrity/FK通过。Reset与NAS参数32项PASS（含空/非法范围、活跃custody与Inventory保护）；生产清理尚未执行。
+
+NAS正式包装同步透传并校验精确orphan custody参数，继续使用停服、完整data备份、离线plan/apply/plan、重启健康检查；生产清理固定经formation-reset-nas.js执行。该工作站operator补充不改变5565a03eb2镜像内的已验证业务代码。

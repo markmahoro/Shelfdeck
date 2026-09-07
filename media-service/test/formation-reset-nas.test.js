@@ -48,6 +48,15 @@ test('NAS Formation Reset backup command is fenced below the application backup 
   assert.match(command, /shelfdeck\.db/);
 });
 
+test('NAS Formation Reset forwards only a validated exact orphan custody scope', () => {
+  assert.deepEqual(parseArgs(['--orphan-custody-ids','gone-a,gone-b']).orphanCustodyIds,['gone-a','gone-b']);
+  for (const args of [['--orphan-custody-ids'],['--orphan-custody-ids',''],['--orphan-custody-ids','../outside'],['--orphan-custody-ids',new Array(17).fill('x').join(',')]])
+    assert.throws(()=>parseArgs(args),/Invalid orphan custody/);
+  const command=resetCommand('image',true,undefined,['gone-a']);
+  assert.match(command,/--orphan-custody-ids 'gone-a'/);
+  assert.doesNotMatch(command,/--subject-ids/);
+});
+
 test('NAS Formation Reset pins the exact image ID of the running container', () => {
   const command = imageCommand();
   assert.match(command, /docker compose ps -q shelfdeck/);
