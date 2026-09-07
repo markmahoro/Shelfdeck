@@ -1,8 +1,10 @@
 # ShelfDeck Clean Helix Current Status
 
-Status: **PROD-066 已按用户授权定向恢复 11 部，当前 54 部上架；7 条未完成流程及异常控制清理保留。NFO 问题仍待处理，服务停止，本地修复尚未部署。**
+Status: **用户痛点迭代已部署 fd8a8e6f35，服务运行，54部收藏/451个当前文件存在。运行监控发现历史接纳闭包冲突与Field访问凭证过期，尚未达到生产稳定性关闭条件。**
 
 Last updated: 2026-09-07
+
+当前部署与未关闭事项见[用户痛点迭代生产记录](implementation/evidence/USER_PAIN_DEPLOYMENT_20260907.md)。Case工作区展示、Case准入、列表性能、NFO职责收缩和物理回收站已交付；Top Gun非空残留尚未归档。下文PROD-065/066停机与旧镜像描述均为历史时点。
 
 前序审计（历史）：用户要求围绕工作可见性、Aftercare节流、两页性能、Top Gun残留和NFO阻塞重新审计。[五项痛点审计](implementation/evidence/USER_PAIN_AUDIT_20260907.md)已完成代码/合同与既有快照核查；未测本次在线延迟、未压测批量改善、未独立读取Emby索引。不以前序架构合并建议为前提，未修改SSOT、代码或生产，下一轮迭代待评审。
 

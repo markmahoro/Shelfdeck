@@ -1,6 +1,6 @@
 # 当前活动包：用户痛点迭代
 
-2026-09-07。状态：LOCAL_IMPLEMENTATION；精确SSOT调整、本地测试、通过后标准部署及监控均已获用户授权。
+2026-09-07。状态：PRODUCTION_MONITORING；精确SSOT调整、本地测试、标准部署已完成，生产稳定性尚未关闭。
 
 基线16ea06173，分支codex/user-pain-iteration。此前54部收藏恢复事实见PROD-066 Evidence。
 
@@ -11,7 +11,9 @@
 | 列表性能 | 各Owner Query与Web | 按需历史、有界摘要、轮询去重、收藏分页与实测 | local_verified |
 | NFO共存 | Libra生成/Arca验收与维护 | 收缩呈现比较，同步Binding与人物观察；保留身份和文件安全 | local_verified |
 | 回收站 | Arca源位置收尾 | 精确范围、物理归档、可恢复、30天/每日清理、跨盘与故障恢复 | local_verified |
-| 发布验证 | 标准生产入口 | 本地测试和副本演练通过；构建部署与监控待完成 | in_progress |
+| 发布验证 | 标准生产入口 | fd8a8e6f35已标准部署；54 Entry / 451文件存在；历史接纳闭包冲突与扫描凭证过期仍待收敛 | monitoring_attention |
+
+部署身份、验证和未关闭事项见[生产记录](evidence/USER_PAIN_DEPLOYMENT_20260907.md)。不将HTTP健康、本地测试通过等同于运行态全部正常；Top Gun非空残留尚未执行物理归档。
 
 Effect边界：Libra不写正式来源；Arca文件变更须精确范围与可恢复Evidence；回收站隔离于Field/Shelf/Provider扫描范围。自动回收只处理已完成移入且到期记录。新schema保护全部已Commit收藏，不为未完成Formation添加双路径。
 
