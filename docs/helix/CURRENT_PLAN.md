@@ -16,3 +16,5 @@ Libra 记录当前源快照及关键事实，Handoff B 携带不可变观察，A
 恢复期间追加已复现的Field Observation实现修复：失败Work留下partial页后，新准入Work应遵守既有SSOT§6.3.2从头扫描并推进当前revision，不能要求旧扫描成功；保留旧页，拒绝同Work重开第0页。修复、回归、标准部署后继续原六项恢复；D3共享目录合同确认仍独立等待。
 
 2026-09-07 D3用户明确“确认”：本任务获授权修订Movie文件型On-deck逐文件Settlement合同并实施、验证、部署及推进四部共享目录影片。精确成员授权与Final验证保持，范围外文件/子目录及普通父目录保留，BDMV原子容器和其他生命周期不扩权。
+
+D3已确认并完成生产四片On-deck验证。后续沿正式Observation/Intake推进已退场旧流程，核对新生成NFO/Package最终上架；不得把Reset/重新观察当作上架成功。生产身份及精确凭证见CURRENT_STATUS及本包11项审计证据。

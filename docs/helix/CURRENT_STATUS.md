@@ -1,6 +1,6 @@
 # ShelfDeck Clean Helix Current Status
 
-Status: **PROD-065 已部署 NFO 语义和诊断修复，六项有界 Reset 已执行；逐片恢复进行中，尚未全部上架。**
+Status: **PROD-065 已部署 NFO/D3/Reset闭包修复；四部共享目录影片已正式上架，历史旧流程已定向退场，新观察及接收继续进行。**
 
 Last updated: 2026-09-07
 
@@ -74,3 +74,7 @@ exact-image gate 验证。已对明确列出的六个 Subject 执行离线有界
 寒战2已通过身份/资料/NFO阶段，进入转码流程；四部共享目录影片自动恢复后可显示目录和未知成员，D3合同调整仍等待用户确认。老手旧版本生成的NFO与正式演员编号冲突，生成时间早于部署，当前渲染器已有对应修正，旧不可变产品仍需重建。
 
 补充部署 `1125d232c6` 已完成：SHA校验、标准dry run/apply、health、Admin Web及挂载验证通过。Field Observation从1088推进至1101（新Work第12页），证实旧失败扫描不再阻止新一轮。该补充镜像Windows观察与Sidecar22 PASS、关联观察15 PASS、架构210文件PASS；Linux新round与连续性3 PASS。恢复尚在进行。
+
+
+2026-09-07本轮结果：生产 `helix-beta-20260907-5565a03eb2`，source `5565a03eb2`，tar SHA `fc179c4e1020f5812341feaebb3b099bc9d3453b488b949e01d0ad6879a21253`，部署健康/Admin Web/mount验证通过。D3四部（壮志凌云2、夺宝奇兵5 2160p、哪啊哪啊神去村、霍比特人1）全部取得On-deck Commit，22个范围外文件前后指纹一致。
+原四Subject遗漏的14条孤立custody控制经正式operator清零；《老手》《猩球崛起3》《九月五日》三条旧证据流程已逐范围Reset，正片保留、integrity/FK通过。新Observation重启后继续到revision1191、第30页；007合格Candidate仍open，其他目标等待观察及正常Intake，未完成上架。管理页快照47 completed，寒战2转码恢复，侠盗一号identity conflicting；另有新的正式Intake acceptance执行中，不调整全局并发策略强插队。

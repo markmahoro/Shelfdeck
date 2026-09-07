@@ -100,3 +100,23 @@ Inventory adapter 会给出 `details.sourceDirectory/unknownNames`，Final NFO s
 
 
 09-07恢复工具闭包修正：原六Subject Reset虽通过DB完整性与业务根清理检查，但遗漏Final复制产生的新Physical Identity控制记录，导致新观察仍判outside_procurement_region。改为同时从选定Arca custody直接枚举控制成员；官方工具新增有界精确orphan custody范围，拒绝仍存在的custody/On-deck Run及任何Inventory引用，不扫描清理其他孤儿。原始快照确认四个已授权Subject对应14条残留控制；生产副本演练只删除这14条及14条revision，0 Subject/Run/Work/Workspace删除，9340条范围外控制、全部Run/Work/Commit逐行不变，integrity/FK通过。Reset与NAS参数32项PASS（含空/非法范围、活跃custody与Inventory保护）；生产清理尚未执行。
+
+
+## D3生产完成与后续有界恢复（2026-09-07）
+
+生产镜像 `helix-beta-20260907-5565a03eb2` 已标准部署，source `5565a03eb2`，tar SHA `fc179c4e1020f5812341feaebb3b099bc9d3453b488b949e01d0ad6879a21253`。四个offer经正式Admin retry受理并全部取得durable On-deck Commit。完成后22个范围外成员的size/inode/mtime/有界指纹及小文件完整SHA与操作前一致，包含夺宝奇兵5独立1080p视频/NFO/字幕。
+
+| 影片 | On-deck Commit receipt |
+| --- | --- |
+| 壮志凌云2 | `ce6be5d132b4292f141f06db83e0b66e1ad71dd2503572b1e79b52e3ad53a356` |
+| 夺宝奇兵5（2160p） | `43276b77a00372109aa84431dbc53c7c54677ac3e32ff97fc6ff3e9d9b6b5693` |
+| 哪啊哪啊神去村 | `a0ffbb113e8e473b5562a8ace56fd7a03233d2b509d824fe0ef3f0b06b8b31be` |
+| 霍比特人1 | `d58d1998a86d65ac4a96a9672a44a5b3099cc142e698b5050cf170732a4aea30` |
+
+孤立控制已通过NAS正式operator清理：4个精确custody、14条control及revision，0 Run/Workspace删除，idempotent plan归零，integrity/FK通过；完整备份 `backups/formation-reset-20260907T104609Z/data`。
+
+另两部旧包《老手》《猩球崛起3》已核对正片在Field保留、Workspace仅NFO/poster，经正式Subject范围Reset删除2 Run、41 Work、2 Workspace；29条控制中2条回到Procurement、27条释放。完整备份 `backups/formation-reset-20260907T105336Z/data`，integrity/FK通过。重新观察仍在进行，不能把这些退场/入队动作计为完成上架。
+
+《九月五日》复核更正：首轮部署前旧包，acceptance assessment Work已succeeded、尚无On-deck Run；旧NFO输入snapshot重建不一致阻断后续交接，并占用3个predeck seats之一。精确范围为1 Run/1 Workspace（仅NFO/poster），Field正片3838845964 bytes保留；定向Reset获原本异常恢复授权并执行中。《侠盗一号》provider identity conflicting属于身份核对，未通过工程手段选择身份。
+
+《九月五日》定向Reset完成：1 Run/1 Workspace，1条control恢复Procurement、2条释放；完整备份backups/formation-reset-20260907T105708Z/data，integrity/FK通过。最后启动时间后的日志仅listening，先前Product Metadata snapshot异常未再出现；这支持旧输入重建归因，不宣称新的源事实冲突可忽略。观察已推进到第30页，正式Intake已有新acceptance Work执行；007等仍为后续接收/观察中。
