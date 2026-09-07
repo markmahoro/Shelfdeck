@@ -5,7 +5,9 @@ const test = require('node:test');
 
 const {
   deriveOnDeckControlChanges,
+  retiredStagedNfoMembers,
 } = require('../../src/helix/domains/arca/persistence/on-deck-store');
+const { canonicalDigest } = require('../../src/helix/contracts/canonical-json');
 
 function material(seed) {
   const materialKey = seed.repeat(64).slice(0, 64);
@@ -126,4 +128,28 @@ test('UAT-112 retained Material rejects divergent Control projections', () => {
     shelfEntryId: 'entry-1',
   }), (error) => error &&
     error.code === 'P14_ONDECK_CONTROL_PROJECTION_DRIFT');
+});
+
+test('NFO same-file semantic rewrite retires the exact Stage identity with its current control fence', () => {
+  const source = material('a'), stage = material('b'), final = material('c');
+  const stageMember = {sourceMaterialKey:source.materialKey,role:'metadata_sidecar',
+    physicalIdentity:{...stage.physicalIdentity,mountScopeId:'mount',inode:'31'}};
+  const finalMember = {...final,sourceMaterialKey:source.materialKey,role:'metadata_sidecar',
+    physicalIdentity:{...final.physicalIdentity,mountScopeId:'mount',inode:'31'}};
+  const body={schemaRef:'helix://contracts/types/StagedInventoryManifest/v1',
+    manifestId:canonicalDigest({schema:'arca.staged-inventory-manifest-id@1',onDeckRunId:'run'}),
+    sourceProductManifestDigest:'package-manifest',stagedMembers:[stageMember]};
+  const manifest={...body,manifestDigest:canonicalDigest(body)};
+  const input={manifests:[manifest],stagedMembers:[finalMember],packageManifestDigest:'package-manifest',onDeckRunId:'run'};
+  const retired=retiredStagedNfoMembers(input);
+  const changes=deriveOnDeckControlChanges({oldMaterials:new Map([[source.materialKey,source],...retired]),
+    stagedMembers:[finalMember],custodyControls:[control(source),control(stage)],
+    targetControls:[control(final,{controlState:'uncontrolled'})],custodyId:'custody-1',shelfEntryId:'entry'});
+  assert.deepEqual(changes.map(c=>[c.identity.materialKey,c.action]),
+    [[source.materialKey,'release'],[stage.materialKey,'release'],[final.materialKey,'acquire']]);
+  assert.throws(()=>retiredStagedNfoMembers({...input,onDeckRunId:'other'}),{code:'ARCA_ONDECK_STAGED_CONTROL_EVIDENCE_INVALID'});
+  assert.throws(()=>retiredStagedNfoMembers({...input,manifests:[{...manifest,manifestDigest:'bad'}]}),{code:'ARCA_ONDECK_STAGED_CONTROL_EVIDENCE_INVALID'});
+  assert.throws(()=>retiredStagedNfoMembers({...input,stagedMembers:[{...finalMember,physicalIdentity:{...finalMember.physicalIdentity,inode:'32'}}]}),
+    {code:'ARCA_ONDECK_STAGED_CONTROL_REALITY_UNRESOLVED'});
+  assert.equal(retiredStagedNfoMembers({...input,stagedMembers:[{...stageMember,materialKey:stage.materialKey}]}).size,0);
 });

@@ -64,6 +64,14 @@ test('NAS Formation Reset pins the exact image ID of the running container', () 
   assert.doesNotMatch(command, /Config\.Image/);
 });
 
+test('NAS Formation Reset accepts explicit continued downtime and finds its stopped image', () => {
+  assert.deepEqual(parseArgs(['--apply','--confirm',CONFIRMATION,'--keep-stopped']),
+    { apply:true, confirm:CONFIRMATION, keepStopped:true });
+  assert.match(imageCommand(true), /docker compose ps --all -q shelfdeck/);
+  assert.doesNotMatch(imageCommand(false), /--all/);
+  assert.throws(() => parseArgs(['--apply','--keep-stopped']), /FORMATION_RESET_V2/);
+});
+
 test('NAS Formation Reset retries transient connection resets during post-reset health verification', () => {
   const source = fs.readFileSync(path.join(__dirname, '../../scripts/formation-reset-nas.js'), 'utf8');
   assert.match(source, /--retry-all-errors/);

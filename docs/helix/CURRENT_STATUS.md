@@ -1,6 +1,6 @@
 # ShelfDeck Clean Helix Current Status
 
-Status: **PROD-065 已部署 NFO/D3/Reset闭包修复；四部共享目录影片已正式上架，历史旧流程已定向退场，新观察及接收继续进行。**
+Status: **PROD-066 停机基线已应用：43 部合格上架保留，11 部退出且文件保留；未完成 Libra 流程清空，本地修复尚未部署。**
 
 Last updated: 2026-09-07
 
@@ -78,3 +78,13 @@ exact-image gate 验证。已对明确列出的六个 Subject 执行离线有界
 
 2026-09-07本轮结果：生产 `helix-beta-20260907-5565a03eb2`，source `5565a03eb2`，tar SHA `fc179c4e1020f5812341feaebb3b099bc9d3453b488b949e01d0ad6879a21253`，部署健康/Admin Web/mount验证通过。D3四部（壮志凌云2、夺宝奇兵5 2160p、哪啊哪啊神去村、霍比特人1）全部取得On-deck Commit，22个范围外文件前后指纹一致。
 原四Subject遗漏的14条孤立custody控制经正式operator清零；《老手》《猩球崛起3》《九月五日》三条旧证据流程已逐范围Reset，正片保留、integrity/FK通过。新Observation重启后继续到revision1191、第30页；007合格Candidate仍open，其他目标等待观察及正常Intake，未完成上架。管理页快照47 completed，寒战2转码恢复，侠盗一号identity conflicting；另有新的正式Intake acceptance执行中，不调整全局并发策略强插队。
+
+## 2026-09-07 PROD-066 接手现场
+
+生产 source 5565a03eb2；ShelfDeck 自北京时间19:08:26起 exited，来自用户停线指令。本任务未启动服务或修改生产数据。当前活动包为 PROD-066，允许用户指定的基线数据清理及未完成 Formation Reset，原始源清理待逐项授权。旧健康/数量记录不是本次基线证明。
+
+## 2026-09-07 PROD-066 已应用基线
+
+北京时间20:06完成生产停机数据库替换：43部Active Entry、369个当前Inventory文件，全部存在且指纹匹配；退出11部的物理文件保留。18个关联/未完成Libra Subject与Run清空，20个旧Stage控制和9个孤儿控制清理。SQLite integrity=ok、FK=0；范围外43部事实及当前控制逐行未变。33个旧快照与4个无引用Workspace已清理，完整回滚及448个旧非数据库支持文件保留。
+
+Windows服务489 PASS/18条件SKIP、架构/合同审计PASS、Linux隔离Control及UAT-131全链路10 PASS。生产仍为5565a03eb2且停止，本地修复尚未部署，尚未恢复真实Intake。明细及风险边界见[PROD-066审计](implementation/evidence/PROD-066_COLLECTION_CLEAN_BASELINE_20260907.md)。

@@ -6,10 +6,12 @@
  * Usage:
  *   node scripts/formation-reset-nas.js
  *   node scripts/formation-reset-nas.js --apply --confirm FORMATION_RESET_V2
+ *   node scripts/formation-reset-nas.js --apply --confirm FORMATION_RESET_V2 --keep-stopped
  *
  * Dry-run connects read-only to print the live plan. Apply stops only the ShelfDeck
  * Compose service, creates and verifies a full data backup, runs the reset with the
- * currently deployed image, restarts ShelfDeck, and verifies health.
+ * currently deployed image, restarts ShelfDeck, and verifies health. --keep-stopped
+ * retains an existing stop line and verifies the service remains stopped instead.
  */
 
 const path = require('node:path');
@@ -33,6 +35,7 @@ function parseArgs(argv) {
   for (let index = 0; index < argv.length; index += 1) {
     const argument = argv[index];
     if (argument === '--apply') parsed.apply = true;
+    else if (argument === '--keep-stopped') parsed.keepStopped = true;
     else if (argument === '--confirm') { parsed.confirm = argv[index + 1] || ''; index += 1; }
     else if (argument.startsWith('--confirm=')) parsed.confirm = argument.slice('--confirm='.length);
     else if (argument === '--orphan-custody-ids') { parsed.orphanCustodyIds = argv[++index]?.split(','); }
@@ -113,8 +116,8 @@ function backupCommand(backupDir) {
   ].join(' && ');
 }
 
-function imageCommand() {
-  return `cd ${shellQuote(COMPOSE_DIR)} && container_id="$(docker compose ps -q ${SERVICE})" && test -n "$container_id" && docker inspect --format '{{.Image}}' "$container_id"`;
+function imageCommand(includeStopped = false) {
+  return `cd ${shellQuote(COMPOSE_DIR)} && container_id="$(docker compose ps ${includeStopped ? '--all ' : ''}-q ${SERVICE})" && test -n "$container_id" && docker inspect --format '{{.Image}}' "$container_id"`;
 }
 
 async function main(argv = process.argv.slice(2)) {
@@ -131,7 +134,7 @@ async function main(argv = process.argv.slice(2)) {
       `test -d ${shellQuote(TRANSCODE_HOST)} && test ! -L ${shellQuote(TRANSCODE_HOST)}`,
       `test -f ${shellQuote(`${DATA_DIR}/shelfdeck.db`)}`,
     ].join(' && '));
-    image = await step(connection, 'Resolve the exact deployed image', imageCommand());
+    image = await step(connection, 'Resolve the exact deployed image', imageCommand(parsed.keepStopped));
     if (!image || /\s/.test(image)) throw new Error('Deployed image identity is invalid.');
     process.stdout.write(`\nimage  : ${image}\nbackup : ${backupDir}\n`);
     if (!parsed.apply) {
@@ -145,6 +148,11 @@ async function main(argv = process.argv.slice(2)) {
     await step(connection, 'Inspect the offline Formation Reset plan', resetCommand(image, false, parsed.subjectIds, parsed.orphanCustodyIds));
     await step(connection, 'Apply Formation Reset', resetCommand(image, true, parsed.subjectIds, parsed.orphanCustodyIds));
     await step(connection, 'Verify the reset is idempotent', resetCommand(image, false, parsed.subjectIds, parsed.orphanCustodyIds));
+    if (parsed.keepStopped) {
+      await step(connection, 'Verify ShelfDeck remains stopped', `cd ${shellQuote(COMPOSE_DIR)} && test -z "$(docker compose ps -q --status running ${SERVICE})"`);
+      process.stdout.write(`\nFormation Reset complete; ShelfDeck remains stopped. Rollback data: ${backupDir}/data\n`);
+      return Object.freeze({ applied:true, image, backupDir, keptStopped:true });
+    }
     await step(connection, 'Start only the ShelfDeck service', `cd ${shellQuote(COMPOSE_DIR)} && docker compose up -d ${SERVICE}`);
     await step(connection, 'Verify ShelfDeck Compose status', `cd ${shellQuote(COMPOSE_DIR)} && test -n "$(docker compose ps -q --status running ${SERVICE})"`);
     await step(connection, 'Verify ShelfDeck health', `curl --fail --silent --show-error --retry 12 --retry-delay 5 --retry-all-errors ${shellQuote(HEALTH_URL)}`);

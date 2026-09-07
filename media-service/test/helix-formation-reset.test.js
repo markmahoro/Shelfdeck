@@ -552,6 +552,25 @@ test('Formation Reset preserves a historical closure shadowed by a current activ
   } finally { close(value); }
 });
 
+test('Formation Reset also partitions overlapping closures discovered from live Intake roots', () => {
+  const value=fixture('helix-reset-rooted-overlap');
+  try {
+    const older=seedClosedHandoffABoundary(value.database,'rooted-old');
+    const newer=seedClosedHandoffABoundary(value.database,'rooted-new');
+    value.database.prepare('UPDATE proc_candidate_deliveries SET offered_at_ms=2 WHERE offer_id=?').run(newer.offerId);
+    value.database.prepare('UPDATE proc_run_materials SET material_key=? WHERE candidate_package_id=?')
+      .run(older.materialKey,newer.candidatePackageId);
+    const plan=inspectPlan(value.database);
+    assert.equal(plan.ready,true);
+    assert.deepEqual(plan.scope.handoffAOfferIds,[newer.offerId]);
+    const result=applyReset({database:value.database,dataDir:value.dataDir,transcodeDir:value.transcodeDir});
+    assert.equal(result.verification.integrity,'ok');
+    assert.equal(value.database.prepare('SELECT state FROM proc_candidate_deliveries WHERE offer_id=?').get(older.offerId).state,'accepted');
+    assert.equal(value.database.prepare("SELECT COUNT(*) n FROM proc_run_materials WHERE material_key=? AND selection_state='candidate_delivery'").get(older.materialKey).n,1);
+    assert.equal(inspectPlan(value.database).counts.procurementHandoffAClosures,0);
+  } finally {close(value);}
+});
+
 test('Formation Reset deletes an orphan Run even when its admission head is missing', () => {
   const value = fixture('helix-formation-reset-orphan-run-head');
   try {

@@ -50,6 +50,34 @@ function outboxPayloadDigest(value) {
   return canonicalDigest(value);
 }
 
+function retiredStagedNfoMembers({ manifests, stagedMembers, packageManifestDigest, onDeckRunId }) {
+  const finalBySource = new Map(stagedMembers.map(member => [member.sourceMaterialKey, member]));
+  const retired = new Map();
+  for (const manifest of manifests) {
+    const { manifestDigest, ...body } = manifest;
+    if (manifest.schemaRef !== 'helix://contracts/types/StagedInventoryManifest/v1' ||
+        manifestDigest !== canonicalDigest(body) ||
+        manifest.manifestId !== canonicalDigest({ schema:'arca.staged-inventory-manifest-id@1', onDeckRunId }) ||
+        manifest.sourceProductManifestDigest !== packageManifestDigest) {
+      fail('ARCA_ONDECK_STAGED_CONTROL_EVIDENCE_INVALID', 'Staged Custody evidence is not bound to this On-deck Run and Product.');
+    }
+    for (const member of manifest.stagedMembers) {
+      const final = finalBySource.get(member.sourceMaterialKey);
+      if (!final || final.role !== member.role) {
+        fail('ARCA_ONDECK_STAGED_CONTROL_EVIDENCE_INVALID', 'Staged Custody member has no exact Final Product member.');
+      }
+      if (member.physicalIdentity.materialKey === final.materialKey) continue;
+      if (member.role !== 'metadata_sidecar' ||
+          member.physicalIdentity.mountScopeId !== final.physicalIdentity.mountScopeId ||
+          member.physicalIdentity.inode !== final.physicalIdentity.inode) {
+        fail('ARCA_ONDECK_STAGED_CONTROL_REALITY_UNRESOLVED', 'A superseded Stage identity lacks same-file Final NFO verification.');
+      }
+      retired.set(member.physicalIdentity.materialKey, member);
+    }
+  }
+  return retired;
+}
+
 function deriveOnDeckControlChanges(options) {
   const oldMaterials = options.oldMaterials;
   const stagedMembers = options.stagedMembers;
@@ -856,6 +884,22 @@ function createOnDeckStore(options) {
         oldMaterials.set(member.materialKey, member);
       }
     }
+    const retiredStageMembers = retiredStagedNfoMembers({
+      manifests: request.stagedCustodyManifests || [],
+      stagedMembers,
+      packageManifestDigest: packageValue.productMaterialManifest.manifestDigest,
+      onDeckRunId: request.onDeckRunId,
+    });
+    for (const [key, member] of retiredStageMembers) {
+      if (oldMaterials.has(key)) continue;
+      const projection = request.custodyControls.find(item => item.materialKey === key);
+      if (projection?.resultKind !== 'available' || projection.controlState !== 'controlled' ||
+          projection.ownerDomain !== 'arca' || projection.ownerScopeType !== 'on_deck_custody' ||
+          projection.ownerScopeId !== request.custodyId) {
+        fail('ARCA_ONDECK_STAGED_CONTROL_SCOPE_DRIFT', 'Retired Stage identity no longer belongs to the exact Custody.');
+      }
+      oldMaterials.set(key, member);
+    }
     const changes = deriveOnDeckControlChanges({
       oldMaterials,
       stagedMembers,
@@ -1642,4 +1686,5 @@ module.exports = Object.freeze({
   OnDeckStoreError,
   createOnDeckStore,
   deriveOnDeckControlChanges,
+  retiredStagedNfoMembers,
 });
