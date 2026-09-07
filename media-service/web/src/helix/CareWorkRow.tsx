@@ -1,7 +1,7 @@
 import type { CareWorkItem } from './api';
 import { Button } from './chrome';
 
-const goals:Record<string,string>={nfo_missing:'补齐NFO',nfo_corrupt:'修复NFO',nfo_update_required:'更新资料',poster_missing:'补齐海报',poster_corrupt:'修复海报',
+const goals:Record<string,string>={nfo_missing:'补齐NFO',nfo_corrupt:'修复NFO',nfo_identity_changed:'接纳现有NFO',nfo_update_required:'更新资料',poster_missing:'补齐海报',poster_corrupt:'修复海报',
   video_codec_unmet:'调整视频编码',container_unmet:'调整封装',file_extension_unmet:'调整文件格式',max_size_exceeded:'调整影片体积',placement_unmet:'整理收藏位置',settlement_gap:'清理旧文件'};
 const stages:Record<string,string>={queued:'排队中，等待改善席位',preparing:'准备改善',preparing_media:'处理媒体',verifying_media:'验证结果',committing_inventory:'更新收藏',reassessing:'复核结果',waiting_for_recovery:'等待自动恢复'};
 export function careGoal(item:CareWorkItem){return [...new Set(item.goals.map((goal)=>goal.split(/[/:]/).map((part)=>goals[part]).find(Boolean)||'改善收藏要求'))].join('、');}

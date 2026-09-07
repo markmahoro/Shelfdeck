@@ -1,6 +1,6 @@
 # 当前活动包：用户痛点迭代
 
-2026-09-07。状态：PRODUCTION_MONITORING；精确SSOT调整、本地测试、标准部署已完成，生产稳定性尚未关闭。
+2026-09-08。状态：ITERATING；用户要求取消5分钟轮询、持续迭代至痛点解决。自动化已PAUSED，在当前任务继续本地修复、验证与此前授权的标准部署。
 
 基线16ea06173，分支codex/user-pain-iteration。此前54部收藏恢复事实见PROD-066 Evidence。
 
@@ -18,6 +18,10 @@
 监控后本地准备：Field访问凭证过期的明确失败收敛补丁，19项定向及完整恢复测试通过，尚未部署；历史接纳闭包仍在定位。生产仍为fd8a8e6f35。
 
 用户结果复验见[五项痛点验收](evidence/USER_PAIN_OUTCOME_VERIFICATION_20260907.md)：未全数关闭；Top Gun实际转码推进至14%，修正此前按stage不变推断停滞；整页接口组合仍3.2–3.7秒，11文件旧目录尚未归档，3份NFO Binding尚未收敛。
+
+09-08继续实施：当前工作先于历史/配置加载；过期Field Handle明确失败收敛；Reset精确退役6个superseded历史Offer发布，消除重新intake来源，保留旧终态事实。生产副本演练仅移除1个被错误重建的Subject/Run和13个Work，56个Arca表及4276个其他Work逐行哈希保护，第二次应用零动作。100个独立Entry的Case单席位顺序排队与终结释放通过；详细范围见本轮Evidence。
+
+Top Gun已通过正式回收站API移入应用回收站，11文件/4,015,976字节大小与SHA256全部复验一致，原目录不存在，30天保留；当前影片与转码来源未移动。用户明确跳过Emby审查；不再将外部索引作为本轮验收门槛。
 
 Effect边界：Libra不写正式来源；Arca文件变更须精确范围与可恢复Evidence；回收站隔离于Field/Shelf/Provider扫描范围。自动回收只处理已完成移入且到期记录。新schema保护全部已Commit收藏，不为未完成Formation添加双路径。
 

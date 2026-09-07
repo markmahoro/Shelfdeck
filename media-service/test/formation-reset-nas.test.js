@@ -48,6 +48,13 @@ test('NAS Formation Reset backup command is fenced below the application backup 
   assert.match(command, /shelfdeck\.db/);
 });
 
+test('NAS Formation Reset validates and forwards a bounded superseded publication scope',()=>{
+  assert.deepEqual(parseArgs(['--superseded-offer-ids','offer-a,offer-b']).supersededOfferIds,['offer-a','offer-b']);
+  for(const value of ['', '../escape',Array(33).fill('offer').join(',')])
+    assert.throws(()=>parseArgs(['--superseded-offer-ids',value]),/Invalid superseded Offer scope/);
+  assert.match(resetCommand('image',true,['subject-a'],undefined,['offer-a']),/--superseded-offer-ids 'offer-a'/);
+});
+
 test('NAS Formation Reset forwards only a validated exact orphan custody scope', () => {
   assert.deepEqual(parseArgs(['--orphan-custody-ids','gone-a,gone-b']).orphanCustodyIds,['gone-a','gone-b']);
   for (const args of [['--orphan-custody-ids'],['--orphan-custody-ids',''],['--orphan-custody-ids','../outside'],['--orphan-custody-ids',new Array(17).fill('x').join(',')]])

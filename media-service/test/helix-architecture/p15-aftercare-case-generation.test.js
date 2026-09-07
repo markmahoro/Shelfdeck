@@ -102,3 +102,34 @@ test('Case admission is FIFO, persists across coordinator restart and holds capa
     assert.equal(reopened.admitCase(second.aftercareCaseId).state,'active');
   } finally {value.close();}
 });
+
+test('a hundred changed Entries drain through one Case seat without a burst after restart',()=>{
+  const value=fixture();
+  try{
+    const seed=new Database(path.join(value.root,'shelfdeck.db'));seed.pragma('foreign_keys=OFF');
+    for(let i=2;i<=100;i++)seed.prepare("INSERT INTO arca_shelf_entries SELECT ?,shelf_id,structure_kind,status,canonical_identity_revision,?,current_inventory_revision,current_deck_fact_revision,created_at_ms,terminal_at_ms FROM arca_shelf_entries WHERE shelf_entry_id='entry-1'").run('entry-'+i,'tmdb:'+i);
+    seed.close();
+    const cases=[];
+    for(let i=1;i<=100;i++){
+      value.setTime(10_000+i);
+      const request={...value.request('changed-'+i),shelfEntryId:'entry-'+i};
+      const {digest:oldBasisDigest,...basis}=request.careBasis;
+      const distinctBasis={...basis,sourcePackageId:'package-'+i};
+      request.careBasis={...distinctBasis,digest:canonicalDigest(distinctBasis)};
+      const {digest:oldRequirementDigest,...requirement}=request.careRequirement;
+      const distinctRequirement={...requirement,careBasisDigest:request.careBasis.digest};
+      request.careRequirement={...distinctRequirement,digest:canonicalDigest(distinctRequirement)};
+      cases.push(value.store.createCase(request));
+    }
+    const restarted=createAftercareStore({schemaManifest,unitOfWork:createSqliteUnitOfWork({kernel:value.kernel}),now:()=>20_000,
+      aftercareWorkspaceRoot:path.join(value.root,'aftercare')});
+    for(let i=0;i<cases.length;i++){
+      for(const item of cases.slice(i).reverse())restarted.admitCase(item.aftercareCaseId);
+      const active=restarted.listCases().filter(item=>item.state==='active');
+      assert.deepEqual(active.map(item=>item.aftercareCaseId),[cases[i].aftercareCaseId]);
+      assert.equal(restarted.admitCase(cases[i].aftercareCaseId).state,'active');
+      restarted.terminateCase(cases[i].aftercareCaseId,'resolved','repair_completed',digest('completed-'+i));
+    }
+    assert.equal(restarted.listCases().filter(item=>item.state==='resolved').length,100);
+  }finally{value.close();}
+});

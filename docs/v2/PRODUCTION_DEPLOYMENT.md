@@ -115,6 +115,8 @@ node scripts/deploy-nas.js /vol1/1000/docker/shelfdeck/shelfdeck-<tag>.tar --sha
 
 ### Formation Reset 不是部署
 
+历史Reset留下的superseded Offer发布可用`--superseded-offer-ids <逗号分隔ID>`精确退役（最多32个）。工具必须证明每个Offer已被后续占用覆盖，保留原终态Delivery/Reservation，不重新采购同一材料；如仍有Intake，须用`--subject-ids`同时明确纳入其未Commit闭包，否则拒绝。单独提供Offer范围不会扩大为全量Subject Reset。执行前须完成副本演练与收藏保护校验，仍适用下述生产授权、备份及离线确认要求。
+
 Formation Reset是当前开发期的唯一offline调试能力，不发布新镜像、不替代标准部署，也不主动重新Intake。默认命令只读取
 当前生产数据库并输出plan：
 

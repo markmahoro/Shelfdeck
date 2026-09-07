@@ -241,12 +241,15 @@ function partitionReverseHandoffAClosures(database, closures, reservedCandidateP
 }
 
 function discoverScope(database, options = {}) {
+  const supersededOfferIds=options.supersededOfferIds;
+  if(supersededOfferIds!==undefined&&(!Array.isArray(supersededOfferIds)||!supersededOfferIds.length||supersededOfferIds.length>32||
+    supersededOfferIds.some(id=>typeof id!=='string'||!/^[a-zA-Z0-9_-]+$/.test(id))))throw new Error('FORMATION_RESET_SUPERSEDED_SCOPE_INVALID');
   if (options.subjectIds !== undefined && !Array.isArray(options.subjectIds)) throw new Error('FORMATION_RESET_SUBJECT_SCOPE_INVALID');
   const requestedOrphans = options.orphanCustodyIds;
   if (requestedOrphans !== undefined && (!Array.isArray(requestedOrphans) || !requestedOrphans.length || requestedOrphans.length > 16 ||
       requestedOrphans.some(id => typeof id !== 'string' || !/^[a-zA-Z0-9_-]+$/.test(id)))) throw new Error('FORMATION_RESET_ORPHAN_CUSTODY_SCOPE_INVALID');
   const orphanCustodyIds = requestedOrphans === undefined ? null : unique(requestedOrphans);
-  const selected = options.subjectIds === undefined ? (orphanCustodyIds ? [] : null) : unique(options.subjectIds);
+  const selected = options.subjectIds === undefined ? (orphanCustodyIds || supersededOfferIds ? [] : null) : unique(options.subjectIds);
   if (options.subjectIds !== undefined && (!selected.length || selected.some(id => !/^[a-zA-Z0-9_-]+$/.test(id)))) {
     throw new Error('FORMATION_RESET_SUBJECT_SCOPE_INVALID');
   }
@@ -466,7 +469,9 @@ function discoverScope(database, options = {}) {
       pipelineSourceProcessIds, "AND state IN ('accepted','rejected')")
       .map((row) => row.offer_id).filter(Boolean),
   ]);
-  const reverseHandoffAClosures = globalOnly(discoverReverseHandoffAClosures(database));
+  const discoveredReverseClosures=discoverReverseHandoffAClosures(database);
+  const reverseHandoffAClosures = supersededOfferIds
+    ? discoveredReverseClosures.filter(row=>supersededOfferIds.includes(row.offer_id)) : globalOnly(discoveredReverseClosures);
   const scopedClosedDeliveries = discoverReverseHandoffAClosures(database, true)
     .filter(row => scopedHandoffAOfferIds.includes(row.offer_id));
   const closureByOffer = new Map([...reverseHandoffAClosures, ...scopedClosedDeliveries]
@@ -477,6 +482,8 @@ function discoverScope(database, options = {}) {
   const preservedCommittedHandoffAClosures = [...closureByOffer.values()]
     .filter((row) => row.committed_material_overlap === 1);
   const preservedSupersededHandoffAClosures = reversePartition.superseded;
+  if(supersededOfferIds?.some(id=>!preservedSupersededHandoffAClosures.some(row=>row.offer_id===id)))
+    throw new Error('FORMATION_RESET_OFFER_NOT_SUPERSEDED');
   const handoffAOfferIds = unique([
     ...scopedHandoffAOfferIds.filter(id => !scopedClosedDeliveries.some(row => row.offer_id===id)),
     ...reversePartition.actionable.map((row) => row.offer_id),
@@ -1053,6 +1060,24 @@ function rollbackControls(database, scope) {
   return Object.freeze({ restoredProcurementControls, deletedMaterialControls, deletedControlRevisions });
 }
 
+function retireSupersededOfferMessages(database, closures) {
+  // Keep historical terminal Delivery/Reservation facts, but remove the
+  // publication that would recreate an Intake whose history Reset retired.
+  // Only the already-partitioned superseded scope is eligible here.
+  const keys = closures.map(row => `procurement_candidate_offer_available:${row.offer_id}`);
+  for(const row of closures) {
+    if(database.prepare('SELECT intake_decision_id FROM libra_intake_decisions WHERE offer_id=? LIMIT 1').get(row.offer_id))
+      throw new Error('FORMATION_RESET_SUPERSEDED_INTAKE_OUTSIDE_SCOPE');
+  }
+  const messages = rowsByIds(database,
+    'SELECT message_id FROM fx_outbox WHERE dedup_key IN', keys,
+    "AND producer_domain='procurement' AND message_kind='procurement_candidate_offer_available'")
+    .map(row => row.message_id);
+  executeByIds(database, 'DELETE FROM fx_inbox WHERE message_id IN', messages);
+  executeByIds(database, 'DELETE FROM fx_outbox_deliveries WHERE message_id IN', messages);
+  return executeByIds(database, 'DELETE FROM fx_outbox WHERE message_id IN', messages);
+}
+
 function reopenProcurementHandoffA(database, scope, nowMs) {
   const offerIds = scope.handoffAOfferIds;
   const candidatePackageIds = scope.handoffACandidatePackageIds;
@@ -1214,7 +1239,8 @@ function applyFormationReset(database, plan, nowMs) {
     schema:'helix.formation-reset-manifest@2',
     business:{ subjects:scope.disposableSubjectIds, intakes:scope.intakeDecisionIds, runs:scope.runIds,
       workspaces:scope.workspaceIds, packages:scope.packageIds, onDeckRuns:scope.onDeckRunIds,
-      artifacts:scope.artifactIds, handoffAOffers:scope.handoffAOfferIds },
+      artifacts:scope.artifactIds, handoffAOffers:scope.handoffAOfferIds,
+      retiredSupersededOffers:scope.preservedSupersededHandoffAClosures.map(row=>row.offer_id) },
     execution:graph,
   }) });
   database.pragma('foreign_keys = OFF');
@@ -1222,12 +1248,13 @@ function applyFormationReset(database, plan, nowMs) {
     const procurementHandoffA = reopenProcurementHandoffA(database, scope, nowMs);
     deleteFormationBusinessGraph(database, scope, nowMs);
     const deletedWorks = deleteExecutionGraph(database, graph);
+    const retiredSupersededOfferMessages = retireSupersededOfferMessages(database, scope.preservedSupersededHandoffAClosures);
     executeByIds(database, 'DELETE FROM fx_command_receipts WHERE command_receipt_id IN', scope.phantomLibraAdmissionReceiptIds);
     executeByIds(database, 'DELETE FROM fx_artifact_references WHERE artifact_handle_id IN', scope.artifactIds);
     executeByIds(database, 'DELETE FROM fx_artifact_registry WHERE artifact_handle_id IN', scope.artifactIds);
     const controlRollback = rollbackControls(database, scope);
     const verification = verifyFrozenManifest(database, manifest);
-    return Object.freeze({ deletedWorks, deletedSubjects:scope.disposableSubjectIds.length,
+    return Object.freeze({ deletedWorks, retiredSupersededOfferMessages, deletedSubjects:scope.disposableSubjectIds.length,
       deletedRuns:scope.runIds.length, deletedPackages:scope.packageIds.length,
       deletedOnDeckRuns:scope.onDeckRunIds.length, manifestDigest:manifest.digest,
       verification, ...procurementHandoffA, ...controlRollback });
@@ -1236,8 +1263,8 @@ function applyFormationReset(database, plan, nowMs) {
   finally { database.pragma('foreign_keys = ON'); }
 }
 
-function applyReset({ database, dataDir, transcodeDir = null, nowMs = Date.now(), subjectIds, orphanCustodyIds }) {
-  const plan = inspectPlan(database, {subjectIds, orphanCustodyIds});
+function applyReset({ database, dataDir, transcodeDir = null, nowMs = Date.now(), subjectIds, orphanCustodyIds, supersededOfferIds }) {
+  const plan = inspectPlan(database, {subjectIds, orphanCustodyIds, supersededOfferIds});
   if (!plan.ready) throw Object.assign(new Error('FORMATION_RESET_BLOCKED'), { details:plan.blockers });
   const manifestDigest = canonicalDigest({ schema:'helix.formation-reset-file-manifest@2',
     workspaceIds:plan.scope.workspaceIds });
@@ -1265,15 +1292,17 @@ function main(argv = process.argv.slice(2)) {
   const orphanCustodyIds = orphanScope === undefined ? undefined : orphanScope.split(',');
   const subjectScope = valueAfter(argv, '--subject-ids');
   const subjectIds = subjectScope === undefined ? undefined : subjectScope.split(',');
+  const supersededScope=valueAfter(argv,'--superseded-offer-ids');
+  const supersededOfferIds=supersededScope===undefined?undefined:supersededScope.split(',');
   const database = new Database(databasePath, { readonly:!argv.includes('--apply') });
   try {
     database.pragma('foreign_keys = ON');
     assertSafeTranscodeRoot(transcodeDir, dataDir);
     if (!argv.includes('--apply')) return Object.freeze({ operation:'formation_reset',
-      dataDir, transcodeDir, plan:inspectPlan(database, {subjectIds, orphanCustodyIds}) });
+      dataDir, transcodeDir, plan:inspectPlan(database, {subjectIds, orphanCustodyIds, supersededOfferIds}) });
     if (!argv.includes('--offline-confirmed')) throw new Error('FORMATION_RESET_OFFLINE_CONFIRMATION_REQUIRED');
     if (valueAfter(argv, '--confirm') !== CONFIRMATION) throw new Error('FORMATION_RESET_CONFIRMATION_REQUIRED');
-    const applied = applyReset({ database, dataDir, transcodeDir, nowMs:Date.now(), subjectIds, orphanCustodyIds });
+    const applied = applyReset({ database, dataDir, transcodeDir, nowMs:Date.now(), subjectIds, orphanCustodyIds, supersededOfferIds });
     return Object.freeze({ operation:'formation_reset', applied:true, dataDir, transcodeDir, ...applied });
   } finally { database.close(); }
 }

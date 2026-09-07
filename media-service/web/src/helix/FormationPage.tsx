@@ -246,15 +246,20 @@ export default function FormationPage() {
     const live=()=>generation===loadGeneration.current;
     setLoading(true);setError('');
     try{
-      const [firstActive,firstCompleted,firstEnded,shelvesPage,sync]=await Promise.all([
-        helixAdminApi.listFormation('active'),
+      const firstActive=await helixAdminApi.listFormation('active');
+      if(!live())return;
+      setActive(firstActive.items);setSummary(firstActive.summary);setLoading(false);
+      setPageCursors(current=>({...current,active:firstActive.nextCursor}));
+      // Paint current work before historical rows and ancillary configuration.
+      // These reads must not contend with the primary request or gate its UI.
+      const [firstCompleted,firstEnded,shelvesPage,sync]=await Promise.all([
         helixAdminApi.listFormation('completed'),
         helixAdminApi.listFormationHistory(),
         helixAdminApi.listShelves(),
         helixAdminApi.getPerceptionSyncState().catch(()=>null),
       ]);
       if(!live())return;
-      setActive(firstActive.items);setCompleted(firstCompleted.items);setEnded(firstEnded.items);setSummary(firstActive.summary);
+      setCompleted(firstCompleted.items);setEnded(firstEnded.items);
       setShelves(shelvesPage.items.filter((item)=>item.status==='active'));
       if(sync)setPerceptionSync(sync);
       setLoading(false);

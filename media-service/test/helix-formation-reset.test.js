@@ -500,6 +500,14 @@ test('Formation Reset reopens only the newest non-overlapping Handoff A generati
   try {
     const older = seedClosedHandoffABoundary(value.database, 'overlap-older');
     const newer = seedClosedHandoffABoundary(value.database, 'overlap-newer');
+    for(const item of [older,newer]) {
+      value.database.prepare(`INSERT INTO fx_outbox
+        (message_id,producer_domain,message_kind,aggregate_type,aggregate_id,aggregate_revision,dedup_key,
+         consumer_set_digest,intended_consumer_count,payload_schema_ref,payload_json,payload_digest,state,
+         available_at_ms,created_at_ms,all_acked_at_ms)
+        VALUES (?,'procurement','procurement_candidate_offer_available','candidate_delivery',?,1,?,?,1,'message','{}',?,'fully_acked',1,1,2)`)
+        .run('source-'+item.offerId,item.offerId,'procurement_candidate_offer_available:'+item.offerId,DIGEST,DIGEST);
+    }
     value.database.prepare('DELETE FROM libra_predeck_pipeline_tokens WHERE subject_id IN (?,?)')
       .run(older.subjectId,newer.subjectId);
     value.database.prepare('UPDATE proc_candidate_deliveries SET offered_at_ms=2,closed_at_ms=3 WHERE offer_id=?')
@@ -520,6 +528,9 @@ test('Formation Reset reopens only the newest non-overlapping Handoff A generati
       .get(newer.offerId).state, 'open');
     assert.equal(value.database.prepare('SELECT state FROM proc_candidate_deliveries WHERE offer_id=?')
       .get(older.offerId).state, 'accepted');
+    assert.equal(result.result.retiredSupersededOfferMessages,1);
+    assert.equal(value.database.prepare('SELECT message_id FROM fx_outbox WHERE message_id=?').get('source-'+older.offerId),undefined);
+    assert.ok(value.database.prepare('SELECT message_id FROM fx_outbox WHERE message_id=?').get('source-'+newer.offerId));
     assert.equal(inspectPlan(value.database).counts.orphanProcurementHandoffAClosures, 0);
   } finally { close(value); }
 });
@@ -569,6 +580,24 @@ test('Formation Reset also partitions overlapping closures discovered from live 
     assert.equal(value.database.prepare("SELECT COUNT(*) n FROM proc_run_materials WHERE material_key=? AND selection_state='candidate_delivery'").get(older.materialKey).n,1);
     assert.equal(inspectPlan(value.database).counts.procurementHandoffAClosures,0);
   } finally {close(value);}
+});
+
+test('an exact superseded Offer scope does not select unrelated active Subjects or reopen its Delivery',()=>{
+  const value=fixture('helix-reset-superseded-scope');
+  try{
+    const old=seedClosedHandoffABoundary(value.database,'scoped-old');
+    const current=seedClosedHandoffABoundary(value.database,'scoped-current');
+    value.database.prepare('DELETE FROM libra_predeck_pipeline_tokens WHERE subject_id=?').run(old.subjectId);
+    value.database.prepare("UPDATE proc_candidate_deliveries SET state='open',handoff_decision_id=NULL,handoff_receipt_id=NULL,handoff_receipt_digest=NULL,terminal_evidence_digest=NULL,closed_at_ms=NULL WHERE offer_id=?").run(current.offerId);
+    value.database.prepare("UPDATE proc_run_materials SET material_key=?,selection_state='candidate_delivery',terminal_disposition=NULL,terminal_evidence_digest=NULL WHERE candidate_package_id=?").run(old.materialKey,current.candidatePackageId);
+    const plan=inspectPlan(value.database,{supersededOfferIds:[old.offerId]});
+    assert.deepEqual(plan.scope.disposableSubjectIds,[]);assert.deepEqual(plan.scope.handoffAOfferIds,[]);
+    assert.throws(()=>inspectPlan(value.database,{supersededOfferIds:[current.offerId]}),/OFFER_NOT_SUPERSEDED/);
+    const result=applyReset({database:value.database,dataDir:value.dataDir,transcodeDir:value.transcodeDir,supersededOfferIds:[old.offerId]});
+    assert.equal(result.result.deletedSubjects,0);
+    assert.equal(value.database.prepare('SELECT state FROM proc_candidate_deliveries WHERE offer_id=?').get(old.offerId).state,'accepted');
+    assert.ok(value.database.prepare('SELECT subject_id FROM libra_predeck_pipeline_tokens WHERE subject_id=?').get(current.subjectId));
+  }finally{close(value);}
 });
 
 test('Formation Reset deletes an orphan Run even when its admission head is missing', () => {
