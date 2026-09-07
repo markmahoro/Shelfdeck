@@ -4,6 +4,8 @@ Status: **275923039f已部署，精确历史Offer闭包清理完成；当前按�
 
 Last updated: 2026-09-08
 
+全链路审计第1—2步已完成，见[Aftercare全链路审计](implementation/evidence/AFTERCARE_FULL_CHAIN_AUDIT_20260908.md)。10项问题有代码或隔离复算依据，其余风险明确待补证；当前进入合同闭合。此次没有连接生产、修改Case、部署或Emby审查；前序未发布进度显示代码仍未发布。
+
 本轮最新事实见[持续迭代证据](implementation/evidence/USER_PAIN_CONTINUATION_20260908.md)。54部收藏保留，Top Gun旧目录已归档并校验11文件；3份NFO漂移已由旧规则生成queued Case，不能声称新合同已经落地。用户明确指出Case门槛和Aftercare合同边界问题，已要求先统一SSOT；当前未继续清理这些Case或发布本地进度显示修改。以下为前次时点记录。
 
 当前部署与未关闭事项见[用户痛点迭代生产记录](implementation/evidence/USER_PAIN_DEPLOYMENT_20260907.md)。Case工作区展示、Case准入、列表性能、NFO职责收缩和物理回收站已交付；Top Gun非空残留尚未归档。下文PROD-065/066停机与旧镜像描述均为历史时点。
