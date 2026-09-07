@@ -35,11 +35,14 @@ function parseArgs(argv) {
     if (argument === '--apply') parsed.apply = true;
     else if (argument === '--confirm') { parsed.confirm = argv[index + 1] || ''; index += 1; }
     else if (argument.startsWith('--confirm=')) parsed.confirm = argument.slice('--confirm='.length);
+    else if (argument === '--subject-ids') { parsed.subjectIds = argv[++index]?.split(','); }
     else throw new Error(`Unknown argument: ${argument}`);
   }
   if (parsed.apply && parsed.confirm !== CONFIRMATION) {
     throw new Error(`Apply requires --confirm ${CONFIRMATION}`);
   }
+  if ('subjectIds' in parsed && (!Array.isArray(parsed.subjectIds) || !parsed.subjectIds.length ||
+      parsed.subjectIds.some(id => !/^[a-zA-Z0-9_-]+$/.test(id)))) throw new Error('Invalid Subject scope.');
   return Object.freeze(parsed);
 }
 
@@ -73,7 +76,7 @@ async function step(connection, label, command) {
   return result.output.trim();
 }
 
-function resetCommand(image, apply) {
+function resetCommand(image, apply, subjectIds) {
   const args = [
     'docker run --rm',
     `--env-file ${shellQuote(`${COMPOSE_DIR}/secret.env`)}`,
@@ -84,6 +87,7 @@ function resetCommand(image, apply) {
     '--data-dir /app/data',
     '--transcode-dir /transcode',
   ];
+  if (subjectIds !== undefined) args.push('--subject-ids', shellQuote(subjectIds.join(',')));
   if (apply) args.push('--apply', '--offline-confirmed', '--confirm', shellQuote(CONFIRMATION));
   return args.join(' ');
 }
@@ -127,16 +131,16 @@ async function main(argv = process.argv.slice(2)) {
     if (!image || /\s/.test(image)) throw new Error('Deployed image identity is invalid.');
     process.stdout.write(`\nimage  : ${image}\nbackup : ${backupDir}\n`);
     if (!parsed.apply) {
-      await step(connection, 'Inspect live Formation Reset plan', resetCommand(image, false));
+      await step(connection, 'Inspect live Formation Reset plan', resetCommand(image, false, parsed.subjectIds));
       process.stdout.write(`\nDry run only. Apply with --apply --confirm ${CONFIRMATION}.\n`);
       return Object.freeze({ applied:false, image, backupDir });
     }
     await step(connection, 'Stop only the ShelfDeck service', `cd ${shellQuote(COMPOSE_DIR)} && docker compose stop ${SERVICE}`);
     await step(connection, 'Verify ShelfDeck is stopped', `cd ${shellQuote(COMPOSE_DIR)} && test -z "$(docker compose ps -q --status running ${SERVICE})"`);
     await step(connection, 'Create and verify the full data backup', backupCommand(backupDir));
-    await step(connection, 'Inspect the offline Formation Reset plan', resetCommand(image, false));
-    await step(connection, 'Apply Formation Reset', resetCommand(image, true));
-    await step(connection, 'Verify the reset is idempotent', resetCommand(image, false));
+    await step(connection, 'Inspect the offline Formation Reset plan', resetCommand(image, false, parsed.subjectIds));
+    await step(connection, 'Apply Formation Reset', resetCommand(image, true, parsed.subjectIds));
+    await step(connection, 'Verify the reset is idempotent', resetCommand(image, false, parsed.subjectIds));
     await step(connection, 'Start only the ShelfDeck service', `cd ${shellQuote(COMPOSE_DIR)} && docker compose up -d ${SERVICE}`);
     await step(connection, 'Verify ShelfDeck Compose status', `cd ${shellQuote(COMPOSE_DIR)} && test -n "$(docker compose ps -q --status running ${SERVICE})"`);
     await step(connection, 'Verify ShelfDeck health', `curl --fail --silent --show-error --retry 12 --retry-delay 5 --retry-all-errors ${shellQuote(HEALTH_URL)}`);

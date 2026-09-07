@@ -32,6 +32,13 @@ test('NAS Formation Reset command is offline, image-bounded, and mounts only dat
   assert.doesNotMatch(command, /:\/media/);
 });
 
+test('NAS Formation Reset forwards an explicit validated Subject scope without broadening it', () => {
+  assert.deepEqual(parseArgs(['--subject-ids','subject-a,subject-b']).subjectIds,['subject-a','subject-b']);
+  assert.throws(()=>parseArgs(['--subject-ids']),/Invalid Subject/);
+  assert.throws(()=>parseArgs(['--subject-ids','']),/Invalid Subject/);
+  assert.match(resetCommand('image',true,['subject-a']),/--subject-ids 'subject-a'/);
+});
+
 test('NAS Formation Reset backup command is fenced below the application backup root', () => {
   const command = backupCommand(`${BACKUP_ROOT}/formation-reset-test-normal`);
   assert.match(command, /unsafe backup path/);

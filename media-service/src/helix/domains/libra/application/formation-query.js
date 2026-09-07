@@ -731,6 +731,12 @@ function createFormationQuery(options) {
     return '媒体整理完成，收藏架验收或上架失败';
   }
   function technicalIssue(item) {
+    const processId=item.arcaStatus?.onDeckRunId||item.currentRun?.libraRunId;
+    const arca=Boolean(item.arcaStatus?.onDeckRunId);
+    const kinds=arca?['on_deck_execution']:['product_identity','product_metadata_observation','artifact_production'];
+    const failures=processId&&options.readProcessFailures?kinds.flatMap(workKind=>options.readProcessFailures({ownerDomain:arca?'arca':'libra',
+      processType:arca?'arca_ondeck_run':'libra_run',processId,workKind})).slice(0,16):[];
+    if(failures.length)item={...item,failureDiagnostics:failures};
     const value = item.handoffB?.offerId ? options.readAcceptanceRecovery?.(item.handoffB.offerId) : null;
     if (item.handoffB?.offerId && item.arcaStatus?.reasonCode === 'ARCA_ONDECK_BLOCKED' && item.arcaStatus.onDeckRunId) {
       return Object.freeze({ ...item, classification:'attention_required',

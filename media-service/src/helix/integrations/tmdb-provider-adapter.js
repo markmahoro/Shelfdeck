@@ -1,4 +1,5 @@
 'use strict';
+const { failureDiagnostics } = require('../contracts/failure-diagnostics');
 
 const { ProxyAgent } = require('undici');
 const { canonicalDigest } = require('../contracts/canonical-json');
@@ -672,11 +673,13 @@ function createTmdbProviderAdapter(options) {
         fail(
           'PLATFORM_INTEGRATION_TIMEOUT',
           'TMDB request exceeded its bounded timeout.',
+          { stage:'json_request', timeout:true },
         );
       }
       fail(
         'PLATFORM_INTEGRATION_NETWORK_FAILED',
         'TMDB request failed before a valid response was received.',
+        { stage:'json_request', ...failureDiagnostics(_error) },
       );
     } finally {
       clearTimeout(timer);
@@ -882,6 +885,7 @@ function createTmdbProviderAdapter(options) {
             controller.signal.aborted
               ? 'TMDB Person avatar request exceeded its bounded timeout.'
               : 'TMDB Person avatar request failed.',
+            { stage:'image_request', ...failureDiagnostics(_error), timeout:controller.signal.aborted },
           );
         } finally {
           clearTimeout(timer);
@@ -1207,6 +1211,7 @@ function createTmdbProviderAdapter(options) {
         fail(
           'PLATFORM_INTEGRATION_NETWORK_FAILED',
           'TMDB image request failed.',
+          { stage:'image_request', ...failureDiagnostics(_error), timeout:controller.signal.aborted },
         );
       } finally {
         clearTimeout(timer);

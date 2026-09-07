@@ -4,6 +4,10 @@ Status: **PROD-065 NFO合同、审计及本地修复验收完成，未部署。�
 
 Last updated: 2026-09-07
 
+09-07 生产只读复查：仍运行 09-03 镜像；8 部 Arca Settlement 停滞（4 部旧 NFO 漂移、4 部旧目录未知成员），2 部 Libra frozen，8 条 discarded 等待重新入库，1 部正常转码。恢复建议与逐片证据见 [生产停滞现状](implementation/evidence/PROD-065_PRODUCTION_STALL_STATUS_20260907.md)。未部署或修改生产。
+
+16:06完成[11项深度审计](implementation/evidence/PROD-065_ELEVEN_FORMATIONS_DEEP_AUDIT_20260907.md)：8部最终NFO两版语义校验与实际媒体Probe未发现新验收阻断；007同一冻结输入在当前算法复算PASS，寒战2当前认证身份GET成功，哥斯拉正常转码45.7%。本轮typed Settlement failure仍丢失目录/文件及语义冲突详情（D1待补齐）；TMDB底层网络错误归因缺失仍待独立修复（D2）。此前本地测试通过不代表这两个可诊断性缺口已闭合。
+
 ## 当前产品与架构
 
 - Helix-beta 范围是 Movie-only 的 SSOT 旅程 A–I，包含 Procurement、Libra、Arca On-deck、Aftercare、
@@ -50,10 +54,14 @@ exact-image gate 验证。容器 restart count 为 0；未执行 Formation Reset
 
 ## Gate、风险与下一动作
 
-- 本次 Local Implementation 已获用户授权，但 NFO 连续性/处置合同触发 Design-return；唯一活动包见 `implementation/CURRENT_PHASE.md`。
-- 未经新的明确授权，不执行生产部署、Formation Reset、直接生产 SQLite 修改或真实媒体副作用。
+- NFO 连续性合同已获用户授权并固化；09-07 用户进一步授权逐步修复并推进已排摸的异常影片。唯一活动包见 `implementation/CURRENT_PHASE.md`。
+- 当前允许标准部署及逐片有界恢复；不允许全量 Reset、伪造历史 witness 或直接生产 SQL 修补。
 - 本地 `main` 已 fast-forward 到 PROD-064 完整闭包提交 `dbf3d2af5`；它高于生产 source commit，仅包含后续闭包记录。
 - 下一项工作必须从已登记 UAT/PROD/UX 问题或新的用户目标建立唯一 Phase；若发现 Owner/Handoff/授权冲突，返回
   Architecture Design，不以兼容层或数据修补绕过。
 
 当前只读取证：静水城/绣春刀 Arca Settlement reconcile_required；寒战2 TMDB 网络失败后 frozen。详见 PROD-065 Evidence，未宣称生产恢复。
+
+09-07 后续实施：D1 Settlement 明细和 D2 网络安全归因已接入有界持久诊断及 Formation 查询；诊断文件不可用不会阻止失败终结。
+精确 Subject Reset 已实现，服务回归 479 PASS / 18 SKIP / 0 FAIL，Admin Web 构建和 Admin HTTP 整理上架专项通过。
+六项旧流程生产只读范围检查均为一 Subject、一 Run，未包含哥斯拉；尚未执行 Reset 或部署。在线数据库快照正在准备恢复演练。

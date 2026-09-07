@@ -1,4 +1,5 @@
 'use strict';
+const { failureDiagnostics } = require('../../contracts/failure-diagnostics');
 
 const { digest } = require('../persistence/ddl-compiler');
 const { createRepositoryDefinition } = require('../persistence/owner-repository');
@@ -449,6 +450,14 @@ function createEventRuntime(options) {
   }
 
   function complete(snapshot, attemptId, outcome, policyDecision = null) {
+    if (outcome.kind === 'failed' && outcome.evidence?.diagnostics && options.failureEvidenceStore) {
+      try { options.failureEvidenceStore.write(outcome.evidence); }
+      catch {
+        // Diagnostic storage must not keep an already failed physical effect executing.
+        options.onDiagnosticError?.(Object.assign(new Error('Failure diagnostics could not be persisted.'),
+          {code:'EXECUTION_FAILURE_DIAGNOSTICS_UNAVAILABLE'}));
+      }
+    }
     return options.unitOfWork.execute([{
       participantId: 'event_runtime_complete', owner: 'execution-foundation', repositories: Object.values(repositories), execute(context) {
         const event = context.repository('runtime_events').invoke('find', { event_id: snapshot.event.event_id });
@@ -947,6 +956,7 @@ function createEventRuntime(options) {
                 retryDirective:'contract_policy', evidence:Object.freeze({
                   errorName:String(error?.name || 'Error'),
                   errorCode:typeof error?.code === 'string' && error.code ? error.code : 'EXECUTOR_ERROR',
+                  diagnostics:failureDiagnostics(error),
                 }) });
             } else {
               const uncertain = options.effectJournal.requireReconcile(effect.effect_id);

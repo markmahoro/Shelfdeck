@@ -204,7 +204,7 @@ function fixture(run, settings = {}) {
     }
     return outcome;
   } };
-  const runtime = createEventRuntime({ schemaManifest, unitOfWork, scheduler, governor,
+  const runtime = createEventRuntime({ schemaManifest, unitOfWork, scheduler, governor, failureEvidenceStore:settings.failureEvidenceStore,onDiagnosticError:settings.onDiagnosticError,
     ...(settings.incidentObserver ? { incidentObserver:settings.incidentObserver } : {}),
     registry: { resolve: () => ({ manifest: { capabilityRef: 'libra.test.observe@1',ownerScope:'libra',resultSchemaRef: 'helix://test/result',evidenceSchemaRef:'helix://test/evidence',
       effectClass: settings.effectClass || 'pure_observation', approvalRequirementRef: settings.approvalRequirementRef },
@@ -267,7 +267,7 @@ function fixture(run, settings = {}) {
     nextExecutionId: () => 'execution', nextResultId: () => 'result', now: () => settings.nowMs ?? 1000 });
   const cleanup = () => { kernel.close(); fs.rmSync(root, { recursive: true, force: true }); };
   try {
-    const result = run({ runtime, lease, databasePath, state: () => ({ schedulerReleased,
+    const result = run({ runtime, lease, databasePath, unitOfWork, state: () => ({ schedulerReleased,
       governorReleased, recoveryAcquireCount, dispatchContext, journalCalls, dispatchOutcomes }) });
     if (result && typeof result.then === 'function') return result.finally(cleanup);
     cleanup(); return result;
@@ -942,4 +942,36 @@ test('Executor fence_rejected Outcome completes Attempt without immutable Result
 test('Event Runtime source does not route by classification, access Domain Store, or create Business Process', () => {
   const source = fs.readFileSync(path.resolve(__dirname, '../../src/helix/foundation/execution/event-runtime.js'), 'utf8').toLowerCase();
   for (const forbidden of ['flowkind', 'diagnosticclassification', '../domains', 'createprocess', 'fallback']) assert.equal(source.includes(forbidden), false, forbidden);
+});
+
+
+test('terminal failure retains digest-bound diagnostics across evidence store restart', async () => {
+  const {createFailureEvidenceStore}=require('../../src/helix/integrations/failure-evidence-store');
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'failure-evidence-'));
+  const evidence={errorCode:'CLEAN_ARCA_SETTLEMENT_UNKNOWN_MEMBER',diagnostics:{sourceDirectory:'/media/movie',unknownNames:['other.mkv']}};
+  try { await fixture(async ({runtime,lease,databasePath,unitOfWork})=>{
+    await runtime.run({schedulerLease:lease});
+    const db=new Database(databasePath,{readonly:true});
+    try { const row=db.prepare('SELECT evidence_digest FROM fx_event_attempts').get();
+      assert.deepEqual(createFailureEvidenceStore(root).read(row.evidence_digest),evidence);
+      const {createWorkResultReader}=require('../../src/helix/foundation/execution/work-result-reader');
+      const reader=createWorkResultReader({schemaManifest,unitOfWork,failureEvidenceStore:createFailureEvidenceStore(root)});
+      const workId=db.prepare('SELECT work_id FROM fx_workflow_events').get().work_id;
+      assert.deepEqual(reader.readFailures(workId)[0].diagnostics,evidence.diagnostics);
+      fs.writeFileSync(path.join(root,row.evidence_digest+'.json'),'{}');
+      assert.equal(reader.readFailures(workId)[0].diagnosticsUnavailable,true);
+      assert.equal(databaseFacts(databasePath).event.state,'failed');
+    } finally {db.close();}
+  },{failureEvidenceStore:createFailureEvidenceStore(root),outcome:{kind:'failed',failureClass:'settlement_precondition',
+    code:evidence.errorCode,message:'Unknown member',retryDirective:'never',evidence}}); }
+  finally {fs.rmSync(root,{recursive:true,force:true});}
+});
+
+ test('diagnostic storage failure cannot keep a terminal failed Event executing',async()=>{
+  const errors=[];await fixture(async({runtime,lease,databasePath})=>{
+    await runtime.run({schedulerLease:lease});assert.equal(databaseFacts(databasePath).event.state,'failed');
+    assert.equal(errors[0].code,'EXECUTION_FAILURE_DIAGNOSTICS_UNAVAILABLE');
+  },{failureEvidenceStore:{write(){throw new Error('disk full');}},onDiagnosticError:e=>errors.push(e),
+    outcome:{kind:'failed',failureClass:'settlement_precondition',code:'UNKNOWN_MEMBER',message:'Unknown member',
+      retryDirective:'never',evidence:{diagnostics:{unknownNames:['other.mkv']}}}});
 });

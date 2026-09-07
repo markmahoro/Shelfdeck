@@ -150,6 +150,17 @@ function ProcessDetail({ item }:{ item:FormationSubject }) {
   const detail=item.processDetail;
   return <article className="formation-process-card" aria-label={`${item.displayIdentity}的媒体整理过程`}>
     <header className="formation-process-head"><div><span className="formation-process-eyebrow">媒体整理过程</span><h3>{item.displayIdentity}</h3><p>{currentProgressLabel(item)}</p></div><span className="formation-process-status" data-state={stageState(item)}>{statusLabel(item)}</span></header>
+    {item.failureDiagnostics?.map(f=><section key={f.eventId} role="note">
+      <strong>{f.code}</strong>
+      {f.diagnosticsUnavailable&&<p>该次失败的详细证据不可用；需要新的执行观察。</p>}
+      {f.diagnostics?.sourceDirectory&&<p>{f.diagnostics.sourceDirectory}</p>}
+      {Boolean(f.diagnostics?.unknownNames?.length)&&<ul>{f.diagnostics?.unknownNames?.map((name,index)=><li key={index}>{name}</li>)}</ul>}
+      {f.diagnostics?.truncated&&<p>共 {f.diagnostics.unknownMemberCount} 项，以上为部分列表。</p>}
+      {f.diagnostics?.field&&<p>冲突字段：{f.diagnostics.field}</p>}
+      {f.diagnostics?.reasonCode&&<p>原因：{f.diagnostics.reasonCode}</p>}
+      {f.diagnostics?.networkCode&&<p>网络原因：{f.diagnostics.networkCode}</p>}
+      {f.diagnostics?.timeout&&<p>请求超时</p>}
+    </section>)}
     <dl className="formation-process-facts"><div><dt>目标收藏架</dt><dd>{item.targetShelfName || '尚未选定'}</dd></div><div><dt>收藏要求</dt><dd>{item.organizingRequirement}</dd></div><div><dt>当前进展</dt><dd>{currentProgressLabel(item)}</dd></div></dl>
     {detail?.contract==='formation_process_actual_plans@1'?<div className="formation-process-stages">{detail.stages.map((stage,index)=><ProcessStageView key={stage.key} stage={stage} index={index} />)}</div>:<div className="formation-process-unavailable"><strong>暂时无法读取真实计划</strong><p>当前没有可供展示的计划记录。页面不会根据状态推测或补造计划。</p></div>}
   </article>;

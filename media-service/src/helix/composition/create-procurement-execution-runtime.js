@@ -522,7 +522,8 @@ function createProcurementExecutionRuntime(options) {
   const dispatcher = createExecutorDispatcher({ registry, contractValidator });
   const eventRuntime = createEventRuntime({ schemaManifest: options.schemaManifest, unitOfWork: options.unitOfWork,contractValidator,
     scheduler, governor, registry, dispatcher, effectJournal, effectReconciler, attemptPolicy, timeoutController, circuitBreaker: breaker,
-    incidentObserver:executorIncidentObserver,
+    incidentObserver:executorIncidentObserver, failureEvidenceStore:options.failureEvidenceStore,
+    onDiagnosticError:options.onError,
     onProgress: (sample) => { if(sample.ownerDomain==='libra'&&sample.processType==='libra_run')options.onFormationRunChanged?.(sample.processId); },
     executionInputProvider, whenEvaluator: { evaluate: () => 'run' },
     fenceValidator: { validate: ({ snapshot }) => {
@@ -1134,7 +1135,9 @@ function createProcurementExecutionRuntime(options) {
   host = createExecutionRuntimeHost({ startupRecovery, scheduler, plannerRegistry, planPublisher, workLifecycle,
     eventRuntime, domainReconciler, fallbackReconciler, incidentObserver:executorIncidentObserver,
     onError: options.onError,maxInFlightEvents:16 });
-  return Object.freeze({ host, registry, policyRegistry, contractValidator, progressReader, procurementAutomation,triageReader,runCoordinator,
+  return Object.freeze({ host, registry, policyRegistry, contractValidator, progressReader, procurementAutomation,
+    readProcessFailures(scope){return workResultReader.listWorks(scope).slice().sort((a,b)=>Number(b.created_at_ms)-Number(a.created_at_ms)).slice(0,3)
+      .flatMap(w=>workResultReader.readFailures(w.work_id)).slice(0,16);},triageReader,runCoordinator,
     intakeCoordinator:libraProcessServices.coordinator,intakeOfferReader:libraProcessServices.offerReader,
     routingCoordinator:libraProcessServices.routingCoordinator,routingContextReader:libraProcessServices.routingContextReader,
     acceptanceSpecCoordinator:libraProcessServices.acceptanceSpecCoordinator,

@@ -240,18 +240,25 @@ function partitionReverseHandoffAClosures(database, closures, reservedCandidateP
   return Object.freeze({ actionable:Object.freeze(actionable), superseded:Object.freeze(superseded) });
 }
 
-function discoverScope(database) {
+function discoverScope(database, options = {}) {
+  if (options.subjectIds !== undefined && !Array.isArray(options.subjectIds)) throw new Error('FORMATION_RESET_SUBJECT_SCOPE_INVALID');
+  const selected = options.subjectIds === undefined ? null : unique(options.subjectIds);
+  if (selected && (!selected.length || selected.some(id => !/^[a-zA-Z0-9_-]+$/.test(id)))) {
+    throw new Error('FORMATION_RESET_SUBJECT_SCOPE_INVALID');
+  }
+  const scoped = selected !== null;
+  const globalOnly = rows => scoped ? [] : rows;
   assertRequiredSchema(database);
-  const orphanPipelineTokens = database.prepare(`
+  const orphanPipelineTokens = globalOnly(database.prepare(`
     SELECT token.subject_id,token.source_field_id,token.source_process_id,token.acquired_at_ms
       FROM libra_predeck_pipeline_tokens token
       LEFT JOIN libra_subjects subject ON subject.subject_id=token.subject_id
      WHERE subject.subject_id IS NULL
      ORDER BY token.subject_id
-  `).all();
+  `).all());
   const orphanPipelineTokenSubjectIds = unique(orphanPipelineTokens.map((row) => row.subject_id));
   const orphanPipelineSourceProcessIds = unique(orphanPipelineTokens.map((row) => row.source_process_id));
-  const orphanPipelineAdmissionReceipts = database.prepare(`
+  const orphanPipelineAdmissionReceipts = globalOnly(database.prepare(`
     SELECT receipt.command_receipt_id,receipt.target_id,token.source_process_id
       FROM libra_predeck_pipeline_tokens token
       LEFT JOIN libra_subjects subject ON subject.subject_id=token.subject_id
@@ -262,10 +269,10 @@ function discoverScope(database) {
       LEFT JOIN fx_supporting_works target_work ON target_work.work_id=receipt.target_id
      WHERE subject.subject_id IS NULL AND target_work.work_id IS NULL
      ORDER BY receipt.command_receipt_id
-  `).all();
+  `).all());
   const orphanPipelineAdmissionReceiptIds = unique(orphanPipelineAdmissionReceipts.map((row) => row.command_receipt_id));
   const orphanPipelineAdmissionTargetIds = unique(orphanPipelineAdmissionReceipts.map((row) => row.target_id));
-  const phantomLibraAdmissionReceipts = database.prepare(`
+  const phantomLibraAdmissionReceipts = globalOnly(database.prepare(`
     SELECT receipt.command_receipt_id,receipt.caller_scope,receipt.target_id,receipt.committed_at_ms
       FROM fx_command_receipts receipt
       LEFT JOIN fx_supporting_works target_work ON target_work.work_id=receipt.target_id
@@ -273,7 +280,7 @@ function discoverScope(database) {
        AND receipt.command_contract='helix.foundation.work.submit@1'
        AND target_work.work_id IS NULL
      ORDER BY receipt.command_receipt_id
-  `).all();
+  `).all());
   const phantomLibraAdmissionReceiptIds = unique(phantomLibraAdmissionReceipts.map((row) => row.command_receipt_id));
   const committedOnDeckRunIds = oneColumn(database, `
     SELECT DISTINCT on_deck_run_id FROM arca_ondeck_commit_receipts ORDER BY on_deck_run_id
@@ -310,7 +317,7 @@ function discoverScope(database) {
        JOIN arca_ondeck_commit_receipts cr ON cr.on_deck_run_id=r.on_deck_run_id
        WHERE c.on_deck_package_id=p.on_deck_package_id
      ) ORDER BY p.on_deck_package_id
-  `);
+  `).filter(id => !scoped || selected.includes(database.prepare('SELECT subject_id FROM libra_product_packages WHERE on_deck_package_id=?').get(id).subject_id));
   const runIds = oneColumn(database, `
     SELECT r.libra_run_id
       FROM libra_runs r
@@ -321,7 +328,7 @@ function discoverScope(database) {
        JOIN arca_ondeck_commit_receipts cr ON cr.on_deck_run_id=ar.on_deck_run_id
        WHERE p.libra_run_id=r.libra_run_id
      ) ORDER BY r.libra_run_id
-  `);
+  `).filter(id => !scoped || selected.includes(database.prepare('SELECT subject_id FROM libra_runs WHERE libra_run_id=?').get(id).subject_id));
   const disposableSubjectIds = oneColumn(database, `
     SELECT s.subject_id
       FROM libra_subjects s
@@ -332,7 +339,8 @@ function discoverScope(database) {
        JOIN arca_ondeck_commit_receipts cr ON cr.on_deck_run_id=r.on_deck_run_id
        WHERE p.subject_id=s.subject_id
      ) ORDER BY s.subject_id
-  `);
+  `).filter(id => !scoped || selected.includes(id));
+  if (scoped && selected.some(id => committedSubjectIds.includes(id))) throw new Error('FORMATION_RESET_COMMITTED_SUBJECT_REFUSED');
   const runSubjectIds = runIds.length
     ? rowsByIds(database, 'SELECT DISTINCT subject_id FROM libra_runs WHERE libra_run_id IN', runIds, 'ORDER BY subject_id')
       .map((row) => row.subject_id).filter(Boolean)
@@ -348,7 +356,7 @@ function discoverScope(database) {
     ? rowsByIds(database, 'SELECT workspace_id FROM libra_workspaces WHERE libra_run_id IN', runIds, 'ORDER BY workspace_id')
       .map((row) => row.workspace_id)
     : [];
-  const orphanWorkspaceIds = unique([
+  const orphanWorkspaceIds = unique(globalOnly([
     ...oneColumn(database, `SELECT registry.workspace_id FROM fx_workspace_registry registry
       LEFT JOIN libra_workspaces workspace ON workspace.workspace_id=registry.workspace_id
       WHERE registry.owner_domain='libra' AND registry.process_type='libra_run' AND workspace.workspace_id IS NULL
@@ -356,14 +364,14 @@ function discoverScope(database) {
     ...oneColumn(database, `SELECT material.workspace_id FROM fx_workspace_materials material
       LEFT JOIN libra_workspaces workspace ON workspace.workspace_id=material.workspace_id
       WHERE material.owner_domain='libra' AND workspace.workspace_id IS NULL ORDER BY material.workspace_id`),
-  ]);
+  ]));
   const workspaceIds = unique([...runWorkspaceIds, ...orphanWorkspaceIds]);
   const cleanupScopeIds = unique([
     ...rowsByIds(database, 'SELECT cleanup_scope_id FROM libra_workspace_cleanup_scopes WHERE libra_run_id IN', runIds,
       'ORDER BY cleanup_scope_id').map((row) => row.cleanup_scope_id),
-    ...oneColumn(database, `SELECT cleanup.cleanup_scope_id FROM libra_workspace_cleanup_scopes cleanup
+    ...globalOnly(oneColumn(database, `SELECT cleanup.cleanup_scope_id FROM libra_workspace_cleanup_scopes cleanup
       LEFT JOIN libra_runs run ON run.libra_run_id=cleanup.libra_run_id
-      WHERE run.libra_run_id IS NULL ORDER BY cleanup.cleanup_scope_id`),
+      WHERE run.libra_run_id IS NULL ORDER BY cleanup.cleanup_scope_id`)),
   ]);
   const workspaceMaterialHandleIds = cleanupScopeIds.length
     ? rowsByIds(database, 'SELECT DISTINCT material_handle_id FROM libra_workspace_cleanup_members WHERE cleanup_scope_id IN', cleanupScopeIds)
@@ -373,7 +381,7 @@ function discoverScope(database) {
     SELECT r.on_deck_run_id FROM arca_ondeck_runs r
      WHERE NOT EXISTS (SELECT 1 FROM arca_ondeck_commit_receipts cr WHERE cr.on_deck_run_id=r.on_deck_run_id)
      ORDER BY r.on_deck_run_id
-  `);
+  `).filter(id => !scoped || packageIds.includes(database.prepare(`SELECT custody.on_deck_package_id FROM arca_ondeck_runs run JOIN arca_ondeck_custodies custody ON custody.custody_id=run.custody_id WHERE run.on_deck_run_id=?`).get(id)?.on_deck_package_id));
   const custodyIds = unique([
     ...rowsByIds(database, 'SELECT DISTINCT custody_id FROM arca_ondeck_runs WHERE on_deck_run_id IN', onDeckRunIds)
       .map((row) => row.custody_id).filter(Boolean),
@@ -385,7 +393,7 @@ function discoverScope(database) {
       .map((row) => row.acceptance_decision_id).filter(Boolean),
     ...rowsByIds(database, 'SELECT acceptance_decision_id FROM arca_acceptance_decisions WHERE on_deck_package_id IN', packageIds)
       .map((row) => row.acceptance_decision_id).filter(Boolean),
-    ...oneColumn(database, "SELECT acceptance_decision_id FROM arca_acceptance_decisions WHERE result='rejected' ORDER BY acceptance_decision_id"),
+    ...globalOnly(oneColumn(database, "SELECT acceptance_decision_id FROM arca_acceptance_decisions WHERE result='rejected' ORDER BY acceptance_decision_id")),
   ]);
   const acceptanceAttemptIds = unique([
     ...rowsByIds(database, 'SELECT acceptance_attempt_id FROM arca_acceptance_decisions WHERE acceptance_decision_id IN', acceptanceDecisionIds)
@@ -402,7 +410,7 @@ function discoverScope(database) {
   const intakeDecisionIds = unique([
     ...rowsByIds(database, 'SELECT intake_decision_id FROM libra_intake_decisions WHERE target_subject_id IN', disposableSubjectIds)
       .map((row) => row.intake_decision_id),
-    ...oneColumn(database, "SELECT intake_decision_id FROM libra_intake_decisions WHERE decision_kind='rejected_acceptance' ORDER BY intake_decision_id"),
+    ...globalOnly(oneColumn(database, "SELECT intake_decision_id FROM libra_intake_decisions WHERE decision_kind='rejected_acceptance' ORDER BY intake_decision_id")),
   ]);
   const decisionBasisIds = disposableSubjectIds.length
     ? rowsByIds(database, 'SELECT decision_basis_id FROM libra_decision_basis_revisions WHERE subject_id IN', disposableSubjectIds)
@@ -428,7 +436,7 @@ function discoverScope(database) {
     ? rowsByIds(database, 'SELECT selection_intent_id FROM libra_product_identity_selection_intents WHERE libra_run_id IN', runIds)
       .map((row) => row.selection_intent_id)
     : [];
-  const eventlessFactMarkerOrphans = discoverEventlessFactMarkerOrphans(database);
+  const eventlessFactMarkerOrphans = globalOnly(discoverEventlessFactMarkerOrphans(database));
   const runManifestIds = runIds.length
     ? rowsByIds(database, 'SELECT run_material_manifest_id FROM libra_run_material_manifests WHERE libra_run_id IN', runIds)
       .map((row) => row.run_material_manifest_id)
@@ -450,7 +458,7 @@ function discoverScope(database) {
     ? rowsByIds(database, 'SELECT candidate_package_id FROM proc_candidate_deliveries WHERE offer_id IN', scopedHandoffAOfferIds)
       .map((row) => row.candidate_package_id).filter(Boolean)
     : [];
-  const reverseHandoffAClosures = discoverReverseHandoffAClosures(database);
+  const reverseHandoffAClosures = globalOnly(discoverReverseHandoffAClosures(database));
   const reversePartition = partitionReverseHandoffAClosures(database, reverseHandoffAClosures,
     scopedHandoffACandidatePackageIds);
   const orphanProcurementHandoffAClosures = reversePartition.actionable;
@@ -465,7 +473,7 @@ function discoverScope(database) {
     ? rowsByIds(database, 'SELECT candidate_package_id FROM proc_candidate_deliveries WHERE offer_id IN', handoffAOfferIds)
       .map((row) => row.candidate_package_id).filter(Boolean)
     : [];
-  const orphanFormationWorks = database.prepare(`
+  const orphanFormationWorks = globalOnly(database.prepare(`
     SELECT work.work_id,work.owner_domain,work.process_type,work.process_id,work.state
       FROM fx_supporting_works work
      WHERE (work.owner_domain='libra' AND work.process_type='libra_run'
@@ -479,7 +487,7 @@ function discoverScope(database) {
         OR (work.owner_domain='arca' AND work.process_type='arca_acceptance'
             AND NOT EXISTS (SELECT 1 FROM libra_product_packages package WHERE package.offer_id=work.process_id))
      ORDER BY work.work_id
-  `).all();
+  `).all());
   const processScopes = Object.freeze([
     ...typedProcessScope('libra', 'libra_intake', finalIntakeDecisionIds),
     ...typedProcessScope('libra', 'libra_routing', disposableSubjectIds),
@@ -491,7 +499,7 @@ function discoverScope(database) {
     ...orphanFormationWorks.map((row) => Object.freeze({ ownerDomain:row.owner_domain,
       processType:row.process_type, processId:row.process_id })),
   ]);
-  const orphanOwnedArtifacts = database.prepare(`
+  const orphanOwnedArtifacts = globalOnly(database.prepare(`
     SELECT artifact.artifact_handle_id,artifact.owner_domain,artifact.owner_scope_type,artifact.owner_scope_id
       FROM fx_artifact_registry artifact
      WHERE artifact.owner_domain='libra' AND (
@@ -502,7 +510,7 @@ function discoverScope(database) {
        (artifact.owner_scope_type='on_deck_package' AND NOT EXISTS (
          SELECT 1 FROM libra_product_packages package WHERE package.on_deck_package_id=artifact.owner_scope_id)))
      ORDER BY artifact.artifact_handle_id
-  `).all();
+  `).all());
   const ownerScopes = Object.freeze([
     ...typedScope('libra', 'libra_run', runIds),
     ...typedScope('libra', 'libra_workspace', workspaceIds),
@@ -573,6 +581,7 @@ function discoverScope(database) {
   return Object.freeze({
     committed: Object.freeze({ onDeckRunIds:committedOnDeckRunIds, packageIds:committedPackageIds,
       runIds:committedRunIds, subjectIds:committedSubjectIds }),
+    selectedSubjectIds:selected,
     disposableSubjectIds:Object.freeze(disposableSubjectIds), resetSubjectIds:Object.freeze(resetSubjectIds),
     pipelineTokenSubjectIds:Object.freeze(pipelineTokenSubjectIds),
     orphanPipelineTokens:Object.freeze(orphanPipelineTokens.map((row) => Object.freeze({ ...row }))),
@@ -650,7 +659,7 @@ function discoverOrphans(database, scope) {
         WHERE r.libra_run_id IN`, scope.runIds, `AND r.state IN ('active','suspended','frozen') AND h.subject_id IS NULL`)
     : [];
   return Object.freeze({
-    acceptedSubjectIds:Object.freeze(acceptedSubjectIds),
+    acceptedSubjectIds:Object.freeze(acceptedSubjectIds.filter(id => !scope.selectedSubjectIds || scope.selectedSubjectIds.includes(id))),
     activeRunsWithoutHead:Object.freeze(activeRunsWithoutHead),
     pipelineTokens:scope.orphanPipelineTokens,
   });
@@ -658,6 +667,21 @@ function discoverOrphans(database, scope) {
 
 function inspectBlockers(database, scope) {
   const blockers = [];
+  if (scope.selectedSubjectIds) {
+    const outsideIntakes = rowsByIds(database,
+      'SELECT intake_decision_id,target_subject_id FROM libra_intake_decisions WHERE intake_decision_id IN', scope.intakeDecisionIds)
+      .filter(row => row.target_subject_id && !scope.selectedSubjectIds.includes(row.target_subject_id));
+    if (outsideIntakes.length) blockers.push({code:'INTAKE_SHARED_OUTSIDE_SELECTED_SUBJECTS',rows:outsideIntakes});
+    const outsideBindings = rowsByIds(database,
+      'SELECT subject_id,origin_intake_decision_id FROM libra_material_bindings WHERE origin_intake_decision_id IN', scope.intakeDecisionIds)
+      .filter(row => !scope.selectedSubjectIds.includes(row.subject_id));
+    if (outsideBindings.length) blockers.push({code:'INTAKE_BINDING_OUTSIDE_SELECTED_SUBJECTS',rows:outsideBindings});
+    const linkedRuns = rowsByIds(database,
+      'SELECT libra_run_id,subject_id FROM libra_runs WHERE supersedes_run_id IN', scope.runIds)
+      .concat(rowsByIds(database,'SELECT libra_run_id,subject_id FROM libra_runs WHERE superseded_by_run_id IN',scope.runIds))
+      .filter(row => !scope.runIds.includes(row.libra_run_id));
+    if (linkedRuns.length) blockers.push({code:'RUN_CONTINUITY_OUTSIDE_SELECTED_SUBJECTS',rows:linkedRuns});
+  }
   const protectedOverlap = {
     onDeckRunIds: scope.onDeckRunIds.filter((id) => scope.committed.onDeckRunIds.includes(id)),
     packageIds: scope.packageIds.filter((id) => scope.committed.packageIds.includes(id)),
@@ -686,8 +710,8 @@ function inspectBlockers(database, scope) {
   return Object.freeze(blockers);
 }
 
-function inspectPlan(database) {
-  const scope = discoverScope(database);
+function inspectPlan(database, options = {}) {
+  const scope = discoverScope(database, options);
   const blockers = inspectBlockers(database, scope);
   const orphans = discoverOrphans(database, scope);
   const activeWorks = scope.works.filter((row) => ACTIVE_WORK_STATES.includes(row.state));
@@ -1157,7 +1181,7 @@ function verifyFrozenManifest(database, manifest) {
       LEFT JOIN libra_workspaces workspace ON workspace.workspace_id=material.workspace_id
       WHERE material.owner_domain='libra' AND workspace.workspace_id IS NULL`).all(),
   };
-  for (const [name, rows] of Object.entries(globalResiduals)) if (rows.length) residual[name] = rows;
+  for (const [name, rows] of Object.entries(globalResiduals)) if (!scope.selectedSubjectIds && rows.length) residual[name] = rows;
   if (Object.keys(residual).length) {
     throw Object.assign(new Error('FORMATION_RESET_RESIDUAL'), { details:residual });
   }
@@ -1198,8 +1222,8 @@ function applyFormationReset(database, plan, nowMs) {
   finally { database.pragma('foreign_keys = ON'); }
 }
 
-function applyReset({ database, dataDir, transcodeDir = null, nowMs = Date.now() }) {
-  const plan = inspectPlan(database);
+function applyReset({ database, dataDir, transcodeDir = null, nowMs = Date.now(), subjectIds }) {
+  const plan = inspectPlan(database, {subjectIds});
   if (!plan.ready) throw Object.assign(new Error('FORMATION_RESET_BLOCKED'), { details:plan.blockers });
   const manifestDigest = canonicalDigest({ schema:'helix.formation-reset-file-manifest@2',
     workspaceIds:plan.scope.workspaceIds });
@@ -1223,15 +1247,17 @@ function main(argv = process.argv.slice(2)) {
   const transcodeDir = transcodeDirValue ? path.resolve(transcodeDirValue) : null;
   const databasePath = path.join(dataDir, 'shelfdeck.db');
   if (!fs.existsSync(databasePath)) throw new Error(`Database not found: ${databasePath}`);
+  const subjectScope = valueAfter(argv, '--subject-ids');
+  const subjectIds = subjectScope === undefined ? undefined : subjectScope.split(',');
   const database = new Database(databasePath, { readonly:!argv.includes('--apply') });
   try {
     database.pragma('foreign_keys = ON');
     assertSafeTranscodeRoot(transcodeDir, dataDir);
     if (!argv.includes('--apply')) return Object.freeze({ operation:'formation_reset',
-      dataDir, transcodeDir, plan:inspectPlan(database) });
+      dataDir, transcodeDir, plan:inspectPlan(database, {subjectIds}) });
     if (!argv.includes('--offline-confirmed')) throw new Error('FORMATION_RESET_OFFLINE_CONFIRMATION_REQUIRED');
     if (valueAfter(argv, '--confirm') !== CONFIRMATION) throw new Error('FORMATION_RESET_CONFIRMATION_REQUIRED');
-    const applied = applyReset({ database, dataDir, transcodeDir, nowMs:Date.now() });
+    const applied = applyReset({ database, dataDir, transcodeDir, nowMs:Date.now(), subjectIds });
     return Object.freeze({ operation:'formation_reset', applied:true, dataDir, transcodeDir, ...applied });
   } finally { database.close(); }
 }

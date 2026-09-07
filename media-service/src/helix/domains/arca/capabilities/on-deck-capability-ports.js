@@ -1,4 +1,5 @@
 'use strict';
+const { failureDiagnostics } = require('../../../contracts/failure-diagnostics');
 
 const { canonicalDigest, canonicalJson } = require('../../../contracts/canonical-json');
 const { createInboxCoordinator } = require('../../../foundation/persistence/outbox-inbox');
@@ -171,7 +172,7 @@ function settlementPreconditionFailureOutcome(error) {
     'CLEAN_ARCA_SETTLEMENT_HANDLE_INVALID', 'CLEAN_ARCA_FINAL_NFO_SEMANTIC_DRIFT',
     'CLEAN_ARCA_FINAL_NFO_BASIS_MISSING'].includes(error?.code)) return null;
   return Object.freeze({kind:'failed',failureClass:'settlement_precondition',code:error.code,
-    message:error.message,retryDirective:'never',evidence:Object.freeze({errorCode:error.code})});
+    message:error.message,retryDirective:'never',evidence:Object.freeze({errorCode:error.code,diagnostics:failureDiagnostics(error)})});
 }
 
 function createOnDeckCapabilityPorts(options){const now=options.now||Date.now,acceptance=createHandoffBAcceptanceStore(options),onDeck=createOnDeckStore(options),

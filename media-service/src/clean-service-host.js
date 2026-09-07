@@ -1,4 +1,5 @@
 'use strict';
+const { createFailureEvidenceStore } = require('./helix/integrations/failure-evidence-store');
 
 const crypto = require('node:crypto');
 const fs = require('node:fs');
@@ -1463,6 +1464,7 @@ async function createCleanServiceHost(options) {
     detailSource: formationProjectionSource,
     now: options.now || Date.now,
     readAcceptanceRecovery:(offerId)=>formationAcceptanceReader(offerId),
+    readProcessFailures:(scope)=>procurementExecution?.readProcessFailures(scope)||[],
     listAcceptanceAttention:(limit)=>formationAcceptanceAttention(limit),
     readPipelineSubjectIds:()=>procurementExecution?.pipelineAdmission.tokenSubjectIds() || new Set(),
     state: () => formationProjectionHost?.state() || Object.freeze({ status: 'rebuilding', asOfMs: (options.now || Date.now)() }) });
@@ -1470,6 +1472,7 @@ async function createCleanServiceHost(options) {
     onFingerprintRead: options.onPhysicalMaterialFingerprintRead,
   });
   procurementExecution = createHelixExecutionRuntime({
+    failureEvidenceStore:createFailureEvidenceStore(path.join(options.dataDir, 'diagnostics', 'execution-failures')),
     ...constructed.applicationDependencies,
     materialFieldStore,
     pageObserverFactory: createFieldPageObserver,

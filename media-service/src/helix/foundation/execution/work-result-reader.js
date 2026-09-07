@@ -13,7 +13,7 @@ function definition(schemaManifest){return createRepositoryDefinition({repositor
     'capability_ref','state','result_id'],keyColumns:['work_id']},
   find_plan:{kind:'select-one',tableId:'fx_workflow_plans',columns:['plan_id','planner_version','graph_digest','state'],keyColumns:['plan_id'],safeIntegers:true},
   list_event_attempts:{kind:'select-all',tableId:'fx_event_attempts',columns:['event_attempt_id','event_id','ordinal',
-    'input_snapshot_digest','state','outcome_kind'],keyColumns:['event_id'],safeIntegers:true},
+    'input_snapshot_digest','state','outcome_kind','failure_code','evidence_digest'],keyColumns:['event_id'],safeIntegers:true},
   find_node:{kind:'select-one',tableId:'fx_plan_nodes',columns:['plan_id','node_id','capability_ref','input_bindings_json'],
     keyColumns:['plan_id','node_id']},
   find_result:{kind:'select-one',tableId:'fx_event_result_bindings',columns:['result_id','event_id','outcome_kind','result_schema_ref','result_json','result_digest',
@@ -61,6 +61,21 @@ function createWorkResultReader(options){if(!options?.schemaManifest||!options.u
         return Object.freeze({eventId:event.event_id,capabilityRef:event.capability_ref,inputBindings:Object.freeze(inputBindings)});
       }));
     }}]).work_bindings_read;},
+    readFailures(workId){return options.unitOfWork.execute([{participantId:'work_failure_read',owner:'execution-foundation',repositories:[repository],execute(context){
+      const repo=context.repository(repository.repositoryId);
+      return Object.freeze(repo.invoke('list_events',{work_id:workId}).filter(event=>event.state==='failed').flatMap(event=>{
+        const failed=repo.invoke('list_event_attempts',{event_id:event.event_id}).filter(item=>item.outcome_kind==='failed')
+          .sort((a,b)=>Number(b.ordinal)-Number(a.ordinal))[0];
+        if(!failed)return [];
+        let evidence=null,diagnosticsUnavailable=true;
+        if(failed.evidence_digest&&options.failureEvidenceStore){
+          try{evidence=options.failureEvidenceStore.read(failed.evidence_digest);diagnosticsUnavailable=!evidence;}
+          catch{diagnosticsUnavailable=true;}
+        }
+        return [Object.freeze({eventId:event.event_id,code:failed.failure_code,
+          diagnostics:evidence?.diagnostics||null,diagnosticsUnavailable})];
+      }));
+    }}]).work_failure_read;},
     read(workId){return options.unitOfWork.execute([{participantId:'work_result_read',owner:'execution-foundation',repositories:[repository],execute(context){
       const repo=context.repository(repository.repositoryId);return Object.freeze(repo.invoke('list_events',{work_id:workId}).map((event)=>{
         const node=repo.invoke('find_node',{plan_id:event.plan_id,node_id:event.node_id});

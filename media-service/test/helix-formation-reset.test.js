@@ -1007,3 +1007,29 @@ test('the frozen-manifest verifier catches an Artifact omitted by discovery', ()
       error.message === 'FORMATION_RESET_RESIDUAL' && error.details.typedOwnerArtifacts.length === 1);
   } finally { close(value); }
 });
+
+test('scoped Reset preserves another active run, its execution graph and Workspace files', () => {
+  const value=fixture('helix-scoped-reset');
+  try {
+    const target=seedSubjectRun(value.database,'selected','frozen');
+    const other=seedSubjectRun(value.database,'protected');
+    seedExecution(value.database,'libra','libra_run',target.runId,'selected');
+    seedExecution(value.database,'libra','libra_run',other.runId,'protected');
+    seedExecution(value.database,'libra','libra_run','orphan-outside-scope','unrelated-orphan');
+    const protectedDir=path.join(value.transcodeDir,other.workspaceId);
+    fs.mkdirSync(protectedDir,{recursive:true});fs.writeFileSync(path.join(protectedDir,'movie.mkv'),'preserve');
+    const tables=['libra_runs','libra_workspaces','fx_supporting_works','fx_workflow_events','fx_event_attempts'];
+    const before=Object.fromEntries(tables.map(table=>[table,value.database.prepare(`SELECT * FROM ${table}`).all()
+      .filter(row=>JSON.stringify(row).includes('protected')||row.workspace_id===other.workspaceId)]));
+    const subjectIds=[target.subjectId];
+    const plan=inspectPlan(value.database,{subjectIds});
+    assert.deepEqual(plan.scope.runIds,[target.runId]);
+    assert.equal(plan.scope.works.length,1);
+    applyReset({...value,subjectIds,nowMs:6000});
+    for(const table of tables){const rows=value.database.prepare(`SELECT * FROM ${table}`).all();
+      for(const row of before[table])assert.ok(rows.some(current=>JSON.stringify(current)===JSON.stringify(row)),table);}
+    assert.equal(fs.readFileSync(path.join(protectedDir,'movie.mkv'),'utf8'),'preserve');
+    assert.equal(inspectPlan(value.database,{subjectIds}).counts.runs,0);
+    assert.throws(()=>inspectPlan(value.database,{subjectIds:[]}),/SCOPE_INVALID/);
+  }finally{close(value);}
+});

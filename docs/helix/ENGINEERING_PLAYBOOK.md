@@ -112,6 +112,15 @@ Reset必须保护已经Arca On-deck Commit的Shelf Entry与Deck Fact，不得触
 Reset只解决旧运行数据与新版本合同不再一致的问题。若同一缺陷会在Reset后由新建条目再次产生，必须修复根因并补回归验证，
 禁止以反复Reset替代实现修复。
 
+生产逐片处理可以通过 `--subject-ids` 显式限定未 Commit 的 Subject 集合；这是同一 Reset 语义的范围约束。
+显式空集合、无效 ID、已 Commit Subject 必须拒绝；已删除 ID 的重放是无副作用。范围外未完成流程、孤儿记录与
+Workspace 必须保留，不能利用逐片操作顺便全局清理。冻结清单仍须独立验证所选闭包清零及全库引用完整性。
+对需要保留的 Workspace 文件，应在执行前另行核验并保护；Reset 不负责将旧文件绑定迁移到新 Run。
+
+PROD-065 执行失败诊断使用 Foundation 已有 Attempt `evidence_digest` 关联本地诊断文件，composition 注入文件适配器。
+内容只含白名单、每条至多16 KiB的技术详情，不含凭据、请求URL或原始网络错误文本；不作为业务事实或副作用授权。
+诊断不可用必须明确显示，写诊断失败不得阻止原失败 Outcome 终结。历史缺失证据不能补造，新执行产生新证据。
+
 ## 4. Workspace, branch and change isolation
 
 Implementation Gate打开后，实施必须在独立worktree进行，不能直接复用包含用户未提交修改的当前工作区。

@@ -1,6 +1,6 @@
 # ShelfDeck Clean Helix Master Plan
 
-Status: **PROD-065 NFO 全生命周期本地审计修复完成，待交付生产方案。**
+Status: **PROD-065 补齐诊断修复与逐片生产恢复；用户已授权执行。**
 Last updated: 2026-09-07
 
 P1–P14、PROD-064 已完成。唯一活动包为 implementation/CURRENT_PHASE.md，
@@ -11,4 +11,4 @@ Libra 记录当前源快照及关键事实，Handoff B 携带不可变观察，A
 最终 NFO 继续按 accepted Facts 验证；恢复预算耗尽或确定前置失败停止重试，保留不确定副作用证据。
 
 本地验收：完整服务集合串行执行473 PASS / 18 SKIP / 0 FAIL；210个架构测试文件及合同依赖检查PASS。源NFO改写、重启、交接到On-deck的专项PASS。
-本包不包含生产部署、真实媒体修改、Formation Reset 或直接生产数据修复；这些仍需明确授权。
+09-07 用户授权“逐步修复，然后按照刚刚梳理的情况，把这些异常影片推进”。本包继续补齐 D1 失败详情、D2 网络安全归因，经 Windows/Docker 验证后标准部署；逐片恢复十项异常，保持哥斯拉正常流程。旧证据不足的流程按有界 Formation Reset 退场并重新观察，不伪造历史 witness，不直接改生产 SQL。执行前核对文件清单并备份，保护 007 已合格 Workspace 成品及夺宝奇兵5另一版本；禁止全量 Reset。

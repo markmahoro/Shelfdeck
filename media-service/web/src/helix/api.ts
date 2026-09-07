@@ -244,6 +244,7 @@ export type FormationSubject = {
   ratingResolutionStatus?: 'found'|'not_found'|null;
   ratingReasonCode?: string|null;
   productIdentityIssue: null | { result:'not_found'|'ambiguous'|'conflicting'; reasonCode:string; candidateSetDigest:string; candidates:Array<{ providerKey:string; displayTitle:string; originalTitle:string|null; releaseYear:number|null }> };
+  failureDiagnostics?: Array<{eventId:string;code:string;diagnosticsUnavailable?:boolean;diagnostics:{sourceDirectory?:string;unknownNames?:string[];unknownMemberCount?:number;truncated?:boolean;field?:string;reasonCode?:string;networkCode?:string;stage?:string;timeout?:boolean}|null}>;
   executorIssue: null | { phase:string; errorCode:string; attemptCount:number|null; owner:string; recoveryState:string;
     recoveryGeneration:number|null; automaticRecoveryUsed:boolean; canRetry:boolean; offerId:string; onDeckRunId?:string };
   primaryMaterialCount: number;
