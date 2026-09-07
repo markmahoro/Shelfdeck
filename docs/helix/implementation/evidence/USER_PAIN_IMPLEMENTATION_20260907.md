@@ -35,3 +35,5 @@
 Aftercare 工作列表改为批量读取当前 Entry 展示摘要；queued/terminal 不加载完整 Care Context，active 才读取真实进度。定向 45 tests / 42 pass / 3 skip。4533e54ea2 隔离镜像首屏 Collection 226 ms、Formation 13 ms，Cold Admin 8700 ms、Care 2229 ms；最终展示摘要优化另行复测，不以该初步数据代替生产观测。
 
 剩余后台扫描经 SQL 计时定位到 Work.process_id/state、Event.work_id、RunMaterial.candidate_package_id 四条热路径，追加四个普通索引（共94个显式索引），同步 SSOT/生成合同；Event Attempts 按 Event 读取。76项持久化/执行器回归通过；旧186表副本再演练，仍仅 schema marker 内容改变，所有业务表摘要保持一致。
+
+存储对照验证：前述秒级结果使用 Windows bind mount 上的 SQLite，跨宿主目录桥接放大同步访问耗时。将同一副本复制到容器 Linux 文件系统，以真实 HTTP、后台执行开启、network none、无媒体挂载运行8f1795913e，连续两轮全部200：Admin 465/298 ms；Formation 235/57 ms；Collection 217/45 ms；Care 127/181 ms；health 466/36 ms。该条件更接近NAS本地Linux数据盘，仍由生产上线后实测最终确认。Work Supply统计进一步只读取state/priority列，原阈值/决策不变，29项准入/压力回归通过。
