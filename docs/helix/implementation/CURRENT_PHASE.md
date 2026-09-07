@@ -29,3 +29,6 @@ Design待确认D3：SSOT§5.5.10明确要求目录closed-world，§10.10.2.1允�
 夺宝奇兵5同目录另一1080p具有独立`candidate_delivery`，禁止通过挪走该候选规避检查。已向用户提出具体合同调整：Settlement仅清理本Candidate有授权和替代证明的精确文件，范围外材料原地保留，目录不删除。确认前不改变该合同及其实现；其余已授权恢复继续准备。
 
 交付前语义边界补查：`premiered/releasedate`统一为同一上映日期事实，别名冲突不形成witness；仅有TMDB ID而缺显示名的Actor仍须保护其身份。日期别名、Settlement及完整上架专项64项通过，Actor ID补充用例通过。最终部署镜像需包含该补查修正，先前93205bff21镜像尚未切换生产。
+
+09-07后续生产执行：最终 `15bee70546` 镜像已标准部署；上述“尚未apply/未生产写入”均为此前时间点。六Subject离线精确Reset完成，DB integrity/FK通过，007合格视频完整SHA校验后进入正式Field，原件保留在Field外，哥斯拉独立正常完成。
+恢复追加缺陷：历史失败的68页Field Observation被误当成必须先成功完成的前驱，导致所有新观察第一页回滚。依据现有SSOT§6.3.2，允许已准入的不同Work从null cursor及当前revision开始，不改变历史partial页、不原地重开旧Work。新round与同Work禁止重开两项回归、既有观察/Sidecar专项共22 PASS。

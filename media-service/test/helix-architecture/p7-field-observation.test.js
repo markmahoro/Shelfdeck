@@ -212,6 +212,35 @@ test('enforces same-work page continuity, exact access head, and the canonical z
   const inspect=new Database(databasePath,{readonly:true}); assert.equal(inspect.prepare('SELECT current_observation_revision value FROM proc_material_fields').get().value,1); assert.equal(inspect.prepare('SELECT COUNT(*) count FROM proc_field_observations').get().count,1); inspect.close();
 }));
 
+test('a new admitted round can follow a failed partial scan without rewriting its pages', async () => fixture(async ({databasePath,field,coordinator}) => {
+  seedRuntime(databasePath,'work-partial','event-partial');
+  const first=await observe(field,pageRequest('work-partial','observation-partial',0),[raw('a')],true);
+  coordinator.execute(commitRequest(first,'event-partial'));
+  const db=new Database(databasePath);
+  const original=db.prepare('SELECT * FROM proc_field_observations WHERE revision=1').get();
+  db.prepare("UPDATE fx_supporting_works SET state='failed' WHERE work_id=?").run('work-partial');
+  db.close();
+  seedRuntime(databasePath,'work-fresh','event-fresh');
+  const fresh=await observe(field,pageRequest('work-fresh','observation-fresh',1),[raw('b')]);
+  coordinator.execute(commitRequest(fresh,'event-fresh'));
+  const inspect=new Database(databasePath,{readonly:true});
+  assert.deepEqual(inspect.prepare('SELECT * FROM proc_field_observations WHERE revision=1').get(),original);
+  assert.deepEqual(inspect.prepare('SELECT revision,page_ordinal,cursor_in,completed FROM proc_field_observations WHERE revision=2').get(),
+    {revision:2,page_ordinal:0,cursor_in:null,completed:1});
+  assert.equal(inspect.prepare('SELECT current_observation_revision FROM proc_material_fields').get().current_observation_revision,2);
+  inspect.close();
+}));
+
+test('the same observation Work cannot restart page zero over its partial history', async () => fixture(async ({databasePath,field,coordinator}) => {
+  seedRuntime(databasePath,'work-partial','event-partial');
+  const first=await observe(field,pageRequest('work-partial','observation-partial',0),[raw('a')],true);
+  coordinator.execute(commitRequest(first,'event-partial'));
+  seedAdditionalEvent(databasePath,'work-partial','event-restart');
+  const restart=await observe(field,pageRequest('work-partial','observation-restart',1),[raw('b')]);
+  assert.throws(()=>coordinator.execute(commitRequest(restart,'event-restart')),
+    error=>error.code==='P7_FIELD_OBSERVATION_WORK_CONTINUITY');
+}));
+
 test('reconciles one terminal Field batch with same-transaction Control freshness and exact CAS', async () => fixture(async ({databasePath,field,coordinator,unitOfWork}) => {
   seedRuntime(databasePath,'work-1','event-1'); const page=await observe(field,pageRequest('work-1','observation-1',0),[raw('a')]);
   coordinator.execute(commitRequest(page,'event-1')); const snapshot=page.entries[0];

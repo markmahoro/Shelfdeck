@@ -1,10 +1,10 @@
 # ShelfDeck Clean Helix Current Status
 
-Status: **PROD-065 NFO合同、审计及本地修复验收完成，未部署。本任务未更新生产；以下 PROD-064 生产指标是 09-03 历史闭包，非当前健康声明。**
+Status: **PROD-065 已部署 NFO 语义和诊断修复，六项有界 Reset 已执行；逐片恢复进行中，尚未全部上架。**
 
 Last updated: 2026-09-07
 
-09-07 生产只读复查：仍运行 09-03 镜像；8 部 Arca Settlement 停滞（4 部旧 NFO 漂移、4 部旧目录未知成员），2 部 Libra frozen，8 条 discarded 等待重新入库，1 部正常转码。恢复建议与逐片证据见 [生产停滞现状](implementation/evidence/PROD-065_PRODUCTION_STALL_STATUS_20260907.md)。未部署或修改生产。
+09-07 部署前生产只读复查（历史）：仍运行 09-03 镜像；8 部 Arca Settlement 停滞（4 部旧 NFO 漂移、4 部旧目录未知成员），2 部 Libra frozen，8 条 discarded 等待重新入库，1 部正常转码。恢复建议与逐片证据见 [生产停滞现状](implementation/evidence/PROD-065_PRODUCTION_STALL_STATUS_20260907.md)。未部署或修改生产。
 
 16:06完成[11项深度审计](implementation/evidence/PROD-065_ELEVEN_FORMATIONS_DEEP_AUDIT_20260907.md)：8部最终NFO两版语义校验与实际媒体Probe未发现新验收阻断；007同一冻结输入在当前算法复算PASS，寒战2当前认证身份GET成功，哥斯拉正常转码45.7%。本轮typed Settlement failure仍丢失目录/文件及语义冲突详情（D1待补齐）；TMDB底层网络错误归因缺失仍待独立修复（D2）。此前本地测试通过不代表这两个可诊断性缺口已闭合。
 
@@ -23,17 +23,17 @@ Last updated: 2026-09-07
 | 项 | 当前事实 |
 | --- | --- |
 | 环境 | fnOS NAS `http://192.168.12.230:18080`，单容器 `shelfdeck` |
-| 镜像 | `markmahoro/shelfdeck:helix-beta-20260903-f05d694dfa` |
-| Source commit | `f05d694dfa` |
-| Image ID | `sha256:60513d1a56f45cb7be136f1324babf44d6859351513df036ae881c780c0e332a` |
-| Tar SHA-256 | `a82a4ee2d9b8798cec2137f8e98474facb83e8e30af648dc1dab503525982da5` |
+| 镜像 | `markmahoro/shelfdeck:helix-beta-20260907-15bee70546` |
+| Source commit | `15bee70546` |
+| Image ID | `sha256:355df0002f6e5b7956008f0e9cee7a1f0a82673496906bc601495912b9312cb2` |
+| Tar SHA-256 | `e9166cb78c645c0c19640a0ebee48c5675e29fd113eaeaf7d944d2736c27d618` |
 | Readiness | 186 tables、123 routes、17 UI surfaces、0 findings |
 | Health | `ok` / `helix-clean-v3` / `normalSupplyAllowed:true`；SQLite `quick_check=ok` |
-| Execution | 0 active Aftercare Case、0 active Arca Work/Event、0 executing Arca Attempt、0 `reconcile_required` Effect |
-| Collection | 22 条 active Shelf Entry；真实浏览器 22/22 显示收藏健康 |
+| Execution | 恢复进行中，存在运行中及 attention_required 的 Formation，不能沿用 PROD-064 零活动指标 |
+| Collection | 哥斯拉已通过正常 On-deck Commit；其余恢复以逐片 durable Receipt 为准 |
 
 本次生产基线由标准 build、upload、checksum、deploy dry-run/apply、readiness、health、Admin Web、mount 与
-exact-image gate 验证。容器 restart count 为 0；未执行 Formation Reset。
+exact-image gate 验证。已对明确列出的六个 Subject 执行离线有界 Formation Reset，未执行全量 Reset。
 
 ## 最近关闭：PROD-064
 
@@ -65,3 +65,10 @@ exact-image gate 验证。容器 restart count 为 0；未执行 Formation Reset
 09-07 后续实施：D1 Settlement 明细和 D2 网络安全归因已接入有界持久诊断及 Formation 查询；诊断文件不可用不会阻止失败终结。
 精确 Subject Reset 已实现，服务回归 479 PASS / 18 SKIP / 0 FAIL，Admin Web 构建和 Admin HTTP 整理上架专项通过。
 六项旧流程生产只读范围检查均为一 Subject、一 Run，未包含哥斯拉；尚未执行 Reset 或部署。在线数据库快照正在准备恢复演练。
+
+## 09-07 生产恢复最新记录
+
+标准部署 `15bee70546` 已完成并通过 health、Admin Web、mount 与 exact-image 验证。Windows服务479 PASS /18条件SKIP、架构210文件与合同依赖检查PASS；最终Linux镜像NFO语义及重启/完整上架9 PASS。
+六项精确 Reset 删除6 Subjects/6 Runs/89 Works/5 Workspaces/4 Packages，范围外责任保留；全量离线备份位于 `/vol1/1000/docker/shelfdeck/backups/prod065-20260907-93205bff21/`。007合格27506628703-byte文件独立备份并完整SHA校验，已替换进入正式Field；原媒体和字幕保存在Field外，不删除。
+正式观察已提交，但发现新前序实现缺陷：旧扫描Work已failed、最后提交页completed=0，Store错误拒绝所有新Work的第一页。SSOT§6.3.2允许新Work从null cursor开始并保留历史页；正在修正实现，不改旧事实。
+寒战2已通过身份/资料/NFO阶段，进入转码流程；四部共享目录影片自动恢复后可显示目录和未知成员，D3合同调整仍等待用户确认。老手旧版本生成的NFO与正式演员编号冲突，生成时间早于部署，当前渲染器已有对应修正，旧不可变产品仍需重建。

@@ -119,7 +119,11 @@ function createFieldObservationStore(options) {
         if (collision) fail('P7_FIELD_OBSERVATION_ID_CONFLICT', 'Observation ID already belongs to a committed page.');
         const previous = currentRevision === 0 ? null : repo.invoke('find_observation', { field_id:page.fieldId, revision:currentRevision });
         if (page.pageOrdinal === 0) {
-          if (page.cursorIn !== null || previous && !previous.completed) fail('P7_FIELD_OBSERVATION_WORK_CONTINUITY', 'New Observation Work requires a terminal predecessor and null cursor.');
+          // Work admission serializes observation rounds. A failed predecessor may
+          // have committed only partial pages; those remain immutable history,
+          // not a requirement that every later round finish the old scan first.
+          if (page.cursorIn !== null || previous?.field_observation_work_id === page.fieldObservationWorkId)
+            fail('P7_FIELD_OBSERVATION_WORK_CONTINUITY', 'A new Observation round requires a distinct Work and null cursor.');
         } else if (!previous || previous.completed || previous.field_observation_work_id !== page.fieldObservationWorkId ||
           previous.page_ordinal !== page.pageOrdinal - 1 || previous.cursor_out !== page.cursorIn ||
           previous.content_profile_hint !== page.profileHintSnapshot.contentProfileHint ||
