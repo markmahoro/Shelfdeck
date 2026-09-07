@@ -8,9 +8,9 @@ test('Care work pages prioritize live Cases and read only the requested page',()
     state:i===0?'active':i===1?'queued':'resolved',createdAtMs:i+1,terminalAtMs:i>1?100+i:null,
     careRequirement:{typedParameters:[{value:'video_codec_unmet'}]}}));
   const reads=[];
-  const app=createArcaCareApplication({contextReader:{store:{listCases:()=>cases},read(id){reads.push(id);return {
-    raw:{facts:[{fact_kind:'product_metadata',fact_json:JSON.stringify({descriptiveFacts:{entries:[{key:'title',value:id}]}})}],
-      identity:{provider_key:'123'},shelf:{shelf_id:'shelf',name:'Films'}}};}},coordinator:{caseProgress:()=>({stage:'queued'})}});
+  const app=createArcaCareApplication({contextReader:{store:{listCases:()=>cases,
+    workDisplay(ids){reads.push(...ids);return new Map(ids.map(id=>[id,{displayIdentity:id,targetShelfId:'shelf',targetShelfName:'Films'}]));}},
+    read(){throw Error('A work list must not hydrate full Aftercare context for display metadata.');}},coordinator:{caseProgress:()=>({stage:'queued'})}});
   const first=app.list({view:'work',limit:2});
   assert.deepEqual(first.items.map(row=>row.state),['active','queued']);
   assert.deepEqual(reads,['entry-0','entry-1']);

@@ -161,6 +161,19 @@ function createAftercareStore(options) {
     return terminal;
   }
   function listCases(){return read((context)=>context.repository(arca.repositoryId).invoke('list_all_cases',{}).map(mapCase));}
+  function workDisplay(shelfEntryIds){return read(context=>{
+    const repo=context.repository(arca.repositoryId),entries=selectMany(repo,'find_entries',shelfEntryIds);
+    const shelves=new Map(selectMany(repo,'find_shelves',entries.map(row=>row.shelf_id)).map(row=>[row.shelf_id,row]));
+    const identities=new Map(selectMany(repo,'find_identities',shelfEntryIds).map(row=>[row.shelf_entry_id+':'+Number(row.revision),row]));
+    const facts=selectMany(repo,'find_facts',shelfEntryIds).filter(row=>row.fact_kind==='product_metadata');
+    return new Map(entries.map(entry=>{
+      const row=facts.find(row=>row.shelf_entry_id===entry.shelf_entry_id&&Number(row.inventory_revision)===Number(entry.current_inventory_revision));
+      const metadata=row?parse(row.fact_json,'ARCA_AFTERCARE_FACT_CORRUPT'):{},shelf=shelves.get(entry.shelf_id);
+      const title=metadata.descriptiveFacts?.entries?.find(fact=>fact.key==='title'||fact.key==='display_title')?.value;
+      return [entry.shelf_entry_id,Object.freeze({displayIdentity:title||identities.get(entry.shelf_entry_id+':'+Number(entry.canonical_identity_revision))?.provider_key||entry.shelf_entry_id,
+        targetShelfId:entry.shelf_id,targetShelfName:shelf?.name||null})];
+    }));
+  });}
   function listShelfEntryIds(shelfId){return read((context)=>context.repository(arca.repositoryId).invoke('list_entries',{}).filter((row)=>row.status==='active'&&row.shelf_id===shelfId).map((row)=>row.shelf_entry_id));}
   function admitCase(caseId){
     return options.unitOfWork.execute([{participantId:'arca_aftercare_case_admission',owner:'arca',repositories:[arca],execute(context){
@@ -241,7 +254,7 @@ function createAftercareStore(options) {
     });
   }
   function listEntryPage(cursor,limit=100){const bounded=Math.max(1,Math.min(500,Number(limit)||100));return read((context)=>context.repository(arca.repositoryId).invoke('page_active_entries',{status:'active',rangeStart:'',rangeEnd:'\uffff',cursor,limit:bounded}).map((x)=>Object.freeze({cursor:x.shelf_entry_id,scope:Object.freeze({shelfEntryId:x.shelf_entry_id})})));}
-  return Object.freeze({currentContext,recycleProtection,inventoryMaterials,commitAssessmentSet,createCase,admitCase,listCases,listShelfEntryIds,terminateCase,getCase,
+  return Object.freeze({currentContext,recycleProtection,inventoryMaterials,commitAssessmentSet,createCase,admitCase,listCases,workDisplay,listShelfEntryIds,terminateCase,getCase,
     getSettlementApproval,issueSettlementApproval,consumeSettlementApproval,staleSettlementApprovals,
     commitInventory,history,healthProjectionInputs,listEntryPage,
     ensureAftercareWorkspace:(caseId)=>workspaceStore.ensureWorkspace(caseId),

@@ -25,15 +25,13 @@ function createArcaCareApplication(options){if(!options?.contextReader||!options
     const selected=all.filter((item)=>(!query.classification||classification(item.state)===query.classification)&&
       (!query.aftercareCaseId||item.aftercareCaseId===query.aftercareCaseId));
     const offset=Math.max(0,Math.floor(Number(query.cursor)||0)),limit=Math.min(50,Math.max(1,Math.floor(Number(query.limit)||25)));
-    const page=selected.slice(offset,offset+limit),items=page.map((item)=>{
-      const c=options.contextReader.read(item.shelfEntryId);
-      const facts=c?.raw.facts.find((fact)=>fact.fact_kind==='product_metadata');
-      const metadata=facts?JSON.parse(facts.fact_json):{};
-      const title=metadata.descriptiveFacts?.entries?.find((fact)=>fact.key==='title'||fact.key==='display_title')?.value;
-      return Object.freeze({aftercareCaseId:item.aftercareCaseId,shelfEntryId:item.shelfEntryId,displayIdentity:title||c?.raw.identity.provider_key||item.shelfEntryId,
-        targetShelfId:c?.raw.shelf.shelf_id||null,targetShelfName:c?.raw.shelf.name||null,state:item.state,classification:classification(item.state),
+    const page=selected.slice(offset,offset+limit),display=store.workDisplay(page.map(item=>item.shelfEntryId)),items=page.map((item)=>{
+      const summary=display.get(item.shelfEntryId);
+      return Object.freeze({aftercareCaseId:item.aftercareCaseId,shelfEntryId:item.shelfEntryId,displayIdentity:summary?.displayIdentity||item.shelfEntryId,
+        targetShelfId:summary?.targetShelfId||null,targetShelfName:summary?.targetShelfName||null,state:item.state,classification:classification(item.state),
         goals:item.careRequirement.typedParameters.map((parameter)=>String(parameter.value)),createdAtMs:item.createdAtMs,terminalAtMs:item.terminalAtMs,
-        reasonCode:item.terminalReasonCode||null,progress:['active','queued'].includes(item.state)?options.coordinator.caseProgress(item.shelfEntryId):null});
+        reasonCode:item.terminalReasonCode||null,progress:item.state==='active'?options.coordinator.caseProgress(item.shelfEntryId):
+          item.state==='queued'?{aftercareCaseId:item.aftercareCaseId,stage:'queued',progressPercent:null,progress:null,goals:item.careRequirement.typedParameters.map(parameter=>String(parameter.value))}:null});
     });
     return Object.freeze({items:Object.freeze(items),counts:Object.freeze(counts),nextCursor:offset+page.length<selected.length?String(offset+page.length):null});
   }

@@ -12,8 +12,8 @@
 
 ## 本地证据
 
-- Windows service：515 tests，497 pass，18 skip，0 fail。并行占用 CPU 时曾出现 FFmpeg 超时，串行重跑通过，未放宽生产超时。
-- 架构全检查：1540 tests，1533 pass，7 skip，0 fail；静态边界与派生合同校验通过。
+- Windows service：516 tests，498 pass，18 skip，0 fail。并行占用 CPU 时曾出现 FFmpeg 超时，串行重跑通过，未放宽生产超时。
+- 架构全检查：1541 tests，1534 pass，7 skip，0 fail；静态边界与派生合同校验通过。
 - 回收站、schema 升级与路由补充回归：24 pass。含跨盘复制中断、半文件继续复制、冲突副本拒绝、恢复目标占用、过期前不删、未知新增文件阻止清理、部分删除恢复。
 - Web：13 files / 43 tests 全部通过；Admin 构建通过。
 - 生产停止状态下只读下载数据库，940773376 bytes，SHA256 `55ce630b1cc024364b1d0febd990e320b0cd99c1330b917305ca1b010ef39e44`，下载前后与本地一致。
@@ -31,3 +31,5 @@
 首个候选 aed94559f1 仅构建/上传，未部署。生产规模隔离副本中，Event 结果查询每次全表扫描约 1.4 秒；Admin 首次请求叠加后台工作达到 24–44 秒。查询计划证明，x_event_result_bindings(event_id) 的 WHERE 1 = 1 部分唯一索引不能服务普通 Event equality 查询。DDL 编译器改为完整唯一索引，并在已批准升级中重建两个恒真条件索引，唯一性不变；Kernel 校验从生成清单读取真实 partial 属性，仍检查唯一性和完整 catalog。查询计划及重复写入拒绝测试通过。补充副本升级逐表比对仍仅 schema marker 改变；最终镜像须重新构建并验证，不能发布首个候选。
 
 追加定位：Collection 的 withHealth 默认分支在分页前触发逐 Entry 重算；现已显式使用空投影占位，仅对可见页调用批量健康读取。Event Runtime 的 Plan 推进改为按 plan_id 读取 Events/Nodes/Edges，并按该 Plan 的 Event IDs 分批读 Results，避免每次完成节点扫描全历史。执行器/真实转码/恢复 60 项与收藏分页 6 项定向回归通过。
+
+Aftercare 工作列表改为批量读取当前 Entry 展示摘要；queued/terminal 不加载完整 Care Context，active 才读取真实进度。定向 45 tests / 42 pass / 3 skip。4533e54ea2 隔离镜像首屏 Collection 226 ms、Formation 13 ms，Cold Admin 8700 ms、Care 2229 ms；最终展示摘要优化另行复测，不以该初步数据代替生产观测。
