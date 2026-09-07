@@ -143,12 +143,12 @@ describe('Arca collection poster wall', () => {
       name:/查看 The Shawshank Redemption 详情/,
     }));
     expect(await screen.findByText('正在验证媒体')).toBeInTheDocument();
-    expect(within(screen.getByRole('dialog')).getByText('修复中')).toBeInTheDocument();
+    expect(within(screen.getByRole('dialog')).getByText('维护中')).toBeInTheDocument();
     expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
     expect(screen.queryByText('当前发现')).not.toBeInTheDocument();
   });
 
-  it('folds attention and unassessed care into one unhealthy lamp without finding codes', async () => {
+  it('shows unhealthy attention as text without a duplicate detail lamp', async () => {
     vi.spyOn(helixAdminApi, 'listCollection').mockResolvedValue({ items:[entry] });
     vi.spyOn(helixAdminApi, 'listPerceptionRecords').mockResolvedValue({
       items:[], nextCursor:null, currentRating:null,

@@ -43,6 +43,7 @@ function projectedProgress(sample) {
     rate: sample.rate === null ? null : Number(sample.rate),
     etaMs: sample.eta_ms === null ? null : Number(sample.eta_ms),
     bucket: sample.progress_bucket,
+    sampledAtMs: Number(sample.sampled_at_ms),
   });
 }
 
@@ -66,6 +67,8 @@ function createExecutionProgressProjectionReader(options) {
     statements: {
       works: { kind: 'select-in', tableId: 'fx_supporting_works', keyColumn: 'process_id', maxItems: 500,
         columns: ['work_id','owner_domain','process_type','process_id','work_kind','state','created_at_ms','updated_at_ms'], safeIntegers: true },
+      exact_works: { kind: 'select-in', tableId: 'fx_supporting_works', keyColumn: 'work_id', maxItems: 500,
+        columns: ['work_id','owner_domain','process_type','process_id','work_kind','state','created_at_ms','updated_at_ms'], safeIntegers: true },
       attempts: { kind: 'select-in', tableId: 'fx_work_attempts', keyColumn: 'work_id', maxItems: 500,
         columns: ['attempt_id','work_id','ordinal','state','failure_code'], safeIntegers: true },
       events: { kind: 'select-in', tableId: 'fx_workflow_events', keyColumn: 'work_id', maxItems: 500,
@@ -78,7 +81,7 @@ function createExecutionProgressProjectionReader(options) {
         columns: ['plan_id','node_id','capability_ref','input_bindings_json','parameters_json'] },
       edges: { kind: 'select-in', tableId: 'fx_plan_edges', keyColumn: 'plan_id', maxItems: 500,
         columns: ['plan_id','from_node_id','to_node_id','dependency_kind'] },
-      progress: { kind: 'select-in', tableId: 'fx_event_progress', keyColumn: 'event_id', maxItems: 500,
+      progress: { kind: 'select-in', tableId: 'fx_event_progress', keyColumn: 'event_id', fixedKeyColumns:['revision'], maxItems: 500,
         columns: ['event_id','revision','mode','current_value','total_value','unit','rate','eta_ms','progress_bucket','sampled_at_ms'], safeIntegers: true },
       results: { kind: 'select-in', tableId: 'fx_event_result_bindings', keyColumn: 'event_id', maxItems: 500,
         columns: ['event_id','outcome_kind','result_schema_ref','result_json','result_digest','committed_at_ms'], safeIntegers: true },
@@ -91,7 +94,10 @@ function createExecutionProgressProjectionReader(options) {
       const includePlans = readOptions.includePlans === true;
       return options.unitOfWork.execute([{ participantId: 'execution_progress_projection', owner: 'execution-foundation', repositories: [repository], execute(context) {
         const r = context.repository(repository.repositoryId), works = [], attempts = [], events = [], eventAttempts = [], plans = [], nodes = [], edges = [], samples = [], results = [];
-        for (let offset = 0; offset < ids.length; offset += 500) works.push(...r.invoke('works', { values: ids.slice(offset, offset + 500) }));
+        const workIds=readOptions.workIds===undefined?null:[...new Set(readOptions.workIds)].filter(Boolean).sort();
+        const selectedIds=workIds||ids,statement=workIds?'exact_works':'works';
+        for (let offset = 0; offset < selectedIds.length; offset += 500) works.push(...r.invoke(statement,
+          { values: selectedIds.slice(offset, offset + 500) }).filter(work=>ids.includes(work.process_id)));
         for (let offset = 0; offset < works.length; offset += 500) {
           const values=works.slice(offset, offset + 500).map((item) => item.work_id);
           if (includePlans) attempts.push(...r.invoke('attempts', { values }));
@@ -108,10 +114,17 @@ function createExecutionProgressProjectionReader(options) {
         }
         for (let offset = 0; offset < events.length; offset += 500) {
           const eventIds=events.slice(offset, offset + 500).map((item) => item.event_id);
-          samples.push(...r.invoke('progress', { values: eventIds }));
           results.push(...r.invoke('results', { values: eventIds }));
           if (includePlans) eventAttempts.push(...r.invoke('event_attempts', { values: eventIds }));
         }
+        const progressHeads=new Map();
+        for(const event of events){
+          const revision=Number(event.current_progress_revision);if(!Number.isSafeInteger(revision)||revision<1)continue;
+          if(!progressHeads.has(revision))progressHeads.set(revision,[]);
+          progressHeads.get(revision).push(event.event_id);
+        }
+        for(const [revision,eventIds] of progressHeads)for(let offset=0;offset<eventIds.length;offset+=500)
+          samples.push(...r.invoke('progress',{revision,values:eventIds.slice(offset,offset+500)}));
         const latest = new Map();
         for (const sample of samples) if (!latest.has(sample.event_id) || latest.get(sample.event_id).revision < sample.revision) latest.set(sample.event_id, sample);
         const latestAttemptByEvent = new Map();

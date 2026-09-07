@@ -1,0 +1,106 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/transactions/helix.transaction.inventory-record-refresh-commit/v1",
+  "contractVersion": 1,
+  "contract": {
+    "transactionId": "helix.transaction.inventory-record-refresh-commit",
+    "displayName": "Inventory Record Refresh Commit",
+    "ownerScope": "arca",
+    "commitClass": "responsibility_control_commit",
+    "atomicFactSet": "Arca RefreshInventoryRecords内部命令 + exact current Inventory/Basis及bounded Observation fence + unchanged accepted Facts/Media-Cast relations的新Inventory revision + known non-primary Binding变更 + precise Control acquire/release + InventoryRecordRefreshReceipt/Command Receipt/commit marker/audit；没有物理文件写入、Case、Event Result或Outbox；active Case或Off-deck Reservation阻止提交，同输入重放原Receipt",
+    "participants": [
+      {
+        "participantKind": "domain",
+        "owner": "arca",
+        "access": "write",
+        "tables": [
+          "arca_inventory_representations",
+          "arca_inventory_materials",
+          "arca_inventory_related_references",
+          "arca_inventory_product_facts",
+          "arca_inventory_person_relations",
+          "arca_shelf_entries"
+        ]
+      },
+      {
+        "participantKind": "material-control",
+        "owner": "material-control-authority",
+        "access": "write",
+        "tables": [
+          "fx_material_controls",
+          "fx_material_control_revisions"
+        ]
+      },
+      {
+        "participantKind": "foundation",
+        "owner": "execution-foundation",
+        "access": "write",
+        "tables": [
+          "fx_command_receipts",
+          "fx_commit_markers",
+          "fx_audit_records"
+        ]
+      }
+    ],
+    "writeTables": [
+      "arca_inventory_representations",
+      "arca_inventory_materials",
+      "arca_inventory_related_references",
+      "arca_inventory_product_facts",
+      "arca_inventory_person_relations",
+      "arca_shelf_entries",
+      "fx_material_controls",
+      "fx_material_control_revisions",
+      "fx_command_receipts",
+      "fx_commit_markers",
+      "fx_audit_records"
+    ],
+    "readTables": [
+      "arca_aftercare_cases",
+      "arca_offdeck_reservations",
+      "arca_shelves"
+    ],
+    "variants": [],
+    "dynamicTableRequirements": [],
+    "forbiddenWriteTables": [
+      "arca_aftercare_cases",
+      "arca_aftercare_inventory_commits",
+      "fx_event_result_bindings",
+      "fx_outbox"
+    ],
+    "forbiddenWritePrefixes": [],
+    "forbiddenCapabilities": [],
+    "fenceContract": {
+      "domainRevisionFenceRequired": true,
+      "materialControlCasRequired": true,
+      "commitMarkerRequired": true,
+      "outboxRequired": false
+    },
+    "rollbackInvariant": "Any participant, revision fence, digest, or CAS failure leaves zero transaction writes visible; no commit marker, receipt, or outbox may survive alone.",
+    "crashFixtures": [
+      {
+        "fixtureId": "aftercare-basis-inventory",
+        "faultInjectionPoints": "Standard/Placement/Decision Fact变化、Case create、Workspace output、Stage/Switch、Settlement、Inventory/Control commit",
+        "requiredInvariant": "Case冻结完整Care Basis；旧Basis不能提交；原Shelf Entry/Identity/Deck持续；新Inventory revision与Control set一致",
+        "source": {
+          "section": "8.9.7",
+          "line": 8421
+        }
+      },
+      {
+        "fixtureId": "command-idempotency",
+        "faultInjectionPoints": "Owner业务修改后响应前崩溃、相同key同payload重试、相同key不同payload重试",
+        "requiredInvariant": "Receipt与Owner修改同事务；同payload返回原result ref；不同payload稳定拒绝；不重复创建对象或推进revision",
+        "source": {
+          "section": "8.9.7",
+          "line": 8428
+        }
+      }
+    ],
+    "source": {
+      "section": "8.5.4",
+      "line": 8710,
+      "lineDigest": "d57cefacd889c20490af8c897a24c7f08e1593d36cdb7261734fabe4c1984262"
+    }
+  }
+}

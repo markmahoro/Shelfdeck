@@ -62,12 +62,14 @@ test('Aftercare assessment and rendering share the same existing NFO and poster 
   assert.match(presentation, /existingMaterials\(c\.raw\.materials,isPosterMaterial\)/);
   assert.match(render, /selectedNfoMaterial\(c\.raw\.materials\)/);
   assert.doesNotMatch(render, /role===['"]metadata_sidecar['"]/);
-  assert.match(planner, /custody:nfo_identity_changed/);
+  assert.match(planner, /custody:nfo_corrupt/);
+  assert.doesNotMatch(planner, /custody:nfo_identity_changed|presentation:nfo_update_required/);
   assert.doesNotMatch(presentation, /compareMovieNfoPresentation/);
   assert.doesNotMatch(presentation, /existingBytes\.equals/);
   assert.doesNotMatch(presentation, /renderAftercareMovieNfo/);
   assert.match(source, /if\(identityChanged\)\{findings\.push\(custodyIdentityChangedFinding\(item\)\)/);
-  assert.match(render, /aftercare_nfo_reconcile/);
+  assert.doesNotMatch(render, /aftercare_nfo_reconcile/);
+  assert.match(render, /if\(readable\)throw/);
   assert.match(source, /materialEffectKind:isMedia\?'primary_replace':reconcileNfo\?'artifact_reconcile'/);
 });
 
@@ -123,13 +125,17 @@ test('Aftercare Provider Artifact accepts bytes only behind the frozen response 
   assert.ok((acquire.match(/revalidateCaseAuthority\(execution,care\)/g) || []).length >= 2);
 });
 
-test('Aftercare routes NFO fingerprint drift to automatic representation reconciliation', () => {
-  const nfo=custodyIdentityChangedFinding({role:'metadata_sidecar',location:'F:/shelf/movie.nfo',material_key:canonicalDigest('old-nfo')}),
+test('Aftercare routes readable NFO fingerprint drift to observation instead of a processing Case', () => {
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'aftercare-record-drift-'));
+  try{
+  const location=path.join(root,'movie.nfo');fs.writeFileSync(location,'existing NFO bytes');
+  const nfo=custodyIdentityChangedFinding({role:'metadata_sidecar',location,material_key:canonicalDigest('old-nfo')}),
     subtitle=custodyIdentityChangedFinding({role:'subtitle',location:'F:/shelf/movie.srt',material_key:canonicalDigest('old-subtitle')}),
     primary=custodyIdentityChangedFinding({role:'primary_payload',location:'F:/shelf/movie.mkv',material_key:canonicalDigest('old-primary')});
-  assert.match(nfo.schemaRef,/\/custody\/nfo_identity_changed\/critical\/auto_repair\//);
+  assert.match(nfo.schemaRef,/\/custody\/nfo_identity_changed\/warning\/observe\//);
   assert.match(subtitle.schemaRef,/\/custody\/material_identity_changed\/critical\/attention_required\//);
   assert.match(primary.schemaRef,/\/custody\/primary_identity_changed\/critical\/attention_required\//);
+  }finally{fs.rmSync(root,{recursive:true,force:true});}
 });
 
 test('Aftercare semantic NFO reconciliation adopts current bytes as a new Inventory identity without writing the file', () => {

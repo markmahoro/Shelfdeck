@@ -5946,7 +5946,7 @@ Shelf Target Folder或读取Arca Material Binding。Arca把有界、分页、可
 关系显示名/角色、稳定Provider Person Identity（如有）、原始relation evidence digest与NFO observation digest，
 不转移Media-Cast Owner。
 
-Person注册成立后，Arca只能在Presentation Aftercare中按确定性Evidence发布新的Inventory/Media-Cast revision：
+Person注册成立后，Arca只能通过健康状态检查及更新中的独立记录更新命令，按确定性Evidence发布新的Inventory/Media-Cast relation revision；该动作不创建Aftercare Case：
 
 - 当前关系含相同namespace的exact稳定Provider Person Identity，且唯一命中一个active Person；或
 - 该Person来自用户接受的Registration Candidate，Candidate origin evidence digest与当前未解析relation的
@@ -5954,7 +5954,7 @@ Person注册成立后，Arca只能在Presentation Aftercare中按确定性Eviden
 - 已有personId只因正式Person Merge correlation需要解析到目标Person。
 
 上述修正保持Primary/Related Material、Material Control和Canonical Content Identity不变，仅更新Arca拥有的
-person relation snapshot并重新执行Presentation验证。只有姓名、Alias或人脸相似时不得自动改写关系；Beta
+person relation snapshot并重新形成记录一致性Evidence，不要求NFO反向覆盖已接受演员关系。只有姓名、Alias或人脸相似时不得自动改写关系；Beta
 不提供手工Media-Cast编辑器，也不让People Management直接写Arca Store。无法形成确定性证明的关系继续以
 `personId=null`保存，不伪造成系统故障或错误Person。
 
@@ -8203,8 +8203,8 @@ Shelf Deregistration是独立administration组件，不调用Off-deck或文件�
 
 Presentation Assessment同时负责读取Arca当前Inventory中已声明的NFO Reference，并通过既有
 `ArcaInventoryQueryFacade`发布分页`OnDeckPersonEvidenceProjection`。它不注册Person；People注册后需要修正
-On-deck Media-Cast时，仍由同一个Aftercare Coordinator按`6.6.2.1`建立确定性Presentation修复，并通过既有
-Aftercare Inventory Commit发布新Inventory revision。该路径不新增第四个Aftercare维度或跨Domain Store访问。
+On-deck Media-Cast时，仍由同一个Aftercare Coordinator按`6.6.2.1`请求独立记录更新命令发布新Inventory relation
+revision；不创建Case、不调用物理维护的Aftercare Inventory Commit。该路径不新增第四个Aftercare维度或跨Domain Store访问。
 
 `ShelfStandardRepository`把Shelf current Standard row中的Template pair作为当前binding权威快照；
 `RuleTemplateRepository`独立维护Template aggregate head、draft、published revision与archive lifecycle。
@@ -8705,8 +8705,9 @@ fx_commit_markers,fx_audit_records]`；URL/body
 | Libra Workspace Cleanup Scope Admission | complete `WorkspaceCleanupScopeAdmissionDecision@1` + current Run/Workspace/Reference rows + typed Arca `OffloadCompletionReadResult@1`或immutable superseded Run revision + grace/last-reference/orphan Evidence + Cleanup Scope/member set + non-empty variant Workspace reclaiming revision + durable `WorkspaceCleanupScopeAdmissionResult@1`/commit marker；discard variant只在Run Discard事务内装配；相同trigger digest语义重放同一Scope，`hasOutbox=false` |
 | Libra Workspace Cleanup Commit | complete `WorkspaceCleanupCommitDecision@1` + expected Cleanup Scope/member/Workspace/Reference revision/digest + mutually exclusive `WorkspaceMaterialDeletionEvidence@1|WorkspaceCleanupBlockingEvidence@1` + completed variant exact current Material Control fence + Cleanup member terminal CAS + completed variant Reference release revision/optional Libra Control release + Scope/Workspace aggregate revision/state + completed-scope Foundation Workspace Registry terminal + `WorkspaceCleanupCommitReceipt@1`/commit marker；outcome Evidence、对应variant的Reference/Control效果、member/scope/workspace状态与Result全有或全无，`hasOutbox=false` |
 | On-deck Commit | Shelf Entry create/extend + Canonical Content Identity + Inventory Representation（每个物理Material一row并完整复制typed Episode Claim Set）/accepted Product Fact/完整Media-Cast relation snapshot revision + Deck Fact + required Control acquire/release + Off-load Completion Outbox |
-| Aftercare Case Creation | immutable Care Basis + relationized Basis inputs + Care Requirement Set + Case active + Outbox |
-| Aftercare Inventory Commit | Aftercare repair result + Inventory Representation/Product Fact/Media-Cast relation revision + required new Material Control acquire/old Control release（relation-only修正时两者均为空）+ commit receipt |
+| Aftercare Case Creation | real actionable repair Findings + immutable Care Basis + relationized Basis inputs + explicit physical Care Requirement Set + Case queued + Outbox；取得Arca处理席位后才可active并建立处理Work，单纯资料记录同步不得创建Case |
+| Aftercare Inventory Commit | verified physical repair result + Inventory Representation/Product Fact/Media-Cast relation revision + exact new Material Control acquire/old Control release + AftercareInventoryCommitReceipt；该Receipt衔接active Case到新Inventory Basis，复检与结案前不得提前投影healthy |
+| Inventory Record Refresh Commit | Arca RefreshInventoryRecords内部命令 + exact current Inventory/Basis及bounded Observation fence + unchanged accepted Facts/Media-Cast relations的新Inventory revision + known non-primary Binding变更 + precise Control acquire/release + InventoryRecordRefreshReceipt/Command Receipt/commit marker/audit；没有物理文件写入、Case、Event Result或Outbox；active Case或Off-deck Reservation阻止提交，同输入重放原Receipt |
 | Off-deck Review Scope | Review + per-Entry Reservation + immutable pre-authorization Destruction Scope + selection basis |
 | Off-deck Batch Authorization Intent | current Scope set verification + Selection Receipt + required High-volume Escalation Receipt + immutable Authorization Batch envelope；不创建跨Entry Case |
 | Off-deck per-Entry Authorization/Case | Batch Intent + one current Scope verification + per-Scope Authorization + one Case + one Shelf Entry `offdeck_in_progress`；每Entry独立事务、幂等向前恢复 |
@@ -10295,9 +10296,11 @@ Shelf Placement revision变化产生的有界迁移同样由Aftercare Planner使
 
 Aftercare媒体修复复用Level 5.8的设备安全原则，但形成自己的`AftercareMediaRepairStrategy@1`，不得读取或
 复用Libra Run、Acceptance Spec或Libra Workspace。Conformance Assessment先冻结Primary Probe、当前
-Care Basis和ready Device Snapshot，并对源视频与每条候选pipeline执行有界preflight；普通GPU策略优先，
+Care Basis和ready Device Snapshot，并基于Probe与已验证设备能力执行有界结构preflight，不试跑FFmpeg；普通GPU策略优先，
 只有所有当前可用普通设备策略已有明确`strategy_rejected` Evidence后才允许选择`software_cpu`。最终Strategy
-完整记录被拒绝的Device/pipeline、选中Device Snapshot、rate-control、输出色彩目标与preflight digest。
+完整记录被结构能力拒绝的Device/pipeline、选中Device Snapshot、rate-control、输出色彩目标与preflight digest。
+此digest证明源Probe、设备能力与施工策略的结构匹配，不声称真实编码已通过。实际转码在Case取得席位并获得
+对应encoder/worker与volume Permit后进行，输出仍须完整要求验证与有界播放验证，不能因结构匹配提前投影健康。
 Transcode Event只执行这份单一Strategy；Executor不得换encoder、换filter或隐藏fallback。Permit等待、设备忙、
 进程启动/权限/临时I/O等技术错误只能等待或重试当前Assessment，不能作为CPU选择依据。GPU与CPU都无法由
 已知Inventory安全闭合时形成`attention_required`，禁止调用External Acquisition。
@@ -15438,3 +15441,32 @@ discard、Routing或采购入口复制给Case。来源标识可区分首次整�
 Endpoint故障聚合观察且零批量Case；不可修复缺口明确显示无可行处理原因；重复检查不重复创建Case；queued无
 Repair Work/Workspace；记录更新与处理提交冲突时Fence生效；处理终结后健康依据与当前Basis一致；两类真实处理
 使用一致的详情交互。既有错误Case如何退役须另有精确数据处置证据，不以本次文档修改自动清理生产。
+
+#### 用户补充与实施合同闭合（2026-09-08）
+
+健康与处理分别建模，由Arca提供一致投影：`healthState=healthy|unhealthy|unknown`、
+`maintenanceState=none|queued|active`、`maintenanceCaseId`及原因/当前Basis/评估时间。
+海报灯固定映射：healthy且无active处理为绿；确认unhealthy且无active处理为红（queued也为红）；
+当前合法active Case为黄（含取得席位后的资源等待和提交复验）；其余未知为灰。自有Inventory Commit不切断
+Case关联，依据精确AftercareInventoryCommitReceipt衔接到当前revision；真正Basis失效不得沿用旧Case覆盖当前健康。
+排队中的Case不展示在媒体整理区，不计入列表统计/分页；黄灯必须能按Case ID找到对应维护任务。
+历史已取得席位Case正常保留结束结果；无执行的排队失效不伪装成已做过维护。
+收藏详情保留健康文字与Evidence，删除重复状态灯。整理列表新增“任务类型”列，上架任务/维护任务分别绑定
+Libra Run/Aftercare Case。两类任务复用真实Process Stage/Plan/Event的展示模型与组件，技术信息按需展开，
+不复用业务Planner、专属操作或生命周期。Case详情只读取属于该Case的Work，禁止混入同Entry其他历史Case。
+
+独立记录更新定义为Arca内部`RefreshInventoryRecords`命令，不新增用户操作、Process Root、Case或Workspace。
+输入为精确Entry、expected Inventory revision/Care Basis、bounded Observation及前后Binding/关系差异；
+单次最多处理当前Inventory中的已声明资料成员，不允许Primary、未知路径、角色变更或任何物理文件写入。
+输出为独立`InventoryRecordRefreshReceipt`，包含更新前后revision、Evidence digest、变更摘要、Control change digest
+和提交时间；幂等键由Entry、expected revision和Observation digest决定，重复输入返回原Receipt。
+有变化时新Inventory revision、原样延续的Facts/关系、精确Binding变化、必要Control acquire/release及Receipt
+在同一事务提交；无变化不增revision。旧Inventory/Identity/Deck Fact不改写。提交前重新验证资料可读性和stat fence，
+以及Entry/Shelf active、无Off-deck Reservation、无正在修改承载的Case；并发变化拒绝本次提交并重新观察。
+queued Case须按新Basis重新评估，不得静默改目标；active Case期间延后记录提交，不能借同步绕过其Fence。
+Receipt可使用Foundation已有command receipt持久设施，但必须有独立Arca命令/事务合同，不能伪造Case Result。
+
+检查负责证明Gap，不提前占用Case Workspace。Aftercare检查不执行FFmpeg编码样本；它复用平台已验证的设备能力
+与当前源Probe做结构可行性判断，策略Evidence绑定来源/要求/设备版本，失效后有界重取。实际编码及播放验证属于
+取得席位后的Case，并须申请对应encoder/worker及volume资源。Case建单前须证明每项Gap属于显式服务目录、具备实际处理目标与合法执行路径；
+仅记录更新的差异不产生Finding auto_repair。对无法确定的环境/身份/来源问题保留观察或attention及原因。

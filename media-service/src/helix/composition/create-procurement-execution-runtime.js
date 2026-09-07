@@ -494,6 +494,7 @@ function createProcurementExecutionRuntime(options) {
   const perceptionPlanningRegistration=perceptionConstruction.createPlanningRegistration({registry,policyRegistry,contractValidator,
     workResultReader,processServices:perceptionProcessServices,resolvePerceptionIntegrationHandle:options.resolvePerceptionIntegrationHandle,now});
   const arcaProcessServices=arcaConstruction.createProcessServices({...options,now,registry,workResultReader,
+    readBoundedFileSnapshotSync,
     executorIncidentProjection,
     cancelProcessWorks:(scope)=>workLifecycle.cancelProcess(scope),
     contextReader:arcaCapabilityRegistration.contextReader,
@@ -657,7 +658,6 @@ function createProcurementExecutionRuntime(options) {
           resources.push({resourceKey:'sqlite_write',units:1});
         if(['arca.aftercare.custody.observe@1','arca.aftercare.presentation.observe@1',
           'arca.aftercare.conformance.observe@1'].includes(capability))resources.push({resourceKey:'volume_read:'+targetMount,units:1});
-        if(capability==='arca.aftercare.conformance.observe@1')resources.push({resourceKey:'cpu_heavy',units:1});
         if(['arca.aftercare.text_artifact.render@1','arca.aftercare.media.remux@1',
           'arca.aftercare.media.transcode@1'].includes(capability)){
           if(!targetMount)throw new Error('P4_TYPED_AFTERCARE_SHELF_VOLUME_UNRESOLVED');

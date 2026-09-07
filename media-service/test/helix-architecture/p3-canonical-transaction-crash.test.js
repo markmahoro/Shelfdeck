@@ -256,6 +256,16 @@ function commandReceiptParticipant(contract, owner) {
   };
 }
 
+function auditParticipant(contract,owner){
+  const repository=createRepositoryDefinition({repositoryId:'fixture_command_audit',owner:'execution-foundation',schemaManifest,
+    statements:{insert:{kind:'insert',tableId:'fx_audit_records',columns:['audit_id','owner_domain','actor_type','action','scope_type','scope_id','evidence_digest','occurred_at_ms']}}});
+  return {participantId:'fixture_command_audit',owner:'execution-foundation',boundBusinessOwner:owner,repositories:[repository],execute(context){
+    context.repository(repository.repositoryId).invoke('insert',{audit_id:'audit-'+digest(contract.transactionId),owner_domain:owner,
+      actor_type:'system',action:'canonical_command',scope_type:'canonical_transaction',scope_id:contract.transactionId,
+      evidence_digest:digest(contract.transactionId),occurred_at_ms:context.commitTimeMs});
+  }};
+}
+
 function identity(label) {
   const result = {
     schemaRef: 'helix://contracts/types/PhysicalMaterialIdentity/v2', schemaVersion: 2,
@@ -319,7 +329,7 @@ function controlParticipant(contract, owner, unitOfWork, stale = false) {
     const fromScope = seedControl(unitOfWork, owner, incoming, id);
     operationKind = 'release';
     changes = [{ action: 'release', identity: incoming, expectedRevision: stale ? 2 : 1, fromScope, toScope: null }];
-  } else if (id.endsWith('aftercare-inventory-commit') || id.endsWith('on-deck-commit')) {
+  } else if (id.endsWith('aftercare-inventory-commit') || id.endsWith('on-deck-commit') || id.endsWith('inventory-record-refresh-commit')) {
     const outgoing = identity(id + '/outgoing');
     const fromScope = seedControl(unitOfWork, owner, outgoing, id);
     operationKind = 'replace_control_set';
@@ -408,6 +418,7 @@ function participantsFor(contract, unitOfWork, options = {}) {
   if (contract.fenceContract.materialControlCasRequired) result.push(controlParticipant(contract, owner, unitOfWork, options.staleControl));
   if (contract.writeTables.includes('fx_event_result_bindings')) result.push(resultBindingParticipant(contract, owner));
   if (contract.writeTables.includes('fx_command_receipts')) result.push(commandReceiptParticipant(contract, owner));
+  if (contract.writeTables.includes('fx_audit_records')) result.push(auditParticipant(contract,owner));
   if (contract.writeTables.includes('fx_inbox')) result.push(inboxParticipant(contract, owner));
   if (contract.writeTables.includes('fx_workspace_registry')) result.push(workspaceRegistryParticipant(contract, owner));
   if (contract.fenceContract.commitMarkerRequired) result.push(markerParticipant(contract, owner, 'marker-' + digest(contract.transactionId).slice(0, 16)));
@@ -456,13 +467,13 @@ function fixture(contract, run, options = {}) {
 
 const transactionContracts = contracts();
 
-test('canonical transaction inventory drives exactly 44 isolated contracts', () => {
+test('canonical transaction inventory drives exactly 45 isolated contracts', () => {
   const inventory = loadJson(path.join(serviceRoot, 'src/helix/contracts/manifests/transaction-inventory.json'));
   const inventoryEntries = inventory.entryFiles.flatMap((file) =>
     loadJson(path.join(serviceRoot, 'src/helix/contracts/manifests', file)).entries
   );
-  assert.equal(transactionContracts.length, 44);
-  assert.equal(inventory.targetCount, 44);
+  assert.equal(transactionContracts.length, 45);
+  assert.equal(inventory.targetCount, 45);
   assert.deepEqual(transactionContracts.map((contract) => contract.transactionId),
     [...inventoryEntries].sort((left, right) => left.id.localeCompare(right.id)).map((entry) => entry.id));
   for (const contract of transactionContracts) {

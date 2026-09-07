@@ -51,7 +51,7 @@ test('Aftercare progress is scoped to the current preparation Work and clamps ex
     }] },
     { workId:'current-work', events:[{
       capabilityRef:'arca.aftercare.media.transcode@1', state:'executing',
-      progress:{ mode:'determinate', currentValue:42, totalValue:100 },
+      progress:{ mode:'determinate', currentValue:42, totalValue:100, sampledAtMs:Date.now() },
     }] },
   ], 'current-work');
   assert.equal(progress.stage, 'preparing_media');
@@ -60,7 +60,7 @@ test('Aftercare progress is scoped to the current preparation Work and clamps ex
   const terminalSample = projectActiveRepairProgress([{
     workId:'current-work', events:[{
       capabilityRef:'arca.aftercare.media.transcode@1', state:'executing',
-      progress:{ mode:'determinate', currentValue:100, totalValue:100 },
+      progress:{ mode:'determinate', currentValue:100, totalValue:100, sampledAtMs:Date.now() },
     }],
   }], 'current-work');
   assert.equal(terminalSample.progressPercent, 99);
@@ -76,4 +76,14 @@ test('Aftercare media success advances to verification without presenting a whol
   assert.deepEqual(progress, {
     stage:'verifying_media', progressPercent:null, progress:null,
   });
+});
+
+test('Aftercare exposes resource waiting and does not present stale progress as live', () => {
+  const project=(state,progress)=>projectActiveRepairProgress([{workId:'work',events:[
+    {capabilityRef:'arca.aftercare.media.transcode@1',state,progress},
+  ]}],'work',200000);
+  assert.equal(project('waiting_for_resource',null).stage,'waiting_for_resource');
+  assert.deepEqual(project('executing',{mode:'determinate',currentValue:42,totalValue:100,sampledAtMs:1}),
+    {stage:'awaiting_media_progress',progressPercent:null,progress:null});
+  assert.equal(project('executing',{mode:'determinate',currentValue:43,totalValue:100,sampledAtMs:199999}).progressPercent,43);
 });

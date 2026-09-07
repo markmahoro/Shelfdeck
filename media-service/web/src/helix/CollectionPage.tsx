@@ -1,5 +1,6 @@
 import RecyclePanel from './RecyclePanel';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { helixAdminApi, type CareDetail, type CollectionEntry, type HealthState } from './api';
 import { newOpaqueId } from './id';
 import { Button, LoadingState, PageHeader } from './chrome';
@@ -8,8 +9,8 @@ import RatingControl from './RatingControl';
 import { isUnauthorized, useSession } from './session';
 import './collection.css';
 
-const healthFilters: [HealthState | 'all', string][] = [['all', '全部'], ['healthy', '健康'], ['observing', '观察中'], ['repairing', '修复中'], ['attention_required', '需要处理'], ['never_assessed', '尚未检查']];
-const foldedHealthLabels = { healthy: '健康', repairing: '修复中', unhealthy: '不健康' } as const;
+const healthFilters: [HealthState | 'all', string][] = [['all', '全部'], ['healthy', '健康'], ['unhealthy', '不健康'], ['observing', '暂无法判断'], ['repairing', '维护中'], ['attention_required', '需要处理'], ['never_assessed', '尚未检查']];
+const foldedHealthLabels = { healthy: '健康', repairing: '维护中', unhealthy: '不健康', unknown: '健康状态未知' } as const;
 const careStageLabels: Record<string, string> = { queued: '等待改善席位', preparing: '正在准备修复', preparing_media: '正在处理媒体', verifying_media: '正在验证媒体', committing_inventory: '正在更新收藏', reassessing: '正在复核结果', waiting_for_recovery: '等待自动恢复' };
 const repairSubjectLabels: Record<string, string> = {
   nfo_missing: '说明书', nfo_corrupt: '说明书', nfo_update_required: '说明书',
@@ -21,6 +22,7 @@ const repairSubjectLabels: Record<string, string> = {
 function foldedHealth(state: HealthState | undefined) {
   if (state === 'healthy') return 'healthy';
   if (state === 'repairing') return 'repairing';
+  if (!state || state === 'never_assessed' || state === 'observing') return 'unknown';
   return 'unhealthy';
 }
 
@@ -165,7 +167,7 @@ export default function CollectionPage() {
     <section className="collection-library" aria-labelledby="collection-heading">
       <div className="collection-library-heading"><div><h2 id="collection-heading">收藏陈列</h2></div><span>{resultCount} 部</span></div>
       {loading && items.length === 0 ? <LoadingState>正在打开收藏架…</LoadingState> : items.length === 0 ? <div className="source-empty"><strong>{summary.currentCount === 0 ? '还没有正式上架的电影' : '没有找到符合条件的收藏'}</strong><p>{summary.currentCount === 0 ? '只有收藏架验收并提交之后才会出现在这里。媒体整理工作区里的条目还不算上架。' : '试试清空搜索或换一个筛选。'}</p></div> : <div className="poster-wall">{items.map((item) => <button className="poster-tile" key={item.shelfEntryId} onClick={() => setSelected(item)} aria-label={`查看 ${item.displayIdentity} 详情，收藏健康：${healthLabels[item.health.state]}`}>
-        <span className="poster-frame">{item.hasPoster ? <img src={helixAdminApi.collectionPosterUrl(item.shelfEntryId, item.currentInventoryRevision, 'wall')} alt="" loading="lazy" decoding="async" /> : <span className="poster-fallback" aria-hidden="true"><b>{item.displayIdentity.slice(0, 2)}</b><small>ShelfDeck</small></span>}{item.health.state !== 'healthy' && <span className={`health-seal ${item.health.state}`} title={healthLabels[item.health.state]} aria-hidden="true">{healthLabels[item.health.state].slice(0, 1)}</span>}</span>
+        <span className="poster-frame">{item.hasPoster ? <img src={helixAdminApi.collectionPosterUrl(item.shelfEntryId, item.currentInventoryRevision, 'wall')} alt="" loading="lazy" decoding="async" /> : <span className="poster-fallback" aria-hidden="true"><b>{item.displayIdentity.slice(0, 2)}</b><small>ShelfDeck</small></span>}{<span className={`health-seal ${item.health.state}`} title={healthLabels[item.health.state]} aria-hidden="true">{healthLabels[item.health.state].slice(0, 1)}</span>}</span>
         <span className="poster-caption"><strong>{item.displayIdentity}</strong><small>{item.year || '年份未知'} · {item.shelfName}</small>{item.defectAdmission&&<small>瑕疵入库 · {item.defectAdmission.defects.some((defect)=>defect.defectCode==='size_cap_exceeded')?'体积超过档位上限':`${item.defectAdmission.defectCount}项`}</small>}</span>
       </button>)}</div>}
       {nextCursor && <div className="collection-more"><Button type="button" onClick={() => void load(nextCursor)} disabled={loading}>{loading ? '正在取下一层…' : `继续浏览（已显示 ${items.length} / ${resultCount}）`}</Button></div>}
@@ -200,10 +202,11 @@ export default function CollectionPage() {
               const lamp = foldedHealth(care.health.state);
               return <>
                 <p className={`health-lamp ${lamp}`}>
-                  <span className="health-lamp-dot" aria-hidden="true" />
                   <span className="health-lamp-copy">
                     <strong>{foldedHealthLabels[lamp]}</strong>
                     {lamp === 'repairing' && <small>{repairCopy(care.activeCaseProgress)}</small>}
+                    {care.health.maintenanceState==='active'&&care.health.maintenanceCaseId&&
+                      <Link to={`/formation?aftercareCaseId=${encodeURIComponent(care.health.maintenanceCaseId)}`}>查看维护任务</Link>}
                   </span>
                 </p>
                 {lamp === 'repairing' && care.activeCaseProgress?.progressPercent != null &&

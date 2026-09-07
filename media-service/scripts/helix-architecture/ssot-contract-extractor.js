@@ -6,7 +6,7 @@ const EXPECTED_COUNTS = Object.freeze({
   capabilities: 113,
   resultFamilies: 99,
   tables: 187,
-  transactions: 44
+  transactions: 45
 });
 
 const RETIRED_RESULT_FAMILIES = new Set(['FieldObservationPage', 'ObservationCommitResult', 'LayoutEvidence']);

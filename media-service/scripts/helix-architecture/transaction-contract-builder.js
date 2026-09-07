@@ -442,6 +442,15 @@ const definitions = Object.freeze({
     writeTables: ['arca_inventory_representations', 'arca_inventory_materials', 'arca_inventory_related_references', 'arca_inventory_product_facts', 'arca_inventory_person_relations', 'arca_aftercare_inventory_commits', 'arca_shelf_entries', 'fx_material_controls', 'fx_material_control_revisions', 'fx_commit_markers'],
     readTables: ['arca_aftercare_cases'], fixtureRefs: ['aftercare-basis-inventory'], hasOutbox: false
   },
+  'Inventory Record Refresh Commit': {
+    commitClass:'responsibility_control_commit',eventResultRequired:false,
+    writeTables:['arca_inventory_representations','arca_inventory_materials','arca_inventory_related_references',
+      'arca_inventory_product_facts','arca_inventory_person_relations','arca_shelf_entries',
+      'fx_material_controls','fx_material_control_revisions','fx_command_receipts','fx_commit_markers','fx_audit_records'],
+    readTables:['arca_aftercare_cases','arca_offdeck_reservations','arca_shelves'],
+    fixtureRefs:['aftercare-basis-inventory','command-idempotency'],hasOutbox:false,
+    forbiddenWriteTables:['arca_aftercare_cases','arca_aftercare_inventory_commits','fx_event_result_bindings','fx_outbox'],
+  },
   'Off-deck Review Scope': {
     commitClass: 'domain_unit_of_work',
     writeTables: ['arca_offdeck_reviews', 'arca_offdeck_reservations', 'arca_offdeck_scopes', 'arca_offdeck_scope_materials', 'fx_commit_markers'],

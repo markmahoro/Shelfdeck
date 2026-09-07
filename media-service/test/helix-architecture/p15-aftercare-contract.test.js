@@ -240,6 +240,52 @@ test('Care Disposition permits repair only when every blocking Finding is repair
   ] }]), 'observe');
 });
 
+test('known repair gaps are red before admission, yellow while active, and green only after closure', () => {
+  const assessments=['custody','presentation','conformance'].map((kind)=>assessment(kind,10));
+  assessments[1]={...assessments[1],result:'degraded'};
+  const finding={assessmentId:assessments[1].assessmentId,state:'open',findingKind:'presentation:nfo_missing',repairability:'auto_repair'};
+  const history={assessments,findings:[finding],cases:[]};
+  let health=projectHealth(context(),history,10);
+  assert.equal(health.healthState,'unhealthy');
+  assert.equal(health.maintenanceState,'none');
+  const care={aftercareCaseId:'case-1',careBasisDigest:digest('a'),state:'queued',createdAtMs:10};
+  history.cases=[care];
+  health=projectHealth(context(),history,10);
+  assert.equal(health.state,'unhealthy');
+  assert.equal(health.maintenanceState,'queued');
+  history.cases=[{...care,state:'active'}];
+  health=projectHealth(context(),history,10);
+  assert.equal(health.state,'repairing');
+  assert.equal(health.maintenanceCaseId,'case-1');
+  history.findings=[];
+  history.assessments=['custody','presentation','conformance'].map((kind)=>assessment(kind,20));
+  assert.equal(projectHealth(context(),history,20).state,'repairing');
+  history.cases=[{...care,state:'resolved'}];
+  assert.equal(projectHealth(context(),history,20).state,'healthy');
+});
+
+test('only its own Inventory commit preserves an active Case across the new health basis', () => {
+  const frozen={inventoryRevision:1,standardRevision:1,placementRevision:1,canonicalIdentityDigest:digest('b'),
+    sourcePackageId:'package-1',acceptedProductFactSetDigest:digest('c'),decisionFactSetDigest:digest('d'),digest:digest('a')};
+  const current={...frozen,inventoryRevision:2,digest:digest('e')};
+  const c={shelfEntryId:'entry-1',basis:current};
+  const history={assessments:['custody','presentation','conformance'].map((kind)=>assessment(kind,20,current.digest)),
+    findings:[],cases:[{aftercareCaseId:'case-1',careBasis:frozen,careBasisDigest:frozen.digest,state:'active',createdAtMs:10}],
+    commits:[{aftercareCaseId:'case-1',previousInventoryRevision:1,newInventoryRevision:2}]};
+  assert.equal(projectHealth(c,history,20).state,'repairing');
+  assert.equal(projectHealth(c,{...history,commits:[]},20).activeCase,null);
+  assert.equal(projectHealth(c,{...history,commits:[{aftercareCaseId:'another-case',newInventoryRevision:2}]},20).activeCase,null);
+  for(const key of ['standardRevision','placementRevision','canonicalIdentityDigest','sourcePackageId','acceptedProductFactSetDigest','decisionFactSetDigest']){
+    assert.equal(projectHealth({...c,basis:{...current,[key]:'changed'}},history,20).activeCase,null,key);
+  }
+});
+
+test('unassessed and inaccessible evidence stays unknown instead of turning red', () => {
+  assert.equal(projectHealth(context(),{assessments:[],findings:[],cases:[]},10).healthState,'unknown');
+  const assessments=['custody','presentation','conformance'].map((kind)=>assessment(kind,10,digest('a'),'not_assessable'));
+  assert.equal(projectHealth(context(),{assessments,findings:[],cases:[]},10).healthState,'unknown');
+});
+
 test('Aftercare Known Bindings keep a single schema objectKind for current and old custody rows', () => {
   const source = fs.readFileSync(path.join(__dirname,
     '../../src/helix/domains/arca/application/aftercare-context-reader.js'), 'utf8');

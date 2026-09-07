@@ -36,8 +36,8 @@ function fixture() {
     acceptedProductFactSetDigest:digest('facts'),decisionFactSetDigest:digest('decisions')};
   careBasis.digest=canonicalDigest(careBasis);
   const careRequirement={schemaRef:'helix://contracts/domain-types/CareRequirement/v1',schemaVersion:1,
-    requirementId:'requirement-1',revision:1,careBasisDigest:careBasis.digest,requiredEffects:[],
-    acceptanceDigest:digest('acceptance'),typedParameters:[]};
+    requirementId:'requirement-1',revision:1,careBasisDigest:careBasis.digest,requiredEffects:[{objectId:'finding',revision:1,schemaRef:'required-effect',digest:digest('finding'),objectKind:'required-effect'}],
+    acceptanceDigest:digest('acceptance'),typedParameters:[{parameter:'goal',valueType:'string',value:'presentation:nfo_missing',valueDigest:digest('goal')}]};
   careRequirement.digest=canonicalDigest(careRequirement);
   const request=(triggerLabel)=>({shelfEntryId:'entry-1',careBasis,findingSetDigest:digest('findings'),careRequirement,
     triggerDigest:digest(triggerLabel),basisInputs:[{inputKind:'health_assessment_work',ownerDomain:'arca',
@@ -63,6 +63,17 @@ test('terminal Case preserves exact reason and Evidence and replays idempotently
     assert.equal(replay.state,'unresolved');
     assert.equal(value.store.history('entry-1').cases.length,1);
   } finally { value.close(); }
+});
+
+test('record-only, unsupported, and empty goals cannot create an Aftercare Case',()=>{
+  const value=fixture();try{
+    for(const parameters of [[],[{value:'custody:nfo_identity_changed'}],[{value:'presentation:sync_actor_records'}]]){
+      const request=value.request('rejected');
+      assert.throws(()=>value.store.createCase({...request,careRequirement:{...request.careRequirement,typedParameters:parameters}}),
+        error=>error.code==='ARCA_AFTERCARE_PROCESSING_OBJECTIVE_REQUIRED');
+    }
+    assert.equal(value.store.history('entry-1').cases.length,0);
+  }finally{value.close();}
 });
 
 test('a new Assessment trigger creates the next Case generation on the same Care Basis', () => {

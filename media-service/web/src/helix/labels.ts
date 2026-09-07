@@ -1,6 +1,7 @@
 export const healthLabels: Record<string, string> = {
   never_assessed: '尚未检查',
   healthy: '健康',
+  unhealthy: '不健康',
   observing: '观察中',
   repairing: '修复中',
   attention_required: '需要处理',

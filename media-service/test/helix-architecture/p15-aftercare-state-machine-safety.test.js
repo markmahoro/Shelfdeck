@@ -13,6 +13,7 @@ const { createCircuitBreaker } = require('../../src/helix/foundation/diagnostics
 const { createExecutorIncidentRegistry } = require('../../src/helix/foundation/execution/executor-incident-registry');
 const { createExecutorIncidentObserver } = require('../../src/helix/foundation/execution/executor-incident-observer');
 const { createAftercareProcessCoordinator } = require('../../src/helix/domains/arca/application/aftercare-process-coordinator');
+const { CAPABILITY_REFS:C } = require('../../src/helix/domains/arca/model/aftercare-contract');
 
 const generated = path.resolve(__dirname, '../../src/helix/foundation/persistence/generated');
 const schemaDdl = fs.readFileSync(path.join(generated, 'clean-schema.sql'), 'utf8');
@@ -49,7 +50,7 @@ function fixture(options = {}) {
     careRequirement:Object.freeze({ typedParameters:Object.freeze([]) }),
   });
   const history = { cases:[care], commits:[], assessments:[], findings:[] };
-  const terminated = [],issuedApprovals=[];
+  const terminated = [],issuedApprovals=[],caseRequests=[];
   const context = () => Object.freeze({
     shelfEntryId:'entry-1', basis:currentBasis,
     raw:Object.freeze({
@@ -57,10 +58,14 @@ function fixture(options = {}) {
         target_mount_scope_id:options.targetMountScopeId||'mount-1',target_mount_scope_revision:1 }),
       entry:Object.freeze({ current_inventory_revision:currentBasis.inventoryRevision, canonical_identity_revision:1 }),
       identity:Object.freeze({ provider:'tmdb' }),facts:Object.freeze([]),reservations:Object.freeze([]), materials:Object.freeze([]), oldBindings:Object.freeze([]), perceptionRating:null,
+      placement:Object.freeze({policy_digest:digest('placement')}),standard:Object.freeze({standard_digest:digest('standard')}),
     }),
   });
   const store = {
     history:() => history,
+    getCase:(caseId)=>history.cases.find(item=>item.aftercareCaseId===caseId)||null,
+    createCase:(request)=>{caseRequests.push(request);return Object.freeze({...request,careBasisDigest:request.careBasis.digest,aftercareCaseId:'created-case',state:'queued'});},
+    admitCase:()=>Object.freeze({aftercareCaseId:'created-case',state:'queued'}),
     terminateCase:(caseId, state) => { terminated.push({ caseId, state }); },
     issueSettlementApproval:(request) => { issuedApprovals.push(request); return Object.freeze({ state:'active',...request }); },
   };
@@ -78,6 +83,7 @@ function fixture(options = {}) {
       return state === 'pending' ? Object.freeze({ state:'running' }) : Object.freeze({ state });
     },
     read:() => [],
+    ...(options.assessmentReader||{}),
     ...(options.settlementRecovery?{readBindings:() => [Object.freeze({ eventId:'settlement-event-1',
       capabilityRef:'arca.aftercare.input_settlement.delete@1' })]}:{}),
   };
@@ -87,6 +93,8 @@ function fixture(options = {}) {
     unitOfWork,
     contextReader:Object.freeze({ read:context, store, healthProjectionInputs:() => [],inventoryMaterials:() => [] }),
     workResultReader,
+    ...(options.refreshInventoryRecords?{refreshInventoryRecords:options.refreshInventoryRecords}:{}),
+    ...(options.progressProjectionReader?{progressProjectionReader:options.progressProjectionReader}:{}),
     executorIncidentProjection:Object.freeze({projectionForWork:(request)=>incidentObserver.projectionForWork(request)}),
     cancelProcessWorks:() => Object.freeze({ drainingWorks:drainingWorks > 0 ? drainingWorks-- : 0 }),
     ...(options.settlementRecovery?{computeBoundedMaterialFingerprintSync:() => { throw new Error('unexpected fingerprint'); },
@@ -94,12 +102,74 @@ function fixture(options = {}) {
     now:() => 10_000,
   });
   return {
-    coordinator, database, history, care, terminated, issuedApprovals,incidents,incidentObserver,breaker,
+    coordinator, database, history, care, terminated, issuedApprovals,caseRequests,incidents,incidentObserver,breaker,
     setCurrentBasis(value) { currentBasis = value; },
     setCommitState(value) { commitState = value; },
     close() { database.close(); kernel.close(); fs.rmSync(root, { recursive:true, force:true }); },
   };
 }
+
+test('a committed repair assessment reaches Case admission before its next periodic check, without rerunning probes', () => {
+  const current=basis('frozen',1),workId='completed-manual-assessment';
+  const value=fixture({assessmentReader:{
+    listWorks:()=>[{work_id:workId,state:'succeeded',created_at_ms:9000}],
+    readDefinition:()=>({definition:{workId,executionBasisDigest:current.digest}}),
+    read:()=>[
+      {outcomeKind:'succeeded',capabilityRef:C.assessmentCommit,result:{careBasisDigest:current.digest}},
+      ...[['presentation',C.presentation],['conformance',C.conformance]].map(([kind,capabilityRef])=>
+        ({outcomeKind:'succeeded',capabilityRef,result:{careBasisDigest:current.digest,payloadDigest:digest(kind)}})),
+    ],
+  }});
+  try{
+    value.history.cases=[];
+    value.history.assessments=['custody','presentation','conformance'].map((kind)=>({
+      assessmentId:kind,assessmentKind:kind,careBasisDigest:current.digest,result:kind==='presentation'?'degraded':'healthy',
+      evidenceDigest:digest(kind),assessedAtMs:9000,
+    }));
+    value.history.findings=[{assessmentId:'presentation',state:'open',findingId:'missing-nfo',
+      findingKind:'presentation:nfo_missing',findingDigest:digest('missing-nfo'),repairability:'auto_repair'}];
+    const result=value.coordinator.reconcile('entry-1');
+    assert.equal(result.kind,'case_queued');
+    assert.equal(value.caseRequests.length,1);
+    assert.equal(value.caseRequests[0].basisInputs.find(item=>item.inputKind==='health_assessment_work').aggregateId,workId);
+    assert.equal(value.database.prepare('SELECT count(*) count FROM fx_supporting_works').get().count,0);
+  }finally{value.close();}
+});
+
+test('restored NFO bytes schedule one deduplicated health recheck and never create a Case',()=>{
+  const value=fixture({refreshInventoryRecords:()=>({kind:'records_unchanged'})});
+  try{
+    value.history.cases=[];
+    value.history.assessments=['custody','presentation','conformance'].map(kind=>({
+      assessmentId:kind,assessmentKind:kind,careBasisDigest:value.care.careBasisDigest,
+      result:kind==='custody'?'degraded':'healthy',evidenceDigest:digest(kind),assessedAtMs:9000}));
+    value.history.findings=[{assessmentId:'custody',state:'open',findingId:'changed-nfo',
+      findingKind:'custody:nfo_identity_changed',findingDigest:digest('changed-nfo'),repairability:'observe'}];
+    const first=value.coordinator.reconcile('entry-1'),second=value.coordinator.reconcile('entry-1');
+    assert.equal(first.kind,'assessment_pending');assert.equal(second.workId,first.workId);
+    assert.equal(value.database.prepare('SELECT count(*) count FROM fx_supporting_works').get().count,1);
+    assert.equal(value.caseRequests.length,0);
+    value.history.findings=[];value.history.assessments[0].result='healthy';
+    assert.equal(value.coordinator.project('entry-1').state,'healthy');
+    assert.equal(value.coordinator.reconcile('entry-1').kind,'not_due');
+  }finally{value.close();}
+});
+
+test('Case detail selects only its exact repair and reassessment Works before loading actual plans',()=>{
+  const selected=[];
+  const value=fixture({assessmentReader:{
+    listWorks:({workKind})=>workKind==='care_repair_prepare'?[{work_id:'mine'},{work_id:'old-case'},{work_id:'foreign-owner'}]:
+      workKind==='health_assessment'?[{work_id:'reassessment'},{work_id:'ordinary-health'}]:[],
+    readDefinition:(workId)=>({definition:{dependencyRefs:workId==='reassessment'
+      ?[{ownerDomain:'arca',objectType:'assessment_cycle',objectId:'case-reassessment:case-1'}]
+      :[{ownerDomain:workId==='foreign-owner'?'libra':'arca',objectType:'aftercare_case',
+        objectId:workId==='mine'?'case-1':'other',digest:digest('requirement')}]} }),
+  },progressProjectionReader:{read:(ids,options)=>{selected.push({ids,...options});return [];}}});
+  try{
+    assert.deepEqual(value.coordinator.caseDetail('case-1'),{contract:'aftercare_process_actual_plans@1',stages:[]});
+    assert.deepEqual(selected,[{ids:['entry-1'],includePlans:true,workIds:['mine','reassessment']}]);
+  }finally{value.close();}
+});
 
 test('Aftercare does not reassess or close while the Repair Work settlement is still nonterminal', () => {
   const value = fixture();

@@ -1,3 +1,5 @@
+import { ProcessDialog, ProcessStages, progressDetail } from './ProcessStages';
+import { useSearchParams } from 'react-router-dom';
 import RecyclePanel from './RecyclePanel';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { helixAdminApi, type DefectAdmissionCandidate, type FormationRunHistory, type FormationSubject, type FormationSummary, type PerceptionSyncState, type Shelf } from './api';
@@ -13,29 +15,6 @@ type Filter = 'all'|'in_progress'|'attention_required'|'completed'|'ended';
 type LedgerRow = { kind:'formation'; item:FormationSubject } | { kind:'ended'; item:FormationRunHistory } | { kind:'care'; item:CareWorkItem };
 
 function formatTime(value:number) { return value > 0 ? new Intl.DateTimeFormat('zh-CN', { dateStyle:'medium', timeStyle:'short' }).format(new Date(value)) : '—'; }
-function progressText(progress:NonNullable<FormationSubject['organizingSteps'][number]['progress']>) {
-  if(progress.mode!=='determinate'||!progress.totalValue)return '';
-  const percent=Math.max(0,Math.min(100,Math.round(((progress.currentValue||0)/progress.totalValue)*100)));
-  return progress.unit==='percent'?`${percent}%`:`${progress.currentValue||0}/${progress.totalValue} ${progress.unit||''}`;
-}
-function progressRate(progress:NonNullable<FormationSubject['organizingSteps'][number]['progress']>) {
-  const rate=progress.rate;
-  if(rate===null||!Number.isFinite(rate)||rate<0)return '';
-  const units=['B/s','KiB/s','MiB/s','GiB/s']; let value=rate,index=0;
-  while(value>=1024&&index<units.length-1){value/=1024;index+=1;}
-  return `${value.toFixed(index===0?0:value>=10?1:2)} ${units[index]}`;
-}
-function progressEta(progress:NonNullable<FormationSubject['organizingSteps'][number]['progress']>) {
-  const milliseconds=progress.etaMs;
-  if(milliseconds===null||!Number.isFinite(milliseconds)||milliseconds<0)return '';
-  const minutes=Math.ceil(milliseconds/60_000);
-  if(minutes<60)return `预计 ${minutes} 分钟`;
-  const hours=Math.floor(minutes/60),remaining=minutes%60;
-  return `预计 ${hours} 小时${remaining?` ${remaining} 分钟`:''}`;
-}
-function progressDetail(progress:NonNullable<FormationSubject['organizingSteps'][number]['progress']>) {
-  return [progressText(progress),progressRate(progress),progressEta(progress)].filter(Boolean).join(' · ');
-}
 function currentProgressLabel(item:FormationSubject) { return item.currentPlan?.label || item.nextAction.label; }
 function currentProgressDetail(item:FormationSubject) {
   if (!item.currentPlan) return null;
@@ -82,9 +61,6 @@ function ratingText(item:FormationSubject, acquisitionIncomplete:boolean) {
   return '正在匹配豆瓣评分';
 }
 
-function StageState({ state }:{ state:'completed'|'running'|'attention'|'pending' }) {
-  return <span className="formation-stub-stage-state" data-state={state}>{state==='completed'?'已完成':state==='running'?'进行中':state==='attention'?'需要处理':'尚未开始'}</span>;
-}
 function mergeById<T>(previous:T[], fresh:T[], idOf:(item:T)=>string): T[] {
   const incoming = new Map(fresh.map((item)=>[idOf(item), item]));
   const seen = new Set<string>();
@@ -129,26 +105,6 @@ async function remainingHistory(first:{items:FormationRunHistory[];nextCursor:st
   return items;
 }
 
-type ProcessStage=NonNullable<FormationSubject['processDetail']>['stages'][number];
-type ProcessPlan=ProcessStage['plans'][number];
-type ProcessNode=ProcessPlan['nodes'][number];
-function processPlanState(state:ProcessPlan['state']) { return state==='completed'?'已完成':state==='running'?'进行中':state==='attention'?'需要处理':'等待中'; }
-function processNodeState(state:ProcessNode['state']) { return state==='completed'?'已完成':state==='running'?'进行中':state==='failed'?'失败':state==='cancelled'?'未执行':state==='skipped'?'无需执行':'等待中'; }
-function ProcessNodeRow({node}:{node:ProcessNode}) {
-  const mark=node.state==='completed'?'✓':node.state==='failed'?'×':node.state==='running'?'●':'○';
-  return <li className="formation-plan-node" data-state={node.state}><span className="formation-plan-node-mark" aria-hidden="true">{mark}</span><div className="formation-plan-node-main"><strong>{node.label}</strong><p>{node.description}</p>
-    {node.results.length>0&&<dl className="formation-plan-results">{node.results.map((fact)=><div key={`${fact.label}:${fact.value}`}><dt>{fact.label}</dt><dd>{fact.value}</dd></div>)}</dl>}
-    {node.progress?.mode==='determinate'&&node.progress.totalValue?<div className="formation-stub-progress"><progress max={node.progress.totalValue} value={node.progress.currentValue||0} aria-label={`${node.label}进度`} /><small>{progressDetail(node.progress)}</small></div>:null}
-    {node.technicalDetail&&<details className="formation-transcode-detail"><summary>查看处理详情</summary><div className="formation-transcode-detail-body"><p>{node.technicalDetail.summary}</p>{node.technicalDetail.fields.length>0&&<dl className="formation-transcode-grid">{node.technicalDetail.fields.map((fact)=><div key={fact.label}><dt>{fact.label}</dt><dd>{fact.value}</dd></div>)}</dl>}{node.technicalDetail.parameters.length>0&&<details className="formation-transcode-parameters"><summary>查看执行参数</summary><dl>{node.technicalDetail.parameters.map((fact)=><div key={fact.label}><dt>{fact.label}</dt><dd>{fact.value}</dd></div>)}</dl></details>}</div></details>}
-  </div><span className="formation-plan-node-state">{node.statusText || processNodeState(node.state)}</span></li>;
-}
-function ProcessPlanView({plan,index}:{plan:ProcessPlan;index:number}) {
-  return <details className="formation-actual-plan" data-state={plan.state} open={plan.state==='running'||plan.state==='attention'}><summary><span className="formation-actual-plan-label">计划{index+1}</span><strong>{plan.title}</strong><span className="formation-actual-plan-status">{processPlanState(plan.state)}</span><span className="formation-actual-plan-chevron" aria-hidden="true">›</span></summary><div className="formation-actual-plan-body">{plan.nodes.length?<ol>{plan.nodes.map((node)=><ProcessNodeRow key={node.nodeId} node={node} />)}</ol>:<p className="formation-plan-no-nodes">本次真实计划没有需要执行的步骤。</p>}</div></details>;
-}
-function ProcessStageView({stage,index}:{stage:ProcessStage;index:number}) {
-  const open=stage.state==='running'||stage.state==='attention';
-  return <details className="formation-process-stage" data-state={stage.state} open={open}><summary><span className="formation-stage-index" aria-hidden="true">{stage.state==='completed'?'✓':index+1}</span><span><strong>{stage.label}</strong><small>{stage.summary}</small></span><StageState state={stage.state} /></summary><div className="formation-stage-body"><p className="formation-stage-description">{stage.description}</p>{stage.plans.length?<div className="formation-actual-plans">{stage.plans.map((plan,planIndex)=><ProcessPlanView key={plan.planId} plan={plan} index={planIndex} />)}</div>:<div className="formation-empty-stage"><strong>{stage.summary}</strong><p>这里只展示已经由系统形成并保存的真实计划，不预先展示尚未发生的工作。</p></div>}</div></details>;
-}
 function ProcessDetail({ item }:{ item:FormationSubject }) {
   const detail=item.processDetail;
   return <article className="formation-process-card" aria-label={`${item.displayIdentity}的媒体整理过程`}>
@@ -165,21 +121,39 @@ function ProcessDetail({ item }:{ item:FormationSubject }) {
       {f.diagnostics?.timeout&&<p>请求超时</p>}
     </section>)}
     <dl className="formation-process-facts"><div><dt>目标收藏架</dt><dd>{item.targetShelfName || '尚未选定'}</dd></div><div><dt>收藏要求</dt><dd>{item.organizingRequirement}</dd></div><div><dt>当前进展</dt><dd>{currentProgressLabel(item)}</dd></div></dl>
-    {detail?.contract==='formation_process_actual_plans@1'?<div className="formation-process-stages">{detail.stages.map((stage,index)=><ProcessStageView key={stage.key} stage={stage} index={index} />)}</div>:<div className="formation-process-unavailable"><strong>暂时无法读取真实计划</strong><p>当前没有可供展示的计划记录。页面不会根据状态推测或补造计划。</p></div>}
+    {detail?.contract==='formation_process_actual_plans@1'?<ProcessStages stages={detail.stages} />:<div className="formation-process-unavailable"><strong>暂时无法读取真实计划</strong><p>当前没有可供展示的计划记录。页面不会根据状态推测或补造计划。</p></div>}
   </article>;
 }
 
 export default function FormationPage() {
   const { expire }=useSession();
+  const [searchParams]=useSearchParams(),linkedCaseId=searchParams.get('aftercareCaseId');
   const [active,setActive]=useState<FormationSubject[]>([]),[completed,setCompleted]=useState<FormationSubject[]>([]),[ended,setEnded]=useState<FormationRunHistory[]>([]),[summary,setSummary]=useState(emptySummary),[shelves,setShelves]=useState<Shelf[]>([]);
   const [perceptionSync,setPerceptionSync]=useState<PerceptionSyncState|null>(null);
   const [filter,setFilter]=useState<Filter>('all'),[q,setQ]=useState(''),[shelfFilter,setShelfFilter]=useState(''),[loading,setLoading]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState('');
-  const [selected,setSelected]=useState<FormationSubject|null>(null),closeRef=useRef<HTMLButtonElement>(null),triggerRef=useRef<HTMLButtonElement|null>(null),loadGeneration=useRef(0);
+  const [selected,setSelected]=useState<FormationSubject|null>(null),triggerRef=useRef<HTMLButtonElement|null>(null),loadGeneration=useRef(0);
   const [defectDialog,setDefectDialog]=useState<{item:FormationSubject;candidate:DefectAdmissionCandidate}|null>(null);
   const [careItems,setCareItems]=useState<CareWorkItem[]>([]),[careCursor,setCareCursor]=useState<string|null>(null),[selectedCare,setSelectedCare]=useState<CareWorkItem|null>(null);
   const [careCounts,setCareCounts]=useState<Record<string,number>>({});
   const careLoading=useRef(false),careExpanded=useRef(false),carePageCount=useRef(1),selectedCareId=useRef<string|null>(null);
   selectedCareId.current=selectedCare?.aftercareCaseId||null;
+  useEffect(()=>{
+    if(!linkedCaseId)return;
+    let cancelled=false;
+    void helixAdminApi.listCareWork(undefined,linkedCaseId).then(result=>{
+      if(cancelled)return;
+      if(result.items[0])setSelectedCare(result.items[0]);else setError('当前没有可展示的维护任务。');
+    }).catch(cause=>{if(!cancelled){if(isUnauthorized(cause))expire();else setError('维护过程读取失败。');}});
+    return()=>{cancelled=true;};
+  },[linkedCaseId,expire]);
+  useEffect(()=>{
+    const caseId=selectedCare?.aftercareCaseId;if(!caseId||selectedCare.processDetail)return;
+    let cancelled=false;
+    void helixAdminApi.listCareWork(undefined,caseId).then(result=>{
+      if(!cancelled)setSelectedCare(current=>current?.aftercareCaseId===caseId?result.items[0]||null:current);
+    }).catch(cause=>{if(!cancelled){if(isUnauthorized(cause))expire();else setError('维护过程读取失败，请重新打开详情。');}});
+    return()=>{cancelled=true;};
+  },[selectedCare?.aftercareCaseId,expire]);
   const loadCare=useCallback(async(cursor?:string)=>{
     if(careLoading.current)return;careLoading.current=true;
     try{
@@ -194,8 +168,7 @@ export default function FormationPage() {
       setCareCursor(result.nextCursor);setCareCounts(result.counts);
       const selectedId=selectedCareId.current;
       if(selectedId){
-        const selected=items.find(item=>item.aftercareCaseId===selectedId)||
-          (await helixAdminApi.listCareWork(undefined,selectedId)).items[0];
+        const selected=(await helixAdminApi.listCareWork(undefined,selectedId)).items[0];
         setSelectedCare(current=>current?.aftercareCaseId===selectedId?selected||null:current);
       }
     }
@@ -326,7 +299,6 @@ export default function FormationPage() {
     if(filter==='all')return true;if(row.kind==='care')return row.item.classification===filter||(filter==='in_progress'&&row.item.classification==='queued');if(filter==='ended')return row.kind==='ended';return row.kind==='formation'&&row.item.classification===filter;
   }),[active,completed,ended,careItems,filter,q,shelfFilter]);
   const close=()=>{setSelected(null);window.setTimeout(()=>triggerRef.current?.focus(),0);};
-  useEffect(()=>{if(!selected)return;const key=(event:KeyboardEvent)=>{if(event.key==='Escape')close();};document.body.classList.add('formation-process-modal-open');document.addEventListener('keydown',key);closeRef.current?.focus();return()=>{document.body.classList.remove('formation-process-modal-open');document.removeEventListener('keydown',key);};},[selected]);
   const open=async(item:FormationSubject,button:HTMLButtonElement)=>{triggerRef.current=button;setLoading(true);try{setSelected(await helixAdminApi.getFormation(item.formationViewId));}catch(cause){setError(cause instanceof Error?cause.message:'上架过程详情读取失败。');}finally{setLoading(false);}};
   const action=async(item:FormationSubject,kind:'expedite'|'discard'|'admitDefects'|'retry'|'chooseShelf'|'chooseIdentity',value?:boolean|string)=>{
     if(kind==='discard'){setDiscardDialog(item);return;}
@@ -355,13 +327,13 @@ export default function FormationPage() {
       <div className="formation-chips" role="group" aria-label="媒体整理状态">{([{id:'all',label:'全部'},{id:'in_progress',label:'整理中'},{id:'attention_required',label:'需要处理'},{id:'completed',label:'已完成'},{id:'ended',label:'已结束'}] as Array<{id:Filter;label:string}>).map((entry)=><Button key={entry.id} type="button" aria-pressed={filter===entry.id} onClick={()=>setFilter(entry.id)}>{entry.label} {counts[entry.id]}</Button>)}</div>
       <div className="formation-secondary"><label>片名<input type="search" aria-label="按片名筛选" value={q} placeholder="搜索片名" onChange={(event)=>setQ(event.target.value)} /></label><label>目标收藏架<select aria-label="按目标收藏架筛选" value={shelfFilter} onChange={(event)=>setShelfFilter(event.target.value)}><option value="">全部收藏架</option>{shelves.map((shelf)=><option key={shelf.shelfId} value={shelf.shelfId}>{shelf.name}</option>)}</select></label></div>
     </div>
-      <div className="formation-table-wrap"><table className="formation-table formation-stub-table"><thead><tr><th>媒体名称</th><th>评分</th><th>目标收藏架</th><th>整理要求</th><th>当前进展</th><th>详情</th><th>用户操作</th><th>加急</th></tr></thead><tbody>{rows.length===0?<tr className="formation-stub-media-row"><td colSpan={8}><div className="source-empty"><strong>{summary.totalCount===0?'还没有进入整理的电影':'当前筛选没有条目'}</strong><p>{summary.totalCount===0?'Libra 接收媒体包后，条目会从“整理中”开始出现在这里；仍在等待接收的媒体包请到“文件来源”查看。':'试试其他状态或筛选。'}</p></div></td></tr>:rows.map((row)=>row.kind==='care'?<CareWorkRow key={row.item.aftercareCaseId} item={row.item} onOpen={setSelectedCare}/>:row.kind==='ended'?<tr key={row.item.historyId} className="formation-stub-media-row"><td><strong>{row.item.displayIdentity}</strong><small>已结束</small></td><td>—</td><td>—</td><td>—</td><td><strong className="formation-stub-current">{row.item.label}</strong><small>{formatTime(row.item.endedAtMs)}</small></td><td>—</td><td>—</td><td><button type="button" className="formation-expedite-toggle" disabled>加急</button></td></tr>:<MediaRow key={row.item.subjectId} item={row.item} shelves={shelves} loading={loading} acquisitionIncomplete={perceptionSync?.completionState==='incomplete'} onOpen={open} onAction={action} />)}</tbody></table></div>
+      <div className="formation-table-wrap"><table className="formation-table formation-stub-table"><thead><tr><th>媒体名称</th><th>评分</th><th>目标收藏架</th><th>整理要求</th><th>当前进展</th><th>详情</th><th>用户操作</th><th>加急</th><th>任务类型</th></tr></thead><tbody>{rows.length===0?<tr className="formation-stub-media-row"><td colSpan={9}><div className="source-empty"><strong>{summary.totalCount===0?'还没有进入整理的电影':'当前筛选没有条目'}</strong><p>{summary.totalCount===0?'Libra 接收媒体包后，条目会从“整理中”开始出现在这里；仍在等待接收的媒体包请到“文件来源”查看。':'试试其他状态或筛选。'}</p></div></td></tr>:rows.map((row)=>row.kind==='care'?<CareWorkRow key={row.item.aftercareCaseId} item={row.item} onOpen={setSelectedCare}/>:row.kind==='ended'?<tr key={row.item.historyId} className="formation-stub-media-row"><td><strong>{row.item.displayIdentity}</strong><small>已结束</small></td><td>—</td><td>—</td><td>—</td><td><strong className="formation-stub-current">{row.item.label}</strong><small>{formatTime(row.item.endedAtMs)}</small></td><td>—</td><td>—</td><td><button type="button" className="formation-expedite-toggle" disabled>加急</button></td><td>上架任务</td></tr>:<MediaRow key={row.item.subjectId} item={row.item} shelves={shelves} loading={loading} acquisitionIncomplete={perceptionSync?.completionState==='incomplete'} onOpen={open} onAction={action} />)}</tbody></table></div>
     </section>
     {Object.values(pageCursors).some(Boolean)&&<Button type="button" disabled={loadingMore} onClick={()=>void loadMore()}>{loadingMore?'正在读取…':'加载更多整理记录'}</Button>}
     <RecyclePanel/>
-    {careCursor&&<Button type="button" onClick={()=>void loadCare(careCursor)}>加载更多改善记录</Button>}
-    <Dialog open={!!selectedCare} title={selectedCare?selectedCare.displayIdentity+'的媒体整理过程':''} onClose={()=>setSelectedCare(null)}>{selectedCare&&<CareWorkDetail item={selectedCare}/>}</Dialog>
-    {selected&&<div className="formation-process-backdrop" role="presentation" onMouseDown={(event)=>{if(event.target===event.currentTarget)close();}}><section className="formation-process-dialog" role="dialog" aria-modal="true" aria-labelledby="formation-process-dialog-title"><button ref={closeRef} className="formation-process-dialog-close" type="button" aria-label="关闭媒体整理过程卡片" onClick={close}>×</button><h2 id="formation-process-dialog-title" className="formation-process-dialog-title">{selected.displayIdentity}的媒体整理过程</h2><ProcessDetail item={selected} /></section></div>}
+    {careCursor&&<Button type="button" onClick={()=>void loadCare(careCursor)}>加载更多维护记录</Button>}
+    {selectedCare&&<ProcessDialog title={selectedCare.displayIdentity+'的媒体整理过程'} onClose={()=>setSelectedCare(null)}><CareWorkDetail item={selectedCare}/></ProcessDialog>}
+    {selected&&<ProcessDialog title={selected.displayIdentity+'的媒体整理过程'} onClose={close}><ProcessDetail item={selected}/></ProcessDialog>}
     <Dialog open={!!discardDialog} title="确认放弃整理" onClose={()=>setDiscardDialog(null)} actions={<>
       <Button type="button" disabled={loading} onClick={()=>setDiscardDialog(null)}>取消</Button>
       <Button type="button" variant="danger" disabled={loading} onClick={()=>{void (async()=>{
@@ -426,5 +398,5 @@ function MediaRow({item,shelves,loading,acquisitionIncomplete,onOpen,onAction}:{
     return()=>{cancelled=true;};
   },[item.currentRun?.libraRunId,item.currentRun?.stateRevision,item.currentRun?.stateDigest,item.productIdentityIssue]);
   const actionControl=item.executorIssue?.canRetry?<Button type="button" disabled={loading} onClick={()=>void onAction(item,'retry')}>{item.executorIssue.phase==='on_deck_execution'?'重试上架':'重试验收'}</Button>:item.currentRun?.state==='frozen'&&!item.productIdentityIssue?<div className="formation-inline-action">{defectEligible&&<Button type="button" disabled={loading} onClick={()=>void onAction(item,'admitDefects')}>接受瑕疵</Button>}<Button type="button" variant="text" disabled={loading} onClick={()=>void onAction(item,'discard')}>放弃整理</Button></div>:canDiscardRejectedHandoff(item)?<Button type="button" variant="text" disabled={loading} onClick={()=>void onAction(item,'discard')}>放弃整理</Button>:item.productIdentityIssue?<div className="formation-inline-action"><select aria-label={`为${item.displayIdentity}选择影片身份`} value={identityId} onChange={(event)=>setIdentityId(event.target.value)}><option value="">选择影片身份</option>{item.productIdentityIssue.candidates.map((candidate)=><option key={candidate.providerKey} value={candidate.providerKey.replace(/^tmdb:movie:/,'')}>{candidate.displayTitle}{candidate.releaseYear?` (${candidate.releaseYear})`:''}</option>)}</select><Button type="button" disabled={loading||!identityId} onClick={()=>void onAction(item,'chooseIdentity',identityId)}>确认</Button><Button type="button" variant="text" disabled={loading} onClick={()=>void onAction(item,'discard')}>放弃整理</Button></div>:canChooseShelf(item)?<div className="formation-inline-action"><select aria-label={`为${item.displayIdentity}选择收藏架`} value={shelfId} onChange={(event)=>setShelfId(event.target.value)}><option value="">选择收藏架</option>{shelves.map((shelf)=><option key={shelf.shelfId} value={shelf.shelfId}>{shelf.name}</option>)}</select><Button type="button" disabled={loading||!shelfId} onClick={()=>void onAction(item,'chooseShelf',shelfId)}>确认</Button></div>:<span className="formation-stub-empty">—</span>;
-  return <tr className="formation-stub-media-row" data-classification={item.classification} data-expedited={expedited||undefined}><td><strong>{item.displayIdentity}</strong><small>{statusLabel(item)} · {formatTime(item.addedAtMs)}</small></td><td><span className="formation-stub-rating">{ratingText(item,acquisitionIncomplete)}</span>{item.myRatingSource!=='douban'&&<RatingControl targetType="subject" targetId={item.subjectId} label={item.displayIdentity} initialRating={item.myRating} initialSource={item.myRatingSource} initialRevision={item.myRatingRevision} />}</td><td>{shelfName(item,shelves)}</td><td>{item.organizingRequirement}</td><td><strong className="formation-stub-current" data-state={item.classification}>{reason}</strong>{progressDetail&&<small>{progressDetail}</small>}</td><td><Button type="button" variant="text" aria-haspopup="dialog" onClick={(event)=>void onOpen(item,event.currentTarget)}>查看过程</Button></td><td>{actionControl}</td><td><button type="button" className="formation-expedite-toggle" aria-label={canExpedite(item)?(expedited?`取消加急 ${item.displayIdentity}`:`加急 ${item.displayIdentity}`):`${item.displayIdentity}无需加急`} aria-pressed={canExpedite(item)?expedited:undefined} disabled={loading||!canExpedite(item)} onClick={()=>void onAction(item,'expedite',!expedited)}>{expedited?'已加急':'加急'}</button></td></tr>;
+  return <tr className="formation-stub-media-row" data-classification={item.classification} data-expedited={expedited||undefined}><td><strong>{item.displayIdentity}</strong><small>{statusLabel(item)} · {formatTime(item.addedAtMs)}</small></td><td><span className="formation-stub-rating">{ratingText(item,acquisitionIncomplete)}</span>{item.myRatingSource!=='douban'&&<RatingControl targetType="subject" targetId={item.subjectId} label={item.displayIdentity} initialRating={item.myRating} initialSource={item.myRatingSource} initialRevision={item.myRatingRevision} />}</td><td>{shelfName(item,shelves)}</td><td>{item.organizingRequirement}</td><td><strong className="formation-stub-current" data-state={item.classification}>{reason}</strong>{progressDetail&&<small>{progressDetail}</small>}</td><td><Button type="button" variant="text" aria-haspopup="dialog" onClick={(event)=>void onOpen(item,event.currentTarget)}>查看过程</Button></td><td>{actionControl}</td><td><button type="button" className="formation-expedite-toggle" aria-label={canExpedite(item)?(expedited?`取消加急 ${item.displayIdentity}`:`加急 ${item.displayIdentity}`):`${item.displayIdentity}无需加急`} aria-pressed={canExpedite(item)?expedited:undefined} disabled={loading||!canExpedite(item)} onClick={()=>void onAction(item,'expedite',!expedited)}>{expedited?'已加急':'加急'}</button></td><td>上架任务</td></tr>;
 }

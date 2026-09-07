@@ -1,0 +1,36 @@
+# Aftercare健康检查与实际维护分离：实施证据
+
+2026-09-08。本报告记录本地实现和验收；生产部署结果须另外追加，不能用本报告替代上线验证。
+
+## 合同与实现
+
+- SSOT直接事务行和新增修订已同步：Case Creation先queued，实际Inventory Commit通过Receipt衔接原Case，独立Inventory Record Refresh Commit不创建Case。45个Canonical Transactions；113 Capability、99 Result family、187 tables不变。
+- 健康投影区分健康事实与维护状态。queued为红灯、active为黄灯；自己的Inventory提交后，结算和复查仍关联同Case；只有重新验证健康并结束维护后转绿。未知状态为灰灯。
+- Case Creator拒绝空目标、仅记录更新和未支持目标。已提交的健康检查可以直接进入Case准入，不因下一次周期未到而卡住；精确Assessment Work及Evidence仍是建单依据。
+- readable NFO指纹变化走Arca内部RefreshInventoryRecords命令。新Inventory/精确Control变更/Command Receipt/marker/audit原子提交；冻结Source Package/Facts/人物关系保持不变，没有文件写入、Supporting Work、Workspace或Case。
+- 提交重验Entry/Shelf、Inventory/Standard/Placement/Identity、active Case、Off-deck Reservation和文件stat/fingerprint。Control冲突与外部再次写入导致整笔回滚。同输入重放原Receipt，无变化不增加revision。外部恢复原字节但旧Finding尚在时，进行按Basis、Finding kinds和周期去重的健康复查。
+- 三条既存NFO queued Case由新规则的精确记录更新及Basis失效收敛，不新增常驻历史格式兼容。未取得席位的失效记录不进入已维护历史。
+- 健康检查不运行FFmpeg试编码；使用当前Probe和Platform已验证设备能力形成结构策略Evidence。真正编码、播放验证和失败处理仍位于取得席位后的Case，受encoder/volume Governor约束。
+- 维护列表在Arca Repository分页和计数，queued不进入列表/统计/分页。Case详情按精确Case Requirement或reassessment cycle选取Work，再读取其真实Plan/Event；进度摘要只读该Case的prepare Work。
+- Foundation进度读取按Event的current_progress_revision与精确Event集合查询，不再加载全部历史采样。Shelf要求变更HTTP入口仅唤醒，实际Entry检查由持久、有界巡检处理。
+- 整理列表新增任务类型列，九列宽度合计100%；维护与上架详情共用ProcessDialog和ProcessStages，保持原有Libra详情样式。收藏详情删除重复灯，保留健康文字/Evidence及指向同Case的维护链接。
+
+## 本地验证
+
+- 完整架构Gate通过，214个Fixture文件通过；Source Map/Capability/Domain Input/Result/Table/Transaction派生已重新生成。
+- P2 aggregate digest：`8e289cf619081a5745fe4d07d0bc02d0f16b04a2c9a569d3f94ac213bdfaea6a`。
+- DDL字节digest保持`642c62d6d55e95ce31a097435ae7052c26d0ea5b65d049d90c724522db204784`；本次没有新增列或索引。
+- 最终独立service重跑500通过、18跳过；前端44通过并构建成功。此前并行执行完整架构Gate时，service的200ms FFmpeg watchdog时间敏感测试超时一次；未放宽测试或生产超时，独立重跑通过。共享弹层调整后的前端44项测试与构建也通过。
+- 22项定向测试覆盖100 Entry单席位排队/重启、检查不执行encoder、NFO复查去重、Case/提交/结算/复查边界；34项效果安全与记录更新测试通过，包括非空已接受Cast Facts和人物关系原样保留。
+- 进度查询测试插入5000历史采样，验证查询携带精确revision及Event集合；空Work集合不会回退成全Entry查询。共享详情和相关投影32项测试通过。
+- 本地合成浏览器场景验证四灯色、详情无重复灯、黄灯链接到同Case、资源等待和后续实际验证步骤。此场景只证明UI交互与布局，不是生产数据库或真实转码端到端证据。
+
+## 生产只读事实与待验收
+
+02:27（Asia/Shanghai）生产仍为275923039f；54份NFO均可读，其中3份与存储指纹不同。2个既存active Case中仅1个FFmpeg实际运行，Top Gun约58%，另一个等待资源；3个NFO Case仍queued、没有Work。NAS /vol1约34GiB可用。未访问Emby。
+
+上线前须完成最终service/web校验、Linux镜像及生产副本readiness、标准上传checksum/dry-run/apply；检查现有长转码，避免多轮部署反复丢失其临时进度。上线后必须核对收藏/文件保留、NFO三项收敛、queued不可见、黄灯对应Case、实际分页与进度响应，最后清理本任务临时文件并保留回滚备份。
+
+## 未关闭的审计项
+
+AC-09仍是独立能力缺口：已有Arca人物关系Evidence Projection保留；完整新NFO人物观察→People注册→确定性Arca关系记录更新尚未实现。本次记录更新不会猜测演员匹配或改写已接受Cast，也不会为人物记录更新创建维护Case。不能据此宣称People全链路验收通过或全部审计项关闭。后续继续在唯一CURRENT_PHASE下跟踪，不创建平行计划。

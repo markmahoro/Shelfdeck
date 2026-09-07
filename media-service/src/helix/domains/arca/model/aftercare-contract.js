@@ -22,8 +22,8 @@ const CAPABILITY_REFS = Object.freeze({
   workspaceReclaim:'arca.aftercare.workspace.reclaim@1',
 });
 
-const HEALTH_STATES = Object.freeze(['never_assessed','healthy','observing','repairing','attention_required']);
-const CASE_STATES = Object.freeze(['active','resolved','invalidated','unresolved']);
+const HEALTH_STATES = Object.freeze(['never_assessed','healthy','unhealthy','observing','repairing','attention_required']);
+const CASE_STATES = Object.freeze(['queued','active','resolved','invalidated','unresolved']);
 const DISPOSITIONS = Object.freeze(['observe','auto_repair','attention_required']);
 const ASSESSMENT_KINDS = Object.freeze(['custody','presentation','conformance']);
 const PERIODS = Object.freeze({ custodyMs:24*60*60*1000, deepMs:7*24*60*60*1000, jitterMs:2*60*60*1000 });
@@ -260,7 +260,14 @@ function projectHealth(context, history, at = Date.now()) {
   const current = latestForBasis(history, context.basis.digest);
   const currentCases = (history.cases || []).filter((item) =>
     item.careBasisDigest === context.basis.digest);
-  const activeCase = currentCases.find((item) => ['queued','active'].includes(item.state)) || null;
+  const activeCase = (history.cases || []).find((item) => {
+    if (!['queued','active'].includes(item.state)) return false;
+    if (item.careBasisDigest === context.basis.digest) return true;
+    const commit = (history.commits || []).find((value) => value.aftercareCaseId === item.aftercareCaseId);
+    if (item.state !== 'active' || !commit || commit.newInventoryRevision !== context.basis.inventoryRevision) return false;
+    return ['standardRevision','placementRevision','canonicalIdentityDigest','sourcePackageId',
+      'acceptedProductFactSetDigest','decisionFactSetDigest'].every((key) => item.careBasis?.[key] === context.basis[key]);
+  }) || null;
   const latestCase = currentCases[0] || null;
   const findingsByAssessment = new Map();
   for (const finding of history.findings || []) {
@@ -284,15 +291,19 @@ function projectHealth(context, history, at = Date.now()) {
   }));
   let state = 'never_assessed';
   const all = Object.values(dimensions);
-  if (activeCase) state = activeCase.state === 'queued' ? 'observing' : 'repairing';
+  if (activeCase) state = activeCase.state === 'queued' ? 'unhealthy' : 'repairing';
   else if (latestCase?.state === 'unresolved') state = 'attention_required';
   else if (hasIncompatibleRepairCombination(all.flatMap((item) => item.findings))) state = 'attention_required';
   else if (all.some((item) => item.findings.some((finding) => finding.repairability === 'attention_required'))) state = 'attention_required';
   else if (all.some((item) => item.state === 'not_assessable' || item.findings.some((finding) => finding.repairability === 'observe'))) state = 'observing';
+  else if (all.some((item) => item.state === 'degraded' || item.findings.length > 0)) state = 'unhealthy';
   else if (all.every((item) => item.state === 'healthy')) state = 'healthy';
   const jitter = stableJitterMs(context.shelfEntryId), custody = dimensions.custody.assessedAtMs,
     deep = Math.min(...['presentation','conformance'].map((kind) => dimensions[kind].assessedAtMs || 0));
-  return Object.freeze({ shelfEntryId:context.shelfEntryId, state, careBasisDigest:context.basis.digest,
+  const healthState = state === 'healthy' ? 'healthy' : ['unhealthy','repairing','attention_required'].includes(state) ? 'unhealthy' : 'unknown';
+  return Object.freeze({ shelfEntryId:context.shelfEntryId, state, healthState,
+    maintenanceState:activeCase?.state || 'none', maintenanceCaseId:activeCase?.aftercareCaseId || null,
+    careBasisDigest:context.basis.digest,
     basisCurrent:true, dimensions:Object.freeze(dimensions), activeCase,
     admittedDefects:validManifest(context.authorizedDefectManifest)
       ? context.authorizedDefectManifest.defects : Object.freeze([]),
@@ -309,7 +320,20 @@ function dispositionFromAssessments(assessments) {
   return findings.length ? 'observe' : 'observe';
 }
 
+function assertProcessingRequirement(requirement){
+  const allowed=new Set(['custody:artifact_missing','custody:artifact_not_regular','custody:artifact_unreadable','custody:nfo_corrupt',
+    'presentation:nfo_missing','presentation:nfo_corrupt','presentation:poster_missing','presentation:poster_corrupt',
+    'conformance:video_codec_unmet','conformance:max_size_exceeded','conformance:container_unmet','conformance:file_extension_unmet',
+    'conformance:placement_unmet','conformance:settlement_gap']);
+  const kinds=requirement?.typedParameters?.map(item=>item.value)||[];
+  if(!requirement?.requiredEffects?.length||!kinds.length||kinds.some(kind=>!allowed.has(kind))||
+    !kinds.some(kind=>kind.startsWith('presentation:')||kind==='custody:nfo_corrupt'||
+      kind.startsWith('conformance:')&&kind!=='conformance:settlement_gap'))
+    throw Object.assign(new Error('Aftercare Case requires a supported physical processing objective.'),{code:'ARCA_AFTERCARE_PROCESSING_OBJECTIVE_REQUIRED'});
+}
+
 module.exports = Object.freeze({ CAPABILITY_REFS, HEALTH_STATES, CASE_STATES, DISPOSITIONS,
+  assertProcessingRequirement,
   ASSESSMENT_KINDS, PERIODS, stableJitterMs, projectHealth, dispositionFromAssessments,
   hasIncompatibleRepairCombination,
   physicalIdentityFromInventoryRow, deriveInventoryMaterialChanges, settlementScopeDigest,

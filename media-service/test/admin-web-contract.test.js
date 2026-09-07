@@ -120,7 +120,7 @@ test('Media organization workspace uses user-facing stages after Procurement han
   assert.match(page, /查看过程/);
   assert.match(page, /用户操作/);
   assert.match(page, />加急</);
-  assert.match(page, /organizingSteps/);
+  assert.match(page, /ProcessStages stages=\{detail.stages\}/);
   assert.match(page, /全部/);
   assert.match(page, /还没有进入整理的电影/);
   assert.match(page, /按片名筛选/);

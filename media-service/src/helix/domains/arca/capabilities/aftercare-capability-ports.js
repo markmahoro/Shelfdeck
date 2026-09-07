@@ -210,7 +210,10 @@ function artifactHandle(context,caseId,kind,location,at,mediaType=null,provenanc
 function isPrimaryMaterial(item){return String(item.role||'').toLowerCase().includes('primary');}
 function isNfoMaterial(item){return isAftercareArtifactMaterial(item,'nfo');}
 function isPosterMaterial(item){return isAftercareArtifactMaterial(item,'poster');}
-function custodyIdentityChangedFinding(item){const nfo=isNfoMaterial(item);return finding('custody',isPrimaryMaterial(item)?'primary_identity_changed':nfo?'nfo_identity_changed':'material_identity_changed','critical',nfo?'auto_repair':'attention_required',item.material_key);}
+function custodyIdentityChangedFinding(item){const nfo=isNfoMaterial(item);
+  if(nfo)return validNfo(item.location)?finding('custody','nfo_identity_changed','warning','observe',item.material_key):
+    finding('custody','nfo_corrupt','warning','auto_repair',item.material_key);
+  return finding('custody',isPrimaryMaterial(item)?'primary_identity_changed':'material_identity_changed','critical','attention_required',item.material_key);}
 function nfoSourceGuard(contextValue,current,fingerprint){const sourceMaterialIdentity=current&&fs.existsSync(current.location)?physicalIdentity(current.location,current.mount_scope_id,fingerprint):null;return Object.freeze({sourceMaterialIdentity,digest:canonicalDigest({schema:'arca.aftercare-nfo-source-guard@1',careBasisDigest:contextValue.basis.digest,sourceMaterialIdentity})});}
 function inventoryRowForIdentity(template,identity){return Object.freeze({...template,material_key:identity.materialKey,mount_scope_id:identity.mountScopeId,inode:identity.inode,size_bytes:identity.sizeBytes,fingerprint_algorithm:identity.fingerprintAlgorithm,fingerprint_version:identity.fingerprintVersion,content_fingerprint:identity.contentFingerprint});}
 function nfoCommitSource(contextValue,output,location,inventoryMaterial,mountScopeId,fingerprint){const currentIdentity=fs.existsSync(location)?physicalIdentity(location,mountScopeId,fingerprint):null,expectedGuard=canonicalDigest({schema:'arca.aftercare-nfo-source-guard@1',careBasisDigest:contextValue.basis.digest,sourceMaterialIdentity:currentIdentity});if(output.provenanceRef?.digest!==expectedGuard)throw Object.assign(new Error('Aftercare NFO source changed after preparation.'),{code:'ARCA_AFTERCARE_NFO_SOURCE_STALE'});const exactInventory=inventoryMaterial&&exactInventoryMaterial(location,inventoryMaterial,mountScopeId,fingerprint);return Object.freeze({material:currentIdentity&&!exactInventory?inventoryRowForIdentity(inventoryMaterial||{},currentIdentity):inventoryMaterial,supersededMaterialIdentity:currentIdentity&&!exactInventory?currentIdentity:null});}
@@ -355,7 +358,7 @@ function structuralStrategyRejection(probe,device,intent){const pipeline=(device
   if(pipeline&&stream&&!pipeline.inputPixelFormats.includes(stream.pixelFormat))reasons.push('source_pixel_format_unsupported');
   return Object.freeze(reasons);
 }
-async function assessMediaRepairStrategy(options,context,probe,sourceProbeEvidence){const profile=repairVideoProfile(probe);if(!profile||typeof options.mediaEffectPort?.verifyTranscodeInput!=='function')return null;
+async function assessMediaRepairStrategy(options,context,probe,sourceProbeEvidence){const profile=repairVideoProfile(probe);if(!profile)return null;
   const requirements=effectiveRequirements(context),hasLimit=Number.isSafeInteger(requirements?.space?.maxSizeBytes),devices=readyDeviceSnapshots(options.platformComputeRuntime),
     ordinary=devices.filter((item)=>item.deviceClass!=='software_cpu'),cpu=devices.filter((item)=>item.deviceClass==='software_cpu'),rejected=[];
   let ordinal=0;for(const device of [...ordinary,...cpu]){if(device.deviceClass==='remote_worker')continue;const modes=device.deviceClass==='software_cpu'
@@ -364,12 +367,13 @@ async function assessMediaRepairStrategy(options,context,probe,sourceProbeEviden
       if(mode!=='quality_bound'&&!intent.video.targetVideoBitrateBps){rejected.push(Object.freeze({deviceId:device.deviceId,deviceClass:device.deviceClass,
         deviceSnapshotDigest:device.snapshotDigest,disposition:'strategy_rejected',rejectionScope:'rate_control_strategy',
         reasonCodes:Object.freeze(['media_size_budget_infeasible']),preflightDigest:canonicalDigest({intent:intent.intentDigest,reason:'media_size_budget_infeasible'})}));continue;}
-      const structural=structuralStrategyRejection(probe,device,intent);let preflight=null;if(!structural.length){preflight=await options.mediaEffectPort.verifyTranscodeInput({sourceHandle:primaryReadHandle(context,context.raw.materials.find(isPrimaryMaterial)),
-          sourceProbeEvidence,productionIntent:intent,deviceSnapshot:device});}
-      const reasons=structural.length?structural:(preflight?.reasonCode?[preflight.reasonCode]:[]);if(reasons.length){rejected.push(Object.freeze({deviceId:device.deviceId,
+      const reasons=structuralStrategyRejection(probe,device,intent),preflightDigest=canonicalDigest({
+        schema:'arca.aftercare-structural-preflight@1',careBasisDigest:context.basis.digest,
+        sourceProbeEvidenceDigest:canonicalDigest(sourceProbeEvidence),deviceSnapshotDigest:device.snapshotDigest,intentDigest:intent.intentDigest,reasons});
+      if(reasons.length){rejected.push(Object.freeze({deviceId:device.deviceId,
         deviceClass:device.deviceClass,deviceSnapshotDigest:device.snapshotDigest,disposition:'strategy_rejected',
         rejectionScope:reasons.includes('rate_control_unsupported')?'rate_control_strategy':'device_pipeline',reasonCodes:Object.freeze(reasons),
-        preflightDigest:preflight?.preflightDigest||canonicalDigest({intent:intent.intentDigest,reasons})}));continue;}
+        preflightDigest}));continue;}
       const base={schemaRef:'helix://contracts/domain-types/AftercareMediaRepairStrategy/v1',schemaVersion:1,
         strategyId:stable('arca-care-media-strategy-',{basis:context.basis.digest,intent:intent.intentDigest,device:device.snapshotDigest}),revision:1,
         careBasisDigest:context.basis.digest,sourceHandleDigest:intent.sourceHandleDigest,
@@ -377,7 +381,7 @@ async function assessMediaRepairStrategy(options,context,probe,sourceProbeEviden
         sourceVideoProfileDigest:canonicalDigest(repairVideoProfile(probe)),
         selectedDeviceSnapshot:device,selectedDeviceSnapshotDigest:device.snapshotDigest,
         selectedDeviceClass:device.deviceClass,video:intent.video,priorStrategyAssessments:Object.freeze(rejected),
-        selectedPreflightDigest:preflight.preflightDigest};const strategyDigest=canonicalDigest(base);return Object.freeze({...base,strategyDigest,digest:strategyDigest});}
+        selectedPreflightDigest:preflightDigest};const strategyDigest=canonicalDigest(base);return Object.freeze({...base,strategyDigest,digest:strategyDigest});}
   }return null;}
 async function verifyPlaybackBounded(options,store,workspaceMediaHandle,probe,run=runFfmpeg){const handle=workspaceMediaHandle.workspaceMaterialHandle,location=workspaceLocation(store,handle),duration=Math.max(1,Number(probe.durationMs||1))/1000,points=[5,50,95],passed=[];for(const point of points){try{await run(resolveAftercareFfmpegPath(options.ffmpegPath),['-hide_banner','-nostdin','-loglevel','error','-ss',(duration*point/100).toFixed(3),'-i',location,'-map','0:v:0','-frames:v','1','-f','null',process.platform==='win32'?'NUL':'/dev/null'],30_000);passed.push(point);}catch{}}return Object.freeze({samplePointsPercent:Object.freeze(points),passedSamplePointsPercent:Object.freeze(passed),decodeDigest:canonicalDigest({schema:'arca.aftercare-playback-decode@1',handleDigest:canonicalDigest(handle),points,passed})});}
 
@@ -448,11 +452,10 @@ function createAftercareCapabilityPorts(options){const now=options.now||Date.now
     return outcome(C.conformance,assessment('conformance',c,findings,at,undefined,execution.workId,null,{mediaRepairStrategy}),at);},validateResult(_c,o){if(!o?.result)throw new TypeError('Conformance Assessment Result is absent.');}});
   ports[C.textRender]=Object.freeze({validateInputs(c){requireNamed(c,['acceptedProductFacts','artifactProfile']);},execute(execution){const c=context(execution),care=activeCase(c),at=now(),root=workspaceRoot(options,store,care.aftercareCaseId),metadata=c.raw.facts.find((item)=>item.fact_kind==='product_metadata')?.value,cast=c.raw.facts.find((item)=>item.fact_kind==='media_cast')?.value,current=selectedNfoMaterial(c.raw.materials),guard=nfoSourceGuard(c,current,fingerprint),existingBytes=current&&fs.existsSync(current.location)?boundedBytes(current.location,256*1024):null,
     presentation={metadata,cast,identity:{provider:c.raw.identity.provider,providerKey:c.raw.identity.provider_key}},readable=readableNfo(existingBytes),
-    reconcile=Boolean(readable&&current&&!exactInventoryMaterial(current.location,current,c.raw.shelf.target_mount_scope_id,fingerprint)),
-    bytes=reconcile?existingBytes:renderAftercareMovieNfo({existingBytes,...presentation}).bytes,digest=crypto.createHash('sha256').update(bytes).digest('hex'),
-    location=path.join(root,'artifacts',reconcile?'movie-reconcile-'+digest.slice(0,16)+'.nfo':'movie.nfo');
-    if(readable&&!reconcile)throw Object.assign(new Error('Aftercare NFO finding no longer matches current reality.'),{code:'ARCA_AFTERCARE_INPUT_STALE'});
-    fs.mkdirSync(path.dirname(location),{recursive:true});if(fs.existsSync(location)){if(!fs.readFileSync(location).equals(bytes))throw new Error('Aftercare NFO Workspace replay conflicts with existing bytes.');}else fs.writeFileSync(location,bytes,{flag:'wx'});const result=artifactHandle(c,care.aftercareCaseId,'nfo',location,at,null,guard.digest,reconcile?'aftercare_nfo_reconcile':'aftercare_case'),member=buildWorkspaceMaterialHandle(c,store,care.aftercareCaseId,'nfo',location,'sha256',result.digestHex,fingerprint);store.registerAftercareWorkspaceMaterial(member,result);return committed(execution,C.textRender,result,at,'workspace_write');},validateResult(_c,o){if(o?.result?.artifactKind!=='nfo')throw new TypeError('Aftercare rendered NFO Artifact is invalid.');}});
+    bytes=readable?null:renderAftercareMovieNfo({existingBytes,...presentation}).bytes;
+    if(readable)throw Object.assign(new Error('Aftercare NFO finding no longer matches current reality.'),{code:'ARCA_AFTERCARE_INPUT_STALE'});
+    const digest=crypto.createHash('sha256').update(bytes).digest('hex'),location=path.join(root,'artifacts','movie.nfo');
+    fs.mkdirSync(path.dirname(location),{recursive:true});if(fs.existsSync(location)){if(!fs.readFileSync(location).equals(bytes))throw new Error('Aftercare NFO Workspace replay conflicts with existing bytes.');}else fs.writeFileSync(location,bytes,{flag:'wx'});const result=artifactHandle(c,care.aftercareCaseId,'nfo',location,at,null,guard.digest,'aftercare_case'),member=buildWorkspaceMaterialHandle(c,store,care.aftercareCaseId,'nfo',location,'sha256',result.digestHex,fingerprint);store.registerAftercareWorkspaceMaterial(member,result);return committed(execution,C.textRender,result,at,'workspace_write');},validateResult(_c,o){if(o?.result?.artifactKind!=='nfo')throw new TypeError('Aftercare rendered NFO Artifact is invalid.');}});
   ports[C.binaryAcquire]=Object.freeze({
     validateInputs(c){requireNamed(c,['stableProviderIdentity','integrationHandle']);},
     async execute(execution){
@@ -711,4 +714,4 @@ function createAftercareCapabilityPorts(options){const now=options.now||Date.now
   return Object.freeze(ports);
 }
 
-module.exports=Object.freeze({AFTERCARE_LONG_MEDIA_TIMEOUT_MS,createAftercareCapabilityPorts,decodeFinding,validNfo,validImageBytes,progressSample,remainingDeadlineMs,aftercareMediaProbeEvidence,resolveAftercareFfmpegPath,materializeArtifactWithRollback,materializeMediaWithRollback,nfoCommitSource,externalWriterConflictOutcome,aftercareInventoryNoChangeOutcome,aftercareSettlementPreconditionFailureOutcome,observeSemanticNfoReconciliation,custodyIdentityChangedFinding,permitsMissingArtifactReplacement,buildProductionVideoProfile,verifyPlaybackBounded,resolveAftercareSettlementTarget,assertAftercareSettlementHandle,assertSettlementTargetReality});
+module.exports=Object.freeze({assessMediaRepairStrategy,AFTERCARE_LONG_MEDIA_TIMEOUT_MS,createAftercareCapabilityPorts,decodeFinding,validNfo,validImageBytes,progressSample,remainingDeadlineMs,aftercareMediaProbeEvidence,resolveAftercareFfmpegPath,materializeArtifactWithRollback,materializeMediaWithRollback,nfoCommitSource,externalWriterConflictOutcome,aftercareInventoryNoChangeOutcome,aftercareSettlementPreconditionFailureOutcome,observeSemanticNfoReconciliation,custodyIdentityChangedFinding,permitsMissingArtifactReplacement,buildProductionVideoProfile,verifyPlaybackBounded,resolveAftercareSettlementTarget,assertAftercareSettlementHandle,assertSettlementTargetReality});

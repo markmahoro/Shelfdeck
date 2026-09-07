@@ -276,14 +276,15 @@ button, input, select, textarea { font: inherit; }
 .formation-stub-notice { display: flex; align-items: center; gap: 10px; margin: 0; padding: 10px 14px; border-left: 3px solid var(--attention); background: #f7f0e5; color: var(--muted); font-size: 12px; }
 .formation-stub-notice strong { color: #83501a; }
 .formation-stub-table { min-width: 1080px; table-layout: fixed; }
-.formation-stub-table th:nth-child(1) { width: 18%; }
-.formation-stub-table th:nth-child(2) { width: 8%; }
-.formation-stub-table th:nth-child(3) { width: 12%; }
-.formation-stub-table th:nth-child(4) { width: 16%; }
-.formation-stub-table th:nth-child(5) { width: 21%; }
+.formation-stub-table th:nth-child(1) { width: 17%; }
+.formation-stub-table th:nth-child(2) { width: 6%; }
+.formation-stub-table th:nth-child(3) { width: 11%; }
+.formation-stub-table th:nth-child(4) { width: 15%; }
+.formation-stub-table th:nth-child(5) { width: 19%; }
 .formation-stub-table th:nth-child(6) { width: 7%; }
-.formation-stub-table th:nth-child(7) { width: 10%; }
+.formation-stub-table th:nth-child(7) { width: 9%; }
 .formation-stub-table th:nth-child(8) { width: 8%; }
+.formation-stub-table th:nth-child(9) { width: 8%; }
 .formation-stub-table td { vertical-align: middle; overflow-wrap: anywhere; }
 .formation-stub-table td:first-child { width: auto; }
 .formation-stub-rating { color: var(--muted); font-size: 12px; font-weight: 700; white-space: nowrap; }

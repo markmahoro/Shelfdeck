@@ -132,6 +132,9 @@ function createCommandCommitCoordinator(options) {
       if (request.domainParticipant.owner !== command.ownerDomain) fail(
         'P3_COMMAND_OWNER_MISMATCH', 'Command Owner and Domain participant Owner must match.'
       );
+      if(request.controlParticipant&&(request.controlParticipant.owner!=='material-control-authority'||
+          request.controlParticipant.boundBusinessOwner!==command.ownerDomain))fail(
+        'P3_COMMAND_CONTROL_OWNER_MISMATCH','Command Control participant must be bound to the command Owner.');
       let domainResult;
       let receipt;
       try {
@@ -162,6 +165,7 @@ function createCommandCommitCoordinator(options) {
               return domainResult;
             }
           },
+          ...(request.controlParticipant?[request.controlParticipant]:[]),
           ...(outboxParticipant ? [outboxParticipant] : []),
           {
             participantId: 'commit_foundation', owner: 'execution-foundation', boundBusinessOwner: command.ownerDomain,

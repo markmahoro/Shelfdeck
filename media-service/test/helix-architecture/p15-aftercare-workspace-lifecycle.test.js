@@ -32,7 +32,7 @@ function fixture(storeOptions={}) {
     placementRevision:1,canonicalIdentityDigest:digest('identity'),sourcePackageId:'package-1',acceptedProductFactSetDigest:digest('facts'),
     decisionFactSetDigest:digest('decision')};careBasis.digest=canonicalDigest(careBasis);
   const requirement={schemaRef:'helix://contracts/domain-types/CareRequirement/v1',schemaVersion:1,requirementId:'requirement-1',revision:1,
-    careBasisDigest:careBasis.digest,requiredEffects:[],acceptanceDigest:digest('acceptance'),typedParameters:[]};requirement.digest=canonicalDigest(requirement);
+    careBasisDigest:careBasis.digest,requiredEffects:[{objectId:'finding',revision:1,schemaRef:'required-effect',digest:digest('finding'),objectKind:'required-effect'}],acceptanceDigest:digest('acceptance'),typedParameters:[{parameter:'goal',valueType:'string',value:'presentation:nfo_missing',valueDigest:digest('goal')}]};requirement.digest=canonicalDigest(requirement);
   database.prepare(`INSERT INTO arca_aftercare_cases
     (aftercare_case_id,shelf_entry_id,finding_set_digest,care_basis_schema_ref,care_basis_json,care_basis_digest,
      care_requirement_schema_ref,care_requirement_json,care_requirement_digest,case_generation,trigger_digest,state,

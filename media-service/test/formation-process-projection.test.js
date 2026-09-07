@@ -368,13 +368,15 @@ test('Formation frontend renders backend Plans without an organizingSteps Plan f
   const source=fs.readFileSync(path.resolve(__dirname,'../web/src/helix/FormationPage.tsx'),'utf8');
   const processDetail=source.slice(source.indexOf('function ProcessDetail'),source.indexOf('export default function FormationPage'));
   const mediaRow=source.slice(source.indexOf('function MediaRow'));
-  assert.match(processDetail,/detail\.stages\.map/);
+  const shared=fs.readFileSync(path.resolve(__dirname,'../web/src/helix/ProcessStages.tsx'),'utf8');
+  assert.match(processDetail,/ProcessStages stages=\{detail.stages\}/);
+  assert.match(shared,/stages\.map/);
   assert.doesNotMatch(processDetail,/organizingSteps|mediaOrganization\.steps|ChecklistSteps/);
   assert.match(processDetail,/页面不会根据状态推测或补造计划/);
   assert.match(mediaRow,/currentProgressLabel\(item\)/);
   assert.match(source,/progressDetail\(item\.currentPlan\.progress\)/);
-  assert.match(source,/MiB\/s/);
-  assert.match(source,/预计 \$\{minutes\} 分钟/);
+  assert.match(shared,/MiB\/s/);
+  assert.match(shared,/预计 \$\{minutes\} 分钟/);
   assert.doesNotMatch(mediaRow,/organizingSteps/);
 });
 
@@ -415,9 +417,11 @@ test('execution progress reader exposes persisted Plan envelopes, including an e
   } finally { kernel.close(); fs.rmSync(root,{recursive:true,force:true,maxRetries:5,retryDelay:50}); }
 });
 
-test('execution progress reader exposes the latest persisted failed Event Attempt',()=>{
+test('execution progress reader reads exact Work and current progress heads alongside the latest failed Attempt',()=>{
   const root=fs.mkdtempSync(path.join(os.tmpdir(),'formation-failure-reader-')),databasePath=path.join(root,'shelfdeck.db');
-  const kernel=openSqliteKernel({Database,databasePath,schemaDdl,schemaManifest,now:()=>100});
+  const sqlTrace=[];
+  function TracedDatabase(filename){return new Database(filename,{verbose:sql=>sqlTrace.push(sql)});}
+  const kernel=openSqliteKernel({Database:TracedDatabase,databasePath,schemaDdl,schemaManifest,now:()=>100});
   try {
     const inputBindings=canonicalJson({schemaRef:'helix://foundation/types/EventInputBindingSet/v1',bindings:[]});
     const parameters=canonicalJson({});
@@ -436,9 +440,18 @@ test('execution progress reader exposes the latest persisted failed Event Attemp
         .run('event-attempt-old','event-failed',1,'completed','failed','transient','OLD_FAILURE',canonicalDigest({failureCode:'OLD_FAILURE'}),12,13);
       prepare('INSERT INTO fx_event_attempts(event_attempt_id,event_id,ordinal,state,outcome_kind,failure_class,failure_code,evidence_digest,started_at_ms,finished_at_ms) VALUES(?,?,?,?,?,?,?,?,?,?)')
         .run('event-attempt-latest','event-failed',2,'completed','failed','permanent','CLEAN_ARCA_SETTLEMENT_UNKNOWN_MEMBER',canonicalDigest({failureCode:'CLEAN_ARCA_SETTLEMENT_UNKNOWN_MEMBER'}),14,15);
+      const sample=prepare('INSERT INTO fx_event_progress(event_id,event_attempt_id,revision,mode,current_value,total_value,unit,sampled_at_ms) VALUES(?,?,?,?,?,?,?,?)');
+      for(let revision=1;revision<=5000;revision++)sample.run('event-failed','event-attempt-latest',revision,'determinate',revision,10000,'microseconds',revision);
+      prepare('UPDATE fx_workflow_events SET current_progress_revision=? WHERE event_id=?').run(5000,'event-failed');
     });
     const reader=createExecutionProgressProjectionReader({schemaManifest,unitOfWork:createSqliteUnitOfWork({kernel})});
-    const rows=reader.read(['on-deck-failed'],{includePlans:true});
+    sqlTrace.length=0;
+    assert.deepEqual(reader.read(['on-deck-failed'],{includePlans:true,workIds:[]}),[]);
+    const rows=reader.read(['on-deck-failed'],{includePlans:true,workIds:['work-failed']});
+    assert.equal(rows[0].events[0].progress.currentValue,5000);
+    const samples=sqlTrace.filter(sql=>/^SELECT/i.test(sql)&&sql.includes('FROM "fx_event_progress"'));
+    assert.equal(samples.length,1);assert.match(samples[0],/"revision"=5000/);
+    assert.match(samples[0],/"event_id" IN/);
     assert.deepEqual(rows[0].events[0].failure,{
       outcomeKind:'failed',failureClass:'permanent',failureCode:'CLEAN_ARCA_SETTLEMENT_UNKNOWN_MEMBER',attemptOrdinal:2,
     });

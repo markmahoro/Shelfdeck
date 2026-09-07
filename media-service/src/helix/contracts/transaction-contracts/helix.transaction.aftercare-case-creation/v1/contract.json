@@ -7,7 +7,7 @@
     "displayName": "Aftercare Case Creation",
     "ownerScope": "arca",
     "commitClass": "domain_unit_of_work",
-    "atomicFactSet": "immutable Care Basis + relationized Basis inputs + Care Requirement Set + Case active + Outbox",
+    "atomicFactSet": "real actionable repair Findings + immutable Care Basis + relationized Basis inputs + explicit physical Care Requirement Set + Case queued + Outbox；取得Arca处理席位后才可active并建立处理Work，单纯资料记录同步不得创建Case",
     "participants": [
       {
         "participantKind": "domain",
@@ -64,8 +64,8 @@
     ],
     "source": {
       "section": "8.5.4",
-      "line": 8701,
-      "lineDigest": "6402976bd648c711162050e188e5b50b575fbcf11f1ae69ebef2a59ccb8c15f2"
+      "line": 8708,
+      "lineDigest": "cf5ea0c843bac236e760a30451c5c46b3fa1420f0c77bbe39f72bd957c60e9e9"
     }
   }
 }

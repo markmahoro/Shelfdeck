@@ -4,7 +4,9 @@ Status: **275923039f已部署，精确历史Offer闭包清理完成；当前按�
 
 Last updated: 2026-09-08
 
-全链路审计第1—2步已完成，见[Aftercare全链路审计](implementation/evidence/AFTERCARE_FULL_CHAIN_AUDIT_20260908.md)。10项问题有代码或隔离复算依据，其余风险明确待补证；当前进入合同闭合。此次没有连接生产、修改Case、部署或Emby审查；前序未发布进度显示代码仍未发布。
+最新授权与实施状态：用户确认“好的 你继续持续推进吧”。健康/Case投影、独立NFO记录更新、真实维护详情、DB分页及当前进度版本查询已本地实现；45个事务的派生合同及214 Fixture文件完整架构Gate通过。正在完成最终服务端/前端与Linux验证，生产仍为275923039f。详细实现、测试竞争中的一次超时及AC-09未关闭能力见[本次实施证据](implementation/evidence/AFTERCARE_HEALTH_CASE_IMPLEMENTATION_20260908.md)。
+
+全链路审计第1—2步已完成，见[Aftercare全链路审计](implementation/evidence/AFTERCARE_FULL_CHAIN_AUDIT_20260908.md)。10项问题有代码或隔离复算依据，AC-09完整人物观察/关联路径仍未实现。02:27已完成生产只读核对：54份NFO均可读、3份指纹漂移、2 active/3 queued Case，只有1个FFmpeg进程，Top Gun约58%；本次尚未修改生产Case或部署，Emby审查继续跳过。
 
 本轮最新事实见[持续迭代证据](implementation/evidence/USER_PAIN_CONTINUATION_20260908.md)。54部收藏保留，Top Gun旧目录已归档并校验11文件；3份NFO漂移已由旧规则生成queued Case，不能声称新合同已经落地。用户明确指出Case门槛和Aftercare合同边界问题，已要求先统一SSOT；当前未继续清理这些Case或发布本地进度显示修改。以下为前次时点记录。
 

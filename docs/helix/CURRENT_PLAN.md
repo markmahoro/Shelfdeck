@@ -1,13 +1,13 @@
 # ShelfDeck Clean Helix Master Plan
 
-Status: **DESIGN_RETURN：先统一Aftercare两类动作合同，再对齐实施；已取消5分钟自动轮询，跳过Emby审查。**
+Status: **ACTIVE：用户确认继续按七步计划推进；已确认合同的后端投影与测试进入本地实施，独立记录更新继续闭合派生合同。已取消5分钟自动轮询，跳过Emby审查。**
 Last updated: 2026-09-08
 
 唯一活动包：[CURRENT_PHASE](implementation/CURRENT_PHASE.md)。用户已针对ENGINEERING_PLAYBOOK §3.3回复“授权本任务同步修改并继续”，范围限于[精确合同调整包](implementation/evidence/USER_PAIN_CONTRACT_CHANGE_PACKET_20260907.md)。不采用Aftercare→Libra Run方案。
 
-09-08用户进一步明确要求统一合同并更新SSOT：健康状态检查及更新作用于“我的收藏”，Aftercare Case收敛为真正上架后处理，在媒体整理区与Libra Run统一表现。SSOT已按该精确边界修订；先闭合独立记录更新的Level 8 Command/Receipt/事务及健康—Case投影，再更新机器派生合同、实现与测试。已有未发布代码保留，暂停追加部署和生产Case处置，不把此前验证通过视为新合同已实现。
+09-08用户进一步明确要求统一合同并更新SSOT：健康状态检查及更新作用于“我的收藏”，Aftercare Case收敛为真正上架后处理，在媒体整理区与Libra Run统一表现。该边界、独立NFO记录更新Command/Receipt/事务与机器派生已本地实现，完整架构Gate通过。继续最终测试、Linux副本验证及标准部署；未通过发布验证前不修改生产Case。AC-09人物观察/确定关联能力仍明确开放，不能宣称全审计关闭。
 
-用户确认的当前交付顺序：①Aftercare全链路审计；②全部能力分类；③SSOT及派生合同闭合；④后端对齐；⑤统一前端；⑥精确生产Case审查处置；⑦验证、标准部署与清理。第1—2步已完成[全链路审计](implementation/evidence/AFTERCARE_FULL_CHAIN_AUDIT_20260908.md)，当前进入第3步；不以审计交付宣称全轮实施完成。
+用户确认的当前交付顺序：①Aftercare全链路审计；②全部能力分类；③SSOT及派生合同闭合；④后端对齐；⑤统一前端；⑥精确生产Case审查处置；⑦验证、标准部署与清理。第1—2步已完成，核心第3—5步已实现并进入验收；第6步已只读核对2 active/3 queued Case，等待发布后精确复验。保留当前转码实际进度，避免多轮部署；第7步进行中。证据见[本次实施](implementation/evidence/AFTERCARE_HEALTH_CASE_IMPLEMENTATION_20260908.md)。
 
 补充约束：海报绿=健康、红=已确认不健康（含queued）、黄=已取得席位的维护Case、灰=未知；queued不进入整理区。黄灯关联同一维护任务，整理列表新增上架/维护任务类型列；收藏详情去重复灯，维护详情复用Libra Run设计理念与真实过程组件。
 

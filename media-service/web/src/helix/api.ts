@@ -384,14 +384,16 @@ export type CollectionEntry = {
   terminalAtMs: number | null;
 };
 export type DefectAdmissionCandidate={candidateRevision:number;libraRunId:string;frozenRunStateRevision:number;frozenRunStateDigest:string;terminalEvidenceDigest:string;defects:Array<{defectCode:'actor_unavailable'|'external_source_exhausted'|'size_cap_exceeded';sourceFailureCode:string;waivedRequirementCodes:string[]}>;waivedRequirementCodes:string[];candidateDigest:string;sizeForecast?:{maxSizeBytes:number;predictedBytes:number;overshootBytes:number;videoBitrateFloorBps:number;targetVideoBitrateBps:number;rasterClass:string}|null};
-export type HealthState = 'never_assessed'|'healthy'|'observing'|'repairing'|'attention_required';
+export type HealthState = 'never_assessed'|'healthy'|'unhealthy'|'observing'|'repairing'|'attention_required';
 export type HealthSummary = { shelfEntryId?:string; state:HealthState; careBasisDigest?:string; basisCurrent?:boolean;
+  healthState?:'healthy'|'unhealthy'|'unknown'; maintenanceState?:'none'|'queued'|'active'; maintenanceCaseId?:string|null;
   dimensions?:Record<'custody'|'presentation'|'conformance',{state:string;assessedAtMs:number|null;evidenceDigest:string|null;findings:CareFinding[]}>;
   activeCase?:CareCase|null; nextCustodyDueAtMs?:number; nextDeepDueAtMs?:number; updatedAtMs?:number };
 export type CareFinding = { findingId:string; findingKind:string; severity:string; repairability:string; state:string; createdAtMs:number };
 export type CareCase = { aftercareCaseId:string; caseGeneration:number; triggerDigest:string; state:string;
   terminalReasonCode:string|null; terminalEvidenceDigest:string|null; createdAtMs:number; terminalAtMs:number|null; careBasisDigest:string };
 export type CareWorkItem = { aftercareCaseId:string;shelfEntryId:string;displayIdentity:string;targetShelfId:string|null;targetShelfName:string|null;
+  processDetail?:{contract:'aftercare_process_actual_plans@1';stages:Array<Omit<NonNullable<FormationSubject['processDetail']>['stages'][number],'key'>&{key:string}>}|null;
   state:string;classification:'queued'|'in_progress'|'attention_required'|'completed'|'ended';goals:string[];createdAtMs:number;terminalAtMs:number|null;
   reasonCode:string|null;progress:CareDetail['activeCaseProgress'] };
 export type CareDetail = { shelfEntryId:string; health:HealthSummary; basis:{inventoryRevision:number;standardRevision:number;placementRevision:number;careBasisDigest:string};

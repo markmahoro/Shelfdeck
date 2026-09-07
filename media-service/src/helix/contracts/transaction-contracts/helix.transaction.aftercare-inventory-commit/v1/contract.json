@@ -7,7 +7,7 @@
     "displayName": "Aftercare Inventory Commit",
     "ownerScope": "arca",
     "commitClass": "responsibility_control_commit",
-    "atomicFactSet": "Aftercare repair result + Inventory Representation/Product Fact/Media-Cast relation revision + required new Material Control acquire/old Control release（relation-only修正时两者均为空）+ commit receipt",
+    "atomicFactSet": "verified physical repair result + Inventory Representation/Product Fact/Media-Cast relation revision + exact new Material Control acquire/old Control release + AftercareInventoryCommitReceipt；该Receipt衔接active Case到新Inventory Basis，复检与结案前不得提前投影healthy",
     "participants": [
       {
         "participantKind": "domain",
@@ -83,8 +83,8 @@
     ],
     "source": {
       "section": "8.5.4",
-      "line": 8702,
-      "lineDigest": "de1c51e6951176758387b3780a09d928791d6d06095421ee2b96ff6cf5d7c45e"
+      "line": 8709,
+      "lineDigest": "967982b60ab89f7dadc37d3591b4db6e5bc50dad7e72a472cc4df0e2964a7dc6"
     }
   }
 }

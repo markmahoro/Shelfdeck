@@ -21,7 +21,7 @@ it('renders current work before slow historical and configuration requests finis
   expect(screen.getByLabelText('按片名筛选')).toBeEnabled();
 });
 
-it('shows a queued Aftercare Case in the existing work table and loads history only on demand',async()=>{
+it('shows an admitted Aftercare Case in the existing work table and loads history only on demand',async()=>{
   const summary={totalCount:0,inProgressCount:0,attentionRequiredCount:0,completedCount:0};
   const projection={status:'ready' as const,asOfMs:100};
   const formation=vi.spyOn(helixAdminApi,'listFormation').mockResolvedValue({items:[],summary,nextCursor:'next',projection});
@@ -30,11 +30,11 @@ it('shows a queued Aftercare Case in the existing work table and loads history o
   vi.spyOn(helixAdminApi,'getPerceptionSyncState').mockRejectedValue(new Error('not configured'));
   vi.spyOn(helixAdminApi,'listCareWork').mockResolvedValue({items:[{
     aftercareCaseId:'case-1',shelfEntryId:'entry-1',displayIdentity:'Aftercare Movie',targetShelfId:'shelf-1',targetShelfName:'Films',
-    state:'queued',classification:'queued',goals:['video_codec_unmet'],createdAtMs:100,terminalAtMs:null,reasonCode:null,progress:null,
-  }],counts:{queued:1},nextCursor:null});
+    state:'active',classification:'in_progress',goals:['video_codec_unmet'],createdAtMs:100,terminalAtMs:null,reasonCode:null,progress:null,
+  }],counts:{in_progress:1},nextCursor:null});
   render(<MemoryRouter initialEntries={['/formation']}><App/></MemoryRouter>);
   expect(await screen.findByText('Aftercare Movie')).toBeInTheDocument();
-  expect(screen.getByText('排队中，等待改善席位')).toBeInTheDocument();
+  expect(screen.getByText('维护任务')).toBeInTheDocument();
   await waitFor(()=>expect(screen.getByRole('button',{name:'加载更多整理记录'})).toBeInTheDocument());
   expect(formation).toHaveBeenCalledTimes(2);
   expect(history).toHaveBeenCalledTimes(1);

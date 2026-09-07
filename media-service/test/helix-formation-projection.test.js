@@ -243,9 +243,9 @@ test('execution progress derives the Transcode device class from immutable plann
 
 test('execution progress converts SQLite safe integers before Formation JSON projection',()=>{
   const progress=projectedProgress({mode:'determinate',current_value:34n,total_value:100n,unit:'percent',rate:2.5,
-    eta_ms:12000n,progress_bucket:'percent-34'});
+    eta_ms:12000n,progress_bucket:'percent-34',sampled_at_ms:1000n});
   assert.deepEqual(progress,{mode:'determinate',currentValue:34,totalValue:100,unit:'percent',rate:2.5,
-    etaMs:12000,bucket:'percent-34'});
+    etaMs:12000,bucket:'percent-34',sampledAtMs:1000});
   assert.doesNotThrow(()=>canonicalJson(progress));
 });
 
