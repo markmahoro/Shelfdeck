@@ -8,7 +8,7 @@ const path = require('node:path');
 const { spawn, spawnSync } = require('node:child_process');
 const test = require('node:test');
 const Database = require('better-sqlite3');
-const ffmpeg = require('ffmpeg-static');
+const ffmpeg = process.env.FFMPEG_PATH || require('ffmpeg-static');
 const sharp = require('sharp');
 const { initializeCleanData } = require('../scripts/helix-operational-safety');
 const { createCleanServiceHost } = require('../src/clean-service-host');
@@ -3016,4 +3016,57 @@ test('UAT-217 formal identity resolves a saved rating and replaces the Run befor
   assert.ok(providerCalls.length>=2);
   assert.deepEqual(reality(SOURCE_ROOT),original);
   assert.ifError(runtimeError);
+});
+
+
+test('UAT-135 real ISO reaches Arca commit with fresh Source Probe and independent Product decode', {
+  skip:process.env.HELIX_UAT135_REAL_MEDIA!=='1'?'Set HELIX_UAT135_REAL_MEDIA=1 for the generated ISO Host scenario.':false,
+  timeout:180_000,
+}, async(t)=>{
+  const {createUdfBluRay,writeMpls}=require('../scripts/build-helix-movie-test-library');
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'helix-uat135-host-')),
+    dataDir=path.join(root,'data'),admin=path.join(root,'admin'),source=path.join(root,'field'),
+    shelf=path.join(root,'shelf'),disc=path.join(root,'disc');
+  for(const dir of [admin,source,shelf,path.join(disc,'BDMV','STREAM'),path.join(disc,'BDMV','CLIPINF')])fs.mkdirSync(dir,{recursive:true});
+  fs.writeFileSync(path.join(admin,'index.html'),'<div id="root"></div>');
+  const clip=path.join(disc,'BDMV','STREAM','00000.m2ts');
+  const encoded=spawnSync(ffmpeg,['-hide_banner','-nostdin','-y','-f','lavfi','-i','color=c=black:s=1920x1080:r=24:d=2',
+    '-f','lavfi','-i','sine=frequency=1000:duration=2','-c:v','libx264','-preset','ultrafast','-pix_fmt','yuv420p',
+    '-c:a','ac3','-b:a','64k','-f','mpegts',clip],{encoding:'utf8',windowsHide:true});
+  assert.equal(encoded.status,0,encoded.stderr);
+  fs.writeFileSync(path.join(disc,'BDMV','CLIPINF','00000.clpi'),'clip');
+  fs.writeFileSync(path.join(disc,'BDMV','index.bdmv'),'index');
+  fs.writeFileSync(path.join(disc,'BDMV','MovieObject.bdmv'),'object');
+  writeMpls(root,'disc/BDMV/PLAYLIST/00000.mpls',[{clipId:'00000',inTime:0,outTime:90000}]);
+  const name='SDT-M01-Standalone-H264 (2008)';
+  createUdfBluRay(disc,path.join(source,name+'.iso'));
+  await sharp({create:{width:64,height:96,channels:3,background:'#345678'}}).jpeg().toFile(path.join(source,name+'-poster.jpg'));
+  const originalDisc=reality(disc);
+  const initialized=initializeCleanData({dataDir,confirmation:'INITIALIZE_HELIX_CLEAN_V1',secretRoot:SECRET});
+  let runtimeError;
+  const host=await createCleanServiceHost({dataDir,adminDistDir:admin,secretRoot:SECRET,
+    libraWorkspaceRoot:path.join(root,'workspace'),...productOptions(),deferredDeliveryKeys:Object.freeze([]),
+    onExecutionRuntimeError(error){runtimeError=error;if(process.env.HELIX_TEST_LOG_RUNTIME_ERROR==='1')console.error(error);}});
+  t.after(async()=>{await host.close();if(process.env.HELIX_KEEP_TEST_ASSETS!=='1')fs.rmSync(root,{recursive:true,force:true,maxRetries:5,retryDelay:100});});
+  const cookie=await session(host,initialized.adminApiKey);
+  await createShelf(host,cookie,shelf);
+  await createField(host,cookie,'uat135-iso-field',source);
+  await observe(host,cookie,'uat135-iso-field');
+  await waitFor(host,cookie,items=>items.some(item=>String(item.displayIdentity||'').includes('SDT-M01')));
+  await route(host,cookie,'uat135-iso-field');
+  const terminal=await waitDatabase(path.join(dataDir,'shelfdeck.db'),db=>{
+    const entries=db.prepare('SELECT count(*) n FROM arca_shelf_entries').get().n;
+    const failed=db.prepare("SELECT count(*) n FROM fx_workflow_events WHERE owner_domain='arca' AND state='failed'").get().n;
+    const completed=db.prepare("SELECT count(*) n FROM libra_runs WHERE state='completed'").get().n;
+    const checks=db.prepare('SELECT check_kind,result FROM arca_acceptance_checks ORDER BY check_kind').all();
+    return failed||(entries===1&&completed===1)?{entries,failed,completed,checks}:null;
+  },150_000);
+  assert.ifError(runtimeError);
+  assert.equal(terminal.entries,1,JSON.stringify(terminal));
+  assert.equal(terminal.failed,0);
+  assert.equal(terminal.completed,1);
+  assert.equal(terminal.checks.length,6,JSON.stringify(terminal.checks));
+  assert.ok(terminal.checks.every(check=>check.result==='passed'),JSON.stringify(terminal.checks));
+  assert.deepEqual(reality(disc),originalDisc);
+  t.diagnostic(JSON.stringify({scenario:'real-iso-source-to-ondeck',...terminal}));
 });

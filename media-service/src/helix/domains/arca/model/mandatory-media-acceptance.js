@@ -473,6 +473,7 @@ async function observeMandatoryMedia(value) {
       const observedDisc = await mediaEffectPort.observeDiscPlayback({
         physicalMaterialReadHandle:item.sourceReadHandle,
         outputProbeEvidence:sourceProbe,
+        probeOnly:!item.samePhysicalMaterial,
         deadlineAtMs:value.deadlineAtMs,
         shouldContinue,
       });

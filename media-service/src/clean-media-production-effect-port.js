@@ -441,16 +441,19 @@ function createCleanMediaProductionEffectPort(options) {
       });
       const probeEvidence = await options.mediaProbe.probeAuthorizedInput(
         handle, input.argv, input.topology);
+      // Workspace acceptance needs fresh Source facts, not Source playback.
+      // Product playback is independently verified by the Arca caller.
+      const points = request.probeOnly === true ? [] : [5,50,95];
       if (probeEvidence.resultKind !== 'probed' || !probeEvidence.videoStreams?.length) {
         await assertCurrentPhysicalHandle(handle);
-        return Object.freeze({ probeEvidence, samplePointsPercent:Object.freeze([5,50,95]),
+        return Object.freeze({ probeEvidence, samplePointsPercent:Object.freeze(points),
           passedSamplePointsPercent:Object.freeze([]), observationBindingDigest,
           decodeDigest:canonicalDigest({ schema:'arca.disc-playback-decode@1',
-            observationBindingDigest, points:[5,50,95],passed:[] }) });
+            observationBindingDigest, points,passed:[] }) });
       }
       const durationMs = Math.max(1, Number(probeEvidence.durationMs ||
         input.topology.selectedPlaylist?.durationMs || 1));
-      const points = [5,50,95], passed = [];
+      const passed = [];
       for (const point of points) {
         const seconds = Math.max(0, durationMs / 1000 * point / 100);
         try {

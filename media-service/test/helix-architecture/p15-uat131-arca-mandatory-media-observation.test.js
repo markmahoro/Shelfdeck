@@ -55,7 +55,8 @@ function fixture({ authorized = false, expired = false, workspace = false,
   acceptedPrimaryAudioClasses = [] } = {}) {
   const runId='run-1',packageId=D('package'),specDigest=D('spec'),identity=physicalIdentity(),
     sourceIdentity=workspace?physicalIdentity(D('source-material'),'2',D('source-bytes')):identity,
-    location='C:/canary/movie.mkv',sourceLocation=workspace?'C:/canary/source.mkv':location,
+    location=process.platform==='win32'?'C:/canary/movie.mkv':'/canary/movie.mkv',
+    sourceLocation=workspace?(process.platform==='win32'?'C:/canary/source.mkv':'/canary/source.mkv'):location,
     memberBody={ordinal:0,materialKey:identity.materialKey,role:'primary_payload',physicalIdentity:identity,sizeBytes:100,
       location:Object.freeze({locationKind:'domain_binding',endpointId:'endpoint-1',location,rootHandleRef:null,relativePath:null}),
       bindingKind:'libra_material_binding',bindingRevision:1,originCandidateDeliveryRef:null,workspaceReferenceId:null,
@@ -198,7 +199,8 @@ test('UAT-135 proven ISO Source uses one topology-aware selected-payload observa
       return Object.freeze({...body,sourceHandleDigest:canonicalDigest(handle),payloadDigest:canonicalDigest(body)});
     }},
     mediaEffectPort:{
-      async observeDiscPlayback({physicalMaterialReadHandle}){calls.push('observe-selected-payload');
+      async observeDiscPlayback({physicalMaterialReadHandle,probeOnly}){calls.push('observe-selected-payload');
+        assert.equal(probeOnly,true,'Workspace ISO Source must not run a playback gate.');
         const body={resultKind:'probed',durationMs:1000,container:'mpegts',videoStreams:Object.freeze([sourceStream]),
           audioStreams:Object.freeze([]),subtitleStreams:Object.freeze([]),discTopology:topology};
         return Object.freeze({probeEvidence:Object.freeze({...body,

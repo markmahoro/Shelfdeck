@@ -6,7 +6,7 @@ const os = require('node:os');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 const test = require('node:test');
-const ffmpegPath = require('ffmpeg-static');
+const ffmpegPath = process.env.FFMPEG_PATH || require('ffmpeg-static');
 const { createUdfBluRay, writeMpls } = require('../scripts/build-helix-movie-test-library');
 const {
   runProcess,
@@ -219,7 +219,7 @@ test('recovered FFmpeg progress catches up to its persisted floor and uses the c
 
 test('FFmpeg failures retain the actual stderr tail after a long diagnostic stream', async () => {
   await assert.rejects(runProcess(process.execPath,['-e',
-    "process.stderr.write('x'.repeat(300*1024));process.stderr.write('FINAL_FFMPEG_DIAGNOSTIC');process.exit(2)"],10_000),
+    "process.stderr.write('x'.repeat(300*1024));process.stderr.write('FINAL_FFMPEG_DIAGNOSTIC',()=>process.exit(2))"],10_000),
   (error)=>error.code==='LIBRA_MEDIA_FFMPEG_FAILED'&&error.details.stderr.includes('FINAL_FFMPEG_DIAGNOSTIC'));
 });
 
@@ -327,7 +327,7 @@ test('UAT-135/UAT-136 observes a proven ISO across equivalent path spellings wit
   createUdfBluRay(source, image);
   const workspace = path.join(root, 'workspace'), scratch = path.join(root, 'acceptance-scratch');
   fs.mkdirSync(workspace);
-  const mediaProbe = createCleanMediaProbe();
+  const mediaProbe = createCleanMediaProbe({binary:process.env.FFPROBE_PATH});
   const handle = physicalReadHandle(path.join(source, '..', 'movie.iso'));
   const containerProbe = await mediaProbe.probe(handle);
   assert.equal(containerProbe.discTopology.discKind, 'iso');
@@ -350,6 +350,25 @@ test('UAT-135/UAT-136 observes a proven ISO across equivalent path spellings wit
   assert.deepEqual(observed.passedSamplePointsPercent, [5,50,95]);
   assert.match(observed.observationBindingDigest, /^[0-9a-f]{64}$/u);
   assert.deepEqual(fs.readdirSync(scratch), []);
+
+  // The Source-only observation must work even when FFmpeg cannot be launched.
+  // FFprobe and selected-playlist/physical-handle verification remain real.
+  const sourceOnlyPort = createCleanMediaProductionEffectPort({
+    ffmpegPath:path.join(root, 'unavailable-source-decoder'),
+    workspaceProductPort:workspacePort(workspace),mediaProbe,
+    acceptanceScratchRoot:path.resolve(scratch),
+  });
+  const sourceOnly = await sourceOnlyPort.observeDiscPlayback({
+    physicalMaterialReadHandle:handle,outputProbeEvidence:containerProbe,
+    probeOnly:true,deadlineAtMs:Date.now()+30_000,shouldContinue:()=>true,
+  });
+  assert.equal(sourceOnly.probeEvidence.resultKind,'probed');
+  assert.ok(sourceOnly.probeEvidence.videoStreams.length>0);
+  assert.equal(sourceOnly.probeEvidence.sourceHandleDigest,canonicalDigest(handle));
+  assert.equal(sourceOnly.observationBindingDigest,observed.observationBindingDigest);
+  assert.deepEqual(sourceOnly.samplePointsPercent,[]);
+  assert.deepEqual(sourceOnly.passedSamplePointsPercent,[]);
+  assert.deepEqual(fs.readdirSync(scratch),[]);
 });
 
 test('UAT-135 fails closed on topology or signed Handle drift and always reclaims scratch', async (t) => {
@@ -367,7 +386,7 @@ test('UAT-135 fails closed on topology or signed Handle drift and always reclaim
   createUdfBluRay(source, image);
   const workspace = path.join(root, 'workspace'), scratch = path.resolve(path.join(root, 'acceptance-scratch'));
   fs.mkdirSync(workspace);
-  const mediaProbe = createCleanMediaProbe(), handle = physicalReadHandle(image),
+  const mediaProbe = createCleanMediaProbe({binary:process.env.FFPROBE_PATH}), handle = physicalReadHandle(image),
     containerProbe = await mediaProbe.probe(handle), port = createCleanMediaProductionEffectPort({
       ffmpegPath, workspaceProductPort:workspacePort(workspace), mediaProbe,
       acceptanceScratchRoot:scratch,
@@ -375,14 +394,14 @@ test('UAT-135 fails closed on topology or signed Handle drift and always reclaim
   const changedTopology = Object.freeze({ ...containerProbe,
     discTopology:Object.freeze({ ...containerProbe.discTopology, topologyDigest:'0'.repeat(64) }) });
   await assert.rejects(() => port.observeDiscPlayback({physicalMaterialReadHandle:handle,
-    outputProbeEvidence:changedTopology,deadlineAtMs:Date.now()+30_000,shouldContinue:()=>true}),
+    outputProbeEvidence:changedTopology,probeOnly:true,deadlineAtMs:Date.now()+30_000,shouldContinue:()=>true}),
   (error) => error.code === 'ARCA_MEDIA_DISC_TOPOLOGY_DRIFT');
   assert.deepEqual(fs.readdirSync(scratch), []);
   const staleHandle = Object.freeze({ ...handle, identity:Object.freeze({
     ...handle.identity, contentFingerprint:'f'.repeat(64),
   }) });
   await assert.rejects(() => port.observeDiscPlayback({physicalMaterialReadHandle:staleHandle,
-    outputProbeEvidence:containerProbe,deadlineAtMs:Date.now()+30_000,shouldContinue:()=>true}),
+    outputProbeEvidence:containerProbe,probeOnly:true,deadlineAtMs:Date.now()+30_000,shouldContinue:()=>true}),
   (error) => error.code === 'ARCA_MEDIA_DISC_SOURCE_STALE');
   assert.deepEqual(fs.readdirSync(scratch), []);
 });
@@ -414,7 +433,7 @@ test('UAT-135 preserves multi-clip MPLS order, repetition, and in/out boundaries
   assert.equal(new Set(inspection.selectedPlan.playItems.map((item) => item.relativeLocation)).size, 2);
   const workspace = path.join(root, 'workspace'), scratch = path.resolve(path.join(root, 'acceptance-scratch'));
   fs.mkdirSync(workspace);
-  const mediaProbe = createCleanMediaProbe(), handle = physicalReadHandle(image),
+  const mediaProbe = createCleanMediaProbe({binary:process.env.FFPROBE_PATH}), handle = physicalReadHandle(image),
     containerProbe = await mediaProbe.probe(handle), port = createCleanMediaProductionEffectPort({
       ffmpegPath, workspaceProductPort:workspacePort(workspace), mediaProbe,
       acceptanceScratchRoot:scratch,
