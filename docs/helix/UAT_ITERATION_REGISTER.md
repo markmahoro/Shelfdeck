@@ -1,0 +1,261 @@
+# ShelfDeck 统一 UAT 迭代总表
+
+更新：2026-09-08。**唯一活动迭代台账；按项验收、按项关闭。** 覆盖全部143个历史UAT、78个PROD、40行UX（含两组重号）、10个AC和2个BR。新编号从UAT-144接续；PROD/UX/AC/BR停止新增。旧编号、文件、提交和测试名不改写。
+
+总表包含249个唯一UAT条目，编号连续至UAT-249。历史UAT-011～049从正文/关闭矩阵补入；PROD-033/034从归档补入。相同主题不等于相同缺陷：后续事故或复发保留独立条目；只有明确同结果才合并别名。UX-030/031按标题消歧。
+
+状态说明：历史已关闭保留当时证据，并不宣称本次重测；已实现/已部署不等于已关闭；待核实不是当前已证实缺陷。原表与后续完整关闭证据冲突时采用后者并链接。没有证据的事项不批量关闭。
+
+执行顺序见[CURRENT_PLAN](CURRENT_PLAN.md)。每次完成一项，更新该行的提交、用户结果证据、剩余工作和状态；需要部署的先部署/验收再关闭。编号合并不触发生产操作。
+
+| UAT编号 | 迭代项 | 分类 | 当前状态 | 历史编号 | 实现提交 | 验收/部署证据 | 剩余工作或关闭条件 |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| UAT-001 | 豆瓣评分与Libra Subject匹配率明显偏低 | `BUSINESS_CONTRACT` | 历史已关闭 | 原UAT编号 | 0c27c8cf6 | [UAT-001逐项PASS](acceptance/UAT_CLOSURE_BASELINE.md) | 无；保留历史关闭，复发另记关联项 |
+| UAT-002 | Handoff A Intake接收Subject吞吐异常偏低 | `DOMAIN_ORCHESTRATION` | 历史已关闭 | 原UAT编号 | 0c27c8cf6 | [UAT-002逐项PASS](acceptance/UAT_CLOSURE_BASELINE.md) | 无；保留历史关闭，复发另记关联项 |
+| UAT-003 | Libra Run在Product Identity阶段大量等待 | `BUSINESS_CONTRACT` | 历史已关闭 | 原UAT编号 | 0c27c8cf6 | [UAT-003逐项PASS](acceptance/UAT_CLOSURE_BASELINE.md) | 无；保留历史关闭，复发另记关联项 |
+| UAT-004 | 大型Workspace媒体完整SHA-256导致无必要的全文件读取 | `BUSINESS_CONTRACT` | 历史已关闭 | 原UAT编号 | 519f8d7b5 | [UAT-004逐项PASS](acceptance/UAT_CLOSURE_BASELINE.md) | 无；保留历史关闭，复发另记关联项 |
+| UAT-005 | Libra Admin Web使用内部对象语言且不能直观表达媒体整理过程 | `USER_EXPERIENCE` | 历史已关闭 | 原UAT编号 | 0c27c8cf6 | [UAT-005逐项PASS](acceptance/UAT_CLOSURE_BASELINE.md) | 无；保留历史关闭，复发另记关联项 |
+| UAT-006 | clean库概览仍展示固定演示数字并绕过管理会话 | `USER_EXPERIENCE` | 历史已关闭 | 原UAT编号 | 0c27c8cf6 | [UAT-006逐项PASS](acceptance/UAT_CLOSURE_BASELINE.md) | 无；保留历史关闭，复发另记关联项 |
+| UAT-007 | clean库人物页展示固定人数且无正式Query接线 | `USER_EXPERIENCE` | 历史已关闭 | 原UAT编号 | 0c27c8cf6 | [UAT-007逐项PASS](acceptance/UAT_CLOSURE_BASELINE.md) | 无；保留历史关闭，复发另记关联项 |
+| UAT-008 | Admin Web非根路径直接刷新返回404 | `USER_EXPERIENCE` | 历史已关闭 | 原UAT编号 | 0c27c8cf6 | [UAT-008逐项PASS](acceptance/UAT_CLOSURE_BASELINE.md) | 无；保留历史关闭，复发另记关联项 |
+| UAT-009 | 媒体整理页评分提交成功但刷新后仍显示暂无评分 | `USER_EXPERIENCE` | 历史已关闭 | 原UAT编号 | 519f8d7b5 | [UAT-009逐项PASS](acceptance/UAT_CLOSURE_BASELINE.md) | 无；保留历史关闭，复发另记关联项 |
+| UAT-010 | Routing尚未配置时Formation错误开放人工选Shelf并返回内部错误 | `USER_EXPERIENCE` | 历史已关闭 | 原UAT编号 | fe37bffec | [UAT-010逐项PASS](acceptance/UAT_CLOSURE_BASELINE.md) | 无；保留历史关闭，复发另记关联项 |
+| UAT-011 | Handoff B 在同根 Shelf Target 前永久等待 | 历史验收 | 历史已关闭 | 原UAT编号 | 0c27c8cf6 | [UAT-011逐项PASS](acceptance/UAT_CLOSURE_BASELINE.md) | 无；保留历史关闭，复发另记关联项 |
+| UAT-012 | On-deck Planner 丢失 Settlement Approval 契约 | 历史验收 | 历史已关闭 | 原UAT编号 | 0c27c8cf6, 2009890078 | [UAT-012逐项PASS](acceptance/UAT_CLOSURE_BASELINE.md) | 无；保留历史关闭，复发另记关联项 |
+| UAT-013 | Resolved Identity 被错误渲染为哈希 Inventory 目录 | 历史验收 | 历史已关闭 | 原UAT编号 | 0c27c8cf6 | [UAT-013逐项PASS](acceptance/UAT_CLOSURE_BASELINE.md) | 无；保留历史关闭，复发另记关联项 |
+| UAT-014 | Formation 隐藏 Product Identity 冲突 | 历史验收 | 历史已关闭 | 原UAT编号 | 见证据 | [UAT-014逐项PASS](acceptance/UAT_CLOSURE_BASELINE.md) | 无；保留历史关闭，复发另记关联项 |
+| UAT-015 | Frozen Libra Run 没有用户 Discard 入口 | 历史验收 | 历史已关闭 | 原UAT编号 | 0c27c8cf6 | [UAT-015逐项PASS](acceptance/UAT_CLOSURE_BASELINE.md) | 无；保留历史关闭，复发另记关联项 |
+| UAT-016 | TMDB 正确候选被本地语言与标题过滤误报为未找到 | 历史验收 | 历史已关闭 | 原UAT编号 | 0c27c8cf6 | [UAT-016逐项PASS](acceptance/UAT_CLOSURE_BASELINE.md) | 无；保留历史关闭，复发另记关联项 |
+| UAT-017 | 外部寻源未按 Acceptance Spec 预筛候选，下载后才发现产品不可达 | 历史验收 | 历史已关闭 | 原UAT编号 | 0886b2723 | [UAT-017逐项PASS](acceptance/UAT_CLOSURE_BASELINE.md) | 无；保留历史关闭，复发另记关联项 |
+| UAT-018 | Formation 顶部状态缺少“需要处理”，Discard 历史与媒体当前状态混淆 | 历史验收 | 历史已关闭 | 原UAT编号 | 0c27c8cf6 | [UAT-018逐项PASS](acceptance/UAT_CLOSURE_BASELINE.md) | 无；保留历史关闭，复发另记关联项 |
+| UAT-019 | Executor终态异常缺少统一Owner收口，Arca Acceptance Offer悬空 | 历史验收 | 历史已关闭 | 原UAT编号 | 519f8d7b5 | [UAT-019逐项PASS](acceptance/UAT_CLOSURE_BASELINE.md) | 无；保留历史关闭，复发另记关联项 |
+| UAT-020 | Final Inventory成员命名与carried-forward输入Settlement不完整 | 历史验收 | 历史已关闭 | 原UAT编号 | 519f8d7b5 | [UAT-020逐项PASS](acceptance/UAT_CLOSURE_BASELINE.md) | 无；保留历史关闭，复发另记关联项 |
+| UAT-021 | TMDB别名来源泄漏到Product Identity证据，全部整理在身份取证前冻结 | 历史验收 | 历史已关闭 | 原UAT编号 | 519f8d7b5 | [UAT-021逐项PASS](acceptance/UAT_CLOSURE_BASELINE.md) | 无；保留历史关闭，复发另记关联项 |
+| UAT-022 | 年份后的技术发布标签污染TMDB身份搜索词 | 历史验收 | 历史已关闭 | 原UAT编号 | 519f8d7b5 | [UAT-022逐项PASS](acceptance/UAT_CLOSURE_BASELINE.md) | 无；保留历史关闭，复发另记关联项 |
+| UAT-023 | 技术后缀移除后残留年份导致豆瓣标题锚不相交 | 历史验收 | 历史已关闭 | 原UAT编号 | 519f8d7b5 | [UAT-023逐项PASS](acceptance/UAT_CLOSURE_BASELINE.md) | 无；保留历史关闭，复发另记关联项 |
+| UAT-024 | 逐成员Settlement后Accepted Context仍要求全部旧源存在 | 历史验收 | 历史已关闭 | 原UAT编号 | 519f8d7b5 | [UAT-024逐项PASS](acceptance/UAT_CLOSURE_BASELINE.md) | 无；保留历史关闭，复发另记关联项 |
+| UAT-025 | Handoff A身份快照未在技术发布标签前冻结年份锚 | 历史验收 | 历史已关闭 | 原UAT编号 | 0c27c8cf6 | [UAT-025逐项PASS](acceptance/UAT_CLOSURE_BASELINE.md) | 无；保留历史关闭，复发另记关联项 |
+| UAT-026 | Admin Web无法清除直接评分并恢复豆瓣来源 | 历史验收 | 历史已关闭 | 原UAT编号 | 519f8d7b5 | [UAT-026逐项PASS](acceptance/UAT_CLOSURE_BASELINE.md) | 无；保留历史关闭，复发另记关联项 |
+| UAT-027 | 恢复中的FFmpeg progress冲突导致整个服务退出 | 历史验收 | 历史已关闭 | 原UAT编号 | 519f8d7b5 | [UAT-027逐项PASS](acceptance/UAT_CLOSURE_BASELINE.md) | 无；保留历史关闭，复发另记关联项 |
+| UAT-028 | 单电影目录的常见既有图像未进入Related disposition scope | 历史验收 | 历史已关闭 | 原UAT编号 | 519f8d7b5 | [UAT-028逐项PASS](acceptance/UAT_CLOSURE_BASELINE.md) | 无；保留历史关闭，复发另记关联项 |
+| UAT-029 | NFO 把演员 TMDB 人 ID 误判为电影身份冲突 | 历史验收 | 历史已关闭 | 原UAT编号 | 519f8d7b5 | [UAT-029逐项PASS](acceptance/UAT_CLOSURE_BASELINE.md) | 无；保留历史关闭，复发另记关联项 |
+| UAT-030 | 五星外部获取用文件夹展示名搜索，合格源缺失时页面像卡住 | 历史验收 | 历史已关闭 | 原UAT编号 | 0c27c8cf6 | [UAT-030逐项PASS](acceptance/UAT_CLOSURE_BASELINE.md) | 无；保留历史关闭，复发另记关联项 |
+| UAT-031 | Movie Field 默认扩展名遗漏 ISO，倩女幽魂2未进入观察 | 历史验收 | 历史已关闭 | 原UAT编号 | 519f8d7b5 | [UAT-031逐项PASS](acceptance/UAT_CLOSURE_BASELINE.md) | 无；保留历史关闭，复发另记关联项 |
+| UAT-032 | Aftercare 旧 Custody 绑定 objectKind 与合同不一致，健康评估无法执行 | 历史验收 | 历史已关闭 | 原UAT编号 | 0c27c8cf6 | [UAT-032逐项PASS](acceptance/UAT_CLOSURE_BASELINE.md) | 无；保留历史关闭，复发另记关联项 |
+| UAT-033 | 同名字幕和 stem-fanart 被压成同一最终文件名，同根上架报 TARGET_COLLISION | 历史验收 | 历史已关闭 | 原UAT编号 | 519f8d7b5 | [UAT-033逐项PASS](acceptance/UAT_CLOSURE_BASELINE.md) | 无；保留历史关闭，复发另记关联项 |
+| UAT-034 | 同名片名+年份的两部养蜂人最终目录必须可区分 | 历史验收 | 历史已关闭 | 原UAT编号 | 0c27c8cf6 | [UAT-034逐项PASS](acceptance/UAT_CLOSURE_BASELINE.md) | 无；保留历史关闭，复发另记关联项 |
+| UAT-035 | FFmpeg 非零退出被当成进程崩溃，Remux Attempt 停在 executing | 历史验收 | 历史已关闭 | 原UAT编号 | 见证据 | [UAT-035逐项PASS](acceptance/UAT_CLOSURE_BASELINE.md) | 无；保留历史关闭，复发另记关联项 |
+| UAT-036 | ISO 已被观察但 Triage 因非可播放流失败，倩女幽魂2仍无 Candidate | 历史验收 | 历史已关闭 | 原UAT编号 | 0c27c8cf6 | [UAT-036逐项PASS](acceptance/UAT_CLOSURE_BASELINE.md) | 无；保留历史关闭，复发另记关联项 |
+| UAT-037 | 007 在身份取证的 provider_exact 观察被 schema 拒绝，冻结文案退回通用句 | 历史验收 | 历史已关闭 | 原UAT编号 | 0c27c8cf6 | [UAT-037逐项PASS](acceptance/UAT_CLOSURE_BASELINE.md) | 无；保留历史关闭，复发另记关联项 |
+| UAT-038 | 上架成功后 Aftercare 健康仍是 conformance/presentation 降级 | 历史验收 | 历史已关闭 | 原UAT编号 | 0c27c8cf6 | [UAT-038逐项PASS](acceptance/UAT_CLOSURE_BASELINE.md) | 无；保留历史关闭，复发另记关联项 |
+| UAT-039 | 同根上架把源文件和兄弟电影目录当成占用/未知成员 | 历史验收 | 历史已关闭 | 原UAT编号 | 0c27c8cf6 | [UAT-039逐项PASS](acceptance/UAT_CLOSURE_BASELINE.md) | 无；保留历史关闭，复发另记关联项 |
+| UAT-040 | ISO 原盘 Remux 把映像文件当成普通流输入 | 历史验收 | 历史已关闭 | 原UAT编号 | 0c27c8cf6 | [UAT-040逐项PASS](acceptance/UAT_CLOSURE_BASELINE.md) | 无；保留历史关闭，复发另记关联项 |
+| UAT-041 | BDMV HEVC/TrueHD Remux 因 PES 缺时间戳被 Matroska 拒绝 | 历史验收 | 历史已关闭 | 原UAT编号 | 0c27c8cf6 | [UAT-041逐项PASS](acceptance/UAT_CLOSURE_BASELINE.md) | 无；保留历史关闭，复发另记关联项 |
+| UAT-042 | 同根 Off-load Settlement 源现实漂移 | 历史验收 | 历史已关闭 | 原UAT编号 | 0c27c8cf6 | [UAT-042逐项PASS](acceptance/UAT_CLOSURE_BASELINE.md) | 无；保留历史关闭，复发另记关联项 |
+| UAT-043 | 007 身份已过，TMDB metadata fetch 被 closed-shape / lease 一次打成冻结 | 历史验收 | 历史已关闭 | 原UAT编号 | 0c27c8cf6 | [UAT-043逐项PASS](acceptance/UAT_CLOSURE_BASELINE.md) | 无；保留历史关闭，复发另记关联项 |
+| UAT-044 | 4 星 14 GiB 无法规划 BDMV 多 TrueHD 轨的体积转码，落入 MoviePilot 冻结 | 历史验收 | 历史已关闭 | 原UAT编号 | 0c27c8cf6 | [UAT-044逐项PASS](acceptance/UAT_CLOSURE_BASELINE.md) | 无；保留历史关闭，复发另记关联项 |
+| UAT-045 | ISO Remux 第二次 Attempt 在失败 Effect 与进程重启后永久停在 executing | 历史验收 | 历史已关闭 | 原UAT编号 | 0c27c8cf6 | [UAT-045逐项PASS](acceptance/UAT_CLOSURE_BASELINE.md) | 无；保留历史关闭，复发另记关联项 |
+| UAT-046 | ISO Remux 抽出 m2ts 后因 pcm_bluray 无法 copy 进 Matroska 立即失败并整盘重抽 | 历史验收 | 历史已关闭 | 原UAT编号 | 0c27c8cf6 | [UAT-046逐项PASS](acceptance/UAT_CLOSURE_BASELINE.md) | 无；保留历史关闭，复发另记关联项 |
+| UAT-047 | ISO 同语言编号字幕被压成一个最终名，验收报 TARGET_COLLISION | 历史验收 | 历史已关闭 | 原UAT编号 | 0c27c8cf6 | [UAT-047逐项PASS](acceptance/UAT_CLOSURE_BASELINE.md) | 无；保留历史关闭，复发另记关联项 |
+| UAT-048 | 同根终态目录里的源残留把 Off-load Settlement 打成 UNKNOWN_MEMBER | 历史验收 | 历史已关闭 | 原UAT编号 | 0c27c8cf6 | [UAT-048逐项PASS](acceptance/UAT_CLOSURE_BASELINE.md) | 无；保留历史关闭，复发另记关联项 |
+| UAT-049 | 盘整理完后原 BDMV 整棵树仍留在收藏目录 | 历史验收 | 历史已关闭 | 原UAT编号 | 0c27c8cf6 | [UAT-049逐项PASS](acceptance/UAT_CLOSURE_BASELINE.md) | 无；保留历史关闭，复发另记关联项 |
+| UAT-050 | 媒体整理工作区当前媒体缺少可操作筛选 | `USER_EXPERIENCE` | 历史已关闭 | 原UAT编号 | 0c27c8cf6 | [UAT-050逐项PASS](acceptance/UAT_CLOSURE_BASELINE.md) | 无；保留历史关闭，复发另记关联项 |
+| UAT-051 | 整理动作是概括句，不能展示分步施工、分步进度、用户操作与加急 | `USER_EXPERIENCE` | 历史已关闭 | 原UAT编号 | 0c27c8cf6 | [UAT-051逐项PASS](acceptance/UAT_CLOSURE_BASELINE.md) | 无；保留历史关闭，复发另记关联项 |
+| UAT-052 | 我的收藏一级导航不是按架，详情缺少占用空间等技术指标 | `USER_EXPERIENCE` | 历史已关闭 | 原UAT编号 | 0c27c8cf6 | [UAT-052逐项PASS](acceptance/UAT_CLOSURE_BASELINE.md) | 无；保留历史关闭，复发另记关联项 |
+| UAT-053 | 活动文件来源未按 SSOT 周期观察，扫描完成后页面禁止再扫 | `DOMAIN_ORCHESTRATION` | 历史已关闭 | 原UAT编号 | 0c27c8cf6 | [UAT-053逐项PASS](acceptance/UAT_CLOSURE_BASELINE.md) | 无；保留历史关闭，复发另记关联项 |
+| UAT-054 | 退出收藏主链已通，页面仍是内部安全链控制台 | `USER_EXPERIENCE` | 历史已关闭 | 原UAT编号 | 0c27c8cf6 | [UAT-054逐项PASS](acceptance/UAT_CLOSURE_BASELINE.md) | 无；保留历史关闭，复发另记关联项 |
+| UAT-055 | 人物名录未接通 Beta 两条登记路径，页面只读且为空 | `DOMAIN_ORCHESTRATION` | 历史已关闭 | 原UAT编号 | 0c27c8cf6 | [UAT-055逐项PASS](acceptance/UAT_CLOSURE_BASELINE.md) | 无；保留历史关闭，复发另记关联项 |
+| UAT-056 | 豆瓣评分缺少 SSOT 周期同步，同步与日志刷新职责混在一起 | `DOMAIN_ORCHESTRATION` | 历史已关闭 | 原UAT编号 | 0c27c8cf6 | [UAT-056逐项PASS](acceptance/UAT_CLOSURE_BASELINE.md) | 无；保留历史关闭，复发另记关联项 |
+| UAT-057 | 概览只重复旁页计数，缺少系统状态、可点待办与最近完成；不得与我的收藏合并 | `USER_EXPERIENCE` | 历史已关闭 | UX-001 | 0c27c8cf6 | [UAT-057逐项PASS](acceptance/UAT_CLOSURE_BASELINE.md)；[UX-001同结果记录](ADMIN_WEB_UX_ISSUE_LOG.md) | 无；保留历史关闭，复发另记关联项 |
+| UAT-058 | 侧栏把文件来源与收藏架放在日常运营之前；应下移与系统设置一组并改名为配置 | `USER_EXPERIENCE` | 历史已关闭 | 原UAT编号 | 0c27c8cf6 | [UAT-058逐项PASS](acceptance/UAT_CLOSURE_BASELINE.md) | 无；保留历史关闭，复发另记关联项 |
+| UAT-059 | 四星转码把 14 GiB 上限当成目标码率，把已较小的 H.264 源灌大 | `BUSINESS_CONTRACT` | 历史已关闭 | 原UAT编号 | 519f8d7b5 | [UAT-059逐项PASS](acceptance/UAT_CLOSURE_BASELINE.md) | 无；保留历史关闭，复发另记关联项 |
+| UAT-060 | Product Identity 写回 Subject 触发语义相同的 Acceptance Spec 重发，头切走后 Run 可能发不出 Package | `BUSINESS_CONTRACT` | 历史已关闭 | 原UAT编号 | 3397c88f5 | [UAT-060逐项PASS](acceptance/UAT_CLOSURE_BASELINE.md) | 无；保留历史关闭，复发另记关联项 |
+| UAT-061 | 豆瓣 Acquisition 翻页传输失败后不重试、不收口，设置页永久「正在同步」 | `EXTERNAL_INTEGRATION` | 历史已关闭 | 原UAT编号 | 0c27c8cf6 | [UAT-061逐项PASS](acceptance/UAT_CLOSURE_BASELINE.md) | 无；保留历史关闭，复发另记关联项 |
+| UAT-062 | frozen Run Discard 后 Control 已释放，Formation 仍空转「正在评估整理方案」，未走重新入库 | `BUSINESS_CONTRACT` | 历史已关闭 | 原UAT编号 | 0886b2723 | [UAT-062逐项PASS](acceptance/UAT_CLOSURE_BASELINE.md) | 无；保留历史关闭，复发另记关联项 |
+| UAT-063 | Aftercare 问豆瓣分与 Libra 不是同一套 Resolution/Identity Evidence，上架后评分变化不触发保养 | `BUSINESS_CONTRACT` | 历史已关闭 | 原UAT编号 | f6b9eded6 | [UAT-063逐项PASS](acceptance/UAT_CLOSURE_BASELINE.md) | 无；保留历史关闭，复发另记关联项 |
+| UAT-064 | Formation 整理步骤展示与真实执行状态偏离：转码标 CPU、验证过早标完成 | `USER_EXPERIENCE` | 历史已关闭 | 原UAT编号 | daaef8c3d | [UAT-064逐项PASS](acceptance/UAT_CLOSURE_BASELINE.md) | 无；保留历史关闭，复发另记关联项 |
+| UAT-065 | 收藏详情把父目录名中的`.1`误显示为主视频容器 | `USER_EXPERIENCE` | 历史已关闭 | 原UAT编号 | 0c27c8cf6 | [UAT-065逐项PASS](acceptance/UAT_CLOSURE_BASELINE.md) | 无；保留历史关闭，复发另记关联项 |
+| UAT-066 | Formation 已完成整理表丢失目标收藏架名称，全部显示`—` | `USER_EXPERIENCE` | 历史已关闭 | 原UAT编号 | 0c27c8cf6 | [UAT-066逐项PASS](acceptance/UAT_CLOSURE_BASELINE.md) | 无；保留历史关闭，复发另记关联项 |
+| UAT-067 | 活动 Run 加急后回放既有 Supporting Work 触发 Admission 幂等冲突，Run 不再推进 | `DOMAIN_ORCHESTRATION` | 历史已关闭 | 原UAT编号 | 519f8d7b5 | [UAT-067逐项PASS](acceptance/UAT_CLOSURE_BASELINE.md) | 无；保留历史关闭，复发另记关联项 |
+| UAT-068 | Collection 年份投影遗漏 Provider 标准字段，Aftercare 丢失 title-year Identity Evidence | `PROJECTION_FRESHNESS` | 历史已关闭 | 原UAT编号 | f6b9eded6 | [UAT-068逐项PASS](acceptance/UAT_CLOSURE_BASELINE.md) | 无；保留历史关闭，复发另记关联项 |
+| UAT-069 | 评分 Resolution 更新后 Aftercare 及时执行，但 Planner/Capability 写回旧 Care Basis | `DOMAIN_ORCHESTRATION` | 历史已关闭 | 原UAT编号 | f6b9eded6 | [UAT-069逐项PASS](acceptance/UAT_CLOSURE_BASELINE.md) | 无；保留历史关闭，复发另记关联项 |
+| UAT-070 | 集成配置 revision 更新后，新建 Metadata Work 仍假定 revision 1，并让首轮 reconcile 阻断服务启动 | `DOMAIN_ORCHESTRATION` | 历史已关闭 | 原UAT编号 | efaf2d827 | [UAT-070逐项PASS](acceptance/UAT_CLOSURE_BASELINE.md) | 无；保留历史关闭，复发另记关联项 |
+| UAT-071 | 同一上架电影的多个人物关系共用来源 digest，只有首个人物自动登记 | `DOMAIN_ORCHESTRATION` | 历史已关闭 | 原UAT编号 | 见证据 | [UAT-071原记录](USER_ACCEPTANCE_TEST_ISSUE_LOG.md) | 无；保留历史验收结论 |
+| UAT-072 | 已登记人物名录缺少头像，无法形成可辨识的人物联系表 | `USER_EXPERIENCE` | 历史已关闭 | 原UAT编号 | 见证据 | [UAT-072原记录](USER_ACCEPTANCE_TEST_ISSUE_LOG.md) | 无；保留历史验收结论 |
+| UAT-073 | NFO演员块的TMDB Person ID被丢弃，与Provider演员关系重复后产生整组待确认登记 | `DOMAIN_ORCHESTRATION` | 历史已关闭 | 原UAT编号 | 见证据 | [UAT-073原记录](USER_ACCEPTANCE_TEST_ISSUE_LOG.md) | 无；保留历史验收结论 |
+| UAT-074 | 可用的原NFO被从空白模板重写，产品应按“未坏则更新、坏则重建、缺失则创建”处置 | `BUSINESS_CONTRACT` | 历史已关闭 | 原UAT编号 | 见证据 | [UAT-074原记录](USER_ACCEPTANCE_TEST_ISSUE_LOG.md) | 无；保留历史验收结论 |
+| UAT-075 | NFO更新未保留原有丰富字段，ShelfDeck输出再次入库时也缺少身份稳定性保证 | `BUSINESS_CONTRACT` | 历史已关闭 | 原UAT编号 | 见证据 | [UAT-075原记录](USER_ACCEPTANCE_TEST_ISSUE_LOG.md) | 无；保留历史验收结论 |
+| UAT-076 | 已有合格海报未按Related Material直接沿用，缺失/损坏海报的外部获取边界也未清楚区分 | `BUSINESS_CONTRACT` | 历史已关闭 | 原UAT编号 | 见证据 | [UAT-076原记录](USER_ACCEPTANCE_TEST_ISSUE_LOG.md) | 无；保留历史验收结论 |
+| UAT-077 | TMDB海报Artifact Handle缺少`artifactKind`，请求在进入Provider前即被拒绝 | `EXTERNAL_INTEGRATION` | 历史已关闭 | 原UAT编号 | 见证据 | [UAT-077原记录](USER_ACCEPTANCE_TEST_ISSUE_LOG.md) | 无；保留历史验收结论 |
+| UAT-078 | TMDB与豆瓣实际已有配置，但设置页呈现为未正确配置 | `USER_EXPERIENCE` | 历史已关闭 | 原UAT编号 | 见证据 | [UAT-078原记录](USER_ACCEPTANCE_TEST_ISSUE_LOG.md) | 无；保留历史验收结论 |
+| UAT-079 | 多部影片未取得豆瓣评分，身份形成或确认后没有稳定重算且空值原因不可见 | `BUSINESS_CONTRACT` | 历史已关闭 | 原UAT编号 | 见证据 | [UAT-079原记录](USER_ACCEPTANCE_TEST_ISSUE_LOG.md) | 无；保留历史验收结论 |
+| UAT-080 | Formation被拆成多张宽表且媒体名称列承载过多信息，不能形成一个可扫读的媒体台账 | `USER_EXPERIENCE` | 历史已关闭 | 原UAT编号 | 见证据 | [UAT-080原记录](USER_ACCEPTANCE_TEST_ISSUE_LOG.md) | 无；保留历史验收结论 |
+| UAT-081 | Formation详情使用前端聚合概念和模糊步骤，未清楚透传已接收材料、媒体整理、验收与上架事实 | `USER_EXPERIENCE` | 历史已关闭 | 原UAT编号 | 见证据 | [UAT-081原记录](USER_ACCEPTANCE_TEST_ISSUE_LOG.md) | 无；保留历史验收结论 |
+| UAT-082 | Formation的100%总进度和完成标记可掩盖真实失败，使报错影片看起来只是“停在那里” | `PROJECTION_FRESHNESS` | 历史已关闭 | 原UAT编号 | 见证据 | [UAT-082原记录](USER_ACCEPTANCE_TEST_ISSUE_LOG.md) | 无；保留历史验收结论 |
+| UAT-083 | 保留旧Field并对同一目录新增第二Material Field时，必须只形成一次有效整理且不能发生竞争控制 | `BUSINESS_CONTRACT` | 历史已关闭 | 原UAT编号 | 见证据 | [UAT-083原记录](USER_ACCEPTANCE_TEST_ISSUE_LOG.md) | 无；保留历史验收结论 |
+| UAT-084 | 当前Formation工作区缺少逐片事实审计，除已知影片外仍可能存在未解释的冻结、失败或错误投影 | `DOMAIN_ORCHESTRATION` | 历史已关闭 | 原UAT编号 | 见证据 | [UAT-084原记录](USER_ACCEPTANCE_TEST_ISSUE_LOG.md) | 无；保留历史验收结论 |
+| UAT-085 | 豆瓣完整收藏同步被Provider 403中断后不能从持久游标续传，页面仍把部分数据表现为普通未匹配 | `EXTERNAL_INTEGRATION` | 历史已关闭 | 原UAT编号 | 见证据 | [UAT-085原记录](USER_ACCEPTANCE_TEST_ISSUE_LOG.md) | 无；保留历史验收结论 |
+| UAT-086 | Formation把已进入后续策略的候选验证未通过误报为整个媒体整理失败 | `PROJECTION_FRESHNESS` | 历史已关闭 | 原UAT编号 | 见证据 | [UAT-086原记录](USER_ACCEPTANCE_TEST_ISSUE_LOG.md) | 无；保留历史验收结论 |
+| UAT-087 | 实际Transcode没有持久进度样本，Formation无法显示真实可量化进度 | `DOMAIN_ORCHESTRATION` | 历史已关闭 | 原UAT编号 | 见证据 | [UAT-087原记录](USER_ACCEPTANCE_TEST_ISSUE_LOG.md) | 无；保留历史验收结论 |
+| UAT-088 | 同根Field与Shelf被分配不同Mount Scope，Shelf成品会再次进入Procurement并形成重复整理 | `BUSINESS_CONTRACT` | 历史已关闭 | 原UAT编号 | 见证据 | [UAT-088原记录](USER_ACCEPTANCE_TEST_ISSUE_LOG.md) | 无；保留历史验收结论 |
+| UAT-089 | Arca上架同步复制大文件阻塞Node Event Loop，使Admin Web与Health整窗超时 | `PERFORMANCE` | 历史已关闭 | 原UAT编号 | 见证据 | [UAT-089原记录](USER_ACCEPTANCE_TEST_ISSUE_LOG.md) | 无；保留历史验收结论 |
+| UAT-090 | Resource软等待滚动写、后台饥饿与终态Intake重扫形成持续高CPU和SQLite写放大 | `PERFORMANCE` | 历史已关闭 | 原UAT编号 | 见证据 | [UAT-090原记录](USER_ACCEPTANCE_TEST_ISSUE_LOG.md) | 无；保留历史验收结论 |
+| UAT-091 | Process Work取消未同步终结Resource Defer，导致下一次服务启动被一致性检查阻断 | `RECOVERY_CORRECTNESS` | 历史已关闭 | 原UAT编号 | 见证据 | [UAT-091原记录](USER_ACCEPTANCE_TEST_ISSUE_LOG.md) | 无；保留历史验收结论 |
+| UAT-092 | 原NFO缺少演员时Libra误判Metadata已齐全，既不向TMDB补演员也不能把新演员写入NFO，最终在内部符合性验收冻结 | `BUSINESS_CONTRACT` | 历史已关闭 | 原UAT编号 | 见证据 | [UAT-092原记录](USER_ACCEPTANCE_TEST_ISSUE_LOG.md) | 无；保留历史验收结论 |
+| UAT-093 | Douban列表缺year时强制访问Subject详情，单条404阻断整库同步；year关联校验复杂度高且收益低 | `BUSINESS_CONTRACT` | 历史已关闭 | 原UAT编号 | 见证据 | [UAT-093原记录](USER_ACCEPTANCE_TEST_ISSUE_LOG.md) | 无；保留历史验收结论 |
+| UAT-094 | Aftercare把最大体积上限误作扩容目标，可能将较小源文件转成更大的成品 | `BUSINESS_CONTRACT` | 历史已关闭 | 原UAT编号 | 见证据 | [UAT-094原记录](USER_ACCEPTANCE_TEST_ISSUE_LOG.md) | 无；保留历史验收结论 |
+| UAT-095 | Aftercare媒体符合性与输出完整性检查遗漏主音轨、媒体形态、默认流和流连续性 | `BUSINESS_CONTRACT` | 历史已关闭 | 原UAT编号 | 见证据 | [UAT-095原记录](USER_ACCEPTANCE_TEST_ISSUE_LOG.md) | 无；保留历史验收结论 |
+| UAT-096 | Aftercare NFO未遵循坏则重建、没坏则更新，可能丢失原有丰富资料 | `BUSINESS_CONTRACT` | 历史已关闭 | 原UAT编号 | 见证据 | [UAT-096原记录](USER_ACCEPTANCE_TEST_ISSUE_LOG.md) | 无；保留历史验收结论 |
+| UAT-097 | Aftercare Artifact未完成真实验证或使用陈旧Integration Handle即进入Inventory | `EXTERNAL_INTEGRATION` | 历史已关闭 | 原UAT编号 | 见证据 | [UAT-097原记录](USER_ACCEPTANCE_TEST_ISSUE_LOG.md) | 无；保留历史验收结论 |
+| UAT-098 | Care Basis或Reservation变化时，Aftercare正式效果仍可能继续写入和关闭 | `RECOVERY_CORRECTNESS` | 历史已关闭 | 原UAT编号 | 见证据 | [UAT-098原记录](USER_ACCEPTANCE_TEST_ISSUE_LOG.md) | 无；保留历史验收结论 |
+| UAT-099 | Inventory已提交但Settlement未终态时，Aftercare可能过早Reassessment并关闭Case | `DOMAIN_ORCHESTRATION` | 历史已关闭 | 原UAT编号 | 见证据 | [UAT-099原记录](USER_ACCEPTANCE_TEST_ISSUE_LOG.md) | 无；保留历史验收结论 |
+| UAT-100 | Aftercare失败、替代Work、终态原因与资源收口不完整，可能永久卡住或静默重开 | `RECOVERY_CORRECTNESS` | 历史已关闭 | 原UAT编号 | 见证据 | [UAT-100原记录](USER_ACCEPTANCE_TEST_ISSUE_LOG.md) | 无；保留历史验收结论 |
+| UAT-101 | Aftercare长任务缺真实进度并含同步大文件I/O，可能拖慢Admin Web | `PERFORMANCE` | 历史已关闭 | 原UAT编号 | 见证据 | [UAT-101原记录](USER_ACCEPTANCE_TEST_ISSUE_LOG.md) | 无；保留历史验收结论 |
+| UAT-102 | Aftercare Workspace未正式登记、默认进入OS TEMP且关闭时过早递归删除 | `PLATFORM_INTEGRATION` | 历史已关闭 | 原UAT编号 | 见证据 | [UAT-102原记录](USER_ACCEPTANCE_TEST_ISSUE_LOG.md) | 无；保留历史验收结论 |
+| UAT-103 | 大量评分重评形成Incident/Projection同步风暴，且Domain越界控制Foundation Incident | `PERFORMANCE` | 历史已关闭 | 原UAT编号 | 见证据 | [UAT-103原记录](USER_ACCEPTANCE_TEST_ISSUE_LOG.md) | 无；保留历史验收结论 |
+| UAT-104 | Outbox/Inbox可能早于Startup Recovery Gate扩大执行范围 | `STARTUP_RECOVERY` | 历史已关闭 | 原UAT编号 | 见证据 | [UAT-104原记录](USER_ACCEPTANCE_TEST_ISSUE_LOG.md) | 无；保留历史验收结论 |
+| UAT-105 | 缺少全新真实Canary证明评分刷新后的Aftercare完整闭环 | `REAL_CANARY` | 历史已关闭 | 原UAT编号 | 见证据 | [UAT-105原记录](USER_ACCEPTANCE_TEST_ISSUE_LOG.md) | 无；保留历史验收结论 |
+| UAT-106 | TMDB cast-only请求成功但返回零演员后，Libra Run保持active且没有开放Work或可行动终态 | `DOMAIN_ORCHESTRATION` | 历史已关闭 | 原UAT编号 | 见证据 | [UAT-106原记录](USER_ACCEPTANCE_TEST_ISSUE_LOG.md) | 无；保留历史验收结论 |
+| UAT-107 | 本地媒体不合格且MoviePilot未配置时，Libra只返回瞬时waiting并被UI误报为执行失败 | `DOMAIN_ORCHESTRATION` | 历史已关闭 | 原UAT编号 | 见证据 | [UAT-107原记录](USER_ACCEPTANCE_TEST_ISSUE_LOG.md) | 无；保留历史验收结论 |
+| UAT-108 | Aftercare把磁盘上已漂移的NFO字节当作受控旧材料释放，导致合法更新和坏NFO重建被Foundation拒绝 | `BUSINESS_CONTRACT` | 历史已关闭 | 原UAT编号 | 见证据 | [UAT-108原记录](USER_ACCEPTANCE_TEST_ISSUE_LOG.md) | 无；保留历史验收结论 |
+| UAT-109 | 冻结的Artifact缺失证据仍要求目标旧文件存在，真实海报或NFO缺失无法进入自动修复 | `RECOVERY_CORRECTNESS` | 历史已关闭 | 原UAT编号 | 见证据 | [UAT-109原记录](USER_ACCEPTANCE_TEST_ISSUE_LOG.md) | 无；保留历史验收结论 |
+| UAT-110 | Aftercare未注入当前Service Catalog且Inventory与Settlement Approval分两次提交，可能在已推进Inventory后永久卡住 | `DOMAIN_ORCHESTRATION` | 历史已关闭 | 原UAT编号 | 见证据 | [UAT-110原记录](USER_ACCEPTANCE_TEST_ISSUE_LOG.md) | 无；保留历史验收结论 |
+| UAT-111 | 61成员On-deck逐项Settlement反复重建完整Accepted Context并同步重算全Inventory指纹，导致Admin Web持续变慢约79秒 | `PERFORMANCE` | 历史已关闭 | 原UAT编号 | 见证据 | [UAT-111原记录](USER_ACCEPTANCE_TEST_ISSUE_LOG.md) | 无；保留历史验收结论 |
+| UAT-112 | 同根上架时相同Physical Material被同时release与acquire，Control变化集重叠 | `MATERIAL_CONTROL` | 历史已关闭 | 原UAT编号 | 见证据 | [UAT-112原记录](USER_ACCEPTANCE_TEST_ISSUE_LOG.md) | 无；保留历史验收结论 |
+| UAT-113 | Aftercare转码输出Handle未冻结实际生产视频Profile，色彩转换验收缺少可验证依据 | `PRODUCT_CONFORMANCE` | 历史已关闭 | 原UAT编号 | 见证据 | [UAT-113原记录](USER_ACCEPTANCE_TEST_ISSUE_LOG.md) | 无；保留历史验收结论 |
+| UAT-114 | Aftercare同一Work内的下游Projection忽略正式sourceResult，错误回查未定义的来源Work | `DOMAIN_ORCHESTRATION` | 历史已关闭 | 原UAT编号 | 见证据 | [UAT-114原记录](USER_ACCEPTANCE_TEST_ISSUE_LOG.md) | 无；保留历史验收结论 |
+| UAT-115 | Aftercare进度混入旧Work且把转码完成误作整个Case 100%，验证阶段不可见 | `USER_EXPERIENCE` | 历史已关闭 | 原UAT编号 | 见证据 | [UAT-115原记录](USER_ACCEPTANCE_TEST_ISSUE_LOG.md) | 无；保留历史验收结论 |
+| UAT-116 | 同根Field/Shelf使Aftercare验证形成重复Resource Demand，Event在Attempt前被Foundation拒绝并反复ready | `RESOURCE_CAPACITY` | 历史已关闭 | 原UAT编号 | 见证据 | [UAT-116原记录](USER_ACCEPTANCE_TEST_ISSUE_LOG.md) | 无；保留历史验收结论 |
+| UAT-117 | Aftercare播放验证借用了Libra Workspace端口，Arca Handle在真正解码前被拒绝 | `DOMAIN_ORCHESTRATION` | 历史已关闭 | 原UAT编号 | 见证据 | [UAT-117原记录](USER_ACCEPTANCE_TEST_ISSUE_LOG.md) | 无；保留历史验收结论 |
+| UAT-118 | AVI转MKV后物理文件虽正确，Inventory与Material Control仍保留旧AVI Primary | `MATERIAL_CONTROL` | 历史已关闭 | 原UAT编号 | 见证据 | [UAT-118原记录](USER_ACCEPTANCE_TEST_ISSUE_LOG.md) | 无；保留历史验收结论 |
+| UAT-119 | TMDB连接缺少可配置代理服务器，受限网络无法统一配置API与图片出口 | `EXTERNAL_INTEGRATION` | 待核实 | 原UAT编号 | 见证据 | [UAT-119原记录](USER_ACCEPTANCE_TEST_ISSUE_LOG.md) | 核对原条目后续验收/部署证据，未取得证据不得关闭 |
+| UAT-120 | Formation列表因可变业务时间重排，刷新后媒体位置跳动 | `USER_EXPERIENCE` | 待核实 | 原UAT编号 | 见证据 | [UAT-120原记录](USER_ACCEPTANCE_TEST_ISSUE_LOG.md) | 核对原条目后续验收/部署证据，未取得证据不得关闭 |
+| UAT-121 | FFmpeg设备声明、预检与实际编码管线不一致，可能产生错误码控或不合格HDR/DV成品 | `PRODUCT_CONFORMANCE` | 历史已关闭 | 原UAT编号 | 见证据 | [UAT-121原记录](USER_ACCEPTANCE_TEST_ISSUE_LOG.md) | 无；保留历史验收结论 |
+| UAT-122 | GPU编码仍由CPU解码且长进程缺少统一关闭、deadline和真实错误尾部 | `PERFORMANCE` | 历史已关闭 | 原UAT编号 | 见证据 | [UAT-122原记录](USER_ACCEPTANCE_TEST_ISSUE_LOG.md) | 无；保留历史验收结论 |
+| UAT-123 | GPU/CPU路径与fallback必须按已验证设备能力执行，不得在同一Event中隐藏降级 | `RESOURCE_CAPACITY` | 历史已关闭 | 原UAT编号 | 见证据 | [UAT-123原记录](USER_ACCEPTANCE_TEST_ISSUE_LOG.md) | 无；保留历史验收结论 |
+| UAT-124 | 转码完成到Product Conformance接续窗口短暂误报“媒体整理执行失败” | `USER_EXPERIENCE` | 历史已关闭 | 原UAT编号 | 见证据 | [UAT-124原记录](USER_ACCEPTANCE_TEST_ISSUE_LOG.md) | 无；保留历史验收结论 |
+| UAT-125 | 后台周期检查缺少完整Workspace治理、低成本域内检查与用户可见状态 | `DOMAIN_ORCHESTRATION` | 待核实 | 原UAT编号 | 见证据 | [UAT-125原记录](USER_ACCEPTANCE_TEST_ISSUE_LOG.md) | 核对原条目后续验收/部署证据，未取得证据不得关闭 |
+| UAT-126 | Frozen条目只有放弃路径，演员确实无外部资料或外部寻源耗尽时不能由用户显式接受瑕疵入库 | `BUSINESS_CONTRACT` | 待核实 | 原UAT编号 | 见证据 | [UAT-126原记录](USER_ACCEPTANCE_TEST_ISSUE_LOG.md) | 核对原条目后续验收/部署证据，未取得证据不得关闭 |
+| UAT-127 | 同一执行中的转码在服务重启后复用不完整Progress身份，并从0开始回报导致冲突或回退 | `RECOVERY_CORRECTNESS` | 待核实 | 原UAT编号 | 见证据 | [UAT-127原记录](USER_ACCEPTANCE_TEST_ISSUE_LOG.md) | 核对原条目后续验收/部署证据，未取得证据不得关闭 |
+| UAT-128 | Aftercare旧材料Handle被同路径Product Binding误判为多重匹配，Settlement持续恢复失败 | `RECOVERY_CORRECTNESS` | 待核实 | 原UAT编号 | 见证据 | [UAT-128原记录](USER_ACCEPTANCE_TEST_ISSUE_LOG.md) | 核对原条目后续验收/部署证据，未取得证据不得关闭 |
+| UAT-129 | Procurement Retry Intent消息没有消费者，崩溃窗口可留下永久open Intent并持续重试Outbox | `RECOVERY_CORRECTNESS` | 待核实 | 原UAT编号 | 见证据 | [UAT-129原记录](USER_ACCEPTANCE_TEST_ISSUE_LOG.md) | 核对原条目后续验收/部署证据，未取得证据不得关闭 |
+| UAT-130 | 已配置的MoviePilot没有只修订External Landing且复用Secret的Admin Web入口 | `PLATFORM_INTEGRATION` | 待核实 | 原UAT编号 | 见证据 | [UAT-130原记录](USER_ACCEPTANCE_TEST_ISSUE_LOG.md) | 核对原条目后续验收/部署证据，未取得证据不得关闭 |
+| UAT-131 | Authorized Defect路径伪造Selected Product，无法形成真实failed Conformance到accepted_with_defects连续性 | `BUSINESS_CONTRACT` | 待核实 | 原UAT编号 | 见证据 | [UAT-131原记录](USER_ACCEPTANCE_TEST_ISSUE_LOG.md) | 核对原条目后续验收/部署证据，未取得证据不得关闭 |
+| UAT-132 | Arca独立媒体复核遗漏合法unknown动态范围并拒绝Direct产品 | `PRODUCT_CONFORMANCE` | 待核实 | 原UAT编号 | 见证据 | [UAT-132原记录](USER_ACCEPTANCE_TEST_ISSUE_LOG.md) | 核对原条目后续验收/部署证据，未取得证据不得关闭 |
+| UAT-133 | 多缺口Authorized Defect在Libra Attestation与Arca Gap union使用不一致规范顺序 | `BUSINESS_CONTRACT` | 待核实 | 原UAT编号 | 见证据 | [UAT-133原记录](USER_ACCEPTANCE_TEST_ISSUE_LOG.md) | 核对原条目后续验收/部署证据，未取得证据不得关闭 |
+| UAT-134 | 同根Field/Shelf的单项Settlement把其他合法顶层媒体单元误判为unknown member并永久悬挂 | `MATERIAL_CONTROL` | 待核实 | 原UAT编号 | 见证据 | [UAT-134原记录](USER_ACCEPTANCE_TEST_ISSUE_LOG.md) | 核对原条目后续验收/部署证据，未取得证据不得关闭 |
+| UAT-135 | Arca独立媒体复核把已证明拓扑的ISO Source当普通流直接Probe/Decode并拒绝合法成品 | `PRODUCT_CONFORMANCE` | 待核实 | 原UAT编号 | 见证据 | [UAT-135原记录](USER_ACCEPTANCE_TEST_ISSUE_LOG.md) | 核对原条目后续验收/部署证据，未取得证据不得关闭 |
+| UAT-136 | 同一ISO物理路径的正斜杠与Windows规范路径形成不同Topology Digest，fresh重验误报漂移 | `RECOVERY_CORRECTNESS` | 待核实 | 原UAT编号 | 见证据 | [UAT-136原记录](USER_ACCEPTANCE_TEST_ISSUE_LOG.md) | 核对原条目后续验收/部署证据，未取得证据不得关闭 |
+| UAT-137 | Arca把历史Product Verification动态范围标签当成现场事实，误拒绝fresh SDR到SDR preserve成品 | `PRODUCT_CONFORMANCE` | 待核实 | 原UAT编号 | 见证据 | [UAT-137原记录](USER_ACCEPTANCE_TEST_ISSUE_LOG.md) | 核对原条目后续验收/部署证据，未取得证据不得关闭 |
+| UAT-138 | 单Movie目录中的Windows `Thumbs.db`已被Field观察却未进入Related处置，形成Final Inventory外孤儿文件 | `MATERIAL_CONTROL` | 待核实 | 原UAT编号 | 见证据 | [UAT-138原记录](USER_ACCEPTANCE_TEST_ISSUE_LOG.md) | 核对原条目后续验收/部署证据，未取得证据不得关闭 |
+| UAT-139 | Off-deck Admin Web没有将全部当前收藏多选/全选为一个batch Review的入口，无法执行统一Scope核对和High-volume二次确认 | `USER_EXPERIENCE` | 待核实 | 原UAT编号 | 见证据 | [UAT-139原记录](USER_ACCEPTANCE_TEST_ISSUE_LOG.md) | 核对原条目后续验收/部署证据，未取得证据不得关闭 |
+| UAT-140 | 收藏详情健康区把 Finding / 三维 / 技术标识铺给用户；应收成三态灯 + 修复中写正在修什么 | `USER_EXPERIENCE` | 待核实 | UX-006 | 见证据 | [UAT-140原记录](USER_ACCEPTANCE_TEST_ISSUE_LOG.md)；[UX-006同结果记录](ADMIN_WEB_UX_ISSUE_LOG.md) | 核对原条目后续验收/部署证据，未取得证据不得关闭 |
+| UAT-141 | 概览通栏堆叠，首屏报平安；应收成一行状态 + 两列工作面 | `USER_EXPERIENCE` | 待核实 | UX-033 | 见证据 | [UAT-141原记录](USER_ACCEPTANCE_TEST_ISSUE_LOG.md)；[UX-033同结果记录](ADMIN_WEB_UX_ISSUE_LOG.md) | 核对原条目后续验收/部署证据，未取得证据不得关闭 |
+| UAT-142 | 八页标题下导语、安全声明与指标附注重复同一语义 | `USER_EXPERIENCE` | 待核实 | UX-002；UX-034；UX-035；UX-036 | 见证据 | [UAT-142原记录](USER_ACCEPTANCE_TEST_ISSUE_LOG.md)；[UX-002同结果记录](ADMIN_WEB_UX_ISSUE_LOG.md)；[UX-034同结果记录](ADMIN_WEB_UX_ISSUE_LOG.md)；[UX-035同结果记录](ADMIN_WEB_UX_ISSUE_LOG.md)；[UX-036同结果记录](ADMIN_WEB_UX_ISSUE_LOG.md) | 核对原条目后续验收/部署证据，未取得证据不得关闭 |
+| UAT-143 | 退出收藏规则应进设置 Tab；页面只留系统建议与手动搜索退出，确认用弹出详情 | `USER_EXPERIENCE` | 待核实 | UX-038 | 见证据 | [UAT-143原记录](USER_ACCEPTANCE_TEST_ISSUE_LOG.md)；[UX-038同结果记录](ADMIN_WEB_UX_ISSUE_LOG.md) | 核对原条目后续验收/部署证据，未取得证据不得关闭 |
+| UAT-144 | 打开「文件来源配置」整页白屏 | `USER_EXPERIENCE` / 浏览器安全上下文 | 已部署待验收核对 | PROD-001 | ef8eec0dc | [PROD-001原记录](PRODUCTION_DEPLOY_ISSUE_LOG.md) | 核对该问题的用户结果、部署及验收证据后逐项关闭 |
+| UAT-145 | 保存文件来源时报 `Cannot read properties of undefined (reading 'digest')` | `USER_EXPERIENCE` / 浏览器安全上下文 | 已部署待验收核对 | PROD-002 | c71149f17 | [PROD-002原记录](PRODUCTION_DEPLOY_ISSUE_LOG.md) | 核对该问题的用户结果、部署及验收证据后逐项关闭 |
+| UAT-146 | 采购显示「已扫描完成 72 页」，媒体整理工作区当时一条都没有 | `USER_EXPERIENCE` | 待核实 | PROD-003 | 见证据 | [PROD-003原记录](PRODUCTION_DEPLOY_ISSUE_LOG.md) | 核对该问题的用户结果、部署及验收证据后逐项关闭 |
+| UAT-147 | 文件来源与收藏架都指向容器路径 `/media/Film` | 已确认拓扑 / 同根是必须支持的场景 | 已接受（非缺陷） | PROD-004 | 见证据 | [PROD-004原记录](PRODUCTION_DEPLOY_ISSUE_LOG.md) | 保持同根支持合同 |
+| UAT-148 | 一部都没上架；整理工作区数量看起来卡住 | 配置 / Workspace 根未生效 | 待核实 | PROD-005 | 见证据 | [PROD-005原记录](PRODUCTION_DEPLOY_ISSUE_LOG.md) | 核对该问题的用户结果、部署及验收证据后逐项关闭 |
+| UAT-149 | 打开媒体整理工作区卡在「正在读取媒体整理工作区…」 | `USER_EXPERIENCE` / 全量分页 | 待核实 | PROD-006 | 见证据 | [PROD-006原记录](PRODUCTION_DEPLOY_ISSUE_LOG.md) | 核对该问题的用户结果、部署及验收证据后逐项关闭 |
+| UAT-150 | 整理协调器 `P9_REFERENCE_MATERIAL_CORRUPT` / remux `P9_MEDIA_OUTPUT_CONTINUITY`，升级后管理端口起不来 | `EXECUTION` / Workspace root identity + startup recovery | 待核实 | PROD-007 | 见证据 | [PROD-007原记录](PRODUCTION_DEPLOY_ISSUE_LOG.md) | 核对该问题的用户结果、部署及验收证据后逐项关闭 |
+| UAT-151 | 确认影片身份后仍停在「媒体身份信息冲突」 | `EXECUTION` / 工作准入硬顶 + 展示用旧观察 | 待核实 | PROD-008 | 见证据 | [PROD-008原记录](PRODUCTION_DEPLOY_ISSUE_LOG.md) | 核对该问题的用户结果、部署及验收证据后逐项关闭 |
+| UAT-152 | 试运行长时间没有第一部 Arca 上架；`/transcode` 写满 | `EXECUTION` / Intake 无席位 + Workspace 24h grace | 已部署待验收核对 | PROD-009 | 见证据 | [PROD-009原记录](PRODUCTION_DEPLOY_ISSUE_LOG.md) | 核对该问题的用户结果、部署及验收证据后逐项关闭 |
+| UAT-153 | 整理路径不能提前当 checklist 勾选；转码未规划出来时页面仍像「封装完了等验收」 | `USER_EXPERIENCE` / Formation 投影只回放已有 Event | 已部署待验收核对 | PROD-010；UX-030（整理路径不能提前当 checklist 勾选；无 transcode Event 时看不到「下一步转码」） | e4d601cd9 | [PROD-010原记录](PRODUCTION_DEPLOY_ISSUE_LOG.md)；[UX-030同结果记录](ADMIN_WEB_UX_ISSUE_LOG.md) | 核对该问题的用户结果、部署及验收证据后逐项关闭 |
+| UAT-154 | 片源探测已能判定本地加工补不上时，仍先整盘 remux 再寻源 | `EXECUTION` / Libra 媒体阶段顺序 | 已部署待验收核对 | PROD-011 | e4d601cd9 | [PROD-011原记录](PRODUCTION_DEPLOY_ISSUE_LOG.md) | 核对该问题的用户结果、部署及验收证据后逐项关闭 |
+| UAT-155 | 用户放弃后，工作区仍留「等待重新入库」待整理行 | `USER_EXPERIENCE` / Formation 当前 Subject 与结束历史叠在一起 | 已部署待验收核对 | PROD-012；UX-031（放弃整理后工作区仍显示「等待重新入库」） | e4d601cd9 | [PROD-012原记录](PRODUCTION_DEPLOY_ISSUE_LOG.md)；[UX-031同结果记录](ADMIN_WEB_UX_ISSUE_LOG.md) | 核对该问题的用户结果、部署及验收证据后逐项关闭 |
+| UAT-156 | 三部转码停在「编码设备未就绪」；QSV/CPU 能编码但自检全失败 | `EXECUTION` / 编码设备探测校验过严 | 已部署待验收核对 | PROD-013 | 0eb39ed97 | [PROD-013原记录](PRODUCTION_DEPLOY_ISSUE_LOG.md) | 核对该问题的用户结果、部署及验收证据后逐项关闭 |
+| UAT-157 | 转码输入预检用跳转硬解，与正式转码命令不同；超时冻《宇航员》 | `EXECUTION` / 预检命令不是真转码缩小版 | 已部署待验收核对 | PROD-014 | 83d3c4424 | [PROD-014原记录](PRODUCTION_DEPLOY_ISSUE_LOG.md) | 核对该问题的用户结果、部署及验收证据后逐项关闭 |
+| UAT-158 | 《怦然心动》上架拷贝后卡在 `product.stage` executing | `EXECUTION` / 指纹门禁把 mtime 当换材料 | 已部署待验收核对 | PROD-015 | 83d3c4424 | [PROD-015原记录](PRODUCTION_DEPLOY_ISSUE_LOG.md) | 核对该问题的用户结果、部署及验收证据后逐项关闭 |
+| UAT-159 | 放弃整理后 Workspace remux 没删，`/transcode` 空间未释放 | `EXECUTION` / Discard 只清已挂的 Libra 引用 | 已部署待验收核对 | PROD-016 | 83d3c4424 | [PROD-016原记录](PRODUCTION_DEPLOY_ISSUE_LOG.md) | 核对该问题的用户结果、部署及验收证据后逐项关闭 |
+| UAT-160 | 《影子写手》转码成功，收藏架因原片 5%/50% 解帧拒收 | `EXECUTION` / Arca 把原片抽检绑进成品 Gap | 已部署待验收核对 | PROD-017 | 904c415f7 | [PROD-017原记录](PRODUCTION_DEPLOY_ISSUE_LOG.md) | 核对该问题的用户结果、部署及验收证据后逐项关闭 |
+| UAT-161 | 《国际市场》寻源耗尽冻结后没有「接受瑕疵」 | `EXECUTION` / 跳过直通验收就去寻源 | 已部署待验收核对 | PROD-018 | 904c415f7 | [PROD-018原记录](PRODUCTION_DEPLOY_ISSUE_LOG.md) | 核对该问题的用户结果、部署及验收证据后逐项关闭 |
+| UAT-162 | 收藏架拒收后没法放弃《影子写手》 | `USER_EXPERIENCE` / Handoff B 拒收后 Run 仍 active | 已部署待验收核对 | PROD-019 | c547a2f93 | [PROD-019原记录](PRODUCTION_DEPLOY_ISSUE_LOG.md) | 核对该问题的用户结果、部署及验收证据后逐项关闭 |
+| UAT-163 | 放弃/上架后工作区 remux 与转码 `.partial` 清不掉 | `EXECUTION` / Drain 先删后记账 + 清理名单不含无引用材料 | 已部署待验收核对 | PROD-020 | 6ad8bc999 | [PROD-020原记录](PRODUCTION_DEPLOY_ISSUE_LOG.md) | 核对该问题的用户结果、部署及验收证据后逐项关闭 |
+| UAT-164 | 《露梁海战》DTS-HD MA 触发寻源且不能瑕疵入库 | `EXECUTION` / 音轨 copy 估满后 infeasible 去 MoviePilot | 已部署待验收核对 | PROD-021 | 6ad8bc999 | [PROD-021原记录](PRODUCTION_DEPLOY_ISSUE_LOG.md) | 核对该问题的用户结果、部署及验收证据后逐项关闭 |
+| UAT-165 | 无损升级后容器起不来；启动恢复把旧转码超时残留当硬故障 | `EXECUTION` / 超时重试留下 superseded `reconcile_required` Effect | 已部署待验收核对 | PROD-022 | 6ad8bc999 | [PROD-022原记录](PRODUCTION_DEPLOY_ISSUE_LOG.md) | 核对该问题的用户结果、部署及验收证据后逐项关闭 |
+| UAT-166 | 放弃整理仍弹出浏览器自带确认框 | `USER_EXPERIENCE` / 只改了接受瑕疵 Dialog | 已部署待验收核对 | PROD-023 | 79fc055d1 | [PROD-023原记录](PRODUCTION_DEPLOY_ISSUE_LOG.md) | 核对该问题的用户结果、部署及验收证据后逐项关闭 |
+| UAT-167 | 门口 3 席位失效，一次灌进 8 部 Libra Run | `EXECUTION` / Intake 成功到 Run 建立不占席位 | 已部署待验收核对 | PROD-024 | 2fe558b95 | [PROD-024原记录](PRODUCTION_DEPLOY_ISSUE_LOG.md) | 核对该问题的用户结果、部署及验收证据后逐项关闭 |
+| UAT-168 | 《007：大破天幕杀机》寻源报没有外部候选 | `EXECUTION` / MoviePilot 把 TMDB ID 当标题搜 | 已部署待验收核对 | PROD-025 | d1dd611d4 | [PROD-025原记录](PRODUCTION_DEPLOY_ISSUE_LOG.md) | 核对该问题的用户结果、部署及验收证据后逐项关闭 |
+| UAT-169 | 《教父2》GPU 转码每小时被掐，永远编不完 | `EXECUTION` / Libra remux/transcode 误用 1 小时观察时限 | 已部署待验收核对 | PROD-026 | 06d0cc63b | [PROD-026原记录](PRODUCTION_DEPLOY_ISSUE_LOG.md) | 核对该问题的用户结果、部署及验收证据后逐项关闭 |
+| UAT-170 | 长转码页面进度写满后冻住，编码器仍在跑 | `EXECUTION` / ProgressReporter 历史上限连 current sample 一并停写 | 已部署待验收核对 | PROD-027 | 见证据 | [PROD-027原记录](PRODUCTION_DEPLOY_ISSUE_LOG.md) | 核对该问题的用户结果、部署及验收证据后逐项关闭 |
+| UAT-171 | Aftercare 按整份 NFO 字节/指纹修文件，与 Emby 抢同一张说明书 | `EXECUTION` / Presentation 字节全等 + Inventory revision 未随实际 NFO 收敛 | 待核实 | PROD-028 | 见证据 | [PROD-028原记录](PRODUCTION_DEPLOY_ISSUE_LOG.md) | 核对该问题的用户结果、部署及验收证据后逐项关闭 |
+| UAT-172 | 收藏架「全自动 / 关键步骤确认」开关不改变实际上架行为 | `USER_EXPERIENCE` / standing Authorization 未接入 On-deck | 待核实 | PROD-029 | 见证据 | [PROD-029原记录](PRODUCTION_DEPLOY_ISSUE_LOG.md) | 核对该问题的用户结果、部署及验收证据后逐项关闭 |
+| UAT-173 | 转码前体积预测 freeze 卡死 Run；寻源/转码编排割裂；详情步骤靠 Spec 猜测 | `EXECUTION` / Libra 协调器 + Formation 投影 | 已部署待验收核对 | PROD-030 | 见证据 | [PROD-030原记录](PRODUCTION_DEPLOY_ISSUE_LOG.md) | 核对该问题的用户结果、部署及验收证据后逐项关闭 |
+| UAT-174 | PROD-024 全局 3 席仍是 derived occupancy；无法按来源暂停/限流 | `EXECUTION` / Libra per-field pipeline token | 已部署待验收核对 | PROD-031 | 5189f5f79c | [PROD-031原记录](PRODUCTION_DEPLOY_ISSUE_LOG.md) | 核对该问题的用户结果、部署及验收证据后逐项关闭 |
+| UAT-175 | token=0 时历史 Subject 仍批量生成 routing/spec/rating Work，Formation 保持 700+ 条 | `EXECUTION` / Intake replay 与下游 reconciler 绕过 token，Run Admission 过早释放 | 已部署待验收核对 | PROD-032 | 710aa1b65a | [PROD-032原记录](PRODUCTION_DEPLOY_ISSUE_LOG.md) | 核对该问题的用户结果、部署及验收证据后逐项关闭 |
+| UAT-176 | 执行层历史终态残留恢复 | 历史生产纠正 | 历史已关闭 | PROD-033 | 见证据 | [PROD-033原记录](implementation/archive/PROD-033_EXECUTION_RESIDUAL_RECOVERY_20260831.md) | 无；保留历史关闭 |
+| UAT-177 | 已中止Handoff的一次性责任纠正 | 历史生产纠正 | 历史已关闭 | PROD-034 | 见证据 | [PROD-034原记录](implementation/archive/PROD-034_ONE_TIME_ABORTED_HANDOFF_CORRECTION_20260831.md) | 无；保留历史关闭 |
+| UAT-178 | Emby 在 On-deck 检查点之间改写 NFO，检查失败后同一 Run 可无限停在中间态 | `EXECUTION` / Final Verify 在 Placement 前 + 无耗尽后的业务稳态 | 历史已关闭 | PROD-035 | 29efa3a229 | [PROD-035原记录](PRODUCTION_DEPLOY_ISSUE_LOG.md)；[完整关闭](implementation/archive/PROD-035_TO_PROD-064_PRODUCTION_STABILIZATION_20260903.md) | 无；保留历史关闭 |
+| UAT-179 | Field Observation 每 30 分钟全量写入导致 SQLite 膨胀，且第 69 页 Event Attempt 长期 `executing` | `CAPACITY` / retention 缺失 + recovery hard deadline 未收口 | 历史已关闭 | PROD-036 | ae7a567cde | [PROD-036原记录](PRODUCTION_DEPLOY_ISSUE_LOG.md)；[完整关闭](implementation/archive/PROD-035_TO_PROD-064_PRODUCTION_STABILIZATION_20260903.md) | 无；保留历史关闭 |
+| UAT-180 | PROD-035 部署后仍误报 director drift，Aftercare source fence 继续刷日志 | `EXECUTION` / Presentation gate 误复用 renderer 字段 + expected CAS conflict 被抛成未知 Effect | 历史已关闭 | PROD-037 | ae7a567cde | [PROD-037原记录](PRODUCTION_DEPLOY_ISSUE_LOG.md)；[完整关闭](implementation/archive/PROD-035_TO_PROD-064_PRODUCTION_STABILIZATION_20260903.md) | 无；保留历史关闭 |
+| UAT-181 | 《罪人》详情吸入 Field-wide 867 个 Plan，attention 显示为 `in_progress` 且无重试动作 | `USER_EXPERIENCE` / Process Plan 因果范围过宽 + Arca attention 投影缺失 | 历史已关闭 | PROD-038 | 见证据 | [PROD-038原记录](PRODUCTION_DEPLOY_ISSUE_LOG.md)；[完整关闭](implementation/archive/PROD-035_TO_PROD-064_PRODUCTION_STABILIZATION_20260903.md) | 无；保留历史关闭 |
+| UAT-182 | 部署 readiness 在 WAL 只读挂载下返回 `SQLITE_CANTOPEN`，脚本仍继续 | `DEPLOYMENT_SAFETY` / 未强制匹配 ready | 历史已关闭 | PROD-039 | 见证据 | [PROD-039原记录](PRODUCTION_DEPLOY_ISSUE_LOG.md)；[完整关闭](implementation/archive/PROD-035_TO_PROD-064_PRODUCTION_STABILIZATION_20260903.md) | 无；保留历史关闭 |
+| UAT-183 | 同一 On-deck Run 已 Placement 的 NFO 被 Emby 等价改写后，恢复 Stage 报 target occupied | `EXECUTION` / Stage 只认原始 offloadContext，遗漏 durable prior Placement provenance | 历史已关闭 | PROD-040 | 见证据 | [PROD-040原记录](PRODUCTION_DEPLOY_ISSUE_LOG.md)；[完整关闭](implementation/archive/PROD-035_TO_PROD-064_PRODUCTION_STABILIZATION_20260903.md) | 无；保留历史关闭 |
+| UAT-184 | Startup Recovery 已分类 `continue_forward`，却因原 Attempt deadline 过期而永远进不了 Capability | `EXECUTION_FOUNDATION` / 恢复执行误复用原 wall-clock deadline，且没有 durable one-shot recovery budget | 历史已关闭 | PROD-041 | 见证据 | [PROD-041原记录](PRODUCTION_DEPLOY_ISSUE_LOG.md)；[完整关闭](implementation/archive/PROD-035_TO_PROD-064_PRODUCTION_STABILIZATION_20260903.md) | 无；保留历史关闭 |
+| UAT-185 | 3 个 Pre-deck token 均被占用，但只有 2 条 Formation 活动记录，后续 Libra Run 不再进入 | `EXECUTION` / Rejection Planner 把整个 dependency ref 当成 Evidence Work ID | 历史已关闭 | PROD-042 | 见证据 | [PROD-042原记录](PRODUCTION_DEPLOY_ISSUE_LOG.md)；[完整关闭](implementation/archive/PROD-035_TO_PROD-064_PRODUCTION_STABILIZATION_20260903.md) | 无；保留历史关闭 |
+| UAT-186 | 新三态 SSOT 下约 621 个 Accepted/no-token Subject 表现为“假死 Libra Run”，Reset dry-run 又被 Procurement/package Control 与保留 Run 反向指针阻塞 | `DATA_CORRECTION` / Reset scope 缺口 | 历史已关闭 | PROD-043 | 见证据 | [PROD-043原记录](PRODUCTION_DEPLOY_ISSUE_LOG.md)；[完整关闭](implementation/archive/PROD-035_TO_PROD-064_PRODUCTION_STABILIZATION_20260903.md) | 无；保留历史关闭 |
+| UAT-187 | 统一升级 readiness 因 846 个已终态 Plan 的旧 Catalog digest 阻断启动 | `DEPLOYMENT_SAFETY` / digest 混入 sourceLocator | 历史已关闭 | PROD-044 | 见证据 | [PROD-044原记录](PRODUCTION_DEPLOY_ISSUE_LOG.md)；[完整关闭](implementation/archive/PROD-035_TO_PROD-064_PRODUCTION_STABILIZATION_20260903.md) | 无；保留历史关闭 |
+| UAT-188 | 《人生密密缝》Libra 生成 NFO 与自身 Product Fact 不一致，Arca 又在 Placement 后才发现 | `EXECUTION` / 根节点编辑范围与验收顺序 | 历史已关闭 | PROD-045 | 见证据 | [PROD-045原记录](PRODUCTION_DEPLOY_ISSUE_LOG.md)；[完整关闭](implementation/archive/PROD-035_TO_PROD-064_PRODUCTION_STABILIZATION_20260903.md) | 无；保留历史关闭 |
+| UAT-189 | 非纯 safe-retry 恢复沿用已过期原 Attempt deadline | `EXECUTION` / recovery budget | 历史已关闭 | PROD-046 | 见证据 | [PROD-046原记录](PRODUCTION_DEPLOY_ISSUE_LOG.md)；[完整关闭](implementation/archive/PROD-035_TO_PROD-064_PRODUCTION_STABILIZATION_20260903.md) | 无；保留历史关闭 |
+| UAT-190 | 旧 Aftercare reclaim 已提交领域事实，但执行图仍活跃 | `PRODUCTION_DATA` / legacy Receipt residual | 历史已关闭 | PROD-047 | 见证据 | [PROD-047原记录](PRODUCTION_DEPLOY_ISSUE_LOG.md)；[完整关闭](implementation/archive/PROD-035_TO_PROD-064_PRODUCTION_STABILIZATION_20260903.md) | 无；保留历史关闭 |
+| UAT-191 | Nuclear Reset 删除 Intake Work 后遗留 WorkAdmission Receipt，重入只占 token 不建 Work | `DATA_CORRECTION` / execution receipt scope | 历史已关闭 | PROD-048 | 0813ae2991 | [PROD-048原记录](PRODUCTION_DEPLOY_ISSUE_LOG.md)；[完整关闭](implementation/archive/PROD-035_TO_PROD-064_PRODUCTION_STABILIZATION_20260903.md) | 无；保留历史关闭 |
+| UAT-192 | Formation 用 Plan 终态冒充业务阶段完成，并泄露机器枚举/结构化对象 | `USER_EXPERIENCE` / business boundary + Fact projection | 历史已关闭 | PROD-049 | 237d0fb7b0 | [PROD-049原记录](PRODUCTION_DEPLOY_ISSUE_LOG.md)；[完整关闭](implementation/archive/PROD-035_TO_PROD-064_PRODUCTION_STABILIZATION_20260903.md) | 无；保留历史关闭 |
+| UAT-193 | Nuclear Reset 未重开旧 Handoff A terminal closure，也漏回卷 released Control | `DATA_CORRECTION` / Reset Handoff A boundary | 历史已关闭 | PROD-050 | 见证据 | [PROD-050原记录](PRODUCTION_DEPLOY_ISSUE_LOG.md)；[完整关闭](implementation/archive/PROD-035_TO_PROD-064_PRODUCTION_STABILIZATION_20260903.md) | 无；保留历史关闭 |
+| UAT-194 | TMDB 抖动发生在 Workspace Write intent 后，在线 Host 未进入 Effect reality reconciliation | `EXECUTION_FOUNDATION` / online non-pure recovery bridge | 历史已关闭 | PROD-051 | 见证据 | [PROD-051原记录](PRODUCTION_DEPLOY_ISSUE_LOG.md)；[完整关闭](implementation/archive/PROD-035_TO_PROD-064_PRODUCTION_STABILIZATION_20260903.md) | 无；保留历史关闭 |
+| UAT-195 | 旧 Nuclear Reset 漏删 run-owned Artifact、使用无类型 scope、文件删除不随 DB 回滚，postcondition 又复用 discovery | `DATA_CORRECTION_TOOLING` / Reset closure | 历史已关闭 | PROD-052 | 见证据 | [PROD-052原记录](PRODUCTION_DEPLOY_ISSUE_LOG.md)；[完整关闭](implementation/archive/PROD-035_TO_PROD-064_PRODUCTION_STABILIZATION_20260903.md) | 无；保留历史关闭 |
+| UAT-196 | External Acquisition 会在同一 Formation 内尝试多个下载候选 | `BUSINESS_SEMANTICS` / candidate fallback | 历史已关闭 | PROD-053 | 713bbc0827 | [PROD-053原记录](PRODUCTION_DEPLOY_ISSUE_LOG.md)；[完整关闭](implementation/archive/PROD-035_TO_PROD-064_PRODUCTION_STABILIZATION_20260903.md) | 无；保留历史关闭 |
+| UAT-197 | Arca Aftercare safe-retry 的 durable recovery budget 过期后每 30 秒重复超时 | `EXECUTION_FOUNDATION` / recovery convergence | 历史已关闭 | PROD-054 | efe1b91d6e | [PROD-054原记录](PRODUCTION_DEPLOY_ISSUE_LOG.md)；[完整关闭](implementation/archive/PROD-035_TO_PROD-064_PRODUCTION_STABILIZATION_20260903.md) | 无；保留历史关闭 |
+| UAT-198 | scoped Circuit 被 Startup Recovery 的 ready-only 门禁误当作全局启动阻断 | `EXECUTION_FOUNDATION` / degraded readiness | 历史已关闭 | PROD-055 | 0d94f414ac | [PROD-055原记录](PRODUCTION_DEPLOY_ISSUE_LOG.md)；[完整关闭](implementation/archive/PROD-035_TO_PROD-064_PRODUCTION_STABILIZATION_20260903.md) | 无；保留历史关闭 |
+| UAT-199 | MoviePilot缺TMDB候选被误拒，已有进度但无活动时间的零速Job等待过长 | `BUSINESS_SEMANTICS` / identity and stall evidence | 历史已关闭 | PROD-056 | 11c71bc009 | [PROD-056原记录](PRODUCTION_DEPLOY_ISSUE_LOG.md)；[完整关闭](implementation/archive/PROD-035_TO_PROD-064_PRODUCTION_STABILIZATION_20260903.md) | 无；保留历史关闭 |
+| UAT-200 | 仅体积超限仍继续低于质量下限转码，甚至错误转向外部寻源 | `BUSINESS_SEMANTICS` / quality-protected size planning | 历史已关闭 | PROD-057 | d228dc2488 | [PROD-057原记录](PRODUCTION_DEPLOY_ISSUE_LOG.md)；[完整关闭](implementation/archive/PROD-035_TO_PROD-064_PRODUCTION_STABILIZATION_20260903.md) | 无；保留历史关闭 |
+| UAT-201 | 唯一外部候选按 Provider rank 而非共享者强度选择，下载进度又未进入 Formation | `BUSINESS_SEMANTICS` / availability evidence + progress | 历史已关闭 | PROD-058 | d0bed9af57 | [PROD-058原记录](PRODUCTION_DEPLOY_ISSUE_LOG.md)；[完整关闭](implementation/archive/PROD-035_TO_PROD-064_PRODUCTION_STABILIZATION_20260903.md) | 无；保留历史关闭 |
+| UAT-202 | 五星音轨验收只看default/第一条，体积瑕疵终态又拒绝自身映射 | `BUSINESS_SEMANTICS` / all-track audio predicate + terminal evidence mapping | 历史已关闭 | PROD-059 | c77cd99951 | [PROD-059原记录](PRODUCTION_DEPLOY_ISSUE_LOG.md)；[完整关闭](implementation/archive/PROD-035_TO_PROD-064_PRODUCTION_STABILIZATION_20260903.md) | 无；保留历史关闭 |
+| UAT-203 | GET 预览附加的体积预测被误纳入 POST 瑕疵候选身份校验 | `API_CONTRACT` / preview-command boundary | 历史已关闭 | PROD-060 | 03ba1191d1 | [PROD-060原记录](PRODUCTION_DEPLOY_ISSUE_LOG.md)；[完整关闭](implementation/archive/PROD-035_TO_PROD-064_PRODUCTION_STABILIZATION_20260903.md) | 无；保留历史关闭 |
+| UAT-204 | 瑕疵决定已提交，后继 Staging 仍拒绝同一授权成品，前端误报整次失败 | `BUSINESS_SEMANTICS` / authorized defect continuity | 历史已关闭 | PROD-061 | e1b0b7993d | [PROD-061原记录](PRODUCTION_DEPLOY_ISSUE_LOG.md)；[完整关闭](implementation/archive/PROD-035_TO_PROD-064_PRODUCTION_STABILIZATION_20260903.md) | 无；保留历史关闭 |
+| UAT-205 | 两张 fanart 目标冲突后，Aftercare Plan 依赖缺失且 Circuit 队首饿死健康 Event | `EXECUTION` / placement policy + scheduler fairness | 历史已关闭 | PROD-062 | 245cb92336 | [PROD-062原记录](PRODUCTION_DEPLOY_ISSUE_LOG.md)；[完整关闭](implementation/archive/PROD-035_TO_PROD-064_PRODUCTION_STABILIZATION_20260903.md) | 无；保留历史关闭 |
+| UAT-206 | collision-only policy 重评触发 Aftercare placement/settlement 风暴 | `EXECUTION` / deterministic precondition convergence | 已被取代 | PROD-063 | 见证据 | [PROD-063原记录](PRODUCTION_DEPLOY_ISSUE_LOG.md)；[完整关闭](implementation/archive/PROD-035_TO_PROD-064_PRODUCTION_STABILIZATION_20260903.md) | 后续事故纠正见UAT-207 |
+| UAT-207 | collision-only revision 已造成 13 条 Shelf Entry 物理/Inventory 偏移及 settlement 残留 | `PRODUCTION_INCIDENT` / guarded recovery | 历史已关闭 | PROD-064 | f05d694dfa | [PROD-064原记录](PRODUCTION_DEPLOY_ISSUE_LOG.md)；[完整关闭](implementation/archive/PROD-035_TO_PROD-064_PRODUCTION_STABILIZATION_20260903.md) | 无；保留历史关闭 |
+| UAT-208 | NFO全生命周期与上架停滞修复 | 历史生产纠正 | 待核实 | PROD-065 | 见证据 | [PROD-065原记录](implementation/evidence/PROD-065_FORMATION_STALL_20260905.md) | 核对该问题的用户结果、部署及验收证据后逐项关闭 |
+| UAT-209 | 收藏干净基线审计与定向恢复 | 历史生产纠正 | 待核实 | PROD-066 | 见证据 | [PROD-066原记录](implementation/evidence/PROD-066_COLLECTION_CLEAN_BASELINE_20260907.md) | 核对该问题的用户结果、部署及验收证据后逐项关闭 |
+| UAT-210 | 健康检查与维护Case分离、席位节流、NFO记录更新 | 当前迭代 | 部分部署待验收 | PROD-067；AC-01；AC-02；AC-03；AC-04；AC-05；AC-08 | 6e37bf5679 | [PROD-067原记录](PRODUCTION_DEPLOY_ISSUE_LOG.md) | Arca；仅真实处理建Case，默认单席位；健康观察/记录同步不建Case。批量spec变化红→单席位黄→绿，queued不进入列表/统计。 |
+| UAT-211 | 完成Settlement的历史路径退出健康检查 | 当前迭代 | 待实施 | PROD-068 | 见证据 | [PROD-068原记录](PRODUCTION_DEPLOY_ISSUE_LOG.md) | Arca；精确消费成功Settlement证据，保留当前Inventory与真正未完成义务检查；正常重评纠正红灯，无须删除额外NFO。 |
+| UAT-212 | 整理与收藏UI统一、历史状态解释及两页响应 | 当前迭代 | 本地交付待整合 | PROD-069；AC-06；AC-07；AC-10 | 1755743c1, e6b7f0424 | [PROD-069原记录](PRODUCTION_DEPLOY_ISSUE_LOG.md) | Admin Query/Web；类型列、四灯、统一真实详情、历史终态与当前问题分离、回收站入口进设置；真实浏览器点击/翻页/筛选/详情验收。 |
+| UAT-213 | 维护Case冻结可解释的创建目标 | 当前迭代 | 待实施 | PROD-070 | 见证据 | [PROD-070原记录](PRODUCTION_DEPLOY_ISSUE_LOG.md) | Arca；新Case持久保存建单依据及具体目标；旧Case明确缺少历史依据，禁止拿当前policy倒推。 |
+| UAT-214 | NFO人物观察与确定关联记录更新 | 当前迭代 | 待实施 | PROD-071；AC-09 | 见证据 | [PROD-071原记录](PRODUCTION_DEPLOY_ISSUE_LOG.md) | Arca/People按既有Owner合同交接Evidence；观察→确定关联→记录更新完整回归，不创建Case或重写NFO。 |
+| UAT-215 | 旧目录清理与回收接入Arca上架收尾 | 当前迭代 | 待设计与实施 | PROD-072 | 见证据 | [PROD-072原记录](PRODUCTION_DEPLOY_ISSUE_LOG.md) | Arca；先合同后实现，明确自动处置范围、保护、异常展示、重试与重启恢复；新上架场景验收，Aftercare不代替收尾。 |
+| UAT-216 | 已上架电影旧目录存量治理 | 当前迭代 | 存量待处置 | PROD-073 | 见证据 | [PROD-073原记录](PRODUCTION_DEPLOY_ISSUE_LOG.md) | Arca操作；霍比特人1/信使各剩种子，哪啊哪啊神去村含sample待核实，夺宝奇兵5含另一完整1080p视频须保护；精确清单授权后处置，分别验收，不代表PROD-072完成。 |
+| UAT-217 | 正式影片身份形成后的评分与Acceptance重算 | 当前迭代 | 支线待实施 | PROD-074；BR-01 | 见证据 | [PROD-074原记录](PRODUCTION_DEPLOY_ISSUE_LOG.md) | Libra/User Perception；目录Extended Edition弱标题→正式身份→评分→Spec→实际生产全链回归，不以Aftercare返工掩盖漏决策。；历史相关UAT-079保持原关闭，本项为后续发现，不合并抹去复发。 |
+| UAT-218 | Aftercare与Libra转码码率质量保护对齐 | 当前迭代 | 支线待实施 | PROD-075；BR-02 | 见证据 | [PROD-075原记录](PRODUCTION_DEPLOY_ISSUE_LOG.md) | Arca/Libra各自策略；同源输入预算对照，无法同时满足体积与质量时形成正式可解释结果，不盲目降码率。 |
+| UAT-219 | 中文标签字距与字号一致性 | 当前迭代 | 待核实 | PROD-076；UX-023 | 见证据 | [PROD-076原记录](PRODUCTION_DEPLOY_ISSUE_LOG.md)；[UX-023同结果记录](ADMIN_WEB_UX_ISSUE_LOG.md) | Admin Web；先核实当前CSS与真实页面，再做克制调整及响应式验收，不扩大UI重设计。 |
+| UAT-220 | 统一UAT总表、逐项证据对账与工程规则整理 | 当前迭代 | 已关闭（文档验收） | PROD-077；PROD-078 | 1d5226327 | [覆盖与检查证据](implementation/evidence/UAT-220_REGISTER_CONSOLIDATION_20260908.md)；治理前序提交1d5226327 | 无；功能现场验证仍由各自UAT逐项推进 |
+| UAT-221 | 侧栏「收藏运营台」「本地 Projection」对用户无意义 | UI / `COPY_REDUNDANT` | 历史已实现，待验收核对 | UX-003 | 见证据 | [UX-003原记录（按标题）](ADMIN_WEB_UX_ISSUE_LOG.md) | 核对该UI结果的原验收证据；有关联UAT但范围未证实等同时不机械合并 |
+| UAT-222 | 文件来源把候选包、访问合同、Observation、Handoff A 当作主文案 | UI / `COPY_INTERNAL` | 历史已实现，待验收核对 | UX-004 | 见证据 | [UX-004原记录（按标题）](ADMIN_WEB_UX_ISSUE_LOG.md) | 核对该UI结果的原验收证据；有关联UAT但范围未证实等同时不机械合并 |
+| UAT-223 | 收藏架/注销确认暴露 Routing、Material Control、On-deck 责任账 | UI / `COPY_INTERNAL` | 历史已实现，待验收核对 | UX-005 | 见证据 | [UX-005原记录（按标题）](ADMIN_WEB_UX_ISSUE_LOG.md) | 核对该UI结果的原验收证据；有关联UAT但范围未证实等同时不机械合并 |
+| UAT-224 | 退出收藏把 Policy AST、Case、Reservation、原始 ID 直接铺开 | UI / `COPY_INTERNAL` | 历史已实现，待验收核对 | UX-007 | 见证据 | [UX-007原记录（按标题）](ADMIN_WEB_UX_ISSUE_LOG.md) | 核对该UI结果的原验收证据；有关联UAT但范围未证实等同时不机械合并 |
+| UAT-225 | 设置页 Provider / Landing / revision / Event 术语未翻译 | UI / `COPY_INTERNAL` | 历史已实现，待验收核对 | UX-008 | 见证据 | [UX-008原记录（按标题）](ADMIN_WEB_UX_ISSUE_LOG.md) | 核对该UI结果的原验收证据；有关联UAT但范围未证实等同时不机械合并 |
+| UAT-226 | 已完成整理仍显示「尚未形成整理动作」 | UI / `COPY_CONFLICT` | 历史已实现，待验收核对 | UX-009 | 见证据 | [UX-009原记录（按标题）](ADMIN_WEB_UX_ISSUE_LOG.md) | 核对该UI结果的原验收证据；有关联UAT但范围未证实等同时不机械合并 |
+| UAT-227 | 已完成行复用「下一步动作」列和进行中操作控件 | UI / `COPY_CONFLICT` | 历史已实现，待验收核对 | UX-010 | 见证据 | [UX-010原记录（按标题）](ADMIN_WEB_UX_ISSUE_LOG.md) | 核对该UI结果的原验收证据；有关联UAT但范围未证实等同时不机械合并 |
+| UAT-228 | 人物页声称维护身份，实际只读且无操作 | UI / `COPY_CONFLICT` | 历史已实现，待验收核对 | UX-011 | 见证据 | [UX-011原记录（按标题）](ADMIN_WEB_UX_ISSUE_LOG.md) | 核对该UI结果的原验收证据；有关联UAT但范围未证实等同时不机械合并 |
+| UAT-229 | 设置页承诺「空间、资源与安全」，实际只有连接和评分日志 | UI / `COPY_CONFLICT` | 历史已实现，待验收核对 | UX-012 | 见证据 | [UX-012原记录（按标题）](ADMIN_WEB_UX_ISSUE_LOG.md) | 核对该UI结果的原验收证据；有关联UAT但范围未证实等同时不机械合并 |
+| UAT-230 | 侧栏固定「正常运行」，与真实健康无关 | UI / `COPY_CONFLICT` | 历史已实现，待验收核对 | UX-013 | 见证据 | [UX-013原记录（按标题）](ADMIN_WEB_UX_ISSUE_LOG.md) | 核对该UI结果的原验收证据；有关联UAT但范围未证实等同时不机械合并 |
+| UAT-231 | 评分日志仍指引用户去已更名的「上架进度」 | UI / `COPY_CONFLICT` | 历史已实现，待验收核对 | UX-014 | 见证据 | [UX-014原记录（按标题）](ADMIN_WEB_UX_ISSUE_LOG.md) | 核对该UI结果的原验收证据；有关联UAT但范围未证实等同时不机械合并 |
+| UAT-232 | 退出收藏页卡片/行/危险阶段无样式，JSON 规则编辑器直出 | UI / `LAYOUT` | 历史已实现，待验收核对 | UX-015 | 见证据 | [UX-015原记录（按标题）](ADMIN_WEB_UX_ISSUE_LOG.md) | 核对该UI结果的原验收证据；有关联UAT但范围未证实等同时不机械合并 |
+| UAT-233 | 媒体整理「当前媒体」九列表格未用尽横轴且内部横向溢出 | UI / `LAYOUT` | 历史已实现，待验收核对 | UX-016 | 见证据 | [UX-016原记录（按标题）](ADMIN_WEB_UX_ISSUE_LOG.md) | 核对该UI结果的原验收证据；有关联UAT但范围未证实等同时不机械合并 |
+| UAT-234 | 四项整理统计塞进三列 `source-facts` 栅格 | UI / `LAYOUT` | 历史已实现，待验收核对 | UX-017 | 见证据 | [UX-017原记录（按标题）](ADMIN_WEB_UX_ISSUE_LOG.md) | 核对该UI结果的原验收证据；有关联UAT但范围未证实等同时不机械合并 |
+| UAT-235 | 收藏架注销确认框没有对话框样式 | UI / `LAYOUT` | 历史已实现，待验收核对 | UX-018 | 见证据 | [UX-018原记录（按标题）](ADMIN_WEB_UX_ISSUE_LOG.md) | 核对该UI结果的原验收证据；有关联UAT但范围未证实等同时不机械合并 |
+| UAT-236 | 收藏详情「退出收藏」区域与 `sr-only` 缺少样式 | UI / `LAYOUT` | 历史已实现，待验收核对 | UX-019 | 见证据 | [UX-019原记录（按标题）](ADMIN_WEB_UX_ISSUE_LOG.md) | 核对该UI结果的原验收证据；有关联UAT但范围未证实等同时不机械合并 |
+| UAT-237 | 登录会话在八页各自复制，文案和布局不一致 | UI / `LAYOUT` | 历史已实现，待验收核对 | UX-020 | 见证据 | [UX-020原记录（按标题）](ADMIN_WEB_UX_ISSUE_LOG.md) | 核对该UI结果的原验收证据；有关联UAT但范围未证实等同时不机械合并 |
+| UAT-238 | 两套 CSS 与一套废弃 `src/pages` 并存 | UI / `LAYOUT` | 历史已实现，待验收核对 | UX-021 | 见证据 | [UX-021原记录（按标题）](ADMIN_WEB_UX_ISSUE_LOG.md) | 核对该UI结果的原验收证据；有关联UAT但范围未证实等同时不机械合并 |
+| UAT-239 | 同页混用 Aptos / Inter / Georgia / 系统黑体，字号阶梯过碎 | UI / `TYPOGRAPHY` | 历史已实现，待验收核对 | UX-022 | 见证据 | [UX-022原记录（按标题）](ADMIN_WEB_UX_ISSUE_LOG.md) | 核对该UI结果的原验收证据；有关联UAT但范围未证实等同时不机械合并 |
+| UAT-240 | 按钮至少八种互不相干的形态 | UI / `BUTTON` | 历史已实现，待验收核对 | UX-024 | 见证据 | [UX-024原记录（按标题）](ADMIN_WEB_UX_ISSUE_LOG.md) | 核对该UI结果的原验收证据；有关联UAT但范围未证实等同时不机械合并 |
+| UAT-241 | 退出收藏与整理表内按钮退回浏览器默认样式 | UI / `BUTTON` | 历史已实现，待验收核对 | UX-025 | 见证据 | [UX-025原记录（按标题）](ADMIN_WEB_UX_ISSUE_LOG.md) | 核对该UI结果的原验收证据；有关联UAT但范围未证实等同时不机械合并 |
+| UAT-242 | 收藏墙逐张拉海报，详情再打健康与评分接口 | UI / `PERFORMANCE` | 历史已实现，待验收核对 | UX-026 | 见证据 | [UX-026原记录（按标题）](ADMIN_WEB_UX_ISSUE_LOG.md) | 核对该UI结果的原验收证据；有关联UAT但范围未证实等同时不机械合并 |
+| UAT-243 | 文件来源按 Field 再打 Routing Policy，观察期间 1s 轮询整表 | UI / `PERFORMANCE` | 历史已实现，待验收核对 | UX-027 | 见证据 | [UX-027原记录（按标题）](ADMIN_WEB_UX_ISSUE_LOG.md) | 核对该UI结果的原验收证据；有关联UAT但范围未证实等同时不机械合并 |
+| UAT-244 | 设置页切到连接 Tab 仍拉取 100 条评分日志 | UI / `PERFORMANCE` | 历史已实现，待验收核对 | UX-028 | 见证据 | [UX-028原记录（按标题）](ADMIN_WEB_UX_ISSUE_LOG.md) | 核对该UI结果的原验收证据；有关联UAT但范围未证实等同时不机械合并 |
+| UAT-245 | 概览所谓 Projection 是请求内五路拼账 | UI / `PERFORMANCE` | 历史已实现，待验收核对 | UX-029 | 见证据 | [UX-029原记录（按标题）](ADMIN_WEB_UX_ISSUE_LOG.md) | 核对该UI结果的原验收证据；有关联UAT但范围未证实等同时不机械合并 |
+| UAT-246 | 退出收藏 3～4 路拼装，preparing 每 500ms 重拉 | UI / `PERFORMANCE` | 历史已实现，待验收核对 | UX-030（退出收藏 3～4 路拼装，preparing 每 500ms 重拉） | 见证据 | [UX-030原记录（按标题）](ADMIN_WEB_UX_ISSUE_LOG.md) | 核对该UI结果的原验收证据；有关联UAT但范围未证实等同时不机械合并 |
+| UAT-247 | Helix 页未使用已引入的 QueryClient，切页无共享缓存 | UI / `PERFORMANCE` | 历史已实现，待验收核对 | UX-031（Helix 页未使用已引入的 QueryClient，切页无共享缓存） | 见证据 | [UX-031原记录（按标题）](ADMIN_WEB_UX_ISSUE_LOG.md) | 核对该UI结果的原验收证据；有关联UAT但范围未证实等同时不机械合并 |
+| UAT-248 | 整体仍是「内部台账皮肤」，缺少统一的媒体产品视觉 | UI / `AESTHETICS` | 历史已实现，待验收核对 | UX-032 | 见证据 | [UX-032原记录（按标题）](ADMIN_WEB_UX_ISSUE_LOG.md) | 核对该UI结果的原验收证据；有关联UAT但范围未证实等同时不机械合并 |
+| UAT-249 | 仍泄漏 Owner、Workspace、Libra Intake；自动运营控件出现两次 | UI / `COPY_INTERNAL` | 历史已实现，待验收核对 | UX-037 | 见证据 | [UX-037原记录（按标题）](ADMIN_WEB_UX_ISSUE_LOG.md) | 核对该UI结果的原验收证据；有关联UAT但范围未证实等同时不机械合并 |

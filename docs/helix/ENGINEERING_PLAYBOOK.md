@@ -1,6 +1,6 @@
 # ShelfDeck Clean Helix Engineering Playbook
 
-Status: active non-Canonical engineering governance；适用于当前PROD迭代，具体范围以用户授权和CURRENT_PLAN为准。
+Status: active non-Canonical engineering governance；适用于当前UAT迭代，具体范围以用户授权和CURRENT_PLAN为准。
 
 Last updated: 2026-09-08
 
@@ -28,7 +28,7 @@ Policy、Capability、Schema、API或产品旅程；这些内容只由`TOP_DOWN_
 
 ## 2. Operating model
 
-所有功能、缺陷、UI、性能和运维迭代统一使用PROD-NNN，唯一编号入口为PRODUCTION_DEPLOY_ISSUE_LOG.md；P1–P13及UAT/UX/AC/BR只保留历史证据身份，不继续作为迭代编号。一个可独立验收的结果一个编号，重复发现关联既有项，复发保留历史关闭并建立新项。
+所有功能、缺陷、UI、性能和运维迭代统一使用UAT-NNN，唯一完整编号入口为UAT_ITERATION_REGISTER.md；原UAT-001–143保留，PROD/UX/AC/BR只作为历史别名，不再新增。一个可独立验收的结果一个编号，重复发现关联既有项，复发保留历史关闭并建立新项。
 
 CURRENT_PLAN只维护顺序、依赖、授权和工作区归属；CURRENT_PHASE只维护当前验收要求及交付链接；CURRENT_STATUS只报告最新部署与未完成事实。流水放Evidence，完成批次归档，不建立平行活动计划。进度区分待实施、本地验证、已部署、验收关闭，不以测试通过冒充用户结果完成。
 
@@ -84,19 +84,19 @@ PROD-065 执行失败诊断使用 Foundation 已有 Attempt `evidence_digest` �
 
 ## 4. Workspace, branch and change isolation
 
-先检查工作区与用户修改。存在冲突或需要并行隔离时使用独立worktree；已有干净且归属明确的任务工作区可继续使用。分支默认codex/，不强制Program→Phase→Work Package三级分支；提交与台账关联PROD编号即可，不为编号重命名现有目录。
+先检查工作区与用户修改。存在冲突或需要并行隔离时使用独立worktree；已有干净且归属明确的任务工作区可继续使用。分支默认codex/，不强制Program→Phase→Work Package三级分支；提交与台账关联UAT编号即可，不为编号重命名现有目录。
 
 同一批次可整合有关联的迭代项，但每项结果独立追溯。并行任务须明确文件归属和统一整合者；不覆盖用户修改，不使用破坏性reset/checkout。清理前核对worktree、临时数据和回滚资料的用途；不按“旧”或“未跟踪”直接删除。代码隔离不授权业务双读写或旧Runtime回流。
 
 ## 5. Iteration contract
 
-每个PROD开工前至少记录：用户可见问题/目标、范围与Owner、证据/合同链接、验收方式。实现后补实现commit、验证结论、部署/未部署状态及未完成风险。小型UI或文档修改不填无关的Effect/事务/复用表。
+每个UAT开工前至少记录：用户可见问题/目标、范围与Owner、证据/合同链接、验收方式。实现后补实现commit、验证结论、部署/未部署状态及未完成风险。小型UI或文档修改不填无关的Effect/事务/复用表。
 
 涉及API、schema、调度或物理副作用时，追加适用的typed I/O、revision、幂等、事务、Fence、资源与恢复合同；涉及历史Runtime提取时才建立function-level reuse ledger。不能用“实现整个模块”等无法验收的宽泛条目代替范围。
 
 ## 6. Definition of Ready
 
-PROD迭代项开工前核对以下适用条件；不涉及的事务/副作用条件无需虚填：
+UAT迭代项开工前核对以下适用条件；不涉及的事务/副作用条件无需虚填：
 
 - SSOT引用明确且没有互相冲突；
 - 唯一Owner和禁止跨域写入边界明确；
@@ -296,10 +296,10 @@ Phase结束时必须独立于实现顺序，从SSOT反向检查：
 
 ## 16. Status and progress reporting
 
-按PROD报告结果，区分本地验证、生产部署和用户场景验收；当前状态不重复保存历史流水。UI性能必须按真实用户操作验收，单接口延迟不能替代整页体验。验证范围依据第11节和实际影响，不为纯文档或低风险文案改动重复运行全栈测试；所需检查通过后，只有新改动、失败或未决风险才扩大/重复验证。
+按UAT报告结果，区分本地验证、生产部署和用户场景验收；当前状态不重复保存历史流水。UI性能必须按真实用户操作验收，单接口延迟不能替代整页体验。验证范围依据第11节和实际影响，不为纯文档或低风险文案改动重复运行全栈测试；所需检查通过后，只有新改动、失败或未决风险才扩大/重复验证。
 
 ## 17. Delivery and closure
 
-迭代项只有在约定结果、适用检查及要求的部署/用户验收全部满足后才能关闭。统一发布可包含多项PROD，逐项关联同一镜像及各自证据。完成批次冻结Evidence，活动文档只留下当前事项；P13结束后必须拆成独立验收/部署任务等旧Program要求不再约束当前迭代。
+迭代项只有在约定结果、适用检查及要求的部署/用户验收全部满足后才能关闭。统一发布可包含多项UAT，逐项关联同一镜像及各自证据。完成批次冻结Evidence，活动文档只留下当前事项；P13结束后必须拆成独立验收/部署任务等旧Program要求不再约束当前迭代。
 
 本次治理整理前全文见implementation/archive/20260908_PRE_PROD_CONSOLIDATION/ENGINEERING_PLAYBOOK.md；该快照不是现行规则。生产数据、媒体处置、凭据保护和Owner边界约束仍有效。

@@ -1,29 +1,30 @@
 # ShelfDeck 当前迭代计划
 
-更新：2026-09-08。ACTIVE；本轮未完成。全部功能、UI及修复使用[统一PROD台账](PRODUCTION_DEPLOY_ISSUE_LOG.md)，历史别名不再扩展。唯一执行包：[CURRENT_PHASE](implementation/CURRENT_PHASE.md)。
+更新：2026-09-08。ACTIVE；[UAT总表](UAT_ITERATION_REGISTER.md)是唯一完整迭代入口。所有功能、修复、UI与运维使用UAT编号，PROD/UX/AC/BR仅为历史别名。唯一执行包：[CURRENT_PHASE](implementation/CURRENT_PHASE.md)。
 
-## 执行顺序
+## 逐项推进顺序
 
-1. **PROD-078**：先完成工作区归属、编号与工程文档整理，本步不实施功能或操作生产。
-2. **PROD-067/068/070/071/072**：完成健康/Case全链路开放合同与后端修正；旧目录回收纳入Arca上架收尾，和健康检查分开。
-3. **PROD-069**：审查整合UI任务交付，保持列表与详情设计克制；与后端依赖一起完成真实浏览器验收。
-4. 主线统一测试与标准部署，按具体PROD记录生产验证；已授权测试后部署，无须重复申请。不得以health端点正常代替用户场景通过。
-5. **PROD-073**：存量旧目录按精确清单及物理处置授权独立推进、独立验收；不是流程修正完成的证明。
-6. **PROD-074/075**：主线后处理评分身份与码率保护支线。**PROD-076/077**保留后台待办，先核实历史Evidence，不扩大当前UI重设计。
-7. 最后清理本任务临时文件、备份与废弃worktree；先核对归属/引用/回滚用途，保留生产回滚材料和审计证据。
+1. **UAT-220**：完成总表合并、编号覆盖、状态证据对账与规则同步；历史缺口必须落到对应行，不藏在汇总待办。
+2. **UAT-211**：修正已完成Settlement历史路径的健康检查边界。
+3. **UAT-213 → UAT-212**：先冻结维护创建目标，再整合维护/收藏UI、历史解释与真实两页响应；e6b7f0424仍待整合。
+4. **UAT-214 → UAT-215 → UAT-210**：人物观察、Arca上架旧目录收尾、健康/Case节流全链路剩余验收分别完成。
+5. 各项按依赖测试及统一标准部署，逐行记录用户结果；需要生产验收的先验收再关闭，不能仅凭health端点或测试通过。
+6. **UAT-216**：存量旧目录按精确清单及授权独立处置；Top Gun只关闭其单项处置，不代表收尾流程已完成。
+7. **UAT-217 → UAT-218**：主线后处理评分身份与码率保护。**UAT-219**及总表其他未关闭历史项按证据、优先级逐一核实；不按编号机械排序，不以同主题直接合并复发。
+8. 最后清理本任务临时文件/废弃worktree；先核对归属、引用和回滚用途，保留审计与生产恢复资料。
 
-## 当前授权与边界
+## 授权与边界
 
-用户授权本轮合同同步、实施、本地测试后标准生产部署；具体合同改变按已确认范围回写，工程规则不能撤销用户授权。当前最新要求先整理文档。Emby审查停止，5分钟自动轮询保持PAUSED。保护现有已上架事实；不执行清库、重新退收藏或未经精确授权的源文件清理。完成Settlement的历史路径不再重复充当健康缺口；额外NFO的物理清理不是变绿前提。
+用户授权先合并完整台账，再逐项推进关闭；本轮既有实施、本地测试后标准部署授权保留。具体合同变化按确认范围回写，新的物理处置仍需精确授权。Emby审查停止、5分钟自动化PAUSED。保护已上架事实，不清库、不重新退收藏，不以手改灯色或删额外NFO掩盖健康检查缺陷。
 
 ## 工作区与交付
 
 | 工作区 / 分支 | 归属与当前用途 |
 | --- | --- |
-| E:/my_project/emby_third_party-helix-iteration / codex/user-pain-iteration | 本任务集成区；代码基线1755743c1，承担主线合同/后端/整合发布；本次文档整理记PROD-078 |
-| E:/my_project/emby_third_party-helix-care-clarity / codex/formation-care-clarity | 用户指定任务“澄清媒体整理维护状态”；PROD-069交付e6b7f0424，基于1755743c1；未整合、未部署 |
+| E:/my_project/emby_third_party-helix-iteration / codex/user-pain-iteration | 本任务集成区；代码基线1755743c1，承担主线合同/后端/整合发布；本次文档整理记UAT-220 |
+| E:/my_project/emby_third_party-helix-care-clarity / codex/formation-care-clarity | 用户指定任务“澄清媒体整理维护状态”；UAT-212交付e6b7f0424，基于1755743c1；未整合、未部署 |
 | E:/my_project/emby_third_party-helix / main | 主工作区，未作为本次编辑目标 |
-| emby_third_party-helix-baseline / codex/collection-clean-baseline | PROD-066历史基线，保留 |
-| emby_third_party-helix-prod065 / codex/prod065-settlement-failure | PROD-065历史修复，保留 |
+| emby_third_party-helix-baseline / codex/collection-clean-baseline | UAT-209历史基线，保留 |
+| emby_third_party-helix-prod065 / codex/prod065-settlement-failure | UAT-208历史修复，保留 |
 
-其余Codex worktree尚未完成归属/引用审查，不自动删除。分支和目录无需为编号批量改名；PROD通过台账、提交和证据映射追溯。历史工作流水已冻结到[整理前快照](implementation/archive/20260908_PRE_PROD_CONSOLIDATION/CURRENT_PLAN.md)。
+其余Codex worktree尚未完成归属/引用审查，不自动删除。分支和目录无需为编号批量改名；UAT通过台账、提交和证据映射追溯。历史工作流水已冻结到[整理前快照](implementation/archive/20260908_PRE_PROD_CONSOLIDATION/CURRENT_PLAN.md)。
