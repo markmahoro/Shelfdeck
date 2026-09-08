@@ -197,6 +197,25 @@ function createInboxCoordinator(options) {
   }
   const repository = definitions(options.schemaManifest);
   return Object.freeze({
+    consumeProjectionSignal(request) {
+      const message=request?.message;
+      if(!message||message.consumerDomain!=='read-model')fail('P3_INBOX_INVALID_PROJECTION_SIGNAL','Only a read-model observation receipt may omit Domain effects.');
+      sha(request.resultDigest,'resultDigest');
+      return options.unitOfWork.execute([{participantId:'projection_signal_receipt',owner:'execution-foundation',repositories:[repository.inbox],execute(context){
+        const inbox=context.repository('inbox');
+        const messageId=text(message.messageId,'messageId'),dedupKey=text(message.dedupKey,'dedupKey');
+        const existing=inbox.invoke('find_message',{consumer_domain:'read-model',message_id:messageId})||
+          inbox.invoke('find_dedup',{consumer_domain:'read-model',dedup_key:dedupKey});
+        if(existing){
+          if(existing.message_id!==messageId||existing.dedup_key!==dedupKey||existing.result_digest!==request.resultDigest)
+            fail('P3_INBOX_DEDUP_CONFLICT','Projection signal conflicts with a consumed observation receipt.');
+          return Object.freeze({replayed:true,messageId,resultDigest:existing.result_digest});
+        }
+        inbox.invoke('insert_inbox',{consumer_domain:'read-model',message_id:messageId,dedup_key:dedupKey,
+          received_at_ms:context.commitTimeMs,consumed_at_ms:context.commitTimeMs,result_digest:request.resultDigest});
+        return Object.freeze({replayed:false,messageId,resultDigest:request.resultDigest});
+      }}]).projection_signal_receipt;
+    },
     consume(request) {
       if (!request || !request.message || !request.domainParticipant || request.domainParticipant.owner !== request.message.consumerDomain) {
         fail('P3_INBOX_INVALID_CONSUME', 'Message consumer and Domain participant Owner must match.');

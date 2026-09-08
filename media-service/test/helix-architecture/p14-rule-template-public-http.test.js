@@ -365,10 +365,13 @@ test('Arca Rule Template public HTTP preserves immutable system defaults and clo
 test('Rule Template publish atomically auto-follows bound Shelves across restart and rolls back a fault', async () => {
   const value = fixture();
   const headers = { 'x-api-key': value.initialized.adminApiKey };
+  const runtimeErrors=[];
   let host = await createCleanServiceHost({
     dataDir: value.dataDir,
     adminDistDir: value.adminDistDir,
     secretRoot,
+    deferredDeliveryKeys:['rule_template_published->read-model'],
+    onExecutionRuntimeError:error=>runtimeErrors.push(error),
   });
   try {
     const shelf = await createShelf(host, headers);
@@ -529,11 +532,38 @@ test('Rule Template publish atomically auto-follows bound Shelves across restart
     );
 
     await host.close();
-    host = await createCleanServiceHost({
-      dataDir: value.dataDir,
-      adminDistDir: value.adminDistDir,
-      secretRoot,
-    });
+    const pendingDb=new Database(value.databasePath);
+    const publication=pendingDb.prepare("SELECT * FROM fx_outbox WHERE message_kind='rule_template_published'").get();
+    assert.equal(publication.state,'pending');
+    const invalidPayload={...JSON.parse(publication.payload_json),rulesDigest:'0'.repeat(64)};
+    pendingDb.prepare('UPDATE fx_outbox SET payload_json=?,payload_digest=? WHERE message_id=?').run(JSON.stringify(invalidPayload),canonicalDigest(invalidPayload),publication.message_id);
+    pendingDb.close();
+    const restart=async()=>{const started=await createCleanServiceHost({dataDir:value.dataDir,adminDistDir:value.adminDistDir,secretRoot,onExecutionRuntimeError:error=>runtimeErrors.push(error)});await started.inject({method:'GET',url:'/v1/health'});return started;};
+    host=await restart();
+    await host.close();
+    const rejectedDb=new Database(value.databasePath);
+    assert.equal(rejectedDb.prepare("SELECT count(*) n FROM fx_inbox WHERE consumer_domain='read-model'").get().n,0);
+    const rejectedDelivery=rejectedDb.prepare('SELECT state,attempt_count FROM fx_outbox_deliveries WHERE message_id=?').get(publication.message_id);
+    assert.equal(rejectedDelivery.state,'pending');assert.ok(rejectedDelivery.attempt_count>=1);
+    assert.ok(runtimeErrors.some(error=>/durable Arca revision/.test(error.message)));
+    rejectedDb.prepare('UPDATE fx_outbox SET payload_json=?,payload_digest=? WHERE message_id=?').run(publication.payload_json,publication.payload_digest,publication.message_id);
+    rejectedDb.prepare('UPDATE fx_outbox_deliveries SET next_attempt_at_ms=0 WHERE message_id=?').run(publication.message_id);
+    rejectedDb.close();runtimeErrors.length=0;
+    host=await restart();
+    await host.close();
+    assert.deepEqual(runtimeErrors.map(error=>({code:error.code,message:error.message,stack:error.stack})),[]);
+    const replayDb=new Database(value.databasePath);
+    assert.equal(replayDb.prepare('SELECT state FROM fx_outbox WHERE message_id=?').get(publication.message_id).state,'fully_acked');
+    assert.equal(replayDb.prepare("SELECT count(*) n FROM fx_inbox WHERE consumer_domain='read-model'").get().n,1);
+    // Simulate loss after Inbox commit but before the delivery ACK; preserve the consumed receipt.
+    replayDb.prepare("UPDATE fx_outbox SET state='pending',all_acked_at_ms=NULL WHERE message_id=?").run(publication.message_id);
+    replayDb.prepare("UPDATE fx_outbox_deliveries SET state='pending',acked_at_ms=NULL,next_attempt_at_ms=0 WHERE message_id=?").run(publication.message_id);
+    replayDb.close();
+    host=await restart();
+    const verifiedDb=new Database(value.databasePath,{readonly:true});
+    assert.equal(verifiedDb.prepare('SELECT state FROM fx_outbox WHERE message_id=?').get(publication.message_id).state,'fully_acked');
+    assert.equal(verifiedDb.prepare("SELECT count(*) n FROM fx_inbox WHERE consumer_domain='read-model'").get().n,1);
+    verifiedDb.close();assert.deepEqual(runtimeErrors,[]);
     const restarted = await host.inject({
       method: 'GET',
       url: '/v1/admin/rule-templates/follow-template',

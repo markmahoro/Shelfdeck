@@ -30,6 +30,24 @@ function createOutboxDispatcherHost(options){const repo=repository(options.schem
     consumerDomain:item.delivery.consumer_domain,payloadSchemaRef:item.message.payload_schema_ref,payloadDigest:item.message.payload_digest,payload});}
   async function deliver(item){let payload;try{payload=JSON.parse(item.message.payload_json);}catch{throw new Error('Outbox payload JSON is corrupt.');}
     if(canonicalDigest(payload)!==item.message.payload_digest)throw new Error('Outbox payload digest is corrupt.');
+    if(item.message.message_kind==='rule_template_published'&&item.delivery.consumer_domain==='read-model'){
+      if(item.message.producer_domain!=='arca'||item.message.aggregate_type!=='rule_template'||
+          item.message.payload_schema_ref!=='helix://contracts/messages/ArcaRuleTemplatePublished/v1'||
+          payload.messageKind!=='rule_template_published'||payload.ruleTemplateId!==item.message.aggregate_id||
+          payload.ruleTemplateRevision!==Number(item.message.aggregate_revision)||
+          !Number.isSafeInteger(payload.ruleTemplateRevision)||payload.ruleTemplateRevision<1||
+          !/^[a-f0-9]{64}$/.test(payload.rulesDigest)||!/^[a-f0-9]{64}$/.test(payload.affectedShelfSetDigest))
+        throw new Error('Rule Template publication signal is invalid.');
+      const published=options.readPublishedRuleTemplate?.(payload.ruleTemplateId,payload.ruleTemplateRevision);
+      if(!published||published.templateId!==payload.ruleTemplateId||published.revision!==payload.ruleTemplateRevision||published.rulesDigest!==payload.rulesDigest)
+        throw new Error('Rule Template publication does not match the durable Arca revision.');
+      // Shelf Standards and their read projections are published atomically by Arca.
+      // Receipt this exact immutable revision; never reapply an old publication.
+      const resultDigest=canonicalDigest({schema:'read-model.rule-template-publication-consumption@1',
+        templateId:published.templateId,revision:published.revision,rulesDigest:published.rulesDigest});
+      inbox.consumeProjectionSignal({message:{messageId:item.message.message_id,dedupKey:item.message.dedup_key,consumerDomain:'read-model'},resultDigest});
+      inbox.acknowledge({messageId:item.message.message_id,consumerDomain:'read-model'});return;
+    }
     if(item.message.message_kind==='procurement_candidate_offer_available'&&item.delivery.consumer_domain==='libra'){
       const admitted=options.intakeCoordinator.admitOffer(payload),resultDigest=canonicalDigest({schema:'libra.intake-offer-consumption@1',
         processId:admitted.processId,workId:admitted.work.workId,basisDigest:admitted.work.executionBasisDigest});

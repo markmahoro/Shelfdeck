@@ -224,3 +224,14 @@ test('startup rejects tampered frozen consumers and ack without Inbox', () => {
       (error) => error.code === 'P3_SQLITE_ACK_WITHOUT_INBOX');
   });
 });
+
+
+test('UAT-254 projection receipts are replay-safe and cannot bypass Business Domain consumption',()=>fixture(({inbox,unitOfWork})=>{
+  publish(unitOfWork,message({intendedConsumers:['read-model']}));
+  const request={message:{messageId:'message-1',consumerDomain:'read-model',dedupKey:'subject-1/revision-1'},resultDigest:digest('observed-projection')};
+  assert.equal(inbox.consumeProjectionSignal(request).replayed,false);
+  assert.equal(inbox.consumeProjectionSignal(request).replayed,true);
+  assert.throws(()=>inbox.consumeProjectionSignal({...request,resultDigest:digest('different')}),{code:'P3_INBOX_DEDUP_CONFLICT'});
+  assert.throws(()=>inbox.consumeProjectionSignal({...request,message:{...request.message,consumerDomain:'arca'}}),{code:'P3_INBOX_INVALID_PROJECTION_SIGNAL'});
+  assert.equal(inbox.acknowledge({messageId:'message-1',consumerDomain:'read-model'}).allAcked,true);
+}));

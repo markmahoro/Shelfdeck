@@ -1585,6 +1585,7 @@ async function createCleanServiceHost(options) {
     ...constructed.applicationDependencies,
     now: options.now || Date.now,
     intakeCoordinator: procurementExecution.intakeCoordinator,
+    readPublishedRuleTemplate: (templateId, revision) => arcaRuleTemplateAdmin.readPublishedRevision(templateId, revision),
     acceptanceConsumer: candidateAcceptance,
     rejectionConsumer: candidateRejection,
     failedPreparationRetryService,

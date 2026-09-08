@@ -422,6 +422,18 @@ function createRuleTemplateStore(options) {
       findTemplate(context.repository(repository.repositoryId), templateId));
   }
 
+  function readPublishedRevision(templateId, publishedRevision) {
+    text(templateId, 'templateId');
+    revision(publishedRevision, 'publishedRevision');
+    return execute((context) => {
+      const repo=context.repository(repository.repositoryId);
+      const head=repo.invoke('find_template',{rule_template_id:templateId});
+      if(!head||Number(head.current_revision)<publishedRevision)return null;
+      const value=mapRevision(repo.invoke('find_revision',{rule_template_id:templateId,revision:publishedRevision}));
+      return value&&Object.freeze({templateId:value.templateId,revision:Number(value.revision),rulesDigest:value.rulesDigest});
+    });
+  }
+
   function getDraft(templateId) {
     text(templateId, 'templateId');
     return execute((context) => {
@@ -1134,6 +1146,7 @@ function createRuleTemplateStore(options) {
     }),
     listTemplates,
     getTemplate,
+    readPublishedRevision,
     getDraft,
     history,
     copyTemplate,
