@@ -590,6 +590,14 @@ function createLibraRunCoordinator(options){
       if(!result||!committed||result.result.identityDigest!==committed.factValue.identityDigest)
         throw new Error('Terminal Product Identity Work did not atomically publish its Product Fact.');
     }
+    const currentRequirements=options.resolveCurrentAcceptanceSpec(snapshot.run.subjectId);
+    if(currentRequirements.kind!=='ready')return Object.freeze({kind:'pending',phase:'formal_identity_rating_resolution',libraRunId,
+      workId:currentRequirements.workId||null,reasonCode:currentRequirements.reasonCode||null});
+    if(currentRequirements.spec.specDigest!==snapshot.spec.specDigest){
+      options.wake?.();
+      return Object.freeze({kind:'pending',phase:'acceptance_requirements_changed',libraRunId,
+        acceptanceSpecId:currentRequirements.spec.acceptanceSpecId});
+    }
     const metadataStage=nextMetadataStage(options,snapshot,committed);
     if(metadataStage.kind==='unavailable')return Object.freeze({
       kind:'waiting_external_integration', phase:'product_metadata_observation',libraRunId,

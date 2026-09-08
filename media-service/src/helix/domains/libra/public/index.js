@@ -226,7 +226,13 @@ function createExecutionRegistration() {
       const productIdentitySelection=createProductIdentitySelectionService(options);
       const libraRunLifecycleService=createLibraRunLifecycleService({...options,libraRunExecutionProjection});
       const movieProductionReader=options.movieProductionReader||createMovieProductionReader(options);
-      const libraRunCoordinator=createLibraRunCoordinator({...options,movieProductionReader,libraRunLifecycleService,productIdentitySelection});
+      const libraRunCoordinator=createLibraRunCoordinator({...options,movieProductionReader,libraRunLifecycleService,productIdentitySelection,
+        resolveCurrentAcceptanceSpec(subjectId){
+          const resolution=acceptanceSpecCoordinator.reconcile(subjectId);
+          if(resolution.kind!=='terminal')return resolution;
+          const context=libraRunContextReader.read(subjectId);
+          return context.kind==='ready'?Object.freeze({kind:'ready',spec:context.spec}):context;
+        }});
       return Object.freeze({offerReader,decisionResolver,coordinator,routingContextReader,routingCoordinator,acceptanceSpecContextReader,
         acceptanceSpecCoordinator,libraRunContextReader,libraRunCreator,movieProductionReader,libraRunCoordinator,
         libraRunExecutionProjection,libraRunLifecycleService,productIdentitySelection,pipelineAdmission,intakeStore});

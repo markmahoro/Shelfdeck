@@ -101,9 +101,6 @@ const { createExecutionProgressProjectionReader } = require('./helix/foundation/
 const { createRoutingManualSelectionService } = require('./helix/domains/libra/application/routing-manual-selection-service');
 const { createLibraRunAdminService } = require('./helix/domains/libra/application/libra-run-admin-service');
 const { createFieldIntakeAdmissionAdminService } = require('./helix/domains/libra/application/field-intake-admission-admin-service');
-const {
-  buildRatingTargetIdentity,
-} = require('./helix/domains/libra/model/decision-identity-evidence-contracts');
 const { createSessionTokenService } = require('./helix/platform/public/session-token-service');
 const {
   createAdminCredentialRuntime,
@@ -1510,18 +1507,7 @@ async function createCleanServiceHost(options) {
     targetProjectionReader: options.perceptionTargetProjectionReader || ((targetType, targetId) => {
       if (targetType === 'shelf_entry') return arcaCollectionQuery.targetProjection(targetId);
       if (targetType !== 'subject') return null;
-      const context = routingExecution?.routingContextReader.read(targetId);
-      if (!context) return null;
-      const claim = context.deliverySnapshot?.candidatePackage?.identityClaim || {};
-      const derivedIdentity = buildRatingTargetIdentity({
-        title: claim.claimedTitle || claim.displayTitle || targetId,
-        year: claim.claimedYear,
-        providerIdentity: null,
-      });
-      const body = { targetType:'subject', targetId, targetRevision:context.subject.intakeRevision,
-        title:derivedIdentity.title, year:derivedIdentity.year, providerIdentity:derivedIdentity.providerIdentity,
-        subjectSnapshotDigest:context.subject.snapshotDigest };
-      return Object.freeze({ ...body, targetDigest:canonicalDigest(body) });
+      return routingExecution?.routingContextReader.ratingTarget(targetId)||null;
     }),
     workspaceProductPort,
     productProductionPort,

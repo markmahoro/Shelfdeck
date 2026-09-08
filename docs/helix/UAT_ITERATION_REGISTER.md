@@ -226,7 +226,7 @@
 | UAT-214 | NFO人物观察与确定关联记录更新 | 当前迭代 | 待实施 | PROD-071；AC-09 | 见证据 | [PROD-071原记录](PRODUCTION_DEPLOY_ISSUE_LOG.md) | 新NFO观察到People Evidence与确定关系更新全链，按revision游标不遗漏，不建Case不重写NFO。执行B2；依赖/承接：211独立；关联055/071/171。 |
 | UAT-215 | 旧目录清理与回收接入Arca上架收尾 | 当前迭代 | 待设计与实施 | PROD-072 | 见证据 | [PROD-072原记录](PRODUCTION_DEPLOY_ISSUE_LOG.md) | 新上架检查/精确处置/异常/重试/重启恢复，额外完整版本与sample保护；能力存在不等于流程完成。执行B2；依赖/承接：Arca收尾合同；251仅首次终局衔接。 |
 | UAT-216 | 已上架电影旧目录存量治理 | 当前迭代 | 存量待处置 | PROD-073 | 见证据 | [PROD-073原记录](PRODUCTION_DEPLOY_ISSUE_LOG.md) | 刷新逐文件清单后另行授权，种子/sample/另一1080p分开；Top Gun定向操作不关闭自动流程。执行B5；依赖/承接：215流程独立验；精确新授权。 |
-| UAT-217 | 正式影片身份形成后的评分与Acceptance重算 | 当前迭代 | 支线待实施 | PROD-074；BR-01 | 见证据 | [PROD-074原记录](PRODUCTION_DEPLOY_ISSUE_LOG.md) | 正式身份后评分/Spec语义变化再决策，无变化不重发；完整生产链验证，251终局独立。执行B2；依赖/承接：无；关联060/079/063。 |
+| UAT-217 | 正式影片身份形成后的评分与Acceptance重算 | 当前迭代 | 本地修正，待全链路验收 | PROD-074；BR-01 | 本轮提交见Evidence | [正式身份评分修正](implementation/evidence/UAT-217_FORMAL_IDENTITY_RATING_20260908.md) | 正式身份Target与生产前Resolution已修正；17定向PASS，要求未变不重做。仍须真实评分命中→要求变化→合法Run接续→上架验收；不Reset旧冻结项。执行B2；关联079/060/251。 |
 | UAT-218 | Aftercare与Libra转码码率质量保护对齐 | 当前迭代 | 支线待实施 | PROD-075；BR-02 | 见证据 | [PROD-075原记录](PRODUCTION_DEPLOY_ISSUE_LOG.md) | 同源Libra/Aftercare质量下限与预算对照，不能同时满足时保留质量/原片并结束尝试。执行B1；依赖/承接：251不可达结果；关联059/200。 |
 | UAT-219 | 中文标签字距与字号一致性 | 当前迭代 | 待核实 | PROD-076；UX-023 | 见证据 | [PROD-076原记录](PRODUCTION_DEPLOY_ISSUE_LOG.md)；[UX-023同结果记录](ADMIN_WEB_UX_ISSUE_LOG.md) | 真实中文层级核查字号/字距后克制修正，响应式浏览器证据。执行B4；依赖/承接：239基础；212整合后。 |
 | UAT-220 | 统一UAT总表、逐项证据对账与工程规则整理 | 当前迭代 | 已关闭（文档验收） | PROD-077；PROD-078 | 1d5226327 | [覆盖与检查证据](implementation/evidence/UAT-220_REGISTER_CONSOLIDATION_20260908.md)；治理前序提交1d5226327 | 无；功能现场验证仍由各自UAT逐项推进 |

@@ -1,5 +1,6 @@
 'use strict';
 
+const {subjectRatingTarget}=require('../model/subject-rating-target');
 const { canonicalDigest } = require('../../../contracts/canonical-json');
 const { createRepositoryDefinition } = require('../../../foundation/persistence/owner-repository');
 const { buildDecisionInputSet, decisionHeadDigest } = require('../model/decision-front-half-contracts');
@@ -29,7 +30,7 @@ function createRoutingContextReader(options) {
         'decision_identity_evidence_digest'
       ], keyColumns: ['intake_decision_id'] },
       find_identity: { kind: 'select-one', tableId: 'libra_product_identity_revisions', columns: [
-        'subject_id', 'revision', 'identity_digest'
+        'subject_id', 'revision', 'identity_digest', 'display_identity', 'identity_kind'
       ], keyColumns: ['subject_id', 'revision'] },
       find_head: { kind: 'select-one', tableId: 'libra_subject_decision_heads', columns: [
         'subject_id', 'head_revision', 'head_digest', 'current_routing_decision_id', 'current_decision_basis_id',
@@ -280,7 +281,7 @@ function createRoutingContextReader(options) {
     return Object.freeze({ items, nextCursor: start + limit < values.length ? items.at(-1).subjectId : null });
   }
 
-  return Object.freeze({ read, currentState, currentRoutingDecision, requiredExternalFactKinds, factObservationIntent, nfoReadHandle, buildInputSet,
+  return Object.freeze({ read, ratingTarget:(subjectId)=>subjectRatingTarget(read(subjectId)), currentState, currentRoutingDecision, requiredExternalFactKinds, factObservationIntent, nfoReadHandle, buildInputSet,
     listActiveSubjectPage, normalizeTitle: normalize, policies });
 }
 
