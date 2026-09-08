@@ -378,11 +378,13 @@ test('Aftercare placement repair declares every projected Event Result as a dire
   assert.deepEqual(finalVerify.dependsOn.map((item) => item.eventId).sort(), [stage.eventId, placement.eventId].sort());
 });
 
-test('Planner and Settlement materialization share filename-aware artifact classification', () => {
+test('Planner and Settlement materialization use the frozen Inventory artifact role', () => {
   const planner=fs.readFileSync(path.join(__dirname,'../../src/helix/domains/arca/planning/aftercare-planners.js'),'utf8'),
     capability=fs.readFileSync(path.join(__dirname,'../../src/helix/domains/arca/capabilities/aftercare-capability-ports.js'),'utf8');
-  assert.equal(isAftercareArtifactMaterial({ role:'sidecar',location:'F:/movie/movie.nfo' },'nfo'),true);
-  assert.equal(isAftercareArtifactMaterial({ role:'related_artwork',location:'F:/movie/poster.jpg' },'poster'),true);
+  assert.equal(isAftercareArtifactMaterial({ role:'sidecar',location:'F:/movie/movie.nfo' },'nfo'),false);
+  assert.equal(isAftercareArtifactMaterial({role:'metadata_sidecar',location:'F:/movie/movie.nfo'},'nfo'),true);
+  assert.equal(isAftercareArtifactMaterial({ role:'sidecar',location:'F:/movie/poster.jpg' },'poster'),false);
+  assert.equal(isAftercareArtifactMaterial({role:'poster',location:'F:/movie/cover.jpg'},'poster'),true);
   assert.match(planner,/outputKinds\.has\('nfo'\)&&isAftercareArtifactMaterial\(item,'nfo'\)/);
   assert.match(planner,/outputKinds\.has\('poster'\)&&isAftercareArtifactMaterial\(item,'poster'\)/);
   assert.match(capability,/function isNfoMaterial\(item\)\{return isAftercareArtifactMaterial\(item,'nfo'\);\}/);

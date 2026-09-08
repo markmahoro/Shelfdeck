@@ -9,6 +9,7 @@ const { spawn, spawnSync } = require('node:child_process');
 const test = require('node:test');
 const Database = require('better-sqlite3');
 const ffmpeg = require('ffmpeg-static');
+const sharp = require('sharp');
 const { initializeCleanData } = require('../scripts/helix-operational-safety');
 const { createCleanServiceHost } = require('../src/clean-service-host');
 const { createCleanMediaProbe } = require('../src/clean-media-probe');
@@ -163,7 +164,8 @@ function productOptions(metadataCalls = null, metadataGate = null) {
     },
     productProviderArtifactFetch: async ({ artifactKind, resolvedProviderIdentity, integrationHandle }) =>
       Object.freeze({ resultKind:'acquired',
-        bytes:Buffer.from('ffd8ffe000104a46494600010100000100010000ffd9', 'hex'), artifactKind,
+        bytes:await sharp({ create:{ width:32, height:48, channels:3,
+          background:{ r:40, g:80, b:120 } } }).jpeg().toBuffer(), artifactKind,
         integrationId:integrationHandle.integrationId, configRevision:integrationHandle.configRevision,
         mediaType:'image/jpeg', resolvedProviderIdentity }),
   });
@@ -723,7 +725,7 @@ test('P14 one-movie product path accepts Handoff B and atomically establishes an
   assert.ok(sourceItems.some((item) => item.name.endsWith('.mkv')));
   assert.ok(sourceItems.some((item) => item.name.endsWith('-poster.jpg')));
   for (const item of sourceItems) fs.copyFileSync(path.join(SOURCE_ROOT, item.name), path.join(source, item.name));
-  const sourceBefore = reality(source);
+  const sourceBefore = reality(SOURCE_ROOT);
   const initialized = initializeCleanData({ dataDir, confirmation:'INITIALIZE_HELIX_CLEAN_V1', secretRoot:SECRET });
   let runtimeError = null;
   const hostOptions = Object.freeze({ dataDir, adminDistDir:admin, secretRoot:SECRET,
@@ -766,6 +768,14 @@ test('P14 one-movie product path accepts Handoff B and atomically establishes an
   });
   assert.ifError(runtimeError);
 
+  const sourceAfterOnDeck = reality(source);
+  // Observe the independent record-only People reconciliation before physical repair.
+  const initialInventoryRevision=await waitDatabase(databasePath,db=>{
+    const entry=db.prepare('SELECT shelf_entry_id,current_inventory_revision FROM arca_shelf_entries').get();
+    const relations=entry&&db.prepare('SELECT person_id FROM arca_inventory_person_relations WHERE shelf_entry_id=? AND inventory_revision=?').all(entry.shelf_entry_id,entry.current_inventory_revision);
+    return relations?.length&&relations.every(row=>row.person_id)?Number(entry.current_inventory_revision):null;
+  },90000);
+  assert.ok(initialInventoryRevision>=2);
   const database = new Database(databasePath, { readonly:true });
   let entryId;
   try {
@@ -776,7 +786,7 @@ test('P14 one-movie product path accepts Handoff B and atomically establishes an
     assert.equal(one('arca_ondeck_runs'), 1);
     assert.equal(one('arca_shelf_entries'), 1);
     assert.equal(one('arca_source_cleanup_checks'),1);
-    assert.equal(one('arca_inventory_representations'), 1);
+    assert.equal(one('arca_inventory_representations'), initialInventoryRevision);
     assert.equal(one('arca_deck_fact_revisions'), 1);
     assert.equal(one('arca_offload_completions'), 1);
     assert.equal(one('libra_delivery_receipts'), 1);
@@ -829,7 +839,7 @@ test('P14 one-movie product path accepts Handoff B and atomically establishes an
   let oldNfoMaterialKeys;
   try {
     oldNfoMaterialKeys = beforeRepair.prepare(
-      "SELECT material_key FROM arca_inventory_materials WHERE shelf_entry_id=? AND inventory_revision=1 AND role='metadata_sidecar' AND lower(location) LIKE '%.nfo' ORDER BY material_key",
+      `SELECT material_key FROM arca_inventory_materials WHERE shelf_entry_id=? AND inventory_revision=${initialInventoryRevision} AND role='metadata_sidecar' AND lower(location) LIKE '%.nfo' ORDER BY material_key`,
     ).all(entryId).map((row) => row.material_key);
   } finally { beforeRepair.close(); }
   assert.equal(oldNfoMaterialKeys.length, nfoLocations.length,
@@ -853,14 +863,14 @@ test('P14 one-movie product path accepts Handoff B and atomically establishes an
       "SELECT count(*) count FROM fx_workflow_events WHERE owner_domain='arca' AND state='failed'",
     ).get().count;
     return failedWorks || failedEvents ||
-      (Number(entry?.current_inventory_revision) === 2 && Number(one.count) === 1)
+      (Number(entry?.current_inventory_revision) === initialInventoryRevision+1 && Number(one.count) === 1)
       ? { inventoryRevision:Number(entry?.current_inventory_revision || 0),
         resolvedCases:Number(one.count), failedWorks:Number(failedWorks),
         failedEvents:Number(failedEvents) }
       : null;
   }, 180_000);
   assert.deepEqual(repaired, {
-    inventoryRevision:2,
+    inventoryRevision:initialInventoryRevision+1,
     resolvedCases:1,
     failedWorks:0,
     failedEvents:0,
@@ -888,7 +898,7 @@ test('P14 one-movie product path accepts Handoff B and atomically establishes an
       assert.equal(oldControl.owner_domain, null);
     }
     const currentNfo = afterRepair.prepare(
-      "SELECT material_key FROM arca_inventory_materials WHERE shelf_entry_id=? AND inventory_revision=2 AND role='metadata_sidecar'",
+      `SELECT material_key FROM arca_inventory_materials WHERE shelf_entry_id=? AND inventory_revision=${initialInventoryRevision+1} AND role='metadata_sidecar'`,
     ).get(entryId);
     assert.ok(currentNfo?.material_key);
     assert.equal(oldNfoMaterialKeys.includes(currentNfo.material_key), false);
@@ -916,13 +926,13 @@ test('P14 one-movie product path accepts Handoff B and atomically establishes an
   const beforePosterRepair = new Database(databasePath, { readonly:true });
   let oldPosterMaterialKeys;
   try {
-    const represented=beforePosterRepair.prepare('SELECT location FROM arca_inventory_materials WHERE shelf_entry_id=? AND inventory_revision=2').all(entryId);
+    const represented=beforePosterRepair.prepare(`SELECT location FROM arca_inventory_materials WHERE shelf_entry_id=? AND inventory_revision=${initialInventoryRevision+1}`).all(entryId);
     for(const location of posterLocations)assert.equal(represented.filter(row=>path.resolve(row.location)===path.resolve(location)).length,1,'Every physical poster-named file has one exact Inventory member, regardless of its business role.');
-    const formalPosters=beforePosterRepair.prepare("SELECT location FROM arca_inventory_materials WHERE shelf_entry_id=? AND inventory_revision=2 AND role='poster'").all(entryId);
+    const formalPosters=beforePosterRepair.prepare(`SELECT location FROM arca_inventory_materials WHERE shelf_entry_id=? AND inventory_revision=${initialInventoryRevision+1} AND role='poster'`).all(entryId);
     // File names do not grant the poster role to a preserved generic sidecar.
     posterLocations.splice(0,posterLocations.length,...formalPosters.map(row=>row.location));
     oldPosterMaterialKeys = beforePosterRepair.prepare(
-      "SELECT material_key FROM arca_inventory_materials WHERE shelf_entry_id=? AND inventory_revision=2 AND role='poster' ORDER BY material_key",
+      `SELECT material_key FROM arca_inventory_materials WHERE shelf_entry_id=? AND inventory_revision=${initialInventoryRevision+1} AND role='poster' ORDER BY material_key`,
     ).all(entryId).map((row) => row.material_key);
   } finally { beforePosterRepair.close(); }
   assert.equal(oldPosterMaterialKeys.length, posterLocations.length,
@@ -946,14 +956,14 @@ test('P14 one-movie product path accepts Handoff B and atomically establishes an
       "SELECT count(*) count FROM fx_workflow_events WHERE owner_domain='arca' AND state='failed'",
     ).get().count;
     return failedWorks || failedEvents ||
-      (Number(entry?.current_inventory_revision) === 3 && Number(resolved.count) === 2)
+      (Number(entry?.current_inventory_revision) === initialInventoryRevision+2 && Number(resolved.count) === 2)
       ? { inventoryRevision:Number(entry?.current_inventory_revision || 0),
         resolvedCases:Number(resolved.count), failedWorks:Number(failedWorks),
         failedEvents:Number(failedEvents) }
       : null;
   }, 180_000);
   assert.deepEqual(posterRepaired, {
-    inventoryRevision:3,
+    inventoryRevision:initialInventoryRevision+2,
     resolvedCases:2,
     failedWorks:0,
     failedEvents:0,
@@ -968,7 +978,7 @@ test('P14 one-movie product path accepts Handoff B and atomically establishes an
       assert.equal(oldControl.owner_domain, null);
     }
     const currentPosters = afterPosterRepair.prepare(
-      "SELECT material_key,location FROM arca_inventory_materials WHERE shelf_entry_id=? AND inventory_revision=3 AND role='poster'",
+      `SELECT material_key,location FROM arca_inventory_materials WHERE shelf_entry_id=? AND inventory_revision=${initialInventoryRevision+2} AND role='poster'`,
     ).all(entryId);
     assert.equal(currentPosters.length, 1);
     assert.equal(oldPosterMaterialKeys.includes(currentPosters[0].material_key), false);
@@ -986,7 +996,8 @@ test('P14 one-movie product path accepts Handoff B and atomically establishes an
   assert.equal(finalCare.statusCode, 200, finalCare.body);
   assert.equal(finalCare.json().health.state, 'healthy');
   assert.equal(finalCare.json().history.commits.length, 2);
-  assert.deepEqual(reality(source), sourceBefore);
+  assert.deepEqual(reality(source), sourceAfterOnDeck);
+  assert.deepEqual(reality(SOURCE_ROOT), sourceBefore);
   assert.equal(fs.readdirSync(shelf).some((item) => item.startsWith('.shelfdeck-stage-')), false);
 
   // A published Shelf Placement revision is an exact Aftercare Basis change.
@@ -1043,18 +1054,18 @@ test('P14 one-movie product path accepts Handoff B and atomically establishes an
       "SELECT count(*) count FROM fx_workflow_events WHERE owner_domain='arca' AND state='failed'",
     ).get().count);
     return failedWorks || failedEvents ||
-      (Number(entry?.current_inventory_revision) === 4 && Number(resolved.count) === 3)
+      (Number(entry?.current_inventory_revision) === initialInventoryRevision+3 && Number(resolved.count) === 3)
       ? Object.freeze({ inventoryRevision:Number(entry?.current_inventory_revision || 0),
         resolvedCases:Number(resolved.count), failedWorks, failedEvents })
       : null;
   }, 180_000);
   assert.deepEqual(migrated, {
-    inventoryRevision:4, resolvedCases:3, failedWorks:0, failedEvents:0,
+    inventoryRevision:initialInventoryRevision+3, resolvedCases:3, failedWorks:0, failedEvents:0,
   });
   const migrationEvidence = new Database(databasePath, { readonly:true });
   try {
     const locations = migrationEvidence.prepare(
-      'SELECT endpoint_id,location FROM arca_inventory_materials WHERE shelf_entry_id=? AND inventory_revision=4 ORDER BY ordinal',
+      `SELECT endpoint_id,location FROM arca_inventory_materials WHERE shelf_entry_id=? AND inventory_revision=${initialInventoryRevision+3} ORDER BY ordinal`,
     ).all(entryId);
     assert.ok(locations.length >= 3);
     for (const item of locations) {
@@ -1090,12 +1101,12 @@ test('P14 one-movie product path accepts Handoff B and atomically establishes an
     assert.equal(cleanup[0].on_deck_run_id,restarted.prepare('SELECT on_deck_run_id FROM arca_ondeck_commit_receipts').get().on_deck_run_id);
     assert.equal(restarted.prepare('SELECT count(*) count FROM arca_offload_completions').get().count, 1);
     assert.equal(restarted.prepare("SELECT count(*) count FROM arca_aftercare_cases WHERE state='resolved'").get().count, 3);
-    assert.equal(restarted.prepare('SELECT current_inventory_revision FROM arca_shelf_entries').get().current_inventory_revision, 4);
+    assert.equal(restarted.prepare('SELECT current_inventory_revision FROM arca_shelf_entries').get().current_inventory_revision, initialInventoryRevision+3);
     currentPrimaryLocation = restarted.prepare(
-      "SELECT location FROM arca_inventory_materials WHERE shelf_entry_id=? AND inventory_revision=4 AND role='primary_payload'",
+      `SELECT location FROM arca_inventory_materials WHERE shelf_entry_id=? AND inventory_revision=${initialInventoryRevision+3} AND role='primary_payload'`,
     ).get(entryId).location;
     currentNfoLocation = restarted.prepare(
-      "SELECT location FROM arca_inventory_materials WHERE shelf_entry_id=? AND inventory_revision=4 AND role='metadata_sidecar' AND lower(location) LIKE '%.nfo'",
+      `SELECT location FROM arca_inventory_materials WHERE shelf_entry_id=? AND inventory_revision=${initialInventoryRevision+3} AND role='metadata_sidecar' AND lower(location) LIKE '%.nfo'`,
     ).get(entryId).location;
     renderCountBeforeBlockedRepair = Number(restarted.prepare(
       "SELECT count(*) count FROM fx_workflow_events WHERE capability_ref='arca.aftercare.text_artifact.render@1' AND state='succeeded'",
@@ -1124,7 +1135,7 @@ test('P14 one-movie product path accepts Handoff B and atomically establishes an
   try {
     assert.equal(blockedEvidence.prepare(
       'SELECT current_inventory_revision FROM arca_shelf_entries WHERE shelf_entry_id=?',
-    ).get(entryId).current_inventory_revision, 4);
+    ).get(entryId).current_inventory_revision, initialInventoryRevision+3);
     assert.equal(blockedEvidence.prepare(
       "SELECT count(*) count FROM arca_aftercare_cases WHERE shelf_entry_id=? AND state='resolved'",
     ).get(entryId).count, 3);
@@ -1179,7 +1190,7 @@ test('P14 one-movie product path accepts Handoff B and atomically establishes an
   let currentInventoryLocations;
   try {
     currentInventoryLocations = scopeBefore.prepare(
-      'SELECT material_key,location FROM arca_inventory_materials WHERE shelf_entry_id=? AND inventory_revision=4 ORDER BY ordinal',
+      `SELECT material_key,location FROM arca_inventory_materials WHERE shelf_entry_id=? AND inventory_revision=${initialInventoryRevision+3} ORDER BY ordinal`,
     ).all(entryId);
   } finally { scopeBefore.close(); }
   assert.ok(currentInventoryLocations.length >= 3);

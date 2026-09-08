@@ -58,3 +58,5 @@ UAT-219/239核实当前字体栈统一，克制收敛五组中文标签至12px/�
 - UAT-215已本地建立On-deck Commit同事务收尾责任、按Run有界检查及Settings待办。21定向、Web58/构建、222文件四门禁PASS；真实媒体与完整Service仍在运行，未部署/未关闭。当前合同计数113/99/188/45；旧Entry不回填自动清理责任，UAT-216未执行。详见`implementation/evidence/UAT-215_ONDECK_SOURCE_CLEANUP_20260908.md`。
 
 - UAT-215新增真实隔离媒体链路38.2s PASS，后台正常检查持久责任、公开API可见、重启不重复且零Case。Service串行509 PASS/18 SKIP。旧Aftercare长链路遇到文件名推角色和固定Inventory revision的测试假设，后续按UAT-210/214继续精确验收，不算全链路已通过。
+
+- UAT-214连续性修正106575a06，51关联测试与222文件架构门禁通过。UAT-210精确Artifact角色修复通过真实NFO/海报两次维护；长链Target迁移后Settlement源Handle校验失败，尚未闭合。19:11生产只读仍3活跃展示（1进行/2需处理）、62收藏，无active维护Case；未部署或清理生产。

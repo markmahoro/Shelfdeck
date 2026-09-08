@@ -30,10 +30,10 @@ const ASSESSMENT_KINDS = Object.freeze(['custody','presentation','conformance'])
 const PERIODS = Object.freeze({ custodyMs:24*60*60*1000, deepMs:7*24*60*60*1000, jitterMs:2*60*60*1000 });
 
 function isAftercareArtifactMaterial(item, artifactKind) {
-  const role=String(item?.role||'').toLowerCase(),location=String(item?.location||''),name=path.basename(location).toLowerCase();
-  if(artifactKind==='nfo')return role.includes('nfo')||role==='metadata_sidecar'||path.extname(location).toLowerCase()==='.nfo';
-  if(artifactKind==='poster')return role.includes('poster')||/(^|[-_. ])poster\.(jpg|jpeg|png|webp)$/.test(name);
-  return false;
+  // Inventory freezes a single business role. File names cannot promote a
+  // generic sidecar into a required artifact or authorize its replacement.
+  return (artifactKind==='nfo'&&item?.role==='metadata_sidecar')||
+    (artifactKind==='poster'&&item?.role==='poster');
 }
 
 function physicalIdentityFromInventoryRow(row) {
