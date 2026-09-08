@@ -93,7 +93,7 @@
           "capabilityRef": "arca.aftercare.text_artifact.render@1",
           "source": {
             "section": "8.6.11",
-            "line": 10279,
+            "line": 10282,
             "lineDigest": "6fd2daa223392e9088cebcf0aebaf24bd0ccaf71f14102c7825130e8c698dfe4"
           },
           "typeExpression": "Accepted Product Facts"
@@ -137,7 +137,7 @@
           "capabilityRef": "arca.offdeck.duplicate.detect@1",
           "source": {
             "section": "8.6.12",
-            "line": 10336,
+            "line": 10339,
             "lineDigest": "33fe97fdb742d737d0e0a0d741431293676a7eea82de795636ea4f8a818d6131"
           },
           "typeExpression": "Active Shelf Entry identity projection"
@@ -159,7 +159,7 @@
           "capabilityRef": "arca.aftercare.media.transcode@1",
           "source": {
             "section": "8.6.11",
-            "line": 10283,
+            "line": 10286,
             "lineDigest": "2dc8060b348a8f062146e5824069231cca560c7bfb2035847cf5d8bc75f61f21"
           },
           "typeExpression": "Aftercare Media Repair Strategy"
@@ -278,7 +278,7 @@
           "capabilityRef": "arca.aftercare.text_artifact.render@1",
           "source": {
             "section": "8.6.11",
-            "line": 10279,
+            "line": 10282,
             "lineDigest": "6fd2daa223392e9088cebcf0aebaf24bd0ccaf71f14102c7825130e8c698dfe4"
           },
           "typeExpression": "Artifact profile"
@@ -452,7 +452,7 @@
           "capabilityRef": "arca.aftercare.conformance.observe@1",
           "source": {
             "section": "8.6.11",
-            "line": 10277,
+            "line": 10280,
             "lineDigest": "115ab737def41387e21b0025fbd23878bf120ee2e1ed651d324d2bf15f603527"
           },
           "typeExpression": "Care Basis"
@@ -461,7 +461,7 @@
           "capabilityRef": "arca.aftercare.custody.observe@1",
           "source": {
             "section": "8.6.11",
-            "line": 10275,
+            "line": 10278,
             "lineDigest": "db6a70b06391c9b8f35128f7bfa001ebf9a189caaecb353a5cdfd7d40166ed7b"
           },
           "typeExpression": "Care Basis"
@@ -470,7 +470,7 @@
           "capabilityRef": "arca.aftercare.presentation.observe@1",
           "source": {
             "section": "8.6.11",
-            "line": 10276,
+            "line": 10279,
             "lineDigest": "ef14d58689a9a1e3ad3b5658b3d3e59a100382e903323cc54cacd9374861f6cd"
           },
           "typeExpression": "Care Basis"
@@ -492,7 +492,7 @@
           "capabilityRef": "arca.aftercare.media.remux@1",
           "source": {
             "section": "8.6.11",
-            "line": 10282,
+            "line": 10285,
             "lineDigest": "190dc4b86f3cb753359b6c852eaf8f3be3c535a3f59893416939157308202885"
           },
           "typeExpression": "Care Requirement"
@@ -501,7 +501,7 @@
           "capabilityRef": "arca.aftercare.media.transcode@1",
           "source": {
             "section": "8.6.11",
-            "line": 10283,
+            "line": 10286,
             "lineDigest": "2dc8060b348a8f062146e5824069231cca560c7bfb2035847cf5d8bc75f61f21"
           },
           "typeExpression": "Care Requirement"
@@ -510,7 +510,7 @@
           "capabilityRef": "arca.aftercare.media.verify@1",
           "source": {
             "section": "8.6.11",
-            "line": 10284,
+            "line": 10287,
             "lineDigest": "05397ba736c7b67faca837b9cd744a1ec17b966d08ee61f7fa33d0e37308f577"
           },
           "typeExpression": "Care Requirement"
@@ -554,7 +554,7 @@
           "capabilityRef": "arca.offdeck.destruction_scope.verify@1",
           "source": {
             "section": "8.6.12",
-            "line": 10339,
+            "line": 10342,
             "lineDigest": "5f1aba6f365de4e1b6b78c9151fd81b7c47c80410c917f93ac0493fbebb9507d"
           },
           "typeExpression": "current Inventory/Control"
@@ -563,7 +563,7 @@
           "capabilityRef": "arca.shelf_deregistration.release_manifest.verify@1",
           "source": {
             "section": "8.6.12",
-            "line": 10345,
+            "line": 10348,
             "lineDigest": "28fc5bb6077c6e4f46d115156a5891718f27888dbb1f6438b6d6e3e6369bd2f2"
           },
           "typeExpression": "current Inventory/Control"
@@ -629,7 +629,7 @@
           "capabilityRef": "arca.offdeck.destruction_scope.verify@1",
           "source": {
             "section": "8.6.12",
-            "line": 10339,
+            "line": 10342,
             "lineDigest": "5f1aba6f365de4e1b6b78c9151fd81b7c47c80410c917f93ac0493fbebb9507d"
           },
           "typeExpression": "Destruction Scope"
@@ -738,7 +738,7 @@
           "capabilityRef": "arca.inventory.final_product.verify@1",
           "source": {
             "section": "8.6.10",
-            "line": 10262,
+            "line": 10265,
             "lineDigest": "cb85df51affc96eab7387fab044d0db5663c9af8a10d7b71b2ed53b5d8dbe951"
           },
           "typeExpression": "Final bindings"
@@ -760,7 +760,7 @@
           "capabilityRef": "arca.inventory.staged.verify@1",
           "source": {
             "section": "8.6.10",
-            "line": 10260,
+            "line": 10263,
             "lineDigest": "843e35b1e399dd3d9497144b48d1ef93a0d99c9deddfffb682aa12e401ffffa3"
           },
           "typeExpression": "Final Inventory Decision"
@@ -769,7 +769,7 @@
           "capabilityRef": "arca.inventory.target_slot.prepare@1",
           "source": {
             "section": "8.6.10",
-            "line": 10258,
+            "line": 10261,
             "lineDigest": "207a053dd6f2debeb0cef4e02fa29d65077c37dfe54f674e265ba68aa63cc30f"
           },
           "typeExpression": "Final Inventory Decision"
@@ -778,7 +778,7 @@
           "capabilityRef": "arca.ondeck.fulfillment.verify@1",
           "source": {
             "section": "8.6.10",
-            "line": 10264,
+            "line": 10267,
             "lineDigest": "0fd32ca70f4341b73c50e6e249f0566cf972b467e0fa93e85f5be2948ad73cd4"
           },
           "typeExpression": "Final Inventory Decision"
@@ -800,7 +800,7 @@
           "capabilityRef": "arca.ondeck.fulfillment.verify@1",
           "source": {
             "section": "8.6.10",
-            "line": 10264,
+            "line": 10267,
             "lineDigest": "0fd32ca70f4341b73c50e6e249f0566cf972b467e0fa93e85f5be2948ad73cd4"
           },
           "typeExpression": "Final reality"
@@ -866,7 +866,7 @@
           "capabilityRef": "arca.aftercare.presentation.observe@1",
           "source": {
             "section": "8.6.11",
-            "line": 10276,
+            "line": 10279,
             "lineDigest": "ef14d58689a9a1e3ad3b5658b3d3e59a100382e903323cc54cacd9374861f6cd"
           },
           "typeExpression": "Inventory/Metadata/Artifact refs"
@@ -888,7 +888,7 @@
           "capabilityRef": "arca.aftercare.conformance.observe@1",
           "source": {
             "section": "8.6.11",
-            "line": 10277,
+            "line": 10280,
             "lineDigest": "115ab737def41387e21b0025fbd23878bf120ee2e1ed651d324d2bf15f603527"
           },
           "typeExpression": "Inventory revision"
@@ -897,7 +897,7 @@
           "capabilityRef": "arca.aftercare.custody.observe@1",
           "source": {
             "section": "8.6.11",
-            "line": 10275,
+            "line": 10278,
             "lineDigest": "db6a70b06391c9b8f35128f7bfa001ebf9a189caaecb353a5cdfd7d40166ed7b"
           },
           "typeExpression": "Inventory revision"
@@ -919,7 +919,7 @@
           "capabilityRef": "arca.aftercare.conformance.observe@1",
           "source": {
             "section": "8.6.11",
-            "line": 10277,
+            "line": 10280,
             "lineDigest": "115ab737def41387e21b0025fbd23878bf120ee2e1ed651d324d2bf15f603527"
           },
           "typeExpression": "Known bindings"
@@ -928,7 +928,7 @@
           "capabilityRef": "arca.aftercare.custody.observe@1",
           "source": {
             "section": "8.6.11",
-            "line": 10275,
+            "line": 10278,
             "lineDigest": "db6a70b06391c9b8f35128f7bfa001ebf9a189caaecb353a5cdfd7d40166ed7b"
           },
           "typeExpression": "known bindings"
@@ -937,7 +937,7 @@
           "capabilityRef": "arca.aftercare.media.remux@1",
           "source": {
             "section": "8.6.11",
-            "line": 10282,
+            "line": 10285,
             "lineDigest": "190dc4b86f3cb753359b6c852eaf8f3be3c535a3f59893416939157308202885"
           },
           "typeExpression": "Known bindings"
@@ -946,7 +946,7 @@
           "capabilityRef": "arca.aftercare.media.transcode@1",
           "source": {
             "section": "8.6.11",
-            "line": 10283,
+            "line": 10286,
             "lineDigest": "2dc8060b348a8f062146e5824069231cca560c7bfb2035847cf5d8bc75f61f21"
           },
           "typeExpression": "Known bindings"
@@ -1087,7 +1087,7 @@
           "capabilityRef": "arca.aftercare.media.transcode@1",
           "source": {
             "section": "8.6.11",
-            "line": 10283,
+            "line": 10286,
             "lineDigest": "2dc8060b348a8f062146e5824069231cca560c7bfb2035847cf5d8bc75f61f21"
           },
           "typeExpression": "Aftercare Media Repair Strategy"
@@ -1224,7 +1224,7 @@
           "capabilityRef": "arca.ondeck.input_settlement.delete@1",
           "source": {
             "section": "8.6.10",
-            "line": 10263,
+            "line": 10266,
             "lineDigest": "4998e31c811e3d31369e2291dc02b372c5e1ec47c8b31f1beed3eadddcf4fcac"
           },
           "typeExpression": "Old Primary/structural/exclusive Related handles"
@@ -1246,7 +1246,7 @@
           "capabilityRef": "people.registration_evidence.observe@1",
           "source": {
             "section": "8.6.14",
-            "line": 10393,
+            "line": 10396,
             "lineDigest": "c676c7178e8b473e53bde4b2ef443161e1a6b892a01f53427e2cf24afd5ea0cc"
           },
           "typeExpression": null
@@ -1290,7 +1290,7 @@
           "capabilityRef": "people.person.commit@1",
           "source": {
             "section": "8.6.14",
-            "line": 10398,
+            "line": 10401,
             "lineDigest": "0f57cc3035a38feb0a59cf729c6f3dd4eea9738ad70fb6ae128de208499621e8"
           },
           "typeExpression": "PeopleCandidateAcceptanceDecision"
@@ -1312,7 +1312,7 @@
           "capabilityRef": "people.reference_fact.commit@1",
           "source": {
             "section": "8.6.14",
-            "line": 10395,
+            "line": 10398,
             "lineDigest": "685bdb0074fce95a1b9cc4ee9b06b7383b3561bb57c249b4f206016357f636f5"
           },
           "typeExpression": "PeopleReferenceMaintenanceDecision"
@@ -1334,7 +1334,7 @@
           "capabilityRef": "people.reference_asset.import@1",
           "source": {
             "section": "8.6.14",
-            "line": 10394,
+            "line": 10397,
             "lineDigest": "be70fa3c68c7af336e86e27c9059ce4f7589c26c543a8906f79d178e74a95d04"
           },
           "typeExpression": "People Workspace"
@@ -1356,7 +1356,7 @@
           "capabilityRef": "perception.source.acquire@1",
           "source": {
             "section": "8.6.13",
-            "line": 10372,
+            "line": 10375,
             "lineDigest": "b5aa853f6a29eb3fd38bf0e74583a7b0427b368d9d53d38ff982faa92e1e134b"
           },
           "typeExpression": "PerceptionAcquisitionCursor"
@@ -1378,7 +1378,7 @@
           "capabilityRef": "perception.record.normalize@1",
           "source": {
             "section": "8.6.13",
-            "line": 10373,
+            "line": 10376,
             "lineDigest": "2206f66ff49af564eb60aa0c359f124ff84f7dcce9a60df89ec053576f9e5a60"
           },
           "typeExpression": "PerceptionNormalizationRuleRef"
@@ -1400,7 +1400,7 @@
           "capabilityRef": "perception.dedup.resolve@1",
           "source": {
             "section": "8.6.13",
-            "line": 10375,
+            "line": 10378,
             "lineDigest": "c6978b0ba2609a2f6567244097c26ef09b61ca9e75aa5e798cf81dc1cd449938"
           },
           "typeExpression": "PerceptionResolutionQuery"
@@ -1422,7 +1422,7 @@
           "capabilityRef": "perception.dedup.resolve@1",
           "source": {
             "section": "8.6.13",
-            "line": 10375,
+            "line": 10378,
             "lineDigest": "c6978b0ba2609a2f6567244097c26ef09b61ca9e75aa5e798cf81dc1cd449938"
           },
           "typeExpression": "PerceptionResolutionRecordSet"
@@ -1444,7 +1444,7 @@
           "capabilityRef": "perception.dedup.resolve@1",
           "source": {
             "section": "8.6.13",
-            "line": 10375,
+            "line": 10378,
             "lineDigest": "c6978b0ba2609a2f6567244097c26ef09b61ca9e75aa5e798cf81dc1cd449938"
           },
           "typeExpression": "PerceptionResolutionRuleSnapshot"
@@ -1466,7 +1466,7 @@
           "capabilityRef": "perception.source.acquire@1",
           "source": {
             "section": "8.6.13",
-            "line": 10372,
+            "line": 10375,
             "lineDigest": "b5aa853f6a29eb3fd38bf0e74583a7b0427b368d9d53d38ff982faa92e1e134b"
           },
           "typeExpression": "PerceptionSourceSnapshot"
@@ -1488,7 +1488,7 @@
           "capabilityRef": "people.merge_evidence.resolve@1",
           "source": {
             "section": "8.6.14",
-            "line": 10396,
+            "line": 10399,
             "lineDigest": "c2c72913fb62f7a4f34313e68b475a5ae63b37aae17bec54b0fa5cdd543576a3"
           },
           "typeExpression": "Person identities/aliases/references"
@@ -1541,7 +1541,7 @@
           "capabilityRef": "arca.aftercare.conformance.observe@1",
           "source": {
             "section": "8.6.11",
-            "line": 10277,
+            "line": 10280,
             "lineDigest": "115ab737def41387e21b0025fbd23878bf120ee2e1ed651d324d2bf15f603527"
           },
           "typeExpression": "Placement"
@@ -1585,7 +1585,7 @@
           "capabilityRef": "arca.offdeck.review_candidate.commit@1",
           "source": {
             "section": "8.6.12",
-            "line": 10338,
+            "line": 10341,
             "lineDigest": "b8305dff13defc656f24822f21e1559c6374caa39f1d066bead227ec67fbaae6"
           },
           "typeExpression": "Policy result"
@@ -1607,7 +1607,7 @@
           "capabilityRef": "people.preference.commit@1",
           "source": {
             "section": "8.6.14",
-            "line": 10399,
+            "line": 10402,
             "lineDigest": "4ae0cbd3463df67c1ae83084d30ae44a5dd54aa9fedd41c732561a07ffe2343b"
           },
           "typeExpression": "Preference intent"
@@ -1722,7 +1722,7 @@
           "capabilityRef": "arca.inventory.final_product.verify@1",
           "source": {
             "section": "8.6.10",
-            "line": 10262,
+            "line": 10265,
             "lineDigest": "cb85df51affc96eab7387fab044d0db5663c9af8a10d7b71b2ed53b5d8dbe951"
           },
           "typeExpression": "Product/Disposition Manifest"
@@ -2000,7 +2000,7 @@
           "capabilityRef": "arca.aftercare.assessment.commit@1",
           "source": {
             "section": "8.6.11",
-            "line": 10278,
+            "line": 10281,
             "lineDigest": "c42e638ea7f6d032304bb5ee32fbc102e3f1cc3f8fd42d63de59534b6c6fbc22"
           },
           "typeExpression": "Professional assessments sharing one Care Basis"
@@ -2022,7 +2022,7 @@
           "capabilityRef": "people.registration_evidence.observe@1",
           "source": {
             "section": "8.6.14",
-            "line": 10393,
+            "line": 10396,
             "lineDigest": "c676c7178e8b473e53bde4b2ef443161e1a6b892a01f53427e2cf24afd5ea0cc"
           },
           "typeExpression": null
@@ -2044,7 +2044,7 @@
           "capabilityRef": "arca.aftercare.case.commit@1",
           "source": {
             "section": "8.6.11",
-            "line": 10287,
+            "line": 10290,
             "lineDigest": "1e7370361ed619740cc94e80a3b7d79f2a2a177126498eba7cc46d238de884bb"
           },
           "typeExpression": "Reassessed result"
@@ -2066,7 +2066,7 @@
           "capabilityRef": "arca.aftercare.workspace.reclaim@1",
           "source": {
             "section": "8.6.11",
-            "line": 10288,
+            "line": 10291,
             "lineDigest": "3c4893964425cbf3fc4fc42b5fd975ddc72b436dcfc619ce9c2818a264e73c42"
           },
           "typeExpression": "ReferenceEvidence"
@@ -2075,7 +2075,7 @@
           "capabilityRef": "people.workspace.reclaim@1",
           "source": {
             "section": "8.6.14",
-            "line": 10400,
+            "line": 10403,
             "lineDigest": "beced2784c1e277b20c4d5547149519e4cba307751d901ee3df5f29d59061d8c"
           },
           "typeExpression": "ReferenceEvidence"
@@ -2097,7 +2097,7 @@
           "capabilityRef": "arca.offdeck.related_reference.release@1",
           "source": {
             "section": "8.6.12",
-            "line": 10341,
+            "line": 10344,
             "lineDigest": "40a6ec979c4677dec5e91765de272e25ad86d1543d417eaefa1c9c13365d6bc6"
           },
           "typeExpression": "Related reference"
@@ -2119,7 +2119,7 @@
           "capabilityRef": "arca.shelf_deregistration.release_manifest.verify@1",
           "source": {
             "section": "8.6.12",
-            "line": 10345,
+            "line": 10348,
             "lineDigest": "28fc5bb6077c6e4f46d115156a5891718f27888dbb1f6438b6d6e3e6369bd2f2"
           },
           "typeExpression": "Release Manifest"
@@ -2238,7 +2238,7 @@
           "capabilityRef": "arca.offdeck.deletion.verify@1",
           "source": {
             "section": "8.6.12",
-            "line": 10343,
+            "line": 10346,
             "lineDigest": "de79a37a739e145a8e12e793ebf68b5fe6c08bb496a7bf67d011f3cf727f0ac0"
           },
           "typeExpression": "Scope"
@@ -2357,7 +2357,7 @@
           "capabilityRef": "arca.shelf_deregistration.commit@1",
           "source": {
             "section": "8.6.12",
-            "line": 10346,
+            "line": 10349,
             "lineDigest": "9c301d5222bd9c93668549c59405df7a5b23f7860077b775c48b55eeca9d4a03"
           },
           "typeExpression": "ShelfDeregistrationControlCommitHandle"
@@ -2388,7 +2388,7 @@
           "capabilityRef": "arca.ondeck.fulfillment.verify@1",
           "source": {
             "section": "8.6.10",
-            "line": 10264,
+            "line": 10267,
             "lineDigest": "0fd32ca70f4341b73c50e6e249f0566cf972b467e0fa93e85f5be2948ad73cd4"
           },
           "typeExpression": "Shelf Standard"
@@ -2454,7 +2454,7 @@
           "capabilityRef": "arca.aftercare.binary_artifact.acquire@1",
           "source": {
             "section": "8.6.11",
-            "line": 10280,
+            "line": 10283,
             "lineDigest": "3849e59ec0117c8f4704e1fd561bc8c603978e137d7a393600b19477145d4478"
           },
           "typeExpression": "Stable Provider Identity"
@@ -2476,7 +2476,7 @@
           "capabilityRef": "arca.aftercare.conformance.observe@1",
           "source": {
             "section": "8.6.11",
-            "line": 10277,
+            "line": 10280,
             "lineDigest": "115ab737def41387e21b0025fbd23878bf120ee2e1ed651d324d2bf15f603527"
           },
           "typeExpression": "Standard"
@@ -2485,7 +2485,7 @@
           "capabilityRef": "arca.aftercare.presentation.observe@1",
           "source": {
             "section": "8.6.11",
-            "line": 10276,
+            "line": 10279,
             "lineDigest": "ef14d58689a9a1e3ad3b5658b3d3e59a100382e903323cc54cacd9374861f6cd"
           },
           "typeExpression": "Standard"
@@ -2582,7 +2582,7 @@
           "capabilityRef": "arca.inventory.placement.switch@1",
           "source": {
             "section": "8.6.10",
-            "line": 10261,
+            "line": 10264,
             "lineDigest": "2995f4709dc5a11cbe6cda9a44f16727c2e5249e314b81983e270b512def1d4c"
           },
           "typeExpression": "target bindings"
@@ -2776,7 +2776,7 @@
           "capabilityRef": "arca.aftercare.inventory.commit@1",
           "source": {
             "section": "8.6.11",
-            "line": 10286,
+            "line": 10289,
             "lineDigest": "ecfd4f6f21ec0471b7ba14511cd98fe93adebc50cfbaafa269451e60c5b7b05c"
           },
           "typeExpression": "Verified care inventory change"

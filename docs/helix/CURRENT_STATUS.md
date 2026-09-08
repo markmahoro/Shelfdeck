@@ -1,8 +1,6 @@
 # ShelfDeck 当前状态
 
-2026-09-09后续确认：用户取消Libra已完成Off-load的Workspace额外24小时等待，保留两轮引用安全审计；SSOT与125/152关联Oracle已同步。用户随后确认workspace合格成品不因原片三点decode失败被否决，原片fresh Probe/必要对照及成品独立decode保留，Direct仍验证实际产品；SSOT与132/135/137/160的Oracle已同步。用户最后明确预先授权精确旧输入自动清理（含exclusive_related_input），无需逐片确认；共享/未知材料保留、Off-deck独立授权。三组业务决定均已确认并同步SSOT/Beta/UAT，下一步按当前合同核对实现及验收，禁止恢复被取代要求。仅记录合同决定，尚未追加实现/验收关闭或生产操作。
-
-审查时点记录（后续三项决定及当前状态见上）：2026-09-09全量UAT合同审查：255项均已核对条目及关闭条件，疑似冲突回查历史/SSOT；11组已有后续依据的取代/承接限制、3组尚未闭合冲突、8组需按场景并存。见[逐项覆盖与结论](implementation/evidence/UAT_FULL_CONTRACT_CONSISTENCY_AUDIT_20260909.md)。用户要求先审查，当前暂停新增实施/关闭；此次没有新增关闭，仍38项关闭、61项开放及206承接另核。生产955fe42daf未改变，未提交NFO测试与原Aftercare调查修改保留。
+2026-09-09：255项合同审查已完成，三项冲突均由用户确认（`14cf2d9a0`），SSOT/Beta/总表已同步。用户要求整理文档后继续推进；活动计划及执行包已清除旧暂停和待决策说明。当前38项本轮功能验收关闭、61项开放及206承接另核；合同确认未新增UAT关闭，也未执行生产授权写入、回收或部署。详见[审查及决定证据](implementation/evidence/UAT_FULL_CONTRACT_CONSISTENCY_AUDIT_20260909.md)。
 
 更新：2026-09-09 04:09。唯一台账：[UAT总表](UAT_ITERATION_REGISTER.md)；唯一排程：[CURRENT_PLAN](CURRENT_PLAN.md)。
 
