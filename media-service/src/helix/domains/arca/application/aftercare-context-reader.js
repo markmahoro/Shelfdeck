@@ -1,6 +1,7 @@
 'use strict';
 
 const { canonicalDigest } = require('../../../contracts/canonical-json');
+const { excludeCompletedSettlementBindings } = require('../model/completed-settlement-bindings');
 const { createAftercareStore } = require('../persistence/aftercare-store');
 
 function sealed(schemaRef, objectId, revision, body) {
@@ -21,7 +22,8 @@ function createAftercareContextReader(options){const store=options.aftercareStor
     return Object.freeze({...body,targetDigest:canonicalDigest(body)});
   }
   function careBasis(shelfEntryId,inventoryRevision,standardRevision,placementRevision,canonicalIdentityDigest,sourcePackageId,factDigests,decisionFactDigests){const decisionFactSetDigest=canonicalDigest({schema:'arca.aftercare-decision-facts@1',shelfEntryId,facts:[...decisionFactDigests].sort()}),acceptedProductFactSetDigest=canonicalDigest({schema:'arca.aftercare-accepted-product-facts@1',shelfEntryId,facts:[...factDigests].sort()});return sealed('helix://contracts/domain-types/CareBasis/v1',shelfEntryId+':care-basis',1,{shelfEntryId,inventoryRevision,standardRevision,placementRevision,canonicalIdentityDigest,sourcePackageId,acceptedProductFactSetDigest,decisionFactSetDigest,assessments:Object.freeze([])});}
-  function read(shelfEntryId){const raw=store.currentContext(shelfEntryId);if(!raw||raw.entry.status!=='active')return null;
+  function read(shelfEntryId){const stored=store.currentContext(shelfEntryId);if(!stored||stored.entry.status!=='active')return null;
+    const raw=excludeCompletedSettlementBindings(stored,options.workResultReader);
     const ratingRelevant=usesRatingDecision(raw.standard.value,raw.entry.structure_kind),perceptionRating=ratingRelevant&&typeof options.readPerceptionRating==='function'?options.readPerceptionRating(shelfEntryId):null,decisionDigests=ratingRelevant?[...raw.facts.filter((x)=>x.fact_kind==='decision_fact').map((x)=>x.fact_digest),...(perceptionRating?.state==='ready'&&perceptionRating.resolutionDigest?[perceptionRating.resolutionDigest]:[])]:[],basis=careBasis(shelfEntryId,raw.entry.current_inventory_revision,raw.shelf.current_standard_revision,raw.shelf.current_placement_revision,raw.identity.identity_digest,raw.inventory.source_package_id,raw.facts.filter((x)=>x.fact_kind!=='decision_fact').map((x)=>x.fact_digest),decisionDigests);
     const currentLocations=new Set(raw.materials.map((item)=>item.location));
     const bindings=[...raw.materials.map((item)=>Object.freeze({objectId:shelfEntryId+':binding:'+item.ordinal,revision:Number(item.binding_revision),schemaRef:'helix://arca/types/MaterialBindingSnapshot/v1',digest:canonicalDigest({materialKey:item.material_key,endpointId:item.endpoint_id,location:item.location,sizeBytes:Number(item.size_bytes),digestHex:item.digest_hex}),objectKind:'arca-material-binding'})),...(raw.oldBindings||[]).filter((item)=>!currentLocations.has(item.location)).map((item)=>Object.freeze({objectId:shelfEntryId+':old-binding:'+item.material_key,revision:Number(item.binding_revision),schemaRef:'helix://arca/types/MaterialBindingSnapshot/v1',digest:canonicalDigest({materialKey:item.material_key,role:item.role,endpointId:item.endpoint_id,location:item.location,evidenceDigest:item.evidence_digest}),objectKind:'arca-material-binding'}))];

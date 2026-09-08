@@ -15487,3 +15487,9 @@ Receipt可使用Foundation已有command receipt持久设施，但必须有独立
 UAT-212：Libra Run与Aftercare Case的当前进展都取实际动作、动作状态及可用进度。阶段、Plan/Event、等待、失败和完成依据使用一致投影规则，列表与详情一致；Aftercare保留自己的业务阶段，不能虚构Libra Handoff。建单目标取创建时具体依据，当前Policy不得倒填历史Case。
 
 收藏影片详情、整理列表和整理详情移除回收站入口/面板；系统配置保留独立“回收站”Tab。收藏和整理区使用上一页/页码/下一页，翻页替换内容，筛选回首页、轮询保留当前页；上架/维护统一按页读取，禁止为分页读取或后台预取全部历史。两页性能与流程必须通过真实用户浏览器操作验收。
+
+### UAT-211：已完成Settlement的历史路径责任边界
+
+Aftercare从当前Entry的原On-deck Commit精确定位原Run/Custody，在该Run的on_deck_execution成功Result中核验SettlementDeletionEvidence的producer、materialKey、完整digest与PostDeleteReality：absent=true、disposition=settled_to_final、final_verified=true且最终映射证据完整。成立的旧材料义务已经结束，不再探测该历史路径，也不因同路径后生文件恢复旧义务。原Binding与成功Evidence仍保留历史；不删除文件、不重写健康或历史Case。
+
+该排除仅作用于上述精确旧Custody Binding。当前Inventory成员始终按当前身份/位置检查，真正未完成、失败、缺失或无法验证Settlement Evidence的旧义务继续保留有界检查。单有Run终态、Commit存在、旧路径不存在或Entry健康均不能替代逐材料成功Evidence。只通过Owner正常Assessment纠正派生健康，不由查询或数据修改伪造结果。
