@@ -1,5 +1,7 @@
 # ShelfDeck 当前迭代计划
 
+2026-09-09最新执行约束：用户要求**先审查全部UAT的前后矛盾，不限NFO**。已完成255项条目/Oracle覆盖与疑似冲突原证据核对，见[全量合同一致性审查](implementation/evidence/UAT_FULL_CONTRACT_CONSISTENCY_AUDIT_20260909.md)。当前暂停新增修复、部署和验收关闭；先消化11组已取代/承接限制及3组未闭合冲突（125/152回收等待、132/135/137/160原片decode、172自动运营授权）。下方B1–B5保留全量排程，恢复实施时以本审查修正后的Oracle为准，不能重新执行被取代要求。普通独立项不因同主题被全局阻塞。
+
 更新：2026-09-09 04:09。ACTIVE；[UAT总表](UAT_ITERATION_REGISTER.md)是唯一完整入口；执行包为[CURRENT_PHASE](implementation/CURRENT_PHASE.md)。原Aftercare调查Evidence未提交修改受保护。
 
 当前已关闭项跳过重复实施。接手后新增关闭217、254、255、139、143、224、232、213、246、221、237、238、223、235、228、141、230、129、128、142、174、175、167、208；本轮累计38项关闭，61项仍待实施/验收，206另核被取代承接。生产955fe42daf，发布与独立验收见[证据](implementation/evidence/UAT_RELEASE_955FE42DAF_20260909.md)。

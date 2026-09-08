@@ -1,5 +1,7 @@
 # ShelfDeck 当前状态
 
+2026-09-09全量UAT合同审查：255项均已核对条目及关闭条件，疑似冲突回查历史/SSOT；11组已有后续依据的取代/承接限制、3组尚未闭合冲突、8组需按场景并存。见[逐项覆盖与结论](implementation/evidence/UAT_FULL_CONTRACT_CONSISTENCY_AUDIT_20260909.md)。用户要求先审查，当前暂停新增实施/关闭；此次没有新增关闭，仍38项关闭、61项开放及206承接另核。生产955fe42daf未改变，未提交NFO测试与原Aftercare调查修改保留。
+
 更新：2026-09-09 04:09。唯一台账：[UAT总表](UAT_ITERATION_REGISTER.md)；唯一排程：[CURRENT_PLAN](CURRENT_PLAN.md)。
 
 - 生产：`helix-beta-20260909-955fe42daf`，source `955fe42daf`。NAS config Image ID `sha256:252261f4e075ceb2e1b771c84c535c365fe6714b55c5fbea83c447e98a97eb48`；tar SHA256 `43b88bc21fa5bb6f67c0ad66fb0a7b5f723b13575f42ea1698cee67f7f3fe6ae`。StartedAt `2026-09-08T20:06:48.698378213Z`。标准build/upload/checksum/dry-run/readiness/apply及挂载验证通过。
