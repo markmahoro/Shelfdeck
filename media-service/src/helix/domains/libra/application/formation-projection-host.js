@@ -46,6 +46,7 @@ function createFormationProjectionHost(options) {
     return Object.freeze({ processed: subjects.length, cursor: nextCursor });
   }
   async function run(reason = 'fallback') {
+    if (lifecycle === 'stopping' || lifecycle === 'stopped') return Object.freeze({ processed: 0, cursor: null });
     if (running) return running;
     running = (async () => {
       try {

@@ -631,3 +631,20 @@ test('UAT-251 current provider failure takes precedence over an old empty search
   assert.doesNotMatch(frozenRunLabel(works, terminal), /没有找到|采购|冻结/);
   assert.equal(frozenRunLabel([]), '本次整理未完成，请查看原因和可用操作');
 });
+
+
+test('UAT-125 queued Formation startup and wake callbacks cannot read after shutdown',async()=>{
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'helix-projection-stop-'));
+  const kernel=openSqliteKernel({Database,databasePath:path.join(root,'shelfdeck.db'),schemaDdl,schemaManifest,now:()=>100});
+  const errors=[];let reads=0;
+  const host=createFormationProjectionHost({schemaManifest,unitOfWork:createSqliteUnitOfWork({kernel}),
+    source:{readPage:()=>{reads++;return [];},readSubject:()=>{reads++;return null;},buildBatch:()=>[]},
+    store:{upsert:()=>{throw new Error('No projection write expected');}},onError:error=>errors.push(error)});
+  try{
+    await host.start();host.enqueue('queued-subject');host.wake();
+    await host.stop();kernel.close();
+    await new Promise(resolve=>setImmediate(resolve));
+    await new Promise(resolve=>setImmediate(resolve));
+    assert.equal(reads,0);assert.deepEqual(errors,[]);
+  }finally{await host.stop();kernel.close();fs.rmSync(root,{recursive:true,force:true,maxRetries:5,retryDelay:50});}
+});
