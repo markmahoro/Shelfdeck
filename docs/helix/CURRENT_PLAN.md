@@ -1,8 +1,8 @@
 # ShelfDeck 当前迭代计划
 
-更新：2026-09-09 03:35。ACTIVE；[UAT总表](UAT_ITERATION_REGISTER.md)是唯一完整入口；执行包为[CURRENT_PHASE](implementation/CURRENT_PHASE.md)。原Aftercare调查Evidence未提交修改受保护。
+更新：2026-09-09 03:46。ACTIVE；[UAT总表](UAT_ITERATION_REGISTER.md)是唯一完整入口；执行包为[CURRENT_PHASE](implementation/CURRENT_PHASE.md)。原Aftercare调查Evidence未提交修改受保护。
 
-当前已关闭项跳过重复实施。接手后新增关闭217、254、255、139、143、224、232、213、246、221、237、238、223、235、228、141、230、129、128；本轮累计33项关闭，66项仍待实施/验收，206另核被取代承接。生产95d7bb5734，发布与独立验收见[证据](implementation/evidence/UAT_RELEASE_95D7BB5734_20260909.md)。
+当前已关闭项跳过重复实施。接手后新增关闭217、254、255、139、143、224、232、213、246、221、237、238、223、235、228、141、230、129、128、142；本轮累计34项关闭，65项仍待实施/验收，206另核被取代承接。生产efd9387756，发布与独立验收见[证据](implementation/evidence/UAT_RELEASE_EFD9387756_20260909.md)。
 
 用户2026-09-09确认：已接受瑕疵仅手动发起修复，安全可播放时健康正常并附瑕疵标记；失败保原片原瑕疵并终结本次尝试。已回写SSOT，继续typed合同与实施，不再等待这两项用户决定。标准部署允许中断FFmpeg，媒体/事实/凭据/备份保护不变；不授权任意Reset。
 
@@ -38,7 +38,7 @@
 
 ## 当前执行位置
 
-213已关闭：真实Case链、生产旧Case未知和同生产JS资产的新目标展示已核对。剩余66项及206继续完整排程。
+213已关闭：真实Case链、生产旧Case未知和同生产JS资产的新目标展示已核对。剩余65项及206继续完整排程。
 2. 125/250：恢复输入漂移会重复出现，已取得一致副本并定位候选Intake执行记录；继续精确输入因果核实，不吞错、不Reset。历史Case、已上架和正常转码继续保护。
 3. 246已关闭：精简查询、千部全选/单Batch、真实十部链和生产选择已验收，不重复实施。
 4. 210/218/128/212及其他所有开放项继续按B1–B5排程逐行验收；局部通过不关闭整项，已通过本地检查仅在新变化/失败/明确缺证时重跑。
@@ -54,8 +54,10 @@ UAT-223文案、235注销模态、228人物能力文案分别关闭；235六项/
 
 141/230已逐项关闭：当前片名、真实状态、错误/故障/未配置浏览器、5 Windows Query/5 Linux Query/5 Web/真实Host HTTP及生产资产核对通过。245真实全量查询尚待修正，不随本项关闭。见[概览验收](implementation/evidence/UAT-141_230_OVERVIEW_ACCEPTANCE_20260909.md)。
 
-最新生产发布/回滚备份：[95d7bb5734](implementation/evidence/UAT_RELEASE_95D7BB5734_20260909.md)。
+最新生产发布/回滚备份：[efd9387756](implementation/evidence/UAT_RELEASE_EFD9387756_20260909.md)。
 
 129已关闭：当前异步准备失败→Intent提交后故障→Host自动恢复、唯一新Run、完整Inbox/ACK、两次HTTP及再次重启幂等。36相关回归、15 Host、3 Linux专项通过，95d7bb5734生产启动/挂载/六路GET通过。见[恢复验收](implementation/evidence/UAT-129_RETRY_INTENT_RESTART_20260909.md)。125/250输入漂移仍开放。
 
 128已关闭：精确角色正负路径、Linux25项与当前完整Host真实迁移中断/自动恢复80.06秒通过；Inventory和最终文件逐字节不变、原Approval及Case收口，范围外文件保留。本次仅补测试，无新运行时代码。见[完整证据](implementation/evidence/UAT-128_SETTLEMENT_PROCESS_RESTART_20260908.md)。
+
+142已关闭：八页核对、来源帮助折叠/计数去重、收藏架状态去重，17 Web/构建、相同生产资产与页面复验通过。240/241/247/248保持独立。见[文案验收](implementation/evidence/UAT-142_COPY_ACCEPTANCE_20260909.md)。
