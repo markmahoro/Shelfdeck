@@ -392,6 +392,11 @@ function createOffdeckStore(options) {
     });
   }
 
+  function progress(reviewId) {
+    const value = read((ctx) => ctx.repository(repo.repositoryId).invoke('find_review', { review_id:reviewId }));
+    return value ? Object.freeze({ reviewId, state:value.state, createdAtMs:Number(value.created_at_ms) }) : null;
+  }
+
   function detail(reviewId) {
     const value = reviewRows(reviewId); if (!value) return null;
     const selection = read((ctx) => ctx.repository(repo.repositoryId).invoke('find_selection', { review_id:reviewId }));
@@ -567,7 +572,7 @@ function createOffdeckStore(options) {
     return options.unitOfWork.execute([{participantId:'arca_offdeck_terminal',owner:'arca',repositories:[repo],execute(ctx){const r=ctx.repository(repo.repositoryId),receiptId=stable('arca-offdeck-terminal-',{caseId:value.caseId,scope:c.scope.scope_digest});r.invoke('insert_deck_fact',{shelf_entry_id:entry.shelf_entry_id,revision:next,state:'offdecked',inventory_revision:Number(entry.current_inventory_revision),standard_revision:value.standardRevision||1,fact_digest:canonicalDigest(factBasis),committed_at_ms:at});if(r.invoke('advance_entry_terminal',{status:'offdecked',current_deck_fact_revision:next,terminal_at_ms:at,shelf_entry_id:entry.shelf_entry_id,expected_current_deck_fact_revision:Number(entry.current_deck_fact_revision)}).changes!==1)fail('ARCA_OFFDECK_ENTRY_STALE','Shelf Entry changed before terminal commit.');r.invoke('clear_inventory_guards',{active_guard:0,shelf_entry_id:entry.shelf_entry_id,inventory_revision:Number(entry.current_inventory_revision)});if(r.invoke('update_scope',{state:'completed',destruction_scope_id:c.scope.destruction_scope_id,expected_state:'authorized'}).changes!==1||r.invoke('update_authorization',{state:'consumed',authorization_id:c.authorization.authorization_id,expected_state:'active'}).changes!==1||r.invoke('update_case',{current_authorization_id:c.case.current_authorization_id,state:'completed',recovery_revision:Number(c.case.recovery_revision),retry_at_ms:null,blocked_reason:null,terminal_at_ms:at,offdeck_case_id:value.caseId,expected_state:'executing'}).changes!==1)fail('ARCA_OFFDECK_TERMINAL_CAS_FAILED','Off-deck terminal facts changed concurrently.');r.invoke('insert_terminal',{receipt_id:receiptId,offdeck_case_id:value.caseId,shelf_entry_id:entry.shelf_entry_id,terminal_deck_fact_revision:next,released_control_set_digest:value.releasedControlSetDigest,committed_at_ms:at});return Object.freeze({receiptId,offdeckCaseId:value.caseId,shelfEntryId:entry.shelf_entry_id,terminalDeckFactRevision:next,releasedControlSetDigest:value.releasedControlSetDigest,committedAtMs:at});}},...(controlParticipant?[controlParticipant]:[])]).arca_offdeck_terminal;
   }
 
-  return Object.freeze({ ensurePolicy, currentPolicy, publishPolicy, entrySnapshot, allEntryFacts, commitDuplicateGroups,commitCandidate,staleEntryCandidates,listCandidates,suppressCandidate,revokeSuppression,whitelistDuplicate,revokeWhitelist,createReview, detail, confirmSelection,
+  return Object.freeze({ ensurePolicy, currentPolicy, publishPolicy, entrySnapshot, allEntryFacts, commitDuplicateGroups,commitCandidate,staleEntryCandidates,listCandidates,suppressCandidate,revokeSuppression,whitelistDuplicate,revokeWhitelist,createReview, detail, progress, confirmSelection,
     confirmEscalation, authorize, cancel, listReviews:()=>read((ctx)=>ctx.repository(repo.repositoryId).invoke('list_reviews',{})), listCases,
     tryOpenPreparedReview,deferReviewUntilSafe, caseContext, recordEvidence, activeReferenceCount, markBlocked,resumeBlocked,markAwaitingReauthorization, completeCase });
 }

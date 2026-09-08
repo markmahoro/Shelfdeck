@@ -65,10 +65,13 @@ export default function OffdeckPage() {
     let timer: number;
     const refresh = async () => {
       try {
-        const next = await helixAdminApi.getOffdeckReview(review.reviewId);
-        if (active) {
-          setReview(next);
-          if (next.state === 'preparing') timer = window.setTimeout(() => void refresh(), 3000);
+        const progress = await helixAdminApi.getOffdeckReviewProgress(review.reviewId);
+        if (!active) return;
+        if (progress.state === 'preparing') {
+          timer = window.setTimeout(() => void refresh(), 3000);
+        } else {
+          const next = await helixAdminApi.getOffdeckReview(review.reviewId);
+          if (active) setReview(next);
         }
       } catch (cause) {
         if (active) {

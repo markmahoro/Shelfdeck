@@ -177,21 +177,44 @@ describe('Off-deck progress', () => {
     vi.spyOn(helixAdminApi, 'listCollection').mockResolvedValue({ items: [] });
     const preparing = { ...highVolumeReview, state: 'preparing', selection: null };
     let resolveRead!: (value: OffdeckReview) => void;
-    const read = vi.spyOn(helixAdminApi, 'getOffdeckReview').mockResolvedValueOnce(preparing)
+    vi.spyOn(helixAdminApi, 'getOffdeckReview').mockResolvedValueOnce(preparing);
+    const read = vi.spyOn(helixAdminApi, 'getOffdeckReviewProgress')
       .mockImplementation(() => new Promise((resolve) => { resolveRead = resolve; }));
     history.replaceState(null, '', '/offdeck?review=review-bulk');
     await act(async () => { render(<SessionProvider><OffdeckPage /></SessionProvider>); });
     expect(screen.getByRole('dialog')).toBeInTheDocument();
     await act(async () => { await vi.advanceTimersByTimeAsync(3000); });
-    expect(read).toHaveBeenCalledTimes(2);
+    expect(read).toHaveBeenCalledTimes(1);
     await act(async () => { await vi.advanceTimersByTimeAsync(12000); });
-    expect(read).toHaveBeenCalledTimes(2);
+    expect(read).toHaveBeenCalledTimes(1);
     fireEvent.click(screen.getByRole('button', { name: '关闭', exact: true }));
     await act(async () => { resolveRead(highVolumeReview); });
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     await act(async () => { await vi.advanceTimersByTimeAsync(6000); });
-    expect(read).toHaveBeenCalledTimes(2);
+    expect(read).toHaveBeenCalledTimes(1);
     expect(helixAdminApi.listCollection).toHaveBeenCalledTimes(2);
+  });
+
+
+  it('polls only the compact head while preparing and reads fresh scope once ready', async () => {
+    vi.useFakeTimers();
+    vi.spyOn(helixAdminApi, 'listOffdeckCandidates').mockResolvedValue({ candidates: [], duplicateGroups: [], suppressions: [], whitelists: [] });
+    vi.spyOn(helixAdminApi, 'listOffdeckCases').mockResolvedValue({ items: [] });
+    vi.spyOn(helixAdminApi, 'listCollection').mockResolvedValue({ items: [] });
+    const preparing = { ...highVolumeReview, state: 'preparing', selection: null };
+    const full = vi.spyOn(helixAdminApi, 'getOffdeckReview').mockResolvedValueOnce(preparing).mockResolvedValue(highVolumeReview);
+    const progress = vi.spyOn(helixAdminApi, 'getOffdeckReviewProgress')
+      .mockResolvedValueOnce({reviewId:'review-bulk',state:'preparing',createdAtMs:1})
+      .mockResolvedValueOnce({reviewId:'review-bulk',state:'awaiting_escalation',createdAtMs:1});
+    history.replaceState(null, '', '/offdeck?review=review-bulk');
+    await act(async () => { render(<SessionProvider><OffdeckPage /></SessionProvider>); });
+    await act(async () => { await vi.advanceTimersByTimeAsync(3000); });
+    expect(progress).toHaveBeenCalledTimes(1); expect(full).toHaveBeenCalledTimes(1);
+    await act(async () => { await vi.advanceTimersByTimeAsync(3000); });
+    expect(progress).toHaveBeenCalledTimes(2); expect(full).toHaveBeenCalledTimes(2);
+    expect(screen.getByRole('button',{name:'再次确认大批量'})).toBeInTheDocument();
+    await act(async () => { await vi.advanceTimersByTimeAsync(6000); });
+    expect(progress).toHaveBeenCalledTimes(2); expect(full).toHaveBeenCalledTimes(2);
   });
 
 });

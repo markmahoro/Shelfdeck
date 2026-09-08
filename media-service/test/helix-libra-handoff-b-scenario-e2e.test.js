@@ -1330,7 +1330,7 @@ test('P14 Off-deck high-volume review requires a separate escalation and closes 
       });
     },
   });
-  const host = await createCleanServiceHost({ dataDir, adminDistDir:admin,
+  let host = await createCleanServiceHost({ dataDir, adminDistDir:admin,
     secretRoot:SECRET, libraWorkspaceRoot:path.join(root, 'libra-workspaces'),
     ...uniqueProductOptions, deferredDeliveryKeys:Object.freeze([]),
     onExecutionRuntimeError(error) {
@@ -1343,7 +1343,7 @@ test('P14 Off-deck high-volume review requires a separate escalation and closes 
     if (process.env.HELIX_KEEP_TEST_ASSETS !== '1') fs.rmSync(root,
       { recursive:true, force:true, maxRetries:5, retryDelay:100 });
   });
-  const cookie = await session(host, initialized.adminApiKey);
+  let cookie = await session(host, initialized.adminApiKey);
   await createShelf(host, cookie, shelf);
   await createField(host, cookie, 'offdeck-volume-field', source);
   await observe(host, cookie, 'offdeck-volume-field');
@@ -1397,6 +1397,21 @@ test('P14 Off-deck high-volume review requires a separate escalation and closes 
     preparedReview = refreshed.json();
   }
   assert.equal(preparedReview.state, 'open');
+  const progressResponse = await host.inject({method:'GET',
+    url:'/v1/admin/offdeck/reviews/' + reviewId + '?view=progress',headers:{cookie}});
+  assert.equal(progressResponse.statusCode, 200, progressResponse.body);
+  assert.deepEqual(Object.keys(progressResponse.json()).sort(), ['createdAtMs','reviewId','state']);
+  // Restore a durable preparation checkpoint in the isolated fixture, then recover without a Review GET.
+  await host.close();
+  const checkpoint = new Database(databasePath);
+  try { checkpoint.prepare("UPDATE arca_offdeck_reviews SET state='preparing' WHERE review_id=?").run(reviewId); }
+  finally { checkpoint.close(); }
+  host = await createCleanServiceHost({dataDir,adminDistDir:admin,secretRoot:SECRET,
+    libraWorkspaceRoot:path.join(root,'libra-workspaces'),...uniqueProductOptions});
+  cookie = await session(host, initialized.adminApiKey);
+  await waitDatabase(databasePath, (database) => database.prepare(
+    'SELECT state FROM arca_offdeck_reviews WHERE review_id=?').get(reviewId)?.state === 'open', 30_000);
+
   const confirmation = await host.inject({ method:'POST',
     url:'/v1/admin/offdeck/reviews/' + reviewId + '/actions/confirm-selection',
     headers:{ cookie }, payload:{ actorId:'admin-e2e', idempotencyKey:'offdeck-volume-selection' } });

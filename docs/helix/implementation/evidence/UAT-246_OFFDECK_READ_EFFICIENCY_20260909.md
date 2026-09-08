@@ -25,3 +25,14 @@
 4. 补大收藏量、搜索、全选、准备、取消/重开及错误恢复的真实浏览器操作与请求验证，统一部署后验收。
 
 本轮未发布；原Aftercare调查Evidence未触碰。相关143/139/224/232不因本增量自动关闭。
+
+
+## 轻量准备视图与UAT-255 GET副作用修正
+
+- GET /offdeck/reviews/:reviewId?view=progress仅按主键读取Review头，返回reviewId/state/createdAtMs三个字段；不取Reservation、Scope或材料。完整GET返回detail，双方均不调用准备推进、取消Aftercare Work或写Review。未知view显式拒绝。
+- UI准备期只轮询progress；一旦离开preparing再读取完整最新Scope一次。无虚构百分比；此前慢请求不重叠、关闭后丢弃响应仍保留。
+- 独立发现UAT-255：原Admin的review方法绑定advancePreparedReview，GET能触发取消及写状态。现行SSOT GET无副作用已明确，后台Owner准备器此前已存在，修正没有迁移Owner或增加新调度器。
+- 16项后端测试PASS，覆盖progress仅一条find_review读取、GET不调用取消/协调、坏view拒绝、范围与材料安全；7项Web测试及build PASS，验证preparing仅小头读取、准备成功只补取一次完整Scope、此后停止轮询。
+- 真实Host十部媒体链21.84秒PASS：读取progress响应严格只有三个字段；在隔离数据库恢复一个合法preparing检查点后重启，仅通过Session启动Host、直接只读DB等待open，不调用Review GET推进；随后二次授权、十部退出、范围外保护及再次重启快照验证全部通过。检查点为明确隔离注入，不宣称真实进程崩溃测试。
+- .codex/uat255-unit.log、.codex/uat255-real-background.log。派生P2基线仍通过，API路径未新增；SSOT补充query及只读语义。
+- UAT-255待统一发布/生产只读验收；246剩余首屏工作台摘要、按需分页搜索及全选完整性/真实大规模浏览器验证。两项均未关闭。

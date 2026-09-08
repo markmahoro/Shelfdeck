@@ -19,7 +19,7 @@ function createOffdeckAdminApplication(options){
   return Object.freeze({policy,publishPolicy,candidates,evaluate,detectDuplicates,
     suppress:(candidateId,body)=>store.suppressCandidate(candidateId,body),whitelist:(groupId,body)=>store.whitelistDuplicate(groupId,body),
     revokeSuppression:(id)=>store.revokeSuppression(id),revokeWhitelist:(id)=>store.revokeWhitelist(id),createReview,
-    review:advancePreparedReview,cancelReview:(id)=>store.cancel(id),confirmSelection:(id,body)=>store.confirmSelection(id,body),
+    review:(id,query={})=>{if(query.view&&query.view!=='progress')throw Object.assign(new Error('Unsupported Off-deck review view.'),{code:'ARCA_OFFDECK_VIEW_INVALID'});return query.view==='progress'?store.progress(id):store.detail(id);},cancelReview:(id)=>store.cancel(id),confirmSelection:(id,body)=>store.confirmSelection(id,body),
     confirmHighVolume:(id,body)=>store.confirmEscalation(id,body),authorize,cases:()=>Object.freeze({items:store.listCases()}),caseDetail});
 }
 module.exports=Object.freeze({createOffdeckAdminApplication});

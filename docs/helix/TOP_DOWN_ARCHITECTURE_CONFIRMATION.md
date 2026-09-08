@@ -13538,6 +13538,7 @@ GET       /v1/admin/offdeck/cases
 GET       /v1/admin/offdeck/cases/:caseId
 ~~~
 
+`GET review`是纯读取；可使用`view=progress`只返回reviewId、state、createdAtMs，禁止扫描Scope材料或推进准备。准备由后台Owner执行，终态变化后UI再读取完整Scope，GET不取消Work、不修改Reservation或Review。
 `DELETE review`只在Authorization前取消临时Review/Reservation，不删除Shelf Entry或业务历史。
 `confirm-selection`只生成Selection Receipt；普通范围随后可以进入Authorization，高量级范围必须先由新的
 `confirm-high-volume`在独立页面消费Selection Receipt并生成Escalation Receipt。最终Authorization消费当前

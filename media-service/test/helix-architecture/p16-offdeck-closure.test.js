@@ -353,3 +353,31 @@ test('UAT-139 review coverage is read from the receipt, rejects digest drift, an
   receipt.shelf_coverage_json = null; receipt.shelf_coverage_schema_ref = null;
   assert.equal(store.detail('review-1').selection.shelfCoverageRatios, null);
 });
+
+
+test('UAT-246 progress reads only the Review head, without Scope or material queries', () => {
+  const unitOfWork = { execute(participants) {
+    return Object.fromEntries(participants.map((participant) => [participant.participantId,
+      participant.execute({ repository() { return { invoke(statementId, params) {
+        assert.equal(statementId, 'find_review'); assert.equal(params.review_id, 'review-1');
+        return { state:'preparing',created_at_ms:10n };
+      } }; } })]));
+  } };
+  const store = createOffdeckStore({schemaManifest,unitOfWork});
+  assert.deepEqual(store.progress('review-1'), {reviewId:'review-1',state:'preparing',createdAtMs:10});
+});
+
+test('UAT-255 both review views stay read-only and never cancel or reconcile Aftercare', () => {
+  const calls = [];
+  const app = require('../../src/helix/domains/arca/application/offdeck-admin-application').createOffdeckAdminApplication({
+    contextReader:{store:{ detail(id){calls.push('detail');return {reviewId:id};},
+      progress(id){calls.push('progress');return {reviewId:id,state:'preparing'};} }},
+    materialControlProjectionPort:{},automationCoordinator:{},caseCoordinator:{},
+    cancelProcessWorks(){assert.fail('GET must not cancel Work');},
+    aftercareCoordinator:{reconcile(){assert.fail('GET must not reconcile');}},
+  });
+  assert.deepEqual(app.review('review-1'), {reviewId:'review-1'});
+  assert.equal(app.review('review-1',{view:'progress'}).state, 'preparing');
+  assert.deepEqual(calls, ['detail','progress']);
+  assert.throws(() => app.review('review-1',{view:'unknown'}), (error) => error.code==='ARCA_OFFDECK_VIEW_INVALID');
+});
