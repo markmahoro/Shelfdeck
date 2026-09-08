@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, cleanup } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import App from '../src/App';
@@ -31,4 +31,21 @@ describe('Admin auth copy', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('管理凭据验证失败。');
     expect(screen.queryByText('ADMIN_CREDENTIAL_INVALID')).not.toBeInTheDocument();
   });
+});
+
+describe('Shared session across all product routes',()=>{
+  afterEach(()=>{cleanup();vi.unstubAllGlobals();vi.restoreAllMocks();});
+  it.each(['/','/collection','/formation','/offdeck','/people','/material-fields','/shelves','/settings'])
+    ('shows exactly one shared sign-in screen after %s expires',async route=>{
+      const fetch=vi.fn(async(..._args:Parameters<typeof globalThis.fetch>)=>new Response(JSON.stringify({error:{code:'ADMIN_SESSION_EXPIRED',message:'Session expired'}}),
+        {status:401,headers:{'content-type':'application/json'}}));
+      vi.stubGlobal('fetch',fetch);
+      render(<MemoryRouter initialEntries={[route]}><App/></MemoryRouter>);
+      expect(await screen.findByRole('heading',{name:'进入管理台'})).toBeInTheDocument();
+      expect(screen.getAllByLabelText('管理凭据')).toHaveLength(1);
+      expect(screen.getAllByRole('button',{name:'进入管理台'})).toHaveLength(1);
+      expect(screen.queryByText(/ADMIN_SESSION_EXPIRED/)).not.toBeInTheDocument();
+      expect(fetch.mock.calls.some(call=>String(call[0]).includes('/session'))).toBe(false);
+      expect(document.querySelectorAll('.auth-card')).toHaveLength(1);
+    });
 });
