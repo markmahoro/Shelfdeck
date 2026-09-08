@@ -18,4 +18,4 @@
 - 相关回归36/36：Retry eligibility / stale freshness、Owner consumer、Outbox Inbox、通用 startup fail-closed。投递退避和 ACK 丢失重放均覆盖，Inbox 不重复。
 - 完整 clean Host 文件15通过、2既有跳过（Observation 旧路径及独立 Handoff B 场景）；其中实际节点入口启动/鉴权/停止也通过。原始记录 `.codex/uat129-regression.log`、`.codex/uat129-host-suite.log`。
 
-状态：本地通过，等待实际 Linux 镜像验证及标准生产发布后关闭。UAT-125/250 的 Libra 输入漂移和 UAT-251 的用户终局仍保持开放，不由本项代替。
+状态：2026-09-09 03:23 已验收关闭。实际发布 Linux 镜像3项恢复专项通过（其余16项由名称过滤未运行）；标准发布、readiness、生产挂载和六路GET200通过，收藏71部与发布前一致，Edge刷新正常。见[95d7bb5734发布](UAT_RELEASE_95D7BB5734_20260909.md)。UAT-125/250 的 Libra 输入漂移和 UAT-251 的用户终局仍保持开放，不由本项代替。
