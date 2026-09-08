@@ -350,7 +350,8 @@ function buildProductionVideoProfile(video){
   return Object.freeze({...profile,profileDigest:canonicalDigest(profile)});
 }
 function aftercareBitrate(requirements,probe,sourceSizeBytes){const maximum=requirements?.space?.maxSizeBytes;if(!Number.isSafeInteger(maximum)||maximum<=0)return null;
-  try{return deriveAftercareSizeBudget({maxSizeBytes:maximum,sourceSizeBytes:Number(sourceSizeBytes),durationMs:Number(probe.durationMs),audioStreams:probe.audioStreams,subtitleStreams:probe.subtitleStreams}).targetVideoBitrateBps;}catch{return null;}
+  return deriveAftercareSizeBudget({maxSizeBytes:maximum,sourceSizeBytes:Number(sourceSizeBytes),durationMs:Number(probe.durationMs),
+    videoStreams:probe.videoStreams,audioStreams:probe.audioStreams,subtitleStreams:probe.subtitleStreams}).targetVideoBitrateBps;
 }
 function strategyIntent(context,probe,device,mode,ordinal,profile){const requirements=effectiveRequirements(context),primary=context.raw.materials.find(isPrimaryMaterial),target=aftercareBitrate(requirements,probe,primary?.size_bytes),
   video=Object.freeze({codec:'hevc',rateControlMode:mode,targetVideoBitrateBps:mode==='quality_bound'?null:target,

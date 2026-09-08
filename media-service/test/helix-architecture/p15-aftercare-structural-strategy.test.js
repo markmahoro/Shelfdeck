@@ -32,3 +32,16 @@ test('CPU selection requires an explicit structural rejection of each ordinary r
   assert.ok(result.priorStrategyAssessments[0].reasonCodes.includes('required_pipeline_profile_unavailable'));
   assert.equal(await assessMediaRepairStrategy(options([device('gpu','intel_qsv',false)]),context(1),probe,evidence),null);
 });
+
+test('UAT-218 frozen strategy carries the quality floor when the byte cap requires a lower bitrate',async()=>{
+  const gpu=device('gpu','intel_qsv');gpu.capabilityPayload.supportedRateControlModes=['target_size'];
+  const c=context(2);c.raw.standard.value.profileRuleSets[0].baseRequirements={space:{maxSizeBytes:4*1024**3}};
+  c.raw.materials[0].size_bytes=20*1024**3;
+  const source={...probe,durationMs:15_000_000,videoStreams:[{...probe.videoStreams[0],streamIndex:0,
+    longEdge:1920,shortEdge:1080,bitRateBps:8_000_000}],audioStreams:[{streamIndex:1,bitRateBps:768_000}],subtitleStreams:[]};
+  const before=JSON.stringify(c);
+  const strategy=await assessMediaRepairStrategy(options([gpu]),c,source,evidence);
+  assert.equal(strategy.video.targetVideoBitrateBps,2_000_000);
+  assert.equal(strategy.video.rateControlMode,'target_size');
+  assert.equal(JSON.stringify(c),before,'Planning must not alter the accepted Inventory or requirements.');
+});

@@ -6939,7 +6939,7 @@ Plan、Event、Device Snapshot和Encode Intent；Executor不得在同一Event内
   `effectiveQualityFloor`时才允许建立新的Intent；否则立即冻结，并把这次仅有体积Gap的首次成功Work、Verification、
   Workspace Handle与Material Fence完整绑定到`size_cap_exceeded`候选。体积Gap本身不得触发外部寻源。
 
-这些常量只定义Beta revision 3的可重现施工起点。未来可以发布新的Planner Policy revision以改善质量、
+UAT-218：Arca Aftercare以域内Quality Policy revision 1采用同一画幅/空间档位质量下限、真实源码率约束和预算算法；每次Intent冻结目标码率，实际超限仍拒绝并保留原影片，不降低质量求达标。这些常量只定义Beta revision 3的可重现施工起点。未来可以发布新的Planner Policy revision以改善质量、
 效率或设备选择，但不能降低Acceptance Spec、改变既有Plan或让Executor自行补策略。
 
 revision 3继续区分“Device全局ready”与“当前Source × Pipeline × Intent可施工”。每个转码策略必须先

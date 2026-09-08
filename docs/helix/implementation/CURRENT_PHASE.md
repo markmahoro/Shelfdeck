@@ -22,3 +22,5 @@
 - [支线证据](evidence/USER_PAIN_ADDITIONAL_BRANCHES_20260908.md)：UAT-217/075。
 - UAT-212独立任务e6b7f0424已整合为799433c65；[本地证据](evidence/FORMATION_CARE_CLARITY_20260908.md)。收藏/整理统一分页及实际动作已有本地回归和合成数据浏览器操作；真实生产性能与流程、详情解释完整性仍开放。
 - [整理前活动包快照](archive/20260908_PRE_PROD_CONSOLIDATION/CURRENT_PHASE.md)仅为历史，不产生现行规则。
+
+- UAT-217正式身份Target/Acceptance重算已本地修正；UAT-218质量保护同输入对齐已本地修正。两项均保留真实全链路验收门槛，详见各自Evidence；不以定向回归关闭。

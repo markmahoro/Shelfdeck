@@ -7,6 +7,22 @@ const {
 
 const MIN_VIDEO_BITRATE_BPS = 100_000;
 const DEFAULT_SUBTITLE_BITRATE_BPS = 64_000;
+const AFTERCARE_QUALITY_POLICY = Object.freeze({ revision:1,
+  sizeGiB:Object.freeze([2,4,8,14,50]),
+  below4k:Object.freeze([1_500_000,2_000_000,2_500_000,4_000_000,15_000_000]),
+  fourK:Object.freeze([8_000_000,8_000_000,10_000_000,12_000_000,15_000_000]) });
+
+function sourceVideoBitrate(value) {
+  const measured=primaryVideoStreams(value).map(item=>item.bitRateBps)
+    .filter(item=>Number.isSafeInteger(item)&&item>0);
+  if(measured.length)return measured.reduce((sum,item)=>sum+item,0);
+  if(!Number.isSafeInteger(value.sourceSizeBytes)||value.sourceSizeBytes<1||
+      !Number.isSafeInteger(value.durationMs)||value.durationMs<1)return null;
+  const audio=value.audioStreams||[];
+  if(audio.some(item=>!Number.isSafeInteger(item.bitRateBps)||item.bitRateBps<1))return null;
+  return Math.max(1,Math.floor(value.sourceSizeBytes*8/(value.durationMs/1000))-
+    audio.reduce((sum,item)=>sum+item.bitRateBps,0)-(value.subtitleStreams||[]).length*DEFAULT_SUBTITLE_BITRATE_BPS);
+}
 
 function finitePositive(value) {
   const number = Number(value);
@@ -93,7 +109,19 @@ function deriveAftercareSizeBudget(value) {
   );
   const capFeasible = cap.videoBitrateBps >= MIN_VIDEO_BITRATE_BPS;
   const sourceBoundFeasible = target.videoBitrateBps >= MIN_VIDEO_BITRATE_BPS;
+  const policyIndex=AFTERCARE_QUALITY_POLICY.sizeGiB.findIndex(size=>Math.abs(size-maxSizeBytes/1024**3)<1e-9);
+  const primary=primaryVideoStreams(value);
+  const is4k=primary.length>0&&primary.every(stream=>Number(stream.longEdge)>=3800&&Number(stream.shortEdge)>=1600);
+  const policyVideoBitrateFloorBps=(is4k?AFTERCARE_QUALITY_POLICY.fourK:AFTERCARE_QUALITY_POLICY.below4k)[policyIndex<0?2:policyIndex];
+  const sourceVideoBitrateBps=sourceVideoBitrate(value);
+  const videoBitrateFloorBps=sourceVideoBitrateBps===null?policyVideoBitrateFloorBps:Math.min(policyVideoBitrateFloorBps,sourceVideoBitrateBps);
+  let targetVideoBitrateBps=Math.min(cap.videoBitrateBps,target.videoBitrateBps);
+  if(sourceVideoBitrateBps!==null)targetVideoBitrateBps=Math.min(targetVideoBitrateBps,sourceVideoBitrateBps);
+  const exceedsSizeCap=cap.videoBitrateBps<videoBitrateFloorBps;
+  if(exceedsSizeCap)targetVideoBitrateBps=videoBitrateFloorBps;
   return Object.freeze({
+    qualityPolicyRevision:AFTERCARE_QUALITY_POLICY.revision,
+    policyVideoBitrateFloorBps,videoBitrateFloorBps,sourceVideoBitrateBps,exceedsSizeCap,
     maxSizeBytes,
     sourceSizeBytes,
     targetFillBytes: target.fillBytes,
@@ -104,7 +132,7 @@ function deriveAftercareSizeBudget(value) {
     nonVideoBitrateBps,
     capVideoBitrateBps: cap.videoBitrateBps,
     targetVideoBitrateBps: capFeasible && sourceBoundFeasible
-      ? Math.min(cap.videoBitrateBps, target.videoBitrateBps) : null,
+      ? targetVideoBitrateBps : null,
     capFeasible,
     sourceBoundFeasible,
     feasible: capFeasible && sourceBoundFeasible,

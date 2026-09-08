@@ -34,3 +34,7 @@ UAT-144现有生产普通HTTP来源/收藏架页已实际导航验收，无rando
 UAT-217已完成正式身份评分Target与生产前Acceptance重算本地修正，17项定向回归通过；仍待全链路验收，未关闭。UAT-213先前“未实现”描述为接手历史快照，创建目标快照已由dcbcc8314实现，剩余验收以总表为准。
 
 发布候选8398986494已由独立干净检出完成标准build/upload，镜像helix-beta-20260908-8398986494，Tar SHA256 `94742bcac9029d7232db03928b80e373f018d1c9d3ca25636276e17b7815976c`，NAS上传校验与deploy dry-run通过。Linux Docker使用隔离数据库副本、network none且无媒体挂载完成health/admin/整理/收藏/维护/回收站只读smoke，两轮均200。未apply；生产仍为6e37bf5679。后续代码不自动包含于该候选，最终发布必须重新绑定确切提交。
+
+UAT-217提交9fb736ac1；UAT-218质量保护本地47项定向PASS，仍需真实转码与失败保原片验收。UAT-217最终并行入口测试曾出现一次health timeout，隔离复跑该文件14 PASS/3 SKIP，未隐去失败记录。
+
+UAT-218整合验证：220个architecture fixture文件与Dependency/Semantic/Manifest/Contract全部Gate PASS（.codex/uat218-architecture.json）。其中包含UAT-217最终代码回归。
