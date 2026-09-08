@@ -45,6 +45,11 @@ export function CareWorkDetail({item,error=''}:{item:CareWorkItem;error?:string}
         item.caseEvidence.objective.requirements.mandatoryMedia?.videoCodec ? `视频编码 ${item.caseEvidence.objective.requirements.mandatoryMedia.videoCodec}` : null,
         item.caseEvidence.objective.requirements.mandatoryMedia?.container ? `封装 ${item.caseEvidence.objective.requirements.mandatoryMedia.container}` : null,
       ].filter(Boolean).join('；') || '按创建时保存的收藏要求处理'}。</p> : <p>未记录当时具体目标；当前收藏要求不代表当时目标。</p>}
+      {item.goals.some(goal=>goal.split(/[/:]/).includes('placement_unmet'))&&(item.caseEvidence?.objective?.placement?<>
+        <p style={{overflowWrap:'anywhere'}}>当时收藏根目录：{item.caseEvidence.objective.placement.target.rootLocation}</p>
+        {item.caseEvidence.objective.placement.policy.folderTemplate&&<p style={{overflowWrap:'anywhere'}}>当时文件夹规则：{item.caseEvidence.objective.placement.policy.folderTemplate}</p>}
+        {item.caseEvidence.objective.placement.policy.primaryTemplate&&<p style={{overflowWrap:'anywhere'}}>当时影片命名规则：{item.caseEvidence.objective.placement.policy.primaryTemplate}</p>}
+      </>:<p>未记录当时收藏路径与命名规则；不使用当前配置倒推。</p>)}
       {!item.caseEvidence?.objective && item.goals.some(goal=>goal.split(/[/:]/).includes('max_size_exceeded'))&&<p>建单记录未保存具体体积上限；这里不使用当前规则倒推历史上限。</p>}
       <p><strong>{['resolved','unresolved','invalidated'].includes(item.state)?'本次结果：':'本次状态：'}</strong>{reasonText(item)||careStage(item)}</p>
       <p>开始于 {time(item.createdAtMs)}{item.terminalAtMs?`；结束于 ${time(item.terminalAtMs)}`:''}</p>

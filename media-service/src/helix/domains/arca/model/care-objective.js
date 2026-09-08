@@ -16,8 +16,20 @@ function freezeCareObjective(context) {
   const primaryBytes = context.raw.materials.filter(item => item.role === 'primary_payload')
     .reduce((total,item) => total + Number(item.size_bytes), 0);
   if (!Number.isSafeInteger(primaryBytes) || primaryBytes < 1) throw Object.assign(new Error('Maintenance primary size is unavailable.'), {code:'ARCA_CARE_OBJECTIVE_SOURCE_INVALID'});
+  const shelf=context.raw.shelf,placement=context.raw.placement;
+  if(!shelf?.shelf_id||!shelf.target_root_location||!placement?.value||!placement.policy_digest)
+    throw Object.assign(new Error('Maintenance has no exact creation-time Placement objective.'),{code:'ARCA_CARE_OBJECTIVE_PLACEMENT_MISSING'});
+  const placementObjective={schemaRef:'arca.care-placement-objective@1',shelfId:shelf.shelf_id,
+    placementRevision:context.basis.placementRevision,target:{endpointId:shelf.target_endpoint_id,
+      rootLocation:shelf.target_root_location,mountScopeId:shelf.target_mount_scope_id,
+      mountScopeRevision:Number(shelf.target_mount_scope_revision)},policy:placement.value,policyDigest:placement.policy_digest};
+  if(canonicalDigest(placementObjective.policy)!==placementObjective.policyDigest)
+    throw Object.assign(new Error('Maintenance Placement objective digest is invalid.'),{code:'ARCA_CARE_OBJECTIVE_PLACEMENT_INVALID'});
+  const placementJson=canonicalJson(placementObjective);
+  if(Buffer.byteLength(placementJson,'utf8')>16384)throw Object.assign(new Error('Maintenance Placement objective exceeds its snapshot budget.'),{code:'ARCA_CARE_OBJECTIVE_TOO_LARGE'});
   const parameters = {
     'target.requirements':value,
+    'target.placement':placementJson,
     'basis.requirementsDigest':canonicalDigest(requirements),
     'basis.inventoryRevision':context.basis.inventoryRevision,
     'basis.standardRevision':context.basis.standardRevision,
@@ -35,6 +47,14 @@ function readCareObjective(requirement) {
   const value = JSON.parse(parameter.value);
   const digest = requirement.typedParameters.find(item => item.parameter === 'basis.requirementsDigest');
   if (digest?.value !== canonicalDigest(value)) throw new Error('Maintenance requirements digest is invalid.');
-  return Object.freeze({requirements:value,requirementsDigest:digest.value});
+  const storedPlacement=requirement.typedParameters.find(item=>item.parameter==='target.placement');
+  let placement=null;
+  if(storedPlacement){
+    if(storedPlacement.valueDigest!==canonicalDigest(storedPlacement.value))throw new Error('Maintenance Placement objective digest is invalid.');
+    placement=JSON.parse(storedPlacement.value);
+    if(placement.schemaRef!=='arca.care-placement-objective@1'||canonicalDigest(placement.policy)!==placement.policyDigest)
+      throw new Error('Maintenance Placement policy digest is invalid.');
+  }
+  return Object.freeze({requirements:value,requirementsDigest:digest.value,placement});
 }
 module.exports = Object.freeze({acceptedRating,effectiveRequirements,careFindingCodes,freezeCareObjective,readCareObjective});

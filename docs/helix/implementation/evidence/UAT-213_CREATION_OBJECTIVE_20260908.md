@@ -18,3 +18,5 @@
 本地33项迁移/Settlement回归通过；222文件架构全门禁通过。真实隔离媒体两项合并101.3s通过：UAT-215后台收尾/重启，完整人物记录→NFO/海报修复→Target迁移→收尾→重启→失败保留→Off-deck。后续再补不可变Binding条数重启断言及缺证不重试回归；完整Service复验运行中。仍需生产与用户可读Placement目标展示验收，不关闭213。
 
 最终本地复验：Service串行529项中510 PASS/19环境SKIP/0 FAIL；所跳过的隔离媒体长链另行运行69.8s PASS，含Binding创建1条/迁移2条/重启仍2条断言；UAT-215独立媒体链也已PASS。24项Settlement/负向复验通过。当前仍未部署。
+
+创建目标展示补验：新Case另存完整Target/Placement规则JSON与摘要，旧Case缺证保持未知。14定向及222文件门禁PASS，Web59/build PASS；Edge详情显示创建时根目录/文件夹和命名规则，390px页面与366px对话框无横向溢出，视口恢复。真实媒体维护链70.1s PASS。仍待统一部署验收。

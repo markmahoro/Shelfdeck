@@ -54,11 +54,11 @@ function fixture(options = {}) {
   const context = () => Object.freeze({
     shelfEntryId:'entry-1', basis:currentBasis,
     raw:Object.freeze({
-      shelf:Object.freeze({ status:'active', shelf_id:'shelf-1', target_endpoint_id:options.targetEndpointId||'endpoint-1',
+      shelf:Object.freeze({ status:'active', shelf_id:'shelf-1', target_root_location:path.join(root,'shelf'),target_endpoint_id:options.targetEndpointId||'endpoint-1',
         target_mount_scope_id:options.targetMountScopeId||'mount-1',target_mount_scope_revision:1 }),
       entry:Object.freeze({ current_inventory_revision:currentBasis.inventoryRevision, canonical_identity_revision:1 }),
       identity:Object.freeze({ provider:'tmdb' }),facts:Object.freeze([]),reservations:Object.freeze([]), materials:Object.freeze([{role:'primary_payload',size_bytes:2000}]), oldBindings:Object.freeze([]), perceptionRating:null,
-      placement:Object.freeze({policy_digest:digest('placement')}),standard:Object.freeze({standard_digest:digest('standard'),value:{profileRuleSets:[{contentProfile:'movie',baseRequirements:{space:{maxSizeBytes:1000}}}]}}),
+      placement:Object.freeze({value:{folderTemplate:'{title}'},policy_digest:canonicalDigest({folderTemplate:'{title}'})}),standard:Object.freeze({standard_digest:digest('standard'),value:{profileRuleSets:[{contentProfile:'movie',baseRequirements:{space:{maxSizeBytes:1000}}}]}}),
     }),
   });
   const store = {

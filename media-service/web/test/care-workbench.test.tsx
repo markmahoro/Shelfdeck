@@ -134,3 +134,19 @@ it('UAT-213 shows the frozen size target without claiming it is missing',()=>{
   expect(screen.getByText(/当时目标：体积不超过 1.00 GiB/)).toBeInTheDocument();
   expect(screen.queryByText(/建单记录未保存具体体积上限/)).not.toBeInTheDocument();
 });
+
+
+it('UAT-213 displays creation-time Placement goals and keeps unknown history explicit',()=>{
+  const item={aftercareCaseId:'placement-snapshot',shelfEntryId:'entry',displayIdentity:'Movie',state:'resolved',classification:'completed',
+    goals:['conformance:placement_unmet'],createdAtMs:100,terminalAtMs:200,reasonCode:null,progress:null,
+    caseEvidence:{inventoryRevision:1,standardRevision:1,originalPrimaryBytes:2000,currentInventoryRevision:2,currentPrimaryBytes:2000,
+      objective:{requirements:{},requirementsDigest:'a'.repeat(64),placement:{shelfId:'shelf',placementRevision:1,
+        target:{rootLocation:'/collection-at-creation'},policy:{folderTemplate:'{title} ({year})',primaryTemplate:'{stem}{ext}'}}}},
+    processDetail:{contract:'aftercare_process_actual_plans@1',stages:[]}} as const;
+  const view=render(<MemoryRouter><CareWorkDetail item={item as never}/></MemoryRouter>);
+  expect(screen.getByText('当时收藏根目录：/collection-at-creation')).toBeInTheDocument();
+  expect(screen.getByText('当时文件夹规则：{title} ({year})')).toBeInTheDocument();
+  view.rerender(<MemoryRouter><CareWorkDetail item={{...item,caseEvidence:{...item.caseEvidence,objective:{requirements:{},requirementsDigest:'a'.repeat(64)}}} as never}/></MemoryRouter>);
+  expect(screen.getByText('未记录当时收藏路径与命名规则；不使用当前配置倒推。')).toBeInTheDocument();
+  expect(screen.queryByText('当时收藏根目录：/collection-at-creation')).not.toBeInTheDocument();
+});
