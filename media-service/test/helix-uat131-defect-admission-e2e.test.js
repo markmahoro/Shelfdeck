@@ -14,6 +14,12 @@ const { SYSTEM_TEMPLATE_ID } = require('../src/helix/domains/arca/model/rule-tem
 const SECRET = 'uat-131-defect-admission-e2e-20260827';
 const MOVIEPILOT_KEY = 'uat-131-moviepilot-key';
 const pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const REAL_NFO_MEDIA = process.env.HELIX_UAT208_REAL_MEDIA || null;
+if (REAL_NFO_MEDIA) {
+  assert.equal(process.env.HELIX_UAT131_SCENARIO, 'actor-only',
+    'The real-media NFO lifecycle test requires the actor-only scenario.');
+  assert.equal(fs.statSync(REAL_NFO_MEDIA).isFile(), true);
+}
 
 function jsonResponse(status, body) {
   const bytes = Buffer.from(JSON.stringify(body), 'utf8');
@@ -633,8 +639,9 @@ async function createScenario(t, scenario) {
   [paths.admin, paths.field, paths.shelf, paths.downloads, paths.workspace,
     paths.aftercare].forEach((directory) => fs.mkdirSync(directory, { recursive:true }));
   fs.writeFileSync(path.join(paths.admin, 'index.html'), '<div id="root"></div>');
-  fs.writeFileSync(path.join(paths.field, 'UAT131 Movie (2026).mkv'),
-    Buffer.from('uat-131-disposable-movie'));
+  const primaryLocation = path.join(paths.field, 'UAT131 Movie (2026).mkv');
+  if (REAL_NFO_MEDIA) fs.copyFileSync(REAL_NFO_MEDIA, primaryLocation);
+  else fs.writeFileSync(primaryLocation, Buffer.from('uat-131-disposable-movie'));
   if (scenario.name === 'actor-only') fs.writeFileSync(path.join(paths.field, 'UAT131 Movie (2026).nfo'),
     '<movie><title>UAT131 Movie</title><year>2026</year><tmdbid>913100</tmdbid></movie>');
   const initialized = initializeCleanData({
@@ -650,8 +657,10 @@ async function createScenario(t, scenario) {
     secretRoot:SECRET,
     libraWorkspaceRoot:paths.workspace,
     aftercareWorkspaceRoot:paths.aftercare,
-    mediaProbe:mediaProbe(),
-    mediaProductionEffectPort:mediaEffectPort(),
+    ...(REAL_NFO_MEDIA ? {} : {
+      mediaProbe:mediaProbe(),
+      mediaProductionEffectPort:mediaEffectPort(),
+    }),
     ...(scenario.mediaGap
       ? { platformComputeRuntime:incompatiblePlatformRuntime() }
       : {}),
