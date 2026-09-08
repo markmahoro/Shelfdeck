@@ -428,10 +428,9 @@ export default function ShelvesPage() {
 
   return <section className="source-page shelf-page">
     <PageHeader title="收藏架配置" actions={<Button variant="primary" type="button" onClick={() => setShowCreate((value) => !value)}>{showCreate ? '收起' : '新建收藏架'}</Button>} />
-    <div className="source-facts facts-3" aria-label="收藏架摘要">
+    <div className="source-facts facts-2" aria-label="收藏架摘要">
       <div><span>活动收藏架</span><strong>{activeShelves.length}</strong></div>
       <div><span>可用规则模板</span><strong>{activeTemplates.length}</strong></div>
-      <div><span>媒体类型</span><strong>电影</strong></div>
     </div>
     {showCreate && <form className="source-create" onSubmit={createShelf}>
       <div className="source-create-heading"><div><h2>创建电影收藏架</h2></div></div>
@@ -463,7 +462,6 @@ export default function ShelvesPage() {
             <div><dt>规则模板</dt><dd>{templateLabel(shelf.standard.ruleTemplateId)}</dd></div>
             <div><dt>目录布局</dt><dd>{shelf.placement.value.folderTemplate}</dd></div>
             <div><dt>收藏条目</dt><dd>{shelf.deregistrationSummary.entryCount}</dd></div>
-            <div><dt>状态</dt><dd>{shelfStatusLabel(shelf.status)}</dd></div>
           </dl>
         </div>
         <div className="shelf-standard">

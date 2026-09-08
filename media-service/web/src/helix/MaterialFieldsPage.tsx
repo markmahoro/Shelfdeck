@@ -33,11 +33,11 @@ function scanProgress(field: MaterialField) {
 }
 function procurementFollowUp(field: MaterialField) {
   const status = field.procurementStatus;
-  if (status.activeRunCount > 0 || status.stage === 'procurement_run_active') {
-    return `仍有 ${status.activeRunCount} 个批次在分拣；已生成 ${status.generatedPackageCount} 个媒体包，其中 ${status.waitingAcceptanceCount} 份等待进入整理。`;
+  if (status.activeRunCount > 0) {
+    return `${status.activeRunCount} 个批次正在分拣。`;
   }
-  if (status.generatedPackageCount > 0) {
-    return `已生成 ${status.generatedPackageCount} 个媒体包，已交给整理 ${status.acceptedPackageCount} 个，仍有 ${status.waitingAcceptanceCount} 份等待进入整理。`;
+  if (status.generatedPackageCount === 0) {
+    return '尚未形成媒体包。扫描后会先完成文件分拣。';
   }
   return '';
 }
@@ -200,7 +200,8 @@ export default function MaterialFieldsPage() {
   if (!fields.length && loading && !error) return <LoadingState>正在读取文件来源…</LoadingState>;
 
   return <section className="source-page material-fields-page">
-    <PageHeader title="文件来源" description="这里负责发现文件、形成待整理媒体包，并交给整理。只有开始整理后，电影才会出现在媒体整理工作区。" actions={<Button variant="primary" type="button" onClick={() => setShowCreate((value) => !value)}>{showCreate ? '收起' : '添加电影来源'}</Button>} />
+    <PageHeader title="文件来源" actions={<Button variant="primary" type="button" onClick={() => setShowCreate((value) => !value)}>{showCreate ? '收起' : '添加电影来源'}</Button>} />
+    <details className="source-flow-help"><summary>文件如何进入整理</summary><p>这里负责发现文件、形成待整理媒体包，并交给整理。只有开始整理后，电影才会出现在媒体整理工作区。</p></details>
     <div className="source-facts" aria-label="文件来源摘要">
       <div><span>活动来源</span><strong>{activeFields.length}</strong></div>
       <div><span>已生成媒体包</span><strong>{packageTotals.generated}</strong></div>
@@ -226,6 +227,7 @@ export default function MaterialFieldsPage() {
         const scanBusy = observing || scan.state === 'scanning';
         const admission = intakeAdmission[field.fieldId];
         const generated = field.procurementStatus.generatedPackageCount;
+        const followUp = procurementFollowUp(field);
         const acceptedPercent = generated > 0 ? (field.procurementStatus.acceptedPackageCount / generated) * 100 : 0;
         const waitingPercent = generated > 0 ? (field.procurementStatus.waitingAcceptanceCount / generated) * 100 : 0;
         return <article className="source-record" key={field.fieldId}>
@@ -257,7 +259,7 @@ export default function MaterialFieldsPage() {
               <span className="waiting" style={{ width: `${waitingPercent}%` }} />
             </div>
             {field.procurementStatus.rejectedPackageCount > 0 && <p className="source-flow-exception">另有 {field.procurementStatus.rejectedPackageCount} 个媒体包未能进入整理，不计入等待数量。</p>}
-            <p>{procurementFollowUp(field) || '尚未形成媒体包。扫描后会先完成文件分拣。'}</p>
+            {followUp && <p>{followUp}</p>}
           </section>
           <section className="source-flow-panel source-flow-libra" aria-label={`${field.name} 同时整理数量`}>
             <div className="source-flow-heading"><span>媒体整理</span><strong>接收席位</strong></div>
