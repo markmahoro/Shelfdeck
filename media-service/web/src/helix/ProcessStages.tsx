@@ -26,7 +26,7 @@ function progressText(progress:NonNullable<FormationSubject['organizingSteps'][n
 function progressRate(progress:NonNullable<FormationSubject['organizingSteps'][number]['progress']>) {
   const rate=progress.rate;
   if(rate===null||!Number.isFinite(rate)||rate<0)return '';
-  if(progress.unit==='microseconds')return `${(rate/1_000_000).toFixed(2)} 倍速`;
+  if(progress.unit==='microseconds')return `${rate.toFixed(2)} 倍速`;
   if(progress.unit==='percent')return '';
   const units=['B/s','KiB/s','MiB/s','GiB/s']; let value=rate,index=0;
   while(value>=1024&&index<units.length-1){value/=1024;index+=1;}

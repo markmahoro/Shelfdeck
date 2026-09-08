@@ -1,6 +1,6 @@
 # 当前活动包：用户痛点迭代
 
-2026-09-08。状态：ACTIVE；用户确认持续按七步计划推进。已确认的健康—Case边界、独立记录更新事务及前后端核心实现已经过本地测试和Linux生产副本验证，正在准备标准发布。自动化已PAUSED，Emby审查已跳过；生产仍为275923039f。
+2026-09-08。状态：ACTIVE；用户确认持续按七步计划推进。健康—Case边界、独立记录更新及统一详情已随6e37bf5679标准部署。真实浏览器验收后追加的详情加载反馈、倍速显示、大NFO记录同步修正尚在本地；AC-09、两项旧NFO残留、后续发布复验及最后清理仍开放。自动化保持PAUSED，Emby审查已跳过。以下部署前检查点保留为历史，当前事实以CURRENT_STATUS与文末最新检查点为准。
 
 当前设计：健康状态检查及更新不创建Case，只更新收藏健康与有Evidence的管理记录；Case仅代表有实际处理目标的上架后处理，并在媒体整理区与Libra Run共用表现规范。SSOT §6.6、§9及2026-09-08修订及Level 8派生合同已落盘。独立记录更新的Command/Receipt、Inventory/Control原子事务及并发Fence已有实现和回归证据；完整人物观察/关联能力AC-09仍未关闭。
 
@@ -19,9 +19,9 @@
 | Case准入 | Arca，SSOT本轮amendment/§6.6 | queued→active原子席位、重试保留、终结释放、重启/FIFO/失效测试 | local_verified |
 | 工作展示 | Admin只读投影，§9.4.6修订 | 现有表格与详情增量纳入Case；真实等待与结果 | local_verified |
 | 列表性能 | 各Owner Query与Web | 按需历史、有界摘要、轮询去重、收藏分页与实测 | local_verified |
-| NFO共存 | Libra生成/Arca验收与维护 | 收缩呈现比较，同步Binding与人物观察；保留身份和文件安全 | local_verified |
+| NFO共存 | Libra生成/Arca验收与维护 | 呈现比较收缩及Binding同步已部署；人物观察/确定关联AC-09仍开放 | partial |
 | 回收站 | Arca源位置收尾 | 精确范围、物理归档、可恢复、30天/每日清理、跨盘与故障恢复 | local_verified |
-| 发布验证 | 标准生产入口 | fd8a8e6f35已标准部署；54 Entry / 451文件存在；历史接纳闭包冲突与扫描凭证过期仍待收敛 | monitoring_attention |
+| 发布验证 | 标准生产入口 | 6e37bf5679已标准部署；09-08 12:57为56 Entry / 54绿2红，前54部保留；浏览器追加修正尚未发布 | monitoring_attention |
 
 部署身份、验证和未关闭事项见[生产记录](evidence/USER_PAIN_DEPLOYMENT_20260907.md)及[持续迭代证据](evidence/USER_PAIN_CONTINUATION_20260908.md)。不将HTTP健康、本地测试通过等同于运行态全部正常。
 
@@ -36,3 +36,5 @@ Top Gun已通过正式回收站API移入应用回收站，11文件/4,015,976字�
 Effect边界：Libra不写正式来源；Arca文件变更须精确范围与可恢复Evidence；回收站隔离于Field/Shelf/Provider扫描范围。自动回收只处理已完成移入且到期记录。新schema保护全部已Commit收藏，不为未完成Formation添加双路径。
 
 停止条件：真实文件副作用范围无法证明、备份或副本验证失败、未确认的Owner/授权扩张。已批准调整不重复询问；额外产品范围不擅自扩充。
+
+最新进展（09-08真实UI验收）：6e37bf5679已通过标准流程部署；上文“未部署/275923039f”属于部署前检查点。新记录型Case已收敛。用户要求主线继续、BR-01/UAT-079及BR-02码率保护单列，见evidence/USER_PAIN_ADDITIONAL_BRANCHES_20260908.md。生产真实点击验收发现上架详情加载反馈、维护详情加载文案、倍速显示三处主线问题，已本地修正并通过46项web测试和构建，尚未发布。部署记录回写、主线开放项与清理仍须完成，Phase保持ACTIVE。

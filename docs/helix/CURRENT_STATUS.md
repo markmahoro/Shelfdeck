@@ -1,10 +1,14 @@
 # ShelfDeck Clean Helix Current Status
 
-Status: **275923039f已部署，精确历史Offer闭包清理完成；当前按用户要求返回Aftercare合同统一。SSOT已区分健康检查更新与真正处理Case，生产尚未实现该新边界。**
+Status: **6e37bf5679已部署健康检查与维护Case新边界；主线仍在实施与验收，未全数关闭。**
 
 Last updated: 2026-09-08
 
-最新授权与实施状态：用户确认“好的 你继续持续推进吧”。健康/Case投影、独立NFO记录更新、真实维护详情、DB分页及当前进度版本查询已本地实现；45个事务的派生合同及214 Fixture文件完整架构Gate通过，完整service 500通过/18跳过、web 44通过、Linux副本ready。正在完成混合健康/终态展示边界及整理查询复用修正的最终发布验证，生产仍为275923039f。详细实现、测试竞争中的一次超时及AC-09未关闭能力见[本次实施证据](implementation/evidence/AFTERCARE_HEALTH_CASE_IMPLEMENTATION_20260908.md)。
+最新授权与实施状态：用户要求持续推进主线并以真实浏览器操作验收两页响应。健康/Case投影、独立NFO记录更新、真实维护详情、DB分页及当前进度查询已部署。该镜像验证为service 501通过/18跳过、web 44通过、214 Fixture文件架构Gate及Linux生产副本通过。后续详情加载反馈、倍速显示和大NFO记录同步修正在本地，尚未发布；AC-09人物观察/确定关联仍开放。详细证据见[本次实施](implementation/evidence/AFTERCARE_HEALTH_CASE_IMPLEMENTATION_20260908.md)。
+
+当前镜像`markmahoro/shelfdeck:helix-beta-20260908-6e37bf5679`；image ID `sha256:356c034aca554dc206d7c2050b38d9ba646c6c0c1f43f66d7a57aa1f86f3d976`；发布tar SHA-256 `404da86c43eccc15c68b00b5d63832b1012d165ea7768d89deed6870fc581d90`。标准build/upload/checksum/dry-run/apply已通过。保留275923039f回滚镜像与`/vol1/1000/docker/shelfdeck/backups/aftercare-health-case-20260908`完整备份。
+
+09-08 12:57生产只读复验：56部收藏、54绿/2红/0黄，原有54部均保留；三项未准入的记录型Case已从整理工作历史排除。红灯为007：大战皇家赌场、第三度嫌疑人的`old_binding_identity_changed`。Top Gun旧目录已归档且11文件哈希复验通过。以下段落保留历史时点，不代表当前部署状态。
 
 全链路审计第1—2步已完成，见[Aftercare全链路审计](implementation/evidence/AFTERCARE_FULL_CHAIN_AUDIT_20260908.md)。10项问题有代码或隔离复算依据，AC-09完整人物观察/关联路径仍未实现。02:27已完成生产只读核对：54份NFO均可读、3份指纹漂移、2 active/3 queued Case，只有1个FFmpeg进程，Top Gun约58%；本次尚未修改生产Case或部署，Emby审查继续跳过。
 

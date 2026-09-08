@@ -367,3 +367,22 @@ describe('Helix primary copy and workbench structure', () => {
     }
   });
 });
+
+it('opens a loading dialog immediately and ignores a response after the user closes it',async()=>{
+  const item=completedSubject(),summary={totalCount:1,inProgressCount:0,attentionRequiredCount:0,completedCount:1};
+  vi.spyOn(helixAdminApi,'listFormation').mockImplementation(async(section)=>({items:section==='completed'?[item]:[],summary,nextCursor:null,projection:{status:'ready',asOfMs:1}}));
+  vi.spyOn(helixAdminApi,'listFormationHistory').mockResolvedValue({items:[],summary,nextCursor:null,projection:{status:'ready',asOfMs:1}});
+  vi.spyOn(helixAdminApi,'listShelves').mockResolvedValue({items:[]});
+  vi.spyOn(helixAdminApi,'listCareWork').mockResolvedValue({items:[],counts:{},nextCursor:null});
+  vi.spyOn(helixAdminApi,'getPerceptionSyncState').mockRejectedValue(new Error('not configured'));
+  let resolveDetail!:(value:FormationSubject)=>void;
+  vi.spyOn(helixAdminApi,'getFormation').mockImplementation(()=>new Promise(resolve=>{resolveDetail=resolve;}));
+  render(<MemoryRouter initialEntries={['/formation']}><App/></MemoryRouter>);
+  fireEvent.click(await screen.findByRole('button',{name:'查看过程'}));
+  expect(screen.getByRole('dialog')).toHaveTextContent('正在读取整理计划…');
+  expect(screen.getByRole('button',{name:'刷新',exact:true})).toBeEnabled();
+  fireEvent.click(screen.getByRole('button',{name:'关闭媒体整理过程卡片'}));
+  resolveDetail(item);
+  await waitFor(()=>expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+  vi.restoreAllMocks();
+});

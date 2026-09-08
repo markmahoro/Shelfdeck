@@ -105,7 +105,7 @@ async function remainingHistory(first:{items:FormationRunHistory[];nextCursor:st
   return items;
 }
 
-function ProcessDetail({ item }:{ item:FormationSubject }) {
+function ProcessDetail({ item, loading=false, error='' }:{ item:FormationSubject; loading?:boolean; error?:string }) {
   const detail=item.processDetail;
   return <article className="formation-process-card" aria-label={`${item.displayIdentity}的媒体整理过程`}>
     <header className="formation-process-head"><div><span className="formation-process-eyebrow">媒体整理过程</span><h3>{item.displayIdentity}</h3><p>{currentProgressLabel(item)}</p></div><span className="formation-process-status" data-state={stageState(item)}>{statusLabel(item)}</span></header>
@@ -121,7 +121,7 @@ function ProcessDetail({ item }:{ item:FormationSubject }) {
       {f.diagnostics?.timeout&&<p>请求超时</p>}
     </section>)}
     <dl className="formation-process-facts"><div><dt>目标收藏架</dt><dd>{item.targetShelfName || '尚未选定'}</dd></div><div><dt>收藏要求</dt><dd>{item.organizingRequirement}</dd></div><div><dt>当前进展</dt><dd>{currentProgressLabel(item)}</dd></div></dl>
-    {detail?.contract==='formation_process_actual_plans@1'?<ProcessStages stages={detail.stages} />:<div className="formation-process-unavailable"><strong>暂时无法读取真实计划</strong><p>当前没有可供展示的计划记录。页面不会根据状态推测或补造计划。</p></div>}
+    {loading?<p role="status">正在读取整理计划…</p>:error?<p role="alert">{error}</p>:detail?.contract==='formation_process_actual_plans@1'?<ProcessStages stages={detail.stages} />:<div className="formation-process-unavailable"><strong>暂时无法读取真实计划</strong><p>当前没有可供展示的计划记录。页面不会根据状态推测或补造计划。</p></div>}
   </article>;
 }
 
@@ -132,9 +132,11 @@ export default function FormationPage() {
   const [perceptionSync,setPerceptionSync]=useState<PerceptionSyncState|null>(null);
   const [filter,setFilter]=useState<Filter>('all'),[q,setQ]=useState(''),[shelfFilter,setShelfFilter]=useState(''),[loading,setLoading]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState('');
   const [selected,setSelected]=useState<FormationSubject|null>(null),triggerRef=useRef<HTMLButtonElement|null>(null),loadGeneration=useRef(0);
+  const [detailLoading,setDetailLoading]=useState(false),[detailError,setDetailError]=useState(''),detailGeneration=useRef(0);
   const [defectDialog,setDefectDialog]=useState<{item:FormationSubject;candidate:DefectAdmissionCandidate}|null>(null);
   const [careItems,setCareItems]=useState<CareWorkItem[]>([]),[careCursor,setCareCursor]=useState<string|null>(null),[selectedCare,setSelectedCare]=useState<CareWorkItem|null>(null);
   const [careCounts,setCareCounts]=useState<Record<string,number>>({});
+  const [careDetailError,setCareDetailError]=useState('');
   const careLoading=useRef(false),careExpanded=useRef(false),carePageCount=useRef(1),selectedCareId=useRef<string|null>(null);
   selectedCareId.current=selectedCare?.aftercareCaseId||null;
   useEffect(()=>{
@@ -147,11 +149,12 @@ export default function FormationPage() {
     return()=>{cancelled=true;};
   },[linkedCaseId,expire]);
   useEffect(()=>{
+    setCareDetailError('');
     const caseId=selectedCare?.aftercareCaseId;if(!caseId||selectedCare.processDetail)return;
     let cancelled=false;
     void helixAdminApi.listCareWork(undefined,caseId).then(result=>{
       if(!cancelled)setSelectedCare(current=>current?.aftercareCaseId===caseId?result.items[0]||null:current);
-    }).catch(cause=>{if(!cancelled){if(isUnauthorized(cause))expire();else setError('维护过程读取失败，请重新打开详情。');}});
+    }).catch(cause=>{if(!cancelled){if(isUnauthorized(cause))expire();else setCareDetailError('维护过程读取失败，请重新打开详情。');}});
     return()=>{cancelled=true;};
   },[selectedCare?.aftercareCaseId,expire]);
   const loadCare=useCallback(async(cursor?:string)=>{
@@ -298,8 +301,14 @@ export default function FormationPage() {
     if(row.kind!=='ended'&&shelfFilter&&row.item.targetShelfId!==shelfFilter)return false;
     if(filter==='all')return true;if(row.kind==='care')return row.item.classification===filter||(filter==='in_progress'&&row.item.classification==='queued');if(filter==='ended')return row.kind==='ended';return row.kind==='formation'&&row.item.classification===filter;
   }),[active,completed,ended,careItems,filter,q,shelfFilter]);
-  const close=()=>{setSelected(null);window.setTimeout(()=>triggerRef.current?.focus(),0);};
-  const open=async(item:FormationSubject,button:HTMLButtonElement)=>{triggerRef.current=button;setLoading(true);try{setSelected(await helixAdminApi.getFormation(item.formationViewId));}catch(cause){setError(cause instanceof Error?cause.message:'上架过程详情读取失败。');}finally{setLoading(false);}};
+  const close=()=>{detailGeneration.current+=1;setSelected(null);setDetailLoading(false);window.setTimeout(()=>triggerRef.current?.focus(),0);};
+  const open=async(item:FormationSubject,button:HTMLButtonElement)=>{
+    triggerRef.current=button;const generation=++detailGeneration.current;
+    setSelected(item);setDetailLoading(true);setDetailError('');
+    try{const detail=await helixAdminApi.getFormation(item.formationViewId);if(generation===detailGeneration.current)setSelected(detail);}
+    catch(cause){if(generation===detailGeneration.current){if(isUnauthorized(cause))expire();else setDetailError('整理过程读取失败，请关闭后重试。');}}
+    finally{if(generation===detailGeneration.current)setDetailLoading(false);}
+  };
   const action=async(item:FormationSubject,kind:'expedite'|'discard'|'admitDefects'|'retry'|'chooseShelf'|'chooseIdentity',value?:boolean|string)=>{
     if(kind==='discard'){setDiscardDialog(item);return;}
     setLoading(true);setError('');
@@ -332,8 +341,8 @@ export default function FormationPage() {
     {Object.values(pageCursors).some(Boolean)&&<Button type="button" disabled={loadingMore} onClick={()=>void loadMore()}>{loadingMore?'正在读取…':'加载更多整理记录'}</Button>}
     <RecyclePanel/>
     {careCursor&&<Button type="button" onClick={()=>void loadCare(careCursor)}>加载更多维护记录</Button>}
-    {selectedCare&&<ProcessDialog title={selectedCare.displayIdentity+'的媒体整理过程'} onClose={()=>setSelectedCare(null)}><CareWorkDetail item={selectedCare}/></ProcessDialog>}
-    {selected&&<ProcessDialog title={selected.displayIdentity+'的媒体整理过程'} onClose={close}><ProcessDetail item={selected}/></ProcessDialog>}
+    {selectedCare&&<ProcessDialog title={selectedCare.displayIdentity+'的媒体整理过程'} onClose={()=>setSelectedCare(null)}><CareWorkDetail item={selectedCare} error={careDetailError}/></ProcessDialog>}
+    {selected&&<ProcessDialog title={selected.displayIdentity+'的媒体整理过程'} onClose={close}><ProcessDetail item={selected} loading={detailLoading} error={detailError}/></ProcessDialog>}
     <Dialog open={!!discardDialog} title="确认放弃整理" onClose={()=>setDiscardDialog(null)} actions={<>
       <Button type="button" disabled={loading} onClick={()=>setDiscardDialog(null)}>取消</Button>
       <Button type="button" variant="danger" disabled={loading} onClick={()=>{void (async()=>{

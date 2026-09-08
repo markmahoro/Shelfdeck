@@ -1,16 +1,16 @@
 # ShelfDeck v3 / Kairox Historical Status
 
-Last updated: 2026-09-07
+Last updated: 2026-09-08
 
 - `Kairox Beta` 已达成，Kairox release line 已关闭。
 - v3/Kairox 文档只保留历史实现、验收和版本管理证据，不能覆盖 clean Helix SSOT。
 - 当前产品、计划、验收和生产运行事实分别见 `docs/helix/README.md`、
   `docs/helix/CURRENT_PLAN.md`、`docs/helix/BETA_FEATURE_ACCEPTANCE_BASELINE.md` 与
   `docs/helix/CURRENT_STATUS.md`。
-- 当前生产镜像为 `markmahoro/shelfdeck:helix-beta-20260907-fd8a8e6f35`，source commit `fd8a8e6f35`，
-  NAS image/config ID `sha256:92d7a7b6468a4e8f8c66466fe6c6dcbe0cc915560942e6bf2594fd0e6c8cbc8d`，tar SHA-256
-  `e9615b1dc31a9ef51d7afcb9cd9090521988dc39d4f0df056e2c15aa169ddb08`。
-- 当前资格：本地Service 498 PASS/18 SKIP、Architecture 1534 PASS/7 SKIP、Web 43 PASS；最后Work Supply改动另有29项回归通过。最终镜像在隔离Linux环境运行生产副本、后台执行和6个真实HTTP入口通过。未重新执行全部真实媒体旅程，生产发现历史恢复错误，不能声明全链E2E或稳定性全部PASS。详见Helix生产记录。
+- 当前生产镜像为 `markmahoro/shelfdeck:helix-beta-20260908-6e37bf5679`，source commit `6e37bf5679`，
+  NAS image/config ID `sha256:356c034aca554dc206d7c2050b38d9ba646c6c0c1f43f66d7a57aa1f86f3d976`，tar SHA-256
+  `404da86c43eccc15c68b00b5d63832b1012d165ea7768d89deed6870fc581d90`。
+- 当前镜像资格：Service 501 PASS/18 SKIP、Architecture 214 Fixture文件通过、Web 44 PASS、Linux生产副本及实际HTTP验证通过。健康/Case新边界已部署，后续浏览器交互修正仍在本地（Web 47 PASS），不能混写成已发布。未重新执行全部真实媒体旅程，AC-09与两项旧NFO残留仍开放，不能声明全链E2E或全部痛点关闭。详见Helix当前状态。
 - 不授权 Kairox compatibility migration、dual read、roadmap 重启或新 v3.x milestone。
 
 以下为本次用户痛点迭代之前的历史部署验证：

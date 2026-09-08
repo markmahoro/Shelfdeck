@@ -44,3 +44,20 @@ it('shows an admitted Aftercare Case in the existing work table and loads histor
   fireEvent.click(screen.getByRole('button',{name:'加载更多整理记录'}));
   await waitFor(()=>expect(history).toHaveBeenCalledWith('more-history'));
 });
+
+it('shows maintenance detail request failures inside the open dialog',async()=>{
+  const summary={totalCount:0,inProgressCount:0,attentionRequiredCount:0,completedCount:0};
+  const projection={status:'ready' as const,asOfMs:100};
+  vi.spyOn(helixAdminApi,'listFormation').mockResolvedValue({items:[],summary,nextCursor:null,projection});
+  vi.spyOn(helixAdminApi,'listFormationHistory').mockResolvedValue({items:[],summary,nextCursor:null,projection});
+  vi.spyOn(helixAdminApi,'listShelves').mockResolvedValue({items:[]});
+  vi.spyOn(helixAdminApi,'getPerceptionSyncState').mockRejectedValue(new Error('not configured'));
+  vi.spyOn(helixAdminApi,'listCareWork').mockImplementation((_cursor,caseId)=>caseId?Promise.reject(new Error('unavailable')):Promise.resolve({items:[{
+    aftercareCaseId:'case-error',shelfEntryId:'entry-error',displayIdentity:'Detail Error Movie',targetShelfId:'shelf',targetShelfName:'Films',
+    state:'active',classification:'in_progress',goals:['video_codec_unmet'],createdAtMs:100,terminalAtMs:null,reasonCode:null,progress:null,
+  }],counts:{in_progress:1},nextCursor:null}));
+  render(<MemoryRouter initialEntries={['/formation']}><App/></MemoryRouter>);
+  fireEvent.click(await screen.findByRole('button',{name:'查看过程'}));
+  await waitFor(()=>expect(screen.getByRole('dialog')).toHaveTextContent('维护过程读取失败，请重新打开详情。'));
+  expect(screen.queryByText('正在读取维护计划…')).not.toBeInTheDocument();
+});

@@ -6,13 +6,11 @@ const {observedIdentity}=require('../model/known-old-binding');
 const {isAftercareArtifactMaterial,physicalIdentityFromInventoryRow}=require('../model/aftercare-contract');
 
 function createInventoryRecordRefresh(options){
-  const controls=createMaterialControlProjectionPort(options),readSnapshot=options.readBoundedFileSnapshotSync;
+  const controls=createMaterialControlProjectionPort(options),readFingerprint=options.computeBoundedMaterialFingerprintSync;
   function observe(row){
-    const snapshot=readSnapshot(row.location,256*1024);
-    if(!snapshot.bytes.length)throw Object.assign(new Error('Empty NFO needs physical repair.'),{code:'ARCA_RECORD_REFRESH_EMPTY'});
-    // For this bounded full-file observation, the sample digest already covers all bytes.
-    if(snapshot.sampleOffset!==0||snapshot.sampleLength!==snapshot.bytes.length)
-      throw Object.assign(new Error('NFO observation did not cover the complete bounded file.'),{code:'ARCA_RECORD_REFRESH_INCOMPLETE'});
+    const snapshot=readFingerprint(row.location,{requireStableSnapshot:true});
+    if(!Number(snapshot.stat.size))throw Object.assign(new Error('Empty NFO needs physical repair.'),{code:'ARCA_RECORD_REFRESH_EMPTY'});
+    // Binding refresh observes Physical Identity; it does not parse or compare NFO content.
     return Object.freeze({ordinal:Number(row.ordinal),previousMaterialKey:row.material_key,endpointId:row.endpoint_id,location:row.location,
       identity:observedIdentity(row.location,row.mount_scope_id,()=>snapshot),digestHex:snapshot.contentFingerprint,
       statFence:canonicalDigest({ino:String(snapshot.stat.ino),size:String(snapshot.stat.size),mtimeNs:String(snapshot.stat.mtimeNs),ctimeNs:String(snapshot.stat.ctimeNs)})});

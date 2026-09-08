@@ -11,7 +11,7 @@ const {createSqliteUnitOfWork}=require('../../src/helix/foundation/persistence/s
 const {createAftercareStore}=require('../../src/helix/domains/arca/persistence/aftercare-store');
 const {createInventoryRecordRefresh}=require('../../src/helix/domains/arca/application/inventory-record-refresh');
 const {observedIdentity}=require('../../src/helix/domains/arca/model/known-old-binding');
-const {computeBoundedMaterialFingerprintSync,readBoundedFileSnapshotSync}=require('../../src/helix/integrations/bounded-material-fingerprint');
+const {computeBoundedMaterialFingerprintSync}=require('../../src/helix/integrations/bounded-material-fingerprint');
 const generated=path.resolve(__dirname,'../../src/helix/foundation/persistence/generated');
 const schemaManifest=JSON.parse(fs.readFileSync(path.join(generated,'clean-schema.manifest.json'),'utf8'));
 const schemaDdl=fs.readFileSync(path.join(generated,'clean-schema.sql'),'utf8');
@@ -41,7 +41,7 @@ function fixture(){
     return row;
   });
   fs.writeFileSync(locations[1],'externally updated NFO bytes');
-  const store=createAftercareStore(options),contextReader={store},service=createInventoryRecordRefresh({...options,contextReader,readBoundedFileSnapshotSync}),
+  const store=createAftercareStore(options),contextReader={store},service=createInventoryRecordRefresh({...options,contextReader,computeBoundedMaterialFingerprintSync}),
     context=()=>({shelfEntryId:'entry',basis:{digest:digest('basis'),acceptedProductFactSetDigest:digest('facts')},raw:{
       entry:db.prepare('SELECT * FROM arca_shelf_entries WHERE shelf_entry_id=?').get('entry'),
       shelf:db.prepare('SELECT * FROM arca_shelves WHERE shelf_id=?').get('shelf'),
@@ -49,7 +49,7 @@ function fixture(){
       materials:db.prepare('SELECT * FROM arca_inventory_materials WHERE shelf_entry_id=? AND inventory_revision=(SELECT current_inventory_revision FROM arca_shelf_entries WHERE shelf_entry_id=?) ORDER BY ordinal').all('entry','entry'),reservations:[],
     }});
   return {db,store,service,context,materials,locations,insert,
-    makeService:read=>createInventoryRecordRefresh({...options,contextReader,readBoundedFileSnapshotSync:read}),
+    makeService:read=>createInventoryRecordRefresh({...options,contextReader,computeBoundedMaterialFingerprintSync:read}),
     close(){db.close();kernel.close();fs.rmSync(root,{recursive:true,force:true});}};
 }
 
@@ -101,7 +101,7 @@ test('an external write between observation and commit leaves no partial record 
     let reads=0;
     const service=value.makeService((location,limit)=>{
       if(++reads===2)fs.writeFileSync(location,'another external writer update');
-      return readBoundedFileSnapshotSync(location,limit);
+      return computeBoundedMaterialFingerprintSync(location,limit);
     });
     assert.throws(()=>service.refresh(value.context()),error=>error.code==='ARCA_RECORD_REFRESH_OBSERVATION_STALE');
     assert.equal(value.db.prepare('SELECT current_inventory_revision revision FROM arca_shelf_entries').get().revision,1);
@@ -119,6 +119,35 @@ test('active Case and concurrent Off-deck reservation both prevent record refres
     value.db.prepare("UPDATE arca_aftercare_cases SET state='resolved',terminal_at_ms=2 WHERE aftercare_case_id='case'").run();
     value.insert('arca_offdeck_reservations',{reservation_id:'reservation',shelf_entry_id:'entry',state:'active',inventory_revision:1,created_at_ms:1});
     assert.throws(()=>value.service.refresh(value.context()),error=>error.code==='ARCA_RECORD_REFRESH_FENCED');
+    assert.equal(value.db.prepare('SELECT current_inventory_revision revision FROM arca_shelf_entries').get().revision,1);
+    assert.equal(value.db.prepare('SELECT count(*) n FROM fx_command_receipts').get().n,0);
+  }finally{value.close();}
+});
+
+test('large readable NFO refresh stays within the fingerprint budget and never creates repair work',()=>{
+  const value=fixture();try{
+    const bytes=Buffer.from('<movie><plot>'+ 'x'.repeat(1024*1024) +'</plot></movie>');
+    fs.writeFileSync(value.locations[1],bytes);
+    const reads=[];
+    const service=value.makeService((location,options)=>{
+      let sampled=0;
+      const result=computeBoundedMaterialFingerprintSync(location,{...options,onRead:read=>{sampled+=read.bytesRead;}});
+      reads.push(sampled);return result;
+    });
+    assert.equal(service.refresh(value.context()).kind,'inventory_records_refreshed');
+    assert.deepEqual(reads,[256*1024,256*1024]);
+    assert.equal(value.service.refresh(value.context()).kind,'records_unchanged');
+    assert.deepEqual(fs.readFileSync(value.locations[1]),bytes);
+    for(const table of ['arca_aftercare_cases','fx_supporting_works'])assert.equal(value.db.prepare(`SELECT count(*) n FROM ${table}`).get().n,0);
+  }finally{value.close();}
+});
+
+test('same-size concurrent writes during bounded observation cannot commit records',()=>{
+  const value=fixture();try{
+    const service=value.makeService((location,options)=>computeBoundedMaterialFingerprintSync(location,{
+      ...options,onRead(){const stat=fs.statSync(location);fs.utimesSync(location,stat.atime,new Date(stat.mtimeMs+10000));},
+    }));
+    assert.deepEqual(service.refresh(value.context()),{kind:'records_deferred',reasonCode:'PHYSICAL_MATERIAL_STAT_FENCE_CHANGED'});
     assert.equal(value.db.prepare('SELECT current_inventory_revision revision FROM arca_shelf_entries').get().revision,1);
     assert.equal(value.db.prepare('SELECT count(*) n FROM fx_command_receipts').get().n,0);
   }finally{value.close();}

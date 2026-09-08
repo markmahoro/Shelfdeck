@@ -91,12 +91,13 @@ async function computeAsyncCore(location, options = {}) {
 
 function computeSyncCore(location, options = {}) {
   const fileSystem = options.fs || fs;
+  const matchesFence = options.requireStableSnapshot ? sameStableSnapshot : sameIdentity;
   const pathBefore = fileSystem.lstatSync(location, { bigint:true });
   validatePathStat(pathBefore, location);
   const descriptor = fileSystem.openSync(location, 'r');
   try {
     const before = fileSystem.fstatSync(descriptor, { bigint:true });
-    if (!sameIdentity(pathBefore, before)) fail('PHYSICAL_MATERIAL_STAT_FENCE_CHANGED', 'Physical Material changed before fingerprint sampling.', { location });
+    if (!matchesFence(pathBefore, before)) fail('PHYSICAL_MATERIAL_STAT_FENCE_CHANGED', 'Physical Material changed before fingerprint sampling.', { location });
     const sizeBytes = Number(before.size);
     const { sampleLength, sampleOffset } = sampleBounds(sizeBytes);
     const sample = Buffer.allocUnsafe(sampleLength);
@@ -114,7 +115,7 @@ function computeSyncCore(location, options = {}) {
     }
     const after = fileSystem.fstatSync(descriptor, { bigint:true });
     const pathAfter = fileSystem.lstatSync(location, { bigint:true });
-    if (!sameIdentity(before, after) || pathAfter.isSymbolicLink() || !sameIdentity(after, pathAfter)) fail('PHYSICAL_MATERIAL_STAT_FENCE_CHANGED', 'Physical Material changed during fingerprint sampling.', { location });
+    if (!matchesFence(before, after) || pathAfter.isSymbolicLink() || !matchesFence(after, pathAfter)) fail('PHYSICAL_MATERIAL_STAT_FENCE_CHANGED', 'Physical Material changed during fingerprint sampling.', { location });
     return Object.freeze({ stat:after, ...fingerprintBuffer(sample), sampleOffset, sampleLength, bytesSampled });
   } finally { fileSystem.closeSync(descriptor); }
 }
