@@ -25,6 +25,7 @@ function mediaProbe(){return Object.freeze({async probe(readHandle){const value=
   return Object.freeze(value);}});}
 
 function suspendedOutboxDispatcher(){return Object.freeze({
+  async recoverCommittedRetryIntents(){return Object.freeze({kind:'idle',delivered:0});},
   async start(){return Object.freeze({state:'ready'});},
   wake(){return Object.freeze({kind:'idle'});},
   async stop(){return Object.freeze({state:'stopped'});},

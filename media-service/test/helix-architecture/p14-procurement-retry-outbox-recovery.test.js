@@ -221,7 +221,7 @@ test('Dispatcher durably consumes and acknowledges Procurement Retry Intent Avai
     INSERT INTO fx_outbox_deliveries(
       message_id,consumer_domain,state,attempt_count,next_attempt_at_ms,acked_at_ms
     ) VALUES(?,?,?,?,?,?)
-  `).run('retry-message-dispatch', 'procurement', 'pending', 0, 1, null);
+  `).run('retry-message-dispatch', 'procurement', 'pending', 1, 2_000, null);
   database.close();
   const receiptRepository = createRepositoryDefinition({
     repositoryId: 'retry_dispatch_receipt',
@@ -263,10 +263,19 @@ test('Dispatcher durably consumes and acknowledges Procurement Retry Intent Avai
     executionRuntimeHost: { wake() { wakes += 1; } },
     onError(error) { throw error; },
   });
-  assert.deepEqual(await dispatcher.drainOnce(), { kind: 'advanced', delivered: 1 });
+  assert.deepEqual(await dispatcher.drainOnce(), { kind: 'idle', delivered: 0 });
+  assert.deepEqual(await dispatcher.recoverCommittedRetryIntents(), { kind: 'advanced', delivered: 1 });
   assert.deepEqual(await dispatcher.drainOnce(), { kind: 'idle', delivered: 0 });
   assert.equal(consumed, 1);
   assert.equal(wakes, 1);
+  const lostAck = new Database(databasePath);
+  lostAck.prepare("UPDATE fx_outbox_deliveries SET state='pending',acked_at_ms=NULL,next_attempt_at_ms=2000 WHERE message_id=?")
+    .run('retry-message-dispatch');
+  lostAck.prepare("UPDATE fx_outbox SET state='pending',all_acked_at_ms=NULL WHERE message_id=?")
+    .run('retry-message-dispatch');
+  lostAck.close();
+  assert.deepEqual(await dispatcher.recoverCommittedRetryIntents(), { kind: 'advanced', delivered: 1 });
+  assert.equal(consumed, 2);
   const check = new Database(databasePath, { readonly: true });
   const outbox = check.prepare(`SELECT state,all_acked_at_ms FROM fx_outbox WHERE message_id=?`)
     .get('retry-message-dispatch');

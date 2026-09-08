@@ -1102,7 +1102,7 @@ function createFailedPreparationRetryAdminService(options) {
             eventId: stableId('retry-admission-event-', { workId }),
             capabilityRef: ADMISSION_CAPABILITY,
             inputSchemaRef:
-              'helix://implementation/procurement/retry-admission-command/v1',
+              'helix://implementation/procurement/retry-admission-plan-input/v1',
             input: existing.pages[1],
             basisDigest,
             fieldId: input.fieldId,

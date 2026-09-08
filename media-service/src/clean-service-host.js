@@ -1601,6 +1601,7 @@ async function createCleanServiceHost(options) {
   });
   const executionRuntimeHost = Object.freeze({
     async start() {
+      await outboxDispatcher.recoverCommittedRetryIntents();
       const execution = await procurementExecution.host.start();
       try {
         await outboxDispatcher.start();

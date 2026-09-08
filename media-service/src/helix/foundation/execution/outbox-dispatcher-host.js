@@ -22,9 +22,10 @@ function createOutboxDispatcherHost(options){const repo=repository(options.schem
   const procurementControlSignalRepository=createRepositoryDefinition({repositoryId:'procurement_control_release_signal',owner:'procurement',readOnly:true,schemaManifest:options.schemaManifest,
     statements:{find_material:{kind:'select-one',tableId:'proc_field_materials',columns:['field_id','material_key'],keyColumns:['field_id','material_key']}}});
   let state='created',timer=null,running=null;
-  function due(){return options.unitOfWork.execute([{participantId:'outbox_dispatcher_due',owner:'execution-foundation',repositories:[repo],execute(context){
-    const r=context.repository(repo.repositoryId);return r.invoke('list_due',{}).filter((item)=>['pending','failed'].includes(item.state)&&Number(item.next_attempt_at_ms)<=now())
+  function due(recoverRetryIntents=false){return options.unitOfWork.execute([{participantId:'outbox_dispatcher_due',owner:'execution-foundation',repositories:[repo],execute(context){
+    const r=context.repository(repo.repositoryId);return r.invoke('list_due',{}).filter((item)=>['pending','failed'].includes(item.state)&&(recoverRetryIntents||Number(item.next_attempt_at_ms)<=now()))
       .map((delivery)=>Object.freeze({delivery,message:r.invoke('find_message',{message_id:delivery.message_id})}))
+      .filter((item)=>!recoverRetryIntents||(item.message.message_kind==='procurement_retry_intent_available'&&item.delivery.consumer_domain==='procurement'))
       .filter((item)=>!deferredDeliveryKeys.has(item.message.message_kind+'->'+item.delivery.consumer_domain)).slice(0,100);}}]).outbox_dispatcher_due;}
   function envelope(item,payload){return Object.freeze({messageId:item.message.message_id,dedupKey:item.message.dedup_key,producerDomain:item.message.producer_domain,
     consumerDomain:item.delivery.consumer_domain,payloadSchemaRef:item.message.payload_schema_ref,payloadDigest:item.message.payload_digest,payload});}
@@ -160,7 +161,17 @@ function createOutboxDispatcherHost(options){const repo=repository(options.schem
     try{await deliver(item);delivered+=1;}catch(error){inbox.recordDeliveryAttempt({messageId:item.delivery.message_id,consumerDomain:item.delivery.consumer_domain,
       delivered:false,nextAttemptAtMs:now()+Math.min(60_000,1000*Math.max(1,Number(item.delivery.attempt_count)+1))});options.onError?.(error);}}
     return Object.freeze({kind:delivered?'advanced':'idle',delivered});})().finally(()=>{running=null;});return running;}
-  return Object.freeze({async start(){state='ready';await drainOnce();timer=setInterval(()=>drainOnce(),1000);timer.unref?.();return {state};},
+  async function recoverCommittedRetryIntents(){
+    if(state!=='created'||running)throw new Error('Retry Intent recovery must precede Outbox startup.');
+    // This synchronous Owner command is resumed by its durable message, before
+    // the general asynchronous Event runtime inspects nonterminal Plans.
+    // Startup deliberately retries failed delivery immediately; errors remain fatal.
+    let delivered=0;
+    for(;;){const items=due(true);if(!items.length)break;
+      for(const item of items){await deliver(item);delivered+=1;}}
+    return Object.freeze({kind:delivered?'advanced':'idle',delivered});
+  }
+  return Object.freeze({recoverCommittedRetryIntents,async start(){state='ready';await drainOnce();timer=setInterval(()=>drainOnce(),1000);timer.unref?.();return {state};},
     wake(){if(state==='ready')queueMicrotask(()=>drainOnce());},drainOnce,async stop(){state='stopping';if(timer)clearInterval(timer);timer=null;if(running)await running;state='stopped';return {state};}});
 }
 module.exports=Object.freeze({createOutboxDispatcherHost});

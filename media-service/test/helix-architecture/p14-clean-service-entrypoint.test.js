@@ -325,6 +325,7 @@ test('Procurement automation advances only through terminal Work reconcile and o
 test('clean host recovers dependent Owner Work before durable message delivery can enlarge scope', () => {
   const source = fs.readFileSync(path.join(serviceRoot, 'src', 'clean-service-host.js'), 'utf8');
   const start=source.slice(source.indexOf('const executionRuntimeHost = Object.freeze'),source.indexOf('arcaCare=createArcaCareApplication'));
+  assert.ok(start.indexOf('await outboxDispatcher.recoverCommittedRetryIntents()')<start.indexOf('await procurementExecution.host.start()'));
   assert.ok(start.indexOf('await procurementExecution.host.start()')<start.indexOf('await outboxDispatcher.start()'));
 });
 
@@ -1076,7 +1077,7 @@ test.skip('superseded synchronous Field Observation journey (background Work cov
   });
 });
 
-test.skip('failed-preparation synchronous product journey is outside the Procurement Foundation closure scope', async () => {
+test('UAT-129 failed-preparation Intent resumes through Outbox after restart without an HTTP retry', async () => {
   const value = fixture();
   const databasePath = path.join(value.dataDir, 'shelfdeck.db');
   const fieldRoot = path.join(path.dirname(value.dataDir), 'retry-field');
@@ -1126,10 +1127,14 @@ test.skip('failed-preparation synchronous product journey is outside the Procure
     expectedObservationRevision: 0,
     pageBudget: 10,
   };
+  const mediaProbe = { async probe(readHandle) {
+    return { resultKind: 'not_media', reasonCode: 'fixture_not_media', sizeBytes: Number(readHandle.expectedSizeBytes) };
+  } };
   let host = await createCleanServiceHost({
     dataDir: value.dataDir,
     adminDistDir: value.adminDistDir,
     secretRoot,
+    mediaProbe,
   });
   let cookie;
   try {
@@ -1152,252 +1157,40 @@ test.skip('failed-preparation synchronous product journey is outside the Procure
       headers: { cookie },
       payload: observeCommand,
     });
-    assert.equal(response.statusCode, 200, response.body);
-    assert.equal(response.json().observation.state, 'succeeded');
+    assert.equal(response.statusCode, 202, response.body);
+    const observationWorkId = response.json().observation.observationWorkId;
+    const observationRead = new Database(databasePath, { readonly: true });
+    try {
+      const deadline = Date.now() + 20_000;
+      let observationState;
+      do {
+        observationState = observationRead.prepare('SELECT state FROM fx_supporting_works WHERE work_id=?').get(observationWorkId)?.state;
+        if (observationState === 'succeeded' && observationRead.prepare('SELECT state FROM proc_procurement_runs').get()?.state === 'sealed') break;
+        await new Promise((resolve) => setTimeout(resolve, 25));
+      } while (Date.now() < deadline);
+      assert.equal(observationState, 'succeeded');
+    } finally { observationRead.close(); }
   } finally {
     await host.close();
   }
 
-  let kernel = openSqliteKernel({
-    Database,
-    databasePath,
-    schemaDdl: cleanSchemaDdl,
-    schemaManifest: cleanSchemaManifest,
-  });
-  let unitOfWork = createSqliteUnitOfWork({ kernel });
-  const read = new Database(databasePath, { readonly: true });
-  const material = read.prepare(
-    `SELECT material_key
-       FROM proc_field_materials
-      WHERE field_id=?`
-  ).get('field-retry-http-1');
-  const originalRun = read.prepare(
-    `SELECT procurement_run_id,run_basis_digest,state,state_revision
-       FROM proc_procurement_runs
-      WHERE field_id=?`
-  ).get('field-retry-http-1');
-  read.close();
-  assert.equal(originalRun.state, 'active');
-  assert.equal(originalRun.state_revision, 1);
-
-  const failedSealValue = {
-    decisionId: 'p14-http-failed-run-seal-decision',
-    procurementRunId: originalRun.procurement_run_id,
-    expectedStateRevision: 1,
-    expectedRunBasisDigest: originalRun.run_basis_digest,
-    sealOutcome: 'failed',
-    publishedCandidates: [],
-    releasedMembers: [{
-      materialKey: material.material_key,
-      disposition: 'triage_failed',
-      evidenceDigest: canonicalDigest({
-        schema: 'p14.formal-preparation-failure@1',
-        procurementRunId: originalRun.procurement_run_id,
-        materialKey: material.material_key,
-      }),
-    }],
-  };
-  const failedSealDecision = {
-    ...failedSealValue,
-    decisionDigest: canonicalDigest(failedSealValue),
-  };
-  const setupWorkId = 'p14-http-formal-failed-run-work';
-  const setupBasisDigest = canonicalDigest({
-    schema: 'p14.formal-failed-run-setup@1',
-    runBasisDigest: originalRun.run_basis_digest,
-    sealDecisionDigest: failedSealDecision.decisionDigest,
-  });
-  const setupAdmission = createWorkAdmission({
-    schemaManifest: cleanSchemaManifest,
-    unitOfWork,
-    eligibilityProvider: {
-      check: () => ({
-        eligible: true,
-        basisDigest: setupBasisDigest,
-        reasonCode: 'NOT_APPLICABLE',
-      }),
-    },
-    limits: { globalOpenWorks: 1_000, ownerOpenWorks: 500, openEvents: 100_000 },
-  });
-  assert.equal(setupAdmission.submit({
-    schemaRef: 'helix://foundation/types/SupportingWorkDefinition/v1',
-    schemaVersion: 1,
-    workId: setupWorkId,
-    ownerDomain: 'procurement',
-    processType: 'procurement_run',
-    processId: originalRun.procurement_run_id,
-    workKind: 'p14_formal_failed_preparation',
-    workObjectiveTypeRef: 'helix://procurement/work/Preparation/v1',
-    workObjectiveVersion: 1,
-    executionBasisId: 'p14-http-formal-failed-run-basis',
-    executionBasisDigest: setupBasisDigest,
-    dependencyRefs: [],
-    priorityClass: 'normal_foreground',
-    priorityRevision: 1,
-    capabilityCatalogScope: 'procurement',
-    workspaceMaterialScope: [],
-    idempotencyKey: 'p14-http-formal-failed-run',
-    concurrencyScope: 'field-retry-http-1/p14-formal-preparation',
-    outputContractRef:
-      'helix://contracts/application-types/ProcurementRunSealReceipt/v1',
-  }).kind, 'admitted');
-  const demand = { resourceKinds: ['cpu'] };
-  const setupStep = (
-    nodeId,
-    eventId,
-    capabilityRef,
-    input,
-    stepBasisDigest = setupBasisDigest,
-  ) => ({
-    nodeId,
-    eventId,
-    capabilityRef,
-    effectClass: 'domain_fact_commit',
-    inputSchemaRef: 'helix://fixtures/p14/formal-run-command/v1',
-    input,
-    parametersSchemaRef: 'helix://fixtures/p14/empty-parameters/v1',
-    parameters: {},
-    fenceSchemaRef: 'helix://fixtures/p14/formal-run-fence/v1',
-    fenceBasis: {
-      basisDigest: stepBasisDigest,
-      inputSetDigest: canonicalDigest(input),
-      eventFenceDigest: canonicalDigest({ schema: 'p14.event-fence@1', eventId }),
-      effectScopeDigest: canonicalDigest({
-        schema: 'p14.effect-scope@1',
-        procurementRunId: originalRun.procurement_run_id,
-        capabilityRef,
-      }),
-    },
-    resourceDemandSchemaRef: 'helix://fixtures/p14/cpu-demand/v1',
-    resourceDemand: { ...demand, demandDigest: canonicalDigest(demand) },
-  });
-  let setupRuntime = createSynchronousDomainWork({
-    schemaManifest: cleanSchemaManifest,
-    unitOfWork,
-  });
-  setupRuntime.activate({
-    workId: setupWorkId,
-    ownerDomain: 'procurement',
-    basisDigest: setupBasisDigest,
-    plannerRef: 'p14.formal-failed-run-planner@1',
-    catalogDigest: canonicalDigest({
-      schema: 'p14.formal-failed-run-catalog@1',
-      capabilities: ['procurement.run.seal@1'],
-    }),
-    steps: [
-      setupStep(
-        'run-seal',
-        'p14-http-failed-run-seal-event',
-        'procurement.run.seal@1',
-        { sealDecisionDigest: failedSealDecision.decisionDigest },
-      ),
-    ],
-  });
-  kernel.close();
-
+  const preparationRead = new Database(databasePath, { readonly: true });
+  const originalRun = preparationRead.prepare('SELECT * FROM proc_procurement_runs').get();
+  preparationRead.close();
+  assert.equal(originalRun.state, 'sealed');
+  assert.equal(originalRun.seal_outcome, 'failed');
   const retryCommand = {
     idempotencyKey: 'p14-http-failed-run-retry-1',
     fieldId: 'field-retry-http-1',
     failedProcurementRunId: originalRun.procurement_run_id,
-    expectedFailedRunStateRevision: 2,
+    expectedFailedRunStateRevision: originalRun.state_revision,
     expectedFailedRunBasisDigest: originalRun.run_basis_digest,
   };
   host = await createCleanServiceHost({
     dataDir: value.dataDir,
     adminDistDir: value.adminDistDir,
     secretRoot,
-  });
-  try {
-    const exchange = await host.inject({
-      method: 'POST',
-      url: '/v1/admin/session',
-      headers: { 'x-api-key': value.initialized.adminApiKey },
-    });
-    cookie = exchange.headers['set-cookie'];
-    const unauthorized = await host.inject({
-      method: 'POST',
-      url: '/v1/admin/material-fields/field-retry-http-1/actions/retry-failed-preparation',
-      payload: retryCommand,
-    });
-    assert.equal(unauthorized.statusCode, 401);
-    const mismatch = await host.inject({
-      method: 'POST',
-      url: '/v1/admin/material-fields/field-retry-http-1/actions/retry-failed-preparation',
-      headers: { cookie },
-      payload: {
-        ...retryCommand,
-        idempotencyKey: 'p14-http-retry-target-mismatch',
-        fieldId: 'another-field',
-      },
-    });
-    assert.equal(mismatch.statusCode, 400);
-    assert.equal(mismatch.json().error.code, 'ADMIN_FIELD_TARGET_MISMATCH');
-    const closed = await host.inject({
-      method: 'POST',
-      url: '/v1/admin/material-fields/field-retry-http-1/actions/retry-failed-preparation',
-      headers: { cookie },
-      payload: {
-        ...retryCommand,
-        idempotencyKey: 'p14-http-retry-closed',
-        unexpected: true,
-      },
-    });
-    assert.equal(closed.statusCode, 400);
-    const running = await host.inject({
-      method: 'POST',
-      url: '/v1/admin/material-fields/field-retry-http-1/actions/retry-failed-preparation',
-      headers: { cookie },
-      payload: {
-        ...retryCommand,
-        idempotencyKey: 'p14-http-retry-running',
-        expectedFailedRunStateRevision: 1,
-      },
-    });
-    assert.equal(running.statusCode, 409, running.body);
-  } finally {
-    await host.close();
-  }
-
-  kernel = openSqliteKernel({
-    Database,
-    databasePath,
-    schemaDdl: cleanSchemaDdl,
-    schemaManifest: cleanSchemaManifest,
-  });
-  unitOfWork = createSqliteUnitOfWork({ kernel });
-  setupRuntime = createSynchronousDomainWork({
-    schemaManifest: cleanSchemaManifest,
-    unitOfWork,
-  });
-  setupRuntime.beginEvent('p14-http-failed-run-seal-event');
-  createProcurementRunSealStore({
-    schemaManifest: cleanSchemaManifest,
-    unitOfWork,
-  }).seal({
-    decision: failedSealDecision,
-    commitMarker: {
-      commitMarker: 'p14-http-failed-run-seal-marker',
-      commitDigest: canonicalDigest({
-        schema: 'p14.failed-run-seal-command@1',
-        decisionDigest: failedSealDecision.decisionDigest,
-      }),
-    },
-    resultBinding: {
-      resultId: 'p14-http-failed-run-seal-result',
-      eventId: 'p14-http-failed-run-seal-event',
-    },
-  });
-  setupRuntime.completeEvent(
-    'p14-http-failed-run-seal-event',
-    'p14-http-failed-run-seal-result',
-  );
-  setupRuntime.complete(setupWorkId);
-  kernel.close();
-
-  host = await createCleanServiceHost({
-    dataDir: value.dataDir,
-    adminDistDir: value.adminDistDir,
-    secretRoot,
+    mediaProbe,
   });
   try {
     const exchange = await host.inject({
@@ -1476,8 +1269,23 @@ test.skip('failed-preparation synchronous product journey is outside the Procure
     dataDir: value.dataDir,
     adminDistDir: value.adminDistDir,
     secretRoot,
+    mediaProbe,
   });
   try {
+    const recoveryRead = new Database(databasePath, { readonly: true });
+    try {
+      const deadline = Date.now() + 20_000;
+      let recovered;
+      do {
+        recovered = recoveryRead.prepare('SELECT state FROM proc_procurement_retry_intents').get();
+        if (recovered?.state === 'consumed') break;
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      } while (Date.now() < deadline);
+      assert.equal(recovered?.state, 'consumed', 'Outbox must restore admission before the user sends another command');
+      assert.equal(recoveryRead.prepare("SELECT count(*) count FROM proc_procurement_runs WHERE retry_intent_id IS NOT NULL").get().count, 1);
+      assert.equal(recoveryRead.prepare("SELECT state FROM fx_outbox WHERE message_kind='procurement_retry_intent_available'").get().state, 'fully_acked');
+      assert.equal(recoveryRead.prepare("SELECT count(*) count FROM fx_inbox WHERE message_id IN (SELECT message_id FROM fx_outbox WHERE message_kind='procurement_retry_intent_available')").get().count, 1);
+    } finally { recoveryRead.close(); }
     const exchange = await host.inject({
       method: 'POST',
       url: '/v1/admin/session',
@@ -1546,6 +1354,7 @@ test.skip('failed-preparation synchronous product journey is outside the Procure
     dataDir: value.dataDir,
     adminDistDir: value.adminDistDir,
     secretRoot,
+    mediaProbe,
   });
   try {
     const exchange = await host.inject({
@@ -1576,8 +1385,7 @@ test.skip('failed-preparation synchronous product journey is outside the Procure
   ).all();
   assert.equal(runs.length, 2);
   const retryRun = runs.find((run) => run.retry_intent_id !== null);
-  assert.equal(retryRun.state, 'active');
-  assert.equal(retryRun.state_revision, 1);
+  assert.ok(['active', 'sealed'].includes(retryRun.state));
   assert.equal(
     completedEvidence.prepare(
       `SELECT count(*) count
@@ -1621,147 +1429,6 @@ test.skip('failed-preparation synchronous product journey is outside the Procure
   );
   completedEvidence.close();
 
-  kernel = openSqliteKernel({
-    Database,
-    databasePath,
-    schemaDdl: cleanSchemaDdl,
-    schemaManifest: cleanSchemaManifest,
-  });
-  unitOfWork = createSqliteUnitOfWork({ kernel });
-  const completedSealValue = {
-    decisionId: 'p14-http-retry-run-completed-decision',
-    procurementRunId: retryRun.procurement_run_id,
-    expectedStateRevision: 1,
-    expectedRunBasisDigest: retryRun.run_basis_digest,
-    sealOutcome: 'completed',
-    publishedCandidates: [],
-    releasedMembers: [{
-      materialKey: material.material_key,
-      disposition: 'completed_without_candidate',
-      evidenceDigest: canonicalDigest({
-        schema: 'p14.retry-run-completed@1',
-        procurementRunId: retryRun.procurement_run_id,
-        materialKey: material.material_key,
-      }),
-    }],
-  };
-  const completedSealDecision = {
-    ...completedSealValue,
-    decisionDigest: canonicalDigest(completedSealValue),
-  };
-  const completedWorkBasis = canonicalDigest({
-    schema: 'p14.completed-run-seal-work@1',
-    decisionDigest: completedSealDecision.decisionDigest,
-  });
-  const completedWorkId = 'p14-http-retry-run-completed-work';
-  const completedWorkAdmission = createWorkAdmission({
-    schemaManifest: cleanSchemaManifest,
-    unitOfWork,
-    eligibilityProvider: {
-      check: () => ({
-        eligible: true,
-        basisDigest: completedWorkBasis,
-        reasonCode: 'NOT_APPLICABLE',
-      }),
-    },
-    limits: { globalOpenWorks: 1_000, ownerOpenWorks: 500, openEvents: 100_000 },
-  });
-  assert.equal(completedWorkAdmission.submit({
-    schemaRef: 'helix://foundation/types/SupportingWorkDefinition/v1',
-    schemaVersion: 1,
-    workId: completedWorkId,
-    ownerDomain: 'procurement',
-    processType: 'procurement_run',
-    processId: retryRun.procurement_run_id,
-    workKind: 'p14_formal_completed_preparation',
-    workObjectiveTypeRef: 'helix://procurement/work/Preparation/v1',
-    workObjectiveVersion: 1,
-    executionBasisId: 'p14-http-retry-run-completed-basis',
-    executionBasisDigest: completedWorkBasis,
-    dependencyRefs: [],
-    priorityClass: 'normal_foreground',
-    priorityRevision: 1,
-    capabilityCatalogScope: 'procurement',
-    workspaceMaterialScope: [],
-    idempotencyKey: 'p14-http-retry-run-completed',
-    concurrencyScope: 'field-retry-http-1/p14-completed-preparation',
-    outputContractRef:
-      'helix://contracts/application-types/ProcurementRunSealReceipt/v1',
-  }).kind, 'admitted');
-  const completedRuntime = createSynchronousDomainWork({
-    schemaManifest: cleanSchemaManifest,
-    unitOfWork,
-  });
-  const completedEventId = 'p14-http-retry-run-completed-event';
-  completedRuntime.activate({
-    workId: completedWorkId,
-    ownerDomain: 'procurement',
-    basisDigest: completedWorkBasis,
-    plannerRef: 'p14.completed-run-seal-planner@1',
-    catalogDigest: canonicalDigest({
-      schema: 'p14.completed-run-seal-catalog@1',
-      capabilities: ['procurement.run.seal@1'],
-    }),
-    steps: [setupStep(
-      'completed-run-seal',
-      completedEventId,
-      'procurement.run.seal@1',
-      { decisionDigest: completedSealDecision.decisionDigest },
-      completedWorkBasis,
-    )],
-  });
-  completedRuntime.beginEvent(completedEventId);
-  createProcurementRunSealStore({
-    schemaManifest: cleanSchemaManifest,
-    unitOfWork,
-  }).seal({
-    decision: completedSealDecision,
-    commitMarker: {
-      commitMarker: 'p14-http-retry-run-completed-marker',
-      commitDigest: canonicalDigest({
-        schema: 'p14.completed-run-seal-command@1',
-        decisionDigest: completedSealDecision.decisionDigest,
-      }),
-    },
-    resultBinding: {
-      resultId: 'p14-http-retry-run-completed-result',
-      eventId: completedEventId,
-    },
-  });
-  completedRuntime.completeEvent(
-    completedEventId,
-    'p14-http-retry-run-completed-result',
-  );
-  completedRuntime.complete(completedWorkId);
-  kernel.close();
-
-  host = await createCleanServiceHost({
-    dataDir: value.dataDir,
-    adminDistDir: value.adminDistDir,
-    secretRoot,
-  });
-  try {
-    const exchange = await host.inject({
-      method: 'POST',
-      url: '/v1/admin/session',
-      headers: { 'x-api-key': value.initialized.adminApiKey },
-    });
-    const completedTarget = await host.inject({
-      method: 'POST',
-      url: '/v1/admin/material-fields/field-retry-http-1/actions/retry-failed-preparation',
-      headers: { cookie: exchange.headers['set-cookie'] },
-      payload: {
-        idempotencyKey: 'p14-http-completed-run-retry',
-        fieldId: 'field-retry-http-1',
-        failedProcurementRunId: retryRun.procurement_run_id,
-        expectedFailedRunStateRevision: 2,
-        expectedFailedRunBasisDigest: retryRun.run_basis_digest,
-      },
-    });
-    assert.equal(completedTarget.statusCode, 409, completedTarget.body);
-  } finally {
-    await host.close();
-  }
   assert.deepEqual(fs.readFileSync(sourceFile), sourceBefore);
 });
 
