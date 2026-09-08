@@ -1,4 +1,5 @@
 'use strict';
+const { careFindingCodes } = require('./care-objective');
 
 const { actionableAftercareFindings, validManifest } = require('./authorized-defect-manifest');
 
@@ -327,7 +328,7 @@ function assertProcessingRequirement(requirement){
     'presentation:nfo_missing','presentation:nfo_corrupt','presentation:poster_missing','presentation:poster_corrupt',
     'conformance:video_codec_unmet','conformance:max_size_exceeded','conformance:container_unmet','conformance:file_extension_unmet',
     'conformance:placement_unmet','conformance:settlement_gap']);
-  const kinds=requirement?.typedParameters?.map(item=>item.value)||[];
+  const kinds=careFindingCodes(requirement);
   if(!requirement?.requiredEffects?.length||!kinds.length||kinds.some(kind=>!allowed.has(kind))||
     !kinds.some(kind=>kind.startsWith('presentation:')||kind==='custody:nfo_corrupt'||
       kind.startsWith('conformance:')&&kind!=='conformance:settlement_gap'))

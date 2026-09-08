@@ -1,4 +1,5 @@
 'use strict';
+const { careFindingCodes } = require('../model/care-objective');
 
 function createArcaCareApplication(options){if(!options?.contextReader||!options.coordinator)throw new TypeError('Arca Care application requires Aftercare services.');
   const store=options.contextReader.store;
@@ -21,10 +22,10 @@ function createArcaCareApplication(options){if(!options?.contextReader||!options
       const summary=display.get(item.shelfEntryId);
       return Object.freeze({aftercareCaseId:item.aftercareCaseId,shelfEntryId:item.shelfEntryId,displayIdentity:summary?.displayIdentity||item.shelfEntryId,
         targetShelfId:summary?.targetShelfId||null,targetShelfName:summary?.targetShelfName||null,state:item.state,classification:classification(item.state),
-        currentHealth:health.get(item.shelfEntryId)||null,goals:item.careRequirement.typedParameters.map((parameter)=>String(parameter.value)),createdAtMs:item.createdAtMs,terminalAtMs:item.terminalAtMs,
+        currentHealth:health.get(item.shelfEntryId)||null,goals:careFindingCodes(item.careRequirement),createdAtMs:item.createdAtMs,terminalAtMs:item.terminalAtMs,
         ...(query.aftercareCaseId?{processDetail:options.coordinator.caseDetail(item.aftercareCaseId),caseEvidence:store.caseEvidence(item.aftercareCaseId)}:{}),
         reasonCode:item.terminalReasonCode||null,progress:item.state==='active'?options.coordinator.caseProgress(item.shelfEntryId):
-          item.state==='queued'?{aftercareCaseId:item.aftercareCaseId,stage:'queued',progressPercent:null,progress:null,goals:item.careRequirement.typedParameters.map(parameter=>String(parameter.value))}:null});
+          item.state==='queued'?{aftercareCaseId:item.aftercareCaseId,stage:'queued',progressPercent:null,progress:null,goals:careFindingCodes(item.careRequirement)}:null});
     });
     return Object.freeze({items:Object.freeze(items),counts:Object.freeze(result.counts),nextCursor:result.nextCursor});
   }

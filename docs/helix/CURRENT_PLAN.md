@@ -4,7 +4,7 @@
 
 ## 2026-09-08 全量基线与执行顺序
 
-接手基线HEAD `7c858523c`，分支已核实；原Aftercare调查Evidence的未提交修改保持原样且不夹带提交。关联任务“澄清媒体整理维护状态”已停止修改，`e6b7f0424`待统一整合。251行中153行历史关闭、1行文档关闭、1行非缺陷接受；95行待实现/验收、1行被取代结果待核清。每个未关闭行的具体Oracle与依赖已经写回唯一总表，不新增平行活动计划。
+接手基线HEAD `7c858523c`，分支已核实；原Aftercare调查Evidence的未提交修改保持原样且不夹带提交。关联任务“澄清媒体整理维护状态”已停止修改，`e6b7f0424`已通过`799433c65`整合，未部署。251行中153行历史关闭、1行文档关闭、1行非缺陷接受；95行待实现/验收、1行被取代结果待核清。每个未关闭行的具体Oracle与依赖已经写回唯一总表，不新增平行活动计划。
 
 | 顺序 | 范围与执行方式 |
 | --- | --- |
@@ -25,7 +25,7 @@
 | 工作区 / 分支 | 归属与当前用途 |
 | --- | --- |
 | E:/my_project/emby_third_party-helix-iteration / codex/user-pain-iteration | 本任务集成区；代码基线1755743c1，承担主线合同/后端/整合发布；本次文档整理记UAT-220 |
-| E:/my_project/emby_third_party-helix-care-clarity / codex/formation-care-clarity | 用户指定任务“澄清媒体整理维护状态”；UAT-212交付e6b7f0424，基于1755743c1；未整合、未部署 |
+| E:/my_project/emby_third_party-helix-care-clarity / codex/formation-care-clarity | 用户指定任务“澄清媒体整理维护状态”；UAT-212交付e6b7f0424，基于1755743c1；已整合为799433c65、未部署 |
 | E:/my_project/emby_third_party-helix / main | 主工作区，未作为本次编辑目标 |
 | emby_third_party-helix-baseline / codex/collection-clean-baseline | UAT-209历史基线，保留 |
 | emby_third_party-helix-prod065 / codex/prod065-settlement-failure | UAT-208历史修复，保留 |

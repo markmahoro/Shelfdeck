@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, expect, it, vi } from 'vitest';
 import App from '../src/App';
+import { CareWorkDetail } from '../src/helix/CareWorkRow';
 import { helixAdminApi } from '../src/helix/api';
 
 afterEach(()=>vi.restoreAllMocks());
@@ -122,4 +123,14 @@ it('centralizes recycle history and exact film directory previews in settings',a
   panel.open=true;fireEvent(panel,new Event('toggle',{bubbles:true}));
   await waitFor(()=>expect(preview).toHaveBeenCalledWith('hobbit'));
   expect(archive).not.toHaveBeenCalled();expect(restore).not.toHaveBeenCalled();
+});
+
+it('UAT-213 shows the frozen size target without claiming it is missing',()=>{
+  render(<MemoryRouter><CareWorkDetail item={{aftercareCaseId:'snapshot',shelfEntryId:'entry',displayIdentity:'Movie',
+    state:'resolved',classification:'completed',goals:['conformance:max_size_exceeded'],createdAtMs:100,terminalAtMs:200,reasonCode:null,progress:null,
+    caseEvidence:{inventoryRevision:1,standardRevision:1,originalPrimaryBytes:2000,currentInventoryRevision:2,currentPrimaryBytes:900,
+      objective:{requirements:{space:{maxSizeBytes:1073741824}},requirementsDigest:'a'.repeat(64)}},
+    processDetail:{contract:'aftercare_process_actual_plans@1',stages:[]}}}/></MemoryRouter>);
+  expect(screen.getByText(/当时目标：体积不超过 1.00 GiB/)).toBeInTheDocument();
+  expect(screen.queryByText(/建单记录未保存具体体积上限/)).not.toBeInTheDocument();
 });

@@ -65,7 +65,7 @@ test('Care work pages prioritize live Cases and read only the requested page',()
   material.run('entry-extra',1,1,'poster',500);
   material.run('entry-extra',2,0,'primary_payload',4027793937);
   const evidence=createAftercareStore({schemaManifest,unitOfWork:createSqliteUnitOfWork({kernel})}).caseEvidence('failed-history');
-  assert.deepEqual(evidence,{inventoryRevision:1,standardRevision:3,originalPrimaryBytes:11666913036,currentInventoryRevision:2,currentPrimaryBytes:4027793937});
+  assert.deepEqual(evidence,{objective:null,inventoryRevision:1,standardRevision:3,originalPrimaryBytes:11666913036,currentInventoryRevision:2,currentPrimaryBytes:4027793937});
   assert.equal(seed.prepare("SELECT state FROM arca_aftercare_cases WHERE aftercare_case_id='failed-history'").get().state,'unresolved');
   }finally{seed.close();kernel.close();fs.rmSync(root,{recursive:true,force:true});}
 });

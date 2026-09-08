@@ -57,8 +57,8 @@ function fixture(options = {}) {
       shelf:Object.freeze({ status:'active', shelf_id:'shelf-1', target_endpoint_id:options.targetEndpointId||'endpoint-1',
         target_mount_scope_id:options.targetMountScopeId||'mount-1',target_mount_scope_revision:1 }),
       entry:Object.freeze({ current_inventory_revision:currentBasis.inventoryRevision, canonical_identity_revision:1 }),
-      identity:Object.freeze({ provider:'tmdb' }),facts:Object.freeze([]),reservations:Object.freeze([]), materials:Object.freeze([]), oldBindings:Object.freeze([]), perceptionRating:null,
-      placement:Object.freeze({policy_digest:digest('placement')}),standard:Object.freeze({standard_digest:digest('standard')}),
+      identity:Object.freeze({ provider:'tmdb' }),facts:Object.freeze([]),reservations:Object.freeze([]), materials:Object.freeze([{role:'primary_payload',size_bytes:2000}]), oldBindings:Object.freeze([]), perceptionRating:null,
+      placement:Object.freeze({policy_digest:digest('placement')}),standard:Object.freeze({standard_digest:digest('standard'),value:{profileRuleSets:[{contentProfile:'movie',baseRequirements:{space:{maxSizeBytes:1000}}}]}}),
     }),
   });
   const store = {
@@ -131,6 +131,8 @@ test('a committed repair assessment reaches Case admission before its next perio
     const result=value.coordinator.reconcile('entry-1');
     assert.equal(result.kind,'case_queued');
     assert.equal(value.caseRequests.length,1);
+    const objective=require('../../src/helix/domains/arca/model/care-objective').readCareObjective(value.caseRequests[0].careRequirement);
+    assert.equal(objective.requirements.space.maxSizeBytes,1000,'Admission persists the effective creation target.');
     assert.equal(value.caseRequests[0].basisInputs.find(item=>item.inputKind==='health_assessment_work').aggregateId,workId);
     assert.equal(value.database.prepare('SELECT count(*) count FROM fx_supporting_works').get().count,0);
     value.history.cases=[{...value.care,state:'unresolved',terminalAtMs:5000}];

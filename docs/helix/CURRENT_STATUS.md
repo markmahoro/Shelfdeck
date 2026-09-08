@@ -4,7 +4,7 @@
 
 ## 部署与本地交付
 
-- 接手核实：集成工作区`codex/user-pain-iteration` HEAD为`7c858523c`；唯一既有dirty文件为Aftercare调查Evidence，原内容受保护。相关UI任务idle，交付e6b7f0424尚未整合。本轮未部署、未重置、未修改生产媒体；下述生产身份为上次记录，现场待复核。
+- 接手核实：集成工作区`codex/user-pain-iteration` HEAD为`7c858523c`；唯一既有dirty文件为Aftercare调查Evidence，原内容受保护。相关UI任务idle，交付e6b7f0424尚未整合。本轮未部署、未重置、未修改生产媒体；下述生产镜像与Image ID现已通过SSH只读复核一致，health正常。
 - 全量台账初步一致性对账：251个连续ID；153历史关闭、1文档关闭、1非缺陷接受、95待实现/验收、1被取代待核承接。96行已补具体场景/依赖/排程；历史资格待核不能转为本轮PASS。已发现终局、健康三态、全量续拉、退出页常驻整库及43部旧恢复基线与最新决定不一致，正在传播合同。
 
 - 生产镜像：`markmahoro/shelfdeck:helix-beta-20260908-6e37bf5679`，source `6e37bf5679`。
@@ -22,3 +22,5 @@
 UAT-213建单目标Evidence、UAT-214人物观察仍未实现；UAT-217/218支线未修复。真实浏览器整合验收与后续发布未完成。5分钟自动化保持PAUSED，停止Emby归因审查。
 
 详细事实见[实施证据](implementation/evidence/AFTERCARE_HEALTH_CASE_IMPLEMENTATION_20260908.md)。此前停机、恢复、测试与中间镜像流水保留于[整理前状态快照](implementation/archive/20260908_PRE_PROD_CONSOLIDATION/CURRENT_STATUS.md)，不再混入当前事实。当前库存以机器manifest为准，不在多份治理文档手工复制计数。
+
+本轮本地：6aff1635b完成全量排程/已确认合同传播；2a9efbbac实现UAT-211精确历史Settlement排除（40定向PASS，215架构Fixture文件及全部Gate PASS）；799433c65整合UAT-212交付。收藏分页补充实施中，Web50 PASS，尚未浏览器/生产验收。原Aftercare调查Evidence未提交修改仍保留，未关闭功能UAT。

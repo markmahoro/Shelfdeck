@@ -1,4 +1,6 @@
 'use strict';
+const { careFindingCodes } = require('../model/care-objective');
+const { effectiveRequirements } = require('../model/care-objective');
 
 const fs = require('node:fs');
 const os = require('node:os');
@@ -125,7 +127,7 @@ function assertSettlementTargetReality(c,target,fingerprint,consumedReplay=false
 }
 function permitsMissingArtifactReplacement(care,artifactKind){
   if(!['nfo','poster'].includes(artifactKind))return false;
-  const codes=new Set((care?.careRequirement?.typedParameters||[]).map((item)=>String(item.value)));
+  const codes=new Set(careFindingCodes(care?.careRequirement));
   return codes.has('custody:artifact_missing')&&codes.has('presentation:'+artifactKind+'_missing');
 }
 function rollbackArtifactReplacement({source,location,retiredLocation,oldMaterial,mountScopeId,fingerprint}){
@@ -280,9 +282,6 @@ function representationMember(item, ordinal) {
     sizeBytes: Number(item.size_bytes),
   });
 }
-function acceptedRating(context){if(Number.isInteger(context.raw.perceptionRating?.rating))return context.raw.perceptionRating.rating;for(const fact of context.raw.facts){if(fact.fact_kind!=='decision_fact')continue;const value=fact.value||{};
-  for(const key of ['rating','normalizedRating','ratingValue','stars'])if(Number.isInteger(value[key])&&value[key]>=1&&value[key]<=5)return value[key];}return null;}
-function effectiveRequirements(context){const profiles=context.raw.standard.value?.profileRuleSets||[],profile=profiles.find((item)=>item.contentProfile===(context.raw.entry.structure_kind==='season'?'series':'movie'))||profiles[0];if(!profile)return null;const rating=acceptedRating(context);if(rating===null)return profile.baseRequirements;const branch=(profile.decisionBranches||[]).find((item)=>item.predicate?.rating===rating||item.rating===rating||item.decisionValue===rating);return branch?.requirements||branch?.resultRequirements||profile.baseRequirements;}
 function primaryReadHandle(context,item){return Object.freeze({schemaRef:'helix://contracts/types/PhysicalMaterialReadHandle/v1',schemaVersion:1,
   handleId:stable('arca-aftercare-primary-handle-',{shelfEntryId:context.shelfEntryId,materialKey:item.material_key,revision:Number(item.binding_revision||1)}),
   identity:Object.freeze({schemaRef:'helix://contracts/types/PhysicalMaterialIdentity/v2',schemaVersion:2,materialKey:item.material_key}),

@@ -1,4 +1,5 @@
 'use strict';
+const { readCareObjective } = require('../model/care-objective');
 
 const { canonicalDigest, canonicalJson } = require('../../../contracts/canonical-json');
 const { createRepositoryDefinition } = require('../../../foundation/persistence/owner-repository');
@@ -189,7 +190,7 @@ function createAftercareStore(options) {
         .filter(material=>material.role==='primary_payload');
       return materials.length?materials.reduce((total,material)=>total+Number(material.size_bytes),0):null;
     };
-    return Object.freeze({inventoryRevision:Number(basis.inventoryRevision),standardRevision:Number(basis.standardRevision),
+    return Object.freeze({objective:readCareObjective(parse(row.care_requirement_json,'ARCA_AFTERCARE_REQUIREMENT_CORRUPT')),inventoryRevision:Number(basis.inventoryRevision),standardRevision:Number(basis.standardRevision),
       originalPrimaryBytes:primaryBytes(Number(basis.inventoryRevision)),
       currentInventoryRevision:entry?Number(entry.current_inventory_revision):null,
       currentPrimaryBytes:entry?primaryBytes(Number(entry.current_inventory_revision)):null});
