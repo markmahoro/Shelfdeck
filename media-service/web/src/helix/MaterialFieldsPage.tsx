@@ -256,7 +256,7 @@ export default function MaterialFieldsPage() {
               <span className="accepted" style={{ width: `${acceptedPercent}%` }} />
               <span className="waiting" style={{ width: `${waitingPercent}%` }} />
             </div>
-            {field.procurementStatus.rejectedPackageCount > 0 && <p className="source-flow-exception">另有 {field.procurementStatus.rejectedPackageCount} 个结构化拒绝，不计入等待接收。</p>}
+            {field.procurementStatus.rejectedPackageCount > 0 && <p className="source-flow-exception">另有 {field.procurementStatus.rejectedPackageCount} 个媒体包未能进入整理，不计入等待数量。</p>}
             <p>{procurementFollowUp(field) || '尚未形成媒体包。扫描后会先完成文件分拣。'}</p>
           </section>
           <section className="source-flow-panel source-flow-libra" aria-label={`${field.name} 同时整理数量`}>
