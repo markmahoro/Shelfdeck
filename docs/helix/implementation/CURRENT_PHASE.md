@@ -1,12 +1,12 @@
 # 当前活动包：逐项关闭UAT
 
-更新：2026-09-09 02:47。唯一顺序为[Master Plan](../CURRENT_PLAN.md)，全部条目Oracle为[UAT总表](../UAT_ITERATION_REGISTER.md)。
+更新：2026-09-09 03:06。唯一顺序为[Master Plan](../CURRENT_PLAN.md)，全部条目Oracle为[UAT总表](../UAT_ITERATION_REGISTER.md)。
 
-当前生产841cbcf0c7，标准发布与逐项验收见[证据](evidence/UAT_RELEASE_841CBCF0C7_20260909.md)。本次新增关闭217/254/255/139/143/224/232/213/246/221/237/238/223/235/228；本轮累计29项，70开放项及206承接核实保持完整排程。
+当前生产3489ea0ccf，标准发布与逐项验收见[证据](evidence/UAT_RELEASE_3489EA0CCF_20260909.md)。本次新增关闭217/254/255/139/143/224/232/213/246/221/237/238/223/235/228/141/230；本轮累计31项，68开放项及206承接核实保持完整排程。
 
 ## 接续执行
 
-1. 213已关闭：真实Case链、生产旧Case未知和同生产JS资产的新目标展示已核对。剩余70项及206继续完整排程。
+1. 213已关闭：真实Case链、生产旧Case未知和同生产JS资产的新目标展示已核对。剩余68项及206继续完整排程。
 2. 125/250重复恢复输入漂移：使用一致副本核实具体Event、当前输入与持久快照；保留历史失败、现有收藏和正常生产。不得用Reset、放宽digest或silent fallback掩盖。
 3. 246已关闭：精简查询、千部全选/单Batch、真实十部链及生产70部选择验收通过，不重复实施。
 4. 251：用户已确认仅手动修复及健康正常另附瑕疵标记，完成既有Owner内typed意图/Gap/终局/重新处理合同后实施，其他独立项继续。
@@ -22,6 +22,8 @@
 
 UAT-223文案、235注销模态、228人物能力文案分别关闭；235六项/隔离浏览器及新生产资产核对通过。见[收藏架验收](evidence/UAT-223_235_SHELF_DIALOG_20260909.md)。
 
-最新发布及回滚备份：[841cbcf0c7](evidence/UAT_RELEASE_841CBCF0C7_20260909.md)。[228独立证据](evidence/UAT-228_PEOPLE_CAPABILITY_COPY_20260909.md)。
+前次发布及回滚备份：[841cbcf0c7](evidence/UAT_RELEASE_841CBCF0C7_20260909.md)。[228独立证据](evidence/UAT-228_PEOPLE_CAPABILITY_COPY_20260909.md)。
 
-141/230正在收口：修正满历史挤掉当前片名、状态读取失败仍报正常以及固定readHealth，本地5 Query/5 Web/真实Host HTTP与隔离浏览器通过，待发布。245真实全量查询尚待修正，不随本项关闭。见[概览验收](evidence/UAT-141_230_OVERVIEW_ACCEPTANCE_20260909.md)。
+141/230已逐项关闭：当前片名、真实状态、错误/故障/未配置浏览器、5 Windows Query/5 Linux Query/5 Web/真实Host HTTP及生产资产核对通过。245真实全量查询尚待修正，不随本项关闭。见[概览验收](evidence/UAT-141_230_OVERVIEW_ACCEPTANCE_20260909.md)。
+
+最新生产发布/回滚备份：[3489ea0ccf](evidence/UAT_RELEASE_3489EA0CCF_20260909.md)。

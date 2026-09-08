@@ -21,3 +21,7 @@ RailStatus和Overview共用实际overview Query，但原来忽略refetch error�
 - 顺便更新该Web文件中旧Offdeck首屏mock为246已发布的精简接口，不修改Offdeck业务。
 - 本地JS `index-CoNYbSDo.js`、CSS `index-B1aY6lyV.css`；隔离请求`.codex/uat141-browser-requests.json`，HTTP记录`.codex/uat230-host-http.log`。
 - 245仍开放：Host概览使用完整Collection index/active IDs与healthReaderMany、旧全候选读取等，不能用本项5/5测试或HTTP响应快来宣称其有界读取已关闭。
+
+## 发布后关闭
+
+03:06，3489ea0ccf标准发布及生产新资产核对通过，Linux Query5通过。实际新概览左栏显示素媛(2013)，两列与待办跳转符合；错误/故障场景以相同资产的隔离HTTP验证。141与230分别关闭，245保持开放。[发布/备份/字节证据](UAT_RELEASE_3489EA0CCF_20260909.md)。

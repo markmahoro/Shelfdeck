@@ -1,8 +1,8 @@
 # ShelfDeck 当前迭代计划
 
-更新：2026-09-09 02:47。ACTIVE；[UAT总表](UAT_ITERATION_REGISTER.md)是唯一完整入口；执行包为[CURRENT_PHASE](implementation/CURRENT_PHASE.md)。原Aftercare调查Evidence未提交修改受保护。
+更新：2026-09-09 03:06。ACTIVE；[UAT总表](UAT_ITERATION_REGISTER.md)是唯一完整入口；执行包为[CURRENT_PHASE](implementation/CURRENT_PHASE.md)。原Aftercare调查Evidence未提交修改受保护。
 
-当前已关闭项跳过重复实施。接手后新增关闭217、254、255、139、143、224、232、213、246、221、237、238、223、235、228；本轮累计29项关闭，70项仍待实施/验收，206另核被取代承接。生产841cbcf0c7，发布与独立验收见[证据](implementation/evidence/UAT_RELEASE_841CBCF0C7_20260909.md)。
+当前已关闭项跳过重复实施。接手后新增关闭217、254、255、139、143、224、232、213、246、221、237、238、223、235、228、141、230；本轮累计31项关闭，68项仍待实施/验收，206另核被取代承接。生产3489ea0ccf，发布与独立验收见[证据](implementation/evidence/UAT_RELEASE_3489EA0CCF_20260909.md)。
 
 用户2026-09-09确认：已接受瑕疵仅手动发起修复，安全可播放时健康正常并附瑕疵标记；失败保原片原瑕疵并终结本次尝试。已回写SSOT，继续typed合同与实施，不再等待这两项用户决定。标准部署允许中断FFmpeg，媒体/事实/凭据/备份保护不变；不授权任意Reset。
 
@@ -38,7 +38,7 @@
 
 ## 当前执行位置
 
-213已关闭：真实Case链、生产旧Case未知和同生产JS资产的新目标展示已核对。剩余70项及206继续完整排程。
+213已关闭：真实Case链、生产旧Case未知和同生产JS资产的新目标展示已核对。剩余68项及206继续完整排程。
 2. 125/250：恢复输入漂移会重复出现，已取得一致副本并定位候选Intake执行记录；继续精确输入因果核实，不吞错、不Reset。历史Case、已上架和正常转码继续保护。
 3. 246：后台轻量progress已发布且255独立关闭；首屏工作台摘要、按需分页搜索、全选完整性继续实施，保持139已验收批量能力。
 4. 210/218/128/212及其他所有开放项继续按B1–B5排程逐行验收；局部通过不关闭整项，已通过本地检查仅在新变化/失败/明确缺证时重跑。
@@ -50,6 +50,8 @@
 
 UAT-223文案、235注销模态、228人物能力文案分别关闭；235六项/隔离浏览器及新生产资产核对通过。见[收藏架验收](implementation/evidence/UAT-223_235_SHELF_DIALOG_20260909.md)。
 
-最新发布及回滚备份：[841cbcf0c7](implementation/evidence/UAT_RELEASE_841CBCF0C7_20260909.md)。[228独立证据](implementation/evidence/UAT-228_PEOPLE_CAPABILITY_COPY_20260909.md)。
+前次发布及回滚备份：[841cbcf0c7](implementation/evidence/UAT_RELEASE_841CBCF0C7_20260909.md)。[228独立证据](implementation/evidence/UAT-228_PEOPLE_CAPABILITY_COPY_20260909.md)。
 
-141/230正在收口：修正满历史挤掉当前片名、状态读取失败仍报正常以及固定readHealth，本地5 Query/5 Web/真实Host HTTP与隔离浏览器通过，待发布。245真实全量查询尚待修正，不随本项关闭。见[概览验收](implementation/evidence/UAT-141_230_OVERVIEW_ACCEPTANCE_20260909.md)。
+141/230已逐项关闭：当前片名、真实状态、错误/故障/未配置浏览器、5 Windows Query/5 Linux Query/5 Web/真实Host HTTP及生产资产核对通过。245真实全量查询尚待修正，不随本项关闭。见[概览验收](implementation/evidence/UAT-141_230_OVERVIEW_ACCEPTANCE_20260909.md)。
+
+最新生产发布/回滚备份：[3489ea0ccf](implementation/evidence/UAT_RELEASE_3489EA0CCF_20260909.md)。

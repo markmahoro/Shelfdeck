@@ -1,6 +1,6 @@
 # ShelfDeck v3 / Kairox Historical Status
 
-最新部署（2026-09-09 02:47）：helix-beta-20260909-841cbcf0c7，source 841cbcf0c7，NAS config Image ID sha256:19bea5f5ff2f067215ecaa092abd37b955f616748e547eeeec1d398b52965f8d，tar SHA256 6de051421f8bac73a8b5c61029c49d41c9f69d4a1d3f4d66fe8e57a0544170a7。标准发布通过；纯Shelf模态UI修正，Web六项/build、Edge隔离真实交互、生产资产一致与六路GET通过；未无理由重跑服务E2E。详见[发布证据](../helix/implementation/evidence/UAT_RELEASE_841CBCF0C7_20260909.md)。
+最新部署（2026-09-09 03:06）：helix-beta-20260909-3489ea0ccf，source 3489ea0ccf，NAS config Image ID sha256:95a4f20253de4cffd612a25c869f1fc9203b06e3119034323c413893cda4f9c6，tar SHA256 d5f639ff02e940d6aa060ad0eaea5da879bde213096e49ce8de663452b1d6f37。标准发布、Windows Query5/Linux Query5/Web5/build、真实Host HTTP及生产浏览器通过；纯概览变更未重跑不相关媒体E2E。详见[发布证据](../helix/implementation/evidence/UAT_RELEASE_3489EA0CCF_20260909.md)。
 
 Last updated: 2026-09-08
 
