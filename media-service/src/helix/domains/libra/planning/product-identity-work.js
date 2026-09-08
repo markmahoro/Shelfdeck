@@ -1,6 +1,7 @@
 'use strict';
 
 const { canonicalDigest } = require('../../../contracts/canonical-json');
+const { subjectRatingTarget } = require('../model/subject-rating-target');
 
 const IDENTITY_EVIDENCE_RESULT =
   'helix://contracts/capabilities/libra.product_identity.evidence.observe/v1/result';
@@ -45,6 +46,20 @@ function definition(snapshot, stage, outputContractRef, dependencyRefs = [], sou
   });
 }
 
+function establishedSubjectIdentity(options, snapshot) {
+  const context = options.routingContextReader?.read(snapshot.run.subjectId);
+  if (!context?.rows?.identity) return null;
+  const target = subjectRatingTarget(context);
+  if (!target?.providerIdentity?.startsWith('tmdb:')) return null;
+  const identity = context.rows.identity;
+  if (context.subject.subjectId !== snapshot.run.subjectId) throw new Error('Product Identity belongs to another Subject.');
+  return Object.freeze({
+    workId: stable('libra-established-subject-identity-', { subjectId: snapshot.run.subjectId, revision: Number(identity.revision) }),
+    resultDigest: identity.identity_digest,
+    providerKey: target.providerIdentity.slice(5), title: target.title, year: target.year,
+  });
+}
+
 function identityObservationWork(snapshot, sourceKind = 'provider_search', source = null) {
   if (!['related_nfo', 'provider_exact', 'provider_search'].includes(sourceKind)) {
     throw new TypeError('Product Identity observation source kind is invalid.');
@@ -69,6 +84,7 @@ function identityCommitWork(snapshot, source) {
 }
 
 module.exports = Object.freeze({
+  establishedSubjectIdentity,
   IDENTITY_RESULT,
   IDENTITY_EVIDENCE_RESULT,
   identityCommitWork,

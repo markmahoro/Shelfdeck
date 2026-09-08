@@ -2783,3 +2783,71 @@ test('D10 DV without a compatible base layer exhausts local strategies then free
   } finally {database.close();}
   assert.deepEqual(reality(field),fieldBefore);
 });
+
+
+test('UAT-217 formal identity resolves a saved rating and replaces the Run before real On-deck', {
+  skip:SOURCE_ROOT === null ? 'Set HELIX_LIBRA_HANDOFF_B_E2E_ROOT to isolated media.' : false,
+  timeout:180_000,
+}, async(t)=>{
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'helix-uat217-formal-rating-'));
+  const dataDir=path.join(root,'data'),admin=path.join(root,'admin'),source=path.join(root,'source'),shelf=path.join(root,'shelf');
+  [admin,source,shelf].forEach(dir=>fs.mkdirSync(dir,{recursive:true}));
+  fs.writeFileSync(path.join(admin,'index.html'),'<div id="root"></div>');
+  const sample=fs.readdirSync(SOURCE_ROOT).find(name=>name.startsWith('SDT-M01-Standalone-H264 (2008)')&&name.endsWith('.mkv'));
+  assert.ok(sample);
+  fs.copyFileSync(path.join(SOURCE_ROOT,sample),path.join(source,'Unmatched Release Edition (2008).mkv'));
+  const original=reality(SOURCE_ROOT),formalTitle='Formal Rating Movie',providerCalls=[];
+  const initialized=initializeCleanData({dataDir,confirmation:'INITIALIZE_HELIX_CLEAN_V1',secretRoot:SECRET});
+  let runtimeError=null;
+  const defaults=productOptions();
+  const host=await createCleanServiceHost({dataDir,adminDistDir:admin,secretRoot:SECRET,
+    libraWorkspaceRoot:path.join(root,'workspaces'),...defaults,deferredDeliveryKeys:[],doubanRequestPaceMs:0,
+    integrationFetch:async(input,init={})=>{
+      const url=new URL(String(input));assert.equal(url.host,'movie.douban.com');providerCalls.push(url.pathname);
+      assert.equal(new Headers(init.headers).get('cookie'),'uat217-fixture-cookie');
+      return new Response('<a href="/people/uat217-user">uat217-user</a><ul><li class="item"><div class="title"><a href="/subject/217001/" title="'+formalTitle+'"><em>'+formalTitle+'</em></a></div><div class="intro">2008 / 美国</div><span class="rating1-t"></span></li></ul><div class="paginator"></div>',{status:200,headers:{'content-type':'text/html'}});
+    },
+    routingProviderObservation:async()=>[{providerKey:'990001',title:formalTitle,originalTitle:formalTitle,releaseYear:2008,regionCodes:['US'],genreCodes:['18']}],
+    productProviderMetadataFetch:async(request)=>{const value=await defaults.productProviderMetadataFetch(request);return {...value,descriptiveEntries:value.descriptiveEntries.map(entry=>entry.key==='title'?{...entry,value:formalTitle}:entry)};},
+    onExecutionRuntimeError(error){runtimeError=error;if(process.env.HELIX_TEST_LOG_RUNTIME_ERROR==='1')console.error(error);},
+  });
+  t.after(async()=>{await host.close();if(process.env.HELIX_KEEP_TEST_ASSETS!=='1')fs.rmSync(root,{recursive:true,force:true,maxRetries:5,retryDelay:100});});
+  const cookie=await session(host,initialized.adminApiKey),headers={cookie};
+  let result=await host.inject({method:'POST',url:'/v1/admin/settings/integrations/douban/actions/test',headers,payload:{kind:'douban',idempotencyKey:'uat217-connect-test',endpoint:'https://movie.douban.com',credential:{kind:'cookie',value:'uat217-fixture-cookie'},settings:{userId:'uat217-user'},timeoutMs:5000}});
+  assert.equal(result.statusCode,200,result.body);
+  result=await host.inject({method:'PATCH',url:'/v1/admin/settings/integrations/douban',headers,payload:{kind:'douban',idempotencyKey:'uat217-connect',expectedConfigRevision:0,connectionProofId:result.json().connectionProofId}});assert.equal(result.statusCode,200,result.body);
+  result=await host.inject({method:'POST',url:'/v1/admin/perception/actions/sync',headers,payload:{idempotencyKey:'uat217-sync'}});assert.equal(result.statusCode,202,result.body);
+  const databasePath=path.join(dataDir,'shelfdeck.db');
+  await waitDatabase(databasePath,db=>db.prepare("SELECT count(*) n FROM perception_acquisitions WHERE state='completed'").get().n===1);
+  await createShelf(host,cookie,shelf);
+  await createField(host,cookie,'uat217-field',source);await observe(host,cookie,'uat217-field');
+  await waitFor(host,cookie,items=>items.length===1);await route(host,cookie,'uat217-field');
+  const choiceRows=await waitFor(host,cookie,items=>items.some(item=>item.productIdentityIssue));
+  const choice=choiceRows.find(item=>item.productIdentityIssue),run=choice.currentRun;
+  result=await host.inject({method:'POST',url:'/v1/admin/formation/runs/'+encodeURIComponent(run.libraRunId)+'/actions/choose-product-identity',headers,payload:{tmdbMovieId:'990001',expectedRunStateRevision:run.stateRevision,expectedIdentityRevision:run.currentIdentityRevision,candidateSetDigest:choice.productIdentityIssue.candidateSetDigest,idempotencyKey:'uat217-choose-formal'}});
+  assert.equal(result.statusCode,202,result.body);
+  const terminal=await waitDatabase(databasePath,db=>{
+    if(runtimeError)throw runtimeError;
+    const entries=db.prepare('SELECT shelf_entry_id FROM arca_shelf_entries').all();
+    const runs=db.prepare('SELECT libra_run_id,state FROM libra_runs ORDER BY created_at_ms,libra_run_id').all();
+    return entries.length===1&&runs.some(row=>row.state==='completed')?{entries,runs}:null;
+  },120_000);
+  assert.equal(terminal.runs.length,2);
+  assert.deepEqual(terminal.runs.map(row=>row.state).sort(),['completed','superseded']);
+  const db=new Database(databasePath,{readonly:true});
+  try{
+    const specs=db.prepare('SELECT spec_json FROM libra_acceptance_specs ORDER BY spec_revision').all().map(row=>JSON.parse(row.spec_json));
+    assert.equal(specs.length,2);
+    assert.equal(specs[0].requirements.space.maxSizeBytes,null);
+    assert.equal(specs[1].requirements.space.maxSizeBytes,2*1073741824);
+    assert.notEqual(canonicalDigest(specs[0].requirements),canonicalDigest(specs[1].requirements));
+    assert.equal(db.prepare('SELECT count(*) n FROM arca_ondeck_commit_receipts').get().n,1);
+  }finally{db.close();}
+  result=await host.inject({method:'GET',url:'/v1/admin/collection',headers});assert.equal(result.statusCode,200,result.body);
+  assert.equal(result.json().items[0].displayIdentity,formalTitle);
+  const rating=await waitRating(host,cookie,choice.subjectId,value=>value.state==='ready'&&value.rating===1);
+  assert.equal(rating.sourceKind,'douban');
+  assert.ok(providerCalls.length>=2);
+  assert.deepEqual(reality(SOURCE_ROOT),original);
+  assert.ifError(runtimeError);
+});

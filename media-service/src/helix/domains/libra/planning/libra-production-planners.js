@@ -10,7 +10,7 @@ const { buildMetadataFetchIntent, buildMetadataObservationBasis, buildProductMet
   require('../model/product-fact-contracts');
 const { buildMediaCastDraft, buildMetadataMediaCastRelations, buildProductFactHandle } = require('../model/product-fact-contracts');
 const { factCommitFence, identityCommitFence } = require('../model/product-fact-execution-fences');
-const { identityCommitWork, identityObservationWork } =
+const { establishedSubjectIdentity, identityCommitWork, identityObservationWork } =
   require('./product-identity-work');
 const {
   metadataObservationWork,
@@ -118,10 +118,12 @@ function createProductIdentityPlanner(options) {
     if(!snapshot||snapshot.run.executionBasisDigest!==request.executionBasisDigest)throw new Error('Product Identity planning basis changed.');
     const nfo=snapshot.relatedReferences.filter((item)=>item.role==='nfo').sort((a,b)=>a.referenceId.localeCompare(b.referenceId));
     const manualSelection=options.productIdentitySelection?.readCurrent(snapshot.run.libraRunId)||null;
-    const nfoWork=!manualSelection&&nfo.length===1?identityObservationWork(snapshot,'related_nfo'):null;
+    const established=!manualSelection?establishedSubjectIdentity(options,snapshot):null;
+    const nfoWork=!manualSelection&&!established&&nfo.length===1?identityObservationWork(snapshot,'related_nfo'):null;
     const nfoResult=nfoWork?options.workResultReader.read(nfoWork.workId).find((item)=>item.outcomeKind==='succeeded'&&item.capabilityRef===IDENTITY_EVIDENCE):null;
     const strongFact=nfoResult?.result?.result==='resolved'?nfoResult.result.verifiedIdentity:null;
     const observationWork=manualSelection?identityObservationWork(snapshot,'provider_exact',{workId:manualSelection.selection_intent_id,resultDigest:manualSelection.intent_digest}):
+      established?identityObservationWork(snapshot,'provider_exact',established):
       strongFact?identityObservationWork(snapshot,'provider_exact',{workId:nfoWork.workId,resultDigest:nfoResult.resultDigest}):
       nfoWork&&!nfoResult?nfoWork:identityObservationWork(snapshot,'provider_search');
     let work,nodes;
@@ -130,8 +132,8 @@ function createProductIdentityPlanner(options) {
       work=observationWork;
       nodes=[planNode({...options,request,nodeId:'provider_identity_observation',eventId:factEventId,
         capabilityRef:IDENTITY_EVIDENCE,inputBindings:[
-          owner('productIdentityEvidenceIntent',request,IDENTITY_EVIDENCE_INTENT,{sourceKind:observationWork===nfoWork?'related_nfo':manualSelection||strongFact?'provider_exact':'provider_search',sourceWorkId:nfoWork?.workId||null,selectionIntentId:manualSelection?.selection_intent_id||null}),
-          owner('physicalMaterialReadHandleOrIntegrationHandle',request,IDENTITY_EVIDENCE_SOURCE,{sourceKind:observationWork===nfoWork?'related_nfo':manualSelection||strongFact?'provider_exact':'provider_search',sourceWorkId:nfoWork?.workId||null,selectionIntentId:manualSelection?.selection_intent_id||null}),
+          owner('productIdentityEvidenceIntent',request,IDENTITY_EVIDENCE_INTENT,{sourceKind:observationWork===nfoWork?'related_nfo':manualSelection||established||strongFact?'provider_exact':'provider_search',sourceWorkId:nfoWork?.workId||null,selectionIntentId:manualSelection?.selection_intent_id||null,establishedIdentityDigest:established?.resultDigest||null}),
+          owner('physicalMaterialReadHandleOrIntegrationHandle',request,IDENTITY_EVIDENCE_SOURCE,{sourceKind:observationWork===nfoWork?'related_nfo':manualSelection||established||strongFact?'provider_exact':'provider_search',sourceWorkId:nfoWork?.workId||null,selectionIntentId:manualSelection?.selection_intent_id||null,establishedIdentityDigest:established?.resultDigest||null}),
         ],resourceKinds:['disk_io','network']})];
     }else{
       const source=options.workResultReader.read(observationWork.workId).find((item)=>
@@ -195,7 +197,15 @@ function createProductIdentityProjections(options) {
         const manual=parameters.selectionIntentId&&options.productIdentitySelection?.readCurrent(value.run.libraRunId);
         if(manual&&manual.selection_intent_id===parameters.selectionIntentId){source={...source,providerKey:manual.provider_key,
           associationKind:'manual_selection',associationEvidenceDigest:manual.intent_digest};}
-        else {
+        else if(parameters.establishedIdentityDigest){
+          const established=establishedSubjectIdentity(options,value);
+          if(!established||established.resultDigest!==parameters.establishedIdentityDigest)
+            throw new Error('Established Subject identity changed before exact Provider verification.');
+          const alias={value:established.title,sourceKind:'subject_identity'};
+          common.aliases=Object.freeze([Object.freeze({...alias,aliasDigest:canonicalDigest(alias)})]);
+          common.yearHint=established.year;
+          source={...source,providerKey:established.providerKey,associationKind:'subject_identity',associationEvidenceDigest:established.resultDigest};
+        } else {
         const observed=options.workResultReader.read(parameters.sourceWorkId).find((item)=>item.outcomeKind==='succeeded'&&item.capabilityRef===IDENTITY_EVIDENCE),
           identity=observed?.result?.verifiedIdentity;
         if(!identity)throw new Error('Exact Product Identity verification requires one NFO provider identity.');

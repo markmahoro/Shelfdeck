@@ -29,3 +29,14 @@ Product Identity提交后，Coordinator通过既有Acceptance Spec Coordinator�
 测试草稿在 `helix-libra-handoff-b-scenario-e2e.test.js` 的 `UAT-217 formal identity resolves...`，尚未通过、尚未提交为交付。日志 `.codex/uat217-formal-real-chain-v2.log`。中止仅本地测试进程，未触碰生产。在同一Subject的现行正式身份/新Run证据绑定合同内检查并修复，仍须fresh Provider复核、要求未变不再替换、最终Arca实检/Commit及源保护通过。没有伪造当前Run Product Fact或倒填历史选择。
 
 另在自定义模板准备时发现独立通知消费者缺口，已另登254；本次评分接续复现用系统现有模板，不通过忽略254错误掩盖评分结果。
+
+
+## 接续修正与复验
+
+新Run在本Run没有Identity Product Fact时，除本Run显式选择优先外，读取同一Subject当前已提交的正式身份；以Subject/revision/digest形成稳定Work依据，执行前再次验证身份摘要。使用新的 `subject_identity` 关联来源进行fresh Provider精确复核，title/year/Provider Key漂移拒绝，完成后仍通过本Run的正式Identity commit形成新Product Fact；不复制旧Run材料或伪造手选Intent。SSOT 5.6.3、输入Schema生成器/registry/source-map已同步。
+
+隔离真实媒体Host链13.33秒 PASS：正式选择一次后自动命中豆瓣1星、两份不同Acceptance要求、两个Run分别superseded/completed、单次Arca Commit、最终片名正确、原样本不变。外部页面为可控输入，域内持久化、评分匹配、Run替换、真实媒体实检与上架均为实际实现。
+
+12项定向PASS覆盖同Subject身份、跨Subject拒绝、损坏Evidence、Provider ID/title/year漂移。222文件架构回归只有3个派生合同一致性测试失败，其余通过；生成器/派生物/固定摘要同步后对应3文件10项全部PASS，依赖和语义检查通过。未以修改功能Oracle消除失败。原始日志 `.codex/uat217-formal-real-chain-v4.log`、`uat217-continuity-negative.log`、`uat217-continuity-architecture.log`、`uat217-contract-recheck.log`。
+
+此前基础217修正已在696b122da4，当前接续增量尚未发布。剩余服务完整回归、新候选标准发布/Linux验证及生产只读验收；不新建生产故障、不Reset。仍未关闭。

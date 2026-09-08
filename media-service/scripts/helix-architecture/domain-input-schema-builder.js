@@ -966,7 +966,7 @@ function metadataFetchIntentSchema() {
 function productIdentityEvidenceIntentSchema() {
   const alias = object({
     value: text({ maxLength: 1024 }),
-    sourceKind: enumText('candidate', 'related_nfo', 'manual_selection'),
+    sourceKind: enumText('candidate', 'related_nfo', 'manual_selection', 'subject_identity'),
     aliasDigest: digest(),
   });
   const common = {
@@ -988,7 +988,7 @@ function productIdentityEvidenceIntentSchema() {
       [...Object.keys(common), 'relatedReferenceId', 'relatedReferenceDigest', 'expectedPhysicalIdentityDigest']),
       object({ ...common, sourceKind: { const: 'provider_exact' }, integrationId: id(), configRevision: positiveInteger(),
         provider: { const: 'tmdb' }, namespace: { const: 'tmdb_movie' }, providerKey: text({ maxLength: 128 }),
-        associationKind: enumText('nfo_claim', 'manual_selection'), associationEvidenceDigest: digest() },
+        associationKind: enumText('nfo_claim', 'manual_selection', 'subject_identity'), associationEvidenceDigest: digest() },
       [...Object.keys(common), 'integrationId', 'configRevision', 'provider', 'namespace', 'providerKey', 'associationKind',
         'associationEvidenceDigest']),
       object({ ...common, sourceKind: { const: 'provider_search' }, integrationId: id(), configRevision: positiveInteger(),

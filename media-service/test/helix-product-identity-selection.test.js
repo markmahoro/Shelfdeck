@@ -181,3 +181,21 @@ test('technical release suffix after a year is removed before TMDB identity sear
   assert.equal(searchedTitle, '看不见的朋友');
   assert.equal(result.result, 'resolved');
 });
+
+
+test('UAT-217 established Subject identity is freshly checked and rejects Provider drift', async()=>{
+  for(const candidate of [
+    {providerKey:'278',title:'Expected Movie',releaseYear:2000},
+    {providerKey:'278',title:'Another Movie',releaseYear:2000},
+    {providerKey:'278',title:'Expected Movie',releaseYear:2001},
+    {providerKey:'999',title:'Expected Movie',releaseYear:2000},
+  ]){
+    let calls=0;
+    const result=await observeProductIdentity({observeRoutingProvider:async()=>{calls++;return [candidate];}},
+      evidenceIntent('subject_identity'),{integrationId:'tmdb-main',configRevision:1});
+    assert.equal(calls,1);
+    if(candidate.providerKey==='278'&&candidate.title==='Expected Movie'&&candidate.releaseYear===2000){
+      assert.equal(result.result,'resolved');assert.equal(result.verifiedIdentity.providerKey,'278');
+    }else{assert.notEqual(result.result,'resolved');assert.equal(result.verifiedIdentity,null);}
+  }
+});

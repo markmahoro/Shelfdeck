@@ -27,3 +27,21 @@ test('UAT-217 durable Movie provider identity and year become the rating target'
   display.entries[0].value='A different film';c.rows.identity.display_identity=JSON.stringify(display);
   assert.throws(()=>subjectRatingTarget(c),{code:'LIBRA_RATING_IDENTITY_INVALID'});
 });
+
+
+test('UAT-217 replacement identity uses the same Subject head and rejects damaged evidence',()=>{
+  const {establishedSubjectIdentity}=require('../../src/helix/domains/libra/planning/product-identity-work');
+  const c=context(),snapshot={run:{subjectId:'subject',libraRunId:'new-run'}};
+  const options={routingContextReader:{read:()=>c}};
+  assert.equal(establishedSubjectIdentity(options,snapshot),null);
+  const display={schemaRef:'helix://contracts/records/display-identity/v1',schemaVersion:1,recordKind:'display-identity',entries:[
+    {key:'title',value:'Formal Movie'},{key:'year',value:'2008'},{key:'tmdb_movie_id',value:'990001'}]};
+  c.rows.identity={identity_kind:'tmdb_movie',identity_digest:'formal',revision:2,display_identity:JSON.stringify({...display,recordDigest:canonicalDigest(display)})};
+  const established=establishedSubjectIdentity(options,snapshot);
+  assert.equal(established.providerKey,'990001');assert.equal(established.year,2008);
+  assert.equal(established.resultDigest,'formal');
+  assert.deepEqual(establishedSubjectIdentity(options,{run:{...snapshot.run,libraRunId:'another-replacement'}}),established);
+  assert.throws(()=>establishedSubjectIdentity(options,{run:{subjectId:'different-subject'}}),/another Subject/);
+  c.rows.identity.identity_digest='damaged';
+  assert.throws(()=>establishedSubjectIdentity(options,snapshot),{code:'LIBRA_RATING_IDENTITY_INVALID'});
+});

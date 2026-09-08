@@ -3921,7 +3921,7 @@ Rating Decision Fact只影响当前适用的产品标准，不让User Perception
 Beta不要求Candidate在首次Spec Resolution前已经具有TMDB等强Identity。当前User Perception可以基于
 规范名称等弱Identity Anchor返回best-effort `found`，但该结果不能被Libra、Arca或Triage解释为身份
 已经确认。Level 5不为此新增独立的Libra Product Identity Resolution Process，也不采用“先开
-provisional Run、Metadata完成后默认重开”的流程。UAT-217：Movie正式Product Identity持久提交后，Libra公开的评分Target Projection使用该Identity的规范title、已有year和已确认Provider Anchor，替代本次Intake的弱名称；不回写Procurement Claim，也不从展示名称伪造强Identity。继续生产前通过User Perception正式Resolution重算适用Acceptance要求。只有实际要求改变才沿既有Acceptance Spec与Run replacement规则处理；身份revision或评分来源变化、但适用要求未变时不重复整理。已上架影片仍由Arca消费新事实，不倒流Libra。
+provisional Run、Metadata完成后默认重开”的流程。UAT-217：Movie正式Product Identity持久提交后，Libra公开的评分Target Projection使用该Identity的规范title、已有year和已确认Provider Anchor，替代本次Intake的弱名称；不回写Procurement Claim，也不从展示名称伪造强Identity。继续生产前通过User Perception正式Resolution重算适用Acceptance要求。只有实际要求改变才沿既有Acceptance Spec与Run replacement规则处理；身份revision或评分来源变化、但适用要求未变时不重复整理。已上架影片仍由Arca消费新事实，不倒流Libra。同一Subject的合法Run replacement不取消已提交的正式身份；新Run以该Subject身份revision/digest为关联依据，进行fresh Provider精确复核后形成自己的Identity Product Fact。不能要求用户仅因评分导致的Run替换重复选择同一身份，也不能复制旧Run的材料结果或跳过当前媒体安全检查。
 
 Libra在Handoff A Accepted时形成Decision Identity Evidence：优先采用`IdentityClaim.claimedYear`；若
 `claimedYear`缺失，但`claimedTitle`以唯一、显式的括号年份`(YYYY)|[YYYY]|（YYYY）|【YYYY】`结尾，

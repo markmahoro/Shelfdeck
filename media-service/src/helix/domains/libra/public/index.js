@@ -226,7 +226,7 @@ function createExecutionRegistration() {
       const productIdentitySelection=createProductIdentitySelectionService(options);
       const libraRunLifecycleService=createLibraRunLifecycleService({...options,libraRunExecutionProjection});
       const movieProductionReader=options.movieProductionReader||createMovieProductionReader(options);
-      const libraRunCoordinator=createLibraRunCoordinator({...options,movieProductionReader,libraRunLifecycleService,productIdentitySelection,
+      const libraRunCoordinator=createLibraRunCoordinator({...options,movieProductionReader,libraRunLifecycleService,productIdentitySelection,routingContextReader,
         resolveCurrentAcceptanceSpec(subjectId){
           const resolution=acceptanceSpecCoordinator.reconcile(subjectId);
           if(resolution.kind!=='terminal')return resolution;
