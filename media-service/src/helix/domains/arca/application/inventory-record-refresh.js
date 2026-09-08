@@ -7,6 +7,7 @@ const {isAftercareArtifactMaterial,physicalIdentityFromInventoryRow}=require('..
 
 function createInventoryRecordRefresh(options){
   const controls=createMaterialControlProjectionPort(options),readFingerprint=options.computeBoundedMaterialFingerprintSync;
+  if(typeof readFingerprint!=='function')throw new TypeError('Inventory record refresh requires the bounded fingerprint reader.');
   function observe(row){
     const snapshot=readFingerprint(row.location,{requireStableSnapshot:true});
     if(!Number(snapshot.stat.size))throw Object.assign(new Error('Empty NFO needs physical repair.'),{code:'ARCA_RECORD_REFRESH_EMPTY'});

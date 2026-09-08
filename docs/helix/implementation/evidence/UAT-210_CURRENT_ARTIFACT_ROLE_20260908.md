@@ -15,3 +15,15 @@
 真实长链继续迁移Shelf Target后，Inventory已经提交新目录，但Settlement报ARCA_AFTERCARE_SETTLEMENT_HANDLE_INVALID，Case未完成。精确根因与UAT-128旧多角色问题不同：Handle构造借用当前Shelf mountScopeRevision，Effect校验又要求旧源路径/mount属于新Shelf Target。当前Inventory只保存mountScopeId/bindingRevision；不能删掉路径检查或把新Target倒填旧来源来完成测试。需在Arca所属迁移/Case合同内建立可复核的原目标绑定证据，并覆盖提交后重启与篡改拒绝。
 
 证据日志：.codex/uat210-214-real-chain-settlement.log（67s失败，NFO与海报段已通过）；保留隔离目录helix-arca-ondeck-XhaWvX。该长链未通过，UAT-210/213均未关闭；不能只报告常规Service跳过此环境测试后的通过数。
+
+## 生产记录更新装配缺口
+
+5c7bc1f043后两部历史路径误判已正常健康（UAT-211），其余7部为当前正式NFO真实Identity变化：钢铁侠、攻壳机动队2、寒战2、林肯律师、新·奥特曼、信使、星际迷航。只读指纹证明inode未变而size/contentFingerprint改变；不追查外部写入归因。
+
+精确根因：create-procurement-execution-runtime给Arca Capability注册传了computeBoundedMaterialFingerprintSync，但给Process Services遗漏；createInventoryRecordRefresh因此把undefined调用当作records_deferred。修正显式装配同一指纹Reader，并在构造期拒绝缺失依赖。12项定向、222架构文件通过。
+
+扩展真实服务链：上架后追加合法NFO注释，经Admin检查正常增加一版Inventory、1条记录更新Receipt、0 Case，且外部NFO字节不被改写；随后原缺NFO/海报修复继续。首轮在后续Target迁移阶段失败，开启诊断发现ensureSettlementApproval以前因缺失FP提前return，新装配启用后遗漏sourceTargetBinding读入口。归UAT-213补同Owner原Target Reader，没有放宽校验；整条链正在重跑，不能以已通过的前半段声称全链通过。
+
+## 装配及恢复调用全链复验
+
+补齐两个调用后，真实影片全链72.2秒通过：NFO原位合法更新只刷新记录、0 Case，随后缺失NFO与海报各修复、Target迁移收尾、重启恢复、失败保留和退出均通过。日志`.codex/uat210-213-real-chain-fixed.log`；架构222文件通过，Service 530项中511通过、19项环境跳过、0失败。当前补丁尚未发布，生产7部记录更新仍待部署后自然收敛验收。

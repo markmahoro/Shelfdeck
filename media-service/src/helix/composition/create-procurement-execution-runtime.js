@@ -495,6 +495,7 @@ function createProcurementExecutionRuntime(options) {
     workResultReader,processServices:perceptionProcessServices,resolvePerceptionIntegrationHandle:options.resolvePerceptionIntegrationHandle,now});
   const arcaProcessServices=arcaConstruction.createProcessServices({...options,now,registry,workResultReader,
     resolveMediaCastReference:input=>peopleProcessServices.mediaCastReferenceQuery.resolve(input),
+    computeBoundedMaterialFingerprintSync,
     readBoundedFileSnapshotSync,
     executorIncidentProjection,
     cancelProcessWorks:(scope)=>workLifecycle.cancelProcess(scope),

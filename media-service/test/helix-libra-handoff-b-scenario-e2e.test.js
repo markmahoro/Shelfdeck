@@ -770,7 +770,7 @@ test('P14 one-movie product path accepts Handoff B and atomically establishes an
 
   const sourceAfterOnDeck = reality(source);
   // Observe the independent record-only People reconciliation before physical repair.
-  const initialInventoryRevision=await waitDatabase(databasePath,db=>{
+  let initialInventoryRevision=await waitDatabase(databasePath,db=>{
     const entry=db.prepare('SELECT shelf_entry_id,current_inventory_revision FROM arca_shelf_entries').get();
     const relations=entry&&db.prepare('SELECT person_id FROM arca_inventory_person_relations WHERE shelf_entry_id=? AND inventory_revision=?').all(entry.shelf_entry_id,entry.current_inventory_revision);
     return relations?.length&&relations.every(row=>row.person_id)?Number(entry.current_inventory_revision):null;
@@ -836,6 +836,22 @@ test('P14 one-movie product path accepts Handoff B and atomically establishes an
     return found;
   })();
   assert.ok(nfoLocations.length > 0, 'The established Inventory must contain an NFO before the repair scenario.');
+  for(const location of nfoLocations)fs.appendFileSync(location,'\n<!-- UAT-210 external record observation -->\n');
+  const externalNfoBytes=nfoLocations.map(location=>fs.readFileSync(location));
+  const recordCheck=await host.inject({method:'POST',url:'/v1/admin/care/'+entryId+'/actions/check',headers:{cookie},
+    payload:{idempotencyKey:'uat210-external-nfo-record-change'}});
+  assert.equal(recordCheck.statusCode,202,recordCheck.body);
+  await waitDatabase(databasePath,db=>{
+    const entry=db.prepare('SELECT current_inventory_revision AS revision FROM arca_shelf_entries WHERE shelf_entry_id=?').get(entryId);
+    return Number(entry.revision)===initialInventoryRevision+1;
+  },60000);
+  initialInventoryRevision+=1;
+  const recordDb=new Database(databasePath,{readonly:true});
+  try {
+    assert.equal(recordDb.prepare('SELECT count(*) n FROM arca_aftercare_cases WHERE shelf_entry_id=?').get(entryId).n,0);
+    assert.equal(recordDb.prepare("SELECT count(*) n FROM fx_command_receipts WHERE command_contract='arca.inventory.records.refresh@1' AND target_id=?").get(entryId).n,1);
+  }finally{recordDb.close();}
+  nfoLocations.forEach((location,index)=>assert.deepEqual(fs.readFileSync(location),externalNfoBytes[index]));
   const beforeRepair = new Database(databasePath, { readonly:true });
   let oldNfoMaterialKeys;
   try {
@@ -1055,7 +1071,7 @@ test('P14 one-movie product path accepts Handoff B and atomically establishes an
       "SELECT count(*) count FROM fx_workflow_events WHERE owner_domain='arca' AND state='failed'",
     ).get().count);
     return failedWorks || failedEvents ||
-      (Number(entry?.current_inventory_revision) === initialInventoryRevision+3 && Number(resolved.count) === 3)
+      (Number(entry?.current_inventory_revision) >= initialInventoryRevision+3 && Number(resolved.count) >= 3)
       ? Object.freeze({ inventoryRevision:Number(entry?.current_inventory_revision || 0),
         resolvedCases:Number(resolved.count), failedWorks, failedEvents })
       : null;

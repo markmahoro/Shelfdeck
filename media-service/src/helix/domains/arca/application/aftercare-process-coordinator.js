@@ -101,6 +101,7 @@ function createAftercareProcessCoordinator(options){
       ...options.workResultReader.read(commit.work.workId).filter((item)=>item.outcomeKind==='succeeded'&&item.capabilityRef===C.artifactMaterialize).map((item)=>item.result),
       ...placementMaterialReceipts(c,options.workResultReader,prepare.work.workId,care,frozenMaterials),
     ],handles=buildAftercareSettlementHandles({context:c,aftercareCaseId:care.aftercareCaseId,receipts,frozenMaterials,
+      sourceTargetBinding:material=>reader.sourceTargetBinding(c.shelfEntryId,material),
       observedOldBindings:observeKnownOldBindings(c.raw,options.computeBoundedMaterialFingerprintSync),observedAtMs:inventoryCommit.committedAtMs});
     return store.issueSettlementApproval({aftercareCaseId:care.aftercareCaseId,settlementScopeDigest:settlementScopeDigest(handles),
       serviceCatalogRevision:aftercareServiceCatalogRevision(options.registry),shelfStandardRevision:care.careBasis.standardRevision,careBasisDigest:care.careBasisDigest,

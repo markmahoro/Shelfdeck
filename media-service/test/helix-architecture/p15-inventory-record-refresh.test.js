@@ -86,6 +86,12 @@ test('NFO record refresh atomically updates Inventory and Control without a Case
   }finally{value.close();}
 });
 
+test('UAT-210 missing fingerprint dependency fails construction instead of deferring every NFO refresh',()=>{
+  const value=fixture();try{
+    assert.throws(()=>value.makeService(undefined),/requires the bounded fingerprint reader/);
+  }finally{value.close();}
+});
+
 test('Control conflict rolls back the new Inventory, receipt, marker, and audit together',()=>{
   const value=fixture();try{
     value.db.prepare('UPDATE fx_material_controls SET owner_domain=? WHERE material_key=?').run('libra',value.materials[1].material_key);
