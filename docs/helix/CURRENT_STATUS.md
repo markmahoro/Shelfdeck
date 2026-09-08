@@ -4,6 +4,9 @@
 
 ## 部署与本地交付
 
+- 接手核实：集成工作区`codex/user-pain-iteration` HEAD为`7c858523c`；唯一既有dirty文件为Aftercare调查Evidence，原内容受保护。相关UI任务idle，交付e6b7f0424尚未整合。本轮未部署、未重置、未修改生产媒体；下述生产身份为上次记录，现场待复核。
+- 全量台账初步一致性对账：251个连续ID；153历史关闭、1文档关闭、1非缺陷接受、95待实现/验收、1被取代待核承接。96行已补具体场景/依赖/排程；历史资格待核不能转为本轮PASS。已发现终局、健康三态、全量续拉、退出页常驻整库及43部旧恢复基线与最新决定不一致，正在传播合同。
+
 - 生产镜像：`markmahoro/shelfdeck:helix-beta-20260908-6e37bf5679`，source `6e37bf5679`。
 - Image ID：`sha256:356c034aca554dc206d7c2050b38d9ba646c6c0c1f43f66d7a57aa1f86f3d976`。Tar SHA256：`404da86c43eccc15c68b00b5d63832b1012d165ea7768d89deed6870fc581d90`。
 - 标准发布已通过。回滚镜像275923039f及备份`/vol1/1000/docker/shelfdeck/backups/aftercare-health-case-20260908`保留。
