@@ -188,7 +188,7 @@ test('Case detail selects only its exact repair and reassessment Works before lo
         objectId:workId==='mine'?'case-1':'other',digest:digest('requirement')}]} }),
   },progressProjectionReader:{read:(ids,options)=>{selected.push({ids,...options});return [];}}});
   try{
-    assert.deepEqual(value.coordinator.caseDetail('case-1'),{contract:'aftercare_process_actual_plans@1',stages:[]});
+    assert.deepEqual(value.coordinator.caseDetail('case-1'),{contract:'aftercare_process_actual_plans@1',stages:[],currentAction:null});
     assert.deepEqual(selected,[{ids:['entry-1'],includePlans:true,workIds:['mine','reassessment']}]);
   }finally{value.close();}
 });

@@ -49,3 +49,16 @@ test('maintenance process details never present stale encode progress as current
   node=projectAftercareProcess([work],130000).stages[0].plans[0].nodes[0];
   assert.deepEqual(node.results,[{label:'验证结论',value:'未通过'}]);
 });
+
+
+test('UAT-212 maintenance summary selects the actual current action and keeps its status and progress',()=>{
+  const progress={mode:'determinate',currentValue:25,totalValue:100,unit:'percent',sampledAtMs:10};
+  const work={workId:'current',workKind:'care_repair_prepare',state:'running',createdAtMs:2,
+    plans:[{planId:'plan',createdAtMs:2,edges:[]}],events:[{eventId:'encode',nodeId:'encode',planId:'plan',
+      state:'executing',capabilityRef:'arca.aftercare.media.transcode@1',progress}]};
+  const detail=projectAftercareProcess([work],20);
+  assert.equal(detail.currentAction.label,detail.stages[0].plans[0].nodes[0].label);
+  assert.equal(detail.currentAction.statusText,'正在执行');
+  assert.deepEqual(detail.currentAction.progress,progress);
+  assert.equal(projectAftercareProcess([work],130000).currentAction.progress,null);
+});

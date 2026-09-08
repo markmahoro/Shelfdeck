@@ -1,13 +1,13 @@
 import { Link } from 'react-router-dom';
 import type { CareWorkItem } from './api';
 import { Button } from './chrome';
-import { ProcessStages } from './ProcessStages';
+import { ProcessStages, progressDetail } from './ProcessStages';
 
 const goals:Record<string,string>={nfo_missing:'补齐NFO',nfo_corrupt:'修复NFO',nfo_identity_changed:'同步NFO记录（历史任务）',nfo_update_required:'更新资料',poster_missing:'补齐海报',poster_corrupt:'修复海报',
   video_codec_unmet:'调整视频编码',container_unmet:'调整封装',file_extension_unmet:'调整文件格式',max_size_exceeded:'调整影片体积',placement_unmet:'整理收藏位置',settlement_gap:'清理旧文件'};
 const stages:Record<string,string>={queued:'等待维护席位',preparing:'准备维护',waiting_for_resource:'等待处理资源',preparing_media:'处理媒体',awaiting_media_progress:'处理媒体，等待进度更新',verifying_media:'验证结果',committing_inventory:'更新收藏',reassessing:'复核结果',waiting_for_recovery:'等待自动恢复'};
 export function careGoal(item:CareWorkItem){return [...new Set(item.goals.map((goal)=>goal.split(/[/:]/).map((part)=>goals[part]).find(Boolean)||'满足收藏要求'))].join('、');}
-export function careStage(item:CareWorkItem){return item.state==='resolved'?'维护完成':item.state==='unresolved'?'已结束 · 未解决':item.state==='invalidated'?'已结束，要求已变化':stages[item.progress?.stage||item.state]||'正在维护';}
+export function careStage(item:CareWorkItem){return item.state==='resolved'?'维护完成':item.state==='unresolved'?'已结束 · 未解决':item.state==='invalidated'?'已结束，要求已变化':item.progress?.currentAction?.label||stages[item.progress?.stage||item.state]||'正在维护';}
 const reasons:Record<string,string>={external_writer_conflict:'文件变化与本次处理依据冲突，维护已停止。',
   reassessment_exhausted:'结果复核多次未通过，本次维护已停止。',repair_commit_exhausted:'更新收藏记录多次失败，本次维护已停止。',
   settlement_or_commit_failed:'旧文件收尾或收藏提交失败，本次维护已停止。',
@@ -19,6 +19,7 @@ const triggers:Record<string,string>={max_size_exceeded:'建单时影片体积�
   nfo_missing:'当时缺少必需的NFO文件。',nfo_corrupt:'当时NFO文件未通过检查。',
   poster_missing:'当时缺少必需的海报。',poster_corrupt:'当时海报未通过检查。',settlement_gap:'当时有旧文件收尾尚未完成。'};
 function triggerText(item:CareWorkItem){return [...new Set(item.goals.map(goal=>goal.split(/[/:]/).map(part=>triggers[part]).find(Boolean)||'建单时发现收藏要求未满足，具体依据见处理步骤。'))].join(' ');}
+function actionDetail(item:CareWorkItem){const action=item.progress?.currentAction;return action?[action.statusText,action.progress?progressDetail(action.progress):null].filter(Boolean).join(' · '):null;}
 function reasonText(item:CareWorkItem){return item.reasonCode?(reasons[item.reasonCode]||'本次处理已结束，具体原因见处理步骤与技术信息。'):null;}
 function time(value:number|null){return value?new Intl.DateTimeFormat('zh-CN',{dateStyle:'medium',timeStyle:'short'}).format(value):'—';}
 function bytes(value:number){return `${(value/1073741824).toFixed(2)} GiB`;}
@@ -30,12 +31,12 @@ function currentHealthText(item:CareWorkItem){const health=item.currentHealth;
   return '当前健康状态尚不能确定';
 }
 export function CareWorkRow({item,onOpen}:{item:CareWorkItem;onOpen:(item:CareWorkItem)=>void}){
-  return <tr className="formation-stub-media-row"><td><strong>{item.displayIdentity}</strong><small>上架后维护 · {time(item.createdAtMs)}</small></td><td>—</td><td>{item.targetShelfName||'—'}</td><td>{careGoal(item)}<small>{triggerText(item)}</small></td><td><strong className="formation-stub-current">{careStage(item)}</strong>{reasonText(item)&&<small>{reasonText(item)}</small>}{item.currentHealth!==undefined&&<small>{currentHealthText(item)}</small>}{item.terminalAtMs&&<small>{time(item.terminalAtMs)}</small>}{item.progress?.progressPercent!=null&&<small>{item.progress.progressPercent}%</small>}</td><td><Button type="button" variant="text" onClick={()=>onOpen(item)}>查看过程</Button></td><td><Link to="/collection">收藏健康</Link></td><td>—</td><td>维护任务</td></tr>;
+  return <tr className="formation-stub-media-row"><td><strong>{item.displayIdentity}</strong><small>上架后维护 · {time(item.createdAtMs)}</small></td><td>—</td><td>{item.targetShelfName||'—'}</td><td>{careGoal(item)}<small>{triggerText(item)}</small></td><td><strong className="formation-stub-current">{careStage(item)}</strong>{actionDetail(item)&&<small>{actionDetail(item)}</small>}{reasonText(item)&&<small>{reasonText(item)}</small>}{item.currentHealth!==undefined&&<small>{currentHealthText(item)}</small>}{item.terminalAtMs&&<small>{time(item.terminalAtMs)}</small>}{!item.progress?.currentAction && item.progress?.progressPercent!=null&&<small>{item.progress.progressPercent}%</small>}</td><td><Button type="button" variant="text" onClick={()=>onOpen(item)}>查看过程</Button></td><td><Link to="/collection">收藏健康</Link></td><td>—</td><td>维护任务</td></tr>;
 }
 export function CareWorkDetail({item,error=''}:{item:CareWorkItem;error?:string}){
   const progress=item.progress?.progress;
   return <article className="formation-process-card"><header className="formation-process-head"><div><span className="formation-process-eyebrow">上架后维护</span><h3>{item.displayIdentity}</h3><p>{careStage(item)}</p></div></header>
-    <dl className="formation-process-facts"><div><dt>目标收藏架</dt><dd>{item.targetShelfName||'—'}</dd></div><div><dt>维护目标</dt><dd>{careGoal(item)}</dd></div><div><dt>当前进展</dt><dd>{careStage(item)}</dd></div></dl>
+    <dl className="formation-process-facts"><div><dt>目标收藏架</dt><dd>{item.targetShelfName||'—'}</dd></div><div><dt>维护目标</dt><dd>{careGoal(item)}</dd></div><div><dt>当前进展</dt><dd>{careStage(item)}{actionDetail(item)&&<small>{actionDetail(item)}</small>}</dd></div></dl>
     <section className="formation-stage-body" aria-label="维护原因与结果">
       <p><strong>当时为什么处理：</strong>{triggerText(item)}</p>
       {item.caseEvidence?.originalPrimaryBytes!=null&&<p>建单时正片 {bytes(item.caseEvidence.originalPrimaryBytes)}{item.caseEvidence.currentPrimaryBytes!=null?`；当前记录正片 ${bytes(item.caseEvidence.currentPrimaryBytes)}`:''}。</p>}

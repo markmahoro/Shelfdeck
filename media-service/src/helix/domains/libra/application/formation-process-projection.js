@@ -454,22 +454,6 @@ function buildFormationProcessDetail(input) {
   ]) });
 }
 
-function currentPlanSummary(detail) {
-  const stages=detail?.stages || [];
-  const finalStage=stages.at(-1);
-  const stage=finalStage?.state==='completed' ? finalStage :
-    stages.find((item)=>item.state==='running') || stages.find((item)=>item.state==='attention');
-  if (!stage) return null;
-  let planIndex=-1;
-  for (let index=stage.plans.length-1;index>=0;index-=1) {
-    if (stage.plans[index].state===stage.state) { planIndex=index; break; }
-  }
-  if (planIndex<0) return null;
-  const plan=stage.plans[planIndex];
-  const node=plan.nodes.find((item)=>item.state==='running'||item.state==='failed') || plan.nodes.at(-1) || null;
-  return Object.freeze({ stageKey:stage.key, planId:plan.planId, planNumber:planIndex+1, title:plan.title,
-    label:'计划'+(planIndex+1)+' '+plan.title, state:plan.state, statusText:node?.statusText || null,
-    progress:node?.progress || null });
-}
+const {currentActionSummary:currentPlanSummary}=require('../../../foundation/execution/current-action-summary');
 
 module.exports=Object.freeze({ buildFormationProcessDetail, currentPlanSummary, nodeState, projectPlans, resultFacts, transcodeDetails });

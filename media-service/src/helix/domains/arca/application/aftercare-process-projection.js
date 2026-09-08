@@ -1,5 +1,6 @@
 'use strict';
 
+const {currentActionSummary}=require('../../../foundation/execution/current-action-summary');
 const { CAPABILITY_REFS:C } = require('../model/aftercare-contract');
 const { CAPABILITY_REFS:A } = require('../model/on-deck-contract');
 
@@ -34,12 +35,12 @@ function orderedEvents(events,edges){
   return result;
 }
 function node(event,atMs){
-  const status=event.state==='succeeded'?'completed':['failed','timed_out'].includes(event.state)?'failed':
+  const status=event.result?.outcomeKind==='failed'||['failed','timed_out'].includes(event.state)?'failed':event.state==='succeeded'||event.result?.outcomeKind==='succeeded'?'completed':
     ['cancelled','skipped'].includes(event.state)?event.state:state(event.state)==='running'?'running':'pending';
   const label=LABELS[event.capabilityRef]||'执行维护步骤';
   const sample=event.progress,fresh=sample&&Number.isFinite(sample.sampledAtMs)&&atMs-sample.sampledAtMs<=120000;
-  const statusText=event.state==='waiting_for_resource'?'等待资源':event.state==='waiting_for_external'?'等待外部结果':
-    event.state==='waiting_for_approval'?'等待确认':status==='running'&&sample&&!fresh?'等待进度更新':undefined;
+  const statusText=status==='completed'?'已完成':status==='failed'?'执行失败':status==='cancelled'?'未执行':status==='skipped'?'无需执行':event.state==='waiting_for_resource'?'等待资源':event.state==='waiting_for_external'?'等待外部结果':
+    event.state==='waiting_for_approval'?'等待确认':status==='running'&&sample&&!fresh?'等待进度更新':event.state==='executing'?'正在执行':event.state==='ready'?'准备执行':'等待前序步骤';
   const results=[];
   if(event.result){
     const value=event.result.result;
@@ -71,6 +72,7 @@ function projectAftercareProcess(works,atMs=Date.now()){
     stages.push(Object.freeze({key:work.workId,label:copy[1],description:copy[2],state:state(work.state),
       summary:work.state==='succeeded'?'已完成':work.state==='cancelled'?'已终止':work.state==='failed'?'需要处理':'执行中',plans:Object.freeze(plans)}));
   }
-  return Object.freeze({contract:'aftercare_process_actual_plans@1',stages:Object.freeze(stages)});
+  const detail={contract:'aftercare_process_actual_plans@1',stages:Object.freeze(stages)};
+  return Object.freeze({...detail,currentAction:currentActionSummary(detail)});
 }
 module.exports=Object.freeze({projectAftercareProcess});
