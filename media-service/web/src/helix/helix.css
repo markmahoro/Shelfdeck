@@ -45,6 +45,7 @@ button, input, select, textarea { font: inherit; }
 .rail-status { margin: 14px 8px 0; color: #8eb2aa; font-size: 12px; font-weight: 700; }
 .rail-status[data-kind="unconfigured"] { color: #e8c48a; }
 .rail-status[data-kind="attention"] { color: #e8c48a; }
+.rail-status[data-kind="unknown"] { color: #e8c48a; }
 .rail-status[data-kind="faulted"] { color: #f0b4b4; }
 .helix-main { min-width: 0; padding: 28px 28px 56px; }
 .overview-status-row { display: grid; gap: 8px; margin-bottom: 16px; }
@@ -53,6 +54,7 @@ button, input, select, textarea { font: inherit; }
 .system-state { display: grid; gap: 4px; padding: 16px 18px; border-left: 3px solid var(--accent); background: #eaf3ee; color: inherit; text-decoration: none; }
 .system-state[data-kind="unconfigured"] { border-color: var(--attention); background: #f7f0e5; }
 .system-state[data-kind="attention"] { border-color: var(--attention); background: #f7f0e5; }
+.system-state[data-kind="unknown"] { border-color: var(--attention); background: #f7f0e5; }
 .system-state[data-kind="faulted"] { border-color: var(--fault); background: #fbeaea; }
 .system-state span, .system-state small { color: var(--muted); font-size: 12px; }
 .system-state strong { font-size: 20px; }

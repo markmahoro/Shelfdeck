@@ -106,15 +106,15 @@ function createOverviewQuery(options) {
       activeFields.length && !activeShelves.length ? Object.freeze({ key:'shelves', label:'还没有收藏架', count:1, href:'/shelves' }) : null,
     ].filter(Boolean);
     const ledger = [];
+    for (const item of (formation.inProgressItems || []).slice(0, 5)) {
+      ledger.push(Object.freeze({ key:'progress:'+item.subjectId, label:'正在整理 · ' + item.displayIdentity, href:'/formation' }));
+    }
     for (const item of formation.completedItems || []) {
       ledger.push(Object.freeze({ key:'completed:'+item.subjectId, label:'已上架 · ' + item.displayIdentity, href:'/collection' }));
     }
     for (const item of collection.recentOnDeck || []) {
       if (ledger.some((row) => row.label.endsWith(item.displayIdentity))) continue;
       ledger.push(Object.freeze({ key:'ondeck:'+item.shelfEntryId, label:'新上架 · ' + item.displayIdentity, href:'/collection' }));
-    }
-    for (const item of formation.inProgressItems || []) {
-      ledger.push(Object.freeze({ key:'progress:'+item.subjectId, label:'正在整理 · ' + item.displayIdentity, href:'/formation' }));
     }
     const inProgressCount = integer(formation.summary?.inProgressCount);
     const waitingAcceptanceCount = fields.reduce((sum, field) =>

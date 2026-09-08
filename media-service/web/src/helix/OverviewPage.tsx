@@ -22,9 +22,9 @@ export default function OverviewPage() {
   const load = () => { void refetch(); };
   const loading = isFetching;
   const fieldAccessAttention = projection?.systemState.kind !== 'faulted' && Boolean(projection?.todos.some((item) => item.key === 'field_access'));
-  const stateKind = !projection ? 'running' : projection.systemState.kind === 'faulted' ? 'faulted' : fieldAccessAttention ? 'attention' : projection.systemState.kind;
+  const stateKind = error ? 'unknown' : !projection ? 'running' : projection.systemState.kind === 'faulted' ? 'faulted' : fieldAccessAttention ? 'attention' : projection.systemState.kind;
   const compactStatus = stateKind === 'running';
-  const stateNote = !projection ? '' : projection.systemState.kind === 'unconfigured' ? '先配置文件来源和收藏架'
+  const stateNote = error ? '刷新后再确认系统状态' : !projection ? '' : projection.systemState.kind === 'unconfigured' ? '先配置文件来源和收藏架'
     : projection.systemState.kind === 'faulted' ? '服务当前不可用，需要处理故障'
     : fieldAccessAttention ? '有文件来源目录不可用，先到来源配置处理'
     : '';
@@ -50,7 +50,7 @@ export default function OverviewPage() {
           ? <Link className="system-state-word" to={projection.systemState.href}>{projection.systemState.label}</Link>
           : <Link className="system-state" data-kind={stateKind} to={projection.systemState.href}>
               <span>系统状态</span>
-              <strong>{fieldAccessAttention ? '需要你处理' : projection.systemState.label}</strong>
+              <strong>{error ? '状态读取失败' : fieldAccessAttention ? '需要你处理' : projection.systemState.label}</strong>
               {stateNote ? <small>{stateNote}</small> : null}
             </Link>}
         {background && <details className="background-status" data-kind={background.state}>

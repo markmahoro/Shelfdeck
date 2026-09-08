@@ -103,3 +103,19 @@ test('Overview does not treat a healthy in-progress Observation as Field attenti
   assert.equal(value.systemState.href, '/');
   assert.ok(!value.todos.some((item) => item.key === 'field_access'));
 });
+
+test('Overview reserves bounded ledger space for organizing titles when recent history fills the page', () => {
+  const query = createOverviewQuery(idleReaders({
+    readFormation: () => ({
+      summary: { inProgressCount: 1 },
+      inProgressItems: [{ subjectId: 'running', displayIdentity: 'Current Movie' }],
+      completedItems: Array.from({ length: 5 }, (_, i) => ({ subjectId: 'done-' + i, displayIdentity: 'Completed ' + i })),
+    }),
+    readCollectionStats: () => ({ currentCount: 100, monthNewCount: 5, healthyCount: 100, healthAttentionCount: 0,
+      recentOnDeck: Array.from({ length: 5 }, (_, i) => ({ shelfEntryId: 'entry-' + i, displayIdentity: 'Recent ' + i })) }),
+  }));
+  const value = query.get();
+  assert.equal(value.ledger.length, 8);
+  assert.ok(value.ledger.some((item) => item.key === 'progress:running' && item.href === '/formation'));
+  assert.ok(value.ledger.some((item) => item.key.startsWith('completed:')));
+});

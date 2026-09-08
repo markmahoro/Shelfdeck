@@ -1776,7 +1776,7 @@ async function createCleanServiceHost(options) {
     readOffdeck: () => arcaOffdeck.candidates(),
     readPeopleSummary: () => peopleAdminQuery.list({ limit:1 }).summary,
     readBackgroundOperations: () => procurementExecution.host.backgroundOperations(),
-    readHealth: () => ({ kind: 'ready' }),
+    readHealth: () => ({ kind: procurementExecution.host.readiness().state }),
     now: options.now || Date.now,
   });
   const peopleAdmin = Object.freeze({

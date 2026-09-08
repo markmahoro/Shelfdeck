@@ -49,7 +49,8 @@ function RailStatus() {
     const timer = window.setTimeout(() => setReady(true), 300);
     return () => window.clearTimeout(timer);
   }, []);
-  const { data } = useQuery({ queryKey: ['overview'], queryFn: () => helixAdminApi.getOverview(), enabled: ready });
+  const { data, error } = useQuery({ queryKey: ['overview'], queryFn: () => helixAdminApi.getOverview(), enabled: ready });
+  if (error) return <p className="rail-status" data-kind="unknown">状态读取失败</p>;
   if (!data?.systemState) return null;
   const kind = railKind(data);
   return <p className="rail-status" data-kind={kind}>{kind === 'attention' ? '需要你处理' : data.systemState.label}</p>;

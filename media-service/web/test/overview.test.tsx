@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import App from '../src/App';
@@ -122,8 +122,8 @@ describe('Helix Overview product semantics', () => {
     vi.spyOn(helixAdminApi, 'getOffdeckPolicy').mockResolvedValue({
       policyId: 'policy-1', revision: 1, status: 'disabled', duplicateScheduleEnabled: false, entryRules: [], policyDigest: 'd',
     });
-    vi.spyOn(helixAdminApi, 'listOffdeckCandidates').mockResolvedValue({ candidates: [], duplicateGroups: [], suppressions: [], whitelists: [] });
-    vi.spyOn(helixAdminApi, 'listOffdeckCases').mockResolvedValue({ items: [] });
+    vi.spyOn(helixAdminApi, 'getOffdeckWorkbench').mockResolvedValue({ currentCount:0, candidateCount:0, candidates:[], duplicateGroups:[], entries:[], nextCursor:null, shelves:[] });
+    vi.spyOn(helixAdminApi, 'listOffdeckWorkCases').mockResolvedValue({ items:[], entries:[], counts:{active:0,completed:0}, nextCursor:null });
     vi.spyOn(helixAdminApi, 'listCollection').mockResolvedValue({ items: [] });
     vi.spyOn(helixAdminApi, 'listShelves').mockResolvedValue({ items: [] });
     render(<MemoryRouter initialEntries={['/offdeck']}><App /></MemoryRouter>);
@@ -135,5 +135,29 @@ describe('Helix Overview product semantics', () => {
     expect(screen.getByRole('heading', { name: '手动退出' })).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: '退出规则' })).not.toBeInTheDocument();
     expect(screen.queryByText('审阅')).not.toBeInTheDocument();
+  });
+
+  it('replaces cached healthy status with an explicit read failure and recovers on refresh', async () => {
+    const projection = {
+      generatedAt: new Date().toISOString(),
+      systemState: { kind:'running' as const, label:'正常运行', href:'/' },
+      metrics:[], todos:[], ledger:[], pipeline:{waitingAcceptanceCount:0,organizingCount:0},
+      setup:{activeMaterialFieldCount:1,activeShelfCount:1}, backgroundOperations:null,
+    };
+    const get = vi.spyOn(helixAdminApi, 'getOverview').mockResolvedValue(projection);
+    render(<MemoryRouter initialEntries={['/']}><App /></MemoryRouter>);
+    await screen.findByRole('link', { name:'正常运行' });
+    await waitFor(() => expect(document.querySelector('.rail-status')).toHaveTextContent('正常运行'));
+    get.mockRejectedValue(new Error('状态接口暂时不可用'));
+    fireEvent.click(screen.getByRole('button', { name:'刷新', exact:true }));
+    await screen.findByRole('alert');
+    expect(document.querySelector('.rail-status')).toHaveTextContent('状态读取失败');
+    expect(document.querySelector('.overview-status-row')).toHaveAttribute('data-kind','unknown');
+    expect(screen.queryByText('正常运行')).not.toBeInTheDocument();
+    get.mockResolvedValue({...projection, systemState:{kind:'faulted',label:'系统故障',href:'/'}});
+    fireEvent.click(screen.getByRole('button', { name:'刷新', exact:true }));
+    await waitFor(() => expect(document.querySelector('.rail-status')).toHaveTextContent('系统故障'));
+    expect(document.querySelector('.overview-status-row')).toHaveAttribute('data-kind','faulted');
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 });

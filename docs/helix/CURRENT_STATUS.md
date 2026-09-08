@@ -20,3 +20,5 @@
 UAT-223文案、235注销模态、228人物能力文案分别关闭；235六项/隔离浏览器及新生产资产核对通过。见[收藏架验收](implementation/evidence/UAT-223_235_SHELF_DIALOG_20260909.md)。
 
 最新发布及回滚备份：[841cbcf0c7](implementation/evidence/UAT_RELEASE_841CBCF0C7_20260909.md)。[228独立证据](implementation/evidence/UAT-228_PEOPLE_CAPABILITY_COPY_20260909.md)。
+
+141/230正在收口：修正满历史挤掉当前片名、状态读取失败仍报正常以及固定readHealth，本地5 Query/5 Web/真实Host HTTP与隔离浏览器通过，待发布。245真实全量查询尚待修正，不随本项关闭。见[概览验收](implementation/evidence/UAT-141_230_OVERVIEW_ACCEPTANCE_20260909.md)。

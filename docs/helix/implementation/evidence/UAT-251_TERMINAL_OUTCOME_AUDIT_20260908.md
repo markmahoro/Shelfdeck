@@ -64,3 +64,7 @@ Web56 PASS（其中3项验证请求失败重试、明确不合格、旧revision�
 SSOT已细化精确Gap身份、资格/路径结果分离、不可豁免Fence、三终局及责任收尾、Libra本地再进入判定、Arca接纳决定/手动意图、修复提交/失败和跨Case有限性。没有转移Owner、授权Reset或把旧冻结当成已完成。P2派生基线通过；新DTO/schema、原子持久化和执行接入尚未完成，251保持开放。
 
 实现定位：Arca当前findingDigest基于kind/code/basis，Finding实例ID另外包含Assessment Evidence ID；CareRequirement.requiredEffects仍引用实例ID，triggerDigest又包含assessmentWorkId。因此跨Case去重不能直接依赖整份旧Requirement digest或检查Work ID。当前projectHealth还把同Basis unresolved Case优先于健康Evidence，该分支需与手动瑕疵失败保原片、健康独立投影一起修正。不能仅删判断后宣称手动修复链完成。
+
+## 2026-09-09 既有Arca授权事实盘点
+
+对841cbcf0c7发布前一致只读备份查询，arca_inventory_product_facts存在40条AuthorizedDefectManifest/v1记录，defectCount均1。它们是既有Inventory事实，不是可清理的未完成Formation数据；新精确Gap/有效授权与修复意图接入必须保留原始字节/历史结果，不能把严格新schema直接用于否定既有授权。此数是历史fact行，不等于40个当前收藏。只读脚本`.codex/uat251-manifest-scope.cjs`；未执行生产修改或新增兼容代码。
