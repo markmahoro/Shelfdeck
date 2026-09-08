@@ -22,3 +22,12 @@ read-model为工程Owner，不是Business Domain。新增只限read-model的纯�
 早期测试误把失败重试状态期望为failed；实际Foundation使用pending+attempt_count递增，已按现行合同改验重试次数及未ACK。另暴露的投影停机竞态归125并修正，未吞掉Kernel关闭错误。
 
 日志 `.codex/uat254-template-restart.log`、`.codex/uat254-inbox-uat125-shutdown.log`、`.codex/uat254-architecture.log`。ACK丢失为隔离数据库精确状态注入配合Host重启，未声称实际OS进程崩溃。尚未部署，剩余统一发布/Linux运行验证；不修改生产规则制造验收场景。
+
+
+## 统一候选已准备
+
+干净发布工作区241436b8da构建 `markmahoro/shelfdeck:helix-beta-20260909-241436b8da`，Image ID `sha256:b9b42019d46035d0e0b0548fc763a97f3b521c15419325d284e126e02e7f8724`，tar SHA256 `1688415c8aa4acc9dff60299e89d46b8d1796e1a9eb97e908f085a9790029bd0`。标准上传到NAS项目根并通过校验，deploy dry-run生成；未apply。该候选包含213/217/222/243/254与125停机修正，取代未部署d24候选的发布位置。
+
+Linux容器使用独立一致性DB/加密凭据副本，network none，无生产媒体挂载；两轮共12个GET均200，readiness ready，正常关闭退出0。首轮冷启动页面/接口较慢，第二轮formation93ms、collection450ms、care177ms；只证明隔离Linux兼容与基本接口，不当作真实浏览器性能验收。日志 `.codex/uat-release-241436b8da-{build,upload,dry-run,linux}.log`。
+
+生产仍696b122da4且FFmpeg在飞；最终apply前须更新精确在飞清单、完成新一致备份与标准readiness，不能沿用候选准备快照。

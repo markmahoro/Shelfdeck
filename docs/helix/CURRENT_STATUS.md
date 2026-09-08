@@ -2,6 +2,10 @@
 
 更新：2026-09-08。主线未全数关闭；逐项状态见[UAT总表](UAT_ITERATION_REGISTER.md)，后续顺序见[CURRENT_PLAN](CURRENT_PLAN.md)。
 
+## 最新发布准备（2026-09-09）
+
+新候选helix-beta-20260909-241436b8da标准构建/上传校验/dry-run及隔离Linux12个GET/readiness通过，尚未apply。Image ID b9b42019d460，tar SHA256与完整证据见254 Evidence。生产仍696b122da4并保护在飞转码；前一d24候选不再代表最新待发布代码。
+
 ## 最新整合验证（2026-09-09）
 
 217基础b7cf21869的完整Service回归515 PASS/20环境SKIP/0 FAIL，真实217媒体另行PASS。254具体规则通知消费及重放修正、125投影停机回调隔离已完成，3项真实Host模板、36项Receipt/投影及222文件架构全部Gate通过，未发布。生产00:10仍696b122da4、70收藏、2个Libra在飞/1个FFmpeg，保护未中断。
