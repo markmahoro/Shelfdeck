@@ -158,10 +158,11 @@ export default function OffdeckPage() {
   const staleScopes = review?.scopes.filter((scope) => scope.state === 'stale') || [];
   const scopeMaterials = reviewScopes.flatMap((scope) => scope.materials);
   const primaryRoles = new Set(['primary_payload', 'structural_dependency']);
-  const reviewEntries = review?.selection?.entryCount ?? review?.scopes.length ?? 0;
+  const cancelledReview = review?.state === 'cancelled';
+  const reviewEntries = review?.selection?.entryCount ?? reviewScopes.length;
   const reviewPrimary = review?.selection?.primaryCount ?? scopeMaterials.filter((material) => primaryRoles.has(material.role)).length;
   const reviewRelated = scopeMaterials.filter((material) => !primaryRoles.has(material.role)).length;
-  const reviewBytes = review?.selection?.totalBytes ?? review?.scopes.reduce((sum, scope) => sum + scope.totalBytes, 0) ?? 0;
+  const reviewBytes = review?.selection?.totalBytes ?? reviewScopes.reduce((sum, scope) => sum + scope.totalBytes, 0);
   const nextReviewAction = review?.state === 'open' ? '核对将删除的文件'
     : review?.state === 'awaiting_escalation' ? '再次确认大批量'
     : review?.state === 'selection_confirmed' ? '确认删除'
@@ -245,11 +246,12 @@ export default function OffdeckPage() {
       <section className="collection-dialog offdeck-confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="offdeck-confirm-title">
         <button className="collection-dialog-close" type="button" onClick={() => void closeReview()} aria-label="关闭">×</button>
         <div className="collection-dialog-copy">
-          <h2 id="offdeck-confirm-title">{review.state==='awaiting_escalation'?'再次核对大批量退出':'将删除的文件'}</h2>
+          <h2 id="offdeck-confirm-title">{cancelledReview?'已取消的退出审阅':review.state==='awaiting_escalation'?'再次核对大批量退出':'将删除的文件'}</h2>
           <p className="collection-dialog-meta">{labelOf(reviewStateLabels, review.state)}</p>
           {review.state === 'awaiting_escalation' && <p className="form-error" role="alert">这次数量或体积较大，请再次核对后再确认删除。没有授权不会删除文件。</p>}
           {review.state === 'selection_confirmed' && <p className="form-error" role="alert">确认后将删除下列文件，不能反悔。</p>}
-          {review.state!=='preparing'&&<section className="offdeck-review-summary" aria-label="本次退出范围">
+          {cancelledReview && <p>本次退出已取消，不会依据这次审阅删除文件。</p>}
+          {review.state!=='preparing'&&!cancelledReview&&<section className="offdeck-review-summary" aria-label="本次退出范围">
             <p><strong>{reviewEntries} 部收藏 · {reviewPrimary} 个主视频或光盘结构文件 · {reviewRelated} 个附属文件</strong></p>
             <p>文件总空间：{formatGiB(reviewBytes)}{review.selection?` · 占全部当前收藏 ${(review.selection.deckCoverageRatio*100).toFixed(1)}%`:''}</p>
             {review.selection && (review.selection.shelfCoverageRatios ? Object.entries(review.selection.shelfCoverageRatios).map(([shelfId, ratio]) => <p key={shelfId}>收藏架覆盖率：{collectionEntries.find((entry) => entry.shelfId === shelfId)?.shelfName || '原收藏架'} {(ratio * 100).toFixed(1)}%（确认选择时）</p>) : <p>此历史审阅未保存收藏架覆盖率，不能由当前收藏数量还原。</p>)}

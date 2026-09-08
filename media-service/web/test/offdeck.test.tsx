@@ -170,6 +170,21 @@ describe('Off-deck progress', () => {
     expect(helixAdminApi.listCollection).toHaveBeenCalledTimes(2);
   });
 
+  it('does not present a cancelled receipt as a future deletion or releasable space', async () => {
+    vi.spyOn(helixAdminApi, 'listOffdeckCandidates').mockResolvedValue({ candidates: [], duplicateGroups: [], suppressions: [], whitelists: [] });
+    vi.spyOn(helixAdminApi, 'listOffdeckCases').mockResolvedValue({ items: [] });
+    vi.spyOn(helixAdminApi, 'listCollection').mockResolvedValue({ items: [] });
+    vi.spyOn(helixAdminApi, 'getOffdeckReview').mockResolvedValue({ ...highVolumeReview, state: 'cancelled' });
+    const authorize = vi.spyOn(helixAdminApi, 'authorizeOffdeck');
+    history.replaceState(null, '', '/offdeck?review=review-bulk');
+    render(<SessionProvider><OffdeckPage /></SessionProvider>);
+    const dialog = await screen.findByRole('dialog', { name: '已取消的退出审阅' });
+    expect(within(dialog).getByText('本次退出已取消，不会依据这次审阅删除文件。')).toBeInTheDocument();
+    expect(within(dialog).queryByText(/文件总空间|最终授权后|120.00/)).not.toBeInTheDocument();
+    expect(within(dialog).queryByRole('button', { name: '确认删除' })).not.toBeInTheDocument();
+    expect(authorize).not.toHaveBeenCalled();
+  });
+
   it('does not overlap slow preparation reads or reopen a closed review with a late response', async () => {
     vi.useFakeTimers();
     vi.spyOn(helixAdminApi, 'listOffdeckCandidates').mockResolvedValue({ candidates: [], duplicateGroups: [], suppressions: [], whitelists: [] });
