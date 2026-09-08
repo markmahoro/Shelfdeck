@@ -1,5 +1,7 @@
 # 当前活动包：逐项关闭UAT
 
+UAT-246确认动作不再整页重拉，preparing慢请求不重叠且关闭后丢弃迟到响应；6项Web/构建和Edge单POST验证通过，未发布。继续首屏摘要、按需搜索及轻量准备投影。
+
 退出审阅143/139/224/232：139确认时Shelf覆盖率快照、旧记录不倒填、失效范围提示已实现；13项schema/14项安全/5项Web及22.71秒真实十部退出后Host重启验证通过，尚未发布。详见[Evidence](evidence/UAT-143_OFFDECK_REVIEW_ACCEPTANCE_20260909.md)。
 
 更新：2026-09-09。唯一顺序见[Master Plan](../CURRENT_PLAN.md)，逐项剩余工作、依赖和关闭条件见[UAT总表](../UAT_ITERATION_REGISTER.md)。

@@ -61,15 +61,29 @@ export default function OffdeckPage() {
   useEffect(() => { void load(); }, [load]);
   useEffect(() => {
     if (!review || review.state !== 'preparing') return;
-    const timer = window.setInterval(() => {
-      void helixAdminApi.getOffdeckReview(review.reviewId).then(setReview).catch((cause) => fail(cause, '退出范围准备失败。'));
-    }, 3000);
-    return () => window.clearInterval(timer);
+    let active = true;
+    let timer: number;
+    const refresh = async () => {
+      try {
+        const next = await helixAdminApi.getOffdeckReview(review.reviewId);
+        if (active) {
+          setReview(next);
+          if (next.state === 'preparing') timer = window.setTimeout(() => void refresh(), 3000);
+        }
+      } catch (cause) {
+        if (active) {
+          fail(cause, '退出范围准备失败。');
+          timer = window.setTimeout(() => void refresh(), 3000);
+        }
+      }
+    };
+    timer = window.setTimeout(() => void refresh(), 3000);
+    return () => { active = false; window.clearTimeout(timer); };
   }, [fail, review]);
 
-  async function action(run: () => Promise<unknown>) {
+  async function action(run: () => Promise<unknown>, refreshLists = false) {
     setBusy(true); setError('');
-    try { await run(); await load(); }
+    try { await run(); if (refreshLists) await load(); }
     catch (cause) { fail(cause, '操作未完成。'); }
     finally { setBusy(false); }
   }
@@ -166,7 +180,7 @@ export default function OffdeckPage() {
           {group && <fieldset><legend>选择需要退出的成员</legend>{group.members.map((member) => <label key={member.shelf_entry_id}><input type="checkbox" checked={(groupSelection[group.duplicate_group_id] || []).includes(member.shelf_entry_id)} onChange={() => toggleMember(group.duplicate_group_id, member.shelf_entry_id)} />{titleOf(member.shelf_entry_id)}</label>)}</fieldset>}
           <div className="button-row">
             <Button variant="primary" type="button" onClick={() => void action(() => openCandidate(item))}>退出这部</Button>
-            <Button type="button" onClick={() => void action(() => item.candidate_kind === 'entry' ? helixAdminApi.suppressOffdeckCandidate(item.candidate_id) : helixAdminApi.whitelistOffdeckDuplicate(item.duplicate_group_id!))}>先留着</Button>
+            <Button type="button" onClick={() => void action(() => item.candidate_kind === 'entry' ? helixAdminApi.suppressOffdeckCandidate(item.candidate_id) : helixAdminApi.whitelistOffdeckDuplicate(item.duplicate_group_id!), true)}>先留着</Button>
           </div>
         </article>;
       })}</div>}
@@ -248,8 +262,8 @@ export default function OffdeckPage() {
           <div className="button-row">
             {review.state === 'open' && <Button variant="primary" type="button" onClick={() => void action(async () => setReview(await helixAdminApi.confirmOffdeckSelection(review.reviewId, { actorId: 'admin' })))}>核对将删除的文件</Button>}
             {review.state === 'awaiting_escalation' && <Button variant="danger" type="button" onClick={() => void action(async () => setReview(await helixAdminApi.confirmOffdeckHighVolume(review.reviewId, { actorId: 'admin' })))}>再次确认大批量</Button>}
-            {review.state === 'selection_confirmed' && <Button variant="danger" type="button" onClick={() => void action(() => helixAdminApi.authorizeOffdeck(review.reviewId))}>确认删除</Button>}
-            {['preparing', 'open', 'selection_confirmed', 'awaiting_escalation'].includes(review.state) && <Button type="button" onClick={() => void action(cancelReview)}>取消这次退出</Button>}
+            {review.state === 'selection_confirmed' && <Button variant="danger" type="button" onClick={() => void action(() => helixAdminApi.authorizeOffdeck(review.reviewId), true)}>确认删除</Button>}
+            {['preparing', 'open', 'selection_confirmed', 'awaiting_escalation'].includes(review.state) && <Button type="button" onClick={() => void action(cancelReview, true)}>取消这次退出</Button>}
           </div>
           {nextReviewAction && review.state === 'preparing' && <p>{nextReviewAction}</p>}
         </div>

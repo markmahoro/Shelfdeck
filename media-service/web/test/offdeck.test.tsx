@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import App from '../src/App';
@@ -48,7 +48,7 @@ const highVolumeReview: OffdeckReview = {
 };
 
 describe('Off-deck progress', () => {
-  afterEach(() => { history.replaceState(null, '', '/'); vi.restoreAllMocks(); });
+  afterEach(() => { history.replaceState(null, '', '/'); vi.useRealTimers(); vi.restoreAllMocks(); });
 
   it('does not count completed cases as currently exiting', async () => {
     vi.spyOn(helixAdminApi, 'getOffdeckPolicy').mockResolvedValue(policy);
@@ -165,7 +165,35 @@ describe('Off-deck progress', () => {
     await screen.findByRole('button', { name: '确认删除' });
     expect(escalate).toHaveBeenCalledWith('review-bulk', { actorId: 'admin' });
     expect(authorize).not.toHaveBeenCalled();
+    expect(helixAdminApi.listOffdeckCandidates).toHaveBeenCalledTimes(1);
+    expect(helixAdminApi.listOffdeckCases).toHaveBeenCalledTimes(1);
+    expect(helixAdminApi.listCollection).toHaveBeenCalledTimes(2);
   });
+
+  it('does not overlap slow preparation reads or reopen a closed review with a late response', async () => {
+    vi.useFakeTimers();
+    vi.spyOn(helixAdminApi, 'listOffdeckCandidates').mockResolvedValue({ candidates: [], duplicateGroups: [], suppressions: [], whitelists: [] });
+    vi.spyOn(helixAdminApi, 'listOffdeckCases').mockResolvedValue({ items: [] });
+    vi.spyOn(helixAdminApi, 'listCollection').mockResolvedValue({ items: [] });
+    const preparing = { ...highVolumeReview, state: 'preparing', selection: null };
+    let resolveRead!: (value: OffdeckReview) => void;
+    const read = vi.spyOn(helixAdminApi, 'getOffdeckReview').mockResolvedValueOnce(preparing)
+      .mockImplementation(() => new Promise((resolve) => { resolveRead = resolve; }));
+    history.replaceState(null, '', '/offdeck?review=review-bulk');
+    await act(async () => { render(<SessionProvider><OffdeckPage /></SessionProvider>); });
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    await act(async () => { await vi.advanceTimersByTimeAsync(3000); });
+    expect(read).toHaveBeenCalledTimes(2);
+    await act(async () => { await vi.advanceTimersByTimeAsync(12000); });
+    expect(read).toHaveBeenCalledTimes(2);
+    fireEvent.click(screen.getByRole('button', { name: '关闭', exact: true }));
+    await act(async () => { resolveRead(highVolumeReview); });
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    await act(async () => { await vi.advanceTimersByTimeAsync(6000); });
+    expect(read).toHaveBeenCalledTimes(2);
+    expect(helixAdminApi.listCollection).toHaveBeenCalledTimes(2);
+  });
+
 });
 
 describe('Off-deck rules live in settings', () => {
