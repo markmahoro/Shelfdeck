@@ -231,8 +231,7 @@ async function main() {
           'sh -lc',
           shellQuote([
             'set -eu',
-            'mkdir -p /tmp/shelfdeck-readiness-data',
-            'cp -a /run/shelfdeck-readiness-source/. /tmp/shelfdeck-readiness-data/',
+            `node -e ${shellQuote(fs.readFileSync(path.join(__dirname, '../media-service/scripts/create-readiness-snapshot.js'), 'utf8') + '\ncreateReadinessSnapshot("/run/shelfdeck-readiness-source", "/tmp/shelfdeck-readiness-data").catch(error => { console.error(error.code || error.message); process.exitCode = 1; });')}`,
             'readiness_output=$(node scripts/helix-clean-init.js --data-dir /tmp/shelfdeck-readiness-data --readiness)',
             'printf "%s\\n" "$readiness_output"',
             'printf "%s" "$readiness_output" | grep -q \'"state": "ready"\'',
