@@ -38,3 +38,5 @@ UAT-217已完成正式身份评分Target与生产前Acceptance重算本地修正
 UAT-217提交9fb736ac1；UAT-218质量保护本地47项定向PASS，仍需真实转码与失败保原片验收。UAT-217最终并行入口测试曾出现一次health timeout，隔离复跑该文件14 PASS/3 SKIP，未隐去失败记录。
 
 UAT-218整合验证：220个architecture fixture文件与Dependency/Semantic/Manifest/Contract全部Gate PASS（.codex/uat218-architecture.json）。其中包含UAT-217最终代码回归。
+
+UAT-251独立UI修正：瑕疵预览失败不再静默隐藏，新增只读重试与旧revision迟到隔离，去除永久不修复承诺。Web56 PASS/build PASS；新终局和修复合同仍未完整实施。16:46只读API刷新：林肯律师92.4%转码，黑寡妇仍等待资源，活着原冻结未改；这不是浏览器验收。

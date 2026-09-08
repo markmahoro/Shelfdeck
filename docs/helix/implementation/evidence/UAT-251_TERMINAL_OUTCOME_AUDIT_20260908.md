@@ -37,3 +37,12 @@ SSOT现规定身份不明、Primary不可播放、Integrity/Binding/Containment/
 ## 验证与限制
 
 执行node --test test/helix-architecture/p15-uat126-defect-admission.test.js：6/6通过，证明现有三类接纳、Provider故障拒绝及Arca精确授权消费行为。未运行新三终局E2E，未修改业务代码；本审视不是UAT-251关闭。关联UAT-210/213/217/218/250；不重复实现其评分、码率或存量问题。
+
+
+## 本轮独立UI修正（2026-09-08）
+
+瑕疵预览新增loading/eligible/ineligible/error四种明确状态；只有正式P9_DEFECT_ADMISSION_INELIGIBLE结论显示当前证据不支持，网络/服务/其他证据错误保留检查失败提示及只读重试入口。旧Run revision请求迟到不得恢复接纳按钮；接纳仍走原显式确认和服务端fence。
+
+确认文案移除“入库后不会由售后继续补齐”的永久性承诺，改为本次列明瑕疵与文件安全检查边界。没有实现新的瑕疵类型、有限终局、Aftercare修复入口或重复Case治理，不能据UI修正关闭251。
+
+Web56 PASS（其中3项验证请求失败重试、明确不合格、旧revision迟到隔离），Web build PASS；真实浏览器尚未完成该分支验证。浏览器连接恢复后仍出现读取超时，已保留为未验证项。
