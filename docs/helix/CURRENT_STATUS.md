@@ -1,5 +1,7 @@
 # ShelfDeck 当前状态
 
+退出审阅143/139/224/232增量已本地5项测试、构建和Edge二次确认操作通过，尚未发布；139缺各收藏架覆盖率冻结快照，继续补齐。详见[Evidence](implementation/evidence/UAT-143_OFFDECK_REVIEW_ACCEPTANCE_20260909.md)。
+
 更新：2026-09-08。主线未全数关闭；逐项状态见[UAT总表](UAT_ITERATION_REGISTER.md)，后续顺序见[CURRENT_PLAN](CURRENT_PLAN.md)。
 
 ## 最新发布准备（2026-09-09）

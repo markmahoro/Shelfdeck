@@ -43,7 +43,7 @@ function collectionEntry(shelfEntryId: string, displayIdentity: string, occupanc
 const highVolumeReview: OffdeckReview = {
   reviewId: 'review-bulk', originKind: 'batch', originRef: 'batch-selection', state: 'awaiting_escalation', createdAtMs: 1,
   reservations: [], scopes: [],
-  selection: { selectionReceiptId: 'selection-1', scopeSetDigest: 'a'.repeat(64), entryCount: 3, primaryCount: 3, totalBytes: 6_000, deckCoverageRatio: 1, highVolume: true },
+  selection: { selectionReceiptId: 'selection-1', scopeSetDigest: 'a'.repeat(64), entryCount: 3, primaryCount: 3, totalBytes: 120 * 1024 ** 3, deckCoverageRatio: 1, highVolume: true },
   escalation: null,
 };
 
@@ -127,6 +127,40 @@ describe('Off-deck progress', () => {
       idempotencyKey: expect.stringMatching(/^offdeck-batch:/),
     }));
     expect(await screen.findByRole('button', { name: '再次确认大批量' })).toBeInTheDocument();
+  });
+
+  it('shows actual destruction roles and immutable totals before separate escalation and authorization', async () => {
+    const review: OffdeckReview = { ...highVolumeReview, scopes: [{
+      destructionScopeId: 'scope-1', shelfEntryId: 'entry-a', memberCount: 3,
+      totalBytes: 120 * 1024 ** 3, scopeDigest: 'b'.repeat(64), state: 'sealed',
+      materials: [
+        { ordinal: 0, materialKey: 'main', role: 'primary_payload', location: '/movies/影片/BDMV/STREAM/00000.m2ts', sizeBytes: 119 * 1024 ** 3, deleteCondition: 'delete_primary' },
+        { ordinal: 1, materialKey: 'structure', role: 'structural_dependency', location: '/movies/影片/BDMV/index.bdmv', sizeBytes: 1024, deleteCondition: 'delete_primary' },
+        { ordinal: 2, materialKey: 'poster', role: 'poster', location: '/movies/影片/poster.jpg', sizeBytes: 1024, deleteCondition: 'release_related_then_delete_if_unreferenced' },
+      ],
+    }], selection: { ...highVolumeReview.selection!, entryCount: 1, primaryCount: 2, deckCoverageRatio: 0.25 } };
+    vi.spyOn(helixAdminApi, 'listOffdeckCandidates').mockResolvedValue({ candidates: [], duplicateGroups: [], suppressions: [], whitelists: [] });
+    vi.spyOn(helixAdminApi, 'listOffdeckCases').mockResolvedValue({ items: [] });
+    vi.spyOn(helixAdminApi, 'listCollection').mockResolvedValue({ items: [collectionEntry('entry-a', '影片', 1)] });
+    vi.spyOn(helixAdminApi, 'getOffdeckReview').mockResolvedValue(review);
+    const escalate = vi.spyOn(helixAdminApi, 'confirmOffdeckHighVolume').mockResolvedValue({ ...review, state: 'selection_confirmed' });
+    const authorize = vi.spyOn(helixAdminApi, 'authorizeOffdeck').mockResolvedValue({} as never);
+    history.replaceState(null, '', '/offdeck?review=review-bulk');
+    render(<SessionProvider><OffdeckPage /></SessionProvider>);
+
+    const dialog = await screen.findByRole('dialog', { name: '再次核对大批量退出' });
+    expect(within(dialog).getByText('1 部收藏 · 2 个主视频或光盘结构文件 · 1 个附属文件')).toBeInTheDocument();
+    expect(within(dialog).getByText('文件总空间：120.00 GiB · 占全部当前收藏 25.0%')).toBeInTheDocument();
+    expect(within(dialog).getByText('收藏架：Movie Shelf')).toBeInTheDocument();
+    expect(within(dialog).getByText('主视频 · /movies/影片/BDMV/STREAM/00000.m2ts')).toBeInTheDocument();
+    expect(within(dialog).getByText('光盘结构文件 · /movies/影片/BDMV/index.bdmv')).toBeInTheDocument();
+    expect(within(dialog).getByText('附属文件 · /movies/影片/poster.jpg · 仍被引用时保留')).toBeInTheDocument();
+    expect(within(dialog).queryByRole('button', { name: '确认删除' })).not.toBeInTheDocument();
+    expect(authorize).not.toHaveBeenCalled();
+    fireEvent.click(within(dialog).getByRole('button', { name: '再次确认大批量' }));
+    await screen.findByRole('button', { name: '确认删除' });
+    expect(escalate).toHaveBeenCalledWith('review-bulk', { actorId: 'admin' });
+    expect(authorize).not.toHaveBeenCalled();
   });
 });
 

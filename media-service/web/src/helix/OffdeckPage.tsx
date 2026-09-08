@@ -8,7 +8,7 @@ import './collection.css';
 
 function formatGiB(bytes: number) {
   if (!Number.isFinite(bytes) || bytes <= 0) return '—';
-  return `${(bytes / 1024 / 1024 / 1024).toFixed(2)} GB`;
+  return `${(bytes / 1024 / 1024 / 1024).toFixed(2)} GiB`;
 }
 
 export default function OffdeckPage() {
@@ -137,6 +137,12 @@ export default function OffdeckPage() {
     return collectionEntries.filter((item) => item.displayIdentity.toLowerCase().includes(needle) || item.shelfName.toLowerCase().includes(needle));
   }, [collectionEntries, needle]);
   const selectedEntries = collectionEntries.filter((item) => bulkSelection.includes(item.shelfEntryId));
+  const scopeMaterials = review?.scopes.flatMap((scope) => scope.materials) || [];
+  const primaryRoles = new Set(['primary_payload', 'structural_dependency']);
+  const reviewEntries = review?.selection?.entryCount ?? review?.scopes.length ?? 0;
+  const reviewPrimary = review?.selection?.primaryCount ?? scopeMaterials.filter((material) => primaryRoles.has(material.role)).length;
+  const reviewRelated = scopeMaterials.filter((material) => !primaryRoles.has(material.role)).length;
+  const reviewBytes = review?.selection?.totalBytes ?? review?.scopes.reduce((sum, scope) => sum + scope.totalBytes, 0) ?? 0;
   const nextReviewAction = review?.state === 'open' ? '核对将删除的文件'
     : review?.state === 'awaiting_escalation' ? '再次确认大批量'
     : review?.state === 'selection_confirmed' ? '确认删除'
@@ -220,14 +226,20 @@ export default function OffdeckPage() {
       <section className="collection-dialog offdeck-confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="offdeck-confirm-title">
         <button className="collection-dialog-close" type="button" onClick={() => void closeReview()} aria-label="关闭">×</button>
         <div className="collection-dialog-copy">
-          <h2 id="offdeck-confirm-title">将删除的文件</h2>
+          <h2 id="offdeck-confirm-title">{review.state==='awaiting_escalation'?'再次核对大批量退出':'将删除的文件'}</h2>
           <p className="collection-dialog-meta">{labelOf(reviewStateLabels, review.state)}</p>
           {review.state === 'awaiting_escalation' && <p className="form-error" role="alert">这次数量或体积较大，请再次核对后再确认删除。没有授权不会删除文件。</p>}
           {review.state === 'selection_confirmed' && <p className="form-error" role="alert">确认后将删除下列文件，不能反悔。</p>}
+          {review.state!=='preparing'&&<section className="offdeck-review-summary" aria-label="本次退出范围">
+            <p><strong>{reviewEntries} 部收藏 · {reviewPrimary} 个主视频或光盘结构文件 · {reviewRelated} 个附属文件</strong></p>
+            <p>文件总空间：{formatGiB(reviewBytes)}{review.selection?` · 占全部当前收藏 ${(review.selection.deckCoverageRatio*100).toFixed(1)}%`:''}</p>
+            <p>最终授权后将执行删除，不能撤销。仍被其他收藏引用的共享附属文件会保留，实际释放空间可能较小。</p>
+          </section>}
           {review.scopes.map((scope) => <article className="offdeck-scope" key={scope.destructionScopeId}>
             <strong>{titleOf(scope.shelfEntryId)}</strong>
+            <small>收藏架：{titles[scope.shelfEntryId]?.shelfName||'暂时无法读取'}</small>
             <small>{scope.memberCount} 个文件 · {formatGiB(scope.totalBytes)}</small>
-            {scope.materials.map((material) => <p key={material.materialKey}>{material.role === 'primary' ? '主视频' : '附属文件'} · {material.location}</p>)}
+            {scope.materials.map((material) => <p key={material.materialKey}>{material.role === 'primary_payload' ? '主视频' : material.role === 'structural_dependency' ? '光盘结构文件' : '附属文件'} · {material.location}{material.deleteCondition==='release_related_then_delete_if_unreferenced'?' · 仍被引用时保留':''}</p>)}
           </article>)}
           <div className="button-row">
             {review.state === 'open' && <Button variant="primary" type="button" onClick={() => void action(async () => setReview(await helixAdminApi.confirmOffdeckSelection(review.reviewId, { actorId: 'admin' })))}>核对将删除的文件</Button>}
