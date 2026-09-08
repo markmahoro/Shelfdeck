@@ -1,0 +1,9 @@
+# UAT-212：“当前进展”语义不一致
+
+用户补充，2026-09-08。主集成dae439fc6和独立UI交付e6b7f0424只读核查。此问题并入既有UAT-212，不重复建立新编号；尚未修复。
+
+- FormationPage.tsx的currentProgressLabel取currentPlan.label，无Plan时取nextAction.label；副行组合currentPlan.statusText与共享progressDetail。
+- CareWorkRow.tsx的careStage按Case终态或progress.stage映射泛化阶段（例如处理媒体）；列表副行仅百分比。e6b7f0424另加入终结原因、当前健康和终结时间，仍未统一当前动作的语义与信息层级。
+- 因而同列实际混用了Plan动作/下一步、维护阶段及当前收藏健康，不能认为复用了详情ProcessStages就已实现列表一致。此轮未检查后端投影能否直接提供所有字段，后续须追溯currentPlan与care progress选择规则，不能先假定只改CSS即可。
+
+关闭条件：统一当前实际动作+动作状态+可用进度的展示规则；明确无动作时等待原因与终态结果，禁止虚构下一步正在执行。百分比明确属于当前动作，不冒充任务整体。历史任务结果、当前收藏健康与进行中动作分层。覆盖准备、资源等待、转码、验证、成功、失败、失效及无量化进度，实际浏览器对照上架/维护两类条目及详情。保持现有列与克制布局。
