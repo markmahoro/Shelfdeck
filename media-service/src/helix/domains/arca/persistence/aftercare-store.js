@@ -1,4 +1,5 @@
 'use strict';
+const {statements:targetBindingStatements,exactSourceTargetBinding}=require('./shelf-target-binding');
 const {statement:personEvidenceOriginStatement,evidenceInventoryRevision}=require('./person-evidence-origin');
 const { readCareObjective } = require('../model/care-objective');
 
@@ -26,6 +27,7 @@ function createAftercareStore(options) {
   }
   const workspaceStore=createAftercareWorkspaceStore(options);
   const arca = createRepositoryDefinition({ repositoryId:'arca_aftercare_store', owner:'arca', schemaManifest:options.schemaManifest, statements:{
+    list_source_target_bindings:targetBindingStatements.list_source_target_bindings,
     find_person_evidence_origin:personEvidenceOriginStatement,
     list_entries:{kind:'select-all',tableId:'arca_shelf_entries',columns:['shelf_entry_id','shelf_id','structure_kind','status','canonical_identity_revision','canonical_identity_key','current_inventory_revision','current_deck_fact_revision','created_at_ms','terminal_at_ms'],keyColumns:[],safeIntegers:true},
     find_entries:{kind:'select-in',tableId:'arca_shelf_entries',keyColumn:'shelf_entry_id',maxItems:500,columns:['shelf_entry_id','shelf_id','structure_kind','status','canonical_identity_revision','canonical_identity_key','current_inventory_revision','current_deck_fact_revision','created_at_ms','terminal_at_ms'],safeIntegers:true},
@@ -282,7 +284,11 @@ function createAftercareStore(options) {
     });
   }
   function listEntryPage(cursor,limit=100){const bounded=Math.max(1,Math.min(500,Number(limit)||100));return read((context)=>context.repository(arca.repositoryId).invoke('page_active_entries',{status:'active',rangeStart:'',rangeEnd:'\uffff',cursor,limit:bounded}).map((x)=>Object.freeze({cursor:x.shelf_entry_id,scope:Object.freeze({shelfEntryId:x.shelf_entry_id})})));}
-  return Object.freeze({currentContext,recycleProtection,inventoryMaterials,commitAssessmentSet,createCase,admitCase,listCases,workDisplay,caseEvidence,listShelfEntryIds,terminateCase,getCase,
+  return Object.freeze({currentContext,recycleProtection,inventoryMaterials,
+    sourceTargetBinding:(shelfEntryId,material)=>read(context=>{const repo=context.repository(arca.repositoryId),
+      entry=repo.invoke('find_entry',{shelf_entry_id:shelfEntryId}),shelf=entry&&repo.invoke('find_shelf',{shelf_id:entry.shelf_id});
+      if(!shelf)fail('ARCA_SOURCE_TARGET_BINDING_MISSING','Source Shelf is absent.');
+      return exactSourceTargetBinding(repo,shelf,material);}),commitAssessmentSet,createCase,admitCase,listCases,workDisplay,caseEvidence,listShelfEntryIds,terminateCase,getCase,
     refreshInventoryRecords:recordRefresh.commit,
     refreshInventoryPersonRecords:createPersonRecordRefreshStore(options,arca).commit,
     listWorkCases:careWork.list,

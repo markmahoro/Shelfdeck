@@ -36,8 +36,8 @@ test('P3 verifier rematerializes the exact clean persistence catalog below its o
     assert.equal(result.ok, true);
     assert.equal(result.databasePathClass, 'owned-temporary');
     assert.equal(result.generation, 'helix-clean-v3');
-    assert.equal(result.tableCount, 188);
-    assert.equal(result.indexCount, 95);
+    assert.equal(result.tableCount, 189);
+    assert.equal(result.indexCount, 96);
     assert.equal(result.partialUniqueCount, 22);
     assert.deepEqual(result.persistenceModules, EXPECTED_MODULES);
   });

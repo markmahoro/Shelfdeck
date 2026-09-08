@@ -786,6 +786,7 @@ test('P14 one-movie product path accepts Handoff B and atomically establishes an
     assert.equal(one('arca_ondeck_runs'), 1);
     assert.equal(one('arca_shelf_entries'), 1);
     assert.equal(one('arca_source_cleanup_checks'),1);
+    assert.equal(one('arca_shelf_target_bindings'),1);
     assert.equal(one('arca_inventory_representations'), initialInventoryRevision);
     assert.equal(one('arca_deck_fact_revisions'), 1);
     assert.equal(one('arca_offload_completions'), 1);
@@ -1064,12 +1065,13 @@ test('P14 one-movie product path accepts Handoff B and atomically establishes an
   });
   const migrationEvidence = new Database(databasePath, { readonly:true });
   try {
+    assert.equal(migrationEvidence.prepare('SELECT count(*) count FROM arca_shelf_target_bindings').get().count,2);
     const locations = migrationEvidence.prepare(
       `SELECT endpoint_id,location FROM arca_inventory_materials WHERE shelf_entry_id=? AND inventory_revision=${initialInventoryRevision+3} ORDER BY ordinal`,
     ).all(entryId);
     assert.ok(locations.length >= 3);
     for (const item of locations) {
-      assert.equal(item.endpoint_id, 'scenario-shelf-migrated-endpoint');
+      assert.equal(item.endpoint_id, placementRevision.json().shelf.target.endpointId);
       assert.equal(path.resolve(item.location).startsWith(path.resolve(migratedShelf) + path.sep), true);
       assert.equal(fs.existsSync(item.location), true);
     }
@@ -1094,6 +1096,7 @@ test('P14 one-movie product path accepts Handoff B and atomically establishes an
   let renderCountBeforeBlockedRepair;
   try {
     assert.equal(restarted.prepare('SELECT count(*) count FROM arca_shelf_entries').get().count, 1);
+    assert.equal(restarted.prepare('SELECT count(*) count FROM arca_shelf_target_bindings').get().count,2);
     assert.equal(restarted.prepare('SELECT count(*) count FROM arca_ondeck_runs').get().count, 1);
     assert.equal(restarted.prepare('SELECT count(*) count FROM arca_ondeck_commit_receipts').get().count, 1);
     const cleanup=restarted.prepare('SELECT * FROM arca_source_cleanup_checks').all();

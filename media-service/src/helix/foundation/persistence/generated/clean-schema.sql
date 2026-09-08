@@ -862,6 +862,20 @@ CREATE TABLE "arca_shelf_standard_revisions" (
 );
 CREATE INDEX "idx_arca_shelf_standard_revisions_hot_01" ON "arca_shelf_standard_revisions" ("rule_template_id", "rule_template_revision");
 
+CREATE TABLE "arca_shelf_target_bindings" (
+  "target_binding_id" TEXT PRIMARY KEY,
+  "shelf_id" TEXT,
+  "endpoint_id" TEXT,
+  "root_location" TEXT,
+  "mount_scope_id" TEXT,
+  "mount_scope_revision" INTEGER CHECK ("mount_scope_revision" >= 1),
+  "binding_digest" TEXT CHECK (length("binding_digest") = 64 AND "binding_digest" NOT GLOB '*[^0-9a-f]*'),
+  "captured_at_ms" INTEGER CHECK ("captured_at_ms" >= 0),
+  UNIQUE ("shelf_id", "binding_digest"),
+  FOREIGN KEY ("shelf_id") REFERENCES "arca_shelves" ("shelf_id") ON DELETE RESTRICT
+);
+CREATE INDEX "idx_arca_shelf_target_bindings_hot_01" ON "arca_shelf_target_bindings" ("shelf_id", "endpoint_id", "mount_scope_id");
+
 CREATE TABLE "arca_shelves" (
   "shelf_id" TEXT PRIMARY KEY,
   "name" TEXT,

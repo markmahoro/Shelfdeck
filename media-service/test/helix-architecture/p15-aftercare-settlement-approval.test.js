@@ -422,7 +422,7 @@ function settlementCapabilityFixture(value,locations,fingerprint=boundedFingerpr
   const store={ history:() => ({ cases:[care],commits:[] }),getSettlementApproval:() => Object.freeze({ ...approval }),
     consumeSettlementApproval:({ approvalId:requested }) => { assert.equal(requested,approvalId);approval.state='consumed';return Object.freeze({ ...approval }); } },
     context={ shelfEntryId:'entry-1',basis:current,raw:{ shelf:{ status:'active',target_root_location:targetRoot,
-      target_mount_scope_id:'mount-1',target_mount_scope_revision:1 },reservations:[],materials:[],oldBindings:[] } },contextReader={ store,read:() => context },
+      target_mount_scope_id:'mount-1',target_mount_scope_revision:1 },reservations:[],materials:[],oldBindings:[] } },contextReader={ store,read:() => context,inventoryMaterials:()=>[] },
     ports=createAftercareCapabilityPorts({ schemaManifest,unitOfWork:value.unitOfWork,contextReader,workResultReader:{},
       registry:{ resolve:() => ({ manifest:{ contractVersion:1 } }) },
       computeBoundedMaterialFingerprintSync:fingerprint }),approvalHandle={ schemaRef:'helix://contracts/types/ApprovalHandle/v1',
@@ -538,4 +538,47 @@ test('Settlement Evidence overflow fails closed before deleting any Material', a
     assert.equal(x.files.every((item)=>fs.existsSync(item.location)),true);
     assert.equal(x.approval.state,'active');
   } finally { value.close(); }
+});
+
+
+test('UAT-213 rejects missing, ambiguous, corrupt and foreign original Target Bindings',()=>{
+  const {exactSourceTargetBinding}=require('../../src/helix/domains/arca/persistence/shelf-target-binding');
+  const root=path.resolve('old-target'),shelf={shelf_id:'shelf-1',target_endpoint_id:'new-endpoint',
+    target_root_location:path.resolve('new-target'),target_mount_scope_id:'new-mount',target_mount_scope_revision:2},
+    source={endpoint_id:'old-endpoint',mount_scope_id:'old-mount',location:path.join(root,'movie.mkv')};
+  const row=revision=>{const body={schema:'arca.shelf-target-binding@1',shelfId:'shelf-1',endpointId:'old-endpoint',
+    rootLocation:root,mountScopeId:'old-mount',mountScopeRevision:revision},digest=canonicalDigest(body);
+    return {target_binding_id:digest,binding_digest:digest,shelf_id:'shelf-1',endpoint_id:body.endpointId,
+      root_location:root,mount_scope_id:body.mountScopeId,mount_scope_revision:revision};};
+  const resolve=rows=>exactSourceTargetBinding({invoke:()=>rows},shelf,source);
+  assert.equal(resolve([row(1)]).mountScopeRevision,1);
+  assert.throws(()=>resolve([]),error=>error.code==='ARCA_SOURCE_TARGET_BINDING_MISSING');
+  assert.equal(aftercareSettlementPreconditionFailureOutcome({code:'ARCA_SOURCE_TARGET_BINDING_MISSING'}).retryDirective,'never');
+  assert.throws(()=>resolve([row(1),row(2)]),error=>error.code==='ARCA_SOURCE_TARGET_BINDING_AMBIGUOUS');
+  assert.throws(()=>resolve([{...row(1),root_location:path.resolve('foreign')}]),error=>error.code==='ARCA_SOURCE_TARGET_BINDING_CORRUPT');
+  assert.throws(()=>resolve(Array.from({length:101},()=>row(1))),error=>error.code==='ARCA_SOURCE_TARGET_BINDING_BOUND');
+  assert.throws(()=>exactSourceTargetBinding({invoke:()=>[row(1)]},shelf,{...source,location:path.resolve('foreign','movie.mkv')}),
+    error=>error.code==='ARCA_SOURCE_TARGET_BINDING_MISSING');
+});
+
+test('UAT-213 old Target Settlement requires both the frozen source identity and original binding',()=>{
+  const value=fixture();
+  try{
+    const x=settlementCapabilityFixture(value,['old.mkv']),handle=x.handles[0],old=x.context.raw.shelf,
+      identity=handle.identity,row={material_key:identity.materialKey,endpoint_id:handle.endpointId,location:handle.location,
+        mount_scope_id:identity.mountScopeId,inode:identity.inode,size_bytes:identity.sizeBytes,
+        fingerprint_algorithm:identity.fingerprintAlgorithm,fingerprint_version:identity.fingerprintVersion,
+        content_fingerprint:identity.contentFingerprint};
+    x.context.raw.shelf={...old,target_root_location:path.join(value.root,'new-target'),target_mount_scope_id:'new-mount',target_mount_scope_revision:2};
+    const authority={frozenMaterials:[row],sourceTargetBinding:()=>({rootLocation:old.target_root_location,
+      mountScopeId:old.target_mount_scope_id,mountScopeRevision:old.target_mount_scope_revision})};
+    assert.equal(assertAftercareSettlementHandle(x.context,x.care,handle,authority),handle);
+    assert.throws(()=>assertAftercareSettlementHandle(x.context,x.care,handle,{...authority,frozenMaterials:[]}),
+      error=>error.code==='ARCA_AFTERCARE_SETTLEMENT_HANDLE_INVALID');
+    assert.throws(()=>assertAftercareSettlementHandle(x.context,x.care,handle,{...authority,frozenMaterials:[{...row,content_fingerprint:digest('different')}]}),
+      error=>error.code==='ARCA_INVENTORY_MATERIAL_IDENTITY_CORRUPT');
+    assert.throws(()=>assertAftercareSettlementHandle(x.context,x.care,{...handle,fenceDigest:digest('different')},authority),
+      error=>error.code==='ARCA_AFTERCARE_SETTLEMENT_HANDLE_INVALID');
+    assert.equal(fs.existsSync(handle.location),true);
+  }finally{value.close();}
 });

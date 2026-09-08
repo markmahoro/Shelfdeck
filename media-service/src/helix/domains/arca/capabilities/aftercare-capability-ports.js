@@ -15,7 +15,7 @@ const { CAPABILITY_REFS:C,
   deriveInventoryMaterialChanges, settlementScopeDigest,
   aftercareSettlementEventId, aftercareServiceCatalogRevision, aftercareSettlementApprovalId, aftercareInventoryCommitId,
   aftercareInventoryCommitDigest,
-  buildAftercareSettlementHandles,
+  buildAftercareSettlementHandles, physicalIdentityFromInventoryRow,
   projectHealth, isAftercareArtifactMaterial } = require('../model/aftercare-contract');
 const { buildAftercareInventoryRequest,
   classifyAcceptedPlacement,
@@ -85,15 +85,23 @@ function exactInventoryMaterial(location,material,mountScopeId,fingerprint){
 }
 function exactArtifactBytes(location,source){try{return fs.existsSync(location)&&fullSha(location)===fullSha(source);}catch{return false;}}
 function samePhysicalLocation(left,right){const a=path.resolve(left),b=path.resolve(right);return process.platform==='win32'?a.toLowerCase()===b.toLowerCase():a===b;}
-function assertAftercareSettlementHandle(c,care,handle){
+function assertAftercareSettlementHandle(c,care,handle,sourceAuthority={}){
+  let sourceTarget={rootLocation:c.raw.shelf.target_root_location,mountScopeId:c.raw.shelf.target_mount_scope_id,
+    mountScopeRevision:Number(c.raw.shelf.target_mount_scope_revision)};
+  if(handle?.readScope==='exact_aftercare_settlement'&&typeof sourceAuthority.sourceTargetBinding==='function'){
+    const matches=(sourceAuthority.frozenMaterials||[]).filter(row=>row.material_key===handle.identity?.materialKey&&
+      row.endpoint_id===handle.endpointId&&samePhysicalLocation(row.location,handle.location)&&
+      canonicalDigest(physicalIdentityFromInventoryRow(row))===canonicalDigest(handle.identity));
+    if(matches.length===1)sourceTarget=sourceAuthority.sourceTargetBinding(matches[0]);
+  }
   const base=Object.fromEntries(Object.entries(handle||{}).filter(([key])=>key!=='fenceDigest'));
   if(!handle||handle.ownerDomain!=='arca'||handle.ownerScope?.scopeType!=='aftercare_case'||
       handle.ownerScope?.scopeId!==care.aftercareCaseId||handle.fenceDigest!==canonicalDigest(base)||
       !['exact_aftercare_settlement','exact_known_old_binding_settlement'].includes(handle.readScope)||
-      handle.identity?.mountScopeId!==c.raw.shelf.target_mount_scope_id||
-      Number(handle.mountScopeRevision)!==Number(c.raw.shelf.target_mount_scope_revision)||
+      handle.identity?.mountScopeId!==sourceTarget.mountScopeId||
+      Number(handle.mountScopeRevision)!==Number(sourceTarget.mountScopeRevision)||
       Number(handle.expectedSizeBytes)!==Number(handle.identity?.sizeBytes)||
-      !inside(c.raw.shelf.target_root_location,handle.location))
+      !inside(sourceTarget.rootLocation,handle.location))
     throw Object.assign(new Error('Aftercare Settlement Handle is outside its exact Arca authority.'),{code:'ARCA_AFTERCARE_SETTLEMENT_HANDLE_INVALID'});
   if(handle.readScope==='exact_known_old_binding_settlement'){
     const matches=(c.raw.oldBindings||[]).filter((item)=>isKnownOldOffloadBinding(item)&&item.material_key===handle.identity.materialKey&&
@@ -227,6 +235,8 @@ const SETTLEMENT_PRECONDITION_FAILURES=new Set([
   'ARCA_AFTERCARE_SETTLEMENT_FINAL_MISMATCH','ARCA_AFTERCARE_SETTLEMENT_HANDLE_INVALID',
   'ARCA_AFTERCARE_SETTLEMENT_IDENTITY_CHANGED','ARCA_AFTERCARE_SETTLEMENT_REPLAY_REALITY_CONFLICT',
   'ARCA_AFTERCARE_SETTLEMENT_UNKNOWN_MEMBER',
+  'ARCA_SOURCE_TARGET_BINDING_BOUND','ARCA_SOURCE_TARGET_BINDING_CORRUPT',
+  'ARCA_SOURCE_TARGET_BINDING_AMBIGUOUS','ARCA_SOURCE_TARGET_BINDING_MISSING',
 ]);
 function aftercareSettlementPreconditionFailureOutcome(error){
   if(!SETTLEMENT_PRECONDITION_FAILURES.has(error?.code))return null;
@@ -589,7 +599,7 @@ function createAftercareCapabilityPorts(options){const now=options.now||Date.now
       revision:1,factSchemaRef:'helix://arca/facts/AftercareAssessmentRevision/v1',commitMarker:stable('arca-assessment-marker-',{shelfEntryId:c.shelfEntryId,careBasisDigest:c.basis.digest}),
       committedAtMs:committedSet.committedAtMs,shelfEntryId:c.shelfEntryId,careBasisDigest:c.basis.digest,professionalAssessmentSetDigest:setDigest};
     const result=Object.freeze({...base,factDigest:canonicalDigest(base)});return committed(execution,C.assessmentCommit,result,now(),'domain_fact_commit');},validateResult(_c,o){if(!o?.result?.professionalAssessmentSetDigest)throw new TypeError('Aftercare Assessment Revision is invalid.');}});
-  ports[C.inventoryCommit]=Object.freeze({validateInputs(c){requireNamed(c,['verifiedCareInventoryChange','responsibilityControlCommitHandle']);},execute(execution){const c=context(execution),n=execution.namedInputs,caseId=n.verifiedCareInventoryChange.aftercareCaseId,history=store.history(c.shelfEntryId),prior=history.commits.find((item)=>item.aftercareCaseId===caseId),care=prior?store.getCase(caseId):activeCase(c);if(!care||care.state!=='active'||caseId!==care.aftercareCaseId)throw new Error('Aftercare Inventory change belongs to another or terminal Case.');const sourceWorkId=preparationWorkId(execution),frozenMaterials=contextReader.inventoryMaterials(c.shelfEntryId,care.careBasis.inventoryRevision),receipts=[...options.workResultReader.read(execution.workId).filter((item)=>item.outcomeKind==='succeeded'&&item.capabilityRef===C.artifactMaterialize).map((item)=>item.result),...placementMaterialReceipts(c,options.workResultReader,sourceWorkId,care,frozenMaterials)];if(!receipts.length)throw new Error('Aftercare Inventory commit lacks durable Material Effect receipts.');const settlementEventId=aftercareSettlementEventId(execution.workAttemptId),hasSettlementEvent=options.workResultReader.readBindings(execution.workId).some((item)=>item.capabilityRef===C.settlement),settlementApprovalFor=(targetContext,observedAtMs)=>{const handles=buildAftercareSettlementHandles({context:targetContext,aftercareCaseId:care.aftercareCaseId,receipts,frozenMaterials,observedOldBindings:observeKnownOldBindings(targetContext.raw,fingerprint),observedAtMs});return Object.freeze({aftercareCaseId:care.aftercareCaseId,settlementScopeDigest:settlementScopeDigest(handles),serviceCatalogRevision:aftercareServiceCatalogRevision(options.registry),shelfStandardRevision:care.careBasis.standardRevision,careBasisDigest:care.careBasisDigest,settlementEventId});};let record;
+  ports[C.inventoryCommit]=Object.freeze({validateInputs(c){requireNamed(c,['verifiedCareInventoryChange','responsibilityControlCommitHandle']);},execute(execution){const c=context(execution),n=execution.namedInputs,caseId=n.verifiedCareInventoryChange.aftercareCaseId,history=store.history(c.shelfEntryId),prior=history.commits.find((item)=>item.aftercareCaseId===caseId),care=prior?store.getCase(caseId):activeCase(c);if(!care||care.state!=='active'||caseId!==care.aftercareCaseId)throw new Error('Aftercare Inventory change belongs to another or terminal Case.');const sourceWorkId=preparationWorkId(execution),frozenMaterials=contextReader.inventoryMaterials(c.shelfEntryId,care.careBasis.inventoryRevision),receipts=[...options.workResultReader.read(execution.workId).filter((item)=>item.outcomeKind==='succeeded'&&item.capabilityRef===C.artifactMaterialize).map((item)=>item.result),...placementMaterialReceipts(c,options.workResultReader,sourceWorkId,care,frozenMaterials)];if(!receipts.length)throw new Error('Aftercare Inventory commit lacks durable Material Effect receipts.');const settlementEventId=aftercareSettlementEventId(execution.workAttemptId),hasSettlementEvent=options.workResultReader.readBindings(execution.workId).some((item)=>item.capabilityRef===C.settlement),settlementApprovalFor=(targetContext,observedAtMs)=>{const handles=buildAftercareSettlementHandles({sourceTargetBinding:material=>contextReader.sourceTargetBinding(c.shelfEntryId,material),context:targetContext,aftercareCaseId:care.aftercareCaseId,receipts,frozenMaterials,observedOldBindings:observeKnownOldBindings(targetContext.raw,fingerprint),observedAtMs});return Object.freeze({aftercareCaseId:care.aftercareCaseId,settlementScopeDigest:settlementScopeDigest(handles),serviceCatalogRevision:aftercareServiceCatalogRevision(options.registry),shelfStandardRevision:care.careBasis.standardRevision,careBasisDigest:care.careBasisDigest,settlementEventId});};let record;
     if(prior)throw Object.assign(new Error('Aftercare Inventory exists without Foundation completing its atomic Event Result.'),{code:'ARCA_AFTERCARE_ATOMIC_RESULT_REQUIRED'});
     {const planned=deriveInventoryMaterialChanges(frozenMaterials,receipts);if(planned.length===0)return aftercareInventoryNoChangeOutcome();const releasedKeys=new Set(planned.filter((item)=>item.action==='release').map((item)=>item.identity.materialKey)),materials=frozenMaterials.filter((item)=>!releasedKeys.has(item.material_key)).map((item)=>({...item}));
       for(const receipt of receipts){const identity=receipt.finalMaterialIdentity,existing=materials.find((item)=>item.material_key===identity.materialKey);if(existing)continue;const extension=path.extname(receipt.targetLocation).toLowerCase(),retiredKey=receipt.retiredMaterials?.[0]?.identity?.materialKey||receipt.supersededMaterialIdentity?.materialKey,sourceRow=retiredKey?c.raw.materials.find((item)=>item.material_key===retiredKey):null,role=receipt.materialEffectKind==='placement_migrate'&&sourceRow?sourceRow.role:receipt.materialEffectKind==='primary_replace'?'primary_payload':extension==='.nfo'?'metadata_sidecar':/(jpg|jpeg|png|webp)$/.test(extension.slice(1))?'poster':'sidecar',episodeClaims=sourceRow?JSON.parse(sourceRow.episode_claims_json):emptyArcaMaterialEpisodeClaims();materials.push({shelf_entry_id:c.shelfEntryId,inventory_revision:c.raw.entry.current_inventory_revision+1,ordinal:materials.length,material_key:identity.materialKey,role,episode_claims_schema_ref:EPISODE_CLAIMS_SCHEMA,episode_claims_json:canonicalJson(episodeClaims),episode_claim_set_digest:sourceRow?.episode_claim_set_digest||episodeClaims.episodeClaimSetDigest,endpoint_id:receipt.targetEndpointId,location:receipt.targetLocation,binding_revision:1,mount_scope_id:identity.mountScopeId,inode:identity.inode,fingerprint_algorithm:identity.fingerprintAlgorithm,fingerprint_version:String(identity.fingerprintVersion),content_fingerprint:identity.contentFingerprint,digest_hex:identity.contentFingerprint,size_bytes:identity.sizeBytes,active_guard:role==='primary_payload'?1:0});}
@@ -643,7 +653,11 @@ function createAftercareCapabilityPorts(options){const now=options.now||Date.now
       if(!care||n.aftercareSettlementApproval.exactEffectScopeDigest!==scope||
           !n.aftercareSettlementApproval.invalidatingFactDigests.includes(care.careBasisDigest))
         throw new Error('Aftercare Settlement Approval is stale or incomplete.');
-      handles.forEach((handle)=>assertAftercareSettlementHandle(c,care,handle));
+      const retainedTargetRoots=new Set([path.resolve(c.raw.shelf.target_root_location)]),
+        sourceAuthority={frozenMaterials:contextReader.inventoryMaterials(c.shelfEntryId,care.careBasis.inventoryRevision),
+          sourceTargetBinding:material=>{const target=contextReader.sourceTargetBinding(c.shelfEntryId,material);
+            retainedTargetRoots.add(path.resolve(target.rootLocation));return target;}};
+      handles.forEach((handle)=>assertAftercareSettlementHandle(c,care,handle,sourceAuthority));
       const targets=handles.map((handle)=>resolveAftercareSettlementTarget(c,handle));
       const expectedApprovalId=aftercareSettlementApprovalId({aftercareCaseId:care.aftercareCaseId,
         settlementScopeDigest:scope,careBasisDigest:care.careBasisDigest,settlementEventId:execution.eventId}),
@@ -660,7 +674,7 @@ function createAftercareCapabilityPorts(options){const now=options.now||Date.now
         ...(c.raw.oldBindings||[]).map((item)=>path.resolve(item.location))],managed=new Set(managedLocations);
       for(const location of managedLocations){for(let ancestor=path.dirname(location);ancestor&&ancestor!==path.dirname(ancestor);ancestor=path.dirname(ancestor))managed.add(ancestor);}
       const settlementDirectories=[...new Set(targets.map((item)=>path.dirname(path.resolve(item.readHandle.location))))]
-        .filter((item)=>path.resolve(item)!==path.resolve(c.raw.shelf.target_root_location)).sort();
+        .filter((item)=>!retainedTargetRoots.has(path.resolve(item))).sort();
       for(const directory of consumedReplay?[]:settlementDirectories){
         if(!fs.existsSync(directory)||path.resolve(directory)===path.resolve(c.raw.shelf.target_root_location))continue;
         const unknown=(await fs.promises.readdir(directory,{withFileTypes:true})).map((item)=>path.resolve(directory,item.name)).filter((item)=>!managed.has(item));

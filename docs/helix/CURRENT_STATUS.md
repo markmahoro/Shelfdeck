@@ -60,3 +60,7 @@ UAT-219/239核实当前字体栈统一，克制收敛五组中文标签至12px/�
 - UAT-215新增真实隔离媒体链路38.2s PASS，后台正常检查持久责任、公开API可见、重启不重复且零Case。Service串行509 PASS/18 SKIP。旧Aftercare长链路遇到文件名推角色和固定Inventory revision的测试假设，后续按UAT-210/214继续精确验收，不算全链路已通过。
 
 - UAT-214连续性修正106575a06，51关联测试与222文件架构门禁通过。UAT-210精确Artifact角色修复通过真实NFO/海报两次维护；长链Target迁移后Settlement源Handle校验失败，尚未闭合。19:11生产只读仍3活跃展示（1进行/2需处理）、62收藏，无active维护Case；未部署或清理生产。
+
+- UAT-213原Target Binding证据已本地补齐，新增Arca不可变表，当前113/99/189/45，DDL SHA256 42281705d35e3aa6d5103525544ce7d9a199bd2660c93e2faf2729d333475066。33定向与222文件全门禁通过，真实媒体两链101.3s通过；完整Service复验及生产验收继续，未关闭。
+
+- UAT-213本地最终：Service510 PASS/19 SKIP/0 FAIL（529项），隔离媒体长链69.8s PASS、Binding重启不重复；24项Settlement负向复验PASS。未发布，生产在飞保护不变。

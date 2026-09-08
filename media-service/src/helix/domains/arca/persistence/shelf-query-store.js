@@ -1,4 +1,5 @@
 'use strict';
+const {statements:targetBindingStatements,captureTargetBinding,fromShelf}=require('./shelf-target-binding');
 
 const { canonicalDigest, canonicalJson } = require('../../../contracts/canonical-json');
 const { createCommandCommitCoordinator } = require('../../../foundation/persistence/commit-foundation');
@@ -29,6 +30,7 @@ function text(value, field) { if (typeof value !== 'string' || value.length === 
 function createShelfQueryStore(options) {
   if (!options?.schemaManifest || !options?.unitOfWork) throw new TypeError('Arca Shelf store requires clean persistence dependencies.');
   const repository = createRepositoryDefinition({ repositoryId: 'arca_shelf_repository', owner: 'arca', schemaManifest: options.schemaManifest, statements: {
+    ...targetBindingStatements,
     list_shelves: { kind: 'select-all', tableId: 'arca_shelves', columns: ['shelf_id','name','target_endpoint_id','target_root_location','target_mount_scope_id','target_mount_scope_revision','status','current_standard_revision','current_placement_revision','routing_projection_revision','routing_projection_digest','created_at_ms','updated_at_ms'], keyColumns: [] },
     find_shelf: { kind: 'select-one', tableId: 'arca_shelves', columns: ['shelf_id','name','target_endpoint_id','target_root_location','target_mount_scope_id','target_mount_scope_revision','status','current_standard_revision','current_placement_revision','routing_projection_revision','routing_projection_digest','created_at_ms','updated_at_ms'], keyColumns: ['shelf_id'] },
     insert_shelf: { kind: 'insert', tableId: 'arca_shelves', columns: ['shelf_id','name','target_endpoint_id','target_root_location','target_mount_scope_id','target_mount_scope_revision','status','current_standard_revision','current_placement_revision','routing_projection_revision','routing_projection_digest','created_at_ms','updated_at_ms'] },
@@ -97,6 +99,7 @@ function createShelfQueryStore(options) {
     });
     const projectionDigest = canonicalDigest({ schema: 'arca.shelf-routing-target-projection@1', shelfId: input.shelfId, status: 'active', currentStandardRevision: 1, currentStandardDigest: standard.standardDigest, routingProjectionRevision: 1 });
     repo.invoke('insert_shelf', { shelf_id: input.shelfId, name: input.name, target_endpoint_id: input.target.endpointId, target_root_location: input.target.rootLocation, target_mount_scope_id: input.target.mountScopeId, target_mount_scope_revision: input.target.mountScopeRevision, status: 'active', current_standard_revision: 1, current_placement_revision: 1, routing_projection_revision: 1, routing_projection_digest: projectionDigest, created_at_ms: context.commitTimeMs, updated_at_ms: context.commitTimeMs });
+    captureTargetBinding(repo,input.shelfId,input.target,context.commitTimeMs);
     repo.invoke('insert_standard', { shelf_id: input.shelfId, revision: 1, rule_template_id: input.ruleTemplateId, rule_template_revision: input.expectedTemplateRevision, standard_schema_ref: STANDARD_SCHEMA_REF, standard_json: canonicalJson(standard), standard_digest: standard.standardDigest, effective_at_ms: context.commitTimeMs });
     repo.invoke('insert_placement', { shelf_id: input.shelfId, revision: 1, policy_schema_ref: text(input.placement.schemaRef, 'placement.schemaRef'), policy_json: canonicalJson(input.placement.value), policy_digest: input.placement.digest, effective_at_ms: context.commitTimeMs });
     return readShelf(repo, input.shelfId);
@@ -368,6 +371,8 @@ function createShelfQueryStore(options) {
         targetDigest(input.shelfId, currentTarget) !== input.expectedCurrentTargetDigest) {
       fail('P14_SHELF_PLACEMENT_CAS', 'Shelf Target Folder or Placement head is stale.');
     }
+    captureTargetBinding(repo,input.shelfId,fromShelf(current),context.commitTimeMs);
+    captureTargetBinding(repo,input.shelfId,input.target,context.commitTimeMs);
     const revision = input.expectedPlacementRevision + 1;
     repo.invoke('insert_placement', { shelf_id: input.shelfId, revision, policy_schema_ref: text(input.placement.schemaRef, 'placement.schemaRef'), policy_json: canonicalJson(input.placement.value), policy_digest: input.placement.digest, effective_at_ms: context.commitTimeMs });
     const changed = repo.invoke('advance_placement_head', {

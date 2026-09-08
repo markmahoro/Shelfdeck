@@ -1,0 +1,158 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/arca_shelf_target_bindings/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "arca_shelf_target_bindings",
+    "owner": "arca",
+    "prefix": "arca_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "target_binding_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": true,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 2,
+        "name": "shelf_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 3,
+        "name": "endpoint_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 4,
+        "name": "root_location",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 5,
+        "name": "mount_scope_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 6,
+        "name": "mount_scope_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 7,
+        "name": "binding_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 8,
+        "name": "captured_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      }
+    ],
+    "primaryKey": [
+      "target_binding_id"
+    ],
+    "declaredForeignKeyColumns": [
+      "shelf_id"
+    ],
+    "uniqueConstraints": [
+      [
+        "shelf_id",
+        "binding_digest"
+      ]
+    ],
+    "hotIndexes": [
+      [
+        "shelf_id",
+        "endpoint_id",
+        "mount_scope_id"
+      ]
+    ],
+    "partialUniqueRules": [],
+    "checkRules": [],
+    "revisionContract": {
+      "revisionColumns": [
+        "mount_scope_revision"
+      ],
+      "currentPointerColumns": [],
+      "pointerTargets": [],
+      "pointerRules": []
+    },
+    "jsonContracts": [],
+    "immutability": {
+      "immutable": false,
+      "rules": []
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "Shelf创建/Target修订同事务保存实际旧、新Target Binding",
+      "同tuple幂等且不可改写，`UNIQUE(shelf_id,binding_digest)`",
+      "`INDEX(shelf_id,endpoint_id,mount_scope_id)`",
+      "仅作为Arca精确物理权限证据，历史Binding不代表当前Target、不自动授权迁移或删除"
+    ],
+    "rawContract": {
+      "columns": "`target_binding_id PK, shelf_id FK, endpoint_id, root_location, mount_scope_id, mount_scope_revision, binding_digest, captured_at_ms`",
+      "constraints": "Shelf创建/Target修订同事务保存实际旧、新Target Binding；同tuple幂等且不可改写，`UNIQUE(shelf_id,binding_digest)`；`INDEX(shelf_id,endpoint_id,mount_scope_id)`；仅作为Arca精确物理权限证据，历史Binding不代表当前Target、不自动授权迁移或删除"
+    },
+    "source": {
+      "section": "8.5.12",
+      "line": 9433,
+      "lineDigest": "b023e58fb190fe46f2ebe906d2c739f610b6f386258a75fbaeccec0bf571d665"
+    },
+    "foreignKeys": [
+      {
+        "columns": [
+          "shelf_id"
+        ],
+        "targetTable": "arca_shelves",
+        "targetColumns": [
+          "shelf_id"
+        ],
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
+      }
+    ]
+  }
+}

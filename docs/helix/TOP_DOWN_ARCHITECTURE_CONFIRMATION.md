@@ -9430,6 +9430,7 @@ Plan node input/parameter/Fence/Resource Demand的具体JSON不直接重复存�
 | `arca_rule_template_revisions` | `rule_template_id FK, revision, rules_schema_ref, rules_json, rules_digest, published_at_ms` | rules JSON上限`64 KiB`；`PK(rule_template_id,revision)`；immutable |
 | `arca_rule_template_drafts` | `rule_template_id PK/FK, draft_revision, base_published_revision, rules_schema_ref, rules_json, rules_digest, updated_at_ms` | 只允许user template；一个Template最多一份current draft；发布以expected draft revision/digest消费但保留审计Evidence |
 | `arca_shelf_standard_revisions` | `shelf_id FK, revision, rule_template_id, rule_template_revision, standard_schema_ref, standard_json, standard_digest, effective_at_ms` | Standard JSON上限`64 KiB`；`PK(shelf_id,revision)`；Shelf current pointer显式FK；当前row中的template pair同时是Shelf current Template binding权威来源；`INDEX(rule_template_id,rule_template_revision)` |
+| `arca_shelf_target_bindings` | `target_binding_id PK, shelf_id FK, endpoint_id, root_location, mount_scope_id, mount_scope_revision, binding_digest, captured_at_ms` | Shelf创建/Target修订同事务保存实际旧、新Target Binding；同tuple幂等且不可改写，`UNIQUE(shelf_id,binding_digest)`；`INDEX(shelf_id,endpoint_id,mount_scope_id)`；仅作为Arca精确物理权限证据，历史Binding不代表当前Target、不自动授权迁移或删除 |
 | `arca_placement_policy_revisions` | `shelf_id FK, revision, policy_schema_ref, policy_json, policy_digest, effective_at_ms` | Policy JSON上限`16 KiB`；`PK(shelf_id,revision)`；Shelf current pointer显式FK |
 | `arca_acceptance_attempts` | `acceptance_attempt_id PK, offer_id, on_deck_package_id, package_digest, related_disposition_set_digest, shelf_id FK, standard_revision, placement_revision, state(active|accepted|rejected), created_at_ms, finished_at_ms NULL` | 同一Offer至多一个Attempt且相同`package_digest+standard+placement`至多一个active attempt；Related disposition set必须逐字节等于Package；accepted/rejected只允许从active以Decision事务CAS一次；Supporting Work通过Foundation反向关联；`INDEX(state,created_at_ms)` |
 | `arca_acceptance_recovery_cases` | `offer_id PK, on_deck_package_id, package_digest, acceptance_attempt_id NULL, active_work_id, work_kind, failure_phase NULL, error_code NULL, terminal_attempt_count, owner_domain, recovery_state(active|attention_required|automatic_recovering|user_retrying|resolved), recovery_generation, automatic_recovery_used, recovery_trigger_digest, failed_trigger_digest NULL, incident_key NULL, updated_at_ms, resolved_at_ms NULL` | 一份Offer恰有一个current Recovery Case；`recovery_generation`从1单调递增且每个generation派生不同Supporting Work ID，历史Work/Event/Attempt不修改；技术失败只允许`active|automatic_recovering|user_retrying → attention_required`，不得建立Acceptance Decision；trigger变化最多一次`attention_required → automatic_recovering`，用户Retry一次只创建一个`user_retrying` generation；Accepted/Rejected后才`resolved`；`INDEX(recovery_state,updated_at_ms)` |
@@ -10297,6 +10298,15 @@ Inventory时复用`arca.inventory.*`，但不能调用Libra Production Planner�
 Shelf Placement revision变化产生的有界迁移同样由Aftercare Planner使用当前Care Basis规划
 `arca.inventory.stage/verify/placement.switch`及`arca.aftercare.inventory.commit`；它不需要新的“move flow”
 或跨域Capability，无法解析唯一目标或当前Material不健康时只能形成Finding。
+
+UAT-213原目标约束：Shelf创建保存实际Target Binding；Target修订必须在替换current head的同一事务保存
+旧Target及新Target的endpoint/root/mountScopeId/mountScopeRevision完整tuple。Aftercare Settlement的旧源
+Handle须由Case原Inventory与durable Material Receipt精确确定身份和位置，再按同Shelf、endpoint、
+mountScopeId的有界Binding候选（最多100条，越界拒绝）找到唯一覆盖该源位置的tuple；不得把新Target
+的mount revision/root倒填旧源。完整tuple摘要及Handle fence在Effect前复核，零匹配/多匹配均拒绝；
+current Shelf tuple本身也是正式输入，但仅在精确匹配该源时可用。来源Binding只证明物理范围，仍需
+Case Approval、原Inventory/Receipt及现场身份/最终成品验证；不能扩展处置成员或跳过未知文件保护。
+旧历史若没有唯一证据则明确缺证，不猜测、不修改已终态Case。新Binding记载不回填已结束流程。
 
 Aftercare媒体修复复用Level 5.8的设备安全原则，但形成自己的`AftercareMediaRepairStrategy@1`，不得读取或
 复用Libra Run、Acceptance Spec或Libra Workspace。Conformance Assessment先冻结Primary Probe、当前

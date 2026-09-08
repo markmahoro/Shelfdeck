@@ -188,7 +188,7 @@ function buildAftercareSettlementHandles(input) {
       identity:entry.identity, ownerDomain:'arca',
       ownerScope:Object.freeze({ scopeType:'aftercare_case', scopeId:caseId }), bindingRevision:values.bindingRevision,
       endpointId:values.endpointId, location:normalizedLocation,
-      mountScopeRevision:Number(context.raw.shelf.target_mount_scope_revision),
+      mountScopeRevision:Number(values.sourceTarget?.mountScopeRevision ?? context.raw.shelf.target_mount_scope_revision),
       expectedSizeBytes:entry.identity.sizeBytes, expectedMtimeNs:0, expectedCtimeNs:0,
       fingerprintVerifiedAtMs:values.fingerprintVerifiedAtMs, readScope:values.readScope,
       expiresAtMs:Number.MAX_SAFE_INTEGER,
@@ -203,7 +203,13 @@ function buildAftercareSettlementHandles(input) {
         identity:receipt.supersededMaterialIdentity, location:receipt.supersededLocation,
       }] : []),
     ];
-    for (const entry of retired) add(entry, {
+    for (const entry of retired) {
+      const source=frozenMaterials.find(row=>row.material_key===entry.identity.materialKey);
+      if(source&&typeof input.sourceTargetBinding!=='function')throw Object.assign(
+        new Error('The frozen Inventory requires its original Target Binding reader.'),{code:'ARCA_SOURCE_TARGET_BINDING_MISSING'});
+      const sourceTarget=source?input.sourceTargetBinding(source):null;
+      add(entry, {
+      sourceTarget,
       bindingRevision:1,
       endpointId:frozenMaterials.find((row) => row.material_key === entry.identity.materialKey)?.endpoint_id ||
         context.raw.materials.find((row) => row.material_key === entry.identity.materialKey)?.endpoint_id ||
@@ -211,6 +217,7 @@ function buildAftercareSettlementHandles(input) {
       fingerprintVerifiedAtMs:receipt.committedAtMs,
       readScope:'exact_aftercare_settlement',
     });
+    }
   }
   for (const observed of input.observedOldBindings || []) {
     let identity = observed.identity;
