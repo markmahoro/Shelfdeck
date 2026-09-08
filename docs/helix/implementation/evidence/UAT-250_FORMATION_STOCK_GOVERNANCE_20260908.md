@@ -48,3 +48,15 @@
 持续P3_CONTROL_CAS_CONFLICT的材料5700b0487f975dfdb0967a0f4e7b69f64386cf51eec1d621c7279cabd838b891位于`/media/Film/宇航员 (2023)/宇航员 (2023) - 1080p AVC DTS/BDMV/CLIPINF/00000.clpi`。只读当前Control为Procurement Field、revision1；旧Run dcddd38da96306586f0649904d54a5ce4d05fb36同材料Admission revision4，Candidate d8e919f14c5b0dfac3399a11e1b7095142a8bd5a仍published/candidate_delivery。Offer `5d067f5b9a8f0e3ab26417a7b9ccbfc5a4247cf8b58144f2286dd57a7640faf1` open且无Handoff Decision。尚不能断言是哪个历史操作造成回退，也不能称为普通并发竞争或新的NFO问题。
 
 精确只读命令`formation-reset-nas.js --superseded-offer-ids <上述Offer>`返回FORMATION_RESET_OFFER_NOT_SUPERSEDED；未停机、未应用、未改任何Control。原工具的superseded规则不覆盖本条，不能绕过其资格检查。剩余工作明确为：核对本Candidate全材料与已提交收藏交集、追溯历史Control变化、确认精确退休合同及本地重放，之后才执行授权范围内的存量处置；不Reset活着/沙丘、不全库清理。证据`.codex/uat250-stale-candidate-links.json`、`uat210-control-conflict.jsonl`及`uat250-superseded-offer-dry-run.log`。
+
+
+## 2026-09-09 01:34 恢复输入漂移已精确关联宇航员旧Offer
+
+在01:25一致备份的独立本地副本中使用现行Owner Reader、Decision Resolver和两项Input Projection重建输入。未启动Host或执行Effect，未修改生产/备份原件。
+
+- Event `intake-accept-766829cc99e4bf8c2283`，Attempt `event-attempt-e1148aaf-fb41-4028-a661-5e6ead37001f`；Offer `5d067f5b9a8f0e3ab26417a7b9ccbfc5a4247cf8b58144f2286dd57a7640faf1`，与前述宇航员旧Candidate同一对象。
+- 当前Continuity Head revision830，当前双输入摘要`dcaff7e1c82e868c077a7483a8a4181d27c7904d8ed5f1746d5a2fa85a05abcb`；Attempt保存`1f668fc02985f1d877f46ac612c145145061d041b6c9f2f58e699b653571e742`。
+- 仅将Decision的expectedContinuityHead按历史revision827及规范head digest重建，其余使用同一当前Candidate、Verification、Binding Receipt，双输入摘要精确恢复为持久Attempt摘要；0..830扫描只有827匹配。证明这次恢复漂移由Head变化引起，不是素媛转码或美国队长冻结。
+- 当前为claim-free new_subject。Binding Receipt语义摘要排除无关Head，因此允许重建Draft；但AcceptedIntakePayload/ControlHandle仍含当前Head，导致恢复时输入变化。既有旧Control revision矛盾仍独立存在，不能靠固定Head或修改Attempt摘要恢复旧生产条目。
+
+原始可复验材料：`.codex/uat125-input-drift-proof.cjs`、`uat125-input-drift-proof.json`、`uat125-intake-snapshot.json`。这定位了错误而未修复/关闭125或250；继续核对新建流程恢复合同，旧条目无兼容权利，未获精确Reset授权不清理。
