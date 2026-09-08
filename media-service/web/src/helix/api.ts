@@ -2,6 +2,7 @@ import { newOpaqueId } from './id';
 import { sha256Hex } from './sha256';
 
 export type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };
+export type SourceCleanupCheck={onDeckRunId:string;shelfEntryId:string;state:string;checkedAtMs:number|null;checks:{sourceLocation?:string;state:string;errorCode?:string|null;recycleEntryId?:string}[]};
 export type RecycleEntry={id:string;shelfEntryId:string;sourceLocation:string;state:string;reasonCode:string;createdAtMs:number;archivedAtMs:number|null;expiresAtMs:number|null;fileCount:number;totalBytes:number;errorCode:string|null};
 export type RecyclePreview={shelfEntryId:string;sourceLocation:string;manifestDigest?:string;errorCode?:string;manifest?:{totalBytes:number;entries:Array<{relativePath:string;kind:string;sizeBytes?:number}>}};
 
@@ -665,7 +666,7 @@ export const helixAdminApi = {
   },
   listCareWork(cursor?:string,aftercareCaseId?:string,filters?:{classification?:string;q?:string;shelfId?:string}){const query=new URLSearchParams({view:'work',limit:'25'});if(cursor)query.set('cursor',cursor);if(aftercareCaseId)query.set('aftercareCaseId',aftercareCaseId);Object.entries(filters||{}).forEach(([key,value])=>{if(value)query.set(key,value);});return request<{items:CareWorkItem[];counts:Record<string,number>;nextCursor:string|null}>(`/v1/admin/care?${query}`);},
   getCare(shelfEntryId:string){return request<CareDetail>(`/v1/admin/care/${encodeURIComponent(shelfEntryId)}`);},
-  listRecycle(){return request<{items:RecycleEntry[]}>('/v1/admin/care-recycle');},
+  listRecycle(cleanupCursor?:string){return request<{items:RecycleEntry[];cleanupChecks?:SourceCleanupCheck[];cleanupNextCursor?:string|null}>('/v1/admin/care-recycle'+(cleanupCursor?'?cleanupCursor='+encodeURIComponent(cleanupCursor):''));},
   previewRecycle(shelfEntryId:string){return request<{items:RecyclePreview[]}>(`/v1/admin/care-recycle/${encodeURIComponent(shelfEntryId)}/preview`);},
   archiveRecycle(value:RecyclePreview){return request<RecycleEntry>(`/v1/admin/care-recycle/${encodeURIComponent(value.shelfEntryId)}/actions/archive`,{method:'POST',body:JSON.stringify({idempotencyKey:newOpaqueId(),sourceLocation:value.sourceLocation,manifestDigest:value.manifestDigest,confirmManifestDigest:value.manifestDigest})});},
   restoreRecycle(id:string){return request<RecycleEntry>(`/v1/admin/care-recycle/${encodeURIComponent(id)}/actions/restore`,{method:'POST',body:'{}'});},

@@ -115,7 +115,7 @@ it('centralizes recycle history and exact film directory previews in settings',a
   render(<MemoryRouter initialEntries={['/settings']}><App/></MemoryRouter>);
   fireEvent.click(await screen.findByRole('tab',{name:'回收站'}));
   expect(screen.getByRole('heading',{name:'回收站'})).toBeInTheDocument();
-  expect(records).not.toHaveBeenCalled();
+  await waitFor(()=>expect(records).toHaveBeenCalledTimes(1));
   fireEvent.click(screen.getByRole('button',{name:'读取收藏列表'}));
   await screen.findByRole('option',{name:'霍比特人1'});
   fireEvent.change(screen.getByRole('combobox'),{target:{value:'hobbit'}});

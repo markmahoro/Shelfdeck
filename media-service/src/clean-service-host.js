@@ -83,6 +83,7 @@ const {
 } = require('./helix/domains/arca/public/admin-application');
 const { createShelfRoutingTargetProjection } = require('./helix/domains/arca/public/routing-target-projection');
 const { createArcaCollectionQuery } = require('./helix/domains/arca/application/collection-query');
+const {createSourceCleanupStore}=require('./helix/domains/arca/persistence/source-cleanup-store');
 const {createRecycleStore}=require('./helix/domains/arca/persistence/recycle-store');
 const {createRecycleApplication}=require('./helix/domains/arca/application/recycle-application');
 const recycleFiles=require('./clean-arca-recycle-port');
@@ -1623,7 +1624,7 @@ async function createCleanServiceHost(options) {
     coordinator:procurementExecution.arcaAftercareCoordinator,wake:()=>executionRuntimeHost.wake()});
   arcaRecycle=createRecycleApplication({
     root:path.join(options.dataDir,'recycle'),now:options.now||Date.now,
-    listEntryPage:(cursor,limit)=>procurementExecution.arcaAftercareContextReader.listPage(cursor,limit),
+    cleanupStore:createSourceCleanupStore(constructed.applicationDependencies),
     store:createRecycleStore({...constructed.applicationDependencies,now:options.now||Date.now}),
     port:recycleFiles.createRecycleEffectPort(constructed.applicationDependencies),files:recycleFiles,
     wake:()=>executionRuntimeHost.wake(),
@@ -1631,7 +1632,7 @@ async function createCleanServiceHost(options) {
       const store=procurementExecution.arcaAftercareContextReader.store,c=store.currentContext(shelfEntryId);
       if(!c)return null;
       const protection=store.recycleProtection();
-      return {...protection,knownSourceDirectories:[...new Set(c.oldBindings.map(row=>path.dirname(row.location)))],
+      return {...protection,onDeckRunId:c.onDeckCommit?.on_deck_run_id,knownSourceDirectories:[...new Set(c.oldBindings.filter(row=>row.role?.startsWith('offload:')&&path.isAbsolute(row.location)).map(row=>path.dirname(row.location)))],
         scanRoots:[...protection.scanRoots,...materialFieldStore.listMaterialFields().map(field=>field.access.rootLocation),...(options.externalProviderScanRoots||[])]};
     },
   });

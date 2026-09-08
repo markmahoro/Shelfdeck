@@ -2,9 +2,9 @@
   "schemaVersion": 1,
   "compilerContract": "helix-p3-deterministic-sqlite-ddl/v1",
   "digestAlgorithm": "sha256",
-  "tableCount": 187,
-  "tableContractAggregateDigest": "5677249289fd1d577e44fd5c0d6b4f017f208e4fadeae61bdcb7715b2898e926",
-  "ddlDigest": "642c62d6d55e95ce31a097435ae7052c26d0ea5b65d049d90c724522db204784",
+  "tableCount": 188,
+  "tableContractAggregateDigest": "cdc3a6cfaca83e8e9bb3fdd7592bd64360df990ec7c2f8f68fcd2eed390bf58b",
+  "ddlDigest": "3ce7180fe6b3ba843b2b85669dca5dd852792f979770c908ef2b17560d473d49",
   "tables": [
     {
       "tableId": "arca_acceptance_attempts",
@@ -1378,6 +1378,34 @@
           "kind": "hot",
           "name": "idx_arca_shelves_hot_01",
           "sqlDigest": "1bb18968f53f3038cf2f2b43f7cd425b685e8b19b8d2fa3ead9a528c22162295"
+        }
+      ]
+    },
+    {
+      "tableId": "arca_source_cleanup_checks",
+      "owner": "arca",
+      "contractId": "helix://contracts/tables/arca_source_cleanup_checks/v1",
+      "contractDigest": "3ae10a61e93643fdadbef9f15f2fdb919d00a6da904241d85ccfeff4c5afc813",
+      "sqlDigest": "446c5917b796a1ea84bcc4c8698d0efc7402e4fd79b5e141079000767851feb7",
+      "columns": [
+        "cleanup_id",
+        "on_deck_run_id",
+        "shelf_entry_id",
+        "state",
+        "check_revision",
+        "checks_schema_ref",
+        "checks_json",
+        "created_at_ms",
+        "updated_at_ms",
+        "next_check_at_ms"
+      ],
+      "immutable": false,
+      "supportColumns": [],
+      "indexes": [
+        {
+          "kind": "hot",
+          "name": "idx_arca_source_cleanup_checks_hot_01",
+          "sqlDigest": "9715f78e8c9124b02c3ab9cfb3e15fef0d7a47674a8e7f3dfe59d06dcf1fe679"
         }
       ]
     },

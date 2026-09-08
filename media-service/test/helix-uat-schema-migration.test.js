@@ -28,6 +28,31 @@ const generatedRoot = path.resolve(__dirname, '../src/helix/foundation/persisten
 const schemaDdl = fs.readFileSync(path.join(generatedRoot, 'clean-schema.sql'), 'utf8');
 const schemaManifest = JSON.parse(fs.readFileSync(path.join(generatedRoot, 'clean-schema.manifest.json'), 'utf8'));
 
+test('UAT-215 adds only an empty cleanup responsibility table to the exact production schema',()=>{
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'helix-cleanup-upgrade-')),databasePath=path.join(root,'shelfdeck.db');
+  let db,check,kernel;
+  try{
+    const oldDdl=schemaDdl.replace(/CREATE TABLE "arca_source_cleanup_checks" \([\s\S]*?\n\);\nCREATE INDEX "idx_arca_source_cleanup_checks_hot_01"[^\n]*\n/,'');
+    assert.notEqual(oldDdl,schemaDdl);
+    db=new Database(databasePath);db.exec(oldDdl);
+    db.prepare("INSERT INTO arca_shelf_entries(shelf_entry_id,status) VALUES('keep-entry','active')").run();
+    db.prepare("INSERT INTO arca_inventory_representations(shelf_entry_id,revision) VALUES('keep-entry',7)").run();
+    db.prepare("UPDATE arca_shelf_entries SET current_inventory_revision=7 WHERE shelf_entry_id='keep-entry'").run();
+    db.prepare("INSERT INTO libra_runs(libra_run_id,state) VALUES('keep-in-flight','active')").run();
+    db.prepare('INSERT INTO platform_schema_marker(schema_name,generation,schema_digest,catalog_digest,applied_at_ms) VALUES(?,?,?,?,?)')
+      .run('shelfdeck',TARGET_GENERATION,require('../src/helix/foundation/persistence/uat-identity-selection-migration').PRE_SOURCE_CLEANUP_SCHEMA_DIGEST,digest(catalogRows(db)),100);
+    const beforeEntry=db.prepare('SELECT * FROM arca_shelf_entries').all(),beforeRuns=db.prepare('SELECT * FROM libra_runs').all();db.close();
+    assert.equal(migrateUatIdentitySelectionSchema({Database,databasePath,schemaManifest}).migrated,true);
+    check=new Database(databasePath);
+    assert.deepEqual(check.prepare('SELECT * FROM arca_shelf_entries').all(),beforeEntry);
+    assert.deepEqual(check.prepare('SELECT * FROM libra_runs').all(),beforeRuns);
+    assert.equal(check.prepare('SELECT count(*) n FROM arca_source_cleanup_checks').get().n,0);
+    assert.deepEqual(check.pragma('foreign_key_check'),[]);check.close();
+    kernel=openSqliteKernel({Database,databasePath,schemaDdl,schemaManifest});kernel.close();
+    assert.equal(migrateUatIdentitySelectionSchema({Database,databasePath,schemaManifest}).migrated,false);
+  }finally{if(db?.open)db.close();if(check?.open)check.close();kernel?.close();fs.rmSync(root,{recursive:true,force:true});}
+});
+
 function catalogRows(database) {
   return database.prepare(
     "SELECT type,name,tbl_name,sql FROM sqlite_master WHERE name NOT LIKE 'sqlite_%' ORDER BY type,name",

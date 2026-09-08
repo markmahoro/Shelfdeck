@@ -674,6 +674,38 @@ test('P14 real bytes cover the Libra main production paths through open Handoff 
   t.diagnostic('Libra main-path evidence: ' + JSON.stringify(evidence));
 });
 
+test('UAT-215 new on-deck responsibility is inspected by the real background runner and survives restart',{
+  skip:SOURCE_ROOT===null?'Set HELIX_LIBRA_HANDOFF_B_E2E_ROOT to an isolated Material Field.':false,timeout:120000,
+},async(t)=>{
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'uat215-ondeck-')),dataDir=path.join(root,'data'),admin=path.join(root,'admin'),source=path.join(root,'field'),shelf=path.join(root,'shelf');
+  for(const folder of [admin,source,shelf])fs.mkdirSync(folder,{recursive:true});
+  fs.writeFileSync(path.join(admin,'index.html'),'<div id="root"></div>');
+  for(const item of fs.readdirSync(SOURCE_ROOT,{withFileTypes:true}).filter(item=>item.isFile()&&item.name.startsWith('SDT-M01-Standalone-H264 (2008)')))
+    fs.copyFileSync(path.join(SOURCE_ROOT,item.name),path.join(source,item.name));
+  const initialized=initializeCleanData({dataDir,confirmation:'INITIALIZE_HELIX_CLEAN_V1',secretRoot:SECRET});let runtimeError=null;
+  const hostOptions={dataDir,adminDistDir:admin,secretRoot:SECRET,libraWorkspaceRoot:path.join(root,'workspace'),...productOptions(),deferredDeliveryKeys:[],onExecutionRuntimeError(error){runtimeError=error;}};
+  let host=await createCleanServiceHost(hostOptions);
+  t.after(async()=>{await host.close();if(process.env.HELIX_KEEP_TEST_ASSETS!=='1')fs.rmSync(root,{recursive:true,force:true,maxRetries:5,retryDelay:100});});
+  const cookie=await session(host,initialized.adminApiKey);await createShelf(host,cookie,shelf);await createField(host,cookie,'uat215-field',source);
+  await observe(host,cookie,'uat215-field');await waitFor(host,cookie,items=>items.some(item=>String(item.displayIdentity||'').includes('SDT-M01')));await route(host,cookie,'uat215-field');
+  const databasePath=path.join(dataDir,'shelfdeck.db');
+  const result=await waitDatabase(databasePath,db=>{
+    const check=db.prepare('SELECT * FROM arca_source_cleanup_checks').get();
+    return check&&Number(check.check_revision)>1?{check,entries:db.prepare('SELECT count(*) n FROM arca_shelf_entries').get().n,cases:db.prepare('SELECT count(*) n FROM arca_aftercare_cases').get().n}:null;
+  },90000);
+  assert.ifError(runtimeError);assert.equal(result.entries,1);assert.equal(result.cases,0);
+  assert.notEqual(result.check.state,'pending');assert.ok(JSON.parse(result.check.checks_json).every(row=>row.state!=='blocked'),result.check.checks_json);
+  const response=await host.inject({method:'GET',url:'/v1/admin/care-recycle',headers:{cookie}});
+  assert.equal(response.statusCode,200,response.body);assert.equal(response.json().cleanupChecks.length,1);
+  assert.equal(response.json().cleanupChecks[0].shelfEntryId,result.check.shelf_entry_id);
+  const beforeRestart=reality(source);await host.close();host=await createCleanServiceHost(hostOptions);
+  const read=new Database(databasePath,{readonly:true});try{
+    assert.equal(read.prepare('SELECT count(*) n FROM arca_source_cleanup_checks').get().n,1);
+    assert.equal(read.prepare('SELECT count(*) n FROM arca_ondeck_commit_receipts').get().n,1);
+  }finally{read.close();}
+  assert.deepEqual(reality(source),beforeRestart);assert.ifError(runtimeError);
+});
+
 test('P14 one-movie product path accepts Handoff B and atomically establishes an Arca Shelf Entry', {
   skip:SOURCE_ROOT === null ? 'Set HELIX_LIBRA_HANDOFF_B_E2E_ROOT to the isolated P14 Material Field.' : false,
   timeout:240_000,
@@ -743,6 +775,7 @@ test('P14 one-movie product path accepts Handoff B and atomically establishes an
     assert.equal(one('arca_ondeck_custodies'), 1);
     assert.equal(one('arca_ondeck_runs'), 1);
     assert.equal(one('arca_shelf_entries'), 1);
+    assert.equal(one('arca_source_cleanup_checks'),1);
     assert.equal(one('arca_inventory_representations'), 1);
     assert.equal(one('arca_deck_fact_revisions'), 1);
     assert.equal(one('arca_offload_completions'), 1);
@@ -883,6 +916,11 @@ test('P14 one-movie product path accepts Handoff B and atomically establishes an
   const beforePosterRepair = new Database(databasePath, { readonly:true });
   let oldPosterMaterialKeys;
   try {
+    const represented=beforePosterRepair.prepare('SELECT location FROM arca_inventory_materials WHERE shelf_entry_id=? AND inventory_revision=2').all(entryId);
+    for(const location of posterLocations)assert.equal(represented.filter(row=>path.resolve(row.location)===path.resolve(location)).length,1,'Every physical poster-named file has one exact Inventory member, regardless of its business role.');
+    const formalPosters=beforePosterRepair.prepare("SELECT location FROM arca_inventory_materials WHERE shelf_entry_id=? AND inventory_revision=2 AND role='poster'").all(entryId);
+    // File names do not grant the poster role to a preserved generic sidecar.
+    posterLocations.splice(0,posterLocations.length,...formalPosters.map(row=>row.location));
     oldPosterMaterialKeys = beforePosterRepair.prepare(
       "SELECT material_key FROM arca_inventory_materials WHERE shelf_entry_id=? AND inventory_revision=2 AND role='poster' ORDER BY material_key",
     ).all(entryId).map((row) => row.material_key);
@@ -1047,6 +1085,9 @@ test('P14 one-movie product path accepts Handoff B and atomically establishes an
     assert.equal(restarted.prepare('SELECT count(*) count FROM arca_shelf_entries').get().count, 1);
     assert.equal(restarted.prepare('SELECT count(*) count FROM arca_ondeck_runs').get().count, 1);
     assert.equal(restarted.prepare('SELECT count(*) count FROM arca_ondeck_commit_receipts').get().count, 1);
+    const cleanup=restarted.prepare('SELECT * FROM arca_source_cleanup_checks').all();
+    assert.equal(cleanup.length,1);assert.equal(cleanup[0].shelf_entry_id,entryId);
+    assert.equal(cleanup[0].on_deck_run_id,restarted.prepare('SELECT on_deck_run_id FROM arca_ondeck_commit_receipts').get().on_deck_run_id);
     assert.equal(restarted.prepare('SELECT count(*) count FROM arca_offload_completions').get().count, 1);
     assert.equal(restarted.prepare("SELECT count(*) count FROM arca_aftercare_cases WHERE state='resolved'").get().count, 3);
     assert.equal(restarted.prepare('SELECT current_inventory_revision FROM arca_shelf_entries').get().current_inventory_revision, 4);

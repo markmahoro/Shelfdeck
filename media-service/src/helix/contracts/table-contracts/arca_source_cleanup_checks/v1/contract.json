@@ -1,0 +1,218 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/arca_source_cleanup_checks/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "arca_source_cleanup_checks",
+    "owner": "arca",
+    "prefix": "arca_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "cleanup_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": true,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 2,
+        "name": "on_deck_run_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true,
+        "inlineUnique": true,
+        "nullable": false
+      },
+      {
+        "ordinal": 3,
+        "name": "shelf_entry_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 4,
+        "name": "state",
+        "logicalType": "TEXT",
+        "enumValues": [
+          "pending",
+          "attention",
+          "completed"
+        ],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 5,
+        "name": "check_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 6,
+        "name": "checks_schema_ref",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 7,
+        "name": "checks_json",
+        "logicalType": "TEXT_JSON",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 8,
+        "name": "created_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 9,
+        "name": "updated_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 10,
+        "name": "next_check_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      }
+    ],
+    "primaryKey": [
+      "cleanup_id"
+    ],
+    "declaredForeignKeyColumns": [
+      "on_deck_run_id",
+      "shelf_entry_id"
+    ],
+    "uniqueConstraints": [
+      [
+        "on_deck_run_id"
+      ]
+    ],
+    "hotIndexes": [
+      [
+        "next_check_at_ms",
+        "on_deck_run_id"
+      ]
+    ],
+    "partialUniqueRules": [],
+    "checkRules": [
+      {
+        "column": "state",
+        "enumValues": [
+          "pending",
+          "attention",
+          "completed"
+        ]
+      },
+      {
+        "rule": "checks JSON上限`64 KiB`、最多32个精确旧Binding父目录的检查结果"
+      },
+      {
+        "rule": "`INDEX(next_check_at_ms,on_deck_run_id)`"
+      },
+      {
+        "rule": "检查结果以check_revision CAS更新，不授予文件处置权"
+      }
+    ],
+    "revisionContract": {
+      "revisionColumns": [
+        "check_revision"
+      ],
+      "currentPointerColumns": [],
+      "pointerTargets": [],
+      "pointerRules": []
+    },
+    "jsonContracts": [
+      {
+        "column": "checks_json",
+        "schemaRefColumn": "checks_schema_ref",
+        "maxBytes": 65536,
+        "source": "table-row",
+        "requiresJsonValidCheck": true
+      }
+    ],
+    "immutability": {
+      "immutable": false,
+      "rules": []
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "On-deck Commit同事务建立一条pending收尾检查",
+      "checks JSON上限`64 KiB`、最多32个精确旧Binding父目录的检查结果",
+      "`INDEX(next_check_at_ms,on_deck_run_id)`",
+      "检查结果以check_revision CAS更新，不授予文件处置权"
+    ],
+    "rawContract": {
+      "columns": "`cleanup_id PK, on_deck_run_id FK UNIQUE, shelf_entry_id FK, state(pending|attention|completed), check_revision INTEGER, checks_schema_ref, checks_json, created_at_ms, updated_at_ms, next_check_at_ms`",
+      "constraints": "On-deck Commit同事务建立一条pending收尾检查；checks JSON上限`64 KiB`、最多32个精确旧Binding父目录的检查结果；`INDEX(next_check_at_ms,on_deck_run_id)`；检查结果以check_revision CAS更新，不授予文件处置权"
+    },
+    "source": {
+      "section": "8.5.14",
+      "line": 9542,
+      "lineDigest": "a025470c8606b98e39265999d627292b3a42b2acb7a625fd29452009bf905303"
+    },
+    "foreignKeys": [
+      {
+        "columns": [
+          "on_deck_run_id"
+        ],
+        "targetTable": "arca_ondeck_runs",
+        "targetColumns": [
+          "on_deck_run_id"
+        ],
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
+      },
+      {
+        "columns": [
+          "shelf_entry_id"
+        ],
+        "targetTable": "arca_shelf_entries",
+        "targetColumns": [
+          "shelf_entry_id"
+        ],
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
+      }
+    ]
+  }
+}

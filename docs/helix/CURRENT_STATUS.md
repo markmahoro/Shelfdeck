@@ -54,3 +54,7 @@ UAT-251终态展示已本地修正：移除默认放弃再采购提示，Provide
 UAT-214确定性关联及Arca关系记录刷新已本地实现；222文件架构全门禁通过，真实NFO→People→Inventory revision链路通过且零Case/无媒体及Control改动。当前未部署，后台驱动与历史exact origin验收仍待完成。事务仍45项，增加既有记录刷新事务的无Control人物关系变体。架构测试并发限制4，解决反复出现的本机测试进程过量争用，不放宽产品超时。
 
 UAT-219/239核实当前字体栈统一，克制收敛五组中文标签至12px/正常字距；Web56 PASS/build PASS，真实Edge宽屏与390px收藏/维护详情验收通过，临时视口已恢复。待统一发布后复验，未关闭。
+
+- UAT-215已本地建立On-deck Commit同事务收尾责任、按Run有界检查及Settings待办。21定向、Web58/构建、222文件四门禁PASS；真实媒体与完整Service仍在运行，未部署/未关闭。当前合同计数113/99/188/45；旧Entry不回填自动清理责任，UAT-216未执行。详见`implementation/evidence/UAT-215_ONDECK_SOURCE_CLEANUP_20260908.md`。
+
+- UAT-215新增真实隔离媒体链路38.2s PASS，后台正常检查持久责任、公开API可见、重启不重复且零Case。Service串行509 PASS/18 SKIP。旧Aftercare长链路遇到文件名推角色和固定Inventory revision的测试假设，后续按UAT-210/214继续精确验收，不算全链路已通过。

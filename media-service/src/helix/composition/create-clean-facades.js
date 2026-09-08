@@ -312,7 +312,7 @@ function createCleanFacades(options) {
   }
   if(options.arcaRecycle){
     const app=options.arcaRecycle;
-    facades.ArcaCareFacade.get_care_recycle=async()=>({body:app.list()});
+    facades.ArcaCareFacade.get_care_recycle=async(input)=>({body:app.list(input.query||{})});
     facades.ArcaCareFacade.get_care_recycle_shelfentryid_preview=async(input)=>({body:await app.preview(input.params.shelfEntryId,input.query?.sourceLocation)});
     facades.ArcaCareFacade.post_care_recycle_shelfentryid_actions_archive=async(input)=>({status:202,body:await app.archive(input.params.shelfEntryId,input.body)});
     facades.ArcaCareFacade.post_care_recycle_recycleentryid_actions_restore=async(input)=>({status:202,body:await app.restore(input.params.recycleEntryId)});

@@ -5,7 +5,7 @@
   "kind": "application-type-registry",
   "owner": "arca",
   "status": "active",
-  "targetCount": 1,
+  "targetCount": 2,
   "entries": [
     {
       "id": "ArcaMaterialEpisodeClaims",
@@ -22,6 +22,21 @@
         "3.3.1",
         "8.5.13",
         "8.6.19"
+      ]
+    },
+    {
+      "id": "SourceCleanupChecks",
+      "version": 1,
+      "owner": "arca",
+      "status": "contracted",
+      "schemaId": "helix://contracts/application-types/SourceCleanupChecks/v1",
+      "relativePath": "application-types/SourceCleanupChecks/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "95224a05350bc43bdeeeaf94fd0a35e1129ae549e974f10a8a3033dbac53bc08"
+      },
+      "ssotRefs": [
+        "8.5.14"
       ]
     }
   ]

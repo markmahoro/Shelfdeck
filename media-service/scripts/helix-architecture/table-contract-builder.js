@@ -37,6 +37,7 @@ const MUTABLE_LIFECYCLE_TABLES = new Set([
   'libra_workspace_cleanup_scopes',
   'libra_workspace_cleanup_members',
   'arca_recycle_entries',
+  'arca_source_cleanup_checks',
   'arca_ondeck_runs'
   ,'arca_offdeck_review_candidates','arca_offdeck_duplicate_groups','arca_offdeck_suppressions',
   'arca_offdeck_duplicate_whitelists','arca_offdeck_reviews','arca_offdeck_reservations',

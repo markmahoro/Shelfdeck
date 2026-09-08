@@ -389,7 +389,7 @@ test('clean host serves public health and Admin UI, then requires API key or Htt
     assert.deepEqual(workbenchCare.json(),{items:[],counts:{},nextCursor:null});
     const recycle=await host.inject({method:'GET',url:'/v1/admin/care-recycle',headers:{cookie}});
     assert.equal(recycle.statusCode,200);
-    assert.deepEqual(recycle.json(),{items:[]});
+    assert.deepEqual(recycle.json(),{items:[],cleanupChecks:[],cleanupNextCursor:null});
 
     const overview = await host.inject({
       method: 'GET',
@@ -2819,6 +2819,7 @@ test.skip('Libra Handoff B is accepted and committed through the Arca execution 
   assert.equal(crashDatabase.prepare(
     'SELECT count(*) count FROM arca_ondeck_commit_receipts',
   ).get().count, 1);
+  assert.equal(crashDatabase.prepare('SELECT count(*) count FROM arca_source_cleanup_checks').get().count,1);
   crashDatabase.close();
 
   let committedJourney;
@@ -3031,6 +3032,7 @@ test.skip('Libra Handoff B is accepted and committed through the Arca execution 
   assert.equal(database.prepare(
     'SELECT count(*) count FROM arca_ondeck_commit_receipts'
   ).get().count, 1);
+  assert.equal(database.prepare('SELECT count(*) count FROM arca_source_cleanup_checks').get().count,1);
   assert.equal(database.prepare(
     'SELECT count(*) count FROM arca_offload_completions'
   ).get().count, 1);

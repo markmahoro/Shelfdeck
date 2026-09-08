@@ -9539,6 +9539,10 @@ Credential不是Integration，因此Secret ref使用owner scope而不是伪造`i
 | --- | --- | --- |
 | `arca_recycle_entries` | `recycle_entry_id PK, shelf_entry_id FK, source_location, archive_location, manifest_schema_ref, manifest_json, manifest_digest, reason_code, state(pending|moving|archived|restoring|restored|purging|purged), operation_revision INTEGER, created_at_ms, archived_at_ms NULL, expires_at_ms NULL, updated_at_ms, last_error NULL` | manifest JSON上限`64 KiB`，冻结相对目录、文件大小与SHA256，最多256项；原路径与归档路径不可变；`INDEX(state,expires_at_ms)`；修改通过state和operation_revision CAS；只有archived可请求恢复或到期清理，恢复与清理竞争同一CAS；归档成功时设30天期限，未完成移动永不进入到期删除 |
 
+| `arca_source_cleanup_checks` | `cleanup_id PK, on_deck_run_id FK UNIQUE, shelf_entry_id FK, state(pending|attention|completed), check_revision INTEGER, checks_schema_ref, checks_json, created_at_ms, updated_at_ms, next_check_at_ms` | On-deck Commit同事务建立一条pending收尾检查；checks JSON上限`64 KiB`、最多32个精确旧Binding父目录的检查结果；`INDEX(next_check_at_ms,on_deck_run_id)`；检查结果以check_revision CAS更新，不授予文件处置权 |
+
+UAT-215：新On-deck Commit原子建立Arca收尾检查责任，后台每次最多检查一个Run的有界旧目录范围，只取正式Off-load Context旧Binding父目录，排除Product Workspace handle；Libra Workspace回收责任不转移。即使提交后的唤醒丢失或服务重启，仍从持久检查恢复。检查区分目录已不存在、空目录待归档/已归档、非空待用户确认、受当前材料保护而保留及具体检查异常；不改变成功上架或健康事实，不创建Aftercare Case。非空目录的后台检查不递归哈希文件；用户在系统配置的回收站打开精确预览后才可确认，既有manifest校验和安全约束继续生效。检查失败保留错误并限速重查，归档后的恢复记录不得触发自动再次归档。历史Entry不倒填新的自动清理责任，存量治理仍逐清单授权。
+
 回收采用与既有Workspace物理回收相同的standalone Foundation Effect模式：`fx_effect_journal`的
 `arca_recycle_move|arca_recycle_restore|arca_recycle_purge`逐operation revision持久化intent和精确manifest digest；
 event_attempt_id为NULL，由Arca有界reconciler恢复，Foundation不得当成丢失Event重发。Arca只拥有回收条目的状态和范围，

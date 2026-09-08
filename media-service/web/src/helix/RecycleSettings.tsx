@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { helixAdminApi, type CollectionEntry } from './api';
 import { Button } from './chrome';
 import RecyclePanel from './RecyclePanel';
+import SourceCleanupChecks from './SourceCleanupChecks';
 import { isUnauthorized, useSession } from './session';
 
 export default function RecycleSettings() {
@@ -26,6 +27,7 @@ export default function RecycleSettings() {
     <h2>回收站</h2>
     <p>查看归档、恢复原位置，或按影片检查可移入的旧目录。</p>
     <RecyclePanel />
+    <SourceCleanupChecks onInspect={setSelected} />
     <h3>检查影片旧目录</h3>
     <Button type="button" disabled={loading} onClick={()=>void load()}>读取收藏列表</Button>
     {error && <p role="alert">{error}</p>}

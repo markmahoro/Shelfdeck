@@ -6,7 +6,7 @@ const {canonicalDigest}=require('../../../contracts/canonical-json');
 function fail(code){throw Object.assign(new Error(code),{code});}
 function createRecycleApplication(options){
   const {store,port,files}=options,now=options.now||Date.now;
-  const root=path.resolve(options.root);let busy=false,lastExpirySweep=0,discoveryCursor=null,discoveryAfter=0;
+  const root=path.resolve(options.root);let busy=false,lastExpirySweep=0;
   const retryAfter=new Map();
   async function assertRoot(scope){
     await files.noLinks(root);
@@ -57,6 +57,42 @@ function createRecycleApplication(options){
     const scope=options.readScope(row.shelf_entry_id);if(!scope)fail('ARCA_RECYCLE_ENTRY_NOT_FOUND');await assertRoot(scope);
     const result=store.requestRestore(id);options.wake?.();return publicRow(result);
   }
+  async function inspectCleanup(check){
+    const checks=[];let retryMs=24*60*60*1000;
+    try{
+      const scope=options.readScope(check.shelf_entry_id);
+      if(!scope||scope.onDeckRunId!==check.on_deck_run_id)fail('ARCA_RECYCLE_CHECK_SCOPE_CHANGED');
+      if(scope.knownSourceDirectories.length>32)fail('ARCA_RECYCLE_SCOPE_TOO_LARGE');
+      const recycled=store.list();
+      for(const source of scope.knownSourceDirectories){
+        const prior=recycled.filter(row=>row.source_location===source).sort((a,b)=>Number(b.created_at_ms)-Number(a.created_at_ms))[0];
+        // A user restore ends this cleanup attempt; never move it back automatically.
+        if(prior&&['restored','restoring'].includes(prior.state)){checks.push({sourceLocation:source,state:'retained_after_restore',recycleEntryId:prior.recycle_entry_id});continue;}
+        if(prior&&!['purged'].includes(prior.state)){
+          checks.push({sourceLocation:source,state:prior.state==='archived'?'archived':'recycle_pending',recycleEntryId:prior.recycle_entry_id,errorCode:prior.last_error||null});
+          if(prior.state!=='archived')retryMs=Math.min(retryMs,5*60*1000);continue;
+        }
+        try{
+          await scopeFor(check.shelf_entry_id,path.resolve(source));
+          if(!await files.present(source)){checks.push({sourceLocation:source,state:'absent'});continue;}
+          if(!await files.emptyDirectory(source)){checks.push({sourceLocation:source,state:'awaiting_confirmation'});continue;}
+          const value=await preview(check.shelf_entry_id,source);
+          // The directory may have changed after emptyDirectory. Never turn that race into consent.
+          if(value.requiresConfirmation){checks.push({sourceLocation:source,state:'awaiting_confirmation'});continue;}
+          const row=await archive(check.shelf_entry_id,{...value,confirmManifestDigest:value.manifestDigest,idempotencyKey:'on-deck-cleanup:'+check.on_deck_run_id+':'+canonicalDigest(source)});
+          checks.push({sourceLocation:source,state:'recycle_pending',recycleEntryId:row.id});retryMs=Math.min(retryMs,5*60*1000);
+        }catch(error){
+          const code=error.code||'ARCA_RECYCLE_IO_FAILED';
+          checks.push({sourceLocation:source,state:code==='ARCA_RECYCLE_SOURCE_IN_USE'?'retained_in_use':'blocked',errorCode:code});
+          if(code!=='ARCA_RECYCLE_SOURCE_IN_USE')retryMs=Math.min(retryMs,5*60*1000);
+        }
+      }
+    }catch(error){checks.length=0;checks.push({state:'blocked',errorCode:error.code||'ARCA_RECYCLE_IO_FAILED'});retryMs=5*60*1000;}
+    const attention=checks.some(item=>['awaiting_confirmation','blocked'].includes(item.state)),pending=checks.some(item=>item.state==='recycle_pending');
+    const state=attention?'attention':pending?'pending':'completed';
+    options.cleanupStore.record(check,checks,state,state==='completed'?Number.MAX_SAFE_INTEGER:now()+retryMs);
+    return {kind:'cleanup_checked',shelfEntryId:check.shelf_entry_id,state};
+  }
   async function tick(){
     if(busy)return {kind:'busy'};busy=true;
     try{
@@ -68,22 +104,8 @@ function createRecycleApplication(options){
       const row=rows.filter(row=>['pending','moving','restoring','purging'].includes(row.state)&&now()>=(retryAfter.get(row.recycle_entry_id)||0))
         .sort((a,b)=>Number(a.created_at_ms)-Number(b.created_at_ms))[0];
       if(!row){
-        if(options.listEntryPage&&now()>=discoveryAfter){
-          const page=options.listEntryPage(discoveryCursor,1);
-          if(!page.length){discoveryCursor=null;discoveryAfter=now()+24*60*60*1000;}
-          else{
-            const entry=page[0];discoveryCursor=entry.cursor;
-            const scope=options.readScope(entry.scope.shelfEntryId),candidates={items:[]};
-            for(const source of (scope?.knownSourceDirectories||[]).slice(0,32)){
-              // Automatic discovery does not hash occupied source directories.
-              try{if(await files.present(source)&&await files.emptyDirectory(source))candidates.items.push(await preview(entry.scope.shelfEntryId,source));}
-              catch(error){return {kind:'discovery_blocked',shelfEntryId:entry.scope.shelfEntryId,errorCode:error.code||'ARCA_RECYCLE_IO_FAILED'};}
-            }
-            for(const value of candidates.items.filter(value=>value.manifest?.entries.length===0)){
-              if(!store.list().some(item=>item.source_location===value.sourceLocation&&!['restored','purged'].includes(item.state)))await archive(entry.scope.shelfEntryId,{...value,confirmManifestDigest:value.manifestDigest,idempotencyKey:'empty:'+value.manifestDigest+':'+now()});
-            }
-          }
-        }
+        const check=options.cleanupStore?.next(now());
+        if(check)return await inspectCleanup(check);
         return {kind:'idle'};
       }
       let current=row;
@@ -97,6 +119,13 @@ function createRecycleApplication(options){
       }catch(error){store.recordError(current,error.code||'ARCA_RECYCLE_IO_FAILED');retryAfter.set(row.recycle_entry_id,now()+5*60*1000);return {kind:'blocked',recycleEntryId:row.recycle_entry_id,errorCode:error.code||'ARCA_RECYCLE_IO_FAILED'};}
     }finally{busy=false;}
   }
-  return Object.freeze({list:()=>({items:store.list().sort((a,b)=>Number(b.created_at_ms)-Number(a.created_at_ms)).map(publicRow)}),preview,archive,restore,tick});
+  return Object.freeze({list:(query={})=>{
+    const cursor=query.cleanupCursor||null;
+    if(cursor!==null&&(typeof cursor!=='string'||cursor.length>200))fail('ARCA_RECYCLE_CURSOR_INVALID');
+    const rows=options.cleanupStore?.page(cursor,51)||[],page=rows.slice(0,50);
+    return {items:store.list().sort((a,b)=>Number(b.created_at_ms)-Number(a.created_at_ms)).map(publicRow),
+      cleanupChecks:page.map(row=>({onDeckRunId:row.on_deck_run_id,shelfEntryId:row.shelf_entry_id,state:row.state,checks:row.checks,checkedAtMs:row.check_revision>1?row.updated_at_ms:null})),
+      cleanupNextCursor:rows.length>50?page.at(-1).on_deck_run_id:null};
+  },preview,archive,restore,tick});
 }
 module.exports=Object.freeze({createRecycleApplication});

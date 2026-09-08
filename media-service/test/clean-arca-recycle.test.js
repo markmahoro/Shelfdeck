@@ -7,6 +7,7 @@ const path=require('node:path');
 const Database=require('better-sqlite3');
 const files=require('../src/clean-arca-recycle-port');
 const {createRecycleStore,RETENTION_MS}=require('../src/helix/domains/arca/persistence/recycle-store');
+const {createSourceCleanupStore}=require('../src/helix/domains/arca/persistence/source-cleanup-store');
 const {createRecycleApplication}=require('../src/helix/domains/arca/application/recycle-application');
 const {openSqliteKernel}=require('../src/helix/foundation/persistence/sqlite-kernel');
 const {createSqliteUnitOfWork}=require('../src/helix/foundation/persistence/sqlite-unit-of-work');
@@ -22,13 +23,77 @@ function fixture(testHooks={}){
   const dependencies={schemaManifest,unitOfWork:createSqliteUnitOfWork({kernel}),now:()=>at};
   const store=createRecycleStore(dependencies),port=files.createRecycleEffectPort({...dependencies,testHooks});
   const scope={knownSourceDirectories:[source],scanRoots:[path.join(root,'media')],protectedLocations:[]};
-  const makeApp=()=>createRecycleApplication({root:archiveRoot,store,port,files,now:()=>at,readScope:()=>scope});
-  return {root,source,archiveRoot,scope,store,port,makeApp,setTime:value=>{at=value;},close(){kernel.close();fs.rmSync(root,{recursive:true,force:true});}};
+  const makeApp=(extra={})=>createRecycleApplication({root:archiveRoot,store,port,files,now:()=>at,readScope:()=>scope,...extra});
+  const seedCleanup=()=>{kernel.runPrimitive(({prepare})=>{prepare('INSERT INTO arca_ondeck_runs(on_deck_run_id) VALUES(?)').run('run-1');prepare("INSERT INTO arca_source_cleanup_checks(cleanup_id,on_deck_run_id,shelf_entry_id,state,check_revision,checks_schema_ref,checks_json,created_at_ms,updated_at_ms,next_check_at_ms) VALUES('run-1','run-1','entry-1','pending',1,'helix://contracts/application-types/SourceCleanupChecks/v1','[]',1,1,1)").run();});scope.onDeckRunId='run-1';return createSourceCleanupStore(dependencies);};
+  return {root,source,archiveRoot,scope,store,port,makeApp,seedCleanup,setTime:value=>{at=value;},close(){kernel.close();fs.rmSync(root,{recursive:true,force:true});}};
 }
 async function enqueue(app,source,key='request-1'){
   const preview=await app.preview('entry-1',source);
   return app.archive('entry-1',{sourceLocation:source,manifestDigest:preview.manifestDigest,confirmManifestDigest:preview.manifestDigest,idempotencyKey:key});
 }
+
+test('new committed cleanup survives restart, archives only an empty directory, and retains a user restore',async()=>{
+  const f=fixture();try{
+    fs.unlinkSync(path.join(f.source,'poster.jpg'));const cleanupStore=f.seedCleanup();
+    let app=f.makeApp({cleanupStore});assert.equal((await app.tick()).kind,'cleanup_checked');
+    assert.equal(fs.existsSync(f.source),true);assert.equal(cleanupStore.page()[0].state,'pending');
+    app=f.makeApp({cleanupStore});assert.equal((await app.tick()).kind,'completed');
+    assert.equal(fs.existsSync(f.source),false);
+    const archived=f.store.list()[0];await app.restore(archived.recycle_entry_id);await app.tick();
+    f.setTime(100000000+5*60*1000+1);await app.tick();
+    assert.equal(cleanupStore.page()[0].checks[0].state,'retained_after_restore');
+    assert.equal(cleanupStore.page()[0].state,'completed');assert.equal(fs.existsSync(f.source),true);
+  }finally{f.close();}
+});
+
+test('occupied cleanup is durably pending confirmation without hashing or creating a recycle effect',async()=>{
+  const f=fixture();try{
+    const cleanupStore=f.seedCleanup(),app=f.makeApp({cleanupStore,files:{...files,snapshot(){throw new Error('Must not hash occupied directories.');}}});
+    assert.equal((await app.tick()).state,'attention');assert.equal(cleanupStore.page()[0].checks[0].state,'awaiting_confirmation');
+    assert.equal(f.store.list().length,0);assert.equal(fs.readFileSync(path.join(f.source,'poster.jpg'),'utf8'),'historical artwork');
+    assert.equal((await f.makeApp({cleanupStore}).tick()).kind,'idle');
+    assert.equal(f.makeApp({cleanupStore}).list().cleanupChecks[0].state,'attention');
+  }finally{f.close();}
+});
+
+test('a file appearing after the empty check never acquires automatic confirmation',async()=>{
+  const f=fixture();try{
+    fs.unlinkSync(path.join(f.source,'poster.jpg'));const cleanupStore=f.seedCleanup();
+    const app=f.makeApp({cleanupStore,files:{...files,async emptyDirectory(source){fs.writeFileSync(path.join(source,'new.txt'),'keep');return true;}}});
+    await app.tick();assert.equal(cleanupStore.page()[0].checks[0].state,'awaiting_confirmation');
+    assert.equal(f.store.list().length,0);assert.equal(fs.readFileSync(path.join(f.source,'new.txt'),'utf8'),'keep');
+  }finally{f.close();}
+});
+
+test('cleanup retains protected locations, records exact errors, and retries a failed observation after restart',async()=>{
+  const f=fixture();try{
+    const cleanupStore=f.seedCleanup();let failOnce=true;
+    const app=f.makeApp({cleanupStore,files:{...files,async emptyDirectory(source){if(failOnce){failOnce=false;throw Object.assign(new Error('denied'),{code:'EACCES'});}return files.emptyDirectory(source);}}});
+    await app.tick();assert.equal(cleanupStore.page()[0].checks[0].errorCode,'EACCES');
+    assert.equal((await f.makeApp({cleanupStore}).tick()).kind,'idle');
+    f.scope.protectedLocations.push(path.join(f.source,'poster.jpg'));f.setTime(100000000+5*60*1000+1);
+    await f.makeApp({cleanupStore}).tick();assert.equal(cleanupStore.page()[0].checks[0].state,'retained_in_use');
+    assert.equal(f.store.list().length,0);
+  }finally{f.close();}
+});
+
+test('historical Entries without an atomic cleanup responsibility are never automatically archived',async()=>{
+  const f=fixture();try{
+    fs.unlinkSync(path.join(f.source,'poster.jpg'));
+    const app=f.makeApp({listEntryPage:()=>[{cursor:'entry-1',scope:{shelfEntryId:'entry-1'}}]});
+    assert.equal((await app.tick()).kind,'idle');assert.equal(fs.existsSync(f.source),true);assert.equal(f.store.list().length,0);
+  }finally{f.close();}
+});
+
+test('a pending asynchronous directory check excludes overlapping reconciler ticks',async()=>{
+  const f=fixture();try{
+    const cleanupStore=f.seedCleanup();let entered,release;
+    const started=new Promise(resolve=>{entered=resolve;}),gate=new Promise(resolve=>{release=resolve;});
+    const app=f.makeApp({cleanupStore,files:{...files,async emptyDirectory(){entered();await gate;return false;}}});
+    const first=app.tick();await started;assert.equal((await app.tick()).kind,'busy');
+    release();assert.equal((await first).kind,'cleanup_checked');assert.equal(cleanupStore.page()[0].check_revision,2);
+  }finally{f.close();}
+});
 
 test('archive physically moves the exact directory; a restarted application restores it and permits a new generation',async()=>{
   const f=fixture();try{

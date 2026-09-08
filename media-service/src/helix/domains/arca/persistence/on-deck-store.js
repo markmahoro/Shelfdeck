@@ -18,6 +18,8 @@ const {
   parseArcaMaterialEpisodeClaims,
 } = require('../model/material-episode-claims');
 
+const {seedStatement: cleanupSeedStatement}=require('./source-cleanup-store');
+
 const RESULT_SCHEMA = 'helix://contracts/types/OnDeckCommitResult/v1';
 const RECEIPT_SCHEMA = 'helix://contracts/types/OnDeckCommitReceipt/v1';
 const COMPLETION_SCHEMA = 'helix://contracts/types/OffloadCompletionFact/v1';
@@ -171,6 +173,7 @@ function arcaDefinition(schemaManifest) {
     owner: 'arca',
     schemaManifest,
     statements: {
+      insert_source_cleanup: cleanupSeedStatement,
       find_run: {
         kind: 'select-one',
         tableId: 'arca_ondeck_runs',
@@ -1092,6 +1095,11 @@ function createOnDeckStore(options) {
           current_deck_fact_revision: deckFactRevision,
           created_at_ms: context.commitTimeMs,
           terminal_at_ms: null,
+        });
+        repo.invoke('insert_source_cleanup', {
+          cleanup_id:request.onDeckRunId,on_deck_run_id:request.onDeckRunId,shelf_entry_id:shelfEntryId,state:'pending',
+          check_revision:1,checks_schema_ref:'helix://contracts/application-types/SourceCleanupChecks/v1',checks_json:'[]',created_at_ms:context.commitTimeMs,
+          updated_at_ms:context.commitTimeMs,next_check_at_ms:context.commitTimeMs,
         });
         repo.invoke('insert_identity', {
           shelf_entry_id: shelfEntryId,

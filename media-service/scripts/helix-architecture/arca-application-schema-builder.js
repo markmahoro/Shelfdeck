@@ -41,6 +41,16 @@ function arcaMaterialEpisodeClaims() {
 function buildArcaApplicationSchemas() {
   return Object.freeze({
     ArcaMaterialEpisodeClaims: arcaMaterialEpisodeClaims(),
+    SourceCleanupChecks: {
+      $schema:DRAFT,$id:typeId('SourceCleanupChecks'),title:'SourceCleanupChecks@1',
+      'x-helix-ssotRefs':['8.5.14'],'x-helix-maxCanonicalBytes':65536,
+      type:'array',maxItems:32,items:object({
+        state:{enum:['absent','archived','recycle_pending','awaiting_confirmation','retained_in_use','retained_after_restore','blocked']},
+        sourceLocation:{type:'string',minLength:1,maxLength:4096},
+        recycleEntryId:{type:'string',minLength:1,maxLength:200},
+        errorCode:{type:['string','null'],maxLength:256},
+      },['state']),
+    },
   });
 }
 

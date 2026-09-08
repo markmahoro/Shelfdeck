@@ -881,6 +881,25 @@ CREATE TABLE "arca_shelves" (
 );
 CREATE INDEX "idx_arca_shelves_hot_01" ON "arca_shelves" ("status", "shelf_id");
 
+CREATE TABLE "arca_source_cleanup_checks" (
+  "cleanup_id" TEXT PRIMARY KEY,
+  "on_deck_run_id" TEXT,
+  "shelf_entry_id" TEXT,
+  "state" TEXT CHECK ("state" IN ('pending', 'attention', 'completed')),
+  "check_revision" INTEGER CHECK ("check_revision" >= 1),
+  "checks_schema_ref" TEXT,
+  "checks_json" TEXT,
+  "created_at_ms" INTEGER CHECK ("created_at_ms" >= 0),
+  "updated_at_ms" INTEGER CHECK ("updated_at_ms" >= 0),
+  "next_check_at_ms" INTEGER CHECK ("next_check_at_ms" >= 0),
+  UNIQUE ("on_deck_run_id"),
+  CHECK (json_valid("checks_json")),
+  CHECK (length(CAST("checks_json" AS BLOB)) <= 65536),
+  FOREIGN KEY ("on_deck_run_id") REFERENCES "arca_ondeck_runs" ("on_deck_run_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("shelf_entry_id") REFERENCES "arca_shelf_entries" ("shelf_entry_id") ON DELETE RESTRICT
+);
+CREATE INDEX "idx_arca_source_cleanup_checks_hot_01" ON "arca_source_cleanup_checks" ("next_check_at_ms", "on_deck_run_id");
+
 CREATE TABLE "fx_artifact_references" (
   "artifact_handle_id" TEXT,
   "consumer_domain" TEXT,
