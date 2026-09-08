@@ -54,15 +54,15 @@ test('Material Fields shows Procurement handoff accounting beside Libra admissio
   assert.match(page, /保存时会检查目录是否存在、可读/);
   assert.match(labels, /已扫描完成/);
   assert.match(labels, /扫描失败/);
-  assert.match(page, /Procurement 交接账本/);
+  assert.match(page, /媒体包/);
   assert.match(page, /已生成媒体包/);
-  assert.match(page, /等待 Libra 接收/);
+  assert.match(page, /等待进入整理/);
   assert.match(page, /已经接收的媒体会继续整理/);
   assert.match(page, /注销文件来源/);
   assert.match(api, /actions\/deregister/);
   assert.match(api, /observationScan/);
   assert.doesNotMatch(page, />删除文件来源</);
-  assert.doesNotMatch(page, /Candidate Package|Handoff A|已交给整理|已发现电影/);
+  assert.doesNotMatch(page, /Candidate Package|Handoff A|Procurement 交接账本|等待 Libra 接收|已发现电影/);
   assert.match(api, /actions\/observe/);
   assert.match(runtime, /active-material-fields/);
   assert.match(api, /operationRef/);

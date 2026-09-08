@@ -15,3 +15,6 @@ Product Identity提交后，Coordinator通过既有Acceptance Spec Coordinator�
 - 17项定向测试PASS：弱到正式目标、真实Provider/year、摘要损坏拒绝；既有Spec输入测试证明身份变化不改变语义输入、同评分不同来源不改变要求、评分变化会改变输入。
 - 首轮219个architecture fixture文件与全部Gate PASS；最终复跑全部静态Gate通过；219文件并行回归有1项service health timeout，单独复跑该入口文件14 PASS/3 SKIP（启动/认证/关闭通过）。未把超时隐藏为全套PASS。
 - 未用生产Reset验证；旧冻结Run保持原状态。仍缺真实评分命中、具体Acceptance要求变化、合法Run replacement及最终上架全链路，不能据上述模型测试关闭。
+
+
+后续服务全量回归识别并修复异步续跑缺口：正式身份触发的新Perception Resolution返回相同5星/相同Acceptance要求时，不生成新Spec Work，原Run等待缺少完成唤醒。Perception完成通知只针对该Subject调用既有Libra Acceptance/Run Creator/Run Coordinator；是否替换仍由Libra按合同决定。原外部寻源全链路用例独立重跑仍失败，修复后约4秒通过，验证100候选选择后的实际媒体拒绝保持原有限停止规则。未用延长超时或Reset掩盖问题，未移动评分/Spec归属。此前架构门禁不足以发现此跨事件缺口，发布必须包含本次修正。

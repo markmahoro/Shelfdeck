@@ -46,3 +46,5 @@ UAT-250：《活着》原Query在一致性副本上只读重放，当前100候�
 统一发布准备：a56753f7c6候选完成标准build/upload/SHA校验/dry-run与Linux隔离启动/API smoke；tar SHA256=e13dab8c2ff4fea5a009ab269714dabdb0e688a3d61b845c09ed5ed290a82baa，尚不含随后UAT-250预算修复。17:04一致性备份位于NAS backups/uat-iteration-20260908-a56753f7c6-r2，DB SHA256=e699447a167085170474724f6248b9c9422a5c5bef168dccbb2df9cdb637614f；保留Compose、凭据文件及加密integration envelopes。未执行deploy --apply，生产仍6e37bf5679；17:19黑寡妇转码12.3%，不强制重启。林肯律师离开在办不等于已证明成功，沙丘新冻结须另查原因。
 
 UAT-251终态展示已本地修正：移除默认放弃再采购提示，Provider技术失败不再被旧空候选结果遮盖；36项Formation测试通过。内部Run状态及重新处理合同未改变，仍未关闭。
+
+服务全量首轮520测试：496通过、18跳过、6失败。5项为UAT-212/文案旧断言，另1项为UAT-217正式身份评分重算后同要求不生成Spec Work、Run缺少续跑通知；已修复精确Subject通知，独立真实媒体链路通过，准备全量复验。UAT-214 NFO人物解析19项通过，尚未接入投影/记录更新，不算交付完成。

@@ -241,7 +241,7 @@ test('Formation process projection treats a completed compliance check as comple
   ]);
   assert.deepEqual(currentPlanSummary(detail),{
     stageKey:'media_organization',planId:'plan-14',planNumber:14,title:'处理媒体文件',
-    label:'计划14 处理媒体文件',state:'running',statusText:'等待处理资源',progress:null,
+    label:'处理视频文件',state:'running',statusText:'等待处理资源',progress:null,
   });
 });
 
@@ -275,7 +275,8 @@ test('Formation business stage does not complete merely because every currently 
   const organization=preparing.stages.find((stage)=>stage.key==='media_organization');
   assert.equal(organization.state,'running');
   assert.equal(organization.summary,'已有 1 个实际计划完成，等待本阶段继续推进');
-  assert.equal(currentPlanSummary(preparing),null);
+  assert.equal(currentPlanSummary(preparing).state,'completed');
+  assert.equal(currentPlanSummary(preparing).label,'接收整理材料');
 
   const accepted=buildFormationProcessDetail({...input,businessStageStates:businessStageStates({mediaOrganization:'completed'})});
   assert.equal(accepted.stages.find((stage)=>stage.key==='media_organization').state,'completed');
@@ -318,7 +319,7 @@ test('Formation current Plan follows a completed successor while preserving an e
   assert.deepEqual(shelving.plans.map((plan)=>plan.state),['attention','completed']);
   assert.deepEqual(currentPlanSummary(detail),{
     stageKey:'acceptance_shelving',planId:'arca-plan-succeeded',planNumber:2,title:'将媒体写入收藏架',
-    label:'计划2 将媒体写入收藏架',state:'completed',statusText:'已完成',progress:null,
+    label:'完成上架',state:'completed',statusText:'已完成',progress:null,
   });
 });
 
@@ -334,7 +335,7 @@ test('Formation current Plan keeps an unresolved failed Work as attention when n
   assert.equal(shelving.state,'attention');
   assert.deepEqual(currentPlanSummary(detail),{
     stageKey:'acceptance_shelving',planId:'arca-plan-attention',planNumber:1,title:'将媒体写入收藏架',
-    label:'计划1 将媒体写入收藏架',state:'attention',statusText:'执行失败',progress:null,
+    label:'写入媒体产品',state:'attention',statusText:'执行失败',progress:null,
   });
 });
 

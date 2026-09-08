@@ -937,7 +937,13 @@ function createProcurementExecutionRuntime(options) {
           // revision, then immediately issue the next basis revision before
           // asking Libra to evaluate its Acceptance Spec.
           perceptionProcessServices.ensureResolution('subject',subjectId);
-          libraProcessServices.acceptanceSpecCoordinator.reconcile(subjectId);
+          const spec = libraProcessServices.acceptanceSpecCoordinator.reconcile(subjectId);
+          if (spec.kind === 'terminal') {
+            // A formal-identity rating refresh can retain the same requirements.
+            // There is then no new Spec Work completion to resume the waiting Run.
+            const run = libraProcessServices.libraRunCreator.reconcile(subjectId);
+            if (run.libraRunId) libraProcessServices.libraRunCoordinator.reconcile(run.libraRunId);
+          }
           options.onFormationSubjectChanged?.(subjectId);
         }
         if(request.processId.startsWith('shelf_entry:')){
