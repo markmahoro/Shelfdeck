@@ -31,3 +31,10 @@
 基础快照和 Binding 当前已部署；此次 UI 修正未包含在 d24f13b3db 候选，必须重新绑定提交构建后再做生产浏览器验收。旧生产 Case 缺历史证据仍明确未知，不为验收新建生产故障或修改影片。本项尚未关闭；251未决的修复意图仍单独开放。
 
 原始本地材料：`.codex/uat213-real-objective-chain.log`、`.codex/uat213-real-case-projection.json`（真实隔离 Host DTO）、`.codex/uat213-objective-web.log`、`.codex/uat213-objective-build.log`。未修改生产数据。
+
+
+## 2026-09-09 01:31 发布证据对齐，UAT-213关闭
+
+生产55个维护Case全部为未保存目标的历史记录，GET与实际霍比特人详情均明确历史未知、未倒填当前规则。因此不通过制造新生产损坏来验证新Case。已有真实Host新Case→NFO/海报修复→Target迁移→重启链70.97秒已证明完整JSON不变、新旧revision与Placement隔离；此次使用该真实Case DTO在浏览器打开详情，显示NFO资料、海报、演员、导演、类型、简介、片名、TMDB身份及年份等冻结目标。该浏览器加载的构建JS与当前生产7608c517cd资产逐字节SHA256相同：`231214b6f6fadd6f31b760c5760083f27ddda3d23fd0c163774da0dfaae3ca2d`。不是模拟业务结果后宣称生产新Case成功。
+
+既有65 Web/构建、创建负向、Target真实链、Linux及标准生产发布全部已核对，发布UI缺口闭合，独立213关闭。生产新建Case场景未人为执行，依赖隔离真实Host与相同生产构建证明；251新增手动修复意图仍归251，不将其计为213未完成。资产对齐记录`.codex/uat213-production-asset-parity.json`，生产Case只读统计`uat213-production-objectives.json`。
