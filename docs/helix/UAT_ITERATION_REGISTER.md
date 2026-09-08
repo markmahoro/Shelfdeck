@@ -228,7 +228,7 @@
 | UAT-216 | 已上架电影旧目录存量治理 | 当前迭代 | 存量待处置 | PROD-073 | 见证据 | [PROD-073原记录](PRODUCTION_DEPLOY_ISSUE_LOG.md) | 刷新逐文件清单后另行授权，种子/sample/另一1080p分开；Top Gun定向操作不关闭自动流程。执行B5；依赖/承接：215流程独立验；精确新授权。 |
 | UAT-217 | 正式影片身份形成后的评分与Acceptance重算 | 当前迭代 | 本地修正，待全链路验收 | PROD-074；BR-01 | 本轮提交见Evidence | [正式身份评分修正](implementation/evidence/UAT-217_FORMAL_IDENTITY_RATING_20260908.md) | 正式身份Target与生产前Resolution已修正；17定向PASS，要求未变不重做。仍须真实评分命中→要求变化→合法Run接续→上架验收；不Reset旧冻结项。执行B2；关联079/060/251。 |
 | UAT-218 | Aftercare与Libra转码码率质量保护对齐 | 当前迭代 | 本地修正，待实测验收 | PROD-075；BR-02 | 本轮提交见Evidence | [质量保护对齐](implementation/evidence/UAT-218_AFTERCARE_QUALITY_FLOOR_20260908.md) | 画幅/空间档位与真实源码率保护已对齐，47定向PASS；仍需隔离真实转码、超限拒绝、失败保原片及部署验收。执行B1；251仅修复终局与重新进入部分依赖。 |
-| UAT-219 | 中文标签字距与字号一致性 | 当前迭代 | 待核实 | PROD-076；UX-023 | 见证据 | [PROD-076原记录](PRODUCTION_DEPLOY_ISSUE_LOG.md)；[UX-023同结果记录](ADMIN_WEB_UX_ISSUE_LOG.md) | 真实中文层级核查字号/字距后克制修正，响应式浏览器证据。执行B4；依赖/承接：239基础；212整合后。 |
+| UAT-219 | 中文标签字距与字号一致性 | 当前迭代 | 本地修正及响应式验收通过，待发布复验 | PROD-076；UX-023 | 未部署 | [字体及标签证据](implementation/evidence/UAT-219_239_TYPOGRAPHY_20260908.md) | 真实中文层级核查字号/字距后克制修正，响应式浏览器证据。执行B4；依赖/承接：239基础；212整合后。 |
 | UAT-220 | 统一UAT总表、逐项证据对账与工程规则整理 | 当前迭代 | 已关闭（文档验收） | PROD-077；PROD-078 | 1d5226327 | [覆盖与检查证据](implementation/evidence/UAT-220_REGISTER_CONSOLIDATION_20260908.md)；治理前序提交1d5226327 | 无；功能现场验证仍由各自UAT逐项推进 |
 | UAT-221 | 侧栏「收藏运营台」「本地 Projection」对用户无意义 | UI / `COPY_REDUNDANT` | 历史已实现，待验收核对 | UX-003 | 见证据 | [UX-003原记录（按标题）](ADMIN_WEB_UX_ISSUE_LOG.md) | 侧栏只表达导航，删除收藏运营台/本地Projection主文案，八页真实打开核对。执行B4；依赖/承接：无；关联058/142。 |
 | UAT-222 | 文件来源把候选包、访问合同、Observation、Handoff A 当作主文案 | UI / `COPY_INTERNAL` | 历史已实现，待验收核对 | UX-004 | 见证据 | [UX-004原记录（按标题）](ADMIN_WEB_UX_ISSUE_LOG.md) | 来源状态用用户动作表达，候选/Observation/Handoff不作主文案，真实分拣状态可理解。执行B4；依赖/承接：146。 |
@@ -248,7 +248,7 @@
 | UAT-236 | 收藏详情「退出收藏」区域与 `sr-only` 缺少样式 | UI / `LAYOUT` | 历史已实现，待验收核对 | UX-019 | 见证据 | [UX-019原记录（按标题）](ADMIN_WEB_UX_ISSUE_LOG.md) | 收藏详情退出区域与辅助文本样式可访问，回收站只在设置。执行B3；依赖/承接：212；143退出行为。 |
 | UAT-237 | 登录会话在八页各自复制，文案和布局不一致 | UI / `LAYOUT` | 历史已实现，待验收核对 | UX-020 | 见证据 | [UX-020原记录（按标题）](ADMIN_WEB_UX_ISSUE_LOG.md) | 八页共用登录会话失效/重新登录提示，切页不重复认证且不存明文密钥。执行B4；依赖/承接：无。 |
 | UAT-238 | 两套 CSS 与一套废弃 `src/pages` 并存 | UI / `LAYOUT` | 历史已实现，待验收核对 | UX-021 | 见证据 | [UX-021原记录（按标题）](ADMIN_WEB_UX_ISSUE_LOG.md) | 核对App引用与构建入口，只有正式样式/页面生效；清理无引用文件留最后阶段。执行B4；依赖/承接：无。 |
-| UAT-239 | 同页混用 Aptos / Inter / Georgia / 系统黑体，字号阶梯过碎 | UI / `TYPOGRAPHY` | 历史已实现，待验收核对 | UX-022 | 见证据 | [UX-022原记录（按标题）](ADMIN_WEB_UX_ISSUE_LOG.md) | 主界面字体族与字号层级统一，保留合理数字/代码字体，不机械全局替换。执行B4；依赖/承接：212整合；239先核对字体基础，与219共同验收。 |
+| UAT-239 | 同页混用 Aptos / Inter / Georgia / 系统黑体，字号阶梯过碎 | UI / `TYPOGRAPHY` | 字体已核实，标签收敛随219待发布复验 | UX-022 | 见证据 | [字体及标签证据](implementation/evidence/UAT-219_239_TYPOGRAPHY_20260908.md) | 主界面字体族与字号层级统一，保留合理数字/代码字体，不机械全局替换。执行B4；依赖/承接：212整合；239先核对字体基础，与219共同验收。 |
 | UAT-240 | 按钮至少八种互不相干的形态 | UI / `BUTTON` | 历史已实现，待验收核对 | UX-024 | 见证据 | [UX-024原记录（按标题）](ADMIN_WEB_UX_ISSUE_LOG.md) | 正常/次要/危险/禁用按钮在八页一致，焦点与窄屏可用。执行B4；依赖/承接：212/143整合。 |
 | UAT-241 | 退出收藏与整理表内按钮退回浏览器默认样式 | UI / `BUTTON` | 历史已实现，待验收核对 | UX-025 | 见证据 | [UX-025原记录（按标题）](ADMIN_WEB_UX_ISSUE_LOG.md) | 退出与整理表内按钮不用浏览器默认样式，真实点击/禁用/确认验收。执行B4；依赖/承接：143/212。 |
 | UAT-242 | 收藏墙逐张拉海报，详情再打健康与评分接口 | UI / `PERFORMANCE` | 历史已实现，待验收核对 | UX-026 | 见证据 | [UX-026原记录（按标题）](ADMIN_WEB_UX_ISSUE_LOG.md) | 海报与详情请求有界，翻页替换/旧请求迟到保护，两页真实浏览器性能保留。执行B3；依赖/承接：212分页主项。 |
