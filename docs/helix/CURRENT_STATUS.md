@@ -28,3 +28,5 @@ UAT-213建单目标Evidence、UAT-214人物观察仍未实现；UAT-217/218支�
 ### 2026-09-08 迭代本地整合补充
 
 UAT-213创建时有效目标快照dcbcc8314；UAT-212收藏分页7f80831c2、实际动作6b7486d43及统一有界整理分页完成本地回归。218个architecture fixture文件与全部Gate、Web53项、Web build通过；本地Edge合成场景翻页/刷新/跨页筛选/详情通过。以上未部署、未新增验收关闭。生产林肯律师73%转码与黑寡妇等待资源仍受保护，活着仍保留P5_PROVIDER_RESPONSE_INVALID原失败。NASpreflight正常，准备干净检出构建，不能因当前在飞工作未结束而强行打断。
+
+UAT-144现有生产普通HTTP来源/收藏架页已实际导航验收，无randomUUID定向回归通过，按原问题边界单项关闭；UAT-145保存与146来源进度保持开放。详见UAT-144_HTTP_PAGE_ACCEPTANCE_20260908.md。
