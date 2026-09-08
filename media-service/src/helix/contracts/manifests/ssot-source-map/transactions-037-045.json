@@ -38,11 +38,11 @@
     {
       "id": "Inventory Record Refresh Commit",
       "owner": "arca",
-      "atomicFactSet": "Arca RefreshInventoryRecords内部命令 + exact current Inventory/Basis及bounded Observation fence + unchanged accepted Facts/Media-Cast relations的新Inventory revision + known non-primary Binding变更 + precise Control acquire/release + InventoryRecordRefreshReceipt/Command Receipt/commit marker/audit；没有物理文件写入、Case、Event Result或Outbox；active Case或Off-deck Reservation阻止提交，同输入重放原Receipt",
+      "atomicFactSet": "Arca记录更新内部命令 + exact current Inventory/Basis及bounded Observation fence + unchanged accepted Facts的新Inventory revision；Binding刷新保持Media-Cast不变并精确Control acquire/release；人物记录刷新按6.6.2.1消费People只读确定性证明，仅改对应person relation snapshot，保留材料/Binding/Control/Canonical Identity，Receipt保存证明revision/digest且不跨Owner事务；两种变体均写InventoryRecordRefreshReceipt/Command Receipt/commit marker/audit，没有物理文件写入、Case、Event Result或Outbox；active Case或Off-deck Reservation阻止提交，同输入重放原Receipt",
       "source": {
         "section": "8.5.4",
         "line": 8710,
-        "lineDigest": "d57cefacd889c20490af8c897a24c7f08e1593d36cdb7261734fabe4c1984262"
+        "lineDigest": "b77734cff233865f33e841a861d886a624c9c83acd45a3f02ac49f8ef43c635b"
       }
     },
     {

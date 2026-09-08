@@ -19,7 +19,9 @@ const testFiles = fs.readdirSync(testDirectory)
   .sort()
   .map((name) => path.join(testDirectory, name));
 
-const fixtureRun = childProcess.spawnSync(process.execPath, ['--test', ...testFiles], {
+// Bound simultaneous SQLite/child-process fixtures so host CPU oversubscription
+// does not consume service startup deadlines before the child can run.
+const fixtureRun = childProcess.spawnSync(process.execPath, ['--test', '--test-concurrency=4', ...testFiles], {
   cwd: serviceRoot,
   encoding: 'utf8',
   maxBuffer: 10 * 1024 * 1024,

@@ -81,6 +81,9 @@ function personRegistryDefinition(schemaManifest) {
         'person_id', 'revision', 'person_status', 'canonical_name', 'merged_into_person_id', 'origin_kind', 'origin_decision_id', 'origin_decision_digest', 'origin_candidate_kind', 'origin_candidate_id',
         'origin_candidate_revision', 'origin_candidate_payload_digest', 'fact_digest', 'committed_at_ms'
       ], keyColumns: ['person_id', 'revision'] },
+      find_registration_origin_person: { kind:'select-all', tableId:'people_person_revisions',
+        columns:['person_id','origin_candidate_payload_digest'],
+        keyColumns:['origin_candidate_kind','origin_candidate_id','revision'] },
       insert_alias: { kind: 'insert', tableId: 'people_aliases', columns: [
         'person_id', 'revision', 'alias_normalized', 'alias_display', 'provenance_digest'
       ] },
@@ -763,6 +766,18 @@ function createPeopleStore(options) {
     getRegistrationCandidate(candidateId) {
       return execute([candidates], (context) => mapRegistrationCandidate(context.repository(candidates.repositoryId),
         context.repository(candidates.repositoryId).invoke('find_registration_candidate', { registration_candidate_id: candidateId })), 'people_candidate_store');
+    },
+    findUserAcceptedRegistrationPerson(evidenceDigest) {
+      return execute([candidates,registry], context => {
+        const candidateRepository=context.repository(candidates.repositoryId), personRepository=context.repository(registry.repositoryId);
+        const candidate=mapRegistrationCandidate(candidateRepository,
+          candidateRepository.invoke('find_registration_candidate_by_evidence',{evidence_digest:evidenceDigest}));
+        if (!candidate || candidate.currentState !== 'accepted' || candidate.revision.decisionOrigin !== 'user') return null;
+        const origins=personRepository.invoke('find_registration_origin_person',{
+          origin_candidate_kind:'registration',origin_candidate_id:candidate.candidateId,revision:1});
+        if (origins.length !== 1 || origins[0].origin_candidate_payload_digest !== candidate.candidatePayloadDigest) return null;
+        return mapPerson(personRepository,personRepository.invoke('find_person',{person_id:origins[0].person_id}));
+      },'people_registration_origin_query');
     },
     findRegistrationCandidateByEvidence(evidenceDigest) {
       return execute([candidates], (context) => {

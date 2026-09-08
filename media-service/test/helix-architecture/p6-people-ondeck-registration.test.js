@@ -230,3 +230,22 @@ test('UAT-214 consumes bounded Arca NFO evidence and does not re-register unchan
   assert.equal(store.listPeople().length,1);assert.equal(store.listRegistrationCandidates().length,2);
   clock+=600001;people.reconcileNfoEntry(scope);assert.equal(reads,3);
 }));
+
+
+test('UAT-214 resolves only exact provider namespace or user-accepted origin, never a shared name', () => fixture(({store,unitOfWork,schemaManifest}) => {
+  const people=createPeopleProcessServices({schemaManifest,unitOfWork,peopleStore:store});
+  const person=people.registerPerson({personId:'person-exact',canonicalName:'Shared Name',
+    providerIdentities:[{provider:'tmdb',namespace:'person',providerKey:'10'}]},'admin');
+  const input={personId:null,providerIdentities:[{provider:'tmdb',namespace:'person',providerKey:'10'}],evidenceDigest:canonicalDigest({origin:'missing'})};
+  const exact=people.mediaCastReferenceQuery.resolve(input);
+  assert.equal(exact.kind,'resolved');assert.equal(exact.personId,person.personId);assert.equal(exact.reasonCode,'exact_provider_identity');
+  assert.equal(exact.personRevision,1);assert.equal(exact.personFactDigest,person.revision.factDigest);
+  assert.equal(people.mediaCastReferenceQuery.resolve({...input,providerIdentities:[{provider:'tmdb',namespace:'movie',providerKey:'10'}]}).kind,'unresolved');
+  const evidenceDigest=canonicalDigest({origin:'weak'});
+  const candidate=people.reconcile({displayName:'Shared Name',shelfEntryId:'entry',inventoryRevision:1,providerIdentities:[],identityStrength:'weak',evidenceDigest});
+  assert.equal(people.mediaCastReferenceQuery.resolve({...input,providerIdentities:[],evidenceDigest}).kind,'unresolved');
+  const accepted=people.acceptRegistration({candidateId:candidate.candidateId},'admin');
+  const linked=people.mediaCastReferenceQuery.resolve({...input,providerIdentities:[],evidenceDigest});
+  assert.equal(linked.kind,'resolved');assert.equal(linked.personId,accepted.personId);assert.equal(linked.reasonCode,'accepted_origin_evidence');
+  assert.equal(people.mediaCastReferenceQuery.resolve({...input,providerIdentities:[],evidenceDigest:canonicalDigest({origin:'different'})}).kind,'unresolved');
+}));

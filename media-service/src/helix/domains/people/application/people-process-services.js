@@ -1,6 +1,7 @@
 'use strict';
 
 const { canonicalDigest } = require('../../../contracts/canonical-json');
+const { createMediaCastReferenceQuery } = require('./media-cast-reference-query');
 const { createPeopleStore } = require('../persistence/people-store');
 const { createCandidateDraft } = require('../model/people-store-contracts');
 
@@ -193,6 +194,7 @@ function createPeopleProcessServices(options) {
   return Object.freeze({
     listNfoPage:({cursor,limit}) => options.onDeckNfoPersonEvidence?.listPage({cursor,limit}) || [],
     reconcileNfoEntry,
+    mediaCastReferenceQuery:createMediaCastReferenceQuery(store),
     store,
     listPage,
     reconcile,

@@ -4,6 +4,7 @@ const { readCareObjective } = require('../model/care-objective');
 const { canonicalDigest, canonicalJson } = require('../../../contracts/canonical-json');
 const { createRepositoryDefinition } = require('../../../foundation/persistence/owner-repository');
 const { appendInventoryRevision } = require('./inventory-revision-writer');
+const { createPersonRecordRefreshStore } = require('./person-record-refresh-store');
 const { createInventoryRecordRefreshStore } = require('./inventory-record-refresh-store');
 const { createCareWorkStore } = require('./care-work-store');
 const { createAftercareWorkspaceStore } = require('./aftercare-workspace-store');
@@ -281,6 +282,7 @@ function createAftercareStore(options) {
   function listEntryPage(cursor,limit=100){const bounded=Math.max(1,Math.min(500,Number(limit)||100));return read((context)=>context.repository(arca.repositoryId).invoke('page_active_entries',{status:'active',rangeStart:'',rangeEnd:'\uffff',cursor,limit:bounded}).map((x)=>Object.freeze({cursor:x.shelf_entry_id,scope:Object.freeze({shelfEntryId:x.shelf_entry_id})})));}
   return Object.freeze({currentContext,recycleProtection,inventoryMaterials,commitAssessmentSet,createCase,admitCase,listCases,workDisplay,caseEvidence,listShelfEntryIds,terminateCase,getCase,
     refreshInventoryRecords:recordRefresh.commit,
+    refreshInventoryPersonRecords:createPersonRecordRefreshStore(options,arca).commit,
     listWorkCases:careWork.list,
     getSettlementApproval,issueSettlementApproval,consumeSettlementApproval,staleSettlementApprovals,
     commitInventory,history,healthProjectionInputs,listEntryPage,

@@ -1,6 +1,6 @@
 'use strict';
 
-const { canonicalDigest } = require('../../../contracts/canonical-json');
+const { relationEvidenceDigest } = require('../model/on-deck-person-evidence');
 const { createRepositoryDefinition } = require('../../../foundation/persistence/owner-repository');
 
 function parseJson(value) {
@@ -11,21 +11,6 @@ function parseJson(value) {
   } catch (_error) {
     return [];
   }
-}
-
-function relationEvidenceDigest(value) {
-  return canonicalDigest({
-    schema: 'arca.ondeck-person-evidence@1',
-    shelfEntryId: value.shelfEntryId,
-    inventoryRevision: value.inventoryRevision,
-    relationId: value.relationId,
-    relationDigest: value.relationDigest,
-    originEvidenceDigest: value.originEvidenceDigest || null,
-    displayName: value.displayName || null,
-    displayNameNormalized: value.displayNameNormalized || null,
-    role: value.role || null,
-    providerIdentities: value.providerIdentities,
-  });
 }
 
 function createOnDeckPersonEvidenceProjection(options) {

@@ -444,6 +444,13 @@ const definitions = Object.freeze({
   },
   'Inventory Record Refresh Commit': {
     commitClass:'responsibility_control_commit',eventResultRequired:false,
+    variants:[{variantId:'arca_person_records@1',exactOverride:true,
+      selector:{selectorKind:'owner_command_exact',commandContract:'arca.inventory.person-records.refresh@1'},
+      writeTables:['arca_inventory_representations','arca_inventory_materials','arca_inventory_related_references',
+        'arca_inventory_product_facts','arca_inventory_person_relations','arca_shelf_entries','fx_command_receipts','fx_commit_markers','fx_audit_records'],
+      readTables:['arca_aftercare_cases','arca_offdeck_reservations','arca_shelves'],dynamicTableRequirements:[],hasOutbox:false,
+      fixtureRefs:['aftercare-basis-inventory','command-idempotency'],
+      rollbackInvariant:'Exact relation proof, current Inventory/Basis, revision, or active-modification fence failure leaves no revision, receipt, marker, or audit; no file, Control, Case, or People Store is modified.'}],
     writeTables:['arca_inventory_representations','arca_inventory_materials','arca_inventory_related_references',
       'arca_inventory_product_facts','arca_inventory_person_relations','arca_shelf_entries',
       'fx_material_controls','fx_material_control_revisions','fx_command_receipts','fx_commit_markers','fx_audit_records'],

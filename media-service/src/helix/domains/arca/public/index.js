@@ -13,6 +13,7 @@ const { createAcceptanceAssessmentPlanner, createAcceptanceCommitPlanner,
 const { createOnDeckProjections } = require('../planning/on-deck-projections');
 const { createAftercareContextReader } = require('../application/aftercare-context-reader');
 const { createAftercareProcessCoordinator } = require('../application/aftercare-process-coordinator');
+const { createInventoryPersonRecordRefresh } = require('../application/inventory-person-record-refresh');
 const { createInventoryRecordRefresh } = require('../application/inventory-record-refresh');
 const { createAftercareCapabilityPorts } = require('../capabilities/aftercare-capability-ports');
 const { createAftercareCapabilityRegistrations } = require('../capabilities/aftercare-execution-registrations');
@@ -86,7 +87,8 @@ function createArcaExecutionRegistration() {
       const aftercareContextReader=options.aftercareContextReader||createAftercareContextReader(options);
       const recordRefresh=createInventoryRecordRefresh({...options,contextReader:aftercareContextReader});
       const aftercareCoordinator=createAftercareProcessCoordinator({...options,contextReader:aftercareContextReader,
-        refreshInventoryRecords:recordRefresh.refresh});
+        refreshInventoryRecords:recordRefresh.refresh,
+        refreshPersonRecords:createInventoryPersonRecordRefresh({...options,contextReader:aftercareContextReader}).refresh});
       const offdeckContextReader=options.offdeckContextReader||createOffdeckContextReader({...options,
         readAftercareHealth:options.readAftercareHealth||((shelfEntryId)=>{const value=aftercareCoordinator.project(shelfEntryId);return value?Object.freeze({...value,ageDays:Math.max(0,((options.now||Date.now)()-value.updatedAtMs)/86_400_000)}):undefined;})});
       const shelfDeregistrationContextReader=options.shelfDeregistrationContextReader||createShelfDeregistrationContextReader(options);

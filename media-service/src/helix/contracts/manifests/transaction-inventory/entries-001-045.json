@@ -1146,7 +1146,7 @@
       "sourceLocator": {
         "section": "8.5.4",
         "line": 8710,
-        "lineDigest": "d57cefacd889c20490af8c897a24c7f08e1593d36cdb7261734fabe4c1984262"
+        "lineDigest": "b77734cff233865f33e841a861d886a624c9c83acd45a3f02ac49f8ef43c635b"
       },
       "targetLocator": {
         "path": "transaction-contracts/helix.transaction.inventory-record-refresh-commit/v1/contract.json"
@@ -1155,11 +1155,11 @@
         "transactionId": "helix.transaction.inventory-record-refresh-commit",
         "ownerScope": "arca",
         "contractRef": "helix://contracts/transactions/helix.transaction.inventory-record-refresh-commit/v1",
-        "contractDigest": "9e33fc3300d2c89066010f2ebfc75bac135eb99560a5ffa372c6f9cce0bf88e2"
+        "contractDigest": "852854acb4d5a6846762233d625159c6227ea3a1f07beb337ac3dc9de7b62d92"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "17889d822652e3eee68cfe91fabc03b3565c3eb03499be767cda02f9ae81188f"
+        "value": "c932f6d2b6b9c3c3bff68c20b5fe785cc159205d113c44651f45a7e63efe7222"
       }
     },
     {

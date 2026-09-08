@@ -17,3 +17,16 @@
 ## 剩余验收闭包
 
 补People精确关联只读证明与Arca关系记录更新事务：原关系、当前Inventory、Person proof在提交前复核，关系修正不要求NFO Binding变化，不改变媒体文件/Control。覆盖强身份、用户接受exact origin、merge、同名不关联、冲突不关联、旧revision拒绝、重放不重复与零Case；再验证完整后台游标发现及生产已知记录场景。仅观察半链不关闭UAT-214。
+
+
+## 确定关联与记录提交的本地实现
+
+People新增只读Media-Cast Reference Query，exact namespace/key唯一active命中、user-accepted Candidate exact origin、正式Merge链（有界16跳/拒绝循环）三条路径，保留Person revision/factDigest/inputDigest/proofDigest。已有active personId不以新名字或其他Provider改绑；跨Provider冲突不任选一个。
+
+Arca在健康周期内执行独立关系记录命令，每批最多64个变化、最多4096当前关系；在自身事务前重读People证明，Receipt保留不可变revision/digest，未来Merge独立再观察，不将两个Business Owner放入同一事务。Arca提交精确当前Inventory/Basis、原relation digest与Proof输入，只有personId/relationDigest变化，其他已接受关系字段/媒体/Binding/Control/Canonical Identity保留。active Case或Off-deck阻止；正常健康记录更新不创建Case。旧queued Case若Basis已变，保留invalidated历史并由实际修复需求重新评估。
+
+既有45个Canonical Transactions不增加：Inventory Record Refresh Commit增加精确`arca.inventory.person-records.refresh@1`变体，不写Control。SSOT及生成合同同步，113 Capability/99 Result family/187 tables不变。聚合合同摘要f6ff4ca4b9c00be414f7689ecf1d8ea806a3bccd6e1db4a0fce7fae14ccc0256。
+
+18项People/关系提交针对性测试通过，真实NFO→真实People Store→Arca关系revision链路8项组通过；覆盖不改原姓名/NFO、零Case、摘要伪造回滚、旧revision拒绝、重放原Receipt。222文件架构及其余四门禁通过。最初默认并发下Entry启动deadline一次超时，独立14 PASS/3 SKIP；架构runner固定并发4后222文件全部通过，未延长服务或FFmpeg生产超时。另补active Case/Off-deck人物记录变体fence测试。
+
+关闭前仍需后台周期实际驱动和部署后限定场景验证，尤其已有弱Candidate随Inventory变化的exact origin条件逐项核对；不能拿本地直接调用命令替代全部运行验收。

@@ -48,7 +48,7 @@ function fixture(){
       inventory:db.prepare('SELECT * FROM arca_inventory_representations WHERE shelf_entry_id=? ORDER BY revision DESC').get('entry'),
       materials:db.prepare('SELECT * FROM arca_inventory_materials WHERE shelf_entry_id=? AND inventory_revision=(SELECT current_inventory_revision FROM arca_shelf_entries WHERE shelf_entry_id=?) ORDER BY ordinal').all('entry','entry'),reservations:[],
     }});
-  return {db,store,service,context,materials,locations,insert,
+  return {db,store,service,context,materials,locations,insert,options,
     makeService:read=>createInventoryRecordRefresh({...options,contextReader,computeBoundedMaterialFingerprintSync:read}),
     close(){db.close();kernel.close();fs.rmSync(root,{recursive:true,force:true});}};
 }
@@ -149,6 +149,84 @@ test('same-size concurrent writes during bounded observation cannot commit recor
     }));
     assert.deepEqual(service.refresh(value.context()),{kind:'records_deferred',reasonCode:'PHYSICAL_MATERIAL_STAT_FENCE_CHANGED'});
     assert.equal(value.db.prepare('SELECT current_inventory_revision revision FROM arca_shelf_entries').get().revision,1);
+    assert.equal(value.db.prepare('SELECT count(*) n FROM fx_command_receipts').get().n,0);
+  }finally{value.close();}
+});
+
+
+test('UAT-214 exact Person proof commits only relation records, preserves files and Control, and replays one receipt',()=>{
+  const value=fixture();try{
+    const {personRecordQuery}=require('../../src/helix/domains/arca/model/person-record-observation');
+    const {createMediaCastReferenceQuery}=require('../../src/helix/domains/people/application/media-cast-reference-query');
+    const row={shelf_entry_id:'entry',inventory_revision:1,relation_id:'unresolved-relation',person_id:null,
+      display_name:'Actor',display_name_normalized:'actor',role:'actor',relation_source:'accepted_product',
+      provider_identity_schema_ref:'identities',provider_identity_json:'[{"provider":"tmdb","namespace":"person","providerKey":"123"}]',
+      provider_identity_digest:digest('identities'),origin_evidence_digest:digest('origin'),confidence_class:'provider_asserted',relation_digest:digest('relation')};
+    value.insert('arca_inventory_person_relations',row);
+    const query=createMediaCastReferenceQuery({findActivePersonByProviderIdentity:()=>({personId:'person-123',status:'active',currentRevision:1,revision:{factDigest:digest('person')}})});
+    const proof=query.resolve(personRecordQuery(row)),request={shelfEntryId:'entry',expectedInventoryRevision:1,
+      expectedInventoryDigest:digest('inventory'),standardRevision:1,placementRevision:1,canonicalIdentityRevision:1,
+      observations:[{relationId:row.relation_id,previousRelationDigest:row.relation_digest,proof}]};
+    const controls=value.db.prepare('SELECT * FROM fx_material_controls').all(),files=value.locations.map(location=>fs.readFileSync(location));
+    const bad=structuredClone(request);bad.observations[0].proof.personId='forged';
+    assert.throws(()=>value.store.refreshInventoryPersonRecords(bad),error=>error.code==='ARCA_PERSON_RECORD_PROOF_INVALID');
+    assert.equal(value.db.prepare('SELECT count(*) n FROM arca_inventory_representations').get().n,1);
+    assert.equal(value.db.prepare('SELECT count(*) n FROM fx_command_receipts').get().n,0);
+    const result=value.store.refreshInventoryPersonRecords(request);
+    assert.equal(result.receipt.changedRelationCount,1);assert.equal(result.receipt.changedBindingCount,0);assert.equal(result.receipt.controlChangeDigest,null);
+    const updated=value.db.prepare('SELECT * FROM arca_inventory_person_relations WHERE inventory_revision=2').get();
+    assert.equal(updated.person_id,'person-123');assert.equal(updated.display_name,row.display_name);assert.equal(updated.origin_evidence_digest,row.origin_evidence_digest);
+    assert.deepEqual(value.db.prepare('SELECT * FROM fx_material_controls').all(),controls);
+    value.locations.forEach((location,index)=>assert.deepEqual(fs.readFileSync(location),files[index]));
+    for(const table of ['arca_aftercare_cases','fx_supporting_works','fx_material_control_revisions'])assert.equal(value.db.prepare(`SELECT count(*) n FROM ${table}`).get().n,0);
+    assert.deepEqual(value.store.refreshInventoryPersonRecords(request),{replayed:true,receipt:result.receipt});
+    const stale={...request,observations:[{...request.observations[0],previousRelationDigest:digest('different')}]};
+    assert.throws(()=>value.store.refreshInventoryPersonRecords(stale),error=>error.code==='ARCA_PERSON_RECORD_STALE');
+    assert.equal(value.db.prepare('SELECT count(*) n FROM arca_inventory_representations').get().n,2);
+  }finally{value.close();}
+});
+
+
+test('UAT-214 real NFO observation registers People and Arca publishes the exact relation revision with zero Cases',()=>{
+  const value=fixture();try{
+    const {createPeopleProcessServices}=require('../../src/helix/domains/people/application/people-process-services');
+    const {createOnDeckNfoPersonEvidence}=require('../../src/helix/domains/arca/application/on-deck-nfo-person-evidence');
+    const {createInventoryPersonRecordRefresh}=require('../../src/helix/domains/arca/application/inventory-person-record-refresh');
+    const {readBoundedFileSnapshotSync}=require('../../src/helix/integrations/bounded-material-fingerprint');
+    fs.writeFileSync(value.locations[1],'<movie><actor><name>Observed Actor</name><tmdbid>123</tmdbid></actor></movie>');
+    value.insert('arca_inventory_person_relations',{shelf_entry_id:'entry',inventory_revision:1,relation_id:'exact-relation',person_id:null,
+      display_name:'Accepted Actor Name',display_name_normalized:'accepted actor name',role:'actor',relation_source:'accepted_product',
+      provider_identity_schema_ref:'identities',provider_identity_json:'[{"provider":"tmdb","namespace":"person","providerKey":"123"}]',
+      provider_identity_digest:digest('identities'),origin_evidence_digest:digest('origin'),confidence_class:'provider_asserted',relation_digest:digest('relation')});
+    const current=()=>{const c=value.context();c.raw.people=value.db.prepare('SELECT * FROM arca_inventory_person_relations WHERE inventory_revision=?').all(c.raw.entry.current_inventory_revision);return c;};
+    const projection=createOnDeckNfoPersonEvidence({...value.options,readBoundedFileSnapshotSync,contextReader:{store:{
+      currentContext:()=>current().raw,listEntryPage:()=>[{cursor:'entry',scope:{shelfEntryId:'entry'}}]}}});
+    const people=createPeopleProcessServices({...value.options,onDeckNfoPersonEvidence:projection});
+    const observation=people.reconcileNfoEntry({shelfEntryId:'entry'});assert.equal(observation.registeredCount,1);
+    const registered=people.store.listPeople()[0],nfo=fs.readFileSync(value.locations[1]);
+    const refresh=createInventoryPersonRecordRefresh({contextReader:{store:value.store},resolveMediaCastReference:input=>people.mediaCastReferenceQuery.resolve(input)});
+    const updated=refresh.refresh(current());assert.equal(updated.kind,'inventory_records_refreshed');
+    const relation=current().raw.people[0];assert.equal(relation.person_id,registered.personId);
+    assert.equal(relation.display_name,'Accepted Actor Name','NFO observation cannot overwrite accepted Media-Cast names.');
+    assert.deepEqual(fs.readFileSync(value.locations[1]),nfo);assert.equal(refresh.refresh(current()).kind,'records_unchanged');
+    assert.equal(value.db.prepare('SELECT count(*) n FROM arca_aftercare_cases').get().n,0);
+    assert.equal(people.reconcileNfoEntry({shelfEntryId:'entry'}).registeredCount,0);
+  }finally{value.close();}
+});
+
+
+test('UAT-214 person record commits are blocked by active Case and Off-deck reservation before writing',()=>{
+  const value=fixture();try{
+    const request={shelfEntryId:'entry',expectedInventoryRevision:1,expectedInventoryDigest:digest('inventory'),standardRevision:1,
+      placementRevision:1,canonicalIdentityRevision:1,observations:[{relationId:'relation',proof:{}}]};
+    value.insert('arca_aftercare_cases',{aftercare_case_id:'case',shelf_entry_id:'entry',finding_set_digest:digest('findings'),
+      care_basis_schema_ref:'basis',care_basis_json:'{}',care_basis_digest:digest('basis'),care_requirement_schema_ref:'requirement',
+      care_requirement_json:'{}',care_requirement_digest:digest('requirement'),case_generation:1,trigger_digest:digest('trigger'),state:'active',created_at_ms:1});
+    assert.throws(()=>value.store.refreshInventoryPersonRecords(request),error=>error.code==='ARCA_PERSON_RECORD_FENCED');
+    value.db.prepare("UPDATE arca_aftercare_cases SET state='resolved',terminal_at_ms=2 WHERE aftercare_case_id='case'").run();
+    value.insert('arca_offdeck_reservations',{reservation_id:'reservation',shelf_entry_id:'entry',state:'active',inventory_revision:1,created_at_ms:1});
+    assert.throws(()=>value.store.refreshInventoryPersonRecords(request),error=>error.code==='ARCA_PERSON_RECORD_FENCED');
+    assert.equal(value.db.prepare('SELECT count(*) n FROM arca_inventory_representations').get().n,1);
     assert.equal(value.db.prepare('SELECT count(*) n FROM fx_command_receipts').get().n,0);
   }finally{value.close();}
 });

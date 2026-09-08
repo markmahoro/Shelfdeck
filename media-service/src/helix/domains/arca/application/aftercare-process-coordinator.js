@@ -155,6 +155,13 @@ function createAftercareProcessCoordinator(options){
       if(c?.raw?.perceptionRating?.state==='pending')return Object.freeze({kind:'rating_resolution_pending',shelfEntryId,workId:null});
     }
     let history=store.history(shelfEntryId),active=history.cases.find((item)=>['queued','active'].includes(item.state));
+    if(active?.state!=='active'&&typeof options.refreshPersonRecords==='function'){
+      const refresh=options.refreshPersonRecords(c);
+      if(refresh.kind==='inventory_records_refreshed'){
+        if(active?.state==='queued')store.terminateCase(active.aftercareCaseId,'invalidated','queued_basis_changed',canonicalDigest(refresh));
+        return Object.freeze({...refresh,shelfEntryId});
+      }
+    }
     const projected=projectHealth(c,history,now()),recordGap=Object.values(projected.dimensions).some(item=>
       item.findings.some(finding=>finding.findingKind==='custody:nfo_identity_changed')),
       queuedRecordGoal=active?.state==='queued'&&active.careRequirement.typedParameters.some(item=>String(item.value).includes('nfo_identity_changed'));
