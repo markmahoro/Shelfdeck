@@ -6,7 +6,7 @@
 
 状态说明：历史已关闭保留当时证据，并不宣称本次重测；已实现/已部署不等于已关闭；待核实不是当前已证实缺陷。原表与后续完整关闭证据冲突时采用后者并链接。没有证据的事项不批量关闭。
 
-[全量前后合同审查](implementation/evidence/UAT_FULL_CONTRACT_CONSISTENCY_AUDIT_20260909.md)已完成，三项业务冲突均由用户确认并以`14cf2d9a0`同步合同；用户要求整理文档后继续推进。历史标题不是现行Oracle；下述承接条件与SSOT后续优先条款共同适用。当前41项本轮功能验收关闭、58项开放，206被取代承接已核实；另有153项历史关闭、220文档关闭及1项非缺陷接受。
+[全量前后合同审查](implementation/evidence/UAT_FULL_CONTRACT_CONSISTENCY_AUDIT_20260909.md)已完成，三项业务冲突均由用户确认并以`14cf2d9a0`同步合同；用户要求整理文档后继续推进。历史标题不是现行Oracle；下述承接条件与SSOT后续优先条款共同适用。当前42项本轮功能验收关闭、57项开放，206被取代承接已核实；另有153项历史关闭、220文档关闭及1项非缺陷接受。
 
 执行顺序见[CURRENT_PLAN](CURRENT_PLAN.md)。每次完成一项，更新该行的提交、用户结果证据、剩余工作和状态；需要部署的先部署/验收再关闭。编号合并不触发生产操作。
 
@@ -143,7 +143,7 @@
 | UAT-129 | Procurement Retry Intent消息没有消费者，崩溃窗口可留下永久open Intent并持续重试Outbox | `RECOVERY_CORRECTNESS` | 验收关闭 | 原UAT编号 | 95d7bb5734 | [完整Host恢复验收](implementation/evidence/UAT-129_RETRY_INTENT_RESTART_20260909.md)；[生产发布](implementation/evidence/UAT_RELEASE_95D7BB5734_20260909.md) | Intent提交后中断，重启在任何HTTP重发前由Owner消费、唯一新Run及完整Inbox/ACK；重复请求和再次重启结果一致。36相关/15 Host/3 Linux通过；不新增自动重试Intent，不代替125/250/251。 |
 | UAT-130 | 已配置的MoviePilot没有只修订External Landing且复用Secret的Admin Web入口 | `PLATFORM_INTEGRATION` | 验收关闭 | 原UAT编号 | 见历史证据 | [Landing验收](implementation/evidence/UAT-130_LANDING_REVISION_ACCEPTANCE_20260908.md)；[原记录](USER_ACCEPTANCE_TEST_ISSUE_LOG.md) | 浏览器独立修订、凭据字节复用、CAS/重放/重启/重叠拒绝均通过；不修改生产Landing。 |
 | UAT-131 | Authorized Defect路径伪造Selected Product，无法形成真实failed Conformance到accepted_with_defects连续性 | `BUSINESS_CONTRACT` | 待核实 | 原UAT编号 | 见证据 | [UAT-131原记录](USER_ACCEPTANCE_TEST_ISSUE_LOG.md) | 真实failed Conformance到授权瑕疵连续性及Arca独立实检；不得伪造Selected Product或可播放性。执行B1；依赖/承接：251主项；关联126。 合同审查：原真实证据连续性仍有效；测试旧候选类别不是251的产品上限。 [全量前后合同审查](implementation/evidence/UAT_FULL_CONTRACT_CONSISTENCY_AUDIT_20260909.md)。 |
-| UAT-132 | Arca独立媒体复核遗漏合法unknown动态范围并拒绝Direct产品 | `PRODUCT_CONFORMANCE` | 待核实 | 原UAT编号 | 见证据 | [UAT-132原记录](USER_ACCEPTANCE_TEST_ISSUE_LOG.md) | 合法unknown动态范围Direct可通过，实际HDR/解码失败拒绝；核对后续资格文件并补真实媒体负向。执行B2；依赖/承接：无；关联160。 合同审查：用户2026-09-09确认workspace仅由成品三点decode判定播放通过，Source保留fresh Probe/必要对照；Direct自身仍三点decode。SSOT已同步，待实际验收。 [全量前后合同审查](implementation/evidence/UAT_FULL_CONTRACT_CONSISTENCY_AUDIT_20260909.md)。 |
+| UAT-132 | Arca独立媒体复核遗漏合法unknown动态范围并拒绝Direct产品 | `PRODUCT_CONFORMANCE` | 验收关闭 | 原UAT编号 | 48077d71bd现有实现；本次仅补测试 | [Direct真实媒体验收](implementation/evidence/UAT-132_DIRECT_UNKNOWN_ACCEPTANCE_20260909.md) | 2026-09-09关闭：无色彩标签的真实HEVC经Windows及生产镜像Linux完整上架，六项Check通过且零转换；独立decode/fresh漂移/DV与色彩负向保留。137/160独立验收。 |
 | UAT-133 | 多缺口Authorized Defect在Libra Attestation与Arca Gap union使用不一致规范顺序 | `BUSINESS_CONTRACT` | 待核实 | 原UAT编号 | 见证据 | [UAT-133原记录](USER_ACCEPTANCE_TEST_ISSUE_LOG.md) | 多Gap跨Libra/Arca规范顺序一致，新增Gap旧授权失效；不恢复历史最多两项作为新默认限制。执行B1；依赖/承接：251主项；关联131。 合同审查：规范排序仍有效，旧最多两项不再适用。 [全量前后合同审查](implementation/evidence/UAT_FULL_CONTRACT_CONSISTENCY_AUDIT_20260909.md)。 |
 | UAT-134 | 同根Field/Shelf的单项Settlement把其他合法顶层媒体单元误判为unknown member并永久悬挂 | `MATERIAL_CONTROL` | 待核实 | 原UAT编号 | 见证据 | [UAT-134原记录](USER_ACCEPTANCE_TEST_ISSUE_LOG.md) | 同根精确Settlement保留兄弟影片与未知成员，待处置成员缺证/不安全仍fail closed，范围外成员不要求清空；隔离文件与恢复验收。执行B2；依赖/承接：无；关联039/048/147。 |
 | UAT-135 | Arca独立媒体复核把已证明拓扑的ISO Source当普通流直接Probe/Decode并拒绝合法成品 | `PRODUCT_CONFORMANCE` | 验收关闭 | 原UAT编号 | 48077d71bd | [UAT-135原记录](USER_ACCEPTANCE_TEST_ISSUE_LOG.md)；[ISO真实验收](implementation/evidence/UAT-135_136_ISO_SOURCE_ACCEPTANCE_20260909.md)；[生产发布](implementation/evidence/UAT_RELEASE_48077D71BD_20260909.md) | 2026-09-09逐项关闭：Windows/Linux真实ISO Probe/路径及漂移负向、独立成品验收、完整Host上架通过；48077d71bd生产镜像/健康/挂载验证完成。其他关联项不自动关闭。 |

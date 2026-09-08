@@ -1,14 +1,14 @@
 # ShelfDeck 当前状态
 
-2026-09-09：255项合同审查已完成，三项冲突均由用户确认（`14cf2d9a0`），SSOT/Beta/总表已同步。用户要求整理文档后继续推进；活动计划及执行包已清除旧暂停和待决策说明。当前41项本轮功能验收关闭、58项开放及206承接已核实；合同确认本身未新增关闭；随后171依据Windows/Linux真实媒体及生产只读证据独立验收关闭，见[验收记录](implementation/evidence/UAT-171_NFO_CURRENT_CONTRACT_ACCEPTANCE_20260909.md)。随后135/136的ISO修正已标准部署并验收，76收藏及六路接口正常；未直接写入生产授权或手工清理媒体。详见[审查及决定证据](implementation/evidence/UAT_FULL_CONTRACT_CONSISTENCY_AUDIT_20260909.md)。
+2026-09-09：255项合同审查已完成，三项冲突均由用户确认（`14cf2d9a0`），SSOT/Beta/总表已同步。用户要求整理文档后继续推进；活动计划及执行包已清除旧暂停和待决策说明。当前42项本轮功能验收关闭、57项开放及206承接已核实；合同确认本身未新增关闭；随后171依据Windows/Linux真实媒体及生产只读证据独立验收关闭，见[验收记录](implementation/evidence/UAT-171_NFO_CURRENT_CONTRACT_ACCEPTANCE_20260909.md)。随后135/136的ISO修正已标准部署并验收，76收藏及六路接口正常；未直接写入生产授权或手工清理媒体。详见[审查及决定证据](implementation/evidence/UAT_FULL_CONTRACT_CONSISTENCY_AUDIT_20260909.md)。
 
 更新：2026-09-09 04:09。唯一台账：[UAT总表](UAT_ITERATION_REGISTER.md)；唯一排程：[CURRENT_PLAN](CURRENT_PLAN.md)。
 
-- 生产：`markmahoro/shelfdeck:helix-beta-20260909-48077d71bd`，source `48077d71bd`；config Image ID `sha256:44958b2ea574ecb3dee6bc544adca74491849ac11d0c42ad4f450eff37680364`；tar SHA256 `d7f6869f6fab37494a4f34dee890530e8d297a9e78403cc3e5bea683884ad155`；StartedAt `2026-09-08T21:14:02.579402666Z`。标准发布、readiness、挂载、六路GET与计数对照通过。135/136逐项关闭，见[发布/备份/回滚证据](implementation/evidence/UAT_RELEASE_48077D71BD_20260909.md)。
+- 生产：`markmahoro/shelfdeck:helix-beta-20260909-48077d71bd`，source `48077d71bd`；config Image ID `sha256:44958b2ea574ecb3dee6bc544adca74491849ac11d0c42ad4f450eff37680364`；tar SHA256 `d7f6869f6fab37494a4f34dee890530e8d297a9e78403cc3e5bea683884ad155`；StartedAt `2026-09-08T21:14:02.579402666Z`。标准发布、readiness、挂载、六路GET与计数对照通过。132/135/136逐项关闭，见[发布/备份/回滚证据](implementation/evidence/UAT_RELEASE_48077D71BD_20260909.md)。
 - 04:07六路生产GET均200：72收藏、1整理中/1待处理、44成功维护/11历史结束、4回收站条目。是当时快照，不替代操作前刷新。
-- 本次接手新增关闭217、254、255、139、143、224、232、213、246、221、237、238、223、235、228、141、230、129、128、142、174、175、167、208，本轮累计41项；255连续编号中153历史关闭、1文档关闭、1非缺陷接受、58项待实施/验收，206另核被取代承接。历史关闭不是本次重新验收。
+- 本次接手新增关闭217、254、255、139、143、224、232、213、246、221、237、238、223、235、228、141、230、129、128、142、174、175、167、208，本轮累计42项；255连续编号中153历史关闭、1文档关闭、1非缺陷接受、57项待实施/验收，206另核被取代承接。历史关闭不是本次重新验收。
 - 139/143/224/232逐行真实媒体/恢复/生产浏览器证据及回滚备份见[对应发布](implementation/evidence/UAT_RELEASE_7608C517CD_20260909.md)。217/254/255关闭记录在各自Evidence。取消Review误导已修正、生产复验通过；未作生产退出授权或规则修改。
-- 213已关闭：真实Case链、生产旧Case未知和同生产JS资产的新目标展示已核对。剩余58项及206继续完整排程。
+- 213已关闭：真实Case链、生产旧Case未知和同生产JS资产的新目标展示已核对。剩余57项及206继续完整排程。
 - 246已关闭：Arca精简工作台、按需分页搜索、完整ID全选和单Batch已发布；17 Windows/17 Linux/10 Web、真实十部链与千部浏览器通过，生产70部全选/清空通过。见[对应发布](implementation/evidence/UAT_RELEASE_1A3F4254DC_20260909.md)。
 - 251：用户已明确仅手动修复已接受瑕疵、健康正常加瑕疵标记，已写SSOT；typed合同与完整三终局/重复进入/修复实现尚未完成。
 - 125/250：`P4_EVENT_RECOVERY_INPUT_DRIFT`是重复出现的恢复错误，已定位同一旧宇航员Intake的Continuity Head由827变830导致输入漂移；修复与生产治理仍未完成。既有历史failed Settlement reconcile记录不可误判成新在飞删除。没有Reset或手改Control。

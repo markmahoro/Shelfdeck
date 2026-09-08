@@ -3019,7 +3019,9 @@ test('UAT-217 formal identity resolves a saved rating and replaces the Run befor
 });
 
 
-test('UAT-135 real ISO reaches Arca commit with fresh Source Probe and independent Product decode', {
+for(const sourceVariant of ['iso','direct']) test(sourceVariant==='iso'
+  ? 'UAT-135 real ISO reaches Arca commit with fresh Source Probe and independent Product decode'
+  : 'UAT-132 real Direct HEVC with unknown color labels reaches Arca commit without conversion', {
   skip:process.env.HELIX_UAT135_REAL_MEDIA!=='1'?'Set HELIX_UAT135_REAL_MEDIA=1 for the generated ISO Host scenario.':false,
   timeout:180_000,
 }, async(t)=>{
@@ -3030,8 +3032,9 @@ test('UAT-135 real ISO reaches Arca commit with fresh Source Probe and independe
   for(const dir of [admin,source,shelf,path.join(disc,'BDMV','STREAM'),path.join(disc,'BDMV','CLIPINF')])fs.mkdirSync(dir,{recursive:true});
   fs.writeFileSync(path.join(admin,'index.html'),'<div id="root"></div>');
   const clip=path.join(disc,'BDMV','STREAM','00000.m2ts');
+  const codecArgs=sourceVariant==='direct'?['-c:v','libx265','-x265-params','pools=1:frame-threads=1']:['-c:v','libx264'];
   const encoded=spawnSync(ffmpeg,['-hide_banner','-nostdin','-y','-f','lavfi','-i','color=c=black:s=1920x1080:r=24:d=2',
-    '-f','lavfi','-i','sine=frequency=1000:duration=2','-c:v','libx264','-preset','ultrafast','-pix_fmt','yuv420p',
+    '-f','lavfi','-i','sine=frequency=1000:duration=2',...codecArgs,'-preset','ultrafast','-pix_fmt','yuv420p',
     '-c:a','ac3','-b:a','64k','-f','mpegts',clip],{encoding:'utf8',windowsHide:true});
   assert.equal(encoded.status,0,encoded.stderr);
   fs.writeFileSync(path.join(disc,'BDMV','CLIPINF','00000.clpi'),'clip');
@@ -3039,7 +3042,19 @@ test('UAT-135 real ISO reaches Arca commit with fresh Source Probe and independe
   fs.writeFileSync(path.join(disc,'BDMV','MovieObject.bdmv'),'object');
   writeMpls(root,'disc/BDMV/PLAYLIST/00000.mpls',[{clipId:'00000',inTime:0,outTime:90000}]);
   const name='SDT-M01-Standalone-H264 (2008)';
-  createUdfBluRay(disc,path.join(source,name+'.iso'));
+  if(sourceVariant==='iso')createUdfBluRay(disc,path.join(source,name+'.iso'));
+  else {
+    const primary=path.join(source,name+'.mkv');
+    const copied=spawnSync(ffmpeg,['-hide_banner','-nostdin','-y','-i',clip,'-c','copy',primary],{encoding:'utf8',windowsHide:true});
+    assert.equal(copied.status,0,copied.stderr);
+    const inspected=spawnSync(process.env.FFPROBE_PATH||require('@ffprobe-installer/ffprobe').path,
+      ['-v','error','-select_streams','v:0','-show_entries','stream=codec_name,color_transfer,color_primaries,color_space','-of','json',primary],
+      {encoding:'utf8',windowsHide:true});
+    assert.equal(inspected.status,0,inspected.stderr);
+    const actual=JSON.parse(inspected.stdout).streams[0];
+    assert.equal(actual.codec_name,'hevc');
+    for(const field of ['color_transfer','color_primaries','color_space'])assert.ok(!actual[field]||actual[field]==='unknown');
+  }
   await sharp({create:{width:64,height:96,channels:3,background:'#345678'}}).jpeg().toFile(path.join(source,name+'-poster.jpg'));
   const originalDisc=reality(disc);
   const initialized=initializeCleanData({dataDir,confirmation:'INITIALIZE_HELIX_CLEAN_V1',secretRoot:SECRET});
@@ -3068,5 +3083,10 @@ test('UAT-135 real ISO reaches Arca commit with fresh Source Probe and independe
   assert.equal(terminal.checks.length,6,JSON.stringify(terminal.checks));
   assert.ok(terminal.checks.every(check=>check.result==='passed'),JSON.stringify(terminal.checks));
   assert.deepEqual(reality(disc),originalDisc);
-  t.diagnostic(JSON.stringify({scenario:'real-iso-source-to-ondeck',...terminal}));
+  if(sourceVariant==='direct'){
+    const db=new Database(path.join(dataDir,'shelfdeck.db'),{readonly:true});
+    try{assert.equal(db.prepare("SELECT count(*) n FROM fx_workflow_events WHERE capability_ref IN ('libra.media.transcode@1','libra.media.remux@1')").get().n,0,'Direct media must not be converted to avoid the unknown-label acceptance case.');}
+    finally{db.close();}
+  }
+  t.diagnostic(JSON.stringify({scenario:'real-'+sourceVariant+'-source-to-ondeck',...terminal}));
 });
