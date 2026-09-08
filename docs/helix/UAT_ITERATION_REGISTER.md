@@ -6,7 +6,7 @@
 
 状态说明：历史已关闭保留当时证据，并不宣称本次重测；已实现/已部署不等于已关闭；待核实不是当前已证实缺陷。原表与后续完整关闭证据冲突时采用后者并链接。没有证据的事项不批量关闭。
 
-[全量前后合同审查](implementation/evidence/UAT_FULL_CONTRACT_CONSISTENCY_AUDIT_20260909.md)已完成，三项业务冲突均由用户确认并以`14cf2d9a0`同步合同；用户要求整理文档后继续推进。历史标题不是现行Oracle；下述承接条件与SSOT后续优先条款共同适用。当前38项本轮功能验收关闭、61项开放，206被取代承接单独核实；另有153项历史关闭、220文档关闭及1项非缺陷接受。
+[全量前后合同审查](implementation/evidence/UAT_FULL_CONTRACT_CONSISTENCY_AUDIT_20260909.md)已完成，三项业务冲突均由用户确认并以`14cf2d9a0`同步合同；用户要求整理文档后继续推进。历史标题不是现行Oracle；下述承接条件与SSOT后续优先条款共同适用。当前39项本轮功能验收关闭、60项开放，206被取代承接单独核实；另有153项历史关闭、220文档关闭及1项非缺陷接受。
 
 执行顺序见[CURRENT_PLAN](CURRENT_PLAN.md)。每次完成一项，更新该行的提交、用户结果证据、剩余工作和状态；需要部署的先部署/验收再关闭。编号合并不触发生产操作。
 
@@ -182,7 +182,7 @@
 | UAT-168 | 《007：大破天幕杀机》寻源报没有外部候选 | `EXECUTION` / MoviePilot 把 TMDB ID 当标题搜 | 已部署待验收核对 | PROD-025 | d1dd611d4 | [PROD-025原记录](PRODUCTION_DEPLOY_ISSUE_LOG.md) | MoviePilot用正式片名/年份搜索，唯一资源规则仍有效；缺ID与Provider故障分类、不得无条件重试。执行B1；依赖/承接：251；关联199/201。 |
 | UAT-169 | 《教父2》GPU 转码每小时被掐，永远编不完 | `EXECUTION` / Libra remux/transcode 误用 1 小时观察时限 | 已部署待验收核对 | PROD-026 | 06d0cc63b | [PROD-026原记录](PRODUCTION_DEPLOY_ISSUE_LOG.md) | 长转码不按观察一小时时限掐断，实际deadline/停机终结仍有效；长样本证据不只单测。执行B2；依赖/承接：127/156。 |
 | UAT-170 | 长转码页面进度写满后冻住，编码器仍在跑 | `EXECUTION` / ProgressReporter 历史上限连 current sample 一并停写 | 已部署待验收核对 | PROD-027 | 见证据 | [PROD-027原记录](PRODUCTION_DEPLOY_ISSUE_LOG.md) | 历史样本上限后current进度继续刷新，浏览器长执行与重启无回退。执行B3；依赖/承接：127/212。 |
-| UAT-171 | Aftercare 按整份 NFO 字节/指纹修文件，与 Emby 抢同一张说明书 | `EXECUTION` / Presentation 字节全等 + Inventory revision 未随实际 NFO 收敛 | 待核实 | PROD-028 | 见证据 | [PROD-028原记录](PRODUCTION_DEPLOY_ISSUE_LOG.md) | 旧持续语义匹配已由9月7/8日合同取代；默认已知NFO存在非空可读，呈现差异只更新记录且零Case。物理覆盖/删除另验精确归属，不把字段差异当健康冲突。见[前后合同核对](implementation/evidence/UAT_NFO_CONTRACT_PRECEDENCE_20260909.md)。执行B2；依赖/承接：208/210/211/214；关联183。 |
+| UAT-171 | Aftercare 按整份 NFO 字节/指纹修文件，与 Emby 抢同一张说明书 | `EXECUTION` / Presentation 字节全等 + Inventory revision 未随实际 NFO 收敛 | 验收关闭 | PROD-028 | 当前实现955fe42daf；本次仅补测试 | [真实媒体及生产验收](implementation/evidence/UAT-171_NFO_CURRENT_CONTRACT_ACCEPTANCE_20260909.md) | 2026-09-09按现行NFO合同关闭：呈现字段变化及非XML可读文本仅刷新记录，零Case、字节与已接受Facts保留；Windows/Linux真实媒体长链通过，生产原场景healthy。旧持续语义全等不恢复；210完整节流/251仍独立开放。 |
 | UAT-172 | 收藏架「全自动 / 关键步骤确认」开关不改变实际上架行为 | `USER_EXPERIENCE` / standing Authorization 未接入 On-deck | 待核实 | PROD-029 | 见证据 | [PROD-029原记录](PRODUCTION_DEPLOY_ISSUE_LOG.md) | 核实standing Authorization正式入口和实际效果；移除无效开关不等于后端授权闭环完成。执行B4；依赖/承接：SSOT9.4.10/9.5.3。 合同审查：用户2026-09-09明确预先授权精确旧输入自动清理，无需逐片确认；SSOT9.6.5/Beta HB-A.07已同步。必须核验持久Authorization revision及逐Scope Approval，不以system policy代替；不恢复旧模式开关，仍待实施/验收。 [全量前后合同审查](implementation/evidence/UAT_FULL_CONTRACT_CONSISTENCY_AUDIT_20260909.md)。 |
 | UAT-173 | 转码前体积预测 freeze 卡死 Run；寻源/转码编排割裂；详情步骤靠 Spec 猜测 | `EXECUTION` / Libra 协调器 + Formation 投影 | 已部署待验收核对 | PROD-030 | 见证据 | [PROD-030原记录](PRODUCTION_DEPLOY_ISSUE_LOG.md) | 预测不可达与实测结果分开，有限生产/寻源终结；旧双工具穷尽不可覆盖后来的唯一候选与质量保护决定。执行B1；依赖/承接：251/218；212展示。 |
 | UAT-174 | PROD-024 全局 3 席仍是 derived occupancy；无法按来源暂停/限流 | `EXECUTION` / Libra per-field pipeline token | 验收关闭 | PROD-031 | 955fe42daf | [PROD-031原记录](PRODUCTION_DEPLOY_ISSUE_LOG.md) [逐项验收](implementation/evidence/UAT-167_174_175_FIELD_SEATS_20260909.md)； | 2026-09-09 04:09按本项Oracle关闭：Windows/Linux真实Host、重启/正负路径、真实隔离浏览器保存及生产同资产验收通过。其他关联项不自动关闭。 |

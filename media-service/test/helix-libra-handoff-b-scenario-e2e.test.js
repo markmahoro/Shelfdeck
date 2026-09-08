@@ -897,22 +897,43 @@ test('P14 one-movie product path accepts Handoff B and atomically establishes an
     return found;
   })();
   assert.ok(nfoLocations.length > 0, 'The established Inventory must contain an NFO before the repair scenario.');
-  for(const location of nfoLocations)fs.appendFileSync(location,'\n<!-- UAT-210 external record observation -->\n');
-  const externalNfoBytes=nfoLocations.map(location=>fs.readFileSync(location));
-  const recordCheck=await host.inject({method:'POST',url:'/v1/admin/care/'+entryId+'/actions/check',headers:{cookie},
-    payload:{idempotencyKey:'uat210-external-nfo-record-change'}});
-  assert.equal(recordCheck.statusCode,202,recordCheck.body);
-  await waitDatabase(databasePath,db=>{
-    const entry=db.prepare('SELECT current_inventory_revision AS revision FROM arca_shelf_entries WHERE shelf_entry_id=?').get(entryId);
-    return Number(entry.revision)===initialInventoryRevision+1;
-  },60000);
-  initialInventoryRevision+=1;
-  const recordDb=new Database(databasePath,{readonly:true});
-  try {
-    assert.equal(recordDb.prepare('SELECT count(*) n FROM arca_aftercare_cases WHERE shelf_entry_id=?').get(entryId).n,0);
-    assert.equal(recordDb.prepare("SELECT count(*) n FROM fx_command_receipts WHERE command_contract='arca.inventory.records.refresh@1' AND target_id=?").get(entryId).n,1);
-  }finally{recordDb.close();}
-  nfoLocations.forEach((location,index)=>assert.deepEqual(fs.readFileSync(location),externalNfoBytes[index]));
+  const acceptedFactsDb=new Database(databasePath,{readonly:true});
+  const acceptedFacts=acceptedFactsDb.prepare('SELECT fact_kind,fact_json,fact_digest FROM arca_inventory_product_facts WHERE shelf_entry_id=? AND inventory_revision=? ORDER BY fact_kind').all(entryId,initialInventoryRevision);
+  acceptedFactsDb.close();
+  const nfoEdits=[
+    '<movie><title>External presentation title</title><plot>Edited description</plot><actor><name>External Actor</name></actor></movie>',
+    'Readable external notes without an XML presentation contract.',
+  ];
+  for(const [index,edited] of nfoEdits.entries()) {
+    // Current NFO health does not impose the superseded presentation equality gate.
+    for(const location of nfoLocations) {
+      fs.writeFileSync(location+'.external',edited);
+      fs.renameSync(location+'.external',location);
+    }
+    const recordCheck=await host.inject({method:'POST',url:'/v1/admin/care/'+entryId+'/actions/check',headers:{cookie},
+      payload:{idempotencyKey:'uat171-external-nfo-record-change-'+index}});
+    assert.equal(recordCheck.statusCode,202,recordCheck.body);
+    await waitDatabase(databasePath,db=>Number(db.prepare('SELECT current_inventory_revision AS revision FROM arca_shelf_entries WHERE shelf_entry_id=?').get(entryId).revision)===initialInventoryRevision+1,60000);
+    initialInventoryRevision+=1;
+    let observedCare;
+    // Allow two bounded 30-second Owner sweeps; do not race the first cadence edge.
+    const healthDeadline=Date.now()+65000;
+    do {
+      observedCare=await host.inject({method:'GET',url:'/v1/admin/care/'+entryId,headers:{cookie}});
+      assert.equal(observedCare.statusCode,200,observedCare.body);
+      if(observedCare.json().health.state==='healthy')break;
+      await new Promise(resolve=>setTimeout(resolve,50));
+    }while(Date.now()<healthDeadline);
+    assert.equal(observedCare.json().health.state,'healthy',observedCare.body);
+    assert.equal(observedCare.json().basis.inventoryRevision,initialInventoryRevision);
+    const recordDb=new Database(databasePath,{readonly:true});
+    try {
+      assert.equal(recordDb.prepare('SELECT count(*) n FROM arca_aftercare_cases WHERE shelf_entry_id=?').get(entryId).n,0);
+      assert.equal(recordDb.prepare("SELECT count(*) n FROM fx_command_receipts WHERE command_contract='arca.inventory.records.refresh@1' AND target_id=?").get(entryId).n,index+1);
+      assert.deepEqual(recordDb.prepare('SELECT fact_kind,fact_json,fact_digest FROM arca_inventory_product_facts WHERE shelf_entry_id=? AND inventory_revision=? ORDER BY fact_kind').all(entryId,initialInventoryRevision),acceptedFacts);
+    }finally{recordDb.close();}
+    nfoLocations.forEach(location=>assert.equal(fs.readFileSync(location,'utf8'),edited));
+  }
   const beforeRepair = new Database(databasePath, { readonly:true });
   let oldNfoMaterialKeys;
   try {
