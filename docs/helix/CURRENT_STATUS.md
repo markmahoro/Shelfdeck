@@ -2,7 +2,11 @@
 
 更新：2026-09-08。主线未全数关闭；逐项状态见[UAT总表](UAT_ITERATION_REGISTER.md)，后续顺序见[CURRENT_PLAN](CURRENT_PLAN.md)。
 
-## 当前生产事实（21:52）
+## 最新清理事实（22:10）
+
+用户要求优先清理NAS且仅限本项目。UAT-253第二批精确删除ShelfDeck根内54旧tar，释放36.87 GiB；当前系统卷可用65.71 GiB、使用率62%。保留24个近期/稳定tar及所有Docker镜像、备份、数据库和媒体。无容器重启，29个容器身份未变；ShelfDeck仍为696b122da4。6个API检查均200；当时收藏70部、整理2进行中/0待处理、0活动维护Case，业务由正常运行继续推进。完整清单见UAT-253 Evidence。
+
+## 上一生产验证快照（21:52）
 
 - 镜像`markmahoro/shelfdeck:helix-beta-20260908-696b122da4`，source `696b122da4`，Image ID `sha256:c35d7ad1672a8859da85fb9224461cdd13cb4d9eb71ce0163c6cb0bd744893b8`，Tar SHA256 `9edf350c11efcd317e0507e986cef5ca0a164b185660dacc0cf6953b6c0eb640`。标准build/upload/checksum/dry-run/readiness/apply完成；747110c653基线Service511 PASS/19 SKIP及真实影片全链72.2秒通过；本次回收15项、Web59/build、222架构文件、Linux隔离12个GET通过。启动13:47:31 UTC。
 - 69部收藏，63完成上架/2待处理/0进行中；Aftercare44成功/11历史失败结束/3 invalidated，0活动Case。活着/沙丘旧失败未Reset。黑寡妇已上架，不能继续引用旧待确认快照。
