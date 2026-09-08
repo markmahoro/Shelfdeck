@@ -42,3 +42,9 @@
 
 
 17:38–17:43刷新：生产GET健康/整理/收藏/维护/回收站均200，active Formation为3项（1进行、2需处理），当前收藏62，维护44成功/11历史失败且无active/queued。真实Edge操作刷新整理页、打开沙丘过程、搜索并打开林肯律师收藏详情：林肯律师明确已上架、健康，主视频13.3 GB；旧整理页刷新后仍保留其88%旧转码行和完成行，属于UAT-212刷新列表一致性，不据此干预正常任务。黑寡妇约23%转码，继续保护。沙丘过程的失败代码为P5_PROVIDER_RESPONSE_INVALID，尚未对它自己的Query重放，不把同代码自动视作已证明同预算根因。
+
+## 21:52新增精确存量核查：宇航员旧Candidate Delivery
+
+持续P3_CONTROL_CAS_CONFLICT的材料5700b0487f975dfdb0967a0f4e7b69f64386cf51eec1d621c7279cabd838b891位于`/media/Film/宇航员 (2023)/宇航员 (2023) - 1080p AVC DTS/BDMV/CLIPINF/00000.clpi`。只读当前Control为Procurement Field、revision1；旧Run dcddd38da96306586f0649904d54a5ce4d05fb36同材料Admission revision4，Candidate d8e919f14c5b0dfac3399a11e1b7095142a8bd5a仍published/candidate_delivery。Offer `5d067f5b9a8f0e3ab26417a7b9ccbfc5a4247cf8b58144f2286dd57a7640faf1` open且无Handoff Decision。尚不能断言是哪个历史操作造成回退，也不能称为普通并发竞争或新的NFO问题。
+
+精确只读命令`formation-reset-nas.js --superseded-offer-ids <上述Offer>`返回FORMATION_RESET_OFFER_NOT_SUPERSEDED；未停机、未应用、未改任何Control。原工具的superseded规则不覆盖本条，不能绕过其资格检查。剩余工作明确为：核对本Candidate全材料与已提交收藏交集、追溯历史Control变化、确认精确退休合同及本地重放，之后才执行授权范围内的存量处置；不Reset活着/沙丘、不全库清理。证据`.codex/uat250-stale-candidate-links.json`、`uat210-control-conflict.jsonl`及`uat250-superseded-offer-dry-run.log`。

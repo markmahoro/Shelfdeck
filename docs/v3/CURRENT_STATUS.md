@@ -7,7 +7,7 @@ Last updated: 2026-09-08
 - 当前产品、计划、验收和生产运行事实分别见 `docs/helix/README.md`、
   `docs/helix/CURRENT_PLAN.md`、`docs/helix/BETA_FEATURE_ACCEPTANCE_BASELINE.md` 与
   `docs/helix/CURRENT_STATUS.md`。
-- 当前生产镜像`markmahoro/shelfdeck:helix-beta-20260908-747110c653`，source `747110c653`，Image ID `sha256:127ccecb32d70d1c66841f863cb1b2a3500d8716c2d1a398a4c140360af16271`，Tar SHA256 `03a39b6712ab27e81b0fecb51f358c62306120fdbccfd44636b5664502d26a3a`。标准部署通过，Service511 PASS/19 SKIP、222架构文件、真实影片全链72.2秒与Linux smoke通过；完整当前事实以Helix状态为准。
+- 当前生产镜像`markmahoro/shelfdeck:helix-beta-20260908-696b122da4`，source `696b122da4`，Image ID `sha256:c35d7ad1672a8859da85fb9224461cdd13cb4d9eb71ce0163c6cb0bd744893b8`，Tar SHA256 `9edf350c11efcd317e0507e986cef5ca0a164b185660dacc0cf6953b6c0eb640`。标准部署通过；基线Service511 PASS/19 SKIP及真实全链72.2秒通过，本次回收15项/Web59/build/222架构文件/Linux smoke通过。完整事实见Helix状态。
 - 不授权 Kairox compatibility migration、dual read、roadmap 重启或新 v3.x milestone。
 
 以下为本次用户痛点迭代之前的历史部署验证：

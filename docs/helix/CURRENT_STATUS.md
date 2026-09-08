@@ -2,15 +2,15 @@
 
 更新：2026-09-08。主线未全数关闭；逐项状态见[UAT总表](UAT_ITERATION_REGISTER.md)，后续顺序见[CURRENT_PLAN](CURRENT_PLAN.md)。
 
-## 当前生产事实（21:35）
+## 当前生产事实（21:52）
 
-- 镜像`markmahoro/shelfdeck:helix-beta-20260908-747110c653`，source `747110c653`，Image ID `sha256:127ccecb32d70d1c66841f863cb1b2a3500d8716c2d1a398a4c140360af16271`，Tar SHA256 `03a39b6712ab27e81b0fecb51f358c62306120fdbccfd44636b5664502d26a3a`。标准build/upload/checksum/dry-run/readiness/apply完成；Service511 PASS/19 SKIP、222架构文件、真实影片全链72.2秒、Linux隔离12个GET通过。启动13:31:58 UTC。
+- 镜像`markmahoro/shelfdeck:helix-beta-20260908-696b122da4`，source `696b122da4`，Image ID `sha256:c35d7ad1672a8859da85fb9224461cdd13cb4d9eb71ce0163c6cb0bd744893b8`，Tar SHA256 `9edf350c11efcd317e0507e986cef5ca0a164b185660dacc0cf6953b6c0eb640`。标准build/upload/checksum/dry-run/readiness/apply完成；747110c653基线Service511 PASS/19 SKIP及真实影片全链72.2秒通过；本次回收15项、Web59/build、222架构文件、Linux隔离12个GET通过。启动13:47:31 UTC。
 - 69部收藏，63完成上架/2待处理/0进行中；Aftercare44成功/11历史失败结束/3 invalidated，0活动Case。活着/沙丘旧失败未Reset。黑寡妇已上架，不能继续引用旧待确认快照。
-- UAT-210缺失指纹装配修正已发布：12条NFO记录更新Receipt，0新增Case；原7部NFO记录问题均自然恢复healthy。当前66 healthy/3 unknown（老手、杀破狼、信条），继续逐条观察新上架链，不把部分收敛称为全部通过。UAT-211/214既有关闭保留。
-- 备份`backups/uat-iteration-20260908-747110c653-predeploy`，DB SHA256 `d09d1efad250e26ed1896130afd11f451aa87a70642037773b2a8a51dca235c1`，加密凭据齐全。此前5c7bc1f043/79874990b6/6e37bf5679镜像及引用备份保留。
-- UAT-215生产7个新On-deck自动收尾记录已验证，6个在用原目录保留；黑寡妇3张剩余图片经实际浏览器精确确认后已归档可恢复。收尾栏未及时反映归档，后续读投影修正在本地验收，尚未关闭。216完整1080p版本保留，52.6秒样片处置仍开放。
-- UAT-252有界readiness发布验证已关闭；UAT-253清理32旧tar共16.73 GiB已关闭。本次新镜像/备份后NAS可用约30.3 GiB。
-- 总表253连续编号；接手后新增关闭130/144/145/211/214/219/239/252/253。其余88行待实现或验收、206被取代待核清；UAT-251两项具体用户结果仍待确认，继续推进独立项。
+- UAT-210缺失指纹装配修正已发布：12条NFO记录更新Receipt，0新增Case；原7部NFO记录问题均自然恢复healthy。13:42 UTC全部69部均healthy，0新增维护Case。UAT-211/214既有关闭保留。
+- 备份`backups/uat-iteration-20260908-696b122da4-final`，DB SHA256 `c8653b171657959b825d4434cb6bcdbc56d0850bff1b49b9caad1c49c5fe587e`，加密凭据齐全。此前5c7bc1f043/79874990b6/6e37bf5679镜像及引用备份保留。
+- UAT-215生产7个新On-deck自动收尾记录已验证，6个在用原目录保留；黑寡妇3张剩余图片经实际浏览器精确确认后已归档可恢复。收尾读投影已随696b122da4发布，真实浏览器及3文件SHA256核验通过，215关闭。216完整1080p版本保留，52.6秒样片处置仍开放。
+- UAT-252有界readiness发布验证已关闭；UAT-253清理32旧tar共16.73 GiB已关闭。本次新镜像/备份后NAS可用约28.9 GiB。
+- 总表253连续编号；接手后新增关闭130/144/145/211/214/215/219/239/252/253。其余87行待实现或验收、206被取代待核清；UAT-251两项具体用户结果仍待确认，继续推进独立项。
 - 当前还有重复`P3_CONTROL_CAS_CONFLICT`：精确材料为宇航员旧BDMV/CLIPINF/00000.clpi，Control仍属Procurement Field，非这7部NFO。待定位原场景及历史映射，不直接修改Control或Reset掩盖。
 
 ## 接手与日内历史快照（以下不代表当前部署）

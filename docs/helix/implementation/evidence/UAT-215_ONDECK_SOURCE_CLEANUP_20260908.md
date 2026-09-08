@@ -39,3 +39,7 @@
 ## 即时读投影修正
 
 收尾展示按同Shelf Entry、同精确sourceLocation、收尾责任创建后的最新Recycle事实合并，确认后pending、归档后archived、恢复后retained_after_restore、到期完成purged。保持原检查快照及next-check节流不变，GET无数据库写入，其他Entry的同路径记录不混入。15项回收测试、Web59项/build、222架构文件通过；尚未发布。
+
+## 696b122da4生产验收关闭
+
+标准发布完成，13:47:31 UTC启动。真实Edge回收站中黑寡妇为「本次收尾检查已结束 / 已移入回收站」，6个其他新Entry在用原目录保留，截图`.codex/uat215-production-closed.png`。独立只读核验3个归档文件大小及SHA256全部符合冻结manifest、原目录不存在，`.codex/uat215-archive-verified.jsonl`。恢复/跨盘中断/失败节流/精确范围负路径由15项专项覆盖；Linux候选12个GET通过，原子责任真实链/重启已通过。UAT-215关闭，216样片及完整版本的存量决定不随之关闭。
