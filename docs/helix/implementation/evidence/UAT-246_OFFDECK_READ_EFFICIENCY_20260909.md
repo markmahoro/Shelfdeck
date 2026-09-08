@@ -43,3 +43,14 @@
 b2978c1512生产已取消审阅完整GET/三字段progress均200，非法view返回400 ARCA_OFFDECK_VIEW_INVALID；01:16至01:19前后持久Review逐字段一致，浏览器打开该旧审阅仍已取消且无授权按钮。16后端/7 Web与21.84秒后台不依赖GET、真实十部退出和再次重启链已通过。生产未创造preparing检查点，该场景由隔离真实Host证明。246首屏性能保持独立开放。
 
 生产身份与发布校验见[发布证据](UAT_RELEASE_B2978C1512_20260909.md)。原始补验保存在`.codex/uat-acceptance-20260909-readonly.json`、`uat-acceptance-20260909-after.json`、`uat255-production-reads.json`及`production-monitor.jsonl`。未运行不相关的全套重复回归。
+
+## 2026-09-09 首屏与按需查询实施
+
+- Arca新增只读Off-deck Entry Query，使用现有Owner Repository DSL，不新增表、Owner、HTTP路径或删除权限。首屏读取开放建议一页、活动/完成Case各一页及Arca摘要/展示身份，移除完整当前/历史Collection DTO。建议、Case历史与搜索均可继续分页；不读取People、视频Probe、海报文件或完整健康详情。
+- 全选在单个只读事务捕获全部active Shelf Entry ID，只在用户点击时枚举。前端只展示25条选择预览，但一个Batch Intent携带完整ID集合；搜索文本与分页不缩小全选。冻结Review仍完整核对每个Scope的文件、空间和共享引用保留条件，展示名称按明确ID有界读取。
+- 搜索250ms防抖，旧响应/错误不得覆盖新搜索；显式重试成功清除旧错误。准备阶段继续三字段单请求轮询，关闭/取消不会因迟到请求重新打开。
+- 17项后端测试PASS，含1005条SQLite事实、1000条完整选择、只水合搜索页、60条建议分页、Case分类/终态排序、坏cursor、旧Inventory排除与历史不可选。10项Web测试及build PASS，含1000 ID单Batch/25选择行、搜索迟到响应/错误重试、取消/二次授权与准备轮询。P2 contract baseline及diff check PASS。
+- 真实十部链新增实际Host HTTP检查：workbench、search分页、全部selection ID、按ID display、Case分类查询均200且DTO精简；真实取消、独立高量级确认、十部退出、范围外哨兵与再次重启通过。最终36.71秒PASS，日志`.codex/uat246-real-chain-final.log`。
+- 保留首轮失败：原测试仅等待12秒，尚未到30秒Owner兜底检查周期即断言open；诊断复验22.49秒通过，最终测试等待上限覆盖跨轮排空（90秒），只读progress。此处修正测试预算，没有改运行时cadence、虚构准备完成或扩大删除权限。失败及诊断日志保留在`.codex/uat246-real-chain.log`和`uat246-real-chain-diagnostic.log`。
+- Edge 18197使用真实新查询代码和隔离1100条SQLite事实（1000当前/100历史）。首屏三路Off-deck读取分别165/81/7599 bytes、2/1/2ms；另有共享页面overview请求。搜索25条→更多50条；保持搜索词全选1000；仅创建一个模拟Review并显示1000个Scope；取消后刷新重开仍已取消且无授权。生产未新建Review。隔离命令仅模拟准备/取消并拒绝最终Authorization；真实媒体执行由前述Host E2E独立证明。
+- 浏览器错误500→明确重试200，旧错误清除；退出历史可按页加载。原始请求见`.codex/uat246-browser-first.json`、`uat246-browser-requests.json`。最终部署和生产只读/浏览器验收尚未完成，本条保持开放。

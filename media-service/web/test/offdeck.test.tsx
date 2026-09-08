@@ -47,18 +47,68 @@ const highVolumeReview: OffdeckReview = {
   escalation: null,
 };
 
+function mockWorkbench(entries: CollectionEntry[] = [], cases: OffdeckCase[] = [], historyEntries: CollectionEntry[] = []) {
+  vi.spyOn(helixAdminApi, 'getOffdeckWorkbench').mockResolvedValue({ candidates:[],duplicateGroups:[],entries,
+    currentCount:entries.length,candidateCount:0,nextCursor:null,shelves:[{shelfId:'shelf-1',name:'Movie Shelf'}] });
+  vi.spyOn(helixAdminApi, 'listOffdeckWorkCases').mockImplementation(async classification=>({
+    items:cases.filter(item=>(item.state==='completed')===(classification==='completed')),entries:historyEntries,
+    counts:{active:cases.filter(item=>item.state!=='completed').length,completed:cases.filter(item=>item.state==='completed').length},nextCursor:null }));
+  vi.spyOn(helixAdminApi, 'selectAllOffdeckEntries').mockResolvedValue({shelfEntryIds:entries.map(item=>item.shelfEntryId).sort()});
+  vi.spyOn(helixAdminApi, 'getOffdeckEntryDisplay').mockImplementation(async ids=>({items:[...entries,...historyEntries].filter(item=>ids.includes(item.shelfEntryId))}));
+  vi.spyOn(helixAdminApi, 'searchOffdeckEntries').mockImplementation(async q=>({items:entries.filter(item=>item.displayIdentity.includes(q)),nextCursor:null}));
+  return vi.spyOn(helixAdminApi, 'listCollection').mockRejectedValue(new Error('Off-deck must not read Collection details.'));
+}
+
 describe('Off-deck progress', () => {
   afterEach(() => { history.replaceState(null, '', '/'); vi.useRealTimers(); vi.restoreAllMocks(); });
 
+  it('keeps all 1000 selected IDs in one Review while rendering at most 25 selection rows', async()=>{
+    const entries=Array.from({length:1000},(_,i)=>collectionEntry('entry-'+String(i).padStart(4,'0'),'Movie '+i,100));
+    const collection=mockWorkbench(entries);
+    vi.mocked(helixAdminApi.getOffdeckWorkbench).mockResolvedValue({candidates:[],duplicateGroups:[],entries:[],currentCount:1000,candidateCount:0,nextCursor:null,shelves:[]});
+    vi.mocked(helixAdminApi.searchOffdeckEntries).mockResolvedValue({items:entries.slice(0,25),nextCursor:'next'});
+    const create=vi.spyOn(helixAdminApi,'createOffdeckReview').mockResolvedValue(highVolumeReview);
+    render(<SessionProvider><OffdeckPage/></SessionProvider>);
+    await screen.findByRole('heading',{name:'手动退出'});
+    expect(helixAdminApi.searchOffdeckEntries).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button',{name:'全选当前收藏'}));
+    const confirm=await screen.findByRole('button',{name:'确认退出 1000 部'});
+    await waitFor(()=>expect(confirm).toBeEnabled());
+    expect(screen.getAllByRole('checkbox')).toHaveLength(25);
+    fireEvent.click(confirm);
+    await waitFor(()=>expect(create).toHaveBeenCalledTimes(1));
+    expect(create.mock.calls[0][0].shelfEntryIds).toEqual(entries.map(item=>item.shelfEntryId));
+    expect(collection).not.toHaveBeenCalled();
+  });
+
+  it('discards an older search response and supports explicit retry after failure',async()=>{
+    vi.useFakeTimers();mockWorkbench([collectionEntry('entry','Initial',1)]);
+    let resolveOld!:(value:{items:CollectionEntry[];nextCursor:null})=>void;
+    const search=vi.mocked(helixAdminApi.searchOffdeckEntries);
+    search.mockImplementationOnce(()=>new Promise(resolve=>{resolveOld=resolve;}))
+      .mockResolvedValueOnce({items:[collectionEntry('new','New title',1)],nextCursor:null})
+      .mockRejectedValueOnce(new Error('Search unavailable'))
+      .mockResolvedValueOnce({items:[collectionEntry('retry','Retry title',1)],nextCursor:null});
+    await act(async()=>{render(<SessionProvider><OffdeckPage/></SessionProvider>);});
+    const input=screen.getByRole('searchbox');
+    fireEvent.change(input,{target:{value:'Old'}});
+    await act(async()=>{await vi.advanceTimersByTimeAsync(250);});
+    fireEvent.change(input,{target:{value:'New'}});
+    await act(async()=>{await vi.advanceTimersByTimeAsync(250);});
+    await act(async()=>{resolveOld({items:[collectionEntry('old','Old title',1)],nextCursor:null});});
+    expect(screen.getByText('New title')).toBeInTheDocument();expect(screen.queryByText('Old title')).not.toBeInTheDocument();
+    fireEvent.change(input,{target:{value:'Retry'}});
+    await act(async()=>{await vi.advanceTimersByTimeAsync(250);});
+    expect(screen.getByRole('alert')).toHaveTextContent('Search unavailable');
+    fireEvent.click(screen.getByRole('button',{name:'重新搜索'}));
+    await act(async()=>{await vi.advanceTimersByTimeAsync(250);});
+    expect(screen.getByText('Retry title')).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
   it('does not count completed cases as currently exiting', async () => {
     vi.spyOn(helixAdminApi, 'getOffdeckPolicy').mockResolvedValue(policy);
-    vi.spyOn(helixAdminApi, 'listOffdeckCandidates').mockResolvedValue({
-      candidates: [], duplicateGroups: [], suppressions: [], whitelists: [],
-    });
-    vi.spyOn(helixAdminApi, 'listOffdeckCases').mockResolvedValue({
-      items: [offdeckCase('active', 'executing'), offdeckCase('done', 'completed')],
-    });
-    vi.spyOn(helixAdminApi, 'listCollection').mockResolvedValue({ items: [] });
+    mockWorkbench([], [offdeckCase('active', 'executing'), offdeckCase('done', 'completed')]);
     vi.spyOn(helixAdminApi, 'listShelves').mockResolvedValue({ items: [] });
 
     render(<SessionProvider><OffdeckPage /></SessionProvider>);
@@ -72,13 +122,9 @@ describe('Off-deck progress', () => {
 
   it('shows completed Off-deck history as a list and never offers historical entries for selection', async () => {
     vi.spyOn(helixAdminApi, 'getOffdeckPolicy').mockResolvedValue(policy);
-    vi.spyOn(helixAdminApi, 'listOffdeckCandidates').mockResolvedValue({ candidates:[], duplicateGroups:[], suppressions:[], whitelists:[] });
-    vi.spyOn(helixAdminApi, 'listOffdeckCases').mockResolvedValue({ items:[offdeckCase('done', 'completed')] });
     const current = collectionEntry('entry-current', 'Current Movie', 1_000);
     const historical = { ...collectionEntry('entry-done', 'Finished Movie', 2_000), status:'off_deck', terminalAtMs:2 };
-    const list = vi.spyOn(helixAdminApi, 'listCollection').mockImplementation(async (filters) => ({
-      items: filters?.status === 'history' ? [historical] : [current],
-    }));
+    const list = mockWorkbench([current],[offdeckCase('done','completed')],[historical]);
     vi.spyOn(helixAdminApi, 'listShelves').mockResolvedValue({ items:[] });
 
     render(<SessionProvider><OffdeckPage /></SessionProvider>);
@@ -87,10 +133,9 @@ describe('Off-deck progress', () => {
     expect(screen.getByText('这里只记录已经完成的退出收藏，不包含收藏架注销。')).toBeInTheDocument();
     const selection = screen.getByRole('heading', { name:'手动退出' }).closest('section')!;
     fireEvent.click(within(selection).getByRole('button', { name:'全选当前收藏' }));
-    expect(within(selection).getByText('Current Movie')).toBeInTheDocument();
+    expect(await within(selection).findByText('Current Movie')).toBeInTheDocument();
     expect(within(selection).queryByText('Finished Movie')).not.toBeInTheDocument();
-    expect(list).toHaveBeenCalledWith({ status:'current' });
-    expect(list).toHaveBeenCalledWith({ status:'history' });
+    expect(list).not.toHaveBeenCalled();
   });
 
   it('selects every current Entry into one batch Review and exposes High-volume confirmation', async () => {
@@ -100,11 +145,7 @@ describe('Off-deck progress', () => {
       collectionEntry('entry-b', 'Movie B', 2_000),
     ];
     vi.spyOn(helixAdminApi, 'getOffdeckPolicy').mockResolvedValue(policy);
-    vi.spyOn(helixAdminApi, 'listOffdeckCandidates').mockResolvedValue({
-      candidates: [], duplicateGroups: [], suppressions: [], whitelists: [],
-    });
-    vi.spyOn(helixAdminApi, 'listOffdeckCases').mockResolvedValue({ items: [] });
-    vi.spyOn(helixAdminApi, 'listCollection').mockResolvedValue({ items: entries });
+    mockWorkbench(entries);
     vi.spyOn(helixAdminApi, 'listShelves').mockResolvedValue({ items: [] });
     const createReview = vi.spyOn(helixAdminApi, 'createOffdeckReview').mockResolvedValue(highVolumeReview);
     vi.spyOn(helixAdminApi, 'getOffdeckReview').mockResolvedValue(highVolumeReview);
@@ -116,7 +157,8 @@ describe('Off-deck progress', () => {
     expect(screen.queryByText('审阅')).not.toBeInTheDocument();
     expect(screen.queryAllByRole('checkbox')).toHaveLength(0);
     fireEvent.click(screen.getByRole('button', { name: '全选当前收藏' }));
-    expect(screen.getByText('3 / 3 部')).toBeInTheDocument();
+    expect(await screen.findByText('3 / 3 部')).toBeInTheDocument();
+    await waitFor(()=>expect(screen.getByRole('button',{name:'确认退出 3 部'})).toBeEnabled());
     expect(screen.getAllByRole('checkbox')).toHaveLength(3);
     expect(screen.getAllByRole('checkbox').every((item) => (item as HTMLInputElement).checked)).toBe(true);
 
@@ -140,9 +182,7 @@ describe('Off-deck progress', () => {
       ],
     }], selection: { ...highVolumeReview.selection!, entryCount: 1, primaryCount: 2, deckCoverageRatio: 0.25, shelfCoverageRatios: { 'shelf-1': 0.5 } } };
     review.scopes.push({ ...review.scopes[0], destructionScopeId: 'excluded', state: 'stale', materials: [{ ...review.scopes[0].materials[0], location: '/excluded/keep.mkv' }] });
-    vi.spyOn(helixAdminApi, 'listOffdeckCandidates').mockResolvedValue({ candidates: [], duplicateGroups: [], suppressions: [], whitelists: [] });
-    vi.spyOn(helixAdminApi, 'listOffdeckCases').mockResolvedValue({ items: [] });
-    vi.spyOn(helixAdminApi, 'listCollection').mockResolvedValue({ items: [collectionEntry('entry-a', '影片', 1)] });
+    mockWorkbench([collectionEntry('entry-a', '影片', 1)]);
     vi.spyOn(helixAdminApi, 'getOffdeckReview').mockResolvedValue(review);
     const escalate = vi.spyOn(helixAdminApi, 'confirmOffdeckHighVolume').mockResolvedValue({ ...review, state: 'selection_confirmed' });
     const authorize = vi.spyOn(helixAdminApi, 'authorizeOffdeck').mockResolvedValue({} as never);
@@ -165,15 +205,13 @@ describe('Off-deck progress', () => {
     await screen.findByRole('button', { name: '确认删除' });
     expect(escalate).toHaveBeenCalledWith('review-bulk', { actorId: 'admin' });
     expect(authorize).not.toHaveBeenCalled();
-    expect(helixAdminApi.listOffdeckCandidates).toHaveBeenCalledTimes(1);
-    expect(helixAdminApi.listOffdeckCases).toHaveBeenCalledTimes(1);
-    expect(helixAdminApi.listCollection).toHaveBeenCalledTimes(2);
+    expect(helixAdminApi.getOffdeckWorkbench).toHaveBeenCalledTimes(1);
+    expect(helixAdminApi.listOffdeckWorkCases).toHaveBeenCalledTimes(2);
+    expect(helixAdminApi.listCollection).not.toHaveBeenCalled();
   });
 
   it('does not present a cancelled receipt as a future deletion or releasable space', async () => {
-    vi.spyOn(helixAdminApi, 'listOffdeckCandidates').mockResolvedValue({ candidates: [], duplicateGroups: [], suppressions: [], whitelists: [] });
-    vi.spyOn(helixAdminApi, 'listOffdeckCases').mockResolvedValue({ items: [] });
-    vi.spyOn(helixAdminApi, 'listCollection').mockResolvedValue({ items: [] });
+    mockWorkbench();
     vi.spyOn(helixAdminApi, 'getOffdeckReview').mockResolvedValue({ ...highVolumeReview, state: 'cancelled' });
     const authorize = vi.spyOn(helixAdminApi, 'authorizeOffdeck');
     history.replaceState(null, '', '/offdeck?review=review-bulk');
@@ -187,9 +225,7 @@ describe('Off-deck progress', () => {
 
   it('does not overlap slow preparation reads or reopen a closed review with a late response', async () => {
     vi.useFakeTimers();
-    vi.spyOn(helixAdminApi, 'listOffdeckCandidates').mockResolvedValue({ candidates: [], duplicateGroups: [], suppressions: [], whitelists: [] });
-    vi.spyOn(helixAdminApi, 'listOffdeckCases').mockResolvedValue({ items: [] });
-    vi.spyOn(helixAdminApi, 'listCollection').mockResolvedValue({ items: [] });
+    mockWorkbench();
     const preparing = { ...highVolumeReview, state: 'preparing', selection: null };
     let resolveRead!: (value: OffdeckReview) => void;
     vi.spyOn(helixAdminApi, 'getOffdeckReview').mockResolvedValueOnce(preparing);
@@ -207,15 +243,13 @@ describe('Off-deck progress', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     await act(async () => { await vi.advanceTimersByTimeAsync(6000); });
     expect(read).toHaveBeenCalledTimes(1);
-    expect(helixAdminApi.listCollection).toHaveBeenCalledTimes(2);
+    expect(helixAdminApi.listCollection).not.toHaveBeenCalled();
   });
 
 
   it('polls only the compact head while preparing and reads fresh scope once ready', async () => {
     vi.useFakeTimers();
-    vi.spyOn(helixAdminApi, 'listOffdeckCandidates').mockResolvedValue({ candidates: [], duplicateGroups: [], suppressions: [], whitelists: [] });
-    vi.spyOn(helixAdminApi, 'listOffdeckCases').mockResolvedValue({ items: [] });
-    vi.spyOn(helixAdminApi, 'listCollection').mockResolvedValue({ items: [] });
+    mockWorkbench();
     const preparing = { ...highVolumeReview, state: 'preparing', selection: null };
     const full = vi.spyOn(helixAdminApi, 'getOffdeckReview').mockResolvedValueOnce(preparing).mockResolvedValue(highVolumeReview);
     const progress = vi.spyOn(helixAdminApi, 'getOffdeckReviewProgress')

@@ -13539,6 +13539,7 @@ GET       /v1/admin/offdeck/cases/:caseId
 ~~~
 
 `GET review`是纯读取；可使用`view=progress`只返回reviewId、state、createdAtMs，禁止扫描Scope材料或推进准备。准备由后台Owner执行，终态变化后UI再读取完整Scope，GET不取消Work、不修改Reservation或Review。
+退出工作台在Arca内部直接投影所需事实，不得为首屏拼装全部当前及历史Collection详情。`GET candidates?view=workbench`按页返回开放建议、该页重复组成员及展示身份、当前收藏数和收藏架名称；`view=search&q=...&cursor=...`按需分页搜索当前收藏；`view=display&shelfEntryIds=...`只读明确指定且有界的展示身份。`view=selection`仅在用户明确全选时，以一次只读事务返回全部当前Shelf Entry ID，不把搜索结果或一页冒充全选，不创建Review或Authorization。`GET cases?view=workbench&classification=active|completed&cursor=...`返回该类一页Case及展示身份和分类计数。全选后仍由一个Batch Intent进入既有Review、范围核对及必要的独立高量级确认，展示查询不授予删除权。
 `DELETE review`只在Authorization前取消临时Review/Reservation，不删除Shelf Entry或业务历史。
 `confirm-selection`只生成Selection Receipt；普通范围随后可以进入Authorization，高量级范围必须先由新的
 `confirm-high-volume`在独立页面消费Selection Receipt并生成Escalation Receipt。最终Authorization消费当前

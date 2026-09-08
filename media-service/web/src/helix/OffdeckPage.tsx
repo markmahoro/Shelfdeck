@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { helixAdminApi, type CollectionEntry, type OffdeckCase, type OffdeckCandidate, type OffdeckDuplicateGroup, type OffdeckReview } from './api';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { helixAdminApi, type OffdeckEntry, type OffdeckCase, type OffdeckCandidate, type OffdeckDuplicateGroup, type OffdeckReview } from './api';
 import { newOpaqueId } from './id';
 import { Button, LoadingState, PageHeader } from './chrome';
 import { caseStateLabels, labelOf, reviewStateLabels } from './labels';
@@ -14,12 +14,22 @@ function formatGiB(bytes: number) {
 export default function OffdeckPage() {
   const { expire } = useSession();
   const [candidates, setCandidates] = useState<OffdeckCandidate[]>([]);
+  const [candidateCount,setCandidateCount] = useState(0);
+  const [candidateCursor,setCandidateCursor] = useState<string|null>(null);
   const [groups, setGroups] = useState<OffdeckDuplicateGroup[]>([]);
   const [groupSelection, setGroupSelection] = useState<Record<string, string[]>>({});
   const [cases, setCases] = useState<OffdeckCase[]>([]);
   const [review, setReview] = useState<OffdeckReview | null>(null);
-  const [collectionEntries, setCollectionEntries] = useState<CollectionEntry[]>([]);
-  const [historicalEntries, setHistoricalEntries] = useState<CollectionEntry[]>([]);
+  const [currentCount, setCurrentCount] = useState(0);
+  const [shelfNames,setShelfNames] = useState<Record<string,string>>({});
+  const [caseCounts, setCaseCounts] = useState({active:0,completed:0});
+  const [caseCursors, setCaseCursors] = useState<{active:string|null;completed:string|null}>({active:null,completed:null});
+  const [searchHits, setSearchHits] = useState<OffdeckEntry[]>([]);
+  const [searchCursor, setSearchCursor] = useState<string|null>(null);
+  const [searchBusy, setSearchBusy] = useState(false);
+  const [searchFailed,setSearchFailed] = useState(false);
+  const [searchRetry,setSearchRetry] = useState(0);
+  const searchGeneration = useRef(0);
   const [bulkSelection, setBulkSelection] = useState<string[]>([]);
   const [search, setSearch] = useState('');
   const [titles, setTitles] = useState<Record<string, { title: string; occupancyBytes: number | null; shelfName: string }>>({});
@@ -35,22 +45,21 @@ export default function OffdeckPage() {
   const load = useCallback(async () => {
     setBusy(true); setError('');
     try {
-      const [candidateResult, caseResult, collection, historyCollection] = await Promise.all([
-        helixAdminApi.listOffdeckCandidates(),
-        helixAdminApi.listOffdeckCases(),
-        helixAdminApi.listCollection({ status: 'current' }),
-        helixAdminApi.listCollection({ status: 'history' }),
+      const [candidateResult, active, completed] = await Promise.all([
+        helixAdminApi.getOffdeckWorkbench(),
+        helixAdminApi.listOffdeckWorkCases('active'),
+        helixAdminApi.listOffdeckWorkCases('completed'),
       ]);
       setCandidates(candidateResult.candidates);
+      setCandidateCount(candidateResult.candidateCount);setCandidateCursor(candidateResult.nextCursor);
       setGroups(candidateResult.duplicateGroups);
-      setCases(caseResult.items);
-      setCollectionEntries(collection.items);
-      setHistoricalEntries(historyCollection.items);
-      setBulkSelection((current) => {
-        const activeIds = new Set(collection.items.map((item) => item.shelfEntryId));
-        return current.filter((id) => activeIds.has(id));
-      });
-      setTitles(Object.fromEntries([...collection.items, ...historyCollection.items].map((item) => [item.shelfEntryId, { title: item.displayIdentity, occupancyBytes: item.occupancyBytes ?? null, shelfName: item.shelfName }])));
+      setCases([...active.items,...completed.items]);
+      setCurrentCount(candidateResult.currentCount);
+      setShelfNames(Object.fromEntries(candidateResult.shelves.map(shelf=>[shelf.shelfId,shelf.name])));
+      setCaseCounts(active.counts);
+      setCaseCursors({active:active.nextCursor,completed:completed.nextCursor});
+      setBulkSelection([]);
+      setTitles(Object.fromEntries([...candidateResult.entries, ...active.entries,...completed.entries].map((item) => [item.shelfEntryId, { title: item.displayIdentity, occupancyBytes: item.occupancyBytes ?? null, shelfName: item.shelfName }])));
       const id = new URLSearchParams(location.search).get('review');
       if (id) setReview(await helixAdminApi.getOffdeckReview(id));
       else setReview(null);
@@ -59,6 +68,53 @@ export default function OffdeckPage() {
     finally { setBusy(false); }
   }, [fail]);
   useEffect(() => { void load(); }, [load]);
+  const remember = useCallback((items:OffdeckEntry[]) => setTitles(current=>({...current,...Object.fromEntries(items.map(item=>[item.shelfEntryId,{title:item.displayIdentity,occupancyBytes:item.occupancyBytes??null,shelfName:item.shelfName}]))})),[]);
+  useEffect(()=>{
+    const generation=++searchGeneration.current;
+    setSearchHits([]);setSearchCursor(null);setSearchFailed(false);
+    if(!search.trim()){setSearchBusy(false);return;}
+    setSearchBusy(true);setError('');
+    const timer=window.setTimeout(()=>{
+      void helixAdminApi.searchOffdeckEntries(search.trim()).then(result=>{
+        if(generation!==searchGeneration.current)return;
+        setSearchHits(result.items);setSearchCursor(result.nextCursor);remember(result.items);
+      }).catch(cause=>{if(generation===searchGeneration.current){setSearchFailed(true);fail(cause,'收藏搜索失败。');}})
+        .finally(()=>{if(generation===searchGeneration.current)setSearchBusy(false);});
+    },250);
+    return ()=>{window.clearTimeout(timer);searchGeneration.current++;};
+  },[search,searchRetry,fail,remember]);
+  const reviewEntryIds=review?.state!=='preparing'?JSON.stringify([...new Set(review?.scopes.map(scope=>scope.shelfEntryId)||[])].sort()):'[]';
+  useEffect(()=>{
+    let active=true;
+    const ids=JSON.parse(reviewEntryIds) as string[];
+    void (async()=>{try{for(let offset=0;offset<ids.length&&active;offset+=25){
+      const result=await helixAdminApi.getOffdeckEntryDisplay(ids.slice(offset,offset+25));
+      if(active)remember(result.items);
+    }}catch(cause){if(active)fail(cause,'退出收藏名称读取失败。');}})();
+    return ()=>{active=false;};
+  },[reviewEntryIds,remember,fail]);
+  async function moreSearch(){
+    if(!searchCursor||searchBusy)return;
+    const generation=searchGeneration.current;setSearchBusy(true);
+    try{const result=await helixAdminApi.searchOffdeckEntries(search.trim(),searchCursor);
+      if(generation!==searchGeneration.current)return;
+      setSearchHits(current=>[...current,...result.items.filter(item=>!current.some(old=>old.shelfEntryId===item.shelfEntryId))]);setSearchCursor(result.nextCursor);remember(result.items);
+    }catch(cause){if(generation===searchGeneration.current)fail(cause,'收藏搜索失败。');}
+    finally{if(generation===searchGeneration.current)setSearchBusy(false);}
+  }
+  async function moreCases(classification:'active'|'completed'){
+    const cursor=caseCursors[classification];if(!cursor)return;
+    const result=await helixAdminApi.listOffdeckWorkCases(classification,cursor);
+    setCases(current=>[...current,...result.items.filter(item=>!current.some(old=>old.offdeckCaseId===item.offdeckCaseId))]);
+    setCaseCursors(current=>({...current,[classification]:result.nextCursor}));setCaseCounts(result.counts);remember(result.entries);
+  }
+  async function moreCandidates(){
+    if(!candidateCursor)return;
+    const result=await helixAdminApi.getOffdeckWorkbench(candidateCursor);
+    setCandidates(current=>[...current,...result.candidates.filter(item=>!current.some(old=>old.candidate_id===item.candidate_id))]);
+    setGroups(current=>[...current,...result.duplicateGroups.filter(item=>!current.some(old=>old.duplicate_group_id===item.duplicate_group_id))]);
+    setCandidateCount(result.candidateCount);setCandidateCursor(result.nextCursor);remember(result.entries);
+  }
   useEffect(() => {
     if (!review || review.state !== 'preparing') return;
     let active = true;
@@ -147,13 +203,8 @@ export default function OffdeckPage() {
   const activeCases = cases.filter((item) => item.state !== 'completed');
   const completedCases = cases.filter((item) => item.state === 'completed')
     .sort((left, right) => Number(right.terminalAtMs) - Number(left.terminalAtMs));
-  const selectedBytes = bulkSelection.reduce((total, id) => total + Number(titles[id]?.occupancyBytes || 0), 0);
   const needle = search.trim().toLowerCase();
-  const searchHits = useMemo(() => {
-    if (!needle) return [];
-    return collectionEntries.filter((item) => item.displayIdentity.toLowerCase().includes(needle) || item.shelfName.toLowerCase().includes(needle));
-  }, [collectionEntries, needle]);
-  const selectedEntries = collectionEntries.filter((item) => bulkSelection.includes(item.shelfEntryId));
+  const selectedEntries = bulkSelection.slice(0,25).map(id=>({shelfEntryId:id,displayIdentity:titleOf(id),shelfName:titles[id]?.shelfName||'',occupancyBytes:sizeOf(id)}));
   const reviewScopes = review?.scopes.filter((scope) => scope.state !== 'stale') || [];
   const staleScopes = review?.scopes.filter((scope) => scope.state === 'stale') || [];
   const scopeMaterials = reviewScopes.flatMap((scope) => scope.materials);
@@ -174,7 +225,7 @@ export default function OffdeckPage() {
     <PageHeader title="退出收藏" actions={<Button type="button" onClick={() => void load()} disabled={busy}>刷新</Button>} />
     {error && <p className="form-error" role="alert">{error}</p>}
     <section className="offdeck-task">
-      <div className="source-card-heading"><div><h2>系统建议退出</h2></div><span>{openCandidates.length} 部</span></div>
+      <div className="source-card-heading"><div><h2>系统建议退出</h2></div><span>{candidateCount} 项</span></div>
       {openCandidates.length === 0 ? <div className="source-empty"><strong>当前没有建议</strong></div> : <div className="offdeck-suggest">{openCandidates.map((item) => {
         const group = item.candidate_kind === 'duplicate_group' ? groups.find((value) => value.duplicate_group_id === item.duplicate_group_id) : null;
         const size = sizeOf(item.shelf_entry_id);
@@ -188,29 +239,32 @@ export default function OffdeckPage() {
           </div>
         </article>;
       })}</div>}
+      {candidateCursor&&<Button type="button" disabled={busy} onClick={()=>void action(moreCandidates)}>更多退出建议</Button>}
     </section>
     <section className="offdeck-task offdeck-bulk-task">
-      <div className="source-card-heading"><div><h2>手动退出</h2></div><span>{bulkSelection.length} / {collectionEntries.length} 部</span></div>
-      {collectionEntries.length === 0 ? <div className="source-empty"><strong>当前没有可退出的收藏</strong></div> : <>
+      <div className="source-card-heading"><div><h2>手动退出</h2></div><span>{bulkSelection.length} / {currentCount} 部</span></div>
+      {currentCount === 0 ? <div className="source-empty"><strong>当前没有可退出的收藏</strong></div> : <>
         <div className="offdeck-bulk-toolbar">
           <label className="offdeck-search"><span className="sr-only">搜索收藏后退出</span><input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="搜索片名后选择" /></label>
-          <div><strong>已选择 {bulkSelection.length} 部</strong><small>{bulkSelection.length ? ` · ${formatGiB(selectedBytes)}` : ''}</small></div>
+          <div><strong>已选择 {bulkSelection.length} 部</strong><small>{bulkSelection.length ? ' · 下一步核对文件和空间' : ''}</small></div>
           <div className="button-row">
-            <Button type="button" onClick={() => setBulkSelection(collectionEntries.map((item) => item.shelfEntryId).sort())}>全选当前收藏</Button>
-            <Button type="button" onClick={() => setBulkSelection([])} disabled={bulkSelection.length === 0}>清空选择</Button>
+            <Button type="button" disabled={busy} onClick={() => void action(async()=>{const result=await helixAdminApi.selectAllOffdeckEntries();setBulkSelection(result.shelfEntryIds);setCurrentCount(result.shelfEntryIds.length);const preview=await helixAdminApi.searchOffdeckEntries('');remember(preview.items);})}>全选当前收藏</Button>
+            <Button type="button" onClick={() => setBulkSelection([])} disabled={busy || bulkSelection.length === 0}>清空选择</Button>
           </div>
         </div>
         {needle ? <fieldset className="offdeck-bulk-list">
           <legend>搜索结果</legend>
-          {searchHits.length === 0 ? <p>没有匹配的收藏。</p> : searchHits.map((item) => <label key={item.shelfEntryId}>
+          {searchFailed&&<div className="button-row" style={{gridColumn:'1 / -1'}}><Button type="button" disabled={searchBusy} onClick={()=>setSearchRetry(current=>current+1)}>重新搜索</Button></div>}
+          {searchHits.length === 0 ? <p>{searchBusy?'正在搜索…':'没有匹配的收藏。'}</p> : searchHits.map((item) => <label key={item.shelfEntryId}>
             <input type="checkbox" checked={bulkSelection.includes(item.shelfEntryId)} onChange={() => toggleBulkEntry(item.shelfEntryId)} />
             <span><strong>{item.displayIdentity}</strong><small>{item.shelfName} · {formatGiB(item.occupancyBytes)}</small></span>
           </label>)}
+          {searchCursor&&<Button type="button" disabled={searchBusy} onClick={()=>void moreSearch()}>更多搜索结果</Button>}
         </fieldset> : selectedEntries.length > 0 ? <fieldset className="offdeck-bulk-list">
-          <legend>已选择</legend>
+          <legend>已选择{bulkSelection.length>25?'（显示前 25 部，完整名单将在审阅中核对）':''}</legend>
           {selectedEntries.map((item) => <label key={item.shelfEntryId}>
             <input type="checkbox" checked onChange={() => toggleBulkEntry(item.shelfEntryId)} />
-            <span><strong>{item.displayIdentity}</strong><small>{item.shelfName} · {formatGiB(item.occupancyBytes)}</small></span>
+            <span><strong>{item.displayIdentity}</strong><small>{item.shelfName} · {formatGiB(item.occupancyBytes??0)}</small></span>
           </label>)}
         </fieldset> : null}
         <div className="button-row offdeck-bulk-action">
@@ -219,7 +273,7 @@ export default function OffdeckPage() {
       </>}
     </section>
     <section className="offdeck-task">
-      <div className="source-card-heading"><div><h2>正在退出</h2></div><span>{activeCases.length} 部</span></div>
+      <div className="source-card-heading"><div><h2>正在退出</h2></div><span>{caseCounts.active} 部</span></div>
       {activeCases.length === 0 ? <div className="source-empty"><strong>现在没有正在退出的收藏</strong></div> : activeCases.map((item) => <article className="source-row" key={item.offdeckCaseId}>
         <div>
           <strong>{titleOf(item.shelfEntryId)}</strong>
@@ -231,16 +285,17 @@ export default function OffdeckPage() {
           setReview(value); history.replaceState(null, '', `/offdeck?review=${encodeURIComponent(value.reviewId)}`);
         })}>重新授权</Button>}
       </article>)}
+      {caseCursors.active&&<Button type="button" disabled={busy} onClick={()=>void action(()=>moreCases('active'))}>更多正在退出</Button>}
     </section>
     <section className="offdeck-task offdeck-history-task">
-      <div className="source-card-heading"><div><h2>已退出记录</h2><p>这里只记录已经完成的退出收藏，不包含收藏架注销。</p></div><span>{completedCases.length} 条</span></div>
+      <div className="source-card-heading"><div><h2>已退出记录</h2><p>这里只记录已经完成的退出收藏，不包含收藏架注销。</p></div><span>{caseCounts.completed} 条</span></div>
       {completedCases.length === 0 ? <div className="source-empty"><strong>还没有已完成的退出记录</strong></div> : <div className="offdeck-history-list" role="list">{completedCases.map((item) => {
-        const entry = historicalEntries.find((value) => value.shelfEntryId === item.shelfEntryId);
         return <article className="source-row" role="listitem" key={item.offdeckCaseId}>
-          <div><strong>{titleOf(item.shelfEntryId)}</strong><small>{entry?.shelfName || titles[item.shelfEntryId]?.shelfName || '原收藏架'} · 已完成退出</small></div>
+          <div><strong>{titleOf(item.shelfEntryId)}</strong><small>{titles[item.shelfEntryId]?.shelfName || '原收藏架'} · 已完成退出</small></div>
           <time dateTime={item.terminalAtMs ? new Date(item.terminalAtMs).toISOString() : undefined}>{item.terminalAtMs ? new Date(item.terminalAtMs).toLocaleString() : '完成时间未记录'}</time>
         </article>;
       })}</div>}
+      {caseCursors.completed&&<Button type="button" disabled={busy} onClick={()=>void action(()=>moreCases('completed'))}>更多已退出记录</Button>}
     </section>
     {review && <div className="collection-dialog-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget && !['preparing', 'open', 'selection_confirmed', 'awaiting_escalation'].includes(review.state)) void closeReview(); }}>
       <section className="collection-dialog offdeck-confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="offdeck-confirm-title">
@@ -254,7 +309,7 @@ export default function OffdeckPage() {
           {review.state!=='preparing'&&!cancelledReview&&<section className="offdeck-review-summary" aria-label="本次退出范围">
             <p><strong>{reviewEntries} 部收藏 · {reviewPrimary} 个主视频或光盘结构文件 · {reviewRelated} 个附属文件</strong></p>
             <p>文件总空间：{formatGiB(reviewBytes)}{review.selection?` · 占全部当前收藏 ${(review.selection.deckCoverageRatio*100).toFixed(1)}%`:''}</p>
-            {review.selection && (review.selection.shelfCoverageRatios ? Object.entries(review.selection.shelfCoverageRatios).map(([shelfId, ratio]) => <p key={shelfId}>收藏架覆盖率：{collectionEntries.find((entry) => entry.shelfId === shelfId)?.shelfName || '原收藏架'} {(ratio * 100).toFixed(1)}%（确认选择时）</p>) : <p>此历史审阅未保存收藏架覆盖率，不能由当前收藏数量还原。</p>)}
+            {review.selection && (review.selection.shelfCoverageRatios ? Object.entries(review.selection.shelfCoverageRatios).map(([shelfId, ratio]) => <p key={shelfId}>收藏架覆盖率：{shelfNames[shelfId] || '原收藏架'} {(ratio * 100).toFixed(1)}%（确认选择时）</p>) : <p>此历史审阅未保存收藏架覆盖率，不能由当前收藏数量还原。</p>)}
             <p>最终授权后将执行删除，不能撤销。仍被其他收藏引用的共享附属文件会保留，实际释放空间可能较小。</p>
           </section>}
           {staleScopes.length > 0 && <p role="status">{staleScopes.length} 部范围已排除或失效，不会按本次范围删除。</p>}

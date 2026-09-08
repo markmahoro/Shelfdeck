@@ -1,6 +1,7 @@
 'use strict';
 
 const { createMaterialControlProjectionPort }=require('../../../foundation/persistence/material-control');
+const {createOffdeckEntryQuery}=require('./offdeck-entry-query');
 
 function createOffdeckAdminApplication(options){
   if(!options?.contextReader||!options.automationCoordinator||!options.caseCoordinator)throw new TypeError('Off-deck Admin requires product execution services.');
@@ -8,7 +9,20 @@ function createOffdeckAdminApplication(options){
   const readControls=(keys)=>{const unique=[...new Set(keys)].sort(),values=[];for(let offset=0;offset<unique.length;offset+=500)values.push(...controls.getMaterialControlProjections(unique.slice(offset,offset+500)));return Object.freeze(values);};
   function policy(){return store.ensurePolicy();}
   function publishPolicy(body){return store.publishPolicy(body);}
-  function candidates(){return store.listCandidates();}
+  let entryQuery;
+  const entries=()=>entryQuery||(entryQuery=createOffdeckEntryQuery(options));
+  function candidates(query={}){
+    if(!query.view)return store.listCandidates();
+    if(query.view==='search')return entries().search(query);
+    if(query.view==='selection')return entries().selection();
+    if(query.view==='display'){
+      let ids;try{ids=JSON.parse(query.shelfEntryIds);}catch{throw new TypeError('Invalid Off-deck display identities.');}
+      if(!Array.isArray(ids)||ids.some(id=>typeof id!=='string'||!id))throw new TypeError('Invalid Off-deck display identities.');
+      return Object.freeze({items:entries().display(ids)});
+    }
+    if(query.view!=='workbench')throw Object.assign(new Error('Unsupported Off-deck workbench view.'),{code:'ARCA_OFFDECK_VIEW_INVALID'});
+    return Object.freeze({...entries().candidates(query),...entries().summary()});
+  }
   function evaluate(){const result=options.automationCoordinator.evaluate();wake();return result;}
   function detectDuplicates(){const result=options.automationCoordinator.detectDuplicates();wake();return result;}
   function cancelAftercareWorks(review){let drainingWorks=0;for(const reservation of review?.reservations||[]){const result=typeof options.cancelProcessWorks==='function'?options.cancelProcessWorks({ownerDomain:'arca',processType:'arca_shelf_entry',processId:reservation.shelfEntryId,reasonCode:'ARCA_OFFDECK_RESERVATION_FENCE'}):null;drainingWorks+=Number(result?.drainingWorks||0);}return drainingWorks;}
@@ -20,6 +34,10 @@ function createOffdeckAdminApplication(options){
     suppress:(candidateId,body)=>store.suppressCandidate(candidateId,body),whitelist:(groupId,body)=>store.whitelistDuplicate(groupId,body),
     revokeSuppression:(id)=>store.revokeSuppression(id),revokeWhitelist:(id)=>store.revokeWhitelist(id),createReview,
     review:(id,query={})=>{if(query.view&&query.view!=='progress')throw Object.assign(new Error('Unsupported Off-deck review view.'),{code:'ARCA_OFFDECK_VIEW_INVALID'});return query.view==='progress'?store.progress(id):store.detail(id);},cancelReview:(id)=>store.cancel(id),confirmSelection:(id,body)=>store.confirmSelection(id,body),
-    confirmHighVolume:(id,body)=>store.confirmEscalation(id,body),authorize,cases:()=>Object.freeze({items:store.listCases()}),caseDetail});
+    confirmHighVolume:(id,body)=>store.confirmEscalation(id,body),authorize,cases:(query={})=>{
+      if(!query.view)return Object.freeze({items:store.listCases()});
+      if(query.view!=='workbench')throw Object.assign(new Error('Unsupported Off-deck Case view.'),{code:'ARCA_OFFDECK_VIEW_INVALID'});
+      return entries().cases(query);
+    },caseDetail});
 }
 module.exports=Object.freeze({createOffdeckAdminApplication});

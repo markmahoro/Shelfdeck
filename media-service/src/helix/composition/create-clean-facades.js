@@ -330,7 +330,7 @@ function createCleanFacades(options) {
     const app=options.arcaOffdeck;
     facades.ArcaOffdeckFacade.get_offdeck_policies=async()=>({body:app.policy()});
     facades.ArcaOffdeckFacade.patch_offdeck_policies=async(input)=>({body:app.publishPolicy(input.body)});
-    facades.ArcaOffdeckFacade.get_offdeck_candidates=async()=>({body:app.candidates()});
+    facades.ArcaOffdeckFacade.get_offdeck_candidates=async(input)=>({body:app.candidates(input.query||{})});
     facades.ArcaOffdeckFacade.post_offdeck_actions_evaluate=async()=>({status:202,body:app.evaluate()});
     facades.ArcaOffdeckFacade.post_offdeck_actions_detect_duplicates=async()=>({status:202,body:app.detectDuplicates()});
     facades.ArcaOffdeckFacade.post_offdeck_candidates_candidateid_actions_suppress=async(input)=>({body:app.suppress(input.params.candidateId,input.body)});
@@ -343,7 +343,7 @@ function createCleanFacades(options) {
     facades.ArcaOffdeckFacade.post_offdeck_reviews_reviewid_actions_confirm_selection=async(input)=>({body:app.confirmSelection(input.params.reviewId,input.body)});
     facades.ArcaOffdeckFacade.post_offdeck_reviews_reviewid_actions_confirm_high_volume=async(input)=>({body:app.confirmHighVolume(input.params.reviewId,input.body)});
     facades.ArcaOffdeckFacade.post_offdeck_authorizations=async(input)=>({status:202,body:app.authorize(input.body)});
-    facades.ArcaOffdeckFacade.get_offdeck_cases=async()=>({body:app.cases()});
+    facades.ArcaOffdeckFacade.get_offdeck_cases=async(input)=>({body:app.cases(input.query||{})});
     facades.ArcaOffdeckFacade.get_offdeck_cases_caseid=async(input)=>({body:app.caseDetail(input.params.caseId)});
   }
 

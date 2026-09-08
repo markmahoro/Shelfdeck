@@ -405,6 +405,7 @@ export type OffdeckCandidate={candidate_id:string;candidate_kind:'entry'|'duplic
 export type OffdeckDuplicateGroup={duplicate_group_id:string;canonical_identity_digest:string;member_set_digest:string;state:string;members:Array<{shelf_entry_id:string;inventory_revision:number;member_digest:string}>};
 export type OffdeckReview={reviewId:string;originKind:string;originRef:string;state:string;createdAtMs:number;reservations:Array<{reservationId:string;shelfEntryId:string;inventoryRevision:number;state:string}>;scopes:Array<{destructionScopeId:string;shelfEntryId:string;memberCount:number;totalBytes:number;scopeDigest:string;state:string;materials:Array<{ordinal:number;materialKey:string;role:string;location:string;sizeBytes:number;deleteCondition:string}>}>;selection:{selectionReceiptId:string;scopeSetDigest:string;entryCount:number;primaryCount:number;totalBytes:number;deckCoverageRatio:number;shelfCoverageRatios?:Record<string,number>|null;highVolume:boolean}|null;escalation:{escalationReceiptId:string}|null};
 export type OffdeckCase={offdeckCaseId:string;shelfEntryId:string;state:'executing'|'blocked'|'awaiting_reauthorization'|'completed';recoveryRevision:number;retryAtMs:number|null;blockedReason:string|null;createdAtMs:number;terminalAtMs:number|null};
+export type OffdeckEntry=Pick<CollectionEntry,'shelfEntryId'|'displayIdentity'|'shelfName'|'occupancyBytes'>;
 
 export type IntegrationState = {
   kind: string;
@@ -674,6 +675,11 @@ export const helixAdminApi = {
   getOffdeckPolicy(){return request<OffdeckPolicy>('/v1/admin/offdeck/policies');},
   publishOffdeckPolicy(body:JsonValue){return request<OffdeckPolicy>('/v1/admin/offdeck/policies',{method:'PATCH',body:JSON.stringify(body)});},
   listOffdeckCandidates(){return request<{candidates:OffdeckCandidate[];duplicateGroups:OffdeckDuplicateGroup[];suppressions:JsonValue[];whitelists:JsonValue[]}>('/v1/admin/offdeck/candidates');},
+  getOffdeckWorkbench(cursor?:string){const query=new URLSearchParams({view:'workbench'});if(cursor)query.set('cursor',cursor);return request<{candidates:OffdeckCandidate[];duplicateGroups:OffdeckDuplicateGroup[];entries:OffdeckEntry[];currentCount:number;candidateCount:number;nextCursor:string|null;shelves:{shelfId:string;name:string}[]}>(`/v1/admin/offdeck/candidates?${query}`);},
+  searchOffdeckEntries(q:string,cursor?:string){const query=new URLSearchParams({view:'search',q,limit:'25'});if(cursor)query.set('cursor',cursor);return request<{items:OffdeckEntry[];nextCursor:string|null}>(`/v1/admin/offdeck/candidates?${query}`);},
+  selectAllOffdeckEntries(){return request<{shelfEntryIds:string[]}>('/v1/admin/offdeck/candidates?view=selection');},
+  getOffdeckEntryDisplay(shelfEntryIds:string[]){const query=new URLSearchParams({view:'display',shelfEntryIds:JSON.stringify(shelfEntryIds)});return request<{items:OffdeckEntry[]}>(`/v1/admin/offdeck/candidates?${query}`);},
+  listOffdeckWorkCases(classification:'active'|'completed',cursor?:string){const query=new URLSearchParams({view:'workbench',classification,limit:'25'});if(cursor)query.set('cursor',cursor);return request<{items:OffdeckCase[];entries:OffdeckEntry[];counts:{active:number;completed:number};nextCursor:string|null}>(`/v1/admin/offdeck/cases?${query}`);},
   evaluateOffdeck(){return request<{operations:JsonValue[];matchedCount:number}>('/v1/admin/offdeck/actions/evaluate',{method:'POST',body:JSON.stringify({idempotencyKey:`offdeck-evaluate:${newOpaqueId()}`})});},
   detectOffdeckDuplicates(){return request<JsonValue>('/v1/admin/offdeck/actions/detect-duplicates',{method:'POST',body:JSON.stringify({idempotencyKey:`offdeck-duplicates:${newOpaqueId()}`})});},
   suppressOffdeckCandidate(candidateId:string){return request<JsonValue>(`/v1/admin/offdeck/candidates/${encodeURIComponent(candidateId)}/actions/suppress`,{method:'POST',body:JSON.stringify({actorId:'admin',idempotencyKey:`offdeck-suppress:${candidateId}:${newOpaqueId()}`})});},

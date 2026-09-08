@@ -1364,6 +1364,20 @@ test('P14 Off-deck high-volume review requires a separate escalation and closes 
   const sentinel = path.join(shelf, 'not-in-any-offdeck-scope.keep');
   fs.writeFileSync(sentinel, 'outside every immutable destruction scope', 'utf8');
 
+  const workbench=await host.inject({method:'GET',url:'/v1/admin/offdeck/candidates?view=workbench',headers:{cookie}});
+  assert.equal(workbench.statusCode,200,workbench.body);assert.equal(workbench.json().currentCount,10);
+  assert.equal(workbench.json().entries.length,0);
+  const allSelection=await host.inject({method:'GET',url:'/v1/admin/offdeck/candidates?view=selection',headers:{cookie}});
+  assert.equal(allSelection.statusCode,200,allSelection.body);
+  assert.deepEqual(allSelection.json().shelfEntryIds,[...entryIds].sort());
+  const searchPage=await host.inject({method:'GET',url:'/v1/admin/offdeck/candidates?view=search&limit=3',headers:{cookie}});
+  assert.equal(searchPage.statusCode,200,searchPage.body);assert.equal(searchPage.json().items.length,3);assert.ok(searchPage.json().nextCursor);
+  assert.deepEqual(Object.keys(searchPage.json().items[0]).sort(),['displayIdentity','occupancyBytes','shelfEntryId','shelfName']);
+  const display=await host.inject({method:'GET',url:'/v1/admin/offdeck/candidates?view=display&shelfEntryIds='+encodeURIComponent(JSON.stringify(entryIds.slice(0,2))),headers:{cookie}});
+  assert.equal(display.statusCode,200,display.body);assert.equal(display.json().items.length,2);
+  const casePage=await host.inject({method:'GET',url:'/v1/admin/offdeck/cases?view=workbench&classification=completed',headers:{cookie}});
+  assert.equal(casePage.statusCode,200,casePage.body);assert.equal(casePage.json().items.length,0);
+
   const cancellableReview = await host.inject({ method:'POST', url:'/v1/admin/offdeck/reviews',
     headers:{ cookie }, payload:{ shelfEntryId:entryIds[0], originKind:'direct_intent', actorId:'admin-e2e',
       idempotencyKey:'offdeck-cancel-before-authorization' } });
@@ -1389,10 +1403,13 @@ test('P14 Off-deck high-volume review requires a separate escalation and closes 
   assert.equal(review.statusCode, 201, review.body);
   const reviewId = review.json().reviewId;
   let preparedReview = review.json();
-  for (let attempt = 0; preparedReview.state === 'preparing' && attempt < 120; attempt += 1) {
+  // The Owner fallback runs every 30 seconds; draining may span another pass.
+  // The former 12-second deadline could expire before the first scheduled sweep.
+  const preparationDeadline=Date.now()+90_000;
+  while (preparedReview.state === 'preparing' && Date.now()<preparationDeadline) {
     await new Promise((resolve) => setTimeout(resolve, 100));
     const refreshed = await host.inject({ method:'GET',
-      url:'/v1/admin/offdeck/reviews/' + reviewId, headers:{ cookie } });
+      url:'/v1/admin/offdeck/reviews/' + reviewId + '?view=progress', headers:{ cookie } });
     assert.equal(refreshed.statusCode, 200, refreshed.body);
     preparedReview = refreshed.json();
   }
