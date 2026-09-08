@@ -40,6 +40,18 @@ function createRecycleApplication(options){
   function publicRow(row){return Object.freeze({id:row.recycle_entry_id,shelfEntryId:row.shelf_entry_id,sourceLocation:row.source_location,
     state:row.state,reasonCode:row.reason_code,createdAtMs:row.created_at_ms,archivedAtMs:row.archived_at_ms,expiresAtMs:row.expires_at_ms,
     fileCount:row.manifest.entries.filter(item=>item.kind==='file').length,totalBytes:row.manifest.totalBytes,errorCode:row.last_error});}
+  function cleanupProjection(check,recycled){
+    const checks=check.checks.map(item=>{
+      const latest=recycled.filter(row=>row.shelf_entry_id===check.shelf_entry_id&&row.source_location===item.sourceLocation&&
+        Number(row.created_at_ms)>=Number(check.created_at_ms)).sort((a,b)=>Number(b.created_at_ms)-Number(a.created_at_ms))[0];
+      if(!latest)return item;
+      const state=['restoring','restored'].includes(latest.state)?'retained_after_restore':latest.state==='archived'?'archived':latest.state==='purged'?'purged':'recycle_pending';
+      return {sourceLocation:item.sourceLocation,state,recycleEntryId:latest.recycle_entry_id,errorCode:latest.last_error||null};
+    });
+    const state=checks.some(item=>item.errorCode&&item.state!=='retained_in_use'||['awaiting_confirmation','blocked'].includes(item.state))?'attention':
+      checks.some(item=>item.state==='recycle_pending')?'pending':checks.length?'completed':check.state;
+    return {onDeckRunId:check.on_deck_run_id,shelfEntryId:check.shelf_entry_id,state,checks,checkedAtMs:check.check_revision>1?check.updated_at_ms:null};
+  }
   async function archive(shelfEntryId,body){
     if(typeof body?.idempotencyKey!=='string'||!body.idempotencyKey||body.idempotencyKey.length>200)fail('ARCA_RECYCLE_KEY_INVALID');
     const id=canonicalDigest({shelfEntryId,key:body.idempotencyKey}),prior=store.get(id);
@@ -122,9 +134,9 @@ function createRecycleApplication(options){
   return Object.freeze({list:(query={})=>{
     const cursor=query.cleanupCursor||null;
     if(cursor!==null&&(typeof cursor!=='string'||cursor.length>200))fail('ARCA_RECYCLE_CURSOR_INVALID');
-    const rows=options.cleanupStore?.page(cursor,51)||[],page=rows.slice(0,50);
-    return {items:store.list().sort((a,b)=>Number(b.created_at_ms)-Number(a.created_at_ms)).map(publicRow),
-      cleanupChecks:page.map(row=>({onDeckRunId:row.on_deck_run_id,shelfEntryId:row.shelf_entry_id,state:row.state,checks:row.checks,checkedAtMs:row.check_revision>1?row.updated_at_ms:null})),
+    const rows=options.cleanupStore?.page(cursor,51)||[],page=rows.slice(0,50),recycled=store.list().sort((a,b)=>Number(b.created_at_ms)-Number(a.created_at_ms));
+    return {items:recycled.map(publicRow),
+      cleanupChecks:page.map(row=>cleanupProjection(row,recycled)),
       cleanupNextCursor:rows.length>50?page.at(-1).on_deck_run_id:null};
   },preview,archive,restore,tick});
 }

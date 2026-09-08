@@ -27,3 +27,7 @@
 ## 装配及恢复调用全链复验
 
 补齐两个调用后，真实影片全链72.2秒通过：NFO原位合法更新只刷新记录、0 Case，随后缺失NFO与海报各修复、Target迁移收尾、重启恢复、失败保留和退出均通过。日志`.codex/uat210-213-real-chain-fixed.log`；架构222文件通过，Service 530项中511通过、19项环境跳过、0失败。当前补丁尚未发布，生产7部记录更新仍待部署后自然收敛验收。
+
+## 747110c653生产结果
+
+13:35 UTC：正常后台完成12条NFO记录刷新，最大Receipt439字节。原7部NFO问题均恢复healthy；Aftercare仍44 resolved/11 unresolved/3 invalidated，0新增Case。全部69部中66 healthy、3新上架仍unknown，继续独立核验；未改生产NFO、未创建修复Case、未直接改健康数据。日志`.codex/uat210-production-record-refresh.json`及`.codex/formation-stock-health.json`。

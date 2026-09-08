@@ -29,3 +29,13 @@
 ## 媒体回归进一步发现
 
 旧长链路首次因按文件名把保留sidecar当成正式poster而失败；现场两文件都在初始Inventory，并非Aftercare新增孤儿文件。测试已改为逐路径验证Inventory后按正式role选取修复范围。等待后台检查又使UAT-214的确定人物关联正常提交Inventory revision 2（未创建Case），暴露旧长链路硬编码revision 1/2/3/4的时序假设；完整Aftercare长链路需按每次操作前的实际revision验证，不宣称这条旧长链路通过。保留两次失败现场以继续UAT-210/214验收，不修改生产或删除多余样本来绕过断言。
+
+## 生产新上架验收（13:22–13:29 UTC）
+
+5c7bc1f043运行期间收藏由62变69，新增7条独立收尾责任。裁缝、信条、大空头、杀破狼、老手、九月五日均因当前材料仍使用原目录而明确保留；黑寡妇为等待确认。真实Edge系统设置→回收站→检查具体清单→展开，显示clearart.png、disc.png、thumb.jpg共约2515 KiB，无视频。依据用户已授权必要项目清理，实际点击确认后归档完成，回收记录eb6c4d00d5975a0ae0548e44f977338196a3cfa9b1da1690630f6492409d62bd；UI显示30天保留、2026-10-08到期及恢复入口。未改变上架结果或健康，不把之前Top Gun人工清理作自动流程证据。
+
+只读原子责任/状态证据`.codex/uat215-current-cleanup.json`，精确预览及回收状态`.codex/recycle-current-audit.json`。归档后收尾投影仍为24小时节流前的等待确认，需核实归档动作是否应唤醒收尾复查；本项保留未关闭，不能以归档执行成功代替状态一致性完成。
+
+## 即时读投影修正
+
+收尾展示按同Shelf Entry、同精确sourceLocation、收尾责任创建后的最新Recycle事实合并，确认后pending、归档后archived、恢复后retained_after_restore、到期完成purged。保持原检查快照及next-check节流不变，GET无数据库写入，其他Entry的同路径记录不混入。15项回收测试、Web59项/build、222架构文件通过；尚未发布。

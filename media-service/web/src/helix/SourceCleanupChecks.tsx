@@ -3,7 +3,7 @@ import { helixAdminApi, type SourceCleanupCheck } from './api';
 import { Button } from './chrome';
 import { isUnauthorized, useSession } from './session';
 
-const labels:Record<string,string>={absent:'原目录已不存在',archived:'已移入回收站',recycle_pending:'等待归档完成',awaiting_confirmation:'有剩余文件，等待确认具体清单',retained_in_use:'仍被当前材料使用，保留原目录',retained_after_restore:'已请求恢复，保留原目录',blocked:'检查未完成'};
+const labels:Record<string,string>={absent:'原目录已不存在',archived:'已移入回收站',purged:'归档内容已到期清理',recycle_pending:'回收站操作尚未完成',awaiting_confirmation:'有剩余文件，等待确认具体清单',retained_in_use:'仍被当前材料使用，保留原目录',retained_after_restore:'已请求恢复，保留原目录',blocked:'检查未完成'};
 
 export default function SourceCleanupChecks({onInspect}:{onInspect:(id:string)=>void}) {
   const {expire}=useSession();

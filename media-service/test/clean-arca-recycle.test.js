@@ -56,6 +56,34 @@ test('occupied cleanup is durably pending confirmation without hashing or creati
   }finally{f.close();}
 });
 
+test('cleanup display follows confirmed recycle facts immediately without bypassing the observation throttle',async()=>{
+  const f=fixture();try{
+    const cleanupStore=f.seedCleanup(),app=f.makeApp({cleanupStore});
+    await app.tick();const observation=cleanupStore.page()[0];
+    assert.equal(observation.state,'attention');
+    const queued=await enqueue(app,f.source);
+    assert.equal(app.list().cleanupChecks[0].state,'pending');
+    await app.tick();
+    assert.equal(app.list().cleanupChecks[0].checks[0].state,'archived');
+    assert.equal(app.list().cleanupChecks[0].state,'completed');
+    assert.deepEqual(cleanupStore.page()[0],observation);
+    const restarted=f.makeApp({cleanupStore});
+    assert.equal(restarted.list().cleanupChecks[0].checks[0].recycleEntryId,queued.id);
+    await restarted.restore(queued.id);await restarted.tick();
+    assert.equal(restarted.list().cleanupChecks[0].checks[0].state,'retained_after_restore');
+    assert.equal(fs.existsSync(f.source),true);
+    assert.deepEqual(cleanupStore.page()[0],observation);
+  }finally{f.close();}
+});
+
+test('cleanup display does not adopt another Entry recycle record for the same old path',async()=>{
+  const f=fixture();try{
+    const cleanupStore=f.seedCleanup(),app=f.makeApp({cleanupStore});await app.tick();
+    const foreign=f.makeApp({cleanupStore,store:{...f.store,list:()=>[{shelf_entry_id:'another-entry',source_location:f.source,created_at_ms:100000001,state:'archived',manifest:{entries:[],totalBytes:0}}]}});
+    assert.equal(foreign.list().cleanupChecks[0].checks[0].state,'awaiting_confirmation');
+  }finally{f.close();}
+});
+
 test('a file appearing after the empty check never acquires automatic confirmation',async()=>{
   const f=fixture();try{
     fs.unlinkSync(path.join(f.source,'poster.jpg'));const cleanupStore=f.seedCleanup();

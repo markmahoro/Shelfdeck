@@ -9,7 +9,7 @@
 .health-lamp-copy strong{font-size:15px;font-weight:700}
 .health-lamp-copy small{color:var(--muted);font-size:12px;font-weight:500}
 .health-repair-progress{display:block;width:100%;height:7px;margin-top:12px;accent-color:#b18b35}
-@media(max-width:700px){.poster-wall{grid-template-columns:repeat(2,minmax(0,1fr));gap:22px 14px}.collection-dialog{grid-template-columns:1fr}.collection-dialog-poster{min-height:0;max-height:48vh;aspect-ratio:16/9}.collection-dialog-poster img{object-position:center 24%}.collection-dialog-copy{padding:28px 22px}.collection-facts{grid-template-columns:1fr}.collection-rating{align-items:flex-start;flex-direction:column}.collection-health-heading{align-items:flex-start;flex-direction:column}}
+@media(max-width:700px){.poster-wall{grid-template-columns:repeat(2,minmax(0,1fr));gap:22px 14px}.collection-dialog{grid-template-columns:1fr;grid-template-rows:max-content max-content}.collection-dialog-poster{min-height:0;max-height:48vh;aspect-ratio:16/9}.collection-dialog-poster img{object-position:center 24%}.collection-dialog-copy{padding:28px 22px}.collection-facts{grid-template-columns:1fr}.collection-rating{align-items:flex-start;flex-direction:column}.collection-health-heading{align-items:flex-start;flex-direction:column}}
 @media(prefers-reduced-motion:reduce){.poster-frame{transition:none}}
 .collection-shelf-stage{margin-top:26px;padding:22px 0 18px;border-top:1px solid var(--line);border-bottom:5px solid var(--ink)}
 .collection-shelf-primary{display:flex;align-items:end;justify-content:space-between;gap:32px}
