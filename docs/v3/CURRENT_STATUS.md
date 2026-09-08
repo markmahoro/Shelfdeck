@@ -7,7 +7,7 @@ Last updated: 2026-09-08
 - 当前产品、计划、验收和生产运行事实分别见 `docs/helix/README.md`、
   `docs/helix/CURRENT_PLAN.md`、`docs/helix/BETA_FEATURE_ACCEPTANCE_BASELINE.md` 与
   `docs/helix/CURRENT_STATUS.md`。
-- 当前生产镜像`markmahoro/shelfdeck:helix-beta-20260908-79874990b6`，source commit `79874990b66104f6e8ceefab0a3ed286b634b109`，Image ID `sha256:c8f314126c8cfb0d2924cd09d0100620d0be9d7ca6dd52e7865d593868685567`，Tar SHA256 `84e1892d9441bc3308d9a188d6f15fecde02bd64913dbac7212186f9417e03ae`。标准部署通过；本地真实媒体与Linux smoke通过，未宣称全部E2E重跑。生产UAT-214大演员表Receipt预算回归正在修复。当前事实以Helix状态为准。
+- 当前生产镜像`markmahoro/shelfdeck:helix-beta-20260908-5c7bc1f043`，source `5c7bc1f043`，Image ID `sha256:c14e3bf115d0521aa9bd4f5fdcd4d5974eed2197651e137fb0b149efa4ec1088`，Tar SHA256 `b278618a0417429fe7624558f67ad4b817b2a324d34a3e1413906546bd99acdd`。标准部署通过，Service511 PASS/19 SKIP、Web59、222架构文件与Linux smoke通过；未宣称全部真实媒体E2E重跑。当前UAT-210装配修正仍在本地，事实以Helix状态为准。
 - 不授权 Kairox compatibility migration、dual read、roadmap 重启或新 v3.x milestone。
 
 以下为本次用户痛点迭代之前的历史部署验证：

@@ -2,13 +2,14 @@
 
 更新：2026-09-08。主线未全数关闭；逐项状态见[UAT总表](UAT_ITERATION_REGISTER.md)，后续顺序见[CURRENT_PLAN](CURRENT_PLAN.md)。
 
-## 当前生产事实（20:24后）
+## 当前生产事实（21:00）
 
-- 生产已标准部署至`markmahoro/shelfdeck:helix-beta-20260908-79874990b6`，source commit `79874990b66104f6e8ceefab0a3ed286b634b109`，Image ID `sha256:c8f314126c8cfb0d2924cd09d0100620d0be9d7ca6dd52e7865d593868685567`，Tar SHA256 `84e1892d9441bc3308d9a188d6f15fecde02bd64913dbac7212186f9417e03ae`。发布主机脚本修正8ead81e49（UAT-252），不混写为镜像内源码。
-- 62部收藏，Libra 56完成/3待处理/0进行中；Aftercare 44完成/11历史结束/0活动。黑寡妇等待体积瑕疵决定，活着/沙丘旧Provider失败保留，未Reset、未接受或放弃。
-- build/upload/checksum/dry-run/readiness/apply与健康检查通过。Service510 PASS/19 SKIP、Web59 PASS、222架构文件通过及本地真实媒体链有证据；全量产品验收未完成。生产新增大演员表Receipt预算回归归UAT-214，64人本地复现并修正、11定向及222文件Gate通过，等待下一镜像。
-- 一致备份`backups/uat-iteration-20260908-79874990b6-final`（DB SHA256 `ea9b8dbad2f904d936ca971880795848d4dbbc1ad184c895456b404c485de41a`）及加密凭据已保存，6e37bf5679/275923039f回滚材料保留。
-- 用户授权必要NAS项目清理；UAT-253首批只移除8月28—30日32个旧tar（17,968,979,456字节），当前可用36,492,066,816字节，约34 GiB。运行数据、备份、8月31日后tar与Docker镜像未删除。
+- 镜像`markmahoro/shelfdeck:helix-beta-20260908-5c7bc1f043`，source `5c7bc1f043`，Image ID `sha256:c14e3bf115d0521aa9bd4f5fdcd4d5974eed2197651e137fb0b149efa4ec1088`，Tar SHA256 `b278618a0417429fe7624558f67ad4b817b2a324d34a3e1413906546bd99acdd`。标准build/upload/checksum/dry-run/readiness/apply完成；Service511 PASS/19 SKIP，Web59 PASS，222架构文件、Linux隔离smoke通过；未宣称全部E2E重跑。
+- 62部收藏，56完成上架/3待处理/0进行中；Aftercare44成功/11历史失败结束/3 invalidated，0活动Case。黑寡妇保留超限成品等待决定，活着/沙丘旧失败未Reset。
+- UAT-211两部已正常健康且额外NFO保留，真实浏览器验收关闭；UAT-214生产104批1665条新增人物关联、最大Receipt12459字节且0新增Case，验收关闭。UAT-210另7部NFO实际改变未完成Binding更新，定位缺失指纹依赖，修正及真实链正在验证。
+- 备份`backups/uat-iteration-20260908-5c7bc1f043-final`，DB SHA256 `69563825d4c834a40382e97472119f014184a730450375260b48c25f80fb1f0a`，加密凭据齐全；79874990b6、6e37bf5679、275923039f及此前备份保留。
+- UAT-252有界readiness实际发布验证关闭；UAT-253按授权清理32旧tar后约34 GiB可用，新镜像与备份后约32.6 GiB。UAT-216两种子旧目录已通过回收站归档/哈希复验，完整1080p版本保留，52.6秒样片处置仍开放。
+- 总表253连续编号；接手后新增验收关闭130/144/145/211/214/252/253。其余90行待实现或验收、206被取代待核清；UAT-251两项具体用户结果仍待确认，继续推进独立项。
 
 ## 接手与日内历史快照（以下不代表当前部署）
 

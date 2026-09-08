@@ -43,3 +43,9 @@ Arca在健康周期内执行独立关系记录命令，每批最多64个变化�
 79874990b6部署后出现P3_COMMAND_RESULT_TOO_LARGE。64名正式People及精确Arca关系的本地复现从person-record-refresh-store完整提交路径得到相同异常与调用栈。原批次仅限制64条，完整personProofs超过Foundation既有16 KiB Receipt合同，事务回滚，不能算关联完成。
 
 修正保留全部证明，单批增加12 KiB canonical JSON预算，为Receipt身份/revision预留空间；后续健康周期继续剩余关系，Store拒绝越界批次，不放宽Foundation、不丢弃证明。64人多批收敛、每批Receipt不超过16 KiB、最终无遗漏且0 Case，11项定向通过。生产错误消失与实际关系收敛待新镜像验证。
+
+## 生产观察与确定关联验收
+
+5c7bc1f043于12:40:19Z启动。后续两次只读核对收敛为104批、1665条新增关联，最大Receipt12459字节；当前2316条关系中2029条有person_id。剩余287条未擅自按名字猜测。新容器日志无Receipt超限；Case仍44 resolved、11 unresolved、3 invalidated，无新增维护Case。媒体名称/原Cast展示保持，Edge收藏详情可读。12 KiB证明分批的本地64人跨Inventory连续性、重放及禁止跨Owner写入保持通过。
+
+UAT-214观察→People Evidence→确定Arca关系记录链已取得本地、Linux与生产提交证据，按此边界验收关闭。现有NFO物理Binding观察延后是独立UAT-210装配缺陷，继续修复；不将UAT-251未决合同一并关闭。
