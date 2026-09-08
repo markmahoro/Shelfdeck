@@ -263,3 +263,5 @@
 | UAT-251 | Libra/Aftercare不可达目标、瑕疵接受与三种终局闭环 | 合同/业务流程 | 审视完成，待设计与实施 | 用户新增；关联UAT-210/213/217/218/250 | 尚未实施 | [合同与代码审视](implementation/evidence/UAT-251_TERMINAL_OUTCOME_AUDIT_20260908.md) | 三种首次终局、可用片源瑕疵接纳、修复失败保原片原瑕疵且不重复建Case；技术错误保留原因，责任收尾与重复进入合同后逐景验收。执行B1；依赖/承接：用户确认修复触发及健康展示；其他已确认语义立即传播。 |
 | UAT-252 | 标准部署readiness递归复制全部运行材料，可能耗尽NAS磁盘 | `DEPLOYMENT_SAFETY` | 验收关闭 | 无 | 本轮提交 | [发布检查证据](implementation/evidence/UAT-252_BOUNDED_READINESS_20260908.md) | 仅数据库一致快照及Admin Credential，排除回收站/Workspace等运行材料；WAL一致性、源不修改、实际NAS就绪和发布通过后关闭。执行B5。 |
 | UAT-253 | NAS旧发布tar累积导致系统卷空间不足 | `OPERATIONS` | 验收关闭（两批必要清理） | 无 | 本轮证据 | [精确清单及验收](implementation/evidence/UAT-253_NAS_RELEASE_TAR_CLEANUP_20260908.md) | 两批按授权共删除86旧包；第二批释放36.87 GiB后实测65.71 GiB可用、62%；保留24个近期/稳定包及全部镜像/备份/媒体，其他存量治理仍逐项开放。执行B5。 |
+
+| UAT-254 | 自定义收藏规则发布通知缺少消费者，Outbox持续重试 | `RECOVERY_CORRECTNESS` | 隔离Host已复现，待修复 | 无 | 本轮调查 | [发布通知证据](implementation/evidence/UAT-254_RULE_TEMPLATE_OUTBOX_20260909.md) | 明确既定投影/唤醒消费者归属，真实Host发布及崩溃/重放无永久pending/failed、无重复副作用，统一发布验收；禁止通用ACK吞错。执行B2；关联217但独立。 |
