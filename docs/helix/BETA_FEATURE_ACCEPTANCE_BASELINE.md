@@ -86,7 +86,7 @@ SSOT: §9.1.1, §9.4.11, §9.6.2–§9.6.8, §9.6.5
 | HB-A.04 | 用户可新增/选择 Movie Material Field，并验证可达、可读、containment | UI, API, FS, NEG |
 | HB-A.05 | Movie Field 与同一 Shelf Target **允许同根或重叠** | UI, API, E2E, FS |
 | HB-A.06 | 用户选择不可改写的系统推荐 Movie Rule Template，或复制后发布自己的 revision | UI, API, NEG |
-| HB-A.07 | 用户选择全自动或关键步骤确认，并看见准确后果；全自动不授予 Off-deck 销毁权 | UI, API, VISUAL, NEG |
+| HB-A.07 | 用户明确预先授权精确旧输入自动清理，授权范围/状态准确可见、无需逐片确认；执行验证当前授权及精确Scope，共享/未知材料保留；不提供旧模式开关，不授予 Off-deck 销毁权（2026-09-09确认） | UI, API, VISUAL, NEG |
 | HB-A.08 | Setup 报告 Field / Shelf / Routing / Workspace / Provider / 计算 Readiness | UI, API |
 | HB-A.09 | 浏览器关闭后可继续已保存 Setup；Service 重启保留已完成配置事实 | UI, API, RECOVERY |
 

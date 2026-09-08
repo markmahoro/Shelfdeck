@@ -1,6 +1,8 @@
 # 当前活动包：逐项关闭UAT
 
-2026-09-09用户最新指令先做全量前后合同审查，暂停新增实施/关闭。255/255覆盖、11组已取代/承接限制、3组未闭合冲突和8组场景区分已记录于[审查证据](evidence/UAT_FULL_CONTRACT_CONSISTENCY_AUDIT_20260909.md)，唯一总表已同步。下一实施前须采用修正Oracle；涉及回收等待、Source/Product decode及Settlement授权的部分先闭合权威依据。本次不增加关闭数，不修改SSOT，不以测试通过决定未决合同。
+2026-09-09后续确认：用户取消Libra已完成Off-load的Workspace额外24小时等待，保留两轮引用安全审计；SSOT与125/152关联Oracle已同步。用户随后确认workspace合格成品不因原片三点decode失败被否决，原片fresh Probe/必要对照及成品独立decode保留，Direct仍验证实际产品；SSOT与132/135/137/160的Oracle已同步。用户最后明确预先授权精确旧输入自动清理（含exclusive_related_input），无需逐片确认；共享/未知材料保留、Off-deck独立授权。三组业务决定均已确认并同步SSOT/Beta/UAT，下一步按当前合同核对实现及验收，禁止恢复被取代要求。仅记录合同决定，尚未追加实现/验收关闭或生产操作。
+
+审查时点记录（后续三项决定及当前状态见上）：2026-09-09用户最新指令先做全量前后合同审查，暂停新增实施/关闭。255/255覆盖、11组已取代/承接限制、3组未闭合冲突和8组场景区分已记录于[审查证据](evidence/UAT_FULL_CONTRACT_CONSISTENCY_AUDIT_20260909.md)，唯一总表已同步。下一实施前须采用修正Oracle；涉及回收等待、Source/Product decode及Settlement授权的部分先闭合权威依据。本次不增加关闭数，不修改SSOT，不以测试通过决定未决合同。
 
 更新：2026-09-09 04:09。唯一顺序为[Master Plan](../CURRENT_PLAN.md)，全部条目Oracle为[UAT总表](../UAT_ITERATION_REGISTER.md)。
 

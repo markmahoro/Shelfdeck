@@ -1,6 +1,8 @@
 # ShelfDeck 当前迭代计划
 
-2026-09-09最新执行约束：用户要求**先审查全部UAT的前后矛盾，不限NFO**。已完成255项条目/Oracle覆盖与疑似冲突原证据核对，见[全量合同一致性审查](implementation/evidence/UAT_FULL_CONTRACT_CONSISTENCY_AUDIT_20260909.md)。当前暂停新增修复、部署和验收关闭；先消化11组已取代/承接限制及3组未闭合冲突（125/152回收等待、132/135/137/160原片decode、172自动运营授权）。下方B1–B5保留全量排程，恢复实施时以本审查修正后的Oracle为准，不能重新执行被取代要求。普通独立项不因同主题被全局阻塞。
+2026-09-09后续确认：用户取消Libra已完成Off-load的Workspace额外24小时等待，保留两轮引用安全审计；SSOT与125/152关联Oracle已同步。用户随后确认workspace合格成品不因原片三点decode失败被否决，原片fresh Probe/必要对照及成品独立decode保留，Direct仍验证实际产品；SSOT与132/135/137/160的Oracle已同步。用户最后明确预先授权精确旧输入自动清理（含exclusive_related_input），无需逐片确认；共享/未知材料保留、Off-deck独立授权。三组业务决定均已确认并同步SSOT/Beta/UAT，下一步按当前合同核对实现及验收，禁止恢复被取代要求。仅记录合同决定，尚未追加实现/验收关闭或生产操作。
+
+审查时点记录（后续三项决定及当前状态见上）：2026-09-09最新执行约束：用户要求**先审查全部UAT的前后矛盾，不限NFO**。已完成255项条目/Oracle覆盖与疑似冲突原证据核对，见[全量合同一致性审查](implementation/evidence/UAT_FULL_CONTRACT_CONSISTENCY_AUDIT_20260909.md)。当前暂停新增修复、部署和验收关闭；先消化11组已取代/承接限制及3组未闭合冲突（125/152回收等待、132/135/137/160原片decode、172自动运营授权）。下方B1–B5保留全量排程，恢复实施时以本审查修正后的Oracle为准，不能重新执行被取代要求。普通独立项不因同主题被全局阻塞。
 
 更新：2026-09-09 04:09。ACTIVE；[UAT总表](UAT_ITERATION_REGISTER.md)是唯一完整入口；执行包为[CURRENT_PHASE](implementation/CURRENT_PHASE.md)。原Aftercare调查Evidence未提交修改受保护。
 

@@ -2,6 +2,14 @@
 
 2026-09-09。用户要求先审查全部UAT，不限NFO；本次暂停新增实施、部署和验收关闭。基线`bb340f3da7`，生产仍`955fe42daf`，本轮38项关闭、61项开放、206承接另核。原Aftercare调查修改及未提交的NFO测试修改均保留，不夹带本次文档提交。
 
+## 审查后用户决定（2026-09-09）
+
+用户逐项确认第1问，原答复：“取消额外等待”。UAT-125/152的Off-load完成后额外24小时等待取消；保留两轮引用安全审计（间隔至少一个Reclaimer周期）、当前引用/Control Fence和精确删除Evidence。SSOT相关三处正文及typed grace deadline已同步。仅此合同冲突已闭合，剩余Source/Product decode与Settlement授权两组待确认；没有因此关闭UAT、修改运行时代码或执行生产回收。下文3组及覆盖索引保留原审查时点证据。
+
+用户逐项确认第2问，原答复：“同意”。UAT-132/135/137/160的workspace产品独立三点decode通过后，不再被原片三点decode失败否决；Source仍fresh Probe、必要拓扑/媒体信息对照及Fence验证，Direct的Source即Product仍三点decode。SSOT与关联Oracle已同步。本次仅合同决定，不新增UAT关闭、运行时改动或部署。原3组冲突现在仅剩Settlement授权待确认。
+
+用户逐项确认第3问，原答复：“授权”。明确预先授权本次整理已核实专属且安全的旧Primary/structural及exclusive_related_input自动清理，无需逐片确认；共享/未知/归属不清或Scope外材料保留，不授予Off-deck销毁权。SSOT9.6.5、相关入口与Beta HB-A.07及172/225/249已同步；取消旧模式选择要求，仍须实现正式Authorization revision与精确Approval，不能以system policy代替。既有Verify Final→Settlement→Verify Fulfillment→On-deck Commit顺序不变。三组业务决定均已确认；合同确认不等于运行时授权已落库、实施通过或UAT关闭。本次未执行生产写入。
+
 ## 范围与结论
 
 逐行检查唯一总表UAT-001～255的标题、当前状态、关闭条件和承接关系；对可能相反的要求回查原始UAT/PROD记录、当前SSOT及带优先级的后续修订。附录逐项列出覆盖，不只抽查开放项。这里审查的是**验收要求是否相容**，不是重新运行255项测试，也不证明全部现行实现已经符合合同。

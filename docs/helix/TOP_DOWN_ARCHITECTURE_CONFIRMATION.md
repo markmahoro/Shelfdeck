@@ -4495,7 +4495,7 @@ revision变化使旧Approval失效；持续Authorization仍有效时可按新Sco
 自动化资格或Capability可用均不能替代Authorization。standing Authorization必须以自身revision明确声明是否
 覆盖`exclusive_related_input`；旧revision不得因合同升级被静默扩权。
 
-产品“全自动”预设按Level 9默认启用该持续Authorization；它不授权目录
+产品按Level 9记录用户明确给予的持续Authorization，无需逐片重复确认；它不授权目录
 级任意删除，也不改变本节Owner、Scope、Freshness与Safety合同。
 
 ### 5.9 Knowledge and Perception Decisions
@@ -5797,8 +5797,8 @@ rollback、空间Reservation与恢复机制属于Level 7，不改变本Level的�
 Input Settlement Approval不是长期权限，也不是Automation/Control/Policy的别名。Approval只覆盖本次
 On-deck Run中由Final Inventory验证证明已经被替代的旧Input Identity；Scope扩大、Authorization revision
 变化、Final Inventory Decision变化或Basis失效时，旧Approval立即失效。未获Approval时On-deck Run可以
-持久等待授权，但不得伪造Settlement成功、扩大Scope或借“自动模式”绕过授权。产品层未来可以在特定
-自动模式预设中默认启用standing Authorization；该预设属于Level 9，不改变本Level授权合同。
+持久等待授权，但不得伪造Settlement成功、扩大Scope或借“自动模式”绕过授权。产品层按Level 9记录用户明确给予的standing Authorization，无需逐片重复确认；
+此授权不改变本Level授权合同或业务阶段顺序。
 
 On-deck Run的最小业务语义为：
 
@@ -9042,7 +9042,7 @@ Subject接管后的唯一Decision前半链，但仍是三个独立事务：
   `libra_workspaces/libra_workspace_revisions`及Result/marker。Workspace在同事务从active进入reclaiming；no-op不改
   Workspace。`run_discarded`
   scope已经由Discard事务原子建立，不重复admit；`offload_completed`只消费Arca
-  `OffloadCompletionReadResult@1`，要求Package/Run匹配、completion revision/digest稳定、24小时grace已满，并以两轮
+  `OffloadCompletionReadResult@1`，要求Package/Run匹配、completion revision/digest稳定，无额外时间grace，并以两轮
   separated orphan/reference observation证明当前Workspace handle无其他active Libra引用；`run_superseded`只读取
   old Run immutable terminal revision与replacement relation，同样以两轮observation建立旧Workspace回收资格，防止
   Spec replacement遗留无人收口的Product。完整trigger snapshot与
@@ -10241,9 +10241,12 @@ productMemberDigest,acceptanceSpecRecordDigest}))`；`fenceDigest=SHA-256(JCS({s
 libraRunId,runExecutionBasisDigest,acceptanceSpecId,acceptanceSpecRecordDigest,productMemberDigest,readRole}))`。
 direct只签发`source_and_product_primary`一次并由两个字段逐字节引用；workspace必须分别签发另两个role。
 
-Arca对每个Source和Product都现场重新FFprobe并在5%/50%/95%执行bounded decode；Source raster/dynamic range和
-Product codec/container/extension/raster/audio/size/dynamic range/color/Dolby Vision/decode结果全部来自本次fresh
-Evidence。`ProductMediaVerification`只用于Package provenance continuity，不能替代本次实检。五个Acceptance Check
+2026-09-09用户确认（UAT-132/135/137/160）：Arca对Source和Product都现场重新FFprobe；workspace路径只对
+Product在5%/50%/95%执行bounded decode，不再要求Source三点decode或以其失败否决合格成品。Source的fresh
+媒体信息、必要拓扑验证、raster/dynamic range对照及Handle/Fence检查仍必须成立；不得将取消Source抽样
+解码扩大为跳过Source检查。direct的Source即Product，仍须对实际产品完成三点bounded decode。
+Source raster/dynamic range和Product codec/container/extension/raster/audio/size/dynamic range/color/Dolby Vision/decode
+结果全部来自本次fresh Evidence。`ProductMediaVerification`只用于Package provenance continuity，不能替代本次实检。五个Acceptance Check
 分别输出本维度closed `actualGapCodes`：Identity、Structure、Metadata、Mandatory Media与Space互不冒充；
 `max_size_exceeded`只由Space Check输出，actor required而`MediaCastSnapshot.relations=[]`只由Metadata Check输出
 `metadata_field_unmet`。Final Acceptance Decision按8.6.19全局closed code顺序对五组做canonical union；ordinary
@@ -11721,14 +11724,14 @@ ID按exact UTF-8 bytes升序，禁止locale/case-fold；所有digest均为小写
   discard固定为`{discardDecisionId,expectedFrozenRunRevision,expectedFrozenRunDigest}`，不得内联尚未计算的父
   `discardDecisionDigest`形成自引用。
   offload与superseded variant的两次observation必须间隔至少一个Reclaimer周期、都证明无其他
-  active Libra Reference；offload还要求当前时间不早于Completion后24小时，superseded要求replacement Run已成立且
+  active Libra Reference；offload在durable Completion成立后不额外等待24小时，superseded要求replacement Run已成立且
   grace为0；discard variant由Discard事务直接形成且grace为0。superseded trigger固定
   `triggerRef=oldLibraRunId,triggerRevision=terminalStateRevision,triggerDigest=terminalStateDigest`，只清理旧Run Workspace，
   不接管或删除replacement Workspace；它关闭旧Run未被Arca Accepted的Workspace/Product遗留责任。offload固定
   `triggerRef=offloadCompletionFact.factId,triggerRevision=projectionRevision,
   triggerDigest=projectionDigest`；discard固定`triggerRef=discardDecisionId,triggerRevision=1,
   triggerDigest=discardDecisionDigest`。三种映射不得由Store实现自行选择Fact digest或时间戳替代。
-  offload的`graceDeadlineMs=offloadCompletionFact.committedAtMs+86_400_000`，superseded/discard固定0；时间计算溢出或
+  offload的`graceDeadlineMs=offloadCompletionFact.committedAtMs`，不增加等待时长；superseded/discard固定0；
   Completion缺commit time稳定拒绝。
   每个reference observation固定为`{observedAtMs,activeReferenceSetDigest,activeReferenceCount,
   controlProjectionSetDigest,evidenceDigest}`；其中active set只枚举目标Workspace之外、仍引用任一目标materialKey/handle的
@@ -13040,7 +13043,7 @@ Work被清理后，尚未处理的Candidate仍可继续审阅。
 1. `连接与Provider`：Emby、TMDB、Douban、MoviePilot、成人Provider；
 2. `工作区与内部资料`：生产工作区、Aftercare工作区与内部Artifact空间；
 3. `计算资源`：本机已验证设备、远端Worker、当前运行强度与时段；
-4. `自动运营`：全自动Readiness、Input Settlement standing Authorization及相关说明；
+4. `自动运营`：真实Setup Readiness、旧输入清理持续授权状态及范围说明，不提供全自动/关键步骤确认模式开关；
 5. `安全`：Admin访问、API credential和Secret状态；
 6. `高级诊断`：Domain Process、Work/Event、Resource、Effect、Outbox、日志与数据完整性只读视图。
 
@@ -13063,7 +13066,7 @@ Material Field和Shelf是两个独立Business Object及两次独立用户配置�
 → 新增或选择文件来源
 → 设置固定去向或按内容分拣
 → 检查Provider、工作区与计算Readiness
-→ 选择全自动或关键步骤确认
+→ 确认旧输入自动清理授权的范围与后果（已有有效授权不重复询问）
 → 完成
 ~~~
 
@@ -13261,22 +13264,25 @@ Collection Duplicate、Unresolved Care和Collection Retention。单Entry Rule使
 设置rating/preference threshold、grace/retention days，查看最近一次评估和管理Suppression/Whitelist。
 Duplicate Detection允许`立即检查重复收藏`和低频周期；具体周期值是用户可见设置，但不得高频占用前台资源。
 
-#### 9.6.5 “全自动”是产品预设和Readiness，不是第六个Engine
+#### 9.6.5 自动推进与精确旧输入清理授权
 
-Beta提供两种用户选择：
+2026-09-09用户确认（UAT-172）：预先授权本次整理中已核实专属且可安全清理的旧输入自动Settlement，
+无需逐片再次确认。覆盖旧Primary/structural及`exclusive_related_input`；共享、未知、归属不清、未交接或
+Scope外文件不在授权范围。取消旧“全自动 / 关键步骤确认”产品模式选择要求，不恢复无效开关。
 
-| Product choice | Behavior |
-| --- | --- |
-| 全自动（推荐） | 启用精确Input Settlement standing Authorization；Authorization revision必须明确列出是否覆盖`exclusive_related_input`，不得因合同升级静默扩大旧revision；其余Owner按Accepted自动化推进，安全的Aftercare auto_repair自动执行 |
-| 关键步骤确认 | 其余自动化保持不变，但每次On-deck旧Input Settlement等待当前Scope确认 |
+用户授权必须由Arca正式持久化为可追溯的standing Authorization revision，明确精确覆盖范围；各次执行仍从
+当前Authorization revision、immutable Off-load Context、Final Inventory Decision与fresh Basis派生独立Approval。
+不得以system policy、配置默认值、材料控制或本段文档代替运行时Authorization事实，不得静默扩大旧revision。
+授权状态须准确可见；用户可撤销后续授权，撤销不回滚已完成Settlement，也不暂停其他已经建立的业务责任。
+授权缺失、撤销或不覆盖当前Scope时保持等待，不得删除或伪造成功；不再要求产品提供逐片确认模式。
 
-系统不持久化一个能够端到端写状态的`globalAutomationMode`。`全自动已就绪`是Setup Readiness Projection，
-要求active Field/Shelf/去向方案、有效Workspace、当前Standard所需Integration和standing Authorization均满足。
-用户点击“启用全自动”时，界面按Owner逐项设置并展示结果；任何一步失败都显示未就绪项，不伪造整体成功。
+本次“成功上架后清理”的用户结果不移动既有On-deck业务阶段：仍在Verify Final Product成功后执行精确
+Input Settlement及Verify Fulfillment，再On-deck Commit；不清理尚未被验证成品替代的输入。
+该授权不涵盖Off-deck媒体销毁、回收站外任意目录清空、弱Person Identity自动确认或绕过Shelf Acceptance。
+已接受瑕疵的修复仍只由用户手动发起，不能由旧“全自动”描述重新授权自动修复。
 
-全自动不授权Off-deck物理销毁、不自动确认弱Person Identity、不允许绕过Shelf Acceptance，也不保证当前缺少
-Provider/Capability时仍能满足Spec。关闭全自动只撤销后续Input Settlement standing Authorization并变为关键
-步骤确认，不暂停已经建立的业务责任；已经完成的Settlement不会回滚。
+系统不持久化端到端写状态的`globalAutomationMode`。Setup Readiness按各Owner真实状态汇总Field、Shelf、
+去向、Workspace、Integration和所需授权；失败准确呈现未就绪项，不伪造整体成功。
 
 #### 9.6.6 Resource Operating Profile与计算设备
 
@@ -14547,11 +14553,13 @@ payload。迟到或重复消息由Inbox dedup处理；新增consumer从Canonical
 
 #### 10.5.2 Libra Workspace回收规则
 
+2026-09-09用户确认（UAT-125/152）：取消Off-load完成后的额外24小时等待，保留两轮引用安全审计及精确删除Evidence；此决定仅覆盖Libra已完成Off-load的Workspace，不改变orphan、Aftercare Workspace或回收站保留期限。
+
 | Workspace state | Cleanup eligibility |
 | --- | --- |
 | active/suspended/frozen Libra responsibility | forbidden |
 | Handoff B Accepted但Arca尚未Off-load complete | forbidden |
-| Arca durable Off-load Completion成立 | 24小时grace后eligible |
+| Arca durable Off-load Completion成立 | 无额外时间grace；两轮引用安全审计及当前Fence通过后eligible |
 | Run discarded | Cleanup Scope建立后立即eligible |
 | superseded output仍被合法替代Run引用 | forbidden until last reference released |
 | unreferenced partial/orphan output | 24小时且连续两轮orphan audit确认后eligible |
