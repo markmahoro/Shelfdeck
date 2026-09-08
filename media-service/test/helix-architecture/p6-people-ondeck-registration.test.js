@@ -17,6 +17,40 @@ const generatedRoot = path.resolve(__dirname, '../../src/helix/foundation/persis
 const schemaDdl = fs.readFileSync(path.join(generatedRoot, 'clean-schema.sql'), 'utf8');
 const schemaManifest = JSON.parse(fs.readFileSync(path.join(generatedRoot, 'clean-schema.manifest.json'), 'utf8'));
 
+test('UAT-214 current cast paging ignores 150 historical copies and preserves exact accepted weak evidence',()=>fixture(({store,unitOfWork,schemaManifest,kernel})=>{
+  const {createOnDeckPersonEvidenceProjection}=require('../../src/helix/domains/arca/application/on-deck-person-evidence-projection');
+  const {personRecordQuery}=require('../../src/helix/domains/arca/model/person-record-observation');
+  kernel.runPrimitive(({prepare})=>{
+    prepare("INSERT INTO arca_shelf_entries(shelf_entry_id,status) VALUES('entry-history','active')").run();
+    for(let revision=1;revision<=150;revision++){
+      prepare('INSERT INTO arca_inventory_representations(shelf_entry_id,revision) VALUES(?,?)').run('entry-history',revision);
+      for(const id of ['cast-a','cast-b'])prepare('INSERT INTO arca_inventory_person_relations(relation_id,shelf_entry_id,inventory_revision,display_name,display_name_normalized,role,provider_identity_json,relation_digest) VALUES(?,?,?,?,?,?,?,?)')
+        .run(id,'entry-history',revision,'Same Name','same name','actor','[]',canonicalDigest({id}));
+    }
+    prepare("UPDATE arca_shelf_entries SET current_inventory_revision=1 WHERE shelf_entry_id='entry-history'").run();
+  });
+  const projection=createOnDeckPersonEvidenceProjection({schemaManifest,unitOfWork}),people=createPeopleProcessServices({schemaManifest,unitOfWork,peopleStore:store});
+  const original=projection.listPage({cursor:null,limit:1})[0].scope;
+  const draft=people.reconcile(original),person=people.acceptRegistration({candidateId:draft.candidateId},'admin');
+  kernel.runPrimitive(({prepare})=>prepare("UPDATE arca_shelf_entries SET current_inventory_revision=150 WHERE shelf_entry_id='entry-history'").run());
+  const first=projection.listPage({cursor:null,limit:1}),second=projection.listPage({cursor:first[0].cursor,limit:1});
+  assert.equal(first[0].scope.inventoryRevision,150);assert.equal(first[0].scope.skipped,false);
+  assert.equal(first[0].scope.evidenceDigest,original.evidenceDigest);
+  assert.equal(second[0].scope.relationId,'cast-b');assert.equal(second[0].scope.inventoryRevision,150);
+  assert.equal(projection.listPage({cursor:second[0].cursor,limit:1}).length,0);
+  assert.equal(people.reconcile(first[0].scope).kind,'known');assert.equal(store.listRegistrationCandidates().length,1);
+  const row=kernel.runPrimitive(({prepare})=>prepare("SELECT * FROM arca_inventory_person_relations WHERE relation_id='cast-a' AND inventory_revision=150").get());
+  const linked=people.mediaCastReferenceQuery.resolve(personRecordQuery({...row,evidence_inventory_revision:1}));
+  assert.equal(linked.personId,person.personId);assert.equal(linked.reasonCode,'accepted_origin_evidence');
+  assert.equal(people.mediaCastReferenceQuery.resolve({personId:null,providerIdentities:[],evidenceDigest:second[0].scope.evidenceDigest}).kind,'unresolved');
+  kernel.runPrimitive(({prepare})=>prepare("UPDATE arca_inventory_person_relations SET person_id=?,relation_digest=? WHERE relation_id='cast-a' AND inventory_revision=150").run(person.personId,canonicalDigest({linked:person.personId})));
+  const bound=projection.listPage({cursor:null,limit:1})[0].scope;
+  assert.equal(bound.personId,person.personId);assert.equal(people.reconcile(bound).kind,'known');
+  assert.equal(store.listRegistrationCandidates().length,1,'Linking the accepted Person must not create another weak candidate.');
+  kernel.runPrimitive(({prepare})=>prepare("UPDATE arca_shelf_entries SET status='offdecked' WHERE shelf_entry_id='entry-history'").run());
+  assert.equal(projection.listPage({cursor:null,limit:100}).length,0);
+}));
+
 function fixture(run) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'helix-people-ondeck-'));
   let clock = 1_700_040_000_000;
@@ -25,7 +59,7 @@ function fixture(run) {
   });
   const unitOfWork = createSqliteUnitOfWork({ kernel });
   const store = createPeopleStore({ schemaManifest, unitOfWork });
-  try { return run({ store, unitOfWork, schemaManifest }); }
+  try { return run({ store, unitOfWork, schemaManifest, kernel }); }
   finally { kernel.close(); fs.rmSync(root, { recursive: true, force: true }); }
 }
 

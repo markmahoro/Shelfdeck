@@ -186,6 +186,35 @@ test('UAT-214 exact Person proof commits only relation records, preserves files 
   }finally{value.close();}
 });
 
+test('UAT-214 user-accepted weak evidence remains usable after an unrelated Inventory revision',()=>{
+  const value=fixture();try{
+    const {personRecordQuery}=require('../../src/helix/domains/arca/model/person-record-observation');
+    const {createPeopleProcessServices}=require('../../src/helix/domains/people/application/people-process-services');
+    const row={shelf_entry_id:'entry',inventory_revision:1,relation_id:'weak-relation',person_id:null,
+      display_name:'Weak Actor',display_name_normalized:'weak actor',role:'actor',relation_source:'accepted_product',
+      provider_identity_schema_ref:'identities',provider_identity_json:'[]',provider_identity_digest:digest('empty'),
+      origin_evidence_digest:digest('weak-origin'),confidence_class:'weak',relation_digest:digest('weak-relation')};
+    value.insert('arca_inventory_person_relations',row);
+    const people=createPeopleProcessServices(value.options),original=personRecordQuery(row);
+    const draft=people.reconcile({displayName:row.display_name,shelfEntryId:'entry',inventoryRevision:1,providerIdentities:[],identityStrength:'weak',evidenceDigest:original.evidenceDigest});
+    const person=people.acceptRegistration({candidateId:draft.candidateId},'admin');
+    value.insert('arca_inventory_representations',{shelf_entry_id:'entry',revision:2,representation_digest:digest('unrelated-inventory'),source_package_id:'package',committed_at_ms:2});
+    value.insert('arca_inventory_person_relations',{...row,inventory_revision:2});
+    value.db.prepare('UPDATE arca_inventory_materials SET active_guard=0 WHERE inventory_revision=1').run();
+    for(const material of value.materials)value.insert('arca_inventory_materials',{...material,inventory_revision:2});
+    value.db.prepare("UPDATE arca_shelf_entries SET current_inventory_revision=2 WHERE shelf_entry_id='entry'").run();
+    const proof=people.mediaCastReferenceQuery.resolve(personRecordQuery({...row,inventory_revision:2,evidence_inventory_revision:1}));
+    const before=value.locations.map(location=>fs.readFileSync(location));
+    const result=value.store.refreshInventoryPersonRecords({shelfEntryId:'entry',expectedInventoryRevision:2,
+      expectedInventoryDigest:digest('unrelated-inventory'),standardRevision:1,placementRevision:1,canonicalIdentityRevision:1,
+      observations:[{relationId:row.relation_id,previousRelationDigest:row.relation_digest,proof}]});
+    assert.equal(result.receipt.newInventoryRevision,3);
+    assert.equal(value.db.prepare('SELECT person_id FROM arca_inventory_person_relations WHERE inventory_revision=3').get().person_id,person.personId);
+    assert.equal(value.db.prepare('SELECT count(*) n FROM arca_aftercare_cases').get().n,0);
+    value.locations.forEach((location,index)=>assert.deepEqual(fs.readFileSync(location),before[index]));
+  }finally{value.close();}
+});
+
 
 test('UAT-214 real NFO observation registers People and Arca publishes the exact relation revision with zero Cases',()=>{
   const value=fixture();try{

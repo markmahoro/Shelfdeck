@@ -4,7 +4,7 @@ const {relationEvidenceDigest}=require('./on-deck-person-evidence');
 function personRecordQuery(row) {
   const providerIdentities=row.provider_identity_json?JSON.parse(row.provider_identity_json):[];
   return Object.freeze({personId:row.person_id||null,providerIdentities,evidenceDigest:relationEvidenceDigest({
-    shelfEntryId:row.shelf_entry_id,inventoryRevision:Number(row.inventory_revision),relationId:row.relation_id,
+    shelfEntryId:row.shelf_entry_id,inventoryRevision:Number(row.evidence_inventory_revision??row.inventory_revision),relationId:row.relation_id,
     relationDigest:row.relation_digest,originEvidenceDigest:row.origin_evidence_digest,
     displayName:row.display_name,displayNameNormalized:row.display_name_normalized,role:row.role,providerIdentities})});
 }

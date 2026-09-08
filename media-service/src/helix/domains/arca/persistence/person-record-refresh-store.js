@@ -1,4 +1,5 @@
 'use strict';
+const {evidenceInventoryRevision}=require('./person-evidence-origin');
 const {canonicalDigest}=require('../../../contracts/canonical-json');
 const {createCommandCommitCoordinator}=require('../../../foundation/persistence/commit-foundation');
 const {appendInventoryRevision}=require('./inventory-revision-writer');
@@ -33,7 +34,7 @@ function createPersonRecordRefreshStore(options,repository) {
         if(observations.some(item=>!rows.some(row=>row.relation_id===item.relationId)))fail('ARCA_PERSON_RECORD_UNKNOWN','Unknown relation cannot be introduced.');
         const people=rows.map(row=>{
           const observation=byId.get(row.relation_id);if(!observation)return row;
-          assertPersonRecordObservation(row,observation);
+          assertPersonRecordObservation({...row,evidence_inventory_revision:evidenceInventoryRevision(repo,row)},observation);
           return {...row,person_id:observation.proof.personId,relation_digest:canonicalDigest({schema:'arca.person-record-revision@1',
             previousRelationDigest:row.relation_digest,personId:observation.proof.personId,proofDigest:observation.proof.proofDigest})};
         });

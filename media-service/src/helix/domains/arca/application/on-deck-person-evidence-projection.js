@@ -1,5 +1,6 @@
 'use strict';
 
+const {statement:personEvidenceOriginStatement,evidenceInventoryRevision}=require('../persistence/person-evidence-origin');
 const { relationEvidenceDigest } = require('../model/on-deck-person-evidence');
 const { createRepositoryDefinition } = require('../../../foundation/persistence/owner-repository');
 
@@ -23,10 +24,13 @@ function createOnDeckPersonEvidenceProjection(options) {
     readOnly: true,
     schemaManifest: options.schemaManifest,
     statements: {
+      find_person_evidence_origin:personEvidenceOriginStatement,
       page_relations: {
-        kind: 'select-page-after',
+        kind: 'select-joined-page',
         tableId: 'arca_inventory_person_relations',
-        keyColumn: 'relation_id',
+        joins:[{tableId:'arca_shelf_entries',alias:'entry',on:[{column:'shelf_entry_id',otherAlias:'base',otherColumn:'shelf_entry_id'},{column:'current_inventory_revision',otherAlias:'base',otherColumn:'inventory_revision'}]}],
+        filters:[{alias:'entry',column:'status',kind:'equals',parameter:'status'},{column:'relation_id',kind:'greater_than',parameter:'cursor',optional:true}],
+        orderBy:[{column:'relation_id',direction:'asc'}],
         maxItems: 100,
         safeIntegers: true,
         columns: [
@@ -53,7 +57,7 @@ function createOnDeckPersonEvidenceProjection(options) {
       repositories: [repository],
       execute(context) {
         const repo = context.repository(repository.repositoryId);
-        const rows = repo.invoke('page_relations', { cursor: cursor || null, limit: pageLimit });
+        const rows = repo.invoke('page_relations', { cursor: cursor || '',status:'active',offset:0,limit: pageLimit });
         return rows.map((row) => {
           const entry = repo.invoke('find_entry', { shelf_entry_id: row.shelf_entry_id });
           if (!entry || entry.status !== 'active' || Number(entry.current_inventory_revision) !== Number(row.inventory_revision)) {
@@ -65,7 +69,7 @@ function createOnDeckPersonEvidenceProjection(options) {
           const providerIdentities = parseJson(row.provider_identity_json);
           const evidenceDigest = relationEvidenceDigest({
             shelfEntryId: row.shelf_entry_id,
-            inventoryRevision: Number(row.inventory_revision),
+            inventoryRevision: evidenceInventoryRevision(repo,row),
             relationId: row.relation_id,
             relationDigest: row.relation_digest,
             originEvidenceDigest: row.origin_evidence_digest,
@@ -79,6 +83,7 @@ function createOnDeckPersonEvidenceProjection(options) {
             cursor: row.relation_id,
             scope: Object.freeze({
               skipped: false,
+              personId:row.person_id||null,
               relationId: row.relation_id,
               shelfEntryId: row.shelf_entry_id,
               inventoryRevision: Number(row.inventory_revision),

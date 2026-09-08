@@ -39,6 +39,7 @@ function createPeopleProcessServices(options) {
   const evidenceProjection = options.onDeckPersonEvidenceProjection;
 
   function alreadyKnown(evidence) {
+    if(evidence.personId&&store.getPerson(evidence.personId))return true;
     const identities = providerIdentitiesFrom(evidence);
     if (identities.some((identity) => store.findActivePersonByProviderIdentity({provider:identity.provider,
       namespace:identity.namespace,providerKey:identity.providerKey}))) return true;

@@ -30,3 +30,10 @@ Arca在健康周期内执行独立关系记录命令，每批最多64个变化�
 18项People/关系提交针对性测试通过，真实NFO→真实People Store→Arca关系revision链路8项组通过；覆盖不改原姓名/NFO、零Case、摘要伪造回滚、旧revision拒绝、重放原Receipt。222文件架构及其余四门禁通过。最初默认并发下Entry启动deadline一次超时，独立14 PASS/3 SKIP；架构runner固定并发4后222文件全部通过，未延长服务或FFmpeg生产超时。另补active Case/Off-deck人物记录变体fence测试。
 
 关闭前仍需后台周期实际驱动和部署后限定场景验证，尤其已有弱Candidate随Inventory变化的exact origin条件逐项核对；不能拿本地直接调用命令替代全部运行验收。
+
+
+## 历史关系连续性复验（2026-09-08 后续）
+
+发现并修正两个当前缺陷：关系分页原先先取历史revision再过滤当前行，足够多的旧行会耗尽页面并跳过当前关系；同一关系在无关Inventory更新后重算Evidence digest，会失去用户已接受弱Candidate的exact origin。当前在SQL LIMIT之前限定active Entry的current Inventory，按relationId游标分页；Evidence仅复用同Entry、同relationId、同relationDigest最早记录的revision，提交时再次复核。正式关联已有Person后不再以同一弱姓名重建Candidate。不同关系的同名人物仍不关联。
+
+已覆盖150个历史revision/单项分页不遗漏、用户接受原revision弱Evidence后跨revision提交、已关联关系不再建弱Candidate以及inactive Entry排除。连同UAT-210角色回归51项通过；222文件架构全门禁通过，未增加表或事务。真实后台长链已观察独立人物记录revision且零Case，后续NFO/海报实际缺失分别修复成功；长链的Placement/重启/失败保留部分仍在复验，不能据此关闭。

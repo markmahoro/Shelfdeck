@@ -212,6 +212,7 @@ function compileJoinedPage(statementId, statement, table, tables, owner) {
     let predicate;
     if(filter.kind==='equals')predicate=source+'='+parameter;
     else if(filter.kind==='not_equals')predicate=source+'<>'+parameter;
+    else if(filter.kind==='greater_than')predicate=source+'>'+parameter;
     else if(filter.kind==='contains')predicate='instr(lower('+source+'),lower('+parameter+'))>0';
     else if(filter.kind==='json_entry_text'){
       if(!/^\$\.[a-zA-Z][a-zA-Z0-9_]*(\.[a-zA-Z][a-zA-Z0-9_]*)*$/.test(filter.path)||
