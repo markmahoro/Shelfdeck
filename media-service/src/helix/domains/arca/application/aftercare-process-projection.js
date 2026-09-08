@@ -70,7 +70,7 @@ function projectAftercareProcess(works,atMs=Date.now()){
         nodes:Object.freeze(nodes)});
     });
     stages.push(Object.freeze({key:work.workId,label:copy[1],description:copy[2],state:state(work.state),
-      summary:work.state==='succeeded'?'已完成':work.state==='cancelled'?'已终止':work.state==='failed'?'需要处理':'执行中',plans:Object.freeze(plans)}));
+      summary:work.state==='succeeded'?'已完成':work.state==='cancelled'?'已终止':work.state==='failed'?'执行失败':'执行中',plans:Object.freeze(plans)}));
   }
   const detail={contract:'aftercare_process_actual_plans@1',stages:Object.freeze(stages)};
   return Object.freeze({...detail,currentAction:currentActionSummary(detail)});

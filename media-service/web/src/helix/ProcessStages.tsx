@@ -43,13 +43,13 @@ function progressEta(progress:NonNullable<FormationSubject['organizingSteps'][nu
 export function progressDetail(progress:NonNullable<FormationSubject['organizingSteps'][number]['progress']>) {
   return [progressText(progress),progressRate(progress),progressEta(progress)].filter(Boolean).join(' · ');
 }
-function StageState({ state }:{ state:'completed'|'running'|'attention'|'pending'|'cancelled' }) {
-  return <span className="formation-stub-stage-state" data-state={state}>{state==='completed'?'已完成':state==='running'?'进行中':state==='attention'?'需要处理':state==='cancelled'?'已终止':'尚未开始'}</span>;
+function StageState({ state, failed=false }:{ state:'completed'|'running'|'attention'|'pending'|'cancelled'; failed?:boolean }) {
+  return <span className="formation-stub-stage-state" data-state={state}>{state==='completed'?'已完成':state==='running'?'进行中':state==='attention'?(failed?'执行失败':'需要处理'):state==='cancelled'?'已终止':'尚未开始'}</span>;
 }
 export type ProcessStage=Omit<NonNullable<FormationSubject['processDetail']>['stages'][number],'key'>&{key:string};
 type ProcessPlan=ProcessStage['plans'][number];
 type ProcessNode=ProcessPlan['nodes'][number];
-function processPlanState(state:ProcessPlan['state']) { return state==='completed'?'已完成':state==='running'?'进行中':state==='attention'?'需要处理':state==='cancelled'?'已终止':'等待中'; }
+function processPlanState(state:ProcessPlan['state'],failed:boolean) { return state==='completed'?'已完成':state==='running'?'进行中':state==='attention'?(failed?'执行失败':'需要处理'):state==='cancelled'?'已终止':'等待中'; }
 function processNodeState(state:ProcessNode['state']) { return state==='completed'?'已完成':state==='running'?'进行中':state==='failed'?'失败':state==='cancelled'?'未执行':state==='skipped'?'无需执行':'等待中'; }
 function ProcessNodeRow({node}:{node:ProcessNode}) {
   const mark=node.state==='completed'?'✓':node.state==='failed'?'×':node.state==='running'?'●':'○';
@@ -60,10 +60,10 @@ function ProcessNodeRow({node}:{node:ProcessNode}) {
   </div><span className="formation-plan-node-state">{node.statusText || processNodeState(node.state)}</span></li>;
 }
 function ProcessPlanView({plan,index}:{plan:ProcessPlan;index:number}) {
-  return <details className="formation-actual-plan" data-state={plan.state} open={plan.state==='running'||plan.state==='attention'}><summary><span className="formation-actual-plan-label">计划{index+1}</span><strong>{plan.title}</strong><span className="formation-actual-plan-status">{processPlanState(plan.state)}</span><span className="formation-actual-plan-chevron" aria-hidden="true">›</span></summary><div className="formation-actual-plan-body">{plan.nodes.length?<ol>{plan.nodes.map((node)=><ProcessNodeRow key={node.nodeId} node={node} />)}</ol>:<p className="formation-plan-no-nodes">本次真实计划没有需要执行的步骤。</p>}</div></details>;
+  return <details className="formation-actual-plan" data-state={plan.state} open={plan.state==='running'||plan.state==='attention'}><summary><span className="formation-actual-plan-label">计划{index+1}</span><strong>{plan.title}</strong><span className="formation-actual-plan-status">{processPlanState(plan.state,plan.nodes.some(node=>node.state==='failed'))}</span><span className="formation-actual-plan-chevron" aria-hidden="true">›</span></summary><div className="formation-actual-plan-body">{plan.nodes.length?<ol>{plan.nodes.map((node)=><ProcessNodeRow key={node.nodeId} node={node} />)}</ol>:<p className="formation-plan-no-nodes">本次真实计划没有需要执行的步骤。</p>}</div></details>;
 }
 function ProcessStageView({stage,index}:{stage:ProcessStage;index:number}) {
   const open=stage.state==='running'||stage.state==='attention';
-  return <details className="formation-process-stage" data-state={stage.state} open={open}><summary><span className="formation-stage-index" aria-hidden="true">{stage.state==='completed'?'✓':index+1}</span><span><strong>{stage.label}</strong><small>{stage.summary}</small></span><StageState state={stage.state} /></summary><div className="formation-stage-body"><p className="formation-stage-description">{stage.description}</p>{stage.plans.length?<div className="formation-actual-plans">{stage.plans.map((plan,planIndex)=><ProcessPlanView key={plan.planId} plan={plan} index={planIndex} />)}</div>:<div className="formation-empty-stage"><strong>{stage.summary}</strong><p>这里只展示已经由系统形成并保存的真实计划，不预先展示尚未发生的工作。</p></div>}</div></details>;
+  return <details className="formation-process-stage" data-state={stage.state} open={open}><summary><span className="formation-stage-index" aria-hidden="true">{stage.state==='completed'?'✓':index+1}</span><span><strong>{stage.label}</strong><small>{stage.summary}</small></span><StageState state={stage.state} failed={stage.plans.some(plan=>plan.nodes.some(node=>node.state==='failed'))} /></summary><div className="formation-stage-body"><p className="formation-stage-description">{stage.description}</p>{stage.plans.length?<div className="formation-actual-plans">{stage.plans.map((plan,planIndex)=><ProcessPlanView key={plan.planId} plan={plan} index={planIndex} />)}</div>:<div className="formation-empty-stage"><strong>{stage.summary}</strong><p>这里只展示已经由系统形成并保存的真实计划，不预先展示尚未发生的工作。</p></div>}</div></details>;
 }
 export function ProcessStages({ stages }:{ stages:ProcessStage[] }) { return <div className="formation-process-stages">{stages.map((stage,index)=><ProcessStageView key={stage.key} stage={stage} index={index} />)}</div>; }

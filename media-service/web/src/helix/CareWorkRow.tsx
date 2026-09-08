@@ -19,7 +19,8 @@ const triggers:Record<string,string>={max_size_exceeded:'建单时影片体积�
   nfo_missing:'当时缺少必需的NFO文件。',nfo_corrupt:'当时NFO文件未通过检查。',
   poster_missing:'当时缺少必需的海报。',poster_corrupt:'当时海报未通过检查。',settlement_gap:'当时有旧文件收尾尚未完成。'};
 function triggerText(item:CareWorkItem){return [...new Set(item.goals.map(goal=>goal.split(/[/:]/).map(part=>triggers[part]).find(Boolean)||'建单时发现收藏要求未满足，具体依据见处理步骤。'))].join(' ');}
-function actionDetail(item:CareWorkItem){const action=item.progress?.currentAction;return action?[action.statusText,action.progress?progressDetail(action.progress):null].filter(Boolean).join(' · '):null;}
+function isTerminal(item:CareWorkItem){return ['resolved','unresolved','invalidated'].includes(item.state);}
+function actionDetail(item:CareWorkItem){if(isTerminal(item))return null;const action=item.progress?.currentAction;return action?[action.statusText,action.progress?progressDetail(action.progress):null].filter(Boolean).join(' · '):null;}
 function reasonText(item:CareWorkItem){return item.reasonCode?(reasons[item.reasonCode]||'本次处理已结束，具体原因见处理步骤与技术信息。'):null;}
 function time(value:number|null){return value?new Intl.DateTimeFormat('zh-CN',{dateStyle:'medium',timeStyle:'short'}).format(value):'—';}
 function bytes(value:number){return `${(value/1073741824).toFixed(2)} GiB`;}
@@ -31,10 +32,10 @@ function currentHealthText(item:CareWorkItem){const health=item.currentHealth;
   return '当前健康状态尚不能确定';
 }
 export function CareWorkRow({item,onOpen}:{item:CareWorkItem;onOpen:(item:CareWorkItem)=>void}){
-  return <tr className="formation-stub-media-row"><td><strong>{item.displayIdentity}</strong><small>上架后维护 · {time(item.createdAtMs)}</small></td><td>—</td><td>{item.targetShelfName||'—'}</td><td>{careGoal(item)}<small>{triggerText(item)}</small></td><td><strong className="formation-stub-current">{careStage(item)}</strong>{actionDetail(item)&&<small>{actionDetail(item)}</small>}{reasonText(item)&&<small>{reasonText(item)}</small>}{item.currentHealth!==undefined&&<small>{currentHealthText(item)}</small>}{item.terminalAtMs&&<small>{time(item.terminalAtMs)}</small>}{!item.progress?.currentAction && item.progress?.progressPercent!=null&&<small>{item.progress.progressPercent}%</small>}</td><td><Button type="button" variant="text" onClick={()=>onOpen(item)}>查看过程</Button></td><td><Link to="/collection">收藏健康</Link></td><td>—</td><td>维护任务</td></tr>;
+  return <tr className="formation-stub-media-row"><td><strong>{item.displayIdentity}</strong><small>上架后维护 · {time(item.createdAtMs)}</small></td><td>—</td><td>{item.targetShelfName||'—'}</td><td>{careGoal(item)}<small>{triggerText(item)}</small></td><td><strong className="formation-stub-current">{careStage(item)}</strong>{actionDetail(item)&&<small>{actionDetail(item)}</small>}{reasonText(item)&&<small>{reasonText(item)}</small>}{item.currentHealth!==undefined&&<small>{currentHealthText(item)}</small>}{item.terminalAtMs&&<small>{time(item.terminalAtMs)}</small>}{!isTerminal(item) && !item.progress?.currentAction && item.progress?.progressPercent!=null&&<small>{item.progress.progressPercent}%</small>}</td><td><Button type="button" variant="text" onClick={()=>onOpen(item)}>查看过程</Button></td><td><Link to="/collection">收藏健康</Link></td><td>—</td><td>维护任务</td></tr>;
 }
 export function CareWorkDetail({item,error=''}:{item:CareWorkItem;error?:string}){
-  const progress=item.progress?.progress;
+  const progress=isTerminal(item)?null:item.progress?.progress;
   return <article className="formation-process-card"><header className="formation-process-head"><div><span className="formation-process-eyebrow">上架后维护</span><h3>{item.displayIdentity}</h3><p>{careStage(item)}</p></div></header>
     <dl className="formation-process-facts"><div><dt>目标收藏架</dt><dd>{item.targetShelfName||'—'}</dd></div><div><dt>维护目标</dt><dd>{careGoal(item)}</dd></div><div><dt>当前进展</dt><dd>{careStage(item)}{actionDetail(item)&&<small> · {actionDetail(item)}</small>}</dd></div></dl>
     <section className="formation-stage-body" aria-label="维护原因与结果">

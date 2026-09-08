@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, expect, it, vi } from 'vitest';
 import App from '../src/App';
+import { ProcessStages } from '../src/helix/ProcessStages';
 import { CareWorkDetail } from '../src/helix/CareWorkRow';
 import { helixAdminApi } from '../src/helix/api';
 
@@ -149,4 +150,26 @@ it('UAT-213 displays creation-time Placement goals and keeps unknown history exp
   view.rerender(<MemoryRouter><CareWorkDetail item={{...item,caseEvidence:{...item.caseEvidence,objective:{requirements:{},requirementsDigest:'a'.repeat(64)}}} as never}/></MemoryRouter>);
   expect(screen.getByText('未记录当时收藏路径与命名规则；不使用当前配置倒推。')).toBeInTheDocument();
   expect(screen.queryByText('当时收藏根目录：/collection-at-creation')).not.toBeInTheDocument();
+});
+
+
+it('shows failed historical stages as execution failure without offering a new action',()=>{
+  render(<ProcessStages stages={[{key:'commit',label:'更新收藏与收尾',description:'提交结果',state:'attention',summary:'执行失败',plans:[{
+    planId:'failed-plan',title:'更新收藏与收尾',state:'attention',createdAtMs:1,nodes:[{
+      nodeId:'settlement',label:'处理原位置文件',state:'failed',statusText:'执行失败',description:'旧文件收尾失败',progress:null,results:[],technicalDetail:null,
+    }],
+  }]}]}/>);
+  expect(screen.queryByText('需要处理')).not.toBeInTheDocument();
+  expect(screen.getAllByText('执行失败').length).toBeGreaterThanOrEqual(3);
+  expect(screen.getByText('旧文件收尾失败')).toBeInTheDocument();
+});
+
+
+it('does not present a retained progress sample as current work after a Case has ended',()=>{
+  render(<CareWorkDetail item={{aftercareCaseId:'ended',shelfEntryId:'entry',displayIdentity:'已结束影片',state:'unresolved',classification:'ended',goals:[],createdAtMs:1,terminalAtMs:2,reasonCode:'settlement_or_commit_failed',
+    progress:{stage:'waiting_for_resource',currentAction:{label:'转码影片',statusText:'等待资源',progress:null},progressPercent:42},
+  } as Parameters<typeof CareWorkDetail>[0]['item']}/>);
+  expect(screen.queryByText(/等待资源/)).not.toBeInTheDocument();
+  expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
+  expect(screen.getByText('旧文件收尾或收藏提交失败，本次维护已停止。')).toBeInTheDocument();
 });

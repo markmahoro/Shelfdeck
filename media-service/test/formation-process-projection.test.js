@@ -488,3 +488,20 @@ test('execution progress reader reads exact Work and current progress heads alon
     ]);
   } finally { kernel.close(); fs.rmSync(root,{recursive:true,force:true,maxRetries:5,retryDelay:50}); }
 });
+
+
+test('Waiting and ready actions never describe execution before resources or approval are available',()=>{
+  for (const capability of ['libra.media.transcode@1','libra.transcode.input.verify@1']) {
+    for (const [state,description] of [
+      ['waiting_for_resource','正在等待可用的处理资源，资源可用后继续这一步。'],
+      ['waiting_for_approval','正在等待确认，确认后继续这一步。'],
+      ['waiting_for_external','正在等待外部服务返回结果。'],
+      ['ready','前置条件已满足，正在等待执行这一步。'],
+    ]) {
+      const node=projectPlans([work('libra','libra_run','run-wait','workspace_media_production',[
+        event('plan-wait','action',capability,state,1),
+      ])])[0].nodes[0];
+      assert.equal(node.description,description,capability+':'+state);
+    }
+  }
+});

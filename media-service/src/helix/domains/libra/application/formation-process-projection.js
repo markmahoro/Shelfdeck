@@ -322,6 +322,12 @@ function description(event, state, copy) {
   if (state==='cancelled') return '前置步骤未完成，因此这一步没有执行。';
   if (state==='skipped') return '本次计划确认不需要执行这一步。';
   if (state==='running') {
+    if (event.state==='waiting_for_resource') return '正在等待可用的处理资源，资源可用后继续这一步。';
+    if (event.state==='waiting_for_approval') return '正在等待确认，确认后继续这一步。';
+    if (event.state==='ready') return '前置条件已满足，正在等待执行这一步。';
+    if (event.state==='waiting_for_external' && event.capabilityRef!=='libra.external_material.acquire.observe@1') {
+      return '正在等待外部服务返回结果。';
+    }
     if (event.capabilityRef==='libra.media.transcode@1') return '正在生成符合收藏要求的新版本。';
     if (event.capabilityRef==='libra.external_material.acquire.observe@1') return Number(event.progress?.rate)>0
       ? 'MoviePilot 正在下载唯一选定的媒体源。'
