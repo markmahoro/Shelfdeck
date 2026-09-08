@@ -40,3 +40,10 @@ Product Identity提交后，Coordinator通过既有Acceptance Spec Coordinator�
 12项定向PASS覆盖同Subject身份、跨Subject拒绝、损坏Evidence、Provider ID/title/year漂移。222文件架构回归只有3个派生合同一致性测试失败，其余通过；生成器/派生物/固定摘要同步后对应3文件10项全部PASS，依赖和语义检查通过。未以修改功能Oracle消除失败。原始日志 `.codex/uat217-formal-real-chain-v4.log`、`uat217-continuity-negative.log`、`uat217-continuity-architecture.log`、`uat217-contract-recheck.log`。
 
 此前基础217修正已在696b122da4，当前接续增量尚未发布。剩余服务完整回归、新候选标准发布/Linux验证及生产只读验收；不新建生产故障、不Reset。仍未关闭。
+
+
+## 2026-09-09 部署后独立验收：UAT-217关闭
+
+正式身份→评分命中→Spec语义变化→同Subject合法Run替换→Arca Commit真实链13.33秒PASS；12项负向、10项派生合同及515 PASS/20环境SKIP完整Service证据已核对。b2978c1512标准发布与Linux readiness通过，01:14生产GET及浏览器正式片名/评分/要求展示正常。生产未制造身份重选/新入库场景；完整因果链来自隔离真实Host，不将生产历史结果冒充新链。
+
+生产身份与发布校验见[发布证据](UAT_RELEASE_B2978C1512_20260909.md)。原始补验保存在`.codex/uat-acceptance-20260909-readonly.json`、`uat-acceptance-20260909-after.json`、`uat255-production-reads.json`及`production-monitor.jsonl`。未运行不相关的全套重复回归。

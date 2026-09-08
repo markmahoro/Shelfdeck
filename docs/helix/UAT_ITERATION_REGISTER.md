@@ -2,7 +2,7 @@
 
 更新：2026-09-08。**唯一活动迭代台账；按项验收、按项关闭。** 覆盖全部143个历史UAT、78个PROD、40行UX（含两组重号）、10个AC和2个BR。新编号从UAT-144接续；PROD/UX/AC/BR停止新增。旧编号、文件、提交和测试名不改写。
 
-总表包含253个唯一UAT条目，编号连续至UAT-253。历史UAT-011～049从正文/关闭矩阵补入；PROD-033/034从归档补入。相同主题不等于相同缺陷：后续事故或复发保留独立条目；只有明确同结果才合并别名。UX-030/031按标题消歧。
+总表包含255个唯一UAT条目，编号连续至UAT-255。历史UAT-011～049从正文/关闭矩阵补入；PROD-033/034从归档补入。相同主题不等于相同缺陷：后续事故或复发保留独立条目；只有明确同结果才合并别名。UX-030/031按标题消歧。
 
 状态说明：历史已关闭保留当时证据，并不宣称本次重测；已实现/已部署不等于已关闭；待核实不是当前已证实缺陷。原表与后续完整关闭证据冲突时采用后者并链接。没有证据的事项不批量关闭。
 
@@ -226,7 +226,7 @@
 | UAT-214 | NFO人物观察与确定关联记录更新 | 当前迭代 | 验收关闭（观察与确定关联） | PROD-071；AC-09 | 未部署 | [完整链与生产收敛](implementation/evidence/UAT-214_NFO_PERSON_RECORD_CHAIN_20260908.md) | 104批1665条关联、Receipt有界、0新增Case；未确定的关系不猜测。独立NFO Binding更新归210。 |
 | UAT-215 | 旧目录清理与回收接入Arca上架收尾 | 当前迭代 | 生产验收关闭 | PROD-072 | [本地收尾证据](implementation/evidence/UAT-215_ONDECK_SOURCE_CLEANUP_20260908.md) | [PROD-072原记录](PRODUCTION_DEPLOY_ISSUE_LOG.md) | 已建立Commit同事务持久收尾、非空待确认和异常恢复；生产7条新上架责任、3张旧图片精确归档及SHA核验、状态一致性均通过；其他完整版本与sample保留，存量216单独验收；能力存在不等于流程完成。执行B2；依赖/承接：Arca收尾合同；251仅首次终局衔接。 |
 | UAT-216 | 已上架电影旧目录存量治理 | 当前迭代 | 存量待处置 | PROD-073 | 见证据 | [最新存量与处置证据](implementation/evidence/UAT-216_STOCK_DIRECTORY_REVIEW_20260908.md) | 两个仅种子的旧目录已归档并复验；保留夺宝奇兵5完整1080p版本，52.6秒样片的精确处置仍开放。执行B5；与215自动流程分别验收。 |
-| UAT-217 | 正式影片身份形成后的评分与Acceptance重算 | 当前迭代 | 本地修正，待全链路验收 | PROD-074；BR-01 | 本轮提交见Evidence | [正式身份评分修正](implementation/evidence/UAT-217_FORMAL_IDENTITY_RATING_20260908.md) | 新Run正式身份接续缺口已修正；真实媒体Host完成评分命中→Spec变化→一次身份选择→合法Run替换→Arca Commit，13.33秒PASS；12定向及派生合同10项复验通过。剩余完整Service回归与新候选统一发布验收，不Reset生产。执行B2；关联079/060/251。 |
+| UAT-217 | 正式影片身份形成后的评分与Acceptance重算 | 当前迭代 | 验收关闭 | PROD-074；BR-01 | b2978c1512 | [正式身份评分修正](implementation/evidence/UAT-217_FORMAL_IDENTITY_RATING_20260908.md) | 无该项剩余；已核对独立全链/负向/恢复及实际发布，详见[部署后关闭证据](implementation/evidence/UAT-217_FORMAL_IDENTITY_RATING_20260908.md)。 |
 | UAT-218 | Aftercare与Libra转码码率质量保护对齐 | 当前迭代 | 本地修正，待实测验收 | PROD-075；BR-02 | 本轮提交见Evidence | [质量保护对齐](implementation/evidence/UAT-218_AFTERCARE_QUALITY_FLOOR_20260908.md) | 画幅/空间档位与真实源码率保护已对齐，47定向PASS；仍需隔离真实转码、超限拒绝、失败保原片及部署验收。执行B1；251仅修复终局与重新进入部分依赖。 |
 | UAT-219 | 中文标签字距与字号一致性 | 当前迭代 | 生产浏览器验收关闭 | PROD-076；UX-023 | 747110c653 | [字体及标签证据](implementation/evidence/UAT-219_239_TYPOGRAPHY_20260908.md) | 真实中文层级核查字号/字距后克制修正，响应式浏览器证据。执行B4；依赖/承接：239基础；212整合后。 |
 | UAT-220 | 统一UAT总表、逐项证据对账与工程规则整理 | 当前迭代 | 已关闭（文档验收） | PROD-077；PROD-078 | 1d5226327 | [覆盖与检查证据](implementation/evidence/UAT-220_REGISTER_CONSOLIDATION_20260908.md)；治理前序提交1d5226327 | 无；功能现场验证仍由各自UAT逐项推进 |
@@ -260,9 +260,9 @@
 | UAT-248 | 整体仍是「内部台账皮肤」，缺少统一的媒体产品视觉 | UI / `AESTHETICS` | 历史已实现，待验收核对 | UX-032 | 见证据 | [UX-032原记录（按标题）](ADMIN_WEB_UX_ISSUE_LOG.md) | 以已确认现行视觉核对媒体产品一致性，真实八页对照；不扩大成新视觉设计。执行B4；依赖/承接：219/239/240；各页整合后。 |
 | UAT-249 | 仍泄漏 Owner、Workspace、Libra Intake；自动运营控件出现两次 | UI / `COPY_INTERNAL` | 历史已实现，待验收核对 | UX-037 | 见证据 | [UX-037原记录（按标题）](ADMIN_WEB_UX_ISSUE_LOG.md) | 设置/收藏架/整理主文案不泄露Owner/Workspace/Intake，自动运营入口唯一且有效。执行B4；依赖/承接：172/225；关联142。 |
 | UAT-250 | 媒体整理区存量治理：历史失败、正常生产与冻结条目分开处置 | 存量治理 | Provider预算根因已本地修复，存量待验收 | 用户新增 | UAT-212历史分类已整合；Search预算已修复未部署 | [精确清单与治理方案](implementation/evidence/UAT-250_FORMATION_STOCK_GOVERNANCE_20260908.md) | 刷新11历史Case/正常Run精确列表，保留失败和成功历史、invalidated不可见；活着查Provider错误，未经精确授权不Reset。执行B5；依赖/承接：212；251仅活着结果衔接。 |
-| UAT-251 | Libra/Aftercare不可达目标、瑕疵接受与三种终局闭环 | 合同/业务流程 | 审视完成，待设计与实施 | 用户新增；关联UAT-210/213/217/218/250 | 尚未实施 | [合同与代码审视](implementation/evidence/UAT-251_TERMINAL_OUTCOME_AUDIT_20260908.md) | 三种首次终局、可用片源瑕疵接纳、修复失败保原片原瑕疵且不重复建Case；技术错误保留原因，责任收尾与重复进入合同后逐景验收。执行B1；依赖/承接：用户确认修复触发及健康展示；其他已确认语义立即传播。 |
+| UAT-251 | Libra/Aftercare不可达目标、瑕疵接受与三种终局闭环 | 合同/业务流程 | 用户结果已确认，待typed合同与实施 | 用户新增；关联UAT-210/213/217/218/250 | 尚未实施 | [合同与代码审视](implementation/evidence/UAT-251_TERMINAL_OUTCOME_AUDIT_20260908.md) | 三种首次终局、可用片源瑕疵接纳、修复失败保原片原瑕疵且不重复建Case；技术错误保留原因，责任收尾与重复进入合同后逐景验收。执行B1；依赖/承接：2026-09-09已确认仅手动修复、健康正常另附瑕疵标记；其他已确认语义立即传播。 |
 | UAT-252 | 标准部署readiness递归复制全部运行材料，可能耗尽NAS磁盘 | `DEPLOYMENT_SAFETY` | 验收关闭 | 无 | 本轮提交 | [发布检查证据](implementation/evidence/UAT-252_BOUNDED_READINESS_20260908.md) | 仅数据库一致快照及Admin Credential，排除回收站/Workspace等运行材料；WAL一致性、源不修改、实际NAS就绪和发布通过后关闭。执行B5。 |
 | UAT-253 | NAS旧发布tar累积导致系统卷空间不足 | `OPERATIONS` | 验收关闭（两批必要清理） | 无 | 本轮证据 | [精确清单及验收](implementation/evidence/UAT-253_NAS_RELEASE_TAR_CLEANUP_20260908.md) | 两批按授权共删除86旧包；第二批释放36.87 GiB后实测65.71 GiB可用、62%；保留24个近期/稳定包及全部镜像/备份/媒体，其他存量治理仍逐项开放。执行B5。 |
-| UAT-254 | 自定义收藏规则发布通知缺少消费者，Outbox持续重试 | `RECOVERY_CORRECTNESS` | 消费与恢复本地通过，待发布 | 无 | 本轮实现见Evidence | [发布通知证据](implementation/evidence/UAT-254_RULE_TEMPLATE_OUTBOX_20260909.md) | Arca精确发布revision只读验证后消费投影通知；真实Host发布/重启、坏摘要拒绝、Inbox后ACK丢失重放无重复Standard通过，222架构全Gate通过；剩余统一发布/Linux验收。执行B2；关联217但独立。 |
+| UAT-254 | 自定义收藏规则发布通知缺少消费者，Outbox持续重试 | `RECOVERY_CORRECTNESS` | 验收关闭 | 无 | b2978c1512 | [发布通知证据](implementation/evidence/UAT-254_RULE_TEMPLATE_OUTBOX_20260909.md) | 无该项剩余；已核对独立全链/负向/恢复及实际发布，详见[部署后关闭证据](implementation/evidence/UAT-254_RULE_TEMPLATE_OUTBOX_20260909.md)。 |
 
-| UAT-255 | GET退出审阅调用准备推进逻辑，可取消维护Work并写入审阅状态 | API / `SIDE_EFFECT_BOUNDARY` | 本地通过，待发布 | 无 | 本轮实现见Evidence | [246/255证据](implementation/evidence/UAT-246_OFFDECK_READ_EFFICIENCY_20260909.md) | GET完整审阅及progress视图均纯读取；后台独立完成准备，界面关闭不影响推进；保留POST授权前校验。执行B4，与246联合验证。 |
+| UAT-255 | GET退出审阅调用准备推进逻辑，可取消维护Work并写入审阅状态 | API / `SIDE_EFFECT_BOUNDARY` | 验收关闭 | 无 | b2978c1512 | [246/255证据](implementation/evidence/UAT-246_OFFDECK_READ_EFFICIENCY_20260909.md) | 无该项剩余；已核对独立全链/负向/恢复及实际发布，详见[部署后关闭证据](implementation/evidence/UAT-246_OFFDECK_READ_EFFICIENCY_20260909.md)。 |

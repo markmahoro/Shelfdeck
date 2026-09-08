@@ -36,3 +36,10 @@
 - 真实Host十部媒体链21.84秒PASS：读取progress响应严格只有三个字段；在隔离数据库恢复一个合法preparing检查点后重启，仅通过Session启动Host、直接只读DB等待open，不调用Review GET推进；随后二次授权、十部退出、范围外保护及再次重启快照验证全部通过。检查点为明确隔离注入，不宣称真实进程崩溃测试。
 - .codex/uat255-unit.log、.codex/uat255-real-background.log。派生P2基线仍通过，API路径未新增；SSOT补充query及只读语义。
 - UAT-255待统一发布/生产只读验收；246剩余首屏工作台摘要、按需分页搜索及全选完整性/真实大规模浏览器验证。两项均未关闭。
+
+
+## 2026-09-09 部署后独立验收：UAT-255关闭
+
+b2978c1512生产已取消审阅完整GET/三字段progress均200，非法view返回400 ARCA_OFFDECK_VIEW_INVALID；01:16至01:19前后持久Review逐字段一致，浏览器打开该旧审阅仍已取消且无授权按钮。16后端/7 Web与21.84秒后台不依赖GET、真实十部退出和再次重启链已通过。生产未创造preparing检查点，该场景由隔离真实Host证明。246首屏性能保持独立开放。
+
+生产身份与发布校验见[发布证据](UAT_RELEASE_B2978C1512_20260909.md)。原始补验保存在`.codex/uat-acceptance-20260909-readonly.json`、`uat-acceptance-20260909-after.json`、`uat255-production-reads.json`及`production-monitor.jsonl`。未运行不相关的全套重复回归。

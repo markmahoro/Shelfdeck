@@ -31,3 +31,10 @@ read-model为工程Owner，不是Business Domain。新增只限read-model的纯�
 Linux容器使用独立一致性DB/加密凭据副本，network none，无生产媒体挂载；两轮共12个GET均200，readiness ready，正常关闭退出0。首轮冷启动页面/接口较慢，第二轮formation93ms、collection450ms、care177ms；只证明隔离Linux兼容与基本接口，不当作真实浏览器性能验收。日志 `.codex/uat-release-241436b8da-{build,upload,dry-run,linux}.log`。
 
 生产仍696b122da4且FFmpeg在飞；最终apply前须更新精确在飞清单、完成新一致备份与标准readiness，不能沿用候选准备快照。
+
+
+## 2026-09-09 部署后独立验收：UAT-254关闭
+
+具体通知的真实Host发布/重启、坏摘要拒绝、Inbox已提交但ACK丢失重放证据全部通过；222文件架构Gate与Linux隔离兼容已通过，b2978c1512已部署。01:16生产只读查询rule_template_published通知为0，无此类积压；未修改生产规则制造通知。生产零通知本身不证明消费者，结论共同依赖此前真实Host正负重放链与实际镜像。
+
+生产身份与发布校验见[发布证据](UAT_RELEASE_B2978C1512_20260909.md)。原始补验保存在`.codex/uat-acceptance-20260909-readonly.json`、`uat-acceptance-20260909-after.json`、`uat255-production-reads.json`及`production-monitor.jsonl`。未运行不相关的全套重复回归。
