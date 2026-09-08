@@ -252,7 +252,7 @@
 | UAT-240 | 按钮至少八种互不相干的形态 | UI / `BUTTON` | 历史已实现，待验收核对 | UX-024 | 见证据 | [UX-024原记录（按标题）](ADMIN_WEB_UX_ISSUE_LOG.md) | 正常/次要/危险/禁用按钮在八页一致，焦点与窄屏可用。执行B4；依赖/承接：212/143整合。 |
 | UAT-241 | 退出收藏与整理表内按钮退回浏览器默认样式 | UI / `BUTTON` | 历史已实现，待验收核对 | UX-025 | 见证据 | [UX-025原记录（按标题）](ADMIN_WEB_UX_ISSUE_LOG.md) | 退出与整理表内按钮不用浏览器默认样式，真实点击/禁用/确认验收。执行B4；依赖/承接：143/212。 |
 | UAT-242 | 收藏墙逐张拉海报，详情再打健康与评分接口 | UI / `PERFORMANCE` | 历史已实现，待验收核对 | UX-026 | 见证据 | [UX-026原记录（按标题）](ADMIN_WEB_UX_ISSUE_LOG.md) | 海报与详情请求有界，翻页替换/旧请求迟到保护，两页真实浏览器性能保留。执行B3；依赖/承接：212分页主项。 |
-| UAT-243 | 文件来源按 Field 再打 Routing Policy，观察期间 1s 轮询整表 | UI / `PERFORMANCE` | 历史已实现，待验收核对 | UX-027 | 见证据 | [UX-027原记录（按标题）](ADMIN_WEB_UX_ISSUE_LOG.md) | Field/Routing请求不逐项放大，Observation期间不1秒整表轮询，真实浏览器Network核验。执行B4；依赖/承接：146。 |
+| UAT-243 | 文件来源按 Field 再打 Routing Policy，观察期间 1s 轮询整表 | UI / `PERFORMANCE` | 重复策略请求已本地修正，待生产验收 | UX-027 | 见证据 | [UX-027原记录（按标题）](ADMIN_WEB_UX_ISSUE_LOG.md)；[请求与草稿验收](implementation/evidence/UAT-243_ROUTING_READS_BROWSER_20260908.md) | Field/Routing请求不逐项放大，Observation期间不1秒整表轮询，真实浏览器Network核验。执行B4；依赖/承接：146。 |
 | UAT-244 | 设置页切到连接 Tab 仍拉取 100 条评分日志 | UI / `PERFORMANCE` | 历史已实现，待验收核对 | UX-028 | 见证据 | [UX-028原记录（按标题）](ADMIN_WEB_UX_ISSUE_LOG.md) | 切连接Tab不请求100条评分日志，仅日志Tab按页请求。执行B4；依赖/承接：225。 |
 | UAT-245 | 概览所谓 Projection 是请求内五路拼账 | UI / `PERFORMANCE` | 历史已实现，待验收核对 | UX-029 | 见证据 | [UX-029原记录（按标题）](ADMIN_WEB_UX_ISSUE_LOG.md) | 概览Query有界且不请求内五路全量拼账，真实页面响应核验。执行B4；依赖/承接：141；关联057。 |
 | UAT-246 | 退出收藏 3～4 路拼装，preparing 每 500ms 重拉 | UI / `PERFORMANCE` | 历史已实现，待验收核对 | UX-030（退出收藏 3～4 路拼装，preparing 每 500ms 重拉） | 见证据 | [UX-030原记录（按标题）](ADMIN_WEB_UX_ISSUE_LOG.md) | 退出审阅只取当前所需数据，preparing不500ms全量拼接，保持最新范围确认。执行B4；依赖/承接：143。 |

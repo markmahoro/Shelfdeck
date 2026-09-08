@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { canonicalDigest, helixAdminApi, type JsonValue, type MaterialField, type RoutingExpression, type RoutingPolicy, type Shelf } from './api';
 import { newOpaqueId } from './id';
 
@@ -112,6 +112,11 @@ function ExpressionEditor({ expression, depth, onChange }: { expression: Routing
 }
 
 export default function RoutingPolicyPanel({ field, shelves }: { field: MaterialField; shelves: Shelf[] }) {
+  const [opened,setOpened]=useState(false);
+  return <details className="routing-policy-panel" onToggle={event=>{if(event.currentTarget.open)setOpened(true);}}><summary>收藏架分拣策略</summary>{opened&&<RoutingPolicyEditor key={field.fieldId} field={field} shelves={shelves}/>}</details>;
+}
+
+function RoutingPolicyEditor({field,shelves}:{field:MaterialField;shelves:Shelf[]}) {
   const activeShelves = useMemo(() => shelves.filter((item) => item.status === 'active'), [shelves]);
   const [current, setCurrent] = useState<RoutingPolicy | null>(null);
   const [mode, setMode] = useState<'direct' | 'sorting'>('direct');
@@ -121,14 +126,22 @@ export default function RoutingPolicyPanel({ field, shelves }: { field: Material
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
 
+  const shelvesRef=useRef(activeShelves);shelvesRef.current=activeShelves;
+  const [loadState,setLoadState]=useState<'loading'|'ready'|'failed'>('loading');
+  const [loadAttempt,setLoadAttempt]=useState(0);
   useEffect(() => {
+    let cancelled=false;setLoadState('loading');setError('');
     void helixAdminApi.getRoutingPolicy(field.fieldId).then(({ policy }) => {
+      if(cancelled)return;
+      const activeShelves=shelvesRef.current;
+      setLoadState('ready');
       setCurrent(policy); setMode(policy?.mode || 'direct');
       if (policy?.mode === 'direct') setDirectShelfId(policy.targets[0]?.shelfId || activeShelves[0]?.shelfId || '');
       else if (policy) setSortingTargets(policy.targets.map(({ shelfId, rank, matchExpression }) => ({ shelfId, rank, matchExpression })));
       else { setDirectShelfId(activeShelves[0]?.shelfId || ''); setSortingTargets(defaultSorting(activeShelves)); }
-    }).catch((cause) => setError(cause instanceof Error ? cause.message : '分拣策略读取失败。'));
-  }, [activeShelves, field.fieldId]);
+    }).catch((cause) => {if(!cancelled){setLoadState('failed');setError(cause instanceof Error ? cause.message : '分拣策略读取失败。');}});
+    return ()=>{cancelled=true;};
+  }, [field.fieldId,loadAttempt]);
 
   async function draft() {
     const targets = mode === 'direct'
@@ -158,8 +171,8 @@ export default function RoutingPolicyPanel({ field, shelves }: { field: Material
     } catch (cause) { setError(cause instanceof Error ? cause.message : '分拣策略发布失败。'); }
   }
 
-  return <details className="routing-policy-panel"><summary>收藏架分拣策略</summary>
-    <div className="routing-policy-body">
+  if(loadState!=='ready')return <div className="routing-policy-body">{loadState==='loading'?<p role="status">正在读取分拣策略…</p>:<><p role="alert">{error}</p><button type="button" className="btn btn-secondary" onClick={()=>setLoadAttempt(value=>value+1)}>重新读取分拣策略</button></>}</div>;
+  return <div className="routing-policy-body">
       <div className="routing-policy-head"><strong>{current ? (current.mode === 'direct' ? '全部进入一座收藏架' : '按条件分拣') : '尚未发布'}</strong><span>只决定进哪座收藏架，不会开始整理或移动文件。</span></div>
       <label><span>模式</span><select value={mode} onChange={(event) => setMode(event.target.value as 'direct' | 'sorting')}><option value="direct">全部进入一座收藏架</option><option value="sorting">按优先级判断</option></select></label>
       {mode === 'direct' ? <label><span>目标收藏架</span><select value={directShelfId} onChange={(event) => setDirectShelfId(event.target.value)}>{activeShelves.map((shelf) => <option key={shelf.shelfId} value={shelf.shelfId}>{shelf.name}</option>)}</select></label> : <>
@@ -173,6 +186,5 @@ export default function RoutingPolicyPanel({ field, shelves }: { field: Material
       </>}
       <div className="routing-policy-actions"><button type="button" className="btn btn-secondary" onClick={() => void preview()}>预览</button><button type="button" className="btn btn-primary" onClick={() => void publish()}>发布策略</button></div>
       {message && <p className="routing-message" role="status">{message}</p>}{error && <p className="form-error" role="alert">{error}</p>}
-    </div>
-  </details>;
+    </div>;
 }
