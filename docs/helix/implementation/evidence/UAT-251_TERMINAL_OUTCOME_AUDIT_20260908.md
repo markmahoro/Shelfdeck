@@ -58,3 +58,9 @@ Web56 PASS（其中3项验证请求失败重试、明确不合格、旧revision�
 ## 2026-09-09 用户明确决定
 
 本任务两项具体问题均已收到用户回答：仅用户手动发起已接受瑕疵修复；安全且可播放时健康正常，另显示已接受瑕疵标记。已回写SSOT末尾UAT-251有界修订。相关条件改变不自动修复，失败保原片原瑕疵并结束本次尝试；新损坏仍独立健康问题。此为合同确认，尚不代表实现或251关闭。
+
+### 2026-09-09 typed约束传播
+
+SSOT已细化精确Gap身份、资格/路径结果分离、不可豁免Fence、三终局及责任收尾、Libra本地再进入判定、Arca接纳决定/手动意图、修复提交/失败和跨Case有限性。没有转移Owner、授权Reset或把旧冻结当成已完成。P2派生基线通过；新DTO/schema、原子持久化和执行接入尚未完成，251保持开放。
+
+实现定位：Arca当前findingDigest基于kind/code/basis，Finding实例ID另外包含Assessment Evidence ID；CareRequirement.requiredEffects仍引用实例ID，triggerDigest又包含assessmentWorkId。因此跨Case去重不能直接依赖整份旧Requirement digest或检查Work ID。当前projectHealth还把同Basis unresolved Case优先于健康Evidence，该分支需与手动瑕疵失败保原片、健康独立投影一起修正。不能仅删判断后宣称手动修复链完成。

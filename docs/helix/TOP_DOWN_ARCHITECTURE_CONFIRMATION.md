@@ -15502,6 +15502,22 @@ Receipt可使用Foundation已有command receipt持久设施，但必须有独立
 
 UAT-212：Libra Run与Aftercare Case的当前进展都取实际动作、动作状态及可用进度。阶段、Plan/Event、等待、失败和完成依据使用一致投影规则，列表与详情一致；Aftercare保留自己的业务阶段，不能虚构Libra Handoff。建单目标取创建时具体依据，当前Policy不得倒填历史Case。
 
+#### UAT-251 已确认决定的typed实施约束（2026-09-09）
+
+以下把本节已确认结果落实为有界合同，不增加Business Domain、Business Handoff或跨域业务ID；实现与逐场景验收仍由UAT-251记录。
+
+- **精确Gap身份**：每个差距绑定业务Owner、该Owner的Run/Entry、当前成品或Inventory身份及revision、要求快照digest、实际Evidence digest、差距种类和具体要求目标。资料差距必须指出字段或资料角色；媒体差距必须指出实际被验证的媒体要求。不能用笼统`metadata_field_unmet`授权所有字段，也不能把某次演员缺失授权扩展到后来缺少的海报。Gap集合排序去重、有界，整个预览/授权值不得超过64KiB；超界明确失败，不截断成可授权子集。
+- **资格与路径结果分离**：预览返回`eligible|ineligible|evidence_pending`、精确Gap集合、不可豁免原因、缺少的Evidence及本次处理路径结果。网络/接口故障继续用错误响应，不伪装成ineligible。资格以已有成品的真实可用性与具体差距为依据，不以某个失败Capability名或一个terminal blocker的数量作为产品资格本身。外部路径`exhausted`必须有真实穷尽证据；Provider无效响应、断连、超时分别保留技术结果，不能推导没有合格来源。
+- **不可豁免Fence**：Primary存在/可读/可播放、身份与结构连续性、Integrity、精确Binding/Containment/Control、当前Basis、Shelf可接收及实际接管空间始终检查。仅有用户确认或旧瑕疵Manifest不构成这些条件成立的Evidence。混合差距包含任何不可豁免项时，不得把它从列表过滤掉后宣称整件产品可接纳。
+- **首次整理终局**：Libra持久保存本次`on_deck|on_deck_with_defects|unable_to_on_deck`业务结果与原因/输入/要求/相关条件依据；前两项只能由真实Arca On-deck Commit证据证明。Libra不能以Handoff B Accepted或发布Package伪造已上架。用户待决、资源等待、有界重试、责任收尾仍是过程态；用户主动结束保留独立原因，不伪装系统证明不可达。
+- **无法完成的责任收尾**：Libra在终结前检查该Run全部Work/Effect到达可安全收尾边界；保留原始输入文件，不删除、挪动或重命名它们。沿用既有Libra精确Input Control释放、Workspace Cleanup scope和Receipt的Owner与安全规则，原子绑定本次终局及待清理义务；未完成的清理继续由Libra承担。已Handoff B Accepted的责任不得走此释放路径。不得用Formation Reset代替正常业务终局或把历史结果删除为从未发生。
+- **同条件再进入**：Libra在自己的Intake/Run准入边界持久识别已终结尝试的精确物理输入集合、要求依据和与失败相关的条件依据。新Observation ID、Candidate ID、Assessment ID、时钟、扫描次数或无关配置变化都不是新条件。自动再处理须证明与失败原因相关的输入/要求/执行条件确已改变；证据不足保持不再处理。新的明确用户处理意图可开启新尝试，幂等重放不能开启第二次。Procurement仍管理自己的Observation/Candidate/Offer；不得由Procurement读取Libra内部Plan/失败日志来决定是否重试，不新增反向交接。
+- **Arca接受现有差距**：用户授权绑定精确Entry、expected Inventory/Basis、展示的Gap集合digest、actor和幂等键。提交前再次验证当前Gap、文件安全、Shelf/Entry active、无Off-deck/Deregistration或活动修改冲突；同一原子提交保存Arca决定、revision和Receipt。它不改写既有Inventory字节、Canonical Identity、历史Case结果，不产生空处理Case；新的不匹配Gap不继承授权。
+- **Arca手动修复意图**：`repair_accepted_defects`只能由新的用户命令产生，绑定Entry、expected Inventory/Basis、精确已接受Gap/授权集合、actor和幂等键。周期检查、标准变更及设备/Provider恢复不能生成这种意图。当前确有安全有界处理路径才创建一个正式Case；意图与Case创建在同一事务，复用既有FIFO/容量/Workspace准入。无可行路径时返回具体原因，不制造只有检查目标的Case。意图重放返回同一Case；再次点击重新尝试须新用户幂等键。
+- **修复提交和失败**：修复在Arca自己的隔离Workspace内准备并验证新产品；仍需精确Inventory Commit、Control及Settlement Fence。成功时只移除已实际消除且复验通过的对应瑕疵，其他授权保留。无有效改善或失败时不替换原正片、不删除原瑕疵，结束本次Case并完成必要工作区收尾；已经合法Commit之后的收尾失败按实际提交事实继续收尾，不能回称原片从未改变。
+- **跨Case有限性**：普通健康维护和手动瑕疵修复分别记录触发种类、稳定问题依据和本次意图。稳定问题依据不得包含检查周期、Assessment/Work/Finding实例ID或观测时间。普通健康维护的同条件失败不因新的检查重新建Case；与失败原因相关的条件改变或新用户处理意图才允许新尝试。已接受瑕疵的修复无论条件是否变化都仍需手动。新损坏保留独立Gap依据，不被旧失败抑制或旧授权覆盖。
+- **健康与历史展示**：当前安全可播放且其他未授权要求均满足时，已接受瑕疵不使健康转红，独立显示具体瑕疵标记。手动修复queued不等于不健康；实际active处理继续使用既有黄灯规则。失败Case保持历史失败，不能仅因该Case失败而否定当前已证明正常的健康；新缺失/损坏仍按真实当前Evidence显示。列表/详情区分健康检查、健康维护、手动瑕疵修复、用户待决和本次终局。
+
 收藏影片详情、整理列表和整理详情移除回收站入口/面板；系统配置保留独立“回收站”Tab。收藏和整理区使用上一页/页码/下一页，翻页替换内容，筛选回首页、轮询保留当前页；上架/维护统一按页读取，禁止为分页读取或后台预取全部历史。两页性能与流程必须通过真实用户浏览器操作验收。
 
 ### UAT-211：已完成Settlement的历史路径责任边界
