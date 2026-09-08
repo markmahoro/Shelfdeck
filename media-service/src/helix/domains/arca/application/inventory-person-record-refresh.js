@@ -1,6 +1,6 @@
 'use strict';
 const {canonicalDigest}=require('../../../contracts/canonical-json');
-const {personRecordQuery}=require('../model/person-record-observation');
+const {personRecordQuery,personProofBatchFits}=require('../model/person-record-observation');
 function createInventoryPersonRecordRefresh(options) {
   return Object.freeze({refresh(c) {
     if(c.raw.reservations.some(row=>row.state==='active'))return Object.freeze({kind:'records_deferred',reasonCode:'active_modification'});
@@ -10,7 +10,12 @@ function createInventoryPersonRecordRefresh(options) {
     for(const row of rows) {
       const proof=options.resolveMediaCastReference(personRecordQuery(row));
       if(proof.kind!=='resolved')continue;
-      observations.push({relationId:row.relation_id,previousRelationDigest:row.relation_digest,proof});
+      const observation={relationId:row.relation_id,previousRelationDigest:row.relation_digest,proof};
+      if(!personProofBatchFits([...observations,observation])) {
+        if(!observations.length)return Object.freeze({kind:'records_deferred',reasonCode:'person_proof_too_large'});
+        break;
+      }
+      observations.push(observation);
       if(observations.length===64)break;
     }
     if(!observations.length)return Object.freeze({kind:'records_unchanged'});

@@ -3,7 +3,7 @@ const {evidenceInventoryRevision}=require('./person-evidence-origin');
 const {canonicalDigest}=require('../../../contracts/canonical-json');
 const {createCommandCommitCoordinator}=require('../../../foundation/persistence/commit-foundation');
 const {appendInventoryRevision}=require('./inventory-revision-writer');
-const {assertPersonRecordObservation}=require('../model/person-record-observation');
+const {assertPersonRecordObservation,personProofBatchFits}=require('../model/person-record-observation');
 const fail=(code,message)=>{throw Object.assign(new Error(message),{code});};
 const COMMAND='arca.inventory.person-records.refresh@1',RECEIPT='helix://arca/receipts/InventoryRecordRefreshReceipt/v1';
 function createPersonRecordRefreshStore(options,repository) {
@@ -13,6 +13,7 @@ function createPersonRecordRefreshStore(options,repository) {
     if(!Number.isSafeInteger(expectedInventoryRevision)||expectedInventoryRevision<1||!Array.isArray(observations)||
       !observations.length||observations.length>64||new Set(observations.map(item=>item.relationId)).size!==observations.length)
       fail('ARCA_PERSON_RECORD_INPUT_INVALID','Person record refresh requires a bounded exact relation set.');
+    if(!personProofBatchFits(observations))fail('ARCA_PERSON_RECORD_PROOF_BUDGET','Person proof batch exceeds the receipt budget.');
     const observationDigest=canonicalDigest(observations),identity={shelfEntryId,expectedInventoryRevision,observationDigest},
       key=canonicalDigest(identity),requestDigest=canonicalDigest({...identity,expectedInventoryDigest:request.expectedInventoryDigest,
         standardRevision:request.standardRevision,placementRevision:request.placementRevision,canonicalIdentityRevision:request.canonicalIdentityRevision});

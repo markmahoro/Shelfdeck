@@ -7,10 +7,7 @@ Last updated: 2026-09-08
 - 当前产品、计划、验收和生产运行事实分别见 `docs/helix/README.md`、
   `docs/helix/CURRENT_PLAN.md`、`docs/helix/BETA_FEATURE_ACCEPTANCE_BASELINE.md` 与
   `docs/helix/CURRENT_STATUS.md`。
-- 当前生产镜像为 `markmahoro/shelfdeck:helix-beta-20260908-6e37bf5679`，source commit `6e37bf5679`，
-  NAS image/config ID `sha256:356c034aca554dc206d7c2050b38d9ba646c6c0c1f43f66d7a57aa1f86f3d976`，tar SHA-256
-  `404da86c43eccc15c68b00b5d63832b1012d165ea7768d89deed6870fc581d90`。
-- 当前镜像资格：Service 501 PASS/18 SKIP、Architecture 214 Fixture文件通过、Web 44 PASS、Linux生产副本及实际HTTP验证通过。健康/Case新边界已部署，后续浏览器交互修正仍在本地（Web 47 PASS），不能混写成已发布。未重新执行全部真实媒体旅程，AC-09与两项旧NFO残留仍开放，不能声明全链E2E或全部痛点关闭。详见Helix当前状态。
+- 当前生产镜像`markmahoro/shelfdeck:helix-beta-20260908-79874990b6`，source commit `79874990b66104f6e8ceefab0a3ed286b634b109`，Image ID `sha256:c8f314126c8cfb0d2924cd09d0100620d0be9d7ca6dd52e7865d593868685567`，Tar SHA256 `84e1892d9441bc3308d9a188d6f15fecde02bd64913dbac7212186f9417e03ae`。标准部署通过；本地真实媒体与Linux smoke通过，未宣称全部E2E重跑。生产UAT-214大演员表Receipt预算回归正在修复。当前事实以Helix状态为准。
 - 不授权 Kairox compatibility migration、dual read、roadmap 重启或新 v3.x milestone。
 
 以下为本次用户痛点迭代之前的历史部署验证：

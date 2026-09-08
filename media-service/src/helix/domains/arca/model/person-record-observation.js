@@ -1,5 +1,8 @@
 'use strict';
-const {canonicalDigest}=require('../../../contracts/canonical-json');
+const {canonicalDigest,canonicalJson}=require('../../../contracts/canonical-json');
+// Reserve room for the receipt identity and revisions within Foundation's 16 KiB limit.
+const PERSON_PROOF_BATCH_BYTES=12*1024;
+const personProofBatchFits=observations=>Buffer.byteLength(canonicalJson(observations),'utf8')<=PERSON_PROOF_BATCH_BYTES;
 const {relationEvidenceDigest}=require('./on-deck-person-evidence');
 function personRecordQuery(row) {
   const providerIdentities=row.provider_identity_json?JSON.parse(row.provider_identity_json):[];
@@ -17,4 +20,4 @@ function assertPersonRecordObservation(row,observation) {
     canonicalDigest(basis)!==proofDigest||!['formal_merge','exact_provider_identity','accepted_origin_evidence'].includes(proof.reasonCode))
     throw Object.assign(new Error('Person record observation does not match the exact current relation.'),{code:'ARCA_PERSON_RECORD_PROOF_INVALID'});
 }
-module.exports=Object.freeze({personRecordQuery,assertPersonRecordObservation});
+module.exports=Object.freeze({personRecordQuery,assertPersonRecordObservation,personProofBatchFits});

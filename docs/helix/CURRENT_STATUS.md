@@ -2,7 +2,15 @@
 
 更新：2026-09-08。主线未全数关闭；逐项状态见[UAT总表](UAT_ITERATION_REGISTER.md)，后续顺序见[CURRENT_PLAN](CURRENT_PLAN.md)。
 
-## 部署与本地交付
+## 当前生产事实（20:24后）
+
+- 生产已标准部署至`markmahoro/shelfdeck:helix-beta-20260908-79874990b6`，source commit `79874990b66104f6e8ceefab0a3ed286b634b109`，Image ID `sha256:c8f314126c8cfb0d2924cd09d0100620d0be9d7ca6dd52e7865d593868685567`，Tar SHA256 `84e1892d9441bc3308d9a188d6f15fecde02bd64913dbac7212186f9417e03ae`。发布主机脚本修正8ead81e49（UAT-252），不混写为镜像内源码。
+- 62部收藏，Libra 56完成/3待处理/0进行中；Aftercare 44完成/11历史结束/0活动。黑寡妇等待体积瑕疵决定，活着/沙丘旧Provider失败保留，未Reset、未接受或放弃。
+- build/upload/checksum/dry-run/readiness/apply与健康检查通过。Service510 PASS/19 SKIP、Web59 PASS、222架构文件通过及本地真实媒体链有证据；全量产品验收未完成。生产新增大演员表Receipt预算回归归UAT-214，64人本地复现并修正、11定向及222文件Gate通过，等待下一镜像。
+- 一致备份`backups/uat-iteration-20260908-79874990b6-final`（DB SHA256 `ea9b8dbad2f904d936ca971880795848d4dbbc1ad184c895456b404c485de41a`）及加密凭据已保存，6e37bf5679/275923039f回滚材料保留。
+- 用户授权必要NAS项目清理；UAT-253首批只移除8月28—30日32个旧tar（17,968,979,456字节），当前可用36,492,066,816字节，约34 GiB。运行数据、备份、8月31日后tar与Docker镜像未删除。
+
+## 接手与日内历史快照（以下不代表当前部署）
 
 - 接手核实：集成工作区`codex/user-pain-iteration` HEAD为`7c858523c`；唯一既有dirty文件为Aftercare调查Evidence，原内容受保护。相关UI任务idle，交付e6b7f0424尚未整合。本轮未部署、未重置、未修改生产媒体；下述生产镜像与Image ID现已通过SSH只读复核一致，health正常。
 - 全量台账初步一致性对账：251个连续ID；153历史关闭、1文档关闭、1非缺陷接受、95待实现/验收、1被取代待核承接。96行已补具体场景/依赖/排程；历史资格待核不能转为本轮PASS。已发现终局、健康三态、全量续拉、退出页常驻整库及43部旧恢复基线与最新决定不一致，正在传播合同。

@@ -259,3 +259,31 @@ test('UAT-214 person record commits are blocked by active Case and Off-deck rese
     assert.equal(value.db.prepare('SELECT count(*) n FROM fx_command_receipts').get().n,0);
   }finally{value.close();}
 });
+
+
+test('UAT-214 large cast refresh uses bounded receipts and converges without a Case',()=>{
+  const value=fixture();try{
+    const {createPeopleProcessServices}=require('../../src/helix/domains/people/application/people-process-services');
+    const {createInventoryPersonRecordRefresh}=require('../../src/helix/domains/arca/application/inventory-person-record-refresh');
+    const people=createPeopleProcessServices(value.options);
+    for(let i=0;i<64;i++){
+      const providerIdentities=[{provider:'tmdb',namespace:'person',providerKey:String(9000+i)}];
+      people.reconcile({displayName:'Actor '+i,shelfEntryId:'entry',inventoryRevision:1,providerIdentities,identityStrength:'strong',evidenceDigest:digest('actor-'+i)});
+      value.insert('arca_inventory_person_relations',{shelf_entry_id:'entry',inventory_revision:1,relation_id:'relation-'+i,person_id:null,
+        display_name:'Actor '+i,display_name_normalized:'actor '+i,role:'actor',relation_source:'accepted_product',provider_identity_schema_ref:'identities',
+        provider_identity_json:JSON.stringify(providerIdentities),provider_identity_digest:digest('ids-'+i),origin_evidence_digest:digest('origin-'+i),
+        confidence_class:'provider_asserted',relation_digest:digest('relation-'+i)});
+    }
+    const current=()=>{const c=value.context();c.raw.people=value.db.prepare('SELECT * FROM arca_inventory_person_relations WHERE inventory_revision=?').all(c.raw.entry.current_inventory_revision).map(row=>({...row,evidence_inventory_revision:value.db.prepare('SELECT min(inventory_revision) AS revision FROM arca_inventory_person_relations WHERE relation_id=? AND relation_digest=?').get(row.relation_id,row.relation_digest).revision}));return c;};
+    const refresh=createInventoryPersonRecordRefresh({contextReader:{store:value.store},resolveMediaCastReference:input=>people.mediaCastReferenceQuery.resolve(input)});
+    let batches=0;
+    while(current().raw.people.some(row=>!row.person_id)){
+      assert.ok(batches++<10,'Every bounded batch must make progress');
+      const result=refresh.refresh(current());assert.equal(result.kind,'inventory_records_refreshed');
+      assert.ok(Buffer.byteLength(JSON.stringify(result.receipt),'utf8')<=16384);
+    }
+    assert.ok(batches>1);assert.equal(current().raw.people.length,64);
+    assert.equal(refresh.refresh(current()).kind,'records_unchanged');
+    assert.equal(value.db.prepare('SELECT count(*) n FROM arca_aftercare_cases').get().n,0);
+  }finally{value.close();}
+});

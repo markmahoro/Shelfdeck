@@ -37,3 +37,9 @@ Arca在健康周期内执行独立关系记录命令，每批最多64个变化�
 发现并修正两个当前缺陷：关系分页原先先取历史revision再过滤当前行，足够多的旧行会耗尽页面并跳过当前关系；同一关系在无关Inventory更新后重算Evidence digest，会失去用户已接受弱Candidate的exact origin。当前在SQL LIMIT之前限定active Entry的current Inventory，按relationId游标分页；Evidence仅复用同Entry、同relationId、同relationDigest最早记录的revision，提交时再次复核。正式关联已有Person后不再以同一弱姓名重建Candidate。不同关系的同名人物仍不关联。
 
 已覆盖150个历史revision/单项分页不遗漏、用户接受原revision弱Evidence后跨revision提交、已关联关系不再建弱Candidate以及inactive Entry排除。连同UAT-210角色回归51项通过；222文件架构全门禁通过，未增加表或事务。真实后台长链已观察独立人物记录revision且零Case，后续NFO/海报实际缺失分别修复成功；长链的Placement/重启/失败保留部分仍在复验，不能据此关闭。
+
+## 生产大演员表Receipt预算回归
+
+79874990b6部署后出现P3_COMMAND_RESULT_TOO_LARGE。64名正式People及精确Arca关系的本地复现从person-record-refresh-store完整提交路径得到相同异常与调用栈。原批次仅限制64条，完整personProofs超过Foundation既有16 KiB Receipt合同，事务回滚，不能算关联完成。
+
+修正保留全部证明，单批增加12 KiB canonical JSON预算，为Receipt身份/revision预留空间；后续健康周期继续剩余关系，Store拒绝越界批次，不放宽Foundation、不丢弃证明。64人多批收敛、每批Receipt不超过16 KiB、最终无遗漏且0 Case，11项定向通过。生产错误消失与实际关系收敛待新镜像验证。
