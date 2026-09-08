@@ -392,7 +392,7 @@ export type HealthSummary = { shelfEntryId?:string; state:HealthState; careBasis
 export type CareFinding = { findingId:string; findingKind:string; severity:string; repairability:string; state:string; createdAtMs:number };
 export type CareCase = { aftercareCaseId:string; caseGeneration:number; triggerDigest:string; state:string;
   terminalReasonCode:string|null; terminalEvidenceDigest:string|null; createdAtMs:number; terminalAtMs:number|null; careBasisDigest:string };
-export type CareWorkItem = { aftercareCaseId:string;shelfEntryId:string;displayIdentity:string;targetShelfId:string|null;targetShelfName:string|null;
+export type CareWorkItem = { currentHealth?:HealthSummary|null; caseEvidence?:{inventoryRevision:number;standardRevision:number;originalPrimaryBytes:number|null;currentInventoryRevision:number|null;currentPrimaryBytes:number|null}|null; aftercareCaseId:string;shelfEntryId:string;displayIdentity:string;targetShelfId:string|null;targetShelfName:string|null;
   processDetail?:{contract:'aftercare_process_actual_plans@1';stages:Array<Omit<NonNullable<FormationSubject['processDetail']>['stages'][number],'key'>&{key:string}>}|null;
   state:string;classification:'queued'|'in_progress'|'attention_required'|'completed'|'ended';goals:string[];createdAtMs:number;terminalAtMs:number|null;
   reasonCode:string|null;progress:CareDetail['activeCaseProgress'] };

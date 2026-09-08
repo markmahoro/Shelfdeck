@@ -1,7 +1,8 @@
 'use strict';
 const {createRepositoryDefinition}=require('../../../foundation/persistence/owner-repository');
 const STATES=['active','resolved','unresolved','invalidated'];
-const classification=state=>({active:'in_progress',resolved:'completed',unresolved:'attention_required',invalidated:'ended'})[state];
+// A terminal failure remains history; current health is a separate Arca projection.
+const classification=state=>({active:'in_progress',resolved:'completed',unresolved:'ended',invalidated:'ended'})[state];
 const visible=row=>row.state!=='queued'&&!(row.state==='invalidated'&&row.terminal_reason_code==='queued_basis_changed');
 function createCareWorkStore(options){
   const columns=['aftercare_case_id','shelf_entry_id','care_requirement_json','state','terminal_reason_code','created_at_ms','terminal_at_ms'],
@@ -28,7 +29,7 @@ function createCareWorkStore(options){
       const repo=context.repository(repository.repositoryId),stateCounts=Object.fromEntries(repo.invoke('counts',{}).map(row=>[row.group_value,Number(row.row_count)])),
         unadmitted=repo.invoke('reasons',{}).find(row=>row.group_value==='queued_basis_changed');
       stateCounts.invalidated=Math.max(0,(stateCounts.invalidated||0)-Number(unadmitted?.row_count||0));
-      const counts=Object.fromEntries(STATES.filter(state=>stateCounts[state]>0).map(state=>[classification(state),stateCounts[state]]));
+      const counts=STATES.reduce((result,state)=>{const count=stateCounts[state]||0;if(count)result[classification(state)]=(result[classification(state)]||0)+count;return result;},{});
       if(query.aftercareCaseId){const row=repo.invoke('exact',{aftercare_case_id:query.aftercareCaseId});
         return Object.freeze({items:Object.freeze(row&&visible(row)&&(!filter||classification(row.state)===filter)?[map(row)]:[]),counts,nextCursor:null});}
       const states=STATES.filter(state=>!filter||classification(state)===filter),rows=[];

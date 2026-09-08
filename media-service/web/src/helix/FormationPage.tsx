@@ -1,6 +1,5 @@
 import { ProcessDialog, ProcessStages, progressDetail } from './ProcessStages';
 import { useSearchParams } from 'react-router-dom';
-import RecyclePanel from './RecyclePanel';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { helixAdminApi, type DefectAdmissionCandidate, type FormationRunHistory, type FormationSubject, type FormationSummary, type PerceptionSyncState, type Shelf } from './api';
 import { Button, LoadingState, PageHeader } from './chrome';
@@ -11,7 +10,7 @@ import type { CareWorkItem } from './api';
 import { isUnauthorized, useSession } from './session';
 
 const emptySummary: FormationSummary = { totalCount:0, inProgressCount:0, attentionRequiredCount:0, completedCount:0 };
-type Filter = 'all'|'in_progress'|'attention_required'|'completed'|'ended';
+type Filter = 'all'|'in_progress'|'attention_required'|'ended';
 type LedgerRow = { kind:'formation'; item:FormationSubject } | { kind:'ended'; item:FormationRunHistory } | { kind:'care'; item:CareWorkItem };
 
 function formatTime(value:number) { return value > 0 ? new Intl.DateTimeFormat('zh-CN', { dateStyle:'medium', timeStyle:'short' }).format(new Date(value)) : '—'; }
@@ -299,7 +298,7 @@ export default function FormationPage() {
   const rows=useMemo<LedgerRow[]>(()=>[...careItems.map((item)=>({kind:'care' as const,item})),...active.map((item)=>({kind:'formation' as const,item})),...completed.map((item)=>({kind:'formation' as const,item})),...ended.map((item)=>({kind:'ended' as const,item}))].filter((row)=>{
     if(q.trim()&&!row.item.displayIdentity.toLowerCase().includes(q.trim().toLowerCase()))return false;
     if(row.kind!=='ended'&&shelfFilter&&row.item.targetShelfId!==shelfFilter)return false;
-    if(filter==='all')return true;if(row.kind==='care')return row.item.classification===filter||(filter==='in_progress'&&row.item.classification==='queued');if(filter==='ended')return row.kind==='ended';return row.kind==='formation'&&row.item.classification===filter;
+    if(filter==='all')return true;if(filter==='ended')return row.kind==='ended'||row.item.classification==='completed'||row.item.classification==='ended';return row.kind!=='ended'&&row.item.classification===filter;
   }),[active,completed,ended,careItems,filter,q,shelfFilter]);
   const close=()=>{detailGeneration.current+=1;setSelected(null);setDetailLoading(false);window.setTimeout(()=>triggerRef.current?.focus(),0);};
   const open=async(item:FormationSubject,button:HTMLButtonElement)=>{
@@ -327,19 +326,18 @@ export default function FormationPage() {
     }catch(cause){setError(cause instanceof Error?cause.message:'操作失败。');setLoading(false);}
   };
   if(!active.length&&!completed.length&&!ended.length&&!careItems.length&&loading&&!error)return <LoadingState>正在读取媒体整理工作区…</LoadingState>;
-  const counts:Record<Filter,number>={all:summary.totalCount+ended.length+Object.values(careCounts).reduce((a,b)=>a+b,0),in_progress:summary.inProgressCount+(careCounts.in_progress||0)+(careCounts.queued||0),attention_required:summary.attentionRequiredCount+(careCounts.attention_required||0),completed:summary.completedCount+(careCounts.completed||0),ended:ended.length+(careCounts.ended||0)};
+  const counts:Record<Filter,number>={all:summary.totalCount+ended.length+Object.values(careCounts).reduce((a,b)=>a+b,0),in_progress:summary.inProgressCount+(careCounts.in_progress||0)+(careCounts.queued||0),attention_required:summary.attentionRequiredCount+(careCounts.attention_required||0),ended:summary.completedCount+(careCounts.completed||0)+ended.length+(careCounts.ended||0)};
   return <section className="source-page workbench formation-page"><PageHeader title="媒体整理工作区" actions={<Button type="button" onClick={()=>void load()} disabled={loading}>{loading?'正在刷新…':'刷新'}</Button>} />
     {error&&<p className="form-error" role="alert">{error}</p>}
     {notice&&<p className="form-notice" role="status">{notice}</p>}
     {perceptionSync?.completionState==='incomplete'&&<p className="form-notice" role="status">豆瓣评分同步尚未完整结束，已保存 {perceptionSync.recordCount} 条；再次同步会从上次成功位置继续。列表中的“暂不能确认”不是影片匹配失败。</p>}
     <section className="formation-ledger"><div className="formation-toolbar">
-      <div className="formation-chips" role="group" aria-label="媒体整理状态">{([{id:'all',label:'全部'},{id:'in_progress',label:'整理中'},{id:'attention_required',label:'需要处理'},{id:'completed',label:'已完成'},{id:'ended',label:'已结束'}] as Array<{id:Filter;label:string}>).map((entry)=><Button key={entry.id} type="button" aria-pressed={filter===entry.id} onClick={()=>setFilter(entry.id)}>{entry.label} {counts[entry.id]}</Button>)}</div>
+      <div className="formation-chips" role="group" aria-label="媒体整理状态">{([{id:'all',label:'全部'},{id:'in_progress',label:'整理中'},{id:'attention_required',label:'需要处理'},{id:'ended',label:'已结束'}] as Array<{id:Filter;label:string}>).map((entry)=><Button key={entry.id} type="button" aria-pressed={filter===entry.id} onClick={()=>setFilter(entry.id)}>{entry.label} {counts[entry.id]}</Button>)}</div>
       <div className="formation-secondary"><label>片名<input type="search" aria-label="按片名筛选" value={q} placeholder="搜索片名" onChange={(event)=>setQ(event.target.value)} /></label><label>目标收藏架<select aria-label="按目标收藏架筛选" value={shelfFilter} onChange={(event)=>setShelfFilter(event.target.value)}><option value="">全部收藏架</option>{shelves.map((shelf)=><option key={shelf.shelfId} value={shelf.shelfId}>{shelf.name}</option>)}</select></label></div>
     </div>
       <div className="formation-table-wrap"><table className="formation-table formation-stub-table"><thead><tr><th>媒体名称</th><th>评分</th><th>目标收藏架</th><th>整理要求</th><th>当前进展</th><th>详情</th><th>用户操作</th><th>加急</th><th>任务类型</th></tr></thead><tbody>{rows.length===0?<tr className="formation-stub-media-row"><td colSpan={9}><div className="source-empty"><strong>{summary.totalCount===0?'还没有进入整理的电影':'当前筛选没有条目'}</strong><p>{summary.totalCount===0?'Libra 接收媒体包后，条目会从“整理中”开始出现在这里；仍在等待接收的媒体包请到“文件来源”查看。':'试试其他状态或筛选。'}</p></div></td></tr>:rows.map((row)=>row.kind==='care'?<CareWorkRow key={row.item.aftercareCaseId} item={row.item} onOpen={setSelectedCare}/>:row.kind==='ended'?<tr key={row.item.historyId} className="formation-stub-media-row"><td><strong>{row.item.displayIdentity}</strong><small>已结束</small></td><td>—</td><td>—</td><td>—</td><td><strong className="formation-stub-current">{row.item.label}</strong><small>{formatTime(row.item.endedAtMs)}</small></td><td>—</td><td>—</td><td><button type="button" className="formation-expedite-toggle" disabled>加急</button></td><td>上架任务</td></tr>:<MediaRow key={row.item.subjectId} item={row.item} shelves={shelves} loading={loading} acquisitionIncomplete={perceptionSync?.completionState==='incomplete'} onOpen={open} onAction={action} />)}</tbody></table></div>
     </section>
     {Object.values(pageCursors).some(Boolean)&&<Button type="button" disabled={loadingMore} onClick={()=>void loadMore()}>{loadingMore?'正在读取…':'加载更多整理记录'}</Button>}
-    <RecyclePanel/>
     {careCursor&&<Button type="button" onClick={()=>void loadCare(careCursor)}>加载更多维护记录</Button>}
     {selectedCare&&<ProcessDialog title={selectedCare.displayIdentity+'的媒体整理过程'} onClose={()=>setSelectedCare(null)}><CareWorkDetail item={selectedCare} error={careDetailError}/></ProcessDialog>}
     {selected&&<ProcessDialog title={selected.displayIdentity+'的媒体整理过程'} onClose={close}><ProcessDetail item={selected} loading={detailLoading} error={detailError}/></ProcessDialog>}

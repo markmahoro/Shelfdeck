@@ -1,4 +1,3 @@
-import RecyclePanel from './RecyclePanel';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { helixAdminApi, type CareDetail, type CollectionEntry, type HealthState } from './api';
@@ -183,7 +182,6 @@ export default function CollectionPage() {
           <p className="collection-dialog-overview">{selected.overview || '暂无剧情简介。'}</p>
           {selected.defectAdmission&&<p className="form-notice">瑕疵入库 · {selected.defectAdmission.defects.map((defect)=>defect.defectCode==='size_cap_exceeded'?'体积超过档位上限':defect.defectCode==='actor_unavailable'?'演员资料缺失':'寻源耗尽保留原片').join('、')}</p>}
           {selected.people.length > 0 && <dl className="collection-people"><dt>演职人员</dt><dd>{selected.people.slice(0, 12).map((person) => person.displayName).join('、')}</dd></dl>}
-          <RecyclePanel shelfEntryId={selected.shelfEntryId}/>
           <dl className="collection-facts">
             <div><dt>收藏架</dt><dd>{selected.shelfName}</dd></div>
             <div><dt>占用空间</dt><dd>{formatBytes(selected.occupancyBytes)}</dd></div>

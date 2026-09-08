@@ -287,6 +287,7 @@ button, input, select, textarea { font: inherit; }
 .formation-stub-table th:nth-child(9) { width: 8%; }
 .formation-stub-table td { vertical-align: middle; overflow-wrap: anywhere; }
 .formation-stub-table td:first-child { width: auto; }
+.formation-stub-table td:nth-child(6) .btn { white-space: nowrap; padding-inline: 0; }
 .formation-stub-rating { color: var(--muted); font-size: 12px; font-weight: 700; white-space: nowrap; }
 .formation-stub-current { color: var(--ink); }
 .formation-stub-current[data-state="attention_required"] { color: var(--fault); }

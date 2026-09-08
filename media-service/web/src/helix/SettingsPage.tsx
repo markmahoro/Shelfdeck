@@ -1,3 +1,4 @@
+import RecycleSettings from './RecycleSettings';
 import { FormEvent, useCallback, useEffect, useState } from 'react';
 import { helixAdminApi, type IntegrationState, type PerceptionRecord, type PerceptionSyncState, type WorkspaceRootSettings } from './api';
 import { newOpaqueId } from './id';
@@ -23,7 +24,7 @@ function stars(value: number | null) {
 
 export default function SettingsPage() {
   const { expire } = useSession();
-  const [tab, setTab] = useState<'integrations' | 'workspace' | 'ratings' | 'offdeck'>('integrations');
+  const [tab, setTab] = useState<'integrations' | 'workspace' | 'ratings' | 'offdeck' | 'recycle'>('integrations');
   const [integration, setIntegration] = useState<IntegrationState | null>(null);
   const [tmdb, setTmdb] = useState<IntegrationState | null>(null);
   const [moviePilot, setMoviePilot] = useState<IntegrationState | null>(null);
@@ -217,10 +218,11 @@ export default function SettingsPage() {
       <button type="button" role="tab" aria-selected={tab === 'workspace'} onClick={() => setTab('workspace')}>整理空间</button>
       <button type="button" role="tab" aria-selected={tab === 'offdeck'} onClick={() => setTab('offdeck')}>退出规则</button>
       <button type="button" role="tab" aria-selected={tab === 'ratings'} onClick={() => setTab('ratings')}>评分日志</button>
+      <button type="button" role="tab" aria-selected={tab === 'recycle'} onClick={() => setTab('recycle')}>回收站</button>
     </div>
     {error && <p className="form-error" role="alert">{error}</p>}
     {notice && <p className="form-notice" role="status">{notice}</p>}
-    {tab === 'offdeck' ? <div className="settings-stack"><OffdeckRulesPanel /></div> : tab === 'workspace' ? <div className="settings-stack">
+    {tab === 'recycle' ? <section className="settings-card"><div className="settings-card-body"><RecycleSettings /></div></section> : tab === 'offdeck' ? <div className="settings-stack"><OffdeckRulesPanel /></div> : tab === 'workspace' ? <div className="settings-stack">
       <section className="settings-card" aria-labelledby="workspace-title">
         <header className="settings-card-head"><div><h2 id="workspace-title">整理工作目录</h2><p>整理媒体时使用的临时工作目录</p></div>
           <span className={`integration-state ${workspace?.restartRequired?'':'active'}`}>{workspace?.restartRequired?'等待重启':'当前生效'}</span></header>

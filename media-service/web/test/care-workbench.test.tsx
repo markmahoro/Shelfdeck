@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, expect, it, vi } from 'vitest';
 import App from '../src/App';
@@ -60,4 +60,66 @@ it('shows maintenance detail request failures inside the open dialog',async()=>{
   fireEvent.click(await screen.findByRole('button',{name:'查看过程'}));
   await waitFor(()=>expect(screen.getByRole('dialog')).toHaveTextContent('维护过程读取失败，请重新打开详情。'));
   expect(screen.queryByText('正在读取维护计划…')).not.toBeInTheDocument();
+});
+
+
+it('keeps failed historical care out of attention and combines terminal outcomes without hiding their results',async()=>{
+  const summary={totalCount:0,inProgressCount:0,attentionRequiredCount:0,completedCount:0};
+  const projection={status:'ready' as const,asOfMs:100};
+  vi.spyOn(helixAdminApi,'listFormation').mockResolvedValue({items:[],summary,nextCursor:null,projection});
+  vi.spyOn(helixAdminApi,'listFormationHistory').mockResolvedValue({items:[],summary,nextCursor:null,projection});
+  vi.spyOn(helixAdminApi,'listShelves').mockResolvedValue({items:[]});
+  vi.spyOn(helixAdminApi,'getPerceptionSyncState').mockRejectedValue(new Error('not configured'));
+  const failed={aftercareCaseId:'failed',shelfEntryId:'hobbit',displayIdentity:'霍比特人1',targetShelfId:'shelf',targetShelfName:'电影',
+    state:'unresolved',classification:'ended' as const,goals:['conformance:max_size_exceeded'],createdAtMs:100,terminalAtMs:200,
+    reasonCode:'settlement_or_commit_failed',progress:null,currentHealth:{state:'healthy' as const,healthState:'healthy' as const},
+    caseEvidence:{inventoryRevision:1,standardRevision:1,originalPrimaryBytes:11666913036,currentInventoryRevision:2,currentPrimaryBytes:4027793937},
+    processDetail:{contract:'aftercare_process_actual_plans@1' as const,stages:[]}};
+  vi.spyOn(helixAdminApi,'listCareWork').mockResolvedValue({items:[failed,{...failed,aftercareCaseId:'success',displayIdentity:'成功影片',state:'resolved',classification:'completed',reasonCode:'reassessed_healthy',currentHealth:{state:'attention_required',healthState:'unhealthy',maintenanceState:'none'}}],counts:{ended:1,completed:1},nextCursor:null});
+  render(<MemoryRouter initialEntries={['/formation']}><App/></MemoryRouter>);
+  await screen.findByText('霍比特人1');
+  expect(screen.queryByRole('button',{name:/^已完成/})).not.toBeInTheDocument();
+  expect(screen.queryByText('回收站')).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button',{name:'需要处理 0'}));
+  expect(screen.queryByText('霍比特人1')).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button',{name:'已结束 2'}));
+  const row=screen.getByText('霍比特人1').closest('tr')!;
+  expect(row).toHaveTextContent('已结束 · 未解决');
+  expect(row).toHaveTextContent('当前收藏健康');
+  expect(screen.getByText('成功影片').closest('tr')).toHaveTextContent('维护完成');
+  fireEvent.click(within(row).getByRole('button',{name:'查看过程'}));
+  const dialog=await screen.findByRole('dialog');
+  expect(dialog).toHaveTextContent('建单时影片体积超过当时适用的收藏上限');
+  expect(dialog).toHaveTextContent('10.87 GiB');
+  expect(dialog).toHaveTextContent('3.75 GiB');
+  expect(dialog).toHaveTextContent('旧文件收尾或收藏提交失败');
+  expect(dialog).toHaveTextContent('建单记录未保存具体体积上限');
+  fireEvent.click(screen.getByRole('button',{name:'关闭媒体整理过程卡片'}));
+  const unhealthy=screen.getByText('成功影片').closest('tr')!;
+  expect(unhealthy).toHaveTextContent('当前仍有问题');
+  expect(within(unhealthy).getByRole('link',{name:'收藏健康'})).toHaveAttribute('href','/collection');
+  fireEvent.click(within(unhealthy).getByRole('button',{name:'查看过程'}));
+  expect(await screen.findByRole('dialog')).toHaveTextContent('当前问题仍保留');
+});
+
+
+it('centralizes recycle history and exact film directory previews in settings',async()=>{
+  vi.spyOn(helixAdminApi,'getIntegration').mockResolvedValue({kind:'douban',supported:true,configured:false,state:'idle',configRevision:0,
+    endpoint:null,configDigest:null,capabilityCodes:[],lastTestSummary:null,landingBinding:null});
+  const records=vi.spyOn(helixAdminApi,'listRecycle').mockResolvedValue({items:[]});
+  const preview=vi.spyOn(helixAdminApi,'previewRecycle').mockResolvedValue({items:[]});
+  const archive=vi.spyOn(helixAdminApi,'archiveRecycle');
+  const restore=vi.spyOn(helixAdminApi,'restoreRecycle');
+  vi.spyOn(helixAdminApi,'listCollection').mockResolvedValue({items:[{shelfEntryId:'hobbit',displayIdentity:'霍比特人1'} as never],nextCursor:null});
+  render(<MemoryRouter initialEntries={['/settings']}><App/></MemoryRouter>);
+  fireEvent.click(await screen.findByRole('tab',{name:'回收站'}));
+  expect(screen.getByRole('heading',{name:'回收站'})).toBeInTheDocument();
+  expect(records).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole('button',{name:'读取收藏列表'}));
+  await screen.findByRole('option',{name:'霍比特人1'});
+  fireEvent.change(screen.getByRole('combobox'),{target:{value:'hobbit'}});
+  const panel=screen.getByText('旧目录与回收站').closest('details')!;
+  panel.open=true;fireEvent(panel,new Event('toggle',{bubbles:true}));
+  await waitFor(()=>expect(preview).toHaveBeenCalledWith('hobbit'));
+  expect(archive).not.toHaveBeenCalled();expect(restore).not.toHaveBeenCalled();
 });

@@ -16,13 +16,13 @@ function createArcaCareApplication(options){if(!options?.contextReader||!options
     return Object.freeze({shelfId});
   }
   function workItems(query={}){
-    const classification=(state)=>state==='queued'?'queued':state==='active'?'in_progress':state==='resolved'?'completed':state==='unresolved'?'attention_required':'ended';
-    const result=store.listWorkCases(query),page=result.items,display=store.workDisplay(page.map(item=>item.shelfEntryId)),items=page.map((item)=>{
+    const classification=(state)=>state==='queued'?'queued':state==='active'?'in_progress':state==='resolved'?'completed':'ended';
+    const result=store.listWorkCases(query),page=result.items,display=store.workDisplay(page.map(item=>item.shelfEntryId)),health=options.coordinator.projectMany([...new Set(page.map(item=>item.shelfEntryId))]),items=page.map((item)=>{
       const summary=display.get(item.shelfEntryId);
       return Object.freeze({aftercareCaseId:item.aftercareCaseId,shelfEntryId:item.shelfEntryId,displayIdentity:summary?.displayIdentity||item.shelfEntryId,
         targetShelfId:summary?.targetShelfId||null,targetShelfName:summary?.targetShelfName||null,state:item.state,classification:classification(item.state),
-        goals:item.careRequirement.typedParameters.map((parameter)=>String(parameter.value)),createdAtMs:item.createdAtMs,terminalAtMs:item.terminalAtMs,
-        ...(query.aftercareCaseId?{processDetail:options.coordinator.caseDetail(item.aftercareCaseId)}:{}),
+        currentHealth:health.get(item.shelfEntryId)||null,goals:item.careRequirement.typedParameters.map((parameter)=>String(parameter.value)),createdAtMs:item.createdAtMs,terminalAtMs:item.terminalAtMs,
+        ...(query.aftercareCaseId?{processDetail:options.coordinator.caseDetail(item.aftercareCaseId),caseEvidence:store.caseEvidence(item.aftercareCaseId)}:{}),
         reasonCode:item.terminalReasonCode||null,progress:item.state==='active'?options.coordinator.caseProgress(item.shelfEntryId):
           item.state==='queued'?{aftercareCaseId:item.aftercareCaseId,stage:'queued',progressPercent:null,progress:null,goals:item.careRequirement.typedParameters.map(parameter=>String(parameter.value))}:null});
     });
