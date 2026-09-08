@@ -7,7 +7,7 @@
     "8.6.19"
   ],
   "x-helix-envelopeRef": "helix://contracts/types/EvidenceEnvelope/v1",
-  "x-helix-maxCanonicalBytes": 65536,
+  "x-helix-maxCanonicalBytes": 262144,
   "type": "object",
   "additionalProperties": false,
   "properties": {

@@ -552,7 +552,10 @@ function createAdapter(effectClass, options) {
       const actualResponseBytes = Buffer.byteLength(resultJson, 'utf8');
       if (!Number.isSafeInteger(response.statusCode) || response.statusCode < 200 || response.statusCode > 299 ||
           response.responseBytes !== actualResponseBytes || actualResponseBytes > operation.maxResponseBytes ||
-          response.responseDigest !== options.digest(resultJson)) fail('P5_PROVIDER_RESPONSE_INVALID', 'Provider response status, size, or digest is invalid.');
+          response.responseDigest !== options.digest(resultJson)) fail('P5_PROVIDER_RESPONSE_INVALID', 'Provider response status, size, or digest is invalid.', {
+            statusCode:Number.isSafeInteger(response.statusCode)?response.statusCode:null,actualResponseBytes,maxResponseBytes:operation.maxResponseBytes,
+            responseBytesMatch:response.responseBytes===actualResponseBytes,responseDigestMatches:response.responseDigest===options.digest(resultJson),
+          });
       return Object.freeze({
         schemaRef: 'helix://contracts/ports/integration.external-provider-' +
           (effectClass === 'pure_observation' ? 'observation' : effectClass === 'workspace_write' ? 'artifact' : 'request') + '.execute/v1/output',

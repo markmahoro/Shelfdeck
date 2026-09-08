@@ -10054,7 +10054,7 @@ Handoff或Catalog Capability：
   SHA-256(JCS(完整candidate excluding candidateDigest))`；按`providerRank,candidateId`排序且tuple唯一，
   `candidateSetDigest=SHA-256(JCS({schema:"libra.external-acquisition-candidate-set@1",queryDigest,
   integrationId,configRevision,items:candidates}))`。Evidence payload覆盖query、Integration fence与完整集合，完整Result
-  不超过`65,536` bytes；P5 Adapter不得只返回不可解析字符串或另一个Store的locator。
+  不超过`262,144` bytes（UAT-250：完整候选广告Evidence扩展后统一为256 KiB）；P5 Adapter不得只返回不可解析字符串或另一个Store的locator。
 - `AcquisitionPolicy@1`在本链路固定为`{contractId,revision,schemaRef:"AcquisitionPolicy@1",policyDigest}`，只冻结
   Integration配置revision，不携带候选轮换次数或其他用户可调下载尝试参数。
 - `SelectionCriteria@1`在本链路固定为`{contractId,revision,schemaRef:"SelectionCriteria@1",queryDigest,
@@ -10163,8 +10163,8 @@ P5 External Provider protocol在既有三个typed Port内补齐四项exact opera
 - Search固定为`libra.external_material.search@1 → moviepilot.acquisition-search.observe@1`，input kind
   `acquisition-query-snapshot`恰为`{acquisitionQuery(AcquisitionQuery@1),limit(1..100)}`；result kind
   `acquisition-candidate-list`恰为`{queryDigest,candidates[0..100 ProviderAcquisitionCandidateSnapshot],
-  candidateSetDigest}`，其Query、Integration/config、排序、公式和64 KiB双界逐字节服从本节定义，不得返回
-  `reference-list`或需要第二次Provider读取的locator；input最多`32 KiB`、result最多`65,536` bytes；
+  candidateSetDigest}`，其Query、Integration/config、排序、公式和256 KiB双界逐字节服从本节定义，不得返回
+  `reference-list`或需要第二次Provider读取的locator；input最多`32 KiB`、result最多`262,144` bytes；
 - Request固定为`libra.external_material.acquire.request@1 → moviepilot.acquisition.request@1`，input kind
   `acquisition-request-snapshot`恰为`{acquisitionQuery(AcquisitionQuery@1),selectedCandidate(
   SelectedCandidate@1 selected variant)}`，result kind仍为`job`且只返回与本次canonical request digest、
@@ -11037,7 +11037,7 @@ Accepted variant的`rejection_schema_ref`及全部rejection列必须为NULL。SQ
 | `ReclamationReceipt` | `ReceiptEnvelope + workspaceId + memberResults[1..32 WorkspaceMaterialDeletionEvidence] + reclaimedHandleIds[] + retainedHandleIds[] + reclaimedBytes + receiptDigest`；member按materialHandleId排序且两类handle数组从member结果确定性派生；Libra一次调用固定恰一项，Arca/People同类Workspace回收允许有界批次；完整JCS≤`64 KiB`，`receiptDigest=SHA-256(JCS(完整value excluding receiptDigest))` |
 | `WorkspaceCleanupCommitReceipt` | `ReceiptEnvelope + cleanupScopeId + scopeStateRevision + materialHandleId + memberStateRevision + outcomeEvidenceDigest + releasedControlRevision? + releasedControlProjectionDigest? + cleanupState(completed|blocked) + receiptDigest`；固定`receiptKind=libra_workspace_cleanup_member,ownerDomain=libra,scopeType=workspace_cleanup_member,scopeId=cleanupScopeId+":"+materialHandleId,scopeDigest=WorkspaceCleanupCommitDecision.decisionDigest`，`receiptId=SHA-256(JCS({schema:"libra.workspace-cleanup-receipt-id@1",cleanupScopeId,materialHandleId,memberStateRevision}))`；completed的outcome是Deletion Evidence，blocked的outcome是Blocking Evidence；Control双字段同为NULL或同为非NULL且blocked恒为NULL；`receiptDigest=SHA-256(JCS(完整value excluding receiptDigest))` |
 | `AcquisitionQuery` | 8.6.8 `PBF-16` exact Query：完整Run/Basis、Resolved Identity Anchor、Product Structure/Episode scope、terms/constraints及唯一query digest；不含Workspace path |
-| `AcquisitionCandidates` | `EvidenceEnvelope + queryDigest + integrationId + configRevision + candidates[0..100 ProviderAcquisitionCandidateSnapshot] + candidateSetDigest`；完整typed集合、排序、digest与64 KiB双界见8.6.8 |
+| `AcquisitionCandidates` | `EvidenceEnvelope + queryDigest + integrationId + configRevision + candidates[0..100 ProviderAcquisitionCandidateSnapshot] + candidateSetDigest`；完整typed集合、排序、digest与256 KiB双界见8.6.8 |
 | `SelectedCandidate` | 8.6.8 closed `selected|not_selected` Draft；selected内联完整selected Provider Candidate Snapshot，not_selected不伪造ID；两者均绑定Query/Criteria/Candidate set |
 | `AcquisitionObservation` | ready-only `EvidenceEnvelope + ExternalJobReceipt完整值 + phase + providerObservationRevision + outputSnapshot + observationDigest`；pending使用`deferred`且不发布Result，禁止free-form state/outputRefs |
 | `StableExternalMaterialEvidence` | `VerificationEnvelope + sourceExternalMaterialHandleId + stableExternalMaterialHandle完整值 + observationWindow + stableDigest`；只由一次P5 bounded observation形成，最终Handle允许相对初次Resolve签发新revision/manifest |

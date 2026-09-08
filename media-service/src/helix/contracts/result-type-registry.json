@@ -32,12 +32,12 @@
       "relativePath": "types/AcquisitionCandidates/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "59a2c7b52d2ca6b696ab7eaec17cda733f2e5be2a813699f9f93b1b8935ac203"
+        "value": "e53b3bc8eea181547a926914bdd58577f2994a8a3ef66daa6b86f342af00f515"
       },
       "source": {
         "section": "8.6.19",
         "line": 11040,
-        "lineDigest": "9cbf5de0790297e9178106d7be41525efa16402bb4a5433e4a4ef003e7ff505c"
+        "lineDigest": "24bd04f0ac33efde7f5e2f276bc51ed80d337b7b79ce49fce8c7d00627f091d3"
       }
     },
     {

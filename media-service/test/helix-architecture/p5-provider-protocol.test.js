@@ -455,3 +455,40 @@ test('provider protocol implementation has no network, filesystem, Domain Store,
     '/domains/', 'metadata' + 'provideradapter', 'emby' + 'service', 'moviepilot' + 'service', 'douban' + 'service'
   ]) assert.equal(source.includes(forbidden), false, forbidden);
 });
+
+
+test('UAT-250 rejects a correctly digested candidate set above the new search byte budget', async () => {
+  const operation = operationCatalog.operations.find(item => item.operationId === 'libra.external_material.search@1');
+  const base = requestFor(operation, 'moviepilot');
+  const input = { ...base.input, limit: 100 };
+  const request = { ...base, input, requestDigest: digest(canonicalJson({
+    integrationId: base.integrationHandle.integrationId, integrationType: base.integrationHandle.integrationType,
+    configRevision: base.integrationHandle.configRevision, operationId: base.operationId,
+    idempotencyKey: base.idempotencyKey, input,
+  })) };
+  const candidates = Array.from({ length: 100 }, (_, rank) => {
+    const item = structuredClone(candidate());
+    item.providerRank = rank;
+    item.providerCandidateRef.objectId = 'candidate-' + rank;
+    item.candidateId = digest(canonicalJson({ schema: 'provider-acquisition-candidate-id@1',
+      integrationId: item.integrationId, configRevision: item.configRevision, providerCandidateRef: item.providerCandidateRef }));
+    item.identityAnchors = Array.from({ length: 16 }, (_, index) => ({ ...identity, providerKey: String(index).padStart(3, '0') }));
+    delete item.candidateDigest;
+    return { ...item, candidateDigest: digest(canonicalJson(item)) };
+  });
+  const result = { queryDigest: input.acquisitionQuery.queryDigest, candidates,
+    candidateSetDigest: digest(canonicalJson({ schema: 'libra.external-acquisition-candidate-set@1',
+      queryDigest: input.acquisitionQuery.queryDigest, integrationId: request.integrationHandle.integrationId,
+      configRevision: request.integrationHandle.configRevision, items: candidates })) };
+  const json = canonicalJson(result), bytes = Buffer.byteLength(json);
+  assert.ok(bytes > operation.maxResponseBytes);
+  const f = fixture(operation, { request, transport: { execute: async () => ({
+    transportRequestId: 'oversized-search', statusCode: 200, responseBytes: bytes, responseDigest: digest(json), result,
+  }) } });
+  await assert.rejects(() => f.adapter.execute(request), error => {
+    assert.equal(error.code, 'P5_PROVIDER_RESPONSE_INVALID');
+    assert.deepEqual(error.details, { statusCode: 200, actualResponseBytes: bytes,
+      maxResponseBytes: 262144, responseBytesMatch: true, responseDigestMatches: true });
+    return true;
+  });
+});

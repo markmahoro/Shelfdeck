@@ -40,3 +40,7 @@ UAT-217提交9fb736ac1；UAT-218质量保护本地47项定向PASS，仍需真实
 UAT-218整合验证：220个architecture fixture文件与Dependency/Semantic/Manifest/Contract全部Gate PASS（.codex/uat218-architecture.json）。其中包含UAT-217最终代码回归。
 
 UAT-251独立UI修正：瑕疵预览失败不再静默隐藏，新增只读重试与旧revision迟到隔离，去除永久不修复承诺。Web56 PASS/build PASS；新终局和修复合同仍未完整实施。16:46只读API刷新：林肯律师92.4%转码，黑寡妇仍等待资源，活着原冻结未改；这不是浏览器验收。
+
+UAT-250：《活着》原Query在一致性副本上只读重放，当前100候选138631字节超过旧65536预算，HTTP/字节/摘要均正确；Search与AcquisitionCandidates同步256 KiB后重放通过。31针对性、220文件架构全门禁通过，另补新预算上限拒绝测试通过。未Reset或重写原冻结Run，未部署此修复。
+
+统一发布准备：a56753f7c6候选完成标准build/upload/SHA校验/dry-run与Linux隔离启动/API smoke；tar SHA256=e13dab8c2ff4fea5a009ab269714dabdb0e688a3d61b845c09ed5ed290a82baa，尚不含随后UAT-250预算修复。17:04一致性备份位于NAS backups/uat-iteration-20260908-a56753f7c6-r2，DB SHA256=e699447a167085170474724f6248b9c9422a5c5bef168dccbb2df9cdb637614f；保留Compose、凭据文件及加密integration envelopes。未执行deploy --apply，生产仍6e37bf5679；17:19黑寡妇转码12.3%，不强制重启。林肯律师离开在办不等于已证明成功，沙丘新冻结须另查原因。

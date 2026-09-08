@@ -797,7 +797,7 @@ function acquisitionQuerySchema() {
 
 function acquisitionCandidatesSchema() {
   return resultSchema('AcquisitionCandidates','EvidenceEnvelope',{queryDigest:digest(),integrationId:id(),configRevision:positiveInteger(),
-    candidates:arrayOf(providerAcquisitionCandidateSnapshotSchema(),100),candidateSetDigest:digest()},{'x-helix-maxCanonicalBytes':64*1024});
+    candidates:arrayOf(providerAcquisitionCandidateSnapshotSchema(),100),candidateSetDigest:digest()},{'x-helix-maxCanonicalBytes':256*1024});
 }
 
 function selectedCandidateSchema() {

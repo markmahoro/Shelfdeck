@@ -1100,6 +1100,37 @@ test('H1.2 provider operations execute through exact P5 ports and revision-fence
   }
 });
 
+test('UAT-250 keeps all one hundred advertised candidates through the response and selection bounds',async()=>{
+  const value=fixture(),state={calls:[]},fetchImpl=providerFetch(state);
+  const host=await createCleanServiceHost({dataDir:value.dataDir,adminDistDir:value.adminDistDir,secretRoot,
+    integrationFetch:fetchImpl,now:()=>1_900_000_000_000});
+  try{await configure(host,await session(host,value.initialized.adminApiKey),'moviepilot','-uat250');}finally{await host.close();}
+  state.moviepilotSearchRows=Array.from({length:100},(_,index)=>({
+    media_info:{title:'Movie',year:'2024',tmdb_id:100},meta_info:{name:'Movie',year:'2024'},
+    torrent_info:{title:'Movie.2024.2160p.HEVC.TrueHD',enclosure:'https://tracker.test/download/'+index,
+      size:1024,seeders:index+1,date_elapsed:'1分钟前'},
+  }));
+  const opened=openServices(value,fetchImpl);
+  try{
+    const query=acquisitionQuery(),response=await opened.services.executeProvider('moviepilot',{
+      operationId:'libra.external_material.search@1',effectClass:'pure_observation',idempotencyKey:'uat250-search',
+      timeoutMs:5000,input:{acquisitionQuery:query,limit:100}});
+    assert.equal(response.result.candidates.length,100);
+    assert.ok(response.responseBytes>65536);assert.ok(response.responseBytes<262144);
+    const contracts=require('../../src/helix/domains/libra/model/external-material-contracts');
+    const candidates={schemaRef:'helix://contracts/types/AcquisitionCandidates/v1',schemaVersion:1,
+      evidenceId:'uat250',evidenceKind:'external_acquisition_candidates',producerRef:response.transportRequestId,
+      basisDigest:response.requestDigest,payloadDigest:canonicalDigest(response.result),observedAtMs:1_900_000_000_000,
+      integrationId:response.integrationId,configRevision:response.configRevision,...response.result};
+    const schema=require('../../src/helix/contracts/types/AcquisitionCandidates/v1/schema.json');
+    assert.ok(Buffer.byteLength(canonicalJson(candidates))<schema['x-helix-maxCanonicalBytes']);
+    const selected=contracts.selectCandidate({candidates,
+      selectionCriteria:contracts.buildSelectionCriteria({queryDigest:query.queryDigest,revision:1}),producedAtMs:1_900_000_000_000});
+    assert.equal(selected.selectedCandidate.providerRank,99,'The best candidate beyond the first 25 must remain selectable.');
+    assert.equal(state.moviepilotDownloadAdds||0,0);
+  }finally{opened.kernel.close();}
+});
+
 test('H1.2 MoviePilot external request recovers one exact durable job without duplicate submission', async () => {
   const value = fixture();
   const state = { calls: [] };
