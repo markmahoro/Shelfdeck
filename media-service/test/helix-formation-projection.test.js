@@ -78,12 +78,12 @@ test('Formation extracts Product Identity issues from the business result contra
   });
 });
 
-test('Formation explains a frozen Handoff B rejection so the user can discard',()=>{
+test('Formation explains Handoff B rejection without prescribing discard and repeat',()=>{
   assert.equal(frozenRunLabel([], { blockedWorks:[{ failureCode:'handoff_b_rejected' }] }),
-    '收藏架验收未通过，需要放弃后重新整理');
+    '收藏架验收未通过，本次整理未完成，请查看具体原因');
   assert.equal(nextAction([], 'attention_required', null, 'frozen', null, null, null, null, false,
     { blockedWorks:[{ failureCode:'handoff_b_rejected' }] }).label,
-    '收藏架验收未通过，需要放弃后重新整理');
+    '收藏架验收未通过，本次整理未完成，请查看具体原因');
 });
 
 test('Formation explains a frozen external search that found no requirement-eligible candidate',()=>{
@@ -95,9 +95,9 @@ test('Formation explains a frozen external search that found no requirement-elig
       selectionReasonCode:'no_requirement_eligible_candidate',
     }},
   }]}];
-  assert.equal(frozenRunLabel(works),'没有符合整理要求的外部候选，本次整理已冻结');
+  assert.equal(frozenRunLabel(works),'没有符合整理要求的外部候选，本次整理未完成，请查看可用操作');
   assert.equal(nextAction(works,'attention_required',null,'frozen',null,null,null).label,
-    '没有符合整理要求的外部候选，本次整理已冻结');
+    '没有符合整理要求的外部候选，本次整理未完成，请查看可用操作');
   assert.equal(frozenRunLabel([{events:[{
     capabilityRef:'libra.external_material.candidate.select@1',
     result:{committedAtMs:200,result:{
@@ -105,7 +105,7 @@ test('Formation explains a frozen external search that found no requirement-elig
       result:'not_selected',
       selectionReasonCode:'no_available_candidate',
     }},
-  }]}]),'没有找到可获取的外部候选，本次整理已冻结');
+  }]}]),'没有找到可获取的外部候选，本次整理未完成，请查看可用操作');
 });
 
 test('Formation exposes only a proven compliant MoviePilot selection',()=>{
@@ -117,11 +117,11 @@ test('Formation exposes only a proven compliant MoviePilot selection',()=>{
 });
 
 test('Formation gives a frozen Run precedence over an earlier Product Identity issue',()=>{
-  const frozenItem={...item(98,'attention_required',true),currentRun:{...item(98).currentRun,state:'frozen'},nextAction:{label:'本次整理已冻结，需要放弃后重新采购',state:'frozen',progress:null}};
+  const frozenItem={...item(98,'attention_required',true),currentRun:{...item(98).currentRun,state:'frozen'},nextAction:{label:'本次整理未完成，请查看原因和可用操作',state:'frozen',progress:null}};
   const row=buildFormationProjectionRow(frozenItem,5000);
   assert.equal(row.attention_state,'frozen');
   assert.equal(row.next_action_state,'frozen');
-  assert.equal(row.next_action_label,'本次整理已冻结，需要放弃后重新采购');
+  assert.equal(row.next_action_label,'本次整理未完成，请查看原因和可用操作');
 });
 
 test('completed-run remux work becomes the organizing action instead of an empty placeholder',()=>{
@@ -343,7 +343,7 @@ test('durable Formation projection pages active rows in stable Subject intake or
     assert.equal(kernel.runPrimitive(({prepare})=>prepare('SELECT update_count FROM formation_projection_update_probe').get().update_count),0);
     const query=createFormationQuery({store,now:()=>4000,state:()=>({status:'ready',asOfMs:3999})}),active=query.list({section:'active',limit:25});
     assert.equal(active.items.length,25);assert.deepEqual(active.items.slice(0,3).map((row)=>row.subjectId),['subject-029','subject-028','subject-027']);assert.ok(active.nextCursor);
-    assert.deepEqual(active.summary,{totalCount:31,inProgressCount:29,attentionRequiredCount:1,completedCount:1});assert.deepEqual(active.projection,{status:'ready',asOfMs:3999});
+    assert.deepEqual(active.summary,{totalCount:31,inProgressCount:29,attentionRequiredCount:1,completedCount:1,endedCount:0});assert.deepEqual(active.projection,{status:'ready',asOfMs:3999});
     const remainder=query.list({section:'active',limit:25,cursor:active.nextCursor});assert.equal(remainder.items.length,5);
     const completed=query.list({section:'completed',limit:25});assert.equal(completed.items.length,1);assert.equal(completed.items[0].subjectId,'subject-030');
     const byTitle=query.list({section:'active',q:'影片 0'});
@@ -405,7 +405,7 @@ test('Formation active list and summary overlay current Arca truth before filter
     assert.equal(active.items.find((row)=>row.subjectId==='subject-000').classification,'attention_required');
     assert.equal(active.items.find((row)=>row.subjectId==='subject-001').currentPlan.label,'计划14 处理媒体文件');
     assert.deepEqual(summaryReads[0],active.items.map((row)=>row.subjectId));
-    assert.deepEqual(active.summary,{totalCount:2,inProgressCount:1,attentionRequiredCount:1,completedCount:0});
+    assert.deepEqual(active.summary,{totalCount:2,inProgressCount:1,attentionRequiredCount:1,completedCount:0,endedCount:0});
     assert.deepEqual(query.list({section:'active',classification:'attention_required'}).items.map((row)=>row.subjectId),['subject-000']);
   }finally{kernel.close();fs.rmSync(root,{recursive:true,force:true,maxRetries:5,retryDelay:50});}
 });
@@ -448,7 +448,9 @@ test('Formation detail source uses business boundaries while Routing is still pr
     assert.equal(item.currentRun,null);
     assert.equal(organization.state,'running');
     assert.equal(organization.summary,'已有 1 个实际计划完成，等待本阶段继续推进');
-    assert.equal(item.currentPlan,null);
+    assert.equal(item.currentPlan.label,'保存本次整理决定');
+    assert.equal(item.currentPlan.state,'completed');
+    assert.equal(item.currentPlan.planId,plan.planId);
   }finally{kernel.close();fs.rmSync(root,{recursive:true,force:true,maxRetries:5,retryDelay:50});}
 });
 
@@ -465,7 +467,7 @@ test('Formation active queue shows only pipeline-admitted Subjects without a Run
     const query=createFormationQuery({store,readPipelineSubjectIds:()=>new Set(['subject-001']),now:()=>4000,state:()=>({status:'ready',asOfMs:3999})});
     const active=query.list({section:'active',limit:25});
     assert.deepEqual(active.items.map((row)=>row.subjectId),['subject-001']);
-    assert.deepEqual(active.summary,{totalCount:1,inProgressCount:1,attentionRequiredCount:0,completedCount:0});
+    assert.deepEqual(active.summary,{totalCount:1,inProgressCount:1,attentionRequiredCount:0,completedCount:0,endedCount:0});
   }finally{kernel.close();fs.rmSync(root,{recursive:true,force:true,maxRetries:5,retryDelay:50});}
 });
 
@@ -617,4 +619,15 @@ test('Formation projection freshness recovers after a transient rebuild failure'
     const recoveredDeadline=Date.now()+1000;while(writes<1&&Date.now()<recoveredDeadline)await new Promise((resolve)=>setTimeout(resolve,5));
     assert.equal(host.state().status,'ready');
   }finally{await host.stop();kernel.close();fs.rmSync(root,{recursive:true,force:true,maxRetries:5,retryDelay:50});}
+});
+
+
+test('UAT-251 current provider failure takes precedence over an old empty search result', () => {
+  const works = [{ events: [{ capabilityRef: 'libra.external_material.candidate.select@1',
+    result: { committedAtMs: 200, result: { schemaRef: 'helix://contracts/types/SelectedCandidate/v1',
+      result: 'not_selected', selectionReasonCode: 'no_available_candidate' } } }] }];
+  const terminal = { blockedWorks: [{ failureCode: 'P5_PROVIDER_RESPONSE_INVALID' }] };
+  assert.equal(frozenRunLabel(works, terminal), '外部资源查询结果校验失败，本次整理未完成，请查看具体原因');
+  assert.doesNotMatch(frozenRunLabel(works, terminal), /没有找到|采购|冻结/);
+  assert.equal(frozenRunLabel([]), '本次整理未完成，请查看原因和可用操作');
 });

@@ -352,23 +352,30 @@ function terminalFailureCode(terminalEvidence) {
     : null;
 }
 function frozenRunLabel(works, terminalEvidence = null) {
+  const providerFailure = terminalEvidence?.blockedWorks?.find(item =>
+    String(item.failureCode || '').startsWith('P5_PROVIDER_'));
+  if (providerFailure) {
+    return providerFailure.failureCode === 'P5_PROVIDER_RESPONSE_INVALID'
+      ? '外部资源查询结果校验失败，本次整理未完成，请查看具体原因'
+      : '外部服务调用失败，本次整理未完成，请查看具体原因';
+  }
   if (terminalFailureCode(terminalEvidence) === 'product_metadata_required_cast_missing') {
-    return '媒体资料中缺少验收要求的演员信息，本次整理已冻结';
+    return '媒体资料中缺少验收要求的演员信息，本次整理未完成，请查看可用操作';
   }
   if (terminalFailureCode(terminalEvidence) === 'handoff_b_rejected') {
-    return '收藏架验收未通过，需要放弃后重新整理';
+    return '收藏架验收未通过，本次整理未完成，请查看具体原因';
   }
   if (terminalFailureCode(terminalEvidence) === 'size_cap_requires_admission') {
     return '已保留画质更好的超限成品；继续压缩无法在质量保护下满足体积上限，请确认是否接受体积瑕疵';
   }
   const terminal = extractAcquisitionTerminal(works);
   if (terminal?.result === 'not_selected' && terminal.selectionReasonCode === 'no_requirement_eligible_candidate') {
-    return '没有符合整理要求的外部候选，本次整理已冻结';
+    return '没有符合整理要求的外部候选，本次整理未完成，请查看可用操作';
   }
   if (terminal?.result === 'not_selected' && terminal.selectionReasonCode === 'no_available_candidate') {
-    return '没有找到可获取的外部候选，本次整理已冻结';
+    return '没有找到可获取的外部候选，本次整理未完成，请查看可用操作';
   }
-  return '本次整理已冻结，需要放弃后重新采购';
+  return '本次整理未完成，请查看原因和可用操作';
 }
 function nextAction(works, classification, issue, runState, recovery, arcaStatus, productPackage, latestRunState,
   waitingExternalIntegration = false, terminalEvidence = null, spec = null, onDeckWorks = []) {

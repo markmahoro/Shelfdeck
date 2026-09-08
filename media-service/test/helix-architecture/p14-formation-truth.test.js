@@ -36,7 +36,7 @@ test('Formation explains a zero-cast business freeze without presenting an execu
   const action = nextAction(works, 'attention_required', null, 'frozen', null, null,
     null, null, false, terminalEvidence);
   assert.equal(action.state, 'frozen');
-  assert.equal(action.label, '媒体资料中缺少验收要求的演员信息，本次整理已冻结');
+  assert.equal(action.label, '媒体资料中缺少验收要求的演员信息，本次整理未完成，请查看可用操作');
   assert.doesNotMatch(action.label, /执行失败/);
 });
 
