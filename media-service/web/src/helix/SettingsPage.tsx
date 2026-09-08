@@ -281,7 +281,7 @@ export default function SettingsPage() {
           {moviePilot?.configured && moviePilot.landingBinding ? <form className="source-form" onSubmit={updateMoviePilotSettings}>
             <dl className="settings-facts">
               <div><dt>服务地址</dt><dd>{moviePilot.endpoint}</dd></div>
-              <div><dt>Credential</dt><dd>已安全保存并复用</dd></div>
+              <div><dt>访问凭据</dt><dd>已安全保存并复用</dd></div>
             </dl>
             <div className="source-form-grid">
               <label className="wide"><span>MoviePilot 下载目录</span><input value={providerRequestRoot} onChange={(event) => setProviderRequestRoot(event.target.value)} required /></label>

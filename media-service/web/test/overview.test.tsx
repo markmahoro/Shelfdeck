@@ -73,7 +73,7 @@ describe('Helix Overview product semantics', () => {
     expect(screen.getByText('有文件来源目录不可用，先到来源配置处理')).toBeInTheDocument();
     expect(screen.queryByText('现在没有需要你处理的事项')).not.toBeInTheDocument();
     expect(screen.queryByText('正常运行')).not.toBeInTheDocument();
-    expect(screen.getByText(/等待 Libra 接收 23 包/).closest('a')).toHaveAttribute('href', '/material-fields');
+    expect(screen.getByText(/等待进入整理 23 包/).closest('a')).toHaveAttribute('href', '/material-fields');
     expect(document.querySelector('.overview-workbench')).not.toBeNull();
   });
 

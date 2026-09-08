@@ -42,6 +42,25 @@ function renderCollection() {
 describe('Arca collection poster wall', () => {
   afterEach(() => vi.restoreAllMocks());
 
+  it('UAT-212 replaces pages and navigates back without prefetching history', async () => {
+    const second = { ...entry, shelfEntryId:'entry-2', displayIdentity:'Second movie' };
+    const list = vi.spyOn(helixAdminApi, 'listCollection').mockImplementation(async query => ({
+      items:query?.cursor ? [second] : [entry], resultCount:49,
+      nextCursor:query?.cursor ? null : 'next-page', shelves:[], summary:{ currentCount:49, historyCount:0 },
+    }));
+    renderCollection();
+    expect(await screen.findByText(entry.displayIdentity)).toBeInTheDocument();
+    expect(list).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole('button', { name:'下一页' }));
+    expect(await screen.findByText('Second movie')).toBeInTheDocument();
+    expect(screen.queryByText(entry.displayIdentity)).not.toBeInTheDocument();
+    expect(list).toHaveBeenLastCalledWith(expect.objectContaining({ cursor:'next-page', limit:48 }));
+    fireEvent.click(screen.getByRole('button', { name:'上一页' }));
+    expect(await screen.findByText(entry.displayIdentity)).toBeInTheDocument();
+    expect(screen.queryByText('Second movie')).not.toBeInTheDocument();
+    expect(list).toHaveBeenCalledTimes(3);
+  });
+
   it('explains the empty state before any collection exists', async () => {
     vi.spyOn(helixAdminApi, 'listCollection').mockResolvedValue({ items:[] });
     renderCollection();

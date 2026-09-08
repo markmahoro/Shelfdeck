@@ -60,11 +60,14 @@ export default function CollectionPage() {
   const [sort, setSort] = useState<'title' | 'recent' | 'year_desc'>('recent');
   const [resultCount, setResultCount] = useState(0);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [pageIndex, setPageIndex] = useState(0);
+  const pageCursors = useRef<Array<string | undefined>>([undefined]);
+  const currentPage = useRef(0);
   const loadVersion = useRef(0);
   const closeButton = useRef<HTMLButtonElement>(null);
-  const load = useCallback(async (cursor?: string) => {
-    const append = Boolean(cursor);
-    const version = append ? loadVersion.current : ++loadVersion.current;
+  const load = useCallback(async (cursor?: string, targetPage = currentPage.current) => {
+    const requestCursor = targetPage === 0 ? undefined : cursor ?? pageCursors.current[targetPage];
+    const version = ++loadVersion.current;
     setLoading(true); setError('');
     try {
       const result = await helixAdminApi.listCollection({
@@ -73,11 +76,16 @@ export default function CollectionPage() {
         health: healthFilter,
         q: search || undefined,
         sort,
-        cursor,
+        cursor: requestCursor,
         limit: 48,
       });
       if (version !== loadVersion.current) return;
-      setItems((current) => append ? [...current, ...result.items] : result.items);
+      setItems(result.items);
+      currentPage.current = targetPage;
+      setPageIndex(targetPage);
+      pageCursors.current = pageCursors.current.slice(0, targetPage + 1);
+      pageCursors.current[targetPage] = requestCursor;
+      if (result.nextCursor) pageCursors.current[targetPage + 1] = result.nextCursor;
       setShelves(result.shelves || []);
       setSummary(result.summary || { currentCount: result.items.filter((item) => item.status === 'active').length, historyCount: result.items.filter((item) => item.status !== 'active').length });
       setResultCount(result.resultCount ?? result.items.length);
@@ -89,7 +97,7 @@ export default function CollectionPage() {
     }
     finally { if (version === loadVersion.current) setLoading(false); }
   }, [expire, shelfId, healthFilter, search, sort]);
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => { currentPage.current = 0; pageCursors.current = [undefined]; setPageIndex(0); void load(undefined, 0); }, [load]);
   useEffect(() => {
     if (!selected) return;
     const previous = document.activeElement as HTMLElement | null;
@@ -169,7 +177,12 @@ export default function CollectionPage() {
         <span className="poster-frame">{item.hasPoster ? <img src={helixAdminApi.collectionPosterUrl(item.shelfEntryId, item.currentInventoryRevision, 'wall')} alt="" loading="lazy" decoding="async" /> : <span className="poster-fallback" aria-hidden="true"><b>{item.displayIdentity.slice(0, 2)}</b><small>ShelfDeck</small></span>}{<span className={`health-seal ${item.health.state}`} title={healthLabels[item.health.state]} aria-hidden="true">{healthLabels[item.health.state].slice(0, 1)}</span>}</span>
         <span className="poster-caption"><strong>{item.displayIdentity}</strong><small>{item.year || '年份未知'} · {item.shelfName}</small>{item.defectAdmission&&<small>瑕疵入库 · {item.defectAdmission.defects.some((defect)=>defect.defectCode==='size_cap_exceeded')?'体积超过档位上限':`${item.defectAdmission.defectCount}项`}</small>}</span>
       </button>)}</div>}
-      {nextCursor && <div className="collection-more"><Button type="button" onClick={() => void load(nextCursor)} disabled={loading}>{loading ? '正在取下一层…' : `继续浏览（已显示 ${items.length} / ${resultCount}）`}</Button></div>}
+      <nav className="collection-more" aria-label="收藏分页">
+        <Button type="button" disabled={loading || pageIndex === 0} onClick={() => void load(pageCursors.current[pageIndex - 1], pageIndex - 1)}>上一页</Button>
+        {pageCursors.current.map((cursor, index) => <Button key={index} type="button" aria-label={`第${index + 1}页`} aria-current={index === pageIndex ? 'page' : undefined} disabled={loading || index === pageIndex} onClick={() => void load(cursor, index)}>{index + 1}</Button>)}
+        <span>第 {pageIndex + 1} 页 · 共 {resultCount} 部</span>
+        <Button type="button" disabled={loading || !nextCursor} onClick={() => nextCursor && void load(nextCursor, pageIndex + 1)}>下一页</Button>
+      </nav>
     </section>
     {selected && <div className="collection-dialog-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setSelected(null); }}>
       <section className="collection-dialog" role="dialog" aria-modal="true" aria-labelledby="collection-dialog-title">
