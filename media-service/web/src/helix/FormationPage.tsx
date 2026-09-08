@@ -1,3 +1,4 @@
+import {readWorkbenchPage,type WorkbenchCursor} from './workbench-pagination';
 import { ProcessDialog, ProcessStages, progressDetail } from './ProcessStages';
 import { useSearchParams } from 'react-router-dom';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -60,50 +61,6 @@ function ratingText(item:FormationSubject, acquisitionIncomplete:boolean) {
   return '正在匹配豆瓣评分';
 }
 
-function mergeById<T>(previous:T[], fresh:T[], idOf:(item:T)=>string): T[] {
-  const incoming = new Map(fresh.map((item)=>[idOf(item), item]));
-  const seen = new Set<string>();
-  const merged = previous.map((item)=>{
-    const id = idOf(item);
-    const next = incoming.get(id);
-    if (!next) return item;
-    seen.add(id);
-    return next;
-  });
-  return [...fresh.filter((item)=>!seen.has(idOf(item))), ...merged];
-}
-type FormationFilters = {
-  classification?:'in_progress'|'attention_required';
-  shelfId?:string; needsUserAction?:boolean; expedited?:boolean; q?:string;
-};
-async function remainingFormation(first:{items:FormationSubject[];summary:FormationSummary;nextCursor:string|null}, section:'active'|'completed', filters?:FormationFilters, live=()=>true) {
-  const items = [...first.items];
-  let cursor = first.nextCursor, summary = first.summary;
-  const seen = new Set<string>();
-  while (cursor && live()) {
-    if (seen.has(cursor) || seen.size >= 399) throw new Error('媒体整理分页游标异常，已停止读取。');
-    seen.add(cursor);
-    const page = await helixAdminApi.listFormation(section, cursor, filters);
-    items.push(...page.items);
-    summary = page.summary;
-    cursor = page.nextCursor;
-  }
-  return { items, summary };
-}
-async function remainingHistory(first:{items:FormationRunHistory[];nextCursor:string|null}, live=()=>true) {
-  const items = [...first.items];
-  let cursor = first.nextCursor;
-  const seen = new Set<string>();
-  while (cursor && live()) {
-    if (seen.has(cursor) || seen.size >= 399) throw new Error('整理历史分页游标异常，已停止读取。');
-    seen.add(cursor);
-    const page = await helixAdminApi.listFormationHistory(cursor);
-    items.push(...page.items);
-    cursor = page.nextCursor;
-  }
-  return items;
-}
-
 function ProcessDetail({ item, loading=false, error='' }:{ item:FormationSubject; loading?:boolean; error?:string }) {
   const detail=item.processDetail;
   return <article className="formation-process-card" aria-label={`${item.displayIdentity}的媒体整理过程`}>
@@ -129,14 +86,16 @@ export default function FormationPage() {
   const [searchParams]=useSearchParams(),linkedCaseId=searchParams.get('aftercareCaseId');
   const [active,setActive]=useState<FormationSubject[]>([]),[completed,setCompleted]=useState<FormationSubject[]>([]),[ended,setEnded]=useState<FormationRunHistory[]>([]),[summary,setSummary]=useState(emptySummary),[shelves,setShelves]=useState<Shelf[]>([]);
   const [perceptionSync,setPerceptionSync]=useState<PerceptionSyncState|null>(null);
-  const [filter,setFilter]=useState<Filter>('all'),[q,setQ]=useState(''),[shelfFilter,setShelfFilter]=useState(''),[loading,setLoading]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState('');
+  const [filter,setFilter]=useState<Filter>('all'),[q,setQ]=useState(''),[shelfFilter,setShelfFilter]=useState(''),[loading,setLoading]=useState(true),[error,setError]=useState(''),[notice,setNotice]=useState('');
   const [selected,setSelected]=useState<FormationSubject|null>(null),triggerRef=useRef<HTMLButtonElement|null>(null),loadGeneration=useRef(0);
   const [detailLoading,setDetailLoading]=useState(false),[detailError,setDetailError]=useState(''),detailGeneration=useRef(0);
   const [defectDialog,setDefectDialog]=useState<{item:FormationSubject;candidate:DefectAdmissionCandidate}|null>(null);
-  const [careItems,setCareItems]=useState<CareWorkItem[]>([]),[careCursor,setCareCursor]=useState<string|null>(null),[selectedCare,setSelectedCare]=useState<CareWorkItem|null>(null);
+  const [careItems,setCareItems]=useState<CareWorkItem[]>([]),[selectedCare,setSelectedCare]=useState<CareWorkItem|null>(null);
   const [careCounts,setCareCounts]=useState<Record<string,number>>({});
   const [careDetailError,setCareDetailError]=useState('');
-  const careLoading=useRef(false),careExpanded=useRef(false),carePageCount=useRef(1),selectedCareId=useRef<string|null>(null);
+  const selectedCareId=useRef<string|null>(null);
+  const [pageRows,setPageRows]=useState<LedgerRow[]>([]),[pageIndex,setPageIndex]=useState(0),[hasNext,setHasNext]=useState(false),[pageLoading,setPageLoading]=useState(false);
+  const positions=useRef<Array<WorkbenchCursor|undefined>>([undefined]),currentPage=useRef(0);
   selectedCareId.current=selectedCare?.aftercareCaseId||null;
   useEffect(()=>{
     if(!linkedCaseId)return;
@@ -156,150 +115,77 @@ export default function FormationPage() {
     }).catch(cause=>{if(!cancelled){if(isUnauthorized(cause))expire();else setCareDetailError('维护过程读取失败，请重新打开详情。');}});
     return()=>{cancelled=true;};
   },[selectedCare?.aftercareCaseId,expire]);
-  const loadCare=useCallback(async(cursor?:string)=>{
-    if(careLoading.current)return;careLoading.current=true;
-    try{
-      let result=await helixAdminApi.listCareWork(cursor);const items=[...result.items];
-      if(cursor){careExpanded.current=true;carePageCount.current+=1;setCareItems(current=>mergeById(current,items,item=>item.aftercareCaseId));}
-      else{
-        for(let page=1;page<carePageCount.current&&result.nextCursor;page++){
-          result=await helixAdminApi.listCareWork(result.nextCursor);items.push(...result.items);
-        }
-        setCareItems(items);
-      }
-      setCareCursor(result.nextCursor);setCareCounts(result.counts);
-      const selectedId=selectedCareId.current;
-      if(selectedId){
-        const selected=(await helixAdminApi.listCareWork(undefined,selectedId)).items[0];
-        setSelectedCare(current=>current?.aftercareCaseId===selectedId?selected||null:current);
-      }
-    }
-    catch(cause){if(isUnauthorized(cause))expire();else setError(cause instanceof Error?cause.message:'上架后改善读取失败。');}
-    finally{careLoading.current=false;}
-  },[expire]);
-  useEffect(()=>{void loadCare();const timer=window.setInterval(()=>{if(!document.hidden)void loadCare();},10_000);return()=>window.clearInterval(timer);},[loadCare]);
-  const [pageCursors,setPageCursors]=useState<{active:string|null;completed:string|null;ended:string|null}>({active:null,completed:null,ended:null});
-  const [loadingMore,setLoadingMore]=useState(false);
-  const foregroundBusy=useRef(false),backgroundBusy=useRef(false);
-  const loadMore=async()=>{
-    if(loadingMore)return;setLoadingMore(true);
-    try{
-      const [a,c,e]=await Promise.all([
-        pageCursors.active?helixAdminApi.listFormation('active',pageCursors.active):null,
-        pageCursors.completed?helixAdminApi.listFormation('completed',pageCursors.completed):null,
-        pageCursors.ended?helixAdminApi.listFormationHistory(pageCursors.ended):null,
-      ]);
-      if(a){setActive(current=>mergeById(current,a.items,item=>item.subjectId));setSummary(a.summary);}
-      if(c)setCompleted(current=>mergeById(current,c.items,item=>item.subjectId));
-      if(e)setEnded(current=>mergeById(current,e.items,item=>item.historyId));
-      setPageCursors({active:a?.nextCursor||null,completed:c?.nextCursor||null,ended:e?.nextCursor||null});
-    }catch(cause){if(isUnauthorized(cause))expire();else setError(cause instanceof Error?cause.message:'更多记录读取失败。');}
-    finally{setLoadingMore(false);}
-  };
   const [discardDialog,setDiscardDialog]=useState<FormationSubject|null>(null);
-  const load=useCallback(async(background=false)=>{
-    if(background){
-      if(backgroundBusy.current||foregroundBusy.current||document.hidden)return;
-      backgroundBusy.current=true;
-      try{
-        const [firstActive,firstCompleted,firstEnded,sync]=await Promise.all([
-          helixAdminApi.listFormation('active'),
-          helixAdminApi.listFormation('completed'),
-          helixAdminApi.listFormationHistory(),
-          helixAdminApi.getPerceptionSyncState().catch(()=>null),
-        ]);
-        setActive((current)=>mergeById(current,firstActive.items,(item)=>item.subjectId));
-        setCompleted((current)=>mergeById(current,firstCompleted.items,(item)=>item.subjectId));
-        setEnded((current)=>mergeById(current,firstEnded.items,(item)=>item.historyId));
-        setSummary(firstActive.summary);
-        if(sync)setPerceptionSync(sync);
-      }catch(cause){if(isUnauthorized(cause))expire();}finally{backgroundBusy.current=false;}
-      return;
-    }
-    if(foregroundBusy.current)return;foregroundBusy.current=true;
-    const generation=loadGeneration.current+1;loadGeneration.current=generation;
-    const live=()=>generation===loadGeneration.current;
-    setLoading(true);setError('');
+  const load=useCallback(async(background=false,targetPage=currentPage.current)=>{
+    const generation=++loadGeneration.current,live=()=>generation===loadGeneration.current;
+    if(!background){setLoading(true);setPageLoading(true);setError('');}
+    const filters={q:q.trim(),shelfId:shelfFilter},empty={items:[],nextCursor:null};
+    const applyRows=(items:LedgerRow[])=>{
+      if(!live())return;
+      setPageRows(items);setLoading(false);
+      setActive(items.flatMap(row=>row.kind==='formation'&&row.item.classification!=='completed'?[row.item]:[]));
+      setCompleted(items.flatMap(row=>row.kind==='formation'&&row.item.classification==='completed'?[row.item]:[]));
+      setEnded(items.flatMap(row=>row.kind==='ended'?[row.item]:[]));
+      setCareItems(items.flatMap(row=>row.kind==='care'?[row.item]:[]));
+    };
     try{
-      const firstActive=await helixAdminApi.listFormation('active');
+      const readers:Array<(cursor?:string)=>Promise<{items:LedgerRow[];nextCursor:string|null}>>=[
+        async cursor=>{
+          if(filter==='ended')return empty;
+          const result=await helixAdminApi.listFormation('active',cursor,{...filters,...(filter==='all'?{}:{classification:filter})});
+          if(live())setSummary(result.summary);
+          return {...result,items:result.items.map(item=>({kind:'formation' as const,item}))};
+        },
+        async cursor=>{
+          if(filter!=='all'&&filter!=='ended')return empty;
+          const result=await helixAdminApi.listFormation('completed',cursor,filters);if(live())setSummary(result.summary);
+          return {...result,items:result.items.map(item=>({kind:'formation' as const,item}))};
+        },
+        async cursor=>{
+          if(filter!=='all'&&filter!=='ended')return empty;
+          const result=await helixAdminApi.listFormationHistory(cursor,filters);
+          return {...result,items:result.items.map(item=>({kind:'ended' as const,item}))};
+        },
+        async cursor=>{
+          const result=await helixAdminApi.listCareWork(cursor,undefined,{...filters,
+            ...(filter==='all'?{}:{classification:filter==='ended'?'terminal':filter})});
+          if(live())setCareCounts(result.counts);
+          return {...result,items:result.items.map(item=>({kind:'care' as const,item}))};
+        },
+      ];
+      const rank=(row:LedgerRow)=>row.kind==='ended'||['completed','ended'].includes(row.item.classification)?1:0;
+      const timestamp=(row:LedgerRow)=>row.kind==='ended'?row.item.endedAtMs:row.kind==='care'?row.item.terminalAtMs||row.item.createdAtMs:row.item.completedAtMs||row.item.addedAtMs;
+      const id=(row:LedgerRow)=>row.kind==='ended'?row.item.historyId:row.kind==='care'?row.item.aftercareCaseId:row.item.subjectId;
+      const result=await readWorkbenchPage(readers,positions.current[targetPage],(a,b)=>rank(a)-rank(b)||timestamp(b)-timestamp(a)||id(a).localeCompare(id(b)),
+        !background&&targetPage===0?applyRows:undefined);
       if(!live())return;
-      setActive(firstActive.items);setSummary(firstActive.summary);setLoading(false);
-      setPageCursors(current=>({...current,active:firstActive.nextCursor}));
-      // Paint current work before historical rows and ancillary configuration.
-      // These reads must not contend with the primary request or gate its UI.
-      const [firstCompleted,firstEnded,shelvesPage,sync]=await Promise.all([
-        helixAdminApi.listFormation('completed'),
-        helixAdminApi.listFormationHistory(),
-        helixAdminApi.listShelves(),
-        helixAdminApi.getPerceptionSyncState().catch(()=>null),
-      ]);
-      if(!live())return;
-      setCompleted(firstCompleted.items);setEnded(firstEnded.items);
-      setShelves(shelvesPage.items.filter((item)=>item.status==='active'));
-      if(sync)setPerceptionSync(sync);
-      setLoading(false);
-      setPageCursors({active:firstActive.nextCursor,completed:firstCompleted.nextCursor,ended:firstEnded.nextCursor});
-    }catch(cause){if(isUnauthorized(cause))expire();else setError(cause instanceof Error?cause.message:'媒体整理工作区读取失败。');}
-    finally{foregroundBusy.current=false;if(live())setLoading(false);}
-  },[expire]);
-  useEffect(()=>{void load();},[load]);
-  useEffect(()=>{if(!active.some((item)=>item.classification==='in_progress'))return;const timer=window.setInterval(()=>{void load(true);},10_000);return()=>window.clearInterval(timer);},[active,load]);
+      applyRows(result.items);currentPage.current=targetPage;setPageIndex(targetPage);setHasNext(Boolean(result.nextCursor));
+      positions.current=positions.current.slice(0,targetPage+1);
+      if(result.nextCursor)positions.current.push(result.nextCursor);
+      if(selectedCareId.current){const id=selectedCareId.current,result=await helixAdminApi.listCareWork(undefined,id);
+        if(live())setSelectedCare(current=>current?.aftercareCaseId===id?result.items[0]||null:current);}
+    }catch(cause){if(live()){if(isUnauthorized(cause))expire();else setError(cause instanceof Error?cause.message:'媒体整理读取失败。');}}
+    finally{if(live()){setLoading(false);setPageLoading(false);}}
+  },[expire,filter,q,shelfFilter]);
   useEffect(()=>{
-    const classification = filter==='in_progress'||filter==='attention_required' ? filter : null;
-    if(!classification)return;
-    let cancelled=false;
-    void (async()=>{
-      try{
-        const first=await helixAdminApi.listFormation('active',undefined,{classification});
-        if(cancelled)return;
-        setActive((current)=>mergeById(current,first.items,(item)=>item.subjectId));
-        setSummary(first.summary);
-        if(!first.nextCursor)return;
-        const rest=await remainingFormation(first,'active',{classification},()=>!cancelled);
-        if(cancelled)return;
-        setActive((current)=>mergeById(current,rest.items,(item)=>item.subjectId));
-        setSummary(rest.summary);
-      }catch(cause){if(isUnauthorized(cause))expire();}
-    })();
-    return()=>{cancelled=true;};
-  },[expire,filter]);
+    loadGeneration.current++;positions.current=[undefined];currentPage.current=0;setPageIndex(0);setHasNext(false);
+    const timer=q.trim()?window.setTimeout(()=>void load(false,0),350):null;
+    if(timer===null)void load(false,0);
+    return()=>{loadGeneration.current++;if(timer!==null)window.clearTimeout(timer);};
+  },[load]);
   useEffect(()=>{
-    if(!q.trim()&&!shelfFilter)return;
-    let cancelled=false;
-    const timer=window.setTimeout(()=>{void(async()=>{
-      try{
-        const [a,c,e]=await Promise.all([helixAdminApi.listFormation('active'),helixAdminApi.listFormation('completed'),helixAdminApi.listFormationHistory()]);
-        if(cancelled)return;
-        const [allA,allC,allE]=await Promise.all([remainingFormation(a,'active',undefined,()=>!cancelled),remainingFormation(c,'completed',undefined,()=>!cancelled),remainingHistory(e,()=>!cancelled)]);
-        if(cancelled)return;
-        setActive(allA.items);setCompleted(allC.items);setEnded(allE);setPageCursors({active:null,completed:null,ended:null});
-      }catch(cause){if(isUnauthorized(cause))expire();}
-    })();},350);
-    return()=>{cancelled=true;window.clearTimeout(timer);};
-  },[q,shelfFilter,expire]);
-  useEffect(()=>{
-    if(!q.trim()&&!shelfFilter&&filter==='all')return;
-    let cancelled=false;
-    const timer=window.setTimeout(()=>{void(async()=>{
-      try{
-        let cursor:string|undefined;const seen=new Set<string>();const items:CareWorkItem[]=[];
-        do{
-          const page=await helixAdminApi.listCareWork(cursor);if(cancelled)return;
-          items.push(...page.items);setCareCounts(page.counts);
-          cursor=page.nextCursor||undefined;
-          if(cursor&&(seen.has(cursor)||seen.size>=399))throw new Error('改善记录分页游标异常，已停止读取。');
-          if(cursor)seen.add(cursor);
-        }while(cursor&&!cancelled);
-        if(!cancelled){setCareItems(items);careExpanded.current=true;carePageCount.current=Math.max(1,Math.ceil(items.length/25));setCareCursor(null);}
-      }catch(cause){if(isUnauthorized(cause))expire();else if(!cancelled)setError(cause instanceof Error?cause.message:'改善记录筛选失败。');}
-    })();},350);
-    return()=>{cancelled=true;window.clearTimeout(timer);};
-  },[q,shelfFilter,filter,expire]);
-  const rows=useMemo<LedgerRow[]>(()=>[...careItems.map((item)=>({kind:'care' as const,item})),...active.map((item)=>({kind:'formation' as const,item})),...completed.map((item)=>({kind:'formation' as const,item})),...ended.map((item)=>({kind:'ended' as const,item}))].filter((row)=>{
+    void helixAdminApi.listShelves().then(result=>setShelves(result.items.filter(item=>item.status==='active'))).catch(()=>{});
+    void helixAdminApi.getPerceptionSyncState().then(setPerceptionSync).catch(()=>{});
+  },[]);
+  useEffect(()=>{const timer=window.setInterval(()=>{if(!document.hidden&&!pageLoading)void load(true);},10000);
+    return()=>window.clearInterval(timer);},[load,pageLoading]);
+  const rows=useMemo(()=>pageRows.filter(row=>{
     if(q.trim()&&!row.item.displayIdentity.toLowerCase().includes(q.trim().toLowerCase()))return false;
     if(row.kind!=='ended'&&shelfFilter&&row.item.targetShelfId!==shelfFilter)return false;
-    if(filter==='all')return true;if(filter==='ended')return row.kind==='ended'||row.item.classification==='completed'||row.item.classification==='ended';return row.kind!=='ended'&&row.item.classification===filter;
-  }),[active,completed,ended,careItems,filter,q,shelfFilter]);
+    if(filter==='all')return true;
+    if(filter==='ended')return row.kind==='ended'||row.item.classification==='completed'||row.item.classification==='ended';
+    return row.kind!=='ended'&&row.item.classification===filter;
+  }),[pageRows,q,shelfFilter,filter]);
   const close=()=>{detailGeneration.current+=1;setSelected(null);setDetailLoading(false);window.setTimeout(()=>triggerRef.current?.focus(),0);};
   const open=async(item:FormationSubject,button:HTMLButtonElement)=>{
     triggerRef.current=button;const generation=++detailGeneration.current;
@@ -326,7 +212,7 @@ export default function FormationPage() {
     }catch(cause){setError(cause instanceof Error?cause.message:'操作失败。');setLoading(false);}
   };
   if(!active.length&&!completed.length&&!ended.length&&!careItems.length&&loading&&!error)return <LoadingState>正在读取媒体整理工作区…</LoadingState>;
-  const counts:Record<Filter,number>={all:summary.totalCount+ended.length+Object.values(careCounts).reduce((a,b)=>a+b,0),in_progress:summary.inProgressCount+(careCounts.in_progress||0)+(careCounts.queued||0),attention_required:summary.attentionRequiredCount+(careCounts.attention_required||0),ended:summary.completedCount+(careCounts.completed||0)+ended.length+(careCounts.ended||0)};
+  const counts:Record<Filter,number>={all:summary.totalCount+(summary.endedCount||0)+Object.values(careCounts).reduce((a,b)=>a+b,0),in_progress:summary.inProgressCount+(careCounts.in_progress||0)+(careCounts.queued||0),attention_required:summary.attentionRequiredCount+(careCounts.attention_required||0),ended:summary.completedCount+(careCounts.completed||0)+(summary.endedCount||0)+(careCounts.ended||0)};
   return <section className="source-page workbench formation-page"><PageHeader title="媒体整理工作区" actions={<Button type="button" onClick={()=>void load()} disabled={loading}>{loading?'正在刷新…':'刷新'}</Button>} />
     {error&&<p className="form-error" role="alert">{error}</p>}
     {notice&&<p className="form-notice" role="status">{notice}</p>}
@@ -337,8 +223,12 @@ export default function FormationPage() {
     </div>
       <div className="formation-table-wrap"><table className="formation-table formation-stub-table"><thead><tr><th>媒体名称</th><th>评分</th><th>目标收藏架</th><th>整理要求</th><th>当前进展</th><th>详情</th><th>用户操作</th><th>加急</th><th>任务类型</th></tr></thead><tbody>{rows.length===0?<tr className="formation-stub-media-row"><td colSpan={9}><div className="source-empty"><strong>{summary.totalCount===0?'还没有进入整理的电影':'当前筛选没有条目'}</strong><p>{summary.totalCount===0?'开始整理后，电影会出现在这里；仍在准备或等待的材料请到“文件来源”查看。':'试试其他状态或筛选。'}</p></div></td></tr>:rows.map((row)=>row.kind==='care'?<CareWorkRow key={row.item.aftercareCaseId} item={row.item} onOpen={setSelectedCare}/>:row.kind==='ended'?<tr key={row.item.historyId} className="formation-stub-media-row"><td><strong>{row.item.displayIdentity}</strong><small>已结束</small></td><td>—</td><td>—</td><td>—</td><td><strong className="formation-stub-current">{row.item.label}</strong><small>{formatTime(row.item.endedAtMs)}</small></td><td>—</td><td>—</td><td><button type="button" className="formation-expedite-toggle" disabled>加急</button></td><td>上架任务</td></tr>:<MediaRow key={row.item.subjectId} item={row.item} shelves={shelves} loading={loading} acquisitionIncomplete={perceptionSync?.completionState==='incomplete'} onOpen={open} onAction={action} />)}</tbody></table></div>
     </section>
-    {Object.values(pageCursors).some(Boolean)&&<Button type="button" disabled={loadingMore} onClick={()=>void loadMore()}>{loadingMore?'正在读取…':'加载更多整理记录'}</Button>}
-    {careCursor&&<Button type="button" onClick={()=>void loadCare(careCursor)}>加载更多维护记录</Button>}
+    <nav className="pagination-controls" aria-label="媒体整理分页">
+      <Button type="button" disabled={pageLoading||pageIndex===0} onClick={()=>void load(false,pageIndex-1)}>上一页</Button>
+      {positions.current.map((_,index)=><Button key={index} type="button" disabled={pageLoading} aria-current={index===pageIndex?'page':undefined} onClick={()=>void load(false,index)}>{index+1}</Button>)}
+      <span>第 {pageIndex+1} 页</span>
+      <Button type="button" disabled={pageLoading||!hasNext} onClick={()=>void load(false,pageIndex+1)}>下一页</Button>
+    </nav>
     {selectedCare&&<ProcessDialog title={selectedCare.displayIdentity+'的媒体整理过程'} onClose={()=>setSelectedCare(null)}><CareWorkDetail item={selectedCare} error={careDetailError}/></ProcessDialog>}
     {selected&&<ProcessDialog title={selected.displayIdentity+'的媒体整理过程'} onClose={close}><ProcessDetail item={selected} loading={detailLoading} error={detailError}/></ProcessDialog>}
     <Dialog open={!!discardDialog} title="确认放弃整理" onClose={()=>setDiscardDialog(null)} actions={<>

@@ -15,3 +15,15 @@
 Libra摘要原label为计划名，Aftercare原摘要只投影prepare阶段并推断commit/reassessment。现共用无业务Owner决策的实际节点选择器，label取节点动作，status/progress来自同一节点；Aftercare按当前Case精确prepare/commit/reassessment/closure Work IDs读取最多4个Work，不为摘要扫描历史Work。终态业务结论仍保持真实失败/成功，不生成Libra Handoff。等待/完成/失败状态及过期进度有明确投影。
 
 17项定向测试PASS；全量217个architecture fixture文件及四Gate PASS；Web51项及build PASS。本地尚未覆盖所有Plan参数/失败原因可读性，真实浏览器统一操作和有界统一分页仍待完成。
+
+## 有界统一分页与浏览器验收
+
+整理区每页25项，按进行中优先、时间及稳定ID统一合并上架/维护/结束记录。复合游标保留每个Owner页与消费位置，一次翻页每源最多两页（仅页内余量需要第二页）；未消费历史不自动后台续拉。片名/收藏架筛选在Owner SQL查询中先过滤后LIMIT；联表仅限同Owner合同表，拒绝原始SQL和越权表。当前显示元数据仅取当前Inventory/Identity revision。历史结束数量以聚合计数，不以已加载行数冒充总数。
+
+全量architecture218个fixture文件及四Gate通过（当前元数据精确读取调整后须补最终回归）；Web53项通过，build通过。分页专项以120条混合记录验证无遗漏/重复、每页上限、游标回退及空页前进。原测试“加载更多”按已确认新合同改为下一页，不恢复累加。
+
+16:09左右Edge本地静态构建+合成数据实际点击：收藏105条，第一页001–048→下一页049–096→上一页001–048，旧页被替换；整理70条，第一页001–025→下一页026–050，刷新保持第2页；搜索原第3页069后回第1页，仅该项，前后翻页禁用；打开详情，动作转码影片/等待资源与列表一致，后续验证节点仍等待，无回收站入口。截图在本任务浏览器工具记录。合成数据不证明生产性能或生产流程，不能据此关闭UAT。
+
+浏览器另发现活动维护被标为“本次结果”，改为“本次状态”；终态仍保留真实结果。当前进展动作与状态加入可读分隔。
+
+最终本地整合检查：218个architecture fixture文件及全部Gate PASS，Web53项PASS，build PASS。发布前NAS只读preflight通过：根目录root:root:755，DockerRootDir=/vol1/docker，应用根/vol1/1000/docker/shelfdeck，/vol1剩余21GiB，其他服务正常。生产浏览器刷新：林肯律师73%/预计46分钟、黑寡妇等待资源、活着仍原错误。先准备镜像，不为发布打断当前转码。旧镜像、备份及现有归因Evidence保留。

@@ -188,6 +188,51 @@ function compileStatement(statementId, statement, table) {
   fail('P3_REPOSITORY_UNSUPPORTED_STATEMENT', 'Repository statement kind is unsupported.', { statementId, kind: statement && statement.kind });
 }
 
+function compileJoinedPage(statementId, statement, table, tables, owner) {
+  if(statement.sql!==undefined)fail('P3_REPOSITORY_RAW_SQL_FORBIDDEN','Joined reads cannot provide SQL.',{statementId});
+  const aliases=new Map([['base',table]]),tableIds=[table.tableId],joins=[];
+  function ref(alias,column){const target=aliases.get(alias);if(!target)fail('P3_REPOSITORY_UNKNOWN_TABLE','Unknown join alias.',{statementId});
+    requireColumns(target,[column],statementId);return quote(alias)+'.'+quote(column);}
+  if(!Array.isArray(statement.joins)||statement.joins.length>3)fail('P3_REPOSITORY_INVALID_DEFINITION','Joined read scope is invalid.',{statementId});
+  for(const join of statement.joins){
+    const target=tables.get(join.tableId);
+    if(!target||target.owner!==owner)fail('P3_REPOSITORY_OWNER_MISMATCH','Joined read cannot access another Owner.',{statementId});
+    if(aliases.has(join.alias)||!IDENTIFIER.test(join.alias)||!Array.isArray(join.on)||!join.on.length)
+      fail('P3_REPOSITORY_INVALID_DEFINITION','Joined read identity is invalid.',{statementId});
+    aliases.set(join.alias,target);tableIds.push(target.tableId);
+    joins.push('LEFT JOIN '+quote(target.tableId)+' '+quote(join.alias)+' ON '+join.on.map(key=>
+      ref(join.alias,key.column)+'='+ref(key.otherAlias,key.otherColumn)).join(' AND '));
+  }
+  requireColumns(table,statement.columns,statementId);
+  const parameters=['offset','limit'],where=[];
+  for(const filter of statement.filters||[]){
+    if(!IDENTIFIER.test(filter.parameter))fail('P3_REPOSITORY_INVALID_IDENTIFIER','Invalid filter parameter.',{statementId});
+    parameters.push(filter.parameter);
+    const source=ref(filter.alias||'base',filter.column),parameter='@'+filter.parameter;
+    let predicate;
+    if(filter.kind==='equals')predicate=source+'='+parameter;
+    else if(filter.kind==='not_equals')predicate=source+'<>'+parameter;
+    else if(filter.kind==='contains')predicate='instr(lower('+source+'),lower('+parameter+'))>0';
+    else if(filter.kind==='json_entry_text'){
+      if(!/^\$\.[a-zA-Z][a-zA-Z0-9_]*(\.[a-zA-Z][a-zA-Z0-9_]*)*$/.test(filter.path)||
+        !Array.isArray(filter.keys)||!filter.keys.length||filter.keys.some(key=>!IDENTIFIER.test(key)))
+        fail('P3_REPOSITORY_INVALID_DEFINITION','Invalid JSON entry filter.',{statementId});
+      predicate="EXISTS (SELECT 1 FROM json_each("+source+", '"+filter.path+"') j WHERE json_extract(j.value,'$.key') IN ("+
+        filter.keys.map(key=>"'"+key+"'").join(',')+") AND instr(lower(CAST(json_extract(j.value,'$.value') AS TEXT)),lower("+parameter+"))>0)";
+    }else fail('P3_REPOSITORY_INVALID_DEFINITION','Unknown joined filter.',{statementId});
+    where.push(filter.optional?'('+parameter+"='' OR "+predicate+')':predicate);
+  }
+  if(!Array.isArray(statement.orderBy)||!statement.orderBy.length||statement.orderBy.length>6||
+    !Number.isSafeInteger(statement.maxItems)||statement.maxItems<1||statement.maxItems>101)
+    fail('P3_REPOSITORY_INVALID_PAGE_LIMIT','Joined read bounds are invalid.',{statementId});
+  const order=statement.orderBy.map(item=>{if(!['asc','desc'].includes(item.direction))fail('P3_REPOSITORY_INVALID_DEFINITION','Invalid joined order.',{statementId});
+    return ref('base',item.column)+' '+item.direction.toUpperCase();});
+  return {statementId,kind:'select-joined-page',tableId:table.tableId,tableIds,parameters:[...new Set(parameters)],maxItems:statement.maxItems,
+    safeIntegers:statement.safeIntegers===true,sql:'SELECT DISTINCT '+statement.columns.map(column=>ref('base',column)).join(',')+
+      ' FROM '+quote(table.tableId)+' '+quote('base')+' '+joins.join(' ')+(where.length?' WHERE '+where.join(' AND '):'')+
+      ' ORDER BY '+order.join(',')+' LIMIT @limit OFFSET @offset'};
+}
+
 function createRepositoryDefinition(options) {
   if (!options || !IDENTIFIER.test(options.repositoryId || '') || typeof options.owner !== 'string' ||
       !options.schemaManifest || !options.statements || typeof options.statements !== 'object') {
@@ -203,7 +248,9 @@ function createRepositoryDefinition(options) {
     if (table.owner !== options.owner) fail('P3_REPOSITORY_OWNER_MISMATCH', 'Repository cannot register another Owner table.', {
       repositoryId: options.repositoryId, owner: options.owner, tableId: table.tableId, tableOwner: table.owner
     });
-    compiled.set(statementId, compileStatement(statementId, statement, table));
+    const compiledStatement=statement.kind==='select-joined-page'?compileJoinedPage(statementId,statement,table,tables,options.owner):compileStatement(statementId, statement, table);
+    compiled.set(statementId,compiledStatement);
+    for(const id of compiledStatement.tableIds||[])tableIds.add(id);
     tableIds.add(table.tableId);
   }
   if (compiled.size === 0) fail('P3_REPOSITORY_EMPTY_DEFINITION', 'Repository requires at least one registered statement.');
@@ -211,7 +258,7 @@ function createRepositoryDefinition(options) {
     repositoryId: options.repositoryId,
     owner: options.owner,
     readOnly: [...compiled.values()].every((statement) =>
-      statement.kind === 'select-one' || statement.kind === 'select-all' || statement.kind === 'select-in'||statement.kind==='select-page-after'||statement.kind==='select-range'||statement.kind==='select-before-page'||statement.kind==='select-filtered-page'||statement.kind==='count-grouped'),
+      statement.kind === 'select-one' || statement.kind === 'select-all' || statement.kind === 'select-in'||statement.kind==='select-page-after'||statement.kind==='select-range'||statement.kind==='select-before-page'||statement.kind==='select-filtered-page'||statement.kind==='count-grouped'||statement.kind==='select-joined-page'),
     statementIds: Object.freeze([...compiled.keys()].sort()),
     tableIds: Object.freeze([...tableIds].sort())
   });
@@ -258,7 +305,7 @@ function bindRepository(definition, transaction, isActive) {
         !Number.isSafeInteger(parameters.offset)||parameters.offset<0)){
         fail('P3_REPOSITORY_INVALID_PAGE_LIMIT','select-before-page bounds are invalid.',{statementId});
       }
-      if(statement.kind==='select-filtered-page'&&(!Number.isSafeInteger(parameters.limit)||parameters.limit<1||parameters.limit>statement.maxItems||
+      if(['select-filtered-page','select-joined-page'].includes(statement.kind)&&(!Number.isSafeInteger(parameters.limit)||parameters.limit<1||parameters.limit>statement.maxItems||
         !Number.isSafeInteger(parameters.offset)||parameters.offset<0)){
         fail('P3_REPOSITORY_INVALID_PAGE_LIMIT','select-filtered-page bounds are invalid.',{statementId});
       }
@@ -266,7 +313,7 @@ function bindRepository(definition, transaction, isActive) {
       const executable = prepared.get(statementId);
       if (statement.safeIntegers) executable.safeIntegers(true);
       if (statement.kind === 'select-one') return executable.get(values);
-      if (statement.kind === 'select-all'||statement.kind==='select-page-after'||statement.kind==='select-range'||statement.kind==='select-before-page'||statement.kind==='select-filtered-page'||statement.kind==='count-grouped') return executable.all(values);
+      if (statement.kind === 'select-all'||statement.kind==='select-page-after'||statement.kind==='select-range'||statement.kind==='select-before-page'||statement.kind==='select-filtered-page'||statement.kind==='count-grouped'||statement.kind==='select-joined-page') return executable.all(values);
       return executable.run(values);
     }
   });

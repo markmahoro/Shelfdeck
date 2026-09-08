@@ -36,14 +36,14 @@ it('shows an admitted Aftercare Case in the existing work table and loads histor
   render(<MemoryRouter initialEntries={['/formation']}><App/></MemoryRouter>);
   expect(await screen.findByText('Aftercare Movie')).toBeInTheDocument();
   expect(screen.getByText('维护任务')).toBeInTheDocument();
-  await waitFor(()=>expect(screen.getByRole('button',{name:'加载更多整理记录'})).toBeInTheDocument());
+  await waitFor(()=>expect(screen.getByRole('button',{name:'下一页'})).toBeEnabled());
   expect(formation).toHaveBeenCalledTimes(2);
   expect(history).toHaveBeenCalledTimes(1);
   fireEvent.click(screen.getByRole('button',{name:'查看过程'}));
   expect(await screen.findByRole('dialog')).toHaveTextContent('调整视频编码');
   expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
-  fireEvent.click(screen.getByRole('button',{name:'加载更多整理记录'}));
-  await waitFor(()=>expect(history).toHaveBeenCalledWith('more-history'));
+  fireEvent.click(screen.getByRole('button',{name:'下一页'}));
+  await waitFor(()=>expect(history).toHaveBeenCalledWith('more-history',{q:'',shelfId:''}));
 });
 
 it('shows maintenance detail request failures inside the open dialog',async()=>{

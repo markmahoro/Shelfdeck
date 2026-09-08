@@ -36,7 +36,7 @@ export function CareWorkRow({item,onOpen}:{item:CareWorkItem;onOpen:(item:CareWo
 export function CareWorkDetail({item,error=''}:{item:CareWorkItem;error?:string}){
   const progress=item.progress?.progress;
   return <article className="formation-process-card"><header className="formation-process-head"><div><span className="formation-process-eyebrow">上架后维护</span><h3>{item.displayIdentity}</h3><p>{careStage(item)}</p></div></header>
-    <dl className="formation-process-facts"><div><dt>目标收藏架</dt><dd>{item.targetShelfName||'—'}</dd></div><div><dt>维护目标</dt><dd>{careGoal(item)}</dd></div><div><dt>当前进展</dt><dd>{careStage(item)}{actionDetail(item)&&<small>{actionDetail(item)}</small>}</dd></div></dl>
+    <dl className="formation-process-facts"><div><dt>目标收藏架</dt><dd>{item.targetShelfName||'—'}</dd></div><div><dt>维护目标</dt><dd>{careGoal(item)}</dd></div><div><dt>当前进展</dt><dd>{careStage(item)}{actionDetail(item)&&<small> · {actionDetail(item)}</small>}</dd></div></dl>
     <section className="formation-stage-body" aria-label="维护原因与结果">
       <p><strong>当时为什么处理：</strong>{triggerText(item)}</p>
       {item.caseEvidence?.originalPrimaryBytes!=null&&<p>建单时正片 {bytes(item.caseEvidence.originalPrimaryBytes)}{item.caseEvidence.currentPrimaryBytes!=null?`；当前记录正片 ${bytes(item.caseEvidence.currentPrimaryBytes)}`:''}。</p>}
@@ -46,7 +46,7 @@ export function CareWorkDetail({item,error=''}:{item:CareWorkItem;error?:string}
         item.caseEvidence.objective.requirements.mandatoryMedia?.container ? `封装 ${item.caseEvidence.objective.requirements.mandatoryMedia.container}` : null,
       ].filter(Boolean).join('；') || '按创建时保存的收藏要求处理'}。</p> : <p>未记录当时具体目标；当前收藏要求不代表当时目标。</p>}
       {!item.caseEvidence?.objective && item.goals.some(goal=>goal.split(/[/:]/).includes('max_size_exceeded'))&&<p>建单记录未保存具体体积上限；这里不使用当前规则倒推历史上限。</p>}
-      <p><strong>本次结果：</strong>{reasonText(item)||careStage(item)}</p>
+      <p><strong>{['resolved','unresolved','invalidated'].includes(item.state)?'本次结果：':'本次状态：'}</strong>{reasonText(item)||careStage(item)}</p>
       <p>开始于 {time(item.createdAtMs)}{item.terminalAtMs?`；结束于 ${time(item.terminalAtMs)}`:''}</p>
       {item.currentHealth!==undefined&&<p><strong>{currentHealthText(item)}</strong>。历史维护结果保留；当前是否需要处理以收藏的最新检查为准。</p>}
       {item.currentHealth?.healthState==='unhealthy'&&<div><p>当前问题仍保留在“我的收藏”的健康状态中；本条历史任务已停止，不会继续执行。</p>

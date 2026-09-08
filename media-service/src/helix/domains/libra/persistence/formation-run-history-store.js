@@ -9,8 +9,13 @@ function createFormationRunHistoryStore(options) {
   const repository = createRepositoryDefinition({
     repositoryId: 'libra_formation_run_history', owner: 'libra', schemaManifest: options.schemaManifest,
     statements: {
+      counts:{kind:'count-grouped',tableId:'libra_run_discard_receipts',groupColumn:'committed_run_state_revision'},
       discarded_page: {
-        kind: 'select-filtered-page', tableId: 'libra_run_discard_receipts', maxItems: 101,
+        kind: 'select-joined-page', tableId: 'libra_run_discard_receipts', maxItems: 101,
+        joins:[{tableId:'libra_runs',alias:'run',on:[{column:'libra_run_id',otherAlias:'base',otherColumn:'libra_run_id'}]},
+          {tableId:'libra_formation_projections',alias:'display',on:[{column:'subject_id',otherAlias:'run',otherColumn:'subject_id'}]}],
+        filters:[{alias:'display',column:'target_shelf_id',kind:'equals',parameter:'shelf',optional:true},
+          {alias:'display',column:'display_identity',kind:'contains',parameter:'query',optional:true}],
         orderBy: [{ column: 'committed_at_ms', direction: 'desc' }, { column: 'receipt_id', direction: 'asc' }],
         columns: ['receipt_id', 'libra_run_id', 'committed_run_state_revision', 'commit_digest', 'committed_at_ms'],
         safeIntegers: true,
@@ -22,11 +27,11 @@ function createFormationRunHistoryStore(options) {
     },
   });
 
-  function listDiscarded(offset, limit) {
+  function listDiscarded(offset, limit, filters={}) {
     return options.unitOfWork.execute([{
       participantId: 'libra_formation_run_history_read', owner: 'libra', repositories: [repository], execute(context) {
         const repo = context.repository(repository.repositoryId);
-        const receipts = repo.invoke('discarded_page', { offset, limit });
+        const receipts = repo.invoke('discarded_page', { offset, limit,shelf:filters.shelfId||'',query:String(filters.q||'').trim() });
         if (!receipts.length) return Object.freeze([]);
         const runs = new Map(repo.invoke('runs', { values: receipts.map((row) => row.libra_run_id) })
           .map((row) => [row.libra_run_id, row]));
@@ -47,7 +52,10 @@ function createFormationRunHistoryStore(options) {
     }]).libra_formation_run_history_read;
   }
 
-  return Object.freeze({ listDiscarded });
+  function count(){return options.unitOfWork.execute([{participantId:'libra_history_count',owner:'libra',repositories:[repository],execute(context){
+    return context.repository(repository.repositoryId).invoke('counts',{}).reduce((sum,row)=>sum+Number(row.row_count),0);
+  }}]).libra_history_count;}
+  return Object.freeze({ listDiscarded,count });
 }
 
 module.exports = Object.freeze({ createFormationRunHistoryStore });

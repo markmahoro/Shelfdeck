@@ -795,7 +795,7 @@ function createFormationQuery(options) {
     return hidden;
   }
   function summary(classificationChanges = []) {
-    const result = { totalCount: 0, inProgressCount: 0, attentionRequiredCount: 0, completedCount: 0 };
+    const result = { totalCount: 0, inProgressCount: 0, attentionRequiredCount: 0, completedCount: 0,endedCount:options.historyStore?.count?.()||0 };
     for (const row of options.store.counts()) {
       const count = Number(row.row_count);
       if (row.group_value === 'in_progress') result.inProgressCount = count;
@@ -889,7 +889,7 @@ function createFormationQuery(options) {
     const limit = Math.min(section === 'active' ? 25 : 100, Math.max(1, Number(query.limit) || 25));
     const state = options.state?.() || Object.freeze({ status: 'ready', asOfMs: now() });
     if (section === 'ended') {
-      const history = options.historyStore?.listDiscarded(offset, limit + 1) || [];
+      const history = options.historyStore?.listDiscarded(offset, limit + 1, query) || [];
       const hasMore = history.length > limit, selected = hasMore ? history.slice(0, limit) : history;
       return Object.freeze({ items:Object.freeze(selected.map((item) => {
         const subject = options.store.find(item.subjectId);
@@ -900,7 +900,7 @@ function createFormationQuery(options) {
     const attention = (options.listAcceptanceAttention?.(100) || []).map((item)=>options.store.findByOffer?.(item.offerId)).filter(Boolean);
     const attentionOffers = new Set(attention.map((item)=>item.current_offer_id));
     if (section === 'completed') {
-      let rows = options.store.listCompleted(offset, limit + 1).filter((item)=>!attentionOffers.has(item.current_offer_id));
+      let rows = options.store.listCompleted(offset, limit + 1, query).filter((item)=>!attentionOffers.has(item.current_offer_id));
       const hasMore = rows.length > limit, selected = hasMore ? rows.slice(0, limit) : rows;
       const projected = selected.map(projectionItem);
       const fresh = currentFacts(projected).map(technicalIssue);

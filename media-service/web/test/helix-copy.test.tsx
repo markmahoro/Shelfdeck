@@ -1,8 +1,10 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import App from '../src/App';
 import { helixAdminApi, type FormationSubject } from '../src/helix/api';
+
+beforeEach(()=>{vi.spyOn(helixAdminApi,'listCareWork').mockResolvedValue({items:[],counts:{},nextCursor:null});});
 
 const banned = [
   '你的收藏，正在被认真照料',
@@ -308,7 +310,8 @@ describe('Helix primary copy and workbench structure', () => {
     expect(screen.queryByText('正在读取媒体整理工作区…')).not.toBeInTheDocument();
     expect(screen.queryByText('第二部电影')).not.toBeInTheDocument();
     expect(screen.queryByText(/当前显示|其余继续载入/)).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button',{name:'加载更多整理记录'}));
+    await waitFor(()=>expect(screen.getByRole('button',{name:'下一页'})).toBeEnabled());
+    fireEvent.click(screen.getByRole('button',{name:'下一页'}));
     releaseRest();
     expect(await screen.findByText('第二部电影')).toBeInTheDocument();
   });

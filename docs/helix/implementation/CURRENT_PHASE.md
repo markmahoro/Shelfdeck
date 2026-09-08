@@ -20,5 +20,5 @@
 - [实施与生产取证](evidence/AFTERCARE_HEALTH_CASE_IMPLEMENTATION_20260908.md)：核心部署及后续开放项。
 - [生产部署](evidence/USER_PAIN_DEPLOYMENT_20260907.md)、[后续证据](evidence/USER_PAIN_CONTINUATION_20260908.md)。
 - [支线证据](evidence/USER_PAIN_ADDITIONAL_BRANCHES_20260908.md)：UAT-217/075。
-- UAT-212独立任务e6b7f0424已整合为799433c65；[本地证据](evidence/FORMATION_CARE_CLARITY_20260908.md)。收藏分页已有本地回归，整理统一分页与完整实际进展仍开放。
+- UAT-212独立任务e6b7f0424已整合为799433c65；[本地证据](evidence/FORMATION_CARE_CLARITY_20260908.md)。收藏/整理统一分页及实际动作已有本地回归和合成数据浏览器操作；真实生产性能与流程、详情解释完整性仍开放。
 - [整理前活动包快照](archive/20260908_PRE_PROD_CONSOLIDATION/CURRENT_PHASE.md)仅为历史，不产生现行规则。

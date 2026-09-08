@@ -24,3 +24,7 @@ UAT-213建单目标Evidence、UAT-214人物观察仍未实现；UAT-217/218支�
 详细事实见[实施证据](implementation/evidence/AFTERCARE_HEALTH_CASE_IMPLEMENTATION_20260908.md)。此前停机、恢复、测试与中间镜像流水保留于[整理前状态快照](implementation/archive/20260908_PRE_PROD_CONSOLIDATION/CURRENT_STATUS.md)，不再混入当前事实。当前库存以机器manifest为准，不在多份治理文档手工复制计数。
 
 本轮本地：6aff1635b完成全量排程/已确认合同传播；2a9efbbac实现UAT-211精确历史Settlement排除（40定向PASS，215架构Fixture文件及全部Gate PASS）；799433c65整合UAT-212交付。收藏分页补充实施中，Web50 PASS，尚未浏览器/生产验收。原Aftercare调查Evidence未提交修改仍保留，未关闭功能UAT。
+
+### 2026-09-08 迭代本地整合补充
+
+UAT-213创建时有效目标快照dcbcc8314；UAT-212收藏分页7f80831c2、实际动作6b7486d43及统一有界整理分页完成本地回归。218个architecture fixture文件与全部Gate、Web53项、Web build通过；本地Edge合成场景翻页/刷新/跨页筛选/详情通过。以上未部署、未新增验收关闭。生产林肯律师73%转码与黑寡妇等待资源仍受保护，活着仍保留P5_PROVIDER_RESPONSE_INVALID原失败。NASpreflight正常，准备干净检出构建，不能因当前在飞工作未结束而强行打断。

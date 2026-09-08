@@ -26,7 +26,10 @@ function createFormationProjectionStore(options) {
       active_scan: { kind: 'select-filtered-page', tableId: TABLE_ID, excludedKeyColumns: ['classification'], maxItems: 500,
         orderBy: [{ column: 'added_at_ms', direction: 'desc' }, { column: 'subject_id', direction: 'asc' }],
         columns: COLUMNS, safeIntegers: true },
-      completed_page: { kind: 'select-filtered-page', tableId: TABLE_ID, fixedKeyColumns: ['classification'], maxItems: 101,
+      completed_page: { kind: 'select-joined-page', tableId: TABLE_ID, joins:[], maxItems: 101,
+        filters:[{column:'classification',kind:'equals',parameter:'classification'},
+          {column:'target_shelf_id',kind:'equals',parameter:'shelf',optional:true},
+          {column:'display_identity',kind:'contains',parameter:'query',optional:true}],
         orderBy: [{ column: 'completed_at_ms', direction: 'desc' }, { column: 'subject_id', direction: 'asc' }],
         columns: COLUMNS, safeIntegers: true },
       counts: { kind: 'count-grouped', tableId: TABLE_ID, groupColumn: 'classification' }
@@ -69,7 +72,7 @@ function createFormationProjectionStore(options) {
   }
   function listActive(offset, limit) { return read('active_page', { excluded_classification: 'completed', offset, limit }); }
   function listActiveScan(offset, limit) { return read('active_scan', { excluded_classification: 'completed', offset, limit }); }
-  function listCompleted(offset, limit) { return read('completed_page', { classification: 'completed', offset, limit }); }
+  function listCompleted(offset, limit, filters={}) { return read('completed_page', { classification: 'completed', offset, limit, shelf:filters.shelfId||'',query:String(filters.q||'').trim() }); }
   function counts() { return read('counts', {}); }
   return Object.freeze({ find, findByOffer, upsert, listActive, listActiveScan, listCompleted, counts });
 }

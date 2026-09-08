@@ -495,7 +495,7 @@ export type PeopleProjection = {
   summary:{activePersonCount:number;mergedPersonCount:number;openRegistrationCandidateCount:number;openMergeCandidateCount:number};
 };
 
-export type FormationSummary = {
+export type FormationSummary = { endedCount?:number;
   totalCount: number;
   inProgressCount: number;
   attentionRequiredCount: number;
@@ -627,7 +627,7 @@ export const helixAdminApi = {
   }) {
     const query=new URLSearchParams({section,limit:'25'});
     if(cursor)query.set('cursor',cursor);
-    if(section==='active' && filters){
+    if(filters){
       if(filters.classification)query.set('classification',filters.classification);
       if(filters.shelfId)query.set('shelfId',filters.shelfId);
       if(filters.needsUserAction)query.set('needsUserAction','1');
@@ -639,8 +639,9 @@ export const helixAdminApi = {
   getFormation(formationViewId:string) {
     return request<FormationSubject>(`/v1/admin/formation/${encodeURIComponent(formationViewId)}`);
   },
-  listFormationHistory(cursor?:string) {
+  listFormationHistory(cursor?:string,filters?:{q?:string;shelfId?:string}) {
     const query=new URLSearchParams({section:'ended',limit:'25'});if(cursor)query.set('cursor',cursor);
+    if(filters?.q)query.set('q',filters.q);if(filters?.shelfId)query.set('shelfId',filters.shelfId);
     return request<{ items: FormationRunHistory[]; summary: FormationSummary; nextCursor:string|null; projection:{status:'ready'|'rebuilding'|'stale';asOfMs:number} }>(`/v1/admin/formation?${query}`);
   },
   listCollection(filters?:{ shelfId?:string; status?:'current'|'history'; health?:HealthState|'all'; q?:string; sort?:'title'|'recent'|'year_desc'; cursor?:string; limit?:number }) {
@@ -662,7 +663,7 @@ export const helixAdminApi = {
     const suffix=query.toString()?`?${query}`:'';
     return `/v1/admin/collection/${encodeURIComponent(shelfEntryId)}/poster${suffix}`;
   },
-  listCareWork(cursor?:string,aftercareCaseId?:string){const query=new URLSearchParams({view:'work',limit:'25'});if(cursor)query.set('cursor',cursor);if(aftercareCaseId)query.set('aftercareCaseId',aftercareCaseId);return request<{items:CareWorkItem[];counts:Record<string,number>;nextCursor:string|null}>(`/v1/admin/care?${query}`);},
+  listCareWork(cursor?:string,aftercareCaseId?:string,filters?:{classification?:string;q?:string;shelfId?:string}){const query=new URLSearchParams({view:'work',limit:'25'});if(cursor)query.set('cursor',cursor);if(aftercareCaseId)query.set('aftercareCaseId',aftercareCaseId);Object.entries(filters||{}).forEach(([key,value])=>{if(value)query.set(key,value);});return request<{items:CareWorkItem[];counts:Record<string,number>;nextCursor:string|null}>(`/v1/admin/care?${query}`);},
   getCare(shelfEntryId:string){return request<CareDetail>(`/v1/admin/care/${encodeURIComponent(shelfEntryId)}`);},
   listRecycle(){return request<{items:RecycleEntry[]}>('/v1/admin/care-recycle');},
   previewRecycle(shelfEntryId:string){return request<{items:RecyclePreview[]}>(`/v1/admin/care-recycle/${encodeURIComponent(shelfEntryId)}/preview`);},
