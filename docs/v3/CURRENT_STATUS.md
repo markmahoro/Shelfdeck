@@ -1,5 +1,7 @@
 # ShelfDeck v3 / Kairox Historical Status
 
+最新部署（2026-09-09）：helix-beta-20260909-b2978c1512，source b2978c1512，Image ID sha256:49dceb0e1d8680b76dee17d6b8c88009d5e9be79d72c661932a1cd0975e7e1bc，tar SHA256 280ea8c7e26868fb468a7f97df510b7147d7c72066006c55ce171c076a024377。标准readiness及生产6路GET通过；实际十部退出/重启链21.84秒PASS。完整结果见[发布证据](../helix/implementation/evidence/UAT_RELEASE_B2978C1512_20260909.md)。
+
 Last updated: 2026-09-08
 
 - `Kairox Beta` 已达成，Kairox release line 已关闭。

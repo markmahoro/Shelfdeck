@@ -27,3 +27,6 @@
 独立干净发布工作区从d24f13b3db构建`helix-beta-20260908-d24f13b3db`，561766912 bytes；tar SHA256 `5e940240c8230666caf6fca5b1074685349865650c129fef9a7fd4b802c29157`。标准upload已上传到NAS项目根且校验一致，标准deploy dry-run已生成，未apply。隔离Linux容器仅挂本地数据库/凭据副本，network none，无生产媒体挂载；12个GET均200，readiness ready，退出0。候选同时包含212等待/终态说明修正及128测试增量。
 
 生产仍696b122da4，FFmpeg正在执行；当前不切换容器。最终apply前必须刷新在飞状态、做新一致备份及标准readiness，不复用旧快照授权部署。日志`.codex/uat-release-d24f13b3db-{build,upload,dry-run,linux}.log`。
+
+
+2026-09-09：随b2978c1512标准部署完成生产浏览器验收，整项关闭。[发布证据](UAT_RELEASE_B2978C1512_20260909.md)。

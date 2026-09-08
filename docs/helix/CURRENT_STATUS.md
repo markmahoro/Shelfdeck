@@ -1,5 +1,7 @@
 # ShelfDeck 当前状态
 
+最新生产已部署b2978c1512（2026-09-09 01:08），标准发布及6路生产GET通过，70收藏保持，FFmpeg重新运行。222/243生产浏览器验收关闭；启动P4_EVENT_RECOVERY_INPUT_DRIFT仍需精确定位。详见[发布证据](implementation/evidence/UAT_RELEASE_B2978C1512_20260909.md)。
+
 UAT-246确认动作不再整页重拉，preparing慢请求不重叠且关闭后丢弃迟到响应；6项Web/构建和Edge单POST验证通过，未发布。轻量准备投影及255 GET只读修正已通过16项后端/7项Web和21.84秒真实后台恢复退出链，待发布；继续首屏摘要及按需搜索。
 
 退出审阅143/139/224/232：139确认时Shelf覆盖率快照、旧记录不倒填、失效范围提示已实现；13项schema/14项安全/5项Web及22.71秒真实十部退出后Host重启验证通过，尚未发布。详见[Evidence](implementation/evidence/UAT-143_OFFDECK_REVIEW_ACCEPTANCE_20260909.md)。
