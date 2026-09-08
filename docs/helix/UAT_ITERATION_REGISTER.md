@@ -128,7 +128,7 @@
 | UAT-116 | 同根Field/Shelf使Aftercare验证形成重复Resource Demand，Event在Attempt前被Foundation拒绝并反复ready | `RESOURCE_CAPACITY` | 历史已关闭 | 原UAT编号 | 见证据 | [UAT-116原记录](USER_ACCEPTANCE_TEST_ISSUE_LOG.md) | 无；保留历史验收结论 |
 | UAT-117 | Aftercare播放验证借用了Libra Workspace端口，Arca Handle在真正解码前被拒绝 | `DOMAIN_ORCHESTRATION` | 历史已关闭 | 原UAT编号 | 见证据 | [UAT-117原记录](USER_ACCEPTANCE_TEST_ISSUE_LOG.md) | 无；保留历史验收结论 |
 | UAT-118 | AVI转MKV后物理文件虽正确，Inventory与Material Control仍保留旧AVI Primary | `MATERIAL_CONTROL` | 历史已关闭 | 原UAT编号 | 见证据 | [UAT-118原记录](USER_ACCEPTANCE_TEST_ISSUE_LOG.md) | 无；保留历史验收结论 |
-| UAT-119 | TMDB连接缺少可配置代理服务器，受限网络无法统一配置API与图片出口 | `EXTERNAL_INTEGRATION` | 待核实 | 原UAT编号 | 见证据 | [UAT-119原记录](USER_ACCEPTANCE_TEST_ISSUE_LOG.md) | 真实代理下连接/API/人物头像/海报统一出口，非法代理拒绝；现仅03b61be5f替身回归，缺真实代理证据。执行B4；依赖/承接：无；关联130。 |
+| UAT-119 | TMDB连接缺少可配置代理服务器，受限网络无法统一配置API与图片出口 | `EXTERNAL_INTEGRATION` | 验收关闭 | 原UAT编号 | 03b61be5f；生产696b122da4 | [真实代理验收](implementation/evidence/UAT-119_REAL_PROXY_ACCEPTANCE_20260908.md)；[原记录](USER_ACCEPTANCE_TEST_ISSUE_LOG.md) | 真实NAS代理7次API/头像/海报请求均200，生产浏览器配置核对及11项含非法代理回归通过；无剩余。关联130。 |
 | UAT-120 | Formation列表因可变业务时间重排，刷新后媒体位置跳动 | `USER_EXPERIENCE` | 待核实 | 原UAT编号 | 见证据 | [UAT-120原记录](USER_ACCEPTANCE_TEST_ISSUE_LOG.md) | 进度更新和轮询不改稳定排序，同页/跨页无重复遗漏；旧15项回归不替代浏览器。执行B3；依赖/承接：212分页。 |
 | UAT-121 | FFmpeg设备声明、预检与实际编码管线不一致，可能产生错误码控或不合格HDR/DV成品 | `PRODUCT_CONFORMANCE` | 历史已关闭 | 原UAT编号 | 见证据 | [UAT-121原记录](USER_ACCEPTANCE_TEST_ISSUE_LOG.md) | 无；保留历史验收结论 |
 | UAT-122 | GPU编码仍由CPU解码且长进程缺少统一关闭、deadline和真实错误尾部 | `PERFORMANCE` | 历史已关闭 | 原UAT编号 | 见证据 | [UAT-122原记录](USER_ACCEPTANCE_TEST_ISSUE_LOG.md) | 无；保留历史验收结论 |
