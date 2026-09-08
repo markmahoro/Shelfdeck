@@ -5,7 +5,7 @@
   "kind": "application-type-registry",
   "owner": "arca",
   "status": "active",
-  "targetCount": 2,
+  "targetCount": 3,
   "entries": [
     {
       "id": "ArcaMaterialEpisodeClaims",
@@ -22,6 +22,22 @@
         "3.3.1",
         "8.5.13",
         "8.6.19"
+      ]
+    },
+    {
+      "id": "OffdeckShelfCoverage",
+      "version": 1,
+      "owner": "arca",
+      "status": "contracted",
+      "schemaId": "helix://contracts/application-types/OffdeckShelfCoverage/v1",
+      "relativePath": "application-types/OffdeckShelfCoverage/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "c4a86589e2232196fc91ccc3a0b12990aa6eb2df7a7fc6328dd4e9af08266b9c"
+      },
+      "ssotRefs": [
+        "8.5.12",
+        "9.5.5"
       ]
     },
     {

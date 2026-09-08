@@ -1,6 +1,6 @@
 # ShelfDeck 当前迭代计划
 
-退出审阅143/139/224/232增量已本地5项测试、构建和Edge二次确认操作通过，尚未发布；139缺各收藏架覆盖率冻结快照，继续补齐。详见[Evidence](implementation/evidence/UAT-143_OFFDECK_REVIEW_ACCEPTANCE_20260909.md)。
+退出审阅143/139/224/232：139确认时Shelf覆盖率快照、旧记录不倒填、失效范围提示已实现；13项schema/14项安全/5项Web及22.71秒真实十部退出后Host重启验证通过，尚未发布。详见[Evidence](implementation/evidence/UAT-143_OFFDECK_REVIEW_ACCEPTANCE_20260909.md)。
 
 更新：2026-09-08。ACTIVE；[UAT总表](UAT_ITERATION_REGISTER.md)是唯一完整迭代入口。所有功能、修复、UI与运维使用UAT编号，PROD/UX/AC/BR仅为历史别名。唯一执行包：[CURRENT_PHASE](implementation/CURRENT_PHASE.md)。
 

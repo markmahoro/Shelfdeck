@@ -41,6 +41,12 @@ function arcaMaterialEpisodeClaims() {
 function buildArcaApplicationSchemas() {
   return Object.freeze({
     ArcaMaterialEpisodeClaims: arcaMaterialEpisodeClaims(),
+    OffdeckShelfCoverage: {
+      $schema:DRAFT,$id:typeId('OffdeckShelfCoverage'),title:'OffdeckShelfCoverage@1',
+      'x-helix-ssotRefs':['8.5.12','9.5.5'],'x-helix-maxCanonicalBytes':65536,
+      type:'object',minProperties:1,maxProperties:1024,propertyNames:{minLength:1,maxLength:256},
+      additionalProperties:{type:'number',minimum:0,maximum:1},
+    },
     SourceCleanupChecks: {
       $schema:DRAFT,$id:typeId('SourceCleanupChecks'),title:'SourceCleanupChecks@1',
       'x-helix-ssotRefs':['8.5.14'],'x-helix-maxCanonicalBytes':65536,

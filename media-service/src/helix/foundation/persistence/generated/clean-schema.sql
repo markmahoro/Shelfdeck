@@ -654,7 +654,11 @@ CREATE TABLE "arca_offdeck_selection_receipts" (
   "high_volume" INTEGER CHECK ("high_volume" IN (0, 1)),
   "actor_id" TEXT,
   "confirmed_at_ms" INTEGER CHECK ("confirmed_at_ms" >= 0),
+  "shelf_coverage_schema_ref" TEXT,
+  "shelf_coverage_json" TEXT,
   UNIQUE ("review_id", "scope_set_digest"),
+  CHECK ("shelf_coverage_json" IS NULL OR json_valid("shelf_coverage_json")),
+  CHECK ("shelf_coverage_json" IS NULL OR length(CAST("shelf_coverage_json" AS BLOB)) <= 65536),
   FOREIGN KEY ("review_id") REFERENCES "arca_offdeck_reviews" ("review_id") ON DELETE RESTRICT
 );
 

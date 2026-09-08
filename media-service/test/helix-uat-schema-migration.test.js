@@ -330,3 +330,29 @@ test('pre-projection active Works retire atomically without deleting immutable e
       {migrated:false,reason:'already_current'});
   }finally{fs.rmSync(root,{recursive:true,force:true});}
 });
+
+
+test('UAT-139 adds nullable coverage snapshots without inventing historical review evidence', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'helix-offdeck-coverage-upgrade-'));
+  const databasePath = path.join(root, 'shelfdeck.db');
+  let db, kernel;
+  try {
+    const oldDdl = schemaDdl.split('\n').filter((line) => !line.includes('"shelf_coverage_json"') && !line.includes('"shelf_coverage_schema_ref"')).join('\n');
+    db = new Database(databasePath); db.exec(oldDdl);
+    db.prepare("INSERT INTO arca_offdeck_reviews(review_id,state) VALUES('review-keep','selection_confirmed')").run();
+    db.prepare("INSERT INTO arca_offdeck_selection_receipts(selection_receipt_id,review_id,shelf_coverage_digest,entry_count) VALUES('selection-keep','review-keep',?,5)").run('a'.repeat(64));
+    db.prepare("INSERT INTO libra_runs(libra_run_id,state) VALUES('keep-in-flight','active')").run();
+    db.prepare('INSERT INTO platform_schema_marker(schema_name,generation,schema_digest,catalog_digest,applied_at_ms) VALUES(?,?,?,?,?)')
+      .run('shelfdeck', TARGET_GENERATION, '42281705d35e3aa6d5103525544ce7d9a199bd2660c93e2faf2729d333475066', digest(catalogRows(db)), 1);
+    const before = db.prepare('SELECT * FROM arca_offdeck_selection_receipts').get(); db.close();
+    assert.equal(migrateUatIdentitySelectionSchema({ Database, databasePath, schemaManifest }).migrated, true);
+    db = new Database(databasePath);
+    assert.deepEqual(db.prepare('SELECT * FROM arca_offdeck_selection_receipts').get(),
+      { ...before, shelf_coverage_schema_ref:null, shelf_coverage_json:null });
+    assert.equal(db.prepare("SELECT state FROM libra_runs WHERE libra_run_id='keep-in-flight'").get().state, 'active');
+    assert.throws(() => db.prepare("UPDATE arca_offdeck_selection_receipts SET shelf_coverage_json='not-json'").run(), /CHECK/);
+    db.close();
+    kernel = openSqliteKernel({ Database, databasePath, schemaDdl, schemaManifest }); kernel.close();
+    assert.equal(migrateUatIdentitySelectionSchema({ Database, databasePath, schemaManifest }).migrated, false);
+  } finally { if (db?.open) db.close(); kernel?.close(); fs.rmSync(root, { recursive:true, force:true }); }
+});

@@ -15,7 +15,8 @@ const PRE_FORMATION_THREE_STATE_SCHEMA_DIGEST = '3be2dad9b3615053681dfc272197465
 const PRE_CASE_ADMISSION_SCHEMA_DIGEST = '6a2246c39bebcd1f6f80264bac793c7a3119636a791683e426e4c30aa6fdc651';
 const PRE_SOURCE_CLEANUP_SCHEMA_DIGEST = '642c62d6d55e95ce31a097435ae7052c26d0ea5b65d049d90c724522db204784';
 const PRE_TARGET_BINDING_SCHEMA_DIGEST = '3ce7180fe6b3ba843b2b85669dca5dd852792f979770c908ef2b17560d473d49';
-const TARGET_SCHEMA_DIGEST = '42281705d35e3aa6d5103525544ce7d9a199bd2660c93e2faf2729d333475066';
+const PRE_OFFDECK_COVERAGE_SCHEMA_DIGEST = '42281705d35e3aa6d5103525544ce7d9a199bd2660c93e2faf2729d333475066';
+const TARGET_SCHEMA_DIGEST = 'b8cbd25e773b61e1e9ecfe1b8aecb079f4c97eae02f38c117b4d4e8a08427821';
 const PRE_UAT_EXECUTION_CATALOG_DIGEST = 'b0371a6d2793c1e381a4c2e7fc421d312a1a1e90d2de5e47f61a45022f09793b';
 const PRE_PROJECTION_EXECUTION_CATALOG_DIGEST = '13315cdbdf6ab5cbe30b32075f89bd76ae1a873d84034dc572824f4fbc3886e6';
 const INTAKE_BINDING_REPLAN_CODE = 'P4_UAT_INTAKE_BINDING_RESULT_REPLAN_REQUIRED';
@@ -427,6 +428,7 @@ function migrateUatIdentitySelectionSchema(options) {
         'The source database does not contain the expected ShelfDeck schema marker.');
     }
     const alreadyCurrent = marker.generation === TARGET_GENERATION && marker.schema_digest === TARGET_SCHEMA_DIGEST;
+    const offdeckCoverageSource = marker.generation === TARGET_GENERATION && marker.schema_digest === PRE_OFFDECK_COVERAGE_SCHEMA_DIGEST;
     const targetBindingSource = marker.generation === TARGET_GENERATION && marker.schema_digest === PRE_TARGET_BINDING_SCHEMA_DIGEST;
     const sourceCleanupSource = marker.generation === TARGET_GENERATION && marker.schema_digest === PRE_SOURCE_CLEANUP_SCHEMA_DIGEST;
     const caseAdmissionSource = marker.generation === TARGET_GENERATION && marker.schema_digest === PRE_CASE_ADMISSION_SCHEMA_DIGEST;
@@ -442,7 +444,7 @@ function migrateUatIdentitySelectionSchema(options) {
       marker.schema_digest === PRE_EXECUTOR_CLOSURE_SCHEMA_DIGEST;
     const legacySource = marker.generation === SOURCE_GENERATION && marker.schema_digest === SOURCE_SCHEMA_DIGEST;
     const v2Source = marker.generation === INTERMEDIATE_GENERATION && marker.schema_digest === INTERMEDIATE_SCHEMA_DIGEST;
-    if (!alreadyCurrent && !targetBindingSource && !sourceCleanupSource && !caseAdmissionSource && !formationThreeStateSource && !predeckPipelineSource && !defectAdmissionSource && !aftercareHardeningSource && !executorClosureSource && !legacySource && !v2Source) {
+    if (!alreadyCurrent && !offdeckCoverageSource && !targetBindingSource && !sourceCleanupSource && !caseAdmissionSource && !formationThreeStateSource && !predeckPipelineSource && !defectAdmissionSource && !aftercareHardeningSource && !executorClosureSource && !legacySource && !v2Source) {
       throw new UatIdentitySelectionMigrationError('UAT_MIGRATION_SOURCE_SCHEMA_UNSUPPORTED',
         'Only the exact pre-UAT live schema can be upgraded in place.', {
           generation: marker.generation, schemaDigest: marker.schema_digest,
@@ -483,6 +485,9 @@ function migrateUatIdentitySelectionSchema(options) {
       if (!alreadyCurrent) migratePredeckPipelineTables(database);
       if (formationThreeStateSource) migrateFormationThreeStateProjection(database);
       if (!alreadyCurrent) {
+        const coverageColumns = database.pragma('table_info(arca_offdeck_selection_receipts)').map((column) => column.name);
+        if (!coverageColumns.includes('shelf_coverage_schema_ref')) database.exec('ALTER TABLE "arca_offdeck_selection_receipts" ADD COLUMN "shelf_coverage_schema_ref" TEXT');
+        if (!coverageColumns.includes('shelf_coverage_json')) database.exec('ALTER TABLE "arca_offdeck_selection_receipts" ADD COLUMN "shelf_coverage_json" TEXT CHECK ("shelf_coverage_json" IS NULL OR json_valid("shelf_coverage_json")) CHECK ("shelf_coverage_json" IS NULL OR length(CAST("shelf_coverage_json" AS BLOB)) <= 65536)');
         migrateAftercareCaseAdmission(database); migrateRecycleTable(database); migrateSourceCleanupTable(database); migrateShelfTargetBindings(database);
         for (const [name,sql] of [
           ['idx_fx_supporting_works_hot_02','CREATE INDEX "idx_fx_supporting_works_hot_02" ON "fx_supporting_works" ("process_id", "work_id")'],

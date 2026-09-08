@@ -23,3 +23,17 @@
 - 继续核对Scope子集确认后显示范围及真实执行安全链；上述UI fixture不是文件删除端到端证据。
 - 143/224/232仍需统一发布及对应生产表面验收；246读全量收藏与历史的成本继续单独处理。
 - 本增量晚于候选241436b8da，不在其镜像内；未因本地通过关闭任何UAT。
+
+
+## UAT-139 覆盖率快照与真实十部退出（接续）
+
+- Arca Selection确认事务同时写入OffdeckShelfCoverage typed JSON及其schema ref，继续绑定原shelf_coverage_digest；GET只读该快照，摘要漂移拒绝读取。SSOT8.5.12、派生表/DDL及应用类型同步，未移动Owner或扩大删除范围。
+- 精确生产前置schema 42281705d35e…通过既有标准升级通道添加两个nullable字段，旧Receipt保持NULL，未按当前数据回填；原在飞Run保留。新schema b8cbd25e773b61e1e9ecfe1b8aecb079f4c97eae02f38c117b4d4e8a08427821。
+- UI展示确认选择时的Shelf覆盖率；排除/失效Scope单独提示，不混入将删除文件清单和Related数量。
+- 13项schema升级/派生基线测试通过；14项Off-deck安全/摘要漂移/旧记录缺证测试通过；5项Web测试及build通过。Edge18195显示电影收藏架50.0%（确认选择时），fixture只验证UI，未触碰生产。
+- 真实媒体十部链22.71秒PASS：分批准入、十部真实上架、取消未授权Review、batch Scope确认、高量级提前授权拒绝、独立二次确认、十部独立退出完成、零失败Work/Event、Control释放。Shelf及源目录范围外sentinel保留。
+- 退出后关闭Host再启动，新会话GET仍返回原Shelf覆盖率100%和Deck覆盖率100%，当前十部已经全部退出；证明没有使用当前分母倒填。
+- 旧测试两处前提过时：先等十部准入才配置路由与三席位限制相互等待；要求上架前源文件仍在与已生效Arca Settlement冲突。仅修正测试顺序及退出前后守恒边界，保留十部真实执行、原始样本及范围外文件保护；失败日志保留，不包装为产品失败或成功证据。
+- 输出：.codex/uat139-schema.log、uat139-offdeck-unit.log、uat139-real-volume-v3.log；失败v1/v2保留。整项仍待统一发布、生产表面验收，未关闭；本增量不在241436b8da镜像中。
+
+- 全架构1608项：1600通过、7项既有SKIP、1项固定JSON列数未同步；新增snapshot使63变64，同步该Oracle后该文件5项全部通过。未重复跑无关已通过文件。00:50生产只读仍70收藏/2条在飞，未部署。

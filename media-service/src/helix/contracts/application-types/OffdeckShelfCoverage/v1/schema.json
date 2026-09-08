@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/application-types/OffdeckShelfCoverage/v1",
+  "title": "OffdeckShelfCoverage@1",
+  "x-helix-ssotRefs": [
+    "8.5.12",
+    "9.5.5"
+  ],
+  "x-helix-maxCanonicalBytes": 65536,
+  "type": "object",
+  "minProperties": 1,
+  "maxProperties": 1024,
+  "propertyNames": {
+    "minLength": 1,
+    "maxLength": 256
+  },
+  "additionalProperties": {
+    "type": "number",
+    "minimum": 0,
+    "maximum": 1
+  }
+}

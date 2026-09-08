@@ -137,7 +137,9 @@ export default function OffdeckPage() {
     return collectionEntries.filter((item) => item.displayIdentity.toLowerCase().includes(needle) || item.shelfName.toLowerCase().includes(needle));
   }, [collectionEntries, needle]);
   const selectedEntries = collectionEntries.filter((item) => bulkSelection.includes(item.shelfEntryId));
-  const scopeMaterials = review?.scopes.flatMap((scope) => scope.materials) || [];
+  const reviewScopes = review?.scopes.filter((scope) => scope.state !== 'stale') || [];
+  const staleScopes = review?.scopes.filter((scope) => scope.state === 'stale') || [];
+  const scopeMaterials = reviewScopes.flatMap((scope) => scope.materials);
   const primaryRoles = new Set(['primary_payload', 'structural_dependency']);
   const reviewEntries = review?.selection?.entryCount ?? review?.scopes.length ?? 0;
   const reviewPrimary = review?.selection?.primaryCount ?? scopeMaterials.filter((material) => primaryRoles.has(material.role)).length;
@@ -233,9 +235,11 @@ export default function OffdeckPage() {
           {review.state!=='preparing'&&<section className="offdeck-review-summary" aria-label="本次退出范围">
             <p><strong>{reviewEntries} 部收藏 · {reviewPrimary} 个主视频或光盘结构文件 · {reviewRelated} 个附属文件</strong></p>
             <p>文件总空间：{formatGiB(reviewBytes)}{review.selection?` · 占全部当前收藏 ${(review.selection.deckCoverageRatio*100).toFixed(1)}%`:''}</p>
+            {review.selection && (review.selection.shelfCoverageRatios ? Object.entries(review.selection.shelfCoverageRatios).map(([shelfId, ratio]) => <p key={shelfId}>收藏架覆盖率：{collectionEntries.find((entry) => entry.shelfId === shelfId)?.shelfName || '原收藏架'} {(ratio * 100).toFixed(1)}%（确认选择时）</p>) : <p>此历史审阅未保存收藏架覆盖率，不能由当前收藏数量还原。</p>)}
             <p>最终授权后将执行删除，不能撤销。仍被其他收藏引用的共享附属文件会保留，实际释放空间可能较小。</p>
           </section>}
-          {review.scopes.map((scope) => <article className="offdeck-scope" key={scope.destructionScopeId}>
+          {staleScopes.length > 0 && <p role="status">{staleScopes.length} 部范围已排除或失效，不会按本次范围删除。</p>}
+          {reviewScopes.map((scope) => <article className="offdeck-scope" key={scope.destructionScopeId}>
             <strong>{titleOf(scope.shelfEntryId)}</strong>
             <small>收藏架：{titles[scope.shelfEntryId]?.shelfName||'暂时无法读取'}</small>
             <small>{scope.memberCount} 个文件 · {formatGiB(scope.totalBytes)}</small>

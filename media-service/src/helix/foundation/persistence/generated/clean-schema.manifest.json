@@ -3,8 +3,8 @@
   "compilerContract": "helix-p3-deterministic-sqlite-ddl/v1",
   "digestAlgorithm": "sha256",
   "tableCount": 189,
-  "tableContractAggregateDigest": "af9fe1490eb8aded76abf13ca6cfe5923d2621cd78526666b78f2679ae43b483",
-  "ddlDigest": "42281705d35e3aa6d5103525544ce7d9a199bd2660c93e2faf2729d333475066",
+  "tableContractAggregateDigest": "59ecb90b58c9957c537e153ff3da9f746874d36ec3e6f1c2f3997453d2059196",
+  "ddlDigest": "b8cbd25e773b61e1e9ecfe1b8aecb079f4c97eae02f38c117b4d4e8a08427821",
   "tables": [
     {
       "tableId": "arca_acceptance_attempts",
@@ -998,8 +998,8 @@
       "tableId": "arca_offdeck_selection_receipts",
       "owner": "arca",
       "contractId": "helix://contracts/tables/arca_offdeck_selection_receipts/v1",
-      "contractDigest": "8a8b5c3fdc8be680d03029684690bb394eb7d7f3d3ee834503edffb30e7a8364",
-      "sqlDigest": "93f662228e2f13981de786ebf591eed87665bf18e77339013b96da10d7be6aef",
+      "contractDigest": "00918c5fbbfe1c9873a569c3f585d73ad124f07c5d89a6f5889e03c466a0ead7",
+      "sqlDigest": "e45171edc2b2171ed65e098dc9d227242dd82a18d36d7d70f54fee96fcd9e888",
       "columns": [
         "selection_receipt_id",
         "review_id",
@@ -1011,9 +1011,11 @@
         "deck_coverage_ratio",
         "high_volume",
         "actor_id",
-        "confirmed_at_ms"
+        "confirmed_at_ms",
+        "shelf_coverage_schema_ref",
+        "shelf_coverage_json"
       ],
-      "immutable": false,
+      "immutable": true,
       "supportColumns": [],
       "indexes": []
     },

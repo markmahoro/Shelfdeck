@@ -80,8 +80,8 @@ function createOffdeckStore(options) {
     update_scope:{kind:'update',tableId:'arca_offdeck_scopes',setColumns:['state'],keyColumns:['destruction_scope_id'],compareColumns:[{column:'state',parameter:'expected_state'}]},
     list_scope_materials:{kind:'select-all',tableId:'arca_offdeck_scope_materials',columns:['destruction_scope_id','ordinal','material_key','material_role','physical_identity_schema_ref','physical_identity_json','physical_identity_digest','endpoint_id','endpoint_relative_location','size_bytes','related_reference_id','binding_revision','control_revision','control_projection_digest','delete_condition','member_digest'],keyColumns:['destruction_scope_id'],safeIntegers:true},
     insert_scope_material:{kind:'insert',tableId:'arca_offdeck_scope_materials',columns:['destruction_scope_id','ordinal','material_key','material_role','physical_identity_schema_ref','physical_identity_json','physical_identity_digest','endpoint_id','endpoint_relative_location','size_bytes','related_reference_id','binding_revision','control_revision','control_projection_digest','delete_condition','member_digest']},
-    find_selection:{kind:'select-one',tableId:'arca_offdeck_selection_receipts',columns:['selection_receipt_id','review_id','scope_set_digest','entry_count','primary_count','total_bytes','shelf_coverage_digest','deck_coverage_ratio','high_volume','actor_id','confirmed_at_ms'],keyColumns:['review_id'],safeIntegers:true},
-    insert_selection:{kind:'insert',tableId:'arca_offdeck_selection_receipts',columns:['selection_receipt_id','review_id','scope_set_digest','entry_count','primary_count','total_bytes','shelf_coverage_digest','deck_coverage_ratio','high_volume','actor_id','confirmed_at_ms']},
+    find_selection:{kind:'select-one',tableId:'arca_offdeck_selection_receipts',columns:['selection_receipt_id','review_id','scope_set_digest','entry_count','primary_count','total_bytes','shelf_coverage_digest','deck_coverage_ratio','high_volume','actor_id','confirmed_at_ms','shelf_coverage_schema_ref','shelf_coverage_json'],keyColumns:['review_id'],safeIntegers:true},
+    insert_selection:{kind:'insert',tableId:'arca_offdeck_selection_receipts',columns:['selection_receipt_id','review_id','scope_set_digest','entry_count','primary_count','total_bytes','shelf_coverage_digest','deck_coverage_ratio','high_volume','actor_id','confirmed_at_ms','shelf_coverage_schema_ref','shelf_coverage_json']},
     find_escalation:{kind:'select-one',tableId:'arca_offdeck_escalation_receipts',columns:['escalation_receipt_id','selection_receipt_id','scope_set_digest','actor_id','confirmed_at_ms'],keyColumns:['selection_receipt_id'],safeIntegers:true},
     insert_escalation:{kind:'insert',tableId:'arca_offdeck_escalation_receipts',columns:['escalation_receipt_id','selection_receipt_id','scope_set_digest','actor_id','confirmed_at_ms']},
     find_batch:{kind:'select-one',tableId:'arca_offdeck_authorization_batches',columns:['batch_id','review_id','selection_receipt_id','escalation_receipt_id','scope_set_digest','actor_id','authorized_at_ms'],keyColumns:['review_id','scope_set_digest'],safeIntegers:true},
@@ -395,6 +395,8 @@ function createOffdeckStore(options) {
   function detail(reviewId) {
     const value = reviewRows(reviewId); if (!value) return null;
     const selection = read((ctx) => ctx.repository(repo.repositoryId).invoke('find_selection', { review_id:reviewId }));
+    const coverage = selection?.shelf_coverage_json ? JSON.parse(selection.shelf_coverage_json) : null;
+    if (coverage && (selection.shelf_coverage_schema_ref !== 'helix://contracts/application-types/OffdeckShelfCoverage/v1' || canonicalDigest(coverage) !== selection.shelf_coverage_digest)) fail('ARCA_OFFDECK_COVERAGE_INVALID', 'The saved review coverage does not match its immutable receipt.');
     const escalation = selection ? read((ctx) => ctx.repository(repo.repositoryId).invoke('find_escalation', { selection_receipt_id:selection.selection_receipt_id })) : null;
     return Object.freeze({ reviewId, originKind:value.review.origin_kind, originRef:value.review.origin_ref, state:value.review.state,
       createdAtMs:Number(value.review.created_at_ms), reservations:Object.freeze(value.reservations.map((item) => Object.freeze({ reservationId:item.reservation_id,
@@ -406,6 +408,7 @@ function createOffdeckStore(options) {
           role:item.material_role, location:item.endpoint_relative_location, sizeBytes:Number(item.size_bytes), deleteCondition:item.delete_condition }))) }))),
       selection:selection ? Object.freeze({ selectionReceiptId:selection.selection_receipt_id, scopeSetDigest:selection.scope_set_digest,
         entryCount:Number(selection.entry_count), primaryCount:Number(selection.primary_count), totalBytes:Number(selection.total_bytes),
+        shelfCoverageRatios:coverage ? Object.freeze(coverage) : null,
         deckCoverageRatio:Number(selection.deck_coverage_ratio), highVolume:Boolean(selection.high_volume) }) : null,
       escalation:escalation ? Object.freeze({ escalationReceiptId:escalation.escalation_receipt_id }) : null });
   }
@@ -484,7 +487,7 @@ function createOffdeckStore(options) {
     write('arca_offdeck_selection_confirm', (ctx) => { const r=ctx.repository(repo.repositoryId), existing=r.invoke('find_selection',{review_id:reviewId});if(existing)return Object.freeze({replayed:true});
       r.invoke('insert_selection',{selection_receipt_id:receiptId,review_id:reviewId,scope_set_digest:scopeSetDigest,entry_count:metrics.entryCount,
         primary_count:metrics.primaryCount,total_bytes:metrics.totalBytes,shelf_coverage_digest:canonicalDigest(metrics.shelfCoverageRatios),deck_coverage_ratio:metrics.deckCoverageRatio,
-        high_volume:high.highVolume?1:0,actor_id:input.actorId||'admin',confirmed_at_ms:now()});
+        high_volume:high.highVolume?1:0,actor_id:input.actorId||'admin',confirmed_at_ms:now(),shelf_coverage_schema_ref:'helix://contracts/application-types/OffdeckShelfCoverage/v1',shelf_coverage_json:JSON.stringify(metrics.shelfCoverageRatios)});
       for(const scope of value.scopes){if(selectedIds.includes(scope.destruction_scope_id))r.invoke('update_scope',{state:'confirmed',destruction_scope_id:scope.destruction_scope_id,expected_state:'draft'});else{r.invoke('update_scope',{state:'stale',destruction_scope_id:scope.destruction_scope_id,expected_state:'draft'});const reservation=value.reservations.find((item)=>item.reservation_id===scope.reservation_id);if(reservation?.state==='active')r.invoke('update_reservation',{state:'released',released_at_ms:now(),reservation_id:reservation.reservation_id,expected_state:'active'});}}
       if(r.invoke('update_review',{state:high.highVolume?'awaiting_escalation':'selection_confirmed',terminal_at_ms:null,review_id:reviewId,expected_state:'open'}).changes!==1)fail('ARCA_OFFDECK_REVIEW_STALE','Off-deck Review changed concurrently.');
       return Object.freeze({replayed:false}); });

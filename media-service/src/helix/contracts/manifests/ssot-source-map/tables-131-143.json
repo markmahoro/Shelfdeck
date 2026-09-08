@@ -107,12 +107,12 @@
     {
       "id": "arca_offdeck_selection_receipts",
       "owner": "arca",
-      "columnsContract": "`selection_receipt_id PK, review_id FK, scope_set_digest, entry_count, primary_count, total_bytes, shelf_coverage_digest, deck_coverage_ratio, high_volume, actor_id, confirmed_at_ms`",
-      "constraintsContract": "`UNIQUE(review_id,scope_set_digest)`；服务端按当前Scope集合计算，不信任客户端阈值",
+      "columnsContract": "`selection_receipt_id PK, review_id FK, scope_set_digest, entry_count, primary_count, total_bytes, shelf_coverage_digest, deck_coverage_ratio, high_volume, actor_id, confirmed_at_ms, shelf_coverage_schema_ref NULL, shelf_coverage_json NULL`",
+      "constraintsContract": "`UNIQUE(review_id,scope_set_digest)`；服务端按当前Scope集合计算，不信任客户端阈值；shelf_coverage_json为确认时各Shelf覆盖率的immutable快照，与shelf_coverage_digest一致，最多64 KiB；旧记录缺证保留NULL，禁止按当前数量倒填",
       "source": {
         "section": "8.5.12",
         "line": 9474,
-        "lineDigest": "77ff625978aa23c853bd9e91791693fea79fba47a6af914ec93848082a37c464"
+        "lineDigest": "b914c7167571f17229012ceb422ff08330e936bef5e14821dfb3ea626020f8db"
       }
     },
     {

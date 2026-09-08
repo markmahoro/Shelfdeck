@@ -329,3 +329,27 @@ test('Off-deck coordinators stay above execution and filesystem implementations'
     }
   }
 });
+
+
+test('UAT-139 review coverage is read from the receipt, rejects digest drift, and leaves old evidence unknown', () => {
+  const coverage = { 'shelf-1':0.5 };
+  const receipt = { selection_receipt_id:'selection-1', scope_set_digest:'a'.repeat(64),
+    entry_count:5,primary_count:5,total_bytes:10,deck_coverage_ratio:0.25,high_volume:1,
+    shelf_coverage_schema_ref:'helix://contracts/application-types/OffdeckShelfCoverage/v1',
+    shelf_coverage_json:JSON.stringify(coverage),shelf_coverage_digest:canonicalDigest(coverage) };
+  const rows = { find_review:{review_id:'review-1',state:'awaiting_escalation',created_at_ms:1},
+    find_selection:receipt,find_escalation:null,list_reservations:[],list_scopes:[] };
+  const unitOfWork = { execute(participants) {
+    return Object.fromEntries(participants.map((participant) => [participant.participantId,
+      participant.execute({ repository() { return { invoke(statementId) {
+        assert.ok(Object.hasOwn(rows, statementId), 'Review detail must not recompute current collection coverage');
+        return rows[statementId];
+      } }; } })]));
+  } };
+  const store = createOffdeckStore({schemaManifest,unitOfWork});
+  assert.deepEqual(store.detail('review-1').selection.shelfCoverageRatios, coverage);
+  receipt.shelf_coverage_json = JSON.stringify({'shelf-1':1});
+  assert.throws(() => store.detail('review-1'), (error) => error.code === 'ARCA_OFFDECK_COVERAGE_INVALID');
+  receipt.shelf_coverage_json = null; receipt.shelf_coverage_schema_ref = null;
+  assert.equal(store.detail('review-1').selection.shelfCoverageRatios, null);
+});

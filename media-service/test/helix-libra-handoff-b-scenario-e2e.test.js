@@ -1315,7 +1315,7 @@ test('P14 Off-deck high-volume review requires a separate escalation and closes 
     fs.copyFileSync(seedVideo, path.join(source,
       `SDT-OFFDECK-${String(ordinal).padStart(2, '0')} (2008).mkv`));
   }
-  const sourceBefore = reality(source);
+  assert.equal(reality(source).count, 10);
   const initialized = initializeCleanData({ dataDir,
     confirmation:'INITIALIZE_HELIX_CLEAN_V1', secretRoot:SECRET });
   let runtimeError = null;
@@ -1347,7 +1347,8 @@ test('P14 Off-deck high-volume review requires a separate escalation and closes 
   await createShelf(host, cookie, shelf);
   await createField(host, cookie, 'offdeck-volume-field', source);
   await observe(host, cookie, 'offdeck-volume-field');
-  await waitFor(host, cookie, (items) => items.length >= 10, 180_000);
+  await waitFor(host, cookie, (items) => items.length > 0, 180_000);
+  // Routing must let the first admitted movies finish and release the three pipeline seats.
   await route(host, cookie, 'offdeck-volume-field');
   const databasePath = path.join(dataDir, 'shelfdeck.db');
   const entryIds = await waitDatabase(databasePath, (database) => {
@@ -1356,6 +1357,10 @@ test('P14 Off-deck high-volume review requires a separate escalation and closes 
   }, 240_000);
   assert.ifError(runtimeError);
   assert.equal(entryIds.length, 10);
+  // Arca On-deck settlement has already consumed the ten authorized source inputs.
+  assert.equal(reality(source).count, 0);
+  fs.writeFileSync(path.join(source, 'unrelated-source.keep'), 'not part of the Off-deck scope');
+  const sourceBefore = reality(source);
   const sentinel = path.join(shelf, 'not-in-any-offdeck-scope.keep');
   fs.writeFileSync(sentinel, 'outside every immutable destruction scope', 'utf8');
 
@@ -1398,6 +1403,8 @@ test('P14 Off-deck high-volume review requires a separate escalation and closes 
   assert.equal(confirmation.statusCode, 200, confirmation.body);
   assert.equal(confirmation.json().state, 'awaiting_escalation');
   assert.equal(confirmation.json().selection.entryCount, 10);
+  const frozenCoverage = confirmation.json().selection.shelfCoverageRatios;
+  assert.deepEqual(Object.values(frozenCoverage), [1]);
   assert.equal(confirmation.json().selection.highVolume, true);
 
   const premature = await host.inject({ method:'POST', url:'/v1/admin/offdeck/authorizations',
@@ -1449,6 +1456,17 @@ test('P14 Off-deck high-volume review requires a separate escalation and closes 
       "SELECT count(*) n FROM arca_offdeck_authorizations",
     ).get().n), 10);
   } finally { finalDatabase.close(); }
+  await host.close();
+  const restarted = await createCleanServiceHost({ dataDir, adminDistDir:admin, secretRoot:SECRET,
+    libraWorkspaceRoot:path.join(root, 'libra-workspaces'), ...uniqueProductOptions });
+  try {
+    const restartedCookie = await session(restarted, initialized.adminApiKey);
+    const saved = await restarted.inject({ method:'GET', url:'/v1/admin/offdeck/reviews/' + reviewId,
+      headers:{ cookie:restartedCookie } });
+    assert.equal(saved.statusCode, 200, saved.body);
+    assert.deepEqual(saved.json().selection.shelfCoverageRatios, frozenCoverage);
+    assert.equal(saved.json().selection.deckCoverageRatio, 1);
+  } finally { await restarted.close(); }
 });
 
 test('P14 insufficient Shelf space rejects Handoff B without Arca custody, Control, or Shelf Entry', {

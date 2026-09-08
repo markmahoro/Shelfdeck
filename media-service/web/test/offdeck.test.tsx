@@ -138,7 +138,8 @@ describe('Off-deck progress', () => {
         { ordinal: 1, materialKey: 'structure', role: 'structural_dependency', location: '/movies/影片/BDMV/index.bdmv', sizeBytes: 1024, deleteCondition: 'delete_primary' },
         { ordinal: 2, materialKey: 'poster', role: 'poster', location: '/movies/影片/poster.jpg', sizeBytes: 1024, deleteCondition: 'release_related_then_delete_if_unreferenced' },
       ],
-    }], selection: { ...highVolumeReview.selection!, entryCount: 1, primaryCount: 2, deckCoverageRatio: 0.25 } };
+    }], selection: { ...highVolumeReview.selection!, entryCount: 1, primaryCount: 2, deckCoverageRatio: 0.25, shelfCoverageRatios: { 'shelf-1': 0.5 } } };
+    review.scopes.push({ ...review.scopes[0], destructionScopeId: 'excluded', state: 'stale', materials: [{ ...review.scopes[0].materials[0], location: '/excluded/keep.mkv' }] });
     vi.spyOn(helixAdminApi, 'listOffdeckCandidates').mockResolvedValue({ candidates: [], duplicateGroups: [], suppressions: [], whitelists: [] });
     vi.spyOn(helixAdminApi, 'listOffdeckCases').mockResolvedValue({ items: [] });
     vi.spyOn(helixAdminApi, 'listCollection').mockResolvedValue({ items: [collectionEntry('entry-a', '影片', 1)] });
@@ -152,6 +153,9 @@ describe('Off-deck progress', () => {
     expect(within(dialog).getByText('1 部收藏 · 2 个主视频或光盘结构文件 · 1 个附属文件')).toBeInTheDocument();
     expect(within(dialog).getByText('文件总空间：120.00 GiB · 占全部当前收藏 25.0%')).toBeInTheDocument();
     expect(within(dialog).getByText('收藏架：Movie Shelf')).toBeInTheDocument();
+    expect(within(dialog).getByText('收藏架覆盖率：Movie Shelf 50.0%（确认选择时）')).toBeInTheDocument();
+    expect(within(dialog).getByText('1 部范围已排除或失效，不会按本次范围删除。')).toBeInTheDocument();
+    expect(within(dialog).queryByText(/excluded\/keep/)).not.toBeInTheDocument();
     expect(within(dialog).getByText('主视频 · /movies/影片/BDMV/STREAM/00000.m2ts')).toBeInTheDocument();
     expect(within(dialog).getByText('光盘结构文件 · /movies/影片/BDMV/index.bdmv')).toBeInTheDocument();
     expect(within(dialog).getByText('附属文件 · /movies/影片/poster.jpg · 仍被引用时保留')).toBeInTheDocument();
