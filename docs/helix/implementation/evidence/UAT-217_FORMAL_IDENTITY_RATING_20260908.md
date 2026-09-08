@@ -18,3 +18,14 @@ Product Identity提交后，Coordinator通过既有Acceptance Spec Coordinator�
 
 
 后续服务全量回归识别并修复异步续跑缺口：正式身份触发的新Perception Resolution返回相同5星/相同Acceptance要求时，不生成新Spec Work，原Run等待缺少完成唤醒。Perception完成通知只针对该Subject调用既有Libra Acceptance/Run Creator/Run Coordinator；是否替换仍由Libra按合同决定。原外部寻源全链路用例独立重跑仍失败，修复后约4秒通过，验证100候选选择后的实际媒体拒绝保持原有限停止规则。未用延长超时或Reset掩盖问题，未移动评分/Spec归属。此前架构门禁不足以发现此跨事件缺口，发布必须包含本次修正。
+
+
+## 2026-09-09 完整接续新增缺口
+
+新增真实媒体/完整Host测试使用隔离豆瓣页面，经正式连接/同步API保存评分；文件名 `Unmatched Release Edition` 与正式片名不同，先由正式选择API确认 TMDB 990001 / Formal Rating Movie。评分Resolver正确命中1星，产生第二份Acceptance Spec，原Run superseded并建立新Run。
+
+但新Run只按自己的 resolved_identity Product Fact / 自己的手选Intent查找，未承接同一Subject已提交的正式身份，又走原始文件名搜索，停在等待身份确认。只读SQLite已见1份Subject正式身份、旧Run superseded/新Run active、第二次 product_identity Work完成后没有后续生产；这是217完整接续未满足，不以再次选择同一身份作为验收补丁。
+
+测试草稿在 `helix-libra-handoff-b-scenario-e2e.test.js` 的 `UAT-217 formal identity resolves...`，尚未通过、尚未提交为交付。日志 `.codex/uat217-formal-real-chain-v2.log`。中止仅本地测试进程，未触碰生产。在同一Subject的现行正式身份/新Run证据绑定合同内检查并修复，仍须fresh Provider复核、要求未变不再替换、最终Arca实检/Commit及源保护通过。没有伪造当前Run Product Fact或倒填历史选择。
+
+另在自定义模板准备时发现独立通知消费者缺口，已另登254；本次评分接续复现用系统现有模板，不通过忽略254错误掩盖评分结果。
