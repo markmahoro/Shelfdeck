@@ -12,6 +12,97 @@ const { canonicalDigest } = require('../src/helix/contracts/canonical-json');
 
 const secretRoot = 'procurement-only-movie-secret-root-20260802';
 
+test('UAT-174 per-field pause and UAT-175 predeck tokens survive Host restart without extra Intake', { timeout:120_000 }, async (t) => {
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'helix-per-field-seats-'));
+  const dataDir=path.join(root,'data'),adminDistDir=path.join(root,'admin');
+  fs.mkdirSync(adminDistDir,{recursive:true});
+  fs.writeFileSync(path.join(adminDistDir,'index.html'),'<div id="root"></div>');
+  const initialized=initializeCleanData({dataDir,confirmation:'INITIALIZE_HELIX_CLEAN_V1',secretRoot});
+  const databasePath=path.join(dataDir,'shelfdeck.db');
+  let runtimeError=null;
+  const options={dataDir,adminDistDir,secretRoot,mediaProbe:mediaProbe(),onExecutionRuntimeError(error){runtimeError=error;}};
+  let host=await createCleanServiceHost(options);
+  t.after(async()=>{await host.close();fs.rmSync(root,{recursive:true,force:true,maxRetries:5,retryDelay:100});});
+  let cookie=await session(host,initialized.adminApiKey);
+  async function request(method,url,payload){const response=await host.inject({method,url,headers:{cookie},payload});
+    assert.ok(response.statusCode>=200&&response.statusCode<300,response.body);return response.json();}
+  async function seats(fieldId,count){return request('PATCH',`/v1/admin/libra/material-fields/${fieldId}/intake-admission`,{predeckPipelineSeats:count,idempotencyKey:`seats-${fieldId}-${count}`});}
+  function snapshot(){const db=new Database(databasePath,{readonly:true});try{return {
+    packages:db.prepare('SELECT count(*) n FROM proc_candidate_packages').get().n,
+    subjects:db.prepare('SELECT count(*) n FROM libra_subjects').get().n,
+    runs:db.prepare('SELECT count(*) n FROM libra_runs').get().n,
+    tokens:db.prepare('SELECT * FROM libra_predeck_pipeline_tokens ORDER BY subject_id').all(),
+    decisions:db.prepare("SELECT source_field_id,count(*) n FROM libra_intake_decisions WHERE decision_kind='accepted_resolution' GROUP BY source_field_id ORDER BY source_field_id").all(),
+    works:db.prepare("SELECT work_id,state FROM fx_supporting_works WHERE owner_domain='libra' ORDER BY work_id").all(),
+  };}finally{db.close();}}
+  async function waitForSnapshot(predicate){const deadline=Date.now()+45_000;let value;
+    do{assert.ifError(runtimeError);value=snapshot();if(predicate(value))return value;await new Promise(resolve=>setTimeout(resolve,50));}while(Date.now()<deadline);
+    assert.fail('Per-field admission did not converge: '+JSON.stringify(value));}
+  const sourceFiles=[];
+  for(const fieldId of ['seat-field-a','seat-field-b']){
+    const fieldRoot=path.join(root,fieldId);fs.mkdirSync(fieldRoot);
+    for(let i=1;i<=3;i++){const location=path.join(fieldRoot,`Seat.Movie.${i}.2024.mkv`);fs.writeFileSync(location,'read-only-seats-fixture');sourceFiles.push(location);}
+    const policy={includedDirectories:[],excludedDirectories:[],allowedExtensions:['.mkv'],minimumSizeBytes:0,excludedMaterialKeys:[]};
+    const policyBasis={extractionPolicyId:fieldId+'-policy',revision:1,...policy};
+    const access={fieldId,revision:1,endpointId:fieldId+'-endpoint',rootLocation:fieldRoot,mountScopeId:fieldId+'-mount',mountScopeRevision:1,accessSchemaRef:'helix://fixtures/per-field-access/v1'};
+    await request('POST','/v1/admin/material-fields',{idempotencyKey:fieldId+'-register',fieldId,name:fieldId,contentProfileHint:'movie',
+      policy:{extractionPolicyId:policyBasis.extractionPolicyId,revision:1,policySchemaRef:'helix://contracts/domain-types/ExtractionPolicy/v1',policy,policyDigest:canonicalDigest(policyBasis)},
+      access:{...access,accessDigest:canonicalDigest(access)}});
+    await seats(fieldId,fieldId==='seat-field-a'?0:1);
+    await request('POST',`/v1/admin/material-fields/${fieldId}/actions/observe`,{idempotencyKey:fieldId+'-observe',fieldId,expectedAccessRevision:1,expectedObservationRevision:0,pageBudget:8});
+  }
+  const admittedB=await waitForSnapshot(value=>value.packages===6&&value.subjects===1);
+  assert.deepEqual(admittedB.decisions,[{source_field_id:'seat-field-b',n:1}]);
+  assert.equal(admittedB.tokens.length,1);
+  assert.equal(admittedB.tokens[0].source_field_id,'seat-field-b');
+  assert.equal(admittedB.runs,0,'Intake-to-Run waiting must retain a token');
+  await host.close();host=await createCleanServiceHost(options);cookie=await session(host,initialized.adminApiKey);
+  await new Promise(resolve=>setTimeout(resolve,1_500));
+  const restarted=snapshot();
+  assert.deepEqual(restarted.tokens,admittedB.tokens);
+  assert.equal(restarted.subjects,1);
+  const pausedA=await request('GET','/v1/admin/libra/material-fields/seat-field-a/intake-admission');
+  assert.equal(pausedA.predeckPipelineSeats,0);assert.equal(pausedA.pipelineTokensHeld,0);
+  const pausedB=await seats('seat-field-b',0);
+  assert.equal(pausedB.pipelineTokensHeld,1,'Reducing capacity must retain admitted work');
+  assert.equal(pausedB.pipelineSeatsFree,0);
+  assert.deepEqual(await seats('seat-field-b',0),pausedB,'Repeated PATCH must keep the durable policy revision');
+  await seats('seat-field-a',1);
+  const admittedA=await waitForSnapshot(value=>value.subjects===2);
+  assert.equal(admittedA.tokens.length,2);
+  assert.deepEqual(admittedA.decisions,[{source_field_id:'seat-field-a',n:1},{source_field_id:'seat-field-b',n:1}]);
+  assert.ok(admittedA.tokens.some(token=>JSON.stringify(token)===JSON.stringify(admittedB.tokens[0])));
+  const closedA=await seats('seat-field-a',0);assert.equal(closedA.pipelineTokensHeld,1);
+  await host.close();host=await createCleanServiceHost(options);cookie=await session(host,initialized.adminApiKey);
+  await new Promise(resolve=>setTimeout(resolve,1_500));
+  const final=snapshot();assert.deepEqual(final.tokens,admittedA.tokens);assert.equal(final.subjects,2);assert.equal(final.runs,0);
+  // With both sources paused, startup replay must not manufacture new downstream Work.
+  const workIds=final.works.map(work=>work.work_id);
+  await new Promise(resolve=>setTimeout(resolve,1_500));
+  assert.deepEqual(snapshot().works.map(work=>work.work_id),workIds);
+  const formation=await request('GET','/v1/admin/formation?limit=25');
+  assert.equal(formation.items.length,2,'Only accepted Subjects holding a token belong to the workspace');
+  await host.close();
+  // Isolated historical-state fault injection: retain the formally accepted
+  // Subject but remove only its token, as in the original UAT-175 incident.
+  // This is a rejection test, not a migration or repair path.
+  const historicalSubject=final.tokens.find(token=>token.source_field_id==='seat-field-a').subject_id;
+  const interrupted=new Database(databasePath);
+  assert.equal(interrupted.prepare('DELETE FROM libra_predeck_pipeline_tokens WHERE subject_id=?').run(historicalSubject).changes,1);
+  interrupted.close();
+  host=await createCleanServiceHost(options);cookie=await session(host,initialized.adminApiKey);
+  await new Promise(resolve=>setTimeout(resolve,1_500));
+  const historical=snapshot();
+  assert.equal(historical.subjects,2,'Historical acceptance facts must remain intact');
+  assert.deepEqual(historical.tokens,final.tokens.filter(token=>token.subject_id!==historicalSubject));
+  assert.deepEqual(historical.works.map(work=>work.work_id),workIds,'Zero seats must not recreate downstream Work for tokenless history');
+  const filtered=await request('GET','/v1/admin/formation?limit=25');
+  assert.equal(filtered.items.length,1);
+  assert.equal(filtered.items.some(item=>item.subjectId===historicalSubject),false);
+  assert.ifError(runtimeError);
+  for(const sourceFile of sourceFiles)assert.equal(fs.readFileSync(sourceFile,'utf8'),'read-only-seats-fixture');
+});
+
 function mediaProbe() {
   return Object.freeze({
     async probe(readHandle) {

@@ -614,7 +614,7 @@ export const helixAdminApi = {
   patchFieldIntakeAdmission(fieldId: string, body: { predeckPipelineSeats: number }) {
     return request<FieldIntakeAdmission>(`/v1/admin/libra/material-fields/${encodeURIComponent(fieldId)}/intake-admission`, {
       method: 'PATCH',
-      body: JSON.stringify(body),
+      body: JSON.stringify({ ...body, idempotencyKey: `field-intake:${fieldId}:${newOpaqueId()}` }),
     });
   },
   listShelves() {
