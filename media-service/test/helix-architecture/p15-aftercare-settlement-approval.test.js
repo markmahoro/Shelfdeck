@@ -582,3 +582,85 @@ test('UAT-213 old Target Settlement requires both the frozen source identity and
     assert.equal(fs.existsSync(handle.location),true);
   }finally{value.close();}
 });
+
+
+test('UAT-128 known-old subtitle Settlement survives process exit after unlink and preserves later files',()=>{
+  const {spawnSync}=require('node:child_process'),value=fixture();
+  try {
+    const x=settlementCapabilityFixture(value,['old-subtitle.ass']),old=x.files[0],
+      finalLocation=path.join(x.context.raw.shelf.target_root_location,'final-subtitle.ass');
+    fs.copyFileSync(old.location,finalLocation);
+    const final=physicalIdentity(finalLocation,'mount-1'),binding={material_key:old.identity.materialKey,
+      location:old.location,endpoint_id:'endpoint-1',binding_revision:1,mount_scope_id:'mount-1'};
+    x.context.raw.oldBindings=[{...binding,role:'offload:related_input'},{...binding,role:'product:subtitle'}];
+    x.context.raw.materials=[{material_key:final.materialKey,location:finalLocation,size_bytes:final.sizeBytes,
+      fingerprint_algorithm:final.fingerprintAlgorithm,fingerprint_version:final.fingerprintVersion,
+      content_fingerprint:final.contentFingerprint}];
+    const base={...x.handles[0],readScope:'exact_known_old_binding_settlement'};delete base.fenceDigest;
+    const handles=[{...base,fenceDigest:canonicalDigest(base)}],scope=settlementScopeDigest(handles),
+      approval=value.store.issueSettlementApproval({aftercareCaseId:'case-1',settlementScopeDigest:scope,
+        serviceCatalogRevision:1,shelfStandardRevision:3,careBasisDigest:value.frozen.digest,settlementEventId:x.eventId}),
+      payload={databasePath:value.databasePath,context:x.context,execution:{eventId:x.eventId,idempotencyKey:'known-old-restart',
+        effectOccurredAtMs:12000,ownerScope:{processId:'entry-1'},namedInputs:{supersededInventoryHandleList:handles,
+          aftercareSettlementApproval:{...x.approvalHandle,approvalId:approval.approvalId,
+            exactEffectScopeDigest:scope,invalidatingFactDigests:[value.frozen.digest]}}}},
+      payloadPath=path.join(value.root,'restart-input.json');
+    const seed=new Database(value.databasePath);
+    seed.prepare('INSERT INTO arca_shelf_entries (shelf_entry_id,status) VALUES (?,?)').run('entry-1','active');
+    assert.deepEqual(seed.pragma('foreign_key_check'),[]);seed.close();
+    fs.writeFileSync(payloadPath,JSON.stringify(payload));
+    const child=String.raw`
+      const fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto');
+      const root=process.argv[1],input=JSON.parse(fs.readFileSync(process.argv[2],'utf8')),mode=process.argv[3];
+      const req=name=>require(path.join(root,name));
+      const {openSqliteKernel}=req('src/helix/foundation/persistence/sqlite-kernel');
+      const {createSqliteUnitOfWork}=req('src/helix/foundation/persistence/sqlite-unit-of-work');
+      const {createAftercareStore}=req('src/helix/domains/arca/persistence/aftercare-store');
+      const {createAftercareCapabilityPorts}=req('src/helix/domains/arca/capabilities/aftercare-capability-ports');
+      const {CAPABILITY_REFS:C}=req('src/helix/domains/arca/model/aftercare-contract');
+      const generated=path.join(root,'src/helix/foundation/persistence/generated');
+      const schemaManifest=JSON.parse(fs.readFileSync(path.join(generated,'clean-schema.manifest.json'),'utf8'));
+      const kernel=openSqliteKernel({Database:req('node_modules/better-sqlite3'),databasePath:input.databasePath,
+        schemaDdl:fs.readFileSync(path.join(generated,'clean-schema.sql'),'utf8'),schemaManifest,now:()=>12000});
+      const unitOfWork=createSqliteUnitOfWork({kernel}),durable=createAftercareStore({schemaManifest,unitOfWork,now:()=>12000});
+      const store={...durable,consumeSettlementApproval:value=>{
+        if(mode==='crash')process.exit(73);
+        return durable.consumeSettlementApproval(value);
+      }};
+      const ports=createAftercareCapabilityPorts({schemaManifest,unitOfWork,
+        contextReader:{store,read:()=>input.context,inventoryMaterials:()=>[]},workResultReader:{},
+        registry:{resolve:()=>({manifest:{contractVersion:1}})},computeBoundedMaterialFingerprintSync:location=>({
+          stat:fs.statSync(location),fingerprintAlgorithm:'sha256',fingerprintVersion:1,
+          contentFingerprint:crypto.createHash('sha256').update(fs.readFileSync(location)).digest('hex')})});
+      if(mode==='replay')input.execution.recoveryDecision='already_committed';
+      ports[C.settlement].execute(input.execution).then(result=>{console.log(JSON.stringify(result));kernel.close();})
+        .catch(error=>{console.log(JSON.stringify({error:error.code||error.message}));kernel.close();process.exitCode=1;});
+    `;
+    const run=mode=>spawnSync(process.execPath,['-e',child,path.resolve(__dirname,'../..'),payloadPath,mode],
+      {encoding:'utf8',timeout:15000});
+    const authorizedBindings=payload.context.raw.oldBindings;
+    for(const invalidBindings of [[authorizedBindings[1]],[authorizedBindings[0],authorizedBindings[0]]]){
+      payload.context.raw.oldBindings=invalidBindings;fs.writeFileSync(payloadPath,JSON.stringify(payload));
+      const denied=run('recover');assert.equal(denied.status,0,denied.stdout+denied.stderr);
+      assert.equal(JSON.parse(denied.stdout).code,'ARCA_AFTERCARE_SETTLEMENT_HANDLE_INVALID');
+      assert.equal(fs.existsSync(old.location),true);
+      assert.equal(value.store.getSettlementApproval('case-1',scope).state,'active');
+    }
+    payload.context.raw.oldBindings=authorizedBindings;fs.writeFileSync(payloadPath,JSON.stringify(payload));
+    const crashed=run('crash');assert.equal(crashed.status,73,crashed.stdout+crashed.stderr);
+    assert.equal(fs.existsSync(old.location),false);
+    assert.equal(value.store.getSettlementApproval('case-1',scope).state,'active');
+    assert.equal(physicalIdentity(finalLocation,'mount-1').materialKey,final.materialKey);
+    const recovered=run('recover');assert.equal(recovered.status,0,recovered.stdout+recovered.stderr);
+    assert.equal(value.store.getSettlementApproval('case-1',scope).state,'consumed');
+    const replay=run('replay');assert.equal(replay.status,0,replay.stdout+replay.stderr);
+    assert.deepEqual(JSON.parse(replay.stdout),JSON.parse(recovered.stdout));
+    fs.mkdirSync(path.dirname(old.location),{recursive:true});fs.writeFileSync(old.location,'later unrelated subtitle');
+    const conflict=run('replay');assert.equal(conflict.status,0,conflict.stdout+conflict.stderr);
+    assert.equal(JSON.parse(conflict.stdout).kind,'failed');
+    assert.equal(JSON.parse(conflict.stdout).retryDirective,'never');
+    assert.equal(JSON.parse(conflict.stdout).code,'ARCA_AFTERCARE_SETTLEMENT_REPLAY_REALITY_CONFLICT');
+    assert.equal(fs.readFileSync(old.location,'utf8'),'later unrelated subtitle');
+    assert.equal(physicalIdentity(finalLocation,'mount-1').materialKey,final.materialKey);
+  } finally { value.close(); }
+});
