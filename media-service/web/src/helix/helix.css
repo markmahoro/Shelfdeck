@@ -536,6 +536,11 @@ button, input, select, textarea { font: inherit; }
 .dialog-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 18px; border-bottom: 1px solid var(--line); }
 .dialog-body { display: grid; gap: 12px; padding: 18px; }
 .dialog-body p { margin: 0; font-size: 14px; line-height: 1.55; }
+.shelf-deregister-dialog { width: min(560px, calc(100vw - 32px)); max-width: none; max-height: 90vh; margin: auto; padding: 0; border: 0; border-radius: 10px; color: var(--ink); }
+.shelf-deregister-dialog::backdrop { background: rgba(20, 35, 35, .45); }
+.shelf-deregister-dialog .dialog { width: 100%; max-height: none; }
+.shelf-deregister-dialog .shelf-deregister-ack { display: flex; align-items: flex-start; gap: 10px; line-height: 1.55; }
+.shelf-deregister-dialog .shelf-deregister-ack input[type="checkbox"] { flex: 0 0 auto; width: 18px; height: 18px; min-height: 0; margin: 2px 0 0; padding: 0; }
 .dialog-actions { display: flex; justify-content: flex-end; gap: 8px; padding: 14px 18px; border-top: 1px solid var(--line); }
 
 @media (max-width: 900px) {

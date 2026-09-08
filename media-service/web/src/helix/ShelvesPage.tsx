@@ -1,4 +1,4 @@
-import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { newOpaqueId } from './id';
 import {
   AdminApiError,
@@ -187,6 +187,17 @@ export default function ShelvesPage() {
   const [templateId, setTemplateId] = useState(SYSTEM_TEMPLATE_ID);
   const [placement, setPlacement] = useState<ShelfPlacementPolicy>({ ...DEFAULT_PLACEMENT });
   const [confirmShelf, setConfirmShelf] = useState<Shelf | null>(null);
+  const deregistrationDialog = useRef<HTMLDialogElement>(null);
+  const deregistrationTrigger = useRef<HTMLButtonElement | null>(null);
+  useEffect(() => {
+    if (!confirmShelf) return;
+    const dialog = deregistrationDialog.current;
+    dialog?.showModal();
+    return () => {
+      dialog?.close();
+      if (deregistrationTrigger.current?.isConnected) deregistrationTrigger.current.focus();
+    };
+  }, [confirmShelf]);
   const [enteredShelfName, setEnteredShelfName] = useState('');
   const [preserveFilesAcknowledged, setPreserveFilesAcknowledged] = useState(false);
   const [releaseControlAcknowledged, setReleaseControlAcknowledged] = useState(false);
@@ -463,7 +474,7 @@ export default function ShelvesPage() {
           <Button type="button" onClick={() => openStandard(shelf)}>复制并修改电影整理标准</Button>
           <Button type="button" onClick={() => openBind(shelf)}>更换规则模板</Button>
           <Button type="button" onClick={() => openPlacement(shelf)}>调整目录布局</Button>
-          <Button variant="danger" type="button" onClick={() => { setConfirmShelf(shelf); setEnteredShelfName(''); setPreserveFilesAcknowledged(false); setReleaseControlAcknowledged(false); }}>注销收藏架</Button>
+          <Button variant="danger" type="button" onClick={(event) => { deregistrationTrigger.current = event.currentTarget; setConfirmShelf(shelf); setEnteredShelfName(''); setPreserveFilesAcknowledged(false); setReleaseControlAcknowledged(false); }}>注销收藏架</Button>
         </div>}
         <details><summary>技术标识</summary><code>{shelf.shelfId}</code><code>{shelf.target.endpointId}</code><code>{shelf.target.mountScopeId}</code></details>
         {shelf.status === 'deregistering' && <div className="template-preview" aria-live="polite"><strong>正在安全注销</strong><small>{shelf.deregistrationSummary.process?.blockingReason || '文件和目标目录不会被修改。'}</small></div>}
@@ -535,21 +546,27 @@ export default function ShelvesPage() {
         </div>
       </div>
     </div>}
-    {confirmShelf && <div className="dialog-scrim" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setConfirmShelf(null); }}>
-      <div className="dialog" role="dialog" aria-modal="true" aria-labelledby="shelf-deregister-title">
+    {confirmShelf && <dialog ref={deregistrationDialog} className="shelf-deregister-dialog" aria-labelledby="shelf-deregister-title" onCancel={() => setConfirmShelf(null)} onClick={(event) => { if (event.target === event.currentTarget) setConfirmShelf(null); }} onKeyDown={(event) => {
+      if (event.key !== 'Tab') return;
+      const controls = Array.from(event.currentTarget.querySelectorAll<HTMLElement>('input:not(:disabled), button:not(:disabled)'));
+      const first = controls[0], last = controls[controls.length - 1];
+      if (event.shiftKey && event.target === first) { event.preventDefault(); last?.focus(); }
+      else if (!event.shiftKey && event.target === last) { event.preventDefault(); first?.focus(); }
+    }}>
+      <div className="dialog">
         <div className="dialog-head"><h2 id="shelf-deregister-title">永久注销“{confirmShelf.name}”</h2></div>
         <div className="dialog-body">
           <p>当前包含 {confirmShelf.deregistrationSummary.entryCount} 个收藏条目。进行中的上架、退出和健康修复会先安全收口。</p>
           <p>所有文件和目标目录都会原样保留。收藏记录会结束，且不可恢复。</p>
           <label><span>输入完整收藏架名称确认</span><input autoFocus value={enteredShelfName} onChange={(event) => setEnteredShelfName(event.target.value)} /></label>
-          <label><input type="checkbox" checked={preserveFilesAcknowledged} onChange={(event) => setPreserveFilesAcknowledged(event.target.checked)} /><span>我理解目标目录和其中全部文件将原样保留。</span></label>
-          <label><input type="checkbox" checked={releaseControlAcknowledged} onChange={(event) => setReleaseControlAcknowledged(event.target.checked)} /><span>我确认结束此收藏架对已上架文件的管理。</span></label>
+          <label className="shelf-deregister-ack"><input type="checkbox" checked={preserveFilesAcknowledged} onChange={(event) => setPreserveFilesAcknowledged(event.target.checked)} /><span>我理解目标目录和其中全部文件将原样保留。</span></label>
+          <label className="shelf-deregister-ack"><input type="checkbox" checked={releaseControlAcknowledged} onChange={(event) => setReleaseControlAcknowledged(event.target.checked)} /><span>我确认结束此收藏架对已上架文件的管理。</span></label>
         </div>
         <div className="dialog-actions">
           <Button type="button" onClick={() => setConfirmShelf(null)}>返回</Button>
           <Button variant="danger" type="button" disabled={loading || enteredShelfName !== confirmShelf.name || !preserveFilesAcknowledged || !releaseControlAcknowledged} onClick={() => void deregisterShelf()}>永久注销收藏架</Button>
         </div>
       </div>
-    </div>}
+    </dialog>}
   </section>;
 }

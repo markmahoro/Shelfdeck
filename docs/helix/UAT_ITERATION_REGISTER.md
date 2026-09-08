@@ -232,7 +232,7 @@
 | UAT-220 | 统一UAT总表、逐项证据对账与工程规则整理 | 当前迭代 | 已关闭（文档验收） | PROD-077；PROD-078 | 1d5226327 | [覆盖与检查证据](implementation/evidence/UAT-220_REGISTER_CONSOLIDATION_20260908.md)；治理前序提交1d5226327 | 无；功能现场验证仍由各自UAT逐项推进 |
 | UAT-221 | 侧栏「收藏运营台」「本地 Projection」对用户无意义 | UI / `COPY_REDUNDANT` | 生产验收关闭 | UX-003 | 1a3f4254dc | [逐项验收](implementation/evidence/UAT-221_237_238_SHELL_ACCEPTANCE_20260909.md) | 无该项剩余；历史实现、各自代码依据、生产八页及适用隔离浏览器/测试证据已核对。 |
 | UAT-222 | 文件来源把候选包、访问合同、Observation、Handoff A 当作主文案 | UI / `COPY_INTERNAL` | 生产浏览器验收关闭 | UX-004 | b2978c1512 | [主文案验收](implementation/evidence/UAT-222_SOURCE_COPY_ACCEPTANCE_20260908.md)；[UX-004原记录（按标题）](ADMIN_WEB_UX_ISSUE_LOG.md) | 原问题、本地多来源/回归证据及生产展开/刷新验收通过，无该项剩余；[发布关闭证据](implementation/evidence/UAT_RELEASE_B2978C1512_20260909.md)。 |
-| UAT-223 | 收藏架/注销确认暴露 Routing、Material Control、On-deck 责任账 | UI / `COPY_INTERNAL` | 历史已实现，待验收核对 | UX-005 | 见证据 | [UX-005原记录（按标题）](ADMIN_WEB_UX_ISSUE_LOG.md) | 收藏架与注销确认不泄露内部责任账，非破坏性注销说明与精确范围保留。执行B4；依赖/承接：无；关联235。 |
+| UAT-223 | 收藏架/注销确认暴露 Routing、Material Control、On-deck 责任账 | UI / `COPY_INTERNAL` | 已验收关闭 | UX-005 | 2026-09-09 | [独立验收](implementation/evidence/UAT-223_235_SHELF_DIALOG_20260909.md) | 收藏架与注销确认不泄露内部责任账，非破坏性注销说明与精确范围保留。执行B4；依赖/承接：无；关联235。 |
 | UAT-224 | 退出收藏把 Policy AST、Case、Reservation、原始 ID 直接铺开 | UI / `COPY_INTERNAL` | 生产验收关闭 | UX-007 | 7608c517cd | [UX-007原记录（按标题）](ADMIN_WEB_UX_ISSUE_LOG.md) | 无该项剩余；逐项真实媒体/恢复/生产交互依据见[独立关闭](implementation/evidence/UAT_RELEASE_7608C517CD_20260909.md)。246首屏读取独立开放。 |
 | UAT-225 | 设置页 Provider / Landing / revision / Event 术语未翻译 | UI / `COPY_INTERNAL` | 历史已实现，待验收核对 | UX-008 | 见证据 | [UX-008原记录（按标题）](ADMIN_WEB_UX_ISSUE_LOG.md) | 设置连接/日志/资源主文案翻译，诊断可保留技术项，不能隐藏实际错误。执行B4；依赖/承接：130/172。 |
 | UAT-226 | 已完成整理仍显示「尚未形成整理动作」 | UI / `COPY_CONFLICT` | 历史已实现，待验收核对 | UX-009 | 见证据 | [UX-009原记录（按标题）](ADMIN_WEB_UX_ISSUE_LOG.md) | 已完成整理有正式完成依据，不显示尚未形成动作；新旧结果分别核对。执行B3；依赖/承接：212；关联051。 |
@@ -244,7 +244,7 @@
 | UAT-232 | 退出收藏页卡片/行/危险阶段无样式，JSON 规则编辑器直出 | UI / `LAYOUT` | 生产验收关闭 | UX-015 | 7608c517cd | [UX-015原记录（按标题）](ADMIN_WEB_UX_ISSUE_LOG.md) | 无该项剩余；逐项真实媒体/恢复/生产交互依据见[独立关闭](implementation/evidence/UAT_RELEASE_7608C517CD_20260909.md)。246首屏读取独立开放。 |
 | UAT-233 | 媒体整理「当前媒体」九列表格未用尽横轴且内部横向溢出 | UI / `LAYOUT` | 历史已实现，待验收核对 | UX-016 | 见证据 | [UX-016原记录（按标题）](ADMIN_WEB_UX_ISSUE_LOG.md) | 整理表在1440/1280及窄屏可读，无内部横向溢出或九列旧约束。执行B3；依赖/承接：212。 |
 | UAT-234 | 四项整理统计塞进三列 `source-facts` 栅格 | UI / `LAYOUT` | 历史已实现，待验收核对 | UX-017 | 见证据 | [UX-017原记录（按标题）](ADMIN_WEB_UX_ISSUE_LOG.md) | 当前统计布局与实际筛选一致，终态失败不计当前待办。执行B3；依赖/承接：212。 |
-| UAT-235 | 收藏架注销确认框没有对话框样式 | UI / `LAYOUT` | 历史已实现，待验收核对 | UX-018 | 见证据 | [UX-018原记录（按标题）](ADMIN_WEB_UX_ISSUE_LOG.md) | 注销对话框样式/焦点/取消完整，隔离fixture验不修改生产Shelf。执行B4；依赖/承接：223。 |
+| UAT-235 | 收藏架注销确认框没有对话框样式 | UI / `LAYOUT` | 本地修正通过，待发布核对 | UX-018 | 见证据 | [布局/焦点证据](implementation/evidence/UAT-223_235_SHELF_DIALOG_20260909.md) | 注销对话框样式/焦点/取消完整，隔离fixture验不修改生产Shelf。执行B4；依赖/承接：223。 |
 | UAT-236 | 收藏详情「退出收藏」区域与 `sr-only` 缺少样式 | UI / `LAYOUT` | 历史已实现，待验收核对 | UX-019 | 见证据 | [UX-019原记录（按标题）](ADMIN_WEB_UX_ISSUE_LOG.md) | 收藏详情退出区域与辅助文本样式可访问，回收站只在设置。执行B3；依赖/承接：212；143退出行为。 |
 | UAT-237 | 登录会话在八页各自复制，文案和布局不一致 | UI / `LAYOUT` | 生产验收关闭 | UX-020 | 1a3f4254dc | [逐项验收](implementation/evidence/UAT-221_237_238_SHELL_ACCEPTANCE_20260909.md) | 无该项剩余；历史实现、各自代码依据、生产八页及适用隔离浏览器/测试证据已核对。 |
 | UAT-238 | 两套 CSS 与一套废弃 `src/pages` 并存 | UI / `LAYOUT` | 生产验收关闭 | UX-021 | 1a3f4254dc | [逐项验收](implementation/evidence/UAT-221_237_238_SHELL_ACCEPTANCE_20260909.md) | 无该项剩余；历史实现、各自代码依据、生产八页及适用隔离浏览器/测试证据已核对。 |

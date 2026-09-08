@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { helixAdminApi, type RuleTemplate, type Shelf } from '../src/helix/api';
 import ShelvesPage from '../src/helix/ShelvesPage';
 import { SessionProvider } from '../src/helix/session';
@@ -63,12 +63,63 @@ function renderShelves() {
 }
 
 describe('Shelf Standard and Placement publish', () => {
+  const dialogMethods = ['showModal', 'close'] as const;
+  const dialogDescriptors = dialogMethods.map((method) => Object.getOwnPropertyDescriptor(HTMLDialogElement.prototype, method));
+  beforeAll(() => {
+    // JSDOM has no native modal implementation; real browser focus is verified separately.
+    Object.defineProperties(HTMLDialogElement.prototype, {
+      showModal: { configurable: true, value(this: HTMLDialogElement) { this.open = true; } },
+      close: { configurable: true, value(this: HTMLDialogElement) { this.open = false; } },
+    });
+  });
+  afterAll(() => dialogMethods.forEach((method, index) => {
+    const descriptor = dialogDescriptors[index];
+    if (descriptor) Object.defineProperty(HTMLDialogElement.prototype, method, descriptor);
+    else Reflect.deleteProperty(HTMLDialogElement.prototype, method);
+  }));
   afterEach(() => vi.restoreAllMocks());
 
   function mockCatalog() {
     vi.spyOn(helixAdminApi, 'listShelves').mockResolvedValue({ items: [shelf] });
     vi.spyOn(helixAdminApi, 'listRuleTemplates').mockResolvedValue({ items: [template] });
   }
+
+  it('requires the exact shelf name and both acknowledgements, and cancels without deregistration', async () => {
+    mockCatalog();
+    const deregister = vi.spyOn(helixAdminApi, 'deregisterShelf');
+    renderShelves();
+    const trigger = await screen.findByRole('button', { name: '注销收藏架', exact: true });
+    fireEvent.click(trigger);
+    const input = screen.getByRole('textbox', { name: '输入完整收藏架名称确认' });
+    expect(input).toHaveFocus();
+    const confirm = screen.getByRole('button', { name: '永久注销收藏架', exact: true });
+    expect(confirm).toBeDisabled();
+    fireEvent.keyDown(input, { key: 'Tab', shiftKey: true });
+    expect(screen.getByRole('button', { name: '返回', exact: true })).toHaveFocus();
+    fireEvent.keyDown(screen.getByRole('button', { name: '返回', exact: true }), { key: 'Tab' });
+    expect(input).toHaveFocus();
+    fireEvent.change(input, { target: { value: shelf.name } });
+    fireEvent.click(screen.getByRole('checkbox', { name: '我理解目标目录和其中全部文件将原样保留。' }));
+    expect(confirm).toBeDisabled();
+    fireEvent.click(screen.getByRole('checkbox', { name: '我确认结束此收藏架对已上架文件的管理。' }));
+    expect(confirm).toBeEnabled();
+    confirm.focus();
+    fireEvent.keyDown(confirm, { key: 'Tab' });
+    expect(input).toHaveFocus();
+    fireEvent.change(input, { target: { value: shelf.name + ' ' } });
+    expect(confirm).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: '返回', exact: true }));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(trigger).toHaveFocus();
+    expect(deregister).not.toHaveBeenCalled();
+    fireEvent.click(trigger);
+    expect(screen.getByRole('textbox', { name: '输入完整收藏架名称确认' })).toHaveValue('');
+    expect(screen.getByRole('button', { name: '永久注销收藏架', exact: true })).toBeDisabled();
+    fireEvent(screen.getByRole('dialog'), new Event('cancel', { bubbles: false }));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(trigger).toHaveFocus();
+    expect(deregister).not.toHaveBeenCalled();
+  });
 
   it('lets an existing Movie shelf preview and publish Placement', async () => {
     mockCatalog();
