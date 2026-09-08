@@ -178,7 +178,7 @@ function parseActor(xml, child) {
     .map((item) => childText(fields, item)).filter(Boolean))];
   const identityConflict = ids.length > 1;
   const personId = identityConflict ? null : ids[0] || null;
-  return Object.freeze({ raw, name, normalizedName:normalizedName(name), personId, identityConflict,
+  return Object.freeze({ raw, name, normalizedName:normalizedName(name), personId, identityConflict, character:directText(fields, 'role') || null,
     closeStart:actor.closeStart - actor.openStart });
 }
 
@@ -331,6 +331,23 @@ function projectMovieNfoSemantics(value) {
   });
 }
 
+function projectMovieNfoPersonObservations(value) {
+  if (!readableNfo(value)) return Object.freeze({ usable:false, reasonCode:'nfo_byte_bound', actors:Object.freeze([]) });
+  const inspected = inspectAftercareMovieNfo(value);
+  if (!inspected.usable) return Object.freeze({ usable:false, reasonCode:inspected.reasonCode, actors:Object.freeze([]) });
+  const actorNodes = inspected.directChildren.filter(child => child.name === 'actor');
+  if (actorNodes.length > 256) return Object.freeze({ usable:false, reasonCode:'nfo_actor_bound', actors:Object.freeze([]) });
+  return Object.freeze({ usable:true, reasonCode:null, movieIdentity:inspected.movieIdentity,
+    actors:Object.freeze(actorNodes.map((node, ordinal) => {
+      const actor = parseActor(inspected.xml, node);
+      return Object.freeze({ ordinal, displayName:actor.name, displayNameNormalized:actor.normalizedName,
+        role:'actor', character:actor.character || null, identityConflict:actor.identityConflict === true,
+        providerIdentities:Object.freeze(/^[1-9][0-9]{0,15}$/.test(actor.personId || '') ? [Object.freeze({ provider:'tmdb', namespace:'person', providerKey:actor.personId })] : []),
+      });
+    })),
+  });
+}
+
 function compareMovieNfoPresentation(input) {
   if (input?.existingBytes === null || input?.existingBytes === undefined) {
     return Object.freeze({ matches:false, reasonCode:'source_missing' });
@@ -370,6 +387,7 @@ module.exports = Object.freeze({
   createAftercareMovieNfo,
   inspectAftercareMovieNfo,
   projectMovieNfoSemantics,
+  projectMovieNfoPersonObservations,
   rebuildAftercareMovieNfo,
   renderAftercareMovieNfo,
   updateAftercareMovieNfo,

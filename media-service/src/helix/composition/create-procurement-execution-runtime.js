@@ -506,6 +506,7 @@ function createProcurementExecutionRuntime(options) {
   peopleProcessServices=createPeopleProcessServices({
     ...options, now,
     onDeckPersonEvidenceProjection:arcaProcessServices.onDeckPersonEvidenceProjection,
+    onDeckNfoPersonEvidence:arcaProcessServices.onDeckNfoPersonEvidence,
   });
   const arcaPlanningRegistration=arcaConstruction.createPlanningRegistration({...options,registry,policyRegistry,contractValidator,workResultReader,
     contextReader:arcaProcessServices.contextReader,aftercareContextReader:arcaProcessServices.aftercareContextReader,
@@ -1032,6 +1033,10 @@ function createProcurementExecutionRuntime(options) {
       reconcile:({sourceId})=>perceptionProcessServices.periodicAcquisition
         ? perceptionProcessServices.periodicAcquisition.reconcile({sourceId})
         : Object.freeze({kind:'unavailable',sourceId}),
+    }),Object.freeze({
+      ownerDomain:'people',reconcilerKey:'ondeck-nfo-person-evidence',
+      listPage:page=>peopleProcessServices ? peopleProcessServices.listNfoPage(page) : [],
+      reconcile:scope=>peopleProcessServices ? peopleProcessServices.reconcileNfoEntry(scope) : Object.freeze({kind:'unavailable'}),
     }),Object.freeze({
       ownerDomain:'people',reconcilerKey:'ondeck-person-evidence',
       listPage:({cursor,limit})=>peopleProcessServices

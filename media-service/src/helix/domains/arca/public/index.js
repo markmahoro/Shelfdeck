@@ -2,6 +2,7 @@
 
 const { packageId } = require('./package.boundary.json');
 const { createOnDeckContextReader } = require('../application/on-deck-context-reader');
+const { createOnDeckNfoPersonEvidence } = require('../application/on-deck-nfo-person-evidence');
 const { createOnDeckPersonEvidenceProjection } = require('../application/on-deck-person-evidence-projection');
 const { createOnDeckProcessCoordinator } = require('../application/on-deck-process-coordinator');
 const { createFormationStatusProjection } = require('../application/formation-status-projection');
@@ -91,6 +92,7 @@ function createArcaExecutionRegistration() {
       const shelfDeregistrationContextReader=options.shelfDeregistrationContextReader||createShelfDeregistrationContextReader(options);
       return Object.freeze({contextReader,formationStatusProjection,
         onDeckPersonEvidenceProjection:createOnDeckPersonEvidenceProjection(options),
+        onDeckNfoPersonEvidence:createOnDeckNfoPersonEvidence({...options,contextReader:aftercareContextReader}),
         aftercareContextReader,coordinator:createOnDeckProcessCoordinator({...options,contextReader}),
         aftercareCoordinator,offdeckContextReader,
         offdeckCoordinator:createOffdeckProcessCoordinator({...options,contextReader:offdeckContextReader}),

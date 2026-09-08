@@ -181,7 +181,18 @@ function createPeopleProcessServices(options) {
     return store.dismissCandidate({ ...decision, decisionDigest: digestValue(decision) });
   }
 
+  function reconcileNfoEntry(scope) {
+    const observation = options.onDeckNfoPersonEvidence.observeEntry(scope);
+    if (observation.kind !== 'observed') return observation;
+    const results = observation.items.map(reconcile);
+    return Object.freeze({kind:'nfo_evidence_consumed',observedCount:results.length,
+      registeredCount:results.filter(item => item.kind === 'auto_accepted').length,
+      pendingCount:results.filter(item => item.kind === 'candidate_open').length});
+  }
+
   return Object.freeze({
+    listNfoPage:({cursor,limit}) => options.onDeckNfoPersonEvidence?.listPage({cursor,limit}) || [],
+    reconcileNfoEntry,
     store,
     listPage,
     reconcile,

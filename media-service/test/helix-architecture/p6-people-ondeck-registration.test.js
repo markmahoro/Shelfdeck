@@ -203,3 +203,30 @@ test('periodic Person evidence reconciliation uses exact identity and evidence l
   assert.equal(people.reconcile(weak).kind,'candidate_open');
   assert.equal(people.reconcile(weak).kind,'known');
 }));
+
+
+test('UAT-214 consumes bounded Arca NFO evidence and does not re-register unchanged content after an Inventory revision', () => fixture(({ store, unitOfWork, schemaManifest }) => {
+  const {createOnDeckNfoPersonEvidence} = require('../../src/helix/domains/arca/application/on-deck-nfo-person-evidence');
+  let revision=1, reads=0, clock=1000;
+  const raw=()=>({entry:{status:'active',current_inventory_revision:revision},shelf:{status:'active'},
+    materials:[{ordinal:0,role:'primary_payload',location:'/movie.mkv'},
+      {ordinal:1,role:'metadata_sidecar',location:'/movie.nfo',material_key:'physical'}]});
+  const projection=createOnDeckNfoPersonEvidence({now:()=>clock,contextReader:{store:{
+    currentContext:()=>raw(),listEntryPage:()=>[{cursor:'entry',scope:{shelfEntryId:'entry'}}]}},
+    readBoundedFileSnapshotSync:(location,bound)=>{
+      assert.equal(location,'/movie.nfo');assert.equal(bound,262144);reads++;
+      return {bytes:Buffer.from('<movie><actor><name>Strong Actor</name><tmdbid>987</tmdbid></actor><actor><name>Weak Actor</name></actor></movie>'),
+        contentFingerprint:canonicalDigest({bytes:'nfo'}),stat:{size:100,ino:1,mtimeNs:1,ctimeNs:1}};
+    }});
+  const people=createPeopleProcessServices({schemaManifest,unitOfWork,peopleStore:store,onDeckNfoPersonEvidence:projection});
+  const scope=people.listNfoPage({cursor:null,limit:100})[0].scope;
+  assert.deepEqual(people.reconcileNfoEntry(scope),{kind:'nfo_evidence_consumed',observedCount:2,registeredCount:1,pendingCount:1});
+  const first=projection.observeEntry(scope).items;
+  assert.equal(reads,1);
+  people.reconcileNfoEntry(scope);assert.equal(reads,1);
+  revision=2;people.reconcileNfoEntry(scope);assert.equal(reads,2);
+  assert.equal(projection.observeEntry(scope).items[0].inventoryRevision,2);
+  assert.equal(projection.observeEntry(scope).items[0].evidenceDigest,first[0].evidenceDigest);
+  assert.equal(store.listPeople().length,1);assert.equal(store.listRegistrationCandidates().length,2);
+  clock+=600001;people.reconcileNfoEntry(scope);assert.equal(reads,3);
+}));
