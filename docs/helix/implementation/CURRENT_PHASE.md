@@ -8,7 +8,7 @@
 1. 整理已确认合同及活动文档，去除旧暂停/待决策和已关闭队列；检查255项连续、状态计数、剩余57项归属及链接。历史过程保留Evidence。
 2. UAT-171已按现行Oracle关闭，见[真实媒体/生产证据](evidence/UAT-171_NFO_CURRENT_CONTRACT_ACCEPTANCE_20260909.md)。135/136已按真实ISO完整链与生产48077d71bd发布逐项关闭；132已按Windows/Linux真实Direct HEVC完整链关闭；继续137/160独立验证。
 3. UAT-210：记录更新已部署，继续单席位、批量变化、健康与处理状态分离的完整验收；已接受瑕疵及同条件重复Case部分按251已确认合同实施，不把局部通过当整项完成。
-4. 接续B1–B5：132/135/137/160与125/152使用新确认规则；172核验正式standing Authorization revision和逐Scope Approval，不以system policy取代授权。251已确认typed合同，继续实现，无待询问的旧业务决定。
+4. 接续B1–B5：137/160与125/152使用新确认规则；当前推进172，正式standing Authorization revision 1已核实，但逐Scope持久Approval及删除前授权核验缺失，见[执行链审查](evidence/UAT-172_AUTHORIZATION_EXECUTION_AUDIT_20260909.md)。251已确认typed合同，继续实现，无待询问的旧业务决定。
 5. 125/250恢复输入漂移保留精确因果证据，不吞错/Reset；209/216存量核验保护现有收藏、正常生产、sample及另一完整版本。
 
 ## 验收及保护
