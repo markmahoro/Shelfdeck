@@ -1,5 +1,8 @@
 # Helix用户侧测试待修复问题台账
 
+> 2026-09-08：本文件冻结为历史问题与验收证据，不再新增迭代编号；全部功能及UI迭代使用[统一PROD台账](PRODUCTION_DEPLOY_ISSUE_LOG.md)。旧状态是原验收时点，当前待核实项目由PROD-077对账；历史关闭不因改编号而重开。
+
+
 状态：`MOVIE CANARY USER UAT IN PROGRESS / DIRECT FIX AND COMMIT AUTHORIZED`
 
 建立日期：2026-08-20

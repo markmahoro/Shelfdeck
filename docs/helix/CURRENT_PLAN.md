@@ -1,18 +1,29 @@
-# ShelfDeck Clean Helix Master Plan
+# ShelfDeck 当前迭代计划
 
-Status: **ACTIVE：健康检查与维护Case核心实现已随6e37bf5679部署，继续完成主线开放项及真实浏览器验收。已取消5分钟自动轮询，跳过Emby审查。**
-Last updated: 2026-09-08
+更新：2026-09-08。ACTIVE；本轮未完成。全部功能、UI及修复使用[统一PROD台账](PRODUCTION_DEPLOY_ISSUE_LOG.md)，历史别名不再扩展。唯一执行包：[CURRENT_PHASE](implementation/CURRENT_PHASE.md)。
 
-唯一活动包：[CURRENT_PHASE](implementation/CURRENT_PHASE.md)。用户已针对ENGINEERING_PLAYBOOK §3.3回复“授权本任务同步修改并继续”，范围限于[精确合同调整包](implementation/evidence/USER_PAIN_CONTRACT_CHANGE_PACKET_20260907.md)。不采用Aftercare→Libra Run方案。
+## 执行顺序
 
-09-08用户进一步明确要求统一合同并更新SSOT：健康状态检查及更新作用于“我的收藏”，Aftercare Case收敛为真正上架后处理，在媒体整理区与Libra Run统一表现。该边界、独立NFO记录更新Command/Receipt/事务与机器派生已通过完整架构Gate并部署。AC-09人物观察/确定关联能力仍明确开放，不能宣称全审计关闭。两页响应须实际浏览器操作验收；详情加载反馈、倍速显示和大NFO记录同步的后续修正仍在本地验证，尚未发布。
+1. **PROD-078**：先完成工作区归属、编号与工程文档整理，本步不实施功能或操作生产。
+2. **PROD-067/068/070/071/072**：完成健康/Case全链路开放合同与后端修正；旧目录回收纳入Arca上架收尾，和健康检查分开。
+3. **PROD-069**：审查整合UI任务交付，保持列表与详情设计克制；与后端依赖一起完成真实浏览器验收。
+4. 主线统一测试与标准部署，按具体PROD记录生产验证；已授权测试后部署，无须重复申请。不得以health端点正常代替用户场景通过。
+5. **PROD-073**：存量旧目录按精确清单及物理处置授权独立推进、独立验收；不是流程修正完成的证明。
+6. **PROD-074/075**：主线后处理评分身份与码率保护支线。**PROD-076/077**保留后台待办，先核实历史Evidence，不扩大当前UI重设计。
+7. 最后清理本任务临时文件、备份与废弃worktree；先核对归属/引用/回滚用途，保留生产回滚材料和审计证据。
 
-用户确认的当前交付顺序：①Aftercare全链路审计；②全部能力分类；③SSOT及派生合同闭合；④后端对齐；⑤统一前端；⑥精确生产Case审查处置；⑦验证、标准部署与清理。第1—2步已完成，核心第3—5步已部署并进入验收，第6—7步仍在进行。09-08 12:57只读复验56部收藏、54绿/2红/0黄，原有54部全保留，三项未准入的记录型Case不在工作历史中。两项红灯旧Binding原因仍须精确核对，不以直接改健康字段关闭。证据见[本次实施](implementation/evidence/AFTERCARE_HEALTH_CASE_IMPLEMENTATION_20260908.md)。
+## 当前授权与边界
 
-用户要求主线优先；[BR-01/UAT-079与BR-02码率保护](implementation/evidence/USER_PAIN_ADDITIONAL_BRANCHES_20260908.md)仅单列分支证据，不并入当前修复或成为另一份活动计划。最终工作区清理放在主线验证后，保留生产回滚材料。
+用户授权本轮合同同步、实施、本地测试后标准生产部署；具体合同改变按已确认范围回写，工程规则不能撤销用户授权。当前最新要求先整理文档。Emby审查停止，5分钟自动轮询保持PAUSED。保护现有已上架事实；不执行清库、重新退收藏或未经精确授权的源文件清理。完成Settlement的历史路径不再重复充当健康缺口；额外NFO的物理清理不是变绿前提。
 
-补充约束：海报绿=健康、红=已确认不健康（含queued）、黄=已取得席位的维护Case、灰=未知；queued不进入整理区。黄灯关联同一维护任务，整理列表新增上架/维护任务类型列；收藏详情去重复灯，维护详情复用Libra Run设计理念与真实过程组件。
+## 工作区与交付
 
-基线：独立worktree codex/user-pain-iteration从16ea06173创建。54部已恢复收藏保持原事实；不执行清库、重新退收藏或未授权媒体源删除。生产此前停止，用户最新授权允许全部验证通过后部署并恢复运行。
+| 工作区 / 分支 | 归属与当前用途 |
+| --- | --- |
+| E:/my_project/emby_third_party-helix-iteration / codex/user-pain-iteration | 本任务集成区；代码基线1755743c1，承担主线合同/后端/整合发布；本次文档整理记PROD-078 |
+| E:/my_project/emby_third_party-helix-care-clarity / codex/formation-care-clarity | 用户指定任务“澄清媒体整理维护状态”；PROD-069交付e6b7f0424，基于1755743c1；未整合、未部署 |
+| E:/my_project/emby_third_party-helix / main | 主工作区，未作为本次编辑目标 |
+| emby_third_party-helix-baseline / codex/collection-clean-baseline | PROD-066历史基线，保留 |
+| emby_third_party-helix-prod065 / codex/prod065-settlement-failure | PROD-065历史修复，保留 |
 
-原PROD-066处理与审计见implementation/evidence。发布前完成schema变更离线备份、副本演练和收藏保护验证，不使用clean-init替代升级。
+其余Codex worktree尚未完成归属/引用审查，不自动删除。分支和目录无需为编号批量改名；PROD通过台账、提交和证据映射追溯。历史工作流水已冻结到[整理前快照](implementation/archive/20260908_PRE_PROD_CONSOLIDATION/CURRENT_PLAN.md)。

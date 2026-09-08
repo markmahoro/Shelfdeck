@@ -1,6 +1,6 @@
 # ShelfDeck / Helix 文档索引
 
-Status: Helix-beta 是 Movie-only 的完整旅程 A–I 产品；生产稳定化已完成到 PROD-064。
+Status: Helix-beta 为 Movie-only 完整旅程 A–I；当前迭代统一使用PROD编号，见CURRENT_PLAN。
 
 Last updated: 2026-09-08
 
@@ -26,9 +26,9 @@ Implementation Contract 增长而高于 SSOT 的历史 machine snapshot，但不
 | `ENGINEERING_PLAYBOOK.md` | 实施治理、Owner/Effect/验证/归档规则 |
 | `LEVEL7_BUSINESS_DECISIONS.md` | 已关闭的非 Canonical 业务决策 Evidence |
 | `ARCHITECTURE_REVIEW.md` | 已关闭的非 Canonical 架构审计记录 |
-| `PRODUCTION_DEPLOY_ISSUE_LOG.md` | PROD 问题历史台账；不替代当前状态 |
-| `USER_ACCEPTANCE_TEST_ISSUE_LOG.md` | UAT 问题历史台账 |
-| `ADMIN_WEB_UX_ISSUE_LOG.md` | Admin Web UX 台账 |
+| `PRODUCTION_DEPLOY_ISSUE_LOG.md` | 唯一PROD迭代编号台账，覆盖功能、UI、修复与运维 |
+| `USER_ACCEPTANCE_TEST_ISSUE_LOG.md` | 冻结UAT历史证据；不再新增迭代编号 |
+| `ADMIN_WEB_UX_ISSUE_LOG.md` | 冻结UX历史证据；新UI项统一使用PROD |
 
 当前本地实现机器库存为 113 Capability、99 Result family、187 tables、45 Canonical Transactions、
 127 Admin routes 与 17 UI surfaces。SSOT 顶部记录的 active architecture inventory 是设计/语义快照；两种数字的
