@@ -477,6 +477,67 @@ async function terminateProcess(child) {
     'Recovery fixture must simulate ungraceful process loss.');
 }
 
+async function crashAftercareSettlement({ root, hostOptions, apiKey, command, databasePath, oldLocations }) {
+  const signalPath=path.join(root,'aftercare-crash-boundary.json');
+  const errorPath=path.join(root,'aftercare-crash-error.json');
+  const responsePath=path.join(root,'aftercare-placement-response.json');
+  const configPath=path.join(root,'aftercare-crash-config.json');
+  const workerPath=path.join(root,'aftercare-crash-worker.cjs');
+  fs.writeFileSync(configPath,JSON.stringify({hostOptions,apiKey,command,databasePath,oldLocations,
+    signalPath,errorPath,responsePath}));
+  // The child uses the same provider fixtures and the real Host. Only the
+  // isolated, explicitly enumerated old Inventory unlink is intercepted.
+  fs.writeFileSync(workerPath,`
+    const fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto');
+    const serviceRoot=${JSON.stringify(path.resolve(__dirname,'..'))};
+    const assert=require('node:assert/strict');
+    const sharp=require(path.join(serviceRoot,'node_modules/sharp'));
+    const Database=require(path.join(serviceRoot,'node_modules/better-sqlite3'));
+    const {canonicalDigest}=require(path.join(serviceRoot,'src/helix/contracts/canonical-json'));
+    const {createCleanServiceHost}=require(path.join(serviceRoot,'src/clean-service-host'));
+    ${routingHandle.toString()}
+    ${productHandle.toString()}
+    ${productOptions.toString()}
+    const config=JSON.parse(fs.readFileSync(process.argv[2],'utf8'));
+    const keepAlive=setInterval(()=>{},1000);
+    const allowed=new Set(config.oldLocations.map(location=>path.resolve(location)));
+    const unlink=fs.promises.unlink.bind(fs.promises);
+    fs.promises.unlink=async location=>{
+      if(!allowed.has(path.resolve(String(location))))return unlink(location);
+      const db=new Database(config.databasePath,{readonly:true});
+      const approvals=db.prepare("SELECT * FROM arca_aftercare_settlement_approvals WHERE state='active'").all();
+      assert.equal(approvals.length,1);
+      const commit=db.prepare('SELECT * FROM arca_aftercare_inventory_commits WHERE aftercare_case_id=?').get(approvals[0].aftercare_case_id);
+      assert.ok(commit,'Inventory must commit before deleting an old Material');
+      const current=db.prepare('SELECT current_inventory_revision FROM arca_shelf_entries').get();
+      assert.equal(current.current_inventory_revision,commit.new_inventory_revision);
+      const inventory=db.prepare('SELECT * FROM arca_inventory_materials WHERE inventory_revision=? ORDER BY ordinal').all(current.current_inventory_revision);
+      const finalFiles=inventory.map(item=>({location:item.location,digest:crypto.createHash('sha256').update(fs.readFileSync(item.location)).digest('hex')}));
+      db.close();
+      await unlink(location);
+      fs.writeFileSync(config.signalPath,JSON.stringify({location,approval:approvals[0],commit,current,inventory,finalFiles}));
+      setInterval(()=>{},1000);
+      await new Promise(()=>{});
+    };
+    (async()=>{
+      const host=await createCleanServiceHost({...config.hostOptions,...productOptions(),deferredDeliveryKeys:[],
+        onExecutionRuntimeError(error){fs.writeFileSync(config.errorPath,JSON.stringify({code:error.code,message:error.message}));}});
+      const auth=await host.inject({method:'POST',url:'/v1/admin/session',headers:{'x-api-key':config.apiKey}});
+      assert.equal(auth.statusCode,204);
+      const result=await host.inject({...config.command,headers:{cookie:auth.headers['set-cookie']}});
+      fs.writeFileSync(config.responsePath,JSON.stringify({statusCode:result.statusCode,body:result.json()}));
+      assert.equal(result.statusCode,200);
+    })().catch(error=>{clearInterval(keepAlive);fs.writeFileSync(config.errorPath,JSON.stringify({code:error.code,message:error.message,stack:error.stack}));process.exitCode=1;});
+  `);
+  const child=spawn(process.execPath,[workerPath,configPath],{stdio:'ignore',windowsHide:true});
+  let boundary;
+  try {boundary=await waitForFile(signalPath,child,errorPath,90_000);}
+  finally {await terminateProcess(child);}
+  const response=JSON.parse(fs.readFileSync(responsePath,'utf8'));
+  assert.equal(response.statusCode,200);
+  return {boundary,response};
+}
+
 function byScenario(items, scenarioId) {
   const matches = items.filter((item) => String(item.displayIdentity || '').includes(scenarioId));
   assert.equal(matches.length, 1, scenarioId + ' must resolve to exactly one Subject.');
@@ -1057,7 +1118,7 @@ test('P14 one-movie product path accepts Handoff B and atomically establishes an
     payload:{ idempotencyKey:'aftercare-placement-preview', ...placementDraft },
   });
   assert.equal(placementPreview.statusCode, 200, placementPreview.body);
-  const placementRevision = await host.inject({
+  const placementCommand = {
     method:'PATCH', url:'/v1/admin/shelves/scenario-shelf/placement', headers:{ cookie },
     payload:{
       idempotencyKey:'aftercare-placement-publish', ...placementDraft,
@@ -1065,7 +1126,30 @@ test('P14 one-movie product path accepts Handoff B and atomically establishes an
       previewId:placementPreview.json().previewId,
       previewDigest:placementPreview.json().previewDigest,
     },
-  });
+  };
+  let placementRevision;
+  let settlementCrashBoundary=null;
+  const outsideSettlementSentinel=path.join(root,'outside-settlement.srt');
+  if(process.env.HELIX_UAT128_HOST_RESTART==='1'){
+    fs.writeFileSync(outsideSettlementSentinel,'Unrelated subtitle outside the approved scope.');
+    const beforeCrash=new Database(databasePath,{readonly:true});
+    const oldLocations=beforeCrash.prepare('SELECT location FROM arca_inventory_materials WHERE shelf_entry_id=? AND inventory_revision=?')
+      .all(entryId,initialInventoryRevision+2).map(row=>row.location);
+    beforeCrash.close();
+    assert.ok(oldLocations.length>0);
+    await host.close();
+    const crashed=await crashAftercareSettlement({root,hostOptions,apiKey:initialized.adminApiKey,
+      command:placementCommand,databasePath,oldLocations});
+    settlementCrashBoundary=crashed.boundary;
+    placementRevision={statusCode:crashed.response.statusCode,body:JSON.stringify(crashed.response.body),json:()=>crashed.response.body};
+    assert.equal(fs.existsSync(settlementCrashBoundary.location),false);
+    const interrupted=new Database(databasePath,{readonly:true});
+    assert.equal(interrupted.prepare('SELECT state FROM arca_aftercare_settlement_approvals WHERE approval_id=?')
+      .get(settlementCrashBoundary.approval.approval_id).state,'active');
+    assert.equal(interrupted.prepare("SELECT count(*) count FROM fx_workflow_events WHERE capability_ref='arca.aftercare.input_settlement.delete@1' AND state='executing' AND result_id IS NULL").get().count,1);
+    interrupted.close();
+    host=await createCleanServiceHost(hostOptions);
+  }else placementRevision=await host.inject(placementCommand);
   assert.equal(placementRevision.statusCode, 200, placementRevision.body);
   assert.equal(placementRevision.json().shelf.currentPlacementRevision, 2);
   const migrated = await waitDatabase(databasePath, (database) => {
@@ -1098,6 +1182,17 @@ test('P14 one-movie product path accepts Handoff B and atomically establishes an
   if(process.env.HELIX_UAT_213_PROJECTION_PATH)fs.writeFileSync(path.resolve(process.env.HELIX_UAT_213_PROJECTION_PATH),JSON.stringify(creationProjection.json()));
   const migrationEvidence = new Database(databasePath, { readonly:true });
   try {
+    if(settlementCrashBoundary){
+      const recoveredApproval=migrationEvidence.prepare('SELECT * FROM arca_aftercare_settlement_approvals WHERE approval_id=?')
+        .get(settlementCrashBoundary.approval.approval_id);
+      assert.deepEqual(recoveredApproval,{...settlementCrashBoundary.approval,state:'consumed'});
+      assert.deepEqual(migrationEvidence.prepare('SELECT * FROM arca_inventory_materials WHERE inventory_revision=? ORDER BY ordinal')
+        .all(settlementCrashBoundary.current.current_inventory_revision),settlementCrashBoundary.inventory);
+      for(const item of settlementCrashBoundary.finalFiles)assert.equal(crypto.createHash('sha256').update(fs.readFileSync(item.location)).digest('hex'),item.digest);
+      assert.equal(fs.readFileSync(outsideSettlementSentinel,'utf8'),'Unrelated subtitle outside the approved scope.');
+      assert.equal(migrationEvidence.prepare('SELECT state FROM arca_aftercare_cases WHERE aftercare_case_id=?')
+        .get(settlementCrashBoundary.approval.aftercare_case_id).state,'resolved');
+    }
     assert.equal(migrationEvidence.prepare('SELECT count(*) count FROM arca_shelf_target_bindings').get().count,2);
     for(const row of priorCreationRows)assert.equal(migrationEvidence.prepare('SELECT care_requirement_json FROM arca_aftercare_cases WHERE aftercare_case_id=?').get(row.aftercare_case_id).care_requirement_json,row.care_requirement_json);
     const newCase=migrationEvidence.prepare('SELECT aftercare_case_id,care_requirement_json FROM arca_aftercare_cases WHERE shelf_entry_id=?').all(entryId).find(row=>!priorCreationRows.some(old=>old.aftercare_case_id===row.aftercare_case_id));
