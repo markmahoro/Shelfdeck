@@ -1017,6 +1017,17 @@ test('P14 one-movie product path accepts Handoff B and atomically establishes an
   assert.deepEqual(reality(SOURCE_ROOT), sourceBefore);
   assert.equal(fs.readdirSync(shelf).some((item) => item.startsWith('.shelfdeck-stage-')), false);
 
+  const creationReader=new Database(databasePath,{readonly:true});
+  const priorCreationRows=creationReader.prepare('SELECT aftercare_case_id,care_requirement_json FROM arca_aftercare_cases WHERE shelf_entry_id=? ORDER BY aftercare_case_id').all(entryId);
+  creationReader.close();
+  assert.equal(priorCreationRows.length,2);
+  const {readCareObjective}=require('../src/helix/domains/arca/model/care-objective');
+  for(const row of priorCreationRows){
+    const objective=readCareObjective(JSON.parse(row.care_requirement_json));
+    assert.equal(objective.placement.target.rootLocation,shelf);
+    assert.equal(objective.placement.placementRevision,1);
+  }
+
   // A published Shelf Placement revision is an exact Aftercare Basis change.
   // Existing Inventory must migrate through the Care chain instead of being
   // rewritten by the Shelf administration command itself.
@@ -1079,9 +1090,21 @@ test('P14 one-movie product path accepts Handoff B and atomically establishes an
   assert.deepEqual(migrated, {
     inventoryRevision:initialInventoryRevision+3, resolvedCases:3, failedWorks:0, failedEvents:0,
   });
+  const creationProjection=await host.inject({method:'GET',url:'/v1/admin/care?view=work&aftercareCaseId='+encodeURIComponent(priorCreationRows[0].aftercare_case_id),headers:{cookie}});
+  assert.equal(creationProjection.statusCode,200,creationProjection.body);
+  assert.equal(creationProjection.json().items.length,1);
+  assert.equal(creationProjection.json().items[0].caseEvidence.objective.placement.target.rootLocation,shelf);
+  assert.equal(creationProjection.json().items[0].caseEvidence.objective.placement.placementRevision,1);
+  if(process.env.HELIX_UAT_213_PROJECTION_PATH)fs.writeFileSync(path.resolve(process.env.HELIX_UAT_213_PROJECTION_PATH),JSON.stringify(creationProjection.json()));
   const migrationEvidence = new Database(databasePath, { readonly:true });
   try {
     assert.equal(migrationEvidence.prepare('SELECT count(*) count FROM arca_shelf_target_bindings').get().count,2);
+    for(const row of priorCreationRows)assert.equal(migrationEvidence.prepare('SELECT care_requirement_json FROM arca_aftercare_cases WHERE aftercare_case_id=?').get(row.aftercare_case_id).care_requirement_json,row.care_requirement_json);
+    const newCase=migrationEvidence.prepare('SELECT aftercare_case_id,care_requirement_json FROM arca_aftercare_cases WHERE shelf_entry_id=?').all(entryId).find(row=>!priorCreationRows.some(old=>old.aftercare_case_id===row.aftercare_case_id));
+    assert.ok(newCase);
+    assert.equal(readCareObjective(JSON.parse(newCase.care_requirement_json)).placement.target.rootLocation,migratedShelf);
+    assert.equal(readCareObjective(JSON.parse(newCase.care_requirement_json)).placement.placementRevision,2);
+
     const locations = migrationEvidence.prepare(
       `SELECT endpoint_id,location FROM arca_inventory_materials WHERE shelf_entry_id=? AND inventory_revision=${initialInventoryRevision+3} ORDER BY ordinal`,
     ).all(entryId);
@@ -1113,6 +1136,7 @@ test('P14 one-movie product path accepts Handoff B and atomically establishes an
   try {
     assert.equal(restarted.prepare('SELECT count(*) count FROM arca_shelf_entries').get().count, 1);
     assert.equal(restarted.prepare('SELECT count(*) count FROM arca_shelf_target_bindings').get().count,2);
+    for(const row of priorCreationRows)assert.equal(restarted.prepare('SELECT care_requirement_json FROM arca_aftercare_cases WHERE aftercare_case_id=?').get(row.aftercare_case_id).care_requirement_json,row.care_requirement_json);
     assert.equal(restarted.prepare('SELECT count(*) count FROM arca_ondeck_runs').get().count, 1);
     assert.equal(restarted.prepare('SELECT count(*) count FROM arca_ondeck_commit_receipts').get().count, 1);
     const cleanup=restarted.prepare('SELECT * FROM arca_source_cleanup_checks').all();

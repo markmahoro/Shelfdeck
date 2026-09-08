@@ -173,3 +173,12 @@ it('does not present a retained progress sample as current work after a Case has
   expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
   expect(screen.getByText('旧文件收尾或收藏提交失败，本次维护已停止。')).toBeInTheDocument();
 });
+
+
+it('explains the saved artifact and media targets without exposing unrestricted enum values',()=>{
+  render(<CareWorkDetail item={{aftercareCaseId:'artifact-case',shelfEntryId:'entry',displayIdentity:'资料修复',state:'resolved',classification:'completed',goals:['poster_missing'],createdAtMs:1,terminalAtMs:2,reasonCode:'reassessed_healthy',
+    caseEvidence:{objective:{requirementsDigest:'a'.repeat(64),requirements:{mandatoryMedia:{videoCodec:'any',container:'any',minimumRasterClass:'none'},metadata:{requiredArtifactKinds:['nfo','poster'],requiredFieldCodes:['title','actor']},inventory:{requiredMaterializedArtifactKinds:['nfo','poster']}}}},
+  } as Parameters<typeof CareWorkDetail>[0]['item']}/>);
+  expect(screen.getByText('当时目标：必需资料：NFO资料、海报；资料包含：片名、演员。')).toBeInTheDocument();
+  expect(screen.queryByText(/视频编码 any|封装 any/)).not.toBeInTheDocument();
+});

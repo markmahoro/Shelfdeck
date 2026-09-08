@@ -24,6 +24,22 @@ function actionDetail(item:CareWorkItem){if(isTerminal(item))return null;const a
 function reasonText(item:CareWorkItem){return item.reasonCode?(reasons[item.reasonCode]||'本次处理已结束，具体原因见处理步骤与技术信息。'):null;}
 function time(value:number|null){return value?new Intl.DateTimeFormat('zh-CN',{dateStyle:'medium',timeStyle:'short'}).format(value):'—';}
 function bytes(value:number){return `${(value/1073741824).toFixed(2)} GiB`;}
+function objectiveText(item:CareWorkItem){
+  const requirements=item.caseEvidence?.objective?.requirements;if(!requirements)return '';
+  const media=requirements.mandatoryMedia,limit=requirements.space?.maxSizeBytes??
+    (requirements.space?.maxSizeGiB!=null?requirements.space.maxSizeGiB*1073741824:null);
+  const artifacts=[...new Set([...(requirements.metadata?.requiredArtifactKinds||[]),...(requirements.inventory?.requiredMaterializedArtifactKinds||[])])];
+  const names:Record<string,string>={nfo:'NFO资料',poster:'海报',actor:'演员',director:'导演',genre:'类型',plot:'简介',title:'片名',tmdb_movie_id:'TMDB影片身份',year_or_release_date:'年份或上映日期',release_date:'上映日期'};
+  return [limit!=null?`体积不超过 ${bytes(limit)}`:null,
+    media?.videoCodec&&media.videoCodec!=='any'?`视频编码 ${media.videoCodec.toUpperCase()}`:null,
+    media?.container&&media.container!=='any'?`封装 ${media.container.toUpperCase()}`:null,
+    media?.minimumRasterClass&&media.minimumRasterClass!=='none'?`画幅至少 ${media.minimumRasterClass.toUpperCase()}`:null,
+    media?.fileExtension&&media.fileExtension!=='any'?`文件格式 ${media.fileExtension}`:null,
+    media?.acceptedPrimaryAudioClasses?.length?'高质量主音轨':null,
+    artifacts.length?`必需资料：${artifacts.map(kind=>names[kind]||kind).join('、')}`:null,
+    requirements.metadata?.requiredFieldCodes?.length?`资料包含：${requirements.metadata.requiredFieldCodes.map(code=>names[code]||code).join('、')}`:null,
+  ].filter(Boolean).join('；')||'按创建时保存的收藏要求处理';
+}
 function currentHealthText(item:CareWorkItem){const health=item.currentHealth;
   if(!health)return '暂时无法读取当前收藏状态';
   if(health.maintenanceState==='active')return health.maintenanceCaseId===item.aftercareCaseId?'本次维护进行中':'正在进行新的维护';
@@ -41,11 +57,7 @@ export function CareWorkDetail({item,error=''}:{item:CareWorkItem;error?:string}
     <section className="formation-stage-body" aria-label="维护原因与结果">
       <p><strong>当时为什么处理：</strong>{triggerText(item)}</p>
       {item.caseEvidence?.originalPrimaryBytes!=null&&<p>建单时正片 {bytes(item.caseEvidence.originalPrimaryBytes)}{item.caseEvidence.currentPrimaryBytes!=null?`；当前记录正片 ${bytes(item.caseEvidence.currentPrimaryBytes)}`:''}。</p>}
-      {item.caseEvidence?.objective ? <p>当时目标：{[
-        item.caseEvidence.objective.requirements.space?.maxSizeBytes != null ? `体积不超过 ${bytes(item.caseEvidence.objective.requirements.space.maxSizeBytes)}` : null,
-        item.caseEvidence.objective.requirements.mandatoryMedia?.videoCodec ? `视频编码 ${item.caseEvidence.objective.requirements.mandatoryMedia.videoCodec}` : null,
-        item.caseEvidence.objective.requirements.mandatoryMedia?.container ? `封装 ${item.caseEvidence.objective.requirements.mandatoryMedia.container}` : null,
-      ].filter(Boolean).join('；') || '按创建时保存的收藏要求处理'}。</p> : <p>未记录当时具体目标；当前收藏要求不代表当时目标。</p>}
+      {item.caseEvidence?.objective ? <p>当时目标：{objectiveText(item)}。</p> : <p>未记录当时具体目标；当前收藏要求不代表当时目标。</p>}
       {item.goals.some(goal=>goal.split(/[/:]/).includes('placement_unmet'))&&(item.caseEvidence?.objective?.placement?<>
         <p style={{overflowWrap:'anywhere'}}>当时收藏根目录：{item.caseEvidence.objective.placement.target.rootLocation}</p>
         {item.caseEvidence.objective.placement.policy.folderTemplate&&<p style={{overflowWrap:'anywhere'}}>当时文件夹规则：{item.caseEvidence.objective.placement.policy.folderTemplate}</p>}

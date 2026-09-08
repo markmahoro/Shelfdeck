@@ -1,6 +1,6 @@
 # UAT-213：维护创建目标快照
 
-2026-09-08，本地实施，未部署、未验收关闭。
+2026-09-08，基础创建快照与原Target Binding已随696b122da4部署；下述早期“未部署”均为当时快照。23:40新增非媒体目标展示尚未发布，未验收关闭。
 
 - Arca创建CareRequirement时冻结有效要求的规范JSON及digest、Inventory/Standard/Placement revision、Decision Fact Set digest及已知正片总字节。使用原有Case原子持久化，不增表、不倒填旧Case。
 - 执行与显示的finding枚举排除target/basis/source元参数，防止目标JSON被解释成新问题。旧Case缺快照明确未知。页面显示保存的体积/编码/封装目标，不重算当前Policy。
@@ -20,3 +20,14 @@
 最终本地复验：Service串行529项中510 PASS/19环境SKIP/0 FAIL；所跳过的隔离媒体长链另行运行69.8s PASS，含Binding创建1条/迁移2条/重启仍2条断言；UAT-215独立媒体链也已PASS。24项Settlement/负向复验通过。当前仍未部署。
 
 创建目标展示补验：新Case另存完整Target/Placement规则JSON与摘要，旧Case缺证保持未知。14定向及222文件门禁PASS，Web59/build PASS；Edge详情显示创建时根目录/文件夹和命名规则，390px页面与366px对话框无横向溢出，视口恢复。真实媒体维护链70.1s PASS。仍待统一部署验收。
+
+
+## 23:40 实际创建目标不可变与非媒体目标显示
+
+真实 one-movie Host 链路新增逐字节断言：前两次 NFO/海报维护的完整 CareRequirement JSON 在后续 Target 修订、第三次迁移维护及 Host 重启后均不变；两旧 Case 保留原目录/revision 1，新迁移 Case 保存新目录/revision 2。GET care 精确 Case 投影也保留旧目标。链路 70.97 秒 PASS，无跳过。
+
+用该真实 GET 返回体在本地 Admin Web 展示，发现页面只显示 `videoCodec any/container any`，遗漏 NFO/海报及人物资料要求。已改为展示保存快照内的具体媒体约束、必需资料和资料字段，去除不限制的 any/none，去重 metadata/inventory 的重复资料要求；不读取当前 Policy 倒填。65 项 Web 测试及 Web build PASS，Edge 页面已显示 NFO、海报与演员/导演等实际创建目标。
+
+基础快照和 Binding 当前已部署；此次 UI 修正未包含在 d24f13b3db 候选，必须重新绑定提交构建后再做生产浏览器验收。旧生产 Case 缺历史证据仍明确未知，不为验收新建生产故障或修改影片。本项尚未关闭；251未决的修复意图仍单独开放。
+
+原始本地材料：`.codex/uat213-real-objective-chain.log`、`.codex/uat213-real-case-projection.json`（真实隔离 Host DTO）、`.codex/uat213-objective-web.log`、`.codex/uat213-objective-build.log`。未修改生产数据。
