@@ -1764,6 +1764,7 @@ async function createCleanServiceHost(options) {
     now: options.now || Date.now,
   });
   const overviewQuery = createOverviewProjectionHost({
+    onError: options.onExecutionRuntimeError,
     readMaterialFields: () => procurementAdmin.overviewStats(),
     readShelves: () => arcaShelfAdmin.overviewStats(),
     readStandingAuthorization: () => inputSettlementAuthorizationStore.current(),
