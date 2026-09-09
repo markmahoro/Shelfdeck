@@ -443,6 +443,7 @@ export type WorkspaceRootSettings = {
 
 export type OverviewProjection = {
   generatedAt: string;
+  projection?: { state: 'ready' | 'stale' | 'failed'; ageMs: number };
   systemState: { kind:'unconfigured'|'running'|'faulted'; label:string; href:string };
   metrics: Array<{ key:string; label:string; value:number; note:string; href?:string }>;
   todos: Array<{ key:string; label:string; count:number; href:string }>;

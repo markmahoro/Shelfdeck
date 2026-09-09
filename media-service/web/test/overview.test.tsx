@@ -7,6 +7,19 @@ import { helixAdminApi } from '../src/helix/api';
 describe('Helix Overview product semantics', () => {
   afterEach(() => vi.restoreAllMocks());
 
+  for (const state of ['failed','stale'] as const) it(`marks a ${state} server snapshot as unknown while retaining dated results`, async () => {
+    vi.spyOn(helixAdminApi,'getOverview').mockResolvedValue({generatedAt:new Date(0).toISOString(),
+      projection:{state,ageMs:31_000},systemState:{kind:'running',label:'正常运行',href:'/'},
+      metrics:[{key:'active_collection',label:'正式收藏',value:82,href:'/collection'}],todos:[],ledger:[],
+      pipeline:{waitingAcceptanceCount:0,organizingCount:0},setup:{activeMaterialFieldCount:1,activeShelfCount:1},backgroundOperations:null});
+    render(<MemoryRouter initialEntries={['/']}><App /></MemoryRouter>);
+    await screen.findByText(/概览更新/);
+    expect(document.querySelector('.rail-status')).toHaveTextContent('状态读取失败');
+    expect(document.querySelector('.overview-status-row')).toHaveAttribute('data-kind','unknown');
+    expect(screen.queryByText('正常运行')).not.toBeInTheDocument();
+    expect(screen.getByText('82')).toBeInTheDocument();
+  });
+
   it('opens with a task-oriented collection status heading', async () => {
     vi.spyOn(helixAdminApi, 'getOverview').mockResolvedValue({
       generatedAt: new Date().toISOString(),

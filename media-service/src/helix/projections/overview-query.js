@@ -67,16 +67,15 @@ function createOverviewQuery(options) {
 
   function get() {
     const nowMs = now();
-    const fields = options.readMaterialFields().items || [];
-    const shelves = options.readShelves().items || [];
+    const fieldStats = options.readMaterialFields();
+    const fields = fieldStats.items || [];
+    const activeShelfCount = integer(options.readShelves().activeCount);
     const formation = formationBundle();
     const collection = collectionStats(nowMs);
     const offdeck = options.readOffdeck();
     const people = typeof options.readPeopleSummary === 'function' ? options.readPeopleSummary() : null;
     const activeFields = fields.filter((field) => field.status === 'active');
-    const activeShelves = shelves.filter((shelf) => shelf.status === 'active');
-    const offdeckAttentionCount = (offdeck.candidates || [])
-      .filter((candidate) => !['suppressed', 'completed', 'terminal'].includes(candidate.state)).length;
+    const offdeckAttentionCount = integer(offdeck.attentionCount);
     const formationAttention = integer(formation.summary?.attentionRequiredCount);
     const peopleAttention = integer(people?.openRegistrationCandidateCount);
     const healthKind = options.readHealth?.()?.kind || 'ready';
@@ -85,7 +84,7 @@ function createOverviewQuery(options) {
     let systemHref = '/';
     if (healthKind === 'faulted') {
       systemKind = 'faulted';
-    } else if (!activeFields.length || !activeShelves.length) {
+    } else if (!activeFields.length || !activeShelfCount) {
       systemKind = 'unconfigured';
       systemHref = !activeFields.length ? '/material-fields' : '/shelves';
     } else if (fieldAccessFailures.length) {
@@ -103,7 +102,7 @@ function createOverviewQuery(options) {
       offdeckAttentionCount ? Object.freeze({ key:'offdeck', label:'退出收藏待审阅', count:offdeckAttentionCount, href:'/offdeck' }) : null,
       peopleAttention ? Object.freeze({ key:'people', label:'人物待确认', count:peopleAttention, href:'/people' }) : null,
       !activeFields.length ? Object.freeze({ key:'fields', label:'还没有文件来源', count:1, href:'/material-fields' }) : null,
-      activeFields.length && !activeShelves.length ? Object.freeze({ key:'shelves', label:'还没有收藏架', count:1, href:'/shelves' }) : null,
+      activeFields.length && !activeShelfCount ? Object.freeze({ key:'shelves', label:'还没有收藏架', count:1, href:'/shelves' }) : null,
     ].filter(Boolean);
     const ledger = [];
     for (const item of (formation.inProgressItems || []).slice(0, 5)) {
@@ -117,8 +116,7 @@ function createOverviewQuery(options) {
       ledger.push(Object.freeze({ key:'ondeck:'+item.shelfEntryId, label:'新上架 · ' + item.displayIdentity, href:'/collection' }));
     }
     const inProgressCount = integer(formation.summary?.inProgressCount);
-    const waitingAcceptanceCount = fields.reduce((sum, field) =>
-      sum + integer(field.procurementStatus?.waitingAcceptanceCount), 0);
+    const waitingAcceptanceCount = integer(fieldStats.waitingAcceptanceCount);
     const backgroundOperations = typeof options.readBackgroundOperations === 'function'
       ? options.readBackgroundOperations()
       : null;
@@ -143,7 +141,7 @@ function createOverviewQuery(options) {
       }),
       setup: Object.freeze({
         activeMaterialFieldCount: activeFields.length,
-        activeShelfCount: activeShelves.length,
+        activeShelfCount: activeShelfCount,
       }),
       ledger: Object.freeze(ledger.slice(0, 8)),
       backgroundOperations,

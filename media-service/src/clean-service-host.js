@@ -12,7 +12,7 @@ const routeRegistry = require('./helix/composition/admin-route-registry');
 const { canonicalDigest } = require('./helix/contracts/canonical-json');
 const { createHelixApplication } = require('./helix/composition/createHelixApplication');
 const { createCleanFacades } = require('./helix/composition/create-clean-facades');
-const { createOverviewQuery } = require('./helix/projections/overview-query');
+const { createOverviewProjectionHost } = require('./helix/projections/overview-projection-host');
 const { createSetupReadinessQuery } = require('./helix/projections/setup-readiness-query');
 const { createInputSettlementAuthorizationStore } = require('./helix/domains/arca/persistence/input-settlement-authorization-store');
 const { createPeopleAdminQuery } = require('./helix/domains/people/application/admin-query');
@@ -999,6 +999,7 @@ function clearSessionCookie() {
 function errorResponse(error, correlationId) {
   let status = 500;
   if (AUTH_ERROR_CODES.has(error.code)) status = 401;
+  else if (error.code === 'OVERVIEW_PROJECTION_REBUILDING') status = 503;
   else if (error.code === 'ADMIN_FIELD_NOT_FOUND') status = 404;
   else if (error.code === 'ADMIN_SHELF_NOT_FOUND') status = 404;
   else if (error.code === 'ADMIN_SHELF_COMMAND_REJECTED' || error.code === 'ADMIN_SHELF_TARGET_MISMATCH') status = 400;
@@ -1606,6 +1607,7 @@ async function createCleanServiceHost(options) {
       try {
         await outboxDispatcher.start();
         await formationProjectionHost.start();
+        void overviewQuery.start().catch(error=>options.onExecutionRuntimeError?.(error));
         return execution;
       } catch (error) {
         await outboxDispatcher.stop().catch(() => {});
@@ -1618,6 +1620,7 @@ async function createCleanServiceHost(options) {
       await ffmpegProcessRegistry.close();
       await mediaEffectPort.close?.();
       await formationProjectionHost.stop();
+      await overviewQuery.stop();
       await outboxDispatcher.stop();
       return procurementExecution.host.stop();
     },
@@ -1760,9 +1763,9 @@ async function createCleanServiceHost(options) {
     },
     now: options.now || Date.now,
   });
-  const overviewQuery = createOverviewQuery({
-    readMaterialFields: () => procurementAdmin.listMaterialFields(),
-    readShelves: () => arcaShelfAdmin.listShelves(),
+  const overviewQuery = createOverviewProjectionHost({
+    readMaterialFields: () => procurementAdmin.overviewStats(),
+    readShelves: () => arcaShelfAdmin.overviewStats(),
     readStandingAuthorization: () => inputSettlementAuthorizationStore.current(),
     readFormation: () => {
       const summary = formationQuery.list({ section:'active', limit:1 }).summary;
@@ -1774,8 +1777,8 @@ async function createCleanServiceHost(options) {
       };
     },
     readCollectionStats: (nowMs) => arcaCollectionQuery.overviewStats(nowMs),
-    readOffdeck: () => arcaOffdeck.candidates(),
-    readPeopleSummary: () => peopleAdminQuery.list({ limit:1 }).summary,
+    readOffdeck: () => arcaOffdeck.overviewStats(),
+    readPeopleSummary: () => peopleAdminQuery.summary(),
     readBackgroundOperations: () => procurementExecution.host.backgroundOperations(),
     readHealth: () => ({ kind: procurementExecution.host.readiness().state }),
     now: options.now || Date.now,

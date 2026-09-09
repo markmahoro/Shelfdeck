@@ -50,6 +50,9 @@ function createOffdeckEntryQuery(options){
     });
   }
   return Object.freeze({
+    overviewStats:()=>read(repo=>Object.freeze({attentionCount:repo.invoke('candidate_counts',{})
+      .filter(row=>row.group_value==='open')
+      .reduce((sum,row)=>sum+Number(row.row_count),0)})),
     candidates(query={}){return read(repo=>{
       const rows=repo.invoke('candidates',{state:'open',cursor:query.cursor||null,limit:26});
       const candidates=rows.slice(0,25).map(row=>({...row,created_at_ms:Number(row.created_at_ms)}));

@@ -31,6 +31,7 @@ function createShelfQueryStore(options) {
   if (!options?.schemaManifest || !options?.unitOfWork) throw new TypeError('Arca Shelf store requires clean persistence dependencies.');
   const repository = createRepositoryDefinition({ repositoryId: 'arca_shelf_repository', owner: 'arca', schemaManifest: options.schemaManifest, statements: {
     ...targetBindingStatements,
+    overview_counts:{kind:'count-grouped',tableId:'arca_shelves',groupColumn:'status'},
     list_shelves: { kind: 'select-all', tableId: 'arca_shelves', columns: ['shelf_id','name','target_endpoint_id','target_root_location','target_mount_scope_id','target_mount_scope_revision','status','current_standard_revision','current_placement_revision','routing_projection_revision','routing_projection_digest','created_at_ms','updated_at_ms'], keyColumns: [] },
     find_shelf: { kind: 'select-one', tableId: 'arca_shelves', columns: ['shelf_id','name','target_endpoint_id','target_root_location','target_mount_scope_id','target_mount_scope_revision','status','current_standard_revision','current_placement_revision','routing_projection_revision','routing_projection_digest','created_at_ms','updated_at_ms'], keyColumns: ['shelf_id'] },
     insert_shelf: { kind: 'insert', tableId: 'arca_shelves', columns: ['shelf_id','name','target_endpoint_id','target_root_location','target_mount_scope_id','target_mount_scope_revision','status','current_standard_revision','current_placement_revision','routing_projection_revision','routing_projection_digest','created_at_ms','updated_at_ms'] },
@@ -412,6 +413,8 @@ function createShelfQueryStore(options) {
     },
     preflightPlacementCommand: (request, operation) => existingPlacementCommand(request, operation),
     listShelves: () => execute((context) => context.repository(repository.repositoryId).invoke('list_shelves').map((row) => readShelf(context.repository(repository.repositoryId), row.shelf_id))),
+    overviewStats:()=>execute(context=>Object.freeze({activeCount:Number(context.repository(repository.repositoryId)
+      .invoke('overview_counts',{}).find(row=>row.group_value==='active')?.row_count||0)})),
     getShelf,
   });
 }

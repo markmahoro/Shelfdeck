@@ -104,6 +104,7 @@ function createArcaCollectionQuery(options) {
   const repository = createRepositoryDefinition({ repositoryId:'arca_collection_query', owner:'arca', readOnly:true,
     schemaManifest:options.schemaManifest, statements:{
       list_entries:{kind:'select-all',tableId:'arca_shelf_entries',columns:['shelf_entry_id','shelf_id','structure_kind','status','canonical_identity_revision','canonical_identity_key','current_inventory_revision','current_deck_fact_revision','created_at_ms','terminal_at_ms'],keyColumns:[],safeIntegers:true},
+      overview_entries:{kind:'select-page-after',tableId:'arca_shelf_entries',columns:['shelf_entry_id','shelf_id','structure_kind','status','canonical_identity_revision','canonical_identity_key','current_inventory_revision','current_deck_fact_revision','created_at_ms','terminal_at_ms'],keyColumn:'shelf_entry_id',fixedKeyColumns:['status'],maxItems:100,safeIntegers:true},
       list_entry_index:{kind:'select-all',tableId:'arca_shelf_entries',columns:['shelf_entry_id','shelf_id','status'],keyColumns:[],safeIntegers:true},
       list_entries_by_shelf:{kind:'select-all',tableId:'arca_shelf_entries',columns:['shelf_entry_id','shelf_id','structure_kind','status','canonical_identity_revision','canonical_identity_key','current_inventory_revision','current_deck_fact_revision','created_at_ms','terminal_at_ms'],keyColumns:['shelf_id'],safeIntegers:true},
       list_shelves:{kind:'select-all',tableId:'arca_shelves',columns:['shelf_id','name','status'],keyColumns:[]},
@@ -218,37 +219,29 @@ function createArcaCollectionQuery(options) {
       historyCount:packed.index.filter((row)=>row.status!=='active').length,
     });
     return Object.freeze({items:Object.freeze(page.items),shelves:Object.freeze(shelves),summary,resultCount:packed.prePaged?.resultCount??items.length,nextCursor:page.nextCursor});},
-    overviewStats(nowMs){
-      const monthStartMs=Date.UTC(new Date(nowMs).getUTCFullYear(), new Date(nowMs).getUTCMonth(), 1);
-      const packed=execute('arca_collection_overview',(context)=>{
-        const repo=context.repository(repository.repositoryId);
-        const index=repo.invoke('list_entry_index',{});
-        const rows=repo.invoke('list_entries',{});
-        const active=rows.filter((row)=>row.status==='active')
-          .sort((left,right)=>Number(right.created_at_ms)-Number(left.created_at_ms));
-        const recent=active.slice(0,5).map((row)=>map(repo,row));
-        return Object.freeze({
-          index, activeIds:active.map((row)=>row.shelf_entry_id),
-          currentCount:active.length,
-          monthNewCount:active.filter((row)=>Number(row.created_at_ms)>=monthStartMs).length,
-          recent,
-        });
-      });
-      const health=options.healthReaderMany?.(packed.activeIds)||new Map();
-      let healthyCount=0, healthAttentionCount=0;
-      for (const id of packed.activeIds) {
-        const state=(health.get(id)||emptyHealth).state;
-        if (state==='healthy') healthyCount += 1;
-        if (state==='attention_required') healthAttentionCount += 1;
-      }
-      return Object.freeze({
-        currentCount:packed.currentCount,
-        monthNewCount:packed.monthNewCount,
-        healthyCount, healthAttentionCount,
-        recentOnDeck:Object.freeze(packed.recent.map((item)=>Object.freeze({
-          shelfEntryId:item.shelfEntryId, displayIdentity:item.displayIdentity, createdAtMs:item.createdAtMs,
-        }))),
-      });
+    async overviewStats(nowMs){
+      const monthStartMs=Date.UTC(new Date(nowMs).getUTCFullYear(),new Date(nowMs).getUTCMonth(),1);
+      let cursor=null,currentCount=0,monthNewCount=0,healthyCount=0,healthAttentionCount=0,recent=[];
+      do {
+        const rows=execute('arca_collection_overview_page',context=>context.repository(repository.repositoryId)
+          .invoke('overview_entries',{status:'active',cursor,limit:100}));
+        currentCount+=rows.length;
+        monthNewCount+=rows.filter(row=>Number(row.created_at_ms)>=monthStartMs).length;
+        recent=[...recent,...rows].sort((a,b)=>Number(b.created_at_ms)-Number(a.created_at_ms)||
+          Buffer.compare(Buffer.from(a.shelf_entry_id),Buffer.from(b.shelf_entry_id))).slice(0,5);
+        const health=options.healthReaderMany?.(rows.map(row=>row.shelf_entry_id))||new Map();
+        for(const row of rows){const state=(health.get(row.shelf_entry_id)||emptyHealth).state;
+          if(state==='healthy')healthyCount+=1;
+          if(state==='attention_required')healthAttentionCount+=1;
+        }
+        cursor=rows.length===100?rows.at(-1).shelf_entry_id:null;
+        if(cursor)await new Promise(resolve=>setImmediate(resolve));
+      } while(cursor);
+      const recentOnDeck=execute('arca_collection_overview_recent',context=>recent.map(row=>{
+        const item=map(context.repository(repository.repositoryId),row);
+        return Object.freeze({shelfEntryId:item.shelfEntryId,displayIdentity:item.displayIdentity,createdAtMs:item.createdAtMs});
+      }));
+      return Object.freeze({currentCount,monthNewCount,healthyCount,healthAttentionCount,recentOnDeck:Object.freeze(recentOnDeck)});
     },
     get,
     async getPoster(shelfEntryId,query={}){const reference=execute('arca_collection_poster_reference_read',(context)=>{const repo=context.repository(repository.repositoryId),row=repo.invoke('find_entry',{shelf_entry_id:shelfEntryId});

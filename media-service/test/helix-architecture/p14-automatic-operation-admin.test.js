@@ -116,7 +116,13 @@ test('Librarian can grant and revoke exact standing Input Settlement authorizati
   assert.equal(confirmation.json().readiness.data.productChoice, undefined);
   assert.equal(confirmation.json().readiness.data.standingInputSettlement.enabled, false);
 
-  const overview = await host.inject({ method: 'GET', url: '/v1/admin/overview', headers: { cookie } });
+  let overview;
+  for(let attempt=0;attempt<30;attempt++){
+    overview=await host.inject({method:'GET',url:'/v1/admin/overview',headers:{cookie}});
+    if(overview.statusCode!==503)break;
+    assert.equal(overview.json().error.code,'OVERVIEW_PROJECTION_REBUILDING');
+    await new Promise(resolve=>setImmediate(resolve));
+  }
   assert.equal(overview.statusCode, 200, overview.body);
   assert.equal(overview.json().setup.activeMaterialFieldCount, 0);
   assert.equal(overview.json().setup.activeShelfCount, 0);

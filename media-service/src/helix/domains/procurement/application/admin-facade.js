@@ -282,6 +282,10 @@ function createProcurementAdminApplication(options) {
     listMaterialFields() {
       return Object.freeze({ items: queries.listMaterialFields() });
     },
+    async overviewStats(){const items=[];for(const field of store.overviewFields()){
+      items.push(Object.freeze({...field,procurementStatus:Object.freeze({observationScan:fieldStatus.overviewScan(field.fieldId)})}));
+      await new Promise(resolve=>setImmediate(resolve));
+    }return Object.freeze({items:Object.freeze(items),waitingAcceptanceCount:fieldStatus.overviewWaitingCount()});},
     getMaterialField(fieldId) {
       const materialField = queries.getMaterialField({ fieldId });
       if (!materialField) {

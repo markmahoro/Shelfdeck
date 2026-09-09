@@ -72,6 +72,8 @@ function createProcurementFieldStatusQuery(options) {
     owner: 'procurement',
     schemaManifest: options.schemaManifest,
     statements: {
+      overview_packages:{kind:'count-grouped',tableId:'proc_candidate_packages',groupColumn:'state'},
+      overview_deliveries:{kind:'count-grouped',tableId:'proc_candidate_deliveries',groupColumn:'state'},
       find_field: {
         kind: 'select-one',
         tableId: 'proc_material_fields',
@@ -271,7 +273,20 @@ function createProcurementFieldStatusQuery(options) {
     }]).procurement_field_status;
   }
 
-  return Object.freeze({ read });
+  return Object.freeze({ read,
+    overviewWaitingCount(){return options.unitOfWork.execute([{participantId:'procurement_overview_count',owner:'procurement',repositories:[repository],
+      execute(context){const repo=context.repository(repository.repositoryId);
+        const packages=repo.invoke('overview_packages',{}).reduce((sum,row)=>sum+Number(row.row_count),0);
+        const terminal=repo.invoke('overview_deliveries',{}).filter(row=>['accepted','rejected'].includes(row.group_value))
+          .reduce((sum,row)=>sum+Number(row.row_count),0);
+        return packages-terminal;
+      }}]).procurement_overview_count;},
+    overviewScan(fieldId){const value=options.workResultReader.scopedWorkStatus({ownerDomain:'procurement',
+      processType:'material_field',processId:fieldId,workKind:'field_observation'});
+      const failureCode=value.latestState==='failed'?(value.failureCode||'FIELD_OBSERVATION_ROOT_UNAVAILABLE'):null;
+      return Object.freeze({accessAvailable:value.open||!ROOT_FAILURE_CODES.has(failureCode)});
+    },
+  });
 }
 
 module.exports = Object.freeze({ createProcurementFieldStatusQuery });

@@ -54,6 +54,7 @@ function createPeopleAdminQuery(options) {
   }
 
   return Object.freeze({
+    summary:()=>options.store.overviewStats(),
     list,
     get(personId) {
       const result = options.store.getPerson(personId);

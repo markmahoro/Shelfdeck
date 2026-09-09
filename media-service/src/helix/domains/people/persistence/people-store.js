@@ -47,6 +47,7 @@ function personRegistryDefinition(schemaManifest) {
   return createRepositoryDefinition({
     repositoryId: 'person_registry_repository', owner: 'people', schemaManifest,
     statements: {
+      overview_counts: {kind:'count-grouped',tableId:'people_persons',groupColumn:'status'},
       insert_person: { kind: 'insert', tableId: 'people_persons', columns: [
         'person_id', 'status', 'current_revision', 'current_preference_revision', 'current_reference_revision',
         'current_reference_projection_revision', 'current_reference_projection_digest', 'created_at_ms', 'terminal_at_ms'
@@ -176,6 +177,8 @@ function candidateDefinition(schemaManifest) {
         'registration_candidate_id', 'current_revision', 'current_state', 'proposed_name', 'evidence_digest', 'candidate_schema_ref',
         'candidate_json', 'candidate_payload_digest', 'created_at_ms', 'terminal_at_ms'
       ], keyColumns: ['evidence_digest'] },
+      overview_registration_counts: {kind:'count-grouped',tableId:'people_registration_candidates',groupColumn:'current_state'},
+      overview_merge_counts: {kind:'count-grouped',tableId:'people_merge_candidates',groupColumn:'current_state'},
       list_registration_candidates: { kind: 'select-all', tableId: 'people_registration_candidates', columns: [
         'registration_candidate_id', 'current_revision', 'current_state', 'proposed_name', 'evidence_digest', 'candidate_schema_ref',
         'candidate_json', 'candidate_payload_digest', 'created_at_ms', 'terminal_at_ms'
@@ -793,6 +796,14 @@ function createPeopleStore(options) {
           .map((row) => mapRegistrationCandidate(repository, row)));
       }, 'people_candidate_store');
     },
+    overviewStats(){return execute([registry,candidates],context=>{
+      const people=context.repository(registry.repositoryId).invoke('overview_counts',{});
+      const registrations=context.repository(candidates.repositoryId).invoke('overview_registration_counts',{});
+      const merges=context.repository(candidates.repositoryId).invoke('overview_merge_counts',{});
+      const count=(rows,state)=>Number(rows.find(row=>row.group_value===state)?.row_count||0);
+      return Object.freeze({activePersonCount:count(people,'active'),mergedPersonCount:count(people,'merged'),
+        openRegistrationCandidateCount:count(registrations,'open'),openMergeCandidateCount:count(merges,'open')});
+    },'people_overview_stats');},
     getMergeCandidate(candidateId) {
       return execute([candidates], (context) => mapMergeCandidate(context.repository(candidates.repositoryId),
         context.repository(candidates.repositoryId).invoke('find_merge_candidate', { merge_candidate_id: candidateId })), 'people_candidate_store');

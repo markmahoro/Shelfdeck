@@ -8,7 +8,7 @@ test('Overview uses system three-state, clickable todos, and titled ledger inste
   const query = createOverviewQuery({
     now: () => Date.UTC(2026, 7, 22),
     readMaterialFields: () => ({ items: [] }),
-    readShelves: () => ({ items: [] }),
+    readShelves: () => ({ activeCount: 0 }),
     readFormation: () => ({
       summary: { totalCount: 3, inProgressCount: 1, attentionRequiredCount: 1, completedCount: 1 },
       attentionItems: [{ subjectId: 's-att', displayIdentity: '待处理片' }],
@@ -19,7 +19,7 @@ test('Overview uses system three-state, clickable todos, and titled ledger inste
       currentCount: 3, monthNewCount: 1, healthyCount: 2, healthAttentionCount: 1,
       recentOnDeck: [{ shelfEntryId: 'e1', displayIdentity: '新片', createdAtMs: 1 }],
     }),
-    readOffdeck: () => ({ candidates: [{ state: 'open' }] }),
+    readOffdeck: () => ({ attentionCount: 1 }),
     readPeopleSummary: () => ({ openRegistrationCandidateCount: 2 }),
     readHealth: () => ({ kind: 'ready' }),
   });
@@ -41,17 +41,17 @@ test('Overview uses system three-state, clickable todos, and titled ledger inste
 function idleReaders(overrides = {}) {
   return {
     readMaterialFields: () => ({ items: [{ status: 'active' }] }),
-    readShelves: () => ({ items: [{ status: 'active' }] }),
+    readShelves: () => ({ activeCount: 1 }),
     readFormation: () => ({ summary: {}, attentionItems: [], inProgressItems: [], completedItems: [] }),
     readCollectionStats: () => ({ currentCount: 1, monthNewCount: 0, healthyCount: 1, healthAttentionCount: 0, recentOnDeck: [] }),
-    readOffdeck: () => ({ candidates: [] }),
+    readOffdeck: () => ({ attentionCount: 0 }),
     ...overrides,
   };
 }
 
 test('Overview treats missing Field or Shelf as unconfigured, not as a system fault', () => {
   const query = createOverviewQuery(idleReaders({
-    readShelves: () => ({ items: [] }),
+    readShelves: () => ({ activeCount: 0 }),
     readCollectionStats: () => ({ currentCount: 0, monthNewCount: 0, healthyCount: 0, healthAttentionCount: 0, recentOnDeck: [] }),
     readHealth: () => ({ kind: 'faulted' }),
   }));
@@ -63,7 +63,7 @@ test('Overview treats missing Field or Shelf as unconfigured, not as a system fa
 
 test('Overview surfaces unreachable Field access as a clickable todo, not as a system fault', () => {
   const query = createOverviewQuery(idleReaders({
-    readMaterialFields: () => ({ items: [
+    readMaterialFields: () => ({ waitingAcceptanceCount: 23, items: [
       {
         status: 'active',
         access: { rootLocation: 'E:\\reachable-canary' },

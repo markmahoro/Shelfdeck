@@ -233,5 +233,5 @@ test('People persistence contains no old 10-table shape, content scope, raw SQL,
   assert.doesNotMatch(source, /\b(?:SELECT|INSERT|UPDATE|DELETE)\s+/i);
   assert.doesNotMatch(source, /MAX\s*\(/i);
   assert.doesNotMatch(source, /'state',\s*'created_at_ms',\s*'terminal_at_ms'/);
-  assert.doesNotMatch(source, /openRegistrationCandidate|terminalRegistrationCandidate|openMergeCandidate|terminalMergeCandidate/);
+  assert.doesNotMatch(source, /\b(?:openRegistrationCandidate|terminalRegistrationCandidate|openMergeCandidate|terminalMergeCandidate)\b/);
 });

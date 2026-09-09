@@ -206,6 +206,10 @@ function createMaterialFieldStore(options) {
     commitAdminCommand,
     getMaterialField(fieldId) { return execute((context) => readField(context.repository(fields.repositoryId), fieldId)); },
     listMaterialFields() { return execute((context) => context.repository(fields.repositoryId).invoke('list_fields').map((row) => readField(context.repository(fields.repositoryId), row.field_id))); },
+    overviewFields(){return execute(context=>{const repo=context.repository(fields.repositoryId);return repo.invoke('list_fields',{}).map(row=>{
+      const access=repo.invoke('find_access',{field_id:row.field_id,revision:row.current_access_revision});
+      return Object.freeze({fieldId:row.field_id,status:row.status,access:Object.freeze({rootLocation:access?.root_location||null})});
+    });});},
     getExtractionPolicy(extractionPolicyId, revision) { return execute((context) => mapPolicy(context.repository(fields.repositoryId).invoke('find_policy', { extraction_policy_id: extractionPolicyId, revision }))); }
   });
 }
