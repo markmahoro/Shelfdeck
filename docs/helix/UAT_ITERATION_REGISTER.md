@@ -6,7 +6,7 @@
 
 状态说明：历史已关闭保留当时证据，并不宣称本次重测；已实现/已部署不等于已关闭；待核实不是当前已证实缺陷。原表与后续完整关闭证据冲突时采用后者并链接。没有证据的事项不批量关闭。
 
-[全量前后合同审查](implementation/evidence/UAT_FULL_CONTRACT_CONSISTENCY_AUDIT_20260909.md)已完成，三项业务冲突均由用户确认并以`14cf2d9a0`同步合同；用户要求整理文档后继续推进。历史标题不是现行Oracle；下述承接条件与SSOT后续优先条款共同适用。当前56项本轮功能验收关闭、43项开放，206被取代承接已核实；另有153项历史关闭、220文档关闭及1项非缺陷接受。
+[全量前后合同审查](implementation/evidence/UAT_FULL_CONTRACT_CONSISTENCY_AUDIT_20260909.md)已完成，三项业务冲突均由用户确认并以`14cf2d9a0`同步合同；用户要求整理文档后继续推进。历史标题不是现行Oracle；下述承接条件与SSOT后续优先条款共同适用。当前59项本轮功能验收关闭、40项开放，206被取代承接已核实；另有153项历史关闭、220文档关闭及1项非缺陷接受。
 
 执行顺序见[CURRENT_PLAN](CURRENT_PLAN.md)。每次完成一项，更新该行的提交、用户结果证据、剩余工作和状态；需要部署的先部署/验收再关闭。编号合并不触发生产操作。
 
@@ -237,15 +237,15 @@
 | UAT-223 | 收藏架/注销确认暴露 Routing、Material Control、On-deck 责任账 | UI / `COPY_INTERNAL` | 验收关闭 | UX-005 | 2026-09-09 | [独立验收](implementation/evidence/UAT-223_235_SHELF_DIALOG_20260909.md) | 收藏架与注销确认不泄露内部责任账，非破坏性注销说明与精确范围保留。执行B4；依赖/承接：无；关联235。 |
 | UAT-224 | 退出收藏把 Policy AST、Case、Reservation、原始 ID 直接铺开 | UI / `COPY_INTERNAL` | 验收关闭 | UX-007 | 7608c517cd | [UX-007原记录（按标题）](ADMIN_WEB_UX_ISSUE_LOG.md) | 无该项剩余；逐项真实媒体/恢复/生产交互依据见[独立关闭](implementation/evidence/UAT_RELEASE_7608C517CD_20260909.md)。246已独立验收关闭，保留各项自身证据。 |
 | UAT-225 | 设置页 Provider / Landing / revision / Event 术语未翻译 | UI / `COPY_INTERNAL` | 验收关闭 | UX-008 | 6bcfd7b33b（已发布运行时） | [UX-008原记录（按标题）](ADMIN_WEB_UX_ISSUE_LOG.md)；[生产浏览器逐项验收](implementation/evidence/UAT_SETTINGS_BROWSER_ACCEPTANCE_20260909.md) | 2026-09-09逐项关闭：实际生产连接/空间/评分日志主文案为业务中文，技术错误仍可诊断；浏览器逐Tab核验通过。 |
-| UAT-226 | 已完成整理仍显示「尚未形成整理动作」 | UI / `COPY_CONFLICT` | 历史已实现，待验收核对 | UX-009 | 见证据 | [UX-009原记录（按标题）](ADMIN_WEB_UX_ISSUE_LOG.md) | 已完成整理有正式完成依据，不显示尚未形成动作；新旧结果分别核对。执行B3；依赖/承接：212；关联051。 |
+| UAT-226 | 已完成整理仍显示「尚未形成整理动作」 | UI / `COPY_CONFLICT` | 验收关闭 | UX-009 | ea24ddad62 | [真实页面验收](implementation/evidence/UAT-226_233_FORMATION_BROWSER_20260909.md)、[生产发布](implementation/evidence/UAT_RELEASE_EA24DDAD62_20260909.md) | 已完成整理有正式完成依据，不显示尚未形成动作；新旧结果分别核对。2026-09-09已按自身条件及生产页面分别关闭；依赖/承接：212；关联051。 |
 | UAT-227 | 已完成行复用「下一步动作」列和进行中操作控件 | UI / `COPY_CONFLICT` | 历史已实现，待验收核对 | UX-010 | 见证据 | [UX-010原记录（按标题）](ADMIN_WEB_UX_ISSUE_LOG.md) | 结束行只显示历史动作结果，无执行中操作，当前问题单列。执行B3；依赖/承接：212；关联155。 |
 | UAT-228 | 人物页声称维护身份，实际只读且无操作 | UI / `COPY_CONFLICT` | 验收关闭 | UX-011 | 2026-09-09 | [独立验收](implementation/evidence/UAT-228_PEOPLE_CAPABILITY_COPY_20260909.md) | 人物页显示实际登记/候选/头像能力，未知关联不伪装可编辑Cast。执行B4；依赖/承接：214；关联055/072。 |
 | UAT-229 | 设置页承诺「空间、资源与安全」，实际只有连接和评分日志 | UI / `COPY_CONFLICT` | 验收关闭 | UX-012 | 6bcfd7b33b（已发布运行时） | [UX-012原记录（按标题）](ADMIN_WEB_UX_ISSUE_LOG.md)；[生产浏览器逐项验收](implementation/evidence/UAT_SETTINGS_BROWSER_ACCEPTANCE_20260909.md) | 2026-09-09逐项关闭：真实五个设置Tab逐一可达且内容匹配，未承诺未实现的资源/安全入口。 |
 | UAT-230 | 侧栏固定「正常运行」，与真实健康无关 | UI / `COPY_CONFLICT` | 验收关闭 | UX-013 | 2026-09-09 | [当前验收](implementation/evidence/UAT-141_230_OVERVIEW_ACCEPTANCE_20260909.md) | 侧栏使用真实系统状态，未配置/故障/健康场景不会固定正常。执行B4；依赖/承接：141；关联057。 |
 | UAT-231 | 评分日志仍指引用户去已更名的「上架进度」 | UI / `COPY_CONFLICT` | 验收关闭 | UX-014 | 6bcfd7b33b（已发布运行时） | [UX-014原记录（按标题）](ADMIN_WEB_UX_ISSUE_LOG.md)；[生产浏览器逐项验收](implementation/evidence/UAT_SETTINGS_BROWSER_ACCEPTANCE_20260909.md) | 2026-09-09逐项关闭：真实空态使用“媒体整理工作区”，通过同名导航实际进入/formation。 |
 | UAT-232 | 退出收藏页卡片/行/危险阶段无样式，JSON 规则编辑器直出 | UI / `LAYOUT` | 验收关闭 | UX-015 | 7608c517cd | [UX-015原记录（按标题）](ADMIN_WEB_UX_ISSUE_LOG.md) | 无该项剩余；逐项真实媒体/恢复/生产交互依据见[独立关闭](implementation/evidence/UAT_RELEASE_7608C517CD_20260909.md)。246已独立验收关闭，保留各项自身证据。 |
-| UAT-233 | 媒体整理「当前媒体」九列表格未用尽横轴且内部横向溢出 | UI / `LAYOUT` | 历史已实现，待验收核对 | UX-016 | 见证据 | [UX-016原记录（按标题）](ADMIN_WEB_UX_ISSUE_LOG.md) | 整理表在1440/1280及窄屏可读，无内部横向溢出或九列旧约束。执行B3；依赖/承接：212。 |
-| UAT-234 | 四项整理统计塞进三列 `source-facts` 栅格 | UI / `LAYOUT` | 历史已实现，待验收核对 | UX-017 | 见证据 | [UX-017原记录（按标题）](ADMIN_WEB_UX_ISSUE_LOG.md) | 当前统计布局与实际筛选一致，终态失败不计当前待办。执行B3；依赖/承接：212。 |
+| UAT-233 | 媒体整理「当前媒体」九列表格未用尽横轴且内部横向溢出 | UI / `LAYOUT` | 验收关闭 | UX-016 | ea24ddad62 | [真实页面验收](implementation/evidence/UAT-226_233_FORMATION_BROWSER_20260909.md)、[生产发布](implementation/evidence/UAT_RELEASE_EA24DDAD62_20260909.md) | 整理表在1440/1280及窄屏可读，无内部横向溢出或九列旧约束。2026-09-09已按自身条件及生产页面分别关闭；依赖/承接：212。 |
+| UAT-234 | 四项整理统计塞进三列 `source-facts` 栅格 | UI / `LAYOUT` | 验收关闭 | UX-017 | ea24ddad62 | [真实页面验收](implementation/evidence/UAT-226_233_FORMATION_BROWSER_20260909.md)、[生产发布](implementation/evidence/UAT_RELEASE_EA24DDAD62_20260909.md) | 当前统计布局与实际筛选一致，终态失败不计当前待办。2026-09-09已按自身条件及生产页面分别关闭；依赖/承接：212。 |
 | UAT-235 | 收藏架注销确认框没有对话框样式 | UI / `LAYOUT` | 验收关闭 | UX-018 | 2026-09-09 | [布局/焦点证据](implementation/evidence/UAT-223_235_SHELF_DIALOG_20260909.md) | 注销对话框样式/焦点/取消完整，隔离fixture验不修改生产Shelf。执行B4；依赖/承接：223。 |
 | UAT-236 | 收藏详情「退出收藏」区域与 `sr-only` 缺少样式 | UI / `LAYOUT` | 历史已实现，待验收核对 | UX-019 | 见证据 | [UX-019原记录（按标题）](ADMIN_WEB_UX_ISSUE_LOG.md) | 收藏详情退出区域与辅助文本样式可访问，回收站只在设置。执行B3；依赖/承接：212；143退出行为。 |
 | UAT-237 | 登录会话在八页各自复制，文案和布局不一致 | UI / `LAYOUT` | 验收关闭 | UX-020 | 1a3f4254dc | [逐项验收](implementation/evidence/UAT-221_237_238_SHELL_ACCEPTANCE_20260909.md) | 无该项剩余；历史实现、各自代码依据、生产八页及适用隔离浏览器/测试证据已核对。 |
