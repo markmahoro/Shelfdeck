@@ -994,6 +994,7 @@ function createProcurementExecutionRuntime(options) {
     offloadWakeVisible:false});
   const WORKSPACE_RECLAIMER_FALLBACK_MS=15*60*1000;
   let completedWorkspaceSweepNotBeforeMs=0,activeCleanupSweepNotBeforeMs=0,discardedLeftoverSweepNotBeforeMs=0;
+  let activeCleanupRoundHasPending=false;
   let offdeckPolicySweepNotBeforeMs=0,offdeckDuplicateSweepNotBeforeMs=0;
   const pipelineSubjectPage=(cursor,limit)=>libraProcessServices.pipelineAdmission.listTokens()
     .filter((item)=>(cursor===null||item.subjectId>cursor)&&Boolean(libraProcessServices.routingContextReader.read(item.subjectId))).slice(0,limit)
@@ -1107,15 +1108,26 @@ function createProcurementExecutionRuntime(options) {
         if(page.length<limit)completedWorkspaceSweepNotBeforeMs=now()+WORKSPACE_RECLAIMER_FALLBACK_MS;
         return page;},
       nextDueAtMs:()=>completedWorkspaceSweepNotBeforeMs||null,
-      reconcile:(scope)=>workspaceReclaimer.reconcileCompletedWorkspace(scope),
+      reconcile:(scope)=>{
+        const result=workspaceReclaimer.reconcileCompletedWorkspace(scope);
+        if(result.stage==='workspace_cleanup_audit_pending')
+          completedWorkspaceSweepNotBeforeMs=Math.min(completedWorkspaceSweepNotBeforeMs,result.nextObservationAtMs);
+        if(result.stage==='workspace_cleanup_in_progress')activeCleanupSweepNotBeforeMs=0;
+        return result;
+      },
     }),Object.freeze({
       ownerDomain:'libra',reconcilerKey:'active-workspace-cleanup-scopes',
       listPage:({cursor,limit})=>{if(cursor===null&&now()<activeCleanupSweepNotBeforeMs)return [];
+        if(cursor===null)activeCleanupRoundHasPending=false;
         const page=workspaceReclaimer.listActiveCleanupScopePage(cursor,limit);
-        if(page.length===0)activeCleanupSweepNotBeforeMs=now()+WORKSPACE_RECLAIMER_FALLBACK_MS;
+        if(page.length===0)activeCleanupSweepNotBeforeMs=now()+(activeCleanupRoundHasPending?1000:WORKSPACE_RECLAIMER_FALLBACK_MS);
         return page;},
       nextDueAtMs:()=>activeCleanupSweepNotBeforeMs||null,
-      reconcile:(scope)=>workspaceReclaimer.reconcileCleanupScope(scope),
+      reconcile:(scope)=>{
+        const result=workspaceReclaimer.reconcileCleanupScope(scope);
+        if(result.stage==='workspace_cleanup_in_progress')activeCleanupRoundHasPending=true;
+        return result;
+      },
     }),Object.freeze({
       ownerDomain:'libra',reconcilerKey:'discarded-workspace-leftovers',
       listPage:({cursor,limit})=>{if(cursor===null&&now()<discardedLeftoverSweepNotBeforeMs)return [];
@@ -1123,7 +1135,11 @@ function createProcurementExecutionRuntime(options) {
         if(page.length===0)discardedLeftoverSweepNotBeforeMs=now()+WORKSPACE_RECLAIMER_FALLBACK_MS;
         return page;},
       nextDueAtMs:()=>discardedLeftoverSweepNotBeforeMs||null,
-      reconcile:(scope)=>workspaceReclaimer.reconcileDiscardedLeftoverWorkspace(scope),
+      reconcile:(scope)=>{
+        const result=workspaceReclaimer.reconcileDiscardedLeftoverWorkspace(scope);
+        if(result.stage==='workspace_cleanup_in_progress')activeCleanupSweepNotBeforeMs=0;
+        return result;
+      },
     }),Object.freeze({
       ownerDomain:'arca',reconcilerKey:'preparing-offdeck-reviews',
       listPage:({cursor,limit})=>arcaProcessServices.offdeckContextReader.store.listReviews().filter((item)=>item.state==='preparing'&&

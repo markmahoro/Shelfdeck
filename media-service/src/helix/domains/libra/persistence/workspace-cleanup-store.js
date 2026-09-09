@@ -967,6 +967,8 @@ function createWorkspaceCleanupStore(options) {
     if (member.controlDisposition === 'libra_owned') {
       const change = {
         identity: {
+          schemaRef: 'helix://contracts/types/PhysicalMaterialIdentity/v2',
+          schemaVersion: 2,
           materialKey: handle.materialKey,
           ...handle.physicalIdentity,
         },

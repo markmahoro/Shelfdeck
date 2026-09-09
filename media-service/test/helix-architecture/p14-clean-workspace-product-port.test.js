@@ -545,3 +545,41 @@ test('empty Workspace reclaim drops producer partials and still rejects unknown 
     assert.throws(() => port.reclaimEmptyWorkspace(workspaceId),
       (error) => error.code === 'CLEAN_WORKSPACE_RECLAIM_UNKNOWN_MEMBER');
   }));
+
+for (const crashPoint of ['physical', 'committed']) {
+  test(`UAT-163 actual process loss ${crashPoint} preserves one cleanup effect and exact evidence`, () =>
+    fixture(({databasePath,workspaceRoot,dependencies}) => {
+      const {spawnSync}=require('node:child_process');
+      const {buildEffectIntent}=require('../../src/helix/domains/libra/model/workspace-cleanup-contracts');
+      const port=createCleanWorkspaceProductPort({...dependencies,rootPath:workspaceRoot});
+      const handle=port.materializeArtifact(request()).workspaceMaterialHandle;
+      const intent=buildEffectIntent({cleanupScopeId:'crash-cleanup',workspaceId:handle.workspaceId},{
+        materialHandleId:handle.handleId,expectedReferenceRevision:1,expectedReferenceDigest:canonicalDigest('reference'),
+        controlDisposition:'libra_owned',expectedControlRevision:1,expectedControlProjectionDigest:canonicalDigest('control'),
+        expectedControlOwnerDomain:'libra',expectedControlOwnerScopeType:'libra_run',expectedControlOwnerScopeId:'run-1',
+      },handle);
+      const configPath=path.join(path.dirname(databasePath),'cleanup-config.json');
+      const resultPath=path.join(path.dirname(databasePath),'cleanup-result.json');
+      fs.writeFileSync(configPath,JSON.stringify({databasePath,workspaceRoot,intent,resultPath}));
+      const worker=path.resolve(__dirname,'../fixtures/helix-workspace-cleanup-crash-worker.js');
+      const interrupted=spawnSync(process.execPath,[worker,configPath,crashPoint],{encoding:'utf8',windowsHide:true});
+      assert.equal(interrupted.status,crashPoint==='physical'?91:92,interrupted.stderr);
+      assert.equal(fs.existsSync(path.join(workspaceRoot,handle.workspaceId,...handle.relativePath.split('/'))),false);
+      const before=crashPoint==='committed'?JSON.parse(fs.readFileSync(resultPath,'utf8')):null;
+      const db=new Database(databasePath,{readonly:true});
+      try {
+        const effect=db.prepare("SELECT state FROM fx_effect_journal WHERE effect_class='libra_workspace_material_reclaim'").all();
+        assert.deepEqual(effect,[{state:crashPoint==='physical'?'intended':'committed'}]);
+      } finally {db.close();}
+      const resumed=spawnSync(process.execPath,[worker,configPath,'replay'],{encoding:'utf8',windowsHide:true});
+      assert.equal(resumed.status,0,resumed.stderr);
+      const result=JSON.parse(fs.readFileSync(resultPath,'utf8'));
+      if(before)assert.deepEqual(result.deletionEvidence,before.deletionEvidence);
+      else assert.equal(result.deletionEvidence.result,'already_absent');
+      const finalDb=new Database(databasePath,{readonly:true});
+      try {
+        assert.equal(finalDb.prepare("SELECT count(*) n FROM fx_effect_journal WHERE effect_class='libra_workspace_material_reclaim' AND state='committed'").get().n,1);
+        assert.equal(finalDb.prepare('SELECT state FROM fx_workspace_materials WHERE material_handle_id=?').get(handle.handleId).state,'reclaimed');
+      } finally {finalDb.close();}
+    }));
+}

@@ -3028,8 +3028,10 @@ for(const sourceVariant of ['iso','direct']) test(sourceVariant==='iso'
   ? 'UAT-135 real ISO reaches Arca commit with fresh Source Probe and independent Product decode'
   : 'UAT-132 real Direct HEVC with unknown color labels reaches Arca commit without conversion', {
   skip:process.env.HELIX_UAT135_REAL_MEDIA!=='1'?'Set HELIX_UAT135_REAL_MEDIA=1 for the generated ISO Host scenario.':false,
-  timeout:180_000,
+  timeout:300_000,
 }, async(t)=>{
+  const discardWorkspace = process.env.HELIX_UAT159_REAL_MEDIA === '1';
+  const verifyWorkspaceCleanup = discardWorkspace || process.env.HELIX_UAT163_REAL_MEDIA === '1';
   const verifyThumbs = process.env.HELIX_UAT138_REAL_MEDIA === '1';
   const {createUdfBluRay,writeMpls}=require('../scripts/build-helix-movie-test-library');
   const root=fs.mkdtempSync(path.join(os.tmpdir(),'helix-uat135-host-')),
@@ -3068,11 +3070,12 @@ for(const sourceVariant of ['iso','direct']) test(sourceVariant==='iso'
     fs.writeFileSync(path.join(source,'Thumbs.db'),thumbsBytes);
     fs.writeFileSync(path.join(source,'cache.db'),'unknown database must remain');
   }
-  const originalDisc=reality(disc);
+  const originalDisc=reality(disc),originalSource=reality(source);
   const initialized=initializeCleanData({dataDir,confirmation:'INITIALIZE_HELIX_CLEAN_V1',secretRoot:SECRET});
   let runtimeError;
   const openHost=()=>createCleanServiceHost({dataDir,adminDistDir:admin,secretRoot:SECRET,
     libraWorkspaceRoot:path.join(root,'workspace'),...productOptions(),deferredDeliveryKeys:Object.freeze([]),
+    ...(discardWorkspace?{arcaStatfsSync:()=>Object.freeze({bavail:0n,bsize:4096n})}:{}),
     onExecutionRuntimeError(error){runtimeError=error;if(process.env.HELIX_TEST_LOG_RUNTIME_ERROR==='1')console.error(error);}});
   let host=await openHost();
   t.after(async()=>{await host.close();if(process.env.HELIX_KEEP_TEST_ASSETS!=='1')fs.rmSync(root,{recursive:true,force:true,maxRetries:5,retryDelay:100});});
@@ -3082,6 +3085,46 @@ for(const sourceVariant of ['iso','direct']) test(sourceVariant==='iso'
   await observe(host,cookie,'uat135-iso-field');
   await waitFor(host,cookie,items=>items.some(item=>String(item.displayIdentity||'').includes('SDT-M01')));
   await route(host,cookie,'uat135-iso-field');
+  function cleanupEvidence() {
+    const db=new Database(path.join(dataDir,'shelfdeck.db'),{readonly:true});
+    try {
+      const run=db.prepare('SELECT * FROM libra_runs ORDER BY created_at_ms DESC LIMIT 1').get();
+      const workspace=db.prepare('SELECT workspace_id FROM libra_workspaces WHERE libra_run_id=?').get(run.libra_run_id);
+      const materials=db.prepare('SELECT relative_path,state FROM fx_workspace_materials WHERE workspace_id=?').all(workspace.workspace_id);
+      assert.ok(materials.some(row=>row.relative_path.endsWith('.mkv')),JSON.stringify(materials));
+      const location=path.join(root,'workspace',workspace.workspace_id);
+      const partial=path.join(location,'media','uat163.mkv.partial-0123456789abcdef');
+      fs.mkdirSync(path.dirname(partial),{recursive:true});fs.copyFileSync(clip,partial);
+      const foreign=path.join(root,'workspace',canonicalDigest({libraRunId:'other-protected-run'}),'media','keep.mkv.partial-fedcba9876543210');
+      fs.mkdirSync(path.dirname(foreign),{recursive:true});fs.copyFileSync(clip,foreign);
+      return {run,workspaceId:workspace.workspace_id,location,partial,foreign,foreignBytes:fs.readFileSync(foreign),materials};
+    } finally {db.close();}
+  }
+  async function verifyCleanup(evidence) {
+    await waitDatabase(path.join(dataDir,'shelfdeck.db'),db=>{
+      assert.ifError(runtimeError);
+      const active=db.prepare("SELECT count(*) n FROM fx_workspace_materials WHERE workspace_id=? AND state='active'").get(evidence.workspaceId).n;
+      return active===0&&!fs.existsSync(evidence.location);
+    },150_000);
+    assert.deepEqual(fs.readFileSync(evidence.foreign),evidence.foreignBytes);
+    assert.deepEqual(reality(disc),originalDisc);
+    assert.equal(fs.existsSync(evidence.partial),false);
+    await host.close();host=await openHost();cookie=await session(host,initialized.adminApiKey);
+    assert.equal(fs.existsSync(evidence.location),false);
+    assert.deepEqual(fs.readFileSync(evidence.foreign),evidence.foreignBytes);
+    assert.ifError(runtimeError);
+    t.diagnostic(JSON.stringify({uat:discardWorkspace?159:163,workspaceId:evidence.workspaceId,materials:evidence.materials.length,removed:true,restarted:true}));
+  }
+  if(discardWorkspace){
+    await waitDatabase(path.join(dataDir,'shelfdeck.db'),db=>db.prepare("SELECT count(*) n FROM libra_delivery_receipts WHERE result='rejected'").get().n===1,120_000);
+    const evidence=cleanupEvidence();
+    const discarded=await host.inject({method:'POST',url:'/v1/admin/formation/runs/'+evidence.run.libra_run_id+'/actions/discard',headers:{cookie},payload:{
+      idempotencyKey:'uat159-discard',expectedRunStateRevision:evidence.run.state_revision,expectedRunStateDigest:evidence.run.state_digest}});
+    assert.equal(discarded.statusCode,200,discarded.body);
+    await verifyCleanup(evidence);
+    assert.deepEqual(reality(source),originalSource);
+    return;
+  }
   const awaitingAuthorization=await waitDatabase(path.join(dataDir,'shelfdeck.db'),db=>{
     const final=db.prepare("SELECT count(*) n FROM fx_workflow_events WHERE capability_ref='arca.inventory.final_product.verify@1' AND state='succeeded'").get().n;
     if(!final)return null;
@@ -3092,9 +3135,9 @@ for(const sourceVariant of ['iso','direct']) test(sourceVariant==='iso'
   assert.ok(fs.existsSync(path.join(source,name+(sourceVariant==='iso'?'.iso':'.mkv'))),'No standing authorization must retain the old input.');
   if(verifyThumbs)fs.writeFileSync(path.join(source,'later.txt'),'created after frozen Package');
   const granted=await host.inject({method:'POST',url:'/v1/admin/settings/automatic-operation/actions/enable-full',
-    headers:{cookie},payload:{idempotencyKey:'uat172-standing-grant',expectedRevision:0,coverExclusiveRelatedInput:sourceVariant!=='iso'}});
+    headers:{cookie},payload:{idempotencyKey:'uat172-standing-grant',expectedRevision:0,coverExclusiveRelatedInput:sourceVariant!=='iso'||verifyWorkspaceCleanup}});
   assert.equal(granted.statusCode,200,granted.body);
-  if(sourceVariant==='iso'){
+  if(sourceVariant==='iso'&&!verifyWorkspaceCleanup){
     await waitDatabase(path.join(dataDir,'shelfdeck.db'),db=>db.prepare("SELECT count(*) n FROM fx_workflow_events WHERE capability_ref='arca.ondeck.input_settlement.delete@1' AND state='succeeded'").get().n===1,65_000);
     const related=path.join(source,name+'-poster.jpg'),relatedBytes=fs.readFileSync(related);
     const revoked=await host.inject({method:'POST',url:'/v1/admin/settings/automatic-operation/actions/require-settlement-confirmation',
@@ -3138,6 +3181,11 @@ for(const sourceVariant of ['iso','direct']) test(sourceVariant==='iso'
     const db=new Database(path.join(dataDir,'shelfdeck.db'),{readonly:true});
     try{assert.equal(db.prepare("SELECT count(*) n FROM fx_workflow_events WHERE capability_ref IN ('libra.media.transcode@1','libra.media.remux@1')").get().n,0,'Direct media must not be converted to avoid the unknown-label acceptance case.');}
     finally{db.close();}
+  }
+  if(verifyWorkspaceCleanup){
+    const shelfBefore=reality(shelf);
+    await verifyCleanup(cleanupEvidence());
+    assert.deepEqual(reality(shelf),shelfBefore);
   }
   if(verifyThumbs){
     const db=new Database(path.join(dataDir,'shelfdeck.db'),{readonly:true});
