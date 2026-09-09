@@ -1574,3 +1574,31 @@ test('UAT-172 async settlement rechecks Owner approval after file observations a
     assert.ok(fs.existsSync(path.join(fixture.sourceDirectory,'notes.txt')));
   }finally{fs.rmSync(fixture.root,{recursive:true,force:true});}
 });
+
+for (const method of ['settleInput', 'settleInputAsync']) {
+  test(`UAT-134 same-root settlement reopens safely after deletion with ${method}`, async () => {
+    const fixture = settlementFixture({sameRoot:true, siblingDirectory:true, unknownMember:true});
+    try {
+      const notes = path.join(fixture.sourceDirectory, 'notes.txt');
+      const sibling = path.join(fixture.sourceDirectory, '养蜂人 (2024) - 2160p HEVC Atmos TrueHD5.1', 'BDMV', 'STREAM', '00000.m2ts');
+      const otherVersion = path.join(fixture.sourceDirectory, 'another-version.mkv');
+      fs.writeFileSync(otherVersion, 'independent complete version');
+      const protectedFiles = [notes, sibling, otherVersion];
+      const before = protectedFiles.map(location => fs.readFileSync(location));
+      const command = {materialHandle:fixture.materialHandle, approval:{approvalId:'approval'},
+        finalInventoryRequest:fixture.finalInventoryRequest,
+        finalMaterialKey:fixture.finalMember.sourceMaterialKey,
+        finalTargetLocation:fixture.finalMember.targetLocation,
+        settlementExpectation:'replace_or_move', sourceToFinalMappingDigest:fixture.mappingDigest};
+      assert.equal((await fixture.port[method](command)).finalVerified, true);
+      const reopened = createCleanArcaInventoryPort({schemaManifest, unitOfWork:{},
+        workspaceRoot:path.join(fixture.root, '.workspace')});
+      const replay = await reopened[method](command);
+      assert.equal(replay.absent, true);
+      assert.equal(replay.finalVerified, true);
+      assert.equal(fs.existsSync(fixture.source), false);
+      for (let i=0; i<protectedFiles.length; i++) assert.deepEqual(fs.readFileSync(protectedFiles[i]), before[i]);
+      assert.equal(fs.readFileSync(fixture.finalMember.targetLocation, 'utf8'), 'exact-movie-bytes');
+    } finally { fs.rmSync(fixture.root, {recursive:true, force:true}); }
+  });
+}
