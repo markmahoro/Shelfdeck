@@ -1,6 +1,6 @@
 # UAT-159/163：Movie Workspace 回收与恢复
 
-2026-09-09，本地修复与Windows/Linux验收通过，待部署后关闭。
+2026-09-09，本地修复、Windows/Linux验收及标准生产发布通过，159/163分别关闭。
 
 ## 两个已证实根因
 
@@ -23,3 +23,5 @@
 ## 发布前事实
 
 fnOS只读预检通过，/vol1约55GiB可用。原生产6bcfd7b33b；2026-09-09 17:39:35北京时间，六路GET200，82收藏、2整理中/0待处理，Care44完成/11历史结束、回收站4。备份目录 /vol1/1000/docker/shelfdeck/backups/uat-iteration-20260909-workspace-reclaim-predeploy，DB SHA256 b77cc352e69e2d85223f297e904df3ddc1d950480574f93f0cddcf7b62fa96c0，下载校验相同；Compose/secret.env/Admin凭据及3份加密Integration envelope备份完成。无Schema变化，保留原镜像与回滚材料。
+
+发布镜像内部代码的真实Discard链92.45秒及两项真实进程恢复通过；生产82收藏和六路接口前后同口径保持。见[发布及回滚证据](UAT_RELEASE_04FFA8B116_20260909.md)。125/152仍开放。
