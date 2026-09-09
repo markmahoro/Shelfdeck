@@ -1,15 +1,15 @@
 # ShelfDeck 当前状态
 
-更新：2026-09-09。唯一条目及关闭条件入口为[UAT总表](UAT_ITERATION_REGISTER.md)，唯一排程为[CURRENT_PLAN](CURRENT_PLAN.md)。255项连续：62项本轮功能验收关闭、37项开放、153项历史关闭、220文档关闭、1项非缺陷接受、206被取代且承接已核实。历史关闭不是本次重新验收。
+更新：2026-09-09。唯一条目及关闭条件入口为[UAT总表](UAT_ITERATION_REGISTER.md)，唯一排程为[CURRENT_PLAN](CURRENT_PLAN.md)。255项连续：63项本轮功能验收关闭、36项开放、153项历史关闭、220文档关闭、1项非缺陷接受、206被取代且承接已核实。历史关闭不是本次重新验收。
 
 255项前后合同审查及三项用户决定已完成，SSOT/Beta已在`14cf2d9a0`同步。已无这三项待确认决定；合同确认不等于实现或验收。审查及覆盖关系见[全量证据](implementation/evidence/UAT_FULL_CONTRACT_CONSISTENCY_AUDIT_20260909.md)。
 
 ## 当前生产
 
-- 镜像：`markmahoro/shelfdeck:helix-beta-20260909-1570985359`；source `1570985359`；config Image ID `sha256:d4a8cf22a634938a6e24b720b131325865b990b5b390392bd021bd49740cdc54`。
-- tar SHA256：`3a4c4c6c44ed44da0d5c18b068550d7ef135c55dbc5d25dccdf4ab080a6cef8b`；StartedAt `2026-09-09T10:33:40.541865144Z`。标准构建、上传、校验、dry run、发布、readiness及挂载核验通过。备份、回滚版本及验证见[发布证据](implementation/evidence/UAT_RELEASE_1570985359_20260909.md)。
-- 最近发布后只读快照：2026-09-09 18:34:30北京时间，六路GET均200；82收藏，Formation汇总78、2整理中/0待处理/76完成/3结束；Care查询44完成/11结束；回收站4项。以上按各API原字段记录，不将Formation数量当收藏数，操作前仍须刷新。
-- 集成区`E:/my_project/emby_third_party-helix-iteration`，分支`codex/user-pain-iteration`；发布区`E:/my_project/emby_third_party-helix-uat-release-20260908` detached `1570985359`。原Aftercare调查Evidence未提交修改受保护，未夹带提交。
+- 镜像：`markmahoro/shelfdeck:helix-beta-20260909-7ceaeca7fb`；source `7ceaeca7fb`；config Image ID `sha256:12db15cbc07e12becd793b20cb0f1270e03ec29241ddab05f4dde42d8152eb83`。
+- tar SHA256：`2b5d16ee6d023540c567890e1bec4d0987df6dfaa3becf86be19ecc08d251f26`；StartedAt `2026-09-09T11:11:57.671388692Z`。标准构建、上传、校验、dry run、发布、readiness及挂载核验通过。备份、回滚版本及验证见[发布证据](implementation/evidence/UAT_RELEASE_7CEAECA7FB_20260909.md)。
+- 最近发布后只读快照：2026-09-09 19:13:11北京时间，六路GET均200；82收藏，Formation汇总78、2整理中/0待处理/76完成/3结束；Care查询44完成/11结束；回收站4项。以上按各API原字段记录，不将Formation数量当收藏数，操作前仍须刷新。
+- 集成区`E:/my_project/emby_third_party-helix-iteration`，分支`codex/user-pain-iteration`；发布区`E:/my_project/emby_third_party-helix-uat-release-20260908` detached `7ceaeca7fb`。原Aftercare调查Evidence未提交修改受保护，未夹带提交。
 
 ## 最近验收与开放事实
 
@@ -17,7 +17,7 @@
 
 169已按[真实QSV长片及硬截止/停机验收](implementation/evidence/UAT-169_LONG_TRANSCODE_ACCEPTANCE_20260909.md)独立关闭，未用单测代替长片证据；125/127仍按自身条件开放。
 
-226的新旧完成依据、233的1440/1280/390响应式、234的统计与筛选已按[生产页面证据](implementation/evidence/UAT-226_233_FORMATION_BROWSER_20260909.md)分别关闭。245仍开放：除全量Off-deck候选外，Field状态展开历史Run/Candidate/Delivery，Shelf附带注销详情，Collection的overviewStats仍读取全部Entry并逐项归并健康；不能凭方法名、页面响应较快或只修Off-deck关闭。247跨页缓存条件仍开放。
+226的新旧完成依据、233的1440/1280/390响应式、234的统计与筛选已按[生产页面证据](implementation/evidence/UAT-226_233_FORMATION_BROWSER_20260909.md)分别关闭。245已按[独立快照与有界读取验收](implementation/evidence/UAT-245_OVERVIEW_PROJECTION_ACCEPTANCE_20260909.md)关闭：生产30次GET p95约4.7ms，最终镜像100次请求内领域仓储调用0；141失败状态保护通过。247跨页缓存条件仍开放。
 
 159/163已按真实Movie放弃及成功上架后的Workspace回收、partial清理、真实进程退出恢复和重启稳定分别关闭，见[验收](implementation/evidence/UAT-159_163_WORKSPACE_RECLAIM_20260909.md)。标准NAS发布与镜像内部代码复验通过；125/152联合压力与更广恢复仍开放。165亦已按[独立进程恢复与未决Effect保护](implementation/evidence/UAT-165_PROCESS_RECOVERY_ACCEPTANCE_20260909.md)关闭。
 

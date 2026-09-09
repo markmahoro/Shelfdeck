@@ -6,7 +6,7 @@
 
 状态说明：历史已关闭保留当时证据，并不宣称本次重测；已实现/已部署不等于已关闭；待核实不是当前已证实缺陷。原表与后续完整关闭证据冲突时采用后者并链接。没有证据的事项不批量关闭。
 
-[全量前后合同审查](implementation/evidence/UAT_FULL_CONTRACT_CONSISTENCY_AUDIT_20260909.md)已完成，三项业务冲突均由用户确认并以`14cf2d9a0`同步合同；用户要求整理文档后继续推进。历史标题不是现行Oracle；下述承接条件与SSOT后续优先条款共同适用。当前62项本轮功能验收关闭、37项开放，206被取代承接已核实；另有153项历史关闭、220文档关闭及1项非缺陷接受。
+[全量前后合同审查](implementation/evidence/UAT_FULL_CONTRACT_CONSISTENCY_AUDIT_20260909.md)已完成，三项业务冲突均由用户确认并以`14cf2d9a0`同步合同；用户要求整理文档后继续推进。历史标题不是现行Oracle；下述承接条件与SSOT后续优先条款共同适用。当前63项本轮功能验收关闭、36项开放，206被取代承接已核实；另有153项历史关闭、220文档关闭及1项非缺陷接受。
 
 执行顺序见[CURRENT_PLAN](CURRENT_PLAN.md)。每次完成一项，更新该行的提交、用户结果证据、剩余工作和状态；需要部署的先部署/验收再关闭。编号合并不触发生产操作。
 
@@ -256,7 +256,7 @@
 | UAT-242 | 收藏墙逐张拉海报，详情再打健康与评分接口 | UI / `PERFORMANCE` | 历史已实现，待验收核对 | UX-026 | 见证据 | [UX-026原记录（按标题）](ADMIN_WEB_UX_ISSUE_LOG.md) | 海报与详情请求有界，翻页替换/旧请求迟到保护，两页真实浏览器性能保留。执行B3；依赖/承接：212分页主项。 |
 | UAT-243 | 文件来源按 Field 再打 Routing Policy，观察期间 1s 轮询整表 | UI / `PERFORMANCE` | 验收关闭 | UX-027 | b2978c1512 | [UX-027原记录（按标题）](ADMIN_WEB_UX_ISSUE_LOG.md)；[请求与草稿验收](implementation/evidence/UAT-243_ROUTING_READS_BROWSER_20260908.md) | 原问题、本地多来源/回归证据及生产展开/刷新验收通过，无该项剩余；[发布关闭证据](implementation/evidence/UAT_RELEASE_B2978C1512_20260909.md)。 |
 | UAT-244 | 设置页切到连接 Tab 仍拉取 100 条评分日志 | UI / `PERFORMANCE` | 验收关闭 | UX-028 | 6bcfd7b33b（已发布运行时） | [UX-028原记录（按标题）](ADMIN_WEB_UX_ISSUE_LOG.md)；[生产浏览器逐项验收](implementation/evidence/UAT_SETTINGS_BROWSER_ACCEPTANCE_20260909.md) | 2026-09-09逐项关闭：真实连接页不发评分日志请求；进入日志、筛选或加载更多才请求limit=100，切回连接不重拉日志。 |
-| UAT-245 | 概览所谓 Projection 是请求内五路拼账 | UI / `PERFORMANCE` | 历史已实现，待验收核对 | UX-029 | 见证据 | [UX-029原记录（按标题）](ADMIN_WEB_UX_ISSUE_LOG.md) | 概览Query有界且不请求内五路全量拼账，真实页面响应核验。执行B4；依赖/承接：141；关联057。 |
+| UAT-245 | 概览所谓 Projection 是请求内五路拼账 | UI / `PERFORMANCE` | 验收关闭 | UX-029 | 7ceaeca7fb | [快照/有界读取与生产验收](implementation/evidence/UAT-245_OVERVIEW_PROJECTION_ACCEPTANCE_20260909.md) | 概览Query有界且不请求内五路全量拼账，真实页面响应核验。最终镜像与实际页面已通过；依赖/承接：141；关联057。 |
 | UAT-246 | 退出收藏 3～4 路拼装，preparing 每 500ms 重拉 | UI / `PERFORMANCE` | 验收关闭 | UX-030（退出收藏 3～4 路拼装，preparing 每 500ms 重拉） | 1a3f4254dc | [实现及完整验证](implementation/evidence/UAT-246_OFFDECK_READ_EFFICIENCY_20260909.md)；[发布验收](implementation/evidence/UAT_RELEASE_1A3F4254DC_20260909.md) | 无该项剩余；Arca精简分页、全量ID选择/单Batch、真实十部执行/恢复、千部浏览器及生产70部选择验收通过。 |
 | UAT-247 | Helix 页未使用已引入的 QueryClient，切页无共享缓存 | UI / `PERFORMANCE` | 历史已实现，待验收核对 | UX-031（Helix 页未使用已引入的 QueryClient，切页无共享缓存） | 见证据 | [UX-031原记录（按标题）](ADMIN_WEB_UX_ISSUE_LOG.md) | 核查跨页缓存/失效/迟到响应行为；不为使用QueryClient名称而重写已有效请求机制。执行B4；依赖/承接：212整合后。 |
 | UAT-248 | 整体仍是「内部台账皮肤」，缺少统一的媒体产品视觉 | UI / `AESTHETICS` | 历史已实现，待验收核对 | UX-032 | 见证据 | [UX-032原记录（按标题）](ADMIN_WEB_UX_ISSUE_LOG.md) | 以已确认现行视觉核对媒体产品一致性，真实八页对照；不扩大成新视觉设计。执行B4；依赖/承接：219/239/240；各页整合后。 |
