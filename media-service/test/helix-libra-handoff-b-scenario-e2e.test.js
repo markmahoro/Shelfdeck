@@ -3030,9 +3030,11 @@ for(const sourceVariant of ['iso','direct']) test(sourceVariant==='iso'
   skip:process.env.HELIX_UAT135_REAL_MEDIA!=='1'?'Set HELIX_UAT135_REAL_MEDIA=1 for the generated ISO Host scenario.':false,
   timeout:180_000,
 }, async(t)=>{
+  const verifyThumbs = process.env.HELIX_UAT138_REAL_MEDIA === '1';
   const {createUdfBluRay,writeMpls}=require('../scripts/build-helix-movie-test-library');
   const root=fs.mkdtempSync(path.join(os.tmpdir(),'helix-uat135-host-')),
-    dataDir=path.join(root,'data'),admin=path.join(root,'admin'),source=path.join(root,'field'),
+    dataDir=path.join(root,'data'),admin=path.join(root,'admin'),fieldRoot=path.join(root,'field'),
+    source=verifyThumbs?path.join(fieldRoot,'SDT-M01-Standalone-H264 (2008)'):fieldRoot,
     shelf=path.join(root,'shelf'),disc=path.join(root,'disc');
   for(const dir of [admin,source,shelf,path.join(disc,'BDMV','STREAM'),path.join(disc,'BDMV','CLIPINF')])fs.mkdirSync(dir,{recursive:true});
   fs.writeFileSync(path.join(admin,'index.html'),'<div id="root"></div>');
@@ -3061,6 +3063,11 @@ for(const sourceVariant of ['iso','direct']) test(sourceVariant==='iso'
     for(const field of ['color_transfer','color_primaries','color_space'])assert.ok(!actual[field]||actual[field]==='unknown');
   }
   await sharp({create:{width:64,height:96,channels:3,background:'#345678'}}).jpeg().toFile(path.join(source,name+'-poster.jpg'));
+  const thumbsBytes=Buffer.from('isolated Windows thumbnail cache');
+  if(verifyThumbs){
+    fs.writeFileSync(path.join(source,'Thumbs.db'),thumbsBytes);
+    fs.writeFileSync(path.join(source,'cache.db'),'unknown database must remain');
+  }
   const originalDisc=reality(disc);
   const initialized=initializeCleanData({dataDir,confirmation:'INITIALIZE_HELIX_CLEAN_V1',secretRoot:SECRET});
   let runtimeError;
@@ -3071,7 +3078,7 @@ for(const sourceVariant of ['iso','direct']) test(sourceVariant==='iso'
   t.after(async()=>{await host.close();if(process.env.HELIX_KEEP_TEST_ASSETS!=='1')fs.rmSync(root,{recursive:true,force:true,maxRetries:5,retryDelay:100});});
   let cookie=await session(host,initialized.adminApiKey);
   await createShelf(host,cookie,shelf,undefined,'reject',false);
-  await createField(host,cookie,'uat135-iso-field',source);
+  await createField(host,cookie,'uat135-iso-field',fieldRoot);
   await observe(host,cookie,'uat135-iso-field');
   await waitFor(host,cookie,items=>items.some(item=>String(item.displayIdentity||'').includes('SDT-M01')));
   await route(host,cookie,'uat135-iso-field');
@@ -3083,6 +3090,7 @@ for(const sourceVariant of ['iso','direct']) test(sourceVariant==='iso'
   },90_000);
   assert.deepEqual(awaitingAuthorization,{approvals:0,entries:0});
   assert.ok(fs.existsSync(path.join(source,name+(sourceVariant==='iso'?'.iso':'.mkv'))),'No standing authorization must retain the old input.');
+  if(verifyThumbs)fs.writeFileSync(path.join(source,'later.txt'),'created after frozen Package');
   const granted=await host.inject({method:'POST',url:'/v1/admin/settings/automatic-operation/actions/enable-full',
     headers:{cookie},payload:{idempotencyKey:'uat172-standing-grant',expectedRevision:0,coverExclusiveRelatedInput:sourceVariant!=='iso'}});
   assert.equal(granted.statusCode,200,granted.body);
@@ -3130,6 +3138,17 @@ for(const sourceVariant of ['iso','direct']) test(sourceVariant==='iso'
     const db=new Database(path.join(dataDir,'shelfdeck.db'),{readonly:true});
     try{assert.equal(db.prepare("SELECT count(*) n FROM fx_workflow_events WHERE capability_ref IN ('libra.media.transcode@1','libra.media.remux@1')").get().n,0,'Direct media must not be converted to avoid the unknown-label acceptance case.');}
     finally{db.close();}
+  }
+  if(verifyThumbs){
+    const db=new Database(path.join(dataDir,'shelfdeck.db'),{readonly:true});
+    try{
+      const inventory=db.prepare('SELECT * FROM arca_inventory_materials').all();
+      const thumbs=inventory.filter(row=>path.basename(row.location).toLowerCase()==='thumbs.db');
+      assert.equal(thumbs.length,1,JSON.stringify(inventory));
+      assert.deepEqual(fs.readFileSync(thumbs[0].location),thumbsBytes);
+      assert.equal(fs.readFileSync(path.join(source,'cache.db'),'utf8'),'unknown database must remain');
+      assert.equal(fs.readFileSync(path.join(source,'later.txt'),'utf8'),'created after frozen Package');
+    }finally{db.close();}
   }
   t.diagnostic(JSON.stringify({scenario:'real-'+sourceVariant+'-source-to-ondeck',...terminal}));
 });
