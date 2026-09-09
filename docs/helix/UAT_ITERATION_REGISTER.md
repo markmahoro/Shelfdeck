@@ -6,7 +6,7 @@
 
 状态说明：历史已关闭保留当时证据，并不宣称本次重测；已实现/已部署不等于已关闭；待核实不是当前已证实缺陷。原表与后续完整关闭证据冲突时采用后者并链接。没有证据的事项不批量关闭。
 
-[全量前后合同审查](implementation/evidence/UAT_FULL_CONTRACT_CONSISTENCY_AUDIT_20260909.md)已完成，三项业务冲突均由用户确认并以`14cf2d9a0`同步合同；用户要求整理文档后继续推进。历史标题不是现行Oracle；下述承接条件与SSOT后续优先条款共同适用。当前55项本轮功能验收关闭、44项开放，206被取代承接已核实；另有153项历史关闭、220文档关闭及1项非缺陷接受。
+[全量前后合同审查](implementation/evidence/UAT_FULL_CONTRACT_CONSISTENCY_AUDIT_20260909.md)已完成，三项业务冲突均由用户确认并以`14cf2d9a0`同步合同；用户要求整理文档后继续推进。历史标题不是现行Oracle；下述承接条件与SSOT后续优先条款共同适用。当前56项本轮功能验收关闭、43项开放，206被取代承接已核实；另有153项历史关闭、220文档关闭及1项非缺陷接受。
 
 执行顺序见[CURRENT_PLAN](CURRENT_PLAN.md)。每次完成一项，更新该行的提交、用户结果证据、剩余工作和状态；需要部署的先部署/验收再关闭。编号合并不触发生产操作。
 
@@ -176,7 +176,7 @@
 | UAT-162 | 收藏架拒收后没法放弃《影子写手》 | `USER_EXPERIENCE` / Handoff B 拒收后 Run 仍 active | 已部署待验收核对 | PROD-019 | c547a2f93 | [PROD-019原记录](PRODUCTION_DEPLOY_ISSUE_LOG.md) | Handoff B拒收后的本次结果和责任可收口；已Accepted不得退回Libra或虚构放弃权限。执行B1；依赖/承接：251。 |
 | UAT-163 | 放弃/上架后工作区 remux 与转码 `.partial` 清不掉 | `EXECUTION` / Drain 先删后记账 + 清理名单不含无引用材料 | 验收关闭 | PROD-020 | 04ffa8b116 | [Windows/Linux及进程恢复验收](implementation/evidence/UAT-159_163_WORKSPACE_RECLAIM_20260909.md)、[生产发布](implementation/evidence/UAT_RELEASE_04FFA8B116_20260909.md) | 完成/放弃后partial与无引用Workspace回收，删除及记账崩溃恢复、保护其他Run分别验。2026-09-09按现行条件分别验收关闭；依赖/承接：125/251。 合同审查：discard、Off-load、orphan三种资格分开；用户已取消Off-load后额外等待，但保留两轮引用安全审计，不能把其他场景一律改成立即删除。 [全量前后合同审查](implementation/evidence/UAT_FULL_CONTRACT_CONSISTENCY_AUDIT_20260909.md)。 |
 | UAT-164 | 《露梁海战》DTS-HD MA 触发寻源且不能瑕疵入库 | `EXECUTION` / 音轨 copy 估满后 infeasible 去 MoviePilot | 已部署待验收核对 | PROD-021 | 6ad8bc999 | [PROD-021原记录](PRODUCTION_DEPLOY_ISSUE_LOG.md) | DTS-HD MA预算与质量保护实测，合格原片可接纳差距，不要求放弃后采购来出现按钮。执行B1；依赖/承接：251/218。 |
-| UAT-165 | 无损升级后容器起不来；启动恢复把旧转码超时残留当硬故障 | `EXECUTION` / 超时重试留下 superseded `reconcile_required` Effect | 已部署待验收核对 | PROD-022 | 6ad8bc999 | [PROD-022原记录](PRODUCTION_DEPLOY_ISSUE_LOG.md) | superseded超时Effect不阻断重启，真实未决Effect仍fail closed；隔离崩溃恢复。执行B2；依赖/承接：127。 |
+| UAT-165 | 无损升级后容器起不来；启动恢复把旧转码超时残留当硬故障 | `EXECUTION` / 超时重试留下 superseded `reconcile_required` Effect | 验收关闭 | PROD-022 | 04ffa8b116（运行时） | [实际进程及边界验收](implementation/evidence/UAT-165_PROCESS_RECOVERY_ACCEPTANCE_20260909.md) | superseded超时Effect不阻断重启，真实未决Effect仍fail closed；隔离崩溃恢复。2026-09-09 Windows/Linux实际进程恢复及各82项边界测试通过，独立关闭；依赖/承接：127。 |
 | UAT-166 | 放弃整理仍弹出浏览器自带确认框 | `USER_EXPERIENCE` / 只改了接受瑕疵 Dialog | 已部署待验收核对 | PROD-023 | 79fc055d1 | [PROD-023原记录](PRODUCTION_DEPLOY_ISSUE_LOG.md) | 自定义确认框说明本次终结/精确收尾，无浏览器confirm且不承诺自动重新采购。执行B3；依赖/承接：251/212。 |
 | UAT-167 | 门口 3 席位失效，一次灌进 8 部 Libra Run | `EXECUTION` / Intake 成功到 Run 建立不占席位 | 验收关闭 | PROD-024 | 955fe42daf | [PROD-024原记录](PRODUCTION_DEPLOY_ISSUE_LOG.md) [逐项验收](implementation/evidence/UAT-167_174_175_FIELD_SEATS_20260909.md)； | 2026-09-09 04:09按本项Oracle关闭：Windows/Linux真实Host、重启/正负路径、真实隔离浏览器保存及生产同资产验收通过。其他关联项不自动关闭。 |
 | UAT-168 | 《007：大破天幕杀机》寻源报没有外部候选 | `EXECUTION` / MoviePilot 把 TMDB ID 当标题搜 | 已部署待验收核对 | PROD-025 | d1dd611d4 | [PROD-025原记录](PRODUCTION_DEPLOY_ISSUE_LOG.md) | MoviePilot用正式片名/年份搜索，唯一资源规则仍有效；缺ID与Provider故障分类、不得无条件重试。执行B1；依赖/承接：251；关联199/201。 |
