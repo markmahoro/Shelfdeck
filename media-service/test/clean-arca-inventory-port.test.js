@@ -1602,3 +1602,51 @@ for (const method of ['settleInput', 'settleInputAsync']) {
     } finally { fs.rmSync(fixture.root, {recursive:true, force:true}); }
   });
 }
+
+for (const changedBytes of [false, true]) {
+  test(`UAT-158 Stage distinguishes timestamp-only changes from content drift: ${changedBytes}`, async () => {
+    const fixture = settlementFixture();
+    try {
+      fs.rmSync(fixture.finalMember.targetLocation);
+      let touchedWhileSampling = 0;
+      const {computeBoundedMaterialFingerprint} = require('../src/helix/integrations/bounded-material-fingerprint');
+      const port = createCleanArcaInventoryPort({schemaManifest, unitOfWork:{}, workspaceRoot:path.join(fixture.root, '.workspace'),
+        computeFingerprint(location) {
+          return computeBoundedMaterialFingerprint(location, {onRead() {
+            if (!location.includes('.tmp-')) return;
+            const stat = fs.statSync(location);
+            fs.utimesSync(location, stat.atime, new Date(stat.mtimeMs + 10000));
+            touchedWhileSampling++;
+          }});
+        },
+        async copyFile(source, target, flags) {
+          await fs.promises.copyFile(source, target, flags);
+          const copyTime = new Date('2021-01-01T00:00:00Z');
+          await fs.promises.utimes(target, copyTime, copyTime);
+        }});
+      const request = {...fixture.finalInventoryRequest, replayCommitted:false};
+      const before = fs.readFileSync(fixture.source);
+      const oldTime = new Date('2020-01-01T00:00:00Z');
+      fs.utimesSync(fixture.source, oldTime, oldTime);
+      const targetCommitSlotHandle = port.prepareSlot(request);
+      if (changedBytes) fs.writeFileSync(fixture.source, Buffer.alloc(before.length, 88));
+      if (changedBytes) {
+        await assert.rejects(port.stage({...request, targetCommitSlotHandle}),
+          error => error.code === 'CLEAN_ARCA_PRODUCT_SOURCE_DRIFT');
+        assert.equal(fs.existsSync(fixture.finalMember.targetLocation), false);
+        assert.deepEqual(fs.readFileSync(fixture.source), Buffer.alloc(before.length, 88));
+      } else {
+        const stagedInventoryManifest = await port.stage({...request, targetCommitSlotHandle});
+        assert.equal(stagedInventoryManifest.stagedMembers.length, 1);
+        assert.ok(touchedWhileSampling > 0, 'The copied temporary file must be touched during actual fingerprint sampling.');
+        const stagedInventoryVerification = await port.verifyStaged({...request, stagedInventoryManifest});
+        await port.switchPlacement({...request, stagedInventoryVerification,
+          targetBindings:{bindingSetDigest:'uat158-bindings'}, replacedInputSetDigest:'uat158-inputs'});
+        assert.deepEqual(fs.readFileSync(fixture.finalMember.targetLocation), before);
+        assert.deepEqual(fs.readFileSync(fixture.source), before);
+        assert.notEqual(fs.statSync(fixture.finalMember.targetLocation).mtimeMs, fs.statSync(fixture.source).mtimeMs);
+        assert.equal(fs.existsSync(targetCommitSlotHandle.slotDirectory), false);
+      }
+    } finally { fs.rmSync(fixture.root, {recursive:true, force:true}); }
+  });
+}
