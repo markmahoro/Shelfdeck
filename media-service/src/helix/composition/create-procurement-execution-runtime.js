@@ -35,7 +35,7 @@ const { createMaterialControlProjectionPort, controlScopeDigest } = require('../
 const { createDomainReconcileRunner } = require('../foundation/execution/domain-reconcile-runner');
 const { createWorkflowPlanPublisher, executionCatalogDigest } = require('../foundation/execution/workflow-plan');
 const { PRE_PROJECTION_PLAN_REPLAN_CODE } = require('../foundation/persistence/uat-identity-selection-migration');
-const { compileFfmpegPipeline } = require('../integrations/ffmpeg-pipeline');
+const { compileFfmpegPipeline, compileFfmpegPassArgs } = require('../integrations/ffmpeg-pipeline');
 
 function volumeReadUnitsForCapability(capability) {
   return capability === 'libra.transcode.input.verify@1' ? 2 : 1;
@@ -297,7 +297,7 @@ function createProcurementExecutionRuntime(options) {
   const arcaCapabilityRegistration=arcaConstruction.createCapabilityRegistration({...options,now,workResultReader,contractValidator,
     registry:currentServiceCatalog,
     buildRatingTargetIdentity:LibraExecutionRegistration.buildRatingTargetIdentity,
-    compileFfmpegPipeline,
+    compileFfmpegPipeline, compileFfmpegPassArgs,
     computeBoundedMaterialFingerprint:options.computeBoundedMaterialFingerprint || computeBoundedMaterialFingerprint,
     computeBoundedMaterialFingerprintSync,
     readBoundedFileSnapshotSync,

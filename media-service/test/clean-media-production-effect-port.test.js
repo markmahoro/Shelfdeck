@@ -534,6 +534,29 @@ test('remux still opens an ordinary stream file without ISO extraction', async (
   assert.equal(fs.existsSync(output + '.iso-clip-00000.m2ts'), false);
 });
 
+test('CPU two-pass production retains x265 stats until completion and removes them', {timeout:30_000}, async (t) => {
+  const root=fs.mkdtempSync(path.join(os.tmpdir(), "shelfdeck two-pass 'stats'-"));
+  t.after(()=>fs.rmSync(root,{recursive:true,force:true}));
+  const source=path.join(root,'source.mkv');
+  writeTinyMkv(source);
+  const original=fs.readFileSync(source);
+  const workspace=path.join(root,'workspace');fs.mkdirSync(workspace);
+  const port=createCleanMediaProductionEffectPort({ffmpegPath,workspaceProductPort:workspacePort(workspace)});
+  const request=remuxRequest(source);
+  request.sourceHandle={location:source};
+  request.deviceSnapshot={deviceClass:'software_cpu',snapshotDigest:'a'.repeat(64)};
+  request.productionIntent={intentDigest:'two-pass-intent',video:{rateControlMode:'two_pass_abr',
+    targetVideoBitrateBps:100_000,qualityBound:null,dynamicRangeOperation:'preserve',pipelineProfileId:SDR_PROFILE_ID},
+    audio:{mode:'copy'},subtitle:{mode:'copy'}};
+  await port.executeTranscode(request);
+  const output=path.join(workspace,'workspace-out.mkv');
+  assert.ok(fs.statSync(output).size>0);
+  const decoded=spawnSync(ffmpegPath,['-v','error','-i',output,'-f','null','-'],{encoding:'utf8',windowsHide:true});
+  assert.equal(decoded.status,0,decoded.stderr);
+  assert.deepEqual(fs.readdirSync(workspace),['workspace-out.mkv']);
+  assert.deepEqual(fs.readFileSync(source),original);
+});
+
 test('transcode input preflight uses the real encode argv for 24 frames from the start', () => {
   const source = fs.readFileSync(path.resolve(__dirname, '../src/clean-media-production-effect-port.js'), 'utf8');
   const fn = source.slice(source.indexOf('async function verifyTranscodeInput'),

@@ -524,6 +524,7 @@ test('producer partial siblings are removed with leftover Workspace reclaim', ()
     fs.mkdirSync(media, { recursive: true });
     const stale = path.join(media, 'transcode-1.mkv.partial-0123456789abcdef');
     fs.writeFileSync(stale, 'interrupted-encode');
+    for (const suffix of ['', '.cutree', '.temp', '.cutree.temp']) fs.writeFileSync(stale + '.passlog' + suffix, 'x265 stats');
     const result = port.reclaimUnreferencedWorkspace(workspaceId);
     assert.equal(result.directoryRemoved, true);
     assert.equal(fs.existsSync(stale), false);
@@ -541,7 +542,7 @@ test('empty Workspace reclaim drops producer partials and still rejects unknown 
     assert.equal(port.reclaimEmptyWorkspace(workspaceId).removed, true);
     assert.equal(fs.existsSync(path.join(workspaceRoot, workspaceId)), false);
     fs.mkdirSync(path.join(workspaceRoot, workspaceId), { recursive: true });
-    fs.writeFileSync(path.join(workspaceRoot, workspaceId, 'unknown.bin'), 'not admitted');
+    fs.writeFileSync(path.join(workspaceRoot, workspaceId, 'foreign.passlog'), 'not admitted');
     assert.throws(() => port.reclaimEmptyWorkspace(workspaceId),
       (error) => error.code === 'CLEAN_WORKSPACE_RECLAIM_UNKNOWN_MEMBER');
   }));

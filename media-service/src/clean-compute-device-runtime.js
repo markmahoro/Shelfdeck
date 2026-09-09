@@ -8,7 +8,7 @@ const { spawn } = require('node:child_process');
 const { canonicalDigest } = require('./helix/contracts/canonical-json');
 const { createResourceWorkerRegistry } = require('./helix/platform/application/resource-worker-registry');
 const { createResourceWorkerRepository } = require('./helix/platform/persistence/resource-worker-repository');
-const { compileFfmpegPipeline, DV_SDR_FILTER, SDR_PROFILE_ID, DV_SDR_PROFILE_ID } =
+const { compileFfmpegPipeline, compileFfmpegPassArgs, DV_SDR_FILTER, SDR_PROFILE_ID, DV_SDR_PROFILE_ID } =
   require('./helix/integrations/ffmpeg-pipeline');
 
 const PROBES = Object.freeze([
@@ -92,10 +92,10 @@ async function encodeProbeMode(executable,input,output,deviceClass,mode,profileI
   if(mode!=='two_pass_abr')return runCommand(executable,[...base,'-an','-sn','-f','matroska',output],timeoutMs);
   const passlog=output+'.passlog';
   try{
-    const first=await runCommand(executable,[...base,'-pass','1','-passlogfile',passlog,'-an','-sn','-f','null',nullTarget],timeoutMs);
+    const first=await runCommand(executable,[...base,...compileFfmpegPassArgs(deviceClass,1,passlog),'-an','-sn','-f','null',nullTarget],timeoutMs);
     if(!first.passed)return first;
-    return runCommand(executable,[...base,'-pass','2','-passlogfile',passlog,'-an','-sn','-f','matroska',output],timeoutMs);
-  }finally{for(const suffix of ['', '.log', '.log.mbtree', '-0.log', '-0.log.mbtree']){const item=passlog+suffix;if(fs.existsSync(item))fs.rmSync(item,{force:true});}}
+    return await runCommand(executable,[...base,...compileFfmpegPassArgs(deviceClass,2,passlog),'-an','-sn','-f','matroska',output],timeoutMs);
+  }finally{for(const suffix of ['', '.cutree', '.temp', '.cutree.temp']){const item=passlog+suffix;if(fs.existsSync(item))fs.rmSync(item,{force:true});}}
 }
 
 function noDolbyVision(stream) {

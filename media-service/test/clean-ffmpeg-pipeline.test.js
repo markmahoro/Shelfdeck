@@ -2,7 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { compileFfmpegPipeline, DV_SDR_PROFILE_ID, SDR_PROFILE_ID } =
+const { compileFfmpegPipeline, compileFfmpegPassArgs, DV_SDR_PROFILE_ID, SDR_PROFILE_ID } =
   require('../src/helix/integrations/ffmpeg-pipeline');
 const { runValidatedDeviceProfileProbe } = require('../src/clean-compute-device-runtime');
 
@@ -10,6 +10,13 @@ function video(overrides = {}) {
   return { rateControlMode:'quality_bound', qualityBound:23, targetVideoBitrateBps:null,
     dynamicRangeOperation:'preserve', pipelineProfileId:SDR_PROFILE_ID, ...overrides };
 }
+
+test('two-pass compiler rejects hardware and invalid stats requests', () => {
+  for (const args of [['intel_qsv',1,'stats'],['software_cpu',3,'stats'],['software_cpu',1,''],
+    ['software_cpu',1,'bad\npath']]) {
+    assert.throws(()=>compileFfmpegPassArgs(...args),error=>error.code==='PLATFORM_MEDIA_TWO_PASS_INVALID');
+  }
+});
 
 test('ordinary NVENC pipeline keeps decode and encode on the GPU', () => {
   const pipeline=compileFfmpegPipeline({deviceClass:'nvidia_nvenc',platform:'win32',video:video()});
@@ -48,9 +55,9 @@ test('strict NVENC ABR compiles CBR controls and VAAPI is never advertised on Wi
 });
 
 test('ordinary device qualification includes an untagged dynamic-range input', async () => {
-  const result=await runValidatedDeviceProfileProbe(require('ffmpeg-static'),
-    {deviceKind:'software_cpu',encoder:'libx265'},SDR_PROFILE_ID,['quality_bound'],30_000);
+  const result=await runValidatedDeviceProfileProbe((process.env.FFMPEG_PATH || require('ffmpeg-static')),
+    {deviceKind:'software_cpu',encoder:'libx265'},SDR_PROFILE_ID,['two_pass_abr','strict_abr','quality_bound'],30_000);
   assert.equal(result.passed,true);
-  assert.deepEqual(result.passedModes,['quality_bound']);
+  assert.deepEqual(result.passedModes,['two_pass_abr','strict_abr','quality_bound']);
   assert.match(result.evidenceDigest,/^[0-9a-f]{64}$/u);
 });

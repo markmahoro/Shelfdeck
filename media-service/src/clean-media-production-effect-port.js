@@ -4,7 +4,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { spawn } = require('node:child_process');
 const { canonicalDigest } = require('./helix/contracts/canonical-json');
-const { compileFfmpegPipeline } = require('./helix/integrations/ffmpeg-pipeline');
+const { compileFfmpegPipeline, compileFfmpegPassArgs } = require('./helix/integrations/ffmpeg-pipeline');
 const { createFfmpegProcessRegistry } = require('./clean-ffmpeg-process-registry');
 const { inspectIsoPlaybackPlan } = require('./helix/integrations/disc-topology');
 const { computeBoundedMaterialFingerprint } =
@@ -543,7 +543,7 @@ function createCleanMediaProductionEffectPort(options) {
           const passlog=temporaryTarget+'.passlog',nullTarget=process.platform==='win32'?'NUL':'/dev/null';
           try {
             await run(['-hide_banner','-nostdin','-y',...pipeline.inputArgs,'-i',source,'-map','0:v:0',...pipeline.videoArgs,
-              '-pass','1','-passlogfile',passlog,'-an','-sn','-f','null',nullTarget],timeoutMs,progress?progressPhase(progress,'transcode-pass1',0,false):null);
+              ...compileFfmpegPassArgs(pipeline.deviceClass,1,passlog),'-an','-sn','-f','null',nullTarget],timeoutMs,progress?progressPhase(progress,'transcode-pass1',0,false):null);
             if(normalizeDolbyVision){
               // FFmpeg 6.x Matroska propagation can copy the source DOVI
               // configuration side-data even after a full pixel encode. A
@@ -552,15 +552,15 @@ function createCleanMediaProductionEffectPort(options) {
               // The final mux then carries audio/subtitles from the source,
               // never the source video stream or its DOVI configuration.
               await run(['-hide_banner','-nostdin','-y',...pipeline.inputArgs,'-i',source,'-map','0:v:0',...pipeline.videoArgs,
-                '-pass','2','-passlogfile',passlog,'-an','-sn','-f','mpegts',normalizedVideoTarget],timeoutMs,progress?progressPhase(progress,'transcode-pass2',1,false):null);
+                ...compileFfmpegPassArgs(pipeline.deviceClass,2,passlog),'-an','-sn','-f','mpegts',normalizedVideoTarget],timeoutMs,progress?progressPhase(progress,'transcode-pass2',1,false):null);
               await muxNormalizedVideo();
               if(progress)completeProcessProgress(progress,'transcode-pass2-mux');
             }else{
               await run(['-hide_banner','-nostdin','-y',...pipeline.inputArgs,'-i',source,...productStreamMap(request.productionIntent),...pipeline.videoArgs,
-                '-pass','2','-passlogfile',passlog,'-c:a','copy','-c:s','copy','-f','matroska',temporaryTarget],timeoutMs,progress?progressPhase(progress,'transcode-pass2',1,true):null);
+                ...compileFfmpegPassArgs(pipeline.deviceClass,2,passlog),'-c:a','copy','-c:s','copy','-f','matroska',temporaryTarget],timeoutMs,progress?progressPhase(progress,'transcode-pass2',1,true):null);
             }
           } finally {
-            for(const suffix of ['', '.log', '.log.mbtree', '-0.log', '-0.log.mbtree']){
+            for(const suffix of ['', '.cutree', '.temp', '.cutree.temp']){
               const candidate=passlog+suffix;if(fs.existsSync(candidate))fs.rmSync(candidate,{force:true});
             }
             if(fs.existsSync(normalizedVideoTarget))fs.rmSync(normalizedVideoTarget,{force:true});

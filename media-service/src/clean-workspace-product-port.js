@@ -34,7 +34,7 @@ function digestBytes(bytes) {
   return crypto.createHash('sha256').update(bytes).digest('hex');
 }
 
-const PRODUCER_PARTIAL = /\.partial-[0-9a-f]{16}$/;
+const PRODUCER_PARTIAL = /\.partial-[0-9a-f]{16}(?:\.passlog(?:\.cutree)?(?:\.temp)?)?$/;
 
 function isProducerPartialName(name) {
   return typeof name === 'string' && PRODUCER_PARTIAL.test(name);

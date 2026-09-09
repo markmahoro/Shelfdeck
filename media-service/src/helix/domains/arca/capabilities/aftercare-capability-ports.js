@@ -406,7 +406,7 @@ async function assessMediaRepairStrategy(options,context,probe,sourceProbeEviden
   }return null;}
 async function verifyPlaybackBounded(options,store,workspaceMediaHandle,probe,run=runFfmpeg){const handle=workspaceMediaHandle.workspaceMaterialHandle,location=workspaceLocation(store,handle),duration=Math.max(1,Number(probe.durationMs||1))/1000,points=[5,50,95],passed=[];for(const point of points){try{await run(resolveAftercareFfmpegPath(options.ffmpegPath),['-hide_banner','-nostdin','-loglevel','error','-ss',(duration*point/100).toFixed(3),'-i',location,'-map','0:v:0','-frames:v','1','-f','null',process.platform==='win32'?'NUL':'/dev/null'],30_000);passed.push(point);}catch{}}return Object.freeze({samplePointsPercent:Object.freeze(points),passedSamplePointsPercent:Object.freeze(passed),decodeDigest:canonicalDigest({schema:'arca.aftercare-playback-decode@1',handleDigest:canonicalDigest(handle),points,passed})});}
 
-function createAftercareCapabilityPorts(options){const now=options.now||Date.now,contextReader=options.contextReader,store=contextReader.store,controls=createMaterialControlProjectionPort(options),fingerprint=options.computeBoundedMaterialFingerprintSync,readSnapshot=options.readBoundedFileSnapshotSync,compileFfmpegPipeline=options.compileFfmpegPipeline;
+function createAftercareCapabilityPorts(options){const now=options.now||Date.now,contextReader=options.contextReader,store=contextReader.store,controls=createMaterialControlProjectionPort(options),fingerprint=options.computeBoundedMaterialFingerprintSync,readSnapshot=options.readBoundedFileSnapshotSync,compileFfmpegPipeline=options.compileFfmpegPipeline,compileFfmpegPassArgs=options.compileFfmpegPassArgs;
   if(typeof fingerprint!=='function')throw new TypeError('Arca Aftercare requires the bounded Physical Material fingerprint port.');
   function context(execution){const value=contextReader.read(execution.ownerScope.processId);if(!value)throw new Error('Arca Aftercare Shelf Entry is unavailable.');return value;}
   function activeCase(c){const value=store.history(c.shelfEntryId).cases.find((item)=>item.state==='active');if(!value)throw new Error('Arca Aftercare active Case is unavailable.');if(value.careBasisDigest!==c.basis.digest)throw Object.assign(new Error('Arca Aftercare Case Basis is stale.'),{code:'ARCA_AFTERCARE_CASE_BASIS_STALE'});if(c.raw.shelf.status!=='active'||c.raw.reservations.some((item)=>item.state==='active'))throw Object.assign(new Error('Arca Aftercare modification authority is fenced.'),{code:'ARCA_AFTERCARE_MODIFICATION_FENCED'});return value;}
@@ -549,16 +549,16 @@ function createAftercareCapabilityPorts(options){const now=options.now||Date.now
           const passlog=temporary+'.passlog',nullTarget=process.platform==='win32'?'NUL':'/dev/null';
           try{
             await runFfmpeg(binary,['-hide_banner','-nostdin','-y',...pipeline.inputArgs,'-i',source,'-map','0:v:0',...pipeline.videoArgs,
-              '-pass','1','-passlogfile',passlog,'-an','-sn','-f','null',nullTarget],progress(0,durationUs*2));
+              ...compileFfmpegPassArgs(strategy.selectedDeviceClass,1,passlog),'-an','-sn','-f','null',nullTarget],progress(0,durationUs*2));
             revalidateCaseAuthority(execution,care);
             const pass2Target=normalizeDolbyVision?normalizedVideoTarget:temporary,pass2Format=normalizeDolbyVision?'mpegts':'matroska';
             await runFfmpeg(binary,['-hide_banner','-nostdin','-y',...pipeline.inputArgs,'-i',source,'-map','0:v:0',
-              ...(normalizeDolbyVision?[]:['-map','0:a?','-map','0:s?']),...pipeline.videoArgs,'-pass','2','-passlogfile',passlog,
+              ...(normalizeDolbyVision?[]:['-map','0:a?','-map','0:s?']),...pipeline.videoArgs,...compileFfmpegPassArgs(strategy.selectedDeviceClass,2,passlog),
               ...(normalizeDolbyVision?['-an','-sn']:['-c:a','copy','-c:s','copy']),'-f',pass2Format,pass2Target],progress(durationUs,durationUs*2));
             revalidateCaseAuthority(execution,care);
             if(normalizeDolbyVision)await muxNormalizedVideo();
           }finally{
-            for(const suffix of ['', '.log', '.log.mbtree', '-0.log', '-0.log.mbtree']){const item=passlog+suffix;if(fs.existsSync(item))fs.rmSync(item,{force:true});}
+            for(const suffix of ['', '.cutree', '.temp', '.cutree.temp']){const item=passlog+suffix;if(fs.existsSync(item))fs.rmSync(item,{force:true});}
             if(fs.existsSync(normalizedVideoTarget))fs.rmSync(normalizedVideoTarget,{force:true});
           }
         }else if(normalizeDolbyVision){

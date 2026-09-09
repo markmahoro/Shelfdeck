@@ -101,6 +101,15 @@ function compileFfmpegPipeline(value) {
   });
 }
 
+function compileFfmpegPassArgs(deviceClass, pass, statsPath) {
+  if (deviceClass !== 'software_cpu' || ![1, 2].includes(pass) ||
+      typeof statsPath !== 'string' || !statsPath || /[\r\n\0]/.test(statsPath)) {
+    fail('PLATFORM_MEDIA_TWO_PASS_INVALID', 'Two-pass HEVC requires a CPU encoder, pass number, and exact stats path.');
+  }
+  const escaped = statsPath.replace(/\\/g, '/').replace(/([:\u0027])/g, '\\$1');
+  return Object.freeze(['-x265-params', 'pass=' + pass + ':stats=' + escaped]);
+}
+
 module.exports = Object.freeze({
   CleanFfmpegPipelineError,
   DV_SDR_FILTER,
@@ -108,6 +117,7 @@ module.exports = Object.freeze({
   DV_SDR_PROFILE_ID,
   backend,
   compileFfmpegPipeline,
+  compileFfmpegPassArgs,
   profileArgs,
   rateControlArgs,
 });
