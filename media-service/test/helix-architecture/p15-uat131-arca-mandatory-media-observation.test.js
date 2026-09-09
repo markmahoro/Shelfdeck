@@ -52,12 +52,12 @@ function fixture({ authorized = false, expired = false, workspace = false,
   conversionOperation = workspace ? 'preserve' : 'none',
   sourceDynamicRangeKind = 'hdr10_compatible',
   outputDynamicRangeKind = sourceDynamicRangeKind,
-  acceptedPrimaryAudioClasses = [] } = {}) {
-  const runId='run-1',packageId=D('package'),specDigest=D('spec'),identity=physicalIdentity(),
-    sourceIdentity=workspace?physicalIdentity(D('source-material'),'2',D('source-bytes')):identity,
-    location=process.platform==='win32'?'C:/canary/movie.mkv':'/canary/movie.mkv',
-    sourceLocation=workspace?(process.platform==='win32'?'C:/canary/source.mkv':'/canary/source.mkv'):location,
-    memberBody={ordinal:0,materialKey:identity.materialKey,role:'primary_payload',physicalIdentity:identity,sizeBytes:100,
+  acceptedPrimaryAudioClasses = [], physicalMaterials = null } = {}) {
+  const runId='run-1',packageId=D('package'),specDigest=D('spec'),identity=physicalMaterials?.product.identity||physicalIdentity(),
+    sourceIdentity=workspace?(physicalMaterials?.source.identity||physicalIdentity(D('source-material'),'2',D('source-bytes'))):identity,
+    location=physicalMaterials?.product.location||(process.platform==='win32'?'C:/canary/movie.mkv':'/canary/movie.mkv'),
+    sourceLocation=workspace?(physicalMaterials?.source.location||(process.platform==='win32'?'C:/canary/source.mkv':'/canary/source.mkv')):location,
+    memberBody={ordinal:0,materialKey:identity.materialKey,role:'primary_payload',physicalIdentity:identity,sizeBytes:identity.sizeBytes,
       location:Object.freeze({locationKind:'domain_binding',endpointId:'endpoint-1',location,rootHandleRef:null,relativePath:null}),
       bindingKind:'libra_material_binding',bindingRevision:1,originCandidateDeliveryRef:null,workspaceReferenceId:null,
       workspaceMaterialHandle:null,admittedControlRevision:1,admittedControlProjectionDigest:D('control'),bindingEvidenceDigest:D('binding'),
@@ -66,7 +66,9 @@ function fixture({ authorized = false, expired = false, workspace = false,
     expiresAtMs=issuedAtMs+86_400_000;
   const makeHandle=(handleIdentity,handleLocation,readRole)=>{const basis={schemaRef:'helix://contracts/types/PhysicalMaterialReadHandle/v1',schemaVersion:1,
     handleId:'',identity:handleIdentity,ownerDomain:'libra',ownerScope:Object.freeze({scopeType:'on_deck_package',scopeId:packageId}),bindingRevision:1,
-    endpointId:'endpoint-1',location:handleLocation,mountScopeRevision:1,expectedSizeBytes:100,expectedMtimeNs:1,expectedCtimeNs:1,
+    endpointId:'endpoint-1',location:handleLocation,mountScopeRevision:1,expectedSizeBytes:handleIdentity.sizeBytes,
+    expectedMtimeNs:physicalMaterials?Number((handleLocation===location?physicalMaterials.product:physicalMaterials.source).stat.mtimeNs/1_000_000n):1,
+    expectedCtimeNs:physicalMaterials?Number((handleLocation===location?physicalMaterials.product:physicalMaterials.source).stat.ctimeNs/1_000_000n):1,
     fingerprintVerifiedAtMs:issuedAtMs,readScope:'shelf_acceptance_primary_probe_decode',expiresAtMs,fenceDigest:''};
   basis.handleId=canonicalDigest({schema:'libra.shelf-acceptance-primary-read-handle-id@1',onDeckPackageId:packageId,libraRunId:runId,
     readRole,materialKey:handleIdentity.materialKey,bindingRevision:1,productMemberDigest:member.memberDigest,
@@ -438,4 +440,66 @@ test('UAT-132 rejects a caller-narrowed dynamic-range pseudo-policy and invalid 
   await assert.rejects(observeMandatoryMedia({...invalidVariant,
     ...ports(invalidVariant.identity,'hevc','sdr','dolby_vision'),observedAtMs:NOW}),
   (error)=>error.code==='ARCA_MANDATORY_MEDIA_INVALID_CONTRACT');
+});
+
+for(const scenario of ['historical-labels','damaged-source','damaged-product'])test('UAT-'+(scenario==='historical-labels'?'137':'160')+' real fresh media '+scenario+' keeps independent Product decode',{
+  skip:process.env.HELIX_UAT137_REAL_MEDIA!=='1'?'Set HELIX_UAT137_REAL_MEDIA=1 for actual FFmpeg media verification.':false,
+  timeout:90_000,
+},async(t)=>{
+  const fs=require('node:fs'),os=require('node:os'),path=require('node:path'),{spawnSync}=require('node:child_process');
+  const {computeBoundedMaterialFingerprint,computeBoundedMaterialFingerprintSync}=require('../../src/helix/integrations/bounded-material-fingerprint');
+  const {createCleanMediaProbe}=require('../../src/clean-media-probe');
+  const {createCleanMediaProductionEffectPort}=require('../../src/clean-media-production-effect-port');
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'helix-uat137-real-'));
+  t.after(()=>fs.rmSync(root,{recursive:true,force:true,maxRetries:3,retryDelay:100}));
+  const binary=process.env.FFMPEG_PATH||require('ffmpeg-static'),product=path.join(root,'movie.mkv'),source=path.join(root,'source.mkv');
+  const run=args=>{const result=spawnSync(binary,['-hide_banner','-nostdin','-y',...args],{encoding:'utf8',windowsHide:true});assert.equal(result.status,0,result.stderr);};
+  run(['-f','lavfi','-i','testsrc2=s=320x180:r=24:d=4','-c:v','libx265','-preset','ultrafast','-x265-params','pools=1:frame-threads=1:colorprim=bt709:transfer=bt709:colormatrix=bt709:range=limited',
+    '-pix_fmt','yuv420p','-color_primaries','bt709','-color_trc','bt709','-colorspace','bt709','-color_range','tv',product]);
+  if(scenario==='damaged-source')run(['-i',product,'-c','copy','-bsf:v','noise=amount=1',source]);
+  else {
+    fs.copyFileSync(product,source);
+    if(scenario==='damaged-product')run(['-i',source,'-c','copy','-bsf:v','noise=amount=1',product]);
+  }
+  function physical(location){
+    const observed=computeBoundedMaterialFingerprintSync(location),stat=observed.stat;
+    const tuple={mountScopeId:'real-fixture',inode:String(stat.ino),sizeBytes:Number(stat.size),fingerprintAlgorithm:observed.fingerprintAlgorithm,
+      fingerprintVersion:observed.fingerprintVersion,contentFingerprint:observed.contentFingerprint};
+    return {location,stat,identity:{schemaRef:'helix://contracts/types/PhysicalMaterialIdentity/v2',schemaVersion:2,materialKey:canonicalDigest(tuple),...tuple}};
+  }
+  const physicalMaterials={source:physical(source),product:physical(product)},value=fixture({workspace:true,conversionOperation:'preserve',
+    sourceDynamicRangeKind:'unknown',outputDynamicRangeKind:'hdr10_compatible',physicalMaterials});
+  const mediaProbe=createCleanMediaProbe();
+  const mediaEffectPort=createCleanMediaProductionEffectPort({ffmpegPath:binary,
+    workspaceProductPort:{materializeMedia(){throw new Error('Acceptance must not produce or rewrite media.');}}});
+  t.after(()=>mediaEffectPort.close());
+  const readSet=value.packageValue.productionProvenance.shelfAcceptancePrimaryReadSet,inputs=readSet.primaryInputs[0];
+  const rawProbe=spawnSync(require('@ffprobe-installer/ffprobe').path,['-v','error','-show_streams','-of','json',product],{encoding:'utf8',windowsHide:true});
+  assert.equal(rawProbe.status,0,rawProbe.stderr);
+  const rawVideo=JSON.parse(rawProbe.stdout).streams.find(stream=>stream.codec_type==='video');
+  assert.equal(rawVideo.color_primaries,'bt709');
+  assert.equal(rawVideo.color_transfer,'bt709');
+  t.diagnostic(JSON.stringify({rawProductColor:{primaries:rawVideo.color_primaries,transfer:rawVideo.color_transfer,matrix:rawVideo.color_space}}));
+  const sourceProbe=await mediaProbe.probe(inputs.sourceReadHandle);
+  assert.equal(sourceProbe.resultKind,'probed');
+  t.diagnostic(JSON.stringify({freshSource:sourceProbe.videoStreams.map(stream=>({colorPrimaries:stream.colorPrimaries,colorTransfer:stream.colorTransfer,dynamicRangeKind:stream.dynamicRangeKind}))}));
+  const originalBytes=fs.readFileSync(source),productBytes=fs.readFileSync(product);
+  if(scenario==='damaged-source'){
+    const broken=await mediaEffectPort.verifyPlayback({physicalMaterialReadHandle:inputs.sourceReadHandle,outputProbeEvidence:sourceProbe});
+    assert.ok(broken.passedSamplePointsPercent.length<3,JSON.stringify(broken));
+    t.diagnostic(JSON.stringify({sourceDecode:broken.passedSamplePointsPercent,expected:[5,50,95]}));
+  }
+  const decoded=[];
+  const result=await observeMandatoryMedia({...value,mediaProbe,computeBoundedMaterialFingerprint,observedAtMs:NOW,
+    mediaEffectPort:{...mediaEffectPort,async verifyPlayback(request){decoded.push(request.physicalMaterialReadHandle.location);return mediaEffectPort.verifyPlayback(request);}}});
+  assert.equal(result.evidenceStatus,'complete');
+  if(scenario==='damaged-product')assert.ok(result.actualGapCodes.includes('playback_decode_failed'),JSON.stringify(result));
+  else assert.deepEqual(result.actualGapCodes,[],JSON.stringify(result));
+  assert.deepEqual(decoded,[product],'Only the current Product is decoded during workspace acceptance.');
+  const observation=result.primaryMediaObservations[0];
+  assert.equal(observation.dynamicRangeSummary.sourceDynamicRangeKind,'sdr');
+  assert.equal(observation.dynamicRangeSummary.outputDynamicRangeKind,'sdr');
+  assert.deepEqual(fs.readFileSync(source),originalBytes);
+  assert.deepEqual(fs.readFileSync(product),productBytes);
+  t.diagnostic(JSON.stringify({scenario,dynamicRange:observation.dynamicRangeSummary,gaps:result.actualGapCodes,decoded}));
 });
