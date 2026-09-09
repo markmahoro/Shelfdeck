@@ -254,7 +254,7 @@ button, input, select, textarea { font: inherit; }
 .formation-secondary label { display: grid; gap: 4px; color: var(--muted); font-size: 12px; font-weight: 700; }
 .formation-secondary select, .formation-secondary input[type="search"] { min-width: 180px; min-height: var(--btn-height); padding: 0 10px; border: 1px solid var(--line); background: #fff; }
 .formation-ledger { margin-top: 28px; }
-.formation-table-wrap { overflow-x: auto; border-bottom: 1px solid var(--line); }
+.formation-table-wrap { overflow-x: auto; border-bottom: 1px solid var(--line); container-type: inline-size; }
 .formation-table { width: 100%; table-layout: auto; border-collapse: collapse; background: #f8faf7; font-size: 13px; }
 .formation-current-table { table-layout: fixed; }
 .formation-current-table th:nth-child(1) { width: 28%; }
@@ -280,24 +280,49 @@ button, input, select, textarea { font: inherit; }
 
 .formation-stub-notice { display: flex; align-items: center; gap: 10px; margin: 0; padding: 10px 14px; border-left: 3px solid var(--attention); background: #f7f0e5; color: var(--muted); font-size: 12px; }
 .formation-stub-notice strong { color: #83501a; }
-.formation-stub-table { min-width: 1080px; table-layout: fixed; }
+.formation-stub-table { min-width: 0; table-layout: fixed; }
 .formation-stub-table th:nth-child(1) { width: 17%; }
-.formation-stub-table th:nth-child(2) { width: 6%; }
-.formation-stub-table th:nth-child(3) { width: 11%; }
+.formation-stub-table th:nth-child(2) { width: 14%; }
+.formation-stub-table th:nth-child(3) { width: 7%; }
 .formation-stub-table th:nth-child(4) { width: 15%; }
-.formation-stub-table th:nth-child(5) { width: 19%; }
+.formation-stub-table th:nth-child(5) { width: 17%; }
 .formation-stub-table th:nth-child(6) { width: 7%; }
-.formation-stub-table th:nth-child(7) { width: 9%; }
-.formation-stub-table th:nth-child(8) { width: 8%; }
+.formation-stub-table th:nth-child(7) { width: 8%; }
+.formation-stub-table th:nth-child(8) { width: 7%; }
 .formation-stub-table th:nth-child(9) { width: 8%; }
 .formation-stub-table td { vertical-align: middle; overflow-wrap: anywhere; }
 .formation-stub-table td:first-child { width: auto; }
 .formation-stub-table td:nth-child(6) .btn { white-space: nowrap; padding-inline: 0; }
-.formation-stub-rating { color: var(--muted); font-size: 12px; font-weight: 700; white-space: nowrap; }
+.formation-stub-rating { color: var(--muted); font-size: 12px; font-weight: 700; }
+.formation-stub-table .rating-control { min-width: 0; }
+.formation-stub-table .rating-stars { flex-wrap: wrap; }
 .formation-stub-current { color: var(--ink); }
 .formation-stub-current[data-state="attention_required"] { color: var(--fault); }
 .formation-stub-current[data-state="completed"] { color: var(--accent); }
 .formation-stub-empty { color: var(--muted); }
+@container (max-width: 1100px) {
+  .formation-stub-table, .formation-stub-table tbody { display: block; }
+  .formation-stub-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  .formation-stub-table tbody tr { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); padding: 12px; gap: 10px 20px; border-bottom: 1px solid var(--line); }
+  .formation-stub-table td, .formation-stub-table td:first-child { display: block; width: auto; min-width: 0; padding: 0; border: 0; order: 2; }
+  .formation-stub-table td:first-child { grid-column: span 2; order: 0; }
+  .formation-stub-table td:nth-child(5) { grid-column: span 2; order: 1; }
+  .formation-stub-table td:nth-child(4) { grid-column: span 2; }
+  .formation-stub-table td[colspan] { grid-column: 1 / -1; }
+  .formation-stub-table td:not([colspan])::before { display: block; margin-bottom: 4px; color: var(--muted); font-size: 11px; font-weight: 600; }
+  .formation-stub-table td:nth-child(2)::before { content: '评分'; }
+  .formation-stub-table td:nth-child(3)::before { content: '目标收藏架'; }
+  .formation-stub-table td:nth-child(4)::before { content: '整理要求'; }
+  .formation-stub-table td:nth-child(5)::before { content: '当前进展'; }
+  .formation-stub-table td:nth-child(6)::before { content: '详情'; }
+  .formation-stub-table td:nth-child(7)::before { content: '用户操作'; }
+  .formation-stub-table td:nth-child(8)::before { content: '加急'; }
+  .formation-stub-table td:nth-child(9)::before { content: '任务类型'; }
+  .formation-stub-table input, .formation-stub-table select { max-width: 100%; min-width: 0; }
+}
+@container (max-width: 600px) {
+  .formation-stub-table tbody tr { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
 .formation-inline-action { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .formation-inline-action select { min-width: 120px; max-width: 190px; min-height: 30px; padding: 3px 6px; border: 1px solid var(--line); background: #fff; color: var(--ink); font-size: 11px; }
 .formation-inline-action .btn { min-height: 30px; padding: 4px 8px; font-size: 11px; }
