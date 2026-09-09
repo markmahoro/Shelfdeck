@@ -9,7 +9,6 @@ const { canonicalDigest } = require(
 );
 const {
   CYCLE_MS,
-  DAY_MS,
   buildObservation,
   buildOffloadAdmission,
 } = require(
@@ -49,7 +48,7 @@ function fixture() {
     projectionDigest: hash('offload-projection-1'),
     offloadCompletionFact: Object.freeze({
       factId: 'offload-fact-1',
-      committedAtMs: NOW - DAY_MS,
+      committedAtMs: NOW,
     }),
   });
   const run = Object.freeze({
@@ -67,7 +66,7 @@ function fixture() {
   return { reference, control, triggerSnapshot, run, workspace };
 }
 
-function admission(value, firstOther = [], secondOther = []) {
+function admission(value, firstOther = [], secondOther = [], elapsedMs = CYCLE_MS) {
   const observation1 = buildObservation({
     workspaceId: value.workspace.workspaceId,
     observedAtMs: NOW,
@@ -76,7 +75,7 @@ function admission(value, firstOther = [], secondOther = []) {
   });
   const observation2 = buildObservation({
     workspaceId: value.workspace.workspaceId,
-    observedAtMs: NOW + CYCLE_MS,
+    observedAtMs: NOW + elapsedMs,
     otherReferences: secondOther,
     controls: [value.control],
   });
@@ -84,7 +83,7 @@ function admission(value, firstOther = [], secondOther = []) {
     triggerSnapshot: value.triggerSnapshot,
     onDeckPackageId: value.triggerSnapshot.onDeckPackageId,
     packageDigest: value.triggerSnapshot.packageDigest,
-    nowMs: NOW + CYCLE_MS,
+    nowMs: NOW + elapsedMs,
     libraRunRef: value.run,
     workspaceRef: value.workspace,
     references: [value.reference],
@@ -93,6 +92,24 @@ function admission(value, firstOther = [], secondOther = []) {
     observation2,
   });
 }
+
+test('UAT-125/152 completed Off-load admits after two audits without an extra day', () => {
+  const value = fixture();
+  const decision = admission(value);
+  assert.equal(decision.graceDeadlineMs, NOW);
+  assert.equal(decision.referenceAudit.observation2.observedAtMs, NOW + CYCLE_MS);
+  assert.equal(decision.members.length, 1);
+  assert.throws(() => admission({ ...value, triggerSnapshot: {
+    ...value.triggerSnapshot, resultKind: 'not_found',
+  } }), (error) => error.code === 'P14_CLEANUP_TRIGGER_INVALID');
+});
+
+test('UAT-125/152 does not replace two separated audits with immediate deletion', () => {
+  for (const elapsedMs of [0, CYCLE_MS - 1]) {
+    assert.throws(() => admission(fixture(), [], [], elapsedMs),
+      (error) => error.code === 'P14_CLEANUP_REFERENCE_AUDIT');
+  }
+});
 
 test('a reference introduced between real observations rejects admission', () => {
   const value = fixture();

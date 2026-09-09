@@ -232,26 +232,6 @@ function buildCleanupScope(value){
   const scope={cleanupScopeId,stateRevision:1,state:'open',...common};scope.stateDigest=canonicalDigest(scope);return freeze(scope);
 }
 
-function admitCleanupScope(value){
-  const trigger=value?.trigger,workspace=value?.workspaceSnapshot,references=value?.currentReferences||[];
-  if(!workspace||workspace.state!=='active')fail('P9_CLEANUP_WORKSPACE','Cleanup requires an active Workspace snapshot.');
-  let eligibleAtMs;
-  if(trigger.kind==='offload_completed'){
-    if(!trigger.offloadCompletion||trigger.offloadCompletion.packageId!==trigger.packageId||trigger.offloadCompletion.completionDigest!==trigger.triggerDigest)
-      fail('P9_CLEANUP_OFFLOAD','Signal alone cannot establish cleanup eligibility.');
-    eligibleAtMs=trigger.offloadCompletion.completedAtMs+24*60*60*1000;
-    if(value.nowMs<eligibleAtMs)fail('P9_CLEANUP_GRACE','Off-load cleanup grace has not elapsed.');
-  }else if(trigger.kind==='superseded_orphan'){
-    if(trigger.runState!=='superseded'||trigger.orphanPassCount<2)fail('P9_CLEANUP_ORPHAN','Orphan cleanup requires a terminal Run and two scans.');
-    eligibleAtMs=value.nowMs;
-  }else fail('P9_CLEANUP_TRIGGER','Discard scope is admitted only inside the Discard transaction.');
-  const members=references.filter((item)=>item.state!=='released'&&item.liveReferenceCount===1).map((item)=>({materialHandleId:item.materialHandleId,
-    referenceId:item.referenceId,expectedReferenceRevision:item.referenceRevision,expectedReferenceDigest:item.referenceDigest,
-    expectedControlFence:item.controlFence||null,memberStateRevision:1,memberState:'pending'}));
-  return buildCleanupScope({triggerKind:trigger.kind,triggerId:trigger.triggerId,triggerDigest:trigger.triggerDigest,
-    libraRunId:workspace.libraRunId,workspaceId:workspace.workspaceId,members,eligibleAtMs});
-}
-
 function buildCleanupEffectIntent(value){
   const scope=value?.cleanupScope,member=value?.member,handle=value?.workspaceMaterialHandle;
   if(!scope||scope.state!=='open'||!member||member.memberState!=='pending'||handle?.handleId!==member.materialHandleId||handle.workspaceId!==scope.workspaceId)
@@ -280,4 +260,4 @@ function commitCleanupOutcome(value){
 
 module.exports=Object.freeze({DeliveryLifecycleContractError,assertPromotionDecision,buildPromotionCommit,buildOnDeckProductPackage,
   onDeckProductPackageDigest,verifyOnDeckProductPackageDigest,planRework,buildDiscardCommit,
-  buildCleanupScope,admitCleanupScope,buildCleanupEffectIntent,commitCleanupOutcome,relative});
+  buildCleanupScope,buildCleanupEffectIntent,commitCleanupOutcome,relative});
