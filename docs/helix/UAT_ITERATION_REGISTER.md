@@ -6,7 +6,7 @@
 
 状态说明：历史已关闭保留当时证据，并不宣称本次重测；已实现/已部署不等于已关闭；待核实不是当前已证实缺陷。原表与后续完整关闭证据冲突时采用后者并链接。没有证据的事项不批量关闭。
 
-[全量前后合同审查](implementation/evidence/UAT_FULL_CONTRACT_CONSISTENCY_AUDIT_20260909.md)已完成，三项业务冲突均由用户确认并以`14cf2d9a0`同步合同；用户要求整理文档后继续推进。历史标题不是现行Oracle；下述承接条件与SSOT后续优先条款共同适用。当前66项本轮功能验收关闭、33项开放，206被取代承接已核实；另有153项历史关闭、220文档关闭及1项非缺陷接受。
+[全量前后合同审查](implementation/evidence/UAT_FULL_CONTRACT_CONSISTENCY_AUDIT_20260909.md)已完成，三项业务冲突均由用户确认并以`14cf2d9a0`同步合同；用户要求整理文档后继续推进。历史标题不是现行Oracle；下述承接条件与SSOT后续优先条款共同适用。当前67项本轮功能验收关闭、32项开放，206被取代承接已核实；另有153项历史关闭、220文档关闭及1项非缺陷接受。
 
 执行顺序见[CURRENT_PLAN](CURRENT_PLAN.md)。每次完成一项，更新该行的提交、用户结果证据、剩余工作和状态；需要部署的先部署/验收再关闭。编号合并不触发生产操作。
 
@@ -229,7 +229,7 @@
 | UAT-215 | 旧目录清理与回收接入Arca上架收尾 | 当前迭代 | 验收关闭 | PROD-072 | [本地收尾证据](implementation/evidence/UAT-215_ONDECK_SOURCE_CLEANUP_20260908.md) | [PROD-072原记录](PRODUCTION_DEPLOY_ISSUE_LOG.md) | 已建立Commit同事务持久收尾、非空待确认和异常恢复；生产7条新上架责任、3张旧图片精确归档及SHA核验、状态一致性均通过；其他完整版本与sample保留，存量216单独验收；能力存在不等于流程完成。执行B2；依赖/承接：Arca收尾合同；251仅首次终局衔接。 |
 | UAT-216 | 已上架电影旧目录存量治理 | 当前迭代 | 存量待处置 | PROD-073 | 见证据 | [最新存量与处置证据](implementation/evidence/UAT-216_STOCK_DIRECTORY_REVIEW_20260908.md) | 两个仅种子的旧目录已归档并复验；保留夺宝奇兵5完整1080p版本，52.6秒样片的精确处置仍开放。执行B5；与215自动流程分别验收。 |
 | UAT-217 | 正式影片身份形成后的评分与Acceptance重算 | 当前迭代 | 验收关闭 | PROD-074；BR-01 | b2978c1512 | [正式身份评分修正](implementation/evidence/UAT-217_FORMAL_IDENTITY_RATING_20260908.md) | 无该项剩余；已核对独立全链/负向/恢复及实际发布，详见[部署后关闭证据](implementation/evidence/UAT-217_FORMAL_IDENTITY_RATING_20260908.md)。 |
-| UAT-218 | Aftercare与Libra转码码率质量保护对齐 | 当前迭代 | 本地修正，待实测验收 | PROD-075；BR-02 | 本轮提交见Evidence | [质量保护对齐](implementation/evidence/UAT-218_AFTERCARE_QUALITY_FLOOR_20260908.md) | 画幅/空间档位与真实源码率保护已对齐，47定向PASS；仍需隔离真实转码、超限拒绝、失败保原片及部署验收。执行B1；251仅修复终局与重新进入部分依赖。 |
+| UAT-218 | Aftercare与Libra转码码率质量保护对齐 | 当前迭代 | 验收关闭 | PROD-075；BR-02 | 7ceaeca7fb；真实媒体验收见Evidence | [质量保护对齐](implementation/evidence/UAT-218_AFTERCARE_QUALITY_FLOOR_20260908.md) | 47项定向及Windows NVENC、同版Linux CPU完整服务真实转码、超限拒绝、失败原片/历史事实保留和重启通过。251仅手动修复终局与跨次重新进入仍独立开放。 |
 | UAT-219 | 中文标签字距与字号一致性 | 当前迭代 | 验收关闭 | PROD-076；UX-023 | 747110c653 | [字体及标签证据](implementation/evidence/UAT-219_239_TYPOGRAPHY_20260908.md) | 真实中文层级核查字号/字距后克制修正，响应式浏览器证据。执行B4；依赖/承接：239基础；212整合后。 |
 | UAT-220 | 统一UAT总表、逐项证据对账与工程规则整理 | 当前迭代 | 已关闭（文档验收） | PROD-077；PROD-078 | 1d5226327 | [覆盖与检查证据](implementation/evidence/UAT-220_REGISTER_CONSOLIDATION_20260908.md)；治理前序提交1d5226327 | 无；功能现场验证仍由各自UAT逐项推进 |
 | UAT-221 | 侧栏「收藏运营台」「本地 Projection」对用户无意义 | UI / `COPY_REDUNDANT` | 验收关闭 | UX-003 | 1a3f4254dc | [逐项验收](implementation/evidence/UAT-221_237_238_SHELL_ACCEPTANCE_20260909.md) | 无该项剩余；历史实现、各自代码依据、生产八页及适用隔离浏览器/测试证据已核对。 |

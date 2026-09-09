@@ -31,3 +31,10 @@
 ## 747110c653生产结果
 
 13:35 UTC：正常后台完成12条NFO记录刷新，最大Receipt439字节。原7部NFO问题均恢复healthy；Aftercare仍44 resolved/11 unresolved/3 invalidated，0新增Case。全部69部中66 healthy、3新上架仍unknown，继续独立核验；未改生产NFO、未创建修复Case、未直接改健康数据。日志`.codex/uat210-production-record-refresh.json`及`.codex/formation-stock-health.json`。
+## 2026-09-09 并发标准变更补充
+
+218真实媒体验收过程中复现：首次健康检查三项专业结果已写入，但Assessment Commit尚未完成时，Admin绑定新标准；旧结果与新Care Basis混用，Commit报terminal Assessment set incomplete/stale，随后Recovery报P4_EVENT_RECOVERY_INPUT_DRIFT。隔离实例没有创建维护Case，不能视为正常有限失败。精确Work为`arca-care-work-a65977fd7165cb76f9765915ec66aeb751a28d3c`，三项专业结果Basis均为`677aa810598fdf46bf1d38c9c6d01d1b85cc47817acb3c86a0d58d5653cbd49d`。
+
+证据为`.codex/uat218-real-v3.log`及隔离SQLite；未写生产、未Reset。后续218顺序场景先等初始Assessment提交，仅验证质量保护，不覆盖此竞态。210保持开放并接续125恢复边界；不得通过放宽Basis Fence或把旧结果提交到新标准来修复。
+
+代码定位：`planning/aftercare-projections.js`的assessmentSet从精确Work取得专业结果，却以当前ctx.basis.digest标记集合，并据当前Basis重新构造Commit Handle；`capabilities/aftercare-capability-ports.js`的assessmentCommit随后发现真实结果Basis不同而拒绝。恢复时当前投影又与原Attempt快照不同。后续修复应在Arca内明确旧检查失效及安全终结，不能更改旧Evidence或让Foundation猜测业务Basis。

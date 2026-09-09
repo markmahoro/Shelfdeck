@@ -27,6 +27,101 @@ const MOVIEPILOT_KEY = 'scenario-moviepilot-key';
 const pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 let lastRequestError = null;
 
+test('UAT-218 real Aftercare quality floor rejects oversized output and preserves the committed movie', {
+  skip:process.env.HELIX_UAT218_REAL_MEDIA !== '1', timeout:900_000,
+}, async (t) => {
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'helix-uat218-'));
+  const source=path.join(root,'source'),shelf=path.join(root,'shelf'),admin=path.join(root,'admin'),dataDir=path.join(root,'data');
+  for(const folder of [source,shelf,admin])fs.mkdirSync(folder,{recursive:true});
+  fs.writeFileSync(path.join(admin,'index.html'),'<div id="root"></div>');
+  const media=path.join(source,'UAT218 Quality (2008).mkv');
+  const generated=spawnSync(ffmpeg,['-hide_banner','-nostdin','-y','-f','lavfi','-i',
+    'testsrc2=size=320x180:rate=24,noise=alls=100:allf=t','-t','120','-an','-c:v','libx264',
+    '-threads','2','-preset','ultrafast','-b:v','8M','-minrate','8M','-maxrate','8M',
+    '-bufsize','16M','-x264-params','nal-hrd=cbr:filler=1',media],
+  {windowsHide:true,encoding:'utf8',maxBuffer:2*1024*1024,timeout:120_000});
+  assert.equal(generated.status,0,generated.stderr);
+  await sharp({create:{width:32,height:48,channels:3,background:'#284d43'}}).jpeg().toFile(path.join(source,'UAT218 Quality (2008)-poster.jpg'));
+  const initialized=initializeCleanData({dataDir,confirmation:'INITIALIZE_HELIX_CLEAN_V1',secretRoot:SECRET});
+  let runtimeError=null;
+  const options={dataDir,adminDistDir:admin,secretRoot:SECRET,libraWorkspaceRoot:path.join(root,'libra'),
+    aftercareWorkspaceRoot:path.join(root,'care'),...productOptions(),deferredDeliveryKeys:[],
+    onExecutionRuntimeError(error){runtimeError=error;if(process.env.HELIX_TEST_LOG_RUNTIME_ERROR==='1')console.error(error);}};
+  let host=await createCleanServiceHost(options);
+  t.after(async()=>{await host.close();if(process.env.HELIX_KEEP_TEST_ASSETS!=='1')fs.rmSync(root,{recursive:true,force:true,maxRetries:5,retryDelay:100});});
+  const cookie=await session(host,initialized.adminApiKey),headers={cookie};
+  await createShelf(host,cookie,shelf);await createField(host,cookie,'uat218-field',source);
+  await observe(host,cookie,'uat218-field');await waitFor(host,cookie,items=>items.length===1);await route(host,cookie,'uat218-field');
+  const databasePath=path.join(dataDir,'shelfdeck.db');
+  const entry=await waitDatabase(databasePath,db=>db.prepare('SELECT * FROM arca_shelf_entries WHERE status=?').get('active'));
+  await waitDatabase(databasePath,db=>db.prepare('SELECT count(*) n FROM arca_aftercare_assessments WHERE shelf_entry_id=?').get(entry.shelf_entry_id).n===3);
+  const snapshot=()=>{const db=new Database(databasePath,{readonly:true});try{return {
+    entry:db.prepare('SELECT current_inventory_revision FROM arca_shelf_entries WHERE shelf_entry_id=?').get(entry.shelf_entry_id),
+    materials:db.prepare('SELECT * FROM arca_inventory_materials WHERE shelf_entry_id=? AND inventory_revision=? ORDER BY ordinal').all(entry.shelf_entry_id,entry.current_inventory_revision),
+    facts:db.prepare('SELECT * FROM arca_inventory_product_facts WHERE shelf_entry_id=? AND inventory_revision=? ORDER BY fact_kind').all(entry.shelf_entry_id,entry.current_inventory_revision),
+    commits:db.prepare('SELECT count(*) n FROM arca_aftercare_inventory_commits').get().n,
+  };}finally{db.close();}};
+  const before=snapshot(),primary=before.materials.find(row=>row.role==='primary_payload');assert.ok(primary);
+  const originalHash=crypto.createHash('sha256').update(fs.readFileSync(primary.location)).digest('hex');
+  const templateId='uat218-floor-template',baseUrl='/v1/admin/rule-templates/'+templateId;
+  let result=await host.inject({method:'POST',url:'/v1/admin/rule-templates/'+SYSTEM_TEMPLATE_ID+'/actions/copy',headers,
+    payload:{idempotencyKey:'uat218-copy',sourceTemplateId:SYSTEM_TEMPLATE_ID,newTemplateId:templateId,name:'UAT218 floor',expectedSourceRevision:1}});
+  assert.equal(result.statusCode,201,result.body);
+  result=await host.inject({method:'GET',url:baseUrl+'/draft',headers});assert.equal(result.statusCode,200,result.body);
+  const rules=structuredClone(result.json().draft.rules),movie=rules.profileRuleSets.find(item=>item.contentProfile==='movie');
+  for(const branch of movie.decisionBranches){branch.requirements.space={unit:'product',maxSizeGiB:24/1024,maxSizeBytes:24*1024**2};}
+  movie.baseRequirements.space={unit:'product',maxSizeGiB:24/1024,maxSizeBytes:24*1024**2};
+  movie.profileRuleSetDigest=canonicalDigest(Object.fromEntries(Object.entries(movie).filter(([key])=>key!=='profileRuleSetDigest')));
+  const rulesDigest=canonicalDigest(rules);
+  result=await host.inject({method:'PATCH',url:baseUrl+'/draft',headers,payload:{idempotencyKey:'uat218-draft',templateId,expectedDraftRevision:1,basePublishedRevision:1,rulesSchemaRef:RULES_SCHEMA_REF,rules,rulesDigest}});assert.equal(result.statusCode,200,result.body);
+  const preview=await host.inject({method:'POST',url:baseUrl+'/actions/preview',headers,payload:{idempotencyKey:'uat218-preview',templateId,expectedCurrentRevision:1,expectedDraftRevision:2,expectedDraftDigest:rulesDigest}});assert.equal(preview.statusCode,200,preview.body);
+  result=await host.inject({method:'POST',url:baseUrl+'/actions/publish',headers,payload:{idempotencyKey:'uat218-publish',templateId,expectedCurrentRevision:1,expectedDraftRevision:2,expectedDraftDigest:rulesDigest,previewId:preview.json().previewId,previewDigest:preview.json().previewDigest}});assert.equal(result.statusCode,200,result.body);
+  result=await host.inject({method:'GET',url:'/v1/admin/shelves',headers});assert.equal(result.statusCode,200,result.body);
+  const currentShelf=result.json().items.find(item=>item.shelfId==='scenario-shelf');
+  result=await host.inject({method:'POST',url:'/v1/admin/shelves/scenario-shelf/actions/bind-template',headers,payload:{idempotencyKey:'uat218-bind',shelfId:'scenario-shelf',expectedStandardRevision:currentShelf.currentStandardRevision,expectedRoutingProjectionRevision:currentShelf.routingProjection.revision,ruleTemplateId:templateId,expectedTemplateRevision:2}});assert.equal(result.statusCode,200,result.body);
+  result=await host.inject({method:'POST',url:'/v1/admin/care/'+entry.shelf_entry_id+'/actions/check',headers,payload:{idempotencyKey:'uat218-check'}});assert.equal(result.statusCode,202,result.body);
+  const terminal=await waitDatabase(databasePath,db=>{
+    const row=db.prepare("SELECT * FROM arca_aftercare_cases WHERE shelf_entry_id=? AND state='unresolved'").get(entry.shelf_entry_id);
+    return row||null;
+  },600_000);
+  assert.ifError(runtimeError);
+  assert.deepEqual(snapshot(),before);
+  assert.equal(crypto.createHash('sha256').update(fs.readFileSync(primary.location)).digest('hex'),originalHash);
+  const db=new Database(databasePath,{readonly:true});
+  try{
+    const events=db.prepare("SELECT capability_ref,state FROM fx_workflow_events WHERE capability_ref LIKE 'arca.aftercare.%'").all();
+    assert.ok(events.some(row=>row.capability_ref==='arca.aftercare.media.transcode@1'&&row.state==='succeeded'),JSON.stringify(events));
+    const results=db.prepare('SELECT e.capability_ref,b.result_json FROM fx_event_result_bindings b JOIN fx_workflow_events e ON e.event_id=b.event_id WHERE e.capability_ref LIKE ?').all('arca.aftercare.%')
+      .map(row=>({capability:row.capability_ref,result:JSON.parse(row.result_json)}));
+    const strategy=results.find(row=>row.capability==='arca.aftercare.conformance.observe@1'&&row.result.mediaRepairStrategy)?.result.mediaRepairStrategy;
+    assert.equal(strategy?.video?.targetVideoBitrateBps,2_500_000);
+    const rejected=results.filter(row=>row.capability==='arca.aftercare.media.verify@1').map(row=>row.result);
+    assert.ok(rejected.some(value=>value.result==='failed'&&value.reasonCodes.includes('max_size_exceeded')),JSON.stringify(rejected));
+    t.diagnostic(JSON.stringify({caseState:terminal.state,reason:terminal.terminal_reason_code,originalHash,strategy,rejected,events}));
+  }finally{db.close();}
+  await host.close();host=await createCleanServiceHost(options);
+  const restarted=snapshot();
+  assert.equal(restarted.commits,0);
+  assert.deepEqual(restarted.facts,before.facts);
+  const physicalRows=rows=>rows.map(row=>Object.fromEntries(Object.entries(row).filter(([key])=>!['active_guard','inventory_revision'].includes(key))));
+  assert.deepEqual(physicalRows(restarted.materials),physicalRows(before.materials));
+  const restartDb=new Database(databasePath,{readonly:true});
+  try{
+    assert.equal(restartDb.prepare('SELECT state FROM arca_aftercare_cases WHERE aftercare_case_id=?').get(terminal.aftercare_case_id).state,'unresolved');
+    if(restarted.entry.current_inventory_revision!==before.entry.current_inventory_revision){
+      const receipt=restartDb.prepare('SELECT result_ref_json FROM fx_command_receipts WHERE command_contract=? AND target_id=?').get('arca.inventory.person-records.refresh@1',entry.shelf_entry_id);
+      assert.ok(receipt,'Any unrelated Inventory revision must have its exact People record refresh receipt.');
+      const value=JSON.parse(receipt.result_ref_json);
+      assert.equal(value.previousInventoryRevision,before.entry.current_inventory_revision);
+      assert.equal(value.newInventoryRevision,restarted.entry.current_inventory_revision);
+      assert.equal(value.changedBindingCount,0);
+      const current=restartDb.prepare('SELECT * FROM arca_inventory_materials WHERE shelf_entry_id=? AND inventory_revision=? ORDER BY ordinal').all(entry.shelf_entry_id,value.newInventoryRevision);
+      assert.deepEqual(physicalRows(current),physicalRows(before.materials));
+    }
+  }finally{restartDb.close();}
+  assert.equal(crypto.createHash('sha256').update(fs.readFileSync(primary.location)).digest('hex'),originalHash);
+});
+
 function response(status, body) {
   const bytes = Buffer.from(JSON.stringify(body), 'utf8');
   let delivered = false;
