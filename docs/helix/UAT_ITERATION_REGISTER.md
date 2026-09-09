@@ -6,7 +6,7 @@
 
 状态说明：历史已关闭保留当时证据，并不宣称本次重测；已实现/已部署不等于已关闭；待核实不是当前已证实缺陷。原表与后续完整关闭证据冲突时采用后者并链接。没有证据的事项不批量关闭。
 
-[全量前后合同审查](implementation/evidence/UAT_FULL_CONTRACT_CONSISTENCY_AUDIT_20260909.md)已完成，三项业务冲突均由用户确认并以`14cf2d9a0`同步合同；用户要求整理文档后继续推进。历史标题不是现行Oracle；下述承接条件与SSOT后续优先条款共同适用。当前60项本轮功能验收关闭、39项开放，206被取代承接已核实；另有153项历史关闭、220文档关闭及1项非缺陷接受。
+[全量前后合同审查](implementation/evidence/UAT_FULL_CONTRACT_CONSISTENCY_AUDIT_20260909.md)已完成，三项业务冲突均由用户确认并以`14cf2d9a0`同步合同；用户要求整理文档后继续推进。历史标题不是现行Oracle；下述承接条件与SSOT后续优先条款共同适用。当前62项本轮功能验收关闭、37项开放，206被取代承接已核实；另有153项历史关闭、220文档关闭及1项非缺陷接受。
 
 执行顺序见[CURRENT_PLAN](CURRENT_PLAN.md)。每次完成一项，更新该行的提交、用户结果证据、剩余工作和状态；需要部署的先部署/验收再关闭。编号合并不触发生产操作。
 
@@ -167,8 +167,8 @@
 | UAT-153 | 整理路径不能提前当 checklist 勾选；转码未规划出来时页面仍像「封装完了等验收」 | `USER_EXPERIENCE` / Formation 投影只回放已有 Event | 已部署待验收核对 | PROD-010；UX-030（整理路径不能提前当 checklist 勾选；无 transcode Event 时看不到「下一步转码」） | e4d601cd9 | [PROD-010原记录](PRODUCTION_DEPLOY_ISSUE_LOG.md)；[UX-030同结果记录](ADMIN_WEB_UX_ISSUE_LOG.md) | 实际Plan可显示尚待执行动作，完成只认业务证据；不能仅Spec猜步骤或Event成功冒充阶段结束。执行B3；依赖/承接：212主项；关联051/064/192。 |
 | UAT-154 | 片源探测已能判定本地加工补不上时，仍先整盘 remux 再寻源 | `EXECUTION` / Libra 媒体阶段顺序 | 已部署待验收核对 | PROD-011 | e4d601cd9 | [PROD-011原记录](PRODUCTION_DEPLOY_ISSUE_LOG.md) | 已知本地无法补足时不无谓整盘remux，寻源无合格结果但原片可用提供可接受Gap决策。执行B1；依赖/承接：251/218。 |
 | UAT-155 | 用户放弃后，工作区仍留「等待重新入库」待整理行 | `USER_EXPERIENCE` / Formation 当前 Subject 与结束历史叠在一起 | 已部署待验收核对 | PROD-012；UX-031（放弃整理后工作区仍显示「等待重新入库」） | e4d601cd9 | [PROD-012原记录](PRODUCTION_DEPLOY_ISSUE_LOG.md)；[UX-031同结果记录](ADMIN_WEB_UX_ISSUE_LOG.md) | 终结进入历史不显示等待重新入库；历史自动重新入库要求已取代，验证条件不变不重复失败。执行B3；依赖/承接：251/212主项；关联062。 |
-| UAT-156 | 三部转码停在「编码设备未就绪」；QSV/CPU 能编码但自检全失败 | `EXECUTION` / 编码设备探测校验过严 | 已部署待验收核对 | PROD-013 | 0eb39ed97 | [PROD-013原记录](PRODUCTION_DEPLOY_ISSUE_LOG.md) | QSV/CPU资格使用实际管线且可用设备不被假拒；实际Linux设备验收与无设备skip分开。执行B2；依赖/承接：无；关联121/123。 |
-| UAT-157 | 转码输入预检用跳转硬解，与正式转码命令不同；超时冻《宇航员》 | `EXECUTION` / 预检命令不是真转码缩小版 | 已部署待验收核对 | PROD-014 | 83d3c4424 | [PROD-014原记录](PRODUCTION_DEPLOY_ISSUE_LOG.md) | 预检与正式映射一致且超时有界，真实样本不能被硬解跳转假拒。执行B2；依赖/承接：156。 |
+| UAT-156 | 三部转码停在「编码设备未就绪」；QSV/CPU 能编码但自检全失败 | `EXECUTION` / 编码设备探测校验过严 | 验收关闭 | PROD-013 | 1570985359 | [真实设备/预检验收](implementation/evidence/UAT-156_157_DEVICE_PIPELINE_ACCEPTANCE_20260909.md) | QSV/CPU资格使用实际管线且可用设备不被假拒；实际Linux设备验收与无设备skip分开。Windows CPU、Linux实际CPU/QSV及最终镜像验收通过；依赖/承接：无；关联121/123。 |
+| UAT-157 | 转码输入预检用跳转硬解，与正式转码命令不同；超时冻《宇航员》 | `EXECUTION` / 预检命令不是真转码缩小版 | 验收关闭 | PROD-014 | 1570985359 | [真实设备/预检验收](implementation/evidence/UAT-156_157_DEVICE_PIPELINE_ACCEPTANCE_20260909.md) | 预检与正式映射一致且超时有界，真实样本不能被硬解跳转假拒。Windows CPU、Linux实际CPU/QSV及最终镜像验收通过；依赖/承接：156。 |
 | UAT-158 | 《怦然心动》上架拷贝后卡在 `product.stage` executing | `EXECUTION` / 指纹门禁把 mtime 当换材料 | 验收关闭 | PROD-015 | 83d3c4424；运行时6bcfd7b33b | [PROD-015原记录](PRODUCTION_DEPLOY_ISSUE_LOG.md)；[Stage实际采样验收](implementation/evidence/UAT-158_STAGE_TIMESTAMP_ACCEPTANCE_20260909.md) | 2026-09-09逐项关闭：Windows/Linux各11项通过；临时副本在实际fingerprint采样中被触摸mtime后仍完成Stage/验证/Placement，源及成品字节保持；同大小内容变化和inode/size漂移仍拒绝。旧失败事实不改写。 |
 | UAT-159 | 放弃整理后 Workspace remux 没删，`/transcode` 空间未释放 | `EXECUTION` / Discard 只清已挂的 Libra 引用 | 验收关闭 | PROD-016 | 04ffa8b116 | [Windows/Linux及进程恢复验收](implementation/evidence/UAT-159_163_WORKSPACE_RECLAIM_20260909.md)、[生产发布](implementation/evidence/UAT_RELEASE_04FFA8B116_20260909.md) | 终结后孤儿remux按精确Workspace收尾释放，源与其他Run保留；不用生产删除作回归。2026-09-09按现行条件分别验收关闭；依赖/承接：125/251。 合同审查：discard立即回收资格与Off-load后grace不是同一场景；125/152的Off-load额外等待已由用户确认取消，保留两轮引用安全审计。 [全量前后合同审查](implementation/evidence/UAT_FULL_CONTRACT_CONSISTENCY_AUDIT_20260909.md)。 |
 | UAT-160 | 《影子写手》转码成功，收藏架因原片 5%/50% 解帧拒收 | `EXECUTION` / Arca 把原片抽检绑进成品 Gap | 验收关闭 | PROD-017 | 6bcfd7b33b（已发布运行时） | [PROD-017原记录](PRODUCTION_DEPLOY_ISSUE_LOG.md)；[独立真实媒体验收](implementation/evidence/UAT-137_160_FRESH_MEDIA_ACCEPTANCE_20260909.md) | 2026-09-09逐项关闭：真实Source三点解码全部失败且可Probe时，合格Product仍通过；损坏Product独立解码拒绝，Source/Product字节未改。Windows/生产同版Linux通过；《影子写手》旧拒收事实不改成功。 |

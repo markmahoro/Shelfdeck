@@ -1,19 +1,21 @@
 # ShelfDeck 当前状态
 
-更新：2026-09-09。唯一条目及关闭条件入口为[UAT总表](UAT_ITERATION_REGISTER.md)，唯一排程为[CURRENT_PLAN](CURRENT_PLAN.md)。255项连续：60项本轮功能验收关闭、39项开放、153项历史关闭、220文档关闭、1项非缺陷接受、206被取代且承接已核实。历史关闭不是本次重新验收。
+更新：2026-09-09。唯一条目及关闭条件入口为[UAT总表](UAT_ITERATION_REGISTER.md)，唯一排程为[CURRENT_PLAN](CURRENT_PLAN.md)。255项连续：62项本轮功能验收关闭、37项开放、153项历史关闭、220文档关闭、1项非缺陷接受、206被取代且承接已核实。历史关闭不是本次重新验收。
 
 255项前后合同审查及三项用户决定已完成，SSOT/Beta已在`14cf2d9a0`同步。已无这三项待确认决定；合同确认不等于实现或验收。审查及覆盖关系见[全量证据](implementation/evidence/UAT_FULL_CONTRACT_CONSISTENCY_AUDIT_20260909.md)。
 
 ## 当前生产
 
-- 镜像：`markmahoro/shelfdeck:helix-beta-20260909-ea24ddad62`；source `ea24ddad62`；config Image ID `sha256:5060b7d15841c1152d8cec95ad9becf569bd2b5b7ae36077011f0449502bb4bf`。
-- tar SHA256：`f77479c0b8a7f65ad238d3c47d3a2548d794e837b26cecf3b8c5d52c2e9b9d39`；StartedAt `2026-09-09T10:06:48.374063502Z`。标准构建、上传、校验、dry run、发布、readiness及挂载核验通过。备份、回滚版本及验证见[发布证据](implementation/evidence/UAT_RELEASE_EA24DDAD62_20260909.md)。
-- 最近发布后只读快照：2026-09-09 18:08:07北京时间，六路GET均200；82收藏，Formation汇总78、2整理中/0待处理/76完成/3结束；Care查询44完成/11结束；回收站4项。以上按各API原字段记录，不将Formation数量当收藏数，操作前仍须刷新。
-- 集成区`E:/my_project/emby_third_party-helix-iteration`，分支`codex/user-pain-iteration`；发布区`E:/my_project/emby_third_party-helix-uat-release-20260908` detached `ea24ddad62`。原Aftercare调查Evidence未提交修改受保护，未夹带提交。
+- 镜像：`markmahoro/shelfdeck:helix-beta-20260909-1570985359`；source `1570985359`；config Image ID `sha256:d4a8cf22a634938a6e24b720b131325865b990b5b390392bd021bd49740cdc54`。
+- tar SHA256：`3a4c4c6c44ed44da0d5c18b068550d7ef135c55dbc5d25dccdf4ab080a6cef8b`；StartedAt `2026-09-09T10:33:40.541865144Z`。标准构建、上传、校验、dry run、发布、readiness及挂载核验通过。备份、回滚版本及验证见[发布证据](implementation/evidence/UAT_RELEASE_1570985359_20260909.md)。
+- 最近发布后只读快照：2026-09-09 18:34:30北京时间，六路GET均200；82收藏，Formation汇总78、2整理中/0待处理/76完成/3结束；Care查询44完成/11结束；回收站4项。以上按各API原字段记录，不将Formation数量当收藏数，操作前仍须刷新。
+- 集成区`E:/my_project/emby_third_party-helix-iteration`，分支`codex/user-pain-iteration`；发布区`E:/my_project/emby_third_party-helix-uat-release-20260908` detached `1570985359`。原Aftercare调查Evidence未提交修改受保护，未夹带提交。
 
 ## 最近验收与开放事实
 
-169已按[真实QSV长片及硬截止/停机验收](implementation/evidence/UAT-169_LONG_TRANSCODE_ACCEPTANCE_20260909.md)独立关闭，未用单测代替长片证据；125/127/156仍按自身条件开放。
+156/157按[真实CPU/QSV资格、源预检与双遍生产验收](implementation/evidence/UAT-156_157_DEVICE_PIPELINE_ACCEPTANCE_20260909.md)分别关闭。修复x265统计参数与自检提前清理，最终镜像实际硬件复验通过，没有恢复旧跳转硬解。
+
+169已按[真实QSV长片及硬截止/停机验收](implementation/evidence/UAT-169_LONG_TRANSCODE_ACCEPTANCE_20260909.md)独立关闭，未用单测代替长片证据；125/127仍按自身条件开放。
 
 226的新旧完成依据、233的1440/1280/390响应式、234的统计与筛选已按[生产页面证据](implementation/evidence/UAT-226_233_FORMATION_BROWSER_20260909.md)分别关闭。245仍有全量Off-deck候选读取，不能仅凭响应较快关闭；247跨页缓存条件仍开放。
 

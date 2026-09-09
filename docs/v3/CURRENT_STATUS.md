@@ -1,6 +1,6 @@
 # ShelfDeck v3 / Kairox Historical Status
 
-2026-09-09部署身份更新：ShelfDeck `markmahoro/shelfdeck:helix-beta-20260909-ea24ddad62`，git `ea24ddad62`，tar SHA256 `f77479c0b8a7f65ad238d3c47d3a2548d794e837b26cecf3b8c5d52c2e9b9d39`。UAT-226/233/234实际页面、响应式、统计筛选及标准NAS发布通过；82收藏和六路接口前后同口径一致。详见[Helix发布证据](../helix/implementation/evidence/UAT_RELEASE_EA24DDAD62_20260909.md)。
+2026-09-09部署身份更新：ShelfDeck `markmahoro/shelfdeck:helix-beta-20260909-1570985359`，git `1570985359`，tar SHA256 `3a4c4c6c44ed44da0d5c18b068550d7ef135c55dbc5d25dccdf4ab080a6cef8b`。UAT-156/157真实CPU/QSV资格、源预检和双遍生产及标准NAS发布通过；82收藏及六路接口保持同口径一致。本次专项真实媒体验收，未声称重新运行全部产品E2E。详见[Helix发布证据](../helix/implementation/evidence/UAT_RELEASE_1570985359_20260909.md)。
 
 历史部署（2026-09-09 04:09）：helix-beta-20260909-955fe42daf，source 955fe42daf，NAS config Image ID sha256:252261f4e075ceb2e1b771c84c535c365fe6714b55c5fbea83c447e98a97eb48，tar SHA256 43b88bc21fa5bb6f67c0ad66fb0a7b5f723b13575f42ea1698cee67f7f3fe6ae。Windows/Linux真实Host席位验证、12 Web/构建、隔离真实网关浏览器、标准发布及生产资产/浏览器复验通过；本次HTTP请求修正无媒体执行变化，未重复完整媒体E2E。详见[发布证据](../helix/implementation/evidence/UAT_RELEASE_955FE42DAF_20260909.md)。
 
