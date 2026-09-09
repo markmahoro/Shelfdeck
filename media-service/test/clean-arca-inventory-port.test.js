@@ -1552,3 +1552,25 @@ for (const method of ['settleInput', 'settleInputAsync', 'switchPlacement']) for
     });
   }
 }
+
+test('UAT-172 async settlement rechecks Owner approval after file observations and before deletion', async () => {
+  const fixture=settlementFixture({unknownMember:true});
+  try {
+    let checks=0;
+    const before=fs.readFileSync(fixture.source);
+    await assert.rejects(fixture.port.settleInputAsync({
+      materialHandle:fixture.materialHandle,approval:{approvalId:'approval'},
+      finalInventoryRequest:fixture.finalInventoryRequest,finalMaterialKey:fixture.finalMember.sourceMaterialKey,
+      finalTargetLocation:fixture.finalMember.targetLocation,settlementExpectation:'replace_or_move',
+      sourceToFinalMappingDigest:fixture.mappingDigest,
+      assertCurrentApproval(location){
+        assert.equal(location,fixture.source);
+        if(++checks===2)throw Object.assign(new Error('Standing authorization was revoked during the observations.'),{code:'ARCA_ONDECK_SETTLEMENT_APPROVAL_STALE'});
+      },
+    }),error=>error.code==='ARCA_ONDECK_SETTLEMENT_APPROVAL_STALE');
+    assert.equal(checks,2);
+    assert.deepEqual(fs.readFileSync(fixture.source),before);
+    assert.equal(fs.readFileSync(fixture.finalMember.targetLocation,'utf8'),'exact-movie-bytes');
+    assert.ok(fs.existsSync(path.join(fixture.sourceDirectory,'notes.txt')));
+  }finally{fs.rmSync(fixture.root,{recursive:true,force:true});}
+});

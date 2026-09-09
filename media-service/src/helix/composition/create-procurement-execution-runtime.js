@@ -1069,6 +1069,10 @@ function createProcurementExecutionRuntime(options) {
         .map((item)=>Object.freeze({cursor:item.offerId,scope:item})),
       reconcile:()=>arcaProcessServices.coordinator.recoverAttentionCases(1),
     }),Object.freeze({
+      ownerDomain:'arca',reconcilerKey:'pending-ondeck-settlement-approvals',
+      listPage:({cursor,limit})=>arcaProcessServices.coordinator.listPendingSettlementApprovals(cursor,limit),
+      reconcile:scope=>arcaProcessServices.coordinator.reconcileSettlementApprovals(scope),
+    }),Object.freeze({
       ownerDomain:'arca',reconcilerKey:'blocked-ondeck-recovery',
       listPage:({cursor,limit})=>arcaProcessServices.coordinator.listRecoverableOnDeck(limit,cursor),
       reconcile:({onDeckRunId})=>{const result=arcaProcessServices.coordinator.recoverOnDeck(onDeckRunId);

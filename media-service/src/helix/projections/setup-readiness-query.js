@@ -10,13 +10,15 @@ function standingEnabled(authorization) {
   return authorization?.state === 'enabled';
 }
 
-function consequenceRows(productChoice) {
-  if (productChoice === 'full_auto') {
+function consequenceRows(authorization) {
+  if (standingEnabled(authorization)) {
     return Object.freeze([
       Object.freeze({
         owner: 'arca',
         topic: 'input_settlement',
-        text: '上架时自动处理当前范围内的旧输入文件，且必须明确包含独占附属文件；目录、共享或歧义材料不在授权内。',
+        text: authorization.coversExclusiveRelatedInput
+          ? '上架成品验证通过后，自动清理精确范围内已安全替代的原片、结构文件和独占关联文件；共享、歧义和范围外材料保留。'
+          : '当前仅授权清理已安全替代的原片和结构文件，独占关联文件尚未获授权。',
       }),
       Object.freeze({
         owner: 'arca',
@@ -36,12 +38,12 @@ function consequenceRows(productChoice) {
       Object.freeze({
         owner: 'people',
         topic: 'weak_identity',
-        text: '弱人物身份仍需你确认，全自动不会代为接受。',
+        text: '弱人物身份仍需你确认，此授权不代为接受。',
       }),
       Object.freeze({
         owner: 'arca_offdeck',
         topic: 'offdeck_destruction',
-        text: '退出收藏的物理销毁保持独立关闭。全自动不会授予删除权。',
+        text: '退出收藏的物理销毁保持独立关闭，此授权不能用于退出收藏。',
       }),
     ]);
   }
@@ -49,7 +51,7 @@ function consequenceRows(productChoice) {
     Object.freeze({
       owner: 'arca',
       topic: 'input_settlement',
-      text: '其余自动化保持不变，但每次上架处理旧输入文件前都要确认当前冻结范围。',
+      text: '持续授权未启用，尚未执行的旧输入清理等待授权；其余自动化保持不变。',
     }),
     Object.freeze({
       owner: 'arca',
@@ -119,7 +121,6 @@ function createSetupReadinessQuery(options) {
       }
     }
     const settlementReady = standingEnabled(authorization);
-    const productChoice = settlementReady ? 'full_auto' : 'key_step_confirmation';
     const items = Object.freeze([
       Object.freeze({
         key: 'material_field',
@@ -162,7 +163,7 @@ function createSetupReadinessQuery(options) {
         key: 'standing_authorization',
         owner: 'arca',
         ready: settlementReady,
-        label: settlementReady ? '已启用上架旧输入自动处理授权' : '上架旧输入仍需每次确认',
+        label: settlementReady ? '已启用上架旧输入自动处理授权' : '旧输入持续清理授权尚未启用',
         href: '/settings',
       }),
     ]);
@@ -178,10 +179,8 @@ function createSetupReadinessQuery(options) {
         { owner: 'libra', revision: activeFields.length - routingMissing.length },
       ],
       data: {
-        productChoice,
         fullAutoReady,
-        productChoiceLabel: productChoice === 'full_auto' ? '全自动（推荐）' : '关键步骤确认',
-        fullAutoReadyLabel: fullAutoReady ? '全自动已就绪' : '全自动尚未就绪',
+        fullAutoReadyLabel: fullAutoReady ? '自动整理配置已就绪' : '自动整理配置尚未就绪',
         standingInputSettlement: authorization && Object.freeze({
           enabled: settlementReady,
           authorizationId: authorization.authorizationId,
@@ -195,18 +194,18 @@ function createSetupReadinessQuery(options) {
           label: '退出收藏销毁保持独立关闭',
         }),
         items,
-        consequences: consequenceRows(productChoice),
+        consequences: consequenceRows(authorization),
       },
       availableActions: [
         Object.freeze({
-          actionCode: 'enable_full_automatic_operation',
-          label: '启用全自动',
+          actionCode: 'enable_input_settlement_authorization',
+          label: '授权安全旧输入自动清理',
           expectedRevision,
           requiresConfirmation: false,
         }),
         Object.freeze({
-          actionCode: 'require_settlement_confirmation',
-          label: '改为关键步骤确认',
+          actionCode: 'revoke_input_settlement_authorization',
+          label: '撤销持续授权',
           expectedRevision,
           requiresConfirmation: false,
         }),

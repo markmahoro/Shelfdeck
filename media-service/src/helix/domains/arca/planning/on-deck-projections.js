@@ -1,11 +1,12 @@
 'use strict';
 
+const {executionInputUnavailable}=require('../../../foundation/execution/execution-input-readiness');
 const { canonicalDigest } = require('../../../contracts/canonical-json');
 const { finalGapDecision } = require('../model/acceptance-gap-decision');
 const { P } = require('./on-deck-planners');
 const { deriveAcceptedResponsibility } = require('../model/acceptance-responsibility');
 const { DEFAULT_SHELF_PLACEMENT_POLICY } = require('../model/shelf-placement-policy-contracts');
-const { requiresInputSettlement } = require('../model/offload-settlement');
+const { settlementHandles, isSettlementAuthorityUnavailable } = require('../model/input-settlement-scope');
 const {
   ACCEPTED_OUTPUT_DYNAMIC_RANGE_KINDS,
 } = require('../model/mandatory-media-acceptance');
@@ -181,27 +182,6 @@ function disposition(c) { const product=new Map(c.packageValue.productMaterialMa
     productManifestDigest:c.packageValue.productMaterialManifest.manifestDigest,relatedDispositionSetDigest:c.offer.relatedDispositionSetDigest||
       canonicalDigest({schema:'libra.related-disposition-set@1',items:[]}),members:Object.freeze(members),memberSetDigest:canonicalDigest({schema:'arca.disposition-members@1',items:members})};
   const manifestDigest=canonicalDigest(body);return withDigest({...body,manifestDigest}); }
-function settlementHandles(c,materialKey) { const source=(c.packageValue.offloadContextManifest?.members||[]).find((item)=>item.materialKey===materialKey&&
-  requiresInputSettlement(item));
-  if(!source)throw new Error('Settlement Material is outside the approved Off-load Context.');
-  const handle=Object.freeze({schemaRef:'helix://contracts/types/PhysicalMaterialReadHandle/v1',schemaVersion:1,
-    handleId:stable('arca-settlement-read-',{run:c.responsibility.onDeckRunId,key:source.materialKey}),identity:source.physicalIdentity,ownerDomain:'arca',
-    ownerScope:Object.freeze({scopeType:'on_deck_custody',scopeId:c.responsibility.custodyId}),bindingRevision:source.bindingRevision,endpointId:source.endpointId,
-    location:source.location,mountScopeRevision:1,expectedSizeBytes:source.physicalIdentity.sizeBytes,expectedMtimeNs:0,expectedCtimeNs:0,fingerprintVerifiedAtMs:0,
-    readScope:'exact_input_settlement',expiresAtMs:Number.MAX_SAFE_INTEGER,fenceDigest:canonicalDigest({run:c.responsibility.onDeckRunId,memberDigest:source.memberDigest})});
-  const role=source.contextRole==='original_input'?'primary_payload':source.contextRole==='structural_dependency'?'structural_dependency':'exclusive_related';
-  const finalMember=c.settlementFinalMember;
-  if(!finalMember)throw new Error('Settlement source-to-final mapping is absent from the Final Inventory Decision.');
-  if(finalMember.sourceMaterialKey!==source.finalProductMaterialKey)throw new Error('Settlement source-to-final mapping drifted from the bounded Final Inventory member.');
-  const memberBody={ordinal:0,materialKey:source.materialKey,role,sourceRelatedReferenceId:source.sourceRelatedReferenceId,materialHandle:handle,
-    finalMaterialKey:source.finalProductMaterialKey,finalTargetLocation:finalMember.targetLocation,settlementExpectation:source.settlementExpectation,
-    dispositionMemberRef:source.memberDigest,sourceToFinalMappingDigest:source.derivedAuthorityDigest||canonicalDigest(source),
-    finalProductVerificationDigest:c.packageValue.productionAttestation.productConformanceEvidenceDigest};
-  const member=Object.freeze({...memberBody,memberDigest:canonicalDigest(memberBody)}),members=Object.freeze([member]),memberSetDigest=canonicalDigest({schema:'arca.settlement-members@1',items:members});
-  const body={schemaRef:'helix://contracts/domain-types/OldPrimaryStructuralExclusiveRelatedHandles/v1',schemaVersion:1,
-    objectId:c.responsibility.onDeckRunId+':settlement:'+materialKey,revision:1,onDeckRunId:c.responsibility.onDeckRunId,
-    approvalScopeDigest:canonicalDigest({schema:'arca.settlement-approval-scope@1',onDeckRunId:c.responsibility.onDeckRunId,materialKey,memberSetDigest}),
-    members,memberSetDigest,handleSetDigest:canonicalDigest({schema:'arca.settlement-handles@1',items:[handle.fenceDigest]})};return withDigest(body); }
 function finalReality(_options,c,source) { if(!source?.finalRealityDigest||!Array.isArray(source.memberEvidence))throw new Error('Final Reality requires post-Placement Final Product Verification evidence.');
   return withDigest({schemaRef:'helix://contracts/domain-types/FinalReality/v1',schemaVersion:1,objectId:c.responsibility.onDeckRunId+':reality',revision:1,
     shelfEntryId:stable('arca-entry-preview-',{run:c.responsibility.onDeckRunId}),inventoryRevision:1,realityDigest:source.finalRealityDigest,
@@ -218,16 +198,16 @@ function createOnDeckProjections(options) { const definitions=[
     custodyId:c.responsibility.custodyId,shelf:c.shelf,onDeckProductPackage:c.packageValue,finalInventoryDecision:c.finalInventoryDecision,observedAtMs:0,
     replayCommitted:false,replaySettledSources:true})],
   [P.productHandles,(c)=>productHandles(c)],[P.finalBindings,(c,source)=>finalBindings(c,source)],[P.disposition,(c)=>disposition(c)],
-  [P.targetBindings,(c,source)=>targetBindings(c,source)],[P.settlementHandles,(c,_s,p)=>settlementHandles(c,p.materialKey)],
-  [P.settlementApproval,(c,_s,p)=>{const scope=settlementHandles(c,p.materialKey);return Object.freeze({schemaRef:'helix://contracts/types/ApprovalHandle/v1',schemaVersion:1,
-    approvalId:stable('arca-settlement-approval-',{run:c.responsibility.onDeckRunId,key:p.materialKey}),ownerDomain:'arca',processType:'arca_ondeck_run',
-    processId:c.responsibility.onDeckRunId,eventId:p.eventId,exactEffectScopeDigest:scope.approvalScopeDigest,approvalRevision:1,actorId:'system-policy',
-    invalidatingFactDigests:Object.freeze([c.finalInventoryDecisionRef.decisionDigest]),approvedAtMs:0});}],
+  [P.targetBindings,(c,source)=>targetBindings(c,source)],[P.settlementHandles,(c,source,p)=>settlementHandles(c,p.materialKey,source,options.contextReader.settlementAuthorizations.current())],
+  [P.settlementApproval,(c,source,p)=>{const authorization=options.contextReader.settlementAuthorizations.current();
+    const scope=settlementHandles(c,p.materialKey,source,authorization);
+    return options.contextReader.settlementApprovals.readHandle(scope,authorization,p.eventId);}],
   [P.finalReality,(c,source)=>source?.schemaRef==='helix://contracts/types/FulfillmentVerification/v1'?source:finalReality(options,c,source)],
   [P.onDeckControl,(c,_s,p)=>controlHandle(c,'arca_ondeck_run',c.responsibility.onDeckRunId,p.eventId,'replace_control_set')],
   ];
   return Object.freeze(definitions.map(([projectionRef,build])=>Object.freeze({projectionRef,projection:Object.freeze({project({ownerScope,sourceResult,parameters}){
-    return build(contextFor(options,ownerScope,parameters,projectionRef),sourceResult,parameters||{});}})})));
+    try{return build(contextFor(options,ownerScope,parameters,projectionRef),sourceResult,parameters||{});}
+    catch(error){if(isSettlementAuthorityUnavailable(error))throw executionInputUnavailable(error.message,{dependencyKind:'owner_approval',dependencyRef:ownerScope.processId});throw error;}}})})));
 }
 
 module.exports=Object.freeze({createOnDeckProjections,attemptId,packageIdentity,standard,productManifest});

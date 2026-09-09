@@ -617,6 +617,14 @@ export const helixAdminApi = {
       body: JSON.stringify({ ...body, idempotencyKey: `field-intake:${fieldId}:${newOpaqueId()}` }),
     });
   },
+  setInputSettlementAuthorization(enabled: boolean, expectedRevision: number) {
+    const action = enabled ? 'enable-full' : 'require-settlement-confirmation';
+    return request<unknown>(`/v1/admin/settings/automatic-operation/actions/${action}`, {
+      method: 'POST',
+      body: JSON.stringify({ expectedRevision, idempotencyKey: newOpaqueId('input-settlement-'),
+        ...(enabled ? { coverExclusiveRelatedInput: true } : {}) }),
+    });
+  },
   listShelves() {
     return request<{ items: Shelf[] }>('/v1/admin/shelves');
   },

@@ -1,5 +1,7 @@
 'use strict';
 
+const {settlementHandles,isSettlementAuthorityUnavailable}=require('../model/input-settlement-scope');
+const {requiresInputSettlement}=require('../model/offload-settlement');
 const { canonicalDigest } = require('../../../contracts/canonical-json');
 const { createWorkAdmission } = require('../../../foundation/execution/work-admission');
 const { createAcceptanceRecoveryStore } = require('../persistence/acceptance-recovery-store');
@@ -282,6 +284,27 @@ function createOnDeckProcessCoordinator(options) {
     }
     return Object.freeze(result);
   }
+  function listPendingSettlementApprovals(cursor=null,limit=100){
+    return options.workResultReader.listOwnerWorksPage({ownerDomain:'arca',workKind:'on_deck_execution',state:'running'},cursor,limit)
+      .map(row=>Object.freeze({cursor:row.work_id,scope:{workId:row.work_id,onDeckRunId:row.process_id}}));
+  }
+  function reconcileSettlementApprovals({workId,onDeckRunId}){
+    const results=options.workResultReader.read(workId);
+    const verification=results.find(row=>row.capabilityRef==='arca.inventory.final_product.verify@1'&&row.outcomeKind==='succeeded')?.result;
+    if(!verification)return {kind:'awaiting_final_verification'};
+    const refs=refsFromWorkDefinition(workId),context=options.contextReader.readAccepted(onDeckRunId,refs);
+    const authorization=options.contextReader.settlementAuthorizations.current();
+    let issued=0;
+    for(const member of context.packageValue.offloadContextManifest.members.filter(requiresInputSettlement)){
+      if(results.some(row=>row.capabilityRef==='arca.ondeck.input_settlement.delete@1'&&row.outcomeKind==='succeeded'&&row.result?.materialKey===member.materialKey))continue;
+      try{
+        const bounded=options.contextReader.readSettlement(onDeckRunId,refs,member.materialKey);
+        const scope=settlementHandles(bounded,member.materialKey,verification,authorization);
+        options.contextReader.settlementApprovals.issue(scope,authorization);issued++;
+      }catch(error){if(isSettlementAuthorityUnavailable(error))return {kind:'awaiting_authorization',issued};throw error;}
+    }
+    return {kind:'approvals_ready',issued};
+  }
   return Object.freeze({
     admitOffer(message) {
       const offer = exactOffer(message), refs = refsFromOffer(offer);
@@ -321,7 +344,7 @@ function createOnDeckProcessCoordinator(options) {
     },
     readAcceptanceRecovery: recovery.read,
     listAcceptanceAttention: recovery.listAttention,
-    listRecoverableOnDeck,
+    listRecoverableOnDeck, listPendingSettlementApprovals, reconcileSettlementApprovals,
     reconcileAcceptance,
     reconcileOnDeck(onDeckRunId) {
       const rows = orderedOnDeckWorks(onDeckRunId);

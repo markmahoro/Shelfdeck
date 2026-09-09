@@ -46,7 +46,7 @@ function fixture(count = 61) {
     bindingRevision:1,
     endpointId:'source-endpoint',
     location:`S:/movie/source-${ordinal}`,
-    contextRole:ordinal === 0 ? 'original_input' : 'exclusive_related',
+    contextRole:ordinal === 0 ? 'original_input' : 'related_input',
     settlementExpectation:'remove_after_place',
     memberDigest:`source-member-${ordinal}`,
     sourceRelatedReferenceId:`related-${ordinal}`,
@@ -103,8 +103,13 @@ test('UAT-111 Settlement handle and approval projections use the bounded reader 
   const bounded = boundedSettlementContext(value.context, value.responsibility,
     Object.freeze({ state:'offloading' }), 'source-12');
   const calls = [];
+  const authorization={state:'enabled',revision:1,authorizationScopeKind:'old_primary_and_exclusive_related',authorizationDigest:canonicalDigest('grant')};
+  const sourceResult={schemaRef:'helix://contracts/types/FinalProductVerification/v1',result:'passed',productManifestDigest:'product-manifest-1',verifiedMaterialKeys:['product-12']};
+  let approvalReads=0;
   const projections = createOnDeckProjections({
     contextReader:{
+      settlementAuthorizations:{current:()=>authorization},
+      settlementApprovals:{readHandle(scope,actual,eventId){approvalReads++;assert.equal(actual,authorization);assert.equal(eventId,'settlement-12');return {approvalId:'persisted-approval',exactEffectScopeDigest:scope.approvalScopeDigest};}},
       readSettlement(runId, dependencyRefs, materialKey) {
         calls.push({ runId, dependencyRefs, materialKey });
         return bounded;
@@ -119,8 +124,8 @@ test('UAT-111 Settlement handle and approval projections use the bounded reader 
   const dependencyRefs = Object.freeze([{ objectType:'on_deck_package', objectId:'package-1' }]);
   const parameters = Object.freeze({ materialKey:'source-12', eventId:'settlement-12', dependencyRefs });
 
-  const handles = handlesProjection.projection.project({ ownerScope, parameters });
-  const approval = approvalProjection.projection.project({ ownerScope, parameters });
+  const handles = handlesProjection.projection.project({ ownerScope, parameters, sourceResult });
+  const approval = approvalProjection.projection.project({ ownerScope, parameters, sourceResult });
 
   assert.equal(calls.length, 2);
   assert.deepEqual(calls, [
@@ -130,9 +135,9 @@ test('UAT-111 Settlement handle and approval projections use the bounded reader 
   assert.equal(handles.members.length, 1);
   assert.equal(handles.members[0].materialKey, 'source-12');
   assert.equal(approval.exactEffectScopeDigest, handles.approvalScopeDigest);
-  assert.equal(approval.invalidatingFactDigests[0], 'decision-1');
-  assert.equal(approval.approvalId,
-    'arca-settlement-approval-' + canonicalDigest({ run:'run-1', key:'source-12' }).slice(0, 40));
+  assert.equal(approvalReads,1);
+  assert.equal(approval.approvalId,'persisted-approval');
+  assert.equal(handles.members[0].finalProductVerificationDigest,canonicalDigest(sourceResult));
 });
 
 test('UAT-111 resource demand and executor are wired to the bounded Settlement reader', () => {

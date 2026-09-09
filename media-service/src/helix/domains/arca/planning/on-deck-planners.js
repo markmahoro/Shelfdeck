@@ -113,8 +113,8 @@ function createOnDeckExecutionPlanner(options){const catalogDigest=executionCata
         owner('productDispositionManifest',request,P.disposition)],[...dep(ids.stage),...dep(ids.placement)],['disk_io']),
       ...settlementMembers.map((member,index)=>{const eventId='ondeck-settlement-'+s+'-'+String(index).padStart(4,'0');
         return node(o,C.settlement,'input_settlement_'+String(index).padStart(4,'0'),eventId,
-          [owner('oldPrimaryStructuralExclusiveRelatedHandleList',request,P.settlementHandles,{materialKey:member.materialKey}),
-            owner('inputSettlementApproval',request,P.settlementApproval,{eventId,materialKey:member.materialKey})],dep(ids.final),['disk_io']);}),
+          [projected('oldPrimaryStructuralExclusiveRelatedHandleList',ids.final,rs(C.finalVerify),P.settlementHandles,request,{materialKey:member.materialKey}),
+            projected('inputSettlementApproval',ids.final,rs(C.finalVerify),P.settlementApproval,request,{eventId,materialKey:member.materialKey})],dep(ids.final),['disk_io']);}),
       node(o,C.fulfillment,'fulfillment_verify',ids.fulfillment,[projected('finalReality',ids.final,rs(C.finalVerify),P.finalReality,request),
         owner('finalInventoryDecision',request,P.finalDecision),owner('shelfStandard',request,P.shelfStandard)],
         [...dep(ids.final),...settlementMembers.map((_member,index)=>({eventId:'ondeck-settlement-'+s+'-'+String(index).padStart(4,'0'),satisfaction:'success'}))],

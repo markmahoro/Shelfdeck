@@ -17,3 +17,7 @@ Arca应在同Run正式Final Product Verification完成后，由Owner派生并持
 基础Execution Runtime已有temporarily-unavailable输入等待，不必将授权等待伪造成一次失败Attempt。当前composition仅在On-deck Work成功后调用reconcileOnDeck；若采用Owner reconcile派生Approval，须接入在飞Run的正式协调时点，不能等待整个Work成功形成死锁。此处记录调查事实，不另建活动计划。
 
 验收仍需完整Host与物理负向：无授权不删除；授权覆盖后完成精确Settlement；撤销及范围不足不删除；Approval签发后、异步物理检查期间撤销须在删除前被识别；重启/幂等不扩大Scope；共享、未知及范围外输入保留；新Final故障不能复用历史验证。授权状态/撤销入口需浏览器核对，标准发布后核对生产正式事实。任何局部测试或去掉开关都不单独关闭172。
+
+## 后续实施进展
+
+本审查缺口已按Owner边界接入，实际验证记录见[实施与验收](UAT-172_AUTHORIZATION_ACCEPTANCE_20260909.md)。上文保留发现时事实，不再将已接入实现描述为当前缺失；生产部署与最终关闭须以该验收记录及总表为准。

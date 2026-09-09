@@ -88,7 +88,7 @@ function createArcaShelfAdminApplication(options) {
         owner: 'arca',
         topic: 'input_settlement',
         result: enabled ? 'enabled' : 'confirmation_required',
-        label: enabled ? '已启用上架旧输入自动处理授权' : '上架旧输入改为每次确认',
+        label: enabled ? '已启用上架旧输入自动处理授权' : '旧输入持续清理授权已撤销，未执行的清理等待授权',
       }),
       Object.freeze({
         owner: 'procurement',

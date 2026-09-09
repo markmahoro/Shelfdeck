@@ -7,6 +7,7 @@ function definition(schemaManifest){return createRepositoryDefinition({repositor
   find_work:{kind:'select-one',tableId:'fx_supporting_works',columns:['work_id','owner_domain','process_type','process_id','work_kind','basis_digest','state'],keyColumns:['work_id']},
   find_definition:{kind:'select-one',tableId:'fx_supporting_works',columns:['work_id','definition_json','definition_digest'],keyColumns:['work_id']},
   list_process_works:{kind:'select-all',tableId:'fx_supporting_works',columns:['work_id','owner_domain','process_type','process_id','work_kind','state','created_at_ms','updated_at_ms'],keyColumns:['owner_domain','process_type','process_id','work_kind'],safeIntegers:true},
+  page_owner_works:{kind:'select-page-after',tableId:'fx_supporting_works',columns:['work_id','owner_domain','process_type','process_id','work_kind','state'],fixedKeyColumns:['owner_domain','work_kind','state'],keyColumn:'work_id',maxItems:100},
   list_owner_works:{kind:'select-all',tableId:'fx_supporting_works',columns:['work_id','owner_domain','process_type','process_id','work_kind','state'],keyColumns:['owner_domain','work_kind']},
   list_attempts:{kind:'select-all',tableId:'fx_work_attempts',columns:['attempt_id','work_id','ordinal','state','failure_code'],keyColumns:['work_id'],safeIntegers:true},
   list_events:{kind:'select-all',tableId:'fx_workflow_events',columns:['event_id','plan_id','node_id','work_id','attempt_id','owner_domain',
@@ -43,6 +44,14 @@ function createWorkResultReader(options){if(!options?.schemaManifest||!options.u
         return Object.freeze(context.repository(repository.repositoryId).invoke('list_process_works',{owner_domain:scope.ownerDomain,
           process_type:scope.processType,process_id:scope.processId,work_kind:scope.workKind}).map((row)=>Object.freeze(row)));
       }}]).work_scope_read;
+    },
+    listOwnerWorksPage(scope,cursor=null,limit=100){
+      if(!scope||typeof scope.ownerDomain!=='string'||typeof scope.workKind!=='string'||typeof scope.state!=='string')
+        throw new TypeError('Work Result Reader page requires exact Owner, Work kind and state.');
+      return options.unitOfWork.execute([{participantId:'work_owner_page',owner:'execution-foundation',repositories:[repository],execute(context){
+        return Object.freeze(context.repository(repository.repositoryId).invoke('page_owner_works',{
+          owner_domain:scope.ownerDomain,work_kind:scope.workKind,state:scope.state,cursor,limit}));
+      }}]).work_owner_page;
     },
     listOwnerWorks(scope){
       if(!scope||typeof scope.ownerDomain!=='string'||typeof scope.workKind!=='string'){

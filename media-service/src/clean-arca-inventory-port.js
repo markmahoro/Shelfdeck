@@ -1856,6 +1856,7 @@ function createCleanArcaInventoryPort(options) {
         'Input settlement requires the exact Arca custody read handle.');
     }
     const source = path.resolve(handle.location);
+    request.assertCurrentApproval?.(source);
     const finalRequest = request?.finalInventoryRequest;
     if (!finalRequest || !request.finalMaterialKey || !request.finalTargetLocation ||
         !request.sourceToFinalMappingDigest ||
@@ -1942,6 +1943,7 @@ function createCleanArcaInventoryPort(options) {
         if (sourceBasis) assertSettlementSnapshot(observed, readStableNfoSync(source));
       }
       if (!sameLocation) {
+        request.assertCurrentApproval?.(source);
         await fs.promises.rm(source, { force:false });
         sourceAbsent = !await exists(source);
         if (!sourceAbsent) {
@@ -1959,6 +1961,7 @@ function createCleanArcaInventoryPort(options) {
         for (const leftover of listFilesRecursive(tree)) {
           await new Promise((resolve) => setImmediate(resolve));
           if (allowed.has(leftover) || !await exists(leftover)) continue;
+          request.assertCurrentApproval?.(leftover);
           await fs.promises.rm(leftover, { force:false });
           if (await exists(leftover)) {
             fail('CLEAN_ARCA_SETTLEMENT_DELETE_FAILED',

@@ -34,7 +34,7 @@ async function session(host, apiKey) {
   return exchange.headers['set-cookie'];
 }
 
-test('Librarian can choose 全自动 or 关键步骤确认 without granting Off-deck destruction', async (t) => {
+test('Librarian can grant and revoke exact standing Input Settlement authorization without granting Off-deck destruction', async (t) => {
   const value = fixture();
   const host = await createCleanServiceHost({
     dataDir: value.dataDir,
@@ -50,7 +50,8 @@ test('Librarian can choose 全自动 or 关键步骤确认 without granting Off-
   const setup = await host.inject({ method: 'GET', url: '/v1/admin/setup-readiness', headers: { cookie } });
   assert.equal(setup.statusCode, 200, setup.body);
   const setupBody = setup.json();
-  assert.equal(setupBody.data.productChoice, 'key_step_confirmation');
+  assert.equal(setupBody.data.productChoice, undefined);
+  assert.equal(setupBody.data.standingInputSettlement, null);
   assert.equal(setupBody.data.offdeckDestruction.independentlyDisabled, true);
   assert.equal(setupBody.data.offdeckDestruction.grantedByFullAuto, false);
 
@@ -74,7 +75,8 @@ test('Librarian can choose 全自动 or 关键步骤确认 without granting Off-
   assert.equal(enabledBody.standingAuthorization.state, 'enabled');
   assert.equal(enabledBody.standingAuthorization.coversExclusiveRelatedInput, true);
   assert.equal(enabledBody.standingAuthorization.authorizationScopeKind, 'old_primary_and_exclusive_related');
-  assert.equal(enabledBody.readiness.data.productChoice, 'full_auto');
+  assert.equal(enabledBody.readiness.data.productChoice, undefined);
+  assert.equal(enabledBody.readiness.data.standingInputSettlement.enabled, true);
   assert.ok(enabledBody.ownerResults.some((item) => item.topic === 'offdeck_destruction' && item.result === 'unchanged_disabled'));
   assert.equal(enabledBody.readiness.data.offdeckDestruction.grantedByFullAuto, false);
 
@@ -111,7 +113,8 @@ test('Librarian can choose 全自动 or 关键步骤确认 without granting Off-
   });
   assert.equal(confirmation.statusCode, 200, confirmation.body);
   assert.equal(confirmation.json().standingAuthorization.state, 'revoked');
-  assert.equal(confirmation.json().readiness.data.productChoice, 'key_step_confirmation');
+  assert.equal(confirmation.json().readiness.data.productChoice, undefined);
+  assert.equal(confirmation.json().readiness.data.standingInputSettlement.enabled, false);
 
   const overview = await host.inject({ method: 'GET', url: '/v1/admin/overview', headers: { cookie } });
   assert.equal(overview.statusCode, 200, overview.body);

@@ -1,6 +1,8 @@
 'use strict';
 
 const path = require('node:path');
+const {createInputSettlementAuthorizationStore}=require('../persistence/input-settlement-authorization-store');
+const {createOnDeckSettlementApprovalStore}=require('../persistence/on-deck-settlement-approval-store');
 const { canonicalDigest } = require('../../../contracts/canonical-json');
 const { createShelfQueryStore } = require('../persistence/shelf-query-store');
 const { createHandoffBAcceptanceStore } = require('../persistence/handoff-b-acceptance-store');
@@ -116,6 +118,8 @@ function createOnDeckContextReader(options) {
   if (!options.inventoryPort || typeof options.inventoryPort.assess !== 'function') {
     throw new TypeError('Arca On-deck Context requires the bounded Inventory port.');
   }
+  const settlementAuthorizations=createInputSettlementAuthorizationStore(options);
+  const settlementApprovals=createOnDeckSettlementApprovalStore(options);
   const shelves = createShelfQueryStore(options);
   const acceptance = createHandoffBAcceptanceStore(options);
   const onDeck = createOnDeckStore(options);
@@ -222,7 +226,7 @@ function createOnDeckContextReader(options) {
     return boundedSettlementContext(context, responsibility, verified, materialKey);
   }
 
-  return Object.freeze({ messageFromRefs, readOffer, readAccepted, readSettlement, acceptance, onDeck });
+  return Object.freeze({ messageFromRefs, readOffer, readAccepted, readSettlement, acceptance, onDeck, settlementAuthorizations, settlementApprovals });
 }
 
 module.exports = Object.freeze({

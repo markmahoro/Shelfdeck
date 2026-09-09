@@ -1,4 +1,7 @@
 'use strict';
+
+const path=require('node:path');
+const {settlementHandles}=require('../model/input-settlement-scope');
 const { failureDiagnostics } = require('../../../contracts/failure-diagnostics');
 
 const { canonicalDigest, canonicalJson } = require('../../../contracts/canonical-json');
@@ -169,7 +172,7 @@ function placementPreconditionFailureOutcome(error){
 function settlementPreconditionFailureOutcome(error) {
   if (!['CLEAN_ARCA_SETTLEMENT_REALITY_DRIFT', 'CLEAN_ARCA_SETTLEMENT_UNKNOWN_MEMBER',
     'CLEAN_ARCA_SETTLEMENT_MAPPING_INVALID', 'CLEAN_ARCA_SETTLEMENT_MAPPING_DRIFT',
-    'CLEAN_ARCA_SETTLEMENT_HANDLE_INVALID', 'CLEAN_ARCA_FINAL_NFO_SEMANTIC_DRIFT',
+    'CLEAN_ARCA_SETTLEMENT_HANDLE_INVALID', 'ARCA_ONDECK_SETTLEMENT_APPROVAL_STALE', 'CLEAN_ARCA_FINAL_NFO_SEMANTIC_DRIFT',
     'CLEAN_ARCA_FINAL_NFO_BASIS_MISSING'].includes(error?.code)) return null;
   return Object.freeze({kind:'failed',failureClass:'settlement_precondition',code:error.code,
     message:error.message,retryDirective:'never',evidence:Object.freeze({errorCode:error.code,diagnostics:failureDiagnostics(error)})});
@@ -181,6 +184,21 @@ function createOnDeckCapabilityPorts(options){const now=options.now||Date.now,ac
   function ctx(execution){return context(options,execution,dependencyRefs(options,execution));}
   function settlementCtx(execution,materialKey){return options.contextReader.readSettlement(
     execution.ownerScope.processId,dependencyRefs(options,execution),materialKey);}
+  function assertSettlementApproval(execution,member,location){
+    try{
+      const c=settlementCtx(execution,member.materialKey);
+      if(path.resolve(location)!==path.resolve(member.materialHandle.location))throw new Error('Deletion exceeds the exact approved member.');
+      const verification=options.workResultReader.read(execution.workId)
+        .find(row=>row.capabilityRef===C.finalVerify&&row.outcomeKind==='succeeded')?.result;
+      const authorization=options.contextReader.settlementAuthorizations.current();
+      const scope=settlementHandles(c,member.materialKey,verification,authorization);
+      const handle=options.contextReader.settlementApprovals.readHandle(scope,authorization,execution.eventId);
+      if(canonicalDigest(handle)!==canonicalDigest(execution.namedInputs.inputSettlementApproval)||
+        scope.digest!==execution.namedInputs.oldPrimaryStructuralExclusiveRelatedHandleList.digest)
+        throw new Error('Settlement Approval changed after Event admission.');
+    }catch(error){throw Object.assign(new Error('Current Input Settlement Approval no longer authorizes deletion.'),
+      {code:'ARCA_ONDECK_SETTLEMENT_APPROVAL_STALE',cause:error,details:{reason:String(error.message)}});}
+  }
   function aftercareRequest(execution,_c,at=now(),expectedCaseId=null){
     const authority=readAftercarePlacementAuthority(options,execution,expectedCaseId);
     return authority&&buildAftercareInventoryRequest(authority.context,options.inventoryPort,at,authority.care.aftercareCaseId);
@@ -342,6 +360,7 @@ function createOnDeckCapabilityPorts(options){const now=options.now||Date.now,ac
     validateResult(_c,o){if(o?.result?.receiptKind!=='placement_switched')throw new TypeError('Placement Switch Receipt is invalid.');}});
   ports[C.settlement]=Object.freeze({validateInputs(c){requireNamed(c,['oldPrimaryStructuralExclusiveRelatedHandleList','inputSettlementApproval']);},async execute(execution){try{const n=execution.namedInputs,m=n.oldPrimaryStructuralExclusiveRelatedHandleList.members[0],at=effectAt(execution),c=settlementCtx(execution,m.materialKey),
     settled=await options.inventoryPort.settleInputAsync({materialHandle:m.materialHandle,approval:n.inputSettlementApproval,
+      assertCurrentApproval:location=>assertSettlementApproval(execution,m,location),
       finalMaterialKey:m.finalMaterialKey,finalTargetLocation:m.finalTargetLocation,
       settlementExpectation:m.settlementExpectation,sourceToFinalMappingDigest:m.sourceToFinalMappingDigest,
       managedLocations:c.settlementManagedLocations,

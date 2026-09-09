@@ -354,13 +354,18 @@ async function configureMoviePilot(host, cookie, landingRoot) {
   assert.equal(saved.statusCode, 200, saved.body);
 }
 
-async function createShelf(host, cookie, shelfRoot, template = { templateId:SYSTEM_TEMPLATE_ID, revision:1 }, collisionPolicy = 'reject') {
+async function createShelf(host, cookie, shelfRoot, template = { templateId:SYSTEM_TEMPLATE_ID, revision:1 }, collisionPolicy = 'reject', authorizeSettlement = true) {
   const result = await host.inject({ method:'POST', url:'/v1/admin/shelves', headers:{ cookie }, payload:{
     idempotencyKey:'scenario-shelf-create', shelfId:'scenario-shelf', name:'Libra scenario shelf',
     targetRootLocation:shelfRoot, ruleTemplateId:template.templateId, expectedTemplateRevision:template.revision,
     placementPolicy:{ folderTemplate:'{title} ({year})', primaryTemplate:'{stem}{ext}', nfoTemplate:'{stem}.nfo', subtitleTemplate:'{stem}{language}{forced}{sdh}{ext}', posterTemplate:'poster{ext}', fanartTemplate:'fanart{ext}', collisionPolicy },
   } });
   assert.equal(result.statusCode, 201, result.body);
+  if(authorizeSettlement){
+    const granted=await host.inject({method:'POST',url:'/v1/admin/settings/automatic-operation/actions/enable-full',
+      headers:{cookie},payload:{idempotencyKey:'scenario-standing-authorization',expectedRevision:0,coverExclusiveRelatedInput:true}});
+    assert.equal(granted.statusCode,200,granted.body);
+  }
 }
 
 async function createD10Template(host,cookie) {
@@ -3059,24 +3064,62 @@ for(const sourceVariant of ['iso','direct']) test(sourceVariant==='iso'
   const originalDisc=reality(disc);
   const initialized=initializeCleanData({dataDir,confirmation:'INITIALIZE_HELIX_CLEAN_V1',secretRoot:SECRET});
   let runtimeError;
-  const host=await createCleanServiceHost({dataDir,adminDistDir:admin,secretRoot:SECRET,
+  const openHost=()=>createCleanServiceHost({dataDir,adminDistDir:admin,secretRoot:SECRET,
     libraWorkspaceRoot:path.join(root,'workspace'),...productOptions(),deferredDeliveryKeys:Object.freeze([]),
     onExecutionRuntimeError(error){runtimeError=error;if(process.env.HELIX_TEST_LOG_RUNTIME_ERROR==='1')console.error(error);}});
+  let host=await openHost();
   t.after(async()=>{await host.close();if(process.env.HELIX_KEEP_TEST_ASSETS!=='1')fs.rmSync(root,{recursive:true,force:true,maxRetries:5,retryDelay:100});});
-  const cookie=await session(host,initialized.adminApiKey);
-  await createShelf(host,cookie,shelf);
+  let cookie=await session(host,initialized.adminApiKey);
+  await createShelf(host,cookie,shelf,undefined,'reject',false);
   await createField(host,cookie,'uat135-iso-field',source);
   await observe(host,cookie,'uat135-iso-field');
   await waitFor(host,cookie,items=>items.some(item=>String(item.displayIdentity||'').includes('SDT-M01')));
   await route(host,cookie,'uat135-iso-field');
+  const awaitingAuthorization=await waitDatabase(path.join(dataDir,'shelfdeck.db'),db=>{
+    const final=db.prepare("SELECT count(*) n FROM fx_workflow_events WHERE capability_ref='arca.inventory.final_product.verify@1' AND state='succeeded'").get().n;
+    if(!final)return null;
+    return {approvals:db.prepare('SELECT count(*) n FROM arca_ondeck_settlement_approvals').get().n,
+      entries:db.prepare('SELECT count(*) n FROM arca_shelf_entries').get().n};
+  },90_000);
+  assert.deepEqual(awaitingAuthorization,{approvals:0,entries:0});
+  assert.ok(fs.existsSync(path.join(source,name+(sourceVariant==='iso'?'.iso':'.mkv'))),'No standing authorization must retain the old input.');
+  const granted=await host.inject({method:'POST',url:'/v1/admin/settings/automatic-operation/actions/enable-full',
+    headers:{cookie},payload:{idempotencyKey:'uat172-standing-grant',expectedRevision:0,coverExclusiveRelatedInput:sourceVariant!=='iso'}});
+  assert.equal(granted.statusCode,200,granted.body);
+  if(sourceVariant==='iso'){
+    await waitDatabase(path.join(dataDir,'shelfdeck.db'),db=>db.prepare("SELECT count(*) n FROM fx_workflow_events WHERE capability_ref='arca.ondeck.input_settlement.delete@1' AND state='succeeded'").get().n===1,65_000);
+    const related=path.join(source,name+'-poster.jpg'),relatedBytes=fs.readFileSync(related);
+    const revoked=await host.inject({method:'POST',url:'/v1/admin/settings/automatic-operation/actions/require-settlement-confirmation',
+      headers:{cookie},payload:{idempotencyKey:'uat172-revoke',expectedRevision:1}});
+    assert.equal(revoked.statusCode,200,revoked.body);
+    assert.equal(revoked.json().standingAuthorization?.state||revoked.json().data?.standingAuthorization?.state,'revoked');
+    await host.close();host=await openHost();cookie=await session(host,initialized.adminApiKey);
+    const current=await host.inject({method:'GET',url:'/v1/admin/settings/automatic-operation',headers:{cookie}});
+    assert.equal(current.statusCode,200,current.body);
+    assert.deepEqual(fs.readFileSync(related),relatedBytes,'Scope-excluded Related remains unchanged across revocation and restart.');
+    const persisted=new Database(path.join(dataDir,'shelfdeck.db'),{readonly:true});
+    try{
+      assert.equal(persisted.prepare('SELECT count(*) n FROM arca_shelf_entries').get().n,0);
+      assert.equal(persisted.prepare("SELECT count(*) n FROM arca_input_settlement_authorizations WHERE revision=2 AND state='revoked'").get().n,1);
+    }finally{persisted.close();}
+    const renewed=await host.inject({method:'POST',url:'/v1/admin/settings/automatic-operation/actions/enable-full',headers:{cookie},
+      payload:{idempotencyKey:'uat172-renew-full',expectedRevision:2,coverExclusiveRelatedInput:true}});
+    assert.equal(renewed.statusCode,200,renewed.body);
+  }
   const terminal=await waitDatabase(path.join(dataDir,'shelfdeck.db'),db=>{
     const entries=db.prepare('SELECT count(*) n FROM arca_shelf_entries').get().n;
     const failed=db.prepare("SELECT count(*) n FROM fx_workflow_events WHERE owner_domain='arca' AND state='failed'").get().n;
     const completed=db.prepare("SELECT count(*) n FROM libra_runs WHERE state='completed'").get().n;
     const checks=db.prepare('SELECT check_kind,result FROM arca_acceptance_checks ORDER BY check_kind').all();
-    return failed||(entries===1&&completed===1)?{entries,failed,completed,checks}:null;
+    return failed||(entries===1&&completed===1)?{entries,failed,completed,checks,failures:failed?db.prepare("SELECT failure_class,failure_code FROM fx_event_attempts WHERE outcome_kind='failed'").all():[]}:null;
   },150_000);
   assert.ifError(runtimeError);
+  const approvalsDb=new Database(path.join(dataDir,'shelfdeck.db'),{readonly:true});
+  try{
+    const approvals=approvalsDb.prepare('SELECT * FROM arca_ondeck_settlement_approvals').all();
+    assert.ok(approvals.length>0);
+    assert.ok(approvals.every(row=>[1,3].includes(row.standing_authorization_revision)&&row.approved_at_ms>0&&row.actor_or_policy_ref!=='system-policy'));
+  }finally{approvalsDb.close();}
   assert.equal(terminal.entries,1,JSON.stringify(terminal));
   assert.equal(terminal.failed,0);
   assert.equal(terminal.completed,1);
