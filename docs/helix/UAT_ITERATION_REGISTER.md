@@ -6,7 +6,7 @@
 
 状态说明：历史已关闭保留当时证据，并不宣称本次重测；已实现/已部署不等于已关闭；待核实不是当前已证实缺陷。原表与后续完整关闭证据冲突时采用后者并链接。没有证据的事项不批量关闭。
 
-[全量前后合同审查](implementation/evidence/UAT_FULL_CONTRACT_CONSISTENCY_AUDIT_20260909.md)已完成，三项业务冲突均由用户确认并以`14cf2d9a0`同步合同；用户要求整理文档后继续推进。历史标题不是现行Oracle；下述承接条件与SSOT后续优先条款共同适用。当前63项本轮功能验收关闭、36项开放，206被取代承接已核实；另有153项历史关闭、220文档关闭及1项非缺陷接受。
+[全量前后合同审查](implementation/evidence/UAT_FULL_CONTRACT_CONSISTENCY_AUDIT_20260909.md)已完成，三项业务冲突均由用户确认并以`14cf2d9a0`同步合同；用户要求整理文档后继续推进。历史标题不是现行Oracle；下述承接条件与SSOT后续优先条款共同适用。当前66项本轮功能验收关闭、33项开放，206被取代承接已核实；另有153项历史关闭、220文档关闭及1项非缺陷接受。
 
 执行顺序见[CURRENT_PLAN](CURRENT_PLAN.md)。每次完成一项，更新该行的提交、用户结果证据、剩余工作和状态；需要部署的先部署/验收再关闭。编号合并不触发生产操作。
 
@@ -251,15 +251,15 @@
 | UAT-237 | 登录会话在八页各自复制，文案和布局不一致 | UI / `LAYOUT` | 验收关闭 | UX-020 | 1a3f4254dc | [逐项验收](implementation/evidence/UAT-221_237_238_SHELL_ACCEPTANCE_20260909.md) | 无该项剩余；历史实现、各自代码依据、生产八页及适用隔离浏览器/测试证据已核对。 |
 | UAT-238 | 两套 CSS 与一套废弃 `src/pages` 并存 | UI / `LAYOUT` | 验收关闭 | UX-021 | 1a3f4254dc | [逐项验收](implementation/evidence/UAT-221_237_238_SHELL_ACCEPTANCE_20260909.md) | 无该项剩余；历史实现、各自代码依据、生产八页及适用隔离浏览器/测试证据已核对。 |
 | UAT-239 | 同页混用 Aptos / Inter / Georgia / 系统黑体，字号阶梯过碎 | UI / `TYPOGRAPHY` | 验收关闭 | UX-022 | 747110c653 | [字体及标签证据](implementation/evidence/UAT-219_239_TYPOGRAPHY_20260908.md) | 主界面字体族与字号层级统一，保留合理数字/代码字体，不机械全局替换。执行B4；依赖/承接：212整合；与219按各自证据验收，不形成自依赖。 |
-| UAT-240 | 按钮至少八种互不相干的形态 | UI / `BUTTON` | 历史已实现，待验收核对 | UX-024 | 见证据 | [UX-024原记录（按标题）](ADMIN_WEB_UX_ISSUE_LOG.md) | 正常/次要/危险/禁用按钮在八页一致，焦点与窄屏可用。执行B4；依赖/承接：212/143整合。 |
-| UAT-241 | 退出收藏与整理表内按钮退回浏览器默认样式 | UI / `BUTTON` | 历史已实现，待验收核对 | UX-025 | 见证据 | [UX-025原记录（按标题）](ADMIN_WEB_UX_ISSUE_LOG.md) | 退出与整理表内按钮不用浏览器默认样式，真实点击/禁用/确认验收。执行B4；依赖/承接：143/212。 |
+| UAT-240 | 按钮至少八种互不相干的形态 | UI / `BUTTON` | 验收关闭 | UX-024 | 7ceaeca7fb | [八页浏览器与确认验收](implementation/evidence/UAT-240_241_248_BROWSER_ACCEPTANCE_20260909.md) | 正常/次要/危险/禁用按钮在八页一致，焦点与窄屏可用。当前生产八页及隔离确认补验通过；依赖/承接：212/143整合。 |
+| UAT-241 | 退出收藏与整理表内按钮退回浏览器默认样式 | UI / `BUTTON` | 验收关闭 | UX-025 | 7ceaeca7fb | [八页浏览器与确认验收](implementation/evidence/UAT-240_241_248_BROWSER_ACCEPTANCE_20260909.md) | 退出与整理表内按钮不用浏览器默认样式，真实点击/禁用/确认验收。当前生产八页及隔离确认补验通过；依赖/承接：143/212。 |
 | UAT-242 | 收藏墙逐张拉海报，详情再打健康与评分接口 | UI / `PERFORMANCE` | 历史已实现，待验收核对 | UX-026 | 见证据 | [UX-026原记录（按标题）](ADMIN_WEB_UX_ISSUE_LOG.md) | 海报与详情请求有界，翻页替换/旧请求迟到保护，两页真实浏览器性能保留。执行B3；依赖/承接：212分页主项。 |
 | UAT-243 | 文件来源按 Field 再打 Routing Policy，观察期间 1s 轮询整表 | UI / `PERFORMANCE` | 验收关闭 | UX-027 | b2978c1512 | [UX-027原记录（按标题）](ADMIN_WEB_UX_ISSUE_LOG.md)；[请求与草稿验收](implementation/evidence/UAT-243_ROUTING_READS_BROWSER_20260908.md) | 原问题、本地多来源/回归证据及生产展开/刷新验收通过，无该项剩余；[发布关闭证据](implementation/evidence/UAT_RELEASE_B2978C1512_20260909.md)。 |
 | UAT-244 | 设置页切到连接 Tab 仍拉取 100 条评分日志 | UI / `PERFORMANCE` | 验收关闭 | UX-028 | 6bcfd7b33b（已发布运行时） | [UX-028原记录（按标题）](ADMIN_WEB_UX_ISSUE_LOG.md)；[生产浏览器逐项验收](implementation/evidence/UAT_SETTINGS_BROWSER_ACCEPTANCE_20260909.md) | 2026-09-09逐项关闭：真实连接页不发评分日志请求；进入日志、筛选或加载更多才请求limit=100，切回连接不重拉日志。 |
 | UAT-245 | 概览所谓 Projection 是请求内五路拼账 | UI / `PERFORMANCE` | 验收关闭 | UX-029 | 7ceaeca7fb | [快照/有界读取与生产验收](implementation/evidence/UAT-245_OVERVIEW_PROJECTION_ACCEPTANCE_20260909.md) | 概览Query有界且不请求内五路全量拼账，真实页面响应核验。最终镜像与实际页面已通过；依赖/承接：141；关联057。 |
 | UAT-246 | 退出收藏 3～4 路拼装，preparing 每 500ms 重拉 | UI / `PERFORMANCE` | 验收关闭 | UX-030（退出收藏 3～4 路拼装，preparing 每 500ms 重拉） | 1a3f4254dc | [实现及完整验证](implementation/evidence/UAT-246_OFFDECK_READ_EFFICIENCY_20260909.md)；[发布验收](implementation/evidence/UAT_RELEASE_1A3F4254DC_20260909.md) | 无该项剩余；Arca精简分页、全量ID选择/单Batch、真实十部执行/恢复、千部浏览器及生产70部选择验收通过。 |
 | UAT-247 | Helix 页未使用已引入的 QueryClient，切页无共享缓存 | UI / `PERFORMANCE` | 历史已实现，待验收核对 | UX-031（Helix 页未使用已引入的 QueryClient，切页无共享缓存） | 见证据 | [UX-031原记录（按标题）](ADMIN_WEB_UX_ISSUE_LOG.md) | 核查跨页缓存/失效/迟到响应行为；不为使用QueryClient名称而重写已有效请求机制。执行B4；依赖/承接：212整合后。 |
-| UAT-248 | 整体仍是「内部台账皮肤」，缺少统一的媒体产品视觉 | UI / `AESTHETICS` | 历史已实现，待验收核对 | UX-032 | 见证据 | [UX-032原记录（按标题）](ADMIN_WEB_UX_ISSUE_LOG.md) | 以已确认现行视觉核对媒体产品一致性，真实八页对照；不扩大成新视觉设计。执行B4；依赖/承接：219/239/240；各页整合后。 |
+| UAT-248 | 整体仍是「内部台账皮肤」，缺少统一的媒体产品视觉 | UI / `AESTHETICS` | 验收关闭 | UX-032 | 7ceaeca7fb | [八页浏览器与确认验收](implementation/evidence/UAT-240_241_248_BROWSER_ACCEPTANCE_20260909.md) | 以已确认现行视觉核对媒体产品一致性，真实八页对照；不扩大成新视觉设计。当前生产八页及隔离确认补验通过；依赖/承接：219/239/240；各页整合后。 |
 | UAT-249 | 仍泄漏 Owner、Workspace、Libra Intake；自动运营控件出现两次 | UI / `COPY_INTERNAL` | 验收关闭 | UX-037 | 6bcfd7b33b（已发布运行时） | [UX-037原记录（按标题）](ADMIN_WEB_UX_ISSUE_LOG.md)；[生产浏览器逐项验收](implementation/evidence/UAT_SETTINGS_BROWSER_ACCEPTANCE_20260909.md) | 2026-09-09逐项关闭：设置/收藏架/整理主文案不泄露旧领域术语，只有一个精确持续清理授权入口，状态与正式授权一致。 |
 | UAT-250 | 媒体整理区存量治理：历史失败、正常生产与冻结条目分开处置 | 存量治理 | Provider预算根因已本地修复，存量待验收 | 用户新增 | UAT-212历史分类已整合；Search预算已修复未部署 | [精确清单与治理方案](implementation/evidence/UAT-250_FORMATION_STOCK_GOVERNANCE_20260908.md) | 刷新11历史Case/正常Run精确列表，保留失败和成功历史、invalidated不可见；活着查Provider错误，未经精确授权不Reset。执行B5；依赖/承接：212；251仅活着结果衔接。 |
 | UAT-251 | Libra/Aftercare不可达目标、瑕疵接受与三种终局闭环 | 合同/业务流程 | 用户结果及typed合同已确认，待实施 | 用户新增；关联UAT-210/213/217/218/250 | 尚未实施 | [合同与代码审视](implementation/evidence/UAT-251_TERMINAL_OUTCOME_AUDIT_20260908.md) | 三种首次终局、可用片源瑕疵接纳、修复失败保原片原瑕疵且不重复建Case；技术错误保留原因，责任收尾与重复进入按已记录typed合同实施后逐景验收。执行B1；依赖/承接：2026-09-09已确认仅手动修复、健康正常另附瑕疵标记；其他已确认语义立即传播。 |
