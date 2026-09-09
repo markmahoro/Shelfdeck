@@ -249,6 +249,24 @@ test('FFmpeg stall watchdog stays quiet while the process still emits output', a
   assert.equal(result.exitCode, 0);
 });
 
+test('UAT-169 the hard Event deadline stops a child even while output keeps the stall watchdog alive', async () => {
+  const registry = createFfmpegProcessRegistry();
+  let samples = 0;
+  let lastOutputAt = 0;
+  await assert.rejects(runProcess(process.execPath, ['-e',
+    "setInterval(()=>process.stderr.write('progress\\n'),20)"], 10_000, null, {
+    deadlineAtMs: Date.now() + 500,
+    stallTimeoutMs: 300,
+    processRegistry: { ...registry, register(child) {
+      child.stderr.on('data', () => { samples += 1; lastOutputAt = Date.now(); });
+      registry.register(child);
+    } },
+  }), error => error.code === 'LIBRA_MEDIA_FFMPEG_TIMEOUT');
+  assert.ok(samples >= 3, 'The actual child must emit continuing output before the deadline.');
+  assert.ok(Date.now() - lastOutputAt < 300, 'The child was still active within its stall budget.');
+  assert.equal(registry.size(), 0);
+});
+
 test('service process registry terminates an active FFmpeg child during shutdown', async () => {
   const registry=createFfmpegProcessRegistry();
   const running=runProcess(ffmpegPath,['-hide_banner','-nostdin','-loglevel','error','-re','-f','lavfi','-i',
