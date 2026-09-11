@@ -255,6 +255,20 @@ const definitions = {
   EvidenceEnvelope: () => plainSchema('EvidenceEnvelope', {
     evidenceId: opaqueId(), evidenceKind: text(), producerRef: text(), basisDigest: digestHex(), payloadDigest: digestHex(), observedAtMs: nonNegativeInteger()
   }),
+  MaterialControlProjectionSnapshot: () => ({
+    $schema:DRAFT, $id:typeId('MaterialControlProjectionSnapshot'), title:'MaterialControlProjectionSnapshot@1',
+    'x-helix-ssotRefs':['8.3.6','8.6.18'], 'x-helix-maxCanonicalBytes':4096,
+    oneOf:[
+      object({materialKey:digestHex(),resultKind:{const:'unavailable'},
+        failureCode:enumText('control_row_invalid','control_query_unavailable'),evidenceDigest:digestHex(),projectionDigest:digestHex()}),
+      object({materialKey:digestHex(),resultKind:{const:'available'},controlRevision:nonNegativeInteger(),
+        controlState:{const:'uncontrolled'},regionProjection:{const:'uncontrolled'},evidenceDigest:digestHex(),projectionDigest:digestHex()}),
+      ...Object.entries({procurement:'procurement',libra:'production',arca:'finished_goods'}).map(([ownerDomain,regionProjection])=>
+        object({materialKey:digestHex(),resultKind:{const:'available'},controlRevision:positiveInteger(),controlState:{const:'controlled'},
+          ownerDomain:{const:ownerDomain},ownerScopeType:opaqueId(),ownerScopeId:opaqueId(),regionProjection:{const:regionProjection},
+          evidenceDigest:digestHex(),projectionDigest:digestHex()}))
+    ]
+  }),
   VerificationEnvelope: () => plainSchema('VerificationEnvelope', {
     verificationId: opaqueId(), verificationKind: text(), basisDigest: digestHex(), result: enumText('passed', 'failed', 'not_applicable'),
     reasonCodes: arrayOf(text()), evidenceRefs: arrayOf(opaqueId()), verifiedAtMs: nonNegativeInteger()

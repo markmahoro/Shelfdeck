@@ -20,17 +20,30 @@ const DIGEST = 'a'.repeat(64);
 function fixture(name) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), `${name}-`));
   const dataDir = path.join(root, 'data');
-  const transcodeDir = path.join(root, 'transcode');
+  const isolatedLinuxMount = process.env.HELIX_TEST_ISOLATED_TRANSCODE === '1';
+  const transcodeDir = isolatedLinuxMount ? '/transcode' : path.join(root, 'transcode');
   fs.mkdirSync(dataDir);
-  fs.mkdirSync(transcodeDir);
+  if (isolatedLinuxMount) {
+    assert.equal(process.platform, 'linux');
+    assert.ok(fs.readFileSync('/proc/self/mountinfo','utf8').split('\n').some(line =>
+      line.split(' ')[4] === '/transcode' && line.includes(' - tmpfs ')), 'Reset tests require a disposable tmpfs mount.');
+    assert.deepEqual(fs.readdirSync(transcodeDir), [], 'The test mount must be empty before each fixture.');
+  } else fs.mkdirSync(transcodeDir);
   const database = new Database(path.join(dataDir, 'shelfdeck.db'));
   database.exec(schemaDdl);
   database.pragma('foreign_keys = ON');
-  return { root, dataDir, transcodeDir, database };
+  return { root, dataDir, transcodeDir, database, isolatedLinuxMount };
 }
 
 function close(value) {
   value.database.close();
+  if (value.isolatedLinuxMount) {
+    for (const name of fs.readdirSync(value.transcodeDir)) {
+      const target=path.resolve(value.transcodeDir,name);
+      assert.equal(path.dirname(target), '/transcode');
+      fs.rmSync(target, { recursive:true, force:true });
+    }
+  }
   fs.rmSync(value.root, { recursive:true, force:true });
 }
 

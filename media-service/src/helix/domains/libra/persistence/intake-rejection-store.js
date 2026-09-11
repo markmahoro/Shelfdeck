@@ -3,6 +3,7 @@
 const { canonicalDigest, canonicalJson } = require('../../../contracts/canonical-json');
 const { createRepositoryDefinition } = require('../../../foundation/persistence/owner-repository');
 const { candidateProvenance } = require('../model/libra-intake-contracts');
+const { CONTROL_REASON, CAPABILITY, intakeControlEvidenceRef } = require('../model/intake-control-contracts');
 const {
   DECISION_SCHEMA, MESSAGE_SCHEMA, RECEIPT_SCHEMA, REJECTION_SCHEMA,
   buildIntakeRejectionDecision, buildIntakeRejectionReceipt, buildLibraCandidateRejectedMessage
@@ -51,7 +52,9 @@ function libraDefinition(schemaManifest) {
 function foundationDefinition(schemaManifest) {
   return createRepositoryDefinition({ repositoryId:'libra_intake_rejection_foundation', owner:'execution-foundation', schemaManifest, statements:{
     find_marker:{ kind:'select-one', tableId:'fx_commit_markers', columns:['commit_marker','owner_domain','scope_type','scope_id','commit_digest','result_id','result_schema_ref','result_digest'], keyColumns:['commit_marker'] },
-    find_result:{ kind:'select-one', tableId:'fx_event_result_bindings', columns:['result_id','result_schema_ref','result_json','result_digest','evidence_schema_ref','evidence_json','evidence_digest','effect_receipt_id'], keyColumns:['result_id'] },
+    find_result:{ kind:'select-one', tableId:'fx_event_result_bindings', columns:['result_id','event_id','outcome_kind','result_schema_ref','result_json','result_digest','evidence_schema_ref','evidence_json','evidence_digest','effect_receipt_id'], keyColumns:['result_id'] },
+    find_source_event:{ kind:'select-one', tableId:'fx_workflow_events', columns:['event_id','work_id','owner_domain','capability_ref','state','result_id'], keyColumns:['event_id'] },
+    find_source_work:{ kind:'select-one', tableId:'fx_supporting_works', columns:['work_id','owner_domain','process_type','process_id','work_kind','state','basis_digest','definition_json','definition_digest'], keyColumns:['work_id'] },
     insert_result:{ kind:'insert', tableId:'fx_event_result_bindings', columns:['result_id','event_id','outcome_kind','result_schema_ref','result_json','result_digest','evidence_schema_ref','evidence_json','evidence_digest','effect_receipt_id','committed_at_ms'] },
     insert_marker:{ kind:'insert', tableId:'fx_commit_markers', columns:['commit_marker','effect_id','owner_domain','scope_type','scope_id','commit_digest','result_id','result_schema_ref','result_digest','committed_at_ms'] },
     insert_outbox:{ kind:'insert', tableId:'fx_outbox', columns:['message_id','producer_domain','message_kind','aggregate_type','aggregate_id','aggregate_revision','dedup_key','consumer_set_digest','intended_consumer_count','payload_schema_ref','payload_json','payload_digest','state','available_at_ms','created_at_ms','all_acked_at_ms'] },
@@ -67,6 +70,38 @@ function validateHandle(handle, decision) {
       typeof handle.commitIdempotencyKey !== 'string' || !handle.commitIdempotencyKey || !SHA256.test(handle.eventFenceDigest || '')) {
     fail('P8_REJECTION_HANDLE_MISMATCH', 'Commit Handle does not authorize this exact immutable rejection Decision.');
   }
+}
+
+function validateControlEvidence(repo, request, decision) {
+  const reason = decision.structuredRejection.reasons.find(item => item.reasonCode === CONTROL_REASON);
+  if (!reason) return;
+  const invalid = () => fail('P8_INTAKE_CONTROL_EVIDENCE_BINDING_INVALID', 'Control rejection must reference the persisted Evidence of its exact Intake Work dependency.');
+  if (reason.evidenceRefs.length !== 1) invalid();
+  const ref = reason.evidenceRefs[0];
+  const row = repo.invoke('find_result', { result_id:ref.evidenceId });
+  const event = row && repo.invoke('find_source_event', { event_id:row.event_id });
+  const work = event && repo.invoke('find_source_work', { work_id:event.work_id });
+  const targetEvent = repo.invoke('find_source_event', { event_id:request.resultBinding.eventId });
+  const targetWork = targetEvent && repo.invoke('find_source_work', { work_id:targetEvent.work_id });
+  if (!row || !event || !work || !targetEvent || !targetWork || event.result_id !== row.result_id ||
+      event.owner_domain !== 'libra' || event.capability_ref !== CAPABILITY || event.state !== 'succeeded' ||
+      work.owner_domain !== 'libra' || work.process_type !== 'libra_intake' || work.process_id !== decision.intakeDecisionId ||
+      work.work_kind !== 'evidence' || work.state !== 'succeeded' || targetEvent.owner_domain !== 'libra' ||
+      targetEvent.capability_ref !== 'libra.intake.rejection.commit@1' || targetWork.owner_domain !== 'libra' ||
+      targetWork.process_type !== 'libra_intake' || targetWork.process_id !== decision.intakeDecisionId || targetWork.work_kind !== 'rejection') invalid();
+  let definition, result, evidence;
+  try { definition=JSON.parse(targetWork.definition_json); result=JSON.parse(row.result_json); evidence=JSON.parse(row.evidence_json); }
+  catch { invalid(); }
+  if (canonicalDigest(definition) !== targetWork.definition_digest || definition.workId !== targetWork.work_id ||
+      definition.processId !== decision.intakeDecisionId || definition.ownerDomain !== 'libra' || definition.workKind !== 'rejection' ||
+      definition.dependencyRefs?.length !== 1) invalid();
+  const dependency=definition.dependencyRefs[0];
+  if (dependency.ownerDomain !== 'libra' || dependency.objectType !== 'supporting_work' || dependency.objectId !== work.work_id ||
+      dependency.revision !== 1 || dependency.digest !== work.basis_digest) invalid();
+  const verified=intakeControlEvidenceRef(request.deliverySnapshot, { workId:work.work_id, capabilityRef:event.capability_ref,
+    state:event.state, outcomeKind:row.outcome_kind, resultId:row.result_id, resultSchemaRef:row.result_schema_ref,
+    resultDigest:row.result_digest, result, evidenceSchemaRef:row.evidence_schema_ref, evidenceDigest:row.evidence_digest, evidence }, work.work_id);
+  if (canonicalJson(ref) !== canonicalJson(verified)) invalid();
 }
 
 function decisionFromRows(row, reasonRows) {
@@ -121,6 +156,7 @@ function createIntakeRejectionStore(options) {
       let receipt, message;
       const preflight={ participantId:'intake_rejection_preflight', owner:'execution-foundation', boundBusinessOwner:'libra', repositories:[foundation], execute(context) {
         const repo=context.repository(foundation.repositoryId), marker=repo.invoke('find_marker',{commit_marker:markerId});
+        validateControlEvidence(repo,request,decision);
         if (!marker) return;
         if (marker.owner_domain !== 'libra' || marker.scope_type !== 'intake_decision' || marker.scope_id !== decision.intakeDecisionId ||
             marker.commit_digest !== commitDigest || marker.result_schema_ref !== RECEIPT_SCHEMA) fail('P8_REJECTION_MARKER_CONFLICT', 'Commit Marker belongs to another fact.');

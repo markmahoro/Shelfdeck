@@ -277,6 +277,7 @@ const dtoContracts = {
   StableProviderIdentity: 'providerId,providerObjectId,identityRevision,identityDigest',
   Standard: 'standardId,standardRevision,standardDigest',
   IntakeRejectionDecision: 'intakeDecisionId,decisionRevision,offerId,candidatePackageId,packageRevision,packageDigest,acceptanceBasisDigest,candidateDeliverySnapshotDigest,structuredRejection,decisionDigest',
+  IntakeControlReadHandle: '',
   ArcaAcceptanceRejectionDecision: 'acceptanceDecisionId,acceptanceAttemptId,offerId,onDeckPackageId,packageDigest,shelfId,standardRevision,placementRevision,acceptanceCheckSetDigest,actualGapUnionCodes,actualGapUnionDigest,authorizedDefectManifestDigestOrNull,authorizedGapComparison,structuredRejection,decisionDigest,decidedAtMs',
   StructuredRejection: 'handoffKind,offerId,deliverableId,rejectionCode,acceptanceEvidenceSetDigest,rejectionDigest',
   TargetBindings: 'targetCommitSlotId,bindings,bindingSetDigest',
@@ -303,6 +304,11 @@ function idField(name) {
 }
 
 function buildSchema(name, role, fields) {
+  if (name === 'IntakeControlReadHandle') return { ...exactDomainSchema(name, {
+    handleId:digest(), ownerDomain:{const:'libra'}, processType:{const:'libra_intake'}, processId:digest(),
+    candidateDeliverySnapshotDigest:digest(), materialKeys:{...arrayOf(digest(),1024),minItems:1,uniqueItems:true},
+    accessScope:{const:'current_control_projection_read'}, scopeDigest:digest()
+  }), 'x-helix-maxCanonicalBytes':128*1024 };
   if (name === 'SamplingPlan') return samplingPlanSchema();
   if (name === 'FaceModelRef') return faceModelRefSchema();
   if (name === 'ClusterParameters') return clusterParametersSchema();

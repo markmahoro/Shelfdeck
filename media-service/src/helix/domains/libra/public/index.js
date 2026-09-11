@@ -4,6 +4,7 @@ const catalog = require('../../../contracts/ports/p8-libra-intake-public-contrac
 const productionCatalog = require('../../../contracts/ports/p9-libra-production-public-contracts.json');
 const { packageId } = require('./package.boundary.json');
 const { createIntakeCapabilityPorts } = require('../capabilities/intake-capability-ports');
+const { createIntakeControlObservationPort } = require('../application/intake-control-observation-port');
 const { createIntakeCapabilityRegistrations } = require('../capabilities/intake-capability-registrations');
 const { createIntakeOfferReader } = require('../persistence/intake-offer-reader');
 const { createIntakeDecisionResolver } = require('../application/intake-decision-resolver');
@@ -142,7 +143,8 @@ function createExecutionRegistration() {
   const implementation={
     createCapabilityRegistration(options) {
       const offerReader=options.offerReader || createIntakeOfferReader(options);
-      const intakePorts=createIntakeCapabilityPorts({...options,offerReader});
+      const intakePorts=createIntakeCapabilityPorts({...options,offerReader,
+        intakeControlObservationPort:createIntakeControlObservationPort(options)});
       const routingPorts=createRoutingCapabilityPorts(options);
       const movieProductionReader=options.movieProductionReader||createMovieProductionReader(options);
       const domainCommitCoordinator=createProductFactDomainCommitCoordinator(options);

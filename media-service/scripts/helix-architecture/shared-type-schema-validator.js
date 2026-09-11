@@ -78,7 +78,7 @@ function validateSharedTypeSchemas(options) {
   if (
     registry.schemaVersion !== 1 || registry.manifestVersion !== 1 || registry.manifestId !== 'helix.shared-type-registry' ||
     registry.kind !== 'shared-type-registry' || registry.owner !== 'contracts' || registry.status !== 'active' ||
-    registry.targetCount !== 30 || !Array.isArray(registry.entries) || registry.entries.length !== 30
+    registry.targetCount !== 31 || !Array.isArray(registry.entries) || registry.entries.length !== 31
   ) {
     findings.push(finding('INVALID_SHARED_TYPE_REGISTRY', 'Shared type registry envelope or target count is invalid.', {
       file: normalizePath(registryPath)
@@ -102,7 +102,7 @@ function validateSharedTypeSchemas(options) {
   for (const entry of registry.entries || []) {
     const expectedVersion = entry?.id === 'PhysicalMaterialIdentity' ? 2 : 1;
     const valid = entry && typeof entry.id === 'string' && !entryIds.has(entry.id) &&
-      entry.version === expectedVersion && ['shared-nominal-handle', 'common-envelope', 'execution-context', 'outcome-envelope'].includes(entry.role) &&
+      entry.version === expectedVersion && ['shared-nominal-handle', 'shared-nominal-value', 'common-envelope', 'execution-context', 'outcome-envelope'].includes(entry.role) &&
       typeof entry.schemaId === 'string' && !schemaIds.has(entry.schemaId) && boundedRelative(entry.relativePath) && !paths.has(entry.relativePath) &&
       entry.digest && entry.digest.algorithm === 'sha256' && /^[a-f0-9]{64}$/.test(entry.digest.value || '') &&
       Array.isArray(entry.ssotRefs) && entry.ssotRefs.length > 0;
