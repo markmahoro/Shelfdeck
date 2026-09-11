@@ -62,3 +62,11 @@ UAT-251全局授权位于收藏架配置页头，与258保持相同按钮/对话
 ## 接收恢复追加阻塞
 
 接收恢复任务报告：83235c生产备份副本的精确两项pre-Subject Reset演练及全库保护检查通过，但5个open旧Offer的23个member存在冻结Control revision4/current1。safe Reset不等于recoveryReady，在正式拒绝与重新选材闭环就绪前不执行该两席位的生产Reset。SSOT §8.6.19已规定`candidate_control_scope_unavailable`须引用正式`MaterialControlProjectionSnapshot@1` Evidence；已请求原恢复任务先交付已验证核心修复，再按现行Owner合同补齐并验证这条正常拒绝路径。若producer/持久化/路由存在未定边界，先报告精确缺口，不以旧数据兼容、改Control或改immutable Candidate替代。
+
+## 首批代码集成核验
+
+接收恢复核心提交`9820e7b85ec2716ab367b4cdef4345c96587c531`已审查并在专用发布区与`06f1324df`合为`3aab889980`，再以`203773327`合入集成分支，同时保留`abb87310d`新确认的UAT-259第二轮UI授权及最新台账。七项服务文件包括Intake Plan冻结输入、精确pre-Subject Reset闭包、冲突文件隔离工具和对应测试。UAT-259实现仍由UI任务独立交付；本记录中此前“第二轮未授权”只表示接手时的历史状态。
+
+发布区安装独立锁定服务依赖，没有共享Junction。集成候选执行`node --test --test-concurrency=1 media-service/test/helix-intake-recovery.test.js media-service/test/helix-formation-reset.test.js media-service/test/helix-stage-conflict-quarantine.test.js media-service/test/helix-architecture/p8-intake-acceptance-contracts.test.js`，49/49通过、无跳过，约52.8秒。该恢复场景为真实Host/SQLite与注入Probe fixture，不把它称为完整真实媒体链；最终Linux镜像验证仍待该批候选冻结后执行。本地日志位于发布区`.codex/intake-integration-20260912.log`。
+
+仍未构建或部署新生产镜像，也未执行生产Reset/隔离工具；核心合入不关闭UAT-125/250。恢复任务进一步指出正式Control Evidence身份/持久化与CAS失败后的未提交证明路径有合同缺口，当前先保留阻塞并审查其窄合同提案，不在集成时补造Evidence或改变旧Plan。原Aftercare Evidence SHA256保持接手值。

@@ -13,6 +13,8 @@
 
 ## 最近验收与开放事实
 
+接收恢复核心9820e7b85已由203773327合入集成分支，独立发布区49项Intake/Reset/隔离专项通过；未部署。旧5份Candidate的Control不符及正式拒绝Evidence/恢复合同缺口仍阻塞完整席位恢复，不执行生产两席位Reset，见[联合收口证据](implementation/evidence/UAT_JOINT_DEPLOYMENT_READINESS_20260912.md)。
+
 UAT-259第二轮UI精简已获用户实施授权，当前实施中，尚无本轮部署或验收结论。[范围与验收](implementation/evidence/UAT-259_UI_REFINEMENT_20260912.md)。
 
 UAT-258“自动清理残留文件”授权按钮本地实现完成：替换收藏架折叠说明，入口与新建并列，沿用正式授权范围/API；20文件90项测试及构建通过，真实临时Host完成桌面/390px授权撤销、状态重读、错误恢复和键盘验证。尚未部署，保持开放，见[本次证据](implementation/evidence/UAT-258_RESIDUAL_CLEANUP_AUTHORIZATION_BUTTON_20260912.md)。
