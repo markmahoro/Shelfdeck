@@ -10,6 +10,8 @@
 
 ## 代码及Owner合同核验
 
+同一失败Work的真实`assemble()`输出在`activate`写入前截获，以项目`canonicalJson()`和UTF-8 byte length测得：`retry-intent-commit`输入659,539 bytes，`retry-admission`输入1,198,905 bytes，均显著超过16,384。部署任务已核对`measure-retry.cjs`的测量位置及`rehearsal/retry-node-byte-audit.json`；该诊断主动止于activation前，没有执行新的Plan事务。Work仍admitted、Attempt/Plan0，待补修复后的恢复验收。
+
 - `failed-preparation-retry-admin-service.js`的`assemble()`为两步构造完整`intentRequest`与`admissionRequest`，后者包含`newRunBasis`与Control scope；`retry()`先submit Work，再调用`workRuntime.activate()`。
 - `synchronous-domain-work.js:285`所在Plan node insert直接将`canonicalJson(step.input)`写入`input_bindings_json`；`clean-schema.sql`的16384-byte CHECK按合同拒绝大DTO。
 - SSOT §8.6表`fx_plan_nodes`明确每项JSON≤16 KiB；typed binding说明明确Plan只保存versioned typed binding refs，大Decision由Coordinator在提交边界按精确refs装配，current输入有revision/digest Fence并在Canonical Transaction重验，Executor不得读Store。
