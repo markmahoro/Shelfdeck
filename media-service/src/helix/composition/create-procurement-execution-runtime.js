@@ -279,6 +279,7 @@ function createProcurementExecutionRuntime(options) {
       validateInputs:(context)=>ports[capabilityRef].validateInputs(context),
       validateResult:(context,outcome)=>ports[capabilityRef].validateResult(context,outcome)}) }));
   const libraCapabilityRegistration=libraConstruction.createCapabilityRegistration({...libraOptions,now,workResultReader,
+    materialControlProjectionPort,
     computeFingerprint:options.computeFingerprint || computeBoundedMaterialFingerprint});
   const libraRegistrations=libraCapabilityRegistration.createRegistrations({enabledCapabilityRefs:LIBRA_ENABLED,
     manifests:Object.fromEntries(LIBRA_ENABLED.map((ref)=>[ref,manifests[ref]]))});

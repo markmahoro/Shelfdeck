@@ -143,8 +143,11 @@ function acceptanceProjectionFixture(movie = true) {
       { outcomeKind:'succeeded', result:{ ...value.candidateVerification, candidateDeliverySnapshotDigest:value.snapshot.deliverySnapshotDigest,
         schemaRef:'helix://contracts/types/CandidateContractVerification/v1' } },
       { outcomeKind:'succeeded', result:{ ...value.materialVerification, candidateDeliverySnapshotDigest:value.snapshot.deliverySnapshotDigest,
+        basisDigest:value.snapshot.deliverySnapshotDigest,controlObservationDigest:D('control-observation'),controlCapturedAtMs:1,
+        controlScopeStatus:'matched',mismatchedControlMaterialKey:null,
         schemaRef:'helix://contracts/types/IntakeMaterialVerification/v1' } },
-    ] },
+    ].map(binding=>({...binding,evidence:{producerRef:'libra.intake.material.verify@1',payloadDigest:canonicalDigest(binding.result),
+      basisDigest:value.snapshot.deliverySnapshotDigest}})) },
   };
   const request = { ownerDomain:'libra', processType:'libra_intake', processId:current.decisionId,
     workId:'acceptance-work', workAttemptId:'acceptance-attempt', executionBasisDigest:D('execution') };

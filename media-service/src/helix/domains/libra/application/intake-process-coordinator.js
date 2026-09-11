@@ -3,6 +3,7 @@
 const { canonicalDigest } = require('../../../contracts/canonical-json');
 const { createWorkAdmission } = require('../../../foundation/execution/work-admission');
 const { DEFAULT_PREDECK_PIPELINE_SEATS, fieldIdFromOfferSource } = require('./libra-pipeline-admission');
+const { intakeControlEvidenceRef } = require('../model/intake-control-contracts');
 
 const LIMITS = Object.freeze({ globalOpenWorks: 256, ownerOpenWorks: 256, openEvents: 256, reservedOpenWorks: 16 });
 const SEAT_WAIT = Object.freeze({ kind: 'seat_wait', reasonCode: 'PREDECK_PIPELINE_FULL' });
@@ -148,15 +149,18 @@ function createIntakeProcessCoordinator(options) {
       if (!succeeded(status)) {
         return Object.freeze({ kind: 'evidence_pending', processId, workId: evidenceWork.workId, replayed: evidenceAdmission.replayed });
       }
-      const results = options.workResultReader.read(evidenceWork.workId).filter((item) => item.outcomeKind === 'succeeded').map((item) => item.result);
+      const bindings = options.workResultReader.read(evidenceWork.workId).filter((item) => item.outcomeKind === 'succeeded');
+      const results = bindings.map((item) => item.result);
       const candidate = results.find((item) => item.schemaRef === 'helix://contracts/types/CandidateContractVerification/v1');
       const material = results.find((item) => item.schemaRef === 'helix://contracts/types/IntakeMaterialVerification/v1');
       if (!candidate || !material) throw new Error('Terminal Intake Evidence Work has incomplete Results.');
+      const controlEvidenceRef=intakeControlEvidenceRef(source.snapshot,bindings.find(item=>item.result===material),evidenceWork.workId);
       const accepted = candidate.result === 'passed' && material.result === 'passed';
       const kind = accepted ? 'acceptance' : 'rejection';
       const basis = canonicalDigest({
         schema: 'libra.intake-' + kind + '-basis@1', snapshotDigest: source.snapshot.deliverySnapshotDigest,
         candidateVerificationDigest: canonicalDigest(candidate), materialVerificationDigest: canonicalDigest(material),
+        controlEvidenceRef,
       });
       const dependency = Object.freeze({
         ownerDomain: 'libra', objectType: 'supporting_work', objectId: evidenceWork.workId, revision: 1,

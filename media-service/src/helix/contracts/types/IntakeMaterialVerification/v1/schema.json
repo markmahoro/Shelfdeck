@@ -118,6 +118,34 @@
       "type": "string",
       "minLength": 1,
       "pattern": "^[a-f0-9]{64}$"
+    },
+    "controlObservationDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "controlCapturedAtMs": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "controlScopeStatus": {
+      "type": "string",
+      "enum": [
+        "matched",
+        "mismatched"
+      ]
+    },
+    "mismatchedControlMaterialKey": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
     }
   },
   "required": [
@@ -134,6 +162,10 @@
     "packageDigest",
     "candidateDeliverySnapshotDigest",
     "verifiedMaterials",
-    "verifiedMaterialSetDigest"
+    "verifiedMaterialSetDigest",
+    "controlObservationDigest",
+    "controlCapturedAtMs",
+    "controlScopeStatus",
+    "mismatchedControlMaterialKey"
   ]
 }

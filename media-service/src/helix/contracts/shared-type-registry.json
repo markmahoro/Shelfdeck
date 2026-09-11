@@ -9,7 +9,7 @@
     "8.6.17",
     "8.6.18"
   ],
-  "targetCount": 30,
+  "targetCount": 31,
   "entries": [
     {
       "id": "PhysicalMaterialIdentity",
@@ -431,6 +431,21 @@
       },
       "ssotRefs": [
         "8.6.17"
+      ]
+    },
+    {
+      "id": "MaterialControlProjectionSnapshot",
+      "version": 1,
+      "role": "shared-nominal-value",
+      "schemaId": "helix://contracts/types/MaterialControlProjectionSnapshot/v1",
+      "relativePath": "types/MaterialControlProjectionSnapshot/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "4926cd2f2b604094519ba334aab878b6a29a90d6992f74bd39a414c8327301aa"
+      },
+      "ssotRefs": [
+        "8.3.6",
+        "8.6.18"
       ]
     }
   ]

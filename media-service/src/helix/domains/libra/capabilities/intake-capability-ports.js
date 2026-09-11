@@ -4,6 +4,8 @@ const { canonicalDigest } = require('../../../contracts/canonical-json');
 const { buildLibraBindingDraftReceipt } = require('../model/intake-acceptance-contracts');
 const { createIntakeAcceptanceStore } = require('../persistence/intake-acceptance-store');
 const { createIntakeRejectionStore } = require('../persistence/intake-rejection-store');
+const { CONTROL_REASON, assertIntakeControlReadHandle, verifyIntakeControlObservation,
+  assertMaterialControlResult } = require('../model/intake-control-contracts');
 
 const BASE = 'helix://contracts/capabilities/';
 const CANDIDATE = 'helix://contracts/types/CandidateContractVerification/v1';
@@ -76,14 +78,35 @@ function createIntakeCapabilityPorts(options) {
   if (typeof options?.computeFingerprint !== 'function') {
     throw new TypeError('Libra Intake requires a Composition-provided bounded Physical Material fingerprint port.');
   }
+  if (typeof options.intakeControlObservationPort?.observe !== 'function') {
+    throw new TypeError('Libra Intake requires a scoped Control observation port.');
+  }
   const acceptance=createIntakeAcceptanceStore(options), rejection=createIntakeRejectionStore(options), now=options.now || Date.now;
   const pure=(ref,fn)=>Object.freeze({validateInputs(context){if(!context?.namedInputs)throw new TypeError(ref+' inputs are required.');},
     async execute(context){const result=await fn(context.namedInputs);return outcome(ref,result,now());},
     validateResult(_context,value){if(!value?.result)throw new TypeError(ref+' Result is absent.');}});
   return Object.freeze({
     'libra.intake.candidate.verify@1':pure('libra.intake.candidate.verify@1',({candidateDeliverySnapshot})=>candidateResult(candidateDeliverySnapshot,now())),
-    'libra.intake.material.verify@1':pure('libra.intake.material.verify@1',({candidateDeliverySnapshot,physicalMaterialReadHandleList})=>
-      materialResult(candidateDeliverySnapshot,physicalMaterialReadHandleList,now(),options.computeFingerprint)),
+    'libra.intake.material.verify@1':Object.freeze({
+      validateInputs(context) {
+        const inputs=context.namedInputs;
+        assertIntakeControlReadHandle(inputs.intakeControlReadHandle,inputs.candidateDeliverySnapshot,context.ownerScope);
+      },
+      async execute(context) {
+        this.validateInputs(context);
+        const {candidateDeliverySnapshot:snapshot,physicalMaterialReadHandleList, intakeControlReadHandle:handle}=context.namedInputs;
+        const physical=await materialResult(snapshot,physicalMaterialReadHandleList,now(),options.computeFingerprint);
+        const control=verifyIntakeControlObservation(snapshot,handle,await options.intakeControlObservationPort.observe(handle,context));
+        const result=Object.freeze({...physical,...without(control,'witness'),verifiedAtMs:now(),
+          result:control.witness?'failed':physical.result,
+          reasonCodes:Object.freeze([...physical.reasonCodes,...(control.witness?[CONTROL_REASON]:[])])});
+        const evidence=control.witness || envelope('libra.intake.material.verify@1',result,result.verifiedAtMs);
+        return Object.freeze({...outcome('libra.intake.material.verify@1',result,result.verifiedAtMs),evidence});
+      },
+      validateResult(context,value) {
+        assertMaterialControlResult(context.namedInputs.candidateDeliverySnapshot,value?.result,value?.evidence);
+      }
+    }),
     'libra.intake.binding.resolve@1':pure('libra.intake.binding.resolve@1',({candidateDeliverySnapshot,subjectContinuityResolutionDecision})=>
       buildLibraBindingDraftReceipt(candidateDeliverySnapshot,subjectContinuityResolutionDecision,0)),
     'libra.intake.accept.commit@1':Object.freeze({validateInputs(c){if(!c?.namedInputs?.acceptedIntakePayload)throw new TypeError('Acceptance inputs are required.');},
