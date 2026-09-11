@@ -212,3 +212,15 @@ Linux使用现有`83235c9260`镜像的Node/dependencies，源码、测试、scri
 在同副本按正式 FailedPreparationRetryAdminService 重试时，另发现现有产品大 Run 容量缺陷：同步重试把输入内联到 fx_plan_nodes.input_bindings_json，触发16384字节 CHECK；调用链为 failed-preparation-retry-admin-service.js:1140 → synchronous-domain-work.js:285。WorkAdmission 已提交，但 activate 事务回滚；该 Retry Work 为 admitted，Attempt/Plan 均0，尚未产生 Retry Intent/新Run。未放宽DDL上限、改事实或增加旧Work fallback。该容量缺陷由部署任务核对合同及登记，不能用它否认前述独立通过的扫描、入选与ACK证据。
 
 可复核脚本追加 `readonly-bridge.cjs`、`observe-fresh.cjs`、`triage-fresh.cjs`、`diagnose-triage.cjs`、`retry-triage-fresh.cjs`、`audit-post-observation.cjs`；结果包括 `new-observation-start.json`、`new-observation-progress.json`、`transport-ack.json`、`triage.log`、`post-observation-audit.json`。本节保留故障链，后续从原一致快照另建干净隔离副本，以已修桥重复同样精确对象与真实扫描，单独验证正常 Triage，不扩大 Reset 或操作生产。
+
+### 干净副本完整正常链重放
+
+在同一保留快照下另建 `fresh-cd4f/replay-clean/`，使用已修 BigInt wire 桥，精确重复原两 Token Reset、原五 Offer 正式拒绝及真实 dispatcher ACK；随后新建并完成73页真实 NAS 只读扫描，所有页时间均晚于拒绝 ACK，终态 revision1367。普通 Owner 选材/Triage 发布五个新 immutable Candidate：巴尔干边界、光荣岁月、宇航员、影子写手、国际市场。新包 Primary 恰好覆盖原23个 Material Key，admitted Control revision 全为1，原970份 immutable Package 逐字不变。新 Triage Event 技术失败数为0；两个普通 Run 的总体 seal_outcome 均为 partial_failure，包含其他成员的正常业务诊断，不把整个1175成员池声称为全部成功。
+
+进一步由真实 Offer dispatcher 接收五个新 Offer，真实 Material Verify/Acceptance 完成巴尔干边界与光荣岁月的 Accepted Receipt，Acceptance Consumer 完成对应闭环。席位3→1→3，Fast X 的原 Token 逐字不变；其余三个新 Offer 明确 `seat_wait/PREDECK_PIPELINE_FULL`，未超额启动。五条拒绝、五条新Offer、两条Accepted共12条精确相关消息均 ACK。该验证证明两个旧占位释放后可被真实新 Intake 复用，不声称新 Subject 已完成 Routing/Production/On-deck 或三个编码器已达到吞吐上限。
+
+接收演练初次在 Accepted 事务成功后的 Routing 回调暴露测试 Composition 未装配 Arca Routing projection；补接实际 Arca projection port 后继续已有成功 Receipt，不重跑成功 Effect。另补接真实 Acceptance Consumer，已失败的 transport attempt 由原 dispatcher 后续重试 ACK。上述为演练依赖装配修正，未修改产品实现、DDL或持久成功结果。
+
+最终审计：80张 Arca/People/Perception受保护表全行SHA相同；原970包、另外965个Delivery、无关原Work和Fast X Token保持不变；旧五个拒绝Receipt保持不变，integrity=ok/FK=0。`clean-final-audit.cjs`与`replay-clean/clean-final-audit.json`包含具体新Offer/Package/Receipt及断言。可复用顺序为设置 `REHEARSAL_NAME` 后执行 `prepare-fresh.cjs → rehearse-fresh.cjs → ack-fresh.cjs → observe-fresh.cjs → triage-clean.cjs → accept-clean.cjs`；prepare要求新目录，不能覆盖既有演练。日志为临时根目录的 `clean-*.log`，原始生产数据仍不进入Git。
+
+先前失败副本的大Run Retry问题由集成任务登记为 **UAT-260**，不另分配编号。对601成员失败Run的真实assemble输出在activate写入前测量：retry-intent-commit输入659,539 UTF-8 bytes，retry-admission输入1,198,905 bytes，均超过16,384上限；结果为 `rehearsal/retry-node-byte-audit.json`。本节正常链通过不能替代UAT-260容量、崩溃与重放验收。所有生产部署、精确恢复和《人生密密缝》文件隔离/上架验收仍由部署任务安排，本任务未操作生产。
