@@ -120,3 +120,77 @@ test('claim-bearing Binding receipt remains fenced by the exact continuity head'
   assert.throws(()=>rebuildLibraBindingDraftFromReceipt(value.snapshot,current,receipt),
     (error)=>error.code==='P8_BINDING_DRAFT_RECEIPT_INVALID');
 });
+
+function acceptanceProjectionFixture(movie = true) {
+  const { createAcceptancePlanner, createIntakeProjections, DECISION } = require('../../src/helix/domains/libra/planning/intake-planners');
+  const value = basis();
+  if (movie) {
+  value.snapshot.primaryMaterialDeliveries[0].episodeClaims = [];
+  value.snapshot.primaryInputManifest.structureKind = 'single';
+  value.snapshot.candidatePackage.contentProfile = 'movie';
+  value.snapshot.deliverySnapshotDigest = canonicalDigest(without(value.snapshot, 'deliverySnapshotDigest'));
+  value.decision = { ...value.decision, candidateDeliverySnapshotDigest:value.snapshot.deliverySnapshotDigest,
+    candidateEpisodeScope:{ structureKind:'single', episodeKeys:[], episodeScopeDigest:D('empty') } };
+  }
+  value.decision.decisionDigest = canonicalDigest(without(value.decision, 'decisionDigest'));
+  let current = value.decision;
+  const options = {
+    registry:{ snapshot:[], resolve(ref) { return { manifest:require('../../src/helix/contracts/capabilities/' + ref.replaceAll('.', '/').replace('@1', '/v1') + '/manifest.json') }; } },
+    policyRegistry:{ digest:D('policy'), bindingFor:() => ({ retryPolicyRef:'retry@1', timeoutPolicyRef:'timeout@1' }) },
+    offerReader:{ read:() => ({ snapshot:value.snapshot }) },
+    decisionResolver:{ resolve:() => current },
+    workResultReader:{ listWorks:() => [{work_id:'evidence'}], read:() => [
+      { outcomeKind:'succeeded', result:{ ...value.candidateVerification, candidateDeliverySnapshotDigest:value.snapshot.deliverySnapshotDigest,
+        schemaRef:'helix://contracts/types/CandidateContractVerification/v1' } },
+      { outcomeKind:'succeeded', result:{ ...value.materialVerification, candidateDeliverySnapshotDigest:value.snapshot.deliverySnapshotDigest,
+        schemaRef:'helix://contracts/types/IntakeMaterialVerification/v1' } },
+    ] },
+  };
+  const request = { ownerDomain:'libra', processType:'libra_intake', processId:current.decisionId,
+    workId:'acceptance-work', workAttemptId:'acceptance-attempt', executionBasisDigest:D('execution') };
+  const plan = createAcceptancePlanner(options).plan(request);
+  const projections = () => new Map(createIntakeProjections(options).map(item => [item.projectionRef,item.projection]));
+  const decisionBinding = plan.nodes[0].inputBindings.bindings.find(item => item.projectionRef === DECISION);
+  const decision = projections().get(DECISION).project({ ownerScope:request, parameters:decisionBinding.parameters });
+  const receipt = buildLibraBindingDraftReceipt(value.snapshot, decision, 0);
+  return {
+    plan, value,
+    readDecision(parameters = decisionBinding.parameters) {
+      return projections().get(DECISION).project({ownerScope:request,parameters});
+    },
+    readInputs() {
+      const registry = projections();
+      return Object.fromEntries(plan.nodes[1].inputBindings.bindings.map(binding => [binding.portName,
+        registry.get(binding.projectionRef).project({ sourceResult:receipt, parameters:binding.parameters })]));
+    },
+    change(patch) { current = { ...current,...patch }; current.decisionDigest=canonicalDigest(without(current,'decisionDigest')); },
+  };
+}
+
+test('Movie acceptance inputs survive unrelated head commits and projection reconstruction byte for byte', () => {
+  const fixture = acceptanceProjectionFixture();
+  const before = fixture.readInputs();
+  fixture.change({ expectedContinuityHead:{ revision:7, digest:D('head-7') } });
+  const recovered = fixture.readInputs();
+  assert.deepEqual(recovered, before);
+  assert.equal(canonicalDigest(recovered), canonicalDigest(before));
+  assert.ok(Buffer.byteLength(JSON.stringify(fixture.plan)) < 16*1024);
+});
+
+test('Movie acceptance refuses changed Subject semantics instead of rebasing its frozen inputs', () => {
+  const fixture = acceptanceProjectionFixture();
+  fixture.change({ allocatedSubjectId:'different-subject' });
+  assert.throws(() => fixture.readInputs(), { code:'P8_ACCEPTANCE_CONTINUITY_BASIS_STALE' });
+});
+
+test('Acceptance projections refuse missing or tampered frozen basis and preserve claim-bearing head fences', () => {
+  const fixture = acceptanceProjectionFixture();
+  assert.throws(() => fixture.readDecision({}), {code:'P8_ACCEPTANCE_PLAN_BASIS_REQUIRED'});
+  const parameters = JSON.parse(JSON.stringify(fixture.plan.nodes[0].inputBindings.bindings[1].parameters));
+  parameters.continuityBasis.expectedContinuityHead.revision += 1;
+  assert.throws(() => fixture.readDecision(parameters), {code:'P8_ACCEPTANCE_CONTINUITY_BASIS_STALE'});
+  const claimBearing = acceptanceProjectionFixture(false);
+  claimBearing.change({expectedContinuityHead:{revision:7,digest:D('head-7')}});
+  assert.throws(() => claimBearing.readDecision(), {code:'P8_ACCEPTANCE_CONTINUITY_BASIS_STALE'});
+  assert.throws(() => claimBearing.readInputs(), {code:'P8_ACCEPTANCE_CONTINUITY_BASIS_STALE'});
+});
