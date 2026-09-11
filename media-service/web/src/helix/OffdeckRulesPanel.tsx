@@ -121,12 +121,8 @@ export default function OffdeckRulesPanel() {
   }
 
   if (!loaded && busy) return <LoadingState>正在读取退出规则…</LoadingState>;
-  return <section className="settings-card" aria-labelledby="offdeck-rules-title">
-    <header className="settings-card-head">
-      <div>
-        <h2 id="offdeck-rules-title">退出规则</h2>
-      </div>
-    </header>
+  return <section className="settings-card offdeck-rules-card" aria-labelledby="offdeck-rules-title">
+    <h2 id="offdeck-rules-title" className="sr-only">退出规则</h2>
     <div className="settings-card-body">
       {error && <p className="form-error" role="alert">{error}</p>}
       {notice && <p className="form-notice" role="status">{notice}</p>}
@@ -150,7 +146,7 @@ export default function OffdeckRulesPanel() {
         <Button type="button" onClick={() => setRuleDrafts((items) => items.filter((_, i) => i !== index))}>去掉这条规则</Button>
       </article>)}
       <div className="button-row">
-        {addableRuleKinds.map((kind) => <Button key={kind} type="button" onClick={() => setRuleDrafts((items) => [...items, emptyRule(kind)])}>{ruleKindLabels[kind]}</Button>)}
+        {addableRuleKinds.map((kind) => <Button key={kind} type="button" onClick={() => setRuleDrafts((items) => [...items, emptyRule(kind)])}>添加{ruleKindLabels[kind]}规则</Button>)}
         <Button variant="primary" type="button" onClick={() => void action(savePolicy, '退出规则已保存。')} disabled={busy}>保存规则</Button>
         <Button type="button" onClick={() => void action(() => helixAdminApi.evaluateOffdeck(), '已按当前规则检查一次。')}>现在检查一次</Button>
         <Button type="button" onClick={() => void action(() => helixAdminApi.detectOffdeckDuplicates(), '已检查重复收藏。')}>查重复</Button>

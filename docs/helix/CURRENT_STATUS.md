@@ -15,7 +15,7 @@
 
 UAT-125/250核心9820e7b85已由203773327合入集成分支：新Intake恢复输入稳定、精确pre-Subject Reset闭包和《人生密密缝》两文件离线隔离/回滚工具已完成。独立发布区49项专项通过；开发任务的Windows/Linux验证、一致备份副本演练及生产两文件只读预检见[实现证据](implementation/evidence/UAT-125_250_INTAKE_RECOVERY_20260912.md)。尚未部署；5份旧Candidate共23项Control不符及正式拒绝Evidence/恢复合同缺口仍阻塞完整席位恢复，不执行生产两席位Reset，不宣称该片已上架或3席位有效周转。[联合收口证据](implementation/evidence/UAT_JOINT_DEPLOYMENT_READINESS_20260912.md)。
 
-UAT-259第二轮UI精简已获用户实施授权，当前实施中，尚无本轮部署或验收结论。[范围与验收](implementation/evidence/UAT-259_UI_REFINEMENT_20260912.md)。
+UAT-259第二轮UI精简已完成本地验收：基于93d525b2d整合扫描修复，Web94/94、构建、八页浏览器检查通过；媒体整理工作区494个元素对照一致。待统一部署及生产验收，保持开放。[范围与验收](implementation/evidence/UAT-259_UI_REFINEMENT_20260912.md)。
 
 UAT-257扫描阻塞本地修复完成：历史部分失败不再阻断普通新轮；零页失败下一周期可重扫，失败重启节流、成功启动检查及手动请求幂等保持；原因投影和状态切换经真实临时Host浏览器及UI负责人复查通过。未部署/生产重扫，扩展套件的既有失败与Linux/真实扫描待验项见[证据](implementation/evidence/UAT-257_SCAN_RECOVERY_IMPLEMENTATION_20260912.md)。
 

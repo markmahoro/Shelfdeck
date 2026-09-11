@@ -13,7 +13,7 @@
 
 ## 剩余排程
 
-UAT-259：用户明确“可以实施第二轮了”；按[确认清单及验收](implementation/evidence/UAT-259_UI_REFINEMENT_20260912.md)精简标题、卡片层级及工具栏，移除收藏架“可接收整理结果”，不修改媒体整理列表或后端。
+UAT-259：用户明确“可以实施第二轮了”；[确认清单及本地验收](implementation/evidence/UAT-259_UI_REFINEMENT_20260912.md)已完成，下一步交统一部署及生产验收。标题、卡片层级及工具栏已精简，收藏架“可接收整理结果”已移除；媒体整理列表及后端保持。
 
 UAT-257扫描阻塞：`codex/field-observation-recovery`隔离修复及本地验证完成，修正历史失败阻断普通新轮、零页失败幂等与失败原因投影。UI负责人复查通过；由统一部署任务收口，不单独部署或触发生产扫描。[实现与待验收步骤](implementation/evidence/UAT-257_SCAN_RECOVERY_IMPLEMENTATION_20260912.md)。
 

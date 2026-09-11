@@ -38,20 +38,10 @@ export default function OverviewPage() {
   const organizing = projection?.ledger.filter((item) => item.label.startsWith(ORGANIZING_PREFIX)) || [];
   const recent = projection?.ledger.filter((item) => !item.label.startsWith(ORGANIZING_PREFIX)) || [];
   if (!projection && !error) return <LoadingState>正在读取概览…</LoadingState>;
-  return <div className="source-page">
-    <PageHeader title="概览" actions={<Button variant="secondary" type="button" onClick={() => void load()} disabled={loading}>{loading ? '刷新中…' : '刷新'}</Button>} />
-    {error && <p className="form-error" role="alert">{error instanceof Error ? error.message : '概览读取失败。'}</p>}
-    {projection && <>
-      {projection.projection && projection.projection.state !== 'ready' && <p role="status" className="form-error">
-        概览更新{projection.projection.state === 'failed' ? '失败' : '延迟'}，当前显示 {new Date(projection.generatedAt).toLocaleTimeString('zh-CN')} 的结果。
-      </p>}
-      <div className="overview-status-row" data-kind={stateKind}>
-        {!compactStatus && <Link className="system-state" data-kind={stateKind} to={projection.systemState.href}>
-              <span>系统状态</span>
-              <strong>{error || projectionUnavailable ? '状态读取失败' : fieldAccessAttention ? '需要你处理' : projection.systemState.label}</strong>
-            </Link>}
-        {background && <details className="background-status" data-kind={background.state}>
+  return <div className="source-page overview-page">
+    <PageHeader title="概览" actions={<>{background && <details className="background-status" data-kind={background.state}>
           <summary>后台检查 · {backgroundLabels[background.state]}</summary>
+          <div className="background-status-popup">
           {firstProblem && <p role="status">{domainLabels[firstProblem.ownerDomain] || firstProblem.ownerDomain}检查失败</p>}
           <p className="background-status-checked">最近检查 {checkedAt}</p>
           <div className="background-status-detail">{background.registrations.map((item) => <div key={`${item.ownerDomain}:${item.reconcilerKey}`}>
@@ -60,8 +50,20 @@ export default function OverviewPage() {
             <small>{item.lastCompletedAtMs ? new Date(item.lastCompletedAtMs).toLocaleString('zh-CN') : '尚未检查'}</small>
             <small>{item.lastResultKind ? `${resultLabels[item.lastResultKind]}${item.lastResultKind === 'processed' ? ` ${item.processed} 项` : ''}` : '等待结果'}</small>
           </div>)}</div>
-        </details>}
-      </div>
+          </div>
+        </details>}<Button variant="secondary" type="button" onClick={() => void load()} disabled={loading}>{loading ? '刷新中…' : '刷新'}</Button></>} />
+    {error && <p className="form-error" role="alert">{error instanceof Error ? error.message : '概览读取失败。'}</p>}
+    {projection && <>
+      {projection.projection && projection.projection.state !== 'ready' && <p role="status" className="form-error">
+        概览更新{projection.projection.state === 'failed' ? '失败' : '延迟'}，当前显示 {new Date(projection.generatedAt).toLocaleTimeString('zh-CN')} 的结果。
+      </p>}
+      {!compactStatus && <div className="overview-status-row" data-kind={stateKind}>
+        {!compactStatus && <Link className="system-state" data-kind={stateKind} to={projection.systemState.href}>
+              <span>系统状态</span>
+              <strong>{error || projectionUnavailable ? '状态读取失败' : fieldAccessAttention ? '需要你处理' : projection.systemState.label}</strong>
+            </Link>}
+
+      </div>}
       <section className="metric-strip metric-strip-thin" aria-label="收藏成果">{projection.metrics.map((metric) => <Link key={metric.key} to={metric.href || '/collection'}><article><span>{metric.label}</span><strong>{metric.value.toLocaleString()}</strong></article></Link>)}</section>
       <div className="overview-workbench">
         <section className="ledger-panel" aria-labelledby="overview-todos">

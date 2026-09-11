@@ -18,8 +18,7 @@ export default function SourceCleanupChecks({onInspect}:{onInspect:(id:string)=>
   }
   useEffect(()=>{void load(0);},[]);
   return <section className="cleanup-checks ui-card stack">
-    <h3>上架后的旧目录收尾</h3>
-    <Button type="button" disabled={busy} onClick={()=>void load(page,cursors[page])}>刷新收尾记录</Button>
+    <header className="section-toolbar"><h3>上架后的旧目录收尾</h3><Button type="button" disabled={busy} onClick={()=>void load(page,cursors[page])}>刷新收尾记录</Button></header>
     {error&&<p className="form-error" role="alert">{error}</p>}
     {items.map(item=><section className="ui-card" key={item.onDeckRunId}>
       <p className="ui-state" data-state={item.state}>{item.state==='completed'?'检查已结束':item.state==='attention'?'需要确认':'等待收尾'}</p>
