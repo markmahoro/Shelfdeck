@@ -34,3 +34,9 @@
 本地证据位于UI工作区 `.codex/round2-review/`（逐页截图、`result.json`、`formation-comparison.json`、`states-result.json`），Web结果 `.codex/round2-combined-tests.json`，扫描证据 `.codex/scan-repair/browser-result.json`。这些运行材料不入库；未复制生产数据或凭据到文档。浏览器页面预览只代理GET，扫描交互仅发生于临时本地Host；没有生产配置或媒体写入。
 
 独立依赖目录用于本地构建，未修改依赖清单/锁文件。生产镜像构建、统一发布及生产浏览器验收由部署负责人完成；251独立实现后另行协调UI接入，不在本轮宣称已交付。未以本地通过关闭259，也未宣称全服务回归通过。
+
+### 发布区头像测试复核
+
+部署负责人在集成 `5ff5b8078` 首次Web复验发现头像用例一次失败，DOM仍为loading。复核确认：此前94/94结果包含该用例，集成前后PeoplePage/people.test无差异，“人物头像已加载”的sr-only文案一直保留；删除文案并非根因。本地原测试单跑通过，未重现发布区失败，不能据此宣称已证明具体竞态。
+
+最小修正仅测试：用异步act完成mock数据挂载及effect后再派发图片事件，并等待事件提交；增加loading/loaded/fallback状态、成功保留原图、失败移除图及姓名首字断言，保留无障碍文本验证。产品代码与文案不变。修正后Web94/94、头像用例连续5次（每次2/2）通过，结果 `.codex/round2-avatar-tests.json`；交部署负责人在发布环境再验，不以本地重复通过代替该环境验收。
