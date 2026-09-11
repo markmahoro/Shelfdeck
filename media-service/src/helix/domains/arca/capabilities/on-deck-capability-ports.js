@@ -178,6 +178,13 @@ function settlementPreconditionFailureOutcome(error) {
     message:error.message,retryDirective:'never',evidence:Object.freeze({errorCode:error.code,diagnostics:failureDiagnostics(error)})});
 }
 
+function stagePreconditionFailureOutcome(error) {
+  if (error?.code !== 'CLEAN_ARCA_STAGE_TARGET_OCCUPIED') return null;
+  return Object.freeze({kind:'failed',failureClass:'stage_precondition',code:error.code,
+    message:error.message,retryDirective:'never',
+    evidence:Object.freeze({errorCode:error.code,diagnostics:failureDiagnostics(error)})});
+}
+
 function createOnDeckCapabilityPorts(options){const now=options.now||Date.now,acceptance=createHandoffBAcceptanceStore(options),onDeck=createOnDeckStore(options),
   controls=createMaterialControlProjectionPort(options),inbox=createInboxCoordinator(options);
   const effectAt=(execution)=>Number.isSafeInteger(execution.effectOccurredAtMs)?execution.effectOccurredAtMs:now();
@@ -312,7 +319,7 @@ function createOnDeckCapabilityPorts(options){const now=options.now||Date.now,ac
       onDeckProductPackage:c.packageValue,finalInventoryDecision:c.finalInventoryDecision,targetCommitSlotHandle:n.targetHandle,observedAtMs:at,
       replayCommitted:execution.recoveryDecision==='already_committed',replaySettledSources:true});
     return committedOutcome(execution,C.slot,result,at,'material_commit');},validateResult(_c,o){if(!o?.result?.slotId)throw new TypeError('Target Commit Slot Handle is invalid.');}});
-  ports[C.stage]=Object.freeze({validateInputs(c){requireNamed(c,['productMaterialHandleList','targetCommitSlotHandle']);},async execute(execution){const c=ctx(execution),at=effectAt(execution),aftercare=aftercareRequest(execution,c,at),staged=await options.inventoryPort.stage({
+  ports[C.stage]=Object.freeze({validateInputs(c){requireNamed(c,['productMaterialHandleList','targetCommitSlotHandle']);},async execute(execution){try{const c=ctx(execution),at=effectAt(execution),aftercare=aftercareRequest(execution,c,at),staged=await options.inventoryPort.stage({
     ...(aftercare||{
     onDeckRunId:c.responsibility.onDeckRunId,custodyId:c.responsibility.custodyId,shelf:c.shelf,onDeckProductPackage:c.packageValue,
     finalInventoryDecision:c.finalInventoryDecision,observedAtMs:at,replayCommitted:execution.recoveryDecision==='already_committed',replaySettledSources:true,
@@ -322,7 +329,8 @@ function createOnDeckCapabilityPorts(options){const now=options.now||Date.now,ac
     else onDeck.acquireStagedCustody({
       onDeckRunId:c.responsibility.onDeckRunId,custodyId:c.responsibility.custodyId,
       stagedInventoryManifest:staged});
-    return committedOutcome(execution,C.stage,staged,at,'material_commit');},
+    return committedOutcome(execution,C.stage,staged,at,'material_commit');
+    }catch(error){const failed=stagePreconditionFailureOutcome(error);if(failed)return failed;throw error;}},
     validateResult(_c,o){if(!o?.result?.manifestDigest)throw new TypeError('Staged Inventory Manifest is invalid.');}});
   ports[C.stagedVerify]=Object.freeze({validateInputs(c){requireNamed(c,['stagedManifest','finalInventoryDecision']);},async execute(execution){
     const c=ctx(execution),n=execution.namedInputs,request=aftercareRequest(execution,c)||{onDeckRunId:c.responsibility.onDeckRunId,
@@ -421,4 +429,4 @@ function createOnDeckCapabilityPorts(options){const now=options.now||Date.now,ac
 }
 
 module.exports=Object.freeze({createOnDeckCapabilityPorts,readAftercarePlacementAuthority,nfoPresentationBasis,
-  priorOnDeckPlacementReceipt,placementPreconditionFailureOutcome,settlementPreconditionFailureOutcome});
+  priorOnDeckPlacementReceipt,placementPreconditionFailureOutcome,settlementPreconditionFailureOutcome,stagePreconditionFailureOutcome});

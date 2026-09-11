@@ -168,108 +168,6 @@ function observationDigest(observed) {
     fingerprintVersion:observed.fingerprintVersion,contentFingerprint:observed.contentFingerprint});
 }
 
-function isBluRayDiscTreeName(name) {
-  const upper = String(name || '').toUpperCase();
-  return upper === 'BDMV' || upper === 'CERTIFICATE';
-}
-
-function findBluRayDiscRoot(location) {
-  const parts = path.resolve(location).split(path.sep);
-  for (let index = 0; index < parts.length; index += 1) {
-    if (!isBluRayDiscTreeName(parts[index])) continue;
-    if (index === 0) return null;
-    return parts.slice(0, index).join(path.sep);
-  }
-  return null;
-}
-
-function isInsideBluRayDiscTree(location) {
-  return findBluRayDiscRoot(location) !== null;
-}
-
-function listBluRayDiscTrees(discRoot) {
-  if (!discRoot || !fs.existsSync(discRoot)) return [];
-  try {
-    if (!fs.statSync(discRoot).isDirectory()) return [];
-  } catch {
-    return [];
-  }
-  return fs.readdirSync(discRoot)
-    .filter((name) => isBluRayDiscTreeName(name))
-    .map((name) => path.resolve(discRoot, name))
-    .filter((item) => {
-      try {
-        return fs.statSync(item).isDirectory();
-      } catch {
-        return false;
-      }
-    });
-}
-
-function listFilesRecursive(root) {
-  const files = [];
-  const stack = [root];
-  while (stack.length > 0) {
-    const current = stack.pop();
-    let entries;
-    try {
-      entries = fs.readdirSync(current, { withFileTypes:true });
-    } catch {
-      continue;
-    }
-    for (const entry of entries) {
-      const full = path.resolve(current, entry.name);
-      if (entry.isDirectory()) stack.push(full);
-      else files.push(full);
-    }
-  }
-  return files;
-}
-
-function pruneEmptyDirectories(root, protectedDirectories) {
-  if (!root || !fs.existsSync(root)) return;
-  let stat;
-  try {
-    stat = fs.statSync(root);
-  } catch {
-    return;
-  }
-  if (!stat.isDirectory()) return;
-  for (const name of fs.readdirSync(root)) {
-    pruneEmptyDirectories(path.resolve(root, name), protectedDirectories);
-  }
-  if (protectedDirectories.has(path.resolve(root))) return;
-  if (fs.existsSync(root) && fs.readdirSync(root).length === 0) {
-    fs.rmdirSync(root);
-  }
-}
-
-function pruneEmptyAncestors(start, protectedDirectories) {
-  let current = start;
-  while (current) {
-    const resolved = path.resolve(current);
-    if (protectedDirectories.has(resolved)) break;
-    if (!fs.existsSync(resolved)) {
-      const parent = path.dirname(resolved);
-      if (parent === resolved) break;
-      current = parent;
-      continue;
-    }
-    try {
-      if (!fs.statSync(resolved).isDirectory() ||
-          fs.readdirSync(resolved).length > 0) {
-        break;
-      }
-    } catch {
-      break;
-    }
-    fs.rmdirSync(resolved);
-    const parent = path.dirname(resolved);
-    if (parent === resolved) break;
-    current = parent;
-  }
-}
-
 function safeSegment(value) {
   const segment = String(value || '').trim()
     .replace(/[<>:"/\\|?*\u0000-\u001f]/g, '_')
@@ -1194,6 +1092,21 @@ function createCleanArcaInventoryPort(options) {
       fail('CLEAN_ARCA_STAGE_SLOT_DRIFT',
         'Product staging received a stale Target Commit Slot.');
     }
+    // Resolve target conflicts before creating or changing any staged material.
+    // A known occupied target is a terminal precondition, not an uncertain copy.
+    for (const plan of built.plans) {
+      requireContinuation(request);
+      if (!fs.existsSync(plan.target)) continue;
+      const observed = await computeFingerprint(plan.target);
+      if (!fingerprintsMatchPlan(observed, plan) &&
+          !priorPlacementCoversTarget(request, plan, handle) &&
+          !isManagedSourceLocation(request, plan.target)) {
+        fail('CLEAN_ARCA_STAGE_TARGET_OCCUPIED',
+          'Final Inventory target contains conflicting bytes before staging.', {
+            sourceDirectory:path.dirname(plan.target), unknownNames:[path.basename(plan.target)],
+          });
+      }
+    }
     prepareSlot(request);
     const stagedMembers = [];
     for (const plan of built.plans) {
@@ -1703,6 +1616,7 @@ function createCleanArcaInventoryPort(options) {
         'Input settlement requires the exact Arca custody read handle.');
     }
     const source = path.resolve(handle.location);
+    request.assertCurrentApproval?.(source);
     const finalRequest = request?.finalInventoryRequest;
     if (!finalRequest || !request.finalMaterialKey || !request.finalTargetLocation ||
         !request.sourceToFinalMappingDigest ||
@@ -1726,46 +1640,6 @@ function createCleanArcaInventoryPort(options) {
     const sourceBasis = mutableSettlementBasis(request, finalPlan);
     let preDeleteIdentityDigest = null;
     const sourceDirectory = path.dirname(source);
-    const discRoot = findBluRayDiscRoot(source);
-    const managedLocations = [
-      ...(finalRequest.onDeckProductPackage.offloadContextManifest?.members || [])
-        .map((item) => path.resolve(item.location)),
-      ...built.plans.map((item) => path.resolve(item.target)),
-    ];
-    const allowed = new Set(managedLocations);
-    for (const location of managedLocations) {
-      let ancestor = path.dirname(location);
-      while (ancestor !== sourceDirectory && ancestor.startsWith(sourceDirectory + path.sep)) {
-        allowed.add(ancestor);
-        const parent = path.dirname(ancestor);
-        if (parent === ancestor) break;
-        ancestor = parent;
-      }
-    }
-    const retainedFinalDirectory = sourceDirectory === path.resolve(built.targetDirectory);
-    const retainedShelfRoot = sourceDirectory === path.resolve(built.targetRoot);
-    if (discRoot && !sameLocation && !retainedFinalDirectory && !retainedShelfRoot &&
-        fs.existsSync(sourceDirectory)) {
-      const unknown = fs.readdirSync(sourceDirectory, { withFileTypes:true })
-        .map((item) => path.resolve(sourceDirectory, item.name))
-        .filter((item) => {
-          if (allowed.has(item)) return false;
-          try {
-            if (!fs.statSync(item).isDirectory()) return !isInsideBluRayDiscTree(item);
-          } catch {
-            return true;
-          }
-          return [...allowed].some((location) =>
-            location === item || location.startsWith(item + path.sep));
-        });
-      if (unknown.length > 0) {
-        fail('CLEAN_ARCA_SETTLEMENT_UNKNOWN_MEMBER',
-          'Old Material directory contains an unplanned member.', {
-            sourceDirectory,
-            unknownNames:unknown.map((item) => path.basename(item)).sort(),
-          });
-      }
-    }
     let sourceAbsent = !fs.existsSync(source);
     if (!sourceAbsent) {
       const observed = sourceBasis ? readStableNfoSync(source) : computeBoundedMaterialFingerprintSync(source);
@@ -1779,6 +1653,7 @@ function createCleanArcaInventoryPort(options) {
       }
       if (!sameLocation) {
         if (sourceBasis) assertSettlementSnapshot(observed, readStableNfoSync(source));
+        request.assertCurrentApproval?.(source);
         fs.rmSync(source, { force:false });
         sourceAbsent = !fs.existsSync(source);
         if (!sourceAbsent) {
@@ -1787,53 +1662,9 @@ function createCleanArcaInventoryPort(options) {
         }
       }
     }
-    const protectedDirectories = new Set([
-      path.resolve(built.targetRoot),
-      path.resolve(built.targetDirectory),
-    ]);
-    if (discRoot) {
-      for (const tree of listBluRayDiscTrees(discRoot)) {
-        for (const leftover of listFilesRecursive(tree)) {
-          if (allowed.has(leftover) || !fs.existsSync(leftover)) continue;
-          fs.rmSync(leftover, { force:false });
-          if (fs.existsSync(leftover)) {
-            fail('CLEAN_ARCA_SETTLEMENT_DELETE_FAILED',
-              'Approved disc leftover still exists after deletion.', {
-                location: leftover,
-              });
-          }
-        }
-      }
-    }
-    let oldDirectoryDisposition = sameLocation
-      ? 'retained_as_final'
-      : 'not_present';
-    if (!sameLocation && fs.existsSync(sourceDirectory)) {
-      const children = discRoot ? fs.readdirSync(sourceDirectory, { withFileTypes:true })
-        .map((item) => path.resolve(sourceDirectory, item.name)) : [];
-      if (!discRoot) {
-        oldDirectoryDisposition = 'retained_directory';
-      } else if (children.length === 0 && sourceDirectory !== built.targetRoot) {
-        fs.rmdirSync(sourceDirectory);
-        oldDirectoryDisposition = 'removed_empty';
-      } else {
-        oldDirectoryDisposition = children.some((item) =>
-          built.plans.some((plan) => path.resolve(plan.target) === item))
-          ? 'retained_with_final_inventory'
-          : 'awaiting_managed_settlement';
-      }
-    }
-    if (discRoot) {
-      for (const tree of listBluRayDiscTrees(discRoot)) {
-        pruneEmptyDirectories(tree, protectedDirectories);
-      }
-      pruneEmptyAncestors(discRoot, protectedDirectories);
-      if (!sameLocation && !fs.existsSync(sourceDirectory) &&
-          oldDirectoryDisposition !== 'removed_empty' &&
-          oldDirectoryDisposition !== 'retained_as_final') {
-        oldDirectoryDisposition = 'removed_empty';
-      }
-    }
+    // A Settlement Handle authorizes one file, never its siblings or directories.
+    const oldDirectoryDisposition = sameLocation ? 'retained_as_final'
+      : fs.existsSync(sourceDirectory) ? 'retained_directory' : 'not_present';
     return Object.freeze({ materialKey:handle.identity.materialKey,
       preDeleteIdentityDigest,
       absent:sourceAbsent,
@@ -1886,52 +1717,10 @@ function createCleanArcaInventoryPort(options) {
     const sourceBasis = mutableSettlementBasis(request, finalPlan);
     let preDeleteIdentityDigest = null;
     const sourceDirectory = path.dirname(source);
-    const discRoot = findBluRayDiscRoot(source);
-    const managedLocations = (request.managedLocations || [
-      ...(finalRequest.onDeckProductPackage.offloadContextManifest?.members || [])
-        .map((item) => item.location),
-      ...(finalRequest.finalInventoryDecision?.members || [])
-        .map((item) => item.targetLocation),
-    ]).map((item) => path.resolve(item));
-    const allowed = new Set(managedLocations);
-    for (const location of managedLocations) {
-      let ancestor = path.dirname(location);
-      while (ancestor !== sourceDirectory && ancestor.startsWith(sourceDirectory + path.sep)) {
-        allowed.add(ancestor);
-        const parent = path.dirname(ancestor);
-        if (parent === ancestor) break;
-        ancestor = parent;
-      }
-    }
     const exists = async (location) => {
       try { await fs.promises.access(location); return true; }
       catch (error) { if (error?.code === 'ENOENT') return false; throw error; }
     };
-    const retainedFinalDirectory = sourceDirectory === target.targetDirectory;
-    const retainedShelfRoot = sourceDirectory === target.targetRoot;
-    if (discRoot && !sameLocation && !retainedFinalDirectory && !retainedShelfRoot &&
-        await exists(sourceDirectory)) {
-      const unknown = [];
-      for (const item of await fs.promises.readdir(sourceDirectory, { withFileTypes:true })) {
-        const location = path.resolve(sourceDirectory, item.name);
-        if (allowed.has(location)) continue;
-        if (!item.isDirectory()) {
-          if (!isInsideBluRayDiscTree(location)) unknown.push(location);
-          continue;
-        }
-        if (![...allowed].some((allowedLocation) =>
-          allowedLocation === location || allowedLocation.startsWith(location + path.sep))) {
-          unknown.push(location);
-        }
-      }
-      if (unknown.length > 0) {
-        fail('CLEAN_ARCA_SETTLEMENT_UNKNOWN_MEMBER',
-          'Old Material directory contains an unplanned member.', {
-            sourceDirectory,
-            unknownNames:unknown.map((item) => path.basename(item)).sort(),
-          });
-      }
-    }
     let sourceAbsent = !await exists(source);
     if (!sourceAbsent) {
       if (sameLocation) {
@@ -1952,55 +1741,9 @@ function createCleanArcaInventoryPort(options) {
         }
       }
     }
-    const protectedDirectories = new Set([
-      target.targetRoot,
-      target.targetDirectory,
-    ]);
-    if (discRoot) {
-      for (const tree of listBluRayDiscTrees(discRoot)) {
-        for (const leftover of listFilesRecursive(tree)) {
-          await new Promise((resolve) => setImmediate(resolve));
-          if (allowed.has(leftover) || !await exists(leftover)) continue;
-          request.assertCurrentApproval?.(leftover);
-          await fs.promises.rm(leftover, { force:false });
-          if (await exists(leftover)) {
-            fail('CLEAN_ARCA_SETTLEMENT_DELETE_FAILED',
-              'Approved disc leftover still exists after deletion.', {
-                location: leftover,
-              });
-          }
-        }
-      }
-    }
-    let oldDirectoryDisposition = sameLocation
-      ? 'retained_as_final'
-      : 'not_present';
-    if (!sameLocation && await exists(sourceDirectory)) {
-      const children = discRoot ? (await fs.promises.readdir(sourceDirectory, { withFileTypes:true }))
-        .map((item) => path.resolve(sourceDirectory, item.name)) : [];
-      if (!discRoot) {
-        oldDirectoryDisposition = 'retained_directory';
-      } else if (children.length === 0 && sourceDirectory !== target.targetRoot) {
-        await fs.promises.rmdir(sourceDirectory);
-        oldDirectoryDisposition = 'removed_empty';
-      } else {
-        oldDirectoryDisposition = children.some((item) => managedLocations.includes(item))
-          ? 'retained_with_final_inventory'
-          : 'awaiting_managed_settlement';
-      }
-    }
-    if (discRoot) {
-      await new Promise((resolve) => setImmediate(resolve));
-      for (const tree of listBluRayDiscTrees(discRoot)) {
-        pruneEmptyDirectories(tree, protectedDirectories);
-      }
-      pruneEmptyAncestors(discRoot, protectedDirectories);
-      if (!sameLocation && !await exists(sourceDirectory) &&
-          oldDirectoryDisposition !== 'removed_empty' &&
-          oldDirectoryDisposition !== 'retained_as_final') {
-        oldDirectoryDisposition = 'removed_empty';
-      }
-    }
+    // A Settlement Handle authorizes one file, never its siblings or directories.
+    const oldDirectoryDisposition = sameLocation ? 'retained_as_final'
+      : await exists(sourceDirectory) ? 'retained_directory' : 'not_present';
     return Object.freeze({ materialKey:handle.identity.materialKey,
       preDeleteIdentityDigest,
       absent:sourceAbsent,

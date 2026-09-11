@@ -1,21 +1,33 @@
-# 当前活动包：逐项关闭UAT
+# 当前活动包：三部电影修复
 
-更新：2026-09-09。ACTIVE；合同审查及三项用户确认已完成，用户要求整理文档后继续推进。
-唯一排程为[Master Plan](../CURRENT_PLAN.md)，状态及每项现行关闭条件为[UAT总表](../UAT_ITERATION_REGISTER.md)。
+更新：2026-09-11。ACTIVE；Master Plan 的有界优先包。用户要求修复三条精确电影记录；原 UAT 队列继续由总表维护。
 
-## 当前执行位置
+| 字段 | 合同 |
+| --- | --- |
+| ID / Outcome | P14-FILMS-01：正确投影外部获取；Stage 冲突形成终态；Settlement 只处置精确批准成员 |
+| Basis / Evidence | 实际生产 7ceaeca7fb；2026-09-11 Event/Result/Effect/现场；原太阳帝国2026-09-10诊断 |
+| SSOT | 7.3.5 DV Profile 5 拒绝与 External Acquisition；5.8.7 exact Approval；10.10.2.1 逐成员收口及空目录无隐式授权 |
+| Owner | Libra 媒体决策与 Formation 投影；Arca Stage、Settlement、On-deck；Foundation 持久化 typed outcome |
+| Scope | Formation query、Arca Inventory port / capability failure mapping、回归测试和证据 |
+| Exclusions | SSOT、转码策略改变、跨域事实、通用旧运行兼容、任意 Reset、直接 SQL 修改、其他电影、Desktop 功能 |
+| Typed I/O | 保留媒体 Verification / Event Result；PhysicalMaterialReadHandle + exact Approval + final mapping → SettlementDeletionEvidence |
+| Effect / transaction | Stage 冲突保留文件，仅已知前置冲突返回 failed，未知 Effect 仍 reconcile；Settlement 只删除当前 source，重验 final、Approval，缺失 source 可重放，不枚举删除邻居或目录 |
+| Legacy reuse | 仅修现有端口，无 legacy wrapper |
+| Verification | Windows isolated fixtures；async exact Approval、范围外成员/目录保留、已删除 source 重放、final drift/撤销负向；Stage known/unknown failure；寻源优先于终态预检展示；service suite、架构检查 |
+| Recovery | 保留两条精确 Arca Package/成品；先冻结路径、身份、冲突来源及回滚方案，再按适用授权走 Owner 流程 |
+| Stop triggers | Owner/授权缺口返回 Design；无法证明归属的媒体不删除或覆盖；部署/真实副作用按当前 Gate |
 
-1. 整理已确认合同及活动文档，去除旧暂停/待决策和已关闭队列；检查255项连续、状态计数、剩余37项归属及链接。历史过程保留Evidence。
-2. UAT-171已按现行Oracle关闭，见[真实媒体/生产证据](evidence/UAT-171_NFO_CURRENT_CONTRACT_ACCEPTANCE_20260909.md)。135/136已按真实ISO完整链与生产48077d71bd发布逐项关闭；132已按Windows/Linux真实Direct HEVC完整链关闭；137/160已按[独立真实媒体证据](evidence/UAT-137_160_FRESH_MEDIA_ACCEPTANCE_20260909.md)关闭。
-3. UAT-210：记录更新已部署，继续单席位、批量变化、健康与处理状态分离的完整验收；已接受瑕疵及同条件重复Case部分按251已确认合同实施，不把局部通过当整项完成。
-4. 接续B1–B5：125/152使用新确认规则；172已按正式授权闭环独立关闭，见[验收](evidence/UAT-172_AUTHORIZATION_ACCEPTANCE_20260909.md)；134已按[精确范围及重放证据](evidence/UAT-134_SCOPED_SETTLEMENT_ACCEPTANCE_20260909.md)关闭；159/163回收已关闭；156/157真实设备及预检亦已关闭。继续125/152更广恢复与压力条件核验。251已确认typed合同，继续实现，无待询问的旧业务决定。
-5. 125/250恢复输入漂移保留精确因果证据，不吞错/Reset；209/216存量核验保护现有收藏、正常生产、sample及另一完整版本。
-6. 156/157已按真实CPU/QSV及发布镜像验收关闭。接续245全链读取审查：clean-service-host概览依赖的Field、Shelf、Collection、Off-deck仍展开无界历史/实体；Formation的limit并不能证明完整调用链有界。下一步在各Owner内提供小型统计/受限近期记录，再做数据量增长与真实页面验收，不能只替换Off-deck一处。尚未开始245运行时代码修改。
+Implementation Gate 由本次修复指令打开。当前只读生产诊断及隔离本地实施；生产发布和恢复待修复验证与精确方案完成后按适用 Gate 执行。原活动包可由基线 commit 复验。
 
-## 验收及保护
+## 已冻结的生产恢复动作（待适用 Production Gate）
 
-每项按原问题、现行SSOT、实现、正负路径、适用真实媒体/浏览器与生产版本核验；提交、测试或部署不单独等于关闭。仅有新变化、失败或缺证时重复已通过检查。发现已被取代要求时按当前条件验收，不能为使旧测试通过恢复旧行为。
-
-本轮62项功能关闭、37项开放及206承接已核实。最新生产`1570985359`，[发布及回滚证据](evidence/UAT_RELEASE_1570985359_20260909.md)。
-
-用户授权实施、本地验证后标准发布、允许中断FFmpeg；精确Input清理持续授权已明确。有效媒体/持久事实/Secret/备份/回滚保护不变，不直接SQL修改生产，不任意Reset。原Aftercare调查Evidence修改不覆盖、不夹带提交。工程选择自主处理，真正新增业务边界才逐项询问。
+1. 标准 build-image → upload-nas-image → SHA256 → deploy dry-run/apply；保留当前镜像和完整 data backup。不得 clean-init/Reset，不改 SQLite。
+2. 《人生密密缝》精确 On-deck Run 为 `844d2564f525ee73c36564559e8b5cbefc704f8cf65457796af7b72bf6215615`。停服后重验下面两个冲突文件的 size、SHA256、非 symlink、路径 containment，以及当前 Inventory/Libra Binding/Off-load Context 未引用它们；任何变化停止。
+   - `/media/Film/人生密密缝 (2017)/人生密密缝 (2017).nfo`：7427 bytes；SHA256 `0c36f85dad179428446e6fb946a98df535913aa297dc9e90be83285560df25d4`。
+   - `/media/Film/人生密密缝 (2017)/poster.jpg`：1031527 bytes；SHA256 `db80299781122985c4dea6001f88bcffce25c7f5952c91823259eb3bc98f8619`。
+   - 两项先复制到应用根下独立备份目录，验证复制的 SHA256 及原件仍未变化，再移出冲突位置；保留 manifest 与原件恢复路径。原 MKV、字幕、旧源 NFO、fanart、torrent 不在隔离范围。
+3. 《太阳帝国》精确 On-deck Run 为 `28c2d89e239b3e6d50bbbcdaeafe37fb5e04685fe9a1aa1c68238863d673fbb9`。恢复前重新验证七个 Final Product 与既有 Package/Placement Evidence。只经正式 retry 重新执行精确成员 Settlement；保留 BACKUP、META、其他 title、未知文件及空目录。
+4. 两条均使用正式 `POST /v1/admin/formation/acceptance/:offerId/actions/retry`，以当前持久事实解析 Offer ID，不手改 Work/Event/Effect。若旧执行仍活动，先让修复后的当前 Owner 恢复流程收敛，不人为置终态。
+5. 验收必须看到每条恰好一个 On-deck Commit、相应 Shelf Entry/Deck Fact、精确 Inventory 文件、settlement/member 终态及无活动相关执行。只看到 UI 进度变化不算恢复。
+6. 《一战再战》保留合法外部下载；验证页面当前阶段及解释，不取消下载、不放宽 DV 转换、不调整14 GiB要求。
+7. 回滚先保留新现场及失败证据；新镜像无 Schema 变更，可回滚 binary，但不把已完成的正常业务 Commit 当作应回滚数据库。冲突备份只在目标无人占用且核实当前 Owner 后恢复，禁止覆盖新产品。

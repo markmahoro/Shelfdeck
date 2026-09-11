@@ -1,5 +1,7 @@
 # ShelfDeck 当前状态
 
+2026-09-11 三部电影修复 ACTIVE；本次明确修复指令打开 Local Implementation Gate。只读确认生产 `helix-beta-20260909-7ceaeca7fb`，Image ID `sha256:12db15cbc07e12becd793b20cb0f1270e03ec29241ddab05f4dde42d8152eb83`。本地修复验证完成：专项100/100、Arca合同43/43、架构门禁PASS；Service排除4个已复现基线测试后531 pass/22 skip。尚未部署、修改生产数据或 SSOT；证据见 `implementation/evidence/THREE_FILM_FIX_20260911.md`。
+
 更新：2026-09-09。唯一条目及关闭条件入口为[UAT总表](UAT_ITERATION_REGISTER.md)，唯一排程为[CURRENT_PLAN](CURRENT_PLAN.md)。255项连续：62项本轮功能验收关闭、37项开放、153项历史关闭、220文档关闭、1项非缺陷接受、206被取代且承接已核实。历史关闭不是本次重新验收。
 
 255项前后合同审查及三项用户决定已完成，SSOT/Beta已在`14cf2d9a0`同步。已无这三项待确认决定；合同确认不等于实现或验收。审查及覆盖关系见[全量证据](implementation/evidence/UAT_FULL_CONTRACT_CONSISTENCY_AUDIT_20260909.md)。

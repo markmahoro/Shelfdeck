@@ -87,6 +87,7 @@ const FAILURE_COPY = Object.freeze({
   CLEAN_ARCA_PRODUCT_SOURCE_MISSING:'没有找到本次上架使用的媒体产品',
   CLEAN_ARCA_TARGET_ROOT_UNAVAILABLE:'目标收藏架当前无法访问',
   CLEAN_ARCA_TARGET_OCCUPIED:'目标位置已经存在其他媒体文件',
+  CLEAN_ARCA_STAGE_TARGET_OCCUPIED:'目标位置已有与本次产品不同的文件，已停止写入并保留现有文件',
   CLEAN_ARCA_TARGET_COLLISION:'本次写入会与目标位置中的现有文件冲突',
   FENCE_REJECTED:'执行前核对发现文件或计划状态已经发生变化',
 });

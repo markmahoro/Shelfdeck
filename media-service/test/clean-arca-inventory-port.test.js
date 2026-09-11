@@ -630,7 +630,7 @@ test('post-Placement NFO verification accepts semantic Emby rewrites while exact
     const unauthorizedSlot = port.prepareSlot(recoveryRequest);
     await assert.rejects(port.stage({ ...recoveryRequest,
       targetCommitSlotHandle:unauthorizedSlot }),
-    (error) => error.code === 'CLEAN_ARCA_TARGET_OCCUPIED');
+    (error) => error.code === 'CLEAN_ARCA_STAGE_TARGET_OCCUPIED');
 
     const recoveredRequest = { ...recoveryRequest,
       priorPlacementReceipt:placementReceipt };
@@ -693,7 +693,7 @@ test('post-Placement NFO verification accepts semantic Emby rewrites while exact
     const strictPrimarySlot = port.prepareSlot(recoveredRequest);
     await assert.rejects(port.stage({ ...recoveredRequest,
       targetCommitSlotHandle:strictPrimarySlot }),
-    (error) => error.code === 'CLEAN_ARCA_TARGET_OCCUPIED');
+    (error) => error.code === 'CLEAN_ARCA_STAGE_TARGET_OCCUPIED');
   } finally {
     fs.rmSync(root, { recursive:true, force:true });
   }
@@ -1077,7 +1077,7 @@ function writeDiscTree(discRoot, { extra = true, certificate = true, structural 
   return { selected, extraClip, certificateFile, indexFile };
 }
 
-test('BDMV settlement deletes leftover STREAM and CERTIFICATE so the disc tree disappears', () => {
+test('BDMV settlement preserves unapproved STREAM, CERTIFICATE and directories', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'clean-arca-bdmv-disc-'));
   try {
     const discRoot = path.join(root, 'source-disc');
@@ -1094,11 +1094,11 @@ test('BDMV settlement deletes leftover STREAM and CERTIFICATE so the disc tree d
     });
     assert.equal(settled.disposition, 'settled_to_final');
     assert.equal(fs.existsSync(tree.selected), false);
-    assert.equal(fs.existsSync(tree.extraClip), false);
-    assert.equal(fs.existsSync(tree.certificateFile), false);
-    assert.equal(fs.existsSync(path.join(discRoot, 'BDMV')), false);
-    assert.equal(fs.existsSync(path.join(discRoot, 'CERTIFICATE')), false);
-    assert.equal(fs.existsSync(discRoot), false);
+    assert.equal(fs.existsSync(tree.extraClip), true);
+    assert.equal(fs.existsSync(tree.certificateFile), true);
+    assert.equal(fs.existsSync(path.join(discRoot, 'BDMV')), true);
+    assert.equal(fs.existsSync(path.join(discRoot, 'CERTIFICATE')), true);
+    assert.equal(fs.existsSync(discRoot), true);
     assert.equal(fs.readFileSync(prepared.finalMember.targetLocation, 'utf8'),
       'exact-movie-bytes');
   } finally {
@@ -1106,7 +1106,7 @@ test('BDMV settlement deletes leftover STREAM and CERTIFICATE so the disc tree d
   }
 });
 
-test('BDMV settlement keeps still-managed structural files while deleting unplanned leftovers', () => {
+test('BDMV settlement preserves other managed structural files and unplanned members', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'clean-arca-bdmv-managed-'));
   try {
     const discRoot = path.join(root, 'source-disc');
@@ -1132,9 +1132,9 @@ test('BDMV settlement keeps still-managed structural files while deleting unplan
     });
     assert.equal(settled.disposition, 'settled_to_final');
     assert.equal(fs.existsSync(tree.selected), false);
-    assert.equal(fs.existsSync(tree.extraClip), false);
-    assert.equal(fs.existsSync(tree.certificateFile), false);
-    assert.equal(fs.existsSync(path.join(discRoot, 'CERTIFICATE')), false);
+    assert.equal(fs.existsSync(tree.extraClip), true);
+    assert.equal(fs.existsSync(tree.certificateFile), true);
+    assert.equal(fs.existsSync(path.join(discRoot, 'CERTIFICATE')), true);
     assert.equal(fs.existsSync(tree.indexFile), true);
     assert.equal(fs.readFileSync(tree.indexFile, 'utf8'), 'index');
   } finally {
@@ -1142,7 +1142,7 @@ test('BDMV settlement keeps still-managed structural files while deleting unplan
   }
 });
 
-test('BDMV settlement removes a nested disc folder and keeps the sibling movie', () => {
+test('BDMV settlement preserves the nested disc folder and sibling movie', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'clean-arca-bdmv-nested-'));
   try {
     const titleDirectory = path.join(root, '养蜂人 (2024)');
@@ -1162,8 +1162,8 @@ test('BDMV settlement removes a nested disc folder and keeps the sibling movie',
       sourceToFinalMappingDigest:prepared.mappingDigest,
     });
     assert.equal(settled.disposition, 'settled_to_final');
-    assert.equal(fs.existsSync(nestedDisc), false);
-    assert.equal(fs.existsSync(path.join(nestedDisc, 'BDMV')), false);
+    assert.equal(fs.existsSync(nestedDisc), true);
+    assert.equal(fs.existsSync(path.join(nestedDisc, 'BDMV')), true);
     assert.equal(fs.existsSync(siblingMovie), true);
     assert.equal(fs.readFileSync(siblingMovie, 'utf8'), 'sibling-mkv');
     assert.equal(fs.existsSync(titleDirectory), true);
@@ -1172,7 +1172,7 @@ test('BDMV settlement removes a nested disc folder and keeps the sibling movie',
   }
 });
 
-test('same-root BDMV leftover trees disappear while the final product directory remains', () => {
+test('same-root BDMV settlement preserves out-of-scope trees and the final directory', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'clean-arca-bdmv-same-root-'));
   try {
     const productDirectory = path.join(root, 'The Beekeeper (2024)');
@@ -1188,9 +1188,9 @@ test('same-root BDMV leftover trees disappear while the final product directory 
       sourceToFinalMappingDigest:prepared.mappingDigest,
     });
     assert.equal(settled.disposition, 'settled_to_final');
-    assert.equal(fs.existsSync(tree.extraClip), false);
-    assert.equal(fs.existsSync(path.join(productDirectory, 'BDMV')), false);
-    assert.equal(fs.existsSync(path.join(productDirectory, 'CERTIFICATE')), false);
+    assert.equal(fs.existsSync(tree.extraClip), true);
+    assert.equal(fs.existsSync(path.join(productDirectory, 'BDMV')), true);
+    assert.equal(fs.existsSync(path.join(productDirectory, 'CERTIFICATE')), true);
     assert.equal(fs.existsSync(productDirectory), true);
     assert.equal(fs.readFileSync(prepared.finalMember.targetLocation, 'utf8'),
       'exact-movie-bytes');
@@ -1650,3 +1650,85 @@ for (const changedBytes of [false, true]) {
     } finally { fs.rmSync(fixture.root, {recursive:true, force:true}); }
   });
 }
+
+for (const method of ['settleInput', 'settleInputAsync']) for (const inputKind of ['payload', 'index']) {
+  test(`exact BDMV ${method} settles ${inputKind}, preserves neighbors and replays absent input`, async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'arca-exact-disc-'));
+    try {
+      const disc = path.join(root, 'disc');
+      const tree = writeDiscTree(disc, {structural:true});
+      for (const name of ['BACKUP/index.bdmv', 'META/DL/info.xml', 'index.nfo']) {
+        const file = path.join(disc, 'BDMV', name);
+        fs.mkdirSync(path.dirname(file), {recursive:true}); fs.writeFileSync(file, 'unapproved');
+      }
+      const source = inputKind === 'payload' ? tree.selected : tree.indexFile;
+      const prepared = prepareDiscSettlement(path.join(root, 'shelf'), source);
+      const calls = [];
+      const command = {materialHandle:prepared.materialHandle, finalInventoryRequest:prepared.finalInventoryRequest,
+        finalMaterialKey:prepared.finalMember.sourceMaterialKey, finalTargetLocation:prepared.finalMember.targetLocation,
+        settlementExpectation:'remove_after_place', sourceToFinalMappingDigest:prepared.mappingDigest,
+        assertCurrentApproval(location) { assert.equal(location, source); calls.push(location); }};
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        const result = await prepared.port[method](command);
+        assert.equal(result.absent, true); assert.equal(result.finalVerified, true);
+        assert.equal(result.oldDirectoryDisposition, 'retained_directory');
+      }
+      assert.equal(calls.length, 4);
+      assert.equal(fs.existsSync(source), false);
+      assert.equal(fs.readFileSync(tree.extraClip, 'utf8'), 'other-clip');
+      assert.equal(fs.readFileSync(tree.certificateFile, 'utf8'), 'cert');
+      for (const name of ['BACKUP/index.bdmv', 'META/DL/info.xml', 'index.nfo'])
+        assert.equal(fs.readFileSync(path.join(disc, 'BDMV', name), 'utf8'), 'unapproved');
+      fs.writeFileSync(prepared.finalMember.targetLocation, 'drift');
+      await assert.rejects(async () => prepared.port[method](command), /drift|match|verification/i);
+    } finally { fs.rmSync(root, {recursive:true, force:true}); }
+  });
+}
+
+for (const method of ['settleInput', 'settleInputAsync']) {
+  test(`BDMV ${method} rechecks exact approval immediately before deletion`, async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'arca-disc-revocation-'));
+    try {
+      const tree = writeDiscTree(path.join(root, 'disc'));
+      const prepared = prepareDiscSettlement(path.join(root, 'shelf'), tree.selected);
+      let checks = 0;
+      await assert.rejects(async () => prepared.port[method]({materialHandle:prepared.materialHandle,
+        finalInventoryRequest:prepared.finalInventoryRequest, finalMaterialKey:prepared.finalMember.sourceMaterialKey,
+        finalTargetLocation:prepared.finalMember.targetLocation, settlementExpectation:'remove_after_place',
+        sourceToFinalMappingDigest:prepared.mappingDigest, assertCurrentApproval(location) {
+          assert.equal(location, tree.selected); if (++checks === 2) throw new Error('approval revoked');
+        }}), /approval revoked/);
+      assert.equal(checks, 2); assert.equal(fs.existsSync(tree.selected), true);
+      assert.equal(fs.existsSync(tree.extraClip), true);
+    } finally { fs.rmSync(root, {recursive:true, force:true}); }
+  });
+}
+
+test('Stage target preflight produces a typed terminal outcome before any copy or custody write', async () => {
+  const {createOnDeckCapabilityPorts} = require('../src/helix/domains/arca/capabilities/on-deck-capability-ports');
+  const fixture = settlementFixture();
+  try {
+    const request = {...fixture.finalInventoryRequest, replayCommitted:false};
+    const slot = fixture.port.slotHandle(request);
+    fs.writeFileSync(fixture.finalMember.targetLocation, 'unrelated occupied target');
+    const ports = createOnDeckCapabilityPorts({schemaManifest, unitOfWork:{execute() {throw new Error('unexpected custody write');}},
+      contextReader:{readAccepted:() => ({shelf:request.shelf,packageValue:request.onDeckProductPackage,
+        responsibility:{onDeckRunId:request.onDeckRunId,custodyId:request.custodyId},finalInventoryDecision:request.finalInventoryDecision})},
+      workResultReader:{readBindings:() => [], listWorks:() => []}, inventoryPort:fixture.port});
+    const execution = {ownerScope:{processType:'arca_ondeck_run',processId:request.onDeckRunId},
+      namedInputs:{productMaterialHandleList:{},targetCommitSlotHandle:slot},workId:'work-stage'};
+    const result = await ports[CAPABILITY_REFS.stage].execute(execution);
+    assert.equal(result.kind, 'failed'); assert.equal(result.code, 'CLEAN_ARCA_STAGE_TARGET_OCCUPIED');
+    assert.equal(result.retryDirective, 'never'); assert.equal(result.failureClass, 'stage_precondition');
+    assert.deepEqual(result.evidence.diagnostics.unknownNames, [path.basename(fixture.finalMember.targetLocation)]);
+    assert.equal(fs.existsSync(slot.slotDirectory), false);
+    assert.equal(fs.readFileSync(fixture.finalMember.targetLocation, 'utf8'), 'unrelated occupied target');
+    assert.equal(fs.existsSync(fixture.source), true);
+    const unknown = new Error('copy outcome is unknown'); unknown.code = 'EIO';
+    const uncertainPorts = createOnDeckCapabilityPorts({schemaManifest,unitOfWork:{execute() {throw new Error('unexpected write');}},
+      contextReader:{readAccepted:() => ({shelf:request.shelf,packageValue:request.onDeckProductPackage,
+        responsibility:{onDeckRunId:request.onDeckRunId,custodyId:request.custodyId}})},
+      workResultReader:{readBindings:() => [],listWorks:() => []},inventoryPort:{stage:async () => {throw unknown;}}});
+    await assert.rejects(uncertainPorts[CAPABILITY_REFS.stage].execute(execution), error => error === unknown);
+  } finally { fs.rmSync(fixture.root, {recursive:true,force:true}); }
+});

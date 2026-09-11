@@ -116,6 +116,13 @@ function externalWorks(works) {
   return (works || []).some((work) => (work.events || []).some((event) =>
     String(event.capabilityRef || '').startsWith('libra.external_material.')));
 }
+function activeExternalEvent(works) {
+  return latestEvent(works, (event, work) =>
+    !['succeeded', 'failed', 'cancelled'].includes(work.state) &&
+    String(event.capabilityRef || '').startsWith('libra.external_material.') &&
+    ['executing', 'ready', 'waiting_resource', 'waiting_external',
+      'waiting_for_resource', 'waiting_for_external'].includes(event.state));
+}
 function buildMediaOrganizationSteps(works, spec, options) {
   if (options?.latestRunState === 'discarded' && !(works && works.length)) {
     return Object.freeze([Object.freeze({ key: 'reintake', label: '等待重新入库', state: 'pending', progress: null })]);
@@ -136,10 +143,14 @@ function buildMediaOrganizationSteps(works, spec, options) {
     event.result?.result?.candidateKind === 'direct_input');
   const remuxEvent = latestEvent(works, (event) => event.capabilityRef === 'libra.media.remux@1');
   const transcodeEvent = latestEvent(works, (event) => event.capabilityRef === 'libra.media.transcode@1');
-  const acquireEvent = latestEvent(works, (event) => String(event.capabilityRef || '').startsWith('libra.external_material.'));
+  const acquireEvent = activeExternalEvent(works) || latestEvent(works, (event) => String(event.capabilityRef || '').startsWith('libra.external_material.'));
   const verifyEvent = latestEvent(works, (event) => event.capabilityRef === 'libra.product.conformance.verify@1');
   const shelfEvent = latestEvent(works, (event) => event.capabilityRef === 'libra.product_package.publish@1');
   const transcodeBlocked = transcodeAssessmentBlocked(works);
+  const rejectedAssessment = latestEvent(works, (event) =>
+    event.capabilityRef === 'libra.transcode.input.verify@1')?.result?.result;
+  const rejectedBeforeAcquisition = !transcodeEvent && !hasExternalImportVerify(works) &&
+    externalWorks(works) && rejectedAssessment?.disposition === 'strategy_rejected';
   const transcodeState = transcodeEvent ? eventState(transcodeEvent)
     : (transcodeBlocked ? 'blocked' : (latestEvent(works, (event) =>
       event.capabilityRef === 'libra.transcode.input.verify@1') ? eventState(latestEvent(works, (event) =>
@@ -166,9 +177,9 @@ function buildMediaOrganizationSteps(works, spec, options) {
     remuxEvent ? overlayStep('remux', '封装整理', remuxEvent) : null,
     transcodeWorks(works).length ? Object.freeze({
       key: externalImportPendingTranscode ? 'transcode_external' : 'transcode',
-      label: (transcodeWaiting ? '等待转码资源 · ' : '') +
+      label: rejectedBeforeAcquisition ? '本地转码不可用，转入外部寻源' : (transcodeWaiting ? '等待转码资源 · ' : '') +
         (externalImportPendingTranscode ? '压缩外部素材 · ' + transcodeLabel(works, spec) : transcodeLabelText),
-      state: transcodeState,
+      state: rejectedBeforeAcquisition ? 'done' : transcodeState,
       progress: transcodeEvent?.progress || null,
     }) : null,
     externalWorks(works) ? overlayStep('acquire', acquireEvent ? '外部寻源' : '外部寻源', acquireEvent) : null,
@@ -403,6 +414,12 @@ function nextAction(works, classification, issue, runState, recovery, arcaStatus
   if ((hasBlockingExecution(works) && !transcodeAssessmentBlocked(works) && !hasOpenExecution(works))
       || businessFailure) {
     return Object.freeze({ label: '媒体整理执行失败，需要处理', state: 'blocked', progress: null });
+  }
+  const externalEvent = activeExternalEvent(works);
+  if (externalEvent) {
+    const selection = extractAcquisitionSelection(works);
+    return Object.freeze({label: selection ? '正在下载唯一符合要求的外部源' : '正在获取外部源',
+      state:externalEvent.state,progress:externalEvent.progress || null});
   }
   const steps = organizingSteps(works, spec, { latestRunState, runState });
   const current = steps.find((item) => item.state === 'running')
