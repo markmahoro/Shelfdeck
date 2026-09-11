@@ -34,6 +34,8 @@ UI已与UAT-256任务对齐并整合其去技术标识提交，来源统计区�
 
 ## 授权与交付
 
+2026-09-12追加：用户明确“全部就绪后，由本任务统一协调并部署”。“收口并部署上线”任务统一收齐UAT-251、接收恢复、UAT-257扫描修复及258交付，完成集成验收后标准发布，取代各任务此前的部署等通知安排；UI第二轮扫描建议未授权实施，不夹带。交接及只读预检见[联合发布接手审计](implementation/evidence/UAT_JOINT_DEPLOYMENT_READINESS_20260912.md)。生产数据/媒体处置仍按精确范围授权。
+
 既有实施、本地测试与标准NAS发布授权持续有效；标准发布允许中断FFmpeg。本项目必要清理及精确旧Input持续授权按各自范围执行，未取得当前物理证据不得删除。无任意Reset、直接SQL改生产、删额外NFO掩盖健康问题或旧数据兼容授权。Emby调查及5分钟自动轮询保持停止。
 
 集成工作区为`E:/my_project/emby_third_party-helix-iteration`，分支`codex/user-pain-iteration`；主工作区不作为本次编辑目标。用户指定的care-clarity交付`e6b7f0424`已由`799433c65`整合部署，不再并行修改。其他worktree保留，未完成归属审查不删除。原`AFTERCARE_HEALTH_CASE_IMPLEMENTATION_20260908.md`的未提交修改受保护，不夹带提交。
