@@ -33,3 +33,8 @@
 本机证据：集成工作区`.codex/uat258-browser-evidence.json`、`uat258-{1440,390}-{page,dialog}.png`及`uat258-failure-dialog.png`。浏览器驱动`.codex/uat258-browser.cjs`为本次一次性验收工具，不进入产品构建或Git。
 
 本次未部署NAS、未运行Docker/Desktop构建或真实媒体删除链；仅修改前端授权入口，后端及物理清理仍复用UAT-172现有合同，不宣称本轮重新验收物理删除。完整旧Admin E2E仍引用历史页面入口，未作为当前Helix Oracle；本次以真实clean Host对受影响页面走查。
+
+
+## 生产验收关闭
+
+2026-09-12已随cd4f3f5b2d标准发布并验收关闭。生产1920×1080收藏架页头刷新、授权入口、新建三按钮同排且高36px；当前显示已授权，对话框展示原片/结构/独占关联范围、共享/未知保留和退出收藏不包含的边界。取消后关闭对话框并返回入口焦点；正式授权仍enabled、revision1、old_primary_and_exclusive_related，未为验收授予或撤销。最终Web94/94及生产页面无横向溢出/console error。结合上述本地真实授予/撤销及负向验证，当前UI项条件满足；不宣称重新验收实际媒体删除。[发布身份、备份与边界](UAT_RELEASE_CD4F3F5B2D_20260912.md)。
