@@ -23,7 +23,7 @@ Package统计以不同Package ID为粒度，累计生成=当前等待+累计接�
 
 ## 执行位置
 
-分支`codex/procurement-rejection-cycle`，基线`27b83c6ad`。已完成本地实现与验证；尚未部署，未宣称生产验收关闭。
+实现提交`0aabaa1ca`；分支`codex/procurement-rejection-cycle`，初始基线`27b83c6ad`，最终UI依赖`bbec73fb0`。交付到既有`codex/user-pain-iteration`，不包含生产发布。已完成本地实现与验证；尚未部署，未宣称生产验收关闭。
 
 
 ## 实施及本地验证
@@ -46,6 +46,6 @@ Package统计以不同Package ID为粒度，累计生成=当前等待+累计接�
 
 完整新样例使用两个可成包文件及一个不可成包文件：先封口并保持两份未决交付；普通再扫描不重复打包；移开临时文件后真实Intake拒绝两包且释放占用；缺失扫描不生成包；恢复其中一个原文件（保留同一物理身份）后普通扫描生成新包；再次拒绝、恢复、下一轮接受。最终生成4、接收1、拒绝3、等待0；原两份Package与其Rejected Delivery行逐字段保持相同。重放Observation、服务重启不增加包/Subject，Retry Intent始终为0；已接受材料不被重新选取。
 
-来源UI已将截图与验证结果回传UAT-256任务。截图：`C:/Users/markm/.codex/visualizations/2026/09/11/01a09142-1921-7b11-b650-001668f9a0f0/UAT-257_FILE_SOURCES.png`。三组数据均为隔离UI样例，不能作为生产修复证据。原138项和89项结果摘要仅存任务临时目录，没有把运行输出或构建产物提交入库。
+来源UI已将截图与验证结果回传UAT-256任务，对方实际查看截图并回复“UI对齐通过，没有额外视觉修改意见”。截图：`C:/Users/markm/.codex/visualizations/2026/09/11/01a09142-1921-7b11-b650-001668f9a0f0/UAT-257_FILE_SOURCES.png`。三组数据均为隔离UI样例，不能作为生产修复证据。原138项和89项结果摘要仅存任务临时目录，没有把运行输出或构建产物提交入库。
 
 未执行NAS部署、生产扫描/重试/Reset、真实媒体处置、Linux/Docker运行或Desktop构建。本次修改位于平台无关Procurement逻辑和服务Web，不修改Desktop/Worker。生产8条拒绝及6条陈旧资格的实际后续变化尚未验收；UAT-257保持“本地验证通过，待生产验收”。
