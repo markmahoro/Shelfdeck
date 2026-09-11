@@ -1,6 +1,6 @@
 # ShelfDeck 当前迭代计划
 
-2026-09-11 当前优先包：用户要求修复三部电影；从生产 `7ceaeca7fb` 建立隔离分支 `codex/three-film-recovery-20260911`。唯一执行位置见 `implementation/CURRENT_PHASE.md`；其他 UAT 排程保留。
+2026-09-11 当前优先包：用户要求修复三部电影；从生产 `7ceaeca7fb` 建立隔离分支 `codex/three-film-recovery-20260911`。用户随后明确授权部署及《太阳帝国》重新上架，`c10e516e64`已发布，该片恢复验收完成；其他两条的剩余验收和精确恢复范围继续由 `implementation/CURRENT_PHASE.md` 维护，不关闭整个优先包。其他UAT排程保留。
 
 更新：2026-09-09。ACTIVE。用户要求先整理UAT文档，再继续逐项验收关闭；此前合同审查暂停已结束。
 [UAT总表](UAT_ITERATION_REGISTER.md)是唯一条目、状态、当前关闭条件入口；[当前执行包](implementation/CURRENT_PHASE.md)记录执行位置；本计划仅保留范围、顺序与授权。

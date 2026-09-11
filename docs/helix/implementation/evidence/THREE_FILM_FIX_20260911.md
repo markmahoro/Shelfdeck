@@ -1,10 +1,10 @@
 # 三部电影修复证据
 
-日期：2026-09-11。状态：本地代码完成并验证，未部署修复。用户随后明确要求尝试《太阳帝国》重新上架，已执行一次正式retry，结果仍失败；未直接改生产SQL或手工处理媒体。
+日期：2026-09-11。当前状态：修复已部署，《太阳帝国》正式重新上架成功。旧版本generation 4失败及其后修复版本generation 5成功分别记录在下文。未直接改生产SQL或手工处理媒体；其他两条未宣称全部恢复完成。
 
 ## 基线与授权
 
-用户要求修复《一战再战》《人生密密缝》《太阳帝国》。实际生产镜像为
+用户要求修复《一战再战》《人生密密缝》《太阳帝国》。诊断时生产镜像为
 `markmahoro/shelfdeck:helix-beta-20260909-7ceaeca7fb`，Image ID
 `sha256:12db15cbc07e12becd793b20cb0f1270e03ec29241ddab05f4dde42d8152eb83`。
 主工作区 `main@d486947c8` 落后于该版本；修复在独立工作区
@@ -85,11 +85,10 @@ payload在原端口1964行向精确Approval回调传入邻居路径，index在19
   不能声明全量全绿。该次另有测试期望尚未更新的6项和新worktree缺tools依赖1项，均已修正并定向通过。
 - 补齐tools依赖后，Service以concurrency=4排除上述4个已知基线测试名称运行：531 pass / 0 fail / 22 skip，
   其中18个为既有skip，4个为本次明确排除。测试代码没有skip新增，本包不关闭既有UAT问题。
-- 未执行修复版本的Linux镜像、真实浏览器或生产恢复验收；旧版本的用户指定retry结果见下，不能声明三条生产记录已经修好。
+- 初次本地交付时未执行修复版本的Linux镜像、真实浏览器或生产恢复验收；后续Linux及《太阳帝国》生产恢复结果见下，仍不能声明三条生产记录均已修好。
 - 本轮日志保存在本机临时目录 `shelfdeck-three-films-20260911`，生产只读诊断数据不入库。
 
-当前可交付的是本地修复及精确恢复范围；发布、备份隔离和正式retry必须按
-[当前活动包](../CURRENT_PHASE.md)完成后才可关闭。
+整个三片优先包仍由[当前活动包](../CURRENT_PHASE.md)管理；下文单片恢复通过不替代其他条目的关闭条件。
 
 ## 用户指定的生产重新上架尝试
 
@@ -109,3 +108,57 @@ Reset、直接SQL修改或手工移动/删除文件。生产仍为`helix-beta-20
 - 重试前后各核验7项Final的size、inode及`middle-256k-sha256`均匹配对应Staged Physical Identity。
   11项旧输入的存在性前后一致，仍只有index.bdmv与MovieObject.bdmv存在。
 - 本次结果证明当前生产版本单纯retry未恢复，不代表本地修复版本的生产验收失败；没有反复发起新一代retry。
+
+## 修复部署与太阳帝国恢复通过
+
+用户随后明确要求“部署，再尝试重新上架”，并在执行中要求继续。此次授权覆盖标准部署及该片正式retry；
+没有实施《人生密密缝》的两文件隔离，也没有修改standing Authorization或扩大Settlement Scope。
+
+| 发布身份 | 值 |
+| --- | --- |
+| Source / image tag | `c10e516e64` / `markmahoro/shelfdeck:helix-beta-20260911-c10e516e64` |
+| NAS config Image ID | `sha256:fd03632b156ff535c84be0e853ee384dc98bea1fba41bf59eee4c8c2687a1b57` |
+| Tar SHA256 | `6c3dede8106cc46b91e6da3f34092afca959bef81738cd3e89e49db8ffb3d2e4` |
+| Container StartedAt | `2026-09-11T15:47:29.758910825Z` |
+| Backup | `/vol1/1000/docker/shelfdeck/backups/three-films-c10e516e64-20260911` |
+| Data backup aggregate digest | `35386a45e38915ad7573ee021a85df2d9ce644c97de583b92d1d36c2f171735d` |
+
+在clean worktree通过`scripts/build-image.js`构建，最终Linux镜像运行Inventory及Formation专项100 pass / 0 fail；
+以`scripts/upload-nas-image.js`上传并校验，再执行`scripts/deploy-nas.js` dry-run/apply。完整data在停服后由
+既有`helix-operational-safety.createBackup/verifyBackup`保存并校验，42项文件及SQLite quick_check均通过；
+另备份原Compose和secret.env，Secret未输出或入库。
+
+第一次apply在readiness检查处因`SQLITE_CANTOPEN`停止，未进入新容器重建：正常停服关闭WAL辅助文件后，
+现有readiness脚本无法在只读bind mount内打开WAL-mode源库。核实db存在、wal/shm缺失，并在相同新镜像
+复现只读打开失败；恢复原有旧容器正常运行后，health为ok、只读查询成功，再次走同一标准apply，readiness、
+health、Admin Web、全部挂载、运行镜像检查均通过。没有手工建WAL、改SQLite、绕过readiness或更换部署入口。
+生产3项关键源码SHA256与构建输入逐项一致。NAS管理页HTTP200，根目录和应用目录权限、无关容器原状态保持。
+
+部署后重新核验7项Final，再由正式retry入口受理generation 5：
+
+- Work：`arca-on_deck_execution-work-cf12cc0db84c28666f26fd342c2afd7035e7e628`，最终succeeded。
+- On-deck Run最终committed；11项Settlement全部succeeded，Fulfillment及Commit成功，相关活动Work为空。
+- 唯一Commit receipt：`5f0d1493a3b32a4aec42bea863d30969dbf32a8aad7156f42a2187df635a394e`，
+  `committed_at_ms=1789141774133`（2026-09-11 23:49:34北京时间）。
+- Shelf Entry：`3c66f5560d36baebdeefacec91f810df7d994447ea6106f5987be88b37172e85`，active；
+  Deck Fact revision 1 active。全局Shelf Entry及Commit数量均从108变109。
+- 11项旧输入均absent；只有此前仍存在的index.bdmv和MovieObject.bdmv新增完成物理处置。
+- 7项当前Inventory的size/inode/bounded fingerprint均匹配；原盘246项范围外文件在前后枚举中的
+  path、size、inode、bounded fingerprint逐项相同，BACKUP/META保持。
+- Formation详情API HTTP200、classification=completed、arcaStatus.stage=completed且reasonCode=null；
+  Collection详情API HTTP200、Entry active，指向上述同一Entry。首次Aftercare评估尚未完成，快照为
+  never_assessed/unknown、maintenanceState=none，不能把上架验收等同于独立Aftercare全部healthy。
+
+因此本片原清理错误与上架阻断已在生产恢复。此次覆盖该条真实恢复链，未重跑完整产品E2E、未新增
+真实浏览器操作验证，也未关闭三片包的全部剩余事项。操作与核验日志仍在本机临时目录，完整生产导出未入库。
+
+回滚候选保留为旧镜像`helix-beta-20260909-7ceaeca7fb`，NAS原tar SHA256为
+`2b5d16ee6d023540c567890e1bec4d0987df6dfaa3becf86be19ecc08d251f26`。
+如需binary回滚，仍先dry-run再apply：
+
+```powershell
+node scripts/deploy-nas.js /vol1/1000/docker/shelfdeck/shelfdeck-helix-beta-20260909-7ceaeca7fb.tar --sha256 2b5d16ee6d023540c567890e1bec4d0987df6dfaa3becf86be19ecc08d251f26
+node scripts/deploy-nas.js /vol1/1000/docker/shelfdeck/shelfdeck-helix-beta-20260909-7ceaeca7fb.tar --sha256 2b5d16ee6d023540c567890e1bec4d0987df6dfaa3becf86be19ecc08d251f26 --apply
+```
+
+回滚不撤销已经正常完成的Commit，不覆盖当前数据库；完整备份作为事故恢复证据保留。

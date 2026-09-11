@@ -1,12 +1,18 @@
 # ShelfDeck 当前状态
 
-2026-09-11 三部电影修复 ACTIVE；本次明确修复指令打开 Local Implementation Gate。只读确认生产 `helix-beta-20260909-7ceaeca7fb`，Image ID `sha256:12db15cbc07e12becd793b20cb0f1270e03ec29241ddab05f4dde42d8152eb83`。本地修复验证完成：专项100/100、Arca合同43/43、架构门禁PASS；Service排除4个已复现基线测试后531 pass/22 skip。尚未部署修复或修改 SSOT。用户随后明确要求尝试《太阳帝国》重新上架：19:51北京时间正式retry受理generation 4，成品验证成功，但5项Settlement重现原错误，Run再次blocked、Commit仍0；前后7个成品的size/inode/bounded fingerprint核验通过。未直接修改生产SQL或手工处理媒体。证据见 `implementation/evidence/THREE_FILM_FIX_20260911.md`。
+2026-09-11 三部电影修复 ACTIVE；用户明确授权部署并重试后，`helix-beta-20260911-c10e516e64` 已通过标准NAS发布。《太阳帝国》generation 5正式恢复成功：Run committed、11项Settlement全成功、唯一Commit、Shelf Entry与Deck Fact active，Formation API为completed；7项Inventory核验通过，246项范围外原盘文件的size/inode/bounded fingerprint前后一致。此前旧版本generation 4重试失败保留为历史证据。本地专项100/100、Arca合同43/43、架构门禁PASS；Service排除4个已复现基线测试后531 pass/22 skip；最终Linux镜像专项100/100。本次不宣布《人生密密缝》的物理冲突恢复完成，也不将新Entry尚未首次评估的Aftercare状态报成healthy。未修改SSOT或直接改生产SQL。见[证据](implementation/evidence/THREE_FILM_FIX_20260911.md)。
 
 更新：2026-09-09。唯一条目及关闭条件入口为[UAT总表](UAT_ITERATION_REGISTER.md)，唯一排程为[CURRENT_PLAN](CURRENT_PLAN.md)。255项连续：62项本轮功能验收关闭、37项开放、153项历史关闭、220文档关闭、1项非缺陷接受、206被取代且承接已核实。历史关闭不是本次重新验收。
 
 255项前后合同审查及三项用户决定已完成，SSOT/Beta已在`14cf2d9a0`同步。已无这三项待确认决定；合同确认不等于实现或验收。审查及覆盖关系见[全量证据](implementation/evidence/UAT_FULL_CONTRACT_CONSISTENCY_AUDIT_20260909.md)。
 
 ## 当前生产
+
+- 镜像：`markmahoro/shelfdeck:helix-beta-20260911-c10e516e64`；source `c10e516e64`；NAS config Image ID `sha256:fd03632b156ff535c84be0e853ee384dc98bea1fba41bf59eee4c8c2687a1b57`；StartedAt `2026-09-11T15:47:29.758910825Z`。
+- tar SHA256：`6c3dede8106cc46b91e6da3f34092afca959bef81738cd3e89e49db8ffb3d2e4`；完整data及配置备份：`/vol1/1000/docker/shelfdeck/backups/three-films-c10e516e64-20260911`，42项文件digest及SQLite quick_check通过。标准build/upload/checksum/dry-run/apply、readiness、health、Admin Web、全部挂载与3项关键源码hash通过。
+- 23:49北京时间《太阳帝国》Commit成功后，Shelf Entry与Commit总数均由108变109；条目 `3c66f5560d36baebdeefacec91f810df7d994447ea6106f5987be88b37172e85`。NAS管理页HTTP200及无关容器原状态保持。完整过程、首次readiness失败与恢复、回滚及验收边界见上述证据。
+
+## 此前生产快照（2026-09-09）
 
 - 镜像：`markmahoro/shelfdeck:helix-beta-20260909-1570985359`；source `1570985359`；config Image ID `sha256:d4a8cf22a634938a6e24b720b131325865b990b5b390392bd021bd49740cdc54`。
 - tar SHA256：`3a4c4c6c44ed44da0d5c18b068550d7ef135c55dbc5d25dccdf4ab080a6cef8b`；StartedAt `2026-09-09T10:33:40.541865144Z`。标准构建、上传、校验、dry run、发布、readiness及挂载核验通过。备份、回滚版本及验证见[发布证据](implementation/evidence/UAT_RELEASE_1570985359_20260909.md)。
