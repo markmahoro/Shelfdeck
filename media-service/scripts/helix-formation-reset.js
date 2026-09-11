@@ -263,17 +263,17 @@ function discoverScope(database, options = {}) {
     const inventory = database.prepare("SELECT 1 FROM fx_material_controls c JOIN arca_inventory_materials i USING(material_key) WHERE c.owner_domain='arca' AND c.owner_scope_type='on_deck_custody' AND c.owner_scope_id=? LIMIT 1").get(id);
     if (inventory) throw new Error('FORMATION_RESET_ORPHAN_CUSTODY_INVENTORY_PROTECTED');
   }
-  const orphanPipelineTokens = globalOnly(database.prepare(`
+  const orphanPipelineTokens = database.prepare(`
     SELECT token.subject_id,token.source_field_id,token.source_process_id,token.acquired_at_ms
       FROM libra_predeck_pipeline_tokens token
       LEFT JOIN libra_subjects subject ON subject.subject_id=token.subject_id
      WHERE subject.subject_id IS NULL
      ORDER BY token.subject_id
-  `).all());
+  `).all().filter(row => !scoped || selected.includes(row.subject_id));
   const orphanPipelineTokenSubjectIds = unique(orphanPipelineTokens.map((row) => row.subject_id));
   const orphanPipelineSourceProcessIds = unique(orphanPipelineTokens.map((row) => row.source_process_id));
-  const orphanPipelineAdmissionReceipts = globalOnly(database.prepare(`
-    SELECT receipt.command_receipt_id,receipt.target_id,token.source_process_id
+  const orphanPipelineAdmissionReceipts = database.prepare(`
+    SELECT receipt.command_receipt_id,receipt.target_id,token.source_process_id,token.subject_id
       FROM libra_predeck_pipeline_tokens token
       LEFT JOIN libra_subjects subject ON subject.subject_id=token.subject_id
       JOIN fx_command_receipts receipt
@@ -283,7 +283,7 @@ function discoverScope(database, options = {}) {
       LEFT JOIN fx_supporting_works target_work ON target_work.work_id=receipt.target_id
      WHERE subject.subject_id IS NULL AND target_work.work_id IS NULL
      ORDER BY receipt.command_receipt_id
-  `).all());
+  `).all().filter(row => !scoped || selected.includes(row.subject_id));
   const orphanPipelineAdmissionReceiptIds = unique(orphanPipelineAdmissionReceipts.map((row) => row.command_receipt_id));
   const orphanPipelineAdmissionTargetIds = unique(orphanPipelineAdmissionReceipts.map((row) => row.target_id));
   const phantomLibraAdmissionReceipts = globalOnly(database.prepare(`
@@ -1146,7 +1146,8 @@ function verifyFrozenManifest(database, manifest) {
   assertIdsAbsent(database, 'fx_commit_markers', 'commit_marker', graph.markerIds, residual);
   assertIdsAbsent(database, 'fx_artifact_registry', 'artifact_handle_id', scope.artifactIds, residual);
   assertIdsAbsent(database, 'fx_command_receipts', 'command_receipt_id',
-    unique([...graph.commandReceiptIds, ...scope.phantomLibraAdmissionReceiptIds]), residual);
+    unique([...graph.commandReceiptIds, ...scope.phantomLibraAdmissionReceiptIds,
+      ...scope.orphanPipelineAdmissionReceiptIds]), residual);
 
   const residualWorks = selectWorksByProcessScopes(database, scope.processScopes);
   if (residualWorks.length) residual.typedProcessWorks = residualWorks;
@@ -1250,6 +1251,7 @@ function applyFormationReset(database, plan, nowMs) {
     const deletedWorks = deleteExecutionGraph(database, graph);
     const retiredSupersededOfferMessages = retireSupersededOfferMessages(database, scope.preservedSupersededHandoffAClosures);
     executeByIds(database, 'DELETE FROM fx_command_receipts WHERE command_receipt_id IN', scope.phantomLibraAdmissionReceiptIds);
+    executeByIds(database, 'DELETE FROM fx_command_receipts WHERE command_receipt_id IN', scope.orphanPipelineAdmissionReceiptIds);
     executeByIds(database, 'DELETE FROM fx_artifact_references WHERE artifact_handle_id IN', scope.artifactIds);
     executeByIds(database, 'DELETE FROM fx_artifact_registry WHERE artifact_handle_id IN', scope.artifactIds);
     const controlRollback = rollbackControls(database, scope);
