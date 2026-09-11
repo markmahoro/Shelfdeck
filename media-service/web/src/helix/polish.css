@@ -275,6 +275,8 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--accent); }
 .source-page:not(.workbench) details[open] > summary::after { transform: rotate(225deg); }
 .overview-page .background-status { position: relative; padding: 0; }
 .overview-page .background-status > summary { padding: 8px 12px; min-height: 36px; }
-.overview-page .background-status-popup { position: absolute; top: calc(100% + 8px); right: 0; z-index: 30; width: 680px; max-width: calc(100vw - 48px); padding: 20px; border: 1px solid var(--line); border-radius: 8px; background: var(--paper); box-shadow: 0 8px 24px #182b3c20; }
+.overview-page .background-status-popup { position: absolute; top: calc(100% + 8px); right: 0; z-index: 30; width: 680px; max-width: calc(100vw - 48px); max-height: calc(100vh - 120px); overflow-y: auto; padding: 20px; border: 1px solid var(--line); border-radius: 8px; background: var(--paper); box-shadow: 0 8px 24px #182b3c20; }
 .overview-page .background-status-popup > p { margin: 0 0 12px; }
 .overview-page .background-status-popup .background-status-detail { padding: 0; }
+.overview-page .background-status-detail > div { grid-template-columns: minmax(100px, 1fr) max-content 160px minmax(100px, 1fr); }
+.overview-page .background-status-detail .ui-state { white-space: nowrap; }

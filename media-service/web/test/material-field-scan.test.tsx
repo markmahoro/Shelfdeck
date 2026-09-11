@@ -28,11 +28,10 @@ const accepted={observation:{observationWorkId:'scan-new',fieldId:'field-1',stat
 it('keeps one failed state and the rescan action when no specific reason is available',async()=>{
   const value=field();
   value.procurementStatus.observationScan!.failureMessage=undefined;
-  const {container}=mount({value});
+  mount({value});
   expect(await screen.findByRole('button',{name:'扫描新文件'})).toBeEnabled();
-  (container.querySelector('.source-operating-detail') as HTMLDetailsElement).open=true;
   expect(screen.getAllByText('扫描失败',{exact:true})).toHaveLength(1);
-  expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  expect(screen.getByRole('alert')).toHaveTextContent('扫描失败');
 });
 
 it('retries an uncertain request with the same key, then gives a new action a new key',async()=>{
@@ -51,8 +50,7 @@ it('retries an uncertain request with the same key, then gives a new action a ne
 it('blocks duplicate clicks and drops the old failure when the new scan is running or complete',async()=>{
   const current={value:field()};let resolve!:(result:ProcurementJourneyResult)=>void;
   const scan=vi.spyOn(helixAdminApi,'observeMaterialField').mockImplementation(()=>new Promise(r=>{resolve=r;}));
-  const {container}=mount(current);const button=await screen.findByRole('button',{name:'扫描新文件'});
-  const details=container.querySelector('.source-operating-detail') as HTMLDetailsElement;details.open=true;
+  mount(current);const button=await screen.findByRole('button',{name:'扫描新文件'});
   expect(screen.getAllByText('扫描超时')).toHaveLength(1);
   act(()=>{fireEvent.click(button);fireEvent.click(button);});expect(scan).toHaveBeenCalledTimes(1);
   current.value={...current.value,procurementStatus:{...current.value.procurementStatus,

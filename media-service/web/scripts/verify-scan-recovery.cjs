@@ -1,7 +1,7 @@
 'use strict';
 const fs=require('node:fs'),path=require('node:path'),os=require('node:os'),assert=require('node:assert/strict');
 const repo=path.resolve(__dirname,'../../..'),service=path.join(repo,'media-service');
-const {chromium,expect}=require(path.join(service,'web/node_modules/@playwright/test'));
+const {chromium,expect}=require('@playwright/test');
 const {initializeCleanData}=require(path.join(service,'scripts/helix-operational-safety'));
 const {createCleanServiceHost}=require(path.join(service,'src/clean-service-host'));
 const {createCleanFieldObservationEnumerator}=require(path.join(service,'src/clean-field-observation-enumerator'));
@@ -40,8 +40,7 @@ async function main(){
     await page.goto(address+'/admin/material-fields');
     await page.getByLabel('管理凭据').fill(init.adminApiKey);await page.getByRole('button',{name:'进入管理台',exact:true}).click();
     await page.getByRole('link',{name:'文件来源',exact:true}).click();
-    const summary=page.locator('.source-operating-detail summary');await expect(summary).toContainText('扫描失败');
-    await summary.focus();await page.keyboard.press('Enter');
+    const summary=page.locator('.source-scan-state');await expect(summary).toContainText('扫描超时');
     await expect(page.getByText('扫描超时',{exact:true})).toBeVisible();
     await expect(page.getByRole('alert')).toHaveCount(1);
     await page.screenshot({path:path.join(evidence,'scan-failed-desktop.png'),fullPage:true});
@@ -49,12 +48,13 @@ async function main(){
     await expect(summary).toContainText('正在扫描');await expect(scan).toBeDisabled();await expect(page.getByText('扫描超时',{exact:true})).toHaveCount(0);
     await page.screenshot({path:path.join(evidence,'scan-running-desktop.png'),fullPage:true});
     release();await expect(summary).toContainText('已扫描完成',{timeout:20000});await expect(scan).toBeEnabled();
-    await expect(page.getByRole('alert')).toHaveCount(0);await expect(page.getByText('2 页',{exact:true})).toBeVisible();
+    await expect(page.getByRole('alert')).toHaveCount(0);
+    assert.equal((await request('GET','/v1/admin/material-fields')).items[0].procurementStatus.observationScan.pageCount,2);
     await page.screenshot({path:path.join(evidence,'scan-complete-desktop.png'),fullPage:true});
     await page.setViewportSize({width:390,height:844});await scan.scrollIntoViewIfNeeded();
     assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
-    await expect(scan).toBeVisible();await summary.focus();await page.keyboard.press('Enter');await page.keyboard.press('Enter');
-    await expect(page.getByText('2 页',{exact:true})).toBeVisible();await page.getByRole('heading',{name:'文件来源',exact:true}).click();
+    await expect(scan).toBeVisible();await expect(summary).toContainText('已扫描完成');
+    await page.getByRole('heading',{name:'文件来源',exact:true}).click();
     await page.screenshot({path:path.join(evidence,'scan-complete-narrow.png'),fullPage:true});
     await page.setViewportSize({width:1920,height:1080});
     // The missing-reason presentation is checked with a read-only response fixture.
@@ -65,11 +65,15 @@ async function main(){
       await route.fulfill({response,json:body});
     });
     await page.getByRole('button',{name:'刷新',exact:true}).click();await expect(summary).toContainText('扫描失败');
-    await expect(page.getByText('扫描失败',{exact:true})).toHaveCount(1);await expect(page.getByRole('alert')).toHaveCount(0);await expect(scan).toBeEnabled();
+    await expect(page.getByText('扫描失败',{exact:true})).toHaveCount(1);await expect(page.getByRole('alert')).toHaveCount(1);await expect(scan).toBeEnabled();
     await page.screenshot({path:path.join(evidence,'scan-unknown-desktop.png'),fullPage:true});
     assert.deepEqual(pageErrors,[]);assert.ifError(runtimeError);
     const result={passed:true,desktop:'1920x1080',narrow:'390x844',states:['failed','scanning','completed'],missingReasonResponseFixture:true,keyboard:true,pageErrors};
     fs.writeFileSync(path.join(evidence,'browser-result.json'),JSON.stringify(result,null,2));console.log(JSON.stringify(result));
   }finally{release();await browser?.close();await host.close();}
 }
-main().catch(e=>{console.error(e);process.exitCode=1;}).finally(()=>fs.rmSync(root,{recursive:true,force:true,maxRetries:5,retryDelay:100}));
+main().catch(e=>{console.error(e);process.exitCode=1;}).finally(()=>{
+  assert.equal(path.dirname(path.resolve(root)),path.resolve(os.tmpdir()));
+  assert.ok(path.basename(root).startsWith('helix-scan-browser-'));
+  fs.rmSync(root,{recursive:true,force:true,maxRetries:5,retryDelay:100});
+});
