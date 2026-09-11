@@ -1,0 +1,72 @@
+const recycleErrors: Record<string, string> = {
+  ARCA_RECYCLE_SOURCE_IN_USE: '文件仍在使用，已保留',
+  ARCA_RECYCLE_PRIMARY_PRESENT: '目录仍含影片文件，已保留',
+  ARCA_RECYCLE_SOURCE_NOT_BOUND: '无法确认目录属于这部影片',
+  ARCA_RECYCLE_ROOT_OVERLAP: '回收目录与媒体目录重叠，请检查目录配置',
+  ARCA_RECYCLE_SCOPE_TOO_LARGE: '目录文件过多或体积过大',
+  ARCA_RECYCLE_SYMLINK: '目录包含链接，无法安全移动',
+  ARCA_RECYCLE_SPECIAL_FILE: '目录包含无法移动的特殊文件',
+  ARCA_RECYCLE_NOT_DIRECTORY: '所选位置不是文件夹',
+  ARCA_RECYCLE_SOURCE_INVALID: '目录位置无效',
+  ARCA_RECYCLE_SOURCE_CHANGED: '原目录内容已变化，请刷新后重新确认',
+  ARCA_RECYCLE_CONTENT_CHANGED: '文件内容已变化，处理已暂停',
+  ARCA_RECYCLE_CONFIRMATION_STALE: '文件清单已变化，请刷新后重新确认',
+  ARCA_RECYCLE_CHECK_SCOPE_CHANGED: '影片目录已变化，请重新检查',
+  ARCA_RECYCLE_CHECK_CHANGED: '检查结果已更新，请刷新',
+  ARCA_RECYCLE_MANIFEST_CHANGED: '文件清单已变化，处理已暂停',
+  ARCA_RECYCLE_MANIFEST_INVALID: '文件清单无效，请重新检查',
+  ARCA_RECYCLE_STATE_CHANGED: '回收状态已更新，请刷新',
+  ARCA_RECYCLE_TARGET_EXISTS: '目标位置已有文件，无法覆盖',
+  ARCA_RECYCLE_BOTH_LOCATIONS_MISSING: '原目录和回收目录均不存在',
+  ARCA_RECYCLE_COPY_CONFLICT: '复制结果与原文件不一致，处理已暂停',
+  ARCA_RECYCLE_COPY_FAILED: '文件复制失败',
+  ARCA_RECYCLE_IO_FAILED: '文件读写失败，请检查目录访问权限',
+  ARCA_RECYCLE_PATH_ESCAPE: '文件超出已确认的目录范围',
+  ARCA_RECYCLE_NOT_FOUND: '回收记录不存在，请刷新',
+  ARCA_RECYCLE_ENTRY_NOT_FOUND: '收藏记录不存在，请刷新',
+  ARCA_RECYCLE_SOURCE_ALREADY_QUEUED: '此目录已在回收队列中',
+  ARCA_RECYCLE_NOT_ARCHIVED: '文件尚未移入回收站，暂不能恢复',
+  ARCA_RECYCLE_NOT_EXPIRED: '文件仍在保留期内',
+  ARCA_RECYCLE_OPERATION_INVALID: '当前状态暂不支持此操作，请刷新',
+  ARCA_RECYCLE_EFFECT_CONFLICT: '回收处理记录不一致，处理已暂停',
+  ARCA_RECYCLE_KEY_CONFLICT: '回收请求与已有记录不一致，请刷新',
+  EACCES: '没有目录访问权限',
+  EPERM: '没有文件操作权限',
+  ENOENT: '文件或目录不存在',
+  ENOSPC: '目标磁盘空间不足',
+  EBUSY: '文件正被其他程序占用',
+};
+
+export function recycleErrorLabel(code: string) {
+  return recycleErrors[code] || '回收处理未完成，请刷新后重试';
+}
+
+const networkErrors: Record<string, string> = {
+  ENOTFOUND: '无法找到服务地址',
+  EAI_AGAIN: '暂时无法解析服务地址',
+  ECONNREFUSED: '服务拒绝连接',
+  ECONNRESET: '网络连接中断',
+  ETIMEDOUT: '网络请求超时',
+  ENETUNREACH: '网络不可达',
+  EHOSTUNREACH: '服务主机不可达',
+  UND_ERR_CONNECT_TIMEOUT: '连接服务超时',
+  UND_ERR_HEADERS_TIMEOUT: '等待服务响应超时',
+  UND_ERR_SOCKET: '网络连接中断',
+  CERT_HAS_EXPIRED: '服务证书已过期',
+  DEPTH_ZERO_SELF_SIGNED_CERT: '服务证书不受信任',
+  UNABLE_TO_VERIFY_LEAF_SIGNATURE: '无法验证服务证书',
+  ERR_TLS_CERT_ALTNAME_INVALID: '服务证书与地址不匹配',
+};
+
+export function networkErrorLabel(code: string) {
+  return networkErrors[code] || '网络连接失败';
+}
+
+export function processFailureLabel(code: string, message?: string) {
+  const known: Record<string, string> = {
+    RECOVERY_EXECUTION_BUDGET_EXHAUSTED: '恢复处理超过允许时长',
+    CLEAN_ARCA_STAGE_TARGET_OCCUPIED: '写入目标已被占用',
+  };
+  return known[code] || networkErrors[code] || recycleErrors[code]
+    || (message && /[\u3400-\u9fff]/.test(message) && !message.includes(code) ? message : '具体失败原因暂不可用');
+}

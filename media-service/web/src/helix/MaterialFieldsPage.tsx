@@ -242,7 +242,6 @@ export default function MaterialFieldsPage() {
           </dl>
         </details>}
         {field.status === 'active' && <RoutingPolicyPanel field={field} shelves={shelves} />}
-        <details><summary>技术标识</summary><code>{field.fieldId}</code><code>{field.access.endpointId}</code><code>{field.access.mountScopeId}</code></details>
       </article>;
       })}
     </div>

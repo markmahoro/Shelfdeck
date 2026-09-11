@@ -146,7 +146,7 @@ export default function OffdeckRulesPanel() {
           {draft.kind === 'disliked_person' && !draft.unknownCondition && <span className="ui-state">已有设置 · 只读</span>}
           {(draft.kind === 'unresolved_care' || draft.kind === 'retention_age') && !draft.unknownCondition && <label><span>最少天数</span><input type="number" min={1} value={draft.minimumAgeDays} onChange={(event) => updateRule(index, { minimumAgeDays: Number(event.target.value) })} /></label>}
         </div>
-        {draft.unknownCondition && <details><summary>技术查看</summary><pre>{JSON.stringify(draft.unknownCondition, null, 2)}</pre></details>}
+        {draft.unknownCondition && <span className="ui-state">当前规则暂不支持编辑</span>}
         <Button type="button" onClick={() => setRuleDrafts((items) => items.filter((_, i) => i !== index))}>去掉这条规则</Button>
       </article>)}
       <div className="button-row">

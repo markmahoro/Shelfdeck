@@ -199,10 +199,9 @@ function GhostStoryDetail() {
             <ResultLine title="确认正式收藏" result="尚未建立收藏记录。" state="pending" />
           </ol>
           <div className="formation-process-attention">
-            <div><strong>恢复目录或修改收藏位置后，可以重新发起收藏架验收。</strong><small>错误代码和执行证据保留在技术诊断中。</small></div>
+            <div><strong>恢复目录或修改收藏位置后，可以重新发起收藏架验收。</strong></div>
             <Button type="button">检查收藏架配置</Button>
           </div>
-          <details className="formation-diagnostic"><summary>技术诊断</summary><code>CLEAN_ARCA_TARGET_ROOT_UNAVAILABLE</code></details>
         </div>
       </details>
     </div>

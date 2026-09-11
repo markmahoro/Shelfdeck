@@ -140,7 +140,6 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--accent); }
 .recycle-panel .ui-card { display: grid; gap: 12px; }
 .recycle-panel .ui-card > .btn { justify-self: start; }
 .recycle-panel .ui-card > p { margin: 0; }
-.cleanup-checks code { color: var(--muted); font-family: inherit; }
 
 /* Status is a compact label; feedback is a full, bounded message. */
 .ui-state, .source-state, .integration-state, .people-card-title span {

@@ -32,7 +32,7 @@ export default function RecycleSettings() {
     {error && <p className="form-error" role="alert">{error}</p>}
     {entries.length>0 && <label>影片<select value={selected} onChange={event=>setSelected(event.target.value)}>
       <option value="">选择影片</option>
-      {entries.map(entry=><option key={entry.shelfEntryId} value={entry.shelfEntryId}>{entry.displayIdentity || entry.shelfEntryId}</option>)}
+      {entries.map(entry=><option key={entry.shelfEntryId} value={entry.shelfEntryId}>{entry.displayIdentity || '未命名影片'}</option>)}
     </select></label>}
     {cursor && <Button type="button" disabled={loading} onClick={()=>void load(cursor)}>加载更多收藏</Button>}
     {selected && <RecyclePanel key={selected} shelfEntryId={selected} />}

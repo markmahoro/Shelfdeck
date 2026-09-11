@@ -21,7 +21,7 @@ const triggers:Record<string,string>={max_size_exceeded:'建单时影片体积�
 function triggerText(item:CareWorkItem){return [...new Set(item.goals.map(goal=>goal.split(/[/:]/).map(part=>triggers[part]).find(Boolean)||'建单时发现收藏要求未满足，具体依据见处理步骤。'))].join(' ');}
 function isTerminal(item:CareWorkItem){return ['resolved','unresolved','invalidated'].includes(item.state);}
 function actionDetail(item:CareWorkItem){if(isTerminal(item))return null;const action=item.progress?.currentAction;return action?[action.statusText,action.progress?progressDetail(action.progress):null].filter(Boolean).join(' · '):null;}
-function reasonText(item:CareWorkItem){return item.reasonCode?(reasons[item.reasonCode]||'本次处理已结束，具体原因见处理步骤与技术信息。'):null;}
+function reasonText(item:CareWorkItem){return item.reasonCode?(reasons[item.reasonCode]||'本次处理已结束，具体原因见处理步骤。'):null;}
 function time(value:number|null){return value?new Intl.DateTimeFormat('zh-CN',{dateStyle:'medium',timeStyle:'short'}).format(value):'—';}
 function bytes(value:number){return `${(value/1073741824).toFixed(2)} GiB`;}
 function objectiveText(item:CareWorkItem){
@@ -68,11 +68,10 @@ export function CareWorkDetail({item,error=''}:{item:CareWorkItem;error?:string}
       <p>开始于 {time(item.createdAtMs)}{item.terminalAtMs?`；结束于 ${time(item.terminalAtMs)}`:''}</p>
       {item.currentHealth!==undefined&&<p><strong>{currentHealthText(item)}</strong>。历史维护结果保留；当前是否需要处理以收藏的最新检查为准。</p>}
       {item.currentHealth?.healthState==='unhealthy'&&<div><p>当前问题仍保留在“我的收藏”的健康状态中；本条历史任务已停止，不会继续执行。</p>
-        <ul>{Object.entries(item.currentHealth.dimensions||{}).flatMap(([dimension,value])=>value.findings.map(finding=><li key={finding.findingId}>{({custody:'文件保管',presentation:'资料完整性',conformance:'收藏要求'} as Record<string,string>)[dimension]}：{finding.findingKind.split(/[/:]/).map(part=>({max_size_exceeded:'影片体积超过当前收藏上限',video_codec_unmet:'视频编码不满足当前要求',old_binding_identity_changed:'原位置文件与旧材料记录不一致',nfo_missing:'缺少必需的NFO',poster_missing:'缺少必需的海报'} as Record<string,string>)[part]).find(Boolean)||'检查发现问题，需查看当前健康依据'}<details><summary>检查代码</summary>{finding.findingKind}</details></li>))}</ul>
+        <ul>{Object.entries(item.currentHealth.dimensions||{}).flatMap(([dimension,value])=>value.findings.map(finding=><li key={finding.findingId}>{({custody:'文件保管',presentation:'资料完整性',conformance:'收藏要求'} as Record<string,string>)[dimension]}：{finding.findingKind.split(/[/:]/).map(part=>({max_size_exceeded:'影片体积超过当前收藏上限',video_codec_unmet:'视频编码不满足当前要求',old_binding_identity_changed:'原位置文件与旧材料记录不一致',nfo_missing:'缺少必需的NFO',poster_missing:'缺少必需的海报'} as Record<string,string>)[part]).find(Boolean)||'检查发现问题，需查看当前健康依据'}</li>))}</ul>
         <Link to="/collection">查看我的收藏</Link></div>}
     </section>
     {progress?.mode==='determinate'&&progress.totalValue>0&&<div className="formation-stub-progress"><progress aria-label="维护进度" max={progress.totalValue} value={progress.currentValue}/><small>{item.progress?.progressPercent}%</small></div>}
     {item.processDetail?.contract==='aftercare_process_actual_plans@1'?<ProcessStages stages={item.processDetail.stages}/>:error?<p role="alert">{error}</p>:<p role="status">正在读取维护计划…</p>}
-    {item.reasonCode&&<details><summary>技术信息</summary><p>{item.reasonCode}</p></details>}
   </article>;
 }

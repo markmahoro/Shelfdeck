@@ -474,7 +474,6 @@ export default function ShelvesPage() {
           <Button type="button" onClick={() => openPlacement(shelf)}>调整目录布局</Button>
           <Button variant="danger" type="button" onClick={(event) => { deregistrationTrigger.current = event.currentTarget; setConfirmShelf(shelf); setEnteredShelfName(''); setPreserveFilesAcknowledged(false); setReleaseControlAcknowledged(false); }}>注销收藏架</Button>
         </div>}
-        <details><summary>技术标识</summary><code>{shelf.shelfId}</code><code>{shelf.target.endpointId}</code><code>{shelf.target.mountScopeId}</code></details>
         {shelf.status === 'deregistering' && shelf.deregistrationSummary.process?.blockingReason && <p className="form-neutral" role="status">{shelf.deregistrationSummary.process.blockingReason}</p>}
       </article>)}
     </div>
@@ -484,7 +483,6 @@ export default function ShelvesPage() {
       {deregisteredShelves.map((shelf) => <article className="source-row" key={shelf.shelfId}>
         <div><strong>{shelf.name}</strong><small>{shelf.target.rootLocation}</small></div>
         <div><span>{shelfStatusLabel(shelf.status)}</span><small>{shelf.deregistrationSummary.entryCount} 条原收藏记录</small></div>
-        <details><summary>技术标识</summary><code>{shelf.shelfId}</code></details>
       </article>)}
     </details>}
     {placementShelf && <div className="dialog-scrim" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setPlacementShelf(null); }}>

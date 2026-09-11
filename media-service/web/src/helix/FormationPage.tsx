@@ -10,6 +10,7 @@ import RatingControl from './RatingControl';
 import { CareWorkRow, CareWorkDetail } from './CareWorkRow';
 import type { CareWorkItem } from './api';
 import { isUnauthorized, useSession } from './session';
+import { networkErrorLabel } from './error-labels';
 
 const emptySummary: FormationSummary = { totalCount:0, inProgressCount:0, attentionRequiredCount:0, completedCount:0 };
 type Filter = 'all'|'in_progress'|'attention_required'|'ended';
@@ -64,17 +65,19 @@ function ratingText(item:FormationSubject, acquisitionIncomplete:boolean) {
 
 function ProcessDetail({ item, loading=false, error='' }:{ item:FormationSubject; loading?:boolean; error?:string }) {
   const detail=item.processDetail;
+  const failureNotes=[...new Map((item.failureDiagnostics||[]).map(f=>{
+    const d=f.diagnostics;
+    return [JSON.stringify([d?.sourceDirectory,d?.unknownNames,d?.truncated,d?.unknownMemberCount,Boolean(d?.field),d?.networkCode,Boolean(d?.timeout),f.diagnosticsUnavailable]),f];
+  })).values()];
   return <article className="formation-process-card" aria-label={`${item.displayIdentity}的媒体整理过程`}>
     <header className="formation-process-head"><div><span className="formation-process-eyebrow">媒体整理过程</span><h3>{item.displayIdentity}</h3><p>{currentProgressLabel(item)}</p></div><span className="formation-process-status" data-state={stageState(item)}>{statusLabel(item)}</span></header>
-    {item.failureDiagnostics?.map(f=><section key={f.eventId} role="note">
-      <strong>{f.code}</strong>
-      {f.diagnosticsUnavailable&&<p>该次失败的详细证据不可用；需要新的执行观察。</p>}
+    {failureNotes.map(f=><section key={f.eventId} role="note">
+      {(f.diagnosticsUnavailable||!f.diagnostics||!f.diagnostics.sourceDirectory&&!f.diagnostics.unknownNames?.length&&!f.diagnostics.field&&!f.diagnostics.networkCode&&!f.diagnostics.timeout)&&<p>具体失败原因暂不可用</p>}
       {f.diagnostics?.sourceDirectory&&<p>{f.diagnostics.sourceDirectory}</p>}
-      {Boolean(f.diagnostics?.unknownNames?.length)&&<ul>{f.diagnostics?.unknownNames?.map((name,index)=><li key={index}>{name}</li>)}</ul>}
+      {Boolean(f.diagnostics?.unknownNames?.length)&&<><p>目录中存在未确认文件</p><ul>{f.diagnostics?.unknownNames?.map((name,index)=><li key={index}>{name}</li>)}</ul></>}
       {f.diagnostics?.truncated&&<p>共 {f.diagnostics.unknownMemberCount} 项，以上为部分列表。</p>}
-      {f.diagnostics?.field&&<p>冲突字段：{f.diagnostics.field}</p>}
-      {f.diagnostics?.reasonCode&&<p>原因：{f.diagnostics.reasonCode}</p>}
-      {f.diagnostics?.networkCode&&<p>网络原因：{f.diagnostics.networkCode}</p>}
+      {f.diagnostics?.field&&<p>处理依据存在冲突</p>}
+      {f.diagnostics?.networkCode&&!f.diagnostics.timeout&&<p>{networkErrorLabel(f.diagnostics.networkCode)}</p>}
       {f.diagnostics?.timeout&&<p>请求超时</p>}
     </section>)}
     <dl className="formation-process-facts"><div><dt>目标收藏架</dt><dd>{item.targetShelfName || '尚未选定'}</dd></div><div><dt>收藏要求</dt><dd>{item.organizingRequirement}</dd></div><div><dt>当前进展</dt><dd>{currentProgressLabel(item)}</dd></div></dl>

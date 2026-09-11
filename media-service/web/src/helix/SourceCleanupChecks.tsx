@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { helixAdminApi, type SourceCleanupCheck } from './api';
 import { Button } from './chrome';
 import { isUnauthorized, useSession } from './session';
+import { recycleErrorLabel } from './error-labels';
 
 const labels:Record<string,string>={absent:'目录不存在',archived:'已移入回收站',purged:'已到期清理',recycle_pending:'回收未完成',awaiting_confirmation:'剩余文件待确认',retained_in_use:'仍在使用 · 已保留',retained_after_restore:'已请求恢复 · 保留',blocked:'检查未完成'};
 
@@ -24,7 +25,7 @@ export default function SourceCleanupChecks({onInspect}:{onInspect:(id:string)=>
       <p className="ui-state" data-state={item.state}>{item.state==='completed'?'检查已结束':item.state==='attention'?'需要确认':'等待收尾'}</p>
       {item.checks.map((check,index)=><div key={check.sourceLocation||index}>
         {check.sourceLocation&&<p style={{overflowWrap:'anywhere'}}>{check.sourceLocation}</p>}
-        <p>{labels[check.state]||check.state}{check.errorCode && <code> · {check.errorCode}</code>}</p>
+        <p>{check.state==='blocked'&&check.errorCode?recycleErrorLabel(check.errorCode):labels[check.state]||'状态暂不可用'}</p>
       </div>)}
       {item.state!=='completed'&&<Button type="button" onClick={()=>onInspect(item.shelfEntryId)}>检查这部影片的具体清单</Button>}
     </section>)}

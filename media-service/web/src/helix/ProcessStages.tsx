@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, type ReactNode } from 'react';
 import type { FormationSubject } from './api';
+import { processFailureLabel } from './error-labels';
 
 export function ProcessDialog({title,onClose,children}:{title:string;onClose:()=>void;children:ReactNode}) {
   const titleId=useId(),closeRef=useRef<HTMLButtonElement>(null),close=useRef(onClose);
@@ -53,8 +54,10 @@ function processPlanState(state:ProcessPlan['state'],failed:boolean) { return st
 function processNodeState(state:ProcessNode['state']) { return state==='completed'?'已完成':state==='running'?'进行中':state==='failed'?'失败':state==='cancelled'?'未执行':state==='skipped'?'无需执行':'等待中'; }
 function ProcessNodeRow({node}:{node:ProcessNode}) {
   const mark=node.state==='completed'?'✓':node.state==='failed'?'×':node.state==='running'?'●':'○';
-  return <li className="formation-plan-node" data-state={node.state}><span className="formation-plan-node-mark" aria-hidden="true">{mark}</span><div className="formation-plan-node-main"><strong>{node.label}</strong><p>{node.description}</p>
-    {node.results.length>0&&<dl className="formation-plan-results">{node.results.map((fact)=><div key={`${fact.label}:${fact.value}`}><dt>{fact.label}</dt><dd>{fact.value}</dd></div>)}</dl>}
+  const failureCode=node.results.find(fact=>fact.label==='失败代码')?.value;
+  const results=node.results.filter(fact=>fact.label!=='失败代码').map(fact=>failureCode&&fact.label==='失败原因'?{...fact,value:processFailureLabel(failureCode,fact.value)}:fact);
+  return <li className="formation-plan-node" data-state={node.state}><span className="formation-plan-node-mark" aria-hidden="true">{mark}</span><div className="formation-plan-node-main"><strong>{node.label}</strong>{!failureCode&&<p>{node.description}</p>}
+    {results.length>0&&<dl className="formation-plan-results">{results.map((fact)=><div key={`${fact.label}:${fact.value}`}><dt>{fact.label}</dt><dd>{fact.value}</dd></div>)}</dl>}
     {node.progress?.mode==='determinate'&&node.progress.totalValue?<div className="formation-stub-progress"><progress max={node.progress.totalValue} value={node.progress.currentValue||0} aria-label={`${node.label}进度`} /><small>{progressDetail(node.progress)}</small></div>:null}
     {node.technicalDetail&&<details className="formation-transcode-detail"><summary>查看处理详情</summary><div className="formation-transcode-detail-body"><p>{node.technicalDetail.summary}</p>{node.technicalDetail.fields.length>0&&<dl className="formation-transcode-grid">{node.technicalDetail.fields.map((fact)=><div key={fact.label}><dt>{fact.label}</dt><dd>{fact.value}</dd></div>)}</dl>}{node.technicalDetail.parameters.length>0&&<details className="formation-transcode-parameters"><summary>查看执行参数</summary><dl>{node.technicalDetail.parameters.map((fact)=><div key={fact.label}><dt>{fact.label}</dt><dd>{fact.value}</dd></div>)}</dl></details>}</div></details>}
   </div><span className="formation-plan-node-state">{node.statusText || processNodeState(node.state)}</span></li>;
