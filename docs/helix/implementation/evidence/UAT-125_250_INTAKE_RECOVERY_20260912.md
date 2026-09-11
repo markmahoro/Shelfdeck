@@ -190,3 +190,15 @@ Linux使用现有`83235c9260`镜像的Node/dependencies，源码、测试、scri
 新流程通过后，复制原一致生产备份再做只读Owner port/schema检查：820个open Offer中815匹配、恰好5个旧Candidate失配，共23个Primary（admitted revision 4/current 1）。7组受保护表全行摘要前后相同。结果在`%TEMP%/shelfdeck-intake-recovery-20260912/control-backup-audit.json`；副本为同目录`control-audit-AaxnUx/shelfdeck.db`。该检查真实使用CandidateDeliveryService、Foundation projection port、新scoped observer及typed validators，**没有模拟NAS物理文件验证、写入正式拒绝事务或运行旧队列端到端恢复**。第一批的两Token精确Reset副本演练仍有效；旧队列完整恢复、最新备份、部署后生产验收及《人生密密缝》两文件隔离/上架重试由部署任务安排，UAT-125/250不因此关闭。
 
 本批原始测试输出在系统临时目录：`shelfdeck-control-architecture-final.log`、`shelfdeck-control-host-final.log`、`shelfdeck-control-cas.log`、`shelfdeck-control-linux.log`、`shelfdeck-control-final-check.log`。本任务不执行生产部署、Reset或文件隔离。
+
+## 最新 cd4f 副本恢复演练：前半段
+
+2026-09-12 从运行中 `markmahoro/shelfdeck:helix-beta-20260912-cd4f3f5b2d` 取得只读一致备份。独立容器将生产 data 只读挂载，SQLite 固定读事务后 backup 到明确的 test-runs 子目录；生产容器、业务库和媒体未改动。快照时间 `2026-09-11T21:01:23.370Z`，940,773,376 bytes，SHA256 `1f4f90753df7cf0806121acbed57d6604289ce8c286ce439ba586bdcca6f4003`，970 个 Delivery = 834 open / 128 accepted / 8 rejected。下载后重新核验 SHA256，再复制到本地独立演练目录。
+
+真实 Reset 工具仅选择上文两个 Token，未扩大 Subject/Offer/Workspace 范围。随后使用实际 Composition、Scheduler、Planner、EventRuntime、WorkLifecycle、Owner Reconciler 和 typed ports，逐个推进指定五个 Intake process。测试适配器只过滤 Scheduler 的真实候选行和 Intake Reader 的枚举范围；未启动全队列 Host/startup recovery。Material Verify 通过 SSH 调用 NAS 容器内原有 bounded fingerprint，只读原 23 个文件；inode、size、content fingerprint 全部与各自 immutable Delivery 一致。没有复制文件造成 inode 改变，没有合成 Evidence。
+
+结果：五个 Material Result 均正式持久化 Control mismatched Snapshot，随后五个 Rejection Work 成功，真实 Rejection Consumer 消费并幂等重放；23 个 Reservation 全部 `released/handoff_rejected`。Token 从 3 变为 1，无关 Fast X Token 逐字不变。89 张受保护表（包括全部 Arca/People/Perception、immutable Candidate、Control 和 Observation）全行 SHA256 前后相同；另外 965 个 Delivery 和无关 Supporting Work 逐字不变。最终 integrity_check=ok、foreign_key_check=0。
+
+边界：本次为限定五个 process 的真实执行轨集成演练，不声称完整 Host 启动；直接消费真实 Outbox envelope 验证了 Inbox/业务闭环，未执行 Outbox transport ACK。原始快照保留不动。普通选材调用在现有 Observation 上返回 `no_eligible_material`，符合 `availableForAutomaticRun` 的防回环合同：旧 Observation 不得成为新轮次，且拒绝完成时间不得晚于用于重新选材的 Observation 时间。必须在拒绝消费完成后运行新的真实完整 Field Observation，再验证普通选材；该后半段在本节记录时尚未完成，不得以修改时间戳或合成 Observation 代替。
+
+本地可复核材料位于 `%TEMP%/shelfdeck-intake-recovery-20260912/`：`fresh-ssh.cjs`（只读快照/媒体桥）、`prepare-fresh.cjs`（校验与隔离精确 Reset）、`rehearse-fresh.cjs`（真实执行轨）、`audit-fresh.cjs`（保护范围校验）；结果在 `fresh-cd4f/rehearsal/` 的 `reset-plan.json`、`reset-result.json`、`sources.json`、`closures.json`、`nas-observations.json`、`reselection.json`、`final-audit.json`。原始生产导出不进入 Git。上述脚本为本次本机有界操作材料，不能直接用于生产恢复。UAT-125/250 仍开放。
