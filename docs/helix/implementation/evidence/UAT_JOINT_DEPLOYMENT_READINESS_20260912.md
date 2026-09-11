@@ -91,3 +91,11 @@ cd4f3f5b2d已通过最终Web94/94、适用Linux39/39、完整备份与标准发�
 标准build-image.js已构建本地候选`markmahoro/shelfdeck:helix-beta-20260912-d7a6da2802`，tar SHA256 `291a20e18595f8f08916155eca8b184339c38c7496a6a86fa581f60bc6b08282`，构建Config digest `sha256:42f7b2d8ba5ba56472e014a224f728f5b536bd95ba0b585470ff74c13cdd626f`。尚未上传、部署或执行生产Reset；精确镜像Linux验证与最新旧队列隔离恢复演练继续补齐，125/250保持开放。现有首批完整备份是上线前83235c9260时点，不能作为扫描1294后的最新副本。
 
 该精确候选镜像随后完成Linux **117/117通过、0跳过**，约241秒，涵盖适用P8合同、上述组合流程、30项精确Reset及10项冲突隔离工具测试。服务源码、生成合同和依赖均来自镜像，仅只读挂载测试目录及镜像外的工作站quarantine operator；网络关闭，真实`/transcode`为临时tmpfs。未运行依赖Git历史的`p8-exit-auditor`文件（生产镜像不含git），该文件已在Windows完整架构检查中通过；没有放宽Reset路径保护或mock平台。日志为发布区`.codex/linux-control-20260912.log`，容器正常退出并由`--rm`回收。两条AbortSignal MaxListenersExceededWarning在首批同版测试日志已存在，本次保留记录，没有屏蔽告警。没有重跑完整FFmpeg/QSV长片E2E、Desktop/Worker或未变化的首批Web交互验收；本结果仍不替代最新历史队列恢复演练和生产业务验收。tar内manifest的Config与上述42f7b2d8一致，Docker Desktop本地OCI index为db127c87ace859ada3acf7537a11f2d8259903caa84e012a7d61c2d49341e726，不混作NAS Config ID。
+
+## 最新副本演练的顺序约束
+
+恢复任务报告最新cd4f一致副本SHA256为`1f4f90753df7cf0806121acbed57d6604289ce8c286ce439ba586bdcca6f4003`，970份Delivery（834 open、128 accepted、8 rejected）。在该隔离副本上仅Reset原两Token，通过实际Composition/Planner/EventRuntime、typed Owner ports及NAS原文件只读fingerprint完成5份旧Offer正式拒绝，真实consumer与幂等重放释放23条Reservation。以上为源任务阶段报告，完整保护表摘要、复用脚本及Evidence提交仍待接手核验；不把它写成生产恢复结果。
+
+普通再选材返回`no_eligible_material`。部署任务已核对`procurement-automation-service.js`的现行防回环实现：同一个Observation不能产生新Procurement轮次；`handoff_rejected`的`reservation_updated_at_ms >= terminalObservation.observed_at_ms`时不能复用旧Observation再选材。因此revision1294虽然真实扫描成功，但早于本次副本拒绝消费，不能作为后半段恢复证据。不得改时间戳、弱化guard或合成新Observation；已交原恢复任务继续同一隔离副本上的完整真实扫描与普通再选材。
+
+验收顺序固定为：精确两Token Reset → 新代码下5份正式拒绝及消息消费完成 → **晚于消费的新一轮完整Field Observation成功** → 普通再选材及席位周转。镜像启动自动扫描若早于消费完成，也不能替代这轮观察。需要显式触发时使用正式`POST /v1/admin/material-fields/:fieldId/actions/observe`，从当前Owner读数取得Access/Observation revision及独立idempotencyKey；若有活跃扫描则先等其终态，不绕过并发准入。生产处置仍待完整演练及现场预检；Reset只用原两项`--subject-ids`精确范围，当前标准NAS Reset wrapper与离线operator相对cd4f均无代码差异。发布及Reset各自的备份、plan、确认、完整性校验和标准deploy要求不因顺序安排省略。
