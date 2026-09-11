@@ -1,6 +1,6 @@
 # ShelfDeck 当前状态
 
-更新：2026-09-12。唯一条目及关闭条件入口为[UAT总表](UAT_ITERATION_REGISTER.md)，唯一排程为[CURRENT_PLAN](CURRENT_PLAN.md)。258项连续：68项本轮功能验收关闭、34项开放、153项历史关闭、220文档关闭、1项非缺陷接受、206被取代且承接已核实。历史关闭不是本次重新验收。
+更新：2026-09-12。唯一条目及关闭条件入口为[UAT总表](UAT_ITERATION_REGISTER.md)，唯一排程为[CURRENT_PLAN](CURRENT_PLAN.md)。259项连续：68项本轮功能验收关闭、35项开放、153项历史关闭、220文档关闭、1项非缺陷接受、206被取代且承接已核实。历史关闭不是本次重新验收。
 
 255项前后合同审查及三项用户决定已完成，SSOT/Beta已在`14cf2d9a0`同步。已无这三项待确认决定；合同确认不等于实现或验收。审查及覆盖关系见[全量证据](implementation/evidence/UAT_FULL_CONTRACT_CONSISTENCY_AUDIT_20260909.md)。
 
@@ -12,6 +12,8 @@
 - 扩展架构检查4项合同生成基线断言失败，在412a0e3ef复现相同121项drift；依赖/语义/manifest通过。生产仍有历史恢复输入漂移告警，不宣称业务全绿。完整验收、边界与回滚见[发布证据](implementation/evidence/UAT_RELEASE_83235C9260_20260912.md)。
 
 ## 最近验收与开放事实
+
+UAT-259第二轮UI精简已获用户实施授权，当前实施中，尚无本轮部署或验收结论。[范围与验收](implementation/evidence/UAT-259_UI_REFINEMENT_20260912.md)。
 
 UAT-258“自动清理残留文件”授权按钮本地实现完成：替换收藏架折叠说明，入口与新建并列，沿用正式授权范围/API；20文件90项测试及构建通过，真实临时Host完成桌面/390px授权撤销、状态重读、错误恢复和键盘验证。尚未部署，保持开放，见[本次证据](implementation/evidence/UAT-258_RESIDUAL_CLEANUP_AUTHORIZATION_BUTTON_20260912.md)。
 
