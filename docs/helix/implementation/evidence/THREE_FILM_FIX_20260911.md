@@ -54,9 +54,24 @@ On-deck Run `28c2d89e239b3e6d50bbbcdaeafe37fb5e04685fe9a1aa1c68238863d673fbb9` b
 逐文件精确 Approval 与旧整盘 leftover 删除循环冲突：STREAM/CLIPINF/PLAYLIST 部分已删除后因邻居越权失败；
 index/MovieObject 被 BACKUP/META 目录检查提前阻断。修复同步与真实 async 端口：每次仅处理当前 Handle 的
 source，保留 final 校验、Source 身份校验及删除前 Approval 重验；不再把 BDMV 邻居或空目录作为隐式删除目标。
-未知邻居不再触发与其无关的单文件删除失败，它们原封不动保留；这与已确认 UAT-134 普通文件合同一致。
+未知邻居不再触发与其无关的单文件删除失败，它们原封不动保留；当前成员路径的未知替换、Identity drift、
+Final 不合格及精确 Approval 失效仍必须停止。
 没有把未知成员纳入 Scope、增加目录授权或取消 Owner 检查。原先期待删除未批准 STREAM/CERTIFICATE 的
 四项测试改为验证保留。
+
+2026-09-11 用户质疑定位后的复核：生产只读重建确认，Candidate Primary Input Manifest 和 Libra Run
+均为5项（CLPI、index、MovieObject、主片M2TS、选定MPLS）；Off-load Context 为同5项加6项Related，
+共11项。因此不能把同一BDMV容器内其他路径视为已交接删除成员。该依据是SSOT的BDMV主标题选择、
+Candidate Material Disposition Scope及5.8.7，不是把UAT-134普通文件例外直接套用于BDMV；
+SSOT的PROD-065 D3明确保留BDMV原子容器/结构依赖范围及独立收口规则。
+本次复核没有扩大或缩小冻结Manifest，也未证明盘内全部剩余材料的历史来源与业务归属。
+
+将同一组async BDMV payload/index隔离用例指向生产源码`7ceaeca7fb`，得到0 pass / 2 fail：
+payload在原端口1964行向精确Approval回调传入邻居路径，index在1928行报
+`CLEAN_ARCA_SETTLEMENT_UNKNOWN_MEMBER`。指向修复源码后为2 pass / 0 fail，并覆盖三次源已缺失重放。
+这证明两个执行器失败机制可复现；该测试使用逐路径断言回调，不冒充完整持久化Approval、Event Journal
+崩溃窗口或生产恢复链验收。生产历史`APPROVAL_STALE`的内层reason未被保存，不能声称读取到了
+历史`Deletion exceeds the exact approved member.`原始异常，也没有证据将其解释成按时间过期或用户撤销。
 
 ## 验证结果与局限
 
