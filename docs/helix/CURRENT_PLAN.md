@@ -13,6 +13,8 @@
 
 ## 剩余排程
 
+UAT-257扫描阻塞：`codex/field-observation-recovery`隔离修复及本地验证完成，修正历史失败阻断普通新轮、零页失败幂等与失败原因投影。UI负责人复查通过；由统一部署任务收口，不单独部署或触发生产扫描。[实现与待验收步骤](implementation/evidence/UAT-257_SCAN_RECOVERY_IMPLEMENTATION_20260912.md)。
+
 UAT-258：收藏架“自动清理残留文件”授权按钮，对齐UAT-256样式及用户补充的去多余层级规则；沿用精确旧输入授权，按[交互及验收](implementation/evidence/UAT-258_RESIDUAL_CLEANUP_AUTHORIZATION_BUTTON_20260912.md)实施。
 
 UAT-257按2026-09-12用户确认实施拒绝后普通重新选材及包统计，已合入集成分支并清理原隔离分支。

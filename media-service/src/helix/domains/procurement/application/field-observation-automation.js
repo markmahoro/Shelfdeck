@@ -23,10 +23,9 @@ function createFieldObservationAutomation(options) {
       typeof options.materialFieldStore.getMaterialField !== 'function' ||
       !options.observationAdmin || typeof options.observationAdmin.observe !== 'function' ||
       !options.workResultReader || typeof options.workResultReader.listWorks !== 'function' ||
-      !options.progressReader || typeof options.progressReader.read !== 'function' ||
       typeof options.now !== 'function') {
     fail('FIELD_OBSERVATION_AUTOMATION_DEPENDENCIES',
-      'Field Observation automation requires Field Store, Observation Admin, Work Result Reader, progress reader, and clock.');
+      'Field Observation automation requires Field Store, Observation Admin, Work Result Reader, and clock.');
   }
 
   let sweepNotBeforeMs = 0;
@@ -74,19 +73,33 @@ function createFieldObservationAutomation(options) {
     const works = observationWorks(fieldId);
     const open = works.find((work) => OPEN_WORK_STATES.has(work.state));
     if (open) return Object.freeze({ kind: 'in_progress', fieldId, observationWorkId: open.work_id });
-    const incomplete = works.find((work) => {
-      const progress = options.progressReader.read(work.work_id);
-      return progress.pageCount > 0 && !progress.completed;
-    });
-    if (incomplete) {
-      return Object.freeze({ kind: 'incomplete', fieldId, observationWorkId: incomplete.work_id });
+    // Terminal partial rounds are immutable history, not live concurrency guards.
+    // Persisted admission time also prevents a restart or a zero-page failure
+    // from turning the periodic observer into an immediate retry loop.
+    const nowMs = options.now();
+    let latestWork = null;
+    for (const work of works) {
+      const startedAtMs = Number(work.created_at_ms);
+      if (!Number.isSafeInteger(startedAtMs) || startedAtMs < 0) {
+        fail('FIELD_OBSERVATION_WORK_TIME_INVALID', 'Observation admission time is invalid.', { workId:work.work_id });
+      }
+      if (!latestWork || startedAtMs > Number(latestWork.created_at_ms) ||
+          startedAtMs === Number(latestWork.created_at_ms) && work.work_id.localeCompare(latestWork.work_id) > 0) {
+        latestWork = work;
+      }
+    }
+    const nextDueAtMs = latestWork ? Number(latestWork.created_at_ms) + PERIOD_MS : null;
+    // A successful round retains the ordinary startup sweep behavior.
+    if (latestWork?.state === 'failed' && nowMs < nextDueAtMs) {
+      if (sweepNotBeforeMs > nextDueAtMs) sweepNotBeforeMs = nextDueAtMs;
+      return Object.freeze({ kind: 'not_due', fieldId, nextDueAtMs });
     }
     const expectedObservationRevision = field.currentObservationRevision || 0;
     try {
       const observed = options.observationAdmin.observe({
         fieldId: field.fieldId,
         idempotencyKey: 'periodic-field-observation:' + field.fieldId + ':access-' + field.currentAccessRevision
-          + ':observation-' + expectedObservationRevision,
+          + ':observation-' + expectedObservationRevision + ':period-' + Math.floor(nowMs / PERIOD_MS),
         expectedAccessRevision: field.currentAccessRevision,
         expectedObservationRevision,
         pageBudget: PAGE_BUDGET,

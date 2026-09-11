@@ -91,7 +91,6 @@ function createExecutionRegistration() {
           materialFieldStore: options.materialFieldStore,
           observationAdmin,
           workResultReader,
-          progressReader,
           now: options.now || Date.now,
         })
         : null;

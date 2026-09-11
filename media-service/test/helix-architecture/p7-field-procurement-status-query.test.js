@@ -67,11 +67,11 @@ function registration() {
   };
 }
 
-function insertWork(kernel, workId, state) {
+function insertWork(kernel, workId, state, createdAtMs = 1) {
   kernel.runPrimitive((context) => {
     context.prepare(
       'INSERT INTO fx_supporting_works(work_id,owner_domain,process_type,process_id,work_kind,basis_digest,priority_class,state,idempotency_key,created_at_ms,updated_at_ms) VALUES(?,?,?,?,?,?,?,?,?,?,?)'
-    ).run(workId, 'procurement', 'material_field', 'field-1', 'field_observation', 'a'.repeat(64), 'background_observation', state, 'key-' + workId, 1, 1);
+    ).run(workId, 'procurement', 'material_field', 'field-1', 'field_observation', 'a'.repeat(64), 'background_observation', state, 'key-' + workId, createdAtMs, createdAtMs);
   });
 }
 
@@ -144,4 +144,33 @@ test('Field status projects a failed Observation with a readable missing-root re
   assert.equal(failed.observationScan.accessAvailable, false);
   assert.equal(failed.observationScan.failureCode, 'FIELD_OBSERVATION_ROOT_UNAVAILABLE');
   assert.match(failed.observationScan.failureMessage, /不存在或当前不可读取/);
+  assert.equal(query.overviewScan('field-1').accessAvailable, false);
+}));
+
+for (const [code,message] of [
+  ['P7_FIELD_ACCESS_EXPIRED','扫描超时'],
+  ['COOPERATIVE_EXECUTION_DEADLINE_EXCEEDED','扫描超时'],
+  ['FIELD_OBSERVATION_IO_DEADLINE_EXCEEDED','读取文件超时'],
+  ['UNRECOGNIZED_SCAN_FAILURE',undefined],
+  [null,undefined],
+]) test(`latest zero-page failure reports its own progress and cause: ${code}`, () => fixture(({store,kernel,query}) => {
+  store.registerMaterialField(registration());
+  insertWork(kernel,'old-success','succeeded');
+  insertPage(kernel,'old-success',1,0,1);
+  insertWork(kernel,'latest-failure','failed',2);
+  kernel.runPrimitive(context=>context.prepare(
+    'INSERT INTO fx_work_attempts(attempt_id,work_id,ordinal,basis_digest,state,started_at_ms,finished_at_ms,failure_code) VALUES(?,?,?,?,?,?,?,?)'
+  ).run('latest-attempt','latest-failure',1,'a'.repeat(64),'failed',2,3,code));
+  const failed=query.read('field-1').observationScan;
+  assert.equal(failed.state,'failed');assert.equal(failed.pageCount,0);
+  assert.equal(failed.failureMessage,message);assert.equal(failed.accessAvailable,true);
+  assert.equal(query.overviewScan('field-1').accessAvailable,true);
+  insertWork(kernel,'next-scan','running',3);
+  const scanning=query.read('field-1').observationScan;
+  assert.equal(scanning.state,'scanning');assert.equal(scanning.pageCount,0);
+  assert.equal(scanning.failureMessage,undefined);
+  insertPage(kernel,'next-scan',2,0,1);setWorkState(kernel,'next-scan','succeeded');
+  const completed=query.read('field-1').observationScan;
+  assert.equal(completed.state,'completed');assert.equal(completed.pageCount,1);
+  assert.equal(completed.failureMessage,undefined);
 }));

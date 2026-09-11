@@ -13,6 +13,8 @@
 
 ## 最近验收与开放事实
 
+UAT-257扫描阻塞本地修复完成：历史部分失败不再阻断普通新轮；零页失败下一周期可重扫，失败重启节流、成功启动检查及手动请求幂等保持；原因投影和状态切换经真实临时Host浏览器及UI负责人复查通过。未部署/生产重扫，扩展套件的既有失败与Linux/真实扫描待验项见[证据](implementation/evidence/UAT-257_SCAN_RECOVERY_IMPLEMENTATION_20260912.md)。
+
 UAT-258“自动清理残留文件”授权按钮本地实现完成：替换收藏架折叠说明，入口与新建并列，沿用正式授权范围/API；20文件90项测试及构建通过，真实临时Host完成桌面/390px授权撤销、状态重读、错误恢复和键盘验证。尚未部署，保持开放，见[本次证据](implementation/evidence/UAT-258_RESIDUAL_CLEANUP_AUTHORIZATION_BUTTON_20260912.md)。
 
 UAT-257实现`0aabaa1ca`：拒绝终结旧包、释放材料回普通选材及累计包统计口径；与UAT-256任务完成来源卡片UI协调。138项领域测试、2项既有旅程和新拒绝闭环样例通过，89项前端测试、构建及隔离页面核对通过；已联合部署，后续正常扫描验收仍开放，见[证据](implementation/evidence/UAT-257_PROCUREMENT_REJECTION_CYCLE_20260912.md)。
