@@ -6,10 +6,9 @@
 
 ## 当前生产
 
-- 镜像：`markmahoro/shelfdeck:helix-beta-20260909-7ceaeca7fb`；source `7ceaeca7fb`；config Image ID `sha256:12db15cbc07e12becd793b20cb0f1270e03ec29241ddab05f4dde42d8152eb83`。
-- tar SHA256：`2b5d16ee6d023540c567890e1bec4d0987df6dfaa3becf86be19ecc08d251f26`；StartedAt `2026-09-09T11:11:57.671388692Z`。标准构建、上传、校验、dry run、发布、readiness及挂载核验通过。备份、回滚版本及验证见[发布证据](implementation/evidence/UAT_RELEASE_7CEAECA7FB_20260909.md)。
-- 最近只读快照：2026-09-09 19:59:34北京时间，六路GET均200；82收藏，Formation汇总78、1整理中/1待处理/76完成/3结束；Care查询44完成/11结束；回收站4项。《霍比特人3》真实转码后保留超限成品，等待用户接受体积瑕疵；《我记得》继续转码。没有代用户提交瑕疵授权。以上按各API原字段记录，不将Formation数量当收藏数，操作前仍须刷新。
-- 集成区`E:/my_project/emby_third_party-helix-iteration`，分支`codex/user-pain-iteration`；发布区`E:/my_project/emby_third_party-helix-uat-release-20260908` detached `7ceaeca7fb`。原Aftercare调查Evidence未提交修改受保护，未夹带提交。
+- 镜像：`markmahoro/shelfdeck:helix-beta-20260911-c10e516e64`；source `c10e516e64`；NAS config Image ID `sha256:fd03632b156ff535c84be0e853ee384dc98bea1fba41bf59eee4c8c2687a1b57`；StartedAt `2026-09-11T15:47:29.758910825Z`。
+- tar SHA256：`6c3dede8106cc46b91e6da3f34092afca959bef81738cd3e89e49db8ffb3d2e4`；完整data及配置备份：`/vol1/1000/docker/shelfdeck/backups/three-films-c10e516e64-20260911`，42项文件digest及SQLite quick_check通过。标准build/upload/checksum/dry-run/apply、readiness、health、Admin Web、全部挂载与3项关键源码hash通过。
+- 23:49北京时间《太阳帝国》Commit成功后，Shelf Entry与Commit总数均由108变109；条目 `3c66f5560d36baebdeefacec91f810df7d994447ea6106f5987be88b37172e85`。NAS管理页HTTP200及无关容器原状态保持。完整过程、首次readiness失败与恢复、回滚及验收边界见上述证据。
 
 ## 最近验收与开放事实
 

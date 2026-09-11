@@ -16,10 +16,27 @@
 
 ## 验收及保护
 
-UAT-257：拒绝后下一轮普通Triage、未决交付占用保护、同轮幂等及历史包统计，按[合同与验收](evidence/UAT-257_PROCUREMENT_REJECTION_CYCLE_20260912.md)本地实现及验证通过。来源统计UI与UAT-256任务已明确分工；无生产操作。
+UAT-257：拒绝后下一轮普通Triage、未决交付占用保护、同轮幂等及历史包统计，按[合同与验收](evidence/UAT-257_PROCUREMENT_REJECTION_CYCLE_20260912.md)本地实现及验证通过。来源统计UI与UAT-256任务已明确分工；本地通过，用户现已授权联合部署及生产验收。
 
 每项按原问题、现行SSOT、实现、正负路径、适用真实媒体/浏览器与生产版本核验；提交、测试或部署不单独等于关闭。仅有新变化、失败或缺证时重复已通过检查。发现已被取代要求时按当前条件验收，不能为使旧测试通过恢复旧行为。
 
-本轮67项功能关闭、34项开放及206承接已核实。最新生产`7ceaeca7fb`，[发布及回滚证据](evidence/UAT_RELEASE_7CEAECA7FB_20260909.md)。
+本轮67项功能关闭、34项开放及206承接已核实。当前生产`c10e516e64`，[发布及回滚证据](evidence/THREE_FILM_FIX_20260911.md)。
 
 用户授权实施、本地验证后标准发布、允许中断FFmpeg；精确Input清理持续授权已明确。有效媒体/持久事实/Secret/备份/回滚保护不变，不直接SQL修改生产，不任意Reset。原Aftercare调查Evidence修改不覆盖、不夹带提交。工程选择自主处理，真正新增业务边界才逐项询问。
+
+## 已部署三片修复的剩余范围
+
+9月11日已部署代码纳入本次集成；《太阳帝国》恢复已完成，其他条目不随本次UI发布自动关闭。以下保留原包冻结范围，不在本次UI/Procurement验收中额外执行。
+
+
+
+1. 已完成：标准build-image → upload-nas-image → SHA256 → deploy dry-run/apply；完整data和配置备份位于`/vol1/1000/docker/shelfdeck/backups/three-films-c10e516e64-20260911`。未clean-init/Reset或直接改SQLite。
+2. 《人生密密缝》精确 On-deck Run 为 `844d2564f525ee73c36564559e8b5cbefc704f8cf65457796af7b72bf6215615`。停服后重验下面两个冲突文件的 size、SHA256、非 symlink、路径 containment，以及当前 Inventory/Libra Binding/Off-load Context 未引用它们；任何变化停止。
+   - `/media/Film/人生密密缝 (2017)/人生密密缝 (2017).nfo`：7427 bytes；SHA256 `0c36f85dad179428446e6fb946a98df535913aa297dc9e90be83285560df25d4`。
+   - `/media/Film/人生密密缝 (2017)/poster.jpg`：1031527 bytes；SHA256 `db80299781122985c4dea6001f88bcffce25c7f5952c91823259eb3bc98f8619`。
+   - 两项先复制到应用根下独立备份目录，验证复制的 SHA256 及原件仍未变化，再移出冲突位置；保留 manifest 与原件恢复路径。原 MKV、字幕、旧源 NFO、fanart、torrent 不在隔离范围。
+3. 已完成：《太阳帝国》精确On-deck Run为`28c2d89e239b3e6d50bbbcdaeafe37fb5e04685fe9a1aa1c68238863d673fbb9`。恢复前重新验证7项Final；generation 5正式retry成功，11项精确旧输入均absent，7项当前Inventory核验通过，246项范围外文件前后不变，BACKUP/META保留。详情见本包证据。
+4. 两条均使用正式 `POST /v1/admin/formation/acceptance/:offerId/actions/retry`，以当前持久事实解析 Offer ID，不手改 Work/Event/Effect。若旧执行仍活动，先让修复后的当前 Owner 恢复流程收敛，不人为置终态。
+5. 验收必须看到每条恰好一个 On-deck Commit、相应 Shelf Entry/Deck Fact、精确 Inventory 文件、settlement/member 终态及无活动相关执行。只看到 UI 进度变化不算恢复。
+6. 《一战再战》保留合法外部下载；验证页面当前阶段及解释，不取消下载、不放宽 DV 转换、不调整14 GiB要求。
+7. 回滚先保留新现场及失败证据；新镜像无 Schema 变更，可回滚 binary，但不把已完成的正常业务 Commit 当作应回滚数据库。冲突备份只在目标无人占用且核实当前 Owner 后恢复，禁止覆盖新产品。

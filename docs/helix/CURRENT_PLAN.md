@@ -3,6 +3,8 @@
 更新：2026-09-12。ACTIVE。用户要求先整理UAT文档，再继续逐项验收关闭；此前合同审查暂停已结束。
 [UAT总表](UAT_ITERATION_REGISTER.md)是唯一条目、状态、当前关闭条件入口；[当前执行包](implementation/CURRENT_PHASE.md)记录执行位置；本计划仅保留范围、顺序与授权。
 
+2026-09-12：用户授权合并UAT-256/257后标准部署及生产验收，先清理已合并临时分支；9月11日已部署修复一并收拢，避免回退。三片历史与剩余恢复范围见当前执行包。
+
 ## 已确认合同
 
 255项前后要求审查及11组取代/承接关系见[审查证据](implementation/evidence/UAT_FULL_CONTRACT_CONSISTENCY_AUDIT_20260909.md)。三项原合同冲突均在`14cf2d9a0`确认：Off-load完成后取消额外24小时等待但保留两轮引用安全审计；workspace成品独立解码验证，Source保留fresh Probe/必要对照，Direct仍须实际产品解码；用户预先授权精确旧输入自动清理（含exclusive_related_input），无需逐片确认，共享/未知材料保留且Off-deck独立授权。合同确认不等于运行时正式授权已持久化或验收完成。

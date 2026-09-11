@@ -648,3 +648,25 @@ test('UAT-125 queued Formation startup and wake callbacks cannot read after shut
     assert.equal(reads,0);assert.deepEqual(errors,[]);
   }finally{await host.stop();kernel.close();fs.rmSync(root,{recursive:true,force:true,maxRetries:5,retryDelay:50});}
 });
+
+test('Formation shows the active external download after terminal DV strategy rejection', () => {
+  const works = [
+    {workId:'libra-workspace-media-transcode_3_assessment-work-dv',state:'succeeded',createdAtMs:10,events:[
+      {eventId:'assessment',capabilityRef:'libra.transcode.input.verify@1',state:'succeeded',result:{outcomeKind:'succeeded',result:{
+        result:'failed',disposition:'strategy_rejected',reasonCodes:['dolby_vision_base_layer_unsupported']}}}]},
+    {workId:'libra-workspace-media-transcode_4_assessment-work-exhausted',state:'blocked',createdAtMs:11,events:[]},
+    {workId:'external-search',state:'succeeded',createdAtMs:12,events:[
+      {capabilityRef:'libra.external_material.candidate.select@1',state:'succeeded',result:{outcomeKind:'succeeded',result:{
+        schemaRef:'helix://contracts/types/SelectedCandidate/v1',result:'selected',requirementDisposition:'compliant',candidateId:'candidate-1'}}}]},
+    {workId:'external-download',state:'running',createdAtMs:13,events:[
+      {eventId:'request',capabilityRef:'libra.external_material.acquire.request@1',state:'succeeded'},
+      {eventId:'resolve',capabilityRef:'libra.external_material.output.resolve@1',state:'pending'},
+      {eventId:'observe',capabilityRef:'libra.external_material.acquire.observe@1',state:'waiting_for_external'}]},
+  ];
+  const action = nextAction(works,'in_progress',null,'active',null,null,null,'active');
+  assert.equal(action.state,'waiting_for_external'); assert.match(action.label,/外部源/); assert.doesNotMatch(action.label,/设备未就绪/);
+  const steps=organizingSteps(works);
+  assert.equal(steps.find(item=>item.key==='transcode').state,'done');
+  assert.equal(steps.find(item=>item.key==='transcode').label,'本地转码不可用，转入外部寻源');
+  assert.equal(steps.find(item=>item.key==='acquire').state,'running');
+});
