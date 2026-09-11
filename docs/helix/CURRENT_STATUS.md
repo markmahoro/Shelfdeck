@@ -13,6 +13,8 @@
 
 ## 最近验收与开放事实
 
+UAT-125/250本地第一批`9820e7b85`：修复新Intake恢复输入漂移和定向Reset遗漏pre-Subject闭包，增加《人生密密缝》两冲突文件离线备份隔离/回滚工具；Windows及相关Linux验证、真实一致备份副本演练、生产两文件只读预检通过，未执行生产变更。5个open旧Candidate的23项Control失配及正式Evidence/拒绝恢复分叉仍待收口；两Token Reset保持阻塞，不能宣称3席位有效周转或该片已上架，见[实现与缺口证据](implementation/evidence/UAT-125_250_INTAKE_RECOVERY_20260912.md)。
+
 UAT-257实现`0aabaa1ca`：拒绝终结旧包、释放材料回普通选材及累计包统计口径；与UAT-256任务完成来源卡片UI协调。138项领域测试、2项既有旅程和新拒绝闭环样例通过，89项前端测试、构建及隔离页面核对通过；已联合部署，后续正常扫描验收仍开放，见[证据](implementation/evidence/UAT-257_PROCUREMENT_REJECTION_CYCLE_20260912.md)。
 
 UAT-256全页面UI polish已本地实现并通过89项前端测试及桌面八页走查；整理列表478个元素内容与尺寸对照0差异。文件来源已取消全局汇总，统一卡片、按钮、字号及状态色；按用户补充移除技术标识/原始代码，并将必要失败原因改为中文，补充复查通过。已完成83235c9260生产验收并关闭，见[本轮证据](implementation/evidence/UAT-256_UI_POLISH_20260912.md)。

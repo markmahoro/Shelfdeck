@@ -13,6 +13,8 @@
 
 ## 剩余排程
 
+2026-09-12追加：用户要求修复《人生密密缝》上架阻塞及两个Intake席位长期占用；本任务仅本地实施、隔离验证和生产处置准备，生产操作交统一部署负责人安排。工作区`E:/my_project/emby_third_party-helix-intake-recovery`，分支`codex/intake-recovery-20260912`，从集成`144798953`隔离。UAT-125/250第一批`9820e7b85`已提交；后续Control失效拒绝链按[证据及精确合同缺口](implementation/evidence/UAT-125_250_INTAKE_RECOVERY_20260912.md)收口，不能把两Token Reset safe当作队列已恢复。
+
 UAT-257按2026-09-12用户确认实施拒绝后普通重新选材及包统计，已合入集成分支并清理原隔离分支。
 UI已与UAT-256任务对齐并整合其去技术标识提交，来源统计区块与业务修复已通过本地及最终Linux闭环、已部署生产；六条旧资格的后续正常扫描验收保持开放，见[合同与验收](implementation/evidence/UAT-257_PROCUREMENT_REJECTION_CYCLE_20260912.md)。
 
