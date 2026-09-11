@@ -11,6 +11,8 @@ UAT-259：第二轮UI精简已获实施授权，沿用既有ui-polish detached�
 
 UAT-258：用户授权将收藏架清理折叠入口改为“自动清理残留文件”授权按钮，对齐UAT-256视觉及去多余层级规则；集成区本地实现完成，90项测试、构建及真实临时Host桌面/窄屏走查通过，未部署。仅改前端呈现和交互，沿用Arca授权范围/API。[交互及验收](evidence/UAT-258_RESIDUAL_CLEANUP_AUTHORIZATION_BUTTON_20260912.md)。
 
+2026-09-12接收恢复修复：UAT-125/250在独立`codex/intake-recovery-20260912`提交`9820e7b85`。新Movie并发/事务中断/两次重启、投影负向Fence和两文件隔离/回滚验证通过，精确2个pre-Subject Reset在一致备份副本闭包清零且范围外逐行不变。但5个open旧Candidate存在23项Control revision失配，正式Control Evidence/拒绝恢复分叉合同缺口未收口，生产Reset保持阻塞；详见[证据](evidence/UAT-125_250_INTAKE_RECOVERY_20260912.md)。该修复任务不执行生产操作，统一部署负责人安排整合、发布及后续现场验收。
+
 2026-09-12：UAT-256已获用户实施授权，在`codex/ui-polish`隔离工作区完成前端视觉与文案整理，89项测试、桌面八页本地与83235c9260生产八页/五Tab验收通过，已独立关闭；[范围与证据](evidence/UAT-256_UI_POLISH_20260912.md)。不夹带其他开放项，不修改媒体整理现有列表或业务逻辑。
 
 1. 整理已确认合同及活动文档，去除旧暂停/待决策和已关闭队列；检查259项连续、状态计数、剩余35项归属及链接。历史过程保留Evidence。

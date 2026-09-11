@@ -13,7 +13,7 @@
 
 ## 最近验收与开放事实
 
-接收恢复核心9820e7b85已由203773327合入集成分支，独立发布区49项Intake/Reset/隔离专项通过；未部署。旧5份Candidate的Control不符及正式拒绝Evidence/恢复合同缺口仍阻塞完整席位恢复，不执行生产两席位Reset，见[联合收口证据](implementation/evidence/UAT_JOINT_DEPLOYMENT_READINESS_20260912.md)。
+UAT-125/250核心9820e7b85已由203773327合入集成分支：新Intake恢复输入稳定、精确pre-Subject Reset闭包和《人生密密缝》两文件离线隔离/回滚工具已完成。独立发布区49项专项通过；开发任务的Windows/Linux验证、一致备份副本演练及生产两文件只读预检见[实现证据](implementation/evidence/UAT-125_250_INTAKE_RECOVERY_20260912.md)。尚未部署；5份旧Candidate共23项Control不符及正式拒绝Evidence/恢复合同缺口仍阻塞完整席位恢复，不执行生产两席位Reset，不宣称该片已上架或3席位有效周转。[联合收口证据](implementation/evidence/UAT_JOINT_DEPLOYMENT_READINESS_20260912.md)。
 
 UAT-259第二轮UI精简已获用户实施授权，当前实施中，尚无本轮部署或验收结论。[范围与验收](implementation/evidence/UAT-259_UI_REFINEMENT_20260912.md)。
 
