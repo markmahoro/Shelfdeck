@@ -2,11 +2,11 @@
 
 更新：2026-09-12。**唯一活动迭代台账；按项验收、按项关闭。** 覆盖全部143个历史UAT、78个PROD、40行UX（含两组重号）、10个AC和2个BR。新编号从UAT-144接续；PROD/UX/AC/BR停止新增。旧编号、文件、提交和测试名不改写。
 
-总表包含260个唯一UAT条目，编号连续至UAT-260。历史UAT-011～049从正文/关闭矩阵补入；PROD-033/034从归档补入。相同主题不等于相同缺陷：后续事故或复发保留独立条目；只有明确同结果才合并别名。UX-030/031按标题消歧。
+总表包含261个唯一UAT条目，编号连续至UAT-261。历史UAT-011～049从正文/关闭矩阵补入；PROD-033/034从归档补入。相同主题不等于相同缺陷：后续事故或复发保留独立条目；只有明确同结果才合并别名。UX-030/031按标题消歧。
 
 状态说明：历史已关闭保留当时证据，并不宣称本次重测；已实现/已部署不等于已关闭；待核实不是当前已证实缺陷。原表与后续完整关闭证据冲突时采用后者并链接。没有证据的事项不批量关闭。
 
-[全量前后合同审查](implementation/evidence/UAT_FULL_CONTRACT_CONSISTENCY_AUDIT_20260909.md)已完成，三项业务冲突均由用户确认并以`14cf2d9a0`同步合同；用户要求整理文档后继续推进。历史标题不是现行Oracle；下述承接条件与SSOT后续优先条款共同适用。当前71项本轮功能验收关闭、33项开放，206被取代承接已核实；另有153项历史关闭、220文档关闭及1项非缺陷接受。
+[全量前后合同审查](implementation/evidence/UAT_FULL_CONTRACT_CONSISTENCY_AUDIT_20260909.md)已完成，三项业务冲突均由用户确认并以`14cf2d9a0`同步合同；用户要求整理文档后继续推进。历史标题不是现行Oracle；下述承接条件与SSOT后续优先条款共同适用。当前71项本轮功能验收关闭、34项开放，206被取代承接已核实；另有153项历史关闭、220文档关闭及1项非缺陷接受。
 
 执行顺序见[CURRENT_PLAN](CURRENT_PLAN.md)。每次完成一项，更新该行的提交、用户结果证据、剩余工作和状态；需要部署的先部署/验收再关闭。编号合并不触发生产操作。
 
@@ -272,3 +272,4 @@
 | UAT-258 | 收藏架“自动清理残留文件”授权按钮 | UI / `AESTHETICS` | 验收关闭 | 用户新增；承接172授权语义和256样式 | 38e89d145、cd4f3f5b2d | [交互与验收](implementation/evidence/UAT-258_RESIDUAL_CLEANUP_AUTHORIZATION_BUTTON_20260912.md) | 本地真实Host授权/撤销、错误恢复及键盘通过；cd4f3f5b2d生产入口/范围/取消/返回焦点通过，正式授权revision1保持不变。 |
 | UAT-259 | 第二轮UI精简：去空泛层级、统一工具栏与就地状态 | UI / `AESTHETICS` | 验收关闭 | 用户新增；不重开256 | f62800edb、95ec6b8ab、cd4f3f5b2d | [范围与验收](implementation/evidence/UAT-259_UI_REFINEMENT_20260912.md) | 最终Web94/94，本地494元素一致，cd4f3f5b2d生产八页/五设置Tab布局、状态和必要交互复核通过；九列表格保持。 |
 | UAT-260 | 大Run失败准备重试内联完整输入，超过Plan JSON上限 | `RECOVERY_CORRECTNESS` / `BOUNDED_INPUT` | 已复现，待修复 | 隔离恢复演练新增；关联125/129/250 | 尚未修复 | [原因与验收](implementation/evidence/UAT-260_LARGE_RUN_RETRY_INPUT_20260912.md) | 采用Owner内typed refs和同Basis装配，保持Plan JSON≤16 KiB；1/1024及实际大Run、失败/重启/消息幂等、原事实保护、Windows/Linux与最终镜像验收。B2；不弱化DDL，不以正常链重放替代Retry验证。 |
+| UAT-261 | Catalog变更后历史Plan启动校验失败，发布readiness未覆盖完整Host | `DEPLOYMENT_SAFETY` / `RECOVERY_CORRECTNESS` | 生产失败已回退，待修复 | 本次部署新增；关联125/250/260 | d7a6da2802失败、cd4f3f5b2d已回退 | [失败、备份与回退](implementation/evidence/UAT-261_CATALOG_STARTUP_DEPLOYMENT_20260912.md) | 查明Catalog/历史Plan合同并安全修复；最新完整副本Host启动、未决保护、升级回退和最终生产验收。不得改历史digest/扩Reset/屏蔽校验。B2，优先于260。 |

@@ -99,3 +99,7 @@ cd4f3f5b2d已通过最终Web94/94、适用Linux39/39、完整备份与标准发�
 普通再选材返回`no_eligible_material`。部署任务已核对`procurement-automation-service.js`的现行防回环实现：同一个Observation不能产生新Procurement轮次；`handoff_rejected`的`reservation_updated_at_ms >= terminalObservation.observed_at_ms`时不能复用旧Observation再选材。因此revision1294虽然真实扫描成功，但早于本次副本拒绝消费，不能作为后半段恢复证据。不得改时间戳、弱化guard或合成新Observation；已交原恢复任务继续同一隔离副本上的完整真实扫描与普通再选材。
 
 验收顺序固定为：精确两Token Reset → 新代码下5份正式拒绝及消息消费完成 → **晚于消费的新一轮完整Field Observation成功** → 普通再选材及席位周转。镜像启动自动扫描若早于消费完成，也不能替代这轮观察。需要显式触发时使用正式`POST /v1/admin/material-fields/:fieldId/actions/observe`，从当前Owner读数取得Access/Observation revision及独立idempotencyKey；若有活跃扫描则先等其终态，不绕过并发准入。生产处置仍待完整演练及现场预检；Reset只用原两项`--subject-ids`精确范围，当前标准NAS Reset wrapper与离线operator相对cd4f均无代码差异。发布及Reset各自的备份、plan、确认、完整性校验和标准deploy要求不因顺序安排省略。
+
+## 第二批试发布失败并回退
+
+最新scoped正常链e3b8fd7c7已合入667e4a66e，5新包/2Accepted/12 ACK及保护检查通过。随后真实生产scoped Reset完成，但d7a6da2802完整Host因PLAN_CATALOG_DRIFT未启动，已标准回退cd4f3f5b2d，health正常。原两Token Reset已生效，未恢复DB、未扩大范围；下一次必须重新核对当前队列并先过最新副本完整Host启动门禁。详细身份、备份、已执行数据变更及覆盖遗漏见[UAT-261事故记录](UAT-261_CATALOG_STARTUP_DEPLOYMENT_20260912.md)，覆盖上文“未上传/未部署/尚未Reset”等历史时点描述。

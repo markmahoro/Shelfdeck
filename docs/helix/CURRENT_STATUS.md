@@ -1,13 +1,15 @@
 # ShelfDeck 当前状态
 
-更新：2026-09-12。唯一条目及关闭条件入口为[UAT总表](UAT_ITERATION_REGISTER.md)，唯一排程为[CURRENT_PLAN](CURRENT_PLAN.md)。260项连续：71项本轮功能验收关闭、33项开放、153项历史关闭、220文档关闭、1项非缺陷接受、206被取代且承接已核实。历史关闭不是本次重新验收。
+更新：2026-09-12。唯一条目及关闭条件入口为[UAT总表](UAT_ITERATION_REGISTER.md)，唯一排程为[CURRENT_PLAN](CURRENT_PLAN.md)。261项连续：71项本轮功能验收关闭、34项开放、153项历史关闭、220文档关闭、1项非缺陷接受、206被取代且承接已核实。历史关闭不是本次重新验收。
 
 255项前后合同审查及三项用户决定已完成，SSOT/Beta已在`14cf2d9a0`同步。已无这三项待确认决定；合同确认不等于实现或验收。审查及覆盖关系见[全量证据](implementation/evidence/UAT_FULL_CONTRACT_CONSISTENCY_AUDIT_20260909.md)。
 
 ## 当前生产
 
+2026-09-12第二批d7a6da2802发布失败：数据库readiness通过，但完整Host因大量历史PLAN_CATALOG_DRIFT未启动。已标准回退cd4f3f5b2d，StartedAt2026-09-11T21:32:51.809272745Z，健康/五挂载/fnOS/113收藏及970份Delivery复核通过。此前原两Token精确Reset已执行且保留，未恢复DB；5旧Offer仍open，旧版已产生新Token，不得扩大或复用旧Reset范围。新增261优先定位启动合同与补完整Host门禁，260随后，251独立。[事故记录](implementation/evidence/UAT-261_CATALOG_STARTUP_DEPLOYMENT_20260912.md)。
+
 - 镜像：markmahoro/shelfdeck:helix-beta-20260912-cd4f3f5b2d；source cd4f3f5b2d；NAS Config Image ID sha256:f4d48cd326dba8b551af63fad7c3ce0ffdc0b3040c43c6153d1987cbc9a13452。
-- tar SHA256：4d3f1b1c51d47d10bb2d3afaa5ce1b4cb6a63586b4a8887a458f8f72ec4beaed；StartedAt 2026-09-11T20:28:03.909028638Z。标准发布、45文件完整备份与SQLite校验、五挂载/健康/fnOS管理页通过；83235c9260镜像及tar保留回滚。
+- tar SHA256：4d3f1b1c51d47d10bb2d3afaa5ce1b4cb6a63586b4a8887a458f8f72ec4beaed；当前回退StartedAt 2026-09-11T21:32:51.809272745Z（首批启动时间见历史证据）。标准发布、45文件完整备份与SQLite校验、五挂载/健康/fnOS管理页通过；83235c9260镜像及tar保留回滚。
 - 最终Web94/94、Linux适用39/39及生产八页/五设置Tab复核通过。正常启动扫描完成73页、revision1222–1294，新Work succeeded；六条当前主文件资格变为eligible并由普通选材产生新Package/open Delivery，257已关闭。发布后初次113收藏、956包=820等待+128接收+8拒绝；原拒绝记录及自动清理授权revision1不变，Fast X继续处理中。
 - Linux广测23项Reset夹具被正式/transcode限定拦下，未放宽安全限制；既有4项架构合同生成基线失败/121项drift保留。本批没有schema/typed合同变化，也未重跑完整真实媒体E2E。历史两席位和《人生密密缝》仍待精确恢复，不宣称业务全绿。详见[本批发布证据](implementation/evidence/UAT_RELEASE_CD4F3F5B2D_20260912.md)。
 
@@ -16,7 +18,7 @@
 2026-09-12新增UAT-260：隔离演练中大Run FailedPreparationRetry将完整DTO内联至Plan，触发16 KiB CHECK；SSOT要求typed binding refs，禁止扩大上限或旧Work fallback。正常恢复链用修正BigInt桥另建副本继续；重试缺陷单独修复验收，生产未变更。见[缺陷证据](implementation/evidence/UAT-260_LARGE_RUN_RETRY_INPUT_20260912.md)。
 
 
-UAT-125/250第一批9820e7b85核心已部署，旧两席位及《人生密密缝》尚未处置。第二批9ecf7b2a1/d591d6867正式Control拒绝链已合入d7a6da2802；独立发布区Windows组合38/38、完整架构1647通过/9既有跳过/0失败，DDL不变。候选镜像Linux117/117通过，尚未上传或切换生产；继续最新精确恢复演练。原备份820个open Offer中815匹配、5个失配共23项，7组保护表未变；这是旧副本只读分类，不是当前NAS统计或旧队列完整恢复，125/250保持开放。[实现证据](implementation/evidence/UAT-125_250_INTAKE_RECOVERY_20260912.md)、[集成验证](implementation/evidence/UAT_JOINT_DEPLOYMENT_READINESS_20260912.md)。
+UAT-125/250第一批9820e7b85核心已部署；原两Token精确Reset已执行，《人生密密缝》尚未处置。第二批9ecf7b2a1/d591d6867正式Control拒绝链已合入d7a6da2802；独立发布区Windows组合38/38、完整架构1647通过/9既有跳过/0失败，DDL不变。候选镜像Linux117/117及最新副本完整scoped正常链通过；实际发布在完整Host启动失败并回退，接续261修复，不重复原两Token Reset。原备份820个open Offer中815匹配、5个失配共23项，7组保护表未变；这是旧副本只读分类，不是当前NAS统计或旧队列完整恢复，125/250保持开放。[实现证据](implementation/evidence/UAT-125_250_INTAKE_RECOVERY_20260912.md)、[集成验证](implementation/evidence/UAT_JOINT_DEPLOYMENT_READINESS_20260912.md)。
 
 UAT-259已独立验收关闭：最终Web94/94，本地494元素一致，cd4f3f5b2d生产八页/五设置Tab布局、状态和必要交互复核通过；九列表格保持。[本项证据](implementation/evidence/UAT-259_UI_REFINEMENT_20260912.md)。
 

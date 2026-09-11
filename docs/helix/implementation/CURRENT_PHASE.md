@@ -5,6 +5,8 @@
 
 ## 当前执行位置
 
+2026-09-12第二批d7a6da2802发布失败：数据库readiness通过，但完整Host因大量历史PLAN_CATALOG_DRIFT未启动。已标准回退cd4f3f5b2d，StartedAt2026-09-11T21:32:51.809272745Z，健康/五挂载/fnOS/113收藏及970份Delivery复核通过。此前原两Token精确Reset已执行且保留，未恢复DB；5旧Offer仍open，旧版已产生新Token，不得扩大或复用旧Reset范围。新增261优先定位启动合同与补完整Host门禁，260随后，251独立。[事故记录](evidence/UAT-261_CATALOG_STARTUP_DEPLOYMENT_20260912.md)。
+
 2026-09-12新增UAT-260：隔离演练中大Run FailedPreparationRetry将完整DTO内联至Plan，触发16 KiB CHECK；SSOT要求typed binding refs，禁止扩大上限或旧Work fallback。正常恢复链用修正BigInt桥另建副本继续；重试缺陷单独修复验收，生产未变更。见[缺陷证据](evidence/UAT-260_LARGE_RUN_RETRY_INPUT_20260912.md)。
 
 
@@ -12,11 +14,11 @@
 
 发布由“收口并部署上线”任务统一负责合并、工作区清理及上线，按UAT-251、接收恢复、UAT-257扫描修复的实际依赖与验证结果自主安排批次；UAT-258完整提交38e89d145已生产验收关闭。此次任命无需广播，不限制必要技术协调。各开发任务不独立部署；当前生产为cd4f3f5b2d，首批标准部署及健康/浏览器验证已完成。见[接手审计与发布缺证](evidence/UAT_JOINT_DEPLOYMENT_READINESS_20260912.md)。
 
-2026-09-12接收恢复：9820e7b85核心已部署，9ecf7b2a1正式Control拒绝和d591d6867证据已合入d7a6da2802。独立发布区Windows组合38/38、完整架构1647通过/9跳过/0失败，DDL不变，候选镜像Linux117/117通过，尚未部署；CAS后竞争保持原Evidence/Effect/Token。旧两席位与影片完整恢复仍须最新快照演练及现场预检，不因源码验证通过执行生产Reset。[范围与证据](evidence/UAT-125_250_INTAKE_RECOVERY_20260912.md)、[集成验证](evidence/UAT_JOINT_DEPLOYMENT_READINESS_20260912.md)。
+2026-09-12接收恢复：9820e7b85核心已部署，9ecf7b2a1正式Control拒绝和d591d6867证据已合入d7a6da2802。独立发布区Windows组合38/38、完整架构1647通过/9跳过/0失败，DDL不变，候选镜像Linux117/117通过，试发布完整Host失败已回退；CAS后竞争保持原Evidence/Effect/Token。原两Token Reset已执行、最新副本scoped正常链已通过；下一步261完整Host启动修复及现场重新核验，不能再次沿用原两Token清单。[范围与证据](evidence/UAT-125_250_INTAKE_RECOVERY_20260912.md)、[集成验证](evidence/UAT_JOINT_DEPLOYMENT_READINESS_20260912.md)。
 
 2026-09-12：UAT-256已获用户实施授权，在`codex/ui-polish`隔离工作区完成前端视觉与文案整理，89项测试、桌面八页本地与83235c9260生产八页/五Tab验收通过，已独立关闭；[范围与证据](evidence/UAT-256_UI_POLISH_20260912.md)。不夹带其他开放项，不修改媒体整理现有列表或业务逻辑。
 
-1. 整理已确认合同及活动文档，去除旧暂停/待决策和已关闭队列；检查260项连续、状态计数、剩余33项归属及链接。历史过程保留Evidence。
+1. 整理已确认合同及活动文档，去除旧暂停/待决策和已关闭队列；检查261项连续、状态计数、剩余34项归属及链接。历史过程保留Evidence。
 2. UAT-171已按现行Oracle关闭，见[真实媒体/生产证据](evidence/UAT-171_NFO_CURRENT_CONTRACT_ACCEPTANCE_20260909.md)。135/136已按真实ISO完整链与生产48077d71bd发布逐项关闭；132已按Windows/Linux真实Direct HEVC完整链关闭；137/160已按[独立真实媒体证据](evidence/UAT-137_160_FRESH_MEDIA_ACCEPTANCE_20260909.md)关闭。
 3. UAT-210：记录更新已部署，继续单席位、批量变化、健康与处理状态分离的完整验收；已接受瑕疵及同条件重复Case部分按251已确认合同实施，不把局部通过当整项完成。
 4. 接续B1–B5：125/152使用新确认规则；172已按正式授权闭环独立关闭，见[验收](evidence/UAT-172_AUTHORIZATION_ACCEPTANCE_20260909.md)；134已按[精确范围及重放证据](evidence/UAT-134_SCOPED_SETTLEMENT_ACCEPTANCE_20260909.md)关闭；159/163回收已关闭；156/157真实设备及预检亦已关闭。继续125/152更广恢复与压力条件核验。218真实质量保护已独立验收关闭；210/125接续检查过程中更换标准导致旧Assessment提交/恢复失败的隔离复现。251已确认typed合同，继续实现，无待询问的旧业务决定。
@@ -27,7 +29,7 @@
 
 每项按原问题、现行SSOT、实现、正负路径、适用真实媒体/浏览器与生产版本核验；提交、测试或部署不单独等于关闭。仅有新变化、失败或缺证时重复已通过检查。发现已被取代要求时按当前条件验收，不能为使旧测试通过恢复旧行为。
 
-本轮71项功能关闭、33项开放及206承接已核实。当前生产`cd4f3f5b2d`，[发布及回滚证据](evidence/UAT_RELEASE_CD4F3F5B2D_20260912.md)。
+本轮71项功能关闭、34项开放及206承接已核实。当前生产`cd4f3f5b2d`，[发布及回滚证据](evidence/UAT_RELEASE_CD4F3F5B2D_20260912.md)。
 
 用户授权实施、本地验证后标准发布、允许中断FFmpeg；精确Input清理持续授权已明确。有效媒体/持久事实/Secret/备份/回滚保护不变，不直接SQL修改生产，不任意Reset。原Aftercare调查Evidence修改不覆盖、不夹带提交。工程选择自主处理，真正新增业务边界才逐项询问。
 
