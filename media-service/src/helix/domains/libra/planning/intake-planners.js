@@ -44,14 +44,40 @@ function createEvidencePlanner(options){const catalogDigest=executionCatalogDige
       node(common,CANDIDATE,'candidate_verification',candidateEvent,[owner('candidateDeliverySnapshot',request,SNAPSHOT)],[],['cpu']),
       node(common,MATERIAL,'material_verification',materialEvent,[owner('candidateDeliverySnapshot',request,SNAPSHOT),
         owner('physicalMaterialReadHandleList',request,HANDLES)],[],['cpu','disk_io'])]);}});}
+function acceptanceBasis(decision) {
+  return Object.freeze({ expectedContinuityHead:Object.freeze({ ...decision.expectedContinuityHead }),
+    resolutionDecisionDigest:decision.decisionDigest, bindingResolutionBasisDigest:bindingResolutionBasisDigest(decision) });
+}
+function frozenAcceptanceDecision(current, basis) {
+  if (!basis || !basis.expectedContinuityHead || !Number.isSafeInteger(basis.expectedContinuityHead.revision) ||
+      basis.expectedContinuityHead.revision < 0 || !/^[0-9a-f]{64}$/.test(basis.expectedContinuityHead.digest || '')) {
+    const error = new Error('Acceptance requires its immutable Plan continuity basis.');
+    error.code = 'P8_ACCEPTANCE_PLAN_BASIS_REQUIRED'; throw error;
+  }
+  if (basis.bindingResolutionBasisDigest !== bindingResolutionBasisDigest(current)) {
+    const error = new Error('Subject continuity semantics changed after Acceptance planning.');
+    error.code = 'P8_ACCEPTANCE_CONTINUITY_BASIS_STALE'; throw error;
+  }
+  // Only the existing claim-free new-Subject contract permits an unrelated head advance.
+  // Keep the Plan's head in both inputs so an in-flight Effect survives reconstruction.
+  const decision = { ...current, expectedContinuityHead:basis.expectedContinuityHead };
+  delete decision.decisionDigest;
+  decision.decisionDigest = canonicalDigest(decision);
+  if (decision.decisionDigest !== basis.resolutionDecisionDigest) {
+    const error = new Error('Acceptance continuity basis does not reproduce its frozen Decision.');
+    error.code = 'P8_ACCEPTANCE_CONTINUITY_BASIS_STALE'; throw error;
+  }
+  return Object.freeze(decision);
+}
 function createAcceptancePlanner(options){const catalogDigest=executionCatalogDigest(options.registry,options.policyRegistry);return Object.freeze({
   plannerContractRef:'helix://libra/planners/IntakeAcceptance/v1',plannerVersion:1,plan(request){const suffix=canonicalDigest(request.workAttemptId).slice(0,20),
     bindingEvent='intake-binding-'+suffix,acceptEvent='intake-accept-'+suffix,common={...options,request},bindingResult=options.registry.resolve(BINDING,'libra').manifest.resultSchemaRef;
+    const continuityBasis=acceptanceBasis(options.decisionResolver.resolve(options.offerReader.read(request.processId).snapshot));
     return plan({request,plannerContractRef:this.plannerContractRef,catalogDigest},'IntakeAcceptance',[
       node(common,BINDING,'binding_resolution',bindingEvent,[owner('candidateDeliverySnapshot',request,SNAPSHOT),
-        owner('subjectContinuityResolutionDecision',request,DECISION)],[],['cpu']),
-      node(common,ACCEPT,'acceptance_commit',acceptEvent,[projected('acceptedIntakePayload',bindingEvent,bindingResult,PAYLOAD,{processId:request.processId,evidenceWorkId:''}),
-        projected('responsibilityControlCommitHandle',bindingEvent,bindingResult,CONTROL,{processId:request.processId,evidenceWorkId:'',acceptEventId:acceptEvent})],
+        owner('subjectContinuityResolutionDecision',request,DECISION,{continuityBasis})],[],['cpu']),
+      node(common,ACCEPT,'acceptance_commit',acceptEvent,[projected('acceptedIntakePayload',bindingEvent,bindingResult,PAYLOAD,{processId:request.processId,evidenceWorkId:'',continuityBasis}),
+        projected('responsibilityControlCommitHandle',bindingEvent,bindingResult,CONTROL,{processId:request.processId,evidenceWorkId:'',acceptEventId:acceptEvent,continuityBasis})],
       [{eventId:bindingEvent,satisfaction:'success'}],['cpu'])]);}});}
 function rejectionEvidenceWorkId(request){const refs=request.dependencyRefs||[],ref=refs[0];
   if(refs.length!==1||ref?.ownerDomain!=='libra'||ref?.objectType!=='supporting_work'||typeof ref?.objectId!=='string'||!ref.objectId){
@@ -74,8 +100,8 @@ function createIntakeProjections(options){
   function verifications(ownerScope,workId){const values=verificationResults(ownerScope,workId),candidate=values.find((item)=>item.schemaRef==='helix://contracts/types/CandidateContractVerification/v1'),
     material=values.find((item)=>item.schemaRef==='helix://contracts/types/IntakeMaterialVerification/v1');if(!candidate||!material)throw new Error('Intake Evidence Results are incomplete.');
     return {candidate,material};}
-  function payload(ownerScope,bindingReceipt,requestedWorkId){const snapshot=read(ownerScope).snapshot,
-    current=options.decisionResolver.resolve(snapshot),v=verifications(ownerScope,requestedWorkId);
+  function payload(ownerScope,bindingReceipt,requestedWorkId,continuityBasis){const snapshot=read(ownerScope).snapshot,
+    current=frozenAcceptanceDecision(options.decisionResolver.resolve(snapshot),continuityBasis),v=verifications(ownerScope,requestedWorkId);
     if(!bindingReceipt||bindingReceipt.bindingResolutionBasisDigest!==bindingResolutionBasisDigest(current)){const error=new Error('Subject continuity basis changed after Binding resolution.');
       error.code='P8_ACCEPTANCE_CONTINUITY_BASIS_STALE';throw error;}
     const bindingDraft=rebuildLibraBindingDraftFromReceipt(snapshot,current,bindingReceipt);
@@ -101,9 +127,9 @@ function createIntakeProjections(options){
         fingerprintVerifiedAtMs:0,readScope:'bounded_read',expiresAtMs:Number.MAX_SAFE_INTEGER};return Object.freeze({schemaRef:'helix://contracts/types/PhysicalMaterialReadHandle/v1',schemaVersion:1,
           handleId:stable('libra-intake-read-handle-',{decisionId:ownerScope.processId,materialKey:item.materialKey}),...basis,
           fenceDigest:canonicalDigest({schema:'libra.intake-read-fence@1',...basis})});})))}},
-    {projectionRef:DECISION,projection:{project:({ownerScope})=>options.decisionResolver.resolve(read(ownerScope).snapshot)}},
-    {projectionRef:PAYLOAD,projection:{project:({sourceResult,parameters})=>payload({processId:parameters.processId},sourceResult,parameters.evidenceWorkId)}},
-    {projectionRef:CONTROL,projection:{project:({sourceResult,parameters})=>controlHandle(payload({processId:parameters.processId},sourceResult,parameters.evidenceWorkId),parameters.acceptEventId)}},
+    {projectionRef:DECISION,projection:{project:({ownerScope,parameters})=>frozenAcceptanceDecision(options.decisionResolver.resolve(read(ownerScope).snapshot),parameters?.continuityBasis)}},
+    {projectionRef:PAYLOAD,projection:{project:({sourceResult,parameters})=>payload({processId:parameters.processId},sourceResult,parameters.evidenceWorkId,parameters.continuityBasis)}},
+    {projectionRef:CONTROL,projection:{project:({sourceResult,parameters})=>controlHandle(payload({processId:parameters.processId},sourceResult,parameters.evidenceWorkId,parameters.continuityBasis),parameters.acceptEventId)}},
     {projectionRef:REJECTION,projection:{project:({ownerScope,parameters})=>rejection(ownerScope,parameters.evidenceWorkId)}},
     {projectionRef:REJECTION_HANDLE,projection:{project:({ownerScope,parameters})=>{const decision=rejection(ownerScope,parameters.evidenceWorkId);return Object.freeze({
       schemaRef:'helix://contracts/types/DomainFactCommitHandle/v1',schemaVersion:1,handleId:stable('libra-intake-rejection-handle-',{decisionId:decision.intakeDecisionId}),
