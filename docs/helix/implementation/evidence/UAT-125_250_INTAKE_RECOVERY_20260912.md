@@ -75,3 +75,97 @@ On-deck Run `844d2564f525ee73c36564559e8b5cbefc704f8cf65457796af7b72bf6215615` �
 建议的最小合同保持现有Owner：Foundation按精确Primary Key集合提供bounded current Control事实；Libra在正式Evidence Work中形成可持久重建且绑定Candidate Snapshot/观察时点的Control Evidence，并以已有code签发拒绝；Procurement只消费正式拒绝通知释放本包Reservation。Query unavailable保持技术unknown，不伪装成业务拒绝。须明确producer名称/typed输入输出、正式Evidence ID与payload digest、成功Result持久位置、CAS失败原子未提交证明和后续新Evidence/Work basis规则。保护当前Control和原immutable Package；重复/restart同一拒绝只成立一次；释放后通过下一轮普通Observation/Triage重新选材。
 
 这些具体producer/持久化/恢复分叉尚未形成唯一现行契约，本任务未擅自增加Catalog或改写SSOT。已将精确缺口及上述有界方案交给统一部署负责人收口；此段不能当作已批准的新增合同。第一批修复可独立整合，生产两席位恢复不得越过该未完成条件。
+
+## 可直接审定的最小合同提案（待审，未实施）
+
+本提案收窄上一节：**只实现Evidence观察时已证实Control不符合Candidate冻结转移前提的正式拒绝。观察通过之后的CAS失败继续按现有未决Effect规则处理，本批不增加CAS后自动拒绝、重新观察或新Work generation。** 因此旧五包治理可以有通用实现入口，但不能宣称所有未来Control竞争均已自动恢复。
+
+### 选择：复用材料验证Capability和既有Evidence Work
+
+选定复用 `libra.intake.material.verify@1`，继续属于Libra、`pure_observation`，输出仍为 `IntakeMaterialVerification@1`。不新增Capability、Catalog Result family、Process Root、业务表或自动化队列。现有Candidate验证节点和后续Acceptance/Rejection两个分支保持原归属。材料验证在本次Intake的只读检查中同时核对物理可读性和冻结Control前提，不执行Control转移。
+
+Foundation依旧是Control事实提供者。Composition提供固定的 `IntakeControlObservationPort.observe(handle)` 只读适配器，内部复用 `getMaterialControlProjections` public port，按500项分批读取。Libra只用下述冻结的scoped Read Handle调用这个明确声明的观察依赖，与现有材料验证调用有界fingerprint观察port相同；Executor不持有Store、通用Facade或任意Query，不通过路径猜Owner。port只返回事实，是否满足Candidate转移前提由Libra判断。Planner只声明typed Handle投影，不执行查询或写入。
+
+所需SSOT传播仅为：原Capability输入栏追加下述Control观察输入；原Material Result定义补检查字段；定义该Capability的Evidence双分支及正式引用规则。下面选定的DTO、ID公式、schema生成和持久绑定是工程合同落点，不增加拒绝理由或业务Owner。
+
+### Typed输入与检查结果
+
+原两个named input不变，追加必需的 `intakeControlReadHandle`，名义类型暂定 `IntakeControlReadHandle@1`（正式scoped读取输入，不是Catalog Result）：
+
+```text
+handleId: SHA256
+ownerDomain: libra
+processType: libra_intake
+processId: 本Offer的Intake decision ID
+candidateDeliverySnapshotDigest: SHA256
+materialKeys: SHA256[1..1024]
+accessScope: current_control_projection_read
+scopeDigest: SHA256
+```
+
+`materialKeys`按UTF-8字节排序，唯一且恰好覆盖同一Delivery的全部Primary成员；exclusive Related不进入Primary Control transfer集合。`scopeDigest=SHA-256(JCS({schema:"libra.intake-control-read-scope@1",ownerDomain,processType,processId,candidateDeliverySnapshotDigest,materialKeys,accessScope}))`；`handleId=SHA-256(JCS({schema:"libra.intake-control-read-handle-id@1",scopeDigest}))`。完整Handle不超过128 KiB。输入投影仅从immutable Delivery确定性派生Handle；port必须校验Handle、ExecutionContext Owner/process及同一Candidate成员闭包，只允许读这些Key，不能接收额外SQL或调用者扩大的Key列表。
+
+**Handle不含current Control值、当前时间或临时nonce。** 这些值若由live input projection每次重算，会再次导致恢复输入漂移，不能采用。纯观察执行时，适配器返回 `capturedAtMs,projections[],observationDigest`：projections沿用§8.6.18完整available/unavailable union，排序/闭包与Handle一致；capturedAtMs为观察装配完成时刻，不声称多批Query同时原子读取；`observationDigest=SHA-256(JCS({schema:"libra.intake-control-observation@1",readHandleScopeDigest:scopeDigest,capturedAtMs,projections}))`。该明确声明的port输出上限1 MiB，超界、缺项、多项或digest错误是typed integrity failure，禁止截断。port输出是本次观察结果，不是回填Event输入的新快照。
+
+未完成的pure观察可以在同一稳定Handle输入下重新观察现实；已经成功持久的Result/Evidence只重放原记录，不重新查询current Control。这样保留Foundation的输入摘要Fence，并避免把动态时钟藏进恢复输入。
+
+Executor先校验输入Handle及观察输出闭包，再将每项available观察与该Candidate冻结的 `admittedControlRevision/admittedControlProjectionDigest` 及来源Field比较。只有revision/digest均相等、`controlState=controlled`、`ownerDomain=procurement`、`ownerScopeType=material_field`、`ownerScopeId=来源Field ID`才匹配。
+
+| 观察情况 | 本批结果 |
+| --- | --- |
+| 全部available且全部匹配 | Control检查matched；物理验证也通过时，原Material Result才passed |
+| 全部available，至少一项不匹配，包括revision0无row、released、其他Owner/Field或revision/digest不同 | Material Result failed，理由加入现有 `candidate_control_scope_unavailable`；保存按materialKey排序的**第一项**失配完整Snapshot作为充分拒绝证据 |
+| 任一项resultKind=unavailable，包括Query不可用、坏row、未知Owner/state | 明确技术unknown/failure；不生成该业务拒绝理由、不把unknown算作uncontrolled、不释放席位，沿用原pure观察重试/失败处理 |
+| 输入或Snapshot digest/closure不合法 | typed integrity failure，不进入业务拒绝 |
+
+只保存一项失配见证足以证明该不可变Candidate不能按冻结集合转移，不声称列出了全部失配成员；查询与验证仍检查完整Primary集合。有真实物理失败时继续保留其理由，整体按既有五类precedence排序；不把Control失败伪装成物理不可用。
+
+`IntakeMaterialVerification@1`补具名字段：`controlObservationDigest`、`controlCapturedAtMs`、`controlScopeStatus(matched|mismatched)`、`mismatchedControlMaterialKey(null|SHA256)`。matched时key为null；mismatched时key必须为上述见证key且reasonCodes含Control失败。观察unknown不发布此成功Outcome。现有 `result=failed` 仍可作为 `Outcome.kind=succeeded` 的正式验证结果；只有Material Result passed才能进入Accepted payload。上述字段明确进入新生产者的校验合同，不为旧Result缺字段增加fallback。
+
+### 正式Evidence身份与持久位置
+
+复用原材料验证Event的 `fx_event_result_bindings` 一行；Result保存在现有 `result_json/result_digest`。该Capability的 `evidence.schema.json` 从单一通用Envelope变成严格双分支：
+
+- Control matched：保留现有物理验证EvidenceEnvelope。
+- Control mismatched：`evidence_json` **直接保存第一项失配的完整 `MaterialControlProjectionSnapshot@1`**，不加字段、不套会改变Projection digest的伪Snapshot；所有物理失败的证明仍在同一行Material Result中。
+
+Capability producer在执行时核对见证确实来自该scoped port观察输出；semantic validator强制Result状态与Evidence分支对应，并从冻结Candidate/Handle独立复核见证key命中同一Primary、确实失配、内部两个digest正确。Foundation按原流程在成功Outcome中持久化Result/Evidence，重启由已有 `WorkResultReader` 读取并校验canonical JSON摘要；不创建新的Evidence Store。
+
+**正式Evidence ID选用该持久绑定已有的 `result_id`**，而非由projectionDigest临时拼出不可解析的ID。该ID在此引用语境唯一定位同一行的 `evidence_json` 槽位。正式拒绝引用固定为：
+
+```text
+evidenceSchemaRef = helix://contracts/types/MaterialControlProjectionSnapshot/v1
+evidenceId        = WorkResultReader返回的resultId
+evidenceDigest    = WorkResultReader返回的evidenceDigest
+                 = SHA-256(JCS(完整evidence_json Snapshot))
+```
+
+三个摘要不得混用：Snapshot内部 `evidenceDigest`是§8.6.18的Foundation观察basis摘要；`projectionDigest`覆盖Snapshot中除projectionDigest自身以外的完整字段；拒绝引用的外层 `evidenceDigest` 是包含上述两项的完整持久Snapshot摘要。ID不是Snapshot字段，不参与其内部公式。绑定列的 `evidence_schema_ref`仍指向该Capability的evidence schema；Reader/Libra引用验证器必须验证其确实命中名义Snapshot分支，才能出具上述nominal ref。补充名义Snapshot schema以逐字表达已有union，不新增Catalog Result family。
+
+这是一项显式的持久Evidence引用合同选择：Foundation生成且持久保存既有Result ID，Libra只将已读取的ID及正确槽位/名义schema绑定成拒绝Evidence ref。禁止把随机字符串、当前Query返回值或后来Control row当作历史Evidence。
+
+### Planner、Coordinator、拒绝Receipt和释放的关联
+
+1. `IntakeEvidencePlanner`仍规划原两个验证节点，仅给material节点增加上述投影输入。同一Work/process仍由Offer及Delivery Snapshot定位；只读观察重试可以重新取得现实，但只有成功持久的终态Result用于后续Decision。
+2. Coordinator继续读取原Evidence Work的Candidate和Material Results；候选passed且材料passed才提交Acceptance，否则提交原Rejection Work。构造Work basis时除原两个Result摘要外，加入Control见证的持久ID及外层Evidence摘要（matched为null），固定真正消费的Evidence绑定。不得在已有Acceptance执行/未决Effect时另作current Control查询并改判分支。
+3. Rejection Planner仍只有一个精确Evidence Work dependency，保留 `WorkResultReader` 的完整来源元数据。Control理由使用上面的正式ref；其他理由仍引用原Candidate/Material Verification。装配器重验Work/process、capability、Result basis、Candidate Snapshot摘要和见证成员，使用持久Result的verifiedAtMs形成Decision，禁止旁读current Control刷新理由。
+4. 原 `IntakeRejectionDecision → Reasons → IntakeRejectionReceipt → Result/marker → LibraCandidateRejectedMessage` 保持同一原子事务。`libra_intake_rejection_reason_evidence`保存正式ref，Receipt中的reasonSet/rejection digest继续锁定它。无Subject、Binding或Control变更；重复与重启必须重建同一Decision/Receipt。
+5. Libra仅在正式Rejected Receipt成立后按原规则释放本Intake Token。Procurement只消费原Rejected Message，经原精确Offer/package/Receipt校验将本包Reservation终结为released+handoff_rejected。消息未消费前Reservation继续保护旧材料，不能因为Libra席位已释放便提前借用。原Package不改，后续普通Observation/Triage按当前资格产生新Package；不自动强制启动扫描，也不把其他Owner控制的材料强行重新选入。
+
+### Accepted事务后的三种状态：本批不增加恢复分叉
+
+| 状态与证明 | 处理结果 |
+| --- | --- |
+| 已commit：同一Accepted Receipt、commit marker及Result等原子事实完整且一致 | 按原Accepted事实重放/继续；不因current Control后来变化而转Rejected，不重建Evidence Work |
+| 可证明未commit：原事务明确回滚/未进入提交，且按既有Reconcile合同排除该effect的Commit事实；不是只查不到一行 | 本批仍走原失败/恢复规则，保留原frozen输入、原Effect及席位；**不**自动生成新Control Evidence、Reject或新Work generation。若原前提不再可满足，保持可诊断阻塞，由后续精确恢复处置解决 |
+| unknown：事务结局或Receipt/marker/Result一致性未证实 | 保留reconcile_required及既有Fence，不释放席位、不更换输入、不把CAS错误直接翻译为业务拒绝 |
+
+因此可以在本次最小修复中保留全部现有unknown保护。CAS后自动拒绝/重新观察不是让本提案安全成立的前提，明确移出本批。旧两Token仅在另行授权的精确Reset完成后成为新流程；新Evidence从当前事实看见旧Candidate revision不符并正式拒绝，不为旧Plan增加兼容。其余旧队列条目是否需clean-cut处置须发布时逐项预检，不顺带扩大Reset范围。
+
+### 决策边界与验收
+
+**没有必须重新询问的业务决定。** 使用既有Control失配理由、Foundation只读事实/Libra拒绝/Procurement释放的Owner边界、保护原Package/Control和unknown，均已有依据。选择复用Capability、DTO字段/字节界、借用既有Result行的Evidence身份与槽位、schema/manifest生成及测试组织，是可在既有Owner内完成的工程选择；不是要求用户替工程师选择表名或摘要公式。本轮按部署负责人明确要求停留在提案审定状态，并非把每次schema修改一概当作用户审批事项。
+
+**若要扩大范围才需要新的业务/边界确认：** 将已Accepted条目反转为Rejected；依据CAS异常或缺行猜测未提交并释放席位；把未知/坏Control当作普通不符；自动修改Control/immutable Package，或扩大生产Reset/媒体处置范围。上述行为均未包含在提案中。未来CAS后自动新Evidence/Work分叉须另列完整Owner恢复合同，不搭便车加入本补丁。
+
+审定后实施验收至少覆盖：新Candidate发布后、验证前通过正式测试Control命令改变revision/Owner；正式Snapshot证据和拒绝ref可独立重建；原Control/Package逐字不变；反复reconcile/消息重放/两次Host重启无重复Receipt且Token释放一次；释放后当前资格允许时下一轮普通扫描生成新Package；Query unavailable/坏row不拒绝；观察通过后才CAS失配保留未决保护；已有Accepted Receipt绝不反转；篡改见证schema/ID/摘要/来源Work/Candidate成员逐项拒绝。先通过新建流程测试，再对生产备份副本演练旧队列，不能以清旧数据代替根因验收。
