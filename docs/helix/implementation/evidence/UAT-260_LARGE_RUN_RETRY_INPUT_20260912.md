@@ -6,7 +6,7 @@
 
 同一cd4f一致副本中，原两Token精确Reset、5份旧Offer正式拒绝及消费后，真实NAS只读Observation完成73页、18,531文件，revision1367。普通选材形成601和574成员的两个Run，原23成员全部入选、admitted Control revision1；5条拒绝消息由真实OutboxDispatcher ACK，第二次drain无重复。后续测试SSH桥未编码BigInt，使9项BDMV纯观察失败并按正式路径封账。该桥接故障属于测试设施；已修wire encoding并只读复验真实BDMV topology，不把此故障描述为产品媒体读取失败。
 
-在该失败副本上请求正式FailedPreparationRetry，产品重试器在Plan激活时触发`length(CAST(input_bindings_json AS BLOB)) <= 16384`约束。源任务报告Supporting Work admission已提交、activation事务回滚，尚未产生新Candidate；精确Work/Attempt状态及输入字节数待补原始失败审计。失败副本保留，不能通过改DB上限、时间戳、旧Work或扩大Reset来使测试通过。另建一致副本使用修正桥继续正常链，并不消除本缺陷。
+在该失败副本上请求正式FailedPreparationRetry，产品重试器在Plan激活时触发`length(CAST(input_bindings_json AS BLOB)) <= 16384`约束。源证据c12d38d4b确认Supporting Work admission已提交、activation事务回滚：`failed-preparation-retry-work-259b09306770898082bfa66e0829ddeaa666f4fb`为admitted，Attempt/Plan均0，尚未创建Retry Intent/新Run/Candidate；输入字节数待补原始失败审计。失败副本保留，不能通过改DB上限、时间戳、旧Work或扩大Reset来使测试通过。另建一致副本使用修正桥继续正常链，并不消除本缺陷。[源演练证据](UAT-125_250_INTAKE_RECOVERY_20260912.md)。
 
 ## 代码及Owner合同核验
 
