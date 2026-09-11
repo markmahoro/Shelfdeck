@@ -1,6 +1,6 @@
 # ShelfDeck 当前状态
 
-更新：2026-09-12。唯一条目及关闭条件入口为[UAT总表](UAT_ITERATION_REGISTER.md)，唯一排程为[CURRENT_PLAN](CURRENT_PLAN.md)。259项连续：69项本轮功能验收关闭、34项开放、153项历史关闭、220文档关闭、1项非缺陷接受、206被取代且承接已核实。历史关闭不是本次重新验收。
+更新：2026-09-12。唯一条目及关闭条件入口为[UAT总表](UAT_ITERATION_REGISTER.md)，唯一排程为[CURRENT_PLAN](CURRENT_PLAN.md)。259项连续：70项本轮功能验收关闭、33项开放、153项历史关闭、220文档关闭、1项非缺陷接受、206被取代且承接已核实。历史关闭不是本次重新验收。
 
 255项前后合同审查及三项用户决定已完成，SSOT/Beta已在`14cf2d9a0`同步。已无这三项待确认决定；合同确认不等于实现或验收。审查及覆盖关系见[全量证据](implementation/evidence/UAT_FULL_CONTRACT_CONSISTENCY_AUDIT_20260909.md)。
 
@@ -15,7 +15,7 @@
 
 UAT-125/250核心9820e7b85已由203773327合入集成分支：新Intake恢复输入稳定、精确pre-Subject Reset闭包和《人生密密缝》两文件离线隔离/回滚工具已完成。独立发布区49项专项通过；开发任务的Windows/Linux验证、一致备份副本演练及生产两文件只读预检见[实现证据](implementation/evidence/UAT-125_250_INTAKE_RECOVERY_20260912.md)。核心已随cd4f3f5b2d部署，离线隔离工具未执行；5份旧Candidate共23项Control不符，正式拒绝链正在按已审定窄合同实施，仍阻塞完整席位恢复，不执行生产两席位Reset，不宣称该片已上架或3席位有效周转。[联合收口证据](implementation/evidence/UAT_JOINT_DEPLOYMENT_READINESS_20260912.md)。
 
-UAT-259第二轮UI已随cd4f3f5b2d发布，Web94/94、本地494元素一致和生产八页/五Tab复核通过，正在按独立证据收口。[范围与验收](implementation/evidence/UAT-259_UI_REFINEMENT_20260912.md)。
+UAT-259已独立验收关闭：最终Web94/94，本地494元素一致，cd4f3f5b2d生产八页/五设置Tab布局、状态和必要交互复核通过；九列表格保持。[本项证据](implementation/evidence/UAT-259_UI_REFINEMENT_20260912.md)。
 
 UAT-257扫描恢复已部署：正常新扫描完成73页，原失败历史保留，页面由扫描中转完成，六条资格已刷新。后续普通选材及新Package/Delivery仍逐项核对，整项开放。[实现及验收](implementation/evidence/UAT-257_SCAN_RECOVERY_IMPLEMENTATION_20260912.md)。
 
