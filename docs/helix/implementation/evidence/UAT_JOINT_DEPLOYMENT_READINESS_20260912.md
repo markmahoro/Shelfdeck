@@ -70,3 +70,10 @@ UAT-251全局授权位于收藏架配置页头，与258保持相同按钮/对话
 发布区安装独立锁定服务依赖，没有共享Junction。集成候选执行`node --test --test-concurrency=1 media-service/test/helix-intake-recovery.test.js media-service/test/helix-formation-reset.test.js media-service/test/helix-stage-conflict-quarantine.test.js media-service/test/helix-architecture/p8-intake-acceptance-contracts.test.js`，49/49通过、无跳过，约52.8秒。该恢复场景为真实Host/SQLite与注入Probe fixture，不把它称为完整真实媒体链；最终Linux镜像验证仍待该批候选冻结后执行。本地日志位于发布区`.codex/intake-integration-20260912.log`。
 
 仍未构建或部署新生产镜像，也未执行生产Reset/隔离工具；核心合入不关闭UAT-125/250。恢复任务进一步指出正式Control Evidence身份/持久化与CAS失败后的未提交证明路径有合同缺口，当前先保留阻塞并审查其窄合同提案，不在集成时补造Evidence或改变旧Plan。原Aftercare Evidence SHA256保持接手值。
+
+## 后续集成与批次安排
+
+- `fa2d1f2f0`完整接收恢复Evidence已合入`22ac589f3`；三个CURRENT文件的并发冲突保留部署职责、259最新授权、258及恢复事实。开发任务已释放的`E:/my_project/emby_third_party-helix-intake-baseline`经物理路径、无tracked/untracked/ignored变更、无占用进程及144798953可达性核验后，用非force的`git worktree remove`清理；其余未交付工作区和回滚资料保留。
+- 扫描交付`fdabf79a6`已由`93d525b2d`整合，三个CURRENT文件冲突逐段合并，保留全部新授权及旧队列阻塞。独立发布区在93d525b2d完成21/21扫描、Intake与拒绝循环组合回归、21文件94/94 Web回归及TypeScript/Vite构建；无需因后续纯文档合入重复这些检查。
+- 首批拟在UAT-259完成自身UI组合验收后，集中发布扫描修复、接收恢复核心、258/259；UAT-251完成自身合同/schema/全链验证后另安排。最终镜像Linux、生产真实扫描、正式用户结果与完整备份仍是每批独立门禁，未交付变更不混入。
+- `5d4950e58`最小Control拒绝提案已通过部署负责人工程审定并交原恢复任务实施：限定观察时available且已证实不符，复用既有材料验证能力和Result Evidence，采用稳定scoped Handle及Foundation public读取；没有改变Owner、既有拒绝理由或业务终局，不需用户再次决定工程字段与ID槽位。CAS后自动Reject/新Work分叉移出范围，unknown和Accepted不可反转保持。正式SSOT/typed合同传播及新建流程验证未完成前，生产旧两席位Reset仍不执行。
