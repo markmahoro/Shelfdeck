@@ -5,7 +5,7 @@
 
 ## 当前执行位置
 
-2026-09-12接收恢复修复：UAT-125/250在独立`codex/intake-recovery-20260912`提交`9820e7b85`。新Movie并发/事务中断/两次重启、投影负向Fence和两文件隔离/回滚验证通过，精确2个pre-Subject Reset在一致备份副本闭包清零且范围外逐行不变。但5个open旧Candidate存在23项Control revision失配，正式Control Evidence/拒绝恢复分叉合同缺口未收口，生产Reset保持阻塞；详见[证据](evidence/UAT-125_250_INTAKE_RECOVERY_20260912.md)。本任务不执行生产操作，统一部署负责人安排整合、发布及后续现场验收。
+2026-09-12接收恢复：UAT-125/250独立分支第一批`9820e7b85`完成冻结输入及精确处置工具；第二批`9ecf7b2a1`按审定合同复用Material Verification发布持久Control见证并正式拒绝。新建拒绝/释放/重启/普通重新选材接入通过，观察后CAS竞争保留未决Fence；Windows1638通过/9跳过、Linux115运行用例通过（另1项Git历史检查因缺git失败）。原备份副本精确Reset及5包23项Control只读分类证据保留，旧队列端到端恢复和生产Reset尚未在本任务执行；详见[证据](evidence/UAT-125_250_INTAKE_RECOVERY_20260912.md)。统一部署负责人安排整合、发布及现场验收，125/250保持开放。
 
 2026-09-12：UAT-256已获用户实施授权，在`codex/ui-polish`隔离工作区完成前端视觉与文案整理，89项测试、桌面八页本地与83235c9260生产八页/五Tab验收通过，已独立关闭；[范围与证据](evidence/UAT-256_UI_POLISH_20260912.md)。不夹带其他开放项，不修改媒体整理现有列表或业务逻辑。
 

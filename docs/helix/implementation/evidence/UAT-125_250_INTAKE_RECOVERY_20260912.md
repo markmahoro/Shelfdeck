@@ -64,7 +64,7 @@ On-deck Run `844d2564f525ee73c36564559e8b5cbefc704f8cf65457796af7b72bf6215615` �
 
 完整本地manifest、只读预检和副本演练证据在 `%TEMP%/shelfdeck-intake-recovery-20260912/`，运行数据未入仓库。历史因果证据见[UAT-250](UAT-250_FORMATION_STOCK_GOVERNANCE_20260908.md)、[三片修复](THREE_FILM_FIX_20260911.md)。
 
-## 后续Control拒绝闭环的精确缺口
+## 第一批之后发现的Control拒绝合同缺口（历史核查）
 
 部署负责人要求先交付第一批，再核对既有拒绝闭环；如果producer/持久化/路由无法从现行合同唯一确定，先交付缺口并停止该边界实现。核查结论如下，不把已确认closed reason重新当成待定业务要求。
 
@@ -76,7 +76,9 @@ On-deck Run `844d2564f525ee73c36564559e8b5cbefc704f8cf65457796af7b72bf6215615` �
 
 这些具体producer/持久化/恢复分叉尚未形成唯一现行契约，本任务未擅自增加Catalog或改写SSOT。已将精确缺口及上述有界方案交给统一部署负责人收口；此段不能当作已批准的新增合同。第一批修复可独立整合，生产两席位恢复不得越过该未完成条件。
 
-## 可直接审定的最小合同提案（待审，未实施）
+## 最小合同：已审定并实施
+
+部署负责人审定`5d4950e58`提案后明确通过既有Owner内的最小工程范围。实现提交为`9ecf7b2a1`，已同步SSOT、typed schema及派生manifest；以下保留审定依据，CAS后的自动新Evidence/Work分叉仍不在本批内。末节记录实测覆盖与部署限制，旧生产队列未在本任务中改动。
 
 本提案收窄上一节：**只实现Evidence观察时已证实Control不符合Candidate冻结转移前提的正式拒绝。观察通过之后的CAS失败继续按现有未决Effect规则处理，本批不增加CAS后自动拒绝、重新观察或新Work generation。** 因此旧五包治理可以有通用实现入口，但不能宣称所有未来Control竞争均已自动恢复。
 
@@ -90,7 +92,7 @@ Foundation依旧是Control事实提供者。Composition提供固定的 `IntakeCo
 
 ### Typed输入与检查结果
 
-原两个named input不变，追加必需的 `intakeControlReadHandle`，名义类型暂定 `IntakeControlReadHandle@1`（正式scoped读取输入，不是Catalog Result）：
+原两个named input不变，追加必需的 `intakeControlReadHandle`，名义类型为 `IntakeControlReadHandle@1`（正式scoped读取输入，不是Catalog Result）：
 
 ```text
 handleId: SHA256
@@ -164,8 +166,27 @@ evidenceDigest    = WorkResultReader返回的evidenceDigest
 
 ### 决策边界与验收
 
-**没有必须重新询问的业务决定。** 使用既有Control失配理由、Foundation只读事实/Libra拒绝/Procurement释放的Owner边界、保护原Package/Control和unknown，均已有依据。选择复用Capability、DTO字段/字节界、借用既有Result行的Evidence身份与槽位、schema/manifest生成及测试组织，是可在既有Owner内完成的工程选择；不是要求用户替工程师选择表名或摘要公式。本轮按部署负责人明确要求停留在提案审定状态，并非把每次schema修改一概当作用户审批事项。
+**没有必须重新询问的业务决定。** 使用既有Control失配理由、Foundation只读事实/Libra拒绝/Procurement释放的Owner边界、保护原Package/Control和unknown，均已有依据。选择复用Capability、DTO字段/字节界、借用既有Result行的Evidence身份与槽位、schema/manifest生成及测试组织，是可在既有Owner内完成的工程选择。部署负责人已审定并允许实施，生产操作仍由统一部署任务另行安排。
 
 **若要扩大范围才需要新的业务/边界确认：** 将已Accepted条目反转为Rejected；依据CAS异常或缺行猜测未提交并释放席位；把未知/坏Control当作普通不符；自动修改Control/immutable Package，或扩大生产Reset/媒体处置范围。上述行为均未包含在提案中。未来CAS后自动新Evidence/Work分叉须另列完整Owner恢复合同，不搭便车加入本补丁。
 
 审定后实施验收至少覆盖：新Candidate发布后、验证前通过正式测试Control命令改变revision/Owner；正式Snapshot证据和拒绝ref可独立重建；原Control/Package逐字不变；反复reconcile/消息重放/两次Host重启无重复Receipt且Token释放一次；释放后当前资格允许时下一轮普通扫描生成新Package；Query unavailable/坏row不拒绝；观察通过后才CAS失配保留未决保护；已有Accepted Receipt绝不反转；篡改见证schema/ID/摘要/来源Work/Candidate成员逐项拒绝。先通过新建流程测试，再对生产备份副本演练旧队列，不能以清旧数据代替根因验收。
+
+## 第二批实现与验证：`9ecf7b2a1`
+
+Control观察已接入原Material Verification。Coordinator和Planner消费完整持久Result绑定；拒绝提交前，Foundation只读preflight在原事务中重取来源Result/Event/Work，核验同一Intake process、material.verify成功状态及Rejection Work唯一精确dependency，再核对完整Result/Evidence摘要。缺失ID、伪造schema/digest/Projection、其他process/producer/dependency均在业务写入前被拒绝。matched分支强制保留与完整物理Result绑定的EvidenceEnvelope。
+
+新增`helix-intake-control-recovery.test.js`从实际临时文件、Field API、Observation/Triage建立新Candidate，Probe仍为有界fixture：
+
+1. 停Host后通过Foundation Control CAS participant执行release/acquire，使原Candidate admitted revision 1与current revision 3失配。新Evidence持久保存完整Snapshot；正式Rejected Receipt成立、Token归零、Procurement Reservation终结为`released/handoff_rejected`，拒绝本身不改变Control和原Candidate。
+2. Host重启后原Rejected Receipt保持原值；普通选材创建新Candidate，随后Accepted并按正式转移将Control推进至revision 4。没有改旧包或加旧包专用修复分支。
+3. 运行中的隔离DB注入坏Control row，纯观察以技术失败终结，没有拒绝Receipt、没有释放Token，Delivery仍open。启动完整性检查也独立拒绝带坏Control的DB。
+4. Material Evidence通过后注入Acceptance事务回滚，再通过正式Control participant推进revision；重启只重试原Acceptance Effect并保留原输入摘要、原Evidence和Token，没有新增Rejection Work或伪造未提交证明。
+
+Windows验证：完整`test/helix-architecture/*.test.js`为**1,638 passed / 0 failed / 9既有skip**；新Control Host两场景和原三Movie事务恢复共3项通过，追加CAS后竞争场景1项通过；最终Reset及P2/DDL回归42/42。SSOT Catalog保持113 Capability / 99 Result family / 189 Table / 45 Transaction；新增名义Snapshot使shared types为31，新增scoped输入使domain inputs为120，218个type refs全部解析。P2聚合校验通过；DDL字节及digest`b8cbd25e773b61e1e9ecfe1b8aecb079f4c97eae02f38c117b4d4e8a08427821`不变，生成DB manifest仅同步table contract trace。
+
+Linux使用现有`83235c9260`镜像的Node/dependencies，源码、测试、scripts只读挂载，`--network none --tmpfs /transcode`；Reset fixture只有明确`HELIX_TEST_ISOLATED_TRANSCODE=1`且确认空tmpfs挂载时才使用真实`/transcode`，每例只清理该专用挂载内的测试产物，未mock平台或放宽操作器规则。116项执行中**115 passed / 1环境失败**：唯一失败为`p8-exit-auditor`历史Git证据测试，镜像无git（`spawnSync git ENOENT`）；该项已在Windows全量通过。其余P8、30项Reset、10项quarantine及4项真实Host恢复均通过。此为已有镜像依赖上的源码验证，不是新发布镜像E2E，也不代表FFmpeg/QSV吞吐已验收。
+
+新流程通过后，复制原一致生产备份再做只读Owner port/schema检查：820个open Offer中815匹配、恰好5个旧Candidate失配，共23个Primary（admitted revision 4/current 1）。7组受保护表全行摘要前后相同。结果在`%TEMP%/shelfdeck-intake-recovery-20260912/control-backup-audit.json`；副本为同目录`control-audit-AaxnUx/shelfdeck.db`。该检查真实使用CandidateDeliveryService、Foundation projection port、新scoped observer及typed validators，**没有模拟NAS物理文件验证、写入正式拒绝事务或运行旧队列端到端恢复**。第一批的两Token精确Reset副本演练仍有效；旧队列完整恢复、最新备份、部署后生产验收及《人生密密缝》两文件隔离/上架重试由部署任务安排，UAT-125/250不因此关闭。
+
+本批原始测试输出在系统临时目录：`shelfdeck-control-architecture-final.log`、`shelfdeck-control-host-final.log`、`shelfdeck-control-cas.log`、`shelfdeck-control-linux.log`、`shelfdeck-control-final-check.log`。本任务不执行生产部署、Reset或文件隔离。
