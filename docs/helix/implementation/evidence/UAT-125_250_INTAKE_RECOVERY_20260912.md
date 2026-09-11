@@ -202,3 +202,13 @@ Linux使用现有`83235c9260`镜像的Node/dependencies，源码、测试、scri
 边界：本次为限定五个 process 的真实执行轨集成演练，不声称完整 Host 启动；直接消费真实 Outbox envelope 验证了 Inbox/业务闭环，未执行 Outbox transport ACK。原始快照保留不动。普通选材调用在现有 Observation 上返回 `no_eligible_material`，符合 `availableForAutomaticRun` 的防回环合同：旧 Observation 不得成为新轮次，且拒绝完成时间不得晚于用于重新选材的 Observation 时间。必须在拒绝消费完成后运行新的真实完整 Field Observation，再验证普通选材；该后半段在本节记录时尚未完成，不得以修改时间戳或合成 Observation 代替。
 
 本地可复核材料位于 `%TEMP%/shelfdeck-intake-recovery-20260912/`：`fresh-ssh.cjs`（只读快照/媒体桥）、`prepare-fresh.cjs`（校验与隔离精确 Reset）、`rehearse-fresh.cjs`（真实执行轨）、`audit-fresh.cjs`（保护范围校验）；结果在 `fresh-cd4f/rehearsal/` 的 `reset-plan.json`、`reset-result.json`、`sources.json`、`closures.json`、`nas-observations.json`、`reselection.json`、`final-audit.json`。原始生产导出不进入 Git。上述脚本为本次本机有界操作材料，不能直接用于生产恢复。UAT-125/250 仍开放。
+
+### 同副本真实扫描、ACK 与失败边界
+
+继续同一副本，以 FieldObservationAdminService 创建新 Work，经实际 Scheduler/Planner/EventRuntime/page commit 完成只读 NAS 全 Field 扫描：73 页、18,531 文件，Observation 1294→1367，所有页 observed_at_ms 均晚于五个拒绝 consumer 的 closed_at_ms。普通 Owner 自动选材产生两个 Run，分别601/574成员；原23成员全部重新入选，admitted Control revision 均为1。实际 OutboxDispatcher 仅枚举五个拒绝消息，调用真实 consumer 后 ACK；首次 delivered=5，再次 delivered=0，其他 transport 项未推进。87张不含新 Observation 的受保护表全行摘要仍与原快照相同，原五个拒绝 Receipt 不变，integrity=ok/FK=0。
+
+后续 Candidate 发布尚未通过：临时 SSH 测试桥未编码 BDMV scope 中真实 SQLite BigInt，JSON.stringify 在发送 NAS 前失败，9个 BDMV pure observation 正式失败、两个 Run 封账。这是演练桥接错误，不能归因于 Control 补丁或 NAS 文件。已修正桥的 BigInt wire 编解码，并从真实冻结 scope 独立只读调用 topology 成功（光荣岁月：9 titles、5 selected members）。失败副本和真实失败记录保留，不回改 Outcome。
+
+在同副本按正式 FailedPreparationRetryAdminService 重试时，另发现现有产品大 Run 容量缺陷：同步重试把输入内联到 fx_plan_nodes.input_bindings_json，触发16384字节 CHECK；调用链为 failed-preparation-retry-admin-service.js:1140 → synchronous-domain-work.js:285。WorkAdmission 已提交，但 activate 事务回滚；该 Retry Work 为 admitted，Attempt/Plan 均0，尚未产生 Retry Intent/新Run。未放宽DDL上限、改事实或增加旧Work fallback。该容量缺陷由部署任务核对合同及登记，不能用它否认前述独立通过的扫描、入选与ACK证据。
+
+可复核脚本追加 `readonly-bridge.cjs`、`observe-fresh.cjs`、`triage-fresh.cjs`、`diagnose-triage.cjs`、`retry-triage-fresh.cjs`、`audit-post-observation.cjs`；结果包括 `new-observation-start.json`、`new-observation-progress.json`、`transport-ack.json`、`triage.log`、`post-observation-audit.json`。本节保留故障链，后续从原一致快照另建干净隔离副本，以已修桥重复同样精确对象与真实扫描，单独验证正常 Triage，不扩大 Reset 或操作生产。
