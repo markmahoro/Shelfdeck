@@ -56,3 +56,9 @@ UAT-251全局授权位于收藏架配置页头，与258保持相同按钮/对话
 同日接收恢复及扫描任务报告`better-sqlite3`不可用。只读核实：主工作区`media-service/node_modules`为实体目录且缺少该包，iteration通过Junction指向它，intake-recovery又通过Junction指向iteration；scan-repair和uat251此时已具有独立依赖。没有证据确定最初缺包的具体操作，不能归因于某个任务。
 
 确认主区/集成区服务及Web的package/lock无差异，且没有共享npm安装进程后，在主服务已核验的精确实体路径执行`npm ci --no-audit --no-fund`，161包安装成功。主区、iteration、intake-recovery三条路径均通过SQLite内存`SELECT 1`及fastify/undici/sharp加载，跟踪的package/lock没有变化。已向受影响的接收恢复任务发送技术恢复结果；没有生产写入。该检查只证明本地验证依赖恢复，不代替业务回归或最终镜像验证。
+
+随后发现`tools/node_modules`同样缺少ssh2，iteration及intake-recovery仍通过Junction使用主区实体目录。核验package/lock一致且无安装并发后，按原锁恢复8包；三路径`ssh2.Client`加载及统一SSH入口实际只读生产health均通过，跟踪依赖文件不变。
+
+## 接收恢复追加阻塞
+
+接收恢复任务报告：83235c生产备份副本的精确两项pre-Subject Reset演练及全库保护检查通过，但5个open旧Offer的23个member存在冻结Control revision4/current1。safe Reset不等于recoveryReady，在正式拒绝与重新选材闭环就绪前不执行该两席位的生产Reset。SSOT §8.6.19已规定`candidate_control_scope_unavailable`须引用正式`MaterialControlProjectionSnapshot@1` Evidence；已请求原恢复任务先交付已验证核心修复，再按现行Owner合同补齐并验证这条正常拒绝路径。若producer/持久化/路由存在未定边界，先报告精确缺口，不以旧数据兼容、改Control或改immutable Candidate替代。
