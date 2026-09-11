@@ -2,6 +2,7 @@
 
 const { canonicalDigest } = require('../../../contracts/canonical-json');
 const { validateExtractionPolicyValue } = require('./material-field-contracts');
+const { compareGuards } = require('./material-selection-snapshot');
 
 class ExtractionEligibilityError extends Error {
   constructor(code, message, details = {}) { super(message); this.name = 'ExtractionEligibilityError'; this.code = code; this.details = details; }
@@ -13,17 +14,18 @@ function exact(value, keys, code) {
 }
 function directoryMatch(location, directory) { return location.startsWith(directory + '/'); }
 function validateSelectionSnapshot(value, materialKey) {
-  exact(value, ['materialKey','activeSelections','hasConflict','selectionBasisDigest'], 'P7_ELIGIBILITY_SELECTION_SHAPE');
-  if (value.materialKey !== materialKey || !Array.isArray(value.activeSelections) || value.hasConflict !== (value.activeSelections.length > 0) ||
-      value.activeSelections.some((item) => {
-        try { exact(item, ['procurementRunId','runState','selectionRole','bindingRevision'], 'P7_ELIGIBILITY_SELECTION_ITEM'); }
+  exact(value, ['materialKey','activeGuards','hasConflict','selectionBasisDigest'], 'P7_ELIGIBILITY_SELECTION_SHAPE');
+  if (value.materialKey !== materialKey || !Array.isArray(value.activeGuards) || value.hasConflict !== (value.activeGuards.length > 0) ||
+      value.activeGuards.some((item) => {
+        const delivery = item?.guardKind === 'candidate_delivery';
+        try { exact(item, ['guardKind','procurementRunId','runState','selectionRole','bindingRevision',
+          ...(delivery ? ['candidatePackageId','packageDigest'] : [])], 'P7_ELIGIBILITY_SELECTION_ITEM'); }
         catch (error) { return true; }
-        return typeof item.procurementRunId !== 'string' || !item.procurementRunId || !['active','waiting'].includes(item.runState) ||
+        return !['run_selection','candidate_delivery'].includes(item.guardKind) ||
+          (delivery && (typeof item.candidatePackageId !== 'string' || !item.candidatePackageId || !/^[a-f0-9]{64}$/.test(item.packageDigest))) ||
+          typeof item.procurementRunId !== 'string' || !item.procurementRunId || !(delivery ? ['active','waiting','sealed'] : ['active','waiting']).includes(item.runState) ||
           typeof item.selectionRole !== 'string' || !item.selectionRole || !Number.isSafeInteger(item.bindingRevision) || item.bindingRevision < 1;
-      }) || value.activeSelections.some((item, index) => index > 0 &&
-        (value.activeSelections[index - 1].procurementRunId.localeCompare(item.procurementRunId) > 0 ||
-         value.activeSelections[index - 1].procurementRunId === item.procurementRunId &&
-         value.activeSelections[index - 1].selectionRole.localeCompare(item.selectionRole) >= 0)) ||
+      }) || value.activeGuards.some((item, index) => index > 0 && compareGuards(value.activeGuards[index - 1], item) >= 0) ||
       canonicalDigest(Object.fromEntries(Object.entries(value).filter(([key]) => key !== 'selectionBasisDigest'))) !== value.selectionBasisDigest) {
     fail('P7_ELIGIBILITY_SELECTION_INVALID', 'Material Selection snapshot is invalid.');
   }
@@ -111,7 +113,9 @@ function evaluateExtractionEligibility(decision) {
   if (!decision.appearedInTerminalWork) return outcome(decision, 'ineligible', projection, 'not_observed_in_current_terminal_work');
   if (projection === 'production' || projection === 'finished_goods') return outcome(decision, 'ineligible', projection, 'outside_procurement_region');
   if (decision.selectionSnapshot.hasConflict) return outcome(decision, 'ineligible', projection, 'selection_conflict');
-  if (projection === 'procurement' && decision.selectionSnapshot.activeSelections.length === 0) return outcome(decision, 'ineligible', projection, 'control_not_acquirable');
+  if (projection === 'procurement' && (control.ownerScopeType !== 'material_field' || control.ownerScopeId !== decision.fieldId)) {
+    return outcome(decision, 'ineligible', projection, 'control_not_acquirable');
+  }
   if (policy.excludedMaterialKeys.includes(decision.materialKey)) return outcome(decision, 'ineligible', projection, 'policy_material_excluded');
   if (policy.excludedDirectories.some((directory) => directoryMatch(decision.materialRelativeLocation, directory))) return outcome(decision, 'ineligible', projection, 'policy_directory_excluded');
   if (policy.includedDirectories.length && !policy.includedDirectories.some((directory) => directoryMatch(decision.materialRelativeLocation, directory))) return outcome(decision, 'ineligible', projection, 'policy_directory_not_included');

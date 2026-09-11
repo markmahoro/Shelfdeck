@@ -11,6 +11,7 @@ const { createMaterialControlProjectionPort } = require('../../src/helix/foundat
 const { openSqliteKernel } = require('../../src/helix/foundation/persistence/sqlite-kernel');
 const { createSqliteUnitOfWork } = require('../../src/helix/foundation/persistence/sqlite-unit-of-work');
 const { evaluateExtractionEligibility } = require('../../src/helix/domains/procurement/model/extraction-eligibility');
+const { createMaterialSelectionSnapshot } = require('../../src/helix/domains/procurement/model/material-selection-snapshot');
 
 const schemaDdl = fs.readFileSync(path.resolve(__dirname, '../../src/helix/foundation/persistence/generated/clean-schema.sql'), 'utf8');
 const schemaManifest = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../../src/helix/foundation/persistence/generated/clean-schema.manifest.json'), 'utf8'));
@@ -23,7 +24,7 @@ function policy(overrides = {}) { const value = { extractionPolicyId:'policy-1',
 function snapshot(regionProjection = 'uncontrolled') { const evidence = { schema:'foundation.material-control-evidence@1', materialKey:SHA_A,
   resultKind:'available', controlRevision:0, controlState:'uncontrolled' }; const basis = { materialKey:SHA_A, resultKind:'available', controlRevision:0,
   controlState:'uncontrolled', regionProjection, evidenceDigest:canonicalDigest(evidence) }; return { ...basis, projectionDigest:canonicalDigest(basis) }; }
-function selection() { const basis={ materialKey:SHA_A, activeSelections:[], hasConflict:false };
+function selection() { const basis={ materialKey:SHA_A, activeGuards:[], hasConflict:false };
   return { ...basis, selectionBasisDigest:canonicalDigest(basis) }; }
 function decision(overrides = {}) { return { fieldId:'field-1', fieldStatus:'active', materialKey:SHA_A, expectedEligibilityRevision:1,
   accessRevision:1, accessDigest:SHA_B, terminalObservationRevision:1, fieldObservationWorkId:'work-1', materialBindingRevision:1,
@@ -31,6 +32,41 @@ function decision(overrides = {}) { return { fieldId:'field-1', fieldStatus:'act
   materialRelativeLocation:'movies/title.mkv', sizeBytes:100, observedExtension:'.mkv', extractionPolicy:policy(),
   selectionSnapshot:selection(),
   controlSnapshot:snapshot(), ...overrides }; }
+
+function ownedControl(ownerDomain = 'procurement', ownerScopeId = 'field-1', ownerScopeType = 'material_field') {
+  const evidence = { schema:'foundation.material-control-evidence@1', materialKey:SHA_A,
+    resultKind:'available', controlRevision:1, controlState:'controlled', ownerDomain, ownerScopeType, ownerScopeId };
+  const { schema, ...facts } = evidence;
+  const value = { ...facts, regionProjection: { procurement:'procurement', libra:'production', arca:'finished_goods' }[ownerDomain],
+    evidenceDigest:canonicalDigest(evidence) };
+  return { ...value, projectionDigest:canonicalDigest(value) };
+}
+
+test('same-Field Control without a guard is eligible; other custody, missing files and policy remain authoritative', () => {
+  assert.equal(evaluateExtractionEligibility(decision({ controlSnapshot:ownedControl() })).reasonCode, 'eligible');
+  for (const control of [ownedControl('procurement','other-field'), ownedControl('procurement','field-1','run')]) {
+    assert.equal(evaluateExtractionEligibility(decision({ controlSnapshot:control })).reasonCode, 'control_not_acquirable');
+  }
+  for (const domain of ['libra','arca']) {
+    assert.equal(evaluateExtractionEligibility(decision({ controlSnapshot:ownedControl(domain) })).reasonCode, 'outside_procurement_region');
+  }
+  assert.equal(evaluateExtractionEligibility(decision({ controlSnapshot:ownedControl(), appearedInTerminalWork:false })).reasonCode,
+    'not_observed_in_current_terminal_work');
+  assert.equal(evaluateExtractionEligibility(decision({ controlSnapshot:ownedControl(), extractionPolicy:policy({ excludedMaterialKeys:[SHA_A] }) })).reasonCode,
+    'policy_material_excluded');
+});
+
+test('sealed preparation retains a precise delivery guard until handoff closure', () => {
+  const guard = { guardKind:'candidate_delivery', procurementRunId:'run-1', runState:'sealed',
+    candidatePackageId:'package-1', packageDigest:SHA_B, selectionRole:'triage_input', bindingRevision:1 };
+  const selectionSnapshot = createMaterialSelectionSnapshot(SHA_A, [guard]);
+  assert.equal(evaluateExtractionEligibility(decision({ selectionSnapshot, controlSnapshot:ownedControl() })).reasonCode, 'selection_conflict');
+  const { candidatePackageId, packageDigest, ...base } = guard;
+  for (const invalid of [base, { ...base, guardKind:'run_selection' }]) {
+    assert.throws(() => evaluateExtractionEligibility(decision({ selectionSnapshot:createMaterialSelectionSnapshot(SHA_A, [invalid]) })),
+      error => error.code === 'P7_ELIGIBILITY_SELECTION_INVALID');
+  }
+});
 
 test('applies the unique Eligibility reason precedence without historical suppression', () => {
   assert.equal(evaluateExtractionEligibility(decision()).reasonCode, 'eligible');

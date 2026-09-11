@@ -5414,6 +5414,13 @@ Selection与交付占用是两个连续但不同的Procurement guard：
   消费后置为`released`。两种终态都不修改immutable Package；Accepted的Control已经在Handoff事务转移，
   Rejected继续保留同一Material Field的Procurement Control。
 
+2026-09-12用户确认：Rejected结束的是该Package的交付。释放guard后，仍存在且符合当前资格的材料回到普通
+待开采材料范围，由下一轮正常Procurement/Triage重新评估；可能发布新Package，也可能因文件缺失或不满足规则而
+不成包。不得为Rejected Package建立自动重做、等待恢复、Retry Intent或专用Case，也不得以拒绝历史阻止正常选材。
+上文失败Basis限制只约束未成包的Triage失败；不能把Handoff Rejected等同于Triage失败。重复消费同一终态或重放
+同一Observation不能触发新一轮；后续正常轮次在相同材料事实与规则下反复成包并以同原因被拒绝，是Triage/Intake
+合同或实现需要诊断的证据，不能以隐藏排除解决。
+
 Run Seal是Procurement-owned原子提交：只允许`active|waiting → sealed`，CAS expected state revision与
 `runBasisDigest`，冻结`sealOutcome(completed|failed|partial_failure)`、成功Package集合、失败/未形成Package
 逐成员Evidence、`finishedAtMs`和Selection disposition。每个被释放成员必须把Decision中的`evidenceDigest`
@@ -5460,6 +5467,12 @@ Package的交付责任在其幂等消费Handoff A Accepted或Rejected typed term
 收口：Accepted的Material Control已经在Libra Accepted事务转移，Rejected继续由Procurement持有材料并决定未来
 是否依据新Basis再次开采。Libra terminal Decision先成立、Procurement异步收口尚未完成是可恢复技术窗口，不是
 第二个业务Decision。
+
+Material Field的Package统计按同一Field、同一快照中的不同`candidatePackageId`计数：累计生成 = 当前等待接收 +
+累计接收 + 累计拒绝。技术重投同一Offer不重复计数；旧包被拒绝后新包接收计生成2、接收1、拒绝1、等待0。
+拒绝是已结束交付的历史结果，不能称为当前故障或待恢复包。Package数不是去重影片、文件数或当前材料存量；
+尚未成包的材料需要独立统计，不能从Package数相减推算。按Run查看时只统计该Run生成的Package并跟踪其终态，
+不能混入其他Run在该时段收到的Decision。
 
 #### 6.3.7 Upstream Consistency Audit
 

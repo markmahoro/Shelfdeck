@@ -245,7 +245,7 @@ test('reconciles one terminal Field batch with same-transaction Control freshnes
   seedRuntime(databasePath,'work-1','event-1'); const page=await observe(field,pageRequest('work-1','observation-1',0),[raw('a')]);
   coordinator.execute(commitRequest(page,'event-1')); const snapshot=page.entries[0];
   const control=createMaterialControlProjectionPort({schemaManifest,unitOfWork}).getMaterialControlProjection(snapshot.identity.materialKey);
-  const selectionBasis={materialKey:snapshot.identity.materialKey,activeSelections:[],hasConflict:false};
+  const selectionBasis={materialKey:snapshot.identity.materialKey,activeGuards:[],hasConflict:false};
   const extractionPolicy={extractionPolicyId:field.policy.extractionPolicyId,revision:field.policy.revision,...field.policy.policy,policyDigest:field.policy.policyDigest};
   const decision=evaluateExtractionEligibility({fieldId:'field-1',fieldStatus:'active',materialKey:snapshot.identity.materialKey,
     expectedEligibilityRevision:1,accessRevision:1,accessDigest:field.access.accessDigest,terminalObservationRevision:1,
@@ -269,7 +269,7 @@ test('does not rewrite Eligibility when a later Observation has identical materi
   coordinator.execute(commitRequest(firstPage,'event-1'));
   const snapshot=firstPage.entries[0];
   const control=createMaterialControlProjectionPort({schemaManifest,unitOfWork}).getMaterialControlProjection(snapshot.identity.materialKey);
-  const selectionBasis={materialKey:snapshot.identity.materialKey,activeSelections:[],hasConflict:false};
+  const selectionBasis={materialKey:snapshot.identity.materialKey,activeGuards:[],hasConflict:false};
   const extractionPolicy={extractionPolicyId:field.policy.extractionPolicyId,revision:field.policy.revision,...field.policy.policy,policyDigest:field.policy.policyDigest};
   const decision=evaluateExtractionEligibility({fieldId:'field-1',fieldStatus:'active',materialKey:snapshot.identity.materialKey,
     expectedEligibilityRevision:1,accessRevision:1,accessDigest:field.access.accessDigest,terminalObservationRevision:1,

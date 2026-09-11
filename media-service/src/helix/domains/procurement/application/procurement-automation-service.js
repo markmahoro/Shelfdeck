@@ -1,6 +1,7 @@
 'use strict';
 
 const { canonicalDigest } = require('../../../contracts/canonical-json');
+const { createMaterialSelectionSnapshot, selectionGuard } = require('../model/material-selection-snapshot');
 const { createWorkAdmission } = require('../../../foundation/execution/work-admission');
 const {
   createMaterialControlProjectionPort,
@@ -19,7 +20,7 @@ const {
   createEligibilityReconcileStore,
 } = require('../persistence/eligibility-reconcile-store');
 const {
-  createProcurementRunSlices,
+  createProcurementRunSlices, scopeFor,
 } = require('../model/procurement-run-creator');
 const {
   createProcurementRunAdmissionStore,
@@ -128,7 +129,7 @@ function repositoryDefinition(schemaManifest) {
           'content_profile_hint',
           'profile_hint_revision',
           'profile_hint_digest',
-          'completed',
+          'completed', 'observed_at_ms',
         ],
         keyColumns: ['field_id', 'revision'],
         safeIntegers: true,
@@ -164,6 +165,7 @@ function repositoryDefinition(schemaManifest) {
           'last_observation_id',
           'eligibility_revision',
           'eligibility_state',
+          'eligibility_reason_code',
           'eligibility_basis_digest',
           'eligibility_field_status',
           'eligibility_observation_revision',
@@ -187,9 +189,14 @@ function repositoryDefinition(schemaManifest) {
         tableId: 'proc_procurement_runs',
         columns: [
           'procurement_run_id',
-          'state',
+          'state', 'created_at_ms', 'field_observation_work_id', 'access_digest',
+          'profile_hint_digest', 'extraction_policy_digest', 'triage_rule_authority_digest',
         ],
         keyColumns: ['field_id'],
+      },
+      find_candidate: {
+        kind: 'select-one', tableId: 'proc_candidate_packages',
+        columns: ['candidate_package_id', 'package_digest'], keyColumns: ['candidate_package_id'],
       },
       find_run_material: {
         kind: 'select-one',
@@ -239,7 +246,8 @@ function repositoryDefinition(schemaManifest) {
         columns: [
           'procurement_run_id',
           'ordinal',
-          'material_key',
+          'material_key', 'selection_role', 'binding_revision', 'reality_digest', 'selection_scope_key',
+          'candidate_package_id', 'terminal_disposition', 'reservation_updated_at_ms',
           'selection_state',
           'admitted_control_revision',
           'admitted_control_projection_digest',
@@ -271,33 +279,38 @@ function extension(location) {
 }
 
 function selectionSnapshot(runMaterialByKey, runs, material) {
-  const activeSelections = runs
-    .filter((run) => ['active', 'waiting'].includes(run.state))
-    .map((run) => {
-      const selected = runMaterialByKey.get(
-        run.procurement_run_id + '\u0000' + material.material_key,
-      );
-      return selected &&
-        ['run_selection', 'candidate_delivery'].includes(selected.selection_state) && {
-          procurementRunId: run.procurement_run_id,
-          runState: run.state,
-          selectionRole: selected.selection_role,
-          bindingRevision: Number(selected.binding_revision),
-        };
-    })
-    .filter(Boolean)
-    .sort((left, right) =>
-      left.procurementRunId.localeCompare(right.procurementRunId) ||
-      left.selectionRole.localeCompare(right.selectionRole));
-  const value = {
-    materialKey: material.material_key,
-    activeSelections,
-    hasConflict: activeSelections.length > 0,
-  };
-  return Object.freeze({
-    ...value,
-    selectionBasisDigest: canonicalDigest(value),
+  return createMaterialSelectionSnapshot(material.material_key, runs.map((run) => {
+    const member = runMaterialByKey.get(run.procurement_run_id + '\u0000' + material.material_key);
+    return selectionGuard(run, member, member?.candidate);
+  }).filter(Boolean));
+}
+
+function availableForAutomaticRun(material, snapshot, controls, rule, scopeMembers) {
+  const history = snapshot.runs.map((run) => ({ run, member: snapshot.runMaterialByKey.get(
+    run.procurement_run_id + '\u0000' + material.material_key) })).filter(({ member }) => member)
+    .sort((left, right) => Number(right.run.created_at_ms) - Number(left.run.created_at_ms) ||
+      right.run.procurement_run_id.localeCompare(left.run.procurement_run_id));
+  // An Observation completion replay cannot become a new procurement round.
+  if (history.some(({ run }) => run.field_observation_work_id === snapshot.terminalObservation.field_observation_work_id)) return false;
+  const latest = history[0];
+  if (latest?.member.terminal_disposition === 'handoff_rejected' &&
+      Number(latest.member.reservation_updated_at_ms) >= Number(snapshot.terminalObservation.observed_at_ms)) return false;
+  if (!latest || latest.member.terminal_disposition !== 'triage_failed') return true;
+  // Failed preparation requires changed material/rule facts or the existing explicit
+  // retry contract. Handoff rejection deliberately does not enter this condition.
+  const previousScope = [...snapshot.runMaterialByKey.values()].filter(member =>
+    member.procurement_run_id === latest.run.procurement_run_id && member.selection_scope_key === latest.member.selection_scope_key);
+  const unchangedScope = previousScope.length === scopeMembers.length && scopeMembers.every(current => {
+    const previous = previousScope.find(member => member.material_key === current.material_key);
+    return previous && previous.reality_digest === current.reality_digest &&
+      Number(previous.binding_revision) === Number(current.binding_revision) &&
+      previous.admitted_control_projection_digest === controls.get(current.material_key).projectionDigest;
   });
+  return !unchangedScope ||
+    latest.run.access_digest !== snapshot.access.access_digest ||
+    latest.run.profile_hint_digest !== snapshot.profileHint.hint_digest ||
+    latest.run.extraction_policy_digest !== snapshot.policy.policy_digest ||
+    latest.run.triage_rule_authority_digest !== rule.authorityDigest;
 }
 
 function readOwnerSnapshot(options, repository, observation, rule) {
@@ -377,16 +390,11 @@ function readOwnerSnapshot(options, repository, observation, rule) {
         field_id: observation.fieldId,
       });
       const runMaterialByKey = new Map();
-      for (const run of runs.filter((item) => ['active', 'waiting'].includes(item.state))) {
-        for (const material of materials) {
-          const selected = repo.invoke('find_run_material', {
-            procurement_run_id: run.procurement_run_id,
-            material_key: material.material_key,
-          });
-          if (selected) runMaterialByKey.set(
-            run.procurement_run_id + '\u0000' + material.material_key,
-            selected,
-          );
+      for (const run of runs) {
+        for (const selected of repo.invoke('list_run_materials', { procurement_run_id: run.procurement_run_id })) {
+          const candidate = selected.selection_state === 'candidate_delivery'
+            ? repo.invoke('find_candidate', { candidate_package_id: selected.candidate_package_id }) : null;
+          runMaterialByKey.set(run.procurement_run_id + '\u0000' + selected.material_key, { ...selected, candidate });
         }
       }
       const appearedInTerminalWork = new Map(materials.map((material) => {
@@ -514,6 +522,7 @@ function eligibilityDecisions(snapshot, controls, materials = snapshot.materials
 function needsEligibilityReconcile(material, snapshot, changedMaterialKeys = null, control = null) {
   return changedMaterialKeys?.has(material.material_key) ||
     !control || control.projectionDigest !== material.control_projection_digest ||
+    selectionSnapshot(snapshot.runMaterialByKey, snapshot.runs, material).selectionBasisDigest !== material.selection_basis_digest ||
     material.eligibility_state === 'unknown' ||
     !material.eligibility_basis_digest ||
     Number(material.access_revision) !== Number(snapshot.access.revision) ||
@@ -863,9 +872,19 @@ function createProcurementAutomationService(options) {
       reconcileEligibility(options, current, eligibilityDecisions(current, controls, changedMaterials));
       current = snapshot(observation);
     }
-    const eligible = current.materials.filter((material) =>
+    const eligiblePool = current.materials.filter((material) =>
       material.eligibility_state === 'eligible' && material.eligibility_field_status === 'active' &&
       Number(material.eligibility_policy_revision) === Number(current.policy.revision));
+    const locations = eligiblePool.map(material => relativeLocation(current.access.root_location, material.current_location));
+    const scopes = new Map(), scopeKeys = new Map();
+    eligiblePool.forEach((material, index) => {
+      const key = scopeFor(locations[index], locations).scopeKey;
+      scopeKeys.set(material.material_key, key);
+      if (!scopes.has(key)) scopes.set(key, []);
+      scopes.get(key).push(material);
+    });
+    const eligible = eligiblePool.filter(material => availableForAutomaticRun(material, current, currentControlByKey, rule,
+      scopes.get(scopeKeys.get(material.material_key))));
     const creationBasisDigest = canonicalDigest({ schema:'procurement.run-creator-basis@1', fieldId:observation.fieldId,
       accessRevision:observation.accessRevision, accessDigest:current.access.access_digest,
       profileHintRevision:Number(current.profileHint.revision), profileHintDigest:current.profileHint.hint_digest,

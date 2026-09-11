@@ -3,6 +3,7 @@
 const { canonicalDigest, canonicalJson } = require('../../../contracts/canonical-json');
 const { createMaterialControlProjectionReadParticipant } = require('../../../foundation/persistence/material-control');
 const { createRepositoryDefinition } = require('../../../foundation/persistence/owner-repository');
+const { createMaterialSelectionSnapshot, selectionGuard } = require('../model/material-selection-snapshot');
 const { evaluateExtractionEligibility } = require('../model/extraction-eligibility');
 const SHA256 = /^[0-9a-f]{64}$/;
 
@@ -26,7 +27,8 @@ function definition(schemaManifest) {
     find_observation_id:{ kind:'select-one', tableId:'proc_field_observations', columns:['field_id','revision','observation_id','field_observation_work_id','access_revision','completed'], keyColumns:['observation_id'] },
     find_materials:{ kind:'select-in', tableId:'proc_field_materials', keyColumn:'material_key', fixedKeyColumns:['field_id'], maxItems:100, safeIntegers:true, columns:materialColumns },
     find_runs:{ kind:'select-all', tableId:'proc_procurement_runs', columns:['procurement_run_id','field_id','state'], keyColumns:['field_id'] },
-    find_run_material:{ kind:'select-one', tableId:'proc_run_materials', columns:['procurement_run_id','material_key','selection_role','selection_state','binding_revision'], keyColumns:['procurement_run_id','material_key'] },
+    find_run_material:{ kind:'select-one', tableId:'proc_run_materials', columns:['procurement_run_id','material_key','selection_role','selection_state','binding_revision','candidate_package_id'], keyColumns:['procurement_run_id','material_key'] },
+    find_candidate:{ kind:'select-one', tableId:'proc_candidate_packages', columns:['candidate_package_id','package_digest'], keyColumns:['candidate_package_id'] },
     apply_decision:{ kind:'update', tableId:'proc_field_materials', setColumns:['eligibility_revision','eligibility_state','eligibility_reason_code','eligibility_basis_digest',
       'eligibility_field_status','eligibility_observation_revision','eligibility_policy_revision','selection_basis_digest','control_projection','control_projection_revision',
       'control_projection_digest','eligibility_reconciled_at_ms'], keyColumns:['field_id','material_key'],
@@ -45,15 +47,13 @@ function extension(location) { const name = location.slice(location.lastIndexOf(
   return index < 0 ? '' : name.slice(index).replace(/[A-Z]/g, (character) => character.toLowerCase()); }
 function policyValue(row) { const rules = JSON.parse(row.policy_json); return { extractionPolicyId:row.extraction_policy_id, revision:row.revision, ...rules, policyDigest:row.policy_digest }; }
 function selectionSnapshot(repo, runs, material) {
-  const activeSelections = runs.filter((run) => run.state !== 'sealed').map((run) => {
-    const selected = repo.invoke('find_run_material', { procurement_run_id:run.procurement_run_id, material_key:material.material_key });
-    return selected && ['run_selection', 'candidate_delivery'].includes(selected.selection_state) && {
-      procurementRunId:run.procurement_run_id, runState:run.state,
-      selectionRole:selected.selection_role, bindingRevision:selected.binding_revision
-    };
-  }).filter(Boolean).sort((left, right) => left.procurementRunId.localeCompare(right.procurementRunId) || left.selectionRole.localeCompare(right.selectionRole));
-  const basis = { materialKey:material.material_key, activeSelections, hasConflict:activeSelections.length > 0 };
-  return Object.freeze({ ...basis, selectionBasisDigest:canonicalDigest(basis) });
+  const guards = runs.map((run) => {
+    const selected = repo.invoke('find_run_material', { procurement_run_id: run.procurement_run_id, material_key: material.material_key });
+    const candidate = selected?.selection_state === 'candidate_delivery'
+      ? repo.invoke('find_candidate', { candidate_package_id: selected.candidate_package_id }) : null;
+    return selectionGuard(run, selected, candidate);
+  }).filter(Boolean);
+  return createMaterialSelectionSnapshot(material.material_key, guards);
 }
 
 function createEligibilityReconcileStore(options) {

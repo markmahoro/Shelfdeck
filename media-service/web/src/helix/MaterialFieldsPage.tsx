@@ -187,8 +187,6 @@ export default function MaterialFieldsPage() {
         const scanBusy = observing || scan.state === 'scanning';
         const admission = intakeAdmission[field.fieldId];
         const generated = field.procurementStatus.generatedPackageCount;
-        const acceptedPercent = generated > 0 ? (field.procurementStatus.acceptedPackageCount / generated) * 100 : 0;
-        const waitingPercent = generated > 0 ? (field.procurementStatus.waitingAcceptanceCount / generated) * 100 : 0;
         return <article className="source-record" key={field.fieldId}>
         <header className="source-record-head">
           <div className="source-record-title"><div><h3>{field.name}</h3><p>{field.access.rootLocation}</p><span className="source-state" data-state={field.status}>{field.status === 'active' ? '活动来源' : '已注销'}</span></div></div>
@@ -205,18 +203,14 @@ export default function MaterialFieldsPage() {
           </div>
         </header>
         <div className="source-flow-grid">
-          <section className="source-flow-panel source-flow-procurement" aria-label={`${field.name} 材料准备进度`}>
-            <div className="source-flow-heading"><span>材料准备</span><strong>待整理媒体包</strong></div>
-            <div className="source-handoff-ledger">
-              <div><span>已生成</span><strong>{generated}</strong></div>
-              <div><span>已接收</span><strong>{field.procurementStatus.acceptedPackageCount}</strong></div>
-              <div><span>等待接收</span><strong>{field.procurementStatus.waitingAcceptanceCount}</strong></div>
+          <section className="source-flow-panel source-flow-procurement" aria-label={`${field.name} 材料准备`}>
+            <div className="source-flow-heading"><span>材料准备</span><strong>媒体包</strong></div>
+            <div className="source-package-waiting"><span>等待接收</span><strong>{field.procurementStatus.waitingAcceptanceCount}</strong><span>包</span></div>
+            <div className="source-handoff-ledger source-package-history">
+              <div><span>累计生成</span><span><strong>{generated}</strong> 包</span></div>
+              <div><span>累计接收</span><span><strong>{field.procurementStatus.acceptedPackageCount}</strong> 包</span></div>
+              <div><span>累计拒绝</span><span><strong>{field.procurementStatus.rejectedPackageCount}</strong> 包</span></div>
             </div>
-            <div className="source-handoff-bar" aria-label={`已生成 ${generated}，已接收 ${field.procurementStatus.acceptedPackageCount}，等待接收 ${field.procurementStatus.waitingAcceptanceCount}`}>
-              <span className="accepted" style={{ width: `${acceptedPercent}%` }} />
-              <span className="waiting" style={{ width: `${waitingPercent}%` }} />
-            </div>
-            {field.procurementStatus.rejectedPackageCount > 0 && <p className="source-flow-exception ui-state">接收被拒 · {field.procurementStatus.rejectedPackageCount} 包</p>}
           </section>
           <section className="source-flow-panel source-flow-libra" aria-label={`${field.name} 同时整理数量`}>
             <div className="source-flow-heading"><span>媒体整理</span><strong>接收席位</strong></div>

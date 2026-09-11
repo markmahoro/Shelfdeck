@@ -224,3 +224,10 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--accent); }
 .dialog-head { padding: 20px 20px 0; }
 .dialog-body, .dialog-actions { padding: 20px; }
 .dialog-head h2 { margin: 0; }
+
+/* Current delivery demand and cumulative package history have separate emphasis. */
+.source-package-waiting { display: flex; align-items: baseline; gap: 8px; margin-top: 16px; }
+.source-page:not(.workbench) .source-package-waiting strong { font-size: 20px; font-variant-numeric: tabular-nums; }
+.source-package-history { color: var(--muted); }
+.source-package-history > div { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.source-page:not(.workbench) .source-package-history strong { display: inline; margin: 0; font-size: 14px; color: inherit; }

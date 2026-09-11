@@ -82,7 +82,12 @@ describe('Helix primary copy and workbench structure', () => {
     expect(screen.getAllByText('726')).toHaveLength(1);
     expect(screen.getAllByText('226')).toHaveLength(1);
     expect(document.querySelector('.material-fields-page .source-facts')).toBeNull();
-    expect(screen.getByText('接收被拒 · 8 包')).toBeInTheDocument();
+    expect(screen.getByText('累计拒绝').parentElement).toHaveTextContent('累计拒绝8 包');
+    expect(screen.getByText('累计生成').parentElement).toHaveTextContent('累计生成960 包');
+    expect(screen.getByText('累计接收').parentElement).toHaveTextContent('累计接收726 包');
+    expect(screen.getByText('等待接收').parentElement).toHaveTextContent('等待接收226包');
+    expect(document.querySelector('.source-handoff-bar')).toBeNull();
+    expect(screen.queryByText(/接收被拒|未能进入整理|待重试|等待恢复|技术标识/)).not.toBeInTheDocument();
     expect(screen.getByText('暂停接收')).toBeInTheDocument();
     expect(screen.queryByText(/暂停该来源进入整理/)).not.toBeInTheDocument();
   });
