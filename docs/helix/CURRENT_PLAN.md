@@ -13,9 +13,11 @@
 
 ## 剩余排程
 
-UAT-259：用户明确“可以实施第二轮了”；[确认清单及本地验收](implementation/evidence/UAT-259_UI_REFINEMENT_20260912.md)已完成，下一步交统一部署及生产验收。标题、卡片层级及工具栏已精简，收藏架“可接收整理结果”已移除；媒体整理列表及后端保持。
+首批cd4f3f5b2d已标准发布：扫描恢复、接收恢复核心、258/259。73页正常扫描成功、六条资格恢复；继续核对257普通选材结果，并依次收口258/259生产证据。后续安排正式Control拒绝链与251，不执行仍阻塞的旧两席位Reset。[首批记录](implementation/evidence/UAT_RELEASE_CD4F3F5B2D_20260912.md)。
 
-UAT-257扫描阻塞：`codex/field-observation-recovery`隔离修复及本地验证完成，修正历史失败阻断普通新轮、零页失败幂等与失败原因投影。UI负责人复查通过；由统一部署任务收口，不单独部署或触发生产扫描。[实现与待验收步骤](implementation/evidence/UAT-257_SCAN_RECOVERY_IMPLEMENTATION_20260912.md)。
+UAT-259：用户明确“可以实施第二轮了”；[确认清单及本地验收](implementation/evidence/UAT-259_UI_REFINEMENT_20260912.md)已完成，已随cd4f3f5b2d部署并完成生产复核，接续独立证据收口。标题、卡片层级及工具栏已精简，收藏架“可接收整理结果”已移除；媒体整理列表及后端保持。
+
+UAT-257扫描阻塞：`codex/field-observation-recovery`隔离修复及本地验证完成，修正历史失败阻断普通新轮、零页失败幂等与失败原因投影。UI负责人复查通过；已由统一部署任务发布并完成新扫描，接续普通选材验收。[实现与待验收步骤](implementation/evidence/UAT-257_SCAN_RECOVERY_IMPLEMENTATION_20260912.md)。
 
 UAT-258：收藏架“自动清理残留文件”授权按钮，对齐UAT-256样式及用户补充的去多余层级规则；沿用精确旧输入授权，按[交互及验收](implementation/evidence/UAT-258_RESIDUAL_CLEANUP_AUTHORIZATION_BUTTON_20260912.md)实施。
 

@@ -6,20 +6,20 @@
 
 ## 当前生产
 
-- 镜像：markmahoro/shelfdeck:helix-beta-20260912-83235c9260；source 83235c9260；Config Image ID sha256:ed54a889290e6e448e551af3ea823c1b32a8a00b8176adec1e4411d170789a2c。
-- tar SHA256：5a2ba0cc1d86aa6fd6af5bdbef41d2ba0701c06b19a6408cdf78f8bffa8b9b94；StartedAt 2026-09-11T18:36:35.708195394Z。标准发布、45文件完整备份与SQLite校验、挂载/健康/NAS管理页通过；旧c10e516e64镜像及tar保留回滚。
-- 生产八页/五设置Tab验收，UAT-256关闭；UAT-257保持开放，956包=820等待+128接收+8拒绝，八份历史拒绝未变，六条资格尚无新成功扫描。收藏113部，当前FFmpeg已恢复。
-- 扩展架构检查4项合同生成基线断言失败，在412a0e3ef复现相同121项drift；依赖/语义/manifest通过。生产仍有历史恢复输入漂移告警，不宣称业务全绿。完整验收、边界与回滚见[发布证据](implementation/evidence/UAT_RELEASE_83235C9260_20260912.md)。
+- 镜像：markmahoro/shelfdeck:helix-beta-20260912-cd4f3f5b2d；source cd4f3f5b2d；NAS Config Image ID sha256:f4d48cd326dba8b551af63fad7c3ce0ffdc0b3040c43c6153d1987cbc9a13452。
+- tar SHA256：4d3f1b1c51d47d10bb2d3afaa5ce1b4cb6a63586b4a8887a458f8f72ec4beaed；StartedAt 2026-09-11T20:28:03.909028638Z。标准发布、45文件完整备份与SQLite校验、五挂载/健康/fnOS管理页通过；83235c9260镜像及tar保留回滚。
+- 最终Web94/94、Linux适用39/39及生产八页/五设置Tab复核通过。正常启动扫描完成73页、revision1222–1294，新Work succeeded；六条当前主文件资格变为eligible，继续核对普通选材结果。发布后初次113收藏、956包=820等待+128接收+8拒绝；原拒绝记录及自动清理授权revision1不变，Fast X继续处理中。
+- Linux广测23项Reset夹具被正式/transcode限定拦下，未放宽安全限制；既有4项架构合同生成基线失败/121项drift保留。本批没有schema/typed合同变化，也未重跑完整真实媒体E2E。历史两席位和《人生密密缝》仍待精确恢复，不宣称业务全绿。详见[本批发布证据](implementation/evidence/UAT_RELEASE_CD4F3F5B2D_20260912.md)。
 
 ## 最近验收与开放事实
 
-UAT-125/250核心9820e7b85已由203773327合入集成分支：新Intake恢复输入稳定、精确pre-Subject Reset闭包和《人生密密缝》两文件离线隔离/回滚工具已完成。独立发布区49项专项通过；开发任务的Windows/Linux验证、一致备份副本演练及生产两文件只读预检见[实现证据](implementation/evidence/UAT-125_250_INTAKE_RECOVERY_20260912.md)。尚未部署；5份旧Candidate共23项Control不符及正式拒绝Evidence/恢复合同缺口仍阻塞完整席位恢复，不执行生产两席位Reset，不宣称该片已上架或3席位有效周转。[联合收口证据](implementation/evidence/UAT_JOINT_DEPLOYMENT_READINESS_20260912.md)。
+UAT-125/250核心9820e7b85已由203773327合入集成分支：新Intake恢复输入稳定、精确pre-Subject Reset闭包和《人生密密缝》两文件离线隔离/回滚工具已完成。独立发布区49项专项通过；开发任务的Windows/Linux验证、一致备份副本演练及生产两文件只读预检见[实现证据](implementation/evidence/UAT-125_250_INTAKE_RECOVERY_20260912.md)。核心已随cd4f3f5b2d部署，离线隔离工具未执行；5份旧Candidate共23项Control不符，正式拒绝链正在按已审定窄合同实施，仍阻塞完整席位恢复，不执行生产两席位Reset，不宣称该片已上架或3席位有效周转。[联合收口证据](implementation/evidence/UAT_JOINT_DEPLOYMENT_READINESS_20260912.md)。
 
-UAT-259第二轮UI精简已完成本地验收：基于93d525b2d整合扫描修复，Web94/94、构建、八页浏览器检查通过；媒体整理工作区494个元素对照一致。待统一部署及生产验收，保持开放。[范围与验收](implementation/evidence/UAT-259_UI_REFINEMENT_20260912.md)。
+UAT-259第二轮UI已随cd4f3f5b2d发布，Web94/94、本地494元素一致和生产八页/五Tab复核通过，正在按独立证据收口。[范围与验收](implementation/evidence/UAT-259_UI_REFINEMENT_20260912.md)。
 
-UAT-257扫描阻塞本地修复完成：历史部分失败不再阻断普通新轮；零页失败下一周期可重扫，失败重启节流、成功启动检查及手动请求幂等保持；原因投影和状态切换经真实临时Host浏览器及UI负责人复查通过。未部署/生产重扫，扩展套件的既有失败与Linux/真实扫描待验项见[证据](implementation/evidence/UAT-257_SCAN_RECOVERY_IMPLEMENTATION_20260912.md)。
+UAT-257扫描恢复已部署：正常新扫描完成73页，原失败历史保留，页面由扫描中转完成，六条资格已刷新。后续普通选材及新Package/Delivery仍逐项核对，整项开放。[实现及验收](implementation/evidence/UAT-257_SCAN_RECOVERY_IMPLEMENTATION_20260912.md)。
 
-UAT-258“自动清理残留文件”授权按钮本地实现完成：替换收藏架折叠说明，入口与新建并列，沿用正式授权范围/API；20文件90项测试及构建通过，真实临时Host完成桌面/390px授权撤销、状态重读、错误恢复和键盘验证。尚未部署，保持开放，见[本次证据](implementation/evidence/UAT-258_RESIDUAL_CLEANUP_AUTHORIZATION_BUTTON_20260912.md)。
+UAT-258授权按钮已随cd4f3f5b2d发布；生产同排按钮、真实授权及范围、取消和返回焦点通过，授权保持revision1，正在按独立证据收口。[本次证据](implementation/evidence/UAT-258_RESIDUAL_CLEANUP_AUTHORIZATION_BUTTON_20260912.md)。
 
 UAT-257实现`0aabaa1ca`：拒绝终结旧包、释放材料回普通选材及累计包统计口径；与UAT-256任务完成来源卡片UI协调。138项领域测试、2项既有旅程和新拒绝闭环样例通过，89项前端测试、构建及隔离页面核对通过；已联合部署，后续正常扫描验收仍开放，见[证据](implementation/evidence/UAT-257_PROCUREMENT_REJECTION_CYCLE_20260912.md)。
 
