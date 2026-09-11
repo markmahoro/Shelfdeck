@@ -139,11 +139,11 @@ describe('Shelf Standard and Placement publish', () => {
     const publish = vi.spyOn(helixAdminApi, 'publishPlacement').mockResolvedValue({ shelf, replayed: false });
     renderShelves();
     fireEvent.click(await screen.findByRole('button', { name: '调整目录布局' }));
-    expect(screen.getByText(/同一收藏项保持不变/)).toBeInTheDocument();
+    expect(screen.getByText('发布后将重新评估目录命名，并自动修复可处理的差异。')).toBeInTheDocument();
     expect(screen.queryByText(/Placement revision/)).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: '预览影响' }));
     expect(await screen.findByText('将影响 3 部已上架电影')).toBeInTheDocument();
-    expect(screen.getByText(/身份保持同一收藏项，不会重新入库/)).toBeInTheDocument();
+    expect(screen.getByText(/重新评估并自动修复可处理的差异/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: '发布目录布局' }));
     await waitFor(() => {
       expect(preview).toHaveBeenCalledWith(expect.objectContaining({ shelfId: 'shelf-1' }), expect.objectContaining({ folderTemplate: '{title} ({year})' }), 'E:\\Movies');
@@ -278,8 +278,7 @@ describe('Shelf Standard and Placement publish', () => {
     fireEvent.click(await screen.findByRole('button', { name: '复制并修改电影整理标准' }));
     fireEvent.click(screen.getByRole('button', { name: '预览影响' }));
     expect(await screen.findByText(/将影响 3 部已上架电影/)).toBeInTheDocument();
-    expect(screen.getByText(/本收藏架现有 3 部电影会按新规则重新评估/)).toBeInTheDocument();
-    expect(screen.getByText(/收藏健康自动修复/)).toBeInTheDocument();
+    expect(screen.getByText('重新评估并自动修复可处理的差异。')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: '发布电影整理标准' }));
     await waitFor(() => {
       expect(copy).toHaveBeenCalled();
@@ -298,7 +297,7 @@ describe('Shelf Standard and Placement publish', () => {
     });
     renderShelves();
     fireEvent.click(await screen.findByRole('button', { name: '更换规则模板' }));
-    expect(screen.getByText(/身份保持同一收藏项，不会重新入库/)).toBeInTheDocument();
+    expect(screen.getByText(/重新评估并自动修复可处理的差异/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: '应用到此收藏架' }));
     await waitFor(() => {
       expect(bind).toHaveBeenCalledWith(expect.objectContaining({ shelfId: 'shelf-1' }), expect.objectContaining({ templateId: 'system-beta-recommended' }));

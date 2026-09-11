@@ -167,13 +167,13 @@ function RoutingPolicyEditor({field,shelves}:{field:MaterialField;shelves:Shelf[
     try {
       const result = await helixAdminApi.publishRoutingPolicy(field.fieldId, { idempotencyKey: newOpaqueId(), fieldId: field.fieldId,
         expectedPolicyId: current?.routingPolicyId || null, expectedRevision: current?.revision || 0, policy: await draft() });
-      setCurrent(result.policy); setMessage(`分拣策略已发布，后台会按新规则重新分配该来源中尚未完成的电影。`);
+      setCurrent(result.policy); setMessage(`分拣策略已发布`);
     } catch (cause) { setError(cause instanceof Error ? cause.message : '分拣策略发布失败。'); }
   }
 
   if(loadState!=='ready')return <div className="routing-policy-body">{loadState==='loading'?<p role="status">正在读取分拣策略…</p>:<><p role="alert">{error}</p><button type="button" className="btn btn-secondary" onClick={()=>setLoadAttempt(value=>value+1)}>重新读取分拣策略</button></>}</div>;
   return <div className="routing-policy-body">
-      <div className="routing-policy-head"><strong>{current ? (current.mode === 'direct' ? '全部进入一座收藏架' : '按条件分拣') : '尚未发布'}</strong><span>只决定进哪座收藏架，不会开始整理或移动文件。</span></div>
+      <div className="routing-policy-head"><span>已发布配置</span><strong>{current ? (current.mode === 'direct' ? '全部进入一座收藏架' : '按条件分拣') : '尚未发布'}</strong></div>
       <label><span>模式</span><select value={mode} onChange={(event) => setMode(event.target.value as 'direct' | 'sorting')}><option value="direct">全部进入一座收藏架</option><option value="sorting">按优先级判断</option></select></label>
       {mode === 'direct' ? <label><span>目标收藏架</span><select value={directShelfId} onChange={(event) => setDirectShelfId(event.target.value)}>{activeShelves.map((shelf) => <option key={shelf.shelfId} value={shelf.shelfId}>{shelf.name}</option>)}</select></label> : <>
         <div className="routing-rule-list">{sortingTargets.map((target, index) => <section className="routing-rule" key={`${target.shelfId}-${index}`}>

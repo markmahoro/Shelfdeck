@@ -10,7 +10,7 @@ it('shows the exact pending source separately and opens inspection without archi
   vi.spyOn(helixAdminApi,'listRecycle').mockResolvedValue({items:[],cleanupChecks:[{onDeckRunId:'run-1',shelfEntryId:'entry-1',state:'attention',checkedAtMs:1,checks:[{sourceLocation:'/source/movie',state:'awaiting_confirmation'}]}]});
   const archive=vi.spyOn(helixAdminApi,'archiveRecycle'),inspect=vi.fn();render(<SessionProvider><SourceCleanupChecks onInspect={inspect}/></SessionProvider>);
   expect(await screen.findByText('/source/movie')).toBeInTheDocument();
-  expect(screen.getByText('有剩余文件，等待确认具体清单')).toBeInTheDocument();
+  expect(screen.getByText('剩余文件待确认')).toBeInTheDocument();
   fireEvent.click(screen.getByRole('button',{name:'检查这部影片的具体清单'}));
   expect(inspect).toHaveBeenCalledWith('entry-1');expect(archive).not.toHaveBeenCalled();
 });

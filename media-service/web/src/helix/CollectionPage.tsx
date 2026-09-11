@@ -156,11 +156,11 @@ export default function CollectionPage() {
     {error && <p className="form-error" role="alert">{error}</p>}
     <section className="collection-shelf-stage" aria-labelledby="collection-shelf-name">
       <div className="collection-shelf-primary">
-        <label><span>正在浏览的收藏架</span><select aria-label="收藏架" value={shelfId || ''} onChange={(event) => setShelfId(event.target.value || undefined)}>
+        <label><span id="collection-shelf-name">收藏架</span><select aria-label="收藏架" value={shelfId || ''} onChange={(event) => setShelfId(event.target.value || undefined)}>
           <option value="">全部收藏</option>
-          {shelves.map((shelf) => <option key={shelf.shelfId} value={shelf.shelfId}>{shelf.name} · {shelf.currentCount} 部</option>)}
+          {shelves.map((shelf) => <option key={shelf.shelfId} value={shelf.shelfId}>{shelf.name}</option>)}
         </select></label>
-        <div><p id="collection-shelf-name">{selectedShelf?.name || '全部收藏'}</p><strong>{selectedShelf?.currentCount ?? summary.currentCount} 部珍藏</strong></div>
+        <div><strong>{selectedShelf?.currentCount ?? summary.currentCount} 部珍藏</strong></div>
       </div>
       <div className="collection-tools">
         <form className="collection-search" role="search" onSubmit={(event) => { event.preventDefault(); const value = searchDraft.trim(); if (value === search) void load(); else setSearch(value); }}>
@@ -172,8 +172,8 @@ export default function CollectionPage() {
       </div>
     </section>
     <section className="collection-library" aria-labelledby="collection-heading">
-      <div className="collection-library-heading"><div><h2 id="collection-heading">收藏陈列</h2></div><span>{resultCount} 部</span></div>
-      {loading && items.length === 0 ? <LoadingState>正在打开收藏架…</LoadingState> : items.length === 0 ? <div className="source-empty"><strong>{summary.currentCount === 0 ? '还没有正式上架的电影' : '没有找到符合条件的收藏'}</strong><p>{summary.currentCount === 0 ? '只有收藏架验收并提交之后才会出现在这里。媒体整理工作区里的条目还不算上架。' : '试试清空搜索或换一个筛选。'}</p></div> : <div className="poster-wall">{items.map((item) => <button className="poster-tile" key={item.shelfEntryId} onClick={() => setSelected(item)} aria-label={`查看 ${item.displayIdentity} 详情，收藏健康：${healthLabels[item.health.state]}`}>
+      <div className="collection-library-heading"><div><h2 id="collection-heading">收藏陈列</h2></div></div>
+      {loading && items.length === 0 ? <LoadingState>正在打开收藏架…</LoadingState> : items.length === 0 ? <div className="source-empty"><strong>{summary.currentCount === 0 ? '还没有正式上架的电影' : '没有找到符合条件的收藏'}</strong></div> : <div className="poster-wall">{items.map((item) => <button className="poster-tile" key={item.shelfEntryId} onClick={() => setSelected(item)} aria-label={`查看 ${item.displayIdentity} 详情，收藏健康：${healthLabels[item.health.state]}`}>
         <span className="poster-frame">{item.hasPoster ? <img src={helixAdminApi.collectionPosterUrl(item.shelfEntryId, item.currentInventoryRevision, 'wall')} alt="" loading="lazy" decoding="async" /> : <span className="poster-fallback" aria-hidden="true"><b>{item.displayIdentity.slice(0, 2)}</b><small>ShelfDeck</small></span>}{<span className={`health-seal ${item.health.state}`} title={healthLabels[item.health.state]} aria-hidden="true">{healthLabels[item.health.state].slice(0, 1)}</span>}</span>
         <span className="poster-caption"><strong>{item.displayIdentity}</strong><small>{item.year || '年份未知'} · {item.shelfName}</small>{item.defectAdmission&&<small>瑕疵入库 · {item.defectAdmission.defects.some((defect)=>defect.defectCode==='size_cap_exceeded')?'体积超过档位上限':`${item.defectAdmission.defectCount}项`}</small>}</span>
       </button>)}</div>}
@@ -189,11 +189,10 @@ export default function CollectionPage() {
         <button ref={closeButton} className="collection-dialog-close" onClick={() => setSelected(null)} aria-label="关闭详情">×</button>
         <div className="collection-dialog-poster">{selected.hasPoster ? <img src={helixAdminApi.collectionPosterUrl(selected.shelfEntryId, selected.currentInventoryRevision, 'detail')} alt={`${selected.displayIdentity} 海报`} /> : <span className="poster-fallback"><b>{selected.displayIdentity.slice(0, 2)}</b><small>ShelfDeck</small></span>}</div>
         <div className="collection-dialog-copy">
-          <p className="eyebrow">{selected.shelfName}</p>
           <h2 id="collection-dialog-title">{selected.displayIdentity}</h2>
           <p className="collection-dialog-meta">{selected.year || '年份未知'} · {selected.genres.length ? selected.genres.join(' / ') : '类型未记录'}</p>
           <p className="collection-dialog-overview">{selected.overview || '暂无剧情简介。'}</p>
-          {selected.defectAdmission&&<p className="form-notice">瑕疵入库 · {selected.defectAdmission.defects.map((defect)=>defect.defectCode==='size_cap_exceeded'?'体积超过档位上限':defect.defectCode==='actor_unavailable'?'演员资料缺失':'寻源耗尽保留原片').join('、')}</p>}
+          {selected.defectAdmission&&<p className="form-neutral">瑕疵入库 · {selected.defectAdmission.defects.map((defect)=>defect.defectCode==='size_cap_exceeded'?'体积超过档位上限':defect.defectCode==='actor_unavailable'?'演员资料缺失':'寻源耗尽保留原片').join('、')}</p>}
           {selected.people.length > 0 && <dl className="collection-people"><dt>演职人员</dt><dd>{selected.people.slice(0, 12).map((person) => person.displayName).join('、')}</dd></dl>}
           <dl className="collection-facts">
             <div><dt>收藏架</dt><dd>{selected.shelfName}</dd></div>

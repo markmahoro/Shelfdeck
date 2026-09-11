@@ -25,10 +25,6 @@ export default function OverviewPage() {
   const fieldAccessAttention = projection?.systemState.kind !== 'faulted' && Boolean(projection?.todos.some((item) => item.key === 'field_access'));
   const stateKind = error || projectionUnavailable ? 'unknown' : !projection ? 'running' : projection.systemState.kind === 'faulted' ? 'faulted' : fieldAccessAttention ? 'attention' : projection.systemState.kind;
   const compactStatus = stateKind === 'running';
-  const stateNote = error || projectionUnavailable ? '刷新后再确认系统状态' : !projection ? '' : projection.systemState.kind === 'unconfigured' ? '先配置文件来源和收藏架'
-    : projection.systemState.kind === 'faulted' ? '服务当前不可用，需要处理故障'
-    : fieldAccessAttention ? '有文件来源目录不可用，先到来源配置处理'
-    : '';
   const background = projection?.backgroundOperations;
   const backgroundLabels = { waiting_first_check:'等待首次检查', waiting_business_time:'等待业务时间', running:'检查中', normal:'正常', attention:'需要留意', stopped:'已停止' } as const;
   const domainLabels:Record<string,string> = { procurement:'文件来源', libra:'媒体整理', arca:'收藏管理', people:'人物', perception:'信息更新' };
@@ -50,20 +46,17 @@ export default function OverviewPage() {
         概览更新{projection.projection.state === 'failed' ? '失败' : '延迟'}，当前显示 {new Date(projection.generatedAt).toLocaleTimeString('zh-CN')} 的结果。
       </p>}
       <div className="overview-status-row" data-kind={stateKind}>
-        {compactStatus
-          ? <Link className="system-state-word" to={projection.systemState.href}>{projection.systemState.label}</Link>
-          : <Link className="system-state" data-kind={stateKind} to={projection.systemState.href}>
+        {!compactStatus && <Link className="system-state" data-kind={stateKind} to={projection.systemState.href}>
               <span>系统状态</span>
               <strong>{error || projectionUnavailable ? '状态读取失败' : fieldAccessAttention ? '需要你处理' : projection.systemState.label}</strong>
-              {stateNote ? <small>{stateNote}</small> : null}
             </Link>}
         {background && <details className="background-status" data-kind={background.state}>
           <summary>后台检查 · {backgroundLabels[background.state]}</summary>
-          {firstProblem && <p role="status">{domainLabels[firstProblem.ownerDomain] || firstProblem.ownerDomain}检查遇到问题，系统会自动重试。</p>}
+          {firstProblem && <p role="status">{domainLabels[firstProblem.ownerDomain] || firstProblem.ownerDomain}检查失败</p>}
           <p className="background-status-checked">最近检查 {checkedAt}</p>
           <div className="background-status-detail">{background.registrations.map((item) => <div key={`${item.ownerDomain}:${item.reconcilerKey}`}>
             <span>{checklistLabels[item.reconcilerKey] || domainLabels[item.ownerDomain] || item.ownerDomain}</span>
-            <em>{backgroundLabels[item.state]}</em>
+            <em className="ui-state" data-state={item.state}>{backgroundLabels[item.state]}</em>
             <small>{item.lastCompletedAtMs ? new Date(item.lastCompletedAtMs).toLocaleString('zh-CN') : '尚未检查'}</small>
             <small>{item.lastResultKind ? `${resultLabels[item.lastResultKind]}${item.lastResultKind === 'processed' ? ` ${item.processed} 项` : ''}` : '等待结果'}</small>
           </div>)}</div>
@@ -75,7 +68,7 @@ export default function OverviewPage() {
           <div className="ledger-heading"><h2 id="overview-todos">需要你处理</h2></div>
           {projection.todos.length
             ? <div className="todo-list">{projection.todos.map((item) => <Link key={item.key} to={item.href}><span>{item.label}</span><em>{item.count}</em></Link>)}</div>
-            : <p className="overview-empty-line">现在没有需要你处理的事项</p>}
+            : <p className="overview-empty-line">暂无待办</p>}
           {(projection.pipeline.waitingAcceptanceCount > 0 || projection.pipeline.organizingCount > 0) && <div className="overview-in-progress">
             {projection.pipeline.waitingAcceptanceCount > 0 && <h3><Link to="/material-fields">等待进入整理 {projection.pipeline.waitingAcceptanceCount} 包</Link></h3>}
             {projection.pipeline.organizingCount > 0 && <h3><Link to="/formation">正在整理 {projection.pipeline.organizingCount} 部</Link></h3>}
@@ -88,7 +81,7 @@ export default function OverviewPage() {
           <div className="ledger-heading"><h2 id="overview-ledger">最近进展</h2></div>
           {recent.length
             ? <ol className="overview-ledger-list">{recent.map((item) => <li key={item.key}>{item.href ? <Link to={item.href}>{item.label}</Link> : <p>{item.label}</p>}</li>)}</ol>
-            : <p className="overview-empty-line">还没有可展示的最近进展</p>}
+            : <p className="overview-empty-line">暂无进展</p>}
         </section>
       </div>
     </>}

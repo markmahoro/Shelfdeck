@@ -83,7 +83,7 @@ describe('Helix Overview product semantics', () => {
     expect(document.querySelector('.system-state')).toHaveAttribute('href', '/material-fields');
     expect(screen.getAllByText('需要你处理').length).toBeGreaterThan(0);
     expect(screen.getByText('文件来源目录不可用').closest('a')).toHaveAttribute('href', '/material-fields');
-    expect(screen.getByText('有文件来源目录不可用，先到来源配置处理')).toBeInTheDocument();
+    expect(screen.queryByText('有文件来源目录不可用，先到来源配置处理')).not.toBeInTheDocument();
     expect(screen.queryByText('现在没有需要你处理的事项')).not.toBeInTheDocument();
     expect(screen.queryByText('正常运行')).not.toBeInTheDocument();
     expect(screen.getByText(/等待进入整理 23 包/).closest('a')).toHaveAttribute('href', '/material-fields');
@@ -113,12 +113,13 @@ describe('Helix Overview product semantics', () => {
     });
     render(<MemoryRouter initialEntries={['/']}><App /></MemoryRouter>);
     expect(await screen.findByRole('heading', { level: 1, name: '概览' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: '正常运行' })).toHaveClass('system-state-word');
+    expect(screen.getAllByText('正常运行')).toHaveLength(1);
+    expect(document.querySelector('.rail-status')).toHaveTextContent('正常运行');
     expect(document.querySelector('.system-state')).toBeNull();
     expect(screen.getByText(/后台检查 · 需要留意/)).toBeInTheDocument();
     expect(screen.queryByText('待处理')).not.toBeInTheDocument();
     expect(screen.queryByText('当前在收藏架上')).not.toBeInTheDocument();
-    expect(screen.getByText('现在没有需要你处理的事项')).toBeInTheDocument();
+    expect(screen.getByText('暂无待办')).toBeInTheDocument();
     expect(document.querySelector('.source-empty')).toBeNull();
     expect(screen.getByRole('link', { name: /正在整理 1 部/ })).toHaveAttribute('href', '/formation');
     const actionColumn = screen.getByRole('heading', { name: '需要你处理' }).closest('section');
@@ -159,7 +160,7 @@ describe('Helix Overview product semantics', () => {
     };
     const get = vi.spyOn(helixAdminApi, 'getOverview').mockResolvedValue(projection);
     render(<MemoryRouter initialEntries={['/']}><App /></MemoryRouter>);
-    await screen.findByRole('link', { name:'正常运行' });
+    await screen.findByText('正常运行');
     await waitFor(() => expect(document.querySelector('.rail-status')).toHaveTextContent('正常运行'));
     get.mockRejectedValue(new Error('状态接口暂时不可用'));
     fireEvent.click(screen.getByRole('button', { name:'刷新', exact:true }));

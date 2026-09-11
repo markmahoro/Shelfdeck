@@ -53,7 +53,6 @@ function AuthScreen() {
   return <section className="auth-stage">
     <div className="auth-card">
       <h1>进入管理台</h1>
-      <p>输入本机管理凭据。凭据只用于换取当前会话，不会保存在浏览器中。</p>
       <form onSubmit={submit} className="auth-form">
         <label><span>管理凭据</span><input type="password" value={apiKey} onChange={(event) => setApiKey(event.target.value)} autoComplete="current-password" required /></label>
         <button className="btn btn-primary" type="submit" disabled={loading || !apiKey.trim()}>{loading ? '正在验证…' : '进入管理台'}</button>

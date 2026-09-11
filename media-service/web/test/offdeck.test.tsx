@@ -72,7 +72,7 @@ describe('Off-deck progress', () => {
     await screen.findByRole('heading',{name:'手动退出'});
     expect(helixAdminApi.searchOffdeckEntries).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole('button',{name:'全选当前收藏'}));
-    const confirm=await screen.findByRole('button',{name:'确认退出 1000 部'});
+    const confirm=await screen.findByRole('button',{name:'确认退出'});
     await waitFor(()=>expect(confirm).toBeEnabled());
     expect(screen.getAllByRole('checkbox')).toHaveLength(25);
     fireEvent.click(confirm);
@@ -130,7 +130,7 @@ describe('Off-deck progress', () => {
     render(<SessionProvider><OffdeckPage /></SessionProvider>);
 
     expect(await screen.findByText('Finished Movie')).toBeInTheDocument();
-    expect(screen.getByText('这里只记录已经完成的退出收藏，不包含收藏架注销。')).toBeInTheDocument();
+    expect(screen.queryByText('这里只记录已经完成的退出收藏，不包含收藏架注销。')).not.toBeInTheDocument();
     const selection = screen.getByRole('heading', { name:'手动退出' }).closest('section')!;
     fireEvent.click(within(selection).getByRole('button', { name:'全选当前收藏' }));
     expect(await within(selection).findByText('Current Movie')).toBeInTheDocument();
@@ -157,12 +157,12 @@ describe('Off-deck progress', () => {
     expect(screen.queryByText('审阅')).not.toBeInTheDocument();
     expect(screen.queryAllByRole('checkbox')).toHaveLength(0);
     fireEvent.click(screen.getByRole('button', { name: '全选当前收藏' }));
-    expect(await screen.findByText('3 / 3 部')).toBeInTheDocument();
-    await waitFor(()=>expect(screen.getByRole('button',{name:'确认退出 3 部'})).toBeEnabled());
+    expect(await screen.findByText('已选择 3 部')).toBeInTheDocument();
+    await waitFor(()=>expect(screen.getByRole('button',{name:'确认退出'})).toBeEnabled());
     expect(screen.getAllByRole('checkbox')).toHaveLength(3);
     expect(screen.getAllByRole('checkbox').every((item) => (item as HTMLInputElement).checked)).toBe(true);
 
-    fireEvent.click(screen.getByRole('button', { name: '确认退出 3 部' }));
+    fireEvent.click(screen.getByRole('button', { name: '确认退出' }));
     await waitFor(() => expect(createReview).toHaveBeenCalledTimes(1));
     expect(createReview).toHaveBeenCalledWith(expect.objectContaining({
       shelfEntryIds: ['entry-a', 'entry-b', 'entry-c'], actorId: 'admin',

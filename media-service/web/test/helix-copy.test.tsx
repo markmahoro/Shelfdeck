@@ -61,7 +61,7 @@ function completedSubject(): FormationSubject {
 describe('Helix primary copy and workbench structure', () => {
   afterEach(() => vi.restoreAllMocks());
 
-  it('keeps pending packages on the File Sources handoff ledger and explains zero seats', async () => {
+  it('shows package counts once per Field, including rejection and paused reception', async () => {
     vi.spyOn(helixAdminApi, 'listMaterialFields').mockResolvedValue({ items: [{
       fieldId:'field-1', name:'电影来源', status:'active', extractionPolicyId:'policy-1', extractionPolicyRevision:1,
       currentAccessRevision:1, currentObservationRevision:1,
@@ -69,8 +69,8 @@ describe('Helix primary copy and workbench structure', () => {
       access:{endpointId:'endpoint-1',rootLocation:'D:\\Movies',mountScopeId:'mount-1',mountScopeRevision:1},
       policy:{policy:{includedDirectories:[],excludedDirectories:[],allowedExtensions:['.mkv'],minimumSizeBytes:0,excludedMaterialKeys:[]}},
       procurementStatus:{stage:'handoff_a_ready',observationScan:{state:'completed',pageCount:4,observationRevision:1,inProgress:false},
-        runCount:1,activeRunCount:0,sealedRunCount:1,generatedPackageCount:952,acceptedPackageCount:726,
-        waitingAcceptanceCount:226,rejectedPackageCount:0},
+        runCount:1,activeRunCount:0,sealedRunCount:1,generatedPackageCount:960,acceptedPackageCount:726,
+        waitingAcceptanceCount:226,rejectedPackageCount:8},
     }] });
     vi.spyOn(helixAdminApi, 'listShelves').mockResolvedValue({items:[]});
     vi.spyOn(helixAdminApi, 'getFieldIntakeAdmission').mockResolvedValue({fieldId:'field-1',predeckPipelineSeats:0,
@@ -78,10 +78,12 @@ describe('Helix primary copy and workbench structure', () => {
     vi.spyOn(helixAdminApi, 'getRoutingPolicy').mockResolvedValue({policy:null});
     render(<MemoryRouter initialEntries={['/material-fields']}><App /></MemoryRouter>);
     expect(await screen.findByRole('heading', { level: 1, name: '文件来源' })).toBeInTheDocument();
-    expect(screen.getAllByText('952').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('726').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('226').length).toBeGreaterThan(0);
-    expect(screen.getByText(/当前不接收这个来源的新媒体包；已经接收的媒体会继续整理/)).toBeInTheDocument();
+    expect(screen.getAllByText('960')).toHaveLength(1);
+    expect(screen.getAllByText('726')).toHaveLength(1);
+    expect(screen.getAllByText('226')).toHaveLength(1);
+    expect(document.querySelector('.material-fields-page .source-facts')).toBeNull();
+    expect(screen.getByText('接收被拒 · 8 包')).toBeInTheDocument();
+    expect(screen.getByText('暂停接收')).toBeInTheDocument();
     expect(screen.queryByText(/暂停该来源进入整理/)).not.toBeInTheDocument();
   });
 
@@ -121,7 +123,8 @@ describe('Helix primary copy and workbench structure', () => {
     fireEvent.click(screen.getByRole('tab',{name:'整理空间'}));
     expect(await screen.findByRole('heading',{level:2,name:'整理工作目录'})).toBeInTheDocument();
     expect(screen.getByDisplayValue('D:\\ShelfDeck\\workspace')).toBeInTheDocument();
-    expect(screen.getByText(/保存会检查读写/)).toBeInTheDocument();
+    expect(screen.queryByText(/保存会检查读写/)).not.toBeInTheDocument();
+    expect(screen.getByRole('button',{name:'验证并保存'})).toBeInTheDocument();
     expect(screen.queryByText(/不会搬动或删除旧目录/)).not.toBeInTheDocument();
     expect(document.querySelectorAll('.settings-card')).toHaveLength(1);
     expect(screen.queryByText('连接、空间、资源与安全')).not.toBeInTheDocument();

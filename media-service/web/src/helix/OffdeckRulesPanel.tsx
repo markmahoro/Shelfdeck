@@ -125,7 +125,6 @@ export default function OffdeckRulesPanel() {
     <header className="settings-card-head">
       <div>
         <h2 id="offdeck-rules-title">退出规则</h2>
-        <p>{policyStatus === 'active' ? '自动建议已启用' : '自动建议默认关闭'}</p>
       </div>
     </header>
     <div className="settings-card-body">
@@ -144,7 +143,7 @@ export default function OffdeckRulesPanel() {
             <label><span>最高评分</span><input type="number" min={1} max={5} value={draft.maxRating} onChange={(event) => updateRule(index, { maxRating: Number(event.target.value) })} /></label>
             <label><span>最少收藏天数</span><input type="number" min={1} value={draft.minimumAgeDays} onChange={(event) => updateRule(index, { minimumAgeDays: Number(event.target.value) })} /></label>
           </>}
-          {draft.kind === 'disliked_person' && !draft.unknownCondition && <p className="page-lede">人物偏好规则暂不可新增，这条仅保留已有设置。</p>}
+          {draft.kind === 'disliked_person' && !draft.unknownCondition && <span className="ui-state">已有设置 · 只读</span>}
           {(draft.kind === 'unresolved_care' || draft.kind === 'retention_age') && !draft.unknownCondition && <label><span>最少天数</span><input type="number" min={1} value={draft.minimumAgeDays} onChange={(event) => updateRule(index, { minimumAgeDays: Number(event.target.value) })} /></label>}
         </div>
         {draft.unknownCondition && <details><summary>技术查看</summary><pre>{JSON.stringify(draft.unknownCondition, null, 2)}</pre></details>}

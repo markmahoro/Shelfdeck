@@ -23,19 +23,19 @@ export default function RecycleSettings() {
       else setError('收藏列表读取失败，请重试。');
     } finally { setLoading(false); }
   }
-  return <div className="stack">
-    <h2>回收站</h2>
-    <p>查看归档、恢复原位置，或按影片检查可移入的旧目录。</p>
+  return <div className="recycle-settings stack">
     <RecyclePanel />
     <SourceCleanupChecks onInspect={setSelected} />
+    <section className="ui-card stack">
     <h3>检查影片旧目录</h3>
     <Button type="button" disabled={loading} onClick={()=>void load()}>读取收藏列表</Button>
-    {error && <p role="alert">{error}</p>}
+    {error && <p className="form-error" role="alert">{error}</p>}
     {entries.length>0 && <label>影片<select value={selected} onChange={event=>setSelected(event.target.value)}>
       <option value="">选择影片</option>
       {entries.map(entry=><option key={entry.shelfEntryId} value={entry.shelfEntryId}>{entry.displayIdentity || entry.shelfEntryId}</option>)}
     </select></label>}
     {cursor && <Button type="button" disabled={loading} onClick={()=>void load(cursor)}>加载更多收藏</Button>}
     {selected && <RecyclePanel key={selected} shelfEntryId={selected} />}
+    </section>
   </div>;
 }

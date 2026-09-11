@@ -35,7 +35,7 @@ export default function InputSettlementAuthorization() {
   }
   const enabled = loaded && authorization?.enabled === true;
   return <details className="source-flow-help">
-    <summary>旧输入自动清理 · {!loaded ? '状态待读取' : enabled ? '已授权' : '未授权'}</summary>
+    <summary>旧输入自动清理 · <span className="ui-state" data-state={enabled ? 'complete' : 'unknown'}>{!loaded ? '状态待读取' : enabled ? '已授权' : '未授权'}</span></summary>
     <p>成品验证通过后，允许清理本次上架中已安全替代的原片、结构文件及独占关联文件。共享文件、未知文件和范围外文件会保留。此授权不包括退出收藏时销毁文件。</p>
     {enabled && <p>{authorization?.coversExclusiveRelatedInput ? '当前授权包含原片、结构文件和独占关联文件。' : '当前授权仅包含原片和结构文件，独占关联文件仍会保留。'}</p>}
     {loaded && !enabled && <p>尚未执行的旧输入清理会等待授权，原文件保留。</p>}

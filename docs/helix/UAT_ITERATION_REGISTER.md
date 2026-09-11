@@ -1,12 +1,12 @@
 # ShelfDeck 统一 UAT 迭代总表
 
-更新：2026-09-09。**唯一活动迭代台账；按项验收、按项关闭。** 覆盖全部143个历史UAT、78个PROD、40行UX（含两组重号）、10个AC和2个BR。新编号从UAT-144接续；PROD/UX/AC/BR停止新增。旧编号、文件、提交和测试名不改写。
+更新：2026-09-12。**唯一活动迭代台账；按项验收、按项关闭。** 覆盖全部143个历史UAT、78个PROD、40行UX（含两组重号）、10个AC和2个BR。新编号从UAT-144接续；PROD/UX/AC/BR停止新增。旧编号、文件、提交和测试名不改写。
 
-总表包含255个唯一UAT条目，编号连续至UAT-255。历史UAT-011～049从正文/关闭矩阵补入；PROD-033/034从归档补入。相同主题不等于相同缺陷：后续事故或复发保留独立条目；只有明确同结果才合并别名。UX-030/031按标题消歧。
+总表包含256个唯一UAT条目，编号连续至UAT-256。历史UAT-011～049从正文/关闭矩阵补入；PROD-033/034从归档补入。相同主题不等于相同缺陷：后续事故或复发保留独立条目；只有明确同结果才合并别名。UX-030/031按标题消歧。
 
 状态说明：历史已关闭保留当时证据，并不宣称本次重测；已实现/已部署不等于已关闭；待核实不是当前已证实缺陷。原表与后续完整关闭证据冲突时采用后者并链接。没有证据的事项不批量关闭。
 
-[全量前后合同审查](implementation/evidence/UAT_FULL_CONTRACT_CONSISTENCY_AUDIT_20260909.md)已完成，三项业务冲突均由用户确认并以`14cf2d9a0`同步合同；用户要求整理文档后继续推进。历史标题不是现行Oracle；下述承接条件与SSOT后续优先条款共同适用。当前67项本轮功能验收关闭、32项开放，206被取代承接已核实；另有153项历史关闭、220文档关闭及1项非缺陷接受。
+[全量前后合同审查](implementation/evidence/UAT_FULL_CONTRACT_CONSISTENCY_AUDIT_20260909.md)已完成，三项业务冲突均由用户确认并以`14cf2d9a0`同步合同；用户要求整理文档后继续推进。历史标题不是现行Oracle；下述承接条件与SSOT后续优先条款共同适用。当前67项本轮功能验收关闭、33项开放，206被取代承接已核实；另有153项历史关闭、220文档关闭及1项非缺陷接受。
 
 执行顺序见[CURRENT_PLAN](CURRENT_PLAN.md)。每次完成一项，更新该行的提交、用户结果证据、剩余工作和状态；需要部署的先部署/验收再关闭。编号合并不触发生产操作。
 
@@ -266,5 +266,5 @@
 | UAT-252 | 标准部署readiness递归复制全部运行材料，可能耗尽NAS磁盘 | `DEPLOYMENT_SAFETY` | 验收关闭 | 无 | 本轮提交 | [发布检查证据](implementation/evidence/UAT-252_BOUNDED_READINESS_20260908.md) | 仅数据库一致快照及Admin Credential，排除回收站/Workspace等运行材料；WAL一致性、源不修改、实际NAS就绪和发布通过后关闭。执行B5。 |
 | UAT-253 | NAS旧发布tar累积导致系统卷空间不足 | `OPERATIONS` | 验收关闭 | 无 | 本轮证据 | [精确清单及验收](implementation/evidence/UAT-253_NAS_RELEASE_TAR_CLEANUP_20260908.md) | 两批按授权共删除86旧包；第二批释放36.87 GiB后实测65.71 GiB可用、62%；保留24个近期/稳定包及全部镜像/备份/媒体，其他存量治理仍逐项开放。执行B5。 |
 | UAT-254 | 自定义收藏规则发布通知缺少消费者，Outbox持续重试 | `RECOVERY_CORRECTNESS` | 验收关闭 | 无 | b2978c1512 | [发布通知证据](implementation/evidence/UAT-254_RULE_TEMPLATE_OUTBOX_20260909.md) | 无该项剩余；已核对独立全链/负向/恢复及实际发布，详见[部署后关闭证据](implementation/evidence/UAT-254_RULE_TEMPLATE_OUTBOX_20260909.md)。 |
-
 | UAT-255 | GET退出审阅调用准备推进逻辑，可取消维护Work并写入审阅状态 | API / `SIDE_EFFECT_BOUNDARY` | 验收关闭 | 无 | b2978c1512 | [246/255证据](implementation/evidence/UAT-246_OFFDECK_READ_EFFICIENCY_20260909.md) | 无该项剩余；已核对独立全链/负向/恢复及实际发布，详见[部署后关闭证据](implementation/evidence/UAT-246_OFFDECK_READ_EFFICIENCY_20260909.md)。 |
+| UAT-256 | 全页面UI polish：去重、去说明、统一卡片/字号/状态与按钮 | UI / `AESTHETICS` | 本地验收通过，待生产验收 | 用户新增；不重开248 | 本轮提交 | [确认范围与验收](implementation/evidence/UAT-256_UI_POLISH_20260912.md) | 仅前端呈现，八页不变，来源无全局汇总；89项测试及桌面八页通过，整理列表478元素内容/尺寸0差异。尚未部署，待生产版本验收。 |

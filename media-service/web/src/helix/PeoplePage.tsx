@@ -119,7 +119,7 @@ export default function PeoplePage() {
 
   if (!projection && !error) return <LoadingState>正在读取人物名录…</LoadingState>;
   const summary = projection?.summary;
-  return <section className="source-page">
+  return <section className="source-page people-page">
     <PageHeader title="人物" actions={<Button type="button" onClick={() => void load()} disabled={loading}>{loading ? '刷新中…' : '刷新'}</Button>} />
     {error && <p className="form-error" role="alert">{error}</p>}
     {notice && <p className="form-notice" role="status">{notice}</p>}
@@ -138,11 +138,11 @@ export default function PeoplePage() {
     </form>
     <section className="source-registry">
       <div className="source-registry-heading"><div><h2>待确认登记</h2></div></div>
-      {candidates.length ? <div className="formation-table-wrap"><table className="formation-table"><thead><tr><th>姓名</th><th>操作</th></tr></thead><tbody>{candidates.map((item) => <tr key={item.candidateId}><td><strong>{item.proposedName}</strong></td><td><div className="settings-card-actions"><Button variant="primary" type="button" disabled={loading} onClick={() => void accept(item.candidateId)}>接受</Button><Button type="button" disabled={loading} onClick={() => void dismiss(item.candidateId)}>忽略</Button></div></td></tr>)}</tbody></table></div> : <div className="source-empty"><strong>没有待确认的人</strong><p>上架后带稳定人物编号的资料会自动进入名录；只有姓名的会先出现在这里。</p></div>}
+      {candidates.length ? <div className="formation-table-wrap"><table className="formation-table"><thead><tr><th>姓名</th><th>操作</th></tr></thead><tbody>{candidates.map((item) => <tr key={item.candidateId}><td><strong>{item.proposedName}</strong></td><td><div className="settings-card-actions"><Button variant="primary" type="button" disabled={loading} onClick={() => void accept(item.candidateId)}>接受</Button><Button type="button" disabled={loading} onClick={() => void dismiss(item.candidateId)}>忽略</Button></div></td></tr>)}</tbody></table></div> : <div className="source-empty"><strong>没有待确认的人</strong></div>}
     </section>
     <section className="source-registry">
       <div className="source-registry-heading"><div><h2>已登记人物</h2></div><span>当前显示 {projection?.items.length ?? 0} 条</span></div>
-      {projection?.items.length ? <div className="people-contact-sheet" aria-label="已登记人物名录">{projection.items.map((person) => <PersonCard key={person.personId} person={person} />)}</div> : <div className="source-empty"><strong>还没有已登记人物</strong><p>可以直接登记，或等待上架资料带来的待确认项。</p></div>}
+      {projection?.items.length ? <div className="people-contact-sheet" aria-label="已登记人物名录">{projection.items.map((person) => <PersonCard key={person.personId} person={person} />)}</div> : <div className="source-empty"><strong>还没有已登记人物</strong></div>}
     </section>
   </section>;
 }

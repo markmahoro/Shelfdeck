@@ -61,11 +61,11 @@ describe('Arca collection poster wall', () => {
     expect(list).toHaveBeenCalledTimes(3);
   });
 
-  it('explains the empty state before any collection exists', async () => {
+  it('keeps an empty collection concise with its existing controls', async () => {
     vi.spyOn(helixAdminApi, 'listCollection').mockResolvedValue({ items:[] });
     renderCollection();
     expect(await screen.findByText('还没有正式上架的电影')).toBeInTheDocument();
-    expect(screen.getByText('只有收藏架验收并提交之后才会出现在这里。媒体整理工作区里的条目还不算上架。')).toBeInTheDocument();
+    expect(screen.queryByText(/只有收藏架验收并提交/)).not.toBeInTheDocument();
     expect(screen.queryByText('只显示已经上架的电影。')).not.toBeInTheDocument();
     expect(screen.queryByText(/Handoff B/)).not.toBeInTheDocument();
     expect(screen.queryByText(/Shelf Entry/)).not.toBeInTheDocument();
@@ -117,7 +117,8 @@ describe('Arca collection poster wall', () => {
       name: /查看 The Shawshank Redemption 详情/,
     });
     expect(screen.getByRole('heading', { name: '收藏陈列' })).toBeInTheDocument();
-    expect(screen.getByText('1 部', { selector:'.collection-library-heading > span' })).toBeInTheDocument();
+    expect(screen.getByText('第 1 页 · 共 1 部')).toBeInTheDocument();
+    expect(document.querySelector('.collection-library-heading > span')).toBeNull();
     expect(screen.queryByText('只显示已经上架的电影。')).not.toBeInTheDocument();
     fireEvent.click(tile);
     const dialog = screen.getByRole('dialog', {

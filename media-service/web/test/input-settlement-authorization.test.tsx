@@ -14,7 +14,7 @@ describe('UAT-172 standing Input Settlement authorization', () => {
     render(<InputSettlementAuthorization />);
     fireEvent.click(await screen.findByRole('button', { name: '撤销持续授权' }));
     await waitFor(() => expect(command).toHaveBeenCalledWith(false, 12));
-    expect(await screen.findByText('旧输入自动清理 · 未授权')).toBeTruthy();
+    expect((await screen.findByText('未授权')).closest('summary')).toHaveTextContent('旧输入自动清理 · 未授权');
     expect(screen.queryByText(/全自动|关键步骤确认/)).toBeNull();
   });
   it('requires an explicit action to grant the described old input and exclusive Related scope', async () => {
@@ -47,7 +47,7 @@ describe('UAT-172 standing Input Settlement authorization', () => {
     render(<InputSettlementAuthorization />);
     fireEvent.click(await screen.findByRole('button', { name: '撤销持续授权' }));
     expect(await screen.findByRole('alert')).toHaveTextContent('授权已变化');
-    expect(screen.getByText('旧输入自动清理 · 已授权')).toBeTruthy();
+    expect(screen.getByText('已授权').closest('summary')).toHaveTextContent('旧输入自动清理 · 已授权');
     expect(screen.getByRole('button', { name: '刷新授权状态' })).toBeTruthy();
   });
 });

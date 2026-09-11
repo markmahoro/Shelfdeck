@@ -115,7 +115,7 @@ it('centralizes recycle history and exact film directory previews in settings',a
   vi.spyOn(helixAdminApi,'listCollection').mockResolvedValue({items:[{shelfEntryId:'hobbit',displayIdentity:'霍比特人1'} as never],nextCursor:null});
   render(<MemoryRouter initialEntries={['/settings']}><App/></MemoryRouter>);
   fireEvent.click(await screen.findByRole('tab',{name:'回收站'}));
-  expect(screen.getByRole('heading',{name:'回收站'})).toBeInTheDocument();
+  expect(screen.getByText('回收记录')).toBeInTheDocument();
   await waitFor(()=>expect(records).toHaveBeenCalledTimes(1));
   fireEvent.click(screen.getByRole('button',{name:'读取收藏列表'}));
   await screen.findByRole('option',{name:'霍比特人1'});

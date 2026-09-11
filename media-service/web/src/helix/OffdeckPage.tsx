@@ -231,7 +231,7 @@ export default function OffdeckPage() {
         const size = sizeOf(item.shelf_entry_id);
         return <article key={item.candidate_id}>
           <strong>{item.candidate_kind === 'entry' ? titleOf(item.shelf_entry_id) : '重复收藏'}</strong>
-          <small>{item.candidate_kind === 'entry' ? `规则建议退出${size ? ` · ${formatGiB(size)}` : ''}` : `${group?.members.length || 0} 个重复项，请选择要退出的收藏`}</small>
+          <small>{item.candidate_kind === 'entry' ? `规则建议退出${size ? ` · ${formatGiB(size)}` : ''}` : `${group?.members.length || 0} 个重复项`}</small>
           {group && <fieldset><legend>选择需要退出的成员</legend>{group.members.map((member) => <label key={member.shelf_entry_id}><input type="checkbox" checked={(groupSelection[group.duplicate_group_id] || []).includes(member.shelf_entry_id)} onChange={() => toggleMember(group.duplicate_group_id, member.shelf_entry_id)} />{titleOf(member.shelf_entry_id)}</label>)}</fieldset>}
           <div className="button-row">
             <Button variant="primary" type="button" onClick={() => void action(() => openCandidate(item))}>退出这部</Button>
@@ -242,11 +242,11 @@ export default function OffdeckPage() {
       {candidateCursor&&<Button type="button" disabled={busy} onClick={()=>void action(moreCandidates)}>更多退出建议</Button>}
     </section>
     <section className="offdeck-task offdeck-bulk-task">
-      <div className="source-card-heading"><div><h2>手动退出</h2></div><span>{bulkSelection.length} / {currentCount} 部</span></div>
+      <div className="source-card-heading"><div><h2>手动退出</h2></div><span>当前收藏 {currentCount} 部</span></div>
       {currentCount === 0 ? <div className="source-empty"><strong>当前没有可退出的收藏</strong></div> : <>
         <div className="offdeck-bulk-toolbar">
           <label className="offdeck-search"><span className="sr-only">搜索收藏后退出</span><input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="搜索片名后选择" /></label>
-          <div><strong>已选择 {bulkSelection.length} 部</strong><small>{bulkSelection.length ? ' · 下一步核对文件和空间' : ''}</small></div>
+          <div><strong>已选择 {bulkSelection.length} 部</strong></div>
           <div className="button-row">
             <Button type="button" disabled={busy} onClick={() => void action(async()=>{const result=await helixAdminApi.selectAllOffdeckEntries();setBulkSelection(result.shelfEntryIds);setCurrentCount(result.shelfEntryIds.length);const preview=await helixAdminApi.searchOffdeckEntries('');remember(preview.items);})}>全选当前收藏</Button>
             <Button type="button" onClick={() => setBulkSelection([])} disabled={busy || bulkSelection.length === 0}>清空选择</Button>
@@ -261,14 +261,14 @@ export default function OffdeckPage() {
           </label>)}
           {searchCursor&&<Button type="button" disabled={searchBusy} onClick={()=>void moreSearch()}>更多搜索结果</Button>}
         </fieldset> : selectedEntries.length > 0 ? <fieldset className="offdeck-bulk-list">
-          <legend>已选择{bulkSelection.length>25?'（显示前 25 部，完整名单将在审阅中核对）':''}</legend>
+          <legend>已选择{bulkSelection.length>25?'（前 25 部）':''}</legend>
           {selectedEntries.map((item) => <label key={item.shelfEntryId}>
             <input type="checkbox" checked onChange={() => toggleBulkEntry(item.shelfEntryId)} />
             <span><strong>{item.displayIdentity}</strong><small>{item.shelfName} · {formatGiB(item.occupancyBytes??0)}</small></span>
           </label>)}
         </fieldset> : null}
         <div className="button-row offdeck-bulk-action">
-          <Button variant="primary" type="button" onClick={() => void action(openBulkReview)} disabled={busy || bulkSelection.length === 0}>确认退出 {bulkSelection.length} 部</Button>
+          <Button variant="primary" type="button" onClick={() => void action(openBulkReview)} disabled={busy || bulkSelection.length === 0}>确认退出</Button>
         </div>
       </>}
     </section>
@@ -277,7 +277,7 @@ export default function OffdeckPage() {
       {activeCases.length === 0 ? <div className="source-empty"><strong>现在没有正在退出的收藏</strong></div> : activeCases.map((item) => <article className="source-row" key={item.offdeckCaseId}>
         <div>
           <strong>{titleOf(item.shelfEntryId)}</strong>
-          <small>{labelOf(caseStateLabels, item.state)}</small>
+          <small className="ui-state" data-state={item.state}>{labelOf(caseStateLabels, item.state)}</small>
           {item.blockedReason && <p>暂停原因：{item.blockedReason}{item.retryAtMs ? ` · ${new Date(item.retryAtMs).toLocaleString()} 后自动恢复` : ''}</p>}
         </div>
         {item.state === 'awaiting_reauthorization' && <Button variant="primary" type="button" onClick={() => void action(async () => {
@@ -288,7 +288,7 @@ export default function OffdeckPage() {
       {caseCursors.active&&<Button type="button" disabled={busy} onClick={()=>void action(()=>moreCases('active'))}>更多正在退出</Button>}
     </section>
     <section className="offdeck-task offdeck-history-task">
-      <div className="source-card-heading"><div><h2>已退出记录</h2><p>这里只记录已经完成的退出收藏，不包含收藏架注销。</p></div><span>{caseCounts.completed} 条</span></div>
+      <div className="source-card-heading"><div><h2>已退出记录</h2></div><span>{caseCounts.completed} 条</span></div>
       {completedCases.length === 0 ? <div className="source-empty"><strong>还没有已完成的退出记录</strong></div> : <div className="offdeck-history-list" role="list">{completedCases.map((item) => {
         return <article className="source-row" role="listitem" key={item.offdeckCaseId}>
           <div><strong>{titleOf(item.shelfEntryId)}</strong><small>{titles[item.shelfEntryId]?.shelfName || '原收藏架'} · 已完成退出</small></div>

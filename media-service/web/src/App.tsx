@@ -15,6 +15,7 @@ import PeoplePage from './helix/PeoplePage';
 import { helixAdminApi } from './helix/api';
 import { SessionProvider } from './helix/session';
 import './helix/helix.css';
+import './helix/polish.css';
 
 function createQueryClient() {
   return new QueryClient({

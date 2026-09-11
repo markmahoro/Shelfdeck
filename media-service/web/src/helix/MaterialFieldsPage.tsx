@@ -1,5 +1,5 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
-import { helixAdminApi, materialFieldRegistration, type FieldIntakeAdmission, type MaterialField, type ProcurementJourneyResult, type Shelf } from './api';
+import { helixAdminApi, materialFieldRegistration, type FieldIntakeAdmission, type MaterialField, type Shelf } from './api';
 import { newOpaqueId } from './id';
 import { Button, LoadingState, PageHeader } from './chrome';
 import { observationScanLabels } from './labels';
@@ -18,30 +18,6 @@ function scanOf(field: MaterialField) {
 function scanLabel(field: MaterialField) {
   return observationScanLabels[scanOf(field).state] || '等待扫描';
 }
-function scanProgress(field: MaterialField) {
-  const scan = scanOf(field);
-  if (scan.state === 'scanning') {
-    return scan.pageCount > 0 ? `正在查看目录 · 已扫描 ${scan.pageCount} 页` : '正在查看目录';
-  }
-  if (scan.state === 'completed') {
-    return scan.pageCount > 0 ? `上次扫描 ${scan.pageCount} 页` : '目录已经扫描完成';
-  }
-  if (scan.state === 'failed') {
-    return scan.failureMessage || '电影目录不存在或当前不可读取。';
-  }
-  return '系统会自动扫描这个目录，也可以立即扫描新文件。';
-}
-function procurementFollowUp(field: MaterialField) {
-  const status = field.procurementStatus;
-  if (status.activeRunCount > 0) {
-    return `${status.activeRunCount} 个批次正在分拣。`;
-  }
-  if (status.generatedPackageCount === 0) {
-    return '尚未形成媒体包。扫描后会先完成文件分拣。';
-  }
-  return '';
-}
-
 export default function MaterialFieldsPage() {
   const { expire } = useSession();
   const [fields, setFields] = useState<MaterialField[]>([]);
@@ -57,7 +33,6 @@ export default function MaterialFieldsPage() {
   const [observingFieldId, setObservingFieldId] = useState('');
   const [deregisteringFieldId, setDeregisteringFieldId] = useState('');
   const [confirmDeregisterFieldId, setConfirmDeregisterFieldId] = useState('');
-  const [operations, setOperations] = useState<Record<string, ProcurementJourneyResult>>({});
   const [intakeAdmission, setIntakeAdmission] = useState<Record<string, FieldIntakeAdmission>>({});
   const [seatDrafts, setSeatDrafts] = useState<Record<string, string>>({});
   const [savingSeatsFieldId, setSavingSeatsFieldId] = useState('');
@@ -108,13 +83,6 @@ export default function MaterialFieldsPage() {
     return () => window.clearInterval(timer);
   }, [scanning, loadFields]);
 
-  const activeFields = useMemo(() => fields.filter((field) => field.status === 'active'), [fields]);
-  const packageTotals = useMemo(() => fields.reduce((totals, field) => ({
-    generated: totals.generated + field.procurementStatus.generatedPackageCount,
-    accepted: totals.accepted + field.procurementStatus.acceptedPackageCount,
-    waiting: totals.waiting + field.procurementStatus.waitingAcceptanceCount,
-  }), { generated: 0, accepted: 0, waiting: 0 }), [fields]);
-
   async function createField(event: FormEvent) {
     event.preventDefault();
     if (!name.trim() || !rootLocation.trim()) {
@@ -150,8 +118,7 @@ export default function MaterialFieldsPage() {
     setObservingFieldId(field.fieldId);
     setError('');
     try {
-      const result = await helixAdminApi.observeMaterialField(field);
-      setOperations((current) => ({ ...current, [field.fieldId]: result }));
+      await helixAdminApi.observeMaterialField(field);
       await loadFields(true);
     } catch (cause) {
       if (isUnauthorized(cause)) expire();
@@ -201,38 +168,30 @@ export default function MaterialFieldsPage() {
 
   return <section className="source-page material-fields-page">
     <PageHeader title="文件来源" actions={<Button variant="primary" type="button" onClick={() => setShowCreate((value) => !value)}>{showCreate ? '收起' : '添加电影来源'}</Button>} />
-    <details className="source-flow-help"><summary>文件如何进入整理</summary><p>这里负责发现文件、形成待整理媒体包，并交给整理。只有开始整理后，电影才会出现在媒体整理工作区。</p></details>
-    <div className="source-facts" aria-label="文件来源摘要">
-      <div><span>活动来源</span><strong>{activeFields.length}</strong></div>
-      <div><span>已生成媒体包</span><strong>{packageTotals.generated}</strong></div>
-      <div><span>已交给整理</span><strong>{packageTotals.accepted}</strong></div>
-      <div><span>等待进入整理</span><strong>{packageTotals.waiting}</strong></div>
-    </div>
     {showCreate && <form className="source-create" onSubmit={createField}>
-      <div className="source-create-heading"><div><h2>添加电影文件来源</h2></div><span>不会立即扫描</span></div>
+      <div className="source-create-heading"><div><h2>添加电影文件来源</h2></div></div>
       <div className="source-form-grid">
         <label><span>来源名称</span><input value={name} onChange={(event) => setName(event.target.value)} required /></label>
         <label className="wide"><span>电影目录</span><input value={rootLocation} onChange={(event) => setRootLocation(event.target.value)} placeholder="例如 E:\\Movies 或 /media/Film" required /></label>
         <label><span>只包含这些子目录</span><textarea value={includedDirectories} onChange={(event) => setIncludedDirectories(event.target.value)} placeholder="留空表示整个来源；每行一个相对目录" /></label>
         <label><span>排除这些子目录</span><textarea value={excludedDirectories} onChange={(event) => setExcludedDirectories(event.target.value)} placeholder="例如 Extras 或临时下载" /></label>
       </div>
-      <div className="source-create-footer"><p>保存时会检查目录是否存在、可读，并且扫描范围不会超出该目录。</p><Button variant="primary" type="submit" disabled={loading}>{loading ? '正在保存…' : '保存文件来源'}</Button></div>
+      <div className="source-create-footer"><Button variant="primary" type="submit" disabled={loading}>{loading ? '正在保存…' : '保存文件来源'}</Button></div>
     </form>}
     {error && <p className="form-error" role="alert">{error}</p>}
     <div className="source-registry">
-      <div className="source-registry-heading"><span>{fields.length} 个来源</span><Button type="button" onClick={() => void loadFields()} disabled={loading}>刷新</Button></div>
-      {fields.length === 0 ? <div className="source-empty"><strong>还没有文件来源</strong><p>先登记一个本机可读取的电影目录。保存时会检查目录是否可达。</p></div> : fields.map((field) => {
+      <div className="source-registry-heading"><Button type="button" onClick={() => void loadFields()} disabled={loading}>刷新</Button></div>
+      {fields.length === 0 ? <div className="source-empty"><strong>还没有文件来源</strong></div> : fields.map((field) => {
         const scan = scanOf(field);
         const observing = observingFieldId === field.fieldId;
         const scanBusy = observing || scan.state === 'scanning';
         const admission = intakeAdmission[field.fieldId];
         const generated = field.procurementStatus.generatedPackageCount;
-        const followUp = procurementFollowUp(field);
         const acceptedPercent = generated > 0 ? (field.procurementStatus.acceptedPackageCount / generated) * 100 : 0;
         const waitingPercent = generated > 0 ? (field.procurementStatus.waitingAcceptanceCount / generated) * 100 : 0;
         return <article className="source-record" key={field.fieldId}>
         <header className="source-record-head">
-          <div className="source-record-title"><span className={`status-dot ${field.status}`} /><div><h3>{field.name}</h3><p>{field.access.rootLocation}</p><span className="source-state">{field.status === 'active' ? '活动来源' : '已注销'}</span></div></div>
+          <div className="source-record-title"><div><h3>{field.name}</h3><p>{field.access.rootLocation}</p><span className="source-state" data-state={field.status}>{field.status === 'active' ? '活动来源' : '已注销'}</span></div></div>
           <div className="source-record-action">
           {field.status === 'active' && confirmDeregisterFieldId !== field.fieldId && <>
             <Button variant="primary" type="button" disabled={observingFieldId.length > 0 || deregisteringFieldId.length > 0 || scanBusy} onClick={() => void observeField(field)}>{observing ? '正在扫描…' : '扫描新文件'}</Button>
@@ -243,7 +202,6 @@ export default function MaterialFieldsPage() {
             <small>停止新的扫描；已发现的电影仍会继续整理。不会删除、移动或重命名任何媒体文件。</small>
             <div><Button type="button" onClick={() => setConfirmDeregisterFieldId('')}>取消</Button><Button variant="danger" type="button" disabled={deregisteringFieldId.length > 0} onClick={() => void deregisterField(field)}>{deregisteringFieldId === field.fieldId ? '正在注销…' : '确认注销'}</Button></div>
           </div>}
-          {field.status === 'deregistered' && <small>不再扫描这个目录。历史记录保留，媒体文件不变。</small>}
           </div>
         </header>
         <div className="source-flow-grid">
@@ -258,26 +216,25 @@ export default function MaterialFieldsPage() {
               <span className="accepted" style={{ width: `${acceptedPercent}%` }} />
               <span className="waiting" style={{ width: `${waitingPercent}%` }} />
             </div>
-            {field.procurementStatus.rejectedPackageCount > 0 && <p className="source-flow-exception">另有 {field.procurementStatus.rejectedPackageCount} 个媒体包未能进入整理，不计入等待数量。</p>}
-            {followUp && <p>{followUp}</p>}
+            {field.procurementStatus.rejectedPackageCount > 0 && <p className="source-flow-exception ui-state">接收被拒 · {field.procurementStatus.rejectedPackageCount} 包</p>}
           </section>
           <section className="source-flow-panel source-flow-libra" aria-label={`${field.name} 同时整理数量`}>
             <div className="source-flow-heading"><span>媒体整理</span><strong>接收席位</strong></div>
             {field.status === 'active' && admission ? <>
               <div className="source-seat-number"><strong>{admission.pipelineTokensHeld}</strong><span>正在占用</span><em>/ {admission.predeckPipelineSeats} 个席位</em></div>
               <p className={admission.predeckPipelineSeats === 0 ? 'source-seat-zero' : ''}>{admission.predeckPipelineSeats === 0
-                ? '当前不接收这个来源的新媒体包；已经接收的媒体会继续整理。'
-                : admission.pipelineSeatsFree > 0 ? `还有 ${admission.pipelineSeatsFree} 个空位，可继续接收。` : '当前整理数量已达上限，其余材料继续等待。'}</p>
+                ? '暂停接收'
+                : admission.pipelineSeatsFree > 0 ? `空闲 ${admission.pipelineSeatsFree} 个席位` : '席位已满'}</p>
               <Button type="button" onClick={() => setEditingSeatsFieldId((current) => current === field.fieldId ? '' : field.fieldId)}>{editingSeatsFieldId === field.fieldId ? '收起席位设置' : '调整席位'}</Button>
               {editingSeatsFieldId === field.fieldId && <div className="source-seat-editor">
                 <label><span>固定席位数（0–8）</span><input type="number" min={0} max={8} value={seatDrafts[field.fieldId] ?? String(admission.predeckPipelineSeats)} onChange={(event) => setSeatDrafts((current) => ({ ...current, [field.fieldId]: event.target.value }))} /></label>
                 <Button type="button" disabled={savingSeatsFieldId.length > 0} onClick={() => void saveIntakeSeats(field)}>{savingSeatsFieldId === field.fieldId ? '正在保存…' : '保存席位'}</Button>
               </div>}
-            </> : <p>这个来源已经注销，不再接收新媒体包。</p>}
+            </> : field.status === 'active' ? <p className="ui-state">席位状态暂不可用</p> : null}
           </section>
         </div>
-        {field.status === 'active' && <details className="source-operating-detail"><summary>扫描与来源详情 · {scanLabel(field)}</summary>
-          <div className="source-journey" role="status"><strong>{operations[field.fieldId] && scan.state !== 'completed' ? '扫描已开始' : scanLabel(field)}</strong><span>{scanProgress(field)}</span></div>
+        {field.status === 'active' && <details className="source-operating-detail"><summary>扫描与来源详情 <span className="ui-state" data-state={scan.state}>{scanLabel(field)}</span></summary>
+          {scan.state === 'failed' && <p className="form-error" role="alert">{scan.failureMessage || '电影目录不存在或当前不可读取。'}</p>}
           <dl>
             <div><dt>内容类型</dt><dd>{field.currentProfileHintSnapshot.contentProfileHint === 'movie' ? '电影' : field.currentProfileHintSnapshot.contentProfileHint}</dd></div>
             <div><dt>扫描页数</dt><dd>{scan.pageCount > 0 ? `${scan.pageCount} 页` : '尚未开始'}</dd></div>
