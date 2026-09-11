@@ -3,7 +3,7 @@
 更新：2026-09-12。ACTIVE。用户要求先整理UAT文档，再继续逐项验收关闭；此前合同审查暂停已结束。
 [UAT总表](UAT_ITERATION_REGISTER.md)是唯一条目、状态、当前关闭条件入口；[当前执行包](implementation/CURRENT_PHASE.md)记录执行位置；本计划仅保留范围、顺序与授权。
 
-2026-09-12：用户授权合并UAT-256/257后标准部署及生产验收，已清理8个合并分支，83235c9260标准发布完成，UAT-256生产验收关闭、257后续扫描验收保持开放；9月11日已部署修复已一并收拢。三片历史与剩余恢复范围见当前执行包。
+2026-09-12：部署负责人完成cd4f3f5b2d首批标准发布，257/258/259分别验收关闭；既有256关闭保留。当前继续251与接收恢复剩余链路，三片历史及精确治理范围见当前执行包。
 
 ## 已确认合同
 
@@ -13,18 +13,9 @@
 
 ## 剩余排程
 
-首批cd4f3f5b2d已标准发布：扫描恢复、接收恢复核心、258/259。73页正常扫描成功、六条资格恢复；继续核对257普通选材结果，并依次收口258/259生产证据。后续安排正式Control拒绝链与251，不执行仍阻塞的旧两席位Reset。[首批记录](implementation/evidence/UAT_RELEASE_CD4F3F5B2D_20260912.md)。
-
-UAT-259：用户明确“可以实施第二轮了”；[确认清单及本地验收](implementation/evidence/UAT-259_UI_REFINEMENT_20260912.md)已完成，已随cd4f3f5b2d部署并完成生产复核，接续独立证据收口。标题、卡片层级及工具栏已精简，收藏架“可接收整理结果”已移除；媒体整理列表及后端保持。
-
-UAT-257扫描阻塞：`codex/field-observation-recovery`隔离修复及本地验证完成，修正历史失败阻断普通新轮、零页失败幂等与失败原因投影。UI负责人复查通过；已由统一部署任务发布并完成新扫描，接续普通选材验收。[实现与待验收步骤](implementation/evidence/UAT-257_SCAN_RECOVERY_IMPLEMENTATION_20260912.md)。
-
-UAT-258：收藏架“自动清理残留文件”授权按钮，对齐UAT-256样式及用户补充的去多余层级规则；沿用精确旧输入授权，按[交互及验收](implementation/evidence/UAT-258_RESIDUAL_CLEANUP_AUTHORIZATION_BUTTON_20260912.md)实施。
+首批cd4f3f5b2d已标准发布。257/258/259已逐项验收关闭：73页扫描成功、六片普通选材产生新包、生产UI与授权保持通过。接续正式Control拒绝链与251；旧两席位Reset仍待完整恢复准备。[首批记录](implementation/evidence/UAT_RELEASE_CD4F3F5B2D_20260912.md)。
 
 2026-09-12追加：用户要求修复《人生密密缝》上架阻塞及两个Intake席位长期占用；该修复任务仅本地实施、隔离验证和生产处置准备，生产操作交统一部署负责人安排。工作区`E:/my_project/emby_third_party-helix-intake-recovery`，分支`codex/intake-recovery-20260912`，从集成`144798953`隔离。UAT-125/250第一批`9820e7b85`已提交；后续Control失效拒绝链按[证据及精确合同缺口](implementation/evidence/UAT-125_250_INTAKE_RECOVERY_20260912.md)收口，不能把两Token Reset safe当作队列已恢复。
-
-UAT-257按2026-09-12用户确认实施拒绝后普通重新选材及包统计，已合入集成分支并清理原隔离分支。
-UI已与UAT-256任务对齐并整合其去技术标识提交，来源统计区块与业务修复已通过本地及最终Linux闭环、已部署生产；六条旧资格的后续正常扫描验收保持开放，见[合同与验收](implementation/evidence/UAT-257_PROCUREMENT_REJECTION_CYCLE_20260912.md)。
 
 2026-09-12追加：用户确认UAT-256全页面UI polish；仅前端呈现，八页数量与业务行为不变，桌面最大化验收。文件来源取消全局汇总；媒体整理列表结构、尺寸和交互冻结。补充移除技术标识/原始代码，必要失败原因用中文显示；未知原因占位文案不再指向技术信息。执行及证据见[确认范围](implementation/evidence/UAT-256_UI_POLISH_20260912.md)。
 

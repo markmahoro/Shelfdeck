@@ -31,9 +31,13 @@
 ## 生产结果
 
 1. 原失败扫描Work `field-observation-work-fabadd31c38e1233d2f485189505a61e548734d1`保留failed、revision1162–1221、60页及未完成事实。启动正常路径自动产生新Work `field-observation-work-c009c4202144c2e5eb527c5d5b46c75336d9bb9c`，revision1222–1294、73页、completed=1、Work=succeeded。未人工重复点击或修改旧记录。
-2. 当前六片主文件（老枪、绣春刀、静水城、恋恋笔记本、图雅的婚事、猩球崛起3）资格在1294按真实观察变为eligible；各自已不在目录中的旧文件仍为not_observed_in_current_terminal_work。正常Procurement开始新Run，实际新Package/Delivery后续结果继续核对，257暂不关闭。
+2. 当前六片主文件（老枪、绣春刀、静水城、恋恋笔记本、图雅的婚事、猩球崛起3）资格在1294按真实观察变为eligible；各自已不在目录中的旧文件仍为not_observed_in_current_terminal_work。普通Procurement Run c79c13e05f70d25fd33123c64418a0143bdf906a随后为六片各产生一个新的Package/open Delivery，8份旧Rejected记录仍逐行不变；新累计970=834等待+128接收+8拒绝，257已按本项证据关闭。
 3. 发布后初次核对113收藏、956包=820等待+128接收+8拒绝。8份原Rejected Package/Delivery逐行摘要与发布前一致；自动清理授权仍enabled、revision1、old_primary_and_exclusive_related，未为UI验收授予或撤销。后续选材可能合法增加累计包数量，须按新时点守恒核对。
 4. 生产浏览器1920×1080检查八页和设置五Tab，来源/收藏架/人物/收藏筛选/日志控件同排，相关按钮及输入36px，无水平溢出或页面console error；概览详情在视口内滚动，回收记录可展开，目录保持当前生效`/transcode`。258对话框显示精确范围及后果，取消后关闭并返回入口焦点，授权不变。既有媒体整理九列表格保留；Fast X继续显示处理中，《人生密密缝》仍需处理。没有把旧条目自动判为恢复。
 5. UI任务的同数据、同时间494元素对照0差异保留为本地结构证据；生产DOM/布局和交互复验不伪称同数据像素对照。外部浏览器中途断连后使用已有登录态的应用内浏览器继续，没有新增凭据或配置。
 
 日志、完整只读响应及备份receipt位于集成区ignored `.codex/unified-release-20260912/`；镜像/测试日志位于发布worktree `.codex/*final-20260912.log`。生产导出与Secret均不入Git。受保护Aftercare Evidence SHA256仍为`81729d8c6ec35bec5494929bb19b46e6c83412b769a2cb8cff6db859bad35a3c`。
+
+## 逐项收口
+
+258、259、257分别以独立Evidence和关闭提交收口（626e5f806、212b992d7、ae4e64137），当前259项中71项本轮功能关闭、32项开放。六片新Package/Delivery与970包守恒见[257生产证据](UAT-257_PROCUREMENT_REJECTION_CYCLE_20260912.md)。正式拒绝链、251及旧条目恢复仍开放；本批发布不替代后续生产验收。
