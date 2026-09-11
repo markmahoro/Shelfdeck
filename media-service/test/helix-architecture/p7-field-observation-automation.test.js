@@ -25,7 +25,8 @@ function field(overrides = {}) {
 function createHarness(overrides = {}) {
   let nowMs = overrides.nowMs || 1_700_000_000_000;
   const fields = new Map((overrides.fields || [field()]).map((item) => [item.fieldId, item]));
-  const works = new Map(overrides.works || []);
+  const works = new Map((overrides.works || []).map(([fieldId, rows]) => [fieldId,
+    rows.map(row => ({ created_at_ms:nowMs - PERIOD_MS, ...row }))]));
   const progress = new Map(overrides.progress || []);
   const issued = [];
   const automation = createFieldObservationAutomation({
@@ -58,6 +59,7 @@ function createHarness(overrides = {}) {
   return Object.freeze({
     automation,
     issued,
+    works,
     advance(ms) { nowMs += ms; },
     now: () => nowMs,
   });
@@ -92,7 +94,7 @@ test('never-observed Fields still enter the first sweep while the 12-hour gate i
   assert.equal(harness.issued[0].expectedObservationRevision, 0);
 });
 
-test('open or incomplete Observation Work is not re-issued', () => {
+test('open Observation Work prevents concurrent admission but terminal partial history does not', () => {
   const running = createHarness({
     works: [['field-a', [Object.freeze({ work_id: 'work-open', state: 'running' })]]],
   });
@@ -103,8 +105,52 @@ test('open or incomplete Observation Work is not re-issued', () => {
     works: [['field-a', [Object.freeze({ work_id: 'work-partial', state: 'failed' })]]],
     progress: [['work-partial', Object.freeze({ workId: 'work-partial', pageCount: 2, completed: false })]],
   });
-  assert.equal(incomplete.automation.reconcile({ fieldId: 'field-a' }).kind, 'incomplete');
-  assert.equal(incomplete.issued.length, 0);
+  assert.equal(incomplete.automation.reconcile({ fieldId: 'field-a' }).kind, 'issued');
+  assert.equal(incomplete.issued.length, 1);
+});
+
+test('a later successful round is not blocked by an older partial failure', () => {
+  const nowMs=1_700_000_000_000;
+  const harness = createHarness({nowMs, works:[['field-a', [
+    {work_id:'old-partial',state:'failed',created_at_ms:nowMs-1000},
+    {work_id:'new-success',state:'succeeded',created_at_ms:nowMs},
+  ]]], progress:[['old-partial',{pageCount:60,completed:false}],['new-success',{pageCount:73,completed:true}]] });
+  assert.equal(harness.automation.reconcile({fieldId:'field-a'}).kind,'issued');
+  assert.equal(harness.issued.length,1);
+});
+
+test('zero-page failure survives restart without immediate retry and gets a new key next period', () => {
+  const first = createHarness();
+  first.automation.reconcile({fieldId:'field-a'});
+  const restarted = createHarness({ nowMs:first.now()+1000,
+    works:[['field-a',[{work_id:'failed-empty',state:'failed',created_at_ms:first.now()}]]] });
+  assert.equal(restarted.automation.listPage({cursor:null,limit:100}).length,1);
+  assert.deepEqual(restarted.automation.reconcile({fieldId:'field-a'}),
+    {kind:'not_due',fieldId:'field-a',nextDueAtMs:first.now()+PERIOD_MS});
+  assert.equal(restarted.issued.length,0);
+  restarted.advance(PERIOD_MS-1000);
+  assert.equal(restarted.automation.listPage({cursor:null,limit:100}).length,1);
+  assert.equal(restarted.automation.reconcile({fieldId:'field-a'}).kind,'issued');
+  assert.notEqual(restarted.issued[0].idempotencyKey,first.issued[0].idempotencyKey);
+});
+
+test('repeated due checks bind one key even without an Observation revision change', () => {
+  const harness=createHarness();
+  harness.automation.reconcile({fieldId:'field-a'});
+  harness.automation.reconcile({fieldId:'field-a'});
+  assert.equal(harness.issued[0].idempotencyKey,harness.issued[1].idempotencyKey);
+  harness.advance(PERIOD_MS);
+  harness.automation.reconcile({fieldId:'field-a'});
+  assert.notEqual(harness.issued[2].idempotencyKey,harness.issued[0].idempotencyKey);
+});
+
+test('a recent failed manual round also prevents automatic restart churn', () => {
+  const nowMs=1_700_000_000_000;
+  const harness=createHarness({nowMs,works:[['field-a',[
+    {work_id:'recent-manual',state:'failed',created_at_ms:nowMs-1},
+  ]]]});
+  assert.equal(harness.automation.reconcile({fieldId:'field-a'}).kind,'not_due');
+  assert.equal(harness.issued.length,0);
 });
 
 test('deregistered and non-movie Fields are skipped', () => {

@@ -1,5 +1,5 @@
-import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
-import { helixAdminApi, materialFieldRegistration, type FieldIntakeAdmission, type MaterialField, type Shelf } from './api';
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { AdminApiError, helixAdminApi, materialFieldRegistration, type FieldIntakeAdmission, type MaterialField, type Shelf } from './api';
 import { newOpaqueId } from './id';
 import { Button, LoadingState, PageHeader } from './chrome';
 import { observationScanLabels } from './labels';
@@ -31,6 +31,8 @@ export default function MaterialFieldsPage() {
   const [includedDirectories, setIncludedDirectories] = useState('');
   const [excludedDirectories, setExcludedDirectories] = useState('');
   const [observingFieldId, setObservingFieldId] = useState('');
+  const observationInFlight = useRef(false);
+  const observationRequests = useRef(new Map<string, { field: MaterialField; key: string }>());
   const [deregisteringFieldId, setDeregisteringFieldId] = useState('');
   const [confirmDeregisterFieldId, setConfirmDeregisterFieldId] = useState('');
   const [intakeAdmission, setIntakeAdmission] = useState<Record<string, FieldIntakeAdmission>>({});
@@ -115,15 +117,25 @@ export default function MaterialFieldsPage() {
   }
 
   async function observeField(field: MaterialField) {
+    if (observationInFlight.current) return;
+    observationInFlight.current = true;
+    const request = observationRequests.current.get(field.fieldId) || { field, key: newOpaqueId('movie-observation-') };
+    observationRequests.current.set(field.fieldId, request);
     setObservingFieldId(field.fieldId);
     setError('');
     try {
-      await helixAdminApi.observeMaterialField(field);
+      await helixAdminApi.observeMaterialField(request.field, request.key);
+      observationRequests.current.delete(field.fieldId);
       await loadFields(true);
     } catch (cause) {
+      // Keep an uncertain transport request stable when the user retries it.
+      if (cause instanceof AdminApiError && cause.status >= 400 && cause.status < 500) {
+        observationRequests.current.delete(field.fieldId);
+      }
       if (isUnauthorized(cause)) expire();
       else setError(cause instanceof Error ? cause.message : '文件来源扫描失败。');
     } finally {
+      observationInFlight.current = false;
       setObservingFieldId('');
     }
   }
@@ -228,7 +240,7 @@ export default function MaterialFieldsPage() {
           </section>
         </div>
         {field.status === 'active' && <details className="source-operating-detail"><summary>扫描与来源详情 <span className="ui-state" data-state={scan.state}>{scanLabel(field)}</span></summary>
-          {scan.state === 'failed' && <p className="form-error" role="alert">{scan.failureMessage || '电影目录不存在或当前不可读取。'}</p>}
+          {scan.state === 'failed' && scan.failureMessage && <p className="form-error" role="alert">{scan.failureMessage}</p>}
           <dl>
             <div><dt>内容类型</dt><dd>{field.currentProfileHintSnapshot.contentProfileHint === 'movie' ? '电影' : field.currentProfileHintSnapshot.contentProfileHint}</dd></div>
             <div><dt>扫描页数</dt><dd>{scan.pageCount > 0 ? `${scan.pageCount} 页` : '尚未开始'}</dd></div>

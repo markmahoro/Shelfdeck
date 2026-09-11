@@ -9,6 +9,8 @@ UAT-259：第二轮UI精简已获实施授权，沿用既有ui-polish detached�
 
 发布由“收口并部署上线”任务统一负责合并、工作区清理及上线，按UAT-251、接收恢复、UAT-257扫描修复的实际依赖与验证结果自主安排批次；UAT-258完整提交38e89d145已接收，仍待生产验收。此次任命无需广播，不限制必要技术协调。各开发任务不独立部署；当前生产仍为83235c9260，交接预检不等于发布。见[接手审计与发布缺证](evidence/UAT_JOINT_DEPLOYMENT_READINESS_20260912.md)。
 
+UAT-257扫描阻塞：`codex/field-observation-recovery`隔离实现、受影响回归与真实临时Host浏览器验证完成，UI负责人复查通过；保留旧失败事实，失败重启节流及成功启动检查均验证。统一部署任务接收提交及[正常扫描验收步骤](evidence/UAT-257_SCAN_RECOVERY_IMPLEMENTATION_20260912.md)，该扫描任务未部署或生产重扫，整项开放。
+
 UAT-258：用户授权将收藏架清理折叠入口改为“自动清理残留文件”授权按钮，对齐UAT-256视觉及去多余层级规则；集成区本地实现完成，90项测试、构建及真实临时Host桌面/窄屏走查通过，未部署。仅改前端呈现和交互，沿用Arca授权范围/API。[交互及验收](evidence/UAT-258_RESIDUAL_CLEANUP_AUTHORIZATION_BUTTON_20260912.md)。
 
 2026-09-12接收恢复修复：UAT-125/250在独立`codex/intake-recovery-20260912`提交`9820e7b85`。新Movie并发/事务中断/两次重启、投影负向Fence和两文件隔离/回滚验证通过，精确2个pre-Subject Reset在一致备份副本闭包清零且范围外逐行不变。但5个open旧Candidate存在23项Control revision失配，正式Control Evidence/拒绝恢复分叉合同缺口未收口，生产Reset保持阻塞；详见[证据](evidence/UAT-125_250_INTAKE_RECOVERY_20260912.md)。该修复任务不执行生产操作，统一部署负责人安排整合、发布及后续现场验收。

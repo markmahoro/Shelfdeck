@@ -15,6 +15,8 @@
 
 UAT-259：用户明确“可以实施第二轮了”；按[确认清单及验收](implementation/evidence/UAT-259_UI_REFINEMENT_20260912.md)精简标题、卡片层级及工具栏，移除收藏架“可接收整理结果”，不修改媒体整理列表或后端。
 
+UAT-257扫描阻塞：`codex/field-observation-recovery`隔离修复及本地验证完成，修正历史失败阻断普通新轮、零页失败幂等与失败原因投影。UI负责人复查通过；由统一部署任务收口，不单独部署或触发生产扫描。[实现与待验收步骤](implementation/evidence/UAT-257_SCAN_RECOVERY_IMPLEMENTATION_20260912.md)。
+
 UAT-258：收藏架“自动清理残留文件”授权按钮，对齐UAT-256样式及用户补充的去多余层级规则；沿用精确旧输入授权，按[交互及验收](implementation/evidence/UAT-258_RESIDUAL_CLEANUP_AUTHORIZATION_BUTTON_20260912.md)实施。
 
 2026-09-12追加：用户要求修复《人生密密缝》上架阻塞及两个Intake席位长期占用；该修复任务仅本地实施、隔离验证和生产处置准备，生产操作交统一部署负责人安排。工作区`E:/my_project/emby_third_party-helix-intake-recovery`，分支`codex/intake-recovery-20260912`，从集成`144798953`隔离。UAT-125/250第一批`9820e7b85`已提交；后续Control失效拒绝链按[证据及精确合同缺口](implementation/evidence/UAT-125_250_INTAKE_RECOVERY_20260912.md)收口，不能把两Token Reset safe当作队列已恢复。

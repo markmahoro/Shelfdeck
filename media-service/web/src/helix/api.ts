@@ -920,14 +920,14 @@ export const helixAdminApi = {
       body: JSON.stringify(body),
     });
   },
-  observeMaterialField(field: MaterialField) {
+  observeMaterialField(field: MaterialField, idempotencyKey = newOpaqueId('movie-observation-')) {
     const observationRevision = field.currentObservationRevision ?? 0;
     return request<ProcurementJourneyResult>(
       `/v1/admin/material-fields/${encodeURIComponent(field.fieldId)}/actions/observe`,
       {
         method: 'POST',
         body: JSON.stringify({
-          idempotencyKey: `movie-observation:${field.fieldId}:access-${field.currentAccessRevision}:observation-${observationRevision}`,
+          idempotencyKey,
           fieldId: field.fieldId,
           expectedAccessRevision: field.currentAccessRevision,
           expectedObservationRevision: observationRevision,
