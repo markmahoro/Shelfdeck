@@ -94,7 +94,7 @@ cd4f3f5b2d已通过最终Web94/94、适用Linux39/39、完整备份与标准发�
 
 ## 最新副本演练的顺序约束
 
-恢复任务报告最新cd4f一致副本SHA256为`1f4f90753df7cf0806121acbed57d6604289ce8c286ce439ba586bdcca6f4003`，970份Delivery（834 open、128 accepted、8 rejected）。在该隔离副本上仅Reset原两Token，通过实际Composition/Planner/EventRuntime、typed Owner ports及NAS原文件只读fingerprint完成5份旧Offer正式拒绝，真实consumer与幂等重放释放23条Reservation。以上为源任务阶段报告，完整保护表摘要、复用脚本及Evidence提交仍待接手核验；不把它写成生产恢复结果。
+恢复任务报告最新cd4f一致副本SHA256为`1f4f90753df7cf0806121acbed57d6604289ce8c286ce439ba586bdcca6f4003`，970份Delivery（834 open、128 accepted、8 rejected）。在该隔离副本上仅Reset原两Token，通过实际Composition/Planner/EventRuntime、typed Owner ports及NAS原文件只读fingerprint完成5份旧Offer正式拒绝，真实consumer与幂等重放释放23条Reservation。前半段Evidence 3378b34be已接手为0907001cd，并核对final-audit：89张受保护表全行摘要、其余965个Delivery、无关Work及Fast X Token保持，integrity ok/FK0；完整材料路径见源Evidence。该演练为限定process执行轨，直接consumer尚未验证Outbox transport ACK，后半段须补齐；不是生产恢复结果。
 
 普通再选材返回`no_eligible_material`。部署任务已核对`procurement-automation-service.js`的现行防回环实现：同一个Observation不能产生新Procurement轮次；`handoff_rejected`的`reservation_updated_at_ms >= terminalObservation.observed_at_ms`时不能复用旧Observation再选材。因此revision1294虽然真实扫描成功，但早于本次副本拒绝消费，不能作为后半段恢复证据。不得改时间戳、弱化guard或合成新Observation；已交原恢复任务继续同一隔离副本上的完整真实扫描与普通再选材。
 
