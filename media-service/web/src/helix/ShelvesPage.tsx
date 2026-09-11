@@ -428,8 +428,10 @@ export default function ShelvesPage() {
   if (!shelves.length && loading && !error) return <LoadingState>正在读取收藏架…</LoadingState>;
 
   return <section className="source-page shelf-page">
-    <PageHeader title="收藏架配置" actions={<Button variant="primary" type="button" onClick={() => setShowCreate((value) => !value)}>{showCreate ? '收起' : '新建收藏架'}</Button>} />
-    <InputSettlementAuthorization />
+    <PageHeader title="收藏架配置" actions={<>
+      <InputSettlementAuthorization />
+      <Button variant="primary" type="button" onClick={() => setShowCreate((value) => !value)}>{showCreate ? '收起' : '新建收藏架'}</Button>
+    </>} />
     <div className="source-facts facts-2" aria-label="收藏架摘要">
       <div><span>活动收藏架</span><strong>{activeShelves.length}</strong></div>
       <div><span>可用规则模板</span><strong>{activeTemplates.length}</strong></div>

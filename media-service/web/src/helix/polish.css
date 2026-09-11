@@ -225,6 +225,14 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--accent); }
 .dialog-body, .dialog-actions { padding: 20px; }
 .dialog-head h2 { margin: 0; }
 
+.input-settlement-dialog { width: min(560px, calc(100vw - 32px)); margin: auto; padding: 0; border: 0; color: var(--ink); }
+.input-settlement-dialog::backdrop { background: #182b3c99; }
+.input-settlement-dialog .dialog-actions { flex-wrap: wrap; }
+.input-settlement-scope { display: grid; gap: 12px; margin: 0; }
+.input-settlement-scope > div { display: grid; grid-template-columns: 5em minmax(0, 1fr); gap: 12px; }
+.input-settlement-scope dt { color: var(--muted); }
+.input-settlement-scope dd { margin: 0; }
+
 /* Current delivery demand and cumulative package history have separate emphasis. */
 .source-package-waiting { display: flex; align-items: baseline; gap: 8px; margin-top: 16px; }
 .source-page:not(.workbench) .source-package-waiting strong { font-size: 20px; font-variant-numeric: tabular-nums; }
