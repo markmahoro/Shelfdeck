@@ -1,6 +1,6 @@
 # UAT 联合发布接手审计
 
-2026-09-12。本文件为交接与发布前检查 Evidence；唯一排程仍为 CURRENT_PLAN / CURRENT_PHASE，不建立第二份活动计划。当前结论：尚未形成联合发布候选，生产未变更。
+2026-09-12。本文件为交接与发布前检查 Evidence；唯一排程仍为 CURRENT_PLAN / CURRENT_PHASE，不建立第二份活动计划。最新结论：首批cd4f3f5b2d已发布，257/258/259分别验收关闭；第二批Control拒绝链已合入d7a6da2802，正在验证，生产保持首批镜像。下文接手时的旧镜像、未授权或未部署描述为历史快照，以末尾追加记录及CURRENT_STATUS为准。
 
 ## 用户决定与职责
 
@@ -81,3 +81,13 @@ UAT-251全局授权位于收藏架配置页头，与258保持相同按钮/对话
 ## 首批已发布
 
 cd4f3f5b2d已通过最终Web94/94、适用Linux39/39、完整备份与标准发布，生产73页新扫描成功，六条资格恢复。生产八页/五Tab、授权取消保持revision1及原8份拒绝记录不变通过；完整身份、未覆盖项和回滚见[本批发布证据](UAT_RELEASE_CD4F3F5B2D_20260912.md)。后续正式Control拒绝链与251仍由原任务实施；精确旧两席位Reset仍不执行。
+
+## 第二批Control拒绝链集成验证
+
+`9ecf7b2a1`代码与`d591d6867`Evidence已由`d7a6da2802fc0838a273633a5225a5c9e4929fae`合入。三个CURRENT文件冲突保留首批实际生产身份及257/258/259关闭状态。原Aftercare未提交Evidence仍保留，不夹带提交。
+
+专用发布区在精确d7a6da2802执行Windows组合回归：Control拒绝与未知/提交后竞争保护、Intake恢复、扫描、普通选材/拒绝循环、精确Formation Reset，共**38/38通过、0跳过**；完整`helix-architecture`为**1,647通过、9既有跳过、0失败**。日志分别为发布区`.codex/control-combined-20260912.log`和`.codex/control-architecture-20260912.log`。本批生成合同已经通过完整检查，首批记录中的旧基线失败不作为本批豁免。与生产cd4f3f5b2d比较，clean-schema.sql无差异；这不等于旧未完成Work可跳过新Evidence合同，仍不得增加旧Result缺字段fallback。
+
+标准build-image.js已构建本地候选`markmahoro/shelfdeck:helix-beta-20260912-d7a6da2802`，tar SHA256 `291a20e18595f8f08916155eca8b184339c38c7496a6a86fa581f60bc6b08282`，构建Config digest `sha256:42f7b2d8ba5ba56472e014a224f728f5b536bd95ba0b585470ff74c13cdd626f`。尚未上传、部署或执行生产Reset；精确镜像Linux验证与最新旧队列隔离恢复演练继续补齐，125/250保持开放。现有首批完整备份是上线前83235c9260时点，不能作为扫描1294后的最新副本。
+
+该精确候选镜像随后完成Linux **117/117通过、0跳过**，约241秒，涵盖适用P8合同、上述组合流程、30项精确Reset及10项冲突隔离工具测试。服务源码、生成合同和依赖均来自镜像，仅只读挂载测试目录及镜像外的工作站quarantine operator；网络关闭，真实`/transcode`为临时tmpfs。未运行依赖Git历史的`p8-exit-auditor`文件（生产镜像不含git），该文件已在Windows完整架构检查中通过；没有放宽Reset路径保护或mock平台。日志为发布区`.codex/linux-control-20260912.log`，容器正常退出并由`--rm`回收。两条AbortSignal MaxListenersExceededWarning在首批同版测试日志已存在，本次保留记录，没有屏蔽告警。没有重跑完整FFmpeg/QSV长片E2E、Desktop/Worker或未变化的首批Web交互验收；本结果仍不替代最新历史队列恢复演练和生产业务验收。tar内manifest的Config与上述42f7b2d8一致，Docker Desktop本地OCI index为db127c87ace859ada3acf7537a11f2d8259903caa84e012a7d61c2d49341e726，不混作NAS Config ID。

@@ -9,7 +9,7 @@
 
 发布由“收口并部署上线”任务统一负责合并、工作区清理及上线，按UAT-251、接收恢复、UAT-257扫描修复的实际依赖与验证结果自主安排批次；UAT-258完整提交38e89d145已生产验收关闭。此次任命无需广播，不限制必要技术协调。各开发任务不独立部署；当前生产为cd4f3f5b2d，首批标准部署及健康/浏览器验证已完成。见[接手审计与发布缺证](evidence/UAT_JOINT_DEPLOYMENT_READINESS_20260912.md)。
 
-2026-09-12接收恢复：9820e7b85核心已部署，9ecf7b2a1正式Control拒绝和d591d6867证据已交付并进入整合。源Windows1638通过/9跳过，Linux源码115通过/1项缺git失败，隔离/transcode Reset验证通过；CAS后竞争保持原Evidence/Effect/Token。旧两席位与影片完整恢复仍须最新快照演练及现场预检，不因源码验证通过执行生产Reset。[范围与证据](evidence/UAT-125_250_INTAKE_RECOVERY_20260912.md)。
+2026-09-12接收恢复：9820e7b85核心已部署，9ecf7b2a1正式Control拒绝和d591d6867证据已合入d7a6da2802。独立发布区Windows组合38/38、完整架构1647通过/9跳过/0失败，DDL不变，候选镜像Linux117/117通过，尚未部署；CAS后竞争保持原Evidence/Effect/Token。旧两席位与影片完整恢复仍须最新快照演练及现场预检，不因源码验证通过执行生产Reset。[范围与证据](evidence/UAT-125_250_INTAKE_RECOVERY_20260912.md)、[集成验证](evidence/UAT_JOINT_DEPLOYMENT_READINESS_20260912.md)。
 
 2026-09-12：UAT-256已获用户实施授权，在`codex/ui-polish`隔离工作区完成前端视觉与文案整理，89项测试、桌面八页本地与83235c9260生产八页/五Tab验收通过，已独立关闭；[范围与证据](evidence/UAT-256_UI_POLISH_20260912.md)。不夹带其他开放项，不修改媒体整理现有列表或业务逻辑。
 

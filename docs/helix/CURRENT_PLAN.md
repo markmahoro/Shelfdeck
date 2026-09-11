@@ -15,7 +15,7 @@
 
 首批cd4f3f5b2d已标准发布。257/258/259已逐项验收关闭：73页扫描成功、六片普通选材产生新包、生产UI与授权保持通过。接续正式Control拒绝链与251；旧两席位Reset仍待完整恢复准备。[首批记录](implementation/evidence/UAT_RELEASE_CD4F3F5B2D_20260912.md)。
 
-2026-09-12接收恢复：第一批9820e7b85核心已部署；第二批9ecf7b2a1及Evidence d591d6867已交付正式Control观察/持久见证/拒绝链。整合后核验合同生成物和组合回归，再对最新备份做精确旧队列恢复演练；通过后才安排生产处置。CAS后自动新Evidence/Work不在本批内，不能把新建测试或Reset safe当作旧队列已恢复。[实现与验证](implementation/evidence/UAT-125_250_INTAKE_RECOVERY_20260912.md)。
+2026-09-12接收恢复：第一批9820e7b85核心已部署；第二批9ecf7b2a1及Evidence d591d6867已合入d7a6da2802，Windows组合38/38、完整架构1647通过/9跳过/0失败。候选镜像Linux117/117通过；继续最新备份精确旧队列恢复演练，通过后才安排生产处置。CAS后自动新Evidence/Work不在本批内，不能把新建测试或Reset safe当作旧队列已恢复。[实现与验证](implementation/evidence/UAT-125_250_INTAKE_RECOVERY_20260912.md)。
 
 2026-09-12追加：用户确认UAT-256全页面UI polish；仅前端呈现，八页数量与业务行为不变，桌面最大化验收。文件来源取消全局汇总；媒体整理列表结构、尺寸和交互冻结。补充移除技术标识/原始代码，必要失败原因用中文显示；未知原因占位文案不再指向技术信息。执行及证据见[确认范围](implementation/evidence/UAT-256_UI_POLISH_20260912.md)。
 

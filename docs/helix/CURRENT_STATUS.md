@@ -13,7 +13,7 @@
 
 ## 最近验收与开放事实
 
-UAT-125/250第一批9820e7b85核心已部署，旧两席位及《人生密密缝》尚未处置。第二批9ecf7b2a1/d591d6867已交付正式Control拒绝链，正在统一整合验证。源任务Windows架构1638通过/9既有跳过，Linux源码115通过/1项缺git环境失败；真实隔离/transcode的30项Reset通过。原备份820个open Offer中815匹配、5个失配共23项，7组保护表未变；这是旧副本只读分类，不是当前NAS统计或旧队列完整恢复。下一步组合回归与最新精确恢复演练，125/250保持开放。[实现证据](implementation/evidence/UAT-125_250_INTAKE_RECOVERY_20260912.md)。
+UAT-125/250第一批9820e7b85核心已部署，旧两席位及《人生密密缝》尚未处置。第二批9ecf7b2a1/d591d6867正式Control拒绝链已合入d7a6da2802；独立发布区Windows组合38/38、完整架构1647通过/9既有跳过/0失败，DDL不变。候选镜像Linux117/117通过，尚未上传或切换生产；继续最新精确恢复演练。原备份820个open Offer中815匹配、5个失配共23项，7组保护表未变；这是旧副本只读分类，不是当前NAS统计或旧队列完整恢复，125/250保持开放。[实现证据](implementation/evidence/UAT-125_250_INTAKE_RECOVERY_20260912.md)、[集成验证](implementation/evidence/UAT_JOINT_DEPLOYMENT_READINESS_20260912.md)。
 
 UAT-259已独立验收关闭：最终Web94/94，本地494元素一致，cd4f3f5b2d生产八页/五设置Tab布局、状态和必要交互复核通过；九列表格保持。[本项证据](implementation/evidence/UAT-259_UI_REFINEMENT_20260912.md)。
 
