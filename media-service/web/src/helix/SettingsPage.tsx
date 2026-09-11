@@ -228,13 +228,13 @@ export default function SettingsPage() {
     </div>
     {error && <p className="form-error" role="alert">{error}</p>}
     {notice && <p className="form-notice" role="status">{notice}</p>}
-    {tab === 'recycle' ? <section className="settings-card"><div className="settings-card-body"><RecycleSettings /></div></section> : tab === 'offdeck' ? <div className="settings-stack"><OffdeckRulesPanel /></div> : tab === 'workspace' ? <div className="settings-stack">
+    {tab === 'recycle' ? <RecycleSettings /> : tab === 'offdeck' ? <div className="settings-stack"><OffdeckRulesPanel /></div> : tab === 'workspace' ? <div className="settings-stack">
       <section className="settings-card" aria-labelledby="workspace-title">
         <header className="settings-card-head"><div><h2 id="workspace-title">整理工作目录</h2></div>
           <span className="integration-state" data-state={workspace?.restartRequired?'attention':workspace?'active':'unknown'}>{workspace?.restartRequired?'等待重启':'当前生效'}</span></header>
         <div className="settings-card-body">{workspace?<form className="source-form" onSubmit={saveWorkspace}>
-          <dl className="settings-facts"><div><dt>当前目录</dt><dd>{workspace.current.rootPath}</dd></div>
-            {workspace.pending&&<div><dt>重启后目录</dt><dd>{workspace.pending.rootPath}</dd></div>}</dl>
+          {(workspace.pending || workspaceRoot !== workspace.current.rootPath) && <dl className="settings-facts"><div><dt>当前目录</dt><dd>{workspace.current.rootPath}</dd></div>
+            {workspace.pending && workspaceRoot !== workspace.pending.rootPath && <div><dt>重启后目录</dt><dd>{workspace.pending.rootPath}</dd></div>}</dl>}
           <label className="settings-inline-field"><span>自定义目录</span><input value={workspaceRoot} onChange={(event)=>setWorkspaceRoot(event.target.value)} required /></label>
 
           <div className="settings-card-actions"><Button variant="primary" disabled={loading||!workspaceRoot||workspaceRoot===(workspace.pending?.rootPath||workspace.current.rootPath)}>验证并保存</Button></div>
@@ -308,9 +308,10 @@ export default function SettingsPage() {
         </div>
       </section>
     </div> : <section className="settings-card rating-log" aria-labelledby="rating-log-title">
-      <header className="settings-card-head"><div><h2 id="rating-log-title">评分日志</h2></div><div className="settings-card-actions"><Button type="button" onClick={() => void loadRatings()} disabled={loading}>刷新日志</Button></div></header>
+      <h2 id="rating-log-title" className="sr-only">评分日志</h2>
       <div className="settings-card-body">
       <div className="log-filters">
+        <Button type="button" onClick={() => void loadRatings()} disabled={loading}>刷新日志</Button>
         <label><span>来源</span><select value={sourceFilter} onChange={(event) => setSourceFilter(event.target.value)}><option value="">全部</option><option value="douban">豆瓣</option><option value="shelfdeck_direct">ShelfDeck</option></select></label>
         <label><span>星级</span><select value={ratingFilter} onChange={(event) => setRatingFilter(event.target.value)}><option value="">全部</option>{[1, 2, 3, 4, 5].map((value) => <option key={value} value={value}>{value}星</option>)}</select></label>
         <label><span>状态</span><select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}><option value="">全部</option><option value="matched">已匹配</option><option value="unmatched">未匹配</option><option value="ambiguous">有歧义</option><option value="superseded">已更正</option></select></label>

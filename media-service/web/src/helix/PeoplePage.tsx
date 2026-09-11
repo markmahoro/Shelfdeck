@@ -123,10 +123,6 @@ export default function PeoplePage() {
     <PageHeader title="人物" actions={<Button type="button" onClick={() => void load()} disabled={loading}>{loading ? '刷新中…' : '刷新'}</Button>} />
     {error && <p className="form-error" role="alert">{error}</p>}
     {notice && <p className="form-notice" role="status">{notice}</p>}
-    <div className="source-facts facts-2" aria-label="人物摘要">
-      <div><span>已登记</span><strong>{summary?.activePersonCount ?? 0}</strong></div>
-      <div><span>待确认</span><strong>{candidates.length}</strong></div>
-    </div>
     <form className="source-create" onSubmit={register}>
       <div className="source-create-heading"><h2>登记一个人</h2></div>
       <div className="source-form-grid">
@@ -137,11 +133,11 @@ export default function PeoplePage() {
       <div className="source-create-footer"><Button variant="primary" type="submit" disabled={loading}>{loading ? '正在登记…' : '登记'}</Button></div>
     </form>
     <section className="source-registry">
-      <div className="source-registry-heading"><div><h2>待确认登记</h2></div></div>
+      <div className="source-registry-heading"><h2>待确认登记 <span className="section-count">{candidates.length}</span></h2></div>
       {candidates.length ? <div className="formation-table-wrap"><table className="formation-table"><thead><tr><th>姓名</th><th>操作</th></tr></thead><tbody>{candidates.map((item) => <tr key={item.candidateId}><td><strong>{item.proposedName}</strong></td><td><div className="settings-card-actions"><Button variant="primary" type="button" disabled={loading} onClick={() => void accept(item.candidateId)}>接受</Button><Button type="button" disabled={loading} onClick={() => void dismiss(item.candidateId)}>忽略</Button></div></td></tr>)}</tbody></table></div> : <div className="source-empty"><strong>没有待确认的人</strong></div>}
     </section>
     <section className="source-registry">
-      <div className="source-registry-heading"><div><h2>已登记人物</h2></div><span>当前显示 {projection?.items.length ?? 0} 条</span></div>
+      <div className="source-registry-heading"><h2>已登记人物 <span className="section-count">{summary?.activePersonCount ?? 0}</span></h2><span>当前显示 {projection?.items.length ?? 0} 条</span></div>
       {projection?.items.length ? <div className="people-contact-sheet" aria-label="已登记人物名录">{projection.items.map((person) => <PersonCard key={person.personId} person={person} />)}</div> : <div className="source-empty"><strong>还没有已登记人物</strong></div>}
     </section>
   </section>;

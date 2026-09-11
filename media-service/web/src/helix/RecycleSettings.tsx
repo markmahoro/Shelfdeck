@@ -27,8 +27,7 @@ export default function RecycleSettings() {
     <RecyclePanel />
     <SourceCleanupChecks onInspect={setSelected} />
     <section className="ui-card stack">
-    <h3>检查影片旧目录</h3>
-    <Button type="button" disabled={loading} onClick={()=>void load()}>读取收藏列表</Button>
+    <header className="section-toolbar"><h3>检查影片旧目录</h3><Button type="button" disabled={loading} onClick={()=>void load()}>读取收藏列表</Button></header>
     {error && <p className="form-error" role="alert">{error}</p>}
     {entries.length>0 && <label>影片<select value={selected} onChange={event=>setSelected(event.target.value)}>
       <option value="">选择影片</option>

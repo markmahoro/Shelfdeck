@@ -173,7 +173,7 @@ function RoutingPolicyEditor({field,shelves}:{field:MaterialField;shelves:Shelf[
 
   if(loadState!=='ready')return <div className="routing-policy-body">{loadState==='loading'?<p role="status">正在读取分拣策略…</p>:<><p role="alert">{error}</p><button type="button" className="btn btn-secondary" onClick={()=>setLoadAttempt(value=>value+1)}>重新读取分拣策略</button></>}</div>;
   return <div className="routing-policy-body">
-      <div className="routing-policy-head"><span>已发布配置</span><strong>{current ? (current.mode === 'direct' ? '全部进入一座收藏架' : '按条件分拣') : '尚未发布'}</strong></div>
+      <div className="routing-policy-head"><span className="ui-state">{current ? '已发布配置' : '尚未发布'}</span>{current && current.mode !== mode && <strong>已发布：{current.mode === 'direct' ? '全部进入一座收藏架' : '按条件分拣'}</strong>}</div>
       <label><span>模式</span><select value={mode} onChange={(event) => setMode(event.target.value as 'direct' | 'sorting')}><option value="direct">全部进入一座收藏架</option><option value="sorting">按优先级判断</option></select></label>
       {mode === 'direct' ? <label><span>目标收藏架</span><select value={directShelfId} onChange={(event) => setDirectShelfId(event.target.value)}>{activeShelves.map((shelf) => <option key={shelf.shelfId} value={shelf.shelfId}>{shelf.name}</option>)}</select></label> : <>
         <div className="routing-rule-list">{sortingTargets.map((target, index) => <section className="routing-rule" key={`${target.shelfId}-${index}`}>

@@ -179,7 +179,7 @@ export default function MaterialFieldsPage() {
   if (!fields.length && loading && !error) return <LoadingState>正在读取文件来源…</LoadingState>;
 
   return <section className="source-page material-fields-page">
-    <PageHeader title="文件来源" actions={<Button variant="primary" type="button" onClick={() => setShowCreate((value) => !value)}>{showCreate ? '收起' : '添加电影来源'}</Button>} />
+    <PageHeader title="文件来源" actions={<><Button type="button" onClick={() => void loadFields()} disabled={loading}>刷新</Button><Button variant="primary" type="button" onClick={() => setShowCreate((value) => !value)}>{showCreate ? '收起' : '添加电影来源'}</Button></>} />
     {showCreate && <form className="source-create" onSubmit={createField}>
       <div className="source-create-heading"><div><h2>添加电影文件来源</h2></div></div>
       <div className="source-form-grid">
@@ -192,16 +192,20 @@ export default function MaterialFieldsPage() {
     </form>}
     {error && <p className="form-error" role="alert">{error}</p>}
     <div className="source-registry">
-      <div className="source-registry-heading"><Button type="button" onClick={() => void loadFields()} disabled={loading}>刷新</Button></div>
       {fields.length === 0 ? <div className="source-empty"><strong>还没有文件来源</strong></div> : fields.map((field) => {
         const scan = scanOf(field);
+        const scanText = scan.state === 'failed' && scan.failureMessage ? scan.failureMessage : scanLabel(field);
         const observing = observingFieldId === field.fieldId;
         const scanBusy = observing || scan.state === 'scanning';
         const admission = intakeAdmission[field.fieldId];
         const generated = field.procurementStatus.generatedPackageCount;
         return <article className="source-record" key={field.fieldId}>
         <header className="source-record-head">
-          <div className="source-record-title"><div><h3>{field.name}</h3><p>{field.access.rootLocation}</p><span className="source-state" data-state={field.status}>{field.status === 'active' ? '活动来源' : '已注销'}</span></div></div>
+          <div className="source-record-title"><div>
+            <h3>{field.name}</h3><p>{field.access.rootLocation}</p>
+            {field.status !== 'active' && <span className="source-state" data-state={field.status}>已注销</span>}
+            {field.status === 'active' && <div className="source-scan-state" role={scan.state === 'failed' ? 'alert' : 'status'}><span className="ui-state" data-state={scan.state}>{scanText}</span></div>}
+          </div></div>
           <div className="source-record-action">
           {field.status === 'active' && confirmDeregisterFieldId !== field.fieldId && <>
             <Button variant="primary" type="button" disabled={observingFieldId.length > 0 || deregisteringFieldId.length > 0 || scanBusy} onClick={() => void observeField(field)}>{observing ? '正在扫描…' : '扫描新文件'}</Button>
@@ -215,8 +219,7 @@ export default function MaterialFieldsPage() {
           </div>
         </header>
         <div className="source-flow-grid">
-          <section className="source-flow-panel source-flow-procurement" aria-label={`${field.name} 材料准备`}>
-            <div className="source-flow-heading"><span>材料准备</span><strong>媒体包</strong></div>
+          <section className="source-flow-panel source-flow-procurement" aria-label={`${field.name} 媒体包统计`}>
             <div className="source-package-waiting"><span>等待接收</span><strong>{field.procurementStatus.waitingAcceptanceCount}</strong><span>包</span></div>
             <div className="source-handoff-ledger source-package-history">
               <div><span>累计生成</span><span><strong>{generated}</strong> 包</span></div>
@@ -224,14 +227,13 @@ export default function MaterialFieldsPage() {
               <div><span>累计拒绝</span><span><strong>{field.procurementStatus.rejectedPackageCount}</strong> 包</span></div>
             </div>
           </section>
-          <section className="source-flow-panel source-flow-libra" aria-label={`${field.name} 同时整理数量`}>
-            <div className="source-flow-heading"><span>媒体整理</span><strong>接收席位</strong></div>
+          <section className="source-flow-panel source-flow-libra" aria-label={`${field.name} 接收席位`}>
+            <div className="source-flow-heading"><strong>接收席位</strong>{field.status === 'active' && admission && <Button type="button" onClick={() => setEditingSeatsFieldId((current) => current === field.fieldId ? '' : field.fieldId)}>{editingSeatsFieldId === field.fieldId ? '收起席位设置' : '调整席位'}</Button>}</div>
             {field.status === 'active' && admission ? <>
               <div className="source-seat-number"><strong>{admission.pipelineTokensHeld}</strong><span>正在占用</span><em>/ {admission.predeckPipelineSeats} 个席位</em></div>
               <p className={admission.predeckPipelineSeats === 0 ? 'source-seat-zero' : ''}>{admission.predeckPipelineSeats === 0
                 ? '暂停接收'
                 : admission.pipelineSeatsFree > 0 ? `空闲 ${admission.pipelineSeatsFree} 个席位` : '席位已满'}</p>
-              <Button type="button" onClick={() => setEditingSeatsFieldId((current) => current === field.fieldId ? '' : field.fieldId)}>{editingSeatsFieldId === field.fieldId ? '收起席位设置' : '调整席位'}</Button>
               {editingSeatsFieldId === field.fieldId && <div className="source-seat-editor">
                 <label><span>固定席位数（0–8）</span><input type="number" min={0} max={8} value={seatDrafts[field.fieldId] ?? String(admission.predeckPipelineSeats)} onChange={(event) => setSeatDrafts((current) => ({ ...current, [field.fieldId]: event.target.value }))} /></label>
                 <Button type="button" disabled={savingSeatsFieldId.length > 0} onClick={() => void saveIntakeSeats(field)}>{savingSeatsFieldId === field.fieldId ? '正在保存…' : '保存席位'}</Button>
@@ -239,14 +241,6 @@ export default function MaterialFieldsPage() {
             </> : field.status === 'active' ? <p className="ui-state">席位状态暂不可用</p> : null}
           </section>
         </div>
-        {field.status === 'active' && <details className="source-operating-detail"><summary>扫描与来源详情 <span className="ui-state" data-state={scan.state}>{scanLabel(field)}</span></summary>
-          {scan.state === 'failed' && scan.failureMessage && <p className="form-error" role="alert">{scan.failureMessage}</p>}
-          <dl>
-            <div><dt>内容类型</dt><dd>{field.currentProfileHintSnapshot.contentProfileHint === 'movie' ? '电影' : field.currentProfileHintSnapshot.contentProfileHint}</dd></div>
-            <div><dt>扫描页数</dt><dd>{scan.pageCount > 0 ? `${scan.pageCount} 页` : '尚未开始'}</dd></div>
-            <div><dt>分拣批次</dt><dd>{field.procurementStatus.activeRunCount > 0 ? `${field.procurementStatus.activeRunCount} 个进行中` : '没有进行中批次'}</dd></div>
-          </dl>
-        </details>}
         {field.status === 'active' && <RoutingPolicyPanel field={field} shelves={shelves} />}
       </article>;
       })}

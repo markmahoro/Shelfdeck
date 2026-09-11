@@ -225,8 +225,8 @@ export default function OffdeckPage() {
     <PageHeader title="退出收藏" actions={<Button type="button" onClick={() => void load()} disabled={busy}>刷新</Button>} />
     {error && <p className="form-error" role="alert">{error}</p>}
     <section className="offdeck-task">
-      <div className="source-card-heading"><div><h2>系统建议退出</h2></div><span>{candidateCount} 项</span></div>
-      {openCandidates.length === 0 ? <div className="source-empty"><strong>当前没有建议</strong></div> : <div className="offdeck-suggest">{openCandidates.map((item) => {
+      <div className="source-card-heading"><div><h2>系统建议退出</h2></div><span>{candidateCount > 0 ? `${candidateCount} 项` : '暂无'}</span></div>
+      {openCandidates.length === 0 ? null : <div className="offdeck-suggest">{openCandidates.map((item) => {
         const group = item.candidate_kind === 'duplicate_group' ? groups.find((value) => value.duplicate_group_id === item.duplicate_group_id) : null;
         const size = sizeOf(item.shelf_entry_id);
         return <article key={item.candidate_id}>
@@ -273,8 +273,8 @@ export default function OffdeckPage() {
       </>}
     </section>
     <section className="offdeck-task">
-      <div className="source-card-heading"><div><h2>正在退出</h2></div><span>{caseCounts.active} 部</span></div>
-      {activeCases.length === 0 ? <div className="source-empty"><strong>现在没有正在退出的收藏</strong></div> : activeCases.map((item) => <article className="source-row" key={item.offdeckCaseId}>
+      <div className="source-card-heading"><div><h2>正在退出</h2></div><span>{caseCounts.active > 0 ? `${caseCounts.active} 部` : '暂无'}</span></div>
+      {activeCases.length === 0 ? null : activeCases.map((item) => <article className="source-row" key={item.offdeckCaseId}>
         <div>
           <strong>{titleOf(item.shelfEntryId)}</strong>
           <small className="ui-state" data-state={item.state}>{labelOf(caseStateLabels, item.state)}</small>
@@ -288,8 +288,8 @@ export default function OffdeckPage() {
       {caseCursors.active&&<Button type="button" disabled={busy} onClick={()=>void action(()=>moreCases('active'))}>更多正在退出</Button>}
     </section>
     <section className="offdeck-task offdeck-history-task">
-      <div className="source-card-heading"><div><h2>已退出记录</h2></div><span>{caseCounts.completed} 条</span></div>
-      {completedCases.length === 0 ? <div className="source-empty"><strong>还没有已完成的退出记录</strong></div> : <div className="offdeck-history-list" role="list">{completedCases.map((item) => {
+      <div className="source-card-heading"><div><h2>已退出记录</h2></div><span>{caseCounts.completed > 0 ? `${caseCounts.completed} 条` : '暂无'}</span></div>
+      {completedCases.length === 0 ? null : <div className="offdeck-history-list" role="list">{completedCases.map((item) => {
         return <article className="source-row" role="listitem" key={item.offdeckCaseId}>
           <div><strong>{titleOf(item.shelfEntryId)}</strong><small>{titles[item.shelfEntryId]?.shelfName || '原收藏架'} · 已完成退出</small></div>
           <time dateTime={item.terminalAtMs ? new Date(item.terminalAtMs).toISOString() : undefined}>{item.terminalAtMs ? new Date(item.terminalAtMs).toLocaleString() : '完成时间未记录'}</time>
