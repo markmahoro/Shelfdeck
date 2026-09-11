@@ -1,6 +1,6 @@
 # 三部电影修复证据
 
-日期：2026-09-11。状态：本地代码完成并验证；未部署，未修改生产数据库、媒体或既有条目。
+日期：2026-09-11。状态：本地代码完成并验证，未部署修复。用户随后明确要求尝试《太阳帝国》重新上架，已执行一次正式retry，结果仍失败；未直接改生产SQL或手工处理媒体。
 
 ## 基线与授权
 
@@ -85,8 +85,27 @@ payload在原端口1964行向精确Approval回调传入邻居路径，index在19
   不能声明全量全绿。该次另有测试期望尚未更新的6项和新worktree缺tools依赖1项，均已修正并定向通过。
 - 补齐tools依赖后，Service以concurrency=4排除上述4个已知基线测试名称运行：531 pass / 0 fail / 22 skip，
   其中18个为既有skip，4个为本次明确排除。测试代码没有skip新增，本包不关闭既有UAT问题。
-- 未执行Linux镜像、真实浏览器或生产恢复验收；不能声明三条生产记录已经修好。
+- 未执行修复版本的Linux镜像、真实浏览器或生产恢复验收；旧版本的用户指定retry结果见下，不能声明三条生产记录已经修好。
 - 本轮日志保存在本机临时目录 `shelfdeck-three-films-20260911`，生产只读诊断数据不入库。
 
 当前可交付的是本地修复及精确恢复范围；发布、备份隔离和正式retry必须按
 [当前活动包](../CURRENT_PHASE.md)完成后才可关闭。
+
+## 用户指定的生产重新上架尝试
+
+2026-09-11用户明确要求“你现在尝试重新上架，看能否恢复正常”。本次只对《太阳帝国》执行正式
+`POST /v1/admin/formation/acceptance/:offerId/actions/retry`；没有部署本地修复、调整standing Authorization、
+Reset、直接SQL修改或手工移动/删除文件。生产仍为`helix-beta-20260909-7ceaeca7fb`。
+
+- Offer：`ac19938ba6191e4976930d17e5eda4fea0e1eae0256b7fbb544e1bd50caea7c5`。
+- 初次请求缺idempotencyKey，HTTP400在Command派发前拒绝；补齐后19:51:25北京时间返回HTTP202、
+  `recovering`、generation 4、`replayed:false`，只建立一代恢复Work。
+- Work：`arca-on_deck_execution-work-5018fb28b3554f009cb4dfd82646de8334753f27`；Event后缀
+  `0776b1fca4df0dcd2a`。
+- Stage、Staged Verify、Placement、Final Product Verify均succeeded；11项Settlement中6项succeeded，
+  0001/0004/0006为`ARCA_ONDECK_SETTLEMENT_APPROVAL_STALE`，0002/0003为
+  `CLEAN_ARCA_SETTLEMENT_UNKNOWN_MEMBER`，对应failure evidence digest与历史相同。
+- 19:52:05北京时间确认Work failed、Run blocked，Fulfillment和Commit cancelled；Commit receipt count仍0。
+- 重试前后各核验7项Final的size、inode及`middle-256k-sha256`均匹配对应Staged Physical Identity。
+  11项旧输入的存在性前后一致，仍只有index.bdmv与MovieObject.bdmv存在。
+- 本次结果证明当前生产版本单纯retry未恢复，不代表本地修复版本的生产验收失败；没有反复发起新一代retry。

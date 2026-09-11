@@ -17,7 +17,7 @@
 | Recovery | 保留两条精确 Arca Package/成品；先冻结路径、身份、冲突来源及回滚方案，再按适用授权走 Owner 流程 |
 | Stop triggers | Owner/授权缺口返回 Design；无法证明归属的媒体不删除或覆盖；部署/真实副作用按当前 Gate |
 
-Implementation Gate 由本次修复指令打开。当前只读生产诊断及隔离本地实施；生产发布和恢复待修复验证与精确方案完成后按适用 Gate 执行。原活动包可由基线 commit 复验。
+Implementation Gate 由本次修复指令打开。隔离本地实施已完成；用户随后明确要求尝试《太阳帝国》重新上架，已在当前生产版本执行该条目的正式retry。generation 4再次因原5项Settlement错误失败，未Commit；这不是修复版本的恢复验收。修复发布及其他物理恢复动作继续按各自适用Gate执行。原活动包可由基线commit复验。
 
 ## 已冻结的生产恢复动作（待适用 Production Gate）
 
