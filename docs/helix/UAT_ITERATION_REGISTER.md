@@ -6,7 +6,7 @@
 
 状态说明：历史已关闭保留当时证据，并不宣称本次重测；已实现/已部署不等于已关闭；待核实不是当前已证实缺陷。原表与后续完整关闭证据冲突时采用后者并链接。没有证据的事项不批量关闭。
 
-[全量前后合同审查](implementation/evidence/UAT_FULL_CONTRACT_CONSISTENCY_AUDIT_20260909.md)已完成，三项业务冲突均由用户确认并以`14cf2d9a0`同步合同；用户要求整理文档后继续推进。历史标题不是现行Oracle；下述承接条件与SSOT后续优先条款共同适用。当前67项本轮功能验收关闭、34项开放，206被取代承接已核实；另有153项历史关闭、220文档关闭及1项非缺陷接受。
+[全量前后合同审查](implementation/evidence/UAT_FULL_CONTRACT_CONSISTENCY_AUDIT_20260909.md)已完成，三项业务冲突均由用户确认并以`14cf2d9a0`同步合同；用户要求整理文档后继续推进。历史标题不是现行Oracle；下述承接条件与SSOT后续优先条款共同适用。当前68项本轮功能验收关闭、33项开放，206被取代承接已核实；另有153项历史关闭、220文档关闭及1项非缺陷接受。
 
 执行顺序见[CURRENT_PLAN](CURRENT_PLAN.md)。每次完成一项，更新该行的提交、用户结果证据、剩余工作和状态；需要部署的先部署/验收再关闭。编号合并不触发生产操作。
 
@@ -267,5 +267,5 @@
 | UAT-253 | NAS旧发布tar累积导致系统卷空间不足 | `OPERATIONS` | 验收关闭 | 无 | 本轮证据 | [精确清单及验收](implementation/evidence/UAT-253_NAS_RELEASE_TAR_CLEANUP_20260908.md) | 两批按授权共删除86旧包；第二批释放36.87 GiB后实测65.71 GiB可用、62%；保留24个近期/稳定包及全部镜像/备份/媒体，其他存量治理仍逐项开放。执行B5。 |
 | UAT-254 | 自定义收藏规则发布通知缺少消费者，Outbox持续重试 | `RECOVERY_CORRECTNESS` | 验收关闭 | 无 | b2978c1512 | [发布通知证据](implementation/evidence/UAT-254_RULE_TEMPLATE_OUTBOX_20260909.md) | 无该项剩余；已核对独立全链/负向/恢复及实际发布，详见[部署后关闭证据](implementation/evidence/UAT-254_RULE_TEMPLATE_OUTBOX_20260909.md)。 |
 | UAT-255 | GET退出审阅调用准备推进逻辑，可取消维护Work并写入审阅状态 | API / `SIDE_EFFECT_BOUNDARY` | 验收关闭 | 无 | b2978c1512 | [246/255证据](implementation/evidence/UAT-246_OFFDECK_READ_EFFICIENCY_20260909.md) | 无该项剩余；已核对独立全链/负向/恢复及实际发布，详见[部署后关闭证据](implementation/evidence/UAT-246_OFFDECK_READ_EFFICIENCY_20260909.md)。 |
-| UAT-256 | 全页面UI polish：去重、去说明、统一卡片/字号/状态与按钮 | UI / `AESTHETICS` | 本地验收通过，待生产验收 | 用户新增；不重开248 | 6bd9eb062、28c7cf1df | [确认范围与验收](implementation/evidence/UAT-256_UI_POLISH_20260912.md) | 仅前端呈现，八页不变，来源无全局汇总；89项测试及桌面八页通过，整理列表478元素内容/尺寸0差异。尚未部署，待生产版本验收。 |
-| UAT-257 | 拒绝后普通重新选材与历史包统计 | 业务流程 / UI | 本地验证通过，待生产验收 | 用户新增 | 0aabaa1ca | [合同与验收](implementation/evidence/UAT-257_PROCUREMENT_REJECTION_CYCLE_20260912.md) | 本地领域/完整拒绝闭环、前端测试、构建及隔离页面通过；来源UI与256一致，尚未部署。实际版本及后续正常扫描结果仍待生产验收。 |
+| UAT-256 | 全页面UI polish：去重、去说明、统一卡片/字号/状态与按钮 | UI / `AESTHETICS` | 验收关闭 | 用户新增；不重开248 | 6bd9eb062、28c7cf1df、83235c9260 | [生产验收](implementation/evidence/UAT_RELEASE_83235C9260_20260912.md) | 已按确认范围完成前端回归、同数据478元素0差异及生产八页/五Tab验收；九列表格保持。 |
+| UAT-257 | 拒绝后普通重新选材与历史包统计 | 业务流程 / UI | 已部署，待后续正常扫描验收 | 用户新增 | 0aabaa1ca、83235c9260 | [合同与验收](implementation/evidence/UAT-257_PROCUREMENT_REJECTION_CYCLE_20260912.md) | 最终Linux闭环和生产统计通过，8份旧拒绝不变；6条旧资格仍受扫描超时阻塞，后续正常选材结果待验收。 |

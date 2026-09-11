@@ -1,20 +1,21 @@
 # ShelfDeck 当前状态
 
-更新：2026-09-12。唯一条目及关闭条件入口为[UAT总表](UAT_ITERATION_REGISTER.md)，唯一排程为[CURRENT_PLAN](CURRENT_PLAN.md)。257项连续：67项本轮功能验收关闭、34项开放、153项历史关闭、220文档关闭、1项非缺陷接受、206被取代且承接已核实。历史关闭不是本次重新验收。
+更新：2026-09-12。唯一条目及关闭条件入口为[UAT总表](UAT_ITERATION_REGISTER.md)，唯一排程为[CURRENT_PLAN](CURRENT_PLAN.md)。257项连续：68项本轮功能验收关闭、33项开放、153项历史关闭、220文档关闭、1项非缺陷接受、206被取代且承接已核实。历史关闭不是本次重新验收。
 
 255项前后合同审查及三项用户决定已完成，SSOT/Beta已在`14cf2d9a0`同步。已无这三项待确认决定；合同确认不等于实现或验收。审查及覆盖关系见[全量证据](implementation/evidence/UAT_FULL_CONTRACT_CONSISTENCY_AUDIT_20260909.md)。
 
 ## 当前生产
 
-- 镜像：`markmahoro/shelfdeck:helix-beta-20260911-c10e516e64`；source `c10e516e64`；NAS config Image ID `sha256:fd03632b156ff535c84be0e853ee384dc98bea1fba41bf59eee4c8c2687a1b57`；StartedAt `2026-09-11T15:47:29.758910825Z`。
-- tar SHA256：`6c3dede8106cc46b91e6da3f34092afca959bef81738cd3e89e49db8ffb3d2e4`；完整data及配置备份：`/vol1/1000/docker/shelfdeck/backups/three-films-c10e516e64-20260911`，42项文件digest及SQLite quick_check通过。标准build/upload/checksum/dry-run/apply、readiness、health、Admin Web、全部挂载与3项关键源码hash通过。
-- 23:49北京时间《太阳帝国》Commit成功后，Shelf Entry与Commit总数均由108变109；条目 `3c66f5560d36baebdeefacec91f810df7d994447ea6106f5987be88b37172e85`。NAS管理页HTTP200及无关容器原状态保持。完整过程、首次readiness失败与恢复、回滚及验收边界见上述证据。
+- 镜像：markmahoro/shelfdeck:helix-beta-20260912-83235c9260；source 83235c9260；Config Image ID sha256:ed54a889290e6e448e551af3ea823c1b32a8a00b8176adec1e4411d170789a2c。
+- tar SHA256：5a2ba0cc1d86aa6fd6af5bdbef41d2ba0701c06b19a6408cdf78f8bffa8b9b94；StartedAt 2026-09-11T18:36:35.708195394Z。标准发布、45文件完整备份与SQLite校验、挂载/健康/NAS管理页通过；旧c10e516e64镜像及tar保留回滚。
+- 生产八页/五设置Tab验收，UAT-256关闭；UAT-257保持开放，956包=820等待+128接收+8拒绝，八份历史拒绝未变，六条资格尚无新成功扫描。收藏113部，当前FFmpeg已恢复。
+- 扩展架构检查4项合同生成基线断言失败，在412a0e3ef复现相同121项drift；依赖/语义/manifest通过。生产仍有历史恢复输入漂移告警，不宣称业务全绿。完整验收、边界与回滚见[发布证据](implementation/evidence/UAT_RELEASE_83235C9260_20260912.md)。
 
 ## 最近验收与开放事实
 
-UAT-257实现`0aabaa1ca`：拒绝终结旧包、释放材料回普通选材及累计包统计口径；与UAT-256任务完成来源卡片UI协调。138项领域测试、2项既有旅程和新拒绝闭环样例通过，89项前端测试、构建及隔离页面核对通过；未部署，见[证据](implementation/evidence/UAT-257_PROCUREMENT_REJECTION_CYCLE_20260912.md)。
+UAT-257实现`0aabaa1ca`：拒绝终结旧包、释放材料回普通选材及累计包统计口径；与UAT-256任务完成来源卡片UI协调。138项领域测试、2项既有旅程和新拒绝闭环样例通过，89项前端测试、构建及隔离页面核对通过；已联合部署，后续正常扫描验收仍开放，见[证据](implementation/evidence/UAT-257_PROCUREMENT_REJECTION_CYCLE_20260912.md)。
 
-UAT-256全页面UI polish已本地实现并通过89项前端测试及桌面八页走查；整理列表478个元素内容与尺寸对照0差异。文件来源已取消全局汇总，统一卡片、按钮、字号及状态色；按用户补充移除技术标识/原始代码，并将必要失败原因改为中文，补充复查通过。尚未部署，待生产版本验收，见[本轮证据](implementation/evidence/UAT-256_UI_POLISH_20260912.md)。
+UAT-256全页面UI polish已本地实现并通过89项前端测试及桌面八页走查；整理列表478个元素内容与尺寸对照0差异。文件来源已取消全局汇总，统一卡片、按钮、字号及状态色；按用户补充移除技术标识/原始代码，并将必要失败原因改为中文，补充复查通过。已完成83235c9260生产验收并关闭，见[本轮证据](implementation/evidence/UAT-256_UI_POLISH_20260912.md)。
 
 218已按[Windows NVENC / 同版Linux CPU真实维护验收](implementation/evidence/UAT-218_AFTERCARE_QUALITY_FLOOR_20260908.md)关闭：质量下限、实际超限拒绝、失败保原片及重启通过。此次只增加测试和Evidence，生产镜像不变。并发标准变更期间旧Assessment不能正常提交/收尾的隔离复现仍由210/125修复；251仍未完成。
 

@@ -1,5 +1,7 @@
 # ShelfDeck v3 / Kairox Historical Status
 
+2026-09-12部署身份：markmahoro/shelfdeck:helix-beta-20260912-83235c9260，source 83235c9260；tar SHA256 5a2ba0cc1d86aa6fd6af5bdbef41d2ba0701c06b19a6408cdf78f8bffa8b9b94。最终Linux专项103/103，生产UI八页/五Tab通过，UAT-256关闭；UAT-257已部署但后续正常扫描验收未完成。扩展架构合同基线失败与历史恢复告警如实保留；未重跑完整真实媒体产品E2E。见[发布、备份及边界](../helix/implementation/evidence/UAT_RELEASE_83235C9260_20260912.md)。
+
 2026-09-11部署身份更新：`markmahoro/shelfdeck:helix-beta-20260911-c10e516e64`，git `c10e516e64`，NAS config Image ID `sha256:fd03632b156ff535c84be0e853ee384dc98bea1fba41bf59eee4c8c2687a1b57`，tar SHA256 `6c3dede8106cc46b91e6da3f34092afca959bef81738cd3e89e49db8ffb3d2e4`。最终Linux镜像专项100/100，标准发布及《太阳帝国》真实On-deck恢复链通过：11项Settlement、唯一Commit、7项成品及246项范围外文件保留核验通过。本次没有重跑完整产品E2E，也未宣布另外两条电影均恢复完成。见[部署与恢复证据](../helix/implementation/evidence/THREE_FILM_FIX_20260911.md)。
 2026-09-09部署身份更新：ShelfDeck `markmahoro/shelfdeck:helix-beta-20260909-7ceaeca7fb`，git `7ceaeca7fb`，tar SHA256 `2b5d16ee6d023540c567890e1bec4d0987df6dfaa3becf86be19ecc08d251f26`。UAT-245概览独立快照与有界读取、最终镜像真实备份完整服务及生产页面通过；82收藏和六路接口正常。此次查询变化未重跑无关完整媒体E2E。详见[Helix发布证据](../helix/implementation/evidence/UAT_RELEASE_7CEAECA7FB_20260909.md)。
 
