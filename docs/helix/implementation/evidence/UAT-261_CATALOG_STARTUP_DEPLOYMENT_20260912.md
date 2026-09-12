@@ -57,3 +57,13 @@ Catalog digest的构成、历史Plan/retained contract的加载与比较语义�
 后续派生责任证明审查发现历史授权差异：`6bcfd7b33`父版本的settlement Projection合成`actorId=system-policy/approvedAtMs=0`，未读取正式授权Store；此缺口已由[UAT-172历史审计](UAT-172_AUTHORIZATION_EXECUTION_AUDIT_20260909.md)明确记录。旧`finalProductVerificationDigest`也来自Libra历史conformance，不能当作Arca本次Final Verification。按冻结旧算法与不可变材料重建namedInputs，只有精确匹配原/后继Event Attempt输入摘要和包含原Fence摘要的Effect intent时，才可证明历史输入来源；这不证明授权合规，也不允许回填Approval或以当前授权追认。责任证明仍须独立核对实际后继Final Verification、Placement、Settlement及On-deck Commit完整链，任何缺证保持阻断。未新增生产动作。
 
 源提交`e1bbc467a`已审查并合入`4f6953ad1`，独立Arca历史读取仅使用原Receipt指定的Inventory/DeckFact revision，保留现有current读取语义；Foundation在Owner只读观察后重新核验完整技术图，不嵌套Owner事务，不改旧失败Journal。干净发布工作区四组针对性检查（bounded Catalog、Owner history observer、startup recovery、execution runtime Host）共104/104通过，日志`.codex/uat261-settlement-merged-20260912.log`。该提交只覆盖4个Plan的20项Settlement责任，3个stage仍显式阻断；没有构建新镜像、运行新版本完整生产副本Host或执行生产发布。其他未提交Aftercare Evidence的SHA256保持`81729d8c6ec35bec5494929bb19b46e6c83412b769a2cb8cff6db859bad35a3c`，未夹带260工作。
+
+## 3项stage实现后的精确Linux门禁
+
+源`1b6b3c3f9`合入`1c550eff9131000e8023a3114a458566dc3c1d55`。干净发布树完整230个架构测试文件及dependency/semantics/manifests/contracts门禁全部通过，unresolvedTypeRefs=0；精确镜像Linux125/125通过、无skip。标准构建并上传`markmahoro/shelfdeck:helix-beta-20260912-1c550eff91`，tar 561819648 bytes/SHA256 `4ed6b040f22f13752478bb21a7028c5efb81f13f9d7e01472af09a1e55198f96`，NAS Config ID `sha256:f676f77fa79c5f49a98538ff22fc997d3feac8f37bc9506e992313152e4cc0f7`。仅导入用于隔离验证，没有生产apply；生产仍为cd4f及原StartedAt。
+
+11:20:06.625Z获取新完整一致副本`/vol1/1000/docker/shelfdeck/test-runs/uat261-host-20260912-final/data`：45文件aggregate `b283998892633a06750ed8014379387c6d16a798f9df75c9754b3501a6df8eb2`，DB 940773376 bytes/SHA256 `14648fff9028c8d734f494730a625ee80d788b781d935a8f253a842de5555388`，quick_check/integrity ok、FK0；121收藏、970份Delivery（825 open/137 accepted/8 rejected）。下载至集成区同名ignored目录并逐文件验证；冻结原件未运行Host，各次均另复制。
+
+旧cd4f在该副本11:20:59–11:22:26Z完整Host ready/health200并正常关闭，但有两条runtime错误：只读`/transcode`上旧partial清理触发EROFS，另有`CLEAN_WORKSPACE_RUNTIME_EFFECT_AUTHORITY_MISSING`；第二条的完整因果尚未确认，不将其直接当作EROFS连锁，也不宣称运行时全绿。候选1c550在11:22:31–11:23:52Z完整启动仍为`P4_EXECUTION_HOST_RECOVERY_BLOCKED`，仅余原3个stage Plan，runtime errors0。两者八组保护事实hash不变，quick_check ok/FK0。
+
+11:24:47–11:26:12Z另用新副本运行同一精确镜像诊断Host，仅包装`createBoundedCatalogTransition`的`onRejected`记录拒绝原因，不改变判定；结果仍3项阻断，唯一拒绝原因是`Arca stage history: Custody has missing or extra Control`。因此不能把开发区输入/Control局部查询或Linux单测通过写成7→0。源任务接回核对实际控制集合与原Package范围，任何真实缺失/额外Control继续阻断；未修改生产或放宽条件。原始证据为ignored `final-baseline-host-result.json`、`final-candidate-host-result.json`及`final-diagnostic-host-result.json`，诊断包装与普通精确Host结果分开保留。

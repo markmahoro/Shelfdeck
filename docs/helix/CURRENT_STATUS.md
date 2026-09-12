@@ -6,6 +6,8 @@
 
 ## 当前生产
 
+2026-09-12 11:20–11:26Z：生产仍为cd4f、原StartedAt及health正常，最新副本121收藏/970份Delivery（825 open/137 accepted/8 rejected）。261全部证明代码已合入1c550eff91并构建精确镜像，完整230个架构测试文件与静态gate、Linux125/125通过；但最新完整副本实际Host仍余3项stage阻断，拒绝原因为`Custody has missing or extra Control`，源任务继续定位，未生产部署。对照旧版启动成功但出现只读Workspace及Effect authority两条runtime错误，均保留，不宣称运行时全绿。[最新门禁证据](implementation/evidence/UAT-261_CATALOG_STARTUP_DEPLOYMENT_20260912.md#3项stage实现后的精确linux门禁)。
+
 2026-09-12 10:35Z：261精确修复镜像`d5c00f0cc4`已构建、Linux84/84通过，最新完整副本的全Host阻断由4764项降至预期7项未决物理Plan，保护事实hash不变、quick_check ok/FK0。完整架构唯一旧digest断言已更新并定向3/3复验；7项Owner责任尚待正式收口，未生产部署，生产仍为以下cd4f健康版本。详见[集成验证](implementation/evidence/UAT-261_CATALOG_STARTUP_DEPLOYMENT_20260912.md#uat-261-精确镜像集成验证)。
 
 2026-09-12 09:49Z人工续接复查：仍为下列cd4f回退镜像及同一StartedAt，NAS/LAN health均ok、normalSupplyAllowed=true，五挂载、Secret root匹配和fnOS 200通过。正常队列现为118收藏、970份Delivery（828 open/134 accepted/8 rejected），最新普通扫描revision1368–1440共73页succeeded；以下113收藏等数字为上次发布时点。当前Token集合已变化，原宇航员subject ID也已被旧版重新取得，不能凭同一ID重复历史Reset。09:52Z新完整45文件一致副本已下载并逐文件验hash，261完整Host门禁继续，未再次部署，定时任务保持停止。
