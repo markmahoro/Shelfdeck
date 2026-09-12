@@ -51,3 +51,5 @@ Catalog digest的构成、历史Plan/retained contract的加载与比较语义�
 10:33:55–10:35:15Z，在09:52完整冻结快照的新副本上运行d5完整Host：仍返回`P4_EXECUTION_HOST_RECOVERY_BLOCKED`，findings从旧d7的4764项缩减为恰好7项`PLAN_CATALOG_DRIFT`，与源审计的23个未决物理Effect/5个Arca Run闭包一致。normalSupplyAllowed=false、actions为空、nonterminal Work/Event均0、runtime errors0；八组保护事实hash不变、quick_check ok/FK0。该结果证明门禁保留真实未决责任，**不是成功启动或可发布结论**；261继续开放。结果为ignored `uat261-proof-host-result.json`，原始Windows架构、Linux及构建日志在发布工作区`.codex/uat261-*-20260912.log`。
 
 10:34:27Z另对三项旧stage共同的精确slot `/media/Film/.shelfdeck-stage-aa7783bd30f39459`只读lstat/readdir与当前Binding查询：非symlink目录、inode857313、size0、mtime2026-09-11T09:54:05.528Z，无子项或临时文件，Arca/Libra当前Material Binding对该路径及前缀均0。结果为ignored `uat261-stage-slot-read.json`。没有调用stage/prepareSlot或写生产；当前空目录不证明旧Effect从未产生写入，仍需Arca当前Reality及精确责任证据闭包，不能抹除失败历史。另20项旧settlement Effect的后续成功Evidence关联仍由源任务核对完整Owner与成员集，不因Run已committed直接放行。
+
+10:35:55–10:37:14Z以本次d5运行后的副本再复制运行cd4f，未恢复原始DB：完整Host ready、health200/normalSupplyAllowed=true、正常关闭、runtime errors0、八组保护事实hash未变、quick_check ok/FK0。结果为ignored `uat261-proof-rollback-host-result.json`。两个本轮隔离容器均已退出，随后生产精确cd4f标签、原StartedAt及health正常再确认。该回退验证只覆盖当前d5运行时代码，不覆盖尚未交付的后续责任证明或251合并版本。
