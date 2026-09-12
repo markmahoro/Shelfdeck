@@ -224,3 +224,54 @@ Linux使用现有`83235c9260`镜像的Node/dependencies，源码、测试、scri
 最终审计：80张 Arca/People/Perception受保护表全行SHA相同；原970包、另外965个Delivery、无关原Work和Fast X Token保持不变；旧五个拒绝Receipt保持不变，integrity=ok/FK=0。`clean-final-audit.cjs`与`replay-clean/clean-final-audit.json`包含具体新Offer/Package/Receipt及断言。可复用顺序为设置 `REHEARSAL_NAME` 后执行 `prepare-fresh.cjs → rehearse-fresh.cjs → ack-fresh.cjs → observe-fresh.cjs → triage-clean.cjs → accept-clean.cjs`；prepare要求新目录，不能覆盖既有演练。日志为临时根目录的 `clean-*.log`，原始生产数据仍不进入Git。
 
 先前失败副本的大Run Retry问题由集成任务登记为 **UAT-260**，不另分配编号。对601成员失败Run的真实assemble输出在activate写入前测量：retry-intent-commit输入659,539 UTF-8 bytes，retry-admission输入1,198,905 bytes，均超过16,384上限；结果为 `rehearsal/retry-node-byte-audit.json`。本节正常链通过不能替代UAT-260容量、崩溃与重放验收。所有生产部署、精确恢复和《人生密密缝》文件隔离/上架验收仍由部署任务安排，本任务未操作生产。
+
+## 人生密密缝现行责任与清理方案
+
+2026-09-12 14:13Z更新。本节由统一部署任务记录，覆盖此前“两文件隔离后重试”的历史安排。用户要求“把这个修复完”；本轮已完成只读诊断及隔离演练，**尚未执行本片生产Reset或媒体移动**。此前《宇航员》的精确授权不覆盖本片。
+
+### 已核实的两条流程
+
+| 范围 | 精确身份及当前事实 |
+| --- | --- |
+| 旧失败Subject | `libra-subject-95a9b8022ae22dc6b66fc7e7c415d3c4f979b8ea`；页面attention_required，只提供重试上架，currentRun为null |
+| 旧On-deck Run | `844d2564f525ee73c36564559e8b5cbefc704f8cf65457796af7b72bf6215615`；blocked/Commit0，最新失败`CLEAN_ARCA_STAGE_TARGET_OCCUPIED` |
+| 旧Workspace | `0852dc0bb285aa0e6f3f827a1e1533e62462dde73be730e0caf5efa41775be76`；含2项旧产物 |
+| 已成功Subject | `libra-subject-16840a150d21691ee3d8d67e7c926af7d55f4f10` |
+| 已成功On-deck Run | `aef6abfffb20b0ce92212d7460430d38cb4cdaf73f880e08132888d8a5c9165f`；committed |
+| 正式Commit | `395d3d0e6e27535981e77be52f67dca83d41b927bccbeec7fc6f39411bfabe95` |
+| 正式Shelf Entry | `c1f963cc5f667988476068ca29cfa66bf0622118fac2e08753958dae7002f69b`；active，Inventory revision 11，Deck Fact revision 1 |
+
+Collection API仅有一份本片正式收藏，TMDB 428733，健康投影healthy、basisCurrent=true、无Gap/Defect，maintenance none。该健康事实不是本轮重新全片解码结果。此前只报告旧Run Commit0，遗漏另一已成功流程，不能再据此说影片未上架。
+
+正式主片、NFO、poster、字幕均在当前Inventory。`active_guard=0`的Related成员仍是当前收藏材料，不是无主文件。隔离工具对原NFO/poster返回`QUARANTINE_REFERENCED_FILE`是正确保护，不应绕过。
+
+### 物理材料及精确范围
+
+目录为`/media/Film/人生密密缝 (2017)`，当前10个普通文件，无symlink。两份主片均为3,258,092,652 bytes；14:03:31Z逐字读取并核验前后stat，完整SHA256同为`39cf426c3e7c33ce39c300fc63ecde830b38c45003db6a75b3d580f2e0ab323c`。
+
+- **保留正式主片**：`人生密密缝 (2017).mkv`，inode `848572`，material `3533da42fbc503592b2c8c5d4bc0c5c037facd3311322c9413461c3cd00cb88b`，当前Shelf Entry控制。
+- **仅拟备份移出旧重复输入**：`人生密密缝 (2017) 1080p DTS.mkv`，inode `746386`，material `6d3490558fbd440094a41136a90767bad3716e1b959f5acbea930af568405dcb`，当前由旧Arca Custody控制。目标为应用根`/vol1/1000/docker/shelfdeck/backups/`下本次独立目录，不在Material Field内，保留文件及恢复manifest。
+- 其余9文件全部保留，包括正式NFO、poster、字幕及旧sidecars、torrent。正式NFO当前7416 bytes/SHA256 `06124f81db048bfb6030c90744a407c30677dc702fc01bf0e0e8f65a677cdfd2`，不得沿用7427 bytes的历史清单。
+
+旧Offer `d131029919f2871049d1652f1a1342420ca4a46427efe78da90a8a8412154330`对应Candidate `candidate-package-6536fd94c3a2e005a96b05f2cc2187cc257a7e36`、revision 75、digest `d1c19c8544db6d7e4feba161e6f0ca0eaa15d149c650631f425489469f637a03`。正式Reset会恢复旧Primary的Procurement Control revision 1并重开Delivery/Reservation，恰好仍匹配冻结Candidate。因此**单独Reset可能让同一重复输入再次进入流程**，不能作为完整修复，也不能用另一条目共享Material Key的superseded-offer选项强行关闭它。
+
+### 同版副本验证及限制
+
+全部使用生产镜像`markmahoro/shelfdeck:helix-beta-20260912-286fe56f1e`，无新产品代码、生产配置、自动授权或扫描变更。13:55Z完整一致快照位于`/vol1/1000/docker/shelfdeck/test-runs/close-knit-recovery-20260912/data`，45文件manifest SHA256 `959b66882729c37e8591c169ae148984e58c3c39e8a7909513111f21f3bd4383`；122收藏、971候选、1343主材料。相比13:34Z候选数增长属于正常队列活动。
+
+1. `reset/data`及精确旧Workspace副本：正式Formation Reset选中1 Subject、1 Libra Run、1 Workspace、1 Package、1 Custody、1 On-deck Run、23 Works、3 Controlled Materials、2 Artifacts，active Works/Attempts均0。manifest `ed9e003bab93c2eb71a434a3e197d6e72beab854254d07030d5ada1cb698c3cd`。正式apply后目标闭包清零，9组收藏/Inventory/immutable Candidate表逐行摘要不变、范围外Control及全部3 Token不变，integrity ok/FK0。
+2. 完整Host在Reset后的独立副本启动ready并观察60s，health200/normalSupplyAllowed=true、保护表不变。其他流程涉及只读生产挂载的EROFS/ENOENT属于该演练限制；3个席位被占满，旧Offer保持open，**这一步不证明防回环**。
+3. `missing-input-2/data`从干净Reset副本复制：实际Composition、Scheduler、Planner、EventRuntime、WorkLifecycle、Foundation fingerprint和Owner事务推进精确旧Offer。媒体未挂载，旧输入产生真实ENOENT；正式Receipt `f794e55b3c5edd997647b47a275013fee9cb65fca88f889a67a30715a584ba61`以`candidate_material_unavailable`拒绝。实际Outbox dispatcher和Procurement consumer完成ACK，1项Reservation转`released/handoff_rejected`，目标占位释放，其他3 Token不变，integrity ok/FK0。
+4. 14:13:36Z独立对比Reset基线和拒绝完成副本：11表全行摘要相同（含122收藏/Commit/Deck Fact、全部Inventory、971 immutable Candidate/1343主材料、10134当前Control及3 Token），另外970份Delivery逐字相同，integrity ok/FK0。
+
+第3步仅在测试适配器限定一个process和一条Outbox消息，并把隔离副本席位3→4以获得一个测试席位；未伪造业务Result，未修改生产席位。该证据验证材料缺失的真实正式结束链，不等于生产当前排队条件下已执行，也不证明所有流程或播放链路。首次脚手架缺mediaProbe装配、审计tmpfs容量及只读WAL打开失败均已修正，最终成功证据以上述独立副本为准。
+
+原始证据保存在集成工作区ignored `.codex/unified-release-20260912/`：`close-knit-owners.json`、`close-knit-page-current.json`、`close-knit-physical.json`、`close-knit-media-proof.json`、`close-knit-reset-rehearsal.json`、`close-knit-after-reset-host-result.json`、`close-knit-missing-input-proof.json`、`close-knit-final-copy-audit.json`及同名前缀脚本。生产导出不进入Git。
+
+### 待授权的生产执行与验收
+
+精确请求仅覆盖本节旧Subject及旧`1080p DTS.mkv`。停服后先冻结并备份完整data、compose/secret和旧Workspace，重验Reset范围、原正式收藏当前Owner、全部10文件及两主片SHA256；任何差异先停止。将唯一旧重复主片复制至本次备份目录并校验后移出原位置，使用正式Formation Reset工具处理精确旧Subject；Reset本身不触碰`/media`。不执行旧Run上架重试、不修改SQL事实、不反转Accepted Receipt、不重建正式收藏。
+
+同一286镜像启动后验收：旧失败条目不再出现在需要处理，原正式Entry/Commit/Inventory及其他收藏保持，保留9文件逐项不变；旧候选由正式材料缺失拒绝链终结并ACK释放Reservation。若当前席位未腾出，记录候选等待而非宣称正式闭环完成，不擅自增加生产席位或Reset其他Token。失败保留现场与备份；恢复原路径前必须再次核验无人占用，不能覆盖后生材料。
+
+Playbook §3.4明确要求生产Reset取得该次生产数据操作授权，AGENTS另要求生产媒体移动的明确范围。本轮常规修复/部署授权不自动扩大为本片精确Reset和有效媒体路径移动；具体方案已经准备可审阅，等待这一最终授权。UAT-125/250整体保持开放，未因副本通过或已有收藏而关闭全部恢复责任。
