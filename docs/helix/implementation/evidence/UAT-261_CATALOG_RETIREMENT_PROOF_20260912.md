@@ -188,3 +188,63 @@ Offload Package=`e9938da46df82bc89a1d0a6affdd595661dd72d409712e88359d01dc38cf215
 | Event | Effect | 状态 |
 | --- | --- | --- |
 | `ondeck-stage-1da8e127756a34ae5d` | `2b2197bf1319000bc35d9a21938d7fe5d6cc4c2fa6ba19b04e16d592700541cc` | `reconcile_required` |
+
+## 未决责任的设计审查输入（尚未实施）
+
+### 已证明的候选关系与尚缺的证明
+
+进一步只读查询冻结副本：20 个 destructive Effect 全部各对应唯一一个同 Run、同 materialKey、后续成功
+Work 的 `SettlementDeletionEvidence`；记录的 `postDeleteReality` 均为 `absent=true`、
+`disposition=settled_to_final`、`final_verified=true`，无多候选歧义。候选结果保留于 TEMP
+`catalog-successor-proof-candidates.json`。这里只证明存在后继候选，未把 materialKey 匹配当成正式收口。
+
+Arca 正式观察还必须同时验证：原 Custody/Package/Final Inventory Decision、原 Plan 中 exact materialKey，
+原 source identity 与 source→final mapping、当时 Approval/standing authorization 的精确依据，后继
+Settlement Result/Event/Attempt/committed Effect/Receipt 及 On-deck Commit 完整成员引用。后继成功在旧失败
+之后且属于同一责任范围；任何缺失、重复、摘要/身份/Scope 不符均返回 unknown。
+
+三个 stage 的已存 TargetCommitSlotHandle 相同，Result digest
+`00ae254bcbcd27d285c032c3382346428b26f8dab5fda0123ac922039e1b2b8c`；
+slotId=`609405599ec100b83183deb71888343fdd0144df4e847b4a923a9e0be1a520fc`，
+slotDirectory=`/media/Film/.shelfdeck-stage-aa7783bd30f39459`。
+三个均因 `RECOVERY_EXECUTION_BUDGET_EXHAUSTED` 终结，不能倒用后来新增的 pre-stage 检查证明当时零写入。
+尚需当前只读观察：slot 的 containment/symlink/实际成员与临时文件、每项 identity 与当前 Arca/Libra
+Binding/Control、是否有其他活动执行。当前正式目标的归属不能因旧 stage 失败被撤销。
+
+### 可实现入口与明确禁止的复用
+
+- Arca public recovery port 增加精确 Effect scope 的只读观察，由本域 application 解析历史责任与后继
+  Settlement/On-deck Receipt。Foundation 只传/验 Work、Attempt、Effect 与摘要，不读取 Arca Store 或自行判断材料已无责任。
+- 复用 `workResultReader` 的持久结果、`acceptance.readRunResponsibility` 的不可变责任，及正式历史 Package
+  read contract；不能以当前 policy 重新生成旧 Final Inventory Decision。已有 `readAccepted/readSettlement`
+  包含 current Shelf/Binding 验证，若无法覆盖 committed 历史，应新增明确 historical read purpose，不能偷偷绕过其 Fence。
+- 物理观察从 `clean-arca-inventory-port` 的 fingerprint/containment/final verification 读取部分提取只读函数。
+  不得调用 `stage`、`prepareSlot`、`settleInputAsync` 来“观察”：这些入口会 mkdir/copy/清 temporary/delete。
+- 四个已 committed Run 以精确后继 Settlement 证据证明原责任已履行，不按 Run 状态放行；人生三个 stage
+  仅在零待处置输出被确证时可报告 no remaining effect。存在已知待处理 staged output 时返回需 Owner
+  前向恢复/预声明回退，出现未知文件或其他 Owner 引用时保持 unknown，不自动清理。
+
+### 需先审定的技术合同
+
+现有 `EffectReconciler` 的 `terminal_failure` 表示停止/阻断；`EffectJournal.abandonUncommitted` 只改变状态，
+不验证 Owner 责任证明。两者都不足以直接表达“原失败执行的责任已由精确后继履行”。不得直接调用该方法
+把23项改为failed，也不得把后继Result重新绑定到旧Event、伪造旧EffectReceipt或成功Outcome。
+
+建议先明确一个 Foundation owned、append-only 的 `EffectResolutionReceipt` 技术证明：引用原 Effect
+identity/intent digest、原 terminal Attempt、精确 Owner observation 与后继 Result/Receipt 集的 canonical
+摘要；closed disposition 仅为 `fulfilled_by_successor` 或 `no_remaining_material_effect`。证明成立后由
+Foundation 原子登记，保留原失败 Attempt/Plan/Result 和旧 Journal 审计事实；Startup Recovery 只有验证到
+该精确证明才将其视为已解决责任。unknown 不生成证明、不改变供给判断。
+
+这会新增明确的技术持久证明/恢复输入输出合同，需要先同步 SSOT、schema、原子幂等及升级/回退门禁；
+当前没有这样的可持久 Receipt，不能把临时日志或只有digest的诊断文件当作它。该方案不新增 Arca 业务状态、
+不转移 Owner、不撤销 Handoff B，也不授权实际文件副作用。可否只依赖既有不可变后继 Result 形成只读派生
+证明、避免新存储，应由同一设计审查明确；在选择前本批不添加两套路径。
+
+如果人生密密缝最终必须撤销已 Accepted 的旧 Custody、把责任改交另一个 Run，或覆盖/隔离现有其他 Owner
+文件，那是超出技术证明的业务/物理决定；既有 `recoverOnDeck` 只建立同一责任的新 generation，并没有
+隐含取消 Accepted 责任的合同。必须另交精确对象与拟改变的责任合同，不能夹入 Catalog 修复。
+
+验证要求：20项正路径同时证明原/后继完整映射；错Run、错material、错Approval、缺marker、伪后继或当前
+Owner冲突拒绝；stage空slot、合法残留、未知文件、symlink、并发执行分别验证。证明写入前/后崩溃与重放
+必须幂等，失败不能改旧历史或媒体。最终仍以最新完整副本的实际 Host 升级/回退为门禁。
