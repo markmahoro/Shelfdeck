@@ -1,0 +1,93 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/application-types/LibraStrategyAvailability/v1",
+  "title": "LibraStrategyAvailability@1",
+  "x-helix-ssotRefs": [
+    "5.6.7",
+    "8.5.13",
+    "8.6.21",
+    "9.5.3",
+    "9.5.4"
+  ],
+  "x-helix-maxCanonicalBytes": 65536,
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaRef": {
+      "const": "helix://contracts/application-types/LibraStrategyAvailability/v1"
+    },
+    "libraRunId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "executionBasisDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "strategyKind": {
+      "enum": [
+        "moviepilot",
+        "tmdb"
+      ]
+    },
+    "reasonCode": {
+      "enum": [
+        "moviepilot_integration_unavailable",
+        "product_metadata_integration_unavailable",
+        "product_metadata_provider_identity_absent"
+      ]
+    },
+    "conditionDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "startedAtMs": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9007199254740991
+    },
+    "checkedAtMs": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9007199254740991
+    },
+    "checkOrdinal": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 5
+    },
+    "status": {
+      "enum": [
+        "waiting",
+        "unavailable"
+      ]
+    },
+    "policyRef": {
+      "const": "libra.strategy-availability.beta@1"
+    },
+    "availabilityId": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "evidenceDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "schemaRef",
+    "libraRunId",
+    "executionBasisDigest",
+    "strategyKind",
+    "reasonCode",
+    "conditionDigest",
+    "startedAtMs",
+    "checkedAtMs",
+    "checkOrdinal",
+    "status",
+    "policyRef",
+    "availabilityId",
+    "evidenceDigest"
+  ]
+}

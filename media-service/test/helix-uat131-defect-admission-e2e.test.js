@@ -60,6 +60,7 @@ function noCandidateMoviePilotFetch(calls) {
       return jsonResponse(401, { detail:'denied' });
     }
     if (url.pathname === '/api/v1/search/title') {
+      if(process.env.HELIX_UAT251_TECHNICAL_FAILURE==='1' && url.searchParams.get('keyword')!=='ShelfDeck connection test')return jsonResponse(200,{unexpected:'invalid-provider-response'});
       return jsonResponse(200, { success:true, data:[] });
     }
     if (url.pathname === '/api/v1/download/' || url.pathname === '/api/v1/history/download') {
@@ -116,7 +117,7 @@ function mediaEffectPort() {
     async verifyPlayback() {
       return Object.freeze({
         samplePointsPercent:Object.freeze([5, 50, 95]),
-        passedSamplePointsPercent:Object.freeze([5, 50, 95]),
+        passedSamplePointsPercent:Object.freeze(process.env.HELIX_UAT251_UNSAFE==='1'?[]:[5, 50, 95]),
         decodeDigest:canonicalDigest({ schema:'uat-131-playback-decode@1', samples:[5, 50, 95] }),
       });
     },
@@ -213,7 +214,7 @@ function productHandle(intent, operationId, artifactKind = null) {
   return Object.freeze({ ...body, fenceDigest:canonicalDigest(body) });
 }
 
-function productOptions(actorAvailable) {
+function productOptions(actorAvailable, allowMissingPoster=true) {
   return Object.freeze({
     routingIntegrationHandleResolver:() => routingHandle(),
     routingProviderObservation:async ({ intent }) => Object.freeze([Object.freeze({
@@ -227,6 +228,7 @@ function productOptions(actorAvailable) {
     productIntegrationHandleResolver:({ intent, operationId, artifactKind }) =>
       productHandle(intent, operationId, artifactKind || null),
     currentProductIntegrationHandleResolver:({ providerKind, operationId, artifactKind }) =>
+      process.env.HELIX_UAT251_NO_METADATA_PROVIDER==='1'&&operationId==='libra.product_metadata.fetch@1'?null:
       productHandle({ integrationId:providerKind + '-main', configRevision:1 },
         operationId, artifactKind || null),
     productProviderMetadataFetch:async ({ metadataFetchIntent:intent }) => Object.freeze({
@@ -250,8 +252,11 @@ function productOptions(actorAvailable) {
         })]),
       })]) : Object.freeze([]),
     }),
-    productProviderArtifactFetch:async ({ artifactKind, resolvedProviderIdentity, integrationHandle }) =>
-      Object.freeze({
+    productProviderArtifactFetch:async ({ artifactKind, resolvedProviderIdentity, integrationHandle }) => {
+      if(allowMissingPoster&&process.env.HELIX_UAT251_ARTIFACT_NETWORK_FAILURE==='1'&&artifactKind==='poster')
+        throw Object.assign(new Error('Fixture provider connection failed.'),{code:'ECONNRESET'});
+      if(allowMissingPoster&&process.env.HELIX_UAT251_MISSING_POSTER==='1'&&artifactKind==='poster')return {resultKind:'not_available',reasonCode:'provider_artifact_absent'};
+      return Object.freeze({
         resultKind:'acquired',
         bytes:Buffer.from(
           '/9j/2wBDAAMCAgMCAgMDAwMEAwMEBQgFBQQEBQoHBwYIDAoMDAsKCwsNDhIQDQ4RDgsLEBYQERMUFRUVDA8XGBYUGBIUFRT/2wBDAQMEBAUEBQkFBQkUDQsNFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBT/wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAn/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFAEBAAAAAAAAAAAAAAAAAAAAAv/EABQRAQAAAAAAAAAAAAAAAAAAAAD/2gAMAwEAAhEDEQA/AJXgGD//2Q==',
@@ -262,7 +267,8 @@ function productOptions(actorAvailable) {
         configRevision:integrationHandle.configRevision,
         mediaType:'image/jpeg',
         resolvedProviderIdentity,
-      }),
+      });
+    },
   });
 }
 
@@ -431,7 +437,8 @@ async function waitDefectCandidate(host, cookie, runId, timeoutMs = 120_000) {
       headers:{ cookie },
     });
     last = { statusCode:response.statusCode, body:response.body };
-    if (response.statusCode === 200) return response.json();
+    if (response.statusCode === 200 && response.json().eligibility==='eligible') return response.json();
+    if (response.statusCode === 200) {await pause(50);continue;}
     assert.ok([400, 409].includes(response.statusCode), response.body);
     await pause(50);
   }
@@ -651,7 +658,9 @@ async function createScenario(t, scenario) {
   const runtimeErrors = [];
   const requestErrors = [];
   const acceptanceStages = [];
+  let clockOffset=0;
   const hostOptions = Object.freeze({
+    now:()=>Date.now()+clockOffset,
     dataDir:paths.data,
     adminDistDir:paths.admin,
     secretRoot:SECRET,
@@ -660,12 +669,14 @@ async function createScenario(t, scenario) {
     ...(REAL_NFO_MEDIA ? {} : {
       mediaProbe:mediaProbe(),
       mediaProductionEffectPort:mediaEffectPort(),
+      aftercarePlaybackRunner:async()=>{},
     }),
     ...(scenario.mediaGap
       ? { platformComputeRuntime:incompatiblePlatformRuntime() }
       : {}),
     integrationFetch:noCandidateMoviePilotFetch(calls),
     ...productOptions(scenario.actorAvailable),
+    aftercareArtifactFetch:productOptions(scenario.actorAvailable,process.env.HELIX_UAT251_REPAIR_FAIL==='1').productProviderArtifactFetch,
     deferredDeliveryKeys:Object.freeze([]),
     onExecutionRuntimeError(error) {
       runtimeErrors.push(error);
@@ -688,12 +699,15 @@ async function createScenario(t, scenario) {
     cookie = await session(host, initialized.adminApiKey);
   }
   async function restart() {
+    const resumeOffset=clockOffset;clockOffset=0;
     await host.close();
+    clockOffset=resumeOffset;
     host = null;
     await start();
   }
   await start();
   t.after(async () => {
+    clockOffset=0;
     if (host) await host.close();
     const resolved = path.resolve(root);
     assert.equal(resolved.startsWith(path.resolve(os.tmpdir()) + path.sep), true);
@@ -708,6 +722,7 @@ async function createScenario(t, scenario) {
     runtimeErrors,
     requestErrors,
     acceptanceStages,
+    advanceClock(ms){clockOffset+=ms;},
     get host() { return host; },
     get cookie() { return cookie; },
     restart,
@@ -728,6 +743,7 @@ const SCENARIOS = Object.freeze([
 ]);
 
 const requestedScenario = process.env.HELIX_UAT131_SCENARIO || null;
+const AUTOMATIC_DEFECTS = process.env.HELIX_UAT251_AUTOMATIC === '1';
 const ACTIVE_SCENARIOS = requestedScenario
   ? SCENARIOS.filter((scenario) => scenario.name === requestedScenario)
   : SCENARIOS;
@@ -736,6 +752,7 @@ if (requestedScenario) assert.equal(ACTIVE_SCENARIOS.length, 1,
 
 test('UAT-131 real Admin HTTP admits exact defects and reaches one On-deck commit', {
   timeout:360_000,
+  skip:AUTOMATIC_DEFECTS,
 }, async (t) => {
   for (const scenario of ACTIVE_SCENARIOS) await t.test(scenario.name, {
     timeout:180_000,
@@ -744,6 +761,11 @@ test('UAT-131 real Admin HTTP admits exact defects and reaches one On-deck commi
     const suffix = scenario.name;
     const shelfId = 'uat-131-shelf-' + suffix;
     await createShelf(harness.host, harness.cookie, harness.paths.shelf, suffix);
+    const settlement = await harness.host.inject({ method:'POST',
+      url:'/v1/admin/settings/automatic-operation/actions/enable-full',
+      headers:{cookie:harness.cookie}, payload:{idempotencyKey:'uat131-settlement-'+suffix,
+        expectedRevision:0,coverExclusiveRelatedInput:true} });
+    assert.equal(settlement.statusCode,200,settlement.body);
     if (scenario.mediaGap) {
       await configureMoviePilot(harness.host, harness.cookie, harness.paths.downloads, suffix);
     }
@@ -891,5 +913,174 @@ test('UAT-131 real Admin HTTP admits exact defects and reaches one On-deck commi
       assert.ok(harness.calls.some((item) => item.path === '/api/v1/search/title'));
       assert.equal(harness.calls.some((item) => item.path === '/api/v1/download/add'), false);
     }
+  });
+});
+
+test('UAT-251 standing authorization automatically admits exact Movie defects and persists the real collection outcome', {
+  timeout:360_000,skip:!AUTOMATIC_DEFECTS,
+}, async t => {
+  for (const scenario of ACTIVE_SCENARIOS) await t.test(scenario.name,{timeout:330_000},async t => {
+    const harness=await createScenario(t,scenario),suffix=scenario.name;
+    const granted=await harness.host.inject({method:'PATCH',url:'/v1/admin/formation/defect-authorization',
+      headers:{cookie:harness.cookie},payload:{enabled:true,expectedRevision:0,idempotencyKey:'uat251-auto-enable',acknowledged:true}});
+    assert.equal(granted.statusCode,200,granted.body);
+    const authorization=JSON.parse(granted.body).authorization;
+    await harness.restart();
+    await createShelf(harness.host,harness.cookie,harness.paths.shelf,suffix);
+    const settlement=await harness.host.inject({method:'POST',url:'/v1/admin/settings/automatic-operation/actions/enable-full',
+      headers:{cookie:harness.cookie},payload:{idempotencyKey:'uat251-source-settlement',expectedRevision:0,coverExclusiveRelatedInput:true}});
+    assert.equal(settlement.statusCode,200,settlement.body);
+    if(scenario.mediaGap)await configureMoviePilot(harness.host,harness.cookie,harness.paths.downloads,suffix);
+    const field=await createField(harness.host,harness.cookie,harness.paths.field,suffix);
+    await observe(harness.host,harness.cookie,field);
+    const subject=await waitFormation(harness.host,harness.cookie,item=>String(item.displayIdentity||'').includes('UAT131 Movie'));
+    if(scenario.mediaGap)await rateSubject(harness.host,harness.cookie,subject.subjectId,suffix,scenario.rating||1);
+    await route(harness.host,harness.cookie,field,'uat-131-shelf-'+suffix);
+    if(process.env.HELIX_UAT251_NO_METADATA_PROVIDER==='1') {
+      for(const [ordinal,offset] of [0,60000,300000,900000,1800000,3600000].entries()) {
+        if(ordinal)harness.advanceClock(offset-[0,60000,300000,900000,1800000,3600000][ordinal-1]+100);
+        await waitDatabase(harness.databasePath,db=>db.prepare("SELECT evidence_json FROM libra_strategy_availability WHERE check_ordinal=?").get(ordinal),60000,
+          ()=>({runtimeErrors:harness.runtimeErrors.map(error=>({code:error.code,message:error.message}))}));
+        if(ordinal===0) {await harness.restart();const db=new Database(harness.databasePath,{readonly:true});
+          try{assert.equal(db.prepare("SELECT count(*) n FROM libra_runs WHERE state='active'").get().n,1);
+            assert.equal(db.prepare('SELECT count(*) n FROM libra_run_outcomes').get().n,0);}finally{db.close();}}
+      }
+    }
+    if(process.env.HELIX_UAT251_UNSAFE==='1') {
+      const first=await waitDatabase(harness.databasePath,db=>{
+        const row=db.prepare("SELECT outcome_json,outcome_digest FROM libra_run_outcomes WHERE outcome='unable_to_on_deck'").get();
+        return row?{...JSON.parse(row.outcome_json),outcomeDigest:row.outcome_digest}:null;
+      },90_000,()=>({runtimeErrors:harness.runtimeErrors.map(error=>({code:error.code,message:error.message}))}));
+      assert.equal(first.reasonCode,'processing_failed');
+      assert.ok(first.terminalReasons.some(reason=>reason.failureCode==='playback_decode_failed'));
+      assert.equal(first.terminalProductEvidence.libraRunId,first.libraRunId);
+      assert.ok(first.terminalProductEvidence.reasonCodes.includes('playback_decode_failed'));
+      const primary=path.join(harness.paths.field,'UAT131 Movie (2026).mkv');
+      assert.equal(fs.readFileSync(primary,'utf8'),'uat-131-disposable-movie');
+      let db=new Database(harness.databasePath,{readonly:true});
+      try {
+        assert.equal(db.prepare('SELECT count(*) count FROM arca_shelf_entries').get().count,0);
+        assert.equal(db.prepare('SELECT count(*) count FROM libra_run_outcomes').get().count,1);
+        assert.ok(db.prepare('SELECT state FROM fx_material_controls WHERE material_key IN (SELECT material_key FROM libra_run_material_members WHERE run_material_manifest_id=(SELECT run_material_manifest_id FROM libra_runs WHERE libra_run_id=?))')
+          .all(first.libraRunId).every(control=>control.state==='released'));
+        const workspace=db.prepare('SELECT state FROM libra_workspaces WHERE libra_run_id=?').get(first.libraRunId);
+        assert.equal(workspace.state,'reclaimed');
+        assert.equal(first.responsibilityReceipt.cleanupScopeId,null);
+      }finally{db.close();}
+      await harness.restart();
+      const base='/v1/admin/formation/runs/'+first.libraRunId;
+      const recorded=await harness.host.inject({method:'GET',url:base+'/outcome',headers:{cookie:harness.cookie}});
+      assert.equal(recorded.statusCode,200,recorded.body);assert.deepEqual(recorded.json().outcome,first);
+      const history=await harness.host.inject({method:'GET',url:'/v1/admin/formation?section=ended&limit=100',headers:{cookie:harness.cookie}});
+      assert.equal(history.statusCode,200,history.body);
+      assert.ok(history.json().items.some(item=>item.libraRunId===first.libraRunId&&item.label==='无法上架'),history.body);
+      const payload={expectedOutcomeDigest:first.outcomeDigest,idempotencyKey:'uat251-explicit-retry'};
+      const retry=await harness.host.inject({method:'POST',url:base+'/actions/reprocess',headers:{cookie:harness.cookie},payload});
+      assert.equal(retry.statusCode,202,retry.body);
+      const replay=await harness.host.inject({method:'POST',url:base+'/actions/reprocess',headers:{cookie:harness.cookie},payload});
+      assert.equal(replay.statusCode,202,replay.body);assert.equal(replay.json().intentId,retry.json().intentId);assert.equal(replay.json().replayed,true);
+      await waitDatabase(harness.databasePath,db=>db.prepare("SELECT count(*) count FROM libra_run_outcomes WHERE outcome='unable_to_on_deck'").get().count===2,120_000,
+        ()=>({runtimeErrors:harness.runtimeErrors.map(error=>({code:error.code,message:error.message}))}));
+      await harness.restart();await pause(1000);
+      db=new Database(harness.databasePath,{readonly:true});
+      try {
+        assert.equal(db.prepare('SELECT count(*) count FROM libra_runs').get().count,2);
+        const results=db.prepare('SELECT stable_input_digest,requirements_digest FROM libra_run_outcomes').all();
+        assert.deepEqual(results[0],results[1]);
+        assert.equal(db.prepare('SELECT count(*) count FROM arca_shelf_entries').get().count,0);
+      }finally{db.close();}
+      assert.equal(fs.readFileSync(primary,'utf8'),'uat-131-disposable-movie');
+      assert.deepEqual(harness.runtimeErrors,[]);
+      return;
+    }
+    const outcome=await waitDatabase(harness.databasePath,database=>{
+      const row=database.prepare("SELECT outcome_json,outcome_digest FROM libra_run_outcomes WHERE subject_id=? AND outcome='on_deck_with_defects'").get(subject.subjectId);
+      if(!row)return null;
+      const value=JSON.parse(row.outcome_json);
+      assert.equal(canonicalDigest(value),row.outcome_digest);
+      assert.equal(database.prepare('SELECT count(*) count FROM arca_ondeck_commit_receipts WHERE shelf_entry_id=?').get(value.onDeckCommitReceipt.shelfEntryId).count,1);
+      const expectedCodes=process.env.HELIX_UAT251_MISSING_POSTER==='1'
+        ?[...scenario.expectedCodes,'metadata_artifact_unmet','image_undecodable'].sort():scenario.expectedCodes;
+      assert.deepEqual(value.authorizedDefectManifest.waivedRequirementCodes,expectedCodes);
+      if(process.env.HELIX_UAT251_MISSING_POSTER==='1')assert.deepEqual(value.authorizedDefectManifest.gapScope.gaps.filter(gap=>gap.targetKind==='artifact').map(gap=>gap.targetId),['poster']);
+      if(process.env.HELIX_UAT251_TECHNICAL_FAILURE==='1') {
+        const defects=value.authorizedDefectManifest.defects;
+        assert.equal(defects.some(item=>item.defectCode==='external_source_exhausted'),false);
+        assert.equal(defects.some(item=>item.defectCode==='media_requirements_unmet' && /^P5_/.test(item.sourceFailureCode)),true,JSON.stringify(defects));
+      }
+      assert.equal(value.authorizedDefectManifest.standingAuthorization.authorizationDigest,authorization.authorizationDigest);
+      return value;
+    },300_000,()=>({runtimeErrors:harness.runtimeErrors.map(e=>({code:e.code,message:e.message}))}));
+    await harness.restart();
+    const database=new Database(harness.databasePath,{readonly:true});
+    try {
+      const rows=database.prepare('SELECT outcome_json FROM libra_run_outcomes WHERE libra_run_id=?').all(outcome.libraRunId);
+      assert.equal(rows.length,1);assert.deepEqual(JSON.parse(rows[0].outcome_json),outcome);
+      assert.equal(database.prepare('SELECT count(*) count FROM arca_shelf_entries').get().count,1);
+    }finally{database.close();}
+    if(process.env.HELIX_UAT251_ARCA==='1'||process.env.HELIX_UAT251_ARCA_POSTER==='1') {
+      const entryId=outcome.onDeckCommitReceipt.shelfEntryId,base='/v1/admin/care/'+entryId;
+      const check=await harness.host.inject({method:'POST',url:base+'/actions/check',headers:{cookie:harness.cookie},payload:{idempotencyKey:'uat251-collection-check'}});
+      assert.equal(check.statusCode,202,check.body);
+      let preview;
+      for(let attempt=0;attempt<100;attempt++) {
+        const response=await harness.host.inject({method:'GET',url:base+'/defect-admission-candidate',headers:{cookie:harness.cookie}});
+        assert.equal(response.statusCode,200,response.body);preview=response.json();
+        if(preview.eligibility!=='evidence_pending')break;
+        await pause(100);
+      }
+      assert.equal(preview.eligibility,'eligible',JSON.stringify(preview));
+      assert.ok(preview.acceptedGaps.some(gap=>gap.targetId==='actor'),JSON.stringify(preview));
+      if(process.env.HELIX_UAT251_ARCA_POSTER==='1') {
+        const initialManifestDigest=outcome.authorizedDefectManifest.manifestDigest;
+        assert.ok(preview.acceptedGaps.some(gap=>gap.targetId==='poster'),JSON.stringify(preview));
+        assert.equal(preview.authorizationRevision,0);
+        assert.equal(preview.repairableGapDigests.length,1,JSON.stringify(preview));
+        const payload={expectedInventoryRevision:preview.inventoryRevision,expectedCareBasisDigest:preview.careBasisDigest,
+          expectedAuthorizationRevision:preview.authorizationRevision,expectedCandidateDigest:preview.candidateDigest,
+          acknowledged:true,idempotencyKey:'uat251-arca-inherited-poster-repair'};
+        const repair=await harness.host.inject({method:'POST',url:base+'/actions/repair-accepted-defects',headers:{cookie:harness.cookie},payload});
+        assert.equal(repair.statusCode,202,repair.body);
+        assert.equal(repair.json().resultKind,'repair_requested',repair.body);
+        const caseId=repair.json().aftercareCaseId;
+        const replay=await harness.host.inject({method:'POST',url:base+'/actions/repair-accepted-defects',headers:{cookie:harness.cookie},payload});
+        assert.equal(replay.statusCode,202,replay.body);assert.equal(replay.json().replayed,true);
+        const failed=process.env.HELIX_UAT251_REPAIR_FAIL==='1';
+        await waitDatabase(harness.databasePath,db=>{
+          const care=db.prepare('SELECT state FROM arca_aftercare_cases WHERE aftercare_case_id=?').get(caseId);
+          return care&&['resolved','unresolved'].includes(care.state)?care:null;
+        },90_000,()=>({runtimeErrors:harness.runtimeErrors.map(error=>({code:error.code,message:error.message}))}));
+        const db=new Database(harness.databasePath,{readonly:true});
+        try {
+          assert.equal(db.prepare('SELECT state FROM arca_aftercare_cases WHERE aftercare_case_id=?').get(caseId).state,failed?'unresolved':'resolved');
+          assert.equal(db.prepare('SELECT count(*) count FROM arca_shelf_entries').get().count,1);
+          const row=db.prepare('SELECT authorization_json FROM arca_defect_admissions WHERE shelf_entry_id=? ORDER BY revision DESC LIMIT 1').get(entryId);
+          const authorization=JSON.parse(row.authorization_json);
+          assert.equal(authorization.gaps.some(gap=>gap.targetId==='poster'),failed);
+          assert.ok(authorization.gaps.some(gap=>gap.targetId==='actor'));
+          assert.ok(db.prepare("SELECT fact_digest FROM arca_inventory_product_facts WHERE fact_kind='authorized_defect_manifest'").all()
+            .every(fact=>fact.fact_digest===initialManifestDigest));
+          assert.equal(db.prepare('SELECT count(*) count FROM arca_aftercare_cases WHERE shelf_entry_id=?').get(entryId).count,1);
+        }finally{db.close();}
+        await harness.restart();
+        const health=await harness.host.inject({method:'GET',url:base,headers:{cookie:harness.cookie}});
+        assert.equal(health.json().health.healthState,'healthy',health.body);
+        assert.deepEqual(harness.runtimeErrors,[]);
+        return;
+      }
+      const payload={expectedInventoryRevision:preview.inventoryRevision,expectedCareBasisDigest:preview.careBasisDigest,
+        expectedAuthorizationRevision:preview.authorizationRevision,expectedCandidateDigest:preview.candidateDigest,acknowledged:true,idempotencyKey:'uat251-arca-accept'};
+      const accepted=await harness.host.inject({method:'POST',url:base+'/actions/accept-defects',headers:{cookie:harness.cookie},payload});
+      assert.equal(accepted.statusCode,200,accepted.body);
+      const replay=await harness.host.inject({method:'POST',url:base+'/actions/accept-defects',headers:{cookie:harness.cookie},payload});
+      assert.equal(replay.statusCode,200,replay.body);assert.equal(replay.json().replayed,true);
+      preview=(await harness.host.inject({method:'GET',url:base+'/defect-admission-candidate',headers:{cookie:harness.cookie}})).json();
+      const repair=await harness.host.inject({method:'POST',url:base+'/actions/repair-accepted-defects',headers:{cookie:harness.cookie},payload:{...payload,
+        expectedCandidateDigest:preview.candidateDigest,expectedAuthorizationRevision:preview.authorizationRevision,idempotencyKey:'uat251-arca-repair'}});
+      assert.equal(repair.statusCode,202,repair.body);assert.equal(repair.json().resultKind,'repair_unavailable');
+      const health=await harness.host.inject({method:'GET',url:base,headers:{cookie:harness.cookie}});
+      assert.equal(health.json().health.state,'healthy',health.body);
+    }
+    assert.deepEqual(harness.runtimeErrors,[]);
   });
 });

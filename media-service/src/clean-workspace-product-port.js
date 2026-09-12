@@ -1224,7 +1224,24 @@ function createCleanWorkspaceProductPort(options) {
     }
     const runtimeAuthority = runtimeEffectAuthority(request);
     if (runtimeAuthority) {
-      const outcome = await request.acquireBytes();
+      let outcome;
+      try {
+        outcome = await request.acquireBytes();
+      } catch (error) {
+        // Fetching bytes cannot write the controlled target. An existing target
+        // may belong to an earlier attempt and must retain effect recovery.
+        let targetAbsent=false;
+        try { fs.lstatSync(target); } catch (observationError) { targetAbsent=observationError.code==='ENOENT'; }
+        if (targetAbsent) throw Object.assign(new Error('Artifact fetch failed before writing its target.'), {
+          code:error?.code || 'PROVIDER_REQUEST_FAILED', cause:error,
+          workspaceWriteNotStarted:Object.freeze({
+            eventAttemptId: runtimeAuthority.authority.eventAttemptId,
+            idempotencyKey: runtimeAuthority.authority.idempotencyKey,
+            targetDigest: canonicalDigest({ workspaceId:request.workspaceId, relativePath }),
+          }),
+        });
+        throw error;
+      }
       if (outcome?.resultKind === 'not_available') {
         if (typeof outcome.reasonCode !== 'string' || !outcome.reasonCode) {
           fail('CLEAN_WORKSPACE_ACQUIRE_BYTES',

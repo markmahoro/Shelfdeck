@@ -1,4 +1,5 @@
 'use strict';
+const {missingArtifactKinds,artifactGapCodes}=require('../../../contracts/artifact-requirement-gaps');
 
 const { canonicalDigest, canonicalJson } = require('../../../contracts/canonical-json');
 const { buildMediaRequirement } = require('./media-production-contracts');
@@ -217,7 +218,7 @@ function buildProductConformanceInputSnapshot(value) {
     fail('P9_CONFORMANCE_AUTHORIZED_DEFECT_CONTINUITY',
       'Authorized Defect Manifest belongs to another Libra Run.');
   const externalDefect = manifest?.defects.find((item) =>
-    item.defectCode === 'external_source_exhausted') || null;
+    Boolean(item.originalMediaVerificationId)) || null;
   const sizeDefect = manifest?.defects.find((item) =>
     item.defectCode === 'size_cap_exceeded') || null;
   const mediaRequirement=buildMediaRequirement(acceptanceSpec),selectedProducts = value.selectedProducts.map((item) => clone(item));
@@ -317,7 +318,7 @@ function evaluateProductConformance(value) {
     input = rebuilt;
   } catch { return integrityFailure(input, value?.verifiedAtMs); }
   const requirements = input.acceptanceSpec.requirements, facts = new Map(input.productFactSnapshots.map((item) => [item.factKind, item.factValue])),
-    identity = facts.get('resolved_identity'), metadata = facts.get('product_metadata'), cast = facts.get('media_cast'), unmet = new Set();
+    identity = facts.get('resolved_identity'), metadata = facts.get('product_metadata'), cast = facts.get('media_cast'), unmet = new Set(),missingMetadataFields=[];
   const identities = identity.providerIdentities || [], identityRequirement = requirements.identity,
     namespace = identityRequirement.identityKind === 'tmdb_series_season' ? 'tmdb_series' : identityRequirement.identityKind;
   const matchingIdentity = identities.find((item) => item.namespace === namespace);
@@ -341,9 +342,11 @@ function evaluateProductConformance(value) {
     else if (code === 'season_number') present = identities.some((item) => item.namespace === 'tmdb_series' && item.seasonNumber);
     else if (code === 'episode_number') present = claimedEpisodes.size > 0;
     else present = nonEmpty(descriptive.get(code));
-    if (!present) unmet.add('metadata_field_unmet');
+    if (!present) {unmet.add('metadata_field_unmet');missingMetadataFields.push(code);}
   }
   const verifiedKinds = new Set(input.verifiedArtifactManifest.items.map((item) => item.artifactKind));
+  const missingArtifacts=missingArtifactKinds(requirements,[...verifiedKinds]);
+  for(const code of artifactGapCodes(requirements,missingArtifacts))unmet.add(code);
   if ((requirements.metadata.requiredArtifactKinds || []).some((kind) => !verifiedKinds.has(kind))) unmet.add('metadata_artifact_unmet');
   if (requirements.metadata.requireRenderableSidecar && !verifiedKinds.has('nfo')) unmet.add('sidecar_unrenderable');
   if (requirements.metadata.requireDecodableImages && (requirements.metadata.requiredArtifactKinds || [])
@@ -357,17 +360,17 @@ function evaluateProductConformance(value) {
     unmet.add('domain_binding_unmet');
   if (inventory.requireChecksum && members.some((item) => item.physicalIdentity?.fingerprintAlgorithm !== 'middle-256k-sha256')) unmet.add('checksum_unmet');
   const artifactManifest = input.inventorySnapshot.artifactManifest;
-  if ((inventory.requiredMaterializedArtifactKinds || []).some((kind) => !artifactManifest.items.some((item) =>
-    item.artifactKind === kind && item.materializationState === 'included_product') || !members.some((item) => item.role ===
-      (kind === 'nfo' ? 'metadata_sidecar' : kind)))) unmet.add('artifact_materialization_unmet');
+  if ((inventory.requiredMaterializedArtifactKinds || []).some(kind=>verifiedKinds.has(kind)&&
+    (!artifactManifest.items.some(item=>item.artifactKind===kind&&item.materializationState==='included_product')||
+      !members.some(item=>item.role===(kind==='nfo'?'metadata_sidecar':kind)))))unmet.add('artifact_materialization_unmet');
   if ((inventory.layoutModel === 'single' && (structure.structureKind !== 'single' || primaries.length !== 1 || claimedEpisodes.size)) ||
       (inventory.layoutModel === 'season_episode' && (structure.structureKind !== 'season' || requiredEpisodes.some((key) => !claimedEpisodes.has(key)) ||
         [...claimedEpisodes].some((key) => !requiredEpisodes.includes(key))))) unmet.add('layout_unmet');
-  return buildEvidence(input, value.verifiedAtMs, [...unmet]);
+  return buildEvidence(input, value.verifiedAtMs, [...unmet],[],missingMetadataFields,missingArtifacts);
 }
 
 function integrityFailure(input, verifiedAtMs) { return buildEvidence(input, verifiedAtMs, [], ['snapshot_integrity_failure']); }
-function buildEvidence(input, verifiedAtMs, unmetValues, reasons = []) {
+function buildEvidence(input, verifiedAtMs, unmetValues, reasons = [],missingMetadataFields=[],missingArtifactKinds=[]) {
   const unmetRequirementCodes = UNMET_ORDER.filter((code) => unmetValues.includes(code)), acceptanceSpec = input?.acceptanceSpec || {};
   const evaluatedRequirementSetDigest = canonicalDigest({ schema:'libra.product-conformance-requirements@1',
     acceptanceSpecId:acceptanceSpec.acceptanceSpecId, recordDigest:acceptanceSpec.recordDigest, requirements:acceptanceSpec.requirements });
@@ -379,7 +382,7 @@ function buildEvidence(input, verifiedAtMs, unmetValues, reasons = []) {
     verifiedAtMs, libraRunId:input?.libraRunId, acceptanceSpecId:acceptanceSpec.acceptanceSpecId,
     acceptanceSpecRecordDigest:acceptanceSpec.recordDigest, runExecutionBasisDigest:input?.runExecutionBasisDigest,
     productSnapshotDigest:input?.productSnapshotDigest, productFactSetDigest:input?.productFactSetDigest,
-    evaluatedRequirementSetDigest, unmetRequirementCodes:freeze(unmetRequirementCodes) });
+    evaluatedRequirementSetDigest, unmetRequirementCodes:freeze(unmetRequirementCodes),missingMetadataFields:freeze(missingMetadataFields.sort()),missingArtifactKinds:freeze(missingArtifactKinds.sort()) });
 }
 
 module.exports = Object.freeze({ ProductConformanceError, UNMET_ORDER, buildProductConformanceFactSnapshot,

@@ -1,5 +1,6 @@
 'use strict';
 const { careFindingCodes, freezeCareObjective } = require('../model/care-objective');
+const { maintenanceRecoveryConditions } = require('../model/maintenance-recovery-conditions');
 
 const { canonicalDigest } = require('../../../contracts/canonical-json');
 const { createWorkAdmission } = require('../../../foundation/execution/work-admission');
@@ -10,11 +11,9 @@ const { observeKnownOldBindings } = require('../model/known-old-binding');
 const { projectAftercareProcess } = require('./aftercare-process-projection');
 
 const LIMITS=Object.freeze({globalOpenWorks:256,ownerOpenWorks:256,openEvents:256});
-// Revision 5 retires assessment lineages exhausted by the pre-PROD-064
-// placement classifier and non-idempotent repeated NFO field rendering.
-// Reusing their deterministic Work IDs would prevent the corrected behavior
-// from ever being evaluated.
-const ASSESSMENT_EXECUTION_REVISION=5;
+// Revision 6 includes exact requirement gaps and independent Inventory playback
+// evidence. Earlier assessments cannot prove this stronger health contract.
+const ASSESSMENT_EXECUTION_REVISION=6;
 const MAX_WORK_REPLACEMENTS=2;
 const EXTERNAL_WRITER_FAILURES=new Set(['ARCA_AFTERCARE_NFO_SOURCE_STALE','PHYSICAL_MATERIAL_STAT_FENCE_CHANGED']);
 const stable=(prefix,value)=>prefix+canonicalDigest(value).slice(0,40);
@@ -205,14 +204,16 @@ function createAftercareProcessCoordinator(options){
     const findingSetDigest=canonicalDigest(findings.map((item)=>item.findingDigest).sort());
     const effects=findings.map((item)=>Object.freeze({objectId:item.findingId,revision:1,schemaRef:'helix://arca/types/RequiredCareEffect/v1',digest:item.findingDigest,objectKind:'required-effect'}));
     const typedParameters=findings.map((item)=>{const value=String(item.findingKind);return Object.freeze({parameter:'finding.'+canonicalDigest(value).slice(0,16),valueType:'string',value,valueDigest:canonicalDigest(value)});});
-    const base={schemaRef:'helix://contracts/domain-types/CareRequirement/v1',schemaVersion:1,requirementId:stable('arca-care-requirement-',{shelfEntryId,basis:c.basis.digest,findingSetDigest}),revision:1,careBasisDigest:c.basis.digest,requiredEffects:Object.freeze(effects),acceptanceDigest:canonicalDigest(effects),typedParameters:Object.freeze([...typedParameters,...freezeCareObjective(c)])};
+    const recovery=maintenanceRecoveryConditions(findings,options.readFailureRecoveryConditions);
+    const base={schemaRef:'helix://contracts/domain-types/CareRequirement/v1',schemaVersion:1,requirementId:stable('arca-care-requirement-',{shelfEntryId,basis:c.basis.digest,findingSetDigest,recoveryConditions:recovery.conditions}),revision:1,careBasisDigest:c.basis.digest,requiredEffects:Object.freeze(effects),acceptanceDigest:canonicalDigest(effects),typedParameters:Object.freeze([...typedParameters,...freezeCareObjective(c),recovery.parameter])};
     const requirement=Object.freeze({...base,digest:canonicalDigest(base)});
     try{assertProcessingRequirement(requirement);}catch(error){
       if(error.code!=='ARCA_AFTERCARE_PROCESSING_OBJECTIVE_REQUIRED')throw error;
       return Object.freeze({kind:'attention_required',reasonCode:'processing_objective_unavailable',shelfEntryId,
         workId:assessment.work.workId,health:currentHealth});
     }
-    const triggerDigest=canonicalDigest({schema:'arca.aftercare-case-trigger@1',shelfEntryId,assessmentWorkId:assessment.work.workId,careBasisDigest:c.basis.digest,findingSetDigest});
+    const triggerDigest=canonicalDigest({schema:'arca.aftercare-case-trigger@2',triggerKind:'health_maintenance',shelfEntryId,
+      careBasisDigest:c.basis.digest,findingSetDigest,recoveryConditions:recovery.conditions});
     const care=createCaseIfUnreserved({shelfEntryId,careBasis:c.basis,findingSetDigest,careRequirement:requirement,triggerDigest,basisInputs:[
       {inputKind:'shelf_entry',ownerDomain:'arca',aggregateType:'shelf_entry',aggregateId:shelfEntryId,revision:c.raw.entry.current_inventory_revision,inputDigest:c.basis.digest},
       {inputKind:'canonical_identity',ownerDomain:'arca',aggregateType:'canonical_identity',aggregateId:shelfEntryId,revision:c.raw.entry.canonical_identity_revision,inputDigest:c.basis.canonicalIdentityDigest},

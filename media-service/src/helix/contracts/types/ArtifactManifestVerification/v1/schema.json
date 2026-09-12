@@ -8,6 +8,48 @@
   ],
   "x-helix-envelopeRef": "helix://contracts/types/VerificationEnvelope/v1",
   "x-helix-maxCanonicalBytes": 65536,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "result": {
+            "const": "passed"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "verifiedArtifacts": {
+            "minItems": 1
+          },
+          "artifactDigests": {
+            "minItems": 1
+          },
+          "reasonCodes": {
+            "maxItems": 0
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "result": {
+            "const": "failed"
+          },
+          "verifiedArtifacts": {
+            "maxItems": 0
+          },
+          "artifactDigests": {
+            "maxItems": 0
+          },
+          "reasonCodes": {
+            "const": [
+              "required_artifact_missing"
+            ]
+          }
+        }
+      }
+    }
+  ],
   "type": "object",
   "additionalProperties": false,
   "properties": {
@@ -115,8 +157,7 @@
           "referenceDigest"
         ]
       },
-      "maxItems": 64,
-      "minItems": 1
+      "maxItems": 64
     },
     "artifactDigests": {
       "type": "array",
@@ -125,8 +166,7 @@
         "minLength": 1,
         "pattern": "^[a-f0-9]{64}$"
       },
-      "maxItems": 64,
-      "minItems": 1
+      "maxItems": 64
     },
     "verificationDigest": {
       "type": "string",

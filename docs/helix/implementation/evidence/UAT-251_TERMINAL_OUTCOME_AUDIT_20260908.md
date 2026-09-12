@@ -1,5 +1,40 @@
 # UAT-251：整理三种终局与瑕疵接纳路径审视
 
+## 2026-09-12 实施接续与新增授权
+
+用户要求本任务完成UAT-251，追加“自动授权瑕疵上架”；前端UI须先与任务`01a0912a-0086-74e2-88ab-536c59d3862a`确认做法。实施基线`144798953`，隔离分支`codex/uat-251-terminal-defects`。本节之后记录实现及验收，以下旧时点审查保留，不冒充当前完成状态。
+
+验收范围：首次三终局及不可豁免安全门禁；精确混合Gap及旧预览拒绝；持续授权启用/关闭/重启/并发及后台执行；终局安全收尾/原片保护/同条件不再进入；Arca现有差距接纳与仅手动修复、成功更新及失败保留；新损坏独立处理；同条件失败跨检查/重启抑制；协同确认后的列表/详情/设置交互、窄屏和键盘操作；Windows/Linux真实媒体与实际发布版本核验。
+
+当前状态：核心实现及独立 Windows/Linux 验证完成，UAT 保持开放。2026-09-12 UI 负责人要求合并最新已上线 258/259 页面基线、修正结果详情内边距和精确不可修复标记；待完成该复核与最终合并部署核验。此工作快照不构成 UAT 关闭。
+
+本轮实现：
+
+- 首次整理持久三终局；全局持续授权默认关闭，用户启用后按当前 Run 和精确 Gap 原子发放授权，撤销停止新增授权。身份、播放、完整性、Control、Binding、空间和当前 Basis 均不可豁免。
+- 技术路径失败与业务不可达分开，Movie 当前成品的精确资料、附件及媒体差距独立取证。未知媒体/缺失播放证据不能自动放行；技术附件获取失败不能伪造 not_available 或无写入证明。
+- 无法上架保留真实失败原因并完成 Control/Work/Effect/Workspace 责任收尾；同输入、要求和相关执行条件不变时抑制重新进入。用户手动意图只准入一次，同键重放安全。Handoff B 已接受不可 discard；明确拒绝可自动收尾。
+- 缺失外部策略使用 Libra 自有 availability 观察，按首次观察后 1/5/15/30/60 分钟五次复核，重启不重置预算，无伪造 Work。Freshness 第五次仍不能确认时也形成合法终局。
+- Arca 接受当前精确差距和手动修复意图有独立 revision、Receipt/Audit、CAS；修复成功只消除验证解决的差距，失败保留原片和授权，历史失败不覆盖当前健康。新损坏不继承既有授权；已接受差距不自动修复。
+- 最终新增 8 表，共 197 表；DDL `854c22240e01915f777958ec490bf1ebad6dcc4a92f4bd6f2f032d32ac2d1312`；P2 aggregate `d1167a59bd96fc5d8bed81bad6ca4b8eeb73c635aae6c7b82a41f4af4e577dc2`。最终合并后的 Catalog witness 及 full Host 门禁由部署任务核验。
+
+本地证据（工作区 `.codex/uat251/`，不提交媒体/生产副本/凭据）：
+
+| 场景 | 证据与结果 |
+| --- | --- |
+| 自动演员/外部资源耗尽/多项外部耗尽/组合差距 | 独立完整 HTTP 场景实际到达 Arca Commit，重启持久唯一 |
+| 无 metadata Provider 有限等待 | `no-provider-current.log`，186.4 秒，实际五次观察、重启、自动接纳至 Commit |
+| 不可播放终局与一次手动重新整理 | `unsafe-terminal-current.log`，93.2 秒，实际终局收尾、重启、相同键只建一次新 Run |
+| Freshness 无 blockedWorks 的第五次失败 | `freshness-terminal-current.log`，定向持久测试通过，无伪造 Work |
+| 手动海报修复成功/业务失败/技术失败 | 完整 HTTP 场景通过；`poster-technical-failure-e2e.log`，技术失败保留原片及瑕疵 |
+| Windows 真实 FFmpeg | `real-media-poster-repair-e2e.log`，128.8 秒，HEVC/AAC 样片实际上架、海报修复、剩余演员瑕疵及重启 |
+| Linux 真实 FFmpeg | `linux-real-media-final.log`，124.9 秒，同链通过；`linux-final-focused.log` 52 项定向通过 |
+| 完整生产副本 Schema | `production-copy-final-schema.log`、`production-copy-schema-result.json`：189→197、强制异常原子回滚、188 张原业务表逐行字节摘要一致，118 收藏、7 历史显式用户放弃保持；quick_check/FK clean；冻结原副本未修改 |
+| Web | `final-web-tests.log` 100/100，`final-web-build.log` 通过 |
+| 架构 | `final-architecture-rerun.json` 234 个测试文件 fixture 通过，契约/语义通过；迁移直接 fs/path 依赖已改为冻结 DDL 常量，等待最终合并复验 |
+| UI | 指定负责人先确认方案再实施；仅无法上架 ended 行原详情列增加“查看过程”。独立 Edge 1920×1080 同数据 18 单元格前后几何零变化。截图在 `ui-final/`；本轮基线仍须更新后重交，不能当最终验收通过 |
+
+限制：独立 UI fixture 的媒体探针为测试替身，真实媒体证据为上述 Windows/Linux 独立链；尚无最终合并版本生产验收。不得覆盖最新 UAT-260/261 或部署事实，不独立部署 NAS。
+
 2026-09-08。基线159619ab8及后续文档提交；只读SSOT/代码审查与本地既有定向测试，无SSOT修改、生产或媒体副作用。用户最终意图：成功上架、瑕疵上架、无法上架；不能以条件不变的放弃→重新采购循环代替终局。Aftercare已经拥有收藏，对应维护成功、接受现有瑕疵、无法完成本次维护；后者不自动退出收藏。
 
 ## 已证实发现

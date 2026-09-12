@@ -1,4 +1,5 @@
 'use strict';
+const {acceptsMetadataFields,acceptsArtifactKinds}=require('./authorized-defect-manifest');
 
 const {
   canonicalDigest,
@@ -102,6 +103,7 @@ function finalGapDecision(input) {
     const allowed = GAP_CODES_BY_CHECK[item.checkKind] || [];
     const canonicalGaps = allowed.filter((value) => gaps?.includes(value));
     const expectedPassed = item.evidenceStatus === 'complete' &&
+      (item.checkKind!=='metadata'||(acceptsMetadataFields(manifest,item.missingMetadataFields)&&acceptsArtifactKinds(manifest,item.missingArtifactKinds))) &&
       (manifest
         ? canonicalJson(canonicalGaps) === canonicalJson(
           allowed.filter((value) => authorized.includes(value)))
@@ -186,7 +188,8 @@ function finalGapDecision(input) {
   const canonicalManifestAuthorized = [...new Set(authorized)].sort((left, right) =>
     Buffer.compare(Buffer.from(left), Buffer.from(right)));
   const authorizedGapComparison = manifest
-    ? canonicalJson(actualGapUnionCodes) === canonicalJson(canonicalAuthorized) &&
+    ? acceptanceChecks.every(item=>item.checkKind!=='metadata'||(acceptsMetadataFields(manifest,item.missingMetadataFields)&&acceptsArtifactKinds(manifest,item.missingArtifactKinds))) &&
+      canonicalJson(actualGapUnionCodes) === canonicalJson(canonicalAuthorized) &&
       canonicalAuthorized.length === canonicalManifestAuthorized.length &&
       canonicalJson(authorized) === canonicalJson(canonicalManifestAuthorized)
       ? 'exact_match'

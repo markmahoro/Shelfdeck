@@ -37,6 +37,8 @@ function commonAttestation() {
     productConformanceEvidenceDigest:D('conformance'),
     evaluatedRequirementSetDigest:D('requirements'),
     productSnapshotDigest:D('product'),
+    missingMetadataFields:[],
+    missingArtifactKinds:[],
     attestedAtMs:127,
   };
 }
@@ -81,6 +83,7 @@ test('UAT-127 runtime validation accepts ordinary and authorized-defect Promotio
 
   const manifest = defectManifest();
   const defectBody = { ...commonAttestation(), unmetRequirementCount:1,
+    missingMetadataFields:['actor'],
     unmetRequirementCodes:['metadata_field_unmet'],
     acceptanceKind:'accepted_with_defects', authorizedDefectManifest:manifest };
   const defect = Object.freeze({ ...defectBody,

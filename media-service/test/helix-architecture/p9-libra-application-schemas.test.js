@@ -13,7 +13,7 @@ const root = path.resolve(__dirname, '../../src/helix/contracts');
 test('materializes the SSOT-exact Libra production application contracts reproducibly', () => {
   const schemas = buildLibraApplicationSchemas();
   const registry = JSON.parse(fs.readFileSync(path.join(root, 'libra-application-type-registry.json'), 'utf8'));
-  assert.equal(registry.targetCount, 31);
+  assert.equal(registry.targetCount, 38);
   for (const [name, schema] of Object.entries(schemas)) {
     const stored = JSON.parse(fs.readFileSync(path.join(root, 'application-types', name, 'v1/schema.json'), 'utf8'));
     assert.deepEqual(stored, schema);
@@ -103,10 +103,11 @@ test('Run Lifecycle schemas freeze typed evidence and the bounded recovery polic
   assert.equal(schemas.LibraRunFreshnessAssessment.properties.dimensionResults.maxItems, 5);
   assert.deepEqual(schemas.LibraRunLifecycleDecision.properties.transitionKind.enum,
     ['suspend', 'resume', 'freeze', 'freshness_confirmed', 'recovery_reassessed', 'defect_admit', 'set_priority', 'complete']);
-  assert.deepEqual(schemas.LibraRunLifecycleDecision.properties.transitionEvidence.oneOf.slice(0, 4).map((item) => item.$ref),
+  assert.deepEqual(schemas.LibraRunLifecycleDecision.properties.transitionEvidence.oneOf.slice(0, 5).map((item) => item.$ref),
     [typeId('LibraRunFreshnessAssessment'), typeId('LibraRunTerminalDeliveryEvidence'),
-      typeId('AuthorizedDefectManifest'), typeId('LibraRunPriorityIntent')]);
-  assert.equal(schemas.AuthorizedDefectManifest.properties.defects.maxItems, 2);
+      typeId('LibraStrategyAvailability'),typeId('AuthorizedDefectManifest'), typeId('LibraRunPriorityIntent')]);
+  assert.equal(schemas.AuthorizedDefectManifest['x-helix-maxCanonicalBytes'],65536);
+  assert.ok(schemas.AuthorizedDefectManifest.properties.gapScope.required.includes('productEvidenceDigest'));
   assert.equal(schemas.LibraRunTerminalDeliveryEvidence.properties.blockedWorks.maxItems, 256);
 });
 

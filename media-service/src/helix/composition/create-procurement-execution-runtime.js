@@ -473,7 +473,8 @@ function createProcurementExecutionRuntime(options) {
     inspectFieldRoot: options.inspectFieldRoot });
   const workLifecycle = createWorkLifecycle({ schemaManifest: options.schemaManifest, unitOfWork: options.unitOfWork,
     nextWorkAttemptId: (workId, ordinal) => workId + ':attempt:' + ordinal });
-  libraProcessServices=libraConstruction.createProcessServices({...libraOptions,now,workResultReader,
+  libraProcessServices=libraConstruction.createProcessServices({...libraOptions,now,workResultReader,contractValidator,
+    readArcaFormationStatus:(offerIds)=>arcaProcessServices.formationStatusProjection.read(offerIds),
     cancelProcessWorks:(scope)=>workLifecycle.cancelProcess(scope),
     resolveRetryPolicyDigest:(capabilityRef)=>canonicalDigest(
       policyRegistry.retryFor(capabilityRef,manifests[capabilityRef].effectClass)),
@@ -1098,6 +1099,16 @@ function createProcurementExecutionRuntime(options) {
       listPage:({cursor,limit})=>arcaProcessServices.aftercareContextReader.listPage(cursor,limit),
       reconcile:({shelfEntryId})=>arcaProcessServices.aftercareCoordinator.reconcile(shelfEntryId),
     }),Object.freeze({
+      ownerDomain:'libra',reconcilerKey:'frozen-libra-outcomes',
+      listPage:({cursor,limit})=>libraProcessServices.libraRunContextReader.listActiveRunPage(cursor,limit,'frozen').items
+        .map(item=>Object.freeze({cursor:item.libraRunId,scope:item})),
+      reconcile:({libraRunId})=>reconcileLibraRun(libraRunId),
+    }),Object.freeze({
+      ownerDomain:'libra',reconcilerKey:'completed-libra-outcomes',
+      listPage:({cursor,limit})=>libraProcessServices.libraRunAdminService.listPendingCommitted(cursor,limit)
+        .map(item=>Object.freeze({cursor:item.libraRunId,scope:item})),
+      reconcile:({libraRunId})=>libraProcessServices.libraRunAdminService.reconcileCommitted(libraRunId),
+    }),Object.freeze({
       ownerDomain:'arca',reconcilerKey:'aftercare-workspace-lifecycle',
       listPage:({cursor,limit})=>arcaProcessServices.aftercareContextReader.store.listAftercareWorkspaceLifecyclePage(cursor,limit),
       reconcile:({aftercareCaseId})=>arcaProcessServices.aftercareCoordinator.reconcileWorkspaceLifecycle(aftercareCaseId),
@@ -1183,6 +1194,7 @@ function createProcurementExecutionRuntime(options) {
     arcaFormationStatusProjection:arcaProcessServices.formationStatusProjection,
     arcaAcceptanceRecovery:arcaProcessServices.coordinator,
     arcaAftercareCoordinator:arcaProcessServices.aftercareCoordinator,
+    arcaDefectAdmission:arcaProcessServices.defectAdmission,
     arcaAftercareContextReader:arcaProcessServices.aftercareContextReader,
     arcaOffdeckCoordinator:arcaProcessServices.offdeckCoordinator,arcaOffdeckContextReader:arcaProcessServices.offdeckContextReader,
     arcaOffdeckAutomationCoordinator:arcaProcessServices.offdeckAutomationCoordinator,

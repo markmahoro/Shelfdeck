@@ -138,7 +138,7 @@ function findPassedConformance(options, snapshot, selectedMediaWork) {
   const authorized = evidence?.result === 'failed' &&
     snapshot.run.authorizedDefectManifest &&
     coversRequirementGaps(snapshot.run.authorizedDefectManifest,
-      evidence.unmetRequirementCodes || evidence.reasonCodes || []);
+      evidence.unmetRequirementCodes || evidence.reasonCodes || [],evidence);
   if (results.length !== 1 || (evidence?.result !== 'passed' && !authorized)) {
     throw new Error(
       'Libra Run must have one exact passed Product Conformance Evidence.',

@@ -1,6 +1,6 @@
 'use strict';
 
-const { canonicalDigest } = require('../../../contracts/canonical-json');
+const { canonicalDigest, canonicalJson } = require('../../../contracts/canonical-json');
 const { executionCatalogDigest } = require('../../../foundation/execution/workflow-plan');
 const {
   executionInputUnavailable,
@@ -16,6 +16,7 @@ const {
   metadataObservationWork,
   nextMetadataStage,
   requiredMetadataFields,
+  requiredArtifactKinds,
 } = require('./product-metadata-work');
 
 const IDENTITY_EVIDENCE = 'libra.product_identity.evidence.observe@1';
@@ -461,7 +462,7 @@ function productMetadataContext(options, libraRunId) {
   sources.sort((left,right)=>left.intent.sourcePriority-right.intent.sourcePriority);
   const basis=buildMetadataObservationBasis({intents:sources.map((item)=>item.intent),results,
     factKind:'product_metadata',expectedRevision:0});
-  const requirements=[...snapshot.spec.requirements.metadata.requiredArtifactKinds].map(artifactRequirement)
+  const requirements=[...requiredArtifactKinds(snapshot)].map(artifactRequirement)
     .sort((left,right)=>Buffer.from(left.artifactKind).compare(Buffer.from(right.artifactKind))||
       Buffer.from(left.requirementId).compare(Buffer.from(right.requirementId)));
   const requiredFields=requiredMetadataFields(snapshot);
@@ -479,9 +480,15 @@ function artifactVerificationContext(options, libraRunId) {
   const works=options.workResultReader.listWorks({ownerDomain:'libra',processType:'libra_run',processId:libraRunId,
     workKind:'artifact_production'}).filter((item)=>item.state==='succeeded')
     .sort((left,right)=>Buffer.from(left.work_id).compare(Buffer.from(right.work_id)));
-  const work=works[0];
-  if(!work)throw new Error('Artifact Production Work is not terminal.');
-  const all=options.workResultReader.read(work.work_id);
+  const expectedKinds=metadata.requirements.map(item=>item.artifactKind).sort();
+  const work=expectedKinds.length ? works.find(candidate=>{
+    const records=options.workResultReader.read(candidate.work_id).filter(item=>
+      item.outcomeKind==='succeeded'&&item.capabilityRef===ARTIFACT_VERIFY);
+    return records.every(item=>item.result?.result==='passed') &&
+      canonicalJson(records.map(item=>item.result.requirement.artifactKind).sort())===canonicalJson(expectedKinds);
+  }) : null;
+  if(!work&&metadata.requirements.length)throw new Error('Artifact Production Work is not terminal.');
+  const all=work?options.workResultReader.read(work.work_id):[];
   const verificationItems=all.filter((item)=>item.outcomeKind==='succeeded'&&item.capabilityRef===ARTIFACT_VERIFY)
     .map((item)=>{
       const binding=(item.inputBindings?.bindings||[]).find((candidate)=>candidate.portName==='artifactHandleList');
@@ -524,7 +531,7 @@ function artifactVerificationContext(options, libraRunId) {
     return Object.freeze({artifactHandle,requirement:verificationItem.result.requirement,
       verification:verificationItem.result,verifiedManifestItem});
   });
-  return Object.freeze({...metadata,artifactWorkId:work.work_id,verifiedArtifactManifest:Object.freeze(manifest),
+  return Object.freeze({...metadata,artifactWorkId:work?.work_id||null,verifiedArtifactManifest:Object.freeze(manifest),
     artifactMaterials:Object.freeze(artifactMaterials)});
 }
 
@@ -715,6 +722,9 @@ function createArtifactProductionProjections(options) {
         artifactKind:parameters.artifactKind});
     }})}),
     Object.freeze({projectionRef:ARTIFACT_HANDLE_LIST,projection:Object.freeze({project:({sourceResult,parameters})=>{
+      if(sourceResult?.schemaRef==='helix://contracts/types/ArtifactAcquisitionResult/v1' &&
+          sourceResult.resultKind==='not_available' && sourceResult.reasonCode && !sourceResult.artifactHandle)
+        return Object.freeze([]);
       const handle=sourceResult?.schemaRef==='helix://contracts/types/ArtifactAcquisitionResult/v1'
         ?sourceResult.artifactHandle:sourceResult;
       if(!handle||handle.artifactKind!==parameters.artifactKind)throw new Error('Required Product Artifact is unavailable.');

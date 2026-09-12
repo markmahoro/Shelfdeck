@@ -1,4 +1,5 @@
 'use strict';
+const { requirementGapValueDigest } = require('../../../contracts/requirement-gap-values');
 
 const { canonicalDigest } = require('../../../contracts/canonical-json');
 const { createRepositoryDefinition } = require('../../../foundation/persistence/owner-repository');
@@ -11,7 +12,12 @@ const {
 } = require('../model/defect-admission-contracts');
 const { createRunDiscardStore } = require('../persistence/run-discard-store');
 const { createRunLifecycleStore } = require('../persistence/run-lifecycle-store');
+const { createDefectAuthorizationStore } = require('../persistence/defect-authorization-store');
+const { createRunOutcomeStore } = require('../persistence/run-outcome-store');
 const { createWorkResultReader } = require('../../../foundation/execution/work-result-reader');
+const {metadataResultItems,observedFieldKeys,observedMediaCastRoles}=require('../planning/product-metadata-work');
+const {WAIVABLE_MEDIA_CODES}=require('../model/defect-admission-contracts');
+const {createStrategyAvailabilityStore}=require('../persistence/strategy-availability-store');
 
 class LibraRunAdminError extends Error {
   constructor(code, message, details = {}) {
@@ -33,6 +39,9 @@ function createLibraRunAdminService(options) {
       'Libra Run Admin requires Owner persistence and its Execution Projection.');
   }
   const lifecycle = createRunLifecycleStore(options);
+  const defectAuthorizations = createDefectAuthorizationStore(options);
+  const outcomes = createRunOutcomeStore(options);
+  const strategyAvailability=createStrategyAvailabilityStore(options);
   const discardStore = createRunDiscardStore(options);
   const workResultReader = options.workResultReader || createWorkResultReader(options);
   const repository = createRepositoryDefinition({
@@ -46,7 +55,7 @@ function createLibraRunAdminService(options) {
         columns: [
           'libra_run_id', 'subject_id', 'state', 'state_revision',
           'state_digest', 'priority_class', 'priority_intent_digest',
-          'acceptance_spec_id',
+          'acceptance_spec_id', 'execution_basis_digest',
         ],
         keyColumns: ['libra_run_id'],
         safeIntegers: true,
@@ -89,7 +98,8 @@ function createLibraRunAdminService(options) {
           'Active Libra Run admission head was not found.');
         const revisions = repo.invoke('list_revisions', { libra_run_id:libraRunId })
           .sort((left, right) => Number(left.state_revision) - Number(right.state_revision));
-        return Object.freeze({ run:Object.freeze(run), head:Object.freeze(head),
+        const specRow=repo.invoke('find_spec',{acceptance_spec_id:run.acceptance_spec_id});
+        return Object.freeze({ run:Object.freeze(run), head:Object.freeze(head),spec:specRow?JSON.parse(specRow.spec_json):null,
           revisions:Object.freeze(revisions) });
       },
     }]).libra_run_admin_snapshot;
@@ -188,29 +198,88 @@ function createLibraRunAdminService(options) {
     try { terminalEvidence = JSON.parse(terminalRow?.transition_evidence_json); } catch {
       fail('LIBRA_DEFECT_ADMISSION_TERMINAL', 'Frozen terminal Evidence is corrupt.');
     }
-    let directMediaVerification = null;
-    for (const work of workResultReader.listWorks({ ownerDomain:'libra',
-      processType:'libra_run', processId:libraRunId,
-      workKind:'workspace_media_production' })) {
+    if(terminalEvidence.assessmentId)fail('P9_DEFECT_ADMISSION_INELIGIBLE','Finite freshness recovery did not establish current product eligibility.');
+    const works = ['workspace_media_production','product_metadata_observation','artifact_production'].flatMap(workKind =>
+      workResultReader.listWorks({ ownerDomain:'libra', processType:'libra_run', processId:libraRunId, workKind }));
+    let directMediaVerification = null,verificationWorkId=null;
+    for (const work of works.filter(work => work.work_kind === 'workspace_media_production')) {
       const found = workResultReader.read(work.work_id).find((item) =>
         item.outcomeKind === 'succeeded' &&
         item.capabilityRef === 'libra.product_media.verify@1' &&
         item.result?.candidateKind === 'direct_input');
-      if (found) directMediaVerification = found.result;
+      if (found) {directMediaVerification = found.result;verificationWorkId=work.work_id;}
     }
-    const candidate = buildDefectAdmissionCandidate({
+    const metadata=metadataResultItems({workResultReader},libraRunId);
+    const fields=observedFieldKeys(metadata),roles=observedMediaCastRoles(metadata);
+    const missingMetadataFields=(snapshot.spec?.requirements?.metadata?.requiredFieldCodes || [])
+      .filter(code=>code==='actor'?!roles.has('actor'):!fields.has(code));
+    // The Work's owner-defined production objective locates the affected product
+    // dimension. Capability names and failure classifications are provenance,
+    // never authorization to waive a requirement.
+    const productGapPaths = Object.fromEntries(works.map(work => [work.work_id,
+      work.work_kind === 'product_metadata_observation' && metadata.length > 0 && missingMetadataFields.length > 0
+        ? 'metadata' : work.work_kind === 'workspace_media_production'
+          ? 'media' : null]));
+    const missingArtifactKindsByWork={};
+    for(const blocker of terminalEvidence.blockedWorks||[]) {
+      if(!works.some(work=>work.work_id===blocker.workId&&work.work_kind==='artifact_production'))continue;
+      const bindings=workResultReader.readBindings(blocker.workId);
+      const failed=bindings.find(item=>item.eventId===blocker.terminalEventId);
+      const verification=bindings.find(item=>item.inputBindings.bindings.some(binding=>binding.portName==='artifactHandleList'&&binding.eventId===failed?.eventId));
+      const kind=(failed?.inputBindings.bindings.find(binding=>binding.portName==='artifactRequirement')||
+        verification?.inputBindings.bindings.find(binding=>binding.portName==='artifactRequirement'))?.parameters?.artifactKind;
+      if(['nfo','poster','fanart'].includes(kind))missingArtifactKindsByWork[blocker.workId]=[kind];
+    }
+    const input = {
       run:Object.freeze({ libraRunId, state:'frozen',
         stateRevision:Number(snapshot.run.state_revision), stateDigest:snapshot.run.state_digest }),
       terminalEvidence,
       directMediaVerification,
-      sizeCapVerification:terminalEvidence.blockedWorks[0]?.failureCode === 'size_cap_requires_admission'
+      missingMetadataFields,
+      productGapPaths,
+      missingArtifactKindsByWork,
+      requirements:snapshot.spec?.requirements,
+      sizeCapVerification:terminalEvidence.blockedWorks?.[0]?.failureCode === 'size_cap_requires_admission'
         ? workResultReader.read(terminalEvidence.blockedWorks[0].workId).find((item) =>
           item.outcomeKind === 'succeeded' &&
           item.capabilityRef === 'libra.product_media.verify@1')?.result || null
         : null,
       priorAuthorizedManifest:latestDefect,
-    });
-    return candidate;
+    };
+    const verification=input.sizeCapVerification||directMediaVerification;
+    if(!verification || !snapshot.spec) {
+      const unfinished = works.some(work => !['succeeded','failed','cancelled','superseded'].includes(work.state));
+      fail(unfinished ? 'P9_DEFECT_ADMISSION_EVIDENCE_PENDING' : 'P9_DEFECT_ADMISSION_INELIGIBLE',
+        'Actual product safety and current requirement evidence are not complete.');
+    }
+    if(terminalEvidence.availabilityId) {
+      if(terminalEvidence.status!=='unavailable'||!verificationWorkId)
+        fail('P9_DEFECT_ADMISSION_INELIGIBLE','A bounded unavailable strategy and actual product proof are required.');
+      const sourceWorkId=terminalEvidence.strategyKind==='tmdb'?(metadata.at(-1)?.sourceWorkId||verificationWorkId):verificationWorkId;
+      productGapPaths[sourceWorkId]=terminalEvidence.strategyKind==='tmdb'?'metadata':'media';
+      input.candidateGapSources=[{workId:sourceWorkId,failureCode:terminalEvidence.reasonCode,
+        failureClass:'strategy_unavailable',capabilityRef:terminalEvidence.strategyKind==='tmdb'?'libra.product_metadata.fetch@1':'libra.product_media.verify@1',
+        terminalEvidenceDigest:terminalEvidence.evidenceDigest}];
+    }
+    if(verification.libraRunId!==libraRunId || (verification.reasonCodes || []).some(code=>!WAIVABLE_MEDIA_CODES.has(code)))
+      fail('P9_DEFECT_ADMISSION_NONWAIVABLE','Product evidence contains a non-waivable safety or identity failure.', {
+        productEvidence: {libraRunId,runStateRevision:Number(snapshot.run.state_revision),
+          runStateDigest:snapshot.run.state_digest,verificationId:verification.verificationId,
+          verificationDigest:canonicalDigest(verification),reasonCodes:verification.libraRunId===libraRunId
+            ? verification.reasonCodes.filter(code=>!WAIVABLE_MEDIA_CODES.has(code)) : ['product_identity_mismatch']},
+      });
+    const candidate=buildDefectAdmissionCandidate(input);
+    const gaps=candidate.defects.flatMap(defect=>defect.artifactKindCodes
+      ?defect.artifactKindCodes.map(kind=>({requirementCode:'metadata_artifact_unmet',targetKind:'artifact',targetId:kind,evidenceDigest:defect.sourceEvidenceDigest}))
+      :defect.metadataFieldCodes
+      ?defect.metadataFieldCodes.map(field=>({requirementCode:'metadata_field_unmet',targetKind:'metadata_field',targetId:field,evidenceDigest:defect.sourceEvidenceDigest}))
+      :defect.waivedRequirementCodes.map(code=>({requirementCode:code,targetKind:'media',targetId:verification.productMaterialHandleId,evidenceDigest:canonicalDigest(verification)})))
+      .map(gap=>({...gap,requiredValueDigest:requirementGapValueDigest(snapshot.spec.requirements,gap.requirementCode,gap.targetId)}));
+    const unique=[...new Map(gaps.map(gap=>[canonicalDigest(gap),gap])).values()].sort((a,b)=>canonicalDigest(a).localeCompare(canonicalDigest(b)));
+    return buildDefectAdmissionCandidate({...input,gapScope:Object.freeze({ownerDomain:'libra',processId:libraRunId,
+      productRevision:Number(snapshot.run.state_revision),acceptanceSpecId:snapshot.run.acceptance_spec_id,
+      acceptanceSpecRecordDigest:snapshot.spec.recordDigest,requirementsDigest:canonicalDigest(snapshot.spec.requirements),
+      productEvidenceDigest:canonicalDigest(verification),gaps:unique})});
   }
 
   function sizeForecastForRun(libraRunId, acceptanceSpecId, candidate) {
@@ -251,14 +320,87 @@ function createLibraRunAdminService(options) {
     }
   }
 
-  return Object.freeze({
+  const service = {
+    readOutcome: outcomes.get,
+    reprocessSourceFieldIds:outcomes.sourceFieldIds,
+    reconcileCommitted:outcomes.reconcileCommitted,
+    listPendingCommitted:outcomes.listPendingCommitted,
+    requestReprocess(libraRunId,body) {
+      const result=outcomes.requestReprocess(libraRunId,{...body,actorId:'admin'});
+      options.wake?.();
+      return result;
+    },
+    readAutomaticAuthorization: () => defectAuthorizations.current(),
+    waitUnavailableStrategy(libraRunId,strategyKind,reasonCode) {
+      const snapshot=current(libraRunId);
+      if(snapshot.run.state!=='active')return {kind:'not_active',libraRunId};
+      const conditions=options.readFailureRecoveryConditions?.([strategyKind])||[];
+      const evidence=strategyAvailability.observe({libraRunId,strategyKind,reasonCode,
+        conditionDigest:canonicalDigest(conditions),now:options.now?.()??Date.now()},snapshot.run);
+      if(!evidence||evidence.status==='waiting')return {kind:'waiting_external_integration',libraRunId,reasonCode};
+      const decision=buildRunLifecycleDecision({libraRunId,expectedStateRevision:Number(snapshot.run.state_revision),
+        expectedStateDigest:snapshot.run.state_digest,transitionKind:'freeze',
+        transitionEvidence:evidence,expectedAdmissionHeadRevision:Number(snapshot.head.head_revision),
+        expectedActiveScopeSetDigest:snapshot.head.active_scope_set_digest});
+      lifecycle.transition({decision,commitMarker:canonicalDigest({schema:'libra.strategy-availability-marker@1',decisionDigest:decision.decisionDigest}),
+        resultId:canonicalDigest({schema:'libra.strategy-availability-result@1',decisionDigest:decision.decisionDigest})});
+      options.libraRunExecutionProjection.invalidate(libraRunId);options.wake?.();
+      return {kind:evidence.status==='unavailable'?'frozen':'waiting_external_integration',libraRunId,reasonCode};
+    },
+    setAutomaticAuthorization(body) {
+      const result = defectAuthorizations.publish({ ...body, actorId: 'admin' });
+      options.wake?.();
+      return result;
+    },
+    reconcileRejected(libraRunId) {
+      const snapshot=current(libraRunId);
+      try {
+        const result=service.discard(libraRunId,{expectedRunStateRevision:Number(snapshot.run.state_revision),
+          expectedRunStateDigest:snapshot.run.state_digest,idempotencyKey:'terminal-rejected:'+libraRunId+':'+snapshot.run.state_revision},'processing_failed');
+        return Object.freeze({...result,kind:result.resultKind==='discarded'?'unable_to_on_deck':'closure_pending',libraRunId});
+      } catch(error) {
+        if(['P9_DISCARD_EXECUTION_PENDING','P9_DISCARD_EFFECT_PENDING'].includes(error.code))
+          return Object.freeze({kind:'closure_pending',libraRunId,reasonCode:error.code});
+        throw error;
+      }
+    },
+    reconcileFrozen(libraRunId) {
+      const authorization = defectAuthorizations.current();
+      let candidate;
+      try { candidate = defectCandidate(libraRunId); }
+      catch (error) {
+        if(error.code==='P9_DEFECT_ADMISSION_EVIDENCE_PENDING')return Object.freeze({kind:'evidence_pending',libraRunId});
+        if (['P9_DEFECT_ADMISSION_INELIGIBLE','P9_DEFECT_ADMISSION_NONWAIVABLE'].includes(error.code)) {
+          const snapshot=current(libraRunId);
+          try {
+            const result=service.discard(libraRunId,{expectedRunStateRevision:Number(snapshot.run.state_revision),
+              expectedRunStateDigest:snapshot.run.state_digest,idempotencyKey:'terminal:'+libraRunId+':'+snapshot.run.state_revision},'processing_failed',error.details?.productEvidence);
+            return Object.freeze({...result,kind:result.resultKind==='discarded'?'unable_to_on_deck':'closure_pending',libraRunId});
+          } catch (closureError) {
+            if(['P9_DISCARD_EXECUTION_PENDING','P9_DISCARD_EFFECT_PENDING'].includes(closureError.code))
+              return Object.freeze({kind:'closure_pending',libraRunId,reasonCode:closureError.code});
+            throw closureError;
+          }
+        }
+        throw error;
+      }
+      if (authorization?.state !== 'enabled') return Object.freeze({kind:'awaiting_defect_decision',libraRunId});
+      const result = service.admitWithDefects(libraRunId, {
+        expectedRunStateRevision: candidate.frozenRunStateRevision,
+        expectedRunStateDigest: candidate.frozenRunStateDigest,
+        expectedDefectCandidateDigest: candidate.candidateDigest,
+        idempotencyKey: canonicalDigest({authorization: authorization.authorizationDigest, candidate: candidate.candidateDigest}),
+        acknowledged: true,
+      }, authorization);
+      return Object.freeze({ ...result, kind:'defect_admitted' });
+    },
     expedite(libraRunId, body) {
       return setPriority(libraRunId, body, 'expedited');
     },
     cancelExpedite(libraRunId, body) {
       return setPriority(libraRunId, body, 'normal');
     },
-    discard(libraRunId, body) {
+    discard(libraRunId, body, terminalReason = 'user_cancelled', productEvidence = null) {
       if (!body || typeof body.idempotencyKey !== 'string' ||
           !body.idempotencyKey ||
           !Number.isSafeInteger(body.expectedRunStateRevision) ||
@@ -270,13 +412,17 @@ function createLibraRunAdminService(options) {
         libraRunId,
         expectedRunStateRevision: body.expectedRunStateRevision,
         expectedRunStateDigest: body.expectedRunStateDigest,
-        actorId: 'admin',
+        actorId: terminalReason === 'user_cancelled' ? 'admin' : 'system',
         idempotencyKey: body.idempotencyKey,
       });
       const subjectId = current(libraRunId).run.subject_id;
       const inspected = discardStore.inspect(command);
+      if(inspected.kind==='ready') {
+        const cancelled=options.cancelProcessWorks?.({ownerDomain:'libra',processType:'libra_run',processId:libraRunId,reasonCode:'LIBRA_RUN_TERMINAL_CLOSURE'});
+        if(Number(cancelled?.drainingWorks || 0)>0)return Object.freeze({resultKind:'closure_pending',libraRunId});
+      }
       const result = inspected.kind === 'ready'
-        ? discardStore.commit(inspected) : inspected;
+        ? discardStore.commit(inspected,terminalReason,productEvidence) : inspected;
       if (result.resultKind === 'discarded') {
         const released = options.pipelineAdmission?.releaseForSubject(subjectId) || null;
         if (released?.released) options.onPipelineSeatReleased?.(released);
@@ -287,18 +433,31 @@ function createLibraRunAdminService(options) {
     },
     previewDefects(libraRunId) {
       const snapshot = current(libraRunId);
-      const candidate = defectCandidate(libraRunId, snapshot);
+      const terminalRow=snapshot.revisions.find(row=>Number(row.state_revision)===Number(snapshot.run.state_revision));
+      const terminal=JSON.parse(terminalRow.transition_evidence_json);
+      const pathResults=(terminal.blockedWorks||[]).map(item=>({workId:item.workId,capabilityRef:item.capabilityRef,
+        failureClass:item.failureClass,failureCode:item.failureCode,evidenceDigest:item.terminalEvidenceDigest}));
+      let candidate;
+      try {candidate=defectCandidate(libraRunId,snapshot);}catch(error) {
+        if(error.code==='P9_DEFECT_ADMISSION_EVIDENCE_PENDING')return Object.freeze({eligibility:'evidence_pending',libraRunId,
+          missingEvidence:['product_safety_and_exact_requirements'],ineligibleReasons:[],pathResults,message:'尚缺少完整的成品安全或差距证据。'});
+        if(['P9_DEFECT_ADMISSION_INELIGIBLE','P9_DEFECT_ADMISSION_NONWAIVABLE'].includes(error.code))return Object.freeze({
+          eligibility:'ineligible',libraRunId,missingEvidence:[],ineligibleReasons:[error.code],pathResults,
+          message:error.code==='P9_DEFECT_ADMISSION_NONWAIVABLE'?'当前成品有不可豁免的安全或身份问题。':'本次处理没有已证实可接受的成品差距。'});
+        throw error;
+      }
+      const preview=Object.freeze({...candidate,eligibility:'eligible',missingEvidence:[],ineligibleReasons:[],pathResults});
       if (!candidate.defects.some((item) => item.defectCode === 'size_cap_exceeded')) {
-        return candidate;
+        return preview;
       }
       const sizeForecast = sizeForecastForRun(
         libraRunId,
         snapshot.run.acceptance_spec_id,
         candidate,
       );
-      return sizeForecast ? Object.freeze({ ...candidate, sizeForecast }) : candidate;
+      return sizeForecast ? Object.freeze({ ...preview, sizeForecast }) : preview;
     },
-    admitWithDefects(libraRunId, body) {
+    admitWithDefects(libraRunId, body, standingAuthorization = null) {
       if (!body || typeof body.idempotencyKey !== 'string' || !body.idempotencyKey ||
           !Number.isSafeInteger(body.expectedRunStateRevision) ||
           typeof body.expectedRunStateDigest !== 'string' ||
@@ -333,6 +492,7 @@ function createLibraRunAdminService(options) {
           { currentCandidateDigest:candidate.candidateDigest });
       }
       const manifest = buildAuthorizedDefectManifest({ candidate, actorId:'admin',
+        standingAuthorization,
         idempotencyKey:body.idempotencyKey, acknowledged:true,
         decidedAtMs:(options.now || Date.now)() });
       const decision = buildRunLifecycleDecision({ libraRunId,
@@ -353,7 +513,15 @@ function createLibraRunAdminService(options) {
         stateDigest:committed.result.committedStateDigest,
         authorizedDefectManifest:manifest, replayed:committed.replayed });
     },
-  });
+  };
+  const buildPreview=service.previewDefects;
+  service.previewDefects=(libraRunId)=>{
+    const preview=buildPreview(libraRunId);
+    if(Buffer.byteLength(JSON.stringify(preview))>65536)fail('P9_DEFECT_ADMISSION_TOO_LARGE','Defect preview exceeds its bounded response budget.');
+    options.contractValidator?.validate('helix://contracts/application-types/LibraDefectPreview/v1',preview);
+    return preview;
+  };
+  return Object.freeze(service);
 }
 
 module.exports = Object.freeze({ LibraRunAdminError, createLibraRunAdminService });

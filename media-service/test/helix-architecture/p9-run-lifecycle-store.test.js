@@ -44,6 +44,47 @@ function sizeCapTerminal(input,reasonCodes){
   return {store,built};
 }
 
+test('UAT-251 unavailable integration waits through five durable checks before responsibility closure',()=>fixture(input=>{
+  let at=10000;
+  const make=()=>require('../../src/helix/domains/libra/application/libra-run-admin-service').createLibraRunAdminService({
+    schemaManifest,unitOfWork:input.unitOfWork,now:()=>at,libraRunExecutionProjection:{invalidate(){}},
+    readFailureRecoveryConditions:kinds=>kinds.map(conditionKind=>({conditionKind,snapshotDigest:D('unavailable-provider')}))});
+  let service=make();
+  assert.equal(service.waitUnavailableStrategy(input.libraRunId,'tmdb','product_metadata_integration_unavailable').kind,'waiting_external_integration');
+  const db=new Database(input.databasePath,{readonly:true});
+  const initialRevision=db.prepare('SELECT state_revision FROM libra_runs').get().state_revision;
+  for(let i=0;i<3;i++)service.waitUnavailableStrategy(input.libraRunId,'tmdb','product_metadata_integration_unavailable');
+  assert.equal(db.prepare('SELECT state_revision FROM libra_runs').get().state_revision,initialRevision);
+  service=make();
+  for(const offset of [60000,300000,900000,1800000]) {at=10000+offset;
+    assert.equal(service.waitUnavailableStrategy(input.libraRunId,'tmdb','product_metadata_integration_unavailable').kind,'waiting_external_integration');}
+  assert.equal(db.prepare('SELECT state FROM libra_runs').get().state,'active');
+  at=3610000;assert.equal(service.waitUnavailableStrategy(input.libraRunId,'tmdb','product_metadata_integration_unavailable').kind,'frozen');
+  assert.equal(service.reconcileFrozen(input.libraRunId).kind,'unable_to_on_deck');
+  assert.equal(service.readOutcome(input.libraRunId).terminalReasons[0].failureClass,'strategy_unavailable');
+  assert.equal(db.prepare('SELECT count(*) n FROM fx_supporting_works').get().n,0);
+  assert.equal(db.prepare('SELECT count(*) n FROM libra_run_outcomes').get().n,1);
+  assert.ok(db.prepare('SELECT state FROM fx_material_controls').all().every(row=>row.state==='released'));db.close();
+}));
+
+test('UAT-251 exhausted Freshness recovery closes from its actual Assessment without a failed Work',()=>fixture(input=>{
+  const db=new Database(input.databasePath);
+  try {
+  db.prepare("UPDATE libra_decision_basis_revisions SET status='unresolved',unresolved_reason_code='required_input_missing' WHERE decision_basis_id='basis-1'").run();
+  let at=2000;const options={schemaManifest,unitOfWork:input.unitOfWork,now:()=>at,libraRunExecutionProjection:{invalidate(){}}};
+  const lifecycle=require('../../src/helix/domains/libra/application/libra-run-lifecycle-service').createLibraRunLifecycleService(options);
+  assert.equal(lifecycle.reconcile(input.libraRunId).kind,'suspend');
+  for(const offset of [60000,300000,900000,1800000,3600000]){at=2000+offset;lifecycle.reconcile(input.libraRunId);}
+  assert.equal(db.prepare('SELECT state FROM libra_runs').get().state,'frozen');
+  const admin=require('../../src/helix/domains/libra/application/libra-run-admin-service').createLibraRunAdminService(options);
+  assert.equal(admin.previewDefects(input.libraRunId).eligibility,'ineligible');
+  assert.equal(admin.reconcileFrozen(input.libraRunId).kind,'unable_to_on_deck');
+  assert.equal(admin.readOutcome(input.libraRunId).reasonCode,'processing_failed');
+  assert.deepEqual(admin.readOutcome(input.libraRunId).terminalReasons,[]);
+  assert.equal(db.prepare('SELECT count(*) n FROM fx_supporting_works').get().n,0);
+  }finally{db.close();}
+}));
+
 test('atomically confirms owner-row freshness and replays the durable lifecycle Result',()=>fixture((input)=>{const store=createRunLifecycleStore({schemaManifest,unitOfWork:input.unitOfWork}),decision=lifecycleDecision(input,freshness(input),'freshness_confirmed'),first=store.transition({decision,commitMarker:'life-marker',resultId:'life-result'}),replay=store.transition({decision,commitMarker:'life-marker',resultId:'life-result'});assert.equal(first.replayed,false);assert.equal(replay.replayed,true);assert.deepEqual(replay.result,first.result);const db=new Database(input.databasePath,{readonly:true}),run=db.prepare('SELECT state,state_revision,latest_freshness_assessment_id FROM libra_runs').get();assert.equal(run.state,'active');assert.equal(run.state_revision,2);assert.equal(run.latest_freshness_assessment_id,decision.transitionEvidence.assessmentId);assert.equal(db.prepare('SELECT COUNT(*) n FROM libra_run_revisions').get().n,2);assert.equal(db.prepare('SELECT COUNT(*) n FROM fx_outbox').get().n,0);db.close();}));
 test('freshness validates Control only for primary_control bindings and preserves related_derived obligations',()=>fixture((input)=>{const db=new Database(input.databasePath),primary=db.prepare("SELECT material_key FROM libra_material_bindings WHERE authority_kind='primary_control'").get().material_key,identity={mountScopeId:'mount-1',inode:'12',sizeBytes:50,fingerprintAlgorithm:'middle-256k-sha256',fingerprintVersion:1,contentFingerprint:D('related-content')},materialKey=canonicalDigest({schema:'physical-material-identity@2',...identity});db.prepare('INSERT INTO libra_material_bindings (subject_id,material_key,role,authority_kind,primary_material_key,association_evidence_digest,disposition_basis_digest,mount_scope_id,inode,fingerprint_algorithm,fingerprint_version,content_fingerprint,size_bytes,endpoint_id,location,binding_revision,health_state,evidence_digest,origin_intake_decision_id,origin_offer_id,origin_candidate_package_id,origin_package_revision,origin_package_digest,origin_candidate_delivery_snapshot_digest,origin_related_reference_set_digest,origin_related_disposition_scope_digest,current) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)').run('subject-1',materialKey,'poster','related_derived',primary,D('association'),D('disposition'),identity.mountScopeId,identity.inode,identity.fingerprintAlgorithm,identity.fingerprintVersion,identity.contentFingerprint,identity.sizeBytes,'endpoint-1','/library/poster.jpg',1,'active',D('related-binding'),'intake-1','offer-1','candidate-1',1,D('package'),D('delivery'),D('related'),D('related-scope'),1);db.close();const assessed=createRunLifecycleStore({schemaManifest,unitOfWork:input.unitOfWork}).assess({libraRunId:input.libraRunId,assessedAtMs:2000});assert.equal(assessed.kind,'assessment');assert.equal(assessed.assessment.readiness,'ready');assert.equal(assessed.assessment.comparison,'same');assert.equal(assessed.assessment.currentBasis.members.length,1);}));
 test('same semantic Acceptance Spec with new provenance keeps the original Run',()=>fixture((input)=>{const db=new Database(input.databasePath),old=db.prepare("SELECT * FROM libra_acceptance_specs WHERE acceptance_spec_id='spec-1'").get(),spec=JSON.parse(old.spec_json),recordDigest=D('record-2');Object.assign(spec,{acceptanceSpecId:'spec-2',specRevision:2,recordDigest,decisionBasisId:'basis-2'});db.prepare('INSERT INTO libra_decision_basis_revisions (decision_basis_id,subject_id,basis_kind,basis_revision,expected_head_revision,expected_head_snapshot_digest,routing_decision_id,query_result_set_digest,routing_input_digest,spec_input_digest,product_scope_digest,input_set_digest,status,basis_digest,committed_at_ms) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)').run('basis-2','subject-1','acceptance_spec',2,4,D('head-4'),null,D('queries-2'),null,D('spec-input-2'),old.product_scope_digest,D('inputs-2'),'ready',D('basis-2'),2);db.prepare('INSERT INTO libra_acceptance_specs (acceptance_spec_id,subject_id,shelf_id,shelf_routing_projection_revision,shelf_projection_digest,shelf_standard_revision,shelf_standard_digest,decision_basis_id,product_scope_digest,spec_revision,spec_schema_ref,spec_json,spec_digest,record_digest,structure_kind,content_profile,published_at_ms) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)').run('spec-2','subject-1',old.shelf_id,old.shelf_routing_projection_revision,old.shelf_projection_digest,old.shelf_standard_revision,old.shelf_standard_digest,'basis-2',old.product_scope_digest,2,old.spec_schema_ref,canonicalJson(spec),old.spec_digest,recordDigest,old.structure_kind,old.content_profile,2);const head={subjectId:'subject-1',headRevision:5,currentRoutingDecisionId:null,currentDecisionBasisId:'basis-2',currentAcceptanceSpecId:'spec-2'},headDigest=canonicalDigest({schema:'libra.subject-decision-head@1',...head});db.prepare('UPDATE libra_subject_decision_heads SET head_revision=?,head_digest=?,current_decision_basis_id=?,current_acceptance_spec_id=?,updated_at_ms=? WHERE subject_id=?').run(5,headDigest,'basis-2','spec-2',2,'subject-1');db.close();const assessed=createRunLifecycleStore({schemaManifest,unitOfWork:input.unitOfWork}).assess({libraRunId:input.libraRunId,assessedAtMs:2000});assert.equal(assessed.kind,'assessment');assert.equal(assessed.assessment.currentBasis.acceptanceSpecRef.acceptanceSpecId,'spec-2');assert.notEqual(assessed.assessment.originalBasis.acceptanceSpecRef.recordDigest,assessed.assessment.currentBasis.acceptanceSpecRef.recordDigest);assert.equal(assessed.assessment.originalBasis.acceptanceSpecRef.specDigest,assessed.assessment.currentBasis.acceptanceSpecRef.specDigest);assert.equal(assessed.assessment.comparison,'same');assert.equal(assessed.assessment.dimensionResults.find((item)=>item.dimension==='acceptance_spec').result,'same');assert.equal(assessed.assessment.dimensionResults.find((item)=>item.dimension==='output_requirement').result,'same');}));
@@ -167,6 +208,7 @@ test('discard is a frozen-only atomic exit that releases original input Control 
   const rolledBack=new Database(input.databasePath,{readonly:true});
   assert.equal(rolledBack.prepare('SELECT state FROM libra_runs').get().state,'frozen');
   assert.equal(rolledBack.prepare('SELECT state FROM fx_material_controls').get().state,'controlled');
+  assert.equal(rolledBack.prepare('SELECT COUNT(*) n FROM libra_run_outcomes').get().n,0);
   assert.equal(rolledBack.prepare('SELECT COUNT(*) n FROM libra_run_discard_decisions').get().n,0);rolledBack.close();
   const result=store.commit(inspected);assert.equal(result.resultKind,'discarded');assert.equal(result.cleanupMemberCount,0);
   assert.equal(result.discardReceipt.cleanupScopeId,null);
@@ -174,6 +216,29 @@ test('discard is a frozen-only atomic exit that releases original input Control 
   const check=new Database(input.databasePath,{readonly:true});
   assert.equal(check.prepare('SELECT state FROM libra_runs').get().state,'discarded');
   assert.equal(check.prepare('SELECT state FROM fx_material_controls').get().state,'released');
+  const outcomes=require('../../src/helix/domains/libra/persistence/run-outcome-store').createRunOutcomeStore({schemaManifest,unitOfWork:input.unitOfWork});
+  const outcome=outcomes.get(input.libraRunId);
+  assert.equal(outcome.outcome,'unable_to_on_deck');assert.equal(outcome.reasonCode,'user_cancelled');
+  assert.deepEqual(outcome.responsibilityReceipt,result.discardReceipt);
+  const members=check.prepare('SELECT material_key AS materialKey,role FROM libra_run_material_members').all();
+  const requirements=JSON.parse(check.prepare('SELECT spec_json FROM libra_acceptance_specs').get().spec_json).requirements;
+  const source=offerId=>({offer:{offerId},snapshot:{primaryMaterialDeliveries:members}});
+  assert.equal(outcomes.checkReentry(source('new-observation'),()=>requirements).kind,'reentry_suppressed');
+  assert.equal(outcomes.checkReentry(source('changed-requirements'),()=>({...requirements,revisionForFixture:'changed'})),null);
+  assert.equal(outcomes.checkReentry(source('second-changed-requirements'),()=>({...requirements,revisionForFixture:'changed'})).kind,'reentry_suppressed');
+  const conditionStore=require('../../src/helix/domains/libra/persistence/run-outcome-store').createRunOutcomeStore({schemaManifest,
+    unitOfWork:input.unitOfWork,readFailureRecoveryConditions:()=>[{conditionKind:'tmdb',snapshotDigest:D('changed-provider')}]});
+  assert.equal(conditionStore.checkReentry(source('changed-provider'),()=>requirements),null);
+  assert.equal(conditionStore.checkReentry(source('another-offer-same-provider'),()=>requirements).kind,'reentry_suppressed');
+  const intent=outcomes.requestReprocess(input.libraRunId,{expectedOutcomeDigest:outcome.outcomeDigest,actorId:'admin',idempotencyKey:'retry-1'});
+  assert.equal(intent.replayed,false);
+  assert.equal(outcomes.requestReprocess(input.libraRunId,{expectedOutcomeDigest:outcome.outcomeDigest,actorId:'admin',idempotencyKey:'retry-1'}).replayed,true);
+  assert.throws(()=>outcomes.requestReprocess(input.libraRunId,{expectedOutcomeDigest:outcome.outcomeDigest,actorId:'admin',idempotencyKey:'retry-2'}),
+    {code:'LIBRA_REPROCESS_ALREADY_REQUESTED'});
+  assert.deepEqual(outcomes.sourceFieldIds(input.libraRunId),['field-1']);
+  assert.equal(outcomes.checkReentry(source('chosen-offer'),()=>requirements),null);
+  assert.equal(outcomes.checkReentry(source('chosen-offer'),()=>requirements),null);
+  assert.equal(outcomes.checkReentry(source('another-observation'),()=>requirements).kind,'reentry_suppressed');
   assert.equal(check.prepare('SELECT COUNT(*) n FROM libra_workspace_cleanup_scopes').get().n,0);
   assert.equal(check.prepare("SELECT COUNT(*) n FROM fx_outbox WHERE message_kind='libra.workspace-cleanup.requested@1'").get().n,1);
   assert.equal(check.prepare("SELECT consumer_domain FROM fx_outbox_deliveries WHERE message_id=(SELECT message_id FROM fx_outbox WHERE message_kind='libra.workspace-cleanup.requested@1')").get().consumer_domain,'libra');
@@ -194,9 +259,12 @@ test('discard accepts an active Run whose Handoff B Delivery Receipt is already 
     expectedRunStateDigest:input.admitted.stateDigest,actorId:'admin',idempotencyKey:'discard-rejected'});
   const inspected=store.inspect(command);
   assert.equal(inspected.kind,'ready', inspected.resultKind || inspected.kind);
-  const result=store.commit(inspected);
+  const result=store.commit(inspected,'processing_failed');
   assert.equal(result.resultKind,'discarded');
   const check=new Database(input.databasePath,{readonly:true});
   assert.equal(check.prepare('SELECT state FROM libra_runs').get().state,'discarded');
+  const outcome=JSON.parse(check.prepare('SELECT outcome_json FROM libra_run_outcomes').get().outcome_json);
+  assert.equal(outcome.reasonCode,'processing_failed');
+  assert.deepEqual(outcome.terminalReasons.map(x=>x.failureCode),['handoff_b_rejected']);
   check.close();
 }));

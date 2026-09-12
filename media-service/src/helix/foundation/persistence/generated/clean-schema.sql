@@ -198,6 +198,50 @@ CREATE TABLE "arca_deck_fact_revisions" (
   FOREIGN KEY ("shelf_entry_id") REFERENCES "arca_shelf_entries" ("shelf_entry_id") ON DELETE RESTRICT
 );
 
+CREATE TABLE "arca_defect_admission_heads" (
+  "shelf_entry_id" TEXT PRIMARY KEY,
+  "current_revision" INTEGER CHECK ("current_revision" >= 1),
+  "updated_at_ms" INTEGER CHECK ("updated_at_ms" >= 0),
+  FOREIGN KEY ("shelf_entry_id", "current_revision") REFERENCES "arca_defect_admissions" ("shelf_entry_id", "revision") ON DELETE RESTRICT
+);
+
+CREATE TABLE "arca_defect_admissions" (
+  "shelf_entry_id" TEXT,
+  "revision" INTEGER CHECK ("revision" >= 1),
+  "inventory_revision" INTEGER CHECK ("inventory_revision" >= 1),
+  "care_basis_digest" TEXT CHECK (length("care_basis_digest") = 64 AND "care_basis_digest" NOT GLOB '*[^0-9a-f]*'),
+  "gap_set_digest" TEXT CHECK (length("gap_set_digest") = 64 AND "gap_set_digest" NOT GLOB '*[^0-9a-f]*'),
+  "authorization_schema_ref" TEXT,
+  "authorization_json" TEXT,
+  "authorization_digest" TEXT CHECK (length("authorization_digest") = 64 AND "authorization_digest" NOT GLOB '*[^0-9a-f]*'),
+  "actor_id" TEXT,
+  "idempotency_key" TEXT,
+  "decided_at_ms" INTEGER CHECK ("decided_at_ms" >= 0),
+  PRIMARY KEY ("shelf_entry_id", "revision"),
+  UNIQUE ("shelf_entry_id", "actor_id", "idempotency_key"),
+  CHECK (json_valid("authorization_json")),
+  CHECK (length(CAST("authorization_json" AS BLOB)) <= 65536),
+  FOREIGN KEY ("shelf_entry_id") REFERENCES "arca_shelf_entries" ("shelf_entry_id") ON DELETE RESTRICT
+);
+
+CREATE TABLE "arca_defect_repair_intents" (
+  "intent_id" TEXT PRIMARY KEY,
+  "shelf_entry_id" TEXT,
+  "inventory_revision" INTEGER CHECK ("inventory_revision" >= 1),
+  "care_basis_digest" TEXT CHECK (length("care_basis_digest") = 64 AND "care_basis_digest" NOT GLOB '*[^0-9a-f]*'),
+  "gap_set_digest" TEXT CHECK (length("gap_set_digest") = 64 AND "gap_set_digest" NOT GLOB '*[^0-9a-f]*'),
+  "authorization_revision" INTEGER CHECK ("authorization_revision" >= 1),
+  "aftercare_case_id" TEXT,
+  "actor_id" TEXT,
+  "idempotency_key" TEXT,
+  "intent_digest" TEXT CHECK (length("intent_digest") = 64 AND "intent_digest" NOT GLOB '*[^0-9a-f]*'),
+  "issued_at_ms" INTEGER CHECK ("issued_at_ms" >= 0),
+  UNIQUE ("shelf_entry_id", "actor_id", "idempotency_key"),
+  UNIQUE ("aftercare_case_id"),
+  FOREIGN KEY ("shelf_entry_id") REFERENCES "arca_shelf_entries" ("shelf_entry_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("aftercare_case_id") REFERENCES "arca_aftercare_cases" ("aftercare_case_id") ON DELETE RESTRICT
+);
+
 CREATE TABLE "arca_deregistration_receipts" (
   "receipt_id" TEXT PRIMARY KEY,
   "deregistration_id" TEXT,
@@ -1453,6 +1497,25 @@ CREATE TABLE "libra_decision_basis_revisions" (
 );
 CREATE INDEX "idx_libra_decision_basis_revisions_hot_01" ON "libra_decision_basis_revisions" ("subject_id", "status", "basis_revision");
 
+CREATE TABLE "libra_defect_authorization_head" (
+  "singleton_key" TEXT PRIMARY KEY,
+  "current_authorization_id" TEXT,
+  "current_revision" INTEGER CHECK ("current_revision" >= 1),
+  "updated_at_ms" INTEGER CHECK ("updated_at_ms" >= 0),
+  FOREIGN KEY ("current_authorization_id", "current_revision") REFERENCES "libra_defect_authorizations" ("authorization_id", "revision") ON DELETE RESTRICT
+);
+
+CREATE TABLE "libra_defect_authorizations" (
+  "authorization_id" TEXT,
+  "revision" INTEGER CHECK ("revision" >= 1),
+  "state" TEXT CHECK ("state" IN ('enabled', 'revoked')),
+  "actor_id" TEXT,
+  "authorization_digest" TEXT CHECK (length("authorization_digest") = 64 AND "authorization_digest" NOT GLOB '*[^0-9a-f]*'),
+  "effective_at_ms" INTEGER CHECK ("effective_at_ms" >= 0),
+  "revoked_at_ms" INTEGER CHECK ("revoked_at_ms" >= 0),
+  PRIMARY KEY ("authorization_id", "revision")
+);
+
 CREATE TABLE "libra_delivery_receipts" (
   "receipt_id" TEXT PRIMARY KEY,
   "offer_id" TEXT,
@@ -2007,6 +2070,18 @@ CREATE TABLE "libra_product_packages" (
 );
 CREATE INDEX "idx_libra_product_packages_hot_01" ON "libra_product_packages" ("shelf_id", "state", "published_at_ms");
 
+CREATE TABLE "libra_reprocess_intents" (
+  "intent_id" TEXT PRIMARY KEY,
+  "stable_input_digest" TEXT CHECK (length("stable_input_digest") = 64 AND "stable_input_digest" NOT GLOB '*[^0-9a-f]*'),
+  "previous_outcome_digest" TEXT CHECK (length("previous_outcome_digest") = 64 AND "previous_outcome_digest" NOT GLOB '*[^0-9a-f]*'),
+  "actor_id" TEXT,
+  "idempotency_key" TEXT,
+  "intent_digest" TEXT CHECK (length("intent_digest") = 64 AND "intent_digest" NOT GLOB '*[^0-9a-f]*'),
+  "issued_at_ms" INTEGER CHECK ("issued_at_ms" >= 0),
+  UNIQUE ("actor_id", "idempotency_key")
+);
+CREATE INDEX "idx_libra_reprocess_intents_hot_01" ON "libra_reprocess_intents" ("stable_input_digest", "issued_at_ms");
+
 CREATE TABLE "libra_routing_assessments" (
   "routing_assessment_id" TEXT PRIMARY KEY,
   "subject_id" TEXT,
@@ -2181,6 +2256,26 @@ CREATE TABLE "libra_run_material_members" (
   FOREIGN KEY ("origin_intake_decision_id") REFERENCES "libra_intake_decisions" ("intake_decision_id") ON DELETE RESTRICT
 );
 
+CREATE TABLE "libra_run_outcomes" (
+  "libra_run_id" TEXT PRIMARY KEY,
+  "subject_id" TEXT,
+  "outcome" TEXT CHECK ("outcome" IN ('on_deck', 'on_deck_with_defects', 'unable_to_on_deck')),
+  "reason_code" TEXT,
+  "stable_input_digest" TEXT CHECK (length("stable_input_digest") = 64 AND "stable_input_digest" NOT GLOB '*[^0-9a-f]*'),
+  "requirements_digest" TEXT CHECK (length("requirements_digest") = 64 AND "requirements_digest" NOT GLOB '*[^0-9a-f]*'),
+  "conditions_digest" TEXT CHECK (length("conditions_digest") = 64 AND "conditions_digest" NOT GLOB '*[^0-9a-f]*'),
+  "outcome_schema_ref" TEXT,
+  "outcome_json" TEXT,
+  "outcome_digest" TEXT CHECK (length("outcome_digest") = 64 AND "outcome_digest" NOT GLOB '*[^0-9a-f]*'),
+  "committed_at_ms" INTEGER CHECK ("committed_at_ms" >= 0),
+  CHECK (json_valid("outcome_json")),
+  CHECK (length(CAST("outcome_json" AS BLOB)) <= 65536),
+  FOREIGN KEY ("libra_run_id") REFERENCES "libra_runs" ("libra_run_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("subject_id") REFERENCES "libra_subjects" ("subject_id") ON DELETE RESTRICT
+);
+CREATE INDEX "idx_libra_run_outcomes_hot_01" ON "libra_run_outcomes" ("subject_id", "committed_at_ms");
+CREATE INDEX "idx_libra_run_outcomes_hot_02" ON "libra_run_outcomes" ("stable_input_digest", "requirements_digest", "conditions_digest");
+
 CREATE TABLE "libra_run_revisions" (
   "libra_run_id" TEXT,
   "state_revision" INTEGER CHECK ("state_revision" >= 1),
@@ -2254,6 +2349,21 @@ CREATE TABLE "libra_runs" (
   FOREIGN KEY ("superseded_by_run_id") REFERENCES "libra_runs" ("libra_run_id") ON DELETE RESTRICT
 );
 CREATE INDEX "idx_libra_runs_hot_01" ON "libra_runs" ("state", "recovery_next_due_at_ms", "priority_class", "created_at_ms");
+
+CREATE TABLE "libra_strategy_availability" (
+  "libra_run_id" TEXT,
+  "strategy_kind" TEXT CHECK ("strategy_kind" IN ('moviepilot', 'tmdb')),
+  "condition_digest" TEXT CHECK (length("condition_digest") = 64 AND "condition_digest" NOT GLOB '*[^0-9a-f]*'),
+  "check_ordinal" INTEGER CHECK ("check_ordinal" IN ('0', '1', '2', '3', '4', '5')) CHECK ("check_ordinal" >= 0),
+  "evidence_schema_ref" TEXT,
+  "evidence_json" TEXT,
+  "evidence_digest" TEXT CHECK (length("evidence_digest") = 64 AND "evidence_digest" NOT GLOB '*[^0-9a-f]*'),
+  "checked_at_ms" INTEGER CHECK ("checked_at_ms" >= 0),
+  PRIMARY KEY ("libra_run_id", "strategy_kind", "condition_digest", "check_ordinal"),
+  CHECK (json_valid("evidence_json")),
+  CHECK (length(CAST("evidence_json" AS BLOB)) <= 4096),
+  FOREIGN KEY ("libra_run_id") REFERENCES "libra_runs" ("libra_run_id") ON DELETE RESTRICT
+);
 
 CREATE TABLE "libra_subject_abandon_decisions" (
   "abandon_decision_id" TEXT PRIMARY KEY,

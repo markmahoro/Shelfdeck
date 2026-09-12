@@ -12,6 +12,7 @@ const { createAcceptanceAssessmentPlanner, createAcceptanceCommitPlanner,
   createAcceptanceRejectionPlanner, createOnDeckExecutionPlanner } = require('../planning/on-deck-planners');
 const { createOnDeckProjections } = require('../planning/on-deck-projections');
 const { createAftercareContextReader } = require('../application/aftercare-context-reader');
+const { createDefectAdmissionApplication } = require('../application/defect-admission-application');
 const { createAftercareProcessCoordinator } = require('../application/aftercare-process-coordinator');
 const { createInventoryPersonRecordRefresh } = require('../application/inventory-person-record-refresh');
 const { createInventoryRecordRefresh } = require('../application/inventory-record-refresh');
@@ -96,7 +97,7 @@ function createArcaExecutionRegistration() {
         onDeckPersonEvidenceProjection:createOnDeckPersonEvidenceProjection(options),
         onDeckNfoPersonEvidence:createOnDeckNfoPersonEvidence({...options,contextReader:aftercareContextReader}),
         aftercareContextReader,coordinator:createOnDeckProcessCoordinator({...options,contextReader}),
-        aftercareCoordinator,offdeckContextReader,
+        aftercareCoordinator,defectAdmission:createDefectAdmissionApplication({...options,contextReader:aftercareContextReader}),offdeckContextReader,
         offdeckCoordinator:createOffdeckProcessCoordinator({...options,contextReader:offdeckContextReader}),
         offdeckAutomationCoordinator:createOffdeckAutomationCoordinator({...options,contextReader:offdeckContextReader}),shelfDeregistrationContextReader,
         shelfDeregistrationCoordinator:createShelfDeregistrationCoordinator({...options,contextReader:shelfDeregistrationContextReader,aftercareContextReader,aftercareCoordinator})});

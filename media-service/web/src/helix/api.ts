@@ -2,6 +2,14 @@ import { newOpaqueId } from './id';
 import { sha256Hex } from './sha256';
 
 export type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };
+export type DefectAuthorization = { authorizationId:string; revision:number; state:'enabled'|'revoked'; authorizationDigest:string };
+export type LibraRunOutcome = {libraRunId:string;outcome:'on_deck'|'on_deck_with_defects'|'unable_to_on_deck';
+  reasonCode:string;outcomeDigest:string;committedAtMs:number;
+  terminalReasons?:Array<{failureClass:string;failureCode:string;capabilityRef:string}>};
+export type AcceptedGap = {gapDigest:string;findingKind:string;requirementCode:string;targetKind:'media'|'artifact'|'metadata_field';targetId:string;requiredValue:{value?:unknown;field?:string;artifact?:string}};
+export type CollectionDefectPreview = {shelfEntryId:string;inventoryRevision:number;careBasisDigest:string;authorizationRevision:number;
+  candidateDigest:string;gapSetDigest:string;gaps:AcceptedGap[];acceptedGaps:AcceptedGap[];eligibility:'eligible'|'ineligible'|'evidence_pending';
+  missingEvidence:string[];ineligibleReasons:string[];repairableGapDigests:string[];unavailableRepairs:Array<{findingKind:string;reasonCode:string}>};
 export type SourceCleanupCheck={onDeckRunId:string;shelfEntryId:string;state:string;checkedAtMs:number|null;checks:{sourceLocation?:string;state:string;errorCode?:string|null;recycleEntryId?:string}[]};
 export type RecycleEntry={id:string;shelfEntryId:string;sourceLocation:string;state:string;reasonCode:string;createdAtMs:number;archivedAtMs:number|null;expiresAtMs:number|null;fileCount:number;totalBytes:number;errorCode:string|null};
 export type RecyclePreview={shelfEntryId:string;sourceLocation:string;manifestDigest?:string;errorCode?:string;manifest?:{totalBytes:number;entries:Array<{relativePath:string;kind:string;sizeBytes?:number}>}};
@@ -322,7 +330,7 @@ export type FormationSubject = {
 };
 
 export type FormationRunHistory = { historyId:string; libraRunId:string; subjectId:string; displayIdentity:string;
-  outcome:'user_abandoned'; label:'已结束 · 用户放弃'; endedAtMs:number; stateRevision:number; stateDigest:string; evidenceDigest:string };
+  outcome:'user_abandoned'|'unable_to_on_deck'; label:'已结束 · 用户放弃'|'无法上架'; endedAtMs:number; stateRevision:number; stateDigest:string; evidenceDigest:string };
 
 export type PerceptionRecord = {
   perceptionId: string;
@@ -377,14 +385,15 @@ export type CollectionEntry = {
   primaryContainer: string | null;
   videoCodec: string | null;
   videoRaster: string | null;
-  defectAdmission: { defectCount:number; defects:Array<{defectCode:'actor_unavailable'|'external_source_exhausted'|'size_cap_exceeded';waivedRequirementCodes:string[]}> } | null;
+  defectAdmission: { defectCount:number; defects:Array<{defectCode:'actor_unavailable'|'external_source_exhausted'|'media_requirements_unmet'|'size_cap_exceeded';waivedRequirementCodes:string[]}> } | null;
   health: HealthSummary;
   currentInventoryRevision: number;
   currentDeckFactRevision: number;
   createdAtMs: number;
   terminalAtMs: number | null;
 };
-export type DefectAdmissionCandidate={candidateRevision:number;libraRunId:string;frozenRunStateRevision:number;frozenRunStateDigest:string;terminalEvidenceDigest:string;defects:Array<{defectCode:'actor_unavailable'|'external_source_exhausted'|'size_cap_exceeded';sourceFailureCode:string;waivedRequirementCodes:string[]}>;waivedRequirementCodes:string[];candidateDigest:string;sizeForecast?:{maxSizeBytes:number;predictedBytes:number;overshootBytes:number;videoBitrateFloorBps:number;targetVideoBitrateBps:number;rasterClass:string}|null};
+export type DefectAdmissionCandidate={candidateRevision:number;libraRunId:string;frozenRunStateRevision:number;frozenRunStateDigest:string;terminalEvidenceDigest:string;defects:Array<{defectCode:'actor_unavailable'|'metadata_fields_unavailable'|'artifacts_unavailable'|'external_source_exhausted'|'media_requirements_unmet'|'size_cap_exceeded';metadataFieldCodes?:string[];artifactKindCodes?:string[];sourceFailureCode:string;waivedRequirementCodes:string[]}>;waivedRequirementCodes:string[];candidateDigest:string;sizeForecast?:{maxSizeBytes:number;predictedBytes:number;overshootBytes:number;videoBitrateFloorBps:number;targetVideoBitrateBps:number;rasterClass:string}|null};
+export type DefectAdmissionPreview=(DefectAdmissionCandidate&{eligibility:'eligible'})|{eligibility:'ineligible'|'evidence_pending';message:string;ineligibleReasons:string[];missingEvidence:string[]};
 export type HealthState = 'never_assessed'|'healthy'|'unhealthy'|'observing'|'repairing'|'attention_required';
 export type HealthSummary = { shelfEntryId?:string; state:HealthState; careBasisDigest?:string; basisCurrent?:boolean;
   healthState?:'healthy'|'unhealthy'|'unknown'; maintenanceState?:'none'|'queued'|'active'; maintenanceCaseId?:string|null;
@@ -572,6 +581,18 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
 }
 
 export const helixAdminApi = {
+  previewCollectionDefects(shelfEntryId:string) {return request<CollectionDefectPreview>(`/v1/admin/care/${encodeURIComponent(shelfEntryId)}/defect-admission-candidate`);},
+  decideCollectionDefects(preview:CollectionDefectPreview,action:'accept-defects'|'repair-accepted-defects',idempotencyKey:string) {
+    return request<{resultKind?:string;aftercareCaseId?:string}>(`/v1/admin/care/${encodeURIComponent(preview.shelfEntryId)}/actions/${action}`,{
+      method:'POST',body:JSON.stringify({expectedCandidateDigest:preview.candidateDigest,expectedInventoryRevision:preview.inventoryRevision,
+        expectedCareBasisDigest:preview.careBasisDigest,expectedAuthorizationRevision:preview.authorizationRevision,acknowledged:true,idempotencyKey})});
+  },
+  getDefectAuthorization() { return request<{authorization:DefectAuthorization|null}>('/v1/admin/formation/defect-authorization'); },
+  setDefectAuthorization(enabled:boolean, expectedRevision:number, idempotencyKey:string) {
+    return request<{authorization:DefectAuthorization|null;replayed:boolean}>('/v1/admin/formation/defect-authorization', {
+      method:'PATCH',body:JSON.stringify({enabled,expectedRevision,idempotencyKey,acknowledged:enabled}),
+    });
+  },
   createSession(apiKey: string) {
     return request<void>('/v1/admin/session', { method: 'POST', headers: { 'x-api-key': apiKey } });
   },
@@ -773,7 +794,9 @@ export const helixAdminApi = {
       });
   },
   discardRun(subject:FormationSubject){if(!subject.currentRun)throw new Error('当前媒体没有可放弃的整理任务。');const run=subject.currentRun;return request<{resultKind:string;libraRunId:string;replayed?:boolean}>(`/v1/admin/formation/runs/${encodeURIComponent(run.libraRunId)}/actions/discard`,{method:'POST',body:JSON.stringify({expectedRunStateRevision:run.stateRevision,expectedRunStateDigest:run.stateDigest,idempotencyKey:`discard:${run.libraRunId}:${run.stateRevision}:${newOpaqueId()}`})});},
-  previewDefectAdmission(subject:FormationSubject){if(!subject.currentRun)throw new Error('当前媒体没有可操作的整理任务。');return request<DefectAdmissionCandidate>(`/v1/admin/formation/runs/${encodeURIComponent(subject.currentRun.libraRunId)}/defect-admission-candidate`);},
+  previewDefectAdmission(subject:FormationSubject){if(!subject.currentRun)throw new Error('当前媒体没有可操作的整理任务。');return request<DefectAdmissionPreview>(`/v1/admin/formation/runs/${encodeURIComponent(subject.currentRun.libraRunId)}/defect-admission-candidate`);},
+  readRunOutcome(libraRunId:string){return request<{outcome:LibraRunOutcome|null}>(`/v1/admin/formation/runs/${encodeURIComponent(libraRunId)}/outcome`);},
+  reprocessRun(outcome:LibraRunOutcome,idempotencyKey:string){return request<{intentId:string;replayed:boolean}>(`/v1/admin/formation/runs/${encodeURIComponent(outcome.libraRunId)}/actions/reprocess`,{method:'POST',body:JSON.stringify({expectedOutcomeDigest:outcome.outcomeDigest,idempotencyKey})});},
   admitWithDefects(subject:FormationSubject,candidate:DefectAdmissionCandidate){if(!subject.currentRun)throw new Error('当前媒体没有可操作的整理任务。');const run=subject.currentRun;return request<{resultKind:string;libraRunId:string;replayed:boolean}>(`/v1/admin/formation/runs/${encodeURIComponent(run.libraRunId)}/actions/admit-with-defects`,{method:'POST',body:JSON.stringify({expectedRunStateRevision:run.stateRevision,expectedRunStateDigest:run.stateDigest,expectedDefectCandidateDigest:candidate.candidateDigest,acknowledged:true,idempotencyKey:`admit-with-defects:${run.libraRunId}:${run.stateRevision}:${newOpaqueId()}`})});},
   chooseProductIdentity(subject:FormationSubject,tmdbMovieId:string){if(!subject.currentRun)throw new Error('当前媒体没有可恢复的整理任务。');const run=subject.currentRun;return request<{selectionIntentId:string;libraRunId:string;providerKey:string;intentRevision:number;replayed:boolean}>(`/v1/admin/formation/runs/${encodeURIComponent(run.libraRunId)}/actions/choose-product-identity`,{method:'POST',body:JSON.stringify({tmdbMovieId,expectedRunStateRevision:run.stateRevision,expectedIdentityRevision:run.currentIdentityRevision,candidateSetDigest:subject.productIdentityIssue?.candidateSetDigest||null,idempotencyKey:`choose-product-identity:${run.libraRunId}:${run.stateRevision}:${tmdbMovieId}:${newOpaqueId()}`})});},
   retryAcceptance(subject:FormationSubject){if(!subject.executorIssue?.canRetry)throw new Error('当前接纳或上架故障不能重试。');const offerId=subject.executorIssue.offerId;return request(`/v1/admin/formation/acceptance/${encodeURIComponent(offerId)}/actions/retry`,{method:'POST',body:JSON.stringify({idempotencyKey:`acceptance-retry:${offerId}:${newOpaqueId()}`})});},

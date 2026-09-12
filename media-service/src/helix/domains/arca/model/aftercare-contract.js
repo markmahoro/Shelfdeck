@@ -1,7 +1,9 @@
 'use strict';
-const { careFindingCodes } = require('./care-objective');
+const { careFindingCodes, effectiveRequirements } = require('./care-objective');
+const { requirementGapValueDigest } = require('../../../contracts/requirement-gap-values');
 
-const { actionableAftercareFindings, validManifest } = require('./authorized-defect-manifest');
+const { validManifest } = require('./authorized-defect-manifest');
+const { acceptedFinding, validAuthorization } = require('./accepted-gap-contracts');
 
 const path = require('node:path');
 const { canonicalDigest } = require('../../../contracts/canonical-json');
@@ -266,8 +268,6 @@ function hasIncompatibleRepairCombination(findings) {
 function projectHealth(context, history, at = Date.now()) {
   if (!context) return null;
   const current = latestForBasis(history, context.basis.digest);
-  const currentCases = (history.cases || []).filter((item) =>
-    item.careBasisDigest === context.basis.digest);
   const activeCase = (history.cases || []).find((item) => {
     if (!['queued','active'].includes(item.state)) return false;
     if (item.careBasisDigest === context.basis.digest) return true;
@@ -276,7 +276,6 @@ function projectHealth(context, history, at = Date.now()) {
     return ['standardRevision','placementRevision','canonicalIdentityDigest','sourcePackageId',
       'acceptedProductFactSetDigest','decisionFactSetDigest'].every((key) => item.careBasis?.[key] === context.basis[key]);
   }) || null;
-  const latestCase = currentCases[0] || null;
   const findingsByAssessment = new Map();
   for (const finding of history.findings || []) {
     if (finding.state !== 'open') continue;
@@ -286,8 +285,7 @@ function projectHealth(context, history, at = Date.now()) {
   const dimensions = Object.fromEntries(ASSESSMENT_KINDS.map((kind) => {
     const assessment = current.get(kind) || null;
     const observedFindings = assessment ? (findingsByAssessment.get(assessment.assessmentId) || []) : [];
-    const findings = actionableAftercareFindings(context.authorizedDefectManifest,
-      observedFindings);
+    const findings = observedFindings.filter(finding=>!acceptedFinding(context,finding));
     return [kind, Object.freeze({
       state:assessment && observedFindings.length > 0 && findings.length === 0
         ? 'healthy' : assessment?.result || 'never_assessed',
@@ -299,9 +297,9 @@ function projectHealth(context, history, at = Date.now()) {
   }));
   let state = 'never_assessed';
   const all = Object.values(dimensions);
-  if (activeCase) state = activeCase.state === 'queued' ? 'unhealthy' : 'repairing';
-  else if (latestCase?.state === 'unresolved' && !all.every((item)=>item.state==='healthy'&&item.findings.length===0&&
-    item.assessedAtMs>Number(latestCase.terminalAtMs??Infinity))) state = 'attention_required';
+  const manualDefectRepair=activeCase?.careRequirement?.typedParameters?.some(item=>item.parameter==='trigger.kind'&&item.value==='repair_accepted_defects');
+  if (activeCase?.state==='active') state = 'repairing';
+  else if (activeCase?.state==='queued'&&!manualDefectRepair) state='unhealthy';
   else if (hasIncompatibleRepairCombination(all.flatMap((item) => item.findings))) state = 'attention_required';
   else if (all.some((item) => item.findings.some((finding) => finding.repairability === 'attention_required'))) state = 'attention_required';
   else if (all.some((item) => item.findings.some((finding) => finding.repairability === 'auto_repair'))) state = 'unhealthy';
@@ -311,12 +309,31 @@ function projectHealth(context, history, at = Date.now()) {
   const jitter = stableJitterMs(context.shelfEntryId), custody = dimensions.custody.assessedAtMs,
     deep = Math.min(...['presentation','conformance'].map((kind) => dimensions[kind].assessedAtMs || 0));
   const healthState = state === 'healthy' ? 'healthy' : ['unhealthy','repairing','attention_required'].includes(state) ? 'unhealthy' : 'unknown';
+  const observed=[...current.values()].flatMap(assessment=>findingsByAssessment.get(assessment.assessmentId)||[]);
+  const accepted=observed.filter(finding=>acceptedFinding(context,finding));
+  const complete=ASSESSMENT_KINDS.every(kind=>current.has(kind)&&current.get(kind).result!=='not_assessable');
+  const requirements=context.effectiveRequirements || (context.raw?effectiveRequirements(context):null);
+  const authorization=validAuthorization(context.defectAuthorization)?context.defectAuthorization:null;
+  const acceptedGaps=authorization?authorization.gaps.filter(gap=>requirements&&
+    gap.requiredValueDigest===requirementGapValueDigest(requirements,gap.requirementCode,gap.targetId)&&
+    (!complete||accepted.some(finding=>finding.findingKind===gap.findingKind&&finding.findingDigest===gap.findingDigest))):[];
+  const admittedDefects=!authorization&&validManifest(context.authorizedDefectManifest)
+    ?context.authorizedDefectManifest.defects.filter(defect=>!complete||accepted.some(finding=>{
+      const code=finding.findingKind.split(':')[1];
+      return code.startsWith('metadata_field_missing__')
+        ?(defect.metadataFieldCodes||(defect.defectCode==='actor_unavailable'?['actor']:[])).includes(code.slice('metadata_field_missing__'.length))
+        :['nfo_missing','poster_missing','fanart_missing'].includes(code)
+          ?(defect.artifactKindCodes||[]).includes(code.slice(0,-'_missing'.length))
+          :defect.waivedRequirementCodes.includes(code);
+    })):[];
+  const defectSummary=authorization?acceptedGaps.map(gap=>({defectCode:'accepted_requirement_gap',waivedRequirementCodes:[gap.requirementCode]})):admittedDefects;
   return Object.freeze({ shelfEntryId:context.shelfEntryId, state, healthState,
     maintenanceState:activeCase?.state || 'none', maintenanceCaseId:activeCase?.aftercareCaseId || null,
     careBasisDigest:context.basis.digest,
     basisCurrent:true, dimensions:Object.freeze(dimensions), activeCase,
-    admittedDefects:validManifest(context.authorizedDefectManifest)
-      ? context.authorizedDefectManifest.defects : Object.freeze([]),
+    acceptedGaps:Object.freeze(acceptedGaps),
+    admittedDefects:Object.freeze(admittedDefects),
+    defectAdmission:defectSummary.length?Object.freeze({defectCount:defectSummary.length,defects:Object.freeze(defectSummary)}):null,
     nextCustodyDueAtMs:custody ? custody + PERIODS.custodyMs + jitter : at,
     nextDeepDueAtMs:deep ? deep + PERIODS.deepMs + jitter : at,
     updatedAtMs:Math.max(0,...all.map((item)=>item.assessedAtMs || 0),activeCase?.createdAtMs || 0) });

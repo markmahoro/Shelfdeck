@@ -583,15 +583,15 @@ test('H1.1 TMDB language and proxy update locally without re-entering credential
     const callsBefore=state.calls.length,updated=await host.inject({method:'PATCH',
       url:'/v1/admin/settings/integrations/tmdb',headers:{cookie},payload:{kind:'tmdb',
         idempotencyKey:'tmdb-language-en-US',expectedConfigRevision:1,
-        settings:{language:'en-US',proxyServer:'http://127.0.0.1:7890'}}});
+        settings:{language:'en-US',proxyServer:'http://134.0.0.1:7890'}}});
     assert.equal(updated.statusCode,200,updated.body);
     assert.equal(updated.json().configRevision,2);
     assert.deepEqual(updated.json().settings,
-      {language:'en-US',proxyServer:'http://127.0.0.1:7890'});
+      {language:'en-US',proxyServer:'http://134.0.0.1:7890'});
     assert.equal(state.calls.length,callsBefore,'local settings update must not call TMDB');
     const replay=await host.inject({method:'PATCH',url:'/v1/admin/settings/integrations/tmdb',headers:{cookie},
       payload:{kind:'tmdb',idempotencyKey:'tmdb-language-en-US',expectedConfigRevision:1,
-        settings:{language:'en-US',proxyServer:'http://127.0.0.1:7890'}}});
+        settings:{language:'en-US',proxyServer:'http://134.0.0.1:7890'}}});
     assert.equal(replay.statusCode,200,replay.body);
     assert.deepEqual(replay.json(),updated.json());
   }finally{await host.close();}
@@ -685,7 +685,7 @@ test('H1.1 invalid endpoint, credential, network, HTTP, schema, and timeout leav
   const invalidCredential = testCommand('tmdb', 'invalid-credential');
   invalidCredential.credential.value = 'short';
   const invalidProxy = testCommand('tmdb', 'invalid-proxy');
-  invalidProxy.settings.proxyServer = 'http://user:password@127.0.0.1:7890';
+  invalidProxy.settings.proxyServer = 'http://user:password@134.0.0.1:7890';
   const cases = [
     [invalidEndpoint, 'PLATFORM_INTEGRATION_ENDPOINT_INVALID', 400],
     [invalidCredential, 'PLATFORM_INTEGRATION_CREDENTIAL_INVALID', 400],
@@ -777,7 +777,7 @@ test('H1.1 Platform ports fence real TMDB identity and metadata reads across res
   });
   const cookie = await session(host, value.initialized.adminApiKey);
   const typedCommand = testCommand('tmdb', 'typed-test');
-  typedCommand.settings.proxyServer = 'http://127.0.0.1:7890';
+  typedCommand.settings.proxyServer = 'http://134.0.0.1:7890';
   const tested = await host.inject({
     method: 'POST',
     url: '/v1/admin/settings/integrations/tmdb/actions/test',
@@ -798,7 +798,7 @@ test('H1.1 Platform ports fence real TMDB identity and metadata reads across res
   assert.equal(saved.statusCode, 200, saved.body);
   assert.deepEqual(saved.json().settings, {
     language: 'zh-CN',
-    proxyServer: 'http://127.0.0.1:7890',
+    proxyServer: 'http://134.0.0.1:7890',
   });
   await host.close();
 
@@ -1531,8 +1531,8 @@ test('H1.1 source and route inventory prove no production fixture or scope expan
   assert.doesNotMatch(hostSource, /formation\.contentProfile/);
   const guard = require('../../scripts/p14-h1-change-scope-guard');
   assert.deepEqual(guard.routeImplementationStatus().counts, {
-    total:127,
-    real:100,
+    total:134,
+    real:107,
     workerBeta404: 6,
     unavailable503: 21,
   });

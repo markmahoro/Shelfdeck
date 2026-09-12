@@ -1,0 +1,125 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/libra_defect_authorization_head/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "libra_defect_authorization_head",
+    "owner": "libra",
+    "prefix": "libra_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "singleton_key",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": true,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 2,
+        "name": "current_authorization_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 3,
+        "name": "current_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 4,
+        "name": "updated_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      }
+    ],
+    "primaryKey": [
+      "singleton_key"
+    ],
+    "declaredForeignKeyColumns": [],
+    "uniqueConstraints": [],
+    "hotIndexes": [],
+    "partialUniqueRules": [],
+    "checkRules": [],
+    "revisionContract": {
+      "revisionColumns": [
+        "current_revision"
+      ],
+      "currentPointerColumns": [
+        "current_authorization_id",
+        "current_revision"
+      ],
+      "pointerTargets": [
+        {
+          "sourceColumns": [
+            "current_authorization_id",
+            "current_revision"
+          ],
+          "targetTable": "libra_defect_authorizations",
+          "targetColumns": [
+            "authorization_id",
+            "revision"
+          ],
+          "consistencyColumns": [],
+          "deletePolicy": "RESTRICT",
+          "deferrable": false
+        }
+      ],
+      "pointerRules": [
+        "current pointer显式复合FK"
+      ]
+    },
+    "jsonContracts": [],
+    "immutability": {
+      "immutable": false,
+      "rules": []
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "current pointer显式复合FK",
+      "CAS revision"
+    ],
+    "rawContract": {
+      "columns": "`singleton_key PK, current_authorization_id, current_revision, updated_at_ms`",
+      "constraints": "current pointer显式复合FK；CAS revision"
+    },
+    "source": {
+      "section": "8.9.9",
+      "line": 15577,
+      "lineDigest": "bce49ca70aa8369999f80da9113bbbd8fbf4082ab42977bf8732b90ae344fa2e"
+    },
+    "foreignKeys": [
+      {
+        "columns": [
+          "current_authorization_id",
+          "current_revision"
+        ],
+        "targetTable": "libra_defect_authorizations",
+        "targetColumns": [
+          "authorization_id",
+          "revision"
+        ],
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
+      }
+    ]
+  }
+}

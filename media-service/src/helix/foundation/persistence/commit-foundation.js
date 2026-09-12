@@ -245,4 +245,42 @@ function createCommandCommitCoordinator(options) {
   });
 }
 
-module.exports = Object.freeze({ CommandCommitError, createCommandCommitCoordinator });
+// Compose an explicit command receipt with an existing owner transaction whose
+// commit marker and domain effects are already supplied by that transaction.
+function createCommandReceiptParticipant(options, request) {
+  const repositories=createDefinitions(options.schemaManifest),command=request.command;
+  for(const field of ['commandReceiptId','ownerDomain','commandContract','callerScope','idempotencyKey','targetType','targetId'])
+    requiredText(command[field],field);
+  requiredDigest(command.requestDigest,'requestDigest');
+  if(!Array.isArray(request.auditRecords)||!request.auditRecords.length)
+    fail('P3_COMMAND_INVALID_REQUEST','Atomic command receipt requires audit records.');
+  const resultSchemaRef=requiredText(request.resultSchemaRef,'resultSchemaRef');
+  if(!request.resultRef||typeof request.resultRef!=='object'||Array.isArray(request.resultRef))
+    fail('P3_COMMAND_INVALID_RESULT','Atomic command receipt requires a typed result.');
+  const resultJson=canonicalJson(request.resultRef),resultDigest=digest(resultJson);
+  if(Buffer.byteLength(resultJson)>16384)fail('P3_COMMAND_RESULT_TOO_LARGE','Command Result reference exceeds 16 KiB.');
+  return {participantId:request.participantId,owner:'execution-foundation',boundBusinessOwner:command.ownerDomain,
+    repositories:[repositories.receipts,repositories.audit],execute(context){
+      const repo=context.repository('command_receipts');
+      const existing=repo.invoke('find_receipt',{owner_domain:command.ownerDomain,command_contract:command.commandContract,
+        caller_scope:command.callerScope,idempotency_key:command.idempotencyKey});
+      if(existing) {
+        if(existing.request_digest!==command.requestDigest||existing.result_digest!==resultDigest||existing.result_schema_ref!==resultSchemaRef)
+          fail('P3_COMMAND_IDEMPOTENCY_CONFLICT','Atomic command receipt belongs to another request or result.');
+        return decodedReceipt(existing);
+      }
+      repo.invoke('insert_receipt',{command_receipt_id:command.commandReceiptId,owner_domain:command.ownerDomain,
+        command_contract:command.commandContract,caller_scope:command.callerScope,idempotency_key:command.idempotencyKey,
+        request_digest:command.requestDigest,target_type:command.targetType,target_id:command.targetId,
+        result_schema_ref:resultSchemaRef,result_ref_json:resultJson,result_digest:resultDigest,committed_at_ms:context.commitTimeMs});
+      for(const record of request.auditRecords)context.repository('audit_records').invoke('insert_audit',{
+        audit_id:requiredText(record.auditId,'auditId'),owner_domain:command.ownerDomain,
+        actor_type:requiredText(record.actorType,'actorType'),actor_id:record.actorId||null,
+        action:requiredText(record.action,'action'),scope_type:requiredText(record.scopeType,'auditScopeType'),
+        scope_id:requiredText(record.scopeId,'auditScopeId'),work_id:record.workId||null,event_id:record.eventId||null,
+        evidence_digest:record.evidenceDigest?requiredDigest(record.evidenceDigest,'evidenceDigest'):null,occurred_at_ms:context.commitTimeMs});
+      return Object.freeze({commandReceiptId:command.commandReceiptId,resultSchemaRef,resultRef:request.resultRef,resultDigest});
+    }};
+}
+
+module.exports = Object.freeze({ CommandCommitError, createCommandCommitCoordinator, createCommandReceiptParticipant });

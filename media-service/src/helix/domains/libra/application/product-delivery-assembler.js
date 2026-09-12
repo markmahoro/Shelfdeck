@@ -803,7 +803,7 @@ function createProductDeliveryAssembler(options) {
     const authorized = conformance?.result === 'failed' &&
       value.snapshot.run.authorizedDefectManifest && coversRequirementGaps(
         value.snapshot.run.authorizedDefectManifest,
-        conformance.unmetRequirementCodes || conformance.reasonCodes || []);
+        conformance.unmetRequirementCodes || conformance.reasonCodes || [],conformance);
     if (!conformance || (conformance.result !== 'passed' && !authorized) ||
         conformance.libraRunId !== libraRunId ||
         conformance.basisDigest !== value.conformanceInput.snapshotDigest) {
@@ -980,6 +980,8 @@ function createProductDeliveryAssembler(options) {
       productSnapshotDigest: conformance.productSnapshotDigest,
       unmetRequirementCount: attestedUnmetRequirementCodes.length,
       unmetRequirementCodes: attestedUnmetRequirementCodes,
+      missingMetadataFields:conformance.missingMetadataFields,
+      missingArtifactKinds:conformance.missingArtifactKinds,
       acceptanceKind: authorized ? 'accepted_with_defects' : 'accepted',
       authorizedDefectManifest: authorized
         ? value.snapshot.run.authorizedDefectManifest : null,

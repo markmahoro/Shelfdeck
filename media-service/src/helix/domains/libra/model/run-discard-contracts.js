@@ -308,13 +308,14 @@ function cleanupAdmissionRecord(draft) {
   });
 }
 
-function nextWorkspaceState(workspaceRef, decisionDigest) {
+function nextWorkspaceState(workspaceRef, decisionDigest, state='reclaiming') {
+  if(!['reclaiming','reclaimed'].includes(state))fail('P9_DISCARD_WORKSPACE_STATE','Invalid terminal Workspace transition.');
   const next = {
     workspaceId: workspaceRef.workspaceId,
     workspaceRevision: workspaceRef.workspaceRevision + 1,
-    state: 'reclaiming',
+    state,
     workspaceMaterialReferenceSetDigest: workspaceRef.materialReferenceSetDigest,
-    transitionKind: 'reclaiming',
+    transitionKind: state,
     transitionEvidenceDigest: decisionDigest,
   };
   next.stateDigest = workspaceStateDigest(next);

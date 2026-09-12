@@ -865,6 +865,24 @@
           "type": "integer",
           "minimum": 0
         },
+        "missingMetadataFields": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "maxItems": 64
+        },
+        "missingArtifactKinds": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "maxItems": 3
+        },
         "unmetRequirementCodes": {
           "type": "array",
           "items": {
@@ -880,10 +898,13 @@
               "max_size_exceeded",
               "dynamic_range_conversion_unmet",
               "output_color_profile_unmet",
-              "dolby_vision_metadata_not_removed"
+              "dolby_vision_metadata_not_removed",
+              "metadata_artifact_unmet",
+              "sidecar_unrenderable",
+              "image_undecodable"
             ]
           },
-          "maxItems": 12
+          "maxItems": 14
         },
         "acceptanceKind": {
           "type": "string",
@@ -923,6 +944,8 @@
         "evaluatedRequirementSetDigest",
         "productSnapshotDigest",
         "unmetRequirementCount",
+        "missingMetadataFields",
+        "missingArtifactKinds",
         "unmetRequirementCodes",
         "acceptanceKind",
         "authorizedDefectManifest",

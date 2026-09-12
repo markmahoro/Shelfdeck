@@ -20,7 +20,9 @@
           "arca_inventory_product_facts",
           "arca_inventory_person_relations",
           "arca_aftercare_inventory_commits",
-          "arca_shelf_entries"
+          "arca_shelf_entries",
+          "arca_defect_admissions",
+          "arca_defect_admission_heads"
         ]
       },
       {
@@ -53,10 +55,15 @@
       "fx_material_controls",
       "fx_material_control_revisions",
       "fx_event_result_bindings",
-      "fx_commit_markers"
+      "fx_commit_markers",
+      "arca_defect_admissions",
+      "arca_defect_admission_heads"
     ],
     "readTables": [
-      "arca_aftercare_cases"
+      "arca_aftercare_cases",
+      "arca_defect_repair_intents",
+      "arca_defect_admissions",
+      "arca_defect_admission_heads"
     ],
     "variants": [],
     "dynamicTableRequirements": [],
@@ -83,7 +90,7 @@
     ],
     "source": {
       "section": "8.5.4",
-      "line": 8709,
+      "line": 8722,
       "lineDigest": "967982b60ab89f7dadc37d3591b4db6e5bc50dad7e72a472cc4df0e2964a7dc6"
     }
   }

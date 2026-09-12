@@ -352,6 +352,26 @@ function createProcurementAdminApplication(options) {
         rejected(error);
       }
     },
+    async requestReprocessObservation(fieldId, intentId) {
+      if(typeof intentId!=='string'||!/^[a-f0-9]{64}$/.test(intentId)||typeof fieldId!=='string'||!fieldId||fieldId.length>256)
+        throw new ProcurementAdminApplicationError('ADMIN_FIELD_COMMAND_REJECTED','Reprocessing observation requires exact Field and intent identities.');
+      const idempotencyKey='libra-reprocess:'+intentId;
+      const workId='field-observation-work-'+canonicalDigest({fieldId,idempotencyKey}).slice(0,40);
+      const reader=options.workResultReader||createWorkResultReader(options);
+      const existing=reader.status(workId);
+      if(existing) {
+        if(existing.owner_domain!=='procurement'||existing.process_type!=='material_field'||
+            existing.process_id!==fieldId||existing.work_kind!=='field_observation')
+          throw new Error('Reprocessing observation identity belongs to another Work.');
+        options.executionRuntimeHost.wake();
+        return Object.freeze({observationWorkId:workId,fieldId,state:existing.state,replayed:true});
+      }
+      const field=store.getMaterialField(fieldId);
+      if(!field||field.currentProfileHintSnapshot?.contentProfileHint!=='movie')
+        throw new ProcurementAdminApplicationError('ADMIN_FIELD_NOT_FOUND','原电影目录当前不可用。',{fieldId});
+      return observation.observe({fieldId,idempotencyKey,expectedAccessRevision:field.currentAccessRevision,
+        expectedObservationRevision:field.currentObservationRevision||0,pageBudget:8});
+    },
     retryFailedPreparation(fieldId, body, actor) {
       try {
         const envelope = commandEnvelope(body, fieldId);

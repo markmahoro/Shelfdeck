@@ -270,14 +270,14 @@ test('DV normalized output passes only with SDR BT.709 yuv420p, no DOVI, and thr
       candidateNodeId:'dv-output',libraRunId:'run-1',mediaRequirement:requirement,workspaceMediaHandle:mediaHandle,
       sourceProbeEvidence:dvProbe(handle),outputProbeEvidence:outputProbe}),playback={samplePointsPercent:[5,50,95],
       passedSamplePointsPercent:[5,50,95],decodeDigest:D('dv-decode')};
-  const passed=media.buildProductMediaVerification({input,playbackVerification:playback,verifiedAtMs:9});
+  const passed=verifyWithPlayback({input,playbackVerification:playback,verifiedAtMs:9});
   valid('helix://contracts/types/ProductMediaVerification/v1',passed);
   assert.equal(passed.result,'passed');assert.equal(passed.dynamicRangeSummary.outputDynamicRangeKind,'sdr');
   const badProbe=probe(output,'dv-bad-output',{videoStreams:[{...outputProbe.videoStreams[0],colorTransfer:'pq',
     colorPrimaries:'bt2020',colorMatrix:'bt2020nc',pixelFormat:'yuv420p10le',dynamicRangeKind:'hdr10_compatible'}]});
   const badInput=media.buildProductMediaCandidateInput({candidateKind:'workspace_output',candidateNodeId:'dv-bad-output',libraRunId:'run-1',
     mediaRequirement:requirement,workspaceMediaHandle:mediaHandle,sourceProbeEvidence:dvProbe(handle),outputProbeEvidence:badProbe});
-  const rejected=media.buildProductMediaVerification({input:badInput,playbackVerification:playback,verifiedAtMs:10});
+  const rejected=verifyWithPlayback({input:badInput,playbackVerification:playback,verifiedAtMs:10});
   assert.ok(rejected.reasonCodes.includes('dynamic_range_conversion_unmet'));
   assert.ok(rejected.reasonCodes.includes('output_color_profile_unmet'));
 });
@@ -298,7 +298,7 @@ test('builds one target-bound workspace result and verifies it without hidden pa
   assert.equal(result.workspaceMaterialHandle.handleId,output.handleId);assert.equal(result.outputTargetId,target.targetId);
   const input=media.buildProductMediaCandidateInput({candidateKind:'workspace_output',candidateNodeId:'node-1',libraRunId:'run-1',mediaRequirement:requirement,
     workspaceMediaHandle:result,sourceProbeEvidence:probe(handle,'source-probe'),outputProbeEvidence:probe(output,'output-probe')});
-  const verification=media.buildProductMediaVerification({input,verifiedAtMs:9});
+  const verification=verifyWithPlayback({input,verifiedAtMs:9});
   valid('helix://contracts/domain-types/ProductMediaCandidateInput/v1',input);
   valid('helix://contracts/types/ProductMediaVerification/v1',verification);
   assert.equal(verification.result,'passed');assert.equal(verification.workspaceMediaHandleId,result.workspaceMediaHandleId);
@@ -308,8 +308,8 @@ test('selects by declared rank and never by caller order or size',()=>{
   const requirement=media.buildMediaRequirement(spec()),handle=source(),inputA=media.buildProductMediaCandidateInput({candidateKind:'direct_input',candidateNodeId:'node-a',
     libraRunId:'run-1',mediaRequirement:requirement,sourceMaterialHandle:handle,sourceProbeEvidence:probe(handle,'probe-a')}),
     inputB=media.buildProductMediaCandidateInput({candidateKind:'direct_input',candidateNodeId:'node-b',libraRunId:'run-1',mediaRequirement:requirement,
-      sourceMaterialHandle:handle,sourceProbeEvidence:probe(handle,'probe-b')}),a=media.buildProductMediaVerification({input:inputA,verifiedAtMs:2}),
-    b=media.buildProductMediaVerification({input:inputB,verifiedAtMs:2}),candidates=[a,b].sort((x,y)=>Buffer.from(x.verificationId).compare(Buffer.from(y.verificationId)));
+      sourceMaterialHandle:handle,sourceProbeEvidence:probe(handle,'probe-b')}),a=verifyWithPlayback({input:inputA,verifiedAtMs:2}),
+    b=verifyWithPlayback({input:inputB,verifiedAtMs:2}),candidates=[a,b].sort((x,y)=>Buffer.from(x.verificationId).compare(Buffer.from(y.verificationId)));
   const selectionInput=media.buildProductOutputSelectionInput({libraRunId:'run-1',acceptanceSpecId:'spec-1',acceptanceSpecRecordDigest:D('spec-record'),
     mediaRequirementDigest:requirement.requirementDigest,rankedCandidates:[{rank:1,candidateId:b.candidateId,candidateNodeId:b.candidateNodeId},
       {rank:2,candidateId:a.candidateId,candidateNodeId:a.candidateNodeId}],candidates});
@@ -325,8 +325,8 @@ test('D08 freezes multi-output rank before the Selection Event and executes the 
     libraRunId:'run-1',mediaRequirement:requirement,sourceMaterialHandle:handle,sourceProbeEvidence:probe(handle,'plan-probe-a')});
   const inputB=media.buildProductMediaCandidateInput({candidateKind:'direct_input',candidateNodeId:'plan-node-b',
     libraRunId:'run-1',mediaRequirement:requirement,sourceMaterialHandle:handle,sourceProbeEvidence:probe(handle,'plan-probe-b')});
-  const verificationA=media.buildProductMediaVerification({input:inputA,verifiedAtMs:2});
-  const verificationB=media.buildProductMediaVerification({input:inputB,verifiedAtMs:2});
+  const verificationA=verifyWithPlayback({input:inputA,verifiedAtMs:2});
+  const verificationB=verifyWithPlayback({input:inputB,verifiedAtMs:2});
   const rankedCandidates=[
     media.buildPlannedProductCandidateReference({rank:1,candidateKind:'direct_input',candidateNodeId:'plan-node-b',
       mediaRequirementDigest:requirement.requirementDigest,sourceMaterialHandle:handle}),
@@ -370,7 +370,7 @@ test('accepts SSOT 4K-class raster and DTS-HD MA primary audio',()=>{
       colorTransfer:'bt709',colorMatrix:'bt709',dynamicRangeKind:'sdr',sampleAspectRatio:'1:1',rotation:0,displayWidth:3800,displayHeight:1600,longEdge:3800,shortEdge:1600}],
     audioStreams:[{streamIndex:1,dispositionDefault:true,codec:'dts',profile:'DTS-HD MA',channels:6,
       channelLayout:'5.1(side)',formatTags:[],normalizedAudioClass:'dts_hd_ma',language:'eng'}]});
-  const passed=media.buildProductMediaVerification({input:media.buildProductMediaCandidateInput({
+  const passed=verifyWithPlayback({input:media.buildProductMediaCandidateInput({
     candidateKind:'direct_input',candidateNodeId:'cinema-4k',libraRunId:'run-1',mediaRequirement:requirement,
     sourceMaterialHandle:handle,sourceProbeEvidence:cinema}),verifiedAtMs:4});
   assert.equal(passed.result,'passed');
@@ -382,7 +382,7 @@ test('accepts SSOT 4K-class raster and DTS-HD MA primary audio',()=>{
       colorTransfer:'bt709',colorMatrix:'bt709',dynamicRangeKind:'sdr',sampleAspectRatio:'1:1',rotation:0,displayWidth:3799,displayHeight:1600,longEdge:3799,shortEdge:1600}],
     audioStreams:[{streamIndex:1,dispositionDefault:true,codec:'dts',profile:'DTS-HD MA',channels:6,
       channelLayout:'5.1(side)',formatTags:[],normalizedAudioClass:'dts_hd_ma',language:'eng'}]});
-  const failed=media.buildProductMediaVerification({input:media.buildProductMediaCandidateInput({
+  const failed=verifyWithPlayback({input:media.buildProductMediaCandidateInput({
     candidateKind:'direct_input',candidateNodeId:'below-4k',libraRunId:'run-1',mediaRequirement:requirement,
     sourceMaterialHandle:handle,sourceProbeEvidence:crop}),verifiedAtMs:4});
   assert.equal(failed.result,'failed');
@@ -400,7 +400,7 @@ test('evaluates Primary video but accepts a listed audio class from any containe
       {streamIndex:3,dispositionDefault:false,codec:'truehd',profile:'truehd',channels:8,channelLayout:'7.1',formatTags:[],normalizedAudioClass:'truehd',language:'eng'}]});
   const input=media.buildProductMediaCandidateInput({candidateKind:'direct_input',candidateNodeId:'primary-only-node',libraRunId:'run-1',
     mediaRequirement:requirement,sourceMaterialHandle:handle,sourceProbeEvidence:mixedProbe});
-  const result=media.buildProductMediaVerification({input,verifiedAtMs:4});
+  const result=verifyWithPlayback({input,verifiedAtMs:4});
   assert.equal(result.result,'failed');
   assert.deepEqual(result.reasonCodes,['video_codec_unmet','minimum_raster_unmet']);
   assert.deepEqual(result.qualitySummary.primaryAudioClasses,['other','truehd']);
@@ -481,4 +481,17 @@ test('source probe requiring 4k or listed audio skips local remux in favor of ex
   assert.equal(media.sourceRequiresExternalSearch(hdDts,{minimumRasterClass:'none',acceptedPrimaryAudioClasses:['truehd']}),true);
   assert.equal(media.sourceRequiresExternalSearch(hdTrueHdNotDefault,{minimumRasterClass:'none',acceptedPrimaryAudioClasses:['truehd']}),false);
   assert.equal(media.sourceRequiresExternalSearch(hd,{minimumRasterClass:'none',videoCodec:'hevc',acceptedPrimaryAudioClasses:[]}),false);
+});
+
+function verifyWithPlayback(value) {
+  return media.buildProductMediaVerification({playbackVerification:{samplePointsPercent:[5,50,95],passedSamplePointsPercent:[5,50,95],decodeDigest:D('playback')},...value});
+}
+
+test('direct products cannot pass without complete playback evidence',()=>{
+  const handle=source(),input=media.buildProductMediaCandidateInput({candidateKind:'direct_input',candidateNodeId:'playback-safety',
+    libraRunId:'run-1',mediaRequirement:media.buildMediaRequirement(spec()),sourceMaterialHandle:handle,sourceProbeEvidence:probe(handle,'decode-source')});
+  for(const playbackVerification of [undefined,{samplePointsPercent:[5,50,95],passedSamplePointsPercent:[5,95],decodeDigest:D('failed-decode')}]) {
+    const result=media.buildProductMediaVerification({input,playbackVerification,verifiedAtMs:4});
+    assert.equal(result.result,'failed');assert.ok(result.reasonCodes.includes('playback_decode_failed'));
+  }
 });

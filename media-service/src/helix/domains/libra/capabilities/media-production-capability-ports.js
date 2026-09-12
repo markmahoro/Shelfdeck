@@ -252,10 +252,11 @@ function createMediaProductionCapabilityPorts(options) {
       validateInputs(context) { requireNamed(context, ['productMediaCandidateInput']); },
       async execute(context) {
         const input=context.namedInputs.productMediaCandidateInput;
-        const playbackVerification=input.candidateKind==='workspace_output'&&
-          input.workspaceMediaHandle.productionVideoProfile?.dynamicRangeOperation==='tone_map_to_sdr_bt709'
-          ?await options.mediaEffectPort.verifyPlayback({workspaceMediaHandle:input.workspaceMediaHandle,
-            outputProbeEvidence:input.outputProbeEvidence}):undefined;
+        const playbackVerification=await options.mediaEffectPort.verifyPlayback({
+          ...(input.candidateKind==='direct_input'?{physicalMaterialReadHandle:input.sourceMaterialHandle}:
+            {workspaceMediaHandle:input.workspaceMediaHandle}),
+          outputProbeEvidence:input.candidateKind==='direct_input'?input.sourceProbeEvidence:input.outputProbeEvidence,
+          deadlineAtMs:context.deadlineAtMs,shouldContinue:context.shouldContinue});
         const result = buildProductMediaVerification({ input,playbackVerification, verifiedAtMs:now() });
         return succeeded('libra.product_media.verify@1', result, now());
       },

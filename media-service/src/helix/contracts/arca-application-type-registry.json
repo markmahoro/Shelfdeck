@@ -5,8 +5,103 @@
   "kind": "application-type-registry",
   "owner": "arca",
   "status": "active",
-  "targetCount": 3,
+  "targetCount": 8,
   "entries": [
+    {
+      "id": "ArcaDefectAuthorization",
+      "version": 1,
+      "owner": "arca",
+      "status": "contracted",
+      "schemaId": "helix://contracts/application-types/ArcaDefectAuthorization/v1",
+      "relativePath": "application-types/ArcaDefectAuthorization/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "607f150c20e404bfdd2d3cb1686eb8745e0fceb02a2969cf212d095fea985dd0"
+      },
+      "ssotRefs": [
+        "5.6.7",
+        "8.5.13",
+        "8.6.21",
+        "9.5.3",
+        "9.5.4"
+      ]
+    },
+    {
+      "id": "ArcaDefectAuthorizationReceipt",
+      "version": 1,
+      "owner": "arca",
+      "status": "contracted",
+      "schemaId": "helix://contracts/application-types/ArcaDefectAuthorizationReceipt/v1",
+      "relativePath": "application-types/ArcaDefectAuthorizationReceipt/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "452e5dd70a8dc266a3b5df2539d3d04a4ee7df67c0a9887323d2a747c77368cb"
+      },
+      "ssotRefs": [
+        "5.6.7",
+        "8.5.13",
+        "8.6.21",
+        "9.5.3",
+        "9.5.4"
+      ]
+    },
+    {
+      "id": "ArcaDefectCommand",
+      "version": 1,
+      "owner": "arca",
+      "status": "contracted",
+      "schemaId": "helix://contracts/application-types/ArcaDefectCommand/v1",
+      "relativePath": "application-types/ArcaDefectCommand/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "d0b33ed2ed3cef8dde591b40d75ec9f5df7ad5a305a781367d6776e5ef27496b"
+      },
+      "ssotRefs": [
+        "5.6.7",
+        "8.5.13",
+        "8.6.21",
+        "9.5.3",
+        "9.5.4"
+      ]
+    },
+    {
+      "id": "ArcaDefectPreview",
+      "version": 1,
+      "owner": "arca",
+      "status": "contracted",
+      "schemaId": "helix://contracts/application-types/ArcaDefectPreview/v1",
+      "relativePath": "application-types/ArcaDefectPreview/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "3769da49b2a370eb3cc8551bd59402d0aa69938d550884cf8695225164c33b55"
+      },
+      "ssotRefs": [
+        "5.6.7",
+        "8.5.13",
+        "8.6.21",
+        "9.5.3",
+        "9.5.4"
+      ]
+    },
+    {
+      "id": "ArcaDefectRepairResult",
+      "version": 1,
+      "owner": "arca",
+      "status": "contracted",
+      "schemaId": "helix://contracts/application-types/ArcaDefectRepairResult/v1",
+      "relativePath": "application-types/ArcaDefectRepairResult/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "817def23fe559e3aa1e0b8a4e9f13840d92fb6d574c39ae51dd4b746f05391cf"
+      },
+      "ssotRefs": [
+        "5.6.7",
+        "8.5.13",
+        "8.6.21",
+        "9.5.3",
+        "9.5.4"
+      ]
+    },
     {
       "id": "ArcaMaterialEpisodeClaims",
       "version": 1,

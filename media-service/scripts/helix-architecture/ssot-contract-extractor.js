@@ -5,7 +5,7 @@ const crypto = require('crypto');
 const EXPECTED_COUNTS = Object.freeze({
   capabilities: 113,
   resultFamilies: 99,
-  tables: 189,
+  tables: 197,
   transactions: 45
 });
 
@@ -203,7 +203,11 @@ function buildResultFamilies(lines, capabilities) {
 
 function parseTables(lines) {
   const range = requireRange(lines, '#### 8.5.10 Foundation逐表合同', '### 8.6 Clean Capability Catalog与nominal type');
+  const amendmentStart = lines.findIndex((line) => line.startsWith('#### UAT-251 自动授权瑕疵上架与持久结果'));
+  const ranges = [range];
+  if (amendmentStart >= 0) ranges.push({ start: amendmentStart, lines: lines.slice(amendmentStart) });
   const entries = [];
+  for (const range of ranges) {
   for (let offset = 0; offset < range.lines.length; offset += 1) {
     const rawLine = range.lines[offset];
     const cells = splitMarkdownRow(rawLine);
@@ -217,6 +221,7 @@ function parseTables(lines) {
       constraintsContract: cells[2],
       source: locator(sectionForLine(lines, range.start + offset), range.start + offset, rawLine)
     });
+  }
   }
   return entries;
 }

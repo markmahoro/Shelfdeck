@@ -1,5 +1,8 @@
 'use strict';
 const { careFindingCodes } = require('../model/care-objective');
+const { missingFields } = require('../model/accepted-gap-contracts');
+const { verifiedDefectRepair } = require('../model/defect-repair-verification');
+const { requirementGapValueDigest } = require('../../../contracts/requirement-gap-values');
 const { effectiveRequirements } = require('../model/care-objective');
 
 const fs = require('node:fs');
@@ -329,7 +332,7 @@ function probeConformance(context,probe){const requirements=effectiveRequirement
   if(!primary)return [finding('conformance','primary_missing','critical','attention_required',context.shelfEntryId)];
   const result=evaluateAftercareConformance({mandatoryMedia:mandatory,space,probe,location:primary.location,sizeBytes:Number(primary.size_bytes)}),
     autoRepair=new Set(['video_codec_unmet','file_extension_unmet','container_unmet','max_size_exceeded']);
-  for(const code of result.reasonCodes)findings.push(finding('conformance',code,'critical',autoRepair.has(code)?'auto_repair':'attention_required',primary.material_key));
+  for(const code of result.reasonCodes)findings.push(finding('conformance',code,'critical',autoRepair.has(code)?'auto_repair':'attention_required',canonicalDigest({materialKey:primary.material_key,requiredValueDigest:requirementGapValueDigest(requirements,code)})));
   return findings;}
 
 const AFTERCARE_DEVICE_ORDER=Object.freeze(['nvidia_nvenc','intel_qsv','amd_vaapi','remote_worker','software_cpu']);
@@ -404,7 +407,22 @@ async function assessMediaRepairStrategy(options,context,probe,sourceProbeEviden
         selectedDeviceClass:device.deviceClass,video:intent.video,priorStrategyAssessments:Object.freeze(rejected),
         selectedPreflightDigest:preflightDigest};const strategyDigest=canonicalDigest(base);return Object.freeze({...base,strategyDigest,digest:strategyDigest});}
   }return null;}
-async function verifyPlaybackBounded(options,store,workspaceMediaHandle,probe,run=runFfmpeg){const handle=workspaceMediaHandle.workspaceMaterialHandle,location=workspaceLocation(store,handle),duration=Math.max(1,Number(probe.durationMs||1))/1000,points=[5,50,95],passed=[];for(const point of points){try{await run(resolveAftercareFfmpegPath(options.ffmpegPath),['-hide_banner','-nostdin','-loglevel','error','-ss',(duration*point/100).toFixed(3),'-i',location,'-map','0:v:0','-frames:v','1','-f','null',process.platform==='win32'?'NUL':'/dev/null'],30_000);passed.push(point);}catch{}}return Object.freeze({samplePointsPercent:Object.freeze(points),passedSamplePointsPercent:Object.freeze(passed),decodeDigest:canonicalDigest({schema:'arca.aftercare-playback-decode@1',handleDigest:canonicalDigest(handle),points,passed})});}
+async function verifyPlaybackBounded(options,store,workspaceMediaHandle,probe,run=runFfmpeg){const handle=workspaceMediaHandle.workspaceMaterialHandle,location=workspaceLocation(store,handle),duration=Math.max(1,Number(probe.durationMs||1))/1000,points=[5,50,95],passed=[];for(const point of points){try{await run(resolveAftercareFfmpegPath(options.ffmpegPath),['-hide_banner','-nostdin','-loglevel','error','-ss',(duration*point/100).toFixed(3),'-i',location,'-map','0:v:0','-frames:v','1','-f','null',process.platform==='win32'?'NUL':'/dev/null'],30_000);passed.push(point);}catch(error){if(error?.code!=='ARCA_AFTERCARE_MEDIA_FAILED')throw error;}}return Object.freeze({samplePointsPercent:Object.freeze(points),passedSamplePointsPercent:Object.freeze(passed),decodeDigest:canonicalDigest({schema:'arca.aftercare-playback-decode@1',handleDigest:canonicalDigest(handle),points,passed})});}
+
+async function verifyInventoryPlayback(options,context,material,probe) {
+  const handle=primaryReadHandle(context,material),points=[5,50,95],passed=[];
+  const run=options.aftercarePlaybackRunner||runFfmpeg;
+  for(const point of points) {
+    try {
+      await run(resolveAftercareFfmpegPath(options.ffmpegPath),['-hide_banner','-nostdin','-loglevel','error',
+        '-ss',(Math.max(1,Number(probe.durationMs||1))/1000*point/100).toFixed(3),'-i',material.location,
+        '-map','0:v:0','-frames:v','1','-f','null',process.platform==='win32'?'NUL':'/dev/null'],30_000);
+      passed.push(point);
+    }catch(error){if(error.code!=='ARCA_AFTERCARE_MEDIA_FAILED')throw error;}
+  }
+  return Object.freeze({samplePointsPercent:points,passedSamplePointsPercent:passed,
+    decodeDigest:canonicalDigest({schema:'arca.inventory-playback-evidence@1',handleDigest:canonicalDigest(handle),points,passed})});
+}
 
 function createAftercareCapabilityPorts(options){const now=options.now||Date.now,contextReader=options.contextReader,store=contextReader.store,controls=createMaterialControlProjectionPort(options),fingerprint=options.computeBoundedMaterialFingerprintSync,readSnapshot=options.readBoundedFileSnapshotSync,compileFfmpegPipeline=options.compileFfmpegPipeline,compileFfmpegPassArgs=options.compileFfmpegPassArgs;
   if(typeof fingerprint!=='function')throw new TypeError('Arca Aftercare requires the bounded Physical Material fingerprint port.');
@@ -459,8 +477,16 @@ function createAftercareCapabilityPorts(options){const now=options.now||Date.now
     const readHandle=primaryReadHandle(c,primary),probe=await options.mediaProbe.probe(readHandle),sourceProbeEvidence=aftercareMediaProbeEvidence(probe,readHandle,primary.size_bytes,now());let findings=probeConformance(c,probe);const needsTranscode=findings.some((item)=>
       /\/(video_codec_unmet|max_size_exceeded)\//.test(item.schemaRef)),mediaRepairStrategy=needsTranscode&&probe.resultKind==='probed'
         ?await assessMediaRepairStrategy(options,c,probe,sourceProbeEvidence):null;
-    if(needsTranscode&&!mediaRepairStrategy)findings=[...findings.filter((item)=>!/\/(video_codec_unmet|max_size_exceeded)\//.test(item.schemaRef)),
-      finding('conformance','media_strategy_unavailable','critical','attention_required',canonicalDigest({basis:c.basis.digest,probeDigest:canonicalDigest(probe)}))];
+    if(needsTranscode&&!mediaRepairStrategy)findings=findings.map(item=>/\/(video_codec_unmet|max_size_exceeded)\//.test(item.schemaRef)
+      ?Object.freeze({...item,schemaRef:item.schemaRef.replace('/auto_repair/','/attention_required/')}):item);
+    if(probe.resultKind==='probed') {
+      const playback=await verifyInventoryPlayback(options,c,primary,probe);
+      if(!exactInventoryMaterial(primary.location,primary,primary.mount_scope_id,fingerprint))
+        throw Object.assign(new Error('Inventory changed during playback assessment.'),{code:'ARCA_AFTERCARE_INPUT_STALE'});
+      if(playback.passedSamplePointsPercent.length!==3)findings.push(finding('conformance','playback_decode_failed',
+        'critical','attention_required',playback.decodeDigest));
+    }
+    for(const field of missingFields(c))findings.push(finding('conformance','metadata_field_missing__'+field,'warning','attention_required',canonicalDigest({field,requiredValueDigest:requirementGapValueDigest(effectiveRequirements(c),'metadata_field_unmet',field)})));
     const placementState=classifyAcceptedPlacement(c),placementRequest=placementState.state==='recompute'?buildAftercareInventoryRequest(c,options.inventoryPort,at,stable('arca-care-assessment-placement-',{entry:c.shelfEntryId,basis:c.basis.digest})):null,desired=placementRequest?options.inventoryPort.resolveTargetLocation(placementRequest):null,placementUnmet=Boolean(desired)&&c.raw.materials.some((item)=>item.endpoint_id!==c.raw.shelf.target_endpoint_id||path.resolve(path.dirname(item.location))!==path.resolve(desired.targetDirectory));
     if(placementState.state==='not_assessable')findings.push(finding('conformance','placement_basis_unavailable','critical','attention_required',canonicalDigest({shelfEntryId:c.shelfEntryId,placementRevision:c.basis.placementRevision,reasonCode:placementState.reasonCode})));
     if(placementUnmet)findings.push(finding('conformance','placement_unmet','critical','auto_repair',canonicalDigest({endpointId:c.raw.shelf.target_endpoint_id,targetDirectory:desired.targetDirectory,placementRevision:c.basis.placementRevision})));
@@ -490,11 +516,38 @@ function createAftercareCapabilityPorts(options){const now=options.now||Date.now
           String(n.stableProviderIdentity.providerObjectId)!==String(c.raw.identity.provider_key)||
           n.stableProviderIdentity.identityDigest!==c.raw.identity.identity_digest)
         return Object.freeze({kind:'failed',failureClass:'executor',code:'ARCA_AFTERCARE_PROVIDER_INPUT_STALE',message:'Aftercare Provider input does not match the current Case identity and operation.',retryDirective:'contract_policy',evidence:Object.freeze({errorName:'AftercareProviderInputError',errorCode:'ARCA_AFTERCARE_PROVIDER_INPUT_STALE'})});
+      let response,image;
+      try {
       if(typeof options.fetchAftercareArtifact!=='function')
         throw Object.assign(new Error('Aftercare Provider Artifact adapter is unavailable.'),{code:'ARCA_AFTERCARE_PROVIDER_UNAVAILABLE'});
-      const response=await options.fetchAftercareArtifact({operationId:C.binaryAcquire,artifactKind:'poster',
-          integrationHandle:n.integrationHandle,resolvedProviderIdentity}),
-        evidenceValue={evidenceId:stable('arca-care-poster-evidence-',{care:care.aftercareCaseId,basis}),
+      response=await options.fetchAftercareArtifact({operationId:C.binaryAcquire,artifactKind:'poster',
+          integrationHandle:n.integrationHandle,resolvedProviderIdentity});
+      if(!response || !['acquired','not_available'].includes(response.resultKind) ||
+          (response.resultKind==='not_available' && (!response.reasonCode || typeof response.reasonCode!=='string')))
+        throw Object.assign(new Error('Aftercare Provider response is not a typed result.'),{code:'ARCA_AFTERCARE_PROVIDER_RESPONSE_INVALID'});
+      if(response.resultKind==='acquired') {
+        if(response.artifactKind!=='poster'||response.integrationId!==n.integrationHandle.integrationId||
+            response.configRevision!==n.integrationHandle.configRevision||
+            canonicalDigest(response.resolvedProviderIdentity)!==canonicalDigest(resolvedProviderIdentity))
+          throw Object.assign(new Error('Aftercare Provider response does not match the frozen Artifact Handle.'),{code:'ARCA_AFTERCARE_PROVIDER_RESPONSE_STALE'});
+        if(!Buffer.isBuffer(response.bytes))
+          throw Object.assign(new Error('Aftercare Provider Artifact bytes are absent.'),{code:'ARCA_AFTERCARE_ARTIFACT_VERIFICATION_FAILED'});
+        image=await inspectImageBytes(response.bytes);
+        if(!image)throw Object.assign(new Error('Aftercare Provider Artifact cannot be decoded as a supported image.'),{code:'ARCA_AFTERCARE_ARTIFACT_VERIFICATION_FAILED'});
+      }
+      revalidateCaseAuthority(execution,care);
+      }catch(error){
+        const root=path.resolve(options.aftercareWorkspaceRoot||path.join(os.tmpdir(),'shelfdeck-aftercare-workspaces')),
+          target=path.join(root,care.aftercareCaseId,'artifacts');
+        const absent=location=>{try{fs.lstatSync(location);return false;}catch(observationError){return observationError.code==='ENOENT';}};
+        if(!inside(root,target)||!['jpg','png','webp'].every(extension=>absent(path.join(target,'poster.'+extension))))throw error;
+        return Object.freeze({kind:'failed',failureClass:'integration',code:'ARCA_AFTERCARE_ARTIFACT_FETCH_FAILED',
+          message:'Artifact retrieval failed before Workspace write.',retryDirective:'never',
+          evidence:Object.freeze({eventAttemptId:execution.eventAttemptId,idempotencyKey:execution.idempotencyKey,
+            aftercareCaseId:care.aftercareCaseId,targetAbsent:true,writeStarted:false,
+            errorCode:String(error?.code||'PROVIDER_REQUEST_FAILED').slice(0,128)})});
+      }
+      const evidenceValue={evidenceId:stable('arca-care-poster-evidence-',{care:care.aftercareCaseId,basis}),
           evidenceKind:'aftercare_provider_artifact',producerRef:C.binaryAcquire,basisDigest:basis,
           payloadDigest:canonicalDigest({resultKind:response?.resultKind||'not_available',basis}),observedAtMs:at};
       revalidateCaseAuthority(execution,care);
@@ -504,15 +557,6 @@ function createAftercareCapabilityPorts(options){const now=options.now||Date.now
           evidence:Object.freeze(evidenceValue)});
         return Object.freeze({...outcome(C.binaryAcquire,result,at),effectReceipt:effectReceipt(execution,'workspace_write',result,at)});
       }
-      if(response.artifactKind!=='poster'||response.integrationId!==n.integrationHandle.integrationId||
-          response.configRevision!==n.integrationHandle.configRevision||
-          canonicalDigest(response.resolvedProviderIdentity)!==canonicalDigest(resolvedProviderIdentity))
-        throw Object.assign(new Error('Aftercare Provider response does not match the frozen Artifact Handle.'),{code:'ARCA_AFTERCARE_PROVIDER_RESPONSE_STALE'});
-      if(!Buffer.isBuffer(response.bytes))
-        throw Object.assign(new Error('Aftercare Provider Artifact bytes are absent.'),{code:'ARCA_AFTERCARE_ARTIFACT_VERIFICATION_FAILED'});
-      const image=await inspectImageBytes(response.bytes);
-      revalidateCaseAuthority(execution,care);
-      if(!image)throw Object.assign(new Error('Aftercare Provider Artifact cannot be decoded as a supported image.'),{code:'ARCA_AFTERCARE_ARTIFACT_VERIFICATION_FAILED'});
       const extension=image.format==='jpeg'?'jpg':image.format,root=workspaceRoot(options,store,care.aftercareCaseId),
         location=path.join(root,'artifacts','poster.'+extension);
       fs.mkdirSync(path.dirname(location),{recursive:true});
@@ -630,7 +674,7 @@ function createAftercareCapabilityPorts(options){const now=options.now||Date.now
           entry:Object.freeze({...c.raw.entry,current_inventory_revision:nextRevision}),materials:Object.freeze(materials)})}),
         settlementApproval=hasSettlementEvent?settlementApprovalFor(projectedPostCommitContext,committedAtMs):null,
         written=store.commitInventory({...inventoryRequest,materials,related:c.raw.related,facts:c.raw.facts,people:c.raw.people,
-          committedAtMs,settlementApproval,resultBinding:Object.freeze({
+          committedAtMs,settlementApproval,defectRepair:verifiedDefectRepair(care,receipts,options.workResultReader.read(sourceWorkId).filter(row=>row.outcomeKind==='succeeded')),resultBinding:Object.freeze({
             resultId:stable('arca-care-inventory-result-',{eventId:execution.eventId}),eventId:execution.eventId,
             outcomeKind:atomicOutcome.kind,resultSchemaRef:atomicOutcome.resultSchemaRef,result:atomicOutcome.result,
             evidenceSchemaRef:atomicOutcome.evidenceSchemaRef,evidence:atomicOutcome.evidence,
@@ -739,4 +783,4 @@ function createAftercareCapabilityPorts(options){const now=options.now||Date.now
   return Object.freeze(ports);
 }
 
-module.exports=Object.freeze({assessMediaRepairStrategy,AFTERCARE_LONG_MEDIA_TIMEOUT_MS,createAftercareCapabilityPorts,decodeFinding,validNfo,validImageBytes,progressSample,remainingDeadlineMs,aftercareMediaProbeEvidence,resolveAftercareFfmpegPath,materializeArtifactWithRollback,materializeMediaWithRollback,nfoCommitSource,externalWriterConflictOutcome,aftercareInventoryNoChangeOutcome,aftercareSettlementPreconditionFailureOutcome,observeSemanticNfoReconciliation,custodyIdentityChangedFinding,permitsMissingArtifactReplacement,buildProductionVideoProfile,verifyPlaybackBounded,resolveAftercareSettlementTarget,assertAftercareSettlementHandle,assertSettlementTargetReality});
+module.exports=Object.freeze({probeConformance,assessMediaRepairStrategy,AFTERCARE_LONG_MEDIA_TIMEOUT_MS,createAftercareCapabilityPorts,decodeFinding,validNfo,validImageBytes,progressSample,remainingDeadlineMs,aftercareMediaProbeEvidence,resolveAftercareFfmpegPath,materializeArtifactWithRollback,materializeMediaWithRollback,nfoCommitSource,externalWriterConflictOutcome,aftercareInventoryNoChangeOutcome,aftercareSettlementPreconditionFailureOutcome,observeSemanticNfoReconciliation,custodyIdentityChangedFinding,permitsMissingArtifactReplacement,buildProductionVideoProfile,verifyPlaybackBounded,verifyInventoryPlayback,resolveAftercareSettlementTarget,assertAftercareSettlementHandle,assertSettlementTargetReality});

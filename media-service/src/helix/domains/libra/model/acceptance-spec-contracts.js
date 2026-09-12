@@ -86,4 +86,11 @@ function resolveAcceptanceSpec(value){
   if(Buffer.byteLength(canonicalJson(spec),'utf8')>65536)fail('P8_SPEC_LIMIT','Acceptance Spec exceeds 64 KiB.');return spec;
 }
 
-module.exports=Object.freeze({buildProductScope,resolveAcceptanceSpec,validateRequirements});
+function resolveCurrentRequirements(input) {
+  const inputSet=buildDecisionInputSet(input),standard=validateStandard(inputSet.shelfStandardProjection),subject=inputSet.subjectSnapshot;
+  const profile=standard.profileRuleSets.find(item=>item.contentProfile===subject.contentProfile);
+  if(!profile)fail('P8_SPEC_PROFILE_RULE_NOT_FOUND','Shelf Standard has no matching content profile.');
+  return selectRequirements(profile,inputSet,subject.structureKind);
+}
+
+module.exports=Object.freeze({buildProductScope,resolveAcceptanceSpec,resolveCurrentRequirements,validateRequirements});

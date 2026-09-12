@@ -10,6 +10,7 @@ const fastifyStatic = require('@fastify/static');
 const sharp = require('sharp');
 const routeRegistry = require('./helix/composition/admin-route-registry');
 const { canonicalDigest } = require('./helix/contracts/canonical-json');
+const {providerRecoveryDigest,computeRecoveryDigest}=require('./helix/platform/application/failure-recovery-projection');
 const { createHelixApplication } = require('./helix/composition/createHelixApplication');
 const { createCleanFacades } = require('./helix/composition/create-clean-facades');
 const { createOverviewProjectionHost } = require('./helix/projections/overview-projection-host');
@@ -953,6 +954,10 @@ function createPlatformIntegrationServices(options) {
           configRevision:snapshot?.integration?.configRevision || 0 });
       }));
     },
+    readRecoveryCondition(kind) {
+      if(!['tmdb','moviepilot'].includes(kind))throw new TypeError('Unknown provider recovery condition.');
+      return Object.freeze({conditionKind:kind,snapshotDigest:providerRecoveryDigest(runtimeFor(kind)?.readCurrent())});
+    },
     async acquirePerceptionProvider(request) {
       return this.executeProvider('douban', { operationId:'perception.source.acquire@1', effectClass:'pure_observation',
         idempotencyKey:request.idempotencyKey, timeoutMs:request.timeoutMs, input:request.input });
@@ -1000,6 +1005,12 @@ function errorResponse(error, correlationId) {
   let status = 500;
   if (AUTH_ERROR_CODES.has(error.code)) status = 401;
   else if (error.code === 'OVERVIEW_PROJECTION_REBUILDING') status = 503;
+  else if (['LIBRA_REPROCESS_INTENT_STALE','LIBRA_REPROCESS_ALREADY_REQUESTED','LIBRA_DEFECT_AUTHORIZATION_STALE',
+    'ARCA_DEFECT_AUTHORIZATION_STALE','ARCA_DEFECT_BASIS_STALE','ARCA_DEFECT_PREVIEW_STALE','ARCA_DEFECT_CONTROL_CHANGED',
+    'ARCA_DEFECT_MATERIAL_CHANGED','ARCA_DEFECT_INELIGIBLE','ARCA_DEFECT_COMMAND_KEY_CONFLICT','ARCA_DEFECT_REPAIR_KEY_CONFLICT'].includes(error.code)) status=409;
+  else if (['LIBRA_REPROCESS_SOURCE_MISSING','ARCA_DEFECT_ENTRY_MISSING'].includes(error.code)) status=404;
+  else if (['LIBRA_DEFECT_AUTHORIZATION_INPUT','ARCA_DEFECT_COMMAND_INVALID','ARCA_DEFECT_SCOPE_TOO_LARGE',
+    'ARCA_DEFECT_REPAIR_SCOPE_TOO_LARGE'].includes(error.code)) status=400;
   else if (error.code === 'ADMIN_FIELD_NOT_FOUND') status = 404;
   else if (error.code === 'ADMIN_SHELF_NOT_FOUND') status = 404;
   else if (error.code === 'ADMIN_SHELF_COMMAND_REJECTED' || error.code === 'ADMIN_SHELF_TARGET_MISMATCH') status = 400;
@@ -1107,7 +1118,7 @@ function createRuntime(options) {
   if (!fs.existsSync(path.join(options.adminDistDir, 'index.html'))) {
     findings.push('ADMIN_WEB_BUILD_MISSING');
   }
-  if (routeManifest.status !== 'active' || routeManifest.entries.length !== 127) {
+  if (routeManifest.status !== 'active' || routeManifest.entries.length !== 134) {
     findings.push('ROUTE_INVENTORY_INCOMPLETE');
   }
   if (uiManifest.status !== 'active' || uiManifest.entries.length !== 17) {
@@ -1517,6 +1528,9 @@ async function createCleanServiceHost(options) {
     ffmpegProcessRegistry,
     progressProjectionReader: executionProgressProjectionReader,
     platformComputeRuntime,
+    readFailureRecoveryConditions:options.readFailureRecoveryConditions || (kinds=>kinds.map(kind=>kind==='media_compute'
+      ?Object.freeze({conditionKind:kind,snapshotDigest:computeRecoveryDigest(platformComputeRuntime)})
+      :platformIntegrations.readRecoveryCondition(kind))),
     productDeliveryPort,
     inventoryPort: arcaInventoryPort,
     offdeckDeletionPort: options.offdeckDeletionPort || createCleanOffdeckDeletionPort({
@@ -1524,6 +1538,7 @@ async function createCleanServiceHost(options) {
     }),
     fetchAftercareArtifact: options.aftercareArtifactFetch || options.productProviderArtifactFetch ||
       platformIntegrations.fetchProviderArtifact,
+    aftercarePlaybackRunner:options.aftercarePlaybackRunner,
     resolveAftercareIntegrationHandle: options.aftercareIntegrationHandleResolver ||
       options.currentProductIntegrationHandleResolver || ((request) =>
         platformIntegrations.resolveCurrentProductHandle({
@@ -1651,6 +1666,7 @@ async function createCleanServiceHost(options) {
     wake:()=>executionRuntimeHost.wake(),now:options.now||Date.now});
   const libraRunAdminService = createLibraRunAdminService({
     ...constructed.applicationDependencies,
+    cancelProcessWorks: procurementExecution.cancelProcessWorks,
     libraRunExecutionProjection: procurementExecution.libraRunExecutionProjection,
     pipelineAdmission: procurementExecution.pipelineAdmission,
     onPipelineSeatReleased: () => {
@@ -1660,6 +1676,11 @@ async function createCleanServiceHost(options) {
     now: options.now || Date.now,
   });
   const libraRunAdmin = Object.freeze({
+    readOutcome:libraRunAdminService.readOutcome,
+    reprocessSourceFieldIds:libraRunAdminService.reprocessSourceFieldIds,
+    requestReprocess:libraRunAdminService.requestReprocess,
+    readAutomaticAuthorization: () => libraRunAdminService.readAutomaticAuthorization(),
+    setAutomaticAuthorization: body => libraRunAdminService.setAutomaticAuthorization(body),
     expedite(libraRunId, body) { const result=libraRunAdminService.expedite(libraRunId,body); formationProjectionHost.enqueue(formationProjectionSource.findSubjectByRun(libraRunId)); return result; },
     cancelExpedite(libraRunId, body) { const result=libraRunAdminService.cancelExpedite(libraRunId,body); formationProjectionHost.enqueue(formationProjectionSource.findSubjectByRun(libraRunId)); return result; },
     discard(libraRunId, body) { const result=libraRunAdminService.discard(libraRunId,body); formationProjectionHost.enqueue(formationProjectionSource.findSubjectByRun(libraRunId)); return result; },
@@ -1812,6 +1833,7 @@ async function createCleanServiceHost(options) {
     formationQuery,
     arcaCollectionQuery,
     arcaCare,
+    arcaDefectAdmission:procurementExecution.arcaDefectAdmission,
     arcaRecycle,
     arcaOffdeck,
     routingManualSelection,

@@ -20,7 +20,7 @@ function createAcceptanceSpecContextReader(options){
       const current=basisStore.readInputSet(routingContext.expectedHead.currentDecisionBasisId);
       if(current?.basis?.basisKind==='acceptance_spec'&&current.inputSet.specInputDigest===inputSet.specInputDigest){
         if(routingContext.expectedHead.currentAcceptanceSpecId)return Object.freeze({kind:'current',subjectId,
-          acceptanceSpecId:routingContext.expectedHead.currentAcceptanceSpecId,decisionBasisId:current.basis.decisionBasisId,specInputDigest:inputSet.specInputDigest});
+          acceptanceSpecId:routingContext.expectedHead.currentAcceptanceSpecId,decisionBasisId:current.basis.decisionBasisId,specInputDigest:inputSet.specInputDigest,inputSet});
         return Object.freeze({kind:'basis_ready',subjectId,basis:current.basis,inputSet:current.inputSet});
       }
     }

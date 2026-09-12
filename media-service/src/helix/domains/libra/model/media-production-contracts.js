@@ -630,9 +630,9 @@ function buildProductMediaVerification(value) {
     if(outputVideo.pixelFormat!=='yuv420p'||canonicalJson(outputColorProfile)!==canonicalJson({range:'limited',primaries:'bt709',transfer:'bt709',matrix:'bt709'}))
       reasons.push('output_color_profile_unmet');
     if(dolbyVisionMetadataPresent)reasons.push('dolby_vision_metadata_not_removed');
-    if(canonicalJson(playback.samplePointsPercent)!==canonicalJson([5,50,95])||
-        canonicalJson(playback.passedSamplePointsPercent)!==canonicalJson([5,50,95]))reasons.push('playback_decode_failed');
   }
+  if(canonicalJson(playback.samplePointsPercent)!==canonicalJson([5,50,95])||
+      canonicalJson(playback.passedSamplePointsPercent)!==canonicalJson([5,50,95]))reasons.push('playback_decode_failed');
   const reasonCodes = Object.freeze([...new Set(reasons)]), productMaterialHandleDigest = canonicalDigest(handle),
     productMaterialFenceDigest = digest(handle.fenceDigest, 'productMaterialFenceDigest'), sourceProbeEvidenceDigest = canonicalDigest(input.sourceProbeEvidence),
     outputProbeEvidenceDigest = canonicalDigest(outputProbe);

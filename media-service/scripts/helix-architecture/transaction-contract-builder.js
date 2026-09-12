@@ -293,7 +293,8 @@ const definitions = Object.freeze({
       'libra_material_binding_episode_claims', 'fx_material_controls', 'fx_material_control_revisions',
       'libra_product_packages', 'libra_product_package_materials',
       'libra_product_package_material_episode_claims', 'libra_offload_context_materials',
-      'fx_supporting_works', 'fx_workflow_plans', 'fx_workflow_events', 'fx_event_attempts'],
+        'fx_supporting_works', 'fx_workflow_plans', 'fx_workflow_events', 'fx_event_attempts',
+        'libra_defect_authorizations', 'libra_defect_authorization_head', 'libra_strategy_availability'],
     fixtureRefs: ['libra-run-lifecycle'], hasOutbox: false,
     forbiddenWritePrefixes: ['proc_', 'arca_']
   },
@@ -393,8 +394,8 @@ const definitions = Object.freeze({
   },
   'Libra Run Discard Commit': {
     commitClass: 'responsibility_control_commit',
-    writeTables: ['libra_run_discard_decisions', 'libra_run_discard_receipts', 'libra_run_admission_heads',
-      'libra_runs', 'libra_run_revisions', 'libra_workspace_cleanup_scopes', 'libra_workspace_cleanup_members',
+      writeTables: ['libra_run_discard_decisions', 'libra_run_discard_receipts', 'libra_run_admission_heads',
+        'libra_runs', 'libra_run_revisions', 'libra_run_outcomes', 'libra_workspace_cleanup_scopes', 'libra_workspace_cleanup_members',
       'libra_workspaces', 'libra_workspace_revisions', 'fx_material_controls', 'fx_material_control_revisions',
       'fx_commit_markers', 'fx_outbox'],
     readTables: ['libra_run_material_manifests', 'libra_run_material_members',
@@ -402,7 +403,9 @@ const definitions = Object.freeze({
       'libra_run_discard_receipts', 'libra_run_admission_heads', 'libra_runs', 'libra_run_revisions',
       'libra_workspace_cleanup_scopes', 'libra_workspace_cleanup_members', 'libra_workspaces',
       'libra_workspace_revisions', 'fx_material_controls', 'fx_material_control_revisions',
-      'fx_event_result_bindings', 'fx_commit_markers', 'fx_outbox'],
+        'fx_event_result_bindings', 'fx_commit_markers', 'fx_outbox', 'libra_acceptance_specs',
+        'libra_run_outcomes', 'libra_delivery_receipts', 'fx_supporting_works', 'fx_work_attempts',
+        'fx_workflow_events', 'fx_event_attempts', 'fx_effect_journal'],
     fixtureRefs: ['libra-run-discard'], hasOutbox: true
   },
   'Libra Workspace Cleanup Scope Admission': {
@@ -435,12 +438,25 @@ const definitions = Object.freeze({
   'Aftercare Case Creation': {
     commitClass: 'domain_unit_of_work',
     writeTables: ['arca_aftercare_cases', 'arca_aftercare_case_basis_inputs', 'fx_commit_markers', 'fx_outbox'],
-    readTables: ['arca_aftercare_assessments', 'arca_aftercare_findings', 'arca_shelf_entries'], fixtureRefs: ['aftercare-basis-inventory'], hasOutbox: true
+    readTables: ['arca_aftercare_assessments', 'arca_aftercare_findings', 'arca_shelf_entries'],
+    fixtureRefs: ['aftercare-basis-inventory'], hasOutbox: true,
+    variants:[{variantId:'repair_accepted_defects@1',exactOverride:true,
+      selector:{selectorKind:'owner_command_exact',commandContract:'arca.repair-accepted-defects@1'},
+      writeTables:['arca_aftercare_cases', 'arca_aftercare_case_basis_inputs', 'fx_commit_markers', 'fx_outbox',
+        'arca_defect_admissions', 'arca_defect_admission_heads', 'arca_defect_repair_intents',
+        'fx_material_controls', 'fx_material_control_revisions', 'fx_command_receipts', 'fx_audit_records'],
+      readTables: ['arca_aftercare_assessments', 'arca_aftercare_findings', 'arca_shelf_entries',
+        'arca_defect_admissions', 'arca_defect_admission_heads', 'arca_defect_repair_intents',
+        'arca_inventory_materials', 'arca_offdeck_reservations', 'arca_shelves'],
+      dynamicTableRequirements:[],hasOutbox:true,materialControlCasRequired:true,
+      fixtureRefs:['aftercare-basis-inventory','command-idempotency'],
+      rollbackInvariant:'Stale Inventory, Basis, accepted gaps, authorization revision, Control, or duplicate intent leaves no Case, intent, authorization, receipt, marker, or audit; files and prior Inventory remain unchanged.'}]
   },
   'Aftercare Inventory Commit': {
     commitClass: 'responsibility_control_commit',
-    writeTables: ['arca_inventory_representations', 'arca_inventory_materials', 'arca_inventory_related_references', 'arca_inventory_product_facts', 'arca_inventory_person_relations', 'arca_aftercare_inventory_commits', 'arca_shelf_entries', 'fx_material_controls', 'fx_material_control_revisions', 'fx_commit_markers'],
-    readTables: ['arca_aftercare_cases'], fixtureRefs: ['aftercare-basis-inventory'], hasOutbox: false
+    writeTables: ['arca_inventory_representations', 'arca_inventory_materials', 'arca_inventory_related_references', 'arca_inventory_product_facts', 'arca_inventory_person_relations', 'arca_aftercare_inventory_commits', 'arca_shelf_entries', 'fx_material_controls', 'fx_material_control_revisions', 'fx_commit_markers', 'arca_defect_admissions', 'arca_defect_admission_heads'],
+      readTables: ['arca_aftercare_cases', 'arca_defect_repair_intents', 'arca_defect_admissions',
+        'arca_defect_admission_heads'], fixtureRefs: ['aftercare-basis-inventory'], hasOutbox: false
   },
   'Inventory Record Refresh Commit': {
     commitClass:'responsibility_control_commit',eventResultRequired:false,
@@ -551,7 +567,7 @@ function buildVariants(owner, baseWriteTables, baseReadTables, variants = []) {
       dynamicTableRequirements: variant.dynamicTableRequirements,
       fenceContract: {
         domainRevisionFenceRequired: true,
-        materialControlCasRequired: false,
+        materialControlCasRequired: variant.materialControlCasRequired === true,
         commitMarkerRequired: true,
         outboxRequired: variant.hasOutbox
       },

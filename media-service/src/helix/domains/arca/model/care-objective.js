@@ -6,7 +6,7 @@ function effectiveRequirements(context){const profiles=context.raw.standard.valu
 
 function careFindingCodes(requirement) {
   return (requirement?.typedParameters || []).filter(item =>
-    !/^(target|basis|source)\./.test(item.parameter)).map(item => String(item.value));
+    !/^(target|basis|source|trigger)\./.test(item.parameter)).map(item => String(item.value));
 }
 function freezeCareObjective(context) {
   const requirements = effectiveRequirements(context);

@@ -90,8 +90,10 @@ function validateTransactionContracts(options) {
       if (!variant.selector) continue;
       const selector = variant.selector;
       const commandSelector = selector.selectorKind === 'owner_command_exact' &&
-        entry.id === 'helix.transaction.inventory-record-refresh-commit' &&
-        selector.commandContract === 'arca.inventory.person-records.refresh@1';
+        ((entry.id === 'helix.transaction.inventory-record-refresh-commit' &&
+          selector.commandContract === 'arca.inventory.person-records.refresh@1') ||
+         (entry.id === 'helix.transaction.aftercare-case-creation' &&
+          selector.commandContract === 'arca.repair-accepted-defects@1'));
       const factSelector = selector.selectorKind === 'domain_fact_handle_exact' && selector.factType &&
         selector.factSchemaRef && selector.resultSchemaRef;
       const selectorKey = commandSelector ? selector.commandContract : [selector.factType, selector.factSchemaRef, selector.resultSchemaRef].join('|');

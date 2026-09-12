@@ -1,6 +1,7 @@
 'use strict';
 
 const { canonicalDigest, canonicalJson } = require('../../../contracts/canonical-json');
+const {artifactGapCodes}=require('../../../contracts/artifact-requirement-gaps');
 
 const SCHEMA_REF = 'helix://contracts/application-types/AuthorizedDefectManifest/v1';
 const ACTOR_FAILURE = 'product_metadata_required_cast_missing';
@@ -33,7 +34,7 @@ const WAIVABLE_MEDIA_CODES = new Set([
   'output_color_profile_unmet',
   'dolby_vision_metadata_not_removed',
 ]);
-const DEFECT_CODES = new Set(['actor_unavailable', 'external_source_exhausted', 'size_cap_exceeded']);
+const DEFECT_CODES = new Set(['actor_unavailable', 'metadata_fields_unavailable', 'artifacts_unavailable', 'external_source_exhausted', 'media_requirements_unmet', 'size_cap_exceeded']);
 const DIGEST = /^[a-f0-9]{64}$/;
 
 class DefectAdmissionContractError extends Error {
@@ -65,19 +66,20 @@ function positive(value, field) {
   }
   return value;
 }
-function ordered(values) {
+function ordered(values = []) {
   return [...new Set(values)].sort((left, right) => Buffer.from(left).compare(Buffer.from(right)));
 }
-function blocker(terminalEvidence) {
-  const values = terminalEvidence?.blockedWorks;
-  if (!Array.isArray(values) || values.length !== 1) {
-    fail('P9_DEFECT_ADMISSION_TERMINAL', 'Defect admission requires one exact terminal blocker.');
+function blockers(terminalEvidence, candidateGapSources) {
+  const values = candidateGapSources || terminalEvidence?.blockedWorks;
+  if (!Array.isArray(values) || values.length < 1) {
+    fail('P9_DEFECT_ADMISSION_TERMINAL', 'Defect admission requires exact terminal blockers.');
   }
-  const item = values[0];
+  for(const item of values) {
   text(item.workId, 'blockedWork.workId');
   text(item.failureCode, 'blockedWork.failureCode');
   digest(item.terminalEvidenceDigest, 'blockedWork.terminalEvidenceDigest');
-  return item;
+  }
+  return values;
 }
 function sizeCapDefect(item, verification, run) {
   if (item.failureCode !== 'size_cap_requires_admission' ||
@@ -107,27 +109,35 @@ function sizeCapDefect(item, verification, run) {
     waivedRequirementCodes: Object.freeze(['max_size_exceeded']),
   });
 }
-function actorDefect(item) {
-  if (item.failureCode !== ACTOR_FAILURE ||
+function metadataDefect(item, missingFields, productGapPath) {
+  if (productGapPath !== 'metadata' && (![ACTOR_FAILURE,'product_metadata_required_fields_missing'].includes(item.failureCode) ||
       item.capabilityRef !== 'libra.product_metadata.fetch@1' ||
-      item.failureClass !== 'business_unachievable') return null;
+      item.failureClass !== 'business_unachievable')) return null;
+  const fields=ordered(missingFields || (item.failureCode===ACTOR_FAILURE?['actor']:[]));
+  if(!fields.length)fail('P9_DEFECT_ADMISSION_EVIDENCE_PENDING','Exact missing metadata fields are unavailable.');
+  if(fields.some(code=>['tmdb_movie_id','tmdb_series_id','jav_code','internal_identity','season_number','episode_number'].includes(code)))
+    fail('P9_DEFECT_ADMISSION_NONWAIVABLE','Identity and structure requirements cannot be accepted as metadata defects.');
   return Object.freeze({
-    defectCode: 'actor_unavailable',
+    defectCode: fields.length===1&&fields[0]==='actor'?'actor_unavailable':'metadata_fields_unavailable',
+    metadataFieldCodes:Object.freeze(fields),
     sourceFailureCode: item.failureCode,
     sourceWorkId: item.workId,
     sourceEvidenceDigest: item.terminalEvidenceDigest,
     waivedRequirementCodes: Object.freeze(['metadata_field_unmet']),
   });
 }
-function externalDefect(item, verification, run) {
-  if (!EXTERNAL_FAILURES.has(item.failureCode) ||
+function externalDefect(item, verification, run, productGapPath) {
+  const exhaustion = EXTERNAL_FAILURES.has(item.failureCode) &&
+      EXTERNAL_TERMINAL_CAPABILITIES.has(item.capabilityRef) &&
+      item.failureClass === 'business_unachievable';
+  if (productGapPath !== 'media' && (!EXTERNAL_FAILURES.has(item.failureCode) ||
       !EXTERNAL_TERMINAL_CAPABILITIES.has(item.capabilityRef) ||
-      item.failureClass !== 'business_unachievable') return null;
+      item.failureClass !== 'business_unachievable')) return null;
   if (!verification || verification.candidateKind !== 'direct_input' ||
       verification.result !== 'failed' || verification.libraRunId !== run.libraRunId ||
       !Array.isArray(verification.reasonCodes) || !verification.reasonCodes.length) {
-    fail('P9_DEFECT_ADMISSION_ORIGINAL_MEDIA',
-      'External exhaustion admission requires one failed direct-input verification.');
+    fail('P9_DEFECT_ADMISSION_INELIGIBLE',
+      'Media defect admission requires a verified direct product with concrete requirement gaps.');
   }
   const reasons = ordered(verification.reasonCodes);
   if (reasons.some((code) => !WAIVABLE_MEDIA_CODES.has(code))) {
@@ -136,7 +146,7 @@ function externalDefect(item, verification, run) {
   }
   digest(verification.verificationId, 'verification.verificationId');
   return Object.freeze({
-    defectCode: 'external_source_exhausted',
+    defectCode: exhaustion ? 'external_source_exhausted' : 'media_requirements_unmet',
     sourceFailureCode: item.failureCode,
     sourceWorkId: item.workId,
     sourceEvidenceDigest: item.terminalEvidenceDigest,
@@ -151,22 +161,29 @@ function buildDefectAdmissionCandidate(value) {
   if (!run || run.state !== 'frozen') {
     fail('P9_DEFECT_ADMISSION_STATE', 'Only the current frozen Run can form a defect candidate.');
   }
-  const item = blocker(value.terminalEvidence);
-  const defect = actorDefect(item) || sizeCapDefect(item,value.sizeCapVerification,run) ||
-    externalDefect(item, value.directMediaVerification, run);
-  if (!defect) {
+  const additions=blockers(value.terminalEvidence,value.candidateGapSources).map(item=>{
+    const productGapPath = value.productGapPaths?.[item.workId];
+    const artifactKinds=value.missingArtifactKindsByWork?.[item.workId];
+    const artifact=artifactKinds?.length?Object.freeze({defectCode:'artifacts_unavailable',artifactKindCodes:Object.freeze(ordered(artifactKinds)),
+      sourceFailureCode:item.failureCode,sourceWorkId:item.workId,sourceEvidenceDigest:item.terminalEvidenceDigest,
+      waivedRequirementCodes:Object.freeze(artifactGapCodes(value.requirements,artifactKinds))}):null;
+    const defect = artifact || metadataDefect(item,value.missingMetadataFields,productGapPath) || sizeCapDefect(item,value.sizeCapVerification,run) ||
+      externalDefect(item, value.directMediaVerification, run,productGapPath);
+    if (!defect) {
     fail('P9_DEFECT_ADMISSION_INELIGIBLE',
-      'The frozen terminal reason is outside the V1 defect-admission closed set.',
+      'The terminal blocker is not an evidenced acceptable product gap.',
       { failureCode: item.failureCode });
-  }
+    }
+    return defect;
+  });
   const prior = value.priorAuthorizedManifest?.defects || [];
-  const defects = [...prior, defect]
+  const defects = [...prior, ...additions]
     .filter((entry, index, items) => items.findIndex((itemValue) =>
-      itemValue.defectCode === entry.defectCode) === index)
-    .sort((left, right) => Buffer.from(left.defectCode).compare(Buffer.from(right.defectCode)));
-  if (!defects.length || defects.length > 2 ||
+      canonicalDigest(itemValue) === canonicalDigest(entry)) === index)
+    .sort((left, right) => Buffer.from(canonicalJson(left)).compare(Buffer.from(canonicalJson(right))));
+  if (!defects.length ||
       defects.some((entry) => !DEFECT_CODES.has(entry.defectCode))) {
-    fail('P9_DEFECT_ADMISSION_SCOPE', 'Defect candidate exceeds the V1 closed set.');
+    fail('P9_DEFECT_ADMISSION_SCOPE', 'Defect candidate contains an unsupported gap.');
   }
   const body = {
     candidateRevision: positive(run.stateRevision, 'run.stateRevision'),
@@ -179,6 +196,8 @@ function buildDefectAdmissionCandidate(value) {
     waivedRequirementCodes: Object.freeze(ordered(defects.flatMap((entry) =>
       entry.waivedRequirementCodes))),
   };
+  if(value.gapScope)body.gapScope=value.gapScope;
+  if(Buffer.byteLength(canonicalJson(body))>65536)fail('P9_DEFECT_ADMISSION_TOO_LARGE','Exact gap evidence exceeds 64 KiB; it cannot be truncated.');
   return Object.freeze({ ...body, candidateDigest: canonicalDigest(body) });
 }
 
@@ -207,6 +226,7 @@ function buildAuthorizedDefectManifest(value) {
   const body = {
     schemaRef: SCHEMA_REF,
     schemaVersion: 1,
+    authorizationSource:value.standingAuthorization?'standing':'manual',
     manifestId: decisionId,
     defectDecisionId: decisionId,
     libraRunId: candidate.libraRunId,
@@ -225,6 +245,14 @@ function buildAuthorizedDefectManifest(value) {
     idempotencyKey,
     decidedAtMs,
   };
+  if (value.standingAuthorization) {
+    body.standingAuthorization = Object.freeze({
+      authorizationId: text(value.standingAuthorization.authorizationId, 'authorizationId'),
+      revision: positive(value.standingAuthorization.revision, 'authorizationRevision'),
+      authorizationDigest: digest(value.standingAuthorization.authorizationDigest, 'authorizationDigest'),
+    });
+  }
+  if(candidate.gapScope)body.gapScope=candidate.gapScope;
   return Object.freeze({ ...body, manifestDigest: canonicalDigest(body) });
 }
 
@@ -245,11 +273,13 @@ function assertAuthorizedDefectManifest(value) {
       defects: value.defects,
       waivedRequirementCodes: value.waivedRequirementCodes,
       candidateDigest: value.candidateDigest,
+      ...(value.gapScope?{gapScope:value.gapScope}:{}),
     }),
     actorId: value.actorId,
     idempotencyKey: value.idempotencyKey,
     acknowledged: value.acknowledgement === 'accept_listed_defects',
     decidedAtMs: value.decidedAtMs,
+    standingAuthorization: value.standingAuthorization,
   });
   if (canonicalJson(rebuilt) !== canonicalJson(value)) {
     fail('P9_DEFECT_ADMISSION_MANIFEST', 'Authorized Defect Manifest is not canonical.');
@@ -257,8 +287,16 @@ function assertAuthorizedDefectManifest(value) {
   return rebuilt;
 }
 
-function coversRequirementGaps(manifestValue, unmetRequirementCodes) {
+function coversRequirementGaps(manifestValue, unmetRequirementCodes, evidence = null) {
   const manifest = assertAuthorizedDefectManifest(manifestValue);
+  if(manifest.gapScope) {
+    if(!evidence || evidence.acceptanceSpecId!==manifest.gapScope.acceptanceSpecId ||
+      evidence.acceptanceSpecRecordDigest!==manifest.gapScope.acceptanceSpecRecordDigest)return false;
+    const fields=manifest.gapScope.gaps.filter(gap=>gap.targetKind==='metadata_field').map(gap=>gap.targetId);
+    if(canonicalJson(ordered(fields))!==canonicalJson(ordered(evidence.missingMetadataFields)))return false;
+    const artifacts=manifest.gapScope.gaps.filter(gap=>gap.targetKind==='artifact').map(gap=>gap.targetId);
+    if(canonicalJson(ordered(artifacts))!==canonicalJson(ordered(evidence.missingArtifactKinds)))return false;
+  }
   return canonicalJson(ordered(unmetRequirementCodes || [])) ===
     canonicalJson(manifest.waivedRequirementCodes);
 }
@@ -281,7 +319,7 @@ function acceptsProductionAttestation(attestation, expected = null) {
   try {
     return attestation.acceptanceKind === 'accepted_with_defects' &&
       coversRequirementGaps(attestation.authorizedDefectManifest,
-        attestation.unmetRequirementCodes);
+        attestation.unmetRequirementCodes,attestation);
   } catch { return false; }
 }
 
@@ -353,7 +391,7 @@ function resolveProductSelection(results, manifestValue, context = {}) {
       admittedDefect:sizeDefect });
   }
   const defect = manifest.defects.find((item) =>
-    item.defectCode === 'external_source_exhausted');
+    Boolean(item.originalMediaVerificationId));
   if (!defect) return Object.freeze({ selection, effectiveSelection:null,
     verification:null, admittedDefect:null });
   const verification = (results || []).find((item) =>

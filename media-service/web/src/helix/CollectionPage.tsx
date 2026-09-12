@@ -5,6 +5,7 @@ import { newOpaqueId } from './id';
 import { Button, LoadingState, PageHeader } from './chrome';
 import { healthLabels } from './labels';
 import RatingControl from './RatingControl';
+import CollectionDefects from './CollectionDefects';
 import { isUnauthorized, useSession } from './session';
 import './collection.css';
 
@@ -192,7 +193,7 @@ export default function CollectionPage() {
           <h2 id="collection-dialog-title">{selected.displayIdentity}</h2>
           <p className="collection-dialog-meta">{selected.year || '年份未知'} · {selected.genres.length ? selected.genres.join(' / ') : '类型未记录'}</p>
           <p className="collection-dialog-overview">{selected.overview || '暂无剧情简介。'}</p>
-          {selected.defectAdmission&&<p className="form-neutral">瑕疵入库 · {selected.defectAdmission.defects.map((defect)=>defect.defectCode==='size_cap_exceeded'?'体积超过档位上限':defect.defectCode==='actor_unavailable'?'演员资料缺失':'寻源耗尽保留原片').join('、')}</p>}
+
           {selected.people.length > 0 && <dl className="collection-people"><dt>演职人员</dt><dd>{selected.people.slice(0, 12).map((person) => person.displayName).join('、')}</dd></dl>}
           <dl className="collection-facts">
             <div><dt>收藏架</dt><dd>{selected.shelfName}</dd></div>
@@ -224,6 +225,7 @@ export default function CollectionPage() {
               </>;
             })()}
           </section>
+          <CollectionDefects shelfEntryId={selected.shelfEntryId} revision={`${care?.basis.careBasisDigest || selected.currentInventoryRevision}:${care?.health.updatedAtMs || 0}`} onChanged={()=>void load()} />
           <div className="collection-exit">
             <Button variant="danger" type="button" onClick={() => void exitCollection()} disabled={exiting}>{exiting ? '正在准备退出…' : '退出收藏'}</Button>
           </div>

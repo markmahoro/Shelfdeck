@@ -177,6 +177,12 @@ const FOREIGN_KEY_OVERRIDES = Object.freeze({
   'libra_subject_episode_scopes.first_intake_decision_id': ['libra_intake_decisions', 'intake_decision_id']
 });
 const EXPLICIT_FOREIGN_KEYS = Object.freeze({
+  libra_run_outcomes: [{columns:['libra_run_id'],targetTable:'libra_runs',targetColumns:['libra_run_id']},{columns:['subject_id'],targetTable:'libra_subjects',targetColumns:['subject_id']}],
+  libra_strategy_availability:[{columns:['libra_run_id'],targetTable:'libra_runs',targetColumns:['libra_run_id']}],
+  arca_defect_admissions: [{columns:['shelf_entry_id'],targetTable:'arca_shelf_entries',targetColumns:['shelf_entry_id']}],
+  arca_defect_repair_intents: [{columns:['shelf_entry_id'],targetTable:'arca_shelf_entries',targetColumns:['shelf_entry_id']},{columns:['aftercare_case_id'],targetTable:'arca_aftercare_cases',targetColumns:['aftercare_case_id']}],
+  libra_defect_authorization_head: [{columns:['current_authorization_id','current_revision'],targetTable:'libra_defect_authorizations',targetColumns:['authorization_id','revision']}],
+  arca_defect_admission_heads: [{columns:['shelf_entry_id','current_revision'],targetTable:'arca_defect_admissions',targetColumns:['shelf_entry_id','revision']}],
   libra_run_material_episode_claims: [
     { columns: ['run_material_manifest_id', 'member_ordinal'], targetTable: 'libra_run_material_members',
       targetColumns: ['run_material_manifest_id', 'ordinal'] }
@@ -307,6 +313,8 @@ const JSON_LIMIT_OVERRIDES = Object.freeze({
   'libra_product_fact_revisions.verified_artifact_manifest_json': 256 * 1024
 });
 const CURRENT_POINTER_TARGETS = Object.freeze({
+  libra_defect_authorization_head: [[['current_authorization_id','current_revision'],'libra_defect_authorizations',['authorization_id','revision']]],
+  arca_defect_admission_heads: [[['shelf_entry_id','current_revision'],'arca_defect_admissions',['shelf_entry_id','revision']]],
   fx_workflow_events: [[['event_id', 'current_progress_revision'], 'fx_event_progress', ['event_id', 'revision']]],
   proc_material_fields: [
     [['field_id', 'current_access_revision'], 'proc_field_access_revisions', ['field_id', 'revision']],
@@ -578,6 +586,8 @@ function resolveForeignKeys(rows) {
       const sameOwner = candidates.filter((candidate) => candidate.owner === row.owner);
       if (sameOwner.length > 0) candidates = sameOwner;
       if (column === 'subject_id') candidates = candidates.filter((candidate) => candidate.tableId === 'libra_subjects');
+      if (column === 'libra_run_id') candidates = candidates.filter((candidate) => candidate.tableId === 'libra_runs');
+      if (column === 'shelf_entry_id') candidates = candidates.filter((candidate) => candidate.tableId === 'arca_shelf_entries');
       if (column === 'rule_template_id') candidates = candidates.filter((candidate) => candidate.tableId === 'arca_rule_templates');
       if (candidates.length !== 1) return {
         columns: [column], targetTable: null, targetColumns: [column], resolutionCandidates: candidates.map((item) => item.tableId)

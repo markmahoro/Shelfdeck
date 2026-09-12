@@ -427,20 +427,22 @@ function authorizedDefectManifest() {
     'metadata_field_unmet', 'video_codec_unmet', 'container_unmet',
     'file_extension_unmet', 'minimum_raster_unmet', 'system_upscale_forbidden',
     'primary_audio_unmet', 'max_size_exceeded', 'dynamic_range_conversion_unmet',
-    'output_color_profile_unmet', 'dolby_vision_metadata_not_removed'
+    'output_color_profile_unmet', 'dolby_vision_metadata_not_removed', 'metadata_artifact_unmet', 'sidecar_unrenderable', 'image_undecodable'
   ] };
   const defect = object({
-    defectCode: { type: 'string', enum: ['actor_unavailable', 'external_source_exhausted', 'size_cap_exceeded'] },
+    defectCode: { type: 'string', enum: ['actor_unavailable', 'metadata_fields_unavailable', 'artifacts_unavailable', 'external_source_exhausted', 'media_requirements_unmet', 'size_cap_exceeded'] },
+    artifactKindCodes:{type:'array',minItems:1,maxItems:3,uniqueItems:true,items:{enum:['nfo','poster','fanart']}},
+    metadataFieldCodes:{type:'array',minItems:1,maxItems:64,uniqueItems:true,items:id()},
     sourceFailureCode: id(), sourceWorkId: id(), sourceEvidenceDigest: digest(),
     originalMediaVerificationId: digest(), originalMediaVerificationDigest: digest(),
     workspaceMediaVerificationId:digest(),workspaceMediaVerificationDigest:digest(),candidateBasisDigest:digest(),
     productMaterialHandleId:id(),productMaterialHandleDigest:digest(),productMaterialFenceDigest:digest(),workspaceMediaHandleId:id(),
-    waivedRequirementCodes: { type: 'array', minItems: 1, maxItems: 11,
+    waivedRequirementCodes: { type: 'array', minItems: 1, maxItems: 14,
       uniqueItems: true, items: requirementCode }
   }, ['defectCode', 'sourceFailureCode', 'sourceWorkId', 'sourceEvidenceDigest',
     'waivedRequirementCodes'], {
     allOf: [{
-      if: { properties: { defectCode: { const: 'external_source_exhausted' } } },
+      if: { properties: { defectCode: { enum: ['external_source_exhausted','media_requirements_unmet'] } } },
       then: { required: ['originalMediaVerificationId', 'originalMediaVerificationDigest'] },
       else: { not: { anyOf: [{ required: ['originalMediaVerificationId'] },
         { required: ['originalMediaVerificationDigest'] }] } }
@@ -461,12 +463,21 @@ function authorizedDefectManifest() {
       schemaVersion: { const: 1 }, manifestId: digest(), defectDecisionId: digest(),
       libraRunId: id(), frozenRunRef: object({ stateRevision: positive(), stateDigest: digest() }),
       candidateRevision: positive(), candidateDigest: digest(), terminalEvidenceDigest: digest(),
-      defects: { type: 'array', minItems: 1, maxItems: 2, uniqueItems: true, items: defect },
-      defectCount: { type: 'integer', minimum: 1, maximum: 2 },
-      waivedRequirementCodes: { type: 'array', minItems: 1, maxItems: 12,
+      defects: { type: 'array', minItems: 1, uniqueItems: true, items: defect },
+      defectCount: { type: 'integer', minimum: 1 },
+      waivedRequirementCodes: { type: 'array', minItems: 1, maxItems: 14,
         uniqueItems: true, items: requirementCode }, actorId: id(),
       acknowledgement: { const: 'accept_listed_defects' }, idempotencyKey: id(),
-      decidedAtMs: nonNegative(), manifestDigest: digest() }) };
+      decidedAtMs: nonNegative(), manifestDigest: digest(),
+      standingAuthorization: object({authorizationId:id(),revision:positive(),authorizationDigest:digest()}),
+      authorizationSource:{enum:['manual','standing']},
+      gapScope:object({ownerDomain:{const:'libra'},processId:id(),productRevision:positive(),acceptanceSpecId:id(),
+        acceptanceSpecRecordDigest:digest(),requirementsDigest:digest(),productEvidenceDigest:digest(),
+        gaps:{type:'array',minItems:1,uniqueItems:true,items:object({requirementCode,targetKind:{enum:['metadata_field','media','artifact']},
+          targetId:id(),evidenceDigest:digest(),requiredValueDigest:digest()})}})
+    }, ['schemaRef','schemaVersion','manifestId','defectDecisionId','libraRunId','frozenRunRef',
+      'candidateRevision','candidateDigest','terminalEvidenceDigest','defects','defectCount',
+      'waivedRequirementCodes','actorId','acknowledgement','idempotencyKey','decidedAtMs','manifestDigest']) };
 }
 
 function runLifecycleDecision() {
@@ -475,7 +486,7 @@ function runLifecycleDecision() {
     ...object({ decisionId: digest(), libraRunId: digest(), expectedStateRevision: positive(), expectedStateDigest: digest(),
       transitionKind: { type: 'string', enum: ['suspend', 'resume', 'freeze', 'freshness_confirmed', 'recovery_reassessed', 'defect_admit', 'set_priority', 'complete'] },
       newPriority: object({ priorityClass: { type: 'string', enum: ['normal', 'expedited'] }, priorityIntentDigest: digest() }),
-      transitionEvidence: { oneOf: [{ $ref: typeId('LibraRunFreshnessAssessment') }, { $ref: typeId('LibraRunTerminalDeliveryEvidence') },
+      transitionEvidence: { oneOf: [{ $ref: typeId('LibraRunFreshnessAssessment') }, { $ref: typeId('LibraRunTerminalDeliveryEvidence') }, { $ref:typeId('LibraStrategyAvailability') },
         { $ref: typeId('AuthorizedDefectManifest') }, { $ref: typeId('LibraRunPriorityIntent') },
         { $ref: 'helix://contracts/messages/ArcaProductAcceptedMessage/v1' }] },
       expectedAdmissionHeadRevision: positive(), expectedActiveScopeSetDigest: digest(), decisionDigest: digest()
@@ -837,7 +848,21 @@ function westernAnalysisPhasePlanBinding() {
 }
 
 function buildLibraApplicationSchemas() {
+  const arrayOf=items=>({type:'array',items,maxItems:256});
+  const manifestProperties=authorizedDefectManifest().properties;
+  const previewCommon={libraRunId:id(),missingEvidence:arrayOf(id()),ineligibleReasons:arrayOf(id()),
+    pathResults:arrayOf(object({workId:id(),capabilityRef:id(),failureClass:id(),failureCode:id(),evidenceDigest:digest()}))};
   return Object.freeze({
+    LibraDefectPreview:{$schema:DRAFT,$id:typeId('LibraDefectPreview'),title:'LibraDefectPreview@1',
+      'x-helix-ssotRefs':['5.6.7','8.6.21'],'x-helix-maxCanonicalBytes':65536,
+      oneOf:[object({...previewCommon,eligibility:{enum:['evidence_pending','ineligible']},message:text()}),
+        object({...previewCommon,eligibility:{const:'eligible'},candidateRevision:positive(),frozenRunStateRevision:positive(),
+          frozenRunStateDigest:digest(),terminalEvidenceDigest:digest(),defects:manifestProperties.defects,
+          waivedRequirementCodes:manifestProperties.waivedRequirementCodes,gapScope:manifestProperties.gapScope,candidateDigest:digest(),
+          sizeForecast:object({maxSizeBytes:positive(),predictedBytes:positive(),overshootBytes:nonNegative(),measured:{const:true},
+            actualSizeBytes:positive(),withinLimit:{type:'boolean'}})},[...Object.keys(previewCommon),'eligibility','candidateRevision',
+          'frozenRunStateRevision','frozenRunStateDigest','terminalEvidenceDigest','defects','waivedRequirementCodes','gapScope','candidateDigest'])]},
+    ...require('./defect-outcome-schema-builder').libraSchemas(),
     ProductDeliveryQuery: productDeliveryQuery(),
     ProductDeliveryReadResult: productDeliveryReadResult(),
     WorkspaceCleanupScopeQuery: workspaceCleanupScopeQuery(),

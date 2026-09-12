@@ -1,0 +1,616 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/application-types/LibraDefectPreview/v1",
+  "title": "LibraDefectPreview@1",
+  "x-helix-ssotRefs": [
+    "5.6.7",
+    "8.6.21"
+  ],
+  "x-helix-maxCanonicalBytes": 65536,
+  "oneOf": [
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "libraRunId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "missingEvidence": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "maxItems": 256
+        },
+        "ineligibleReasons": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "maxItems": 256
+        },
+        "pathResults": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "workId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              "capabilityRef": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              "failureClass": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              "failureCode": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              "evidenceDigest": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-f0-9]{64}$"
+              }
+            },
+            "required": [
+              "workId",
+              "capabilityRef",
+              "failureClass",
+              "failureCode",
+              "evidenceDigest"
+            ]
+          },
+          "maxItems": 256
+        },
+        "eligibility": {
+          "enum": [
+            "evidence_pending",
+            "ineligible"
+          ]
+        },
+        "message": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "libraRunId",
+        "missingEvidence",
+        "ineligibleReasons",
+        "pathResults",
+        "eligibility",
+        "message"
+      ]
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "libraRunId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "missingEvidence": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "maxItems": 256
+        },
+        "ineligibleReasons": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "maxItems": 256
+        },
+        "pathResults": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "workId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              "capabilityRef": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              "failureClass": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              "failureCode": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              "evidenceDigest": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-f0-9]{64}$"
+              }
+            },
+            "required": [
+              "workId",
+              "capabilityRef",
+              "failureClass",
+              "failureCode",
+              "evidenceDigest"
+            ]
+          },
+          "maxItems": 256
+        },
+        "eligibility": {
+          "const": "eligible"
+        },
+        "candidateRevision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "frozenRunStateRevision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "frozenRunStateDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "terminalEvidenceDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "defects": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "defectCode": {
+                "type": "string",
+                "enum": [
+                  "actor_unavailable",
+                  "metadata_fields_unavailable",
+                  "artifacts_unavailable",
+                  "external_source_exhausted",
+                  "media_requirements_unmet",
+                  "size_cap_exceeded"
+                ]
+              },
+              "artifactKindCodes": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 3,
+                "uniqueItems": true,
+                "items": {
+                  "enum": [
+                    "nfo",
+                    "poster",
+                    "fanart"
+                  ]
+                }
+              },
+              "metadataFieldCodes": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 64,
+                "uniqueItems": true,
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 256
+                }
+              },
+              "sourceFailureCode": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              "sourceWorkId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              "sourceEvidenceDigest": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "originalMediaVerificationId": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "originalMediaVerificationDigest": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "workspaceMediaVerificationId": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "workspaceMediaVerificationDigest": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "candidateBasisDigest": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "productMaterialHandleId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              "productMaterialHandleDigest": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "productMaterialFenceDigest": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "workspaceMediaHandleId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              "waivedRequirementCodes": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 14,
+                "uniqueItems": true,
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "metadata_field_unmet",
+                    "video_codec_unmet",
+                    "container_unmet",
+                    "file_extension_unmet",
+                    "minimum_raster_unmet",
+                    "system_upscale_forbidden",
+                    "primary_audio_unmet",
+                    "max_size_exceeded",
+                    "dynamic_range_conversion_unmet",
+                    "output_color_profile_unmet",
+                    "dolby_vision_metadata_not_removed",
+                    "metadata_artifact_unmet",
+                    "sidecar_unrenderable",
+                    "image_undecodable"
+                  ]
+                }
+              }
+            },
+            "required": [
+              "defectCode",
+              "sourceFailureCode",
+              "sourceWorkId",
+              "sourceEvidenceDigest",
+              "waivedRequirementCodes"
+            ],
+            "allOf": [
+              {
+                "if": {
+                  "properties": {
+                    "defectCode": {
+                      "enum": [
+                        "external_source_exhausted",
+                        "media_requirements_unmet"
+                      ]
+                    }
+                  }
+                },
+                "then": {
+                  "required": [
+                    "originalMediaVerificationId",
+                    "originalMediaVerificationDigest"
+                  ]
+                },
+                "else": {
+                  "not": {
+                    "anyOf": [
+                      {
+                        "required": [
+                          "originalMediaVerificationId"
+                        ]
+                      },
+                      {
+                        "required": [
+                          "originalMediaVerificationDigest"
+                        ]
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "if": {
+                  "properties": {
+                    "defectCode": {
+                      "const": "size_cap_exceeded"
+                    }
+                  }
+                },
+                "then": {
+                  "required": [
+                    "workspaceMediaVerificationId",
+                    "workspaceMediaVerificationDigest",
+                    "candidateBasisDigest",
+                    "productMaterialHandleId",
+                    "productMaterialHandleDigest",
+                    "productMaterialFenceDigest",
+                    "workspaceMediaHandleId"
+                  ]
+                },
+                "else": {
+                  "not": {
+                    "anyOf": [
+                      {
+                        "required": [
+                          "workspaceMediaVerificationId"
+                        ]
+                      },
+                      {
+                        "required": [
+                          "workspaceMediaVerificationDigest"
+                        ]
+                      },
+                      {
+                        "required": [
+                          "candidateBasisDigest"
+                        ]
+                      },
+                      {
+                        "required": [
+                          "productMaterialHandleId"
+                        ]
+                      },
+                      {
+                        "required": [
+                          "productMaterialHandleDigest"
+                        ]
+                      },
+                      {
+                        "required": [
+                          "productMaterialFenceDigest"
+                        ]
+                      },
+                      {
+                        "required": [
+                          "workspaceMediaHandleId"
+                        ]
+                      }
+                    ]
+                  }
+                }
+              }
+            ]
+          }
+        },
+        "waivedRequirementCodes": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 14,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "enum": [
+              "metadata_field_unmet",
+              "video_codec_unmet",
+              "container_unmet",
+              "file_extension_unmet",
+              "minimum_raster_unmet",
+              "system_upscale_forbidden",
+              "primary_audio_unmet",
+              "max_size_exceeded",
+              "dynamic_range_conversion_unmet",
+              "output_color_profile_unmet",
+              "dolby_vision_metadata_not_removed",
+              "metadata_artifact_unmet",
+              "sidecar_unrenderable",
+              "image_undecodable"
+            ]
+          }
+        },
+        "gapScope": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "ownerDomain": {
+              "const": "libra"
+            },
+            "processId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            "productRevision": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "acceptanceSpecId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            "acceptanceSpecRecordDigest": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "requirementsDigest": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "productEvidenceDigest": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "gaps": {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "requirementCode": {
+                    "type": "string",
+                    "enum": [
+                      "metadata_field_unmet",
+                      "video_codec_unmet",
+                      "container_unmet",
+                      "file_extension_unmet",
+                      "minimum_raster_unmet",
+                      "system_upscale_forbidden",
+                      "primary_audio_unmet",
+                      "max_size_exceeded",
+                      "dynamic_range_conversion_unmet",
+                      "output_color_profile_unmet",
+                      "dolby_vision_metadata_not_removed",
+                      "metadata_artifact_unmet",
+                      "sidecar_unrenderable",
+                      "image_undecodable"
+                    ]
+                  },
+                  "targetKind": {
+                    "enum": [
+                      "metadata_field",
+                      "media",
+                      "artifact"
+                    ]
+                  },
+                  "targetId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "evidenceDigest": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  "requiredValueDigest": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[a-f0-9]{64}$"
+                  }
+                },
+                "required": [
+                  "requirementCode",
+                  "targetKind",
+                  "targetId",
+                  "evidenceDigest",
+                  "requiredValueDigest"
+                ]
+              }
+            }
+          },
+          "required": [
+            "ownerDomain",
+            "processId",
+            "productRevision",
+            "acceptanceSpecId",
+            "acceptanceSpecRecordDigest",
+            "requirementsDigest",
+            "productEvidenceDigest",
+            "gaps"
+          ]
+        },
+        "candidateDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "sizeForecast": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "maxSizeBytes": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "predictedBytes": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "overshootBytes": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "measured": {
+              "const": true
+            },
+            "actualSizeBytes": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "withinLimit": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "maxSizeBytes",
+            "predictedBytes",
+            "overshootBytes",
+            "measured",
+            "actualSizeBytes",
+            "withinLimit"
+          ]
+        }
+      },
+      "required": [
+        "libraRunId",
+        "missingEvidence",
+        "ineligibleReasons",
+        "pathResults",
+        "eligibility",
+        "candidateRevision",
+        "frozenRunStateRevision",
+        "frozenRunStateDigest",
+        "terminalEvidenceDigest",
+        "defects",
+        "waivedRequirementCodes",
+        "gapScope",
+        "candidateDigest"
+      ]
+    }
+  ]
+}

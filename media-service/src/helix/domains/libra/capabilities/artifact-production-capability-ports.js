@@ -95,7 +95,8 @@ function createArtifactProductionCapabilityPorts(options) {
         if (!provenance.objectId || !provenance.digest) {
           throw new TypeError('Provider Artifact acquisition lacks a frozen identity or Draft provenance.');
         }
-        const result = await options.productProductionPort.acquireProviderArtifact({
+        let result;
+        try { result = await options.productProductionPort.acquireProviderArtifact({
           libraRunId: context.ownerScope.processId,
           workspaceId: workspaceId(context.ownerScope.processId),
           relativePath: 'product/' + artifactKind + '.jpg',
@@ -107,7 +108,17 @@ function createArtifactProductionCapabilityPorts(options) {
           metadataObservationId: provenance.objectId,
           metadataObservationDigest: provenance.digest,
           runtimeEffectAuthority,
-        });
+        }); } catch (error) {
+          const proof = error?.workspaceWriteNotStarted;
+          if (!proof || proof.eventAttemptId !== context.eventAttemptId ||
+              proof.idempotencyKey !== context.idempotencyKey ||
+              proof.targetDigest !== canonicalDigest({ workspaceId:workspaceId(context.ownerScope.processId),
+                relativePath:'product/' + artifactKind + '.jpg' })) throw error;
+          return Object.freeze({ kind:'failed', failureClass:'integration',
+            code:'LIBRA_ARTIFACT_FETCH_FAILED', message:'Artifact retrieval failed before Workspace write.',
+            retryDirective:'never', evidence:Object.freeze({ ...proof,
+              errorCode:String(error.code || 'PROVIDER_REQUEST_FAILED').slice(0,128) }) });
+        }
         return succeeded(ACQUIRE, result, now, effectReceipt(context, result, now));
       },
       validateResult(_context, outcome) {
@@ -159,7 +170,12 @@ function createArtifactProductionCapabilityPorts(options) {
         return succeeded(VERIFY, result, now, null);
       },
       validateResult(_context, outcome) {
-        if (outcome?.result?.result !== 'passed') throw new TypeError('Artifact Manifest verification did not pass.');
+        const result = outcome?.result;
+        if (result?.result === 'passed' && result.verifiedArtifacts?.length > 0) return;
+        if (result?.result === 'failed' && result.verifiedArtifacts?.length === 0 &&
+            result.artifactDigests?.length === 0 && result.reasonCodes?.length === 1 &&
+            result.reasonCodes[0] === 'required_artifact_missing') return;
+        throw new TypeError('Artifact Manifest verification result is invalid.');
       },
     }),
   };

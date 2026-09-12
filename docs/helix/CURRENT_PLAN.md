@@ -7,6 +7,8 @@
 
 ## 已确认合同
 
+2026-09-12：本任务接续完成UAT-251，并追加用户明确要求的“自动授权瑕疵上架”。隔离实施区为`E:/my_project/emby_third_party-helix-uat251`，分支`codex/uat-251-terminal-defects`，完成后整合集成区；保护其他任务未提交修改。前端做法须与任务`01a0912a-0086-74e2-88ab-536c59d3862a`确认后实施。原三终局、精确Gap、手动瑕疵修复及有限再进入合同继续有效。
+
 255项前后要求审查及11组取代/承接关系见[审查证据](implementation/evidence/UAT_FULL_CONTRACT_CONSISTENCY_AUDIT_20260909.md)。三项原合同冲突均在`14cf2d9a0`确认：Off-load完成后取消额外24小时等待但保留两轮引用安全审计；workspace成品独立解码验证，Source保留fresh Probe/必要对照，Direct仍须实际产品解码；用户预先授权精确旧输入自动清理（含exclusive_related_input），无需逐片确认，共享/未知材料保留且Off-deck独立授权。合同确认不等于运行时正式授权已持久化或验收完成。
 
 251的三种终局、仅手动修复已接受瑕疵、健康正常另附标记及typed合同均已确认；现在缺DTO/持久化/执行接入和验收，不再等待用户决定。NFO默认存在、非空、可读，不恢复旧持续呈现全等；物理处置仍核验精确归属。历史PROD/UX/旧测试不得覆盖现行合同。
