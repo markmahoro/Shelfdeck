@@ -1,0 +1,106 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/application-types/ProcurementRetryCommandPlanReference/v1",
+  "title": "ProcurementRetryCommandPlanReference@1",
+  "x-helix-ssotRefs": [
+    "8.6.18",
+    "8.6.20"
+  ],
+  "x-helix-maxCanonicalBytes": 16384,
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaRef": {
+      "const": "helix://contracts/application-types/ProcurementRetryCommandPlanReference/v1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "request": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "actorId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "fieldId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "failedProcurementRunId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "expectedFailedRunStateRevision": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "expectedFailedRunBasisDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "idempotencyKey": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        }
+      },
+      "required": [
+        "actorId",
+        "fieldId",
+        "failedProcurementRunId",
+        "expectedFailedRunStateRevision",
+        "expectedFailedRunBasisDigest",
+        "idempotencyKey"
+      ]
+    },
+    "retryIntentId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "intentDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "retryScopeDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "newRunId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "newRunBasisDigest": {
+      "oneOf": [
+        {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "required": [
+    "schemaRef",
+    "schemaVersion",
+    "request",
+    "retryIntentId",
+    "intentDigest",
+    "retryScopeDigest",
+    "newRunId",
+    "newRunBasisDigest"
+  ]
+}

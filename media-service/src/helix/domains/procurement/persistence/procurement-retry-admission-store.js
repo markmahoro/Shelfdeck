@@ -25,6 +25,7 @@ const {
   retryHeadStaleReason,
   staleMaterialSetDigest,
   validateRetryAdmissionHead,
+  validateStoredRetryIntent,
 } = require("../model/procurement-retry-contracts");
 const { validateControlHandle } = require("./procurement-run-admission-store");
 
@@ -226,6 +227,8 @@ function procurementDefinition(schemaManifest) {
           "retry_intent_id",
           "field_id",
           "failed_run_id",
+          "failed_basis_digest", "retry_admission_head_digest", "retry_scope_digest", "retry_member_count",
+          "precondition_set_digest", "actor_id", "idempotency_key",
           "intent_digest",
           "state",
           "state_revision",
@@ -256,6 +259,7 @@ function procurementDefinition(schemaManifest) {
           "retry_intent_id",
           "ordinal",
           "material_key",
+          "failed_run_material_digest", "expected_selection_has_conflict", "member_precondition_digest",
           "expected_binding_revision",
           "expected_eligibility_revision",
           "expected_eligibility_basis_digest",
@@ -645,8 +649,7 @@ function createProcurementRetryAdmissionStore(options) {
     );
   const foundation = foundationDefinition(options.schemaManifest),
     procurement = procurementDefinition(options.schemaManifest);
-  return Object.freeze({
-    consume(request) {
+  function execute(request, prepareOnly = false) {
       if (
         !request ||
         !request.retryIntentId ||
@@ -764,6 +767,19 @@ function createProcurementRetryAdmissionStore(options) {
           memberRows.sort((a, b) =>
             a.material_key.localeCompare(b.material_key),
           );
+          if (memberRows.length !== Number(intent.retry_member_count))
+            fail('P7_RETRY_ADMISSION_MEMBER_CORRUPT', 'Retry Intent member count differs from its frozen scope.');
+          const frozenHead = expectedHead(intent, options.triageRegistry);
+          validateStoredRetryIntent({ retryIntentId:intent.retry_intent_id, fieldId:intent.field_id,
+            failedRunId:intent.failed_run_id, failedRunBasisDigest:intent.failed_basis_digest,
+            retryAdmissionHead:{ ...frozenHead, headDigest:intent.retry_admission_head_digest },
+            members:memberRows.map((row) => ({ ...expectedMember(row),
+              failedRunMaterialDigest:row.failed_run_material_digest,
+              expectedSelectionHasConflict:Number(row.expected_selection_has_conflict) !== 0,
+              memberPreconditionDigest:row.member_precondition_digest })),
+            retryScopeDigest:intent.retry_scope_digest, preconditionSetDigest:intent.precondition_set_digest,
+            actorId:intent.actor_id, idempotencyKey:intent.idempotency_key, intentDigest:intent.intent_digest,
+          }, options.triageRegistry);
           const field = repo.invoke("find_field", {
             field_id: intent.field_id,
           });
@@ -912,7 +928,7 @@ function createProcurementRetryAdmissionStore(options) {
           created = snapshots.every(
             (item) => item.snapshot.consumeOutcome === "matched",
           );
-          if (created) {
+          if (created && !prepareOnly) {
             if (
               !newBasis ||
               !request.controlHandle ||
@@ -1314,6 +1330,15 @@ function createProcurementRetryAdmissionStore(options) {
         },
       };
       try {
+        if (prepareOnly) {
+          options.unitOfWork.execute([read, controlRead, decide]);
+          return Object.freeze({
+            intent: Object.freeze(intent),
+            admissionHead: Object.freeze(actualHead),
+            members: Object.freeze(snapshots.map((item) => Object.freeze(item))),
+            preconditionsMatched: created,
+          });
+        }
         const values = options.unitOfWork.execute([
           preflight,
           read,
@@ -1338,7 +1363,10 @@ function createProcurementRetryAdmissionStore(options) {
           });
         throw error;
       }
-    },
+  }
+  return Object.freeze({
+    prepare(request) { return execute(request, true); },
+    consume(request) { return execute(request); },
   });
 }
 

@@ -11237,6 +11237,22 @@ input只可从本Domain Owner rows、Foundation Control/Workspace historical row
 Capability Executor本身不得读Store。装配后的完整Decision可以超过16 KiB，但不得作为单个Plan JSON/Event Result
 持久化；commit成功后的全部业务成员必须由本节relation rows永久重建，commit前崩溃只重新装配并接受同一CAS结果。
 
+UAT-260（2026-09-12）将上述规则落实到 Procurement `failed_preparation_retry` 同步 Supporting Work：
+`procurement.failed-preparation-retry-planner@2` 的两个节点均保存 `EventInputBindingSet@1`，各含一个
+`projected_owner_facts` binding，Owner/process 固定为 `procurement/procurement_run/failedRunId`。
+`retryIntentCommand` 和 `retryAdmissionCommand` 端口分别使用
+`helix://procurement/input-projections/RetryIntentCommand/v1`、`helix://procurement/input-projections/RetryAdmissionCommand/v1`；
+这两个投影由现有 Procurement 同步命令 Coordinator 装配，不交给异步 Capability Executor，也不新增 Catalog Capability。
+二者的 `parameters` 同为 closed `ProcurementRetryCommandPlanReference@1`：
+`{schemaRef,schemaVersion:1,request:{actorId,fieldId,failedProcurementRunId,expectedFailedRunStateRevision,expectedFailedRunBasisDigest,idempotencyKey},retryIntentId,intentDigest,retryScopeDigest,newRunId,newRunBasisDigest|null}`。
+ID 长度为 1–256，revision 为正 safe integer，digest 为 SHA-256；完整 binding 保持 ≤16 KiB，禁止完整 Intent、成员集、Run Basis 或 Control Handle 内联及旁路缓存。
+Intent commit 前按精确失败 Run revision/Basis 和 Owner current facts 重建，必须命中冻结 Intent/Scope/Run Basis digest；
+commit 后按 Intent relation rows 验证完整 Head、成员、Scope、precondition 和 Intent digest，再读取 Owner current facts 与正式 Control snapshot 装配 Admission proposal。
+预读不产生业务事实；原 Admission Canonical Transaction 独立重验全部 current preconditions，并在同一事务选择 `created` 或 `stale`。
+matched proposal 必须命中 Plan 冻结 newRunBasisDigest；缺失/损坏事实、digest 不一致与 unknown Control 均不能降级成新 Basis。
+终态重放读取原 Result/Receipt，保持原 Marker、Intent、Run、Outbox 身份；无 Intent 的已发布 Plan 只允许同摘要重建，
+admitted 且没有 Plan 的 Work 可按原精确请求恢复 activation。旧 inline Plan 不新增兼容路径；超过 1024 成员仍拒绝。
+
 Contract build必须机械证明：Catalog每个ref恰好对应一个manifest；manifest引用的每个type/schema存在；所有
 input/output `$ref`闭合；Effect Class与8.6.3–8.6.14一致；Catalog之外的Executor无法注册。以当前Draft计，
 clean Catalog为`112 refs / 112 unique / 0 unresolved output family`。

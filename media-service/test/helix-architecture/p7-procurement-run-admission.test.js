@@ -10,13 +10,16 @@ const { canonicalDigest } = require('../../src/helix/contracts/canonical-json');
 const { materialKey } = require('../../src/helix/foundation/persistence/material-control');
 const { openSqliteKernel } = require('../../src/helix/foundation/persistence/sqlite-kernel');
 const { createSqliteUnitOfWork } = require('../../src/helix/foundation/persistence/sqlite-unit-of-work');
-const { activeTriageRule, createDefaultTriageRuleRegistry } = require('../../src/helix/domains/procurement/model/procurement-run-contracts');
+const { activeTriageRule, createDefaultTriageRuleRegistry, ruleDigestFor, authorityDigestFor } = require('../../src/helix/domains/procurement/model/procurement-run-contracts');
 const { emptySelectionSnapshot, failedRunMaterialDigest, memberPreconditionDigest } = require('../../src/helix/domains/procurement/model/procurement-retry-contracts');
 const { createProcurementRunAdmissionStore } = require('../../src/helix/domains/procurement/persistence/procurement-run-admission-store');
 const { createProcurementRetryIntentStore } = require('../../src/helix/domains/procurement/persistence/procurement-retry-intent-store');
 const { createProcurementRetryAdmissionStore } = require('../../src/helix/domains/procurement/persistence/procurement-retry-admission-store');
 const { createProcurementRunSealStore } = require('../../src/helix/domains/procurement/persistence/procurement-run-seal-store');
 const { createSingleScopeSelection } = require('./helpers/procurement-selection-fixture');
+const { createSynchronousDomainWork } = require('../../src/helix/foundation/execution/synchronous-domain-work');
+const { createFailedPreparationRetryAdminService } = require('../../src/helix/domains/procurement/application/failed-preparation-retry-admin-service');
+const { createOutboxDispatcherHost } = require('../../src/helix/foundation/execution/outbox-dispatcher-host');
 
 const generatedRoot = path.resolve(__dirname, '../../src/helix/foundation/persistence/generated');
 const schemaDdl = fs.readFileSync(path.join(generatedRoot, 'clean-schema.sql'), 'utf8');
@@ -133,6 +136,185 @@ function seed(database, material, control) {
 function fixture(run) { const root=fs.mkdtempSync(path.join(os.tmpdir(),'helix-run-admission-')); const databasePath=path.join(root,'shelfdeck.db');
   let now=100; const kernel=openSqliteKernel({Database,databasePath,schemaDdl,schemaManifest,now:()=>now++});
   try{return run({databasePath,kernel,unitOfWork:createSqliteUnitOfWork({kernel})});}finally{kernel.close();try{fs.rmSync(root,{recursive:true,force:true});}catch{}} }
+
+function failedRetryFixture(context, count) {
+  const registry=createDefaultTriageRuleRegistry(),database=new Database(context.databasePath);
+  const materials=Array.from({length:count},(_,index)=>{
+    const {materialKey:_key,...value}=identity();value.inode=String(100+index);value.contentFingerprint=D('large-'+index);
+    return {...value,materialKey:materialKey(value)};
+  }).sort((a,b)=>a.materialKey.localeCompare(b.materialKey));
+  seed(database,materials[0],controlSnapshot(materials[0]));
+  const template=database.prepare('SELECT * FROM proc_field_materials').get(),columns=Object.keys(template);
+  const insert=database.prepare(`INSERT INTO proc_field_materials(${columns.join(',')}) VALUES(${columns.map(()=>'?').join(',')})`);
+  database.transaction(()=>{
+    for(const m of materials.slice(1)) {
+      const projection=controlSnapshot(m),row={...template,material_key:m.materialKey,inode:m.inode,content_fingerprint:m.contentFingerprint,
+        current_location:'/field/'+m.inode+'.mkv',control_projection_digest:projection.projectionDigest};
+      insert.run(...columns.map(key=>row[key]));
+    }
+    database.prepare('UPDATE proc_field_materials SET current_location=? WHERE material_key=?').run('/field/'+materials[0].inode+'.mkv',materials[0].materialKey);
+  })();
+  const members=materials.map(m=>({...member(m,controlSnapshot(m)),location:'/field/'+m.inode+'.mkv',fieldRelativeLocation:m.inode+'.mkv'}));
+  const selected=createSingleScopeSelection({procurementRunId:'run-1',fieldId:'field-1',members});
+  const {basisDigest:_basis,...initial}=basis(registry,materials[0],controlSnapshot(materials[0]));
+  const value={...initial,selectedFieldMaterialSet:selected},runBasis={...value,basisDigest:canonicalDigest(value)};
+  const controlHandle={...handle(runBasis),expectedControlRevisions:materials.map(m=>({materialKey:m.materialKey,revision:0}))};
+  const options={schemaManifest,unitOfWork:context.unitOfWork,triageRegistry:registry};
+  createProcurementRunAdmissionStore(options).admit({basis:runBasis,controlHandle,
+    commitMarker:{commitMarker:'run-marker-1',commitDigest:D('run-commit')},resultBinding:{resultId:'run-receipt-1',eventId:'run-event-1'}});
+  const raw={decisionId:'seal-decision-1',procurementRunId:'run-1',expectedStateRevision:1,expectedRunBasisDigest:runBasis.basisDigest,
+    sealOutcome:'failed',publishedCandidates:[],releasedMembers:materials.map(m=>({materialKey:m.materialKey,disposition:'triage_failed',evidenceDigest:D('failure-'+m.materialKey)}))};
+  createProcurementRunSealStore(options).seal({decision:{...raw,decisionDigest:canonicalDigest(raw)},
+    commitMarker:{commitMarker:'seal-marker-1',commitDigest:D('seal-commit')},resultBinding:{resultId:'seal-receipt-1',eventId:'seal-event-1'}});
+  const request={fieldId:'field-1',idempotencyKey:'large-retry',failedProcurementRunId:'run-1',expectedFailedRunStateRevision:2,
+    expectedFailedRunBasisDigest:runBasis.basisDigest,actorId:'test'};
+  const service=overrides=>createFailedPreparationRetryAdminService({...options,workRuntime:createSynchronousDomainWork(options),...overrides});
+  return {database,options,request,service};
+}
+
+for(const count of [1,574,601,1024]) test('bounded Retry Plan admits and replays '+count+' failed members',()=>fixture(context=>{
+  const f=failedRetryFixture(context,count);
+  try {
+    const before=f.database.prepare("SELECT * FROM proc_run_materials WHERE procurement_run_id='run-1' ORDER BY material_key").all();
+    const controlBefore=f.database.prepare('SELECT * FROM fx_material_control_revisions ORDER BY material_key,revision').all();
+    const result=f.service().retry(f.request);
+    assert.equal(result.retryAdmissionResult.resultKind,'created');
+    assert.deepEqual(f.service().retry(f.request).retryAdmissionResult,result.retryAdmissionResult);
+    const sizes=f.database.prepare("SELECT length(CAST(input_bindings_json AS BLOB)) bytes FROM fx_plan_nodes WHERE plan_id LIKE 'failed-preparation-retry-%'").all();
+    assert.equal(sizes.length,2);assert(sizes.every(row=>row.bytes<16384));
+    assert.equal(f.database.prepare('SELECT COUNT(*) n FROM proc_procurement_retry_intents').get().n,1);
+    assert.equal(f.database.prepare('SELECT COUNT(*) n FROM proc_procurement_retry_intent_materials').get().n,count);
+    assert.equal(f.database.prepare('SELECT COUNT(*) n FROM proc_procurement_runs').get().n,2);
+    assert.equal(f.database.prepare("SELECT COUNT(*) n FROM proc_run_materials WHERE procurement_run_id<>'run-1'").get().n,count);
+    assert.equal(f.database.prepare("SELECT COUNT(*) n FROM fx_outbox WHERE message_kind='procurement_retry_intent_available'").get().n,1);
+    assert.deepEqual(f.database.prepare("SELECT * FROM proc_run_materials WHERE procurement_run_id='run-1' ORDER BY material_key").all(),before);
+    assert.deepEqual(f.database.prepare('SELECT * FROM fx_material_control_revisions ORDER BY material_key,revision').all(),controlBefore);
+    assert.equal(f.database.prepare('PRAGMA foreign_key_check').all().length,0);
+  } finally {f.database.close();}
+}));
+
+for(const boundary of ['before_plan','after_plan','before_intent','after_intent','after_admission','before_work_complete'])
+  test('Retry command resumes exact durable facts after '+boundary,()=>fixture(context=>{
+    const f=failedRetryFixture(context,3),crash=()=>{throw new Error('injected '+boundary);};
+    try {
+      const overrides={},runtime=createSynchronousDomainWork(f.options);
+      if(boundary==='before_plan') overrides.workRuntime={...runtime,activate:crash};
+      if(boundary==='after_plan') overrides.workRuntime={...runtime,activate(request){runtime.activate(request);crash();}};
+      if(boundary==='before_work_complete') overrides.workRuntime={...runtime,complete:crash};
+      if(boundary.includes('intent')) {
+        const store=createProcurementRetryIntentStore(f.options);
+        overrides.retryIntentStore={create(request){if(boundary==='after_intent')store.create(request);crash();}};
+      }
+      if(boundary==='after_admission') {
+        const store=createProcurementRetryAdmissionStore(f.options);
+        overrides.retryAdmissionStore={...store,consume(request){store.consume(request);crash();}};
+      }
+      assert.throws(()=>f.service(overrides).retry(f.request),/injected/);
+      const result=f.service().retry(f.request);
+      assert.equal(result.retryAdmissionResult.resultKind,'created');
+      assert.equal(f.service().retry(f.request).replayed,true);
+      assert.equal(f.database.prepare('SELECT count(*) n FROM proc_procurement_retry_intents').get().n,1);
+      assert.equal(f.database.prepare('SELECT count(*) n FROM proc_procurement_runs').get().n,2);
+      assert.equal(f.database.prepare("SELECT count(*) n FROM fx_outbox WHERE message_kind='procurement_retry_intent_available'").get().n,1);
+      assert.equal(f.database.prepare("SELECT state FROM fx_supporting_works WHERE work_id=?").get(result.workId).state,'succeeded');
+      assert.equal(f.database.prepare('PRAGMA foreign_key_check').all().length,0);
+    } finally {f.database.close();}
+  }));
+
+test('Retry admission repeats the full CAS after proposal preparation',()=>fixture(context=>{
+  const f=failedRetryFixture(context,3);
+  try {
+    const store=createProcurementRetryAdmissionStore(f.options);
+    const result=f.service({retryAdmissionStore:{...store,prepare(request){
+      const prepared=store.prepare(request);
+      f.database.prepare("UPDATE proc_material_fields SET status='deregistered' WHERE field_id='field-1'").run();
+      return prepared;
+    }}}).retry(f.request);
+    assert.equal(result.retryAdmissionResult.resultKind,'stale');
+    assert.equal(result.retryAdmissionResult.staleMaterialCount,3);
+    assert.equal(f.database.prepare('SELECT COUNT(*) n FROM proc_procurement_runs').get().n,1);
+    assert.deepEqual(f.service().retry(f.request).retryAdmissionResult,result.retryAdmissionResult);
+  } finally {f.database.close();}
+}));
+
+test('stored Retry Intent preserves its immutable rule while a changed active rule produces stale',()=>fixture(context=>{
+  const f=failedRetryFixture(context,2),store=createProcurementRetryIntentStore(f.options);
+  try {
+    assert.throws(()=>f.service({retryIntentStore:{create(request){store.create(request);throw new Error('committed');}}}).retry(f.request),/committed/);
+    const original=f.options.triageRegistry,{registryDigest:_digest,...old}=original;
+    const next={...original.entries[0],revision:2};next.ruleDigest=ruleDigestFor(next);next.authorityDigest=authorityDigestFor(next);
+    const registry={...old,activeRuleRevision:2,entries:[...old.entries,next]};registry.registryDigest=canonicalDigest(registry);
+    const result=f.service({triageRegistry:registry}).retry(f.request);
+    assert.equal(result.retryAdmissionResult.resultKind,'stale');
+    assert.deepEqual(result.retryAdmissionResult.staleReasonCodes,['triage_rule_changed']);
+    assert.equal(f.database.prepare('SELECT COUNT(*) n FROM proc_procurement_runs').get().n,1);
+  } finally {f.database.close();}
+}));
+
+for(const [name,sql,code] of [
+  ['member digest',"UPDATE proc_procurement_retry_intent_materials SET member_precondition_digest='"+'f'.repeat(64)+"'",'P7_RETRY_MEMBER_INVALID'],
+  ['missing member','DELETE FROM proc_procurement_retry_intent_materials WHERE ordinal=1','P7_RETRY_ADMISSION_MEMBER_CORRUPT'],
+  ['receipt digest',"UPDATE proc_procurement_retry_intents SET create_result_digest='"+'f'.repeat(64)+"'",'FAILED_PREPARATION_RETRY_INTENT_RECEIPT_CORRUPT'],
+]) test('Retry recovery rejects corrupt '+name+' without creating a Run',()=>fixture(context=>{
+  const f=failedRetryFixture(context,2),store=createProcurementRetryIntentStore(f.options);
+  try {
+    assert.throws(()=>f.service({retryIntentStore:{create(request){store.create(request);throw new Error('committed');}}}).retry(f.request),/committed/);
+    f.database.prepare(sql).run();
+    assert.throws(()=>f.service().retry(f.request),error=>error.code===code);
+    assert.equal(f.database.prepare('SELECT COUNT(*) n FROM proc_procurement_runs').get().n,1);
+  } finally {f.database.close();}
+}));
+
+test('published Retry refs reject changed Owner facts before Intent commit',()=>fixture(context=>{
+  const f=failedRetryFixture(context,3),runtime=createSynchronousDomainWork(f.options);
+  try {
+    assert.throws(()=>f.service({workRuntime:{...runtime,activate(request){runtime.activate(request);throw new Error('after plan');}}}).retry(f.request),/after plan/);
+    f.database.prepare('UPDATE proc_field_materials SET binding_revision=binding_revision+1').run();
+    assert.throws(()=>f.service().retry(f.request),error=>error.code==='FAILED_PREPARATION_RETRY_FROZEN_BASIS_DRIFT');
+    assert.equal(f.database.prepare('SELECT COUNT(*) n FROM proc_procurement_retry_intents').get().n,0);
+    assert.equal(f.database.prepare('SELECT COUNT(*) n FROM proc_procurement_runs').get().n,1);
+  } finally {f.database.close();}
+}));
+
+test('Retry refs reject malformed and substituted command scopes',()=>fixture(context=>{
+  const f=failedRetryFixture(context,1),runtime=createSynchronousDomainWork(f.options);
+  try {
+    const result=f.service().retry(f.request),snapshot=runtime.snapshot(result.workId);
+    for(const mutate of [r=>r.request.fieldId='foreign-field',r=>r.retryScopeDigest='invalid',r=>r.extra='unbounded',
+      r=>r.request.idempotencyKey='x'.repeat(257)]) {
+      const pages=structuredClone(snapshot.pages);mutate(pages[0].bindings[0].parameters);
+      assert.throws(()=>f.service({workRuntime:{...runtime,snapshot:()=>({...snapshot,pages})}}).retry(f.request),
+        error=>error.code==='FAILED_PREPARATION_RETRY_PLAN_REFERENCE_INVALID');
+    }
+    assert.throws(()=>f.service().retry({...f.request,actorId:'different'}),
+      error=>error.code==='FAILED_PREPARATION_RETRY_IDEMPOTENCY_CONFLICT');
+  } finally {f.database.close();}
+}));
+
+test('real dispatcher resumes a committed Retry Intent after SQLite process dependencies restart',async t=>{
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'helix-large-retry-restart-')),databasePath=path.join(root,'shelfdeck.db');
+  let kernel=openSqliteKernel({Database,databasePath,schemaDdl,schemaManifest}),database;
+  t.after(()=>{database?.close();kernel.close();fs.rmSync(root,{recursive:true,force:true});});
+  const f=failedRetryFixture({databasePath,unitOfWork:createSqliteUnitOfWork({kernel})},5);
+  database=f.database;
+  const intentStore=createProcurementRetryIntentStore(f.options);
+  assert.throws(()=>f.service({retryIntentStore:{create(request){intentStore.create(request);throw new Error('process stopped');}}}).retry(f.request),/process stopped/);
+  database.close();database=null;kernel.close();
+  kernel=openSqliteKernel({Database,databasePath,schemaDdl,schemaManifest});
+  const options={...f.options,unitOfWork:createSqliteUnitOfWork({kernel})};
+  const service=createFailedPreparationRetryAdminService({...options,workRuntime:createSynchronousDomainWork(options)});
+  let wakes=0;
+  const dispatcher=createOutboxDispatcherHost({...options,failedPreparationRetryService:service,executionRuntimeHost:{wake(){wakes++;}},onError(error){throw error;}});
+  assert.deepEqual(await dispatcher.recoverCommittedRetryIntents(),{kind:'advanced',delivered:1});
+  assert.deepEqual(await dispatcher.recoverCommittedRetryIntents(),{kind:'idle',delivered:0});
+  database=new Database(databasePath);
+  assert.equal(database.prepare('SELECT state FROM proc_procurement_retry_intents').get().state,'consumed');
+  assert.equal(database.prepare("SELECT state FROM fx_outbox WHERE message_kind='procurement_retry_intent_available'").get().state,'fully_acked');
+  assert.equal(database.prepare('SELECT count(*) n FROM fx_inbox').get().n,1);
+  assert.equal(database.prepare('SELECT count(*) n FROM proc_procurement_runs').get().n,2);
+  assert.equal(wakes,1);
+  assert.equal(service.retry(f.request).replayed,true);
+});
 
 test('admits complete Run Basis, Selection, Control, receipt, and marker in one transaction and replays it',()=>fixture(({databasePath,unitOfWork})=>{
   const registry=createDefaultTriageRuleRegistry(); const material=identity(); const control=controlSnapshot(material); const runBasis=basis(registry,material,control);

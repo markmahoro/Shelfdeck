@@ -8,6 +8,7 @@ const test = require('node:test');
 const Database = require('better-sqlite3');
 
 const { canonicalDigest, canonicalJson } = require('../../src/helix/contracts/canonical-json');
+const { REFERENCE_SCHEMA, PLANNER_REF, bindingSet, requestBasisDigest } = require('../../src/helix/domains/procurement/model/retry-command-plan-reference');
 const {
   createFailedPreparationRetryAdminService,
 } = require('../../src/helix/domains/procurement/application/failed-preparation-retry-admin-service');
@@ -42,6 +43,10 @@ test('Procurement Available consumer restores the exact frozen Retry Admission a
     retryScopeDigest: canonicalDigest({ scope: retryIntentId }),
   };
   const intent = Object.freeze({ ...intentValue, intentDigest: canonicalDigest(intentValue) });
+  const request = {fieldId,idempotencyKey,failedProcurementRunId:failedRunId,
+    expectedFailedRunBasisDigest:'a'.repeat(64),expectedFailedRunStateRevision:2,actorId:'fixture'};
+  const reference = {schemaRef:REFERENCE_SCHEMA,schemaVersion:1,request,retryIntentId,intentDigest:intent.intentDigest,
+    retryScopeDigest:intent.retryScopeDigest,newRunId:'new-run',newRunBasisDigest:null};
   const payload = Object.freeze({
     messageKind: 'procurement_retry_intent_available',
     retryIntentId,
@@ -53,22 +58,24 @@ test('Procurement Available consumer restores the exact frozen Retry Admission a
   });
   const intentEventId = stableId('retry-intent-event-', { workId });
   const admissionEventId = stableId('retry-admission-event-', { workId });
-  const intentResultId = 'retry-intent-result-recovery';
-  const admissionResultId = 'retry-admission-result-recovery';
+  const intentResultId = stableId('retry-intent-result-', {retryIntentId});
+  const admissionResultId = stableId('retry-admission-result-', {retryIntentId});
   const admissionRequest = Object.freeze({
     retryIntentId,
     expectedStateRevision: 1,
     expectedIntentDigest: intent.intentDigest,
+    priorityClass:'normal',
     commitMarker: Object.freeze({
-      commitMarker: 'retry-admission-marker-recovery',
-      commitDigest: canonicalDigest({ retryIntentId, operation: 'admit' }),
+      commitMarker: stableId('retry-admission-marker-', {retryIntentId}),
+      commitDigest: canonicalDigest({schema:'procurement.retry-admission-command@1',workId,retryIntentId,
+        intentDigest:intent.intentDigest,newRunBasisDigest:null}),
     }),
     resultBinding: Object.freeze({ resultId: admissionResultId, eventId: admissionEventId }),
   });
   const intentRequest = Object.freeze({
     intent,
     commitMarker: Object.freeze({
-      commitMarker: 'retry-intent-marker-recovery',
+      commitMarker: stableId('retry-intent-marker-', {retryIntentId}),
       commitDigest: canonicalDigest({ retryIntentId, operation: 'create' }),
     }),
     resultBinding: Object.freeze({ resultId: intentResultId, eventId: intentEventId }),
@@ -87,6 +94,11 @@ test('Procurement Available consumer restores the exact frozen Retry Admission a
     consume_commit_marker: null,
     consume_result_digest: null,
   };
+  const intentReceipt={schemaRef:'helix://contracts/application-types/ProcurementRetryIntentReceipt/v1',schemaVersion:1,
+    receiptId:intentResultId,receiptKind:'procurement_retry_intent_created',ownerDomain:'procurement',scopeType:'procurement_retry_intent',
+    scopeId:retryIntentId,scopeDigest:intent.intentDigest,committedAtMs:1,retryIntentId,fieldId,failedRunId,intentDigest:intent.intentDigest,
+    retryScopeDigest:intent.retryScopeDigest,preconditionSetDigest:'a'.repeat(64),intentState:'open'};
+  row.create_result_digest=canonicalDigest(intentReceipt);
   const calls = [];
   const typedResult = Object.freeze({
     schemaRef: 'helix://contracts/application-types/ProcurementRetryAdmissionResult/v1',
@@ -129,9 +141,12 @@ test('Procurement Available consumer restores the exact frozen Retry Admission a
   const service = createFailedPreparationRetryAdminService({
     schemaManifest,
     unitOfWork,
+    workResultReader:{read:()=>[{eventId:intentEventId,resultId:intentResultId,capabilityRef:'procurement.retry.intent.create@1',
+      outcomeKind:'succeeded',resultSchemaRef:intentReceipt.schemaRef,resultDigest:row.create_result_digest,result:intentReceipt}]},
     triageRegistry: createDefaultTriageRuleRegistry(),
     retryIntentStore: { create() { throw new Error('create is outside recovery'); } },
     retryAdmissionStore: {
+      prepare() { return {preconditionsMatched:false}; },
       consume(request) {
         admissionCalls += 1;
         assert.deepEqual(request, admissionRequest);
@@ -146,10 +161,11 @@ test('Procurement Available consumer restores the exact frozen Retry Admission a
       snapshot(requestedWorkId) {
         assert.equal(requestedWorkId, workId);
         return Object.freeze({
-          plan: Object.freeze({ planner_ref: 'procurement.failed-preparation-retry-planner@1' }),
+          work: Object.freeze({basis_digest:requestBasisDigest(request)}),
+          plan: Object.freeze({ planner_ref: PLANNER_REF }),
           pages: Object.freeze([
-            Object.freeze({ intentRequest }),
-            Object.freeze({ admissionRequest }),
+            bindingSet('intent',reference),
+            bindingSet('admission',reference),
           ]),
           events: Object.freeze([
             Object.freeze({ event_id: intentEventId }),

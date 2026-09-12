@@ -1,7 +1,10 @@
 'use strict';
 
 const { canonicalDigest } = require('../../../contracts/canonical-json');
+const { INPUT_SET, PLANNER_REF, REFERENCE_SCHEMA, bindingSet, readReference, requestBasisDigest } =
+  require('../model/retry-command-plan-reference');
 const { createWorkAdmission } = require('../../../foundation/execution/work-admission');
+const { createWorkResultReader } = require('../../../foundation/execution/work-result-reader');
 const {
   createMaterialControlAdmissionReadParticipant,
 } = require('../../../foundation/persistence/material-control');
@@ -60,14 +63,16 @@ function validateInput(input) {
       Object.keys(input).length !== keys.length ||
       keys.some((key) => !Object.hasOwn(input, key)) ||
       typeof input.fieldId !== 'string' || input.fieldId.length === 0 ||
+      input.fieldId.length > 256 ||
       typeof input.idempotencyKey !== 'string' || input.idempotencyKey.length === 0 ||
       input.idempotencyKey.length > 256 ||
       typeof input.failedProcurementRunId !== 'string' ||
       input.failedProcurementRunId.length === 0 ||
+      input.failedProcurementRunId.length > 256 ||
       !Number.isSafeInteger(input.expectedFailedRunStateRevision) ||
       input.expectedFailedRunStateRevision < 1 ||
       !SHA256.test(input.expectedFailedRunBasisDigest || '') ||
-      typeof input.actorId !== 'string' || input.actorId.length === 0) {
+      typeof input.actorId !== 'string' || input.actorId.length === 0 || input.actorId.length > 256) {
     fail(
       'FAILED_PREPARATION_RETRY_INPUT_INVALID',
       '失败准备重试请求不符合closed input合同。',
@@ -408,17 +413,36 @@ function controlHandle(newRunBasis) {
   });
 }
 
-function freezeAdmissionRequest(request) {
-  const { controlHandle: derivedControlHandle, ...frozen } = request;
-  return Object.freeze(frozen);
+function createRetryBasis({ newRunId, retryIntentId, head, failedMembers, materials, controls, triageRegistry }) {
+  const scopes = retrySelectionScopes(failedMembers);
+  const members = materials.map((material, index) =>
+    runMember(material, controls[index], index, scopes.scopeByMaterial.get(material.material_key)));
+  const selection = { procurementRunId:newRunId, fieldId:head.fieldId,
+    physicalMemberCount:members.length, selectionScopeCount:scopes.selectionScopes.length,
+    selectionScopes:scopes.selectionScopes, scopeSetDigest:scopes.scopeSetDigest, members:Object.freeze(members) };
+  const selectedFieldMaterialSet = Object.freeze({ ...selection,
+    selectionDigest:canonicalDigest({ schema:'procurement.selected-field-material-set@2', ...selection }) });
+  const value = { procurementRunId:newRunId, fieldId:head.fieldId, fieldStatus:'active',
+    fieldAccess:head.fieldAccess, profileHintSnapshot:head.profileHintSnapshot,
+    terminalObservation:{ revision:head.terminalObservation.revision,
+      fieldObservationWorkId:head.terminalObservation.fieldObservationWorkId,
+      profileHintSnapshot:head.terminalObservation.profileHintSnapshot },
+    extractionPolicy:head.extractionPolicy, triageRule:head.triageRule, sourceRetryIntentId:retryIntentId,
+    selectedFieldMaterialSet };
+  return createProcurementRunExecutionBasis(Object.freeze({ ...value, basisDigest:canonicalDigest(value) }), triageRegistry);
 }
 
-function thawAdmissionRequest(request) {
-  if (!request?.newRunBasis || request.controlHandle) return request;
-  return Object.freeze({
-    ...request,
-    controlHandle: controlHandle(request.newRunBasis),
-  });
+function admissionCommand(reference, workId, newRunBasis = null) {
+  const { retryIntentId, intentDigest, newRunId, newRunBasisDigest } = reference;
+  return Object.freeze({ retryIntentId, expectedStateRevision:1, expectedIntentDigest:intentDigest,
+    ...(newRunBasis ? { newRunBasis, controlHandle:controlHandle(newRunBasis),
+      createdControlReceiptId:stableId('retry-control-receipt-', { retryIntentId, newRunId }) } : {}),
+    priorityClass:'normal',
+    commitMarker:Object.freeze({ commitMarker:stableId('retry-admission-marker-', { retryIntentId }),
+      commitDigest:canonicalDigest({ schema:'procurement.retry-admission-command@1', workId,
+        retryIntentId, intentDigest, newRunBasisDigest }) }),
+    resultBinding:Object.freeze({ resultId:stableId('retry-admission-result-', { retryIntentId }),
+      eventId:stableId('retry-admission-event-', { workId }) }) });
 }
 
 function retryIntentAvailablePayload(intent) {
@@ -546,6 +570,27 @@ function createFailedPreparationRetryAdminService(options) {
     createProcurementRetryIntentStore(options);
   const retryConsumer = options.retryAdmissionStore ||
     createProcurementRetryAdmissionStore(options);
+  const resultReader = options.workResultReader || createWorkResultReader(options);
+
+  function readIntentReceipt(row, workId) {
+    const eventId = stableId('retry-intent-event-', { workId });
+    const resultId = stableId('retry-intent-result-', { retryIntentId:row.retry_intent_id });
+    const result = resultReader.read(workId).find((item) => item.eventId === eventId);
+    const receipt = result?.result;
+    const schemaRef = 'helix://contracts/application-types/ProcurementRetryIntentReceipt/v1';
+    if (!receipt || result.resultId !== resultId || result.capabilityRef !== INTENT_CAPABILITY ||
+        result.outcomeKind !== 'succeeded' || result.resultSchemaRef !== schemaRef ||
+        result.resultDigest !== row.create_result_digest || canonicalDigest(receipt) !== row.create_result_digest ||
+        receipt.schemaRef !== schemaRef || receipt.schemaVersion !== 1 || receipt.receiptId !== resultId ||
+        receipt.receiptKind !== 'procurement_retry_intent_created' || receipt.ownerDomain !== 'procurement' ||
+        receipt.scopeType !== 'procurement_retry_intent' || receipt.scopeId !== row.retry_intent_id ||
+        receipt.retryIntentId !== row.retry_intent_id || receipt.fieldId !== row.field_id ||
+        receipt.failedRunId !== row.failed_run_id || receipt.intentDigest !== row.intent_digest ||
+        receipt.scopeDigest !== row.intent_digest || receipt.retryScopeDigest !== row.retry_scope_digest ||
+        receipt.intentState !== 'open')
+      fail('FAILED_PREPARATION_RETRY_INTENT_RECEIPT_CORRUPT', 'The committed Retry Intent receipt does not match its Owner record.', { workId });
+    return receipt;
+  }
 
   function assemble(input, workId, basisDigest) {
     let snapshot;
@@ -797,50 +842,11 @@ function createFailedPreparationRetryAdminService(options) {
         control.ownerDomain === 'procurement' &&
         control.ownerScopeType === 'material_field' &&
         control.ownerScopeId === input.fieldId));
-    let newRunBasis;
-    if (mayCreateRun) {
-      const retryScopes=retrySelectionScopes(snapshot.failedMembers);
-      const selectedMembers = snapshot.materials.map((material, index) =>
-        runMember(material, controls[index], index, retryScopes.scopeByMaterial.get(material.material_key)));
-      const selectedValue = {
-        procurementRunId: newRunId,
-        fieldId: input.fieldId,
-        physicalMemberCount:selectedMembers.length,
-        selectionScopeCount:retryScopes.selectionScopes.length,
-        selectionScopes:retryScopes.selectionScopes,
-        scopeSetDigest:retryScopes.scopeSetDigest,
-        members: Object.freeze(selectedMembers),
-      };
-      const selectedFieldMaterialSet = Object.freeze({
-        ...selectedValue,
-        selectionDigest: canonicalDigest({
-          schema: 'procurement.selected-field-material-set@2',
-          ...selectedValue,
-        }),
-      });
-      const basisValue = {
-        procurementRunId: newRunId,
-        fieldId: input.fieldId,
-        fieldStatus: 'active',
-        fieldAccess: retryAdmissionHead.fieldAccess,
-        profileHintSnapshot: retryAdmissionHead.profileHintSnapshot,
-        terminalObservation: {
-          revision: retryAdmissionHead.terminalObservation.revision,
-          fieldObservationWorkId:
-            retryAdmissionHead.terminalObservation.fieldObservationWorkId,
-          profileHintSnapshot:
-            retryAdmissionHead.terminalObservation.profileHintSnapshot,
-        },
-        extractionPolicy: retryAdmissionHead.extractionPolicy,
-        triageRule: rule,
-        sourceRetryIntentId: retryIntentId,
-        selectedFieldMaterialSet,
-      };
-      newRunBasis = createProcurementRunExecutionBasis(Object.freeze({
-        ...basisValue,
-        basisDigest: canonicalDigest(basisValue),
-      }), options.triageRegistry);
-    }
+    const newRunBasis = mayCreateRun ? createRetryBasis({ newRunId, retryIntentId,
+      head:retryAdmissionHead, failedMembers:snapshot.failedMembers, materials:snapshot.materials,
+      controls, triageRegistry:options.triageRegistry }) : null;
+    const reference = Object.freeze({ schemaRef:REFERENCE_SCHEMA, schemaVersion:1, request:Object.freeze({...input}), retryIntentId,
+      intentDigest:intent.intentDigest, retryScopeDigest, newRunId, newRunBasisDigest:newRunBasis?.basisDigest || null });
 
     const intentEventId = stableId('retry-intent-event-', { workId });
     const admissionEventId = stableId('retry-admission-event-', { workId });
@@ -862,42 +868,15 @@ function createFailedPreparationRetryAdminService(options) {
         messageId: stableId('retry-intent-message-', { retryIntentId }),
       }),
     });
-    const admissionRequestValue = {
-      retryIntentId,
-      expectedStateRevision: 1,
-      expectedIntentDigest: intent.intentDigest,
-      ...(newRunBasis ? {
-        newRunBasis,
-        controlHandle: controlHandle(newRunBasis),
-        createdControlReceiptId:
-          stableId('retry-control-receipt-', { retryIntentId, newRunId }),
-      } : {}),
-      priorityClass: 'normal',
-      commitMarker: Object.freeze({
-        commitMarker: stableId('retry-admission-marker-', { retryIntentId }),
-        commitDigest: canonicalDigest({
-          schema: 'procurement.retry-admission-command@1',
-          workId,
-          retryIntentId,
-          intentDigest: intent.intentDigest,
-          newRunBasisDigest: newRunBasis?.basisDigest || null,
-        }),
-      }),
-      resultBinding: Object.freeze({
-        resultId: stableId('retry-admission-result-', { retryIntentId }),
-        eventId: admissionEventId,
-      }),
-    };
-    const admissionRequest = Object.freeze(admissionRequestValue);
     return Object.freeze({
+      intentRequest, reference,
       steps: Object.freeze([
         capabilityStep({
           nodeId: 'retry-intent-commit',
           eventId: intentEventId,
           capabilityRef: INTENT_CAPABILITY,
-          inputSchemaRef:
-            'helix://implementation/procurement/retry-intent-command/v1',
-          input: Object.freeze({ intentRequest }),
+          inputSchemaRef: INPUT_SET,
+          input: bindingSet('intent', reference),
           basisDigest,
           fieldId: input.fieldId,
           failedRunId: input.failedProcurementRunId,
@@ -906,11 +885,8 @@ function createFailedPreparationRetryAdminService(options) {
           nodeId: 'retry-admission',
           eventId: admissionEventId,
           capabilityRef: ADMISSION_CAPABILITY,
-          inputSchemaRef:
-            'helix://implementation/procurement/retry-admission-plan-input/v1',
-          input: Object.freeze({
-            admissionRequest: freezeAdmissionRequest(admissionRequest),
-          }),
+          inputSchemaRef: INPUT_SET,
+          input: bindingSet('admission', reference),
           basisDigest,
           fieldId: input.fieldId,
           failedRunId: input.failedProcurementRunId,
@@ -953,52 +929,38 @@ function createFailedPreparationRetryAdminService(options) {
   }
 
   function frozenRetryWork(payload, row) {
-    const workId = stableId('failed-preparation-retry-work-', {
-      fieldId: row.field_id,
-      idempotencyKey: row.idempotency_key,
-    });
+    const workId = stableId('failed-preparation-retry-work-', { fieldId:row.field_id, idempotencyKey:row.idempotency_key });
     const snapshot = options.workRuntime.snapshot(workId);
-    const intentRequest = snapshot?.pages?.[0]?.intentRequest;
-    const frozenAdmissionRequest = snapshot?.pages?.[1]?.admissionRequest;
-    const expectedIntentEventId = stableId('retry-intent-event-', { workId });
-    const expectedAdmissionEventId = stableId('retry-admission-event-', { workId });
+    const reference = readReference(snapshot?.pages);
+    const intentEventId = stableId('retry-intent-event-', { workId });
+    const admissionEventId = stableId('retry-admission-event-', { workId });
     const eventIds = (snapshot?.events || []).map((event) => event.event_id).sort();
-    const frozenIntentDigest = intentRequest?.intent
-      ? canonicalDigest(Object.fromEntries(
-        Object.entries(intentRequest.intent).filter(([key]) => key !== 'intentDigest'),
-      ))
-      : null;
-    if (!snapshot?.plan || snapshot.plan.planner_ref !==
-          'procurement.failed-preparation-retry-planner@1' ||
-        snapshot.pages.length !== 2 || snapshot.events.length !== 2 ||
-        eventIds[0] !== [expectedAdmissionEventId, expectedIntentEventId].sort()[0] ||
-        eventIds[1] !== [expectedAdmissionEventId, expectedIntentEventId].sort()[1] ||
-        !intentRequest?.intent ||
-        intentRequest.intent.retryIntentId !== payload.retryIntentId ||
-        intentRequest.intent.fieldId !== payload.fieldId ||
-        intentRequest.intent.failedRunId !== payload.failedRunId ||
-        intentRequest.intent.intentDigest !== payload.intentDigest ||
-        intentRequest.intent.retryScopeDigest !== payload.retryScopeDigest ||
-        frozenIntentDigest !== payload.intentDigest ||
-        intentRequest.commitMarker?.commitMarker !== row.create_commit_marker ||
-        !frozenAdmissionRequest ||
-        frozenAdmissionRequest.retryIntentId !== payload.retryIntentId ||
-        frozenAdmissionRequest.expectedStateRevision !== 1 ||
-        frozenAdmissionRequest.expectedIntentDigest !== payload.intentDigest ||
-        frozenAdmissionRequest.resultBinding?.eventId !== expectedAdmissionEventId) {
-      fail(
-        'FAILED_PREPARATION_RETRY_FROZEN_WORK_CORRUPT',
-        'Retry Intent无法从冻结Supporting Work/Plan恢复精确Admission。',
-        { retryIntentId: payload.retryIntentId, workId },
-      );
+    if (!snapshot?.plan || snapshot.plan.planner_ref !== PLANNER_REF ||
+        snapshot.work?.basis_digest !== requestBasisDigest(reference.request) ||
+        canonicalDigest(eventIds) !== canonicalDigest([intentEventId, admissionEventId].sort()) ||
+        reference.retryIntentId !== payload.retryIntentId || reference.intentDigest !== payload.intentDigest ||
+        reference.retryScopeDigest !== payload.retryScopeDigest || reference.request.fieldId !== row.field_id ||
+        reference.request.failedProcurementRunId !== row.failed_run_id || reference.request.idempotencyKey !== row.idempotency_key ||
+        stableId('retry-intent-marker-', { retryIntentId:reference.retryIntentId }) !== row.create_commit_marker) {
+      fail('FAILED_PREPARATION_RETRY_FROZEN_WORK_CORRUPT', 'Retry Intent与精确的Owner Plan引用不一致。', { workId });
     }
-    return Object.freeze({
-      workId,
-      intentEventId: expectedIntentEventId,
-      admissionEventId: expectedAdmissionEventId,
-      intentRequest,
-      admissionRequest: thawAdmissionRequest(frozenAdmissionRequest),
-    });
+    let admissionRequest = admissionCommand(reference, workId);
+    if (row.state === 'open') {
+      const current = retryConsumer.prepare(admissionRequest);
+      // This read prepares a proposal only. The original admission transaction
+      // independently repeats every current precondition before creating or staling.
+      if (current.preconditionsMatched) {
+        const basis = createRetryBasis({ newRunId:reference.newRunId, retryIntentId:reference.retryIntentId,
+          head:current.admissionHead, failedMembers:current.members.map((item) => item.sourceMember),
+          materials:current.members.map((item) => item.material),
+          controls:current.members.map((item) => item.snapshot.currentControlSnapshot), triageRegistry:options.triageRegistry });
+        if (basis.basisDigest !== reference.newRunBasisDigest)
+          fail('FAILED_PREPARATION_RETRY_FROZEN_BASIS_DRIFT', '重建的Run Basis与Plan冻结摘要不一致。', { workId });
+        admissionRequest = admissionCommand(reference, workId, basis);
+      }
+    }
+    return Object.freeze({ workId, intentEventId, admissionEventId, admissionRequest,
+      intentResultId:stableId('retry-intent-result-', { retryIntentId:reference.retryIntentId }) });
   }
 
   function retryInboxParticipant(payload, admissionResultDigest) {
@@ -1036,11 +998,12 @@ function createFailedPreparationRetryAdminService(options) {
     const row = retryIntentRow(payload.retryIntentId);
     assertAvailableMessageRow(payload, row);
     const frozen = frozenRetryWork(payload, row);
+    readIntentReceipt(row, frozen.workId);
 
     options.workRuntime.beginEvent(frozen.intentEventId);
     options.workRuntime.completeEvent(
       frozen.intentEventId,
-      frozen.intentRequest.resultBinding.resultId,
+      frozen.intentResultId,
     );
     options.workRuntime.beginEvent(frozen.admissionEventId);
     const retryAdmission = retryConsumer.consume(frozen.admissionRequest);
@@ -1062,15 +1025,7 @@ function createFailedPreparationRetryAdminService(options) {
 
   function retry(input) {
     validateInput(input);
-    const basisValue = {
-      schema: 'procurement.admin-failed-preparation-retry-basis@1',
-      fieldId: input.fieldId,
-      failedProcurementRunId: input.failedProcurementRunId,
-      expectedFailedRunStateRevision: input.expectedFailedRunStateRevision,
-      expectedFailedRunBasisDigest: input.expectedFailedRunBasisDigest,
-      actorId: input.actorId,
-    };
-    const basisDigest = canonicalDigest(basisValue);
+    const basisDigest = requestBasisDigest(input);
     const workId = stableId('failed-preparation-retry-work-', {
       fieldId: input.fieldId,
       idempotencyKey: input.idempotencyKey,
@@ -1083,34 +1038,26 @@ function createFailedPreparationRetryAdminService(options) {
       );
     }
 
-    const assembled = existing?.plan
-      ? Object.freeze({
-        steps: Object.freeze([
-          capabilityStep({
-            nodeId: 'retry-intent-commit',
-            eventId: stableId('retry-intent-event-', { workId }),
-            capabilityRef: INTENT_CAPABILITY,
-            inputSchemaRef:
-              'helix://implementation/procurement/retry-intent-command/v1',
-            input: existing.pages[0],
-            basisDigest,
-            fieldId: input.fieldId,
-            failedRunId: input.failedProcurementRunId,
-          }),
-          capabilityStep({
-            nodeId: 'retry-admission',
-            eventId: stableId('retry-admission-event-', { workId }),
-            capabilityRef: ADMISSION_CAPABILITY,
-            inputSchemaRef:
-              'helix://implementation/procurement/retry-admission-plan-input/v1',
-            input: existing.pages[1],
-            basisDigest,
-            fieldId: input.fieldId,
-            failedRunId: input.failedProcurementRunId,
-          }),
-        ]),
-      })
-      : assemble(input, workId, basisDigest);
+    let frozenReference = null;
+    if (existing?.plan) {
+      if (existing.plan.planner_ref !== PLANNER_REF)
+        fail('FAILED_PREPARATION_RETRY_PLAN_REFERENCE_INVALID', 'Retry只接受当前typed-reference Plan。');
+      frozenReference = readReference(existing.pages);
+      if (canonicalDigest(frozenReference.request) !== canonicalDigest(input))
+        fail('FAILED_PREPARATION_RETRY_IDEMPOTENCY_CONFLICT', 'Retry请求与冻结Plan不一致。');
+      const row = retryIntentRow(frozenReference.retryIntentId);
+      if (row) {
+        const payload = retryIntentAvailablePayload({ ...frozenReference, fieldId:input.fieldId,
+          failedRunId:input.failedProcurementRunId });
+        const receipt = readIntentReceipt(row, workId);
+        const consumed = consumeAvailable(payload);
+        return Object.freeze({ workId, state:'succeeded', retryIntentReceipt:receipt,
+          retryAdmissionResult:consumed.retryAdmissionResult, replayed:consumed.replayed });
+      }
+    }
+    const assembled = assemble(input, workId, basisDigest);
+    if (frozenReference && canonicalDigest(frozenReference) !== canonicalDigest(assembled.reference))
+      fail('FAILED_PREPARATION_RETRY_FROZEN_BASIS_DRIFT', 'Intent提交前的Owner事实已偏离Plan冻结摘要。', { workId });
 
     const admission = createWorkAdmission({
       schemaManifest: options.schemaManifest,
@@ -1141,7 +1088,7 @@ function createFailedPreparationRetryAdminService(options) {
       workId,
       ownerDomain: 'procurement',
       basisDigest,
-      plannerRef: 'procurement.failed-preparation-retry-planner@1',
+      plannerRef: PLANNER_REF,
       catalogDigest: canonicalDigest({
         schema: 'procurement.failed-preparation-retry-catalog@1',
         capabilities: [INTENT_CAPABILITY, ADMISSION_CAPABILITY],
@@ -1149,17 +1096,19 @@ function createFailedPreparationRetryAdminService(options) {
       steps: assembled.steps,
     });
     const frozen = activated.snapshot.pages;
-    const intentStep = frozen[0];
+    if (canonicalDigest(readReference(frozen)) !== canonicalDigest(assembled.reference))
+      fail('FAILED_PREPARATION_RETRY_PLAN_REFERENCE_INVALID', 'Published Retry Plan does not match its Owner proposal.');
+    const intentRequest = assembled.intentRequest;
     const intentEventId = stableId('retry-intent-event-', { workId });
 
     options.workRuntime.beginEvent(intentEventId);
-    const intentResult = intentStore.create(intentStep.intentRequest);
+    const intentResult = intentStore.create(intentRequest);
     options.workRuntime.completeEvent(
       intentEventId,
-      intentStep.intentRequest.resultBinding.resultId,
+      intentRequest.resultBinding.resultId,
     );
     const consumed = consumeAvailable(
-      retryIntentAvailablePayload(intentStep.intentRequest.intent),
+      retryIntentAvailablePayload(intentRequest.intent),
     );
 
     return Object.freeze({

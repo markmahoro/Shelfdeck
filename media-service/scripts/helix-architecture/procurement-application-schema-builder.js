@@ -17,6 +17,15 @@ const controlSnapshot = () => ({ oneOf:[
   object({materialKey:digest(),resultKind:{const:'unavailable'},failureCode:id(),evidenceDigest:digest(),projectionDigest:digest()})
 ] });
 const receiptEnvelope = (receiptKind) => ({ schemaRef:{ const:typeId(receiptKind) },schemaVersion:{ const:1 },receiptId:id(),receiptKind:{ const:receiptKind==='ProcurementRetryIntentReceipt'?'procurement_retry_intent_created':'procurement_retry_admission' },ownerDomain:{ const:'procurement' },scopeType:{ const:'procurement_retry_intent' },scopeId:id(),scopeDigest:digest(),committedAtMs:nonNegative() });
+
+function retryCommandPlanReference() {
+  return {$schema:DRAFT,$id:typeId('ProcurementRetryCommandPlanReference'),title:'ProcurementRetryCommandPlanReference@1',
+    'x-helix-ssotRefs':['8.6.18','8.6.20'],'x-helix-maxCanonicalBytes':16*1024,
+    ...object({schemaRef:{const:typeId('ProcurementRetryCommandPlanReference')},schemaVersion:{const:1},
+      request:object({actorId:id(),fieldId:id(),failedProcurementRunId:id(),expectedFailedRunStateRevision:{...positive(),maximum:Number.MAX_SAFE_INTEGER},
+        expectedFailedRunBasisDigest:digest(),idempotencyKey:id()}),
+      retryIntentId:id(),intentDigest:digest(),retryScopeDigest:digest(),newRunId:id(),newRunBasisDigest:{oneOf:[digest(),{type:'null'}]}})};
+}
 const profileHint = () => ({ type:'string', enum:['mixed','movie','series','jav','western_adult'] });
 const profileHintSnapshotRef = () => ref('MaterialFieldProfileHintSnapshot');
 function profileHintSnapshot() {
@@ -163,6 +172,7 @@ function buildProcurementApplicationSchemas() { return Object.freeze({
   MaterialFieldRegistrationCommand:materialFieldRegistrationCommand(),
   ProcurementMaterialFieldAdminResult:materialFieldAdminResult(),
   ProcurementCandidateAssemblyPlanBinding:candidateAssemblyPlanBinding(),
+  ProcurementRetryCommandPlanReference:retryCommandPlanReference(),
   ProcurementRetryAdmissionHead:retryAdmissionHead(), ProcurementRetryAdmissionResult:retryAdmissionResult(), ProcurementRetryConsumeMemberSnapshot:retryConsumeMemberSnapshot(), ProcurementRetryIntent:retryIntent(), ProcurementRetryIntentAvailableMessage:retryIntentAvailableMessage(), ProcurementRetryIntentReceipt:retryIntentReceipt(),
   ProcurementRunExecutionBasis:runExecutionBasis(), ProcurementRunSealDecision:runSealDecision(), ProcurementRunSealReceipt:runSealReceipt(),
   ProcurementTriageRuleRegistry:triageRuleRegistry(), ProcurementTriageRuleSnapshot:triageRuleSnapshot()

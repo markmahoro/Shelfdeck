@@ -5,7 +5,7 @@
   "kind": "application-type-registry",
   "owner": "procurement",
   "status": "active",
-  "targetCount": 17,
+  "targetCount": 18,
   "entries": [
     {
       "id": "MaterialFieldAdminProjection",
@@ -127,6 +127,22 @@
       },
       "ssotRefs": [
         "8.6.18"
+      ]
+    },
+    {
+      "id": "ProcurementRetryCommandPlanReference",
+      "version": 1,
+      "owner": "procurement",
+      "status": "contracted",
+      "schemaId": "helix://contracts/application-types/ProcurementRetryCommandPlanReference/v1",
+      "relativePath": "application-types/ProcurementRetryCommandPlanReference/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "01b34af1d024f8f2acea3fa8f9da97ff2cd22e28f767a129c5dcf3ef1e9f6a46"
+      },
+      "ssotRefs": [
+        "8.6.18",
+        "8.6.20"
       ]
     },
     {
