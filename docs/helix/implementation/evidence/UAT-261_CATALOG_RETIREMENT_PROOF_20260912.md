@@ -66,6 +66,11 @@ source map 已刷新并验证，不能把该次全量失败报告为全绿。完
 部署任务独立报告：同一完整副本上 exact cd4f Host 正常 ready，exact d7 Host 出现 4764 个 Catalog findings；
 两者八组 protected facts 哈希不变。此为发布对照证据，不代表本修复已可发布。
 
+本地实现提交 `e6ab87955`；在不含260 WIP的独立干净 checkout 运行全量 architecture：
+1686 tests，1676通过、9跳过、1失败。唯一失败是新增既有名义 schema 后的 P2 固定 aggregateDigest
+仍用旧期望，随后同步为 `faa39ed26084596b67ea06686c3fe1cada31639fa67c26731a68dc38009ab1dc`；
+该次依赖、语义、manifest、合同图检查全部通过。基线期望修正做定向复验，不能把首次运行写成1686全通过。
+
 ## 7 项未决物理责任的最小处理范围
 
 全部 Owner=`arca`、processType=`arca_ondeck_run`、workKind=`on_deck_execution`，旧 Work/Work Attempt/Event
