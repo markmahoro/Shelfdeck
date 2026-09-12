@@ -23,16 +23,9 @@ UAT-260已独立验收关闭：真实601/574成员隔离Retry保留全成员且P
 
 UAT-261已独立验收关闭：286fe56f1e生产完整Host正常，health200/normalSupplyAllowed=true；最新完整副本升级、同格式备用及切回验证通过，8270 Plan含新d8逐字保留，38历史Effects/Events与122收藏保留。不改旧digest、不扩Reset、不屏蔽校验；历史Run业务恢复仍归125/250。[本项证据](implementation/evidence/UAT-261_CATALOG_STARTUP_DEPLOYMENT_20260912.md)。
 
-2026-09-12 UAT-251：`eae6bb3da` 核心实现、`874172bc6` 合并最新页面与 261 契约；指定 UI 负责人已通过最终本地 1920×1080 图片复核。Windows/Linux 真实媒体自动瑕疵上架、手动海报修复及剩余瑕疵/重启验证通过，合并后 Web105通过。197表原业务数据保持验证已完成；最终联合 Catalog witness、完整 Host 与生产验收交部署任务，仍开放、未独立部署。[证据](implementation/evidence/UAT-251_TERMINAL_OUTCOME_AUDIT_20260908.md)。
+UAT-251核心与指定UI负责人认可的最终页面已随286发布；Windows/Linux真实媒体自动瑕疵上架、手动修复、剩余Gap及重启、无Provider有限重查和Freshness耗尽已有源证据，最终镜像实际媒体链通过。生产授权读取正常且尚未启用；完整生产业务/UI验收继续，保持开放。[本项证据](implementation/evidence/UAT-251_TERMINAL_OUTCOME_AUDIT_20260908.md)。
 
-2026-09-12 UAT-251交付状态：此前无Integration的有限终局及Freshness耗尽无blockedWorks两项缺口，源任务现已接通并获定向证据。无资料Provider使用独立Libra观察，按首见后1/5/15/30/60分钟最多五次重查，重启不重置；受控时钟完整HTTP链实际安全媒体瑕疵上架186.4秒通过。Freshness五次耗尽分支已走到责任收尾，修复Discard序列化BigInt后专项通过。独立`libra_strategy_availability`使最终目标从196变为197表，DDL `854c22240e01915f777958ec490bf1ebad6dcc4a92f4bd6f2f032d32ac2d1312`；此前45文件副本189→196升级/异常回滚、188原业务表摘要不变、118收藏/7份admin放弃保留仅属中间版本证据，197版须补验。真实瑕疵上架/手动修复/重启及失败重试防循环已有源测试证据；尚无最终提交，仍需最终197升级/回滚、UI负责人要求的1920×1080同数据前后对照/收藏详情及Linux差异验证。精确合并Catalog和完整Host由部署任务验收。
-
-UAT-261源任务只读核查：4个已Commit Run的历史Receipt固定Inventory/DeckFact=1/1，原读取入口误用当前Inventory版本5/2/5/5。独立历史读取按Receipt的精确版本执行原完整摘要校验后4项全部通过，20项旧删除及20项后继输入/意图摘要和实际后继完成链已匹配。源提交e1bbc467a已合入4f6953ad1，干净发布树Catalog/Owner history/startup/runtime Host针对性104/104通过。另3项stage明确unsupported并继续阻断；未重复构建已知仍受阻的新镜像，精确镜像的已验证结果仍是上述d5的7项阻断，不提前改写为启动成功。
-
-2026-09-12新增UAT-260：隔离演练中大Run FailedPreparationRetry将完整DTO内联至Plan，触发16 KiB CHECK；SSOT要求typed binding refs，禁止扩大上限或旧Work fallback。正常恢复链用修正BigInt桥另建副本继续；重试缺陷单独修复验收，生产未变更。见[缺陷证据](implementation/evidence/UAT-260_LARGE_RUN_RETRY_INPUT_20260912.md)。
-
-
-UAT-125/250第一批9820e7b85核心已部署；原两Token精确Reset已执行，《人生密密缝》尚未处置。第二批9ecf7b2a1/d591d6867正式Control拒绝链已合入d7a6da2802；独立发布区Windows组合38/38、完整架构1647通过/9既有跳过/0失败，DDL不变。候选镜像Linux117/117及最新副本完整scoped正常链通过；实际发布在完整Host启动失败并回退，接续261修复，不重复原两Token Reset。原备份820个open Offer中815匹配、5个失配共23项，7组保护表未变；这是旧副本只读分类，不是当前NAS统计或旧队列完整恢复，125/250保持开放。[实现证据](implementation/evidence/UAT-125_250_INTAKE_RECOVERY_20260912.md)、[集成验证](implementation/evidence/UAT_JOINT_DEPLOYMENT_READINESS_20260912.md)。
+UAT-125/250恢复与正式Control拒绝链已随286发布。历史原两Token Reset已执行且不重复；现有旧条目仍按当前Owner责任和精确材料证据处理，不能把新版本正常启动写成存量全部恢复。《人生密密缝》仍blocked/Commit0，旧冲突文件已被当前Owner引用，不能按旧清单隔离。[恢复证据](implementation/evidence/UAT-125_250_INTAKE_RECOVERY_20260912.md)、[存量治理](implementation/evidence/UAT-250_FORMATION_STOCK_GOVERNANCE_20260908.md)。
 
 UAT-259已独立验收关闭：最终Web94/94，本地494元素一致，cd4f3f5b2d生产八页/五设置Tab布局、状态和必要交互复核通过；九列表格保持。[本项证据](implementation/evidence/UAT-259_UI_REFINEMENT_20260912.md)。
 
@@ -56,6 +49,6 @@ UAT-256全页面UI polish已本地实现并通过89项前端测试及桌面八�
 
 172已独立关闭：正式持续授权、逐Scope持久Approval及删除前当前授权核验接通；Windows/Linux真实链、撤销/重启/范围不足负向、正式浏览器与生产新镜像复核通过。生产原授权revision 1及79收藏保持不变，见[验收](implementation/evidence/UAT-172_AUTHORIZATION_ACCEPTANCE_20260909.md)。134已完成同根精确范围、负向与端口重建重放验收，见[134证据](implementation/evidence/UAT-134_SCOPED_SETTLEMENT_ACCEPTANCE_20260909.md)。158已完成采样中时间戳变化与真实内容漂移的正负验收，见[158证据](implementation/evidence/UAT-158_STAGE_TIMESTAMP_ACCEPTANCE_20260909.md)。138已完成单Movie真实全链及未知/后生文件保护验收，见[138证据](implementation/evidence/UAT-138_THUMBS_MOVIE_ACCEPTANCE_20260909.md)。225/229/231/244/249已按[生产浏览器证据](implementation/evidence/UAT_SETTINGS_BROWSER_ACCEPTANCE_20260909.md)分别关闭。无新的用户待决策项。
 
-251的三终局、仅手动修复已接受瑕疵、健康正常另附标记及typed合同已确认，DTO/持久化/执行接入与验收仍在实施。125/250输入稳定核心已部署；旧Control失配正式拒绝链与精确生产恢复仍未完成。没有Reset或手改Control；216样片及另一完整1080p版本保持原状。
+251实现与125/250正式拒绝链已部署，剩余业务验收及存量责任见本页最新记录；不重复历史Reset，不手改Control，216样片及另一完整1080p版本保持原状。
 
 此前逐项流水及旧时点状态保留在[整理前历史快照](implementation/evidence/UAT_STATUS_SNAPSHOT_BEFORE_172_20260909.md)，每项验收证据由总表链接；旧“最新发布”“仍开放”等措辞不覆盖本页和总表。
