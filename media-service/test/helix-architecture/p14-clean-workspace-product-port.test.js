@@ -90,7 +90,7 @@ function frameRequest() {
   });
 }
 
-function seedRuntimeWorkspaceEffect(databasePath, state = 'reconcile_required') {
+function seedRuntimeWorkspaceEffect(databasePath, state = 'reconcile_required', capabilityRef = 'libra.product_artifact.acquire@1') {
   const database = new Database(databasePath);
   const eventAttemptId = 'runtime-event-attempt';
   const idempotencyKey = 'runtime-workspace-effect';
@@ -109,20 +109,20 @@ function seedRuntimeWorkspaceEffect(databasePath, state = 'reconcile_required') 
       (plan_id,node_id,capability_ref,contract_version,input_binding_schema_ref,input_bindings_json,
        parameter_schema_ref,parameters_json,when_schema_ref,when_json,effect_class,fence_schema_ref,
        fence_basis_json,resource_demand_schema_ref,resource_demand_json)
-      VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run('runtime-plan','runtime-node','libra.product_artifact.acquire@1',1,
+      VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run('runtime-plan','runtime-node',capabilityRef,1,
         'helix://test/inputs','{}','helix://test/parameters','{"artifactKind":"poster"}',null,null,'workspace_write',
         'helix://test/fence','{}','helix://test/resources','{}');
     database.prepare(`INSERT INTO fx_workflow_events
       (event_id,plan_id,node_id,work_id,attempt_id,owner_domain,capability_ref,contract_version,
        priority_class,state,ready_at_ms,retry_at_ms,result_id,current_progress_revision)
       VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run('runtime-event','runtime-plan','runtime-node','runtime-work',
-        'runtime-work-attempt','libra','libra.product_artifact.acquire@1',1,'normal_foreground','executing',1,null,null,null);
+        'runtime-work-attempt','libra',capabilityRef,1,'normal_foreground','executing',1,null,null,null);
     database.prepare(`INSERT INTO fx_event_attempts
       (event_attempt_id,event_id,ordinal,executor_ref,executor_version,input_snapshot_schema_ref,
        input_snapshot_digest,fence_snapshot_digest,state,outcome_kind,retry_after_ms,failure_class,failure_code,
        evidence_digest,started_at_ms,finished_at_ms)
       VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(eventAttemptId,'runtime-event',1,
-        'libra.product_artifact.acquire@1',1,'helix://test/inputs','b'.repeat(64),'c'.repeat(64),
+        capabilityRef,1,'helix://test/inputs','b'.repeat(64),'c'.repeat(64),
         'executing',null,null,null,null,null,1,null);
     database.prepare(`INSERT INTO fx_effect_journal
       (effect_id,event_attempt_id,effect_class,idempotency_key,intent_digest,state,external_receipt_ref,
@@ -133,6 +133,110 @@ function seedRuntimeWorkspaceEffect(databasePath, state = 'reconcile_required') 
     database.close();
   }
   return Object.freeze({effectClass:'workspace_write',eventAttemptId,idempotencyKey,recoveryDecision:'safe_retry'});
+}
+
+function mediaRequest(authority, produce) {
+  const base = request();
+  return {
+    libraRunId:base.libraRunId, workspaceId:base.workspaceId,
+    relativePath:'media/output.mkv', intentDigest:'e'.repeat(64),
+    idempotencyKey:authority.idempotencyKey, effectScopeDigest:'f'.repeat(64),
+    outputTargetId:'target', outputTargetDigest:'a'.repeat(64),
+    runtimeEffectAuthority:authority, produce,
+  };
+}
+
+for (const recoveryDecision of ['safe_retry', 'continue_forward']) {
+  test(`media ${recoveryDecision} recovery commits and replays one Handle under the original Effect`, () =>
+    fixture(async ({ databasePath, workspaceRoot, dependencies }) => {
+      const authority = { ...seedRuntimeWorkspaceEffect(databasePath, 'intended', 'libra.media.transcode@1'), recoveryDecision };
+      const effectId = canonicalDigest(['workspace_write', authority.idempotencyKey]);
+      const port = createCleanWorkspaceProductPort({ ...dependencies, rootPath:workspaceRoot });
+      let produced = 0;
+      let interrupted = true;
+      const command = mediaRequest(authority, async (target) => {
+        if (interrupted) throw Object.assign(new Error('Injected interrupted producer'), { code:'EROFS' });
+        produced++;
+        fs.writeFileSync(target, Buffer.alloc(1024, 7));
+      });
+      await assert.rejects(port.materializeMedia(command), { code:'EROFS' });
+      const realityVerifiers = Object.fromEntries([
+        'workspace_write', 'external_request', 'domain_fact_commit',
+        'responsibility_control_commit', 'material_commit', 'destructive_commit',
+      ].map((effectClass) => [effectClass, { verify() { throw new Error('Unexpected reality verification'); } }]));
+      const journal = require('../../src/helix/foundation/effects/effect-journal').createEffectJournal({
+        ...dependencies, now:() => 3, realityVerifiers,
+      });
+      journal.requireReconcile(effectId);
+      interrupted = false;
+      const first = await port.materializeMedia(command);
+      const replay = await port.materializeMedia(command);
+      assert.deepEqual(replay, first);
+      assert.equal(first.effectId, effectId);
+      assert.equal(produced, 1);
+      const database = new Database(databasePath, { readonly:true });
+      try {
+        assert.deepEqual(database.prepare('SELECT event_attempt_id,state FROM fx_effect_journal WHERE effect_id=?').get(effectId),
+          { event_attempt_id:authority.eventAttemptId, state:'reconcile_required' });
+        assert.equal(database.prepare('SELECT count(*) n FROM fx_effect_journal').get().n, 1);
+        assert.equal(database.prepare('SELECT count(*) n FROM fx_event_attempts').get().n, 1);
+        assert.equal(database.prepare('SELECT count(*) n FROM fx_workspace_materials').get().n, 1);
+      } finally { database.close(); }
+    }));
+}
+
+test('media materialization requires Runtime authority before producing bytes', () =>
+  fixture(async ({ databasePath, workspaceRoot, dependencies }) => {
+    const authority = seedRuntimeWorkspaceEffect(databasePath);
+    const port = createCleanWorkspaceProductPort({ ...dependencies, rootPath:workspaceRoot });
+    let produced = 0;
+    const command = mediaRequest(authority, async () => { produced++; });
+    delete command.runtimeEffectAuthority;
+    await assert.rejects(port.materializeMedia(command), { code:'CLEAN_WORKSPACE_MEDIA_RUNTIME_AUTHORITY_REQUIRED' });
+    assert.equal(produced, 0);
+  }));
+
+for (const [name, change, code] of [
+  ['missing recovery decision', { recoveryDecision:undefined }, 'CLEAN_WORKSPACE_RUNTIME_EFFECT_AUTHORITY_MISSING'],
+  ['before-intent decision', { recoveryDecision:'safe_retry_before_intent' }, 'CLEAN_WORKSPACE_RUNTIME_EFFECT_AUTHORITY_MISSING'],
+  ['invalid decision', { recoveryDecision:'retry' }, 'CLEAN_WORKSPACE_RUNTIME_EFFECT_AUTHORITY_INVALID'],
+  ['different Attempt', { eventAttemptId:'another-attempt' }, 'CLEAN_WORKSPACE_RUNTIME_EFFECT_AUTHORITY_MISSING'],
+  ['different idempotency key', { idempotencyKey:'another-effect' }, 'CLEAN_WORKSPACE_RUNTIME_EFFECT_AUTHORITY_MISSING'],
+]) {
+  test(`media recovery rejects ${name} before producing bytes`, () =>
+    fixture(async ({ databasePath, workspaceRoot, dependencies }) => {
+      const authority = { ...seedRuntimeWorkspaceEffect(databasePath), ...change };
+      const port = createCleanWorkspaceProductPort({ ...dependencies, rootPath:workspaceRoot });
+      let produced = 0;
+      await assert.rejects(port.materializeMedia(mediaRequest(authority, async () => { produced++; })), { code });
+      assert.equal(produced, 0);
+      const database = new Database(databasePath, { readonly:true });
+      try { assert.equal(database.prepare('SELECT count(*) n FROM fx_workspace_materials').get().n, 0); }
+      finally { database.close(); }
+    }));
+}
+
+for (const [name, sql, value] of [
+  ['state', 'UPDATE fx_effect_journal SET state=?', 'intended'],
+  ['intent', 'UPDATE fx_effect_journal SET intent_digest=?', '9'.repeat(64)],
+  ['idempotency key', 'UPDATE fx_effect_journal SET idempotency_key=?', 'changed-key'],
+]) {
+  test(`media recovery rejects ${name} drift between authorization and Handle commit`, () =>
+    fixture(async ({ databasePath, workspaceRoot, dependencies }) => {
+      const authority = seedRuntimeWorkspaceEffect(databasePath);
+      const port = createCleanWorkspaceProductPort({
+        ...dependencies, rootPath:workspaceRoot,
+        afterMediaPhysicalEffect() {
+          const database = new Database(databasePath);
+          try { database.prepare(sql).run(value); } finally { database.close(); }
+        },
+      });
+      const command = mediaRequest(authority, async (target) => fs.writeFileSync(target, Buffer.alloc(1024, 7)));
+      await assert.rejects(port.materializeMedia(command), { code:'CLEAN_WORKSPACE_MEDIA_JOURNAL' });
+      const database = new Database(databasePath, { readonly:true });
+      try { assert.equal(database.prepare('SELECT count(*) n FROM fx_workspace_materials').get().n, 0); }
+      finally { database.close(); }
+    }));
 }
 
 test('materializes one service-owned Workspace Artifact and replays exact handles', () =>

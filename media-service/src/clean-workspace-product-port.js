@@ -1875,7 +1875,8 @@ function createCleanWorkspaceProductPort(options) {
       const repo = context.repository(repositories.foundation.repositoryId);
       const effect = repo.invoke('find_effect', { effect_class:'workspace_write', idempotency_key:request.idempotencyKey });
       if (!effect || effect.effect_id !== effectId || effect.event_attempt_id !== runtimeAuthority.authority.eventAttemptId ||
-          effect.state !== 'intended') {
+          effect.intent_digest !== runtimeAuthority.effect.intent_digest ||
+          effect.state !== runtimeAuthority.effect.state) {
         fail('CLEAN_WORKSPACE_MEDIA_JOURNAL', 'Workspace media Effect journal is absent.');
       }
       const existing = repo.invoke('find_material', { workspace_id:request.workspaceId, material_handle_id:handleId });

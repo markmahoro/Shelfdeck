@@ -169,7 +169,8 @@ function createMediaProductionCapabilityPorts(options) {
           deadlineAtMs: context.deadlineAtMs,
           idempotencyKey: context.idempotencyKey,
           runtimeEffectAuthority:Object.freeze({ effectClass:'workspace_write',
-            eventAttemptId:context.eventAttemptId, idempotencyKey:context.idempotencyKey }),
+            eventAttemptId:context.eventAttemptId, idempotencyKey:context.idempotencyKey,
+            recoveryDecision:context.recoveryDecision }),
         }));
         } catch (error) {
           return mediaEffectFailed(error);
@@ -221,7 +222,8 @@ function createMediaProductionCapabilityPorts(options) {
           deadlineAtMs: context.deadlineAtMs,
           idempotencyKey: context.idempotencyKey,
           runtimeEffectAuthority:Object.freeze({ effectClass:'workspace_write',
-            eventAttemptId:context.eventAttemptId, idempotencyKey:context.idempotencyKey }),
+            eventAttemptId:context.eventAttemptId, idempotencyKey:context.idempotencyKey,
+            recoveryDecision:context.recoveryDecision }),
         }));
         } catch (error) {
           return mediaEffectFailed(error);

@@ -15,6 +15,24 @@ const {transcodeStrategyAssessmentWork,transcodeMediaSelectionWork}=
   require('../../src/helix/domains/libra/planning/media-production-work');
 
 const D=(value)=>canonicalDigest({value});
+
+for(const kind of ['remux','transcode'])test(kind+' preserves the exact runtime recovery authority at the media Effect boundary',async()=>{
+  const sentinel=Object.assign(new Error('captured media boundary'),{code:'TEST_BOUNDARY_CAPTURED'});
+  let received;
+  const ports=createMediaProductionCapabilityPorts({resolveProductionSourceScope:async()=>({primaryReadHandle:{}}),
+    mediaEffectPort:{executeRemux:async request=>{received=request;throw sentinel;},
+      executeTranscode:async request=>{received=request;throw sentinel;},verifyTranscodeInput:async()=>{},verifyPlayback:async()=>{}}});
+  for(const recoveryDecision of ['safe_retry','continue_forward',null,undefined]) {
+    const context={eventId:'event',eventAttemptId:'original-attempt',idempotencyKey:'original-intent',
+      namedInputs:kind==='remux'?{productionSourceScopeReference:{sourceReferenceDigest:D('source')},
+        remuxIntent:{sourceHandleDigest:D('source')},workspaceMediaOutputTarget:{}}:
+        {transcodeInputVerification:{result:'passed'},materialHandle:{},encodeIntent:{},mediaExecutionDeviceSnapshot:{},workspaceMediaOutputTarget:{}}};
+    Object.defineProperty(context,'recoveryDecision',{value:recoveryDecision,enumerable:false});
+    await assert.rejects(()=>ports['libra.media.'+kind+'@1'].execute(Object.freeze(context)),error=>error===sentinel);
+    assert.deepEqual(received.runtimeEffectAuthority,{effectClass:'workspace_write',eventAttemptId:'original-attempt',
+      idempotencyKey:'original-intent',recoveryDecision});
+  }
+});
 const contractRoot=path.resolve(__dirname,'../../src/helix/contracts');
 const schemas=['types','domain-types','application-types'].flatMap((group)=>fs.readdirSync(path.join(contractRoot,group)).map((name)=>{
   const version=fs.readdirSync(path.join(contractRoot,group,name)).find((entry)=>/^v[0-9]+$/.test(entry));

@@ -364,3 +364,32 @@ Work 时间与 ordinal 仍全部参与前后 digest，不能以忽略字段绕�
 Boundary 与 proof 构造均可完成。**该3/3结果只是完整业务/技术读取诊断，不是 NAS物理证明或Host验收**；
 没有改写原路径/输入摘要、没有访问或修改原目录。精确 Linux Host 仍须由部署任务重新验证。
 定向82项全部通过，新增真实 BigInt、超界/错误类型和观察中 Work 时间变化反例。
+
+### Full Host 暴露的媒体恢复授权遗漏（同一 Effect）
+
+部署任务的 `5428fbea99` 精确 Linux full Host 已通过 Catalog 7→0；但与 `cd4f3f5b2d`
+基线一样，媒体恢复先发生只读挂载下 producer partial 清理 `EROFS`，随后发生
+`CLEAN_WORKSPACE_RUNTIME_EFFECT_AUTHORITY_MISSING`。这两条运行错误不属于 Catalog proof 拒绝。
+集成区 `integer-recovery-effect-rows.json` 的前后行确认：Effect `33a9d06f…` 从 intended
+变为 reconcile_required，始终绑定 `event-attempt-52e9279c-74f3-4282-aab8-39cd6e0503d3`；
+Event `libra-transcode-media-event-f58943ce…` 仍 executing，唯一 Attempt 为 ordinal 1，未新增普通 Attempt。
+
+因果链：Host deferred recovery 捕获首次错误后重新分类，实际 EffectJournal.requireReconcile
+将原 Effect 置为 reconcile_required。EventRuntime.recover 向原 Attempt context 提供 runtime-only
+recoveryDecision，但 remux/transcode Capability port 未转发该字段，Workspace 因而按现有入口合同拒绝。
+在本机可写临时 Workspace、真实 SQLite/EffectJournal 上独立复现：恢复字段缺失时不会进入 producer；
+补上 safe_retry 后进入 producer，又被 media 提交门禁写死的 intended 检查拒绝为
+`CLEAN_WORKSPACE_MEDIA_JOURNAL`。只改变演练挂载可写性不能修复这两处实现遗漏。
+
+本次最小修复在两个媒体 Capability 正式端口传递 recoveryDecision；Workspace media 提交时按同文件
+Artifact 既有模式复核入口已冻结的 Effect state，并新增原 intent_digest 不变校验。继续要求同一
+Effect、Attempt、idempotency key 和原 Material fence；入口允许状态/决策集合不变。无恢复决策的
+reconcile_required、错误 Attempt、错误 key、safe_retry_before_intent 均拒绝；提交期间状态、intent
+或 key 漂移也拒绝登记 Handle。Workspace 不负责将 Effect 改为 committed，完成仍由 Runtime 管理。
+
+本机回归使用临时 DB/文件，实际 requireReconcile 后分别以 safe_retry、continue_forward 完成并重复读取
+同一 receipt/Handle，只产生一次成功输出，Effect/Attempt 数量各为1。端口边界另验证不可枚举 context
+字段准确传递给 remux/transcode，覆盖普通执行的空字段。定向65项：64通过、1项既有skip、0失败；
+Startup Recovery、Runtime Host、Event Runtime、Effect Journal 回归104/104，四类静态检查通过。
+本次未执行真实 FFmpeg 或 Linux 镜像验证，完整集成演练由部署任务继续负责；未部署、未改生产数据或历史
+技术图。此修复不等同于《人生密密缝》已上架，也不能作为3席位有效吞吐吃满的验收。
