@@ -67,3 +67,14 @@ Catalog digest的构成、历史Plan/retained contract的加载与比较语义�
 旧cd4f在该副本11:20:59–11:22:26Z完整Host ready/health200并正常关闭，但有两条runtime错误：只读`/transcode`上旧partial清理触发EROFS，另有`CLEAN_WORKSPACE_RUNTIME_EFFECT_AUTHORITY_MISSING`；第二条的完整因果尚未确认，不将其直接当作EROFS连锁，也不宣称运行时全绿。候选1c550在11:22:31–11:23:52Z完整启动仍为`P4_EXECUTION_HOST_RECOVERY_BLOCKED`，仅余原3个stage Plan，runtime errors0。两者八组保护事实hash不变，quick_check ok/FK0。
 
 11:24:47–11:26:12Z另用新副本运行同一精确镜像诊断Host，仅包装`createBoundedCatalogTransition`的`onRejected`记录拒绝原因，不改变判定；结果仍3项阻断，唯一拒绝原因是`Arca stage history: Custody has missing or extra Control`。因此不能把开发区输入/Control局部查询或Linux单测通过写成7→0。源任务接回核对实际控制集合与原Package范围，任何真实缺失/额外Control继续阻断；未修改生产或放宽条件。原始证据为ignored `final-baseline-host-result.json`、`final-candidate-host-result.json`及`final-diagnostic-host-result.json`，诊断包装与普通精确Host结果分开保留。
+# 2026-09-12 5428 精确启动修复验证
+
+本节为最新增量，历史失败证据保留。source `5428fbea998106c2e0ea479f1b162e8f23219420`，tag `helix-beta-20260912-5428fbea99`，tar 561819648 bytes、SHA256 `a0b1c0afbc8c31fc18fbb5ae7f35e380031de7b12483615ec1b6b9897b53642a`，Config Image ID `sha256:397d9d98ea2058ddbf0429ec29acfcc6db7c037d69e3cea94a8057bd767b8ff9`。标准build/upload及NAS SHA256重核后仅load供隔离测试，生产仍固定cd4f；load随tar更新latest标签不改变生产容器。
+
+31bd的formal Handoff B transfer scope修正后，精确镜像仍3项阻断；诊断报`JCS input contains a non-JSON member`，源任务追至`statuses[0].latestAttempt.ordinal` BigInt，并对Owner Fence的ordinal及Work时间只接受非负safe integer后转Number。不是Shelf字段故障，不放宽canonical JSON或全局reader。源5269已合入5428，Windows/精确Linux镜像针对性各74/74。31bd Linux运行时适用81项通过，另一次误带开发source-map测试因镜像不打包scripts失败；相应Windows4项已通过，保留该覆盖区别。
+
+11:54:32.468Z–11:56:32.787Z，在冻结`uat261-host-20260912-final`（11:20:06.625Z，45文件aggregate `b283998892633a06750ed8014379387c6d16a798f9df75c9754b3501a6df8eb2`）另复制的`integer-candidate`运行未插桩完整Host：health200、ready、normalSupplyAllowed=true、启动findings0、closed=true；8组保护表摘要不变，quick_check ok/FK0。文件`integer-candidate-host-result.json`、`integer-candidate-host-console.log`位于集成工作区ignored `.codex/unified-release-20260912/`。
+
+runtime仍有两条与同冻结副本cd4f对照相同的错误：EROFS在`removeProducerPartials`尝试unlink只读/transcode测试挂载；随后`runtimeEffectAuthority`报`CLEAN_WORKSPACE_RUNTIME_EFFECT_AUTHORITY_MISSING`。后者不能仅凭先后顺序归因于EROFS，尚未证明正常可写生产路径受影响或无影响，不宣称运行时全绿。
+
+11:57:01.597Z独立只读复核原7个Plan：38个Effect中23个reconcile_required，全部原Effect及Event字节摘要未变；《人生密密缝》Run未变、blocked、Commit0。只证明旧未决物理责任符合本次startup只读证据，不伪造原操作成功或业务恢复。候选运行后副本的binary回退验证随后另记；UAT-261保持开放，尚未部署联合版本。

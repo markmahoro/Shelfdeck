@@ -6,6 +6,8 @@
 
 ## 当前生产
 
+2026-09-12 11:54–11:57Z：UAT-261 `5428fbea99` 精确镜像首次通过11:20完整生产副本的全Host启动，health 200、ready、normalSupplyAllowed=true、findings 0、正常关闭；8组保护表摘要不变、quick_check ok/FK0。原7个Plan的38个Effect（23个reconcile_required）及原Event均未改写，《人生密密缝》Run仍blocked/Commit0。两条runtime错误与cd4f对照相同：只读Workspace EROFS和Effect authority缺失，后者因果尚未确认，不能称运行时全绿。此前31bd版本3项阻断已定位为整数Fence的BigInt序列化问题并由5269修正；当前正在验证候选运行后副本的cd4f binary回退。生产仍cd4f，未部署；251/260独立交付齐备，联合schema闭包及最终Host待整合验证。
+
 2026-09-12 11:20–11:26Z：生产仍为cd4f、原StartedAt及health正常，最新副本121收藏/970份Delivery（825 open/137 accepted/8 rejected）。261全部证明代码已合入1c550eff91并构建精确镜像，完整230个架构测试文件与静态gate、Linux125/125通过；但最新完整副本实际Host仍余3项stage阻断，拒绝原因为`Custody has missing or extra Control`，源任务继续定位，未生产部署。对照旧版启动成功但出现只读Workspace及Effect authority两条runtime错误，均保留，不宣称运行时全绿。[最新门禁证据](implementation/evidence/UAT-261_CATALOG_STARTUP_DEPLOYMENT_20260912.md#3项stage实现后的精确linux门禁)。
 
 2026-09-12 10:35Z：261精确修复镜像`d5c00f0cc4`已构建、Linux84/84通过，最新完整副本的全Host阻断由4764项降至预期7项未决物理Plan，保护事实hash不变、quick_check ok/FK0。完整架构唯一旧digest断言已更新并定向3/3复验；7项Owner责任尚待正式收口，未生产部署，生产仍为以下cd4f健康版本。详见[集成验证](implementation/evidence/UAT-261_CATALOG_STARTUP_DEPLOYMENT_20260912.md#uat-261-精确镜像集成验证)。
