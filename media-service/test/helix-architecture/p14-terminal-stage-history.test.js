@@ -21,7 +21,7 @@ function fixture(t){
     {portName:'targetCommitSlotHandle',bindingKind:'projected_event_result',eventId:'slot-event',projectionRef:'helix://arca/input-projections/TargetCommitSlotHandle/v1',parameters:{dependencyRefs:deps}}];
   const input=canonicalDigest({productMaterialHandleList:[{known:'source'}],targetCommitSlotHandle:slot});
   const facts={plan:{plan_id:'plan'},work:{work_id:'work',owner_domain:'arca',process_type:'arca_ondeck_run',process_id:run,work_kind:'on_deck_execution',
-    state:'failed',definition_json:JSON.stringify(definition),definition_digest:canonicalDigest(definition)},workAttempt:{state:'failed'},
+    state:'failed',created_at_ms:1,updated_at_ms:2,definition_json:JSON.stringify(definition),definition_digest:canonicalDigest(definition)},workAttempt:{state:'failed'},
     nodes:[{node_id:'stage',input_bindings_json:JSON.stringify({bindings})}],events:[{event_id:'stage-event',node_id:'stage',state:'failed',capability_ref:C,contract_version:1},
       {event_id:'slot-event',node_id:'slot',state:'succeeded',capability_ref:'arca.inventory.target_slot.prepare@1'}],
     attempts:[{event_attempt_id:'attempt',event_id:'stage-event',state:'completed',outcome_kind:'failed',input_snapshot_digest:input,fence_snapshot_digest:H}],
@@ -35,7 +35,7 @@ function fixture(t){
     productDeliveryPort:{readPackage:()=>({resultKind:'found',onDeckProductPackage:{productMaterialManifest:{members:[{materialKey:key,workspaceMaterialHandle:{known:'source'}}]},offloadContextManifest:{members:[]}}})},
     stageHistoryControlReader:{readScope:()=>({items:[control]})},stageHistoryArcaBindingReader:{read:()=>({ownerDomain:'arca',count:0,digest:H})},
     stageHistoryLibraBindingReader:{read:()=>({ownerDomain:'libra',count:0,digest:H})},
-    workResultReader:{listWorks:()=>[structuredClone(facts.work)],status:()=>({state:'failed',latestAttempt:{state:'failed'}})},
+    workResultReader:{listWorks:()=>[structuredClone(facts.work)],status:()=>({state:'failed',latestAttempt:{state:'failed',ordinal:1}})},
     readTechnicalWork:()=>[structuredClone(facts)],inventoryPort:{observeEmptyStageSlot}};
   return {root,directory,slot,facts,options,control,observe:()=>createTerminalStageHistoryObserver(options).observe(facts)};
 }
@@ -48,7 +48,7 @@ for(const [name,mutate] of [
   ['remaining tmp output',f=>fs.writeFileSync(path.join(f.directory,'.tmp'),'partial')],
   ['missing slot',f=>fs.rmdirSync(f.directory)],
   ['active Work',f=>f.options.workResultReader.listWorks=()=>[{state:'running'}]],
-  ['active Attempt',f=>f.options.workResultReader.status=()=>({state:'failed',latestAttempt:{state:'running'}})],
+  ['active Attempt',f=>f.options.workResultReader.status=()=>({state:'failed',latestAttempt:{state:'running',ordinal:1}})],
   ['extra Control',f=>f.options.stageHistoryControlReader.readScope=()=>({items:[f.control,{...f.control,materialKey:'b'.repeat(64)}]})],
   ['missing original Control',f=>f.options.stageHistoryControlReader.readScope=()=>({items:[]})],
   ['Libra slot reference',f=>f.options.stageHistoryLibraBindingReader.read=()=>({ownerDomain:'libra',count:1,digest:H})],
@@ -83,4 +83,22 @@ test('stage proof compares the exact Handoff B transfer set, preserving Related 
   assert.throws(()=>f.observe(),/missing or extra Control/);
   f.options.stageHistoryControlReader.readScope=()=>({items:[]});
   assert.throws(()=>f.observe(),/missing or extra Control/);
+});
+
+test('stage Fence handles persisted BigInt Attempt ordinals without changing canonical JSON rules',t=>{
+  const f=fixture(t);
+  f.options.workResultReader.listWorks=()=>[{...f.facts.work,created_at_ms:1n,updated_at_ms:2n}];
+  f.options.workResultReader.status=()=>({state:'failed',latestAttempt:{state:'failed',ordinal:1n}});
+  assert.equal(f.observe()[0].disposition,'no_remaining_material_effect');
+  f.options.workResultReader.status=()=>({state:'failed',latestAttempt:{state:'failed',ordinal:9007199254740993n}});
+  assert.throws(()=>f.observe(),/invalid Work Attempt ordinal/);
+  f.options.workResultReader.status=()=>({state:'failed',latestAttempt:{state:'failed',ordinal:'1'}});
+  assert.throws(()=>f.observe(),/invalid Work Attempt ordinal/);
+  f.options.workResultReader.status=()=>({state:'failed',latestAttempt:{state:'failed',ordinal:1n}});
+  f.options.workResultReader.listWorks=()=>[{...f.facts.work,created_at_ms:9007199254740993n,updated_at_ms:2n}];
+  assert.throws(()=>f.observe(),/invalid Work created time/);
+  let updated=2n;
+  f.options.workResultReader.listWorks=()=>[{...f.facts.work,created_at_ms:1n,updated_at_ms:updated}];
+  f.options.inventoryPort.observeEmptyStageSlot=request=>{const result=observeEmptyStageSlot(request);updated=3n;return result;};
+  assert.throws(()=>f.observe(),/scope changed during observation/);
 });

@@ -12,6 +12,15 @@ const TERMINAL = new Set(['succeeded','failed','cancelled']);
 const stable = (prefix, value) => prefix + canonicalDigest(value).slice(0,40);
 const requireProof = (value, reason) => { if (!value) throw new Error('Arca stage history: ' + reason); };
 function one(rows, predicate) { const matches=rows.filter(predicate); requireProof(matches.length===1,'missing or ambiguous source'); return matches[0]; }
+function integerFence(value, field) {
+  requireProof((typeof value==='number'||typeof value==='bigint') &&
+    Number.isSafeInteger(Number(value)) && Number(value)>=0,'invalid '+field);
+  return Number(value);
+}
+function statusFence(status) {
+  if (!status?.latestAttempt) return status;
+  return {...status,latestAttempt:{...status.latestAttempt,ordinal:integerFence(status.latestAttempt.ordinal,'Work Attempt ordinal')}};
+}
 
 // Historical product projection, read-only. Exact input digest matching is
 // mandatory; this does not recreate a current physical read permission.
@@ -70,9 +79,10 @@ function createTerminalStageHistoryObserver(options) {
     const query={endpointId:slot.targetEndpointId,directory};
     const arca=arcaBindings.read(query),libra=options.stageHistoryLibraBindingReader.read(query);
     requireProof(arca.ownerDomain==='arca' && libra.ownerDomain==='libra' && arca.count===0 && libra.count===0,'slot has Owner references');
-    const works=options.workResultReader.listWorks({ownerDomain:'arca',processType:'arca_ondeck_run',processId:responsibility.onDeckRunId,workKind:'on_deck_execution'});
+    const works=options.workResultReader.listWorks({ownerDomain:'arca',processType:'arca_ondeck_run',processId:responsibility.onDeckRunId,workKind:'on_deck_execution'})
+      .map(work=>({...work,created_at_ms:integerFence(work.created_at_ms,'Work created time'),updated_at_ms:integerFence(work.updated_at_ms,'Work updated time')}));
     requireProof(works.length>0 && works.every(work=>TERMINAL.has(work.state)),'active Work');
-    const statuses=works.map(work=>options.workResultReader.status(work.work_id));
+    const statuses=works.map(work=>statusFence(options.workResultReader.status(work.work_id)));
     requireProof(statuses.every(status=>status && TERMINAL.has(status.state) && (!status.latestAttempt||TERMINAL.has(status.latestAttempt.state))),'active Work Attempt');
     const graphs=works.flatMap(work=>options.readTechnicalWork(work.work_id));
     requireProof(graphs.every(graph=>TERMINAL.has(graph.workAttempt.state) && graph.events.every(event=>TERMINAL.has(event.state)||event.state==='skipped') &&

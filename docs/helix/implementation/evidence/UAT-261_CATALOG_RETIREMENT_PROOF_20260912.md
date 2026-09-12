@@ -347,3 +347,20 @@ Custody 的正式 Control，revision 为2/3/2。4个未转移的 Related Input�
 定向 Catalog/历史 Effect/stage 及现有 Acceptance/Settlement 回归共120项，117通过、3项既有skip、0失败；
 其中 Catalog/历史 Effect/stage 81项全部通过。Package boundary、forbidden semantics、manifest、P2 baseline
 四类静态检查通过。本提交未执行生产部署或媒体操作。
+
+### 完整 Boundary 的 SQLite integer 投影修正
+
+`31bd03b023` 精确 Linux full Host 继续有3项阻断，诊断原因变为 `JCS input contains a non-JSON member`。
+对同11:20完整副本的真实 Owner/Control/Work/Plan 图逐字段诊断确认：`WorkResultReader.status` 的
+`latestAttempt.ordinal`，以及 `listWorks` 的 `created_at_ms/updated_at_ms` 为 SQLite BigInt。
+前次 Shelf 可做 canonical digest 的结果有效，但不能推出整个 Boundary 均无 BigInt。
+
+仅在 Arca stage 技术 Fence 投影将这3种已知字段显式转换成非负 safe integer；数字字符串、非整数、
+负数和超出 safe integer 的值均阻断。通用 JCS、Foundation Work Reader 及原技术/Owner存储不变，
+Work 时间与 ordinal 仍全部参与前后 digest，不能以忽略字段绕过变化检查。
+
+用本机独立副本实际 Reader 跑通三个原 Plan 的所有 Owner boundary 条件：诊断仅为原 Linux 路径
+使用 `path.posix`，物理入口先抛 sentinel 确认已到达，然后以明确的测试 observation 验证观察后同一
+Boundary 与 proof 构造均可完成。**该3/3结果只是完整业务/技术读取诊断，不是 NAS物理证明或Host验收**；
+没有改写原路径/输入摘要、没有访问或修改原目录。精确 Linux Host 仍须由部署任务重新验证。
+定向82项全部通过，新增真实 BigInt、超界/错误类型和观察中 Work 时间变化反例。
