@@ -69,6 +69,22 @@ Catalog digest的构成、历史Plan/retained contract的加载与比较语义�
 11:24:47–11:26:12Z另用新副本运行同一精确镜像诊断Host，仅包装`createBoundedCatalogTransition`的`onRejected`记录拒绝原因，不改变判定；结果仍3项阻断，唯一拒绝原因是`Arca stage history: Custody has missing or extra Control`。因此不能把开发区输入/Control局部查询或Linux单测通过写成7→0。源任务接回核对实际控制集合与原Package范围，任何真实缺失/额外Control继续阻断；未修改生产或放宽条件。原始证据为ignored `final-baseline-host-result.json`、`final-candidate-host-result.json`及`final-diagnostic-host-result.json`，诊断包装与普通精确Host结果分开保留。
 # 2026-09-12 5428 精确启动修复验证
 
+## 12:17Z 联合版本复验及恢复收口
+
+联合镜像 `helix-beta-20260912-fa96edc6b9` 已标准构建、上传和 NAS checksum 验证，tar 561873408 bytes，SHA256 `4c0efe5fe92f8c11680b1cb9c418951b6e605fa60e85354969120736b72f4453`，NAS Config ID `8d3d7ae8924e5c205b37cf5ab06c7b0d801fef96416d94736f8b2632e97a58eb`。镜像内运行时代码的 Linux 专项 121/121；另真实媒体 HTTP 自动瑕疵上架、手动海报修复、保留演员 Gap 及重启链约125秒通过，2 pass/1个未选择的手动场景 skip。测试目录只读挂载，未替换镜像 src；最初误以为镜像包含 test 的启动失败单独保留，不计测试通过。
+
+12:17:36.651Z 新完整一致副本 `test-runs/joint-host-20260912/data` 共45文件，aggregate `3829f2e2db182c1857c3f5ab9ecee8911ee2dc29f696bbaaab74f115b81bf304`；下载后逐文件校验，121收藏、970 Delivery（137 accepted/825 open/8 rejected），integrity ok/FK0。冻结原件未运行 Host。cd4f对照与fa96候选均完整启动、health200、normalSupplyAllowed=true、关闭成功，8组保护表不变/FK0。12:27:48Z独立复核原38 Effects（23 reconcile_required）及原Events未变，指定旧Run仍blocked/Commit0。
+
+首轮联合 Host 的 Aftercare root conflict 已定位为**副本挂载改变物理根身份**：Aftercare root 为 `/app/data/workspaces/aftercare`，不能用另一路径复制品冒充原挂载。修正测试容器，将隔离可写数据放 `/probe-data`，原生产 `/app/data`、媒体、Workspace 全部只读，读取当前正式配置冻结 Aftercare root；不改产品指纹校验。12:26:38–12:29:22Z 的 `joint-mount-preserved` 完整 Host 通过，root conflict 消失。仍有只读现有 Workspace 下 mkdir 的 ENOENT、输入预检 fingerprint I/O 失败，以及后者暴露的重复聚合 CARDINALITY，不能笼统写成全绿。
+
+重复聚合的精确 Work 为 `libra-deliverable-promotion-work-b95d531290fc079b4eb008a4d6d11a54be705a2f`，在冻结原件不存在。Event input projection 同步失败后，Owner扫描先终结 Attempt、尚未完成 Work 决策，原Event回调再次聚合而误报运行Attempt数量。最终Work/唯一Attempt均failed，保留 `PHYSICAL_MATERIAL_FINGERPRINT_IO_FAILED`，没有新造成功或删除历史。该Foundation旧缺陷由源任务修复，须补最终精确镜像验证。
+
+此前 Workspace authority 缺失已追至 Capability 未传递当前 `recoveryDecision`，以及 media commit 硬编码 `intended` 未接受正式恢复入口冻结的 Effect 状态。源 `3a49090899b50bcdbb945e136f8caf89de2cb235` 已合入 `e056c64aff7e0135bea6eb19a4db8409f34f8662`；保持同一 Effect、Attempt、幂等键及 intent fence，没有新兼容或历史回写。Windows合并验证170 pass/1既有skip；精确 e056 镜像 Linux contract/workspace 44项与producer22项通过，另1个既有live BDMV skip。初次producer加载缺少开发用fixture生成脚本，补只读单文件fixture挂载后通过，不将其混入生产镜像。
+
+e056备用候选 tar 561873408 bytes，SHA256 `89c72f1f6c77610bca3ebd11e0e6c46294fcf47d8d37806aedc66375f9b33ca6`，已标准上传并校验，尚未生产部署。回退方向为验证同197表/d8格式的精确备用版本，保留升级后新事实；不能把旧cd4f称为联合版无损binary回退。另12:33:27–12:34:34Z已完成隔离备份恢复演练：保留候选数据现场、恢复45文件逐字校验的原备份并用cd4f完整启动成功。这只证明**生产媒体写入被只读挂载禁止时**匹配旧数据与旧程序可以恢复，不授权在真实媒体处置后用旧DB覆盖新事实。
+
+本节原始日志和JSON保存在集成区ignored `.codex/unified-release-20260912/` 与发布区 `.codex/`，包括 `joint-*-host-result.json`、`joint-promotion-work-audit.json`、`joint-restore-manifest-verification.json`、`joint-recovery-regression.log`、`fallback-real-media-http-20260912.log`。生产仍cd4f及原StartedAt，尚无本批apply、Reset或直接改库；定时任务保持停止。
+
 联合检查结果：`joint-architecture.json`覆盖238个文件/1782项，1771 pass、9 skip、2 fail；四类static gate均通过。失败一为DDL trace manifest仍保留SSOT行号更新前的8表contract摘要，用原`p3-ddl-materializer`重生成，DDL字节及摘要不变；失败二为UAT-129完整HTTP重启链已完成，但最后断言仍读取旧`admissionRequest`导致TypeError。已改为验证新的closed typed binding及其精确newRunId/newRunBasisDigest，未删去真实重启/Outbox/唯一Run检查。`joint-regression.log`对该HTTP场景、DDL可重现、P2基线和完整witness四项复验4/4，无skip；无需因这两处测试/生成trace修正重复全部已通过测试。尚无联合精确镜像Linux/完整Host或生产放行。
 
 后续回退结论：11:57:02.240Z–11:57:40.875Z，将`integer-candidate/data`再复制为`integer-rollback/data`并运行cd4f完整Host，得到4项PLAN_CATALOG_DRIFT，未就绪；8组保护表摘要仍不变、quick_check ok/FK0。`integer-rollback-plan-diff.json`逐行核对这4个Plan在冻结原件不存在，在candidate及rollback副本均为新d8 Catalog：field-observation `e879b530…`已succeeded；aftercare `cda0aee3…`、offdeck `bf5dc39a…`和`07d68502…`仍running。旧cd4f不认识新Catalog；本次d2→d8单向历史证明不覆盖反向回退，不改写新Plan摘要、不添加旧版泛化白名单。
