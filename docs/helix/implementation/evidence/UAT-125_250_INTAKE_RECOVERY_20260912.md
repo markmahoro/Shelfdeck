@@ -270,8 +270,27 @@ Collection API仅有一份本片正式收藏，TMDB 428733，健康投影healthy
 
 ### 待授权的生产执行与验收
 
+以下保留授权前的冻结方案；用户随后明确“确认”，实际执行与剩余边界见下一节。
+
 精确请求仅覆盖本节旧Subject及旧`1080p DTS.mkv`。停服后先冻结并备份完整data、compose/secret和旧Workspace，重验Reset范围、原正式收藏当前Owner、全部10文件及两主片SHA256；任何差异先停止。将唯一旧重复主片复制至本次备份目录并校验后移出原位置，使用正式Formation Reset工具处理精确旧Subject；Reset本身不触碰`/media`。不执行旧Run上架重试、不修改SQL事实、不反转Accepted Receipt、不重建正式收藏。
 
 同一286镜像启动后验收：旧失败条目不再出现在需要处理，原正式Entry/Commit/Inventory及其他收藏保持，保留9文件逐项不变；旧候选由正式材料缺失拒绝链终结并ACK释放Reservation。若当前席位未腾出，记录候选等待而非宣称正式闭环完成，不擅自增加生产席位或Reset其他Token。失败保留现场与备份；恢复原路径前必须再次核验无人占用，不能覆盖后生材料。
 
 Playbook §3.4明确要求生产Reset取得该次生产数据操作授权，AGENTS另要求生产媒体移动的明确范围。本轮常规修复/部署授权不自动扩大为本片精确Reset和有效媒体路径移动；具体方案已经准备可审阅，等待这一最终授权。UAT-125/250整体保持开放，未因副本通过或已有收藏而关闭全部恢复责任。
+
+## 人生密密缝获授权生产清理结果
+
+用户对上述具体方案明确回复“确认”。2026-09-12 14:26Z开始执行，使用当前286镜像和`scripts/formation-reset-nas.js`导出的标准备份/Reset命令，外层精确编排只增加冻结manifest、媒体归档及保护校验。本次不发布新镜像、不改产品代码，不重跑无关完整媒体E2E。
+
+1. fnOS技能preflight、真实路径/权限/容量、Compose quiet检查及live scope复核通过，磁盘可用约28 GiB。14:26:19Z ShelfDeck停止；其他容器未停止。live和offline执行图均为已批准manifest `ed9e003bab93c2eb71a434a3e197d6e72beab854254d07030d5ada1cb698c3cd`，精确23 Works、1 Subject，active Works/Attempts均0。
+2. 完整备份：`/vol1/1000/docker/shelfdeck/backups/formation-reset-close-knit-20260912T142607Z`。45个data文件逐项SHA256/size/owner/mode与离线原件相同，manifest SHA256 `37749033d568ba0f815e6b5912c3794188a59264712d4b5411b726452ce6ff11`；compose、600权限Secret及精确旧Workspace副本也分别验证。未只备份单个SQLite主文件。
+3. 停服后重新完整读取10文件，两主片的SHA256仍均为`39cf426c3e7c33ce39c300fc63ecde830b38c45003db6a75b3d580f2e0ab323c`，原NFO及poster摘要吻合。唯一旧`人生密密缝 (2017) 1080p DTS.mkv`复制至备份的`duplicate-input/`，fsync并核验复制件、再次核验原件后，仅删除获授权的旧输入路径。备份保留完整3,258,092,652 bytes视频；正式主片未移动。
+4. 正式Reset apply恰好执行一次：删除23 Works、1 Subject、1 Libra Run、1 Product Package、1 On-deck Run及精确1 Workspace；重开1 Delivery/1 Reservation、删除1旧Inbox closure/1旧Outbox message、恢复1 Procurement Control、移除2旧Artifact Control及6段旧Control revision。未伪造Rejected事实、未反转既有Accepted Receipt、未将健康收藏回滚。
+5. 14:30:35Z独立保护核验：122原Shelf Entries/Deck Facts/Commit及全部Inventory、immutable Candidate等9表全行SHA256不变；范围外Control、其他3 Token逐字不变。依冻结23 Work ID再次查无行，旧Workspace不存在，精确post-plan全部0，integrity ok/FK0。全部9个保留文件（含正式主片、NFO、poster、字幕）全SHA256/size/inode/mtime/owner/mode与停服前相同，归档视频再验一致。
+6. 14:31:12.085895511Z同镜像重新启动，14:32:22Z health ready，normalSupplyAllowed=true。ready后观察60s，restartCount0、原`P8_INTAKE_CONTROL_RESULT_INVALID`为0、error日志0；AbortSignal listener警告11次仍存在，本次不掩盖、不声称已解决。
+7. 14:32:43Z生产Admin活动整理查询本片结果为0；Collection仅保留原Entry `c1f963cc5f667988476068ca29cfa66bf0622118fac2e08753958dae7002f69b`，active/healthy、Inventory revision 11、Deck Fact revision 1、maintenance none，收藏总数122。此为真实API验证，未新增浏览器视觉或全片解码验收。
+8. 14:33:43Z后检：五挂载完整字段按Destination排序后逐项一致，QSV `/dev/dri`、compose/Secret及Secret mode600、根目录权限保持，fnOS HTTP200，其他容器状态与preflight一致；旧输入路径仍不存在。Docker返回挂载数组的顺序变化在首次审计中触发比较失败，修正审计排序后通过，没有改实际挂载或放宽字段比较。
+
+**尚未完成的后台终结：** 14:32:52Z旧Offer仍open，原1项Reservation仍candidate_delivery；新Intake Work、Receipt、Rejected Outbox均0，目标无Token，其他3席位仍占满。旧失败Subject/On-deck Run已经不存在，已无可重新整理的旧输入。真实材料缺失→Rejected→ACK→Reservation释放仅在前述副本验证成功，**不把它当作生产已完成**。后续接续查询该Offer即可，不重复Reset、不手改Reservation、不提高生产席位、不清理其他Token，也不恢复已停止的定时任务。UAT-125/250保持开放。
+
+恢复材料保留在上述备份，`verified-manifest.json`、`offline-guard.json`、`media-before.json`、`media-archive.json`、`reset-result.json`、`reset-protection.json`和`media-after.json`均可复核。故障恢复前须重新验证当前Owner、目标路径无占用及备份摘要；服务重启后可能新增正常业务事实，不可直接覆盖整库或正式收藏。原始脚本/结果在ignored `.codex/unified-release-20260912/close-knit-approved-*`及`close-knit-live-check.cjs`。本轮未改变其他任务的Aftercare证据修改。
