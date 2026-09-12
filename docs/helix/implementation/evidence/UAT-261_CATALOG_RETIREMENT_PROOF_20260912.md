@@ -248,3 +248,43 @@ Foundation 原子登记，保留原失败 Attempt/Plan/Result 和旧 Journal 审
 验证要求：20项正路径同时证明原/后继完整映射；错Run、错material、错Approval、缺marker、伪后继或当前
 Owner冲突拒绝；stage空slot、合法残留、未知文件、symlink、并发执行分别验证。证明写入前/后崩溃与重放
 必须幂等，失败不能改旧历史或媒体。最终仍以最新完整副本的实际 Host 升级/回退为门禁。
+
+### 单一派生证明实施：20 个 Settlement Effect（2026-09-12）
+
+部署任务完成设计审查后选择 **每次 startup 重验的只读派生证明**；此前新增持久 Resolution Receipt 的
+建议已被本单一路径取代。本批没有新表、业务状态、媒体副作用或历史回填，旧失败 Event/Attempt 与
+reconcile_required Journal 保持原样。仅精确 d2f→d8d witness 内可识别责任；活动执行不消费该证明。
+
+`ArcaExecutionRegistration.createTerminalEffectHistoryObserver` 读取本域 Accepted Responsibility、
+Libra public historical Package 与 Foundation public technical graph。冻结历史 input projection witness
+来自 `b8fbee1a95e41efa3ee55c93eb42e80927cc79a7` 的 `on-deck-projections.js`。
+该版本使用 synthetic `system-policy / approvedAtMs=0` ApprovalHandle，且
+`finalProductVerificationDigest` 是 Libra historical conformance。UAT-172 已确认这是执行授权缺口；
+本批明确输出 `historicalAuthorization=unproven_system_policy`，只复原过去输入，不证明真实用户授权。
+该 helper 不被新 Planner、Projection 或 Executor 调用。
+
+最新完整快照副本中：
+
+- 20 个原 Effect 的 namedInputs 摘要全部匹配原 EventAttempt.input_snapshot_digest；使用保存的
+  fence_snapshot_digest 计算 intent 全部匹配 Journal.intent_digest，未重算为当前 Fence。
+- 20 个唯一成功后继同样全部匹配自身 input/intent；要求同 Owner、Run、immutable Package/Custody、
+  exact member/source→final mapping，且后继 Attempt 开始时间严格晚于原 Attempt。
+- 后继 Staged Manifest、Placement Receipt、真实 Arca Final Verification、逐项 Settlement Evidence、
+  Fulfillment、OnDeckCommit 的 success dependency 路径与 canonical payload 全部验证；缺失、伪造、
+  跨 Run、歧义后继、输入/intent/Fence 漂移均拒绝。Foundation 重新证明完整后继 Plan/Event/Effect/Result 链。
+- Arca 原 `readCommitted` 使用 current Inventory revision（四 Run 分别为5/2/5/5），因此不能用来读取
+  初始提交历史。新增独立 `readHistoricalCommitted` **只取 Receipt 指定的 Inventory=1 / DeckFact=1**，
+  完整复用原 Inventory Representation、Physical Identity、active Deck Fact、packageDigest 与 Receipt
+  校验，四 Run 全部通过。原 current read 入口和 Fence 保持原语义，不尝试任选 revision 匹配。
+- 精确7个待处理 Plans 的开发区验证结果为 **4通过 / 3 stage unsupported**。本次没有重跑此前已通过的
+  4757项全量审计，不能把此结果宣称为新镜像或 full Host 已通过。
+
+定向测试：Foundation Catalog proof 51项、Arca Owner history observer 8项通过；另 Handoff B/On-deck
+8项与 Source Map 1项通过。Package boundary、forbidden semantics、manifest、P2 contract baseline 四类
+静态 gate 均通过，执行 Catalog 仍 d8d、87 enabled capabilities。本批未做 Linux 镜像/full Host，交由
+部署任务在干净集成树重验。临时 DB 只读核验前后 SHA256 仍为
+`57d42faa5f0a69a512f6cfde9fc2079b6122a497e937a193344573039f522867`。
+
+《人生密密缝》三项 stage 不在本提交的放行分支。现有空 slot 观察保留为证据；下一步需精确旧输入/intent
+与持久 TargetCommitSlotHandle 验证、当前 readonly slot reality、作用域内无活动写入及引用的闭包。
+这三项未解决前 UAT-261 保持开放，Arca Accepted Run 保持 blocked，不能部署宣称已修复上架。

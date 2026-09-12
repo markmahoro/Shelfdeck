@@ -25,7 +25,7 @@ function payload(json, digest) {
 }
 
 function createBoundedCatalogTransition({ witness, registry, policyRegistry, schemas, contractValidator,
-  bindingProjectionRegistry, proofReader, onRejected }) {
+  bindingProjectionRegistry, proofReader, terminalEffectObserver, onRejected }) {
   const records = new Map(witness.capabilities.map(record => [record.capabilityRef, record]));
   const affected = new Set(witness.capabilities.filter(record =>
     record.previousContractDigest !== record.currentContractDigest ||
@@ -78,7 +78,7 @@ function createBoundedCatalogTransition({ witness, registry, policyRegistry, sch
     witnessValid = true;
   } catch (error) { onRejected?.(error.message); }
 
-  function prove(reader, planId, requireUnaffected, visiting, proven) {
+  function prove(reader, planId, requireUnaffected, visiting, proven, resolution) {
     const key = planId + ':' + requireUnaffected;
     if (proven.has(key)) return proven.get(key);
     requireProof(!visiting.has(planId), 'Cyclic cross-Work Result dependency.');
@@ -162,7 +162,42 @@ function createBoundedCatalogTransition({ witness, registry, policyRegistry, sch
       requireProof(event && effect.effect_class === byNode.get(event.node_id).effect_class &&
         effect.effect_class !== 'pure_observation' && ['intended', 'effect_observed', 'reconcile_required', 'committed', 'failed'].includes(effect.state),
       'Effect ownership mismatch.');
-      requireProof(!terminal || ['committed', 'failed'].includes(effect.state), 'Unresolved terminal Effect.');
+      if (terminal && !['committed', 'failed'].includes(effect.state)) {
+        const receipt = resolution.proofs.get(effect.effect_id);
+        if (!receipt) {
+          resolution.pending = facts;
+          throw new Error('Unresolved terminal Effect.');
+        }
+        const receiptKeys = ['schemaRef', 'ownerDomain', 'disposition', 'historicalAuthorization', 'effectId', 'eventId', 'inputDigest',
+          'sourcePlanId', 'sourceEventId', 'sourceInputDigest', 'sourceResultId', 'sourceResultDigest', 'sourceCommitResultId', 'sourceCommitResultDigest'];
+        requireProof(Object.keys(receipt).length === receiptKeys.length && receiptKeys.every(name => Object.hasOwn(receipt, name)),
+          'Unknown Effect history proof field.');
+        requireProof(!unaffected && work.owner_domain === 'arca' && receipt.schemaRef === 'arca.terminal-effect-history-proof@1' &&
+          receipt.ownerDomain === work.owner_domain && receipt.disposition === 'fulfilled_by_successor' &&
+          receipt.historicalAuthorization === 'unproven_system_policy' && receipt.eventId === event.event_id &&
+          receipt.effectId === effect.effect_id && HASH.test(receipt.inputDigest) &&
+          receipt.inputDigest === attempt.input_snapshot_digest && HASH.test(attempt.fence_snapshot_digest) &&
+          effect.intent_digest === canonicalDigest({ eventId:event.event_id, capabilityRef:event.capability_ref,
+            contractVersion:event.contract_version, inputSnapshotDigest:receipt.inputDigest, fenceSnapshotDigest:attempt.fence_snapshot_digest }),
+        'Unproven original Effect input or intent.');
+        const source = prove(reader, receipt.sourcePlanId, false, visiting, proven, resolution);
+        const sourceEvent = source.events.find(item => item.event_id === receipt.sourceEventId);
+        const sourceAttempts = source.attempts.filter(item => item.event_id === receipt.sourceEventId && item.outcome_kind === 'succeeded');
+        const sourceEffect = sourceAttempts.length === 1 && source.effects.find(item => item.event_attempt_id === sourceAttempts[0].event_attempt_id);
+        requireProof(source.work.owner_domain === work.owner_domain && source.work.process_type === work.process_type &&
+          source.work.process_id === work.process_id && source.work.work_id !== work.work_id &&
+          source.work.state === 'succeeded' && source.workAttempt.state === 'succeeded' && sourceEvent?.state === 'succeeded' &&
+          sourceEvent.capability_ref === event.capability_ref && sourceEffect?.state === 'committed' &&
+          Number.isSafeInteger(attempt.started_at_ms) && Number.isSafeInteger(sourceAttempts[0].started_at_ms) &&
+          sourceAttempts[0].started_at_ms > attempt.started_at_ms &&
+          sourceAttempts[0].input_snapshot_digest === receipt.sourceInputDigest && HASH.test(receipt.sourceInputDigest) &&
+          sourceEffect.intent_digest === canonicalDigest({ eventId:sourceEvent.event_id, capabilityRef:sourceEvent.capability_ref,
+            contractVersion:sourceEvent.contract_version, inputSnapshotDigest:receipt.sourceInputDigest,
+            fenceSnapshotDigest:sourceAttempts[0].fence_snapshot_digest }) &&
+          source.results.some(item => item.event_id === sourceEvent.event_id && item.result_id === receipt.sourceResultId && item.result_digest === receipt.sourceResultDigest) &&
+          source.results.some(item => item.result_id === receipt.sourceCommitResultId && item.result_digest === receipt.sourceCommitResultDigest),
+        'Unproven successor Effect commit chain.');
+      }
     }
     for (const event of events) {
       const eventAttempts = attempts.filter(attempt => attempt.event_id === event.event_id);
@@ -247,7 +282,7 @@ function createBoundedCatalogTransition({ witness, registry, policyRegistry, sch
               const source = reader.read(id);
               requireProof(source?.workAttempt?.work_id === work.work_id, 'Foreign prior Attempt.');
               return Number.isSafeInteger(source.workAttempt.ordinal) && source.workAttempt.ordinal < workAttempt.ordinal;
-            }).map(id => prove(reader, id, unaffected, visiting, proven));
+            }).map(id => prove(reader, id, unaffected, visiting, proven, resolution));
             requireProof(earlier.length > 0 && earlier.every(source => TERMINAL.has(source.workAttempt.state)) &&
               earlier.some(source => source.results.some(result => binding.resultSchemaRefs.some(ref => schemaAlias(ref, result.result_schema_ref)))),
             'Missing typed earlier Attempt Result.');
@@ -256,7 +291,7 @@ function createBoundedCatalogTransition({ witness, registry, policyRegistry, sch
         }
         const planIds = reader.workPlanIds(binding.sourceWorkId);
         requireProof(planIds.length > 0, 'Missing source Work graph.');
-        const sources = planIds.map(id => prove(reader, id, unaffected, visiting, proven));
+        const sources = planIds.map(id => prove(reader, id, unaffected, visiting, proven, resolution));
         requireProof(sources.every(source => source.work.work_id === binding.sourceWorkId &&
           source.work.owner_domain === work.owner_domain), 'Foreign source Work.');
         for (const ref of binding.resultSchemaRefs) requireProof(sources.some(source => source.results.some(result =>
@@ -273,13 +308,24 @@ function createBoundedCatalogTransition({ witness, registry, policyRegistry, sch
     previousCatalogDigest: witness.previousCatalogDigest,
     verify(snapshot) {
       if (!witnessValid || snapshot?.plan?.catalog_digest !== witness.previousCatalogDigest) return false;
+      const resolution = { proofs:new Map(), pending:null };
+      const verify = () => proofReader.verify(reader => {
+        const facts = prove(reader, snapshot.plan.plan_id, false, new Set(), new Map(), resolution);
+        requireProof(facts.work.work_id === snapshot.work?.work_id &&
+          facts.workAttempt.attempt_id === snapshot.workAttempt?.attempt_id, 'Startup snapshot changed.');
+        return true;
+      });
       try {
-        return proofReader.verify(reader => {
-          const facts = prove(reader, snapshot.plan.plan_id, false, new Set(), new Map());
-          requireProof(facts.work.work_id === snapshot.work?.work_id &&
-            facts.workAttempt.attempt_id === snapshot.workAttempt?.attempt_id, 'Startup snapshot changed.');
-          return true;
-        });
+        try { return verify(); }
+        catch (error) {
+          if (!resolution.pending || !terminalEffectObserver) throw error;
+          // Owner reads use separate public transactions. Revalidate the complete
+          // technical graphs afterwards; never nest Owner transactions here.
+          const observations = terminalEffectObserver.observe(resolution.pending);
+          resolution.proofs = unique(observations, 'effectId');
+          resolution.pending = null;
+          return verify();
+        }
       } catch (error) { onRejected?.(error.message); return false; }
     },
   });

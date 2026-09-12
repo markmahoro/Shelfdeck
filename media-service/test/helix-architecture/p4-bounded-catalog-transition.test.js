@@ -12,15 +12,16 @@ const { createCapabilityContractValidator } = require('../../src/helix/foundatio
 
 const HASH = 'a'.repeat(64);
 function fixture(settings = {}) {
+  const owner = settings.owner || 'libra';
   const prefix = 'helix://contracts/capabilities/libra.fixture/v1/';
-  const manifest = { capabilityRef: 'libra.fixture@1', contractVersion: 1, ownerScope: 'libra', effectClass: settings.effectClass || 'pure_observation',
+  const manifest = { capabilityRef: 'libra.fixture@1', contractVersion: 1, ownerScope: owner, effectClass: settings.effectClass || 'pure_observation',
     inputPorts: { value: { schemaRef: prefix + 'inputs', required: true, cardinality: 'one' } },
     ...Object.fromEntries(['parameters', 'result', 'evidence', 'fence', 'resourceDemand'].map(kind => [kind + 'SchemaRef', prefix + kind])) };
   const schemas = new Map(['inputs', 'parameters', 'result', 'evidence', 'fence', 'resourceDemand'].map(kind => {
     const schema = { $id: prefix + kind, type: 'object' }; return [schema.$id, schema];
   }));
   const semantic = canonicalDigest(manifest);
-  const record = { capabilityRef: manifest.capabilityRef, contractVersion: 1, ownerScope: 'libra', effectClass: manifest.effectClass,
+  const record = { capabilityRef: manifest.capabilityRef, contractVersion: 1, ownerScope: owner, effectClass: manifest.effectClass,
     executorVersion: 1, previousContractDigest: semantic, currentContractDigest: semantic,
     previousSchemaDigest: canonicalDigest(schemaClosure(manifest, schemas)), currentSchemaDigest: canonicalDigest(schemaClosure(manifest, schemas)) };
   // The unrelated changed capability causes the exact Catalog transition.
@@ -29,11 +30,11 @@ function fixture(settings = {}) {
     currentContractDigest: canonicalDigest(changed) };
   changedRecord.previousContractDigest = canonicalDigest(changedRecord.previousManifest);
   const records = [changedRecord, record];
-  const entry = (row, previous) => ({ capabilityRef: row.capabilityRef, contractVersion: 1, ownerScope: 'libra',
+  const entry = (row, previous) => ({ capabilityRef: row.capabilityRef, contractVersion: 1, ownerScope: owner,
     effectClass: row.effectClass, executorVersion: 1, contractDigest: row[previous ? 'previousContractDigest' : 'currentContractDigest'] });
   const policyRegistry = { digest: HASH, bindingFor() { return {}; } };
   const registry = { snapshot: records.map(row => ({ ...entry(row, false), executionContractDigest: row.currentContractDigest })),
-    resolve(ref, owner) { assert.equal(owner, 'libra'); assert.ok([manifest.capabilityRef, changed.capabilityRef].includes(ref));
+    resolve(ref, requestedOwner) { assert.equal(requestedOwner, owner); assert.ok([manifest.capabilityRef, changed.capabilityRef].includes(ref));
       return { manifest: ref === manifest.capabilityRef ? manifest : changed }; } };
   const witness = { policyDigest: HASH, capabilities: records, excludedActiveProcessTypes: ['libra_intake'],
     previousCatalogDigest: executionCatalogDigest({ snapshot: records.map(row => entry(row, true)) }, policyRegistry),
@@ -41,14 +42,14 @@ function fixture(settings = {}) {
   const facts = { plan: { plan_id: 'plan', attempt_id: 'attempt', catalog_digest: witness.previousCatalogDigest,
     graph_digest: HASH, basis_digest: HASH, state: 'planned' },
     workAttempt: { attempt_id: 'attempt', work_id: 'work', ordinal: 1, basis_digest: HASH, state: 'succeeded' },
-    work: { work_id: 'work', owner_domain: 'libra', process_type: 'media', process_id: 'process', state: 'succeeded' },
+    work: { work_id: 'work', owner_domain: owner, process_type: 'media', process_id: 'process', state: 'succeeded' },
     nodes: [{ plan_id: 'plan', node_id: 'node', capability_ref: manifest.capabilityRef, contract_version: 1,
       effect_class: manifest.effectClass, input_binding_schema_ref: prefix + 'inputs', input_bindings_json: JSON.stringify({
         schemaRef: 'helix://foundation/types/EventInputBindingSet/v1', schemaVersion: 1,
         bindings: [{ portName: 'value', bindingKind: 'literal', value: {} }] }),
       parameter_schema_ref: prefix + 'parameters', parameters_json: '{}', fence_schema_ref: prefix + 'fence', fence_basis_json: '{}',
       resource_demand_schema_ref: prefix + 'resourceDemand', resource_demand_json: '{}', when_schema_ref: null, when_json: null }],
-    events: [{ event_id: 'event', plan_id: 'plan', node_id: 'node', work_id: 'work', attempt_id: 'attempt', owner_domain: 'libra',
+    events: [{ event_id: 'event', plan_id: 'plan', node_id: 'node', work_id: 'work', attempt_id: 'attempt', owner_domain: owner,
       capability_ref: manifest.capabilityRef, contract_version: 1, state: 'succeeded', result_id: 'result' }],
     attempts: [{ event_attempt_id: 'execution', event_id: 'event', ordinal: 1, state: 'completed', outcome_kind: 'succeeded',
       evidence_digest: canonicalDigest({}) }],
@@ -61,9 +62,64 @@ function fixture(settings = {}) {
     bindingProjectionRegistry: { resolve(ref) { assert.equal(ref, 'projection@1'); return {}; } },
     proofReader: { verify(callback) { return callback({ read: id => graphs.get(id),
       workPlanIds: workId => [...graphs.values()].filter(graph => graph.work.work_id === workId).map(graph => graph.plan.plan_id) }); } },
-    onRejected: reason => reasons.push(reason) }); }
+    terminalEffectObserver:settings.terminalEffectObserver, onRejected: reason => reasons.push(reason) }); }
   return { facts, witness, schemas, registry, graphs, reasons, verify: () => verifier().verify(facts), prefix };
 }
+
+function effectHistoryFixture() {
+  let receipt;
+  const settings = { owner:'arca', effectClass:'destructive_commit', terminalEffectObserver:{ observe:() => [receipt] } };
+  const f = fixture(settings), old = f.facts;
+  old.work.state = old.workAttempt.state = old.events[0].state = 'failed';
+  old.events[0].result_id = null; old.results = [];
+  old.attempts[0].outcome_kind = 'failed';
+  old.attempts[0].input_snapshot_digest = HASH; old.attempts[0].fence_snapshot_digest = HASH;
+  old.attempts[0].started_at_ms = 100;
+  const intent = (eventId, input = HASH) => canonicalDigest({ eventId, capabilityRef:'libra.fixture@1', contractVersion:1,
+    inputSnapshotDigest:input, fenceSnapshotDigest:HASH });
+  old.effects = [{ effect_id:'old-effect', event_attempt_id:'execution', effect_class:'destructive_commit',
+    state:'reconcile_required', output_digest:null, intent_digest:intent('event') }];
+  const source = fixture({ owner:'arca', effectClass:'destructive_commit' }).facts;
+  source.plan.plan_id = 'source-plan'; source.plan.attempt_id = source.workAttempt.attempt_id = 'source-attempt';
+  source.work.work_id = source.workAttempt.work_id = 'source-work';
+  source.nodes[0].plan_id = 'source-plan';
+  Object.assign(source.events[0], { event_id:'source-event', plan_id:'source-plan', work_id:'source-work', attempt_id:'source-attempt', result_id:'source-result' });
+  Object.assign(source.attempts[0], { event_attempt_id:'source-execution', event_id:'source-event', input_snapshot_digest:HASH, fence_snapshot_digest:HASH, started_at_ms:200 });
+  Object.assign(source.results[0], { event_id:'source-event', result_id:'source-result', effect_receipt_id:'source-receipt' });
+  source.effects = [{ effect_id:'source-effect', event_attempt_id:'source-execution', effect_class:'destructive_commit',
+    state:'committed', output_digest:source.results[0].result_digest, intent_digest:intent('source-event') }];
+  receipt = { schemaRef:'arca.terminal-effect-history-proof@1', ownerDomain:'arca', disposition:'fulfilled_by_successor',
+    historicalAuthorization:'unproven_system_policy', effectId:'old-effect', eventId:'event', inputDigest:HASH,
+    sourcePlanId:'source-plan', sourceEventId:'source-event', sourceInputDigest:HASH,
+    sourceResultId:'source-result', sourceResultDigest:source.results[0].result_digest,
+    sourceCommitResultId:'source-result', sourceCommitResultDigest:source.results[0].result_digest };
+  f.graphs.set('source-plan', source);
+  return { ...f, source, receipt };
+}
+
+test('terminal Effect responsibility proof preserves failed history and revalidates successor on every call', () => {
+  const f = effectHistoryFixture(), before = JSON.stringify([...f.graphs]);
+  assert.equal(f.verify(), true, f.reasons.join('\n'));
+  assert.equal(JSON.stringify([...f.graphs]), before);
+  f.source.effects[0].state = 'reconcile_required';
+  assert.equal(f.verify(), false);
+});
+
+for (const [name, mutate] of [
+  ['wrong original input', f => { f.receipt.inputDigest = 'b'.repeat(64); }],
+  ['wrong original intent', f => { f.facts.effects[0].intent_digest = HASH; }],
+  ['changed original Fence', f => { f.facts.attempts[0].fence_snapshot_digest = 'b'.repeat(64); }],
+  ['wrong successor input', f => { f.receipt.sourceInputDigest = 'b'.repeat(64); }],
+  ['wrong successor intent', f => { f.source.effects[0].intent_digest = HASH; }],
+  ['wrong successor process', f => { f.source.work.process_id = 'foreign'; }],
+  ['earlier completion presented as successor', f => { f.source.attempts[0].started_at_ms = 50; }],
+  ['missing successor Result', f => { f.source.results = []; }],
+  ['forged successor commit digest', f => { f.receipt.sourceCommitResultDigest = HASH; }],
+  ['circular successor', f => { f.receipt.sourcePlanId = 'plan'; }],
+  ['active history consumption', f => { f.facts.workAttempt.state = 'running'; f.facts.events[0].state = 'executing'; }],
+]) test('terminal Effect proof blocks ' + name, () => {
+  const f = effectHistoryFixture(); mutate(f); assert.equal(f.verify(), false);
+});
 
 test('exact bounded transition recognizes complete terminal history without mutating it', () => {
   const f = fixture(), before = JSON.stringify(f.facts);

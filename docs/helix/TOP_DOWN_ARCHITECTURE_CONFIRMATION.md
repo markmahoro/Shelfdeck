@@ -15420,7 +15420,7 @@ Result 合同或旧 Intake 执行权。仅适用于旧 Catalog
 与冻结 transition witness 相符。相同 ref/version 不构成相同合同证明；未知 Catalog 或 schema 内容漂移仍阻止供给。
 
 已终结历史必须证明 Work/Attempt/Plan/Event 的精确归属、完整持久 DAG、节点与 Event 一一对应、
-Event Attempt 终结、Result/Evidence 的精确引用和 canonical digest；未决 Effect 不可退休。
+Event Attempt 终结、Result/Evidence 的精确引用和 canonical digest；未证明责任已解决的 Effect 不可退休。
 成功 Event 缺 Result、跨 Work 冒充同 Plan 依赖、未知/损坏引用均 fail closed。失败或跳过的 Event
 可以合法没有 Result。受影响的已终结 Result 只作为历史留存，不能解释为新 Intake 输入或执行结果。
 
@@ -15440,6 +15440,19 @@ source commit，明确 previous schema bytes 不存在；不得伪造旧 schema 
 或被活动执行消费的依赖不能认作 unchanged。未知名义类型仍阻断。Result/Evidence 只读验证不重做业务决定。
 本规则只读，不修改历史 Plan、Result、Owner facts 或物理媒体。升级/回退须另在最新完整副本运行
 实际 Host 验证；仅 scoped rail 或 readiness route 通过不足以关闭 UAT-261。
+
+本次 terminal Arca Effect 的责任证明采用单一只读派生路径，不新增持久 Resolution Receipt。
+Arca public history observer 解释本域 immutable Package、Custody、Final Inventory Decision 与后继
+Result/Receipt；Foundation 复核原/后继技术身份、输入摘要、原 Fence 摘要与 Effect intent、完整结果链。
+仅确认同一物理责任已被精确后继履行，或精确 stage slot 已无待处理输出且无活动写入。每次 startup
+重新验证，证明不成立仍阻断；不得更改旧 Event/Attempt/Effect 状态、借用后继 Result 冒充旧成功，
+也不终结仍 blocked 的 Arca Run。存在其他 Owner 文件、未知残留或恢复范围不明时继续阻断。
+
+历史 projection witness 只供反证和摘要匹配，不接入 Planner/Executor，不授权新执行。UAT-172 已记录
+旧 system-policy ApprovalHandle 与以 Libra conformance 代替本次 Arca Final Verify 的缺口；重建旧输入
+不能证明真实用户授权或追认历史。对这类记录只可证明“已发生且当前无剩余物理责任”，还必须单独
+验证后继真实 Arca Final Verification、Placement、Settlement、OnDeckCommit 精确链，不能把旧字段
+名当作充分验证。缺少任一成员证据即 fail closed；新增授权、撤销 Custody 或转移 Owner 不在本条范围。
 
 ### User-visible work, bounded Care and file coexistence amendment (2026-09-07)
 

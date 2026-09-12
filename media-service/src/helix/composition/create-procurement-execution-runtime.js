@@ -734,10 +734,13 @@ function createProcurementExecutionRuntime(options) {
   const planPublisher = createWorkflowPlanPublisher({ schemaManifest: options.schemaManifest, unitOfWork: options.unitOfWork,
     registry, contractValidator, policyRegistry });
   const catalogDigest = executionCatalogDigest(registry, policyRegistry);
+  const catalogProofReader = createCatalogPlanProofReader({ schemaManifest:options.schemaManifest, unitOfWork:options.unitOfWork });
+  const terminalEffectObserver = arcaConstruction.createTerminalEffectHistoryObserver({ ...options, workResultReader,
+    readTechnicalWork:workId => catalogProofReader.verify(reader => reader.workPlanIds(workId).map(id => reader.read(id))) });
   const boundedTransition = createBoundedCatalogTransition({ witness: intakeControlCatalogTransition,
     registry, policyRegistry, schemas: new Map(runtimeSchemas.map(schema => [schema.$id, schema])),
     contractValidator, bindingProjectionRegistry,
-    proofReader: createCatalogPlanProofReader({ schemaManifest: options.schemaManifest, unitOfWork: options.unitOfWork }) });
+    proofReader:catalogProofReader, terminalEffectObserver });
   const startupRecovery = createStartupRecovery({ schemaManifest: options.schemaManifest, unitOfWork: options.unitOfWork,
     standaloneEffectClasses:Object.freeze(['libra_workspace_material_reclaim','arca_recycle_move','arca_recycle_restore','arca_recycle_purge']),
     registry, policyRegistry, integrityVerifier: { verify: () => ({ ok: true }) },
