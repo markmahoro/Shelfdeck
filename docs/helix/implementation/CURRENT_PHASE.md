@@ -5,6 +5,8 @@
 
 ## 当前执行位置
 
+UAT-251由本任务连续实施至验收：先完成精确Gap及Libra持续授权、有限终局与责任收尾，再接通Arca精确接纳/手动修复/同条件失败抑制及健康投影，最后完成协同确认后的UI、真实媒体、重启和适用生产验证。“自动授权瑕疵上架”初始未授权；用户开启后由后台对当前及未来合格候选逐项建立正式授权，关闭只阻止后续新授权。UI协同与逐项Evidence追加到既有[251记录](evidence/UAT-251_TERMINAL_OUTCOME_AUDIT_20260908.md)，不建立平行计划。
+
 2026-09-12追加：UAT-261 精确 Catalog retirement 本地实现按旧/新完整语义及 schema 闭包、持久 DAG 和提交引用核验；最新一致副本 4764 Plan 中4757通过，仅7项23个未决物理Effect保留阻断。既有LibraProductFactEvidence名义合同补齐schema，历史缺生成物事实明确保留；活跃旧Intake不兼容。完整Host门禁、未决Effect正式收口和生产决定仍交统一部署任务，未关闭、未部署。详见[验证与精确责任清单](evidence/UAT-261_CATALOG_RETIREMENT_PROOF_20260912.md)。UAT-260三个未提交实现文件保留，未夹带本批。
 
 2026-09-12第二批d7a6da2802发布失败：数据库readiness通过，但完整Host因大量历史PLAN_CATALOG_DRIFT未启动。已标准回退cd4f3f5b2d，StartedAt2026-09-11T21:32:51.809272745Z，健康/五挂载/fnOS/113收藏及970份Delivery复核通过。此前原两Token精确Reset已执行且保留，未恢复DB；5旧Offer仍open，旧版已产生新Token，不得扩大或复用旧Reset范围。新增261优先定位启动合同与补完整Host门禁，260随后，251独立。[事故记录](evidence/UAT-261_CATALOG_STARTUP_DEPLOYMENT_20260912.md)。

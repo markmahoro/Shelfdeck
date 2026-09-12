@@ -97,7 +97,7 @@ test('UAT-126 admits exhausted sourcing only for the exact safe original verific
     terminalEvidence:terminal('no_requirement_eligible_candidate',
       'libra.external_material.candidate.select@1'), directMediaVerification:{
       ...verification, libraRunId:'another-run' } }),
-  (error) => error.code === 'P9_DEFECT_ADMISSION_ORIGINAL_MEDIA');
+  (error) => error.code === 'P9_DEFECT_ADMISSION_INELIGIBLE');
 });
 
 test('size-cap admission waives only max_size_exceeded after measured workspace verification freeze', () => {
@@ -154,7 +154,7 @@ test('UAT-126 Aftercare ignores only the authorized conformance gap', () => {
       evidenceDigest:D(kind), assessedAtMs:100 }));
   const health = projectHealth({ shelfEntryId:'entry-119', basis:{ digest:basis },
     authorizedDefectManifest:manifest }, { assessments, cases:[], findings:[
-    { assessmentId:'assessment-conformance', findingKind:'conformance:metadata_field_unmet',
+    { assessmentId:'assessment-conformance', findingKind:'conformance:metadata_field_missing__actor',
       repairability:'auto_repair', state:'open' },
   ] }, 100);
   assert.equal(health.state, 'healthy');
@@ -175,6 +175,10 @@ test('UAT-126 upgrades the prior clean schema before defect admission revisions 
       secretRoot:'uat126-schema-secret-root-0123456789abcdef' });
     const databasePath = path.join(dataDir, 'shelfdeck.db');
     let database = new Database(databasePath);
+    database.pragma('foreign_keys = OFF');
+    for (const table of ['arca_defect_repair_intents','arca_defect_admission_heads','arca_defect_admissions',
+      'libra_reprocess_intents','libra_strategy_availability','libra_run_outcomes','libra_defect_authorization_head','libra_defect_authorizations'])
+      database.exec('DROP TABLE "' + table + '"');
     const catalog = database.prepare(
       "SELECT type,name,tbl_name,sql FROM sqlite_master WHERE name NOT LIKE 'sqlite_%' ORDER BY type,name",
     ).all().map((row) => ({ ...row, sql:row.sql && row.sql.replaceAll('\r\n', '\n') }));

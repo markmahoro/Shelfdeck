@@ -43,7 +43,7 @@ test('preserves explicit bounded Artifact Handle list cardinality', () => {
   assert.equal(handles, undefined);
   const bounded = item.files['inputs.schema.json'].$defs.artifactHandleList;
   assert.equal(bounded.items.$ref, 'helix://contracts/types/ArtifactHandle/v1');
-  assert.equal(bounded.minItems, 1);
+  assert.equal(bounded.minItems, 0);
   assert.equal(bounded.maxItems, 64);
 });
 

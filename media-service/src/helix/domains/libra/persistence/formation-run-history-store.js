@@ -1,6 +1,22 @@
 'use strict';
 
 const { createRepositoryDefinition } = require('../../../foundation/persistence/owner-repository');
+const {canonicalDigest}=require('../../../contracts/canonical-json');
+
+function terminalPresentation(outcome,decision,receipt) {
+  if(outcome?.outcome==='unable_to_on_deck'&&outcome.reason_code==='processing_failed')
+    return {outcome:'unable_to_on_deck',label:'无法上架'};
+  if(outcome?.outcome==='unable_to_on_deck'&&outcome.reason_code==='user_cancelled')
+    return {outcome:'user_abandoned',label:'已结束 · 用户放弃'};
+  // Previously committed explicit admin Discard decisions remain historical
+  // facts. Verify their original evidence; never manufacture a new outcome.
+  if(outcome===undefined && decision?.actorId==='admin' && receipt &&
+      decision.libraRunId===receipt.libra_run_id && decision.discardDecisionId===receipt.discard_decision_id &&
+      decision.expectedRunStateRevision+1===Number(receipt.committed_run_state_revision) &&
+      canonicalDigest(Object.fromEntries(Object.entries(decision).filter(([key])=>key!=='decisionDigest')))===decision.decisionDigest)
+    return {outcome:'user_abandoned',label:'已结束 · 用户放弃'};
+  throw Object.assign(new Error('Terminal history lacks an explicit business outcome.'),{code:'FORMATION_DISCARD_HISTORY_INTEGRITY'});
+}
 
 function createFormationRunHistoryStore(options) {
   if (!options?.schemaManifest || !options.unitOfWork) {
@@ -17,13 +33,17 @@ function createFormationRunHistoryStore(options) {
         filters:[{alias:'display',column:'target_shelf_id',kind:'equals',parameter:'shelf',optional:true},
           {alias:'display',column:'display_identity',kind:'contains',parameter:'query',optional:true}],
         orderBy: [{ column: 'committed_at_ms', direction: 'desc' }, { column: 'receipt_id', direction: 'asc' }],
-        columns: ['receipt_id', 'libra_run_id', 'committed_run_state_revision', 'commit_digest', 'committed_at_ms'],
+        columns: ['receipt_id', 'discard_decision_id', 'libra_run_id', 'committed_run_state_revision', 'commit_digest', 'committed_at_ms'],
         safeIntegers: true,
       },
       runs: {
         kind: 'select-in', tableId: 'libra_runs', keyColumn: 'libra_run_id', maxItems: 101,
         columns: ['libra_run_id', 'subject_id', 'state', 'state_revision', 'state_digest'], safeIntegers: true,
       },
+      outcomes:{kind:'select-in',tableId:'libra_run_outcomes',keyColumn:'libra_run_id',maxItems:101,
+        columns:['libra_run_id','outcome','reason_code','outcome_digest'],safeIntegers:true},
+      terminal_decision:{kind:'select-one',tableId:'libra_run_revisions',keyColumns:['libra_run_id','state_revision'],
+        columns:['transition_kind','transition_evidence_json','transition_evidence_digest']},
     },
   });
 
@@ -35,6 +55,7 @@ function createFormationRunHistoryStore(options) {
         if (!receipts.length) return Object.freeze([]);
         const runs = new Map(repo.invoke('runs', { values: receipts.map((row) => row.libra_run_id) })
           .map((row) => [row.libra_run_id, row]));
+        const outcomes=new Map(repo.invoke('outcomes',{values:receipts.map(row=>row.libra_run_id)}).map(row=>[row.libra_run_id,row]));
         return Object.freeze(receipts.map((receipt) => {
           const run = runs.get(receipt.libra_run_id);
           if (!run || run.state !== 'discarded' || Number(run.state_revision) !== Number(receipt.committed_run_state_revision)) {
@@ -42,9 +63,19 @@ function createFormationRunHistoryStore(options) {
               code: 'FORMATION_DISCARD_HISTORY_INTEGRITY', libraRunId: receipt.libra_run_id,
             });
           }
+          const outcome=outcomes.get(run.libra_run_id);
+          let decision;
+          if(!outcome) {
+            const revision=repo.invoke('terminal_decision',{libra_run_id:run.libra_run_id,state_revision:Number(receipt.committed_run_state_revision)});
+            if(revision?.transition_kind==='discarded') {
+              decision=JSON.parse(revision.transition_evidence_json);
+              if(decision.decisionDigest!==revision.transition_evidence_digest)decision=undefined;
+            }
+          }
           return Object.freeze({
             historyId: receipt.receipt_id, libraRunId: receipt.libra_run_id, subjectId: run.subject_id,
-            outcome: 'user_abandoned', label: '已结束 · 用户放弃', endedAtMs: Number(receipt.committed_at_ms),
+            ...terminalPresentation(outcome,decision,receipt),
+            endedAtMs: Number(receipt.committed_at_ms),
             stateRevision: Number(run.state_revision), stateDigest: run.state_digest, evidenceDigest: receipt.commit_digest,
           });
         }));
@@ -58,4 +89,4 @@ function createFormationRunHistoryStore(options) {
   return Object.freeze({ listDiscarded,count });
 }
 
-module.exports = Object.freeze({ createFormationRunHistoryStore });
+module.exports = Object.freeze({ createFormationRunHistoryStore, terminalPresentation });

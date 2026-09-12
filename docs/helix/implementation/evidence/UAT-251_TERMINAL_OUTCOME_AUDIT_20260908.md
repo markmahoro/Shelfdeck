@@ -1,5 +1,43 @@
 # UAT-251：整理三种终局与瑕疵接纳路径审视
 
+## 2026-09-12 实施接续与新增授权
+
+用户要求本任务完成UAT-251，追加“自动授权瑕疵上架”；前端UI须先与任务`01a0912a-0086-74e2-88ab-536c59d3862a`确认做法。实施基线`144798953`，隔离分支`codex/uat-251-terminal-defects`。本节之后记录实现及验收，以下旧时点审查保留，不冒充当前完成状态。
+
+验收范围：首次三终局及不可豁免安全门禁；精确混合Gap及旧预览拒绝；持续授权启用/关闭/重启/并发及后台执行；终局安全收尾/原片保护/同条件不再进入；Arca现有差距接纳与仅手动修复、成功更新及失败保留；新损坏独立处理；同条件失败跨检查/重启抑制；协同确认后的列表/详情/设置交互、窄屏和键盘操作；Windows/Linux真实媒体与实际发布版本核验。
+
+当前状态：核心实现及独立 Windows/Linux 验证完成，最新已上线 258/259 基线已合入，指定 UI 负责人于 2026-09-12 复查通过。UAT 保持开放，等待部署任务统一完成最终 Catalog witness、完整 Host 及生产验收。核心提交 `eae6bb3da`；合并 `31bd03b023fa779bc7390e050aa8955d75e88c06` 后提交 `874172bc6`。
+
+本轮实现：
+
+- 首次整理持久三终局；全局持续授权默认关闭，用户启用后按当前 Run 和精确 Gap 原子发放授权，撤销停止新增授权。身份、播放、完整性、Control、Binding、空间和当前 Basis 均不可豁免。
+- 技术路径失败与业务不可达分开，Movie 当前成品的精确资料、附件及媒体差距独立取证。未知媒体/缺失播放证据不能自动放行；技术附件获取失败不能伪造 not_available 或无写入证明。
+- 无法上架保留真实失败原因并完成 Control/Work/Effect/Workspace 责任收尾；同输入、要求和相关执行条件不变时抑制重新进入。用户手动意图只准入一次，同键重放安全。Handoff B 已接受不可 discard；明确拒绝可自动收尾。
+- 缺失外部策略使用 Libra 自有 availability 观察，按首次观察后 1/5/15/30/60 分钟五次复核，重启不重置预算，无伪造 Work。Freshness 第五次仍不能确认时也形成合法终局。
+- Arca 接受当前精确差距和手动修复意图有独立 revision、Receipt/Audit、CAS；修复成功只消除验证解决的差距，失败保留原片和授权，历史失败不覆盖当前健康。新损坏不继承既有授权；已接受差距不自动修复。
+- 最终新增 8 表，共 197 表；DDL `854c22240e01915f777958ec490bf1ebad6dcc4a92f4bd6f2f032d32ac2d1312`；合并后 P2 aggregate `f88010679733e9a0d28effb67505ef32552a2369f42a13a76fbb8c8b24313d88`。最终合并后的 Catalog witness 及 full Host 门禁由部署任务核验。
+
+本地证据（工作区 `.codex/uat251/`，不提交媒体/生产副本/凭据）：
+
+| 场景 | 证据与结果 |
+| --- | --- |
+| 自动演员/外部资源耗尽/多项外部耗尽/组合差距 | 独立完整 HTTP 场景实际到达 Arca Commit，重启持久唯一 |
+| 无 metadata Provider 有限等待 | `no-provider-current.log`，186.4 秒，实际五次观察、重启、自动接纳至 Commit |
+| 不可播放终局与一次手动重新整理 | `unsafe-terminal-current.log`，93.2 秒，实际终局收尾、重启、相同键只建一次新 Run |
+| Freshness 无 blockedWorks 的第五次失败 | `freshness-terminal-current.log`，定向持久测试通过，无伪造 Work |
+| 手动海报修复成功/业务失败/技术失败 | 完整 HTTP 场景通过；`poster-technical-failure-e2e.log`，技术失败保留原片及瑕疵 |
+| Windows 真实 FFmpeg | `real-media-poster-repair-e2e.log`，128.8 秒，HEVC/AAC 样片实际上架、海报修复、剩余演员瑕疵及重启 |
+| Linux 真实 FFmpeg | `linux-real-media-final.log`，124.9 秒，同链通过；`linux-final-focused.log` 52 项定向通过 |
+| 既有授权不覆盖新损坏 | `new-primary-damage-result.json`：本地合成已上架收藏由 healthy 出发，暂移主视频后实际健康检查得到 unhealthy/custody:primary_missing，瑕疵候选不可提交（evidence_pending），既有两项授权未覆盖损坏；原文件恢复并复查 healthy |
+| 完整生产副本 Schema | `production-copy-final-schema.log`、`production-copy-schema-result.json`：189→197、强制异常原子回滚、188 张原业务表逐行字节摘要一致，118 收藏、7 历史显式用户放弃保持；quick_check/FK clean；冻结原副本未修改 |
+| Web | 合并后 `merged-web-tests.log` 105/105，`merge-web-build.log` 通过 |
+| 架构 | `merged-architecture.json`：dependency/semantic/contracts 通过；仅 P2 合并计数断言与联合 Catalog witness 两项失败。前者 `merged-p2-focused.log` 已修正复验；后者交部署任务按当前递归 Schema 闭包更新，未放宽校验。Handoff B 拒绝自动收尾及冻结 DDL 迁移 `merge-terminal-migration.log` 19/19 |
+| UI | 指定负责人复查 `874172bc6` 及 `ui-merged/` 全部 10 张 1920×1080 图片后通过。`31bd03b` 与当前 JS/CSS 同数据 18 单元格几何零变化，仅无法上架详情入口“—→查看过程”；取消/Escape/焦点由实施任务复验，UI 负责人明确未代为重跑交互测试。旧 `ui-final/` 非最终证据 |
+
+合并版本实际新建 16 个 Plan 的 executionCatalogDigest 均为 `d8d6a237f3cdcda20b1548d5064b94dc483cf58da1ed2ca326f5e1ca2cfb6a74`，enabled Capability 87；与 31bd 比较的 20 个 Schema 文件变化见本地 `merged-schema-change-list.json`（12 新增、8 修改）。Catalog 值相同不代表递归 Schema 闭包相同，联合 witness 仍需精确核验。
+
+限制：独立 UI fixture 的媒体探针为测试替身，真实媒体证据为上述 Windows/Linux 独立链；尚无最终合并版本生产验收。不得覆盖最新 UAT-260/261 或部署事实，不独立部署 NAS。
+
 2026-09-08。基线159619ab8及后续文档提交；只读SSOT/代码审查与本地既有定向测试，无SSOT修改、生产或媒体副作用。用户最终意图：成功上架、瑕疵上架、无法上架；不能以条件不变的放弃→重新采购循环代替终局。Aftercare已经拥有收藏，对应维护成功、接受现有瑕疵、无法完成本次维护；后者不自动退出收藏。
 
 ## 已证实发现

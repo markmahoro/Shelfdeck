@@ -19,7 +19,7 @@ const schemaDdl = fs.readFileSync(path.resolve(
   '../../src/helix/foundation/persistence/generated/clean-schema.sql',
 ), 'utf8');
 
-function fixture(run) {
+async function fixture(run) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'helix-workspace-product-'));
   const databasePath = path.join(root, 'shelfdeck.db');
   const workspaceRoot = path.join(root, 'workspace');
@@ -41,7 +41,7 @@ function fixture(run) {
       canonicalDigest({ schema: 'fixture-workspace-root@1' }), 'active', 1,
     );
     seed.close();
-    return run({
+    return await run({
       databasePath,
       workspaceRoot,
       dependencies: {
@@ -203,6 +203,31 @@ test('classified runtime recovery may materialize through the same reconcile-req
     } finally {
       database.close();
     }
+  }));
+
+test('failed byte fetch attests no write only when the exact target is absent', () =>
+  fixture(async ({ databasePath, workspaceRoot, dependencies }) => {
+    const runtimeEffectAuthority = seedRuntimeWorkspaceEffect(databasePath);
+    const port = createCleanWorkspaceProductPort({ ...dependencies, rootPath:workspaceRoot });
+    const input = { ...request(), relativePath:'product/poster.jpg', artifactKind:'poster',
+      mediaType:'image/jpeg', acquisitionBasis:{ provider:'fixture' }, runtimeEffectAuthority,
+      acquireBytes:async () => { throw Object.assign(new Error('offline'), { code:'ECONNRESET' }); } };
+    await assert.rejects(port.acquireArtifact(input), error => {
+      assert.equal(error.code,'ECONNRESET');
+      assert.deepEqual(error.workspaceWriteNotStarted, {
+        eventAttemptId:runtimeEffectAuthority.eventAttemptId, idempotencyKey:runtimeEffectAuthority.idempotencyKey,
+        targetDigest:canonicalDigest({ workspaceId:input.workspaceId, relativePath:input.relativePath }),
+      });
+      return true;
+    });
+    const target = path.join(workspaceRoot,input.workspaceId,input.relativePath);
+    fs.mkdirSync(path.dirname(target),{recursive:true});
+    fs.writeFileSync(target,'earlier output');
+    await assert.rejects(port.acquireArtifact(input), error => {
+      assert.equal(error.workspaceWriteNotStarted,undefined);
+      return true;
+    });
+    assert.equal(fs.readFileSync(target,'utf8'),'earlier output');
   }));
 
 test('recovers the same physical bytes after crash before journal/handle commit', () =>

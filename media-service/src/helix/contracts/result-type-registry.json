@@ -16,7 +16,7 @@
       "relativePath": "types/AcceptanceCheck/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "96b692ae37e9884bbed98de3484d72ec062f6c7a34e1ec5a209d98cd42db783c"
+        "value": "9b41c361eb0af592fdfb70e015f9b8df79a4f7ceaba37f3e1d89585834d01590"
       },
       "source": {
         "section": "8.6.19",
@@ -128,12 +128,12 @@
       "relativePath": "types/ArtifactManifestVerification/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "a1fe44016679ce57f95a2d3f89707abfeea417f8c251624943135fe014a6350a"
+        "value": "32325bf406012fb164f6b945d66745b1c0de808f771727afb966ad7406d54fe9"
       },
       "source": {
         "section": "8.6.19",
         "line": 11041,
-        "lineDigest": "6405b95dbcd5625de5fd30026da70327566ede3e4379c26d3de87e5712dadd7c"
+        "lineDigest": "7b1095f6486ec5ffb9e56f1ec371742f45e358eb9301ab99054516a1d079fb03"
       }
     },
     {
@@ -651,7 +651,7 @@
       "source": {
         "section": "8.6.19",
         "line": 11041,
-        "lineDigest": "6405b95dbcd5625de5fd30026da70327566ede3e4379c26d3de87e5712dadd7c"
+        "lineDigest": "7b1095f6486ec5ffb9e56f1ec371742f45e358eb9301ab99054516a1d079fb03"
       }
     },
     {
@@ -852,7 +852,7 @@
       "relativePath": "types/OnDeckProductPackage/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "0f9fcecff5fbb3c97d43d8e5049cff75579f72f5da739ad3811828798d534668"
+        "value": "58ed03417a5d1a924ea5f28031d4c72f3aa996085b0d659346bf82ac8d32baca"
       },
       "source": {
         "section": "8.6.19",
@@ -1214,7 +1214,7 @@
       "relativePath": "types/ProductConformanceEvidence/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "50e51c4b81e3a9a5bdfb8594340f4dfb86a202461d36cd5d991bd6b0ec4a79d4"
+        "value": "f24b487b822c445a319910d5a28a85276817d19e8e56bfa3efbd1989f9911732"
       },
       "source": {
         "section": "8.6.19",

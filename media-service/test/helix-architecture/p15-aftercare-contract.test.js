@@ -178,7 +178,7 @@ test('Aftercare pulls a stale Shelf Entry rating Resolution before applying its 
 test('Aftercare assessment identity advances after the PROD-064 NFO idempotence repair', () => {
   const coordinator = fs.readFileSync(path.join(__dirname,
     '../../src/helix/domains/arca/application/aftercare-process-coordinator.js'), 'utf8');
-  assert.match(coordinator, /ASSESSMENT_EXECUTION_REVISION=5/);
+  assert.match(coordinator, /ASSESSMENT_EXECUTION_REVISION=6/);
   assert.match(coordinator,
     /assessmentExecutionRevision:ASSESSMENT_EXECUTION_REVISION/);
 });
@@ -228,15 +228,26 @@ test('a terminal Case from an obsolete Care Basis remains history but cannot col
   assert.equal(health.activeCase, null);
 });
 
-test('new verified health supersedes a failed Case without rewriting that Case history',()=>{
+test('UAT-251 current verified health is independent of a failed Case and preserves its history',()=>{
   const care={aftercareCaseId:'failed-case',careBasisDigest:digest('a'),state:'unresolved',terminalAtMs:20};
   const history={cases:[care],findings:[],assessments:['custody','presentation','conformance'].map(kind=>assessment(kind,10))};
-  assert.equal(projectHealth(context(),history,30).state,'attention_required');
+  assert.equal(projectHealth(context(),history,30).state,'healthy');
   history.assessments[0]=assessment('custody',30);
-  assert.equal(projectHealth(context(),history,30).state,'attention_required');
+  assert.equal(projectHealth(context(),history,30).state,'healthy');
   history.assessments=['custody','presentation','conformance'].map(kind=>assessment(kind,30));
   assert.equal(projectHealth(context(),history,30).state,'healthy');
   assert.equal(care.state,'unresolved');
+});
+
+test('UAT-251 queued manual defect repair preserves healthy status while new damage remains unhealthy',()=>{
+  const care={aftercareCaseId:'manual-defects',careBasisDigest:digest('a'),state:'queued',
+    careRequirement:{typedParameters:[{parameter:'trigger.kind',value:'repair_accepted_defects'}]}};
+  const history={cases:[care],findings:[],assessments:['custody','presentation','conformance'].map(kind=>assessment(kind,10))};
+  assert.equal(projectHealth(context(),history,10).state,'healthy');
+  history.cases=[{...care,state:'active'}];assert.equal(projectHealth(context(),history,10).state,'repairing');
+  history.cases=[care];history.assessments[0]=assessment('custody',11,digest('a'),'degraded');
+  history.findings=[{assessmentId:history.assessments[0].assessmentId,state:'open',findingKind:'custody:primary_missing',repairability:'attention_required'}];
+  assert.equal(projectHealth(context(),history,11).state,'attention_required');
 });
 
 test('Care Disposition permits repair only when every blocking Finding is repairable', () => {
@@ -509,13 +520,16 @@ test('Aftercare legacy settlement remains evidence-gated and refuses unknown dir
   assert.doesNotMatch(capability, /fs\.rmSync\(handle\.location[^\n]*recursive\s*:\s*true/);
 });
 
-test('Aftercare conformance digests the complete Probe when optional payloadDigest is absent', () => {
-  const capability = fs.readFileSync(path.join(__dirname,
-    '../../src/helix/domains/arca/capabilities/aftercare-capability-ports.js'), 'utf8');
-  assert.match(capability,
-    /media_strategy_unavailable[\s\S]*?probeDigest:canonicalDigest\(probe\)/);
-  assert.doesNotMatch(capability,
-    /media_strategy_unavailable[\s\S]*?probe:probe\.payloadDigest/);
+test('UAT-251 measured media gaps bind their exact required value independently of observation IDs', () => {
+  const {probeConformance}=require('../../src/helix/domains/arca/capabilities/aftercare-capability-ports');
+  const context={shelfEntryId:'entry',raw:{entry:{structure_kind:'single'},facts:[],materials:[{role:'primary_payload',material_key:canonicalDigest('input'),location:'/shelf/movie.mkv',size_bytes:100}],
+    standard:{value:{profileRuleSets:[{contentProfile:'movie',baseRequirements:{mandatoryMedia:{videoCodec:'hevc'},space:{}}}]}}}};
+  const probe={resultKind:'probed',videoStreams:[{codec:'h264',width:1920,height:1080}],audioStreams:[]};
+  const first=probeConformance(context,probe);
+  assert.equal(first.length,1);assert.match(first[0].schemaRef,/video_codec_unmet/);
+  assert.deepEqual(probeConformance(context,{...probe,evidenceId:'a-new-observation'}),first);
+  context.raw.standard.value.profileRuleSets[0].baseRequirements.mandatoryMedia.videoCodec='av1';
+  assert.notEqual(probeConformance(context,probe)[0].snapshotDigest,first[0].snapshotDigest);
 });
 
 test('Aftercare receives the bounded fingerprint port and durable old physical identity tuple', () => {

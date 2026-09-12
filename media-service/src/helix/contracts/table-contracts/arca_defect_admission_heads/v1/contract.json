@@ -1,0 +1,116 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/arca_defect_admission_heads/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "arca_defect_admission_heads",
+    "owner": "arca",
+    "prefix": "arca_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "shelf_entry_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": true,
+        "foreignKeyMarker": true,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 2,
+        "name": "current_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 3,
+        "name": "updated_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      }
+    ],
+    "primaryKey": [
+      "shelf_entry_id"
+    ],
+    "declaredForeignKeyColumns": [
+      "shelf_entry_id"
+    ],
+    "uniqueConstraints": [],
+    "hotIndexes": [],
+    "partialUniqueRules": [],
+    "checkRules": [],
+    "revisionContract": {
+      "revisionColumns": [
+        "current_revision"
+      ],
+      "currentPointerColumns": [
+        "current_revision"
+      ],
+      "pointerTargets": [
+        {
+          "sourceColumns": [
+            "shelf_entry_id",
+            "current_revision"
+          ],
+          "targetTable": "arca_defect_admissions",
+          "targetColumns": [
+            "shelf_entry_id",
+            "revision"
+          ],
+          "consistencyColumns": [],
+          "deletePolicy": "RESTRICT",
+          "deferrable": false
+        }
+      ],
+      "pointerRules": [
+        "current pointer显式复合FK"
+      ]
+    },
+    "jsonContracts": [],
+    "immutability": {
+      "immutable": false,
+      "rules": []
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "current pointer显式复合FK",
+      "CAS revision"
+    ],
+    "rawContract": {
+      "columns": "`shelf_entry_id PK/FK, current_revision, updated_at_ms`",
+      "constraints": "current pointer显式复合FK；CAS revision"
+    },
+    "source": {
+      "section": "8.9.9",
+      "line": 15654,
+      "lineDigest": "c2993d2fdd186a34ad68f9000cd181f0ab8502959b2bf8c033cf96d16b1c24e5"
+    },
+    "foreignKeys": [
+      {
+        "columns": [
+          "shelf_entry_id",
+          "current_revision"
+        ],
+        "targetTable": "arca_defect_admissions",
+        "targetColumns": [
+          "shelf_entry_id",
+          "revision"
+        ],
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
+      }
+    ]
+  }
+}

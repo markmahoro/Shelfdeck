@@ -633,11 +633,11 @@
         "transactionId": "helix.transaction.libra-run-lifecycle-transition",
         "ownerScope": "libra",
         "contractRef": "helix://contracts/transactions/helix.transaction.libra-run-lifecycle-transition/v1",
-        "contractDigest": "7f396c637e977c0f744cf749ee4f27e8e6cac26178c5788a930658183da5340d"
+        "contractDigest": "cf934410e71ff5a693d9790b228a756412ac32f48602dbf20ee880779bf11237"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "a2a71390e3689960fd1a96daa20ec569bafe9a903e51d8d08b4181ebe47d8a52"
+        "value": "f6edf6ad931e1f70612eee834f01d9f57c722a35a1a2dd505ab1a9fd0ef2fc80"
       }
     },
     {
@@ -981,11 +981,11 @@
         "transactionId": "helix.transaction.libra-run-discard-commit",
         "ownerScope": "libra",
         "contractRef": "helix://contracts/transactions/helix.transaction.libra-run-discard-commit/v1",
-        "contractDigest": "cc3002bd26a034b93785aaa2514b0f0ee7c6998c2b948dd845750d05187dcbc7"
+        "contractDigest": "3e83a4b2480327de861be74a4692fcb0e54ad118814739e42b9b187f5cc1924d"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "acf1b961400e102b772d6e276d4e56a12bf6b26c7b6296c09c52ad85dd4278fc"
+        "value": "dbcb6896451f6daa2120bdcbaad19af94ae166bd51cc10cef50cd81286089131"
       }
     },
     {
@@ -1097,11 +1097,11 @@
         "transactionId": "helix.transaction.aftercare-case-creation",
         "ownerScope": "arca",
         "contractRef": "helix://contracts/transactions/helix.transaction.aftercare-case-creation/v1",
-        "contractDigest": "cfa1bd3619c142c6f958d8d8d5328d9f061c1f40dcd2b3a7adc6c05ce689a295"
+        "contractDigest": "2471a0ab671d0e669756fc623dc34c3f7df040f49951205a03b7e7d9c1979a4e"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "9732360fd2510d3e7c07c029d2d153e6d346475ae4fdc9581b3a923449abf41d"
+        "value": "56389eef525cde48f174508ec8cbc0e7ded6b2e6ec13df295f590a43c1abc584"
       }
     },
     {
@@ -1126,11 +1126,11 @@
         "transactionId": "helix.transaction.aftercare-inventory-commit",
         "ownerScope": "arca",
         "contractRef": "helix://contracts/transactions/helix.transaction.aftercare-inventory-commit/v1",
-        "contractDigest": "a36d9b9f53b590492c076263e7a5097e6095beb5308a3cd97c9740def8b7154f"
+        "contractDigest": "98b5233cf22af8374297bc57b506983f5accaa555479746435e52bfb5a1ff9f8"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "f2161145b1245bb1762e515a97e197d3031a5dbec04d666dc9e816f833be0379"
+        "value": "252f54ec3543f9e36e6d38dfa699a0e11ef1de5458a0be647044582edd05769e"
       }
     },
     {

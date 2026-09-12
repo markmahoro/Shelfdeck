@@ -5,7 +5,7 @@
   "kind": "application-type-registry",
   "owner": "libra",
   "status": "active",
-  "targetCount": 31,
+  "targetCount": 38,
   "entries": [
     {
       "id": "AuthorizedDefectManifest",
@@ -16,12 +16,66 @@
       "relativePath": "application-types/AuthorizedDefectManifest/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "098ad6cfc125f395e0a92ee5e5b2d235a8cf54801bfdc2c40254d2eec3f01465"
+        "value": "91de2063397c8abe250a13fa4ab8b763da9f086a8339c6a7191fdd9b2e0ae5b5"
       },
       "ssotRefs": [
         "5.6.7",
         "5.7.2",
         "5.8.2",
+        "8.6.21"
+      ]
+    },
+    {
+      "id": "LibraDefectAuthorization",
+      "version": 1,
+      "owner": "libra",
+      "status": "contracted",
+      "schemaId": "helix://contracts/application-types/LibraDefectAuthorization/v1",
+      "relativePath": "application-types/LibraDefectAuthorization/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "6cb0d75c27db49494823b8315639c9d1e065636f76989095d7cfdef41fdda5d2"
+      },
+      "ssotRefs": [
+        "5.6.7",
+        "8.5.13",
+        "8.6.21",
+        "9.5.3",
+        "9.5.4"
+      ]
+    },
+    {
+      "id": "LibraDefectAuthorizationResult",
+      "version": 1,
+      "owner": "libra",
+      "status": "contracted",
+      "schemaId": "helix://contracts/application-types/LibraDefectAuthorizationResult/v1",
+      "relativePath": "application-types/LibraDefectAuthorizationResult/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "cb0fd2b9df6778af9170656c03495f0fce00f8153a57c7305960c99e37bc8f0c"
+      },
+      "ssotRefs": [
+        "5.6.7",
+        "8.5.13",
+        "8.6.21",
+        "9.5.3",
+        "9.5.4"
+      ]
+    },
+    {
+      "id": "LibraDefectPreview",
+      "version": 1,
+      "owner": "libra",
+      "status": "contracted",
+      "schemaId": "helix://contracts/application-types/LibraDefectPreview/v1",
+      "relativePath": "application-types/LibraDefectPreview/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "0f6c0a3ba7ea5824fd1eb5e965725d3314f9d04f564e8bf80783a80a1c05efa1"
+      },
+      "ssotRefs": [
+        "5.6.7",
         "8.6.21"
       ]
     },
@@ -39,6 +93,44 @@
       "ssotRefs": [
         "8.5.11",
         "8.6.20"
+      ]
+    },
+    {
+      "id": "LibraReprocessIntent",
+      "version": 1,
+      "owner": "libra",
+      "status": "contracted",
+      "schemaId": "helix://contracts/application-types/LibraReprocessIntent/v1",
+      "relativePath": "application-types/LibraReprocessIntent/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "bf4df7950cc0aa39fdbc141ee02cd3578dee4903a39267dc3dded44500df299c"
+      },
+      "ssotRefs": [
+        "5.6.7",
+        "8.5.13",
+        "8.6.21",
+        "9.5.3",
+        "9.5.4"
+      ]
+    },
+    {
+      "id": "LibraReprocessReservation",
+      "version": 1,
+      "owner": "libra",
+      "status": "contracted",
+      "schemaId": "helix://contracts/application-types/LibraReprocessReservation/v1",
+      "relativePath": "application-types/LibraReprocessReservation/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "b87acd866fa9a62b231391f87d26740e616e834ead8516021a087ba95286835e"
+      },
+      "ssotRefs": [
+        "5.6.7",
+        "8.5.13",
+        "8.6.21",
+        "9.5.3",
+        "9.5.4"
       ]
     },
     {
@@ -186,7 +278,7 @@
       "relativePath": "application-types/LibraRunLifecycleDecision/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "d2aaafc1c117ffb199daf576ae8cf03e5d15b62bc401b9c55056e1bcb2b733f7"
+        "value": "77b2be4dfbe5058cc6af49f237c358f35d8932e32f45806ca039f9b922d37469"
       },
       "ssotRefs": [
         "8.6.21"
@@ -205,6 +297,25 @@
       },
       "ssotRefs": [
         "8.6.21"
+      ]
+    },
+    {
+      "id": "LibraRunOutcome",
+      "version": 1,
+      "owner": "libra",
+      "status": "contracted",
+      "schemaId": "helix://contracts/application-types/LibraRunOutcome/v1",
+      "relativePath": "application-types/LibraRunOutcome/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "daaed4d9d0fa1dcdb02851b392ec534060da2f7ea1c901f1356da2eefb6f2e11"
+      },
+      "ssotRefs": [
+        "5.6.7",
+        "8.5.13",
+        "8.6.21",
+        "9.5.3",
+        "9.5.4"
       ]
     },
     {
@@ -250,6 +361,25 @@
       },
       "ssotRefs": [
         "8.6.21"
+      ]
+    },
+    {
+      "id": "LibraStrategyAvailability",
+      "version": 1,
+      "owner": "libra",
+      "status": "contracted",
+      "schemaId": "helix://contracts/application-types/LibraStrategyAvailability/v1",
+      "relativePath": "application-types/LibraStrategyAvailability/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "dcff50150ac1ae0fbee4b3fc77613d40272927401cc6ee2415cf292c6ad749d3"
+      },
+      "ssotRefs": [
+        "5.6.7",
+        "8.5.13",
+        "8.6.21",
+        "9.5.3",
+        "9.5.4"
       ]
     },
     {

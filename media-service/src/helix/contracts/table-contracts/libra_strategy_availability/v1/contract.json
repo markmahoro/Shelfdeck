@@ -1,0 +1,193 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/libra_strategy_availability/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "libra_strategy_availability",
+    "owner": "libra",
+    "prefix": "libra_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "libra_run_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 2,
+        "name": "strategy_kind",
+        "logicalType": "TEXT",
+        "enumValues": [
+          "moviepilot",
+          "tmdb"
+        ],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 3,
+        "name": "condition_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 4,
+        "name": "check_ordinal",
+        "logicalType": "INTEGER",
+        "enumValues": [
+          "0",
+          "1",
+          "2",
+          "3",
+          "4",
+          "5"
+        ],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 5,
+        "name": "evidence_schema_ref",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 6,
+        "name": "evidence_json",
+        "logicalType": "TEXT_JSON",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 7,
+        "name": "evidence_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 8,
+        "name": "checked_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      }
+    ],
+    "primaryKey": [
+      "libra_run_id",
+      "strategy_kind",
+      "condition_digest",
+      "check_ordinal"
+    ],
+    "declaredForeignKeyColumns": [
+      "libra_run_id"
+    ],
+    "uniqueConstraints": [],
+    "hotIndexes": [],
+    "partialUniqueRules": [],
+    "checkRules": [
+      {
+        "column": "strategy_kind",
+        "enumValues": [
+          "moviepilot",
+          "tmdb"
+        ]
+      },
+      {
+        "column": "check_ordinal",
+        "enumValues": [
+          "0",
+          "1",
+          "2",
+          "3",
+          "4",
+          "5"
+        ]
+      },
+      {
+        "rule": "`PK(libra_run_id,strategy_kind,condition_digest,check_ordinal)`"
+      },
+      {
+        "rule": "check_ordinal为0至5"
+      }
+    ],
+    "revisionContract": {
+      "revisionColumns": [],
+      "currentPointerColumns": [],
+      "pointerTargets": [],
+      "pointerRules": []
+    },
+    "jsonContracts": [
+      {
+        "column": "evidence_json",
+        "schemaRefColumn": "evidence_schema_ref",
+        "maxBytes": 4096,
+        "source": "table-row",
+        "requiresJsonValidCheck": true
+      }
+    ],
+    "immutability": {
+      "immutable": true,
+      "rules": [
+        "immutable"
+      ]
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "`PK(libra_run_id,strategy_kind,condition_digest,check_ordinal)`",
+      "immutable",
+      "check_ordinal为0至5",
+      "typed JSON上限`4 KiB`"
+    ],
+    "rawContract": {
+      "columns": "`libra_run_id FK, strategy_kind(moviepilot|tmdb), condition_digest, check_ordinal(0|1|2|3|4|5), evidence_schema_ref, evidence_json, evidence_digest, checked_at_ms`",
+      "constraints": "`PK(libra_run_id,strategy_kind,condition_digest,check_ordinal)`；immutable；check_ordinal为0至5；typed JSON上限`4 KiB`"
+    },
+    "source": {
+      "section": "8.9.9",
+      "line": 15652,
+      "lineDigest": "efdec0f21af0d8ca4cf71e5a40de13d93b4aacfbb24fb0ea743ed7ea824789fc"
+    },
+    "foreignKeys": [
+      {
+        "columns": [
+          "libra_run_id"
+        ],
+        "targetTable": "libra_runs",
+        "targetColumns": [
+          "libra_run_id"
+        ],
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
+      }
+    ]
+  }
+}

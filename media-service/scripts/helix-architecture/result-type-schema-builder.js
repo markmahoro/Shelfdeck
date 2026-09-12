@@ -442,6 +442,8 @@ const special = {
   'SelectedProductOutput.selectedVerificationId': nullable(id()),
   'SelectedProductOutput.selectedVerificationDigest': nullable(digest()),
   'SelectedProductOutput.selectionReasonCode': enumText('selected_by_declared_rank', 'no_passed_candidate'),
+  'ProductConformanceEvidence.missingMetadataFields':arrayOf(id(),64),
+  'ProductConformanceEvidence.missingArtifactKinds':arrayOf(id(),3),
   'ProductConformanceEvidence.unmetRequirementCodes': arrayOf(enumText('identity_unmet', 'season_identity_unmet', 'structure_unmet',
     'episode_coverage_unmet', 'metadata_field_unmet', 'metadata_artifact_unmet', 'sidecar_unrenderable', 'image_undecodable',
     'media_form_unmet', 'video_codec_unmet', 'container_unmet', 'file_extension_unmet', 'minimum_raster_unmet',
@@ -641,7 +643,7 @@ const contracts = {
   WorkspaceMediaHandle: [null, 'workspaceMediaHandleId,sourceMaterialHandleDigest,workspaceMaterialHandle,workspaceMaterialHandleDigest,outputTargetId,outputTargetDigest,producingEventId,productionIntentKind,productionIntentDigest,executionDeviceRef,productionVideoProfile,effectReceiptRef,resultDigest'],
   ProductMediaVerification: ['VerificationEnvelope', 'candidateId,candidateNodeId,candidateBasisDigest,candidateKind,libraRunId,producingEventId,productMaterialHandleId,productMaterialHandleDigest,productMaterialFenceDigest,workspaceMediaHandleId,mediaRequirementId,mediaRequirementDigest,sourceProbeEvidenceId,sourceProbeEvidenceDigest,outputProbeEvidenceId,outputProbeEvidenceDigest,qualitySummary,spaceSummary,dynamicRangeSummary,decodeSummary,reasonCodes'],
   SelectedProductOutput: ['DraftEnvelope', 'libraRunId,acceptanceSpecId,mediaRequirementDigest,criteriaId,criteriaDigest,candidateSetDigest,result,selectedCandidateKind,selectedHandleId,selectedWorkspaceMediaHandleId,selectedVerificationId,selectedVerificationDigest,selectionReasonCode'],
-  ProductConformanceEvidence: ['VerificationEnvelope', 'libraRunId,acceptanceSpecId,acceptanceSpecRecordDigest,runExecutionBasisDigest,productSnapshotDigest,productFactSetDigest,evaluatedRequirementSetDigest,unmetRequirementCodes,reasonCodes'],
+  ProductConformanceEvidence: ['VerificationEnvelope', 'libraRunId,acceptanceSpecId,acceptanceSpecRecordDigest,runExecutionBasisDigest,productSnapshotDigest,productFactSetDigest,evaluatedRequirementSetDigest,unmetRequirementCodes,reasonCodes,missingMetadataFields,missingArtifactKinds'],
   OnDeckProductPackage: ['ManifestEnvelope', 'onDeckPackageId,packageRevision,libraRunId,runStateRevision,runStateDigest,runExecutionBasisDigest,subjectId,shelfId,acceptanceSpecRef,resolvedIdentitySnapshot,productStructureSnapshot,runMaterialManifestRef,productMaterialManifest,productFactManifest,artifactManifest,mediaCastSnapshot,offloadContextManifest,productionProvenance,productionAttestation,packageDigest'],
   OnDeckProductPackageCommitReceipt: ['ReceiptEnvelope', 'promotionDecisionDigest,onDeckPackageId,packageRevision,packageDigest,offerId,libraRunId,verifiedRunStateRevision,verifiedRunStateDigest,productMaterialManifestDigest,productFactSetDigest,productFactManifestDigest,artifactManifestDigest,offloadContextDigest,controlRevisionSetDigest,receiptDigest'],
   ReclamationReceipt: ['ReceiptEnvelope', 'workspaceId,reclaimedHandleIds,retainedHandleIds,reclaimedBytes'],
@@ -932,6 +934,8 @@ function acceptanceCheckSchema() {
     standardRevision: positiveInteger(), packageDigest: digest(),
     requirementDigest: digest(), evidenceStatus: enumText('complete', 'stale_basis'),
     actualGapCodes: gapSet, actualGapSetDigest: digest(),
+    missingMetadataFields:arrayOf(id(),64),
+    missingArtifactKinds:arrayOf(id(),3),
     primaryMediaObservations: arrayOf(observation, 32),
     primaryMediaObservationSetDigest: digest(),
     authorizedDefectManifestDigestOrNull: nullable(digest()),
@@ -1115,9 +1119,14 @@ function artifactManifestVerificationSchema() {
     artifactRevision:positiveInteger(), artifactDigest:digest(), referenceDigest:digest() });
   return resultSchema('ArtifactManifestVerification', 'VerificationEnvelope', {
     manifestDigest:digest(), contractRef:text(), requirement:domainRef('ArtifactRequirement'),
-    verifiedArtifacts:{ ...arrayOf(verifiedArtifact, 64), minItems:1 }, artifactDigests:{ ...arrayOf(digest(), 64), minItems:1 },
+    verifiedArtifacts:arrayOf(verifiedArtifact, 64), artifactDigests:arrayOf(digest(), 64),
     verificationDigest:digest()
-  }, { 'x-helix-maxCanonicalBytes':64 * 1024 });
+  }, { 'x-helix-maxCanonicalBytes':64 * 1024, allOf:[{
+    if:{properties:{result:{const:'passed'}}},
+    then:{properties:{verifiedArtifacts:{minItems:1},artifactDigests:{minItems:1},reasonCodes:{maxItems:0}}},
+    else:{properties:{result:{const:'failed'},verifiedArtifacts:{maxItems:0},artifactDigests:{maxItems:0},
+      reasonCodes:{const:['required_artifact_missing']}}}
+  }] });
 }
 
 function mediaCastRelationSchema() {
@@ -1225,11 +1234,14 @@ function onDeckProductPackageSchema() {
     productConformanceEvidenceId: id(), productConformanceEvidenceDigest: digest(),
     evaluatedRequirementSetDigest: digest(), productSnapshotDigest: digest(),
     unmetRequirementCount: nonNegativeInteger(),
+    missingMetadataFields:arrayOf(id(),64),
+    missingArtifactKinds:arrayOf(id(),3),
     unmetRequirementCodes: arrayOf(enumText(
       'metadata_field_unmet', 'video_codec_unmet', 'container_unmet',
       'file_extension_unmet', 'minimum_raster_unmet', 'system_upscale_forbidden',
       'primary_audio_unmet', 'max_size_exceeded', 'dynamic_range_conversion_unmet',
-      'output_color_profile_unmet', 'dolby_vision_metadata_not_removed'), 12),
+      'output_color_profile_unmet', 'dolby_vision_metadata_not_removed',
+      'metadata_artifact_unmet','sidecar_unrenderable','image_undecodable'), 14),
     acceptanceKind: enumText('accepted', 'accepted_with_defects'),
     authorizedDefectManifest: nullable({ $ref: 'helix://contracts/application-types/AuthorizedDefectManifest/v1' }),
     attestedAtMs: nonNegativeInteger(),

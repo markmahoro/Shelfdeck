@@ -187,14 +187,14 @@ test('guard and governance-file changes are surfaced for explicit checkpoint rev
 test('reports exact current product route construction status without crediting backend verticals', () => {
   const status = routeImplementationStatus();
   assert.deepEqual(status.counts, {
-    total:127,
-    real:100,
+    total:134,
+    real:107,
     workerBeta404: 6,
     unavailable503: 21,
   });
   assert.equal(
     status.rows.filter((row) => row.state === 'real').length,
-    100,
+    107,
   );
 });
 

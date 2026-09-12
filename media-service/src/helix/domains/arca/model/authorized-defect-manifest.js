@@ -3,7 +3,7 @@
 const { canonicalDigest, canonicalJson } = require('../../../contracts/canonical-json');
 
 const SCHEMA_REF = 'helix://contracts/application-types/AuthorizedDefectManifest/v1';
-const CODES = new Set(['actor_unavailable', 'external_source_exhausted', 'size_cap_exceeded']);
+const CODES = new Set(['actor_unavailable', 'metadata_fields_unavailable', 'artifacts_unavailable', 'external_source_exhausted', 'media_requirements_unmet', 'size_cap_exceeded']);
 const DIGEST = /^[a-f0-9]{64}$/;
 
 function ordered(values) {
@@ -19,12 +19,15 @@ function exactSet(values) {
 function validManifest(value) {
   if (!value || value.schemaRef !== SCHEMA_REF || value.schemaVersion !== 1 ||
       value.manifestId !== value.defectDecisionId ||
-      !Array.isArray(value.defects) || value.defects.length < 1 || value.defects.length > 2 ||
+      !Array.isArray(value.defects) || value.defects.length < 1 || Buffer.byteLength(canonicalJson(value))>65536 ||
       value.defectCount !== value.defects.length ||
       !exactSet(value.waivedRequirementCodes) ||
       value.defects.some((item) => !CODES.has(item.defectCode) ||
         !exactSet(item.waivedRequirementCodes) || item.waivedRequirementCodes.length < 1) ||
       value.acknowledgement !== 'accept_listed_defects') return false;
+  if(value.gapScope && (value.gapScope.ownerDomain!=='libra'||value.gapScope.processId!==value.libraRunId||
+    value.gapScope.productRevision!==value.frozenRunRef?.stateRevision||!Array.isArray(value.gapScope.gaps)||!value.gapScope.gaps.length||
+    value.gapScope.gaps.some(gap=>!value.waivedRequirementCodes.includes(gap.requirementCode)||!gap.targetId||!DIGEST.test(gap.evidenceDigest||''))))return false;
   const body = Object.fromEntries(Object.entries(value)
     .filter(([name]) => name !== 'manifestDigest'));
   const waived = ordered(value.defects.flatMap((item) => item.waivedRequirementCodes || []));
@@ -95,9 +98,44 @@ function acceptsProductionAttestation(attestation, packageValue = null) {
       attestation.authorizedDefectManifest === null;
   }
   const manifest = attestation.authorizedDefectManifest;
+  if(manifest?.gapScope && (manifest.gapScope.acceptanceSpecId!==attestation.acceptanceSpecId||
+    manifest.gapScope.acceptanceSpecRecordDigest!==attestation.acceptanceSpecRecordDigest||
+    !acceptsMetadataFields(manifest,attestation.missingMetadataFields)||!acceptsArtifactKinds(manifest,attestation.missingArtifactKinds)))return false;
   return attestation.acceptanceKind === 'accepted_with_defects' && validManifest(manifest) &&
     canonicalJson(ordered(attestation.unmetRequirementCodes)) ===
       canonicalJson(ordered(manifest.waivedRequirementCodes));
+}
+
+function acceptsMetadataFields(manifest,fields) {
+  if(!manifest?.gapScope)return true;
+  return Array.isArray(fields)&&canonicalJson(ordered(fields))===canonicalJson(ordered(manifest.gapScope.gaps
+    .filter(gap=>gap.targetKind==='metadata_field').map(gap=>gap.targetId)));
+}
+
+function acceptsArtifactKinds(manifest,kinds) {
+  if(!manifest?.gapScope)return true;
+  return canonicalJson(ordered(kinds))===canonicalJson(ordered(manifest.gapScope.gaps
+    .filter(gap=>gap.targetKind==='artifact').map(gap=>gap.targetId)));
+}
+function packageMissingArtifactKinds(packageValue,requirements) {
+  return require('../../../contracts/artifact-requirement-gaps').missingArtifactKinds(requirements,
+    (packageValue.artifactManifest?.items||[]).map(item=>item.artifactKind));
+}
+
+function missingMetadataFields(packageValue,requirement) {
+  const facts=packageValue.productFactManifest?.items||[],metadata=facts.find(item=>item.factKind==='product_metadata')?.factValue||{};
+  const identity=packageValue.resolvedIdentitySnapshot?.factValue?.resolvedProductIdentity||packageValue.resolvedIdentitySnapshot?.factValue||{};
+  const providers=identity.providerIdentities||[],cast=packageValue.mediaCastSnapshot?.relations||[];
+  const descriptive=new Map((metadata.descriptiveFacts?.entries||[]).map(item=>[item.key,item.value]));
+  return Object.freeze((requirement.requiredFieldCodes||[]).filter(code=>{
+    if(code==='actor')return cast.length===0;
+    const namespace={tmdb_movie_id:'tmdb_movie',tmdb_series_id:'tmdb_series',jav_code:'jav_code',internal_identity:'internal_identity'}[code];
+    if(namespace)return !providers.some(item=>item.namespace===namespace);
+    if(code==='season_number')return !providers.some(item=>item.namespace==='tmdb_series'&&item.seasonNumber!=null);
+    if(code==='episode_number')return !(packageValue.productMaterialManifest?.members||[]).some(item=>item.episodeClaims?.length);
+    const value=descriptive.get(code);
+    return value==null||(typeof value==='string'&&!value.trim())||(Array.isArray(value)&&value.length===0);
+  }).sort());
 }
 
 function actionableAftercareFindings(manifest, findings) {
@@ -114,4 +152,8 @@ module.exports = Object.freeze({
   acceptsProductionAttestation,
   actionableAftercareFindings,
   validManifest,
+  acceptsMetadataFields,
+  acceptsArtifactKinds,
+  packageMissingArtifactKinds,
+  missingMetadataFields,
 });

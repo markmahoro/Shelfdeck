@@ -103,6 +103,8 @@ function createIntakeProcessCoordinator(options) {
       const processId = source?.processId || options.offerReader.decisionId(offer.offerId);
       const work = evidence(processId);
       if (!work) throw new Error('Offered Candidate Snapshot is unavailable.');
+      const reentry=options.checkReentry?.(source||readSource(processId));
+      if(reentry)return Object.freeze({processId,work,result:reentry});
       const subjectId = subjectIdForProcess(processId);
       const fieldId = fieldIdForProcess(processId);
       if (!subjectId || !fieldId) {
@@ -133,6 +135,8 @@ function createIntakeProcessCoordinator(options) {
     reconcile(processId) {
       const source = readSource(processId);
       if (!source) return Object.freeze({ kind: 'not_found', processId });
+      const reentry=options.checkReentry?.(source);
+      if(reentry)return Object.freeze({...reentry,processId});
       if (!mayStartNewIntake(processId)) {
         deferredProcesses.add(processId);
         return seatWaitResult(processId);

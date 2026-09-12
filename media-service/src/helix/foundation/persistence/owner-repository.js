@@ -206,6 +206,10 @@ function compileJoinedPage(statementId, statement, table, tables, owner) {
   requireColumns(table,statement.columns,statementId);
   const parameters=['offset','limit'],where=[];
   for(const filter of statement.filters||[]){
+    if(filter.kind==='is_null') {
+      if(filter.parameter!==undefined||filter.optional)fail('P3_REPOSITORY_INVALID_DEFINITION','Null predicate cannot take a parameter.',{statementId});
+      where.push(ref(filter.alias||'base',filter.column)+' IS NULL');continue;
+    }
     if(!IDENTIFIER.test(filter.parameter))fail('P3_REPOSITORY_INVALID_IDENTIFIER','Invalid filter parameter.',{statementId});
     parameters.push(filter.parameter);
     const source=ref(filter.alias||'base',filter.column),parameter='@'+filter.parameter;

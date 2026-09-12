@@ -1022,14 +1022,16 @@ function createProtocolTransport(profile, options) {
         headers: { accept: 'application/json' },
         signal: AbortSignal.timeout(request.timeoutMs),
       }, EXTERNAL_JSON_LIMIT);
-      if (found?.success === false) continue;
-      const page = (Array.isArray(found)
+      if (found?.success === false) fail(PROVIDER_ERROR,'MoviePilot reported an unsuccessful search.');
+      const page = Array.isArray(found)
         ? found
         : Array.isArray(found?.data)
           ? found.data
-          : []).filter((row) => row && typeof row === 'object' &&
-            !Array.isArray(row) && row.torrent_info &&
-            typeof row.torrent_info === 'object');
+          : null;
+      if(!page || page.some(row=>!row || typeof row!=='object' || Array.isArray(row) ||
+        !row.torrent_info || typeof row.torrent_info!=='object' || Array.isArray(row.torrent_info))) {
+        fail('P5_PROVIDER_RESPONSE_INVALID','MoviePilot search response is not a valid candidate list.');
+      }
       for (const row of page) {
         const rowKey = moviepilotCandidateReference(row).objectId;
         if (seen.has(rowKey)) continue;

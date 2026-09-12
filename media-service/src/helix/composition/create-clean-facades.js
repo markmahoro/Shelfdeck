@@ -263,6 +263,12 @@ function createCleanFacades(options) {
     });
   }
   if (options.libraRunAdmin) {
+    facades.LibraFormationFacade.get_formation_defect_authorization = async () => ({
+      body:{authorization:options.libraRunAdmin.readAutomaticAuthorization()},
+    });
+    facades.LibraFormationFacade.patch_formation_defect_authorization = async input => ({
+      body:options.libraRunAdmin.setAutomaticAuthorization(input.body),
+    });
     facades.LibraFormationFacade.post_formation_runs_librarunid_actions_expedite = async (input) => ({
       body: options.libraRunAdmin.expedite(input.params.libraRunId, input.body),
     });
@@ -275,6 +281,16 @@ function createCleanFacades(options) {
     facades.LibraFormationFacade.get_formation_runs_librarunid_defect_admission_candidate = async (input) => ({
       body: options.libraRunAdmin.previewDefects(input.params.libraRunId),
     });
+    facades.LibraFormationFacade.get_formation_runs_librarunid_outcome=async input=>({
+      body:{outcome:options.libraRunAdmin.readOutcome(input.params.libraRunId)},
+    });
+    facades.LibraFormationFacade.post_formation_runs_librarunid_actions_reprocess=async input=>{
+      const fields=options.libraRunAdmin.reprocessSourceFieldIds(input.params.libraRunId);
+      const intent=options.libraRunAdmin.requestReprocess(input.params.libraRunId,input.body);
+      const observations=[];
+      for(const field of fields)observations.push(await options.procurementAdmin.requestReprocessObservation(field,intent.intentId));
+      return {status:202,body:{...intent,observations}};
+    };
     facades.LibraFormationFacade.post_formation_runs_librarunid_actions_admit_with_defects = async (input) => ({
       body: options.libraRunAdmin.admitWithDefects(input.params.libraRunId, input.body),
     });
@@ -316,6 +332,12 @@ function createCleanFacades(options) {
     facades.ArcaCareFacade.get_care_recycle_shelfentryid_preview=async(input)=>({body:await app.preview(input.params.shelfEntryId,input.query?.sourceLocation)});
     facades.ArcaCareFacade.post_care_recycle_shelfentryid_actions_archive=async(input)=>({status:202,body:await app.archive(input.params.shelfEntryId,input.body)});
     facades.ArcaCareFacade.post_care_recycle_recycleentryid_actions_restore=async(input)=>({status:202,body:await app.restore(input.params.recycleEntryId)});
+  }
+  if(options.arcaDefectAdmission) {
+    const app=options.arcaDefectAdmission;
+    facades.ArcaCareFacade.get_care_shelfentryid_defect_admission_candidate=async input=>({body:app.preview(input.params.shelfEntryId)});
+    facades.ArcaCareFacade.post_care_shelfentryid_actions_accept_defects=async input=>({body:app.accept(input.params.shelfEntryId,input.body,'admin')});
+    facades.ArcaCareFacade.post_care_shelfentryid_actions_repair_accepted_defects=async input=>({status:202,body:app.repair(input.params.shelfEntryId,input.body,'admin')});
   }
   if (options.arcaCare) {
     facades.ArcaCareFacade.get_care = async (input) => ({ body:options.arcaCare.list(input.query || {}) });

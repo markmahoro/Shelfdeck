@@ -67,7 +67,10 @@
       "fx_supporting_works",
       "fx_workflow_plans",
       "fx_workflow_events",
-      "fx_event_attempts"
+      "fx_event_attempts",
+      "libra_defect_authorizations",
+      "libra_defect_authorization_head",
+      "libra_strategy_availability"
     ],
     "variants": [],
     "dynamicTableRequirements": [],

@@ -23,6 +23,7 @@ const {
 const {
   metadataObservationWork,
   nextMetadataStage,
+  requiredArtifactKinds,
 } = require('../planning/product-metadata-work');
 const { coversRequirementGaps } = require('../model/defect-admission-contracts');
 const { sizeCapRetryDecision, sourceRequiresExternalSearch } = require('../model/media-production-contracts');
@@ -44,7 +45,7 @@ function artifactWork(snapshot,workspace) {
   const basis={libraRunId:snapshot.run.libraRunId,executionBasisDigest:snapshot.run.executionBasisDigest,
     workspaceId:workspace.workspaceId,
     artifactRequirementDigest:canonicalDigest({schema:'libra.artifact-requirement-set@1',
-      items:snapshot.spec.requirements.metadata.requiredArtifactKinds})};
+      items:requiredArtifactKinds(snapshot)})};
   return Object.freeze({schemaRef:'helix://foundation/types/SupportingWorkDefinition/v1',schemaVersion:1,
     workId:stable('libra-artifact-production-work-',basis),ownerDomain:'libra',processType:'libra_run',
     processId:snapshot.run.libraRunId,workKind:'artifact_production',
@@ -57,15 +58,15 @@ function artifactWork(snapshot,workspace) {
 }
 function productFactWork(snapshot,workspace,artifact) {
   const basis={libraRunId:snapshot.run.libraRunId,executionBasisDigest:snapshot.run.executionBasisDigest,
-    workspaceId:workspace.workspaceId,artifactWorkId:artifact.workId};
-  const artifactDependency=Object.freeze({ownerDomain:'libra',objectType:'supporting_work',objectId:artifact.workId,
-    revision:1,digest:artifact.executionBasisDigest});
+    workspaceId:workspace.workspaceId,artifactWorkId:artifact?.workId||null};
+  const artifactDependency=artifact?Object.freeze({ownerDomain:'libra',objectType:'supporting_work',objectId:artifact.workId,
+    revision:1,digest:artifact.executionBasisDigest}):null;
   return Object.freeze({schemaRef:'helix://foundation/types/SupportingWorkDefinition/v1',schemaVersion:1,
     workId:stable('libra-product-fact-work-',basis),ownerDomain:'libra',processType:'libra_run',
     processId:snapshot.run.libraRunId,workKind:'product_fact_assembly',
     workObjectiveTypeRef:'helix://libra/work/product-fact-assembly/v1',workObjectiveVersion:1,
     executionBasisId:stable('libra-product-fact-basis-',basis),executionBasisDigest:snapshot.run.executionBasisDigest,
-    dependencyRefs:Object.freeze([artifactDependency]),priorityClass:priority(snapshot),
+    dependencyRefs:Object.freeze(artifactDependency?[artifactDependency]:[]),priorityClass:priority(snapshot),
     priorityRevision:snapshot.run.priorityRevision||1,
     capabilityCatalogScope:'libra',workspaceMaterialScope:Object.freeze([]),
     idempotencyKey:stable('libra-product-fact-key-',basis),concurrencyScope:snapshot.run.libraRunId+'/product-fact',
@@ -214,7 +215,7 @@ function createLibraRunCoordinator(options){
       if (evidence && evidence.result !== 'passed') {
         if (snapshot.run.authorizedDefectManifest && coversRequirementGaps(
           snapshot.run.authorizedDefectManifest,
-          evidence.unmetRequirementCodes || evidence.reasonCodes || [])) continue;
+          evidence.unmetRequirementCodes || evidence.reasonCodes || [],evidence)) continue;
         return freezeBusinessTerminal(snapshot, { workId:work.work_id }, record,
           evidence.unmetRequirementCodes?.[0] ||
           evidence.reasonCodes?.[0] || 'product_conformance_failed');
@@ -312,7 +313,7 @@ function createLibraRunCoordinator(options){
   }
   function ensureOriginalMediaThenExternal(snapshot, workspace, context = {}) {
     const authorized = snapshot.run.authorizedDefectManifest?.defects?.some(
-      (item) => item.defectCode === 'external_source_exhausted');
+      (item) => Boolean(item.originalMediaVerificationId));
     if (snapshot.materialInputForm !== 'stream_file') {
       return authorized
         ? continueExternalOrAuthorizedDirectInput(snapshot, workspace, context)
@@ -338,6 +339,10 @@ function createLibraRunCoordinator(options){
     });
     if (!integrationHandle || integrationHandle.integrationType !== 'moviepilot' ||
         integrationHandle.allowedOperation !== 'libra.external_material.search@1') {
+      if(options.waitUnavailableStrategy) {
+        const pending=ensureDefectProductEvidence(snapshot);if(pending)return pending;
+        return options.waitUnavailableStrategy(snapshot.run.libraRunId,'moviepilot','moviepilot_integration_unavailable');
+      }
       return Object.freeze({
         kind: 'waiting_external_integration',
         phase: 'external_search_selection',
@@ -393,7 +398,7 @@ function createLibraRunCoordinator(options){
   }
   function continueExternalOrAuthorizedDirectInput(snapshot, workspace, context) {
     const authorized = snapshot.run.authorizedDefectManifest?.defects?.some(
-      (item) => item.defectCode === 'external_source_exhausted');
+      (item) => Boolean(item.originalMediaVerificationId));
     if (authorized && typeof context?.priorSelectionWorkId === 'string') {
       const persisted = options.workResultReader.readDefinition?.(
         context.priorSelectionWorkId,
@@ -514,7 +519,7 @@ function createLibraRunCoordinator(options){
     const conformanceRecord=conformanceResults[0],evidence=conformanceRecord.result;
     if(evidence.result!=='passed' && !(snapshot.run.authorizedDefectManifest &&
       coversRequirementGaps(snapshot.run.authorizedDefectManifest,
-        evidence.unmetRequirementCodes || evidence.reasonCodes || [])))return freezeBusinessTerminal(snapshot,conformance,conformanceRecord,
+        evidence.unmetRequirementCodes || evidence.reasonCodes || [],evidence)))return freezeBusinessTerminal(snapshot,conformance,conformanceRecord,
       evidence.unmetRequirementCodes?.[0] || evidence.reasonCodes?.[0] || 'product_conformance_failed');
     const promotion=deliverablePromotionWork(snapshot,selectedMediaWork,conformance,evidence),
       promotionSubmitted=submit(promotion),promotionStatus=options.workResultReader.status(promotion.workId);
@@ -534,11 +539,30 @@ function createLibraRunCoordinator(options){
       packageRevision:receipt.packageRevision,packageDigest:receipt.packageDigest,offerId:receipt.offerId,
       workspaceId:workspace.workspaceId});
   }
+  function ensureDefectProductEvidence(snapshot) {
+    if(snapshot.materialInputForm !== 'stream_file') return null;
+    const libraRunId = snapshot.run.libraRunId, workspace=ensureWorkspace(snapshot);
+    if(workspace.kind==='workspace_admission_deferred')return Object.freeze({kind:'waiting_for_resource',phase:'workspace_admission',libraRunId,reasonCode:workspace.reasonCode});
+    for(const work of [sourceMediaObservationWork(snapshot),directMediaSelectionWork(snapshot)]) {
+      const submitted=submit(work),status=options.workResultReader.status(work.workId);
+      if(!workSucceeded(status))return workFailed(status)?terminalWork(snapshot,work,status):Object.freeze({kind:'pending',phase:'defect_product_safety',libraRunId,workId:work.workId,replayed:submitted.replayed});
+    }
+    return null;
+  }
   function reconcile(libraRunId){
     let snapshot;
     try { snapshot=typeof options.movieProductionReader.readRunSnapshot==='function'
       ?options.movieProductionReader.readRunSnapshot(libraRunId):options.movieProductionReader.readRun(libraRunId); }
     catch(error){if(error?.code==='P14_MOVIE_PRODUCTION_RUN_UNAVAILABLE')return Object.freeze({kind:'not_found',libraRunId});throw error;}
+    if(snapshot.run.state==='active' && snapshot.run.packageRevisionHead>0 && options.resolveRejectedRun) {
+      const published=options.movieProductionReader.readPublishedDeliveryRef(libraRunId,snapshot.run.packageRevisionHead);
+      if(published && options.movieProductionReader.readDeliveryReceipt(published.offerId)?.result==='rejected')
+        return options.resolveRejectedRun(libraRunId);
+    }
+    if(snapshot.run.state==='frozen' && options.resolveFrozenRun) {
+      const resolution=options.resolveFrozenRun(libraRunId);
+      return resolution?.kind==='defect_admitted'?reconcile(libraRunId):resolution;
+    }
     if(snapshot.run.state!=='active' && snapshot.run.state!=='suspended')
       return Object.freeze({kind:'terminal',libraRunId,state:snapshot.run.state});
     const persistedConformanceFailure = freezePersistedConformanceFailure(snapshot);
@@ -602,11 +626,17 @@ function createLibraRunCoordinator(options){
         acceptanceSpecId:currentRequirements.spec.acceptanceSpecId});
     }
     const metadataStage=nextMetadataStage(options,snapshot,committed);
+    if(metadataStage.kind==='unavailable'&&options.waitUnavailableStrategy) {
+      const pending=ensureDefectProductEvidence(snapshot);if(pending)return pending;
+      return options.waitUnavailableStrategy(libraRunId,'tmdb',metadataStage.reasonCode);
+    }
     if(metadataStage.kind==='unavailable')return Object.freeze({
       kind:'waiting_external_integration', phase:'product_metadata_observation',libraRunId,
       reasonCode:metadataStage.reasonCode, missingFields:metadataStage.missingFields,
       missingCastRoles:metadataStage.missingCastRoles});
     if(metadataStage.kind==='unresolved'){
+      const pending = ensureDefectProductEvidence(snapshot);
+      if(pending)return pending;
       const terminal=unresolvedMetadataTerminal(metadataStage);
       return freezeBusinessTerminal(snapshot,terminal.work,terminal.resultRecord,terminal.failureCode);
     }
@@ -614,7 +644,7 @@ function createLibraRunCoordinator(options){
       const work=metadataObservationWork(snapshot,metadataStage.source),submitted=submit(work),
         status=options.workResultReader.status(work.workId);
       if(!workSucceeded(status)){
-        if(workFailed(status))return terminalWork(snapshot,work,status,
+        if(workFailed(status))return ensureDefectProductEvidence(snapshot) || terminalWork(snapshot,work,status,
           metadataStage.source.kind==='provider'?'integration_exhausted':'product_unachievable');
         return Object.freeze({kind:'pending',phase:'product_metadata_observation',libraRunId,
           workId:work.workId,replayed:submitted.replayed,identityDigest:committed.factValue.identityDigest,
@@ -630,19 +660,26 @@ function createLibraRunCoordinator(options){
     if(workspace.kind==='workspace_admission_deferred')return Object.freeze({kind:'waiting_for_resource',
       phase:'workspace_admission',libraRunId,workspaceId:workspace.workspaceId,
       reasonCode:workspace.reasonCode,requiredFreeBytes:workspace.requiredFreeBytes});
-    const artifact=artifactWork(snapshot,workspace),artifactSubmitted=submit(artifact),artifactStatus=options.workResultReader.status(artifact.workId);
+    const artifact=requiredArtifactKinds(snapshot).length?artifactWork(snapshot,workspace):null;
+    if(artifact) {
+    const artifactSubmitted=submit(artifact),artifactStatus=options.workResultReader.status(artifact.workId);
     if(!workSucceeded(artifactStatus)){
-      if(workFailed(artifactStatus))return terminalWork(snapshot,artifact,artifactStatus);
+      if(workFailed(artifactStatus))return ensureDefectProductEvidence(snapshot)||terminalWork(snapshot,artifact,artifactStatus);
       return Object.freeze({kind:'pending',phase:'artifact_production',libraRunId,workId:artifact.workId,
         replayed:artifactSubmitted.replayed,identityDigest:committed.factValue.identityDigest,
         workspaceId:workspace.workspaceId,workspaceRevision:workspace.currentRevision});
     }
-    attachArtifactOutputs(snapshot,workspace);
     const artifactResults=options.workResultReader.read(artifact.workId).filter((item)=>item.outcomeKind==='succeeded'&&
       item.capabilityRef==='shared.artifact.manifest.verify@1');
-    const expected=snapshot.spec.requirements.metadata.requiredArtifactKinds.length;
+    const absentArtifact=artifactResults.find(item=>item.result?.result==='failed'&&
+      item.result.reasonCodes?.includes('required_artifact_missing'));
+    if(absentArtifact)return ensureDefectProductEvidence(snapshot)||
+      freezeBusinessTerminal(snapshot,artifact,absentArtifact,'required_artifact_missing');
+    const expected=requiredArtifactKinds(snapshot).length;
     if(artifactResults.length!==expected||artifactResults.some((item)=>item.result?.result!=='passed'))
       throw new Error('Terminal Artifact Work does not cover every mandatory Artifact Requirement.');
+    attachArtifactOutputs(snapshot,workspace);
+    }
     const facts=productFactWork(snapshot,workspace,artifact),factsSubmitted=submit(facts),factsStatus=options.workResultReader.status(facts.workId);
     if(!workSucceeded(factsStatus)){
       if(workFailed(factsStatus))return terminalWork(snapshot,facts,factsStatus);
@@ -666,6 +703,11 @@ function createLibraRunCoordinator(options){
     const sourceResults=options.workResultReader.read(sourceMedia.workId).filter((item)=>item.outcomeKind==='succeeded'&&
       item.capabilityRef==='shared.material.media.probe@1');
     if(sourceResults.length!==1)throw new Error('Terminal source media Observation Work lacks one durable Probe Result.');
+    if(snapshot.materialInputForm==='stream_file' && snapshot.run.authorizedDefectManifest?.defects?.some(item=>Boolean(item.originalMediaVerificationId))) {
+      const direct=directMediaSelectionWork(snapshot);
+      if(!workSucceeded(options.workResultReader.status(direct.workId)))throw new Error('Authorized direct product lost its completed verification Work.');
+      return ensureDelivery(snapshot,workspace,direct);
+    }
     if(sourceRequiresExternalSearch(sourceResults[0].result,snapshot.spec?.requirements?.mandatoryMedia)){
       return ensureOriginalMediaThenExternal(snapshot,workspace);
     }
@@ -694,7 +736,7 @@ function createLibraRunCoordinator(options){
     }
     const selection=selectedOutput(direct);
     if(selection.result!=='selected')return requiresExternalSource(direct)
-      ?snapshot.run.authorizedDefectManifest?.defects?.some((item)=>item.defectCode==='external_source_exhausted')
+      ?snapshot.run.authorizedDefectManifest?.defects?.some((item)=>Boolean(item.originalMediaVerificationId))
         ?ensureDelivery(snapshot,workspace,direct)
         :ensureExternalSelection(snapshot,workspace,{priorSelectionWorkId:direct.workId})
       :ensureTranscodeSelection(snapshot,workspace,

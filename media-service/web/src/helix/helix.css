@@ -611,3 +611,6 @@ button, input, select, textarea { font: inherit; }
 @media (prefers-reduced-motion: reduce) {
   * { animation: none !important; transition: none !important; }
 }
+
+.formation-run-outcome { display: grid; gap: 12px; padding: 18px; justify-items: start; }
+.formation-run-outcome > h3, .formation-run-outcome > ul, .formation-run-outcome > p { margin: 0; }

@@ -40,6 +40,7 @@ function arcaMaterialEpisodeClaims() {
 
 function buildArcaApplicationSchemas() {
   return Object.freeze({
+    ...require('./defect-outcome-schema-builder').arcaSchemas(),
     ArcaMaterialEpisodeClaims: arcaMaterialEpisodeClaims(),
     OffdeckShelfCoverage: {
       $schema:DRAFT,$id:typeId('OffdeckShelfCoverage'),title:'OffdeckShelfCoverage@1',

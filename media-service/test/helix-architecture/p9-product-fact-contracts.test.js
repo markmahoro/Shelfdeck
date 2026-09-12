@@ -362,6 +362,16 @@ test('keeps Related NFO peopleHints within the MetadataObservation bound', () =>
   assert.equal(observationResult.peopleHints.length, METADATA_PEOPLE_HINTS_MAX);
 });
 
+test('records an absent artifact as failed verification without inventing an artifact handle', () => {
+  const result=buildArtifactManifestVerification({requirement:artifactRequirement(),artifactHandles:[],verifiedAtMs:20});
+  assert.equal(result.result,'failed');
+  assert.deepEqual(result.reasonCodes,['required_artifact_missing']);
+  assert.deepEqual(result.verifiedArtifacts,[]);
+  assert.deepEqual(result.artifactDigests,[]);
+  assert.throws(()=>buildArtifactManifestVerification({requirement:artifactRequirement(),verifiedAtMs:20}),
+    {code:'P9_ARTIFACT_VERIFICATION_INPUT'});
+});
+
 test('verifies artifact handles without embedding bytes or reading a second owner', () => {
   const requirement=artifactRequirement(), handle=artifactHandle(), snapshot={...handle,state:'active'};
   const result=buildArtifactManifestVerification({requirement,artifactHandles:[handle],verifiedAtMs:20});

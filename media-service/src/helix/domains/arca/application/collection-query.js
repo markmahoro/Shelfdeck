@@ -171,7 +171,11 @@ function createArcaCollectionQuery(options) {
       currentInventoryRevision:revision,currentDeckFactRevision:Number(row.current_deck_fact_revision),
       createdAtMs:Number(row.created_at_ms),terminalAtMs:row.terminal_at_ms===null?null:Number(row.terminal_at_ms)});}
   const emptyHealth=Object.freeze({state:'never_assessed'});
-  function withHealth(item,health){return item?Object.freeze({...item,health:health||options.healthReader?.(item.shelfEntryId)||emptyHealth}):null;}
+  function withHealth(item,health){
+    if(!item)return null;
+    const projection=health||options.healthReader?.(item.shelfEntryId)||emptyHealth;
+    return Object.freeze({...item,health:projection,...(Object.hasOwn(projection,'defectAdmission')?{defectAdmission:projection.defectAdmission}:{})});
+  }
   function getBase(shelfEntryId){return execute('arca_collection_entry_read',(context)=>map(context.repository(repository.repositoryId),context.repository(repository.repositoryId).invoke('find_entry',{shelf_entry_id:shelfEntryId})));}
   function get(shelfEntryId){return withHealth(getBase(shelfEntryId));}
   return Object.freeze({list(query={}){const packed=execute('arca_collection_list',(context)=>{

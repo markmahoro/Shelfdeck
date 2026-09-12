@@ -54,8 +54,8 @@ function artifactVerificationItem(handle, ordinal) {
 function buildArtifactManifestVerification(value) {
   const requirement = validateArtifactRequirement(value?.requirement);
   const handles = [...(value?.artifactHandles || [])];
-  if (handles.length < 1 || handles.length > 64 || handles.some((item) => item.artifactKind !== requirement.artifactKind))
-    fail('P9_ARTIFACT_VERIFICATION_INPUT', 'Artifact verification requires 1..64 matching handles.');
+  if (!Array.isArray(value?.artifactHandles) || handles.length > 64 || handles.some((item) => item.artifactKind !== requirement.artifactKind))
+    fail('P9_ARTIFACT_VERIFICATION_INPUT', 'Artifact verification requires 0..64 matching handles.');
   const verifiedArtifacts = handles.map(artifactVerificationItem);
   const sorted = [...verifiedArtifacts].sort((left, right) => compare(left.artifactKind, right.artifactKind) ||
     compare(left.artifactHandleId, right.artifactHandleId) || left.artifactRevision - right.artifactRevision);
@@ -69,7 +69,8 @@ function buildArtifactManifestVerification(value) {
   const verification = { schemaRef:'helix://contracts/types/ArtifactManifestVerification/v1', schemaVersion:1,
     verificationId:canonicalDigest({ schema:'shared.artifact-manifest-verification-id@1', manifestDigest,
       requirementDigest:requirement.requirementDigest, basisDigest }), verificationKind:'artifact_manifest', basisDigest,
-    result:'passed', reasonCodes:[], evidenceRefs:[], verifiedAtMs:integer(value?.verifiedAtMs, 'verifiedAtMs'),
+    result:handles.length ? 'passed' : 'failed', reasonCodes:handles.length ? [] : ['required_artifact_missing'],
+    evidenceRefs:[], verifiedAtMs:integer(value?.verifiedAtMs, 'verifiedAtMs'),
     manifestDigest, contractRef:requirement.schemaRef, requirement, verifiedArtifacts,
     artifactDigests:verifiedArtifacts.map((item) => item.artifactDigest), verificationDigest:'' };
   verification.verificationDigest = canonicalDigest(Object.fromEntries(

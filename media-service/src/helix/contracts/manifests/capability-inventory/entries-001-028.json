@@ -125,21 +125,21 @@
       "sourceLocator": {
         "section": "8.6.3",
         "line": 9620,
-        "lineDigest": "1b422c2d69c2b0560e34a8647403dcbf168e7c2ca832839a31df2675c35eca78"
+        "lineDigest": "154d01ac2c4d317dcf15c5e19cd8b29e12bdf1b1fca9be62600ccbf992f1e578"
       },
       "targetLocator": {
         "path": "capabilities/shared/artifact/manifest/verify/v1/manifest.json"
       },
       "contract": {
         "packagePath": "capabilities/shared/artifact/manifest/verify/v1",
-        "packageDigest": "fbf3807488ecd8264e9fb1c001039c484ed0a192d922374ad3af4edc497484b9",
+        "packageDigest": "437ba7b4e10b3357e8ebf15a0ab848706a4e6f3311c8e53daa610a59000e4787",
         "effectClass": "pure_observation",
-        "inputSummary": "ArtifactHandle[1..64] + ArtifactRequirement",
+        "inputSummary": "ArtifactHandle[0..64] + ArtifactRequirement",
         "outputFamily": "ArtifactManifestVerification"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "0ed1ee90afb2a919d294d2c42eea12665aee06490550a91f911ec5b17e9d0bbc"
+        "value": "d0879105b202d316d4a5549955b2f0b3b2410491e9b93b70a9d800f6a00f3754"
       }
     },
     {

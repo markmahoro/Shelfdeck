@@ -72,6 +72,9 @@
           "$ref": "helix://contracts/application-types/LibraRunTerminalDeliveryEvidence/v1"
         },
         {
+          "$ref": "helix://contracts/application-types/LibraStrategyAvailability/v1"
+        },
+        {
           "$ref": "helix://contracts/application-types/AuthorizedDefectManifest/v1"
         },
         {

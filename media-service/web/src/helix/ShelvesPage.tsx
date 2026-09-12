@@ -16,6 +16,7 @@ import {
 import { Button, LoadingState, PageHeader } from './chrome';
 import { isUnauthorized, useSession } from './session';
 import InputSettlementAuthorization from './InputSettlementAuthorization';
+import DefectAuthorization from './DefectAuthorization';
 
 const HIGH_QUALITY_AUDIO = ['dts_hd_ma', 'dts_x', 'eac3_atmos', 'truehd', 'truehd_atmos'];
 const SYSTEM_TEMPLATE_ID = 'system-beta-recommended';
@@ -430,6 +431,7 @@ export default function ShelvesPage() {
     <PageHeader title="收藏架配置" actions={<>
       <Button type="button" onClick={() => void load()} disabled={loading}>刷新</Button>
       <InputSettlementAuthorization />
+      <DefectAuthorization />
       <Button variant="primary" type="button" onClick={() => setShowCreate((value) => !value)}>{showCreate ? '收起' : '新建收藏架'}</Button>
     </>} />
     {showCreate && <form className="source-create" onSubmit={createShelf}>

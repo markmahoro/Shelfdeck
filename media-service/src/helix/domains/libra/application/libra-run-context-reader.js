@@ -90,8 +90,8 @@ function createLibraRunContextReader(options) {
       items.push(Object.freeze({subjectId:row.subject_id}));
     }
     return Object.freeze({items:Object.freeze(items),nextCursor:items.length?items.at(-1).subjectId:null});}
-  function listActiveRunPage(cursor=null,limit=100){if(!Number.isSafeInteger(limit)||limit<1||limit>100)throw new TypeError('Active Libra Run page limit must be 1..100.');
-    const rows=exact((context)=>context.repository(repository.repositoryId).invoke('page_active_runs',{state:'active',cursor,limit}));
+  function listActiveRunPage(cursor=null,limit=100,state='active'){if(!Number.isSafeInteger(limit)||limit<1||limit>100||!['active','frozen','completed'].includes(state))throw new TypeError('Libra Run page requires a supported state and limit 1..100.');
+    const rows=exact((context)=>context.repository(repository.repositoryId).invoke('page_active_runs',{state,cursor,limit}));
     const items=Object.freeze(rows.map((row)=>Object.freeze({libraRunId:row.libra_run_id})));
     return Object.freeze({items,nextCursor:items.length===limit?items.at(-1).libraRunId:null});}
   return Object.freeze({read,headSnapshot,decisionHeadSnapshot,readAcceptanceSpec,listReadySubjectPage,listActiveRunPage});

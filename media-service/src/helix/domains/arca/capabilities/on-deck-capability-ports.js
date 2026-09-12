@@ -16,6 +16,7 @@ const { finalGapDecision, GAP_CODES_BY_CHECK } = require('../model/acceptance-ga
 const { CAPABILITY_REFS:C } = require('../model/on-deck-contract');
 const { buildAftercareInventoryRequest } = require('../model/aftercare-placement');
 const { requiresInputSettlement } = require('../model/offload-settlement');
+const {acceptsMetadataFields,missingMetadataFields,acceptsArtifactKinds,packageMissingArtifactKinds}=require('../model/authorized-defect-manifest');
 
 const BASE='helix://contracts/capabilities/';
 function stable(prefix,value){return prefix+canonicalDigest(value).slice(0,40);}
@@ -41,6 +42,8 @@ function check(ref,kind,input,passed,reason,at,details={}){const basisDigest=can
   evidenceRefs:Object.freeze([basisDigest]),verifiedAtMs:at,acceptanceAttemptId:input.acceptanceAttemptId,checkKind:kind,
   standardRevision:input.standardRevision,packageDigest:input.packageDigest,requirementDigest:details.requirementDigest||canonicalDigest(input),
   evidenceStatus:details.evidenceStatus||'complete',actualGapCodes:gaps,actualGapSetDigest:details.actualGapSetDigest||actualGapDigest(kind,gaps),
+  missingMetadataFields:Object.freeze(details.missingMetadataFields||[]),
+  missingArtifactKinds:Object.freeze(details.missingArtifactKinds||[]),
   primaryMediaObservations:observations,primaryMediaObservationSetDigest:details.primaryMediaObservationSetDigest||emptyObservationDigest(),
   authorizedDefectManifestDigestOrNull:manifest?.manifestDigest||null,
   authorizedGapComparison:manifest?'pending_final_union':'not_applicable'});return result;}
@@ -55,12 +58,15 @@ function packageRequirementSnapshot(c){const value=c.packageValue?.productionPro
   return Object.freeze({value,stale:value.shelfStandardRevision!==c.shelf.currentStandardRevision||
     value.shelfStandardDigest!==c.shelf.standard.digest});}
 function dimensionDisposition(c,kind,gaps){const manifest=c.packageValue.productionAttestation?.authorizedDefectManifest;
+  if(kind==='metadata'&&(!acceptsMetadataFields(manifest,missingMetadataFields(c.packageValue,packageRequirementSnapshot(c).value.requirements.metadata))||!acceptsArtifactKinds(manifest,packageMissingArtifactKinds(c.packageValue,packageRequirementSnapshot(c).value.requirements))))return false;
   return manifest?canonicalJson(gaps)===canonicalJson(GAP_CODES_BY_CHECK[kind].filter((item)=>manifest.waivedRequirementCodes.includes(item))):gaps.length===0;}
 function gapReason(kind){return {identity:'identity_requirement_unmet',structure:'structure_requirement_unmet',metadata:'metadata_requirement_unmet',
   mandatory_media:'mandatory_requirement_unmet',space:'space_requirement_unmet'}[kind];}
 function dimensionCheck(ref,kind,input,c,at,gaps,requirementDigest){const snapshot=packageRequirementSnapshot(c),authorizedDefectManifest=c.packageValue.productionAttestation?.authorizedDefectManifest||null;
   if(snapshot.stale)return check(ref,kind,input,false,'stale_decision_basis',at,{requirementDigest,evidenceStatus:'stale_basis',authorizedDefectManifest});
-  return check(ref,kind,input,dimensionDisposition(c,kind,gaps),gapReason(kind),at,{actualGapCodes:gaps,requirementDigest,authorizedDefectManifest});}
+  return check(ref,kind,input,dimensionDisposition(c,kind,gaps),gapReason(kind),at,{actualGapCodes:gaps,requirementDigest,authorizedDefectManifest,
+    missingMetadataFields:kind==='metadata'?missingMetadataFields(c.packageValue,snapshot.value.requirements.metadata):[],
+    missingArtifactKinds:kind==='metadata'?packageMissingArtifactKinds(c.packageValue,snapshot.value.requirements):[]});}
 function identityGaps(c,requirement){const identity=c.packageValue.resolvedIdentitySnapshot?.factValue?.resolvedProductIdentity||
   c.packageValue.resolvedIdentitySnapshot?.factValue||{},providers=identity.providerIdentities||identity.providerIdentityAnchors||[],gaps=[];
   if(!identity.identityDigest||requirement.identityKind==='tmdb_movie'&&!providers.some((item)=>item.namespace==='tmdb_movie')||

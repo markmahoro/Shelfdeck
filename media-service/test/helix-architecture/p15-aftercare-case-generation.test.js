@@ -76,6 +76,19 @@ test('record-only, unsupported, and empty goals cannot create an Aftercare Case'
   }finally{value.close();}
 });
 
+test('UAT-251 periodic assessment and Finding instance changes cannot repeat the same failed maintenance',()=>{
+  const value=fixture();try{
+    const request=value.request('same-conditions');
+    const first=value.store.createCase(request);
+    value.store.terminateCase(first.aftercareCaseId,'unresolved','repair_preparation_exhausted',digest('unchanged-failure'));
+    const requirement={...request.careRequirement,requiredEffects:request.careRequirement.requiredEffects.map(effect=>({...effect,objectId:'new-finding-instance'}))};
+    requirement.digest=canonicalDigest(requirement);
+    const replay=value.store.createCase({...request,careRequirement:requirement,basisInputs:request.basisInputs.map(input=>({...input,aggregateId:'next-period-assessment'}))});
+    assert.equal(replay.aftercareCaseId,first.aftercareCaseId);assert.equal(replay.state,'unresolved');
+    assert.equal(value.store.history('entry-1').cases.length,1);
+  }finally{value.close();}
+});
+
 test('a new Assessment trigger creates the next Case generation on the same Care Basis', () => {
   const value=fixture();
   try {

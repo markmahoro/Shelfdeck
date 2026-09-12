@@ -23,8 +23,8 @@
         "$ref": "helix://contracts/types/ArtifactHandle/v1"
       },
       "maxItems": 64,
-      "minItems": 1,
-      "x-helix-typeExpression": "ArtifactHandle[1..64]"
+      "minItems": 0,
+      "x-helix-typeExpression": "ArtifactHandle[0..64]"
     },
     "artifactRequirement": {
       "$ref": "helix://contracts/domain-types/ArtifactRequirement/v1",

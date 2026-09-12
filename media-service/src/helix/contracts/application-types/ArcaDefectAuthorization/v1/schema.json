@@ -1,0 +1,229 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/application-types/ArcaDefectAuthorization/v1",
+  "title": "ArcaDefectAuthorization@1",
+  "x-helix-ssotRefs": [
+    "5.6.7",
+    "8.5.13",
+    "8.6.21",
+    "9.5.3",
+    "9.5.4"
+  ],
+  "x-helix-maxCanonicalBytes": 65536,
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaRef": {
+      "const": "helix://contracts/application-types/ArcaDefectAuthorization/v1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "shelfEntryId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "revision": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991
+    },
+    "inventoryRevision": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991
+    },
+    "careBasisDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "gaps": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "ownerDomain": {
+            "const": "arca"
+          },
+          "shelfEntryId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "requirementCode": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "targetKind": {
+            "enum": [
+              "media",
+              "artifact",
+              "metadata_field"
+            ]
+          },
+          "targetId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "requiredValue": {
+            "oneOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "field": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "required": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "field",
+                  "required"
+                ]
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "artifact": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "required": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "artifact",
+                  "required"
+                ]
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "code": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "value": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 256
+                      },
+                      {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      {
+                        "type": "null"
+                      },
+                      {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 256
+                        },
+                        "uniqueItems": true
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "code",
+                  "value"
+                ]
+              }
+            ]
+          },
+          "requiredValueDigest": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "findingKind": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "findingDigest": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "gapDigest": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          }
+        },
+        "required": [
+          "ownerDomain",
+          "shelfEntryId",
+          "requirementCode",
+          "targetKind",
+          "targetId",
+          "requiredValue",
+          "requiredValueDigest",
+          "findingKind",
+          "findingDigest",
+          "gapDigest"
+        ]
+      },
+      "uniqueItems": true
+    },
+    "gapSetDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "candidateDigest": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "actorId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "decidedAtMs": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9007199254740991
+    },
+    "authorizationDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "schemaRef",
+    "schemaVersion",
+    "shelfEntryId",
+    "revision",
+    "inventoryRevision",
+    "careBasisDigest",
+    "gaps",
+    "gapSetDigest",
+    "candidateDigest",
+    "actorId",
+    "decidedAtMs",
+    "authorizationDigest"
+  ]
+}

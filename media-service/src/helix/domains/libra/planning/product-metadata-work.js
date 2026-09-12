@@ -17,9 +17,15 @@ function compare(left, right) {
 }
 
 function requiredMetadataFields(snapshot) {
+  const waived=new Set((snapshot.run.authorizedDefectManifest?.defects||[]).flatMap(item=>item.metadataFieldCodes||[]));
   return Object.freeze([...snapshot.spec.requirements.metadata.requiredFieldCodes]
-    .filter((item) => item !== 'actor')
+    .filter((item) => item !== 'actor'&&!waived.has(item))
     .sort(compare));
+}
+
+function requiredArtifactKinds(snapshot) {
+  const waived=new Set((snapshot.run.authorizedDefectManifest?.defects||[]).flatMap(item=>item.artifactKindCodes||[]));
+  return Object.freeze(require('../../../contracts/artifact-requirement-gaps').requiredArtifactKinds(snapshot.spec.requirements).filter(kind=>!waived.has(kind)));
 }
 
 function requiredMediaCastRoles(snapshot) {
@@ -152,11 +158,11 @@ function providerSource(options, snapshot, identity, sourcePriority,
 }
 
 function nextMetadataStage(options, snapshot, identity) {
-  const requiredFields = requiredMetadataFields(snapshot);
-  const authorizedDefects = new Set((snapshot.run.authorizedDefectManifest?.defects || [])
-    .map((item) => item.defectCode));
+  const waivedFields=new Set((snapshot.run.authorizedDefectManifest?.defects || []).flatMap(item=>item.metadataFieldCodes||
+    (item.defectCode==='actor_unavailable'?['actor']:[])));
+  const requiredFields = Object.freeze(requiredMetadataFields(snapshot).filter(field=>!waivedFields.has(field)));
   const requiredCastRoles = Object.freeze(requiredMediaCastRoles(snapshot)
-    .filter((role) => role !== 'actor' || !authorizedDefects.has('actor_unavailable')));
+    .filter((role) => !waivedFields.has(role)));
   const results = metadataResultItems(options, snapshot.run.libraRunId);
   const observed = observedFieldKeys(results);
   const observedCastRoles = observedMediaCastRoles(results);
@@ -239,4 +245,7 @@ module.exports = Object.freeze({
   nfoReferences,
   requiredMediaCastRoles,
   requiredMetadataFields,
+  requiredArtifactKinds,
+  observedFieldKeys,
+  observedMediaCastRoles,
 });

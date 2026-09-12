@@ -39,7 +39,101 @@
       "arca_aftercare_findings",
       "arca_shelf_entries"
     ],
-    "variants": [],
+    "variants": [
+      {
+        "variantId": "repair_accepted_defects@1",
+        "participants": [
+          {
+            "participantKind": "domain",
+            "owner": "arca",
+            "access": "write",
+            "tables": [
+              "arca_aftercare_cases",
+              "arca_aftercare_case_basis_inputs",
+              "arca_defect_admissions",
+              "arca_defect_admission_heads",
+              "arca_defect_repair_intents"
+            ]
+          },
+          {
+            "participantKind": "foundation",
+            "owner": "execution-foundation",
+            "access": "write",
+            "tables": [
+              "fx_commit_markers",
+              "fx_outbox",
+              "fx_command_receipts",
+              "fx_audit_records"
+            ]
+          },
+          {
+            "participantKind": "material-control",
+            "owner": "material-control-authority",
+            "access": "write",
+            "tables": [
+              "fx_material_controls",
+              "fx_material_control_revisions"
+            ]
+          }
+        ],
+        "writeTables": [
+          "arca_aftercare_cases",
+          "arca_aftercare_case_basis_inputs",
+          "fx_commit_markers",
+          "fx_outbox",
+          "arca_defect_admissions",
+          "arca_defect_admission_heads",
+          "arca_defect_repair_intents",
+          "fx_material_controls",
+          "fx_material_control_revisions",
+          "fx_command_receipts",
+          "fx_audit_records"
+        ],
+        "readTables": [
+          "arca_aftercare_assessments",
+          "arca_aftercare_findings",
+          "arca_shelf_entries",
+          "arca_defect_admissions",
+          "arca_defect_admission_heads",
+          "arca_defect_repair_intents",
+          "arca_inventory_materials",
+          "arca_offdeck_reservations",
+          "arca_shelves"
+        ],
+        "selector": {
+          "selectorKind": "owner_command_exact",
+          "commandContract": "arca.repair-accepted-defects@1"
+        },
+        "dynamicTableRequirements": [],
+        "fenceContract": {
+          "domainRevisionFenceRequired": true,
+          "materialControlCasRequired": true,
+          "commitMarkerRequired": true,
+          "outboxRequired": true
+        },
+        "rollbackInvariant": "Stale Inventory, Basis, accepted gaps, authorization revision, Control, or duplicate intent leaves no Case, intent, authorization, receipt, marker, or audit; files and prior Inventory remain unchanged.",
+        "crashFixtures": [
+          {
+            "fixtureId": "aftercare-basis-inventory",
+            "faultInjectionPoints": "Standard/Placement/Decision Fact变化、Case create、Workspace output、Stage/Switch、Settlement、Inventory/Control commit",
+            "requiredInvariant": "Case冻结完整Care Basis；旧Basis不能提交；原Shelf Entry/Identity/Deck持续；新Inventory revision与Control set一致",
+            "source": {
+              "section": "8.9.7",
+              "line": 8421
+            }
+          },
+          {
+            "fixtureId": "command-idempotency",
+            "faultInjectionPoints": "Owner业务修改后响应前崩溃、相同key同payload重试、相同key不同payload重试",
+            "requiredInvariant": "Receipt与Owner修改同事务；同payload返回原result ref；不同payload稳定拒绝；不重复创建对象或推进revision",
+            "source": {
+              "section": "8.9.7",
+              "line": 8428
+            }
+          }
+        ]
+      }
+    ],
     "dynamicTableRequirements": [],
     "forbiddenWriteTables": [],
     "forbiddenWritePrefixes": [],

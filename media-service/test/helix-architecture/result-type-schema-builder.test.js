@@ -210,7 +210,9 @@ test('materializes Artifact Requirement and bounded verification Result continui
     assert.ok(verification.required.includes(field), field);
   }
   assert.equal(verification.properties.requirement.$ref, 'helix://contracts/domain-types/ArtifactRequirement/v1');
-  assert.equal(verification.properties.verifiedArtifacts.minItems, 1);
+  assert.equal(verification.allOf[0].then.properties.verifiedArtifacts.minItems, 1);
+  assert.equal(verification.allOf[0].else.properties.verifiedArtifacts.maxItems, 0);
+  assert.deepEqual(verification.allOf[0].else.properties.reasonCodes.const, ['required_artifact_missing']);
   assert.equal(verification.properties.verifiedArtifacts.maxItems, 64);
   assert.equal(verification.properties.artifactDigests.maxItems, 64);
   assert.equal(verification['x-helix-maxCanonicalBytes'], 64 * 1024);

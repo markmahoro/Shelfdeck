@@ -28,7 +28,7 @@ function createFormationStatusProjection(options) {
       },
       commits: {
         kind: 'select-in', tableId: 'arca_ondeck_commit_receipts', keyColumn: 'on_deck_run_id', maxItems: MAX_ITEMS,
-        columns: ['on_deck_run_id', 'shelf_entry_id', 'inventory_revision', 'deck_fact_revision',
+        columns: ['receipt_id','on_deck_run_id', 'shelf_entry_id', 'inventory_revision', 'deck_fact_revision',
           'related_disposition_completion_digest', 'commit_digest', 'committed_at_ms'], safeIntegers: true,
       },
       entries: {
@@ -107,6 +107,11 @@ function createFormationStatusProjection(options) {
           result.set(receipt.offer_id, Object.freeze(complete ? {
             stage: 'completed', reasonCode: null, completedAtMs: Number(commit.committed_at_ms),
             shelfEntryId: commit.shelf_entry_id, onDeckRunId: run.on_deck_run_id,
+            onDeckCommitReceipt:Object.freeze({receiptId:commit.receipt_id,receiptKind:'on_deck_committed',
+              ownerDomain:'arca',onDeckRunId:run.on_deck_run_id,onDeckPackageId:receipt.on_deck_package_id,
+              packageDigest:receipt.package_digest,shelfEntryId:commit.shelf_entry_id,
+              inventoryRevision:Number(commit.inventory_revision),deckFactRevision:Number(commit.deck_fact_revision),
+              commitDigest:commit.commit_digest,committedAtMs:Number(commit.committed_at_ms)}),
           } : {
             stage: 'in_progress', reasonCode: null, completedAtMs: null,
             shelfEntryId: null, onDeckRunId: run.on_deck_run_id,

@@ -167,7 +167,7 @@ test('Aftercare batch health passes frozen rating targets instead of triggering 
       decisionFactDigests:Object.freeze([]),history:Object.freeze({assessments:Object.freeze([]),findings:Object.freeze([]),cases:Object.freeze([]),commits:Object.freeze([])})});
   });
   let calls=0;
-  const reader=createAftercareContextReader({aftercareStore:{healthProjectionInputs:(ids)=>{
+  const reader=createAftercareContextReader({aftercareStore:{defectStore:{currentMany:()=>new Map()},healthProjectionInputs:(ids)=>{
     assert.deepEqual(ids,items.map((item)=>item.shelfEntryId));return items;
   }},buildRatingTargetIdentity:LibraExecutionRegistration.buildRatingTargetIdentity,
   readPerceptionRatings:(targets)=>{calls+=1;assert.equal(targets.length,501);

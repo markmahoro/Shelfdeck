@@ -1,0 +1,340 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/application-types/LibraRunOutcome/v1",
+  "title": "LibraRunOutcome@1",
+  "x-helix-ssotRefs": [
+    "5.6.7",
+    "8.5.13",
+    "8.6.21",
+    "9.5.3",
+    "9.5.4"
+  ],
+  "x-helix-maxCanonicalBytes": 65536,
+  "oneOf": [
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "schemaRef": {
+          "const": "helix://contracts/application-types/LibraRunOutcome/v1"
+        },
+        "schemaVersion": {
+          "const": 1
+        },
+        "libraRunId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "subjectId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "stableInputDigest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "requirementsDigest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "conditionsDigest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "committedAtMs": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "outcome": {
+          "enum": [
+            "on_deck",
+            "on_deck_with_defects"
+          ]
+        },
+        "reasonCode": {
+          "enum": [
+            "requirements_met",
+            "accepted_defects"
+          ]
+        },
+        "onDeckCommitReceipt": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "receiptId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            "receiptKind": {
+              "const": "on_deck_committed"
+            },
+            "ownerDomain": {
+              "const": "arca"
+            },
+            "onDeckRunId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            "onDeckPackageId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            "packageDigest": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "shelfEntryId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            "inventoryRevision": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            "deckFactRevision": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            "commitDigest": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "committedAtMs": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            }
+          },
+          "required": [
+            "receiptId",
+            "receiptKind",
+            "ownerDomain",
+            "onDeckRunId",
+            "onDeckPackageId",
+            "packageDigest",
+            "shelfEntryId",
+            "inventoryRevision",
+            "deckFactRevision",
+            "commitDigest",
+            "committedAtMs"
+          ]
+        },
+        "authorizedDefectManifest": {
+          "anyOf": [
+            {
+              "$ref": "helix://contracts/application-types/AuthorizedDefectManifest/v1"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "schemaRef",
+        "schemaVersion",
+        "libraRunId",
+        "subjectId",
+        "stableInputDigest",
+        "requirementsDigest",
+        "conditionsDigest",
+        "committedAtMs",
+        "outcome",
+        "reasonCode",
+        "onDeckCommitReceipt",
+        "authorizedDefectManifest"
+      ]
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "schemaRef": {
+          "const": "helix://contracts/application-types/LibraRunOutcome/v1"
+        },
+        "schemaVersion": {
+          "const": 1
+        },
+        "libraRunId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "subjectId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "stableInputDigest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "requirementsDigest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "conditionsDigest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "committedAtMs": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "outcome": {
+          "const": "unable_to_on_deck"
+        },
+        "reasonCode": {
+          "enum": [
+            "user_cancelled",
+            "processing_failed"
+          ]
+        },
+        "terminalEvidenceDigest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "terminalReasons": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "failureClass": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              "failureCode": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              "capabilityRef": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              }
+            },
+            "required": [
+              "failureClass",
+              "failureCode",
+              "capabilityRef"
+            ]
+          },
+          "uniqueItems": true
+        },
+        "terminalProductEvidence": {
+          "anyOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "libraRunId": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 256
+                },
+                "runStateRevision": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 9007199254740991
+                },
+                "runStateDigest": {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{64}$"
+                },
+                "verificationId": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 256
+                },
+                "verificationDigest": {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{64}$"
+                },
+                "reasonCodes": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "uniqueItems": true,
+                  "maxItems": 32
+                }
+              },
+              "required": [
+                "libraRunId",
+                "runStateRevision",
+                "runStateDigest",
+                "verificationId",
+                "verificationDigest",
+                "reasonCodes"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "recoveryConditions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "conditionKind": {
+                "enum": [
+                  "moviepilot",
+                  "tmdb",
+                  "media_compute"
+                ]
+              },
+              "snapshotDigest": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              }
+            },
+            "required": [
+              "conditionKind",
+              "snapshotDigest"
+            ]
+          },
+          "uniqueItems": true,
+          "maxItems": 8
+        },
+        "responsibilityReceipt": {
+          "$ref": "helix://contracts/application-types/LibraRunDiscardReceipt/v1"
+        }
+      },
+      "required": [
+        "schemaRef",
+        "schemaVersion",
+        "libraRunId",
+        "subjectId",
+        "stableInputDigest",
+        "requirementsDigest",
+        "conditionsDigest",
+        "committedAtMs",
+        "outcome",
+        "reasonCode",
+        "terminalEvidenceDigest",
+        "terminalReasons",
+        "terminalProductEvidence",
+        "recoveryConditions",
+        "responsibilityReceipt"
+      ]
+    }
+  ]
+}

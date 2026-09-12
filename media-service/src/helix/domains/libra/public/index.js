@@ -10,6 +10,8 @@ const { createIntakeOfferReader } = require('../persistence/intake-offer-reader'
 const { createMaterialBindingScopeReader } = require('../application/material-binding-scope-reader');
 const { createIntakeDecisionResolver } = require('../application/intake-decision-resolver');
 const { createIntakeProcessCoordinator } = require('../application/intake-process-coordinator');
+const {createRunOutcomeStore}=require('../persistence/run-outcome-store');
+const {resolveCurrentRequirements}=require('../model/acceptance-spec-contracts');
 const {
   createLibraPipelineAdmission,
   fieldIdFromOfferSource,
@@ -33,6 +35,7 @@ const { createLibraRunCreator } = require('../application/libra-run-creator');
 const { createLibraRunCoordinator } = require('../application/libra-run-coordinator');
 const { createLibraRunExecutionProjection } = require('../application/libra-run-execution-projection');
 const { createLibraRunLifecycleService } = require('../application/libra-run-lifecycle-service');
+const { createLibraRunAdminService } = require('../application/libra-run-admin-service');
 const { createProductIdentitySelectionService } = require('../application/product-identity-selection-service');
 const { createMovieProductionReader } = require('../persistence/movie-production-reader');
 const { createProductFactCapabilityPorts } = require('../capabilities/product-fact-capability-ports');
@@ -201,6 +204,7 @@ function createExecutionRegistration() {
     },
     createProcessServices(options) {
       const offerReader=options.offerReader || createIntakeOfferReader(options);
+      const outcomes=createRunOutcomeStore(options);
       const decisionResolver=createIntakeDecisionResolver(options);
       const intakeStore=options.intakeStore || createLibraIntakeStore(options);
       const subjectIdForProcess=(processId)=>{
@@ -218,6 +222,10 @@ function createExecutionRegistration() {
       });
       const coordinator=createIntakeProcessCoordinator({
         ...options,offerReader,decisionResolver,pipelineAdmission,subjectIdForProcess,
+        checkReentry:source=>intakeStore.getReceipt(source.processId)?null:outcomes.checkReentry(source,subjectId=>{
+          const current=acceptanceSpecContextReader.read(subjectId);
+          return current.inputSet?resolveCurrentRequirements(current.inputSet):null;
+        }),
       });
       const routingContextReader=createRoutingContextReader(options);
       const routingCoordinator=createRoutingProcessCoordinator({...options,contextReader:routingContextReader});
@@ -229,7 +237,11 @@ function createExecutionRegistration() {
       const productIdentitySelection=createProductIdentitySelectionService(options);
       const libraRunLifecycleService=createLibraRunLifecycleService({...options,libraRunExecutionProjection});
       const movieProductionReader=options.movieProductionReader||createMovieProductionReader(options);
+      const libraRunAdminService=createLibraRunAdminService({...options,libraRunExecutionProjection,pipelineAdmission});
       const libraRunCoordinator=createLibraRunCoordinator({...options,movieProductionReader,libraRunLifecycleService,productIdentitySelection,routingContextReader,
+        resolveFrozenRun:libraRunAdminService.reconcileFrozen,
+        resolveRejectedRun:libraRunAdminService.reconcileRejected,
+        waitUnavailableStrategy:libraRunAdminService.waitUnavailableStrategy,
         resolveCurrentAcceptanceSpec(subjectId){
           const resolution=acceptanceSpecCoordinator.reconcile(subjectId);
           if(resolution.kind!=='terminal')return resolution;
@@ -238,7 +250,7 @@ function createExecutionRegistration() {
         }});
       return Object.freeze({offerReader,decisionResolver,coordinator,routingContextReader,routingCoordinator,acceptanceSpecContextReader,
         acceptanceSpecCoordinator,libraRunContextReader,libraRunCreator,movieProductionReader,libraRunCoordinator,
-        libraRunExecutionProjection,libraRunLifecycleService,productIdentitySelection,pipelineAdmission,intakeStore});
+        libraRunExecutionProjection,libraRunLifecycleService,libraRunAdminService,productIdentitySelection,pipelineAdmission,intakeStore});
     },
     createPlanningRegistration(options) {
       const productDeliveryAssembler=options.productDeliveryAssembler||createProductDeliveryAssembler(options);

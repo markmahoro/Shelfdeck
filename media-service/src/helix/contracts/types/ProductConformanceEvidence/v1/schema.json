@@ -124,6 +124,24 @@
         ]
       },
       "maxItems": 23
+    },
+    "missingMetadataFields": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 256
+      },
+      "maxItems": 64
+    },
+    "missingArtifactKinds": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 256
+      },
+      "maxItems": 3
     }
   },
   "required": [
@@ -143,6 +161,8 @@
     "productSnapshotDigest",
     "productFactSetDigest",
     "evaluatedRequirementSetDigest",
-    "unmetRequirementCodes"
+    "unmetRequirementCodes",
+    "missingMetadataFields",
+    "missingArtifactKinds"
   ]
 }

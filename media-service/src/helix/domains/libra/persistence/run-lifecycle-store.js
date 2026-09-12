@@ -1,5 +1,7 @@
 "use strict";
 
+const { createDefectAuthorizationStore } = require('./defect-authorization-store');
+
 const {
   canonicalDigest,
   canonicalJson,
@@ -51,6 +53,7 @@ function libraDefinition(schemaManifest) {
     owner: "libra",
     schemaManifest,
     statements: {
+      strategy_observation:{kind:'select-one',tableId:'libra_strategy_availability',keyColumns:['libra_run_id','strategy_kind','condition_digest','check_ordinal'],columns:['evidence_digest']},
       find_run: {
         kind: "select-one",
         tableId: "libra_runs",
@@ -528,6 +531,8 @@ function foundationDefinition(schemaManifest) {
         ],
         keyColumns: [],
       },
+      list_run_metadata_works:{kind:'select-all',tableId:'fx_supporting_works',columns:['work_id','state'],keyColumns:['owner_domain','process_type','process_id','work_kind']},
+      list_metadata_work_events:{kind:'select-all',tableId:'fx_workflow_events',columns:['event_id','capability_ref','state'],keyColumns:['work_id']},
       update_work_priority: {
         kind: "update",
         tableId: "fx_supporting_works",
@@ -1409,7 +1414,7 @@ function acceptedMessage(value, run, pkg) {
   return receipt;
 }
 
-function assertTerminalEvidence(repo, decision, run, resolveRetryPolicyDigest) {
+function assertTerminalEvidence(repo, decision, run, resolveRetryPolicyDigest,requirements) {
   const evidence = decision.transitionEvidence;
   if (!evidence.blockedWorks) return;
   if (typeof resolveRetryPolicyDigest !== "function")
@@ -1451,6 +1456,20 @@ function assertTerminalEvidence(repo, decision, run, resolveRetryPolicyDigest) {
           Array.isArray(payload.peopleHints) &&
           !payload.peopleHints.some((item) => item?.role === "actor" &&
             typeof item.displayName === "string" && item.displayName);
+        let fieldsMissing=false;
+        if(member.failureCode==='product_metadata_required_fields_missing'&&member.capabilityRef==='libra.product_metadata.fetch@1'&&payload.sourceKind==='provider') {
+          const observed=new Set();
+          const works=repo.invoke('list_run_metadata_works',{owner_domain:'libra',process_type:'libra_run',process_id:run.libra_run_id,work_kind:'product_metadata_observation'});
+          for(const work of works)for(const event of repo.invoke('list_metadata_work_events',{work_id:work.work_id})) {
+            if(work.state!=='succeeded'||event.state!=='succeeded'||event.capability_ref!=='libra.product_metadata.fetch@1')continue;
+            const result=repo.invoke('find_event_result',{event_id:event.event_id});
+            if(!result||result.outcome_kind!=='succeeded')continue;
+            const observation=JSON.parse(result.result_json);
+            if(canonicalDigest(observation)!==result.result_digest)throw new Error('Metadata observation digest mismatch.');
+            for(const field of observation.descriptiveFacts?.entries||[])if(field.value!=null&&field.value!==''&&(!Array.isArray(field.value)||field.value.length))observed.add(field.key);
+          }
+          fieldsMissing=Boolean(requirements?.metadata?.requiredFieldCodes.some(field=>field!=='actor'&&!observed.has(field)));
+        }
         const exactSizeCapAdmission =
           member.failureCode === "size_cap_requires_admission" &&
           member.capabilityRef === "libra.product_media.verify@1" &&
@@ -1461,7 +1480,7 @@ function assertTerminalEvidence(repo, decision, run, resolveRetryPolicyDigest) {
         businessResultValid = boundResult.outcome_kind === "succeeded" &&
           canonicalDigest(payload) === boundResult.result_digest &&
           boundResult.result_digest === member.terminalEvidenceDigest &&
-          (reasons.includes(member.failureCode) || actorMissing || exactSizeCapAdmission);
+          (reasons.includes(member.failureCode) || actorMissing || fieldsMissing || exactSizeCapAdmission);
       } catch {
         businessResultValid = false;
       }
@@ -1530,7 +1549,7 @@ function createRunLifecycleStore(options) {
     history = controlHistoryDefinition(options.schemaManifest);
   return Object.freeze({
     repositoryManifest: Object.freeze({
-      libraTableIds: libra.tableIds,
+      libraTableIds: Object.freeze([...new Set([...libra.tableIds,...createDefectAuthorizationStore(options).readTableIds])]),
       foundationTableIds: foundation.tableIds,
       controlHistoryTableIds: history.tableIds,
     }),
@@ -1791,6 +1810,7 @@ function createRunLifecycleStore(options) {
         run,
         skeleton,
         original,
+        terminalRequirements,
         controls = [],
         controlKeys = [];
       const preflight = {
@@ -1833,6 +1853,16 @@ function createRunLifecycleStore(options) {
           const repo = context.repository(libra.repositoryId);
           run = repo.invoke("find_run", { libra_run_id: decision.libraRunId });
           if (!run) fail("P9_RUN_LIFECYCLE_RUN", "Run is absent.");
+          if(decision.transitionEvidence.availabilityId) {
+            const evidence=decision.transitionEvidence;
+            const observation=repo.invoke('strategy_observation',{libra_run_id:run.libra_run_id,strategy_kind:evidence.strategyKind,
+              condition_digest:evidence.conditionDigest,check_ordinal:5});
+            if(observation?.evidence_digest!==evidence.evidenceDigest)fail('LIBRA_STRATEGY_EVIDENCE_STALE','Strategy terminal evidence requires its exact persisted fifth recheck.');
+          }
+          if(decision.transitionEvidence.blockedWorks) {
+            const spec=repo.invoke('find_spec',{acceptance_spec_id:run.acceptance_spec_id});
+            terminalRequirements=spec?JSON.parse(spec.spec_json).requirements:null;
+          }
           const freshness = Boolean(decision.transitionEvidence.assessmentId);
           if (freshness) {
             original = originalSnapshot(repo, run);
@@ -2126,6 +2156,7 @@ function createRunLifecycleStore(options) {
             decision,
             run,
             options.resolveRetryPolicyDigest,
+            terminalRequirements,
           );
           if (decision.transitionKind === "set_priority") {
             const queueClass = decision.newPriority.priorityClass === "expedited"
@@ -2213,7 +2244,11 @@ function createRunLifecycleStore(options) {
         },
       };
       try {
-        options.unitOfWork.execute([preflight, read, authority, apply, finish]);
+        const authorization = decision.transitionKind === 'defect_admit'
+          && decision.transitionEvidence.standingAuthorization;
+        const guards = authorization
+          ? [createDefectAuthorizationStore(options).guardParticipant(authorization)] : [];
+        options.unitOfWork.execute([preflight, ...guards, read, authority, apply, finish]);
       } catch (error) {
         if (error instanceof Replay)
           return Object.freeze({ result: error.result, replayed: true });

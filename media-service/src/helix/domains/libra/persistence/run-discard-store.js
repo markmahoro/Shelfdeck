@@ -27,6 +27,7 @@ const {
   referenceSetDigest,
 } = require('../model/workspace-material-reference-contracts');
 const { controlItem } = require('../model/workspace-cleanup-contracts');
+const { createRunOutcomeStore } = require('./run-outcome-store');
 
 const TRANSACTION_ID = 'helix.transaction.libra-run-discard-commit';
 const DECISION_SCHEMA = 'LibraRunDiscardDecision@1';
@@ -186,6 +187,10 @@ function controlDefinition(schemaManifest) {
 function foundationDefinition(schemaManifest) {
   return createRepositoryDefinition({ repositoryId:'libra_run_discard_foundation', owner:'execution-foundation',
     schemaManifest, statements:{
+      list_process_works:{kind:'select-all',tableId:'fx_supporting_works',columns:['work_id','state'],keyColumns:['owner_domain','process_type','process_id']},
+      list_work_events:{kind:'select-all',tableId:'fx_workflow_events',columns:['event_id','state'],keyColumns:['work_id']},
+      list_event_attempts:{kind:'select-all',tableId:'fx_event_attempts',columns:['event_attempt_id'],keyColumns:['event_id']},
+      list_attempt_effects:{kind:'select-all',tableId:'fx_effect_journal',columns:['effect_id','state'],keyColumns:['event_attempt_id']},
       insert_result:{kind:'insert',tableId:'fx_event_result_bindings',columns:['result_id','event_id','outcome_kind',
         'result_schema_ref','result_json','result_digest','evidence_schema_ref','evidence_json','evidence_digest',
         'effect_receipt_id','committed_at_ms']},
@@ -340,7 +345,9 @@ function createRunDiscardStore(options) {
       const workspace=readWorkspace(repo,run);
       const rejectedHandoffB=(repo.invoke('list_packages',{libra_run_id:run.libra_run_id})||[])
         .some((pkg)=>pkg.state==='published' && repo.invoke('find_delivery_receipt',{offer_id:pkg.offer_id})?.result==='rejected');
-      owner={run,manifest,head,workspace,runHistoryValid:runRevisionIntegrity(repo,run),rejectedHandoffB};
+      const acceptedHandoffB=repo.invoke('list_packages',{libra_run_id:run.libra_run_id})
+        .some(pkg=>repo.invoke('find_delivery_receipt',{offer_id:pkg.offer_id})?.result==='accepted');
+      owner={run,manifest,head,workspace,runHistoryValid:runRevisionIntegrity(repo,run),rejectedHandoffB,acceptedHandoffB};
     }},{participantId:'discard_snapshot_control',owner:'material-control-authority',boundBusinessOwner:'libra',repositories:[controlRead],execute(context){
       if(!owner?.run||owner.existing)return;
       const materialKeys=[...(owner.manifest?.members||[]).map((item)=>item.materialKey),
@@ -406,6 +413,7 @@ function createRunDiscardStore(options) {
     const run=snap.owner.run;
     if(!run)return failure(command,'not_found',{reasonCode:'run_missing'});
     if(!snap.owner.runHistoryValid||!snap.owner.head)return failure(command,'integrity_error',{reasonCode:'run_history_incomplete'});
+    if(snap.owner.acceptedHandoffB)return failure(command,'invalid_state',{reasonCode:'handoff_b_already_accepted'});
     if(!snap.owner.manifest)return failure(command,'integrity_error',{reasonCode:'material_manifest_incomplete'});
     if(snap.owner.workspace?.integrityError)return failure(command,'integrity_error',{reasonCode:snap.owner.workspace.integrityError});
     for(const member of snap.owner.manifest.members){const current=snap.controls.get(member.materialKey);
@@ -431,7 +439,7 @@ function createRunDiscardStore(options) {
       workspace:snap.owner.workspace,built,controls:snap.controls};
   }
 
-  function commit(ready) {
+  function commit(ready, reasonCode = 'user_cancelled', productEvidence = null) {
     if(ready?.kind!=='ready')fail('P9_DISCARD_COMMIT_INPUT','A fully inspected Discard decision is required.');
     const {command,run,head,manifest,workspace,built}=ready,decision=built.decision;
     const controlChanges=manifest.members.map((member)=>({identity:member.physicalIdentity,action:'release',
@@ -447,11 +455,23 @@ function createRunDiscardStore(options) {
       const repo=context.repository(libra.repositoryId),existing=repo.invoke('find_decision_by_key',{actor_id:command.actorId,
         idempotency_key:command.idempotencyKey});if(existing)throw new Replay(reconstructReplayWithRepo(command,existing,repo));
       const current=repo.invoke('find_run',{libra_run_id:command.libraRunId});
+      if(repo.invoke('list_packages',{libra_run_id:command.libraRunId})
+        .some(pkg=>repo.invoke('find_delivery_receipt',{offer_id:pkg.offer_id})?.result==='accepted'))
+        fail('P9_DISCARD_HANDOFF_ACCEPTED','Arca already accepted Handoff B; Libra cannot release the input responsibility.');
       const rejectedHandoffB=(repo.invoke('list_packages',{libra_run_id:command.libraRunId})||[])
         .some((pkg)=>pkg.state==='published' && repo.invoke('find_delivery_receipt',{offer_id:pkg.offer_id})?.result==='rejected');
       if(!current||(current.state!=='frozen' && !(current.state==='active' && rejectedHandoffB))||
         number(current.state_revision)!==decision.expectedRunStateRevision||
         current.state_digest!==decision.expectedRunStateDigest)fail('P9_DISCARD_STALE','Discard snapshot changed before commit.');
+    }},{participantId:'libra_run_discard_execution_guard',owner:'execution-foundation',boundBusinessOwner:'libra',repositories:[foundation],execute(context){
+      const repo=context.repository(foundation.repositoryId);
+      for(const work of repo.invoke('list_process_works',{owner_domain:'libra',process_type:'libra_run',process_id:command.libraRunId})){
+        if(!['succeeded','failed','cancelled'].includes(work.state))fail('P9_DISCARD_EXECUTION_PENDING','Run still has unfinished Work.');
+        for(const event of repo.invoke('list_work_events',{work_id:work.work_id}))
+          for(const attempt of repo.invoke('list_event_attempts',{event_id:event.event_id}))
+            if(repo.invoke('list_attempt_effects',{event_attempt_id:attempt.event_attempt_id}).some(effect=>!['committed','failed'].includes(effect.state)))
+              fail('P9_DISCARD_EFFECT_PENDING','Run has an unresolved Effect and cannot release its materials.');
+      }
     }},{...rawControl,execute(context){controlResults=rawControl.execute(context);return controlResults;}},
     {participantId:'libra_run_discard_write',owner:'libra',repositories:[libra],execute(context){
       const repo=context.repository(libra.repositoryId),cleanupDraft=built.cleanup.draft;
@@ -474,19 +494,23 @@ function createRunDiscardStore(options) {
           state_digest:cleanupMemberInitialState(cleanupDraft.cleanupScopeId,member),committed_scope_state_revision:null,
           deletion_effect_id:null,outcome_evidence_schema_ref:null,outcome_evidence_id:null,outcome_evidence_json:null,
           outcome_evidence_digest:null,cleanup_receipt_id:null,updated_at_ms:context.commitTimeMs});
-        nextWorkspace=nextWorkspaceState(cleanupDraft.workspaceRef,decision.decisionDigest);
-        const revision={workspaceId:nextWorkspace.workspaceId,workspaceRevision:nextWorkspace.workspaceRevision,state:'reclaiming',
-          materialReferenceSetDigest:nextWorkspace.workspaceMaterialReferenceSetDigest,transitionKind:'reclaiming',
-          transitionEvidenceDigest:decision.decisionDigest,previousRevision:cleanupDraft.workspaceRef.workspaceRevision};
+      }
+      const closingWorkspace=cleanupDraft?.workspaceRef||ready.workspace.workspaceRef;
+      if(closingWorkspace){
+        const state=cleanupDraft?'reclaiming':'reclaimed';
+        nextWorkspace=nextWorkspaceState(closingWorkspace,decision.decisionDigest,state);
+        const revision={workspaceId:nextWorkspace.workspaceId,workspaceRevision:nextWorkspace.workspaceRevision,state,
+          materialReferenceSetDigest:nextWorkspace.workspaceMaterialReferenceSetDigest,transitionKind:state,
+          transitionEvidenceDigest:decision.decisionDigest,previousRevision:closingWorkspace.workspaceRevision};
         revision.revisionDigest=canonicalDigest(revision);repo.invoke('insert_workspace_revision',{
           workspace_id:revision.workspaceId,workspace_revision:revision.workspaceRevision,state:revision.state,
           material_reference_set_digest:revision.materialReferenceSetDigest,transition_kind:revision.transitionKind,
           transition_evidence_digest:revision.transitionEvidenceDigest,previous_revision:revision.previousRevision,
           revision_digest:revision.revisionDigest,committed_at_ms:context.commitTimeMs});
-        if(repo.invoke('update_workspace',{current_revision:nextWorkspace.workspaceRevision,state:'reclaiming',
-          state_digest:nextWorkspace.stateDigest,completed_at_ms:null,workspace_id:nextWorkspace.workspaceId,
-          expected_revision:cleanupDraft.workspaceRef.workspaceRevision,
-          expected_state_digest:cleanupDraft.workspaceRef.workspaceStateDigest,expected_state:'active'}).changes!==1)
+        if(repo.invoke('update_workspace',{current_revision:nextWorkspace.workspaceRevision,state,
+          state_digest:nextWorkspace.stateDigest,completed_at_ms:cleanupDraft?null:context.commitTimeMs,workspace_id:nextWorkspace.workspaceId,
+          expected_revision:closingWorkspace.workspaceRevision,
+          expected_state_digest:closingWorkspace.workspaceStateDigest,expected_state:'active'}).changes!==1)
           fail('P9_DISCARD_WORKSPACE_CAS','Discard Workspace CAS failed.');
       }
       const nextStateRevision=number(run.state_revision)+1,nextState={libraRunId:run.libra_run_id,stateRevision:nextStateRevision,
@@ -511,7 +535,7 @@ function createRunDiscardStore(options) {
         transitionDecisionDigest:decision.decisionDigest,transitionEvidenceSchemaRef:DECISION_SCHEMA,
         transitionEvidenceId:decision.discardDecisionId,transitionEvidenceDigest:decision.decisionDigest,
         recoveryPolicyRef:run.recovery_policy_ref,recoveryPolicyDigest:run.recovery_policy_digest,
-        suspensionStartedAtMs:run.suspension_started_at_ms,recoveryAttemptOrdinal:number(run.recovery_attempt_ordinal),
+        suspensionStartedAtMs:run.suspension_started_at_ms===null?null:number(run.suspension_started_at_ms),recoveryAttemptOrdinal:number(run.recovery_attempt_ordinal),
         recoveryNextDueAtMs:null,expectedAdmissionHeadRevision:number(head.head_revision),
         expectedActiveScopeSetDigest:head.active_scope_set_digest,committedAdmissionHeadRevision:nextHeadRevision,
         committedActiveScopeSetDigest:nextScopeDigest,previousStateRevision:number(run.state_revision)};
@@ -568,6 +592,7 @@ function createRunDiscardStore(options) {
       repo.invoke('insert_delivery',{message_id:message.messageId,consumer_domain:'libra',state:'pending',
         attempt_count:0,next_attempt_at_ms:context.commitTimeMs,acked_at_ms:null});return result;
     }}];
+    participants.splice(participants.length-1,0,createRunOutcomeStore(options).failureParticipant(ready,()=>receipt,reasonCode,productEvidence));
     try{options.unitOfWork.execute(participants);return result;}catch(error){if(error instanceof Replay)return error.result;throw error;}
   }
 

@@ -1,4 +1,5 @@
 'use strict';
+const {acceptsMetadataFields,missingMetadataFields,acceptsArtifactKinds,packageMissingArtifactKinds}=require('../model/authorized-defect-manifest');
 
 const {
   canonicalDigest,
@@ -91,6 +92,8 @@ function acceptanceCheck(input) {
     requirementDigest: input.requirementDigest,
     evidenceStatus: input.evidenceStatus || 'complete',
     actualGapCodes: Object.freeze([...(input.actualGapCodes || [])]),
+    missingMetadataFields:Object.freeze(input.missingMetadataFields||[]),
+    missingArtifactKinds:Object.freeze(input.missingArtifactKinds||[]),
     actualGapSetDigest: canonicalDigest({
       schema: 'arca.acceptance-check-actual-gap-set@1',
       checkKind: input.checkKind,
@@ -433,12 +436,15 @@ function createMovieOnDeckCoordinator(options) {
     const checks = checkInputs.map((item) => {
       const gaps = item.actualGapCodes || [];
       const dimensionCodes = GAP_CODES_BY_CHECK[item.checkKind];
-      const passed = authorizedDefectManifest
+      const fieldMatch=item.checkKind!=='metadata'||(acceptsMetadataFields(authorizedDefectManifest,missingMetadataFields(packageValue,snapshot.requirements.metadata))&&acceptsArtifactKinds(authorizedDefectManifest,packageMissingArtifactKinds(packageValue,snapshot.requirements)));
+      const passed = fieldMatch && (authorizedDefectManifest
         ? canonicalJson(gaps) === canonicalJson(dimensionCodes.filter((code) =>
           authorizedDefectManifest.waivedRequirementCodes.includes(code)))
-        : gaps.length === 0;
+        : gaps.length === 0);
       return acceptanceCheck({
       acceptanceAttemptId: attemptId,
+      missingMetadataFields:item.checkKind==='metadata'?missingMetadataFields(packageValue,snapshot.requirements.metadata):[],
+      missingArtifactKinds:item.checkKind==='metadata'?packageMissingArtifactKinds(packageValue,snapshot.requirements):[],
       checkKind: item.checkKind,
       standardRevision: shelf.currentStandardRevision,
       packageDigest: packageValue.packageDigest,

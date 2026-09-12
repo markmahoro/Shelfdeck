@@ -142,6 +142,24 @@
       "minLength": 1,
       "pattern": "^[a-f0-9]{64}$"
     },
+    "missingMetadataFields": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 256
+      },
+      "maxItems": 64
+    },
+    "missingArtifactKinds": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 256
+      },
+      "maxItems": 3
+    },
     "primaryMediaObservations": {
       "type": "array",
       "items": {
@@ -504,6 +522,8 @@
     "evidenceStatus",
     "actualGapCodes",
     "actualGapSetDigest",
+    "missingMetadataFields",
+    "missingArtifactKinds",
     "primaryMediaObservations",
     "primaryMediaObservationSetDigest",
     "authorizedDefectManifestDigestOrNull",
