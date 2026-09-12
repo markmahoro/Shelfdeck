@@ -27,10 +27,10 @@
   "categoryDigests": {
     "capabilities": "517a6d8631adca6673cc26d542dc720790f1fc17aacd57c13c1784e21e1cb307",
     "resultFamilies": "affa0350c70c3f42bcab59fc995431ae97d5b94c07c27086cd2b496091af06df",
-    "tables": "efb72ef6af678b3c5961642c38d1de79fd70fb7b17c9b2f610b52b8444f9b339",
+    "tables": "2f1607a6412bd5b3a7bcaed391c00863cb4516e468f1bc2f2ceecf7a0ac6a127",
     "transactions": "82bf25ca276d8abf5b5526ffdb08f1cc83b4bf0f70bf8adc079a6c3eeabc5f13"
   },
-  "aggregateDigest": "9927313724e9d76620f5c8baca909931a4d3f3fc19876c05579ca3e8b6125785",
+  "aggregateDigest": "27d56c8dcaaf13dab78a81822b80badf7abea0c1483dbeefb535a1915a75e8f5",
   "entryFiles": [
     "ssot-source-map/capabilities-001-056.json",
     "ssot-source-map/capabilities-057-112.json",

@@ -1,6 +1,6 @@
 {
   "sourceCommit": "cd4f3f5b2d2e1ebd80e4ec0bf4119e4cd7442beb",
-  "targetCommit": "9ecf7b2a18407a67ff88ec2940785c10ca992ab6",
+  "targetCommit": "085febc5daedf1a79e180864129badc41a2e872a",
   "previousCatalogDigest": "d2f4691efff1460f421d6a76ce06e537c0728a159dae7f548edc06ca5dc63e59",
   "currentCatalogDigest": "d8d6a237f3cdcda20b1548d5064b94dc483cf58da1ed2ca326f5e1ca2cfb6a74",
   "policyDigest": "ae00df0088735fdfbba1c6f2c1b324b1abed005a86bf181b47a4e549c692affa",
@@ -17,7 +17,7 @@
       "previousContractDigest": "74bae23f1a29fdf17f65d4c340bf51994d5853e5158cd7e3e0b14ff5ba2d734a",
       "currentContractDigest": "74bae23f1a29fdf17f65d4c340bf51994d5853e5158cd7e3e0b14ff5ba2d734a",
       "previousSchemaDigest": "954dab40a6d06df3db75d5449d3cf43b36652a846a0b48c72b36ef61b065c3a6",
-      "currentSchemaDigest": "954dab40a6d06df3db75d5449d3cf43b36652a846a0b48c72b36ef61b065c3a6"
+      "currentSchemaDigest": "87cdb287c6c8d2cf517ec90b694a38a1f0b90fb5caee07ab2f5e141e1557400d"
     },
     {
       "capabilityRef": "arca.acceptance.identity.verify@1",
@@ -28,7 +28,7 @@
       "previousContractDigest": "816256d2364751bb7541a0db211a055b192aeb99c666bfec82e9bd633830113c",
       "currentContractDigest": "816256d2364751bb7541a0db211a055b192aeb99c666bfec82e9bd633830113c",
       "previousSchemaDigest": "64fc51aec05c15e291191837140b91343a233db459186837923d1c7f6f627656",
-      "currentSchemaDigest": "64fc51aec05c15e291191837140b91343a233db459186837923d1c7f6f627656"
+      "currentSchemaDigest": "4498bc1ad8d55d002e821a9acf87d39b913ce8561726241f4180dd9442099eca"
     },
     {
       "capabilityRef": "arca.acceptance.inventory_feasibility.observe@1",
@@ -50,7 +50,7 @@
       "previousContractDigest": "31c57569cb909887c6d0fa107fdf1e793e8937610afe470527d555a17560733a",
       "currentContractDigest": "31c57569cb909887c6d0fa107fdf1e793e8937610afe470527d555a17560733a",
       "previousSchemaDigest": "b9f77f8555d07fad4aaabbb5f823eb72efb193a1f6e9570371f6fd0966ce9804",
-      "currentSchemaDigest": "b9f77f8555d07fad4aaabbb5f823eb72efb193a1f6e9570371f6fd0966ce9804"
+      "currentSchemaDigest": "6e5385cf055ac5572a5dc4ccf83688df549d4bc314571e3f1dfb3d7f95302fa7"
     },
     {
       "capabilityRef": "arca.acceptance.metadata.verify@1",
@@ -61,7 +61,7 @@
       "previousContractDigest": "4544e039483564a623b88958e7fbd3423dc6881aa0bb0ff2d7dcc400f20e7cf8",
       "currentContractDigest": "4544e039483564a623b88958e7fbd3423dc6881aa0bb0ff2d7dcc400f20e7cf8",
       "previousSchemaDigest": "85285a7f95867330b2368785c03ea3a3714ba5843751865de56b11740a35a96c",
-      "currentSchemaDigest": "85285a7f95867330b2368785c03ea3a3714ba5843751865de56b11740a35a96c"
+      "currentSchemaDigest": "134680b9161c9f819fc4d4a2584ef55962309c220d74b443b131c28ae40acf12"
     },
     {
       "capabilityRef": "arca.acceptance.rejection.commit@1",
@@ -83,7 +83,7 @@
       "previousContractDigest": "e89298694dd48258e8659bfac272b13cbf38c7e9a1e22fed65d6b72191c7703d",
       "currentContractDigest": "e89298694dd48258e8659bfac272b13cbf38c7e9a1e22fed65d6b72191c7703d",
       "previousSchemaDigest": "a842fdf192f71b021778eeaa777d6922c088e1da84857f467b472e09eace927b",
-      "currentSchemaDigest": "a842fdf192f71b021778eeaa777d6922c088e1da84857f467b472e09eace927b"
+      "currentSchemaDigest": "49f40f3b6d3cd0d02753b62001011604939bc24dae3b08570fc4e30df783d1b5"
     },
     {
       "capabilityRef": "arca.acceptance.structure.verify@1",
@@ -94,7 +94,7 @@
       "previousContractDigest": "3368e3d9457b2c2ed49c23dab813912ad2a11916f712c5599449072cc040b805",
       "currentContractDigest": "3368e3d9457b2c2ed49c23dab813912ad2a11916f712c5599449072cc040b805",
       "previousSchemaDigest": "acf647bb773ddb244993f74b4b3c5989fe9a6d8347fd5328b76a5a61fd7b859e",
-      "currentSchemaDigest": "acf647bb773ddb244993f74b4b3c5989fe9a6d8347fd5328b76a5a61fd7b859e"
+      "currentSchemaDigest": "2190bba7c9bb242a95e441efc03f24bc4a76e997ce0e51ece7aa876f200b7136"
     },
     {
       "capabilityRef": "arca.aftercare.artifact.materialize@1",
@@ -707,7 +707,7 @@
       "previousContractDigest": "d147359a44e9af12c401a1dca83acd4fe3b396ccaabb3f6b170250604db55bea",
       "currentContractDigest": "d147359a44e9af12c401a1dca83acd4fe3b396ccaabb3f6b170250604db55bea",
       "previousSchemaDigest": "9dd41d39329bc5b0d9a20f789edab15e0b9ed1bb3b7975da0106ccec3d2e9d27",
-      "currentSchemaDigest": "9dd41d39329bc5b0d9a20f789edab15e0b9ed1bb3b7975da0106ccec3d2e9d27"
+      "currentSchemaDigest": "1bb01dd59226ac81c64e082dce613d53477a9e9422722546842f635f358a895b"
     },
     {
       "capabilityRef": "libra.product_artifact.acquire@1",
@@ -795,7 +795,7 @@
       "previousContractDigest": "edd3f442752e4870ad5806ff0a49ef13952ba0a1144890d5e869b273e39857b2",
       "currentContractDigest": "edd3f442752e4870ad5806ff0a49ef13952ba0a1144890d5e869b273e39857b2",
       "previousSchemaDigest": "d1f57b151f202c8669cc67738836d260b0610e31a4e5bea218e24c2f04815fbd",
-      "currentSchemaDigest": "d1f57b151f202c8669cc67738836d260b0610e31a4e5bea218e24c2f04815fbd"
+      "currentSchemaDigest": "9f0eb2322b2610234ea70da1f7297c8d46a9c384631df10699b787ab5c0c06f9"
     },
     {
       "capabilityRef": "libra.product_sidecar.render@1",
@@ -982,7 +982,7 @@
       "previousContractDigest": "3e598d94c19fac08792b02819f66435ad745a8e09b8670edd43bdacd86e3ee06",
       "currentContractDigest": "3e598d94c19fac08792b02819f66435ad745a8e09b8670edd43bdacd86e3ee06",
       "previousSchemaDigest": "0593302c4a967808f77f9d1f6b1e093f505dbd321ae3f5ff2d3eb36bcd621d3a",
-      "currentSchemaDigest": "0593302c4a967808f77f9d1f6b1e093f505dbd321ae3f5ff2d3eb36bcd621d3a"
+      "currentSchemaDigest": "b5239bfdb4b73574c1d9999fe09695b243dd60787425883919bbdd2b7f73ed2c"
     },
     {
       "capabilityRef": "shared.material.media.probe@1",

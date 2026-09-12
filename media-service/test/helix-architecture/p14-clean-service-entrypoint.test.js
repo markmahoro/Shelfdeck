@@ -1420,13 +1420,19 @@ test('UAT-129 failed-preparation Intent resumes through Outbox after restart wit
   ).get();
   assert.ok(retryAdmissionPlanInput);
   assert.ok(Buffer.byteLength(retryAdmissionPlanInput.input_bindings_json) <= 16 * 1024);
-  assert.equal(
-    Object.hasOwn(
-      JSON.parse(retryAdmissionPlanInput.input_bindings_json).admissionRequest,
-      'controlHandle',
-    ),
-    false,
-  );
+  const retryBindingSet = JSON.parse(retryAdmissionPlanInput.input_bindings_json);
+  assert.equal(retryBindingSet.schemaRef, 'helix://foundation/types/EventInputBindingSet/v1');
+  assert.equal(retryBindingSet.bindings.length, 1);
+  const retryBinding = retryBindingSet.bindings[0];
+  assert.equal(retryBinding.bindingKind, 'projected_owner_facts');
+  assert.equal(retryBinding.ownerDomain, 'procurement');
+  assert.equal(retryBinding.projectionRef, 'helix://procurement/input-projections/RetryAdmissionCommand/v1');
+  assert.deepEqual(Object.keys(retryBinding.parameters).sort(), [
+    'schemaRef', 'schemaVersion', 'request', 'retryIntentId', 'intentDigest',
+    'retryScopeDigest', 'newRunId', 'newRunBasisDigest',
+  ].sort());
+  assert.equal(retryBinding.parameters.newRunId, retryRun.procurement_run_id);
+  assert.equal(retryBinding.parameters.newRunBasisDigest, retryRun.run_basis_digest);
   completedEvidence.close();
 
   assert.deepEqual(fs.readFileSync(sourceFile), sourceBefore);

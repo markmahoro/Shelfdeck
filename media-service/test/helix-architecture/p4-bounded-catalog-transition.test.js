@@ -302,7 +302,14 @@ test('the checked-in witness pins all 87 semantic manifests and full schema depe
     assert.equal(canonicalDigest(schemaClosure(manifest, schemas)), record.currentSchemaDigest, record.capabilityRef);
   }
   assert.deepEqual(witness.capabilities.filter(record => record.previousSchemaDigest !== record.currentSchemaDigest)
-    .map(record => record.capabilityRef), ['libra.intake.accept.commit@1', 'libra.intake.material.verify@1']);
+    .map(record => record.capabilityRef), [
+      'arca.acceptance.accept.commit@1', 'arca.acceptance.identity.verify@1',
+      'arca.acceptance.mandatory_media.verify@1', 'arca.acceptance.metadata.verify@1',
+      'arca.acceptance.space.verify@1', 'arca.acceptance.structure.verify@1',
+      'libra.intake.accept.commit@1', 'libra.intake.material.verify@1',
+      'libra.product.conformance.verify@1', 'libra.product_package.publish@1',
+      'shared.artifact.manifest.verify@1',
+    ]);
   for (const [schemaRef, record] of Object.entries(witness.preboundEvidenceSchemas)) {
     assert.equal(canonicalDigest(schemaClosure({ inputPorts: { evidence: { schemaRef } } }, schemas)), record.currentSchemaDigest);
   }
