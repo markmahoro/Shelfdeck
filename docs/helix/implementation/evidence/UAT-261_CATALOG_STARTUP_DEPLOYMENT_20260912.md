@@ -27,3 +27,11 @@ Catalog digest的构成、历史Plan/retained contract的加载与比较语义�
 随后源任务只读审计已定位直接原因，部署任务核对`catalog-startup-audit.json`：87项启用Capability的manifest执行语义中，`libra.intake.material.verify@1`新增必需`intakeControlReadHandle`，policyDigest保持`ae00df0088735fdfbba1c6f2c1b324b1abed005a86bf181b47a4e549c692affa`；Catalog从`d2f4691efff1460f421d6a76ce06e537c0728a159dae7f548edc06ca5dc63e59`变为`d8d6a237f3cdcda20b1548d5064b94dc483cf58da1ed2ca326f5e1ca2cfb6a74`。执行registry已排除source trace，不应把该失败归因于源码行号漂移。一致快照有4464项旧Catalog Plan（4461终态、原两Acceptance及Fast X三项活跃）；精确Reset删除相关4 Plan后仍有4460项，现有已知Catalog规则没有此次升级边。manifest摘要差异不是完整schema依赖审计，input/result/evidence内容的变化闭包仍须逐Plan验证；安全规则及完整Host复验尚未交付，不能仅加digest白名单。原始审计位于`%TEMP%/shelfdeck-intake-recovery-20260912/catalog-startup-audit.json`。
 
 原始日志及receipts保存在集成区ignored `.codex/unified-release-20260912/`：`control-preflight.log`、`control-backup.log`、`backup-helix-beta-20260912-d7a6da2802.json`、`control-upload.log`、`control-reset-dryrun.log`、`control-reset-apply.log`、`control-deploy-dryrun.log`、`control-deploy-apply.log`、`control-boot.log`、`control-rollback-dryrun.log`、`control-rollback-apply.log`、`control-rollback-postflight.log`及Owner/Control只读JSON。失败日志保留Node打印的摘要截断，不声称已逐条审计数千条findings。未重复完整媒体E2E/Desktop/Worker；回退成功不关闭261。
+
+## 人工续接与最新完整副本
+
+2026-09-12用户要求继续，定时任务保持停止。09:49Z只读复查确认当前cd4f镜像、Config ID及StartedAt未变，NAS/LAN health正常，五挂载、Secret root匹配和fnOS管理页200。正常队列已推进至118收藏、970份Delivery（828 open/134 accepted/8 rejected），最新普通扫描revision1368–1440共73页succeeded。当前三Token已与回退时不同，原宇航员同一subject ID在1789162455613被重新取得，Fast X不再占Token。不能把同一ID误认为原Reset未执行，也不把新Token加入旧授权。
+
+新的完整副本位于NAS `/vol1/1000/docker/shelfdeck/test-runs/uat261-host-20260912-resume/data`；独立容器`--network none`、生产data只读挂载，通过在线SQLite backup及全部伴随文件复制生成，原库未写。完成时间2026-09-12T09:52:01.807Z，45文件aggregate digest `ac818aa75b1eb2b8ef266b6e23eefbc260be82cf8bbef72bb98b18e72e06b11d`；SQLite 940773376 bytes，SHA256 `57d42faa5f0a69a512f6cfde9fc2079b6122a497e937a193344573039f522867`，integrity ok/FK0。已下载至集成区ignored `.codex/unified-release-20260912/uat261-host-20260912-resume/data`并逐文件重验size/SHA256；manifest在父目录。该目录为冻结原件，完整Host运行必须另复制副本，不能再使用Reset前旧快照替代。
+
+261源任务补充确认：当前持久Plan表没有完整原始WorkflowPlanDefinition字段，不能诚实地重算完整原始graph_digest。后续实现必须保留原摘要、明确这项证据限制，并验证可证明的持久DAG、Work/Attempt与节点/Event归属、依赖、Result/Evidence精确引用和canonical digest；缺失证据仍阻断，不为补证据重写历史事实。

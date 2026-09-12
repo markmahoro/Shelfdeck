@@ -6,6 +6,8 @@
 
 ## 当前生产
 
+2026-09-12 09:49Z人工续接复查：仍为下列cd4f回退镜像及同一StartedAt，NAS/LAN health均ok、normalSupplyAllowed=true，五挂载、Secret root匹配和fnOS 200通过。正常队列现为118收藏、970份Delivery（828 open/134 accepted/8 rejected），最新普通扫描revision1368–1440共73页succeeded；以下113收藏等数字为上次发布时点。当前Token集合已变化，原宇航员subject ID也已被旧版重新取得，不能凭同一ID重复历史Reset。09:52Z新完整45文件一致副本已下载并逐文件验hash，261完整Host门禁继续，未再次部署，定时任务保持停止。
+
 2026-09-12第二批d7a6da2802发布失败：数据库readiness通过，但完整Host因大量历史PLAN_CATALOG_DRIFT未启动。已标准回退cd4f3f5b2d，StartedAt2026-09-11T21:32:51.809272745Z，健康/五挂载/fnOS/113收藏及970份Delivery复核通过。此前原两Token精确Reset已执行且保留，未恢复DB；5旧Offer仍open，旧版已产生新Token，不得扩大或复用旧Reset范围。新增261优先定位启动合同与补完整Host门禁，260随后，251独立。[事故记录](implementation/evidence/UAT-261_CATALOG_STARTUP_DEPLOYMENT_20260912.md)。
 
 - 镜像：markmahoro/shelfdeck:helix-beta-20260912-cd4f3f5b2d；source cd4f3f5b2d；NAS Config Image ID sha256:f4d48cd326dba8b551af63fad7c3ce0ffdc0b3040c43c6153d1987cbc9a13452。
