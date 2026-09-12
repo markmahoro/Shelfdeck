@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { helixAdminApi, type SetupReadinessProjection } from './api';
 import { Button } from './chrome';
 import { isUnauthorized, useSession } from './session';
@@ -10,15 +10,30 @@ export default function InputSettlementAuthorization() {
   const [loaded, setLoaded] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [open, setOpen] = useState(false);
+  const dialog = useRef<HTMLDialogElement>(null);
+  const trigger = useRef<HTMLButtonElement | null>(null);
+  const titleId = useId();
+  useEffect(() => {
+    if (!open) return;
+    const current = dialog.current;
+    current?.showModal();
+    return () => {
+      current?.close();
+      trigger.current?.focus();
+    };
+  }, [open]);
   const load = useCallback(async () => {
     setBusy(true); setError('');
     try {
       const result = await helixAdminApi.getSetupReadiness();
       setAuthorization(result.data.standingInputSettlement); setLoaded(true);
+      return true;
     } catch (cause) {
       setLoaded(false);
       if (isUnauthorized(cause)) expire();
-      else setError('无法读取旧输入清理授权，请重试。');
+      else setError('无法读取自动清理授权，请重试。');
+      return false;
     } finally { setBusy(false); }
   }, [expire]);
   useEffect(() => { void load(); }, [load]);
@@ -27,23 +42,49 @@ export default function InputSettlementAuthorization() {
     setBusy(true); setError('');
     try {
       await helixAdminApi.setInputSettlementAuthorization(enabled, authorization?.revision || 0);
-      await load();
+      if (await load()) setOpen(false);
     } catch (cause) {
       if (isUnauthorized(cause)) expire();
       else setError(cause instanceof Error ? cause.message : '授权操作失败，请刷新后重试。');
     } finally { setBusy(false); }
   }
   const enabled = loaded && authorization?.enabled === true;
-  return <details className="source-flow-help">
-    <summary>旧输入自动清理 · <span className="ui-state" data-state={enabled ? 'complete' : 'unknown'}>{!loaded ? '状态待读取' : enabled ? '已授权' : '未授权'}</span></summary>
-    <p>成品验证通过后，允许清理本次上架中已安全替代的原片、结构文件及独占关联文件。共享文件、未知文件和范围外文件会保留。此授权不包括退出收藏时销毁文件。</p>
-    {enabled && <p>{authorization?.coversExclusiveRelatedInput ? '当前授权包含原片、结构文件和独占关联文件。' : '当前授权仅包含原片和结构文件，独占关联文件仍会保留。'}</p>}
-    {loaded && !enabled && <p>尚未执行的旧输入清理会等待授权，原文件保留。</p>}
-    {error && <p role="alert">{error}</p>}
-    {error && loaded && <Button type="button" disabled={busy} onClick={() => void load()}>刷新授权状态</Button>}
-    {!loaded ? <Button type="button" disabled={busy} onClick={() => void load()}>重新读取</Button> : <>
-      {(!enabled || !authorization?.coversExclusiveRelatedInput) && <Button type="button" disabled={busy} onClick={() => void change(true)}>授权安全旧输入自动清理</Button>}
-      {enabled && <Button type="button" disabled={busy} onClick={() => void change(false)}>撤销持续授权</Button>}
-    </>}
-  </details>;
+  const partial = enabled && !authorization?.coversExclusiveRelatedInput;
+  const status = !loaded ? (busy ? '读取中…' : '读取失败') : enabled ? (partial ? '部分授权' : '已授权') : '未授权';
+  return <>
+    <Button type="button" aria-haspopup="dialog" onClick={(event) => { trigger.current = event.currentTarget; setOpen(true); }}>
+      自动清理残留文件 <span className="ui-state" data-state={enabled ? 'complete' : 'unknown'}>{status}</span>
+    </Button>
+    {open && <dialog ref={dialog} className="dialog input-settlement-dialog" aria-labelledby={titleId} onCancel={(event) => { event.preventDefault(); if (!busy) setOpen(false); }} onKeyDown={(event) => {
+      if (event.key !== 'Tab') return;
+      const controls = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>('button:not(:disabled)'));
+      const first = controls[0], last = controls[controls.length - 1];
+      if (event.shiftKey && event.target === first) { event.preventDefault(); last?.focus(); }
+      else if (!event.shiftKey && event.target === last) { event.preventDefault(); first?.focus(); }
+    }}>
+      <div className="dialog-head"><h2 id={titleId}>自动清理残留文件</h2></div>
+      <div className="dialog-body">
+        {loaded && <>
+          <p>成品验证通过后，自动清理本次上架中已被安全替代的文件。</p>
+          <dl className="input-settlement-scope">
+            <div><dt>清理范围</dt><dd>原片、结构文件、独占关联文件</dd></div>
+            <div><dt>保留文件</dt><dd>共享、未知及范围外文件</dd></div>
+          </dl>
+          <p>此授权不包含退出收藏时销毁文件。</p>
+          {partial && <p>当前仅授权原片和结构文件，独占关联文件仍保留。</p>}
+          {enabled && <p>撤销后，尚未执行的清理将等待授权；已清理的文件不会恢复。</p>}
+        </>}
+        {busy && <p role="status">正在更新授权状态…</p>}
+        {error && <p className="form-error" role="alert">{error}</p>}
+      </div>
+      <div className="dialog-actions">
+        <Button type="button" disabled={busy} onClick={() => setOpen(false)}>取消</Button>
+        {error && <Button type="button" disabled={busy} onClick={() => void load()}>重新读取授权</Button>}
+        {loaded && <>
+          {enabled && <Button type="button" disabled={busy} onClick={() => void change(false)}>撤销授权</Button>}
+          {(!enabled || partial) && <Button variant="primary" type="button" disabled={busy} onClick={() => void change(true)}>{partial ? '授权全部清理范围' : '授权自动清理'}</Button>}
+        </>}
+      </div>
+    </dialog>}
+  </>;
 }

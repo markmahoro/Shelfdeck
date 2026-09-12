@@ -167,6 +167,8 @@ function validateDomainInputSchemas(options) {
       ,SelectedCandidateSelected: ['schemaRef', 'schemaVersion', 'draftId', 'queryDigest', 'candidateSetDigest', 'result',
         'selectedCandidate', 'selectedCandidateId', 'selectionReasonCode']
     };
+    exactIdentityFields.IntakeControlReadHandle = ['handleId','ownerDomain','processType','processId',
+      'candidateDeliverySnapshotDigest','materialKeys','accessScope','scopeDigest'];
     const identityFields = exactIdentityFields[entry.id] || ['schemaRef', 'schemaVersion', 'revision', 'digest'];
     for (const field of identityFields) {
       const requiredSets = schema.oneOf

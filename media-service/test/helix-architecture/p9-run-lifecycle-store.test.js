@@ -259,7 +259,15 @@ test('discard accepts an active Run whose Handoff B Delivery Receipt is already 
     expectedRunStateDigest:input.admitted.stateDigest,actorId:'admin',idempotencyKey:'discard-rejected'});
   const inspected=store.inspect(command);
   assert.equal(inspected.kind,'ready', inspected.resultKind || inspected.kind);
-  const result=store.commit(inspected,'processing_failed');
+  const options={schemaManifest,unitOfWork:input.unitOfWork,libraRunExecutionProjection:{invalidate(){}}};
+  const admin=require('../../src/helix/domains/libra/application/libra-run-admin-service').createLibraRunAdminService(options);
+  const coordinator=require('../../src/helix/domains/libra/application/libra-run-coordinator').createLibraRunCoordinator({
+    ...options,workResultReader:{},workspaceProductPort:{},movieProductionReader:{
+      readRunSnapshot:()=>({run:{libraRunId:input.libraRunId,state:'active',packageRevisionHead:1}}),
+      readPublishedDeliveryRef:()=>({offerId}),readDeliveryReceipt:()=>({result:'rejected'})},
+    resolveRejectedRun:admin.reconcileRejected});
+  const result=coordinator.reconcile(input.libraRunId);
+  assert.equal(result.kind,'unable_to_on_deck');
   assert.equal(result.resultKind,'discarded');
   const check=new Database(input.databasePath,{readonly:true});
   assert.equal(check.prepare('SELECT state FROM libra_runs').get().state,'discarded');

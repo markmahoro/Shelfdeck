@@ -12,6 +12,7 @@ const {createIntakeRejectionStore}=require('../../src/helix/domains/libra/persis
 const {createCandidateRejectionConsumer}=require('../../src/helix/domains/procurement/application/candidate-rejection-consumer');
 const {openSqliteKernel}=require('../../src/helix/foundation/persistence/sqlite-kernel');
 const {createSqliteUnitOfWork}=require('../../src/helix/foundation/persistence/sqlite-unit-of-work');
+const C=require('../../src/helix/domains/libra/model/intake-control-contracts');
 
 const generatedRoot=path.resolve(__dirname,'../../src/helix/foundation/persistence/generated');
 const schemaDdl=fs.readFileSync(path.join(generatedRoot,'clean-schema.sql'),'utf8');
@@ -66,6 +67,63 @@ function seedDelivery(databasePath,message){
   db.pragma('foreign_keys = ON');db.close();
 }
 
+function controlRequest(databasePath) {
+  const input=request(),snapshot=input.deliverySnapshot,key=D('material');
+  snapshot.primaryMaterialDeliveries=[{materialKey:key,admittedControlRevision:1,admittedControlProjectionDigest:D('admitted')}];
+  snapshot.deliverySnapshotDigest=canonicalDigest(without(snapshot,'deliverySnapshotDigest'));
+  const body={materialKey:key,resultKind:'available',controlRevision:3,controlState:'controlled',ownerDomain:'procurement',
+    ownerScopeType:'material_field',ownerScopeId:'field-1',regionProjection:'procurement'};
+  const partial={...body,evidenceDigest:canonicalDigest({schema:'foundation.material-control-evidence@1',...without(body,'regionProjection')})};
+  const evidence={...partial,projectionDigest:canonicalDigest(partial)};
+  const result={schemaRef:C.MATERIAL_SCHEMA,candidatePackageId:snapshot.candidatePackage.candidatePackageId,
+    packageDigest:snapshot.candidatePackage.packageDigest,candidateDeliverySnapshotDigest:snapshot.deliverySnapshotDigest,basisDigest:snapshot.deliverySnapshotDigest,
+    result:'failed',reasonCodes:[C.CONTROL_REASON],controlObservationDigest:D('observation'),controlCapturedAtMs:100,
+    controlScopeStatus:'mismatched',mismatchedControlMaterialKey:key};
+  input.reasons=[{reasonCode:C.CONTROL_REASON,evidenceRefs:[{evidenceSchemaRef:C.SNAPSHOT_SCHEMA,evidenceId:'control-result',evidenceDigest:canonicalDigest(evidence)}]}];
+  const decision=buildIntakeRejectionDecision({deliverySnapshot:snapshot,reasons:input.reasons,decidedAtMs:input.decidedAtMs});
+  input.domainFactCommitHandle.payloadDigest=decision.decisionDigest;
+  const basis=D('evidence-basis');
+  const definition={workId:'reject-work',ownerDomain:'libra',processType:'libra_intake',processId:decision.intakeDecisionId,workKind:'rejection',
+    dependencyRefs:[{ownerDomain:'libra',objectType:'supporting_work',objectId:'control-work',revision:1,digest:basis}]};
+  const db=new Database(databasePath);db.pragma('foreign_keys = OFF');
+  for(const [workId,kind,state] of [['control-work','evidence','succeeded'],['reject-work','rejection','running']])
+    db.prepare(`INSERT INTO fx_supporting_works(work_id,owner_domain,process_type,process_id,work_kind,state,basis_digest,definition_json,definition_digest)
+      VALUES(?,?,?,?,?,?,?,?,?)`).run(workId,'libra','libra_intake',decision.intakeDecisionId,kind,state,basis,JSON.stringify(definition),canonicalDigest(definition));
+  db.prepare('INSERT INTO fx_workflow_events(event_id,work_id,owner_domain,capability_ref,state,result_id) VALUES(?,?,?,?,?,?)')
+    .run('control-event','control-work','libra',C.CAPABILITY,'succeeded','control-result');
+  db.prepare('INSERT INTO fx_workflow_events(event_id,work_id,owner_domain,capability_ref,state) VALUES(?,?,?,?,?)')
+    .run('reject-event-1','reject-work','libra','libra.intake.rejection.commit@1','executing');
+  db.prepare(`INSERT INTO fx_event_result_bindings(result_id,event_id,outcome_kind,result_schema_ref,result_json,result_digest,evidence_schema_ref,evidence_json,evidence_digest)
+    VALUES(?,?,?,?,?,?,?,?,?)`).run('control-result','control-event','succeeded',C.RESULT_SCHEMA,JSON.stringify(result),canonicalDigest(result),
+      C.EVIDENCE_SCHEMA,JSON.stringify(evidence),canonicalDigest(evidence));
+  db.close();return input;
+}
+
+test('Control rejection revalidates persisted source Evidence and exact Work dependency before any owner write',()=>fixture(({databasePath,unitOfWork})=>{
+  const input=controlRequest(databasePath),store=createIntakeRejectionStore({schemaManifest,unitOfWork});
+  const first=store.reject(input);assert.equal(first.receipt.primaryRejectionCode,C.CONTROL_REASON);
+  assert.equal(store.reject(input).replayed,true);
+}));
+
+for(const [label,mutation] of [
+  ['missing result',db=>db.prepare("UPDATE fx_event_result_bindings SET result_id='foreign-result' WHERE result_id='control-result'").run()],
+  ['forged full digest',db=>db.prepare("UPDATE fx_event_result_bindings SET evidence_digest=? WHERE result_id='control-result'").run(D('forged'))],
+  ['forged projection',db=>db.prepare("UPDATE fx_event_result_bindings SET evidence_json='{}' WHERE result_id='control-result'").run()],
+  ['wrong schema',db=>db.prepare("UPDATE fx_event_result_bindings SET evidence_schema_ref=? WHERE result_id='control-result'").run(C.SNAPSHOT_SCHEMA)],
+  ['foreign process',db=>db.prepare("UPDATE fx_supporting_works SET process_id='foreign' WHERE work_id='control-work'").run()],
+  ['wrong producer',db=>db.prepare("UPDATE fx_workflow_events SET capability_ref='libra.intake.candidate.verify@1' WHERE event_id='control-event'").run()],
+  ['wrong dependency',db=>{const row=db.prepare("SELECT definition_json FROM fx_supporting_works WHERE work_id='reject-work'").get();
+    const value=JSON.parse(row.definition_json);value.dependencyRefs[0].objectId='other-work';
+    db.prepare("UPDATE fx_supporting_works SET definition_json=?,definition_digest=? WHERE work_id='reject-work'").run(JSON.stringify(value),canonicalDigest(value));}]
+]) test('Control rejection refuses '+label+' without publishing a Receipt or releasing owner facts',()=>fixture(({databasePath,unitOfWork})=>{
+  const input=controlRequest(databasePath),db=new Database(databasePath);db.pragma('foreign_keys = OFF');mutation(db);db.close();
+  assert.throws(()=>createIntakeRejectionStore({schemaManifest,unitOfWork}).reject(input));
+  const check=new Database(databasePath,{readonly:true});
+  for(const table of ['libra_intake_decisions','libra_handoff_a_receipts','libra_intake_rejection_reason_evidence','fx_commit_markers','fx_outbox','fx_material_control_revisions'])
+    assert.equal(check.prepare(`SELECT count(*) n FROM ${table}`).get().n,0,table);
+  check.close();
+}));
+
 test('normalizes closed rejection reasons by precedence and typed Evidence',()=>{
   const normalized=normalizeReasons(reasons());
   assert.deepEqual(normalized.map((item)=>item.reasonCode),['candidate_contract_invalid','candidate_material_unreadable']);
@@ -76,7 +134,7 @@ test('normalizes closed rejection reasons by precedence and typed Evidence',()=>
 test('commits Decision, relationized reasons, Receipt, Result, marker and Outbox atomically without Subject or Control writes',()=>fixture(({databasePath,unitOfWork})=>{
   seedEvent(databasePath);const store=createIntakeRejectionStore({schemaManifest,unitOfWork}),input=request();
   assert.deepEqual(store.repositoryManifest.libraTableIds,['libra_handoff_a_receipts','libra_intake_decisions','libra_intake_rejection_reason_evidence']);
-  assert.deepEqual(store.repositoryManifest.foundationTableIds,['fx_commit_markers','fx_event_result_bindings','fx_outbox','fx_outbox_deliveries']);
+  assert.deepEqual(store.repositoryManifest.foundationTableIds,['fx_commit_markers','fx_event_result_bindings','fx_outbox','fx_outbox_deliveries','fx_supporting_works','fx_workflow_events']);
   const committed=store.reject(input);assert.equal(committed.replayed,false);assert.equal(committed.decision.structuredRejection.primaryRejectionCode,'candidate_contract_invalid');
   const replay=store.reject(input);assert.equal(replay.replayed,true);assert.deepEqual(replay.decision,committed.decision);assert.deepEqual(replay.receipt,committed.receipt);
   const db=new Database(databasePath,{readonly:true});

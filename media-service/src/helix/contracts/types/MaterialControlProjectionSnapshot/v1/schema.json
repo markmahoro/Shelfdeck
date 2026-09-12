@@ -1,0 +1,270 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/types/MaterialControlProjectionSnapshot/v1",
+  "title": "MaterialControlProjectionSnapshot@1",
+  "x-helix-ssotRefs": [
+    "8.3.6",
+    "8.6.18"
+  ],
+  "x-helix-maxCanonicalBytes": 4096,
+  "oneOf": [
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "materialKey": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "resultKind": {
+          "const": "unavailable"
+        },
+        "failureCode": {
+          "type": "string",
+          "enum": [
+            "control_row_invalid",
+            "control_query_unavailable"
+          ]
+        },
+        "evidenceDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "projectionDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "materialKey",
+        "resultKind",
+        "failureCode",
+        "evidenceDigest",
+        "projectionDigest"
+      ]
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "materialKey": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "resultKind": {
+          "const": "available"
+        },
+        "controlRevision": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "controlState": {
+          "const": "uncontrolled"
+        },
+        "regionProjection": {
+          "const": "uncontrolled"
+        },
+        "evidenceDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "projectionDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "materialKey",
+        "resultKind",
+        "controlRevision",
+        "controlState",
+        "regionProjection",
+        "evidenceDigest",
+        "projectionDigest"
+      ]
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "materialKey": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "resultKind": {
+          "const": "available"
+        },
+        "controlRevision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "controlState": {
+          "const": "controlled"
+        },
+        "ownerDomain": {
+          "const": "procurement"
+        },
+        "ownerScopeType": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "ownerScopeId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "regionProjection": {
+          "const": "procurement"
+        },
+        "evidenceDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "projectionDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "materialKey",
+        "resultKind",
+        "controlRevision",
+        "controlState",
+        "ownerDomain",
+        "ownerScopeType",
+        "ownerScopeId",
+        "regionProjection",
+        "evidenceDigest",
+        "projectionDigest"
+      ]
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "materialKey": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "resultKind": {
+          "const": "available"
+        },
+        "controlRevision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "controlState": {
+          "const": "controlled"
+        },
+        "ownerDomain": {
+          "const": "libra"
+        },
+        "ownerScopeType": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "ownerScopeId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "regionProjection": {
+          "const": "production"
+        },
+        "evidenceDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "projectionDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "materialKey",
+        "resultKind",
+        "controlRevision",
+        "controlState",
+        "ownerDomain",
+        "ownerScopeType",
+        "ownerScopeId",
+        "regionProjection",
+        "evidenceDigest",
+        "projectionDigest"
+      ]
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "materialKey": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "resultKind": {
+          "const": "available"
+        },
+        "controlRevision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "controlState": {
+          "const": "controlled"
+        },
+        "ownerDomain": {
+          "const": "arca"
+        },
+        "ownerScopeType": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "ownerScopeId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "regionProjection": {
+          "const": "finished_goods"
+        },
+        "evidenceDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "projectionDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "materialKey",
+        "resultKind",
+        "controlRevision",
+        "controlState",
+        "ownerDomain",
+        "ownerScopeType",
+        "ownerScopeId",
+        "regionProjection",
+        "evidenceDigest",
+        "projectionDigest"
+      ]
+    }
+  ]
+}

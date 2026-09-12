@@ -116,7 +116,7 @@ describe('Arca collection poster wall', () => {
     const tile = await screen.findByRole('button', {
       name: /查看 The Shawshank Redemption 详情/,
     });
-    expect(screen.getByRole('heading', { name: '收藏陈列' })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: '收藏列表' })).toContainElement(tile);
     expect(screen.getByText('第 1 页 · 共 1 部')).toBeInTheDocument();
     expect(document.querySelector('.collection-library-heading > span')).toBeNull();
     expect(screen.queryByText('只显示已经上架的电影。')).not.toBeInTheDocument();
@@ -133,7 +133,7 @@ describe('Arca collection poster wall', () => {
     expect(screen.getByText('HEVC · 2160p')).toBeInTheDocument();
     expect(screen.getByText('有海报 · 有 NFO')).toBeInTheDocument();
     expect(screen.getByLabelText('The Shawshank Redemption评分')).toBeInTheDocument();
-    expect(screen.getByText('健康')).toBeInTheDocument();
+    expect(await within(dialog).findByText('健康', { exact: true })).toBeInTheDocument();
     expect(screen.queryByText('当前发现')).not.toBeInTheDocument();
     expect(screen.queryByText('技术标识')).not.toBeInTheDocument();
     expect(screen.queryByText('保管')).not.toBeInTheDocument();

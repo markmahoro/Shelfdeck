@@ -33,6 +33,7 @@ Do not add generated `media-service/dist/`, root debug dumps, runtime JSON, expo
 
 ## Production Safety
 
+- The user-appointed deployment owner manages code integration, workspace cleanup, and production release order and cadence; follow docs/helix/ENGINEERING_PLAYBOOK.md §3.5. Appointment announcements are unnecessary; technical coordination remains allowed.
 - NAS ShelfDeck Docker at `192.168.12.230:18080` is production.
 - Do not delete, park, reset, migrate, or directly edit production data unless the user explicitly asks for that production action.
 - A direct user request to deploy, release, publish, or upgrade NAS production authorizes the standard deploy flow, including `deploy-nas.js --apply` after dry run and checksum validation pass.
@@ -78,6 +79,7 @@ Do not block the turn with a foreground development server. When needed, use a m
 
 ## Change Discipline
 
+- All UI changes, including backend-generated display text, are coordinated by the user-appointed UI owner; follow docs/helix/ENGINEERING_PLAYBOOK.md §12.3 for ownership, confirmed design rules, and current polish boundaries.
 - Read the code before changing it. Prefer existing patterns and helpers.
 - During the current Helix iteration stage, unfinished Libra/Formation entries have no compatibility entitlement. Unless the user explicitly identifies an exact entry that must survive an iteration, do not add migration, dual-read/write, fallback, resume, repair, or other compatibility code for existing entries; clear them with the authorized Formation Reset tooling instead. Reset may retire stale runtime data, but it must never conceal a defect that still reproduces for newly created entries.
 - A user challenge is a review trigger, not evidence that the current conclusion is wrong. Re-check the active SSOT and historical record, distinguish an already-decided duplicate from a genuine open contract gap, and then state the evidence-backed result. Do not concede, downgrade, close, or reopen an architecture issue merely to agree with the challenge; if a real gap remains, keep it open and discuss it explicitly.

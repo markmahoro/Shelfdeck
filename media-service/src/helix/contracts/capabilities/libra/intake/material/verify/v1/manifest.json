@@ -14,6 +14,11 @@
       "schemaRef": "helix://contracts/capabilities/libra.intake.material.verify/v1/inputs#/$defs/physicalMaterialReadHandleList",
       "required": true,
       "cardinality": "many"
+    },
+    "intakeControlReadHandle": {
+      "schemaRef": "helix://contracts/capabilities/libra.intake.material.verify/v1/inputs#/$defs/intakeControlReadHandle",
+      "required": true,
+      "cardinality": "one"
     }
   },
   "parametersSchemaRef": "helix://contracts/capabilities/libra.intake.material.verify/v1/parameters",
@@ -30,6 +35,6 @@
   "sourceLocator": {
     "section": "8.6.5",
     "line": 9834,
-    "lineDigest": "577a5c3edda27be775e0cea43186b4c2d883d55d9989dc4f5edff152f811203f"
+    "lineDigest": "611c8163d1bae2af537acb7ac704910cf1cb26e6e02c8ba8cbdced828bb8cb06"
   }
 }

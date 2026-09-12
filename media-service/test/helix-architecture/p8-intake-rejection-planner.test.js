@@ -69,10 +69,14 @@ function verificationResults(snapshot) {
     Object.freeze({ outcomeKind: 'succeeded', result: Object.freeze({
       schemaRef: 'helix://contracts/types/IntakeMaterialVerification/v1', schemaVersion: 1,
       verificationId: 'material-verification-1', result: 'failed',
+      candidatePackageId:snapshot.candidatePackage.candidatePackageId,packageDigest:snapshot.candidatePackage.packageDigest,
+      candidateDeliverySnapshotDigest:snapshot.deliverySnapshotDigest,controlObservationDigest:digest('control-observation'),
+      controlCapturedAtMs:100,controlScopeStatus:'matched',mismatchedControlMaterialKey:null,
       reasonCodes: Object.freeze(['candidate_material_unavailable']), verifiedMaterials: Object.freeze([]),
       verifiedAtMs: 101, basisDigest: snapshot.deliverySnapshotDigest,
     }) }),
-  ]);
+  ].map(binding=>({...binding,evidence:{producerRef:'libra.intake.material.verify@1',payloadDigest:canonicalDigest(binding.result),
+    basisDigest:snapshot.deliverySnapshotDigest}})));
 }
 
 test('Rejection Planner projects the exact Evidence Work id, commits rejection, and releases the pipeline seat', () => {

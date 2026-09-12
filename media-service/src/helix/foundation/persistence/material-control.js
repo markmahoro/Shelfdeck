@@ -113,7 +113,9 @@ function createMaterialControlProjectionPort(options) {
   if (!options || !options.schemaManifest || !options.unitOfWork || typeof options.unitOfWork.execute !== 'function') fail('P3_CONTROL_QUERY_DATABASE_REQUIRED', 'Material Control Query requires scoped persistence dependencies.');
   const queryRepository = createRepositoryDefinition({ repositoryId:'material_control_query', owner:'material-control-authority', schemaManifest:options.schemaManifest,
     statements:{ find_many:{ kind:'select-in', tableId:'fx_material_controls', keyColumn:'material_key', maxItems:500, safeIntegers:true,
-      columns:['material_key','owner_domain','owner_scope_type','owner_scope_id','control_revision','state'] } } });
+      columns:['material_key','owner_domain','owner_scope_type','owner_scope_id','control_revision','state'] },
+      scope:{kind:'select-all',tableId:'fx_material_controls',columns:['material_key','owner_domain','owner_scope_type','owner_scope_id','control_revision','state'],
+        keyColumns:['owner_domain','owner_scope_type','owner_scope_id'],safeIntegers:true} } });
   function getMaterialControlProjections(materialKeys) {
     if (!Array.isArray(materialKeys) || materialKeys.length > 500 || new Set(materialKeys).size !== materialKeys.length ||
         materialKeys.some((key, index) => !SHA256.test(key || '') || index > 0 && materialKeys[index - 1].localeCompare(key) >= 0)) {
@@ -131,6 +133,14 @@ function createMaterialControlProjectionPort(options) {
   }
   return Object.freeze({
     getMaterialControlProjection(materialKeyValue) { return getMaterialControlProjections([materialKeyValue])[0]; },
+    readScope(scope) {
+      assertScope(scope, 'scope');
+      const rows=options.unitOfWork.execute([{participantId:'material_control_scope_read',owner:'material-control-authority',repositories:[queryRepository],execute(context){
+        return context.repository(queryRepository.repositoryId).invoke('scope',{owner_domain:scope.ownerDomain,owner_scope_type:scope.scopeType,owner_scope_id:scope.scopeId});
+      }}]).material_control_scope_read;
+      const items=rows.map(row=>mapControlProjection(row.material_key,row)).sort((a,b)=>a.materialKey.localeCompare(b.materialKey));
+      return Object.freeze({scope:Object.freeze({...scope}),items:Object.freeze(items),digest:digest(canonicalJson(items))});
+    },
     getMaterialControlProjections
   });
 }

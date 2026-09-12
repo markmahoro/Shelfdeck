@@ -28,6 +28,7 @@ export default function CollectionDefects({shelfEntryId,revision,onChanged}:{she
   useEffect(()=>{setPreview(null);setAction(null);void load();return()=>{version.current++;};},[load,revision]);
   useEffect(()=>{if(!action)return;dialog.current?.showModal();return()=>{dialog.current?.close();trigger.current?.focus();};},[action]);
   const accepted=new Set(preview?.acceptedGaps.map(gap=>gap.gapDigest));
+  const unavailable=new Set(preview?.unavailableRepairs.filter(item=>item.reasonCode==='no_current_bounded_repair_path').map(item=>item.findingKind));
   const newGaps=preview?.gaps.filter(gap=>!accepted.has(gap.gapDigest)) || [];
   function open(value:typeof action){trigger.current=document.activeElement as HTMLElement;key.current=newOpaqueId('collection-defects-');setMessage('');setError('');setAction(value);}
   async function confirm(){if(!preview||!action||busy)return;setBusy(true);setError('');
@@ -39,14 +40,13 @@ export default function CollectionDefects({shelfEntryId,revision,onChanged}:{she
   return <section className="collection-health" aria-labelledby="collection-defects-heading">
     <div className="collection-health-heading"><h3 id="collection-defects-heading">瑕疵</h3><Button type="button" disabled={loading||busy} onClick={()=>void load()}>重新读取</Button></div>
     {loading?<p role="status">正在读取瑕疵…</p>:error&&!action?<p role="alert">{error}</p>:preview&&<>
-      {preview.gaps.length>0&&<ul>{preview.gaps.map(gap=><li key={gap.gapDigest}>{gapLabel(gap)}{accepted.has(gap.gapDigest)&&<> · <span className="ui-state" data-state="unknown">已接受</span></>}</li>)}</ul>}
+      {preview.gaps.length>0&&<ul>{preview.gaps.map(gap=><li key={gap.gapDigest}>{gapLabel(gap)}{accepted.has(gap.gapDigest)&&<> · <span className="ui-state" data-state="unknown">已接受</span>{unavailable.has(gap.findingKind)&&<> · <span className="ui-state" data-state="unknown">暂不可修复</span></>}</>}</li>)}</ul>}
       {preview.eligibility==='evidence_pending'&&<p role="status">需要一次完整的健康检查来确认当前瑕疵，请使用上方“立即检查健康”。</p>}
       {preview.eligibility==='ineligible'&&<p>{preview.ineligibleReasons.map(code=>blockers[code] || '当前存在文件安全或完整性问题，不能接受为瑕疵。').filter((value,index,array)=>array.indexOf(value)===index).join(' ')}</p>}
       {preview.eligibility==='eligible'&&<div className="dialog-actions">
         {newGaps.length>0&&<Button type="button" onClick={()=>open('accept-defects')}>接受当前瑕疵</Button>}
         {preview.repairableGapDigests.length>0&&<Button type="button" onClick={()=>open('repair-accepted-defects')}>手动修复已接受瑕疵</Button>}
       </div>}
-      {preview.acceptedGaps.length>0&&preview.unavailableRepairs.length>0&&<p>部分已接受瑕疵当前没有可执行的修复路径，暂时保留。</p>}
     </>}
     {message&&<p role="status">{message}</p>}
     {action&&preview&&<dialog ref={dialog} className="shelf-deregister-dialog" aria-labelledby="collection-defect-confirm-title"

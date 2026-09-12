@@ -38,7 +38,7 @@ export default function RunOutcomeDetail({item,onChanged}:{item:FormationRunHist
     catch(cause){if(isUnauthorized(cause))expire();else setError('重新整理未确认成功，请重试。');}
     finally{setBusy(false);}
   }
-  return <article className="formation-process-detail">
+  return <article className="formation-run-outcome">
     {loading?<p role="status">正在读取整理结果…</p>:outcome?<>
       <h3>无法上架</h3>
       <ul>{terminalReasonLabels(outcome.terminalReasons).map(reason=><li key={reason}>{reason}</li>)}</ul>

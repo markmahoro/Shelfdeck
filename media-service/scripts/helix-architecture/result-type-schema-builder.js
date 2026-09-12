@@ -355,6 +355,10 @@ const special = {
   'CandidateContractVerification.primaryInputManifestDigest': digest(),
   'CandidateContractVerification.candidateDeliverySnapshotDigest': digest(),
   'IntakeMaterialVerification.candidateDeliverySnapshotDigest': digest(),
+  'IntakeMaterialVerification.controlObservationDigest': digest(),
+  'IntakeMaterialVerification.controlCapturedAtMs': nonNegativeInteger(),
+  'IntakeMaterialVerification.controlScopeStatus': enumText('matched','mismatched'),
+  'IntakeMaterialVerification.mismatchedControlMaterialKey': nullable(digest()),
   'IntakeMaterialVerification.verifiedMaterials': arrayOf(object({ materialKey: digest(), bindingRevision: positiveInteger(),
     locationEvidenceDigest: digest(), readHandleDigest: digest(), verificationDigest: digest() }), 1024),
   'LibraBindingDraft.subjectRef': object({ subjectId: id(), resolutionKind: enumText('new_subject', 'season_extension') }),
@@ -616,7 +620,7 @@ const contracts = {
   LibraCandidateRejectedMessage: [null, 'messageKind,offerId,candidatePackageId,packageRevision,packageDigest,acceptanceBasisDigest,intakeDecisionId,decisionDigest,rejectionId,reasonCodes,primaryRejectionCode,rejectionReasonSetDigest,rejectionDigest,receiptId,receiptDigest'],
   ProcurementCandidateRejectionClosureResult: [null, 'offerId,candidatePackageId,packageRevision,packageDigest,acceptanceBasisDigest,terminalDeliveryState,releasedMaterialCount,releasedMaterialSetDigest,rejectionReceiptDigest,closureDigest'],
   CandidateContractVerification: ['VerificationEnvelope', 'offerId,candidatePackageId,packageRevision,packageDigest,acceptanceBasisDigest,primaryInputManifestDigest,candidateDeliverySnapshotDigest'],
-  IntakeMaterialVerification: ['VerificationEnvelope', 'candidatePackageId,packageDigest,candidateDeliverySnapshotDigest,verifiedMaterials,verifiedMaterialSetDigest'],
+  IntakeMaterialVerification: ['VerificationEnvelope', 'candidatePackageId,packageDigest,candidateDeliverySnapshotDigest,verifiedMaterials,verifiedMaterialSetDigest,controlObservationDigest,controlCapturedAtMs,controlScopeStatus,mismatchedControlMaterialKey'],
   LibraBindingDraft: ['DraftEnvelope', 'subjectRef,resolutionDecision,candidateDeliverySnapshotDigest,bindings,bindingSetDigest'],
   LibraBindingDraftReceipt: [null, 'receiptId,receiptKind,basisDigest,subjectRef,resolutionDecisionDigest,bindingResolutionBasisDigest,candidateDeliverySnapshotDigest,bindingCount,primaryBindingCount,relatedBindingCount,bindingSetDigest,producedAtMs,receiptDigest'],
   IntakeRejectionReceipt: ['ReceiptEnvelope', 'intakeDecisionId,handoffKind,offerId,deliverableId,deliverableRevision,deliverableDigest,rejectionId,primaryRejectionCode,rejectionReasonSetDigest,rejectionDigest,receiptDigest'],
@@ -692,7 +696,8 @@ const contracts = {
   PersonReferenceRevision: ['DomainFactEnvelope', 'personId,referenceRevision,operationKind,affectedReferenceAssetId,affectedReferenceFaceId,activeReferenceAssets,activeReferenceFaces,activeAssetSetDigest,activeFaceSetDigest,referenceSetDigest'],
   MergeCandidateEvidence: ['EvidenceEnvelope', 'personPair,matchSignals,conflictSummary,evidenceRefs'],
   PersonRevision: ['DomainFactEnvelope', 'operationKind,registrationOrigin?,personId,canonicalName,aliasSetDigest,providerIdentitySetDigest,directDecisionRef?,acceptedCandidateRef?,affectedPersonRevisions,mergeRecordRef?,preferenceRevisionRef?'],
-  PersonPreferenceRevision: ['DomainFactEnvelope', 'personId,preferenceLevel,reason']
+  PersonPreferenceRevision: ['DomainFactEnvelope', 'personId,preferenceLevel,reason'],
+  LibraProductFactEvidence: [null, 'evidenceId,evidenceDigest']
 };
 
 special['OnDeckCommitResult.onDeckCommitReceipt'] = ref('OnDeckCommitReceipt');

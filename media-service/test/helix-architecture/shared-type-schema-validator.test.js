@@ -29,7 +29,7 @@ function codes(result) {
 test('validates all SSOT shared handles, envelopes, context, and Outcome', () => {
   const result = validateSharedTypeSchemas({ contractsRoot: actualContractsRoot });
   assert.equal(result.ok, true);
-  assert.equal(result.typeCount, 30);
+  assert.equal(result.typeCount, 31);
   assert.match(result.registryDigest, /^[a-f0-9]{64}$/);
 });
 

@@ -15,7 +15,7 @@ Helix-beta 已于 2026-08-28 在飞牛 NAS 上线。下列是 **当前生产配�
 | NAS compose 文件 | `/vol1/1000/docker/shelfdeck/docker-compose.yml` |
 | NAS 数据目录 | `/vol1/1000/docker/shelfdeck/data` |
 | 镜像名 | `markmahoro/shelfdeck:<tag>`，同时打 `latest`，但生产不从 DockerHub pull |
-| 当前运行镜像 | `markmahoro/shelfdeck:helix-beta-20260908-6e37bf5679`（source commit `6e37bf5679`；image ID `sha256:356c034aca554dc206d7c2050b38d9ba646c6c0c1f43f66d7a57aa1f86f3d976`；tar SHA-256 `404da86c43eccc15c68b00b5d63832b1012d165ea7768d89deed6870fc581d90`；2026-09-08 部署） |
+| 当前运行镜像 | 以 [Helix CURRENT_STATUS](../helix/CURRENT_STATUS.md) 与 NAS 当次只读 inspect 为准；本文不维护易过期的发布身份 |
 | 容器内 service 端口 | `18080` |
 | 容器内数据目录 | `/app/data` |
 | 普通媒体挂载 | NAS `/vol02/1000-0-c5b736af` -> 容器 `/media` |
@@ -92,7 +92,11 @@ node scripts/upload-nas-image.js dist-image\shelfdeck-<tag>.tar
 
 私钥文件只留在本机，不得提交。`tools/` 需要先 `npm install` 以提供 `ssh2`。脚本会先上传到 `.uploading-*` 临时文件，完成后 rename 为目标 tarball，并在 NAS 上校验 SHA-256。校验不通过不得部署。
 
-4. 先 dry run 部署脚本，检查将要执行的生产步骤：
+4. 升级候选须先完成最新完整一致生产副本的完整 Host 启动与升级/回退验证，再 dry run 部署脚本。副本必须包含 SQLite 一致备份及所有伴随文件，并逐文件校验；从冻结原件另复制演练目录，媒体与现有 Workspace 只读挂载、外部网络隔离，代码来自与待发布 tar 对应的精确镜像。验证不能只调用数据库 readiness 或按 process 过滤的执行轨：必须实际运行完整 `createCleanServiceHost`（生产 `server.js` 使用同一入口），检查 `/v1/health` 和 `normalSupplyAllowed=true`，记录启动/关闭、不可变历史及未决 Effect 保护结果。隔离导致的失败或超时须定位并记录，不能当作通过。当前镜像、候选和回退镜像均需有明确覆盖；历史 Catalog、schema 或 typed contract 变化尤其不能跳过此项。
+
+记录快照时间/摘要、候选 source commit、镜像身份、tar SHA256及完整启动错误；实际发布前若队列或精确恢复范围发生变化，重核现场，不能沿用旧 Reset 清单。完整启动与回退证据不足时停止发布，不能改历史摘要、加无界 Catalog 白名单或删除数据绕过。该门禁由 [UAT-261 发布失败](../helix/implementation/evidence/UAT-261_CATALOG_STARTUP_DEPLOYMENT_20260912.md)确认，`deploy-nas.js` 的 readiness 并不替代它。
+
+上述验证通过后，dry run 检查将要执行的生产步骤：
 
 ```bash
 node scripts/deploy-nas.js /vol1/1000/docker/shelfdeck/shelfdeck-<tag>.tar --sha256 <local-sha256>

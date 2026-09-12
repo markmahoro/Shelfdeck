@@ -24,6 +24,9 @@ const { createPlannerRegistry } = require('../foundation/execution/planner-regis
 const { createResourceGovernor } = require('../foundation/execution/resource-governor');
 const { createResourceProfileMapper } = require('../foundation/execution/resource-profile-mapper');
 const { createStartupRecovery } = require('../foundation/execution/startup-recovery');
+const { createBoundedCatalogTransition } = require('../foundation/execution/bounded-catalog-transition');
+const { createCatalogPlanProofReader } = require('../foundation/execution/catalog-plan-proof-reader');
+const intakeControlCatalogTransition = require('./catalog-transitions/intake-control-20260912.json');
 const { createTimeoutController } = require('../foundation/execution/timeout-controller');
 const { createCooperativeExecutionIsolation } = require('../foundation/execution/cooperative-execution-isolation');
 const { createWorkLifecycle } = require('../foundation/execution/work-lifecycle');
@@ -151,10 +154,11 @@ function verifyFailedPreparationRetryPlan(snapshot) {
   return expectedCapabilities.size === 0;
 }
 
-function verifyStartupPlanCatalog(snapshot, currentCatalogDigest, registry, policyRegistry, bindingProjectionRegistry) {
+function verifyStartupPlanCatalog(snapshot, currentCatalogDigest, registry, policyRegistry, bindingProjectionRegistry, boundedTransition) {
   if (!snapshot || !snapshot.plan) return false;
   if (verifyFailedPreparationRetryPlan(snapshot)) return true;
   if (snapshot.plan.catalog_digest === currentCatalogDigest) return true;
+  if (snapshot.plan.catalog_digest === boundedTransition?.previousCatalogDigest) return boundedTransition.verify(snapshot);
   const previousCatalog = [PRE_PROJECTION_EXECUTION_CATALOG_DIGEST,
     PRE_ACTOR_COMPLETION_EXECUTION_CATALOG_DIGEST,
     PRE_SEMANTIC_EXECUTION_CATALOG_DIGEST].includes(snapshot.plan.catalog_digest) ||
@@ -245,7 +249,8 @@ function createProcurementExecutionRuntime(options) {
   });
   const materialControlProjectionPort = createMaterialControlProjectionPort(options);
   const workResultReader = createWorkResultReader(options);
-  const contractValidator = createCapabilityContractValidator({ schemas: collectSchemas(contractsRoot) });
+  const runtimeSchemas = collectSchemas(contractsRoot);
+  const contractValidator = createCapabilityContractValidator({ schemas: runtimeSchemas });
   const manifests = Object.fromEntries(ENABLED.map((ref) => [ref, manifest(contractsRoot, ref)]));
   const procurementConstruction = ProcurementExecutionRegistration();
   const libraConstruction = LibraExecutionRegistration();
@@ -279,6 +284,7 @@ function createProcurementExecutionRuntime(options) {
       validateInputs:(context)=>ports[capabilityRef].validateInputs(context),
       validateResult:(context,outcome)=>ports[capabilityRef].validateResult(context,outcome)}) }));
   const libraCapabilityRegistration=libraConstruction.createCapabilityRegistration({...libraOptions,now,workResultReader,
+    materialControlProjectionPort,
     computeFingerprint:options.computeFingerprint || computeBoundedMaterialFingerprint});
   const libraRegistrations=libraCapabilityRegistration.createRegistrations({enabledCapabilityRefs:LIBRA_ENABLED,
     manifests:Object.fromEntries(LIBRA_ENABLED.map((ref)=>[ref,manifests[ref]]))});
@@ -729,11 +735,19 @@ function createProcurementExecutionRuntime(options) {
   const planPublisher = createWorkflowPlanPublisher({ schemaManifest: options.schemaManifest, unitOfWork: options.unitOfWork,
     registry, contractValidator, policyRegistry });
   const catalogDigest = executionCatalogDigest(registry, policyRegistry);
+  const catalogProofReader = createCatalogPlanProofReader({ schemaManifest:options.schemaManifest, unitOfWork:options.unitOfWork });
+  const terminalEffectObserver = arcaConstruction.createTerminalEffectHistoryObserver({ ...options, workResultReader,
+    stageHistoryLibraBindingReader:LibraExecutionRegistration.createMaterialBindingScopeReader(options),
+    readTechnicalWork:workId => catalogProofReader.verify(reader => reader.workPlanIds(workId).map(id => reader.read(id))) });
+  const boundedTransition = createBoundedCatalogTransition({ witness: intakeControlCatalogTransition,
+    registry, policyRegistry, schemas: new Map(runtimeSchemas.map(schema => [schema.$id, schema])),
+    contractValidator, bindingProjectionRegistry,
+    proofReader:catalogProofReader, terminalEffectObserver });
   const startupRecovery = createStartupRecovery({ schemaManifest: options.schemaManifest, unitOfWork: options.unitOfWork,
     standaloneEffectClasses:Object.freeze(['libra_workspace_material_reclaim','arca_recycle_move','arca_recycle_restore','arca_recycle_purge']),
     registry, policyRegistry, integrityVerifier: { verify: () => ({ ok: true }) },
     catalogVerifier: { verify: (snapshot) => verifyStartupPlanCatalog(
-      snapshot, catalogDigest, registry, policyRegistry, bindingProjectionRegistry,
+      snapshot, catalogDigest, registry, policyRegistry, bindingProjectionRegistry, boundedTransition,
     ) },
     effectReconciler, effectJournal });
   function fillPredeckIntakeSeats() {

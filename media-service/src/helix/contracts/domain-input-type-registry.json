@@ -5,7 +5,7 @@
   "kind": "domain-input-type-registry",
   "owner": "contracts",
   "status": "active",
-  "targetCount": 119,
+  "targetCount": 120,
   "ssotRefs": [
     "8.6.3",
     "8.6.14",
@@ -409,7 +409,7 @@
           "source": {
             "section": "8.6.5",
             "line": 9834,
-            "lineDigest": "577a5c3edda27be775e0cea43186b4c2d883d55d9989dc4f5edff152f811203f"
+            "lineDigest": "611c8163d1bae2af537acb7ac704910cf1cb26e6e02c8ba8cbdced828bb8cb06"
           },
           "typeExpression": "CandidateDeliverySnapshot"
         }
@@ -826,6 +826,28 @@
             "lineDigest": "02f086b257a4871f2c7bc3044bc846fe725c7248854c251bb8ae51f681554496"
           },
           "typeExpression": "Identity Requirement"
+        }
+      ]
+    },
+    {
+      "id": "IntakeControlReadHandle",
+      "version": 1,
+      "role": "accepted-business-dto",
+      "schemaId": "helix://contracts/domain-types/IntakeControlReadHandle/v1",
+      "relativePath": "domain-types/IntakeControlReadHandle/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "32c05e3e9e61bc9a959f019f166ca7fb38ca22387a345518288349d408f00862"
+      },
+      "usedBy": [
+        {
+          "capabilityRef": "libra.intake.material.verify@1",
+          "source": {
+            "section": "8.6.5",
+            "line": 9834,
+            "lineDigest": "611c8163d1bae2af537acb7ac704910cf1cb26e6e02c8ba8cbdced828bb8cb06"
+          },
+          "typeExpression": "IntakeControlReadHandle"
         }
       ]
     },

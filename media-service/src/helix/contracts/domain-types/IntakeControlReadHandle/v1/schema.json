@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/domain-types/IntakeControlReadHandle/v1",
+  "title": "IntakeControlReadHandle@1",
+  "x-helix-ssotRefs": [
+    "8.6.13",
+    "8.6.18",
+    "8.6.20"
+  ],
+  "x-helix-role": "accepted-business-dto",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "handleId": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "ownerDomain": {
+      "const": "libra"
+    },
+    "processType": {
+      "const": "libra_intake"
+    },
+    "processId": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "candidateDeliverySnapshotDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "materialKeys": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "pattern": "^[a-f0-9]{64}$"
+      },
+      "maxItems": 1024,
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "accessScope": {
+      "const": "current_control_projection_read"
+    },
+    "scopeDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "handleId",
+    "ownerDomain",
+    "processType",
+    "processId",
+    "candidateDeliverySnapshotDigest",
+    "materialKeys",
+    "accessScope",
+    "scopeDigest"
+  ],
+  "x-helix-maxCanonicalBytes": 131072
+}

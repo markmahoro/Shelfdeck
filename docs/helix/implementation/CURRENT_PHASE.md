@@ -7,9 +7,22 @@
 
 UAT-251由本任务连续实施至验收：先完成精确Gap及Libra持续授权、有限终局与责任收尾，再接通Arca精确接纳/手动修复/同条件失败抑制及健康投影，最后完成协同确认后的UI、真实媒体、重启和适用生产验证。“自动授权瑕疵上架”初始未授权；用户开启后由后台对当前及未来合格候选逐项建立正式授权，关闭只阻止后续新授权。UI协同与逐项Evidence追加到既有[251记录](evidence/UAT-251_TERMINAL_OUTCOME_AUDIT_20260908.md)，不建立平行计划。
 
+2026-09-12追加：UAT-261 精确 Catalog retirement 本地实现按旧/新完整语义及 schema 闭包、持久 DAG 和提交引用核验；最新一致副本 4764 Plan 中4757通过，仅7项23个未决物理Effect保留阻断。既有LibraProductFactEvidence名义合同补齐schema，历史缺生成物事实明确保留；活跃旧Intake不兼容。完整Host门禁、未决Effect正式收口和生产决定仍交统一部署任务，未关闭、未部署。详见[验证与精确责任清单](evidence/UAT-261_CATALOG_RETIREMENT_PROOF_20260912.md)。UAT-260三个未提交实现文件保留，未夹带本批。
+
+2026-09-12第二批d7a6da2802发布失败：数据库readiness通过，但完整Host因大量历史PLAN_CATALOG_DRIFT未启动。已标准回退cd4f3f5b2d，StartedAt2026-09-11T21:32:51.809272745Z，健康/五挂载/fnOS/113收藏及970份Delivery复核通过。此前原两Token精确Reset已执行且保留，未恢复DB；5旧Offer仍open，旧版已产生新Token，不得扩大或复用旧Reset范围。新增261优先定位启动合同与补完整Host门禁，260随后，251独立。[事故记录](evidence/UAT-261_CATALOG_STARTUP_DEPLOYMENT_20260912.md)。
+
+2026-09-12新增UAT-260：隔离演练中大Run FailedPreparationRetry将完整DTO内联至Plan，触发16 KiB CHECK；SSOT要求typed binding refs，禁止扩大上限或旧Work fallback。正常恢复链用修正BigInt桥另建副本继续；重试缺陷单独修复验收，生产未变更。见[缺陷证据](evidence/UAT-260_LARGE_RUN_RETRY_INPUT_20260912.md)。
+
+
+首批cd4f3f5b2d已部署，257/258/259逐项验收关闭。新扫描73页完成、六片普通选材产生新Package/open Delivery、原8份拒绝不变；生产UI与授权保持通过。当前接续251、正式Control拒绝链及精确旧条目恢复，详见本批发布证据。
+
+发布由“收口并部署上线”任务统一负责合并、工作区清理及上线，按UAT-251、接收恢复、UAT-257扫描修复的实际依赖与验证结果自主安排批次；UAT-258完整提交38e89d145已生产验收关闭。此次任命无需广播，不限制必要技术协调。各开发任务不独立部署；当前生产为cd4f3f5b2d，首批标准部署及健康/浏览器验证已完成。见[接手审计与发布缺证](evidence/UAT_JOINT_DEPLOYMENT_READINESS_20260912.md)。
+
+2026-09-12接收恢复：9820e7b85核心已部署，9ecf7b2a1正式Control拒绝和d591d6867证据已合入d7a6da2802。独立发布区Windows组合38/38、完整架构1647通过/9跳过/0失败，DDL不变，候选镜像Linux117/117通过，试发布完整Host失败已回退；CAS后竞争保持原Evidence/Effect/Token。原两Token Reset已执行、最新副本scoped正常链已通过；下一步261完整Host启动修复及现场重新核验，不能再次沿用原两Token清单。[范围与证据](evidence/UAT-125_250_INTAKE_RECOVERY_20260912.md)、[集成验证](evidence/UAT_JOINT_DEPLOYMENT_READINESS_20260912.md)。
+
 2026-09-12：UAT-256已获用户实施授权，在`codex/ui-polish`隔离工作区完成前端视觉与文案整理，89项测试、桌面八页本地与83235c9260生产八页/五Tab验收通过，已独立关闭；[范围与证据](evidence/UAT-256_UI_POLISH_20260912.md)。不夹带其他开放项，不修改媒体整理现有列表或业务逻辑。
 
-1. 整理已确认合同及活动文档，去除旧暂停/待决策和已关闭队列；检查257项连续、状态计数、剩余33项归属及链接。历史过程保留Evidence。
+1. 整理已确认合同及活动文档，去除旧暂停/待决策和已关闭队列；检查261项连续、状态计数、剩余34项归属及链接。历史过程保留Evidence。
 2. UAT-171已按现行Oracle关闭，见[真实媒体/生产证据](evidence/UAT-171_NFO_CURRENT_CONTRACT_ACCEPTANCE_20260909.md)。135/136已按真实ISO完整链与生产48077d71bd发布逐项关闭；132已按Windows/Linux真实Direct HEVC完整链关闭；137/160已按[独立真实媒体证据](evidence/UAT-137_160_FRESH_MEDIA_ACCEPTANCE_20260909.md)关闭。
 3. UAT-210：记录更新已部署，继续单席位、批量变化、健康与处理状态分离的完整验收；已接受瑕疵及同条件重复Case部分按251已确认合同实施，不把局部通过当整项完成。
 4. 接续B1–B5：125/152使用新确认规则；172已按正式授权闭环独立关闭，见[验收](evidence/UAT-172_AUTHORIZATION_ACCEPTANCE_20260909.md)；134已按[精确范围及重放证据](evidence/UAT-134_SCOPED_SETTLEMENT_ACCEPTANCE_20260909.md)关闭；159/163回收已关闭；156/157真实设备及预检亦已关闭。继续125/152更广恢复与压力条件核验。218真实质量保护已独立验收关闭；210/125接续检查过程中更换标准导致旧Assessment提交/恢复失败的隔离复现。251已确认typed合同，继续实现，无待询问的旧业务决定。
@@ -18,11 +31,9 @@ UAT-251由本任务连续实施至验收：先完成精确Gap及Libra持续授�
 
 ## 验收及保护
 
-UAT-257：拒绝后下一轮普通Triage、未决交付占用保护、同轮幂等及历史包统计，按[合同与验收](evidence/UAT-257_PROCUREMENT_REJECTION_CYCLE_20260912.md)本地实现及验证通过。来源统计UI与UAT-256任务已明确分工；已联合部署，最终Linux闭环与生产统计通过；六条旧资格仍无新成功扫描，整项保持开放。
-
 每项按原问题、现行SSOT、实现、正负路径、适用真实媒体/浏览器与生产版本核验；提交、测试或部署不单独等于关闭。仅有新变化、失败或缺证时重复已通过检查。发现已被取代要求时按当前条件验收，不能为使旧测试通过恢复旧行为。
 
-本轮68项功能关闭、33项开放及206承接已核实。当前生产`83235c9260`，[发布及回滚证据](evidence/UAT_RELEASE_83235C9260_20260912.md)。
+本轮71项功能关闭、34项开放及206承接已核实。当前生产`cd4f3f5b2d`，[发布及回滚证据](evidence/UAT_RELEASE_CD4F3F5B2D_20260912.md)。
 
 用户授权实施、本地验证后标准发布、允许中断FFmpeg；精确Input清理持续授权已明确。有效媒体/持久事实/Secret/备份/回滚保护不变，不直接SQL修改生产，不任意Reset。原Aftercare调查Evidence修改不覆盖、不夹带提交。工程选择自主处理，真正新增业务边界才逐项询问。
 
@@ -34,6 +45,8 @@ UAT-257：拒绝后下一轮普通Triage、未决交付占用保护、同轮幂�
 
 1. 已完成：标准build-image → upload-nas-image → SHA256 → deploy dry-run/apply；完整data和配置备份位于`/vol1/1000/docker/shelfdeck/backups/three-films-c10e516e64-20260911`。未clean-init/Reset或直接改SQLite。
 2. 《人生密密缝》精确 On-deck Run 为 `844d2564f525ee73c36564559e8b5cbefc704f8cf65457796af7b72bf6215615`。停服后重验下面两个冲突文件的 size、SHA256、非 symlink、路径 containment，以及当前 Inventory/Libra Binding/Off-load Context 未引用它们；任何变化停止。
+   - 2026-09-12 10:02Z只读重验已停止后续操作：Run仍blocked、Commit0，但NFO变为7416 bytes/SHA256 `06124f81db048bfb6030c90744a407c30677dc702fc01bf0e0e8f65a677cdfd2`，原poster未变；operator返回`QUARANTINE_EXPECTED_IDENTITY_CHANGED`。本轮未隔离或修改文件，不沿用下面原清单执行。记录在ignored `resume-close-knit.json`，需先重新核对当前冲突与授权范围。
+   - 10:08Z进一步只读核对：两文件现在均有current Arca/Libra Binding及Off-load Context引用，即便按当前指纹模拟inspect仍为`QUARANTINE_REFERENCED_FILE`。关联Subject为`libra-subject-16840a150d21691ee3d8d67e7c926af7d55f4f10`、Arca owner_object_id为`0ed81eff0ac03622a5e09c78a4f289d333941d0dd33da8fa2d3c2053ef2db7d4`，Package为`e9938da46df82bc89a1d0a6affdd595661dd72d409712e88359d01dc38cf2154`；不得将其当作无主冲突文件隔离。待原Owner核对现行责任，不仅是更新文件摘要。
    - `/media/Film/人生密密缝 (2017)/人生密密缝 (2017).nfo`：7427 bytes；SHA256 `0c36f85dad179428446e6fb946a98df535913aa297dc9e90be83285560df25d4`。
    - `/media/Film/人生密密缝 (2017)/poster.jpg`：1031527 bytes；SHA256 `db80299781122985c4dea6001f88bcffce25c7f5952c91823259eb3bc98f8619`。
    - 两项先复制到应用根下独立备份目录，验证复制的 SHA256 及原件仍未变化，再移出冲突位置；保留 manifest 与原件恢复路径。原 MKV、字幕、旧源 NFO、fanart、torrent 不在隔离范围。

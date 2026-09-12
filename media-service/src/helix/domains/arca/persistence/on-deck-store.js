@@ -1412,7 +1412,7 @@ function createOnDeckStore(options) {
     }]).arca_ondeck_finalize;
   }
 
-  function readCommitted(request) {
+  function readCommittedRecord(request, historical) {
     return options.unitOfWork.execute([{
       participantId: 'arca_ondeck_committed_read',
       owner: 'arca',
@@ -1436,8 +1436,8 @@ function createOnDeckStore(options) {
           verifyInventoryHistory(
             repo,
             entry.shelf_entry_id,
-            Number(entry.current_inventory_revision),
-            Number(entry.current_deck_fact_revision),
+            Number(historical ? receipt.inventory_revision : entry.current_inventory_revision),
+            Number(historical ? receipt.deck_fact_revision : entry.current_deck_fact_revision),
             request.packageDigest,
           );
         if (!run || !completion || !entry ||
@@ -1630,7 +1630,10 @@ function createOnDeckStore(options) {
     resume,
     acquireStagedCustody,
     commit,
-    readCommitted,
+    readCommitted: request => readCommittedRecord(request, false),
+    // Historical responsibility proof uses the receipt's immutable revisions.
+    // Current Inventory may legitimately have advanced through Aftercare.
+    readHistoricalCommitted: request => readCommittedRecord(request, true),
     readCommittedByPackage,
     finalize,
   });

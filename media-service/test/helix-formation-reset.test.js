@@ -20,17 +20,30 @@ const DIGEST = 'a'.repeat(64);
 function fixture(name) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), `${name}-`));
   const dataDir = path.join(root, 'data');
-  const transcodeDir = path.join(root, 'transcode');
+  const isolatedLinuxMount = process.env.HELIX_TEST_ISOLATED_TRANSCODE === '1';
+  const transcodeDir = isolatedLinuxMount ? '/transcode' : path.join(root, 'transcode');
   fs.mkdirSync(dataDir);
-  fs.mkdirSync(transcodeDir);
+  if (isolatedLinuxMount) {
+    assert.equal(process.platform, 'linux');
+    assert.ok(fs.readFileSync('/proc/self/mountinfo','utf8').split('\n').some(line =>
+      line.split(' ')[4] === '/transcode' && line.includes(' - tmpfs ')), 'Reset tests require a disposable tmpfs mount.');
+    assert.deepEqual(fs.readdirSync(transcodeDir), [], 'The test mount must be empty before each fixture.');
+  } else fs.mkdirSync(transcodeDir);
   const database = new Database(path.join(dataDir, 'shelfdeck.db'));
   database.exec(schemaDdl);
   database.pragma('foreign_keys = ON');
-  return { root, dataDir, transcodeDir, database };
+  return { root, dataDir, transcodeDir, database, isolatedLinuxMount };
 }
 
 function close(value) {
   value.database.close();
+  if (value.isolatedLinuxMount) {
+    for (const name of fs.readdirSync(value.transcodeDir)) {
+      const target=path.resolve(value.transcodeDir,name);
+      assert.equal(path.dirname(target), '/transcode');
+      fs.rmSync(target, { recursive:true, force:true });
+    }
+  }
   fs.rmSync(value.root, { recursive:true, force:true });
 }
 
@@ -330,6 +343,44 @@ test('Formation Reset clears orphan pipeline tokens and their Intake execution r
         transcodeDir:value.transcodeDir, nowMs:3560 });
       assert.equal(inspectPlan(value.database).counts.orphanPipelineTokens, 0);
     } finally { close(value); }
+});
+
+test('explicit Subject scope clears only its pre-Subject Intake token and execution graph', () => {
+  const value = fixture('helix-scoped-pre-subject-intake');
+  try {
+    const target = seedOrphanPipelineToken(value.database, 'selected');
+    const other = seedOrphanPipelineToken(value.database, 'protected');
+    const active = seedSubjectRun(value.database, 'active-protected');
+    const subjectIds = [target.subjectId];
+    const retainedWork = value.database.prepare('SELECT * FROM fx_supporting_works WHERE work_id=?').get(other.workId);
+    const retainedRun = value.database.prepare('SELECT * FROM libra_runs WHERE libra_run_id=?').get(active.runId);
+    const plan = inspectPlan(value.database, { subjectIds });
+    assert.deepEqual(plan.scope.pipelineTokenSubjectIds, subjectIds);
+    assert.deepEqual(plan.scope.pipelineSourceProcessIds, [target.processId]);
+    assert.equal(plan.counts.works, 1);
+    const result = applyReset({ ...value, transcodeDir:null, subjectIds, nowMs:4000 });
+    assert.equal(result.verification.integrity, 'ok');
+    assert.equal(value.database.prepare('SELECT 1 FROM libra_predeck_pipeline_tokens WHERE subject_id=?').get(target.subjectId), undefined);
+    assert.equal(value.database.prepare('SELECT 1 FROM fx_supporting_works WHERE work_id=?').get(target.workId), undefined);
+    assert.deepEqual(value.database.prepare('SELECT * FROM fx_supporting_works WHERE work_id=?').get(other.workId), retainedWork);
+    assert.deepEqual(value.database.prepare('SELECT * FROM libra_runs WHERE libra_run_id=?').get(active.runId), retainedRun);
+    assert.equal(inspectPlan(value.database, { subjectIds }).counts.works, 0);
+    applyReset({ ...value, transcodeDir:null, subjectIds, nowMs:4001 });
+    assert.equal(inspectPlan(value.database).counts.orphanPipelineTokens, 1);
+  } finally { close(value); }
+});
+
+test('explicit Subject scope removes its missing-Work admission receipt and preserves other orphan receipts', () => {
+  const value = fixture('helix-scoped-phantom-intake');
+  try {
+    const target = seedPhantomAdmissionReceipt(value.database, 'selected');
+    const other = seedPhantomAdmissionReceipt(value.database, 'protected');
+    const subjectIds = [target.subjectId];
+    assert.equal(inspectPlan(value.database, { subjectIds }).counts.orphanPipelineAdmissionReceipts, 1);
+    applyReset({ ...value, transcodeDir:null, subjectIds, nowMs:4100 });
+    assert.equal(value.database.prepare('SELECT 1 FROM fx_command_receipts WHERE command_receipt_id=?').get(target.receiptId), undefined);
+    assert.ok(value.database.prepare('SELECT 1 FROM fx_command_receipts WHERE command_receipt_id=?').get(other.receiptId));
+  } finally { close(value); }
 });
 
 test('Formation Reset removes phantom Work Admission receipts that would replay a missing Intake Work', () => {
@@ -1050,7 +1101,7 @@ test('the frozen-manifest verifier catches an Artifact omitted by discovery', ()
     const scope = { disposableSubjectIds:[],intakeDecisionIds:[],runIds:[],workspaceIds:[],packageIds:[],
       acceptanceAttemptIds:[],acceptanceDecisionIds:[],custodyIds:[],onDeckRunIds:[],artifactIds:[],
       processScopes:[],factScopes:[],materialKeys:[],handoffAOfferIds:[],
-      phantomLibraAdmissionReceiptIds:[],
+      phantomLibraAdmissionReceiptIds:[],orphanPipelineAdmissionReceiptIds:[],
       ownerScopes:[{ ownerDomain:'libra',scopeType:'libra_run',scopeId:'run-verifier-omission' }] };
     assert.throws(() => verifyFrozenManifest(value.database, { scope, graph:emptyGraph }), (error) =>
       error.message === 'FORMATION_RESET_RESIDUAL' && error.details.typedOwnerArtifacts.length === 1);

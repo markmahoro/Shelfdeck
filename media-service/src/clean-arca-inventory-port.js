@@ -2,6 +2,7 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
+const { observeEmptyStageSlot } = require('./helix/integrations/empty-stage-slot-observer');
 const { observeNfoReferenceSemantics, preservesNfoReferenceSemantics } = require('./helix/contracts/nfo-reference-semantics');
 const {
   canonicalDigest,
@@ -1756,7 +1757,7 @@ function createCleanArcaInventoryPort(options) {
       oldDirectoryDisposition });
   }
 
-  return Object.freeze({ assess, resolveTargetLocation, prepare, materialize, slotHandle, prepareSlot,
+  return Object.freeze({ assess, resolveTargetLocation, prepare, materialize, slotHandle, prepareSlot, observeEmptyStageSlot,
     stage, verifyStaged, switchPlacement, readFinal, readFinalAsync, settleInput, settleInputAsync });
 }
 

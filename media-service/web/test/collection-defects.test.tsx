@@ -47,5 +47,6 @@ it('manual repair confirms only currently executable gaps and leaves unsupported
   expect(within(dialog).queryByText('演员资料缺失')).toBeNull();expect(dialog).toHaveTextContent('失败时保留原片和瑕疵');
   expect(mutate).not.toHaveBeenCalled();fireEvent.click(within(dialog).getByRole('button',{name:'提交手动修复'}));
   await waitFor(()=>expect(changed).toHaveBeenCalledOnce());expect(screen.queryByRole('dialog')).toBeNull();
-  expect(screen.getByText(/演员资料缺失/)).toBeTruthy();
+  expect(screen.getByText(/演员资料缺失/)).toHaveTextContent('暂不可修复');
+  expect(screen.getByText(/海报缺失/)).not.toHaveTextContent('暂不可修复');
 });

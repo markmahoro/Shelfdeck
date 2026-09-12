@@ -10,11 +10,15 @@
     },
     "physicalMaterialReadHandleList": {
       "$ref": "#/$defs/physicalMaterialReadHandleList"
+    },
+    "intakeControlReadHandle": {
+      "$ref": "#/$defs/intakeControlReadHandle"
     }
   },
   "required": [
     "candidateDeliverySnapshot",
-    "physicalMaterialReadHandleList"
+    "physicalMaterialReadHandleList",
+    "intakeControlReadHandle"
   ],
   "$defs": {
     "candidateDeliverySnapshot": {
@@ -28,6 +32,10 @@
       },
       "maxItems": 1024,
       "x-helix-typeExpression": "PhysicalMaterialReadHandle[]"
+    },
+    "intakeControlReadHandle": {
+      "$ref": "helix://contracts/domain-types/IntakeControlReadHandle/v1",
+      "x-helix-typeExpression": "IntakeControlReadHandle"
     }
   }
 }

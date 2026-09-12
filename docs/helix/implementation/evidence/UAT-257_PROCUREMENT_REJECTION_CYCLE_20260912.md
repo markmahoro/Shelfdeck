@@ -53,3 +53,10 @@ Package统计以不同Package ID为粒度，累计生成=当前等待+累计接�
 ## 联合部署及生产核验（2026-09-12）
 
 用户已授权联合部署。83235c9260正式Linux镜像103项专项全部通过，包含本项完整拒绝循环；生产版本、来源UI统计956=820+128+8、八份旧拒绝Package/Delivery不变均已核验。六条资格仍受未完成Observation/扫描超时阻塞，尚无后续正常扫描成功证据；整项保持开放，不以部署或fixture替代真实后续结果。没有生产扫描、重试或Reset。详见[联合发布证据](UAT_RELEASE_83235C9260_20260912.md)。
+
+2026-09-12用户追查扫描失败，已完成[精确时间线及本地诊断复现](UAT-257_SCAN_FAILURE_DIAGNOSIS_20260912.md)：第61页等待资源至Handle过期，旧异常恢复最终以超时收尾；当时Automation仍把任意历史部分失败作为后续扫描阻塞。用户随后授权的[扫描恢复实现及验收步骤](UAT-257_SCAN_RECOVERY_IMPLEMENTATION_20260912.md)已本地验证，待统一部署及生产普通扫描，257保持开放。
+
+
+## 生产验收关闭
+
+2026-09-12已验收关闭。cd4f3f5b2d启动普通路径自动产生新Observation Work c009c4202144c2e5eb527c5d5b46c75336d9bb9c，73页revision1222–1294、completed=1、Work=succeeded；旧failed Work与60页历史不变。六片当前主文件均在1294变为eligible，并由普通procurement-run-c79c13e05f70d25fd33123c64418a0143bdf906a产生新的Package与open Delivery：老枪40e1a22b8fe4801c4da9a67d62242109bbad1927、绣春刀939537bf43ab50a92f8c663b5666a2592a86b535、静水城06190d7990f950ebab5e8956d9dfea6f7389213e、恋恋笔记本7ca0c0d728563fb44eb4876203c0faabd9917667、图雅的婚事3ad7b0e4bbbd6989257bc42f8a7b3420c8a5e21b、猩球崛起3 39c683f220559d747175c2bfd4178162480555a9（均为candidate-package-前缀）。8份旧Rejected Package/Delivery逐行摘要与发布前一致；生产页面已扫描完成且新累计970=834等待+128接收+8拒绝。没有显式Retry Intent、重置或改写旧包；本项普通再选材及统计条件满足，不代表3个Intake席位已有效周转或这些新包已经上架。完整ID/digest及只读响应留在ignored selected-owners.json。[发布身份、备份与边界](UAT_RELEASE_CD4F3F5B2D_20260912.md)。

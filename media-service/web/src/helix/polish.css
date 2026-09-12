@@ -225,9 +225,58 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--accent); }
 .dialog-body, .dialog-actions { padding: 20px; }
 .dialog-head h2 { margin: 0; }
 
+.input-settlement-dialog { width: min(560px, calc(100vw - 32px)); margin: auto; padding: 0; border: 0; color: var(--ink); }
+.input-settlement-dialog::backdrop { background: #182b3c99; }
+.input-settlement-dialog .dialog-actions { flex-wrap: wrap; }
+.input-settlement-scope { display: grid; gap: 12px; margin: 0; }
+.input-settlement-scope > div { display: grid; grid-template-columns: 5em minmax(0, 1fr); gap: 12px; }
+.input-settlement-scope dt { color: var(--muted); }
+.input-settlement-scope dd { margin: 0; }
+
 /* Current delivery demand and cumulative package history have separate emphasis. */
 .source-package-waiting { display: flex; align-items: baseline; gap: 8px; margin-top: 16px; }
 .source-page:not(.workbench) .source-package-waiting strong { font-size: 20px; font-variant-numeric: tabular-nums; }
 .source-package-history { color: var(--muted); }
 .source-package-history > div { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
 .source-page:not(.workbench) .source-package-history strong { display: inline; margin: 0; font-size: 14px; color: inherit; }
+
+/* Refined page hierarchy. These rules never target the formation workbench. */
+.source-scan-state { margin-top: 10px; }
+.material-fields-page .source-flow-procurement { display: flex; flex-direction: column; justify-content: flex-start; }
+.material-fields-page .source-package-waiting { margin-top: 0; }
+.shelf-page .shelf-standard { border: 0; padding: 0; }
+.shelf-page .shelf-standard-head { margin-bottom: 12px; }
+.source-page:not(.workbench) .section-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.source-page:not(.workbench) .section-toolbar > :is(h3, p) { margin: 0; }
+.section-count { margin-left: 8px; color: var(--muted); font-weight: 400; font-variant-numeric: tabular-nums; }
+.people-page .source-form-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.offdeck-page .source-card-heading { margin-bottom: 0; }
+.settings-page .form-grid { margin-top: 0; }
+.settings-page .settings-stack:has(.offdeck-rules-card) { max-width: none; }
+.settings-page .log-filters { grid-template-columns: repeat(4, minmax(0, 1fr)) auto; align-items: end; }
+.settings-page .log-filters > .btn { order: 1; }
+.settings-page > .recycle-settings { margin-top: 16px; }
+
+.collection-page .collection-shelf-stage { display: grid; grid-template-columns: 190px minmax(220px, 1fr) 180px auto auto; align-items: end; gap: 16px; }
+.collection-page .collection-shelf-primary, .collection-page .collection-tools { display: contents; }
+.collection-page .collection-shelf-primary > label { display: grid; gap: 6px; min-width: 0; }
+.collection-page .collection-shelf-primary > div { order: 4; align-self: center; white-space: nowrap; }
+.collection-page .collection-shelf-primary strong { font-size: 14px; }
+.collection-page .collection-search { order: 1; margin: 0; }
+.collection-page .collection-sort { order: 2; }
+.collection-page .collection-filter { order: 3; }
+.collection-page .poster-wall { padding-top: 0; }
+.collection-page .health-seal { width: auto; height: auto; min-height: 28px; padding: 4px 8px; border: 0; border-radius: 6px; font-size: 14px; line-height: 20px; font-weight: 600; box-shadow: none; }
+
+/* A consistent disclosure affordance belongs only to actual expandable rows. */
+.source-page:not(.workbench) details > summary { display: flex; align-items: center; gap: 12px; list-style: none; cursor: pointer; }
+.source-page:not(.workbench) details > summary::-webkit-details-marker { display: none; }
+.source-page:not(.workbench) details > summary::after { content: ''; flex: 0 0 6px; width: 6px; height: 6px; margin-left: auto; margin-right: 3px; border-right: 2px solid currentColor; border-bottom: 2px solid currentColor; transform: rotate(45deg); }
+.source-page:not(.workbench) details[open] > summary::after { transform: rotate(225deg); }
+.overview-page .background-status { position: relative; padding: 0; }
+.overview-page .background-status > summary { padding: 8px 12px; min-height: 36px; }
+.overview-page .background-status-popup { position: absolute; top: calc(100% + 8px); right: 0; z-index: 30; width: 680px; max-width: calc(100vw - 48px); max-height: calc(100vh - 120px); overflow-y: auto; padding: 20px; border: 1px solid var(--line); border-radius: 8px; background: var(--paper); box-shadow: 0 8px 24px #182b3c20; }
+.overview-page .background-status-popup > p { margin: 0 0 12px; }
+.overview-page .background-status-popup .background-status-detail { padding: 0; }
+.overview-page .background-status-detail > div { grid-template-columns: minmax(100px, 1fr) max-content 160px minmax(100px, 1fr); }
+.overview-page .background-status-detail .ui-state { white-space: nowrap; }

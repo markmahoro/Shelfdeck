@@ -236,7 +236,6 @@ export default function ShelvesPage() {
 
   const activeTemplates = useMemo(() => templates.filter((item) => item.status === 'active'), [templates]);
   const selectedTemplate = activeTemplates.find((item) => item.templateId === templateId);
-  const activeShelves = shelves.filter((item) => item.status === 'active');
   const managedShelves = shelves.filter((item) => item.status !== 'deregistered');
   const deregisteredShelves = shelves.filter((item) => item.status === 'deregistered');
   const editorShelf = standardEditor?.kind === 'shelf' ? standardEditor.shelf : null;
@@ -429,12 +428,12 @@ export default function ShelvesPage() {
   if (!shelves.length && loading && !error) return <LoadingState>正在读取收藏架…</LoadingState>;
 
   return <section className="source-page shelf-page">
-    <PageHeader title="收藏架配置" actions={<><DefectAuthorization /><Button variant="primary" type="button" onClick={() => setShowCreate((value) => !value)}>{showCreate ? '收起' : '新建收藏架'}</Button></>} />
-    <InputSettlementAuthorization />
-    <div className="source-facts facts-2" aria-label="收藏架摘要">
-      <div><span>活动收藏架</span><strong>{activeShelves.length}</strong></div>
-      <div><span>可用规则模板</span><strong>{activeTemplates.length}</strong></div>
-    </div>
+    <PageHeader title="收藏架配置" actions={<>
+      <Button type="button" onClick={() => void load()} disabled={loading}>刷新</Button>
+      <InputSettlementAuthorization />
+      <DefectAuthorization />
+      <Button variant="primary" type="button" onClick={() => setShowCreate((value) => !value)}>{showCreate ? '收起' : '新建收藏架'}</Button>
+    </>} />
     {showCreate && <form className="source-create" onSubmit={createShelf}>
       <div className="source-create-heading"><div><h2>创建电影收藏架</h2></div></div>
       <div className="source-form-grid">
@@ -455,10 +454,9 @@ export default function ShelvesPage() {
     {notice && <p className="form-notice" role="status">{notice}</p>}
     {error && <p className="form-error" role="alert">{error}</p>}
     <div className="source-registry">
-      <div className="source-registry-heading"><div><h2>当前收藏架</h2></div><Button type="button" onClick={() => void load()} disabled={loading}>刷新</Button></div>
       {managedShelves.length === 0 ? <div className="source-empty"><strong>还没有当前收藏架</strong></div> : managedShelves.map((shelf) => <article className="source-record shelf-record" key={shelf.shelfId}>
         <div className="source-record-main">
-          <div className="source-record-title"><div><h3>{shelf.name}</h3><p>{shelf.target.rootLocation}</p><span className="source-state" data-state={shelf.status}>{shelfStatusLabel(shelf.status)}</span></div></div>
+          <div className="source-record-title"><div><h3>{shelf.name}</h3><p>{shelf.target.rootLocation}</p>{shelf.status !== 'active' && <span className="source-state" data-state={shelf.status}>{shelfStatusLabel(shelf.status)}</span>}</div></div>
           <dl>
             <div><dt>规则模板</dt><dd>{templateLabel(shelf.standard.ruleTemplateId)}</dd></div>
             <div><dt>目录布局</dt><dd>{shelf.placement.value.folderTemplate}</dd></div>

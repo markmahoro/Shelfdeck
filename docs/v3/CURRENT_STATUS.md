@@ -1,5 +1,9 @@
 # ShelfDeck v3 / Kairox Historical Status
 
+2026-09-12最新发布结果：d7a6da2802因完整Host PLAN_CATALOG_DRIFT失败，已标准回退`markmahoro/shelfdeck:helix-beta-20260912-cd4f3f5b2d`；git `cd4f3f5b2d2e1ebd80e4ec0bf4119e4cd7442beb`，Config ID `sha256:f4d48cd326dba8b551af63fad7c3ce0ffdc0b3040c43c6153d1987cbc9a13452`，tar SHA256 `4d3f1b1c51d47d10bb2d3afaa5ce1b4cb6a63586b4a8887a458f8f72ec4beaed`，StartedAt `2026-09-11T21:32:51.809272745Z`。health、挂载及fnOS复核通过；未重跑完整媒体E2E。失败候选Windows38/架构1647（9 skip）/Linux117不能替代完整旧库启动验证；原两Token scoped Reset已执行且未恢复DB，旧队列未恢复。完整备份、两次标准deploy、保护证据及后续261门禁见[事故记录](../helix/implementation/evidence/UAT-261_CATALOG_STARTUP_DEPLOYMENT_20260912.md)。
+
+2026-09-12最新部署：`markmahoro/shelfdeck:helix-beta-20260912-cd4f3f5b2d`，git `cd4f3f5b2d2e1ebd80e4ec0bf4119e4cd7442beb`，NAS Config Image ID `sha256:f4d48cd326dba8b551af63fad7c3ce0ffdc0b3040c43c6153d1987cbc9a13452`。tar SHA256 `4d3f1b1c51d47d10bb2d3afaa5ce1b4cb6a63586b4a8887a458f8f72ec4beaed`。最终Linux适用39/39、Web94/94、生产八页/五Tab和正常扫描73页完成；本批未重跑完整真实媒体E2E。Linux Reset夹具23项路径限制失败、既有架构基线失败及旧席位恢复限制如实保留。完整备份、部署、回滚和UAT范围见[本批证据](../helix/implementation/evidence/UAT_RELEASE_CD4F3F5B2D_20260912.md)。下列发布为历史记录。
+
 2026-09-12部署身份：markmahoro/shelfdeck:helix-beta-20260912-83235c9260，source 83235c9260；tar SHA256 5a2ba0cc1d86aa6fd6af5bdbef41d2ba0701c06b19a6408cdf78f8bffa8b9b94。最终Linux专项103/103，生产UI八页/五Tab通过，UAT-256关闭；UAT-257已部署但后续正常扫描验收未完成。扩展架构合同基线失败与历史恢复告警如实保留；未重跑完整真实媒体产品E2E。见[发布、备份及边界](../helix/implementation/evidence/UAT_RELEASE_83235C9260_20260912.md)。
 
 2026-09-11部署身份更新：`markmahoro/shelfdeck:helix-beta-20260911-c10e516e64`，git `c10e516e64`，NAS config Image ID `sha256:fd03632b156ff535c84be0e853ee384dc98bea1fba41bf59eee4c8c2687a1b57`，tar SHA256 `6c3dede8106cc46b91e6da3f34092afca959bef81738cd3e89e49db8ffb3d2e4`。最终Linux镜像专项100/100，标准发布及《太阳帝国》真实On-deck恢复链通过：11项Settlement、唯一Commit、7项成品及246项范围外文件保留核验通过。本次没有重跑完整产品E2E，也未宣布另外两条电影均恢复完成。见[部署与恢复证据](../helix/implementation/evidence/THREE_FILM_FIX_20260911.md)。

@@ -12,6 +12,9 @@ const ROOT_FAILURE_CODES = new Set([
 const SCAN_FAILURE_MESSAGES = Object.freeze({
   FIELD_OBSERVATION_ROOT_UNAVAILABLE: '电影目录不存在或当前不可读取。',
   FIELD_OBSERVATION_ROOT_NOT_DIRECTORY: '电影目录必须是一个文件夹。',
+  P7_FIELD_ACCESS_EXPIRED: '扫描超时',
+  COOPERATIVE_EXECUTION_DEADLINE_EXCEEDED: '扫描超时',
+  FIELD_OBSERVATION_IO_DEADLINE_EXCEEDED: '读取文件超时',
 });
 
 function workCreatedAt(work) {
@@ -34,7 +37,7 @@ function observationScan(field, pages, openWork, latestFailed) {
     });
   }
   if (latestFailed) {
-    const failureCode = latestFailed.failureCode || 'FIELD_OBSERVATION_ROOT_UNAVAILABLE';
+    const failureCode = latestFailed.failureCode || 'FIELD_OBSERVATION_FAILED';
     return Object.freeze({
       state: 'failed',
       pageCount,
@@ -42,7 +45,7 @@ function observationScan(field, pages, openWork, latestFailed) {
       inProgress: false,
       accessAvailable: !ROOT_FAILURE_CODES.has(failureCode),
       failureCode,
-      failureMessage: SCAN_FAILURE_MESSAGES[failureCode] || '目录扫描失败。',
+      ...(SCAN_FAILURE_MESSAGES[failureCode] ? { failureMessage:SCAN_FAILURE_MESSAGES[failureCode] } : {}),
     });
   }
   if (latest && Number(latest.completed) === 1) {
@@ -179,7 +182,7 @@ function createProcurementFieldStatusQuery(options) {
       const status = options.workResultReader.status(latestWork.work_id);
       latestFailed = Object.freeze({
         workId: latestWork.work_id,
-        failureCode: status?.latestAttempt?.failure_code || 'FIELD_OBSERVATION_ROOT_UNAVAILABLE',
+        failureCode: status?.latestAttempt?.failure_code || 'FIELD_OBSERVATION_FAILED',
       });
     }
     return options.unitOfWork.execute([{
@@ -195,7 +198,7 @@ function createProcurementFieldStatusQuery(options) {
             field_id: fieldId,
             revision: field.current_observation_revision,
           });
-        const scanWorkId = openWork?.work_id || currentObservation?.field_observation_work_id || null;
+        const scanWorkId = openWork?.work_id || latestWork?.work_id || currentObservation?.field_observation_work_id || null;
         const pages = scanWorkId
           ? store.invoke('list_observation_pages', { field_observation_work_id: scanWorkId })
             .sort((left, right) => Number(left.page_ordinal) - Number(right.page_ordinal))
@@ -283,7 +286,7 @@ function createProcurementFieldStatusQuery(options) {
       }}]).procurement_overview_count;},
     overviewScan(fieldId){const value=options.workResultReader.scopedWorkStatus({ownerDomain:'procurement',
       processType:'material_field',processId:fieldId,workKind:'field_observation'});
-      const failureCode=value.latestState==='failed'?(value.failureCode||'FIELD_OBSERVATION_ROOT_UNAVAILABLE'):null;
+      const failureCode=value.latestState==='failed'?(value.failureCode||'FIELD_OBSERVATION_FAILED'):null;
       return Object.freeze({accessAvailable:value.open||!ROOT_FAILURE_CODES.has(failureCode)});
     },
   });

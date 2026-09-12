@@ -2,6 +2,7 @@
 
 const { packageId } = require('./package.boundary.json');
 const { createOnDeckContextReader } = require('../application/on-deck-context-reader');
+const { createTerminalEffectHistoryObserver } = require('../application/terminal-effect-history-observer');
 const { createOnDeckNfoPersonEvidence } = require('../application/on-deck-nfo-person-evidence');
 const { createOnDeckPersonEvidenceProjection } = require('../application/on-deck-person-evidence-projection');
 const { createOnDeckProcessCoordinator } = require('../application/on-deck-process-coordinator');
@@ -56,6 +57,7 @@ const DEREGISTRATION_REFS=Object.freeze(['arca.shelf_deregistration.release_mani
 
 function createArcaExecutionRegistration() {
   return Object.freeze({
+    createTerminalEffectHistoryObserver,
     createCapabilityRegistration(options) {
       const contextReader=options.contextReader||createOnDeckContextReader(options);
       const aftercareContextReader=options.aftercareContextReader||createAftercareContextReader(options);

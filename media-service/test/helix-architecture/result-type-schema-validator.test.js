@@ -29,7 +29,7 @@ test('validates the complete 99 Catalog Result graph plus required helper types'
   assert.equal(result.catalogResultCount, 98);
   assert.equal(result.nominalResultCount, 87);
   assert.equal(result.directResultCount, 11);
-  assert.equal(result.helperCount, 13);
+  assert.equal(result.helperCount, 14);
 });
 
 test('rejects Result contract drift, open objects, and unresolved refs', () => {

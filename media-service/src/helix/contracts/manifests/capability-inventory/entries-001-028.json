@@ -573,21 +573,21 @@
       "sourceLocator": {
         "section": "8.6.5",
         "line": 9834,
-        "lineDigest": "577a5c3edda27be775e0cea43186b4c2d883d55d9989dc4f5edff152f811203f"
+        "lineDigest": "611c8163d1bae2af537acb7ac704910cf1cb26e6e02c8ba8cbdced828bb8cb06"
       },
       "targetLocator": {
         "path": "capabilities/libra/intake/material/verify/v1/manifest.json"
       },
       "contract": {
         "packagePath": "capabilities/libra/intake/material/verify/v1",
-        "packageDigest": "2f872a9921121d7b67672ebb23f4e4e457562d2ad11de7a10e8cae0d9ed4d4c2",
+        "packageDigest": "47f1590712a8598ce82a469cba1da52995cd0fe9d54bae1a9b44b9a09a436219",
         "effectClass": "pure_observation",
-        "inputSummary": "CandidateDeliverySnapshot + PhysicalMaterialReadHandle[]",
+        "inputSummary": "CandidateDeliverySnapshot + PhysicalMaterialReadHandle[] + IntakeControlReadHandle",
         "outputFamily": "IntakeMaterialVerification"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "7f340c26dd4ca4664ef858f3785af85fdcb3568d1a3ba3e3c6d7645f01d547dd"
+        "value": "fbd297c6984c4df50c1b0b84140d60d544f77935c45d7995e89c0235e6e52df6"
       }
     },
     {

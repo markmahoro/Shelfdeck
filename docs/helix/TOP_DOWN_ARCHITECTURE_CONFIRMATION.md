@@ -9831,7 +9831,7 @@ Intent最多建立一个Run；失败的新Run不自动创建新Intent。
 | Capability ref | Input → Output | Effect Class |
 | --- | --- | --- |
 | `libra.intake.candidate.verify@1` | `CandidateDeliverySnapshot → CandidateContractVerification` | `pure_observation` |
-| `libra.intake.material.verify@1` | `CandidateDeliverySnapshot + PhysicalMaterialReadHandle[] → IntakeMaterialVerification` | `pure_observation` |
+| `libra.intake.material.verify@1` | `CandidateDeliverySnapshot + PhysicalMaterialReadHandle[] + IntakeControlReadHandle → IntakeMaterialVerification` | `pure_observation` |
 | `libra.intake.binding.resolve@1` | `CandidateDeliverySnapshot + SubjectContinuityResolutionDecision → LibraBindingDraftReceipt` | `pure_observation` |
 | `libra.intake.rejection.commit@1` | `IntakeRejectionDecision + DomainFactCommitHandle → IntakeRejectionReceipt` | `domain_fact_commit` |
 | `libra.intake.accept.commit@1` | `AcceptedIntakePayload + ResponsibilityControlCommitHandle → SubjectAndTransferReceipt` | `responsibility_control_commit` |
@@ -10728,6 +10728,22 @@ Handoff A `IntakeStructuredRejection@1`只允许以下closed reason code，并�
 `MaterialControlProjectionSnapshot@1`的正式Evidence ID/digest。数组只包含真实发生的code，按precedence去重；第一项
 就是`primaryRejectionCode`。上述reason是Handoff合同、Material reality或Control前置条件失败；Subject continuity的
 none/multiple/Episode overlap不是rejection reason，仍按`SubjectContinuityResolutionDecision@1`建立new Subject。
+
+Handoff A Control观察采用既有`libra.intake.material.verify@1`，仍为Libra pure observation；不新增Capability、Catalog Result family、Process Root或业务表。
+
+`IntakeControlReadHandle@1`固定字段为`handleId,ownerDomain(libra),processType(libra_intake),processId,candidateDeliverySnapshotDigest,materialKeys[1..1024],accessScope(current_control_projection_read),scopeDigest`。processId为本Offer的Intake decision ID；keys按UTF-8字节排序、唯一且精确覆盖Delivery全部Primary，exclusive Related不进入Control transfer集合。`scopeDigest=SHA-256(JCS({schema:"libra.intake-control-read-scope@1",ownerDomain,processType,processId,candidateDeliverySnapshotDigest,materialKeys,accessScope}))`；`handleId=SHA-256(JCS({schema:"libra.intake-control-read-handle-id@1",scopeDigest}))`；完整Handle≤128 KiB。投影只从immutable Delivery确定性派生，不含current Control、当前时间或nonce，防止重启恢复输入漂移。
+
+Composition明确提供scoped `IntakeControlObservationPort.observe(handle,context)`，校验ExecutionContext Owner/process及同一Candidate闭包后，复用Foundation public `getMaterialControlProjections`按500项读取；Executor无Store、任意Query或额外Key权限。port返回`capturedAtMs,projections[],observationDigest`，完整值≤1 MiB；projections恰好按Handle顺序覆盖全部Key并沿用上述MaterialControlProjectionSnapshot union。capturedAtMs仅表示装配完成，不声称分批Query同时原子。`observationDigest=SHA-256(JCS({schema:"libra.intake-control-observation@1",readHandleScopeDigest:handle.scopeDigest,capturedAtMs,projections}))`。这些是执行时观察输出，不回填Event输入；pure观察重试可以重新观察，持久成功Result只能重放原Evidence。
+
+Libra核验每项available Snapshot的revision/projectionDigest等于Candidate冻结admitted pair、controlled、Procurement/material_field且Field相同。全部available但至少一项不符时，Material Verification failed并追加现有`candidate_control_scope_unavailable`；保存按Key排序的第一项完整失配Snapshot作为充分见证，不声称穷举失配。任一query unavailable/坏row/未知Owner保持技术unknown；输入、闭包、schema或digest错误为typed integrity failure；均不得伪装业务拒绝或释放Token。物理失败理由继续保留，按既有precedence形成最终拒绝。
+
+`IntakeMaterialVerification@1`追加必需`controlObservationDigest,controlCapturedAtMs,controlScopeStatus(matched|mismatched),mismatchedControlMaterialKey(null|SHA256)`。matched要求key=null且无Control失败理由；mismatched要求result=failed、理由含Control失败且key指向见证。unknown不发布成功Outcome。Capability evidence为严格union：matched保留原EvidenceEnvelope及物理结果可验证性；mismatched的`fx_event_result_bindings.evidence_json`直接保存完整`MaterialControlProjectionSnapshot@1`，不加字段、不修改其两个内部digest。Result仍在同一行result_json；producer确保见证来自scoped观察，semantic validator独立核验见证key/失配前提及digest。
+
+Control拒绝Evidence ref固定`evidenceSchemaRef=helix://contracts/types/MaterialControlProjectionSnapshot/v1,evidenceId=fx_event_result_bindings.result_id,evidenceDigest=SHA-256(JCS(完整evidence_json))`；result_id在此语境唯一定位该行Evidence槽位。绑定列evidence_schema_ref仍为material.verify的capability evidence schema，引用时须验证其命中Snapshot union分支。外层完整Snapshot摘要、Snapshot内部evidenceDigest及projectionDigest是三个不同摘要，禁止互换；ID不加到Snapshot字段中。WorkResultReader必须返回原持久ID/来源/摘要，不能临时编造Evidence ID或用current Control补历史值。 Rejection提交前由同一原子事务的Foundation只读preflight按ref.result_id重取原Result/Evidence、来源Event及Work，校验同一Libra Intake process、成功material.verify、完整摘要和当前Rejection Work的唯一精确Evidence dependency；引用不存在、跨process、来源或摘要不符时，拒绝所有业务写入，不查询current Control改判。
+
+Coordinator仅从同一Evidence Work的持久Candidate/Material Results决定Accept/Reject；Work basis包含两Result摘要及Control见证正式ref（matched为null）。Rejection Planner仍依赖该精确Work，并校验material.verify来源、同一process/Candidate Snapshot/Primary成员及Result/Evidence绑定；理由和decidedAtMs只能从持久验证重建。Rejected Decision/Reason rows/Receipt/Result/marker/Outbox保持原原子合同；Libra在正式Rejected Receipt成立后释放Token，Procurement仅按正式Rejected Message释放精确Reservation，原Control及immutable Candidate不变。未消费消息的Reservation继续保护材料，后续新选材仍由普通Observation/Triage及当前资格决定。
+
+本修复不改变观察通过之后的Accepted CAS失败恢复：Accepted Receipt/marker/Result完整成立则重放Accepted、绝不反转；即使原事务可证明未commit仍保留既有frozen输入及失败/恢复规则；unknown继续reconcile_required。仅查不到一行不足以证明未commit。不得因current Control后来改变自动新Evidence、新Work generation、Reject或释放Token。旧Plan/Result不加fallback，生产精确Reset仍须独立授权；不得以旧包专用兼容替代新流程验证。
 
 Beta Triage Rule的可执行语义固定如下；这些规则属于`ProcurementTriageRuleSnapshot.rulePayload`，不是Executor
 default，也不能由Planner、Field配置或文件名library另设一套：
@@ -15401,7 +15417,63 @@ authorize active recovery, Plan publication, contract translation or dual reads.
 history survive the switch from full-manifest hashing to the semantic Execution Catalog digest without granting old
 unfinished work compatibility.
 
+### UAT-261：Intake Control Catalog 的精确历史 retirement（2026-09-12）
+
+本条是既有 Foundation Startup Recovery 历史证明规则的有界实例，不新增业务 Owner、Handoff、
+Result 合同或旧 Intake 执行权。仅适用于旧 Catalog
+`d2f4691efff1460f421d6a76ce06e537c0728a159dae7f548edc06ca5dc63e59`
+到新 Catalog `d8d6a237f3cdcda20b1548d5064b94dc483cf58da1ed2ca326f5e1ca2cfb6a74`，
+并要求执行策略摘要、完整 Capability 语义快照及所有输入、Result、Evidence 等 schema 的传递依赖闭包
+与冻结 transition witness 相符。相同 ref/version 不构成相同合同证明；未知 Catalog 或 schema 内容漂移仍阻止供给。
+
+已终结历史必须证明 Work/Attempt/Plan/Event 的精确归属、完整持久 DAG、节点与 Event 一一对应、
+Event Attempt 终结、Result/Evidence 的精确引用和 canonical digest；未证明责任已解决的 Effect 不可退休。
+成功 Event 缺 Result、跨 Work 冒充同 Plan 依赖、未知/损坏引用均 fail closed。失败或跳过的 Event
+可以合法没有 Result。受影响的已终结 Result 只作为历史留存，不能解释为新 Intake 输入或执行结果。
+
+活动 Plan 还须证明所有节点及实际引用的跨 Work Result 依赖均未受本次合同变化影响；所有活动
+`libra_intake` 一律不在延续范围。影响闭包至少包含 `libra.intake.material.verify@1` 与
+`libra.intake.accept.commit@1`。活动未受影响执行继续使用既有 Effect Reconciler、授权与 Fence；
+本规则不能制造恢复结论、修改历史摘要、扩张 Formation Reset 或复用旧 Intake 合同。
+
+既有持久表未保存完整原始 WorkflowPlanDefinition，故可验证完整持久图及其绑定/结果引用，
+不能从缺失字段重算历史 `graph_digest`。不得声称已经重建原始 Plan 哈希；摘要保持原值。
+EventRuntime 的预提交 Domain Result 允许内层 Evidence 与外层 EvidenceEnvelope 的摘要不同；
+Attempt 仅保存外层摘要，不能把摘要不等当作损坏。终态识别须证明唯一成功 Attempt、Event→Result、
+精确 Commit Marker→已提交 Effect→Result 及内层 Evidence 的 canonical 引用；不补造外层 Envelope。
+`LibraProductFactEvidence@1` 属于已有 §8.6.19 名义合同但此前未物化 schema，本次补齐四个既有字段
+`schemaRef/schemaVersion/evidenceId/evidenceDigest` 的 closed schema。历史来源冻结为原 SSOT 行、文本摘要及
+source commit，明确 previous schema bytes 不存在；不得伪造旧 schema digest，且涉及该补齐的活动执行
+或被活动执行消费的依赖不能认作 unchanged。未知名义类型仍阻断。Result/Evidence 只读验证不重做业务决定。
+本规则只读，不修改历史 Plan、Result、Owner facts 或物理媒体。升级/回退须另在最新完整副本运行
+实际 Host 验证；仅 scoped rail 或 readiness route 通过不足以关闭 UAT-261。
+
+本次 terminal Arca Effect 的责任证明采用单一只读派生路径，不新增持久 Resolution Receipt。
+Arca public history observer 解释本域 immutable Package、Custody、Final Inventory Decision 与后继
+Result/Receipt；Foundation 复核原/后继技术身份、输入摘要、原 Fence 摘要与 Effect intent、完整结果链。
+仅确认同一物理责任已被精确后继履行，或精确 stage slot 已无待处理输出且无活动写入。每次 startup
+重新验证，证明不成立仍阻断；不得更改旧 Event/Attempt/Effect 状态、借用后继 Result 冒充旧成功，
+也不终结仍 blocked 的 Arca Run。存在其他 Owner 文件、未知残留或恢复范围不明时继续阻断。
+
+历史 projection witness 只供反证和摘要匹配，不接入 Planner/Executor，不授权新执行。UAT-172 已记录
+旧 system-policy ApprovalHandle 与以 Libra conformance 代替本次 Arca Final Verify 的缺口；重建旧输入
+不能证明真实用户授权或追认历史。对这类记录只可证明“已发生且当前无剩余物理责任”，还必须单独
+验证后继真实 Arca Final Verification、Placement、Settlement、OnDeckCommit 精确链，不能把旧字段
+名当作充分验证。缺少任一成员证据即 fail closed；新增授权、撤销 Custody 或转移 Owner 不在本条范围。
+
+stage 的 `no_remaining_material_effect` 只在原输入/intent、持久 slot Result 与 success predecessor 精确
+匹配、Accepted Run 仍 blocked、同 Run Work/Attempt/Event 全部终态时成立。以当前仍匹配 Accepted
+revision 的可信 Shelf root 验证固定 hidden slot 的身份、路径各层非 symlink 与 realpath containment；
+目录必须存在且为空，缺目录、权限失败、任何残留或 `.tmp` 都不等于空。Arca/Libra public binding scope
+观察必须均为0；Material Control public scope 的集合必须与原 Package 的 Handoff B transfer 集合精确相等
+（Product 排除 `controlOperation=assert_related_input`，Offload Context 排除 `contextRole=related_input`，按 Material Key 去重）；
+Related Input 属于原 Owner，不因出现在 Package 中而转移 Control。额外 staged Control
+与缺失 Control 均阻断。物理只读观察前后重验 Owner、Control、binding 与技术图摘要，漂移拒绝。
+此观察不调用 prepareSlot/stage/settlement 写入口、不读取或修改最终目录的其他 Owner 文件，
+不撤销 Accepted Custody、不创建新执行权限；以后 startup 仍须重新观察，不能缓存一次空目录结论。
+
 ### User-visible work, bounded Care and file coexistence amendment (2026-09-07)
+
 
 用户在五项痛点审计后明确确认本修订，并授权本任务同步修改SSOT、实施、本地测试后部署和监控。
 本节优先于既有冲突的§6.6、§7.3.6、§9.4.6及NFO Presentation持续一致性条款，不授权合并Libra与Aftercare。

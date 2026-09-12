@@ -330,7 +330,10 @@ function buildCapabilityPackage(capability) {
     'evidence.schema.json': {
       $schema: DRAFT, $id: capabilitySchemaId(capability.id, 'evidence'),
       title: `${capability.id} evidence`,
-      $ref: 'helix://contracts/types/EvidenceEnvelope/v1'
+      ...(capability.id==='libra.intake.material.verify@1' ? {oneOf:[
+        {$ref:'helix://contracts/types/EvidenceEnvelope/v1'},
+        {$ref:'helix://contracts/types/MaterialControlProjectionSnapshot/v1'}
+      ]} : {$ref:'helix://contracts/types/EvidenceEnvelope/v1'})
     },
     'failure.schema.json': {
       $schema: DRAFT, $id: capabilitySchemaId(capability.id, 'failure'),

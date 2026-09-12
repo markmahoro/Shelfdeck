@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import PeoplePage from '../src/helix/PeoplePage';
 import { helixAdminApi, type PeopleProjection } from '../src/helix/api';
@@ -38,14 +38,21 @@ describe('People contact sheet', () => {
   });
 
   it('loads a protected TMDB avatar lazily and falls back to name initials on failure or missing identity', async () => {
-    renderPeople();
+    // Flush the mocked projection and mount effects before dispatching image events.
+    await act(async () => { renderPeople(); });
     const image = await screen.findByRole('img', { name: '周迅头像' });
+    const avatar = image.closest('.people-avatar');
+    expect(avatar).toHaveAttribute('data-state', 'loading');
     expect(image).toHaveAttribute('src', '/v1/admin/people/person-tmdb/avatar');
     expect(image).toHaveAttribute('loading', 'lazy');
     expect(screen.getByText('LA')).toBeInTheDocument();
-    fireEvent.load(image);
+    await act(async () => { fireEvent.load(image); });
+    expect(avatar).toHaveAttribute('data-state', 'loaded');
+    expect(screen.getByRole('img', { name: '周迅头像' })).toBe(image);
     expect(screen.getByText('人物头像已加载')).toBeInTheDocument();
-    fireEvent.error(image);
+    await act(async () => { fireEvent.error(image); });
+    expect(avatar).toHaveAttribute('data-state', 'fallback');
+    expect(avatar?.querySelector('.people-avatar-initials')).toHaveTextContent('周迅');
     await waitFor(() => expect(screen.getAllByText('使用姓名首字头像')).toHaveLength(2));
     expect(screen.queryByRole('img', { name: '周迅头像' })).not.toBeInTheDocument();
   });
