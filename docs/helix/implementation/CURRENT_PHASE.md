@@ -42,6 +42,7 @@
 1. 已完成：标准build-image → upload-nas-image → SHA256 → deploy dry-run/apply；完整data和配置备份位于`/vol1/1000/docker/shelfdeck/backups/three-films-c10e516e64-20260911`。未clean-init/Reset或直接改SQLite。
 2. 《人生密密缝》精确 On-deck Run 为 `844d2564f525ee73c36564559e8b5cbefc704f8cf65457796af7b72bf6215615`。停服后重验下面两个冲突文件的 size、SHA256、非 symlink、路径 containment，以及当前 Inventory/Libra Binding/Off-load Context 未引用它们；任何变化停止。
    - 2026-09-12 10:02Z只读重验已停止后续操作：Run仍blocked、Commit0，但NFO变为7416 bytes/SHA256 `06124f81db048bfb6030c90744a407c30677dc702fc01bf0e0e8f65a677cdfd2`，原poster未变；operator返回`QUARANTINE_EXPECTED_IDENTITY_CHANGED`。本轮未隔离或修改文件，不沿用下面原清单执行。记录在ignored `resume-close-knit.json`，需先重新核对当前冲突与授权范围。
+   - 10:08Z进一步只读核对：两文件现在均有current Arca/Libra Binding及Off-load Context引用，即便按当前指纹模拟inspect仍为`QUARANTINE_REFERENCED_FILE`。关联Subject为`libra-subject-16840a150d21691ee3d8d67e7c926af7d55f4f10`、Arca owner_object_id为`0ed81eff0ac03622a5e09c78a4f289d333941d0dd33da8fa2d3c2053ef2db7d4`，Package为`e9938da46df82bc89a1d0a6affdd595661dd72d409712e88359d01dc38cf2154`；不得将其当作无主冲突文件隔离。待原Owner核对现行责任，不仅是更新文件摘要。
    - `/media/Film/人生密密缝 (2017)/人生密密缝 (2017).nfo`：7427 bytes；SHA256 `0c36f85dad179428446e6fb946a98df535913aa297dc9e90be83285560df25d4`。
    - `/media/Film/人生密密缝 (2017)/poster.jpg`：1031527 bytes；SHA256 `db80299781122985c4dea6001f88bcffce25c7f5952c91823259eb3bc98f8619`。
    - 两项先复制到应用根下独立备份目录，验证复制的 SHA256 及原件仍未变化，再移出冲突位置；保留 manifest 与原件恢复路径。原 MKV、字幕、旧源 NFO、fanart、torrent 不在隔离范围。
