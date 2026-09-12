@@ -408,4 +408,5 @@ function createWorkflowPlanPublisher(options) {
   });
 }
 
-module.exports = Object.freeze({ WorkflowPlanError, createWorkflowPlanPublisher, executionCatalogDigest, validateWorkflowPlan });
+module.exports = Object.freeze({ WorkflowPlanError, createWorkflowPlanPublisher, executionCatalogDigest, validateWorkflowPlan,
+  validateBindingSets, assertDag });

@@ -6,7 +6,7 @@
   "owner": "contracts",
   "status": "active",
   "targetCatalogResultCount": 99,
-  "helperCount": 15,
+  "helperCount": 16,
   "entries": [
     {
       "id": "AcceptanceCheck",
@@ -621,6 +621,21 @@
       "source": {
         "section": "8.6.18",
         "line": 8791
+      }
+    },
+    {
+      "id": "LibraProductFactEvidence",
+      "version": 1,
+      "role": "result-helper",
+      "schemaId": "helix://contracts/types/LibraProductFactEvidence/v1",
+      "relativePath": "types/LibraProductFactEvidence/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "4bc31b694d4879173d0f8eca16721e2aba02fa63293304949449b5c808aadaf8"
+      },
+      "source": {
+        "section": "8.6.19",
+        "line": 11075
       }
     },
     {

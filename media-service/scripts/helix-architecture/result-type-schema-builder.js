@@ -694,7 +694,8 @@ const contracts = {
   PersonReferenceRevision: ['DomainFactEnvelope', 'personId,referenceRevision,operationKind,affectedReferenceAssetId,affectedReferenceFaceId,activeReferenceAssets,activeReferenceFaces,activeAssetSetDigest,activeFaceSetDigest,referenceSetDigest'],
   MergeCandidateEvidence: ['EvidenceEnvelope', 'personPair,matchSignals,conflictSummary,evidenceRefs'],
   PersonRevision: ['DomainFactEnvelope', 'operationKind,registrationOrigin?,personId,canonicalName,aliasSetDigest,providerIdentitySetDigest,directDecisionRef?,acceptedCandidateRef?,affectedPersonRevisions,mergeRecordRef?,preferenceRevisionRef?'],
-  PersonPreferenceRevision: ['DomainFactEnvelope', 'personId,preferenceLevel,reason']
+  PersonPreferenceRevision: ['DomainFactEnvelope', 'personId,preferenceLevel,reason'],
+  LibraProductFactEvidence: [null, 'evidenceId,evidenceDigest']
 };
 
 special['OnDeckCommitResult.onDeckCommitReceipt'] = ref('OnDeckCommitReceipt');

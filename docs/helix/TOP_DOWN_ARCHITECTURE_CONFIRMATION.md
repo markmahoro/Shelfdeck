@@ -15410,7 +15410,39 @@ authorize active recovery, Plan publication, contract translation or dual reads.
 history survive the switch from full-manifest hashing to the semantic Execution Catalog digest without granting old
 unfinished work compatibility.
 
+### UAT-261：Intake Control Catalog 的精确历史 retirement（2026-09-12）
+
+本条是既有 Foundation Startup Recovery 历史证明规则的有界实例，不新增业务 Owner、Handoff、
+Result 合同或旧 Intake 执行权。仅适用于旧 Catalog
+`d2f4691efff1460f421d6a76ce06e537c0728a159dae7f548edc06ca5dc63e59`
+到新 Catalog `d8d6a237f3cdcda20b1548d5064b94dc483cf58da1ed2ca326f5e1ca2cfb6a74`，
+并要求执行策略摘要、完整 Capability 语义快照及所有输入、Result、Evidence 等 schema 的传递依赖闭包
+与冻结 transition witness 相符。相同 ref/version 不构成相同合同证明；未知 Catalog 或 schema 内容漂移仍阻止供给。
+
+已终结历史必须证明 Work/Attempt/Plan/Event 的精确归属、完整持久 DAG、节点与 Event 一一对应、
+Event Attempt 终结、Result/Evidence 的精确引用和 canonical digest；未决 Effect 不可退休。
+成功 Event 缺 Result、跨 Work 冒充同 Plan 依赖、未知/损坏引用均 fail closed。失败或跳过的 Event
+可以合法没有 Result。受影响的已终结 Result 只作为历史留存，不能解释为新 Intake 输入或执行结果。
+
+活动 Plan 还须证明所有节点及实际引用的跨 Work Result 依赖均未受本次合同变化影响；所有活动
+`libra_intake` 一律不在延续范围。影响闭包至少包含 `libra.intake.material.verify@1` 与
+`libra.intake.accept.commit@1`。活动未受影响执行继续使用既有 Effect Reconciler、授权与 Fence；
+本规则不能制造恢复结论、修改历史摘要、扩张 Formation Reset 或复用旧 Intake 合同。
+
+既有持久表未保存完整原始 WorkflowPlanDefinition，故可验证完整持久图及其绑定/结果引用，
+不能从缺失字段重算历史 `graph_digest`。不得声称已经重建原始 Plan 哈希；摘要保持原值。
+EventRuntime 的预提交 Domain Result 允许内层 Evidence 与外层 EvidenceEnvelope 的摘要不同；
+Attempt 仅保存外层摘要，不能把摘要不等当作损坏。终态识别须证明唯一成功 Attempt、Event→Result、
+精确 Commit Marker→已提交 Effect→Result 及内层 Evidence 的 canonical 引用；不补造外层 Envelope。
+`LibraProductFactEvidence@1` 属于已有 §8.6.19 名义合同但此前未物化 schema，本次补齐四个既有字段
+`schemaRef/schemaVersion/evidenceId/evidenceDigest` 的 closed schema。历史来源冻结为原 SSOT 行、文本摘要及
+source commit，明确 previous schema bytes 不存在；不得伪造旧 schema digest，且涉及该补齐的活动执行
+或被活动执行消费的依赖不能认作 unchanged。未知名义类型仍阻断。Result/Evidence 只读验证不重做业务决定。
+本规则只读，不修改历史 Plan、Result、Owner facts 或物理媒体。升级/回退须另在最新完整副本运行
+实际 Host 验证；仅 scoped rail 或 readiness route 通过不足以关闭 UAT-261。
+
 ### User-visible work, bounded Care and file coexistence amendment (2026-09-07)
+
 
 用户在五项痛点审计后明确确认本修订，并授权本任务同步修改SSOT、实施、本地测试后部署和监控。
 本节优先于既有冲突的§6.6、§7.3.6、§9.4.6及NFO Presentation持续一致性条款，不授权合并Libra与Aftercare。
