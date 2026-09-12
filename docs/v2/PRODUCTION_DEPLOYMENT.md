@@ -96,6 +96,8 @@ node scripts/upload-nas-image.js dist-image\shelfdeck-<tag>.tar
 
 记录快照时间/摘要、候选 source commit、镜像身份、tar SHA256及完整启动错误；实际发布前若队列或精确恢复范围发生变化，重核现场，不能沿用旧 Reset 清单。完整启动与回退证据不足时停止发布，不能改历史摘要、加无界 Catalog 白名单或删除数据绕过。该门禁由 [UAT-261 发布失败](../helix/implementation/evidence/UAT-261_CATALOG_STARTUP_DEPLOYMENT_20260912.md)确认，`deploy-nas.js` 的 readiness 并不替代它。
 
+完整Host还应覆盖ready之后至少一轮正常Owner/Intake reconciliation，并核对当前未终结业务是否仍读取旧成功Evidence；不能因Supporting Work已经terminal就推断该Result可供新合同继续消费。UAT-125/250上线后旧pre-Subject占位的实际教训与精确副本验证见[286发布记录](../helix/implementation/evidence/UAT_RELEASE_286FE56F1E_20260912.md#上线后存量接收阻碍)。有需清理的旧条目时先冻结当前范围并演练，再按具体生产数据授权处理，不用上线后反复Reset代替这项检查。
+
 上述验证通过后，dry run 检查将要执行的生产步骤：
 
 ```bash

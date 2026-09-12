@@ -10,6 +10,8 @@
 
 13:04Z后续业务观察：health仍正常，但《宇航员》旧版重新生成的pre-Subject占位仍读取缺少4个Control字段的旧d2成功Result，Owner反复报`P8_INTAKE_CONTROL_RESULT_INVALID`；持有1席，部分补席回调被中断，不能说全队列停摆或存量已恢复。13:07Z当前精确Reset只读plan为1 Token/2旧Work，其余Subject/Run/Workspace/Control/收藏范围0；完整新副本的Reset保护验证已通过，正式新Evidence/Receipt链继续验证。**本次新增生产Reset未授权、未执行**，不会复用旧两Token授权。另AbortSignal listener数量告警原因尚未证实，未调高阈值或声称无风险；125/250仍开放。
 
+13:16Z上述精确副本业务闭环已通过：新Control校验正式判定候选失配，Rejected Receipt/Effect/marker、Outbox ACK、Inbox及Procurement Closure摘要相符，5项Reservation释放，目标Token消失，原Package/Primary/Control及另外2Token保留。完整Host ready后持续观察60s，无原P8报错；保护及SQLite/FK通过。**现在只待用户对这一个新增生产清理范围明确授权**；执行前重新冻结当前Token与2Work闭包，变化即停止，不扩大为全量Reset。详情和精确manifest见[发布后恢复证据](implementation/evidence/UAT_RELEASE_286FE56F1E_20260912.md#上线后存量接收阻碍)。
+
 - 镜像：`markmahoro/shelfdeck:helix-beta-20260912-286fe56f1e`；source `286fe56f1e4c5c74ae845584f29b997597415f9c`；NAS Config ID `sha256:16aa204ffda72363b68f03c7ad720c1ed73f0baf990b5c113c468f98623e3083`。
 - tar SHA256：`43dd75c9f2510dc246a38c6a00cd1a506db77fec14402a2aaf73b49f1516ca7e`；StartedAt `2026-09-12T12:58:18.874868645Z`。build/upload/checksum/dry-run/apply完成。
 - 13:00Z生产health200、normalSupplyAllowed=true、Admin Web及六路Admin接口200；197表、quick_check ok/FK0，五挂载/QSV、Secret root、fnOS管理页200保持。
