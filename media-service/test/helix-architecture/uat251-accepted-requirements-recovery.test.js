@@ -100,7 +100,18 @@ test('already scheduled automatic transcode is rejected before probing or touchi
   const ports=createAftercareCapabilityPorts({schemaManifest,unitOfWork:createSqliteUnitOfWork({kernel}),
    contextReader:{read:()=>context,store:{history:()=>({cases:[care],findings:[finding],commits:[]})}},
    computeBoundedMaterialFingerprintSync:untouched,mediaProbe:{probe:untouched},workResultReader:{}});
-  await assert.rejects(ports['arca.aftercare.media.transcode@1'].execute({ownerScope:{processId:'entry'},namedInputs:{}}),
-   {code:'ARCA_AFTERCARE_MANUAL_DEFECT_INTENT_REQUIRED'});
+  for(const ref of ['arca.aftercare.media.transcode@1','arca.aftercare.media.remux@1','arca.aftercare.text_artifact.render@1','arca.aftercare.binary_artifact.acquire@1']){
+   const port=ports[ref];
+   for(const recoveryDecision of [null,'safe_retry','safe_retry_before_intent']){
+    const execution={ownerScope:{processId:'entry'},namedInputs:{},recoveryDecision};
+    const result=await port.execute(execution);
+    assert.equal(result.kind,'failed');assert.equal(result.code,'ARCA_AFTERCARE_MANUAL_DEFECT_INTENT_REQUIRED');
+    assert.equal(result.retryDirective,'never');assert.equal(result.evidence.stage,'before_workspace_write');
+    port.validateResult(execution,result);
+   }
+   for(const recoveryDecision of ['continue_forward','already_committed'])await assert.rejects(
+    Promise.resolve().then(()=>port.execute({ownerScope:{processId:'entry'},namedInputs:{},recoveryDecision})),
+    {code:'ARCA_AFTERCARE_MANUAL_DEFECT_INTENT_REQUIRED'});
+  }
  }finally{kernel.close();fs.rmSync(root,{recursive:true,force:true});}
 });

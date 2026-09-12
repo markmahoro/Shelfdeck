@@ -754,19 +754,25 @@ function createEventRuntime(options) {
         return complete(snapshot, attempt.event_attempt_id, outcome, policyDecision);
       }
       if (outcome?.kind === 'failed') {
+        let abandonedUncommitted = false;
         if (effect) {
           if (request.decision !== 'continue_forward' && outcome.failureClass !== 'timeout' && typeof options.effectJournal.abandonUncommitted === 'function') {
             options.effectJournal.abandonUncommitted(effect.effect_id);
+            abandonedUncommitted = true;
           } else {
             options.effectJournal.requireReconcile(effect.effect_id);
           }
         }
-        const policyDecision = options.attemptPolicy.decideFailure(Object.freeze({
+        let policyDecision = options.attemptPolicy.decideFailure(Object.freeze({
           capabilityRef:snapshot.event.capability_ref,effectClass:snapshot.node.effect_class,
           retryPolicyRef:policyBinding.retryPolicyRef,timeoutPolicyRef:policyBinding.timeoutPolicyRef,
           failureAttemptCount:snapshot.attempts.filter((item)=>item.outcome_kind === 'failed').length + 1,
           outcome,recoveryDecision:request.decision,
         }));
+        // Match normal dispatch: a retired intent and explicit no-retry Outcome
+        // cannot retain an executing Event, including recovery before intent.
+        if (abandonedUncommitted && outcome.retryDirective === 'never')
+          policyDecision = Object.freeze({ decision:'terminal_failure' });
         return complete(snapshot, attempt.event_attempt_id, outcome, policyDecision);
       }
       if (!outcome || outcome.kind !== 'succeeded') {

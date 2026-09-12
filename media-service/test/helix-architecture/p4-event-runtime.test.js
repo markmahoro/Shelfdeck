@@ -181,7 +181,11 @@ function fixture(run, settings = {}) {
       assert.equal(schedulerReleased, 1, 'technical scheduler lease must end before Executor call');
     }
     if (settings.effectClass && settings.effectClass !== 'pure_observation') {
-      if (settings.seedExecutingAttempt) assert.ok(['intend','read'].includes(journalCalls[0]));
+      if (settings.seedExecutingAttempt) {
+        assert.ok(['intend','read','reconcile'].includes(journalCalls[0]));
+        assert.ok(journalCalls.some(call=>['intend','read'].includes(call)),
+          'recovery must create or read its exact intent before dispatch');
+      }
       else assert.equal(journalCalls[0], 'intend');
     }
     if (settings.dispatchError) throw settings.dispatchError;
@@ -706,6 +710,45 @@ test('abandoned non-pure failed Outcome with retryDirective never fail-closes th
     message:'Material Field当前物理访问位置不可读。', retryDirective:'never',
     evidence:{ errorCode:'FIELD_OBSERVATION_ROOT_UNAVAILABLE' },
   } });
+});
+
+test('UAT-251 typed workspace admission rejection completes recovery and releases Case cancellation', async () => {
+  await fixture(async ({runtime,databasePath,unitOfWork,state})=>{
+    const classified=await runtime.classifyRecovery({eventId:'event',effectId:'effect'});
+    assert.equal(classified.decision,'safe_retry');
+    const result=await runtime.recover({eventId:'event',effectId:'effect',decision:classified.decision});
+    assert.equal(result.eventState,'failed');
+    assert.equal(databaseFacts(databasePath).attempt.failure_code,'ARCA_AFTERCARE_MANUAL_DEFECT_INTENT_REQUIRED');
+    assert.equal(databaseFacts(databasePath).results,0);
+    assert.equal(state().journalCalls.includes('abandon'),true);
+    assert.equal(state().journalCalls.includes('settle'),false);
+    const lifecycle=createWorkLifecycle({schemaManifest,unitOfWork,nextWorkAttemptId:()=>assert.fail('no repair retry')});
+    const cancelled=lifecycle.cancelProcess({ownerDomain:'libra',processType:'libra_run',processId:'run',
+      reasonCode:'ARCA_AFTERCARE_MANUAL_DEFECT_INTENT_REQUIRED'});
+    assert.equal(cancelled.drainingWorks,0);
+    assert.equal(cancelled.cancelledWorks,1);
+  },{effectClass:'workspace_write',initialEventState:'executing',seedExecutingAttempt:true,
+    failurePolicyDecision:{decision:'reconcile_required'},
+    outcome:{kind:'failed',failureClass:'executor',code:'ARCA_AFTERCARE_MANUAL_DEFECT_INTENT_REQUIRED',
+      message:'Accepted defects require an explicit manual repair intent.',retryDirective:'never',
+      evidence:{stage:'before_workspace_write',recoveryDecision:'safe_retry'}},
+    effectJournalRead:{event_attempt_id:'event-attempt',effect_class:'workspace_write',idempotency_key:'event-attempt',
+      intent_digest:require('node:crypto').createHash('sha256').update(JSON.stringify({capabilityRef:'libra.test.observe@1',
+        contractVersion:1,eventId:'event',fenceSnapshotDigest:HASH_A,inputSnapshotDigest:EMPTY_INPUT_DIGEST})).digest('hex'),
+      state:'reconcile_required'},
+  });
+});
+
+test('recovery before intent also terminates an abandoned no-retry Workspace attempt',async()=>{
+  await fixture(async({runtime,databasePath,state})=>{
+    const result=await runtime.recover({eventId:'event',decision:'safe_retry_before_intent'});
+    assert.equal(result.eventState,'failed');
+    assert.equal(databaseFacts(databasePath).attempt.state,'completed');
+    assert.equal(databaseFacts(databasePath).results,0);
+    assert.deepEqual(state().journalCalls,['intend','abandon']);
+  },{effectClass:'workspace_write',initialEventState:'executing',seedExecutingAttempt:true,
+    outcome:{kind:'failed',failureClass:'executor',code:'WORKSPACE_ADMISSION_REJECTED',
+      message:'Workspace admission is no longer valid.',retryDirective:'never',evidence:{stage:'before_workspace_write'}}});
 });
 
 test('non-pure Capability failed Outcome completes the Attempt and abandons the uncommitted Effect', async () => {
