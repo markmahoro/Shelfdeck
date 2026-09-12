@@ -28,6 +28,7 @@
 | 手动海报修复成功/业务失败/技术失败 | 完整 HTTP 场景通过；`poster-technical-failure-e2e.log`，技术失败保留原片及瑕疵 |
 | Windows 真实 FFmpeg | `real-media-poster-repair-e2e.log`，128.8 秒，HEVC/AAC 样片实际上架、海报修复、剩余演员瑕疵及重启 |
 | Linux 真实 FFmpeg | `linux-real-media-final.log`，124.9 秒，同链通过；`linux-final-focused.log` 52 项定向通过 |
+| 既有授权不覆盖新损坏 | `new-primary-damage-result.json`：本地合成已上架收藏由 healthy 出发，暂移主视频后实际健康检查得到 unhealthy/custody:primary_missing，瑕疵候选不可提交（evidence_pending），既有两项授权未覆盖损坏；原文件恢复并复查 healthy |
 | 完整生产副本 Schema | `production-copy-final-schema.log`、`production-copy-schema-result.json`：189→197、强制异常原子回滚、188 张原业务表逐行字节摘要一致，118 收藏、7 历史显式用户放弃保持；quick_check/FK clean；冻结原副本未修改 |
 | Web | 合并后 `merged-web-tests.log` 105/105，`merge-web-build.log` 通过 |
 | 架构 | `merged-architecture.json`：dependency/semantic/contracts 通过；仅 P2 合并计数断言与联合 Catalog witness 两项失败。前者 `merged-p2-focused.log` 已修正复验；后者交部署任务按当前递归 Schema 闭包更新，未放宽校验。Handoff B 拒绝自动收尾及冻结 DDL 迁移 `merge-terminal-migration.log` 19/19 |
