@@ -19,6 +19,10 @@
 
 ## 最近验收与开放事实
 
+2026-09-12交付状态澄清：UAT-251尚有两项功能缺口，不能描述为仅剩最终验收：无可用Integration的`waiting_external_integration`有限终局，以及Freshness耗尽且无blockedWorks的冻结分支。真实瑕疵上架/手动修复/重启、播放失败终局与手动重试防循环已获源任务测试证据；完整45文件副本189→196表升级与异常回滚、188张原业务表逐行摘要不变、118收藏和7份admin放弃记录保留均通过，但尚无最终提交。两项功能完成后还需UI负责人要求的1920×1080同数据前后对照/收藏详情及Linux最终验证，精确合并Catalog和完整Host由部署任务验收。
+
+UAT-261源任务最新只读核查：4个已Commit Run的历史Receipt固定Inventory/DeckFact=1/1，原读取入口误用当前Inventory版本5/2/5/5。独立历史读取按Receipt的精确版本执行原完整摘要校验后4项全部通过，20项旧删除及20项后继输入/意图摘要和实际后继完成链已匹配；代码仍在开发区补反例测试、尚未交付合并。另3项stage明确unsupported并继续阻断；集成镜像的已验证结果仍是上述7项阻断，不提前改写为启动成功。
+
 2026-09-12新增UAT-260：隔离演练中大Run FailedPreparationRetry将完整DTO内联至Plan，触发16 KiB CHECK；SSOT要求typed binding refs，禁止扩大上限或旧Work fallback。正常恢复链用修正BigInt桥另建副本继续；重试缺陷单独修复验收，生产未变更。见[缺陷证据](implementation/evidence/UAT-260_LARGE_RUN_RETRY_INPUT_20260912.md)。
 
 
