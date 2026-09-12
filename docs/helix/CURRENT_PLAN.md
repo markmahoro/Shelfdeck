@@ -15,6 +15,8 @@
 
 ## 剩余排程
 
+2026-09-12 21:34：用户针对《宇航员》新增单Token及2旧Work清理明确回复“允许”；部署负责人已完成停服备份、冻结范围复核、正式精确Reset、同286镜像恢复与生产Receipt/ACK/释放闭环。该授权仅覆盖已完成的具体清理，不扩至其他条目。当前接续各UAT剩余验收，具体生产事实见CURRENT_STATUS。
+
 2026-09-12 21:00：联合286fe56f1e标准上线与生产保护验证完成；当前不再等待251/260/261代码交付或发布，接续按各项剩余业务条件验收。旧两Token不重复Reset，历史冲突文件不按失效清单处置。最新身份及证据以CURRENT_STATUS为准；以下事故排程为历史过程。
 
 2026-09-12第二批d7a6da2802发布失败：数据库readiness通过，但完整Host因大量历史PLAN_CATALOG_DRIFT未启动。已标准回退cd4f3f5b2d，StartedAt2026-09-11T21:32:51.809272745Z，健康/五挂载/fnOS/113收藏及970份Delivery复核通过。此前原两Token精确Reset已执行且保留，未恢复DB；5旧Offer仍open，旧版已产生新Token，不得扩大或复用旧Reset范围。新增261优先定位启动合同与补完整Host门禁，260随后，251独立。[事故记录](implementation/evidence/UAT-261_CATALOG_STARTUP_DEPLOYMENT_20260912.md)。

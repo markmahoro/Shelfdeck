@@ -8,18 +8,18 @@
 
 2026-09-12 20:59（北京时间）联合版本已标准发布成功，UAT-251、125/250接收恢复交付、260大Run重试及261启动/恢复修复已上线。定时任务保持停止。
 
-13:04Z后续业务观察：health仍正常，但《宇航员》旧版重新生成的pre-Subject占位仍读取缺少4个Control字段的旧d2成功Result，Owner反复报`P8_INTAKE_CONTROL_RESULT_INVALID`；持有1席，部分补席回调被中断，不能说全队列停摆或存量已恢复。13:07Z当前精确Reset只读plan为1 Token/2旧Work，其余Subject/Run/Workspace/Control/收藏范围0；完整新副本的Reset保护验证已通过，正式新Evidence/Receipt链继续验证。**本次新增生产Reset未授权、未执行**，不会复用旧两Token授权。另AbortSignal listener数量告警原因尚未证实，未调高阈值或声称无风险；125/250仍开放。
+13:33Z《宇航员》本次精确生产清理及正式闭环完成。用户针对这一个新增Token及2旧Work明确回复“允许”；停服后完整备份、重新核验同一冻结manifest，再使用正式Formation Reset删除精确技术闭包。80张Arca/Procurement/Control表、另外2Token逐字保留，Subject/Run/Workspace/Control/收藏删除0。没有扩大到其他条目、主动扫描或恢复旧DB。
 
-13:16Z上述精确副本业务闭环已通过：新Control校验正式判定候选失配，Rejected Receipt/Effect/marker、Outbox ACK、Inbox及Procurement Closure摘要相符，5项Reservation释放，目标Token消失，原Package/Primary/Control及另外2Token保留。完整Host ready后持续观察60s，无原P8报错；保护及SQLite/FK通过。**现在只待用户对这一个新增生产清理范围明确授权**；执行前重新冻结当前Token与2Work闭包，变化即停止，不扩大为全量Reset。详情和精确manifest见[发布后恢复证据](implementation/evidence/UAT_RELEASE_286FE56F1E_20260912.md#上线后存量接收阻碍)。
+同286镜像重启后，新Control Evidence正式判定原候选失配，Rejected Receipt/Effect/marker、Outbox ACK、Inbox与独立重算Closure吻合，5项Reservation释放、目标Token消失。13:34Z正常队列已接入另一新任务；原122收藏及970包/1338主材料保留。ready后观察60s无原`P8_INTAKE_CONTROL_RESULT_INVALID`，health/Admin正常。AbortSignal listener警告仍有6次，原因尚未证实，未提高阈值掩盖；125/250整体仍开放。具体授权、备份和验证见[生产清理结果](implementation/evidence/UAT_RELEASE_286FE56F1E_20260912.md#获授权生产精确清理结果)。
 
 - 镜像：`markmahoro/shelfdeck:helix-beta-20260912-286fe56f1e`；source `286fe56f1e4c5c74ae845584f29b997597415f9c`；NAS Config ID `sha256:16aa204ffda72363b68f03c7ad720c1ed73f0baf990b5c113c468f98623e3083`。
-- tar SHA256：`43dd75c9f2510dc246a38c6a00cd1a506db77fec14402a2aaf73b49f1516ca7e`；StartedAt `2026-09-12T12:58:18.874868645Z`。build/upload/checksum/dry-run/apply完成。
+- tar SHA256：`43dd75c9f2510dc246a38c6a00cd1a506db77fec14402a2aaf73b49f1516ca7e`；精确Reset后StartedAt `2026-09-12T13:31:09.552222065Z`。原build/upload/checksum/dry-run/apply完成，本次镜像未变。
 - 13:00Z生产health200、normalSupplyAllowed=true、Admin Web及六路Admin接口200；197表、quick_check ok/FK0，五挂载/QSV、Secret root、fnOS管理页200保持。
-- 原122收藏/Deck Fact/Commit、970包、1338主材料逐行missing0/changed0；8份旧Rejected及原38 Effects（23 reconcile_required）/Events不变。当前Delivery=138 accepted/824 open/8 rejected。自动瑕疵授权尚未开启，验收未擅自改变授权。
+- 13:34:45Z原122收藏/Deck Fact/Commit、970包、1338主材料逐行missing0/changed0；8份旧Rejected及原38 Effects（23 reconcile_required）/Events不变。当前Delivery=139 accepted/822 open/9 rejected；仅新增《宇航员》正式拒绝，另1项由正常队列接收。自动瑕疵授权尚未开启，验收未擅自改变授权。
 - 精确镜像Linux Foundation119/119、Retry28/28、真实媒体自动瑕疵上架→手动海报修复→重启链通过。完整新副本Host、备用镜像切换、再切回正式版本均在同一升级后数据上通过，8组保护表不变；8270个Plan含4个新d8 Plan在备用切换中逐字保留。
 - 已验证同格式备用`e056c64aff`，完整45文件及compose/secret备份保留。旧cd4f不能读取197表/d8，不得直接用旧DB覆盖升级后事实。具体回退范围与SHA见[发布证据](implementation/evidence/UAT_RELEASE_286FE56F1E_20260912.md)。
 
-本批不执行Reset、旧Token治理或冲突文件隔离；指定历史《人生密密缝》仍blocked/Commit0，已核实的当前Owner引用不能按旧清单隔离。251完整生产业务/UI验收及125/250存量治理仍分别跟进；上线不代表所有历史问题已解决。此前失败、完整副本与修复过程保留在[261记录](implementation/evidence/UAT-261_CATALOG_STARTUP_DEPLOYMENT_20260912.md)。
+发布本身未Reset；随后新增获授权的《宇航员》单Token清理及闭环已经完成。指定历史《人生密密缝》仍blocked/Commit0，已核实的当前Owner引用不能按旧清单隔离。251完整生产业务/UI验收及125/250其他存量责任仍分别跟进；上线不代表所有历史问题已解决。此前失败、完整副本与修复过程保留在[261记录](implementation/evidence/UAT-261_CATALOG_STARTUP_DEPLOYMENT_20260912.md)。
 
 ## 最近验收与开放事实
 
