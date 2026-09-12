@@ -295,8 +295,9 @@ Libra public historical Package 与 Foundation public technical graph。冻结�
 三个原 stage 的 productMaterialHandleList 与持久 TargetCommitSlotHandle 可由原 Package/Custody 精确
 重建：input_snapshot_digest 与使用原 fence_snapshot_digest 的 intent_digest 均 **3/3匹配**；共同
 slot Result 摘要为 `00ae254bcbcd27d285c032c3382346428b26f8dab5fda0123ac922039e1b2b8c`。
-新增正式只读 public 查询在最新副本验证：Custody Control 集合等于原 Package 的3个素材，无额外
-staged Control；精确 slot 的 Arca/Libra current binding scope 均为0。原 stage 在物理操作后可能调用
+新增正式只读 public 查询在最新副本验证：Custody Control 集合为3项，无 Package 集合之外的
+staged Control；此前误写“等于原 Package 的3个素材”，实际 Package 有7个唯一 Material Key，其中4个
+Related Input 不属于 Handoff B Control transfer 集合（下文记录完整镜像发现与更正）。精确 slot 的 Arca/Libra current binding scope 均为0。原 stage 在物理操作后可能调用
 acquireStagedCustody，故这项 Control 集合证明不可由“无成功 Result”或“目录为空”替代。
 
 实施入口为 Arca `terminal-stage-history-observer`，经既有 Arca public construction 接入；Libra
@@ -321,3 +322,28 @@ Runtime Host、实际 Inventory Port 回归 **125/125**，无skip。Windows 临�
 
 即使 Catalog/Host 门禁通过，《人生密密缝》原 Accepted Run 仍 blocked，当前最终目录现有其他 Owner
 文件的业务责任尚须原 Arca流程处理；本证明不等同于影片已上架，也不追认旧 synthetic Approval。
+
+### 精确镜像发现：Package 与 Handoff B Control transfer scope 的区分
+
+部署任务的 `1c550eff91` Linux full Host 对 11:20:06Z 完整45文件副本仍报告3项 Catalog drift；
+诊断 Host 的唯一拒绝原因是 `Arca stage history: Custody has missing or extra Control`，4项历史
+Settlement 已通过。只读媒体挂载、protected hash 不变、FK0；不以本轮局部测试代替完整镜像结果。
+副本 manifest 为 `b283998892633a06750ed8014379387c6d16a798f9df75c9754b3501a6df8eb2`，
+DB SHA256 为 `14648fff9028c8d734f494730a625ee80d788b781d935a8f253a842de5555388`。
+
+在独立 DB 复制上核对，Package 有7个唯一 Material Key，当前 Custody 有3项 controlled、Arca、原
+Custody 的正式 Control，revision 为2/3/2。4个未转移的 Related Input：`7678b7bc…`、`7bea8318…`、
+`e1dd1499…` 在 Product 中为 `assert_related_input`、在 Offload 中为 `related_input`；`9a702933…`
+只在 Offload 中为 `related_input`。3项 input/intent 仍全部命中，Arca/Libra slot binding 均为0。
+此前诊断只计算“Control 是否超出全 Package”，漏报反方向 missing4，因此不支持“全集合相等”的旧
+表述，已在原段落更正。Shelf 实际查询可正常 canonical digest；未发现 BigInt，撤下该嫌疑。
+
+修复将正在使用的 `on-deck-capability-ports` Acceptance 规则原样提取为 Arca model
+`handoffBControlMembers`，Stage history 复用同一函数：排除只读关联成员，保留 Product 与原始 Input
+的转移范围并按 Key 去重。当前 scope 必须与该精确 transfer set 相等；额外 staged/Related Control、
+缺失原 Control、前后状态漂移仍阻断。旧同步 Movie coordinator 不在本次变更内。
+新增测试同时包含 Product/Offload 重叠和 Offload-only Related Input；无转移时可证明原 Custody，
+将 Related Input 错转入该 Custody 或移除原 Control 均拒绝。继续交部署任务精确镜像/full Host 复验。
+定向 Catalog/历史 Effect/stage 及现有 Acceptance/Settlement 回归共120项，117通过、3项既有skip、0失败；
+其中 Catalog/历史 Effect/stage 81项全部通过。Package boundary、forbidden semantics、manifest、P2 baseline
+四类静态检查通过。本提交未执行生产部署或媒体操作。

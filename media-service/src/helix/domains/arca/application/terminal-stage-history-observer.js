@@ -5,6 +5,7 @@ const { createHandoffBAcceptanceStore } = require('../persistence/handoff-b-acce
 const { createShelfQueryStore } = require('../persistence/shelf-query-store');
 const { createMaterialBindingScopeReader } = require('../persistence/material-binding-scope-reader');
 const { createMaterialControlProjectionPort } = require('../../../foundation/persistence/material-control');
+const { handoffBControlMembers } = require('../model/handoff-b-control-members');
 
 const STAGE = 'arca.inventory.product.stage@1';
 const TERMINAL = new Set(['succeeded','failed','cancelled']);
@@ -59,7 +60,10 @@ function createTerminalStageHistoryObserver(options) {
       const relative=path.relative(target,path.resolve(member.targetLocation));return relative && !relative.startsWith('..') && !path.isAbsolute(relative);
     }), 'Final Decision outside target');
     const scope=controls.readScope({ownerDomain:'arca',scopeType:'on_deck_custody',scopeId:responsibility.custodyId});
-    const initialKeys=[...new Set([...packageValue.productMaterialManifest.members,...packageValue.offloadContextManifest.members].map(m=>m.materialKey))].sort();
+    // Handoff B transfers controlled Product and original Input members only.
+    // Related Input remains with its original Owner even when it is in the Package.
+    const transferredMembers=handoffBControlMembers(packageValue);
+    const initialKeys=[...new Set(transferredMembers.map(m=>m.materialKey))].sort();
     requireProof(canonicalJson(scope.items.map(item=>item.materialKey).sort())===canonicalJson(initialKeys) && scope.items.every(item=>
       item.resultKind==='available' && item.controlState==='controlled' && item.ownerDomain==='arca' &&
       item.ownerScopeType==='on_deck_custody' && item.ownerScopeId===responsibility.custodyId),'Custody has missing or extra Control');

@@ -15458,7 +15458,9 @@ stage 的 `no_remaining_material_effect` 只在原输入/intent、持久 slot Re
 匹配、Accepted Run 仍 blocked、同 Run Work/Attempt/Event 全部终态时成立。以当前仍匹配 Accepted
 revision 的可信 Shelf root 验证固定 hidden slot 的身份、路径各层非 symlink 与 realpath containment；
 目录必须存在且为空，缺目录、权限失败、任何残留或 `.tmp` 都不等于空。Arca/Libra public binding scope
-观察必须均为0；Material Control public scope 的集合必须与原 Package 集合精确相等，额外 staged Control
+观察必须均为0；Material Control public scope 的集合必须与原 Package 的 Handoff B transfer 集合精确相等
+（Product 排除 `controlOperation=assert_related_input`，Offload Context 排除 `contextRole=related_input`，按 Material Key 去重）；
+Related Input 属于原 Owner，不因出现在 Package 中而转移 Control。额外 staged Control
 与缺失 Control 均阻断。物理只读观察前后重验 Owner、Control、binding 与技术图摘要，漂移拒绝。
 此观察不调用 prepareSlot/stage/settlement 写入口、不读取或修改最终目录的其他 Owner 文件，
 不撤销 Accepted Custody、不创建新执行权限；以后 startup 仍须重新观察，不能缓存一次空目录结论。

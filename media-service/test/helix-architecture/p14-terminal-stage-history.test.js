@@ -63,3 +63,24 @@ test('stage observer rejects linked directory',t=>{
   try{fs.symlinkSync(other,f.directory,process.platform==='win32'?'junction':'dir');}catch(error){if(error.code==='EPERM'){t.skip('symlink permission unavailable');return;}throw error;}
   assert.throws(()=>f.observe());
 });
+
+test('stage proof compares the exact Handoff B transfer set, preserving Related Input ownership',t=>{
+  const f=fixture(t),read=f.options.productDeliveryPort.readPackage;
+  const related='b'.repeat(64),offloadOnly='c'.repeat(64);
+  f.options.productDeliveryPort.readPackage=()=>{
+    const delivery=read(),value=delivery.onDeckProductPackage;
+    value.productMaterialManifest.members.push({materialKey:related,controlOperation:'assert_related_input',workspaceMaterialHandle:{known:'related'}});
+    value.offloadContextManifest.members.push({materialKey:H,contextRole:'original_input'},
+      {materialKey:related,contextRole:'related_input'},{materialKey:offloadOnly,contextRole:'related_input'});
+    return delivery;
+  };
+  // The original stage input includes a Related Input read, but not a Control transfer.
+  const input=canonicalDigest({productMaterialHandleList:[{known:'source'},{known:'related'}],targetCommitSlotHandle:f.slot});
+  f.facts.attempts[0].input_snapshot_digest=input;
+  f.facts.effects[0].intent_digest=canonicalDigest({eventId:'stage-event',capabilityRef:C,contractVersion:1,inputSnapshotDigest:input,fenceSnapshotDigest:H});
+  assert.equal(f.observe()[0].disposition,'no_remaining_material_effect');
+  f.options.stageHistoryControlReader.readScope=()=>({items:[f.control,{...f.control,materialKey:related}]});
+  assert.throws(()=>f.observe(),/missing or extra Control/);
+  f.options.stageHistoryControlReader.readScope=()=>({items:[]});
+  assert.throws(()=>f.observe(),/missing or extra Control/);
+});

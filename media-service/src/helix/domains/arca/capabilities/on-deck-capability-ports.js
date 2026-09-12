@@ -2,6 +2,7 @@
 
 const path=require('node:path');
 const {settlementHandles}=require('../model/input-settlement-scope');
+const {handoffBControlMembers}=require('../model/handoff-b-control-members');
 const { failureDiagnostics } = require('../../../contracts/failure-diagnostics');
 
 const { canonicalDigest, canonicalJson } = require('../../../contracts/canonical-json');
@@ -270,8 +271,7 @@ function createOnDeckCapabilityPorts(options){const now=options.now||Date.now,ac
       finalInventoryDecision=options.inventoryPort.prepare({onDeckRunId:responsibility.onDeckRunId,custodyId:responsibility.custodyId,shelf:c.shelf,
         onDeckProductPackage:c.packageValue,observedAtMs:now(),replayCommitted:false}),targetLocation=options.inventoryPort.resolveTargetLocation({
         shelf:c.shelf,onDeckProductPackage:c.packageValue}).targetDirectory;
-    const controlled=[...c.packageValue.productMaterialManifest.members.filter(m=>m.controlOperation!=='assert_related_input'),
-      ...c.packageValue.offloadContextManifest.members.filter(m=>m.contextRole!=='related_input')],byKey=new Map(controlled.map(m=>[m.materialKey,m])),
+    const controlled=handoffBControlMembers(c.packageValue),byKey=new Map(controlled.map(m=>[m.materialKey,m])),
       keys=[...byKey.keys()].sort(),projections=controls.getMaterialControlProjections(keys),
       contentProfile=c.packageValue.productStructureSnapshot?.structureKind==='season'?'series':'movie';
     for(const p of projections){const member=byKey.get(p.materialKey),expectedRevision=member.committedControlRevision??member.admittedControlRevision,
