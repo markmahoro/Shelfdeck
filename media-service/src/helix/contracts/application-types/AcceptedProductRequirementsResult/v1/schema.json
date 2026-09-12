@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "x-helix-ssotRefs": [
+    "8.2.2",
+    "8.6.21"
+  ],
+  "x-helix-maxCanonicalBytes": 33554432,
+  "$id": "helix://contracts/application-types/AcceptedProductRequirementsResult/v1",
+  "title": "AcceptedProductRequirementsResult@1",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "items": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 500,
+      "items": {
+        "oneOf": [
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "resultKind": {
+                "const": "not_found"
+              },
+              "onDeckPackageId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              }
+            },
+            "required": [
+              "resultKind",
+              "onDeckPackageId"
+            ]
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "resultKind": {
+                "const": "found"
+              },
+              "onDeckPackageId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              "packageDigest": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "libraRunId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              "shelfId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              "authorizedDefectManifestDigest": {
+                "oneOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "acceptanceRequirementSnapshot": {
+                "$ref": "helix://contracts/domain-types/AcceptanceRequirementSnapshot/v1"
+              }
+            },
+            "required": [
+              "resultKind",
+              "onDeckPackageId",
+              "packageDigest",
+              "libraRunId",
+              "shelfId",
+              "authorizedDefectManifestDigest",
+              "acceptanceRequirementSnapshot"
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "required": [
+    "items"
+  ]
+}

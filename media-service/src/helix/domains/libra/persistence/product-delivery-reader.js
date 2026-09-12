@@ -63,6 +63,12 @@ function definition(schemaManifest) {
     owner: 'libra',
     schemaManifest,
     statements: {
+      find_requirement_packages: {
+        kind: 'select-in', tableId: 'libra_product_packages', keyColumn: 'on_deck_package_id', maxItems: 500,
+        columns: ['on_deck_package_id','package_digest','libra_run_id','shelf_id','acceptance_spec_id',
+          'acceptance_spec_record_digest','production_provenance_json','production_provenance_digest',
+          'attestation_json','attestation_digest'], safeIntegers: true,
+      },
       find_package: {
         kind: 'select-one',
         tableId: 'libra_product_packages',
@@ -616,7 +622,50 @@ function createProductDeliveryReader(options) {
       },
     }]).libra_product_delivery_read;
   }
-  return Object.freeze({ readPackage });
+  function readAcceptedRequirements(query) {
+    if (!query || query.queryContract !== 'libra.accepted-product-requirements@1' ||
+        Object.keys(query).sort().join(',') !== 'packages,queryContract' ||
+        !Array.isArray(query.packages) || query.packages.length < 1 || query.packages.length > 500 ||
+        query.packages.some(item => !item || Object.keys(item).sort().join(',') !== 'expectedPackageDigest,onDeckPackageId' ||
+          typeof item.onDeckPackageId !== 'string' || !item.onDeckPackageId || item.onDeckPackageId.length > 256 ||
+          !/^[a-f0-9]{64}$/.test(item.expectedPackageDigest)) ||
+        new Set(query.packages.map(item => item.onDeckPackageId)).size !== query.packages.length) {
+      fail('P9_ACCEPTED_REQUIREMENTS_QUERY', 'Accepted requirements need a bounded set of exact Package references.');
+    }
+    return options.unitOfWork.execute([{
+      participantId: 'libra_accepted_requirements_read', owner: 'libra', repositories: [repository],
+      execute(context) {
+        const rows = new Map(context.repository(repository.repositoryId).invoke('find_requirement_packages',
+          { values: query.packages.map(item => item.onDeckPackageId) }).map(row => [row.on_deck_package_id,row]));
+        const items = query.packages.map(ref => {
+          const row = rows.get(ref.onDeckPackageId);
+          if (!row) return Object.freeze({ resultKind: 'not_found', onDeckPackageId: ref.onDeckPackageId });
+          if (row.package_digest !== ref.expectedPackageDigest)
+            fail('P9_PRODUCT_DELIVERY_INTEGRITY', 'Historical requirements do not match the accepted Package digest.');
+          const provenance = parse(row.production_provenance_json, 'P9_PRODUCT_DELIVERY_PROVENANCE');
+          const attestation = parse(row.attestation_json, 'P9_PRODUCT_DELIVERY_ATTESTATION');
+          const snapshot = provenance.acceptanceRequirementSnapshot;
+          if (!snapshot || Buffer.byteLength(canonicalJson(snapshot)) > 65536 ||
+              snapshot.snapshotDigest !== canonicalDigest(without(snapshot, 'snapshotDigest')) ||
+              provenance.provenanceDigest !== row.production_provenance_digest ||
+              provenance.provenanceDigest !== canonicalDigest(without(provenance, 'provenanceDigest')) ||
+              attestation.attestationDigest !== row.attestation_digest ||
+              attestation.attestationDigest !== canonicalDigest(without(attestation, 'attestationDigest')) ||
+              snapshot.acceptanceSpecId !== row.acceptance_spec_id ||
+              snapshot.acceptanceSpecRecordDigest !== row.acceptance_spec_record_digest ||
+              snapshot.targetShelfId !== row.shelf_id || provenance.libraRunId !== row.libra_run_id ||
+              attestation.libraRunId !== row.libra_run_id || attestation.onDeckPackageId !== row.on_deck_package_id)
+            fail('P9_ACCEPTED_REQUIREMENTS_INTEGRITY', 'Published acceptance requirement provenance is inconsistent.');
+          return Object.freeze({ resultKind: 'found', onDeckPackageId: row.on_deck_package_id,
+            packageDigest: row.package_digest, libraRunId: row.libra_run_id, shelfId: row.shelf_id,
+            authorizedDefectManifestDigest: attestation.authorizedDefectManifest?.manifestDigest || null,
+            acceptanceRequirementSnapshot: Object.freeze(snapshot) });
+        });
+        return Object.freeze({ items: Object.freeze(items) });
+      },
+    }]).libra_accepted_requirements_read;
+  }
+  return Object.freeze({ readPackage, readAcceptedRequirements });
 }
 
 module.exports = Object.freeze({

@@ -1,5 +1,7 @@
 # ShelfDeck 当前迭代计划
 
+2026-09-12 UAT-251生产复验追加：用户确认修复已接受瑕疵误识别、9项误建维护Case及19部收藏状态。隔离实施`codex/aftercare-accepted-defects`；读取精确Handoff B冻结要求、正式取消未提交的自动瑕疵修复、重新检查旧笼统结论；保护原片、授权与历史，交统一部署负责人发布。证据见`implementation/evidence/UAT-251_ACCEPTED_DEFECT_RECOVERY_20260912.md`（执行包相对路径为`evidence/`）。
+
 更新：2026-09-12。ACTIVE。用户要求先整理UAT文档，再继续逐项验收关闭；此前合同审查暂停已结束。
 [UAT总表](UAT_ITERATION_REGISTER.md)是唯一条目、状态、当前关闭条件入口；[当前执行包](implementation/CURRENT_PHASE.md)记录执行位置；本计划仅保留范围、顺序与授权。
 

@@ -1,6 +1,8 @@
 'use strict';
 
 const { canonicalDigest } = require('../../../contracts/canonical-json');
+const { acceptedProductRequirements } = require('../model/accepted-product-requirements');
+const { validManifest } = require('../model/authorized-defect-manifest');
 const { effectiveRequirements } = require('../model/care-objective');
 const { excludeCompletedSettlementBindings } = require('../model/completed-settlement-bindings');
 const { createAftercareStore } = require('../persistence/aftercare-store');
@@ -14,6 +16,36 @@ function usesRatingDecision(standardValue,structureKind){const profile=(standard
 }
 function defectManifest(facts){const row=(facts||[]).find((item)=>item.fact_kind==='authorized_defect_manifest');if(!row)return null;try{return JSON.parse(row.fact_json);}catch{return null;}}
 function createAftercareContextReader(options){const store=options.aftercareStore||createAftercareStore(options);
+  const requirementCache=new Map();
+  function originalRequirements(items) {
+    const requested=new Map();
+    for(const item of items) {
+      const manifest=item.authorizedDefectManifest,ref=item.acceptedPackageReference;
+      if(!validManifest(manifest)||manifest.gapScope)continue;
+      if(!ref||typeof options.productDeliveryPort?.readAcceptedRequirements!=='function')
+        throw Object.assign(new Error('Accepted Product requirement evidence is unavailable.'),{code:'ARCA_ACCEPTED_REQUIREMENTS_UNAVAILABLE'});
+      const key=ref.onDeckPackageId+':'+ref.expectedPackageDigest;
+      if(!requirementCache.has(key))requested.set(ref.onDeckPackageId,ref);
+    }
+    const refs=[...requested.values()];
+    for(let offset=0;offset<refs.length;offset+=500) {
+      const batch=refs.slice(offset,offset+500),result=options.productDeliveryPort.readAcceptedRequirements({
+        queryContract:'libra.accepted-product-requirements@1',
+        packages:batch.map(ref=>({onDeckPackageId:ref.onDeckPackageId,expectedPackageDigest:ref.expectedPackageDigest}))});
+      for(const ref of batch) {
+        const delivery=result.items.find(value=>value.onDeckPackageId===ref.onDeckPackageId);
+        if(delivery?.resultKind!=='found')throw Object.assign(new Error('Accepted Product requirement snapshot is missing.'),{code:'ARCA_ACCEPTED_REQUIREMENTS_UNAVAILABLE'});
+        requirementCache.set(ref.onDeckPackageId+':'+ref.expectedPackageDigest,delivery);
+      }
+    }
+    const result=new Map(items.map(item=>{
+      const ref=item.acceptedPackageReference,manifest=item.authorizedDefectManifest;
+      return [item.shelfEntryId,ref&&validManifest(manifest)&&!manifest.gapScope
+        ?acceptedProductRequirements(ref,requirementCache.get(ref.onDeckPackageId+':'+ref.expectedPackageDigest),manifest):null];
+    }));
+    while(requirementCache.size>256)requirementCache.delete(requirementCache.keys().next().value);
+    return result;
+  }
   function normalizedRatingTarget(item){
     const source=item.ratingTarget,identity=typeof options.buildRatingTargetIdentity==='function'
       ?options.buildRatingTargetIdentity(source):source;
@@ -33,8 +65,8 @@ function createAftercareContextReader(options){const store=options.aftercareStor
     const metadataRefs=sealed('helix://contracts/domain-types/InventoryMetadataArtifactRefs/v1',shelfEntryId+':presentation-input',raw.entry.current_inventory_revision,{shelfEntryId,inventoryRevision:raw.entry.current_inventory_revision,metadataFactRefs:Object.freeze(raw.facts.filter((x)=>x.fact_kind==='product_metadata').map((x)=>x.fact_digest)),artifactHandles:Object.freeze([])});
     const standard=sealed('helix://contracts/domain-types/Standard/v1',raw.shelf.shelf_id+':standard',raw.shelf.current_standard_revision,{standardId:raw.shelf.shelf_id,standardRevision:raw.shelf.current_standard_revision,standardDigest:raw.standard.standard_digest});
     const placement=sealed('helix://contracts/domain-types/Placement/v1',shelfEntryId+':placement',raw.shelf.current_placement_revision,{shelfEntryId,placementRevision:raw.shelf.current_placement_revision,targetEndpointId:raw.shelf.target_endpoint_id,placementDigest:raw.placement.policy_digest});
-    return Object.freeze({shelfEntryId,originalRequirements:raw.originalRequirements,defectAuthorization:store.defectStore.current(shelfEntryId),raw:Object.freeze({...raw,perceptionRating}),basis,knownBindings,inventoryRevision,metadataRefs,standard,placement,authorizedDefectManifest:defectManifest(raw.facts)});}
-  function healthProjectionInputs(shelfEntryIds){const items=store.healthProjectionInputs(shelfEntryIds),authorizations=store.defectStore.currentMany(shelfEntryIds),ratingTargets=items.filter((item)=>usesRatingDecision(item.standardValue,item.structureKind)).map(normalizedRatingTarget),ratings=ratingTargets.length&&typeof options.readPerceptionRatings==='function'?options.readPerceptionRatings(ratingTargets):new Map();return items.map((item)=>{const relevant=usesRatingDecision(item.standardValue,item.structureKind),rating=ratings.get(item.shelfEntryId),digests=relevant?[...item.decisionFactDigests,...(rating?.state==='ready'&&rating.resolutionDigest?[rating.resolutionDigest]:[])]:[];return Object.freeze({shelfEntryId:item.shelfEntryId,originalRequirements:item.originalRequirements,materialRoles:item.materialRoles,defectAuthorization:authorizations.get(item.shelfEntryId)||null,effectiveRequirements:effectiveRequirements({raw:{entry:{structure_kind:item.structureKind},standard:{value:item.standardValue},facts:item.decisionFacts||[],perceptionRating:rating}}),incidentResourceHints:item.incidentResourceHints,authorizedDefectManifest:item.authorizedDefectManifest,basis:careBasis(item.shelfEntryId,item.inventoryRevision,item.standardRevision,item.placementRevision,item.canonicalIdentityDigest,item.sourcePackageId,item.factDigests,digests),history:item.history});});}
+    return Object.freeze({shelfEntryId,originalRequirements:originalRequirements([{shelfEntryId,acceptedPackageReference:raw.acceptedPackageReference,authorizedDefectManifest:defectManifest(raw.facts)}]).get(shelfEntryId),defectAuthorization:store.defectStore.current(shelfEntryId),raw:Object.freeze({...raw,perceptionRating}),basis,knownBindings,inventoryRevision,metadataRefs,standard,placement,authorizedDefectManifest:defectManifest(raw.facts)});}
+  function healthProjectionInputs(shelfEntryIds){const items=store.healthProjectionInputs(shelfEntryIds),originals=originalRequirements(items),authorizations=store.defectStore.currentMany(shelfEntryIds),ratingTargets=items.filter((item)=>usesRatingDecision(item.standardValue,item.structureKind)).map(normalizedRatingTarget),ratings=ratingTargets.length&&typeof options.readPerceptionRatings==='function'?options.readPerceptionRatings(ratingTargets):new Map();return items.map((item)=>{const relevant=usesRatingDecision(item.standardValue,item.structureKind),rating=ratings.get(item.shelfEntryId),digests=relevant?[...item.decisionFactDigests,...(rating?.state==='ready'&&rating.resolutionDigest?[rating.resolutionDigest]:[])]:[];return Object.freeze({shelfEntryId:item.shelfEntryId,originalRequirements:originals.get(item.shelfEntryId),materialRoles:item.materialRoles,defectAuthorization:authorizations.get(item.shelfEntryId)||null,effectiveRequirements:effectiveRequirements({raw:{entry:{structure_kind:item.structureKind},standard:{value:item.standardValue},facts:item.decisionFacts||[],perceptionRating:rating}}),incidentResourceHints:item.incidentResourceHints,authorizedDefectManifest:item.authorizedDefectManifest,basis:careBasis(item.shelfEntryId,item.inventoryRevision,item.standardRevision,item.placementRevision,item.canonicalIdentityDigest,item.sourcePackageId,item.factDigests,digests),history:item.history});});}
   return Object.freeze({store,read,
     sourceTargetBinding:(shelfEntryId,material)=>store.sourceTargetBinding(shelfEntryId,material),
     inventoryMaterials:(shelfEntryId,inventoryRevision)=>store.inventoryMaterials(shelfEntryId,inventoryRevision),

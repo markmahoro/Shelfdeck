@@ -10,16 +10,16 @@ const catalog = require('../../src/helix/contracts/ports/p9-libra-production-pub
 test('P9 exposes only the exact Product Delivery read method added by the SSOT', () => {
   assert.deepEqual(catalog.ports.find((entry) => entry.exportName === 'ProductDeliveryPort'), {
     exportName: 'ProductDeliveryPort', packageId: 'domains.libra.public', kind: 'handoff-deliverable-read-port',
-    methods: ['readPackage'],
-    inputSchemaRefs: { readPackage: 'helix://contracts/application-types/ProductDeliveryQuery/v1' },
-    outputSchemaRefs: { readPackage: 'helix://contracts/application-types/ProductDeliveryReadResult/v1' }
+    methods: ['readPackage','readAcceptedRequirements'],
+    inputSchemaRefs: { readPackage: 'helix://contracts/application-types/ProductDeliveryQuery/v1',readAcceptedRequirements:'helix://contracts/application-types/AcceptedProductRequirementsQuery/v1' },
+    outputSchemaRefs: { readPackage: 'helix://contracts/application-types/ProductDeliveryReadResult/v1',readAcceptedRequirements:'helix://contracts/application-types/AcceptedProductRequirementsResult/v1' }
   });
   assert.equal(typeof publicPackage.ProductDeliveryPort, 'function');
 });
 
 test('Product Delivery binding rejects missing and additional authority', () => {
   const calls = [];
-  const port = publicPackage.ProductDeliveryPort({ readPackage(query) { calls.push(query); return { resultKind: 'not_found' }; } });
+  const port = publicPackage.ProductDeliveryPort({ readAcceptedRequirements(query) { return {items:query.packages}; }, readPackage(query) { calls.push(query); return { resultKind: 'not_found' }; } });
   const query = { onDeckPackageId: 'package-1' };
   assert.deepEqual(port.readPackage(query), { resultKind: 'not_found' });
   assert.deepEqual(calls, [query]);

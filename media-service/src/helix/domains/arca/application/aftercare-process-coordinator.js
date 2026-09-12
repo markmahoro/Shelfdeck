@@ -1,4 +1,5 @@
 'use strict';
+const { automaticCaseTargetsAcceptedDefect } = require('../model/accepted-defect-maintenance');
 const { careFindingCodes, freezeCareObjective } = require('../model/care-objective');
 const { maintenanceRecoveryConditions } = require('../model/maintenance-recovery-conditions');
 
@@ -112,7 +113,7 @@ function createAftercareProcessCoordinator(options){
     store.staleSettlementApprovals?.(care.aftercareCaseId);
     const cancellation=typeof options.cancelProcessWorks==='function'?options.cancelProcessWorks({
       ownerDomain:'arca',processType:'arca_shelf_entry',processId:c.shelfEntryId,
-      reasonCode:reasonCode==='care_basis_changed'?'ARCA_AFTERCARE_CASE_BASIS_STALE':reasonCode==='modification_fenced'?'ARCA_AFTERCARE_MODIFICATION_FENCED':'ARCA_AFTERCARE_REPAIR_EXHAUSTED',
+      reasonCode:reasonCode==='accepted_defect_requires_manual_repair'?'ARCA_AFTERCARE_MANUAL_DEFECT_INTENT_REQUIRED':reasonCode==='care_basis_changed'?'ARCA_AFTERCARE_CASE_BASIS_STALE':reasonCode==='modification_fenced'?'ARCA_AFTERCARE_MODIFICATION_FENCED':'ARCA_AFTERCARE_REPAIR_EXHAUSTED',
     }):Object.freeze({drainingWorks:0});
     if(Number(cancellation?.drainingWorks||0)>0)return Object.freeze({kind:'case_fence_draining',
       shelfEntryId:c.shelfEntryId,aftercareCaseId:care.aftercareCaseId,reasonCode});
@@ -129,7 +130,10 @@ function createAftercareProcessCoordinator(options){
     frozen.canonicalIdentityDigest===c.basis.canonicalIdentityDigest&&frozen.sourcePackageId===c.basis.sourcePackageId&&
     frozen.acceptedProductFactSetDigest===c.basis.acceptedProductFactSetDigest&&
     frozen.decisionFactSetDigest===c.basis.decisionFactSetDigest;}
-  function progressCase(c,care){if(care.state==='queued'){if(modificationBlocked(c)||care.careBasisDigest!==c.basis.digest)return store.terminateCase(care.aftercareCaseId,'invalidated','queued_basis_changed',canonicalDigest({caseId:care.aftercareCaseId,basis:c.basis.digest}));const admitted=store.admitCase(care.aftercareCaseId);if(admitted.state!=='active')return Object.freeze({kind:'case_queued',shelfEntryId:c.shelfEntryId,aftercareCaseId:care.aftercareCaseId});care=admitted;}const history=store.history(c.shelfEntryId),inventoryCommit=history.commits.find((item)=>item.aftercareCaseId===care.aftercareCaseId);
+  function progressCase(c,care){
+    if(automaticCaseTargetsAcceptedDefect(c,care,store.history(c.shelfEntryId)))
+      return stopCase(c,care,'unresolved','accepted_defect_requires_manual_repair');
+    if(care.state==='queued'){if(modificationBlocked(c)||care.careBasisDigest!==c.basis.digest)return store.terminateCase(care.aftercareCaseId,'invalidated','queued_basis_changed',canonicalDigest({caseId:care.aftercareCaseId,basis:c.basis.digest}));const admitted=store.admitCase(care.aftercareCaseId);if(admitted.state!=='active')return Object.freeze({kind:'case_queued',shelfEntryId:c.shelfEntryId,aftercareCaseId:care.aftercareCaseId});care=admitted;}const history=store.history(c.shelfEntryId),inventoryCommit=history.commits.find((item)=>item.aftercareCaseId===care.aftercareCaseId);
     if(modificationBlocked(c))return stopForModificationFence(c,care);
     if(!basisMatchesCase(c,care,inventoryCommit))return stopCase(c,care,'invalidated','care_basis_changed');
     if(inventoryCommit){const prepare=inspectCaseWork(c,'care_repair_prepare',care);if(!prepare||prepare.state!=='succeeded')return stopCase(c,care,'unresolved','successful_prepare_work_missing');const commitExtra=[{ownerDomain:'arca',objectType:'repair_prepare_work',objectId:prepare.work.workId,revision:1,digest:care.careRequirementDigest}],commit=inspectCaseWork(c,'care_repair_commit',care,commitExtra);ensureSettlementApproval(c,care,inventoryCommit,prepare,commit);if(!commit)return stopCase(c,care,'unresolved','repair_commit_lineage_missing');if(commit.state==='failed')return stopCase(c,care,'unresolved','settlement_or_commit_failed');if(commit.state!=='succeeded')return Object.freeze({kind:'repair_commit_pending',aftercareCaseId:care.aftercareCaseId,workId:commit.work.workId,reasonCode:'settlement_pending'});const assessment=runAssessment(c,'case-reassessment:'+care.aftercareCaseId,true);if(assessment.state==='failed')return assessment.exhausted?stopCase(c,care,'unresolved','reassessment_exhausted'):Object.freeze({kind:'reassessment_retry_failed',reasonCode:'reassessment_failed',workId:assessment.work.workId,replacementOrdinal:assessment.replacementOrdinal,aftercareCaseId:care.aftercareCaseId});if(assessment.state!=='succeeded')return Object.freeze({kind:'reassessment_pending',workId:assessment.work.workId,aftercareCaseId:care.aftercareCaseId});const health=projectHealth(reader.read(c.shelfEntryId),store.history(c.shelfEntryId),now()),freshHealthy=Object.values(health.dimensions).every((item)=>item.state==='healthy'&&item.findings.length===0);if(!freshHealthy)return stopCase(c,care,'unresolved','reassessment_not_healthy');const current=reader.read(c.shelfEntryId),closureExtra=[{ownerDomain:'arca',objectType:'reassessment_work',objectId:assessment.work.workId,revision:1,digest:current.basis.digest},{ownerDomain:'arca',objectType:'repair_prepare_work',objectId:prepare.work.workId,revision:1,digest:care.careRequirementDigest},{ownerDomain:'arca',objectType:'repair_commit_work',objectId:commit.work.workId,revision:1,digest:inventoryCommit.commitDigest}],closure=runCaseWork(current,'care_case_closure',care,closureExtra);if(closure.exhausted)return stopCase(current,care,'unresolved','case_closure_exhausted');return Object.freeze({kind:closure.state==='succeeded'?'case_resolved':closure.state==='failed'?'case_closure_retry_failed':'case_closure_pending',workId:closure.work.workId,replacementOrdinal:closure.replacementOrdinal,aftercareCaseId:care.aftercareCaseId});}
@@ -176,10 +180,11 @@ function createAftercareProcessCoordinator(options){
     const health=projectHealth(c,history,now()),forced=typeof request.idempotencyKey==='string'&&request.idempotencyKey.length>0,
       custodyGapNeedsDeep=health.dimensions.custody.findings.some(item=>item.repairability==='auto_repair')&&
         health.dimensions.custody.assessedAtMs>Math.min(health.dimensions.presentation.assessedAtMs||0,health.dimensions.conformance.assessedAtMs||0),
-      deep=forced||custodyGapNeedsDeep||health.state==='never_assessed'||health.nextDeepDueAtMs<=now(),
-      cycleId=forced?'manual:'+request.idempotencyKey:custodyGapNeedsDeep?'custody-gap:'+health.dimensions.custody.evidenceDigest:
+      legacyConformance=health.dimensions.conformance.findings.some(item=>item.findingKind==='conformance:media_strategy_unavailable'),
+      deep=forced||legacyConformance||custodyGapNeedsDeep||health.state==='never_assessed'||health.nextDeepDueAtMs<=now(),
+      cycleId=forced?'manual:'+request.idempotencyKey:legacyConformance?'legacy-conformance:'+health.dimensions.conformance.evidenceDigest:custodyGapNeedsDeep?'custody-gap:'+health.dimensions.custody.evidenceDigest:
         (deep?'deep:':'custody:')+Math.floor(now()/(deep?7*24*60*60*1000:24*60*60*1000)),
-      notDue=!forced&&!custodyGapNeedsDeep&&health.state!=='never_assessed'&&Math.min(health.nextCustodyDueAtMs,health.nextDeepDueAtMs)>now();
+      notDue=!forced&&!legacyConformance&&!custodyGapNeedsDeep&&health.state!=='never_assessed'&&Math.min(health.nextCustodyDueAtMs,health.nextDeepDueAtMs)>now();
     let assessment;
     if(notDue){
       const findings=Object.values(health.dimensions).flatMap((item)=>item.findings);

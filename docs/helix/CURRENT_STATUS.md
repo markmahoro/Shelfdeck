@@ -4,6 +4,8 @@
 
 255项前后合同审查及三项用户决定已完成，SSOT/Beta已在`14cf2d9a0`同步。已无这三项待确认决定；合同确认不等于实现或验收。审查及覆盖关系见[全量证据](implementation/evidence/UAT_FULL_CONTRACT_CONSISTENCY_AUDIT_20260909.md)。
 
+UAT-251 已接受瑕疵识别/误触发Aftercare修正在独立分支完成，Windows回归和生产副本投影通过；尚未部署，9个Case正式收尾与19项实际重查待部署负责人执行。详见[修正证据](implementation/evidence/UAT-251_ACCEPTED_DEFECT_RECOVERY_20260912.md)。
+
 ## 当前生产
 
 2026-09-12 22:33《人生密密缝》获用户“确认”后已执行精确生产清理：唯一旧重复主片完整备份校验后移出Material Field，正式Formation Reset清理旧Subject及23 Works、1 Workspace；冻结manifest一致。原122收藏、Inventory/immutable Candidate等9表、范围外Control及其他3 Token不变；包含正式主片在内的其余9文件逐项完整SHA256、inode和元数据不变。14:32:43Z活动整理查询已无本片旧条目，原正式Entry仍active/healthy、Inventory revision 11，服务正常。**旧候选仍open、Reservation待结束、Receipt尚未生成，当前3席位满；正式缺失拒绝/ACK仅在副本通过，生产最终后台收尾尚待正常队列。** 不提高席位、不清理其他任务、不重新创建定时任务。备份及边界见[获授权生产清理结果](implementation/evidence/UAT-125_250_INTAKE_RECOVERY_20260912.md#人生密密缝获授权生产清理结果)。

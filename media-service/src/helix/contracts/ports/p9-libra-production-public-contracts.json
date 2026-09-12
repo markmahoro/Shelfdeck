@@ -2,25 +2,37 @@
   "schemaVersion": 1,
   "contractId": "helix.ports.p9-libra-production-public",
   "owner": "libra",
-  "ssotRefs": ["8.1.4", "8.2.2", "8.6.21"],
+  "ssotRefs": [
+    "8.1.4",
+    "8.2.2",
+    "8.6.21"
+  ],
   "ports": [
     {
       "exportName": "ProductDeliveryPort",
       "packageId": "domains.libra.public",
       "kind": "handoff-deliverable-read-port",
-      "methods": ["readPackage"],
+      "methods": [
+        "readPackage",
+        "readAcceptedRequirements"
+      ],
       "inputSchemaRefs": {
-        "readPackage": "helix://contracts/application-types/ProductDeliveryQuery/v1"
+        "readPackage": "helix://contracts/application-types/ProductDeliveryQuery/v1",
+        "readAcceptedRequirements": "helix://contracts/application-types/AcceptedProductRequirementsQuery/v1"
       },
       "outputSchemaRefs": {
-        "readPackage": "helix://contracts/application-types/ProductDeliveryReadResult/v1"
+        "readPackage": "helix://contracts/application-types/ProductDeliveryReadResult/v1",
+        "readAcceptedRequirements": "helix://contracts/application-types/AcceptedProductRequirementsResult/v1"
       }
     },
     {
       "exportName": "WorkspaceReclamationPort",
       "packageId": "domains.libra.public",
       "kind": "workspace-reclamation-port",
-      "methods": ["readCleanupScope", "discardFrozenRun"],
+      "methods": [
+        "readCleanupScope",
+        "discardFrozenRun"
+      ],
       "inputSchemaRefs": {
         "readCleanupScope": "helix://contracts/application-types/WorkspaceCleanupScopeQuery/v1",
         "discardFrozenRun": "helix://contracts/application-types/LibraRunDiscardCommand/v1"

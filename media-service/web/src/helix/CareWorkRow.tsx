@@ -8,7 +8,7 @@ const goals:Record<string,string>={nfo_missing:'补齐NFO',nfo_corrupt:'修复NF
 const stages:Record<string,string>={queued:'等待维护席位',preparing:'准备维护',waiting_for_resource:'等待处理资源',preparing_media:'处理媒体',awaiting_media_progress:'处理媒体，等待进度更新',verifying_media:'验证结果',committing_inventory:'更新收藏',reassessing:'复核结果',waiting_for_recovery:'等待自动恢复'};
 export function careGoal(item:CareWorkItem){return [...new Set(item.goals.map((goal)=>goal.split(/[/:]/).map((part)=>goals[part]).find(Boolean)||'满足收藏要求'))].join('、');}
 export function careStage(item:CareWorkItem){return item.state==='resolved'?'维护完成':item.state==='unresolved'?'已结束 · 未解决':item.state==='invalidated'?'已结束，要求已变化':item.progress?.currentAction?.label||stages[item.progress?.stage||item.state]||'正在维护';}
-const reasons:Record<string,string>={external_writer_conflict:'文件变化与本次处理依据冲突，维护已停止。',
+const reasons:Record<string,string>={accepted_defect_requires_manual_repair:'已接受瑕疵，自动维护已终止',external_writer_conflict:'文件变化与本次处理依据冲突，维护已停止。',
   reassessment_exhausted:'结果复核多次未通过，本次维护已停止。',repair_commit_exhausted:'更新收藏记录多次失败，本次维护已停止。',
   settlement_or_commit_failed:'旧文件收尾或收藏提交失败，本次维护已停止。',
   reassessed_healthy:'维护目标已完成，结束时复核通过。',queued_basis_changed:'执行前要求已变化。'};

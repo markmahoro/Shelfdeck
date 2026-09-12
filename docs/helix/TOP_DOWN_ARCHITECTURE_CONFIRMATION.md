@@ -15687,3 +15687,10 @@ Aftercare从当前Entry的原On-deck Commit精确定位原Run/Custody，在该Ru
 Arca在创建Case的同一次CareRequirement持久化中冻结创建时有效要求与依据。复用CareRequirement.typedParameters，finding参数仍只描述具体处理问题；target参数保存实际有效要求的有界规范JSON及其digest，basis参数保存Inventory/Standard/Placement revision与Decision Fact Set digest，source参数保存已知正片总字节。不得在Query时用当前Policy重算历史目标。快照最多16KiB，超过限制或缺少有效要求时拒绝建单并明确报错，不截断。
 
 已有Case未保存目标快照时，页面明确“未记录当时具体目标”；可展示其真实历史Inventory大小及原Basis revision，但不能把当前标准倒填。新增快照进入既有CareRequirement digest与创建幂等身份，和Case一起原子提交；不迁移、不补写旧Case、不创建新物理表。执行问题枚举与用户当前进展不包含目标JSON，查询只读返回目标用于解释。
+
+
+#### UAT-251 已接管产品要求读取与维护准入补充（2026-09-12）
+
+已确认瑕疵合同的实现澄清：Arca用自己的On-deck Commit→Custody精确Package ID/digest关联已交接的AcceptanceRequirementSnapshot，不从当前评分或缺失决策事实重算历史要求。ProductDeliveryPort新增`readAcceptedRequirements`有界历史只读方法，最多500个精确Package引用；Libra验证不可变Package digest、Provenance/Attestation及Snapshot来源后返回冻结要求。此为既有Handoff B产品证据读取，不新增Handoff、写权限或Arca到Libra内部仓储访问。Arca验明Shelf、Run及已接受Manifest关联；缺证明确失败，不能扩大豁免。
+
+自动Case若包含当前仍已授权的精确Finding，且没有Inventory Commit，则在准入、继续执行及物理Effect前经既有cancel/drain/terminate结束错误尝试，原因`accepted_defect_requires_manual_repair`，保留原片、授权与历史；已Commit继续正式Settlement/收尾。手动意图不受此自动Case门禁阻断。旧笼统`media_strategy_unavailable`检查结果只能经新Assessment重查取代，不直接解释成瑕疵豁免，不伪造健康。

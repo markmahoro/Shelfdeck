@@ -117,11 +117,11 @@ function bindProductDelivery(implementation) {
   }
   const provided = Object.keys(implementation).sort();
   const expected = [...productDeliveryContract.methods].sort();
-  if (JSON.stringify(provided) !== JSON.stringify(expected) || typeof implementation.readPackage !== 'function') {
+  if (JSON.stringify(provided) !== JSON.stringify(expected) || expected.some(method => typeof implementation[method] !== 'function')) {
     throw new LibraPublicFacadeError('P9_PRODUCT_DELIVERY_PORT_SHAPE_MISMATCH',
-      'Product Delivery implementation must expose only the frozen readPackage method.', { expected, provided });
+      'Product Delivery implementation must expose only the declared historical and acceptance reads.', { expected, provided });
   }
-  return Object.freeze({ readPackage: (query) => implementation.readPackage(query) });
+  return Object.freeze(Object.fromEntries(expected.map(method => [method, query => implementation[method](query)])));
 }
 
 function bindWorkspaceReclamation(implementation) {

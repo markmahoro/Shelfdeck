@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "x-helix-ssotRefs": [
+    "8.2.2",
+    "8.6.21"
+  ],
+  "x-helix-maxCanonicalBytes": 16777216,
+  "$id": "helix://contracts/application-types/AcceptedProductRequirementsQuery/v1",
+  "title": "AcceptedProductRequirementsQuery@1",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "queryContract": {
+      "const": "libra.accepted-product-requirements@1"
+    },
+    "packages": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 500,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "onDeckPackageId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "expectedPackageDigest": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          }
+        },
+        "required": [
+          "onDeckPackageId",
+          "expectedPackageDigest"
+        ]
+      }
+    }
+  },
+  "required": [
+    "queryContract",
+    "packages"
+  ]
+}

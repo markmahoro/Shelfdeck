@@ -182,3 +182,11 @@ it('explains the saved artifact and media targets without exposing unrestricted 
   expect(screen.getByText('当时目标：必需资料：NFO资料、海报；资料包含：片名、演员。')).toBeInTheDocument();
   expect(screen.queryByText(/视频编码 any|封装 any/)).not.toBeInTheDocument();
 });
+it('explains a stopped automatic accepted-defect repair without claiming success or changing current healthy status',()=>{
+  render(<MemoryRouter><CareWorkDetail item={{aftercareCaseId:'mistaken-case',shelfEntryId:'entry',displayIdentity:'拆弹部队',
+    targetShelfId:'shelf',targetShelfName:'电影',state:'unresolved',classification:'ended',goals:['max_size_exceeded'],createdAtMs:100,
+    terminalAtMs:200,reasonCode:'accepted_defect_requires_manual_repair',progress:null,
+    currentHealth:{state:'healthy',healthState:'healthy',maintenanceState:'none'}}} onClose={()=>{}}/></MemoryRouter>);
+  expect(screen.getByText('已接受瑕疵，自动维护已终止')).toBeInTheDocument();
+  expect(screen.queryByText('维护目标已完成，结束时复核通过。')).not.toBeInTheDocument();
+});

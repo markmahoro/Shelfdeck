@@ -48,11 +48,13 @@ function fixture(options = {}) {
     careBasis:frozenBasis, careBasisDigest:frozenBasis.digest,
     careRequirementDigest:digest('requirement'),
     careRequirement:Object.freeze({ typedParameters:Object.freeze([]) }),
+    ...(options.careOverrides || {}),
   });
   const history = { cases:[care], commits:[], assessments:[], findings:[] };
   const terminated = [],issuedApprovals=[],caseRequests=[];
   const context = () => Object.freeze({
     shelfEntryId:'entry-1', basis:currentBasis,
+    ...(options.contextOverrides || {}),
     raw:Object.freeze({
       shelf:Object.freeze({ status:'active', shelf_id:'shelf-1', target_root_location:path.join(root,'shelf'),target_endpoint_id:options.targetEndpointId||'endpoint-1',
         target_mount_scope_id:options.targetMountScopeId||'mount-1',target_mount_scope_revision:1 }),
@@ -343,5 +345,37 @@ test('Arca reconciliation does not control Incidents and Foundation observation 
     assert.equal(rows.length,1);
     assert.equal(rows[0].occurrence_count,1);
     assert.match(rows[0].circuit_key,/\/resource\//);
+  }finally{value.close();}
+});
+
+
+function acceptedSizeContext() {
+  const requirements={space:{maxSizeBytes:1000}};
+  const body={schemaRef:'helix://contracts/application-types/AuthorizedDefectManifest/v1',schemaVersion:1,
+    manifestId:'decision',defectDecisionId:'decision',libraRunId:'run',acknowledgement:'accept_listed_defects',defectCount:1,
+    defects:[{defectCode:'size_cap_exceeded',waivedRequirementCodes:['max_size_exceeded']}],waivedRequirementCodes:['max_size_exceeded']};
+  return {originalRequirements:requirements,effectiveRequirements:requirements,authorizedDefectManifest:{...body,manifestDigest:canonicalDigest(body)}};
+}
+for(const state of ['queued','active'])test('accepted defect '+state+' Case drains and ends without admitting or starting repair',()=>{
+  const value=fixture({drainingWorks:1,contextOverrides:acceptedSizeContext(),careOverrides:{state,
+    careRequirement:{typedParameters:[],requiredEffects:[{objectId:'size-finding',digest:digest('size')}]}}});
+  try {
+    value.history.findings=[{findingId:'size-finding',findingDigest:digest('size'),findingKind:'conformance:max_size_exceeded'}];
+    assert.equal(value.coordinator.reconcile('entry-1').kind,'case_fence_draining');assert.equal(value.terminated.length,0);
+    const result=value.coordinator.reconcile('entry-1');assert.equal(result.kind,'case_unresolved');
+    assert.equal(result.reasonCode,'accepted_defect_requires_manual_repair');assert.deepEqual(value.terminated,[{caseId:'case-1',state:'unresolved'}]);
+    assert.equal(value.database.prepare('SELECT count(*) n FROM fx_supporting_works').get().n,0);
+    assert.equal(value.caseRequests.length,0);
+  }finally{value.close();}
+});
+test('obsolete generic media strategy findings trigger a fresh health assessment, never a repair Case or a silent waiver',()=>{
+  const value=fixture();try {
+    value.history.cases=[];const current=basis('frozen',1);
+    value.history.assessments=['custody','presentation','conformance'].map(kind=>({assessmentId:kind,assessmentKind:kind,careBasisDigest:current.digest,
+      result:kind==='conformance'?'degraded':'healthy',assessedAtMs:9000,evidenceDigest:digest(kind)}));
+    value.history.findings=[{findingId:'legacy',findingDigest:digest('legacy'),findingKind:'conformance:media_strategy_unavailable',assessmentId:'conformance',state:'open',repairability:'attention_required'}];
+    const result=value.coordinator.reconcile('entry-1');assert.equal(result.kind,'assessment_pending');assert.equal(value.caseRequests.length,0);
+    const works=value.database.prepare('SELECT work_kind FROM fx_supporting_works').all();assert.deepEqual(works,[{work_kind:'health_assessment'}]);
+    assert.equal(value.coordinator.reconcile('entry-1').workId,result.workId);
   }finally{value.close();}
 });
