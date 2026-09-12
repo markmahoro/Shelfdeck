@@ -6,7 +6,7 @@
 
 验收范围：首次三终局及不可豁免安全门禁；精确混合Gap及旧预览拒绝；持续授权启用/关闭/重启/并发及后台执行；终局安全收尾/原片保护/同条件不再进入；Arca现有差距接纳与仅手动修复、成功更新及失败保留；新损坏独立处理；同条件失败跨检查/重启抑制；协同确认后的列表/详情/设置交互、窄屏和键盘操作；Windows/Linux真实媒体与实际发布版本核验。
 
-当前状态：核心实现及独立 Windows/Linux 验证完成，UAT 保持开放。2026-09-12 UI 负责人要求合并最新已上线 258/259 页面基线、修正结果详情内边距和精确不可修复标记；待完成该复核与最终合并部署核验。此工作快照不构成 UAT 关闭。
+当前状态：核心实现及独立 Windows/Linux 验证完成，最新已上线 258/259 基线已合入，指定 UI 负责人于 2026-09-12 复查通过。UAT 保持开放，等待部署任务统一完成最终 Catalog witness、完整 Host 及生产验收。核心提交 `eae6bb3da`；合并 `31bd03b023fa779bc7390e050aa8955d75e88c06` 后提交 `874172bc6`。
 
 本轮实现：
 
@@ -15,7 +15,7 @@
 - 无法上架保留真实失败原因并完成 Control/Work/Effect/Workspace 责任收尾；同输入、要求和相关执行条件不变时抑制重新进入。用户手动意图只准入一次，同键重放安全。Handoff B 已接受不可 discard；明确拒绝可自动收尾。
 - 缺失外部策略使用 Libra 自有 availability 观察，按首次观察后 1/5/15/30/60 分钟五次复核，重启不重置预算，无伪造 Work。Freshness 第五次仍不能确认时也形成合法终局。
 - Arca 接受当前精确差距和手动修复意图有独立 revision、Receipt/Audit、CAS；修复成功只消除验证解决的差距，失败保留原片和授权，历史失败不覆盖当前健康。新损坏不继承既有授权；已接受差距不自动修复。
-- 最终新增 8 表，共 197 表；DDL `854c22240e01915f777958ec490bf1ebad6dcc4a92f4bd6f2f032d32ac2d1312`；P2 aggregate `d1167a59bd96fc5d8bed81bad6ca4b8eeb73c635aae6c7b82a41f4af4e577dc2`。最终合并后的 Catalog witness 及 full Host 门禁由部署任务核验。
+- 最终新增 8 表，共 197 表；DDL `854c22240e01915f777958ec490bf1ebad6dcc4a92f4bd6f2f032d32ac2d1312`；合并后 P2 aggregate `f88010679733e9a0d28effb67505ef32552a2369f42a13a76fbb8c8b24313d88`。最终合并后的 Catalog witness 及 full Host 门禁由部署任务核验。
 
 本地证据（工作区 `.codex/uat251/`，不提交媒体/生产副本/凭据）：
 
@@ -29,9 +29,11 @@
 | Windows 真实 FFmpeg | `real-media-poster-repair-e2e.log`，128.8 秒，HEVC/AAC 样片实际上架、海报修复、剩余演员瑕疵及重启 |
 | Linux 真实 FFmpeg | `linux-real-media-final.log`，124.9 秒，同链通过；`linux-final-focused.log` 52 项定向通过 |
 | 完整生产副本 Schema | `production-copy-final-schema.log`、`production-copy-schema-result.json`：189→197、强制异常原子回滚、188 张原业务表逐行字节摘要一致，118 收藏、7 历史显式用户放弃保持；quick_check/FK clean；冻结原副本未修改 |
-| Web | `final-web-tests.log` 100/100，`final-web-build.log` 通过 |
-| 架构 | `final-architecture-rerun.json` 234 个测试文件 fixture 通过，契约/语义通过；迁移直接 fs/path 依赖已改为冻结 DDL 常量，等待最终合并复验 |
-| UI | 指定负责人先确认方案再实施；仅无法上架 ended 行原详情列增加“查看过程”。独立 Edge 1920×1080 同数据 18 单元格前后几何零变化。截图在 `ui-final/`；本轮基线仍须更新后重交，不能当最终验收通过 |
+| Web | 合并后 `merged-web-tests.log` 105/105，`merge-web-build.log` 通过 |
+| 架构 | `merged-architecture.json`：dependency/semantic/contracts 通过；仅 P2 合并计数断言与联合 Catalog witness 两项失败。前者 `merged-p2-focused.log` 已修正复验；后者交部署任务按当前递归 Schema 闭包更新，未放宽校验。Handoff B 拒绝自动收尾及冻结 DDL 迁移 `merge-terminal-migration.log` 19/19 |
+| UI | 指定负责人复查 `874172bc6` 及 `ui-merged/` 全部 10 张 1920×1080 图片后通过。`31bd03b` 与当前 JS/CSS 同数据 18 单元格几何零变化，仅无法上架详情入口“—→查看过程”；取消/Escape/焦点由实施任务复验，UI 负责人明确未代为重跑交互测试。旧 `ui-final/` 非最终证据 |
+
+合并版本实际新建 16 个 Plan 的 executionCatalogDigest 均为 `d8d6a237f3cdcda20b1548d5064b94dc483cf58da1ed2ca326f5e1ca2cfb6a74`，enabled Capability 87；与 31bd 比较的 20 个 Schema 文件变化见本地 `merged-schema-change-list.json`（12 新增、8 修改）。Catalog 值相同不代表递归 Schema 闭包相同，联合 witness 仍需精确核验。
 
 限制：独立 UI fixture 的媒体探针为测试替身，真实媒体证据为上述 Windows/Linux 独立链；尚无最终合并版本生产验收。不得覆盖最新 UAT-260/261 或部署事实，不独立部署 NAS。
 

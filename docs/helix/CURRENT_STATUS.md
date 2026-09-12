@@ -21,6 +21,8 @@
 
 ## 最近验收与开放事实
 
+2026-09-12 UAT-251：`eae6bb3da` 核心实现、`874172bc6` 合并最新页面与 261 契约；指定 UI 负责人已通过最终本地 1920×1080 图片复核。Windows/Linux 真实媒体自动瑕疵上架、手动海报修复及剩余瑕疵/重启验证通过，合并后 Web105通过。197表原业务数据保持验证已完成；最终联合 Catalog witness、完整 Host 与生产验收交部署任务，仍开放、未独立部署。[证据](implementation/evidence/UAT-251_TERMINAL_OUTCOME_AUDIT_20260908.md)。
+
 2026-09-12 UAT-251交付状态：此前无Integration的有限终局及Freshness耗尽无blockedWorks两项缺口，源任务现已接通并获定向证据。无资料Provider使用独立Libra观察，按首见后1/5/15/30/60分钟最多五次重查，重启不重置；受控时钟完整HTTP链实际安全媒体瑕疵上架186.4秒通过。Freshness五次耗尽分支已走到责任收尾，修复Discard序列化BigInt后专项通过。独立`libra_strategy_availability`使最终目标从196变为197表，DDL `854c22240e01915f777958ec490bf1ebad6dcc4a92f4bd6f2f032d32ac2d1312`；此前45文件副本189→196升级/异常回滚、188原业务表摘要不变、118收藏/7份admin放弃保留仅属中间版本证据，197版须补验。真实瑕疵上架/手动修复/重启及失败重试防循环已有源测试证据；尚无最终提交，仍需最终197升级/回滚、UI负责人要求的1920×1080同数据前后对照/收藏详情及Linux差异验证。精确合并Catalog和完整Host由部署任务验收。
 
 UAT-261源任务只读核查：4个已Commit Run的历史Receipt固定Inventory/DeckFact=1/1，原读取入口误用当前Inventory版本5/2/5/5。独立历史读取按Receipt的精确版本执行原完整摘要校验后4项全部通过，20项旧删除及20项后继输入/意图摘要和实际后继完成链已匹配。源提交e1bbc467a已合入4f6953ad1，干净发布树Catalog/Owner history/startup/runtime Host针对性104/104通过。另3项stage明确unsupported并继续阻断；未重复构建已知仍受阻的新镜像，精确镜像的已验证结果仍是上述d5的7项阻断，不提前改写为启动成功。
