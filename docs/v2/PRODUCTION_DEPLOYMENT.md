@@ -142,7 +142,7 @@ apply 模式必须保持这些保护：
 - `upload-nas-image.js`、`deploy-nas.js` 和 `tools/ssh-exec.js` 必须复用 `tools/nas-ssh-config.js`，不要在脚本内硬编码 SSH 凭据。
 - 由 tarball 文件名 `shelfdeck-<tag>.tar` 推导目标镜像 `markmahoro/shelfdeck:<tag>`，并更新 NAS compose 的 `image:`。
 - 展示 live 容器里当前 `ffmpeg` 进程，作为中断风险提示；开发期部署允许中断这些任务，后续孤儿文件可另行清理。
-- 部署前备份 `config.json`、`library.json` / `library.db`、`tasks.json` / `tasks.db`。
+- 部署负责人在 apply 前单独创建并校验完整 Helix data、compose 和 secret 备份，包括 SQLite 一致副本及全部伴随文件；不要只备份历史 v3 文件名。当前 `deploy-nas.js` 普通升级本身不创建完整备份，必须保存独立备份 receipt 后再 apply。
 - Helix clean cutover 必须先有 `helix-clean-init.js` plan，停止旧容器后才允许 apply，并保留脚本生成的 backup 目录。
 - 通过 NAS 上的 compose 文件 `docker compose up -d --force-recreate` 重建容器。
 - 部署后检查 `/v1/health`、成人库挂载、代码来自镜像而不是源码挂载、关键 scraper 模块可加载。
@@ -231,4 +231,6 @@ v3.0 回滚分两层：
 1. 镜像回滚：重新部署上一个已知可用 tarball，仍使用 `scripts/deploy-nas.js` 的 dry-run 和 `--apply` 流程，不直接改 compose。
 2. 数据回滚：如果必须回到 clean cutover 前的状态，停止容器后从 `.pre-helix-<timestamp>.bak` 和 `backups/helix-production-cutover-<timestamp>/` 恢复。恢复前先复制当前数据目录作为事故现场，不删除现有文件。
 
-只要旧镜像能忽略新增 columns，就优先做镜像回滚，不做数据回滚。只有旧镜像启动失败或业务语义必须回退时才恢复备份数据。
+镜像回退必须用候选运行后的同一份数据验证完整 Host，不以“仅新增 columns”推断兼容。UAT-251/261 联合版本为197表/d8，旧cd4f的189表/d2镜像不能直接回退；已验证的同格式备用版本及其精确SHA256见本次发布Evidence。切换备用镜像仍使用上述标准dry-run/apply，保留升级后的数据和媒体事实。备用版本对哪些问题有效应按实际diff和验证说明，不能宣称能撤销所有新功能。
+
+升级前完整备份是事故恢复材料。若升级后已经发生媒体处置、接收或收藏提交，不得因为旧镜像无法启动就直接覆盖旧DB；必须先保留新现场，核对数据库与当前物理事实的一致性，并按精确生产数据恢复范围取得授权。

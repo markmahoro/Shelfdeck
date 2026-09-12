@@ -116,3 +116,8 @@ runtime仍有两条与同冻结副本cd4f对照相同的错误：EROFS在`remove
 另以独立 require 预加载原 `9bd17be50` 两份 Foundation 源码运行相同5个关键回归：5/5按预期失败，其中真实组合精确得到先 `PHYSICAL_MATERIAL_FINGERPRINT_IO_FAILED`、后 `P4_WORK_RUNNING_ATTEMPT_CARDINALITY`，新代码只保留前者。旧源码对照首次预加载脚本遗漏 Module.loaded，产生工具自身错误；修正后才得到上述有效负向证据，未把工具错误计为缺陷复现。
 
 原始日志在开发任务 ignored `.codex/uat251/uat261-attempt-window-{windows,linux,original-negative}.log`，静态记录同前缀。此为局部恢复缺口交付；联合精确镜像、完整生产副本 Host 与最终发布验收仍由部署任务执行，UAT-261/UAT-251 不据此关闭。未构建新的发布镜像、未操作 NAS、未改生产或冻结副本。
+
+
+## 2026-09-12 联合发布后独立验收关闭
+
+286fe56f1e生产完整Host正常，health200/normalSupplyAllowed=true；最新完整副本升级、同格式备用及切回验证通过，8270 Plan含新d8逐字保留，38历史Effects/Events与122收藏保留。不改旧digest、不扩Reset、不屏蔽校验；历史Run业务恢复仍归125/250。 精确image/source/SHA、完整Host及回退边界、备份与生产只读证据见[286发布记录](UAT_RELEASE_286FE56F1E_20260912.md)。此前未部署/开放状态为历史时点，本段满足本项关闭条件；不连带关闭251或历史存量项。

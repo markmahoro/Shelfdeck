@@ -1,33 +1,25 @@
 # ShelfDeck 当前状态
 
-更新：2026-09-12。唯一条目及关闭条件入口为[UAT总表](UAT_ITERATION_REGISTER.md)，唯一排程为[CURRENT_PLAN](CURRENT_PLAN.md)。261项连续：71项本轮功能验收关闭、34项开放、153项历史关闭、220文档关闭、1项非缺陷接受、206被取代且承接已核实。历史关闭不是本次重新验收。
+更新：2026-09-12。唯一条目及关闭条件入口为[UAT总表](UAT_ITERATION_REGISTER.md)，唯一排程为[CURRENT_PLAN](CURRENT_PLAN.md)。261项连续：72项本轮功能验收关闭、33项开放、153项历史关闭、220文档关闭、1项非缺陷接受、206被取代且承接已核实。历史关闭不是本次重新验收。
 
 255项前后合同审查及三项用户决定已完成，SSOT/Beta已在`14cf2d9a0`同步。已无这三项待确认决定；合同确认不等于实现或验收。审查及覆盖关系见[全量证据](implementation/evidence/UAT_FULL_CONTRACT_CONSISTENCY_AUDIT_20260909.md)。
 
 ## 当前生产
 
-2026-09-12 12:45Z：联合fa96精确镜像Linux121/121、真实媒体瑕疵上架/手动修复/重启链通过。12:17Z完整45文件生产副本的联合Host已启动、health200、normalSupplyAllowed=true，8组保护事实及原历史Effects/Events保持。修正隔离挂载后Aftercare根身份冲突消失，真实暴露的恢复authority缺失已合入e056，Windows170通过/1skip、精确Linux66通过/1skip；重复Attempt聚合修复源81e95已交付待合并。正在验证同197表/d8格式备用镜像及最终候选完整Host；旧cd4f不能直接读取升级后数据。生产仍下列cd4f健康版本，本批尚未apply，定时任务停止。详见[联合复验](implementation/evidence/UAT-261_CATALOG_STARTUP_DEPLOYMENT_20260912.md#1217z-联合版本复验及恢复收口)。下方均为先前时点。
+2026-09-12 20:59（北京时间）联合版本已标准发布成功，UAT-251、125/250接收恢复交付、260大Run重试及261启动/恢复修复已上线。定时任务保持停止。
 
-联合集成检查完成：238个架构测试文件共1782项，1771通过、9项既有skip、2失败（DDL生成trace遗漏同步、UAT-129仍按旧内联输入结构断言）。两处均已修正，4项定向复验通过；dependency/semantic/manifests/P2静态gate通过。DDL仍为854c2224…/197表，未重复已通过的完整测试或构建已知回退未就绪的联合镜像。下一步需完成联合精确镜像的完整副本验证，并落实可行回退；生产仍cd4f。
+- 镜像：`markmahoro/shelfdeck:helix-beta-20260912-286fe56f1e`；source `286fe56f1e4c5c74ae845584f29b997597415f9c`；NAS Config ID `sha256:16aa204ffda72363b68f03c7ad720c1ed73f0baf990b5c113c468f98623e3083`。
+- tar SHA256：`43dd75c9f2510dc246a38c6a00cd1a506db77fec14402a2aaf73b49f1516ca7e`；StartedAt `2026-09-12T12:58:18.874868645Z`。build/upload/checksum/dry-run/apply完成。
+- 13:00Z生产health200、normalSupplyAllowed=true、Admin Web及六路Admin接口200；197表、quick_check ok/FK0，五挂载/QSV、Secret root、fnOS管理页200保持。
+- 原122收藏/Deck Fact/Commit、970包、1338主材料逐行missing0/changed0；8份旧Rejected及原38 Effects（23 reconcile_required）/Events不变。当前Delivery=138 accepted/824 open/8 rejected。自动瑕疵授权尚未开启，验收未擅自改变授权。
+- 精确镜像Linux Foundation119/119、Retry28/28、真实媒体自动瑕疵上架→手动海报修复→重启链通过。完整新副本Host、备用镜像切换、再切回正式版本均在同一升级后数据上通过，8组保护表不变；8270个Plan含4个新d8 Plan在备用切换中逐字保留。
+- 已验证同格式备用`e056c64aff`，完整45文件及compose/secret备份保留。旧cd4f不能读取197表/d8，不得直接用旧DB覆盖升级后事实。具体回退范围与SHA见[发布证据](implementation/evidence/UAT_RELEASE_286FE56F1E_20260912.md)。
 
-2026-09-12 11:57Z后续：5428启动后副本的cd4f binary回退失败，4项PLAN_CATALOG_DRIFT。逐行核对确认4个Plan在冻结原件均不存在，候选启动后新增且Catalog=d8（一次扫描已成功，一项Aftercare及两项Off-deck仍running）；不是原7项历史阻断复发。8组保护表仍不变/FK0，但不等于可回退。251源任务另确认197表成功升级后无189旧镜像降级路径，其原“rollback”证据仅为迁移提交前异常事务回滚。当前发布阻碍为联合版本最终验证及可靠回退方案；不得将恢复升级前DB说成正常运行后的无损回退，生产保持cd4f。251最终9bd17be50及260源5096ab55a现已整合，联合witness冻结全部87项递归schema闭包，受影响集合由2扩为11；197表DDL不变，生成物仅同步SSOT行号与摘要，完整架构验证进行中。
-
-2026-09-12 11:54–11:57Z：UAT-261 `5428fbea99` 精确镜像首次通过11:20完整生产副本的全Host启动，health 200、ready、normalSupplyAllowed=true、findings 0、正常关闭；8组保护表摘要不变、quick_check ok/FK0。原7个Plan的38个Effect（23个reconcile_required）及原Event均未改写，《人生密密缝》Run仍blocked/Commit0。两条runtime错误与cd4f对照相同：只读Workspace EROFS和Effect authority缺失，后者因果尚未确认，不能称运行时全绿。此前31bd版本3项阻断已定位为整数Fence的BigInt序列化问题并由5269修正；当前正在验证候选运行后副本的cd4f binary回退。生产仍cd4f，未部署；251/260独立交付齐备，联合schema闭包及最终Host待整合验证。
-
-2026-09-12 11:20–11:26Z：生产仍为cd4f、原StartedAt及health正常，最新副本121收藏/970份Delivery（825 open/137 accepted/8 rejected）。261全部证明代码已合入1c550eff91并构建精确镜像，完整230个架构测试文件与静态gate、Linux125/125通过；但最新完整副本实际Host仍余3项stage阻断，拒绝原因为`Custody has missing or extra Control`，源任务继续定位，未生产部署。对照旧版启动成功但出现只读Workspace及Effect authority两条runtime错误，均保留，不宣称运行时全绿。[最新门禁证据](implementation/evidence/UAT-261_CATALOG_STARTUP_DEPLOYMENT_20260912.md#3项stage实现后的精确linux门禁)。
-
-2026-09-12 10:35Z：261精确修复镜像`d5c00f0cc4`已构建、Linux84/84通过，最新完整副本的全Host阻断由4764项降至预期7项未决物理Plan，保护事实hash不变、quick_check ok/FK0。完整架构唯一旧digest断言已更新并定向3/3复验；7项Owner责任尚待正式收口，未生产部署，生产仍为以下cd4f健康版本。详见[集成验证](implementation/evidence/UAT-261_CATALOG_STARTUP_DEPLOYMENT_20260912.md#uat-261-精确镜像集成验证)。
-
-2026-09-12 09:49Z人工续接复查：仍为下列cd4f回退镜像及同一StartedAt，NAS/LAN health均ok、normalSupplyAllowed=true，五挂载、Secret root匹配和fnOS 200通过。正常队列现为118收藏、970份Delivery（828 open/134 accepted/8 rejected），最新普通扫描revision1368–1440共73页succeeded；以下113收藏等数字为上次发布时点。当前Token集合已变化，原宇航员subject ID也已被旧版重新取得，不能凭同一ID重复历史Reset。09:52Z新完整45文件一致副本已下载并逐文件验hash，261完整Host门禁继续，未再次部署，定时任务保持停止。
-
-2026-09-12第二批d7a6da2802发布失败：数据库readiness通过，但完整Host因大量历史PLAN_CATALOG_DRIFT未启动。已标准回退cd4f3f5b2d，StartedAt2026-09-11T21:32:51.809272745Z，健康/五挂载/fnOS/113收藏及970份Delivery复核通过。此前原两Token精确Reset已执行且保留，未恢复DB；5旧Offer仍open，旧版已产生新Token，不得扩大或复用旧Reset范围。新增261优先定位启动合同与补完整Host门禁，260随后，251独立。[事故记录](implementation/evidence/UAT-261_CATALOG_STARTUP_DEPLOYMENT_20260912.md)。
-
-- 镜像：markmahoro/shelfdeck:helix-beta-20260912-cd4f3f5b2d；source cd4f3f5b2d；NAS Config Image ID sha256:f4d48cd326dba8b551af63fad7c3ce0ffdc0b3040c43c6153d1987cbc9a13452。
-- tar SHA256：4d3f1b1c51d47d10bb2d3afaa5ce1b4cb6a63586b4a8887a458f8f72ec4beaed；当前回退StartedAt 2026-09-11T21:32:51.809272745Z（首批启动时间见历史证据）。标准发布、45文件完整备份与SQLite校验、五挂载/健康/fnOS管理页通过；83235c9260镜像及tar保留回滚。
-- 最终Web94/94、Linux适用39/39及生产八页/五设置Tab复核通过。正常启动扫描完成73页、revision1222–1294，新Work succeeded；六条当前主文件资格变为eligible并由普通选材产生新Package/open Delivery，257已关闭。发布后初次113收藏、956包=820等待+128接收+8拒绝；原拒绝记录及自动清理授权revision1不变，Fast X继续处理中。
-- Linux广测23项Reset夹具被正式/transcode限定拦下，未放宽安全限制；既有4项架构合同生成基线失败/121项drift保留。本批没有schema/typed合同变化，也未重跑完整真实媒体E2E。历史两席位和《人生密密缝》仍待精确恢复，不宣称业务全绿。详见[本批发布证据](implementation/evidence/UAT_RELEASE_CD4F3F5B2D_20260912.md)。
+本批不执行Reset、旧Token治理或冲突文件隔离；指定历史《人生密密缝》仍blocked/Commit0，已核实的当前Owner引用不能按旧清单隔离。251完整生产业务/UI验收及125/250存量治理仍分别跟进；上线不代表所有历史问题已解决。此前失败、完整副本与修复过程保留在[261记录](implementation/evidence/UAT-261_CATALOG_STARTUP_DEPLOYMENT_20260912.md)。
 
 ## 最近验收与开放事实
+
+UAT-261已独立验收关闭：286fe56f1e生产完整Host正常，health200/normalSupplyAllowed=true；最新完整副本升级、同格式备用及切回验证通过，8270 Plan含新d8逐字保留，38历史Effects/Events与122收藏保留。不改旧digest、不扩Reset、不屏蔽校验；历史Run业务恢复仍归125/250。[本项证据](implementation/evidence/UAT-261_CATALOG_STARTUP_DEPLOYMENT_20260912.md)。
 
 2026-09-12 UAT-251：`eae6bb3da` 核心实现、`874172bc6` 合并最新页面与 261 契约；指定 UI 负责人已通过最终本地 1920×1080 图片复核。Windows/Linux 真实媒体自动瑕疵上架、手动海报修复及剩余瑕疵/重启验证通过，合并后 Web105通过。197表原业务数据保持验证已完成；最终联合 Catalog witness、完整 Host 与生产验收交部署任务，仍开放、未独立部署。[证据](implementation/evidence/UAT-251_TERMINAL_OUTCOME_AUDIT_20260908.md)。
 
