@@ -7,6 +7,7 @@ const { createIntakeCapabilityPorts } = require('../capabilities/intake-capabili
 const { createIntakeControlObservationPort } = require('../application/intake-control-observation-port');
 const { createIntakeCapabilityRegistrations } = require('../capabilities/intake-capability-registrations');
 const { createIntakeOfferReader } = require('../persistence/intake-offer-reader');
+const { createMaterialBindingScopeReader } = require('../application/material-binding-scope-reader');
 const { createIntakeDecisionResolver } = require('../application/intake-decision-resolver');
 const { createIntakeProcessCoordinator } = require('../application/intake-process-coordinator');
 const {
@@ -273,6 +274,7 @@ function createExecutionRegistration() {
 }
 
 Object.defineProperties(createExecutionRegistration, {
+  createMaterialBindingScopeReader: { value:createMaterialBindingScopeReader },
   DEFAULT_PREDECK_PIPELINE_SEATS: { value: DEFAULT_PREDECK_PIPELINE_SEATS },
   createMovieResponsibilityClosureCoordinator: { value: createMovieResponsibilityClosureCoordinator },
   buildRatingTargetIdentity: { value: buildRatingTargetIdentity },

@@ -168,6 +168,20 @@ function createBoundedCatalogTransition({ witness, registry, policyRegistry, sch
           resolution.pending = facts;
           throw new Error('Unresolved terminal Effect.');
         }
+        if (receipt.schemaRef === 'arca.terminal-stage-history-proof@1') {
+          const keys = ['schemaRef','ownerDomain','disposition','effectId','eventId','inputDigest','slotEventId','slotResultId','slotResultDigest','observationDigest'];
+          requireProof(!unaffected && work.owner_domain === 'arca' && receipt.ownerDomain === work.owner_domain &&
+            receipt.disposition === 'no_remaining_material_effect' && effect.effect_class === 'material_commit' &&
+            Object.keys(receipt).length === keys.length && keys.every(name=>Object.hasOwn(receipt,name)) &&
+            receipt.effectId === effect.effect_id && receipt.eventId === event.event_id &&
+            HASH.test(receipt.inputDigest) && HASH.test(receipt.observationDigest) && HASH.test(attempt.fence_snapshot_digest) && receipt.inputDigest === attempt.input_snapshot_digest &&
+            effect.intent_digest === canonicalDigest({eventId:event.event_id,capabilityRef:event.capability_ref,contractVersion:event.contract_version,
+              inputSnapshotDigest:receipt.inputDigest,fenceSnapshotDigest:attempt.fence_snapshot_digest}) &&
+            events.some(source=>source.event_id===receipt.slotEventId && source.state==='succeeded') &&
+            results.some(source=>source.event_id===receipt.slotEventId && source.result_id===receipt.slotResultId && source.result_digest===receipt.slotResultDigest),
+          'Unproven empty stage responsibility.');
+          continue;
+        }
         const receiptKeys = ['schemaRef', 'ownerDomain', 'disposition', 'historicalAuthorization', 'effectId', 'eventId', 'inputDigest',
           'sourcePlanId', 'sourceEventId', 'sourceInputDigest', 'sourceResultId', 'sourceResultDigest', 'sourceCommitResultId', 'sourceCommitResultDigest'];
         requireProof(Object.keys(receipt).length === receiptKeys.length && receiptKeys.every(name => Object.hasOwn(receipt, name)),

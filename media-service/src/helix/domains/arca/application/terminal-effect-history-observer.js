@@ -5,6 +5,7 @@ const { createHandoffBAcceptanceStore } = require('../persistence/handoff-b-acce
 const { createOnDeckStore } = require('../persistence/on-deck-store');
 const { settlementHandles } = require('../model/historical-on-deck-effect-inputs');
 const { requiresInputSettlement } = require('../model/offload-settlement');
+const { createTerminalStageHistoryObserver } = require('./terminal-stage-history-observer');
 
 const SETTLEMENT = 'arca.ondeck.input_settlement.delete@1';
 const TERMINAL = new Set(['succeeded', 'failed', 'cancelled']);
@@ -89,6 +90,9 @@ function createTerminalEffectHistoryObserver(options) {
   }
 
   function observe(facts) {
+    if (facts.events.some(event=>event.capability_ref==='arca.inventory.product.stage@1' && event.state==='failed')) {
+      return createTerminalStageHistoryObserver(options).observe(facts);
+    }
     requireProof(facts.work.owner_domain === 'arca' && facts.work.process_type === 'arca_ondeck_run' &&
       facts.work.work_kind === 'on_deck_execution' && TERMINAL.has(facts.work.state) && TERMINAL.has(facts.workAttempt.state), 'nonterminal or foreign scope');
     const unresolved = facts.effects.filter(e => !['committed', 'failed'].includes(e.state));

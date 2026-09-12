@@ -97,6 +97,35 @@ function effectHistoryFixture() {
   return { ...f, source, receipt };
 }
 
+function stageHistoryFixture() {
+  let receipt;
+  const f=fixture({owner:'arca',effectClass:'material_commit',terminalEffectObserver:{observe:()=>[receipt]}}),facts=f.facts;
+  const slotEvent={...facts.events[0],event_id:'slot-event',node_id:'slot',result_id:'slot-result'};
+  facts.events[0].state='failed';facts.events[0].result_id=null;facts.work.state=facts.workAttempt.state='failed';
+  facts.events.push(slotEvent);facts.nodes.push({...facts.nodes[0],node_id:'slot'});
+  const slotAttempt={...facts.attempts[0],event_attempt_id:'slot-attempt',event_id:'slot-event'};
+  Object.assign(facts.attempts[0],{outcome_kind:'failed',input_snapshot_digest:HASH,fence_snapshot_digest:HASH});
+  facts.attempts.push(slotAttempt);
+  Object.assign(facts.results[0],{event_id:'slot-event',result_id:'slot-result',effect_receipt_id:'slot-receipt'});
+  facts.effects=[{effect_id:'stage-effect',event_attempt_id:'execution',effect_class:'material_commit',state:'reconcile_required',output_digest:null,
+    intent_digest:canonicalDigest({eventId:'event',capabilityRef:'libra.fixture@1',contractVersion:1,inputSnapshotDigest:HASH,fenceSnapshotDigest:HASH})},
+    {effect_id:'slot-effect',event_attempt_id:'slot-attempt',effect_class:'material_commit',state:'committed',output_digest:facts.results[0].result_digest}];
+  receipt={schemaRef:'arca.terminal-stage-history-proof@1',ownerDomain:'arca',disposition:'no_remaining_material_effect',
+    effectId:'stage-effect',eventId:'event',inputDigest:HASH,slotEventId:'slot-event',slotResultId:'slot-result',slotResultDigest:facts.results[0].result_digest,observationDigest:HASH};
+  return {...f,receipt};
+}
+test('typed empty stage proof retains original failed Event and unresolved Journal',()=>{
+  const f=stageHistoryFixture(),before=JSON.stringify(f.facts);assert.equal(f.verify(),true,f.reasons.join('\n'));assert.equal(JSON.stringify(f.facts),before);
+});
+for(const [name,mutate] of [
+  ['wrong slot Result',f=>f.receipt.slotResultId='foreign'],
+  ['wrong slot digest',f=>f.receipt.slotResultDigest=HASH],
+  ['foreign Effect',f=>f.receipt.effectId='foreign'],
+  ['wrong input digest',f=>f.receipt.inputDigest='b'.repeat(64)],
+  ['missing original Fence',f=>f.facts.attempts[0].fence_snapshot_digest=null],
+  ['invented proof field',f=>f.receipt.approved=true],
+])test('empty stage proof blocks '+name,()=>{const f=stageHistoryFixture();mutate(f);assert.equal(f.verify(),false);});
+
 test('terminal Effect responsibility proof preserves failed history and revalidates successor on every call', () => {
   const f = effectHistoryFixture(), before = JSON.stringify([...f.graphs]);
   assert.equal(f.verify(), true, f.reasons.join('\n'));

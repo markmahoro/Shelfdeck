@@ -736,6 +736,7 @@ function createProcurementExecutionRuntime(options) {
   const catalogDigest = executionCatalogDigest(registry, policyRegistry);
   const catalogProofReader = createCatalogPlanProofReader({ schemaManifest:options.schemaManifest, unitOfWork:options.unitOfWork });
   const terminalEffectObserver = arcaConstruction.createTerminalEffectHistoryObserver({ ...options, workResultReader,
+    stageHistoryLibraBindingReader:LibraExecutionRegistration.createMaterialBindingScopeReader(options),
     readTechnicalWork:workId => catalogProofReader.verify(reader => reader.workPlanIds(workId).map(id => reader.read(id))) });
   const boundedTransition = createBoundedCatalogTransition({ witness: intakeControlCatalogTransition,
     registry, policyRegistry, schemas: new Map(runtimeSchemas.map(schema => [schema.$id, schema])),

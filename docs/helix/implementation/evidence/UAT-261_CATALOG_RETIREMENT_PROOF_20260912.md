@@ -288,3 +288,36 @@ Libra public historical Package 与 Foundation public technical graph。冻结�
 《人生密密缝》三项 stage 不在本提交的放行分支。现有空 slot 观察保留为证据；下一步需精确旧输入/intent
 与持久 TargetCommitSlotHandle 验证、当前 readonly slot reality、作用域内无活动写入及引用的闭包。
 这三项未解决前 UAT-261 保持开放，Arca Accepted Run 保持 blocked，不能部署宣称已修复上架。
+
+### 单一派生证明实施：3 个 stage Effect（2026-09-12）
+
+部署任务已确认本段技术条件在既有 Owner 边界内实施，不新增用户授权、Custody 撤销或文件写权限。
+三个原 stage 的 productMaterialHandleList 与持久 TargetCommitSlotHandle 可由原 Package/Custody 精确
+重建：input_snapshot_digest 与使用原 fence_snapshot_digest 的 intent_digest 均 **3/3匹配**；共同
+slot Result 摘要为 `00ae254bcbcd27d285c032c3382346428b26f8dab5fda0123ac922039e1b2b8c`。
+新增正式只读 public 查询在最新副本验证：Custody Control 集合等于原 Package 的3个素材，无额外
+staged Control；精确 slot 的 Arca/Libra current binding scope 均为0。原 stage 在物理操作后可能调用
+acquireStagedCustody，故这项 Control 集合证明不可由“无成功 Result”或“目录为空”替代。
+
+实施入口为 Arca `terminal-stage-history-observer`，经既有 Arca public construction 接入；Libra
+仅通过 public binding scope reader 提供自己的只读引用判断，Foundation Material Control port 提供
+精确 Owner scope 投影。物理端新增 `observeEmptyStageSlot`，只使用 lstat/realpath/readdir，不调用任何
+prepareSlot/stage/settlement 写方法。它要求可信 Shelf revision/endpoint/root、原 hidden slot 身份与
+containment 摘要、各层非 symlink、目录存在且两次读取均为空；缺目录与权限失败一律阻断。
+
+观察前后读取并比较 Arca Accepted blocked responsibility、Package、Shelf、Control、两域 binding、
+全部同 Run Work/Attempt/Event 及持久技术图。开始物理观察前立即冻结 boundary digest，避免 mutable
+对象别名掩盖观察期间漂移。任何活动执行、额外/缺失 Control、引用、`.tmp`/残留、路径链接、原输入/
+intent/slot 摘要不符或观察期间变化都不产生证明。Foundation 仍完整校验原图及 slot Result/Effect 链；
+该分支只解释 `no_remaining_material_effect`，不把旧 Event 改成功、不重放旧 stage，不改 Run blocked。
+
+验证：Catalog/Settlement/stage 定向 **80/80**；Material Control、Libra public、Startup Recovery、
+Runtime Host、实际 Inventory Port 回归 **125/125**，无skip。Windows 临时目录正反例覆盖空目录保留、
+其他 Owner 最终文件不变、残留 `.tmp`、目录缺失、真实 junction/symlink、活动 Work/Attempt、额外与
+缺失 Control、Libra 引用、输入/intent/slot不匹配、观察期间 Owner digest 漂移、权限失败。
+实际历史副本上的3项输入/intent及新public查询已验证，**NAS物理路径的完整 stage 证明不能在 Windows
+路径语义下冒充通过**；开发机对该Linux历史路径保持 containment mismatch。必须由部署任务使用
+精确 Linux 镜像、完整快照和只读媒体挂载运行 full Host 后才能报告7→0。生产未切换，最终目录未动。
+
+即使 Catalog/Host 门禁通过，《人生密密缝》原 Accepted Run 仍 blocked，当前最终目录现有其他 Owner
+文件的业务责任尚须原 Arca流程处理；本证明不等同于影片已上架，也不追认旧 synthetic Approval。
