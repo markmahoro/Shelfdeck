@@ -6,7 +6,7 @@
 
 状态说明：历史已关闭保留当时证据，并不宣称本次重测；已实现/已部署不等于已关闭；待核实不是当前已证实缺陷。原表与后续完整关闭证据冲突时采用后者并链接。没有证据的事项不批量关闭。
 
-[全量前后合同审查](implementation/evidence/UAT_FULL_CONTRACT_CONSISTENCY_AUDIT_20260909.md)已完成，三项业务冲突均由用户确认并以`14cf2d9a0`同步合同；用户要求整理文档后继续推进。历史标题不是现行Oracle；下述承接条件与SSOT后续优先条款共同适用。当前72项本轮功能验收关闭、33项开放，206被取代承接已核实；另有153项历史关闭、220文档关闭及1项非缺陷接受。
+[全量前后合同审查](implementation/evidence/UAT_FULL_CONTRACT_CONSISTENCY_AUDIT_20260909.md)已完成，三项业务冲突均由用户确认并以`14cf2d9a0`同步合同；用户要求整理文档后继续推进。历史标题不是现行Oracle；下述承接条件与SSOT后续优先条款共同适用。当前73项本轮功能验收关闭、32项开放，206被取代承接已核实；另有153项历史关闭、220文档关闭及1项非缺陷接受。
 
 执行顺序见[CURRENT_PLAN](CURRENT_PLAN.md)。每次完成一项，更新该行的提交、用户结果证据、剩余工作和状态；需要部署的先部署/验收再关闭。编号合并不触发生产操作。
 
@@ -271,5 +271,5 @@
 | UAT-257 | 拒绝后普通重新选材与历史包统计 | 业务流程 / UI | 验收关闭 | 用户新增 | 0aabaa1ca、fdabf79a6、cd4f3f5b2d | [合同与验收](implementation/evidence/UAT-257_PROCUREMENT_REJECTION_CYCLE_20260912.md)；[扫描恢复](implementation/evidence/UAT-257_SCAN_RECOVERY_IMPLEMENTATION_20260912.md) | cd4f3f5b2d生产正常扫描73页成功；6片新资格及新Package/Delivery已核验，8份旧Rejected记录不变，970=834等待+128接收+8拒绝。 |
 | UAT-258 | 收藏架“自动清理残留文件”授权按钮 | UI / `AESTHETICS` | 验收关闭 | 用户新增；承接172授权语义和256样式 | 38e89d145、cd4f3f5b2d | [交互与验收](implementation/evidence/UAT-258_RESIDUAL_CLEANUP_AUTHORIZATION_BUTTON_20260912.md) | 本地真实Host授权/撤销、错误恢复及键盘通过；cd4f3f5b2d生产入口/范围/取消/返回焦点通过，正式授权revision1保持不变。 |
 | UAT-259 | 第二轮UI精简：去空泛层级、统一工具栏与就地状态 | UI / `AESTHETICS` | 验收关闭 | 用户新增；不重开256 | f62800edb、95ec6b8ab、cd4f3f5b2d | [范围与验收](implementation/evidence/UAT-259_UI_REFINEMENT_20260912.md) | 最终Web94/94，本地494元素一致，cd4f3f5b2d生产八页/五设置Tab布局、状态和必要交互复核通过；九列表格保持。 |
-| UAT-260 | 大Run失败准备重试内联完整输入，超过Plan JSON上限 | `RECOVERY_CORRECTNESS` / `BOUNDED_INPUT` | 已复现，待修复 | 隔离恢复演练新增；关联125/129/250 | 尚未修复 | [原因与验收](implementation/evidence/UAT-260_LARGE_RUN_RETRY_INPUT_20260912.md) | 采用Owner内typed refs和同Basis装配，保持Plan JSON≤16 KiB；1/1024及实际大Run、失败/重启/消息幂等、原事实保护、Windows/Linux与最终镜像验收。B2；不弱化DDL，不以正常链重放替代Retry验证。 |
+| UAT-260 | 大Run失败准备重试内联完整输入，超过Plan JSON上限 | `RECOVERY_CORRECTNESS` / `BOUNDED_INPUT` | 验收关闭 | 隔离恢复演练新增；关联125/129/250 | 5096ab55a、085febc5d、286fe56f1e | [原因与验收](implementation/evidence/UAT-260_LARGE_RUN_RETRY_INPUT_20260912.md)；[联合发布](implementation/evidence/UAT_RELEASE_286FE56F1E_20260912.md) | 真实601/574成员隔离Retry保留全成员且Plan仅1333/1339 bytes；1/1024边界、1025拒绝、失败/重启/Outbox幂等和62表保护通过。Windows70及最终镜像Linux28通过，286标准发布及生产健康/持久事实保护通过；未在生产人为触发Retry。 |
 | UAT-261 | Catalog变更后历史Plan启动校验失败，发布readiness未覆盖完整Host | `DEPLOYMENT_SAFETY` / `RECOVERY_CORRECTNESS` | 验收关闭 | 本次部署新增；关联125/250/260 | 5269、fa96edc6b9、e056c64aff、286fe56f1e | [失败、备份与回退](implementation/evidence/UAT-261_CATALOG_STARTUP_DEPLOYMENT_20260912.md)；[联合发布](implementation/evidence/UAT_RELEASE_286FE56F1E_20260912.md) | 286fe56f1e生产完整Host正常，health200/normalSupplyAllowed=true；最新完整副本升级、同格式备用及切回验证通过，8270 Plan含新d8逐字保留，38历史Effects/Events与122收藏保留。不改旧digest、不扩Reset、不屏蔽校验；历史Run业务恢复仍归125/250。 |
