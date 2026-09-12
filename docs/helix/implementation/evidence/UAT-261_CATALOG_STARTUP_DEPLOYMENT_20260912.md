@@ -41,3 +41,13 @@ Catalog digest的构成、历史Plan/retained contract的加载与比较语义�
 对照结果位于ignored `resume-candidate-host-result.json`与`resume-baseline-180-host-result.json`，NAS对应`uat261-host-20260912-resume/resume-candidate`及`resume-baseline-180`目录。该结果确认当前发布回归，尚不证明261新规则可放行。源任务严格审计已发现7个终态Plan仍含`reconcile_required`物理Effect，保持blocker；合法Result alias、同Work前驱投影及Attempt Evidence名义关系仍在分类，不能用当前schema重解释已冻结终态Result，也不能略过实际未决副作用。
 
 10:05:57–10:07:04Z另复制候选失败后的`resume-candidate/data`运行cd4f回退完整Host，未还原原始DB：readiness ready、health200/normalSupplyAllowed=true、正常关闭、runtime errors0、八组protected表hash未变、quick_check ok/FK0。结果为ignored `resume-rollback-cd4f-host-result.json`；三个正式对照的task-owned容器均已退出，生产health仍正常。这是新副本上的二进制回退验证，不覆盖尚未交付的261/251合并版本。
+
+## UAT-261 精确镜像集成验证
+
+源实现`e6ab87955`已合入为`d5c00f0cc46ba8a950ff0b137a2072750eb95afe`；源测试基线修正`e685e272e`合入为`04d1f4ef5`，后者只改测试与Evidence，不改镜像运行时代码。干净发布树完整架构共1695项，1685通过、9项既有skip、1项失败；唯一失败为P2 aggregate digest旧常量，更新为实际派生的`faa39ed26084596b67ea06686c3fe1cada31639fa67c26731a68dc38009ab1dc`后相关3项全部通过。未把这次定向复验写成完整套件重跑；原失败日志保留。结构、Owner、语义及manifest合同检查通过，unresolvedTypeRefs=0。
+
+标准`build-image.js`构建候选`markmahoro/shelfdeck:helix-beta-20260912-d5c00f0cc4`成功；tar 561808384 bytes，SHA256 `b6691bbad517ce4429c96b0beb90276cde7e26ad65579bc4b9ae2525b74239d6`，NAS Config ID `sha256:6419f7b6a0f31d5a09717bea2a83d63cfab2aa4b97b1418108897fcbca8a0e75`。标准upload后远端SHA验证并仅导入镜像用于隔离测试，未执行生产deploy apply。tar同时携带latest标签，导入已移动该标签；生产Compose使用精确cd4f标签，运行容器及StartedAt未变，后续仍必须按精确版本操作。精确镜像Linux上bounded Catalog、startup recovery、execution runtime Host共84/84通过，代码来自镜像、仅挂载测试文件。
+
+10:33:55–10:35:15Z，在09:52完整冻结快照的新副本上运行d5完整Host：仍返回`P4_EXECUTION_HOST_RECOVERY_BLOCKED`，findings从旧d7的4764项缩减为恰好7项`PLAN_CATALOG_DRIFT`，与源审计的23个未决物理Effect/5个Arca Run闭包一致。normalSupplyAllowed=false、actions为空、nonterminal Work/Event均0、runtime errors0；八组保护事实hash不变、quick_check ok/FK0。该结果证明门禁保留真实未决责任，**不是成功启动或可发布结论**；261继续开放。结果为ignored `uat261-proof-host-result.json`，原始Windows架构、Linux及构建日志在发布工作区`.codex/uat261-*-20260912.log`。
+
+10:34:27Z另对三项旧stage共同的精确slot `/media/Film/.shelfdeck-stage-aa7783bd30f39459`只读lstat/readdir与当前Binding查询：非symlink目录、inode857313、size0、mtime2026-09-11T09:54:05.528Z，无子项或临时文件，Arca/Libra当前Material Binding对该路径及前缀均0。结果为ignored `uat261-stage-slot-read.json`。没有调用stage/prepareSlot或写生产；当前空目录不证明旧Effect从未产生写入，仍需Arca当前Reality及精确责任证据闭包，不能抹除失败历史。另20项旧settlement Effect的后续成功Evidence关联仍由源任务核对完整Owner与成员集，不因Run已committed直接放行。
