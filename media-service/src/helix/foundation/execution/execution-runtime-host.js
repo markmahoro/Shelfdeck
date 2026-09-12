@@ -63,9 +63,19 @@ function createExecutionRuntimeHost(options) {
   const inFlightRecoveries = new Map();
   const deferredRecoveries = new Map();
   const completionRetries = new Map();
+  const inFlightOwnerReconciliations = new Map();
 
   async function reconcileTerminal(aggregation) {
     if (!aggregation?.attemptTerminal || aggregation.replayed) return;
+    const key = JSON.stringify([aggregation.work.work_id, aggregation.attemptId]);
+    if (inFlightOwnerReconciliations.has(key)) return inFlightOwnerReconciliations.get(key);
+    const operation = Promise.resolve().then(() => reconcileOwnerTerminal(aggregation));
+    inFlightOwnerReconciliations.set(key, operation);
+    try { return await operation; }
+    finally { inFlightOwnerReconciliations.delete(key); }
+  }
+
+  async function reconcileOwnerTerminal(aggregation) {
     const disposition = await options.domainReconciler.reconcile(Object.freeze({
       reconcilePhase: 'attempt_terminal',
       ownerDomain: aggregation.work.owner_domain,

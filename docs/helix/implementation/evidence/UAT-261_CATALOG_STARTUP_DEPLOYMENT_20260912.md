@@ -102,3 +102,17 @@ e056备用候选 tar 561873408 bytes，SHA256 `89c72f1f6c77610bca3ebd11e0e6c4629
 runtime仍有两条与同冻结副本cd4f对照相同的错误：EROFS在`removeProducerPartials`尝试unlink只读/transcode测试挂载；随后`runtimeEffectAuthority`报`CLEAN_WORKSPACE_RUNTIME_EFFECT_AUTHORITY_MISSING`。后者不能仅凭先后顺序归因于EROFS，尚未证明正常可写生产路径受影响或无影响，不宣称运行时全绿。
 
 11:57:01.597Z独立只读复核原7个Plan：38个Effect中23个reconcile_required，全部原Effect及Event字节摘要未变；《人生密密缝》Run未变、blocked、Commit0。只证明旧未决物理责任符合本次startup只读证据，不伪造原操作成功或业务恢复。候选运行后副本的binary回退验证随后另记；UAT-261保持开放，尚未部署联合版本。
+
+## 联合 Host 发现的 Attempt 聚合窗口缺口（UAT-261）
+
+`fa96edc6b9` 的隔离 `joint-mount-preserved` Host 在输入准备失败后报 `P4_WORK_RUNNING_ATTEMPT_CARDINALITY`。只读前后导出 `joint-promotion-work-audit.json` 证明：该 deliverable-promotion Work 在冻结原件不存在，候选新建，最终 Work、唯一 ordinal 1 Attempt、唯一 Event 均为 failed；Event Attempt 为 completed/failed，技术原因仍为 `PHYSICAL_MATERIAL_FINGERPRINT_IO_FAILED`。没有最终 running/0 Attempt 孤儿。UAT-251 未改这两份 Foundation 实现，其 cancelProcess 的 Attempt/Work 同事务取消或 draining 路径亦不产生该中间状态。
+
+根因是 `EventRuntime.run` 的 prepare 同步失败并提交 Event 终态，Host await 回调尚未恢复时，同一 drain 的 pendingTerminalEventAggregations 已先聚合 Attempt；Owner reconcile 的 await 窗口中，原 Event 回调重复聚合，旧实现把合法的“Attempt terminal、Work running 等待 Owner”误判为数量损坏。
+
+本次修复基于联合树 `e056c64af`，保留 SSOT §7.2 的 Owner 分工：Foundation 仅在最新 Attempt 终态、完成时间/Basis、对应 immutable Plan 与全部精确终态 Event 状态一致时幂等返回；零 Event 仅接受 no_effect_required/succeeded 或 contract_unplannable/failed。缺失证据或多个活跃 Attempt 继续拒绝。aggregateEvent 固定原 Event 的 attempt_id，缺绑定显式拒绝，旧回调不聚合新 Attempt。Host 以 exact Work+Attempt 合并正在进行的 Owner reconcile，错误仍上报，失败后释放并发记录以允许持久扫描重试；Owner 判定与 settleWork 职责不变。没有业务状态补丁、DDL/Catalog 变化、旧数据修正或 UI 修改。
+
+验证：Windows 与 Linux 各119/119、无跳过，包含真实 EventRuntime+WorkLifecycle+Host 的同步输入失败交错、Owner await 中重复聚合、并发 Owner 合并及失败后重试、旧 Attempt/replan、SQLite 关闭重开后的待 Owner 收尾、无 Attempt 绑定及7类非法数量/证据负向、两种合法零 Event Plan。Linux 使用本地 fa96 镜像依赖，当前 src/test 只读挂载，network none、rootfs readonly、仅临时目录可写；不是最终发布精确镜像。dependency/semantic/manifests/P2 contracts 静态检查通过，P2 unresolvedTypeRefs=0。
+
+另以独立 require 预加载原 `9bd17be50` 两份 Foundation 源码运行相同5个关键回归：5/5按预期失败，其中真实组合精确得到先 `PHYSICAL_MATERIAL_FINGERPRINT_IO_FAILED`、后 `P4_WORK_RUNNING_ATTEMPT_CARDINALITY`，新代码只保留前者。旧源码对照首次预加载脚本遗漏 Module.loaded，产生工具自身错误；修正后才得到上述有效负向证据，未把工具错误计为缺陷复现。
+
+原始日志在开发任务 ignored `.codex/uat251/uat261-attempt-window-{windows,linux,original-negative}.log`，静态记录同前缀。此为局部恢复缺口交付；联合精确镜像、完整生产副本 Host 与最终发布验收仍由部署任务执行，UAT-261/UAT-251 不据此关闭。未构建新的发布镜像、未操作 NAS、未改生产或冻结副本。

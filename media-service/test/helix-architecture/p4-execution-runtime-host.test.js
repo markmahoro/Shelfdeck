@@ -15,6 +15,55 @@ function withDefinition(work) {
   }) });
 }
 
+for (const failFirst of [false, true]) {
+  test('concurrent Owner scans share the exact Attempt and preserve retry after failure: ' + failFirst, async () => {
+    let pending = false, ownerCalls = 0, settleCalls = 0, notifyCalls = 0, enter, release;
+    const entered = new Promise((resolve) => { enter = resolve; });
+    const gate = new Promise((resolve) => { release = resolve; });
+    const errors = [];
+    const work = { work_id: 'owner-work', owner_domain: 'libra', process_type: 'libra_run',
+      process_id: 'owner-run', work_kind: 'test_work', state: 'running' };
+    const host = createExecutionRuntimeHost({ tickIntervalMs: 60000,
+      startupRecovery: { async recover() { return { state: 'ready', normalSupplyAllowed: true }; } },
+      scheduler: { acquire() { return { kind: 'idle' }; }, release() {} },
+      plannerRegistry: { resolve() {} }, planPublisher: { publish() {} },
+      workLifecycle: { ensurePlanningAttempt() {}, startPlanned() {}, aggregateEvent() {},
+        pendingOwnerReconciliations() { return pending ? [{ work,
+          attempt: { attempt_id: 'owner-attempt', state: 'failed', failure_code: 'INPUT_IO_FAILED' } }] : []; },
+        settleWork() { settleCalls++; pending = false; return { state: 'failed' }; },
+      }, eventRuntime: { async run() {} },
+      domainReconciler: { async reconcile(request) {
+        if (request.reconcilePhase === 'work_terminal') { notifyCalls++; return null; }
+        ownerCalls++; enter(); await gate;
+        if (failFirst && ownerCalls === 1) throw Object.assign(new Error('Owner temporarily unavailable'), { code: 'OWNER_TEST_FAILURE' });
+        return { workId: request.workId, disposition: 'failed' };
+      } },
+      fallbackReconciler: { async start() {}, async stop() {} }, onError(error) { errors.push(error.code); },
+    });
+    try {
+      await host.start();
+      await new Promise((resolve) => setImmediate(resolve));
+      pending = true;
+      const first = host.drainOnce();
+      await entered;
+      const second = host.drainOnce();
+      await new Promise((resolve) => setImmediate(resolve));
+      assert.equal(ownerCalls, 1);
+      release();
+      await Promise.all([first, second]);
+      if (failFirst) {
+        assert.ok(errors.length > 0);
+        assert.ok(errors.every((code) => code === 'OWNER_TEST_FAILURE'));
+        assert.equal(settleCalls, 0);
+        await host.drainOnce();
+      } else assert.deepEqual(errors, []);
+      assert.equal(ownerCalls, failFirst ? 2 : 1);
+      assert.equal(settleCalls, 1);
+      assert.equal(notifyCalls, 1);
+    } finally { release(); await host.stop(); }
+  });
+}
+
 test('Planner Registry resolves one typed pure Planner per Owner Work kind', () => {
   const planner = Object.freeze({ plan() {} });
   const registry = createPlannerRegistry({ registrations: [{

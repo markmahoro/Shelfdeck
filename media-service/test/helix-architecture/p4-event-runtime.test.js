@@ -7,6 +7,8 @@ const path = require('node:path');
 const test = require('node:test');
 const Database = require('better-sqlite3');
 const { createEventRuntime, observationFailureClass } = require('../../src/helix/foundation/execution/event-runtime');
+const { createWorkLifecycle } = require('../../src/helix/foundation/execution/work-lifecycle');
+const { createExecutionRuntimeHost } = require('../../src/helix/foundation/execution/execution-runtime-host');
 const { createTimeoutController } = require('../../src/helix/foundation/execution/timeout-controller');
 const { createCooperativeExecutionIsolation } = require('../../src/helix/foundation/execution/cooperative-execution-isolation');
 const {
@@ -285,6 +287,55 @@ function databaseFacts(databasePath) {
     };
   } finally { database.close(); }
 }
+
+test('Host scan and synchronous input failure callback aggregate one real Attempt and settle its Owner once', async () => {
+  await fixture(async ({ runtime, lease, databasePath, unitOfWork, state }) => {
+    const lifecycle = createWorkLifecycle({ schemaManifest, unitOfWork, nextWorkAttemptId: () => assert.fail('unexpected replan') });
+    const errors = [], aggregations = [], phases = [];
+    let available = true;
+    let finish;
+    const finished = new Promise((resolve) => { finish = resolve; });
+    const host = createExecutionRuntimeHost({ tickIntervalMs: 60000,
+      startupRecovery: { async recover() { return { state: 'ready', normalSupplyAllowed: true }; } },
+      scheduler: { acquire({ targetType }) {
+        if (targetType !== 'event' || !available) return { kind: 'idle' };
+        available = false; return { kind: 'leased', lease };
+      }, release() {} },
+      plannerRegistry: { resolve() { assert.fail('unexpected planning'); } }, planPublisher: { publish() {} },
+      workLifecycle: { ...lifecycle, aggregateEvent(eventId) {
+        const result = lifecycle.aggregateEvent(eventId);
+        aggregations.push(result); return result;
+      } },
+      eventRuntime: runtime,
+      domainReconciler: { async reconcile(request) {
+        phases.push(request.reconcilePhase);
+        if (request.reconcilePhase === 'attempt_terminal') {
+          assert.equal(request.workAttemptFailureCode, 'PHYSICAL_MATERIAL_FINGERPRINT_IO_FAILED');
+          await new Promise((resolve) => setImmediate(resolve));
+          return { workId: request.workId, disposition: 'failed' };
+        }
+        finish(); return null;
+      } },
+      fallbackReconciler: { async start() {}, async stop() {} }, onError(error) { errors.push(error.code); },
+    });
+    try {
+      await host.start();
+      await finished;
+    } finally { await host.stop(); }
+    assert.deepEqual(errors, ['PHYSICAL_MATERIAL_FINGERPRINT_IO_FAILED']);
+    assert.deepEqual(aggregations.map((item) => [item.replayed, item.work.state, item.attemptState]),
+      [[false, 'running', 'failed'], [true, 'running', 'failed']]);
+    assert.deepEqual(phases, ['attempt_terminal', 'work_terminal']);
+    assert.equal(databaseFacts(databasePath).attempt.failure_code, 'PHYSICAL_MATERIAL_FINGERPRINT_IO_FAILED');
+    assert.equal(state().dispatchContext, undefined);
+    const database = new Database(databasePath, { readonly: true });
+    try {
+      assert.equal(database.prepare('SELECT state FROM fx_supporting_works').get().state, 'failed');
+      assert.equal(database.prepare('SELECT COUNT(*) n FROM fx_work_attempts').get().n, 1);
+    } finally { database.close(); }
+  }, { inputError: Object.assign(new Error('Physical Material fingerprint I/O failed.'),
+    { code: 'PHYSICAL_MATERIAL_FINGERPRINT_IO_FAILED' }) });
+});
 
 test('succeeded Outcome binds one immutable Result and least-authority Context', async () => {
   await fixture(async ({ runtime, lease, databasePath, state }) => {

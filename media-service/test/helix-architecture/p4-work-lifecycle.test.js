@@ -23,10 +23,10 @@ function canonical(value) {
   return value;
 }
 
-function fixture(run) {
+async function fixture(run) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'helix-work-lifecycle-'));
   const databasePath = path.join(root, 'shelfdeck.db');
-  const kernel = openSqliteKernel({ Database, databasePath, schemaDdl, schemaManifest, now: () => 1700000000000 });
+  let kernel = openSqliteKernel({ Database, databasePath, schemaDdl, schemaManifest, now: () => 1700000000000 });
   const unitOfWork = createSqliteUnitOfWork({ kernel });
   const database = new Database(databasePath);
   const definition = {
@@ -49,13 +49,127 @@ function fixture(run) {
   database.close();
   let ids = 0;
   const lifecycle = createWorkLifecycle({ schemaManifest, unitOfWork, nextWorkAttemptId: () => 'attempt-' + (++ids) });
-  try { return run({ lifecycle, databasePath }); }
+  const restart = () => {
+    kernel.close();
+    kernel = openSqliteKernel({ Database, databasePath, schemaDdl, schemaManifest, now: () => 1700000000001 });
+    return createWorkLifecycle({ schemaManifest, unitOfWork: createSqliteUnitOfWork({ kernel }),
+      nextWorkAttemptId: () => 'attempt-' + (++ids) });
+  };
+  try { return await run({ lifecycle, databasePath, restart }); }
   finally { kernel.close(); fs.rmSync(root, { recursive: true, force: true }); }
 }
 
 function read(databasePath, sql, ...parameters) {
   const database = new Database(databasePath, { readonly: true });
   try { return database.prepare(sql).get(...parameters); } finally { database.close(); }
+}
+
+function seedPlannedAttempt(lifecycle, databasePath, suffix, eventState = 'succeeded') {
+  const { attempt } = lifecycle.ensurePlanningAttempt('work-1');
+  const database = new Database(databasePath);
+  try {
+    database.prepare(`INSERT INTO fx_workflow_plans
+      (plan_id,attempt_id,planner_ref,planner_version,catalog_digest,basis_digest,graph_digest,state,created_at_ms)
+      VALUES (?,?,?,?,?,?,?,?,?)`).run('plan-' + suffix, attempt.attempt_id, 'planner@1', 1,
+        'b'.repeat(64), 'a'.repeat(64), 'c'.repeat(64), 'planned', 2);
+    database.prepare(`INSERT INTO fx_workflow_events
+      (event_id,plan_id,node_id,work_id,attempt_id,owner_domain,capability_ref,contract_version,state,priority_class,ready_at_ms)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?)`).run('event-' + suffix, 'plan-' + suffix, 'node-' + suffix, 'work-1',
+        attempt.attempt_id, 'procurement', 'procurement.test@1', 1, eventState, 'normal_foreground', 2);
+  } finally { database.close(); }
+  lifecycle.startPlanned('work-1', attempt.attempt_id);
+  return attempt;
+}
+
+test('duplicate aggregation proves the terminal Attempt without deciding its Owner disposition', () => fixture(({ lifecycle, databasePath }) => {
+  const attempt = seedPlannedAttempt(lifecycle, databasePath, 'duplicate', 'failed');
+  const first = lifecycle.aggregateEvent('event-duplicate');
+  const replay = lifecycle.aggregateEvent('event-duplicate');
+  assert.equal(first.replayed, false);
+  assert.deepEqual(replay, { ...first, replayed: true });
+  assert.equal(replay.attemptId, attempt.attempt_id);
+  assert.equal(replay.attemptFailureCode, 'EVENT_TERMINAL_FAILURE');
+  assert.equal(read(databasePath, 'SELECT state FROM fx_supporting_works').state, 'running');
+  assert.equal(lifecycle.pendingOwnerReconciliations()[0].attempt.attempt_id, attempt.attempt_id);
+}));
+
+test('old Event callback cannot aggregate a new planned Attempt after Owner replan', () => fixture(({ lifecycle, databasePath }) => {
+  const first = seedPlannedAttempt(lifecycle, databasePath, 'old');
+  lifecycle.aggregateEvent('event-old');
+  lifecycle.settleWork({ workId: 'work-1', workAttemptId: first.attempt_id, disposition: 'replan' });
+  assert.equal(lifecycle.aggregateEvent('event-old').replayed, true);
+  const next = seedPlannedAttempt(lifecycle, databasePath, 'new');
+  const replay = lifecycle.aggregateEvent('event-old');
+  assert.equal(replay.staleAttempt, true);
+  assert.equal(replay.attemptTerminal, false);
+  assert.equal(read(databasePath, 'SELECT state FROM fx_work_attempts WHERE attempt_id=?', next.attempt_id).state, 'running');
+  assert.equal(lifecycle.aggregateEvent('event-new').attemptId, next.attempt_id);
+  assert.equal(lifecycle.aggregateEvent('event-old').staleAttempt, true);
+  assert.equal(lifecycle.aggregateEvent('event-old').attemptTerminal, false);
+}));
+
+test('Event without an Attempt binding cannot aggregate the current Work Attempt', () => fixture(({ lifecycle, databasePath }) => {
+  const attempt = seedPlannedAttempt(lifecycle, databasePath, 'unbound');
+  const database = new Database(databasePath);
+  try { database.prepare('UPDATE fx_workflow_events SET attempt_id=NULL').run(); }
+  finally { database.close(); }
+  assert.throws(() => lifecycle.aggregateEvent('event-unbound'), { code: 'P4_WORK_EVENT_ATTEMPT_FACT_MISSING' });
+  assert.equal(read(databasePath, 'SELECT state FROM fx_work_attempts WHERE attempt_id=?', attempt.attempt_id).state, 'running');
+}));
+
+test('reopening SQLite rediscovers the exact pending Owner disposition without reaggregating', () => fixture(({ lifecycle, databasePath, restart }) => {
+  const attempt = seedPlannedAttempt(lifecycle, databasePath, 'restart');
+  lifecycle.aggregateEvent('event-restart');
+  const restarted = restart();
+  const pending = restarted.pendingOwnerReconciliations();
+  assert.equal(pending.length, 1);
+  assert.equal(pending[0].attempt.attempt_id, attempt.attempt_id);
+  assert.equal(restarted.aggregateEvent('event-restart').replayed, true);
+  restarted.settleWork({ workId: 'work-1', workAttemptId: attempt.attempt_id, disposition: 'succeeded' });
+  assert.deepEqual(restarted.pendingOwnerReconciliations(), []);
+  assert.equal(read(databasePath, 'SELECT state FROM fx_supporting_works').state, 'succeeded');
+}));
+
+for (const resolution of ['no_effect_required', 'contract_unplannable']) {
+  test('zero-Event terminal Plan remains an exact pending Owner receipt: ' + resolution, () => fixture(({ lifecycle, databasePath }) => {
+    const { attempt } = lifecycle.ensurePlanningAttempt('work-1');
+    const database = new Database(databasePath);
+    try {
+      database.prepare(`INSERT INTO fx_workflow_plans (plan_id,attempt_id,basis_digest,state)
+        VALUES (?,?,?,?)`).run('zero-plan', attempt.attempt_id, 'a'.repeat(64), resolution);
+    } finally { database.close(); }
+    const started = lifecycle.startPlanned('work-1', attempt.attempt_id);
+    const replay = lifecycle.aggregate('work-1');
+    assert.equal(replay.replayed, true);
+    assert.equal(replay.attemptId, attempt.attempt_id);
+    assert.equal(replay.attemptState, started.attemptState);
+    assert.equal(replay.workTerminal, false);
+  }));
+}
+
+for (const corruption of ['missing_attempt', 'missing_plan', 'unfinished_event', 'wrong_terminal', 'missing_finish', 'wrong_basis', 'multiple_running']) {
+  test('aggregation rejects unproven running Work state: ' + corruption, () => fixture(({ lifecycle, databasePath }) => {
+    const attempt = seedPlannedAttempt(lifecycle, databasePath, 'invalid');
+    if (corruption !== 'multiple_running') lifecycle.aggregateEvent('event-invalid');
+    const database = new Database(databasePath);
+    try {
+      database.pragma('foreign_keys = OFF');
+      if (corruption === 'missing_attempt') database.prepare('DELETE FROM fx_work_attempts').run();
+      if (corruption === 'missing_plan') database.prepare('DELETE FROM fx_workflow_plans').run();
+      if (corruption === 'unfinished_event') database.prepare("UPDATE fx_workflow_events SET state='ready'").run();
+      if (corruption === 'wrong_terminal') database.prepare("UPDATE fx_work_attempts SET state='failed'").run();
+      if (corruption === 'missing_finish') database.prepare('UPDATE fx_work_attempts SET finished_at_ms=NULL').run();
+      if (corruption === 'wrong_basis') database.prepare('UPDATE fx_work_attempts SET basis_digest=?').run('d'.repeat(64));
+      if (corruption === 'multiple_running') {
+        // Deliberately remove the physical guard only in this disposable corruption fixture.
+        database.exec('DROP INDEX uidx_fx_work_attempts_partial_01');
+        database.prepare(`INSERT INTO fx_work_attempts (attempt_id,work_id,ordinal,basis_digest,state)
+          VALUES (?,?,?,?,?)`).run('extra-attempt', 'work-1', attempt.ordinal + 1, 'a'.repeat(64), 'running');
+      }
+    } finally { database.close(); }
+    assert.throws(() => lifecycle.aggregateEvent('event-invalid'), { code: 'P4_WORK_RUNNING_ATTEMPT_CARDINALITY' });
+    assert.equal(read(databasePath, 'SELECT state FROM fx_supporting_works').state, 'running');
+  }));
 }
 
 test('activation creates one ready Work Attempt and replay never replans under another Attempt', () => fixture(({ lifecycle, databasePath }) => {

@@ -97,9 +97,9 @@ function definitions(schemaManifest) {
     } }),
     events: createRepositoryDefinition({ repositoryId: 'work_lifecycle_events', owner: 'execution-foundation', schemaManifest, statements: {
       list_work: { kind: 'select-all', tableId: 'fx_workflow_events', columns: [
-        'event_id', 'work_id', 'attempt_id', 'state', 'retry_at_ms', 'result_id'
+        'event_id', 'work_id', 'attempt_id', 'plan_id', 'state', 'retry_at_ms', 'result_id'
       ], keyColumns: ['work_id'] },
-      find: { kind: 'select-one', tableId: 'fx_workflow_events', columns: ['event_id', 'work_id', 'state', 'result_id'], keyColumns: ['event_id'] },
+      find: { kind: 'select-one', tableId: 'fx_workflow_events', columns: ['event_id', 'work_id', 'attempt_id', 'state', 'result_id'], keyColumns: ['event_id'] },
       transition: { kind: 'update', tableId: 'fx_workflow_events', setColumns: ['state'], keyColumns: ['event_id'],
         compareColumns: [{ column: 'state', parameter: 'expected_state' }] },
       cancel: { kind: 'update', tableId: 'fx_workflow_events', setColumns: ['state', 'retry_at_ms'], keyColumns: ['event_id'],
@@ -208,7 +208,7 @@ function createWorkLifecycle(options) {
     });
   }
 
-  function aggregate(workId) {
+  function aggregate(workId, expectedAttemptId = null) {
     return execute('work_lifecycle_aggregate', (context) => {
       const works = context.repository('work_lifecycle_works');
       const attempts = context.repository('work_lifecycle_attempts');
@@ -219,10 +219,41 @@ function createWorkLifecycle(options) {
       }
       if (work.state !== 'running') return Object.freeze({ attemptTerminal: false, workTerminal: false,
         work: Object.freeze(work), replayed: true });
-      const active = attempts.invoke('list', { work_id: workId }).filter((attempt) => attempt.state === 'running');
-      if (active.length !== 1) fail('P4_WORK_RUNNING_ATTEMPT_CARDINALITY', 'Running Work must own exactly one running Attempt.', { workId });
+      const rows = attempts.invoke('list', { work_id: workId }).sort((left, right) => right.ordinal - left.ordinal);
+      const active = rows.filter((attempt) => ACTIVE_ATTEMPTS.has(attempt.state));
+      const latest = rows[0];
       const events = context.repository('work_lifecycle_events').invoke('list_work', { work_id: workId })
-        .filter((event)=>event.attempt_id===active[0].attempt_id);
+        .filter((event) => event.attempt_id === latest?.attempt_id);
+      // Attempt aggregation and the Owner's Work disposition are separate commits.
+      // Only durable evidence of that exact interval permits a replay with no running Attempt.
+      if (active.length === 0 && latest && ['succeeded', 'failed', 'cancelled'].includes(latest.state) &&
+          latest.finished_at_ms !== null && latest.basis_digest === work.basis_digest) {
+        const plan = context.repository('work_lifecycle_plans').invoke('find', { attempt_id: latest.attempt_id });
+        const eventState = events.some((event) => event.state === 'failed') ? 'failed'
+          : events.some((event) => event.state === 'cancelled') ? 'cancelled' : 'succeeded';
+        const proven = plan && (plan.state === 'planned'
+          ? events.length > 0 && events.every((event) => event.plan_id === plan.plan_id && TERMINAL_EVENTS.has(event.state)) &&
+            latest.state === eventState
+          : events.length === 0 && ((plan.state === 'no_effect_required' && latest.state === 'succeeded') ||
+            (plan.state === 'contract_unplannable' && latest.state === 'failed')));
+        if (proven) {
+          if (expectedAttemptId !== null && expectedAttemptId !== latest.attempt_id) {
+            return Object.freeze({ attemptTerminal: false, workTerminal: false, work: Object.freeze(work),
+              replayed: true, staleAttempt: true });
+          }
+          return Object.freeze({ attemptTerminal: true, workTerminal: false, work: Object.freeze(work),
+            attemptId: latest.attempt_id, attemptState: latest.state, attemptFailureCode: latest.failure_code,
+            eventCount: events.length, replayed: true });
+        }
+      }
+      if (active.length !== 1 || active[0].state !== 'running' || active[0].attempt_id !== latest?.attempt_id) {
+        fail('P4_WORK_RUNNING_ATTEMPT_CARDINALITY',
+          'Running Work requires one running Attempt or a proven terminal Attempt awaiting its Owner.', { workId });
+      }
+      if (expectedAttemptId !== null && expectedAttemptId !== latest.attempt_id) {
+        return Object.freeze({ attemptTerminal: false, workTerminal: false, work: Object.freeze(work),
+          replayed: true, staleAttempt: true });
+      }
       if (events.length < 1 || events.some((event) => !TERMINAL_EVENTS.has(event.state))) {
         return Object.freeze({ attemptTerminal: false, workTerminal: false, work: Object.freeze(work),
           eventCount: events.length, replayed: false });
@@ -288,12 +319,14 @@ function createWorkLifecycle(options) {
   }
 
   function aggregateEvent(eventId) {
-    const workId = execute('work_lifecycle_event_owner', (context) => {
+    const event = execute('work_lifecycle_event_owner', (context) => {
       const event = context.repository('work_lifecycle_events').invoke('find', { event_id: eventId });
-      return event?.work_id || null;
+      return event || null;
     });
-    if (!workId) fail('P4_WORK_EVENT_FACT_MISSING', 'Workflow Event does not exist.', { eventId });
-    return aggregate(workId);
+    if (!event) fail('P4_WORK_EVENT_FACT_MISSING', 'Workflow Event does not exist.', { eventId });
+    if (typeof event.attempt_id !== 'string' || !event.attempt_id) fail('P4_WORK_EVENT_ATTEMPT_FACT_MISSING',
+      'Workflow Event requires its exact Work Attempt binding.', { eventId });
+    return aggregate(event.work_id, event.attempt_id);
   }
 
   function pendingOwnerReconciliations(limit = 16) {
