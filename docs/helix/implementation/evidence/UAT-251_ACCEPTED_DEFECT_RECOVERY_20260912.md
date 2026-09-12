@@ -51,3 +51,19 @@
 | 唐人街探案3 | `e03a4eb97259a356deee3dc55eb3b4a209645dfffd2e5534694576fbdd1c1d26` | 无 | 精确已接受瑕疵，重查验证 |
 | 养蜂人 | `f318297a2e229127ba56cdf2779d052b7a96cbe2ab1e3b67aa3e3094c9250bdc` | `arca-care-ba53d35e12874aea71559ef4d57ccf0dc585139d` | 精确已接受瑕疵，重查验证 |
 | 拆弹部队 | `c475f05c6be85d2ce31d37cb17e57bee61c2d4d5710e2d83565e7494b3bfde53` | `arca-care-e21469ca587407343c72ea93f65404a861fcfae9` | 精确已接受瑕疵，重查验证 |
+
+## 联合部署验证与收尾阻塞
+
+2026-09-12 16:04Z（北京时间9月13日00:04）由部署负责人追加。正式源`e7c84dd536b8c2b9a1bac103f037ed9422225f92`已fast-forward整合；独立干净发布树构建`markmahoro/shelfdeck:helix-beta-20260912-e7c84dd536`。标准build/upload完成，tar SHA256 `513e039e29fa3f04cd7db66d5950076331a607de6e3d9d670dd7d3d8b1038fdc`，NAS Config ID `sha256:9bf0d71a20240ce0ccd067a8bb8f835759b4188f740e25c0b8e2f2069d7efb86`。仅加载候选，**生产仍286，未apply，未执行生产Case收尾或检查**。
+
+- 精确候选Linux：专属6、状态机15、公开端口5，共26/26通过。15:53Z候选容器对生产DB只读，使用真实Perception公共端口和Foundation WorkResultReader，122批量及19详情的originalRequirements/CareBasis完全一致，guard精确命中9 Case，无评分注入。
+- 15:48:41Z fresh完整一致副本：`/vol1/1000/docker/shelfdeck/test-runs/aftercare-release-20260912/data`，45文件manifest digest `12fba691a3e2c9f4c3df0d27e6d713d5dc97e3715cce180f4f8a01e4bd343abf`，122收藏，971 Delivery=138 accepted/824 open/9 rejected，integrity ok/FK0。
+- 候选完整Host：生产媒体/Workspace只读、网络none、独立data；ready/normalSupplyAllowed、60s观察、正式close及8保护表全行摘要保持均通过。只读挂载导致其他Libra工作EROFS/ENOENT，已识别；新增`ARCA_AFTERCARE_MANUAL_DEFECT_INTENT_REQUIRED`拦截被真实执行轨触发，不按无错误全链报告。旧286在候选运行后的同格式副本启动/观察/关闭也通过，8保护表不变。切回候选使用同一fallback数据，并调用真实session/actions/check，仍在本节时点运行。
+- 完整生产备份：`/vol1/1000/docker/shelfdeck/backups/unified-helix-beta-20260912-e7c84dd536`，45文件，原件及复制件aggregate digest `1a1c14458287881de9a7e27c524a1110d774dfc09449e76b5aacda7f3a44e278`，SQLite/FK正常，compose/Secret保留；15:59:55Z完成。标准deploy dry run通过，等待业务收尾门禁。
+- 生产只读保护基线：122 Entry、19指定Entry的141个当前Inventory文件均可读取，采样指纹/size/inode/mtime已记录，无物理错误；所有旧Case、Assessment、Inventory事实和执行尝试已导出到ignored Evidence，生产没有变更。
+
+正式接口副本截至16:04Z：8/9误Case为`unresolved / accepted_defect_requires_manual_repair`。最后《拆弹部队》仍`case_fence_draining`，Work `arca-care-work-5628687565aa0fa423f510aa443450605d8d8dbc`为running，Event `care-transcode-0171e951386bd80307` executing，Attempt `event-attempt-d67fcdb0-a894-4713-8e80-6ea90fd0d56c` executing，Effect `cab0c91289510f34bc5e536a7aaa669f76778aa55bfba37440971025dcd7bece`为reconcile_required；后继media.verify已cancelled。Host反复出现manual-intent-required，疑似执行前拦截同时挡住已有Effect的只读reconcile证明，已交原开发任务核验，尚不把假设写成最终根因。
+
+其余检查已提交真实Work，例《大风杀》`arca-care-work-6db9979fd16115b5a4cf9ad48eef2d254fd6104e`的custody/conformance/presentation三个观察均succeeded，但assessment.commit waiting_for_resource；新Assessment尚未成立。不能仅凭17项旧投影已healthy宣称19部重查完成，也不能把被占用资源直接删掉放行。
+
+本时点决定：暂停生产apply，保留8成功终结及未决Effect现场；补修既有Owner正式reconcile/cancel/drain后再验，不Reset、不手改Effect/资源/历史摘要。原始文件位于集成区ignored `.codex/unified-release-20260912/aftercare-*`；活动切回副本为NAS `aftercare-release-20260912/aftercare-fallback/data`，容器`shelfdeck-uat261-aftercare-cutback`，不得在其运行时并发写入。生产locale未改变，Perception跨语言排序问题继续单独记录。

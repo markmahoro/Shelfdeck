@@ -4,7 +4,7 @@
 
 255项前后合同审查及三项用户决定已完成，SSOT/Beta已在`14cf2d9a0`同步。已无这三项待确认决定；合同确认不等于实现或验收。审查及覆盖关系见[全量证据](implementation/evidence/UAT_FULL_CONTRACT_CONSISTENCY_AUDIT_20260909.md)。
 
-UAT-251 已接受瑕疵识别/误触发Aftercare修正在独立分支完成，Windows回归和生产副本投影通过；尚未部署，9个Case正式收尾与19项实际重查待部署负责人执行。详见[修正证据](implementation/evidence/UAT-251_ACCEPTED_DEFECT_RECOVERY_20260912.md)。
+2026-09-13 00:04，UAT-251修复`e7c84dd536`已整合并构建上传候选镜像，Linux专项26/26、真实评分公共端口122批量/19详情及完整Host启动/旧286回退通过，生产仍286。正式接口副本收尾暴露《拆弹部队》旧transcode Effect为reconcile_required，Case持续draining；另外8 Case已正式unresolved，18项新检查观察已运行、提交仍待资源。**候选尚不满足完整收尾门禁，暂停生产apply，已交原开发任务补修**；不Reset、不改写历史Effect或媒体。完整备份和精确现场见[修正证据](implementation/evidence/UAT-251_ACCEPTED_DEFECT_RECOVERY_20260912.md#联合部署验证与收尾阻塞)。
 
 ## 当前生产
 

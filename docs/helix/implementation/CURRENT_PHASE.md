@@ -7,6 +7,8 @@
 
 ## 当前执行位置
 
+2026-09-13 00:04最新：UAT-251 `e7c84dd536`候选已构建/上传/校验，真实Linux公共端口、完整Host及旧286回退通过；切回副本正式检查使8误Case终结，但《拆弹部队》旧Effect reconcile_required阻止drain，其他检查提交仍待资源。当前生产未apply；原开发任务正在补正式收尾，部署任务保留现场并继续验收，不以Reset/释放资源行绕过。见[本批门禁](evidence/UAT-251_ACCEPTED_DEFECT_RECOVERY_20260912.md#联合部署验证与收尾阻塞)。
+
 2026-09-12 22:33最新：《人生密密缝》获用户“确认”后，唯一旧重复输入已备份移出，正式工具精确Reset旧Subject/23 Works/1 Workspace；原健康收藏、122收藏事实及其余9文件保护通过。原版本重启healthy，活动整理查询已无本片旧条目。后台旧候选仍open、Reservation待结束，生产3席位满，不能把副本拒绝/ACK证据写成生产已闭环；接续只核验正常队列的最终拒绝/ACK，不重复Reset、不提高席位或处理其他Token。范围、备份及验证见[执行结果](evidence/UAT-125_250_INTAKE_RECOVERY_20260912.md#人生密密缝获授权生产清理结果)。125/250保持开放，定时任务仍停止。
 
 2026-09-12 21:34最新：《宇航员》当前Token（acquired1789162455613）+2旧Work精确生产Reset已获用户“允许”并执行。离线完整备份和相同manifest复核通过，80表/其他2Token保留，删除Subject/Run/Workspace/Control/收藏0；同286镜像重启健康。生产新Evidence→正式Rejected→Procurement ACK→释放5Reservation/目标Token闭环通过，正常队列已接入下一项；原122收藏保留。此前接收错误未再出现，AbortSignal警告另行保留。证据见[生产清理结果](evidence/UAT_RELEASE_286FE56F1E_20260912.md#获授权生产精确清理结果)。本具体阻碍已收口，125/250其他条件及251完整验收仍开放，定时任务保持停止。
