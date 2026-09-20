@@ -334,6 +334,7 @@ function createAftercareStore(options) {
     listAftercareWorkspaceLifecyclePage:(cursor,limit)=>workspaceStore.listLifecyclePage(cursor,limit),
     scheduleAftercareWorkspace:(caseId,terminalAtMs)=>workspaceStore.schedule(caseId,terminalAtMs),
     auditAftercareWorkspaceReferences:(caseId,workId)=>workspaceStore.auditReferences(caseId,workId),
+    ensureAftercareWorkspaceRoot:()=>workspaceStore.ensureRoot(),
     reconcileAftercareWorkspaceLifecycle:(caseId,settings)=>workspaceStore.reconcileLifecycle(caseId,settings),
     inspectAftercareWorkspaceLifecycle:(caseId)=>workspaceStore.inspectLifecycle(caseId),
     listAftercareWorkspaceHandles:(caseId)=>workspaceStore.listWorkspaceHandles(caseId),

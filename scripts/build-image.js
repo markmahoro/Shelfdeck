@@ -9,7 +9,7 @@ const { execFileSync } = require('child_process');
 const IMAGE_NAME = 'markmahoro/shelfdeck';
 
 function usage() {
-  console.error('Usage: node scripts/build-image.js <tag>');
+  console.error('Usage: node scripts/build-image.js <tag> [--reuse-runtime <image> <source-commit> <image-id>]');
 }
 
 function run(command, args, options = {}) {
@@ -50,7 +50,7 @@ function humanBytes(bytes) {
 
 async function main(argv = process.argv.slice(2)) {
   const tag = String(argv[0] || '').trim();
-  if (!tag || argv.length !== 1 || !/^[A-Za-z0-9][A-Za-z0-9_.-]*$/.test(tag)) {
+  if (!tag || ![1,5].includes(argv.length) || (argv.length===5 && argv[1]!=='--reuse-runtime') || !/^[A-Za-z0-9][A-Za-z0-9_.-]*$/.test(tag)) {
     usage();
     throw new Error('A single Docker-safe image tag is required.');
   }
@@ -78,6 +78,36 @@ async function main(argv = process.argv.slice(2)) {
     );
   fs.mkdirSync(outputDir, { recursive: true });
 
+  let dockerfile='media-service/Dockerfile';
+  if(argv.length===5) {
+    const [, ,image,sourceCommit,imageId]=argv;
+    if(!/^markmahoro\/shelfdeck:helix-beta-\d{8}-[a-f0-9]{10}$/.test(image)||
+        !/^[a-f0-9]{10,40}$/.test(sourceCommit)||!/^sha256:[a-f0-9]{64}$/.test(imageId))
+      throw new Error('Runtime reuse requires an exact release image, source commit, and immutable image ID.');
+    const source=execFileSync('git',['rev-parse','--short=10',sourceCommit],{cwd:root,encoding:'utf8'}).trim();
+    if(!image.endsWith('-'+source))throw new Error('Runtime source commit does not match its release image.');
+    const unchanged=execFileSync('git',['diff','--name-only',sourceCommit,'HEAD','--',
+      'media-service/package.json','media-service/package-lock.json','media-service/web','media-service/Dockerfile'],{cwd:root,encoding:'utf8'});
+    if(unchanged.trim())throw new Error('Runtime reuse is forbidden when dependencies, frontend, or runtime recipe changed.');
+    const removed=execFileSync('git',['diff','--name-only','--diff-filter=D',sourceCommit,'HEAD','--',
+      'media-service/src','media-service/scripts'],{cwd:root,encoding:'utf8'});
+    if(removed.trim())throw new Error('Runtime reuse cannot retain deleted service files.');
+    const actual=execFileSync('docker',['image','inspect',image,'--format','{{.Id}}'],{cwd:root,encoding:'utf8'}).trim();
+    if(actual!==imageId)throw new Error('Runtime image identity changed.');
+    const lock=crypto.createHash('sha256').update(fs.readFileSync(path.join(root,'media-service/package-lock.json'))).digest('hex');
+    const observed=execFileSync('docker',['run','--rm','--network','none','--entrypoint','node',image,'-e',
+      "console.log(require('crypto').createHash('sha256').update(require('fs').readFileSync('/app/package-lock.json')).digest('hex'))"],{cwd:root,encoding:'utf8'}).trim();
+    if(observed!==lock)throw new Error('Runtime dependency lock does not match the source tree.');
+    const recipe=fs.readFileSync(path.join(root,dockerfile),'utf8').split('FROM service-base AS service-runtime')[1];
+    if(!recipe)throw new Error('Canonical runtime stage is missing.');
+    const copies=recipe.split(/\r?\n/).filter(line=>line.startsWith('COPY ')&&!line.startsWith('COPY --from='));
+    dockerfile=path.join(outputDir,'runtime-reuse.Dockerfile');
+    fs.writeFileSync(dockerfile,[`FROM ${image}`,'WORKDIR /app',...copies,
+      `LABEL org.opencontainers.image.revision="${execFileSync('git',['rev-parse','HEAD'],{cwd:root,encoding:'utf8'}).trim()}"`,
+      'ENTRYPOINT []','CMD ["node", "src/server.js"]',''].join('\n'));
+    console.log(`==> Verified unchanged runtime ${image} (${imageId}); rebuilding all canonical service sources`);
+  }
+
   const taggedImage = `${IMAGE_NAME}:${tag}`;
   console.log(`==> Building ${taggedImage} (linux/amd64) from repository root`);
   await run(
@@ -87,7 +117,7 @@ async function main(argv = process.argv.slice(2)) {
       '--platform',
       'linux/amd64',
       '-f',
-      'media-service/Dockerfile',
+      dockerfile,
       '-t',
       taggedImage,
       '-t',

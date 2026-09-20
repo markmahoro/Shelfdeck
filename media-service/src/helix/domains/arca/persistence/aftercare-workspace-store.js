@@ -380,11 +380,11 @@ function createAftercareWorkspaceStore(options) {
     const allMaterials=snapshot.materials,identity=reclaimIdentity(aftercareCaseId,allMaterials),reclaimedBytes=allMaterials.reduce((sum,row)=>sum+Number(row.size_bytes),0);
     if(registry.state==='reclaimed'){const receipt=receiptFor(aftercareCaseId,identity,allMaterials,reclaimedBytes,Number(registry.reclaimed_at_ms));assertReclaimedReceipt(identity,allMaterials,receipt);return Object.freeze({kind:'reclaimed',aftercareCaseId,receipt});}
     if(registry.state!=='active')return Object.freeze({kind:'not_found',aftercareCaseId});
-    if(!TERMINAL_CASE_STATES.has(care.state))return Object.freeze({kind:'retained',aftercareCaseId,reasonCode:'case_active'});
+    if(!TERMINAL_CASE_STATES.has(care.state)){referenceAudits.delete(aftercareCaseId);return Object.freeze({kind:'retained',aftercareCaseId,reasonCode:'case_active'});}
     if(registry.reclaim_after_ms===null){schedule(aftercareCaseId,Number(care.terminal_at_ms));return Object.freeze({kind:'scheduled',aftercareCaseId,reclaimAfterMs:Number(care.terminal_at_ms)+RETENTION_MS});}
     if(Number(registry.reclaim_after_ms)>now())return Object.freeze({kind:'retained',aftercareCaseId,reasonCode:'retention_period_active',reclaimAfterMs:Number(registry.reclaim_after_ms)});
-    if(snapshot.references.some((row)=>row.state==='active'))return Object.freeze({kind:'retained',aftercareCaseId,reasonCode:'active_artifact_reference'});
-    if(scopedActiveWork(snapshot,settings.currentWorkId||null))return Object.freeze({kind:'retained',aftercareCaseId,reasonCode:'active_work_reference'});
+    if(snapshot.references.some((row)=>row.state==='active')){referenceAudits.delete(aftercareCaseId);return Object.freeze({kind:'retained',aftercareCaseId,reasonCode:'active_artifact_reference'});}
+    if(scopedActiveWork(snapshot,settings.currentWorkId||null)){referenceAudits.delete(aftercareCaseId);return Object.freeze({kind:'retained',aftercareCaseId,reasonCode:'active_work_reference'});}
     const audit = auditReferences(aftercareCaseId, settings.currentWorkId || null);
     if (!audit.ready) return Object.freeze({kind:'retained',aftercareCaseId,reasonCode:audit.reasonCode});
     ensureRoot();

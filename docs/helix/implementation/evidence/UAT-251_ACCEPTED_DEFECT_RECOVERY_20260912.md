@@ -122,3 +122,5 @@ UAT-262 第一批已执行：冻结98个目标，逻辑文件大小113,578,322,0
 264实现：取消终态额外24小时等待，保留至少60秒间隔的两轮引用/成员审计；重启重做。Case相关活动Work（包括尚未生成Handle的producer）或未决Effect阻断；注册成员逐文件身份重验、正式Work/Receipt和恢复路径保持。冻结Assessment策略精确推导的输出/临时路径经两轮稳定观测后登记为回收成员；未知文件仍阻断，不能按 `.tmp` 通配删除。无引用未决责任不伪造成功。旧Root只有所有Registry已回收且物理空才能推进Platform revision，不改历史Handle。
 
 计划分两次标准发布完成同一修正：先保持旧Root使当前Aftercare正式收尾/回收，再启用统一Workspace派生子目录；这样无需跨卷搬运/重写未决Material身份，也无需用户增加配置。17项定向检查通过（随后增加Root切换检查）；全架构首轮只有新增SSOT行号派生合同摘要和纯模型path依赖门禁失败，已通过标准materializer及纯函数修正，不放宽门禁。最终完整验证与生产结果待追加。
+
+构建环境补充：本机Docker Desktop因残留socket启动失败，自动审批拒绝删除该文件，未绕过；NAS标准构建随后停在linuxserver/ffmpeg基础镜像元数据下载。为避免改动运行依赖，build-image.js增加显式 `--reuse-runtime <image> <source-commit> <image-id>`：校验精确镜像ID、release/source对应关系、实际package-lock hash；要求依赖/Web/Dockerfile相对该源提交完全不变，拒绝服务文件删除；只重新COPY标准Dockerfile声明的服务源文件。仍要求干净提交、精确tag、标准tar输出/SHA、上传、dry-run和apply。最终镜像必须重新验收，不能把旧镜像测试继承为新验证。
