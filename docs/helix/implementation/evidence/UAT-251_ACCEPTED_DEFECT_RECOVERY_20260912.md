@@ -77,3 +77,48 @@ e7c84dd53候选完整Host及旧286回退均ready；实际检查在一致副本�
 追加验证覆盖四个Workspace入口在读取/探测/写入前拒绝、未知或已提交恢复不被直接放弃，以及真实EventRuntime恢复后不产生Result、发出abandon并允许Work取消且drainingWorks=0。该运行时测试使用真实SQLite/EventRuntime/WorkLifecycle，Effect Journal是观察调用的test double；真实Effect持久化链仍由部署负责人在保留的故障副本复验。完整回归结果及最终生产结果待追加。
 
 同时使Foundation恢复分支与正常dispatch遵循同一技术终态规则：仅在abandonUncommitted已成功且Outcome明确never重试时强制terminal_failure，避免safe_retry_before_intent仍等待reconcile；不以Arca业务码作Foundation分支，continue_forward与timeout未知Effect不满足此条件。EventRuntime52项通过（包括上述两种恢复与无Result/Work可取消），Arca专项21项通过；此前完整239文件回归通过，最终追加后的全套正在运行。
+
+## 2026-09-20 生产只读复核：黑寡妇与磁盘满
+
+本轮用户要求整体排查整理阻塞及自动接受体积瑕疵后仍发起转码，并追问 `/vol1` 满盘原因。仅执行只读检查，未重启、发布、Reset、取消任务、清理文件或修改生产数据库。
+
+- 08:06–08:10Z 生产仍为 `markmahoro/shelfdeck:helix-beta-20260912-286fe56f1e`。集成 HEAD `b87b92ab8` 已含 `e7c84dd53` 的精确冻结要求读取/自动 Case 拦截及后续 typed recovery 修复，但不能把已合入当作已上线。
+- 《黑寡妇》Entry `eb3c9431ff78196e83e05643601a18902d551f31efc677486c626d784628126a` 当前 Inventory 仍保存 `AuthorizedDefectManifest/v1`，明确豁免 `max_size_exceeded`。Case `arca-care-751492a261dc1bd0fe574a9649dfd42f99ddbabb` 却 active，目标为同一 `conformance:max_size_exceeded`，没有 `repair_accepted_defects` 手动 trigger，且没有 Aftercare Inventory Commit。当前自动体积 Case 共 1 active、6 queued。
+- 对照旧版实现及本记录前次独立验证：旧 `aftercare-store` 从 initial Standard/Fact 重算 originalRequirements，未完整重现冻结评分分支，导致旧 v1 授权要求摘要比较失败；已接受体积差距被当成普通健康维护。SSOT 要求精确已接受瑕疵只能手动修复，当前行为属于既有 UAT-251 缺陷。
+- 《黑寡妇》Event `care-transcode-9c2933fb85f83901a7` 自 2026-09-13 起仍 executing，Effect `042e1d1253d6a0846c0d7d44bfc52511e1624d0d31ef29dfaa1760d28b5fd4ab` 为 intended。另外 3 个 Libra Work 中 1 个 input.verify executing、2 个 waiting_for_resource；后两项均在等待 `encoder:local-intel-qsv-0` 和源卷读取资源。`docker top` 仅有 Node，没有 FFmpeg/FFprobe。因此不是正常持续转码；持久执行未收尾。资源 timing 在 finally 落库，本轮未取得进程内 Governor permit 快照，不能仅凭持久 Event 宣称黑寡妇独占全部资源。
+- `/vol1` 总 175G、已用 174G、可用 0、100%；`/vol2` 可用 392G。日志 2026-09-13T21:04:59Z（北京时间 9 月 14 日 05:04）有 `SQLITE_FULL: database or disk is full`。Node 约占一个 CPU 核，公开 health 仍返回 ok/normalSupplyAllowed=true，不能据此判断任务正常。满盘是当前已证实的全局写入阻断；不能据本轮快照断言它解释了此前全部停滞时序。
+
+### 空间归因
+
+`/vol1/1000/docker/shelfdeck` 实占约 156G，主要为：
+
+| 类别 | 只读盘点 |
+| --- | --- |
+| backups | 57G |
+| test-runs | 38G |
+| 根目录镜像 tar | 53 个，29,773,700,000 bytes 左右，约 27.7 GiB |
+| data | 22G；其中 Aftercare Workspace 21G，SQLite 主库约 1G |
+| 根目录旧 data.backup/data.failed | 11 个，合计约 9.3G |
+| task-audit-20260908 | 2.5G |
+
+Aftercare Workspace 中《这个杀手不太冷》转码文件 10,513,633,969 bytes、《拆弹部队》10,169,631,926 bytes、《黑寡妇》未完成 `.mkv.tmp` 1,763,704,832 bytes。上述空间是历史部署/排障资料累计与维护转码工作文件共同占用，不能归因于数据库本身或仅黑寡妇。
+
+`ARCA_AFTERCARE_WORKSPACE_ROOT` 在生产未设置；`clean-service-host.js` 默认使用 `dataDir/workspaces/aftercare`，实际落于 `/app/data` 对应的 `/vol1`。Libra `/transcode` 挂载在 `/vol2` 并不自动覆盖独立 Arca Workspace 配置。根路径调整必须核验现有 Workspace Handle、未决 Effect 和 Owner 收尾，不能直接搬目录或删除输出冒充修复。
+
+### 后续处置顺序与限制
+
+先为生产数据库恢复空间：核验现存备份/回滚职责及不再使用的测试副本、镜像归档，形成精确迁移/清理范围并取得对应授权；保护运行数据、未决 Workspace 和必需回滚资料。随后在隔离副本完成最终修复的真实 Effect/cancel/drain 验收，再由既定部署负责人标准发布、正式收尾误 Case、重新检查健康与资源释放；另核验 Aftercare 独立工作盘配置及满盘后的调度/health 行为。本次仅诊断，不宣称已恢复或 UAT 关闭。
+
+验证命令：`production-helix-execution-diagnostics.js`、经 `nas-ssh-config.js` 的只读 SQLite 查询、`docker ps/top/stats/logs/inspect`、`df`、定点 `du/find`、公开 health GET。原始快照只保存在集成区 ignored `.codex/black-widow-*-20260920.json`。未运行修改后测试，因为本轮没有产品代码变更；未实施媒体全量验证或生产恢复。
+
+## 2026-09-20 UAT-262/263/264 授权实施
+
+用户明确要求清理工程过程资料、让 Aftercare 自动使用用户 vol2 Workspace，并将自动回收与 Libra 对齐；完成后继续本线程 UAT-251 主线。无需用户另设 Aftercare 路径；不增加任意 Formation Reset。
+
+UAT-262 第一批已执行：冻结98个目标，逻辑文件大小113,578,322,075 bytes；精确清理50个旧tar和48个闲置工程目录，逐目标核对realpath、inode、文件数/大小、symlink及全部Docker挂载。保护data、所有媒体、当前286/备用e056/候选e7 tar、有原媒体的aftercare-health-case备份、三片/最近Reset/本次完整备份和待验Aftercare副本；不清Docker engine目录。清理后vol1从100%降至57%，可用75G；未以逻辑文件总大小冒充实际释放量。随后正常后台恢复Libra转码和健康检查，并自行回收约19G旧终态Aftercare输出；当前该目录剩黑寡妇约1.7G临时文件。工程删除未触及运行数据。
+
+本次新完整一致备份为 `/vol1/1000/docker/shelfdeck/backups/workspace-recovery-20260920`，44文件、2,821,517,507 bytes；逐文件SHA256 manifest摘要 `ce53cc80835ab96e20d6004371afb73629ae3b17e2876363b31ec8e1026f084a`。SQLite online backup、quick_check及FK0通过；compose/secret随备份保存。旧副本含21G文件不等于当前活跃目录仍为21G。生产健康GET仍正常，但资源诊断路由返回未实现503，不能把该接口当作Governor占用证明。
+
+264实现：取消终态额外24小时等待，保留至少60秒间隔的两轮引用/成员审计；重启重做。Case相关活动Work（包括尚未生成Handle的producer）或未决Effect阻断；注册成员逐文件身份重验、正式Work/Receipt和恢复路径保持。冻结Assessment策略精确推导的输出/临时路径经两轮稳定观测后登记为回收成员；未知文件仍阻断，不能按 `.tmp` 通配删除。无引用未决责任不伪造成功。旧Root只有所有Registry已回收且物理空才能推进Platform revision，不改历史Handle。
+
+计划分两次标准发布完成同一修正：先保持旧Root使当前Aftercare正式收尾/回收，再启用统一Workspace派生子目录；这样无需跨卷搬运/重写未决Material身份，也无需用户增加配置。17项定向检查通过（随后增加Root切换检查）；全架构首轮只有新增SSOT行号派生合同摘要和纯模型path依赖门禁失败，已通过标准materializer及纯函数修正，不放宽门禁。最终完整验证与生产结果待追加。

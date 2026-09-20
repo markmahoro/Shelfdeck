@@ -14621,8 +14621,17 @@ Reclaimer以Control、Workspace registry、Package/Run reference和Off-load Comp
 
 #### 10.5.3 Arca Workspace和Target Commit Slot
 
-Aftercare Workspace在Case终结、Inventory revision提交且无后续引用24小时后可回收；Unresolved Care仍保留
-必要Evidence和引用。Target Commit Slot属于当前material_commit事务范围：
+2026-09-20用户确认（UAT-263/264）：用户只配置一个 Workspace 位置，Libra 使用其原有生产目录，Arca
+使用同一位置下的保留子目录 `.aftercare`；领域 Owner、Workspace ID、Material Handle、Effect 和回收责任保持独立。
+该精确父子关系是系统两个固定 Root 的唯一重叠例外，不授权与 Material Field、Shelf 或其他 Workspace 重叠。
+切换设置必须同时确认 Libra 与 Arca 无活动 Workspace/回收责任；旧 Arca Root 只有全部登记完成回收且物理为空时才能推进 revision。
+
+Aftercare 对齐终态 Workspace 回收：Case 为 resolved/invalidated/unresolved 且正式执行/Effect 已收尾、
+无后续引用时，无额外24小时等待；两次至少相隔一个60秒周期的引用检查及逐文件当前身份/Fence核验通过后才可回收。
+重启后重新完成两轮检查；引用、成员或身份变化使此前检查失效。Unresolved 保留业务 Evidence 和历史，不要求保留无引用大文件。
+有精确冻结生产依据的同一 Case 输出及其已声明临时文件可在终态安全检查后登记为回收成员，经正式 Work/Receipt 删除；
+未知文件、未知归属 orphan 和未分类 Effect 仍保留，不按扩展名或年龄推断删除权限。无明确终态释放依据的 orphan 仍适用24小时及双轮审计。
+Target Commit Slot属于当前material_commit事务范围：
 
 - Stage/Switch/Settlement未分类前不得GC；
 - Final Inventory verify与On-deck/Aftercare Commit完成后，临时成员可以立即进入Cleanup；

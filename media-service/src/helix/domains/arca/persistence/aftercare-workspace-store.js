@@ -6,7 +6,8 @@ const path = require('node:path');
 const { canonicalDigest, canonicalJson } = require('../../../contracts/canonical-json');
 const { createRepositoryDefinition } = require('../../../foundation/persistence/owner-repository');
 
-const RETENTION_MS = 24 * 60 * 60 * 1000;
+const RETENTION_MS = 0;
+const AUDIT_CYCLE_MS = 60_000;
 const ACTIVE_WORK_STATES = new Set(['admitted', 'ready', 'running', 'blocked']);
 const TERMINAL_CASE_STATES = new Set(['resolved', 'invalidated', 'unresolved']);
 const MAX_WORKSPACE_MEMBERS = 1024;
@@ -45,11 +46,13 @@ function createDefinitions(schemaManifest) {
       repositoryId:'arca_aftercare_workspace_platform', owner:'platform-settings', schemaManifest, statements:{
         find_root:{kind:'select-one',tableId:'platform_workspace_roots',columns:['root_id','owner_scope','root_kind','endpoint_id','mount_scope_id','mount_scope_revision','resolved_root','config_revision','capability_digest','state','root_handle_ref','snapshot_digest','updated_at_ms'],keyColumns:['root_id'],safeIntegers:true},
         insert_root:{kind:'insert',tableId:'platform_workspace_roots',columns:['root_id','owner_scope','root_kind','endpoint_id','mount_scope_id','mount_scope_revision','resolved_root','config_revision','capability_digest','state','root_handle_ref','snapshot_digest','updated_at_ms']},
+        update_root:{kind:'update',tableId:'platform_workspace_roots',setColumns:['endpoint_id','mount_scope_id','mount_scope_revision','resolved_root','config_revision','root_handle_ref','snapshot_digest','updated_at_ms'],keyColumns:['root_id'],compareColumns:[{column:'config_revision',parameter:'expected_config_revision'}]},
       },
     }),
     arca: createRepositoryDefinition({
       repositoryId:'arca_aftercare_workspace_domain', owner:'arca', schemaManifest, statements:{
-        find_case:{kind:'select-one',tableId:'arca_aftercare_cases',columns:['aftercare_case_id','shelf_entry_id','state','terminal_at_ms'],keyColumns:['aftercare_case_id'],safeIntegers:true},
+        find_case:{kind:'select-one',tableId:'arca_aftercare_cases',columns:['aftercare_case_id','shelf_entry_id','state','terminal_at_ms','care_basis_digest'],keyColumns:['aftercare_case_id'],safeIntegers:true},
+        case_inputs:{kind:'select-all',tableId:'arca_aftercare_case_basis_inputs',columns:['input_kind','aggregate_id'],keyColumns:['aftercare_case_id']},
         list_commits:{kind:'select-all',tableId:'arca_aftercare_inventory_commits',columns:['aftercare_case_id','shelf_entry_id','new_inventory_revision','commit_digest'],keyColumns:['shelf_entry_id'],safeIntegers:true},
       },
     }),
@@ -71,6 +74,10 @@ function createDefinitions(schemaManifest) {
         update_artifact:{kind:'update',tableId:'fx_artifact_registry',setColumns:['reference_revision','state'],keyColumns:['artifact_handle_id'],compareColumns:[{column:'reference_revision',parameter:'expected_reference_revision'},{column:'state',parameter:'expected_state'}]},
         list_artifact_references:{kind:'select-all',tableId:'fx_artifact_references',columns:['artifact_handle_id','consumer_domain','consumer_scope_type','consumer_scope_id','reference_kind','reference_revision','state','created_at_ms','released_at_ms'],keyColumns:['artifact_handle_id'],safeIntegers:true},
         list_process_works:{kind:'select-all',tableId:'fx_supporting_works',columns:['work_id','state','definition_json','updated_at_ms'],keyColumns:['owner_domain','process_type','process_id'],safeIntegers:true},
+        work_events:{kind:'select-all',tableId:'fx_workflow_events',columns:['event_id','capability_ref'],keyColumns:['work_id']},
+        event_attempts:{kind:'select-all',tableId:'fx_event_attempts',columns:['event_attempt_id','state'],keyColumns:['event_id']},
+        attempt_effects:{kind:'select-all',tableId:'fx_effect_journal',columns:['effect_id','state'],keyColumns:['event_attempt_id']},
+        event_results:{kind:'select-all',tableId:'fx_event_result_bindings',columns:['result_json','result_digest'],keyColumns:['event_id']},
       },
     }),
   });
@@ -80,6 +87,7 @@ function createAftercareWorkspaceStore(options) {
   if (!options?.schemaManifest || !options.unitOfWork) fail('ARCA_AFTERCARE_WORKSPACE_DEPENDENCIES', 'Aftercare Workspace requires clean persistence.');
   const definitions = createDefinitions(options.schemaManifest);
   const now = options.now || Date.now;
+  const referenceAudits = new Map();
   const resolvedRoot = path.resolve(options.aftercareWorkspaceRoot || path.join(os.tmpdir(),'shelfdeck-aftercare-workspaces'));
   const rootId = 'service-arca-aftercare-workspace';
   const endpointId=options.aftercareWorkspaceEndpointId||'aftercare-workspace-local';
@@ -90,11 +98,15 @@ function createAftercareWorkspaceStore(options) {
     schema:'platform.local-aftercare-workspace-capability@1',
     operations:['atomic_replace','read','stat','bounded_member_reclaim'],
   });
+  const previousRoot=execute('arca_aftercare_workspace_root_read','platform-settings',definitions.platform,
+    context=>context.repository(definitions.platform.repositoryId).invoke('find_root',{root_id:rootId}));
+  const rootChanged=previousRoot && previousRoot.resolved_root!==resolvedRoot;
+  const configRevision=previousRoot ? Number(previousRoot.config_revision)+(rootChanged?1:0) : 1;
   const rootHandleRef = canonicalDigest({schema:'platform.workspace-root-handle@1',rootId,
     endpointId,mountScopeId,
-    mountScopeRevision,configRevision:1,capabilityDigest});
+    mountScopeRevision,configRevision,capabilityDigest});
   const rootBasis = {rootId,ownerScope:'arca',rootKind:'aftercare-workspace',endpointId,
-    mountScopeId,mountScopeRevision,configRevision:1,capabilityDigest,
+    mountScopeId,mountScopeRevision,configRevision,capabilityDigest,
     state:'active',rootHandleRef};
   const rootSnapshot = Object.freeze({...rootBasis,snapshotDigest:canonicalDigest(rootBasis)});
 
@@ -103,10 +115,28 @@ function createAftercareWorkspaceStore(options) {
   }
 
   function ensureRoot() {
+    if(rootChanged && execute('arca_aftercare_workspace_root_current','platform-settings',definitions.platform,
+      context=>context.repository(definitions.platform.repositoryId).invoke('find_root',{root_id:rootId}))?.resolved_root!==resolvedRoot) {
+      if(listLifecyclePage(null,1).length)
+        fail('ARCA_AFTERCARE_WORKSPACE_ROOT_BUSY','Existing Aftercare Workspaces must be reclaimed before changing the shared Workspace root.');
+      // No moving or re-binding immutable Material identities during a switch.
+      const oldRoot=previousRoot.resolved_root;
+      if(fs.existsSync(oldRoot)&&fs.readdirSync(oldRoot).length)
+        fail('ARCA_AFTERCARE_WORKSPACE_ROOT_NOT_EMPTY','The previous Aftercare root still contains files or directories.');
+    }
     fs.mkdirSync(resolvedRoot, {recursive:true});
     return execute('arca_aftercare_workspace_root_ensure','platform-settings',definitions.platform,(context)=>{
       const repo=context.repository(definitions.platform.repositoryId),existing=repo.invoke('find_root',{root_id:rootId});
       if(existing){
+        if(rootChanged && existing.config_revision===previousRoot.config_revision &&
+            existing.resolved_root===previousRoot.resolved_root && existing.root_handle_ref===previousRoot.root_handle_ref) {
+          const changed=repo.invoke('update_root',{root_id:rootId,endpoint_id:endpointId,mount_scope_id:mountScopeId,
+            mount_scope_revision:mountScopeRevision,resolved_root:resolvedRoot,config_revision:configRevision,
+            root_handle_ref:rootHandleRef,snapshot_digest:rootSnapshot.snapshotDigest,updated_at_ms:context.commitTimeMs,
+            expected_config_revision:Number(previousRoot.config_revision)});
+          if(changed.changes!==1)fail('ARCA_AFTERCARE_WORKSPACE_ROOT_CONFLICT','Aftercare Workspace root changed concurrently.');
+          return rootSnapshot;
+        }
         if(existing.owner_scope!=='arca'||existing.root_kind!=='aftercare-workspace'||existing.resolved_root!==resolvedRoot||
             existing.endpoint_id!==rootSnapshot.endpointId||existing.mount_scope_id!==rootSnapshot.mountScopeId||
             Number(existing.mount_scope_revision)!==mountScopeRevision||existing.root_handle_ref!==rootHandleRef||
@@ -116,7 +146,7 @@ function createAftercareWorkspaceStore(options) {
         return rootSnapshot;
       }
       repo.invoke('insert_root',{root_id:rootId,owner_scope:'arca',root_kind:'aftercare-workspace',endpoint_id:rootSnapshot.endpointId,
-        mount_scope_id:rootSnapshot.mountScopeId,mount_scope_revision:mountScopeRevision,resolved_root:resolvedRoot,config_revision:1,
+        mount_scope_id:rootSnapshot.mountScopeId,mount_scope_revision:mountScopeRevision,resolved_root:resolvedRoot,config_revision:configRevision,
         capability_digest:capabilityDigest,state:'active',root_handle_ref:rootHandleRef,snapshot_digest:rootSnapshot.snapshotDigest,
         updated_at_ms:context.commitTimeMs});
       return rootSnapshot;
@@ -162,9 +192,9 @@ function createAftercareWorkspaceStore(options) {
     if(handle.fenceDigest!==canonicalDigest(unsigned))fail('ARCA_AFTERCARE_WORKSPACE_HANDLE_INVALID','Aftercare Workspace Material fence is invalid.');
   }
 
-  function registerMaterial(workspaceMaterialHandle, artifactHandle=null) {
+  function registerMaterial(workspaceMaterialHandle, artifactHandle=null, terminalCapture=false) {
     validateWorkspaceHandle(workspaceMaterialHandle);
-    ensureWorkspace(workspaceMaterialHandle.workspaceId);
+    if (!terminalCapture) ensureWorkspace(workspaceMaterialHandle.workspaceId);
     return execute('arca_aftercare_workspace_material_register','execution-foundation',definitions.foundation,(context)=>{
       const repo=context.repository(definitions.foundation.repositoryId),handleDigest=canonicalDigest(workspaceMaterialHandle),
         existing=repo.invoke('find_material',{workspace_id:workspaceMaterialHandle.workspaceId,material_handle_id:workspaceMaterialHandle.handleId}),
@@ -215,10 +245,36 @@ function createAftercareWorkspaceStore(options) {
   }
 
   function inspectLifecycle(aftercareCaseId) {
-    let care,registry,materials,works,commits,artifacts,references;
-    options.unitOfWork.execute([{participantId:'arca_aftercare_workspace_lifecycle_domain_read',owner:'arca',repositories:[definitions.arca],execute(context){const repo=context.repository(definitions.arca.repositoryId);care=repo.invoke('find_case',{aftercare_case_id:aftercareCaseId});commits=care?repo.invoke('list_commits',{shelf_entry_id:care.shelf_entry_id}).filter((row)=>row.aftercare_case_id===aftercareCaseId):[];}},
-      {participantId:'arca_aftercare_workspace_lifecycle_foundation_read',owner:'execution-foundation',boundBusinessOwner:'arca',repositories:[definitions.foundation],execute(context){const repo=context.repository(definitions.foundation.repositoryId);registry=repo.invoke('find_registry',{workspace_id:aftercareCaseId});materials=repo.invoke('list_materials',{workspace_id:aftercareCaseId});works=care?repo.invoke('list_process_works',{owner_domain:'arca',process_type:'arca_shelf_entry',process_id:care.shelf_entry_id}):[];artifacts=repo.invoke('list_artifacts',{owner_domain:'arca',owner_scope_type:'aftercare_case',owner_scope_id:aftercareCaseId});references=artifacts.flatMap((artifact)=>repo.invoke('list_artifact_references',{artifact_handle_id:artifact.artifact_handle_id}));}}]);
-    return Object.freeze({care,registry,materials:Object.freeze(materials||[]),works:Object.freeze(works||[]),commits:Object.freeze(commits||[]),artifacts:Object.freeze(artifacts||[]),references:Object.freeze(references||[])});
+    let care,registry,materials,works,commits,artifacts,references,caseInputs; const pendingEffects=[],producerPaths=new Set();
+    options.unitOfWork.execute([{participantId:'arca_aftercare_workspace_lifecycle_domain_read',owner:'arca',repositories:[definitions.arca],execute(context){const repo=context.repository(definitions.arca.repositoryId);care=repo.invoke('find_case',{aftercare_case_id:aftercareCaseId});caseInputs=repo.invoke('case_inputs',{aftercare_case_id:aftercareCaseId});commits=care?repo.invoke('list_commits',{shelf_entry_id:care.shelf_entry_id}).filter((row)=>row.aftercare_case_id===aftercareCaseId):[];}},
+      {participantId:'arca_aftercare_workspace_lifecycle_foundation_read',owner:'execution-foundation',boundBusinessOwner:'arca',repositories:[definitions.foundation],execute(context){const repo=context.repository(definitions.foundation.repositoryId);registry=repo.invoke('find_registry',{workspace_id:aftercareCaseId});materials=repo.invoke('list_materials',{workspace_id:aftercareCaseId});works=care?repo.invoke('list_process_works',{owner_domain:'arca',process_type:'arca_shelf_entry',process_id:care.shelf_entry_id}):[];artifacts=repo.invoke('list_artifacts',{owner_domain:'arca',owner_scope_type:'aftercare_case',owner_scope_id:aftercareCaseId});references=artifacts.flatMap((artifact)=>repo.invoke('list_artifact_references',{artifact_handle_id:artifact.artifact_handle_id}));
+      for (const work of works) {
+        const definition=JSON.parse(work.definition_json);
+        if (!(definition.dependencyRefs||[]).some(ref=>ref.ownerDomain==='arca'&&ref.objectType==='aftercare_case'&&ref.objectId===aftercareCaseId)) continue;
+        for(const event of repo.invoke('work_events',{work_id:work.work_id})) {
+          if(event.capability_ref==='arca.aftercare.workspace.reclaim@1') continue;
+          for(const attempt of repo.invoke('event_attempts',{event_id:event.event_id})) {
+            if(attempt.state==='executing')pendingEffects.push(attempt.event_attempt_id);
+            for(const effect of repo.invoke('attempt_effects',{event_attempt_id:attempt.event_attempt_id}))
+              if(['intended','effect_observed','reconcile_required'].includes(effect.state))pendingEffects.push(effect.effect_id);
+          }
+          if(event.capability_ref==='arca.aftercare.media.remux@1') producerPaths.add('media/remux.mkv');
+        }
+      }
+      for(const input of caseInputs||[])if(input.input_kind==='health_assessment_work') {
+        for(const event of repo.invoke('work_events',{work_id:input.aggregate_id}))
+          for(const row of repo.invoke('event_results',{event_id:event.event_id})) {
+            const result=JSON.parse(row.result_json),strategy=result.mediaRepairStrategy;
+            if(!strategy)continue;
+            const unsigned=Object.fromEntries(Object.entries(strategy).filter(([key])=>!['strategyDigest','digest'].includes(key)));
+            if(canonicalDigest(result)!==row.result_digest||strategy.careBasisDigest!==care.care_basis_digest||
+                strategy.digest!==strategy.strategyDigest||canonicalDigest(unsigned)!==strategy.strategyDigest)
+              fail('ARCA_AFTERCARE_PARTIAL_BASIS_INVALID','Partial reclaim requires the exact frozen producer strategy.');
+            producerPaths.add('media/transcode-'+strategy.strategyId.slice(-16)+'.mkv');
+          }
+      }
+}}]);
+    return Object.freeze({care,registry,materials:Object.freeze(materials||[]),works:Object.freeze(works||[]),commits:Object.freeze(commits||[]),artifacts:Object.freeze(artifacts||[]),references:Object.freeze(references||[]),pendingEffects:Object.freeze(pendingEffects),producerPaths:Object.freeze([...producerPaths])});
   }
 
   async function enumerate(root) {
@@ -260,9 +316,63 @@ function createAftercareWorkspaceStore(options) {
       return receipt;});
   }
 
-  function scopedActiveWork(snapshot,currentWorkId){const handleIds=new Set(snapshot.materials.map((row)=>row.material_handle_id));return snapshot.works.find((row)=>{if(row.work_id===currentWorkId||!ACTIVE_WORK_STATES.has(row.state))return false;let definition;try{definition=JSON.parse(row.definition_json);}catch{return true;}return (definition.workspaceMaterialScope||[]).some((ref)=>handleIds.has(ref.handleId));});}
+  function scopedActiveWork(snapshot,currentWorkId){const handleIds=new Set(snapshot.materials.map((row)=>row.material_handle_id));return snapshot.works.find((row)=>{if(row.work_id===currentWorkId||!ACTIVE_WORK_STATES.has(row.state))return false;let definition;try{definition=JSON.parse(row.definition_json);}catch{return true;}return (definition.dependencyRefs||[]).some(ref=>ref.ownerDomain==='arca'&&ref.objectType==='aftercare_case'&&ref.objectId===snapshot.care.aftercare_case_id)||(definition.workspaceMaterialScope||[]).some((ref)=>handleIds.has(ref.handleId));});}
 
-  function assertReclaimAuthority(aftercareCaseId,currentWorkId,expectedMaterials){const current=inspectLifecycle(aftercareCaseId);if(!current.care||!TERMINAL_CASE_STATES.has(current.care.state)||!current.registry||current.registry.state!=='active'||current.registry.reclaim_after_ms===null||Number(current.registry.reclaim_after_ms)>now())fail('ARCA_AFTERCARE_WORKSPACE_AUTHORITY_STALE','Aftercare Workspace reclaim authority is stale.');if(current.references.some((row)=>row.state==='active'))fail('ARCA_AFTERCARE_WORKSPACE_ACTIVE_REFERENCE','Aftercare Workspace Artifact still has an active reference.');if(scopedActiveWork(current,currentWorkId))fail('ARCA_AFTERCARE_WORKSPACE_ACTIVE_REFERENCE','Aftercare Workspace Material still has an active Work reference.');const actual=new Map(current.materials.map((row)=>[row.material_handle_id,row]));for(const row of expectedMaterials){const found=actual.get(row.material_handle_id);if(!found||found.state!=='active'||found.handle_digest!==row.handle_digest||found.fence_digest!==row.fence_digest)fail('ARCA_AFTERCARE_WORKSPACE_AUTHORITY_STALE','Aftercare Workspace Material lifecycle changed during reclaim.');}return current;}
+  // Restart discards the first observation and requires two fresh audits. A
+  // timer alone never authorizes deletion; authority is checked again per file.
+  function auditReferences(aftercareCaseId, currentWorkId = null) {
+    const snapshot = inspectLifecycle(aftercareCaseId);
+    const blocked = !snapshot.care || !TERMINAL_CASE_STATES.has(snapshot.care.state)
+      ? 'case_active' : snapshot.pendingEffects.length ? 'unresolved_effect' : snapshot.references.some(row => row.state === 'active')
+        ? 'active_artifact_reference' : scopedActiveWork(snapshot, currentWorkId)
+          ? 'active_work_reference' : null;
+    if (blocked) { referenceAudits.delete(aftercareCaseId); return { ready:false, reasonCode:blocked }; }
+    const partials=[];
+    for(const output of snapshot.producerPaths) for(const suffix of ['', '.tmp', '.tmp.normalized-video.ts',
+      '.tmp.passlog', '.tmp.passlog.cutree', '.tmp.passlog.temp', '.tmp.passlog.cutree.temp']) {
+      const relative=output+suffix;
+      if(snapshot.materials.some(row=>row.relative_path===relative))continue;
+      const location=workspaceLocation(aftercareCaseId,relative);
+      let stat;try{stat=fs.lstatSync(location);}catch(error){if(error.code==='ENOENT')continue;throw error;}
+      if(!stat.isFile()||stat.isSymbolicLink()||fs.realpathSync(location)!==location)
+        fail('ARCA_AFTERCARE_WORKSPACE_MEMBER_CHANGED','Producer leftover is not an exact regular Workspace file.');
+      if(typeof options.computeBoundedMaterialFingerprintSync!=='function')
+        fail('ARCA_AFTERCARE_PARTIAL_FINGERPRINT_REQUIRED','Producer leftover reclaim requires a fingerprint verifier.');
+      const observed=options.computeBoundedMaterialFingerprintSync(location);
+      const physicalIdentity={mountScopeId,inode:String(observed.stat.ino),sizeBytes:Number(observed.stat.size),
+        fingerprintAlgorithm:observed.fingerprintAlgorithm,fingerprintVersion:observed.fingerprintVersion,
+        contentFingerprint:observed.contentFingerprint};
+      partials.push({relative,physicalIdentity});
+    }
+    const digest = canonicalDigest({ caseId:aftercareCaseId, state:snapshot.care.state,
+      members:snapshot.materials.map(row => [row.material_handle_id,row.handle_digest,row.state]),
+      references:snapshot.references,partials });
+    const first = referenceAudits.get(aftercareCaseId);
+    if (!first || first.digest !== digest) {
+      referenceAudits.set(aftercareCaseId, { digest, observedAtMs:now() });
+      return { ready:false, reasonCode:'reference_audit_pending' };
+    }
+    if(now()-first.observedAtMs>=AUDIT_CYCLE_MS && partials.length) {
+      // Only exact paths derived from a frozen producer result are enrolled.
+      // Unknown files still fail the complete-directory preflight below.
+      for(const item of partials) {
+        const identity=item.physicalIdentity,materialKey=canonicalDigest({schema:'physical-material-identity@2',...identity});
+        const body={schemaRef:'helix://contracts/types/WorkspaceMaterialHandle/v1',schemaVersion:1,
+          handleId:'arca-terminal-member-'+canonicalDigest({aftercareCaseId,relative:item.relative,identity}).slice(0,40),
+          workspaceId:aftercareCaseId,ownerDomain:'arca',processId:snapshot.care.shelf_entry_id,endpointId,
+          materialKey,physicalIdentity:identity,rootHandleRef,relativePath:item.relative,
+          digestAlgorithm:identity.fingerprintAlgorithm,digestHex:identity.contentFingerprint,
+          sizeBytes:identity.sizeBytes,referenceRevision:1,accessScope:'workspace_material_read'};
+        registerMaterial({...body,fenceDigest:canonicalDigest(body)},null,true);
+      }
+      referenceAudits.delete(aftercareCaseId);
+      return {ready:false,reasonCode:'reference_audit_pending'};
+    }
+    return { ready:now()-first.observedAtMs >= AUDIT_CYCLE_MS,
+      reasonCode:now()-first.observedAtMs >= AUDIT_CYCLE_MS ? null : 'reference_audit_pending' };
+  }
+
+  function assertReclaimAuthority(aftercareCaseId,currentWorkId,expectedMaterials){const current=inspectLifecycle(aftercareCaseId);if(!current.care||!TERMINAL_CASE_STATES.has(current.care.state)||!current.registry||current.registry.state!=='active'||current.registry.reclaim_after_ms===null||Number(current.registry.reclaim_after_ms)>now())fail('ARCA_AFTERCARE_WORKSPACE_AUTHORITY_STALE','Aftercare Workspace reclaim authority is stale.');if(current.pendingEffects.length)fail('ARCA_AFTERCARE_WORKSPACE_PENDING_EFFECT','Aftercare Workspace has an unresolved producer Effect.');if(current.references.some((row)=>row.state==='active'))fail('ARCA_AFTERCARE_WORKSPACE_ACTIVE_REFERENCE','Aftercare Workspace Artifact still has an active reference.');if(scopedActiveWork(current,currentWorkId))fail('ARCA_AFTERCARE_WORKSPACE_ACTIVE_REFERENCE','Aftercare Workspace Material still has an active Work reference.');const actual=new Map(current.materials.map((row)=>[row.material_handle_id,row]));for(const row of expectedMaterials){const found=actual.get(row.material_handle_id);if(!found||found.state!=='active'||found.handle_digest!==row.handle_digest||found.fence_digest!==row.fence_digest)fail('ARCA_AFTERCARE_WORKSPACE_AUTHORITY_STALE','Aftercare Workspace Material lifecycle changed during reclaim.');}return current;}
 
   async function reconcileLifecycle(aftercareCaseId,settings={}) {
     const snapshot=inspectLifecycle(aftercareCaseId),care=snapshot.care,registry=snapshot.registry;
@@ -275,6 +385,8 @@ function createAftercareWorkspaceStore(options) {
     if(Number(registry.reclaim_after_ms)>now())return Object.freeze({kind:'retained',aftercareCaseId,reasonCode:'retention_period_active',reclaimAfterMs:Number(registry.reclaim_after_ms)});
     if(snapshot.references.some((row)=>row.state==='active'))return Object.freeze({kind:'retained',aftercareCaseId,reasonCode:'active_artifact_reference'});
     if(scopedActiveWork(snapshot,settings.currentWorkId||null))return Object.freeze({kind:'retained',aftercareCaseId,reasonCode:'active_work_reference'});
+    const audit = auditReferences(aftercareCaseId, settings.currentWorkId || null);
+    if (!audit.ready) return Object.freeze({kind:'retained',aftercareCaseId,reasonCode:audit.reasonCode});
     ensureRoot();
     const caseRoot=path.resolve(resolvedRoot,aftercareCaseId);if(!contains(resolvedRoot,caseRoot))fail('ARCA_AFTERCARE_WORKSPACE_ESCAPE','Aftercare Workspace Case root escaped its Platform root.');
     const handles=allMaterials.map((row)=>Object.freeze({row,handle:parseHandle(row)})),expected=new Map(handles.map((item)=>[relativePath(item.handle.relativePath),item])),expectedDirectories=new Set();
@@ -300,7 +412,7 @@ function createAftercareWorkspaceStore(options) {
   function listWorkspaceHandles(aftercareCaseId){return Object.freeze(inspectLifecycle(aftercareCaseId).materials.map(parseHandle).sort((left,right)=>left.handleId.localeCompare(right.handleId)));}
 
   return Object.freeze({rootSnapshot,resolvedRoot,ensureRoot,ensureWorkspace,workspaceLocation,workspaceRelativePath,registerMaterial,resolveArtifact,schedule,
-    listLifecyclePage,reconcileLifecycle,inspectLifecycle,listWorkspaceHandles});
+    listLifecyclePage,reconcileLifecycle,inspectLifecycle,listWorkspaceHandles,auditReferences});
 }
 
-module.exports=Object.freeze({AftercareWorkspaceStoreError,RETENTION_MS,createAftercareWorkspaceStore});
+module.exports=Object.freeze({AftercareWorkspaceStoreError,RETENTION_MS,AUDIT_CYCLE_MS,createAftercareWorkspaceStore});

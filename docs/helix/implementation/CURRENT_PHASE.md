@@ -1,5 +1,7 @@
 # 当前活动包：逐项关闭UAT
 
+2026-09-20 当前执行：UAT-262 先恢复 vol1 空间；263 统一 Workspace 配置，264 按用户要求审视并对齐终态、引用安全、partial/orphan、重启与正式回收 Receipt。完成三项后接续251误 Case 正式收尾、实际重查及资源释放验收。详细证据追加至 UAT-251_ACCEPTED_DEFECT_RECOVERY_20260912.md；不改变原媒体或伪造任务终态。
+
 2026-09-12 UAT-251生产复验追加：用户确认修复已接受瑕疵误识别、9项误建维护Case及19部收藏状态。隔离实施`codex/aftercare-accepted-defects`；读取精确Handoff B冻结要求、正式取消未提交的自动瑕疵修复、重新检查旧笼统结论；保护原片、授权与历史，交统一部署负责人发布。证据见`implementation/evidence/UAT-251_ACCEPTED_DEFECT_RECOVERY_20260912.md`（执行包相对路径为`evidence/`）。
 
 更新：2026-09-12。ACTIVE；合同审查及三项用户确认已完成，用户要求整理文档后继续推进。

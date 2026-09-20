@@ -333,6 +333,7 @@ function createAftercareStore(options) {
     resolveAftercareArtifact:(artifactHandle)=>workspaceStore.resolveArtifact(artifactHandle),
     listAftercareWorkspaceLifecyclePage:(cursor,limit)=>workspaceStore.listLifecyclePage(cursor,limit),
     scheduleAftercareWorkspace:(caseId,terminalAtMs)=>workspaceStore.schedule(caseId,terminalAtMs),
+    auditAftercareWorkspaceReferences:(caseId,workId)=>workspaceStore.auditReferences(caseId,workId),
     reconcileAftercareWorkspaceLifecycle:(caseId,settings)=>workspaceStore.reconcileLifecycle(caseId,settings),
     inspectAftercareWorkspaceLifecycle:(caseId)=>workspaceStore.inspectLifecycle(caseId),
     listAftercareWorkspaceHandles:(caseId)=>workspaceStore.listWorkspaceHandles(caseId),

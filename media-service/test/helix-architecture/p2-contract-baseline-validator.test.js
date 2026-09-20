@@ -33,7 +33,7 @@ test('closes the exact current 113/99/197/45 baseline with 120 domain inputs and
     unresolvedTypeRefs: 0
   });
   assert.equal(first.aggregateDigest,
-    'ec7fe9a914011306263ffd6449aadcdd17c376989aafc0d6d805943e552c2fc2');
+    '25c4fc7d764ef7e72b70eb1e87c1b6840e0369ab50b4377bc00cc45fdba1801f');
   assert.equal(first.aggregateDigest, second.aggregateDigest);
   assert.deepEqual(first.prohibitedActionsRun, []);
 });
@@ -75,3 +75,4 @@ test('P2 contract CLI exits non-zero for a broken cross-inventory graph', () => 
     fs.rmSync(root, { recursive: true, force: true });
   }
 });
+
