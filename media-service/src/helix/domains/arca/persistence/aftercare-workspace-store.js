@@ -316,7 +316,7 @@ function createAftercareWorkspaceStore(options) {
       return receipt;});
   }
 
-  function scopedActiveWork(snapshot,currentWorkId){const handleIds=new Set(snapshot.materials.map((row)=>row.material_handle_id));return snapshot.works.find((row)=>{if(row.work_id===currentWorkId||!ACTIVE_WORK_STATES.has(row.state))return false;let definition;try{definition=JSON.parse(row.definition_json);}catch{return true;}return (definition.dependencyRefs||[]).some(ref=>ref.ownerDomain==='arca'&&ref.objectType==='aftercare_case'&&ref.objectId===snapshot.care.aftercare_case_id)||(definition.workspaceMaterialScope||[]).some((ref)=>handleIds.has(ref.handleId));});}
+  function scopedActiveWork(snapshot,currentWorkId,ignoreReclaim=false){const handleIds=new Set(snapshot.materials.map((row)=>row.material_handle_id));return snapshot.works.find((row)=>{if(row.work_id===currentWorkId||!ACTIVE_WORK_STATES.has(row.state))return false;let definition;try{definition=JSON.parse(row.definition_json);}catch{return true;}if(ignoreReclaim&&definition.workKind==='care_workspace_reclaim'&&definition.ownerDomain==='arca'&&definition.outputContractRef==='helix://contracts/types/ReclamationReceipt/v1')return false;return (definition.dependencyRefs||[]).some(ref=>ref.ownerDomain==='arca'&&ref.objectType==='aftercare_case'&&ref.objectId===snapshot.care.aftercare_case_id)||(definition.workspaceMaterialScope||[]).some((ref)=>handleIds.has(ref.handleId));});}
 
   // Restart discards the first observation and requires two fresh audits. A
   // timer alone never authorizes deletion; authority is checked again per file.
@@ -326,7 +326,12 @@ function createAftercareWorkspaceStore(options) {
       ? 'case_active' : snapshot.pendingEffects.length ? 'unresolved_effect' : snapshot.references.some(row => row.state === 'active')
         ? 'active_artifact_reference' : scopedActiveWork(snapshot, currentWorkId)
           ? 'active_work_reference' : null;
-    if (blocked) { referenceAudits.delete(aftercareCaseId); return { ready:false, reasonCode:blocked }; }
+    if (blocked) {
+      // An admitted reclaimer consumes the completed audit; it is not a new producer.
+      // Other live references still invalidate both observations.
+      if(blocked!=='active_work_reference'||scopedActiveWork(snapshot,currentWorkId,true))referenceAudits.delete(aftercareCaseId);
+      return { ready:false, reasonCode:blocked };
+    }
     const partials=[];
     for(const output of snapshot.producerPaths) for(const suffix of ['', '.tmp', '.tmp.normalized-video.ts',
       '.tmp.passlog', '.tmp.passlog.cutree', '.tmp.passlog.temp', '.tmp.passlog.cutree.temp']) {
@@ -384,7 +389,7 @@ function createAftercareWorkspaceStore(options) {
     if(registry.reclaim_after_ms===null){schedule(aftercareCaseId,Number(care.terminal_at_ms));return Object.freeze({kind:'scheduled',aftercareCaseId,reclaimAfterMs:Number(care.terminal_at_ms)+RETENTION_MS});}
     if(Number(registry.reclaim_after_ms)>now())return Object.freeze({kind:'retained',aftercareCaseId,reasonCode:'retention_period_active',reclaimAfterMs:Number(registry.reclaim_after_ms)});
     if(snapshot.references.some((row)=>row.state==='active')){referenceAudits.delete(aftercareCaseId);return Object.freeze({kind:'retained',aftercareCaseId,reasonCode:'active_artifact_reference'});}
-    if(scopedActiveWork(snapshot,settings.currentWorkId||null)){referenceAudits.delete(aftercareCaseId);return Object.freeze({kind:'retained',aftercareCaseId,reasonCode:'active_work_reference'});}
+    if(scopedActiveWork(snapshot,settings.currentWorkId||null)){if(scopedActiveWork(snapshot,settings.currentWorkId||null,true))referenceAudits.delete(aftercareCaseId);return Object.freeze({kind:'retained',aftercareCaseId,reasonCode:'active_work_reference'});}
     const audit = auditReferences(aftercareCaseId, settings.currentWorkId || null);
     if (!audit.ready) return Object.freeze({kind:'retained',aftercareCaseId,reasonCode:audit.reasonCode});
     ensureRoot();

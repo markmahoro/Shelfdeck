@@ -156,9 +156,24 @@ test('eligible lifecycle is admitted as formal care_workspace_reclaim Work with 
     assert.equal(row.work_kind,'care_workspace_reclaim');assert.deepEqual(definition.workspaceMaterialScope,[{
       handleSchemaRef:member.handle.schemaRef,handleId:member.handle.handleId,accessScope:member.handle.accessScope,fenceDigest:member.handle.fenceDigest,
     }]);assert.equal(definition.outputContractRef,'helix://contracts/types/ReclamationReceipt/v1');
+    assert.equal(coordinator.reconcileWorkspaceLifecycle('case-1').reasonCode,'active_work_reference');
     const blocked=await value.store.reconcileAftercareWorkspaceLifecycle('case-1');assert.equal(blocked.reasonCode,'active_work_reference');assert.equal(fs.existsSync(member.location),true);
     const reclaimed=await value.store.reconcileAftercareWorkspaceLifecycle('case-1',{currentWorkId:admitted.workId});assert.equal(reclaimed.kind,'reclaimed');assert.equal(reclaimed.receipt.receiptKind,'aftercare_workspace_reclaimed');
   } finally {value.close();}
+});
+
+test('a new producer invalidates a completed terminal audit even while a reclaimer is queued', () => {
+  const value=fixture();try{
+    value.registerMember('safe.bin');value.store.terminateCase('case-1','unresolved','test',digest('terminal'));
+    value.setTime(10_000+AUDIT_CYCLE_MS);assert.equal(value.store.auditAftercareWorkspaceReferences('case-1').ready,true);
+    for(const [id,kind] of [['cleanup','care_workspace_reclaim'],['producer','care_repair_prepare']])
+      value.database.prepare('INSERT INTO fx_supporting_works (work_id,owner_domain,process_type,process_id,state,definition_json) VALUES (?,?,?,?,?,?)')
+        .run(id,'arca','arca_shelf_entry','entry-1','admitted',JSON.stringify({workKind:kind,ownerDomain:'arca',outputContractRef:'helix://contracts/types/ReclamationReceipt/v1',dependencyRefs:[{ownerDomain:'arca',objectType:'aftercare_case',objectId:'case-1'}]}));
+    assert.equal(value.store.auditAftercareWorkspaceReferences('case-1').reasonCode,'active_work_reference');
+    value.database.prepare("UPDATE fx_supporting_works SET state='failed'").run();
+    assert.equal(value.store.auditAftercareWorkspaceReferences('case-1').ready,false);
+    value.setTime(10_000+2*AUDIT_CYCLE_MS);assert.equal(value.store.auditAftercareWorkspaceReferences('case-1').ready,true);
+  }finally{value.close();}
 });
 
 test('terminal Case with an unresolved producer Effect cannot begin either reclaim audit', () => {
