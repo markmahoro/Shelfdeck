@@ -164,6 +164,24 @@ test('bounded asynchronous invocation redacts failure and wipes bytes', async ()
   });
 });
 
+test('Secret lease retains only bounded network diagnostics on provider failure', async () => {
+  await fixture(async ({broker, repository}) => {
+    repository.save(activeReference);
+    const handle = broker.issue(exactRequest);
+    await assert.rejects(() => broker.consumeAsync(handle, async (bytes) => {
+      throw Object.assign(new Error(bytes.toString('utf8')), {
+        code:'PLATFORM_INTEGRATION_NETWORK_FAILED',
+        details:{stage:'json_request', networkCode:'ECONNRESET', sourceDirectory:bytes.toString('utf8'),
+          url:'https://example.test/?api_key='+bytes.toString('utf8')},
+      });
+    }), (error) => {
+      assert.deepEqual(error.details, {causeCode:'PLATFORM_INTEGRATION_NETWORK_FAILED', stage:'json_request', networkCode:'ECONNRESET'});
+      assert.equal(JSON.stringify(error).includes('synthetic-secret'), false);
+      return true;
+    });
+  });
+});
+
 test('implementation has no ambient environment access or secret serialization field', () => {
   const sources = [
     path.resolve(__dirname, '../../src/helix/platform/application/secret-lease-broker.js'),

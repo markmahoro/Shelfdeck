@@ -127,11 +127,18 @@ function createMediaProductionCapabilityPorts(options) {
             (pipeline.inputPixelFormats||[]).includes(stream.pixelFormat))&&
           (input.encodeIntent.video.dynamicRangeOperation!=='tone_map_to_sdr_bt709'||streams.every((stream)=>
             stream.dynamicRangeKind==='dolby_vision'&&stream.dolbyVision?.blPresent&&stream.dolbyVision?.baseLayerKind==='pq_bt2020_compatible'));
-        const preflight=structurallyCompatible?await options.mediaEffectPort.verifyTranscodeInput({
-          sourceHandle:input.physicalMaterialReadHandleOrWorkspaceMaterialHandle,sourceProbeEvidence:input.mediaProbeEvidence,
-          productionIntent:input.encodeIntent,deviceSnapshot:input.mediaExecutionDeviceSnapshot,deadlineAtMs:context.deadlineAtMs,
-        }):Object.freeze({sampleCount:0,passedSampleCount:0,reasonCode:null,
-          preflightDigest:canonicalDigest({schema:'libra.preflight-not-executed@1',intentDigest:input.encodeIntent.intentDigest})});
+        let preflight;
+        try {
+          preflight=structurallyCompatible?await options.mediaEffectPort.verifyTranscodeInput({
+            sourceHandle:input.physicalMaterialReadHandleOrWorkspaceMaterialHandle,sourceProbeEvidence:input.mediaProbeEvidence,
+            productionIntent:input.encodeIntent,deviceSnapshot:input.mediaExecutionDeviceSnapshot,deadlineAtMs:context.deadlineAtMs,
+            abortSignal:context.abortSignal,
+          }):Object.freeze({sampleCount:0,passedSampleCount:0,reasonCode:null,
+            preflightDigest:canonicalDigest({schema:'libra.preflight-not-executed@1',intentDigest:input.encodeIntent.intentDigest})});
+        } catch (error) {
+          return mediaEffectFailed(error);
+        }
+        context.assertExecutionActive?.();
         const result = buildTranscodeInputVerification({
           sourceHandle: input.physicalMaterialReadHandleOrWorkspaceMaterialHandle,
           probeEvidence: input.mediaProbeEvidence,

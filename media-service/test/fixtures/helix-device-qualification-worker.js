@@ -36,8 +36,8 @@ assert.ok(deviceKinds.length > 0 && deviceKinds.every(kind => ['software_cpu', '
         const preflight=await port.verifyTranscodeInput(request);
         assert.equal(preflight.reasonCode,null,JSON.stringify({deviceKind,mode,preflight}));
         assert.equal(preflight.passedSampleCount,24);
-        const expired=await port.verifyTranscodeInput({...request,deadlineAtMs:Date.now()-1});
-        assert.equal(expired.passedSampleCount,0);
+        await assert.rejects(port.verifyTranscodeInput({...request,deadlineAtMs:Date.now()-1}),
+          {code:'LIBRA_MEDIA_FFMPEG_TIMEOUT'});
         console.log(JSON.stringify({deviceKind,mode,actualSourcePreflight:true,expiredDeadlineRejected:true}));
       }
     } finally {fs.rmSync(root,{recursive:true,force:true});}

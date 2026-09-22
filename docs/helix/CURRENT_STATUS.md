@@ -1,5 +1,13 @@
 # ShelfDeck 当前状态
 
+2026-09-22 部署复核：生产仍为 `286fe56f1e`，StartedAt 保持9月12日14:31:12Z；health/normalSupplyAllowed、LAN及fnOS管理页正常，Secret和五挂载一致。vol1可用约73G、使用率59%。已接收UAT-125/212/250独立修复 `dadb11797`，准备保持旧Workspace Root的发布线。共享Root切换仍受3份历史NFO人工恢复合同及完整回收门禁约束，不以部署授权替代该决定。
+
+发布拆分：诊断、列表、预检不改 registry，已交付；Provider 30/120秒退避仅在独立提交 `7123117d6`，会改变 catalog，既有 witness 不支持，未整合或发布。不得将空库E2E当作旧286计划兼容证据。
+
+2026-09-22：白名单网络诊断贯通 Secret/Outcome；Formation 刷新后移除已结束条目并修正活动计数/分页；预检本地 30 秒上限、取消与技术失败区分。本地专项 71 PASS/1 BDMV 样本缺失跳过，架构 239 文件及边界/manifest/contract 门禁通过；尚未发布或生产 UAT，Linux/QSV待验证。[证据](implementation/evidence/UAT-125_212_250_FAILURE_CONVERGENCE_20260922.md)。
+
+2026-09-20：UAT-262精确工程清理98目标后vol1由100%降至57%、可用约75G；运行数据和必要回退资料保留。UAT-263/264统一Workspace及回收修复本地/候选Linux检查通过；副本确认黑寡妇旧Effect/Case正式终结，但复制挂载身份阻止物理回收，未通过完整门禁。生产另有3个历史NFO身份漂移的人工恢复合同待确认，故未切盘/发布，生产仍286。三个条目及251主线接续见[本批证据](implementation/evidence/UAT-251_ACCEPTED_DEFECT_RECOVERY_20260912.md#2026-09-20-uat-262263264-授权实施)。
+
 更新：2026-09-12。唯一条目及关闭条件入口为[UAT总表](UAT_ITERATION_REGISTER.md)，唯一排程为[CURRENT_PLAN](CURRENT_PLAN.md)。261项连续：73项本轮功能验收关闭、32项开放、153项历史关闭、220文档关闭、1项非缺陷接受、206被取代且承接已核实。历史关闭不是本次重新验收。
 
 255项前后合同审查及三项用户决定已完成，SSOT/Beta已在`14cf2d9a0`同步。已无这三项待确认决定；合同确认不等于实现或验收。审查及覆盖关系见[全量证据](implementation/evidence/UAT_FULL_CONTRACT_CONSISTENCY_AUDIT_20260909.md)。

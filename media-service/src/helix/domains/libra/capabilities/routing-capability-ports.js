@@ -1,6 +1,7 @@
 'use strict';
 
 const { canonicalDigest } = require('../../../contracts/canonical-json');
+const { failureDiagnostics } = require('../../../contracts/failure-diagnostics');
 const { createDecisionBasisStore, RESULT_SCHEMA: DECISION_BASIS_SCHEMA } = require('../persistence/decision-basis-store');
 
 const BASE = 'helix://contracts/capabilities/';
@@ -176,7 +177,7 @@ function identityObservationFailed(error) {
       kind: 'failed', failureClass: 'timeout', code: cause,
       message: String(error.message || 'Product identity provider timed out.'),
       retryDirective: 'contract_policy',
-      evidence: Object.freeze({ errorName: String(error.name || 'Error'), errorCode: cause }),
+      evidence: Object.freeze({ errorName: String(error.name || 'Error'), errorCode: cause, diagnostics: failureDiagnostics(error) }),
     });
   }
   if (cause === 'PLATFORM_INTEGRATION_NETWORK_FAILED') {
@@ -184,7 +185,7 @@ function identityObservationFailed(error) {
       kind: 'failed', failureClass: 'integration', code: cause,
       message: String(error.message || 'Product identity provider request failed.'),
       retryDirective: 'contract_policy',
-      evidence: Object.freeze({ errorName: String(error.name || 'Error'), errorCode: cause }),
+      evidence: Object.freeze({ errorName: String(error.name || 'Error'), errorCode: cause, diagnostics: failureDiagnostics(error) }),
     });
   }
   throw error;

@@ -1,5 +1,7 @@
 # ShelfDeck 当前迭代计划
 
+2026-09-22 用户授权修复整理失败，并要求网络方案保持简单。接续 UAT-125/212/250：Provider 有限退避与脱敏诊断、Formation 当前事实过滤、转码预检本地超时与取消。隔离分支 `codex/formation-failure-convergence`，不重置生产条目；验证后交统一部署负责人。证据见 [修复记录](implementation/evidence/UAT-125_212_250_FAILURE_CONVERGENCE_20260922.md)。
+
 2026-09-20 本线程用户追加并授权：先完成 UAT-262 工程过程数据清理、UAT-263 Libra/Aftercare 共用用户 Workspace 设置、UAT-264 自动回收规则对齐，再返回 UAT-251 黑寡妇卡住与已接受瑕疵误转码主线。允许核验后清理旧工程备份/tar/闲置测试副本；保护生产事实、原媒体、未决 Effect 和必要恢复资料。共用物理设置不合并领域 Owner，Aftercare 不要求额外配置。按本轮指令完成本地验证和标准发布；不新增任意 Formation Reset。
 
 2026-09-12 UAT-251生产复验追加：用户确认修复已接受瑕疵误识别、9项误建维护Case及19部收藏状态。隔离实施`codex/aftercare-accepted-defects`；读取精确Handoff B冻结要求、正式取消未提交的自动瑕疵修复、重新检查旧笼统结论；保护原片、授权与历史，交统一部署负责人发布。证据见`implementation/evidence/UAT-251_ACCEPTED_DEFECT_RECOVERY_20260912.md`（执行包相对路径为`evidence/`）。

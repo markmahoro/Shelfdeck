@@ -228,11 +228,26 @@ test('local transcode hard timeout matches the SSOT 48-hour budget', () => {
   assert.equal(LOCAL_MEDIA_STALL_TIMEOUT_MS, 10 * 60 * 1000);
 });
 
-test('FFmpeg honors the Event deadline instead of a shorter process timeout', async () => {
-  const result = await runProcess(process.execPath, ['-e', 'setTimeout(() => process.exit(0), 80)'], 1, null, {
+test('FFmpeg retains the local process limit when the Event deadline is longer', async () => {
+  await assert.rejects(runProcess(process.execPath, ['-e', 'setTimeout(() => process.exit(0), 5000)'], 100, null, {
     deadlineAtMs: Date.now() + 10_000,
+  }), {code:'LIBRA_MEDIA_FFMPEG_TIMEOUT'});
+});
+
+test('FFmpeg abort stops the child and releases its registry entry before rejecting', async () => {
+  const controller = new AbortController();
+  const registry = createFfmpegProcessRegistry();
+  const running = runProcess(process.execPath, ['-e', 'setTimeout(() => {}, 30000)'], 30_000, null, {
+    abortSignal:controller.signal, processRegistry:registry,
   });
-  assert.equal(result.exitCode, 0);
+  assert.equal(registry.size(), 1);
+  controller.abort();
+  await assert.rejects(running, {code:'LIBRA_MEDIA_FFMPEG_CANCELLED'});
+  assert.equal(registry.size(), 0);
+  await assert.rejects(runProcess('must-not-be-spawned', [], 100, null, {
+    abortSignal:controller.signal, processRegistry:registry,
+  }), {code:'LIBRA_MEDIA_FFMPEG_CANCELLED'});
+  assert.equal(registry.size(), 0);
 });
 
 test('FFmpeg times out after a stall even when the hard deadline is still far away', async () => {
@@ -604,4 +619,11 @@ test('transcode input preflight encodes 24 frames with the production pipeline a
   });
   assert.equal(rejected.reasonCode, 'encoder_rejected_source_pipeline');
   assert.equal(rejected.passedSampleCount, 0);
+  const request = {sourceHandle:{location:source}, productionIntent:intent, deviceSnapshot:device};
+  await assert.rejects(port.verifyTranscodeInput({...request, deadlineAtMs:Date.now()-1}),
+    {code:'LIBRA_MEDIA_FFMPEG_TIMEOUT'});
+  const controller = new AbortController();
+  controller.abort();
+  await assert.rejects(port.verifyTranscodeInput({...request, abortSignal:controller.signal}),
+    {code:'LIBRA_MEDIA_FFMPEG_CANCELLED'});
 });

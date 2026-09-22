@@ -841,9 +841,10 @@ function createFormationQuery(options) {
     result.totalCount = Math.max(0, result.inProgressCount) + Math.max(0, result.attentionRequiredCount) + Math.max(0, result.completedCount);
     return Object.freeze(result);
   }
-  function classificationChanges(projected, fresh) {
+  function classificationChanges(projected, fresh, admitted = null) {
     const previous = new Map(projected.map((item)=>[item.subjectId,item.classification]));
-    return fresh.map((item)=>Object.freeze({ subjectId:item.subjectId, from:previous.get(item.subjectId), to:item.classification }))
+    return fresh.map((item)=>Object.freeze({ subjectId:item.subjectId, from:previous.get(item.subjectId),
+      to:admitted && !isVisibleActiveItem(item, admitted) ? 'hidden' : item.classification }))
       .filter((item)=>item.from && item.to && item.from !== item.to);
   }
   function truthy(value) { return value === true || value === 1 || value === '1' || value === 'true'; }
@@ -941,13 +942,13 @@ function createFormationQuery(options) {
     const admitted = options.readPipelineSubjectIds?.() || new Set();
     let items;
     let changes = [];
-    const requiresFullScan = Boolean(options.readPipelineSubjectIds) || hasActiveFilters(filters) || attention.length > 0;
+    const requiresFullScan = Boolean(options.readPipelineSubjectIds || options.detailSource?.getMany) || hasActiveFilters(filters) || attention.length > 0;
     if (requiresFullScan) {
       const projected = mergeAttention(scanActiveRows(), attention).map(projectionItem)
         .filter((item) => isVisibleActiveItem(item, admitted));
       items = currentFacts(projected).map(technicalIssue);
-      changes = classificationChanges(projected, items);
-      items = items.filter((item) => matchesActiveItem(item, filters));
+      changes = classificationChanges(projected, items, admitted);
+      items = items.filter((item) => isVisibleActiveItem(item, admitted) && matchesActiveItem(item, filters));
     } else {
       const rows = options.store.listActive(offset, limit + 1);
       items = rows.map(projectionItem).map(technicalIssue).filter((item) => !isIdleAfterUserAbandon(item));

@@ -118,13 +118,17 @@ function completeProcessProgress(group, prefix) {
 
 function runProcess(executable, argv, timeoutMs, progress = null, control = {}) {
   return new Promise((resolve, reject) => {
+    if (control.abortSignal?.aborted) {
+      reject(Object.assign(new Error('FFmpeg execution was cancelled.'), { code:'LIBRA_MEDIA_FFMPEG_CANCELLED' }));
+      return;
+    }
     if (progress && !progress.group) progress = progressPhase(progressGroup(progress.report), progress.prefix);
     const progressArgv=progress?[...argv.slice(0,-1),'-progress','pipe:1','-nostats',argv.at(-1)]:argv;
     const child = spawn(executable, progressArgv, { windowsHide:true, stdio:['ignore', progress?'pipe':'ignore', 'pipe'] });
     const chunks = []; let retained = 0; let total = 0; let timedOut = false; let cancelled = false; let settled = false;
     let progressBuffer='',durationBuffer='',lastReportedAt=0,lastOutTime='0',lastActivityAt=Date.now();
     const boundedTimeout=Number.isSafeInteger(control.deadlineAtMs)
-      ?Math.max(1,control.deadlineAtMs-Date.now()):timeoutMs;
+      ?Math.min(timeoutMs,Math.max(1,control.deadlineAtMs-Date.now())):timeoutMs;
     const stallTimeoutMs=Number.isSafeInteger(control.stallTimeoutMs)&&control.stallTimeoutMs>0
       ?control.stallTimeoutMs:LOCAL_MEDIA_STALL_TIMEOUT_MS;
     const stallEnabled=Boolean(progress)||Number.isSafeInteger(control.stallTimeoutMs);
@@ -136,7 +140,9 @@ function runProcess(executable, argv, timeoutMs, progress = null, control = {}) 
     },Math.max(50,Math.min(5000,Math.floor(stallTimeoutMs/2)))):null;
     const fence=typeof control.shouldContinue==='function'?setInterval(()=>{try{if(control.shouldContinue()===false){cancelled=true;child.kill('SIGKILL');}}catch{cancelled=true;child.kill('SIGKILL');}},1000):null;
     control.processRegistry?.register(child);
-    const cleanup=()=>{clearTimeout(timer);if(stallWatch)clearInterval(stallWatch);if(fence)clearInterval(fence);control.processRegistry?.unregister(child);};
+    const abort=()=>{cancelled=true;child.kill('SIGKILL');};
+    control.abortSignal?.addEventListener('abort',abort,{once:true});
+    const cleanup=()=>{clearTimeout(timer);if(stallWatch)clearInterval(stallWatch);if(fence)clearInterval(fence);control.abortSignal?.removeEventListener('abort',abort);control.processRegistry?.unregister(child);};
     child.stderr.on('data', (chunk) => {
       noteActivity();
       total += chunk.length;
@@ -343,13 +349,13 @@ function createCleanMediaProductionEffectPort(options) {
       ...productStreamMap(intent),'-frames:v',String(frames),...pipeline.videoArgs,'-c:a','copy','-c:s','copy','-f','matroska',nullTarget];
     try{
       await runProcess(ffmpegPath,argv,30_000,null,
-        {processRegistry,deadlineAtMs:request.deadlineAtMs,shouldContinue:request.shouldContinue});
+        {processRegistry,deadlineAtMs:request.deadlineAtMs,shouldContinue:request.shouldContinue,abortSignal:request.abortSignal});
       return Object.freeze({sampleCount:frames,passedSampleCount:frames,reasonCode:null,
         samplePointsPercent:Object.freeze([0]),passedSamplePointsPercent:Object.freeze([0]),
         preflightDigest:canonicalDigest({schema:'libra.transcode-preflight@1',sourceHandleDigest:canonicalDigest(request.sourceHandle),
           intentDigest:intent.intentDigest,deviceSnapshotDigest:device.snapshotDigest,frames,passed:true})});
     }catch(error){
-      if(error?.code==='ENOENT'||error?.code==='EACCES'||error?.code==='LIBRA_MEDIA_FFMPEG_CANCELLED')throw error;
+      if(error?.code!=='LIBRA_MEDIA_FFMPEG_FAILED')throw error;
       return Object.freeze({sampleCount:frames,passedSampleCount:0,reasonCode:'encoder_rejected_source_pipeline',
         samplePointsPercent:Object.freeze([0]),passedSamplePointsPercent:Object.freeze([]),
         preflightDigest:canonicalDigest({schema:'libra.transcode-preflight@1',sourceHandleDigest:canonicalDigest(request.sourceHandle),

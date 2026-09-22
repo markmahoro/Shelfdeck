@@ -1,5 +1,7 @@
 'use strict';
 
+const { failureDiagnostics } = require('../../contracts/failure-diagnostics');
+
 const MAX_LEASE_MS = 60_000;
 
 class SecretLeaseError extends Error {
@@ -24,7 +26,12 @@ function invocationFailureDetails(error) {
     /^[A-Z0-9_]{1,128}$/.test(error.code)
     ? error.code
     : 'UNCLASSIFIED_INVOCATION_FAILURE');
-  return Object.freeze({ causeCode:code });
+  const diagnostics = failureDiagnostics(error);
+  const network = {};
+  for (const key of ['stage', 'networkCode', 'timeout']) {
+    if (Object.hasOwn(diagnostics, key)) network[key] = diagnostics[key];
+  }
+  return Object.freeze({ causeCode:code, ...network });
 }
 
 function createSecretLeaseBroker(options) {

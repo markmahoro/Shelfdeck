@@ -98,6 +98,36 @@ function encodeIntent(handle,requirement){return media.buildEncodeIntent({revisi
   outputColorProfile:{range:'source',primaries:'source',transfer:'source',matrix:'source'}});}
 const preflight=()=>({sampleCount:24,passedSampleCount:24,reasonCode:null,preflightDigest:D('preflight')});
 
+test('preflight propagates cancellation authority and returns technical timeout instead of strategy rejection', async () => {
+  const handle=source(),requirement=media.buildMediaRequirement(spec());
+  const controller=new AbortController();
+  let received;
+  let failTimeout=true;
+  const ports=createMediaProductionCapabilityPorts({now:()=>3,resolveProductionSourceScope:()=>{},
+    mediaEffectPort:{executeRemux:async()=>{},executeTranscode:async()=>{},verifyPlayback:async()=>{},
+      verifyTranscodeInput:async request=>{
+        received=request;
+        if(failTimeout)throw Object.assign(new Error('FFmpeg timed out.'),{code:'LIBRA_MEDIA_FFMPEG_TIMEOUT'});
+        return preflight();
+      }}});
+  const stale=Object.assign(new Error('Attempt authority expired.'),{code:'TEST_STALE_ATTEMPT'});
+  const context={eventId:'preflight-event',abortSignal:controller.signal,deadlineAtMs:1000,
+    assertExecutionActive:()=>{throw stale;},namedInputs:{
+      physicalMaterialReadHandleOrWorkspaceMaterialHandle:handle,mediaProbeEvidence:probe(handle),
+      encodeIntent:encodeIntent(handle,requirement),mediaExecutionDeviceSnapshot:device()}};
+  const port=ports['libra.transcode.input.verify@1'];
+  port.validateInputs(context);
+  const failed=await port.execute(context);
+  assert.equal(received.abortSignal,controller.signal);
+  assert.equal(received.deadlineAtMs,1000);
+  assert.equal(failed.kind,'failed');
+  assert.equal(failed.failureClass,'timeout');
+  assert.equal(failed.retryDirective,'contract_policy');
+  assert.equal(failed.result,undefined);
+  failTimeout=false;
+  await assert.rejects(port.execute(context),error=>error===stale);
+});
+
 test('compiles exact media requirements and mutually exclusive production intents',()=>{
   const handle=source(),requirement=media.buildMediaRequirement(spec()),encoded=encodeIntent(handle,requirement),remuxed=media.buildRemuxIntent({revision:1,
     libraRunId:'run-1',sourceHandleDigest:canonicalDigest(handle),mediaRequirementDigest:requirement.requirementDigest});

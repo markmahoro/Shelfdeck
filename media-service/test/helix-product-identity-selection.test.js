@@ -142,9 +142,12 @@ test('TMDB timeout wrapped by a Secret lease is a retryable timeout Outcome', ()
   assert.equal(outcome.retryDirective, 'contract_policy');
   const network = Object.assign(new Error('Secret-backed invocation failed.'), {
     code: 'P5_SECRET_LEASE_INVOCATION_FAILED',
-    details: { causeCode: 'PLATFORM_INTEGRATION_NETWORK_FAILED' },
+    details: { causeCode: 'PLATFORM_INTEGRATION_NETWORK_FAILED', networkCode:'ECONNRESET', stage:'json_request',
+      url:'https://example.test/?api_key=synthetic-secret' },
   });
   assert.equal(identityObservationFailed(network).failureClass, 'integration');
+  assert.deepEqual(identityObservationFailed(network).evidence.diagnostics, {networkCode:'ECONNRESET',stage:'json_request'});
+  assert.equal(JSON.stringify(identityObservationFailed(network)).includes('synthetic-secret'), false);
   assert.throws(() => identityObservationFailed(Object.assign(new Error('schema'), {
     code: 'P4_CAPABILITY_SCHEMA_REJECTED',
   })), (thrown) => thrown.code === 'P4_CAPABILITY_SCHEMA_REJECTED');

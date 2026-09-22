@@ -1,5 +1,7 @@
 # 当前活动包：逐项关闭UAT
 
+2026-09-22 接续 UAT-125/212/250 整理失败修复：3 次 Provider 尝试使用 30 秒/120 秒退避，保留白名单网络诊断；当前事实刷新后过滤活动列表并对齐计数/分页；预检执行保护。UI 负责人已确认列表修正范围，不代表代码或生产验收通过。[证据及未测项](evidence/UAT-125_212_250_FAILURE_CONVERGENCE_20260922.md)。
+
 2026-09-20 当前执行：UAT-262 先恢复 vol1 空间；263 统一 Workspace 配置，264 按用户要求审视并对齐终态、引用安全、partial/orphan、重启与正式回收 Receipt。完成三项后接续251误 Case 正式收尾、实际重查及资源释放验收。详细证据追加至 UAT-251_ACCEPTED_DEFECT_RECOVERY_20260912.md；不改变原媒体或伪造任务终态。
 
 2026-09-12 UAT-251生产复验追加：用户确认修复已接受瑕疵误识别、9项误建维护Case及19部收藏状态。隔离实施`codex/aftercare-accepted-defects`；读取精确Handoff B冻结要求、正式取消未提交的自动瑕疵修复、重新检查旧笼统结论；保护原片、授权与历史，交统一部署负责人发布。证据见`implementation/evidence/UAT-251_ACCEPTED_DEFECT_RECOVERY_20260912.md`（执行包相对路径为`evidence/`）。

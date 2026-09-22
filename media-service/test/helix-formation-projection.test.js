@@ -566,6 +566,36 @@ test('Formation hides discarded Subjects waiting for re-intake from the active l
   }finally{kernel.close();fs.rmSync(root,{recursive:true,force:true,maxRetries:5,retryDelay:50});}
 });
 
+test('fresh discarded Runs leave active pages and counts while their history remains accessible', () => {
+  const rows = [3, 2, 1, 0].map((index) => buildFormationProjectionRow(item(index), 3000+index));
+  const history = [{subjectId:'subject-003',libraRunId:'run-3',outcome:'system_discarded'}];
+  const store = {
+    listActive:(offset, limit) => rows.slice(offset, offset+limit),
+    counts:() => [{group_value:'in_progress',row_count:4}],
+    find:(id) => rows.find((row) => row.subject_id === id),
+  };
+  const detailSource = {getMany:(ids) => ids.map((id) => {
+    const index = Number(id.slice(-3));
+    return index >= 2 ? {...item(index), currentRun:null, handoffB:null,
+      nextAction:{label:'等待重新入库',state:'pending',progress:null}} : item(index);
+  })};
+  for (const readPipelineSubjectIds of [undefined, () => new Set(rows.map((row) => row.subject_id))]) {
+    const query = createFormationQuery({store, detailSource, readPipelineSubjectIds,
+      historyStore:{count:() => 1,listDiscarded:() => history},now:() => 4000});
+    const first = query.list({limit:1});
+    assert.deepEqual(first.items.map((row) => row.subjectId), ['subject-001']);
+    assert.deepEqual(first.summary, {totalCount:2,inProgressCount:2,attentionRequiredCount:0,completedCount:0,endedCount:1});
+    assert.ok(first.nextCursor);
+    const second = query.list({limit:1,cursor:first.nextCursor});
+    assert.deepEqual(second.items.map((row) => row.subjectId), ['subject-000']);
+    assert.equal(second.nextCursor, null);
+    assert.equal(query.list({q:'影片 3'}).items.length, 0);
+    const ended = query.list({section:'ended'});
+    assert.equal(ended.items[0].libraRunId, 'run-3');
+    assert.equal(ended.items[0].displayIdentity, '影片 3');
+  }
+});
+
 test('exact Formation wake drains more than one bounded batch without waiting for fallback',async()=>{
   const root=fs.mkdtempSync(path.join(os.tmpdir(),'helix-formation-projection-host-')),databasePath=path.join(root,'shelfdeck.db');
   const kernel=openSqliteKernel({Database,databasePath,schemaDdl,schemaManifest,now:()=>100});
