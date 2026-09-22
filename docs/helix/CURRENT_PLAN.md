@@ -57,3 +57,7 @@
 集成工作区为`E:/my_project/emby_third_party-helix-iteration`，分支`codex/user-pain-iteration`；主工作区不作为本次编辑目标。用户指定的care-clarity交付`e6b7f0424`已由`799433c65`整合部署，不再并行修改。其他worktree保留，未完成归属审查不删除。原`AFTERCARE_HEALTH_CASE_IMPLEMENTATION_20260908.md`的未提交修改受保护，不夹带提交。
 
 生产身份、备份、部署结果仅维护[CURRENT_STATUS](CURRENT_STATUS.md)及对应Evidence。历史基线见[整理前快照](implementation/archive/20260908_PRE_PROD_CONSOLIDATION/CURRENT_PLAN.md)与[台账整理证据](implementation/evidence/UAT-220_REGISTER_CONSOLIDATION_20260908.md)。不在活动计划累积已关闭流水。
+
+## UAT-265 图片角色修复（2026-09-22）
+
+用户授权修正带电影名前缀图片的角色识别。Procurement两处规则共用精确分类，保持既有归属边界；本地验证后交部署负责人统一上线。旧收藏不因新识别规则自动重分类，局内人恢复须沿用Arca正式瑕疵修复。见[证据](implementation/evidence/UAT-265_PREFIXED_ARTWORK_ROLE_20260922.md)。

@@ -2,6 +2,7 @@
 
 const { canonicalDigest, canonicalJson } = require('../../../contracts/canonical-json');
 const { validateTriageRuleSnapshot } = require('./procurement-run-contracts');
+const { relatedArtworkRole } = require('./related-artwork-role');
 const {
   createProfileHintSnapshot,
 } = require('./field-profile-hint-contracts');
@@ -311,7 +312,6 @@ function relatedFor(context, layoutEvidence, primaryMaterialKey) {
       if (bdmvRootForLocation(context.fieldRelativeLocation, knownLocations) && bdmvInternalEntry(entry)) continue;
       if (entry.identity.materialKey === primaryMaterialKey) continue;
       const lower = entry.baseName.toLowerCase(); const stem = lower.replace(/\.[^.]+$/, ''); const extension = (entry.extension || '').toLowerCase();
-      const image = /\.(jpg|jpeg|png|webp)$/.test(extension);
       const standard = /^(movie|tvshow)\.nfo$/.test(lower) ||
         /^(poster|fanart|background|backdrop|banner|clearlogo|landscape|logo|discart)\.(jpg|jpeg|png|webp)$/.test(lower) ||
         /^season0*\d+-(poster|fanart|background|backdrop|banner|landscape)\.(jpg|jpeg|png|webp)$/.test(lower);
@@ -325,8 +325,8 @@ function relatedFor(context, layoutEvidence, primaryMaterialKey) {
       if (mediaPayload) continue;
       if (!stemMatches && !standard) continue;
       const chapter = extension === '.chapters' || extension === '.xml' && /(?:^|[-_. ])chapters$/.test(stem);
-      const role = extension === '.nfo' ? 'nfo' : image && /^poster\.(jpg|jpeg|png|webp)$/.test(lower) ? 'poster'
-        : image && /^(fanart|background|backdrop)\.(jpg|jpeg|png|webp)$/.test(lower) ? 'fanart'
+      const artworkRole = relatedArtworkRole(lower, primaryStems);
+      const role = extension === '.nfo' ? 'nfo' : artworkRole ? artworkRole
         : /\.(srt|ass|ssa|vtt)$/.test(extension) ? 'subtitle' : /\.(aac|ac3|dts|flac|mka)$/.test(extension) ? 'external_audio'
         : chapter ? 'chapter' : 'sidecar';
       const referenceId = digest({ schema:'procurement.related-material-reference-id@1', primaryMaterialKey, role,

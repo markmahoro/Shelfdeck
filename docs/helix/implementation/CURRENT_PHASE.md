@@ -75,3 +75,7 @@ UAT-251由本任务连续实施至验收：先完成精确Gap及Libra持续授�
 5. 验收必须看到每条恰好一个 On-deck Commit、相应 Shelf Entry/Deck Fact、精确 Inventory 文件、settlement/member 终态及无活动相关执行。只看到 UI 进度变化不算恢复。
 6. 《一战再战》保留合法外部下载；验证页面当前阶段及解释，不取消下载、不放宽 DV 转换、不调整14 GiB要求。
 7. 回滚先保留新现场及失败证据；新镜像无 Schema 变更，可回滚 binary，但不把已完成的正常业务 Commit 当作应回滚数据库。冲突备份只在目标无人占用且核实当前 Owner 后恢复，禁止覆盖新产品。
+
+## UAT-265 当前交付（2026-09-22）
+
+带前缀海报/背景图分类修复已本地完成，Procurement专项150/150通过。新Candidate正向与跨片/跨目录负向已覆盖；等待部署负责人集成发布及生产验收。局内人旧Inventory保持原状，不以代码完成关闭事项。见[证据](evidence/UAT-265_PREFIXED_ARTWORK_ROLE_20260922.md)。

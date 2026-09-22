@@ -193,6 +193,40 @@ function observed(location, label, inode) {
   };
 }
 
+test('Candidate Context preserves artwork roles for movie-prefixed files without borrowing other movies', () => {
+  const stem = '局内人 (2006) 1080p DTS';
+  const names = [
+    [`${stem}-poster.jpg`, 'poster'],
+    [`${stem}.POSTER.PNG`, 'poster'],
+    [`${stem}_poster.webp`, 'poster'],
+    [`${stem}-fanart.jpg`, 'fanart'],
+    [`${stem}.background.jpeg`, 'fanart'],
+    [`${stem}_backdrop.png`, 'fanart'],
+    [`${stem}-clearlogo.png`, 'sidecar'],
+    [`${stem}-poster.txt`, 'sidecar'],
+    [`${stem}-poster-extra.jpg`, 'sidecar'],
+    [`${stem}-sample-poster.jpg`, 'sidecar'],
+  ];
+  for (const associationMode of ['single_movie_directory', 'multi_movie_directory', 'standalone_same_stem']) {
+    const result = fixture({
+      primaryLocation:`Movies/${stem}.mkv`, scopeRoot:'Movies',
+      scopeKind:'ordinary_directory', associationMode,
+      observed:[...names.map(([name], index) => observed(`Movies/${name}`, name, index + 2)),
+        observed('Movies/Other-poster.jpg', 'other-poster', 30),
+        observed(`Elsewhere/${stem}-poster.jpg`, 'different-directory', 31),
+        observed('Movies/poster.jpg', 'generic-poster', 32)],
+    });
+    const expected = names.map(([name, role]) => [`Movies/${name}`, role]);
+    if (associationMode === 'single_movie_directory') expected.push(['Movies/poster.jpg', 'poster']);
+    assert.deepEqual(result.context.relatedReferences.map((item) => [item.location, item.role])
+      .sort((a, b) => a[0].localeCompare(b[0])), expected.sort((a, b) => a[0].localeCompare(b[0])));
+    for (const reference of result.context.relatedReferences) {
+      const { referenceDigest, ...body } = reference;
+      assert.equal(referenceDigest, canonicalDigest(body));
+    }
+  }
+});
+
 test('Candidate Context applies bounded Related rules for standalone, single-film and multi-film scopes', () => {
   const standalone = fixture({
     primaryLocation:'苹果.mkv',
@@ -241,7 +275,7 @@ test('Candidate Context applies bounded Related rules for standalone, single-fil
     'One Movie/poster.jpg',
   ]);
   assert.equal(single.context.relatedReferences.find((item) => item.location.endsWith('fanart.jpg') && !item.location.includes('Feature')).role, 'fanart');
-  assert.equal(single.context.relatedReferences.find((item) => item.location.endsWith('Feature-fanart.jpg')).role, 'sidecar');
+  assert.equal(single.context.relatedReferences.find((item) => item.location.endsWith('Feature-fanart.jpg')).role, 'fanart');
   assert.equal(single.context.relatedReferences.find((item) => item.location.endsWith('Thumbs.db')).role, 'sidecar');
 
   const multi = fixture({
