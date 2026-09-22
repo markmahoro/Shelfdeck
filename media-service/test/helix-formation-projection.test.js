@@ -454,6 +454,43 @@ test('Formation detail source uses business boundaries while Routing is still pr
   }finally{kernel.close();fs.rmSync(root,{recursive:true,force:true,maxRetries:5,retryDelay:50});}
 });
 
+test('Formation bounds Subject batches and expanded historical Run revisions without dropping active pages', () => {
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'helix-formation-bounds-'));
+  const kernel=openSqliteKernel({Database,databasePath:path.join(root,'shelfdeck.db'),schemaDdl,schemaManifest,now:()=>100});
+  try {
+    const subjects=Array.from({length:205},(_,index)=>item(index).subjectId);
+    kernel.runPrimitive(({prepare})=>{
+      const subject=prepare('INSERT INTO libra_subjects(subject_id,structure_kind,content_profile,status,intake_revision,created_at_ms,updated_at_ms) VALUES(?,?,?,?,?,?,?)');
+      const run=prepare('INSERT INTO libra_runs(libra_run_id,subject_id,admission_revision,execution_basis_record_json,state,state_revision,state_digest,priority_class,created_at_ms) VALUES(?,?,?,?,?,?,?,?,?)');
+      subjects.forEach((id,index)=>{
+        subject.run(id,'single','movie','active',1,1000+index,1000+index);
+        run.run('run-'+index,id,1,'{}','active',1,hex(index+400),'normal',1000+index);
+      });
+      for(let index=0;index<3;index+=1)run.run('old-run-'+index,subjects[0],index+2,'{}','discarded',1,hex(index+900),'normal',index);
+    });
+    const unitOfWork=createSqliteUnitOfWork({kernel});
+    const source=createFormationProjectionSource({schemaManifest,unitOfWork});
+    // A 100-Subject page expands to 103 Run IDs through immutable history.
+    assert.deepEqual(source.getManyWithProcessSummary(subjects.slice(0,100)).map(row=>row.subjectId),subjects.slice(0,100));
+    assert.deepEqual(source.getMany(subjects).map(row=>row.subjectId),subjects);
+    assert.deepEqual(source.getManyWithProcessSummary([]),[]);
+    const store=createFormationProjectionStore({schemaManifest,unitOfWork});
+    subjects.forEach((id,index)=>store.upsert(buildFormationProjectionRow(item(index),3000+index)));
+    const query=createFormationQuery({store,detailSource:source,readPipelineSubjectIds:()=>new Set(subjects),now:()=>4000});
+    const seen=[];
+    let cursor=null;
+    do {
+      const page=query.list({limit:25,cursor});
+      assert.equal(page.summary.inProgressCount,205);
+      assert.ok(page.items.every(row=>row.currentRun?.state==='active'));
+      seen.push(...page.items.map(row=>row.subjectId));
+      cursor=page.nextCursor;
+    } while(cursor);
+    assert.deepEqual(seen,subjects.slice().reverse());
+    assert.equal(new Set(seen).size,205);
+  } finally { kernel.close();fs.rmSync(root,{recursive:true,force:true,maxRetries:5,retryDelay:50}); }
+});
+
 test('Formation active queue shows only pipeline-admitted Subjects without a Run',()=>{
   const root=fs.mkdtempSync(path.join(os.tmpdir(),'helix-formation-admission-')),databasePath=path.join(root,'shelfdeck.db');
   const kernel=openSqliteKernel({Database,databasePath,schemaDdl,schemaManifest,now:()=>100});

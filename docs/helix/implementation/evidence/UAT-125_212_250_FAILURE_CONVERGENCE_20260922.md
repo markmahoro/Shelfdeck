@@ -30,6 +30,12 @@
 
 ## 发布拆分
 
+### 已完成列表大页500追加修复（UAT-212）
+
+部署负责人在原286生产只读复核：`section=completed&limit=100` 稳定500，前100个Subject对应103个Run。`find_run_revisions` 仓储上限100，但调用使用默认500的chunk，导致合法历史数量触发 `P3_REPOSITORY_INVALID_IN_SET`。现按PAGE_SIZE=100分批读取Run revisions，并在buildBatch入口按100个Subject切批、空输入直接返回；不提高仓储上限、不丢弃历史或页面条目，不改catalog。
+
+本机真实SQLite回归构造205个Subject及3个额外历史Run：100 Subject/103 Run读取、205 Subject批读取、空输入、活动列表9页顺序/计数/无重复无遗漏全部通过。Formation专项32/32 PASS，无skip。独立小提交交部署负责人串行验证生产副本，不新增NAS副本或备份；尚未宣称生产500已恢复。
+
 部署负责人复核 `bounded-catalog-transition.js`：既有 witness 要求当前 `policyRegistry.digest` 精确相等，并用同一 registry 重算旧 catalog。新增 Provider Policy/绑定会使 witness 失效，空库 E2E 不能证明286旧计划可启动。本批因此拆成两项提交：第一项只有诊断、列表、预检及测试/证据，不改变 registry；第二项仅4行 Provider Policy/绑定变更，暂不发布。不得挑选第二项后绕过 catalog 验证，不引入迁移、Reset或静默兼容。30/120秒方案仍为候选，需合法旧计划启动策略后落地；生产当前仍使用原有退避。
 
 本地日志位于系统临时目录 `shelfdeck-failure-fix-architecture.log`、`shelfdeck-failure-fix-e2e.log`、`shelfdeck-failure-fix-production-base.log`，不包含生产凭证，不提交临时运行数据。

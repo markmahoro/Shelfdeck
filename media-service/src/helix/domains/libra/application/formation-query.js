@@ -502,13 +502,17 @@ function createFormationProjectionSource(options) {
       const acceptanceSpecs = repo.invoke('find_acceptance_specs', { values: subjectIds });
       const runs = repo.invoke('find_runs', { values: subjectIds });
       const runIds = unique(runs.map((row) => row.libra_run_id));
-      const runRevisions = runIds.length ? chunks(runIds).flatMap((values) => repo.invoke('find_run_revisions', { values })) : [];
+      const runRevisions = runIds.length ? chunks(runIds, PAGE_SIZE).flatMap((values) => repo.invoke('find_run_revisions', { values })) : [];
       const packages = runIds.length ? chunks(runIds).flatMap((values) => repo.invoke('find_packages', { values })) : [];
       const identityIntents = runIds.length ? chunks(runIds).flatMap((values) => repo.invoke('find_identity_intents', { values })) : [];
       return { decisions, bindings, routingDecisions, routingPolicies, decisionHeads, acceptanceSpecs, runs, runRevisions, packages, identityIntents };
     } }]).libra_formation_batch;
   }
   function buildBatch(subjects, buildOptions = {}) {
+    if (!subjects.length) return [];
+    if (subjects.length > PAGE_SIZE) {
+      return chunks(subjects, PAGE_SIZE).flatMap((batch) => buildBatch(batch, buildOptions));
+    }
     const value = readBatch(subjects), runIds = unique(value.runs.map((row) => row.libra_run_id));
     const offerIds = unique(value.packages.map((row) => row.offer_id));
     const arcaStatuses = new Map(offerIds.length ? chunks(offerIds, 100).flatMap((ids) =>
