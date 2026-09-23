@@ -8,11 +8,13 @@ const test = require('node:test');
 const Database = require('better-sqlite3');
 const { initializeCleanData } = require('../../scripts/helix-operational-safety');
 const { createCleanServiceHost } = require('../../src/clean-service-host');
-const { canonicalDigest } = require('../../src/helix/contracts/canonical-json');
+const { canonicalDigest, canonicalJson } = require('../../src/helix/contracts/canonical-json');
 const {
+  BETA_RECOMMENDED_RULES,
   RULES_SCHEMA_REF,
   SYSTEM_TEMPLATE_ID,
   SYSTEM_TEMPLATE_NAME,
+  buildShelfStandard,
 } = require('../../src/helix/domains/arca/model/rule-template-contracts');
 
 const secretRoot = 'p14-rule-template-secret-root-0123456789abcdef';
@@ -57,6 +59,108 @@ function reviseMovieRating(rules, rating, maxSizeGiB) {
   movie.profileRuleSetDigest = canonicalDigest(unsigned(movie, 'profileRuleSetDigest'));
   return changed;
 }
+
+function previousMovieRules() {
+  const rules = structuredClone(BETA_RECOMMENDED_RULES);
+  const movie = rules.profileRuleSets.find((item) => item.contentProfile === 'movie');
+  for (const requirements of [movie.baseRequirements, ...movie.decisionBranches.map((item) => item.requirements)]) {
+    requirements.mandatoryMedia.container = 'any';
+    requirements.mandatoryMedia.fileExtension = 'any';
+  }
+  movie.profileRuleSetDigest = canonicalDigest(unsigned(movie, 'profileRuleSetDigest'));
+  return rules;
+}
+
+test('controlled system publish upgrades the bound Shelf atomically and stays read-only to users', async () => {
+  const value = fixture();
+  const headers = { 'x-api-key': value.initialized.adminApiKey };
+  const options = { dataDir:value.dataDir, adminDistDir:value.adminDistDir, secretRoot };
+  const first = await createCleanServiceHost(options);
+  const shelf = await createShelf(first, headers);
+  await first.close();
+  const oldRules = previousMovieRules();
+  const oldDigest = canonicalDigest(oldRules);
+  assert.equal(oldDigest, '1e28db8d8826d42706331bd3cd7277c0c98f99def250f394e191e90105c7e1f6');
+  const oldStandard = buildShelfStandard({ shelfId:shelf.shelfId, standardRevision:1,
+    ruleTemplateId:SYSTEM_TEMPLATE_ID, ruleTemplateRevision:1, rules:oldRules });
+  const oldRoutingDigest = canonicalDigest({ schema:'arca.shelf-routing-target-projection@1',
+    shelfId:shelf.shelfId, status:'active', currentStandardRevision:1,
+    currentStandardDigest:oldStandard.standardDigest, routingProjectionRevision:1 });
+  const db = new Database(value.databasePath);
+  db.prepare('UPDATE arca_rule_template_revisions SET rules_json=?, rules_digest=? WHERE rule_template_id=? AND revision=1')
+    .run(canonicalJson(oldRules), oldDigest, SYSTEM_TEMPLATE_ID);
+  db.prepare('UPDATE arca_shelf_standard_revisions SET standard_json=?, standard_digest=? WHERE shelf_id=? AND revision=1')
+    .run(canonicalJson(oldStandard), oldStandard.standardDigest, shelf.shelfId);
+  db.prepare('UPDATE arca_shelves SET routing_projection_digest=? WHERE shelf_id=?')
+    .run(oldRoutingDigest, shelf.shelfId);
+  db.close();
+  const fault = new Database(value.databasePath);
+  fault.exec("CREATE TRIGGER reject_system_shelf_upgrade BEFORE UPDATE ON arca_shelves BEGIN SELECT RAISE(ABORT, 'injected shelf fault'); END");
+  fault.close();
+  await assert.rejects(createCleanServiceHost(options));
+  const rolledBack = new Database(value.databasePath);
+  assert.equal(rolledBack.prepare('SELECT current_revision FROM arca_rule_templates WHERE rule_template_id=?')
+    .get(SYSTEM_TEMPLATE_ID).current_revision, 1);
+  assert.equal(rolledBack.prepare('SELECT COUNT(*) n FROM arca_rule_template_revisions WHERE rule_template_id=?')
+    .get(SYSTEM_TEMPLATE_ID).n, 1);
+  assert.equal(rolledBack.prepare('SELECT current_standard_revision FROM arca_shelves WHERE shelf_id=?')
+    .get(shelf.shelfId).current_standard_revision, 1);
+  rolledBack.exec('DROP TRIGGER reject_system_shelf_upgrade');
+  rolledBack.close();
+  const upgraded = await createCleanServiceHost(options);
+  try {
+    const template = (await upgraded.inject({ method:'GET', url:'/v1/admin/rule-templates/' + SYSTEM_TEMPLATE_ID,
+      headers })).json().template;
+    assert.equal(template.ownerKind, 'system');
+    assert.equal(template.currentRevision, 2);
+    assert.equal(template.current.rulesDigest, canonicalDigest(BETA_RECOMMENDED_RULES));
+    const currentShelf = (await upgraded.inject({ method:'GET', url:'/v1/admin/shelves/' + shelf.shelfId,
+      headers })).json().shelf;
+    assert.equal(currentShelf.currentStandardRevision, 2);
+    assert.equal(currentShelf.standard.ruleTemplateId, SYSTEM_TEMPLATE_ID);
+    assert.equal(currentShelf.standard.ruleTemplateRevision, 2);
+    const movie = currentShelf.standard.value.profileRuleSets.find((item) => item.contentProfile === 'movie');
+    for (const branch of movie.decisionBranches) {
+      assert.equal(branch.requirements.mandatoryMedia.container, 'matroska');
+      assert.equal(branch.requirements.mandatoryMedia.fileExtension, 'mkv');
+    }
+    const draft = await upgraded.inject({ method:'GET',
+      url:'/v1/admin/rule-templates/' + SYSTEM_TEMPLATE_ID + '/draft', headers });
+    assert.equal(draft.json().writable, false);
+  } finally { await upgraded.close(); }
+  const replay = await createCleanServiceHost(options);
+  try {
+    const rows = new Database(value.databasePath, { readonly:true });
+    assert.equal(rows.prepare('SELECT COUNT(*) n FROM arca_rule_template_revisions WHERE rule_template_id=?')
+      .get(SYSTEM_TEMPLATE_ID).n, 2);
+    assert.equal(rows.prepare('SELECT COUNT(*) n FROM arca_shelf_standard_revisions WHERE shelf_id=?')
+      .get(shelf.shelfId).n, 2);
+    assert.equal(rows.prepare("SELECT COUNT(*) n FROM fx_outbox WHERE aggregate_type='rule_template' AND aggregate_id=? AND aggregate_revision=2")
+      .get(SYSTEM_TEMPLATE_ID).n, 1);
+    assert.equal(rows.prepare("SELECT COUNT(*) n FROM fx_command_receipts WHERE command_contract='arca.system.rule-template.publish@1'")
+      .get().n, 1);
+    rows.close();
+  } finally { await replay.close(); }
+});
+
+test('controlled system publish refuses an unknown prior rules digest without changing facts', async () => {
+  const value = fixture();
+  const unexpected = reviseMovieRating(BETA_RECOMMENDED_RULES, 1, 3);
+  const db = new Database(value.databasePath);
+  db.prepare('UPDATE arca_rule_template_revisions SET rules_json=?, rules_digest=? WHERE rule_template_id=? AND revision=1')
+    .run(canonicalJson(unexpected), canonicalDigest(unexpected), SYSTEM_TEMPLATE_ID);
+  db.close();
+  await assert.rejects(createCleanServiceHost({ dataDir:value.dataDir,
+    adminDistDir:value.adminDistDir, secretRoot }),
+  (error) => error.code === 'SYSTEM_TEMPLATE_UPGRADE_BASIS');
+  const rows = new Database(value.databasePath, { readonly:true });
+  try {
+    assert.equal(rows.prepare('SELECT current_revision FROM arca_rule_templates WHERE rule_template_id=?')
+      .get(SYSTEM_TEMPLATE_ID).current_revision, 1);
+    assert.equal(rows.prepare('SELECT COUNT(*) n FROM arca_rule_template_revisions WHERE rule_template_id=?')
+      .get(SYSTEM_TEMPLATE_ID).n, 1);
+  } finally { rows.close(); }
+});
 
 async function createShelf(host, headers) {
   const placementValue = {

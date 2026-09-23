@@ -7,12 +7,16 @@ const {
   RULES_SCHEMA_REF,
   SYSTEM_TEMPLATE_ID,
   SYSTEM_TEMPLATE_NAME,
+  BETA_RECOMMENDED_RULES,
+  BETA_RECOMMENDED_RULES_DIGEST,
   buildShelfStandard,
   validateRuleTemplateRules,
 } = require('../model/rule-template-contracts');
 
 const SHA256 = /^[a-f0-9]{64}$/;
 const STANDARD_SCHEMA_REF = 'helix://contracts/types/ShelfStandard/v1';
+const PREVIOUS_SYSTEM_RULES_DIGEST = '1e28db8d8826d42706331bd3cd7277c0c98f99def250f394e191e90105c7e1f6';
+const SYSTEM_MOVIE_MATROSKA_REVISION = 2;
 
 class ArcaRuleTemplateStoreError extends Error {
   constructor(code, message, details = {}) {
@@ -468,11 +472,12 @@ function createRuleTemplateStore(options) {
     resultEnvelope,
     outboxMessages,
     targetType = 'rule_template',
+    callerScope = 'admin',
   ) {
     if (!request || typeof request.idempotencyKey !== 'string' || request.idempotencyKey.length === 0) {
       fail('IDEMPOTENCY_KEY_REQUIRED', 'Rule Template command requires idempotencyKey.');
     }
-    const commandContract = 'arca.admin.rule-template.' + operation + '@1';
+    const commandContract = 'arca.' + callerScope + '.rule-template.' + operation + '@1';
     const requestDigest = canonicalDigest({ commandContract, input: request.input });
     const keyDigest = canonicalDigest({
       commandContract,
@@ -485,7 +490,7 @@ function createRuleTemplateStore(options) {
           keyDigest.slice(0, 32),
         ownerDomain: 'arca',
         commandContract,
-        callerScope: 'admin',
+        callerScope,
         idempotencyKey: request.idempotencyKey,
         requestDigest,
         targetType,
@@ -506,7 +511,7 @@ function createRuleTemplateStore(options) {
       auditRecords: [{
         auditId: 'arca-rule-template-' + operation + '-audit-' +
           keyDigest.slice(0, 32),
-        actorType: 'admin',
+        actorType: callerScope,
         action: operation + '_rule_template',
         scopeType: targetType,
         scopeId: targetId,
@@ -983,6 +988,151 @@ function createRuleTemplateStore(options) {
     );
   }
 
+  function publishSystemRecommendedRevision() {
+    validateRuleTemplateRules(RULES_SCHEMA_REF, BETA_RECOMMENDED_RULES, BETA_RECOMMENDED_RULES_DIGEST);
+    const current = getTemplate(SYSTEM_TEMPLATE_ID);
+    if (!current || current.ownerKind !== 'system' || current.status !== 'active') {
+      fail('SYSTEM_TEMPLATE_INTEGRITY', 'System Rule Template is unavailable.');
+    }
+    if (current.current.rulesDigest === BETA_RECOMMENDED_RULES_DIGEST) {
+      return Object.freeze({ kind: 'current', templateRevision: current.currentRevision });
+    }
+    if (current.currentRevision !== 1 || current.current.rulesDigest !== PREVIOUS_SYSTEM_RULES_DIGEST) {
+      fail('SYSTEM_TEMPLATE_UPGRADE_BASIS', 'System Rule Template has an unrecognized published revision.');
+    }
+    const shelves = execute((context) => boundShelves(context.repository(repository.repositoryId), SYSTEM_TEMPLATE_ID));
+    const affectedShelfSetDigest = canonicalDigest({
+      schema: 'arca.rule-template-affected-shelf-set@1',
+      items: shelves,
+    });
+    const input = Object.freeze({
+      templateId: SYSTEM_TEMPLATE_ID,
+      expectedCurrentRevision: 1,
+      expectedRulesDigest: PREVIOUS_SYSTEM_RULES_DIGEST,
+      nextRevision: SYSTEM_MOVIE_MATROSKA_REVISION,
+      nextRulesDigest: BETA_RECOMMENDED_RULES_DIGEST,
+      affectedShelfSetDigest,
+    });
+    const commandContract = 'arca.system.rule-template.publish@1';
+    const idempotencyKey = 'system-movie-matroska-v2';
+    const keyDigest = canonicalDigest({ commandContract, idempotencyKey, targetId: SYSTEM_TEMPLATE_ID });
+    const outbox = [{
+      messageId: 'arca-rule-template-published-' + keyDigest,
+      producerDomain: 'arca',
+      messageKind: 'rule_template_published',
+      aggregateType: 'rule_template',
+      aggregateId: SYSTEM_TEMPLATE_ID,
+      aggregateRevision: SYSTEM_MOVIE_MATROSKA_REVISION,
+      dedupKey: 'rule-template:' + SYSTEM_TEMPLATE_ID + ':' + SYSTEM_MOVIE_MATROSKA_REVISION,
+      payloadSchemaRef: 'helix://contracts/messages/ArcaRuleTemplatePublished/v1',
+      payload: {
+        messageKind: 'rule_template_published',
+        ruleTemplateId: SYSTEM_TEMPLATE_ID,
+        ruleTemplateRevision: SYSTEM_MOVIE_MATROSKA_REVISION,
+        rulesDigest: BETA_RECOMMENDED_RULES_DIGEST,
+        affectedShelfSetDigest,
+      },
+      intendedConsumers: ['read-model'],
+    }];
+    const committed = command(
+      { idempotencyKey, input }, 'publish', SYSTEM_TEMPLATE_ID,
+      (context) => {
+        const repo = context.repository(repository.repositoryId);
+        const template = findTemplate(repo, SYSTEM_TEMPLATE_ID);
+        if (!template || template.ownerKind !== 'system' || template.status !== 'active' ||
+            template.currentRevision !== input.expectedCurrentRevision ||
+            template.current.rulesDigest !== input.expectedRulesDigest) {
+          fail('SYSTEM_TEMPLATE_UPGRADE_BASIS', 'System Rule Template changed before its controlled publish.');
+        }
+        const bound = boundShelves(repo, SYSTEM_TEMPLATE_ID);
+        if (canonicalDigest({ schema: 'arca.rule-template-affected-shelf-set@1', items: bound }) !==
+            input.affectedShelfSetDigest) {
+          fail('SYSTEM_TEMPLATE_UPGRADE_BASIS', 'Bound Shelf set changed before system publish.');
+        }
+        repo.invoke('insert_revision', {
+          rule_template_id: SYSTEM_TEMPLATE_ID,
+          revision: input.nextRevision,
+          rules_schema_ref: RULES_SCHEMA_REF,
+          rules_json: canonicalJson(BETA_RECOMMENDED_RULES),
+          rules_digest: BETA_RECOMMENDED_RULES_DIGEST,
+          published_at_ms: context.commitTimeMs,
+        });
+        const changed = repo.invoke('advance_template_head', {
+          current_revision: input.nextRevision,
+          rule_template_id: SYSTEM_TEMPLATE_ID,
+          expected_revision: input.expectedCurrentRevision,
+          expected_status: 'active',
+        });
+        if (changed.changes !== 1) fail('SYSTEM_TEMPLATE_UPGRADE_CAS', 'System Template head CAS failed.');
+        const updatedShelves = [];
+        for (const shelfBasis of bound) {
+          const standardRevision = shelfBasis.currentStandardRevision + 1;
+          const routingProjectionRevision = shelfBasis.routingProjectionRevision + 1;
+          const standard = buildShelfStandard({
+            shelfId: shelfBasis.shelfId,
+            standardRevision,
+            ruleTemplateId: SYSTEM_TEMPLATE_ID,
+            ruleTemplateRevision: input.nextRevision,
+            rules: BETA_RECOMMENDED_RULES,
+          });
+          const routingProjectionDigest = canonicalDigest({
+            schema: 'arca.shelf-routing-target-projection@1',
+            shelfId: shelfBasis.shelfId,
+            status: 'active',
+            currentStandardRevision: standardRevision,
+            currentStandardDigest: standard.standardDigest,
+            routingProjectionRevision,
+          });
+          repo.invoke('insert_standard', {
+            shelf_id: shelfBasis.shelfId,
+            revision: standardRevision,
+            rule_template_id: SYSTEM_TEMPLATE_ID,
+            rule_template_revision: input.nextRevision,
+            standard_schema_ref: STANDARD_SCHEMA_REF,
+            standard_json: canonicalJson(standard),
+            standard_digest: standard.standardDigest,
+            effective_at_ms: context.commitTimeMs,
+          });
+          const shelfChanged = repo.invoke('advance_shelf_head', {
+            current_standard_revision: standardRevision,
+            routing_projection_revision: routingProjectionRevision,
+            routing_projection_digest: routingProjectionDigest,
+            updated_at_ms: context.commitTimeMs,
+            shelf_id: shelfBasis.shelfId,
+            expected_standard_revision: shelfBasis.currentStandardRevision,
+            expected_projection_revision: shelfBasis.routingProjectionRevision,
+            expected_status: 'active',
+          });
+          if (shelfChanged.changes !== 1) fail('SYSTEM_TEMPLATE_UPGRADE_CAS', 'System Shelf Standard CAS failed.');
+          updatedShelves.push(Object.freeze({
+            shelfId: shelfBasis.shelfId,
+            standardRevision,
+            standardDigest: standard.standardDigest,
+            routingProjectionRevision,
+            routingProjectionDigest,
+          }));
+        }
+        return Object.freeze({
+          template: mapTemplate(repo, repo.invoke('find_template', { rule_template_id: SYSTEM_TEMPLATE_ID }), false),
+          affectedShelfCount: updatedShelves.length,
+          affectedShelfSetDigest,
+          updatedShelfResultSetDigest: canonicalDigest({
+            schema: 'arca.rule-template-updated-shelf-result-set@1',
+            items: updatedShelves,
+          }),
+        });
+      },
+      (result) => ({
+        resultSchemaRef: 'helix://contracts/application-results/ArcaRuleTemplatePublishResult/v1',
+        resultRef: result,
+      }),
+      outbox,
+      'rule_template',
+      'system',
+    );
+    return Object.freeze({ kind: 'published', ...committed.value, replayed: committed.replayed });
+  }
+
   function archiveTemplate(request) {
     const input = request?.input;
     exact(input, ['templateId', 'expectedCurrentRevision'], 'P14_RULE_TEMPLATE_ARCHIVE_INPUT');
@@ -1153,6 +1303,7 @@ function createRuleTemplateStore(options) {
     reviseDraft,
     previewTemplate,
     publishTemplate,
+    publishSystemRecommendedRevision,
     archiveTemplate,
     bindShelf,
   });

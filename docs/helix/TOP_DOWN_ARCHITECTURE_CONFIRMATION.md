@@ -15707,3 +15707,5 @@ Arca在创建Case的同一次CareRequirement持久化中冻结创建时有效要
 ### UAT-266：Movie 成品统一 Matroska/.mkv（2026-09-23）
 
 Movie所有评分及无评分分支均以实际Probe确认Matroska容器，以最终文件名确认`.mkv`扩展名。仅修改后缀不能让真实MP4容器合规；仅有容器或后缀Gap且其他要求已满足时，Libra在自己的Workspace无损Remux并复验，再由Arca正式上架。已上架Entry采用当前Shelf Standard重新评估：Arca Aftercare对同类Gap在自己的Workspace无损Remux，正式提交新的Inventory revision与文件安置，保留同一Shelf Entry。若还存在编码、大小等Gap，须按相应规格规划Transcode或其他既有路径，不把改后缀当作修复。
+
+本次系统推荐Rule Template升级由ShelfDeck自身受控Policy发布，不使用用户模板；用户编辑入口继续只读。已知旧revision与规则digest通过后，Arca在同一Owner事务保存不可变系统Template新revision、全部当前绑定Shelf的effective Standard新revision及Head/routing projection CAS、Command Receipt/Audit和Outbox。旧revision保留，未知旧依据明确拒绝；已上架Entry据新Standard重新评估，历史Spec/Package/Acceptance不倒写。

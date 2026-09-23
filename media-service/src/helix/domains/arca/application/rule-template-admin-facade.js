@@ -101,6 +101,9 @@ function createArcaRuleTemplateAdminApplication(options) {
   }
 
   return Object.freeze({
+    publishSystemRecommendedRevision() {
+      return store.publishSystemRecommendedRevision();
+    },
     readPublishedRevision(templateId, revision) {
       return invoke(() => store.readPublishedRevision(templateId, revision));
     },

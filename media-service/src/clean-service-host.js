@@ -1321,6 +1321,12 @@ async function createCleanServiceHost(options) {
   const arcaRuleTemplateAdmin = createArcaRuleTemplateAdminApplication(
     constructed.applicationDependencies,
   );
+  try {
+    arcaRuleTemplateAdmin.publishSystemRecommendedRevision();
+  } catch (error) {
+    constructed.close();
+    throw error;
+  }
   const candidateDeliveryPort = CandidateDeliveryPort(createCandidateDeliveryService({
     ...constructed.applicationDependencies,
     candidateDeliveryReader: createCandidateDeliveryReader(constructed.applicationDependencies),

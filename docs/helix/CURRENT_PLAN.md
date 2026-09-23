@@ -1,6 +1,6 @@
 # ShelfDeck 当前迭代计划
 
-2026-09-23 UAT-266：用户确认Movie新Run及存量收藏最终统一Matroska容器/`.mkv`。先完成规格、Libra无损Remux路由和测试，再通过Arca正式Rule Template/Shelf Standard发布使Aftercare逐项修复存量；不直接重命名或改写生产Inventory。见[实施与验收](implementation/evidence/UAT-266_MOVIE_MATROSKA_STANDARD_20260923.md)。
+2026-09-23 UAT-266：用户确认Movie新Run及存量收藏最终统一Matroska容器/`.mkv`，并明确要求直接升级系统模板，不复制用户模板。规格、Libra无损Remux路由后，由ShelfDeck受控发布系统Template新revision并原子提升已绑定Shelf Standard，使Aftercare逐项修复存量；不直接重命名或改写生产Inventory。见[实施与验收](implementation/evidence/UAT-266_MOVIE_MATROSKA_STANDARD_20260923.md)。
 
 2026-09-22 部署批次调整：125/212/250独立修复已上线。251的旧Root修复已随19d13f7b58上线，7误Case终结、执行停止/资源释放、19项真实重查及黑寡妇partial正式回收完成；264的新Workspace通用回收验证独立记录，3份历史NFO人工恢复与263切Root继续受原合同确认和物理收尾门禁约束。三个历史文件不再被误列为251 Case终结的前置条件；任何已Commit或既有合法终态必须保留。证据见CURRENT_STATUS与251既有记录，不另建计划。
 
