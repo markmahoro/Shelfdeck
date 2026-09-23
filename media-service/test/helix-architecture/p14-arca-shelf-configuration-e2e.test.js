@@ -159,6 +159,10 @@ test('Admin creates one probed Template-derived Shelf and Libra rebuilds its pub
     const movie = createdShelf.standard.value.profileRuleSets.find((item) => item.contentProfile === 'movie');
     assert.deepEqual(movie.decisionBranches.map((item) => item.rating ?? 0), [0, 1, 2, 3, 4, 5]);
     assert.deepEqual(movie.decisionBranches.map((item) => item.requirements.space.maxSizeGiB), [null, 2, 4, 8, 14, 50]);
+    for (const branch of movie.decisionBranches) {
+      assert.equal(branch.requirements.mandatoryMedia.container, 'matroska');
+      assert.equal(branch.requirements.mandatoryMedia.fileExtension, 'mkv');
+    }
     assert.deepEqual(createdShelf.placement.value, creation(value.targetRoot).placementPolicy);
     assert.equal(createdShelf.currentStandardRevision, 1);
     assert.equal(createdShelf.currentPlacementRevision, 1);

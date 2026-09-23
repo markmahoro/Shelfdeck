@@ -1,6 +1,17 @@
 # ShelfDeck 当前状态
 
+2026-09-23 UAT-266 本地实施中，生产仍为下述既有镜像及 Movie Shelf Standard revision 1，`container/fileExtension=any`。用户确认新 Movie Run 与存量统一 Matroska/`.mkv`；19 个活动 `.mp4` Primary（13 真 MP4、6 误后缀 Matroska，约 104.4 GiB）只读核对完成，尚未改动媒体或生产规则。代码、定向测试与待验收门禁见[UAT-266 证据](implementation/evidence/UAT-266_MOVIE_MATROSKA_STANDARD_20260923.md)。
+
+2026-09-22 13:10Z 最新生产为 `helix-beta-20260922-459efebbf2`：UAT-265精确同stem前缀图片分类修复上线，保留19的误维护及0e列表/诊断/预检修复。标准部署、候选/19回退Host、Linux147适用项及Windows仓库审计3项、生产分类源SHA与角色、health/Admin/挂载/Secret/fnOS和192收藏8组原事实保护通过。《局内人》旧Inventory revision15及poster_missing未改，未发起手动修复；UAT保持开放待实际新片/旧收藏验收。下方为历史时点，[本次证据](implementation/evidence/UAT-265_PREFIXED_ARTWORK_ROLE_20260922.md#正式生产发布结果)给出镜像身份、备份和隔离告警边界。
+
+2026-09-22 10:40Z 最新生产为 `helix-beta-20260922-19d13f7b58`：旧Root的251误维护收尾及264通用回收修复已上线，并保留本日0e诊断/列表/预检修复。7个剩余误Case已正式终结，另外2个既有终态保留；黑寡妇FFmpeg停止，正常Libra转码继续。19项真实三维复查全部落库，均healthy/无活动Case；黑寡妇临时文件已正式回收，Work succeeded/Effect committed、Registry reclaimed、文件不存在；8组原持久事实missing0/changed0，141文件身份/有界指纹不变。浏览器需要处理0、整理中3；3份历史NFO/263切Root保持独立待决，未宣布251整项关闭。下方0e及更早状态为历史时点，详见[本次发布证据](implementation/evidence/UAT-251_ACCEPTED_DEFECT_RECOVERY_20260912.md#2026-09-22-旧root修复正式发布)。
+
+2026-09-22 09:28Z 当前生产已更新为 `helix-beta-20260922-0e16b6dd8b`：UAT-125/212/250 的诊断、列表、预检独立修复上线。历史100条查询由500恢复200，已结束记录保留且移出活动列表；health/normalSupplyAllowed、Admin、五挂载/QSV/Secret/fnOS通过，192收藏及8组原持久事实missing0/changed0。《星际迷航2》旧预检Attempt正式以EXECUTION_TIMEOUT结束，当前等待资源，影片未完成。Aftercare黑寡妇仍在转码；251/263/264及Provider新Policy未随本批发布。最新空间65G可用/63%使用，21次AbortSignal listener警告仍待定位。下列9月12日/20日及22日发布前记录为历史时点，生产身份以本段和[本次发布证据](implementation/evidence/UAT-125_212_250_FAILURE_CONVERGENCE_20260922.md#生产发布结果2026-09-22)为准。
+
 2026-09-22 部署复核：生产仍为 `286fe56f1e`，StartedAt 保持9月12日14:31:12Z；health/normalSupplyAllowed、LAN及fnOS管理页正常，Secret和五挂载一致。vol1可用约73G、使用率59%。已接收UAT-125/212/250独立修复 `dadb11797`，准备保持旧Workspace Root的发布线。共享Root切换仍受3份历史NFO人工恢复合同及完整回收门禁约束，不以部署授权替代该决定。
+
+2026-09-22 UAT-212追加：原286“已完成”100条页稳定500，部署负责人核实前100 Subject有103 Run；Run revisions查询批量误用500而仓储上限100。已改为100分批，同时保护超过100的Subject刷新；真实SQLite专项32/32通过，待独立补丁串行副本/生产验证。[记录](implementation/evidence/UAT-125_212_250_FAILURE_CONVERGENCE_20260922.md)。
+
 
 发布拆分：诊断、列表、预检不改 registry，已交付；Provider 30/120秒退避仅在独立提交 `7123117d6`，会改变 catalog，既有 witness 不支持，未整合或发布。不得将空库E2E当作旧286计划兼容证据。
 
@@ -15,6 +26,11 @@
 2026-09-13 00:04，UAT-251修复`e7c84dd536`已整合并构建上传候选镜像，Linux专项26/26、真实评分公共端口122批量/19详情及完整Host启动/旧286回退通过，生产仍286。正式接口副本收尾暴露《拆弹部队》旧transcode Effect为reconcile_required，Case持续draining；另外8 Case已正式unresolved，18项新检查观察已运行、提交仍待资源。**候选尚不满足完整收尾门禁，暂停生产apply，已交原开发任务补修**；不Reset、不改写历史Effect或媒体。完整备份和精确现场见[修正证据](implementation/evidence/UAT-251_ACCEPTED_DEFECT_RECOVERY_20260912.md#联合部署验证与收尾阻塞)。
 
 ## 当前生产
+
+- 最新镜像：`markmahoro/shelfdeck:helix-beta-20260922-459efebbf2`；source `459efebbf29beb039d687493f94f9f6bd659b315`；Config ID `sha256:7b3909e86a92d0842961b66d8efec255ab81c62083f74ea310da30ade8e2769c`。
+- tar SHA256：`17bb070151105b8bc55f924f65d56244745511496e2f097a6883c34e0201f768`；StartedAt `2026-09-22T13:07:43.182908298Z`，restartCount 0。标准build/upload/checksum/dry-run/apply完成，44文件完整在线备份、候选旧库Host及同数据19回退通过。Windows150及Linux147适用项/仓库审计3项与生产保护通过；新片完整媒体E2E和局内人旧收藏手动修复未执行。
+
+以下保留此前生产事件，不覆盖以上最新身份。
 
 2026-09-12 22:33《人生密密缝》获用户“确认”后已执行精确生产清理：唯一旧重复主片完整备份校验后移出Material Field，正式Formation Reset清理旧Subject及23 Works、1 Workspace；冻结manifest一致。原122收藏、Inventory/immutable Candidate等9表、范围外Control及其他3 Token不变；包含正式主片在内的其余9文件逐项完整SHA256、inode和元数据不变。14:32:43Z活动整理查询已无本片旧条目，原正式Entry仍active/healthy、Inventory revision 11，服务正常。**旧候选仍open、Reservation待结束、Receipt尚未生成，当前3席位满；正式缺失拒绝/ACK仅在副本通过，生产最终后台收尾尚待正常队列。** 不提高席位、不清理其他任务、不重新创建定时任务。备份及边界见[获授权生产清理结果](implementation/evidence/UAT-125_250_INTAKE_RECOVERY_20260912.md#人生密密缝获授权生产清理结果)。
 

@@ -21,6 +21,7 @@ const TRANSCODE_FIXABLE_CODES = new Set([
   'output_color_profile_unmet',
   'dolby_vision_metadata_not_removed',
 ]);
+const REMUX_FIXABLE_CODES = new Set(['container_unmet', 'file_extension_unmet']);
 
 function reasonSet(verification) {
   return new Set(verification?.reasonCodes || []);
@@ -48,6 +49,12 @@ function onlyVolumeGapFromVerification(verification) {
   return classifyVerifyGap(verification) === 'volume_only';
 }
 
+function onlyRemuxGapFromVerification(verification) {
+  const reasons = verification?.reasonCodes || [];
+  return verification?.result === 'failed' && reasons.length > 0 &&
+    reasons.every((code) => REMUX_FIXABLE_CODES.has(code));
+}
+
 function transcodeFixableWithoutSpecExternal(verification) {
   const kind = classifyVerifyGap(verification);
   return kind === 'volume_only' || kind === 'transcode_fixable';
@@ -63,6 +70,7 @@ module.exports = Object.freeze({
   TRANSCODE_FIXABLE_CODES,
   classifyVerifyGap,
   onlyVolumeGapFromVerification,
+  onlyRemuxGapFromVerification,
   requiresExternalSourceFromVerification,
   shouldTranscodeExternalImport,
   transcodeFixableWithoutSpecExternal,

@@ -33,6 +33,16 @@ function probe(overrides = {}) {
     subtitleStreams:Object.freeze([]), discTopology:null, ...overrides });
 }
 
+test('Aftercare distinguishes mislabeled Matroska from a real MP4 container', () => {
+  const mandatoryMedia = { mediaForm:'stream_file', videoCodec:'hevc', container:'matroska',
+    fileExtension:'mkv', minimumRasterClass:'none', acceptedPrimaryAudioClasses:[] };
+  const input = { mandatoryMedia, space:{ maxSizeBytes:null }, location:'movie.mp4', sizeBytes:10_000 };
+  assert.deepEqual(evaluateAftercareConformance({ ...input, probe:probe() }).reasonCodes,
+    ['file_extension_unmet']);
+  assert.deepEqual(evaluateAftercareConformance({ ...input, probe:probe({ container:'mp4' }) }).reasonCodes,
+    ['container_unmet', 'file_extension_unmet']);
+});
+
 test('Aftercare primary stream selection is default-first instead of array-first', () => {
   const value = probe({
     videoStreams:Object.freeze([video(0, 'h264', false), video(3, 'hevc', true)]),

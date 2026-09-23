@@ -391,10 +391,12 @@ function createBetaRecommendedRules() {
     requiredFieldCodes: ['tmdb_movie_id', 'title', 'year_or_release_date', 'plot', 'genre', 'actor', 'director'],
     requiredArtifactKinds: ['nfo', 'poster'],
     layoutModel: 'single',
-    noRatingMedia: media({ mediaForm: 'stream_file' }),
+    noRatingMedia: media({ mediaForm: 'stream_file', container: 'matroska', fileExtension: 'mkv' }),
     ratedMedia: (rating) => media({
       mediaForm: 'stream_file',
       videoCodec: 'hevc',
+      container: 'matroska',
+      fileExtension: 'mkv',
       minimumRasterClass: rating === 5 ? '4k' : 'none',
       acceptedPrimaryAudioClasses: rating === 5 ? HIGH_QUALITY_AUDIO : [],
     }),

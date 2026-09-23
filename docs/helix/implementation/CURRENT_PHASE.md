@@ -6,7 +6,7 @@
 
 2026-09-12 UAT-251生产复验追加：用户确认修复已接受瑕疵误识别、9项误建维护Case及19部收藏状态。隔离实施`codex/aftercare-accepted-defects`；读取精确Handoff B冻结要求、正式取消未提交的自动瑕疵修复、重新检查旧笼统结论；保护原片、授权与历史，交统一部署负责人发布。证据见`implementation/evidence/UAT-251_ACCEPTED_DEFECT_RECOVERY_20260912.md`（执行包相对路径为`evidence/`）。
 
-更新：2026-09-12。ACTIVE；合同审查及三项用户确认已完成，用户要求整理文档后继续推进。
+更新：2026-09-23。ACTIVE；UAT-266 Movie容器与扩展名统一已获用户确认，实施和验证进行中；既有合同审查及三项用户确认保持有效。
 唯一排程为[Master Plan](../CURRENT_PLAN.md)，状态及每项现行关闭条件为[UAT总表](../UAT_ITERATION_REGISTER.md)。
 
 ## 当前执行位置

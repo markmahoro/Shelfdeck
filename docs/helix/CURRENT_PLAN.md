@@ -1,5 +1,9 @@
 # ShelfDeck 当前迭代计划
 
+2026-09-23 UAT-266：用户确认Movie新Run及存量收藏最终统一Matroska容器/`.mkv`。先完成规格、Libra无损Remux路由和测试，再通过Arca正式Rule Template/Shelf Standard发布使Aftercare逐项修复存量；不直接重命名或改写生产Inventory。见[实施与验收](implementation/evidence/UAT-266_MOVIE_MATROSKA_STANDARD_20260923.md)。
+
+2026-09-22 部署批次调整：125/212/250独立修复已上线。251的旧Root修复已随19d13f7b58上线，7误Case终结、执行停止/资源释放、19项真实重查及黑寡妇partial正式回收完成；264的新Workspace通用回收验证独立记录，3份历史NFO人工恢复与263切Root继续受原合同确认和物理收尾门禁约束。三个历史文件不再被误列为251 Case终结的前置条件；任何已Commit或既有合法终态必须保留。证据见CURRENT_STATUS与251既有记录，不另建计划。
+
 2026-09-22 用户授权修复整理失败，并要求网络方案保持简单。接续 UAT-125/212/250：Provider 有限退避与脱敏诊断、Formation 当前事实过滤、转码预检本地超时与取消。隔离分支 `codex/formation-failure-convergence`，不重置生产条目；验证后交统一部署负责人。证据见 [修复记录](implementation/evidence/UAT-125_212_250_FAILURE_CONVERGENCE_20260922.md)。
 
 2026-09-20 本线程用户追加并授权：先完成 UAT-262 工程过程数据清理、UAT-263 Libra/Aftercare 共用用户 Workspace 设置、UAT-264 自动回收规则对齐，再返回 UAT-251 黑寡妇卡住与已接受瑕疵误转码主线。允许核验后清理旧工程备份/tar/闲置测试副本；保护生产事实、原媒体、未决 Effect 和必要恢复资料。共用物理设置不合并领域 Owner，Aftercare 不要求额外配置。按本轮指令完成本地验证和标准发布；不新增任意 Formation Reset。
@@ -60,4 +64,4 @@
 
 ## UAT-265 图片角色修复（2026-09-22）
 
-用户授权修正带电影名前缀图片的角色识别。Procurement两处规则共用精确分类，保持既有归属边界；本地验证后交部署负责人统一上线。旧收藏不因新识别规则自动重分类，局内人恢复须沿用Arca正式瑕疵修复。见[证据](implementation/evidence/UAT-265_PREFIXED_ARTWORK_ROLE_20260922.md)。
+用户授权修正带电影名前缀图片的角色识别。Procurement两处规则共用精确分类，保持既有归属边界；已于459efebbf2完成统一生产发布及适用验证。旧收藏不因新识别规则自动重分类，局内人恢复须沿用Arca正式瑕疵修复。见[证据](implementation/evidence/UAT-265_PREFIXED_ARTWORK_ROLE_20260922.md)。

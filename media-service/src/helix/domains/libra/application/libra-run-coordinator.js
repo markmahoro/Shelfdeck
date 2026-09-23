@@ -29,6 +29,7 @@ const { coversRequirementGaps } = require('../model/defect-admission-contracts')
 const { sizeCapRetryDecision, sourceRequiresExternalSearch } = require('../model/media-production-contracts');
 const {
   classifyVerifyGap,
+  onlyRemuxGapFromVerification,
   shouldTranscodeExternalImport,
 } = require('../model/media-production-routing');
 const { artifactVerificationContext } = require('../planning/libra-production-planners');
@@ -735,6 +736,22 @@ function createLibraRunCoordinator(options){
         workspaceRevision:workspace.currentRevision});
     }
     const selection=selectedOutput(direct);
+    if(selection.result!=='selected' && onlyRemuxGapFromVerification(mediaVerification(direct))){
+      const remux=remuxMediaSelectionWork(snapshot),remuxSubmitted=submit(remux),remuxStatus=options.workResultReader.status(remux.workId);
+      if(!workSucceeded(remuxStatus)){
+        if(workFailed(remuxStatus))return terminalWork(snapshot,remux,remuxStatus);
+        return Object.freeze({kind:'pending',phase:'workspace_media_remux_selection',libraRunId,
+          workId:remux.workId,replayed:remuxSubmitted.replayed,materialInputForm:snapshot.materialInputForm,
+          workspaceId:workspace.workspaceId,workspaceRevision:workspace.currentRevision});
+      }
+      attachWorkspaceOutputs(snapshot,workspace,remux);
+      const remuxSelection=selectedOutput(remux);
+      if(remuxSelection.result!=='selected')return requiresExternalSource(remux)
+        ?ensureExternalSelection(snapshot,workspace,{priorSelectionWorkId:remux.workId})
+        :ensureTranscodeSelection(snapshot,workspace,
+          {sourceWorkId:sourceMedia.workId,priorSelectionWorkId:remux.workId});
+      return ensureDelivery(snapshot,workspace,remux);
+    }
     if(selection.result!=='selected')return requiresExternalSource(direct)
       ?snapshot.run.authorizedDefectManifest?.defects?.some((item)=>Boolean(item.originalMediaVerificationId))
         ?ensureDelivery(snapshot,workspace,direct)

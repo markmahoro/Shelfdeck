@@ -107,7 +107,7 @@ SSOT: §9.1.2, §9.4.3, §9.4.6, §5.5.3–§5.5.7, §6.3–§6.6
 | HB-B.08 | 变更产品只在 Libra Workspace 生产；已合规输入真实 no-op；容器不合规真实 Remux；编码或大小不合规真实 Transcode | E2E, FS, PROBE |
 | HB-B.09 | BDMV/ISO 在形成可消费 `stream_file` 之前不能 On-deck | E2E, FS, PROBE, NEG |
 | HB-B.10 | Movie On-deck 要求有效 TMDB Movie Identity；NFO 有效值不被 TMDB 默认覆盖；产品含可解析 NFO 与可解码 Poster | E2E, PROVIDER, FS, NEG |
-| HB-B.11 | 1–5 星 Movie 空间/媒体要求按 SSOT §5.5.7；无评分以 stream-file 正式 On-deck，不强制 4K/高质量音轨/空间上限 | E2E, NEG |
+| HB-B.11 | 1–5 星 Movie 空间/媒体要求按 SSOT §5.5.7；所有分支最终须为Probe确认的Matroska与`.mkv`，无评分以 stream-file 正式 On-deck，不强制HEVC/4K/高质量音轨/空间上限 | E2E, NEG, PROBE |
 | HB-B.12 | **五星要求不可达**（无合格 4K 源等）时，页面进入可读「需要处理 / 冻结」，不得伪装完成，也不得当作监测 DONE；这是合法终态，不阻断其余可上架账 | UI, E2E, NEG |
 | HB-B.13 | 外部寻源（已配置 MoviePilot 时）按当前 Requirement 预筛；明确不合规不下载；真实字节仍由 Probe 验收 | UI, API, PROVIDER, NEG |
 | HB-B.14 | 只有 Arca 独立接受且 On-deck Commit 成功，才建立或扩充 Shelf Entry 与 Deck Fact；Handoff B Accepted 不是「已完成整理」 | E2E, NEG |
@@ -153,7 +153,7 @@ SSOT: §9.1.4, §9.1.5, §9.4.7, §5.7
 | HB-D.04 | 不确定/不可修复显示 `需要处理`，不提供虚假修复按钮；不自动创建 Off-deck 授权 | UI, API, E2E, NEG, AUDIT |
 | HB-D.05 | Aftercare不补齐、不重试已接纳的精确瑕疵，但继续处理同一Entry中新出现或未授权的其他问题 | API, E2E, NEG, RECOVERY |
 | HB-D.06 | Aftercare 只用 Arca 已拥有且位置明确的材料，不回流 Procurement/Libra 采购新媒体 | E2E, NEG, AUDIT |
-| HB-E.01 | 发布新 Movie Shelf Standard / Placement 后，现有 Entry 重新评估；身份保持同一 Entry | UI, API, E2E |
+| HB-E.01 | 发布新 Movie Shelf Standard / Placement 后，现有 Entry 重新评估；原`.mp4`按真实容器与其他Gap选择Remux或Transcode，正式修复为Matroska/`.mkv`并保持同一 Entry | UI, API, E2E, PROBE |
 | HB-E.02 | 完全可规划 Gap 走 Aftercare；需要外部 Acquisition 的 Gap 保持可解释 attention | UI, API, E2E, NEG |
 
 ### HB-F — 评分、已看与人物

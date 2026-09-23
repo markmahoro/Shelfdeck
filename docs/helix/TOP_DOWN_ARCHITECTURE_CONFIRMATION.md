@@ -3684,7 +3684,7 @@ Resolution到达后必须选择No-rating分支而不是继续保持unresolved。
 
 | contentProfile | No-rating Mandatory Media Requirements | Space Requirement |
 | --- | --- | --- |
-| movie | `mediaForm=stream_file`；不强制HEVC、4K或高质量主音轨 | 不设置评分档位`maxSizeGB` |
+| movie | `mediaForm=stream_file`、Matroska容器与`.mkv`文件扩展名；不强制HEVC、4K或高质量主音轨 | 不设置评分档位`maxSizeGB` |
 | series | 每个Episode为HEVC；不另设`mediaForm` | 不设置评分档位`maxSizeGB` |
 | jav | HEVC、Matroska容器与`.mkv`文件扩展名；不另设`mediaForm` | Beta推荐Template初始`maxSizeGB=2 GiB`；不按评分分档 |
 | western_adult | HEVC、Matroska容器与`.mkv`文件扩展名；不另设`mediaForm` | Beta推荐Template初始`maxSizeGB=1 GiB`；不按评分分档 |
@@ -3695,7 +3695,7 @@ JAV与Western Adult的Beta推荐Rule Template不把`rating`声明为Decision Inp
 
 `mediaForm=stream_file`是On-deck产品可直接消费的基础形式，不是偏好驱动的Optimize手段。Movie即使没有
 Resolved rating也不能以BDMV、ISO或其他播放器支持不稳定的原盘/光盘目录形态On-deck；合规H.264、HEVC等
-stream file不因No-rating Rule被强制统一转码。
+stream file不因No-rating Rule被强制统一视频转码，但容器或扩展名不合规时必须无损Remux并验证成品。
 
 `mediaForm=stream_file`只作为Movie的显式Requirement。Series已经由“每个Delivery Episode至少被一份
 Primary Video Physical Material覆盖，且Primary必须是普通可播放文件”的Structure Requirement排除Season
@@ -3713,11 +3713,11 @@ Movie的Beta系统推荐Rule Template按User Perception评分提供以下初始�
 
 | Rating | maxSizeGB | Mandatory Media Requirements |
 | --- | ---: | --- |
-| 1 star | 2 GiB | HEVC、`mediaForm=stream_file` |
-| 2 star | 4 GiB | HEVC、`mediaForm=stream_file` |
-| 3 star | 8 GiB | HEVC、`mediaForm=stream_file` |
-| 4 star | 14 GiB | HEVC、`mediaForm=stream_file` |
-| 5 star | 50 GiB | HEVC、`mediaForm=stream_file`、4K、高质量主音轨 |
+| 1 star | 2 GiB | HEVC、`mediaForm=stream_file`、Matroska、`.mkv` |
+| 2 star | 4 GiB | HEVC、`mediaForm=stream_file`、Matroska、`.mkv` |
+| 3 star | 8 GiB | HEVC、`mediaForm=stream_file`、Matroska、`.mkv` |
+| 4 star | 14 GiB | HEVC、`mediaForm=stream_file`、Matroska、`.mkv` |
+| 5 star | 50 GiB | HEVC、`mediaForm=stream_file`、Matroska、`.mkv`、4K、高质量主音轨 |
 
 `maxSizeGB`是上限，不是目标体积；已经更小的合格文件不得为“贴近上限”而补大。HEVC与
 `mediaForm=stream_file`是所有评分的强制满足项，空间已合格也不能豁免。5星高质量主音轨白名单为：
@@ -4687,7 +4687,7 @@ Process Root拥有用户可配置Policy。
 已关闭：
 
 - `L5-A1 — No-rating On-deck`：User Perception不是On-deck准入条件。`rating=not_found`命中明确
-  No-rating Rule而不伪造评分；Movie要求Metadata完整与`mediaForm=stream_file`但不强制HEVC或
+  No-rating Rule而不伪造评分；Movie要求Metadata完整、`mediaForm=stream_file`、Matroska与`.mkv`但不强制HEVC或
   `maxSizeGB`；Series要求Metadata完整与HEVC但不另设`mediaForm`或`maxSizeGB`；JAV与Western Adult
   的Beta推荐Template要求Metadata完整、HEVC、Matroska容器与`.mkv`扩展名，并分别提供`2 GiB`和
   `1 GiB`的Profile初始空间上限。rating后来可解析造成的On-deck Gap由Arca/Aftercare闭环。
@@ -4704,7 +4704,7 @@ Process Root拥有用户可配置Policy。
   Shelf Entry。Beta不建设理论Episode目录或缺集Policy。
 - `L5-Q3 — Non-movie space targets`：`Q3-A`已确认Series按Episode、JAV与Western Adult按single进行
   Space Acceptance，Season aggregate size只用于统计；`Q3-B1`已确认有rating时Movie要求HEVC与
-  `mediaForm=stream_file`，Series/JAV/Western Adult要求HEVC且不另设`mediaForm`；`Q3-B2`已确认
+  `mediaForm=stream_file`、Matroska与`.mkv`，Series/JAV/Western Adult要求HEVC且不另设`mediaForm`；`Q3-B2`已确认
   Series高评分不追加4K或高质量音轨；`Q3-C`已确认Beta推荐Template的Series 1–5星单Episode初始上限
   依次为`0.75/1/1.5/2/3 GiB`，JAV与Western Adult初始兜底上限分别为`2 GiB`和`1 GiB`且不受User
   Perception评分影响。数值可以通过复制并修改Template调整，但计量颗粒度不变。两类成人推荐Profile
@@ -15703,3 +15703,7 @@ Arca在创建Case的同一次CareRequirement持久化中冻结创建时有效要
 已确认瑕疵合同的实现澄清：Arca用自己的On-deck Commit→Custody精确Package ID/digest关联已交接的AcceptanceRequirementSnapshot，不从当前评分或缺失决策事实重算历史要求。ProductDeliveryPort新增`readAcceptedRequirements`有界历史只读方法，最多500个精确Package引用；Libra验证不可变Package digest、Provenance/Attestation及Snapshot来源后返回冻结要求。此为既有Handoff B产品证据读取，不新增Handoff、写权限或Arca到Libra内部仓储访问。Arca验明Shelf、Run及已接受Manifest关联；缺证明确失败，不能扩大豁免。
 
 自动Case若包含当前仍已授权的精确Finding，且没有Inventory Commit，则在准入、继续执行及物理Effect前经既有cancel/drain/terminate结束错误尝试，原因`accepted_defect_requires_manual_repair`，保留原片、授权与历史；已Commit继续正式Settlement/收尾。手动意图不受此自动Case门禁阻断。旧笼统`media_strategy_unavailable`检查结果只能经新Assessment重查取代，不直接解释成瑕疵豁免，不伪造健康。
+
+### UAT-266：Movie 成品统一 Matroska/.mkv（2026-09-23）
+
+Movie所有评分及无评分分支均以实际Probe确认Matroska容器，以最终文件名确认`.mkv`扩展名。仅修改后缀不能让真实MP4容器合规；仅有容器或后缀Gap且其他要求已满足时，Libra在自己的Workspace无损Remux并复验，再由Arca正式上架。已上架Entry采用当前Shelf Standard重新评估：Arca Aftercare对同类Gap在自己的Workspace无损Remux，正式提交新的Inventory revision与文件安置，保留同一Shelf Entry。若还存在编码、大小等Gap，须按相应规格规划Transcode或其他既有路径，不把改后缀当作修复。
