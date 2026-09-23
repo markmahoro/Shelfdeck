@@ -43,14 +43,22 @@ test('Arca Formation completion requires one On-deck Commit, Shelf Entry, and ma
     .run('commit-complete','run-complete','entry-complete',1,1,digest(22),digest(23),digest(24),30);
   database.close();
   try {
-    const projection = createFormationStatusProjection({ schemaManifest, unitOfWork:createSqliteUnitOfWork({ kernel }) });
+    let workState = { open:false, latestState:'failed', failureCode:'P4_EVENT_INPUT_PREPARATION_FAILED' };
+    const projection = createFormationStatusProjection({ schemaManifest, unitOfWork:createSqliteUnitOfWork({ kernel }),
+      workResultReader:{ scopedWorkStatus(scope) {
+        assert.equal(scope.processId, 'run-pending');
+        return workState;
+      } },
+    });
     const result = projection.read(['offer-rejected', 'offer-pending', 'offer-complete', 'offer-without-receipt']);
     assert.equal(result.get('offer-rejected').stage, 'attention_required');
-    assert.equal(result.get('offer-pending').stage, 'in_progress');
-    assert.deepEqual(result.get('offer-complete'), {
-      stage:'completed', reasonCode:null, completedAtMs:30, shelfEntryId:'entry-complete', onDeckRunId:'run-complete',
-    });
+    assert.equal(result.get('offer-pending').stage, 'attention_required');
+    assert.equal(result.get('offer-pending').reasonCode, 'P4_EVENT_INPUT_PREPARATION_FAILED');
+    assert.equal(result.get('offer-complete').stage, 'completed');
+    assert.equal(result.get('offer-complete').onDeckCommitReceipt.receiptId, 'commit-complete');
     assert.equal(result.has('offer-without-receipt'), false);
+    workState = { open:true, latestState:null, failureCode:null };
+    assert.equal(projection.read(['offer-pending']).get('offer-pending').stage, 'in_progress');
   } finally {
     kernel.close();
     fs.rmSync(root, { recursive:true, force:true });

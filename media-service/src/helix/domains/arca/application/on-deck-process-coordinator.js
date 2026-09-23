@@ -208,7 +208,15 @@ function createOnDeckProcessCoordinator(options) {
       return Object.freeze({ kind:'commit_pending', processId, workId:commit.workId });
     }
     const offerContext = options.contextReader.readOffer(refs);
-    const attemptId = canonicalDigest({schema:'arca.acceptance-attempt-id@1',offerId:offerContext.offer.offerId,
+    const committedRun = disposition === 'rejected' ? null :
+      options.contextReader.onDeck.findRunByOffer(offerContext.offer.offerId);
+    const frozen = committedRun && options.contextReader.acceptance.readRunResponsibility(committedRun.onDeckRunId);
+    if (disposition !== 'rejected' && (!frozen || frozen.offerId !== offerContext.offer.offerId ||
+        frozen.onDeckPackageId !== offerContext.offer.onDeckPackageId ||
+        frozen.packageDigest !== offerContext.offer.packageDigest)) {
+      throw new Error('Accepted Handoff B responsibility is unavailable or stale.');
+    }
+    const attemptId = frozen?.acceptanceAttemptId || canonicalDigest({schema:'arca.acceptance-attempt-id@1',offerId:offerContext.offer.offerId,
       onDeckPackageId:offerContext.offer.onDeckPackageId,packageDigest:offerContext.offer.packageDigest,
       standardRevision:offerContext.shelf.currentStandardRevision,placementRevision:offerContext.shelf.currentPlacementRevision});
     const resolved = recovery.resolve(processId, attemptId, canonicalDigest({ assessmentWorkId:assessment.workId, commitWorkId:commit.workId }));
@@ -219,6 +227,9 @@ function createOnDeckProcessCoordinator(options) {
     if (!accepted) return Object.freeze({ kind:'rejected', processId, workId:commit.workId });
     const assessmentFact = options.contextReader.acceptance.readAssessment(attemptId);
     const responsibility = options.contextReader.acceptance.deriveAcceptedResponsibility(assessmentFact);
+    if (responsibility.onDeckRunId !== frozen.onDeckRunId) {
+      throw new Error('Accepted Handoff B Run no longer matches its frozen Decision.');
+    }
     const onDeck = onDeckWork(responsibility.onDeckRunId, refs, commit);
     submit(onDeck);
     return Object.freeze({ kind:succeeded(options.workResultReader.status(onDeck.workId)) ? 'terminal' : 'on_deck_pending',

@@ -51,7 +51,6 @@ function createTerminalStageHistoryObserver(options) {
     const packageValue=delivery.onDeckProductPackage;
     const shelf=shelves.getShelf(responsibility.shelfId);
     requireProof(shelf && ['active','deregistering'].includes(shelf.status) &&
-      Number(shelf.currentPlacementRevision)===responsibility.placementRevision && Number(shelf.currentStandardRevision)===responsibility.standardRevision &&
       shelf.target.endpointId===slot.targetEndpointId,'trusted Shelf scope changed');
     const root=path.resolve(shelf.target.rootLocation),target=path.resolve(slot.targetDirectory),directory=path.resolve(slot.slotDirectory);
     requireProof(slot.schemaRef==='helix://contracts/types/TargetCommitSlotHandle/v1' && slot.schemaVersion===1 && slot.transactionRevision===1 &&

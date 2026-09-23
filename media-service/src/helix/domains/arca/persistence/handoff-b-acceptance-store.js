@@ -1506,15 +1506,34 @@ function createHandoffBAcceptanceStore(options) {
         const attempt = repo.invoke('find_attempt', {
           acceptance_attempt_id: decision.acceptance_attempt_id,
         });
+        const receiptRow = repo.invoke('find_receipt', {
+          acceptance_decision_id: decision.acceptance_decision_id,
+        });
         const finalRow = repo.invoke('find_final_inventory_decision', {
           on_deck_run_id: onDeckRunId,
         });
-        if (!attempt || !finalRow) {
+        if (!attempt || !finalRow || !receiptRow || receiptRow.outcome !== 'accepted' ||
+            receiptRow.custody_id !== custody.custody_id ||
+            receiptRow.offer_id !== decision.offer_id ||
+            receiptRow.on_deck_package_id !== decision.on_deck_package_id ||
+            receiptRow.package_digest !== decision.package_digest ||
+            attempt.state !== 'accepted' ||
+            attempt.offer_id !== decision.offer_id ||
+            Number(attempt.standard_revision) !== Number(decision.standard_revision) ||
+            Number(attempt.placement_revision) !== Number(decision.placement_revision)) {
           fail('P14_HANDOFF_B_RUN_HISTORY', 'On-deck Run responsibility facts are incomplete.');
         }
         let finalInventoryDecision;
         try { finalInventoryDecision = JSON.parse(finalRow.decision_json); }
         catch { fail('P14_FINAL_INVENTORY_DECISION_CORRUPT', 'Final Inventory Decision JSON is corrupt.'); }
+        const receipt = mapReceipt(receiptRow);
+        if (receipt.receiptDigest !== canonicalDigest(without(receipt, 'receiptDigest')) ||
+            finalRow.decision_digest !== run.final_inventory_decision_digest ||
+            finalInventoryDecision.decisionDigest !== finalRow.decision_digest ||
+            finalRow.shelf_id !== decision.shelf_id ||
+            Number(finalRow.placement_revision) !== Number(decision.placement_revision)) {
+          fail('P14_HANDOFF_B_RUN_HISTORY', 'On-deck Run accepted history is inconsistent.');
+        }
         return Object.freeze({
           onDeckRunId,
           custodyId: custody.custody_id,

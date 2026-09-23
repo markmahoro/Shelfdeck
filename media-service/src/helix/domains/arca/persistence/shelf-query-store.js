@@ -57,12 +57,20 @@ function createShelfQueryStore(options) {
   function mapShelf(row) {
     return row && Object.freeze({ shelfId: row.shelf_id, name: row.name, target: Object.freeze({ endpointId: row.target_endpoint_id, rootLocation: row.target_root_location, mountScopeId: row.target_mount_scope_id, mountScopeRevision: row.target_mount_scope_revision }), status: row.status, currentStandardRevision: row.current_standard_revision, currentPlacementRevision: row.current_placement_revision, routingProjection: Object.freeze({ revision: row.routing_projection_revision, digest: row.routing_projection_digest }), createdAtMs: row.created_at_ms, updatedAtMs: row.updated_at_ms });
   }
-  function readShelf(repo, shelfId) {
+  function readShelf(repo, shelfId, basis = null) {
     const shelf = mapShelf(repo.invoke('find_shelf', { shelf_id: shelfId })); if (!shelf) return null;
-    const standard = repo.invoke('find_standard', { shelf_id: shelfId, revision: shelf.currentStandardRevision });
-    const placement = repo.invoke('find_placement', { shelf_id: shelfId, revision: shelf.currentPlacementRevision });
-    if (!standard || !placement) fail('P14_SHELF_POINTER_BROKEN', 'Shelf current pointers do not resolve.');
-    return Object.freeze({ ...shelf,
+    const standardRevision = basis?.standardRevision ?? shelf.currentStandardRevision;
+    const placementRevision = basis?.placementRevision ?? shelf.currentPlacementRevision;
+    if (!Number.isSafeInteger(standardRevision) || standardRevision < 1 || standardRevision > shelf.currentStandardRevision ||
+        !Number.isSafeInteger(placementRevision) || placementRevision < 1 || placementRevision > shelf.currentPlacementRevision) {
+      fail('P14_SHELF_BASIS_INVALID', 'Shelf Basis revisions are invalid or ahead of the current Shelf.');
+    }
+    const standard = repo.invoke('find_standard', { shelf_id: shelfId, revision: standardRevision });
+    const placement = repo.invoke('find_placement', { shelf_id: shelfId, revision: placementRevision });
+    if (!standard || !placement) fail('P14_SHELF_POINTER_BROKEN', 'Shelf Basis revisions do not resolve.');
+    // On-deck projections consume the accepted revision fields while Target
+    // identity and status stay current for the physical safety fence.
+    return Object.freeze({ ...shelf, currentStandardRevision: standardRevision, currentPlacementRevision: placementRevision,
       standard: Object.freeze({ shelfId, revision: standard.revision, ruleTemplateId: standard.rule_template_id, ruleTemplateRevision: standard.rule_template_revision, schemaRef: standard.standard_schema_ref, value: JSON.parse(standard.standard_json), digest: standard.standard_digest, effectiveAtMs: standard.effective_at_ms }),
       placement: Object.freeze({ shelfId, revision: placement.revision, schemaRef: placement.policy_schema_ref, value: JSON.parse(placement.policy_json), digest: placement.policy_digest, effectiveAtMs: placement.effective_at_ms }),
     });
@@ -398,6 +406,9 @@ function createShelfQueryStore(options) {
   function getShelf(shelfId) {
     return execute((context) => readShelf(context.repository(repository.repositoryId), shelfId));
   }
+  function getShelfAtBasis(shelfId, basis) {
+    return execute((context) => readShelf(context.repository(repository.repositoryId), shelfId, basis));
+  }
   return Object.freeze({
     repositoryManifest: Object.freeze({ component: 'ArcaShelfRepository', repositoryId: repository.repositoryId, tableIds: repository.tableIds }),
     createShelf,
@@ -416,6 +427,7 @@ function createShelfQueryStore(options) {
     overviewStats:()=>execute(context=>Object.freeze({activeCount:Number(context.repository(repository.repositoryId)
       .invoke('overview_counts',{}).find(row=>row.group_value==='active')?.row_count||0)})),
     getShelf,
+    getShelfAtBasis,
   });
 }
 

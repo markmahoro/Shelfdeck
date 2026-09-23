@@ -46,7 +46,7 @@ function createFormationStatusProjection(options) {
     const ids = [...new Set((offerIds || []).filter((value) => typeof value === 'string' && value))].sort();
     if (ids.length > MAX_ITEMS) throw new RangeError('Arca Formation status projection page exceeds its bound.');
     if (!ids.length) return new Map();
-    return options.unitOfWork.execute([{
+    const result = options.unitOfWork.execute([{
       participantId: 'arca_formation_status_read', owner: 'arca', repositories: [repository], execute(context) {
         const repo = context.repository(repository.repositoryId);
         const receipts = repo.invoke('receipts', { values: ids });
@@ -120,6 +120,20 @@ function createFormationStatusProjection(options) {
         return result;
       },
     }]).arca_formation_status_read;
+    if (typeof options.workResultReader?.scopedWorkStatus === 'function') {
+      for (const [offerId, status] of result) {
+        if (status.stage !== 'in_progress' || !status.onDeckRunId) continue;
+        const work = options.workResultReader.scopedWorkStatus({
+          ownerDomain:'arca', processType:'arca_ondeck_run', processId:status.onDeckRunId,
+          workKind:'on_deck_execution',
+        });
+        if (!work.open && work.latestState === 'failed') {
+          result.set(offerId, Object.freeze({ ...status, stage:'attention_required',
+            reasonCode:work.failureCode || 'ARCA_ONDECK_EXECUTION_FAILED' }));
+        }
+      }
+    }
+    return result;
   }
 
   return Object.freeze({ read });

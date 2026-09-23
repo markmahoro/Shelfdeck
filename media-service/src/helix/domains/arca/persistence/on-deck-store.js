@@ -1,5 +1,6 @@
 'use strict';
 
+const path = require('node:path');
 const {
   canonicalDigest,
   canonicalJson,
@@ -42,6 +43,17 @@ class Replay extends Error {
 
 function fail(code, message, details) {
   throw new OnDeckStoreError(code, message, details);
+}
+
+function assertAcceptedTargetScope(shelf, targetLocation) {
+  const root = path.resolve(shelf.target.rootLocation);
+  const target = path.resolve(targetLocation);
+  const relativeTarget = path.relative(root, target);
+  if (!path.isAbsolute(shelf.target.rootLocation) ||
+      relativeTarget.startsWith('..') || path.isAbsolute(relativeTarget)) {
+    fail('P14_ONDECK_TARGET_SCOPE_CHANGED',
+      'Accepted Final Inventory Decision is outside the current Shelf Target.');
+  }
 }
 
 function stable(schema, value) {
@@ -586,6 +598,7 @@ function createOnDeckStore(options) {
 
   function verifyAcceptedResponsibility(request) {
     const decision = request.finalInventoryDecision;
+    assertAcceptedTargetScope(request.shelf, request.targetLocation);
     return options.unitOfWork.execute([{
       participantId: 'arca_ondeck_accepted_responsibility_read',
       owner: 'arca',
@@ -607,7 +620,7 @@ function createOnDeckStore(options) {
               canonicalJson(decision) ||
             existingDecision.shelf_id !== request.shelf.shelfId ||
             Number(existingDecision.placement_revision) !==
-              request.shelf.currentPlacementRevision ||
+              decision.placementRevision ||
             existingDecision.target_endpoint_id !==
               request.shelf.target.endpointId ||
             existingDecision.target_location !== request.targetLocation ||
@@ -1696,6 +1709,7 @@ function resultFromRows(receipt, completion, commitDigest) {
 module.exports = Object.freeze({
   OnDeckStoreError,
   createOnDeckStore,
+  assertAcceptedTargetScope,
   deriveOnDeckControlChanges,
   retiredStagedNfoMembers,
 });

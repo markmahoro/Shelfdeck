@@ -111,6 +111,52 @@ function boundedSettlementContext(context, responsibility, verified, materialKey
   });
 }
 
+function acceptedRunBasis(current, onDeckRunId, acceptance, shelves, { boundedSettlement = false } = {}) {
+  const recorded = acceptance.readRunResponsibility(onDeckRunId);
+  if (!recorded || recorded.onDeckRunId !== onDeckRunId ||
+      recorded.offerId !== current.offer.offerId ||
+      recorded.onDeckPackageId !== current.offer.onDeckPackageId ||
+      recorded.packageDigest !== current.offer.packageDigest ||
+      recorded.shelfId !== current.shelf.shelfId) {
+    throw new Error('Arca On-deck Run identity is unavailable or stale.');
+  }
+  const shelf = shelves.getShelfAtBasis(recorded.shelfId, recorded);
+  const context = Object.freeze({ ...current, shelf });
+  const assessmentId = stable('arca.acceptance-attempt-id@1', {
+    offerId: current.offer.offerId,
+    onDeckPackageId: current.offer.onDeckPackageId,
+    packageDigest: current.offer.packageDigest,
+    standardRevision: recorded.standardRevision,
+    placementRevision: recorded.placementRevision,
+  });
+  if (assessmentId !== recorded.acceptanceAttemptId ||
+      shelf.currentStandardRevision !== recorded.standardRevision ||
+      shelf.currentPlacementRevision !== recorded.placementRevision) {
+    throw new Error('Arca On-deck Run frozen Acceptance Basis is inconsistent.');
+  }
+  const requirement = current.packageValue.productionProvenance?.acceptanceRequirementSnapshot;
+  if (!requirement || requirement.shelfStandardRevision !== recorded.standardRevision ||
+      requirement.shelfStandardDigest !== shelf.standard.digest) {
+    throw new Error('Accepted Package requirements do not match the frozen Shelf Standard.');
+  }
+  if (boundedSettlement) return Object.freeze({ context, recorded });
+  const assessment = acceptance.readAssessment(assessmentId);
+  if (!assessment || assessment.attemptState !== 'accepted') {
+    throw new Error('Arca Acceptance has not established On-deck responsibility.');
+  }
+  const responsibility = acceptance.deriveAcceptedResponsibility(assessment);
+  const accepted = acceptance.readAccepted({
+    acceptanceAttemptId:assessmentId, offerMessage:current.offer,
+    libraRunId:current.offer.libraRunId, onDeckRunId,
+  });
+  if (!accepted || responsibility.onDeckRunId !== onDeckRunId ||
+      responsibility.custodyId !== recorded.custodyId ||
+      accepted.finalInventoryDecision.decisionDigest !== recorded.finalInventoryDecision.decisionDigest) {
+    throw new Error('Arca On-deck Run accepted history is unavailable or stale.');
+  }
+  return Object.freeze({ context, assessment, responsibility, accepted, recorded });
+}
+
 function createOnDeckContextReader(options) {
   if (!options?.productDeliveryPort || typeof options.productDeliveryPort.readPackage !== 'function') {
     throw new TypeError('Arca On-deck Context requires the formal Libra Product Delivery port.');
@@ -153,38 +199,14 @@ function createOnDeckContextReader(options) {
     // A new Acceptance may only target an active Shelf.  An already Accepted
     // On-deck Run, however, owns an immutable responsibility fence and must be
     // allowed to finish while Shelf Deregistration drains that responsibility.
-    const context = readOffer(dependencyRefs, { allowDeregistering: true });
-    const assessmentId = stable('arca.acceptance-attempt-id@1', {
-      offerId: context.offer.offerId,
-      onDeckPackageId: context.offer.onDeckPackageId,
-      packageDigest: context.offer.packageDigest,
-      standardRevision: context.shelf.currentStandardRevision,
-      placementRevision: context.shelf.currentPlacementRevision,
-    });
-    const assessment = acceptance.readAssessment(assessmentId);
-    if (!assessment || assessment.attemptState !== 'accepted') {
-      throw new Error('Arca Acceptance has not established On-deck responsibility.');
+    const current = readOffer(dependencyRefs, { allowDeregistering: true });
+    const { context, assessment, responsibility, accepted } =
+      acceptedRunBasis(current, onDeckRunId, acceptance, shelves);
+    const finalMember = accepted.finalInventoryDecision.members?.[0];
+    if (!finalMember?.targetLocation) {
+      throw new Error('Arca On-deck Final Inventory Decision is empty.');
     }
-    const responsibility = acceptance.deriveAcceptedResponsibility(assessment);
-    const accepted = acceptance.readAccepted({
-      acceptanceAttemptId: assessmentId,
-      offerMessage: context.offer,
-      libraRunId: context.offer.libraRunId,
-      onDeckRunId,
-    });
-    if (!accepted || responsibility.onDeckRunId !== onDeckRunId) {
-      throw new Error('Arca On-deck Run identity is unavailable or stale.');
-    }
-    const feasibility = assessAcceptedInventory(
-      options.inventoryPort,
-      onDeckRunId,
-      responsibility,
-      context,
-    );
-    const targetLocation = options.inventoryPort.resolveTargetLocation({
-      shelf: context.shelf,
-      onDeckProductPackage: context.packageValue,
-    }).targetDirectory;
+    const targetLocation = path.dirname(path.resolve(finalMember.targetLocation));
     const verified = onDeck.verifyAcceptedResponsibility({
       onDeckRunId,
       custodyId: responsibility.custodyId,
@@ -193,23 +215,21 @@ function createOnDeckContextReader(options) {
       finalInventoryDecision: accepted.finalInventoryDecision,
       targetLocation,
     });
+    const feasibility = assessAcceptedInventory(
+      options.inventoryPort,
+      onDeckRunId,
+      responsibility,
+      context,
+    );
     return Object.freeze({ ...context, assessment, responsibility, accepted, verified,
       feasibility, targetLocation,
       finalInventoryDecision: accepted.finalInventoryDecision });
   }
 
   function readSettlement(onDeckRunId, dependencyRefs, materialKey) {
-    const context = readOffer(dependencyRefs, { allowDeregistering:true });
-    const responsibility = acceptance.readRunResponsibility(onDeckRunId);
-    if (!responsibility || responsibility.onDeckRunId !== onDeckRunId ||
-        responsibility.offerId !== context.offer.offerId ||
-        responsibility.onDeckPackageId !== context.offer.onDeckPackageId ||
-        responsibility.packageDigest !== context.offer.packageDigest ||
-        responsibility.shelfId !== context.shelf.shelfId ||
-        responsibility.standardRevision !== context.shelf.currentStandardRevision ||
-        responsibility.placementRevision !== context.shelf.currentPlacementRevision) {
-      throw new Error('Arca On-deck settlement responsibility is unavailable or stale.');
-    }
+    const current = readOffer(dependencyRefs, { allowDeregistering:true });
+    const { context, recorded:responsibility } =
+      acceptedRunBasis(current, onDeckRunId, acceptance, shelves, { boundedSettlement:true });
     const firstFinalMember = responsibility.finalInventoryDecision.members?.[0];
     if (!firstFinalMember?.targetLocation) {
       throw new Error('Arca On-deck settlement Final Inventory Decision is empty.');
@@ -231,6 +251,7 @@ function createOnDeckContextReader(options) {
 
 module.exports = Object.freeze({
   assessAcceptedInventory,
+  acceptedRunBasis,
   boundedSettlementContext,
   createOnDeckContextReader,
   messageFromRefs,

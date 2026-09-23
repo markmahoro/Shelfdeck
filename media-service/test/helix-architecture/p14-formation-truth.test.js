@@ -21,6 +21,18 @@ test('Formation reports business failure as blocked even when the executor commi
     'attention_required');
 });
 
+test('Failed On-deck Work takes attention in the active list while the Run still says offloading', () => {
+  const arcaStatus = { stage:'attention_required', reasonCode:'P4_EVENT_INPUT_PREPARATION_FAILED',
+    onDeckRunId:'on-deck-1' };
+  const classification = classifyFormation({ run:{state:'active'}, works:[], issue:null,
+    recovery:null, arcaStatus, productPackage:{ offerId:'offer-1' } });
+  assert.equal(classification, 'attention_required');
+  const action = nextAction([], classification, null, 'active', null, arcaStatus,
+    { offerId:'offer-1' }, 'active');
+  assert.equal(action.state, 'attention_required');
+  assert.doesNotMatch(action.label, /正在完成/);
+});
+
 test('Formation explains a zero-cast business freeze without presenting an executor failure', () => {
   const works = [{ workId:'metadata-provider-work', processId:'run-1',
     workKind:'product_metadata_observation', state:'succeeded', createdAtMs:1,

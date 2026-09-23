@@ -331,11 +331,20 @@ function createMovieOnDeckCoordinator(options) {
       fail('P14_HANDOFF_B_DELIVERY_MISMATCH',
         'Product Delivery does not conserve the official Offer identity.');
     }
-    const shelf = shelves.getShelf(offer.shelfId);
-    if (!shelf || shelf.status !== 'active') {
+    const currentShelf = shelves.getShelf(offer.shelfId);
+    const previous = onDeck.findRunByOffer(offer.offerId);
+    const frozen = previous && acceptance.readRunResponsibility(previous.onDeckRunId);
+    if (previous && (!frozen || frozen.offerId !== offer.offerId ||
+        frozen.onDeckPackageId !== offer.onDeckPackageId || frozen.packageDigest !== offer.packageDigest ||
+        frozen.shelfId !== offer.shelfId || frozen.custodyId !== previous.custodyId)) {
+      fail('P14_HANDOFF_B_REPLAY_CORRUPT', 'Accepted Offer responsibility does not match its immutable Package.');
+    }
+    if (!currentShelf || (currentShelf.status !== 'active' &&
+        !(frozen && currentShelf.status === 'deregistering'))) {
       fail('P14_HANDOFF_B_SHELF_INACTIVE',
         'Handoff B target Shelf is unavailable or inactive.');
     }
+    const shelf = frozen ? shelves.getShelfAtBasis(offer.shelfId, frozen) : currentShelf;
     const attemptId = stable('arca.acceptance-attempt-id@1', {
       offerId: offer.offerId,
       onDeckPackageId: offer.onDeckPackageId,
@@ -354,6 +363,11 @@ function createMovieOnDeckCoordinator(options) {
         placementRevision: shelf.currentPlacementRevision,
         checks: [],
       });
+    if (frozen && (frozen.acceptanceAttemptId !== attemptId ||
+        historicalResponsibility.onDeckRunId !== frozen.onDeckRunId ||
+        historicalResponsibility.custodyId !== frozen.custodyId)) {
+      fail('P14_HANDOFF_B_REPLAY_CORRUPT', 'Accepted Offer frozen identity is inconsistent.');
+    }
     const committedHistory = onDeck.readCommittedByPackage({
       onDeckPackageId: offer.onDeckPackageId,
       packageDigest: offer.packageDigest,

@@ -389,7 +389,7 @@ test('Formation active list and summary overlay current Arca truth before filter
     store.upsert(buildFormationProjectionRow(item(0,'in_progress'),3000));
     store.upsert(buildFormationProjectionRow(item(1,'in_progress'),3001));
     const freshAttention=Object.freeze({...item(0,'attention_required'),arcaStatus:Object.freeze({
-      stage:'attention_required',reasonCode:'ARCA_ONDECK_BLOCKED',onDeckRunId:'ondeck-0',
+      stage:'attention_required',reasonCode:'P4_EVENT_INPUT_PREPARATION_FAILED',onDeckRunId:'ondeck-0',
     }),nextAction:Object.freeze({label:'收藏架接纳或上架需要处理',state:'attention_required',progress:null})});
     const summaryReads=[];
     const query=createFormationQuery({store,readPipelineSubjectIds:()=>new Set(['subject-000','subject-001']),
@@ -397,12 +397,14 @@ test('Formation active list and summary overlay current Arca truth before filter
         getMany:()=>{throw new Error('List must not hydrate current facts twice.');},
         getManyWithProcessSummary:(ids)=>{summaryReads.push(ids);return ids.map((id)=>Object.freeze({...((id==='subject-000')?freshAttention:item(1,'in_progress')),subjectId:id,currentPlan:Object.freeze({
           stageKey:'media_organization',planId:`plan-${id}`,planNumber:14,title:'处理媒体文件',
-          label:'计划14 处理媒体文件',state:'running',statusText:'等待处理资源',progress:null,
+          label:'计划14 处理媒体文件',state:id==='subject-000'?'attention':'running',
+          statusText:id==='subject-000'?'执行失败':'等待处理资源',progress:null,
         })}));},
       },
       now:()=>4000,state:()=>({status:'ready',asOfMs:3999})});
     const active=query.list({section:'active'});
     assert.equal(active.items.find((row)=>row.subjectId==='subject-000').classification,'attention_required');
+    assert.equal(active.items.find((row)=>row.subjectId==='subject-000').currentPlan.statusText,'执行失败');
     assert.equal(active.items.find((row)=>row.subjectId==='subject-001').currentPlan.label,'计划14 处理媒体文件');
     assert.deepEqual(summaryReads[0],active.items.map((row)=>row.subjectId));
     assert.deepEqual(active.summary,{totalCount:2,inProgressCount:1,attentionRequiredCount:1,completedCount:0,endedCount:0});
