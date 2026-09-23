@@ -2,6 +2,8 @@
 
 状态：本地实现与适用验证通过；生产未发布，Shelf Standard 未变更，存量媒体未处置。
 
+实现提交：`44acda5fc`。
+
 ## 用户目标与合同
 
 2026-09-23 用户确认：所有 Movie 成品使用 Matroska 容器及 `.mkv` 扩展名；新 Libra Run 与已上架存量均适用。容器以 Probe 为准，扩展名以最终文件名为准；单纯改名不能修复真正的 MP4 封装。Libra 仅在自己的 Workspace 生成新成品；已上架 Entry 由 Arca Shelf Standard 重评与 Aftercare 正式修复、提交 Inventory revision，保留 Shelf Entry 身份。依据 SSOT §5.5.6–5.5.7、§5.8 Aftercare 和 Beta HB-B/HB-E；不改变 Owner 或 Handoff。
