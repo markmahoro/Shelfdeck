@@ -254,7 +254,7 @@ function libraRunDiscardCommandResult() {
         expectedRunStateRevision: positive(), expectedRunStateDigest: digest(),
         actualRunStateRevision: positive(), actualRunStateDigest: digest(), ...resultDigest }),
       object({ resultKind: { const: 'invalid_state' }, ...common,
-        reasonCode: { const: 'run_not_frozen' }, actualRunStateRevision: positive(),
+        reasonCode: { const: 'run_not_discardable' }, actualRunStateRevision: positive(),
         actualRunStateDigest: digest(), ...resultDigest }),
       object({ resultKind: { const: 'conflict' }, ...common,
         reasonCode: { const: 'idempotency_key_reused' }, existingCommandDigest: digest(), ...resultDigest }),
