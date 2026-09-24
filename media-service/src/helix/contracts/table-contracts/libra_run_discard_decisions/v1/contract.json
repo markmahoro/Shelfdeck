@@ -169,19 +169,19 @@
     "semanticRules": [
       "`UNIQUE(libra_run_id)`及`UNIQUE(actor_id,idempotency_key)`",
       "immutable",
-      "只允许当前`frozen` Run建立",
+      "只允许用户主动放弃当前`active|frozen` Run或按已拒绝Handoff B收尾时建立",
       "没有Workspace Reference时scope ID为NULL且member set为正式empty digest",
       "非空时从同事务Cleanup Scope/member rows重建Draft",
       "`decisionDigest`按8.6.21完整typed value唯一计算"
     ],
     "rawContract": {
       "columns": "`discard_decision_id PK, libra_run_id FK, expected_run_state_revision, expected_run_state_digest, run_scope_digest, input_control_scope_digest, workspace_cleanup_scope_id NULL FK, workspace_cleanup_member_set_digest, actor_id, idempotency_key, decision_digest, decided_at_ms`",
-      "constraints": "`UNIQUE(libra_run_id)`及`UNIQUE(actor_id,idempotency_key)`；immutable；只允许当前`frozen` Run建立；没有Workspace Reference时scope ID为NULL且member set为正式empty digest；非空时从同事务Cleanup Scope/member rows重建Draft；`decisionDigest`按8.6.21完整typed value唯一计算"
+      "constraints": "`UNIQUE(libra_run_id)`及`UNIQUE(actor_id,idempotency_key)`；immutable；只允许用户主动放弃当前`active|frozen` Run或按已拒绝Handoff B收尾时建立；没有Workspace Reference时scope ID为NULL且member set为正式empty digest；非空时从同事务Cleanup Scope/member rows重建Draft；`decisionDigest`按8.6.21完整typed value唯一计算"
     },
     "source": {
       "section": "8.5.11",
       "line": 9417,
-      "lineDigest": "f7122866dc08d9bf0cb4e58d824f2a3de5bbe8767d5b730c210719716625d7be"
+      "lineDigest": "41a22f68f7701d4d1b08168b116446639346a59d826fab80451af4302e85a8cd"
     },
     "foreignKeys": [
       {

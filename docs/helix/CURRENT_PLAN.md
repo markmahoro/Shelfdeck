@@ -1,6 +1,10 @@
 # ShelfDeck 当前迭代计划
 
-2026-09-23 UAT-266：用户确认Movie新Run及存量收藏最终统一Matroska容器/`.mkv`，并明确要求直接升级系统模板，不复制用户模板。规格、Libra无损Remux路由后，由ShelfDeck受控发布系统Template新revision并原子提升已绑定Shelf Standard，使Aftercare逐项修复存量；不直接重命名或改写生产Inventory。见[实施与验收](implementation/evidence/UAT-266_MOVIE_MATROSKA_STANDARD_20260923.md)。
+2026-09-24 UAT-268：用户报告《局内人 (2006) 1080p DTS-sample》点击“放弃整理”无结果，并明确允许扩展active Run的用户主动放弃合同。按Libra既有Owner安全收尾、持久终局与Control/Workspace规则实施，先本地验证，再由统一部署负责人安排标准发布和这条sample的实际验收；不影响已入库《局内人》正片。[现场与修复](implementation/evidence/UAT-268_ACTIVE_RUN_DISCARD_20260924.md)。
+
+2026-09-23 UAT-267：Shelf Standard 升版后三条已 Accepted On-deck Run 的冻结依据修复已在隔离发布分支完成，生产尚未发布。真实物理 Effect 演练因生产媒体来自 CIFS 共享、缺少隔离且保持物理身份的可写克隆而未过门禁；本次 UAT-268 独立发布不包含该修复。[冻结依据与门禁](implementation/evidence/UAT-267_ONDECK_FROZEN_BASIS_20260923.md)。
+
+2026-09-23 UAT-266：用户确认Movie新Run及存量收藏统一Matroska容器/`.mkv`，直接升级系统模板。规格、Libra无损Remux路由和系统Template/Shelf Standard revision 2已部署；第一片正式维护检查等待资源。接续按Aftercare逐项修复并验收19部存量，同时验证新Run成品；不直接重命名或改写生产Inventory。见[实施与验收](implementation/evidence/UAT-266_MOVIE_MATROSKA_STANDARD_20260923.md)。
 
 2026-09-22 部署批次调整：125/212/250独立修复已上线。251的旧Root修复已随19d13f7b58上线，7误Case终结、执行停止/资源释放、19项真实重查及黑寡妇partial正式回收完成；264的新Workspace通用回收验证独立记录，3份历史NFO人工恢复与263切Root继续受原合同确认和物理收尾门禁约束。三个历史文件不再被误列为251 Case终结的前置条件；任何已Commit或既有合法终态必须保留。证据见CURRENT_STATUS与251既有记录，不另建计划。
 

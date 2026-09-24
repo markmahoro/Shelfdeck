@@ -4,7 +4,7 @@
 
 更新：2026-09-12。**唯一活动迭代台账；按项验收、按项关闭。** 覆盖全部143个历史UAT、78个PROD、40行UX（含两组重号）、10个AC和2个BR。新编号从UAT-144接续；PROD/UX/AC/BR停止新增。旧编号、文件、提交和测试名不改写。
 
-总表包含261个唯一UAT条目，编号连续至UAT-261。历史UAT-011～049从正文/关闭矩阵补入；PROD-033/034从归档补入。相同主题不等于相同缺陷：后续事故或复发保留独立条目；只有明确同结果才合并别名。UX-030/031按标题消歧。
+总表编号连续至UAT-268。历史UAT-011～049从正文/关闭矩阵补入；PROD-033/034从归档补入。相同主题不等于相同缺陷：后续事故或复发保留独立条目；只有明确同结果才合并别名。UX-030/031按标题消歧。
 
 状态说明：历史已关闭保留当时证据，并不宣称本次重测；已实现/已部署不等于已关闭；待核实不是当前已证实缺陷。原表与后续完整关闭证据冲突时采用后者并链接。没有证据的事项不批量关闭。
 
@@ -280,4 +280,6 @@
 | UAT-264 | Aftercare 与 Libra Workspace 自动回收规则不一致 | RESOURCE_LIFECYCLE | 已部署，新实际GC及黑寡妇partial回收通过；3项历史身份漂移待合同确认 | 2026-09-20用户要求对齐 | 112a4ac36、b048cbf36、7173d33fff、19d13f7b58 | [现场及处置](implementation/evidence/UAT-251_ACCEPTED_DEFECT_RECOVERY_20260912.md) | 逐项覆盖终态、双轮引用安全、未决 Effect、partial/orphan、崩溃恢复及 Receipt；生产真实回收后验收。 |
 
 | UAT-265 | 同stem带前缀海报/背景图被归为普通sidecar | MATERIAL_CLASSIFICATION | 已部署，新片实际入库及旧收藏修复验收待补 | 用户报告局内人；关联076/251 | 22e52724b、459efebbf2 | [根因及验收](implementation/evidence/UAT-265_PREFIXED_ARTWORK_ROLE_20260922.md) | 新Candidate正确识别，跨片/跨目录负向保持；已入库局内人走正式Arca修复，不重写历史。 |
-| UAT-266 | Movie成品统一Matroska/.mkv，新Run和已上架Entry均满足 | MEDIA_STANDARD / AFTERCARE | 本地通过，待生产规则发布及逐片验收 | 用户确认新片与存量都统一；关联251/263/264 | 44acda5fc、4dd6ba940 | [实施与验收](implementation/evidence/UAT-266_MOVIE_MATROSKA_STANDARD_20260923.md) | Libra容器/后缀单一Gap无损Remux，其他Gap按规格处理；系统Template受控升版后Aftercare逐项评估和修复19个现存`.mp4`，保持Entry身份、Inventory与原片安全；以真实Probe及文件名验收。 |
+| UAT-266 | Movie成品统一Matroska/.mkv，新Run和已上架Entry均满足 | MEDIA_STANDARD / AFTERCARE | 生产规则已发布，19片逐项修复与新Run验收中 | 用户确认新片与存量都统一；关联251/263/264 | 44acda5fc、4dd6ba940 | [实施与验收](implementation/evidence/UAT-266_MOVIE_MATROSKA_STANDARD_20260923.md) | Libra容器/后缀单一Gap无损Remux，其他Gap按规格处理；系统Template受控升版后Aftercare逐项评估和修复19个现存`.mp4`，保持Entry身份、Inventory与原片安全；以真实Probe及文件名验收。 |
+| UAT-267 | Shelf Standard 升版后已 Accepted 的三条 On-deck Run 错用当前 revision、执行失败却显示整理中 | RECOVERY_CORRECTNESS / UI_STATUS | 隔离修复及本地验证通过；生产未发布、三片未恢复 | 2026-09-23生产事故；关联266 | 8ec0f3990 | [实施与恢复门禁](implementation/evidence/UAT-267_ONDECK_FROZEN_BASIS_20260923.md) | 冻结 Basis贯穿后续阶段与恢复；当前安全 Fence 不放宽；生产副本完整 Host、负向与正式 Retry 门禁通过后由部署负责人逐条恢复并验证唯一 Commit、Shelf Entry、Deck Fact、Inventory及 Aftercare revision 2 重评；页面与计数恢复真实状态。 |
+| UAT-268 | active整理Run点击“放弃整理”后仍留在需要处理 | UI_RESULT / LIBRA_TERMINAL | 本地修复与隔离验证通过；生产发布及sample实际终结待验 | 用户报告《局内人 (2006) 1080p DTS-sample》；2026-09-24明确允许扩展active放弃合同；关联251/155/166 | 待提交 | [现场与修复](implementation/evidence/UAT-268_ACTIVE_RUN_DISCARD_20260924.md) | 标准发布后，对该sample执行正式用户放弃；验证Run/终局/Control/Workspace与页面历史一致、原文件及已入库正片不变；活动Work/Effect未收尾时保持可见pending，不虚报成功。 |

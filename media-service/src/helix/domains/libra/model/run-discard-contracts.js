@@ -169,8 +169,8 @@ function buildDiscardCleanupDraft(value) {
   });
   const triggerSnapshot = {
     discardDecisionId: value.discardDecisionId,
-    expectedFrozenRunRevision: value.libraRunRef.stateRevision,
-    expectedFrozenRunDigest: value.libraRunRef.stateDigest,
+    expectedRunStateRevision: value.libraRunRef.stateRevision,
+    expectedRunStateDigest: value.libraRunRef.stateDigest,
   };
   const eligibilityEvidenceDigest = canonicalDigest({
     schema: 'libra.workspace-cleanup-eligibility@1',

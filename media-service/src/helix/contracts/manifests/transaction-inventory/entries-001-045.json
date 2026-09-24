@@ -972,7 +972,7 @@
       "sourceLocator": {
         "section": "8.5.4",
         "line": 8717,
-        "lineDigest": "31509d7137f7663ac88ab8a2e38974f9112ac6215f210d5c5a4fafc84c12d43b"
+        "lineDigest": "a80c6b6fa49bf52df6a0f6c44e538c2fc5cc5cb0ef1727880c14a0410699071a"
       },
       "targetLocator": {
         "path": "transaction-contracts/helix.transaction.libra-run-discard-commit/v1/contract.json"
@@ -981,11 +981,11 @@
         "transactionId": "helix.transaction.libra-run-discard-commit",
         "ownerScope": "libra",
         "contractRef": "helix://contracts/transactions/helix.transaction.libra-run-discard-commit/v1",
-        "contractDigest": "3e83a4b2480327de861be74a4692fcb0e54ad118814739e42b9b187f5cc1924d"
+        "contractDigest": "e2b09da6775be7fe2b662a4e7b5f45b089f969ce00ebea0fe4e1c837b87705ac"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "dbcb6896451f6daa2120bdcbaad19af94ae166bd51cc10cef50cd81286089131"
+        "value": "3059c9f6537dfaed69b6b17610a3c4d79a4802fa94c9b4781253a4afd2990128"
       }
     },
     {

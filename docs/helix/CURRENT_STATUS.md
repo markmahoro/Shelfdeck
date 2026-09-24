@@ -1,6 +1,10 @@
 # ShelfDeck 当前状态
 
-2026-09-23 UAT-266 本地实施中，生产仍为下述既有镜像及 Movie Shelf Standard revision 1，`container/fileExtension=any`。用户确认新 Movie Run 与存量统一 Matroska/`.mkv`；19 个活动 `.mp4` Primary（13 真 MP4、6 误后缀 Matroska，约 104.4 GiB）只读核对完成，尚未改动媒体或生产规则。代码、定向测试与待验收门禁见[UAT-266 证据](implementation/evidence/UAT-266_MOVIE_MATROSKA_STANDARD_20260923.md)。
+2026-09-24 UAT-268：生产《局内人 (2006) 1080p DTS-sample》为attention_required、active Run revision 2，影片身份查询`provider_no_match`且候选为空；该Run仅有1个已完成Work、无Effect。原页面确认放弃后仍显示该行；根因是后端返回`invalid_state/run_not_frozen`的HTTP 200，前端误当成功。用户已确认扩展active主动放弃合同；本地修复、隔离测试与UI结果反馈已完成，尚未生产发布或终结sample。已入库《局内人》正片保持独立。[证据](implementation/evidence/UAT-268_ACTIVE_RUN_DISCARD_20260924.md)。
+
+2026-09-23 UAT-267：三条已 Accepted On-deck Run 的冻结依据修复仅在隔离发布分支，生产仍为 `3fff5f7dc3` 镜像。完整 Host 只读副本通过，但 CIFS 媒体源缺少保持物理身份的隔离可写克隆，真实 Effect 演练门禁未过；不得把本次 UAT-268 独立发布当作三片恢复。[门禁](implementation/evidence/UAT-267_ONDECK_FROZEN_BASIS_20260923.md)。
+
+2026-09-23 13:03Z UAT-266 已标准发布 `helix-beta-20260923-3fff5f7dc3`，git `3fff5f7dc30145a97a5d6372817975321f349bf8`，tar SHA256 `223168ffa60e8002f9c9749b36624cbdf73e38cdf3dd34a638f2df37be089638`，Config ID `sha256:758904f31ffe3656383f0570a61560b5c89c6c8b388981baf7da3db9098d3489`。生产系统 Movie Template 与唯一 Shelf Standard 均受控升至 revision 2，规则要求 Matroska/`.mkv`；health/Admin/挂载、SQLite、204 Entry 及发布 Receipt/Outbox 通过。19 个存量 `.mp4`（约104.4 GiB）切换前后19个Shelf Entry/Material Key/路径/inode/大小/有界指纹逐项一致；自动重评已产生1条active和2条queued的rev2维护Case；《惠子，凝视》误后缀被判为`conformance:file_extension_unmet`且可自动修复，修复准备Work已受理。《有话好好说》真实MP4同时出现`container_unmet`/`file_extension_unmet`并排队，三维评估已完成；现有电影转码继续运行。新 Run 与19片逐项真实修复尚未验收，UAT保持开放。完整备份、镜像门禁及限制见[UAT-266 证据](implementation/evidence/UAT-266_MOVIE_MATROSKA_STANDARD_20260923.md)。以下为历史时点。
 
 2026-09-22 13:10Z 最新生产为 `helix-beta-20260922-459efebbf2`：UAT-265精确同stem前缀图片分类修复上线，保留19的误维护及0e列表/诊断/预检修复。标准部署、候选/19回退Host、Linux147适用项及Windows仓库审计3项、生产分类源SHA与角色、health/Admin/挂载/Secret/fnOS和192收藏8组原事实保护通过。《局内人》旧Inventory revision15及poster_missing未改，未发起手动修复；UAT保持开放待实际新片/旧收藏验收。下方为历史时点，[本次证据](implementation/evidence/UAT-265_PREFIXED_ARTWORK_ROLE_20260922.md#正式生产发布结果)给出镜像身份、备份和隔离告警边界。
 

@@ -174,7 +174,7 @@
           "maxLength": 256
         },
         "reasonCode": {
-          "const": "run_not_frozen"
+          "const": "run_not_discardable"
         },
         "actualRunStateRevision": {
           "type": "integer",

@@ -113,7 +113,7 @@ SSOT: §9.1.2, §9.4.3, §9.4.6, §5.5.3–§5.5.7, §6.3–§6.6
 | HB-B.14 | 只有 Arca 独立接受且 On-deck Commit 成功，才建立或扩充 Shelf Entry 与 Deck Fact；Handoff B Accepted 不是「已完成整理」 | E2E, NEG |
 | HB-B.15 | 同根终态：每部 Movie 一份 Primary 现实；禁止 hash 目录、`标题 (0)` 目录、未解释的源/收藏双份；Settlement 按 `carried_forward` 或 `replaced_and_settled` 解释；盘整理完成后按合同处理原 BDMV/CERTIFICATE 树 | E2E, FS, NEG |
 | HB-B.16 | 再次 Observation 不把已 On-deck Inventory 重新采购 | E2E, FS, NEG |
-| HB-B.17 | 中断恢复不产生重复物理副作用，也不丢失责任；预算耗尽进入 Frozen，用户可放弃后重新入库 | E2E, RECOVERY, NEG |
+| HB-B.17 | 中断恢复不产生重复物理副作用，也不丢失责任；预算耗尽进入 Frozen；用户可主动放弃active或frozen Run，Work/Effect安全收尾后保留原片并持久终局，同条件不自动重入 | E2E, RECOVERY, NEG |
 | HB-B.18 | 用户可加快/取消加快当前 Libra Run；优先级不传给 Arca | UI, API, E2E, NEG |
 
 媒体整理工作区（§9.4.6 + 已确认工作台合同）：

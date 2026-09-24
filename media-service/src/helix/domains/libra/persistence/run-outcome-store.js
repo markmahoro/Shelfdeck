@@ -93,12 +93,12 @@ function createRunOutcomeStore(options) {
         !/^[a-f0-9]{64}$/.test(productEvidence.verificationDigest||'') || !productEvidence.verificationId ||
         !Array.isArray(productEvidence.reasonCodes) || !productEvidence.reasonCodes.length || productEvidence.reasonCodes.length>32))
       fail('LIBRA_OUTCOME_EVIDENCE_STALE','Product verification must belong to the exact Run revision being closed.');
-    const frozenRevision=read(context=>context.repository(repository.repositoryId).invoke('revision',{
+    const terminalRevision=read(context=>context.repository(repository.repositoryId).invoke('revision',{
       libra_run_id:ready.run.libra_run_id,state_revision:Number(ready.run.state_revision)}));
-    if(!frozenRevision)fail('LIBRA_OUTCOME_EVIDENCE_MISSING','Terminal outcome requires the frozen failure revision.');
-    const frozenTerminal=JSON.parse(frozenRevision.transition_evidence_json);
-    const strategyReasons=frozenTerminal.availabilityId?[{failureClass:'strategy_unavailable',failureCode:frozenTerminal.reasonCode,
-      capabilityRef:frozenTerminal.strategyKind==='tmdb'?'libra.product_metadata.fetch@1':'libra.external_material.search@1'}]:[];
+    if(!terminalRevision)fail('LIBRA_OUTCOME_EVIDENCE_MISSING','Terminal outcome requires the current Run revision.');
+    const terminalEvidence=JSON.parse(terminalRevision.transition_evidence_json);
+    const strategyReasons=terminalEvidence.availabilityId?[{failureClass:'strategy_unavailable',failureCode:terminalEvidence.reasonCode,
+      capabilityRef:terminalEvidence.strategyKind==='tmdb'?'libra.product_metadata.fetch@1':'libra.external_material.search@1'}]:[];
     const rejectedDelivery=read(context=>{
       const repo=context.repository(repository.repositoryId);
       const receipts=repo.invoke('packages',{libra_run_id:ready.run.libra_run_id}).filter(pkg=>pkg.state==='published')
@@ -113,7 +113,7 @@ function createRunOutcomeStore(options) {
     });
     const deliveryReasons=rejectedDelivery?[{failureClass:'business_unachievable',failureCode:'handoff_b_rejected',
       capabilityRef:'libra.product_package.publish@1'}]:[];
-    const conditions=recoveryConditions([...(frozenTerminal.blockedWorks||[]),...strategyReasons,...deliveryReasons]);
+    const conditions=recoveryConditions([...(terminalEvidence.blockedWorks||[]),...strategyReasons,...deliveryReasons]);
     return {participantId:'libra_run_outcome_commit',owner:'libra',repositories:[repository],execute(context){
       const repo=context.repository(repository.repositoryId),run=ready.run;
       const existing=repo.invoke('find',{libra_run_id:run.libra_run_id});
@@ -121,7 +121,7 @@ function createRunOutcomeStore(options) {
       const spec=repo.invoke('spec',{acceptance_spec_id:run.acceptance_spec_id});
       const revision=repo.invoke('revision',{libra_run_id:run.libra_run_id,state_revision:Number(run.state_revision)});
       if(!spec || !revision)fail('LIBRA_OUTCOME_EVIDENCE_MISSING','Terminal outcome requires the original requirements and terminal evidence.');
-      if(revision.transition_evidence_digest!==frozenRevision.transition_evidence_digest)
+      if(revision.transition_evidence_digest!==terminalRevision.transition_evidence_digest)
         fail('LIBRA_OUTCOME_EVIDENCE_STALE','Failure evidence changed before its terminal commit.');
       const terminal=JSON.parse(revision.transition_evidence_json),requirements=JSON.parse(spec.spec_json).requirements;
       const reasons=[...(productEvidence?.reasonCodes||[]).map(code=>({failureClass:'business_unachievable',failureCode:code,

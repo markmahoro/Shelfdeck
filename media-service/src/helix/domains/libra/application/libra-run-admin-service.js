@@ -421,8 +421,15 @@ function createLibraRunAdminService(options) {
         const cancelled=options.cancelProcessWorks?.({ownerDomain:'libra',processType:'libra_run',processId:libraRunId,reasonCode:'LIBRA_RUN_TERMINAL_CLOSURE'});
         if(Number(cancelled?.drainingWorks || 0)>0)return Object.freeze({resultKind:'closure_pending',libraRunId});
       }
-      const result = inspected.kind === 'ready'
-        ? discardStore.commit(inspected,terminalReason,productEvidence) : inspected;
+      let result;
+      try {
+        result = inspected.kind === 'ready'
+          ? discardStore.commit(inspected,terminalReason,productEvidence) : inspected;
+      } catch (error) {
+        if (['P9_DISCARD_EXECUTION_PENDING','P9_DISCARD_EFFECT_PENDING'].includes(error.code))
+          return Object.freeze({resultKind:'closure_pending',libraRunId,reasonCode:error.code});
+        throw error;
+      }
       if (result.resultKind === 'discarded') {
         const released = options.pipelineAdmission?.releaseForSubject(subjectId) || null;
         if (released?.released) options.onPipelineSeatReleased?.(released);

@@ -1,13 +1,36 @@
 # 当前活动包：逐项关闭UAT
 
+2026-09-24 UAT-268 当前执行：active Run用户主动放弃合同、本地实现与隔离验证已接入；接续生产标准发布、指定sample正式终结和安全/页面验收。UI负责人复查反馈纳入同项；不以本地测试代替生产关闭。[证据](evidence/UAT-268_ACTIVE_RUN_DISCARD_20260924.md)。
+
+UAT-267 的三片 On-deck 恢复仍由统一部署负责人保留在独立发布分支；物理 Effect 隔离演练未过门禁，不随本次 UAT-268 批次发布。[冻结依据](evidence/UAT-267_ONDECK_FROZEN_BASIS_20260923.md)。
+
+2026-09-22 10:40Z：旧Root组合 `19d13f7b58` 已标准发布，保留0e修复且排除884共享Root/712新Policy。完整Host/0e回退与真实FFmpeg停止、资源释放重取、重启双审计正式GC均通过。生产7误Case结束、2既有终态保留、19真实三维重查全部完成且健康；黑寡妇partial已正式回收，Work/Effect/Registry及物理文件状态吻合。本次误维护修正闭环完成，251整项其余验收仍开放。192收藏/8组原事实及141文件保护通过，UI需要处理0。3份历史NFO与263切Root的独立合同仍待确认；不把部署等同整项UAT关闭。
+
+2026-09-22 09:28Z：独立 `0e16b6dd8b` 已标准生产发布；包含诊断、Formation过滤/100条大页和预检限额/取消修复。最终完整Host与286回退、Linux/CPU/QSV适用检查、生产接口/UI及8组持久事实保护通过；旧星际迷航预检已正式超时终结、现等资源，不能记作影片完成。Provider 30/120秒退避尚未发布。接续251旧自动瑕疵维护Case正式终结与19项实际重查；263切Root/3份NFO人工恢复仍独立受下文合同门禁约束，未获得新增确认。定时任务保持停止。[发布证据](evidence/UAT-125_212_250_FAILURE_CONVERGENCE_20260922.md#生产发布结果2026-09-22)。下方为此前执行记录。
+
 2026-09-22 接续 UAT-125/212/250 整理失败修复：3 次 Provider 尝试使用 30 秒/120 秒退避，保留白名单网络诊断；当前事实刷新后过滤活动列表并对齐计数/分页；预检执行保护。UI 负责人已确认列表修正范围，不代表代码或生产验收通过。[证据及未测项](evidence/UAT-125_212_250_FAILURE_CONVERGENCE_20260922.md)。
 
 2026-09-20 当前执行：UAT-262 先恢复 vol1 空间；263 统一 Workspace 配置，264 按用户要求审视并对齐终态、引用安全、partial/orphan、重启与正式回收 Receipt。完成三项后接续251误 Case 正式收尾、实际重查及资源释放验收。详细证据追加至 UAT-251_ACCEPTED_DEFECT_RECOVERY_20260912.md；不改变原媒体或伪造任务终态。
 
 2026-09-12 UAT-251生产复验追加：用户确认修复已接受瑕疵误识别、9项误建维护Case及19部收藏状态。隔离实施`codex/aftercare-accepted-defects`；读取精确Handoff B冻结要求、正式取消未提交的自动瑕疵修复、重新检查旧笼统结论；保护原片、授权与历史，交统一部署负责人发布。证据见`implementation/evidence/UAT-251_ACCEPTED_DEFECT_RECOVERY_20260912.md`（执行包相对路径为`evidence/`）。
 
-更新：2026-09-23。ACTIVE；UAT-266 Movie容器与扩展名统一已获用户确认，实施和验证进行中；既有合同审查及三项用户确认保持有效。
+更新：2026-09-23。ACTIVE；UAT-266 系统Template及Shelf Standard revision 2已正式发布，试点维护检查等待资源，19片存量和新Run验收未完成；既有合同审查及三项用户确认保持有效。
 唯一排程为[Master Plan](../CURRENT_PLAN.md)，状态及每项现行关闭条件为[UAT总表](../UAT_ITERATION_REGISTER.md)。
+
+
+### 2026-09-20 UAT-264 有界恢复合同待确认
+
+现行SSOT §10.5.3要求当前物理身份与冻结Handle一致才能删除。生产3个终态Case的旧回收Work在2026-09-02以`RECOVERY_EXECUTION_BUDGET_EXHAUSTED`失败；NFO副本内容指纹相同，但inode已经变化。普通自动回收必须拒绝，当前Root切换因此阻断。此差异已在生产只读核实，不能归因于本次验收副本复制。
+
+| Case尾号 | Workspace内精确文件 | bytes | 冻结inode → 当前inode |
+| --- | --- | ---: | --- |
+| `0d3b9e` | `artifacts/movie.nfo` | 4845 | 391938 → 393153 |
+| `52f439` | `artifacts/movie.nfo` | 17453 | 391534 → 393150 |
+| `0abf9` | `artifacts/movie-reconcile-afb73b5b5b15b996.nfo` | 5300 | 392889 → 393156 |
+
+有界方案：新增Arca Owner人工Workspace恢复入口，仅接受这3个精确Case/成员的冻结manifest；现有完整备份保留。必须再次核验终态、无活动引用/未决Effect、当前root/fence、逐文件物理身份和内容SHA256。旧Handle/旧失败Effect保持不可变；当前副本以独立观察身份和人工处置授权处理，产出明确的恢复/回收Receipt后再关闭旧Workspace责任。未知文件、内容不符、引用恢复或范围变化均拒绝。不借Formation Reset、不改库存/原始媒体，也不放宽日常自动GC身份检查。该方案涉及对象连续性与删除权限的新增恢复合同，按Playbook §3.3取得用户确认后再传播SSOT及实现；尚未实施或获确认。
+
+独立工作继续：已完成统一Workspace候选`884a154def`构建及Linux专项18通过、18非目标跳过；drain候选`7173d33fff`的Windows/Linux专项各71通过。首轮完整Host副本已终结黑寡妇Effect/误Case，但10分钟限时结束、Workspace尚未完成回收；重跑已确认Case/Effect终态及partial登记，但测试复制的Mount Scope不同导致Root冲突，物理回收未验收，测试容器已停止并保留现场；生产Root只读核验匹配。生产未切换。
 
 ## 当前执行位置
 
@@ -78,4 +101,4 @@ UAT-251由本任务连续实施至验收：先完成精确Gap及Libra持续授�
 
 ## UAT-265 当前交付（2026-09-22）
 
-带前缀海报/背景图分类修复已本地完成，Procurement专项150/150通过。新Candidate正向与跨片/跨目录负向已覆盖；等待部署负责人集成发布及生产验收。局内人旧Inventory保持原状，不以代码完成关闭事项。见[证据](evidence/UAT-265_PREFIXED_ARTWORK_ROLE_20260922.md)。
+带前缀海报/背景图分类修复已随459efebbf2标准上线，Windows150、Linux147适用项及发布工作区仓库审计3项通过，候选/19回退Host、生产角色/源码SHA与192收藏保护通过。新Candidate正向与跨片/跨目录负向已有专项覆盖，尚未做生产真实新片入库；局内人旧Inventory revision15和已接受poster_missing保持，正式手动修复未发起。本项保持开放待这些实际验收，不以代码部署关闭事项。见[证据](evidence/UAT-265_PREFIXED_ARTWORK_ROLE_20260922.md)。

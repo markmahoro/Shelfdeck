@@ -158,11 +158,11 @@
     {
       "id": "Libra Run Discard Commit",
       "owner": "libra",
-      "atomicFactSet": "complete `LibraRunDiscardDecision@1` + frozen Run expected state revision/digest + immutable Discard Decision/Receipt + Run discarded revision + Run admission active-scope head CAS + exact original Primary Input Control release + `run_discarded` Workspace Cleanup Scope/member set + durable typed Result/commit marker + `LibraWorkspaceCleanupRequestedMessage@1` Outbox；不得在同一事务执行物理删除",
+      "atomicFactSet": "complete `LibraRunDiscardDecision@1` + user-initiated active/frozen or rejected-Handoff Run expected state revision/digest + all Work/Effect safe closure + immutable Discard Decision/Receipt + Run discarded revision + Run admission active-scope head CAS + exact original Primary Input Control release + `run_discarded` Workspace Cleanup Scope/member set + durable typed Result/commit marker + `LibraWorkspaceCleanupRequestedMessage@1` Outbox；不得在同一事务执行物理删除",
       "source": {
         "section": "8.5.4",
         "line": 8717,
-        "lineDigest": "31509d7137f7663ac88ab8a2e38974f9112ac6215f210d5c5a4fafc84c12d43b"
+        "lineDigest": "a80c6b6fa49bf52df6a0f6c44e538c2fc5cc5cb0ef1727880c14a0410699071a"
       }
     },
     {

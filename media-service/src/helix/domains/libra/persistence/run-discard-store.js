@@ -426,8 +426,8 @@ function createRunDiscardStore(options) {
     if(number(run.state_revision)!==command.expectedRunStateRevision||run.state_digest!==command.expectedRunStateDigest)
       return failure(command,'stale',{expectedRunStateRevision:command.expectedRunStateRevision,
         expectedRunStateDigest:command.expectedRunStateDigest,actualRunStateRevision:number(run.state_revision),actualRunStateDigest:run.state_digest});
-    if(run.state!=='frozen' && !(run.state==='active' && snap.owner.rejectedHandoffB))
-      return failure(command,'invalid_state',{reasonCode:'run_not_frozen',
+    if(run.state!=='frozen' && !(run.state==='active' && (command.actorId==='admin'||snap.owner.rejectedHandoffB)))
+      return failure(command,'invalid_state',{reasonCode:'run_not_discardable',
       actualRunStateRevision:number(run.state_revision),actualRunStateDigest:run.state_digest});
     const workspaceControls=(snap.owner.workspace.references||[]).map((reference)=>{
       const current=snap.controls.get(reference.materialKey);return controlItem(reference.materialKey,current.projection);});
@@ -460,7 +460,7 @@ function createRunDiscardStore(options) {
         fail('P9_DISCARD_HANDOFF_ACCEPTED','Arca already accepted Handoff B; Libra cannot release the input responsibility.');
       const rejectedHandoffB=(repo.invoke('list_packages',{libra_run_id:command.libraRunId})||[])
         .some((pkg)=>pkg.state==='published' && repo.invoke('find_delivery_receipt',{offer_id:pkg.offer_id})?.result==='rejected');
-      if(!current||(current.state!=='frozen' && !(current.state==='active' && rejectedHandoffB))||
+      if(!current||(current.state!=='frozen' && !(current.state==='active' && (command.actorId==='admin'||rejectedHandoffB)))||
         number(current.state_revision)!==decision.expectedRunStateRevision||
         current.state_digest!==decision.expectedRunStateDigest)fail('P9_DISCARD_STALE','Discard snapshot changed before commit.');
     }},{participantId:'libra_run_discard_execution_guard',owner:'execution-foundation',boundBusinessOwner:'libra',repositories:[foundation],execute(context){
