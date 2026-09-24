@@ -1,6 +1,6 @@
 # ShelfDeck 当前状态
 
-2026-09-24 UAT-268：生产《局内人 (2006) 1080p DTS-sample》为attention_required、active Run revision 2，影片身份查询`provider_no_match`且候选为空；该Run仅有1个已完成Work、无Effect。原页面确认放弃后仍显示该行；根因是后端返回`invalid_state/run_not_frozen`的HTTP 200，前端误当成功。用户已确认扩展active主动放弃合同；本地修复、隔离测试与UI结果反馈已完成，尚未生产发布或终结sample。已入库《局内人》正片保持独立。[证据](implementation/evidence/UAT-268_ACTIVE_RUN_DISCARD_20260924.md)。
+2026-09-24 16:39 CST UAT-268 已独立标准发布 `helix-beta-20260924-cdcab6dbab`，git `cdcab6dbab83e157af80068196d250b9eb236491`，tar SHA256 `9361e3c95edd69b195f9e63b6f6432175afd90c290981862da9e819c9b43b7fc`，镜像 ID `sha256:42c03c77c6567effb97a259f64bb9b21c7e58d8dd991563e865a50ef1804c564`。标准脚本、完整Host候选/回退副本、指定sample副本真实放弃与同键重放、健康/Admin/挂载、SQLite/收藏保护通过。生产用户随后正式放弃指定sample，页面显示“已结束 · 用户放弃”，Run active rev2→discarded rev3、唯一Decision/Receipt、Outcome `user_cancelled`、输入Control释放；上线前备份与生产只读对照证明sample原文件身份、已入库《局内人》正片Entry/17项Inventory及其Control保持。UAT-268已按业务验收关闭；UAT-267三片上架修复未纳入本镜像。[发布与验收](implementation/evidence/UAT-268_ACTIVE_RUN_DISCARD_20260924.md)。以下为历史时点。
 
 2026-09-23 UAT-267：三条已 Accepted On-deck Run 的冻结依据修复仅在隔离发布分支，生产仍为 `3fff5f7dc3` 镜像。完整 Host 只读副本通过，但 CIFS 媒体源缺少保持物理身份的隔离可写克隆，真实 Effect 演练门禁未过；不得把本次 UAT-268 独立发布当作三片恢复。[门禁](implementation/evidence/UAT-267_ONDECK_FROZEN_BASIS_20260923.md)。
 
