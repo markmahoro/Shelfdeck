@@ -146,6 +146,70 @@ function mediaRequest(authority, produce) {
   };
 }
 
+for (const scenario of ['partial-recovery', 'copy-failure', 'source-change']) {
+  test(`external native copy preserves import fences and original Effect: ${scenario}`, () =>
+    fixture(async ({ databasePath, workspaceRoot, dependencies }) => {
+      const authority = seedRuntimeWorkspaceEffect(databasePath, 'reconcile_required', 'libra.workspace.material.import@1');
+      const source = path.join(path.dirname(workspaceRoot), 'landing.mkv');
+      const bytes = Buffer.alloc(1024 * 1024, 7);
+      fs.writeFileSync(source, bytes);
+      const before = fs.statSync(source, { bigint:true });
+      const port = createCleanWorkspaceProductPort({ ...dependencies, rootPath:workspaceRoot,
+        externalLandingResolver:() => ({ absolutePath:source }) });
+      const member = { externalMemberId:'member-1', relativePath:'landing.mkv', sizeBytes:bytes.length };
+      const verified = { result:'passed', verifiedMemberIds:[member.externalMemberId] };
+      const command = { stableEvidence:{ stableExternalMaterialHandle:{ handleId:'external-handle',
+        landingBinding:{}, outputSnapshot:{ members:[member] } } },
+        verifiedExternalPackage:verified,
+        workspaceDeliveryContract:{ contractId:'import-contract', digest:'e'.repeat(64),
+          libraRunId:request().libraRunId, workspaceId:request().workspaceId,
+          targetRelativePath:'external/movie.mkv', stableExternalMaterialHandleId:'external-handle',
+          verifiedPackageDigest:canonicalDigest(verified), externalMemberId:member.externalMemberId },
+        runtimeEffectAuthority:authority, idempotencyKey:authority.idempotencyKey };
+      const target = path.join(workspaceRoot, request().workspaceId, 'external', 'movie.mkv');
+      const partial = target + '.partial-' + canonicalDigest(['workspace_write', authority.idempotencyKey]).slice(0, 16);
+      fs.mkdirSync(path.dirname(target), { recursive:true });
+      fs.writeFileSync(partial, 'interrupted previous copy');
+      const nativeCopy = fs.promises.copyFile;
+      let copies = 0;
+      fs.promises.copyFile = async (from, to, flags) => {
+        copies++;
+        assert.equal(flags, fs.constants.COPYFILE_EXCL);
+        if (scenario === 'copy-failure') throw Object.assign(new Error('Injected copy failure'), { code:'ENOSPC' });
+        await nativeCopy(from, to, flags);
+        if (scenario === 'source-change') fs.appendFileSync(source, 'changed');
+      };
+      try {
+        if (scenario !== 'partial-recovery') {
+          await assert.rejects(port.importExternalMaterial(command), {
+            code:scenario === 'copy-failure' ? 'ENOSPC' : 'CLEAN_WORKSPACE_EXTERNAL_IMPORT_SOURCE_CHANGED',
+          });
+          assert.equal(fs.existsSync(target), false);
+          const database = new Database(databasePath, { readonly:true });
+          try { assert.equal(database.prepare('SELECT count(*) n FROM fx_workspace_materials').get().n, 0); }
+          finally { database.close(); }
+          return;
+        }
+        const handle = await port.importExternalMaterial(command);
+        assert.deepEqual(await port.importExternalMaterial(command), handle);
+        assert.equal(copies, 1);
+        assert.deepEqual(fs.readFileSync(target), bytes);
+        assert.deepEqual(fs.readFileSync(source), bytes);
+        const after = fs.statSync(source, { bigint:true });
+        assert.equal(after.ino, before.ino);
+        assert.equal(after.mtimeNs, before.mtimeNs);
+        assert.equal(after.ctimeNs, before.ctimeNs);
+        assert.notEqual(fs.statSync(target, { bigint:true }).ino, after.ino);
+        assert.equal(fs.existsSync(partial), false);
+        const database = new Database(databasePath, { readonly:true });
+        try {
+          assert.equal(database.prepare('SELECT count(*) n FROM fx_effect_journal').get().n, 1);
+          assert.equal(database.prepare('SELECT count(*) n FROM fx_workspace_materials').get().n, 1);
+        } finally { database.close(); }
+      } finally { fs.promises.copyFile = nativeCopy; }
+    }));
+}
+
 for (const recoveryDecision of ['safe_retry', 'continue_forward']) {
   test(`media ${recoveryDecision} recovery commits and replays one Handle under the original Effect`, () =>
     fixture(async ({ databasePath, workspaceRoot, dependencies }) => {

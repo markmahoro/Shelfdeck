@@ -1,5 +1,7 @@
 # 当前活动包：逐项关闭UAT
 
+2026-09-28 UAT-269：用户授权外部导入原生复制修复，复用《荒野猎人》已下载材料沿同一任务恢复，不重新下载；本地回归后按标准发布及生产真实任务验收，不搭独立隔离服务。第一批只替换复制原语，第二批后台重复计算独立验证。见[修复证据](evidence/UAT-269_EXTERNAL_IMPORT_COPY_20260928.md)。
+
 2026-09-24 UAT-268 已关闭：active Run用户主动放弃合同及UI反馈独立标准发布；指定sample生产正式放弃后，页面历史、Run/Outcome/Receipt/Control、无Workspace Cleanup义务和原文件/正片保护均核对通过。UI负责人复查反馈纳入同项。[证据](evidence/UAT-268_ACTIVE_RUN_DISCARD_20260924.md)。
 
 UAT-267 的三片 On-deck 恢复仍由统一部署负责人保留在独立发布分支；物理 Effect 隔离演练未过门禁，不随本次 UAT-268 批次发布。[冻结依据](evidence/UAT-267_ONDECK_FROZEN_BASIS_20260923.md)。

@@ -10016,7 +10016,7 @@ Material在导入Libra Workspace前不是Libra Product，也不能直接成为Ar
 `MoviePilot External Landing Amendment`固定MoviePilot整理目录与Libra Workspace是两个不同Platform责任范围。
 它们可以位于同一NAS Volume，但路径不得相同、互为父子或与Artifact Root、Material Field、Shelf Target交叉。
 MoviePilot可以读写自己的请求下载根和整理根；ShelfDeck只读External Landing，并只通过
-`libra.workspace.material.import@1`把最终整理结果流式复制成Workspace内另一份独立Physical Material。Provider
+`libra.workspace.material.import@1`把最终整理结果复制成Workspace内另一份独立Physical Material。复制采用原生异步整文件操作，独占创建临时目标；不要求JavaScript逐块流式传输。Provider
 不得直接写Workspace，Import不得使用硬链接，Landing原件在本版本中不得由ShelfDeck删除。
 
 Platform Integration config revision必须冻结一份`MoviePilotLandingBinding@1`：`{bindingId,bindingRevision,

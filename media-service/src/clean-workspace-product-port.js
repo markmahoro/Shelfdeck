@@ -2,7 +2,6 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
-const { pipeline } = require('node:stream/promises');
 const crypto = require('node:crypto');
 const { canonicalDigest, canonicalJson } = require('./helix/contracts/canonical-json');
 const { createRepositoryDefinition } = require('./helix/foundation/persistence/owner-repository');
@@ -1986,10 +1985,9 @@ function createCleanWorkspaceProductPort(options) {
       outputTargetDigest: contract.digest,
       runtimeEffectAuthority: request.runtimeEffectAuthority,
       produce: async (temporary) => {
-        await pipeline(
-          fs.createReadStream(source),
-          fs.createWriteStream(temporary, { flags:'wx' }),
-        );
+        // Submit the whole copy to native I/O so busy Event dispatch cannot
+        // throttle every stream chunk. Keep exclusive creation and all fences.
+        await fs.promises.copyFile(source, temporary, fs.constants.COPYFILE_EXCL);
         const afterFingerprint = require('./helix/integrations/bounded-material-fingerprint')
           .computeBoundedMaterialFingerprintSync(source);
         const after = afterFingerprint.stat;

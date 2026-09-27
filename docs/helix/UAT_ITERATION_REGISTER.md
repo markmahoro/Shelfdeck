@@ -4,7 +4,7 @@
 
 更新：2026-09-12。**唯一活动迭代台账；按项验收、按项关闭。** 覆盖全部143个历史UAT、78个PROD、40行UX（含两组重号）、10个AC和2个BR。新编号从UAT-144接续；PROD/UX/AC/BR停止新增。旧编号、文件、提交和测试名不改写。
 
-总表编号连续至UAT-268。历史UAT-011～049从正文/关闭矩阵补入；PROD-033/034从归档补入。相同主题不等于相同缺陷：后续事故或复发保留独立条目；只有明确同结果才合并别名。UX-030/031按标题消歧。
+总表编号连续至UAT-269。历史UAT-011～049从正文/关闭矩阵补入；PROD-033/034从归档补入。相同主题不等于相同缺陷：后续事故或复发保留独立条目；只有明确同结果才合并别名。UX-030/031按标题消歧。
 
 状态说明：历史已关闭保留当时证据，并不宣称本次重测；已实现/已部署不等于已关闭；待核实不是当前已证实缺陷。原表与后续完整关闭证据冲突时采用后者并链接。没有证据的事项不批量关闭。
 
@@ -283,3 +283,4 @@
 | UAT-266 | Movie成品统一Matroska/.mkv，新Run和已上架Entry均满足 | MEDIA_STANDARD / AFTERCARE | 生产规则已发布，19片逐项修复与新Run验收中 | 用户确认新片与存量都统一；关联251/263/264 | 44acda5fc、4dd6ba940 | [实施与验收](implementation/evidence/UAT-266_MOVIE_MATROSKA_STANDARD_20260923.md) | Libra容器/后缀单一Gap无损Remux，其他Gap按规格处理；系统Template受控升版后Aftercare逐项评估和修复19个现存`.mp4`，保持Entry身份、Inventory与原片安全；以真实Probe及文件名验收。 |
 | UAT-267 | Shelf Standard 升版后已 Accepted 的三条 On-deck Run 错用当前 revision、执行失败却显示整理中 | RECOVERY_CORRECTNESS / UI_STATUS | 隔离修复及本地验证通过；生产未发布、三片未恢复 | 2026-09-23生产事故；关联266 | 8ec0f3990 | [实施与恢复门禁](implementation/evidence/UAT-267_ONDECK_FROZEN_BASIS_20260923.md) | 冻结 Basis贯穿后续阶段与恢复；当前安全 Fence 不放宽；生产副本完整 Host、负向与正式 Retry 门禁通过后由部署负责人逐条恢复并验证唯一 Commit、Shelf Entry、Deck Fact、Inventory及 Aftercare revision 2 重评；页面与计数恢复真实状态。 |
 | UAT-268 | active整理Run点击“放弃整理”后仍留在需要处理 | UI_RESULT / LIBRA_TERMINAL | 已关闭（2026-09-24生产正式操作验收） | 用户报告《局内人 (2006) 1080p DTS-sample》；2026-09-24明确允许扩展active放弃合同；关联251/155/166 | 08a39571d、da21c642f、cdcab6dbab | [发布与验收](implementation/evidence/UAT-268_ACTIVE_RUN_DISCARD_20260924.md) | 指定sample页面显示已结束，Run discarded/Outcome user_cancelled/唯一Decision和Receipt、Control released；无Workspace Cleanup义务；原sample文件及已入库正片身份和Inventory保持。pending防虚报由定向测试覆盖。 |
+| UAT-269 | 外部寻源导入复制极慢 | PERFORMANCE / RECOVERY | 第一批本地45项通过；未部署 | 《荒野猎人》现场；关联210 | 待提交 | [修复证据](implementation/evidence/UAT-269_EXTERNAL_IMPORT_COPY_20260928.md) | 复用已下载源完成同任务导入，验证吞吐、原件不变、唯一副本及恢复；后台治理独立实测。 |
