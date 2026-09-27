@@ -169,7 +169,7 @@ function fixture(run, settings = {}) {
     }
     return settings.governorDecision || ({ kind: 'permitted', permit });
   };
-  const governor = { acquire, acquireRecovery: () => {
+  const governor = { acquire, preparationWait:() => settings.preparationWait || null, acquireRecovery: () => {
     recoveryAcquireCount += 1;
     return acquire();
   }, release(value) { assert.equal(value, permit); governorReleased += 1; return { grants: [] }; } };
@@ -279,6 +279,28 @@ function fixture(run, settings = {}) {
     cleanup(); return result;
   } catch (error) { cleanup(); throw error; }
 }
+
+test('known resource wait avoids input preparation without creating an Attempt or holding a scheduler lease', async () => {
+  await fixture(async ({ runtime, lease, databasePath, state }) => {
+    const outcome = await runtime.run({ schedulerLease:lease });
+    assert.equal(outcome.kind, 'waiting');
+    assert.equal(databaseFacts(databasePath).attempts, 0);
+    assert.equal(databaseFacts(databasePath).event.state, 'waiting_for_resource');
+    assert.equal(state().schedulerReleased, 1);
+    assert.deepEqual(state().dispatchOutcomes, ['resource_wait']);
+    assert.equal(state().dispatchContext, undefined);
+  }, { initialEventState:'waiting_for_resource',
+    preparationWait:{ kind:'waiting', eventId:'event', replayed:true, retryAtMs:6000 },
+    inputError:new Error('blocked preparation must not project inputs') });
+});
+
+test('resource wait without a current hint still prepares fresh inputs and executes', async () => {
+  await fixture(async ({ runtime, lease, databasePath }) => {
+    await runtime.run({ schedulerLease:lease });
+    assert.equal(databaseFacts(databasePath).event.state, 'succeeded');
+    assert.equal(databaseFacts(databasePath).attempts, 1);
+  }, { initialEventState:'waiting_for_resource' });
+});
 
 function databaseFacts(databasePath) {
   const database = new Database(databasePath, { readonly: true });

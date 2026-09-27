@@ -1,5 +1,7 @@
 # ShelfDeck 当前状态
 
+2026-09-28：UAT-269已发布b8cf321d65，荒野猎人原Event/Attempt/Effect完成import/probe/verify/select，无重新下载、源Reality不变；第一批关闭。接续UAT-270资源等待输入准备与单次Aftercare投影去重，Windows专项143项与完整架构240文件通过，固定资源需求分支另经34项回归；本机Docker启动故障阻塞Linux验证及构建，尚未部署。见[第二批证据](implementation/evidence/UAT-270_RESOURCE_WAIT_PREPARATION_20260928.md)。下方未发布描述为第一批历史阶段。
+
 2026-09-28 UAT-269：外部导入改用原生异步独占复制，Windows/Linux定向各45项通过；完整架构及生产接续待验，尚未发布。见[证据](implementation/evidence/UAT-269_EXTERNAL_IMPORT_COPY_20260928.md)。
 
 2026-09-24 16:39 CST UAT-268 已独立标准发布 `helix-beta-20260924-cdcab6dbab`，git `cdcab6dbab83e157af80068196d250b9eb236491`，tar SHA256 `9361e3c95edd69b195f9e63b6f6432175afd90c290981862da9e819c9b43b7fc`，镜像 ID `sha256:42c03c77c6567effb97a259f64bb9b21c7e58d8dd991563e865a50ef1804c564`。标准脚本、完整Host候选/回退副本、指定sample副本真实放弃与同键重放、健康/Admin/挂载、SQLite/收藏保护通过。生产用户随后正式放弃指定sample，页面显示“已结束 · 用户放弃”，Run active rev2→discarded rev3、唯一Decision/Receipt、Outcome `user_cancelled`、输入Control释放；上线前备份与生产只读对照证明sample原文件身份、已入库《局内人》正片Entry/17项Inventory及其Control保持。UAT-268已按业务验收关闭；UAT-267三片上架修复未纳入本镜像。[发布与验收](implementation/evidence/UAT-268_ACTIVE_RUN_DISCARD_20260924.md)。以下为历史时点。

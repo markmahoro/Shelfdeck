@@ -245,6 +245,9 @@ function createResourceGovernor(options) {
           request,
         }));
       }
+      waiters.set(request.eventId, Object.freeze({
+        ...waiters.get(request.eventId), preparedAtMs:requestedAtMs,
+      }));
       const currentWaiter = waiters.get(request.eventId);
       // Work Scheduler owns Event ordering. Governor only arbitrates whether the selected
       // Event's complete resource bundle fits; a second hidden queue head would deadlock
@@ -271,8 +274,23 @@ function createResourceGovernor(options) {
       return Object.freeze({ kind: 'deferred', reasonCode: 'RESOURCE_QUEUE_HARD_CAP', retryAtMs: deferred.retryAtMs, replayed: deferred.replayed });
     }
     const durable=waiting(request, false, requestedAtMs);
-    waiters.set(request.eventId, Object.freeze({ request, enqueuedAtMs: requestedAtMs, retryAtMs:durable.retryAtMs }));
+    waiters.set(request.eventId, Object.freeze({ request, enqueuedAtMs: requestedAtMs,
+      preparedAtMs:requestedAtMs, retryAtMs:durable.retryAtMs }));
     return durable;
+  }
+
+  function preparationWait(eventId) {
+    const waiter = waiters.get(eventId);
+    if (!waiter || !Number.isSafeInteger(waiter.preparedAtMs)) return null;
+    const current = now();
+    // This is only a bounded hint to avoid preparing inputs for a known blocked
+    // bundle. It never issues a Permit or authorizes reuse of business inputs.
+    // Capacity changes trigger fresh preparation immediately; refresh even while
+    // blocked so changed bindings and Profiles cannot leave a stale wait forever.
+    if (current < waiter.preparedAtMs || current - waiter.preparedAtMs >= BACKOFF_MS[0] ||
+        canAcquire(waiter.request.resources, mapper())) return null;
+    return Object.freeze({ kind:'waiting', eventId, replayed:true,
+      retryAtMs:waiter.preparedAtMs + BACKOFF_MS[0] });
   }
 
   function acquireRecovery(rawRequest) {
@@ -352,7 +370,7 @@ function createResourceGovernor(options) {
       queueSoftExceeded: waiters.size >= queueLimits.globalSoft });
   }
 
-  return Object.freeze({ abandon, acquire, acquireRecovery, release, snapshot,
+  return Object.freeze({ abandon, acquire, acquireRecovery, release, snapshot, preparationWait,
     updateWaiterPriority, withPermit });
 }
 

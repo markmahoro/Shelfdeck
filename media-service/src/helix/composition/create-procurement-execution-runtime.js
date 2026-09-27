@@ -640,6 +640,10 @@ function createProcurementExecutionRuntime(options) {
       if(capability.startsWith('arca.')){
         if(capability==='arca.shelf_deregistration.release_manifest.verify@1')resources.push({resourceKey:'control_plane',units:1});
         else if(capability==='arca.shelf_deregistration.commit@1')resources.push({resourceKey:'sqlite_write',units:1},{resourceKey:'control_commit',units:1});
+        // Assessment commit has no material I/O demand. Its business context is
+        // already validated by the input/Fence path; do not re-read ratings just
+        // to declare the fixed SQLite write resource.
+        else if(capability==='arca.aftercare.assessment.commit@1')resources.push({resourceKey:'sqlite_write',units:1});
         else {
         const refs=workResultReader.readBindings(snapshot.work.work_id).flatMap((item)=>item.inputBindings?.bindings||[])
           .find((item)=>Array.isArray(item.parameters?.dependencyRefs))?.parameters.dependencyRefs||[];
@@ -694,7 +698,7 @@ function createProcurementExecutionRuntime(options) {
         if(capability==='arca.aftercare.workspace.reclaim@1'){
           const workspaceMount=options.aftercareWorkspaceMountScopeId||'aftercare_workspace_local';validatedVolumeKeys.add(workspaceMount);resources.push({resourceKey:'volume_mutation:'+workspaceMount,units:1});
         }
-        if(['arca.aftercare.assessment.commit@1','arca.aftercare.inventory.commit@1','arca.aftercare.case.commit@1'].includes(capability))
+        if(['arca.aftercare.inventory.commit@1','arca.aftercare.case.commit@1'].includes(capability))
           resources.push({resourceKey:'sqlite_write',units:1});
         if(['arca.offdeck.primary_material.delete@1','arca.offdeck.unreferenced_related.delete@1'].includes(capability))
           resources.push({resourceKey:'volume_mutation:'+targetMount,units:1});

@@ -17,6 +17,30 @@ const schemaDdl = fs.readFileSync(path.join(generatedRoot, 'clean-schema.sql'), 
 const schemaManifest = JSON.parse(fs.readFileSync(path.join(generatedRoot, 'clean-schema.manifest.json'), 'utf8'));
 const queueLimits = Object.freeze({ globalSoft: 1, globalHard: 2, perKeySoft: 1, perKeyHard: 2 });
 
+test('blocked preparation hint is bounded, read-only, and cleared by capacity release', () =>
+  fixture(({ governor, seedEvents, setNow, getUnitOfWorkExecutions }) => {
+    seedEvents('holder', 'waiter');
+    assert.equal(governor.preparationWait('unknown'), null);
+    const held = governor.acquire(request('holder', [['sqlite_write']]));
+    assert.equal(governor.acquire(request('waiter', [['sqlite_write']])).kind, 'waiting');
+    const reads = getUnitOfWorkExecutions();
+    for (let i = 0; i < 20; i++) {
+      assert.equal(governor.preparationWait('waiter').kind, 'waiting');
+    }
+    assert.equal(getUnitOfWorkExecutions(), reads);
+    assert.equal(governor.snapshot().permitCount, 1);
+    setNow(185000);
+    assert.equal(governor.preparationWait('waiter'), null, 'fresh preparation must run after five seconds');
+    assert.equal(governor.acquire(request('waiter', [['sqlite_write']])).kind, 'waiting');
+    assert.equal(governor.preparationWait('waiter').kind, 'waiting');
+    governor.release(held.permit);
+    assert.equal(governor.preparationWait('waiter'), null, 'released capacity must bypass the refresh delay');
+    const admitted = governor.acquire(request('waiter', [['sqlite_write']]));
+    assert.equal(admitted.kind, 'permitted');
+    assert.equal(governor.preparationWait('waiter'), null);
+    governor.release(admitted.permit);
+  }));
+
 function profile(profileKey = 'default') {
   return createResourceProfileMapper({ profileKey, profileRevision: profileKey === 'default' ? 1 : 2, logicalCpu: 8,
     integrations: [], volumes: [{ volumeKey: 'nas' }], encoders: [], aiDevices: [], workers: [] });

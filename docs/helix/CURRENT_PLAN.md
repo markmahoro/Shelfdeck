@@ -1,5 +1,7 @@
 # ShelfDeck 当前迭代计划
 
+2026-09-28：UAT-269已发布b8cf321d65，荒野猎人原Event/Attempt/Effect完成import/probe/verify/select，无重新下载、源Reality不变；第一批关闭。接续UAT-270资源等待输入准备与单次Aftercare投影去重，Windows专项143项与完整架构240文件通过，固定资源需求分支另经34项回归；本机Docker启动故障阻塞Linux验证及构建，尚未部署。见[第二批证据](implementation/evidence/UAT-270_RESOURCE_WAIT_PREPARATION_20260928.md)。下方未发布描述为第一批历史阶段。
+
 2026-09-28 UAT-269：用户授权外部导入原生复制修复，复用《荒野猎人》已下载材料沿同一任务恢复，不重新下载；本地回归后按标准发布及生产真实任务验收，不搭独立隔离服务。第一批只替换复制原语，第二批后台重复计算独立验证。见[修复证据](implementation/evidence/UAT-269_EXTERNAL_IMPORT_COPY_20260928.md)。
 
 2026-09-24 UAT-268：用户报告《局内人 (2006) 1080p DTS-sample》点击“放弃整理”无结果，并明确允许扩展active Run的用户主动放弃合同。Libra安全收尾、持久终局与Control/Workspace规则已独立发布；指定sample的正式用户放弃、页面反馈、原文件与已入库正片保护均已验收，本项关闭。[发布与验收](implementation/evidence/UAT-268_ACTIVE_RUN_DISCARD_20260924.md)。

@@ -1,5 +1,7 @@
 # ShelfDeck v3 / Kairox Historical Status
 
+2026-09-28 UAT-269：生产镜像`markmahoro/shelfdeck:helix-beta-20260928-b8cf321d65`，git `b8cf321d65`，tar SHA256 `e0f0b09b1583cb23bb9ae3d87c13c0d480e24561401d49f87236ceb73283e4c4`；完整架构240文件、Windows/Linux专项各45通过，生产健康/Admin/挂载通过，荒野猎人原任务import/probe/verify/select成功，真实外部导入E2E通过（未重新下载）。见Helix UAT-269证据；不宣称整片后续上架已完成。
+
 2026-09-24最新生产为`markmahoro/shelfdeck:helix-beta-20260924-cdcab6dbab`，源git `cdcab6dbab83e157af80068196d250b9eb236491`，tar SHA256 `9361e3c95edd69b195f9e63b6f6432175afd90c290981862da9e819c9b43b7fc`，镜像ID `sha256:42c03c77c6567effb97a259f64bb9b21c7e58d8dd991563e865a50ef1804c564`。UAT-268独立标准发布及指定sample正式放弃/原文件和正片保护验收通过，health/Admin/挂载/SQLite正常。Web108、Windows Run20、架构及Linux适用42项通过；全量Service 540通过/18失败/24跳过，未执行完整真实媒体E2E。UAT-267物理Effect演练未过门禁，其修复不在此镜像。备份、候选/回退Host、测试局限和业务终局见[UAT-268发布与验收](../helix/implementation/evidence/UAT-268_ACTIVE_RUN_DISCARD_20260924.md)。以下为历史时点。
 
 2026-09-12 14:33Z生产身份补充：同`markmahoro/shelfdeck:helix-beta-20260912-286fe56f1e`，source `286fe56f1e4c5c74ae845584f29b997597415f9c`，tar SHA256 `43dd75c9f2510dc246a38c6a00cd1a506db77fec14402a2aaf73b49f1516ca7e`、Config ID `sha256:16aa204ffda72363b68f03c7ad720c1ed73f0baf990b5c113c468f98623e3083`。用户明确确认《人生密密缝》旧重复主片归档及旧Subject精确Reset，现已执行；StartedAt更新为`2026-09-12T14:31:12.085895511Z`。122收藏/9文件保护、health/Admin/五挂载/QSV/Secret/fnOS通过；同版副本的真实缺失拒绝链通过，生产旧候选仍待满席位队列收尾，未伪称完整闭环。无镜像或产品代码变化，未重跑无关媒体E2E。见[精确执行证据](../helix/implementation/evidence/UAT-125_250_INTAKE_RECOVERY_20260912.md#人生密密缝获授权生产清理结果)。下段13:31Z为上次重启记录。

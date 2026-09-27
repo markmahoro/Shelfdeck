@@ -822,6 +822,13 @@ function createEventRuntime(options) {
             typeof options.effectJournal.noteExternalPending !== 'function')) fail(
           'P4_EVENT_EFFECT_JOURNAL_REQUIRED', 'Every non-pure Event requires the Effect Journal before dispatch.'
         );
+        const preparationWait = snapshot.event.state === 'waiting_for_resource'
+          ? options.governor.preparationWait?.(eventId) : null;
+        if (preparationWait) {
+          options.scheduler.noteDispatchOutcome?.(request.schedulerLease, Object.freeze({ kind:'resource_wait' }));
+          options.scheduler.release(request.schedulerLease); schedulerReleased = true;
+          return preparationWait;
+        }
         let inputs;
         try {
           inputs = options.executionInputProvider.prepare(Object.freeze({ snapshot }));

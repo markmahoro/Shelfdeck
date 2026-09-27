@@ -5,10 +5,49 @@ const test = require('node:test');
 
 const {
   resolvePreparedOutput,
+  createAftercareProjections,
 } = require('../../src/helix/domains/arca/planning/aftercare-projections');
+const { P } = require('../../src/helix/domains/arca/planning/aftercare-planners');
+const { CAPABILITY_REFS:C } = require('../../src/helix/domains/arca/model/aftercare-contract');
+const { canonicalDigest } = require('../../src/helix/contracts/canonical-json');
 const {
   projectActiveRepairProgress,
 } = require('../../src/helix/domains/arca/application/aftercare-process-coordinator');
+
+for (const projectionRef of [P.assessmentSet, P.commit]) {
+  test(`assessment projection reads one consistent fresh context per call: ${projectionRef}`, () => {
+    let reads = 0;
+    const projections = createAftercareProjections({
+      contextReader:{ read() { return { shelfEntryId:'entry', basis:{ digest:canonicalDigest(++reads) } }; } },
+      materialControlProjectionPort:{ getMaterialControlProjections() { return []; } },
+      controlScopeDigest:canonicalDigest,
+      workResultReader:{ read(workId) {
+        assert.equal(workId, 'assessment-work');
+        return ['custody','presentation','conformance'].map(kind => ({
+          outcomeKind:'succeeded', capabilityRef:C[kind],
+          result:{ evidenceKind:'arca_aftercare_' + kind, evidenceId:kind,
+            schemaRef:'helix://test/' + kind, payloadDigest:canonicalDigest(kind) },
+        }));
+      } },
+    });
+    const projection = projections.find(item => item.projectionRef === projectionRef).projection;
+    const command = { ownerScope:{ processId:'entry' },
+      parameters:{ workId:'assessment-work', eventId:'event', deep:true } };
+    const first = projection.project(command);
+    assert.equal(reads, 1);
+    const second = projection.project(command);
+    assert.equal(reads, 2, 'a later projection must read fresh business facts');
+    if (projectionRef === P.assessmentSet) {
+      assert.equal(first.careBasisDigest, canonicalDigest(1));
+      assert.equal(second.careBasisDigest, canonicalDigest(2));
+    } else {
+      assert.equal(first.eventFenceDigest, canonicalDigest({
+        schema:'arca.aftercare-assessment-fence@1', eventId:'event', basis:canonicalDigest(1),
+      }));
+      assert.notEqual(first.eventFenceDigest, second.eventFenceDigest);
+    }
+  });
+}
 
 test('Aftercare media verification consumes its projected same-Work Result', () => {
   const projected = Object.freeze({
