@@ -593,14 +593,6 @@ function createEventRuntime(options) {
       const prebound=readPreboundCommittedOutcome(request.eventId,request.effectId,attempt,entry);
       if(prebound){await options.effectJournal.settle(Object.freeze({effectId:request.effectId,receipt:prebound.outcome.effectReceipt,scope:prebound.scope}));return completeCommittedEffect(snapshot,attempt.event_attempt_id,prebound.outcome);}
     }
-    const inputs = options.executionInputProvider.prepare(Object.freeze({ snapshot }));
-    if (valueDigest(inputs.namedInputs) !== attempt.input_snapshot_digest) fail(
-      'P4_EVENT_RECOVERY_INPUT_DRIFT', 'Recovery inputs differ from the durable Event Attempt snapshot.'
-    );
-    const fence = options.fenceValidator.validate(Object.freeze({ phase: 'protected_effect', snapshot, inputs }));
-    if (!fence || fence.valid !== true || fence.digest !== attempt.fence_snapshot_digest) fail(
-      'P4_EVENT_RECOVERY_FENCE_DRIFT', 'Recovery Fence no longer matches the durable Event Attempt.'
-    );
     if (request.decision === 'already_failed') {
       const abandoned = options.effectJournal.read(request.effectId);
       if (!abandoned || abandoned.event_attempt_id !== attempt.event_attempt_id ||
@@ -610,7 +602,7 @@ function createEventRuntime(options) {
       const outcome = Object.freeze({
         kind: 'failed', failureClass: 'executor', code: 'P4_EVENT_RECOVERY_EFFECT_ABANDONED',
         message: 'Recovery found the Event Attempt Effect already abandoned.',
-        retryDirective: 'contract_policy',
+        retryDirective: 'never',
         evidence: Object.freeze({ effectId: abandoned.effect_id, effectState: abandoned.state }),
       });
       const policyDecision = options.attemptPolicy.decideFailure(Object.freeze({
@@ -621,6 +613,44 @@ function createEventRuntime(options) {
       }));
       return complete(snapshot, attempt.event_attempt_id, outcome, policyDecision);
     }
+    let inputs;
+    try {
+      inputs = options.executionInputProvider.prepare(Object.freeze({ snapshot }));
+      if (valueDigest(inputs.namedInputs) !== attempt.input_snapshot_digest) fail(
+        'P4_EVENT_RECOVERY_INPUT_DRIFT', 'Recovery inputs differ from the durable Event Attempt snapshot.'
+      );
+    } catch (error) {
+      // Only an exact, freshly proven absent atomic fact commit can end here.
+      // Never infer absence for file effects or requests, or rebind old inputs.
+      if (entry.manifest.effectClass !== 'domain_fact_commit' || request.decision !== 'safe_retry' ||
+          isExecutionInputUnavailable(error) || typeof request.effectId !== 'string') throw error;
+      const classification = await classifyRecovery({ eventId:request.eventId, effectId:request.effectId });
+      if (classification.decision !== 'safe_retry' || classification.action !== 'revalidate_and_commit') throw error;
+      const effect = options.effectJournal.read(request.effectId);
+      const expectedIntent = valueDigest({ eventId:request.eventId, capabilityRef:snapshot.event.capability_ref,
+        contractVersion:snapshot.event.contract_version, inputSnapshotDigest:attempt.input_snapshot_digest,
+        fenceSnapshotDigest:attempt.fence_snapshot_digest });
+      if (!effect || effect.event_attempt_id !== attempt.event_attempt_id ||
+          effect.effect_class !== 'domain_fact_commit' || effect.intent_digest !== expectedIntent ||
+          !['intended','effect_observed','reconcile_required'].includes(effect.state)) throw error;
+      const outcome = Object.freeze({ kind:'failed', failureClass:'input_projection',
+        code:typeof error?.code === 'string' ? error.code : 'P4_EVENT_RECOVERY_INPUT_PREPARATION_FAILED',
+        message:String(error?.message || 'Recovery input preparation failed.'), retryDirective:'never',
+        evidence:Object.freeze({ effectId:effect.effect_id, recoveryEvidenceDigest:classification.evidenceDigest,
+          originalInputDigest:attempt.input_snapshot_digest, dispatchStarted:false }) });
+      const policyDecision = options.attemptPolicy.decideFailure(Object.freeze({
+        capabilityRef:snapshot.event.capability_ref, effectClass:snapshot.node.effect_class,
+        retryPolicyRef:policyBinding.retryPolicyRef, timeoutPolicyRef:policyBinding.timeoutPolicyRef,
+        failureAttemptCount:snapshot.attempts.filter(item=>item.outcome_kind === 'failed').length + 1,
+        outcome, recoveryDecision:request.decision,
+      }));
+      options.effectJournal.abandonUncommitted(effect.effect_id);
+      return complete(snapshot, attempt.event_attempt_id, outcome, policyDecision);
+    }
+    const fence = options.fenceValidator.validate(Object.freeze({ phase: 'protected_effect', snapshot, inputs }));
+    if (!fence || fence.valid !== true || fence.digest !== attempt.fence_snapshot_digest) fail(
+      'P4_EVENT_RECOVERY_FENCE_DRIFT', 'Recovery Fence no longer matches the durable Event Attempt.'
+    );
     const demand = options.resourceDemandResolver.resolve(Object.freeze({ snapshot, inputs }));
     if (!demand || demand.eventId !== request.eventId) fail(
       'P4_EVENT_RECOVERY_RESOURCE_BINDING_MISMATCH', 'Recovery Resource Demand must bind the exact Event.'

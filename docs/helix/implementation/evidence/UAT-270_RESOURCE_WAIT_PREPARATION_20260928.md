@@ -22,3 +22,5 @@ Windows Governor/Event Runtime专项65通过；Aftercare/Host/Scheduler专项78�
 用户报告异常中断后复核：第一批生产镜像仍为`helix-beta-20260928-b8cf321d65`，health正常、normalSupplyAllowed=true；原电影四个Event保持succeeded。第二批代码完整保留，未部署、未关闭。
 
 本机Docker Desktop启动失败：Inference运行时通信入口`dockerInference`无法访问，后端退出。正常停止后精确重命名该入口失败；精确清理该入口的请求被自动审批策略拒绝，未执行。没有恢复出厂、清理镜像或修改NAS数据。Linux验证和标准镜像构建因此阻塞，须待本机Docker恢复后继续，不能用Windows检查代替Linux或生产验收。
+
+2026-09-28接续：已通过SSH隧道使用NAS Docker完成包含本批的Linux188项回归，0失败/跳过；临时单测容器不挂载生产数据、无网络且限制CPU/内存。随后继续标准镜像脚本；本机Docker本身尚未修复。

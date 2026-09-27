@@ -664,3 +664,16 @@ test('UAT-128 known-old subtitle Settlement survives process exit after unlink a
     assert.equal(physicalIdentity(finalLocation,'mount-1').materialKey,final.materialKey);
   } finally { value.close(); }
 });
+
+test('Assessment commit rejects Basis changes after preparation without writing health facts',()=>{
+ const value=fixture();try {
+  let writes=0;
+  const contextReader={store:{commitAssessmentSet(){writes++;throw new Error('must not write stale health');}},read:()=>({shelfEntryId:'entry',basis:{digest:digest('new')}})};
+  const ports=createAftercareCapabilityPorts({schemaManifest,unitOfWork:value.unitOfWork,contextReader,
+   workResultReader:{read:()=>[]},computeBoundedMaterialFingerprintSync:()=>null});
+  const result=ports[C.assessmentCommit].execute({ownerScope:{processId:'entry'},namedInputs:{
+   professionalAssessmentsSharingOneCareBasis:{careBasisDigest:digest('old'),assessments:[{},{},{}]}}});
+  assert.equal(result.kind,'failed');assert.equal(result.code,'ARCA_AFTERCARE_ASSESSMENT_BASIS_STALE');
+  assert.equal(result.retryDirective,'never');assert.equal(writes,0);
+ }finally{value.close();}
+});

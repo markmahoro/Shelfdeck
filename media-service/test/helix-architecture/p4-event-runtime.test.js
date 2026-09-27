@@ -259,7 +259,7 @@ function fixture(run, settings = {}) {
     executionInputProvider: { prepare: () => {
       if (settings.inputError) throw settings.inputError;
       return ({ ownerScope: { domain: 'libra', processType: 'libra_run', processId: 'run', objectRefs: [] },
-      basisRefs: [{ basisType: 'execution_basis', basisId: 'basis', revision: 1, digest: HASH_A }], namedInputs: {},
+      basisRefs: [{ basisType: 'execution_basis', basisId: 'basis', revision: 1, digest: HASH_A }], namedInputs: settings.namedInputs || {},
       idempotencyKey: 'event-attempt', traceContext: { traceId: 'trace', spanId: 'span' },
       ...(settings.inputDeadline !== undefined ? { deadlineAtMs: settings.inputDeadline } : {}),
       ...(settings.includeApprovalHandle ? { approvalHandle: { approvalId: 'approval' } } : {}) });
@@ -1090,4 +1090,55 @@ test('terminal failure retains digest-bound diagnostics across evidence store re
   },{failureEvidenceStore:{write(){throw new Error('disk full');}},onDiagnosticError:e=>errors.push(e),
     outcome:{kind:'failed',failureClass:'settlement_precondition',code:'UNKNOWN_MEMBER',message:'Unknown member',
       retryDirective:'never',evidence:{diagnostics:{unknownNames:['other.mkv']}}}});
+});
+
+const { canonicalDigest: recoveryDigest } = require('../../src/helix/contracts/canonical-json');
+function absentFactRecoverySettings(extra={}) {
+  return { effectClass:'domain_fact_commit', initialEventState:'executing', seedExecutingAttempt:true,
+    namedInputs:{ changed:true }, failurePolicyDecision:{decision:'terminal_failure'},
+    effectJournalRead:{effect_id:'effect',event_attempt_id:'event-attempt',effect_class:'domain_fact_commit',
+      state:'reconcile_required',intent_digest:recoveryDigest({eventId:'event',capabilityRef:'libra.test.observe@1',
+        contractVersion:1,inputSnapshotDigest:EMPTY_INPUT_DIGEST,fenceSnapshotDigest:HASH_A})},
+    effectReconciler:{async reconcile(){return {decision:'safe_retry',action:'revalidate_and_commit',evidenceDigest:HASH_B};}},
+    ...extra };
+}
+for(const inputError of [null,Object.assign(new Error('stale owner evidence'),{code:'OWNER_BASIS_STALE'})]) {
+  test('absent atomic commit input failure ends the original attempt without dispatch: '+Boolean(inputError),async()=>{
+    await fixture(async({runtime,databasePath,state})=>{
+      const before=databaseFacts(databasePath).attempt.input_snapshot_digest;
+      const result=await runtime.recover({eventId:'event',effectId:'effect',decision:'safe_retry'});
+      assert.equal(result.kind,'failed');const facts=databaseFacts(databasePath);
+      assert.equal(facts.event.state,'failed');assert.equal(facts.attempt.state,'completed');
+      assert.equal(facts.attempt.input_snapshot_digest,before);
+      assert.equal(facts.attempt.failure_code,inputError?'OWNER_BASIS_STALE':'P4_EVENT_RECOVERY_INPUT_DRIFT');
+      assert.equal(state().dispatchContext,undefined);assert.equal(state().recoveryAcquireCount,0);
+      assert.equal(state().journalCalls.filter(x=>x==='abandon').length,1);
+    },absentFactRecoverySettings({inputError}));
+  });
+}
+for(const classification of ['already_committed','terminal_failure']) {
+  test('drift cannot abandon an atomic commit without fresh absence proof: '+classification,async()=>{
+    await fixture(async({runtime,state})=>{
+      await assert.rejects(runtime.recover({eventId:'event',effectId:'effect',decision:'safe_retry'}),
+        e=>e.code==='P4_EVENT_RECOVERY_INPUT_DRIFT');
+      assert.equal(state().journalCalls.includes('abandon'),false);
+    },absentFactRecoverySettings({effectReconciler:{async reconcile(){return {decision:classification,action:'reuse_commit_marker',evidenceDigest:HASH_B};}}}));
+  });
+}
+test('drift cannot abandon another intent or a file effect',async()=>{
+  for(const extra of [{effectJournalRead:{...absentFactRecoverySettings().effectJournalRead,intent_digest:HASH_B}},
+    {effectClass:'workspace_write',effectJournalRead:{...absentFactRecoverySettings().effectJournalRead,effect_class:'workspace_write'}}]) {
+    await fixture(async({runtime,state})=>{
+      await assert.rejects(runtime.recover({eventId:'event',effectId:'effect',decision:'safe_retry'}),e=>e.code==='P4_EVENT_RECOVERY_INPUT_DRIFT');
+      assert.equal(state().journalCalls.includes('abandon'),false);
+    },absentFactRecoverySettings(extra));
+  }
+});
+test('abandoned commit settles after restart even if owner projection now fails',async()=>{
+  const settings=absentFactRecoverySettings();settings.effectJournalRead.state='failed';
+  settings.inputError=new Error('owner facts have changed');
+  await fixture(async({runtime,databasePath,state})=>{
+    assert.equal((await runtime.recover({eventId:'event',effectId:'effect',decision:'already_failed'})).kind,'failed');
+    assert.equal(databaseFacts(databasePath).event.state,'failed');assert.equal(state().dispatchContext,undefined);
+  },settings);
 });

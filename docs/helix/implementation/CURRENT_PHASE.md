@@ -1,5 +1,7 @@
 # 当前活动包：逐项关闭UAT
 
+2026-09-28：用户授权查清并修复复发的Aftercare恢复漂移，登记UAT-271（关联210/125），与已提交UAT-270合并验证及标准发布。Arca拒绝新旧Basis混用；Foundation只在精确domain_fact_commit确认未发生后记录输入失败，保留原Attempt摘要及全部业务历史，交还Owner重评，不Reset。Docker本机故障仍阻塞构建。
+
 2026-09-28：UAT-269已发布b8cf321d65，荒野猎人原Event/Attempt/Effect完成import/probe/verify/select，无重新下载、源Reality不变；第一批关闭。接续UAT-270资源等待输入准备与单次Aftercare投影去重，Windows专项143项与完整架构240文件通过，固定资源需求分支另经34项回归；本机Docker启动故障阻塞Linux验证及构建，尚未部署。见[第二批证据](evidence/UAT-270_RESOURCE_WAIT_PREPARATION_20260928.md)。下方未发布描述为第一批历史阶段。
 
 2026-09-28 UAT-269：用户授权外部导入原生复制修复，复用《荒野猎人》已下载材料沿同一任务恢复，不重新下载；本地回归后按标准发布及生产真实任务验收，不搭独立隔离服务。第一批只替换复制原语，第二批后台重复计算独立验证。见[修复证据](evidence/UAT-269_EXTERNAL_IMPORT_COPY_20260928.md)。

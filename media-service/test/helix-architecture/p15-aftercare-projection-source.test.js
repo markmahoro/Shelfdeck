@@ -25,7 +25,7 @@ for (const projectionRef of [P.assessmentSet, P.commit]) {
         assert.equal(workId, 'assessment-work');
         return ['custody','presentation','conformance'].map(kind => ({
           outcomeKind:'succeeded', capabilityRef:C[kind],
-          result:{ evidenceKind:'arca_aftercare_' + kind, evidenceId:kind,
+          result:{ careBasisDigest:canonicalDigest(reads), evidenceKind:'arca_aftercare_' + kind, evidenceId:kind,
             schemaRef:'helix://test/' + kind, payloadDigest:canonicalDigest(kind) },
         }));
       } },
@@ -126,3 +126,13 @@ test('Aftercare exposes resource waiting and does not present stale progress as 
     {stage:'awaiting_media_progress',progressPercent:null,progress:null});
   assert.equal(project('executing',{mode:'determinate',currentValue:43,totalValue:100,sampledAtMs:199999}).progressPercent,43);
 });
+
+for(const projectionRef of [P.assessmentSet,P.commit]) {
+ test('old professional evidence cannot be relabeled with a new Basis: '+projectionRef,()=>{
+  const projections=createAftercareProjections({contextReader:{read:()=>({shelfEntryId:'entry',basis:{digest:canonicalDigest('new')}})},
+   materialControlProjectionPort:{getMaterialControlProjections:()=>[]},controlScopeDigest:canonicalDigest,
+   workResultReader:{read:()=>['custody','presentation','conformance'].map(kind=>({outcomeKind:'succeeded',capabilityRef:C[kind],
+    result:{careBasisDigest:canonicalDigest('old'),evidenceKind:'arca_aftercare_'+kind,evidenceId:kind,payloadDigest:canonicalDigest(kind)}}))}});
+  assert.throws(()=>projections.find(x=>x.projectionRef===projectionRef).projection.project({ownerScope:{processId:'entry'},parameters:{workId:'work',eventId:'event',deep:true}}),e=>e.code==='ARCA_AFTERCARE_ASSESSMENT_BASIS_STALE');
+ });
+}

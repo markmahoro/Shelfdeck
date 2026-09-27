@@ -174,3 +174,8 @@ test('forward recovery can stop without declaring uncertain effects absent', () 
     outcome:{kind:'failed',failureClass:'timeout',retryDirective:'never'},recoveryDecision:'continue_forward'}),
     {decision:'terminal_failure'});
 });
+
+test('an abandoned Effect finishes terminally without another reconciliation loop',()=>{
+ const commit=controller('external_request');
+ assert.deepEqual(commit.value.decideFailure({...commit.base,failureAttemptCount:1,outcome:{kind:'failed',failureClass:'executor',retryDirective:'never'},recoveryDecision:'already_failed'}),{decision:'terminal_failure'});
+});
