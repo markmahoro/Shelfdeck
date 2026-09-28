@@ -288,5 +288,5 @@
 
 | UAT-271 | Aftercare评估依据变化后旧提交恢复无限漂移 | RECOVERY_CORRECTNESS | 根因已证实，修复及验证中 | 用户要求查清复发；关联210/125 | 待提交 | [证据](implementation/evidence/UAT-271_AFTERCARE_RECOVERY_DRIFT_20260928.md) | 旧Evidence不重标新Basis；精确证明未提交后正式失败收尾；当前Basis新检查可推进，保护Inventory与其他任务。 |
 
-| UAT-272 | 金都首映年与主上映年不同导致正确身份被丢弃 | IDENTITY_EVIDENCE | 本地验证通过，待发布验收 | 用户确认修复；关联151/217 | 待提交 | [证据](implementation/evidence/UAT-272_273_MOVIE_IDENTITY_20260928.md) | TMDB首映/各地上映年份支持唯一同名匹配；年份不一致保留人工候选，多义/异名不自动接受；正负路径验证后由部署负责人发布。 |
-| UAT-273 | 空候选无人工身份入口，缺少手动ID预览确认 | UI / IDENTITY_SELECTION | 本地UI与交互验证通过，待发布验收 | 用户指定同单元格按钮及浮窗预览 | 待提交 | [证据](implementation/evidence/UAT-272_273_MOVIE_IDENTITY_20260928.md) | GET预览无领域写入；有效ID预览后正式选择，改ID/迟到响应/失败/取消/重复提交/状态漂移及键盘路径验证，生产UI验收后关闭。 |
+| UAT-272 | 金都首映年与主上映年不同导致正确身份被丢弃 | IDENTITY_EVIDENCE | 已部署，待新观察业务验收 | 用户确认修复；关联151/217 | 69a82f2a5d | [证据](implementation/evidence/UAT-272_273_MOVIE_IDENTITY_20260928.md) | TMDB首映/各地上映年份支持唯一同名匹配；年份不一致保留人工候选，多义/异名不自动接受；正负路径已验证并由本线程发布，待新观察业务验收。 |
+| UAT-273 | 空候选无人工身份入口，缺少手动ID预览确认 | UI / IDENTITY_SELECTION | 已部署，真实预览/取消通过，待正式选择验收 | 用户指定同单元格按钮及浮窗预览 | 69a82f2a5d | [证据](implementation/evidence/UAT-272_273_MOVIE_IDENTITY_20260928.md) | GET预览无领域写入；有效ID预览后正式选择，改ID/迟到响应/失败/取消/重复提交/状态漂移及键盘路径验证，生产UI验收后关闭。 |

@@ -23,3 +23,20 @@
 ## 交付与未完成
 
 用户已告知Docker Desktop恢复，Server 29.4.1已核实。交部署负责人从提交构建、Linux适用回归、标准发布和生产只读预览/界面复核。当前没有改写金都历史not_found，没有代用户提交影片选择，没有Reset或媒体文件操作。用户可在发布后输入639445预览并正式确认；新观察路径由上述自动年份核验修复覆盖。两个UAT仍保持开放，生产部署和业务验收后分别关闭。
+
+## 2026-09-28 正式发布与只读验收
+
+用户取消统一部署负责人职责，明确后续各线程自行负责部署闭环；本任务接手独立发布工作区，沿用已校验镜像，完成最新副本门禁和标准发布。
+
+- 生产镜像：`markmahoro/shelfdeck:helix-beta-20260928-69a82f2a5d`；source commit `69a82f2a5d776a0bde3ae1bc34ff5fd97c80dfb0`；image ID `sha256:22211225364048f0328cdd52c630fcf39bfad4fdb5f3a71142a599d23f8bf6c3`。
+- tar SHA256：`21b241d5713f432e10413c7a08f3893bcec3cadbee9c5a313b97694b91ee5ca2`；本机标准build、upload及NAS校验通过，精确镜像Linux定向56/56通过。
+- 最新完整备份：`/vol1/1000/docker/shelfdeck/backups/uat272273-preapply-69a82f2a5d-20260928`，46文件、1,948,893,762 bytes；aggregate digest `b9b716a1be95e06ca9c52f508da5efe0538b3ac5259a3bb61c1de1244b8d8782`。SQLite一致副本及所有伴随文件、compose、secret已保留；备份与演练副本逐文件重哈希一致，SQLite ok/FK0。
+- 最新副本目录：`/vol1/1000/docker/shelfdeck/test-runs/uat272273-preapply-20260928`。候选`final-candidate`及同份候选运行后数据上的旧镜像`final-rollback`均实际启动完整Host、health200/normalSupplyAllowed=true、Catalog findings0、ready后观察60秒、正常关闭、SQLite ok/FK0。媒体/Workspace只读、网络隔离。
+- 两轮整表摘要并非全部不变。逐行核对证明候选仅一条Shelf Entry的current_inventory_revision 6→7、对应旧Material的active_guard 1→0，新增7 Material/3 Product Fact/1 Representation；旧镜像同样推进另一条既有Entry的6→7，新增7/4/1。两轮原有行missing0，无其他原有字段改写；Deck facts及Candidate Packages不变。正常Arca协调推进与不可变历史保护分别记录，不将整表摘要差异伪称为完全不变。
+- 两轮均有既有`CLEAN_ARCA_PRODUCT_SOURCE_DRIFT`；`EROFS`为只读Workspace拒绝清理，回退`ENOENT`为只读生产Aftercare路径下创建目录失败。记录为隔离限制，不作为真实媒体执行验收。流式逐行比对通过；首次全表加载的临时只读比较容器因512MiB限制OOM，改流式读取后完成，未改业务代码或生产数据。
+- 标准`deploy-nas.js` dry run及带上述SHA256的`--apply`成功，StartedAt `2026-09-28T03:50:49.871449558Z`。启动期连接重置后健康检查通过；Admin、五个挂载、QSV、镜像代码来源、Secret一致性、LAN及fnOS200通过，RestartCount0，无其他容器重建。
+- 03:53–03:54Z真实GET和浏览器验证：金都Run输入639445返回片名金都、主上映年2020、有效海报URL；浏览器海报已加载、确认按钮可用，取消后浮窗关闭，身份选择POST为0。浏览器截图及原始receipt保存在发布工作区ignored `.codex/uat272-273-release/`。
+- 金都Run发布后仍active/revision2，state_digest不变。生产294 Shelf Entries、993 Packages；备份时291 Entries，新增发生于正常生产继续运行，未覆盖回旧快照。没有Reset、手工改库或替用户选择身份。
+- 回退入口：保留旧镜像`helix-beta-20260928-1281d4dd76`及对应tar，SHA256 `513e039e29fa3f04cd7db66d5950076331a607de6e3d9d670dd7d3d8b1038fdc`；必要时使用同一标准deploy脚本先dry run再apply，不恢复旧数据覆盖发布后的正常进展。
+
+UAT-272已部署，尚缺新观察业务结果；UAT-273已部署且真实预览/取消验收通过，正式选择后的端到端核验仍待用户确认。两项均不提前宣告业务验收关闭。
