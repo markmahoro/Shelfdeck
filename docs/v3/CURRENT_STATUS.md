@@ -1,5 +1,8 @@
 # ShelfDeck v3 / Kairox Historical Status
 
+2026-09-28 23:24 CST：UAT-275/276/277修复已标准发布 `helix-beta-20260928-c147188485`，git `c14718848597063dcd28fed002ae8e5e5897a7e5`，tar SHA256 `df9a74befe6ac9bd5ac3014222598c2ff7bd57f1958079decb6aaa4c14400ffa`，NAS Image ID `sha256:a928dc2cb13a03e6e379f3f88420a104dbf83d06fe658b0192a6d9de6a4e9fb0`。修复多片段BDMV交付、原生外部4K读取授权revision和网络诊断丢失。Windows架构241文件、真实媒体链、精确Linux镜像正负向、完整生产副本候选及同库回退、生产health/Admin/挂载与8类事实摘要保护均通过；全量Service/Desktop/全库整理E2E未执行，历史失败片未重跑、网络瞬断根因未确认，UAT保留实际影片验收项。[证据](../helix/implementation/evidence/UAT-275_276_277_ONDECK_FAILURES_20260928.md)。
+
+
 2026-09-28 UAT-272/273已标准发布 `helix-beta-20260928-69a82f2a5d`，git `69a82f2a5d776a0bde3ae1bc34ff5fd97c80dfb0`，tar SHA256 `21b241d5713f432e10413c7a08f3893bcec3cadbee9c5a313b97694b91ee5ca2`。Linux56/56、最新完整副本候选/回退Host、生产健康/挂载及真实浏览器身份预览/取消通过；完整媒体整理E2E未执行，用户正式身份确认待验，UAT保持开放。[证据](../helix/implementation/evidence/UAT-272_273_MOVIE_IDENTITY_20260928.md)。
 
 2026-09-28 UAT-269：生产镜像`markmahoro/shelfdeck:helix-beta-20260928-b8cf321d65`，git `b8cf321d65`，tar SHA256 `e0f0b09b1583cb23bb9ae3d87c13c0d480e24561401d49f87236ceb73283e4c4`；完整架构240文件、Windows/Linux专项各45通过，生产健康/Admin/挂载通过，荒野猎人原任务import/probe/verify/select成功，真实外部导入E2E通过（未重新下载）。见Helix UAT-269证据；不宣称整片后续上架已完成。

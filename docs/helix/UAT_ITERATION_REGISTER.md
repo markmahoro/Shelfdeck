@@ -293,6 +293,6 @@
 
 | UAT-274 | 外部候选缺ID时可信中英文别名未传入匹配，同片被误拒绝 | IDENTITY_MATCHING | 本地/Linux通过；生产副本Catalog门禁阻断，未部署 | 本聊天原记268因旧集成台账滞后冲号，现更正274；关联168/251，保护021历史 | 0f3b02ea50、12ac3ec725 | [审计](implementation/evidence/UAT-251_DEFECT_ELIGIBILITY_HISTORY_AUDIT_20260928.md) | 可信别名绑定精确影片ID及来源；同片异名正向、同名异片和ID冲突负向；不得把搜索命中自证同片；独立验收。 |
 
-| UAT-275 | 蓝光多片段源被单文件交付断言拒绝 | LIBRA_DELIVERY | 修复中 | 惊爆十三天今日终局 | 本分支 | [证据](implementation/evidence/UAT-275_276_277_ONDECK_FAILURES_20260928.md) | 双片段真实Host唯一Commit，Source范围和验证依据完整，Linux及生产验证。 |
-| UAT-276 | 外部原生4K的接纳来源及同材料校验 | ACCEPTANCE | 验证及修复中 | 荒野猎人今日误判 | 本分支 | [证据](implementation/evidence/UAT-275_276_277_ONDECK_FAILURES_20260928.md) | 实际外部来源绑定，原生4K/加工正向、真正升频及来源漂移负向、正式Commit。 |
-| UAT-277 | Provider/附件失败网络诊断丢失 | INTEGRATION_DIAGNOSTICS | 修复中；网络瞬断原因未确认 | 今日身份/寻源/附件失败 | 本分支 | [证据](implementation/evidence/UAT-275_276_277_ONDECK_FAILURES_20260928.md) | 白名单详情持久化，Secret不泄露、写入安全保持；区分网络可达性与真实业务成功。 |
+| UAT-275 | 蓝光多片段源被单文件交付断言拒绝 | LIBRA_DELIVERY | 已部署，原片重处理待验 | 惊爆十三天今日终局 | c147188485 | [证据](implementation/evidence/UAT-275_276_277_ONDECK_FAILURES_20260928.md) | 双片段真实Host唯一Commit，Source范围和验证依据完整，Linux及生产验证。 |
+| UAT-276 | 外部原生4K的接纳来源及同材料校验 | ACCEPTANCE | 已部署，原片重处理待验 | 荒野猎人今日误判 | c147188485 | [证据](implementation/evidence/UAT-275_276_277_ONDECK_FAILURES_20260928.md) | 实际外部来源绑定，原生4K/加工正向、真正升频及来源漂移负向、正式Commit。 |
+| UAT-277 | Provider/附件失败网络诊断丢失 | INTEGRATION_DIAGNOSTICS | 诊断修复已部署；网络瞬断原因未确认 | 今日身份/寻源/附件失败 | c147188485 | [证据](implementation/evidence/UAT-275_276_277_ONDECK_FAILURES_20260928.md) | 白名单详情持久化，Secret不泄露、写入安全保持；区分网络可达性与真实业务成功。 |
