@@ -75,8 +75,10 @@ function run(binary, location, inputArgv = null) {
       if (overflow) return;
       reject(error);
     });
-    child.once('close', (code) => {
+    child.once('close', (code, signal) => {
       if (overflow) return reject(overflow);
+      if (signal) return reject(new CleanMediaProbeError('CLEAN_MEDIA_PROBE_PROCESS_SIGNAL',
+        'FFprobe terminated before producing an observation.', { signal }));
       resolve({ code, stdout:stdout.join(''), stderr:stderr.join('') });
     });
   });
@@ -236,7 +238,7 @@ function isBdmvStructuralLocation(location) {
 }
 
 function createCleanMediaProbe(options = {}) {
-  const binary = options.binary || commandPath();
+  const binary = options.binary || process.env.FFPROBE_PATH || commandPath();
   if (!binary) {
     throw new CleanMediaProbeError('CLEAN_MEDIA_PROBE_UNAVAILABLE',
       'ShelfDeck Service requires its bundled ffprobe artifact for Triage.');

@@ -330,3 +330,8 @@ Handoff B仍单向、Arca独立验收：同时验证当前Shelf、原Spec、次�
 - Aftercare版本证据专项13项通过，包括指纹变化/缺失不能豁免及H264仍拒绝。结构升级专项与既有两个恢复测试3项通过，原Run revision原样保留、FK0、重开Kernel通过。
 - 历史schema migration测试7项既有失败：在4bbf498eb基线精确DDL/测试/迁移代码复跑同样7失败、3通过；旧fixture生成当前表却标旧schema，重复创建等SQL错误。未用修业务或删测试掩盖；本次精确生产schema升级独立测试通过，仍需完整生产副本门禁。
 - 当前尚未部署；《阳光灿烂的日子》真实大文件未重新下载或处理，不能据短片模拟声称该片任务完成。历史收藏及未完成Run未Reset；旧Catalog witness未扩大。
+
+
+### Linux追加发现：配置FFprobe未使用
+
+首轮Linux89项中88通过；真实HEVC/TrueHD MPEGTS输入在依赖包旧FFprobe进程SIGSEGV，系统原实现误报not_media。相同文件用镜像/usr/local/bin/ffprobe正常解析。修正createCleanMediaProbe按explicit binary→FFPROBE_PATH→bundled依次选取，并将信号中止报告为技术执行错误。Linux路径优先级/进程信号2项通过；修正后真实转码、Remux、候选实际拒绝3条E2E均通过。此为本次组合路径验收发现的根因修复，不放宽媒体或播放标准。
