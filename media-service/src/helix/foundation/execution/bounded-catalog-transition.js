@@ -260,7 +260,10 @@ function createBoundedCatalogTransition({ witness, registry, policyRegistry, sch
       // Changed terminal payloads are historical evidence, never executable input.
       if (unaffected || (terminalOnly && !previous)) {
         contractValidator.validate(result.result_schema_ref, resultValue);
-        contractValidator.validate(result.evidence_schema_ref, evidenceValue);
+        // A terminal prebound domain Evidence reference is not the complete
+        // observation payload. Its original witness and Commit chain above
+        // remain authoritative; never reinterpret it as a full observation.
+        if (directEvidence || unaffected) contractValidator.validate(result.evidence_schema_ref, evidenceValue);
       }
       for (const marker of markers.filter(item => item.result_id === result.result_id)) {
         requireProof(marker.owner_domain === work.owner_domain && marker.result_schema_ref === result.result_schema_ref &&

@@ -328,8 +328,8 @@ test('historical witness stays immutable and cannot authorize changed secondary-
   assert.equal(nominal.historicalNominalContract.sourceCommit, witness.sourceCommit);
 });
 
-function preboundFixture() {
-  const f = fixture({ effectClass: 'domain_fact_commit' });
+function preboundFixture(settings = {}) {
+  const f = fixture({ ...settings, effectClass: 'domain_fact_commit' });
   const inner = 'helix://contracts/types/FixtureDomainEvidence/v1';
   const envelope = 'helix://contracts/types/EvidenceEnvelope/v1';
   f.schemas.set(inner, { $id: inner, type: 'object' });
@@ -418,4 +418,29 @@ test('frozen historical archive reconstructs the original witness without regist
   assert.equal(createTerminalCatalogHistory({ ...options, currentCatalogDigest: HASH }).verify({}), false);
   const corrupt = structuredClone(archive); corrupt.schemas[0].title = 'corrupt';
   assert.equal(createTerminalCatalogHistory({ ...options, archive: corrupt }).verify({}), false);
+});
+
+
+test('terminal current-Catalog prebound reference retains its original witnessed Commit proof', () => {
+  const f = preboundFixture({ terminalOnly: true });
+  f.facts.plan.catalog_digest = f.witness.currentCatalogDigest;
+  f.schemas.get(f.inner).required = ['fullObservationOnly'];
+  f.witness.preboundEvidenceSchemas[f.inner].currentSchemaDigest =
+    canonicalDigest(schemaClosure({ inputPorts: { evidence: { schemaRef: f.inner } } }, f.schemas));
+  const before = JSON.stringify(f.facts);
+  assert.equal(f.verify(), true, f.reasons.join('\n'));
+  assert.equal(JSON.stringify(f.facts), before);
+  f.facts.markers[0].result_digest = HASH;
+  assert.equal(f.verify(), false);
+});
+
+
+test('terminal current-Catalog direct Evidence must still satisfy its complete frozen schema', () => {
+  const f = fixture({ terminalOnly: true });
+  f.facts.plan.catalog_digest = f.witness.currentCatalogDigest;
+  f.schemas.get(f.prefix + 'evidence').required = ['completeObservation'];
+  for (const record of f.witness.capabilities) record.currentSchemaDigest =
+    canonicalDigest(schemaClosure(f.registry.resolve(record.capabilityRef, 'libra').manifest, f.schemas));
+  assert.equal(f.verify(), false);
+  assert.ok(f.reasons.some(reason => reason.includes('completeObservation')));
 });
