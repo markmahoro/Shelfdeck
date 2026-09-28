@@ -242,4 +242,4 @@ v3.0 回滚分两层：
 
 当前完整历史启动可能超过3分钟，标准部署health轮询上限调整为180次，间隔5秒、单次HTTP上限5秒；不得在旧3分钟阈值误判后反复重启。完整副本Host通过仍是apply前置条件。
 
-secondary_target结构发布的离线回退由`media-service/src/helix/foundation/persistence/secondary-target-schema-rollback.js`提供`rollbackSecondaryTargetSchema({Database,databasePath,baselinePath,apply})`。仅在服务已停止、使用经校验的完整升级前副本时调用；默认dry run。它验证精确新旧schema/实际DDL、197表集合、全部业务表逐行摘要与FK；只有全部事实等于升级前基线才原子还原原CHECK、索引及对应marker，业务行始终保留。任何新Revision、Work、Result或其他事实变化均拒绝，不能覆盖恢复来绕过。正常供给产生新事实后应保留当前数据并向前修复；若确需备份覆盖恢复须另行明确范围及授权。本轮没有授权重置生产，也不修复旧已瑕疵上架条目。
+secondary_target结构发布的离线回退由`media-service/src/helix/foundation/persistence/secondary-target-schema-rollback.js`提供`rollbackSecondaryTargetSchema({Database,databasePath,baselinePath,apply})`。仅在服务已停止、使用经校验的完整升级前副本时调用；默认dry run。它验证精确新旧schema/实际DDL、197表集合、全部业务表逐行比对与FK；只有全部事实等于升级前基线才原子还原原CHECK、索引及对应marker，业务行始终保留。任何新Revision、Work、Result或其他事实变化均拒绝，不能覆盖恢复来绕过。正常供给产生新事实后应保留当前数据并向前修复；若确需备份覆盖恢复须另行明确范围及授权。本轮没有授权重置生产，也不修复旧已瑕疵上架条目。

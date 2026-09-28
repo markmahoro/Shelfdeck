@@ -1,7 +1,5 @@
 'use strict';
 
-const fs = require('fs');
-const crypto = require('crypto');
 const { digest } = require('./ddl-compiler');
 const { TARGET_GENERATION, TARGET_SCHEMA_DIGEST, PRE_SECONDARY_TARGET_SCHEMA_DIGEST } =
   require('./uat-identity-selection-migration');
@@ -14,22 +12,25 @@ function catalog(database) {
   return database.prepare("SELECT type,name,tbl_name,sql FROM sqlite_master WHERE name NOT LIKE 'sqlite_%' ORDER BY type,name")
     .all().map(row => ({ ...row, sql: row.sql && row.sql.replaceAll('\r\n', '\n') }));
 }
-function tableDigest(database, table) {
+function equalTableRows(database, baseline, table) {
   const columns = database.prepare('PRAGMA table_info(' + quote(table) + ')').all().map(row => quote(row.name));
-  const hash = crypto.createHash('sha256');
-  let count = 0;
-  for (const row of database.prepare('SELECT * FROM ' + quote(table) + ' ORDER BY ' + columns.join(','))
-    .safeIntegers(true).iterate()) {
-    hash.update(JSON.stringify(row, (_key, value) => typeof value === 'bigint' ? { integer: value.toString() } : value) + '\n');
-    count += 1;
-  }
-  return { count, digest: hash.digest('hex') };
+  const query = 'SELECT * FROM ' + quote(table) + ' ORDER BY ' + columns.join(',');
+  const current = database.prepare(query).safeIntegers(true).iterate();
+  const original = baseline.prepare(query).safeIntegers(true).iterate();
+  const serialize = row => JSON.stringify(row, (_key, value) => typeof value === 'bigint' ? { integer: value.toString() } : value);
+  try {
+    while (true) {
+      const left = current.next(), right = original.next();
+      if (left.done || right.done) return left.done === right.done;
+      if (serialize(left.value) !== serialize(right.value)) return false;
+    }
+  } finally { current.return(); original.return(); }
 }
 
 // Offline release recovery only. A baseline is evidence, never a source of
 // replacement business rows. Any change since that baseline blocks rollback.
 function rollbackSecondaryTargetSchema({ Database, databasePath, baselinePath, apply = false }) {
-  requireProof(fs.realpathSync(databasePath) !== fs.realpathSync(baselinePath), 'UAT_ROLLBACK_DISTINCT_BASELINE_REQUIRED');
+  requireProof(databasePath !== baselinePath, 'UAT_ROLLBACK_DISTINCT_BASELINE_REQUIRED');
   const baseline = new Database(baselinePath, { readonly: true, fileMustExist: true });
   const database = new Database(databasePath, { fileMustExist: true });
   try {
@@ -52,7 +53,7 @@ function rollbackSecondaryTargetSchema({ Database, databasePath, baselinePath, a
     const tables = before.filter(row => row.type === 'table');
     requireProof(tables.length === 197, 'UAT_ROLLBACK_UNEXPECTED_TABLE_SET');
     for (const table of tables.filter(row => row.name !== 'platform_schema_marker')) {
-      requireProof(JSON.stringify(tableDigest(database, table.name)) === JSON.stringify(tableDigest(baseline, table.name)),
+      requireProof(equalTableRows(database, baseline, table.name),
         'UAT_ROLLBACK_NEW_OR_CHANGED_FACTS');
     }
     requireProof(database.pragma('foreign_key_check').length === 0 && baseline.pragma('foreign_key_check').length === 0,
